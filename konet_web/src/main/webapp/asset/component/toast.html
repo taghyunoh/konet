@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- 부트스트랩 css -->
+  <link href="/bootstrap/css/bootstrap.css" rel="stylesheet">
+  <!-- 부트스트랩 js -->
+  <script src="/bootstrap/js/bootstrap.bundle.js"></script>
+  <link href="/asset/css/common.css" rel="stylesheet">
+
+  <title>Document</title>
+</head>
+
+<body>
+
+  <!-- 토스트 -->
+  <div class="toast align-items-center bg-primary text-white position-absolute bottom-0 start-50 translate-middle-x"
+    role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body">
+        toast message.
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
+        aria-label="Close"></button>
+    </div>
+  </div>
+
+  <script>
+    $(document).ready(function () {
+      // 삭제버튼 클릭시 체크박스 체크된 항목이 없으면 toast 메시지 출력
+      $('.del').on('click', function () {
+        if ($('input[type="checkbox"]:checked').length === 0) {
+          $('.toast').toast('show');
+          $('.toast-body').text('삭제할 항목을 선택하세요.');
+        }
+      });
+    });
+  </script>
+
+</body>
+
+</html>

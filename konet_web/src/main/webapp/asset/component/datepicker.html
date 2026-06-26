@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- 부트스트랩 css -->
+  <link href="/bootstrap/css/bootstrap.css" rel="stylesheet">
+
+  <!-- 데이트피커 css -->
+  <link rel="stylesheet" type="text/css" href="/asset/component/daterangepicker.css" />
+  <!-- <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" /> -->
+
+  <link href="/asset/css/common.css" rel="stylesheet">
+
+  <!-- 데이트피커 일간 js -->
+  <!-- https://joalog.tistory.com/138 -->
+  <script type="text/javascript" src="/asset/js/datepicker/jquery.min.js"></script>
+  <script type="text/javascript" src="/asset/js/datepicker/moment.min.js"></script>
+  <script type="text/javascript" src="/asset/js/datepicker/daterangepicker.min.js"></script>
+  <!-- <script type="text/javascript" src="https://cdn.jsdelivr.net/jquery/latest/jquery.min.js"></script>
+      <script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+      <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script> -->
+
+  <!-- 데이트피커 년월 css -->
+  <link rel="stylesheet" href="/asset/component/bootstrap-monthpicker.css">
+  <!-- 데이트피커 년월 js -->
+  <script type="text/javascript" src="/asset/js/monthpicker/bootstrap-monthpicker.js"></script>
+
+
+
+  <script>
+    $(document).ready(function () {
+
+      // 일간 데이트피커 단일
+      $('input[type = date]').daterangepicker({
+        singleDatePicker: true,
+        showDropdowns: true,
+        minYear: 1901,
+        maxYear: 9999,
+        locale: {
+          format: 'YYYY-MM-DD',
+          separator: " ~ ",
+          applyLabel: "확인",
+          cancelLabel: "취소",
+          fromLabel: "From",
+          toLabel: "To",
+          customRangeLabel: "Custom",
+          weekLabel: "주",
+          daysOfWeek: [
+            "일", "월", "화", "수", "목", "금", "토"
+          ],
+          monthNames: [
+            "1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"
+          ],
+          firstDay: 1,
+        },
+      }, function (start, end, label) {
+        // var years = moment().diff(start, 'years');
+      });
+      // 일간 데이트피커 범위
+      // $('input[name = "dates"]').daterangepicker({
+      //   "minYear": 1000,
+      //   "maxYear": 9999,
+      //   "locale": {
+      //     "format": 'YYYY-MM-DD',
+      //     "separator": " ~ ",
+      //     "applyLabel": "확인",
+      //     "cancelLabel": "취소",
+      //     "fromLabel": "From",
+      //     "toLabel": "To",
+      //     "customRangeLabel": "Custom",
+      //     "weekLabel": "주",
+      //     "daysOfWeek": [
+      //       "일", "월", "화", "수", "목", "금", "토"
+      //     ],
+      //     "monthNames": [
+      //       "1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"
+      //     ],
+      //     "firstDay": 1
+      //   },
+      // }, function (start, end, label) {
+      //   console.log('New date range selected: ' + start.format('YYYY-MM-DD') + ' to ' + end.format('YYYY-MM-DD') + ' (predefined range: ' + label + ')');
+      // });
+
+
+      // 년월 데이트피커
+      // 실제로 보여지는 날짜를 정의.
+      $('#txt-work-month').text(new Date().getFullYear() + '년 ' + (new Date().getMonth() + 1) + '월');
+      // monthpicker 에서 사용할 초기 날짜 정의
+      $('.monthpicker').val(new Date().getFullYear() + '-' + (new Date().getMonth() + 1));
+
+      // monthpicker 적용
+      $('.monthpicker').bootstrapMonthpicker({
+        // from: '2014-05',
+        // to: '2014-10',
+        // 달을 선택한 다음의 이벤트 정의 
+        onSelect: function (value) {
+          var workMonthStr = '';
+          /* 
+          * monthpicker 라이브러리에서 기본으로 "-" 를 사용
+          **************************************/
+          var splitDate = $.trim(value).split("-");
+
+          // 표한하고 싶으신 포맷으로 알아서 정의하시면 됩니다.
+          $.each(splitDate, function (_idx, _date) {
+            if (_idx == 0)
+              workMonthStr += _date + '년 ';
+            if (_idx == 1)
+              workMonthStr += _date + '월';
+          });
+
+          // 표시
+          $('#txt-work-month').text(workMonthStr);
+        }
+      });
+      // #choice-work-month 에 monthpicker 이벤트 정의
+      $('#choice-work-month').click(function () {
+        $('.monthpicker').click();
+      });
+
+    });
+  </script>
+
+  <title>Document</title>
+</head>
+
+<body>
+
+  <div class="content-body col-6">
+    <section class="top-pannel justify-content-lg-start">
+      <div class="search-box">
+        <label class="form-title">조회일자</label>
+        <!-- 데이트피커 범위 -->
+        <!-- <input type="text" class="form-control" name="dates" value=" "> -->
+        <!-- 데이트피커 싱글 -->
+        <input type="date" class="form-control" name="dates" value=" ">
+        <span> ~ </span>
+        <input type="date" class="form-control" name="dates" value=" ">
+        <button class="buttcon"><span class="icon icon-search"></span></button>
+      </div>
+    </section>
+
+    <!-- 월간데이트피커 -->
+    <section class="top-pannel justify-content-lg-start">
+      <div class="search-box">
+        <label for="startYear" class="form-title">조회년월</label>
+        <!-- 데이트피커 년월 -->
+        <input type="month" class="form-control monthpicker" name="startMonths" id="monthpicker1" value=" ">
+        <span> ~ </span>
+        <input type="month" class="form-control monthpicker" name="endMonths" id="monthpicker2" value=" ">
+        <button class="buttcon"><span class="icon icon-search"></span></button>
+      </div>
+    </section>
+  </div>
+
+</body>
+
+</html>

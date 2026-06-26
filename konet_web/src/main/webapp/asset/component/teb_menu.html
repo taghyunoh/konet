@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- 부트스트랩 css -->
+  <link href="/bootstrap/css/bootstrap.css" rel="stylesheet">
+
+  <link href="/asset/css/common.css" rel="stylesheet">
+  <link href="teb_menu.css" rel="stylesheet" />
+
+  <title>GNB + Tab Menu</title>
+</head>
+
+<body>
+  <!-- 부트스트랩 js -->
+  <script src="/bootstrap/js/bootstrap.bundle.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+
+  <nav class="navbar navbar-expand-lg bg-primary-v1 gnb-container">
+    <div class="container-fluid">
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav">
+          <li class="menu-item dropdown" data-menu="01">
+            <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              메뉴 01
+            </button>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item menu-link" href="#">메뉴01서브01</a></li>
+              <li><a class="dropdown-item menu-link" href="#">메뉴01서브02</a></li>
+              <li><a class="dropdown-item menu-link" href="#">메뉴01서브03</a></li>
+            </ul>
+          </li>
+          <li class="menu-item dropdown" data-menu="02">
+            <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              메뉴 02
+            </button>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item menu-link" href="#">메뉴02서브01</a></li>
+              <li><a class="dropdown-item menu-link" href="#">메뉴02서브02</a></li>
+              <li><a class="dropdown-item menu-link" href="#">메뉴02서브03</a></li>
+            </ul>
+          </li>
+          <li class="menu-item dropdown" data-menu="03">
+            <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              메뉴 03
+            </button>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item menu-link" href="#">메뉴03서브01</a></li>
+              <li><a class="dropdown-item menu-link" href="#">메뉴03서브02</a></li>
+              <li><a class="dropdown-item menu-link" href="#">메뉴03서브03</a></li>
+            </ul>
+          </li>
+          <li class="menu-item dropdown" data-menu="04">
+            <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              메뉴 04
+            </button>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item menu-link" href="#">메뉴04서브01</a></li>
+              <li><a class="dropdown-item menu-link" href="#">메뉴04서브02</a></li>
+              <li><a class="dropdown-item menu-link" href="#">메뉴04서브03</a></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <ul class="nav nav-tabs" id="tab-list">
+  </ul>
+
+  <div class="tab-content">
+  </div>
+
+  <script>
+    // 메뉴 클릭시 탭 생성
+    $(document).ready(function () {
+
+      $('.menu-item a').on('click', function (e) {
+
+        e.preventDefault();
+        var menuText = $(this).text();
+        var menuId = $(this).closest('.menu-item').data('menu');
+
+        $('#tab-list').find('.nav-link').removeClass('active');
+        $('.tab-content').children().removeClass('active');
+
+        // 닫기 버튼을 추가하고 해당 버튼에 close 클래스 부여
+        $('#tab-list').append('<li class="nav-item"><a class="nav-link active" href="#">' + menuText +
+          '<button class="buttcon close"><span class="icon icon-close"></span></button>' + '</a></li>');
+        $('.tab-content').append('<div class="tab-pane active"><p>' + menuText + ' 화면 입니다.</p></div>');
+
+        for (let i = 0; i < $('.nav-link').length; i++) {
+          TabOpen(i);
+        }
+
+      });
+
+      // 닫기 버튼에 대한 클릭 이벤트 핸들러 등록 (수정된 부분)
+      $('#tab-list').on('click', '.nav-item .close', function (e) {
+        e.preventDefault();
+        var tabId = $(this).closest('.nav-item').index();
+
+        // 현재 보여지고 있는 탭이면 맨 앞 탭을 활성화
+        if ($('.nav-link').eq(tabId).hasClass('active')) {
+          TabClose(tabId, true);
+        } else {
+          TabClose(tabId, false);
+        }
+
+        for (let i = 0; i < $('.nav-link').length; i++) {
+          TabOpen(i);
+        }
+      });
+
+      function TabOpen(e) {
+        $('.nav-link').eq(e).click(function () {
+          $('#tab-list').find('.nav-link').removeClass('active');
+          $('.tab-content').children().removeClass('active');
+          $('.nav-link').eq(e).addClass('active')
+          $('.tab-pane').eq(e).addClass('active')
+        });
+      }
+
+      // 수정된 부분: 두 번째 파라미터 added
+      function TabClose(e, added) {
+
+        // 수정된 부분: 현재 보여지고 있는 탭이면 맨 앞 탭을 활성화
+        if (added == true) {
+          $('.nav-link').eq(0).addClass('active');
+          $('.tab-pane').eq(0).addClass('active');
+        } else if (added == false) {
+          $('.nav-link').eq(e).addClass('active');
+          $('.tab-pane').eq(e).addClass('active');
+        }
+
+        // 클릭된 닫기 버튼의 부모 .nav-item을 제거
+        $('.nav-link').eq(e).closest('.nav-item').remove();
+        $('.tab-pane').eq(e).remove();
+      }
+
+    });
+  </script>
+
+</body>
+
+</html>

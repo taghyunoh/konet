@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="egovframework.sejong.user.mapper.UserMapper">
+
+	<select id="userLoginCheck" parameterType="UserDTO" resultType="UserDTO"><![CDATA[
+	  SELECT USER_ID ,
+	         USER_ID_NM ,
+	  		 USER_NM ,
+	         IFNULL(USER_GB,'D')  AS USER_GB,
+	         USER_PW,
+	         USEYN,
+	         IFNULL(DEPT_NM,'') AS DEPT_NM
+	    FROM T_ADMIN_MST
+	   WHERE USER_ID = #{userId}
+	     AND NOW() BETWEEN START_DATE AND END_DATE
+	]]>
+	</select>
+
+	<!-- 사용자 정보 조회 -->
+	<select id="userInfo" parameterType="UserDTO" resultType="UserDTO"><![CDATA[
+	  SELECT USER_ID,
+	  		 USER_NM,
+	  		 USER_ID_NM ,
+	         USER_GB,
+	         USER_PW,
+	         DEPT_NM,
+	         DATE_FORMAT(START_DATE,'%y-%m-%d') AS START_DATE,
+	         DATE_FORMAT(END_DATE,'%y-%m-%d') AS END_DATE,
+	         BIGO,
+	         USEYN
+	    FROM T_ADMIN_MST
+	   WHERE USER_ID = #{userId}
+	]]>
+	</select>
+
+	<!-- 비밀번호 변경 처리 -->
+	<update id="userPwdChange" parameterType="UserDTO"><![CDATA[
+	  UPDATE T_ADMIN_MST
+	     SET USER_PW  = #{encUserPwd}
+	   WHERE USER_ID  = #{userId}
+	]]>
+	</update>
+
+	<!-- 비밀번호 초기화 처리 -->
+	<update id="userPwdReset" parameterType="UserDTO"><![CDATA[
+	  UPDATE T_ADMIN_MST
+	     SET USER_PW  = #{encUserPwd}
+	   WHERE USER_ID  = #{userId}
+	]]>
+	</update>
+
+	<!-- 약관(개인정보동의/이용약관/고유식별정보) 본문 조회 — T_SIGN_MST -->
+	<!-- SEJONG_APP 의 Sign_SQL.xml getSignList 와 동일한 쿼리. -->
+	<select id="getSignList" parameterType="map" resultType="SjgnDTO">
+		SELECT
+		    TERMS_SEQ
+		   ,TERMS_GB
+		   ,TERMS_TITLE
+		   ,TERMS_CONTS
+		   ,USE_YN
+		   ,REG_ID
+		   ,REG_DTM
+		   ,MOD_ID
+		   ,MOD_DTM
+		FROM T_SIGN_MST
+		WHERE TERMS_GB = #{termsGb}
+		ORDER BY TERMS_SEQ ASC
+	</select>
+
+	<!--
+	  termsGb 별 가장 최신 USE_YN='Y' 약관 SEQ 조회.
+	  동의이력(T_PERSIGN_TRAN) 저장 시 어느 버전에 동의했는지 기록하기 위해 사용.
+	-->
+	<select id="selectLatestTermsSeq" parameterType="string" resultType="string">
+		SELECT TERMS_SEQ
+		  FROM T_SIGN_MST
+		 WHERE TERMS_GB = #{termsGb}
+		   AND USE_YN   = 'Y'
+		 ORDER BY TERMS_SEQ DESC
+		 LIMIT 1
+	</select>
+
+	<!--
+	  동의이력 저장 — T_PERSIGN_TRAN
+	  ⚠ 컬럼명 가정 (확정된 DDL 부재 — 표준 형태로 추정).
+	     실제 스키마와 다르면 컬럼명만 수정하면 됨.
+	  키 조합 가정: (USER_UUID, TERMS_SEQ) — 한 사용자가 같은 약관 버전에 중복 동의 불가.
+	-->
+	<insert id="insertPersign" parameterType="PersignDTO">
+		INSERT INTO T_PERSIGN_TRAN (
+		    USER_UUID
+		   ,TERMS_SEQ
+		   ,TERMS_GB
+		   ,AGREE_YN
+		   ,AGREE_DTM
+		   ,REG_ID
+		   ,REG_DTM
+		) VALUES (
+		    #{userUuid}
+		   ,#{termsSeq}
+		   ,#{termsGb}
+		   ,IFNULL(#{agreeYn}, 'Y')
+		   ,NOW()
+		   ,#{regId}
+		   ,NOW()
+		)
+	</insert>
+
+</mapper>

@@ -1,0 +1,103 @@
+@charset "UTF-8";
+
+/* 아이콘 */
+.icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  background-size: cover;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+.icon.icon-search {
+  background-image: url(/asset/img/icon_search.png);
+}
+.icon.icon-close {
+  background-image: url(/asset/img/icon_close.png);
+}
+.icon.icon-view {
+  background-image: url(/asset/img/icon_view.png);
+}
+.icon.icon-regist {
+  background-image: url(/asset/img/icon_regist.png);
+}
+.icon.icon-edit {
+  background-image: url(/asset/img/icon_edit.png);
+}
+.icon.icon-del {
+  background-image: url(/asset/img/icon_del.png);
+}
+.icon.icon-process {
+  background-image: url(/asset/img/icon_process.png);
+}
+.icon.icon-print {
+  background-image: url(/asset/img/icon_print.png);
+}
+.icon.icon-xls {
+  background-image: url(/asset/img/icon_xls.png);
+}
+.icon.icon-send {
+  background-image: url(/asset/img/icon_send.png);
+}
+.icon.icon-img {
+  background-image: url(/asset/img/icon_img.png);
+}
+.icon.icon-calendar {
+  background-image: url(/asset/img/icon_calendar.png);
+}
+.icon.icon-check {
+  background-image: url(/asset/img/icon_check.png);
+}
+.icon.icon-upload {
+  background-image: url(/asset/img/icon_upload.png);
+}
+.icon.icon-add {
+  background-image: url(/asset/img/icon_add.png);
+}
+.icon.icon-download {
+  background-image: url(/asset/img/icon_download.png);
+}
+
+/* 버트콘 */
+.buttcon {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid #ccc;
+  background-color: white;
+  border-radius: 4px;
+}
+.buttcon:hover {
+  background-color: #dadada;
+}
+
+/* 버튼 + 아이콘 */
+.btn-icon {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+}
+.btn-icon-l {
+  position: relative;
+  padding-left: 36px;
+}
+.btn-icon-l::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background-size: 18px 18px;
+}
+/* 버튼아이콘 bg */
+.btn-upload::before {
+  background-image: url(/asset/img/cloud_upload.svg);
+}
+.btn-create::before {
+  background-image: url(/asset/img/assignment_add.png);
+}
+.btn-excel::before {
+  background-image: url(/asset/img/icon_xls.png);
+}

@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="egovframework.sejong.admin.mapper.CommMapper">
+
+	<select id="selectCommMstList" parameterType="CommDTO" resultType="CommDTO"><![CDATA[
+	  SELECT CODE ,
+	         RTRIM(CODE_NAME) AS CODE_NAME ,
+	         DATE_FORMAT(START_DATE, '%Y-%m-%d') AS START_DATE ,
+	         DATE_FORMAT(END_DATE, '%Y-%m-%d')   AS END_DATE ,
+	         USE_YN
+	    FROM T_COMM_MST
+	   WHERE 1=1
+	]]>
+      <if test="code != null and code != '' "><![CDATA[
+         AND ( CODE LIKE CONCAT('%',#{code},'%')  OR
+               CODE_NAME LIKE CONCAT('%',#{code},'%')
+             )
+      ]]>
+      </if>
+      <![CDATA[
+       ORDER BY CODE
+        ]]>
+	</select>
+
+	<select id="selectCommMstDupChk" parameterType="CommDTO" resultType="String"><![CDATA[
+	  SELECT 'Y'
+	    FROM T_COMM_MST
+	   WHERE CODE = #{code}
+	]]>
+	</select>
+
+	<insert id="insertCommMst" parameterType="CommDTO"><![CDATA[
+	  INSERT INTO T_COMM_MST
+      (CODE  ,
+       CODE_NAME  ,
+       START_DATE ,
+       END_DATE   ,
+       USE_YN   ,
+       REG_ID   ,
+       REG_DTM  ,
+       MOD_ID   ,
+       MOD_DTM
+      ) VALUES
+      (#{code},
+       #{codeName},
+       #{startDate},
+       #{endDate},
+       #{useYn},
+       'admin',
+        now(),
+       'admin',
+        now()
+      )
+	]]>
+	</insert>
+
+    <update id="updateCommMst" parameterType="CommDTO"><![CDATA[
+       UPDATE T_COMM_MST
+          SET CODE_NAME  = #{codeName},
+              END_DATE   = #{endDate},
+              USE_YN     = #{useYn},
+              MOD_ID     = 'admin' ,
+              MOD_DTM    = now()
+        WHERE CODE       = #{code}
+    ]]>
+    </update>
+
+    <update id="deleteCommMst" parameterType="CommDTO"><![CDATA[
+       UPDATE T_COMM_MST
+          SET USE_YN    = 'N',
+              END_DATE  = DATE_FORMAT(NOW(), '%Y%m%d'),
+              MOD_ID    = 'admin',
+              MOD_DTM   = now()
+        WHERE CODE      = #{code}
+    ]]>
+    </update>
+
+    <select id="selectCommDetailList" parameterType="CommDTO" resultType="CommDTO"><![CDATA[
+      SELECT CODE,
+             DTL_CODE,
+             RTRIM(DTL_CODE_NM) AS DTL_CODE_NM,
+             DATE_FORMAT(START_DATE, '%Y-%m-%d') AS START_DATE ,
+             DATE_FORMAT(END_DATE,   '%Y-%m-%d') AS END_DATE ,
+             USE_YN,
+             IFNULL(SORT,'-') AS SORT
+        FROM T_COMM_MST_DTL
+       WHERE CODE  = #{code}
+      ]]>
+      <if test="dtlCode != null and dtlCode != '' "><![CDATA[
+         AND ( DTL_CODE LIKE CONCAT('%',#{dtlCode},'%')
+             )
+      ]]>
+      </if>
+      <![CDATA[
+       ORDER BY CODE ,DTL_CODE
+      ]]>
+    </select>
+
+   <insert id="insertCommDetail" parameterType="CommDTO"><![CDATA[
+      INSERT INTO T_COMM_MST_DTL
+      (CODE,
+       DTL_CODE,
+       DTL_CODE_NM,
+       START_DATE,
+       END_DATE,
+       USE_YN,
+       SORT,
+       REG_ID,
+       REG_DTM,
+       MOD_ID,
+       MOD_DTM
+      ) VALUES
+      (#{code},
+       #{dtlCode},
+       #{dtlCodeNm},
+       #{startDate},
+       #{endDate},
+       #{useYn},
+       #{sort},
+       'admin',
+        now(),
+       'admin',
+        now()
+      )
+    ]]>
+    </insert>
+
+    <select id="selectCommDetailDupChk" parameterType="CommDTO" resultType="String"><![CDATA[
+      SELECT 'Y'
+        FROM T_COMM_MST_DTL
+       WHERE CODE      = #{code}
+         AND DTL_CODE  = #{dtlCode}
+    ]]>
+    </select>
+
+    <update id="updateCommDetail" parameterType="CommDTO"><![CDATA[
+       UPDATE T_COMM_MST_DTL
+          SET DTL_CODE_NM   = #{dtlCodeNm},
+              END_DATE      = #{endDate},
+              USE_YN        = #{useYn},
+              SORT          = #{sort},
+              MOD_DTM       = now() ,
+              MOD_ID        = 'admin'
+        WHERE CODE          = #{code}
+          AND DTL_CODE      = #{dtlCode}
+    ]]>
+    </update>
+
+    <update id="deleteCommDetail" parameterType="CommDTO"><![CDATA[
+       UPDATE T_COMM_MST_DTL
+          SET USE_YN     = 'N',
+              SORT       = #{sort},
+              END_DATE   = DATE_FORMAT(NOW(), '%Y%m%d'),
+              MOD_ID     = 'admin',
+              MOD_DTM    = now()
+        WHERE CODE       = #{code}
+          AND DTL_CODE   = #{dtlCode}
+    ]]>
+    </update>
+</mapper>
