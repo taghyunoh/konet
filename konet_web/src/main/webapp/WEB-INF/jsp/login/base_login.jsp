@@ -13,9 +13,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" /> 
 <!-- Bootstrap CSS -->
-<link href="/bootstrap/css/bootstrap.css" rel="stylesheet">
-<link href="/asset/css/common.css" rel="stylesheet"> 
-<link href="/css/login.css" rel="stylesheet">
+<link href="${pageContext.request.contextPath}/bootstrap/css/bootstrap.css" rel="stylesheet">
+<link href="${pageContext.request.contextPath}/asset/css/common.css" rel="stylesheet">
+<link href="${pageContext.request.contextPath}/css/login.css" rel="stylesheet">
 <style>
   /* ───────────────────────────────────────────────────────
      로그인 박스 — 모든 컨텐츠가 좌측 흰박스 안에 들어오게 강하게 압축
@@ -120,11 +120,11 @@
   /* 토스트·확인모달 스타일은 공통 ui-message.js 가 자동 주입 */
 </style>
 <!-- 부트스트랩 js -->
-<script src="/bootstrap/js/bootstrap.bundle.js"></script>
+<script src="${pageContext.request.contextPath}/bootstrap/js/bootstrap.bundle.js"></script>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-<script type="text/javascript" src='/js/jqgrid_common.js'></script>
-<script type="text/javascript" src='/js/common.js'></script>
-<script type="text/javascript" src='/asset/js/ui-message.js'></script>
+<script type="text/javascript" src='${pageContext.request.contextPath}/js/jqgrid_common.js'></script>
+<script type="text/javascript" src='${pageContext.request.contextPath}/js/common.js'></script>
+<script type="text/javascript" src='${pageContext.request.contextPath}/asset/js/ui-message.js'></script>
 <title>로그인</title>
 <script type="text/javaScript">
 /*  Main Grid  *//*서브그리드 필요*/
@@ -254,7 +254,7 @@ function fnPwdClear(){
 
     <div class="login-box">
       <div class="login-wrap">
-        <h1><img src="/asset/img/konet_login.png" alt="Konet" class="title-logo">코네트 물류관리 시스템</h1>
+        <h1><img src="${pageContext.request.contextPath}/asset/img/konet_login.png" alt="Konet" class="title-logo">코네트 물류관리 시스템</h1>
 
         <div class="id-box w-100">
           <h2>로그인</h2>
