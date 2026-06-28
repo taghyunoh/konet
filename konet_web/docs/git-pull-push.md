@@ -27,6 +27,7 @@ git -C C:\Users\HYUN\git\konet pull
 
 powershell
 
+
 git -C C:\Users\HYUN\git\konet add -A                  # ① 변경파일 전체 선택(스테이징)
 git -C C:\Users\HYUN\git\konet commit -m "작업 내용"     # ② 로컬 저장(메시지 필수)
 git -C C:\Users\HYUN\git\konet push origin main          # ③ GitHub로 전송
