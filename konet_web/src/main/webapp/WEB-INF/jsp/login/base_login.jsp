@@ -16,7 +16,6 @@
 <link href="${pageContext.request.contextPath}/asset/css/common.css" rel="stylesheet">
 <link href="${pageContext.request.contextPath}/css/login.css" rel="stylesheet">
 <style>
-
   /* ───────────────────────────────────────────────────────
      로그인 박스 — 모든 컨텐츠가 좌측 흰박스 안에 들어오게 강하게 압축
   ─────────────────────────────────────────────────────── */
