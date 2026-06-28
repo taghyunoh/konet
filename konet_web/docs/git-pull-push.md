@@ -13,7 +13,7 @@ konet 은 CLI(명령어)로 동기화를 관리합니다.
 
 원격(GitHub)의 최신 내용을 내 PC로 **가져옵니다**. 다른 PC에서 올린 변경을 받을 때 사용.
 
-` powershell
+powershell
 git -C C:\Users\HYUN\git\konet pull
 ```
 
