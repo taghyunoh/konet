@@ -40,6 +40,7 @@
     box-sizing: border-box;
     overflow: hidden;               /* 박스 밖으로 절대 안 나가게 */
   }
+  
   #login .img-wrap {
     flex: 0 0 auto;
     display: flex;
