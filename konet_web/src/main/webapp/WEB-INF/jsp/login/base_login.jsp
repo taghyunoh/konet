@@ -30,6 +30,7 @@
     margin: 0 auto;                  /* 가운데 정렬 */
     box-sizing: border-box;
   }
+  
   #login .login-wrap {
     flex: 1 1 auto;
     display: flex;
