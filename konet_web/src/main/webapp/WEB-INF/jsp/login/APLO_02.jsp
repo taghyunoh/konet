@@ -29,7 +29,10 @@
 
 	function fnSave(){
 
-		if( $("#userId").val() == ""){
+		if( $("#compCd").val() == ""){
+			_alertBox("회사코드를 입력하세요.", {icon:'⚠️', onOk:function(){ $("#compCd").focus(); }});
+			return;
+		}else if( $("#userId").val() == ""){
 			_alertBox("사용자 ID를 입력하세요.", {icon:'⚠️', onOk:function(){ $("#userId").focus(); }});
 			return;
 		}
@@ -41,7 +44,7 @@
 				$.ajax( {
 					type : "post",
 					url : CommonUtil.getContextPath() + "/json/user/pwdresetAct.do",
-					data : {userId : $("#userId").val()},
+					data : {compCd : $("#compCd").val(), userId : $("#userId").val()},
 					dataType : "json",
 					success : function(data) {
 						if(data.error_code != "0"){
@@ -77,8 +80,9 @@
       <div class="set-pass-wrap">
         <h3>비밀번호 초기화</h3>
         <div class="pass-box w-100">
-          <input name="userId" class="form-control" type="text" id="userId" placeholder="사용자ID" aria-label="사용자ID">
-        </div> 
+          <input name="compCd" class="form-control" type="text" id="compCd" placeholder="회사코드" aria-label="회사코드">
+          <input name="userId" class="form-control mt-2" type="text" id="userId" placeholder="사용자ID" aria-label="사용자ID">
+        </div>
         <div class="set-btn-box w-100">
           <button type="button" class="btn btn-outline-dark" onclick="window.close();">취소</button>
           <button type="button" class="btn btn-primary" onclick="javascript:fnSave();">변경</button>

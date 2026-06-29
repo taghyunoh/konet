@@ -11,6 +11,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import egovframework.sejong.user.mapper.UserMapper;
+import egovframework.sejong.user.model.CompConDTO;
+import egovframework.sejong.user.model.CompMdDTO;
 import egovframework.sejong.user.model.PersignDTO;
 import egovframework.sejong.user.model.SjgnDTO;
 import egovframework.sejong.user.model.UserDTO;
@@ -30,6 +32,40 @@ public class UserServiceImpl implements UserService {
 		// TODO Auto-generated method stub
 		return mapper.userLoginCheck(dto);
 	}
+
+	@Override
+	public UserDTO compLoginCheck(UserDTO dto) throws Exception {
+		return mapper.compLoginCheck(dto);
+	}
+
+	@Override
+	public UserDTO compUserInfo(UserDTO dto) throws Exception {
+		return mapper.compUserInfo(dto);
+	}
+
+	@Override
+	public int compPwdUpdate(UserDTO dto) throws Exception {
+		return mapper.compPwdUpdate(dto);
+	}
+
+	// ===== 회사/계약/사용자 관리 (compcd.jsp) =====
+	@Override public List<CompMdDTO> selCompCdList(CompMdDTO dto) throws Exception { return mapper.selCompCdList(dto); }
+	@Override public String CompCdMstDupChk(CompMdDTO dto) throws Exception { return mapper.CompCdMstDupChk(dto); }
+	@Override public int insertCompCdMst(CompMdDTO dto) throws Exception { return mapper.insertCompCdMst(dto); }
+	@Override public int updateCompCdMst(CompMdDTO dto) throws Exception { return mapper.updateCompCdMst(dto); }
+
+	@Override public List<CompConDTO> selectCompContList(CompConDTO dto) throws Exception { return mapper.selectCompContList(dto); }
+	@Override public List<CompConDTO> getCompContList(CompConDTO dto) throws Exception { return mapper.getCompContList(dto); }
+	@Override public String CompContDupChk(CompConDTO dto) throws Exception { return mapper.CompContDupChk(dto); }
+	@Override public int insertCompCont(CompConDTO dto) throws Exception { return mapper.insertCompCont(dto); }
+	@Override public int updateCompCont(CompConDTO dto) throws Exception { return mapper.updateCompCont(dto); }
+
+	@Override public java.util.List<java.util.Map<String,Object>> selectCommCodeList(java.util.Map<String,Object> param) throws Exception { return mapper.selectCommCodeList(param); }
+	@Override public List<UserDTO> compUserList(UserDTO dto) throws Exception { return mapper.compUserList(dto); }
+	@Override public int insertCompUser(UserDTO dto) throws Exception { return mapper.insertCompUser(dto); }
+	@Override public int updateCompUser(UserDTO dto) throws Exception { return mapper.updateCompUser(dto); }
+	@Override public String CompUserDupChk(UserDTO dto) throws Exception { return mapper.CompUserDupChk(dto); }
+	@Override public String CompUseridDupChk(UserDTO dto) throws Exception { return mapper.CompUseridDupChk(dto); }
 
 	@Override
 	public UserDTO userInfo(UserDTO dto) throws Exception {

@@ -133,21 +133,26 @@
 
 // ID 저장 키 (localStorage)
 var SAVED_USER_ID_KEY = "sejong_saved_user_id";
+var SAVED_COMP_CD_KEY = "sejong_saved_comp_cd";   // 사업장기호(회사코드) 저장
 
 $(document).ready(function(){
 	// 저장된 ID 복원
 	try {
-		var savedId = localStorage.getItem(SAVED_USER_ID_KEY);
+		var savedId   = localStorage.getItem(SAVED_USER_ID_KEY);
+		var savedComp = localStorage.getItem(SAVED_COMP_CD_KEY);
+		if (savedComp) { $("#compCd").val(savedComp); }
 		if (savedId) {
 			$("#userId").val(savedId);
 			$("#save_id").prop("checked", true);
-			$("#userPw").focus();   // ID 자동입력 → 비밀번호 포커스
+			$("#userPw").focus();   // 사업장기호·ID 자동입력 → 비밀번호 포커스
+		} else if (savedComp) {
+			$("#userId").focus();   // 사업장기호만 있으면 ID로 포커스
 		} else {
-			$("#userId").focus();
+			$("#compCd").focus();
 		}
 	} catch (e) {
 		// localStorage 미지원/차단 시 무시
-		$("#userId").focus();
+		$("#compCd").focus();
 	}
 });
 
@@ -156,6 +161,7 @@ function fnSaveIdToggle(){
 	try {
 		if (!$("#save_id").is(":checked")) {
 			localStorage.removeItem(SAVED_USER_ID_KEY);
+			localStorage.removeItem(SAVED_COMP_CD_KEY);
 		}
 	} catch (e) {}
 }
@@ -165,32 +171,34 @@ function fnSaveIdToggle(){
 if (typeof window._toast !== 'function') { window._toast = function(m){ alert(String(m).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]*>/g,'')); }; }
 if (typeof window._alertBox !== 'function') { window._alertBox = function(m,o){ o=o||{}; alert(String(m).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]*>/g,'')); if(o.onOk)o.onOk(); }; }
 function loginproc2(){
-	var id = $.trim($("#userId").val());
-	var pw = $("#userPw").val();
-	if (!id) { _alertBox("아이디 또는 전화번호를 입력하세요.", {icon:'⚠️', onOk:function(){ $("#userId").focus(); }}); return; }
-	if (!pw) { _alertBox("비밀번호를 입력하세요.", {icon:'⚠️', onOk:function(){ $("#userPw").focus(); }}); return; }
+	var comp = $.trim($("#compCd").val());
+	var id   = $.trim($("#userId").val());
+	var pw   = $("#userPw").val();
+	if (!comp) { _alertBox("회사코드를 입력하세요.", {icon:'⚠️', onOk:function(){ $("#compCd").focus(); }}); return; }
+	if (!id)   { _alertBox("아이디를 입력하세요.",   {icon:'⚠️', onOk:function(){ $("#userId").focus(); }}); return; }
+	if (!pw)   { _alertBox("비밀번호를 입력하세요.", {icon:'⚠️', onOk:function(){ $("#userPw").focus(); }}); return; }
 
-	// 통합 로그인: 의료진(T_ADMIN_MST) 우선 → 환자(T_USER_TRAN) 자동 분기
+	// KOLGSDB 로그인: COMP_CD + USER_ID + 비밀번호 (form 파라미터 → @ModelAttribute UserDTO)
 	$.ajax({
 		type: "post",
-		url:  CommonUtil.getContextPath() + "/user/unifiedLoginAct.do",
-		data: JSON.stringify({ idOrPhone: id, password: pw }),
-		contentType: "application/json",
+		url:  CommonUtil.getContextPath() + "/user/loginChk.do",
+		data: { compCd: comp, userId: id, passWd: pw },
 		dataType: "json",
 		success: function(data) {
-			if (!data.IsSucceed) {
-				_alertBox(data.Message || "로그인 실패", {icon:'❌', okColor:'red', onOk:function(){ $("#userId").focus(); }});
+			if (data.error_code !== "00000") {
+				_alertBox(data.error_mess || "로그인 실패", {icon:'❌', okColor:'red', onOk:function(){ $("#userId").focus(); }});
 				return;
 			}
 			// ID 저장 (성공 후에만)
 			try {
 				if ($("#save_id").is(":checked")) {
 					localStorage.setItem(SAVED_USER_ID_KEY, id);
+					localStorage.setItem(SAVED_COMP_CD_KEY, comp);
 				} else {
 					localStorage.removeItem(SAVED_USER_ID_KEY);
+					localStorage.removeItem(SAVED_COMP_CD_KEY);
 				}
 			} catch (e) {}
-			// /main.do 가 세션 q_admin_yn 으로 환자/의사 화면 자동 분기
 			location.href = CommonUtil.getContextPath() + "/main.do";
 		},
 		error: function(){ _alertBox("로그인 요청 중 오류가 발생했습니다.", {icon:'❌', okColor:'red'}); }
@@ -260,7 +268,8 @@ function fnPwdClear(){
 
         <div class="id-box w-100">
           <h2>로그인</h2>
-          <input name="userId" class="form-control" type="text" id="userId" placeholder="아이디" aria-label="아이디">
+          <input name="compCd" class="form-control" type="text" id="compCd" placeholder="회사코드" aria-label="회사코드">
+          <input name="userId" class="form-control mt-3" type="text" id="userId" placeholder="아이디" aria-label="아이디">
           <input type="password" class="form-control mt-3" id="userPw" placeholder="비밀번호" onKeypress="hitEnterKey(event);">
         </div>
 

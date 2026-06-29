@@ -1,5 +1,7 @@
 package egovframework.sejong.user.web;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,8 +20,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 
-import egovframework.sejong.admin.model.PatientDTO;
+import org.springframework.http.ResponseEntity;
+
 import egovframework.sejong.admin.service.AdminService;
+import egovframework.sejong.user.model.CompConDTO;
+import egovframework.sejong.user.model.CompMdDTO;
 import egovframework.sejong.user.model.SjgnDTO;
 import egovframework.sejong.user.model.UserDTO;
 import egovframework.sejong.user.service.UserService;
@@ -143,6 +148,80 @@ public class UserController {
 			return "jsonView";
 		}
 		
+		/* ============================================================
+		   KOLGSDB 로그인 — COMP_CD + USER_ID + 비밀번호
+		   비밀번호 검증은 WNN_CONSULT 방식 그대로 이식
+		   (PASS_WD = Base64(SHA-256(salt + 비밀번호)), salt = USER_ID)
+		   로그인 성공 시 세션에 COMP_CD 등록.
+		   ============================================================ */
+		@RequestMapping(value="/user/loginChk.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,String> compLogin(@ModelAttribute("DTO") UserDTO dto,
+				HttpSession session, HttpServletRequest request) throws Exception {
+
+			Map<String,String> res = new HashMap<String,String>();
+			try {
+				if (dto.getCompCd() == null || dto.getCompCd().trim().isEmpty()
+				 || dto.getUserId() == null || dto.getUserId().trim().isEmpty()
+				 || dto.getPassWd() == null || dto.getPassWd().isEmpty()) {
+					res.put("error_code", "10000");
+					res.put("error_mess", "회사코드/아이디/비밀번호를 입력하세요.");
+					return res;
+				}
+				dto.setCompCd(dto.getCompCd().trim());
+				dto.setUserId(dto.getUserId().trim());
+
+				UserDTO result = svc.compLoginCheck(dto);
+				if (result == null || result.getUserId() == null) {
+					res.put("error_code", "10000");
+					res.put("error_mess", "사용자 정보가 존재하지 않습니다.");
+					return res;
+				}
+
+				// WNN_CONSULT 와 동일한 2-way 비교 (salt=userId / salt=userId.toLowerCase 후 URL-base64)
+				String chkpwd1  = EgovFileScrty.encryptPassword(dto.getPassWd(), dto.getUserId());
+				String inputEnc = EgovFileScrty.encryptPassword(dto.getPassWd(), dto.getUserId().toLowerCase());
+				String chkpwd2  = Base64.getUrlEncoder().encodeToString(inputEnc.getBytes(StandardCharsets.UTF_8));
+
+				if (!chkpwd1.equals(result.getPassWd()) && !chkpwd2.equals(result.getPassWd())) {
+					res.put("error_code", "20000");
+					res.put("error_mess", "비밀번호를 확인하세요.");
+					return res;
+				}
+				// 사용여부: 명시적으로 'N' 인 경우에만 차단 (Y/NULL/공백은 허용)
+				if ("N".equals(result.getUseYn())) {
+					res.put("error_code", "10002");
+					res.put("error_mess", "사용자 사용여부를 확인하세요.");
+					return res;
+				}
+
+				// ★ 로그인 성공 → COMP_CD 등 세션 등록
+				session.setAttribute("s_comp_cd", result.getCompCd());     // ★ COMP_CD
+				session.setAttribute("s_comp_nm", result.getCompNm());
+				session.setAttribute("s_user_id", result.getUserId());
+				session.setAttribute("s_user_nm", result.getUserNm());
+				session.setAttribute("s_main_gu", result.getMainGu());     // 사용자구분
+				session.setAttribute("s_admin_yn", result.getCommstYn());  // ★ 관리자여부(구 WINNER_YN→COMMST_YN)
+				session.setAttribute("s_conn_ip", request.getRemoteAddr());
+				// 기존 진입 가드(KonetEntry/main.do)가 q_user_id 로 미로그인 판정하므로 함께 세팅
+				session.setAttribute("q_user_id", result.getUserId());
+				session.setAttribute("q_user_nm", result.getUserNm());
+
+				res.put("login_Comp", result.getCompNm());
+				res.put("login_User", result.getUserNm());
+				res.put("login_AdminYn", result.getCommstYn());   // 관리자여부
+				res.put("error_code", "00000");
+				res.put("error_mess", "정상적 처리 되었습니다.");
+				return res;
+
+			} catch (Exception ex) {
+				log.error("compLogin ERROR: " + ex.getMessage(), ex);
+				res.put("error_code", "90001");
+				res.put("error_mess", "로그인 처리 중 오류가 발생했습니다.");
+				return res;
+			}
+		}
+
 		/* 사용자 로그아웃 처리 */
 		@RequestMapping(value="/user/loginOutAct.do")
 		 public String UserLogOutProcess(@ModelAttribute("DTO") UserDTO dto, HttpServletRequest request, ModelMap model) throws Exception {
@@ -170,128 +249,7 @@ public class UserController {
 			return ".raw/login/patient_register";
 		}
 
-		/** 환자 로그인 처리 (전화번호 + 비밀번호) */
-		@RequestMapping(value = "/patient/loginAct.do", method = RequestMethod.POST)
-		@ResponseBody
-		public ResponseObject patientLoginAct(@RequestBody PatientDTO dto, HttpServletRequest request) throws Exception {
-			ResponseObject res = new ResponseObject();
-			try {
-				PatientDTO result = adminSvc.patientLoginCheck(dto);
-				if (result == null || result.getUserUuid() == null) {
-					res.IsSucceed = false;
-					res.Message = "등록되지 않은 전화번호입니다.";
-					return res;
-				}
-				String chkpwd = EgovFileScrty.encryptPassword(dto.getUserPw(), result.getPhone());
-				if (result.getUserPw() == null || !result.getUserPw().equals(chkpwd)) {
-					res.IsSucceed = false;
-					res.Message = "비밀번호를 확인하세요.";
-					return res;
-				}
-				HttpSession session = request.getSession();
-				session.setAttribute("user", result);
-				session.setAttribute("userNm", result.getUserNm());
-				session.setAttribute("userUuid", result.getUserUuid());
-				session.setAttribute("q_user_id", result.getUserUuid());
-				session.setAttribute("q_user_nm", result.getUserNm());
-				session.setAttribute("q_admin_yn", "P");
-				session.setAttribute("q_user_ip", request.getRemoteAddr());
-				session.setAttribute("q_screen_id", "patient");
-				res.IsSucceed = true;
-				res.Data = result.getUserUuid();
-				return res;
-			} catch (Exception ex) {
-				log.error("patientLoginAct ERROR: " + ex.getMessage(), ex);
-				res.IsSucceed = false;
-				res.Message = "로그인 처리 중 오류";
-				return res;
-			}
-		}
 
-		/**
-		 * 환자 회원가입 처리.
-		 *
-		 * 동작:
-		 *   1) 입력 검증 & 전화번호 중복 체크
-		 *   2) 비밀번호 해시 (salt = phone)
-		 *   3) T_USER_TRAN INSERT — USER_UUID 는 DB 의 UUID() 로 생성
-		 *   4) PHONE 으로 방금 만든 user 재조회 → USER_UUID 획득
-		 *   5) T_PERSIGN_TRAN 에 동의이력 3건 — best-effort
-		 *      ※ T_SIGN_MST/T_PERSIGN_TRAN 이 아직 없거나 비어있어도 가입 자체는 성공.
-		 *      ※ 향후 테이블/데이터가 준비되면 자동으로 INSERT 시작.
-		 *
-		 * @Transactional 을 의도적으로 붙이지 않음 — 가입(T_USER_TRAN) 과 동의이력(T_PERSIGN_TRAN) 을
-		 *                분리해서 약관 테이블 미설정 시에도 가입 자체는 막히지 않게 함.
-		 */
-		@RequestMapping(value = "/patient/registerAct.do", method = RequestMethod.POST)
-		@ResponseBody
-		public ResponseObject patientRegisterAct(@RequestBody PatientDTO dto, HttpServletRequest request) throws Exception {
-			ResponseObject res = new ResponseObject();
-			try {
-				if (dto.getPhone() == null || dto.getPhone().trim().isEmpty()) {
-					res.IsSucceed = false; res.Message = "전화번호는 필수입니다."; return res;
-				}
-				if (dto.getUserPw() == null || dto.getUserPw().length() < 4) {
-					res.IsSucceed = false; res.Message = "비밀번호는 4자 이상이어야 합니다."; return res;
-				}
-				int exists = adminSvc.patientExistsByPhone(dto);
-				if (exists > 0) {
-					res.IsSucceed = false; res.Message = "이미 등록된 전화번호입니다."; return res;
-				}
-				// 비밀번호 해시: salt = phone
-				String encPw = EgovFileScrty.encryptPassword(dto.getUserPw(), dto.getPhone());
-				dto.setUserPw(encPw);
-				adminSvc.patientRegister(dto);
-
-				// 가입 직후 PHONE 으로 USER_UUID 재조회 (UUID() 는 DB 자동생성)
-				PatientDTO lookup = new PatientDTO();
-				lookup.setPhone(dto.getPhone());
-				PatientDTO joined = adminSvc.patientLoginCheck(lookup);
-
-				// 약관 동의이력 저장 — best-effort. 테이블 미설정/데이터 없음에 관대.
-				if (joined != null && joined.getUserUuid() != null) {
-					try {
-						svc.saveAllPatientAgreements(joined.getUserUuid(), joined.getUserUuid());
-					} catch (Exception consentEx) {
-						log.warn("동의이력 저장 실패 — 가입은 정상 진행 (T_SIGN_MST/T_PERSIGN_TRAN 미설정 가능): "
-								+ consentEx.getMessage());
-					}
-				}
-
-				res.IsSucceed = true;
-				res.Message = "회원가입이 완료되었습니다. 로그인 해주세요.";
-				return res;
-			} catch (Exception ex) {
-				log.error("patientRegisterAct ERROR: " + ex.getMessage(), ex);
-				res.IsSucceed = false;
-				res.Message = "회원가입 처리 중 오류: " + ex.getMessage();
-				return res;
-			}
-		}
-
-		/** 환자 전화번호 중복 체크 */
-		@RequestMapping(value = "/patient/checkPhone.do", method = RequestMethod.POST)
-		@ResponseBody
-		public ResponseObject checkPhone(@RequestBody PatientDTO dto) throws Exception {
-			ResponseObject res = new ResponseObject();
-			int n = adminSvc.patientExistsByPhone(dto);
-			res.IsSucceed = (n == 0);
-			res.Data = n;
-			return res;
-		}
-
-		/**
-		 * 약관(개인정보동의/이용약관/고유식별정보) 본문 조회 — T_SIGN_MST
-		 *
-		 * SEJONG_APP 의 /getSignList.do 와 동일한 시그니처/응답 구조.
-		 * 환자 회원가입 페이지(patient_register.jsp) 의 "약관 보기" 에서 호출.
-		 *
-		 * 요청  : { termsGb: 1|2|3 }
-		 *   - 1 = 개인정보 수집·이용동의
-		 *   - 2 = 고유식별정보 처리동의
-		 *   - 3 = 서비스 이용약관
-		 * 응답  : { IsSucceed: true, Data: List<SjgnDTO> }
-		 */
 		@RequestMapping(value = "/getSignList.do", method = RequestMethod.POST)
 		@ResponseBody
 		public ResponseObject getSignList(@RequestBody Map<String, Object> map) throws Exception {
@@ -323,81 +281,6 @@ public class UserController {
 		 *   3) 둘 다 실패하면 거부
 		 *
 		 * 세션 q_admin_yn = 'A'/'D' (의료진) 또는 'P' (환자)
-		 */
-		@RequestMapping(value = "/user/unifiedLoginAct.do", method = RequestMethod.POST)
-		@ResponseBody
-		public ResponseObject unifiedLogin(@RequestBody Map<String,String> map, HttpServletRequest request) throws Exception {
-			ResponseObject res = new ResponseObject();
-			String idOrPhone = map != null ? map.get("idOrPhone") : null;
-			String password  = map != null ? map.get("password")  : null;
-			if (idOrPhone == null || idOrPhone.trim().isEmpty() || password == null || password.isEmpty()) {
-				res.IsSucceed = false; res.Message = "아이디(전화번호)와 비밀번호를 입력하세요.";
-				return res;
-			}
-			idOrPhone = idOrPhone.trim();
-			HttpSession session = request.getSession();
-
-			try {
-				// ─── 1) 의료진(T_ADMIN_MST) 시도 ─────────────────────────
-				UserDTO adminDto = new UserDTO();
-				adminDto.setUserId(EgovFileScrty.encryptPassword(idOrPhone, idOrPhone));
-				UserDTO admin = svc.userLoginCheck(adminDto);
-				if (admin != null && admin.getUserId() != null && !admin.getUserId().isEmpty()) {
-					String chkAdmin = EgovFileScrty.encryptPassword(password, "1234");
-					if (admin.getUserPw() != null && admin.getUserPw().equals(chkAdmin)) {
-						session.setAttribute("q_user_id", admin.getUserId());
-						session.setAttribute("q_user_nm", admin.getUserNm());
-						session.setAttribute("q_admin_yn", admin.getUserGb());   // A or D
-						session.setAttribute("q_dept_nm", admin.getDeptNm());
-						session.setAttribute("q_user_ip", request.getRemoteAddr());
-						session.setAttribute("q_screen_id", "login");
-						session.setAttribute("admingu", admin.getUserGb());
-						res.IsSucceed = true;
-						res.Data = "ADMIN";
-						res.Message = "의료진 로그인 성공";
-						return res;
-					}
-					// 의사 매칭이지만 비번 불일치 → 환자로는 시도하지 않고 즉시 거부 (보안 향상)
-					res.IsSucceed = false; res.Message = "비밀번호를 확인하세요.";
-					return res;
-				}
-
-				// ─── 2) 환자(T_USER_TRAN) 시도 ───────────────────────────
-				PatientDTO pDto = new PatientDTO();
-				pDto.setPhone(idOrPhone);
-				PatientDTO patient = adminSvc.patientLoginCheck(pDto);
-				if (patient != null && patient.getUserUuid() != null) {
-					String chkPatient = EgovFileScrty.encryptPassword(password, patient.getPhone());
-					if (patient.getUserPw() != null && patient.getUserPw().equals(chkPatient)) {
-						session.setAttribute("user", patient);
-						session.setAttribute("userNm", patient.getUserNm());
-						session.setAttribute("userUuid", patient.getUserUuid());
-						session.setAttribute("q_user_id", patient.getUserUuid());
-						session.setAttribute("q_user_nm", patient.getUserNm());
-						session.setAttribute("q_admin_yn", "P");
-						session.setAttribute("q_user_ip", request.getRemoteAddr());
-						session.setAttribute("q_screen_id", "patient");
-						res.IsSucceed = true;
-						res.Data = "PATIENT";
-						res.Message = "환자 로그인 성공";
-						return res;
-					}
-					res.IsSucceed = false; res.Message = "비밀번호를 확인하세요.";
-					return res;
-				}
-
-				// 둘 다 매칭 없음
-				res.IsSucceed = false;
-				res.Message = "등록된 사용자 정보가 없습니다.";
-				return res;
-
-			} catch (Exception ex) {
-				log.error("unifiedLogin ERROR: " + ex.getMessage(), ex);
-				res.IsSucceed = false;
-				res.Message = "로그인 처리 중 오류";
-				return res;
-			}
-		}
 
 		/** 환자 식사 기록 화면 — raw 단독 JSP */
 		@RequestMapping(value = "/patient/food.do")
@@ -439,26 +322,32 @@ public class UserController {
 		}
 		
 
-		/* 사용자 비밀번호 초기화 처리 */
+		/* 사용자 비밀번호 초기화 처리 — KOLGSDB(TBL_USER_MST), '1234' 로 초기화 (salt=userId) */
 		@RequestMapping(value="/json/user/pwdresetAct.do")
 		public String UserPwdResetSave(@ModelAttribute("DTO") UserDTO dto, HttpServletRequest request, ModelMap model)
-				throws Exception {  
-			
+				throws Exception {
+
 			try {
-				
-				dto.setUserId(EgovFileScrty.encryptPassword(dto.getUserId(), dto.getUserId()));
-				
-				UserDTO result = svc.userInfo(dto);
-				
-				if(result == null || ("".equals(result.getUserId()) && result.getUserId() == null )) {
+				if (dto.getCompCd() == null || dto.getCompCd().trim().isEmpty()
+				 || dto.getUserId() == null || dto.getUserId().trim().isEmpty()) {
+					model.addAttribute("error_code", "30000");
+					model.addAttribute("error_msg" , "회사코드와 사용자 ID를 입력하세요.");
+					return "jsonView";
+				}
+				dto.setCompCd(dto.getCompCd().trim());
+				dto.setUserId(dto.getUserId().trim());
+
+				UserDTO result = svc.compUserInfo(dto);
+				if(result == null || result.getUserId() == null) {
 					model.addAttribute("error_code", "30000");
 					model.addAttribute("error_msg" , "사용자 정보가 존재하지 않습니다.");
 					return "jsonView";
 				}
-				dto.setEncUserPwd(EgovFileScrty.encryptPassword("1234", "1234"));
-				//사용자 비밀번호 초기화 처리
-				boolean chk = svc.userPwdReset(dto);
-				if(chk) {
+				// '1234' 로 초기화 — WNN_CONSULT 표준 형식: base64url(SHA-256(아이디소문자+"1234"))
+				String resetEnc = EgovFileScrty.encryptPassword("1234", dto.getUserId().toLowerCase());
+				dto.setEncUserPwd(Base64.getUrlEncoder().encodeToString(resetEnc.getBytes(StandardCharsets.UTF_8)));
+				int chk = svc.compPwdUpdate(dto);
+				if(chk > 0) {
 					model.addAttribute("error_code", "0");
 					model.addAttribute("error_msg" , "");
 				}else {
@@ -468,8 +357,8 @@ public class UserController {
 			}catch(Exception ex) {
 				log.error(" UserPwdResetSave ERROR ! : "+ ex.getMessage());
 				model.addAttribute("error_code", "20000");
-				model.addAttribute("error_msg" , "사용자 비밀번호 초기화 실패하였습니다."); 
-							
+				model.addAttribute("error_msg" , "사용자 비밀번호 초기화 실패하였습니다.");
+
 			}
 			//
 			return "jsonView";
@@ -482,35 +371,43 @@ public class UserController {
 				throws Exception {  
 			
 			try {
-				System.out.println("기존 비밀번호 : "+ dto.getUserPw() + "     변경 비밀번호 :  "+ dto.getBfUserPwd());
-				
-				dto.setUserId(EgovFileScrty.encryptPassword(dto.getUserId(), dto.getUserId()));
-				
-				UserDTO result = svc.userInfo(dto);
+				if (dto.getCompCd() == null || dto.getCompCd().trim().isEmpty()
+				 || dto.getUserId() == null || dto.getUserId().trim().isEmpty()) {
+					model.addAttribute("error_code", "20000");
+					model.addAttribute("error_msg" , "회사코드와 사용자 ID를 입력하세요.");
+					return "jsonView";
+				}
+				dto.setCompCd(dto.getCompCd().trim());
+				dto.setUserId(dto.getUserId().trim());
 
-				if("".equals(result.getUserId()) || result.getUserId().toString() == null ){ 
+				UserDTO result = svc.compUserInfo(dto);
+				if(result == null || result.getUserId() == null){
 					model.addAttribute("error_code", "20000");
 					model.addAttribute("error_msg" , "비밀번호 변경할 사용자 정보가 존재하지 않습니다.");
 					return "jsonView";
 				}
-				String chkpwd = EgovFileScrty.encryptPassword(dto.getUserPw(), "1234");
-				
-				if(!result.getUserPw().equals(chkpwd)) {
+
+				// 현재 비밀번호 검증 (로그인과 동일한 2-way, salt=userId)
+				String chk1  = EgovFileScrty.encryptPassword(dto.getUserPw(), dto.getUserId());
+				String enc   = EgovFileScrty.encryptPassword(dto.getUserPw(), dto.getUserId().toLowerCase());
+				String chk2  = Base64.getUrlEncoder().encodeToString(enc.getBytes(StandardCharsets.UTF_8));
+				if(!chk1.equals(result.getPassWd()) && !chk2.equals(result.getPassWd())) {
 					model.addAttribute("error_code", "30000");
 					model.addAttribute("error_msg" , "현재 비밀번호를 확인하세요.!");
 					return "jsonView";
 				}
 
-				if(dto.getBfUserPwd() == "") {
+				if(dto.getBfUserPwd() == null || dto.getBfUserPwd().isEmpty()) {
 					model.addAttribute("error_code", "30000");
-					model.addAttribute("error_msg" , "비밀번호 변경할 사용자 정보가 존재하지 않습니다.");
+					model.addAttribute("error_msg" , "변경할 비밀번호를 입력하세요.");
 					return "jsonView";
 				}
-				dto.setEncUserPwd(EgovFileScrty.encryptPassword(dto.getBfUserPwd(), "1234"));
-				//비밀번호 변경 처리			
-				boolean chk = svc.userPwdChange(dto);
-				
-				if(chk) {
+				// 신규 비밀번호 저장 — WNN_CONSULT 표준 형식: base64url(SHA-256(아이디소문자+신규비번))
+				String newEnc = EgovFileScrty.encryptPassword(dto.getBfUserPwd(), dto.getUserId().toLowerCase());
+				dto.setEncUserPwd(Base64.getUrlEncoder().encodeToString(newEnc.getBytes(StandardCharsets.UTF_8)));
+				int chk = svc.compPwdUpdate(dto);
+
+				if(chk > 0) {
 					model.addAttribute("error_code", "0");
 					model.addAttribute("error_msg" , "");
 				}else {
@@ -520,10 +417,171 @@ public class UserController {
 			}catch(Exception ex) {
 				log.error(" UserPwdChangeSave ERROR ! : "+ ex.getMessage());
 				model.addAttribute("error_code", "10000");
-				model.addAttribute("error_msg" , "사용자 비밀번호 변경 실패하였습니다."); 
-							
+				model.addAttribute("error_msg" , "사용자 비밀번호 변경 실패하였습니다.");
+
 			}
 			//
 			return "jsonView";
+		}
+
+		// ============================================================
+		// 회사/계약/사용자 관리 (compcd.jsp = hospcd.jsp 포팅, KOLGSDB)
+		//   화면 진입은 세션 s_comp_cd 로 로그인 확인
+		// ============================================================
+		@RequestMapping(value="/mangr/compcd.do")
+		public String compcd(HttpSession session, ModelMap model) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".main/mangr/compcd";
+		}
+
+		/* ---- 회사 ---- */
+		@RequestMapping(value="/user/compCdList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> compCdList(@ModelAttribute("DTO") CompMdDTO dto, HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) return null;
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selCompCdList(dto));
+			return response;
+		}
+
+		@RequestMapping(value="/user/compCdInsert.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compCdInsert(@RequestBody List<CompMdDTO> data) {
+			try {
+				for (CompMdDTO dto : data) {
+					if ("Y".equals(svc.CompCdMstDupChk(dto))) return ResponseEntity.status(400).body(dto.getKeyCompCd());
+					svc.insertCompCdMst(dto);
+				}
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		@RequestMapping(value="/user/compCdUpdate.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compCdUpdate(@RequestBody List<CompMdDTO> data) {
+			try {
+				for (CompMdDTO dto : data) { svc.updateCompCdMst(dto); svc.insertCompCdMst(dto); }
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		@RequestMapping(value="/user/compCdDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compCdDelete(@RequestBody List<CompMdDTO> data) {
+			try {
+				for (CompMdDTO dto : data) { dto.setCompCd(dto.getKeyCompCd()); svc.updateCompCdMst(dto); }
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* ---- 계약 ---- */
+		@RequestMapping(value="/user/compContList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> compContList(@ModelAttribute("DTO") CompConDTO dto, HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) return null;
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectCompContList(dto));
+			return response;
+		}
+
+		@RequestMapping(value="/user/gethompContList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> getCompContList(@ModelAttribute("DTO") CompConDTO dto, HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) return null;
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.getCompContList(dto));
+			return response;
+		}
+
+		@RequestMapping(value="/user/compContInsert.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compContInsert(@RequestBody List<CompConDTO> data) {
+			try {
+				for (CompConDTO dto : data) {
+					if ("Y".equals(svc.CompContDupChk(dto))) return ResponseEntity.status(400).body(dto.getCompCd());
+					svc.insertCompCont(dto);
+				}
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		@RequestMapping(value="/user/compContUpdate.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compContUpdate(@RequestBody List<CompConDTO> data) {
+			try {
+				for (CompConDTO dto : data) { svc.updateCompCont(dto); svc.insertCompCont(dto); }
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		@RequestMapping(value="/user/compContDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compContDelete(@RequestBody List<CompConDTO> data) {
+			try {
+				for (CompConDTO dto : data) {
+					dto.setCompCd(dto.getKeycompCd());
+					dto.setStartDt(dto.getKeystartDt());
+					dto.setEndDt(dto.getKeyendDt());
+					svc.updateCompCont(dto);
+				}
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* ---- 사용자 ---- */
+		@RequestMapping(value="/user/compuserList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> compuserList(@ModelAttribute("DTO") UserDTO dto, HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) return null;
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.compUserList(dto));
+			return response;
+		}
+
+		@RequestMapping(value="/user/compUserInsert.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compUserInsert(@RequestBody List<UserDTO> data) {
+			try {
+				for (UserDTO dto : data) {
+					dto.setEncPassWd("");
+					if (dto.getBfPassWd() != null && !dto.getBfPassWd().isEmpty()) {
+						String enc = EgovFileScrty.encryptPassword(dto.getBfPassWd(), dto.getUserId().trim().toLowerCase());
+						dto.setEncPassWd(Base64.getUrlEncoder().encodeToString(enc.getBytes(StandardCharsets.UTF_8)));
+					}
+					if ("Y".equals(svc.CompUserDupChk(dto))) return ResponseEntity.status(400).body(dto.getCompCd());
+					svc.insertCompUser(dto);
+				}
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		@RequestMapping(value="/user/compUserUpdate.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compUserUpdate(@RequestBody List<UserDTO> data) {
+			try {
+				for (UserDTO dto : data) {
+					svc.updateCompUser(dto);
+					dto.setEncPassWd("");
+					if (dto.getBfPassWd() != null && !dto.getBfPassWd().isEmpty()) {
+						String enc = EgovFileScrty.encryptPassword(dto.getBfPassWd(), dto.getUserId().trim().toLowerCase());
+						dto.setEncPassWd(Base64.getUrlEncoder().encodeToString(enc.getBytes(StandardCharsets.UTF_8)));
+					}
+					svc.insertCompUser(dto);
+				}
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		@RequestMapping(value="/user/compUserDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compUserDelete(@RequestBody List<UserDTO> data) {
+			try {
+				for (UserDTO dto : data) {
+					dto.setCompCd(dto.getKeyurcompCd());
+					dto.setStartDt(dto.getKeyurstartDt());
+					dto.setUserId(dto.getKeyuruserId());
+					svc.updateCompUser(dto);
+				}
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		@RequestMapping(value="/user/compuseridupchk.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compUseridupchk(@RequestBody UserDTO dto) {
+			try {
+				if ("Y".equals(svc.CompUseridDupChk(dto))) return ResponseEntity.status(400).body("기존사용아이디가 존재합니다.");
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body("서버 오류: " + e.getMessage()); }
 		}
 }

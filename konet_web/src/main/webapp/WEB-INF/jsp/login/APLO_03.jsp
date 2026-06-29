@@ -28,7 +28,10 @@
 
 	function fnSave(){
 
-		if( $("#userId").val() == ""){
+		if( $("#compCd").val() == ""){
+			_alertBox("회사코드를 입력하세요.", {icon:'⚠️', onOk:function(){ $("#compCd").focus(); }});
+			return;
+		}else if( $("#userId").val() == ""){
 			_alertBox("사용자 ID를 입력하세요.", {icon:'⚠️', onOk:function(){ $("#userId").focus(); }});
 			return;
 		}else if( $("#userPw").val() == "") {
@@ -71,7 +74,8 @@
        <form:form commandName="DTO" id="regForm" name="regForm" method="post">
         <h3>비밀번호 변경</h3>
         <div class="pass-box w-100">
-          <input name="userId" class="form-control" type="text" id="userId" placeholder="사용자ID">
+          <input name="compCd" class="form-control" type="text" id="compCd" placeholder="회사코드">
+          <input name="userId" class="form-control mt-2" type="text" id="userId" placeholder="사용자ID">
           <input type="password" class="form-control mt-2" id="userPw" name="userPw" placeholder="현재 비밀번호">
           <input type="password" class="form-control mt-2" id="bfUserPwd" name="bfUserPwd"  placeholder="변경 비밀번호">
           <input type="password" class="form-control mt-2" id="afUserPwd" name="afUserPwd"  placeholder="변경 비밀번호 확인">

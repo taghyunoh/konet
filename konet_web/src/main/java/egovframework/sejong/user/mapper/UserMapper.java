@@ -5,6 +5,8 @@ import java.util.Map;
 
 import org.egovframe.rte.psl.dataaccess.mapper.Mapper;
 
+import egovframework.sejong.user.model.CompConDTO;
+import egovframework.sejong.user.model.CompMdDTO;
 import egovframework.sejong.user.model.PersignDTO;
 import egovframework.sejong.user.model.SjgnDTO;
 import egovframework.sejong.user.model.UserDTO;
@@ -13,7 +15,36 @@ import egovframework.sejong.user.model.UserDTO;
 @Mapper("UserMapper")
 public interface UserMapper {
 
+	// ===== 회사/계약/사용자 관리 (compcd.jsp) =====
+	List<CompMdDTO> selCompCdList(CompMdDTO dto) throws Exception;
+	String CompCdMstDupChk(CompMdDTO dto) throws Exception;
+	int insertCompCdMst(CompMdDTO dto) throws Exception;
+	int updateCompCdMst(CompMdDTO dto) throws Exception;
+
+	List<CompConDTO> selectCompContList(CompConDTO dto) throws Exception;
+	List<CompConDTO> getCompContList(CompConDTO dto) throws Exception;
+	String CompContDupChk(CompConDTO dto) throws Exception;
+	int insertCompCont(CompConDTO dto) throws Exception;
+	int updateCompCont(CompConDTO dto) throws Exception;
+
+	List<java.util.Map<String,Object>> selectCommCodeList(java.util.Map<String,Object> param) throws Exception;
+
+	List<UserDTO> compUserList(UserDTO dto) throws Exception;
+	int insertCompUser(UserDTO dto) throws Exception;
+	int updateCompUser(UserDTO dto) throws Exception;
+	String CompUserDupChk(UserDTO dto) throws Exception;
+	String CompUseridDupChk(UserDTO dto) throws Exception;
+
 	UserDTO userLoginCheck(UserDTO dto) throws Exception;
+
+	/** KOLGSDB 로그인: COMP_CD + USER_ID 로 최신 활성 사용자 1건 조회 */
+	UserDTO compLoginCheck(UserDTO dto) throws Exception;
+
+	/** KOLGSDB 비밀번호 변경/초기화용 현재 정보 조회 */
+	UserDTO compUserInfo(UserDTO dto) throws Exception;
+
+	/** KOLGSDB 비밀번호 갱신 (변경/초기화 공용) */
+	int compPwdUpdate(UserDTO dto) throws Exception;
 
 	UserDTO userInfo(UserDTO dto) throws Exception;
 

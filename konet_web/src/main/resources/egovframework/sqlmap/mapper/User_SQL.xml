@@ -1,6 +1,275 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="egovframework.sejong.user.mapper.UserMapper">
+
+	<!-- ============================================================
+	     KOLGSDB(MSSQL) 로그인 — COMP_CD + USER_ID 최신 활성 1건
+	     · PASS_WD(varbinary) → CONVERT(VARCHAR,..) 로 base64 문자열 복원 (★필수)
+	     · ACTION_YN='Y' 가 현재 활성 버전 플래그
+	     ============================================================ -->
+	<select id="compLoginCheck" parameterType="UserDTO" resultType="UserDTO"><![CDATA[
+	  SELECT TOP 1
+	         A.COMP_CD                        AS compCd,
+	         C.COMP_NM                        AS compNm,
+	         LTRIM(RTRIM(A.USER_ID))          AS userId,
+	         A.USER_NM                        AS userNm,
+	         CONVERT(VARCHAR(500), A.PASS_WD) AS passWd,
+	         A.MAIN_GU                        AS mainGu,
+	         A.START_DT                       AS startDt,
+	         A.END_DT                         AS endDt,
+	         A.USE_YN                         AS useYn,
+	         A.COMMST_YN                      AS commstYn,
+	         A.ACTION_YN                      AS actionYn
+	    FROM TBL_USER_MST A
+	    LEFT JOIN TBL_COMP_MST C ON C.COMP_CD = A.COMP_CD
+	   WHERE A.COMP_CD = #{compCd}
+	     AND LTRIM(RTRIM(A.USER_ID)) = #{userId}
+	     AND A.ACTION_YN = 'Y'
+	   ORDER BY A.START_DT DESC, A.JOB_SEQ DESC
+	]]>
+	</select>
+
+	<!-- KOLGSDB 비밀번호 변경/초기화용 현재 정보 조회 -->
+	<select id="compUserInfo" parameterType="UserDTO" resultType="UserDTO"><![CDATA[
+	  SELECT TOP 1
+	         A.COMP_CD                        AS compCd,
+	         LTRIM(RTRIM(A.USER_ID))          AS userId,
+	         A.USER_NM                        AS userNm,
+	         CONVERT(VARCHAR(500), A.PASS_WD) AS passWd
+	    FROM TBL_USER_MST A
+	   WHERE A.COMP_CD = #{compCd}
+	     AND LTRIM(RTRIM(A.USER_ID)) = #{userId}
+	     AND A.ACTION_YN = 'Y'
+	   ORDER BY A.START_DT DESC, A.JOB_SEQ DESC
+	]]>
+	</select>
+
+	<!-- KOLGSDB 비밀번호 갱신 (변경/초기화 공용) — encPassWd(base64문자열)→varbinary 저장 -->
+	<update id="compPwdUpdate" parameterType="UserDTO"><![CDATA[
+	  UPDATE TBL_USER_MST
+	     SET PASS_WD  = CONVERT(VARBINARY(500), CONVERT(VARCHAR(500), #{encUserPwd})),
+	         PASS_CDT = CONVERT(date, GETDATE()),
+	         UPD_DTTM = GETDATE(),
+	         UPD_USER = #{userId}
+	   WHERE COMP_CD = #{compCd}
+	     AND LTRIM(RTRIM(USER_ID)) = #{userId}
+	     AND ACTION_YN = 'Y'
+	]]>
+	</update>
+
+	<!-- ============================================================
+	     회사/계약/사용자 관리 (compcd.jsp = hospcd.jsp 포팅, MSSQL/KOLGSDB)
+	     · TBL_COMP_MST / TBL_COMPCONT_MST / TBL_USER_MST
+	     · 이력관리: UPDATE(ACTION_YN='N') + INSERT(JOB_SEQ+1, ACTION_YN='Y')
+	     · CONACT_GB / OCS_* / 파일 등 COMP 스키마에 없는 요소 제외
+	     ============================================================ -->
+
+	<!-- 회사 목록 -->
+	<select id="selCompCdList" parameterType="CompMdDTO" resultType="CompMdDTO">
+	<![CDATA[
+	  SELECT CM.COMP_CD        AS compCd,
+	         RTRIM(CM.COMP_NM) AS compNm,
+	         CM.COMP_ADDR      AS compAddr,
+	         CM.COMP_EXTRADR   AS compExtradr,
+	         CM.COMP_CEO       AS compCeo,
+	         CM.BUSI_NUM       AS busiNum,
+	         CM.INACCD         AS inaccd,
+	         CM.ZIP_CD         AS zipCd,
+	         CM.COMP_TEL       AS compTel,
+	         CM.COMP_FAX       AS compFax,
+	         CM.JOIN_DT        AS joinDt,
+	         CM.START_DT       AS startDt,
+	         CM.END_DT         AS endDt,
+	         CM.ACCEPT_DT      AS acceptDt,
+	         CM.CLOSE_DT       AS closeDt,
+	         CM.USE_YN         AS useYn,
+	         CM.COMMST_YN      AS commstYn,
+	         CM.STHPNM         AS sthpnm,
+	         CM.ACTION_YN      AS actionYn,
+	         CM.REG_DTTM       AS regDttm,
+	         CM.UPD_DTTM       AS updDttm,
+	         'N'               AS fileYn
+	    FROM TBL_COMP_MST CM
+	   WHERE CM.ACTION_YN = 'Y'
+	]]>
+	<if test='compCd != null and compCd != "" '>
+	    AND CM.COMP_CD = #{compCd}
+	</if>
+	<if test='findData != null and findData != "" '>
+	    AND ( CM.COMP_CD LIKE '%' + #{findData} + '%'
+	       OR CM.COMP_NM LIKE '%' + #{findData} + '%' )
+	</if>
+	<![CDATA[
+	   ORDER BY CM.COMP_CD
+	]]>
+	</select>
+
+	<!-- 회사 등록 (JOB_SEQ 자동증가, ACTION_YN='Y') -->
+	<insert id="insertCompCdMst" parameterType="CompMdDTO"><![CDATA[
+	  INSERT INTO TBL_COMP_MST (
+	      COMP_CD, JOB_SEQ, COMP_NM, COMP_ADDR, COMP_EXTRADR, COMP_CEO, BUSI_NUM, INACCD,
+	      ZIP_CD, COMP_TEL, COMP_FAX, START_DT, END_DT, JOIN_DT, ACCEPT_DT, CLOSE_DT,
+	      USE_YN, ACTION_YN, STHPNM, COMMST_YN,
+	      REG_DTTM, REG_USER, REG_IP, UPD_DTTM, UPD_USER, UPD_IP
+	  ) VALUES (
+	      #{compCd},
+	      (SELECT ISNULL(MAX(A.JOB_SEQ),0)+1 FROM TBL_COMP_MST A WHERE A.COMP_CD = #{compCd}),
+	      #{compNm}, #{compAddr}, #{compExtradr}, #{compCeo}, #{busiNum}, #{inaccd},
+	      #{zipCd}, #{compTel}, #{compFax}, #{startDt}, #{endDt}, #{joinDt}, #{acceptDt}, #{closeDt},
+	      #{useYn}, 'Y', #{sthpnm}, #{commstYn},
+	      GETDATE(), #{regUser}, #{regIp}, GETDATE(), #{updUser}, #{updIp}
+	  )
+	]]></insert>
+
+	<!-- 회사 이력처리(수정/삭제 공용) -->
+	<update id="updateCompCdMst" parameterType="CompMdDTO"><![CDATA[
+	  UPDATE TBL_COMP_MST
+	     SET ACTION_YN = 'N', UPD_DTTM = GETDATE(), UPD_USER = #{updUser}, UPD_IP = #{updIp}
+	   WHERE COMP_CD = #{compCd} AND ACTION_YN = 'Y'
+	]]></update>
+
+	<select id="CompCdMstDupChk" parameterType="CompMdDTO" resultType="String"><![CDATA[
+	  SELECT TOP 1 'Y' FROM TBL_COMP_MST WHERE COMP_CD = #{compCd} AND ACTION_YN = 'Y'
+	]]></select>
+
+	<!-- 계약 목록 -->
+	<select id="selectCompContList" parameterType="CompConDTO" resultType="CompConDTO"><![CDATA[
+	  SELECT A.COMP_CD      AS compCd,
+	         A.START_DT     AS startDt,
+	         A.END_DT       AS endDt,
+	         A.CON_CONTENT  AS conContent,
+	         A.CON_USER_ID  AS conUserId,
+	         A.CON_USER_TEL AS conUserTel,
+	         A.CON_EMAIL    AS conEmail,
+	         A.JOIN_DT      AS joinDt,
+	         A.ACCEPT_DT    AS acceptDt,
+	         A.CLOSE_DT     AS closeDt,
+	         A.USE_YN       AS useYn,
+	         A.ACTION_YN    AS actionYn,
+	         A.REG_DTTM     AS regDttm,
+	         A.UPD_DTTM     AS updDttm
+	    FROM TBL_COMPCONT_MST A
+	   WHERE A.ACTION_YN = 'Y'
+	     AND A.COMP_CD = #{compCd}
+	   ORDER BY A.START_DT DESC
+	]]></select>
+
+	<!-- 사용자등록 화면 표시용(회사정보 조인) -->
+	<select id="getCompContList" parameterType="CompConDTO" resultType="CompConDTO"><![CDATA[
+	  SELECT TOP 1
+	         B.COMP_NM   AS compNm,
+	         B.COMP_CD   AS compCd,
+	         B.COMP_ADDR AS compAddr,
+	         B.COMP_TEL  AS compTel,
+	         B.COMP_FAX  AS compFax,
+	         A.START_DT  AS startDt,
+	         A.END_DT    AS endDt
+	    FROM TBL_COMPCONT_MST A
+	    JOIN TBL_COMP_MST B ON B.COMP_CD = A.COMP_CD AND B.ACTION_YN = A.ACTION_YN
+	   WHERE A.COMP_CD = #{compCd} AND A.ACTION_YN = 'Y'
+	   ORDER BY A.START_DT DESC
+	]]></select>
+
+	<select id="CompContDupChk" parameterType="CompConDTO" resultType="String"><![CDATA[
+	  SELECT TOP 1 'Y' FROM TBL_COMPCONT_MST
+	   WHERE COMP_CD = #{compCd} AND START_DT = #{startDt} AND END_DT = #{endDt} AND ACTION_YN = 'Y'
+	]]></select>
+
+	<insert id="insertCompCont" parameterType="CompConDTO"><![CDATA[
+	  INSERT INTO TBL_COMPCONT_MST (
+	      COMP_CD, START_DT, END_DT, JOB_SEQ, CON_CONTENT, CON_USER_ID, CON_USER_TEL, CON_EMAIL,
+	      JOIN_DT, ACCEPT_DT, CLOSE_DT, USE_YN, ACTION_YN,
+	      REG_DTTM, REG_USER, REG_IP, UPD_DTTM, UPD_USER, UPD_IP
+	  ) VALUES (
+	      #{compCd}, #{startDt}, #{endDt},
+	      (SELECT ISNULL(MAX(A.JOB_SEQ),0)+1 FROM TBL_COMPCONT_MST A
+	        WHERE A.COMP_CD = #{compCd} AND A.START_DT = #{startDt} AND A.END_DT = #{endDt}),
+	      #{conContent}, #{conUserId}, #{conUserTel}, #{conEmail},
+	      #{joinDt}, #{acceptDt}, #{closeDt}, #{useYn}, 'Y',
+	      GETDATE(), #{regUser}, #{regIp}, GETDATE(), #{updUser}, #{updIp}
+	  )
+	]]></insert>
+
+	<update id="updateCompCont" parameterType="CompConDTO"><![CDATA[
+	  UPDATE TBL_COMPCONT_MST
+	     SET ACTION_YN = 'N', UPD_DTTM = GETDATE(), UPD_USER = #{updUser}, UPD_IP = #{updIp}
+	   WHERE COMP_CD = #{compCd} AND START_DT = #{startDt} AND END_DT = #{endDt} AND ACTION_YN = 'Y'
+	]]></update>
+
+	<!-- 공통코드(콤보) — /base/commList.do : TBL_CODE_DTL -->
+	<select id="selectCommCodeList" parameterType="map" resultType="map">
+		SELECT CODE_CD AS codeCd, SUB_CODE AS subCode, SUB_CODE_NM AS subCodeNm
+		  FROM TBL_CODE_DTL
+		 WHERE ACTION_YN = 'Y'
+		<if test="listGb != null and listGb.size() > 0">
+		  AND CODE_GB IN <foreach item="g" collection="listGb" open="(" separator="," close=")">#{g}</foreach>
+		</if>
+		<if test="listCd != null and listCd.size() > 0">
+		  AND CODE_CD IN <foreach item="c" collection="listCd" open="(" separator="," close=")">#{c}</foreach>
+		</if>
+		 ORDER BY CODE_CD, SUB_CODE
+	</select>
+
+	<!-- 회사 사용자 목록 -->
+	<select id="compUserList" parameterType="UserDTO" resultType="UserDTO"><![CDATA[
+	  SELECT A.USER_ID                       AS userId,
+	         B.COMP_CD                       AS compCd,
+	         B.COMP_NM                       AS compNm,
+	         A.USER_NM                       AS userNm,
+	         A.START_DT                      AS startDt,
+	         A.END_DT                        AS endDt,
+	         A.MAIN_GU                       AS mainGu,
+	         A.EMAIL                         AS email,
+	         A.USER_TEL                      AS userTel,
+	         CONVERT(VARCHAR(500), A.PASS_WD) AS passWd,
+	         A.PASS_CDT                      AS passCdt,
+	         A.BIGO                          AS bigo,
+	         A.COMMST_YN                     AS commstYn,
+	         A.USE_YN                        AS useYn,
+	         A.MBR_JOIN                      AS mbrJoin,
+	         A.REG_DTTM                      AS regDttm,
+	         A.UPD_DTTM                      AS updDttm,
+	         (SELECT SUB_CODE_NM FROM TBL_CODE_DTL
+	            WHERE CODE_GB='Z' AND ACTION_YN='Y' AND CODE_CD='MAIN_GU' AND SUB_CODE=A.MAIN_GU) AS mainGuNm,
+	         CASE WHEN CONVERT(VARCHAR(8),GETDATE(),112) BETWEEN A.START_DT AND A.END_DT THEN 'Y' ELSE 'N' END AS useNot
+	    FROM TBL_USER_MST A
+	    JOIN TBL_COMP_MST B ON B.COMP_CD = A.COMP_CD AND B.ACTION_YN = A.ACTION_YN
+	   WHERE A.COMP_CD = #{compCd} AND A.ACTION_YN = 'Y'
+	   ORDER BY A.USER_ID, A.START_DT DESC
+	]]></select>
+
+	<insert id="insertCompUser" parameterType="UserDTO"><![CDATA[
+	  INSERT INTO TBL_USER_MST (
+	      COMP_CD, USER_ID, JOB_SEQ, USER_NM, START_DT, END_DT, MAIN_GU,
+	      PASS_WD, PASS_CDT, BIGO, EMAIL, USER_TEL, COMMST_YN, USE_YN, MBR_JOIN, ACTION_YN,
+	      REG_DTTM, REG_USER, REG_IP, UPD_DTTM, UPD_USER, UPD_IP
+	  ) VALUES (
+	      #{compCd}, #{userId},
+	      (SELECT ISNULL(MAX(A.JOB_SEQ),0)+1 FROM TBL_USER_MST A
+	        WHERE A.COMP_CD = #{compCd} AND A.USER_ID = #{userId} AND A.START_DT = #{startDt}),
+	      #{userNm}, #{startDt}, #{endDt}, #{mainGu},
+	      CONVERT(VARBINARY(500), CONVERT(VARCHAR(500), CASE WHEN #{encPassWd} IS NOT NULL AND #{encPassWd} <> '' THEN #{encPassWd} ELSE #{passWd} END)),
+	      CONVERT(date, GETDATE()), #{bigo}, #{email}, #{userTel}, #{commstYn}, #{useYn}, #{mbrJoin}, 'Y',
+	      GETDATE(), #{regUser}, #{regIp}, GETDATE(), #{updUser}, #{updIp}
+	  )
+	]]></insert>
+
+	<update id="updateCompUser" parameterType="UserDTO"><![CDATA[
+	  UPDATE TBL_USER_MST
+	     SET ACTION_YN = 'N', UPD_DTTM = GETDATE(), UPD_USER = #{updUser}, UPD_IP = #{updIp}
+	   WHERE COMP_CD = #{compCd} AND USER_ID = #{userId} AND START_DT = #{startDt} AND ACTION_YN = 'Y'
+	]]></update>
+
+	<select id="CompUserDupChk" parameterType="UserDTO" resultType="String"><![CDATA[
+	  SELECT TOP 1 'Y' FROM TBL_USER_MST
+	   WHERE COMP_CD = #{compCd} AND USER_ID = #{userId} AND START_DT = #{startDt} AND ACTION_YN = 'Y'
+	]]></select>
+
+	<select id="CompUseridDupChk" parameterType="UserDTO" resultType="String"><![CDATA[
+	  SELECT TOP 1 'Y' FROM TBL_USER_MST
+	   WHERE COMP_CD = #{compCd} AND USER_ID = #{userId} AND ACTION_YN = 'Y'
+	]]></select>
+
 	<select id="userLoginCheck" parameterType="UserDTO" resultType="UserDTO"><![CDATA[
 	  SELECT USER_ID ,
 	         USER_ID_NM ,
@@ -78,31 +347,5 @@
 		 ORDER BY TERMS_SEQ DESC
 		 LIMIT 1
 	</select>
-
-	<!--
-	  동의이력 저장 — T_PERSIGN_TRAN
-	  ⚠ 컬럼명 가정 (확정된 DDL 부재 — 표준 형태로 추정).
-	     실제 스키마와 다르면 컬럼명만 수정하면 됨.
-	  키 조합 가정: (USER_UUID, TERMS_SEQ) — 한 사용자가 같은 약관 버전에 중복 동의 불가.
-	-->
-	<insert id="insertPersign" parameterType="PersignDTO">
-		INSERT INTO T_PERSIGN_TRAN (
-		    USER_UUID
-		   ,TERMS_SEQ
-		   ,TERMS_GB
-		   ,AGREE_YN
-		   ,AGREE_DTM
-		   ,REG_ID
-		   ,REG_DTM
-		) VALUES (
-		    #{userUuid}
-		   ,#{termsSeq}
-		   ,#{termsGb}
-		   ,IFNULL(#{agreeYn}, 'Y')
-		   ,NOW()
-		   ,#{regId}
-		   ,NOW()
-		)
-	</insert>
 
 </mapper>

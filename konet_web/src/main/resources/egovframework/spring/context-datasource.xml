@@ -3,54 +3,30 @@
 	xmlns:jdbc="http://www.springframework.org/schema/jdbc"
 	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
         http://www.springframework.org/schema/jdbc  http://www.springframework.org/schema/jdbc/spring-jdbc-4.0.xsd">
-	
-	<!-- 테스트 실행용 
-	<jdbc:embedded-database id="dataSource" type="HSQL">
-		<jdbc:script location= "classpath:/db/sampledb.sql"/>
-	</jdbc:embedded-database>
-     --> 
-     
-    <!-- hsql (테스트용 메모리 DB)
+
+    <!-- ============================================================
+         MS SQL Server (KOLGSDB) — 전체 교체 (A안)
+         · 서버 : saynice.co.kr  / DB : KOLGSDB
+         · sendStringParametersAsUnicode=true → 앱에서 한글 INSERT 시 N 접두어 불필요
+         · encrypt=false → 사내망/구버전 호환 (TLS 강제 안 함)
+         · 비밀번호는 운영값으로 교체할 것
+         ============================================================ -->
     <bean id="dataSource" class="org.apache.commons.dbcp2.BasicDataSource" destroy-method="close">
-        <property name="driverClassName" value="net.sf.log4jdbc.DriverSpy"/>
-        <property name="url" value="jdbc:log4jdbc:hsqldb:hsql://localhost/sampledb"/>
+        <property name="driverClassName" value="com.microsoft.sqlserver.jdbc.SQLServerDriver"/>
+        <property name="url" value="jdbc:sqlserver://saynice.co.kr:1433;databaseName=KOLGSDB;encrypt=false;sendStringParametersAsUnicode=true"/>
         <property name="username" value="sa"/>
+        <property name="password" value="@samyook36"/>
+        <property name="validationQuery" value="SELECT 1"/>
+        <property name="testOnBorrow" value="true"/>
     </bean>
-    -->  
-    
-    <!-- Mysql (POM에서 commons-dbcp, mysql-connector-java 관련 라이브러리 설정 ) -->
-<!-- 
-    <bean id="dataSource" class="org.apache.commons.dbcp2.BasicDataSource" destroy-method="close">
-        <property name="driverClassName" value="com.mysql.cj.jdbc.Driver"/>
-        <property name="url" value="jdbc:mysql://118.67.132.68:13306/DB_DCA" />
-        <property name="username" value="DCA"/>
-        <property name="password" value="Acd431!!"/>
-    </bean>
- -->    
-    <!-- Mysql (POM에서 commons-dbcp, mysql-connector-java 관련 라이브러리 설정 ) -->
-<!--     <bean id="dataSource" class="org.apache.commons.dbcp2.BasicDataSource" destroy-method="close">
-        <property name="driverClassName" value="com.mysql.cj.jdbc.Driver"/>
-        <property name="url" value="jdbc:mysql://211.47.74.49:3306/dbhannetit" />
-        <property name="username" value="hannetit"/>
-        <property name="password" value="hjko884803!"/>
-    </bean>
- -->
- 
-     <!-- Mysql (POM에서 commons-dbcp, mysql-connector-java 관련 라이브러리 설정 ) -->
+
+    <!-- 기존 MySQL 설정 (참고용 보관 — A안 전체교체로 비활성)
     <bean id="dataSource" class="org.apache.commons.dbcp2.BasicDataSource" destroy-method="close">
         <property name="driverClassName" value="com.mysql.cj.jdbc.Driver"/>
         <property name="url" value="jdbc:mysql://211.47.75.102:3306/dbhannetit02" />
         <property name="username" value="hannetit02"/>
         <property name="password" value="hjko884803!"/>
-    </bean>   
-    
-    <!-- oracle (POM에서 commons-dbcp, ojdbc(라이센스 사항으로 별도로 배포되지 않음) 관련 라이브러리 설정)
-    <bean id="dataSource" class="org.apache.commons.dbcp2.BasicDataSource" destroy-method="close">
-        <property name="driverClassName" value="oracle.jdbc.driver.OracleDriver"/>
-        <property name="url" value="jdbc:oracle:thin:@127.0.0.1:1521:example" />
-        <property name="username" value="user"/>
-        <property name="password" value="password"/>
     </bean>
     -->
-    
+
 </beans>

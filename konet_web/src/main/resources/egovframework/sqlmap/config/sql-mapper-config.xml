@@ -8,13 +8,12 @@
 	</settings>
 	<typeAliases>
 		<typeAlias alias="UserDTO"    type="egovframework.sejong.user.model.UserDTO"/>
+		<typeAlias alias="CompMdDTO"  type="egovframework.sejong.user.model.CompMdDTO"/>
+		<typeAlias alias="CompConDTO" type="egovframework.sejong.user.model.CompConDTO"/>
 		<typeAlias alias="FaqDTO"     type="egovframework.sejong.admin.model.FaqDTO"/>
-		<typeAlias alias="PatientDTO" type="egovframework.sejong.admin.model.PatientDTO"/>
-		<typeAlias alias="AuserDTO"   type="egovframework.sejong.admin.model.AuserDTO"/>
 		<typeAlias alias="AsqDTO"     type="egovframework.sejong.admin.model.AsqDTO"/>
 		<typeAlias alias="CommDTO"    type="egovframework.sejong.admin.model.CommDTO"/>
  	    <typeAlias alias="SjgnDTO"    type="egovframework.sejong.user.model.SjgnDTO"/>
-		<typeAlias alias="PersignDTO" type="egovframework.sejong.user.model.PersignDTO"/>
 	</typeAliases>
 
 </configuration>

@@ -12,9 +12,7 @@ import org.springframework.stereotype.Service;
 import egovframework.sejong.admin.mapper.AdminMapper;
 import egovframework.sejong.admin.service.AdminService;
 
-import egovframework.sejong.admin.model.PatientDTO;
 import egovframework.sejong.admin.model.AsqDTO;
-import egovframework.sejong.admin.model.AuserDTO;
 import egovframework.sejong.admin.model.FaqDTO;
 
 
@@ -24,74 +22,7 @@ public class AdminServiceImpl implements AdminService {
 	@Autowired
 	private AdminMapper mapper;
 
-	
-	// 환자정보 
-	@Override
-	public List<?> selectPatientList(PatientDTO dto) throws Exception {
-		// TODO Auto-generated method stub
-		return mapper.selectPatientList(dto);
-	}
-	@Override
-	public PatientDTO patientInfo(PatientDTO dto) throws Exception {
-		// TODO Auto-generated method stub
-		return mapper.patientInfo(dto);
-	}
-	@Override
-	public boolean insertPatient(PatientDTO dto) throws Exception {
-		// TODO Auto-generated method stub
-		return mapper.insertPatient(dto);
-	}
-	@Override
-	public boolean updatePatient(PatientDTO dto) throws Exception {
-		// TODO Auto-generated method stub
-		return mapper.updatePatient(dto);
-	}
-	@Override
-	public boolean deletePatient(PatientDTO dto) throws Exception {
-		// TODO Auto-generated method stub
-		return mapper.deletePatient(dto);
-	}
 
-	// 환자 로그인/가입 (T_USER_TRAN)
-	@Override
-	public PatientDTO patientLoginCheck(PatientDTO dto) throws Exception {
-		return mapper.patientLoginCheck(dto);
-	}
-	@Override
-	public boolean patientRegister(PatientDTO dto) throws Exception {
-		return mapper.patientRegister(dto);
-	}
-	@Override
-	public int patientExistsByPhone(PatientDTO dto) throws Exception {
-		return mapper.patientExistsByPhone(dto);
-	}
-
-	//사용자(의사)
-	@Override
-	public List<?> selectAuserList(AuserDTO dto) throws Exception {
-		// TODO Auto-generated method stub
-		return mapper.selectAuserList(dto);
-	}
-	@Override
-	public AuserDTO auserInfo(AuserDTO dto) throws Exception {
-		// TODO Auto-generated method stub
-		return mapper.auserInfo(dto);
-	}
-	@Override
-	public boolean insertAuser(AuserDTO dto) throws Exception {
-		// TODO Auto-generated method stub
-		return mapper.insertAuser(dto);
-	}
-	@Override
-	public boolean updateAuser(AuserDTO dto) throws Exception {
-		// TODO Auto-generated method stub
-		return mapper.updateAuser(dto);
-	}
-	@Override
-	public boolean deleteAuser(AuserDTO dto) throws Exception {
-		// TODO Auto-generated method stub
-		return mapper.deleteAuser(dto);
-	}
 	@Override
 	public List<?> selectfaqList(FaqDTO dto) throws Exception {
 		// TODO Auto-generated method stub

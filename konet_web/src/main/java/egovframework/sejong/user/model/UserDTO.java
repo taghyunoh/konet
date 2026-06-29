@@ -1,5 +1,8 @@
 package egovframework.sejong.user.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class UserDTO{
 
 	private static final long serialVersionUID = 1L;
@@ -34,6 +37,97 @@ public class UserDTO{
 	private String userUuid;
 
 	private String userIdNm;
+
+	// ===== KOLGSDB(TBL_USER_MST/TBL_COMP_MST) 로그인용 추가 필드 =====
+	private String compCd;     // 회사코드(COMP_CD)
+	private String compNm;     // 회사명(COMP_NM)
+	private String passWd;     // 비밀번호(DB 저장 해시 base64 문자열)
+	private String mainGu;     // 사용자구분(MAIN_GU)
+	private String startDt;    // 시작일자(START_DT)
+	private String endDt;      // 종료일자(END_DT)
+	private String commstYn;   // COMMST_YN
+	private String actionYn;   // 활성여부(ACTION_YN)
+
+	public String getCompCd() { return compCd; }
+	public void setCompCd(String compCd) { this.compCd = compCd; }
+
+	public String getCompNm() { return compNm; }
+	public void setCompNm(String compNm) { this.compNm = compNm; }
+
+	public String getPassWd() { return passWd; }
+	public void setPassWd(String passWd) { this.passWd = passWd; }
+
+	public String getMainGu() { return mainGu; }
+	public void setMainGu(String mainGu) { this.mainGu = mainGu; }
+
+	public String getStartDt() { return startDt; }
+	public void setStartDt(String startDt) { this.startDt = startDt; }
+
+	public String getEndDt() { return endDt; }
+	public void setEndDt(String endDt) { this.endDt = endDt; }
+
+	public String getCommstYn() { return commstYn; }
+	public void setCommstYn(String commstYn) { this.commstYn = commstYn; }
+
+	public String getActionYn() { return actionYn; }
+	public void setActionYn(String actionYn) { this.actionYn = actionYn; }
+
+	// ===== 회사 사용자(compcd.jsp) CRUD 추가 필드 =====
+	private String jobSeq;
+	private String email;
+	private String userTel;
+	private String mbrJoin;
+	private String passCdt;
+	private String encPassWd;   // 신규 저장용 인코딩 비번
+	private String bfPassWd;    // 입력 원문 비번
+	private String regUser;
+	private String regIp;
+	private String updUser;
+	private String updIp;
+	private String regDttm;
+	private String updDttm;
+	private String useNot;      // 기간내 사용여부(Y/N)
+	private String mainGuNm;    // 사용자구분 명
+	private String keyurcompCd; // 그리드 PK (그리드 name 속성과 동일 소문자)
+	private String keyurstartDt;
+	private String keyuruserId;
+
+	public String getJobSeq() { return jobSeq; }
+	public void setJobSeq(String jobSeq) { this.jobSeq = jobSeq; }
+	public String getEmail() { return email; }
+	public void setEmail(String email) { this.email = email; }
+	public String getUserTel() { return userTel; }
+	public void setUserTel(String userTel) { this.userTel = userTel; }
+	public String getMbrJoin() { return mbrJoin; }
+	public void setMbrJoin(String mbrJoin) { this.mbrJoin = mbrJoin; }
+	public String getPassCdt() { return passCdt; }
+	public void setPassCdt(String passCdt) { this.passCdt = passCdt; }
+	public String getEncPassWd() { return encPassWd; }
+	public void setEncPassWd(String encPassWd) { this.encPassWd = encPassWd; }
+	public String getBfPassWd() { return bfPassWd; }
+	public void setBfPassWd(String bfPassWd) { this.bfPassWd = bfPassWd; }
+	public String getRegUser() { return regUser; }
+	public void setRegUser(String regUser) { this.regUser = regUser; }
+	public String getRegIp() { return regIp; }
+	public void setRegIp(String regIp) { this.regIp = regIp; }
+	public String getUpdUser() { return updUser; }
+	public void setUpdUser(String updUser) { this.updUser = updUser; }
+	public String getUpdIp() { return updIp; }
+	public void setUpdIp(String updIp) { this.updIp = updIp; }
+	public String getRegDttm() { return regDttm; }
+	public void setRegDttm(String regDttm) { this.regDttm = regDttm; }
+	public String getUpdDttm() { return updDttm; }
+	public void setUpdDttm(String updDttm) { this.updDttm = updDttm; }
+	public String getUseNot() { return useNot; }
+	public void setUseNot(String useNot) { this.useNot = useNot; }
+	public String getMainGuNm() { return mainGuNm; }
+	public void setMainGuNm(String mainGuNm) { this.mainGuNm = mainGuNm; }
+	public String getKeyurcompCd() { return keyurcompCd; }
+	public void setKeyurcompCd(String keyurcompCd) { this.keyurcompCd = keyurcompCd; }
+	public String getKeyurstartDt() { return keyurstartDt; }
+	public void setKeyurstartDt(String keyurstartDt) { this.keyurstartDt = keyurstartDt; }
+	public String getKeyuruserId() { return keyuruserId; }
+	public void setKeyuruserId(String keyuruserId) { this.keyuruserId = keyuruserId; }
 
 	public String getUserIdNm() { return userIdNm; }
 	public void setUserIdNm(String userIdNm) { this.userIdNm = userIdNm; }
