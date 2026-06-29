@@ -60,6 +60,7 @@ $(document).on('init.dt', function(e, settings) {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" /> <!-- 파일다운로드관련아이콘 -->
 
 <link href="/css/winmc/style_comm.css?v=126"  rel="stylesheet">
+<link href="/css/winmc/logi-skin.css?v=1"  rel="stylesheet"> <!-- logistics_demo 스타일 리스킨 -->
 <style>
   /* ★ style_comm.css(.dashboard-wrapper margin-left:300px) 뒤에서 덮어써 우측 전체폭 사용 */
   html, body { margin:0 !important; padding:0 !important; }
@@ -178,7 +179,7 @@ $(document).on('init.dt', function(e, settings) {
 							</div>
 						</div>
 						<div id="hospContractMsg" style="display: inline-block; margin-left: 16px; vertical-align: middle; color: #d32f2f; font-weight: bold; font-size: 13px; white-space: nowrap;">
-							※ 병원계약정보가 변경된 경우 사용자 로그인 시 로그아웃하고 다시 진행 부탁합니다.
+							※ 계약정보가 변경된 경우 사용자 로그인 시 로그아웃하고 다시 진행 부탁합니다.
 						</div>
 						<div style="width: 100%;">
 							<table id="tableName"
@@ -289,9 +290,9 @@ $(document).on('init.dt', function(e, settings) {
 	data-keyboard="false">
 	<div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"
 		role="dialog"
-		style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50vw; max-width: 50vw; height: 50vh; max-height: 50vh;">
+		style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50vw; max-width: 50vw; height: auto; max-height: 90vh;">
 		<div class="modal-content"
-			style="height: 97%; display: flex; flex-direction: column;">
+			style="height: auto; max-height: 90vh; display: flex; flex-direction: column;">
 			<div class="modal-header bg-light">
 				<h6 class="modal-title" id="modalHead"></h6>
 				<!-- ============================================================== -->
@@ -417,9 +418,9 @@ $(document).on('init.dt', function(e, settings) {
 	data-keyboard="false">
 	<div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"
 		role="dialog"
-		style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50vw; max-width: 50vw; max-height: 50vh;">
+		style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50vw; max-width: 50vw; height: auto; max-height: 90vh;">
 		<div class="modal-content"
-			style="height: 70%; display: flex; flex-direction: column;">
+			style="height: auto; max-height: 90vh; display: flex; flex-direction: column;">
 			<div class="modal-header bg-light">
 				<h6 class="modal-title" id="hc_modalHead"></h6>
 				<div class="form-row">
@@ -497,9 +498,9 @@ $(document).on('init.dt', function(e, settings) {
 	data-keyboard="false">
 	<div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"
 		role="dialog"
-		style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50vw; max-width: 50vw; max-height: 50vh;">
+		style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50vw; max-width: 50vw; height: auto; max-height: 90vh;">
 		<div class="modal-content"
-			style="height: 55%; display: flex; flex-direction: column;">
+			style="height: auto; max-height: 90vh; display: flex; flex-direction: column;">
 			<div class="modal-header bg-light">
 				<h5 class="modal-title" id="hu_modalHead"></h5>
 				<div class="form-row">
@@ -694,8 +695,8 @@ $(document).on('init.dt', function(e, settings) {
 		<!-- Table Setting Start -->
 		<!-- ============================================================== -->
 		var gridColums = [];
-		var btm_Scroll = true;   		// 하단 scroll여부 - scrollX
-		var auto_Width = true;   		// 열 너비 자동 계산 - autoWidth
+		var btm_Scroll = false;   		// scrollX 끔 → 표가 폭 100% 채움(우측 빈공간 제거)
+		var auto_Width = false;   		// 열 너비 자동 계산 off → 컬럼이 폭에 맞게 분배
 		var page_Hight = 300;// 650;    		// Page 길이보다 Data가 많으면 자동 scroll - scrollY
 		var p_Collapse = false;  		// Page 길이까지 auto size - scrollCollapse
 		

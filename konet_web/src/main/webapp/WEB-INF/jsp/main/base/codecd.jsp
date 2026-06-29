@@ -56,6 +56,7 @@ $(document).on('init.dt', function(e, settings) {
 
 <!-- Customized Bootstrap Stylesheet -->
 <link href="/css/winmc/style_comm.css?v=127"  rel="stylesheet">
+<link href="/css/winmc/logi-skin.css?v=1"  rel="stylesheet"> <!-- logistics_demo 스타일 리스킨 -->
 <style>
   /* ★ style_comm.css(.dashboard-wrapper margin-left:300px) 뒤에서 덮어써 우측 전체폭 사용 */
   html, body { margin:0 !important; padding:0 !important; }
@@ -464,8 +465,8 @@ $(document).on('init.dt', function(e, settings) {
 		<!-- Table Setting Start -->
 		<!-- ============================================================== -->
 		var gridColums = [];
-		var btm_Scroll = true;   		// 하단 scroll여부 - scrollX
-		var auto_Width = true;   		// 열 너비 자동 계산 - autoWidth
+		var btm_Scroll = false;   		// scrollX 끔 → 표가 폭 100% 채움
+		var auto_Width = false;   		// 열 너비 자동 계산 off → 컬럼 폭 분배
 		var page_Hight =  600;    		// Page 길이보다 Data가 많으면 자동 scroll - scrollY
 		var p_Collapse = false;  		// Page 길이까지 auto size - scrollCollapse
 		
