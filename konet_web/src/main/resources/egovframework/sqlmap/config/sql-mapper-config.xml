@@ -10,6 +10,7 @@
 		<typeAlias alias="UserDTO"    type="egovframework.sejong.user.model.UserDTO"/>
 		<typeAlias alias="CompMdDTO"  type="egovframework.sejong.user.model.CompMdDTO"/>
 		<typeAlias alias="CompConDTO" type="egovframework.sejong.user.model.CompConDTO"/>
+		<typeAlias alias="CodeMdDTO"  type="egovframework.sejong.user.model.CodeMdDTO"/>
 		<typeAlias alias="FaqDTO"     type="egovframework.sejong.admin.model.FaqDTO"/>
 		<typeAlias alias="AsqDTO"     type="egovframework.sejong.admin.model.AsqDTO"/>
 		<typeAlias alias="CommDTO"    type="egovframework.sejong.admin.model.CommDTO"/>

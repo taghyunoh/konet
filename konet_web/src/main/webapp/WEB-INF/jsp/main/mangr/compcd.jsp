@@ -8,11 +8,64 @@
 	uri="http://www.opensymphony.com/sitemesh/decorator"%>
 <%@ taglib uri="http://www.opensymphony.com/sitemesh/page" prefix="page"%>
 <%@ page import="java.util.Date"%>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>회사/계약/사용자 관리</title>
+<!-- 대시보드 테마 (medcost /assets) -->
+<link rel="stylesheet" href="/assets/vendor/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" href="/assets/libs/css/style.css">
+<link rel="stylesheet" href="/assets/vendor/fonts/fontawesome/css/fontawesome-all.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/v/dt/jszip-3.10.1/dt-2.1.8/b-3.2.0/b-colvis-3.2.0/b-html5-3.2.0/b-print-3.2.0/datatables.min.css">
+<link rel="stylesheet" href="/css/winmc/addstyle.css?v=100">
+<style> html, body { font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo',sans-serif; } </style>
+<!-- jQuery 먼저 -->
+<script src="https://code.jquery.com/jquery-3.7.1.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/v/dt/jszip-3.10.1/dt-2.1.8/b-3.2.0/b-colvis-3.2.0/b-html5-3.2.0/b-print-3.2.0/datatables.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="/assets/vendor/bootstrap/js/bootstrap.bundle.js"></script>
+<script src="/assets/vendor/inputmask/js/jquery.inputmask.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<!-- winmc 공통 프레임워크 (dataLoad/getFormat/formValueSet/comm_Check/messageBox/authControl 등) -->
+<script type="text/javascript" src="/js/winmc/main.js"></script>
+<script type="text/javascript" src="/js/winmc/mess_cd.js"></script>
+<script type="text/javascript" src="/js/winmc/message.js"></script>
+<script type="text/javascript" src="/js/winmc/commons.js"></script>
+<script type="text/javascript" src="/js/winmc/contact.js"></script>
+<script type="text/javascript" src="/js/winmc/loading.js"></script>
+<script type="text/javascript" src="/js/winmc/jqBootstrapValidation.min.js"></script>
+<script type="text/javascript" src="/js/winmc/schcommons.js"></script>
+<script type="text/javascript" src="/js/winmc/authControl.js"></script>
+<script>
+/* 권한 전역값 (authControl.js 의 applyAuthControl 참조) — 관리화면이므로 전체 허용 */
+var s_insauth = 'Y', s_updauth = 'Y', s_delauth = 'Y', s_inqauth = 'Y';
+$(document).on('init.dt', function(e, settings) {
+    setTimeout(function() { try { $(settings.nTable).DataTable().columns.adjust(); } catch(e){} }, 300);
+});
+</script>
+<style>
+  /* iframe 단독 표시 — 테마의 사이드바 여백(264px) 제거하고 우측 전체 폭 사용 */
+  html, body { margin:0 !important; padding:0 !important; }
+  .dashboard-wrapper { margin-left:0 !important; padding:8px !important; width:100% !important; }
+  .dashboard-content, .container-fluid { max-width:100% !important; width:100% !important; margin:0 !important; padding:0 !important; }
+</style>
+
 <!-- Customized Bootstrap Stylesheet -->
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" /> <!-- 파일다운로드관련아이콘 -->
 
 <link href="/css/winmc/style_comm.css?v=126"  rel="stylesheet">
+<style>
+  /* ★ style_comm.css(.dashboard-wrapper margin-left:300px) 뒤에서 덮어써 우측 전체폭 사용 */
+  html, body { margin:0 !important; padding:0 !important; }
+  .dashboard-wrapper { margin-left:0 !important; padding:8px !important; width:100% !important; }
+  .dashboard-content, .container-fluid { max-width:100% !important; width:100% !important; margin:0 !important; padding:0 !important; }
+</style>
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <!-- 카카오주소검색 -->
 <!-- DataTables CSS -->
@@ -63,6 +116,8 @@
 <!-- ============================================================== -->
 <!-- Main Form start -->
 <!-- ============================================================== -->
+</head>
+<body>
 <div class="dashboard-wrapper">
 	<div class="container-fluid  dashboard-content">
 		<div class="row">
@@ -3769,4 +3824,5 @@
 <!-- ============================================================== -->
 <!-- 기타 정보 End -->
 <!-- ============================================================== -->
-
+</body>
+</html>

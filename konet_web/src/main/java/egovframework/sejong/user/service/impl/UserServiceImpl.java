@@ -61,6 +61,16 @@ public class UserServiceImpl implements UserService {
 	@Override public int updateCompCont(CompConDTO dto) throws Exception { return mapper.updateCompCont(dto); }
 
 	@Override public java.util.List<java.util.Map<String,Object>> selectCommCodeList(java.util.Map<String,Object> param) throws Exception { return mapper.selectCommCodeList(param); }
+
+	// ===== 공통코드 관리 (codecd.jsp) =====
+	@Override public List<egovframework.sejong.user.model.CodeMdDTO> codeMstList(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception { return mapper.codeMstList(dto); }
+	@Override public String codeMstDupChk(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception { return mapper.codeMstDupChk(dto); }
+	@Override public int insertCodeMst(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception { return mapper.insertCodeMst(dto); }
+	@Override public int updateCodeMst(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception { return mapper.updateCodeMst(dto); }
+	@Override public List<egovframework.sejong.user.model.CodeMdDTO> codeDtlList(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception { return mapper.codeDtlList(dto); }
+	@Override public String codeDtlDupChk(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception { return mapper.codeDtlDupChk(dto); }
+	@Override public int insertCodeDtl(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception { return mapper.insertCodeDtl(dto); }
+	@Override public int updateCodeDtl(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception { return mapper.updateCodeDtl(dto); }
 	@Override public List<UserDTO> compUserList(UserDTO dto) throws Exception { return mapper.compUserList(dto); }
 	@Override public int insertCompUser(UserDTO dto) throws Exception { return mapper.insertCompUser(dto); }
 	@Override public int updateCompUser(UserDTO dto) throws Exception { return mapper.updateCompUser(dto); }

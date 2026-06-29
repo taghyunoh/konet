@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.http.ResponseEntity;
 
 import egovframework.sejong.admin.service.AdminService;
+import egovframework.sejong.user.model.CodeMdDTO;
 import egovframework.sejong.user.model.CompConDTO;
 import egovframework.sejong.user.model.CompMdDTO;
 import egovframework.sejong.user.model.SjgnDTO;
@@ -157,7 +158,8 @@ public class UserController {
 		@RequestMapping(value="/user/loginChk.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,String> compLogin(@ModelAttribute("DTO") UserDTO dto,
-				HttpSession session, HttpServletRequest request) throws Exception {
+				HttpSession session, HttpServletRequest request,
+				javax.servlet.http.HttpServletResponse response) throws Exception {
 
 			Map<String,String> res = new HashMap<String,String>();
 			try {
@@ -206,6 +208,12 @@ public class UserController {
 				// 기존 진입 가드(KonetEntry/main.do)가 q_user_id 로 미로그인 판정하므로 함께 세팅
 				session.setAttribute("q_user_id", result.getUserId());
 				session.setAttribute("q_user_nm", result.getUserNm());
+
+				// compcd.jsp(winmc commons.js)가 쿠키(getCookie)로 등록자/IP/회사코드를 참조 → 쿠키도 심음
+				String connIp = request.getRemoteAddr();
+				addCookie(response, "s_userid", result.getUserId());
+				addCookie(response, "s_connip", connIp);
+				addCookie(response, "s_compcd", result.getCompCd());
 
 				res.put("login_Comp", result.getCompNm());
 				res.put("login_User", result.getUserNm());
@@ -431,7 +439,7 @@ public class UserController {
 		@RequestMapping(value="/mangr/compcd.do")
 		public String compcd(HttpSession session, ModelMap model) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
-			return ".main/mangr/compcd";
+			return ".raw/main/mangr/compcd";
 		}
 
 		/* ---- 회사 ---- */
@@ -583,5 +591,111 @@ public class UserController {
 				if ("Y".equals(svc.CompUseridDupChk(dto))) return ResponseEntity.status(400).body("기존사용아이디가 존재합니다.");
 				return ResponseEntity.ok("OK");
 			} catch (Exception e) { return ResponseEntity.status(500).body("서버 오류: " + e.getMessage()); }
+		}
+
+		/* 공통코드 콤보 — compcd.jsp comm_Check() : TBL_CODE_DTL */
+		@RequestMapping(value="/base/commList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> baseCommList(HttpServletRequest request) throws Exception {
+			String[] gb = request.getParameterValues("listGb[]");
+			if (gb == null) gb = request.getParameterValues("listGb");
+			String[] cd = request.getParameterValues("listCd[]");
+			if (cd == null) cd = request.getParameterValues("listCd");
+			Map<String,Object> param = new HashMap<String,Object>();
+			param.put("listGb", gb == null ? null : java.util.Arrays.asList(gb));
+			param.put("listCd", cd == null ? null : java.util.Arrays.asList(cd));
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", svc.selectCommCodeList(param));
+			return res;
+		}
+
+		// ============================================================
+		// 공통코드 관리 (codecd.jsp = commcd.jsp 포팅, KOLGSDB TBL_CODE_MST/DTL)
+		// ============================================================
+		@RequestMapping(value="/base/commcd.do")
+		public String commcd(HttpSession session, ModelMap model) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/base/codecd";
+		}
+
+		/* ---- 대표코드 ---- */
+		@RequestMapping(value="/base/commMstList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> commMstList(@ModelAttribute("DTO") CodeMdDTO dto, HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) return null;
+			Map<String,Object> r = new HashMap<String,Object>();
+			r.put("data", svc.codeMstList(dto));
+			return r;
+		}
+		@RequestMapping(value="/base/commMstInsert.do", method = RequestMethod.POST)
+		public ResponseEntity<String> commMstInsert(@RequestBody List<CodeMdDTO> data) {
+			try {
+				for (CodeMdDTO dto : data) {
+					if ("Y".equals(svc.codeMstDupChk(dto))) return ResponseEntity.status(400).body(dto.getCodeCd());
+					svc.insertCodeMst(dto);
+				}
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/base/commMstUpdate.do", method = RequestMethod.POST)
+		public ResponseEntity<String> commMstUpdate(@RequestBody List<CodeMdDTO> data) {
+			try {
+				for (CodeMdDTO dto : data) { svc.updateCodeMst(dto); svc.insertCodeMst(dto); }
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value={"/base/commMstDelete.do","/user/commMstDelete.do"}, method = RequestMethod.POST)
+		public ResponseEntity<String> commMstDelete(@RequestBody List<CodeMdDTO> data) {
+			try {
+				for (CodeMdDTO dto : data) { dto.setCodeCd(dto.getKeycodeCd()); svc.updateCodeMst(dto); }
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* ---- 상세코드 ---- */
+		@RequestMapping(value="/base/commDtlList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> commDtlList(@ModelAttribute("DTO") CodeMdDTO dto, HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) return null;
+			Map<String,Object> r = new HashMap<String,Object>();
+			r.put("data", svc.codeDtlList(dto));
+			return r;
+		}
+		@RequestMapping(value="/base/CommDtlInsert.do", method = RequestMethod.POST)
+		public ResponseEntity<String> CommDtlInsert(@RequestBody List<CodeMdDTO> data) {
+			try {
+				for (CodeMdDTO dto : data) {
+					if ("Y".equals(svc.codeDtlDupChk(dto))) return ResponseEntity.status(400).body(dto.getCodeCd());
+					svc.insertCodeDtl(dto);
+				}
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/base/CommDtlUpdate.do", method = RequestMethod.POST)
+		public ResponseEntity<String> CommDtlUpdate(@RequestBody List<CodeMdDTO> data) {
+			try {
+				for (CodeMdDTO dto : data) { svc.updateCodeDtl(dto); svc.insertCodeDtl(dto); }
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/base/CommDtlDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> CommDtlDelete(@RequestBody List<CodeMdDTO> data) {
+			try {
+				for (CodeMdDTO dto : data) {
+					dto.setCodeCd(dto.getKeycodeCd());
+					dto.setCodeGb(dto.getKeycodeGb());
+					dto.setSubCode(dto.getKeysubCode());
+					svc.updateCodeDtl(dto);
+				}
+				return ResponseEntity.ok("OK");
+			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* compcd.jsp(winmc) 호환용 쿠키 — 1일 유지 */
+		private void addCookie(javax.servlet.http.HttpServletResponse response, String name, String value) {
+			javax.servlet.http.Cookie c = new javax.servlet.http.Cookie(name, value == null ? "" : value);
+			c.setPath("/");
+			c.setMaxAge(60 * 60 * 24);
+			response.addCookie(c);
 		}
 }

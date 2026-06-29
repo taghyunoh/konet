@@ -25,6 +25,16 @@ public interface UserService {
 
 	List<java.util.Map<String,Object>> selectCommCodeList(java.util.Map<String,Object> param) throws Exception;
 
+	// ===== 공통코드 관리 (codecd.jsp) =====
+	List<egovframework.sejong.user.model.CodeMdDTO> codeMstList(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+	String codeMstDupChk(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+	int insertCodeMst(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+	int updateCodeMst(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+	List<egovframework.sejong.user.model.CodeMdDTO> codeDtlList(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+	String codeDtlDupChk(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+	int insertCodeDtl(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+	int updateCodeDtl(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+
 	List<UserDTO> compUserList(UserDTO dto) throws Exception;
 	int insertCompUser(UserDTO dto) throws Exception;
 	int updateCompUser(UserDTO dto) throws Exception;

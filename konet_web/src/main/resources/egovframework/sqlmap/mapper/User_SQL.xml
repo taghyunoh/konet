@@ -210,6 +210,67 @@
 		 ORDER BY CODE_CD, SUB_CODE
 	</select>
 
+	<!-- ============================================================
+	     공통코드 관리 (codecd.jsp) — TBL_CODE_MST / TBL_CODE_DTL
+	     ============================================================ -->
+	<select id="codeMstList" parameterType="CodeMdDTO" resultType="CodeMdDTO">
+		SELECT CODE_CD AS codeCd, CODE_NM AS codeNm, START_DT AS startDt, END_DT AS endDt,
+		       USE_YN AS useYn, SORT AS sort, JOB_SEQ AS jobSeq, ACTION_YN AS actionYn,
+		       REG_DTTM AS regDttm, UPD_DTTM AS updDttm
+		  FROM TBL_CODE_MST
+		 WHERE ACTION_YN = 'Y'
+		<if test='findData != null and findData != "" '>
+		   AND ( CODE_CD LIKE '%' + #{findData} + '%' OR CODE_NM LIKE '%' + #{findData} + '%' )
+		</if>
+		 ORDER BY CODE_CD
+	</select>
+
+	<select id="codeMstDupChk" parameterType="CodeMdDTO" resultType="String">
+		SELECT TOP 1 'Y' FROM TBL_CODE_MST WHERE CODE_CD = #{codeCd} AND ACTION_YN = 'Y'
+	</select>
+
+	<insert id="insertCodeMst" parameterType="CodeMdDTO">
+		INSERT INTO TBL_CODE_MST (CODE_CD, JOB_SEQ, CODE_NM, START_DT, END_DT, USE_YN, SORT, ACTION_YN,
+		                          REG_DTTM, REG_USER, REG_IP, UPD_DTTM, UPD_USER, UPD_IP)
+		VALUES (#{codeCd},
+		        (SELECT ISNULL(MAX(A.JOB_SEQ),0)+1 FROM TBL_CODE_MST A WHERE A.CODE_CD = #{codeCd}),
+		        #{codeNm}, #{startDt}, #{endDt}, #{useYn}, #{sort}, 'Y',
+		        GETDATE(), #{regUser}, #{regIp}, GETDATE(), #{updUser}, #{updIp})
+	</insert>
+
+	<update id="updateCodeMst" parameterType="CodeMdDTO">
+		UPDATE TBL_CODE_MST SET ACTION_YN='N', UPD_DTTM=GETDATE(), UPD_USER=#{updUser}, UPD_IP=#{updIp}
+		 WHERE CODE_CD = #{codeCd} AND ACTION_YN = 'Y'
+	</update>
+
+	<select id="codeDtlList" parameterType="CodeMdDTO" resultType="CodeMdDTO">
+		SELECT A.CODE_GB AS codeGb, A.CODE_CD AS codeCd, A.SUB_CODE AS subCode, A.SUB_CODE_NM AS subCodeNm,
+		       A.START_DT AS startDt, A.END_DT AS endDt, A.USE_YN AS useYn, A.SORT AS sort, A.JOB_SEQ AS jobSeq, A.ACTION_YN AS actionYn,
+		       (SELECT TOP 1 G.SUB_CODE_NM FROM TBL_CODE_DTL G
+		         WHERE G.CODE_CD = 'CODE_GB' AND G.SUB_CODE = A.CODE_GB AND G.ACTION_YN = 'Y') AS dtlCodeNm
+		  FROM TBL_CODE_DTL A
+		 WHERE A.ACTION_YN = 'Y' AND A.CODE_CD = #{codeCd}
+		 ORDER BY A.SUB_CODE
+	</select>
+
+	<select id="codeDtlDupChk" parameterType="CodeMdDTO" resultType="String">
+		SELECT TOP 1 'Y' FROM TBL_CODE_DTL
+		 WHERE CODE_GB = #{codeGb} AND CODE_CD = #{codeCd} AND SUB_CODE = #{subCode} AND ACTION_YN = 'Y'
+	</select>
+
+	<insert id="insertCodeDtl" parameterType="CodeMdDTO">
+		INSERT INTO TBL_CODE_DTL (CODE_GB, CODE_CD, SUB_CODE, SUB_CODE_NM, START_DT, JOB_SEQ, END_DT, USE_YN, SORT, ACTION_YN,
+		                          REG_DTTM, REG_USER, REG_IP, UPD_DTTM, UPD_USER, UPD_IP)
+		VALUES (#{codeGb}, #{codeCd}, #{subCode}, #{subCodeNm}, #{startDt},
+		        (SELECT ISNULL(MAX(A.JOB_SEQ),0)+1 FROM TBL_CODE_DTL A WHERE A.CODE_GB=#{codeGb} AND A.CODE_CD=#{codeCd} AND A.SUB_CODE=#{subCode}),
+		        #{endDt}, #{useYn}, #{sort}, 'Y', GETDATE(), #{regUser}, #{regIp}, GETDATE(), #{updUser}, #{updIp})
+	</insert>
+
+	<update id="updateCodeDtl" parameterType="CodeMdDTO">
+		UPDATE TBL_CODE_DTL SET ACTION_YN='N', UPD_DTTM=GETDATE(), UPD_USER=#{updUser}, UPD_IP=#{updIp}
+		 WHERE CODE_GB=#{codeGb} AND CODE_CD=#{codeCd} AND SUB_CODE=#{subCode} AND ACTION_YN='Y'
+	</update>
+
 	<!-- 회사 사용자 목록 -->
 	<select id="compUserList" parameterType="UserDTO" resultType="UserDTO"><![CDATA[
 	  SELECT A.USER_ID                       AS userId,

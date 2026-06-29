@@ -348,6 +348,12 @@
     if (t) t.classList.add('show');
     var m = document.querySelector('.logi-main'); if (m) m.scrollTop = 0;
   }
+  // 자체완결 화면(회사/사용자·공통코드)을 우측 iframe 패널에 로드 (사이드메뉴 종속)
+  function logiFrame(key, url, el){
+    logiGo(key, el);
+    var f = document.getElementById('if-'+key);
+    if (f && !f.getAttribute('data-loaded')) { f.src = url; f.setAttribute('data-loaded','1'); }
+  }
   // 창고별 세부 로케이션 더미 데이터 (s: empty=빈자리, use=사용중, full=만재)
   var WH_DATA = {
     WH1:{nm:'제1창고',type:'상온',zone:'A구역',rate:62,locs:[
@@ -1787,6 +1793,10 @@
     <div class="grp">매출 · 정산</div>
     <a class="mi" data-key="sales"   onclick="logiGo('sales', this)"><span class="ic">💰</span>매출현황</a>
     <a class="mi" data-key="receive" onclick="logiGo('receive', this)"><span class="ic">🧾</span>수금 / 미수금</a>
+
+    <div class="grp">시스템관리</div>
+    <a class="mi" data-key="compcd" onclick="logiFrame('compcd','/mangr/compcd.do', this)"><span class="ic">🏢</span>회사/사용자 관리</a>
+    <a class="mi" data-key="codecd" onclick="logiFrame('codecd','/base/commcd.do', this)"><span class="ic">🧩</span>공통코드 관리</a>
   </nav>
 
   <!-- ───────────── 우측 콘텐츠 ───────────── -->
@@ -2237,6 +2247,14 @@
         </table>
         <div class="note">※ 전자세금계산서 · 카드결제 연동은 추후 단계.</div>
       </div>
+    </section>
+
+    <!-- 시스템관리 — 자체완결 화면을 iframe으로 사이드메뉴 우측에 종속 -->
+    <section id="panel-compcd" class="panel" style="padding:0;">
+      <iframe id="if-compcd" src="" title="회사/사용자 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <section id="panel-codecd" class="panel" style="padding:0;">
+      <iframe id="if-codecd" src="" title="공통코드 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
 
   </main>
