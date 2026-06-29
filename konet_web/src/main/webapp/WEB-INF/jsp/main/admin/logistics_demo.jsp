@@ -1795,8 +1795,8 @@
     <a class="mi" data-key="receive" onclick="logiGo('receive', this)"><span class="ic">🧾</span>수금 / 미수금</a>
 
     <div class="grp">시스템관리</div>
-    <a class="mi" data-key="compcd" onclick="logiFrame('compcd','/mangr/compcd.do', this)"><span class="ic">🏢</span>회사/사용자 관리</a>
-    <a class="mi" data-key="codecd" onclick="logiFrame('codecd','/base/commcd.do', this)"><span class="ic">🧩</span>공통코드 관리</a>
+    <a class="mi" data-key="compcd" onclick="logiFrame('compcd','${pageContext.request.contextPath}/mangr/compcd.do', this)"><span class="ic">🏢</span>회사/사용자 관리</a>
+    <a class="mi" data-key="codecd" onclick="logiFrame('codecd','${pageContext.request.contextPath}/base/commcd.do', this)"><span class="ic">🧩</span>공통코드 관리</a>
   </nav>
 
   <!-- ───────────── 우측 콘텐츠 ───────────── -->

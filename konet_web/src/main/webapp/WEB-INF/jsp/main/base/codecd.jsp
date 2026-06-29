@@ -15,11 +15,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>공통코드 관리</title>
 <!-- 대시보드 테마 (medcost /assets) -->
-<link rel="stylesheet" href="/assets/vendor/bootstrap/css/bootstrap.min.css">
-<link rel="stylesheet" href="/assets/libs/css/style.css">
-<link rel="stylesheet" href="/assets/vendor/fonts/fontawesome/css/fontawesome-all.css">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/assets/vendor/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/assets/libs/css/style.css">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/assets/vendor/fonts/fontawesome/css/fontawesome-all.css">
 <link rel="stylesheet" href="https://cdn.datatables.net/v/dt/jszip-3.10.1/dt-2.1.8/b-3.2.0/b-colvis-3.2.0/b-html5-3.2.0/b-print-3.2.0/datatables.min.css">
-<link rel="stylesheet" href="/css/winmc/addstyle.css?v=100">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/addstyle.css?v=100">
 <style> html, body { font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo',sans-serif; } </style>
 <!-- jQuery 먼저 -->
 <script src="https://code.jquery.com/jquery-3.7.1.js"></script>
@@ -27,20 +27,22 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
 <script src="https://cdn.datatables.net/v/dt/jszip-3.10.1/dt-2.1.8/b-3.2.0/b-colvis-3.2.0/b-html5-3.2.0/b-print-3.2.0/datatables.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="/assets/vendor/bootstrap/js/bootstrap.bundle.js"></script>
-<script src="/assets/vendor/inputmask/js/jquery.inputmask.bundle.js"></script>
+<script src="${pageContext.request.contextPath}/assets/vendor/bootstrap/js/bootstrap.bundle.js"></script>
+<script src="${pageContext.request.contextPath}/assets/vendor/inputmask/js/jquery.inputmask.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <!-- winmc 공통 프레임워크 (dataLoad/getFormat/formValueSet/comm_Check/messageBox/authControl 등) -->
-<script type="text/javascript" src="/js/winmc/main.js"></script>
-<script type="text/javascript" src="/js/winmc/mess_cd.js"></script>
-<script type="text/javascript" src="/js/winmc/message.js"></script>
-<script type="text/javascript" src="/js/winmc/commons.js"></script>
-<script type="text/javascript" src="/js/winmc/contact.js"></script>
-<script type="text/javascript" src="/js/winmc/loading.js"></script>
-<script type="text/javascript" src="/js/winmc/jqBootstrapValidation.min.js"></script>
-<script type="text/javascript" src="/js/winmc/schcommons.js"></script>
-<script type="text/javascript" src="/js/winmc/authControl.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/main.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/mess_cd.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/message.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/commons.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/contact.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/loading.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/jqBootstrapValidation.min.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/schcommons.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/authControl.js"></script>
 <script>
+/* 컨텍스트 경로 (서버 /konet, 로컬 루트 "") — 모든 AJAX URL prefix */
+var ctx = '${pageContext.request.contextPath}';
 /* 권한 전역값 (authControl.js 의 applyAuthControl 참조) — 관리화면이므로 전체 허용 */
 var s_insauth = 'Y', s_updauth = 'Y', s_delauth = 'Y', s_inqauth = 'Y';
 $(document).on('init.dt', function(e, settings) {
@@ -55,8 +57,8 @@ $(document).on('init.dt', function(e, settings) {
 </style>
 
 <!-- Customized Bootstrap Stylesheet -->
-<link href="/css/winmc/style_comm.css?v=127"  rel="stylesheet">
-<link href="/css/winmc/logi-skin.css?v=1"  rel="stylesheet"> <!-- logistics_demo 스타일 리스킨 -->
+<link href="${pageContext.request.contextPath}/css/winmc/style_comm.css?v=127"  rel="stylesheet">
+<link href="${pageContext.request.contextPath}/css/winmc/logi-skin.css?v=1"  rel="stylesheet"> <!-- logistics_demo 스타일 리스킨 -->
 <style>
   /* ★ style_comm.css(.dashboard-wrapper margin-left:300px) 뒤에서 덮어써 우측 전체폭 사용 */
   html, body { margin:0 !important; padding:0 !important; }
@@ -1012,7 +1014,7 @@ $(document).on('init.dt', function(e, settings) {
 		   	
 		    $.ajax({
 		        type: "POST",
-		        url: "/base/commMstList.do",
+		        url: ctx + "/base/commMstList.do",
 		        data: find,
 		        dataType: "json",
 		        
@@ -1148,7 +1150,7 @@ $(document).on('init.dt', function(e, settings) {
 		        dats.push(data);	    
 			    $.ajax({
 			            type: "POST",
-			            url: "/base/commMstInsert.do",
+			            url: ctx + "/base/commMstInsert.do",
 			            data: JSON.stringify(dats),
 			            contentType: "application/json",
 			    	    dataType: "json",
@@ -1211,7 +1213,7 @@ $(document).on('init.dt', function(e, settings) {
 		        // 5. AJAX로 서버 업데이트 요청
 		        $.ajax({
 		            type: "POST",
-		            url: "/base/commMstUpdate.do",
+		            url: ctx + "/base/commMstUpdate.do",
 		            data: JSON.stringify(mergeData), // JSON 변환
 		            contentType: "application/json",
 		            dataType: "json",
@@ -1265,7 +1267,7 @@ $(document).on('init.dt', function(e, settings) {
 					if (keys.length > 0) {	        	
 						$.ajax({
 				            type: "POST",
-				            url: "/base/commMstDelete.do",
+				            url: ctx + "/base/commMstDelete.do",
 				            data: JSON.stringify(keys),	    	    
 				    	    contentType: "application/json",
 				    	    dataType: "json",
@@ -1361,7 +1363,7 @@ $(document).on('init.dt', function(e, settings) {
 			        if (keys.length > 0) {
 						$.ajax({
 				            type: "POST",
-				            url: "/user/commMstDelete.do",    	    
+				            url: ctx + "/user/commMstDelete.do",    	    
 				    	    data: JSON.stringify(keys),	    	    
 				    	    contentType: "application/json",
 				    	    dataType: "json",
@@ -1501,7 +1503,7 @@ $(document).on('init.dt', function(e, settings) {
 			if (list_code.length > 0) {
 				$.ajax({
 				    type: "POST",
-				    url: "/base/commList.do",    
+				    url: ctx + "/base/commList.do",    
 				    data: {
 				        listGb: list_flag,
 				        listCd: list_code
@@ -1944,7 +1946,7 @@ $(document).on('init.dt', function(e, settings) {
 			    if (codeCd_one) {
 			        // AJAX 요청하여 hospUuid에 해당하는 데이터 가져오기
 			        $.ajax({
-			            url: "/base/commDtlList.do", // 실제 서버 엔드포인트 입력
+			            url: ctx + "/base/commDtlList.do", // 실제 서버 엔드포인트 입력
 			            type: "POST",
 			            data: { codeCd: codeCd_one }, // hospUuid 전달
 			            dataType: "json",
@@ -2148,7 +2150,7 @@ $(document).on('init.dt', function(e, settings) {
 		        }
 			    $.ajax({
 			            type: "POST",
-			            url: "/base/CommDtlInsert.do",
+			            url: ctx + "/base/CommDtlInsert.do",
 			            data: JSON.stringify(dats),
 			            contentType: "application/json",
 			    	    dataType: "json",
@@ -2220,7 +2222,7 @@ $(document).on('init.dt', function(e, settings) {
 		        // 5. AJAX로 서버 업데이트 요청
 		        $.ajax({
 		            type: "POST",
-		            url: "/base/CommDtlUpdate.do",
+		            url: ctx + "/base/CommDtlUpdate.do",
 		            data: JSON.stringify(mergeData), // JSON 변환
 		            contentType: "application/json",
 		            dataType: "json",
@@ -2269,7 +2271,7 @@ $(document).on('init.dt', function(e, settings) {
 					if (keys.length > 0) {	        	
 						$.ajax({
 				            type: "POST",
-				            url: "/base/CommDtlDelete.do",	    	    
+				            url: ctx + "/base/CommDtlDelete.do",	    	    
 				    	    data: JSON.stringify(keys),	    	    
 				    	    contentType: "application/json",
 				    	    dataType: "json",

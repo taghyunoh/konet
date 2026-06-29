@@ -16,11 +16,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>회사/계약/사용자 관리</title>
 <!-- 대시보드 테마 (medcost /assets) -->
-<link rel="stylesheet" href="/assets/vendor/bootstrap/css/bootstrap.min.css">
-<link rel="stylesheet" href="/assets/libs/css/style.css">
-<link rel="stylesheet" href="/assets/vendor/fonts/fontawesome/css/fontawesome-all.css">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/assets/vendor/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/assets/libs/css/style.css">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/assets/vendor/fonts/fontawesome/css/fontawesome-all.css">
 <link rel="stylesheet" href="https://cdn.datatables.net/v/dt/jszip-3.10.1/dt-2.1.8/b-3.2.0/b-colvis-3.2.0/b-html5-3.2.0/b-print-3.2.0/datatables.min.css">
-<link rel="stylesheet" href="/css/winmc/addstyle.css?v=100">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/addstyle.css?v=100">
 <style> html, body { font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo',sans-serif; } </style>
 <!-- jQuery 먼저 -->
 <script src="https://code.jquery.com/jquery-3.7.1.js"></script>
@@ -28,20 +28,22 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
 <script src="https://cdn.datatables.net/v/dt/jszip-3.10.1/dt-2.1.8/b-3.2.0/b-colvis-3.2.0/b-html5-3.2.0/b-print-3.2.0/datatables.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="/assets/vendor/bootstrap/js/bootstrap.bundle.js"></script>
-<script src="/assets/vendor/inputmask/js/jquery.inputmask.bundle.js"></script>
+<script src="${pageContext.request.contextPath}/assets/vendor/bootstrap/js/bootstrap.bundle.js"></script>
+<script src="${pageContext.request.contextPath}/assets/vendor/inputmask/js/jquery.inputmask.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <!-- winmc 공통 프레임워크 (dataLoad/getFormat/formValueSet/comm_Check/messageBox/authControl 등) -->
-<script type="text/javascript" src="/js/winmc/main.js"></script>
-<script type="text/javascript" src="/js/winmc/mess_cd.js"></script>
-<script type="text/javascript" src="/js/winmc/message.js"></script>
-<script type="text/javascript" src="/js/winmc/commons.js"></script>
-<script type="text/javascript" src="/js/winmc/contact.js"></script>
-<script type="text/javascript" src="/js/winmc/loading.js"></script>
-<script type="text/javascript" src="/js/winmc/jqBootstrapValidation.min.js"></script>
-<script type="text/javascript" src="/js/winmc/schcommons.js"></script>
-<script type="text/javascript" src="/js/winmc/authControl.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/main.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/mess_cd.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/message.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/commons.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/contact.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/loading.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/jqBootstrapValidation.min.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/schcommons.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/js/winmc/authControl.js"></script>
 <script>
+/* 컨텍스트 경로 (서버 /konet, 로컬 루트 "") — 모든 AJAX URL prefix */
+var ctx = '${pageContext.request.contextPath}';
 /* 권한 전역값 (authControl.js 의 applyAuthControl 참조) — 관리화면이므로 전체 허용 */
 var s_insauth = 'Y', s_updauth = 'Y', s_delauth = 'Y', s_inqauth = 'Y';
 $(document).on('init.dt', function(e, settings) {
@@ -59,8 +61,8 @@ $(document).on('init.dt', function(e, settings) {
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" /> <!-- 파일다운로드관련아이콘 -->
 
-<link href="/css/winmc/style_comm.css?v=126"  rel="stylesheet">
-<link href="/css/winmc/logi-skin.css?v=1"  rel="stylesheet"> <!-- logistics_demo 스타일 리스킨 -->
+<link href="${pageContext.request.contextPath}/css/winmc/style_comm.css?v=126"  rel="stylesheet">
+<link href="${pageContext.request.contextPath}/css/winmc/logi-skin.css?v=1"  rel="stylesheet"> <!-- logistics_demo 스타일 리스킨 -->
 <style>
   /* ★ style_comm.css(.dashboard-wrapper margin-left:300px) 뒤에서 덮어써 우측 전체폭 사용 */
   html, body { margin:0 !important; padding:0 !important; }
@@ -1245,7 +1247,7 @@ $(document).on('init.dt', function(e, settings) {
 		   	
 		    $.ajax({
 		        type: "POST",
-		        url: "/user/compCdList.do",
+		        url: ctx + "/user/compCdList.do",
 		        data: find,
 		        dataType: "json",
 		        
@@ -1400,7 +1402,7 @@ $(document).on('init.dt', function(e, settings) {
 		        dats.push(data);	    
 			    $.ajax({
 			            type: "POST",
-			            url: "/user/compCdInsert.do",
+			            url: ctx + "/user/compCdInsert.do",
 			            data: JSON.stringify(dats),
 			            contentType: "application/json",
 			    	    dataType: "json",
@@ -1463,7 +1465,7 @@ $(document).on('init.dt', function(e, settings) {
 		        // 5. AJAX로 서버 업데이트 요청
 		        $.ajax({
 		            type: "POST",
-		            url: "/user/compCdUpdate.do",
+		            url: ctx + "/user/compCdUpdate.do",
 		            data: JSON.stringify(mergeData), // JSON 변환
 		            contentType: "application/json",
 		            dataType: "json",
@@ -1517,7 +1519,7 @@ $(document).on('init.dt', function(e, settings) {
 					if (keys.length > 0) {	        	
 						$.ajax({
 				            type: "POST",
-				            url: "/user/compCdDelete.do",
+				            url: ctx + "/user/compCdDelete.do",
 				    	    data: JSON.stringify(keys),	    	    
 				    	    contentType: "application/json",
 				    	    dataType: "json",
@@ -1613,7 +1615,7 @@ $(document).on('init.dt', function(e, settings) {
 			        if (keys.length > 0) {
 						$.ajax({
 				            type: "POST",
-				            url: "/user/compCdDelete.do",		    	    
+				            url: ctx + "/user/compCdDelete.do",		    	    
 				    	    data: JSON.stringify(keys),	    	    
 				    	    contentType: "application/json",
 				    	    dataType: "json",
@@ -1757,7 +1759,7 @@ $(document).on('init.dt', function(e, settings) {
 			if (list_code.length > 0) {
 				$.ajax({
 				    type: "POST",
-				    url: "/base/commList.do",    
+				    url: ctx + "/base/commList.do",    
 				    data: {
 				        listGb: list_flag,
 				        listCd: list_code
@@ -2178,7 +2180,7 @@ $(document).on('init.dt', function(e, settings) {
 			    if (hospidcd) {
 			        // AJAX 요청하여 hospUuid에 해당하는 데이터 가져오기
 			        $.ajax({
-			            url: "/user/compContList.do", // 실제 서버 엔드포인트 입력
+			            url: ctx + "/user/compContList.do", // 실제 서버 엔드포인트 입력
 			            type: "POST",
 			            data: { compCd: hospidcd }, // hospUuid 전달
 			            dataType: "json",
@@ -2367,7 +2369,7 @@ $(document).on('init.dt', function(e, settings) {
 		      //  dats.push(data);	    
 			    $.ajax({
 			            type: "POST",
-			            url: "/user/compContInsert.do",
+			            url: ctx + "/user/compContInsert.do",
 			            data: JSON.stringify(dats),
 			            contentType: "application/json",
 			    	    dataType: "json",
@@ -2443,7 +2445,7 @@ $(document).on('init.dt', function(e, settings) {
 		        // 5. AJAX로 서버 업데이트 요청
 		        $.ajax({
 		            type: "POST",
-		            url: "/user/compContUpdate.do",
+		            url: ctx + "/user/compContUpdate.do",
 		            data: JSON.stringify(mergeData), // JSON 변환
 		            contentType: "application/json",
 		            dataType: "json",
@@ -2494,7 +2496,7 @@ $(document).on('init.dt', function(e, settings) {
 					if (keys.length > 0) {	        	
 						$.ajax({
 				            type: "POST",
-				            url: "/user/compContDelete.do",	    	    
+				            url: ctx + "/user/compContDelete.do",	    	    
 				    	    data: JSON.stringify(keys),	    	    
 				    	    contentType: "application/json",
 				    	    dataType: "json",
@@ -2735,7 +2737,7 @@ $(document).on('init.dt', function(e, settings) {
 			    if (hospidcd) {
 			        // AJAX 요청하여 hospUuid에 해당하는 데이터 가져오기
 			        $.ajax({
-			            url: "/user/compuserList.do", // 실제 서버 엔드포인트 입력
+			            url: ctx + "/user/compuserList.do", // 실제 서버 엔드포인트 입력
 			            type: "POST",
 			            data: { compCd: hospidcd }, // hospUuid 전달
 			            dataType: "json",
@@ -3026,7 +3028,7 @@ $(document).on('init.dt', function(e, settings) {
 		       // dats.push(data);	    
 			    $.ajax({
 			            type: "POST",
-			            url: "/user/compUserInsert.do",
+			            url: ctx + "/user/compUserInsert.do",
 			            data: JSON.stringify(dats),
 			            contentType: "application/json",
 			    	    dataType: "json",
@@ -3104,7 +3106,7 @@ $(document).on('init.dt', function(e, settings) {
 		        // 5. AJAX로 서버 업데이트 요청
 		        $.ajax({
 		            type: "POST",
-		            url: "/user/compUserUpdate.do",
+		            url: ctx + "/user/compUserUpdate.do",
 		            data: JSON.stringify(mergeData), // JSON 변환
 		            contentType: "application/json",
 		            dataType: "json",
@@ -3153,7 +3155,7 @@ $(document).on('init.dt', function(e, settings) {
 					if (keys.length > 0) {	        	
 						$.ajax({
 				            type: "POST",
-				            url: "/user/compUserDelete.do",	    	    
+				            url: ctx + "/user/compUserDelete.do",	    	    
 				    	    data: JSON.stringify(keys),	    	    
 				    	    contentType: "application/json",
 				    	    dataType: "json",
@@ -3230,7 +3232,7 @@ $(document).on('init.dt', function(e, settings) {
 		    $("#dupchk").val("N");
 		    $.ajax({
 		        type: "POST",
-		        url: "/user/compuseridupchk.do",
+		        url: ctx + "/user/compuseridupchk.do",
 		        data: JSON.stringify({ userId: $("#userId_two").val(), compCd: $("#compCd_two").val() } ),
 		        contentType: "application/json",
 		        dataType: "json" ,
@@ -3591,7 +3593,7 @@ $(document).on('init.dt', function(e, settings) {
 			var compCd =  document.getElementById("compCd").value;
 		    $.ajax({
 		        type: "post",
-		        url: "/mangr/fileCdList.do",
+		        url: ctx + "/mangr/fileCdList.do",
 		        data: { compCd : compCd , fileGb: fileGb, fileSeq: notiSeq },
 		        dataType: "json",
 		        success: function (data) {
@@ -3721,7 +3723,7 @@ $(document).on('init.dt', function(e, settings) {
 		        if (result.isConfirmed) {
 		            $.ajax({
 		                type: "POST",
-		                url: "/sftp/deleteFile.do",
+		                url: ctx + "/sftp/deleteFile.do",
 		                data: {
 		                	compCd   : compCd  ,
 		                    filePath:  filePath,
@@ -3771,7 +3773,7 @@ $(document).on('init.dt', function(e, settings) {
 	function hosp_cont_getload(hospidcd) {
         $.ajax({
             type: "POST",
-            url: "/user/compCdList.do",
+            url: ctx + "/user/compCdList.do",
             data: { compCd: hospidcd },  // 서버에서는 이 compCd 기준으로 1건 반환해야 함
             dataType: "json",
             timeout: 10000,
