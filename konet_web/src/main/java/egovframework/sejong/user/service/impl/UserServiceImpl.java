@@ -54,6 +54,16 @@ public class UserServiceImpl implements UserService {
 	@Override public int insertCompCdMst(CompMdDTO dto) throws Exception { return mapper.insertCompCdMst(dto); }
 	@Override public int updateCompCdMst(CompMdDTO dto) throws Exception { return mapper.updateCompCdMst(dto); }
 
+	// ===== 출고장(발주현황표) 업로드 저장 (TBL_SHIPOUT_MST) =====
+	@Override public int markShipoutHistory(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.markShipoutHistory(dto); }
+	@Override public int getShipoutNextJobSeq(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.getShipoutNextJobSeq(dto); }
+	@Override public int insertShipoutMst(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.insertShipoutMst(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutMst(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutMst(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.BiziDTO> selectBiziMst() throws Exception { return mapper.selectBiziMst(); }
+	@Override public int insertBiziIfAbsent(egovframework.sejong.user.model.BiziDTO dto) throws Exception { return mapper.insertBiziIfAbsent(dto); }
+	@Override public int updateBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception { return mapper.updateBiziMst(dto); }
+	@Override public int deleteBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception { return mapper.deleteBiziMst(dto); }
+
 	@Override public List<CompConDTO> selectCompContList(CompConDTO dto) throws Exception { return mapper.selectCompContList(dto); }
 	@Override public List<CompConDTO> getCompContList(CompConDTO dto) throws Exception { return mapper.getCompContList(dto); }
 	@Override public String CompContDupChk(CompConDTO dto) throws Exception { return mapper.CompContDupChk(dto); }

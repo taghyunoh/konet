@@ -28,7 +28,19 @@
   .logi-wrap a.mi.on, .logi-wrap .side-tit { font-weight:900; }
 
   /* 좌측 사이드바 */
-  .logi-side { width:236px; flex:0 0 236px; background:#1f2a37; color:#cdd6e0; padding:0 0 30px; }
+  .logi-side { width:236px; flex:0 0 236px; background:#1f2a37; color:#cdd6e0; padding:0 0 30px;
+               height:100vh; position:sticky; top:0; overflow-y:auto; overflow-x:hidden; }
+  /* 사이드메뉴 스크롤바 (화면 확장/항목 많을 때) */
+  .logi-side::-webkit-scrollbar { width:8px; }
+  .logi-side::-webkit-scrollbar-thumb { background:#3a4a5c; border-radius:4px; }
+  .logi-side::-webkit-scrollbar-track { background:#1f2a37; }
+  /* 주메뉴(접기/펼치기) + 서브메뉴 */
+  .logi-side a.mi.has-sub { justify-content:flex-start; }
+  .logi-side a.mi.has-sub .caret { margin-left:auto; font-size:10px; transition:transform .15s; }
+  .logi-side a.mi.has-sub.open .caret { transform:rotate(90deg); }
+  .logi-side .sub-menu { display:none; background:#1a232e; }
+  .logi-side .sub-menu.open { display:block; }
+  .logi-side .sub-menu a.mi { padding-left:34px; font-size:13px; }
   .logi-side .side-tit { padding:18px 20px; font-size:17px; font-weight:700; color:#fff; border-bottom:1px solid #2c3a4a; }
   .logi-side .side-tit small { display:block; font-size:11px; font-weight:400; color:#8a98a8; margin-top:3px; }
   .logi-side .grp { padding:14px 20px 6px; font-size:11px; letter-spacing:.5px; color:#7d8b9c; }
@@ -354,6 +366,13 @@
     var f = document.getElementById('if-'+key);
     if (f && !f.getAttribute('data-loaded')) { f.src = url; f.setAttribute('data-loaded','1'); }
   }
+  // 주메뉴(기준정보관리 등) 접기/펼치기 토글
+  function logiToggleSub(sub, el){
+    var box = document.getElementById('sub-'+sub);
+    if (!box) return;
+    var open = box.classList.toggle('open');
+    if (el) el.classList.toggle('open', open);
+  }
   // 창고별 세부 로케이션 더미 데이터 (s: empty=빈자리, use=사용중, full=만재)
   var WH_DATA = {
     WH1:{nm:'제1창고',type:'상온',zone:'A구역',rate:62,locs:[
@@ -532,6 +551,24 @@
   var SHIP_DATA = [{"code":"1000800551","item":"(PAZAC)박스대,제이투팩,11.2KG(400EA/BOX)","biz":"new파작(종로점) [A0403307]","bizCode":"A0403307","inb":"3","zone":"D7","qty":2},{"code":"1000800551","item":"(PAZAC)박스대,제이투팩,11.2KG(400EA/BOX)","biz":"new파작(여의도점) [A0405159]","bizCode":"A0405159","inb":"3","zone":"D8","qty":1},{"code":"1000800552","item":"(PAZAC)박스소,제이투팩,8.4KG(400EA/BOX)","biz":"new파작(종로점) [A0403307]","bizCode":"A0403307","inb":"3","zone":"D7","qty":1},{"code":"1000797636","item":"(PAZAC)홀더,대승씨엔씨,7.35KG(1,000EA/BOX)","biz":"new파작(여의도점) [A0405159]","bizCode":"A0405159","inb":"3","zone":"D8","qty":1},{"code":"1000781893","item":"(뜨돈)195파이용기뚜껑,검정,구형,PP,300EA/BOX","biz":"뜨돈 수원 영통점 [A0361355]","bizCode":"A0361355","inb":"1","zone":"A3","qty":1},{"code":"1000781893","item":"(뜨돈)195파이용기뚜껑,검정,구형,PP,300EA/BOX","biz":"뜨돈 동탄 성공 본점 [A0361331]","bizCode":"A0361331","inb":"2","zone":"C2","qty":1},{"code":"1000781894","item":"(뜨돈)195파이용기몸체,소,검정,구형,PP,300EA/BOX","biz":"뜨돈 수원 영통점 [A0361355]","bizCode":"A0361355","inb":"1","zone":"A3","qty":1},{"code":"1000781894","item":"(뜨돈)195파이용기몸체,소,검정,구형,PP,300EA/BOX","biz":"뜨돈 동탄 성공 본점 [A0361331]","bizCode":"A0361331","inb":"2","zone":"C2","qty":1},{"code":"1000782041","item":"(뜨돈)5칸돈가스도시락세트,검정,240*180*35MM,몸체PP,뚜껑PE","biz":"뜨돈 시흥 배곧점 [A0361335]","bizCode":"A0361335","inb":"3","zone":"D7","qty":1},{"code":"1000779754","item":"(뜨돈)각대봉투,소,120*60*220MM,무지크라프트,1000EA/BO","biz":"뜨돈 시흥 배곧점 [A0361335]","bizCode":"A0361335","inb":"3","zone":"D7","qty":1},{"code":"1000779736","item":"(뜨돈)소스용기뚜껑,95파이,PP,1000EA/BOX","biz":"뜨돈 동탄 카림애비뉴점 [A0361421]","bizCode":"A0361421","inb":"2","zone":"C2","qty":1},{"code":"1000736180","item":"(런던&레이&하이)74Ø3.25온스,크림치즈용,소,용기,740*500*3","biz":"성수CC [A0370886]","bizCode":"A0370886","inb":"3","zone":"D2","qty":3},{"code":"1000736181","item":"(런던&레이&하이)F74Ø크림치즈용,소,무타공뚜껑,F74Ø(무타공)뚜껑,","biz":"성수CC [A0370886]","bizCode":"A0370886","inb":"3","zone":"D2","qty":2},{"code":"1000730573","item":"(런던&레이&하이)노루지코팅깔개,소,130*100MM,10000EA/BO","biz":"런베잠실_홀1층 [A0307398]","bizCode":"A0307398","inb":"2","zone":"C5","qty":1},{"code":"1000736204","item":"(런던&레이&하이)보냉팩,소,180*240MM+50MM,600EA/BOX","biz":"런베잠실_홀2층 [A0307878]","bizCode":"A0307878","inb":"2","zone":"C5","qty":1},{"code":"1000736204","item":"(런던&레이&하이)보냉팩,소,180*240MM+50MM,600EA/BOX","biz":"런베도산 [A0276902]","bizCode":"A0276902","inb":"4","zone":"F2","qty":1},{"code":"1000736213","item":"(런던&레이&하이)보냉팩,중,240*350MM+40MM,400EA/BOX","biz":"런베잠실_홀2층 [A0307878]","bizCode":"A0307878","inb":"2","zone":"C5","qty":1},{"code":"1000730576","item":"(런던&레이&하이)줄무늬크라프트유산지,350*250MM,3000EA/BO","biz":"런베잠실_홀2층 [A0307878]","bizCode":"A0307878","inb":"2","zone":"C5","qty":1},{"code":"1000730576","item":"(런던&레이&하이)줄무늬크라프트유산지,350*250MM,3000EA/BO","biz":"런베여의도_창고-B6층 [A0347927]","bizCode":"A0347927","inb":"2","zone":"C7","qty":1},{"code":"1000730576","item":"(런던&레이&하이)줄무늬크라프트유산지,350*250MM,3000EA/BO","biz":"레이안국 [A0329858]","bizCode":"A0329858","inb":"4","zone":"F1","qty":1},{"code":"1000730576","item":"(런던&레이&하이)줄무늬크라프트유산지,350*250MM,3000EA/BO","biz":"런베수원_홀 [A0331220]","bizCode":"A0331220","inb":"4","zone":"F7","qty":1},{"code":"1000731259","item":"(런던베이글)샌드위치펄프용기,일체형,182*130*50MM,600ML,5","biz":"런베잠실_홀1층 [A0307398]","bizCode":"A0307398","inb":"2","zone":"C5","qty":1},{"code":"1000731259","item":"(런던베이글)샌드위치펄프용기,일체형,182*130*50MM,600ML,5","biz":"런베잠실_홀2층 [A0307878]","bizCode":"A0307878","inb":"2","zone":"C5","qty":2},{"code":"1000731259","item":"(런던베이글)샌드위치펄프용기,일체형,182*130*50MM,600ML,5","biz":"런베여의도_창고-B6층 [A0347927]","bizCode":"A0347927","inb":"2","zone":"C7","qty":3},{"code":"1000731259","item":"(런던베이글)샌드위치펄프용기,일체형,182*130*50MM,600ML,5","biz":"런베도산 [A0276902]","bizCode":"A0276902","inb":"4","zone":"F2","qty":1},{"code":"1000731259","item":"(런던베이글)샌드위치펄프용기,일체형,182*130*50MM,600ML,5","biz":"런베수원_홀 [A0331220]","bizCode":"A0331220","inb":"4","zone":"F7","qty":3},{"code":"1000792544","item":"(런던베이글)아돌이종이컵,16온스,2도인쇄,1000EA/BOX","biz":"런베여의도_창고-B6층 [A0347927]","bizCode":"A0347927","inb":"2","zone":"C7","qty":1},{"code":"1000730686","item":"(런던베이글)칵테일냅킨,W230mm,L230mm,1도인쇄,10000EA/","biz":"런베여의도_창고-B6층 [A0347927]","bizCode":"A0347927","inb":"2","zone":"C7","qty":1},{"code":"1000792545","item":"(런던베이글)필로소피종이컵,16온스,1도인쇄,1000EA/BOX","biz":"런베잠실_홀2층 [A0307878]","bizCode":"A0307878","inb":"2","zone":"C5","qty":1},{"code":"1000718241","item":"(레이어드)친환경종이컵,16OZ,무지,1000EA/BOX","biz":"런베잠실_홀2층 [A0307878]","bizCode":"A0307878","inb":"2","zone":"C5","qty":1},{"code":"1000719149","item":"(레이어드)하이웨스트&베이글박스,소,130*100*115MM,200EA/","biz":"하웨판교 [A0326700]","bizCode":"A0326700","inb":"4","zone":"F5","qty":1},{"code":"1000715525","item":"(명동피자)물티슈,1도인쇄,1000EA/BOX,D-2","biz":"명동피자(명동본점-창고) [A0316597]","bizCode":"A0316597","inb":"3","zone":"D3","qty":2},{"code":"1000736040","item":"(배고픈덮밥이)덮밥용기,뚜껑,160Ǿ,PP,300EA/BOX","biz":"배고픈덮밥이(세종아름점)25년 [A0376445]","bizCode":"A0376445","inb":"1","zone":"A8","qty":1},{"code":"1000736040","item":"(배고픈덮밥이)덮밥용기,뚜껑,160Ǿ,PP,300EA/BOX","biz":"배고픈덮밥이(신관점) [A0359235]","bizCode":"A0359235","inb":"1","zone":"A9","qty":1},{"code":"1000736040","item":"(배고픈덮밥이)덮밥용기,뚜껑,160Ǿ,PP,300EA/BOX","biz":"배고픈덮밥이(오산시청점) [A0343969]","bizCode":"A0343969","inb":"2","zone":"C1","qty":1},{"code":"1000736040","item":"(배고픈덮밥이)덮밥용기,뚜껑,160Ǿ,PP,300EA/BOX","biz":"배고픈덮밥이(봉천) [A0273035]","bizCode":"A0273035","inb":"3","zone":"D1","qty":2},{"code":"1000736040","item":"(배고픈덮밥이)덮밥용기,뚜껑,160Ǿ,PP,300EA/BOX","biz":"배고픈 덮밥이 마포점(26) [A0400921]","bizCode":"A0400921","inb":"3","zone":"D1","qty":1},{"code":"1000736040","item":"(배고픈덮밥이)덮밥용기,뚜껑,160Ǿ,PP,300EA/BOX","biz":"배고픈덮밥이(분당수내)25 [A0370059]","bizCode":"A0370059","inb":"","zone":"","qty":0},{"code":"1000736040","item":"(배고픈덮밥이)덮밥용기,뚜껑,160Ǿ,PP,300EA/BOX","biz":"배고픈덮밥이(세종보람점)26 [A0401387]","bizCode":"A0401387","inb":"3","zone":"D6","qty":1},{"code":"1000736040","item":"(배고픈덮밥이)덮밥용기,뚜껑,160Ǿ,PP,300EA/BOX","biz":"배고픈덮밥이(세종조치원25년) [A0367700]","bizCode":"A0367700","inb":"3","zone":"D6","qty":1},{"code":"1000736040","item":"(배고픈덮밥이)덮밥용기,뚜껑,160Ǿ,PP,300EA/BOX","biz":"파스타입니다(왕십리점) [A0278710]","bizCode":"A0278710","inb":"3","zone":"D7","qty":1},{"code":"1000736040","item":"(배고픈덮밥이)덮밥용기,뚜껑,160Ǿ,PP,300EA/BOX","biz":"배고픈덮밥이(길동점) [A0294143]","bizCode":"A0294143","inb":"4","zone":"F2","qty":1},{"code":"1000736040","item":"(배고픈덮밥이)덮밥용기,뚜껑,160Ǿ,PP,300EA/BOX","biz":"파스타입니다(수유점) [A0383456]","bizCode":"A0383456","inb":"4","zone":"F8","qty":1},{"code":"1000736038","item":"(배고픈덮밥이)덮밥용기,몸체,1290CC,160*88MM,300EA/BO","biz":"배고픈덮밥이(세종아름점)25년 [A0376445]","bizCode":"A0376445","inb":"1","zone":"A8","qty":1},{"code":"1000736038","item":"(배고픈덮밥이)덮밥용기,몸체,1290CC,160*88MM,300EA/BO","biz":"배고픈덮밥이(신관점) [A0359235]","bizCode":"A0359235","inb":"1","zone":"A9","qty":1},{"code":"1000736038","item":"(배고픈덮밥이)덮밥용기,몸체,1290CC,160*88MM,300EA/BO","biz":"배고픈덮밥이(오산시청점) [A0343969]","bizCode":"A0343969","inb":"2","zone":"C1","qty":1},{"code":"1000736038","item":"(배고픈덮밥이)덮밥용기,몸체,1290CC,160*88MM,300EA/BO","biz":"배고픈덮밥이(봉천) [A0273035]","bizCode":"A0273035","inb":"3","zone":"D1","qty":2},{"code":"1000736038","item":"(배고픈덮밥이)덮밥용기,몸체,1290CC,160*88MM,300EA/BO","biz":"배고픈 덮밥이 마포점(26) [A0400921]","bizCode":"A0400921","inb":"3","zone":"D1","qty":1},{"code":"1000736038","item":"(배고픈덮밥이)덮밥용기,몸체,1290CC,160*88MM,300EA/BO","biz":"배고픈덮밥이(세종조치원25년) [A0367700]","bizCode":"A0367700","inb":"3","zone":"D6","qty":1},{"code":"1000736038","item":"(배고픈덮밥이)덮밥용기,몸체,1290CC,160*88MM,300EA/BO","biz":"파스타입니다(왕십리점) [A0278710]","bizCode":"A0278710","inb":"3","zone":"D7","qty":1},{"code":"1000736038","item":"(배고픈덮밥이)덮밥용기,몸체,1290CC,160*88MM,300EA/BO","biz":"배고픈덮밥이(길동점) [A0294143]","bizCode":"A0294143","inb":"4","zone":"F2","qty":1},{"code":"1000736038","item":"(배고픈덮밥이)덮밥용기,몸체,1290CC,160*88MM,300EA/BO","biz":"파스타입니다(수유점) [A0383456]","bizCode":"A0383456","inb":"4","zone":"F8","qty":1},{"code":"1000791735","item":"(스프링롤명가)WL-F800SET(흰색),198*116*53MM,150S","biz":"스프링롤 명가_수원영통점 [A0368222]","bizCode":"A0368222","inb":"1","zone":"A7","qty":1},{"code":"1000791735","item":"(스프링롤명가)WL-F800SET(흰색),198*116*53MM,150S","biz":"스프링롤 명가_답십리 [A0381705]","bizCode":"A0381705","inb":"3","zone":"D7","qty":2},{"code":"1000795136","item":"(아벡쉐리)컵홀더,12/16/20,SC합지인쇄,코네트,9.62KG(100","biz":"아벡쉐리 한남점(홀) [A0383277]","bizCode":"A0383277","inb":"4","zone":"F7","qty":2},{"code":"1000793901","item":"(아임도넛)각대봉투,피앤텍,8KG(1000EA/BOX)","biz":"아임도넛(홍대점) [A0400202]","bizCode":"A0400202","inb":"2","zone":"C4","qty":1},{"code":"1000793900","item":"(아임도넛)슬리브인박스,선피앤피,8KG(200EA/BOX)","biz":"아임도넛(홍대점) [A0400202]","bizCode":"A0400202","inb":"2","zone":"C4","qty":2},{"code":"1000793900","item":"(아임도넛)슬리브인박스,선피앤피,8KG(200EA/BOX)","biz":"아임도넛(성수점) [A0379537]","bizCode":"A0379537","inb":"2","zone":"C5","qty":3},{"code":"1000793899","item":"(아임도넛)슬리브터널형,선피앤피,8KG(200EA/BOX)","biz":"아임도넛(홍대점) [A0400202]","bizCode":"A0400202","inb":"2","zone":"C4","qty":2},{"code":"1000793899","item":"(아임도넛)슬리브터널형,선피앤피,8KG(200EA/BOX)","biz":"아임도넛(성수점) [A0379537]","bizCode":"A0379537","inb":"2","zone":"C5","qty":2},{"code":"1000802403","item":"(아임도넛)에스파콜라보박스,선피앤피,8KG(200EA/BOX)","biz":"아임도넛(홍대점) [A0400202]","bizCode":"A0400202","inb":"2","zone":"C4","qty":2},{"code":"1000802403","item":"(아임도넛)에스파콜라보박스,선피앤피,8KG(200EA/BOX)","biz":"아임도넛(성수점) [A0379537]","bizCode":"A0379537","inb":"2","zone":"C5","qty":2},{"code":"1000802405","item":"(아임도넛)옐로우비닐,그린팩코리아,11.8KG(500EA/BOX)","biz":"아임도넛(홍대점) [A0400202]","bizCode":"A0400202","inb":"2","zone":"C4","qty":2},{"code":"1000802405","item":"(아임도넛)옐로우비닐,그린팩코리아,11.8KG(500EA/BOX)","biz":"아임도넛(성수점) [A0379537]","bizCode":"A0379537","inb":"2","zone":"C5","qty":2},{"code":"1000804387","item":"(아임도넛)원형간지,325MM,대영전산,10KG(3000EA/BOX)","biz":"아임도넛(홍대점) [A0400202]","bizCode":"A0400202","inb":"2","zone":"C4","qty":2},{"code":"1000768163","item":"(오베이글)각대봉투,대,흰색,180*110*430MM,2도,1000EA/","biz":"오베이글(카페) [A0339710]","bizCode":"A0339710","inb":"2","zone":"C4","qty":1},{"code":"1000758525","item":"(주니아)랩지,크라프트,330*330MM,코팅,1도,1000EA/BOX","biz":"주니아_약수점 [A0372844]","bizCode":"A0372844","inb":"2","zone":"C5","qty":1},{"code":"1000755871","item":"(주니아)아이스컵,뚜껑,돔리드,DIA92MM,1000EA/BOX","biz":"주니아_판교IT센터점 [A0358217]","bizCode":"A0358217","inb":"2","zone":"C5","qty":1},{"code":"1000755863","item":"(주니아)파니니용기,크라프트,도시락2호,600EA/BOX","biz":"주니아_판교IT센터점 [A0358217]","bizCode":"A0358217","inb":"2","zone":"C5","qty":1},{"code":"1000757230","item":"(주니아)포켓(반)봉투,200*240MM,무지,코팅,1000EA/BOX","biz":"주니아_길음역점 [A0343453]","bizCode":"A0343453","inb":"3","zone":"D2","qty":1},{"code":"1000767819","item":"(파스타예요)사각죽용기뚜껑,130*180MM,PP,500EA/BOX","biz":"파스타예요(중랑상봉점) [A0356265]","bizCode":"A0356265","inb":"1","zone":"A9","qty":1},{"code":"1000767819","item":"(파스타예요)사각죽용기뚜껑,130*180MM,PP,500EA/BOX","biz":"파스타예요(송파점_신) [A0381595]","bizCode":"A0381595","inb":"2","zone":"C5","qty":1},{"code":"1000767819","item":"(파스타예요)사각죽용기뚜껑,130*180MM,PP,500EA/BOX","biz":"파스타예요(서울역점) [A0346656]","bizCode":"A0346656","inb":"3","zone":"D3","qty":1},{"code":"1000767819","item":"(파스타예요)사각죽용기뚜껑,130*180MM,PP,500EA/BOX","biz":"파스타예요(분당점) [A0357188]","bizCode":"A0357188","inb":"3","zone":"D5","qty":1},{"code":"1000767819","item":"(파스타예요)사각죽용기뚜껑,130*180MM,PP,500EA/BOX","biz":"파스타예요(성남점_新) [A0383113]","bizCode":"A0383113","inb":"4","zone":"F4","qty":1},{"code":"1000767816","item":"(포엠)사각죽용기몸체,대,180*130*H65MM,1000ML,PP,50","biz":"파스타예요(분당점) [A0357188]","bizCode":"A0357188","inb":"3","zone":"D5","qty":1},{"code":"1000767817","item":"(포엠)사각죽용기몸체,중,180*130*H55MM,850ML,PP,500","biz":"파스타예요(중랑상봉점) [A0356265]","bizCode":"A0356265","inb":"1","zone":"A9","qty":1},{"code":"1000767817","item":"(포엠)사각죽용기몸체,중,180*130*H55MM,850ML,PP,500","biz":"파스타예요(서울역점) [A0346656]","bizCode":"A0346656","inb":"3","zone":"D3","qty":1},{"code":"1000767817","item":"(포엠)사각죽용기몸체,중,180*130*H55MM,850ML,PP,500","biz":"파스타예요(강서본점) [A0383157]","bizCode":"A0383157","inb":"4","zone":"F4","qty":1},{"code":"1000767817","item":"(포엠)사각죽용기몸체,중,180*130*H55MM,850ML,PP,500","biz":"파스타예요(성남점_新) [A0383113]","bizCode":"A0383113","inb":"4","zone":"F4","qty":1},{"code":"1000771713","item":"(포케올데이)랩샌드위치노루지,30*30CM,1도인쇄,코팅40G,1000E","biz":"POKE 분당야탑점 [A0354014]","bizCode":"A0354014","inb":"3","zone":"D5","qty":1},{"code":"1000767985","item":"(포케올데이)스프용기뚜껑,330CC,100파이*15MM,두겹,무지,500","biz":"POKE 안암점 [A0349142]","bizCode":"A0349142","inb":"4","zone":"F7","qty":1},{"code":"1000758813","item":"(프로티너)냅킨,흰색,115*115MM,크라프트,삼양앤컴퍼니,10000E","biz":"잠실방이점_프로티너 [A0406254]","bizCode":"A0406254","inb":"3","zone":"D8","qty":1},{"code":"1000758814","item":"(프로티너)물티슈,무지,100*70MM(포장지),200*130MM(속지)","biz":"잠실방이점_프로티너 [A0406254]","bizCode":"A0406254","inb":"3","zone":"D8","qty":1},{"code":"1000759547","item":"(프로티너)소스컵뚜껑,1OZ,45파이,무타공,평리드,DIA45MM,PET","biz":"홍대입구역점_프로티너 [A0395443]","bizCode":"A0395443","inb":"4","zone":"F7","qty":1},{"code":"1000759544","item":"(프로티너)소스컵뚜껑,2OZ,62파이,무타공,평리드,DIA62MM,PET","biz":"홍대입구역점_프로티너 [A0395443]","bizCode":"A0395443","inb":"4","zone":"F7","qty":1},{"code":"1000759541","item":"(프로티너)소스컵몸체,2OZ,62파이,DIA62MM,PET,2000EA/","biz":"홍대입구역점_프로티너 [A0395443]","bizCode":"A0395443","inb":"4","zone":"F7","qty":1},{"code":"1000759549","item":"(프로티너)펄프용기뚜껑,PET,500EA/BOX","biz":"판교역점_프로티너 [A0401308]","bizCode":"A0401308","inb":"3","zone":"D8","qty":1},{"code":"1000759548","item":"(프로티너)펄프용기몸체,1칸,210X130X70MM,1000ML,500E","biz":"판교역점_프로티너 [A0401308]","bizCode":"A0401308","inb":"3","zone":"D8","qty":1},{"code":"1000794792","item":"(허그런치)1350CC컵지용기,300EA/BOX,180*155*73MM","biz":"허그런치(시흥) [A0280723]","bizCode":"A0280723","inb":"2","zone":"C3","qty":3},{"code":"1000794793","item":"(허그런치)180ǾPET뚜껑,300EA/BOX","biz":"허그런치(시흥) [A0280723]","bizCode":"A0280723","inb":"2","zone":"C3","qty":3},{"code":"1000773313","item":"(허그런치)대나무젓가락,현대산업,개별포장,인쇄,2000EA/BOX","biz":"허그런치(시흥) [A0280723]","bizCode":"A0280723","inb":"2","zone":"C3","qty":7},{"code":"1000773313","item":"(허그런치)대나무젓가락,현대산업,개별포장,인쇄,2000EA/BOX","biz":"허그런치(성남) [A0338096]","bizCode":"A0338096","inb":"3","zone":"D5","qty":2},{"code":"1000774531","item":"(허그런치)일회용숟가락,개별포장,백색,L175MM,1500EA/BOX","biz":"허그런치(시흥) [A0280723]","bizCode":"A0280723","inb":"2","zone":"C3","qty":8},{"code":"1000773357","item":"(호호솥밥)먹는법스티커,100MM/아트/코팅,1000EA/BOX","biz":"호호솥밥(서울 강서점) [A0396385]","bizCode":"A0396385","inb":"3","zone":"D6","qty":1},{"code":"1000773357","item":"(호호솥밥)먹는법스티커,100MM/아트/코팅,1000EA/BOX","biz":"호호솥밥(서울역삼점) [A0345675]","bizCode":"A0345675","inb":"3","zone":"D7","qty":1},{"code":"1000773357","item":"(호호솥밥)먹는법스티커,100MM/아트/코팅,1000EA/BOX","biz":"호호솥밥(수원 영통점) [A0376534]","bizCode":"A0376534","inb":"3","zone":"D8","qty":1},{"code":"1000773357","item":"(호호솥밥)먹는법스티커,100MM/아트/코팅,1000EA/BOX","biz":"호호솥밥(화성 동탄점) [A0403097]","bizCode":"A0403097","inb":"3","zone":"D8","qty":1},{"code":"1000773357","item":"(호호솥밥)먹는법스티커,100MM/아트/코팅,1000EA/BOX","biz":"호호솥밥(평택 비전점) [A0402426]","bizCode":"A0402426","inb":"4","zone":"F2","qty":1},{"code":"1000773357","item":"(호호솥밥)먹는법스티커,100MM/아트/코팅,1000EA/BOX","biz":"호호솥밥(서울 서대문점) [A0401568]","bizCode":"A0401568","inb":"4","zone":"F7","qty":1},{"code":"1000783957","item":"(호호솥밥)비닐쇼핑백,중,그린팩,37(M16*2)*50MM,2도,500E","biz":"호호솥밥(안양 만안점) [A0403098]","bizCode":"A0403098","inb":"3","zone":"D8","qty":1},{"code":"1000783957","item":"(호호솥밥)비닐쇼핑백,중,그린팩,37(M16*2)*50MM,2도,500E","biz":"호호솥밥(평택 비전점) [A0402426]","bizCode":"A0402426","inb":"4","zone":"F2","qty":1},{"code":"1000771764","item":"(호호솥밥)솥밥용기/뚜껑/PET,160파이,300EA/BOX","biz":"호호솥밥(분당 판교점) [A0366132]","bizCode":"A0366132","inb":"2","zone":"C5","qty":1},{"code":"1000771764","item":"(호호솥밥)솥밥용기/뚜껑/PET,160파이,300EA/BOX","biz":"호호솥밥(경기 안산점) [A0403069]","bizCode":"A0403069","inb":"3","zone":"D7","qty":1},{"code":"1000771764","item":"(호호솥밥)솥밥용기/뚜껑/PET,160파이,300EA/BOX","biz":"호호솥밥(서울역삼점) [A0345675]","bizCode":"A0345675","inb":"3","zone":"D7","qty":2},{"code":"1000771764","item":"(호호솥밥)솥밥용기/뚜껑/PET,160파이,300EA/BOX","biz":"호호솥밥(서울 송파점) [A0398066]","bizCode":"A0398066","inb":"3","zone":"D8","qty":1},{"code":"1000771764","item":"(호호솥밥)솥밥용기/뚜껑/PET,160파이,300EA/BOX","biz":"호호솥밥(화성 동탄점) [A0403097]","bizCode":"A0403097","inb":"3","zone":"D8","qty":1},{"code":"1000771764","item":"(호호솥밥)솥밥용기/뚜껑/PET,160파이,300EA/BOX","biz":"호호솥밥(평택 비전점) [A0402426]","bizCode":"A0402426","inb":"4","zone":"F2","qty":1},{"code":"1000771760","item":"(호호솥밥)솥밥용기/용기/크라프트,160파이/900ML,300EA/BOX","biz":"호호솥밥(분당 판교점) [A0366132]","bizCode":"A0366132","inb":"2","zone":"C5","qty":1},{"code":"1000771760","item":"(호호솥밥)솥밥용기/용기/크라프트,160파이/900ML,300EA/BOX","biz":"호호솥밥(경기 안산점) [A0403069]","bizCode":"A0403069","inb":"3","zone":"D7","qty":1},{"code":"1000771760","item":"(호호솥밥)솥밥용기/용기/크라프트,160파이/900ML,300EA/BOX","biz":"호호솥밥(서울역삼점) [A0345675]","bizCode":"A0345675","inb":"3","zone":"D7","qty":2},{"code":"1000771760","item":"(호호솥밥)솥밥용기/용기/크라프트,160파이/900ML,300EA/BOX","biz":"호호솥밥(서울 송파점) [A0398066]","bizCode":"A0398066","inb":"3","zone":"D8","qty":1},{"code":"1000771760","item":"(호호솥밥)솥밥용기/용기/크라프트,160파이/900ML,300EA/BOX","biz":"호호솥밥(화성 동탄점) [A0403097]","bizCode":"A0403097","inb":"3","zone":"D8","qty":1},{"code":"1000771760","item":"(호호솥밥)솥밥용기/용기/크라프트,160파이/900ML,300EA/BOX","biz":"호호솥밥(평택 비전점) [A0402426]","bizCode":"A0402426","inb":"4","zone":"F2","qty":1},{"code":"1000771765","item":"(호호솥밥)원형스티커,80MM/아트/코팅,1000EA/BOX","biz":"호호솥밥(서울 강서점) [A0396385]","bizCode":"A0396385","inb":"3","zone":"D6","qty":1},{"code":"1000771765","item":"(호호솥밥)원형스티커,80MM/아트/코팅,1000EA/BOX","biz":"호호솥밥(평택 비전점) [A0402426]","bizCode":"A0402426","inb":"4","zone":"F2","qty":1},{"code":"1000771765","item":"(호호솥밥)원형스티커,80MM/아트/코팅,1000EA/BOX","biz":"호호솥밥(서울 서대문점) [A0401568]","bizCode":"A0401568","inb":"4","zone":"F7","qty":1},{"code":"1000775934","item":"(화계전통)타원찜용기,소,뚜껑,100EA/BOX","biz":"화계전통_서울시립대점 [A0359892]","bizCode":"A0359892","inb":"2","zone":"C3","qty":1},{"code":"1000775933","item":"(화계전통)타원찜용기,소,몸체,100EA/BOX","biz":"화계전통_서울시립대점 [A0359892]","bizCode":"A0359892","inb":"2","zone":"C3","qty":1},{"code":"1000743500","item":"냉면용기뚜껑,중,DIA200MM,PP,200EA/BOX","biz":"헬키푸키 석촌점 [A0302818]","bizCode":"A0302818","inb":"2","zone":"C3","qty":1},{"code":"1000743500","item":"냉면용기뚜껑,중,DIA200MM,PP,200EA/BOX","biz":"혜준당_보문점 [A0404129]","bizCode":"A0404129","inb":"3","zone":"D8","qty":1},{"code":"1000743499","item":"냉면용기몸체,중,DIA200MM*H70MM,PP,200EA/BOX","biz":"헬키푸키 석촌점 [A0302818]","bizCode":"A0302818","inb":"2","zone":"C3","qty":1},{"code":"1000743499","item":"냉면용기몸체,중,DIA200MM*H70MM,PP,200EA/BOX","biz":"혜준당_보문점 [A0404129]","bizCode":"A0404129","inb":"3","zone":"D8","qty":1},{"code":"1000765857","item":"수저세트,무지,검정,숟가락(L170MM,PP),젓가락(L180MM,대나무","biz":"뜨돈 시흥 배곧점 [A0361335]","bizCode":"A0361335","inb":"3","zone":"D7","qty":1},{"code":"1000765857","item":"수저세트,무지,검정,숟가락(L170MM,PP),젓가락(L180MM,대나무","biz":"호호솥밥(평택 비전점) [A0402426]","bizCode":"A0402426","inb":"4","zone":"F2","qty":1},{"code":"1000455371","item":"종이컵,10OZ,로앤그린,친환경,DIA85*H95MM,1000EA/BOX","biz":"블루엘리펀트 성수 [A0388469]","bizCode":"A0388469","inb":"1","zone":"A9","qty":1},{"code":"1000756544","item":"종이컵,92파이,20OZ,대크린상,DIA92MM,1000EA/BOX","biz":"블루엘리펀트 성수 [A0388469]","bizCode":"A0388469","inb":"1","zone":"A9","qty":1}];
 
   function ssBrand(item){ var m=/^\(([^)]+)\)/.exec(item||''); return m?m[1]:'기타·공통'; }
+  // 행 분류(묶음): 사업장코드가 TBL_BIZI_MST(ssBiziMap)에 있으면 그 사업장명으로, 없으면 품목명 () 접두어로
+  function ssRowBrand(r){
+    var bc=(''+((r&&r.bizCode)||'')).trim();
+    var m=window.ssBiziMap||{};
+    if(bc && m[bc]) return m[bc];
+    return ssBrand(r&&r.item);
+  }
+  // TBL_BIZI_MST 조회 → ssBiziMap{사업장코드:사업장명}. 분류 직전 항상 최신화(수정 즉시 반영)
+  function ssLoadBiziMst(cb){
+    fetch('${pageContext.request.contextPath}/shipout/selectBiziMst.do', { method:'POST', credentials:'same-origin' })
+    .then(function(res){ return res.text(); })
+    .then(function(txt){
+      try{ var j=JSON.parse(txt); var m={}; (j.data||[]).forEach(function(o){ var c=(''+(o.bizCd||'')).trim(); if(c) m[c]=(''+(o.bizNm||'')).trim(); }); window.ssBiziMap=m; }
+      catch(e){ if(!window.ssBiziMap) window.ssBiziMap={}; }
+      if(cb) cb();
+    })
+    .catch(function(){ if(!window.ssBiziMap) window.ssBiziMap={}; if(cb) cb(); });
+  }
   // 품목명에서 앞쪽 (사업장/브랜드) 접두 제거 — 상단 그룹헤더와 중복 방지
   function ssShortName(item){ var s=(''+(item||'')).replace(/^\([^)]*\)\s*/,''); return s||(item||''); }
   function ssHash(s){ var h=5381,i; for(i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))>>>0; return h; }
@@ -551,7 +588,7 @@
       var q = +r.qty||0;
       if(r.biz) bizSet[r.biz]=1;
       // 브랜드별 사업장코드/사업장명 수집(존 지정·미지정 모두 포함)
-      var _br0=ssBrand(r.item), _bc0=(''+(r.bizCode||'')).trim();
+      var _br0=ssRowBrand(r), _bc0=(''+(r.bizCode||'')).trim();
       if(_bc0){ (brandCodes[_br0]=brandCodes[_br0]||{})[_bc0]=1; }
       if(r.biz){ (brandBiz[_br0]=brandBiz[_br0]||{})[r.biz]=1; }
       if(!r.zone){                         // 존 미지정 → 미배정 집계
@@ -565,7 +602,7 @@
       totQty += q;
       var code=(''+(r.code||'')).trim();
       var key = code ? code : ('NM:'+r.item);   // ★ 품목코드로 매칭
-      var br=ssBrand(r.item);
+      var br=ssRowBrand(r);
       if(!items[key]) items[key]={code:code, name:r.item, brand:br, qty:0};
       items[key].qty+=q;
       zoneSet[r.zone]=1; zoneTot[r.zone]=(zoneTot[r.zone]||0)+q; zoneInb[r.zone]=(r.inb||'');
@@ -977,7 +1014,7 @@
   function ssBizShowAll(){ ssBizHidden={}; ssRender(); }
 
   // 월별(데모) 출고 접기/펼치기 — 상태 유지(재렌더에도 보존)
-  var ssMonthCollapsed=false;   // 기본 펼침
+  var ssMonthCollapsed=true;   // 기본 접힘
   function ssToggleMonth(){
     ssMonthCollapsed=!ssMonthCollapsed;
     var rows=document.querySelectorAll('#ssWideTbl tr.r-month');
@@ -1355,6 +1392,7 @@
         code:(''+(m.cCode>=0?row[m.cCode]:'')).trim(),
         item:nm,
         biz:bizLbl,
+        bizName:bizNm,
         bizCode:bizCd,
         inb:inbVal,
         zone:zoneVal,
@@ -1568,31 +1606,113 @@
     var sheetNm=ssPvWb.SheetNames[+(document.getElementById('ssPvSheet').value||0)];
     var _upZ={}; rows.forEach(function(r){ if(r.zone) _upZ[r.zone]=1; }); var _zc=Object.keys(_upZ).length;
     ssConfirm('파일 <b>'+ssPvName+'</b> · 시트 "<b>'+sheetNm+'</b>"<br>발주 <b style="color:#137a6c">'+rows.length+'</b>건 · 출고장 <b style="color:#137a6c">'+_zc+'</b>곳을 반영하시겠습니까?'
-      +'<br><br><span style="color:#b3760f">※ 엑셀에 있는 <b>출고장만 교체</b>되고, 엑셀에 없는 출고장 내용은 <b>화면 그대로 유지</b>됩니다.</span>',
+      +'<br><br><span style="color:#b3760f">※ <b>기존 화면 자료를 초기화한 뒤</b> 이 파일로 새로 생성하고, <b>서버(TBL_SHIPOUT_MST)에 저장</b>됩니다. (같은 출고장·기준일의 기존 저장분은 이력으로 남고 새 버전이 활성화됩니다.)</span>',
       function(){ ssDoApply(rows, sheetNm); });
   }
 
-  // 실제 반영 처리 — ★ 출고장(존) 단위 병합
-  //  · 엑셀에 있는 출고장 = 기존 화면 데이터 교체(대체)
-  //  · 엑셀에 없는 출고장 = 기존 화면 내용 그대로 유지
+  // 실제 반영 처리 — ★ 기존화면 자료 초기화 후 생성 (업로드 파일로 전체 교체) + 서버 저장
   function ssDoApply(rows, sheetNm){
     var upZones={}; rows.forEach(function(r){ if(r.zone) upZones[r.zone]=1; });
     var zoneList=Object.keys(upZones);
-    // 엑셀에 들어온 출고장의 기존 행은 제거(교체), 그 외 출고장은 보존
-    var kept=SHIP_DATA.filter(function(r){ return !(r.zone && upZones[r.zone]); });
-    SHIP_DATA = kept.concat(rows);
-    // (병합이므로 출고장 접힘 상태는 유지 — 신규 출고장은 기본 접힘 규칙 적용)
+    // ★ 기존화면 자료 초기화 후 생성 (병합 아님)
+    ssExtraItems=[]; ssExtraZones=[]; ssZoneCollapsed={};
+    SHIP_DATA = rows.slice();
     var st=document.getElementById('ssBizSel'); if(st) st.value='__ALL__';
     // 출고일자: 업로드한 발주현황표의 해당일자로 시작일=종료일(같은 단일 일자) 설정
     var upD=rows.map(function(r){ return r.date; }).filter(Boolean).sort();
     var theDay = upD.length ? upD[upD.length-1] : SS_TODAY;
     ssSetVal('ssDateFrom', theDay); ssSetVal('ssDateTo', theDay);
     window.ssSrcUp=true;
-    window.ssSrcInfo='✅ 업로드(출고장 병합): '+ssPvName+' · 출고장 '+zoneList.length+'곳 교체 · '+rows.length+'건';
+    window.ssSrcInfo='✅ 업로드(초기화 후 생성): '+ssPvName+' · 출고장 '+zoneList.length+'곳 · '+rows.length+'건';
     ssRender();
     ssFlash();
     ssPvOpen(false);
-    ssToast('✅ <b>'+ssPvName+'</b> — 출고장 <b>'+zoneList.length+'</b>곳 교체·반영 (엑셀에 없는 출고장은 유지)');
+    // ★ 서버 저장(TBL_SHIPOUT_MST) — 원본 전체컬럼, 기존 활성배치 이력마감 후 신규배치 INSERT
+    ssSaveShipoutToDB(ssPvCur.aoa, theDay);
+    // ★ 품목명 앞 () 없는 행의 사업장(코드→명)을 TBL_BIZI_MST 에 자동등록(없을때만) 후 분류 갱신
+    ssSaveBiziFromRows(rows);
+    ssToast('✅ <b>'+ssPvName+'</b> — 초기화 후 <b>'+rows.length+'</b>건 생성 (출고장 '+zoneList.length+'곳)');
+  }
+
+  // 업로드 행 중 "품목명 앞 () 없는" 사업장만 distinct 수집 → 서버 자동등록(insert if absent) → 분류 최신화
+  function ssSaveBiziFromRows(rows){
+    var seen={}, list=[];
+    (rows||[]).forEach(function(r){
+      var item=(''+(r.item||'')).trim(); if(!item) return;
+      if(/^\(/.test(item)) return;                       // 괄호有 제외
+      var bc=(''+(r.bizCode||'')).trim(); if(!bc || seen[bc]) return;
+      seen[bc]=1; list.push({ bizCd:bc, bizNm:(''+(r.bizName||'')).trim() });
+    });
+    if(!list.length){ ssLoadBiziMst(function(){ ssRender(); }); return; }
+    fetch('${pageContext.request.contextPath}/shipout/saveBiziAuto.do', {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
+      body: JSON.stringify(list)
+    })
+    .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, t:t}; }); })
+    .then(function(r){
+      if(r.ok && (+r.t)>0) ssToast('🏢 신규 사업장 <b>'+r.t+'</b>곳 자동등록 (TBL_BIZI_MST)');
+      ssLoadBiziMst(function(){ ssRender(); });        // 등록 반영해 재분류
+    })
+    .catch(function(){ ssLoadBiziMst(function(){ ssRender(); }); });
+  }
+
+  // ── 발주현황표(코네트 출고장) 원본 전체컬럼을 서버 TBL_SHIPOUT_MST 에 저장
+  //    헤더 2행(1행=메인/2행=현발주 하위) → 컬럼 매핑 후 /shipout/saveShipoutMst.do POST
+  //    논리키 = DLV_DT(납기일자). 납기일자별로 서버에서 그룹·버전관리
+  function ssBuildShipoutRows(aoa){
+    function eq(arr,name){ for(var k=0;k<arr.length;k++){ if((''+arr[k]).trim()===name) return k; } return -1; }
+    // 헤더행 탐색 (1행에 물류센터명+품목명)
+    var h=-1, r1=[], r2=[];
+    for(var i=0;i<Math.min(aoa.length,8);i++){
+      var rr=(aoa[i]||[]).map(function(c){return (''+c).trim();});
+      if(eq(rr,'물류센터명')>=0 && eq(rr,'품목명')>=0){ h=i; r1=rr; r2=(aoa[i+1]||[]).map(function(c){return (''+c).trim();}); break; }
+    }
+    if(h<0) return [];
+    // 헤더명 → 컬럼인덱스 (1행 우선, 없으면 2행=현발주 하위)
+    function idx(name){ var k=eq(r1,name); return k>=0?k:eq(r2,name); }
+    var MAP={
+      rowNo:'No', inrsvYn:'입고예약', labelPrtGb:'라벨발행구분', dcCd:'물류센터코드', dcNm:'물류센터명',
+      vendorCd:'협력업체코드', vendorNm:'협력업체명', itemCd:'품목코드', itemNm:'품목명', fsfdGb:'FS/FD 구분',
+      dlvDt:'납기일자', statYn:'상황여부', prodKind:'상품종류', tempGb:'온도구분', ordGb:'발주구분',
+      bizCd:'사업장코드', bizNm:'사업장명', boxQty:'Box입수량', labelQty:'라벨수량', unpaidLabelQty:'미납라벨수량',
+      inwh:'입고장', zone:'존', busNo:'버스번호', rtSeq:'RT순번', curQty:'수량', dlvGb:'배송구분', remark:'특기사항',
+      unit:'단위', indivId:'개체식별번호', ordNo:'발주번호', ordItemNo:'발주ITEM번호', jumunNo:'주문번호',
+      jumunItemNo:'주문ITEM번호', sorter:'소터'
+    };
+    var COL={}; for(var f in MAP){ COL[f]=idx(MAP[f]); }
+    var NUM={rowNo:1,boxQty:1,labelQty:1,unpaidLabelQty:1,curQty:1}, DT={dlvDt:1};
+    function num(v){ var s=(''+(v==null?'':v)).replace(/[^0-9.\-]/g,''); return s===''?null:(parseInt(s,10)||0); }
+    var out=[];
+    for(var r=h+2; r<aoa.length; r++){
+      var row=aoa[r]||[];
+      var nm=(''+(COL.itemNm>=0?row[COL.itemNm]:'')).trim(); if(!nm) continue;   // 품목명 없으면 데이터 끝
+      var obj={};
+      for(var fld in COL){
+        var c=COL[fld]; var cell=(c>=0)?row[c]:'';
+        if(NUM[fld]) obj[fld]=num(cell);
+        else if(DT[fld]) obj[fld]=ssFmtDate(cell);            // yyyy-mm-dd (서버에서 '-' 제거 저장)
+        else obj[fld]=(''+(cell==null?'':cell)).trim();
+      }
+      out.push(obj);
+    }
+    return out;
+  }
+  function ssSaveShipoutToDB(aoa, baseDt){
+    var rows=ssBuildShipoutRows(aoa);
+    if(!rows.length) return;
+    var srcFile=ssPvName;
+    // 논리키=납기일자(DLV_DT, 행별). 비어있으면 대표일자로 보정. 물류센터/사업장은 키 아님(서버에서 납기일자별 그룹·버전)
+    rows.forEach(function(o){ if(!o.dlvDt) o.dlvDt=baseDt; o.srcFile=srcFile; });
+    fetch('${pageContext.request.contextPath}/shipout/saveShipoutMst.do', {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
+      body: JSON.stringify(rows)
+    })
+    .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, t:t}; }); })
+    .then(function(r){
+      if(r.ok) ssToast('💾 서버 저장 완료 — 납기일 '+baseDt+' · <b>'+r.t+'</b>건 (기존 자료 초기화 후 생성)');
+      else     ssToast('⚠️ 서버 저장 실패: '+(r.t||'오류'));
+    })
+    .catch(function(e){ ssToast('⚠️ 서버 저장 통신오류: '+e.message); });
   }
 
   // 일자별(단일 일자) 조건인지
@@ -1737,12 +1857,59 @@
   // 적용 시 KPI 깜빡임(갱신 알림)
   function ssFlash(){ var s=document.querySelector('#panel-shipstatus .tb-stats'); if(s){ s.classList.remove('ss-flash'); void s.offsetWidth; s.classList.add('ss-flash'); } }
   function ssSetVal(id,v){ var e=document.getElementById(id); if(e) e.value=v; }
-  function ssToday(){ ssSetVal('ssDateFrom',SS_TODAY); ssSetVal('ssDateTo',SS_TODAY); ssRender(); }
+  function ssToday(){ ssSetVal('ssDateFrom',SS_TODAY); ssSetVal('ssDateTo',SS_TODAY); ssLoadShipoutFromDB(); }
   function ssThisMonth(){
     var d=new Date(), y=d.getFullYear(), m=d.getMonth(), last=new Date(y,m+1,0).getDate();
     ssSetVal('ssDateFrom', y+'-'+ssPad(m+1)+'-01');
     ssSetVal('ssDateTo',   y+'-'+ssPad(m+1)+'-'+ssPad(last));
-    ssRender();
+    ssRender();   // 당월=기간 모드 — 단일일자 DB조회 대상 아님(현재 데이터 렌더)
+  }
+
+  // ── 출고현황표 DB 조회: 선택한 출고일자(단일)의 활성배치를 읽어와 표시. 없으면 빈 화면 ──
+  //    DB행 → 화면 SHIP_DATA 매핑은 ssExtractRows(konet 포맷)와 동일:
+  //      · 출고장(zone) = 물류센터명(DC_NM) + 입고장(INWH)  예) "평택물류센터1"
+  //      · 사업장(biz)  = 사업장명 [사업장코드]
+  function ssLoadShipoutFromDB(){ ssLoadBiziMst(function(){ _ssLoadShipoutInner(); }); }   // 조회 직전 분류표 최신화
+  function _ssLoadShipoutInner(){
+    var f=(document.getElementById('ssDateFrom')||{}).value||'';
+    var t=(document.getElementById('ssDateTo')||{}).value||'';
+    // 단일 일자(시작=종료)만 DB 조회. 기간 모드는 현재 데이터로 렌더만.
+    if(!(f && f===t)){ ssRender(); return; }
+    fetch('${pageContext.request.contextPath}/shipout/selectShipoutMst.do', {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'},
+      credentials:'same-origin',
+      body:'dlvDt='+encodeURIComponent(f)
+    })
+    .then(function(res){ return res.text().then(function(txt){ return {status:res.status, ok:res.ok, txt:txt}; }); })
+    .then(function(r){
+      // HTTP 오류(404=엔드포인트 미배포 / 500=서버오류 등) — 상태·본문을 그대로 노출
+      if(!r.ok){
+        window.ssSrcInfo='⚠️ DB 조회 HTTP '+r.status; SHIP_DATA=[]; ssRender();
+        if(window.ssToast) ssToast('⚠️ 출고 조회 실패 (HTTP '+r.status+')<br><span style="font-size:11px">'+(r.txt||'').replace(/[<>]/g,'').slice(0,300)+'</span>');
+        return;
+      }
+      // 본문이 JSON 이 아니면(로그인 HTML 리다이렉트 등) 파싱 실패 — 본문 노출
+      var j; try{ j=JSON.parse(r.txt); }catch(e){
+        window.ssSrcInfo='⚠️ 응답형식 오류'; SHIP_DATA=[]; ssRender();
+        if(window.ssToast) ssToast('⚠️ 조회 응답이 JSON이 아닙니다<br><span style="font-size:11px">'+(r.txt||'').replace(/[<>]/g,'').slice(0,300)+'</span>');
+        return;
+      }
+      var rows=(j&&j.data)||[];
+      SHIP_DATA = rows.map(function(o){
+        var dcNm=(''+(o.dcNm||'')).trim(), inwh=(''+(o.inwh||'')).trim();
+        var zone = dcNm ? (dcNm+inwh) : (''+(o.zone||'')).trim();
+        var bizNm=(''+(o.bizNm||'')).trim(), bizCd=(''+(o.bizCd||'')).trim();
+        var bizLbl = bizCd ? (bizNm ? (bizNm+' ['+bizCd+']') : ('['+bizCd+']')) : bizNm;
+        return { code:(''+(o.itemCd||'')).trim(), item:(''+(o.itemNm||'')).trim(),
+                 biz:bizLbl, bizCode:bizCd, inb:inwh, zone:zone,
+                 qty:(+o.curQty||0), date:f };
+      });
+      window.ssSrcUp   = rows.length>0;
+      window.ssSrcInfo = rows.length>0 ? ('🗄️ DB 조회 '+f+' · '+rows.length+'건') : ('🗄️ DB '+f+' — 데이터 없음');
+      ssRender();
+    })
+    .catch(function(e){ window.ssSrcInfo='⚠️ DB 통신오류'; SHIP_DATA=[]; ssRender(); if(window.ssToast) ssToast('⚠️ 출고 조회 통신오류: '+e.message); });
   }
 
   // 초기 렌더 (AJAX 주입/직접 접근 모두 대응) — 내장 데이터는 금일자로 간주
@@ -1753,7 +1920,7 @@
     var f=document.getElementById('ssDateFrom'), t=document.getElementById('ssDateTo');
     if(f && !f.value) f.value=SS_TODAY;
     if(t && !t.value) t.value=SS_TODAY;
-    ssRender();
+    ssLoadShipoutFromDB();   // 진입 시 = 당일(단일) → DB에서 해당일자 조회(없으면 빈 화면)
   }
   document.addEventListener('DOMContentLoaded', ssInit);
   (function(){ ssInit(); })();
@@ -1795,8 +1962,12 @@
     <a class="mi" data-key="receive" onclick="logiGo('receive', this)"><span class="ic">🧾</span>수금 / 미수금</a>
 
     <div class="grp">시스템관리</div>
-    <a class="mi" data-key="compcd" onclick="logiFrame('compcd','${pageContext.request.contextPath}/mangr/compcd.do', this)"><span class="ic">🏢</span>회사/사용자 관리</a>
-    <a class="mi" data-key="codecd" onclick="logiFrame('codecd','${pageContext.request.contextPath}/base/commcd.do', this)"><span class="ic">🧩</span>공통코드 관리</a>
+    <a class="mi has-sub" data-sub="baseinfo" onclick="logiToggleSub('baseinfo', this)"><span class="ic">📂</span>기준정보관리<span class="caret">▶</span></a>
+    <div class="sub-menu" id="sub-baseinfo">
+      <a class="mi" data-key="compcd" onclick="logiFrame('compcd','${pageContext.request.contextPath}/mangr/compcd.do', this)"><span class="ic">🏢</span>회사/사용자 관리</a>
+      <a class="mi" data-key="codecd" onclick="logiFrame('codecd','${pageContext.request.contextPath}/base/commcd.do', this)"><span class="ic">🧩</span>공통코드 관리</a>
+      <a class="mi" data-key="bizimst" onclick="logiFrame('bizimst','${pageContext.request.contextPath}/mangr/bizimst.do', this)"><span class="ic">🏷️</span>사업장 분류 관리</a>
+    </div>
   </nav>
 
   <!-- ───────────── 우측 콘텐츠 ───────────── -->
@@ -1906,9 +2077,9 @@
         <div class="tb-left">
           <span class="db-ic">📅</span>
           <label>출고일자</label>
-          <input type="date" id="ssDateFrom" class="ss-datepick" onchange="ssRender()" onclick="ssOpenCal(this)" onfocus="ssOpenCal(this)" title="클릭하여 달력 선택">
+          <input type="date" id="ssDateFrom" class="ss-datepick" onchange="ssLoadShipoutFromDB()" onclick="ssOpenCal(this)" onfocus="ssOpenCal(this)" title="클릭하여 달력 선택">
           <span style="color:#9aa7b3; font-weight:600">~</span>
-          <input type="date" id="ssDateTo" class="ss-datepick" onchange="ssRender()" onclick="ssOpenCal(this)" onfocus="ssOpenCal(this)" title="클릭하여 달력 선택">
+          <input type="date" id="ssDateTo" class="ss-datepick" onchange="ssLoadShipoutFromDB()" onclick="ssOpenCal(this)" onfocus="ssOpenCal(this)" title="클릭하여 달력 선택">
           <button class="btn-line" style="padding:5px 10px" onclick="ssOpenCal(document.getElementById('ssDateFrom'))" title="시작일 달력">📅</button>
           <button class="btn-line" id="ssBtnToday" style="padding:5px 14px" onclick="ssToday()">당일</button>
           <button class="btn-line" id="ssBtnMonth" style="padding:5px 12px" onclick="ssThisMonth()">당월</button>
@@ -2255,6 +2426,9 @@
     </section>
     <section id="panel-codecd" class="panel" style="padding:0;">
       <iframe id="if-codecd" src="" title="공통코드 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <section id="panel-bizimst" class="panel" style="padding:0;">
+      <iframe id="if-bizimst" src="" title="사업장 분류 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
 
   </main>

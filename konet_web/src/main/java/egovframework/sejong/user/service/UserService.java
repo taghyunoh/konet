@@ -25,6 +25,18 @@ public interface UserService {
 
 	List<java.util.Map<String,Object>> selectCommCodeList(java.util.Map<String,Object> param) throws Exception;
 
+	// ===== 출고장(발주현황표) 업로드 저장 (TBL_SHIPOUT_MST) =====
+	int markShipoutHistory(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	int getShipoutNextJobSeq(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	int insertShipoutMst(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutMst(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+
+	// ===== 사업장 분류 마스터 (TBL_BIZI_MST) =====
+	java.util.List<egovframework.sejong.user.model.BiziDTO> selectBiziMst() throws Exception;
+	int insertBiziIfAbsent(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	int updateBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	int deleteBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+
 	// ===== 공통코드 관리 (codecd.jsp) =====
 	List<egovframework.sejong.user.model.CodeMdDTO> codeMstList(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
 	String codeMstDupChk(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;

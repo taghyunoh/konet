@@ -68,6 +68,8 @@ $(document).on('init.dt', function(e, settings) {
   html, body { margin:0 !important; padding:0 !important; }
   .dashboard-wrapper { margin-left:0 !important; padding:8px !important; width:100% !important; }
   .dashboard-content, .container-fluid { max-width:100% !important; width:100% !important; margin:0 !important; padding:0 !important; }
+  /* 메인 그리드가 컨테이너 우측 끝까지 채우도록 강제 + 주소 컬럼이 남는 폭 흡수 */
+  table#tableName.dataTable { width:100% !important; }
 </style>
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <!-- 카카오주소검색 -->
@@ -725,7 +727,7 @@ $(document).on('init.dt', function(e, settings) {
 		
 		
 		//  DataTable Columns 정의, c_Head_Set, columnsSet갯수는 항상 같아야함.
-		var c_Head_Set = [  '회사코드','회사명','가입일','대표자','사업자번호','사용여부','관리자여부','등록일자'];
+		var c_Head_Set = [  '회사코드','회사명','가입일','대표자','사업자번호','사용여부','관리자여부','주소','등록일자'];
 
 		var columnsSet = [  // data = SQL 별칭/ DTO 컬럼, name(keyXxx) = 수정/삭제 PK
 	        				{ data: 'compCd',  visible: true, className: 'dt-body-center', width: '110px', name: 'keyCompCd', primaryKey: true },
@@ -742,11 +744,12 @@ $(document).on('init.dt', function(e, settings) {
 	        				{ data: 'commstYn', visible: true, className: 'dt-body-center', width: '90px',
 	        				  render: function (data, type, row) {
 	        			        if (type === 'display') {
-	        			            return data === 'Y' ? '<b style="color:#1976d2">관리</b>' : '<span style="color:#888">제외</span>';
+	        			            return data === 'Y' ? '관리' : '제외';
 	        			        }
 	        			        return data;
 	        			      }
 	        				},
+	        				{ data: 'compAddr', visible: true, className: 'dt-body-left',   width: '600px' },
 	        				{ data: 'updDttm', visible: true, className: 'dt-body-center', width: '120px' }
 					    ];
 		

@@ -479,6 +479,151 @@ public class UserController {
 			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
+		/* ---- 출고장(발주현황표) 엑셀 업로드 저장 ----
+		   · 논리키 = DLV_DT(납기일자). 납기일자별로 1배치 — 기존 활성배치 이력마감 후 JOB_SEQ+1 신규 INSERT
+		   · "기존화면 자료 초기화 후 생성" = 기존 활성배치 ACTION_YN='N' 처리(이력보존) 후 신규 적재
+		   · 날짜('-' 포함 yyyy-mm-dd)는 매퍼에서 REPLACE 로 '-' 제거하여 NVARCHAR(10) 저장 */
+		@RequestMapping(value="/shipout/saveShipoutMst.do", method = RequestMethod.POST)
+		public ResponseEntity<String> saveShipoutMst(@RequestBody List<egovframework.sejong.user.model.ShipoutDTO> rows,
+		                                             HttpServletRequest request, HttpSession session) {
+			try {
+				if (rows == null || rows.isEmpty()) return ResponseEntity.ok("0");
+
+				String regUser = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id"))
+				               : (session.getAttribute("s_comp_cd") != null ? String.valueOf(session.getAttribute("s_comp_cd")) : "");
+				String regIp   = request.getRemoteAddr();
+
+				// 납기일자(DLV_DT)별로 묶어 각 일자를 1배치로 저장 (물류센터/사업장은 키 아님)
+				java.util.LinkedHashMap<String, java.util.List<egovframework.sejong.user.model.ShipoutDTO>> groups
+				    = new java.util.LinkedHashMap<String, java.util.List<egovframework.sejong.user.model.ShipoutDTO>>();
+				for (egovframework.sejong.user.model.ShipoutDTO r : rows) {
+					String key = (r.getDlvDt() == null ? "" : r.getDlvDt());
+					java.util.List<egovframework.sejong.user.model.ShipoutDTO> g = groups.get(key);
+					if (g == null) { g = new java.util.ArrayList<egovframework.sejong.user.model.ShipoutDTO>(); groups.put(key, g); }
+					g.add(r);
+				}
+
+				int total = 0;
+				for (java.util.List<egovframework.sejong.user.model.ShipoutDTO> grp : groups.values()) {
+					// 1) 해당 납기일자 기존 활성배치 이력마감(삭제이력)  2) 신규 JOB_SEQ  3) 그룹 전체행 INSERT
+					egovframework.sejong.user.model.ShipoutDTO head = grp.get(0);
+					head.setUpdUser(regUser);
+					head.setUpdIp(regIp);
+					svc.markShipoutHistory(head);
+
+					int jobSeq = svc.getShipoutNextJobSeq(head);
+					int seq = 0;
+					for (egovframework.sejong.user.model.ShipoutDTO r : grp) {
+						r.setJobSeq(jobSeq);
+						r.setActionYn("Y");
+						if (r.getRowNo() == null) r.setRowNo(seq + 1);
+						r.setRegUser(regUser);
+						r.setRegIp(regIp);
+						svc.insertShipoutMst(r);
+						seq++; total++;
+					}
+				}
+				return ResponseEntity.ok(String.valueOf(total));
+			} catch (Exception e) {
+				log.error(" saveShipoutMst ERROR ! : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+
+		/* 출고현황표 화면 — 선택한 납기일자(단일)의 활성배치 조회 (JSON: {data:[...]}) */
+		@RequestMapping(value="/shipout/selectShipoutMst.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectShipoutMst(@ModelAttribute("DTO") egovframework.sejong.user.model.ShipoutDTO dto,
+		                                            HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectShipoutMst(dto));
+			return response;
+		}
+
+		/* ============================================================
+		   사업장 분류 마스터 (TBL_BIZI_MST)
+		   · 출고현황표 분류용 목록조회 + 업로드 자동등록(없을때만) + 관리화면 CRUD
+		   ============================================================ */
+		/* 목록 (분류 로딩 / 관리 그리드 공용, JSON: {data:[...]}) */
+		@RequestMapping(value={"/shipout/selectBiziMst.do","/mangr/biziList.do"}, method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectBiziMst() throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectBiziMst());
+			return response;
+		}
+
+		/* 업로드 자동등록 — 사업장코드가 없을 때만 신규저장(insert if absent) */
+		@RequestMapping(value="/shipout/saveBiziAuto.do", method = RequestMethod.POST)
+		public ResponseEntity<String> saveBiziAuto(@RequestBody List<egovframework.sejong.user.model.BiziDTO> rows,
+		                                           HttpServletRequest request, HttpSession session) {
+			try {
+				if (rows == null || rows.isEmpty()) return ResponseEntity.ok("0");
+				String regUser = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id"))
+				               : (session.getAttribute("s_comp_cd") != null ? String.valueOf(session.getAttribute("s_comp_cd")) : "");
+				String regIp = request.getRemoteAddr();
+				int n = 0;
+				for (egovframework.sejong.user.model.BiziDTO r : rows) {
+					if (r.getBizCd() == null || r.getBizCd().trim().isEmpty()) continue;
+					r.setRegUser(regUser); r.setRegIp(regIp);
+					n += svc.insertBiziIfAbsent(r);
+				}
+				return ResponseEntity.ok(String.valueOf(n));
+			} catch (Exception e) {
+				log.error(" saveBiziAuto ERROR ! : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+
+		/* 관리화면 페이지 (사업장 분류 정보 수정/관리) */
+		@RequestMapping(value="/mangr/bizimst.do")
+		public String bizimst(HttpSession session, ModelMap model) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/bizimst";
+		}
+
+		/* 관리화면 — 신규(없을때만) */
+		@RequestMapping(value="/mangr/biziInsert.do", method = RequestMethod.POST)
+		public ResponseEntity<String> biziInsert(@RequestBody List<egovframework.sejong.user.model.BiziDTO> data,
+		                                         HttpServletRequest request, HttpSession session) {
+			try {
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				String ip = request.getRemoteAddr();
+				int n = 0;
+				for (egovframework.sejong.user.model.BiziDTO d : data) {
+					if (d.getBizCd() == null || d.getBizCd().trim().isEmpty()) continue;
+					d.setRegUser(u); d.setRegIp(ip); n += svc.insertBiziIfAbsent(d);
+				}
+				return ResponseEntity.ok(String.valueOf(n));
+			} catch (Exception e) { log.error(" biziInsert ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* 관리화면 — 사업장명 수정 */
+		@RequestMapping(value="/mangr/biziUpdate.do", method = RequestMethod.POST)
+		public ResponseEntity<String> biziUpdate(@RequestBody List<egovframework.sejong.user.model.BiziDTO> data,
+		                                         HttpServletRequest request, HttpSession session) {
+			try {
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				String ip = request.getRemoteAddr();
+				int n = 0;
+				for (egovframework.sejong.user.model.BiziDTO d : data) { d.setUpdUser(u); d.setUpdIp(ip); n += svc.updateBiziMst(d); }
+				return ResponseEntity.ok(String.valueOf(n));
+			} catch (Exception e) { log.error(" biziUpdate ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* 관리화면 — 삭제(비활성화) */
+		@RequestMapping(value="/mangr/biziDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> biziDelete(@RequestBody List<egovframework.sejong.user.model.BiziDTO> data,
+		                                         HttpServletRequest request, HttpSession session) {
+			try {
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				String ip = request.getRemoteAddr();
+				int n = 0;
+				for (egovframework.sejong.user.model.BiziDTO d : data) { d.setUpdUser(u); d.setUpdIp(ip); n += svc.deleteBiziMst(d); }
+				return ResponseEntity.ok(String.valueOf(n));
+			} catch (Exception e) { log.error(" biziDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
 		/* ---- 계약 ---- */
 		@RequestMapping(value="/user/compContList.do", method = RequestMethod.POST)
 		@ResponseBody
