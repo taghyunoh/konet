@@ -91,6 +91,7 @@
 		   and FAQ_SEQ = #{faqSeq}
     ]]>
     </update>
+    
 
     <update id="deletefaq" parameterType="FaqDTO"><![CDATA[
        UPDATE T_FAQ_TRAN
