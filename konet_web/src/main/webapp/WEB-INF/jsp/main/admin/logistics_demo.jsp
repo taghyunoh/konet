@@ -773,6 +773,14 @@
     zones.forEach(function(z){ var L=(z.charAt(0)||'').toUpperCase(); if(!byL[L]){ byL[L]=[]; letters.push(L); } byL[L].push(z); });
     letters.sort();
     window.ssLetters=letters.slice();
+    // 출고장별 발주일자(납기일자) — 현재 출고일자와 다를 때만 괄호 표시
+    var _shpNow=(document.getElementById('ssDateFrom')||{}).value||'';
+    var zoneDlv={};
+    (SHIP_DATA||[]).forEach(function(r){ if(!r||!r.zone) return; var d=(''+(r.dlvDt||'')).trim(); if(!d) return; (zoneDlv[r.zone]=zoneDlv[r.zone]||{})[d]=1; });
+    function zoneDlvNote(z){
+      var a=Object.keys(zoneDlv[z]||{}).filter(function(d){ return d && d!==_shpNow; }).sort();
+      return a.length ? ' <span class="sub2" style="color:#c47f17;font-weight:700">(발주일자 '+a.join(', ')+')</span>' : '';
+    }
     var colTot={}, grand=0, tb='';
     letters.forEach(function(L){
       var col; if(L in ssZoneCollapsed){ col=!!ssZoneCollapsed[L]; } else { col=ssZoneDefaultCollapsed; ssZoneCollapsed[L]=col; }   // 기본=펼침
@@ -795,7 +803,7 @@
         });
         grand+=rowSum; lSum+=rowSum;
         var _isExZ=(ssExtraZones||[]).indexOf(z)>=0, _zdelx=(_isExZ&&rowSum===0)?' <span class="delx" data-dz="'+z+'" onclick="ssDelZone(event,this)" title="추가 출고장 삭제(수량 없음)">✕</span>':'';
-        tb+='<tr class="zg_'+L+'"'+(col?' style="display:none"':'')+'>'+wrapSum('<td class="stick">&nbsp;&nbsp;'+z+' 출고장'+_zdelx+'</td>', cells, '<td class="num colsum">'+ssNum(rowSum)+'</td>')+'</tr>';
+        tb+='<tr class="zg_'+L+'"'+(col?' style="display:none"':'')+'>'+wrapSum('<td class="stick">&nbsp;&nbsp;'+z+' 출고장'+zoneDlvNote(z)+_zdelx+'</td>', cells, '<td class="num colsum">'+ssNum(rowSum)+'</td>')+'</tr>';
       });
       var lc=''; keys.forEach(function(k){ lc+='<td class="num'+gs(k)+'">'+ssNum(lCol[k]||0)+'</td>'; });
       tb+='<tr class="lsub">'+wrapSum('<td class="stick">'+_glabel+' 합계</td>', lc, '<td class="num colsum">'+ssNum(lSum)+'</td>')+'</tr>';
