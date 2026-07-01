@@ -24,6 +24,7 @@ public class ShipoutDTO {
 	private String  itemNm;        // 품목명
 	private String  fsfdGb;        // FS/FD 구분
 	private String  dlvDt;         // 납기일자
+	private String  shpoutDt;      // 출고일자 — 배치·이력 복합키(DLV_DT+SHPOUT_DT) + 조회·출력 기준
 	private String  statYn;        // 상황여부
 	private String  prodKind;      // 상품종류
 	private String  tempGb;        // 온도구분
@@ -85,6 +86,8 @@ public class ShipoutDTO {
 	public void setFsfdGb(String fsfdGb) { this.fsfdGb = fsfdGb; }
 	public String getDlvDt() { return dlvDt; }
 	public void setDlvDt(String dlvDt) { this.dlvDt = dlvDt; }
+	public String getShpoutDt() { return shpoutDt; }
+	public void setShpoutDt(String shpoutDt) { this.shpoutDt = shpoutDt; }
 	public String getStatYn() { return statYn; }
 	public void setStatYn(String statYn) { this.statYn = statYn; }
 	public String getProdKind() { return prodKind; }

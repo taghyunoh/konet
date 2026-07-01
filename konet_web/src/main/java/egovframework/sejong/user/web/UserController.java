@@ -493,11 +493,12 @@ public class UserController {
 				               : (session.getAttribute("s_comp_cd") != null ? String.valueOf(session.getAttribute("s_comp_cd")) : "");
 				String regIp   = request.getRemoteAddr();
 
-				// 납기일자(DLV_DT)별로 묶어 각 일자를 1배치로 저장 (물류센터/사업장은 키 아님)
+				// (납기일자 DLV_DT + 출고일자 SHPOUT_DT) 복합키로 묶어 각 조합을 1배치로 저장 (물류센터/사업장은 키 아님)
 				java.util.LinkedHashMap<String, java.util.List<egovframework.sejong.user.model.ShipoutDTO>> groups
 				    = new java.util.LinkedHashMap<String, java.util.List<egovframework.sejong.user.model.ShipoutDTO>>();
 				for (egovframework.sejong.user.model.ShipoutDTO r : rows) {
-					String key = (r.getDlvDt() == null ? "" : r.getDlvDt());
+					String key = (r.getDlvDt() == null ? "" : r.getDlvDt())
+					           + "|" + (r.getShpoutDt() == null ? "" : r.getShpoutDt());
 					java.util.List<egovframework.sejong.user.model.ShipoutDTO> g = groups.get(key);
 					if (g == null) { g = new java.util.ArrayList<egovframework.sejong.user.model.ShipoutDTO>(); groups.put(key, g); }
 					g.add(r);

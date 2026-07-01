@@ -579,7 +579,7 @@
     .catch(function(){ if(!window.ssBiziMap) window.ssBiziMap={}; if(cb) cb(); });
   }
   // 품목명에서 앞쪽 (사업장/브랜드) 접두 제거 — 상단 그룹헤더와 중복 방지
-  function ssShortName(item){ var s=(''+(item||'')).replace(/^\([^)]*\)\s*/,''); return s||(item||''); }
+  function ssShortName(item){ return (''+(item||'')).trim(); }   // 품목명 () 접두 포함해서 그대로 표시
   function ssHash(s){ var h=5381,i; for(i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))>>>0; return h; }
   function ssNum(n){ return (Math.round(n||0)).toLocaleString(); }
   function ssSet(id,html){ var e=document.getElementById(id); if(e) e.innerHTML=html; }
@@ -1357,7 +1357,7 @@
                    cBiz:findEq(r1,'사업장명'), cBizCode:findEq(r1,'사업장코드'),
                    cCenter:findEq(r1,'물류센터명'), cInb:cInb, cQty:cQk,
                    cZone:findEq(r1,'물류센터명'),
-                   cDate:findEq(r1,'납기일자') };
+                   cDate:findEq(r1,'납기일자'), cDlv:findEq(r1,'납기일자') };
         }
       }
     }
@@ -1375,7 +1375,8 @@
     if(cZone<0){ cInb=findIn(h1,'입고장'); cZone=findIn(h1,'존'); cQty=findIn(h1,'수량'); }
     // 출고일자 = 엑셀의 '18차 가마감 일시'(처리일) 우선, 없으면 '납기일자'
     var cDate=findIn(h1,'18차 가마감 일시'); if(cDate<0) cDate=findIn(h1,'납기일자'); if(cDate<0) cDate=findIn(h2,'18차 가마감 일시');
-    return { fmt:'old', h:h, dataRow:h+2, cItem:findIn(h1,'품목명'), cBiz:findIn(h1,'사업장명'), cBizCode:findIn(h1,'사업장코드'), cCode:findIn(h1,'품목코드'), cInb:cInb, cZone:cZone, cQty:cQty, cDate:cDate };
+    var cDlv=findIn(h1,'납기일자'); if(cDlv<0) cDlv=findIn(h2,'납기일자');
+    return { fmt:'old', h:h, dataRow:h+2, cItem:findIn(h1,'품목명'), cBiz:findIn(h1,'사업장명'), cBizCode:findIn(h1,'사업장코드'), cCode:findIn(h1,'품목코드'), cInb:cInb, cZone:cZone, cQty:cQty, cDate:cDate, cDlv:cDlv };
   }
 
   function ssExtractRows(aoa,m){
@@ -1406,6 +1407,7 @@
         inb:inbVal,
         zone:zoneVal,
         qty:(+(''+(row[m.cQty]||'')).replace(/[^0-9.\-]/g,''))||0,
+        dlvDt:(m.cDlv>=0?ssFmtDate(row[m.cDlv]):''),
         date:(m.cDate>=0?ssFmtDate(row[m.cDate]):'') || SS_TODAY
       });
     }
@@ -1435,7 +1437,17 @@
     var hlCols={};
     if(m){
       [m.cItem,m.cBiz,m.cBizCode,m.cZone,m.cQty,m.cCode,m.cInb,m.cCenter].forEach(function(c){ if(c>=0) hlCols[c]=1; });
-      var cnt=ssExtractRows(aoa,m).length;
+      var _exRows=ssExtractRows(aoa,m);
+      var cnt=_exRows.length;
+      // 출고일자 기본값 = 엑셀 계산값(18차 가마감 일시 우선, 없으면 납기일자) — 사용자가 고치지 않았으면 채움
+      var shpEl=document.getElementById('ssPvShpoutDt');
+      if(shpEl){
+        if(shpEl.getAttribute('data-file')!==ssPvName){ shpEl.removeAttribute('data-touched'); shpEl.setAttribute('data-file', ssPvName||''); }
+        if(shpEl.getAttribute('data-touched')!=='1'){
+          var _ds=_exRows.map(function(r){ return r.date; }).filter(Boolean).sort();
+          shpEl.value = _ds.length ? _ds[_ds.length-1] : SS_TODAY;
+        }
+      }
       info.className='ss-pvinfo';
       if(m.fmt==='konet'){
         info.innerHTML='✅ 인식 완료 (코네트 발주현황표·출고장) — '
@@ -1614,9 +1626,17 @@
     if(!rows.length){ ssToast('⚠️ 데이터 행이 없습니다.'); return; }
     var sheetNm=ssPvWb.SheetNames[+(document.getElementById('ssPvSheet').value||0)];
     var _upZ={}; rows.forEach(function(r){ if(r.zone) _upZ[r.zone]=1; }); var _zc=Object.keys(_upZ).length;
-    ssConfirm('파일 <b>'+ssPvName+'</b> · 시트 "<b>'+sheetNm+'</b>"<br>발주 <b style="color:#137a6c">'+rows.length+'</b>건 · 출고장 <b style="color:#137a6c">'+_zc+'</b>곳을 반영하시겠습니까?'
-      +'<br><br><span style="color:#b3760f">※ <b>기존 화면 자료를 초기화한 뒤</b> 이 파일로 새로 생성하고, <b>서버(TBL_SHIPOUT_MST)에 저장</b>됩니다. (같은 출고장·기준일의 기존 저장분은 이력으로 남고 새 버전이 활성화됩니다.)</span>',
-      function(){ ssDoApply(rows, sheetNm); });
+    // 출고일자 확인 — 비어있으면 막고, 값이 있으면 "이 날짜 맞냐" 를 크게 먼저 물음
+    var _shpEl=document.getElementById('ssPvShpoutDt'); var _shp=(_shpEl&&_shpEl.value)||'';
+    if(!_shp){ ssToast('⚠️ 출고일자를 입력하세요.'); if(_shpEl) _shpEl.focus(); return; }
+    // 1단계: 작성 실행 전 출고일자 맞는지 먼저 확인
+    ssConfirm('<div style="text-align:center;line-height:1.7">출고일자 <b style="color:#137a6c;font-size:22px">'+_shp+'</b></div>',
+      function(){
+        // 2단계: 기존 반영 확인 메시지 (출고일자 문구 없음)
+        ssConfirm('파일 <b>'+ssPvName+'</b> · 시트 "<b>'+sheetNm+'</b>"<br>발주 <b style="color:#137a6c">'+rows.length+'</b>건 · 출고장 <b style="color:#137a6c">'+_zc+'</b>곳을 반영하시겠습니까?'
+          +'<br><br><span style="color:#b3760f">※ <b>기존 화면 자료를 초기화한 뒤</b> 이 파일로 새로 생성하고, <b>서버(TBL_SHIPOUT_MST)에 저장</b>됩니다. (같은 출고일자·납기일자의 기존 저장분은 이력으로 남고 새 버전이 활성화됩니다.)</span>',
+          function(){ ssDoApply(rows, sheetNm); });
+      });
   }
 
   // 실제 반영 처리 — ★ 기존화면 자료 초기화 후 생성 (업로드 파일로 전체 교체) + 서버 저장
@@ -1627,10 +1647,13 @@
     ssExtraItems=[]; ssExtraZones=[]; ssZoneCollapsed={};
     SHIP_DATA = rows.slice();
     var st=document.getElementById('ssBizSel'); if(st) st.value='__ALL__';
-    // 출고일자: 업로드한 발주현황표의 해당일자로 시작일=종료일(같은 단일 일자) 설정
+    // 출고일자(SHPOUT_DT): 프리뷰에서 확정한 값(엑셀기준·수정가능) 우선, 없으면 엑셀 계산값
     var upD=rows.map(function(r){ return r.date; }).filter(Boolean).sort();
-    var theDay = upD.length ? upD[upD.length-1] : SS_TODAY;
+    var _shpEl=document.getElementById('ssPvShpoutDt');
+    var theDay = (_shpEl && _shpEl.value) ? _shpEl.value : (upD.length ? upD[upD.length-1] : SS_TODAY);
     ssSetVal('ssDateFrom', theDay); ssSetVal('ssDateTo', theDay);
+    // 화면 표시·날짜필터 기준을 출고일자로 통일 (엑셀엔 납기일자만 있어 r.date=납기일자로 채워지므로 덮어씀)
+    SHIP_DATA.forEach(function(r){ r.date=theDay; });
     window.ssSrcUp=true;
     window.ssSrcInfo='✅ 업로드(초기화 후 생성): '+ssPvName+' · 출고장 '+zoneList.length+'곳 · '+rows.length+'건';
     ssRender();
@@ -1667,7 +1690,7 @@
 
   // ── 발주현황표(코네트 출고장) 원본 전체컬럼을 서버 TBL_SHIPOUT_MST 에 저장
   //    헤더 2행(1행=메인/2행=현발주 하위) → 컬럼 매핑 후 /shipout/saveShipoutMst.do POST
-  //    논리키 = DLV_DT(납기일자). 납기일자별로 서버에서 그룹·버전관리
+  //    복합키 = (DLV_DT 납기일자 + SHPOUT_DT 출고일자). 서버에서 조합별 그룹·버전관리
   function ssBuildShipoutRows(aoa){
     function eq(arr,name){ for(var k=0;k<arr.length;k++){ if((''+arr[k]).trim()===name) return k; } return -1; }
     // 헤더행 탐색 (1행에 물류센터명+품목명)
@@ -1710,15 +1733,18 @@
     var rows=ssBuildShipoutRows(aoa);
     if(!rows.length) return;
     var srcFile=ssPvName;
-    // 논리키=납기일자(DLV_DT, 행별). 비어있으면 대표일자로 보정. 물류센터/사업장은 키 아님(서버에서 납기일자별 그룹·버전)
-    rows.forEach(function(o){ if(!o.dlvDt) o.dlvDt=baseDt; o.srcFile=srcFile; });
+    // 복합키=(납기일자 DLV_DT 행별) + (출고일자 SHPOUT_DT=baseDt, 프리뷰 확정 단일값). 물류센터/사업장은 키 아님.
+    rows.forEach(function(o){ if(!o.dlvDt) o.dlvDt=baseDt; o.shpoutDt=baseDt; o.srcFile=srcFile; });
     fetch('${pageContext.request.contextPath}/shipout/saveShipoutMst.do', {
       method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
       body: JSON.stringify(rows)
     })
     .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, t:t}; }); })
     .then(function(r){
-      if(r.ok) ssToast('💾 서버 저장 완료 — 납기일 '+baseDt+' · <b>'+r.t+'</b>건 (기존 자료 초기화 후 생성)');
+      if(r.ok){
+        ssToast('💾 서버 저장 완료 — 출고일자 '+baseDt+' · <b>'+r.t+'</b>건 (기존 자료 초기화 후 생성)');
+        if(window.ssLoadShipoutFromDB) ssLoadShipoutFromDB();   // 저장 끝나면 출고일자로 DB 조회 1회 자동 실행
+      }
       else     ssToast('⚠️ 서버 저장 실패: '+(r.t||'오류'));
     })
     .catch(function(e){ ssToast('⚠️ 서버 저장 통신오류: '+e.message); });
@@ -1852,10 +1878,15 @@
       push(['출고일자  '+dlab], 'date', COLS-1);
       push([], 'blank');
 
+      // 출고장별 발주일자(납기일자) 집계 — SHIP_DATA 행에서 zone → 발주일자 distinct
+      var zoneDlv={};
+      (SHIP_DATA||[]).forEach(function(r){ if(!r||!r.zone) return; var d=(''+(r.dlvDt||'')).trim(); if(!d) return; (zoneDlv[r.zone]=zoneDlv[r.zone]||{})[d]=1; });
+      function dlvLabelOf(z){ var a=Object.keys(zoneDlv[z]||{}).sort(); return a.length?('발주일자 '+a.join(', ')):''; }
+
       // 출고장 1개 블록을 아래로 이어붙임
-      function block(zoneLabel, keys, get){
+      function block(zoneLabel, keys, get, extra){
         var tot=0; keys.forEach(function(k){ tot+=(get(k)||0); });
-        push(['▣ '+zoneLabel+'   (품목 '+keys.length+'종 · 출고 '+ssNum(tot)+')'], 'zone', COLS-1);   // 출고장 제목줄
+        push(['▣ '+zoneLabel+'   (품목 '+keys.length+'종 · 출고 '+ssNum(tot)+(extra?(' · '+extra):'')+')'], 'zone', COLS-1);   // 출고장 제목줄
         push(['No','사업장','품목명','품목코드','출고수량'], 'head');                                    // 컬럼 헤더
         keys.forEach(function(k,ix){ push([ix+1, kBrand(k), kName(k), kCode(k), get(k)||0], 'item'); }); // 품목행(수량>0만, 출고장별 1번부터)
         push(['소계','','','',tot], 'sub', COLS-2);                                                     // 소계(라벨 병합)
@@ -1870,7 +1901,7 @@
         if(!keys.length){ skipped++; return; }                                // 물건 없는 출고장은 생략
         keys.sort(srt);
         keys.forEach(function(k){ grand+=(mz[k]||0); });
-        block(z+' 출고장', keys, function(k){ return mz[k]||0; });
+        block(z+' 출고장', keys, function(k){ return mz[k]||0; }, dlvLabelOf(z));
         made++;
       });
       // 미배정(출고장 미지정) 품목도 블록으로 (있을 때만)
@@ -1891,7 +1922,7 @@
         var box={top:LINE,bottom:LINE,left:LINE,right:LINE};
         var S={
           title:{ fill:{fgColor:{rgb:'178074'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:15}, alignment:{horizontal:'left',vertical:'center'} },
-          date:{ font:{color:{rgb:'6B7A89'},bold:true,sz:10}, alignment:{horizontal:'left',vertical:'center'} },
+          date:{ font:{color:{rgb:'1F2A37'},bold:true,sz:15}, alignment:{horizontal:'left',vertical:'center'} },
           zone:{ fill:{fgColor:{rgb:'1F9B8E'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:12}, alignment:{horizontal:'left',vertical:'center'} },
           head:{ fill:{fgColor:{rgb:'E3F4EF'}}, font:{color:{rgb:'137A6C'},bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:box },
           itemL:{ font:{color:{rgb:'10161D'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
@@ -1908,7 +1939,7 @@
         meta.forEach(function(ty,r){
           var h=null;
           if(ty==='title'){ put(r,0,S.title); h=26; }
-          else if(ty==='date'){ put(r,0,S.date); h=16; }
+          else if(ty==='date'){ put(r,0,S.date); h=24; }
           else if(ty==='zone'){ put(r,0,S.zone); h=22; }
           else if(ty==='head'){ for(var c=0;c<COLS;c++) put(r,c,S.head); h=20; }
           else if(ty==='item'){ put(r,0,S.itemCB); put(r,1,S.itemL); put(r,2,S.itemL); put(r,3,S.itemCB); put(r,4,S.itemN); } // 0=No, 3=품목코드 → 검정 가운데
@@ -2009,7 +2040,7 @@
       method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'},
       credentials:'same-origin',
-      body:'dlvDt='+encodeURIComponent(f)
+      body:'shpoutDt='+encodeURIComponent(f)
     })
     .then(function(res){ return res.text().then(function(txt){ return {status:res.status, ok:res.ok, txt:txt}; }); })
     .then(function(r){
@@ -2031,9 +2062,10 @@
         var zone = dcNm ? (dcNm+inwh) : (''+(o.zone||'')).trim();
         var bizNm=(''+(o.bizNm||'')).trim(), bizCd=(''+(o.bizCd||'')).trim();
         var bizLbl = bizCd ? (bizNm ? (bizNm+' ['+bizCd+']') : ('['+bizCd+']')) : bizNm;
+        var _dlv=(''+(o.dlvDt||'')).trim(); if(/^\d{8}$/.test(_dlv)) _dlv=_dlv.slice(0,4)+'-'+_dlv.slice(4,6)+'-'+_dlv.slice(6,8);
         return { code:(''+(o.itemCd||'')).trim(), item:(''+(o.itemNm||'')).trim(),
                  biz:bizLbl, bizCode:bizCd, inb:inwh, zone:zone,
-                 qty:(+o.curQty||0), date:f };
+                 qty:(+o.curQty||0), dlvDt:_dlv, date:f };
       });
       window.ssSrcUp   = rows.length>0;
       window.ssSrcInfo = rows.length>0 ? ('🗄️ DB 조회 '+f+' · '+rows.length+'건') : ('🗄️ DB '+f+' — 데이터 없음');
@@ -2134,7 +2166,7 @@
             <span id="ssPvSheetWrap" style="display:none">시트
               <select id="ssPvSheet" onchange="ssPvRender()"></select>
             </span>
-            <span style="margin-left:auto; color:#6b7a89">아래 내용이 맞으면 <b>작성(반영)</b> 을 누르세요</span>
+            <span style="margin-left:auto; color:#6b7a89">아래 <b>출고일자</b> 확인·수정 후 <b>작성(반영)</b> 을 누르세요</span>
           </div>
           <div class="mbody">
             <div id="ssPvInfo"></div>
@@ -2143,6 +2175,11 @@
             </div>
           </div>
           <div class="mfoot">
+            <span style="font-size:16px;font-weight:700;color:#37475a;margin-right:10px">출고일자
+              <input type="date" id="ssPvShpoutDt" oninput="this.setAttribute('data-touched','1')"
+                     style="height:38px;border:1px solid var(--logi-border);border-radius:6px;padding:0 10px;font-size:16px;font-weight:700;margin:0 4px"
+                     title="엑셀 기준 출고일자 — 수정 가능. 이 날짜로 전체 행이 저장되고 조회됩니다">
+            </span>
             <button class="btn-line" onclick="ssPvOpen(false)">취소</button>
             <button class="btn-teal" id="ssPvApplyBtn" onclick="ssPvApply()">✔ 작성 (대시보드 반영)</button>
           </div>
