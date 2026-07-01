@@ -534,13 +534,22 @@
   (function(){ _logiInit(); })();
 </script>
 
-<!-- 엑셀 파서 (xlsx) — CDN 지연/차단 시에도 화면이 먼저 뜨도록 defer -->
-<script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<!-- 로컬(폐쇄망) 우선 로드 → 로컬 파일 누락 시에만 CDN 폴백. defer 로 화면 먼저 렌더 -->
+<script>
+  // 로컬 스크립트 로드 실패 시 지정 CDN 으로 폴백 (인터넷 있을 때만 의미)
+  function ssCdnFallback(el, url){ el.onerror=null; var s=document.createElement('script'); s.defer=true; s.src=url; (document.head||document.documentElement).appendChild(s); }
+</script>
+<!-- 엑셀 파서 (xlsx) -->
+<script defer src="${pageContext.request.contextPath}/assets/vendor/sheetjs/xlsx.full.min.js"
+        onerror="ssCdnFallback(this,'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js')"></script>
 <!-- ZIP 처리 (일부 ERP가 생성한 비표준 xlsx의 sharedStrings 보정용) -->
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script defer src="${pageContext.request.contextPath}/assets/vendor/jszip/jszip.min.js"
+        onerror="ssCdnFallback(this,'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js')"></script>
 <!-- PDF 출력 (jsPDF + html2canvas, 한글 안전 이미지 캡처) -->
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="${pageContext.request.contextPath}/assets/vendor/html2canvas/html2canvas.min.js"
+        onerror="ssCdnFallback(this,'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')"></script>
+<script defer src="${pageContext.request.contextPath}/assets/vendor/jspdf/jspdf.umd.min.js"
+        onerror="ssCdnFallback(this,'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')"></script>
 <script type="text/javascript">
   /* ===================================================================
      출고현황표 — 발주현황표(엑셀) 업로드 → 출고량/재고량 자동작성
@@ -1796,6 +1805,127 @@
     ssToast('📥 출고현황표 엑셀 저장 완료 (출고일자 '+dlab+')');
   }
 
+  // xlsx-js-style(무료·MIT, SheetJS 스타일 지원 포크) 지연 로드 — 색·테두리 엑셀 전용.
+  //   · 로컬(폐쇄망 대비) 우선 → 실패 시 CDN 순으로 시도
+  //   · 읽기용 원본 XLSX 는 건드리지 않도록, 로드 후 window.XLSX 를 즉시 원복하고 스타일본만 캐시
+  var _XLSXStyle=null;
+  var _XLSXStyleSrcs=[
+    '${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js',
+    'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js'
+  ];
+  function ssLoadStyleXlsx(cb){
+    if(_XLSXStyle){ cb(_XLSXStyle); return; }
+    var prev=window.XLSX, i=0;
+    (function tryNext(){
+      if(i>=_XLSXStyleSrcs.length){ window.XLSX=prev; cb(null); return; }
+      var s=document.createElement('script');
+      s.src=_XLSXStyleSrcs[i++];
+      s.onload=function(){ _XLSXStyle=window.XLSX; window.XLSX=prev; cb(_XLSXStyle); };
+      s.onerror=function(){ window.XLSX=prev; tryNext(); };   // 다음 소스로 폴백
+      document.head.appendChild(s);
+    })();
+  }
+
+  // 출고장별 엑셀(.xlsx) : ★ 한 장(시트 1개)에 출고장을 위→아래로 구분해 쌓음 + 색/테두리(출고장 화면 스타일)
+  //   · 각 출고장 블록에는 그 출고장에 '출고량이 있는 품목만' 나열(상품 없는 품목 제외)
+  //   · 물건 없는 출고장은 블록 자체를 생략, 출고장 사이는 빈 줄로 구분
+  function ssDownloadByZone(){
+    ssLoadStyleXlsx(function(XLSXS){
+      var LIB = XLSXS || window.XLSX;               // 스타일본 실패 시 원본(무색)으로라도 저장
+      var styled = !!XLSXS;
+      if(!LIB){ ssToast('⚠️ 엑셀 모듈을 불러오지 못했습니다(인터넷 필요).'); return; }
+      var ag=ssAggregate();
+      var f=(document.getElementById('ssDateFrom')||{}).value||'', t=(document.getElementById('ssDateTo')||{}).value||'';
+      var dlab=(f&&f===t)?f:(f+' ~ '+t);
+      // 매트릭스 key → 품목명/사업장/코드 (미배정 key 도 안전 처리)
+      function kName(k){ return (ag.items[k]&&ag.items[k].name) || (String(k).indexOf('NM:')===0? String(k).slice(3): k); }
+      function kBrand(k){ return (ag.items[k]&&ag.items[k].brand) || ''; }
+      function kCode(k){ return (ag.items[k]&&ag.items[k].code) || (String(k).indexOf('NM:')===0? '': k); }
+      function srt(a,b){ return kBrand(a).localeCompare(kBrand(b),'ko')||kName(a).localeCompare(kName(b),'ko'); }
+
+      var COLS=5;                 // No | 사업장 | 품목명 | 품목코드 | 출고수량
+      var aoa=[], merges=[], meta=[];   // meta[r] = 행 유형(스타일 적용용)
+      function mergeRow(ri, e){ merges.push({s:{r:ri,c:0}, e:{r:ri,c:(e==null?COLS-1:e)}}); }
+      function push(row, ty, mEnd){ aoa.push(row); meta.push(ty); if(mEnd!=null) mergeRow(aoa.length-1, mEnd); }
+      // 상단 제목
+      push(['출고장별 출고현황'], 'title', COLS-1);
+      push(['출고일자  '+dlab], 'date', COLS-1);
+      push([], 'blank');
+
+      // 출고장 1개 블록을 아래로 이어붙임
+      function block(zoneLabel, keys, get){
+        var tot=0; keys.forEach(function(k){ tot+=(get(k)||0); });
+        push(['▣ '+zoneLabel+'   (품목 '+keys.length+'종 · 출고 '+ssNum(tot)+')'], 'zone', COLS-1);   // 출고장 제목줄
+        push(['No','사업장','품목명','품목코드','출고수량'], 'head');                                    // 컬럼 헤더
+        keys.forEach(function(k,ix){ push([ix+1, kBrand(k), kName(k), kCode(k), get(k)||0], 'item'); }); // 품목행(수량>0만, 출고장별 1번부터)
+        push(['소계','','','',tot], 'sub', COLS-2);                                                     // 소계(라벨 병합)
+        push([], 'blank');                                                                              // 출고장 구분 빈 줄
+      }
+
+      var zones=Object.keys(ag.zoneSet).sort();
+      var made=0, skipped=0, grand=0;
+      zones.forEach(function(z){
+        var mz=ag.matrix[z]||{};
+        var keys=Object.keys(mz).filter(function(k){ return (mz[k]||0)>0; }); // 상품 없는(0) 품목 제외
+        if(!keys.length){ skipped++; return; }                                // 물건 없는 출고장은 생략
+        keys.sort(srt);
+        keys.forEach(function(k){ grand+=(mz[k]||0); });
+        block(z+' 출고장', keys, function(k){ return mz[k]||0; });
+        made++;
+      });
+      // 미배정(출고장 미지정) 품목도 블록으로 (있을 때만)
+      if(ag.unassigned>0){
+        var uk=Object.keys(ag.unMatrix).filter(function(k){ return (ag.unMatrix[k]||0)>0; });
+        if(uk.length){ uk.sort(srt); uk.forEach(function(k){ grand+=(ag.unMatrix[k]||0); }); block('미배정 · 출고장 미지정', uk, function(k){ return ag.unMatrix[k]||0; }); }
+      }
+      if(!made){ ssToast('⚠️ 출고량이 있는 출고장이 없습니다.'); return; }
+      push(['전체 합계','','','',grand], 'grand', COLS-2);
+
+      var ws=LIB.utils.aoa_to_sheet(aoa);
+      ws['!cols']=[{wch:5},{wch:18},{wch:44},{wch:18},{wch:11}];
+      ws['!merges']=merges;
+
+      if(styled){
+        var enc=LIB.utils.encode_cell;
+        var LINE={style:'thin', color:{rgb:'DFE6E3'}};
+        var box={top:LINE,bottom:LINE,left:LINE,right:LINE};
+        var S={
+          title:{ fill:{fgColor:{rgb:'178074'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:15}, alignment:{horizontal:'left',vertical:'center'} },
+          date:{ font:{color:{rgb:'6B7A89'},bold:true,sz:10}, alignment:{horizontal:'left',vertical:'center'} },
+          zone:{ fill:{fgColor:{rgb:'1F9B8E'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:12}, alignment:{horizontal:'left',vertical:'center'} },
+          head:{ fill:{fgColor:{rgb:'E3F4EF'}}, font:{color:{rgb:'137A6C'},bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:box },
+          itemL:{ font:{color:{rgb:'10161D'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          itemC:{ font:{color:{rgb:'6B7A89'}}, alignment:{horizontal:'center',vertical:'center'}, border:box },
+          itemCB:{ font:{color:{rgb:'000000'}}, alignment:{horizontal:'center',vertical:'center'}, border:box }, // No·품목코드(검정)
+          itemN:{ font:{color:{rgb:'1F2A37'},bold:true,sz:13}, alignment:{horizontal:'right',vertical:'center'}, border:box }, // 출고수량 조금 크게
+          subL:{ fill:{fgColor:{rgb:'F4F8F7'}}, font:{color:{rgb:'37475A'},bold:true}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          subN:{ fill:{fgColor:{rgb:'F4F8F7'}}, font:{color:{rgb:'137A6C'},bold:true,sz:13}, alignment:{horizontal:'right',vertical:'center'}, border:box }, // 소계 값 크게
+          grandL:{ fill:{fgColor:{rgb:'1F2A37'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:12}, alignment:{horizontal:'left',vertical:'center'} },
+          grandN:{ fill:{fgColor:{rgb:'1F2A37'}}, font:{color:{rgb:'AEF0E7'},bold:true,sz:14}, alignment:{horizontal:'right',vertical:'center'} } // 전체합계 값 크게
+        };
+        function put(r,c,st){ var ref=enc({r:r,c:c}); if(!ws[ref]) ws[ref]={t:'s',v:''}; ws[ref].s=st; }
+        var rows=[];
+        meta.forEach(function(ty,r){
+          var h=null;
+          if(ty==='title'){ put(r,0,S.title); h=26; }
+          else if(ty==='date'){ put(r,0,S.date); h=16; }
+          else if(ty==='zone'){ put(r,0,S.zone); h=22; }
+          else if(ty==='head'){ for(var c=0;c<COLS;c++) put(r,c,S.head); h=20; }
+          else if(ty==='item'){ put(r,0,S.itemCB); put(r,1,S.itemL); put(r,2,S.itemL); put(r,3,S.itemCB); put(r,4,S.itemN); } // 0=No, 3=품목코드 → 검정 가운데
+          else if(ty==='sub'){ for(var c2=0;c2<COLS-1;c2++) put(r,c2,S.subL); put(r,COLS-1,S.subN); h=19; }
+          else if(ty==='grand'){ for(var c3=0;c3<COLS-1;c3++) put(r,c3,S.grandL); put(r,COLS-1,S.grandN); h=22; }
+          rows.push(h!=null?{hpt:h}:{});
+        });
+        ws['!rows']=rows;
+      }
+
+      var wb=LIB.utils.book_new();
+      LIB.utils.book_append_sheet(wb, ws, '출고장별');
+      LIB.writeFile(wb, '출고장별_'+(f||'')+((t&&t!==f)?'~'+t:'')+'.xlsx');
+      ssToast('📥 출고장별 엑셀(한 장'+(styled?', 색구분':'')+') 저장 완료 · 출고장 '+made+'개'+(skipped?(' (물건없는 '+skipped+'개 제외)'):'')+' · 출고일자 '+dlab);
+    });
+  }
+
   // 출고현황표 → PDF 파일 저장 (jsPDF + html2canvas, 한글 안전)
   function ssPdf(){
     var jsPDF = window.jspdf && window.jspdf.jsPDF;
@@ -1984,6 +2114,7 @@
           <button class="btn-line" id="ssBtnCost" onclick="document.getElementById('ssCostFile').click()" title="매입금액 엑셀(품목코드·매입금액/단가)을 업로드하면 매출액 아래에 매입액 행과 마진(매출−매입)이 표시됩니다 — 엑셀은 추후 제공">🧾 매입금액 업로드</button>
           <button class="btn-line" id="ssBtnSave" onclick="ssSaveData()">💾 출고데이타저장</button>
           <button class="btn-line" id="ssBtnDownload" onclick="ssDownload()">📥 출고현황표 다운로드</button>
+          <button class="btn-line" id="ssBtnDownloadZone" onclick="ssDownloadByZone()" title="한 장(시트 1개)에 출고장을 위→아래로 색·테두리로 구분해 출력합니다. 각 출고장에는 실제 출고된 품목만 표시(상품 없는 품목·물건 없는 출고장 제외). 현장에서 출고장별 물건 확인·인쇄용">🏷️ 출고장별 출력</button>
           <button class="btn-line" id="ssBtnPdf" onclick="ssPdf()">📄 PDF 출력</button>
         </div>
       </div>
