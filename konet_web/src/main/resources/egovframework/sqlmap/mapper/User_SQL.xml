@@ -460,18 +460,51 @@
 	<!-- ④ 해당 출고일자 활성배치 조회 — 출고현황표 화면 로딩용 (SHPOUT_DT 기준, ACTION_YN='Y') -->
 	<select id="selectShipoutMst" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
 	  SELECT
-	      SHPOUT_DT AS shpoutDt, DLV_DT AS dlvDt, JOB_SEQ AS jobSeq, ROW_NO AS rowNo, SRC_FILE AS srcFile,
-	      DC_CD AS dcCd, DC_NM AS dcNm, VENDOR_CD AS vendorCd, VENDOR_NM AS vendorNm,
-	      ITEM_CD AS itemCd, ITEM_NM AS itemNm, BIZ_CD AS bizCd, BIZ_NM AS bizNm,
-	      BOX_QTY AS boxQty, LABEL_QTY AS labelQty, UNPAID_LABEL_QTY AS unpaidLabelQty,
-	      INWH AS inwh, ZONE AS zone, BUS_NO AS busNo, RT_SEQ AS rtSeq, CUR_QTY AS curQty,
-	      DLV_GB AS dlvGb, REMARK AS remark, PROD_KIND AS prodKind, TEMP_GB AS tempGb, ORD_GB AS ordGb,
-	      UNIT AS unit, ORD_NO AS ordNo, ORD_ITEM_NO AS ordItemNo, JUMUN_NO AS jumunNo, JUMUN_ITEM_NO AS jumunItemNo
-	    FROM TBL_SHIPOUT_MST
-	   WHERE SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
-	     AND ACTION_YN = 'Y'
-	   ORDER BY BIZ_NM, ITEM_NM, ROW_NO
+	      t.SHPOUT_DT AS shpoutDt, t.DLV_DT AS dlvDt, t.JOB_SEQ AS jobSeq, t.ROW_NO AS rowNo, t.SRC_FILE AS srcFile,
+	      CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm,
+	      ( SELECT CONVERT(varchar(19), MIN(m.UPLOAD_DTTM), 120) FROM TBL_SHIPOUT_MST m
+	         WHERE m.SHPOUT_DT = t.SHPOUT_DT AND ISNULL(m.DC_CD,'') = ISNULL(t.DC_CD,'')
+	           AND ISNULL(m.BIZ_CD,'') = ISNULL(t.BIZ_CD,'') AND ISNULL(m.ITEM_CD,'') = ISNULL(t.ITEM_CD,'') ) AS firstDttm,
+	      t.DC_CD AS dcCd, t.DC_NM AS dcNm, t.VENDOR_CD AS vendorCd, t.VENDOR_NM AS vendorNm,
+	      t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
+	      t.BOX_QTY AS boxQty, t.LABEL_QTY AS labelQty, t.UNPAID_LABEL_QTY AS unpaidLabelQty,
+	      t.INWH AS inwh, t.ZONE AS zone, t.BUS_NO AS busNo, t.RT_SEQ AS rtSeq, t.CUR_QTY AS curQty,
+	      t.DLV_GB AS dlvGb, t.REMARK AS remark, t.PROD_KIND AS prodKind, t.TEMP_GB AS tempGb, t.ORD_GB AS ordGb,
+	      t.UNIT AS unit, t.ORD_NO AS ordNo, t.ORD_ITEM_NO AS ordItemNo, t.JUMUN_NO AS jumunNo, t.JUMUN_ITEM_NO AS jumunItemNo
+	    FROM TBL_SHIPOUT_MST t
+	   WHERE t.SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
+	     AND t.ACTION_YN = 'Y'
+	   ORDER BY t.BIZ_NM, t.ITEM_NM, t.ROW_NO
 	]]></select>
+
+	<!-- ④-2 해당 출고일자 '직전 배치' 조회 — 이력 비교(신규/삭제)용
+	     · 그룹(DLV_DT+SHPOUT_DT+DC_CD)별 ACTION_YN='N' 중 MAX(JOB_SEQ) = 직전 업로드본
+	     · 현재 활성배치(④)와 (사업장코드+품목코드)로 대조하여 신규/삭제 판정 -->
+	<select id="selectShipoutPrev" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
+	  SELECT
+	      t.SHPOUT_DT AS shpoutDt, t.DLV_DT AS dlvDt, t.JOB_SEQ AS jobSeq, t.ROW_NO AS rowNo, t.SRC_FILE AS srcFile,
+	      CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm,
+	      ( SELECT CONVERT(varchar(19), MIN(m.UPLOAD_DTTM), 120) FROM TBL_SHIPOUT_MST m
+	         WHERE m.SHPOUT_DT = t.SHPOUT_DT AND ISNULL(m.DC_CD,'') = ISNULL(t.DC_CD,'')
+	           AND ISNULL(m.BIZ_CD,'') = ISNULL(t.BIZ_CD,'') AND ISNULL(m.ITEM_CD,'') = ISNULL(t.ITEM_CD,'') ) AS firstDttm,
+	      t.DC_CD AS dcCd, t.DC_NM AS dcNm, t.VENDOR_CD AS vendorCd, t.VENDOR_NM AS vendorNm,
+	      t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
+	      t.BOX_QTY AS boxQty, t.LABEL_QTY AS labelQty, t.UNPAID_LABEL_QTY AS unpaidLabelQty,
+	      t.INWH AS inwh, t.ZONE AS zone, t.BUS_NO AS busNo, t.RT_SEQ AS rtSeq, t.CUR_QTY AS curQty,
+	      t.DLV_GB AS dlvGb, t.REMARK AS remark, t.PROD_KIND AS prodKind, t.TEMP_GB AS tempGb, t.ORD_GB AS ordGb,
+	      t.UNIT AS unit, t.ORD_NO AS ordNo, t.ORD_ITEM_NO AS ordItemNo, t.JUMUN_NO AS jumunNo, t.JUMUN_ITEM_NO AS jumunItemNo
+	    FROM TBL_SHIPOUT_MST t
+	   WHERE t.SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
+	     AND t.ACTION_YN = 'N'
+	     AND t.JOB_SEQ = (
+	           SELECT MAX(x.JOB_SEQ) FROM TBL_SHIPOUT_MST x
+	            WHERE x.SHPOUT_DT = t.SHPOUT_DT
+	              AND x.DLV_DT = t.DLV_DT
+	              AND ISNULL(x.DC_CD,'') = ISNULL(t.DC_CD,'')
+	              AND x.ACTION_YN = 'N'
+	         )
+	   ORDER BY t.BIZ_NM, t.ITEM_NM, t.ROW_NO
+]]></select>
 
 	<!-- ============================================================
 	     사업장 분류 마스터 — TBL_BIZI_MST

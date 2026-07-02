@@ -358,6 +358,33 @@
   table.ss-pv tr.hdr td { background:#eef3f2; font-weight:700; color:#178074; position:sticky; top:0; }
   table.ss-pv td.hl { background:#fff7cc; }
   table.ss-pv td.rn { background:#f4f8f7; color:#9aa7b3; text-align:right; position:sticky; left:0; }
+
+  /* 출고장 변경 알림 — 화면 하단 독립 고정 바 (데시보드2 iframe에서 postMessage 수신, 위너넷 알림바 스타일) */
+  #konetAsqBar { position:fixed; bottom:0; left:0; width:100%; height:36px; color:#fff; display:none; align-items:center;
+    z-index:10000; overflow:hidden; font-size:13px; font-weight:700; box-shadow:0 -2px 8px rgba(0,0,0,.15);
+    background:linear-gradient(135deg,#1e3a5f 0%,#2c5282 100%); }
+  body.konet-asqbar-on #if-shipstatus2 { height:calc(100vh - 44px - 36px) !important; }   /* 바 높이만큼 iframe 축소(가림 방지) */
+  #konetAsqBar .ka-lbl { flex-shrink:0; height:100%; display:flex; align-items:center; gap:6px; padding:0 14px; background:#e67e22; white-space:nowrap; }
+  #konetAsqBar .ka-view { flex:1; height:100%; overflow:hidden; display:flex; align-items:center; }
+  #konetAsqBar .ka-track { display:flex; align-items:center; white-space:nowrap; animation:kaMarquee 60s linear infinite; }
+  #konetAsqBar .ka-track:hover { animation-play-state:paused; }
+  #konetAsqBar .tk-spacer { display:inline-block; flex-shrink:0; width:100vw; }
+  @keyframes kaMarquee { 0%{ transform:translateX(0); } 100%{ transform:translateX(-100%); } }
+  #konetAsqBar .tk-item { display:inline-block; padding:0 6px; }
+  #konetAsqBar .tk-item .z { color:#ffd700; font-weight:800; }
+  #konetAsqBar .tk-sep { color:#4a7ab5; margin:0 14px; }
+  #konetAsqBar .tk-new{ color:#68d391; } #konetAsqBar .tk-up{ color:#9ae6b4; } #konetAsqBar .tk-dn{ color:#fbd38d; } #konetAsqBar .tk-del{ color:#feb2b2; }
+  #konetAsqBar .ka-toggle { flex-shrink:0; margin:0 8px; padding:3px 10px; border-radius:4px; cursor:pointer; font-size:11px; color:#fff;
+    white-space:nowrap; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); transition:background .2s; }
+  #konetAsqBar .ka-toggle:hover { background:rgba(255,255,255,.25); }
+  #konetAsqBar .ka-refresh { flex-shrink:0; height:22px; margin-left:8px; border-radius:4px; cursor:pointer; font-size:11px;
+    color:#fff; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.3); }
+  #konetAsqBar .ka-refresh option { color:#1a202c; }
+  #konetAsqBar .ka-refresh-btn { flex-shrink:0; margin-left:6px; padding:2px 8px; border-radius:4px; cursor:pointer; font-size:12px;
+    color:#fff; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); }
+  #konetAsqBar .ka-refresh-btn:hover { background:rgba(255,255,255,.25); }
+  #konetAsqBar.clickable .tk-item[data-zone] { cursor:pointer; }   /* 클릭 이동은 대시보드2에서만 */
+  #konetAsqBar.clickable .tk-item[data-zone]:hover { text-decoration:underline; text-underline-offset:2px; }
 </style>
 
 <script type="text/javascript">
@@ -369,6 +396,8 @@
     var t = document.getElementById('panel-'+key);
     if (t) t.classList.add('show');
     var m = document.querySelector('.logi-main'); if (m) m.scrollTop = 0;
+    // 출고장 변경 알림 바: 활성 화면(대시보드1/2)에 맞춰 갱신 (그 외 화면은 자동 숨김)
+    if (typeof konetAsqRender === 'function') konetAsqRender();
   }
   // 자체완결 화면(회사/사용자·공통코드)을 우측 iframe 패널에 로드 (사이드메뉴 종속)
   function logiFrame(key, url, el){
@@ -2108,7 +2137,7 @@
     var f=(document.getElementById('ssDateFrom')||{}).value||'';
     var t=(document.getElementById('ssDateTo')||{}).value||'';
     // 단일 일자(시작=종료)만 DB 조회. 기간 모드는 현재 데이터로 렌더만.
-    if(!(f && f===t)){ ssRender(); return; }
+    if(!(f && f===t)){ ssRender(); if(typeof konetAsqSetDash1==='function') konetAsqSetDash1({hide:true}); return; }
     fetch('${pageContext.request.contextPath}/shipout/selectShipoutMst.do', {
       method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'},
@@ -2143,8 +2172,63 @@
       window.ssSrcUp   = rows.length>0;
       window.ssSrcInfo = rows.length>0 ? ('🗄️ DB 조회 '+f+' · '+rows.length+'건') : ('🗄️ DB '+f+' — 데이터 없음');
       ssRender();
+      ssLoadAsqBar();   // 하단 알림 바(대시보드1 자체) — 직전 배치 대조 요약 갱신
     })
-    .catch(function(e){ window.ssSrcInfo='⚠️ DB 통신오류'; SHIP_DATA=[]; ssRender(); if(window.ssToast) ssToast('⚠️ 출고 조회 통신오류: '+e.message); });
+    .catch(function(e){ window.ssSrcInfo='⚠️ DB 통신오류'; SHIP_DATA=[]; ssRender(); if(typeof konetAsqSetDash1==='function') konetAsqSetDash1({hide:true}); if(window.ssToast) ssToast('⚠️ 출고 조회 통신오류: '+e.message); });
+  }
+
+  // ── 하단 알림 바(대시보드1 자체) — 현재 SHIP_DATA vs 직전 배치 대조 요약 ──
+  function _ssAsqEsc(s){ return (''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function _ssAsqNormCur(r){   // 현재 화면 데이터(SHIP_DATA) 정규화
+    return { zone:(''+(r.zone||'')).trim(), biz:(''+(r.bizCode||'')).trim(),
+             key:((''+(r.code||'')).trim()||('NM:'+(''+(r.item||'')).trim())), qty:+r.qty||0 };
+  }
+  function _ssAsqNormPrev(o){   // 직전 배치 DB행 정규화(현재와 동일 키 규칙: 사업장코드+품목)
+    var dc=(''+(o.dcNm||'')).trim(), iw=(''+(o.inwh||'')).trim(); var zn=dc?(dc+iw):(''+(o.zone||'')).trim();
+    var c=(''+(o.itemCd||'')).trim();
+    return { zone:zn, biz:(''+(o.bizCd||'')).trim(), key:(c||('NM:'+(''+(o.itemNm||'')).trim())), qty:+o.curQty||0 };
+  }
+  function _ssAsqGroup(list){   // zone → { (사업장|품목) : 수량합 }
+    var z={};
+    (list||[]).forEach(function(n){ if(n.qty<=0) return; var kk=n.biz+'|'+n.key; (z[n.zone]=z[n.zone]||{}); z[n.zone][kk]=(z[n.zone][kk]||0)+n.qty; });
+    return z;
+  }
+  function ssBuildAsqSummary(curNorm, prevNorm){
+    var cur=_ssAsqGroup(curNorm), prev=_ssAsqGroup(prevNorm);
+    var zones=Object.keys(cur); Object.keys(prev).forEach(function(zn){ if(zones.indexOf(zn)<0) zones.push(zn); });
+    zones.sort(function(a,b){ return (''+a).localeCompare(''+b,'ko'); });
+    var items=[];
+    zones.forEach(function(zn){
+      var c=cur[zn]||{}, p=prev[zn]||{}, nw=0,up=0,dn=0,dl=0;
+      Object.keys(c).forEach(function(k){ if(!(k in p)) nw++; else if(c[k]!==p[k]){ (c[k]>p[k]?up++:dn++); } });
+      Object.keys(p).forEach(function(k){ if(!(k in c)) dl++; });
+      if(nw+up+dn+dl===0) return;
+      var parts=[];
+      if(nw) parts.push('<span class="tk-new">신규 '+nw+'</span>');
+      if(up) parts.push('<span class="tk-up">▲증가 '+up+'</span>');
+      if(dn) parts.push('<span class="tk-dn">▼감소 '+dn+'</span>');
+      if(dl) parts.push('<span class="tk-del">삭제 '+dl+'</span>');
+      items.push('<span class="tk-item" data-zone="'+_ssAsqEsc(zn)+'"><span class="z">'+_ssAsqEsc(zn)+'</span> '+parts.join(' · ')+'</span>');
+    });
+    if(!items.length) items.push('<span class="tk-item">✓ 직전 업로드 대비 변경 없음</span>');
+    return { hide:false, html:'<span class="tk-spacer"></span>'+items.join('<span class="tk-sep">|</span>') };
+  }
+  // 현재+직전 배치를 모두 새로 조회해 요약 생성 → 셸 바로 전달 (그리드 SHIP_DATA는 건드리지 않음 → 리프레시에도 안전)
+  function ssLoadAsqBar(){
+    if(typeof konetAsqSetDash1!=='function') return;   // 셸 바 없으면(단독 접근) 스킵
+    var f=(document.getElementById('ssDateFrom')||{}).value||'';
+    var t=(document.getElementById('ssDateTo')||{}).value||'';
+    if(!(f && f===t)){ konetAsqSetDash1({hide:true}); return; }   // 기간모드 제외
+    var CTX='${pageContext.request.contextPath}';
+    var opt={ method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin', body:'shpoutDt='+encodeURIComponent(f) };
+    Promise.all([
+      fetch(CTX+'/shipout/selectShipoutMst.do', opt).then(function(r){ return r.ok?r.text():''; }),
+      fetch(CTX+'/shipout/selectShipoutPrev.do', opt).then(function(r){ return r.ok?r.text():''; })
+    ]).then(function(txts){
+      function pj(x){ try{ var j=JSON.parse(x); return (j&&j.data)||[]; }catch(e){ return []; } }
+      // 현재·직전 모두 DB 원본행 → 동일 정규화(_ssAsqNormPrev) 적용
+      konetAsqSetDash1(ssBuildAsqSummary(pj(txts[0]).map(_ssAsqNormPrev), pj(txts[1]).map(_ssAsqNormPrev)));
+    }).catch(function(){ konetAsqSetDash1({hide:true}); });
   }
 
   // 초기 렌더 (AJAX 주입/직접 접근 모두 대응) — 내장 데이터는 금일자로 간주
@@ -2379,7 +2463,9 @@
         <div class="ss-scroll">
           <table class="ss-tb sswide" id="ssWideTbl"></table>
         </div>
+        <%-- [제외 2026-07-02] 하단 안내문 숨김 — 재노출 시 주석 해제
         <div class="note">※ <b>당일</b> 모드에서 출고장 행의 노란 칸을 클릭해 수량을 직접 입력하면(엔터/포커스아웃) <b>합계가 자동 재계산</b>됩니다. 사업장 헤더(뜨돈 등) 클릭 시 그 열 숨김(위 바에서 펼치기). 품목 많으면 가로 스크롤. 하단 월별/재고량은 데모용 가정값.</div>
+        --%>
       </div>
 
     </section>
@@ -2694,5 +2780,104 @@
 
   </main>
 </div>
+
+<!-- 출고장 변경 알림 — 화면 하단 독립 고정 바 (데시보드2 iframe이 postMessage로 요약을 올림) -->
+<div id="konetAsqBar">
+  <div class="ka-lbl">🔔 알림</div>
+  <div class="ka-view"><div class="ka-track" id="konetAsqTrack"></div></div>
+  <select class="ka-refresh" id="konetAsqRefresh" onchange="konetAsqSetRefresh(this.value)" title="자동 새로고침 주기">
+    <option value="0">수동</option>
+    <option value="30">30초</option>
+    <option value="60">1분</option>
+    <option value="120">2분</option>
+    <option value="180">3분</option>
+    <option value="300">5분</option>
+  </select>
+  <button class="ka-refresh-btn" onclick="konetAsqDoRefresh()" title="지금 새로고침">⟳</button>
+  <button class="ka-toggle" id="konetAsqToggle" onclick="konetAsqToggle()" title="알림 멈춤/재생">끄기</button>
+</div>
+<script type="text/javascript">
+  // ── 하단 알림 바 — 대시보드1(자체 데이터)·대시보드2(iframe) 요약을 활성 화면에 맞춰 표시 ──
+  window._konetAsqDash1=null;   // {hide, html} — 대시보드1이 직접 생성
+  window._konetAsqDash2=null;   // {hide, html} — 대시보드2 iframe postMessage
+  function konetAsqRender(){
+    var bar=document.getElementById('konetAsqBar'), track=document.getElementById('konetAsqTrack');
+    if(!bar||!track) return;
+    var onD2=!!document.querySelector('#panel-shipstatus2.show');
+    var onD1=!!document.querySelector('#panel-shipstatus.show');
+    var d1=window._konetAsqDash1, d2=window._konetAsqDash2;
+    // 대시보드2 화면: D2 우선(없으면 D1). 대시보드1 화면: D1 우선, 자체요약 없으면/숨김이면 D2로 폴백.
+    var src = onD2 ? (d2 || d1) : (onD1 ? ((d1 && !d1.hide) ? d1 : d2) : null);
+    if(!src || src.hide){ bar.style.display='none'; track.innerHTML=''; document.body.classList.remove('konet-asqbar-on'); bar.classList.remove('clickable'); return; }
+    track.innerHTML=src.html||'';
+    bar.style.display='flex'; document.body.classList.add('konet-asqbar-on');
+    var dur=Math.max(35, Math.round(track.scrollWidth/45));   // 천천히 흐르게(초당 ~45px, 최소 35s)
+    track.style.animationDuration=dur+'s';
+    track.style.animationPlayState = window._konetAsqOff ? 'paused' : 'running';
+    track.style.opacity = window._konetAsqOff ? '0.35' : '1';
+    bar.classList.add('clickable');   // 대시보드1/2 모두 클릭 가능(대시보드1은 클릭 시 대시보드2로 전환 후 이동)
+  }
+  // 대시보드1(같은 문서)이 자체 요약을 넘김
+  window.konetAsqSetDash1=function(payload){ window._konetAsqDash1=payload||{hide:true}; konetAsqRender(); };
+  // 대시보드2 iframe 요약 수신
+  window.addEventListener('message', function(e){
+    var d=e.data; if(!d || d.type!=='konetAsq') return;
+    window._konetAsqDash2=d; konetAsqRender();
+  });
+  // 멈춤/재생(위너넷 끄기와 동일 — 정지+흐림, 라벨 토글)
+  function konetAsqToggle(){
+    var track=document.getElementById('konetAsqTrack'), btn=document.getElementById('konetAsqToggle');
+    if(!track) return;
+    window._konetAsqOff = !window._konetAsqOff;
+    track.style.animationPlayState = window._konetAsqOff ? 'paused' : 'running';
+    track.style.opacity = window._konetAsqOff ? '0.35' : '1';
+    if(btn) btn.textContent = window._konetAsqOff ? '켜기' : '끄기';
+  }
+  // 알림 항목 클릭 → 데시보드2 iframe에 해당 출고장 이동 요청 (대시보드2 활성일 때만)
+  (function(){
+    var bar=document.getElementById('konetAsqBar');
+    if(!bar) return;
+    bar.addEventListener('click', function(e){
+      var it=e.target.closest ? e.target.closest('.tk-item[data-zone]') : null;
+      if(!it) return;
+      var zone=it.getAttribute('data-zone');
+      var d2=document.getElementById('panel-shipstatus2');
+      var onD2=!!(d2 && d2.classList.contains('show'));
+      if(!onD2){   // 대시보드1 등에서 클릭 → 대시보드2 메뉴로 전환
+        var menu=document.querySelector('.logi-side a.mi[data-key="shipstatus2"]');
+        if(menu) menu.click();
+      }
+      var send=function(){ var f=document.getElementById('if-shipstatus2'); if(f && f.contentWindow) f.contentWindow.postMessage({type:'konetAsqGoto', zone:zone}, '*'); };
+      if(onD2) send(); else setTimeout(send, 300);   // 전환 후 iframe 반영 여유
+    });
+  })();
+  // 알림 데이터 준비 — 대시보드2 iframe을 백그라운드로 미리 로드(숨김 상태로 변경요약만 수집 → 대시보드1에서도 바 노출)
+  (function(){
+    var f=document.getElementById('if-shipstatus2');
+    if(f && !f.getAttribute('data-loaded')){
+      f.src='${pageContext.request.contextPath}/admin/logistics_demo2.do';
+      f.setAttribute('data-loaded','1');
+    }
+  })();
+
+  // ── 자동 새로고침 주기 설정(수동/1·5·10·30분) — 대시보드2 iframe에 재조회 요청 ──
+  window._konetAsqTimer=null;
+  function konetAsqDoRefresh(){   // 지금 새로고침 — 대시보드1(자체)·대시보드2(iframe) 모두 재조회
+    if(typeof ssLoadAsqBar==='function') ssLoadAsqBar();                                       // 대시보드1
+    var f=document.getElementById('if-shipstatus2');
+    if(f && f.contentWindow) f.contentWindow.postMessage({type:'konetAsqRefresh'}, '*');       // 대시보드2
+  }
+  function konetAsqSetRefresh(sec){   // 값 = 초 단위(0=수동)
+    sec=parseInt(sec,10)||0;
+    try{ localStorage.setItem('konet_asq_refresh_sec', String(sec)); }catch(e){}
+    if(window._konetAsqTimer){ clearInterval(window._konetAsqTimer); window._konetAsqTimer=null; }
+    if(sec>0){ window._konetAsqTimer=setInterval(konetAsqDoRefresh, sec*1000); }
+  }
+  (function(){   // 저장된 주기 복원 + select 반영
+    var sec=0; try{ sec=parseInt(localStorage.getItem('konet_asq_refresh_sec')||'0',10)||0; }catch(e){}
+    var sel=document.getElementById('konetAsqRefresh'); if(sel) sel.value=String(sec);
+    konetAsqSetRefresh(sec);
+  })();
+</script>
 </body>
 </html>

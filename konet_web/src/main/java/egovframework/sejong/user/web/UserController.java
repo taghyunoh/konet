@@ -53,21 +53,16 @@ public class UserController {
 	    	return "redirect:https://allcare24.kr/login.do";
 	    }
 
-	    /* 최초 진입점 — 미로그인이면 로그인 화면, 로그인 상태면 물류 화면을 풀스크린 메인으로 직접 렌더.
-	       (logistics_demo.jsp 가 자체 사이드바/헤더를 가진 완결 화면이라 상단 allCare 메뉴 셸 없이 단독 표시) */
 	    @RequestMapping(value = "/konet.do")
-	    public String KonetEntry(@ModelAttribute("DTO") UserDTO dto, HttpServletRequest request, ModelMap model) throws Exception {
-	    	HttpSession session = request.getSession();
-	    	if (session.getAttribute("q_user_id") == null) {
-	    		return ".login/base_login";
-	    	}
-	    	return ".raw/main/admin/logistics_demo";
+	    public String KonetEntry(HttpServletRequest request) throws Exception {
+	        return ".login/base_login";   // 정문은 항상 로그인 → 성공 시 /main.do 로 이동
 	    }
 
 	    //메인화면 호출 (환자 P → 환자 메인, 그 외 → 물류 화면 단독 메인)
 		@RequestMapping(value = "/main.do")
 		public String MainPage(HttpServletRequest request, ModelMap model) throws Exception {
 			HttpSession session = request.getSession();
+			if (session.getAttribute("q_user_id") == null) return ".login/base_login";   // 미로그인 진입 차단(konet.do 와 동일)
 			String userGb = (String) session.getAttribute("q_admin_yn");
 			if ("P".equals(userGb)) {
 				return ".raw/main/patient/patient_main";
@@ -79,6 +74,7 @@ public class UserController {
 		   tiles .raw  → /WEB-INF/jsp/main/admin/logistics_demo.jsp (nav/top 래핑 없음) */
 		@RequestMapping(value = "/admin/logistics_demo.do")
 		public String LogisticsDemo(HttpServletRequest request, ModelMap model) throws Exception {
+			if (request.getSession().getAttribute("q_user_id") == null) return ".login/base_login";   // 미로그인 직접접근 차단
 			return ".raw/main/admin/logistics_demo";
 		}
 
@@ -86,6 +82,7 @@ public class UserController {
 		   logistics_demo.jsp 사이드메뉴에서 iframe 패널(logiFrame)로 로드되는 단독 화면 */
 		@RequestMapping(value = "/admin/logistics_demo2.do")
 		public String LogisticsDemo2(HttpServletRequest request, ModelMap model) throws Exception {
+			if (request.getSession().getAttribute("q_user_id") == null) return ".login/base_login";   // 미로그인 직접접근 차단(iframe 조각)
 			return ".raw/main/admin/logistics_demo2";
 		}
 
@@ -546,6 +543,17 @@ public class UserController {
 		                                            HttpSession session) throws Exception {
 			Map<String,Object> response = new HashMap<String,Object>();
 			response.put("data", svc.selectShipoutMst(dto));
+			return response;
+		}
+
+		/* 출고현황표(데시보드2) 이력 비교용 — 해당 출고일자의 '직전 배치'(ACTION_YN='N' 최근본) 조회.
+		   현재 활성배치와 대조해 신규/삭제 표시 (JSON: {data:[...]}) */
+		@RequestMapping(value="/shipout/selectShipoutPrev.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectShipoutPrev(@ModelAttribute("DTO") egovframework.sejong.user.model.ShipoutDTO dto,
+		                                            HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectShipoutPrev(dto));
 			return response;
 		}
 

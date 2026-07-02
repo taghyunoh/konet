@@ -12,6 +12,8 @@ public class ShipoutDTO {
 	private String  actionYn;      // 'Y'=활성 / 'N'=이력(삭제)
 	private Integer rowNo;         // 배치 내 행번호(엑셀 No)
 	private String  srcFile;       // 원본 엑셀 파일명
+	private String  uploadDttm;    // 업로드(변경) 일시 — 조회 시 CONVERT(varchar(19),UPLOAD_DTTM,120)
+	private String  firstDttm;     // 최초 업로드 일시 — 같은 품목 MIN(UPLOAD_DTTM)
 
 	// ----- 엑셀 본문 -----
 	private String  inrsvYn;       // 입고예약
@@ -65,6 +67,10 @@ public class ShipoutDTO {
 	public void setRowNo(Integer rowNo) { this.rowNo = rowNo; }
 	public String getSrcFile() { return srcFile; }
 	public void setSrcFile(String srcFile) { this.srcFile = srcFile; }
+	public String getUploadDttm() { return uploadDttm; }
+	public void setUploadDttm(String uploadDttm) { this.uploadDttm = uploadDttm; }
+	public String getFirstDttm() { return firstDttm; }
+	public void setFirstDttm(String firstDttm) { this.firstDttm = firstDttm; }
 
 	public String getInrsvYn() { return inrsvYn; }
 	public void setInrsvYn(String inrsvYn) { this.inrsvYn = inrsvYn; }
