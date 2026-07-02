@@ -82,6 +82,13 @@ public class UserController {
 			return ".raw/main/admin/logistics_demo";
 		}
 
+		/* 출고현황표(데시보드2) — 좌측 출고장 목록 + 우측 출고장별 내용(출고장별 출력 형식).
+		   logistics_demo.jsp 사이드메뉴에서 iframe 패널(logiFrame)로 로드되는 단독 화면 */
+		@RequestMapping(value = "/admin/logistics_demo2.do")
+		public String LogisticsDemo2(HttpServletRequest request, ModelMap model) throws Exception {
+			return ".raw/main/admin/logistics_demo2";
+		}
+
 
 		//최초 로그인 페이지 호출
 		@RequestMapping(value = "/index.do")
@@ -480,7 +487,7 @@ public class UserController {
 		}
 
 		/* ---- 출고장(발주현황표) 엑셀 업로드 저장 ----
-		   · 논리키 = DLV_DT(납기일자). 납기일자별로 1배치 — 기존 활성배치 이력마감 후 JOB_SEQ+1 신규 INSERT
+		   · 논리키 = (DLV_DT 납기일자 + SHPOUT_DT 출고일자 + DC_CD 물류센터코드). 조합별 1배치 — 기존 활성배치 이력마감 후 JOB_SEQ+1 신규 INSERT
 		   · "기존화면 자료 초기화 후 생성" = 기존 활성배치 ACTION_YN='N' 처리(이력보존) 후 신규 적재
 		   · 날짜('-' 포함 yyyy-mm-dd)는 매퍼에서 REPLACE 로 '-' 제거하여 NVARCHAR(10) 저장 */
 		@RequestMapping(value="/shipout/saveShipoutMst.do", method = RequestMethod.POST)
@@ -493,12 +500,13 @@ public class UserController {
 				               : (session.getAttribute("s_comp_cd") != null ? String.valueOf(session.getAttribute("s_comp_cd")) : "");
 				String regIp   = request.getRemoteAddr();
 
-				// (납기일자 DLV_DT + 출고일자 SHPOUT_DT) 복합키로 묶어 각 조합을 1배치로 저장 (물류센터/사업장은 키 아님)
+				// (납기일자 DLV_DT + 출고일자 SHPOUT_DT + 물류센터 DC_CD) 복합키로 묶어 각 조합을 1배치로 저장 (사업장은 키 아님)
 				java.util.LinkedHashMap<String, java.util.List<egovframework.sejong.user.model.ShipoutDTO>> groups
 				    = new java.util.LinkedHashMap<String, java.util.List<egovframework.sejong.user.model.ShipoutDTO>>();
 				for (egovframework.sejong.user.model.ShipoutDTO r : rows) {
 					String key = (r.getDlvDt() == null ? "" : r.getDlvDt())
-					           + "|" + (r.getShpoutDt() == null ? "" : r.getShpoutDt());
+					           + "|" + (r.getShpoutDt() == null ? "" : r.getShpoutDt())
+					           + "|" + (r.getDcCd() == null ? "" : r.getDcCd());
 					java.util.List<egovframework.sejong.user.model.ShipoutDTO> g = groups.get(key);
 					if (g == null) { g = new java.util.ArrayList<egovframework.sejong.user.model.ShipoutDTO>(); groups.put(key, g); }
 					g.add(r);

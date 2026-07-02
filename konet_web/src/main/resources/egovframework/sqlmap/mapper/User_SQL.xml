@@ -411,27 +411,29 @@
 
 	<!-- ============================================================
 	     출고장(발주현황표) 업로드 저장 — TBL_SHIPOUT_MST  (MSSQL)
-	     · 배치·이력 복합키 = (DLV_DT 납기일자 + SHPOUT_DT 출고일자) / 버전 JOB_SEQ / 활성·이력 ACTION_YN
+	     · 배치·이력 복합키 = (DLV_DT 납기일자 + SHPOUT_DT 출고일자 + DC_CD 물류센터코드) / 버전 JOB_SEQ / 활성·이력 ACTION_YN
 	     · 조회·출력 기준 = SHPOUT_DT(출고일자)
 	     · 날짜(DLV_DT/SHPOUT_DT)는 NVARCHAR(10) 문자저장, '-' 제거(REPLACE) 후 저장/비교
-	     · 저장 1회 = ① 같은 (납기일자,출고일자) 기존활성 이력마감 → ② JOB_SEQ+1 신규배치 INSERT
+	     · 저장 1회 = ① 같은 (납기일자,출고일자,물류센터) 기존활성 이력마감 → ② JOB_SEQ+1 신규배치 INSERT
 	     ============================================================ -->
 
-	<!-- ① 같은 (납기일자,출고일자) 기존 활성배치 이력마감(삭제이력 남김) -->
+	<!-- ① 같은 (납기일자,출고일자,물류센터) 기존 활성배치 이력마감(삭제이력 남김) -->
 	<update id="markShipoutHistory" parameterType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
 	  UPDATE TBL_SHIPOUT_MST
 	     SET ACTION_YN = 'N', UPD_DTTM = GETDATE(), UPD_USER = #{updUser}, UPD_IP = #{updIp}
 	   WHERE DLV_DT    = REPLACE(ISNULL(#{dlvDt},''),'-','')
 	     AND SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
+	     AND ISNULL(DC_CD,'') = ISNULL(#{dcCd},'')
 	     AND ACTION_YN = 'Y'
 	]]></update>
 
-	<!-- ② 같은 (납기일자,출고일자)의 다음 배치 JOB_SEQ -->
+	<!-- ② 같은 (납기일자,출고일자,물류센터)의 다음 배치 JOB_SEQ -->
 	<select id="getShipoutNextJobSeq" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="int"><![CDATA[
 	  SELECT ISNULL(MAX(JOB_SEQ),0)+1
 	    FROM TBL_SHIPOUT_MST
 	   WHERE DLV_DT    = REPLACE(ISNULL(#{dlvDt},''),'-','')
 	     AND SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
+	     AND ISNULL(DC_CD,'') = ISNULL(#{dcCd},'')
 	]]></select>
 
 	<!-- ③ 신규 배치 행 INSERT (ACTION_YN='Y') -->

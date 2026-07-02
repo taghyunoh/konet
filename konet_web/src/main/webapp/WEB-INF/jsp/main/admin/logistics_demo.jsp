@@ -193,7 +193,7 @@
 
   /* 전치형(품목=열, 출고장=행) 와이드 표 */
   table.sswide { width:auto; min-width:100%; }
-  table.sswide th, table.sswide td { border:1px solid var(--logi-border); padding:6px 7px; text-align:center; white-space:nowrap; font-size:12px; }
+  table.sswide th, table.sswide td { border:1px solid var(--logi-border); padding:6px 7px; text-align:center; white-space:nowrap; font-size:13px; }
   table.sswide thead th { background:#1f9b8e; color:#fff; position:sticky; top:0; z-index:3; }
   table.sswide thead th.bizh { background:#137a6c; border-bottom:1px solid #0e6657; cursor:pointer; user-select:none; }
   table.sswide thead th.bizh:hover { background:#0e6657; }
@@ -242,7 +242,7 @@
   table.sswide tr.r-sel td.colsum { background:#e3f4ef; }
   table.sswide tr.unrow td.colsum { background:#ffe0b0; }
   table.sswide tr.lgrp { cursor:pointer; }
-  table.sswide tr.lgrp td { background:#eef3f2; color:#178074; font-weight:700; font-size:11.5px; }
+  table.sswide tr.lgrp td { background:#eef3f2; color:#178074; font-weight:700; font-size:12.5px; }
   table.sswide tr.lgrp td.stick { background:#e3efec; }
   table.sswide tr.lgrp:hover td { background:#dcefe9; }
   table.sswide tr.lgrp .zcaret { display:inline-block; width:12px; color:#1f9b8e; font-size:10px; }
@@ -327,6 +327,16 @@
   .ss-toast { position:fixed; left:50%; top:50%; background:#1f2a37; color:#fff; padding:15px 22px; border-radius:9px; font-size:14px; text-align:center; box-shadow:0 8px 30px rgba(0,0,0,.3); opacity:0; transform:translate(-50%,-50%) scale(.96); transition:.2s; z-index:9999; pointer-events:none; max-width:80vw; }
   .ss-toast.on { opacity:1; transform:translate(-50%,-50%) scale(1); }
   .ss-toast b { color:#aef0e7; }
+
+  /* 출고장 그룹(물류센터) 순서 설정 팝업 */
+  .ss-gord-wrap { position:relative; display:inline-flex; }
+  .ss-gord-pop { display:none; position:absolute; top:36px; right:0; z-index:60; background:#fff; border:1px solid var(--logi-border);
+                 border-radius:8px; box-shadow:0 6px 18px rgba(31,42,55,.18); padding:8px 6px; min-width:260px; max-height:340px; overflow-y:auto; }
+  .ss-gord-pop.open { display:block; }
+  .ss-gord-pop .go-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; font-size:12.5px; color:#37475a; border-radius:6px; }
+  .ss-gord-pop .go-row:hover { background:#eef3f2; }
+  .ss-gord-pop .go-row .go-btns { display:inline-flex; gap:3px; }
+  .ss-gord-pop .go-foot { border-top:1px dashed var(--logi-border); margin-top:4px; padding-top:6px; text-align:center; }
 
   /* 발주현황표 미리보기 모달 */
   .ss-modal { display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:9998; }
@@ -771,8 +781,21 @@
     var LETTER_INB={'A':'1입고장','B':'','C':'2입고장','D':'3입고장','E':'','F':'4입고장'};
     var byL={}, letters=[];
     zones.forEach(function(z){ var L=(z.charAt(0)||'').toUpperCase(); if(!byL[L]){ byL[L]=[]; letters.push(L); } byL[L].push(z); });
-    letters.sort();
+    // 그룹키(L) → 표시라벨(물류센터명) 매핑 — 데시보드2와 공유하는 순서 기준(라벨)
+    window.ssGroupLabels={};
+    letters.forEach(function(L){ var _n=(''+(byL[L][0]||'')).replace(/\s*\d+\s*$/,'').trim(); window.ssGroupLabels[L]=(_n.length>1)?_n:(L+'출고장'); });
+    ssGroupOrder=ssGordLoad();   // 최신 공유 순서 반영(데시보드2에서 바꾼 것도 즉시 적용)
+    // 그룹 순서: 저장된 사용자 지정 순서(물류센터명 기준) 우선, 미지정 그룹은 ㄱㄴㄷ순 뒤에 (데시보드2와 동일 규칙)
+    letters.sort(function(a,b){
+      var la=window.ssGroupLabels[a], lb=window.ssGroupLabels[b];
+      var ia=ssGroupOrder.indexOf(la), ib=ssGroupOrder.indexOf(lb);
+      if(ia>=0 && ib>=0) return ia-ib;
+      if(ia>=0) return -1;
+      if(ib>=0) return 1;
+      return la.localeCompare(lb,'ko');
+    });
     window.ssLetters=letters.slice();
+    ssGordRenderPop(letters);
     // 출고장별 발주일자(납기일자) — 현재 출고일자와 다를 때만 괄호 표시
     var _shpNow=(document.getElementById('ssDateFrom')||{}).value||'';
     var zoneDlv={};
@@ -1063,6 +1086,44 @@
     var b=document.getElementById('ssBtnZoneToggle');
     if(b) b.textContent = ssAllCollapsed ? '＋ 출고장 펼치기' : '－ 출고장 접기';
   }
+
+  // ── 출고장 그룹(물류센터) 순서 설정 — 데시보드2와 공유(localStorage 'logiGroupOrder', 물류센터명 배열)
+  var ssGroupOrder=[];
+  function ssGordLoad(){ try{ ssGroupOrder=JSON.parse(localStorage.getItem('logiGroupOrder')||'[]')||[]; }catch(e){ ssGroupOrder=[]; } return ssGroupOrder; }
+  function ssGordSave(){ try{ localStorage.setItem('logiGroupOrder', JSON.stringify(ssGroupOrder)); }catch(e){} }
+  ssGordLoad();
+  function ssGordOpen(ev){ if(ev) ev.stopPropagation(); var p=document.getElementById('ssGordPop'); if(p) p.classList.toggle('open'); }
+  function ssGordMove(L, dir){
+    var lettersNow=(window.ssLetters||[]).slice();   // 현재 화면 표시 순서 기준으로 스왑
+    var i=lettersNow.indexOf(L), j=i+dir;
+    if(i<0 || j<0 || j>=lettersNow.length) return;
+    var tmp=lettersNow[i]; lettersNow[i]=lettersNow[j]; lettersNow[j]=tmp;
+    // 저장은 물류센터명(라벨) 배열로 — 데시보드2와 공유
+    var lbl=window.ssGroupLabels||{};
+    ssGroupOrder=lettersNow.map(function(x){ return lbl[x]||x; });
+    ssGordSave(); ssRender();
+  }
+  function ssGordReset(){ ssGroupOrder=[]; ssGordSave(); ssRender(); }
+  // 데시보드2(iframe)에서 순서를 바꾸면 즉시 반영 (같은 출처 localStorage 공유)
+  window.addEventListener('storage', function(e){ if(e.key==='logiGroupOrder'){ ssGordLoad(); ssRender(); } });
+  function ssGordRenderPop(letters){
+    var pop=document.getElementById('ssGordPop'); if(!pop) return;
+    var lbl=window.ssGroupLabels||{};
+    var h=letters.map(function(L,ix){
+      return '<div class="go-row"><span>'+(ix+1)+'. '+(lbl[L]||L)+'</span>'
+        +'<span class="go-btns">'
+        +'<button class="btn-line" style="padding:1px 8px" data-l="'+(''+L).replace(/"/g,'&quot;')+'" onclick="event.stopPropagation(); ssGordMove(this.getAttribute(\'data-l\'),-1)" title="위로">▲</button>'
+        +'<button class="btn-line" style="padding:1px 8px" data-l="'+(''+L).replace(/"/g,'&quot;')+'" onclick="event.stopPropagation(); ssGordMove(this.getAttribute(\'data-l\'),1)" title="아래로">▼</button>'
+        +'</span></div>';
+    }).join('');
+    h+='<div class="go-foot"><button class="btn-line" style="padding:3px 12px" onclick="event.stopPropagation(); ssGordReset()">↺ 순서 초기화 (ㄱㄴㄷ순)</button></div>';
+    pop.innerHTML=h;
+  }
+  // 팝업 바깥 클릭 시 닫기
+  document.addEventListener('click', function(e){
+    var w=document.getElementById('ssGordWrap'), p=document.getElementById('ssGordPop');
+    if(p && p.classList.contains('open') && w && !w.contains(e.target)) p.classList.remove('open');
+  });
 
   // 토스트
   function ssToast(msg){
@@ -1698,7 +1759,7 @@
 
   // ── 발주현황표(코네트 출고장) 원본 전체컬럼을 서버 TBL_SHIPOUT_MST 에 저장
   //    헤더 2행(1행=메인/2행=현발주 하위) → 컬럼 매핑 후 /shipout/saveShipoutMst.do POST
-  //    복합키 = (DLV_DT 납기일자 + SHPOUT_DT 출고일자). 서버에서 조합별 그룹·버전관리
+  //    복합키 = (DLV_DT 납기일자 + SHPOUT_DT 출고일자 + DC_CD 물류센터코드). 서버에서 조합별 그룹·버전관리
   function ssBuildShipoutRows(aoa){
     function eq(arr,name){ for(var k=0;k<arr.length;k++){ if((''+arr[k]).trim()===name) return k; } return -1; }
     // 헤더행 탐색 (1행에 물류센터명+품목명)
@@ -1741,7 +1802,7 @@
     var rows=ssBuildShipoutRows(aoa);
     if(!rows.length) return;
     var srcFile=ssPvName;
-    // 복합키=(납기일자 DLV_DT 행별) + (출고일자 SHPOUT_DT=baseDt, 프리뷰 확정 단일값). 물류센터/사업장은 키 아님.
+    // 복합키=(납기일자 DLV_DT 행별) + (출고일자 SHPOUT_DT=baseDt, 프리뷰 확정 단일값) + (물류센터 DC_CD 행별). 사업장은 키 아님.
     rows.forEach(function(o){ if(!o.dlvDt) o.dlvDt=baseDt; o.shpoutDt=baseDt; o.srcFile=srcFile; });
     fetch('${pageContext.request.contextPath}/shipout/saveShipoutMst.do', {
       method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
@@ -1810,8 +1871,10 @@
     }
     if(!ssSumFront){ h1.push('합계'); h2.push(''); }
     aoa.push(h1); aoa.push(h2);
-    // 출고장 그룹별
-    var byL={}, letters=[]; zones.forEach(function(z){ var L=(z.charAt(0)||'').toUpperCase(); if(!byL[L]){ byL[L]=[]; letters.push(L); } byL[L].push(z); }); letters.sort();
+    // 출고장 그룹별 (그룹순서 설정 반영 — 물류센터명 기준, 데시보드2와 공유)
+    var byL={}, letters=[]; zones.forEach(function(z){ var L=(z.charAt(0)||'').toUpperCase(); if(!byL[L]){ byL[L]=[]; letters.push(L); } byL[L].push(z); });
+    function _lblOf(L){ var _n=(''+(byL[L][0]||'')).replace(/\s*\d+\s*$/,'').trim(); return (_n.length>1)?_n:(L+'출고장'); }
+    letters.sort(function(a,b){ var la=_lblOf(a), lb=_lblOf(b); var ia=ssGroupOrder.indexOf(la), ib=ssGroupOrder.indexOf(lb); if(ia>=0&&ib>=0) return ia-ib; if(ia>=0) return -1; if(ib>=0) return 1; return la.localeCompare(lb,'ko'); });
     letters.forEach(function(L){
       aoa.push([L+'출고장']);
       byL[L].forEach(function(z){ aoa.push(row(z+' 출고장', function(k){ return (ag.matrix[z]&&ag.matrix[z][k])||0; })); });
@@ -1901,7 +1964,9 @@
         push([], 'blank');                                                                              // 출고장 구분 빈 줄
       }
 
-      var zones=Object.keys(ag.zoneSet).sort();
+      // 출고장 정렬 — 그룹(물류센터명) 순서설정 반영 후, 그룹 내 이름순 (데시보드2와 공유)
+      function _gidx(z){ var lbl=(''+z).replace(/\s*\d+\s*$/,'').trim(); var i=ssGroupOrder.indexOf(lbl); return i>=0?i:9999; }
+      var zones=Object.keys(ag.zoneSet).sort(function(a,b){ var d=_gidx(a)-_gidx(b); return d!==0?d:a.localeCompare(b,'ko'); });
       var made=0, skipped=0, grand=0;
       zones.forEach(function(z){
         var mz=ag.matrix[z]||{};
@@ -2104,7 +2169,8 @@
     <div class="side-tit">📦 물류관리<small>도매유통 · 입고/재고/발주/출고</small></div>
 
     <div class="grp">출고관리 ★</div>
-    <a class="mi core on" data-key="shipstatus" onclick="logiGo('shipstatus', this)"><span class="ic">📋</span>출고현황표(데시보드)</a>
+    <a class="mi core on" data-key="shipstatus" onclick="logiGo('shipstatus', this)"><span class="ic">📋</span>출고현황표(대시보드)</a>
+    <a class="mi core" data-key="shipstatus2" onclick="logiFrame('shipstatus2','${pageContext.request.contextPath}/admin/logistics_demo2.do', this)"><span class="ic">🗂️</span>출고현황표(대시보드2)</a>
 
     <div class="grp">기준정보</div>
     <a class="mi" data-key="client"  onclick="logiGo('client', this)"><span class="ic">🤝</span>거래처관리</a>
@@ -2153,9 +2219,13 @@
           <button class="btn-line" id="ssBtnSales" onclick="document.getElementById('ssSalesFile').click()" title="매입단가 엑셀(품목코드·입고일자·입고량·단가·매입금액)을 업로드하면 출고량 아래에 매출액 행이 표시됩니다">💰 매출금액 업로드</button>
           <button class="btn-line" id="ssBtnCost" onclick="document.getElementById('ssCostFile').click()" title="매입금액 엑셀(품목코드·매입금액/단가)을 업로드하면 매출액 아래에 매입액 행과 마진(매출−매입)이 표시됩니다 — 엑셀은 추후 제공">🧾 매입금액 업로드</button>
           <button class="btn-line" id="ssBtnSave" onclick="ssSaveData()">💾 출고데이타저장</button>
+          <%-- [제외 2026-07-02] 출고현황표 다운로드 버튼 — 재노출 시 주석 해제 (ssDownload 함수는 유지)
           <button class="btn-line" id="ssBtnDownload" onclick="ssDownload()">📥 출고현황표 다운로드</button>
+          --%>
           <button class="btn-line" id="ssBtnDownloadZone" onclick="ssDownloadByZone()" title="한 장(시트 1개)에 출고장을 위→아래로 색·테두리로 구분해 출력합니다. 각 출고장에는 실제 출고된 품목만 표시(상품 없는 품목·물건 없는 출고장 제외). 현장에서 출고장별 물건 확인·인쇄용">🏷️ 출고장별 출력</button>
+          <%-- [제외 2026-07-02] PDF 출력 버튼 — 재노출 시 주석 해제 (ssPdf 함수는 유지)
           <button class="btn-line" id="ssBtnPdf" onclick="ssPdf()">📄 PDF 출력</button>
+          --%>
         </div>
       </div>
       <input type="file" id="ssFile" class="ss-file" accept=".xlsx,.xls" onchange="ssUpload(this)">
@@ -2272,8 +2342,8 @@
 
       <!-- 메인 출고현황표 (상단: 사업장·품목명 / 좌측: 출고장 행 / 하단: 출고내역·재고) -->
       <div class="card" id="ssCard">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px">
-          <div style="display:flex; gap:6px; align-items:center">
+        <div style="display:flex; align-items:center; justify-content:flex-start; margin-bottom:12px; flex-wrap:wrap; gap:8px">
+          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap">
             <label style="font-size:12px; color:#37475a; font-weight:700">🔎 사업장 찾기</label>
             <input id="ssBizFind" type="text" list="ssBizFindList" placeholder="사업장명 입력" oninput="ssBizFind(this.value, true)" onkeydown="if(event.keyCode===13){ssBizFind(this.value, false);}" style="height:32px; border:1px solid var(--logi-border); border-radius:6px; padding:0 8px; font-size:12.5px; width:160px">
             <datalist id="ssBizFindList"></datalist>
@@ -2286,13 +2356,21 @@
               <button class="btn-line seg-on" id="ssBtnBasic" style="padding:5px 11px" onclick="ssFullExit()" title="기본 화면 + 원래 크기로">⟲ 기본화면</button>
             </span>
           </div>
-          <div style="display:flex; gap:6px; align-items:center">
-            <button class="btn-line" id="ssBtnZoneToggle" style="padding:5px 11px" onclick="ssToggleAllZones()">－ 출고장 접기</button>
+          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap">
+            <button class="btn-line" id="ssBtnZoneToggle" style="padding:5px 11px; min-width:112px; text-align:center" onclick="ssToggleAllZones()">－ 출고장 접기</button>
+            <span class="ss-gord-wrap" id="ssGordWrap">
+              <button class="btn-line" style="padding:5px 11px" onclick="ssGordOpen(event)" title="출고장 그룹(물류센터) 표시 순서를 지정합니다. 브라우저에 저장되어 수정하지 않는 한 유지됩니다">⚙ 그룹순서</button>
+              <div class="ss-gord-pop" id="ssGordPop"></div>
+            </span>
             <button class="btn-teal" style="padding:5px 11px" onclick="ssAddItem()">＋ 품목 추가</button>
             <button class="btn-line" style="padding:5px 11px" onclick="ssAddZone()">＋ 출고장 추가</button>
+            <%-- [제외 2026-07-02] 출고장 초기화 버튼 — 재노출 시 주석 해제 (ssClearAll 함수는 유지)
             <button class="btn-line" style="padding:5px 11px; color:#c0392b; border-color:#e3b4ae" onclick="ssClearAll()" title="모든 출고장 데이터를 비웁니다(샘플 포함). 이후 엑셀 업로드로 새로 채울 수 있습니다.">🔄 출고장 초기화</button>
+            --%>
             <label style="font-size:12px; color:#37475a; margin-left:6px; cursor:pointer"><input type="checkbox" id="ssSumFront" onchange="ssRender()" style="vertical-align:-1px" checked> 합계 맨앞</label>
+            <%-- [제외 2026-07-02] 사업장 회전 체크박스 — 재노출 시 주석 해제 (ssToggleBizAnim 함수는 유지)
             <label style="font-size:12px; color:#178074; margin-left:6px; cursor:pointer" title="사업장을 가운데로 두고 우측→좌측으로 5초마다 회전(원통 캐러셀). 활성 사업장만 또렷, 끝나면 반복"><input type="checkbox" id="ssBizAnim" onchange="ssToggleBizAnim()" style="vertical-align:-1px"> 사업장 회전</label>
+            --%>
             <label style="font-size:12px; color:#6b7a89; margin-left:6px">사업장 보기</label>
             <select id="ssBizSel" onchange="ssRender()" style="height:32px; border:1px solid var(--logi-border); border-radius:6px; padding:0 8px; font-size:12.5px"></select>
           </div>
@@ -2598,6 +2676,12 @@
     </section>
 
     <!-- 시스템관리 — 자체완결 화면을 iframe으로 사이드메뉴 우측에 종속 -->
+    <!-- 출고현황표(데시보드2) — 별도 JSP(logistics_demo2.jsp)를 iframe 으로 로드 (사이드바 종속)
+         iframe 높이를 main 상하패딩(44px)만 뺀 값으로 잡아 세로를 거의 꽉 채움 -->
+    <section id="panel-shipstatus2" class="panel" style="padding:0;">
+      <iframe id="if-shipstatus2" src="" title="출고현황표(데시보드2)" style="width:100%; height:calc(100vh - 44px); border:0; display:block;"></iframe>
+    </section>
+
     <section id="panel-compcd" class="panel" style="padding:0;">
       <iframe id="if-compcd" src="" title="회사/사용자 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
