@@ -506,6 +506,25 @@
 	   ORDER BY t.BIZ_NM, t.ITEM_NM, t.ROW_NO
 ]]></select>
 
+	<!-- ④-3 특정 물류센터코드의 '전 배치' 이력 조회 — 품목별 변경 이력 팝업용
+	     · SHPOUT_DT + DC_CD 의 ACTION_YN 무관 전체 행(활성 Y + 이력 N)
+	     · 클라이언트가 (사업장+품목) × 배치(UPLOAD_DTTM) 로 피벗하여 배치별 수량 변화(신규/삭제/증감) 표시
+	     · 배치 순서·라벨은 UPLOAD_DTTM 오름차순(최초→현재), 현재본 = ACTION_YN='Y' -->
+	<select id="selectShipoutHistory" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
+	  SELECT
+	      t.SHPOUT_DT AS shpoutDt, t.DLV_DT AS dlvDt, t.JOB_SEQ AS jobSeq, t.ACTION_YN AS actionYn,
+	      t.ROW_NO AS rowNo, t.SRC_FILE AS srcFile,
+	      CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm,
+	      t.DC_CD AS dcCd, t.DC_NM AS dcNm,
+	      t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
+	      t.CUR_QTY AS curQty, t.REG_USER AS regUser
+	    FROM TBL_SHIPOUT_MST t
+	   WHERE t.SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
+	     AND ISNULL(t.DC_CD,'') = ISNULL(#{dcCd},'')
+	     AND ISNULL(t.INWH,'')  = ISNULL(#{inwh},'')
+	   ORDER BY t.UPLOAD_DTTM, t.BIZ_NM, t.ITEM_NM, t.ROW_NO
+	]]></select>
+
 	<!-- ============================================================
 	     사업장 분류 마스터 — TBL_BIZI_MST
 	     · 업로드 분류용. 활성(ACTION_YN='Y') 전체 조회 / 사업장코드 단위 upsert

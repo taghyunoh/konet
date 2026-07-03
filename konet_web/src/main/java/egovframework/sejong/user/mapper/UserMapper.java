@@ -35,6 +35,7 @@ public interface UserMapper {
 	int insertShipoutMst(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutMst(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutPrev(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutHistory(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 
 	// ===== 사업장 분류 마스터 (TBL_BIZI_MST) =====
 	java.util.List<egovframework.sejong.user.model.BiziDTO> selectBiziMst() throws Exception;

@@ -557,6 +557,17 @@ public class UserController {
 			return response;
 		}
 
+		/* 출고현황표(데시보드2) 품목별 변경 이력 팝업 — 특정 물류센터코드(dcCd)+출고일자(shpoutDt)의 전 배치(활성+이력) 조회.
+		   클라이언트가 (사업장+품목) × 배치(UPLOAD_DTTM)로 피벗해 신규/삭제/증감 표시 (JSON: {data:[...]}) */
+		@RequestMapping(value="/shipout/selectShipoutHistory.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectShipoutHistory(@ModelAttribute("DTO") egovframework.sejong.user.model.ShipoutDTO dto,
+		                                               HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectShipoutHistory(dto));
+			return response;
+		}
+
 		/* ============================================================
 		   사업장 분류 마스터 (TBL_BIZI_MST)
 		   · 출고현황표 분류용 목록조회 + 업로드 자동등록(없을때만) + 관리화면 CRUD
