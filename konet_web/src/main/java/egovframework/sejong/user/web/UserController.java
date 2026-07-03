@@ -568,6 +568,16 @@ public class UserController {
 			return response;
 		}
 
+		/* 출고현황표(데시보드2) 메인 그리드 차수별 수량 매트릭스 — 해당 출고일자 전체 출고장의 전 배치(활성+이력) 조회 (JSON: {data:[...]}) */
+		@RequestMapping(value="/shipout/selectShipoutHistAll.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectShipoutHistAll(@ModelAttribute("DTO") egovframework.sejong.user.model.ShipoutDTO dto,
+		                                               HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectShipoutHistAll(dto));
+			return response;
+		}
+
 		/* ============================================================
 		   사업장 분류 마스터 (TBL_BIZI_MST)
 		   · 출고현황표 분류용 목록조회 + 업로드 자동등록(없을때만) + 관리화면 CRUD
