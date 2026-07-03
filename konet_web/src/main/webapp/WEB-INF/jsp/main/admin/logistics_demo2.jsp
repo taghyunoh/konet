@@ -100,7 +100,8 @@
   table.d2-tb td.zone { background:#f4f8f7; color:#178074; font-weight:600; text-align:left; vertical-align:top; position:sticky; left:0; z-index:2; cursor:pointer; }
   table.d2-tb td.zone:hover { background:#eef3f2; }
   table.d2-tb td.zone .zcaret { display:inline-block; width:12px; color:#1f9b8e; font-size:10px; }
-  table.d2-tb td.zone .z-dlv { color:#c47f17; font-weight:700; font-size:inherit; margin-left:4px; }
+  /* 발주일자 — 출고장명 아래 줄에 표시 (한 줄 표기 시 잘리는 문제 방지) */
+  table.d2-tb td.zone .z-dlv { display:block; color:#c47f17; font-weight:700; font-size:11.5px; margin-left:14px; margin-top:2px; }
   /* 출고장명 옆 물류센터코드 — 괄호 표기(예: 광주물류센터 출고장 (E400)) */
   table.d2-tb td.zone .z-dc { color:#5b6b7a; font-weight:600; font-size:inherit; margin-left:4px; }
 
@@ -327,16 +328,16 @@
   var D2_BASECOLS=[
     {k:'zone', nm:'출고장', f:0.14},
     {k:'no',   nm:'No',    f:0.035},
-    {k:'biz',  nm:'사업장', f:0.13},
-    {k:'code', nm:'품목코드', f:0.085},
-    {k:'item', nm:'품목명', f:0.22}
+    {k:'biz',  nm:'사업장', f:0.16},
+    {k:'code', nm:'품목코드', f:0.075},
+    {k:'item', nm:'품목명', f:0.33}
   ];
   var D2_COLS=D2_BASECOLS.slice();   // d2Render에서 매 렌더 시 [기준 + 차수컬럼]으로 재구성
   var D2_COLW={};   // {k: fraction(0~1)} — 사용자 조절값(localStorage). 합계 1 유지 → 항상 우측까지 채움
-  try{ D2_COLW=JSON.parse(localStorage.getItem('d2ColWidths5')||'{}')||{}; }catch(e){ D2_COLW={}; }
+  try{ D2_COLW=JSON.parse(localStorage.getItem('d2ColWidths8')||'{}')||{}; }catch(e){ D2_COLW={}; }
   // 이전 버전(px 저장) 잔여값 정리 — 비율(0~1) 범위를 벗어난 값이 있으면 전체 초기화
-  (function(){ for(var k in D2_COLW){ var v=D2_COLW[k]; if(!(v>0 && v<=1)){ D2_COLW={}; try{ localStorage.removeItem('d2ColWidths5'); }catch(e){} break; } } })();
-  function d2ColSave(){ try{ localStorage.setItem('d2ColWidths5', JSON.stringify(D2_COLW)); }catch(e){} }
+  (function(){ for(var k in D2_COLW){ var v=D2_COLW[k]; if(!(v>0 && v<=1)){ D2_COLW={}; try{ localStorage.removeItem('d2ColWidths8'); }catch(e){} break; } } })();
+  function d2ColSave(){ try{ localStorage.setItem('d2ColWidths8', JSON.stringify(D2_COLW)); }catch(e){} }
   function d2ColFrac(k){ if(D2_COLW[k]>0 && D2_COLW[k]<=1) return D2_COLW[k]; for(var i=0;i<D2_COLS.length;i++) if(D2_COLS[i].k===k) return D2_COLS[i].f; return 0.15; }
   (function(){   // 헤더 경계 드래그 — 왼쪽 열↔오른쪽(다음) 열이 폭을 주고받음(총폭 고정, 우측 여백/스크롤 없음)
     var dragging=false, startX=0, tblW=1, ck=null, nk=null, sFi=0, sFn=0, MIN=0.005;
@@ -372,7 +373,7 @@
     });
   })();
   // 컬럼 폭 초기화(기본 비율로 복원) — 헤더 더블클릭 또는 버튼에서 호출
-  function d2ColReset(){ D2_COLW={}; try{ localStorage.removeItem('d2ColWidths5'); }catch(e){} d2Render(); d2Toast('↺ 컬럼 너비를 기본값으로 초기화했습니다'); }
+  function d2ColReset(){ D2_COLW={}; try{ localStorage.removeItem('d2ColWidths8'); }catch(e){} d2Render(); d2Toast('↺ 컬럼 너비를 기본값으로 초기화했습니다'); }
 
   function d2Pad(n){ return (n<10?'0':'')+n; }
   var D2_TODAY=(function(){ var d=new Date(); return d.getFullYear()+'-'+d2Pad(d.getMonth()+1)+'-'+d2Pad(d.getDate()); })();
@@ -839,7 +840,7 @@
     var maxN=1; Object.keys(zBatch).forEach(function(zn){ maxN=Math.max(maxN, zBatch[zn].list.length); });
     function slotBk(zn, s){ var zb=zBatch[zn]; if(!zb) return null; var idx=zb.list.length-1-s; return idx>=0?zb.list[idx]:null; }
     // 동적 컬럼 = 기준 + 상대 차수 슬롯(현재/직전/N차 전)
-    var slotCols=[]; for(var s0=0;s0<maxN;s0++){ slotCols.push({ k:'bcol'+s0, slot:s0, chg:(s0>=2), nm:(s0===0?'현재':s0===1?'직전':(s0+'차 전')), batch:true, f:(s0<2?0.08:0.052) }); }
+    var slotCols=[]; for(var s0=0;s0<maxN;s0++){ slotCols.push({ k:'bcol'+s0, slot:s0, chg:(s0>=2), nm:(s0===0?'현재':s0===1?'직전':(s0+'차 전')), batch:true, f:(s0<2?0.045:0.042) }); }
     D2_COLS = D2_BASECOLS.concat(slotCols);
     function delRk(r){ return (r.biz||'')+'|'+(r.code?r.code:('NM:'+r.name)); }
     // 품목 셀 — 각 출고장 '자기 배치' 시간순으로 증감/신규/삭제 판정 후 상대 슬롯에 배치
