@@ -666,6 +666,9 @@
 
   var SS_MONTHS=['5월','4월','3월','2월','1월'];  // 데모용 과거 월
 
+  // 화면 표시용 물류센터 그룹/순서 (데시보드2와 동일 — 특정 코드는 오산센터로 묶고 지정순서로). DB 저장 무관
+  var SS_DCGROUP={ 'E200':'오산센터','E400':'오산센터','E300':'오산센터','E600':'오산센터','E700':'오산센터' };   // E600=제주
+  var SS_ZONEORDER=['E200','E400','E300','E600','E700'];
   function ssRender(){
     var tbl=document.getElementById('ssWideTbl'); if(!tbl) return;
     var ag=ssAggregate();
@@ -710,11 +713,13 @@
     var isMonth = (from===monFrom && to===monLast);
     var bt=document.getElementById('ssBtnToday'); if(bt) bt.className = isToday?'btn-teal':'btn-line';
     var bm=document.getElementById('ssBtnMonth'); if(bm) bm.className = isMonth?'btn-teal':'btn-line';
-    // 업로드/매출·매입/저장 버튼: 일자별(시작=종료 단일 일자)일 때만 활성 — 당월·기간(시작≠종료) 모드면 비활성
-    ['ssBtnUpload','ssBtnSales','ssBtnCost','ssBtnSave'].forEach(function(id){
+    // 매출·매입/저장 버튼: 일자별(시작=종료 단일 일자)일 때만 활성 — 당월·기간(시작≠종료) 모드면 비활성
+    ['ssBtnSales','ssBtnCost','ssBtnSave'].forEach(function(id){
       var b=document.getElementById(id); if(!b) return;
       b.disabled=!single; b.title = single ? '' : '일자별(시작=종료 단일 일자) 조건에서만 가능합니다';
     });
+    // 발주현황표 업로드는 조회 기간과 무관하게 항상 활성 (출고일자는 미리보기에서 지정)
+    var bu=document.getElementById('ssBtnUpload'); if(bu){ bu.disabled=false; bu.title=''; }
     var bd=document.getElementById('ssBtnDownload'); if(bd){ bd.disabled=false; bd.title=''; }
     var range = (from && from===to) ? (from + (from===SS_TODAY?' <b>(금일)</b>':'')) : (from||'~')+' ~ '+(to||'~');
     var info='<span class="ss-srcbadge'+(window.ssSrcUp?' up':'')+'">'+(window.ssSrcInfo||'내장 샘플')+'</span> 📅 '+range
@@ -808,11 +813,18 @@
 
     // ── tbody : 출고장(존) 행 — A존~F존(영문) 그룹별 + 그룹 합계
     var LETTER_INB={'A':'1입고장','B':'','C':'2입고장','D':'3입고장','E':'','F':'4입고장'};
+    // 출고장→물류센터코드 맵 + 그룹키(오산센터 묶음)·정렬순서 (데시보드2와 동일 규칙)
+    var ssZoneDcCd={};
+    (SHIP_DATA||[]).forEach(function(r){ if(r&&r.zone&&r.dcCd && !ssZoneDcCd[r.zone]) ssZoneDcCd[r.zone]=r.dcCd; });
+    function ssGrpKey(z){ var cd=ssZoneDcCd[z]||''; if(SS_DCGROUP[cd] || /제주/.test(z)) return 'OSAN'; return (z.charAt(0)||'').toUpperCase(); }
+    function ssZoneRank(z){ var cd=ssZoneDcCd[z]||''; var i=SS_ZONEORDER.indexOf(cd); if(i<0 && /제주/.test(z)) i=SS_ZONEORDER.indexOf('E600'); return i<0?999:i; }
     var byL={}, letters=[];
-    zones.forEach(function(z){ var L=(z.charAt(0)||'').toUpperCase(); if(!byL[L]){ byL[L]=[]; letters.push(L); } byL[L].push(z); });
+    zones.forEach(function(z){ var L=ssGrpKey(z); if(!byL[L]){ byL[L]=[]; letters.push(L); } byL[L].push(z); });
+    // 그룹 내 정렬: 오산센터는 지정순서(E200·E400·E300·제주·E700), 그 외는 이름순
+    Object.keys(byL).forEach(function(L){ byL[L].sort(function(a,b){ var ra=ssZoneRank(a), rb=ssZoneRank(b); if(ra!==rb) return ra-rb; return a.localeCompare(b,'ko'); }); });
     // 그룹키(L) → 표시라벨(물류센터명) 매핑 — 데시보드2와 공유하는 순서 기준(라벨)
     window.ssGroupLabels={};
-    letters.forEach(function(L){ var _n=(''+(byL[L][0]||'')).replace(/\s*\d+\s*$/,'').trim(); window.ssGroupLabels[L]=(_n.length>1)?_n:(L+'출고장'); });
+    letters.forEach(function(L){ if(L==='OSAN'){ window.ssGroupLabels[L]='오산센터'; return; } var _n=(''+(byL[L][0]||'')).replace(/\s*\d+\s*$/,'').trim(); window.ssGroupLabels[L]=(_n.length>1)?_n:(L+'출고장'); });
     ssGroupOrder=ssGordLoad();   // 최신 공유 순서 반영(데시보드2에서 바꾼 것도 즉시 적용)
     // 그룹 순서: 저장된 사용자 지정 순서(물류센터명 기준) 우선, 미지정 그룹은 ㄱㄴㄷ순 뒤에 (데시보드2와 동일 규칙)
     letters.sort(function(a,b){
@@ -835,9 +847,8 @@
     var colTot={}, grand=0, tb='';
     letters.forEach(function(L){
       var col; if(L in ssZoneCollapsed){ col=!!ssZoneCollapsed[L]; } else { col=ssZoneDefaultCollapsed; ssZoneCollapsed[L]=col; }   // 기본=펼침
-      // 그룹 라벨: 출고장명 끝의 입고장 숫자를 떼어 물류센터명으로 표시(예: 평택물류센터1 → 평택물류센터), 없으면 기존 'L출고장'
-      var _gname=(''+(byL[L][0]||'')).replace(/\s*\d+\s*$/,'').trim();
-      var _glabel=(_gname.length>1)?_gname:(L+'출고장');
+      // 그룹 라벨: OSAN→'오산센터', 그 외는 출고장명 끝 숫자 떼어 물류센터명 (ssGroupLabels 재사용)
+      var _glabel=window.ssGroupLabels[L] || ((''+(byL[L][0]||'')).replace(/\s*\d+\s*$/,'').trim() || (L+'출고장'));
       var lgDesc=byL[L].length+'개 출고장'+(col?' <span style="color:#9aa7b3">— 접힘(클릭하여 펼치기)</span>':'');
       tb+='<tr class="lgrp" onclick="ssToggleZone(\''+L+'\')">'
         + wrapSum('<td class="stick"><span class="zcaret" id="zc_'+L+'">'+(col?'▶':'▼')+'</span> '+_glabel+'</td>', ssBannerCells(lgDesc), '<td class="colsum"></td>') + '</tr>';
@@ -2191,8 +2202,8 @@
         var _dlv=(''+(o.dlvDt||'')).trim(); if(/^\d{8}$/.test(_dlv)) _dlv=_dlv.slice(0,4)+'-'+_dlv.slice(4,6)+'-'+_dlv.slice(6,8);
         var _sd=(''+(o.shpoutDt||'')).trim(); if(/^\d{8}$/.test(_sd)) _sd=_sd.slice(0,4)+'-'+_sd.slice(4,6)+'-'+_sd.slice(6,8);
         return { code:(''+(o.itemCd||'')).trim(), item:(''+(o.itemNm||'')).trim(),
-                 biz:bizLbl, bizCode:bizCd, inb:inwh, zone:zone,
-                 qty:(+o.curQty||0), dlvDt:_dlv, date:(_sd||f) };   // 실제 출고일자(기간 합산 시 범위 필터·집계용)
+                 biz:bizLbl, bizCode:bizCd, inb:inwh, zone:zone, dcCd:(''+(o.dcCd||'')).trim(),
+                 qty:(+o.curQty||0), dlvDt:_dlv, date:(_sd||f) };   // 실제 출고일자(기간 합산 시 범위 필터·집계용) / dcCd=오산센터 그룹 판정용
       });
       window.ssSrcUp   = rows.length>0;
       var _lab=_single?f:(f+'~'+t+' 합산');
