@@ -31,6 +31,7 @@ public interface UserMapper {
 
 	// ===== 출고장(발주현황표) 업로드 저장 (TBL_SHIPOUT_MST) =====
 	int markShipoutHistory(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	int deleteShipoutZone(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;   // 출고장(DC_CD+INWH)+출고일자 활성분 소프트 삭제(ACTION_YN='D')
 	int getShipoutNextJobSeq(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 	int insertShipoutMst(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutMst(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;

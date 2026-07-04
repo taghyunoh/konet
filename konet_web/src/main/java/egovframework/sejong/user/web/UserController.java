@@ -546,6 +546,28 @@ public class UserController {
 			return response;
 		}
 
+		/* 출고장 출고 소프트 삭제 — 특정 출고장(dcCd+inwh)+출고일자(shpoutDt)의 활성분을 ACTION_YN='D'로 표시(이력 보존) */
+		@RequestMapping(value="/shipout/deleteShipoutZone.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> deleteShipoutZone(@ModelAttribute("DTO") egovframework.sejong.user.model.ShipoutDTO dto,
+		                                           HttpServletRequest request, HttpSession session) {
+			Map<String,Object> response = new HashMap<String,Object>();
+			try {
+				String regUser = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id"))
+				               : (session.getAttribute("s_comp_cd") != null ? String.valueOf(session.getAttribute("s_comp_cd")) : "");
+				dto.setUpdUser(regUser);
+				dto.setUpdIp(request.getRemoteAddr());
+				int n = svc.deleteShipoutZone(dto);
+				response.put("ok", true);
+				response.put("count", n);
+			} catch (Exception e) {
+				log.error(" deleteShipoutZone ERROR ! : " + e.getMessage());
+				response.put("ok", false);
+				response.put("msg", e.getMessage());
+			}
+			return response;
+		}
+
 		/* 폴더 업로드 화면 — 이미 업로드(반영)된 원본 파일명 목록 (JSON: {data:[{srcFile,shpoutDt,uploadDttm}]}) */
 		@RequestMapping(value="/shipout/selectShipoutSrcFiles.do", method = RequestMethod.POST)
 		@ResponseBody

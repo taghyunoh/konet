@@ -104,6 +104,10 @@
   table.d2-tb td.zone .z-dlv { display:block; color:#c47f17; font-weight:700; font-size:11.5px; margin-left:14px; margin-top:2px; }
   /* 출고장명 옆 물류센터코드 — 괄호 표기(예: 광주물류센터 출고장 (E400)) */
   table.d2-tb td.zone .z-dc { color:#5b6b7a; font-weight:600; font-size:inherit; margin-left:4px; }
+  /* 출고장 헤더 삭제 아이콘 — 기본 숨김, Ctrl+Del 로 토글(body.d2-del-on) */
+  table.d2-tb td.zone .z-del { display:none; margin-left:8px; cursor:pointer; font-size:12px; opacity:.7; vertical-align:1px; }
+  body.d2-del-on table.d2-tb td.zone .z-del { display:inline-block; }
+  table.d2-tb td.zone .z-del:hover { opacity:1; transform:scale(1.15); }
 
   /* ── 차수(배치)별 수량 컬럼 — 메인 그리드(이력조회와 동일 표기) ── */
   table.d2-tb th.bcol { line-height:1.15; }
@@ -233,6 +237,7 @@
       <select id="d2PrintFmt" title="출력 형식 선택 (출고장별 / 품목별)" style="height:35px;border:1px solid var(--bd);border-radius:6px;padding:0 8px;font-size:13px;font-weight:700;cursor:pointer;color:#37475a;background:#fff">
         <option value="zone">출고장별</option>
         <option value="item">품목별</option>
+        <option value="biz">사업장별 품목</option>
       </select>
       <button class="btn-line" onclick="d2Download('daily')" title="선택한 형식(출고장별/품목별)으로 출고일자별 출력">🏷️ 일자별 출력</button>
       <button class="btn-line" onclick="d2Download('sum')" title="선택한 형식(출고장별/품목별)으로 기간 합계 출력">🧮 합계 출력</button>
@@ -315,6 +320,31 @@
 
 </div>
 <div class="d2-toast" id="d2Toast"></div>
+
+<!-- 사업장 출고 삭제 모달 (소프트 삭제 · 이력 보존) -->
+<div id="d2DelOverlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:9998; align-items:flex-start; justify-content:center;">
+  <div style="background:#fff; width:min(460px,92vw); margin-top:11vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3);">
+    <div style="background:linear-gradient(135deg,#c0392b,#a5281c); color:#fff; padding:12px 18px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center;">
+      <b style="font-size:15px">🗑️ 출고장 출고 삭제</b>
+      <button onclick="d2DelClose()" style="background:none;border:none;color:#fff;font-size:22px;line-height:1;cursor:pointer">&times;</button>
+    </div>
+    <div style="padding:16px 18px;">
+      <div style="font-size:12.5px;color:#6b7a89;margin-bottom:14px;line-height:1.5">선택한 <b>출고일자</b>의 <b>출고장</b> 출고분(활성)을 삭제합니다.</div>
+      <div style="margin-bottom:12px"><label style="display:block;font-size:12px;font-weight:700;color:#37475a;margin-bottom:4px">출고일자</label>
+        <select id="d2DelDate" onchange="d2DelFillZones(); d2DelDo();" style="width:100%;height:36px;border:1px solid var(--bd);border-radius:6px;padding:0 8px;font-weight:700;font-size:13px"></select></div>
+      <div><label style="display:block;font-size:12px;font-weight:700;color:#37475a;margin-bottom:4px">출고장</label>
+        <select id="d2DelZone" onchange="d2DelDo()" style="width:100%;height:36px;border:1px solid var(--bd);border-radius:6px;padding:0 8px;font-weight:700;font-size:13px"></select></div>
+      <!-- 삭제 확인 메시지 (인라인) -->
+      <div id="d2DelConfirmBox" style="display:none;margin-top:14px;padding:11px 13px;background:#fdecec;border:1px solid #f0b4b0;border-radius:8px">
+        <div id="d2DelConfirmMsg" style="font-size:13px;font-weight:800;color:#a5281c;line-height:1.5;margin-bottom:10px"></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn-line" onclick="d2DelClose()">아니오</button>
+          <button class="btn-line" style="background:#c0392b;color:#fff;border-color:#c0392b;font-weight:800" onclick="d2DelExec()">예, 삭제합니다</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- 출고장 변경 알림 — 화면 하단 고정 마퀴 바 (위너넷 알림바 스타일) -->
 <div id="d2Ticker">
@@ -441,8 +471,97 @@
   // 출력 디스패처 — 형식 선택(출고장별/품목별) × 모드(일자별/합계)
   function d2Download(mode){
     var fmt=(document.getElementById('d2PrintFmt')||{}).value||'zone';
-    if(fmt==='item') d2DownloadByItem(mode); else d2DownloadByZone(mode);
+    if(fmt==='item') d2DownloadByItem(mode);
+    else if(fmt==='biz') d2DownloadByBiz(mode);
+    else d2DownloadByZone(mode);
   }
+
+  // ── 출고장 출고 삭제 (소프트 삭제 · 이력 보존) — 출고일자+출고장(DC_CD+INWH) 선택 후 활성분 ACTION_YN='D'
+  function d2DelOpen(){
+    if(!D2_DATA || !D2_DATA.length){ d2Toast('⚠️ 먼저 조회하세요. (삭제할 데이터가 없습니다)'); return; }
+    var dates={}; D2_DATA.forEach(function(r){ if(r.date) dates[r.date]=1; });
+    var dsel=document.getElementById('d2DelDate');
+    var ds=Object.keys(dates).sort().reverse();
+    dsel.innerHTML=ds.map(function(d){ return '<option value="'+d2Esc(d)+'">'+d2Esc(d)+'</option>'; }).join('');
+    var f=(document.getElementById('d2DateFrom')||{}).value||''; if(f && ds.indexOf(f)>=0) dsel.value=f;
+    d2DelFillZones();
+    document.getElementById('d2DelOverlay').style.display='flex';
+  }
+  // 선택 출고일자에 존재하는 출고장만 채움 (dcCd+inwh 보관)
+  function d2DelFillZones(){
+    d2DelCancelConfirm();   // 선택 바뀌면 확인 메시지 닫기
+    var dt=(document.getElementById('d2DelDate')||{}).value||'';
+    var zmap={};
+    D2_DATA.forEach(function(r){ if((r.date||D2_TODAY)!==dt) return; if(!r.zone) return; if(!zmap[r.zone]) zmap[r.zone]={dcCd:(r.dcCd||''), inwh:(r.inwh||'')}; });
+    window._d2DelZmap=zmap;
+    var zsel=document.getElementById('d2DelZone');
+    var names=Object.keys(zmap).sort(function(a,b){ return a.localeCompare(b,'ko'); });
+    zsel.innerHTML = names.length
+      ? names.map(function(z){ var m=zmap[z]; return '<option value="'+d2Esc(z)+'">'+d2Esc(z)+(m.dcCd?(' ('+d2Esc(m.dcCd)+(m.inwh?('-'+d2Esc(m.inwh)):'')+')'):'')+'</option>'; }).join('')
+      : '<option value="">(해당 일자에 출고장 없음)</option>';
+  }
+  function d2DelClose(){ var o=document.getElementById('d2DelOverlay'); if(o) o.style.display='none'; d2DelCancelConfirm(); }
+  function d2DelCancelConfirm(){ var b=document.getElementById('d2DelConfirmBox'); if(b) b.style.display='none'; window._d2DelPending=null; }
+  // 1단계: 검증 후 인라인 확인 메시지 표시
+  function d2DelDo(){
+    var dt=(document.getElementById('d2DelDate')||{}).value||'';
+    var zsel=document.getElementById('d2DelZone');
+    var zlabel=(zsel&&zsel.value)||'';
+    var m=(window._d2DelZmap||{})[zlabel]||{};
+    var dcCd=m.dcCd||'', inwh=m.inwh||'';
+    if(!dt){ d2Toast('⚠️ 출고일자를 선택하세요.'); return; }
+    if(!zlabel){ d2Toast('⚠️ 출고장을 선택하세요.'); return; }
+    if(!dcCd){ d2Toast('⚠️ 물류센터코드가 없어 안전상 삭제할 수 없습니다.'); return; }
+    window._d2DelPending={ dcCd:dcCd, inwh:inwh, dt:dt, label:zlabel };
+    d2Set('d2DelConfirmMsg', '⚠️ 출고일자 <u>'+d2Esc(dt)+'</u> 의 출고장 "<b>'+d2Esc(zlabel)+'</b>" 출고분을 삭제하시겠습니까?');
+    var box=document.getElementById('d2DelConfirmBox'); if(box) box.style.display='block';
+  }
+  // 그리드 출고장 헤더의 🗑️ 클릭 → 삭제 모달을 해당 출고일자·출고장으로 맞춰 열고 인라인 확인 표시
+  function d2DelZoneFromGrid(el){
+    var dt=el.getAttribute('data-dt')||'', cd=el.getAttribute('data-cd')||'', iw=el.getAttribute('data-iw')||'', zn=el.getAttribute('data-zn')||'';
+    if(!cd){ d2Toast('⚠️ 물류센터코드가 없어 삭제할 수 없습니다.'); return; }
+    if(!dt){ d2Toast('⚠️ 출고일자를 확인할 수 없습니다.'); return; }
+    d2DelOpen();
+    var dsel=document.getElementById('d2DelDate');
+    if(dsel){ var hasD=false,i; for(i=0;i<dsel.options.length;i++){ if(dsel.options[i].value===dt){ hasD=true; break; } }
+      if(!hasD){ var od=document.createElement('option'); od.value=dt; od.text=dt; dsel.appendChild(od); }
+      dsel.value=dt; }
+    d2DelFillZones();
+    var zsel=document.getElementById('d2DelZone');
+    if(zsel){ var hasZ=false,k; for(k=0;k<zsel.options.length;k++){ if(zsel.options[k].value===zn){ hasZ=true; break; } }
+      if(!hasZ){ window._d2DelZmap=window._d2DelZmap||{}; window._d2DelZmap[zn]={dcCd:cd,inwh:iw};
+        var oz=document.createElement('option'); oz.value=zn; oz.text=zn+' ('+cd+(iw?('-'+iw):'')+')'; zsel.appendChild(oz); }
+      zsel.value=zn; }
+    d2DelDo();   // 검증 + 인라인 확인 메시지
+  }
+
+  // 2단계: 실제 삭제 실행
+  function d2DelExec(){
+    var pd=window._d2DelPending; if(!pd){ d2DelCancelConfirm(); return; }
+    fetch(CTX+'/shipout/deleteShipoutZone.do', {
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin',
+      body:'dcCd='+encodeURIComponent(pd.dcCd)+'&inwh='+encodeURIComponent(pd.inwh)+'&shpoutDt='+encodeURIComponent(pd.dt)
+    })
+    .then(function(r){ return r.text(); })
+    .then(function(txt){ var j; try{ j=JSON.parse(txt); }catch(e){ j=null; }
+      if(j && j.ok){
+        d2DelClose();
+        if((+j.count||0)>0) d2Toast('🗑️ 삭제 완료 · '+(j.count||0)+'행 (출고장 '+pd.label+' · '+pd.dt+')');
+        else d2Toast('ℹ️ 삭제할 활성 출고분이 없습니다 (출고장 '+pd.label+' · '+pd.dt+')');
+        d2Load();
+      } else { d2Toast('⚠️ 삭제 실패: '+((j&&j.msg)||txt||'오류').toString().replace(/[<>]/g,'').slice(0,150)); }
+    })
+    .catch(function(e){ d2Toast('⚠️ 삭제 통신오류: '+e.message); });
+  }
+
+  // Ctrl+Del — 출고장 삭제 아이콘 켜기/끄기 토글 (기본 숨김)
+  document.addEventListener('keydown', function(e){
+    if(e.ctrlKey && (e.key==='Delete' || e.keyCode===46)){
+      e.preventDefault();
+      var on=document.body.classList.toggle('d2-del-on');
+      d2Toast(on ? '🗑️ 출고장 삭제 아이콘 켜짐 (Ctrl+Del 로 끄기)' : '출고장 삭제 아이콘 꺼짐');
+    }
+  });
 
   // ── 출고장별 엑셀 출력 — 데시보드2 그리드 그대로 출력 (TBL_BIZI_MST 무시, 사업장명[코드] 표시, 현재 필터 반영)
   //    엑셀 라이브러리는 부모(데시보드1)의 ssLoadStyleXlsx/XLSX 재사용. 레이아웃·색상은 데시보드1 출고장별 출력과 동일
@@ -655,6 +774,115 @@
       LIB.utils.book_append_sheet(wb, ws, mode==='daily'?'품목별_일자별':'품목별_합계');
       LIB.writeFile(wb, '품목별_'+(mode==='daily'?'일자별_':'합계_')+(from||'')+((to&&to!==from)?'~'+to:'')+'.xlsx');
       d2Toast('📥 품목별 '+(mode==='daily'?'일자별':'합계')+' 엑셀 저장 완료 · '+dlab);
+    });
+  }
+
+  // ── 사업장별 품목합계 출력 — 사업장 그룹 안에 품목별 총 출고수량. mode: 'daily' | 'sum'
+  function d2DownloadByBiz(mode){
+    mode=(mode==='daily')?'daily':'sum';
+    var p=null;
+    try{ if(window.parent && window.parent!==window && window.parent.ssLoadStyleXlsx) p=window.parent; }catch(e){}
+    if(!p){ d2Toast('⚠️ 물류관리 메인(사이드바) 안에서 열었을 때만 동작합니다.'); return; }
+    p.ssLoadStyleXlsx(function(XLSXS){
+      var LIB = XLSXS || p.XLSX;
+      var styled = !!XLSXS;
+      if(!LIB){ d2Toast('⚠️ 엑셀 모듈을 불러오지 못했습니다(인터넷 필요).'); return; }
+      var from=(document.getElementById('d2DateFrom')||{}).value||'';
+      var to=(document.getElementById('d2DateTo')||{}).value||'';
+      var dlab=(from&&from===to)?from:(from+' ~ '+to);
+      // ag → 사업장별 { 사업장: {items, tot} } (품목코드|품목명 기준 합산)
+      function bizFromAg(ag){
+        var bm={};
+        ag.zoneOrder.forEach(function(zn){ var z=ag.zones[zn]; Object.keys(z.rows).forEach(function(rk){
+          var r=z.rows[rk]; if(!((+r.qty||0)>0)) return;
+          var b=r.biz||'(사업장 미지정)';
+          var g=bm[b]||(bm[b]={items:{}, tot:0});
+          var k=r.code?('C:'+r.code):('N:'+r.name);
+          if(!g.items[k]) g.items[k]={code:r.code||'', name:r.name||'', qty:0};
+          g.items[k].qty+=(+r.qty||0); g.tot+=(+r.qty||0);
+        }); });
+        return bm;
+      }
+
+      var COLS=4, aoa=[], merges=[], meta=[], grandAll=0, madeAll=0;
+      function mergeRow(ri,e){ merges.push({s:{r:ri,c:0}, e:{r:ri,c:(e==null?COLS-1:e)}}); }
+      function push(row,ty,mEnd){ aoa.push(row); meta.push(ty); if(mEnd!=null) mergeRow(aoa.length-1,mEnd); }
+      push(['사업장별 품목합계'+(mode==='daily'?' (일자별)':' (기간 합계)')],'title',COLS-1);
+      push(['출고일자  '+dlab],'date',COLS-1);
+      push([],'blank');
+      function buildBizSection(bm, dateHdr){
+        var names=Object.keys(bm).sort(function(a,b){ return a.localeCompare(b,'ko'); });
+        if(!names.length) return;
+        if(dateHdr) push(['📅 '+dateHdr+' 출고'],'datehdr',COLS-1);
+        var sub=0;
+        names.forEach(function(b){
+          var g=bm[b];
+          var list=Object.keys(g.items).map(function(k){ return g.items[k]; })
+            .sort(function(x,y){ return x.name.localeCompare(y.name,'ko')||x.code.localeCompare(y.code,'ko'); });
+          push(['🏢 '+b+'   (품목 '+list.length+'종 · 출고 '+d2Num(g.tot)+')'],'grp',COLS-1);
+          push(['No','품목코드','품목명','출고수량'],'head');
+          list.forEach(function(r,ix){ push([ix+1, r.code, r.name, r.qty],'item'); });
+          push(['소계','','',g.tot],'sub',COLS-2);
+          push([],'blank');
+          sub+=g.tot; madeAll++;
+        });
+        if(dateHdr){ push([dateHdr+' 합계','','',sub],'dtot',COLS-2); push([],'blank'); }
+        grandAll+=sub;
+      }
+      if(mode==='daily'){
+        var dset={}; (D2_DATA||[]).forEach(function(r){ var d=r.date||D2_TODAY; if(from&&d<from)return; if(to&&d>to)return; dset[d]=1; });
+        Object.keys(dset).sort().forEach(function(d){
+          var rowsD=D2_DATA.filter(function(r){ return (r.date||D2_TODAY)===d; });
+          buildBizSection(bizFromAg(d2Aggregate(rowsD, d, d)), d);
+        });
+      } else {
+        buildBizSection(bizFromAg(d2Aggregate()), null);
+      }
+      if(!madeAll){ d2Toast('⚠️ 출고량이 있는 사업장이 없습니다.'); return; }
+      push(['전체 합계','','',grandAll],'grand',COLS-2);
+
+      var ws=LIB.utils.aoa_to_sheet(aoa);
+      ws['!cols']=[{wch:5},{wch:16},{wch:50},{wch:12}];
+      ws['!merges']=merges;
+      if(styled){
+        var enc=LIB.utils.encode_cell;
+        var LINE={style:'thin', color:{rgb:'A9B7B1'}}; var box={top:LINE,bottom:LINE,left:LINE,right:LINE};
+        var S={
+          title:{ fill:{fgColor:{rgb:'178074'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:15}, alignment:{horizontal:'left',vertical:'center'} },
+          date:{ font:{color:{rgb:'1F2A37'},bold:true,sz:15}, alignment:{horizontal:'left',vertical:'center'} },
+          datehdr:{ fill:{fgColor:{rgb:'11161D'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:13}, alignment:{horizontal:'left',vertical:'center'} },
+          grp:{ fill:{fgColor:{rgb:'137A6C'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:13}, alignment:{horizontal:'left',vertical:'center'} },
+          head:{ fill:{fgColor:{rgb:'E3F4EF'}}, font:{color:{rgb:'137A6C'},bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:box },
+          itemCB:{ font:{color:{rgb:'000000'}}, alignment:{horizontal:'center',vertical:'center'}, border:box },
+          itemL:{ font:{color:{rgb:'10161D'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          itemN:{ font:{color:{rgb:'1F2A37'},bold:true,sz:13}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          subL:{ fill:{fgColor:{rgb:'F4F8F7'}}, font:{color:{rgb:'37475A'},bold:true}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          subN:{ fill:{fgColor:{rgb:'F4F8F7'}}, font:{color:{rgb:'137A6C'},bold:true,sz:13}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          dtotL:{ fill:{fgColor:{rgb:'20415A'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:12}, alignment:{horizontal:'left',vertical:'center'} },
+          dtotN:{ fill:{fgColor:{rgb:'20415A'}}, font:{color:{rgb:'AEF0E7'},bold:true,sz:13}, alignment:{horizontal:'right',vertical:'center'} },
+          grandL:{ fill:{fgColor:{rgb:'1F2A37'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:12}, alignment:{horizontal:'left',vertical:'center'} },
+          grandN:{ fill:{fgColor:{rgb:'1F2A37'}}, font:{color:{rgb:'AEF0E7'},bold:true,sz:14}, alignment:{horizontal:'right',vertical:'center'} }
+        };
+        function put(r,c,st){ var ref=enc({r:r,c:c}); if(!ws[ref]) ws[ref]={t:'s',v:''}; ws[ref].s=st; }
+        var rows=[];
+        meta.forEach(function(ty,r){ var h=null;
+          if(ty==='title'){ put(r,0,S.title); h=26; }
+          else if(ty==='date'){ put(r,0,S.date); h=24; }
+          else if(ty==='datehdr'){ put(r,0,S.datehdr); h=22; }
+          else if(ty==='grp'){ put(r,0,S.grp); h=22; }
+          else if(ty==='head'){ for(var c=0;c<COLS;c++) put(r,c,S.head); h=20; }
+          else if(ty==='item'){ put(r,0,S.itemCB); put(r,1,S.itemCB); put(r,2,S.itemL); put(r,3,S.itemN); }
+          else if(ty==='sub'){ for(var c2=0;c2<COLS-1;c2++) put(r,c2,S.subL); put(r,COLS-1,S.subN); h=19; }
+          else if(ty==='dtot'){ for(var c4=0;c4<COLS-1;c4++) put(r,c4,S.dtotL); put(r,COLS-1,S.dtotN); h=21; }
+          else if(ty==='grand'){ for(var c3=0;c3<COLS-1;c3++) put(r,c3,S.grandL); put(r,COLS-1,S.grandN); h=22; }
+          rows.push(h!=null?{hpt:h}:{});
+        });
+        ws['!rows']=rows;
+      }
+      var wb=LIB.utils.book_new();
+      LIB.utils.book_append_sheet(wb, ws, mode==='daily'?'사업장별품목_일자별':'사업장별품목_합계');
+      LIB.writeFile(wb, '사업장별품목_'+(mode==='daily'?'일자별_':'합계_')+(from||'')+((to&&to!==from)?'~'+to:'')+'.xlsx');
+      d2Toast('📥 사업장별 품목합계 '+(mode==='daily'?'일자별':'')+' 엑셀 저장 완료 · '+dlab);
     });
   }
 
@@ -1045,7 +1273,7 @@
     var _dates=Object.keys(_dset).sort().reverse();
     if(_dates.length<=1){
       _scroll.innerHTML='<table class="d2-tb" id="d2Tbl"></table>';
-      document.getElementById('d2Tbl').innerHTML=d2BuildTableInner(ag, from, to, D2_DATA, D2_HISTALL);
+      document.getElementById('d2Tbl').innerHTML=d2BuildTableInner(ag, from, to, D2_DATA, D2_HISTALL, (_dates.length===1?_dates[0]:from));
     } else {
       var _html='';
       _dates.forEach(function(d){
@@ -1055,7 +1283,7 @@
         var zc=agD.zoneOrder.filter(function(zn){ return agD.zones[zn].tot>0; }).length;
         _html+='<div class="d2-datehdr">📅 '+d2Esc(d)+' 출고'
              +'<span class="d2-dsum">합계 '+d2Num(agD.totQty)+' BOX · 출고장 '+zc+'곳 · 품목 '+d2Num(agD.itemCnt)+'종</span></div>'
-             +'<table class="d2-tb d2-tb-blk">'+d2BuildTableInner(agD, d, d, rowsD, histD)+'</table>';
+             +'<table class="d2-tb d2-tb-blk">'+d2BuildTableInner(agD, d, d, rowsD, histD, d)+'</table>';
       });
       _scroll.innerHTML=_html;
     }
@@ -1089,7 +1317,7 @@
   }
 
   // 표 1개(HTML) 생성 — ag:집계, from/to:이 표 기간(블록이면 해당 출고일자), rowsForBatch:차수 폴백용 원본행, histForBatch:이 표의 배치이력(현재/직전)
-  function d2BuildTableInner(ag, from, to, rowsForBatch, histForBatch){
+  function d2BuildTableInner(ag, from, to, rowsForBatch, histForBatch, blockDate){
     // ── 한 그리드: 출고장(좌) + 내용(우), 맨 위 전체 합계 + 출고장별 소계(블록 상단)
     var zonesSorted=d2ZonesSorted(ag);
     var zonesWithItems=zonesSorted.filter(function(zn){ var z=ag.zones[zn]; return Object.keys(z.rows).length>0 || (z.delRows&&z.delRows.length>0); });
@@ -1230,6 +1458,7 @@
             +'onclick="d2ToggleZone(this.getAttribute(\'data-z\'))" title="클릭하여 접기/펼치기">'
             +'<span class="zcaret">'+(coll?'▶':'▼')+'</span>'+d2Esc(zn)+' 출고장'
             +(z.dcCd?'<span class="z-dc">('+d2Esc(z.dcCd)+')</span>':'')
+            +(z.dcCd?'<span class="z-del" title="이 출고장의 해당 출고일자 출고분을 삭제(이력 보존)" data-dt="'+d2Esc(blockDate||from||'')+'" data-cd="'+d2Esc(z.dcCd||'')+'" data-iw="'+d2Esc(z.inwh||'')+'" data-zn="'+d2Esc(zn)+'" onclick="event.stopPropagation(); d2DelZoneFromGrid(this)">🗑️</span>':'')
             +(dl?'<span class="z-dlv">('+d2Esc(dl)+')</span>':'')+'</td>';
           // 출고장 소계(블록 상단) + 차수별 소계
           h+='<tr class="sub">'+zoneCell+'<td></td><td class="txt-l" colspan="3" data-z="'+d2Esc(zn)+'" '
