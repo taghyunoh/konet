@@ -2306,13 +2306,14 @@
     <a class="mi core" data-key="shipstatus" onclick="logiGo('shipstatus', this)"><span class="ic">📋</span>출고현황표(대시보드2)</a>
     <a class="mi has-sub" data-sub="shipwork" onclick="logiToggleSub('shipwork', this)"><span class="ic">🚚</span>출고세부조회<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-shipwork">
+      <a class="mi" data-key="shipstatus2" onclick="logiShipView('zoneitem', this)"><span class="ic">🏬</span>출고장별 품목조회</a>
       <a class="mi" data-key="shipstatus2" onclick="logiShipView('biz', this)"><span class="ic">🏢</span>사업장별 조회</a>
       <a class="mi" data-key="shipstatus2" onclick="logiShipView('item', this)"><span class="ic">📦</span>품목별 조회</a>
     </div>
 
     <div class="grp">기준정보</div>
     <a class="mi" data-key="client"  onclick="logiGo('client', this)"><span class="ic">🤝</span>거래처관리</a>
-    <a class="mi" data-key="item"    onclick="logiGo('item', this)"><span class="ic">📦</span>상품(품목)관리</a>
+    <a class="mi" data-key="prodmst" onclick="logiFrame('prodmst','${pageContext.request.contextPath}/prod/prodmst.do', this)"><span class="ic">📦</span>상품(품목)관리</a>
     <a class="mi" data-key="base"    onclick="logiGo('base', this)"><span class="ic">🏬</span>창고/로케이션</a>
 
     <div class="grp">매입 · 입고</div>
@@ -2830,6 +2831,10 @@
     </section>
     <section id="panel-bizimst" class="panel" style="padding:0;">
       <iframe id="if-bizimst" src="" title="사업장 분류 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+
+    <section id="panel-prodmst" class="panel" style="padding:0;">
+      <iframe id="if-prodmst" src="" title="상품(품목) 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
 
   </main>

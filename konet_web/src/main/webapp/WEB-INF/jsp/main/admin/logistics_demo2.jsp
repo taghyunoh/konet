@@ -242,6 +242,7 @@
       <button class="btn-line" onclick="d2Go('save')" title="데시보드1로 이동하여 출고데이타를 저장합니다">💾 출고데이타저장</button>
       <select id="d2PrintFmt" title="출력 형식 선택 (출고장별 / 품목별)" style="height:35px;border:1px solid var(--bd);border-radius:6px;padding:0 8px;font-size:13px;font-weight:700;cursor:pointer;color:#37475a;background:#fff">
         <option value="zone">출고장별</option>
+        <option value="zoneitem">출고장별 품목</option>
         <option value="item">품목별</option>
         <option value="biz">사업장별 품목</option>
       </select>
@@ -481,6 +482,7 @@
     var fmt=(document.getElementById('d2PrintFmt')||{}).value||'zone';
     if(fmt==='item') d2DownloadByItem(mode);
     else if(fmt==='biz') d2DownloadByBiz(mode);
+    else if(fmt==='zoneitem') d2DownloadByZoneItem(mode);
     else d2DownloadByZone(mode);
   }
 
@@ -894,6 +896,107 @@
     });
   }
 
+  // ── 출고장별 품목 엑셀 출력 — 출고장 그룹 + 품목코드 합산 (좌측 출고장 세로병합, 사업장별 출력과 동일 레이아웃)
+  function d2DownloadByZoneItem(mode){
+    mode=(mode==='daily')?'daily':'sum';
+    var p=null;
+    try{ if(window.parent && window.parent!==window && window.parent.ssLoadStyleXlsx) p=window.parent; }catch(e){}
+    if(!p){ d2Toast('⚠️ 물류관리 메인(사이드바) 안에서 열었을 때만 동작합니다.'); return; }
+    p.ssLoadStyleXlsx(function(XLSXS){
+      var LIB = XLSXS || p.XLSX;
+      var styled = !!XLSXS;
+      if(!LIB){ d2Toast('⚠️ 엑셀 모듈을 불러오지 못했습니다(인터넷 필요).'); return; }
+      var from=(document.getElementById('d2DateFrom')||{}).value||'';
+      var to=(document.getElementById('d2DateTo')||{}).value||'';
+      var dlab=(from&&from===to)?from:(from+' ~ '+to);
+
+      var COLS=5, aoa=[], merges=[], meta=[], grandAll=0, madeAll=0;   // [출고장, No, 품목코드, 품목명, 출고수량]
+      function mergeRow(ri,e){ merges.push({s:{r:ri,c:0}, e:{r:ri,c:(e==null?COLS-1:e)}}); }
+      function push(row,ty,mEnd){ aoa.push(row); meta.push(ty); if(mEnd!=null) mergeRow(aoa.length-1,mEnd); }
+      push(['출고장별 품목합계'+(mode==='daily'?' (일자별)':' (기간 합계)')],'title',COLS-1);
+      push(['출고일자  '+dlab],'date',COLS-1);
+      push([],'blank');
+      function buildZoneSection(zones, dateHdr){
+        if(!zones.length) return;
+        if(dateHdr) push(['📅 '+dateHdr+' 출고'],'datehdr',COLS-1);
+        push(['출고장','No','품목코드','품목명','출고수량'],'head');
+        var gp=d2GroupZones(zones), sub=0;
+        gp.order.forEach(function(g){
+          var zs=gp.groups[g], gtot=0; zs.forEach(function(z){ gtot+=z.tot; });
+          push(['🏬 '+g+'  ('+zs.length+'개 출고장)', '', '', '', gtot], 'grphdr', COLS-2);   // 대표그룹(오산센터) 밴드
+          zs.forEach(function(z){
+            var startR=aoa.length;   // 출고장 좌측 병합 시작 = 소계 행
+            var zlab=z.zone+(z.dcCd?(' ('+z.dcCd+')'):'');
+            push([zlab, '소계', '', '(품목 '+z.items.length+'종)', z.tot], 'bizsub');
+            z.items.forEach(function(r,ix){ push(['', ix+1, r.code, r.name, r.qty], 'item'); });
+            var endR=aoa.length-1;
+            if(endR>startR) merges.push({s:{r:startR,c:0}, e:{r:endR,c:0}});   // 출고장 A열 세로 병합
+            madeAll++;
+          });
+          sub+=gtot;
+        });
+        if(dateHdr) push(['📅 '+dateHdr+' 합계','','','',sub],'dtot',COLS-2);
+        grandAll+=sub;
+      }
+      if(mode==='daily'){
+        var dset={}; (D2_DATA||[]).forEach(function(r){ var d=r.date||D2_TODAY; if(from&&d<from)return; if(to&&d>to)return; dset[d]=1; });
+        Object.keys(dset).sort().forEach(function(d){
+          var rowsD=D2_DATA.filter(function(r){ return (r.date||D2_TODAY)===d; });
+          buildZoneSection(d2ZoneItemsFromAg(d2Aggregate(rowsD, d, d)), d);
+        });
+      } else {
+        buildZoneSection(d2ZoneItemsFromAg(d2Aggregate()), null);
+      }
+      if(!madeAll){ d2Toast('⚠️ 출고량이 있는 출고장이 없습니다.'); return; }
+      push(['전체 합계','','','',grandAll],'grand',COLS-2);
+
+      var ws=LIB.utils.aoa_to_sheet(aoa);
+      ws['!cols']=[{wch:26},{wch:5},{wch:16},{wch:44},{wch:11}];   // 출고장·No·품목코드·품목명·출고수량
+      ws['!merges']=merges;
+      if(styled){
+        var enc=LIB.utils.encode_cell;
+        var LINE={style:'thin', color:{rgb:'A9B7B1'}}; var box={top:LINE,bottom:LINE,left:LINE,right:LINE};
+        var S={
+          title:{ fill:{fgColor:{rgb:'178074'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:15}, alignment:{horizontal:'left',vertical:'center'} },
+          date:{ font:{color:{rgb:'1F2A37'},bold:true,sz:15}, alignment:{horizontal:'left',vertical:'center'} },
+          datehdr:{ fill:{fgColor:{rgb:'11161D'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:13}, alignment:{horizontal:'left',vertical:'center'} },
+          grphdr:{ fill:{fgColor:{rgb:'0E6657'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:12}, alignment:{horizontal:'left',vertical:'center'} },
+          grphdrN:{ fill:{fgColor:{rgb:'0E6657'}}, font:{color:{rgb:'AEF0E7'},bold:true,sz:12}, alignment:{horizontal:'right',vertical:'center'} },
+          za:{ fill:{fgColor:{rgb:'E3EFEC'}}, font:{color:{rgb:'0E6657'},bold:true,sz:12}, alignment:{horizontal:'left',vertical:'center',wrapText:true}, border:box },
+          head:{ fill:{fgColor:{rgb:'E3F4EF'}}, font:{color:{rgb:'137A6C'},bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:box },
+          itemCB:{ font:{color:{rgb:'000000'}}, alignment:{horizontal:'center',vertical:'center'}, border:box },
+          itemL:{ font:{color:{rgb:'10161D'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          itemN:{ font:{color:{rgb:'1F2A37'},bold:true,sz:13}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          subL:{ fill:{fgColor:{rgb:'F4F8F7'}}, font:{color:{rgb:'37475A'},bold:true}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          subN:{ fill:{fgColor:{rgb:'F4F8F7'}}, font:{color:{rgb:'137A6C'},bold:true,sz:13}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          dtotL:{ fill:{fgColor:{rgb:'20415A'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:12}, alignment:{horizontal:'left',vertical:'center'} },
+          dtotN:{ fill:{fgColor:{rgb:'20415A'}}, font:{color:{rgb:'AEF0E7'},bold:true,sz:13}, alignment:{horizontal:'right',vertical:'center'} },
+          grandL:{ fill:{fgColor:{rgb:'1F2A37'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:12}, alignment:{horizontal:'left',vertical:'center'} },
+          grandN:{ fill:{fgColor:{rgb:'1F2A37'}}, font:{color:{rgb:'AEF0E7'},bold:true,sz:14}, alignment:{horizontal:'right',vertical:'center'} }
+        };
+        function put(r,c,st){ var ref=enc({r:r,c:c}); if(!ws[ref]) ws[ref]={t:'s',v:''}; ws[ref].s=st; }
+        var rows=[];
+        meta.forEach(function(ty,r){ var h=null;
+          if(ty==='title'){ put(r,0,S.title); h=26; }
+          else if(ty==='date'){ put(r,0,S.date); h=24; }
+          else if(ty==='datehdr'){ put(r,0,S.datehdr); h=22; }
+          else if(ty==='grphdr'){ for(var cg=0;cg<COLS-1;cg++) put(r,cg,S.grphdr); put(r,COLS-1,S.grphdrN); h=20; }
+          else if(ty==='head'){ for(var c=0;c<COLS;c++) put(r,c,S.head); h=20; }
+          else if(ty==='bizsub'){ put(r,0,S.za); put(r,1,S.subL); put(r,2,S.subL); put(r,3,S.subL); put(r,4,S.subN); h=18; }
+          else if(ty==='item'){ put(r,0,S.za); put(r,1,S.itemCB); put(r,2,S.itemCB); put(r,3,S.itemL); put(r,4,S.itemN); }
+          else if(ty==='dtot'){ for(var c4=0;c4<COLS-1;c4++) put(r,c4,S.dtotL); put(r,COLS-1,S.dtotN); h=21; }
+          else if(ty==='grand'){ for(var c3=0;c3<COLS-1;c3++) put(r,c3,S.grandL); put(r,COLS-1,S.grandN); h=22; }
+          rows.push(h!=null?{hpt:h}:{});
+        });
+        ws['!rows']=rows;
+      }
+      var wb=LIB.utils.book_new();
+      LIB.utils.book_append_sheet(wb, ws, mode==='daily'?'출고장별품목_일자별':'출고장별품목_합계');
+      LIB.writeFile(wb, '출고장별품목_'+(mode==='daily'?'일자별_':'합계_')+(from||'')+((to&&to!==from)?'~'+to:'')+'.xlsx');
+      d2Toast('📥 출고장별 품목합계 '+(mode==='daily'?'일자별':'')+' 엑셀 저장 완료 · '+dlab);
+    });
+  }
+
   // 업로드/저장 후 데시보드2로 돌아와 클릭하면(포커스 복귀) 자동 재조회 — 최신 데이터 반영 (3초 스로틀)
   var _d2FocusTm=0;
   window.addEventListener('focus', function(){
@@ -1225,9 +1328,13 @@
 
   // ── 보기 모드 전환 (출고장별/사업장별/품목별) — 메뉴 또는 툴바에서 호출
   function d2SetView(v){
-    D2_VIEW=(v==='biz'||v==='item')?v:'zone';
-    ['zone','biz','item'].forEach(function(k){ var b=document.getElementById('d2ViewBtn_'+k); if(b) b.className=(k===D2_VIEW)?'btn-teal':'btn-line'; });
-    var t=document.getElementById('d2ViewTag'); if(t) t.textContent=(D2_VIEW==='biz'?'사업장별 보기':(D2_VIEW==='item'?'품목별 보기':'출고장별 보기'));
+    D2_VIEW=(v==='biz'||v==='item'||v==='zoneitem')?v:'zone';
+    // 상단 보기버튼 하이라이트 (zoneitem 은 zone 버튼에 표시)
+    var btnKey=(D2_VIEW==='zoneitem')?'zone':D2_VIEW;
+    ['zone','biz','item'].forEach(function(k){ var b=document.getElementById('d2ViewBtn_'+k); if(b) b.className=(k===btnKey)?'btn-teal':'btn-line'; });
+    var t=document.getElementById('d2ViewTag'); if(t) t.textContent=(D2_VIEW==='biz'?'사업장별 보기':(D2_VIEW==='item'?'품목별 보기':(D2_VIEW==='zoneitem'?'출고장별 품목보기':'출고장별 보기')));
+    // 출력 형식 셀렉터를 현재 보기와 동기화 → 상단 '일자별/합계 출력'이 현재 보기 형식으로 나감
+    var pf=document.getElementById('d2PrintFmt'); if(pf){ var want=(D2_VIEW==='zone')?'zone':D2_VIEW; for(var i=0;i<pf.options.length;i++){ if(pf.options[i].value===want){ pf.value=want; break; } } }
     d2Render();
   }
   // 부모(사이드바 메뉴)에서 보기 전환 요청 수신
@@ -1251,6 +1358,59 @@
       if(!g.items[k]) g.items[k]={code:r.code||'',name:r.name||'',qty:0}; g.items[k].qty+=(+r.qty||0); g.tot+=(+r.qty||0);
     }); });
     return bm;
+  }
+  // ag → 출고장별 [{zone,dcCd,items:[{code,name,qty}],tot}] — 출고장 안에서 같은 품목코드는 합산
+  function d2ZoneItemsFromAg(ag){
+    var out=[];
+    d2ZonesSorted(ag).forEach(function(zn){
+      var z=ag.zones[zn]; if(!z) return;
+      var items={};
+      Object.keys(z.rows).forEach(function(rk){
+        var r=z.rows[rk]; if(!((+r.qty||0)>0)) return;
+        var k=r.code?('C:'+r.code):('N:'+r.name);
+        if(!items[k]) items[k]={code:r.code||'',name:r.name||'',qty:0};
+        items[k].qty+=(+r.qty||0);
+      });
+      var list=Object.keys(items).map(function(k){ return items[k]; })
+        .sort(function(a,b){ return a.name.localeCompare(b.name,'ko')||a.code.localeCompare(b.code,'ko'); });
+      var tot=0; list.forEach(function(r){ tot+=r.qty; });
+      if(tot>0) out.push({ zone:zn, dc:(z.dc||zn), dcCd:(z.dcCd||''), items:list, tot:tot });
+    });
+    return out;
+  }
+  // 출고장 배열 → 대표그룹(오산센터 등)으로 묶기 — 대시보드와 동일한 그룹 순서
+  function d2GroupZones(zones){
+    var groups={}, gOrder=[];
+    zones.forEach(function(z){ var g=z.dc||z.zone; if(!groups[g]){ groups[g]=[]; gOrder.push(g); } groups[g].push(z); });
+    gOrder.sort(function(a,b){
+      var ia=D2_GORD.indexOf(a), ib=D2_GORD.indexOf(b);
+      if(ia>=0 && ib>=0) return ia-ib;
+      if(ia>=0) return -1;
+      if(ib>=0) return 1;
+      return a.localeCompare(b,'ko');
+    });
+    return { groups:groups, order:gOrder };
+  }
+  // 출고장별 품목 한 집계(ag) → 표 HTML (출고장 그룹 + 품목코드 합산 목록)
+  function d2ZoneItemsTableHtml(ag){
+    var COLG='<colgroup><col style="width:7%"><col style="width:17%"><col style="width:56%"><col style="width:20%"></colgroup>';
+    var THEAD='<thead><tr><th>No</th><th>품목코드</th><th>품목명</th><th>출고수량</th></tr></thead>';
+    var zones=d2ZoneItemsFromAg(ag), grand=0; zones.forEach(function(z){ grand+=z.tot; });
+    var gp=d2GroupZones(zones);
+    var html='<table class="d2-tb d2-tb-blk">'+COLG+THEAD+'<tbody>';
+    html+='<tr class="tot"><td class="txt-l" colspan="3">전체 합계 (출고장 '+zones.length+'곳)</td><td class="num">'+d2Num(grand)+'</td></tr>';
+    if(!zones.length) html+='<tr class="item"><td class="txt-l" colspan="4"><div class="d2-empty">표시할 출고장이 없습니다.</div></td></tr>';
+    gp.order.forEach(function(g){
+      var zs=gp.groups[g], gtot=0; zs.forEach(function(z){ gtot+=z.tot; });
+      // 대표그룹(오산센터 등) 헤더
+      html+='<tr class="grp"><td class="txt-l" colspan="3">🏬 '+d2Esc(g)+' <span style="font-weight:600">('+zs.length+'개 출고장)</span></td><td class="num">'+d2Num(gtot)+'</td></tr>';
+      zs.forEach(function(z){
+        // 출고장 소계 + 품목(코드 합산)
+        html+='<tr class="sub"><td class="txt-l" colspan="3" style="padding-left:20px">↳ '+d2Esc(z.zone)+(z.dcCd?' <span style="font-weight:600">('+d2Esc(z.dcCd)+')</span>':'')+' <span style="color:#9aa7b3">(품목 '+z.items.length+'종)</span></td><td class="num">'+d2Num(z.tot)+'</td></tr>';
+        z.items.forEach(function(r,ix){ html+='<tr class="item"><td>'+(ix+1)+'</td><td>'+d2Esc(r.code)+'</td><td class="txt-l">'+d2Esc(r.name)+'</td><td class="num">'+d2Num0(r.qty)+'</td></tr>'; });
+      });
+    });
+    return html+'</tbody></table>';
   }
   // 사업장별/품목별 한 집계(ag) → 표 HTML 한 개
   function d2GroupTableHtml(ag, mode){
@@ -1301,6 +1461,19 @@
           var zc=agD.zoneOrder.filter(function(zn){ return agD.zones[zn].tot>0; }).length;
           html+='<div class="d2-datehdr">📅 '+d2Esc(d)+' 출고 <span class="d2-dsum">사업장 '+zc+'곳</span></div>'
               +'<table class="d2-tb d2-tb-blk">'+d2BuildTableInner(agD, d, d, rowsD, histD, d)+'</table>';
+        });
+      }
+    } else if(mode==='zoneitem'){
+      // 출고장별 품목 — 출고장 그룹 + 품목코드 합산 (단일=1개 / 기간=출고일자별 섹션)
+      if(dates.length<=1){
+        html=d2ZoneItemsTableHtml(ag);
+      } else {
+        html='';
+        dates.forEach(function(d){
+          var rowsD=D2_DATA.filter(function(r){ return (r.date||D2_TODAY)===d; });
+          var agD=d2Aggregate(rowsD, d, d);
+          var tot=0; d2ZoneItemsFromAg(agD).forEach(function(z){ tot+=z.tot; });
+          html+='<div class="d2-datehdr">📅 '+d2Esc(d)+' 출고 <span class="d2-dsum">합계 '+d2Num(tot)+' BOX</span></div>'+d2ZoneItemsTableHtml(agD);
         });
       }
     } else {

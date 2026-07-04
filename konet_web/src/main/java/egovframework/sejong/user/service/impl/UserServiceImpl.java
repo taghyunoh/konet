@@ -69,6 +69,11 @@ public class UserServiceImpl implements UserService {
 	@Override public int updateBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception { return mapper.updateBiziMst(dto); }
 	@Override public int deleteBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception { return mapper.deleteBiziMst(dto); }
 
+	@Override public java.util.List<egovframework.sejong.user.model.ProdDTO> selectProdList(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.selectProdList(dto); }
+	@Override public int insertProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.insertProd(dto); }
+	@Override public int updateProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.updateProd(dto); }
+	@Override public int deleteProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.deleteProd(dto); }
+
 	@Override public List<CompConDTO> selectCompContList(CompConDTO dto) throws Exception { return mapper.selectCompContList(dto); }
 	@Override public List<CompConDTO> getCompContList(CompConDTO dto) throws Exception { return mapper.getCompContList(dto); }
 	@Override public String CompContDupChk(CompConDTO dto) throws Exception { return mapper.CompContDupChk(dto); }

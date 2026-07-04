@@ -609,4 +609,58 @@
 	   WHERE BIZ_CD = #{bizCd}
 	]]></update>
 
+	<!-- ============================================================
+	     상품마스터 — TBL_PROD_MST  (상품목록리스트 근거)
+	     · PK=PROD_SEQ(IDENTITY), 수정/삭제는 PROD_SEQ 기준. 날짜는 문자.
+	     ============================================================ -->
+	<select id="selectProdList" parameterType="egovframework.sejong.user.model.ProdDTO" resultType="egovframework.sejong.user.model.ProdDTO">
+	  SELECT PROD_SEQ AS prodSeq, PROD_CD AS prodCd, PROD_NM AS prodNm, SPEC AS spec, MAKER_NM AS makerNm,
+	         TYPE_NM AS typeNm, SORT_ORD AS sortOrd, TAX_GB AS taxGb, PACK_QTY AS packQty,
+	         IN_PRICE AS inPrice, SALE_PRICE AS salePrice, WHOLE_PRICE AS wholePrice,
+	         SAFE_STOCK AS safeStock, SALE_BASE_QTY AS saleBaseQty,
+	         UNIT_BARCODE AS unitBarcode, BOX_BARCODE AS boxBarcode,
+	         REG_DTTM AS regDttm, UPD_DTTM AS updDttm
+	    FROM TBL_PROD_MST
+	   WHERE ACTION_YN = 'Y'
+	  <if test="findData != null and findData != ''">
+	     AND ( PROD_CD LIKE '%' + #{findData} + '%'
+	        OR PROD_NM LIKE '%' + #{findData} + '%'
+	        OR ISNULL(SPEC,'')     LIKE '%' + #{findData} + '%'
+	        OR ISNULL(MAKER_NM,'') LIKE '%' + #{findData} + '%'
+	        OR ISNULL(TYPE_NM,'')  LIKE '%' + #{findData} + '%' )
+	  </if>
+	   ORDER BY PROD_CD, PROD_SEQ
+	</select>
+
+	<insert id="insertProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
+	  INSERT INTO TBL_PROD_MST
+	    (PROD_CD, PROD_NM, SPEC, MAKER_NM, TYPE_NM, SORT_ORD, TAX_GB, PACK_QTY,
+	     IN_PRICE, SALE_PRICE, WHOLE_PRICE, SAFE_STOCK, SALE_BASE_QTY, UNIT_BARCODE, BOX_BARCODE,
+	     ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (#{prodCd}, #{prodNm}, #{spec,jdbcType=NVARCHAR}, #{makerNm,jdbcType=NVARCHAR}, #{typeNm,jdbcType=NVARCHAR},
+	     #{sortOrd,jdbcType=INTEGER}, #{taxGb,jdbcType=NVARCHAR}, #{packQty,jdbcType=INTEGER},
+	     #{inPrice,jdbcType=DECIMAL}, #{salePrice,jdbcType=DECIMAL}, #{wholePrice,jdbcType=DECIMAL},
+	     #{safeStock,jdbcType=INTEGER}, #{saleBaseQty,jdbcType=INTEGER},
+	     #{unitBarcode,jdbcType=NVARCHAR}, #{boxBarcode,jdbcType=NVARCHAR},
+	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	]]></insert>
+
+	<update id="updateProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
+	  UPDATE TBL_PROD_MST
+	     SET PROD_CD=#{prodCd}, PROD_NM=#{prodNm}, SPEC=#{spec,jdbcType=NVARCHAR}, MAKER_NM=#{makerNm,jdbcType=NVARCHAR},
+	         TYPE_NM=#{typeNm,jdbcType=NVARCHAR}, SORT_ORD=#{sortOrd,jdbcType=INTEGER}, TAX_GB=#{taxGb,jdbcType=NVARCHAR},
+	         PACK_QTY=#{packQty,jdbcType=INTEGER}, IN_PRICE=#{inPrice,jdbcType=DECIMAL}, SALE_PRICE=#{salePrice,jdbcType=DECIMAL},
+	         WHOLE_PRICE=#{wholePrice,jdbcType=DECIMAL}, SAFE_STOCK=#{safeStock,jdbcType=INTEGER}, SALE_BASE_QTY=#{saleBaseQty,jdbcType=INTEGER},
+	         UNIT_BARCODE=#{unitBarcode,jdbcType=NVARCHAR}, BOX_BARCODE=#{boxBarcode,jdbcType=NVARCHAR},
+	         UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
+	   WHERE PROD_SEQ = #{prodSeq}
+	]]></update>
+
+	<update id="deleteProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
+	  UPDATE TBL_PROD_MST
+	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
+	   WHERE PROD_SEQ = #{prodSeq}
+	]]></update>
+
 </mapper>

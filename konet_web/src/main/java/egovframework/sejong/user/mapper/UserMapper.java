@@ -46,6 +46,12 @@ public interface UserMapper {
 	int updateBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
 	int deleteBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
 
+	// ===== 상품마스터 (TBL_PROD_MST) =====
+	java.util.List<egovframework.sejong.user.model.ProdDTO> selectProdList(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	int insertProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	int updateProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	int deleteProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+
 	// ===== 공통코드 관리 (codecd.jsp) =====
 	List<egovframework.sejong.user.model.CodeMdDTO> codeMstList(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
 	String codeMstDupChk(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;

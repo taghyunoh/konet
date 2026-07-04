@@ -693,6 +693,47 @@ public class UserController {
 			} catch (Exception e) { log.error(" biziDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
+		/* ================= 상품마스터 (TBL_PROD_MST) ================= */
+		@RequestMapping(value="/prod/prodmst.do")
+		public String prodmst(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/prod/prodmst";
+		}
+		@RequestMapping(value="/prod/prodList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> prodList(@ModelAttribute("DTO") egovframework.sejong.user.model.ProdDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectProdList(dto));
+			return response;
+		}
+		@RequestMapping(value="/prod/prodInsert.do", method = RequestMethod.POST)
+		public ResponseEntity<String> prodInsert(@RequestBody egovframework.sejong.user.model.ProdDTO dto,
+		                                         HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getProdCd()==null || dto.getProdCd().trim().isEmpty()) return ResponseEntity.status(400).body("코드 필요");
+				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.insertProd(dto)));
+			} catch (Exception e) { log.error(" prodInsert ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/prod/prodUpdate.do", method = RequestMethod.POST)
+		public ResponseEntity<String> prodUpdate(@RequestBody egovframework.sejong.user.model.ProdDTO dto,
+		                                         HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getProdSeq()==null) return ResponseEntity.status(400).body("PROD_SEQ 필요");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.updateProd(dto)));
+			} catch (Exception e) { log.error(" prodUpdate ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/prod/prodDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> prodDelete(@RequestBody egovframework.sejong.user.model.ProdDTO dto,
+		                                         HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getProdSeq()==null) return ResponseEntity.status(400).body("PROD_SEQ 필요");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.deleteProd(dto)));
+			} catch (Exception e) { log.error(" prodDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
 		/* ---- 계약 ---- */
 		@RequestMapping(value="/user/compContList.do", method = RequestMethod.POST)
 		@ResponseBody
