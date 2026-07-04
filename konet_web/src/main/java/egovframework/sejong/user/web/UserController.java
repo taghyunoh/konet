@@ -64,28 +64,25 @@ public class UserController {
 			HttpSession session = request.getSession();
 			if (session.getAttribute("q_user_id") == null) return ".login/base_login";   // 미로그인 진입 차단(konet.do 와 동일)
 			String userGb = (String) session.getAttribute("q_admin_yn");
-			if ("P".equals(userGb)) {
-				return ".raw/main/patient/patient_main";
-			}
-			return ".raw/main/admin/logistics_demo";
+			return ".raw/main/admin/logistics_demo2";   // 셸(사이드바) = logistics_demo2.jsp — 로그인 후 메인
 		}
 
-		/* 물류관리 화면 — 메뉴/진입 시 AJAX(loadMenuPage)로 #contentArea 에 삽입되는 단독 조각.
-		   tiles .raw  → /WEB-INF/jsp/main/admin/logistics_demo.jsp (nav/top 래핑 없음) */
-		@RequestMapping(value = "/admin/logistics_demo.do")
-		public String LogisticsDemo(HttpServletRequest request, ModelMap model) throws Exception {
-			if (request.getSession().getAttribute("q_user_id") == null) return ".login/base_login";   // 미로그인 직접접근 차단
-			return ".raw/main/admin/logistics_demo";
-		}
-
-		/* 출고현황표(데시보드2) — 좌측 출고장 목록 + 우측 출고장별 내용(출고장별 출력 형식).
-		   logistics_demo.jsp 사이드메뉴에서 iframe 패널(logiFrame)로 로드되는 단독 화면 */
-		@RequestMapping(value = "/admin/logistics_demo2.do")
+		/* 출고현황표(데시보드2) = logistics_demo1.jsp — 셸(logistics_demo2.jsp)의 사이드메뉴에서
+		   iframe 패널(logiFrame 'shipstatus2')로 로드되는 단독 화면. (파일명: demo1 = 대시보드2 내용) */
+		@RequestMapping(value = "/admin/logistics_demo1.do")
 		public String LogisticsDemo2(HttpServletRequest request, ModelMap model) throws Exception {
 			if (request.getSession().getAttribute("q_user_id") == null) return ".login/base_login";   // 미로그인 직접접근 차단(iframe 조각)
-			return ".raw/main/admin/logistics_demo2";
+			return ".raw/main/admin/logistics_demo1";
 		}
 
+		/* 물류관리 셸(사이드바) = logistics_demo2.jsp — 로그인 후 /main.do 및 상단 '물류관리' 버튼
+		   (header.jsp loadMenuPage)로 로드되는 메인 화면. tiles .raw (nav/top 래핑 없음).
+		   (파일명: demo2 = 셸 내용. 대시보드2는 이 화면 iframe 안에서 demo1.do 로 로드) */
+		@RequestMapping(value = "/admin/logistics_demo2.do")
+		public String LogisticsDemo(HttpServletRequest request, ModelMap model) throws Exception {
+			if (request.getSession().getAttribute("q_user_id") == null) return ".login/base_login";   // 미로그인 직접접근 차단
+			return ".raw/main/admin/logistics_demo2";
+		}
 
 		//최초 로그인 페이지 호출
 		@RequestMapping(value = "/index.do")
@@ -123,7 +120,6 @@ public class UserController {
 					session.setAttribute("q_user_id"   , result.getUserId());   //사용자 ID
 					session.setAttribute("q_user_nm"   , result.getUserNm());   //사용자 명
 					session.setAttribute("q_admin_yn"  , result.getUserGb()); 	// 관리자 구분 'A', 의사 : D
-					session.setAttribute("q_dept_nm"   , result.getDeptNm()); 	// 진료과명
 					session.setAttribute("q_user_ip"   , request.getRemoteAddr().toString()); 	// 접속IP 주소
 					session.setAttribute("q_screen_id" , "login");
 					session.setAttribute("admingu"     , result.getUserGb());

@@ -92,7 +92,7 @@
 			<%-- konet: 기존 sejong 메뉴 전부 제거, 물류관리만 노출 (로그인 역할 무관) --%>
 			<c:if test="${sessionScope['q_admin_yn'] == 'A' or sessionScope['q_admin_yn'] == 'D'}">
 	          	<li class="menu-item" data-menu="08">
-           			<a href="javascript:void(0);" onclick="loadMenuPage('/admin/logistics_demo.do');"><button id="logiBtn" class="btn" type="button">물류관리</button></a>
+           			<a href="javascript:void(0);" onclick="loadMenuPage('/admin/logistics_demo2.do');"><button id="logiBtn" class="btn" type="button">물류관리</button></a>
            		</li>
            </c:if>
         </ul>
