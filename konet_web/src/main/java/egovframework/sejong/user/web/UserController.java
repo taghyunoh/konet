@@ -546,6 +546,15 @@ public class UserController {
 			return response;
 		}
 
+		/* 폴더 업로드 화면 — 이미 업로드(반영)된 원본 파일명 목록 (JSON: {data:[{srcFile,shpoutDt,uploadDttm}]}) */
+		@RequestMapping(value="/shipout/selectShipoutSrcFiles.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectShipoutSrcFiles(HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectShipoutSrcFiles());
+			return response;
+		}
+
 		/* 출고현황표(데시보드2) 이력 비교용 — 해당 출고일자의 '직전 배치'(ACTION_YN='N' 최근본) 조회.
 		   현재 활성배치와 대조해 신규/삭제 표시 (JSON: {data:[...]}) */
 		@RequestMapping(value="/shipout/selectShipoutPrev.do", method = RequestMethod.POST)

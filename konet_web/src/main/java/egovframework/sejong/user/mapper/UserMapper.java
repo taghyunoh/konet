@@ -37,6 +37,7 @@ public interface UserMapper {
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutPrev(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutHistory(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutHistAll(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutSrcFiles() throws Exception;   // 이미 업로드(반영)된 원본 파일명 목록 — 폴더 업로드 화면 '이미 반영' 표시용
 
 	// ===== 사업장 분류 마스터 (TBL_BIZI_MST) =====
 	java.util.List<egovframework.sejong.user.model.BiziDTO> selectBiziMst() throws Exception;

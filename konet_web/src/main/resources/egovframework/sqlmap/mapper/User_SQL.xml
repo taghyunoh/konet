@@ -447,7 +447,7 @@
 	      UNIT, INDIV_ID, ORD_NO, ORD_ITEM_NO, JUMUN_NO, JUMUN_ITEM_NO, SORTER,
 	      REG_DTTM, REG_USER, REG_IP
 	  ) VALUES (
-	      REPLACE(ISNULL(#{shpoutDt},''),'-',''), R00.`	EPLACE(ISNULL(#{dlvDt},''),'-',''), #{jobSeq}, 'Y', #{rowNo}, #{srcFile}, GETDATE(),
+	      REPLACE(ISNULL(#{shpoutDt},''),'-',''), REPLACE(ISNULL(#{dlvDt},''),'-',''), #{jobSeq}, 'Y', #{rowNo}, #{srcFile}, GETDATE(),
 	      #{inrsvYn}, #{labelPrtGb}, #{dcCd}, #{dcNm}, #{vendorCd}, #{vendorNm}, #{itemCd}, #{itemNm},
 	      #{fsfdGb}, #{statYn}, #{prodKind}, #{tempGb}, #{ordGb}, #{bizCd}, #{bizNm},
 	      #{boxQty}, #{labelQty}, #{unpaidLabelQty},
@@ -472,9 +472,26 @@
 	      t.DLV_GB AS dlvGb, t.REMARK AS remark, t.PROD_KIND AS prodKind, t.TEMP_GB AS tempGb, t.ORD_GB AS ordGb,
 	      t.UNIT AS unit, t.ORD_NO AS ordNo, t.ORD_ITEM_NO AS ordItemNo, t.JUMUN_NO AS jumunNo, t.JUMUN_ITEM_NO AS jumunItemNo
 	    FROM TBL_SHIPOUT_MST t
-	   WHERE t.SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
-	     AND t.ACTION_YN = 'Y'
-	   ORDER BY t.BIZ_NM, t.ITEM_NM, t.ROW_NO
+	   WHERE t.ACTION_YN = 'Y'
+	     AND (
+	           ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') <> ''
+	             AND t.SHPOUT_DT BETWEEN REPLACE(#{shpoutDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{shpoutDtTo,jdbcType=VARCHAR},'-','') )
+	        OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') <> ''
+	             AND t.SHPOUT_DT = REPLACE(#{shpoutDt,jdbcType=VARCHAR},'-','') )
+	        OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') = '' )
+	         )
+	   ORDER BY t.SHPOUT_DT DESC, t.BIZ_NM, t.ITEM_NM, t.ROW_NO
+	]]></select>
+
+	<!-- ④-1 이미 업로드(반영)된 원본 파일명 목록 — 폴더 업로드 화면에서 '이미 반영' 배지 표시용
+	     · 파일명(SRC_FILE)별 최종 저장일시(UPLOAD_DTTM)·출고일자(SHPOUT_DT) -->
+	<select id="selectShipoutSrcFiles" resultType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
+	  SELECT SRC_FILE AS srcFile,
+	         MAX(SHPOUT_DT) AS shpoutDt,
+	         CONVERT(varchar(19), MAX(UPLOAD_DTTM), 120) AS uploadDttm
+	    FROM TBL_SHIPOUT_MST
+	   WHERE ISNULL(SRC_FILE,'') <> ''
+	   GROUP BY SRC_FILE
 	]]></select>
 
 	<!-- ④-2 해당 출고일자 '직전 배치' 조회 — 이력 비교(신규/삭제)용
@@ -536,7 +553,13 @@
 	      t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
 	      t.CUR_QTY AS curQty
 	    FROM TBL_SHIPOUT_MST t
-	   WHERE t.SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
+	   WHERE (
+	           ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') <> ''
+	             AND t.SHPOUT_DT BETWEEN REPLACE(#{shpoutDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{shpoutDtTo,jdbcType=VARCHAR},'-','') )
+	        OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') <> ''
+	             AND t.SHPOUT_DT = REPLACE(#{shpoutDt,jdbcType=VARCHAR},'-','') )
+	        OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') = '' )
+	         )
 	   ORDER BY t.UPLOAD_DTTM, t.DC_NM, t.INWH, t.BIZ_NM, t.ITEM_NM, t.ROW_NO
 	]]></select>
 

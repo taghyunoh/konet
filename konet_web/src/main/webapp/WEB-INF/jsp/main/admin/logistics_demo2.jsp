@@ -23,7 +23,7 @@
   b, th, h2 { font-weight:900; }
 
   /* 화면(iframe) 높이를 세로로 꽉 채움 — 그리드가 남는 공간을 모두 차지(해상도 커져도 하단 빈공간 없음) */
-  .d2-wrap { padding:18px 24px 12px; height:100vh; display:flex; flex-direction:column; }
+  .d2-wrap { padding:14px 12px 10px; height:100vh; display:flex; flex-direction:column; }
   .d2-head, .d2-topbar { flex:0 0 auto; }
   .d2-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
   .d2-head h2 { margin:0; font-size:20px; color:#1f2a37; }
@@ -79,7 +79,7 @@
   #d2BtnZoneToggle { min-width:112px; text-align:center; }
 
   /* 본문: 출고장 + 내용 한 그리드 — 남는 세로 공간을 모두 차지(flex 채움) */
-  .card { background:#fff; border:1px solid var(--bd); border-radius:10px; padding:14px 16px; flex:1 1 auto; display:flex; flex-direction:column; min-height:0; }
+  .card { background:#fff; border:1px solid var(--bd); border-radius:10px; padding:12px 10px; flex:1 1 auto; display:flex; flex-direction:column; min-height:0; }
   .card .d2-toolbar { flex:0 0 auto; }
   .card.d2-full { position:fixed; inset:0; z-index:999; border-radius:0; overflow:auto; }
   .card.d2-full .d2-scroll { flex:1 1 auto; }
@@ -124,18 +124,20 @@
   table.d2-tb td.bcell-h { line-height:1.2; padding:2px 4px; background:#f4f8f7; text-align:right; }
   table.d2-tb td.bcell-h .bh-lab { display:block; font-size:10px; font-weight:800; color:#137a6c; }
   table.d2-tb td.bcell-h .bh-dt  { display:block; font-size:9px; font-weight:700; color:#8fa6b6; }
-  table.d2-tb td.bcell-h .bh-sum { display:block; font-size:12px; font-weight:900; color:#1f2a37; }
+  table.d2-tb td.bcell-h .bh-sum { display:block; font-size:15px; font-weight:900; color:#1f2a37; }
 
   /* 전체 합계(맨 위) — 데시보드1 tr.ztot 속성 */
   table.d2-tb tr.tot td { background:#11161d; color:#fff; font-weight:700; border-bottom:2px solid #0e1620;
                           position:sticky; top:30px; z-index:3; }   /* 헤더(30px) 바로 아래에 고정 — 스크롤해도 전체합계 유지 */
   /* 물류센터 대표그룹 행 — 데시보드1 tr.lgrp 속성 (▼ 그룹 헤더): 11.5px / weight 700 / teal */
   table.d2-tb tr.grp { cursor:pointer; }
-  table.d2-tb tr.grp td { background:#eef3f2; color:#178074; font-weight:900; font-size:15px; text-align:left; }
-  table.d2-tb tr.grp td.num { text-align:right; }
-  table.d2-tb tr.grp td:first-child { background:#e3efec; position:sticky; left:0; z-index:2; }
-  table.d2-tb tr.grp:hover td { background:#dcefe9; }
-  table.d2-tb tr.grp td .zcaret { display:inline-block; width:12px; color:#1f9b8e; font-size:10px; }
+  /* 대표출고장(물류센터) 그룹 헤더 — 크게 + 구분색(진한 청록 밴드/흰 글자) */
+  table.d2-tb tr.grp td { background:#137a6c; color:#ffffff; font-weight:900; font-size:18px; text-align:left; letter-spacing:.3px; border-bottom:2px solid #0d5f54; }
+  table.d2-tb tr.grp td.num { text-align:right; color:#d7f5ee; }
+  table.d2-tb tr.grp td:first-child { background:#0e6657; position:sticky; left:0; z-index:2; box-shadow:inset 4px 0 0 #ffd166; }
+  table.d2-tb tr.grp:hover td { background:#0e6657; }
+  table.d2-tb tr.grp:hover td:first-child { background:#0a5249; }
+  table.d2-tb tr.grp td .zcaret { display:inline-block; width:15px; color:#ffffff; font-size:12px; }
   /* 물류센터 합계 행 — 데시보드1 tr.lsub 속성 */
   table.d2-tb tr.gsub td { background:#eaf5f2; color:#137a6c; font-weight:700; text-align:left; }
   table.d2-tb tr.gsub td:first-child { background:#dcefe9; position:sticky; left:0; z-index:2; }
@@ -167,10 +169,24 @@
   table.d2-tb tr.r-new td { background:#f2fbf8 !important; }
   table.d2-tb tr.r-new td.txt-l { color:#0e6657; }
   table.d2-tb tr.r-chg td { background:#fffdf6 !important; }
+  /* 현재≠직전(수량 차이) 행 — 사업장·품목코드·품목명·현재·직전 칸만 노란색 강조 (No·변동사항 제외) */
+  table.d2-tb tr.item.r-diff td:nth-child(2),
+  table.d2-tb tr.item.r-diff td:nth-child(3),
+  table.d2-tb tr.item.r-diff td:nth-child(4),
+  table.d2-tb tr.item.r-diff td:nth-child(5),
+  table.d2-tb tr.item.r-diff td:nth-child(6) { background:#ffe680 !important; color:#1f2a37 !important; }
+  table.d2-tb tr.item.r-diff td:nth-child(5) b,
+  table.d2-tb tr.item.r-diff td:nth-child(6) b { color:#8a5a00 !important; }
   table.d2-tb tr.r-del td { background:#fbf4f4 !important; color:#b06a66; text-decoration:line-through; text-decoration-color:#d99; }
   table.d2-tb tr.r-del td.num { color:#b06a66; }
   .d2-empty { padding:38px 20px; text-align:center; color:#6b7a89; font-size:13.5px; }
   .note { font-size:12px; color:#6b7a89; margin-top:8px; }
+  /* 출고일자별 독립 블록 (기간·전체 조회 시) — 날짜 배너 + 표. 여러 표가 세로로 쌓임 */
+  .d2-datehdr { position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:10px; margin:14px 0 0; padding:7px 12px;
+                background:linear-gradient(135deg,#11161d,#243447); color:#fff; font-size:15px; font-weight:900; border-radius:8px 8px 0 0; }
+  .d2-datehdr:first-child { margin-top:0; }
+  .d2-datehdr .d2-dsum { font-size:12px; font-weight:700; color:#aef0e7; margin-left:auto; }
+  table.d2-tb.d2-tb-blk { margin-bottom:10px; }
 
   /* 출고장 변경 알림 — 화면 하단 고정 마퀴 바 (위너넷 알림바 스타일) */
   #d2Ticker { position:fixed; bottom:0; left:0; width:100%; height:36px; color:#fff; display:none; align-items:center;
@@ -229,6 +245,7 @@
       <button class="btn-teal" onclick="d2Load()" title="선택한 출고일자의 데이터를 DB에서 다시 조회합니다">🔍 조회</button>
       <button class="btn-line" id="d2BtnToday" onclick="d2Today()">당일</button>
       <button class="btn-line" id="d2BtnMonth" onclick="d2Month()">당월</button>
+      <button class="btn-line" id="d2BtnAll" onclick="d2All()" title="출고일자와 상관없이 DB 전체 자료를 출고일자별 블록으로 표시">전체</button>
     </div>
     <span id="d2Info" class="d2-info"></span>
     <div class="tb-stats">
@@ -448,7 +465,7 @@
           var A=z.rows[a],B=z.rows[b];
           return A.biz.localeCompare(B.biz,'ko')||A.name.localeCompare(B.name,'ko');
         });
-        var dla=Object.keys(z.dlv).sort().filter(function(d){ return from && d!==from; });
+        var dla=Object.keys(z.dlv).sort();   // 발주일자 — 출고일자와 무관하게 항상 표시
         var dl=dla.length?('발주일자 '+dla.join(', ')):'';
         push(['▣ '+zn+' 출고장   (품목 '+keys.length+'종 · 출고 '+d2Num(z.tot)+(dl?(' · '+dl):'')+')'],'zone',COLS-1);
         push(['No','사업장','품목명','품목코드','출고수량'],'head');
@@ -546,7 +563,7 @@
     var e2=document.getElementById('d2ItemFind'); if(e2) e2.value='';
     d2Render();
   }
-  function d2ApplyZoom(){ var t=document.getElementById('d2Tbl'); if(t) t.style.zoom=(D2_ZOOM/100); d2Set('d2ZoomLbl', D2_ZOOM+'%'); }
+  function d2ApplyZoom(){ var ts=document.querySelectorAll('table.d2-tb'); for(var i=0;i<ts.length;i++) ts[i].style.zoom=(D2_ZOOM/100); d2Set('d2ZoomLbl', D2_ZOOM+'%'); }
   function d2ZoomIn(){ if(D2_ZOOM<200) D2_ZOOM+=10; d2ApplyZoom(); }
   function d2ZoomOut(){ if(D2_ZOOM>40) D2_ZOOM-=10; d2ApplyZoom(); }
   function d2FullExpand(){ document.getElementById('d2Card').classList.add('d2-full'); }
@@ -569,7 +586,13 @@
     var d=new Date(), y=d.getFullYear(), m=d.getMonth(), last=new Date(y,m+1,0).getDate();
     document.getElementById('d2DateFrom').value=y+'-'+d2Pad(m+1)+'-01';
     document.getElementById('d2DateTo').value=y+'-'+d2Pad(m+1)+'-'+d2Pad(last);
-    d2Render();   // 당월=기간 모드 — 단일일자 DB조회 대상 아님(현재 데이터 렌더)
+    d2Load();   // 당월=기간 조회 → 출고일자별 독립 블록으로 표시
+  }
+  // 전체 — 출고일자 무관 DB 전체를 출고일자별 블록으로 (날짜칸 비우고 조회)
+  function d2All(){
+    var f=document.getElementById('d2DateFrom'), t=document.getElementById('d2DateTo');
+    if(f) f.value=''; if(t) t.value='';
+    d2Load();
   }
 
   // ── 대표사업장 판정 (데시보드1 ssRowBrand 동일): 사업장코드→TBL_BIZI_MST 매핑, 없으면 품목명 () 접두어
@@ -592,11 +615,33 @@
   }
 
   // ── DB 조회: 단일 일자(시작=종료)만 조회. 기간 모드는 현재 데이터로 렌더만. (데시보드1과 동일 규칙)
-  function d2Load(){ d2LoadBizi(function(){ _d2LoadInner(); }); }   // 조회 직전 분류표 최신화(데시보드1과 동일)
+  // ── 대시보드1↔2 출고일자 조건 동기화 (localStorage 'logiShipDate' 공유 + storage 이벤트) ──
+  var _d2DateSyncing=false;
+  function d2SaveSharedDate(){
+    try{ localStorage.setItem('logiShipDate', JSON.stringify({
+      from:(document.getElementById('d2DateFrom')||{}).value||'',
+      to:(document.getElementById('d2DateTo')||{}).value||'' })); }catch(e){}
+  }
+  function d2ApplySharedDate(){   // 저장된 공유 날짜 적용(있으면 true)
+    try{ var d=JSON.parse(localStorage.getItem('logiShipDate')||'null'); if(!d) return false;
+      var f=document.getElementById('d2DateFrom'), t=document.getElementById('d2DateTo');
+      if(f && d.from!=null) f.value=d.from; if(t && d.to!=null) t.value=d.to; return true;
+    }catch(e){ return false; }
+  }
+  window.addEventListener('storage', function(e){   // 대시보드1에서 날짜 바꾸면 따라가기
+    if(e.key!=='logiShipDate') return;
+    try{ var d=JSON.parse(e.newValue||'null'); if(!d) return;
+      var f=document.getElementById('d2DateFrom'), t=document.getElementById('d2DateTo'); if(!f||!t) return;
+      if(f.value===(d.from||'') && t.value===(d.to||'')) return;
+      _d2DateSyncing=true; f.value=d.from||''; t.value=d.to||''; d2Load(); _d2DateSyncing=false;
+    }catch(_){}
+  });
+  function d2Load(){ if(!_d2DateSyncing) d2SaveSharedDate(); d2LoadBizi(function(){ _d2LoadInner(); }); }   // 조회 직전 분류표 최신화 + 날짜 공유 저장
   function _d2LoadInner(){
     var f=(document.getElementById('d2DateFrom')||{}).value||'';
     var t=(document.getElementById('d2DateTo')||{}).value||'';
-    if(!(f && f===t)){ d2Render(); return; }
+    // 단일일자(시작=종료)=기존 배치 매트릭스 경로. 그 외(기간·전체)=날짜별 독립 블록 경로.
+    if(!(f && f===t)){ _d2LoadRange(f, t); return; }
     fetch(CTX+'/shipout/selectShipoutMst.do', {
       method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'},
@@ -638,32 +683,65 @@
     })
     .catch(function(e){ D2_SRC='⚠️ DB 통신오류'; D2_UP=false; D2_DATA=[]; D2_PREV=[]; d2Render(); d2Toast('⚠️ 출고 조회 통신오류: '+e.message); });
   }
-  // DB행 → 화면행 매핑(현재/직전 공용)
+
+  // 기간/전체 조회 — 날짜별 독립 블록용. (직전배치·차수 매트릭스는 단일일자 전용이라 생략)
+  function _d2LoadRange(f, t){
+    var body, lab;
+    if(f && t){ body='shpoutDtFrom='+encodeURIComponent(f)+'&shpoutDtTo='+encodeURIComponent(t); lab=f+' ~ '+t; }
+    else      { body=''; lab='전체(전 기간)'; }   // 날짜 비우면 전 기간
+    fetch(CTX+'/shipout/selectShipoutMst.do', {
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin', body:body
+    })
+    .then(function(res){ return res.text().then(function(txt){ return {ok:res.ok, status:res.status, txt:txt}; }); })
+    .then(function(r){
+      if(!r.ok){ D2_SRC='⚠️ DB 조회 HTTP '+r.status; D2_UP=false; D2_DATA=[]; D2_PREV=[]; D2_HISTALL=[]; d2Render(); d2Toast('⚠️ 출고 조회 실패 (HTTP '+r.status+')'); return; }
+      var j; try{ j=JSON.parse(r.txt); }catch(e){ D2_SRC='⚠️ 응답형식 오류'; D2_UP=false; D2_DATA=[]; D2_PREV=[]; D2_HISTALL=[]; d2Render(); d2Toast('⚠️ 조회 응답이 JSON이 아닙니다'); return; }
+      var rows=(j&&j.data)||[];
+      D2_DATA = rows.map(function(o){ return d2MapRow(o, f); });
+      D2_PREV=[]; D2_HISTALL=[];               // 신규/삭제 비교는 생략, 현재/직전 차수는 아래 histAll 로 채움
+      D2_UP = rows.length>0;
+      var nd={}; D2_DATA.forEach(function(x){ nd[x.date]=1; });
+      D2_SRC = rows.length>0 ? ('🗄️ DB 조회 '+lab+' · '+rows.length+'건 · '+Object.keys(nd).length+'일') : ('🗄️ DB '+lab+' — 데이터 없음');
+      D2_COLL={};
+      // 배치이력(현재/직전 차수) 기간 조회 → 날짜별 블록에서 각 날짜로 필터해 사용 (단일일자와 동일 로직)
+      fetch(CTX+'/shipout/selectShipoutHistAll.do', {
+        method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin', body:body
+      })
+      .then(function(res){ return res.ok?res.text():''; })
+      .then(function(txt){ var hj; try{ hj=JSON.parse(txt); }catch(e){ hj=null; }
+        var hrows=(hj&&hj.data)||[]; D2_HISTALL=hrows.map(function(o){ return d2MapRow(o, f); }); })
+      .catch(function(){ D2_HISTALL=[]; })
+      .then(function(){ d2Render(); });
+    })
+    .catch(function(e){ D2_SRC='⚠️ DB 통신오류'; D2_UP=false; D2_DATA=[]; D2_PREV=[]; D2_HISTALL=[]; d2Render(); d2Toast('⚠️ 출고 조회 통신오류: '+e.message); });
+  }
+  // DB행 → 화면행 매핑(현재/직전 공용). date = 행의 실제 출고일자(SHPOUT_DT) — 기간조회 시 날짜별 분리에 사용
   function d2MapRow(o, f){
     var dcNm=(''+(o.dcNm||'')).trim(), inwh=(''+(o.inwh||'')).trim();
     var zone = dcNm ? (dcNm+inwh) : (''+(o.zone||'')).trim();
     var bizNm=(''+(o.bizNm||'')).trim(), bizCd=(''+(o.bizCd||'')).trim();
     var bizLbl = bizCd ? (bizNm ? (bizNm+' ['+bizCd+']') : ('['+bizCd+']')) : bizNm;
     var _dlv=(''+(o.dlvDt||'')).trim(); if(/^\d{8}$/.test(_dlv)) _dlv=_dlv.slice(0,4)+'-'+_dlv.slice(4,6)+'-'+_dlv.slice(6,8);
+    var _sd=(''+(o.shpoutDt||'')).trim(); if(/^\d{8}$/.test(_sd)) _sd=_sd.slice(0,4)+'-'+_sd.slice(4,6)+'-'+_sd.slice(6,8);
     return { code:(''+(o.itemCd||'')).trim(), item:(''+(o.itemNm||'')).trim(),
-             biz:bizLbl, bizCode:bizCd, dc:dcNm, dcCd:(''+(o.dcCd||'')).trim(), inwh:inwh, zone:zone, qty:(+o.curQty||0), dlvDt:_dlv, date:f,
+             biz:bizLbl, bizCode:bizCd, dc:dcNm, dcCd:(''+(o.dcCd||'')).trim(), inwh:inwh, zone:zone, qty:(+o.curQty||0), dlvDt:_dlv, date:(_sd||f),
              uploadDttm:(''+(o.uploadDttm||'')).trim().slice(0,19),   // 변경일시(현재 배치)
              firstDttm:(''+(o.firstDttm||'')).trim().slice(0,19),     // 최초일시(같은 품목 MIN)
              jobSeq:(+o.jobSeq||0) };   // 배치 버전(1=최초, 2↑=재생성)
   }
 
   // ── 집계: 출고장별 (사업장+품목) 행 — 출고량 있는 품목만. 사업장 찾기/보기 필터 반영
-  function d2Aggregate(){
+  function d2Aggregate(rowsIn, fromOv, toOv){
     d2GordLoad();   // 그룹순서 최신값 반영(데시보드1에서 바꾼 것도 즉시 적용)
-    var from=(document.getElementById('d2DateFrom')||{}).value||'';
-    var to=(document.getElementById('d2DateTo')||{}).value||'';
+    var from=(fromOv!=null)?fromOv:((document.getElementById('d2DateFrom')||{}).value||'');
+    var to=(toOv!=null)?toOv:((document.getElementById('d2DateTo')||{}).value||'');
     var selEl=document.getElementById('d2BizSel');
     var bizSel=(selEl && selEl.value) ? selEl.value : '__ALL__';
     var findLc=D2_FIND.toLowerCase();
     var ifindTk=D2_IFIND.toLowerCase().split(/\s+/).filter(function(s){ return s; });
     var dcAny=Object.keys(D2_DCSEL).length>0;
     var zones={}, zoneOrder=[], itemSet={}, bizSet={}, bizAll={}, dcAll={}, totQty=0, curDttm='';
-    D2_DATA.forEach(function(r){
+    (rowsIn||D2_DATA).forEach(function(r){
       var d=r.date||D2_TODAY;
       if(from && d<from) return;
       if(to && d>to) return;
@@ -703,7 +781,7 @@
     var histC=document.getElementById('d2HistChk');
     // 이력(신규/삭제) 비교는 단일일자(시작=종료)에서만 의미 있음. 기간/역순(시작>종료) 범위에선 끔
     // — 안 그러면 현재행은 날짜필터로 빠지고 직전배치만 남아 전부 '삭제'로 오표시됨
-    var histOn = !!(histC && histC.checked && from && from===to);   // 직전배치 없어도(최초 업로드) 켬 — 단일일자에서만
+    var histOn = !!(histC && histC.checked && from && from===to && rowsIn==null);   // 단일일자 전역 렌더에서만(날짜별 블록 제외)
     function _pass(r){   // 현재 필터를 삭제행에도 동일 적용
       var dcg=r.dc||r.zone||'미배정';
       if(dcAny && !D2_DCSEL[dcg]) return false;
@@ -804,20 +882,71 @@
       sel.value = (keep!=='__ALL__' && ag.bizAll.indexOf(keep)>=0) ? keep : '__ALL__';
     }
 
+    // ── 표 영역: 단일일자=기존 배치 매트릭스 1개 / 기간·전체=출고일자별 독립 블록 여러 개
+    d2SetGordPop(ag);   // 그룹순서 팝업·이동기준 = 전체 기준 1회
+    var _scroll=document.querySelector('.d2-scroll');
+    var _dset={}; (D2_DATA||[]).forEach(function(r){ var d=r.date||D2_TODAY; if(from && d<from) return; if(to && d>to) return; _dset[d]=1; });
+    var _dates=Object.keys(_dset).sort().reverse();
+    if(_dates.length<=1){
+      _scroll.innerHTML='<table class="d2-tb" id="d2Tbl"></table>';
+      document.getElementById('d2Tbl').innerHTML=d2BuildTableInner(ag, from, to, D2_DATA, D2_HISTALL);
+    } else {
+      var _html='';
+      _dates.forEach(function(d){
+        var rowsD=D2_DATA.filter(function(r){ return (r.date||D2_TODAY)===d; });
+        var histD=(D2_HISTALL||[]).filter(function(r){ return (r.date||D2_TODAY)===d; });   // 이 날짜의 배치이력만 → 현재/직전
+        var agD=d2Aggregate(rowsD, d, d);
+        var zc=agD.zoneOrder.filter(function(zn){ return agD.zones[zn].tot>0; }).length;
+        _html+='<div class="d2-datehdr">📅 '+d2Esc(d)+' 출고'
+             +'<span class="d2-dsum">합계 '+d2Num(agD.totQty)+' BOX · 출고장 '+zc+'곳 · 품목 '+d2Num(agD.itemCnt)+'종</span></div>'
+             +'<table class="d2-tb d2-tb-blk">'+d2BuildTableInner(agD, d, d, rowsD, histD)+'</table>';
+      });
+      _scroll.innerHTML=_html;
+    }
+    d2ApplyZoom();
+    d2RenderTicker(ag);
+    var _zwi=ag.zoneOrder.filter(function(zn){ var z=ag.zones[zn]; return Object.keys(z.rows).length>0 || (z.delRows&&z.delRows.length>0); });
+    var _allColl=_zwi.length>0 && _zwi.every(function(zn){ return !!D2_COLL[zn]; });
+    var _zt=document.getElementById('d2BtnZoneToggle'); if(_zt) _zt.innerHTML=_allColl ? '＋ 출고장 펼치기' : '－ 출고장 접기';
+  }
+
+  // 그룹순서(물류센터) 설정 팝업 + 이동기준 — 전체 ag 기준 1회 (날짜별 블록마다 안 함)
+  function d2SetGordPop(ag){
+    var zonesSorted=ag.zoneOrder.slice().sort(function(a,b){ return a.localeCompare(b,'ko'); });
+    var zonesWithItems=zonesSorted.filter(function(zn){ var z=ag.zones[zn]; return Object.keys(z.rows).length>0 || (z.delRows&&z.delRows.length>0); });
+    var groups={}, gOrder=[];
+    zonesWithItems.forEach(function(zn){ var g=ag.zones[zn].dc || zn; if(!groups[g]){ groups[g]=[]; gOrder.push(g); } groups[g].push(zn); });
+    gOrder.sort(function(a,b){ var ia=D2_GORD.indexOf(a), ib=D2_GORD.indexOf(b);
+      if(ia>=0&&ib>=0)return ia-ib; if(ia>=0)return -1; if(ib>=0)return 1; return a.localeCompare(b,'ko'); });
+    window._d2GOrderNow=gOrder.slice();
+    d2Set('d2GordPop',
+      gOrder.map(function(g,ix){
+        return '<label style="justify-content:space-between; cursor:default">'
+          +'<span>'+(ix+1)+'. '+d2Esc(g)+'</span>'
+          +'<span style="display:inline-flex; gap:3px">'
+          +'<button class="btn-line" style="padding:1px 8px" data-g="'+d2Esc(g)+'" onclick="event.stopPropagation(); d2GordMove(this.getAttribute(\'data-g\'),-1)" title="위로">▲</button>'
+          +'<button class="btn-line" style="padding:1px 8px" data-g="'+d2Esc(g)+'" onclick="event.stopPropagation(); d2GordMove(this.getAttribute(\'data-g\'),1)" title="아래로">▼</button>'
+          +'</span></label>';
+      }).join('')
+      +'<label class="all" style="border-bottom:none; border-top:1px dashed var(--bd); margin-top:4px; border-radius:0 0 6px 6px; justify-content:center">'
+      +'<button class="btn-line" style="padding:3px 12px" onclick="event.stopPropagation(); d2GordReset()">↺ 순서 초기화 (ㄱㄴㄷ순)</button></label>');
+  }
+
+  // 표 1개(HTML) 생성 — ag:집계, from/to:이 표 기간(블록이면 해당 출고일자), rowsForBatch:차수 폴백용 원본행, histForBatch:이 표의 배치이력(현재/직전)
+  function d2BuildTableInner(ag, from, to, rowsForBatch, histForBatch){
     // ── 한 그리드: 출고장(좌) + 내용(우), 맨 위 전체 합계 + 출고장별 소계(블록 상단)
     var zonesSorted=ag.zoneOrder.slice().sort(function(a,b){ return a.localeCompare(b,'ko'); });
     var zonesWithItems=zonesSorted.filter(function(zn){ var z=ag.zones[zn]; return Object.keys(z.rows).length>0 || (z.delRows&&z.delRows.length>0); });
-    function dlvLabel(z){
+    function dlvLabel(z){   // 발주일자 — 출고일자와 같든 다르든 항상 표시
       var a=Object.keys(z.dlv).sort();
-      var oth=a.filter(function(d){ return from && d!==from; });
-      return oth.length ? ('발주일자 '+oth.join(', ')) : '';
+      return a.length ? ('발주일자 '+a.join(', ')) : '';
     }
     // ── 차수(배치) 매트릭스 — D2_HISTALL(전 배치)로 (출고장+사업장+품목) × 배치(업로드 분) 피벗. 이력 팝업과 동일 개념
     var SEP='';
     // 출고장마다 '자기 배치(차수)'가 독립 — 따로 업로드하면 차수·시각이 다르므로 전역 공통이 아니라,
     // 각 출고장 배치를 '상대 슬롯(현재→과거)'에 채우고, 실제 차수 라벨·시각·소계는 각 출고장 소계행에 표기
     var zBatch={}, HQ={};                 // zBatch[zn]={set,list:[bk..asc],label:{bk:..}} ; HQ[zn][rk][bk]=qty
-    (D2_HISTALL||[]).forEach(function(r){
+    (histForBatch||D2_HISTALL||[]).forEach(function(r){
       var bk=(''+(r.uploadDttm||'')).slice(0,16); if(!bk) return;          // 분 단위 = 1업로드(차수)
       var zn=r.zone||'미배정';
       var zb=zBatch[zn]||(zBatch[zn]={set:{}, list:[], label:{}});
@@ -828,7 +957,7 @@
     var noHist=true; for(var _zz in zBatch){ noHist=false; break; }
     if(noHist){                            // 전 배치 없음 → 활성분을 각 출고장 '현재' 1배치로 폴백
       zBatch={}; HQ={};
-      (D2_DATA||[]).forEach(function(r){ var zn=r.zone||'미배정';
+      (rowsForBatch||D2_DATA||[]).forEach(function(r){ var zn=r.zone||'미배정';
         var zb=zBatch[zn]||(zBatch[zn]={set:{'__CUR__':1}, list:['__CUR__'], label:{'__CUR__':'출고수량'}});
         var ik=(r.code?r.code:('NM:'+r.item)); var rk=(r.biz||'')+'|'+ik;
         var zq=HQ[zn]||(HQ[zn]={}); (zq[rk]||(zq[rk]={})); zq[rk]['__CUR__']=(zq[rk]['__CUR__']||0)+(+r.qty||0); });
@@ -855,6 +984,14 @@
         cell[bk]={cls:cls,txt:txt}; prev=v; });
       var h=''; for(var s=0;s<maxN;s++){ var bk=slotBk(zn,s); var c=bk?cell[bk]:null; h+='<td class="hc '+(c?c.cls:'hc-none')+'">'+(c?c.txt:'')+'</td>'; }
       return h;
+    }
+    // 현재(최신 배치) vs 직전 배치 수량이 다른 행 여부 — 감색(네이비) 강조용. 직전 배치 없으면(단일 배치) 비교 안 함
+    function itemRowChanged(zn, rk){
+      var zb=zBatch[zn]; if(!zb || zb.list.length<2) return false;
+      var q=(HQ[zn]&&HQ[zn][rk])||{};
+      var cur=q[slotBk(zn,0)]; var prv=q[slotBk(zn,1)];
+      cur=(cur==null?null:cur); prv=(prv==null?null:prv);
+      return cur!==prv;   // 증감·신규·삭제 모두 '차이'로 간주
     }
     // 출고장별 슬롯(bk) 소계 — 표시 품목 기준
     var zSub={};
@@ -913,21 +1050,6 @@
       if(ib>=0) return 1;
       return a.localeCompare(b,'ko');
     });
-    window._d2GOrderNow=gOrder.slice();   // 순서설정 팝업의 이동 기준
-
-    // 그룹순서 설정 팝업 내용 (현재 표시 순서 + ▲▼ 이동 + 초기화)
-    d2Set('d2GordPop',
-      gOrder.map(function(g,ix){
-        return '<label style="justify-content:space-between; cursor:default">'
-          +'<span>'+(ix+1)+'. '+d2Esc(g)+'</span>'
-          +'<span style="display:inline-flex; gap:3px">'
-          +'<button class="btn-line" style="padding:1px 8px" data-g="'+d2Esc(g)+'" onclick="event.stopPropagation(); d2GordMove(this.getAttribute(\'data-g\'),-1)" title="위로">▲</button>'
-          +'<button class="btn-line" style="padding:1px 8px" data-g="'+d2Esc(g)+'" onclick="event.stopPropagation(); d2GordMove(this.getAttribute(\'data-g\'),1)" title="아래로">▼</button>'
-          +'</span></label>';
-      }).join('')
-      +'<label class="all" style="border-bottom:none; border-top:1px dashed var(--bd); margin-top:4px; border-radius:0 0 6px 6px; justify-content:center">'
-      +'<button class="btn-line" style="padding:3px 12px" onclick="event.stopPropagation(); d2GordReset()">↺ 순서 초기화 (ㄱㄴㄷ순)</button></label>');
-
     gOrder.forEach(function(g){
       var zs=groups[g];
       var gColl=!!D2_GCOLL[g];
@@ -961,7 +1083,7 @@
           if(!coll){
             keys.forEach(function(k,ix){
               var r=z.rows[k];
-              h+='<tr class="item'+(r.isNew?' r-new':'')+'"><td>'+(ix+1)+'</td>'
+              h+='<tr class="item'+(r.isNew?' r-new':'')+(itemRowChanged(zn,k)?' r-diff':'')+'"><td>'+(ix+1)+'</td>'
                 +'<td class="txt-l">'+d2Esc(r.biz)+'</td>'
                 +'<td>'+d2Esc(r.code)+'</td>'
                 +'<td class="txt-l">'+d2Esc(r.name)+'</td>'
@@ -989,13 +1111,7 @@
     if(!zonesWithItems.length){
       h='<tbody><tr><td><div class="d2-empty">표시할 출고 데이터가 없습니다. 출고일자를 선택 후 <b>조회</b>하세요.</div></td></tr></tbody>';
     }
-    document.getElementById('d2Tbl').innerHTML=h;
-    d2ApplyZoom();
-    d2RenderTicker(ag);
-
-    // 접기 전체 토글 버튼 라벨
-    var allColl = zonesWithItems.length>0 && zonesWithItems.every(function(zn){ return !!D2_COLL[zn]; });
-    var zt=document.getElementById('d2BtnZoneToggle'); if(zt) zt.innerHTML = allColl ? '＋ 출고장 펼치기' : '－ 출고장 접기';
+    return h;
   }
 
   // 출고장 변경 알림 — iframe(부모 셸) 안이면 부모의 독립 하단 바로 postMessage, 단독 실행이면 자체 바 렌더.
@@ -1099,7 +1215,7 @@
     });
   })();
 
-  // 초기: 당일로 조회
+  // 초기(로그인/진입): 항상 당일로 시작 — 이전 날짜 기억 안 함. (두 대시보드 동시 사용 중엔 storage 이벤트로 실시간 동기화)
   (function(){
     document.getElementById('d2DateFrom').value=D2_TODAY;
     document.getElementById('d2DateTo').value=D2_TODAY;

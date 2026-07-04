@@ -52,7 +52,7 @@
 
 
   /* 우측 콘텐츠 */
-  .logi-main { flex:1; padding:22px 28px; background:var(--logi-bg); overflow:auto; }
+  .logi-main { flex:1; padding:22px 14px; background:var(--logi-bg); overflow:auto; }
   .logi-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
   .logi-head h2 { margin:0; font-size:20px; font-weight:700; color:#1f2a37; }
   .logi-head .sub { font-size:13px; color:#6b7a89; margin-top:4px; }
@@ -825,12 +825,11 @@
     });
     window.ssLetters=letters.slice();
     ssGordRenderPop(letters);
-    // 출고장별 발주일자(납기일자) — 현재 출고일자와 다를 때만 괄호 표시
-    var _shpNow=(document.getElementById('ssDateFrom')||{}).value||'';
+    // 출고장별 발주일자(납기일자) — 출고일자와 같든 다르든 항상 표시
     var zoneDlv={};
     (SHIP_DATA||[]).forEach(function(r){ if(!r||!r.zone) return; var d=(''+(r.dlvDt||'')).trim(); if(!d) return; (zoneDlv[r.zone]=zoneDlv[r.zone]||{})[d]=1; });
     function zoneDlvNote(z){
-      var a=Object.keys(zoneDlv[z]||{}).filter(function(d){ return d && d!==_shpNow; }).sort();
+      var a=Object.keys(zoneDlv[z]||{}).filter(function(d){ return !!d; }).sort();
       return a.length ? ' <span class="sub2" style="color:#c47f17;font-weight:700">(발주일자 '+a.join(', ')+')</span>' : '';
     }
     var colTot={}, grand=0, tb='';
@@ -1185,27 +1184,30 @@
     }).catch(function(){ direct(); });
   }
 
+  // ArrayBuffer(엑셀) → 미리보기 모달에 로드 (수동선택·폴더선택 공용). 이후 작성/저장은 기존 ssPvApply 재사용
+  function ssLoadWorkbookBuf(buf, fileName){
+    if(typeof XLSX==='undefined'){ ssToast('⚠️ 엑셀 파서를 불러오지 못했습니다(인터넷 필요).'); return; }
+    ssPvName=fileName;
+    ssReadXlsx(buf, function(wb){
+    try{
+      ssPvWb=wb;
+      var names=ssPvWb.SheetNames||[];
+      document.getElementById('ssPvFile').textContent=fileName;
+      var sel=document.getElementById('ssPvSheet');
+      sel.innerHTML=names.map(function(n,i){ return '<option value="'+i+'">'+n+'</option>'; }).join('');
+      sel.value='0';
+      document.getElementById('ssPvSheetWrap').style.display = names.length>1 ? '' : 'none';
+      ssPvRender();
+      ssPvOpen(true);
+    }catch(err){ ssToast('⚠️ 엑셀 처리 오류: '+err.message); }
+    }, function(err){ ssToast('⚠️ 엑셀 처리 오류: '+err.message); });
+  }
+
+  // 수동 파일 선택(<input type=file>) — 폴더 접근이 안 되는 환경용 fallback
   function ssUpload(input){
     var f=input.files && input.files[0]; if(!f) return;
-    if(typeof XLSX==='undefined'){ ssToast('⚠️ 엑셀 파서를 불러오지 못했습니다(인터넷 필요).'); input.value=''; return; }
-    ssPvName=f.name;
     var rd=new FileReader();
-    rd.onload=function(e){
-      ssReadXlsx(e.target.result, function(wb){
-      try{
-        ssPvWb=wb;
-        var names=ssPvWb.SheetNames||[];
-        document.getElementById('ssPvFile').textContent=f.name;
-        var sel=document.getElementById('ssPvSheet');
-        sel.innerHTML=names.map(function(n,i){ return '<option value="'+i+'">'+n+'</option>'; }).join('');
-        sel.value='0';
-        document.getElementById('ssPvSheetWrap').style.display = names.length>1 ? '' : 'none';
-        ssPvRender();
-        ssPvOpen(true);
-      }catch(err){ ssToast('⚠️ 엑셀 처리 오류: '+err.message); }
-      }, function(err){ ssToast('⚠️ 엑셀 처리 오류: '+err.message); });
-      input.value='';
-    };
+    rd.onload=function(e){ ssLoadWorkbookBuf(e.target.result, f.name); input.value=''; };
     rd.readAsArrayBuffer(f);
   }
 
@@ -2125,24 +2127,46 @@
     var d=new Date(), y=d.getFullYear(), m=d.getMonth(), last=new Date(y,m+1,0).getDate();
     ssSetVal('ssDateFrom', y+'-'+ssPad(m+1)+'-01');
     ssSetVal('ssDateTo',   y+'-'+ssPad(m+1)+'-'+ssPad(last));
-    ssRender();   // 당월=기간 모드 — 단일일자 DB조회 대상 아님(현재 데이터 렌더)
+    ssLoadShipoutFromDB();   // 당월=기간 합산 조회
   }
 
   // ── 출고현황표 DB 조회: 선택한 출고일자(단일)의 활성배치를 읽어와 표시. 없으면 빈 화면 ──
   //    DB행 → 화면 SHIP_DATA 매핑은 ssExtractRows(konet 포맷)와 동일:
   //      · 출고장(zone) = 물류센터명(DC_NM) + 입고장(INWH)  예) "평택물류센터1"
   //      · 사업장(biz)  = 사업장명 [사업장코드]
-  function ssLoadShipoutFromDB(){ ssLoadBiziMst(function(){ _ssLoadShipoutInner(); }); }   // 조회 직전 분류표 최신화
+  // ── 대시보드1↔2 출고일자 조건 동기화 (localStorage 'logiShipDate' 공유 + storage 이벤트) ──
+  var _ssDateSyncing=false;
+  function ssSaveSharedDate(){
+    try{ localStorage.setItem('logiShipDate', JSON.stringify({
+      from:(document.getElementById('ssDateFrom')||{}).value||'',
+      to:(document.getElementById('ssDateTo')||{}).value||'' })); }catch(e){}
+  }
+  function ssApplySharedDate(){   // 저장된 공유 날짜 적용(있으면 true)
+    try{ var d=JSON.parse(localStorage.getItem('logiShipDate')||'null'); if(!d) return false;
+      if(d.from!=null) ssSetVal('ssDateFrom', d.from); if(d.to!=null) ssSetVal('ssDateTo', d.to); return true;
+    }catch(e){ return false; }
+  }
+  window.addEventListener('storage', function(e){   // 대시보드2에서 날짜 바꾸면 따라가기
+    if(e.key!=='logiShipDate') return;
+    try{ var d=JSON.parse(e.newValue||'null'); if(!d) return;
+      var f=document.getElementById('ssDateFrom'), t=document.getElementById('ssDateTo'); if(!f||!t) return;
+      if(f.value===(d.from||'') && t.value===(d.to||'')) return;
+      _ssDateSyncing=true; f.value=d.from||''; t.value=d.to||''; ssLoadShipoutFromDB(); _ssDateSyncing=false;
+    }catch(_){}
+  });
+  function ssLoadShipoutFromDB(){ if(!_ssDateSyncing) ssSaveSharedDate(); ssLoadBiziMst(function(){ _ssLoadShipoutInner(); }); }   // 조회 직전 분류표 최신화 + 날짜 공유 저장
   function _ssLoadShipoutInner(){
     var f=(document.getElementById('ssDateFrom')||{}).value||'';
     var t=(document.getElementById('ssDateTo')||{}).value||'';
-    // 단일 일자(시작=종료)만 DB 조회. 기간 모드는 현재 데이터로 렌더만.
-    if(!(f && f===t)){ ssRender(); if(typeof konetAsqSetDash1==='function') konetAsqSetDash1({hide:true}); return; }
+    // 단일일자=단일조회 / 기간(시작≠종료)=기간 전체 합산 조회 (둘 다 있어야 조회)
+    if(!f || !t){ ssRender(); if(typeof konetAsqSetDash1==='function') konetAsqSetDash1({hide:true}); return; }
+    var _single=(f===t);
     fetch('${pageContext.request.contextPath}/shipout/selectShipoutMst.do', {
       method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'},
       credentials:'same-origin',
-      body:'shpoutDt='+encodeURIComponent(f)
+      body: _single ? ('shpoutDt='+encodeURIComponent(f))
+                    : ('shpoutDtFrom='+encodeURIComponent(f)+'&shpoutDtTo='+encodeURIComponent(t))
     })
     .then(function(res){ return res.text().then(function(txt){ return {status:res.status, ok:res.ok, txt:txt}; }); })
     .then(function(r){
@@ -2165,14 +2189,17 @@
         var bizNm=(''+(o.bizNm||'')).trim(), bizCd=(''+(o.bizCd||'')).trim();
         var bizLbl = bizCd ? (bizNm ? (bizNm+' ['+bizCd+']') : ('['+bizCd+']')) : bizNm;
         var _dlv=(''+(o.dlvDt||'')).trim(); if(/^\d{8}$/.test(_dlv)) _dlv=_dlv.slice(0,4)+'-'+_dlv.slice(4,6)+'-'+_dlv.slice(6,8);
+        var _sd=(''+(o.shpoutDt||'')).trim(); if(/^\d{8}$/.test(_sd)) _sd=_sd.slice(0,4)+'-'+_sd.slice(4,6)+'-'+_sd.slice(6,8);
         return { code:(''+(o.itemCd||'')).trim(), item:(''+(o.itemNm||'')).trim(),
                  biz:bizLbl, bizCode:bizCd, inb:inwh, zone:zone,
-                 qty:(+o.curQty||0), dlvDt:_dlv, date:f };
+                 qty:(+o.curQty||0), dlvDt:_dlv, date:(_sd||f) };   // 실제 출고일자(기간 합산 시 범위 필터·집계용)
       });
       window.ssSrcUp   = rows.length>0;
-      window.ssSrcInfo = rows.length>0 ? ('🗄️ DB 조회 '+f+' · '+rows.length+'건') : ('🗄️ DB '+f+' — 데이터 없음');
+      var _lab=_single?f:(f+'~'+t+' 합산');
+      window.ssSrcInfo = rows.length>0 ? ('🗄️ DB 조회 '+_lab+' · '+rows.length+'건') : ('🗄️ DB '+_lab+' — 데이터 없음');
       ssRender();
-      ssLoadAsqBar();   // 하단 알림 바(대시보드1 자체) — 직전 배치 대조 요약 갱신
+      if(_single) ssLoadAsqBar();   // 직전배치 대조 알림바는 단일일자만
+      else if(typeof konetAsqSetDash1==='function') konetAsqSetDash1({hide:true});
     })
     .catch(function(e){ window.ssSrcInfo='⚠️ DB 통신오류'; SHIP_DATA=[]; ssRender(); if(typeof konetAsqSetDash1==='function') konetAsqSetDash1({hide:true}); if(window.ssToast) ssToast('⚠️ 출고 조회 통신오류: '+e.message); });
   }
@@ -2237,9 +2264,13 @@
     if(!window.ssSrcInfo){ window.ssSrcInfo='내장 샘플 데이터 (당일 기준)'; window.ssSrcUp=false; }
     SHIP_DATA.forEach(function(r){ if(!r.date) r.date=SS_TODAY; });
     var f=document.getElementById('ssDateFrom'), t=document.getElementById('ssDateTo');
-    if(f && !f.value) f.value=SS_TODAY;
-    if(t && !t.value) t.value=SS_TODAY;
-    ssLoadShipoutFromDB();   // 진입 시 = 당일(단일) → DB에서 해당일자 조회(없으면 빈 화면)
+    // 진입(로그인) 시엔 항상 당일로 시작 — 이전 날짜 기억 안 함. (두 대시보드 동시 사용 중엔 아래 storage 이벤트로 실시간 동기화)
+    if(f) f.value=SS_TODAY;
+    if(t) t.value=SS_TODAY;
+    ssLoadShipoutFromDB();   // 진입 시 = 당일 → DB에서 조회
+    // 기본 화면 = 대시보드2 → iframe 자동 로드(한 번만). 직접/AJAX 로드 모두 커버
+    var _if2=document.getElementById('if-shipstatus2');
+    if(_if2 && !_if2.getAttribute('data-loaded')){ _if2.src='${pageContext.request.contextPath}/admin/logistics_demo2.do'; _if2.setAttribute('data-loaded','1'); }
   }
   document.addEventListener('DOMContentLoaded', ssInit);
   (function(){ ssInit(); })();
@@ -2253,8 +2284,8 @@
     <div class="side-tit">📦 물류관리<small>도매유통 · 입고/재고/발주/출고</small></div>
 
     <div class="grp">출고관리 ★</div>
-    <a class="mi core on" data-key="shipstatus" onclick="logiGo('shipstatus', this)"><span class="ic">📋</span>출고현황표(대시보드)</a>
-    <a class="mi core" data-key="shipstatus2" onclick="logiFrame('shipstatus2','${pageContext.request.contextPath}/admin/logistics_demo2.do', this)"><span class="ic">🗂️</span>출고현황표(대시보드2)</a>
+    <a class="mi core on" data-key="shipstatus2" onclick="logiFrame('shipstatus2','${pageContext.request.contextPath}/admin/logistics_demo2.do', this)"><span class="ic">🗂️</span>출고현황표(대시보드1)</a>
+    <a class="mi core" data-key="shipstatus" onclick="logiGo('shipstatus', this)"><span class="ic">📋</span>출고현황표(대시보드2)</a>
 
     <div class="grp">기준정보</div>
     <a class="mi" data-key="client"  onclick="logiGo('client', this)"><span class="ic">🤝</span>거래처관리</a>
@@ -2294,7 +2325,7 @@
   <main class="logi-main">
 
     <!-- ===== ★ 출고현황표 (엑셀 업로드 → 출고량 자동작성) ===== -->
-    <section id="panel-shipstatus" class="panel show">
+    <section id="panel-shipstatus" class="panel">
       <div class="logi-head">
         <div><h2>출고현황표 <span class="badge b-done">핵심</span></h2>
           <div class="sub">발주현황표(엑셀)를 업로드하면 <b>사업장·품목별 출고량</b> 과 <b>출고장별 수량</b> 이 자동 작성됩니다. 기준일자 <b id="ssDate">2026.06.19</b></div></div>
@@ -2764,7 +2795,7 @@
     <!-- 시스템관리 — 자체완결 화면을 iframe으로 사이드메뉴 우측에 종속 -->
     <!-- 출고현황표(데시보드2) — 별도 JSP(logistics_demo2.jsp)를 iframe 으로 로드 (사이드바 종속)
          iframe 높이를 main 상하패딩(44px)만 뺀 값으로 잡아 세로를 거의 꽉 채움 -->
-    <section id="panel-shipstatus2" class="panel" style="padding:0;">
+    <section id="panel-shipstatus2" class="panel show" style="padding:0;">
       <iframe id="if-shipstatus2" src="" title="출고현황표(데시보드2)" style="width:100%; height:calc(100vh - 44px); border:0; display:block;"></iframe>
     </section>
 
