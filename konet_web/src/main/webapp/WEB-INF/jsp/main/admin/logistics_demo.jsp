@@ -405,6 +405,13 @@
     var f = document.getElementById('if-'+key);
     if (f && !f.getAttribute('data-loaded')) { f.src = url; f.setAttribute('data-loaded','1'); }
   }
+  // 출고업무관리 서브메뉴 → 대시보드2 패널 표시 + 보기모드(출고장별/사업장별/품목별) 전환 요청
+  function logiShipView(view, el){
+    logiFrame('shipstatus2','${pageContext.request.contextPath}/admin/logistics_demo2.do', el);   // 패널 표시·로드·메뉴 활성
+    var f = document.getElementById('if-shipstatus2');
+    var send = function(){ try{ if (f && f.contentWindow) f.contentWindow.postMessage({type:'d2view', view:view}, '*'); }catch(e){} };
+    send(); setTimeout(send, 350);   // 방금 로드된 경우 대비 재전송
+  }
   // 주메뉴(기준정보관리 등) 접기/펼치기 토글
   function logiToggleSub(sub, el){
     var box = document.getElementById('sub-'+sub);
@@ -2297,6 +2304,11 @@
     <div class="grp">출고관리 ★</div>
     <a class="mi core on" data-key="shipstatus2" onclick="logiFrame('shipstatus2','${pageContext.request.contextPath}/admin/logistics_demo2.do', this)"><span class="ic">🗂️</span>출고현황표(대시보드1)</a>
     <a class="mi core" data-key="shipstatus" onclick="logiGo('shipstatus', this)"><span class="ic">📋</span>출고현황표(대시보드2)</a>
+    <a class="mi has-sub" data-sub="shipwork" onclick="logiToggleSub('shipwork', this)"><span class="ic">🚚</span>출고세부조회<span class="caret">▶</span></a>
+    <div class="sub-menu" id="sub-shipwork">
+      <a class="mi" data-key="shipstatus2" onclick="logiShipView('biz', this)"><span class="ic">🏢</span>사업장별 조회</a>
+      <a class="mi" data-key="shipstatus2" onclick="logiShipView('item', this)"><span class="ic">📦</span>품목별 조회</a>
+    </div>
 
     <div class="grp">기준정보</div>
     <a class="mi" data-key="client"  onclick="logiGo('client', this)"><span class="ic">🤝</span>거래처관리</a>
