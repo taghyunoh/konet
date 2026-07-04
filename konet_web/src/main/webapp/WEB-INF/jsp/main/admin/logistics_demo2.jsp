@@ -2306,7 +2306,7 @@
     <div class="side-tit">📦 물류관리<small>도매유통 · 입고/재고/발주/출고</small></div>
 
     <div class="grp">출고관리 ★</div>
-    <a class="mi core on" data-key="shipstatus2" onclick="logiFrame('shipstatus2','${pageContext.request.contextPath}/admin/logistics_demo1.do', this)"><span class="ic">🗂️</span>출고현황표(대시보드1)</a>
+    <a class="mi core on" data-key="shipstatus2" onclick="logiShipView('zone', this)"><span class="ic">🗂️</span>출고현황표(대시보드1)</a>
     <a class="mi core" data-key="shipstatus" onclick="logiGo('shipstatus', this)"><span class="ic">📋</span>출고현황표(대시보드2)</a>
     <a class="mi has-sub" data-sub="shipwork" onclick="logiToggleSub('shipwork', this)"><span class="ic">🚚</span>출고세부조회<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-shipwork">
@@ -2869,9 +2869,12 @@
     var onD2=!!document.querySelector('#panel-shipstatus2.show');
     var onD1=!!document.querySelector('#panel-shipstatus.show');
     var d1=window._konetAsqDash1, d2=window._konetAsqDash2;
-    // 대시보드2 화면: D2 우선(없으면 D1). 대시보드1 화면: D1 우선, 자체요약 없으면/숨김이면 D2로 폴백.
-    var src = onD2 ? (d2 || d1) : (onD1 ? ((d1 && !d1.hide) ? d1 : d2) : null);
-    if(!src || src.hide){ bar.style.display='none'; track.innerHTML=''; document.body.classList.remove('konet-asqbar-on'); bar.classList.remove('clickable'); return; }
+    function _kaOk(x){ return x && !x.hide && x.html; }   // 실제 표시할 내용이 있는(숨김 아님) 요약
+    // 현재 화면 요약을 우선 쓰되, 없거나 숨김이면 반드시 상대 화면(대시보드1↔2) 요약으로 폴백.
+    //  → 한쪽이 hide:true(예: 대시보드2를 그룹뷰로 봤다 온 경우)여도 다른 쪽 요약으로 바를 유지.
+    var src = onD2 ? (_kaOk(d2) ? d2 : (_kaOk(d1) ? d1 : null))
+                   : (onD1 ? (_kaOk(d1) ? d1 : (_kaOk(d2) ? d2 : null)) : null);
+    if(!src){ bar.style.display='none'; track.innerHTML=''; document.body.classList.remove('konet-asqbar-on'); bar.classList.remove('clickable'); return; }
     track.innerHTML=src.html||'';
     bar.style.display='flex'; document.body.classList.add('konet-asqbar-on');
     var dur=Math.max(35, Math.round(track.scrollWidth/45));   // 천천히 흐르게(초당 ~45px, 최소 35s)
