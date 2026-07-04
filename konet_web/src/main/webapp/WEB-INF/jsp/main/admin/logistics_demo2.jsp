@@ -1114,11 +1114,42 @@
     return h;
   }
 
+  // 기간(날짜별) 모드용 — 배치이력(D2_HISTALL)에서 출고장별 '현재 vs 직전' 변경 집계 (모든 날짜 합산)
+  function d2ChangeFromHist(){
+    var byDate={};
+    (D2_HISTALL||[]).forEach(function(r){
+      var d=r.date||D2_TODAY, zn=r.zone||'미배정', bk=(''+(r.uploadDttm||'')).slice(0,16); if(!bk) return;
+      var dz=byDate[d]||(byDate[d]={});
+      var z=dz[zn]||(dz[zn]={set:{}, list:[], HQ:{}});
+      if(!z.set[bk]){ z.set[bk]=1; z.list.push(bk); }
+      var ik=(r.code?r.code:('NM:'+r.item)); var rk=(r.biz||'')+'|'+ik;
+      (z.HQ[rk]||(z.HQ[rk]={}))[bk]=(z.HQ[rk][bk]||0)+(+r.qty||0);
+    });
+    var zoneAgg={};
+    Object.keys(byDate).forEach(function(d){
+      var dz=byDate[d];
+      Object.keys(dz).forEach(function(zn){
+        var z=dz[zn]; z.list.sort();
+        if(z.list.length<2) return;   // 직전 배치 없으면 비교 불가
+        var cur=z.list[z.list.length-1], prv=z.list[z.list.length-2];
+        var agg=zoneAgg[zn]||(zoneAgg[zn]={nw:0,up:0,dn:0,dl:0});
+        Object.keys(z.HQ).forEach(function(rk){
+          var c=z.HQ[rk][cur], p=z.HQ[rk][prv];
+          if(c!=null && p==null) agg.nw++;
+          else if(c==null && p!=null) agg.dl++;
+          else if(c!=null && p!=null){ if(c>p) agg.up++; else if(c<p) agg.dn++; }
+        });
+      });
+    });
+    return zoneAgg;
+  }
+
   // 출고장 변경 알림 — iframe(부모 셸) 안이면 부모의 독립 하단 바로 postMessage, 단독 실행이면 자체 바 렌더.
   function d2RenderTicker(ag){
     // 1) 변경요약 계산(신규/증감/삭제, 출고장별)
-    var items=[], hide=!ag.histOn;
-    if(!hide){
+    var items=[], hide;
+    if(ag.histOn){
+      hide=false;
       ag.zoneOrder.forEach(function(zn){
         var z=ag.zones[zn]; if(!z) return;
         var nw=0, up=0, dn=0;
@@ -1137,7 +1168,28 @@
         items.push('<span class="tk-item" data-zone="'+d2Esc(zn)+'" title="클릭하면 해당 출고장으로 이동"><span class="z">'+d2Esc(zn)+'</span> '+parts.join(' · ')+'</span>');
       });
       if(!items.length) items.push('<span class="tk-item">✓ 직전 업로드 대비 변경 없음</span>');
-    }
+    } else if(D2_DATA && D2_DATA.length){
+      // 기간(날짜별) 모드 — 데이터만 있으면 무조건 알림 표시. 배치이력 있으면 변경요약, 없으면 기간 요약.
+      hide=false;
+      if(D2_HISTALL && D2_HISTALL.length){
+        var _za=d2ChangeFromHist();
+        Object.keys(_za).sort(function(a,b){ return a.localeCompare(b,'ko'); }).forEach(function(zn){
+          var c=_za[zn]; if(c.nw+c.up+c.dn+c.dl===0) return;
+          var parts=[];
+          if(c.nw) parts.push('<span class="tk-new">신규 '+c.nw+'</span>');
+          if(c.up) parts.push('<span class="tk-up">▲증가 '+c.up+'</span>');
+          if(c.dn) parts.push('<span class="tk-dn">▼감소 '+c.dn+'</span>');
+          if(c.dl) parts.push('<span class="tk-del">삭제 '+c.dl+'</span>');
+          items.push('<span class="tk-item" data-zone="'+d2Esc(zn)+'" title="클릭하면 해당 출고장으로 이동"><span class="z">'+d2Esc(zn)+'</span> '+parts.join(' · ')+'</span>');
+        });
+      }
+      if(!items.length){   // 변경 없음(또는 이력 없음) → 기간 요약이라도 표시
+        var _nd={}, _zs={}, _q=0;
+        D2_DATA.forEach(function(r){ _nd[r.date]=1; if(r.zone)_zs[r.zone]=1; _q+=(+r.qty||0); });
+        var _ff=(document.getElementById('d2DateFrom')||{}).value||'', _tt=(document.getElementById('d2DateTo')||{}).value||'';
+        items.push('<span class="tk-item">📅 기간 '+d2Esc(_ff||'~')+' ~ '+d2Esc(_tt||'~')+' · 출고 '+Object.keys(_nd).length+'일 · 출고장 '+Object.keys(_zs).length+'곳 · '+d2Num(_q)+' BOX <span class="tk-new">· 직전 대비 변경 없음</span></span>');
+      }
+    } else { hide=true; }
     var trackHtml = hide ? '' : ('<span class="tk-spacer"></span>'+items.join('<span class="tk-sep">|</span>'));
 
     // 2) iframe(부모 셸) 안이면 → 부모 독립 하단 바로 전송(자체 바는 숨김)
