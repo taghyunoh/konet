@@ -3,6 +3,17 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<style>
+  /* SWAL 확인/알림 모달 축소 (토스트 제외) */
+  .swal2-popup:not(.swal2-toast){ width:440px!important; padding:1.1em 1em 1.2em!important; font-size:14px; }
+  .swal2-popup:not(.swal2-toast) .swal2-icon{ width:3em; height:3em; margin:.6em auto .3em; }
+  .swal2-popup:not(.swal2-toast) .swal2-icon .swal2-icon-content{ font-size:1.8em; }
+  .swal2-popup:not(.swal2-toast) .swal2-title{ font-size:1.2em; padding:.2em 1em 0; }
+  .swal2-popup:not(.swal2-toast) .swal2-html-container{ font-size:.95em; margin:.5em 1em 0; }
+  .swal2-popup:not(.swal2-toast) .swal2-actions{ margin-top:1em; }
+  .swal2-popup:not(.swal2-toast) .swal2-styled{ padding:.5em 1.4em; font-size:.95em; }
+</style>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>상품(품목) 관리 (TBL_PROD_MST)</title>
 <style>
@@ -24,6 +35,8 @@
   thead th{ background:#1f2a37; color:#fff; font-weight:700; padding:9px 10px; text-align:left; position:sticky; top:0; z-index:1; }
   tbody td{ border-bottom:1px solid #eef1f5; padding:6px 10px; vertical-align:middle; }
   tbody tr:hover td{ background:#f3f8f6; }
+  tbody tr.prow{ cursor:pointer; }
+  tbody tr.sel td{ background:#dcefe9 !important; box-shadow:inset 3px 0 0 var(--teal); }
   td.code{ font-family:Consolas,monospace; }
   td.num{ text-align:right; }
   td.nm{ white-space:normal; min-width:220px; max-width:340px; }
@@ -49,6 +62,33 @@
   #ov label{ font-size:12px; font-weight:700; color:#37475a; }
   #ov input, #ov select{ height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13px; }
   #ov .mf{ padding:12px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
+  .btn-hist{ color:#137a6c; border-color:#a9d5cd; }
+  /* 이력/재고 — 하단 상시 도킹 그리드(3탭 마스터-디테일) */
+  #hv{ position:fixed; left:0; right:0; bottom:0; height:34vh; min-height:250px; z-index:45; }
+  #hv.min{ height:46px; min-height:0; }
+  #hv .box{ background:#fff; width:100%; height:100%; border-radius:12px 12px 0 0; box-shadow:0 -10px 34px rgba(0,0,0,.22); border-top:2px solid var(--teal); display:flex; flex-direction:column; }
+  #hv.min .tabs, #hv.min .mb2{ display:none; }
+  #hv .mb2{ flex:1; }
+  .wrap{ padding-bottom:calc(34vh + 24px); }   /* 하단 상시 패널 높이만큼 본문 확보 */
+  #hv .mh{ background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:13px 18px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
+  #hv .mh b{ font-size:15.5px; }
+  #hv .mh .x{ background:none; border:none; color:#fff; font-size:22px; cursor:pointer; }
+  #hv .tabs{ display:flex; gap:4px; padding:10px 14px 0; border-bottom:1px solid var(--bd); }
+  #hv .tab{ height:34px; padding:0 16px; border:1px solid var(--bd); border-bottom:none; background:#f1f5f4; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; font-weight:700; color:#5a6b7a; }
+  #hv .tab.on{ background:#fff; color:var(--teal); border-color:var(--teal); border-bottom:2px solid #fff; margin-bottom:-1px; }
+  #hv .mb2{ padding:14px 16px; overflow:auto; }
+  #hv .stockhdr{ display:flex; gap:18px; flex-wrap:wrap; background:#f3f8f6; border:1px solid #cfe4df; border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:13px; }
+  #hv .stockhdr b{ font-size:17px; color:var(--teal); }
+  #hv .subbar{ display:flex; gap:6px; align-items:flex-end; flex-wrap:wrap; background:#fafbfc; border:1px solid var(--bd); border-radius:8px; padding:10px; margin-bottom:10px; }
+  #hv .subbar .fld{ display:flex; flex-direction:column; gap:3px; }
+  #hv .subbar label{ font-size:11px; font-weight:700; color:#6b7a89; }
+  #hv .subbar input, #hv .subbar select{ height:32px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13px; }
+  #hv table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  #hv thead th{ background:#41525f; color:#fff; padding:7px 9px; text-align:left; position:sticky; top:0; }
+  #hv tbody td{ border-bottom:1px solid #eef1f5; padding:6px 9px; }
+  #hv td.num{ text-align:right; }
+  #hv .badge{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#fff; }
+  #hv .empty{ padding:20px; text-align:center; color:#9aa7b3; }
 </style>
 </head>
 <body>
@@ -69,7 +109,7 @@
       <thead><tr>
         <th>코드</th><th>상품명</th><th>규격</th><th>제조사</th><th>유형</th><th>과세</th>
         <th style="text-align:right">입수</th><th style="text-align:right">입고가</th><th style="text-align:right">판매가</th><th style="text-align:right">도매가</th>
-        <th style="text-align:right">적정재고</th><th style="text-align:right">기본수량</th><th>낱개BC</th><th>박스BC</th><th style="width:110px">관리</th>
+        <th style="text-align:right">적정재고</th><th style="text-align:right">기본수량</th><th>낱개BC</th><th>박스BC</th><th style="width:120px">관리</th>
       </tr></thead>
       <tbody id="tb"><tr><td colspan="15" class="empty">불러오는 중…</td></tr></tbody>
     </table>
@@ -107,11 +147,76 @@
   </div>
 </div>
 
+<!-- 이력/재고 모달 -->
+<div id="hv">
+  <div class="box">
+    <div class="mh"><b id="hvTit">이력/재고 · <span style="font-weight:400">위 목록에서 품목 행을 클릭하세요</span></b><button class="x" id="hvToggleBtn" onclick="hvToggle()" title="접기/펼치기">&#9662;</button></div>
+    <div class="tabs">
+      <button class="tab on" id="tab_in"    onclick="hvTab('in')">💰 매입가</button>
+      <button class="tab"    id="tab_sale"  onclick="hvTab('sale')">🏷️ 판매가</button>
+      <button class="tab"    id="tab_stock" onclick="hvTab('stock')">📦 재고(수불)</button>
+    </div>
+    <div class="mb2">
+      <!-- 매입가 -->
+      <div class="panel" id="p_in">
+        <div class="subbar">
+          <div class="fld"><label>적용일</label><input type="date" id="in_dt"></div>
+          <div class="fld"><label>매입처</label><input type="text" id="in_vendor" style="width:150px" placeholder="매입처명"></div>
+          <div class="fld"><label>매입단가</label><input type="number" id="in_price" step="0.01" style="width:110px" value="0"></div>
+          <div class="fld"><label>비고</label><input type="text" id="in_remark" style="width:180px"></div>
+          <button class="btn btn-teal" onclick="hvAddIn()">＋ 추가</button>
+        </div>
+        <table>
+          <thead><tr><th>적용일</th><th>매입처</th><th style="text-align:right">매입단가</th><th style="text-align:right">직전가</th><th>비고</th><th>등록</th><th style="width:56px"></th></tr></thead>
+          <tbody id="in_tb"><tr><td colspan="7" class="empty">-</td></tr></tbody>
+        </table>
+      </div>
+      <!-- 판매가 -->
+      <div class="panel" id="p_sale" style="display:none">
+        <div class="subbar">
+          <div class="fld"><label>적용일</label><input type="date" id="sl_dt"></div>
+          <div class="fld"><label>판매단가</label><input type="number" id="sl_price" step="0.01" style="width:110px" value="0"></div>
+          <div class="fld"><label>도매단가</label><input type="number" id="sl_whole" step="0.01" style="width:110px" value="0"></div>
+          <div class="fld"><label>비고</label><input type="text" id="sl_remark" style="width:180px"></div>
+          <button class="btn btn-teal" onclick="hvAddSale()">＋ 추가</button>
+        </div>
+        <table>
+          <thead><tr><th>적용일</th><th style="text-align:right">판매가</th><th style="text-align:right">도매가</th><th style="text-align:right">기준매입</th><th style="text-align:right">마진율</th><th>비고</th><th>등록</th><th style="width:56px"></th></tr></thead>
+          <tbody id="sl_tb"><tr><td colspan="8" class="empty">-</td></tr></tbody>
+        </table>
+      </div>
+      <!-- 재고 -->
+      <div class="panel" id="p_stock" style="display:none">
+        <div class="stockhdr" id="st_hdr">현재고 정보 없음</div>
+        <div class="subbar">
+          <div class="fld"><label>거래일</label><input type="date" id="st_dt"></div>
+          <div class="fld"><label>구분</label>
+            <select id="st_io" onchange="hvStockPrefill(true)">
+              <option value="I">입고(+)</option><option value="O">출고(-)</option>
+              <option value="R">반품(+)</option><option value="A">조정(±)</option>
+            </select>
+          </div>
+          <div class="fld"><label>수량</label><input type="number" id="st_qty" style="width:90px" value="0" oninput="hvStockPrefill(false)"></div>
+          <div class="fld"><label>단가 <span style="color:#9aa7b3;font-weight:400">(자동·수정가능)</span></label><input type="number" id="st_price" step="0.01" style="width:110px" value="0" title="품목 입고가 자동표시 · 수정 가능"></div>
+          <div class="fld"><label>매입처</label><input type="text" id="st_vendor" style="width:130px" placeholder="매입처(입고 시)"></div>
+          <div class="fld"><label>비고</label><input type="text" id="st_remark" style="width:150px"></div>
+          <button class="btn btn-teal" onclick="hvAddStock()">＋ 추가</button>
+        </div>
+        <table>
+          <thead><tr><th>거래일</th><th>구분</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>매입처</th><th>비고</th><th>등록</th><th style="width:56px"></th></tr></thead>
+          <tbody id="st_tb"><tr><td colspan="9" class="empty">-</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 var CTX = '${pageContext.request.contextPath}';
 var PROD = [], _view = [], _page = 1, PAGE_SIZE = 20, _byseq = {};
 
-function toast(s){ var m=document.getElementById('msg'); m.innerHTML=s; m.classList.add('on'); clearTimeout(m._t); m._t=setTimeout(function(){ m.classList.remove('on'); }, 2600); }
+function toast(s){ if(window.Swal){ Swal.fire({toast:true, position:'top-end', html:s, showConfirmButton:false, timer:2600, timerProgressBar:true}); return; } var m=document.getElementById('msg'); m.innerHTML=s; m.classList.add('on'); clearTimeout(m._t); m._t=setTimeout(function(){ m.classList.remove('on'); }, 2600); }
+function swConfirm(msg, title){ if(window.Swal) return Swal.fire({title:title||'확인', html:msg, icon:'question', showCancelButton:true, confirmButtonText:'확인', cancelButtonText:'취소', confirmButtonColor:'#137a6c', cancelButtonColor:'#94a3b8'}).then(function(r){ return r.isConfirmed; }); return Promise.resolve(confirm((''+msg).replace(/<br\s*\/?>/gi,'\n'))); }
 function esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function num(v){ return (v==null||v==='')?'':Number(v).toLocaleString(); }
 function gv(id){ return (document.getElementById(id).value||'').trim(); }
@@ -140,16 +245,17 @@ function prodRender(){
   if(!tot){ tb.innerHTML='<tr><td colspan="15" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1); return; }
   var start=(_page-1)*PAGE_SIZE, rows=_view.slice(start,start+PAGE_SIZE);
   tb.innerHTML = rows.map(function(o){
-    return '<tr>'
+    return '<tr class="prow" onclick="hvOpen('+o.prodSeq+')" data-seq="'+o.prodSeq+'">'
       +'<td class="code">'+esc(o.prodCd)+'</td>'
       +'<td class="nm">'+esc(o.prodNm)+'</td>'
       +'<td>'+esc(o.spec)+'</td><td>'+esc(o.makerNm)+'</td><td>'+esc(o.typeNm)+'</td><td>'+esc(o.taxGb)+'</td>'
       +'<td class="num">'+num(o.packQty)+'</td><td class="num">'+num(o.inPrice)+'</td><td class="num">'+num(o.salePrice)+'</td><td class="num">'+num(o.wholePrice)+'</td>'
       +'<td class="num">'+num(o.safeStock)+'</td><td class="num">'+num(o.saleBaseQty)+'</td>'
       +'<td>'+esc(o.unitBarcode)+'</td><td>'+esc(o.boxBarcode)+'</td>'
-      +'<td class="act"><button class="btn" onclick="prodOpen('+o.prodSeq+')">수정</button> <button class="btn btn-danger" onclick="prodDel('+o.prodSeq+')">삭제</button></td>'
+      +'<td class="act"><button class="btn" onclick="event.stopPropagation();prodOpen('+o.prodSeq+')">수정</button> <button class="btn btn-danger" onclick="event.stopPropagation();prodDel('+o.prodSeq+')">삭제</button></td>'
     +'</tr>';
   }).join('');
+  if(typeof HVP!=='undefined' && HVP){ var _sr=tb.querySelector('tr.prow[data-seq="'+HVP.prodSeq+'"]'); if(_sr) _sr.classList.add('sel'); }  // 새로고침 후 선택행 유지
   _pager(pages,_page);
 }
 function _go(p){ _page=p; prodRender(); }
@@ -207,11 +313,12 @@ function prodSave(){
 }
 function prodDel(seq){
   var o=_byseq[seq]; if(!o) return;
-  if(!confirm('['+o.prodCd+'] '+(o.prodNm||'')+'\n삭제하시겠습니까? (이력 보존)')) return;
-  fetch(CTX+'/prod/prodDelete.do', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body:JSON.stringify({prodSeq:Number(seq)}) })
-    .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, status:res.status, t:t}; }); })
-    .then(function(r){ if(!r.ok){ toast('⚠️ 삭제 실패 (HTTP '+r.status+')'); return; } toast('🗑️ 삭제 완료'); prodLoad(); })
-    .catch(function(e){ toast('⚠️ 통신오류: '+e.message); });
+  swConfirm('['+esc(o.prodCd)+'] '+esc(o.prodNm||'')+'<br>삭제하시겠습니까? (이력 보존)','상품 삭제').then(function(ok){ if(!ok) return;
+    fetch(CTX+'/prod/prodDelete.do', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body:JSON.stringify({prodSeq:Number(seq)}) })
+      .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, status:res.status, t:t}; }); })
+      .then(function(r){ if(!r.ok){ toast('⚠️ '+((r.t||'').trim() || ('삭제 실패 (HTTP '+r.status+')'))); return; } toast('🗑️ 삭제 완료'); prodLoad(); })
+      .catch(function(e){ toast('⚠️ 통신오류: '+e.message); });
+  });
 }
 
 function prodExcel(){
@@ -234,6 +341,160 @@ function prodExcel(){
     a.href=URL.createObjectURL(blob); a.download='상품마스터.csv'; document.body.appendChild(a); a.click(); a.remove();
     toast('📥 CSV 저장 완료 · '+list.length+'건');
   }
+}
+
+/* ==================== 이력/재고 모달 ==================== */
+var HVP = null;        // 현재 선택 품목 {prodSeq, prodCd, prodNm}
+var IO_MAP = { I:'입고', O:'출고', R:'반품', A:'조정' };
+var IO_COLOR = { I:'#2e7d32', O:'#c0392b', R:'#8e44ad', A:'#7f8c9a' };
+
+function today(){ var d=new Date(); var m=('0'+(d.getMonth()+1)).slice(-2), da=('0'+d.getDate()).slice(-2); return d.getFullYear()+'-'+m+'-'+da; }
+function fmtDt(s){ s=(''+(s||'')); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : s; }
+
+function _post(url, dto){
+  return fetch(CTX+url, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body:JSON.stringify(dto) })
+    .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, status:res.status, t:t}; }); });
+}
+function _listPost(url, prodSeq){
+  return fetch(CTX+url, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'prodSeq='+encodeURIComponent(prodSeq) })
+    .then(function(r){ return r.text(); }).then(function(t){ try{ return JSON.parse(t); }catch(e){ return null; } });
+}
+
+var HVT = 'in';   // 현재 선택된 탭(품목 바꿔도 유지)
+function hvOpen(seq){
+  HVP = _byseq[seq]; if(!HVP){ toast('⚠️ 품목 정보 없음'); return; }
+  var el=document.getElementById('hv'); el.classList.remove('min');           // 접혀 있으면 펼침
+  document.getElementById('hvToggleBtn').innerHTML='▾';
+  document.getElementById('hvTit').innerHTML = '이력/재고 · <b style="font-weight:400">['+esc(HVP.prodCd)+'] '+esc(HVP.prodNm||'')+'</b>';
+  document.getElementById('in_dt').value = today();
+  document.getElementById('sl_dt').value = today();
+  document.getElementById('st_dt').value = today();
+  hvStockPrefill(true);   // 재고 입고 단가 = 품목마스터 입고가 자동채움
+  Array.prototype.forEach.call(document.querySelectorAll('#tb tr.prow'), function(tr){   // 선택 행 하이라이트
+    tr.classList.toggle('sel', tr.getAttribute('data-seq')===String(seq));
+  });
+  hvTab(HVT);
+}
+function hvToggle(){
+  var el=document.getElementById('hv'); el.classList.toggle('min');
+  document.getElementById('hvToggleBtn').innerHTML = el.classList.contains('min')?'▴':'▾';
+}
+function hvTab(t){
+  HVT=t;
+  ['in','sale','stock'].forEach(function(k){
+    document.getElementById('tab_'+k).classList.toggle('on', k===t);
+    document.getElementById('p_'+k).style.display = (k===t)?'block':'none';
+  });
+  if(!HVP) return;   // 품목 미선택 시 탭 하이라이트만
+  if(t==='in') hvLoadIn(); else if(t==='sale') hvLoadSale(); else hvLoadStock();
+}
+
+/* ---- 매입가 ---- */
+function hvLoadIn(){
+  _listPost('/prod/inpriceList.do', HVP.prodSeq).then(function(j){
+    var rows=(j&&j.data)||[], tb=document.getElementById('in_tb');
+    if(!rows.length){ tb.innerHTML='<tr><td colspan="7" class="empty">이력이 없습니다.</td></tr>'; return; }
+    tb.innerHTML = rows.map(function(o){
+      return '<tr><td>'+fmtDt(o.applyDt)+'</td><td>'+esc(o.vendorNm)+'</td><td class="num">'+num(o.inPrice)+'</td>'
+        +'<td class="num">'+num(o.prevPrice)+'</td><td>'+esc(o.remark)+'</td><td>'+esc(o.regDttm)+'</td>'
+        +'<td><button class="btn btn-danger" onclick="hvDel(\'in\','+o.inpriceSeq+')">삭제</button></td></tr>';
+    }).join('');
+  });
+}
+function hvAddIn(){
+  var price=gnum('in_price'); if(price==null){ toast('⚠️ 매입단가를 입력하세요.'); return; }
+  var dto={ prodSeq:HVP.prodSeq, prodCd:HVP.prodCd, applyDt:gv('in_dt')||today(),
+    vendorNm:gv('in_vendor')||null, inPrice:price, taxGb:HVP.taxGb||null, remark:gv('in_remark')||null };
+  _post('/prod/inpriceInsert.do', dto).then(function(r){
+    if(!r.ok){ toast('⚠️ 실패(HTTP '+r.status+'): '+(r.t||'').slice(0,120)); return; }
+    document.getElementById('in_remark').value=''; toast('💰 매입가 등록 · 마스터 반영');
+    hvLoadIn(); prodLoad();   // 마스터 IN_PRICE 동기화분 반영
+  });
+}
+
+/* ---- 판매가 ---- */
+function hvLoadSale(){
+  _listPost('/prod/salepriceList.do', HVP.prodSeq).then(function(j){
+    var rows=(j&&j.data)||[], tb=document.getElementById('sl_tb');
+    if(!rows.length){ tb.innerHTML='<tr><td colspan="8" class="empty">이력이 없습니다.</td></tr>'; return; }
+    tb.innerHTML = rows.map(function(o){
+      var mr=(o.marginRt==null?'':Number(o.marginRt).toFixed(1)+'%');
+      return '<tr><td>'+fmtDt(o.applyDt)+'</td><td class="num">'+num(o.salePrice)+'</td><td class="num">'+num(o.wholePrice)+'</td>'
+        +'<td class="num">'+num(o.baseInprice)+'</td><td class="num">'+mr+'</td><td>'+esc(o.remark)+'</td><td>'+esc(o.regDttm)+'</td>'
+        +'<td><button class="btn btn-danger" onclick="hvDel(\'sale\','+o.salepriceSeq+')">삭제</button></td></tr>';
+    }).join('');
+  });
+}
+function hvAddSale(){
+  var price=gnum('sl_price'); if(price==null){ toast('⚠️ 판매단가를 입력하세요.'); return; }
+  var base=(HVP.inPrice!=null?Number(HVP.inPrice):null);
+  var margin=(base!=null && price>0)? ((price-base)/price*100) : null;   // 마진율 = (판매-매입)/판매
+  var dto={ prodSeq:HVP.prodSeq, prodCd:HVP.prodCd, applyDt:gv('sl_dt')||today(),
+    salePrice:price, wholePrice:gnum('sl_whole'), baseInprice:base, marginRt:margin, remark:gv('sl_remark')||null };
+  _post('/prod/salepriceInsert.do', dto).then(function(r){
+    if(!r.ok){ toast('⚠️ 실패(HTTP '+r.status+'): '+(r.t||'').slice(0,120)); return; }
+    document.getElementById('sl_remark').value=''; toast('🏷️ 판매가 등록 · 마스터 반영');
+    hvLoadSale(); prodLoad();
+  });
+}
+
+/* ---- 재고(수불) ---- */
+function hvLoadStock(){
+  fetch(CTX+'/prod/stockList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'prodSeq='+encodeURIComponent(HVP.prodSeq) })
+    .then(function(r){ return r.text(); }).then(function(t){
+      var j; try{ j=JSON.parse(t); }catch(e){ j=null; }
+      var rows=(j&&j.data)||[], st=(j&&j.stock)||null;
+      var hdr=document.getElementById('st_hdr');
+      if(st){
+        hdr.innerHTML = '현재고 <b>'+num(st.curQty!=null?st.curQty:0)+'</b> &nbsp;·&nbsp; 평균매입가 '+num(st.avgInPrice)
+          +' &nbsp;·&nbsp; 재고금액 '+num(st.stockAmt)+' &nbsp;·&nbsp; 최근입고 '+fmtDt(st.lastInDt)+' / 최근출고 '+fmtDt(st.lastOutDt);
+      } else { hdr.innerHTML = '현재고 <b>0</b> &nbsp;·&nbsp; (수불 내역 없음)'; }
+      var tb=document.getElementById('st_tb');
+      if(!rows.length){ tb.innerHTML='<tr><td colspan="9" class="empty">수불 내역이 없습니다.</td></tr>'; return; }
+      tb.innerHTML = rows.map(function(o){
+        var bd='<span class="badge" style="background:'+(IO_COLOR[o.ioGb]||'#888')+'">'+(IO_MAP[o.ioGb]||o.ioGb)+'</span>';
+        return '<tr><td>'+fmtDt(o.trxDt)+'</td><td>'+bd+'</td><td class="num">'+num(o.qty)+'</td><td class="num">'+num(o.unitPrice)+'</td>'
+          +'<td class="num">'+num(o.amt)+'</td><td>'+esc(o.vendorCd)+'</td><td>'+esc(o.remark)+'</td><td>'+esc(o.regDttm)+'</td>'
+          +'<td><button class="btn btn-danger" onclick="hvDel(\'stock\','+o.ledgerSeq+')">삭제</button></td></tr>';
+      }).join('');
+    });
+}
+function hvStockPrefill(force){   // 단가 자동채움: 매입정보 없으면 품목마스터 금액(입고/반품=입고가, 출고=판매가, 조정=0)
+  if(!HVP) return;
+  var cur=gv('st_price');
+  if(!force && cur!=='' && Number(cur)!==0) return;   // 수량 입력 시엔 수동 입력한 단가 보존
+  var io=gv('st_io');
+  var p = (io==='I'||io==='R') ? HVP.inPrice : (io==='O' ? HVP.salePrice : 0);
+  document.getElementById('st_price').value = (p!=null ? p : 0);
+}
+function hvAddStock(){
+  var qty=gnum('st_qty'); if(qty==null || qty===0){ toast('⚠️ 수량을 입력하세요.'); return; }
+  var io=gv('st_io'), up=gnum('st_price');
+  if((up==null || up===0) && (io==='I'||io==='R') && HVP.inPrice!=null){   // 추가 시 단가 없으면 품목마스터 입고가로
+    up=Number(HVP.inPrice); document.getElementById('st_price').value=up;
+  }
+  var dto={ prodSeq:HVP.prodSeq, prodCd:HVP.prodCd, trxDt:gv('st_dt')||today(),
+    ioGb:io, qty:qty, unitPrice:up, vendorCd:gv('st_vendor')||null, remark:gv('st_remark')||null };
+  _post('/prod/stockInsert.do', dto).then(function(r){
+    if(!r.ok){ toast('⚠️ 실패(HTTP '+r.status+'): '+(r.t||'').slice(0,120)); return; }
+    document.getElementById('st_remark').value=''; document.getElementById('st_vendor').value=''; toast('📦 수불 등록 · 현재고 반영');
+    hvLoadStock();
+  });
+}
+
+/* ---- 공통 삭제 ---- */
+function hvDel(kind, seq){
+  swConfirm('이 내역을 삭제하시겠습니까?','삭제').then(function(ok){ if(!ok) return;
+    var url, dto={};
+    if(kind==='in'){ url='/prod/inpriceDelete.do'; dto={inpriceSeq:seq}; }
+    else if(kind==='sale'){ url='/prod/salepriceDelete.do'; dto={salepriceSeq:seq}; }
+    else { url='/prod/stockDelete.do'; dto={ledgerSeq:seq, prodSeq:HVP.prodSeq, prodCd:HVP.prodCd}; }  // 재고는 재집계 위해 prodSeq 동봉
+    _post(url, dto).then(function(r){
+      if(!r.ok){ toast('⚠️ 삭제 실패(HTTP '+r.status+')'); return; }
+      toast('🗑️ 삭제 완료');
+      if(kind==='in') hvLoadIn(); else if(kind==='sale') hvLoadSale(); else hvLoadStock();
+    });
+  });
 }
 
 prodLoad();

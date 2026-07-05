@@ -506,6 +506,7 @@ public class UserController {
 				}
 
 				int total = 0;
+				java.util.LinkedHashSet<String> syncDates = new java.util.LinkedHashSet<String>();
 				for (java.util.List<egovframework.sejong.user.model.ShipoutDTO> grp : groups.values()) {
 					// 1) 해당 납기일자 기존 활성배치 이력마감(삭제이력)  2) 신규 JOB_SEQ  3) 그룹 전체행 INSERT
 					egovframework.sejong.user.model.ShipoutDTO head = grp.get(0);
@@ -524,6 +525,15 @@ public class UserController {
 						svc.insertShipoutMst(r);
 						seq++; total++;
 					}
+					if (head.getShpoutDt() != null && !head.getShpoutDt().trim().isEmpty()) syncDates.add(head.getShpoutDt());
+				}
+				// (A) 출고→재고 자동연동 : 저장된 출고일자별로 원장 O행 재동기화 후 전체 현재고 재집계
+				//     (재고 동기화 실패가 출고 저장 자체를 롤백하지 않도록 별도 try — 실패 시 로그만)
+				try {
+					for (String d : syncDates) svc.syncShipoutLedgerDate(d, regUser, regIp);
+					if (!syncDates.isEmpty()) svc.recalcStockMstAll(regUser, regIp);
+				} catch (Exception se) {
+					log.error(" saveShipoutMst 재고연동 WARN : " + se.getMessage());
 				}
 				return ResponseEntity.ok(String.valueOf(total));
 			} catch (Exception e) {
@@ -540,6 +550,75 @@ public class UserController {
 			Map<String,Object> response = new HashMap<String,Object>();
 			response.put("data", svc.selectShipoutMst(dto));
 			return response;
+		}
+
+		/* 마감 집계 — 출고(SHPOUT_DT 마감월) × 단가이력/마스터 → 품목·사업장·매입처별 매출/매입/마진 (마감관리 3화면 공용) */
+		@RequestMapping(value="/shipout/selectClosing.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectClosing(@ModelAttribute("DTO") egovframework.sejong.user.model.ClosingDTO dto,
+		                                         HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectClosing(dto));
+			return response;
+		}
+
+		/* 재고마감 — TBL_STOCK_LEDGER 기준 기초+입고-출고±조정=기말 + 이동평균 재고금액 */
+		@RequestMapping(value="/shipout/selectStockClosing.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectStockClosing(@ModelAttribute("DTO") egovframework.sejong.user.model.StockClosingDTO dto,
+		                                             HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectStockClosing(dto));
+			return response;
+		}
+
+		/* 입고(매입)마감 — TBL_STOCK_LEDGER 당월 입고(IO_GB='I') 품목별 집계 */
+		@RequestMapping(value="/shipout/selectInboundClosing.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectInboundClosing(@ModelAttribute("DTO") egovframework.sejong.user.model.StockClosingDTO dto,
+		                                              HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectInboundClosing(dto));
+			return response;
+		}
+
+		/* 월별 마감 이력 목록 */
+		@RequestMapping(value="/shipout/selectClosingList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectClosingList(@ModelAttribute("DTO") egovframework.sejong.user.model.ClosingMstDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectClosingMstList(dto));
+			return response;
+		}
+
+		/* 마감 확정 상태 조회 */
+		@RequestMapping(value="/shipout/selectClosingStatus.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectClosingStatus(@ModelAttribute("DTO") egovframework.sejong.user.model.ClosingMstDTO dto,
+		                                              HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectClosingMst(dto));
+			return response;
+		}
+		/* 마감 확정 — 3종 집계 저장 + 재고 스냅샷 + 잠금 */
+		@RequestMapping(value="/shipout/confirmClosing.do", method = RequestMethod.POST)
+		public ResponseEntity<String> confirmClosing(@RequestBody egovframework.sejong.user.model.ClosingMstDTO dto,
+		                                             HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getYm()==null || dto.getYm().trim().isEmpty()) return ResponseEntity.status(400).body("마감월 필요");
+				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.confirmClosing(dto)));
+			} catch (Exception e) { log.error(" confirmClosing ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		/* 마감 확정 해제 */
+		@RequestMapping(value="/shipout/cancelClosing.do", method = RequestMethod.POST)
+		public ResponseEntity<String> cancelClosing(@RequestBody egovframework.sejong.user.model.ClosingMstDTO dto,
+		                                            HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getYm()==null || dto.getYm().trim().isEmpty()) return ResponseEntity.status(400).body("마감월 필요");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.cancelClosing(dto)));
+			} catch (Exception e) { log.error(" cancelClosing ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
 		/* 출고장 출고 소프트 삭제 — 특정 출고장(dcCd+inwh)+출고일자(shpoutDt)의 활성분을 ACTION_YN='D'로 표시(이력 보존) */
@@ -689,6 +768,203 @@ public class UserController {
 			} catch (Exception e) { log.error(" biziDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
+		/* ================= 거래처관리 (사업장 TBL_BIZI_MST) ================= */
+		@RequestMapping(value="/mangr/clientMng.do")
+		public String clientMng(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/clientMng";
+		}
+		@RequestMapping(value="/mangr/clientList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> clientList(@ModelAttribute("DTO") egovframework.sejong.user.model.BiziDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectBiziList(dto));
+			return response;
+		}
+		@RequestMapping(value="/mangr/clientInsert.do", method = RequestMethod.POST)
+		public ResponseEntity<String> clientInsert(@RequestBody egovframework.sejong.user.model.BiziDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getBizCd()==null || dto.getBizCd().trim().isEmpty()) return ResponseEntity.status(400).body("사업장코드 필요");
+				if (svc.biziDupChk(dto) > 0) return ResponseEntity.status(409).body("이미 존재하는 사업장코드입니다: "+dto.getBizCd());
+				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.insertBizi(dto)));
+			} catch (Exception e) { log.error(" clientInsert ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/clientUpdate.do", method = RequestMethod.POST)
+		public ResponseEntity<String> clientUpdate(@RequestBody egovframework.sejong.user.model.BiziDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getBizCd()==null || dto.getBizCd().trim().isEmpty()) return ResponseEntity.status(400).body("사업장코드 필요");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.updateBizi(dto)));
+			} catch (Exception e) { log.error(" clientUpdate ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/clientDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> clientDelete(@RequestBody egovframework.sejong.user.model.BiziDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getBizCd()==null || dto.getBizCd().trim().isEmpty()) return ResponseEntity.status(400).body("사업장코드 필요");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.deleteBizi(dto)));
+			} catch (Exception e) { log.error(" clientDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* ================= 수금/미수금 (TBL_RECEIVE_MST) ================= */
+		@RequestMapping(value="/mangr/receiveMng.do")
+		public String receiveMng(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/receiveMng";
+		}
+		@RequestMapping(value="/mangr/receiveList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> receiveList(@ModelAttribute("DTO") egovframework.sejong.user.model.ReceiveDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectReceiveList(dto));
+			return response;
+		}
+		@RequestMapping(value="/mangr/receiveInsert.do", method = RequestMethod.POST)
+		public ResponseEntity<String> receiveInsert(@RequestBody egovframework.sejong.user.model.ReceiveDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getRcvYm()==null || dto.getRcvYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
+				if (dto.getBizCd()==null || dto.getBizCd().trim().isEmpty()) return ResponseEntity.status(400).body("거래처 필요");
+				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.insertReceive(dto)));
+			} catch (Exception e) { log.error(" receiveInsert ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/receiveUpdate.do", method = RequestMethod.POST)
+		public ResponseEntity<String> receiveUpdate(@RequestBody egovframework.sejong.user.model.ReceiveDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getRcvSeq()==null) return ResponseEntity.status(400).body("RCV_SEQ 필요");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.updateReceive(dto)));
+			} catch (Exception e) { log.error(" receiveUpdate ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/receiveDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> receiveDelete(@RequestBody egovframework.sejong.user.model.ReceiveDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getRcvSeq()==null) return ResponseEntity.status(400).body("RCV_SEQ 필요");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.deleteReceive(dto)));
+			} catch (Exception e) { log.error(" receiveDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/receiveUpload.do", method = RequestMethod.POST)
+		public ResponseEntity<String> receiveUpload(@RequestBody List<egovframework.sejong.user.model.ReceiveDTO> rows, HttpServletRequest request, HttpSession session) {
+			try {
+				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
+				return ResponseEntity.ok(String.valueOf(svc.upsertReceiveList(rows, u, request.getRemoteAddr())));
+			} catch (Exception e) { log.error(" receiveUpload ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/receiveCarryForward.do", method = RequestMethod.POST)
+		public ResponseEntity<String> receiveCarryForward(@RequestBody egovframework.sejong.user.model.ReceiveDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getRcvYm()==null || dto.getRcvYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
+				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.carryForwardReceive(dto)));
+			} catch (Exception e) { log.error(" receiveCarryForward ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/receiveCloseStatus.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> receiveCloseStatus(@RequestBody egovframework.sejong.user.model.ReceiveDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> r = new HashMap<String,Object>();
+			egovframework.sejong.user.model.SettleCloseDTO c = svc.selectSettleClose("RCV", dto.getRcvYm());
+			boolean closed = (c != null && "Y".equals(c.getStatus()));
+			r.put("closed", closed); r.put("confirmDttm", c!=null?c.getConfirmDttm():null); r.put("confirmUser", c!=null?c.getConfirmUser():null);
+			return r;
+		}
+		@RequestMapping(value="/mangr/receiveConfirm.do", method = RequestMethod.POST)
+		public ResponseEntity<String> receiveConfirm(@RequestBody egovframework.sejong.user.model.ReceiveDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getRcvYm()==null || dto.getRcvYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
+				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
+				return ResponseEntity.ok(String.valueOf(svc.confirmSettleClose("RCV", dto.getRcvYm(), u)));
+			} catch (Exception e) { log.error(" receiveConfirm ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/receiveCancel.do", method = RequestMethod.POST)
+		public ResponseEntity<String> receiveCancel(@RequestBody egovframework.sejong.user.model.ReceiveDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getRcvYm()==null || dto.getRcvYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
+				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
+				return ResponseEntity.ok(String.valueOf(svc.cancelSettleClose("RCV", dto.getRcvYm(), u)));
+			} catch (Exception e) { log.error(" receiveCancel ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* ================= 출금/미지급 (TBL_PAYMENT_MST) ================= */
+		@RequestMapping(value="/mangr/paymentMng.do")
+		public String paymentMng(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/paymentMng";
+		}
+		@RequestMapping(value="/mangr/paymentList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> paymentList(@ModelAttribute("DTO") egovframework.sejong.user.model.PaymentDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectPaymentList(dto));
+			return response;
+		}
+		@RequestMapping(value="/mangr/paymentInsert.do", method = RequestMethod.POST)
+		public ResponseEntity<String> paymentInsert(@RequestBody egovframework.sejong.user.model.PaymentDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getPayYm()==null || dto.getPayYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
+				if (dto.getBizCd()==null || dto.getBizCd().trim().isEmpty()) return ResponseEntity.status(400).body("매입처 필요");
+				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.insertPayment(dto)));
+			} catch (Exception e) { log.error(" paymentInsert ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/paymentUpdate.do", method = RequestMethod.POST)
+		public ResponseEntity<String> paymentUpdate(@RequestBody egovframework.sejong.user.model.PaymentDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getPaySeq()==null) return ResponseEntity.status(400).body("PAY_SEQ 필요");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.updatePayment(dto)));
+			} catch (Exception e) { log.error(" paymentUpdate ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/paymentDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> paymentDelete(@RequestBody egovframework.sejong.user.model.PaymentDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getPaySeq()==null) return ResponseEntity.status(400).body("PAY_SEQ 필요");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.deletePayment(dto)));
+			} catch (Exception e) { log.error(" paymentDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/paymentUpload.do", method = RequestMethod.POST)
+		public ResponseEntity<String> paymentUpload(@RequestBody List<egovframework.sejong.user.model.PaymentDTO> rows, HttpServletRequest request, HttpSession session) {
+			try {
+				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
+				return ResponseEntity.ok(String.valueOf(svc.upsertPaymentList(rows, u, request.getRemoteAddr())));
+			} catch (Exception e) { log.error(" paymentUpload ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/paymentCarryForward.do", method = RequestMethod.POST)
+		public ResponseEntity<String> paymentCarryForward(@RequestBody egovframework.sejong.user.model.PaymentDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getPayYm()==null || dto.getPayYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
+				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.carryForwardPayment(dto)));
+			} catch (Exception e) { log.error(" paymentCarryForward ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/paymentCloseStatus.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> paymentCloseStatus(@RequestBody egovframework.sejong.user.model.PaymentDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> r = new HashMap<String,Object>();
+			egovframework.sejong.user.model.SettleCloseDTO c = svc.selectSettleClose("PAY", dto.getPayYm());
+			boolean closed = (c != null && "Y".equals(c.getStatus()));
+			r.put("closed", closed); r.put("confirmDttm", c!=null?c.getConfirmDttm():null); r.put("confirmUser", c!=null?c.getConfirmUser():null);
+			return r;
+		}
+		@RequestMapping(value="/mangr/paymentConfirm.do", method = RequestMethod.POST)
+		public ResponseEntity<String> paymentConfirm(@RequestBody egovframework.sejong.user.model.PaymentDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getPayYm()==null || dto.getPayYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
+				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
+				return ResponseEntity.ok(String.valueOf(svc.confirmSettleClose("PAY", dto.getPayYm(), u)));
+			} catch (Exception e) { log.error(" paymentConfirm ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/paymentCancel.do", method = RequestMethod.POST)
+		public ResponseEntity<String> paymentCancel(@RequestBody egovframework.sejong.user.model.PaymentDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getPayYm()==null || dto.getPayYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
+				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
+				return ResponseEntity.ok(String.valueOf(svc.cancelSettleClose("PAY", dto.getPayYm(), u)));
+			} catch (Exception e) { log.error(" paymentCancel ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
 		/* ================= 상품마스터 (TBL_PROD_MST) ================= */
 		@RequestMapping(value="/prod/prodmst.do")
 		public String prodmst(HttpSession session) {
@@ -725,9 +1001,132 @@ public class UserController {
 		                                         HttpServletRequest request, HttpSession session) {
 			try {
 				if (dto.getProdSeq()==null) return ResponseEntity.status(400).body("PROD_SEQ 필요");
+				int rel = svc.countProdRelated(dto);   // 하단 연관정보(매입가/판매가/재고) 있으면 삭제 차단
+				if (rel > 0) return ResponseEntity.status(409).body("연관 정보(매입가·판매가·재고 내역) "+rel+"건이 있어 삭제할 수 없습니다. 해당 내역을 먼저 삭제하세요.");
 				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
 				return ResponseEntity.ok(String.valueOf(svc.deleteProd(dto)));
 			} catch (Exception e) { log.error(" prodDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* ================= 매입가 이력 (TBL_PROD_INPRICE_HST) ================= */
+		@RequestMapping(value="/prod/inpriceList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> inpriceList(@ModelAttribute("DTO") egovframework.sejong.user.model.ProdInpriceDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectInpriceList(dto));
+			return response;
+		}
+		@RequestMapping(value="/prod/inpriceInsert.do", method = RequestMethod.POST)
+		public ResponseEntity<String> inpriceInsert(@RequestBody egovframework.sejong.user.model.ProdInpriceDTO dto,
+		                                            HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getProdSeq()==null) return ResponseEntity.status(400).body("PROD_SEQ 필요");
+				if (dto.getInPrice()==null) return ResponseEntity.status(400).body("매입단가 필요");
+				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.insertInprice(dto)));
+			} catch (Exception e) { log.error(" inpriceInsert ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/prod/inpriceDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> inpriceDelete(@RequestBody egovframework.sejong.user.model.ProdInpriceDTO dto,
+		                                            HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getInpriceSeq()==null) return ResponseEntity.status(400).body("INPRICE_SEQ 필요");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.deleteInprice(dto)));
+			} catch (Exception e) { log.error(" inpriceDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* ================= 판매가 이력 (TBL_PROD_SALEPRICE_HST) ================= */
+		@RequestMapping(value="/prod/salepriceList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salepriceList(@ModelAttribute("DTO") egovframework.sejong.user.model.ProdSalepriceDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectSalepriceList(dto));
+			return response;
+		}
+		@RequestMapping(value="/prod/salepriceInsert.do", method = RequestMethod.POST)
+		public ResponseEntity<String> salepriceInsert(@RequestBody egovframework.sejong.user.model.ProdSalepriceDTO dto,
+		                                              HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getProdSeq()==null) return ResponseEntity.status(400).body("PROD_SEQ 필요");
+				if (dto.getSalePrice()==null) return ResponseEntity.status(400).body("판매단가 필요");
+				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.insertSaleprice(dto)));
+			} catch (Exception e) { log.error(" salepriceInsert ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/prod/salepriceDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> salepriceDelete(@RequestBody egovframework.sejong.user.model.ProdSalepriceDTO dto,
+		                                              HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getSalepriceSeq()==null) return ResponseEntity.status(400).body("SALEPRICE_SEQ 필요");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.deleteSaleprice(dto)));
+			} catch (Exception e) { log.error(" salepriceDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* ================= 재고 수불 / 현황 (TBL_STOCK_LEDGER / TBL_STOCK_MST) ================= */
+		@RequestMapping(value="/prod/stockList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockList(@ModelAttribute("DTO") egovframework.sejong.user.model.StockLedgerDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data",  svc.selectStockLedgerList(dto));   // 수불 이력
+			response.put("stock", svc.selectStockMst(dto));          // 현재고 현황
+			return response;
+		}
+
+		/* 재고현황 — 전체 품목 현재고(TBL_STOCK_MST) 목록 */
+		@RequestMapping(value="/prod/stockStatusList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockStatusList(@ModelAttribute("DTO") egovframework.sejong.user.model.StockMstDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectStockMstList(dto));
+			return response;
+		}
+		/* 마감 확정월 목록 — 재집계 팝업에 '제외되는 마감월' 표시용 */
+		@RequestMapping(value="/prod/closedMonths.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> closedMonths(HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("months", svc.selectClosedYmList());
+			return response;
+		}
+		/* (A) 출고반영 재집계 — 전체 출고를 원장 O행으로 재동기화 + 현재고 재집계 (백필 SQL 없이 화면 버튼) */
+		@RequestMapping(value="/prod/stockRebuild.do", method = RequestMethod.POST)
+		public ResponseEntity<String> stockRebuild(HttpServletRequest request, HttpSession session) {
+			try {
+				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
+				return ResponseEntity.ok(String.valueOf(svc.rebuildShipoutLedgerAll(u, request.getRemoteAddr())));
+			} catch (Exception e) { log.error(" stockRebuild ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* 입고내역 — 전체 입고(수불 IO_GB='I') 거래 목록 */
+		@RequestMapping(value="/prod/inboundList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> inboundList(@ModelAttribute("DTO") egovframework.sejong.user.model.StockLedgerDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectInboundList(dto));
+			return response;
+		}
+		@RequestMapping(value="/prod/stockInsert.do", method = RequestMethod.POST)
+		public ResponseEntity<String> stockInsert(@RequestBody egovframework.sejong.user.model.StockLedgerDTO dto,
+		                                          HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getProdSeq()==null) return ResponseEntity.status(400).body("PROD_SEQ 필요");
+				if (dto.getIoGb()==null || dto.getIoGb().trim().isEmpty()) return ResponseEntity.status(400).body("입출구분 필요");
+				if (dto.getQty()==null) return ResponseEntity.status(400).body("수량 필요");
+				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.insertStockLedger(dto)));
+			} catch (Exception e) { log.error(" stockInsert ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/prod/stockDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> stockDelete(@RequestBody egovframework.sejong.user.model.StockLedgerDTO dto,
+		                                          HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getLedgerSeq()==null) return ResponseEntity.status(400).body("LEDGER_SEQ 필요");
+				if (dto.getProdSeq()==null)   return ResponseEntity.status(400).body("PROD_SEQ 필요"); // 재집계용
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.deleteStockLedger(dto)));
+			} catch (Exception e) { log.error(" stockDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
 		/* ---- 계약 ---- */

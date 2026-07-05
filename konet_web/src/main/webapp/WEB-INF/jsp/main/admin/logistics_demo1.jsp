@@ -237,9 +237,7 @@
     </div>
     <div class="actions">
       <button class="btn-teal" onclick="d2Go('upload')" title="데시보드1로 이동하여 발주현황표 엑셀을 업로드합니다">📤 발주현황표 엑셀 업로드</button>
-      <button class="btn-line" onclick="d2Go('sales')" title="데시보드1로 이동하여 매출금액 엑셀을 업로드합니다">💰 매출금액 업로드</button>
-      <button class="btn-line" onclick="d2Go('cost')" title="데시보드1로 이동하여 매입금액 엑셀을 업로드합니다">🧾 매입금액 업로드</button>
-      <button class="btn-line" onclick="d2Go('save')" title="데시보드1로 이동하여 출고데이타를 저장합니다">💾 출고데이타저장</button>
+      <%-- [삭제 2026-07-05] 매출금액/매입금액 업로드·출고데이타저장 버튼 제거 (마감관리 메뉴로 일원화) --%>
       <select id="d2PrintFmt" title="출력 형식 선택 (출고장별 / 품목별)" style="height:35px;border:1px solid var(--bd);border-radius:6px;padding:0 8px;font-size:13px;font-weight:700;cursor:pointer;color:#37475a;background:#fff">
         <option value="zone">출고장별</option>
         <option value="zoneitem">출고장별 품목</option>

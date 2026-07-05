@@ -610,6 +610,224 @@
 	]]></update>
 
 	<!-- ============================================================
+	     거래처관리(사업장) CRUD — TBL_BIZI_MST (확장 컬럼)
+	     ============================================================ -->
+	<select id="selectBiziList" parameterType="egovframework.sejong.user.model.BiziDTO" resultType="egovframework.sejong.user.model.BiziDTO">
+	  SELECT BIZ_CD AS bizCd, BIZ_NM AS bizNm, BIZ_SMALL_NM AS bizSmallNm, BIZ_GB AS bizGb, BIZNO AS bizno,
+	         CEO_NM AS ceoNm, BIZ_COND AS bizCond, BIZ_ITEM AS bizItem, ZIPCD AS zipcd, ADDR AS addr, ADDR2 AS addr2,
+	         TEL AS tel, FAX AS fax, HP AS hp, EMAIL AS email, MANAGER AS manager, SORT_ORD AS sortOrd, REMARK AS remark,
+	         CONVERT(varchar(19),REG_DTTM,120) AS regDttm, CONVERT(varchar(19),UPD_DTTM,120) AS updDttm
+	    FROM TBL_BIZI_MST
+	   WHERE ISNULL(ACTION_YN,'Y') = 'Y'
+	  <if test="findData != null and findData != ''">
+	     AND ( BIZ_CD LIKE '%' + #{findData} + '%' OR ISNULL(BIZ_NM,'') LIKE '%' + #{findData} + '%'
+	        OR ISNULL(BIZ_SMALL_NM,'') LIKE '%' + #{findData} + '%' OR ISNULL(BIZNO,'') LIKE '%' + #{findData} + '%'
+	        OR ISNULL(CEO_NM,'') LIKE '%' + #{findData} + '%' )
+	  </if>
+	   ORDER BY ISNULL(SORT_ORD, 999999), BIZ_NM, BIZ_CD
+	</select>
+
+	<select id="biziDupChk" parameterType="egovframework.sejong.user.model.BiziDTO" resultType="int">
+	  SELECT COUNT(*) FROM TBL_BIZI_MST WHERE BIZ_CD = #{bizCd} AND ISNULL(ACTION_YN,'Y') = 'Y'
+	</select>
+
+	<insert id="insertBizi" parameterType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
+	  INSERT INTO TBL_BIZI_MST
+	    (BIZ_CD, JOB_SEQ, ACTION_YN, BIZ_NM, BIZ_SMALL_NM, BIZ_GB, BIZNO, CEO_NM, BIZ_COND, BIZ_ITEM,
+	     ZIPCD, ADDR, ADDR2, TEL, FAX, HP, EMAIL, MANAGER, SORT_ORD, REMARK, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (#{bizCd}, 1, 'Y', #{bizNm,jdbcType=NVARCHAR}, #{bizSmallNm,jdbcType=NVARCHAR}, #{bizGb,jdbcType=NVARCHAR}, #{bizno,jdbcType=NVARCHAR},
+	     #{ceoNm,jdbcType=NVARCHAR}, #{bizCond,jdbcType=NVARCHAR}, #{bizItem,jdbcType=NVARCHAR}, #{zipcd,jdbcType=NVARCHAR}, #{addr,jdbcType=NVARCHAR}, #{addr2,jdbcType=NVARCHAR},
+	     #{tel,jdbcType=NVARCHAR}, #{fax,jdbcType=NVARCHAR}, #{hp,jdbcType=NVARCHAR}, #{email,jdbcType=NVARCHAR}, #{manager,jdbcType=NVARCHAR}, #{sortOrd,jdbcType=INTEGER}, #{remark,jdbcType=NVARCHAR},
+	     GETDATE(), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	]]></insert>
+
+	<update id="updateBizi" parameterType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
+	  UPDATE TBL_BIZI_MST
+	     SET BIZ_NM=#{bizNm,jdbcType=NVARCHAR}, BIZ_SMALL_NM=#{bizSmallNm,jdbcType=NVARCHAR}, BIZ_GB=#{bizGb,jdbcType=NVARCHAR}, BIZNO=#{bizno,jdbcType=NVARCHAR},
+	         CEO_NM=#{ceoNm,jdbcType=NVARCHAR}, BIZ_COND=#{bizCond,jdbcType=NVARCHAR}, BIZ_ITEM=#{bizItem,jdbcType=NVARCHAR}, ZIPCD=#{zipcd,jdbcType=NVARCHAR},
+	         ADDR=#{addr,jdbcType=NVARCHAR}, ADDR2=#{addr2,jdbcType=NVARCHAR}, TEL=#{tel,jdbcType=NVARCHAR}, FAX=#{fax,jdbcType=NVARCHAR}, HP=#{hp,jdbcType=NVARCHAR},
+	         EMAIL=#{email,jdbcType=NVARCHAR}, MANAGER=#{manager,jdbcType=NVARCHAR}, SORT_ORD=#{sortOrd,jdbcType=INTEGER}, REMARK=#{remark,jdbcType=NVARCHAR},
+	         UPD_DTTM=GETDATE(), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
+	   WHERE BIZ_CD = #{bizCd}
+	]]></update>
+
+	<update id="deleteBizi" parameterType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
+	  UPDATE TBL_BIZI_MST SET ACTION_YN='N', UPD_DTTM=GETDATE(), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
+	   WHERE BIZ_CD = #{bizCd}
+	]]></update>
+
+	<!-- ============================================================
+	     수금/미수금 — TBL_RECEIVE_MST (거래처 × 귀속월). 미수잔액=전월이월+당월매출-당월수금
+	     ============================================================ -->
+	<select id="selectReceiveList" parameterType="egovframework.sejong.user.model.ReceiveDTO" resultType="egovframework.sejong.user.model.ReceiveDTO">
+	  SELECT RCV_SEQ AS rcvSeq, RCV_YM AS rcvYm, BIZ_CD AS bizCd, BIZ_NM AS bizNm,
+	         PREV_AMT AS prevAmt, SALES_AMT AS salesAmt, COLLECT_AMT AS collectAmt,
+	         COLLECT_DT AS collectDt, PAY_GB AS payGb, REMARK AS remark, UPD_DTTM AS updDttm
+	    FROM TBL_RECEIVE_MST
+	   WHERE ISNULL(ACTION_YN,'Y') = 'Y'
+	  <if test="rcvYm != null and rcvYm != ''">
+	     AND RCV_YM = REPLACE(#{rcvYm},'-','')
+	  </if>
+	  <if test="findData != null and findData != ''">
+	     AND ( ISNULL(BIZ_CD,'') LIKE '%' + #{findData} + '%' OR ISNULL(BIZ_NM,'') LIKE '%' + #{findData} + '%' )
+	  </if>
+	   ORDER BY RCV_YM DESC, BIZ_NM, BIZ_CD
+	</select>
+
+	<insert id="insertReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
+	  INSERT INTO TBL_RECEIVE_MST (RCV_YM, BIZ_CD, BIZ_NM, PREV_AMT, SALES_AMT, COLLECT_AMT, COLLECT_DT, PAY_GB, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES (REPLACE(#{rcvYm},'-',''), #{bizCd,jdbcType=NVARCHAR}, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{salesAmt,jdbcType=DECIMAL}, #{collectAmt,jdbcType=DECIMAL},
+	          REPLACE(ISNULL(#{collectDt,jdbcType=NVARCHAR},''),'-',''), #{payGb,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	]]></insert>
+
+	<update id="updateReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
+	  UPDATE TBL_RECEIVE_MST
+	     SET BIZ_NM=#{bizNm,jdbcType=NVARCHAR}, PREV_AMT=#{prevAmt,jdbcType=DECIMAL}, SALES_AMT=#{salesAmt,jdbcType=DECIMAL}, COLLECT_AMT=#{collectAmt,jdbcType=DECIMAL},
+	         COLLECT_DT=REPLACE(ISNULL(#{collectDt,jdbcType=NVARCHAR},''),'-',''), PAY_GB=#{payGb,jdbcType=NVARCHAR}, REMARK=#{remark,jdbcType=NVARCHAR},
+	         UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
+	   WHERE RCV_SEQ = #{rcvSeq}
+	]]></update>
+
+	<update id="deleteReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
+	  UPDATE TBL_RECEIVE_MST SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
+	   WHERE RCV_SEQ = #{rcvSeq}
+	]]></update>
+
+	<!-- 엑셀업로드: (귀속월+거래처) 있으면 UPDATE, 없으면 INSERT -->
+	<update id="upsertReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
+	  MERGE TBL_RECEIVE_MST AS t
+	  USING (SELECT REPLACE(#{rcvYm},'-','') AS RCV_YM, #{bizCd} AS BIZ_CD) AS s
+	  ON (t.RCV_YM = s.RCV_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,''))
+	  WHEN MATCHED THEN UPDATE SET
+	     t.BIZ_NM=#{bizNm,jdbcType=NVARCHAR}, t.PREV_AMT=#{prevAmt,jdbcType=DECIMAL}, t.SALES_AMT=#{salesAmt,jdbcType=DECIMAL}, t.COLLECT_AMT=#{collectAmt,jdbcType=DECIMAL},
+	     t.ACTION_YN='Y', t.UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER=#{regUser,jdbcType=NVARCHAR}, t.UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	  WHEN NOT MATCHED THEN INSERT (RCV_YM, BIZ_CD, BIZ_NM, PREV_AMT, SALES_AMT, COLLECT_AMT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	     VALUES (s.RCV_YM, s.BIZ_CD, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{salesAmt,jdbcType=DECIMAL}, #{collectAmt,jdbcType=DECIMAL}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
+	]]></update>
+
+	<!-- 전월이월 자동이월: 전월(귀속월-1) 미수잔액(전월이월+당월매출-당월수금)을 당월 전월이월(PREV_AMT)로 이월 -->
+	<update id="carryForwardReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
+	  ;WITH prev AS (
+	    SELECT BIZ_CD, MAX(BIZ_NM) AS BIZ_NM,
+	           SUM(ISNULL(PREV_AMT,0)+ISNULL(SALES_AMT,0)-ISNULL(COLLECT_AMT,0)) AS DUE
+	      FROM TBL_RECEIVE_MST
+	     WHERE ISNULL(ACTION_YN,'Y')='Y'
+	       AND RCV_YM = FORMAT(DATEADD(MONTH,-1,CONVERT(date, REPLACE(#{rcvYm},'-','')+'01', 112)),'yyyyMM')
+	     GROUP BY BIZ_CD
+	  )
+	  MERGE TBL_RECEIVE_MST AS t
+	  USING (SELECT REPLACE(#{rcvYm},'-','') AS RCV_YM, BIZ_CD, BIZ_NM, DUE FROM prev) AS s
+	  ON (t.RCV_YM = s.RCV_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,''))
+	  WHEN MATCHED THEN UPDATE SET
+	     t.PREV_AMT = s.DUE, t.ACTION_YN='Y',
+	     t.UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER=#{regUser,jdbcType=NVARCHAR}, t.UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	  WHEN NOT MATCHED AND s.DUE <> 0 THEN INSERT (RCV_YM, BIZ_CD, BIZ_NM, PREV_AMT, SALES_AMT, COLLECT_AMT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	     VALUES (s.RCV_YM, s.BIZ_CD, s.BIZ_NM, s.DUE, 0, 0, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
+	]]></update>
+
+	<!-- ============================================================
+	     출금/미지급 — TBL_PAYMENT_MST (매입처 × 귀속월). 미지급잔액=전월이월+당월매입-당월출금
+	     ============================================================ -->
+	<select id="selectPaymentList" parameterType="egovframework.sejong.user.model.PaymentDTO" resultType="egovframework.sejong.user.model.PaymentDTO">
+	  SELECT PAY_SEQ AS paySeq, PAY_YM AS payYm, BIZ_CD AS bizCd, BIZ_NM AS bizNm,
+	         PREV_AMT AS prevAmt, PURCH_AMT AS purchAmt, PAYOUT_AMT AS payoutAmt,
+	         PAYOUT_DT AS payoutDt, PAY_GB AS payGb, REMARK AS remark, UPD_DTTM AS updDttm
+	    FROM TBL_PAYMENT_MST
+	   WHERE ISNULL(ACTION_YN,'Y') = 'Y'
+	  <if test="payYm != null and payYm != ''">
+	     AND PAY_YM = REPLACE(#{payYm},'-','')
+	  </if>
+	  <if test="findData != null and findData != ''">
+	     AND ( ISNULL(BIZ_CD,'') LIKE '%' + #{findData} + '%' OR ISNULL(BIZ_NM,'') LIKE '%' + #{findData} + '%' )
+	  </if>
+	   ORDER BY PAY_YM DESC, BIZ_NM, BIZ_CD
+	</select>
+
+	<insert id="insertPayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
+	  INSERT INTO TBL_PAYMENT_MST (PAY_YM, BIZ_CD, BIZ_NM, PREV_AMT, PURCH_AMT, PAYOUT_AMT, PAYOUT_DT, PAY_GB, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES (REPLACE(#{payYm},'-',''), #{bizCd,jdbcType=NVARCHAR}, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{purchAmt,jdbcType=DECIMAL}, #{payoutAmt,jdbcType=DECIMAL},
+	          REPLACE(ISNULL(#{payoutDt,jdbcType=NVARCHAR},''),'-',''), #{payGb,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	]]></insert>
+
+	<update id="updatePayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
+	  UPDATE TBL_PAYMENT_MST
+	     SET BIZ_NM=#{bizNm,jdbcType=NVARCHAR}, PREV_AMT=#{prevAmt,jdbcType=DECIMAL}, PURCH_AMT=#{purchAmt,jdbcType=DECIMAL}, PAYOUT_AMT=#{payoutAmt,jdbcType=DECIMAL},
+	         PAYOUT_DT=REPLACE(ISNULL(#{payoutDt,jdbcType=NVARCHAR},''),'-',''), PAY_GB=#{payGb,jdbcType=NVARCHAR}, REMARK=#{remark,jdbcType=NVARCHAR},
+	         UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
+	   WHERE PAY_SEQ = #{paySeq}
+	]]></update>
+
+	<update id="deletePayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
+	  UPDATE TBL_PAYMENT_MST SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
+	   WHERE PAY_SEQ = #{paySeq}
+	]]></update>
+
+	<!-- 엑셀업로드: (귀속월+매입처) 있으면 UPDATE, 없으면 INSERT -->
+	<update id="upsertPayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
+	  MERGE TBL_PAYMENT_MST AS t
+	  USING (SELECT REPLACE(#{payYm},'-','') AS PAY_YM, #{bizCd} AS BIZ_CD) AS s
+	  ON (t.PAY_YM = s.PAY_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,''))
+	  WHEN MATCHED THEN UPDATE SET
+	     t.BIZ_NM=#{bizNm,jdbcType=NVARCHAR}, t.PREV_AMT=#{prevAmt,jdbcType=DECIMAL}, t.PURCH_AMT=#{purchAmt,jdbcType=DECIMAL}, t.PAYOUT_AMT=#{payoutAmt,jdbcType=DECIMAL},
+	     t.ACTION_YN='Y', t.UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER=#{regUser,jdbcType=NVARCHAR}, t.UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	  WHEN NOT MATCHED THEN INSERT (PAY_YM, BIZ_CD, BIZ_NM, PREV_AMT, PURCH_AMT, PAYOUT_AMT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	     VALUES (s.PAY_YM, s.BIZ_CD, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{purchAmt,jdbcType=DECIMAL}, #{payoutAmt,jdbcType=DECIMAL}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
+	]]></update>
+
+	<!-- 전월이월 자동이월: 전월(귀속월-1) 미지급잔액(전월이월+당월매입-당월출금)을 당월 전월이월(PREV_AMT)로 이월 -->
+	<update id="carryForwardPayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
+	  ;WITH prev AS (
+	    SELECT BIZ_CD, MAX(BIZ_NM) AS BIZ_NM,
+	           SUM(ISNULL(PREV_AMT,0)+ISNULL(PURCH_AMT,0)-ISNULL(PAYOUT_AMT,0)) AS DUE
+	      FROM TBL_PAYMENT_MST
+	     WHERE ISNULL(ACTION_YN,'Y')='Y'
+	       AND PAY_YM = FORMAT(DATEADD(MONTH,-1,CONVERT(date, REPLACE(#{payYm},'-','')+'01', 112)),'yyyyMM')
+	     GROUP BY BIZ_CD
+	  )
+	  MERGE TBL_PAYMENT_MST AS t
+	  USING (SELECT REPLACE(#{payYm},'-','') AS PAY_YM, BIZ_CD, BIZ_NM, DUE FROM prev) AS s
+	  ON (t.PAY_YM = s.PAY_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,''))
+	  WHEN MATCHED THEN UPDATE SET
+	     t.PREV_AMT = s.DUE, t.ACTION_YN='Y',
+	     t.UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER=#{regUser,jdbcType=NVARCHAR}, t.UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	  WHEN NOT MATCHED AND s.DUE <> 0 THEN INSERT (PAY_YM, BIZ_CD, BIZ_NM, PREV_AMT, PURCH_AMT, PAYOUT_AMT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	     VALUES (s.PAY_YM, s.BIZ_CD, s.BIZ_NM, s.DUE, 0, 0, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
+	]]></update>
+
+	<!-- ============================================================
+	     정산 마감상태 — TBL_SETTLE_CLOSE_MST (수금 RCV / 출금 PAY 공용)
+	     ============================================================ -->
+	<select id="isSettleClosed" parameterType="egovframework.sejong.user.model.SettleCloseDTO" resultType="int">
+	  SELECT COUNT(1) FROM TBL_SETTLE_CLOSE_MST
+	   WHERE SETTLE_GB = #{settleGb} AND CLOSE_YM = REPLACE(#{closeYm},'-','') AND STATUS = 'Y'
+	</select>
+
+	<select id="selectSettleClose" parameterType="egovframework.sejong.user.model.SettleCloseDTO" resultType="egovframework.sejong.user.model.SettleCloseDTO">
+	  SELECT SETTLE_GB AS settleGb, CLOSE_YM AS closeYm, STATUS AS status,
+	         CONFIRM_DTTM AS confirmDttm, CONFIRM_USER AS confirmUser
+	    FROM TBL_SETTLE_CLOSE_MST
+	   WHERE SETTLE_GB = #{settleGb} AND CLOSE_YM = REPLACE(#{closeYm},'-','')
+	</select>
+
+	<update id="confirmSettleClose" parameterType="egovframework.sejong.user.model.SettleCloseDTO"><![CDATA[
+	  MERGE TBL_SETTLE_CLOSE_MST AS t
+	  USING (SELECT #{settleGb} AS SETTLE_GB, REPLACE(#{closeYm},'-','') AS CLOSE_YM) AS s
+	  ON (t.SETTLE_GB = s.SETTLE_GB AND t.CLOSE_YM = s.CLOSE_YM)
+	  WHEN MATCHED THEN UPDATE SET
+	     t.STATUS='Y', t.UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER=#{confirmUser,jdbcType=NVARCHAR},
+	     t.CONFIRM_DTTM=ISNULL(t.CONFIRM_DTTM, CONVERT(VARCHAR(19),GETDATE(),120)), t.CONFIRM_USER=ISNULL(t.CONFIRM_USER, #{confirmUser,jdbcType=NVARCHAR})
+	  WHEN NOT MATCHED THEN INSERT (SETTLE_GB, CLOSE_YM, STATUS, CONFIRM_DTTM, CONFIRM_USER)
+	     VALUES (s.SETTLE_GB, s.CLOSE_YM, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{confirmUser,jdbcType=NVARCHAR});
+	]]></update>
+
+	<update id="cancelSettleClose" parameterType="egovframework.sejong.user.model.SettleCloseDTO"><![CDATA[
+	  UPDATE TBL_SETTLE_CLOSE_MST
+	     SET STATUS='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}
+	   WHERE SETTLE_GB = #{settleGb} AND CLOSE_YM = REPLACE(#{closeYm},'-','')
+	]]></update>
+
+	<!-- ============================================================
 	     상품마스터 — TBL_PROD_MST  (상품목록리스트 근거)
 	     · PK=PROD_SEQ(IDENTITY), 수정/삭제는 PROD_SEQ 기준. 날짜는 문자.
 	     ============================================================ -->
@@ -661,6 +879,481 @@
 	  UPDATE TBL_PROD_MST
 	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE PROD_SEQ = #{prodSeq}
+	]]></update>
+
+	<!-- ============================================================
+	     마감 집계 — 출고(TBL_SHIPOUT_MST, 마감월=SHPOUT_DT) × 단가
+	     · 출고단가: TBL_PROD_SALEPRICE_HST 중 APPLY_DT <= 출고일자 최신 → 없으면 TBL_PROD_MST.SALE_PRICE
+	     · 매입단가: TBL_PROD_INPRICE_HST  중 APPLY_DT <= 출고일자 최신 → 없으면 TBL_PROD_MST.IN_PRICE
+	     · 최소단위 그룹(품목+사업장+매입처) — 화면별 재집계는 클라이언트에서 수행
+	     ============================================================ -->
+	<select id="selectClosing" parameterType="egovframework.sejong.user.model.ClosingDTO" resultType="egovframework.sejong.user.model.ClosingDTO"><![CDATA[
+	  SELECT itemCd, MAX(itemNm) AS itemNm, bizCd, MAX(bizNm) AS bizNm,
+	         dcCd, MAX(dcNm) AS dcNm, vendorCd, MAX(vendorNm) AS vendorNm,
+	         SUM(outQty) AS outQty,
+	         SUM(salesAmt) AS salesAmt, SUM(costAmt) AS costAmt, SUM(marginAmt) AS marginAmt,
+	         MAX(saleSrc) AS saleSrc, MAX(inSrc) AS inSrc
+	    FROM (
+	      SELECT s.ITEM_CD AS itemCd, s.ITEM_NM AS itemNm,
+	             ISNULL(s.BIZ_CD,'') AS bizCd, s.BIZ_NM AS bizNm,
+	             ISNULL(s.DC_CD,'') AS dcCd, s.DC_NM AS dcNm,
+	             ISNULL(s.VENDOR_CD,'') AS vendorCd, s.VENDOR_NM AS vendorNm,
+	             ISNULL(s.CUR_QTY,0) AS outQty,
+	             ISNULL(s.CUR_QTY,0) * u.saleUnit AS salesAmt,
+	             ISNULL(s.CUR_QTY,0) * u.inUnit   AS costAmt,
+	             ISNULL(s.CUR_QTY,0) * (u.saleUnit - u.inUnit) AS marginAmt,
+	             u.saleSrc, u.inSrc
+	        FROM TBL_SHIPOUT_MST s
+	        LEFT JOIN (
+	              SELECT p.PROD_CD, p.IN_PRICE, p.SALE_PRICE
+	                FROM TBL_PROD_MST p
+	               WHERE p.ACTION_YN = 'Y'
+	                 AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
+	        ) pm ON pm.PROD_CD = s.ITEM_CD
+	        OUTER APPLY (
+	              SELECT TOP 1 h.SALE_PRICE
+	                FROM TBL_PROD_SALEPRICE_HST h
+	               WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.SHPOUT_DT
+	               ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
+	        ) sh
+	        OUTER APPLY (
+	              SELECT TOP 1 h.IN_PRICE
+	                FROM TBL_PROD_INPRICE_HST h
+	               WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.SHPOUT_DT
+	               ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
+	        ) ih
+	        CROSS APPLY (
+	              SELECT ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) AS saleUnit,
+	                     ISNULL(ih.IN_PRICE,   ISNULL(pm.IN_PRICE,0))   AS inUnit,
+	                     CASE WHEN sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc,
+	                     CASE WHEN ih.IN_PRICE   IS NOT NULL THEN '이력' ELSE '마스터' END AS inSrc
+	        ) u
+	       WHERE s.ACTION_YN = 'Y'
+	         AND (
+	               ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{toDt,jdbcType=VARCHAR},'') <> ''
+	                 AND s.SHPOUT_DT BETWEEN REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
+	            OR ( ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = '' OR ISNULL(#{toDt,jdbcType=VARCHAR},'') = '' )
+	                 AND LEFT(s.SHPOUT_DT,6) = REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-','') )
+	             )
+	    ) t
+	   GROUP BY itemCd, bizCd, dcCd, vendorCd
+	   ORDER BY MAX(bizNm), itemCd
+	]]></select>
+
+	<!-- ============================================================
+	     재고마감 — TBL_STOCK_LEDGER (기초 + 입고 − 출고 ± 조정 = 기말)
+	     · 기초 = 마감월 이전 누계, 당월분 = 마감월, 이동평균 = 월말까지 입고 가중평균(없으면 마스터 IN_PRICE)
+	     · IO_GB: I=입고(+) R=반품(+) O=출고(-) A=조정(부호그대로)
+	     ============================================================ -->
+	<select id="selectStockClosing" parameterType="egovframework.sejong.user.model.StockClosingDTO" resultType="egovframework.sejong.user.model.StockClosingDTO"><![CDATA[
+	  ;WITH B0 AS (
+	    SELECT REPLACE(ISNULL(NULLIF(#{fromDt,jdbcType=VARCHAR},''), REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-','')+'01'),'-','') AS fromB,
+	           REPLACE(ISNULL(NULLIF(#{toDt,jdbcType=VARCHAR},''),   REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-','')+'31'),'-','') AS toB
+	  ), B AS (
+	    SELECT fromB, toB, FORMAT(DATEADD(MONTH,-1, CONVERT(date, LEFT(fromB,6)+'01', 112)), 'yyyyMM') AS prevYm FROM B0
+	  )
+	  SELECT t.prodSeq AS prodSeq, t.prodCd AS prodCd, pm.PROD_NM AS prodNm,
+	         ISNULL(v.vendorCd,'') AS vendorCd,
+	         ISNULL(cs.END_QTY, t.beginQty) AS beginQty, t.inQty AS inQty, t.outQty AS outQty, t.adjQty AS adjQty,
+	         (ISNULL(cs.END_QTY, t.beginQty) + t.inQty - t.outQty + t.adjQty) AS endQty,
+	         ISNULL(CASE WHEN t.inQtyCum > 0 THEN t.inAmtCum / t.inQtyCum END, ISNULL(cs.AVG_IN_PRICE, ISNULL(pm.IN_PRICE,0))) AS avgInPrice
+	    FROM (
+	      SELECT l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd,
+	             SUM(CASE WHEN l.TRX_DT < B.fromB
+	                      THEN (CASE WHEN l.IO_GB IN ('I','R') THEN l.QTY WHEN l.IO_GB='O' THEN -l.QTY WHEN l.IO_GB='A' THEN l.QTY ELSE 0 END)
+	                      ELSE 0 END) AS beginQty,
+	             SUM(CASE WHEN l.TRX_DT BETWEEN B.fromB AND B.toB AND l.IO_GB IN ('I','R') THEN l.QTY ELSE 0 END) AS inQty,
+	             SUM(CASE WHEN l.TRX_DT BETWEEN B.fromB AND B.toB AND l.IO_GB = 'O' THEN l.QTY ELSE 0 END) AS outQty,
+	             SUM(CASE WHEN l.TRX_DT BETWEEN B.fromB AND B.toB AND l.IO_GB = 'A' THEN l.QTY ELSE 0 END) AS adjQty,
+	             SUM(CASE WHEN l.IO_GB = 'I' THEN l.QTY * ISNULL(l.UNIT_PRICE,0) ELSE 0 END) AS inAmtCum,
+	             SUM(CASE WHEN l.IO_GB = 'I' THEN l.QTY ELSE 0 END) AS inQtyCum
+	        FROM TBL_STOCK_LEDGER l CROSS JOIN B
+	       WHERE l.ACTION_YN = 'Y' AND l.TRX_DT <= B.toB
+	       GROUP BY l.PROD_SEQ, l.PROD_CD
+	    ) t
+	    LEFT JOIN (
+	      SELECT p.PROD_CD, p.PROD_NM, p.IN_PRICE
+	        FROM TBL_PROD_MST p
+	       WHERE p.ACTION_YN = 'Y'
+	         AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
+	    ) pm ON pm.PROD_CD = t.prodCd
+	    LEFT JOIN TBL_CLOSING_STOCK cs ON cs.CLOSE_YM = (SELECT prevYm FROM B) AND cs.PROD_SEQ = t.prodSeq   -- 직전 확정월 기말 = 당월 기초 이월
+	    OUTER APPLY (
+	      SELECT TOP 1 lv.VENDOR_CD AS vendorCd
+	        FROM TBL_STOCK_LEDGER lv CROSS JOIN B
+	       WHERE lv.PROD_SEQ = t.prodSeq AND lv.ACTION_YN = 'Y' AND lv.IO_GB = 'I'
+	         AND lv.TRX_DT BETWEEN B.fromB AND B.toB
+	       ORDER BY lv.TRX_DT DESC, lv.LEDGER_SEQ DESC
+	    ) v
+	   WHERE (t.beginQty <> 0 OR t.inQty <> 0 OR t.outQty <> 0 OR t.adjQty <> 0 OR ISNULL(cs.END_QTY,0) <> 0)
+	   ORDER BY t.prodCd
+	]]></select>
+
+	<!-- ============================================================
+	     입고(매입)마감 — TBL_STOCK_LEDGER 당월 입고(IO_GB='I') 품목별 집계
+	     · 입고수량=SUM(QTY), 매입액=SUM(금액), 매입단가=매입액/입고수량(가중평균)
+	     ============================================================ -->
+	<select id="selectInboundClosing" parameterType="egovframework.sejong.user.model.StockClosingDTO" resultType="egovframework.sejong.user.model.StockClosingDTO"><![CDATA[
+	  SELECT l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, MAX(pm.PROD_NM) AS prodNm,
+	         ISNULL(l.VENDOR_CD,'') AS vendorCd,
+	         SUM(l.QTY) AS inQty,
+	         SUM(ISNULL(l.AMT, l.QTY * ISNULL(l.UNIT_PRICE,0))) AS inAmt,
+	         CASE WHEN SUM(l.QTY) > 0 THEN SUM(ISNULL(l.AMT, l.QTY * ISNULL(l.UNIT_PRICE,0))) / SUM(l.QTY) ELSE 0 END AS avgInPrice
+	    FROM TBL_STOCK_LEDGER l
+	    LEFT JOIN (
+	          SELECT p.PROD_CD, p.PROD_NM
+	            FROM TBL_PROD_MST p
+	           WHERE p.ACTION_YN = 'Y'
+	             AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
+	    ) pm ON pm.PROD_CD = l.PROD_CD
+	   WHERE l.ACTION_YN = 'Y' AND l.IO_GB = 'I'
+	     AND (
+	           ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{toDt,jdbcType=VARCHAR},'') <> ''
+	             AND l.TRX_DT BETWEEN REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
+	        OR ( ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = '' OR ISNULL(#{toDt,jdbcType=VARCHAR},'') = '' )
+	             AND LEFT(l.TRX_DT,6) = REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-','') )
+	         )
+	   GROUP BY l.PROD_SEQ, l.PROD_CD, ISNULL(l.VENDOR_CD,'')
+	   ORDER BY ISNULL(l.VENDOR_CD,''), l.PROD_CD
+	]]></select>
+
+	<!-- ============================================================
+	     마감 확정/잠금/이월 — TBL_CLOSING_MST / TBL_CLOSING_STOCK
+	     ============================================================ -->
+	<select id="selectClosingMst" parameterType="egovframework.sejong.user.model.ClosingMstDTO" resultType="egovframework.sejong.user.model.ClosingMstDTO"><![CDATA[
+	  SELECT CLOSE_SEQ AS closeSeq, CLOSE_YM AS closeYm, STATUS AS status,
+	         SALES_AMT AS salesAmt, COGS_AMT AS cogsAmt, MARGIN_AMT AS marginAmt,
+	         PURCHASE_AMT AS purchaseAmt, STOCK_AMT AS stockAmt,
+	         CONFIRM_DTTM AS confirmDttm, CONFIRM_USER AS confirmUser
+	    FROM TBL_CLOSING_MST
+	   WHERE CLOSE_YM = #{closeYm} AND ACTION_YN = 'Y'
+	]]></select>
+
+	<select id="selectClosingMstList" parameterType="egovframework.sejong.user.model.ClosingMstDTO" resultType="egovframework.sejong.user.model.ClosingMstDTO">
+	  SELECT CLOSE_SEQ AS closeSeq, CLOSE_YM AS closeYm, STATUS AS status,
+	         SALES_AMT AS salesAmt, COGS_AMT AS cogsAmt, MARGIN_AMT AS marginAmt,
+	         PURCHASE_AMT AS purchaseAmt, STOCK_AMT AS stockAmt,
+	         CONFIRM_DTTM AS confirmDttm, CONFIRM_USER AS confirmUser
+	    FROM TBL_CLOSING_MST
+	   WHERE ACTION_YN = 'Y'
+	  <if test="ym != null and ym != ''">
+	     AND CLOSE_YM LIKE REPLACE(#{ym},'-','') + '%'
+	  </if>
+	   ORDER BY CLOSE_YM DESC
+	</select>
+
+	<select id="isClosedYm" resultType="int"><![CDATA[
+	  SELECT COUNT(*) FROM TBL_CLOSING_MST WHERE CLOSE_YM = #{closeYm} AND STATUS = 'C' AND ACTION_YN = 'Y'
+	]]></select>
+
+	<!-- 마감 확정월(YYYYMM) 목록 — 재집계 팝업에 '제외되는 마감월' 표시용 -->
+	<select id="selectClosedYmList" resultType="string"><![CDATA[
+	  SELECT CLOSE_YM FROM TBL_CLOSING_MST
+	   WHERE STATUS = 'C' AND ACTION_YN = 'Y'
+	   ORDER BY CLOSE_YM
+	]]></select>
+
+	<update id="updateClosingMst" parameterType="egovframework.sejong.user.model.ClosingMstDTO"><![CDATA[
+	  UPDATE TBL_CLOSING_MST
+	     SET STATUS='C', ACTION_YN='Y',
+	         SALES_AMT=#{salesAmt,jdbcType=DECIMAL}, COGS_AMT=#{cogsAmt,jdbcType=DECIMAL}, MARGIN_AMT=#{marginAmt,jdbcType=DECIMAL},
+	         PURCHASE_AMT=#{purchaseAmt,jdbcType=DECIMAL}, STOCK_AMT=#{stockAmt,jdbcType=DECIMAL},
+	         CONFIRM_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), CONFIRM_USER=#{regUser,jdbcType=NVARCHAR},
+	         UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{regUser,jdbcType=NVARCHAR}, UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	   WHERE CLOSE_YM = #{closeYm}
+	]]></update>
+
+	<insert id="insertClosingMst" parameterType="egovframework.sejong.user.model.ClosingMstDTO"><![CDATA[
+	  INSERT INTO TBL_CLOSING_MST (CLOSE_YM, STATUS, SALES_AMT, COGS_AMT, MARGIN_AMT, PURCHASE_AMT, STOCK_AMT, CONFIRM_DTTM, CONFIRM_USER, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES (#{closeYm}, 'C', #{salesAmt,jdbcType=DECIMAL}, #{cogsAmt,jdbcType=DECIMAL}, #{marginAmt,jdbcType=DECIMAL}, #{purchaseAmt,jdbcType=DECIMAL}, #{stockAmt,jdbcType=DECIMAL},
+	          CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	]]></insert>
+
+	<update id="cancelClosingMst" parameterType="egovframework.sejong.user.model.ClosingMstDTO"><![CDATA[
+	  UPDATE TBL_CLOSING_MST SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
+	   WHERE CLOSE_YM = #{closeYm}
+	]]></update>
+
+	<delete id="deleteClosingStock"><![CDATA[
+	  DELETE FROM TBL_CLOSING_STOCK WHERE CLOSE_YM = #{closeYm}
+	]]></delete>
+
+	<insert id="insertClosingStock" parameterType="egovframework.sejong.user.model.StockClosingDTO"><![CDATA[
+	  INSERT INTO TBL_CLOSING_STOCK (CLOSE_YM, PROD_SEQ, PROD_CD, END_QTY, AVG_IN_PRICE, STOCK_AMT, REG_DTTM)
+	  VALUES (REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-',''), #{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, #{endQty,jdbcType=INTEGER}, #{avgInPrice,jdbcType=DECIMAL},
+	          ISNULL(#{endQty,jdbcType=INTEGER},0) * ISNULL(#{avgInPrice,jdbcType=DECIMAL},0), CONVERT(VARCHAR(19),GETDATE(),120))
+	]]></insert>
+
+	<!-- 연관 정보(매입가/판매가/재고) 활성건수 — 삭제 가드용 -->
+	<select id="countProdRelated" parameterType="egovframework.sejong.user.model.ProdDTO" resultType="int"><![CDATA[
+	  SELECT
+	      (SELECT COUNT(*) FROM TBL_PROD_INPRICE_HST   WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y')
+	    + (SELECT COUNT(*) FROM TBL_PROD_SALEPRICE_HST WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y')
+	    + (SELECT COUNT(*) FROM TBL_STOCK_LEDGER       WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y')
+	]]></select>
+
+	<!-- ============================================================
+	     매입가 이력 — TBL_PROD_INPRICE_HST
+	     · 품목별 매입단가 이력. 등록 시 PREV_PRICE 에 마스터 현재값 스냅샷
+	     ============================================================ -->
+	<select id="selectInpriceList" parameterType="egovframework.sejong.user.model.ProdInpriceDTO" resultType="egovframework.sejong.user.model.ProdInpriceDTO"><![CDATA[
+	  SELECT INPRICE_SEQ AS inpriceSeq, PROD_SEQ AS prodSeq, PROD_CD AS prodCd,
+	         VENDOR_CD AS vendorCd, VENDOR_NM AS vendorNm, APPLY_DT AS applyDt,
+	         IN_PRICE AS inPrice, PREV_PRICE AS prevPrice, TAX_GB AS taxGb, REMARK AS remark,
+	         REG_DTTM AS regDttm, REG_USER AS regUser
+	    FROM TBL_PROD_INPRICE_HST
+	   WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
+	   ORDER BY APPLY_DT DESC, INPRICE_SEQ DESC
+	]]></select>
+
+	<insert id="insertInprice" parameterType="egovframework.sejong.user.model.ProdInpriceDTO"><![CDATA[
+	  INSERT INTO TBL_PROD_INPRICE_HST
+	    (PROD_SEQ, PROD_CD, VENDOR_CD, VENDOR_NM, APPLY_DT, IN_PRICE, PREV_PRICE, TAX_GB, REMARK,
+	     ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (#{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, #{vendorCd,jdbcType=NVARCHAR}, #{vendorNm,jdbcType=NVARCHAR},
+	     REPLACE(ISNULL(#{applyDt,jdbcType=NVARCHAR},''),'-',''), #{inPrice,jdbcType=DECIMAL},
+	     (SELECT IN_PRICE FROM TBL_PROD_MST WHERE PROD_SEQ = #{prodSeq}),
+	     #{taxGb,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR},
+	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	]]></insert>
+
+	<update id="deleteInprice" parameterType="egovframework.sejong.user.model.ProdInpriceDTO"><![CDATA[
+	  UPDATE TBL_PROD_INPRICE_HST
+	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
+	   WHERE INPRICE_SEQ = #{inpriceSeq}
+	]]></update>
+
+	<!-- 마스터 현재 매입단가 동기화 -->
+	<update id="syncProdInPrice" parameterType="egovframework.sejong.user.model.ProdInpriceDTO"><![CDATA[
+	  UPDATE TBL_PROD_MST
+	     SET IN_PRICE = #{inPrice,jdbcType=DECIMAL},
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{regUser,jdbcType=NVARCHAR}, UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	   WHERE PROD_SEQ = #{prodSeq}
+	]]></update>
+
+	<!-- ============================================================
+	     판매가 이력 — TBL_PROD_SALEPRICE_HST
+	     ============================================================ -->
+	<select id="selectSalepriceList" parameterType="egovframework.sejong.user.model.ProdSalepriceDTO" resultType="egovframework.sejong.user.model.ProdSalepriceDTO"><![CDATA[
+	  SELECT SALEPRICE_SEQ AS salepriceSeq, PROD_SEQ AS prodSeq, PROD_CD AS prodCd, APPLY_DT AS applyDt,
+	         SALE_PRICE AS salePrice, WHOLE_PRICE AS wholePrice, BASE_INPRICE AS baseInprice,
+	         MARGIN_RT AS marginRt, PREV_PRICE AS prevPrice, REMARK AS remark,
+	         REG_DTTM AS regDttm, REG_USER AS regUser
+	    FROM TBL_PROD_SALEPRICE_HST
+	   WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
+	   ORDER BY APPLY_DT DESC, SALEPRICE_SEQ DESC
+	]]></select>
+
+	<insert id="insertSaleprice" parameterType="egovframework.sejong.user.model.ProdSalepriceDTO"><![CDATA[
+	  INSERT INTO TBL_PROD_SALEPRICE_HST
+	    (PROD_SEQ, PROD_CD, APPLY_DT, SALE_PRICE, WHOLE_PRICE, BASE_INPRICE, MARGIN_RT, PREV_PRICE, REMARK,
+	     ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (#{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, REPLACE(ISNULL(#{applyDt,jdbcType=NVARCHAR},''),'-',''),
+	     #{salePrice,jdbcType=DECIMAL}, #{wholePrice,jdbcType=DECIMAL},
+	     ISNULL(#{baseInprice,jdbcType=DECIMAL}, (SELECT IN_PRICE FROM TBL_PROD_MST WHERE PROD_SEQ = #{prodSeq})),
+	     #{marginRt,jdbcType=DECIMAL},
+	     (SELECT SALE_PRICE FROM TBL_PROD_MST WHERE PROD_SEQ = #{prodSeq}),
+	     #{remark,jdbcType=NVARCHAR},
+	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	]]></insert>
+
+	<update id="deleteSaleprice" parameterType="egovframework.sejong.user.model.ProdSalepriceDTO"><![CDATA[
+	  UPDATE TBL_PROD_SALEPRICE_HST
+	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
+	   WHERE SALEPRICE_SEQ = #{salepriceSeq}
+	]]></update>
+
+	<!-- 마스터 현재 판매/도매단가 동기화 -->
+	<update id="syncProdSalePrice" parameterType="egovframework.sejong.user.model.ProdSalepriceDTO"><![CDATA[
+	  UPDATE TBL_PROD_MST
+	     SET SALE_PRICE  = #{salePrice,jdbcType=DECIMAL},
+	         WHOLE_PRICE = ISNULL(#{wholePrice,jdbcType=DECIMAL}, WHOLE_PRICE),
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{regUser,jdbcType=NVARCHAR}, UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	   WHERE PROD_SEQ = #{prodSeq}
+	]]></update>
+
+	<!-- ============================================================
+	     재고 수불원장 — TBL_STOCK_LEDGER  / 현황 — TBL_STOCK_MST
+	     · IO_GB : I=입고(+) O=출고(-) R=반품(+) A=조정(QTY 부호 그대로)
+	     ============================================================ -->
+	<select id="selectStockLedgerList" parameterType="egovframework.sejong.user.model.StockLedgerDTO" resultType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	  SELECT LEDGER_SEQ AS ledgerSeq, PROD_SEQ AS prodSeq, PROD_CD AS prodCd, TRX_DT AS trxDt, IO_GB AS ioGb,
+	         QTY AS qty, UNIT_PRICE AS unitPrice, AMT AS amt, BAL_QTY AS balQty,
+	         VENDOR_CD AS vendorCd, BIZ_CD AS bizCd, REF_GB AS refGb, REF_NO AS refNo, REMARK AS remark,
+	         REG_DTTM AS regDttm, REG_USER AS regUser
+	    FROM TBL_STOCK_LEDGER
+	   WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
+	   ORDER BY TRX_DT DESC, LEDGER_SEQ DESC
+	]]></select>
+
+	<insert id="insertStockLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	  INSERT INTO TBL_STOCK_LEDGER
+	    (PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, UNIT_PRICE, AMT, VENDOR_CD, BIZ_CD, REF_GB, REF_NO, REMARK,
+	     ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (#{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, REPLACE(ISNULL(#{trxDt,jdbcType=NVARCHAR},''),'-',''), #{ioGb,jdbcType=NCHAR},
+	     #{qty,jdbcType=INTEGER}, #{unitPrice,jdbcType=DECIMAL},
+	     ISNULL(#{amt,jdbcType=DECIMAL}, #{qty,jdbcType=INTEGER} * ISNULL(#{unitPrice,jdbcType=DECIMAL},0)),
+	     #{vendorCd,jdbcType=NVARCHAR}, #{bizCd,jdbcType=NVARCHAR}, #{refGb,jdbcType=NVARCHAR}, #{refNo,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR},
+	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	]]></insert>
+
+	<update id="deleteStockLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	  UPDATE TBL_STOCK_LEDGER
+	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
+	   WHERE LEDGER_SEQ = #{ledgerSeq}
+	]]></update>
+
+	<select id="selectStockMst" parameterType="egovframework.sejong.user.model.StockLedgerDTO" resultType="egovframework.sejong.user.model.StockMstDTO"><![CDATA[
+	  SELECT STOCK_SEQ AS stockSeq, PROD_SEQ AS prodSeq, PROD_CD AS prodCd, CUR_QTY AS curQty,
+	         AVG_IN_PRICE AS avgInPrice, LAST_INPRICE AS lastInprice, LAST_SALEPRICE AS lastSaleprice,
+	         STOCK_AMT AS stockAmt, LAST_IN_DT AS lastInDt, LAST_OUT_DT AS lastOutDt
+	    FROM TBL_STOCK_MST
+	   WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
+	]]></select>
+
+	<!-- 입고내역 — 전체 입고(수불 IO_GB='I') 거래 목록 -->
+	<select id="selectInboundList" parameterType="egovframework.sejong.user.model.StockLedgerDTO" resultType="egovframework.sejong.user.model.StockLedgerDTO">
+	  SELECT l.LEDGER_SEQ AS ledgerSeq, l.PROD_CD AS prodCd, p.PROD_NM AS prodNm, l.TRX_DT AS trxDt,
+	         l.VENDOR_CD AS vendorCd, l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt, l.REMARK AS remark, l.REG_DTTM AS regDttm
+	    FROM TBL_STOCK_LEDGER l
+	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = l.PROD_SEQ
+	   WHERE l.ACTION_YN = 'Y' AND l.IO_GB = 'I'
+	  <if test="fromDt != null and fromDt != '' and toDt != null and toDt != ''">
+	     AND l.TRX_DT BETWEEN REPLACE(#{fromDt},'-','') AND REPLACE(#{toDt},'-','')
+	  </if>
+	  <if test="findData != null and findData != ''">
+	     AND ( l.PROD_CD LIKE '%' + #{findData} + '%' OR ISNULL(p.PROD_NM,'') LIKE '%' + #{findData} + '%' OR ISNULL(l.VENDOR_CD,'') LIKE '%' + #{findData} + '%' )
+	  </if>
+	   ORDER BY l.TRX_DT DESC, l.LEDGER_SEQ DESC
+	</select>
+
+	<!-- 재고현황 — 전체 품목 현재고 목록(TBL_STOCK_MST) -->
+	<!-- 재고현황(실시간) : 수불원장(TBL_STOCK_LEDGER) 단일 소스 집계.
+	     · 출고(SHIPOUT)는 저장 시 원장에 O행으로 자동기록되므로(REF_GB='SHIPOUT'), 여기서 별도 계산 불필요
+	     · 현재고 = 입고(I+R+A) − 출고(O). 입고 없이 출고만 있으면 음수(입고 누락/불일치 신호)
+	     · 재고마감(selectStockClosing)과 동일 원장 소스 → 두 화면 값 일치 -->
+	<select id="selectStockMstList" parameterType="egovframework.sejong.user.model.StockMstDTO" resultType="egovframework.sejong.user.model.StockMstDTO">
+	  SELECT l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, ISNULL(p.PROD_NM,'') AS prodNm,
+	         SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY ELSE 0 END) AS inQty,
+	         SUM(CASE WHEN l.IO_GB = 'O' THEN l.QTY ELSE 0 END) AS outQty,
+	         SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY WHEN l.IO_GB='O' THEN -l.QTY ELSE 0 END) AS curQty,
+	         MAX(m.AVG_IN_PRICE) AS avgInPrice, MAX(m.LAST_INPRICE) AS lastInprice, MAX(m.LAST_SALEPRICE) AS lastSaleprice,
+	         SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY WHEN l.IO_GB='O' THEN -l.QTY ELSE 0 END) * ISNULL(MAX(m.AVG_IN_PRICE),0) AS stockAmt,
+	         MAX(CASE WHEN l.IO_GB='I' THEN l.TRX_DT END) AS lastInDt,
+	         MAX(CASE WHEN l.IO_GB='O' THEN l.TRX_DT END) AS lastOutDt
+	    FROM TBL_STOCK_LEDGER l
+	    LEFT JOIN TBL_STOCK_MST m ON m.PROD_SEQ = l.PROD_SEQ
+	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = l.PROD_CD AND p2.ACTION_YN='Y')
+	   WHERE l.ACTION_YN = 'Y'
+	  <if test="asOfDt != null and asOfDt != ''">
+	     <![CDATA[ AND l.TRX_DT <= REPLACE(#{asOfDt},'-','') ]]>
+	  </if>
+	  <if test="findData != null and findData != ''">
+	     AND ( l.PROD_CD LIKE '%' + #{findData} + '%' OR ISNULL(p.PROD_NM,'') LIKE '%' + #{findData} + '%' )
+	  </if>
+	   GROUP BY l.PROD_SEQ, l.PROD_CD, p.PROD_NM
+	   ORDER BY l.PROD_CD
+	</select>
+
+	<!-- (A) 전체 재집계용 : 활성 SHIPOUT의 서로 다른 출고일자 목록 -->
+	<select id="selectShipoutDates" resultType="string"><![CDATA[
+	  SELECT DISTINCT SHPOUT_DT FROM TBL_SHIPOUT_MST
+	   WHERE ACTION_YN='Y' AND ISNULL(SHPOUT_DT,'') <> ''
+	   ORDER BY SHPOUT_DT
+	]]></select>
+
+	<!-- (A) 출고→원장 자동연동 : 특정 출고일자의 SHIPOUT 파생 O행 삭제(재동기화용) -->
+	<delete id="deleteShipoutLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	  DELETE FROM TBL_STOCK_LEDGER
+	   WHERE REF_GB = 'SHIPOUT' AND REF_NO = REPLACE(ISNULL(#{trxDt},''),'-','')
+	]]></delete>
+
+	<!-- (A) 출고→원장 자동연동 : 특정 출고일자의 활성 SHIPOUT을 품목별로 합산해 O행 생성 (상품마스터에 있는 품목만) -->
+	<insert id="insertShipoutLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	  INSERT INTO TBL_STOCK_LEDGER (PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, UNIT_PRICE, AMT, BIZ_CD, REF_GB, REF_NO, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  SELECT pm.PROD_SEQ, s.ITEM_CD, s.SHPOUT_DT, 'O', SUM(ISNULL(s.CUR_QTY,0)) AS QTY,
+	         NULL, NULL, NULL, 'SHIPOUT', s.SHPOUT_DT, N'출고 자동연동(SHIPOUT)', 'Y',
+	         CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR}
+	    FROM TBL_SHIPOUT_MST s
+	    JOIN ( SELECT PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ FROM TBL_PROD_MST WHERE ACTION_YN='Y' GROUP BY PROD_CD ) pm
+	      ON pm.PROD_CD = s.ITEM_CD
+	   WHERE s.ACTION_YN = 'Y' AND ISNULL(s.ITEM_CD,'') <> ''
+	     AND s.SHPOUT_DT = REPLACE(ISNULL(#{trxDt},''),'-','')
+	   GROUP BY pm.PROD_SEQ, s.ITEM_CD, s.SHPOUT_DT
+	  HAVING SUM(ISNULL(s.CUR_QTY,0)) > 0
+	]]></insert>
+
+	<!-- (A) 전체 품목 현재고 재집계 (원장 누계 기준, set-based MERGE) -->
+	<update id="recalcStockMstAll" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	  MERGE TBL_STOCK_MST AS t
+	  USING (
+	    SELECT PROD_SEQ, MAX(PROD_CD) AS PROD_CD,
+	        SUM(CASE WHEN IO_GB IN ('I','R') THEN QTY WHEN IO_GB='O' THEN -QTY WHEN IO_GB='A' THEN QTY ELSE 0 END) AS CUR_QTY,
+	        SUM(CASE WHEN IO_GB='I' THEN QTY*ISNULL(UNIT_PRICE,0) ELSE 0 END) AS IN_AMT,
+	        SUM(CASE WHEN IO_GB='I' THEN QTY ELSE 0 END) AS IN_QTY,
+	        MAX(CASE WHEN IO_GB='I' THEN TRX_DT END) AS LAST_IN_DT,
+	        MAX(CASE WHEN IO_GB='O' THEN TRX_DT END) AS LAST_OUT_DT
+	      FROM TBL_STOCK_LEDGER
+	     WHERE ACTION_YN='Y'
+	     GROUP BY PROD_SEQ
+	  ) AS s
+	  ON (t.PROD_SEQ = s.PROD_SEQ)
+	  WHEN MATCHED THEN UPDATE SET
+	        t.CUR_QTY      = ISNULL(s.CUR_QTY,0),
+	        t.AVG_IN_PRICE = CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN t.AVG_IN_PRICE ELSE s.IN_AMT/s.IN_QTY END,
+	        t.STOCK_AMT    = ISNULL(s.CUR_QTY,0) * CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN ISNULL(t.AVG_IN_PRICE,0) ELSE s.IN_AMT/s.IN_QTY END,
+	        t.LAST_IN_DT   = s.LAST_IN_DT,
+	        t.LAST_OUT_DT  = s.LAST_OUT_DT,
+	        t.UPD_DTTM     = CONVERT(VARCHAR(19), GETDATE(), 120), t.UPD_USER=#{regUser,jdbcType=NVARCHAR}, t.UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	  WHEN NOT MATCHED THEN INSERT
+	        (PROD_SEQ, PROD_CD, CUR_QTY, AVG_IN_PRICE, STOCK_AMT, LAST_IN_DT, LAST_OUT_DT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	      VALUES
+        (s.PROD_SEQ, s.PROD_CD, ISNULL(s.CUR_QTY,0),
+         CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN NULL ELSE s.IN_AMT/s.IN_QTY END,
+         ISNULL(s.CUR_QTY,0) * CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN 0 ELSE s.IN_AMT/s.IN_QTY END,
+         s.LAST_IN_DT, s.LAST_OUT_DT,
+         'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
+	]]></update>
+
+	<!-- 원장 누계로 현재고 재집계 (INSERT/DELETE 후 호출). 없으면 생성(MERGE) -->
+	<update id="recalcStockMst" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	  MERGE TBL_STOCK_MST AS t
+	  USING (
+	    SELECT
+	        #{prodSeq} AS PROD_SEQ,
+	        SUM(CASE WHEN IO_GB IN ('I','R') THEN QTY WHEN IO_GB='O' THEN -QTY WHEN IO_GB='A' THEN QTY ELSE 0 END) AS CUR_QTY,
+	        SUM(CASE WHEN IO_GB='I' THEN QTY*ISNULL(UNIT_PRICE,0) ELSE 0 END) AS IN_AMT,
+	        SUM(CASE WHEN IO_GB='I' THEN QTY ELSE 0 END) AS IN_QTY,
+	        MAX(CASE WHEN IO_GB='I' THEN TRX_DT END) AS LAST_IN_DT,
+	        MAX(CASE WHEN IO_GB='O' THEN TRX_DT END) AS LAST_OUT_DT
+	      FROM TBL_STOCK_LEDGER
+	     WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
+	  ) AS s
+	  ON (t.PROD_SEQ = s.PROD_SEQ)
+	  WHEN MATCHED THEN UPDATE SET
+	        t.CUR_QTY      = ISNULL(s.CUR_QTY,0),
+	        t.AVG_IN_PRICE = CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN t.AVG_IN_PRICE ELSE s.IN_AMT/s.IN_QTY END,
+	        t.LAST_INPRICE = ISNULL((SELECT TOP 1 UNIT_PRICE FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq} AND ACTION_YN='Y' AND IO_GB='I' ORDER BY TRX_DT DESC, LEDGER_SEQ DESC), t.LAST_INPRICE),
+	        t.LAST_SALEPRICE = ISNULL((SELECT TOP 1 UNIT_PRICE FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq} AND ACTION_YN='Y' AND IO_GB='O' ORDER BY TRX_DT DESC, LEDGER_SEQ DESC), t.LAST_SALEPRICE),
+	        t.STOCK_AMT    = ISNULL(s.CUR_QTY,0) * CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN ISNULL(t.AVG_IN_PRICE,0) ELSE s.IN_AMT/s.IN_QTY END,
+	        t.LAST_IN_DT   = s.LAST_IN_DT,
+	        t.LAST_OUT_DT  = s.LAST_OUT_DT,
+	        t.UPD_DTTM     = CONVERT(VARCHAR(19), GETDATE(), 120), t.UPD_USER=#{regUser,jdbcType=NVARCHAR}, t.UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	  WHEN NOT MATCHED THEN INSERT
+	        (PROD_SEQ, PROD_CD, CUR_QTY, AVG_IN_PRICE, LAST_INPRICE, LAST_SALEPRICE, STOCK_AMT, LAST_IN_DT, LAST_OUT_DT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	      VALUES
+	        (#{prodSeq},
+	         COALESCE(#{prodCd,jdbcType=NVARCHAR}, (SELECT TOP 1 PROD_CD FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq})),
+	         ISNULL(s.CUR_QTY,0),
+	         CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN NULL ELSE s.IN_AMT/s.IN_QTY END,
+	         (SELECT TOP 1 UNIT_PRICE FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq} AND ACTION_YN='Y' AND IO_GB='I' ORDER BY TRX_DT DESC, LEDGER_SEQ DESC),
+	         (SELECT TOP 1 UNIT_PRICE FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq} AND ACTION_YN='Y' AND IO_GB='O' ORDER BY TRX_DT DESC, LEDGER_SEQ DESC),
+	         ISNULL(s.CUR_QTY,0) * CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN 0 ELSE s.IN_AMT/s.IN_QTY END,
+	         s.LAST_IN_DT, s.LAST_OUT_DT,
+	         'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
 	]]></update>
 
 </mapper>

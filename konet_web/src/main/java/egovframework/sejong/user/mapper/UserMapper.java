@@ -45,12 +45,82 @@ public interface UserMapper {
 	int insertBiziIfAbsent(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
 	int updateBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
 	int deleteBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	// ===== 거래처관리(사업장) CRUD — TBL_BIZI_MST =====
+	java.util.List<egovframework.sejong.user.model.BiziDTO> selectBiziList(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	int biziDupChk(egovframework.sejong.user.model.BiziDTO dto) throws Exception;   // 코드 중복(활성) 체크
+	int insertBizi(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	int updateBizi(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	int deleteBizi(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	// ===== 수금/미수금 — TBL_RECEIVE_MST =====
+	java.util.List<egovframework.sejong.user.model.ReceiveDTO> selectReceiveList(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception;
+	int insertReceive(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception;
+	int updateReceive(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception;
+	int deleteReceive(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception;      // rcvSeq 기준 소프트삭제
+	int upsertReceive(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception;      // 엑셀업로드(귀속월+거래처 MERGE)
+	int carryForwardReceive(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception; // 전월 미수잔액 → 당월 전월이월 이월
+	// ===== 출금/미지급 — TBL_PAYMENT_MST =====
+	java.util.List<egovframework.sejong.user.model.PaymentDTO> selectPaymentList(egovframework.sejong.user.model.PaymentDTO dto) throws Exception;
+	int insertPayment(egovframework.sejong.user.model.PaymentDTO dto) throws Exception;
+	int updatePayment(egovframework.sejong.user.model.PaymentDTO dto) throws Exception;
+	int deletePayment(egovframework.sejong.user.model.PaymentDTO dto) throws Exception;      // paySeq 기준 소프트삭제
+	int upsertPayment(egovframework.sejong.user.model.PaymentDTO dto) throws Exception;      // 엑셀업로드(귀속월+매입처 MERGE)
+	int carryForwardPayment(egovframework.sejong.user.model.PaymentDTO dto) throws Exception; // 전월 미지급잔액 → 당월 전월이월 이월
+	// ===== 정산 마감상태 — TBL_SETTLE_CLOSE_MST (수금/출금 공용) =====
+	int isSettleClosed(egovframework.sejong.user.model.SettleCloseDTO dto) throws Exception;   // 확정(STATUS='Y') 여부 count
+	egovframework.sejong.user.model.SettleCloseDTO selectSettleClose(egovframework.sejong.user.model.SettleCloseDTO dto) throws Exception; // 상태 조회(UI)
+	int confirmSettleClose(egovframework.sejong.user.model.SettleCloseDTO dto) throws Exception; // 확정(MERGE)
+	int cancelSettleClose(egovframework.sejong.user.model.SettleCloseDTO dto) throws Exception;  // 해제(STATUS='N')
 
 	// ===== 상품마스터 (TBL_PROD_MST) =====
 	java.util.List<egovframework.sejong.user.model.ProdDTO> selectProdList(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
 	int insertProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
 	int updateProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
 	int deleteProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	int countProdRelated(egovframework.sejong.user.model.ProdDTO dto) throws Exception;   // 연관(매입가/판매가/재고) 활성건수
+
+	// ===== 매입가 이력 (TBL_PROD_INPRICE_HST) =====
+	java.util.List<egovframework.sejong.user.model.ProdInpriceDTO> selectInpriceList(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;
+	int insertInprice(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;
+	int deleteInprice(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;
+	int syncProdInPrice(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;   // TBL_PROD_MST.IN_PRICE 동기화
+
+	// ===== 판매가 이력 (TBL_PROD_SALEPRICE_HST) =====
+	java.util.List<egovframework.sejong.user.model.ProdSalepriceDTO> selectSalepriceList(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception;
+	int insertSaleprice(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception;
+	int deleteSaleprice(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception;
+	int syncProdSalePrice(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception; // TBL_PROD_MST.SALE_PRICE/WHOLE_PRICE 동기화
+
+	// ===== 재고 수불원장 / 현황 (TBL_STOCK_LEDGER / TBL_STOCK_MST) =====
+	java.util.List<egovframework.sejong.user.model.StockLedgerDTO> selectStockLedgerList(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.StockLedgerDTO> selectInboundList(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception; // 입고내역(전체 입고 거래)
+	int insertStockLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
+	int deleteStockLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
+	egovframework.sejong.user.model.StockMstDTO selectStockMst(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
+	int recalcStockMst(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;      // 원장 누계로 현재고 재집계(MERGE)
+	java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockMstList(egovframework.sejong.user.model.StockMstDTO dto) throws Exception; // 전체 현재고 목록(재고현황)
+	// (A) 출고(SHIPOUT)→원장 자동연동
+	int deleteShipoutLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;  // 특정 출고일자 SHIPOUT 파생 O행 삭제
+	int insertShipoutLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;  // 특정 출고일자 활성 SHIPOUT → O행 생성
+	int recalcStockMstAll(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;    // 전체 품목 현재고 재집계
+	java.util.List<String> selectShipoutDates() throws Exception;                                 // 활성 SHIPOUT의 출고일자 목록(전체 재집계용)
+	java.util.List<String> selectClosedYmList() throws Exception;                                 // 마감 확정월(YYYYMM) 목록
+
+	// ===== 마감(매출/매입/마진) 집계 — 출고(TBL_SHIPOUT_MST) × 단가이력/마스터 =====
+	java.util.List<egovframework.sejong.user.model.ClosingDTO> selectClosing(egovframework.sejong.user.model.ClosingDTO dto) throws Exception;
+	// ===== 재고마감 집계 — TBL_STOCK_LEDGER (기초+입고-출고±조정=기말) =====
+	java.util.List<egovframework.sejong.user.model.StockClosingDTO> selectStockClosing(egovframework.sejong.user.model.StockClosingDTO dto) throws Exception;
+	// ===== 입고(매입)마감 집계 — TBL_STOCK_LEDGER 당월 입고(IO_GB='I') =====
+	java.util.List<egovframework.sejong.user.model.StockClosingDTO> selectInboundClosing(egovframework.sejong.user.model.StockClosingDTO dto) throws Exception;
+
+	// ===== 마감 확정/잠금/이월 — TBL_CLOSING_MST / TBL_CLOSING_STOCK =====
+	egovframework.sejong.user.model.ClosingMstDTO selectClosingMst(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 헤더 조회(없으면 null)
+	java.util.List<egovframework.sejong.user.model.ClosingMstDTO> selectClosingMstList(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 월별 마감 이력 목록
+	int isClosedYm(String closeYm) throws Exception;                        // 확정(잠금) 여부 count
+	int updateClosingMst(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 확정 UPDATE(있으면)
+	int insertClosingMst(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 확정 INSERT(없으면)
+	int cancelClosingMst(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 확정 해제(ACTION_YN='N')
+	int deleteClosingStock(String closeYm) throws Exception;                // 재고 스냅샷 삭제(재확정/해제 시)
+	int insertClosingStock(egovframework.sejong.user.model.StockClosingDTO dto) throws Exception; // 재고 스냅샷 1건
 
 	// ===== 공통코드 관리 (codecd.jsp) =====
 	List<egovframework.sejong.user.model.CodeMdDTO> codeMstList(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
