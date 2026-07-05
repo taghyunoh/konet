@@ -1817,21 +1817,18 @@
     var items=[], hide;
     if(ag.histOn){
       hide=false;
-      ag.zoneOrder.forEach(function(zn){
-        var z=ag.zones[zn]; if(!z) return;
-        var nw=0, up=0, dn=0;
-        Object.keys(z.rows||{}).forEach(function(k){
-          var r=z.rows[k];
-          if(r.isNew){ nw++; return; }
-          if(typeof r.prevQty==='number' && r.prevQty!==r.qty){ (r.qty>r.prevQty?up++:dn++); }
-        });
-        var dl=(z.delRows||[]).length;
-        if(nw+up+dn+dl===0) return;
+      // ★ 하단바 증감도 그리드 셀·행강조와 '동일 소스'(D2_HISTALL 배치 매트릭스)로 산출.
+      //   과거엔 D2_PREV(z.rows.prevQty)로 계산 → '직전' 정의가 그리드(selectShipoutHistAll: UPLOAD_DTTM 슬롯, 출고장=DC+INWH)와
+      //   달라(selectShipoutPrev: ACTION_YN='N'+MAX(JOB_SEQ) per DC_CD) 재생성 출고장에서 유령 ▲증가가 발생했음.
+      //   d2ChangeFromHist()는 그리드 슬롯0(현재) vs 슬롯1(직전)과 완전히 같은 배치·같은 키(사업장|품목코드)로 비교하므로 셀과 항상 일치.
+      var _za = (D2_HISTALL && D2_HISTALL.length) ? d2ChangeFromHist() : {};
+      Object.keys(_za).sort(function(a,b){ return a.localeCompare(b,'ko'); }).forEach(function(zn){
+        var c=_za[zn]; if(c.nw+c.up+c.dn+c.dl===0) return;
         var parts=[];
-        if(nw) parts.push('<span class="tk-new">신규 '+nw+'</span>');
-        if(up) parts.push('<span class="tk-up">▲증가 '+up+'</span>');
-        if(dn) parts.push('<span class="tk-dn">▼감소 '+dn+'</span>');
-        if(dl) parts.push('<span class="tk-del">삭제 '+dl+'</span>');
+        if(c.nw) parts.push('<span class="tk-new">신규 '+c.nw+'</span>');
+        if(c.up) parts.push('<span class="tk-up">▲증가 '+c.up+'</span>');
+        if(c.dn) parts.push('<span class="tk-dn">▼감소 '+c.dn+'</span>');
+        if(c.dl) parts.push('<span class="tk-del">삭제 '+c.dl+'</span>');
         items.push('<span class="tk-item" data-zone="'+d2Esc(zn)+'" title="클릭하면 해당 출고장으로 이동"><span class="z">'+d2Esc(zn)+'</span> '+parts.join(' · ')+'</span>');
       });
       if(!items.length) items.push('<span class="tk-item">✓ 직전 업로드 대비 변경 없음</span>');

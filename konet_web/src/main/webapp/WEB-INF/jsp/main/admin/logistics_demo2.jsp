@@ -2956,7 +2956,11 @@
     zones.sort(function(a,b){ return (''+a).localeCompare(''+b,'ko'); });
     var items=[];
     zones.forEach(function(zn){
-      var c=cur[zn]||{}, p=prev[zn]||{}, nw=0,up=0,dn=0,dl=0;
+      var p=prev[zn];
+      // ★ 직전 배치 없는 출고장(최초 업로드) = 신규/삭제 판정 보류 (대시보드1 line 1299와 동일).
+      //   없으면 최초 배치 전량이 '신규'로 오탐됨 (예: 김해물류센터1 단일 배치 → 신규 37).
+      if(!p) return;
+      var c=cur[zn]||{}, nw=0,up=0,dn=0,dl=0;
       Object.keys(c).forEach(function(k){ if(!(k in p)) nw++; else if(c[k]!==p[k]){ (c[k]>p[k]?up++:dn++); } });
       Object.keys(p).forEach(function(k){ if(!(k in c)) dl++; });
       if(nw+up+dn+dl===0) return;
