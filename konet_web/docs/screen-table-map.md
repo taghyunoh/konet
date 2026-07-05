@@ -6,6 +6,40 @@
 
 ---
 
+## 0. 업무 흐름도
+
+**기준정보 → 매입·입고 → 출고·판매 → 월 마감 → 정산** (+ 실시간 재고현황)
+
+```mermaid
+flowchart LR
+  A["① 기준정보<br/>거래처·상품 등록<br/>BIZI_MST · PROD_MST"] --> B["② 매입·입고<br/>입고 등록 · 현재고▲<br/>STOCK_LEDGER(I) → STOCK_MST"]
+  B --> C["③ 출고·판매<br/>발주현황 업로드 · 현재고▼<br/>SHIPOUT_MST → 원장 O 자동"]
+  C --> D["④ 월 마감<br/>매출·매입·재고 확정<br/>CLOSING_MST + CLOSING_STOCK"]
+  D --> E["⑤ 정산<br/>수금·미수 / 출금·미지급<br/>RECEIVE / PAYMENT / SETTLE_CLOSE"]
+  B -. 실시간 .-> S["📊 재고현황(실시간)<br/>현재고 = 입고 − 출고<br/>STOCK_LEDGER → STOCK_MST"]
+  C -. 실시간 .-> S
+```
+
+텍스트 흐름(뷰어에서 mermaid 미지원 시):
+```
+①기준정보 → ②매입·입고 → ③출고·판매 → ④월 마감 → ⑤정산
+ BIZI/PROD   LEDGER(I)     SHIPOUT       CLOSING     RECEIVE/PAYMENT
+ _MST        →STOCK_MST    →원장 O 자동   _MST/_STOCK  /SETTLE_CLOSE
+                 │             │
+                 └── 실시간 ──▶ 📊 재고현황 = 입고 − 출고 (STOCK_LEDGER→STOCK_MST)
+                                · 기준일=마감월 말일 → ④재고마감 기말과 대사
+```
+
+**단계 요약**
+1. **기준정보** — 거래처(`TBL_BIZI_MST`)·상품(`TBL_PROD_MST`) 등록
+2. **매입·입고** — 입고 등록 → 수불원장 `IO_GB='I'` → 현재고 증가·이동평균단가 갱신
+3. **출고·판매** — 발주현황(SHIPOUT) 업로드 → 원장 `IO_GB='O'` 자동연동 → 현재고 감소
+4. **월 마감** — 매출·매입·재고 마감(4화면 통합) → 확정 시 `TBL_CLOSING_MST`(월1행)+기말 스냅샷+원장 잠금+다음달 이월
+5. **정산** — 수금/미수(`RECEIVE`)·출금/미지급(`PAYMENT`), 전월이월+당월−회수/지급=잔액, 월마감(`SETTLE_CLOSE`)
+- **재고현황(실시간)**: ②입고−③출고를 원장 단일 소스로 즉시 반영. 기준일=마감월 말일 → ④재고마감 기말과 대사.
+
+---
+
 ## 1. 화면 ↔ 테이블 매핑 (좌측 메뉴 순서)
 
 ### 조회·대시보드관리
