@@ -3298,6 +3298,26 @@
       <div class="flow"><b>기본 업무 흐름</b> &nbsp;①상품·거래처 등록 → ②재고 입고 등록 → ③출고(발주현황표 업로드) → ④월말 마감집계 → ⑤마감 확정(잠금)</div>
 
       <div class="g-sec">
+        <h3>0. 데이터 흐름 (테이블 연관관계)</h3>
+        <div class="gd">입고·출고가 <b>수불원장(TBL_STOCK_LEDGER)</b> 에 모이고 → 재고현황·재고마감은 이를 읽어 집계 → 마감 확정 시 <b>CLOSING</b> 테이블에 스냅샷 저장됩니다. (원장이 중심축)</div>
+        <div class="flow" style="line-height:2">
+          [1] <b>입고</b>(수동, 상품관리▸재고탭) → <b>STOCK_LEDGER(I)</b> → recalc → <b>STOCK_MST</b> (현재고▲·이동평균단가)<br>
+          [2] <b>출고</b>(자동, 발주현황표 업로드) → <b>SHIPOUT_MST</b> → 자동연동 → <b>STOCK_LEDGER(O)</b> → <b>STOCK_MST</b> (현재고▼)<br>
+          [3] <b>재고현황</b>(조회·저장❌) ← STOCK_LEDGER(입−출) + STOCK_MST(단가) · 실시간<br>
+          [4] <b>재고마감</b>(조회·저장❌) ← STOCK_LEDGER(기간) + CLOSING_STOCK(전월 기말→당월 기초 이월)<br>
+          [5] 🔒 <b>마감 확정</b>(저장✅) → <b>CLOSING_MST</b> + <b>CLOSING_STOCK</b>(기말 스냅샷·다음달 이월) + 그 달 원장 잠금
+        </div>
+        <table><thead><tr><th>단계</th><th>저장(write) 테이블</th><th>조회(read) 테이블</th></tr></thead><tbody>
+          <tr><td class="m">입고 등록</td><td>STOCK_LEDGER(I) → STOCK_MST</td><td>—</td></tr>
+          <tr><td class="m">출고 업로드</td><td>SHIPOUT_MST → STOCK_LEDGER(O) → STOCK_MST</td><td>—</td></tr>
+          <tr><td class="m">재고현황</td><td>(저장 없음)</td><td>STOCK_LEDGER + STOCK_MST</td></tr>
+          <tr><td class="m">재고마감</td><td>(저장 없음)</td><td>STOCK_LEDGER + CLOSING_STOCK</td></tr>
+          <tr><td class="m">마감 확정</td><td>CLOSING_MST + CLOSING_STOCK</td><td>STOCK_LEDGER</td></tr>
+        </tbody></table>
+        <div class="gd" style="margin-top:8px">※ 재고현황·재고마감은 <b>같은 원장</b>을 봄 → 재고현황 기준일=마감월 말일이면 재고마감 기말과 <b>일치(대사)</b>. 저장은 <b>등록/업로드 순간</b>(원장·STOCK_MST)과 <b>마감 확정 시</b>(CLOSING)에만 발생.</div>
+      </div>
+
+      <div class="g-sec">
         <h3>1. 출고 관리</h3>
         <div class="gd">발주현황표(엑셀)를 올려 출고량·출고장별 수량을 자동 작성합니다.</div>
         <table><tbody>
@@ -3373,7 +3393,8 @@
         <div><h2>재고현황 <span class="badge b-done">현재고</span></h2>
           <div class="sub">전체 품목 실시간 현재고 = 입고(수불원장) − 출고(SHIPOUT). 수불/출고 등록 시 자동 갱신됩니다.</div></div>
         <div class="actions">
-          <button class="btn-line" onclick="stkRebuild()" title="전체 출고(SHIPOUT)를 원장에 반영하고 현재고를 다시 계산합니다">🔄 출고반영 재집계</button>
+          <span style="font-size:12.5px;color:#8a97a3;text-align:right;line-height:1.5;align-self:center;white-space:nowrap">실시간 집계라 <b style="color:#b06a00">출고량 재집계는 평소 필요 없습니다.</b><br>부득이한 경우에만 실행 &nbsp;→</span>
+          <button class="btn-line" onclick="stkRebuild()" title="실시간 자동집계라 평소엔 불필요. 과거 SHIPOUT 최초 반영/보정 등 부득이한 경우에만 실행">🔄 출고반영 재집계</button>
           <button class="btn-teal" onclick="stkStatusLoad()">↻ 새로고침</button>
         </div>
       </div>
