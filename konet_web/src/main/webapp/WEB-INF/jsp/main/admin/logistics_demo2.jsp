@@ -354,7 +354,7 @@
   .ss-modal { display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:9998; }
   .ss-modal.on { display:flex; align-items:flex-start; justify-content:center; }
   .ss-modal .box { background:#fff; width:min(1120px,95vw); margin-top:4vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); max-height:90vh; display:flex; flex-direction:column; }
-  #ssPvOverlay .box { width:min(1440px,97vw); }   /* 발주현황표 미리보기: 좌측 목록 + 우측 일자컬럼까지 보이도록 넓게 */
+  #ssPvOverlay .box { width:min(1600px,96vw); }   /* 발주현황표 미리보기: 좌측 목록 + 우측 일자컬럼까지 보이도록 넓게 */
   .ss-modal .mh { background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:14px 20px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
   .ss-modal .mh h4 { margin:0; font-size:16px; font-weight:600; }
   .ss-modal .mh .x { cursor:pointer; font-size:22px; line-height:1; color:#fff; opacity:.9; background:none; border:none; }
@@ -370,6 +370,7 @@
   table.ss-pv td, table.ss-pv th { border:1px solid #e3e9e7; padding:3px 7px; white-space:nowrap; max-width:170px; overflow:hidden; text-overflow:ellipsis; }
   table.ss-pv tr.hdr td { background:#eef3f2; font-weight:700; color:#178074; position:sticky; top:0; }
   table.ss-pv td.hl { background:#fff7cc; }
+  table.ss-pv td.dlv { background:#e1efff; font-weight:700; color:#1257a8; }   /* 납기일자 컬럼 구분 */
   table.ss-pv td.rn { background:#f4f8f7; color:#9aa7b3; text-align:right; position:sticky; left:0; }
 
   /* 출고장 변경 알림 — 화면 하단 독립 고정 바 (데시보드2 iframe에서 postMessage 수신, 위너넷 알림바 스타일) */
@@ -1916,7 +1917,7 @@
   }
 
   // ── 업로드 자료 폴더 (File System Access API · Chrome/Edge). 폴더 지정 → 그 폴더의 xlsx 를 좌측에 나열, 클릭 → 우측 미리보기 ──
-  var ssDirHandle=null, ssDirFiles=[];
+  var ssDirHandle=null, ssDirFiles=[], ssAutoPick=false;   // 모달 재오픈 시 최신 파일 자동선택
   function ssHistEsc(s){ return (''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function ssFmtSize(n){ return n>=1048576 ? (n/1048576).toFixed(1)+'MB' : Math.max(1,Math.round(n/1024))+'KB'; }
   function ssFmtTime(ms){ var d=new Date(ms),p=function(n){return(n<10?'0':'')+n;}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }
@@ -1926,8 +1927,15 @@
   function ssIdbGet(){ return ssIdb().then(function(db){ return new Promise(function(res){ var t=db.transaction('h','readonly'); var g=t.objectStore('h').get('dir'); g.onsuccess=function(){ res(g.result||null); }; g.onerror=function(){ res(null); }; }); }).catch(function(){ return null; }); }
 
   function ssPickDir(){
-    if(!window.showDirectoryPicker){ ssToast('⚠️ 이 브라우저는 폴더 지정 미지원 — Chrome/Edge 권장(수동 업로드는 가능)'); return; }
-    window.showDirectoryPicker({mode:'readwrite'}).then(function(h){ ssDirHandle=h; ssIdbPut(h); ssDirList(); }).catch(function(){});   // readwrite = 목록 + 삭제
+    if(!window.showDirectoryPicker){
+      ssToast('⚠️ 이 접속에서는 폴더 지정을 쓸 수 없습니다(https/localhost 필요). <b>📄 파일 선택</b>으로 진행하세요.');
+      return;
+    }
+    var p;
+    try{ p=window.showDirectoryPicker({mode:'readwrite'}); }
+    catch(e){ ssToast('⚠️ 폴더 지정 오류: '+ssHistEsc(e&&e.message||'')); return; }
+    p.then(function(h){ ssDirHandle=h; ssIdbPut(h); ssAutoPick=true; ssDirList(); })   // readwrite = 목록 + 삭제
+     .catch(function(e){ if(e && e.name==='AbortError') return; ssToast('⚠️ 폴더 지정 실패: '+ssHistEsc((e&&(e.name+': '+e.message))||'')); });   // 취소는 무시
   }
   function ssDirRestore(){ if(ssDirHandle) return Promise.resolve(); return ssIdbGet().then(function(h){ if(h) ssDirHandle=h; }); }
   // 목록 표시 — 권한 확인은 queryPermission(제스처 불필요)만. 권한 없으면 '이 폴더 열기' 버튼 표시.
@@ -1951,6 +1959,7 @@
   //   제외: (출고장)/(매입단가) 등 괄호 붙은 것 , 매출장·메인웰스토리 등 한글로 시작하는 것
   var SS_NAME_RE=/^\d{4}\.\d{2}\.\d{2}_\d{2}\.\d{2}\.\d{2}/;
   function ssDirScan(){
+    var autoPick=ssAutoPick; ssAutoPick=false;   // 이번 스캔에서만 소비(삭제/새로고침 스캔엔 자동선택 안 함)
     ssDirFiles=[];
     var it=ssDirHandle.values(), tasks=[];
     function step(){ return it.next().then(function(res){
@@ -1964,6 +1973,8 @@
     step().then(function(){ return Promise.all(tasks); }).then(function(){
       ssDirFiles.sort(function(a,b){ return b.time-a.time; });   // 최신순
       ssHistRenderList();
+      // 재오픈 시 최신 파일을 우측에 자동 표시(이미 그 파일이 열려 있으면 재파싱 생략)
+      if(autoPick && ssDirFiles.length && ssDirFiles[0].name!==ssPvName) ssDirOpen(0);
     }).catch(function(){ ssHistRenderList(); });
   }
   function ssHistRenderList(){
@@ -2378,7 +2389,7 @@
     var ov=document.getElementById('ssPvOverlay'); if(!ov) return;
     var wasOpen=ov.classList.contains('on');
     ov.classList.toggle('on', !!show);
-    if(show && !wasOpen) ssHistRefresh();   // 처음 열릴 때만 폴더 목록 로드(파일 클릭마다 재스캔 방지)
+    if(show && !wasOpen){ ssAutoPick=true; ssHistRefresh(); }   // 열 때만 폴더 목록 로드 + 최신 파일 자동선택(파일 클릭마다 재스캔 방지)
   }
 
   // 셀 표시값 — 날짜는 엑셀처럼 YYYY-MM-DD(시간 있으면 포함)
@@ -2397,9 +2408,10 @@
     ssPvCur={aoa:aoa, map:m};
     var info=document.getElementById('ssPvInfo');
     var btn=document.getElementById('ssPvApplyBtn');
-    var hlCols={};
+    var hlCols={}, dlvCol=-1;
     if(m){
       [m.cItem,m.cBiz,m.cBizCode,m.cZone,m.cQty,m.cCode,m.cInb,m.cCenter].forEach(function(c){ if(c>=0) hlCols[c]=1; });
+      if(m.cDate>=0){ dlvCol=m.cDate; }   // 납기일자 컬럼(구분 표시)
       var _exRows=ssExtractRows(aoa,m);
       var cnt=_exRows.length;
       // 출고일자 기본값 = 엑셀 계산값(18차 가마감 일시 우선, 없으면 납기일자) — 사용자가 고치지 않았으면 채움
@@ -2447,7 +2459,8 @@
       html+='<td class="rn">'+(r+1)+'</td>';
       for(var c=0;c<maxC;c++){
         var v=ssCellDisp(aoa[r]&&aoa[r][c]);
-        html+='<td'+(hlCols[c]?' class="hl"':'')+' title="'+v.replace(/"/g,'&quot;')+'">'+v+'</td>';
+        var cls = (c===dlvCol) ? 'dlv' : (hlCols[c] ? 'hl' : '');   // 납기일자=파란, 반영대상=노랑
+        html+='<td'+(cls?' class="'+cls+'"':'')+' title="'+v.replace(/"/g,'&quot;')+'">'+v+'</td>';
       }
       html+='</tr>';
     }
