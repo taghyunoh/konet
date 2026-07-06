@@ -354,6 +354,7 @@
   .ss-modal { display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:9998; }
   .ss-modal.on { display:flex; align-items:flex-start; justify-content:center; }
   .ss-modal .box { background:#fff; width:min(1120px,95vw); margin-top:4vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); max-height:90vh; display:flex; flex-direction:column; }
+  #ssPvOverlay .box { width:min(1440px,97vw); }   /* 발주현황표 미리보기: 좌측 목록 + 우측 일자컬럼까지 보이도록 넓게 */
   .ss-modal .mh { background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:14px 20px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
   .ss-modal .mh h4 { margin:0; font-size:16px; font-weight:600; }
   .ss-modal .mh .x { cursor:pointer; font-size:22px; line-height:1; color:#fff; opacity:.9; background:none; border:none; }
@@ -1914,10 +1915,132 @@
     }).catch(function(){ direct(); });
   }
 
+  // ── 업로드 자료 폴더 (File System Access API · Chrome/Edge). 폴더 지정 → 그 폴더의 xlsx 를 좌측에 나열, 클릭 → 우측 미리보기 ──
+  var ssDirHandle=null, ssDirFiles=[];
+  function ssHistEsc(s){ return (''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function ssFmtSize(n){ return n>=1048576 ? (n/1048576).toFixed(1)+'MB' : Math.max(1,Math.round(n/1024))+'KB'; }
+  function ssFmtTime(ms){ var d=new Date(ms),p=function(n){return(n<10?'0':'')+n;}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }
+  // 지정 폴더를 IndexedDB에 기억 → 다음 실행 때 경로 유지(권한만 재허용)
+  function ssIdb(){ return new Promise(function(res,rej){ var r=indexedDB.open('ss_fs',1); r.onupgradeneeded=function(){ try{ r.result.createObjectStore('h'); }catch(e){} }; r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ rej(r.error); }; }); }
+  function ssIdbPut(h){ return ssIdb().then(function(db){ return new Promise(function(res){ var t=db.transaction('h','readwrite'); t.objectStore('h').put(h,'dir'); t.oncomplete=function(){ res(); }; t.onerror=function(){ res(); }; }); }).catch(function(){}); }
+  function ssIdbGet(){ return ssIdb().then(function(db){ return new Promise(function(res){ var t=db.transaction('h','readonly'); var g=t.objectStore('h').get('dir'); g.onsuccess=function(){ res(g.result||null); }; g.onerror=function(){ res(null); }; }); }).catch(function(){ return null; }); }
+
+  function ssPickDir(){
+    if(!window.showDirectoryPicker){ ssToast('⚠️ 이 브라우저는 폴더 지정 미지원 — Chrome/Edge 권장(수동 업로드는 가능)'); return; }
+    window.showDirectoryPicker({mode:'readwrite'}).then(function(h){ ssDirHandle=h; ssIdbPut(h); ssDirList(); }).catch(function(){});   // readwrite = 목록 + 삭제
+  }
+  function ssDirRestore(){ if(ssDirHandle) return Promise.resolve(); return ssIdbGet().then(function(h){ if(h) ssDirHandle=h; }); }
+  // 목록 표시 — 권한 확인은 queryPermission(제스처 불필요)만. 권한 없으면 '이 폴더 열기' 버튼 표시.
+  function ssDirList(){
+    var box=document.getElementById('ssPvHist'), nm=document.getElementById('ssPvDirName'); if(!box) return;
+    if(!window.showDirectoryPicker){ if(nm) nm.textContent=''; box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:12px;line-height:1.6">이 브라우저는 폴더 지정을<br>지원하지 않습니다.<br>상단 <b>📄 파일 선택</b>으로 진행하세요.<br>(Chrome/Edge 권장)</div>'; return; }
+    if(!ssDirHandle){ if(nm) nm.textContent=''; box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:12px;line-height:1.6"><b>📂 폴더 지정</b>을 눌러<br>자료 폴더를 선택하면<br>파일이 여기 표시됩니다.</div>'; return; }
+    if(nm) nm.textContent='📂 '+ssDirHandle.name;
+    ssDirHandle.queryPermission({mode:'readwrite'}).then(function(p){
+      if(p==='granted'){ box.innerHTML='<div style="padding:10px;color:#9aa7b3;font-size:12px">불러오는 중…</div>'; ssDirScan(); }
+      else { box.innerHTML='<div style="padding:12px;color:#b3760f;font-size:12px;line-height:1.6">저장된 폴더(<b>'+ssHistEsc(ssDirHandle.name)+'</b>)를<br>다시 사용하려면 권한이 필요합니다.<br><button class="btn-teal" style="margin-top:8px;padding:4px 12px" onclick="ssGrantDir()">📂 이 폴더 열기</button></div>'; }
+    }).catch(function(e){ box.innerHTML='<div style="padding:12px;color:#c0392b;font-size:12px">폴더 오류: '+ssHistEsc(e&&e.message||'')+'</div>'; });
+  }
+  // 사용자 클릭(제스처) 안에서만 권한 요청 — requestPermission 을 즉시 호출해야 'User activation' 오류가 안 남
+  function ssGrantDir(){
+    if(!ssDirHandle) return;
+    ssDirHandle.requestPermission({mode:'readwrite'}).then(function(p){ if(p==='granted') ssDirList(); else ssToast('폴더 접근이 거부되었습니다. [폴더 지정]으로 다시 선택하세요.'); }).catch(function(){});
+  }
+  // 발주 파일만: 'YYYY.MM.DD_HH.MM.SS' 날짜시각으로 시작하고 '(' 괄호가 없는 xlsx.
+  //   포함: 2026.07.01_16.01.01.xlsx , 2026.07.01_16.01.01 - 복사본.xlsx
+  //   제외: (출고장)/(매입단가) 등 괄호 붙은 것 , 매출장·메인웰스토리 등 한글로 시작하는 것
+  var SS_NAME_RE=/^\d{4}\.\d{2}\.\d{2}_\d{2}\.\d{2}\.\d{2}/;
+  function ssDirScan(){
+    ssDirFiles=[];
+    var it=ssDirHandle.values(), tasks=[];
+    function step(){ return it.next().then(function(res){
+      if(res.done) return;
+      var h=res.value;
+      if(h.kind==='file' && /\.xlsx?$/i.test(h.name) && SS_NAME_RE.test(h.name) && h.name.indexOf('(')<0){
+        tasks.push(h.getFile().then(function(f){ ssDirFiles.push({name:h.name, time:f.lastModified, size:f.size, handle:h}); }));
+      }
+      return step();
+    }); }
+    step().then(function(){ return Promise.all(tasks); }).then(function(){
+      ssDirFiles.sort(function(a,b){ return b.time-a.time; });   // 최신순
+      ssHistRenderList();
+    }).catch(function(){ ssHistRenderList(); });
+  }
+  function ssHistRenderList(){
+    var box=document.getElementById('ssPvHist'); if(!box) return;
+    if(!ssDirFiles.length){ box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:12px">폴더에 엑셀(xlsx) 파일이<br>없습니다.</div>'; return; }
+    box.innerHTML=ssDirFiles.map(function(x,i){
+      var cur=(x.name===ssPvName);
+      return '<div onclick="ssDirOpen('+i+')" title="'+ssHistEsc(x.name)+'&#10;클릭하면 우측에 표시" '
+        +'style="display:flex;align-items:center;gap:8px;padding:5px 9px;border-bottom:1px solid #eef3f1;cursor:pointer;font-size:12px'+(cur?';background:#e7f3ef':'')+'">'
+        +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'+(cur?'font-weight:700;color:#137a6c':'color:#28323c')+'">📄 '+ssHistEsc(x.name)+'</span>'
+        +'<span style="flex:0 0 auto;color:#9aa7b3;white-space:nowrap;font-size:11px">'+ssFmtTime(x.time)+' · <b style="color:#6b7a89">'+ssFmtSize(x.size)+'</b></span>'
+        +'<span onclick="event.stopPropagation();ssDirDelete('+i+')" title="이 파일 삭제" style="flex:0 0 auto;cursor:pointer;color:#c0392b;font-size:13px;padding:0 2px">🗑</span>'
+        +'</div>';
+    }).join('');
+  }
+  // 목록의 파일을 '_삭제됨' 하위폴더로 이동(소프트 삭제 — 복구 가능). readwrite 권한 필요
+  var SS_TRASH='_삭제됨';
+  function ssDirDelete(i){
+    var x=ssDirFiles[i]; if(!x || !ssDirHandle) return;
+    ssConfirm('「'+SS_TRASH+'」 폴더로 이동합니다 <span style="color:#9aa7b3">(복구 가능)</span><br><b style="word-break:break-all">'+ssHistEsc(x.name)+'</b>',
+      function(){
+        ssDirHandle.requestPermission({mode:'readwrite'}).then(function(p){
+          if(p!=='granted'){ ssToast('삭제하려면 쓰기 권한이 필요합니다. [폴더 지정]으로 다시 선택하세요.'); return; }
+          return ssMoveToTrash(x);
+        }).catch(function(e){ ssToast('⚠️ 이동 실패: '+ssHistEsc(e&&e.message||'')); });
+      }, {title:'🗑 파일 이동', yes:'이동'});
+  }
+  // 원본 읽기 → _삭제됨 폴더에 쓰기 → 원본 제거 (= 이동)
+  function ssMoveToTrash(x){
+    return x.handle.getFile().then(function(f){ return f.arrayBuffer(); }).then(function(buf){
+      return ssDirHandle.getDirectoryHandle(SS_TRASH, {create:true}).then(function(trash){
+        return ssTrashName(trash, x.name).then(function(finalName){
+          return trash.getFileHandle(finalName, {create:true}).then(function(fh){
+            return fh.createWritable().then(function(w){ return w.write(buf).then(function(){ return w.close(); }); });
+          });
+        });
+      });
+    }).then(function(){
+      return ssDirHandle.removeEntry(x.name);   // 원본 제거(복사본은 _삭제됨에 남음)
+    }).then(function(){ ssToast('🗑 「'+SS_TRASH+'」 폴더로 이동: '+x.name); ssDirList(); })
+      .catch(function(e){ ssToast('⚠️ 이동 실패: '+ssHistEsc(e&&e.message||'')); });
+  }
+  // 대상 폴더에 같은 이름 있으면 시각 접미사 붙여 충돌 방지
+  function ssTrashName(trash, name){
+    return trash.getFileHandle(name).then(function(){
+      var dot=name.lastIndexOf('.'), base=dot>0?name.slice(0,dot):name, ext=dot>0?name.slice(dot):'';
+      return base+'_'+ssFmtTime(+new Date()).replace(/[^0-9]/g,'')+ext;
+    }, function(){ return name; });
+  }
+  // 큰 파일도 그대로 수용(수가업로드처럼 대용량 가능). 파싱 중엔 "불러오는 중" 표시로 멈춘 듯 안 보이게
+  function ssBusy(on, msg){
+    var el=document.getElementById('ssBusyOv');
+    if(on){
+      if(!el){ el=document.createElement('div'); el.id='ssBusyOv';
+        el.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35)';
+        el.innerHTML='<div style="background:#fff;padding:18px 26px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.3);font-size:15px;font-weight:600;color:#137a6c;max-width:80vw;text-align:center">⏳ <span id="ssBusyMsg"></span></div>';
+        document.body.appendChild(el);
+      }
+      document.getElementById('ssBusyMsg').textContent=msg||'불러오는 중…';
+      el.style.display='flex';
+    } else if(el){ el.style.display='none'; }
+  }
+  function ssDirOpen(i){
+    var x=ssDirFiles[i]; if(!x) return;
+    ssBusy(true,'엑셀 불러오는 중…');
+    x.handle.getFile().then(function(f){ return f.arrayBuffer(); }).then(function(buf){ ssLoadWorkbookBuf(buf, x.name, true); }).catch(function(){ ssBusy(false); ssToast('⚠️ 파일 열기 실패'); });
+  }
+  // 모달 열릴 때 저장된 폴더 복원 + 목록 갱신
+  function ssHistRefresh(){ ssDirRestore().then(function(){ ssDirList(); }); }
+
   // ArrayBuffer(엑셀) → 미리보기 모달에 로드 (수동선택·폴더선택 공용). 이후 작성/저장은 기존 ssPvApply 재사용
-  function ssLoadWorkbookBuf(buf, fileName){
-    if(typeof XLSX==='undefined'){ ssToast('⚠️ 엑셀 파서를 불러오지 못했습니다(인터넷 필요).'); return; }
+  function ssLoadWorkbookBuf(buf, fileName, skipHist){
+    if(typeof XLSX==='undefined'){ ssBusy(false); ssToast('⚠️ 엑셀 파서를 불러오지 못했습니다(인터넷 필요).'); return; }
     ssPvName=fileName;
+    ssBusy(true,'엑셀 불러오는 중… ('+fileName+')');
+    // 스피너를 먼저 화면에 그린 뒤 무거운 동기 파싱 실행(대용량도 멈춘 듯 안 보이게)
+    setTimeout(function(){
     ssReadXlsx(buf, function(wb){
     try{
       ssPvWb=wb;
@@ -1929,15 +2052,20 @@
       document.getElementById('ssPvSheetWrap').style.display = names.length>1 ? '' : 'none';
       ssPvRender();
       ssPvOpen(true);
+      ssHistRenderList();   // 현재 파일 강조 갱신(폴더 목록)
     }catch(err){ ssToast('⚠️ 엑셀 처리 오류: '+err.message); }
-    }, function(err){ ssToast('⚠️ 엑셀 처리 오류: '+err.message); });
+    ssBusy(false);
+    }, function(err){ ssBusy(false); ssToast('⚠️ 엑셀 처리 오류: '+err.message); });
+    }, 30);
   }
 
   // 수동 파일 선택(<input type=file>) — 폴더 접근이 안 되는 환경용 fallback
   function ssUpload(input){
     var f=input.files && input.files[0]; if(!f) return;
+    ssBusy(true,'파일 읽는 중… ('+f.name+')');
     var rd=new FileReader();
     rd.onload=function(e){ ssLoadWorkbookBuf(e.target.result, f.name); input.value=''; };
+    rd.onerror=function(){ ssBusy(false); ssToast('⚠️ 파일 읽기 실패'); input.value=''; };
     rd.readAsArrayBuffer(f);
   }
 
@@ -2244,9 +2372,14 @@
     return rows;
   }
 
-  var ssPvCur=null;
+  var ssPvCur=null, ssPvBadFile=null;
 
-  function ssPvOpen(show){ document.getElementById('ssPvOverlay').classList.toggle('on', !!show); }
+  function ssPvOpen(show){
+    var ov=document.getElementById('ssPvOverlay'); if(!ov) return;
+    var wasOpen=ov.classList.contains('on');
+    ov.classList.toggle('on', !!show);
+    if(show && !wasOpen) ssHistRefresh();   // 처음 열릴 때만 폴더 목록 로드(파일 클릭마다 재스캔 방지)
+  }
 
   // 셀 표시값 — 날짜는 엑셀처럼 YYYY-MM-DD(시간 있으면 포함)
   function ssCellDisp(v){
@@ -2296,9 +2429,13 @@
       btn.removeAttribute('disabled'); btn.style.opacity='1';
     } else {
       info.className='ss-pvinfo warn';
-      info.innerHTML='⚠️ 발주현황표 형식이 아닙니다 — 헤더에 <b>물류센터명·품목명·현 발주</b>(코네트) 또는 <b>품목명·사업장명·존·수량</b> 가 있어야 합니다. 시트를 바꿔 보세요.';
+      info.innerHTML='⚠️ <b>형식이 맞지 않는 자료입니다</b> — 발주현황표(출고) 양식이 아닙니다.<br>'
+        + '헤더에 <b>물류센터명·품목명·현 발주</b>(코네트) 또는 <b>품목명·사업장명·존·수량</b> 이 있어야 합니다. 시트를 바꿔 보세요.';
       btn.setAttribute('disabled','disabled'); btn.style.opacity='.5';
+      // 같은 파일엔 한 번만 팝업(시트 바꿀 때마다 반복 방지)
+      if(ssPvBadFile!==ssPvName){ ssPvBadFile=ssPvName; ssToast('⚠️ 형식이 맞지 않는 자료입니다'); }
     }
+    if(m) ssPvBadFile=null;
     // 미리보기 표 (전체 행 표시 — 모달 내 스크롤)
     var maxR=Math.min(aoa.length,2000), maxC=0;
     for(var i=0;i<maxR;i++) maxC=Math.max(maxC,(aoa[i]||[]).length);
@@ -2319,19 +2456,22 @@
   }
 
   // 앱 스타일 확인 메시지 박스 (native confirm 대체)
-  function ssConfirm(html, onYes){
+  function ssConfirm(html, onYes, opts){
+    opts=opts||{};
     var ov=document.getElementById('ssConfirmOv');
     if(!ov){
       ov=document.createElement('div'); ov.id='ssConfirmOv'; ov.className='ss-modal';
-      ov.innerHTML='<div class="box" style="width:min(480px,92vw)">'
-        +'<div class="mh"><h4>📋 반영 확인</h4><button class="x" onclick="ssConfirmClose()">&times;</button></div>'
-        +'<div class="mbody" id="ssConfirmMsg" style="font-size:14px; line-height:1.65; color:#37475a"></div>'
+      ov.innerHTML='<div class="box" style="width:min(440px,90vw)">'
+        +'<div class="mh"><h4 id="ssConfirmTitle">📋 반영 확인</h4><button class="x" onclick="ssConfirmClose()">&times;</button></div>'
+        +'<div class="mbody" id="ssConfirmMsg" style="font-size:14px; line-height:1.6; color:#37475a"></div>'
         +'<div class="mfoot"><button class="btn-line" onclick="ssConfirmClose()">취소</button>'
         +'<button class="btn-teal" id="ssConfirmYes">반영</button></div></div>';
       document.body.appendChild(ov);
     }
+    document.getElementById('ssConfirmTitle').textContent = opts.title || '📋 반영 확인';
     document.getElementById('ssConfirmMsg').innerHTML=html;
-    document.getElementById('ssConfirmYes').onclick=function(){ ssConfirmClose(); if(onYes) onYes(); };
+    var yes=document.getElementById('ssConfirmYes'); yes.textContent = opts.yes || '반영';
+    yes.onclick=function(){ ssConfirmClose(); if(onYes) onYes(); };
     ov.classList.add('on');
   }
   function ssConfirmClose(){ var ov=document.getElementById('ssConfirmOv'); if(ov) ov.classList.remove('on'); }
@@ -2451,7 +2591,7 @@
 
   // 작성(반영): 확인 메시지 후 실행
   function ssPvApply(){
-    if(!ssPvCur || !ssPvCur.map){ ssToast('⚠️ 인식 가능한 발주현황표가 아닙니다.'); return; }
+    if(!ssPvCur || !ssPvCur.map){ ssToast('⚠️ 형식이 맞지 않는 자료입니다 — 발주현황표(출고) 양식이 아니라 서버(TBL_SHIPOUT_MST)에 반영할 수 없습니다.'); return; }
     var rows=ssExtractRows(ssPvCur.aoa, ssPvCur.map);
     if(!rows.length){ ssToast('⚠️ 데이터 행이 없습니다.'); return; }
     var sheetNm=ssPvWb.SheetNames[+(document.getElementById('ssPvSheet').value||0)];
@@ -3460,10 +3600,28 @@
             </span>
             <span style="margin-left:auto; color:#6b7a89">아래 <b>출고일자</b> 확인·수정 후 <b>작성(반영)</b> 을 누르세요</span>
           </div>
-          <div class="mbody">
-            <div id="ssPvInfo"></div>
-            <div style="max-height:56vh; overflow:auto; border:1px solid var(--logi-border); border-radius:7px">
-              <table class="ss-pv" id="ssPvTbl"></table>
+          <div class="mbody" style="display:flex; gap:12px; align-items:flex-start">
+            <!-- 좌측: 지정한 자료 폴더의 파일 목록. 클릭하면 우측 미리보기에 표시 -->
+            <div style="width:400px; flex:0 0 400px; border:1px solid var(--logi-border); border-radius:7px; display:flex; flex-direction:column; height:60vh">
+              <div style="padding:7px 9px; border-bottom:1px solid var(--logi-border); background:#f4f8f7; flex:0 0 auto">
+                <div style="display:flex; align-items:center; gap:6px">
+                  <span style="flex:1; font-weight:700; color:#37475a">📁 업로드 파일</span>
+                  <button class="btn-line" style="padding:2px 7px; font-size:11px" onclick="ssDirList()" title="폴더 목록 새로고침">↻</button>
+                </div>
+                <div style="display:flex; gap:6px; margin-top:6px">
+                  <button class="btn-teal" style="flex:1; padding:3px 4px; font-size:11px" onclick="ssPickDir()" title="자료가 있는 폴더 지정 → 목록 표시">📂 폴더 지정</button>
+                  <button class="btn-line" style="flex:1; padding:3px 4px; font-size:11px" onclick="document.getElementById('ssFile').click()" title="엑셀 파일 직접 선택(기존 방식)">📄 파일 선택</button>
+                </div>
+              </div>
+              <div id="ssPvDirName" style="padding:4px 9px; font-size:11px; color:#137a6c; border-bottom:1px solid #eef3f1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:0 0 auto"></div>
+              <div id="ssPvHist" style="overflow-y:auto; flex:1 1 auto; min-height:0"></div>
+            </div>
+            <!-- 우측: 기존 미리보기 표 -->
+            <div style="flex:1; min-width:0">
+              <div id="ssPvInfo"></div>
+              <div style="max-height:56vh; overflow:auto; border:1px solid var(--logi-border); border-radius:7px">
+                <table class="ss-pv" id="ssPvTbl"></table>
+              </div>
             </div>
           </div>
           <div class="mfoot">
