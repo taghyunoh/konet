@@ -1048,7 +1048,8 @@
   function d2ToggleGroup(g){ if(D2_GCOLL[g]) delete D2_GCOLL[g]; else D2_GCOLL[g]=1; d2Render(); }
   function d2ToggleAllZones(){
     var ag=d2Aggregate();
-    var zs=ag.zoneOrder.filter(function(zn){ return Object.keys(ag.zones[zn].rows).length>0; });
+    // 렌더(zonesWithItems)와 동일 기준 — 활성행 없이 '삭제행'만 있는 출고장도 접기 대상에 포함
+    var zs=ag.zoneOrder.filter(function(zn){ var z=ag.zones[zn]; return Object.keys(z.rows).length>0 || (z.delRows&&z.delRows.length>0); });
     var allColl = zs.length>0 && zs.every(function(zn){ return !!D2_COLL[zn]; });
     D2_COLL={}; D2_GCOLL={};
     if(!allColl) zs.forEach(function(zn){ D2_COLL[zn]=1; });
