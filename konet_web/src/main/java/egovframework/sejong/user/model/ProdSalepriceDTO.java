@@ -3,13 +3,17 @@ package egovframework.sejong.user.model;
 /**
  * 판매/도매 단가 이력 DTO  →  TBL_PROD_SALEPRICE_HST
  *  · 품목(PROD_SEQ)별·적용일자별 판매단가·도매단가 이력
- *  · 신규 등록 시 TBL_PROD_MST.SALE_PRICE/WHOLE_PRICE(현재 판매/도매가) 동기화
+ *  · 판매처(vendorCd) : NULL=공통(기본) 판매가 / 값 있음=그 판매처(TBL_VENDOR_MST 매출 거래처) 전용가.
+ *    매출마감은 공통가만 집고, 전용가 등록은 마스터 SALE_PRICE 를 동기화하지 않는다.
+ *  · 공통가 신규 등록 시 TBL_PROD_MST.SALE_PRICE/WHOLE_PRICE(현재 판매/도매가) 동기화
  */
 public class ProdSalepriceDTO {
 
     private Long    salepriceSeq;  // PK
     private Long    prodSeq;       // 품목마스터 PK
     private String  prodCd;        // 품목코드
+    private String  vendorCd;      // 판매처코드 (NULL=공통가)
+    private String  vendorNm;      // 판매처명(스냅샷)
     private String  applyDt;       // 적용시작일자
     private Double  salePrice;     // 판매(출고)단가
     private Double  wholePrice;    // 도매단가
@@ -31,6 +35,10 @@ public class ProdSalepriceDTO {
     public void setProdSeq(Long prodSeq) { this.prodSeq = prodSeq; }
     public String getProdCd() { return prodCd; }
     public void setProdCd(String prodCd) { this.prodCd = prodCd; }
+    public String getVendorCd() { return vendorCd; }
+    public void setVendorCd(String vendorCd) { this.vendorCd = vendorCd; }
+    public String getVendorNm() { return vendorNm; }
+    public void setVendorNm(String vendorNm) { this.vendorNm = vendorNm; }
     public String getApplyDt() { return applyDt; }
     public void setApplyDt(String applyDt) { this.applyDt = applyDt; }
     public Double getSalePrice() { return salePrice; }

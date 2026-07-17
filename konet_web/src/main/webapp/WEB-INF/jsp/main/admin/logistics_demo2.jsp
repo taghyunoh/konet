@@ -14,6 +14,7 @@
   .swal2-popup:not(.swal2-toast) .swal2-styled{ padding:.5em 1.4em; font-size:.95em; }
 </style>
 
+
 <style>
   :root { --logi-teal:#1f9b8e; --logi-teal-dark:#178074; --logi-border:#dfe6e3; --logi-bg:#f4f8f7; }
   /* 흐린 회색 글자를 진한 색으로 (또렷하게) */
@@ -590,6 +591,20 @@
     var dcCd=(''+(r.dcCd||'')).trim(), dcNm=(''+(r.dcNm||'')).trim();
     return CLOSE_DCGROUP[dcCd] || (/제주/.test(dcNm) ? '오산센터' : (dcNm||'(출고장 미지정)'));
   }
+  var _salesQ='';
+  function _salesView(){   // 품목코드/품목명 검색 필터 (3탭 공통 — 집계 전 원천 행에 적용)
+    if(!_salesQ) return _salesRows;
+    return _salesRows.filter(function(r){
+      return (''+(r.itemCd||'')).toLowerCase().indexOf(_salesQ)>=0 || (''+(r.itemNm||'')).toLowerCase().indexOf(_salesQ)>=0;
+    });
+  }
+  function _salesQNote(){ return _salesQ ? ' · <span style="color:#137a6c">🔎 \''+_cesc(_salesQ)+'\' 검색중</span>' : ''; }
+  function salesSearch(){
+    var el=document.getElementById('salesQ');
+    _salesQ=((el&&el.value)||'').trim().toLowerCase();
+    _salesPage=1; _salesCollapsed={}; _salesAllCollapsed=false; _salesUpdAllBtn();
+    salesRenderTab();
+  }
   function salesTab(t){
     _salesTab=t; _salesPage=1; _salesAllCollapsed=false; _salesUpdAllBtn();
     Array.prototype.forEach.call(document.querySelectorAll('#salesTabs .ctab'), function(b){ b.classList.toggle('on', b.getAttribute('data-t')===t); });
@@ -607,12 +622,12 @@
   function salesCollapseAll(){   // 현재 탭 전체 그룹 접기 (렌더와 동일 순서로 키 재계산)
     var tab=_salesTab; if(tab==='item') return;
     if(tab==='zone'){
-      var az=_closeAgg(_salesRows, function(r){ return _zoneGroup(r)+'~'+(r.dcCd||'')+'~'+r.itemCd; });
+      var az=_closeAgg(_salesView(), function(r){ return _zoneGroup(r)+'~'+(r.dcCd||'')+'~'+r.itemCd; });
       var L1=[], l1m={};
       az.forEach(function(o){ var k1=_zoneGroup(o.s); var g1=l1m[k1]; if(!g1){ g1=l1m[k1]={l2:[],l2m:{}}; L1.push(g1); } var k2=(o.s.dcCd||'')+'|'+(o.s.dcNm||''); if(!g1.l2m[k2]){ g1.l2m[k2]=1; g1.l2.push(k2); } });
       L1.forEach(function(g1,i1){ _salesCollapsed['z1#'+i1]=true; g1.l2.forEach(function(_,i2){ _salesCollapsed['z2#'+i1+'.'+i2]=true; }); });
     } else {
-      var ab=_closeAgg(_salesRows, function(r){ return (r.bizNm||'(미지정)')+'~'+r.itemCd; });
+      var ab=_closeAgg(_salesView(), function(r){ return (r.bizNm||'(미지정)')+'~'+r.itemCd; });
       var seen={}, gi=0;
       ab.forEach(function(o){ var gk=o.s.bizNm||'(미지정)'; if(!(gk in seen)){ seen[gk]=gi; _salesCollapsed['biz#'+gi]=true; gi++; } });
     }
@@ -647,15 +662,16 @@
     var lead0=headCols.length;
     var priceCols='<th style="text-align:right">출고수량</th><th style="text-align:right">매입단가</th><th style="text-align:right">출고단가</th><th style="text-align:right">매출액</th><th style="text-align:right">매입액</th><th style="text-align:right">순마진액</th>';
     var thead='<thead><tr>'+headCols.map(function(h){ return '<th>'+h+'</th>'; }).join('')+priceCols+'</tr></thead>';
+    var rows=_salesView();   // 검색 적용 행 — 합계·소계·페이징 모두 이 기준
     // 전체 합계 (원천 finest 행 기준)
-    var gQ=0,gS=0,gC=0,gM=0; _salesRows.forEach(function(r){ gQ+=(+r.outQty||0); gS+=(+r.salesAmt||0); gC+=(+r.costAmt||0); gM+=(+r.marginAmt||0); });
-    if(!_salesRows.length){ sum.textContent='해당 기간 출고 자료가 없습니다.'; wrap.innerHTML=''; pg.innerHTML=''; return; }
+    var gQ=0,gS=0,gC=0,gM=0; rows.forEach(function(r){ gQ+=(+r.outQty||0); gS+=(+r.salesAmt||0); gC+=(+r.costAmt||0); gM+=(+r.marginAmt||0); });
+    if(!rows.length){ sum.textContent=(_salesRows.length&&_salesQ)?('\''+_salesQ+'\' 검색 결과가 없습니다. (품목코드/품목명)'):'해당 기간 출고 자료가 없습니다.'; wrap.innerHTML=''; pg.innerHTML=''; return; }
     var totalRow='<tr class="close-total"><td colspan="'+lead0+'" style="text-align:left">■ 총합계</td>'+_salesNumCells(gQ,0,0,gS,gC,gM,false)+'</tr>';
 
     if(tab==='item'){
       // 품목 탭 = 평면 + 페이징 (총합계 상단)
-      var agg=_closeAgg(_salesRows, function(r){ return r.itemCd; });
-      sum.innerHTML='총 <b>'+agg.length.toLocaleString()+'</b>품목 · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 순마진 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>';
+      var agg=_closeAgg(rows, function(r){ return r.itemCd; });
+      sum.innerHTML='총 <b>'+agg.length.toLocaleString()+'</b>품목 · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 순마진 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>'+_salesQNote();
       var pages=Math.max(1,Math.ceil(agg.length/SALES_PAGE)); if(_salesPage>pages)_salesPage=pages;
       var pageRows=agg.slice((_salesPage-1)*SALES_PAGE, (_salesPage-1)*SALES_PAGE+SALES_PAGE);
       var body=pageRows.map(function(o){
@@ -672,7 +688,7 @@
     }
 
     if(tab==='zone'){   // 출고장별 = 2단 트리(대표 오산센터 묶음 → 개별 물류센터 출고장 → 품목)
-      var itemAggZ=_closeAgg(_salesRows, function(r){ return _zoneGroup(r)+'~'+(r.dcCd||'')+'~'+r.itemCd; });
+      var itemAggZ=_closeAgg(rows, function(r){ return _zoneGroup(r)+'~'+(r.dcCd||'')+'~'+r.itemCd; });
       var L1=[], l1m={};
       itemAggZ.forEach(function(o){
         var k1=_zoneGroup(o.s);
@@ -682,7 +698,7 @@
         var g2=g1.l2m[k2]; if(!g2){ g2=g1.l2m[k2]={ label:(o.s.dcNm||'(미지정)')+(o.s.dcCd?(' ('+o.s.dcCd+')'):''), items:[], q:0,s:0,c:0,m:0 }; g1.l2.push(g2); }
         g2.q+=o.outQty; g2.s+=o.salesAmt; g2.c+=o.costAmt; g2.m+=o.marginAmt; g2.items.push(o);
       });
-      sum.innerHTML='총 <b>'+L1.length+'</b>대표출고장 · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 순마진 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>';
+      sum.innerHTML='총 <b>'+L1.length+'</b>대표출고장 · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 순마진 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>'+_salesQNote();
       // 표시행(rows) = 대표헤더 + 개별출고장헤더 + 품목행 (접힘 반영). 품목행 포함 '행 단위' 페이징
       var ROWS_PAGE=25, rowsZ=[];
       L1.forEach(function(g1,i1){
@@ -716,14 +732,14 @@
 
     // 출고장별/사업장별 = 그룹(소계·접기펼치기) + 그룹 단위 페이징
     var groupKeyOf = tab==='zone' ? function(r){ return _zoneGroup(r); } : function(r){ return r.bizNm||'(미지정)'; };
-    var itemAgg=_closeAgg(_salesRows, function(r){ return groupKeyOf(r)+''+r.itemCd; });
+    var itemAgg=_closeAgg(rows, function(r){ return groupKeyOf(r)+''+r.itemCd; });
     var groups=[], gmap={};
     itemAgg.forEach(function(o){
       var gk=groupKeyOf(o.s);
       if(!gmap[gk]){ gmap[gk]={ label:gk, items:[], q:0,s:0,c:0,m:0 }; groups.push(gmap[gk]); }
       var g=gmap[gk]; g.items.push(o); g.q+=o.outQty; g.s+=o.salesAmt; g.c+=o.costAmt; g.m+=o.marginAmt;
     });
-    sum.innerHTML='총 <b>'+groups.length.toLocaleString()+'</b>'+(tab==='zone'?'출고장':'사업장')+' · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 순마진 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>';
+    sum.innerHTML='총 <b>'+groups.length.toLocaleString()+'</b>'+(tab==='zone'?'출고장':'사업장')+' · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 순마진 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>'+_salesQNote();
     var pages=Math.max(1,Math.ceil(groups.length/SALES_PAGE_G)); if(_salesPage>pages)_salesPage=pages;
     var pgStart=(_salesPage-1)*SALES_PAGE_G;
     var body='';
@@ -3159,8 +3175,268 @@
     var _if2=document.getElementById('if-shipstatus2');
     if(_if2){ var _c2=_if2.getAttribute('src')||''; if(!_c2 || _c2==='about:blank'){ _if2.src='${pageContext.request.contextPath}/admin/logistics_demo1.do'; } _if2.setAttribute('data-loaded','1'); }
   }
-  document.addEventListener('DOMContentLoaded', ssInit);
-  (function(){ ssInit(); })();
+  /* ══════════════════════════════════════════════════════════════════════════
+     매출(판매) 확정내역 업로드 — 출고장 제공 엑셀 → TBL_SALES_MST
+      ★엑셀은 '출고장 기준'으로 쓰여 있어 우리 기준으로 뒤집어 담는다
+          엑셀 '입고량'=우리 출고량 / '단가'=우리 판매단가 / '매입금액'=우리 매출액 / '입고일자'=우리 출고일자
+      · 출고장(평택 등)은 엑셀 안에 없고 파일명에만 있다 → 파일명에서 뽑아 화면에서 확인·수정
+      · 납품일자는 엑셀 안에 있으므로 엑셀 값을 쓴다(파일명 날짜는 참고용)
+      · 파일 1개 = 1배치(납품일자+출고장). 재업로드 시 서버가 기존 배치 이력마감 후 신규 적재
+     ══════════════════════════════════════════════════════════════════════════ */
+  var _slsFiles=[];   // [{name, dcNm, rows:[...], err}]
+  var _slsDone={};    // 이미 반영된 파일명 → {uploadDttm, dcNm}
+
+  // '2026.07.11_평택.xlsx' / '2026.07.11 오산.xlsx' → 출고장명
+  function slsParseName(fname){
+    var base=(''+fname).replace(/\.[^.]+$/,'');
+    var m=base.match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})[\s_\-]*(.*)$/);
+    if(!m) return { dt:'', dc:base.trim() };
+    return { dt:m[1]+'-'+ssPad(+m[2])+'-'+ssPad(+m[3]), dc:(m[4]||'').trim() };
+  }
+  function slsStr(v){ return (''+(v==null?'':v)).trim(); }
+  function slsNum(v){
+    if(v==null||v==='') return null;
+    var s=(''+v).replace(/,/g,'').trim(); if(s==='') return null;
+    var n=Number(s); return isNaN(n)?null:n;
+  }
+  // 엑셀 시트(2차원) → 우리 관점 행 목록
+  function slsBuildRows(aoa){
+    function eq(arr,name){ for(var k=0;k<arr.length;k++){ if(slsStr(arr[k])===name) return k; } return -1; }
+    var h=-1, hr=[];
+    for(var i=0;i<Math.min(aoa.length,10);i++){
+      var rr=(aoa[i]||[]).map(slsStr);
+      if(eq(rr,'발주번호')>=0 && eq(rr,'품목코드')>=0){ h=i; hr=rr; break; }
+    }
+    if(h<0) return { rows:[], err:'헤더(발주번호·품목코드)를 찾지 못했습니다.' };
+    var C={ rowNo:eq(hr,'No'), ordNo:eq(hr,'발주번호'), ordItemNo:eq(hr,'발주항번'),
+            itemCd:eq(hr,'품목코드'), itemNm:eq(hr,'품목명'), spec:eq(hr,'규격'), unit:eq(hr,'단위'),
+            ordQty:eq(hr,'발주량'), settleQty:eq(hr,'정산수량'), settleAmt:eq(hr,'정산금액'),
+            dlvDt:eq(hr,'납품일자'), outDt:eq(hr,'입고일자'), outQty:eq(hr,'입고량'),
+            salePrice:eq(hr,'단가'), saleAmt:eq(hr,'매입금액'), dlvType:eq(hr,'납품유형'),
+            taxGb:eq(hr,'면과세 구분') };
+    if(C.taxGb<0) C.taxGb=eq(hr,'면과세구분');
+    var g=function(row,i){ return i>=0 ? row[i] : ''; };
+    var out=[], lastOrd='';
+    for(var r=h+1;r<aoa.length;r++){
+      var row=aoa[r]||[];
+      var cd=slsStr(g(row,C.itemCd));
+      if(!cd) continue;                       // 품목코드 없는 행 = 합계행/빈행 → 제외
+      var ono=slsStr(g(row,C.ordNo));
+      if(ono) lastOrd=ono; else ono=lastOrd;  // 발주번호 병합셀(B3:B63) → 위 값 승계
+      out.push({
+        rowNo:slsNum(g(row,C.rowNo)), ordNo:ono, ordItemNo:slsStr(g(row,C.ordItemNo)),
+        itemCd:cd, itemNm:slsStr(g(row,C.itemNm)), spec:slsStr(g(row,C.spec)), unit:slsStr(g(row,C.unit)),
+        ordQty:slsNum(g(row,C.ordQty)), settleQty:slsNum(g(row,C.settleQty)), settleAmt:slsNum(g(row,C.settleAmt)),
+        dlvDt:ssFmtDate(g(row,C.dlvDt)), outDt:ssFmtDate(g(row,C.outDt)),
+        outQty:slsNum(g(row,C.outQty)), salePrice:slsNum(g(row,C.salePrice)), saleAmt:slsNum(g(row,C.saleAmt)),
+        dlvType:slsStr(g(row,C.dlvType)), taxGb:slsStr(g(row,C.taxGb))
+      });
+    }
+    return { rows:out, err: out.length?'':'품목코드가 있는 데이터행이 없습니다.' };
+  }
+  // 이미 반영된 파일명 목록 (재업로드=기존배치 대체 임을 화면에 알림)
+  function slsLoadDone(){
+    fetch('${pageContext.request.contextPath}/sales/selectSalesSrcFiles.do', { method:'POST', credentials:'same-origin' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ _slsDone={}; ((j&&j.data)||[]).forEach(function(o){ _slsDone[o.srcFile]={uploadDttm:o.uploadDttm, dcNm:o.dcNm}; }); slsRender(); })
+      .catch(function(){});
+  }
+  function slsUpload(input){
+    var fs=input.files; if(!fs||!fs.length) return;
+    if(typeof XLSX==='undefined'){ ssToast('⚠️ 엑셀 파서를 불러오지 못했습니다(인터넷 필요).'); input.value=''; return; }
+    var list=Array.prototype.slice.call(fs), done=0;
+    var fin=function(){ if(++done===list.length){ slsRender(); slsSyncDates(); slsLoadDone(); } };
+    list.forEach(function(f){
+      var rd=new FileReader();
+      rd.onload=function(e){
+        ssReadXlsx(e.target.result, function(wb){
+          try{
+            var ws=wb.Sheets[wb.SheetNames[0]];
+            var aoa=ws?XLSX.utils.sheet_to_json(ws,{header:1,defval:''}):[];
+            var b=slsBuildRows(aoa);
+            _slsFiles=_slsFiles.filter(function(x){ return x.name!==f.name; });   // 같은 파일 다시 고르면 교체
+            _slsFiles.push({ name:f.name, dcNm:slsParseName(f.name).dc, rows:b.rows, err:b.err });
+          }catch(err){ _slsFiles.push({ name:f.name, dcNm:'', rows:[], err:err.message }); }
+          fin();
+        }, function(err){ _slsFiles.push({ name:f.name, dcNm:'', rows:[], err:err.message }); fin(); });
+      };
+      rd.readAsArrayBuffer(f);
+    });
+    input.value='';
+  }
+  function slsSetDc(i, v){ if(_slsFiles[i]) _slsFiles[i].dcNm=(''+v).trim(); }
+  function slsDrop(i){ _slsFiles.splice(i,1); slsRender(); }
+  function slsClear(){ _slsFiles=[]; slsRender(); }
+  function slsDates(f){   // 파일 안 납품일자 distinct
+    var s={}, o=[]; f.rows.forEach(function(r){ if(r.dlvDt && !s[r.dlvDt]){ s[r.dlvDt]=1; o.push(r.dlvDt); } }); return o.sort();
+  }
+  function slsRender(){
+    var wrap=document.getElementById('slsUpWrap'), sum=document.getElementById('slsUpSum');
+    if(!wrap) return;
+    if(!_slsFiles.length){ sum.textContent=''; wrap.innerHTML=''; return; }   // 파일 없으면 업로드 바를 얇게 유지
+    var tQ=0, tA=0, tR=0;
+    _slsFiles.forEach(function(f){ f.rows.forEach(function(r){ tR++; tQ+=(+r.outQty||0); tA+=(+r.saleAmt||0); }); });
+    sum.innerHTML='파일 <b>'+_slsFiles.length+'</b>개 · 행 <b>'+tR.toLocaleString()+'</b> · 출고량 <b>'+_cnum(tQ)+'</b> · 매출액 <b style="color:#137a6c">'+_cnum(tA)+'</b>';
+    var h='<table class="logi-tb"><thead><tr><th>파일명</th><th>출고장</th><th>납품일자</th>'
+        + '<th style="text-align:right">행</th><th style="text-align:right">출고량</th><th style="text-align:right">매출액</th><th>상태</th><th></th></tr></thead><tbody>';
+    _slsFiles.forEach(function(f,i){
+      var q=0,a=0; f.rows.forEach(function(r){ q+=(+r.outQty||0); a+=(+r.saleAmt||0); });
+      var ds=slsDates(f), dlab=ds.length?(ds[0]+(ds.length>1?(' 외 '+(ds.length-1)+'일'):'')):'<span style="color:#c0392b">없음</span>';
+      var st = f.err ? '<span style="color:#c0392b">⚠ '+_cesc(f.err)+'</span>'
+             : (_slsDone[f.name] ? '<span style="color:#a85700">↻ 이미 반영됨 ('+_cesc(_slsDone[f.name].uploadDttm||'')+') — 저장 시 대체</span>'
+                                 : '<span style="color:#137a6c">신규</span>');
+      h+='<tr><td class="txt-l">'+_cesc(f.name)+'</td>'
+        +'<td><input class="cq" style="width:120px;height:26px" value="'+_cesc(f.dcNm)+'" oninput="slsSetDc('+i+',this.value)" placeholder="예: 평택"></td>'
+        +'<td>'+dlab+'</td>'
+        +'<td style="text-align:right">'+f.rows.length.toLocaleString()+'</td>'
+        +'<td style="text-align:right">'+_cnum(q)+'</td>'
+        +'<td style="text-align:right;font-weight:700;color:#137a6c">'+_cnum(a)+'</td>'
+        +'<td>'+st+'</td>'
+        +'<td><button class="btn-line" style="height:26px;padding:0 8px" onclick="slsDrop('+i+')">제거</button></td></tr>';
+    });
+    h+='</tbody></table>';
+    // 미리보기(첫 파일 최대 15행) — 우리 관점 컬럼명으로 표시
+    var f0=_slsFiles[0];
+    if(f0 && f0.rows.length){
+      h+='<div class="close-summary" style="margin-top:12px">미리보기 — <b>'+_cesc(f0.name)+'</b> (앞 15행 / 총 '+f0.rows.length.toLocaleString()+'행)</div>'
+        +'<table class="logi-tb"><thead><tr><th>No</th><th>발주번호</th><th>항번</th><th>품목코드</th><th>품목명</th>'
+        +'<th style="text-align:right">발주량</th><th style="text-align:right">출고량</th>'
+        +'<th style="text-align:right">판매단가</th><th style="text-align:right">매출액</th><th>납품일자</th><th>출고일자</th></tr></thead><tbody>';
+      f0.rows.slice(0,15).forEach(function(r){
+        h+='<tr><td>'+(r.rowNo==null?'':r.rowNo)+'</td><td>'+_cesc(r.ordNo)+'</td><td>'+_cesc(r.ordItemNo)+'</td>'
+          +'<td>'+_cesc(r.itemCd)+'</td><td class="txt-l">'+_cesc(r.itemNm)+'</td>'
+          +'<td style="text-align:right">'+(r.ordQty==null?'':r.ordQty)+'</td>'
+          +'<td style="text-align:right;'+((+r.outQty||0)<0?'color:#c0392b':'')+'">'+(r.outQty==null?'':r.outQty)+'</td>'
+          +'<td style="text-align:right">'+_cnum(r.salePrice)+'</td>'
+          +'<td style="text-align:right;font-weight:700;color:#137a6c">'+_cnum(r.saleAmt)+'</td>'
+          +'<td>'+_cesc(r.dlvDt)+'</td><td>'+_cesc(r.outDt)+'</td></tr>';
+      });
+      h+='</tbody></table>';
+    }
+    wrap.innerHTML=h;
+  }
+  function slsSave(){
+    if(!_slsFiles.length){ ssToast('⚠️ 업로드된 파일이 없습니다.'); return; }
+    var payload=[], bad=[], noDt=0;
+    _slsFiles.forEach(function(f){
+      var dc=(f.dcNm||'').trim();
+      if(!f.rows.length){ bad.push(f.name+' — 저장할 행 없음'); return; }
+      if(!dc){ bad.push(f.name+' — 출고장이 비어 있음'); return; }
+      f.rows.forEach(function(o){
+        if(!o.dlvDt){ noDt++; return; }     // 납품일자 없는 행은 배치키가 안 서므로 제외
+        payload.push({ srcFile:f.name, dcNm:dc,
+          rowNo:o.rowNo, ordNo:o.ordNo, ordItemNo:o.ordItemNo, itemCd:o.itemCd, itemNm:o.itemNm,
+          spec:o.spec, unit:o.unit, ordQty:o.ordQty, settleQty:o.settleQty, settleAmt:o.settleAmt,
+          dlvDt:o.dlvDt, outDt:o.outDt, outQty:o.outQty, salePrice:o.salePrice, saleAmt:o.saleAmt,
+          dlvType:o.dlvType, taxGb:o.taxGb });
+      });
+    });
+    if(bad.length){ ssToast('⚠️ 저장 불가:<br>'+bad.map(_cesc).join('<br>')); return; }
+    if(!payload.length){ ssToast('⚠️ 저장할 행이 없습니다.'); return; }
+    var q=0,a=0; payload.forEach(function(r){ q+=(+r.outQty||0); a+=(+r.saleAmt||0); });
+    var dup=_slsFiles.filter(function(f){ return _slsDone[f.name]; }).length;
+    ssConfirm('매출 확정내역 <b>'+payload.length.toLocaleString()+'</b>행을 저장하시겠습니까?<br>'
+      +'출고장 <b>'+_cesc(_slsFiles.map(function(f){return f.dcNm;}).join(', '))+'</b>'
+      +' · 출고량 <b style="color:#137a6c">'+_cnum(q)+'</b> · 매출액 <b style="color:#137a6c">'+_cnum(a)+'</b>'
+      +(noDt?('<br><span style="color:#a85700">※ 납품일자 없는 '+noDt+'행은 제외됩니다.</span>'):'')
+      +(dup?('<br><span style="color:#a85700">※ 이미 반영된 파일 '+dup+'개 — 같은 (납품일자+출고장) 기존 자료는 이력마감 후 새로 적재됩니다.</span>'):''),
+      function(){
+        fetch('${pageContext.request.contextPath}/sales/saveSalesMst.do', {
+          method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
+          body: JSON.stringify(payload)
+        })
+        .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, t:t}; }); })
+        .then(function(r){
+          if(!r.ok){ ssToast('⚠️ 저장 실패: '+(r.t||'오류')); return; }
+          // 응답 = {saved:행수, price:판매단가 이력 반영 품목수, none:변화없음, skip:단가 충돌로 제외}
+          //  · 문자열로 한 번 더 감싸져 오면(서버가 String 으로 반환하면) 풀어준다 — 안 그러면 전부 0으로 보임
+          var j=null; try{ j=JSON.parse(r.t); }catch(e){}
+          if(typeof j==='string'){ try{ j=JSON.parse(j); }catch(e){ j=null; } }
+          if(!j || typeof j!=='object'){ ssToast('💾 저장 완료 — <b>'+_cesc(r.t)+'</b>'); _slsFiles=[]; slsLoadDone(); slsQuery(); return; }
+          var msg='💾 저장 완료 — <b>'+(+j.saved||0).toLocaleString()+'</b>행 · 판매단가 이력 <b>'+(+j.price||0)+'</b>종 반영';
+          if(+j.none)  msg+=' · <span style="color:#9aa7b3">변화없음 '+j.none+'종</span>';
+          if(+j.skip)  msg+=' · <span style="color:#a85700">단가충돌 '+j.skip+'종 제외</span>';
+          ssToast(msg);
+          _slsFiles=[]; slsLoadDone(); slsQuery();
+        })
+        .catch(function(e){ ssToast('⚠️ 통신오류: '+e.message); });
+      });
+  }
+  // ── 저장된 매출 확정내역 조회 (25행 페이징 — 마감 화면들과 동일) ──
+  var _slsRows=[], _slsPage=1, SLS_ROWS=25;
+  function slsGo(p){ _slsPage=p; slsRenderList(); }
+  function slsQuery(){
+    var f=(document.getElementById('slsFrom')||{}).value||'', t=(document.getElementById('slsTo')||{}).value||'';
+    var dc=((document.getElementById('slsDc')||{}).value||'').trim();
+    var body='dlvDtFrom='+encodeURIComponent(f)+'&dlvDtTo='+encodeURIComponent(t)+'&dcNm='+encodeURIComponent(dc);
+    fetch('${pageContext.request.contextPath}/sales/selectSalesMst.do', {
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:body })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ _slsRows=(j&&j.data)||[]; _slsPage=1; slsRenderList(); })
+      .catch(function(e){ ssToast('⚠️ 조회 오류: '+e.message); });
+  }
+  function slsRenderList(){
+    var wrap=document.getElementById('slsListWrap'), sum=document.getElementById('slsListSum'), pg=document.getElementById('slsListPager');
+    if(!wrap) return;
+    var rows=_slsRows;
+    if(!rows.length){ sum.textContent='조회된 매출 확정내역이 없습니다.'; wrap.innerHTML=''; if(pg) pg.innerHTML=''; return; }
+    var q=0,a=0, dcs={};
+    rows.forEach(function(r){ q+=(+r.outQty||0); a+=(+r.saleAmt||0); if(r.dcNm) dcs[r.dcNm]=1; });
+    sum.innerHTML='총 <b>'+rows.length.toLocaleString()+'</b>행 · 출고장 <b>'+Object.keys(dcs).length+'</b>곳 · 출고량 <b>'+_cnum(q)+'</b> · 매출액 <b style="color:#137a6c">'+_cnum(a)+'</b>';
+    var h='<table class="logi-tb"><thead><tr><th>납품일자</th><th>출고장</th><th>발주번호</th><th>항번</th><th>품목코드</th><th>품목명</th>'
+        +'<th style="text-align:right">발주량</th><th style="text-align:right">출고량</th>'
+        +'<th style="text-align:right">판매단가</th><th style="text-align:right">매출액</th><th>원본파일</th></tr></thead><tbody>';
+    h+='<tr class="close-total"><td colspan="6" style="text-align:left">■ 총합계</td><td></td>'
+      +'<td style="text-align:right">'+_cnum(q)+'</td><td></td><td style="text-align:right">'+_cnum(a)+'</td><td></td></tr>';
+    var pages=Math.max(1,Math.ceil(rows.length/SLS_ROWS)); if(_slsPage>pages)_slsPage=pages;
+    var rS=(_slsPage-1)*SLS_ROWS, rE=Math.min(rS+SLS_ROWS, rows.length);
+    rows.slice(rS,rE).forEach(function(r){
+      h+='<tr><td>'+_cesc(r.dlvDt)+'</td><td>'+_cesc(r.dcNm)+'</td><td>'+_cesc(r.ordNo)+'</td><td>'+_cesc(r.ordItemNo)+'</td>'
+        +'<td>'+_cesc(r.itemCd)+'</td><td class="txt-l">'+_cesc(r.itemNm)+'</td>'
+        +'<td style="text-align:right">'+(r.ordQty==null?'':r.ordQty)+'</td>'
+        +'<td style="text-align:right;'+((+r.outQty||0)<0?'color:#c0392b':'')+'">'+(r.outQty==null?'':r.outQty)+'</td>'
+        +'<td style="text-align:right">'+_cnum(r.salePrice)+'</td>'
+        +'<td style="text-align:right;font-weight:700;color:#137a6c">'+_cnum(r.saleAmt)+'</td>'
+        +'<td class="txt-l" style="color:#9aa7b3">'+_cesc(r.srcFile)+'</td></tr>';
+    });
+    h+='</tbody></table>';
+    wrap.innerHTML=h;
+    _slsPager(pages);
+  }
+  function _slsPager(pages){
+    var pg=document.getElementById('slsListPager'); if(!pg) return;
+    if(pages<=1){ pg.innerHTML=''; return; }
+    var h='<button '+(_slsPage<=1?'disabled':'')+' onclick="slsGo('+(_slsPage-1)+')">‹</button>';
+    var from=Math.max(1,_slsPage-3), to=Math.min(pages,_slsPage+3);
+    if(from>1) h+='<button onclick="slsGo(1)">1</button>'+(from>2?'<span style="padding:0 4px;color:#9aa7b3">…</span>':'');
+    for(var p=from;p<=to;p++) h+='<button class="'+(p===_slsPage?'on':'')+'" onclick="slsGo('+p+')">'+p+'</button>';
+    if(to<pages) h+=(to<pages-1?'<span style="padding:0 4px;color:#9aa7b3">…</span>':'')+'<button onclick="slsGo('+pages+')">'+pages+'</button>';
+    h+='<button '+(_slsPage>=pages?'disabled':'')+' onclick="slsGo('+(_slsPage+1)+')">›</button>';
+    pg.innerHTML=h;
+  }
+  // 진입 기본값 = 이번 달 1일 ~ 오늘
+  function slsInit(){
+    var f=document.getElementById('slsFrom'), t=document.getElementById('slsTo');
+    if(f && !f.value) f.value=SS_TODAY.slice(0,7)+'-01';
+    if(t && !t.value) t.value=SS_TODAY;
+  }
+  // 업로드 후 = 엑셀 납품일자가 속한 '달 전체'(1일~말일)로 조회기간 셋팅
+  //  · 여러 달이 섞이면 가장 이른 달 1일 ~ 가장 늦은 달 말일
+  function slsSyncDates(){
+    var all=[];
+    _slsFiles.forEach(function(f){ f.rows.forEach(function(r){ if(r.dlvDt) all.push(r.dlvDt); }); });
+    if(!all.length) return;
+    all.sort();
+    var a=all[0], z=all[all.length-1];
+    var y1=+a.slice(0,4), m1=+a.slice(5,7);
+    var y2=+z.slice(0,4), m2=+z.slice(5,7);
+    var last=new Date(y2, m2, 0).getDate();
+    var f=document.getElementById('slsFrom'), t=document.getElementById('slsTo');
+    if(f) f.value=y1+'-'+ssPad(m1)+'-01';
+    if(t) t.value=y2+'-'+ssPad(m2)+'-'+ssPad(last);
+  }
+  document.addEventListener('DOMContentLoaded', function(){ ssInit(); slsInit(); });
+  (function(){ ssInit(); slsInit(); })();
 </script>
 </head>
 <body>
@@ -3262,6 +3538,7 @@
     </div>
     <a class="mi has-sub" data-sub="quote" onclick="logiToggleSub('quote', this)"><span class="ic">📝</span>견적서관리 <span style="font-size:10px;color:#9aa7b3">(예정)</span><span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-quote">
+      <a class="mi" data-key="salesUp" onclick="logiGo('salesUp', this)"><span class="ic">📥</span>매출 엑셀 업로드</a>
       <a class="mi" onclick="swAlert('견적서 작성은 향후 추진 예정입니다.','info')"><span class="ic">🧾</span>견적서 작성</a>
       <a class="mi" onclick="swAlert('견적서 목록/조회는 향후 추진 예정입니다.','info')"><span class="ic">📋</span>견적서 목록/조회</a>
       <a class="mi" onclick="swAlert('견적서 출력(PDF/엑셀)은 향후 추진 예정입니다.','info')"><span class="ic">🖨️</span>견적서 출력</a>
@@ -3278,7 +3555,8 @@
     <div class="sub-menu" id="sub-baseinfo">
       <a class="mi" data-key="compcd" onclick="logiFrame('compcd','${pageContext.request.contextPath}/mangr/compcd.do', this)"><span class="ic">🏢</span>회사/사용자 관리</a>
       <a class="mi" data-key="codecd" onclick="logiFrame('codecd','${pageContext.request.contextPath}/base/commcd.do', this)"><span class="ic">🧩</span>공통코드 관리</a>
-      <a class="mi" data-key="client"  onclick="logiFrame('client','${pageContext.request.contextPath}/mangr/clientMng.do', this)"><span class="ic">🤝</span>거래처관리</a>
+      <a class="mi" data-key="client"  onclick="logiFrame('client','${pageContext.request.contextPath}/mangr/clientMng.do', this)"><span class="ic">🤝</span>거래처관리(사업장)</a>
+      <a class="mi" data-key="vendor"  onclick="logiFrame('vendor','${pageContext.request.contextPath}/mangr/vendorMng.do', this)"><span class="ic">🧾</span>매입/매출 거래처</a>
     </div>
 
     <div class="grp">도움말</div>
@@ -3292,6 +3570,19 @@
       .close-tabs{ display:flex; gap:4px; margin:6px 0 10px; border-bottom:2px solid #e2e8e6; }
       .close-tabs .ctab{ height:34px; padding:0 14px; border:1px solid #dfe6e3; border-bottom:none; background:#f1f5f4; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; font-weight:700; color:#5a6b7a; }
       .close-tabs .ctab.on{ background:#137a6c; color:#fff; border-color:#137a6c; }
+      /* 긴 안내문 대신 쓰는 툴팁 칩 — 자세한 내용은 title(hover)로 */
+      .tipx{ display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border:1px solid #dfe6e3; border-radius:999px;
+             background:#f1f5f4; color:#5a6b7a; font-weight:700; font-size:12px; cursor:help; white-space:nowrap; }
+      .tipx:hover{ border-color:#137a6c; color:#137a6c; background:#eaf5f3; }
+      /* 업로드/조회 줄 — 한 줄에 몰아 담아 세로 공간을 그리드에 넘긴다 */
+      .sls-bar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+      /* 업로드 줄과 조회 줄 사이 구분선 (카드 하나 안에서 두 영역을 나눔) */
+      .sls-div{ height:1px; background:#e2e8e6; margin:10px -20px 12px; }   /* -20px = .card 좌우 패딩만큼 빼서 카드 끝까지 긋기 */
+      /* 목록 그리드 — 헤더 고정 + 화면 높이에 맞춰 스크롤(위쪽 카드가 커져도 그리드가 안 밀림) */
+      #slsListWrap{ max-height:calc(100vh - 300px); min-height:260px; overflow:auto; }
+      #slsListWrap table.logi-tb thead th{ position:sticky; top:0; z-index:2; box-shadow:inset 0 -1px 0 var(--logi-border); }
+      .close-tabs .cq{ height:30px; width:210px; margin-bottom:2px; padding:0 10px; border:1px solid #dfe6e3; border-radius:6px; font-size:12.5px; color:#37475a; background:#fff; }
+      .close-tabs .cq:focus{ outline:none; border-color:#137a6c; box-shadow:0 0 0 2px rgba(19,122,108,.15); }
       .close-summary{ margin:6px 0; font-size:13px; color:#37475a; font-weight:600; }
       .close-pager{ display:flex; gap:4px; justify-content:center; align-items:center; margin:12px 0 4px; flex-wrap:wrap; }
       .close-pager button{ min-width:30px; height:30px; border:1px solid #dfe6e3; background:#fff; border-radius:6px; cursor:pointer; font-size:12.5px; font-weight:700; color:#37475a; padding:0 8px; }
@@ -3309,6 +3600,51 @@
       /* 재고현황 ② 수불내역: 5행 초과 스크롤 + 헤더 고정 */
       #stkLedgerBody table.logi-tb thead th{ position:sticky; top:0; z-index:2; box-shadow:inset 0 -1px 0 var(--logi-border); }
     </style>
+    <!-- ===== 견적서관리 : 매출 엑셀 업로드 (출고장 제공 엑셀 → TBL_SALES_MST) ===== -->
+    <section id="panel-salesUp" class="panel">
+      <div class="logi-head">
+        <div><h2>매출 엑셀 업로드 <span class="badge b-done">견적서관리</span></h2>
+          <div class="sub">출고장이 준 엑셀을 그대로 저장합니다.</div></div>
+        <div class="actions">
+          <button class="btn-teal" onclick="document.getElementById('slsFile').click()">📥 엑셀 선택</button>
+          <button class="btn-line" onclick="slsClear()">🧹 목록 비우기</button>
+        </div>
+      </div>
+      <!-- 업로드 + 조회 + 그리드를 카드 하나로. 업로드는 한 줄, 파일이 없으면 얇은 바로만 남는다 -->
+      <div class="card">
+        <input type="file" id="slsFile" accept=".xlsx,.xls" multiple style="display:none" onchange="slsUpload(this)">
+        <div class="sls-bar">
+          <button class="btn-line" style="height:30px" onclick="document.getElementById('slsFile').click()">📁 파일 선택 (여러 개)</button>
+          <span style="font-size:12px;color:#9aa7b3">파일명에서 출고장 인식 — <b>2026.07.11_평택.xlsx</b> → 평택</span>
+          <span class="tipx" title="엑셀은 출고장 기준으로 쓰여 있어 우리 기준으로 뒤집어 담습니다.&#10;&#10;· 입고량   → 우리 출고량&#10;· 단가     → 우리 판매단가&#10;· 매입금액 → 우리 매출액&#10;· 입고일자 → 우리 출고일자&#10;&#10;※ 엑셀의 '매입금액'은 우리 매입이 아닙니다. 우리 매입가는 이 표와 무관하며&#10;   상품(품목)관리의 매입가 이력이 계속 담당합니다.">ℹ️ 관점 환산</span>
+          <span class="tipx" title="· 품목코드 없는 행(맨 아래 합계행)은 저장하지 않습니다.&#10;· 발주번호 병합셀은 빈 칸이면 위 값을 승계합니다(병합 밖 행은 자기 값 유지).&#10;· 수량은 소수·음수를 그대로 보존합니다(반품행 등).&#10;· 납품일자는 엑셀 값을 쓰고, 출고장만 파일명에서 인식합니다.">ℹ️ 읽는 규칙</span>
+          <span class="tipx" title="저장 단위 = (납품일자 + 출고장) 1배치.&#10;같은 배치를 다시 올리면 기존 자료를 이력마감(ACTION_YN='N')한 뒤 새로 적재합니다.&#10;→ 이전 자료는 지워지지 않고 이력으로 남습니다.">ℹ️ 저장 단위</span>
+          <span class="tipx" title="저장하면 판매단가가 판매가 이력(TBL_PROD_SALEPRICE_HST)에도 반영됩니다.&#10;적용일자 = 우리 출고일자.&#10;&#10;→ 매출마감의 출고단가가 (마스터) 추정가 대신 (이력) = 실제 확정 판매가로 잡힙니다.&#10;&#10;· 같은 품목·같은 날 단가가 서로 다르면 넣지 않고 건너뜁니다(추측하지 않음).&#10;· 상품마스터의 현재 판매가는 건드리지 않습니다.">ℹ️ 판매단가 이력 반영</span>
+          <span style="margin-left:auto"></span>
+          <span class="close-summary" id="slsUpSum" style="margin:0"></span>
+          <button class="btn-teal" style="height:30px" onclick="slsSave()">💾 저장</button>
+        </div>
+        <div id="slsUpWrap"></div>
+        <!-- 조회 = 한 줄. 오른쪽 빈 공간에 팁을 붙여 세로 공간을 그리드에 넘긴다 -->
+        <div class="sls-div"></div>
+        <div class="form-row" style="margin-bottom:0">
+          <div class="fld" style="flex:0 0 160px"><label>납품일자(시작)</label><input type="date" id="slsFrom"></div>
+          <div class="fld" style="flex:0 0 160px"><label>납품일자(종료)</label><input type="date" id="slsTo"></div>
+          <div class="fld" style="flex:0 0 150px"><label>출고장</label><input type="text" id="slsDc" placeholder="전체"></div>
+          <div class="fld" style="flex:0 0 110px; align-self:flex-end"><button class="btn-teal" style="width:100%" onclick="slsQuery()">조회</button></div>
+          <div class="fld" style="flex:0 0 auto; margin-left:auto; align-self:flex-end">
+            <div class="sls-bar" style="padding:0 0 4px">
+              <span class="tipx" title="· 진입 시 = 이번 달 1일 ~ 오늘&#10;· 엑셀 업로드 시 = 납품일자가 속한 달 전체(1일~말일)로 자동 셋팅&#10;· 출고장을 비우면 전체 조회">ℹ️ 조회기간 자동 셋팅</span>
+              <span class="tipx" title="목록은 25행씩 페이징합니다.&#10;상단 총합계는 현재 페이지가 아니라 조회된 전체 기준입니다.">ℹ️ 페이징 · 총합계</span>
+            </div>
+          </div>
+        </div>
+        <div class="close-summary" id="slsListSum">기간·출고장을 지정하고 [조회]를 누르세요. (비우면 전체)</div>
+        <div id="slsListWrap"></div>
+        <div class="close-pager" id="slsListPager"></div>
+      </div>
+    </section>
+
     <!-- ===== 마감관리 : 매출마감 ===== -->
     <section id="panel-closeSales" class="panel">
       <div class="logi-head">
@@ -3332,12 +3668,13 @@
           <button type="button" class="ctab"    data-t="biz"  onclick="salesTab('biz')">🏢 사업장별 품목코드</button>
           <button type="button" class="ctab"    data-t="item" onclick="salesTab('item')">📦 품목코드</button>
           <span style="margin-left:auto"></span>
+          <input type="search" class="cq" id="salesQ" placeholder="🔎 품목코드 / 품목명 검색" title="세 탭(출고장별·사업장별·품목코드) 모두에 적용됩니다. Esc = 검색 해제" oninput="salesSearch()" onkeydown="if(event.key==='Escape'){ this.value=''; salesSearch(); }">
           <button type="button" class="btn-line" id="salesAllBtn" style="height:30px;margin-bottom:2px" onclick="salesToggleAll()">⊟ 전체 접기</button>
         </div>
         <div class="close-summary" id="closeSalesSum">마감월/기간을 선택하고 [조회]를 누르세요.</div>
         <div id="closeSalesWrap"></div>
         <div class="close-pager" id="closeSalesPager"></div>
-        <div class="note">※ 매출마감: 출고(SHPOUT_DT) 자료 × 출고일자 시점 단가(이력 우선·없으면 상품마스터). 출고장=대시보드1 물류센터 그룹(오산센터 등). 단가 근거는 각 행에 표시.</div>
+        <div class="note">※ 매출마감: 출고(SHPOUT_DT) 자료 × 출고일자 시점 단가(이력 우선·없으면 상품마스터). 출고장=대시보드1 물류센터 그룹(오산센터 등). 단가 근거는 각 행에 표시. 품목코드/품목명 검색은 3탭 공통이며 합계·소계도 검색 결과 기준으로 다시 집계됩니다.</div>
       </div>
     </section>
 
@@ -3497,7 +3834,7 @@
         <h3>3. 마감 관리 <span style="font-size:11px;color:#94a3b8;font-weight:400">— 월 단위(YYYYMM)</span></h3>
         <div class="gd">한 달의 매출·매입·재고를 집계하고, 확정하면 그 달 재고 수불이 잠깁니다.</div>
         <table><tbody>
-          <tr><td class="m">매출마감</td><td>출고 × 출고일자 시점 단가 → <b>매출/매입/순마진</b>. 출고장별(오산센터 등 2단)·사업장별·품목별 3탭.</td></tr>
+          <tr><td class="m">매출마감</td><td>출고 × 출고일자 시점 단가 → <b>매출/매입/순마진</b>. 출고장별(오산센터 등 2단)·사업장별·품목별 3탭. 3탭 공통 <b>품목코드/품목명 검색</b> 지원.</td></tr>
           <tr><td class="m">매입마감</td><td><b>입고(수불) 기준</b> 당월 매입을 <b>매입처·품목별</b>로 집계.</td></tr>
           <tr><td class="m">재고마감</td><td>기초+입고−출고±조정=<b>기말</b>, 재고금액=기말×이동평균. 기초는 <b>직전 확정월 기말에서 이월</b>.</td></tr>
           <tr><td class="m">마감현황(월계표)</td><td>선택 월 매출·매입·순마진 요약(KPI) + <b>🔒 마감 확정 / 🔓 해제</b>. 확정 = 3종 통합 저장 + 기말재고 스냅샷 + 그 달 수불 잠금.</td></tr>
@@ -3508,11 +3845,12 @@
       <div class="g-sec">
         <h3>4. 정산 · 시스템</h3>
         <table><tbody>
+          <tr><td class="m">매출 엑셀 업로드</td><td>출고장이 준 엑셀(발주번호·발주항번·품목·입고량·단가·매입금액)을 <b>TBL_SALES_MST</b> 에 저장. 엑셀은 출고장 기준이라 <b>입고량→우리 출고량 · 단가→우리 판매단가 · 매입금액→우리 매출액</b> 으로 환산해 담는다. 출고장은 파일명에서 인식(수정 가능). 저장 단위=(납품일자+출고장) 1배치, 재업로드 시 기존 배치 이력마감 후 대체. 저장 시 판매단가를 <b>판매가 이력</b>(적용일자=출고일자)에 함께 반영 → <b>매출마감 출고단가가 (마스터) 대신 (이력) 실제 확정가</b>로 잡힌다.</td></tr>
           <tr><td class="m">견적서관리 <span style="color:#9aa7b3;font-size:11px">(예정)</span></td><td>견적서 작성 · 목록/조회 · 출력(PDF/엑셀). 향후 추진 예정.</td></tr>
           <tr><td class="m">카카오톡문자관리 <span style="color:#9aa7b3;font-size:11px">(협의후 예정)</span></td><td>메시지 발송 · 발송 이력 · 문자 템플릿 관리 — 거래처 대상 카카오톡 알림톡/SMS 발송·이력. 구현 범위(발송연동/이력관리/템플릿)는 <b>협의 후 진행</b>.</td></tr>
           <tr><td class="m">수금 / 미수금</td><td>거래처×귀속월 <b>미수금 현황</b> — 전월이월·당월매출·당월수금·미수잔액. CRUD·조회·<b>엑셀 업로드/출력</b>·페이징. <b>🔄 전월이월 가져오기</b>(전월 미수잔액→당월). <b>🔒 마감 확정/해제</b>(확정 시 해당 월 수정잠금+다음달 전월이월 자동반영). (TBL_RECEIVE_MST)</td></tr>
           <tr><td class="m">출금 / 미지급</td><td>매입처×귀속월 <b>미지급금 현황</b> — 전월이월·당월매입·당월출금·미지급잔액. CRUD·조회·<b>엑셀 업로드/출력</b>·페이징. <b>🔄 전월이월 가져오기</b>·<b>🔒 마감 확정/해제</b>(월 확정=수정잠금+자동이월, 해제 가능). (TBL_PAYMENT_MST)</td></tr>
-          <tr><td class="m">기준정보관리</td><td>회사/사용자 관리 · 공통코드 관리 · <b>거래처관리</b>(사업장 CRUD·조회·엑셀, TBL_BIZI_MST — 발주 업로드 시 신규 사업장 자동등록).</td></tr>
+          <tr><td class="m">기준정보관리</td><td>회사/사용자 관리 · 공통코드 관리 · <b>거래처관리(사업장)</b>(TBL_BIZI_MST — 배송 점포, 발주 업로드 시 자동등록) · <b>매입/매출 거래처</b>(TBL_VENDOR_MST — 회계 거래처 432종, 거래처리스트.xls 재업로드 지원. 매입가·재고입고의 매입처 선택 원천).</td></tr>
         </tbody></table>
       </div>
 
@@ -3770,9 +4108,14 @@
 
     </section>
 
-    <!-- ===== 기준정보 : 거래처 ===== -->
+    <!-- ===== 기준정보 : 거래처(사업장) ===== -->
     <section id="panel-client" class="panel" style="padding:0;">
-      <iframe id="if-client" src="" title="거래처관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+      <iframe id="if-client" src="" title="거래처관리(사업장)" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+
+    <!-- ===== 기준정보 : 매입/매출 거래처 (TBL_VENDOR_MST) ===== -->
+    <section id="panel-vendor" class="panel" style="padding:0;">
+      <iframe id="if-vendor" src="" title="매입/매출 거래처" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
 
     <!-- ===== 기준정보 : 상품 ===== -->

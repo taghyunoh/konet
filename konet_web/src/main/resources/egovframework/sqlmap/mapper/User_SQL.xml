@@ -494,6 +494,243 @@
 	   ORDER BY t.SHPOUT_DT DESC, t.BIZ_NM, t.ITEM_NM, t.ROW_NO
 	]]></select>
 
+	<!-- ============================================================
+	     매출(판매) 확정내역 — TBL_SALES_MST  (DDL: sql/sales_mst_ddl.sql)
+	     · 원천 = 출고장 제공 엑셀. ★엑셀은 '출고장 기준'이라 우리 기준으로 뒤집어 담는다
+	         엑셀 '입고량'=우리 출고량(OUT_QTY) / '단가'=우리 판매단가(SALE_PRICE)
+	         엑셀 '매입금액'=우리 매출액(SALE_AMT) / '입고일자'=우리 출고일자(OUT_DT)
+	       (우리 매입가는 이 표와 무관 — TBL_PROD_MST.IN_PRICE 계열이 계속 담당)
+	     · 낱알 = 발주번호(ORD_NO) + 발주항번(ORD_ITEM_NO)
+	     · 배치·이력 복합키 = (DLV_DT 납품일자 + DC_NM 출고장) / 버전 JOB_SEQ / 활성 ACTION_YN
+	     · 저장 1회 = ① 같은 (납품일자,출고장) 기존활성 이력마감 → ② JOB_SEQ+1 신규배치 INSERT
+	     · 날짜는 'yyyy-mm-dd' 로 받아 REPLACE 로 '-' 제거 후 NVARCHAR(8) 저장
+	     ============================================================ -->
+
+	<!-- ① 같은 (납품일자,출고장) 기존 활성배치 이력마감 -->
+	<update id="markSalesHistory" parameterType="egovframework.sejong.user.model.SalesDTO"><![CDATA[
+	  UPDATE TBL_SALES_MST
+	     SET ACTION_YN = 'N', UPD_DTTM = CONVERT(varchar(19), GETDATE(), 120),
+	         UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE DLV_DT = REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-','')
+	     AND ISNULL(DC_NM,'') = ISNULL(#{dcNm,jdbcType=VARCHAR},'')
+	     AND ACTION_YN = 'Y'
+	]]></update>
+
+	<!-- ② 같은 (납품일자,출고장)의 다음 배치 JOB_SEQ -->
+	<select id="getSalesNextJobSeq" parameterType="egovframework.sejong.user.model.SalesDTO" resultType="int"><![CDATA[
+	  SELECT ISNULL(MAX(JOB_SEQ),0)+1
+	    FROM TBL_SALES_MST
+	   WHERE DLV_DT = REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-','')
+	     AND ISNULL(DC_NM,'') = ISNULL(#{dcNm,jdbcType=VARCHAR},'')
+	]]></select>
+
+	<!-- ③ 신규 배치 행 INSERT (ACTION_YN='Y') -->
+	<insert id="insertSalesMst" parameterType="egovframework.sejong.user.model.SalesDTO"><![CDATA[
+	  INSERT INTO TBL_SALES_MST (
+	      JOB_SEQ, ACTION_YN, ROW_NO, SRC_FILE, UPLOAD_DTTM,
+	      DC_CD, DC_NM,
+	      ORD_NO, ORD_ITEM_NO, ITEM_CD, ITEM_NM, SPEC, UNIT,
+	      ORD_QTY, SETTLE_QTY, SETTLE_AMT,
+	      DLV_DT, OUT_DT, OUT_QTY, SALE_PRICE, SALE_AMT, DLV_TYPE, TAX_GB,
+	      REG_DTTM, REG_USER, REG_IP
+	  ) VALUES (
+	      #{jobSeq}, 'Y', #{rowNo,jdbcType=INTEGER}, #{srcFile,jdbcType=VARCHAR}, GETDATE(),
+	      #{dcCd,jdbcType=VARCHAR}, #{dcNm,jdbcType=VARCHAR},
+	      #{ordNo,jdbcType=VARCHAR}, #{ordItemNo,jdbcType=VARCHAR}, #{itemCd,jdbcType=VARCHAR}, #{itemNm,jdbcType=VARCHAR}, #{spec,jdbcType=VARCHAR}, #{unit,jdbcType=VARCHAR},
+	      #{ordQty,jdbcType=DECIMAL}, #{settleQty,jdbcType=DECIMAL}, #{settleAmt,jdbcType=DECIMAL},
+	      REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-',''), REPLACE(ISNULL(#{outDt,jdbcType=VARCHAR},''),'-',''),
+	      #{outQty,jdbcType=DECIMAL}, #{salePrice,jdbcType=DECIMAL}, #{saleAmt,jdbcType=DECIMAL}, #{dlvType,jdbcType=VARCHAR}, #{taxGb,jdbcType=VARCHAR},
+	      CONVERT(varchar(19), GETDATE(), 120), #{regUser,jdbcType=VARCHAR}, #{regIp,jdbcType=VARCHAR}
+	  )
+	]]></insert>
+
+	<!-- ④ 활성배치 조회 — 기간(dlvDtFrom~dlvDtTo) 우선, 없으면 단일 납품일자, 그것도 없으면 전체 -->
+	<select id="selectSalesMst" parameterType="egovframework.sejong.user.model.SalesDTO" resultType="egovframework.sejong.user.model.SalesDTO"><![CDATA[
+	  SELECT
+	      t.SALES_SEQ AS salesSeq, t.JOB_SEQ AS jobSeq, t.ROW_NO AS rowNo, t.SRC_FILE AS srcFile,
+	      CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm,
+	      t.DC_CD AS dcCd, t.DC_NM AS dcNm,
+	      t.ORD_NO AS ordNo, t.ORD_ITEM_NO AS ordItemNo, t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm,
+	      t.SPEC AS spec, t.UNIT AS unit,
+	      t.ORD_QTY AS ordQty, t.SETTLE_QTY AS settleQty, t.SETTLE_AMT AS settleAmt,
+	      t.DLV_DT AS dlvDt, t.OUT_DT AS outDt,
+	      t.OUT_QTY AS outQty, t.SALE_PRICE AS salePrice, t.SALE_AMT AS saleAmt,
+	      t.DLV_TYPE AS dlvType, t.TAX_GB AS taxGb
+	    FROM TBL_SALES_MST t
+	   WHERE t.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{dcNm,jdbcType=VARCHAR},'') = '' OR ISNULL(t.DC_NM,'') = #{dcNm,jdbcType=VARCHAR} )
+	     AND (
+	           ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'') <> ''
+	             AND t.DLV_DT BETWEEN REPLACE(#{dlvDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{dlvDtTo,jdbcType=VARCHAR},'-','') )
+	        OR ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{dlvDt,jdbcType=VARCHAR},'') <> ''
+	             AND t.DLV_DT = REPLACE(#{dlvDt,jdbcType=VARCHAR},'-','') )
+	        OR ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{dlvDt,jdbcType=VARCHAR},'') = '' )
+	         )
+	   ORDER BY t.DLV_DT DESC, t.DC_NM, t.ORD_NO, t.ORD_ITEM_NO, t.ROW_NO
+	]]></select>
+
+	<!-- ⑤ 매출 엑셀 → 판매단가 이력(TBL_PROD_SALEPRICE_HST) 반영 (품목코드 + 적용일자 upsert)
+	     · ★APPLY_DT = 납품일자(DLV_DT) = 발주일자. 출고일자(OUT_DT) 아님.
+	       먼 지역은 발주분을 하루 당겨 출고해서 출고일자가 발주일자보다 이를 수 있다.
+	       그때 APPLY_DT 를 출고일자로 잡으면 매출마감(APPLY_DT <= DLV_DT)에서 어긋난다.
+	     · 매출마감이 'APPLY_DT <= 발주일자 중 최신' 으로 집어가므로
+	       이 이력이 있으면 출고단가가 (마스터) 폴백이 아니라 (이력) = 실제 확정 판매가로 잡힌다.
+	     · 같은 (품목,적용일자) 활성행이 있으면 단가만 갱신, 없으면 신규 INSERT
+	     · 품목코드가 TBL_PROD_MST 에 없으면 USING 이 빈 집합 → 아무 일도 안 하고 0 반환(에러 아님)
+	     · PROD_SEQ 는 같은 품목코드의 최신 활성 마스터 1건으로 확정(중복 마스터 대비)
+	     · MERGE 는 반드시 세미콜론으로 끝나야 함 -->
+	<update id="mergeSalepriceFromSales" parameterType="egovframework.sejong.user.model.SalesDTO"><![CDATA[
+	  MERGE TBL_PROD_SALEPRICE_HST AS t
+	  USING (
+	      SELECT pm.PROD_SEQ, pm.PROD_CD, pm.IN_PRICE,
+	             REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-','') AS APPLY_DT,
+	             #{salePrice,jdbcType=DECIMAL} AS SALE_PRICE
+	        FROM TBL_PROD_MST pm
+	       WHERE pm.ACTION_YN = 'Y'
+	         AND pm.PROD_CD = #{itemCd,jdbcType=VARCHAR}
+	         AND pm.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2
+	                             WHERE p2.PROD_CD = pm.PROD_CD AND p2.ACTION_YN = 'Y')
+	  ) AS s
+	     ON (t.PROD_CD = s.PROD_CD AND t.APPLY_DT = s.APPLY_DT AND t.ACTION_YN = 'Y' AND t.VENDOR_CD IS NULL)
+	  WHEN MATCHED AND ISNULL(t.SALE_PRICE, -1) <> s.SALE_PRICE THEN
+	      UPDATE SET t.SALE_PRICE = s.SALE_PRICE,
+	                 t.REMARK     = N'매출 엑셀 업로드 반영',
+	                 t.UPD_DTTM   = CONVERT(VARCHAR(19), GETDATE(), 120),
+	                 t.UPD_USER   = #{regUser,jdbcType=VARCHAR},
+	                 t.UPD_IP     = #{regIp,jdbcType=VARCHAR}
+	  WHEN NOT MATCHED BY TARGET THEN
+	      INSERT (PROD_SEQ, PROD_CD, APPLY_DT, SALE_PRICE, BASE_INPRICE, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	      VALUES (s.PROD_SEQ, s.PROD_CD, s.APPLY_DT, s.SALE_PRICE, s.IN_PRICE, N'매출 엑셀 업로드 반영', 'Y',
+	              CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=VARCHAR}, #{regIp,jdbcType=VARCHAR});
+	]]></update>
+
+	<!-- ============================================================
+	     거래처 마스터 — TBL_VENDOR_MST  (DDL: sql/vendor_mst_ddl.sql / 적재: sql/vendor_mst_insert.sql)
+	     · ★TBL_BIZI_MST(사업장/점포)와 별개 — 코드·이름 교집합 0. 섞지 말 것
+	     · 매입처 후보(매입가·재고입고 화면) = gbFilter='매입' → VENDOR_GB 에 '매입' 포함분 121종
+	     ============================================================ -->
+	<select id="selectVendorMst" parameterType="egovframework.sejong.user.model.VendorDTO" resultType="egovframework.sejong.user.model.VendorDTO"><![CDATA[
+	  SELECT VENDOR_CD AS vendorCd, VENDOR_NM AS vendorNm, FULL_NM AS fullNm, ALIAS AS alias,
+	         CEO_NM AS ceoNm, VENDOR_GB AS vendorGb, BIZ_COND AS bizCond, BIZ_ITEM AS bizItem,
+	         MGR_CD AS mgrCd, MGR_NM AS mgrNm, TYPE_CD AS typeCd, TYPE_NM AS typeNm,
+	         AREA_CD AS areaCd, AREA_NM AS areaNm, ZIPCD AS zipcd, ADDR AS addr, ADDR2 AS addr2,
+	         EMAIL AS email, HP AS hp, TEL AS tel, FAX AS fax, BIZNO AS bizno,
+	         BANK_ACCT AS bankAcct, TAXBILL_GB AS taxbillGb, VAT_GB AS vatGb, REG_DT AS regDt,
+	         DC_CD AS dcCd, SORT_ORD AS sortOrd, REMARK AS remark, ACTION_YN AS actionYn,
+	         REG_DTTM AS regDttm, UPD_DTTM AS updDttm
+	    FROM TBL_VENDOR_MST
+	   WHERE ACTION_YN = 'Y'
+	     AND ( ISNULL(#{gbFilter,jdbcType=VARCHAR},'') = ''
+	           OR VENDOR_GB LIKE '%' + #{gbFilter,jdbcType=VARCHAR} + '%' )
+	     AND ( ISNULL(#{findData,jdbcType=VARCHAR},'') = ''
+	           OR VENDOR_CD          LIKE '%' + #{findData,jdbcType=VARCHAR} + '%'
+	           OR ISNULL(VENDOR_NM,'') LIKE '%' + #{findData,jdbcType=VARCHAR} + '%'
+	           OR ISNULL(FULL_NM,'')   LIKE '%' + #{findData,jdbcType=VARCHAR} + '%'
+	           OR ISNULL(ALIAS,'')     LIKE '%' + #{findData,jdbcType=VARCHAR} + '%'
+	           OR ISNULL(BIZNO,'')     LIKE '%' + #{findData,jdbcType=VARCHAR} + '%'
+	           OR ISNULL(CEO_NM,'')    LIKE '%' + #{findData,jdbcType=VARCHAR} + '%' )
+	     AND ( ISNULL(#{vendorCd,jdbcType=VARCHAR},'') = '' OR VENDOR_CD = #{vendorCd,jdbcType=VARCHAR} )
+	   ORDER BY ISNULL(SORT_ORD, 999999), VENDOR_NM
+	]]></select>
+
+	<!-- 거래처 코드 중복 체크 (신규 등록 시) -->
+	<select id="vendorDupChk" parameterType="egovframework.sejong.user.model.VendorDTO" resultType="int"><![CDATA[
+	  SELECT COUNT(*) FROM TBL_VENDOR_MST WHERE VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}
+	]]></select>
+
+	<!-- 거래처 신규 등록 (화면 수기 등록) -->
+	<insert id="insertVendorMst" parameterType="egovframework.sejong.user.model.VendorDTO"><![CDATA[
+	  INSERT INTO TBL_VENDOR_MST (
+	      VENDOR_CD, VENDOR_NM, FULL_NM, ALIAS, CEO_NM, VENDOR_GB, BIZ_COND, BIZ_ITEM,
+	      MGR_CD, MGR_NM, TYPE_CD, TYPE_NM, AREA_CD, AREA_NM, ZIPCD, ADDR, ADDR2,
+	      EMAIL, HP, TEL, FAX, BIZNO, BANK_ACCT, TAXBILL_GB, VAT_GB, REG_DT, DC_CD, SORT_ORD, REMARK,
+	      ACTION_YN, REG_DTTM, REG_USER, REG_IP
+	  ) VALUES (
+	      #{vendorCd,jdbcType=VARCHAR}, #{vendorNm,jdbcType=VARCHAR}, #{fullNm,jdbcType=VARCHAR}, #{alias,jdbcType=VARCHAR},
+	      #{ceoNm,jdbcType=VARCHAR}, #{vendorGb,jdbcType=VARCHAR}, #{bizCond,jdbcType=VARCHAR}, #{bizItem,jdbcType=VARCHAR},
+	      #{mgrCd,jdbcType=VARCHAR}, #{mgrNm,jdbcType=VARCHAR}, #{typeCd,jdbcType=VARCHAR}, #{typeNm,jdbcType=VARCHAR},
+	      #{areaCd,jdbcType=VARCHAR}, #{areaNm,jdbcType=VARCHAR}, #{zipcd,jdbcType=VARCHAR}, #{addr,jdbcType=VARCHAR}, #{addr2,jdbcType=VARCHAR},
+	      #{email,jdbcType=VARCHAR}, #{hp,jdbcType=VARCHAR}, #{tel,jdbcType=VARCHAR}, #{fax,jdbcType=VARCHAR},
+	      #{bizno,jdbcType=VARCHAR}, #{bankAcct,jdbcType=VARCHAR}, #{taxbillGb,jdbcType=VARCHAR}, #{vatGb,jdbcType=VARCHAR},
+	      REPLACE(ISNULL(#{regDt,jdbcType=VARCHAR},''),'-',''), #{dcCd,jdbcType=VARCHAR}, #{sortOrd,jdbcType=INTEGER}, #{remark,jdbcType=VARCHAR},
+	      'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=VARCHAR}, #{regIp,jdbcType=VARCHAR}
+	  )
+	]]></insert>
+
+	<!-- 거래처 수정 (VENDOR_CD 기준 전체 필드 갱신) -->
+	<update id="updateVendorMst" parameterType="egovframework.sejong.user.model.VendorDTO"><![CDATA[
+	  UPDATE TBL_VENDOR_MST
+	     SET VENDOR_NM = #{vendorNm,jdbcType=VARCHAR}, FULL_NM = #{fullNm,jdbcType=VARCHAR}, ALIAS = #{alias,jdbcType=VARCHAR},
+	         CEO_NM = #{ceoNm,jdbcType=VARCHAR}, VENDOR_GB = #{vendorGb,jdbcType=VARCHAR},
+	         BIZ_COND = #{bizCond,jdbcType=VARCHAR}, BIZ_ITEM = #{bizItem,jdbcType=VARCHAR},
+	         MGR_CD = #{mgrCd,jdbcType=VARCHAR}, MGR_NM = #{mgrNm,jdbcType=VARCHAR},
+	         TYPE_CD = #{typeCd,jdbcType=VARCHAR}, TYPE_NM = #{typeNm,jdbcType=VARCHAR},
+	         AREA_CD = #{areaCd,jdbcType=VARCHAR}, AREA_NM = #{areaNm,jdbcType=VARCHAR},
+	         ZIPCD = #{zipcd,jdbcType=VARCHAR}, ADDR = #{addr,jdbcType=VARCHAR}, ADDR2 = #{addr2,jdbcType=VARCHAR},
+	         EMAIL = #{email,jdbcType=VARCHAR}, HP = #{hp,jdbcType=VARCHAR}, TEL = #{tel,jdbcType=VARCHAR}, FAX = #{fax,jdbcType=VARCHAR},
+	         BIZNO = #{bizno,jdbcType=VARCHAR}, BANK_ACCT = #{bankAcct,jdbcType=VARCHAR},
+	         TAXBILL_GB = #{taxbillGb,jdbcType=VARCHAR}, VAT_GB = #{vatGb,jdbcType=VARCHAR},
+	         DC_CD = #{dcCd,jdbcType=VARCHAR}, SORT_ORD = #{sortOrd,jdbcType=INTEGER}, REMARK = #{remark,jdbcType=VARCHAR},
+	         UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}
+	]]></update>
+
+	<!-- 거래처 소프트 삭제 (ACTION_YN='N' — 이력·참조 보존) -->
+	<update id="deleteVendorMst" parameterType="egovframework.sejong.user.model.VendorDTO"><![CDATA[
+	  UPDATE TBL_VENDOR_MST
+	     SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120),
+	         UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}
+	]]></update>
+
+	<!-- 거래처리스트.xls 재업로드 upsert — VENDOR_CD 있으면 갱신, 없으면 신규 (초기적재 vendor_mst_insert.sql 과 동일 규칙)
+	     · 소프트삭제(ACTION_YN='N')된 코드가 다시 오면 'Y' 로 복구 -->
+	<update id="mergeVendorMst" parameterType="egovframework.sejong.user.model.VendorDTO"><![CDATA[
+	  MERGE dbo.TBL_VENDOR_MST AS t
+	  USING (SELECT #{vendorCd,jdbcType=VARCHAR} AS VENDOR_CD) AS s
+	     ON (t.VENDOR_CD = s.VENDOR_CD)
+	  WHEN MATCHED THEN UPDATE SET
+	         t.VENDOR_NM = #{vendorNm,jdbcType=VARCHAR}, t.FULL_NM = #{fullNm,jdbcType=VARCHAR}, t.ALIAS = #{alias,jdbcType=VARCHAR},
+	         t.CEO_NM = #{ceoNm,jdbcType=VARCHAR}, t.VENDOR_GB = #{vendorGb,jdbcType=VARCHAR},
+	         t.BIZ_COND = #{bizCond,jdbcType=VARCHAR}, t.BIZ_ITEM = #{bizItem,jdbcType=VARCHAR},
+	         t.MGR_CD = #{mgrCd,jdbcType=VARCHAR}, t.MGR_NM = #{mgrNm,jdbcType=VARCHAR},
+	         t.TYPE_CD = #{typeCd,jdbcType=VARCHAR}, t.TYPE_NM = #{typeNm,jdbcType=VARCHAR},
+	         t.AREA_CD = #{areaCd,jdbcType=VARCHAR}, t.AREA_NM = #{areaNm,jdbcType=VARCHAR},
+	         t.ZIPCD = #{zipcd,jdbcType=VARCHAR}, t.ADDR = #{addr,jdbcType=VARCHAR}, t.ADDR2 = #{addr2,jdbcType=VARCHAR},
+	         t.EMAIL = #{email,jdbcType=VARCHAR}, t.HP = #{hp,jdbcType=VARCHAR}, t.TEL = #{tel,jdbcType=VARCHAR}, t.FAX = #{fax,jdbcType=VARCHAR},
+	         t.BIZNO = #{bizno,jdbcType=VARCHAR}, t.BANK_ACCT = #{bankAcct,jdbcType=VARCHAR},
+	         t.TAXBILL_GB = #{taxbillGb,jdbcType=VARCHAR}, t.VAT_GB = #{vatGb,jdbcType=VARCHAR},
+	         t.REG_DT = REPLACE(ISNULL(#{regDt,jdbcType=VARCHAR},''),'-',''),
+	         t.DC_CD = CASE WHEN ISNULL(#{dcCd,jdbcType=VARCHAR},'') <> '' THEN #{dcCd,jdbcType=VARCHAR} ELSE t.DC_CD END,
+	         t.REMARK = #{remark,jdbcType=VARCHAR}, t.ACTION_YN = 'Y',
+	         t.UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER = #{updUser,jdbcType=VARCHAR}, t.UPD_IP = #{updIp,jdbcType=VARCHAR}
+	  WHEN NOT MATCHED THEN INSERT (
+	         VENDOR_CD, VENDOR_NM, FULL_NM, ALIAS, CEO_NM, VENDOR_GB, BIZ_COND, BIZ_ITEM,
+	         MGR_CD, MGR_NM, TYPE_CD, TYPE_NM, AREA_CD, AREA_NM, ZIPCD, ADDR, ADDR2,
+	         EMAIL, HP, TEL, FAX, BIZNO, BANK_ACCT, TAXBILL_GB, VAT_GB, REG_DT, DC_CD, REMARK,
+	         ACTION_YN, REG_DTTM, REG_USER, REG_IP )
+	       VALUES (
+	         #{vendorCd,jdbcType=VARCHAR}, #{vendorNm,jdbcType=VARCHAR}, #{fullNm,jdbcType=VARCHAR}, #{alias,jdbcType=VARCHAR},
+	         #{ceoNm,jdbcType=VARCHAR}, #{vendorGb,jdbcType=VARCHAR}, #{bizCond,jdbcType=VARCHAR}, #{bizItem,jdbcType=VARCHAR},
+	         #{mgrCd,jdbcType=VARCHAR}, #{mgrNm,jdbcType=VARCHAR}, #{typeCd,jdbcType=VARCHAR}, #{typeNm,jdbcType=VARCHAR},
+	         #{areaCd,jdbcType=VARCHAR}, #{areaNm,jdbcType=VARCHAR}, #{zipcd,jdbcType=VARCHAR}, #{addr,jdbcType=VARCHAR}, #{addr2,jdbcType=VARCHAR},
+	         #{email,jdbcType=VARCHAR}, #{hp,jdbcType=VARCHAR}, #{tel,jdbcType=VARCHAR}, #{fax,jdbcType=VARCHAR},
+	         #{bizno,jdbcType=VARCHAR}, #{bankAcct,jdbcType=VARCHAR}, #{taxbillGb,jdbcType=VARCHAR}, #{vatGb,jdbcType=VARCHAR},
+	         REPLACE(ISNULL(#{regDt,jdbcType=VARCHAR},''),'-',''), #{dcCd,jdbcType=VARCHAR}, #{remark,jdbcType=VARCHAR},
+	         'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=VARCHAR}, #{regIp,jdbcType=VARCHAR} );
+	]]></update>
+
+	<!-- ④-1 이미 업로드(반영)된 매출 엑셀 파일 목록 — 업로드 화면 '이미 반영' 배지용 -->
+	<select id="selectSalesSrcFiles" resultType="egovframework.sejong.user.model.SalesDTO"><![CDATA[
+	  SELECT SRC_FILE AS srcFile,
+	         MAX(DLV_DT) AS dlvDt,
+	         MAX(DC_NM)  AS dcNm,
+	         CONVERT(varchar(19), MAX(UPLOAD_DTTM), 120) AS uploadDttm
+	    FROM TBL_SALES_MST
+	   WHERE ISNULL(SRC_FILE,'') <> '' AND ACTION_YN = 'Y'
+	   GROUP BY SRC_FILE
+	]]></select>
+
 	<!-- ④-1 이미 업로드(반영)된 원본 파일명 목록 — 폴더 업로드 화면에서 '이미 반영' 배지 표시용
 	     · 파일명(SRC_FILE)별 최종 저장일시(UPLOAD_DTTM)·출고일자(SHPOUT_DT) -->
 	<select id="selectShipoutSrcFiles" resultType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
@@ -910,16 +1147,22 @@
 	               WHERE p.ACTION_YN = 'Y'
 	                 AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
 	        ) pm ON pm.PROD_CD = s.ITEM_CD
+        -- ★단가 기준일 = 발주일자(DLV_DT). 출고일자(SHPOUT_DT) 아님.
+        --   먼 지역은 발주분을 하루 당겨 출고한다(실측: 발주 20260708 → 출고 20260707 이 15행).
+        --   출고일자로 맞추면 '적용일자(발주일) > 출고일자' 가 되어 그 발주건의 확정단가가 영영 안 걸린다.
+        --   매출 엑셀 판매단가도 APPLY_DT = 납품일자(=발주일자) 로 적재하므로 기준을 발주일자로 통일한다.
+        --   (마감 기간 귀속은 종전대로 출고일자 기준 — 아래 WHERE 절은 그대로)
 	        OUTER APPLY (
 	              SELECT TOP 1 h.SALE_PRICE
 	                FROM TBL_PROD_SALEPRICE_HST h
-	               WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.SHPOUT_DT
+	               WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.DLV_DT
+	               AND h.VENDOR_CD IS NULL   -- 공통가만. 판매처 전용가는 물류센터 출고 마감에 안 섞는다
 	               ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
 	        ) sh
 	        OUTER APPLY (
 	              SELECT TOP 1 h.IN_PRICE
 	                FROM TBL_PROD_INPRICE_HST h
-	               WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.SHPOUT_DT
+	               WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.DLV_DT
 	               ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	        ) ih
 	        CROSS APPLY (
@@ -1136,7 +1379,8 @@
 	     판매가 이력 — TBL_PROD_SALEPRICE_HST
 	     ============================================================ -->
 	<select id="selectSalepriceList" parameterType="egovframework.sejong.user.model.ProdSalepriceDTO" resultType="egovframework.sejong.user.model.ProdSalepriceDTO"><![CDATA[
-	  SELECT SALEPRICE_SEQ AS salepriceSeq, PROD_SEQ AS prodSeq, PROD_CD AS prodCd, APPLY_DT AS applyDt,
+	  SELECT SALEPRICE_SEQ AS salepriceSeq, PROD_SEQ AS prodSeq, PROD_CD AS prodCd,
+	         VENDOR_CD AS vendorCd, VENDOR_NM AS vendorNm, APPLY_DT AS applyDt,
 	         SALE_PRICE AS salePrice, WHOLE_PRICE AS wholePrice, BASE_INPRICE AS baseInprice,
 	         MARGIN_RT AS marginRt, PREV_PRICE AS prevPrice, REMARK AS remark,
 	         REG_DTTM AS regDttm, REG_USER AS regUser
@@ -1147,10 +1391,11 @@
 
 	<insert id="insertSaleprice" parameterType="egovframework.sejong.user.model.ProdSalepriceDTO"><![CDATA[
 	  INSERT INTO TBL_PROD_SALEPRICE_HST
-	    (PROD_SEQ, PROD_CD, APPLY_DT, SALE_PRICE, WHOLE_PRICE, BASE_INPRICE, MARGIN_RT, PREV_PRICE, REMARK,
+	    (PROD_SEQ, PROD_CD, VENDOR_CD, VENDOR_NM, APPLY_DT, SALE_PRICE, WHOLE_PRICE, BASE_INPRICE, MARGIN_RT, PREV_PRICE, REMARK,
 	     ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
-	    (#{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, REPLACE(ISNULL(#{applyDt,jdbcType=NVARCHAR},''),'-',''),
+	    (#{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, #{vendorCd,jdbcType=NVARCHAR}, #{vendorNm,jdbcType=NVARCHAR},
+	     REPLACE(ISNULL(#{applyDt,jdbcType=NVARCHAR},''),'-',''),
 	     #{salePrice,jdbcType=DECIMAL}, #{wholePrice,jdbcType=DECIMAL},
 	     ISNULL(#{baseInprice,jdbcType=DECIMAL}, (SELECT IN_PRICE FROM TBL_PROD_MST WHERE PROD_SEQ = #{prodSeq})),
 	     #{marginRt,jdbcType=DECIMAL},

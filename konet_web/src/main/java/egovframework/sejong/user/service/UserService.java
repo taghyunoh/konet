@@ -36,6 +36,22 @@ public interface UserService {
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutHistAll(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutSrcFiles() throws Exception;   // 이미 업로드(반영)된 원본 파일명 목록
 
+	// ===== 매출(판매) 확정내역 — 출고장 제공 엑셀 업로드 저장 (TBL_SALES_MST) =====
+	int markSalesHistory(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
+	int getSalesNextJobSeq(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
+	int insertSalesMst(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.SalesDTO> selectSalesMst(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.SalesDTO> selectSalesSrcFiles() throws Exception;
+	int mergeSalepriceFromSales(egovframework.sejong.user.model.SalesDTO dto) throws Exception;   // 매출 엑셀 판매단가 → 판매가 이력 upsert
+
+	// ===== 거래처 마스터 (TBL_VENDOR_MST) =====
+	java.util.List<egovframework.sejong.user.model.VendorDTO> selectVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	int vendorDupChk(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	int insertVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	int updateVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	int deleteVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	int mergeVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+
 	// ===== 사업장 분류 마스터 (TBL_BIZI_MST) =====
 	java.util.List<egovframework.sejong.user.model.BiziDTO> selectBiziMst() throws Exception;
 	int insertBiziIfAbsent(egovframework.sejong.user.model.BiziDTO dto) throws Exception;

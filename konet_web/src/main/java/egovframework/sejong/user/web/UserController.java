@@ -542,6 +542,212 @@ public class UserController {
 			}
 		}
 
+		/* ---- 매출(판매) 확정내역 — 출고장 제공 엑셀 업로드 저장 ----
+		   · 원천 = 출고장 프로그램이 출력하는 엑셀(발주번호·발주항번·입고량·단가·매입금액)
+		   · ★엑셀은 '출고장 기준' → 우리 기준으로 환산해 받는다
+		       엑셀 '입고량'=우리 출고량(outQty) / '단가'=우리 판매단가(salePrice) / '매입금액'=우리 매출액(saleAmt)
+		   · 논리키 = (DLV_DT 납품일자 + DC_NM 출고장). 파일 1개 = 1배치 — 기존 활성배치 이력마감 후 JOB_SEQ+1 신규 INSERT
+		   · 출고장(평택 등)은 엑셀 안에 없어 화면(파일명 파싱)에서 dcNm 으로 실어 보낸다 */
+		//   · 응답은 반드시 Map(JSON 객체)으로 — ResponseEntity<String> 로 JSON 문자열을 담으면
+		//     Jackson 이 그 문자열을 한 번 더 감싸서 "{\"saved\":..}" 로 나가고, 화면의 JSON.parse 가 객체가 아닌
+		//     문자열을 받아 saved/price 가 전부 0으로 보인다(실제 저장은 정상인데 토스트만 0). 그 함정 회피.
+		@RequestMapping(value="/sales/saveSalesMst.do", method = RequestMethod.POST)
+		@ResponseBody
+		public ResponseEntity<Map<String,Object>> saveSalesMst(@RequestBody List<egovframework.sejong.user.model.SalesDTO> rows,
+		                                           HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new java.util.HashMap<String,Object>();
+			try {
+				if (rows == null || rows.isEmpty()) {
+					res.put("saved", 0); res.put("price", 0); res.put("none", 0); res.put("skip", 0);
+					return ResponseEntity.ok(res);
+				}
+
+				String regUser = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id"))
+				               : (session.getAttribute("s_comp_cd") != null ? String.valueOf(session.getAttribute("s_comp_cd")) : "");
+				String regIp   = request.getRemoteAddr();
+
+				// (납품일자 DLV_DT + 출고장 DC_NM) 복합키로 묶어 각 조합을 1배치로 저장
+				java.util.LinkedHashMap<String, java.util.List<egovframework.sejong.user.model.SalesDTO>> groups
+				    = new java.util.LinkedHashMap<String, java.util.List<egovframework.sejong.user.model.SalesDTO>>();
+				for (egovframework.sejong.user.model.SalesDTO r : rows) {
+					String key = (r.getDlvDt() == null ? "" : r.getDlvDt())
+					           + "|" + (r.getDcNm() == null ? "" : r.getDcNm());
+					java.util.List<egovframework.sejong.user.model.SalesDTO> g = groups.get(key);
+					if (g == null) { g = new java.util.ArrayList<egovframework.sejong.user.model.SalesDTO>(); groups.put(key, g); }
+					g.add(r);
+				}
+
+				int total = 0;
+				for (java.util.List<egovframework.sejong.user.model.SalesDTO> grp : groups.values()) {
+					// 1) 같은 (납품일자,출고장) 기존 활성배치 이력마감  2) 신규 JOB_SEQ  3) 그룹 전체행 INSERT
+					egovframework.sejong.user.model.SalesDTO head = grp.get(0);
+					head.setUpdUser(regUser);
+					head.setUpdIp(regIp);
+					svc.markSalesHistory(head);
+
+					int jobSeq = svc.getSalesNextJobSeq(head);
+					int seq = 0;
+					for (egovframework.sejong.user.model.SalesDTO r : grp) {
+						r.setJobSeq(jobSeq);
+						r.setActionYn("Y");
+						if (r.getRowNo() == null) r.setRowNo(seq + 1);
+						r.setRegUser(regUser);
+						r.setRegIp(regIp);
+						svc.insertSalesMst(r);
+						seq++; total++;
+					}
+				}
+
+				// (B) 판매단가 이력 반영 — 매출마감의 출고단가가 '(마스터)' 폴백이 아니라 '(이력)' = 실제 확정가로 잡히게 한다.
+				//     · ★키 = 품목코드 + 납품일자(DLV_DT = 발주일자) → TBL_PROD_SALEPRICE_HST.APPLY_DT
+				//       출고일자를 쓰면 안 된다 — 먼 지역은 발주분을 하루 당겨 출고해서 출고일자가 발주일자보다 이를 수 있고,
+				//       매출마감은 'APPLY_DT <= 발주일자' 로 집으므로 기준을 발주일자로 통일해야 맞물린다.
+				//     · 같은 품목·같은 날 단가가 서로 다르면 어느 쪽이 맞는지 알 수 없으므로 넣지 않고 건너뛴다(추측 금지)
+				//     · 이력 반영 실패가 매출 저장 자체를 롤백하지 않도록 별도 try (실패 시 로그만)
+				int pApplied = 0, pSkip = 0, pNone = 0;
+				try {
+					java.util.LinkedHashMap<String, egovframework.sejong.user.model.SalesDTO> pmap
+					    = new java.util.LinkedHashMap<String, egovframework.sejong.user.model.SalesDTO>();
+					java.util.HashSet<String> conflict = new java.util.HashSet<String>();
+					for (egovframework.sejong.user.model.SalesDTO r : rows) {
+						if (r.getItemCd() == null || r.getItemCd().trim().isEmpty()) continue;
+						if (r.getDlvDt()  == null || r.getDlvDt().trim().isEmpty())  continue;
+						if (r.getSalePrice() == null) continue;
+						String k = r.getItemCd().trim() + "|" + r.getDlvDt().trim();
+						egovframework.sejong.user.model.SalesDTO p = pmap.get(k);
+						if (p == null) pmap.put(k, r);
+						else if (p.getSalePrice().compareTo(r.getSalePrice()) != 0) conflict.add(k);
+					}
+					for (java.util.Map.Entry<String, egovframework.sejong.user.model.SalesDTO> en : pmap.entrySet()) {
+						if (conflict.contains(en.getKey())) { pSkip++; continue; }
+						egovframework.sejong.user.model.SalesDTO src = en.getValue();
+						egovframework.sejong.user.model.SalesDTO h = new egovframework.sejong.user.model.SalesDTO();
+						h.setItemCd(src.getItemCd().trim());
+						h.setDlvDt(src.getDlvDt().trim());
+						h.setSalePrice(src.getSalePrice());
+						h.setRegUser(regUser);
+						h.setRegIp(regIp);
+						// 반환 0 = 상품마스터에 없는 품목코드이거나 이미 같은 단가 → 이력 변화 없음
+						if (svc.mergeSalepriceFromSales(h) > 0) pApplied++; else pNone++;
+					}
+					if (!conflict.isEmpty())
+						log.error(" saveSalesMst 판매단가 이력 SKIP(같은 품목·같은 날 단가 상이) : " + conflict);
+				} catch (Exception pe) {
+					log.error(" saveSalesMst 판매단가 이력 WARN : " + pe.getMessage());
+				}
+
+				res.put("saved", total);      // 저장된 행수
+				res.put("price", pApplied);   // 판매단가 이력이 실제로 들어가거나 바뀐 품목수
+				res.put("none",  pNone);      // 변화 없음(이미 같은 단가 or 품목코드가 상품마스터에 없음)
+				res.put("skip",  pSkip);      // 같은 품목·같은 날 단가가 달라 확정 못해 건너뜀
+				return ResponseEntity.ok(res);
+			} catch (Exception e) {
+				log.error(" saveSalesMst ERROR ! : " + e.getMessage());
+				res.put("error", e.getMessage());
+				return ResponseEntity.status(500).body(res);
+			}
+		}
+
+		/* 매출 확정내역 조회 — 기간(dlvDtFrom~dlvDtTo) 또는 단일 납품일자 + 출고장(선택) (JSON: {data:[...]}) */
+		@RequestMapping(value="/sales/selectSalesMst.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectSalesMst(@ModelAttribute("DTO") egovframework.sejong.user.model.SalesDTO dto,
+		                                          HttpSession session) throws Exception {
+			Map<String,Object> res = new java.util.HashMap<String,Object>();
+			try {
+				res.put("data", svc.selectSalesMst(dto));
+			} catch (Exception e) {
+				log.error(" selectSalesMst ERROR ! : " + e.getMessage());
+				res.put("data", new java.util.ArrayList<Object>());
+				res.put("error", e.getMessage());
+			}
+			return res;
+		}
+
+		/* ================= 거래처 마스터 관리 (TBL_VENDOR_MST — 회계 거래처, 사업장 TBL_BIZI_MST 와 별개) ================= */
+		@RequestMapping(value="/mangr/vendorMng.do")
+		public String vendorMng(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/vendorMng";
+		}
+		@RequestMapping(value="/vendor/insertVendorMst.do", method = RequestMethod.POST)
+		public ResponseEntity<String> insertVendorMst(@RequestBody egovframework.sejong.user.model.VendorDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getVendorCd()==null || dto.getVendorCd().trim().isEmpty()) return ResponseEntity.status(400).body("거래처코드 필요");
+				if (svc.vendorDupChk(dto) > 0) return ResponseEntity.status(409).body("이미 존재하는 거래처코드입니다: "+dto.getVendorCd());
+				dto.setRegUser(session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"");
+				dto.setRegIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.insertVendorMst(dto)));
+			} catch (Exception e) { log.error(" insertVendorMst ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/vendor/updateVendorMst.do", method = RequestMethod.POST)
+		public ResponseEntity<String> updateVendorMst(@RequestBody egovframework.sejong.user.model.VendorDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getVendorCd()==null || dto.getVendorCd().trim().isEmpty()) return ResponseEntity.status(400).body("거래처코드 필요");
+				dto.setUpdUser(session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"");
+				dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.updateVendorMst(dto)));
+			} catch (Exception e) { log.error(" updateVendorMst ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/vendor/deleteVendorMst.do", method = RequestMethod.POST)
+		public ResponseEntity<String> deleteVendorMst(@RequestBody egovframework.sejong.user.model.VendorDTO dto, HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getVendorCd()==null || dto.getVendorCd().trim().isEmpty()) return ResponseEntity.status(400).body("거래처코드 필요");
+				dto.setUpdUser(session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"");
+				dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.deleteVendorMst(dto)));
+			} catch (Exception e) { log.error(" deleteVendorMst ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		/* 거래처리스트.xls 재업로드 — 화면에서 파싱·코드기준 병합까지 끝낸 행 목록을 받아 코드별 MERGE upsert
+		   (파일 자체는 확장자만 xls 인 HTML 표 — 화면 DOMParser 가 파싱한다) */
+		@RequestMapping(value="/vendor/uploadVendorMst.do", method = RequestMethod.POST)
+		public ResponseEntity<String> uploadVendorMst(@RequestBody List<egovframework.sejong.user.model.VendorDTO> rows, HttpServletRequest request, HttpSession session) {
+			try {
+				if (rows == null || rows.isEmpty()) return ResponseEntity.ok("0");
+				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
+				String ip = request.getRemoteAddr();
+				int n = 0;
+				for (egovframework.sejong.user.model.VendorDTO r : rows) {
+					if (r.getVendorCd()==null || r.getVendorCd().trim().isEmpty()) continue;
+					r.setRegUser(u); r.setRegIp(ip); r.setUpdUser(u); r.setUpdIp(ip);
+					n += svc.mergeVendorMst(r);
+				}
+				return ResponseEntity.ok(String.valueOf(n));
+			} catch (Exception e) { log.error(" uploadVendorMst ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* 거래처 마스터 조회 — TBL_VENDOR_MST (TBL_BIZI_MST 사업장과 별개)
+		   · gbFilter='매입' → 매입처 후보(매입가·재고입고 화면 선택박스). 빈값이면 전체
+		   · findData → 코드/거래처명/정식명칭/별칭/사업자번호/대표자 부분검색 */
+		@RequestMapping(value="/vendor/selectVendorMst.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectVendorMst(@ModelAttribute("DTO") egovframework.sejong.user.model.VendorDTO dto,
+		                                           HttpSession session) throws Exception {
+			Map<String,Object> res = new java.util.HashMap<String,Object>();
+			try {
+				res.put("data", svc.selectVendorMst(dto));
+			} catch (Exception e) {
+				log.error(" selectVendorMst ERROR ! : " + e.getMessage());
+				res.put("data", new java.util.ArrayList<Object>());
+				res.put("error", e.getMessage());
+			}
+			return res;
+		}
+
+		/* 이미 업로드(반영)된 매출 엑셀 파일 목록 — 업로드 화면 '이미 반영' 배지용 */
+		@RequestMapping(value="/sales/selectSalesSrcFiles.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectSalesSrcFiles(HttpSession session) throws Exception {
+			Map<String,Object> res = new java.util.HashMap<String,Object>();
+			try {
+				res.put("data", svc.selectSalesSrcFiles());
+			} catch (Exception e) {
+				log.error(" selectSalesSrcFiles ERROR ! : " + e.getMessage());
+				res.put("data", new java.util.ArrayList<Object>());
+			}
+			return res;
+		}
+
 		/* 출고현황표 화면 — 선택한 납기일자(단일)의 활성배치 조회 (JSON: {data:[...]}) */
 		@RequestMapping(value="/shipout/selectShipoutMst.do", method = RequestMethod.POST)
 		@ResponseBody

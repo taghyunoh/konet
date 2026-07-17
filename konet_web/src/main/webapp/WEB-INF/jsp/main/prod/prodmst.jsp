@@ -89,6 +89,23 @@
   #hv td.num{ text-align:right; }
   #hv .badge{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#fff; }
   #hv .empty{ padding:20px; text-align:center; color:#9aa7b3; }
+  /* 거래처 콤보(선택 안에 찾기) — 버튼 클릭 → 드롭다운(검색창 + 목록) */
+  .vsel{ position:relative; width:200px; }
+  .vsel-btn{ width:100%; height:32px; border:1px solid #dbe2ea; border-radius:6px; background:#fff; text-align:left;
+             padding:0 26px 0 10px; font-size:13px; color:#1f2a37; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .vsel-btn:after{ content:'▾'; position:absolute; right:9px; top:6px; color:#8a97a5; font-size:12px; }
+  .vsel-btn.empty{ color:#9aa7b3; }
+  /* 드롭다운은 fixed — 이력/재고 패널(.mb2 overflow:auto)에 잘리지 않게 뷰포트 기준으로 띄운다. 좌표는 JS 가 버튼 위치로 셋팅 */
+  .vsel-dd{ display:none; position:fixed; z-index:120; width:280px;
+            background:#fff; border:1px solid #cfd8e0; border-radius:8px; box-shadow:0 8px 24px rgba(20,35,50,.22); }
+  .vsel-dd.on{ display:block; }
+  .vsel-dd .q{ width:calc(100% - 16px); margin:8px; height:30px; border:1px solid #dbe2ea; border-radius:6px; padding:0 9px; font-size:12.5px; }
+  .vsel-list{ max-height:280px; overflow:auto; border-top:1px solid #eef1f5; }
+  .vsel-list .it{ padding:7px 11px; cursor:pointer; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .vsel-list .it:hover{ background:#f3f8f6; }
+  .vsel-list .it.on{ background:#e6f2ef; font-weight:700; }
+  .vsel-list .it .cd{ color:#9aa7b3; font-size:11px; margin-left:5px; }
+  .vsel-list .none{ padding:12px; text-align:center; color:#9aa7b3; font-size:12px; }
 </style>
 </head>
 <body>
@@ -161,7 +178,15 @@
       <div class="panel" id="p_in">
         <div class="subbar">
           <div class="fld"><label>적용일</label><input type="date" id="in_dt"></div>
-          <div class="fld"><label>매입처</label><input type="text" id="in_vendor" style="width:150px" placeholder="매입처명"></div>
+          <div class="fld"><label>매입처</label>
+            <div class="vsel" id="in_vendor_box">
+              <input type="hidden" id="in_vendor">
+              <button type="button" class="vsel-btn empty" id="in_vendor_btn" onclick="vselOpen('in_vendor')" title="클릭 후 검색해서 선택 (거래처 마스터의 매입 거래처)">(선택)</button>
+              <div class="vsel-dd" id="in_vendor_dd">
+                <input type="text" class="q" id="in_vendor_q" placeholder="🔎 이름·코드 찾기" autocomplete="off" oninput="vselFilter('in_vendor')" onkeydown="vselKey(event,'in_vendor')">
+                <div class="vsel-list" id="in_vendor_list"></div>
+              </div>
+            </div></div>
           <div class="fld"><label>매입단가</label><input type="number" id="in_price" step="0.01" style="width:110px" value="0"></div>
           <div class="fld"><label>비고</label><input type="text" id="in_remark" style="width:180px"></div>
           <button class="btn btn-teal" onclick="hvAddIn()">＋ 추가</button>
@@ -175,14 +200,23 @@
       <div class="panel" id="p_sale" style="display:none">
         <div class="subbar">
           <div class="fld"><label>적용일</label><input type="date" id="sl_dt"></div>
+          <div class="fld"><label>판매처 <span style="color:#9aa7b3;font-weight:400">(비우면 공통가)</span></label>
+            <div class="vsel" id="sl_vendor_box">
+              <input type="hidden" id="sl_vendor">
+              <button type="button" class="vsel-btn empty" id="sl_vendor_btn" onclick="vselOpen('sl_vendor')" title="거래처 마스터의 매출 거래처 — 비우면 공통(기본) 판매가, 선택하면 그 판매처 전용가">(공통가)</button>
+              <div class="vsel-dd" id="sl_vendor_dd">
+                <input type="text" class="q" id="sl_vendor_q" placeholder="🔎 이름·코드 찾기" autocomplete="off" oninput="vselFilter('sl_vendor')" onkeydown="vselKey(event,'sl_vendor')">
+                <div class="vsel-list" id="sl_vendor_list"></div>
+              </div>
+            </div></div>
           <div class="fld"><label>판매단가</label><input type="number" id="sl_price" step="0.01" style="width:110px" value="0"></div>
           <div class="fld"><label>도매단가</label><input type="number" id="sl_whole" step="0.01" style="width:110px" value="0"></div>
           <div class="fld"><label>비고</label><input type="text" id="sl_remark" style="width:180px"></div>
           <button class="btn btn-teal" onclick="hvAddSale()">＋ 추가</button>
         </div>
         <table>
-          <thead><tr><th>적용일</th><th style="text-align:right">판매가</th><th style="text-align:right">도매가</th><th style="text-align:right">기준매입</th><th style="text-align:right">마진율</th><th>비고</th><th>등록</th><th style="width:56px"></th></tr></thead>
-          <tbody id="sl_tb"><tr><td colspan="8" class="empty">-</td></tr></tbody>
+          <thead><tr><th>적용일</th><th>판매처</th><th style="text-align:right">판매가</th><th style="text-align:right">도매가</th><th style="text-align:right">기준매입</th><th style="text-align:right">마진율</th><th>비고</th><th>등록</th><th style="width:56px"></th></tr></thead>
+          <tbody id="sl_tb"><tr><td colspan="9" class="empty">-</td></tr></tbody>
         </table>
       </div>
       <!-- 재고 -->
@@ -198,7 +232,15 @@
           </div>
           <div class="fld"><label>수량</label><input type="number" id="st_qty" style="width:90px" value="0" oninput="hvStockPrefill(false)"></div>
           <div class="fld"><label>단가 <span style="color:#9aa7b3;font-weight:400">(자동·수정가능)</span></label><input type="number" id="st_price" step="0.01" style="width:110px" value="0" title="품목 입고가 자동표시 · 수정 가능"></div>
-          <div class="fld"><label>매입처</label><input type="text" id="st_vendor" style="width:130px" placeholder="매입처(입고 시)"></div>
+          <div class="fld"><label>매입처</label>
+            <div class="vsel" id="st_vendor_box">
+              <input type="hidden" id="st_vendor">
+              <button type="button" class="vsel-btn empty" id="st_vendor_btn" onclick="vselOpen('st_vendor')" title="클릭 후 검색해서 선택 (거래처 마스터의 매입 거래처 — 입고 시)">(선택)</button>
+              <div class="vsel-dd" id="st_vendor_dd">
+                <input type="text" class="q" id="st_vendor_q" placeholder="🔎 이름·코드 찾기" autocomplete="off" oninput="vselFilter('st_vendor')" onkeydown="vselKey(event,'st_vendor')">
+                <div class="vsel-list" id="st_vendor_list"></div>
+              </div>
+            </div></div>
           <div class="fld"><label>비고</label><input type="text" id="st_remark" style="width:150px"></div>
           <button class="btn btn-teal" onclick="hvAddStock()">＋ 추가</button>
         </div>
@@ -401,10 +443,116 @@ function hvLoadIn(){
     }).join('');
   });
 }
+/* ---- 매입처 = 거래처 마스터(TBL_VENDOR_MST) 의 '매입' 거래처 ----
+   · 콤보(선택 안에 찾기): 버튼 클릭 → 드롭다운이 열리고 그 안의 검색창으로 좁혀서 클릭 선택.
+     Enter=첫 후보 선택, Esc=닫기, 바깥 클릭=닫기. 값은 숨은 input(id)에 코드로 보관.
+   · 예전엔 자유입력이라 매입가 폼은 이름만(vendorNm), 재고입고 폼은 이름을 코드칸(vendorCd)에 넣고 있었다.
+     이제 마스터에서 골라 코드+이름을 함께 저장한다(목록 밖 값은 애초에 못 들어감). */
+var VENDORS = [];    // 매입 거래처 (매입가·재고입고 폼)
+var SVENDORS = [];   // 매출 거래처 (판매가 폼의 판매처)
+function vendorLoad(){
+  function one(gb, setter){
+    return fetch('${pageContext.request.contextPath}/vendor/selectVendorMst.do', {
+        method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        credentials:'same-origin', body:'gbFilter=' + encodeURIComponent(gb) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ setter((j && j.data) || []); })
+      .catch(function(){ /* 목록 실패해도 화면은 살려둔다 */ });
+  }
+  one('매입', function(d){ VENDORS=d; });
+  one('매출', function(d){ SVENDORS=d; });
+}
+/* 콤보별 데이터 원천 — sl_vendor(판매처)=매출 거래처, 그 외(매입처)=매입 거래처 */
+function _vdata(id){ return id==='sl_vendor' ? SVENDORS : VENDORS; }
+function _vnmOf(id, cd){
+  var L=_vdata(id);
+  for(var i=0;i<L.length;i++) if(L[i].vendorCd===cd) return L[i].vendorNm;
+  return null;
+}
+function vendorNmOf(cd){ return _vnmOf('in_vendor', cd); }   // 매입처 이름 (수불 이력 표시 등 기존 호출부용)
+/* ── 콤보 위젯 (in_vendor / st_vendor / sl_vendor 공용) ── */
+function _vq(id){ return ((document.getElementById(id+'_q')||{}).value||'').trim().toLowerCase(); }
+function _vlist(id){
+  var q=_vq(id), L=_vdata(id);
+  return !q ? L : L.filter(function(v){
+    return (''+(v.vendorNm||'')).toLowerCase().indexOf(q)>=0 || (''+(v.vendorCd||'')).toLowerCase().indexOf(q)>=0;
+  });
+}
+function vselOpen(id){
+  var dd=document.getElementById(id+'_dd'); if(!dd) return;
+  var willOpen=!dd.classList.contains('on');
+  vselCloseAll();
+  if(!willOpen) return;
+  // fixed 좌표 = 버튼 바로 아래(네이티브 select 처럼). 목록 높이는 남은 공간에 맞춰 줄여 잘리지 않게.
+  // 아래가 극단적으로 좁을 때(<170px)만 위로.
+  try{
+    var btn=document.getElementById(id+'_btn'), lst=document.getElementById(id+'_list');
+    if(btn && btn.getBoundingClientRect){
+      var r=btn.getBoundingClientRect();
+      var vh=(window.innerHeight||document.documentElement.clientHeight);
+      dd.style.left=Math.round(r.left)+'px';
+      dd.style.width=Math.max(280, Math.round(r.width))+'px';
+      var below=vh-r.bottom-10;
+      if(below>=170 || below>=r.top){   // 기본: 아래로
+        dd.style.top=Math.round(r.bottom+3)+'px'; dd.style.bottom='auto';
+        if(lst) lst.style.maxHeight=Math.max(120, Math.min(280, below-56))+'px';   // 56px ≈ 검색창 영역
+      } else {                           // 예외: 위로
+        dd.style.top='auto'; dd.style.bottom=Math.round(vh-r.top+3)+'px';
+        if(lst) lst.style.maxHeight=Math.max(120, Math.min(280, r.top-66))+'px';
+      }
+    }
+  }catch(e){}
+  dd.classList.add('on');
+  var q=document.getElementById(id+'_q'); if(q){ q.value=''; }
+  vselFilter(id);
+  if(q) setTimeout(function(){ q.focus(); },0);
+}
+function vselCloseAll(){
+  Array.prototype.forEach.call(document.querySelectorAll('.vsel-dd.on'), function(d){ d.classList.remove('on'); });
+}
+function vselFilter(id){
+  var box=document.getElementById(id+'_list'); if(!box) return;
+  var cur=(document.getElementById(id)||{}).value||'';
+  var list=_vlist(id);
+  var noneLabel = id==='sl_vendor' ? '(공통가 — 판매처 없음)' : '(선택 안 함)';
+  var h='<div class="it'+(cur===''?' on':'')+'" onclick="vselPick(\''+id+'\',\'\')">'+noneLabel+'</div>';
+  if(!list.length) h+='<div class="none">검색 결과가 없습니다</div>';
+  else h+=list.map(function(v){
+    return '<div class="it'+(v.vendorCd===cur?' on':'')+'" onclick="vselPick(\''+id+'\',\''+esc(v.vendorCd)+'\')">'
+         + esc(v.vendorNm)+'<span class="cd">['+esc(v.vendorCd)+']</span></div>';
+  }).join('');
+  box.innerHTML=h;
+}
+function vselPick(id, cd){
+  var hid=document.getElementById(id), btn=document.getElementById(id+'_btn');
+  if(hid) hid.value=cd||'';
+  if(btn){
+    var nm=cd?_vnmOf(id, cd):null;
+    btn.textContent = cd ? ((nm||cd)+' ['+cd+']') : (id==='sl_vendor'?'(공통가)':'(선택)');
+    btn.classList.toggle('empty', !cd);
+  }
+  vselCloseAll();
+}
+function vselKey(ev, id){
+  if(ev.key==='Escape'){ vselCloseAll(); return; }
+  if(ev.key==='Enter'){ ev.preventDefault(); var l=_vlist(id); if(l.length) vselPick(id, l[0].vendorCd); }
+}
+document.addEventListener('click', function(e){   // 바깥 클릭 시 닫기
+  var t=e.target;
+  while(t){ if(t.classList && t.classList.contains('vsel')) return; t=t.parentNode; }
+  vselCloseAll();
+});
+// 패널/화면 스크롤 시 닫기 — fixed 드롭다운이 버튼과 어긋난 채 떠 있지 않게. (드롭다운 내부 목록 스크롤은 유지)
+document.addEventListener('scroll', function(e){
+  var t=e.target;
+  while(t && t.classList){ if(t.classList.contains('vsel-dd')) return; t=t.parentNode; }
+  vselCloseAll();
+}, true);
 function hvAddIn(){
   var price=gnum('in_price'); if(price==null){ toast('⚠️ 매입단가를 입력하세요.'); return; }
+  var vcd=gv('in_vendor')||null;
   var dto={ prodSeq:HVP.prodSeq, prodCd:HVP.prodCd, applyDt:gv('in_dt')||today(),
-    vendorNm:gv('in_vendor')||null, inPrice:price, taxGb:HVP.taxGb||null, remark:gv('in_remark')||null };
+    vendorCd:vcd, vendorNm:(vcd?vendorNmOf(vcd):null), inPrice:price, taxGb:HVP.taxGb||null, remark:gv('in_remark')||null };
   _post('/prod/inpriceInsert.do', dto).then(function(r){
     if(!r.ok){ toast('⚠️ 실패(HTTP '+r.status+'): '+(r.t||'').slice(0,120)); return; }
     document.getElementById('in_remark').value=''; toast('💰 매입가 등록 · 마스터 반영');
@@ -416,10 +564,11 @@ function hvAddIn(){
 function hvLoadSale(){
   _listPost('/prod/salepriceList.do', HVP.prodSeq).then(function(j){
     var rows=(j&&j.data)||[], tb=document.getElementById('sl_tb');
-    if(!rows.length){ tb.innerHTML='<tr><td colspan="8" class="empty">이력이 없습니다.</td></tr>'; return; }
+    if(!rows.length){ tb.innerHTML='<tr><td colspan="9" class="empty">이력이 없습니다.</td></tr>'; return; }
     tb.innerHTML = rows.map(function(o){
       var mr=(o.marginRt==null?'':Number(o.marginRt).toFixed(1)+'%');
-      return '<tr><td>'+fmtDt(o.applyDt)+'</td><td class="num">'+num(o.salePrice)+'</td><td class="num">'+num(o.wholePrice)+'</td>'
+      var vn = o.vendorCd ? esc(o.vendorNm||o.vendorCd) : '<span style="color:#9aa7b3">공통</span>';
+      return '<tr><td>'+fmtDt(o.applyDt)+'</td><td>'+vn+'</td><td class="num">'+num(o.salePrice)+'</td><td class="num">'+num(o.wholePrice)+'</td>'
         +'<td class="num">'+num(o.baseInprice)+'</td><td class="num">'+mr+'</td><td>'+esc(o.remark)+'</td><td>'+esc(o.regDttm)+'</td>'
         +'<td><button class="btn btn-danger" onclick="hvDel(\'sale\','+o.salepriceSeq+')">삭제</button></td></tr>';
     }).join('');
@@ -429,11 +578,15 @@ function hvAddSale(){
   var price=gnum('sl_price'); if(price==null){ toast('⚠️ 판매단가를 입력하세요.'); return; }
   var base=(HVP.inPrice!=null?Number(HVP.inPrice):null);
   var margin=(base!=null && price>0)? ((price-base)/price*100) : null;   // 마진율 = (판매-매입)/판매
+  var vcd=gv('sl_vendor')||null;   // 비우면 공통(기본)가 — 마스터 동기화됨. 선택하면 그 판매처 전용가(마스터 안 건드림)
   var dto={ prodSeq:HVP.prodSeq, prodCd:HVP.prodCd, applyDt:gv('sl_dt')||today(),
+    vendorCd:vcd, vendorNm:(vcd?_vnmOf('sl_vendor',vcd):null),
     salePrice:price, wholePrice:gnum('sl_whole'), baseInprice:base, marginRt:margin, remark:gv('sl_remark')||null };
   _post('/prod/salepriceInsert.do', dto).then(function(r){
     if(!r.ok){ toast('⚠️ 실패(HTTP '+r.status+'): '+(r.t||'').slice(0,120)); return; }
-    document.getElementById('sl_remark').value=''; toast('🏷️ 판매가 등록 · 마스터 반영');
+    document.getElementById('sl_remark').value='';
+    toast(vcd ? ('🏷️ 판매처 전용가 등록 — '+esc(_vnmOf('sl_vendor',vcd)||vcd)+' <span style="color:#9aa7b3">(기본가는 그대로)</span>')
+              : '🏷️ 판매가 등록 · 마스터 반영');
     hvLoadSale(); prodLoad();
   });
 }
@@ -454,7 +607,7 @@ function hvLoadStock(){
       tb.innerHTML = rows.map(function(o){
         var bd='<span class="badge" style="background:'+(IO_COLOR[o.ioGb]||'#888')+'">'+(IO_MAP[o.ioGb]||o.ioGb)+'</span>';
         return '<tr><td>'+fmtDt(o.trxDt)+'</td><td>'+bd+'</td><td class="num">'+num(o.qty)+'</td><td class="num">'+num(o.unitPrice)+'</td>'
-          +'<td class="num">'+num(o.amt)+'</td><td>'+esc(o.vendorCd)+'</td><td>'+esc(o.remark)+'</td><td>'+esc(o.regDttm)+'</td>'
+          +'<td class="num">'+num(o.amt)+'</td><td>'+esc(vendorNmOf(o.vendorCd)||o.vendorCd)+'</td><td>'+esc(o.remark)+'</td><td>'+esc(o.regDttm)+'</td>'
           +'<td><button class="btn btn-danger" onclick="hvDel(\'stock\','+o.ledgerSeq+')">삭제</button></td></tr>';
       }).join('');
     });
@@ -477,7 +630,7 @@ function hvAddStock(){
     ioGb:io, qty:qty, unitPrice:up, vendorCd:gv('st_vendor')||null, remark:gv('st_remark')||null };
   _post('/prod/stockInsert.do', dto).then(function(r){
     if(!r.ok){ toast('⚠️ 실패(HTTP '+r.status+'): '+(r.t||'').slice(0,120)); return; }
-    document.getElementById('st_remark').value=''; document.getElementById('st_vendor').value=''; toast('📦 수불 등록 · 현재고 반영');
+    document.getElementById('st_remark').value=''; vselPick('st_vendor',''); toast('📦 수불 등록 · 현재고 반영');
     hvLoadStock();
   });
 }
@@ -498,6 +651,9 @@ function hvDel(kind, seq){
 }
 
 prodLoad();
+vendorLoad();   // 매입처 선택 목록 채우기 (거래처 마스터 '매입' 거래처 — 위 찾기 입력으로 좁히기)
+// 진입 시 날짜 기본값 = 오늘 (품목 클릭 전에도 비어있지 않게. 품목 클릭 시 hvOpen 이 다시 오늘로 셋팅)
+['in_dt','sl_dt','st_dt'].forEach(function(id){ var e=document.getElementById(id); if(e && !e.value) e.value=today(); });
 </script>
 </body>
 </html>

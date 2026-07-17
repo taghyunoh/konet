@@ -3,3 +3,6 @@ target
 .settings
 .classpath
 bin
+
+# Claude 임시 워크트리 (eGit 이 서브모듈로 오인해 null-sha 커밋 -> push 500 원인)
+.claude/worktrees/

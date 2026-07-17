@@ -64,6 +64,22 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutHistory(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutHistory(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutHistAll(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutHistAll(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutSrcFiles() throws Exception { return mapper.selectShipoutSrcFiles(); }
+
+	// ===== 매출(판매) 확정내역 — 출고장 제공 엑셀 업로드 저장 (TBL_SALES_MST) =====
+	@Override public int markSalesHistory(egovframework.sejong.user.model.SalesDTO dto) throws Exception { return mapper.markSalesHistory(dto); }
+	@Override public int getSalesNextJobSeq(egovframework.sejong.user.model.SalesDTO dto) throws Exception { return mapper.getSalesNextJobSeq(dto); }
+	@Override public int insertSalesMst(egovframework.sejong.user.model.SalesDTO dto) throws Exception { return mapper.insertSalesMst(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.SalesDTO> selectSalesMst(egovframework.sejong.user.model.SalesDTO dto) throws Exception { return mapper.selectSalesMst(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.SalesDTO> selectSalesSrcFiles() throws Exception { return mapper.selectSalesSrcFiles(); }
+	@Override public int mergeSalepriceFromSales(egovframework.sejong.user.model.SalesDTO dto) throws Exception { return mapper.mergeSalepriceFromSales(dto); }
+
+	// ===== 거래처 마스터 (TBL_VENDOR_MST) =====
+	@Override public java.util.List<egovframework.sejong.user.model.VendorDTO> selectVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.selectVendorMst(dto); }
+	@Override public int vendorDupChk(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.vendorDupChk(dto); }
+	@Override public int insertVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.insertVendorMst(dto); }
+	@Override public int updateVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.updateVendorMst(dto); }
+	@Override public int deleteVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.deleteVendorMst(dto); }
+	@Override public int mergeVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.mergeVendorMst(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.BiziDTO> selectBiziMst() throws Exception { return mapper.selectBiziMst(); }
 	@Override public int insertBiziIfAbsent(egovframework.sejong.user.model.BiziDTO dto) throws Exception { return mapper.insertBiziIfAbsent(dto); }
 	@Override public int updateBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception { return mapper.updateBiziMst(dto); }
@@ -169,7 +185,9 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<egovframework.sejong.user.model.ProdSalepriceDTO> selectSalepriceList(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception { return mapper.selectSalepriceList(dto); }
 	@Override public int insertSaleprice(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception {
 		int n = mapper.insertSaleprice(dto);
-		mapper.syncProdSalePrice(dto); // TBL_PROD_MST.SALE_PRICE/WHOLE_PRICE ← 새 판매/도매단가
+		// 공통가(판매처 없음)만 마스터 동기화 — 판매처 전용가가 기본가(SALE_PRICE)를 덮으면 안 된다
+		if (dto.getVendorCd() == null || dto.getVendorCd().trim().isEmpty())
+			mapper.syncProdSalePrice(dto); // TBL_PROD_MST.SALE_PRICE/WHOLE_PRICE ← 새 판매/도매단가
 		return n;
 	}
 	@Override public int deleteSaleprice(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception { return mapper.deleteSaleprice(dto); }
