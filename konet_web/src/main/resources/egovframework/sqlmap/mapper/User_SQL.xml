@@ -559,6 +559,9 @@
 	    FROM TBL_SALES_MST t
 	   WHERE t.ACTION_YN = 'Y'
 	     AND ( ISNULL(#{dcNm,jdbcType=VARCHAR},'') = '' OR ISNULL(t.DC_NM,'') = #{dcNm,jdbcType=VARCHAR} )
+     AND ( ISNULL(#{itemCd,jdbcType=VARCHAR},'') = ''
+           OR ISNULL(t.ITEM_CD,'') LIKE '%' + #{itemCd,jdbcType=VARCHAR} + '%'
+           OR ISNULL(t.ITEM_NM,'') LIKE '%' + #{itemCd,jdbcType=VARCHAR} + '%' )
 	     AND (
 	           ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'') <> ''
 	             AND t.DLV_DT BETWEEN REPLACE(#{dlvDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{dlvDtTo,jdbcType=VARCHAR},'-','') )
@@ -1424,13 +1427,24 @@
 	     · IO_GB : I=입고(+) O=출고(-) R=반품(+) A=조정(QTY 부호 그대로)
 	     ============================================================ -->
 	<select id="selectStockLedgerList" parameterType="egovframework.sejong.user.model.StockLedgerDTO" resultType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
-	  SELECT LEDGER_SEQ AS ledgerSeq, PROD_SEQ AS prodSeq, PROD_CD AS prodCd, TRX_DT AS trxDt, IO_GB AS ioGb,
-	         QTY AS qty, UNIT_PRICE AS unitPrice, AMT AS amt, BAL_QTY AS balQty,
-	         VENDOR_CD AS vendorCd, BIZ_CD AS bizCd, REF_GB AS refGb, REF_NO AS refNo, REMARK AS remark,
-	         REG_DTTM AS regDttm, REG_USER AS regUser
-	    FROM TBL_STOCK_LEDGER
-	   WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
-	   ORDER BY TRX_DT DESC, LEDGER_SEQ DESC
+	  SELECT l.LEDGER_SEQ AS ledgerSeq, l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, l.TRX_DT AS trxDt, l.IO_GB AS ioGb,
+	         l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt, l.BAL_QTY AS balQty,
+	         l.VENDOR_CD AS vendorCd,
+	         /* 사업장: SHIPOUT 자동연동 행은 BIZ_CD 가 NULL → 출고원본(TBL_SHIPOUT_MST)에서
+	            같은 품목·출고일자의 사업장명을 모아 표시 (여러 곳이면 콤마 구분) */
+	         CASE WHEN l.REF_GB = 'SHIPOUT' THEN
+	              ISNULL(STUFF((SELECT DISTINCT ', ' + s.BIZ_NM
+	                              FROM TBL_SHIPOUT_MST s
+	                             WHERE s.ACTION_YN = 'Y' AND s.ITEM_CD = l.PROD_CD
+	                               AND s.SHPOUT_DT = l.REF_NO AND ISNULL(s.BIZ_NM,'') <> ''
+	                               AND ISNULL(s.CUR_QTY,0) > 0
+	                               FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 2, ''), l.BIZ_CD)
+	              ELSE l.BIZ_CD END AS bizCd,
+	         l.REF_GB AS refGb, l.REF_NO AS refNo, l.REMARK AS remark,
+	         l.REG_DTTM AS regDttm, l.REG_USER AS regUser
+	    FROM TBL_STOCK_LEDGER l
+	   WHERE l.PROD_SEQ = #{prodSeq} AND l.ACTION_YN = 'Y'
+	   ORDER BY l.TRX_DT DESC, l.LEDGER_SEQ DESC
 	]]></select>
 
 	<insert id="insertStockLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[

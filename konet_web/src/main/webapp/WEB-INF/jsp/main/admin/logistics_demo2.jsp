@@ -1081,6 +1081,23 @@
   }
   // 재고현황 행 클릭 → 그 품목의 수불 내역(근거)을 하단 ② 그리드에 표시
   var _IOGB={I:'입고',O:'출고',R:'반품',A:'조정'};
+  // 사업장 셀: 여러 곳이면 첫 곳 + [＋N] 만 표시 — 클릭하면 전체 펼침/접기
+  function _bizCell(v){
+    v=(''+(v||'')).trim(); if(!v) return '';
+    var a=v.split(', ');
+    if(a.length<2) return _cesc(v);
+    return '<span class="bizshort">'+_cesc(a[0])
+      +' <a href="javascript:void(0)" style="color:#137a6c;font-weight:800;text-decoration:none;white-space:nowrap" onclick="_bizToggle(this,event)" title="사업장 '+a.length+'곳 모두 보기">＋'+(a.length-1)+'</a></span>'
+      +'<span class="bizfull" style="display:none">'+_cesc(v)
+      +' <a href="javascript:void(0)" style="color:#9aa7b3;font-weight:800;text-decoration:none;white-space:nowrap" onclick="_bizToggle(this,event)" title="접기">－</a></span>';
+  }
+  function _bizToggle(el, e){
+    if(e){ e.stopPropagation(); }
+    var td=el.parentNode; while(td && td.tagName!=='TD') td=td.parentNode; if(!td) return;
+    var s=td.querySelector('.bizshort'), f=td.querySelector('.bizfull'); if(!s||!f) return;
+    var open=(f.style.display==='none');
+    f.style.display=open?'':'none'; s.style.display=open?'none':'';
+  }
   function stkLedgerDetail(prodSeq, el){
     // 선택행 하이라이트
     var wrap=document.getElementById('stkStatusWrap'); if(wrap){ var trs=wrap.querySelectorAll('tbody tr'); for(var k=0;k<trs.length;k++) trs[k].style.background=''; }
@@ -1110,7 +1127,7 @@
               +'<td style="text-align:right">'+_cnum(l.unitPrice)+'</td>'
               +'<td style="text-align:right">'+_cnum(l.amt)+'</td>'
               +'<td>'+_cesc(l.vendorCd||'')+'</td>'
-              +'<td>'+_cesc(l.bizCd||'')+'</td>'
+              +'<td>'+_bizCell(l.bizCd)+'</td>'
               +'<td>'+_cesc(l.refGb||'')+'</td>'
               +'<td>'+_cesc(l.refNo||'')+'</td>'
               +'<td>'+_cesc(l.remark||'')+'</td>'
@@ -3367,7 +3384,8 @@
   function slsQuery(){
     var f=(document.getElementById('slsFrom')||{}).value||'', t=(document.getElementById('slsTo')||{}).value||'';
     var dc=((document.getElementById('slsDc')||{}).value||'').trim();
-    var body='dlvDtFrom='+encodeURIComponent(f)+'&dlvDtTo='+encodeURIComponent(t)+'&dcNm='+encodeURIComponent(dc);
+    var ic=((document.getElementById('slsItemCd')||{}).value||'').trim();
+    var body='dlvDtFrom='+encodeURIComponent(f)+'&dlvDtTo='+encodeURIComponent(t)+'&dcNm='+encodeURIComponent(dc)+'&itemCd='+encodeURIComponent(ic);
     fetch('${pageContext.request.contextPath}/sales/selectSalesMst.do', {
       method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:body })
       .then(function(r){ return r.json(); })
@@ -3630,6 +3648,7 @@
           <div class="fld" style="flex:0 0 160px"><label>납품일자(시작)</label><input type="date" id="slsFrom"></div>
           <div class="fld" style="flex:0 0 160px"><label>납품일자(종료)</label><input type="date" id="slsTo"></div>
           <div class="fld" style="flex:0 0 150px"><label>출고장</label><input type="text" id="slsDc" placeholder="전체"></div>
+          <div class="fld" style="flex:0 0 180px"><label>품목코드/품목명</label><input type="text" id="slsItemCd" placeholder="전체 (부분검색)"></div>
           <div class="fld" style="flex:0 0 110px; align-self:flex-end"><button class="btn-teal" style="width:100%" onclick="slsQuery()">조회</button></div>
           <div class="fld" style="flex:0 0 auto; margin-left:auto; align-self:flex-end">
             <div class="sls-bar" style="padding:0 0 4px">

@@ -51,8 +51,8 @@ flowchart LR
 | 화면 | 주 테이블 | 비고 |
 |---|---|---|
 | 입고내역 | `TBL_STOCK_LEDGER` (`IO_GB='I'`) | 매입처 `VENDOR_CD` |
-| 재고현황 | `TBL_STOCK_LEDGER` 집계 + `TBL_STOCK_MST`(현재고 캐시) | 현재고 = 입고(I·R·A) − 출고(O). 출고는 `TBL_SHIPOUT_MST`→원장 `O`행 자동연동(`REF_GB='SHIPOUT'`, `REF_NO=SHPOUT_DT`). 기준일 비움=전체(현재고)/날짜=그날까지 누계(기말→재고마감과 대사). 행 클릭=수불 내역(근거) |
-| 상품(품목)관리 | `TBL_PROD_MST` (+이력 `TBL_PROD_INPRICE_HST` / `TBL_PROD_SALEPRICE_HST`, 재고 `TBL_STOCK_LEDGER`/`TBL_STOCK_MST`) | 하단 도킹 3탭(매입가/판매가/재고) |
+| 재고현황 | `TBL_STOCK_LEDGER` 집계 + `TBL_STOCK_MST`(현재고 캐시) | 현재고 = 입고(I·R·A) − 출고(O). 출고는 `TBL_SHIPOUT_MST`→원장 `O`행 자동연동(`REF_GB='SHIPOUT'`, `REF_NO=SHPOUT_DT`). 기준일 비움=전체(현재고)/날짜=그날까지 누계(기말→재고마감과 대사). 행 클릭=수불 내역(근거). 수불 내역 사업장: SHIPOUT 행은 출고원본(`TBL_SHIPOUT_MST`)의 `BIZ_NM` 연계 표시 — 여러 곳이면 첫 곳+`＋N` 클릭 펼침 (2026-07-18) |
+| 상품(품목)관리 | `TBL_PROD_MST` (+이력 `TBL_PROD_INPRICE_HST` / `TBL_PROD_SALEPRICE_HST`, 재고 `TBL_STOCK_LEDGER`/`TBL_STOCK_MST`, 매출단가 `TBL_SALES_MST`) | 하단 도킹 4탭(매입가/판매가/매출단가(조회)/재고). 매출단가(조회)=`TBL_SALES_MST` 조회 전용(입력·삭제 없음) — 판매가 탭은 자체 입력 이력 전용 (2026-07-18) |
 
 ### 마감관리 (월마감)
 | 화면 | 주 테이블 | 비고 |
@@ -75,10 +75,16 @@ flowchart LR
 | 거래처관리 | `TBL_BIZI_MST` (사업장/거래처) |
 | 회사·사용자 / 공통코드 | 회사·사용자 관리, 공통코드 관리 테이블 |
 
+### 견적서관리
+| 화면 | 주 테이블 | 비고 |
+|---|---|---|
+| 매출 엑셀 업로드 | `TBL_SALES_MST` (매출 확정내역 원본) | 배치키 = 납품일자 `DLV_DT` + 출고장 `DC_NM`, 버전 `JOB_SEQ`+`ACTION_YN`. 조회 = 기간 + 출고장 + **품목코드/품목명 부분검색**(2026-07-18). 저장 시 판매단가 이력(`TBL_PROD_SALEPRICE_HST`) 자동 반영(`mergeSalepriceFromSales`, APPLY_DT=납품일자, 단가충돌 시 skip) |
+| 견적서 작성 · 목록/조회 | (예정) | 협의 후 신설 |
+
 ### 부가·예정 (미구현)
 | 화면 | 상태 |
 |---|---|
-| 물품동선관리 · 견적서관리 · 카카오톡문자관리 | 데모/예정 — 실제 테이블 없음(협의 후 신설) |
+| 물품동선관리 · 카카오톡문자관리 | 데모/예정 — 실제 테이블 없음(협의 후 신설) |
 
 ---
 
@@ -90,6 +96,7 @@ flowchart LR
 | `TBL_STOCK_MST` | 품목별 현재고 캐시 | `CUR_QTY`·`AVG_IN_PRICE`·`STOCK_AMT` (PROD_SEQ UNIQUE) |
 | `TBL_PROD_MST` | 상품 마스터 | `PROD_CD`·`IN_PRICE`·`SALE_PRICE` |
 | `TBL_PROD_INPRICE_HST` / `TBL_PROD_SALEPRICE_HST` | 매입가/판매가 이력 | `APPLY_DT` 시점단가 |
+| `TBL_SALES_MST` | 매출 확정내역(출고장 제공 엑셀 원본) | `DLV_DT`·`DC_NM`·`ITEM_CD`·`SALE_PRICE`·`SALE_AMT`·`JOB_SEQ`·`ACTION_YN` |
 | `TBL_CLOSING_MST` / `TBL_CLOSING_STOCK` | 월 마감 헤더 / 기말재고 스냅샷(이월) | `CLOSE_YM`·`STATUS='C'` |
 | `TBL_RECEIVE_MST` / `TBL_PAYMENT_MST` | 수금·미수 / 출금·미지급 | `RCV_YM`/`PAY_YM` × `BIZ_CD` |
 | `TBL_SETTLE_CLOSE_MST` | 정산(수금/출금) 월 마감상태 | `SETTLE_GB`·`CLOSE_YM`·`STATUS='Y'` |

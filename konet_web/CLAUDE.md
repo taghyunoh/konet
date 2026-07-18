@@ -7,7 +7,7 @@
 - 컨벤션: PK `XXX_SEQ IDENTITY`, 품목연결 `PROD_SEQ`+`PROD_CD`, 금액 `DECIMAL(18,2)`, 일자 `NVARCHAR(8)'YYYYMMDD'`·일시 `NVARCHAR(19)`, 소프트삭제 `ACTION_YN`, 감사컬럼 `REG_/UPD_`. 날짜 저장 시 `REPLACE(...,'-','')`. XML `<=`/`<` 는 CDATA 필수.
 
 ## 상품 가격/재고 관리 (prodmst.jsp ↔ TBL_PROD_MST)
-상품관리 각 행 클릭 → 하단 도킹 **이력/재고 3탭**(매입가/판매가/재고 수불).
+상품관리 각 행 클릭 → 하단 도킹 **이력/재고 4탭**(매입가/판매가/매출단가(조회)/재고 수불).
 - **거래처 콤보(vsel)**: 매입처(매입가·재고입고)=매입 거래처 121종, 판매처(판매가)=매출 거래처 334종. '선택 안에 찾기' — 버튼 클릭→드롭다운 내 검색창, Enter=첫 후보, 아래 공간 부족 시 위로 열림(하단 도킹 패널이라 보통 위로). 데이터 원천은 `_vdata(id)` — `sl_vendor`만 SVENDORS(매출).
 - 적용일/거래일 기본값 = 오늘(진입 시 + 품목 클릭 시).
 - **테이블 4개**(DDL: `sql/logistics_price_stock_ddl.sql` 1~4): `TBL_PROD_INPRICE_HST`(매입가이력), `TBL_PROD_SALEPRICE_HST`(판매가이력), `TBL_STOCK_LEDGER`(수불원장), `TBL_STOCK_MST`(현재고집계)
@@ -15,6 +15,8 @@
 - 재고 입고폼에 **매입처(VENDOR_CD) 입력** 有. 입고 단가는 마스터 IN_PRICE 자동채움(수정가능).
 - 상품 삭제 가드: 연관(이력/재고) 있으면 삭제 차단(`countProdRelated`).
 - DTO: ProdInpriceDTO/ProdSalepriceDTO/StockLedgerDTO/StockMstDTO. 엔드포인트 `/prod/inprice*·saleprice*·stock*`.
+- **매출단가(조회) 탭 신설(2026-07-18)**: `TBL_SALES_MST` 조회 전용(납품일자·출고장·발주번호·판매단가·출고량·매출액·원본파일 + 상단 요약). 기존 `/sales/selectSalesMst.do`를 `itemCd`로 호출 — 서버코드 무변경, 화면에서 품목 필터 이중 적용(재시작 전 대비). **판매가 탭은 자체 입력 이력 전용 유지가 사용자 확정 방침** — TBL_SALES_MST를 판매가 이력 조회에 UNION 연계했다가 같은 날 원복함(다시 섞지 말 것).
+- **수불 내역 사업장 표시(2026-07-18)**: `selectStockLedgerList` — SHIPOUT 자동연동 행은 BIZ_CD가 NULL(품목·일자 합산이라)이므로 `TBL_SHIPOUT_MST`에서 같은 품목+출고일자(REF_NO)의 BIZ_NM을 STUFF/FOR XML로 콤마 연결해 표시(CUR_QTY>0 활성분). 화면(재고현황 `stkLedgerDetail`)은 여러 곳이면 첫 곳+`＋N` 클릭 펼침(`_bizCell`/`_bizToggle`, logistics_demo2.jsp).
 
 ## 매출 엑셀 업로드 (견적서관리 ▸ 매출 엑셀 업로드) — TBL_SALES_MST
 출고장(평택/오산/왜관/용인)이 자기 시스템에서 뽑아주는 엑셀(생성기 `DataLudi`, 시트 `Sheet1`, 17컬럼)을 원본 보관.
@@ -32,6 +34,7 @@
   - 실측 확인: 출고장 4곳 공통품목 25종 단가 **충돌 0** / 파일 내 중복품목 2종도 단가 동일 → 품목+적용일자 이력으로 표현 가능.
   - 이력 반영 실패가 매출 저장을 롤백하지 않도록 별도 try(로그만).
 - 저장 응답 = JSON `{saved, price, none, skip}` (행수 / 이력반영 품목수 / 변화없음 / 충돌제외).
+- **조회 검색 확장(2026-07-18)**: 조회 줄에 품목코드/품목명 검색란 추가 — `selectSalesMst`에 `itemCd` 파라미터, `ITEM_CD·ITEM_NM LIKE OR` 부분일치(비우면 전체).
 - DDL `sql/sales_mst_ddl.sql`. 엔드포인트 `/sales/{saveSalesMst,selectSalesMst,selectSalesSrcFiles}.do`, SalesDTO.
 - 이력: 처음 `TBL_PURCH_MST`(매입 관점)로 잘못 만들었다가 사용자 정정으로 전면 교체 — 그 테이블은 2026-07-17 삭제 완료(코드·DB 모두 흔적 없음).
 - [대기] 견적서 작성/목록/출력, 판매단가 → `TBL_PROD_SALEPRICE_HST` 적재(APPLY_DT=출고일자) 여부
@@ -92,7 +95,7 @@ DDL: `sql/logistics_price_stock_ddl.sql` 5~6.
 - [완료] 상품 가격/재고, 마감 3종(공통 UX), 마감확정(확정·잠금·해제)
 - [완료] **이월 기초 스냅샷 연동** — selectStockClosing에서 기초 = ISNULL(직전 확정월 TBL_CLOSING_STOCK.END_QTY, 원장 재계산). CTE B(prevYm=FORMAT(DATEADD(MONTH,-1,fromB월),'yyyyMM')) + LEFT JOIN TBL_CLOSING_STOCK cs. avgInPrice도 스냅샷 폴백. XML만 변경(자바 무변경).
 - [대기·협의후] **재고부족 출고 차단** — 출고/조정(−) 시 현재고 초과 거부(음수재고 방지). 마감 잠금과 별개
-- **[확정 방침 2026-07-05] 출고→재고 미연동(현행 유지)**: 출고는 TBL_SHIPOUT_MST(발주현황표 업로드)로만 잡히고 TBL_STOCK_LEDGER에 자동기록 안 함(saveShipoutMst는 원장에 안 씀). 따라서 **재고현황(현재고)·재고마감은 입고만 반영 → 출고 미차감(실제 재고와 다름)**. 사용자 결정으로 현행 유지. 재연동 요청 시 옵션: (A)출고저장시 원장 'O' 자동INSERT(REF_GB='SHIPOUT', 재업로드 시 삭제후재삽입, ITEM_CD=PROD_CD 매칭) (B)재고 쿼리에서 SHIPOUT 직접 차감. 매출/매입마감은 각각 SHIPOUT/입고 원천이라 정상.
+- ~~[확정 방침 2026-07-05] 출고→재고 미연동~~ → **이후 A안으로 구현됨(현재 코드 기준)**: 출고 저장 시 원장에 'O'행 자동연동 — `insertShipoutLedger`/`deleteShipoutLedger`(SHPOUT_DT별 삭제 후 재삽입, REF_GB='SHIPOUT', REF_NO=출고일자, ITEM_CD=PROD_CD 매칭, 품목·일자 합산이라 BIZ_CD는 NULL). 재고현황(`selectStockMstList`)·재고마감도 원장 단일소스 집계라 출고가 차감됨(입고 없이 출고만 있으면 음수 = 입고누락 신호). 매출/매입마감은 각각 SHIPOUT/입고 원천 그대로.
 - [대기] 마감 출고 잠금(확정월 shipout 저장 차단), 매출/매입/재고 화면 '🔒 마감 확정' 버튼(현재 플레이스홀더) 연동, 마감 엑셀 출력, 일마감(안함 — 월마감만)
 
 ## 참고 이력 (이 프로젝트에서 겪은 것)

@@ -171,6 +171,7 @@
     <div class="tabs">
       <button class="tab on" id="tab_in"    onclick="hvTab('in')">💰 매입가</button>
       <button class="tab"    id="tab_sale"  onclick="hvTab('sale')">🏷️ 판매가</button>
+      <button class="tab"    id="tab_sales" onclick="hvTab('sales')">🧾 매출단가(조회)</button>
       <button class="tab"    id="tab_stock" onclick="hvTab('stock')">📦 재고(수불)</button>
     </div>
     <div class="mb2">
@@ -217,6 +218,14 @@
         <table>
           <thead><tr><th>적용일</th><th>판매처</th><th style="text-align:right">판매가</th><th style="text-align:right">도매가</th><th style="text-align:right">기준매입</th><th style="text-align:right">마진율</th><th>비고</th><th>등록</th><th style="width:56px"></th></tr></thead>
           <tbody id="sl_tb"><tr><td colspan="9" class="empty">-</td></tr></tbody>
+        </table>
+      </div>
+      <!-- 매출단가(조회) — 매출 확정내역(TBL_SALES_MST, 발주서 업로드분)의 실제 판매단가. 조회 전용 -->
+      <div class="panel" id="p_sales" style="display:none">
+        <div class="stockhdr" id="ss_hdr">매출 확정내역(발주서 업로드분)의 실제 판매단가 — 조회 전용. 입력·삭제는 견적서관리 ▸ 매출 엑셀 업로드에서.</div>
+        <table>
+          <thead><tr><th>납품일자</th><th>출고장</th><th>발주번호</th><th style="text-align:right">판매단가</th><th style="text-align:right">출고량</th><th style="text-align:right">매출액</th><th>원본파일</th></tr></thead>
+          <tbody id="ss_tb"><tr><td colspan="7" class="empty">-</td></tr></tbody>
         </table>
       </div>
       <!-- 재고 -->
@@ -423,12 +432,12 @@ function hvToggle(){
 }
 function hvTab(t){
   HVT=t;
-  ['in','sale','stock'].forEach(function(k){
+  ['in','sale','sales','stock'].forEach(function(k){
     document.getElementById('tab_'+k).classList.toggle('on', k===t);
     document.getElementById('p_'+k).style.display = (k===t)?'block':'none';
   });
   if(!HVP) return;   // 품목 미선택 시 탭 하이라이트만
-  if(t==='in') hvLoadIn(); else if(t==='sale') hvLoadSale(); else hvLoadStock();
+  if(t==='in') hvLoadIn(); else if(t==='sale') hvLoadSale(); else if(t==='sales') hvLoadSalesPrice(); else hvLoadStock();
 }
 
 /* ---- 매입가 ---- */
@@ -589,6 +598,31 @@ function hvAddSale(){
               : '🏷️ 판매가 등록 · 마스터 반영');
     hvLoadSale(); prodLoad();
   });
+}
+
+/* ---- 매출단가(조회) — 매출 확정내역(TBL_SALES_MST) 그대로. 조회 전용 ---- */
+function hvLoadSalesPrice(){
+  var tb=document.getElementById('ss_tb'), hd=document.getElementById('ss_hdr');
+  tb.innerHTML='<tr><td colspan="7" class="empty">불러오는 중…</td></tr>';
+  fetch(CTX+'/sales/selectSalesMst.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      credentials:'same-origin', body:'dlvDtFrom=&dlvDtTo=&dcNm=&itemCd='+encodeURIComponent(HVP.prodCd||'') })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      // 서버 품목 필터가 아직 안 열렸을 수 있어(재시작 전) 클라이언트에서 한 번 더 거른다
+      var rows=((j&&j.data)||[]).filter(function(r){ return (''+(r.itemCd||''))===(''+(HVP.prodCd||'')); });
+      if(!rows.length){
+        hd.innerHTML='매출 확정내역이 없습니다. (발주서 업로드분 기준 · 조회 전용)';
+        tb.innerHTML='<tr><td colspan="7" class="empty">이 품목의 매출 확정내역이 없습니다.</td></tr>'; return;
+      }
+      var q=0,a=0,prices={}; rows.forEach(function(r){ q+=(+r.outQty||0); a+=(+r.saleAmt||0); if(r.salePrice!=null) prices[r.salePrice]=1; });
+      hd.innerHTML='총 <b>'+rows.length.toLocaleString()+'</b>행 · 단가 <b>'+Object.keys(prices).length+'</b>종 · 출고량 <b>'+num(q)+'</b> · 매출액 <b>'+num(a)+'</b> <span style="color:#9aa7b3">— 조회 전용(원본: 견적서관리 ▸ 매출 엑셀 업로드)</span>';
+      tb.innerHTML = rows.map(function(r){
+        return '<tr><td>'+fmtDt(r.dlvDt)+'</td><td>'+esc(r.dcNm)+'</td><td>'+esc(r.ordNo)+'</td>'
+          +'<td class="num">'+num(r.salePrice)+'</td><td class="num">'+num(r.outQty)+'</td><td class="num">'+num(r.saleAmt)+'</td>'
+          +'<td style="color:#9aa7b3">'+esc(r.srcFile)+'</td></tr>';
+      }).join('');
+    })
+    .catch(function(e){ tb.innerHTML='<tr><td colspan="7" class="empty">조회 오류: '+esc(e.message)+'</td></tr>'; });
 }
 
 /* ---- 재고(수불) ---- */
