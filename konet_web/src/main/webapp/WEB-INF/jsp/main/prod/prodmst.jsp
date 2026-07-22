@@ -20,7 +20,12 @@
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; }
   *{ box-sizing:border-box; }
   body{ margin:0; font-family:'맑은 고딕',Malgun Gothic,sans-serif; color:#1f2a37; background:var(--bg); font-size:13px; }
-  .wrap{ padding:18px 20px; }
+  /* ★상단(제목·검색줄)은 고정, 목록만 스크롤(2026-07-22 요청).
+     종전에는 페이지 전체가 스크롤돼서 내리면 검색창·＋상품 추가 버튼이 사라졌다.
+     화면 = [고정 헤더] + [스크롤되는 목록] + [하단 도킹 패널] 3층 구조. */
+  html,body{ height:100%; overflow:hidden; }
+  .wrap{ padding:18px 20px 0; height:100%; box-sizing:border-box; display:flex; flex-direction:column; min-height:0; }
+  .wrap > h2, .wrap > .sub, .wrap > .bar, .wrap > .pager{ flex:0 0 auto; }
   h2{ margin:0 0 4px; font-size:20px; }
   .sub{ color:#6b7a89; margin-bottom:14px; }
   .bar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
@@ -30,21 +35,28 @@
   .btn-teal{ background:var(--teal); color:#fff; border-color:var(--teal); }
   .btn-danger{ color:#c0392b; border-color:#e3b4ae; }
   .cnt{ margin-left:auto; color:#6b7a89; font-size:12.5px; }
-  .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; }
-  table{ width:100%; border-collapse:collapse; font-size:12.5px; white-space:nowrap; }
-  thead th{ background:#1f2a37; color:#fff; font-weight:700; padding:9px 10px; text-align:left; position:sticky; top:0; z-index:1; }
-  tbody td{ border-bottom:1px solid #eef1f5; padding:6px 10px; vertical-align:middle; }
+  /* 목록 카드 = 6행 높이만큼만 차지하고, 남는 공간을 아래 페이저에 넘긴다.
+     행이 넘치면(창이 작을 때) 여기서만 스크롤 — 위 제목·검색줄은 그대로 남는다 */
+  .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; flex:0 1 auto; min-height:90px; }
+  /* ★표 서식 = 매출내역(logistics_demo2 table.logi-tb)과 동일하게 맞춤(2026-07-22 요청)
+       13px · 셀 padding 9px 10px · 실선 격자 · 가운데 정렬 · 연한 헤더(#eef3f2/진한 글자)
+       숫자·상품명 등은 아래 개별 규칙으로 우/좌 정렬을 되돌린다 */
+  table{ width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap; }
+  thead th{ background:#eef3f2; color:#1f2a37; font-weight:700; border:1px solid var(--bd);
+            padding:9px 10px; text-align:center; position:sticky; top:0; z-index:1; }
+  tbody td{ border:1px solid var(--bd); padding:9px 10px; text-align:center; vertical-align:middle; color:#10161d; }
   tbody tr:hover td{ background:#f3f8f6; }
   tbody tr.prow{ cursor:pointer; }
   tbody tr.sel td{ background:#dcefe9 !important; box-shadow:inset 3px 0 0 var(--teal); }
   td.code{ font-family:Consolas,monospace; }
   td.num{ text-align:right; }
-  td.nm{ white-space:normal; min-width:220px; max-width:340px; }
+  td.nm{ white-space:normal; min-width:220px; max-width:340px; text-align:left; }
+  td.txt-l, th.txt-l{ text-align:left; }
   .act .btn{ height:26px; padding:0 9px; font-size:11.5px; }
   .empty{ padding:26px; text-align:center; color:#9aa7b3; }
   #msg{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%); background:#1f2a37; color:#fff; padding:10px 18px; border-radius:9px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:60; }
   #msg.on{ opacity:1; }
-  .pager{ display:flex; gap:4px; justify-content:center; align-items:center; margin-top:14px; flex-wrap:wrap; }
+  .pager{ display:flex; gap:4px; justify-content:center; align-items:center; margin:10px 0; flex-wrap:wrap; }
   .pager button{ min-width:32px; height:32px; border:1px solid var(--bd); background:#fff; border-radius:7px; cursor:pointer; font-size:12.5px; font-weight:700; color:#37475a; padding:0 8px; }
   .pager button.on{ background:var(--teal); color:#fff; border-color:var(--teal); }
   .pager button:disabled{ opacity:.45; cursor:default; }
@@ -64,28 +76,54 @@
   #ov .mf{ padding:12px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
   .btn-hist{ color:#137a6c; border-color:#a9d5cd; }
   /* 이력/재고 — 하단 상시 도킹 그리드(3탭 마스터-디테일) */
-  #hv{ position:fixed; left:0; right:0; bottom:0; height:34vh; min-height:250px; z-index:45; }
+  /* 높이 = 한 곳에서만 정한다(#hv 와 .wrap 이 어긋나면 목록 끝이 패널에 가린다) — 2026-07-22 상향 34vh→48vh */
+  :root{ --hv-h:48vh; }
+  #hv{ position:fixed; left:0; right:0; bottom:0; height:var(--hv-h); min-height:330px; z-index:45; }
   #hv.min{ height:46px; min-height:0; }
   #hv .box{ background:#fff; width:100%; height:100%; border-radius:12px 12px 0 0; box-shadow:0 -10px 34px rgba(0,0,0,.22); border-top:2px solid var(--teal); display:flex; flex-direction:column; }
   #hv.min .tabs, #hv.min .mb2{ display:none; }
   #hv .mb2{ flex:1; }
-  .wrap{ padding-bottom:calc(34vh + 24px); }   /* 하단 상시 패널 높이만큼 본문 확보 */
-  #hv .mh{ background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:13px 18px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
-  #hv .mh b{ font-size:15.5px; }
+  /* 하단 도킹 패널 높이만큼 본문(스크롤 목록)이 짧아진다 — padding 이 아니라 높이로 뺀다 */
+  .wrap{ padding-bottom:0; height:calc(100% - var(--hv-h)); }
+  /* 머리·탭 줄을 얇게 — 그만큼 실제 내용(입력줄+이력 목록)이 더 보인다 */
+  #hv .mh{ background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:9px 18px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
+  #hv .mh b{ font-size:14.5px; }
   #hv .mh .x{ background:none; border:none; color:#fff; font-size:22px; cursor:pointer; }
-  #hv .tabs{ display:flex; gap:4px; padding:10px 14px 0; border-bottom:1px solid var(--bd); }
+  /* 하단 패널에서 직접 품목 찾기 — 위 목록을 안 건드리고 대상 품목을 바꾼다 */
+  #hv .mh .hvfind{ position:relative; margin-left:auto; margin-right:10px; }
+  #hv .mh .hvfind input{ width:250px; height:30px; border:1px solid rgba(255,255,255,.45); border-radius:6px;
+                         padding:0 10px; font-size:12.5px; background:rgba(255,255,255,.16); color:#fff; }
+  #hv .mh .hvfind input::placeholder{ color:rgba(255,255,255,.75); }
+  #hv .mh .hvfind input:focus{ outline:none; background:#fff; color:#1f2a37; border-color:#fff; }
+  .hvfind-pop{ display:none; position:absolute; top:34px; right:0; width:460px; max-height:260px; overflow:auto; z-index:130;
+               background:#fff; border:1px solid var(--bd); border-radius:8px; box-shadow:0 8px 24px rgba(31,42,55,.22); padding:4px; }
+  .hvfind-pop.open{ display:block; }
+  .hvfind-pop .it{ display:flex; gap:9px; align-items:center; padding:7px 10px; font-size:12.5px; color:#37475a;
+                   cursor:pointer; border-radius:6px; white-space:nowrap; }
+  .hvfind-pop .it:hover, .hvfind-pop .it.cur{ background:#e3f4ef; color:#0e6657; }
+  .hvfind-pop .it .cd{ flex:0 0 auto; font-weight:700; color:#178074; }
+  .hvfind-pop .it .nm{ flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; }
+  .hvfind-pop .none{ padding:12px; text-align:center; color:#9aa7b3; font-size:12.5px; }
+  #hv .tabs{ display:flex; gap:4px; padding:6px 14px 0; border-bottom:1px solid var(--bd); }
   #hv .tab{ height:34px; padding:0 16px; border:1px solid var(--bd); border-bottom:none; background:#f1f5f4; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; font-weight:700; color:#5a6b7a; }
   #hv .tab.on{ background:#fff; color:var(--teal); border-color:var(--teal); border-bottom:2px solid #fff; margin-bottom:-1px; }
-  #hv .mb2{ padding:14px 16px; overflow:auto; }
+  /* ★목록만 스크롤하고 현재고 요약·입력줄·표 머리글은 항상 보이게(2026-07-22).
+     종전에는 .mb2 통째로 스크롤돼서 스크롤 내리면 입력폼과 헤더가 같이 사라졌다. */
+  #hv .mb2{ padding:10px 16px 14px; overflow:hidden; display:flex; flex-direction:column; min-height:0; }
+  #hv .panel{ flex-direction:column; min-height:0; flex:1 1 auto; }   /* display 는 JS가 flex/none 으로 토글 */
+  #hv .panel > .stockhdr, #hv .panel > .subbar{ flex:0 0 auto; }
+  #hv .tbwrap{ flex:1 1 auto; min-height:110px; overflow:auto; }      /* 여기만 스크롤 */
   #hv .stockhdr{ display:flex; gap:18px; flex-wrap:wrap; background:#f3f8f6; border:1px solid #cfe4df; border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:13px; }
   #hv .stockhdr b{ font-size:17px; color:var(--teal); }
   #hv .subbar{ display:flex; gap:6px; align-items:flex-end; flex-wrap:wrap; background:#fafbfc; border:1px solid var(--bd); border-radius:8px; padding:10px; margin-bottom:10px; }
   #hv .subbar .fld{ display:flex; flex-direction:column; gap:3px; }
   #hv .subbar label{ font-size:11px; font-weight:700; color:#6b7a89; }
   #hv .subbar input, #hv .subbar select{ height:32px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13px; }
-  #hv table{ width:100%; border-collapse:collapse; font-size:12.5px; }
-  #hv thead th{ background:#41525f; color:#fff; padding:7px 9px; text-align:left; position:sticky; top:0; }
-  #hv tbody td{ border-bottom:1px solid #eef1f5; padding:6px 9px; }
+  #hv table{ width:100%; border-collapse:collapse; font-size:13px; }
+  /* 하단 패널 표도 매출내역과 같은 서식. z-index 없으면 스크롤된 행이 머리글 위로 그려져 '고정 안 된 것'처럼 보인다 */
+  #hv thead th{ background:#eef3f2; color:#1f2a37; border:1px solid var(--bd); padding:9px 10px;
+                text-align:center; position:sticky; top:0; z-index:3; }
+  #hv tbody td{ border:1px solid var(--bd); padding:9px 10px; text-align:center; color:#10161d; }
   #hv td.num{ text-align:right; }
   #hv .badge{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#fff; }
   #hv .empty{ padding:20px; text-align:center; color:#9aa7b3; }
@@ -167,7 +205,17 @@
 <!-- 이력/재고 모달 -->
 <div id="hv">
   <div class="box">
-    <div class="mh"><b id="hvTit">이력/재고 · <span style="font-weight:400">위 목록에서 품목 행을 클릭하세요</span></b><button class="x" id="hvToggleBtn" onclick="hvToggle()" title="접기/펼치기">&#9662;</button></div>
+    <div class="mh">
+      <b id="hvTit">이력/재고 · <span style="font-weight:400">아래 <u>품목 찾기</u>에 입력하거나, 위 목록에서 품목 행을 클릭하세요</span></b>
+      <!-- 하단에서 직접 품목을 찾아 바꿔 끼운다 — 위 목록을 스크롤/재조회하지 않아도 된다(2026-07-22) -->
+      <div class="hvfind" id="hvFindWrap">
+        <input id="hvFind" placeholder="🔎 품목 찾기 (코드·품목명)" autocomplete="off"
+               onfocus="hvFindRun()" oninput="hvFindRun()" onkeydown="hvFindKey(event)"
+               title="코드나 품목명 일부를 입력하면 아래에 후보가 뜹니다.&#10;↑↓ 이동 · Enter 선택 · Esc 닫기">
+        <div class="hvfind-pop" id="hvFindPop"></div>
+      </div>
+      <button class="x" id="hvToggleBtn" onclick="hvToggle()" title="접기/펼치기">&#9662;</button>
+    </div>
     <div class="tabs">
       <button class="tab on" id="tab_in"    onclick="hvTab('in')">💰 매입가</button>
       <button class="tab"    id="tab_sale"  onclick="hvTab('sale')">🏷️ 판매가</button>
@@ -192,10 +240,12 @@
           <div class="fld"><label>비고</label><input type="text" id="in_remark" style="width:180px"></div>
           <button class="btn btn-teal" onclick="hvAddIn()">＋ 추가</button>
         </div>
+        <div class="tbwrap">
         <table>
           <thead><tr><th>적용일</th><th>매입처</th><th style="text-align:right">매입단가</th><th style="text-align:right">직전가</th><th>비고</th><th>등록</th><th style="width:56px"></th></tr></thead>
           <tbody id="in_tb"><tr><td colspan="7" class="empty">-</td></tr></tbody>
         </table>
+        </div>
       </div>
       <!-- 판매가 -->
       <div class="panel" id="p_sale" style="display:none">
@@ -215,18 +265,22 @@
           <div class="fld"><label>비고</label><input type="text" id="sl_remark" style="width:180px"></div>
           <button class="btn btn-teal" onclick="hvAddSale()">＋ 추가</button>
         </div>
+        <div class="tbwrap">
         <table>
           <thead><tr><th>적용일</th><th>판매처</th><th style="text-align:right">판매가</th><th style="text-align:right">도매가</th><th style="text-align:right">기준매입</th><th style="text-align:right">마진율</th><th>비고</th><th>등록</th><th style="width:56px"></th></tr></thead>
           <tbody id="sl_tb"><tr><td colspan="9" class="empty">-</td></tr></tbody>
         </table>
+        </div>
       </div>
       <!-- 매출단가(조회) — 매출 확정내역(TBL_SALES_MST, 발주서 업로드분)의 실제 판매단가. 조회 전용 -->
       <div class="panel" id="p_sales" style="display:none">
         <div class="stockhdr" id="ss_hdr">매출 확정내역(발주서 업로드분)의 실제 판매단가 — 조회 전용. 입력·삭제는 견적서관리 ▸ 매출 엑셀 업로드에서.</div>
+        <div class="tbwrap">
         <table>
           <thead><tr><th>납품일자</th><th>출고장</th><th>발주번호</th><th style="text-align:right">판매단가</th><th style="text-align:right">출고량</th><th style="text-align:right">매출액</th><th>원본파일</th></tr></thead>
           <tbody id="ss_tb"><tr><td colspan="7" class="empty">-</td></tr></tbody>
         </table>
+        </div>
       </div>
       <!-- 재고 -->
       <div class="panel" id="p_stock" style="display:none">
@@ -253,10 +307,12 @@
           <div class="fld"><label>비고</label><input type="text" id="st_remark" style="width:150px"></div>
           <button class="btn btn-teal" onclick="hvAddStock()">＋ 추가</button>
         </div>
+        <div class="tbwrap">
         <table>
           <thead><tr><th>거래일</th><th>구분</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>매입처</th><th>비고</th><th>등록</th><th style="width:56px"></th></tr></thead>
           <tbody id="st_tb"><tr><td colspan="9" class="empty">-</td></tr></tbody>
         </table>
+        </div>
       </div>
     </div>
   </div>
@@ -264,7 +320,8 @@
 
 <script>
 var CTX = '${pageContext.request.contextPath}';
-var PROD = [], _view = [], _page = 1, PAGE_SIZE = 20, _byseq = {};
+/* 한 페이지 6행 — 하단 이력/재고 패널(48vh)과 나눠 쓰므로 목록은 짧게 두고 페이징으로 넘긴다(2026-07-22 요청) */
+var PROD = [], _view = [], _page = 1, PAGE_SIZE = 6, _byseq = {};
 
 function toast(s){ if(window.Swal){ Swal.fire({toast:true, position:'top-end', html:s, showConfirmButton:false, timer:2600, timerProgressBar:true}); return; } var m=document.getElementById('msg'); m.innerHTML=s; m.classList.add('on'); clearTimeout(m._t); m._t=setTimeout(function(){ m.classList.remove('on'); }, 2600); }
 function swConfirm(msg, title){ if(window.Swal) return Swal.fire({title:title||'확인', html:msg, icon:'question', showCancelButton:true, confirmButtonText:'확인', cancelButtonText:'취소', confirmButtonColor:'#137a6c', cancelButtonColor:'#94a3b8'}).then(function(r){ return r.isConfirmed; }); return Promise.resolve(confirm((''+msg).replace(/<br\s*\/?>/gi,'\n'))); }
@@ -430,11 +487,65 @@ function hvToggle(){
   var el=document.getElementById('hv'); el.classList.toggle('min');
   document.getElementById('hvToggleBtn').innerHTML = el.classList.contains('min')?'▴':'▾';
 }
+
+/* ── 하단 패널에서 직접 품목 찾기 (2026-07-22) ─────────────────────────────
+   종전에는 위 목록에서 행을 클릭해야만 대상이 바뀌어서, 다른 품목을 보려면
+   목록을 다시 검색·페이지 이동해야 했다. 여기서 바로 찾아 바꿔 끼운다.
+   · 검색 대상 = 이미 받아둔 PROD 전량(서버 재조회 없음)
+   · 위 목록에 없는(다른 페이지) 품목도 잡히면 hvPick 이 그 페이지로 이동시킨다 */
+var HVF=[], HVFI=-1;
+function hvFindRun(){
+  var q=(document.getElementById('hvFind').value||'').trim().toLowerCase();
+  var pop=document.getElementById('hvFindPop');
+  HVF = (PROD||[]).filter(function(o){
+    if(!q) return true;
+    return (''+(o.prodCd||'')).toLowerCase().indexOf(q)>=0 || (''+(o.prodNm||'')).toLowerCase().indexOf(q)>=0;
+  }).slice(0,50);
+  HVFI = HVF.length?0:-1;
+  pop.innerHTML = HVF.length
+    ? HVF.map(function(o,i){
+        return '<div class="it'+(i===HVFI?' cur':'')+'" data-i="'+i+'" onclick="hvPick('+o.prodSeq+')">'
+             + '<span class="cd">'+esc(o.prodCd)+'</span><span class="nm">'+esc(o.prodNm||'')+'</span></div>'; }).join('')
+    : '<div class="none">일치하는 품목이 없습니다</div>';
+  pop.classList.add('open');
+}
+function hvFindKey(e){
+  var pop=document.getElementById('hvFindPop');
+  if(e.key==='Escape'){ pop.classList.remove('open'); e.target.blur(); return; }
+  if(!HVF.length) return;
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    e.preventDefault();
+    HVFI = (HVFI + (e.key==='ArrowDown'?1:-1) + HVF.length) % HVF.length;
+    Array.prototype.forEach.call(pop.querySelectorAll('.it'), function(el){
+      var on = +el.getAttribute('data-i')===HVFI; el.classList.toggle('cur', on); if(on) el.scrollIntoView({block:'nearest'});
+    });
+  } else if(e.key==='Enter'){ e.preventDefault(); if(HVF[HVFI]) hvPick(HVF[HVFI].prodSeq); }
+}
+function hvPick(seq){
+  document.getElementById('hvFindPop').classList.remove('open');
+  document.getElementById('hvFind').value='';
+  /* 위 목록에서도 그 품목이 보이도록 페이지를 맞춘다 — 선택 하이라이트가 화면에 남게.
+     ※ 상단 검색어 때문에 _view 에 없으면 페이지 이동만 건너뛴다.
+        hvOpen 은 _byseq(PROD 전량)를 보므로 이력/재고는 정상 표시된다. */
+  var idx=-1;
+  for(var i=0;i<(_view||[]).length;i++){ if(_view[i].prodSeq===seq){ idx=i; break; } }
+  if(idx>=0){
+    var pg=Math.floor(idx/PAGE_SIZE)+1;
+    if(pg!==_page){ _page=pg; prodRender(); }
+  }
+  hvOpen(seq);
+  var tr=document.querySelector('#tb tr.prow[data-seq="'+seq+'"]');
+  if(tr) tr.scrollIntoView({block:'center', behavior:'smooth'});
+}
+document.addEventListener('click', function(e){
+  var w=document.getElementById('hvFindWrap'), p=document.getElementById('hvFindPop');
+  if(p && p.classList.contains('open') && w && !w.contains(e.target)) p.classList.remove('open');
+});
 function hvTab(t){
   HVT=t;
   ['in','sale','sales','stock'].forEach(function(k){
     document.getElementById('tab_'+k).classList.toggle('on', k===t);
-    document.getElementById('p_'+k).style.display = (k===t)?'block':'none';
+    document.getElementById('p_'+k).style.display = (k===t)?'flex':'none';   // flex = 표만 스크롤되는 세로 배치
   });
   if(!HVP) return;   // 품목 미선택 시 탭 하이라이트만
   if(t==='in') hvLoadIn(); else if(t==='sale') hvLoadSale(); else if(t==='sales') hvLoadSalesPrice(); else hvLoadStock();
