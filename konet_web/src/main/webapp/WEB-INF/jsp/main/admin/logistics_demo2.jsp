@@ -3756,6 +3756,13 @@
     if(g.sOnly) st+=' <span style="color:#a85700;font-weight:700;font-size:11.5px" title="정산서에는 있는데 출고내역에 없는 품목 수.&#10;보낸 적 없는데 청구된 건일 수 있으니 확인이 필요합니다. ②탭에서 출고수량이 0인 품목을 보세요.">출고미상 '+g.sOnly+'</span>';
     return st;
   }
+  /* 상태 칸(td) — 여기만 클릭하면 ②탭 드릴다운. 줄 전체를 클릭 대상으로 두면
+     숫자를 드래그해 확인하려다 실수로 탭이 바뀌어서, 클릭 영역을 이 칸으로 좁혔다(2026-07-22 요청). */
+  function _ohStCell(g){
+    return '<td class="oh-st" onclick="ohDrill(\''+encodeURIComponent(g.dc)+'\')"'
+      + ' title="클릭 → ② 출고장 ▸ 품목 탭에서 '+_cesc(g.label)+'만 펼쳐 어느 품목이 어긋났는지 봅니다">'
+      + _ohStBadge(g)+'</td>';
+  }
   // 숫자 칸 8개(출고건수~정산금액) — ①탭 1·2단 공용
   function _ohDcCells(o){
     var gap=o.oQty-o.sQty, ok=Math.abs(gap)<1e-6;
@@ -3790,14 +3797,16 @@
       gg.kids.push(g); gg.oRows+=g.oRows; gg.oQty+=g.oQty; gg.sRows+=g.sRows; gg.sQty+=g.sQty; gg.sAmt+=g.sAmt; gg.sOnly+=g.sOnly; gg.oOnly+=g.oOnly;
     });
     GL.sort(function(a,b){ return a.label.localeCompare(b.label,'ko'); });
+    // 줄 전체가 아니라 '상태' 칸을 눌렀을 때만 ②탭으로 이동한다(2026-07-22 요청) — 실수 이동 방지
     var kidRow=function(g, indent){
-      return '<tr style="cursor:pointer" onclick="ohDrill(\''+encodeURIComponent(g.dc)+'\')" title="클릭 → ② 출고장 ▸ 품목 탭에서 '+_cesc(g.label)+'만 펼쳐 어느 품목이 어긋났는지 봅니다&#10;(원표기: '+_cesc(Object.keys(g.raw).join(' / '))+')">'
-        +'<td class="txt-l"'+(indent?' style="padding-left:26px"':'')+'><b>'+_cesc(g.label)+'</b> <span style="color:#c9d2d0;font-size:11px">▸</span></td>'
-        +_ohDcCells(g)+'<td>'+_ohStBadge(g)+'</td></tr>';
+      return '<tr title="원표기: '+_cesc(Object.keys(g.raw).join(' / '))+'">'
+        +'<td class="txt-l"'+(indent?' style="padding-left:26px"':'')+'><b>'+_cesc(g.label)+'</b></td>'
+        +_ohDcCells(g)+_ohStCell(g)+'</tr>';
     };
     GL.forEach(function(gg){
       if(gg.kids.length<2){ h+=kidRow(gg.kids[0], false); return; }   // 혼자인 곳은 묶음 머리 없이 한 줄
       var col=_ohIsCol2('d:'+gg.label, false);   // 기본 펼침
+      // 묶음 머리행은 클릭=접기/펼치기. 상태 칸은 그 자체가 클릭 대상이 아니므로 뱃지만 표시
       h+='<tr class="close-grp" onclick="ohGrp(\''+encodeURIComponent('d:'+gg.label)+'\')" title="클릭 → 소속 출고장 '+gg.kids.length+'곳 접기/펼치기">'
         +'<td><span class="ccar">'+(col?'▶':'▼')+'</span> 🗂️ '+_cesc(gg.label)
         +' <span style="font-weight:600;color:#5a6b7a">('+gg.kids.length+'곳)</span></td>'
@@ -4284,6 +4293,10 @@
       .ohdc-pop label.all{ color:#178074; font-weight:700; border-bottom:1px dashed var(--logi-border); border-radius:6px 6px 0 0; margin-bottom:4px; }
       .ohdc-pop label.on{ color:#0e6657; background:#e3f4ef; }
       .ohdc-pop label.kid{ padding-left:28px; font-size:12px; }        /* 묶음 하위 개별 출고장 */
+      /* ①탭 상태 칸 — 여기만 눌러야 ②탭으로 넘어간다(줄 전체 클릭 금지). 눌리는 칸임을 배경·커서로 알린다 */
+      .oh-st{ cursor:pointer; }
+      .oh-st:hover{ background:#eaf3f1; box-shadow:inset 0 0 0 1px #b9d9d1; }
+      .oh-st .badge{ cursor:pointer; }
       /* 대사(합계) 열 — 정산이 없는 출고, 출고가 없는 정산을 눈에 띄게 */
       .oh-gap{ color:#c0392b; font-weight:800; }
       .oh-ok{ color:#137a6c; font-weight:800; }
