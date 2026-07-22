@@ -4491,7 +4491,12 @@
         #panel-guide th{ background:#f1f5f4; text-align:left; padding:7px 10px; color:#37475a; white-space:nowrap; }
         #panel-guide td{ border-bottom:1px solid #eef1f5; padding:7px 10px; vertical-align:top; }
         #panel-guide td.m{ font-weight:700; color:#1f2a37; white-space:nowrap; }
-        #panel-guide .flow{ background:#eef7f4; border-left:4px solid #1f9b8e; border-radius:6px; padding:10px 14px; font-size:12.5px; color:#1f2a37; margin-bottom:14px; }
+        /* ★display:block 필수 — 전역 .flow 는 flex(가로 배치)라 여기서 쓰면
+           <br> 이 먹지 않고 각 단계가 좌우로 늘어서며 글자가 세로로 접힌다(2026-07-22 수정) */
+        #panel-guide .flow{ display:block !important; background:#eef7f4; border-left:4px solid #1f9b8e; border-radius:6px;
+                            padding:12px 16px; font-size:12.5px; color:#1f2a37; margin-bottom:14px; line-height:2.1; }
+        #panel-guide .flow .fl{ display:block; padding:2px 0; }
+        #panel-guide .flow .fl .n{ display:inline-block; min-width:26px; font-weight:800; color:#137a6c; }
       </style>
 
       <div class="flow"><b>기본 업무 흐름</b> &nbsp;①상품·거래처 등록 → ②재고 입고 등록 → ③출고(발주현황표 업로드) → ④월말 마감집계 → ⑤마감 확정(잠금)</div>
@@ -4499,16 +4504,19 @@
       <div class="g-sec">
         <h3>0. 데이터 흐름 (테이블 연관관계)</h3>
         <div class="gd">입고·출고가 <b>수불원장(TBL_STOCK_LEDGER)</b> 에 모이고 → 재고현황·재고마감은 이를 읽어 집계 → 마감 확정 시 <b>CLOSING</b> 테이블에 스냅샷 저장됩니다. (원장이 중심축)</div>
-        <div class="flow" style="line-height:2">
-          [1] <b>입고</b>(수동, 상품관리▸재고탭) → <b>STOCK_LEDGER(I)</b> → recalc → <b>STOCK_MST</b> (현재고▲·이동평균단가)<br>
-          [2] <b>출고</b>(자동, 발주현황표 업로드) → <b>SHIPOUT_MST</b> → 자동연동 → <b>STOCK_LEDGER(O)</b> → <b>STOCK_MST</b> (현재고▼)<br>
-          [3] <b>재고현황</b>(조회·저장❌) ← STOCK_LEDGER(입−출) + STOCK_MST(단가) · 실시간<br>
-          [4] <b>재고마감</b>(조회·저장❌) ← STOCK_LEDGER(기간) + CLOSING_STOCK(전월 기말→당월 기초 이월)<br>
-          [5] 🔒 <b>마감 확정</b>(저장✅) → <b>CLOSING_MST</b> + <b>CLOSING_STOCK</b>(기말 스냅샷·다음달 이월) + 그 달 원장 잠금
+        <div class="flow">
+          <span class="fl"><span class="n">[1]</span> <b>입고</b>(수동 · 상품관리▸재고탭) → <b>STOCK_LEDGER(I)</b> → <b>STOCK_MST</b> <span style="color:#5a6b7a">(현재고▲ · 이동평균단가)</span></span>
+          <span class="fl"><span class="n">[2]</span> <b>출고</b>(자동 · 발주현황표 업로드) → <b>SHIPOUT_MST</b> → <b>STOCK_LEDGER(O)</b> → <b>STOCK_MST</b> <span style="color:#5a6b7a">(현재고▼)</span></span>
+          <span class="fl"><span class="n">[3]</span> <b>정산서</b>(출고장이 준 엑셀) → <b>SALES_MST</b> + <b>SALEPRICE_HST</b> <span style="color:#5a6b7a">→ 매출내역에서 [2]와 대사</span></span>
+          <span class="fl"><span class="n">[4]</span> <b>재고현황</b> <span style="color:#5a6b7a">(조회 전용)</span> ← STOCK_LEDGER(입−출) + STOCK_MST(단가)</span>
+          <span class="fl"><span class="n">[5]</span> <b>재고마감</b> <span style="color:#5a6b7a">(조회 전용)</span> ← STOCK_LEDGER(기간) + CLOSING_STOCK <span style="color:#5a6b7a">(전월 기말 → 당월 기초)</span></span>
+          <span class="fl"><span class="n">[6]</span> 🔒 <b>마감 확정</b> → <b>CLOSING_MST</b> + <b>CLOSING_STOCK</b> <span style="color:#5a6b7a">(기말 스냅샷 · 그 달 원장 잠금)</span></span>
         </div>
         <table><thead><tr><th>단계</th><th>저장(write) 테이블</th><th>조회(read) 테이블</th></tr></thead><tbody>
           <tr><td class="m">입고 등록</td><td>STOCK_LEDGER(I) → STOCK_MST</td><td>—</td></tr>
           <tr><td class="m">출고 업로드</td><td>SHIPOUT_MST → STOCK_LEDGER(O) → STOCK_MST</td><td>—</td></tr>
+          <tr><td class="m">정산서 업로드</td><td>SALES_MST + SALEPRICE_HST</td><td>—</td></tr>
+          <tr><td class="m">매출내역</td><td>(저장 없음)</td><td>SALES_MST + SHIPOUT_MST</td></tr>
           <tr><td class="m">재고현황</td><td>(저장 없음)</td><td>STOCK_LEDGER + STOCK_MST</td></tr>
           <tr><td class="m">재고마감</td><td>(저장 없음)</td><td>STOCK_LEDGER + CLOSING_STOCK</td></tr>
           <tr><td class="m">마감 확정</td><td>CLOSING_MST + CLOSING_STOCK</td><td>STOCK_LEDGER</td></tr>
@@ -4532,33 +4540,10 @@
           <tr><td class="m">상품(품목)관리</td><td>품목 마스터 등록/수정. 품목 행 클릭 → 하단 <b>이력/재고</b> 패널에서 <b>매입가·판매가 이력</b> 등록(마스터 단가 자동 동기화)과 <b>재고 수불(입고·출고·조정·반품)</b> 등록. 입고 시 매입처·단가 입력.</td></tr>
           <tr><td class="m">재고현황</td><td><b>실시간</b> 전체 품목 현재고 = <b>입고(I·R·A) − 출고(O)</b>, <b>수불원장 단일 소스</b>. 출고(SHIPOUT)는 저장 시 원장에 O행 자동기록 → 재고현황·재고마감이 같은 값. 입고·출고·현재고·이동평균단가·재고금액·최근입출고. <b>기준일</b> 비움=전체(현재고)/날짜=그날까지 기말 → <b>마감월 말일로 맞추면 재고마감 기말과 대사</b>. 입고 없이 출고만 있으면 <b>음수</b>(입고 누락 신호). <b>①품목 행 클릭 → ②하단 수불내역(근거)</b> 그리드에 그 품목의 개별 입·출고 거래(일자·구분·수량·단가·금액·매입처·근거 등) 표시. <b>🔄 출고반영 재집계</b> 버튼=전체 출고를 원장에 일괄 반영(최초 1회/필요시, 마감월 제외).</td></tr>
           <tr><td class="m">입고내역</td><td>전체 품목 <b>입고(수불) 거래 목록</b> — 기간·검색·페이징·합계. (TBL_STOCK_LEDGER 입고분)</td></tr>
-          <tr><td class="m">매출내역</td><td><b>정산서(출고장이 준 엑셀)</b> + <b>출고내역(발주현황표)</b> 통합 화면. 정산서 = 출고장에 들어간 물품에 대해 <b>우리가 받을 금액</b>. 엑셀은 출고장 기준이라 <b>입고량→우리 출고량 · 단가→우리 판매단가 · 매입금액→우리 매출액</b> 으로 환산해 <b>TBL_SALES_MST</b> 에 저장(출고장은 파일명에서 인식·수정 가능, 저장 단위=(납품일자+출고장) 1배치, 재업로드 시 기존 배치 이력마감 후 대체). 저장 시 판매단가를 <b>판매가 이력</b>(적용일자=납품일자=발주일자)에 함께 반영 → <b>매출마감 출고단가가 (마스터) 대신 (이력) 실제 확정가</b>로 잡힌다.
-            <div style="margin:8px 0 4px;font-weight:800;color:#137a6c">조회 4탭 — 무엇을 보는 표인가</div>
-            <table style="width:100%;border-collapse:collapse;font-size:12px">
-              <thead><tr style="background:#eaf3f1;color:#137a6c">
-                <th style="padding:5px 7px;border:1px solid #dfe6e3;width:150px">탭</th>
-                <th style="padding:5px 7px;border:1px solid #dfe6e3;width:150px">한 줄 = 무엇</th>
-                <th style="padding:5px 7px;border:1px solid #dfe6e3">열 구성과 읽는 법</th></tr></thead>
-              <tbody>
-                <tr><td style="padding:5px 7px;border:1px solid #dfe6e3"><b>🏭 출고장별 합계</b><div style="color:#9aa7b3">기본 탭</div></td>
-                    <td style="padding:5px 7px;border:1px solid #dfe6e3">출고장 1곳</td>
-                    <td style="padding:5px 7px;border:1px solid #dfe6e3">왼쪽 <b>출고건수·출고수량</b>=발주현황표(우리가 실제로 내보낸 것) / 오른쪽 <b>정산행수·정산수량·평균단가·정산금액</b>=출고장이 인정한 것. <b>수량차이 = 출고수량 − 정산수량</b>이라 <b>0이면 정상</b>, <span style="color:#c0392b">양수면 보낸 만큼 정산 안 됨</span>, 음수면 정산이 더 많음. <b>정산금액 = 그 출고장에서 받을 금액</b>. 상태: <b>일치 / 차이 / 정산 미도착</b>(출고는 있는데 엑셀이 아직) <b>/ 출고내역 없음</b>(정산만 있고 발주현황표가 없음). 출고장명에 마우스를 올리면 두 표의 원래 표기(<code>평택</code> / <code>평택물류센터</code>)가 보인다.</td></tr>
-                <tr><td style="padding:5px 7px;border:1px solid #dfe6e3"><b>🧾 출고장 ▸ 품목</b></td>
-                    <td style="padding:5px 7px;border:1px solid #dfe6e3">출고장 안의 품목 1개<div style="color:#9aa7b3">(여러 출고행을 합침)</div></td>
-                    <td style="padding:5px 7px;border:1px solid #dfe6e3">①에서 차이가 났을 때 <b>어느 품목 때문인지</b> 찾는 표. 출고장 머리행을 누르면 접기/펼치기(우측 <b>⊟ 전체 접기</b>로 일괄). 품목별 <b>출고수량 · 정산수량 · 차이 · 판매단가 · 정산금액</b>, 머리행은 그 출고장 소계.</td></tr>
-                <tr><td style="padding:5px 7px;border:1px solid #dfe6e3"><b>🏢 출고장 ▸ 사업장</b></td>
-                    <td style="padding:5px 7px;border:1px solid #dfe6e3">출고장 안의 사업장(점포) 1곳<div style="color:#9aa7b3">→ 펼치면 출고 원본행</div></td>
-                    <td style="padding:5px 7px;border:1px solid #dfe6e3"><b>어느 점포로 얼마나 나갔나</b>를 보는 표. ②가 품목축이면 이쪽은 사업장축. <b>출고수량 전용이고 금액은 없다.</b> 사업장 줄을 누르면 그 밑에 <b>출고 원본행</b>(품목·발주번호·항번·출고일자)이 펼쳐진다. 출고일자 옆 <b style="color:#c47f17">*</b> = 발주일자와 다른 날(먼 지역 선출고).
-                      <div style="margin-top:5px"><b style="color:#c47f17">★사업장별 정산금액은 만들지 않는다</b> — 정산서는 <b>발주</b> 단위, 출고는 <b>발주 × 사업장</b> 단위라 <b>1:N</b>이다(실측: 출고 572행이 발주번호+항번 352개 / 정산서는 105행=105키로 1:1). 정산서에 사업장 칸이 없으니 사업장으로 쪼개면 어떤 방식이든 <b>추정</b>이 된다. 금액은 ①②에서 본다.</div>
-                      <div style="margin-top:4px">맨 오른쪽 <b>「정산 대사」</b>는 배분이 아니라 <b>사실</b>이다 — <span style="color:#137a6c">대사됨</span>(이 행의 <b>발주일자·출고장·품목코드</b>가 정산서에 있음) / <span style="color:#c0392b">미정산</span>(보냈는데 정산서에 없음 = 청구 누락 후보).</div></td></tr>
-                <tr><td style="padding:5px 7px;border:1px solid #dfe6e3"><b>📋 정산서 원본(엑셀)</b></td>
-                    <td style="padding:5px 7px;border:1px solid #dfe6e3">정산서 엑셀 1행</td>
-                    <td style="padding:5px 7px;border:1px solid #dfe6e3">출고장이 보낸 엑셀을 <b>손대지 않은 원본 그대로</b>. 납품일자·출고장·발주번호·항번·품목·발주량·정산수량·판매단가·정산금액·원본파일 + 짝이 되는 <b>출고수량</b> 열. 출고내역에 짝이 없으면 <span style="color:#c0392b">출고미상</span> = <b>보낸 적 없는데 정산에 올라온 행</b>이니 반드시 확인.</td></tr>
-              </tbody>
-            </table>
-            <div style="margin-top:6px"><b style="color:#c47f17">★①②는 '정산서 기준'이 아니다</b> — 정산서와 출고내역의 <b>합집합</b>이라 <b>한쪽만 있어도 줄이 생긴다</b>. 그래야 <b>정산 미도착</b>(출고만 있음)과 <b>출고내역 없음</b>(정산만 있음)을 잡아낸다. 정산서 단독 화면은 ④뿐이고, ③은 사업장이 정산서에 없으므로 출고내역 기준이다. 각 탭 위에 원천이 한 줄로 표시된다.</div>
-            <div style="margin-top:6px">공통 규칙 — 짝 맞추기는 <b style="color:#137a6c">발주일자 + 출고장 + 품목코드</b>이며 <b>행 대 행이 아니라 합계 대 합계</b>다. 출고는 사업장이 여럿이면 자동으로 합쳐진다(정산서에 사업장 칸이 없으므로 이 단위가 정산서의 자연 단위다). <b>발주번호는 키로 쓰지 않는다</b> — 발주현황표에 절반이 비어 있어(원본이 그렇다) 그만큼 영영 대사가 안 되기 때문. 화면에는 참고로만 표시한다. 기간은 <b>납품일자(=발주일자)</b> 기준. 출고내역은 출고일자로만 조회되는데 <b>먼 지역은 발주분을 하루 당겨 출고</b>하므로 <b>앞뒤 한 달</b>을 넉넉히 읽어 발주일자로 다시 걸러 양쪽 기간을 맞춘다. (창 밖으로 벗어난 행은 경고 없이 빠지고 화면은 <b>일치</b>로 보이므로, 감지 장치 대신 창을 크게 잡았다) 출고장 이름은 <b>정산서는 '평택', 발주현황표는 '평택물류센터'</b> 라서 <b>'(물류)센터·출고장·끝숫자'를 떼고 같은 곳으로 묶는다</b>. 수량은 소수·음수(반품)를 그대로 두고 금액만 반올림한다.</div></td></tr>
-          <tr><td class="m">물품동선관리 <span style="color:#9aa7b3;font-size:11px">(예정·데모)</span></td><td>창고/로케이션·입고등록(창고선정)·창고별 재고현황·재고/위치조회·출고지시 — 물품 이동(입고→위치→피킹→출고) 데모 화면. 향후 실데이터 연동 예정.</td></tr>
+          <tr><td class="m">매출내역</td><td><b>출고장이 준 정산서(엑셀)</b> = 그 출고장에서 <b>우리가 받을 금액</b>. 우리 <b>출고내역</b>과 나란히 놓고 <b>빠진 게 없는지 대사</b>합니다.
+            <div style="margin:6px 0 3px">엑셀은 출고장 기준이라 뒤집어 담습니다 — <b>입고량→출고량 · 단가→판매단가 · 매입금액→매출액</b>. 저장하면 판매단가가 <b>판매가 이력</b>에도 들어가 <b>매출마감 단가가 실제 확정가</b>로 잡힙니다.</div>
+            <div style="margin:6px 0 3px">4탭 — <b>①출고장별 합계</b>(받을 금액·수량차이·상태) · <b>②출고장▸품목</b>(어느 품목이 어긋났나) · <b>③출고장▸사업장</b>(어느 점포로 나갔나·출고수량 전용) · <b>④정산서 원본</b>(엑셀 그대로). 모두 <b>대시보드처럼 물류센터로 묶고</b> 펼치면 개별 출고장입니다.</div>
+            <div style="margin-top:3px;color:#5a6b7a">짝 맞추기 = <b>발주일자 + 출고장 + 품목코드</b> (합계 대 합계). 짝 없는 출고 = <b style="color:#c0392b">미정산</b>(청구 누락 후보), 짝 없는 정산 = <b style="color:#c0392b">출고미상</b>. 자세한 규칙은 화면의 <b>ℹ️ 도움말</b>에 있습니다.</div></td></tr>          <tr><td class="m">물품동선관리 <span style="color:#9aa7b3;font-size:11px">(예정·데모)</span></td><td>창고/로케이션·입고등록(창고선정)·창고별 재고현황·재고/위치조회·출고지시 — 물품 이동(입고→위치→피킹→출고) 데모 화면. 향후 실데이터 연동 예정.</td></tr>
         </tbody></table>
       </div>
 
@@ -4577,7 +4562,7 @@
       <div class="g-sec">
         <h3>4. 정산 · 시스템</h3>
         <table><tbody>
-          <tr><td class="m">견적서관리 <span style="color:#9aa7b3;font-size:11px">(예정)</span></td><td>견적서 작성 · 목록/조회 · 출력(PDF/엑셀). 향후 추진 예정. <span style="color:#9aa7b3">(※ 매출 엑셀 업로드는 성격이 정산이라 <b>매입·재고관리 ▸ 출고내역</b>으로 옮겼습니다.)</span></td></tr>
+          <tr><td class="m">견적서관리 <span style="color:#9aa7b3;font-size:11px">(예정)</span></td><td>견적서 작성 · 목록/조회 · 출력(PDF/엑셀). 향후 추진 예정. <span style="color:#9aa7b3">(※ 종전 '매출 엑셀 업로드'는 성격이 정산이라 <b>매입·재고관리 ▸ 매출내역</b>으로 옮겼습니다.)</span></td></tr>
           <tr><td class="m">카카오톡문자관리 <span style="color:#9aa7b3;font-size:11px">(협의후 예정)</span></td><td>메시지 발송 · 발송 이력 · 문자 템플릿 관리 — 거래처 대상 카카오톡 알림톡/SMS 발송·이력. 구현 범위(발송연동/이력관리/템플릿)는 <b>협의 후 진행</b>.</td></tr>
           <tr><td class="m">수금 / 미수금</td><td>거래처×귀속월 <b>미수금 현황</b> — 전월이월·당월매출·당월수금·미수잔액. CRUD·조회·<b>엑셀 업로드/출력</b>·페이징. <b>🔄 전월이월 가져오기</b>(전월 미수잔액→당월). <b>🔒 마감 확정/해제</b>(확정 시 해당 월 수정잠금+다음달 전월이월 자동반영). (TBL_RECEIVE_MST)</td></tr>
           <tr><td class="m">출금 / 미지급</td><td>매입처×귀속월 <b>미지급금 현황</b> — 전월이월·당월매입·당월출금·미지급잔액. CRUD·조회·<b>엑셀 업로드/출력</b>·페이징. <b>🔄 전월이월 가져오기</b>·<b>🔒 마감 확정/해제</b>(월 확정=수정잠금+자동이월, 해제 가능). (TBL_PAYMENT_MST)</td></tr>
