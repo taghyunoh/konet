@@ -3202,6 +3202,18 @@
   var _slsFiles=[];   // [{name, dcNm, rows:[...], err}]
   var _slsDone={};    // 이미 반영된 파일명 → {uploadDttm, dcNm}
 
+  /* 출고장명 → 물류센터코드(DC_CD). 정산 엑셀에는 코드가 없고 파일명에 지역명만 있어서
+     저장할 때 여기서 붙여준다(2026-07-22 요청). TBL_SHIPOUT_MST 실데이터로 확인한 대응이다.
+       E100 용인 / E200 왜관 / E300 김해 / E400 광주 / E500 평택 / E600 제주 / E700 오산
+     (거래처 대응: 00273/00275/00274/00276/00272/00277/00278 — TBL_VENDOR_MST) */
+  var SLS_DCCD={ '용인':'E100', '왜관':'E200', '김해':'E300', '광주':'E400', '평택':'E500', '제주':'E600', '오산':'E700' };
+  // '평택'·'평택물류센터'·'평택 1' 어느 표기로 적어도 코드가 나오게
+  function slsDcCd(nm){
+    var v=(''+(nm==null?'':nm)).replace(/\s+/g,'');
+    v=v.replace(/\d+$/,'').replace(/(물류)?센터$/,'').replace(/출고장$/,'').replace(/\d+$/,'');
+    return SLS_DCCD[v]||'';
+  }
+
   // '2026.07.11_평택.xlsx' / '2026.07.11 오산.xlsx' → 출고장명
   function slsParseName(fname){
     var base=(''+fname).replace(/\.[^.]+$/,'');
@@ -3261,7 +3273,7 @@
     var fs=input.files; if(!fs||!fs.length) return;
     if(typeof XLSX==='undefined'){ ssToast('⚠️ 엑셀 파서를 불러오지 못했습니다(인터넷 필요).'); input.value=''; return; }
     var list=Array.prototype.slice.call(fs), done=0;
-    var fin=function(){ if(++done===list.length){ slsRender(); slsSyncDates(); slsLoadDone(); } };
+    var fin=function(){ if(++done===list.length){ slsRender(); slsSyncDates(); slsLoadDone(); slsUpOpen(); } };   // 고르면 확인·저장 팝업을 연다
     list.forEach(function(f){
       var rd=new FileReader();
       rd.onload=function(e){
@@ -3282,18 +3294,50 @@
   }
   function slsSetDc(i, v){ if(_slsFiles[i]) _slsFiles[i].dcNm=(''+v).trim(); }
   function slsDrop(i){ _slsFiles.splice(i,1); slsRender(); }
-  function slsClear(){ _slsFiles=[]; slsRender(); }
+  function slsClear(){ _slsFiles=[]; slsRender(); slsUpClose(); }
   function slsDates(f){   // 파일 안 납품일자 distinct
     var s={}, o=[]; f.rows.forEach(function(r){ if(r.dlvDt && !s[r.dlvDt]){ s[r.dlvDt]=1; o.push(r.dlvDt); } }); return o.sort();
   }
+  /* 파일 목록·미리보기·저장은 전부 팝업(ss-modal)으로 — 본 화면에는 안 깔린다(2026-07-22 요청).
+     미리보기는 <details> 로 접어두어 필요할 때만 펼친다. */
+  function _slsUpEnsure(){
+    var ov=document.getElementById('slsUpOv');
+    if(!ov){
+      ov=document.createElement('div'); ov.id='slsUpOv'; ov.className='ss-modal';
+      ov.innerHTML='<div class="box" style="width:min(1150px,90vw)">'
+        +'<div class="mh"><h4>📥 정산 엑셀 저장</h4><button class="x" onclick="slsUpClose()">&times;</button></div>'
+        +'<div class="mbar"><span id="slsUpSum"></span></div>'
+        +'<div class="mbody" id="slsUpWrap"></div>'
+        +'<div class="mfoot">'
+        +'<button class="btn-line" style="margin-right:auto" onclick="document.getElementById(\'slsFile\').click()">📁 파일 추가</button>'
+        +'<button class="btn-line" onclick="slsClear()">🧹 비우기</button>'
+        +'<button class="btn-line" onclick="slsUpClose()">닫기</button>'
+        +'<button class="btn-teal" onclick="slsSave()">💾 저장</button>'
+        +'</div></div>';
+      document.body.appendChild(ov);
+      // ※ 바깥 클릭으로는 안 닫는다(요청 2026-07-22) — 고른 파일이 실수로 날아가는 걸 막기 위함.
+      //    닫으려면 ✕ / [닫기] 를 눌러야 한다.
+    }
+    return ov;
+  }
+  function slsUpOpen(){ _slsUpEnsure().classList.add('on'); slsRender(); }
+  function slsUpClose(){ var ov=document.getElementById('slsUpOv'); if(ov) ov.classList.remove('on'); }
+  // 본 화면 버튼: 대기 파일이 있을 때만 보인다 (닫아도 다시 열 수 있게)
+  function _slsUpChip(){
+    var c=document.getElementById('slsUpChip'); if(!c) return;
+    if(!_slsFiles.length){ c.style.display='none'; return; }
+    c.style.display=''; c.innerHTML='📄 대기 <b>'+_slsFiles.length+'</b>개 — 저장하기';
+  }
   function slsRender(){
+    _slsUpEnsure();
     var wrap=document.getElementById('slsUpWrap'), sum=document.getElementById('slsUpSum');
+    _slsUpChip();
     if(!wrap) return;
-    if(!_slsFiles.length){ sum.textContent=''; wrap.innerHTML=''; return; }   // 파일 없으면 업로드 바를 얇게 유지
+    if(!_slsFiles.length){ sum.textContent=''; wrap.innerHTML='<div style="padding:24px;text-align:center;color:#9aa7b3">고른 파일이 없습니다. <b>📁 파일 추가</b> 로 정산 엑셀을 선택하세요.</div>'; return; }
     var tQ=0, tA=0, tR=0;
     _slsFiles.forEach(function(f){ f.rows.forEach(function(r){ tR++; tQ+=(+r.outQty||0); tA+=(+r.saleAmt||0); }); });
     sum.innerHTML='파일 <b>'+_slsFiles.length+'</b>개 · 행 <b>'+tR.toLocaleString()+'</b> · 출고량 <b>'+_cnum(tQ)+'</b> · 매출액 <b style="color:#137a6c">'+_cnum(tA)+'</b>';
-    var h='<table class="logi-tb"><thead><tr><th>파일명</th><th>출고장</th><th>납품일자</th>'
+    var h='<table class="logi-tb sls-ftb"><thead><tr><th>파일명</th><th>출고장</th><th>센터코드</th><th>납품일자</th>'
         + '<th style="text-align:right">행</th><th style="text-align:right">출고량</th><th style="text-align:right">매출액</th><th>상태</th><th></th></tr></thead><tbody>';
     _slsFiles.forEach(function(f,i){
       var q=0,a=0; f.rows.forEach(function(r){ q+=(+r.outQty||0); a+=(+r.saleAmt||0); });
@@ -3303,6 +3347,9 @@
                                  : '<span style="color:#137a6c">신규</span>');
       h+='<tr><td class="txt-l">'+_cesc(f.name)+'</td>'
         +'<td><input class="cq" style="width:120px;height:26px" value="'+_cesc(f.dcNm)+'" oninput="slsSetDc('+i+',this.value)" placeholder="예: 평택"></td>'
+        +'<td>'+(slsDcCd(f.dcNm)
+                 ? '<b style="color:#137a6c">'+slsDcCd(f.dcNm)+'</b>'
+                 : '<span style="color:#c0392b" title="출고장명으로 물류센터코드를 찾지 못했습니다. 용인·왜관·김해·광주·평택·제주·오산 중 하나로 적어주세요. (비워둬도 저장은 됩니다)">미확인</span>')+'</td>'
         +'<td>'+dlab+'</td>'
         +'<td style="text-align:right">'+f.rows.length.toLocaleString()+'</td>'
         +'<td style="text-align:right">'+_cnum(q)+'</td>'
@@ -3311,10 +3358,11 @@
         +'<td><button class="btn-line" style="height:26px;padding:0 8px" onclick="slsDrop('+i+')">제거</button></td></tr>';
     });
     h+='</tbody></table>';
-    // 미리보기(첫 파일 최대 15행) — 우리 관점 컬럼명으로 표시
+    // 미리보기(첫 파일 최대 15행) — 기본 접힘. 확인이 필요할 때만 펼친다
     var f0=_slsFiles[0];
     if(f0 && f0.rows.length){
-      h+='<div class="close-summary" style="margin-top:12px">미리보기 — <b>'+_cesc(f0.name)+'</b> (앞 15행 / 총 '+f0.rows.length.toLocaleString()+'행)</div>'
+      h+='<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12.5px;font-weight:700;color:#5a6b7a;padding:6px 0">'
+        +'🔎 미리보기 — '+_cesc(f0.name)+' <span style="font-weight:400;color:#9aa7b3">(앞 15행 / 총 '+f0.rows.length.toLocaleString()+'행)</span></summary>'
         +'<table class="logi-tb"><thead><tr><th>No</th><th>발주번호</th><th>항번</th><th>품목코드</th><th>품목명</th>'
         +'<th style="text-align:right">발주량</th><th style="text-align:right">출고량</th>'
         +'<th style="text-align:right">판매단가</th><th style="text-align:right">매출액</th><th>납품일자</th><th>출고일자</th></tr></thead><tbody>';
@@ -3327,7 +3375,7 @@
           +'<td style="text-align:right;font-weight:700;color:#137a6c">'+_cnum(r.saleAmt)+'</td>'
           +'<td>'+_cesc(r.dlvDt)+'</td><td>'+_cesc(r.outDt)+'</td></tr>';
       });
-      h+='</tbody></table>';
+      h+='</tbody></table></details>';
     }
     wrap.innerHTML=h;
   }
@@ -3338,9 +3386,10 @@
       var dc=(f.dcNm||'').trim();
       if(!f.rows.length){ bad.push(f.name+' — 저장할 행 없음'); return; }
       if(!dc){ bad.push(f.name+' — 출고장이 비어 있음'); return; }
+      var dcc=slsDcCd(dc);                  // 물류센터코드 — 못 찾으면 빈값으로 두고 저장은 진행
       f.rows.forEach(function(o){
         if(!o.dlvDt){ noDt++; return; }     // 납품일자 없는 행은 배치키가 안 서므로 제외
-        payload.push({ srcFile:f.name, dcNm:dc,
+        payload.push({ srcFile:f.name, dcNm:dc, dcCd:dcc,
           rowNo:o.rowNo, ordNo:o.ordNo, ordItemNo:o.ordItemNo, itemCd:o.itemCd, itemNm:o.itemNm,
           spec:o.spec, unit:o.unit, ordQty:o.ordQty, settleQty:o.settleQty, settleAmt:o.settleAmt,
           dlvDt:o.dlvDt, outDt:o.outDt, outQty:o.outQty, salePrice:o.salePrice, saleAmt:o.saleAmt,
@@ -3368,67 +3417,413 @@
           //  · 문자열로 한 번 더 감싸져 오면(서버가 String 으로 반환하면) 풀어준다 — 안 그러면 전부 0으로 보임
           var j=null; try{ j=JSON.parse(r.t); }catch(e){}
           if(typeof j==='string'){ try{ j=JSON.parse(j); }catch(e){ j=null; } }
-          if(!j || typeof j!=='object'){ ssToast('💾 저장 완료 — <b>'+_cesc(r.t)+'</b>'); _slsFiles=[]; slsLoadDone(); slsQuery(); return; }
+          if(!j || typeof j!=='object'){ ssToast('💾 저장 완료 — <b>'+_cesc(r.t)+'</b>'); _slsFiles=[]; slsUpClose(); slsLoadDone(); slsQuery(); return; }
           var msg='💾 저장 완료 — <b>'+(+j.saved||0).toLocaleString()+'</b>행 · 판매단가 이력 <b>'+(+j.price||0)+'</b>종 반영';
           if(+j.none)  msg+=' · <span style="color:#9aa7b3">변화없음 '+j.none+'종</span>';
           if(+j.skip)  msg+=' · <span style="color:#a85700">단가충돌 '+j.skip+'종 제외</span>';
           ssToast(msg);
-          _slsFiles=[]; slsLoadDone(); slsQuery();
+          _slsFiles=[]; slsUpClose(); slsLoadDone(); slsQuery();
         })
         .catch(function(e){ ssToast('⚠️ 통신오류: '+e.message); });
       });
   }
-  // ── 저장된 매출 확정내역 조회 (25행 페이징 — 마감 화면들과 동일) ──
-  var _slsRows=[], _slsPage=1, SLS_ROWS=25;
-  function slsGo(p){ _slsPage=p; slsRenderList(); }
-  function slsQuery(){
+  /* ══════════════════════════════════════════════════════════════════════════
+     출고내역 (매입·재고관리 ▸ 출고내역) — 정산서 × 출고내역 대사
+       · 정산서   = TBL_SALES_MST   (출고장이 준 엑셀. 출고장에 들어간 물품값 = 우리가 받을 금액)
+       · 출고내역 = TBL_SHIPOUT_MST (발주현황표 업로드분. 실제 나간 수량)
+       · 짝 맞추기 = 발주번호(ORD_NO) + 발주항번(ORD_ITEM_NO)  ← 두 표가 같은 값을 쓴다
+       · 기간 기준 = 납품일자(=발주일자 DLV_DT). 출고내역은 SHPOUT_DT 로만 조회되는데
+         먼 지역은 발주분을 하루 당겨 출고하므로 ±7일 넉넉히 읽어 DLV_DT 로 다시 거른다.
+     ══════════════════════════════════════════════════════════════════════════ */
+  var _ohSales=[], _ohShip=[], _ohTab='dc', _ohPage=1, _ohCol={}, _ohAllCol=false, OH_ROWS=25;
+
+  function _ohQ(v){   // 수량 — 소수·음수 보존(반품행 0.49/-0.49)
+    var n=Number(v); if(!isFinite(n)) return '';
+    return (Math.abs(n%1)<1e-9) ? n.toLocaleString() : n.toLocaleString(undefined,{maximumFractionDigits:3});
+  }
+  function _ohYmd(s){ return (''+(s==null?'':s)).replace(/-/g,'').trim(); }         // '2026-07-11'|'20260711' → '20260711'
+  /* 출고장 이름 통일 — 두 표가 서로 다르게 적는다(실측)
+       정산서(TBL_SALES_MST, 파일명에서 인식) : '평택' '용인' '왜관' '오산'
+       출고내역(TBL_SHIPOUT_MST, 발주현황표)  : '평택물류센터' '용인물류센터' …
+     → 공백·끝숫자·'(물류)센터'·'출고장' 꼬리를 떼어 '평택' 으로 맞춘다. */
+  function _ohDc(s){
+    var v=(''+(s==null?'':s)).replace(/\s+/g,'');
+    return v.replace(/\d+$/,'').replace(/(물류)?센터$/,'').replace(/출고장$/,'').replace(/\d+$/,'');
+  }
+  // 행 → 출고장 통일키. DC_CD 가 있으면 그걸로(더 확실), 없으면 이름 정규화로.
+  // ※ DC_CD 는 정산서에 2026-07-22부터 저장되므로 그 전 자료는 이름으로 잡힌다 — 둘 다 '평택'으로 수렴한다.
+  var _OH_CDNM={ E100:'용인', E200:'왜관', E300:'김해', E400:'광주', E500:'평택', E600:'제주', E700:'오산' };
+  function _ohDcOf(r){
+    var cd=(''+((r&&r.dcCd)||'')).trim().toUpperCase();
+    return _OH_CDNM[cd] || _ohDc(r&&r.dcNm);
+  }
+  /* ★대사키 = 발주일자 + 출고장 + 품목코드 (2026-07-22 사용자 확정)
+       발주번호+항번을 쓰다가 바꿨다. 이유:
+         · 발주현황표의 ORD_NO 가 절반(1145행 중 573행) 비어 있어 그만큼 영영 대사 불가였다
+           (병합셀 아님 — ORD_NO·ORD_ITEM_NO 가 함께 비고 JUMUN_NO 만 100% 차 있다. 원본이 그렇다)
+         · 정산서에는 주문번호 칸이 없어(엑셀 17컬럼 실측) 주문번호로도 못 잇는다
+         · 이 세 칸은 양쪽 다 100% 채워져 있다 → 빠지는 행이 없다
+       성격: 행 대 행이 아니라 **합계 대 합계**.
+         정산서 105행 → 103키 / 출고 1145행 → 888키 (출고는 사업장이 자동 합산된다) */
+  function _ohKey(o){
+    var d=_ohYmd(o&&o.dlvDt), dc=_ohDcOf(o), it=(''+((o&&o.itemCd)||'')).trim();
+    return (d&&dc&&it) ? (d+'|'+dc+'|'+it) : '';   // 셋 중 하나라도 비면 키가 안 선다(실측 0건)
+  }
+  function _ohShift(d, days){   // 'yyyy-mm-dd' ± n일
+    if(!d) return '';
+    var p=d.split('-'); if(p.length<3) return '';
+    var t=new Date(+p[0], +p[1]-1, +p[2]+days);
+    return t.getFullYear()+'-'+ssPad(t.getMonth()+1)+'-'+ssPad(t.getDate());
+  }
+
+  function ohEnter(){   // 메뉴 진입 — 기간 기본값 → 첫 진입이면 자동 조회
+    slsInit();
+    if(!_ohSales.length && !_ohShip.length){ slsLoadDone(); ohQuery(); }
+  }
+  function ohGo(p){ _ohPage=p; ohRender(); }
+  function ohTab(t){
+    _ohTab=t; _ohPage=1;
+    document.querySelectorAll('#ohTabs .ctab').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-t')===t); });
+    ohRender();
+  }
+  function ohToggleAll(){
+    _ohAllCol=!_ohAllCol; _ohCol={}; _ohPage=1; _ohUpdAllBtn(); ohRender();   // 표시행이 통째로 바뀌므로 1페이지로
+  }
+  function _ohUpdAllBtn(){ var b=document.getElementById('ohAllBtn'); if(b) b.innerHTML=_ohAllCol?'⊞ 전체 펼치기':'⊟ 전체 접기'; }
+  // 접기/펼치기 — 키에 탭 접두사를 붙여 ②(i:)와 ④(s:/b:)가 서로 간섭하지 않게 한다
+  function _ohIsCol2(k, def){ return (k in _ohCol) ? _ohCol[k] : def; }
+  function ohGrp(k){
+    k=decodeURIComponent(k);
+    var def = (k.indexOf('b:')===0) ? true : _ohAllCol;   // 사업장 하위(원본행)만 기본 접힘
+    _ohCol[k] = !_ohIsCol2(k, def);
+    ohRender();
+  }
+  function _ohIsCol(k){ return _ohIsCol2('i:'+k, _ohAllCol); }
+
+  // 정산(TBL_SALES_MST) + 출고내역(TBL_SHIPOUT_MST) 동시 조회
+  function ohQuery(){
     var f=(document.getElementById('slsFrom')||{}).value||'', t=(document.getElementById('slsTo')||{}).value||'';
     var dc=((document.getElementById('slsDc')||{}).value||'').trim();
     var ic=((document.getElementById('slsItemCd')||{}).value||'').trim();
-    var body='dlvDtFrom='+encodeURIComponent(f)+'&dlvDtTo='+encodeURIComponent(t)+'&dcNm='+encodeURIComponent(dc)+'&itemCd='+encodeURIComponent(ic);
-    fetch('${pageContext.request.contextPath}/sales/selectSalesMst.do', {
-      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:body })
-      .then(function(r){ return r.json(); })
-      .then(function(j){ _slsRows=(j&&j.data)||[]; _slsPage=1; slsRenderList(); })
-      .catch(function(e){ ssToast('⚠️ 조회 오류: '+e.message); });
+    var sum=document.getElementById('ohSum'); if(sum) sum.textContent='조회 중…';
+    var post=function(url, body){
+      return fetch('${pageContext.request.contextPath}'+url, { method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:body })
+        .then(function(r){ return r.json(); }).then(function(j){ return (j&&j.data)||[]; });
+    };
+    var pSales=post('/sales/selectSalesMst.do',
+      'dlvDtFrom='+encodeURIComponent(f)+'&dlvDtTo='+encodeURIComponent(t)+'&dcNm='+encodeURIComponent(dc)+'&itemCd='+encodeURIComponent(ic));
+    // 출고내역은 SHPOUT_DT 로만 걸리므로 앞뒤 7일 넉넉히 → 아래에서 DLV_DT 로 재필터
+    var pShip = (f && t)
+      ? post('/shipout/selectShipoutMst.do', 'shpoutDtFrom='+encodeURIComponent(_ohShift(f,-7))+'&shpoutDtTo='+encodeURIComponent(_ohShift(t,7)))
+      : post('/shipout/selectShipoutMst.do', '');
+    Promise.all([pSales, pShip]).then(function(a){
+      _ohSales=a[0]||[];
+      var fY=_ohYmd(f), tY=_ohYmd(t), dcK=_ohDc(dc), icQ=ic.toLowerCase();
+      _ohShip=(a[1]||[]).filter(function(r){
+        var d=_ohYmd(r.dlvDt)||_ohYmd(r.shpoutDt);
+        if(fY && tY && (d<fY || d>tY)) return false;
+        if(dcK && _ohDcOf(r)!==dcK) return false;
+        if(icQ && (''+(r.itemCd||'')).toLowerCase().indexOf(icQ)<0
+               && (''+(r.itemNm||'')).toLowerCase().indexOf(icQ)<0) return false;
+        return true;
+      });
+      _ohPage=1; ohRender();
+    }).catch(function(e){ ssToast('⚠️ 조회 오류: '+e.message); });
   }
-  function slsRenderList(){
-    var wrap=document.getElementById('slsListWrap'), sum=document.getElementById('slsListSum'), pg=document.getElementById('slsListPager');
+  function slsQuery(){ ohQuery(); }   // 저장 직후 재조회 (기존 호출부 유지)
+
+  // 출고장 → {정산 합계, 출고 합계} 로 접어 담기 (탭 공통 소스)
+  function _ohRoll(){
+    var m={}, ord=[];
+    var pick=function(r0, nm){
+      var k=_ohDcOf(r0)||'(출고장 미지정)';
+      // 라벨은 통일키(평택), 원래 표기(평택/평택물류센터)는 hover 로 남긴다
+      if(!m[k]){ m[k]={ dc:k, label:k, raw:{}, sRows:0, sQty:0, sAmt:0, oRows:0, oQty:0, items:{}, itemOrd:[] }; ord.push(k); }
+      if(nm) m[k].raw[nm]=1;
+      return m[k];
+    };
+    var item=function(g, cd, nm){
+      var k=cd||'(품목코드 없음)';
+      if(!g.items[k]){ g.items[k]={ itemCd:k, itemNm:nm||'', sQty:0, sAmt:0, oQty:0, price:null }; g.itemOrd.push(k); }
+      var it=g.items[k]; if(!it.itemNm && nm) it.itemNm=nm; return it;
+    };
+    _ohSales.forEach(function(r){
+      var g=pick(r, r.dcNm); g.sRows++; g.sQty+=(+r.outQty||0); g.sAmt+=(+r.saleAmt||0);
+      var it=item(g, r.itemCd, r.itemNm); it.sQty+=(+r.outQty||0); it.sAmt+=(+r.saleAmt||0);
+      if(it.price==null && r.salePrice!=null) it.price=+r.salePrice;
+    });
+    _ohShip.forEach(function(r){
+      var g=pick(r, r.dcNm); g.oRows++; g.oQty+=(+r.curQty||0);
+      item(g, r.itemCd, r.itemNm).oQty+=(+r.curQty||0);
+    });
+    return ord.sort(function(a,b){ return a.localeCompare(b,'ko'); }).map(function(k){ return m[k]; });
+  }
+  // 발주번호+항번 → 상대편 행 (상세 2탭의 대사 열). a=정산금액(정산서 인덱스일 때만 값이 있다)
+  function _ohIndex(rows, qtyField){
+    var m={}; rows.forEach(function(r){
+      var k=_ohKey(r); if(!k) return;
+      var e=m[k] || (m[k]={n:0,q:0,a:0,r:r});
+      e.n++; e.q+=(+r[qtyField]||0); e.a+=(+r.saleAmt||0);
+    });
+    return m;
+  }
+  /* 출고장 ▸ 사업장 ▸ 출고원본행 3단 — ③탭 전용. 출고수량만 다루고 금액은 얹지 않는다.
+       ★사업장별 정산금액은 만들지 않는다(2026-07-22 사용자 확정).
+         정산서는 '발주' 단위, 출고는 '발주 × 사업장' 단위라 1:N —
+         실측 572행이 발주번호+항번 352개(정산서는 105행=105키 1:1).
+         정산서에 사업장 칸이 없으니 사업장으로 쪼개면 어떤 방식이든 추정이 된다.
+         → 금액은 ①②(출고장·품목 단위)에서만 보고, 여기서는 '대사 상태'만 사실로 표시. */
+  function _ohRollBiz(){
+    var idx=_ohIndex(_ohSales,'outQty'), m={}, ord=[];
+    _ohShip.forEach(function(r){
+      var dk=_ohDcOf(r)||'(출고장 미지정)';
+      var g=m[dk]; if(!g){ g=m[dk]={ dc:dk, label:dk, oRows:0, oQty:0, hit:0, noKey:0, unpaid:0, bizOrd:[], biz:{} }; ord.push(dk); }
+      var bnm=(''+(r.bizNm||'')).trim()||'(사업장 미지정)', bk=(''+(r.bizCd||''))+'|'+bnm;
+      var b=g.biz[bk]; if(!b){ b=g.biz[bk]={ key:bk, bizCd:r.bizCd||'', bizNm:bnm, rows:[], oQty:0, hit:0, noKey:0, unpaid:0 }; g.bizOrd.push(bk); }
+      var k=_ohKey(r), hit=k?!!idx[k]:false, oq=(+r.curQty||0);
+      b.rows.push({ r:r, hit:hit, k:k });
+      b.oQty+=oq; g.oQty+=oq; g.oRows++;
+      if(hit){ b.hit++; g.hit++; } else if(!k){ b.noKey++; g.noKey++; } else { b.unpaid++; g.unpaid++; }
+    });
+    ord.sort(function(a,b){ return a.localeCompare(b,'ko'); });
+    ord.forEach(function(k){ m[k].bizOrd.sort(function(a,b){ return m[k].biz[a].bizNm.localeCompare(m[k].biz[b].bizNm,'ko'); }); });
+    return ord.map(function(k){ return m[k]; });
+  }
+  // 대사 상태 요약 — 건수만(금액 아님). noKey 는 세 칸 중 하나가 빈 이상행(실측 0건)
+  function _ohStat(o){
+    return (o.hit  ? ' <span style="font-weight:700;color:#137a6c">대사 '+o.hit+'</span>' : '')
+         + (o.unpaid ? ' <span style="font-weight:700;color:#c0392b">· 미정산 '+o.unpaid+'</span>' : '')
+         + (o.noKey  ? ' <span style="font-weight:600;color:#9aa7b3">· 키없음 '+o.noKey+'</span>' : '');
+  }
+
+  /* 탭별 원천 — 요약줄 맨 앞에 칩으로 붙인다(전용 줄을 두면 상단이 무거워짐. 자세한 건 탭 버튼 hover).
+     ①②는 정산서 기준이 아니라 양쪽 합집합이다(한쪽만 있어도 줄이 생겨야 '정산 미도착'을 잡는다). */
+  var OH_DESC={ dc:'정산서 ∪ 출고내역', item:'정산서 ∪ 출고내역 · 품목축', ship:'출고내역 · 사업장축', settle:'정산서 단독' };
+  function _ohSrcChip(){
+    return '<span style="display:inline-block;padding:1px 8px;margin-right:6px;border-radius:999px;background:#eaf3f1;color:#137a6c;font-size:11.5px;font-weight:700"'
+      + ' title="이 탭이 어느 표에서 줄을 가져오는지. 자세한 설명은 탭 이름에 마우스를 올려 보세요.">'+(OH_DESC[_ohTab]||'')+'</span>';
+  }
+  function ohRender(){
+    var wrap=document.getElementById('ohWrap'), sum=document.getElementById('ohSum'), pg=document.getElementById('ohPager');
     if(!wrap) return;
-    var rows=_slsRows;
-    if(!rows.length){ sum.textContent='조회된 매출 확정내역이 없습니다.'; wrap.innerHTML=''; if(pg) pg.innerHTML=''; return; }
-    var q=0,a=0, dcs={};
-    rows.forEach(function(r){ q+=(+r.outQty||0); a+=(+r.saleAmt||0); if(r.dcNm) dcs[r.dcNm]=1; });
-    sum.innerHTML='총 <b>'+rows.length.toLocaleString()+'</b>행 · 출고장 <b>'+Object.keys(dcs).length+'</b>곳 · 출고량 <b>'+_cnum(q)+'</b> · 매출액 <b style="color:#137a6c">'+_cnum(a)+'</b>';
+    var btn=document.getElementById('ohAllBtn'); if(btn) btn.style.display=(_ohTab==='item'||_ohTab==='ship')?'':'none';
+    if(!_ohSales.length && !_ohShip.length){
+      sum.innerHTML=_ohSrcChip()+'조회된 자료가 없습니다. (정산 엑셀 저장분·발주현황표 출고 모두 없음)';
+      wrap.innerHTML=''; if(pg) pg.innerHTML=''; return;
+    }
+    var sQ=0,sA=0,oQ=0,noKey=0;
+    _ohSales.forEach(function(r){ sQ+=(+r.outQty||0); sA+=(+r.saleAmt||0); });
+    _ohShip.forEach(function(r){ oQ+=(+r.curQty||0); if(!_ohKey(r)) noKey++; });
+    var G=_ohRoll();
+    sum.innerHTML=_ohSrcChip()+'출고장 <b>'+G.length+'</b>곳 · 출고내역 <b>'+_ohShip.length.toLocaleString()+'</b>행/<b>'+_ohQ(oQ)+'</b>'
+      +' · 정산 <b>'+_ohSales.length.toLocaleString()+'</b>행/<b>'+_ohQ(sQ)+'</b>'
+      +' · <span style="color:#137a6c">정산금액 <b>'+_cnum(sA)+'</b></span>'
+      +(Math.abs(oQ-sQ)>1e-6 ? ' · <span class="oh-gap">수량차이 '+_ohQ(oQ-sQ)+'</span>' : ' · <span class="oh-ok">수량 일치</span>')
+      +(noKey ? ' · <span style="color:#c47f17;font-weight:700" title="발주일자·출고장·품목코드 중 빈 칸이 있어 대사키가 서지 않는 출고행입니다.">키 없는 출고 '+noKey.toLocaleString()+'행</span>' : '')
+      +(!_ohShip.length && _ohSales.length ? ' · <span style="color:#c47f17;font-weight:700">이 기간 출고내역(발주현황표) 자료가 없습니다</span>' : '');
+    if(_ohTab==='dc')          _ohRenderDc(G, wrap, oQ, sQ, sA);
+    else if(_ohTab==='item')   _ohRenderItem(G, wrap, oQ, sQ, sA);
+    else if(_ohTab==='settle') _ohRenderSettle(wrap, sQ, sA);
+    else                       _ohRenderShip(wrap, oQ);
+  }
+
+  // ① 출고장별 합계 — 출고내역 ↔ 정산서 나란히
+  function _ohRenderDc(G, wrap, oQ, sQ, sA){
+    var h='<table class="logi-tb"><thead><tr><th>출고장</th>'
+        +'<th style="text-align:right">출고건수</th><th style="text-align:right">출고수량</th>'
+        +'<th style="text-align:right">정산행수</th><th style="text-align:right">정산수량</th>'
+        +'<th style="text-align:right">수량차이</th><th style="text-align:right">평균단가</th>'
+        +'<th style="text-align:right">정산금액(받을 금액)</th><th>상태</th></tr></thead><tbody>';
+    h+='<tr class="close-total"><td>■ 총합계</td>'
+      +'<td style="text-align:right">'+_ohShip.length.toLocaleString()+'</td><td style="text-align:right">'+_ohQ(oQ)+'</td>'
+      +'<td style="text-align:right">'+_ohSales.length.toLocaleString()+'</td><td style="text-align:right">'+_ohQ(sQ)+'</td>'
+      +'<td style="text-align:right">'+_ohQ(oQ-sQ)+'</td>'
+      +'<td style="text-align:right">'+(sQ?_cnum(sA/sQ):'')+'</td>'
+      +'<td style="text-align:right">'+_cnum(sA)+'</td><td></td></tr>';
+    G.forEach(function(g){
+      var gap=g.oQty-g.sQty, ok=Math.abs(gap)<1e-6;
+      var st = (!g.sRows) ? '<span class="badge b-wait">정산 미도착</span>'
+             : (!g.oRows) ? '<span class="badge b-wait">출고내역 없음</span>'
+             : (ok ? '<span class="badge b-done">일치</span>' : '<span class="badge b-ship">차이</span>');
+      h+='<tr><td class="txt-l" title="'+_cesc(Object.keys(g.raw).join(' / '))+'"><b>'+_cesc(g.label)+'</b></td>'
+        +'<td style="text-align:right">'+g.oRows.toLocaleString()+'</td><td style="text-align:right">'+_ohQ(g.oQty)+'</td>'
+        +'<td style="text-align:right">'+g.sRows.toLocaleString()+'</td><td style="text-align:right">'+_ohQ(g.sQty)+'</td>'
+        +'<td style="text-align:right" class="'+(ok?'oh-ok':'oh-gap')+'">'+_ohQ(gap)+'</td>'
+        +'<td style="text-align:right">'+(g.sQty?_cnum(g.sAmt/g.sQty):'')+'</td>'
+        +'<td style="text-align:right;font-weight:800;color:#137a6c">'+_cnum(g.sAmt)+'</td>'
+        +'<td>'+st+'</td></tr>';
+    });
+    wrap.innerHTML=h+'</tbody></table>';
+    _ohPager(1);
+  }
+
+  /* ② 출고장 ▸ 품목 (그룹 접기/펼치기 + 소계 + 행 단위 25행 페이징)
+     페이징은 마감 화면들과 같은 방식 — 표시행을 평평하게 늘어놓고 자르되,
+     페이지가 그룹 중간에서 시작하면 소속 헤더를 문맥으로 먼저 찍는다. */
+  function _ohRenderItem(G, wrap, oQ, sQ, sA){
+    var h='<table class="logi-tb"><thead><tr><th>품목코드</th><th>품목명</th>'
+        +'<th style="text-align:right">출고수량</th><th style="text-align:right">정산수량</th>'
+        +'<th style="text-align:right">수량차이</th><th style="text-align:right">판매단가</th>'
+        +'<th style="text-align:right">정산금액</th></tr></thead><tbody>';
+    h+='<tr class="close-total"><td colspan="2">■ 총합계</td>'
+      +'<td style="text-align:right">'+_ohQ(oQ)+'</td><td style="text-align:right">'+_ohQ(sQ)+'</td>'
+      +'<td style="text-align:right">'+_ohQ(oQ-sQ)+'</td><td></td>'
+      +'<td style="text-align:right">'+_cnum(sA)+'</td></tr>';
+    // 표시행 평면화 (접힘 반영) — 품목 정렬은 한 번만
+    var sorted=[], list=[];
+    G.forEach(function(g,gi){
+      sorted[gi]=g.itemOrd.slice().sort(function(a,b){ return a.localeCompare(b,'ko'); });
+      list.push({t:'g',gi:gi});
+      if(_ohIsCol(g.dc)) return;
+      sorted[gi].forEach(function(k){ list.push({t:'it',gi:gi,k:k}); });
+    });
+    var grpRow=function(gi){
+      var g=G[gi], col=_ohIsCol(g.dc), gap=g.oQty-g.sQty;
+      return '<tr class="close-grp" onclick="ohGrp(\''+encodeURIComponent('i:'+g.dc)+'\')"><td colspan="2">'
+        +'<span class="ccar">'+(col?'▶':'▼')+'</span> 🏭 '+_cesc(g.label)+' <span style="font-weight:600;color:#5a6b7a">('+g.itemOrd.length+'품목)</span></td>'
+        +'<td style="text-align:right">'+_ohQ(g.oQty)+'</td><td style="text-align:right">'+_ohQ(g.sQty)+'</td>'
+        +'<td style="text-align:right" class="'+(Math.abs(gap)<1e-6?'oh-ok':'oh-gap')+'">'+_ohQ(gap)+'</td><td></td>'
+        +'<td style="text-align:right">'+_cnum(g.sAmt)+'</td></tr>';
+    };
+    var itRow=function(gi,k){
+      var it=G[gi].items[k], d=it.oQty-it.sQty, dok=Math.abs(d)<1e-6;
+      return '<tr><td>'+_cesc(it.itemCd)+'</td><td class="txt-l">'+_cesc(it.itemNm)+'</td>'
+        +'<td style="text-align:right">'+_ohQ(it.oQty)+'</td>'
+        +'<td style="text-align:right;'+(it.sQty<0?'color:#c0392b':'')+'">'+_ohQ(it.sQty)+'</td>'
+        +'<td style="text-align:right" class="'+(dok?'':'oh-gap')+'">'+(dok?'':_ohQ(d))+'</td>'
+        +'<td style="text-align:right">'+(it.price==null?'':_cnum(it.price))+'</td>'
+        +'<td style="text-align:right;font-weight:700;color:#137a6c">'+_cnum(it.sAmt)+'</td></tr>';
+    };
+    var pages=Math.max(1,Math.ceil(list.length/OH_ROWS)); if(_ohPage>pages)_ohPage=pages;
+    var rS=(_ohPage-1)*OH_ROWS, rE=Math.min(rS+OH_ROWS, list.length), body='';
+    if(rS<rE && list[rS].t!=='g') body+=grpRow(list[rS].gi);   // 문맥 헤더
+    for(var i=rS;i<rE;i++){ var r=list[i]; body += (r.t==='g') ? grpRow(r.gi) : itRow(r.gi,r.k); }
+    wrap.innerHTML=h+body+'</tbody></table>';
+    _ohPager(pages);
+  }
+
+  // 한쪽 원천이 통째로 없을 때 — 빈 표 대신 왜 비었는지 알려준다
+  function _ohEmptyRow(cols, title, desc){
+    return '<tr><td colspan="'+cols+'" style="padding:34px 16px;text-align:center;color:#5a6b7a;background:#fbfcfc">'
+      +'<div style="font-size:13.5px;font-weight:800;color:#c47f17;margin-bottom:6px">'+title+'</div>'
+      +'<div style="font-size:12.5px;line-height:1.7">'+desc+'</div></td></tr>';
+  }
+  // ③ 정산 상세(엑셀 원본행) + 출고내역 대사 열
+  function _ohRenderSettle(wrap, sQ, sA){
+    var idx=_ohIndex(_ohShip,'curQty'), rows=_ohSales;
     var h='<table class="logi-tb"><thead><tr><th>납품일자</th><th>출고장</th><th>발주번호</th><th>항번</th><th>품목코드</th><th>품목명</th>'
-        +'<th style="text-align:right">발주량</th><th style="text-align:right">출고량</th>'
-        +'<th style="text-align:right">판매단가</th><th style="text-align:right">매출액</th><th>원본파일</th></tr></thead><tbody>';
-    h+='<tr class="close-total"><td colspan="6" style="text-align:left">■ 총합계</td><td></td>'
-      +'<td style="text-align:right">'+_cnum(q)+'</td><td></td><td style="text-align:right">'+_cnum(a)+'</td><td></td></tr>';
-    var pages=Math.max(1,Math.ceil(rows.length/SLS_ROWS)); if(_slsPage>pages)_slsPage=pages;
-    var rS=(_slsPage-1)*SLS_ROWS, rE=Math.min(rS+SLS_ROWS, rows.length);
-    rows.slice(rS,rE).forEach(function(r){
+        +'<th style="text-align:right">발주량</th><th style="text-align:right">정산수량</th>'
+        +'<th style="text-align:right">출고수량</th>'
+        +'<th style="text-align:right">판매단가</th><th style="text-align:right">정산금액</th><th>원본파일</th></tr></thead><tbody>';
+    h+='<tr class="close-total"><td colspan="6">■ 총합계</td><td></td>'
+      +'<td style="text-align:right">'+_ohQ(sQ)+'</td><td></td><td></td>'
+      +'<td style="text-align:right">'+_cnum(sA)+'</td><td></td></tr>';
+    if(!rows.length){
+      wrap.innerHTML=h+_ohEmptyRow(12, '이 기간 정산서(엑셀) 자료가 없습니다',
+        '이 탭은 <b>출고장이 보내준 정산 엑셀의 원본 행</b>을 그대로 보여줍니다.<br>'
+        +'조회기간에 저장된 정산서가 없어 띄울 행이 없습니다'
+        +(_ohShip.length ? ' — 출고는 <b>'+_ohShip.length.toLocaleString()+'행</b> 있으니 <b>정산서가 아직 안 온 날</b>입니다.' : '.')
+        +'<br>위 <b>📁 파일 선택</b> 으로 해당 날짜 정산 엑셀을 올리면 여기에 채워집니다.')
+        +'</tbody></table>';
+      _ohPager(1); return;
+    }
+    var pages=Math.max(1,Math.ceil(rows.length/OH_ROWS)); if(_ohPage>pages)_ohPage=pages;
+    rows.slice((_ohPage-1)*OH_ROWS, _ohPage*OH_ROWS).forEach(function(r){
+      var k=_ohKey(r), m=k?idx[k]:null, oq=m?m.q:null;
       h+='<tr><td>'+_cesc(r.dlvDt)+'</td><td>'+_cesc(r.dcNm)+'</td><td>'+_cesc(r.ordNo)+'</td><td>'+_cesc(r.ordItemNo)+'</td>'
         +'<td>'+_cesc(r.itemCd)+'</td><td class="txt-l">'+_cesc(r.itemNm)+'</td>'
-        +'<td style="text-align:right">'+(r.ordQty==null?'':r.ordQty)+'</td>'
-        +'<td style="text-align:right;'+((+r.outQty||0)<0?'color:#c0392b':'')+'">'+(r.outQty==null?'':r.outQty)+'</td>'
+        +'<td style="text-align:right">'+(r.ordQty==null?'':_ohQ(r.ordQty))+'</td>'
+        +'<td style="text-align:right;'+((+r.outQty||0)<0?'color:#c0392b':'')+'">'+(r.outQty==null?'':_ohQ(r.outQty))+'</td>'
+        +'<td style="text-align:right" title="같은 발주일자·출고장·품목코드의 출고 합계입니다(사업장 여러 곳이면 합쳐진 값).">'
+        +(oq==null?'<span style="color:#c0392b">출고미상</span>':_ohQ(oq))+'</td>'
         +'<td style="text-align:right">'+_cnum(r.salePrice)+'</td>'
         +'<td style="text-align:right;font-weight:700;color:#137a6c">'+_cnum(r.saleAmt)+'</td>'
         +'<td class="txt-l" style="color:#9aa7b3">'+_cesc(r.srcFile)+'</td></tr>';
     });
-    h+='</tbody></table>';
-    wrap.innerHTML=h;
-    _slsPager(pages);
+    wrap.innerHTML=h+'</tbody></table>';
+    _ohPager(pages);
   }
-  function _slsPager(pages){
-    var pg=document.getElementById('slsListPager'); if(!pg) return;
+
+  /* ④ 출고장 ▸ 사업장 — ②(품목축)와 겹치지 않는 유일한 축.
+     정산서에 없는 '어느 점포로 나갔나'를 세우고, 사업장을 펼치면 출고 원본행이 나온다. */
+  function _ohRenderShip(wrap, oQ){
+    var h='<table class="logi-tb"><thead><tr><th>사업장 / 품목</th><th>품목코드</th><th>발주번호</th><th>항번</th><th>출고일자</th>'
+        +'<th style="text-align:right">출고수량</th><th>정산 대사</th></tr></thead><tbody>';
+    if(!_ohShip.length){
+      wrap.innerHTML=h+_ohEmptyRow(7, '이 기간 출고내역(발주현황표) 자료가 없습니다',
+        '이 탭은 출고를 <b>출고장 ▸ 사업장(점포)</b> 으로 묶어, 어느 점포로 얼마나 나갔는지 보여줍니다.<br>'
+        +'조회기간에 저장된 출고가 없어 띄울 행이 없습니다'
+        +(_ohSales.length ? ' — 정산서는 <b>'+_ohSales.length.toLocaleString()+'행</b> 있으니 <b>발주현황표가 아직 안 올라온 날</b>입니다.' : '.')
+        +'<br>기간은 <b>납품일자(=발주일자)</b> 기준입니다.')
+        +'</tbody></table>';
+      _ohPager(1); return;
+    }
+    var B=_ohRollBiz(), tT={hit:0,unpaid:0,noKey:0};
+    B.forEach(function(g){ tT.hit+=g.hit; tT.unpaid+=g.unpaid; tT.noKey+=g.noKey; });
+    h+='<tr class="close-total"><td colspan="5">■ 총합계 <span style="font-weight:600" title="사업장별 정산금액은 만들지 않습니다. 정산서는 발주 단위, 출고는 발주×사업장 단위라 쪼개면 추정이 됩니다. 금액은 ①②탭에서 보세요.">(출고수량 전용 · 금액은 ①②탭)</span></td>'
+      +'<td style="text-align:right">'+_ohQ(oQ)+'</td><td>'+_ohStat(tT)+'</td></tr>';
+    // 표시행 평면화 (3단: 출고장 → 사업장 → 출고 원본행. 접힘 반영)
+    var list=[];
+    B.forEach(function(g,gi){
+      list.push({t:'g',gi:gi});
+      if(_ohIsCol2('s:'+g.dc, _ohAllCol)) return;
+      g.bizOrd.forEach(function(bk,bi){
+        list.push({t:'b',gi:gi,bi:bi});
+        if(_ohIsCol2('b:'+g.dc+'|'+bk, true)) return;          // 사업장 하위(원본행)는 기본 접힘
+        g.biz[bk].rows.forEach(function(x,xi){ list.push({t:'r',gi:gi,bi:bi,xi:xi}); });
+      });
+    });
+    var grpRow=function(gi){
+      var g=B[gi], gk='s:'+g.dc, gcol=_ohIsCol2(gk, _ohAllCol);
+      return '<tr class="close-grp" onclick="ohGrp(\''+encodeURIComponent(gk)+'\')"><td colspan="5">'
+        +'<span class="ccar">'+(gcol?'▶':'▼')+'</span> 🏭 '+_cesc(g.label)
+        +' <span style="font-weight:600;color:#5a6b7a">('+g.bizOrd.length+'개 사업장 · '+g.oRows.toLocaleString()+'행)</span></td>'
+        +'<td style="text-align:right">'+_ohQ(g.oQty)+'</td><td>'+_ohStat(g)+'</td></tr>';
+    };
+    var bizRow=function(gi,bi){
+      var g=B[gi], bk=g.bizOrd[bi], b=g.biz[bk], bcol=_ohIsCol2('b:'+g.dc+'|'+bk, true);
+      return '<tr class="close-sub" style="cursor:pointer" onclick="ohGrp(\''+encodeURIComponent('b:'+g.dc+'|'+bk)+'\')">'
+        +'<td class="txt-l" style="padding-left:24px"><span class="ccar">'+(bcol?'▶':'▼')+'</span> 🏢 '+_cesc(b.bizNm)
+        +' <span style="font-weight:600;color:#5a6b7a">('+b.rows.length+'행)</span></td>'
+        +'<td colspan="4" style="color:#9aa7b3">'+_cesc(b.bizCd)+'</td>'
+        +'<td style="text-align:right">'+_ohQ(b.oQty)+'</td><td>'+_ohStat(b)+'</td></tr>';
+    };
+    var detRow=function(gi,bi,xi){
+      var g=B[gi], x=g.biz[g.bizOrd[bi]].rows[xi], r=x.r;
+      // 이 행의 (발주일자·출고장·품목코드)가 정산서에 있느냐 — 사실만 표시(사업장별 금액 배분은 하지 않는다)
+      var st = x.hit ? '<span style="color:#137a6c;font-weight:700" title="이 행의 발주일자·출고장·품목코드가 정산서에 있습니다.&#10;금액은 품목 합계 단위라 ①②탭에서 보세요.">대사됨</span>'
+                     : (x.k ? '<span style="color:#c0392b;font-weight:700" title="보냈는데 정산서에 이 발주일자·출고장·품목이 없습니다 — 청구 누락 후보.">미정산</span>'
+                            : '<span style="color:#9aa7b3" title="발주일자·출고장·품목코드 중 빈 칸이 있어 키가 서지 않습니다(정상 자료에는 없습니다).">키없음</span>');
+      return '<tr><td class="txt-l" style="padding-left:46px">'+_cesc(r.itemNm)+'</td>'
+        +'<td>'+_cesc(r.itemCd)+'</td>'
+        +'<td>'+(_cesc(r.ordNo)||'<span style="color:#c9d2d0">—</span>')+'</td><td>'+_cesc(r.ordItemNo)+'</td>'
+        +'<td>'+_cesc(r.shpoutDt)+(_ohYmd(r.shpoutDt)!==_ohYmd(r.dlvDt)?' <span style="color:#c47f17" title="발주일자 '+_cesc(r.dlvDt)+' — 먼 지역은 하루 당겨 출고합니다">*</span>':'')+'</td>'
+        +'<td style="text-align:right">'+_ohQ(r.curQty)+'</td>'
+        +'<td>'+st+'</td></tr>';
+    };
+    var pages=Math.max(1,Math.ceil(list.length/OH_ROWS)); if(_ohPage>pages)_ohPage=pages;
+    var rS=(_ohPage-1)*OH_ROWS, rE=Math.min(rS+OH_ROWS, list.length), body='';
+    if(rS<rE){ var f=list[rS];   // 페이지가 그룹 중간에서 시작하면 소속 헤더를 문맥으로 먼저
+      if(f.t!=='g') body+=grpRow(f.gi);
+      if(f.t==='r') body+=bizRow(f.gi,f.bi);
+    }
+    for(var i=rS;i<rE;i++){ var r2=list[i];
+      body += (r2.t==='g') ? grpRow(r2.gi) : (r2.t==='b') ? bizRow(r2.gi,r2.bi) : detRow(r2.gi,r2.bi,r2.xi);
+    }
+    wrap.innerHTML=h+body+'</tbody></table>';
+    _ohPager(pages);
+  }
+
+  function _ohPager(pages){
+    var pg=document.getElementById('ohPager'); if(!pg) return;
     if(pages<=1){ pg.innerHTML=''; return; }
-    var h='<button '+(_slsPage<=1?'disabled':'')+' onclick="slsGo('+(_slsPage-1)+')">‹</button>';
-    var from=Math.max(1,_slsPage-3), to=Math.min(pages,_slsPage+3);
-    if(from>1) h+='<button onclick="slsGo(1)">1</button>'+(from>2?'<span style="padding:0 4px;color:#9aa7b3">…</span>':'');
-    for(var p=from;p<=to;p++) h+='<button class="'+(p===_slsPage?'on':'')+'" onclick="slsGo('+p+')">'+p+'</button>';
-    if(to<pages) h+=(to<pages-1?'<span style="padding:0 4px;color:#9aa7b3">…</span>':'')+'<button onclick="slsGo('+pages+')">'+pages+'</button>';
-    h+='<button '+(_slsPage>=pages?'disabled':'')+' onclick="slsGo('+(_slsPage+1)+')">›</button>';
+    var h='<button '+(_ohPage<=1?'disabled':'')+' onclick="ohGo('+(_ohPage-1)+')">‹</button>';
+    var from=Math.max(1,_ohPage-3), to=Math.min(pages,_ohPage+3);
+    if(from>1) h+='<button onclick="ohGo(1)">1</button>'+(from>2?'<span style="padding:0 4px;color:#9aa7b3">…</span>':'');
+    for(var p=from;p<=to;p++) h+='<button class="'+(p===_ohPage?'on':'')+'" onclick="ohGo('+p+')">'+p+'</button>';
+    if(to<pages) h+=(to<pages-1?'<span style="padding:0 4px;color:#9aa7b3">…</span>':'')+'<button onclick="ohGo('+pages+')">'+pages+'</button>';
+    h+='<button '+(_ohPage>=pages?'disabled':'')+' onclick="ohGo('+(_ohPage+1)+')">›</button>';
     pg.innerHTML=h;
   }
   // 진입 기본값 = 이번 달 1일 ~ 오늘
@@ -3483,6 +3878,8 @@
 
     <div class="grp">매입·재고관리</div>
     <div class="row"><div class="nm">입고내역</div><code>TBL_STOCK_LEDGER</code> 중 <code>IO_GB='I'</code>(입고). 매입처=<code>VENDOR_CD</code>.</div>
+    <div class="row"><div class="nm">매출내역</div>정산서 <code>TBL_SALES_MST</code>(출고장 제공 엑셀, 배치키=<code>DLV_DT</code>+<code>DC_NM</code>·<code>JOB_SEQ</code>·<code>ACTION_YN</code>) × 출고 <code>TBL_SHIPOUT_MST</code>(수량 <code>CUR_QTY</code>). <b>대사키=<code>DLV_DT</code>+<code>DC_CD</code>(없으면 DC_NM)+<code>ITEM_CD</code></b> — 합계 대 합계. 기간=<code>DLV_DT</code>. 저장 시 <code>TBL_PROD_SALEPRICE_HST</code> MERGE(<code>APPLY_DT=DLV_DT</code>).<br>
+      ⚠ 실측: <code>ORD_NO</code>는 출고 쪽 <b>절반이 빈값</b>이라 <b>키로 쓰지 않음</b>(참고 표시만). <code>DC_NM</code> 표기가 다름(<code>평택</code> vs <code>평택물류센터</code>) → 코드 우선, 없으면 접미사 제거 후 매칭. 정산서 105행→103키 / 출고 1145행→888키(사업장 합산).</div>
     <div class="row"><div class="nm">재고현황</div>수불원장 <code>TBL_STOCK_LEDGER</code> 집계 + 현재고 캐시 <code>TBL_STOCK_MST</code>. 현재고=입고(I·R·A)−출고(O). 출고는 <code>TBL_SHIPOUT_MST</code>→원장 <code>O</code>행 자동연동(<code>REF_GB='SHIPOUT'</code>). 행 클릭=그 품목 수불 내역.</div>
     <div class="row"><div class="nm">상품(품목)관리</div>마스터 <code>TBL_PROD_MST</code>. 이력=<code>TBL_PROD_INPRICE_HST</code>/<code>TBL_PROD_SALEPRICE_HST</code>. 재고=<code>TBL_STOCK_LEDGER</code>/<code>TBL_STOCK_MST</code>.</div>
 
@@ -3501,7 +3898,7 @@
     <div class="row"><div class="nm">회사·사용자 / 공통코드</div>회사·사용자 관리, 공통코드 관리 테이블.</div>
 
     <div class="grp">부가·예정 (미구현)</div>
-    <div class="row"><div class="nm">물품동선·견적서·카카오톡문자</div>데모/예정 — 실제 테이블 없음(협의 후 신설).</div>
+    <div class="row"><div class="nm">물품동선·견적서·카카오톡문자</div>데모/예정 — 실제 테이블 없음(협의 후 신설). 견적서관리의 '매출 엑셀 업로드'는 <b>매입·재고관리 ▸ 출고내역</b>으로 이동.</div>
   </div>
   <script>
     (function(){ document.addEventListener('keydown', function(e){
@@ -3524,6 +3921,7 @@
 
     <div class="grp">매입·재고관리</div>
     <a class="mi" data-key="inboundList" onclick="logiGo('inboundList', this); inbInit(); inboundListLoad();"><span class="ic">📄</span>입고내역</a>
+    <a class="mi" data-key="outHist" onclick="logiGo('outHist', this); ohEnter();"><span class="ic">📤</span>매출내역</a>
     <a class="mi" data-key="stockStatus" onclick="logiGo('stockStatus', this); stkStatusLoad();"><span class="ic">📊</span>재고현황</a>
     <a class="mi" data-key="prodmst" onclick="logiFrame('prodmst','${pageContext.request.contextPath}/prod/prodmst.do', this)"><span class="ic">📦</span>상품(품목)관리</a>
 
@@ -3555,7 +3953,6 @@
     </div>
     <a class="mi has-sub" data-sub="quote" onclick="logiToggleSub('quote', this)"><span class="ic">📝</span>견적서관리 <span style="font-size:10px;color:#9aa7b3">(예정)</span><span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-quote">
-      <a class="mi" data-key="salesUp" onclick="logiGo('salesUp', this)"><span class="ic">📥</span>매출 엑셀 업로드</a>
       <a class="mi" onclick="swAlert('견적서 작성은 향후 추진 예정입니다.','info')"><span class="ic">🧾</span>견적서 작성</a>
       <a class="mi" onclick="swAlert('견적서 목록/조회는 향후 추진 예정입니다.','info')"><span class="ic">📋</span>견적서 목록/조회</a>
       <a class="mi" onclick="swAlert('견적서 출력(PDF/엑셀)은 향후 추진 예정입니다.','info')"><span class="ic">🖨️</span>견적서 출력</a>
@@ -3591,13 +3988,20 @@
       .tipx{ display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border:1px solid #dfe6e3; border-radius:999px;
              background:#f1f5f4; color:#5a6b7a; font-weight:700; font-size:12px; cursor:help; white-space:nowrap; }
       .tipx:hover{ border-color:#137a6c; color:#137a6c; background:#eaf5f3; }
-      /* 업로드/조회 줄 — 한 줄에 몰아 담아 세로 공간을 그리드에 넘긴다 */
-      .sls-bar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-      /* 업로드 줄과 조회 줄 사이 구분선 (카드 하나 안에서 두 영역을 나눔) */
-      .sls-div{ height:1px; background:#e2e8e6; margin:10px -20px 12px; }   /* -20px = .card 좌우 패딩만큼 빼서 카드 끝까지 긋기 */
       /* 목록 그리드 — 헤더 고정 + 화면 높이에 맞춰 스크롤(위쪽 카드가 커져도 그리드가 안 밀림) */
-      #slsListWrap{ max-height:calc(100vh - 300px); min-height:260px; overflow:auto; }
-      #slsListWrap table.logi-tb thead th{ position:sticky; top:0; z-index:2; box-shadow:inset 0 -1px 0 var(--logi-border); }
+      #ohWrap{ max-height:calc(100vh - 202px); min-height:240px; overflow:auto; }
+      /* 표를 위로 끌어올리려고 탭·요약줄을 최소 높이로(2026-07-22 요청) — 이 화면에만 적용 */
+      #ohSum{ margin:1px 0 2px !important; font-size:12.5px; line-height:1.3; }
+      #ohTabs{ margin:4px 0 0 !important; }
+      #ohTabs .ctab{ height:30px; padding:0 12px; font-size:12.5px; }
+      #ohTabs .btn-line{ height:26px !important; margin-bottom:2px; }
+      #ohWrap table.logi-tb thead th{ position:sticky; top:0; z-index:2; box-shadow:inset 0 -1px 0 var(--logi-border); }
+      /* 정산 엑셀 저장 팝업의 파일 목록 — 칸이 줄바꿈되면 읽기 나쁘므로 한 줄로 고정, 넘치면 가로 스크롤 */
+      #slsUpWrap .sls-ftb th, #slsUpWrap .sls-ftb td{ white-space:nowrap; }
+      #slsUpWrap{ overflow:auto; }
+      /* 대사(합계) 열 — 정산이 없는 출고, 출고가 없는 정산을 눈에 띄게 */
+      .oh-gap{ color:#c0392b; font-weight:800; }
+      .oh-ok{ color:#137a6c; font-weight:800; }
       .close-tabs .cq{ height:30px; width:210px; margin-bottom:2px; padding:0 10px; border:1px solid #dfe6e3; border-radius:6px; font-size:12.5px; color:#37475a; background:#fff; }
       .close-tabs .cq:focus{ outline:none; border-color:#137a6c; box-shadow:0 0 0 2px rgba(19,122,108,.15); }
       .close-summary{ margin:6px 0; font-size:13px; color:#37475a; font-weight:600; }
@@ -3617,49 +4021,41 @@
       /* 재고현황 ② 수불내역: 5행 초과 스크롤 + 헤더 고정 */
       #stkLedgerBody table.logi-tb thead th{ position:sticky; top:0; z-index:2; box-shadow:inset 0 -1px 0 var(--logi-border); }
     </style>
-    <!-- ===== 견적서관리 : 매출 엑셀 업로드 (출고장 제공 엑셀 → TBL_SALES_MST) ===== -->
-    <section id="panel-salesUp" class="panel">
-      <div class="logi-head">
-        <div><h2>매출 엑셀 업로드 <span class="badge b-done">견적서관리</span></h2>
-          <div class="sub">출고장이 준 엑셀을 그대로 저장합니다.</div></div>
+    <!-- ===== 출고내역 (출고장 정산 엑셀 TBL_SALES_MST + 발주현황표 출고 TBL_SHIPOUT_MST 통합) ===== -->
+    <section id="panel-outHist" class="panel">
+      <!-- 상단은 한 줄로 — 제목줄 + 조회줄 + 탭줄만. 설명은 전부 hover(title)로 뺐다 -->
+      <div class="logi-head" style="margin-bottom:8px">
+        <div><h2 style="margin:0">매출내역 <span class="badge b-done">정산</span>
+          <span style="font-size:12px;font-weight:400;color:#9aa7b3;margin-left:6px">정산서(받을 금액) × 발주현황표 출고내역</span></h2></div>
         <div class="actions">
-          <button class="btn-teal" onclick="document.getElementById('slsFile').click()">📥 엑셀 선택</button>
-          <button class="btn-line" onclick="slsClear()">🧹 목록 비우기</button>
+          <!-- 파일을 고르면 목록·저장은 전부 팝업에서. 본 화면에는 버튼 하나만 남긴다 -->
+          <button class="btn-line" id="slsUpChip" onclick="slsUpOpen()" style="display:none" title="저장 대기 중인 파일이 있습니다. 눌러서 확인·저장하세요."></button>
+          <button class="btn-teal" onclick="document.getElementById('slsFile').click()" title="출고장이 준 정산 엑셀을 고릅니다(여러 개 가능).&#10;고르면 확인·저장 창이 열립니다.&#10;출고장은 파일명에서 인식합니다 — 2026.07.11_평택.xlsx → 평택">📥 정산 엑셀</button>
         </div>
       </div>
-      <!-- 업로드 + 조회 + 그리드를 카드 하나로. 업로드는 한 줄, 파일이 없으면 얇은 바로만 남는다 -->
-      <div class="card">
+      <div class="card" style="padding-top:10px; padding-bottom:10px">
         <input type="file" id="slsFile" accept=".xlsx,.xls" multiple style="display:none" onchange="slsUpload(this)">
-        <div class="sls-bar">
-          <button class="btn-line" style="height:30px" onclick="document.getElementById('slsFile').click()">📁 파일 선택 (여러 개)</button>
-          <span style="font-size:12px;color:#9aa7b3">파일명에서 출고장 인식 — <b>2026.07.11_평택.xlsx</b> → 평택</span>
-          <span class="tipx" title="엑셀은 출고장 기준으로 쓰여 있어 우리 기준으로 뒤집어 담습니다.&#10;&#10;· 입고량   → 우리 출고량&#10;· 단가     → 우리 판매단가&#10;· 매입금액 → 우리 매출액&#10;· 입고일자 → 우리 출고일자&#10;&#10;※ 엑셀의 '매입금액'은 우리 매입이 아닙니다. 우리 매입가는 이 표와 무관하며&#10;   상품(품목)관리의 매입가 이력이 계속 담당합니다.">ℹ️ 관점 환산</span>
-          <span class="tipx" title="· 품목코드 없는 행(맨 아래 합계행)은 저장하지 않습니다.&#10;· 발주번호 병합셀은 빈 칸이면 위 값을 승계합니다(병합 밖 행은 자기 값 유지).&#10;· 수량은 소수·음수를 그대로 보존합니다(반품행 등).&#10;· 납품일자는 엑셀 값을 쓰고, 출고장만 파일명에서 인식합니다.">ℹ️ 읽는 규칙</span>
-          <span class="tipx" title="저장 단위 = (납품일자 + 출고장) 1배치.&#10;같은 배치를 다시 올리면 기존 자료를 이력마감(ACTION_YN='N')한 뒤 새로 적재합니다.&#10;→ 이전 자료는 지워지지 않고 이력으로 남습니다.">ℹ️ 저장 단위</span>
-          <span class="tipx" title="저장하면 판매단가가 판매가 이력(TBL_PROD_SALEPRICE_HST)에도 반영됩니다.&#10;적용일자 = 우리 출고일자.&#10;&#10;→ 매출마감의 출고단가가 (마스터) 추정가 대신 (이력) = 실제 확정 판매가로 잡힙니다.&#10;&#10;· 같은 품목·같은 날 단가가 서로 다르면 넣지 않고 건너뜁니다(추측하지 않음).&#10;· 상품마스터의 현재 판매가는 건드리지 않습니다.">ℹ️ 판매단가 이력 반영</span>
-          <span style="margin-left:auto"></span>
-          <span class="close-summary" id="slsUpSum" style="margin:0"></span>
-          <button class="btn-teal" style="height:30px" onclick="slsSave()">💾 저장</button>
-        </div>
-        <div id="slsUpWrap"></div>
-        <!-- 조회 = 한 줄. 오른쪽 빈 공간에 팁을 붙여 세로 공간을 그리드에 넘긴다 -->
-        <div class="sls-div"></div>
-        <div class="form-row" style="margin-bottom:0">
-          <div class="fld" style="flex:0 0 160px"><label>납품일자(시작)</label><input type="date" id="slsFrom"></div>
-          <div class="fld" style="flex:0 0 160px"><label>납품일자(종료)</label><input type="date" id="slsTo"></div>
-          <div class="fld" style="flex:0 0 150px"><label>출고장</label><input type="text" id="slsDc" placeholder="전체"></div>
-          <div class="fld" style="flex:0 0 180px"><label>품목코드/품목명</label><input type="text" id="slsItemCd" placeholder="전체 (부분검색)"></div>
-          <div class="fld" style="flex:0 0 110px; align-self:flex-end"><button class="btn-teal" style="width:100%" onclick="slsQuery()">조회</button></div>
-          <div class="fld" style="flex:0 0 auto; margin-left:auto; align-self:flex-end">
-            <div class="sls-bar" style="padding:0 0 4px">
-              <span class="tipx" title="· 진입 시 = 이번 달 1일 ~ 오늘&#10;· 엑셀 업로드 시 = 납품일자가 속한 달 전체(1일~말일)로 자동 셋팅&#10;· 출고장을 비우면 전체 조회">ℹ️ 조회기간 자동 셋팅</span>
-              <span class="tipx" title="목록은 25행씩 페이징합니다.&#10;상단 총합계는 현재 페이지가 아니라 조회된 전체 기준입니다.">ℹ️ 페이징 · 총합계</span>
-            </div>
+        <div class="form-row" style="margin-bottom:0; align-items:flex-end">
+          <div class="fld" style="flex:0 0 150px"><label>납품일자(시작)</label><input type="date" id="slsFrom"></div>
+          <div class="fld" style="flex:0 0 150px"><label>납품일자(종료)</label><input type="date" id="slsTo"></div>
+          <div class="fld" style="flex:0 0 130px"><label>출고장</label><input type="text" id="slsDc" placeholder="전체"></div>
+          <div class="fld" style="flex:0 0 170px"><label>품목코드/품목명</label><input type="text" id="slsItemCd" placeholder="전체 (부분검색)"></div>
+          <div class="fld" style="flex:0 0 90px"><button class="btn-teal" style="width:100%" onclick="ohQuery()">조회</button></div>
+          <div class="fld" style="flex:0 0 auto; margin-left:auto">
+            <span class="tipx" title="[관점 환산] 엑셀은 출고장 기준이라 우리 기준으로 뒤집어 담습니다.&#10;  입고량→우리 출고량 · 단가→우리 판매단가 · 매입금액→우리 매출액 · 입고일자→우리 출고일자&#10;  ※ 엑셀의 '매입금액'은 우리 매입이 아닙니다(우리 매입가는 상품관리가 담당).&#10;&#10;[읽는 규칙] 품목코드 없는 행(합계행)은 제외 · 발주번호 병합셀은 위 값 승계 · 수량은 소수/음수 보존 · 납품일자는 엑셀 값, 출고장만 파일명에서 인식.&#10;&#10;[저장 단위] (납품일자+출고장) 1배치. 같은 배치를 다시 올리면 기존 자료를 이력마감한 뒤 새로 적재(이전 자료는 이력으로 남음).&#10;&#10;[판매단가 이력] 저장 시 판매가 이력에도 반영(적용일자=납품일자=발주일자) → 매출마감 출고단가가 (마스터) 대신 (이력) 확정가로 잡힘. 같은 품목·같은 날 단가가 다르면 건너뜀.&#10;&#10;[조회기간] 진입 시=이번 달 1일~오늘 / 엑셀 업로드 시=납품일자가 속한 달 전체.&#10;&#10;[기간 기준] 납품일자(=발주일자)로 양쪽을 맞춥니다. 출고내역은 먼 지역이 하루 당겨 출고하므로 앞뒤 7일을 넉넉히 읽어 발주일자로 다시 거릅니다.&#10;&#10;[대사 규칙] ★발주일자 + 출고장 + 품목코드 로 짝을 맞춥니다(합계 대 합계).&#10;  · 출고는 사업장이 여럿이면 자동으로 합쳐집니다(정산서에 사업장 칸이 없음).&#10;  · 짝 없는 출고 = 미정산(보냈는데 청구 안 됨) / 짝 없는 정산 = 출고미상(보낸 적 없는데 청구됨).&#10;  · 발주번호는 발주현황표에 절반이 비어 있어 키로 쓰지 않습니다(참고 표시만).">ℹ️ 도움말</span>
           </div>
         </div>
-        <div class="close-summary" id="slsListSum">기간·출고장을 지정하고 [조회]를 누르세요. (비우면 전체)</div>
-        <div id="slsListWrap"></div>
-        <div class="close-pager" id="slsListPager"></div>
+        <div class="close-tabs" id="ohTabs" style="margin:6px 0 0">
+          <button type="button" class="ctab on" data-t="dc"     onclick="ohTab('dc')" title="원천: 정산서 ∪ 출고내역(합집합) — 한쪽만 있어도 줄이 생깁니다.&#10;한 줄 = 출고장 1곳. 왼쪽 「출고건수·출고수량」=발주현황표 / 오른쪽 「정산행수·정산수량·평균단가·정산금액」=정산서.">🏭 출고장별 합계</button>
+          <button type="button" class="ctab"    data-t="item"   onclick="ohTab('item')" title="원천: 정산서 ∪ 출고내역(합집합) · 품목축&#10;①에서 난 차이가 어느 품목 때문인지 찾습니다. 출고장 머리행을 눌러 접기/펼치기.">🧾 출고장 ▸ 품목</button>
+          <button type="button" class="ctab"    data-t="ship"   onclick="ohTab('ship')" title="원천: 출고내역(발주현황표) · 사업장축 · 출고수량 전용&#10;어느 점포로 얼마나 나갔나. 사업장 줄을 누르면 출고 원본행이 펼쳐집니다.&#10;&#10;※ 사업장별 정산금액은 만들지 않습니다.&#10;   정산서에 사업장 칸이 없어 쪼개면 추정이 되기 때문입니다.&#10;   금액은 ①출고장별 합계 · ②출고장▸품목 에서 보세요.&#10;&#10;맨 오른쪽 「정산 대사」는 배분이 아니라 사실입니다 —&#10;   대사됨: 이 행의 발주일자·출고장·품목코드가 정산서에 있음&#10;   미정산: 보냈는데 정산서에 없음(청구 누락 후보)">🏢 출고장 ▸ 사업장</button>
+          <button type="button" class="ctab"    data-t="settle" onclick="ohTab('settle')" title="원천: 정산서(TBL_SALES_MST) 단독&#10;출고장이 보낸 엑셀 원본 행 그대로. 「출고수량」 한 열만 대사로 붙였습니다.">📋 정산서 원본(엑셀)</button>
+          <span style="margin-left:auto"></span>
+          <button type="button" class="btn-line" id="ohAllBtn" style="height:30px;margin-bottom:2px" onclick="ohToggleAll()">⊟ 전체 접기</button>
+        </div>
+        <div class="close-summary" id="ohSum" style="margin:3px 0 2px; line-height:1.35">기간·출고장을 지정하고 [조회]를 누르세요. (비우면 전체)</div>
+        <div id="ohWrap"></div>
+        <div class="close-pager" id="ohPager"></div>
       </div>
     </section>
 
@@ -3844,6 +4240,32 @@
           <tr><td class="m">상품(품목)관리</td><td>품목 마스터 등록/수정. 품목 행 클릭 → 하단 <b>이력/재고</b> 패널에서 <b>매입가·판매가 이력</b> 등록(마스터 단가 자동 동기화)과 <b>재고 수불(입고·출고·조정·반품)</b> 등록. 입고 시 매입처·단가 입력.</td></tr>
           <tr><td class="m">재고현황</td><td><b>실시간</b> 전체 품목 현재고 = <b>입고(I·R·A) − 출고(O)</b>, <b>수불원장 단일 소스</b>. 출고(SHIPOUT)는 저장 시 원장에 O행 자동기록 → 재고현황·재고마감이 같은 값. 입고·출고·현재고·이동평균단가·재고금액·최근입출고. <b>기준일</b> 비움=전체(현재고)/날짜=그날까지 기말 → <b>마감월 말일로 맞추면 재고마감 기말과 대사</b>. 입고 없이 출고만 있으면 <b>음수</b>(입고 누락 신호). <b>①품목 행 클릭 → ②하단 수불내역(근거)</b> 그리드에 그 품목의 개별 입·출고 거래(일자·구분·수량·단가·금액·매입처·근거 등) 표시. <b>🔄 출고반영 재집계</b> 버튼=전체 출고를 원장에 일괄 반영(최초 1회/필요시, 마감월 제외).</td></tr>
           <tr><td class="m">입고내역</td><td>전체 품목 <b>입고(수불) 거래 목록</b> — 기간·검색·페이징·합계. (TBL_STOCK_LEDGER 입고분)</td></tr>
+          <tr><td class="m">매출내역</td><td><b>정산서(출고장이 준 엑셀)</b> + <b>출고내역(발주현황표)</b> 통합 화면. 정산서 = 출고장에 들어간 물품에 대해 <b>우리가 받을 금액</b>. 엑셀은 출고장 기준이라 <b>입고량→우리 출고량 · 단가→우리 판매단가 · 매입금액→우리 매출액</b> 으로 환산해 <b>TBL_SALES_MST</b> 에 저장(출고장은 파일명에서 인식·수정 가능, 저장 단위=(납품일자+출고장) 1배치, 재업로드 시 기존 배치 이력마감 후 대체). 저장 시 판매단가를 <b>판매가 이력</b>(적용일자=납품일자=발주일자)에 함께 반영 → <b>매출마감 출고단가가 (마스터) 대신 (이력) 실제 확정가</b>로 잡힌다.
+            <div style="margin:8px 0 4px;font-weight:800;color:#137a6c">조회 4탭 — 무엇을 보는 표인가</div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead><tr style="background:#eaf3f1;color:#137a6c">
+                <th style="padding:5px 7px;border:1px solid #dfe6e3;width:150px">탭</th>
+                <th style="padding:5px 7px;border:1px solid #dfe6e3;width:150px">한 줄 = 무엇</th>
+                <th style="padding:5px 7px;border:1px solid #dfe6e3">열 구성과 읽는 법</th></tr></thead>
+              <tbody>
+                <tr><td style="padding:5px 7px;border:1px solid #dfe6e3"><b>🏭 출고장별 합계</b><div style="color:#9aa7b3">기본 탭</div></td>
+                    <td style="padding:5px 7px;border:1px solid #dfe6e3">출고장 1곳</td>
+                    <td style="padding:5px 7px;border:1px solid #dfe6e3">왼쪽 <b>출고건수·출고수량</b>=발주현황표(우리가 실제로 내보낸 것) / 오른쪽 <b>정산행수·정산수량·평균단가·정산금액</b>=출고장이 인정한 것. <b>수량차이 = 출고수량 − 정산수량</b>이라 <b>0이면 정상</b>, <span style="color:#c0392b">양수면 보낸 만큼 정산 안 됨</span>, 음수면 정산이 더 많음. <b>정산금액 = 그 출고장에서 받을 금액</b>. 상태: <b>일치 / 차이 / 정산 미도착</b>(출고는 있는데 엑셀이 아직) <b>/ 출고내역 없음</b>(정산만 있고 발주현황표가 없음). 출고장명에 마우스를 올리면 두 표의 원래 표기(<code>평택</code> / <code>평택물류센터</code>)가 보인다.</td></tr>
+                <tr><td style="padding:5px 7px;border:1px solid #dfe6e3"><b>🧾 출고장 ▸ 품목</b></td>
+                    <td style="padding:5px 7px;border:1px solid #dfe6e3">출고장 안의 품목 1개<div style="color:#9aa7b3">(여러 출고행을 합침)</div></td>
+                    <td style="padding:5px 7px;border:1px solid #dfe6e3">①에서 차이가 났을 때 <b>어느 품목 때문인지</b> 찾는 표. 출고장 머리행을 누르면 접기/펼치기(우측 <b>⊟ 전체 접기</b>로 일괄). 품목별 <b>출고수량 · 정산수량 · 차이 · 판매단가 · 정산금액</b>, 머리행은 그 출고장 소계.</td></tr>
+                <tr><td style="padding:5px 7px;border:1px solid #dfe6e3"><b>🏢 출고장 ▸ 사업장</b></td>
+                    <td style="padding:5px 7px;border:1px solid #dfe6e3">출고장 안의 사업장(점포) 1곳<div style="color:#9aa7b3">→ 펼치면 출고 원본행</div></td>
+                    <td style="padding:5px 7px;border:1px solid #dfe6e3"><b>어느 점포로 얼마나 나갔나</b>를 보는 표. ②가 품목축이면 이쪽은 사업장축. <b>출고수량 전용이고 금액은 없다.</b> 사업장 줄을 누르면 그 밑에 <b>출고 원본행</b>(품목·발주번호·항번·출고일자)이 펼쳐진다. 출고일자 옆 <b style="color:#c47f17">*</b> = 발주일자와 다른 날(먼 지역 선출고).
+                      <div style="margin-top:5px"><b style="color:#c47f17">★사업장별 정산금액은 만들지 않는다</b> — 정산서는 <b>발주</b> 단위, 출고는 <b>발주 × 사업장</b> 단위라 <b>1:N</b>이다(실측: 출고 572행이 발주번호+항번 352개 / 정산서는 105행=105키로 1:1). 정산서에 사업장 칸이 없으니 사업장으로 쪼개면 어떤 방식이든 <b>추정</b>이 된다. 금액은 ①②에서 본다.</div>
+                      <div style="margin-top:4px">맨 오른쪽 <b>「정산 대사」</b>는 배분이 아니라 <b>사실</b>이다 — <span style="color:#137a6c">대사됨</span>(이 행의 <b>발주일자·출고장·품목코드</b>가 정산서에 있음) / <span style="color:#c0392b">미정산</span>(보냈는데 정산서에 없음 = 청구 누락 후보).</div></td></tr>
+                <tr><td style="padding:5px 7px;border:1px solid #dfe6e3"><b>📋 정산서 원본(엑셀)</b></td>
+                    <td style="padding:5px 7px;border:1px solid #dfe6e3">정산서 엑셀 1행</td>
+                    <td style="padding:5px 7px;border:1px solid #dfe6e3">출고장이 보낸 엑셀을 <b>손대지 않은 원본 그대로</b>. 납품일자·출고장·발주번호·항번·품목·발주량·정산수량·판매단가·정산금액·원본파일 + 짝이 되는 <b>출고수량</b> 열. 출고내역에 짝이 없으면 <span style="color:#c0392b">출고미상</span> = <b>보낸 적 없는데 정산에 올라온 행</b>이니 반드시 확인.</td></tr>
+              </tbody>
+            </table>
+            <div style="margin-top:6px"><b style="color:#c47f17">★①②는 '정산서 기준'이 아니다</b> — 정산서와 출고내역의 <b>합집합</b>이라 <b>한쪽만 있어도 줄이 생긴다</b>. 그래야 <b>정산 미도착</b>(출고만 있음)과 <b>출고내역 없음</b>(정산만 있음)을 잡아낸다. 정산서 단독 화면은 ④뿐이고, ③은 사업장이 정산서에 없으므로 출고내역 기준이다. 각 탭 위에 원천이 한 줄로 표시된다.</div>
+            <div style="margin-top:6px">공통 규칙 — 짝 맞추기는 <b style="color:#137a6c">발주일자 + 출고장 + 품목코드</b>이며 <b>행 대 행이 아니라 합계 대 합계</b>다. 출고는 사업장이 여럿이면 자동으로 합쳐진다(정산서에 사업장 칸이 없으므로 이 단위가 정산서의 자연 단위다). <b>발주번호는 키로 쓰지 않는다</b> — 발주현황표에 절반이 비어 있어(원본이 그렇다) 그만큼 영영 대사가 안 되기 때문. 화면에는 참고로만 표시한다. 기간은 <b>납품일자(=발주일자)</b> 기준. 출고내역은 출고일자로만 조회되는데 <b>먼 지역은 발주분을 하루 당겨 출고</b>하므로 앞뒤 7일을 넉넉히 읽어 발주일자로 다시 걸러 양쪽 기간을 맞춘다. 출고장 이름은 <b>정산서는 '평택', 발주현황표는 '평택물류센터'</b> 라서 <b>'(물류)센터·출고장·끝숫자'를 떼고 같은 곳으로 묶는다</b>. 수량은 소수·음수(반품)를 그대로 두고 금액만 반올림한다.</div></td></tr>
           <tr><td class="m">물품동선관리 <span style="color:#9aa7b3;font-size:11px">(예정·데모)</span></td><td>창고/로케이션·입고등록(창고선정)·창고별 재고현황·재고/위치조회·출고지시 — 물품 이동(입고→위치→피킹→출고) 데모 화면. 향후 실데이터 연동 예정.</td></tr>
         </tbody></table>
       </div>
@@ -3863,8 +4285,7 @@
       <div class="g-sec">
         <h3>4. 정산 · 시스템</h3>
         <table><tbody>
-          <tr><td class="m">매출 엑셀 업로드</td><td>출고장이 준 엑셀(발주번호·발주항번·품목·입고량·단가·매입금액)을 <b>TBL_SALES_MST</b> 에 저장. 엑셀은 출고장 기준이라 <b>입고량→우리 출고량 · 단가→우리 판매단가 · 매입금액→우리 매출액</b> 으로 환산해 담는다. 출고장은 파일명에서 인식(수정 가능). 저장 단위=(납품일자+출고장) 1배치, 재업로드 시 기존 배치 이력마감 후 대체. 저장 시 판매단가를 <b>판매가 이력</b>(적용일자=출고일자)에 함께 반영 → <b>매출마감 출고단가가 (마스터) 대신 (이력) 실제 확정가</b>로 잡힌다.</td></tr>
-          <tr><td class="m">견적서관리 <span style="color:#9aa7b3;font-size:11px">(예정)</span></td><td>견적서 작성 · 목록/조회 · 출력(PDF/엑셀). 향후 추진 예정.</td></tr>
+          <tr><td class="m">견적서관리 <span style="color:#9aa7b3;font-size:11px">(예정)</span></td><td>견적서 작성 · 목록/조회 · 출력(PDF/엑셀). 향후 추진 예정. <span style="color:#9aa7b3">(※ 매출 엑셀 업로드는 성격이 정산이라 <b>매입·재고관리 ▸ 출고내역</b>으로 옮겼습니다.)</span></td></tr>
           <tr><td class="m">카카오톡문자관리 <span style="color:#9aa7b3;font-size:11px">(협의후 예정)</span></td><td>메시지 발송 · 발송 이력 · 문자 템플릿 관리 — 거래처 대상 카카오톡 알림톡/SMS 발송·이력. 구현 범위(발송연동/이력관리/템플릿)는 <b>협의 후 진행</b>.</td></tr>
           <tr><td class="m">수금 / 미수금</td><td>거래처×귀속월 <b>미수금 현황</b> — 전월이월·당월매출·당월수금·미수잔액. CRUD·조회·<b>엑셀 업로드/출력</b>·페이징. <b>🔄 전월이월 가져오기</b>(전월 미수잔액→당월). <b>🔒 마감 확정/해제</b>(확정 시 해당 월 수정잠금+다음달 전월이월 자동반영). (TBL_RECEIVE_MST)</td></tr>
           <tr><td class="m">출금 / 미지급</td><td>매입처×귀속월 <b>미지급금 현황</b> — 전월이월·당월매입·당월출금·미지급잔액. CRUD·조회·<b>엑셀 업로드/출력</b>·페이징. <b>🔄 전월이월 가져오기</b>·<b>🔒 마감 확정/해제</b>(월 확정=수정잠금+자동이월, 해제 가능). (TBL_PAYMENT_MST)</td></tr>
@@ -3901,33 +4322,38 @@
 
     <!-- ===== 재고현황 (전체 품목 현재고) ===== -->
     <section id="panel-stockStatus" class="panel">
-      <div class="logi-head">
-        <div><h2>재고현황 <span class="badge b-done">현재고</span></h2>
-          <div class="sub">전체 품목 실시간 현재고 = 입고(수불원장) − 출고(SHIPOUT). 수불/출고 등록 시 자동 갱신됩니다.</div></div>
+      <!-- 상단은 제목줄 + 조회줄 2줄만. 설명·경고는 전부 hover(title)로 뺐다 -->
+      <div class="logi-head" style="margin-bottom:8px">
+        <div><h2 style="margin:0">재고현황 <span class="badge b-done">현재고</span>
+          <span style="font-size:12px;font-weight:400;color:#9aa7b3;margin-left:6px">입고(수불원장) − 출고(SHIPOUT) · 실시간 자동갱신</span></h2></div>
         <div class="actions">
-          <span style="font-size:12.5px;color:#8a97a3;text-align:right;line-height:1.5;align-self:center;white-space:nowrap">실시간 집계라 <b style="color:#b06a00">출고량 재집계는 평소 필요 없습니다.</b><br>부득이한 경우에만 실행 &nbsp;→</span>
-          <button class="btn-line" onclick="stkRebuild()" title="실시간 자동집계라 평소엔 불필요. 과거 SHIPOUT 최초 반영/보정 등 부득이한 경우에만 실행">🔄 출고반영 재집계</button>
+          <button class="btn-line" onclick="stkRebuild()" title="※ 평소에는 누를 필요가 없습니다.&#10;수불/출고 등록 시 실시간으로 자동집계되기 때문입니다.&#10;&#10;과거 SHIPOUT 최초 반영·보정 등 부득이한 경우에만 실행하세요.&#10;(마감 확정된 달은 제외됩니다)">🔄 출고반영 재집계</button>
           <button class="btn-teal" onclick="stkStatusLoad()">↻ 새로고침</button>
         </div>
       </div>
-      <div class="card">
-        <div class="form-row">
-          <div class="fld" style="flex:0 0 320px"><label>검색(품목코드/품목명)</label><input id="stkSrch" placeholder="검색어 입력" onkeyup="if(event.keyCode===13)stkStatusLoad()"></div>
-          <div class="fld" style="flex:0 0 180px"><label>기준일 <span style="color:#9aa7b3;font-weight:400">(비우면 전체)</span></label><input type="date" id="stkAsOf" onchange="stkStatusLoad()"></div>
-          <div class="fld" style="flex:0 0 70px; align-self:flex-end"><button class="btn-line" style="width:100%" onclick="stkAsOfClear()">전체</button></div>
-          <div class="fld" style="flex:0 0 100px; align-self:flex-end"><button class="btn-teal" style="width:100%" onclick="stkStatusLoad()">조회</button></div>
-          <div style="margin-left:auto; align-self:flex-end; text-align:right; font-size:12px; color:#6b7a89; line-height:1.35">집계일시<br><b id="stkStamp" style="color:#178074; font-size:12.5px">—</b></div>
+      <div class="card" style="padding-top:12px">
+        <div class="form-row" style="margin-bottom:0; align-items:flex-end">
+          <div class="fld" style="flex:0 0 300px"><label>검색(품목코드/품목명)</label><input id="stkSrch" placeholder="검색어 입력" onkeyup="if(event.keyCode===13)stkStatusLoad()"></div>
+          <div class="fld" style="flex:0 0 170px"><label>기준일 <span style="color:#9aa7b3;font-weight:400">(비우면 전체)</span></label><input type="date" id="stkAsOf" onchange="stkStatusLoad()"></div>
+          <div class="fld" style="flex:0 0 70px"><button class="btn-line" style="width:100%" onclick="stkAsOfClear()">전체</button></div>
+          <div class="fld" style="flex:0 0 90px"><button class="btn-teal" style="width:100%" onclick="stkStatusLoad()">조회</button></div>
+          <div class="fld" style="flex:0 0 auto; margin-left:auto">
+            <span class="tipx" title="[현재고] = 입고(I·R·A) − 출고(O). 수불원장(TBL_STOCK_LEDGER) 단일 소스라 재고마감과 같은 값입니다.&#10;출고는 발주현황표 저장 시 원장에 자동 기록되므로 따로 넣지 않아도 됩니다.&#10;&#10;[기준일] 비우면 전체(=지금 현재고) / 날짜를 넣으면 그날까지의 기말.&#10;  → 마감월 말일로 맞추면 재고마감 기말과 대사됩니다.&#10;&#10;[음수 현재고] 입고 없이 출고만 있다는 뜻 = 입고 누락 신호입니다(오류가 아니라 알림).&#10;&#10;[② 수불 내역] ① 표에서 품목 행을 클릭하면 그 품목을 이루는 개별 입·출고 거래가 아래에 나옵니다.">ℹ️ 도움말</span>
+          </div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:2px 0 8px">
-          <div style="font-weight:800;font-size:14px;color:#1f2a37;border-left:4px solid var(--logi-teal);padding-left:9px">① 품목별 현재고 <span style="font-weight:400;font-size:12px;color:#9aa7b3;margin-left:6px">TBL_STOCK_MST 집계 · 입고 − 출고 = 현재고</span></div>
-          <span style="font-size:11.5px;color:#9aa7b3;white-space:nowrap">품목 행 클릭 → 아래 ② 수불 내역(근거)</span>
+        <!-- ① 제목 · 요약 · 상태를 한 줄에. stkStatusSum 은 JS가 통째로 덮어쓰므로 형제로 분리해 둔다 -->
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 4px">
+          <span style="font-weight:800;font-size:13.5px;color:#1f2a37;border-left:4px solid var(--logi-teal);padding-left:9px;white-space:nowrap">① 품목별 현재고</span>
+          <span class="close-summary" id="stkStatusSum" style="margin:0">[조회] 또는 [새로고침]을 누르세요.</span>
+          <span style="margin-left:auto;font-size:11.5px;color:#9aa7b3;white-space:nowrap">
+            <b id="stkAsOfLbl" style="color:#178074">전체 (현재고)</b> · 집계 <b id="stkStamp" style="color:#178074">—</b> · 행 클릭 → ② 수불내역
+          </span>
         </div>
-        <div class="close-summary" id="stkStatusSum">[조회] 또는 [새로고침]을 누르세요. <span id="stkAsOfLbl" style="margin-left:8px;color:#178074;font-weight:700">전체 (현재고)</span></div>
-        <div id="stkStatusWrap" style="max-height:40vh; overflow:auto"></div>
+        <div id="stkStatusWrap" style="max-height:46vh; overflow:auto"></div>
         <div class="close-pager" id="stkStatusPager"></div>
       </div>
-      <div class="card" style="margin-top:12px">
-        <div style="font-weight:800;font-size:14px;color:#1f2a37;margin:2px 0 4px;border-left:4px solid #b06a00;padding-left:9px">② 선택 품목 수불 내역 <span class="badge b-done" style="margin-left:4px">근거</span> <span style="font-weight:400;font-size:12px;color:#9aa7b3;margin-left:6px">TBL_STOCK_LEDGER · 이 품목을 이루는 개별 입·출고 거래(현재고의 근거)</span></div>
+      <div class="card" style="margin-top:10px">
+        <div style="font-weight:800;font-size:13.5px;color:#1f2a37;margin:2px 0 4px;border-left:4px solid #b06a00;padding-left:9px">② 선택 품목 수불 내역 <span class="badge b-done" style="margin-left:4px">근거</span> <span style="font-weight:400;font-size:11.5px;color:#9aa7b3;margin-left:6px" title="TBL_STOCK_LEDGER — 이 품목을 이루는 개별 입·출고 거래">현재고의 근거</span></div>
         <div id="stkLedgerHead" style="color:#6b7a89;padding:8px 2px 10px">위 ① 표에서 <b>품목을 클릭</b>하면 그 품목의 수불 내역이 여기에 표시됩니다.</div>
         <div id="stkLedgerBody" style="max-height:210px; overflow:auto"></div>
       </div>
@@ -4234,19 +4660,25 @@
 
     <!-- ===== 입고내역 ===== -->
     <section id="panel-inboundList" class="panel">
-      <div class="logi-head"><div><h2>입고내역 <span class="badge b-done">수불</span></h2><div class="sub">전체 품목 입고(수불) 거래 목록(TBL_STOCK_LEDGER, 입고). 상품관리 ▸ 재고 탭 입고 등록분.</div></div>
-        <div class="actions"><button class="btn-teal" onclick="inboundListLoad()">↻ 새로고침</button></div></div>
-      <div class="card">
-        <div class="form-row">
-          <div class="fld" style="flex:0 0 160px"><label>시작일자</label><input type="date" id="inbFrom"></div>
-          <div class="fld" style="flex:0 0 160px"><label>종료일자</label><input type="date" id="inbTo"></div>
-          <div class="fld" style="flex:0 0 260px"><label>검색(품목/매입처)</label><input id="inbSrch" placeholder="검색어" onkeyup="if(event.keyCode===13)inboundListLoad()"></div>
-          <div class="fld" style="flex:0 0 100px; align-self:flex-end"><button class="btn-teal" style="width:100%" onclick="inboundListLoad()">조회</button></div>
+      <!-- 상단은 제목줄 + 조회줄 2줄만. 설명은 hover(title)로 뺐다 -->
+      <div class="logi-head" style="margin-bottom:8px">
+        <div><h2 style="margin:0">입고내역 <span class="badge b-done">수불</span>
+          <span style="font-size:12px;font-weight:400;color:#9aa7b3;margin-left:6px">전체 품목 입고(수불) 거래 · 최신순</span></h2></div>
+        <div class="actions"><button class="btn-teal" onclick="inboundListLoad()">↻ 새로고침</button></div>
+      </div>
+      <div class="card" style="padding-top:12px">
+        <div class="form-row" style="margin-bottom:0; align-items:flex-end">
+          <div class="fld" style="flex:0 0 150px"><label>시작일자</label><input type="date" id="inbFrom"></div>
+          <div class="fld" style="flex:0 0 150px"><label>종료일자</label><input type="date" id="inbTo"></div>
+          <div class="fld" style="flex:0 0 250px"><label>검색(품목/매입처)</label><input id="inbSrch" placeholder="검색어" onkeyup="if(event.keyCode===13)inboundListLoad()"></div>
+          <div class="fld" style="flex:0 0 90px"><button class="btn-teal" style="width:100%" onclick="inboundListLoad()">조회</button></div>
+          <div class="fld" style="flex:0 0 auto; margin-left:auto">
+            <span class="tipx" title="[원천] 재고 수불원장(TBL_STOCK_LEDGER) 중 입고(IO_GB='I') 거래만 최신순으로.&#10;&#10;[등록하는 곳] 상품(품목)관리 ▸ 품목 행 클릭 ▸ 하단 재고 탭에서 입고를 등록하면 여기에 나옵니다.&#10;  (이 화면은 조회 전용입니다)&#10;&#10;[기간] 비우면 전체입니다.&#10;&#10;[출고는 안 나옵니다] 출고는 발주현황표에서 자동 기록되며 재고현황·매출내역에서 봅니다.">ℹ️ 도움말</span>
+          </div>
         </div>
-        <div class="close-summary" id="inbSum">[조회] 또는 [새로고침]을 누르세요.</div>
+        <div class="close-summary" id="inbSum" style="margin:10px 0 4px">[조회] 또는 [새로고침]을 누르세요.</div>
         <div id="inbWrap"></div>
         <div class="close-pager" id="inbPager"></div>
-        <div class="note">※ 입고내역: 재고 수불원장 중 입고(IO_GB='I') 거래를 최신순으로. 기간 미지정 시 전체.</div>
       </div>
     </section>
 
