@@ -457,6 +457,15 @@
     if(f) f.value=ym+'-01';
     if(t) t.value=ym+'-'+('0'+last).slice(-2);
   }
+  /* 그리드 한 페이지 행수 — 공통(2026-07-22 요청).
+     25행이면 표가 화면 아래로 넘어가 페이지를 스크롤해야 했다. 18행이 한 화면 기준(2026-07-22 사용자 확정).
+     쓰는 곳 : 매출내역 4탭(OH_ROWS) · 입고내역(INB_PAGE) · 재고현황(STK_PAGE)
+              · 마감관리 — 매출마감 품목탭(SALES_PAGE)·출고장탭(행단위) / 매입마감(COST_ROWS)
+                / 재고마감(STOCK_ROWS) / 마감현황(STAT_ROWS)
+     ※ SALES_PAGE_G(12)만 예외 — '행'이 아니라 '그룹(사업장) 개수' 단위 페이징이라
+       18로 올리면 한 페이지 행수가 오히려 폭증한다. 그대로 둔다. */
+  var KONET_GRID_ROWS = 18;
+
   // ── 마감 집계: 출고(TBL_SHIPOUT_MST) × 단가이력/마스터 → 화면별 재집계 ──
   function _cnum(v){ return (v==null||v==='')?'0':Math.round(Number(v)).toLocaleString(); }
   function _cesc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -511,7 +520,7 @@
       .catch(function(e){ swAlert('통신오류: '+e.message,'error'); });
   }
   // ── 재고마감: 2탭(매입처별/품목) + 소계·접기펼치기 + 행 페이징 ──
-  var _stockRows=[], _stockTab='vendor', _stockPage=1, STOCK_ROWS=25, _stockCollapsed={}, _stockAllCollapsed=false;
+  var _stockRows=[], _stockTab='vendor', _stockPage=1, STOCK_ROWS=KONET_GRID_ROWS, _stockCollapsed={}, _stockAllCollapsed=false;
   function stockYmSync(){
     var ym=(document.getElementById('closeStockYm')||{}).value||''; if(!ym) return;
     var y=+ym.slice(0,4), m=+ym.slice(5,7), last=new Date(y,m,0).getDate();
@@ -584,7 +593,7 @@
     pg.innerHTML=h;
   }
   // ── 매출마감: 3탭(출고장별/사업장별/품목) + 총합계·소계·접기펼치기·페이징 ──
-  var _salesRows=[], _salesTab='zone', _salesPage=1, SALES_PAGE=20, SALES_PAGE_G=12, _salesCollapsed={};
+  var _salesRows=[], _salesTab='zone', _salesPage=1, SALES_PAGE=KONET_GRID_ROWS, SALES_PAGE_G=12, _salesCollapsed={};
   var CLOSE_DCGROUP={ 'E200':'오산센터','E400':'오산센터','E300':'오산센터','E600':'오산센터','E700':'오산센터' };   // 대시보드1과 동일
   function _zoneGroup(r){   // 출고장(대표) = 물류센터 그룹 (대시보드1 참조)
     var dcCd=(''+(r.dcCd||'')).trim(), dcNm=(''+(r.dcNm||'')).trim();
@@ -699,7 +708,7 @@
       });
       sum.innerHTML='총 <b>'+L1.length+'</b>대표출고장 · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 순마진 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>'+_salesQNote();
       // 표시행(rows) = 대표헤더 + 개별출고장헤더 + 품목행 (접힘 반영). 품목행 포함 '행 단위' 페이징
-      var ROWS_PAGE=25, rowsZ=[];
+      var ROWS_PAGE=KONET_GRID_ROWS, rowsZ=[];
       L1.forEach(function(g1,i1){
         rowsZ.push({t:'l1',i1:i1});
         if(_salesCollapsed['z1#'+i1]) return;
@@ -774,7 +783,7 @@
     pg.innerHTML=h;
   }
   // ── 매입(입고)마감: 매입처 그룹 + 소계·접기펼치기 + 행 페이징 ──
-  var _costRows=[], _costPage=1, COST_ROWS=25, _costCollapsed={}, _costAllCollapsed=false;
+  var _costRows=[], _costPage=1, COST_ROWS=KONET_GRID_ROWS, _costCollapsed={}, _costAllCollapsed=false;
   function costYmSync(){
     var ym=(document.getElementById('closeCostYm')||{}).value||''; if(!ym) return;
     var y=+ym.slice(0,4), m=+ym.slice(5,7), last=new Date(y,m,0).getDate();
@@ -823,7 +832,7 @@
     pg.innerHTML=h;
   }
   // ── 마감현황(월계표): 3탭(출고장별 2단트리/사업장별/품목별) + 접기·페이징 ──
-  var _statRows=[], _statTab='zone', _statPage=1, STAT_ROWS=25, _statCollapsed={}, _statAllCollapsed=false;
+  var _statRows=[], _statTab='zone', _statPage=1, STAT_ROWS=KONET_GRID_ROWS, _statCollapsed={}, _statAllCollapsed=false;
   function _statCells(q,s,c,m){ var rate=s?(m/s*100):0;
     return '<td style="text-align:right">'+_cnum(q)+'</td><td style="text-align:right">'+_cnum(s)+'</td><td style="text-align:right">'+_cnum(c)+'</td>'
       +'<td style="text-align:right;font-weight:700;color:'+(m<0?'#c0392b':'#137a6c')+'">'+_cnum(m)+'</td><td style="text-align:right">'+rate.toFixed(1)+'%</td>'; }
@@ -1008,7 +1017,7 @@
     if(typeof closeLoad==='function') closeLoad('status');
   }
   // ── 입고내역 (전체 입고 거래) ──
-  var _inbRows=[], _inbPage=1, INB_PAGE=25;
+  var _inbRows=[], _inbPage=1, INB_PAGE=KONET_GRID_ROWS;
   function inbInit(){   // 진입 시 기본 기간 = 이번 달 1일 ~ 오늘 (비어있을 때만)
     var f=document.getElementById('inbFrom'), t=document.getElementById('inbTo'), d=new Date();
     var ym=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);
@@ -1048,7 +1057,7 @@
     h+='<button '+(_inbPage>=pages?'disabled':'')+' onclick="inboundListGo('+(_inbPage+1)+')">›</button>'; pg.innerHTML=h;
   }
   // ── 재고현황 (전체 품목 현재고) ──
-  var _stkRows=[], _stkPage=1, STK_PAGE=25;
+  var _stkRows=[], _stkPage=1, STK_PAGE=KONET_GRID_ROWS;
   function _fmtYmd(s){ s=(''+(s||'')); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : s; }
   function stkStatusLoad(){
     var q=(document.getElementById('stkSrch')||{}).value||'', ctx='${pageContext.request.contextPath}';
@@ -3202,16 +3211,99 @@
   var _slsFiles=[];   // [{name, dcNm, rows:[...], err}]
   var _slsDone={};    // 이미 반영된 파일명 → {uploadDttm, dcNm}
 
-  /* 출고장명 → 물류센터코드(DC_CD). 정산 엑셀에는 코드가 없고 파일명에 지역명만 있어서
-     저장할 때 여기서 붙여준다(2026-07-22 요청). TBL_SHIPOUT_MST 실데이터로 확인한 대응이다.
-       E100 용인 / E200 왜관 / E300 김해 / E400 광주 / E500 평택 / E600 제주 / E700 오산
-     (거래처 대응: 00273/00275/00274/00276/00272/00277/00278 — TBL_VENDOR_MST) */
-  var SLS_DCCD={ '용인':'E100', '왜관':'E200', '김해':'E300', '광주':'E400', '평택':'E500', '제주':'E600', '오산':'E700' };
-  // '평택'·'평택물류센터'·'평택 1' 어느 표기로 적어도 코드가 나오게
-  function slsDcCd(nm){
-    var v=(''+(nm==null?'':nm)).replace(/\s+/g,'');
-    v=v.replace(/\d+$/,'').replace(/(물류)?센터$/,'').replace(/출고장$/,'').replace(/\d+$/,'');
-    return SLS_DCCD[v]||'';
+  /* ══════════════════════════════════════════════════════════════════════════
+     출고장(물류센터) 코드 ↔ 지역명 — 이 화면들의 단일 원천 (2026-07-22 통합)
+       근거 = TBL_SHIPOUT_MST 실데이터의 DC_CD ↔ DC_NM
+       거래처(TBL_VENDOR_MST) 대응 = E100:00273 E200:00275 E300:00274 E400:00276
+                                     E500:00272 E600:00277 E700:00278
+
+     ★센터가 추가·변경되면 아래 KONET_DC 한 곳만 고치면 된다.
+       (종전에는 이름→코드 / 코드→이름 두 표와 정규화 로직이 따로 있어,
+        한쪽만 고치면 조용히 어긋났다)
+     ※ 대시보드·매출마감의 '오산센터 묶음'(CLOSE_DCGROUP / SS_DCGROUP)은
+       성격이 다른 표(물류 동선용 그룹)이므로 여기와 합치지 않는다.
+     ══════════════════════════════════════════════════════════════════════════ */
+  var KONET_DC = { E100:'용인', E200:'왜관', E300:'김해', E400:'광주', E500:'평택', E600:'제주', E700:'오산' };
+  var KONET_DC_R = (function(){ var r={}; for(var c in KONET_DC){ r[KONET_DC[c]]=c; } return r; })();   // 지역명→코드 (자동 생성)
+
+  // 표기 통일 : '평택물류센터'·'평택 1'·'평택출고장' → '평택'
+  //   두 표가 서로 다르게 적는다 — 정산서는 파일명 유래 '평택', 발주현황표는 '평택물류센터'
+  function konetDcShort(s){
+    var v=(''+(s==null?'':s)).replace(/\s+/g,'');
+    return v.replace(/\d+$/,'').replace(/(물류)?센터$/,'').replace(/출고장$/,'').replace(/\d+$/,'');
+  }
+  function konetDcCd(nm){ return KONET_DC_R[konetDcShort(nm)] || ''; }        // 이름 → 코드
+  function konetDcNmOf(r){                                                     // 행 → 지역명 (DC_CD 우선)
+    var cd=(''+((r&&r.dcCd)||'')).trim().toUpperCase();
+    return KONET_DC[cd] || konetDcShort(r&&r.dcNm);
+  }
+
+  // 아래 3개는 기존 호출부 유지를 위한 얇은 별칭 — 실제 규칙은 위 4개 함수에만 있다
+  function slsDcCd(nm){ return konetDcCd(nm); }     // 정산 엑셀 저장 시 DC_CD 채우기
+  function _ohDc(s){ return konetDcShort(s); }      // 이름만 정규화
+  function _ohDcOf(r){ return konetDcNmOf(r); }     // 대사 출고장키
+  // 지역명 → 대시보드 물류센터 묶음 라벨 (매출마감 CLOSE_DCGROUP 재사용). 매출내역 4탭 공통(2026-07-22)
+  function _ohDcGrp(dc){ return CLOSE_DCGROUP[KONET_DC_R[dc]||''] || dc; }
+
+  /* 출고장 다중선택 드롭다운 — 데시보드1(D2_DCSEL/.dc-pop)과 같은 방식(2026-07-22).
+     자유 입력이면 '평택물류센터'처럼 잘못 적어 0건이 나와도 이유를 모른다.
+     1단 = 대표출고장(묶음) / 2단 = 개별 출고장. 둘 다 체크 가능하고, 아무것도 안 고르면 전체.
+     ★목록은 KONET_DC 가 아니라 '조회된 자료에 실제로 있는 출고장'으로 만든다 —
+       없는 곳을 고르면 0건이 나와 혼란스럽기 때문(대시보드도 dcAll 로 같은 방식). */
+  var _ohDcSel={};   // { '오산센터':1, '평택':1 } — 비어 있으면 전체
+  function ohDcOpen(ev){ if(ev) ev.stopPropagation(); var p=document.getElementById('ohDcPop'); if(p) p.classList.toggle('open'); }
+  function ohDcToggle(k){ if(_ohDcSel[k]) delete _ohDcSel[k]; else _ohDcSel[k]=1; ohDcApply(); }
+  function ohDcAll(){ _ohDcSel={}; ohDcApply(); }
+  /* 선택을 화면에 반영 — 서버 재조회 없이 즉시. 원본(_ohSalesAll/_ohShipAll)은 그대로 두고
+     걸러낸 결과만 _ohSales/_ohShip 에 담는다(집계 함수들이 이 둘을 본다). */
+  function ohDcApply(){
+    _ohSales=(_ohSalesAll||[]).filter(function(r){ return _ohDcHit(_ohDcOf(r)); });
+    _ohShip =(_ohShipAll ||[]).filter(function(r){ return _ohDcHit(_ohDcOf(r)); });
+    _ohPage=1; ohDcSync(); ohRender();
+  }
+  document.addEventListener('click', function(e){
+    var w=document.getElementById('ohDcWrap'), p=document.getElementById('ohDcPop');
+    if(p && p.classList.contains('open') && w && !w.contains(e.target)) p.classList.remove('open');
+  });
+  // 조회 자료에서 (묶음 → 개별) 목록을 뽑아 드롭다운·라벨을 다시 그린다
+  function ohDcSync(){
+    var pop=document.getElementById('ohDcPop'), lbl=document.getElementById('ohDcLbl');
+    if(!pop) return;
+    var grp={}, ord=[];
+    // ★목록은 '선택 전 원본'으로 만든다 — 걸러진 결과로 만들면 한 곳을 고른 순간 나머지가 사라져 되돌릴 수 없다
+    (_ohSalesAll||[]).concat(_ohShipAll||[]).forEach(function(r){
+      var dc=_ohDcOf(r); if(!dc) return;
+      var g=_ohDcGrp(dc);
+      if(!grp[g]){ grp[g]={}; ord.push(g); }
+      grp[g][dc]=1;
+    });
+    ord.sort(function(a,b){ return a.localeCompare(b,'ko'); });
+    // 사라진 선택은 정리 (기간을 바꿔 그 출고장이 없어졌을 때)
+    var live={}; ord.forEach(function(g){ live[g]=1; Object.keys(grp[g]).forEach(function(k){ live[k]=1; }); });
+    Object.keys(_ohDcSel).forEach(function(k){ if(!live[k]) delete _ohDcSel[k]; });
+    var n=Object.keys(_ohDcSel).length;
+    if(lbl) lbl.textContent = n===0 ? '전체' : (n===1 ? Object.keys(_ohDcSel)[0] : n+'곳 선택');
+    var h='<label class="all'+(n===0?' on':'')+'"><input type="checkbox"'+(n===0?' checked':'')
+        + ' onchange="ohDcAll()"><span>전체 ('+ord.length+'개 물류센터)</span></label>';
+    ord.forEach(function(g){
+      var kids=Object.keys(grp[g]).sort(function(a,b){ return a.localeCompare(b,'ko'); });
+      var on=!!_ohDcSel[g];
+      h+='<label class="'+(on?'on':'')+'"><input type="checkbox"'+(on?' checked':'')
+       + ' data-k="'+_cesc(g)+'" onchange="ohDcToggle(this.getAttribute(\'data-k\'))">'
+       + '<span>🗂️ '+_cesc(g)+(kids.length>1?' <span style="color:#9aa7b3">('+kids.length+'곳)</span>':'')+'</span></label>';
+      if(kids.length<2) return;                       // 혼자면 하위를 또 보여줄 필요 없다
+      kids.forEach(function(k){
+        var kon=!!_ohDcSel[k];
+        h+='<label class="kid'+(kon?' on':'')+'"><input type="checkbox"'+(kon?' checked':'')
+         + ' data-k="'+_cesc(k)+'" onchange="ohDcToggle(this.getAttribute(\'data-k\'))"><span>'+_cesc(k)+'</span></label>';
+      });
+    });
+    pop.innerHTML=h;
+  }
+  // 이 행이 현재 선택에 걸리는가 — 묶음명·개별명 어느 쪽으로 체크했든 통한다
+  function _ohDcHit(dc){
+    if(!Object.keys(_ohDcSel).length) return true;    // 선택 없음 = 전체
+    return !!(_ohDcSel[dc] || _ohDcSel[_ohDcGrp(dc)]);
   }
 
   // '2026.07.11_평택.xlsx' / '2026.07.11 오산.xlsx' → 출고장명
@@ -3435,28 +3527,16 @@
        · 기간 기준 = 납품일자(=발주일자 DLV_DT). 출고내역은 SHPOUT_DT 로만 조회되는데
          먼 지역은 발주분을 하루 당겨 출고하므로 ±7일 넉넉히 읽어 DLV_DT 로 다시 거른다.
      ══════════════════════════════════════════════════════════════════════════ */
-  var _ohSales=[], _ohShip=[], _ohTab='dc', _ohPage=1, _ohCol={}, _ohAllCol=false, OH_ROWS=25;
+  var _ohSales=[], _ohShip=[], _ohTab='dc', _ohPage=1, _ohCol={}, _ohAllCol=false, OH_ROWS=KONET_GRID_ROWS;
+  var _ohSalesAll=[], _ohShipAll=[];   // 출고장 선택 전 원본 — 선택은 화면에서만 거르므로 재조회 없이 되돌릴 수 있다
 
   function _ohQ(v){   // 수량 — 소수·음수 보존(반품행 0.49/-0.49)
     var n=Number(v); if(!isFinite(n)) return '';
     return (Math.abs(n%1)<1e-9) ? n.toLocaleString() : n.toLocaleString(undefined,{maximumFractionDigits:3});
   }
   function _ohYmd(s){ return (''+(s==null?'':s)).replace(/-/g,'').trim(); }         // '2026-07-11'|'20260711' → '20260711'
-  /* 출고장 이름 통일 — 두 표가 서로 다르게 적는다(실측)
-       정산서(TBL_SALES_MST, 파일명에서 인식) : '평택' '용인' '왜관' '오산'
-       출고내역(TBL_SHIPOUT_MST, 발주현황표)  : '평택물류센터' '용인물류센터' …
-     → 공백·끝숫자·'(물류)센터'·'출고장' 꼬리를 떼어 '평택' 으로 맞춘다. */
-  function _ohDc(s){
-    var v=(''+(s==null?'':s)).replace(/\s+/g,'');
-    return v.replace(/\d+$/,'').replace(/(물류)?센터$/,'').replace(/출고장$/,'').replace(/\d+$/,'');
-  }
-  // 행 → 출고장 통일키. DC_CD 가 있으면 그걸로(더 확실), 없으면 이름 정규화로.
-  // ※ DC_CD 는 정산서에 2026-07-22부터 저장되므로 그 전 자료는 이름으로 잡힌다 — 둘 다 '평택'으로 수렴한다.
-  var _OH_CDNM={ E100:'용인', E200:'왜관', E300:'김해', E400:'광주', E500:'평택', E600:'제주', E700:'오산' };
-  function _ohDcOf(r){
-    var cd=(''+((r&&r.dcCd)||'')).trim().toUpperCase();
-    return _OH_CDNM[cd] || _ohDc(r&&r.dcNm);
-  }
+  /* 출고장 통일키(_ohDc / _ohDcOf)는 위쪽 KONET_DC 블록에 있다 — 여기 있던 중복 정의 제거(2026-07-22).
+     ※ DC_CD 는 정산서에 2026-07-22부터 저장되므로 그 전 자료는 이름으로 잡힌다 — 둘 다 '평택'으로 수렴한다. */
   /* ★대사키 = 발주일자 + 출고장 + 품목코드 (2026-07-22 사용자 확정)
        발주번호+항번을 쓰다가 바꿨다. 이유:
          · 발주현황표의 ORD_NO 가 절반(1145행 중 573행) 비어 있어 그만큼 영영 대사 불가였다
@@ -3486,6 +3566,14 @@
     document.querySelectorAll('#ohTabs .ctab').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-t')===t); });
     ohRender();
   }
+  // ①탭 출고장 줄 클릭 → ②(품목)탭으로 드릴다운. 그 출고장만 펼치고 나머지는 접는다
+  //   — '차이'가 어느 품목 때문인지 한 클릭에 보이게(2026-07-22 요청).
+  //   출고장이 7곳뿐이라 접힌 머리행이 전부 1페이지에 들어와 대상이 항상 바로 보인다.
+  function ohDrill(k){
+    k=decodeURIComponent(k);
+    _ohAllCol=true; _ohCol={}; _ohCol['i:'+k]=false;
+    ohTab('item');
+  }
   function ohToggleAll(){
     _ohAllCol=!_ohAllCol; _ohCol={}; _ohPage=1; _ohUpdAllBtn(); ohRender();   // 표시행이 통째로 바뀌므로 1페이지로
   }
@@ -3494,7 +3582,9 @@
   function _ohIsCol2(k, def){ return (k in _ohCol) ? _ohCol[k] : def; }
   function ohGrp(k){
     k=decodeURIComponent(k);
-    var def = (k.indexOf('b:')===0) ? true : _ohAllCol;   // 사업장 하위(원본행)만 기본 접힘
+    var def = (k.indexOf('b:')===0) ? true            // 사업장 하위(원본행) = 기본 접힘
+            : (/^d\d*:/.test(k))    ? false           // 물류센터 묶음(d:①/d2:②/d3:③/d4:④) = 기본 펼침 (_ohAllCol 영향 안 받음)
+            : _ohAllCol;
     _ohCol[k] = !_ohIsCol2(k, def);
     ohRender();
   }
@@ -3503,7 +3593,6 @@
   // 정산(TBL_SALES_MST) + 출고내역(TBL_SHIPOUT_MST) 동시 조회
   function ohQuery(){
     var f=(document.getElementById('slsFrom')||{}).value||'', t=(document.getElementById('slsTo')||{}).value||'';
-    var dc=((document.getElementById('slsDc')||{}).value||'').trim();
     var ic=((document.getElementById('slsItemCd')||{}).value||'').trim();
     var sum=document.getElementById('ohSum'); if(sum) sum.textContent='조회 중…';
     var post=function(url, body){
@@ -3511,24 +3600,31 @@
         headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:body })
         .then(function(r){ return r.json(); }).then(function(j){ return (j&&j.data)||[]; });
     };
+    /* 출고장은 서버에 넘기지 않고 화면에서 거른다 —
+       ①묶음('G:오산센터')은 서버가 모르는 개념이고
+       ②DC_NM 표기가 두 표에서 다르다('평택' vs '평택물류센터'). 양쪽을 같은 규칙(_ohDcHit)으로 걸러야 어긋나지 않는다. */
     var pSales=post('/sales/selectSalesMst.do',
-      'dlvDtFrom='+encodeURIComponent(f)+'&dlvDtTo='+encodeURIComponent(t)+'&dcNm='+encodeURIComponent(dc)+'&itemCd='+encodeURIComponent(ic));
-    // 출고내역은 SHPOUT_DT 로만 걸리므로 앞뒤 7일 넉넉히 → 아래에서 DLV_DT 로 재필터
+      'dlvDtFrom='+encodeURIComponent(f)+'&dlvDtTo='+encodeURIComponent(t)+'&itemCd='+encodeURIComponent(ic));
+    /* 출고내역은 SHPOUT_DT 로만 조회되므로 넉넉히 읽어 아래에서 DLV_DT 로 재필터한다.
+       ★창 밖으로 벗어난 행은 '경고 없이' 빠지고 화면은 그대로 '일치'로 보인다 —
+         이 화면에서 가장 나쁜 실패 방식이라, 감지 로직을 붙이는 대신 창을 한 달로 넓혔다(2026-07-22).
+         실측 편차는 0일(1,312행)·-1일(41행)뿐이지만 여유를 크게 두는 쪽이 안전하다.
+       (자료가 몇 년치 쌓여 응답이 무거워지면 서버에서 DLV_DT 로 거르도록 바꿔야 한다 — WAR 재빌드) */
+    var OH_WIN=31;
     var pShip = (f && t)
-      ? post('/shipout/selectShipoutMst.do', 'shpoutDtFrom='+encodeURIComponent(_ohShift(f,-7))+'&shpoutDtTo='+encodeURIComponent(_ohShift(t,7)))
+      ? post('/shipout/selectShipoutMst.do', 'shpoutDtFrom='+encodeURIComponent(_ohShift(f,-OH_WIN))+'&shpoutDtTo='+encodeURIComponent(_ohShift(t,OH_WIN)))
       : post('/shipout/selectShipoutMst.do', '');
     Promise.all([pSales, pShip]).then(function(a){
-      _ohSales=a[0]||[];
-      var fY=_ohYmd(f), tY=_ohYmd(t), dcK=_ohDc(dc), icQ=ic.toLowerCase();
-      _ohShip=(a[1]||[]).filter(function(r){
+      var fY=_ohYmd(f), tY=_ohYmd(t), icQ=ic.toLowerCase();
+      _ohSalesAll=a[0]||[];
+      _ohShipAll=(a[1]||[]).filter(function(r){
         var d=_ohYmd(r.dlvDt)||_ohYmd(r.shpoutDt);
         if(fY && tY && (d<fY || d>tY)) return false;
-        if(dcK && _ohDcOf(r)!==dcK) return false;
         if(icQ && (''+(r.itemCd||'')).toLowerCase().indexOf(icQ)<0
                && (''+(r.itemNm||'')).toLowerCase().indexOf(icQ)<0) return false;
         return true;
       });
-      _ohPage=1; ohRender();
+      ohDcApply();   // 출고장 선택 반영 + 드롭다운 목록 갱신 + 렌더
     }).catch(function(e){ ssToast('⚠️ 조회 오류: '+e.message); });
   }
   function slsQuery(){ ohQuery(); }   // 저장 직후 재조회 (기존 호출부 유지)
@@ -3539,7 +3635,10 @@
     var pick=function(r0, nm){
       var k=_ohDcOf(r0)||'(출고장 미지정)';
       // 라벨은 통일키(평택), 원래 표기(평택/평택물류센터)는 hover 로 남긴다
-      if(!m[k]){ m[k]={ dc:k, label:k, raw:{}, sRows:0, sQty:0, sAmt:0, oRows:0, oQty:0, items:{}, itemOrd:[] }; ord.push(k); }
+      // sKeys/oKeys = 대사키 집합. 수량 합계만 보면 '정산에만 5개 + 출고에만 5개'가 상쇄돼
+      //               차이 0 = 일치 로 오진하므로, 짝 없는 키를 따로 센다.
+      if(!m[k]){ m[k]={ dc:k, label:k, raw:{}, sRows:0, sQty:0, sAmt:0, oRows:0, oQty:0,
+                        items:{}, itemOrd:[], sKeys:{}, oKeys:{}, sOnly:0, oOnly:0 }; ord.push(k); }
       if(nm) m[k].raw[nm]=1;
       return m[k];
     };
@@ -3550,12 +3649,20 @@
     };
     _ohSales.forEach(function(r){
       var g=pick(r, r.dcNm); g.sRows++; g.sQty+=(+r.outQty||0); g.sAmt+=(+r.saleAmt||0);
+      var kk=_ohKey(r); if(kk) g.sKeys[kk]=1;
       var it=item(g, r.itemCd, r.itemNm); it.sQty+=(+r.outQty||0); it.sAmt+=(+r.saleAmt||0);
       if(it.price==null && r.salePrice!=null) it.price=+r.salePrice;
     });
     _ohShip.forEach(function(r){
       var g=pick(r, r.dcNm); g.oRows++; g.oQty+=(+r.curQty||0);
+      var kk=_ohKey(r); if(kk) g.oKeys[kk]=1;
       item(g, r.itemCd, r.itemNm).oQty+=(+r.curQty||0);
+    });
+    // 짝 없는 대사키 집계 — oOnly=보냈는데 청구 안 됨(미정산) / sOnly=보낸 적 없는데 청구됨(출고미상)
+    ord.forEach(function(k){
+      var g=m[k];
+      Object.keys(g.sKeys).forEach(function(x){ if(!g.oKeys[x]) g.sOnly++; });
+      Object.keys(g.oKeys).forEach(function(x){ if(!g.sKeys[x]) g.oOnly++; });
     });
     return ord.sort(function(a,b){ return a.localeCompare(b,'ko'); }).map(function(k){ return m[k]; });
   }
@@ -3607,7 +3714,10 @@
   function ohRender(){
     var wrap=document.getElementById('ohWrap'), sum=document.getElementById('ohSum'), pg=document.getElementById('ohPager');
     if(!wrap) return;
-    var btn=document.getElementById('ohAllBtn'); if(btn) btn.style.display=(_ohTab==='item'||_ohTab==='ship')?'':'none';
+    // ⊟ 전체 접기 — 그룹이 있는 탭에서만. ④(settle)도 출고장별 묶음이 생겼으므로 포함(2026-07-22)
+    //   빠뜨리면 그룹은 접힌 채인데 펼칠 수단이 없어진다
+    var btn=document.getElementById('ohAllBtn'); if(btn) btn.style.display=(_ohTab==='dc')?'none':'';
+    _ohUpdAllBtn();   // 라벨(접기/펼치기)이 현재 상태와 어긋나지 않게 매 렌더마다 맞춘다
     if(!_ohSales.length && !_ohShip.length){
       sum.innerHTML=_ohSrcChip()+'조회된 자료가 없습니다. (정산 엑셀 저장분·발주현황표 출고 모두 없음)';
       wrap.innerHTML=''; if(pg) pg.innerHTML=''; return;
@@ -3620,6 +3730,11 @@
       +' · 정산 <b>'+_ohSales.length.toLocaleString()+'</b>행/<b>'+_ohQ(sQ)+'</b>'
       +' · <span style="color:#137a6c">정산금액 <b>'+_cnum(sA)+'</b></span>'
       +(Math.abs(oQ-sQ)>1e-6 ? ' · <span class="oh-gap">수량차이 '+_ohQ(oQ-sQ)+'</span>' : ' · <span class="oh-ok">수량 일치</span>')
+      // 짝 없는 대사키 — 수량이 상쇄돼 '일치'로 보일 수 있으므로 건수를 따로 띄운다
+      +(function(){ var so=0,oo=0; G.forEach(function(g){ so+=g.sOnly; oo+=g.oOnly; });
+          return (oo?' · <span style="color:#c0392b;font-weight:700" title="보냈는데 정산서에 없는 품목(청구 누락 후보)">미정산 '+oo+'품목</span>':'')
+               + (so?' · <span style="color:#a85700;font-weight:700" title="정산서에는 있는데 출고내역에 없는 품목">출고미상 '+so+'품목</span>':'')
+               + ((!oo&&!so&&_ohSales.length&&_ohShip.length)?' · <span class="oh-ok">품목 전건 대사</span>':''); })()
       +(noKey ? ' · <span style="color:#c47f17;font-weight:700" title="발주일자·출고장·품목코드 중 빈 칸이 있어 대사키가 서지 않는 출고행입니다.">키 없는 출고 '+noKey.toLocaleString()+'행</span>' : '')
       +(!_ohShip.length && _ohSales.length ? ' · <span style="color:#c47f17;font-weight:700">이 기간 출고내역(발주현황표) 자료가 없습니다</span>' : '');
     if(_ohTab==='dc')          _ohRenderDc(G, wrap, oQ, sQ, sA);
@@ -3628,7 +3743,33 @@
     else                       _ohRenderShip(wrap, oQ);
   }
 
-  // ① 출고장별 합계 — 출고내역 ↔ 정산서 나란히
+  // 개별 출고장 상태 뱃지 — ①탭 1·2단 공용
+  function _ohStBadge(g){
+    var gap=g.oQty-g.sQty, ok=Math.abs(gap)<1e-6;
+    // ★수량 합계만 보면 안 된다 — '정산에만 5개 + 출고에만 5개' 가 상쇄돼 차이 0 이 될 수 있다.
+    //   짝 없는 대사키가 하나라도 있으면 '일치'로 부르지 않는다.
+    var clean = ok && !g.sOnly && !g.oOnly;
+    var st = (!g.sRows) ? '<span class="badge b-wait">정산 미도착</span>'
+           : (!g.oRows) ? '<span class="badge b-wait">출고내역 없음</span>'
+           : (clean ? '<span class="badge b-done">일치</span>' : '<span class="badge b-ship">차이</span>');
+    if(g.oOnly) st+=' <span style="color:#c0392b;font-weight:700;font-size:11.5px" title="보냈는데 정산서에 없는 품목 수(발주일자+출고장+품목코드 기준).&#10;청구 누락 후보입니다. ②탭에서 정산수량이 0인 품목을 보세요.">미정산 '+g.oOnly+'</span>';
+    if(g.sOnly) st+=' <span style="color:#a85700;font-weight:700;font-size:11.5px" title="정산서에는 있는데 출고내역에 없는 품목 수.&#10;보낸 적 없는데 청구된 건일 수 있으니 확인이 필요합니다. ②탭에서 출고수량이 0인 품목을 보세요.">출고미상 '+g.sOnly+'</span>';
+    return st;
+  }
+  // 숫자 칸 8개(출고건수~정산금액) — ①탭 1·2단 공용
+  function _ohDcCells(o){
+    var gap=o.oQty-o.sQty, ok=Math.abs(gap)<1e-6;
+    return '<td style="text-align:right">'+o.oRows.toLocaleString()+'</td><td style="text-align:right">'+_ohQ(o.oQty)+'</td>'
+      +'<td style="text-align:right">'+o.sRows.toLocaleString()+'</td><td style="text-align:right">'+_ohQ(o.sQty)+'</td>'
+      +'<td style="text-align:right" class="'+(ok?'oh-ok':'oh-gap')+'">'+_ohQ(gap)+'</td>'
+      +'<td style="text-align:right">'+(o.sQty?_cnum(o.sAmt/o.sQty):'')+'</td>'
+      +'<td style="text-align:right;font-weight:800;color:#137a6c">'+_cnum(o.sAmt)+'</td>';
+  }
+  /* ① 출고장별 합계 — 대시보드처럼 2단 (2026-07-22 사용자 요청)
+       1단 = 물류센터 묶음(CLOSE_DCGROUP: 왜관·김해·광주·제주·오산 → 오산센터. 매출마감과 동일 규칙)
+       2단 = 개별 출고장 (정산서·거래처가 출고장별이므로 돈은 여기가 기준 — 클릭하면 ②품목 드릴다운)
+       묶음이 실제로 생기는 그룹(2곳 이상)만 머리행을 만들고, 용인·평택처럼 혼자인 곳은 그냥 한 줄.
+       접기키 'd:' + 그룹라벨, 기본 = 펼침(개별 출고장·상태가 바로 보이는 게 이 표의 목적이라). */
   function _ohRenderDc(G, wrap, oQ, sQ, sA){
     var h='<table class="logi-tb"><thead><tr><th>출고장</th>'
         +'<th style="text-align:right">출고건수</th><th style="text-align:right">출고수량</th>'
@@ -3641,24 +3782,33 @@
       +'<td style="text-align:right">'+_ohQ(oQ-sQ)+'</td>'
       +'<td style="text-align:right">'+(sQ?_cnum(sA/sQ):'')+'</td>'
       +'<td style="text-align:right">'+_cnum(sA)+'</td><td></td></tr>';
+    // 지역명 → 대시보드 그룹 (KONET_DC_R 로 코드 환원 후 CLOSE_DCGROUP 조회 — 매핑 원천 재사용)
+    var GM={}, GL=[];
     G.forEach(function(g){
-      var gap=g.oQty-g.sQty, ok=Math.abs(gap)<1e-6;
-      var st = (!g.sRows) ? '<span class="badge b-wait">정산 미도착</span>'
-             : (!g.oRows) ? '<span class="badge b-wait">출고내역 없음</span>'
-             : (ok ? '<span class="badge b-done">일치</span>' : '<span class="badge b-ship">차이</span>');
-      h+='<tr><td class="txt-l" title="'+_cesc(Object.keys(g.raw).join(' / '))+'"><b>'+_cesc(g.label)+'</b></td>'
-        +'<td style="text-align:right">'+g.oRows.toLocaleString()+'</td><td style="text-align:right">'+_ohQ(g.oQty)+'</td>'
-        +'<td style="text-align:right">'+g.sRows.toLocaleString()+'</td><td style="text-align:right">'+_ohQ(g.sQty)+'</td>'
-        +'<td style="text-align:right" class="'+(ok?'oh-ok':'oh-gap')+'">'+_ohQ(gap)+'</td>'
-        +'<td style="text-align:right">'+(g.sQty?_cnum(g.sAmt/g.sQty):'')+'</td>'
-        +'<td style="text-align:right;font-weight:800;color:#137a6c">'+_cnum(g.sAmt)+'</td>'
-        +'<td>'+st+'</td></tr>';
+      var lbl = _ohDcGrp(g.dc);
+      var gg=GM[lbl]; if(!gg){ gg=GM[lbl]={ label:lbl, kids:[], oRows:0, oQty:0, sRows:0, sQty:0, sAmt:0, sOnly:0, oOnly:0 }; GL.push(gg); }
+      gg.kids.push(g); gg.oRows+=g.oRows; gg.oQty+=g.oQty; gg.sRows+=g.sRows; gg.sQty+=g.sQty; gg.sAmt+=g.sAmt; gg.sOnly+=g.sOnly; gg.oOnly+=g.oOnly;
+    });
+    GL.sort(function(a,b){ return a.label.localeCompare(b.label,'ko'); });
+    var kidRow=function(g, indent){
+      return '<tr style="cursor:pointer" onclick="ohDrill(\''+encodeURIComponent(g.dc)+'\')" title="클릭 → ② 출고장 ▸ 품목 탭에서 '+_cesc(g.label)+'만 펼쳐 어느 품목이 어긋났는지 봅니다&#10;(원표기: '+_cesc(Object.keys(g.raw).join(' / '))+')">'
+        +'<td class="txt-l"'+(indent?' style="padding-left:26px"':'')+'><b>'+_cesc(g.label)+'</b> <span style="color:#c9d2d0;font-size:11px">▸</span></td>'
+        +_ohDcCells(g)+'<td>'+_ohStBadge(g)+'</td></tr>';
+    };
+    GL.forEach(function(gg){
+      if(gg.kids.length<2){ h+=kidRow(gg.kids[0], false); return; }   // 혼자인 곳은 묶음 머리 없이 한 줄
+      var col=_ohIsCol2('d:'+gg.label, false);   // 기본 펼침
+      h+='<tr class="close-grp" onclick="ohGrp(\''+encodeURIComponent('d:'+gg.label)+'\')" title="클릭 → 소속 출고장 '+gg.kids.length+'곳 접기/펼치기">'
+        +'<td><span class="ccar">'+(col?'▶':'▼')+'</span> 🗂️ '+_cesc(gg.label)
+        +' <span style="font-weight:600;color:#5a6b7a">('+gg.kids.length+'곳)</span></td>'
+        +_ohDcCells(gg)+'<td>'+_ohStBadge(gg)+'</td></tr>';
+      if(!col) gg.kids.forEach(function(g){ h+=kidRow(g, true); });
     });
     wrap.innerHTML=h+'</tbody></table>';
     _ohPager(1);
   }
 
-  /* ② 출고장 ▸ 품목 (그룹 접기/펼치기 + 소계 + 행 단위 25행 페이징)
+  /* ② 출고장 ▸ 품목 (그룹 접기/펼치기 + 소계 + 행 단위 페이징 KONET_GRID_ROWS)
      페이징은 마감 화면들과 같은 방식 — 표시행을 평평하게 늘어놓고 자르되,
      페이지가 그룹 중간에서 시작하면 소속 헤더를 문맥으로 먼저 찍는다. */
   function _ohRenderItem(G, wrap, oQ, sQ, sA){
@@ -3670,17 +3820,37 @@
       +'<td style="text-align:right">'+_ohQ(oQ)+'</td><td style="text-align:right">'+_ohQ(sQ)+'</td>'
       +'<td style="text-align:right">'+_ohQ(oQ-sQ)+'</td><td></td>'
       +'<td style="text-align:right">'+_cnum(sA)+'</td></tr>';
-    // 표시행 평면화 (접힘 반영) — 품목 정렬은 한 번만
-    var sorted=[], list=[];
+    // 표시행 평면화 (접힘 반영) — 1단 물류센터 묶음(d2:) → 2단 출고장(i:) → 품목. 묶음이 2곳 이상일 때만 머리행
+    var L0s=[], lm={};
     G.forEach(function(g,gi){
-      sorted[gi]=g.itemOrd.slice().sort(function(a,b){ return a.localeCompare(b,'ko'); });
-      list.push({t:'g',gi:gi});
-      if(_ohIsCol(g.dc)) return;
-      sorted[gi].forEach(function(k){ list.push({t:'it',gi:gi,k:k}); });
+      var lbl=_ohDcGrp(g.dc);
+      var e=lm[lbl]; if(!e){ e=lm[lbl]={ label:lbl, gis:[], oQty:0, sQty:0, sAmt:0, items:0 }; L0s.push(e); }
+      e.gis.push(gi); e.oQty+=g.oQty; e.sQty+=g.sQty; e.sAmt+=g.sAmt; e.items+=g.itemOrd.length;
     });
-    var grpRow=function(gi){
+    L0s.sort(function(a,b){ return a.label.localeCompare(b.label,'ko'); });
+    var sorted=[], list=[];
+    L0s.forEach(function(e){
+      var multi=e.gis.length>1;
+      if(multi){ list.push({t:'G',e:e}); if(_ohIsCol2('d2:'+e.label,false)) return; }
+      e.gis.forEach(function(gi){
+        var g=G[gi];
+        sorted[gi]=g.itemOrd.slice().sort(function(a,b){ return a.localeCompare(b,'ko'); });
+        list.push({t:'g',gi:gi,e:multi?e:null});
+        if(_ohIsCol(g.dc)) return;
+        sorted[gi].forEach(function(k){ list.push({t:'it',gi:gi,k:k,e:multi?e:null}); });
+      });
+    });
+    var L0Row=function(e){
+      var col=_ohIsCol2('d2:'+e.label,false), gap=e.oQty-e.sQty;
+      return '<tr class="close-grp" onclick="ohGrp(\''+encodeURIComponent('d2:'+e.label)+'\')"><td colspan="2">'
+        +'<span class="ccar">'+(col?'▶':'▼')+'</span> 🗂️ '+_cesc(e.label)+' <span style="font-weight:600;color:#5a6b7a">('+e.gis.length+'곳 · '+e.items+'품목)</span></td>'
+        +'<td style="text-align:right">'+_ohQ(e.oQty)+'</td><td style="text-align:right">'+_ohQ(e.sQty)+'</td>'
+        +'<td style="text-align:right" class="'+(Math.abs(gap)<1e-6?'oh-ok':'oh-gap')+'">'+_ohQ(gap)+'</td><td></td>'
+        +'<td style="text-align:right">'+_cnum(e.sAmt)+'</td></tr>';
+    };
+    var grpRow=function(gi, ind){
       var g=G[gi], col=_ohIsCol(g.dc), gap=g.oQty-g.sQty;
-      return '<tr class="close-grp" onclick="ohGrp(\''+encodeURIComponent('i:'+g.dc)+'\')"><td colspan="2">'
+      return '<tr class="close-sub" style="cursor:pointer" onclick="ohGrp(\''+encodeURIComponent('i:'+g.dc)+'\')"><td colspan="2"'+(ind?' style="padding-left:24px"':'')+'>'
         +'<span class="ccar">'+(col?'▶':'▼')+'</span> 🏭 '+_cesc(g.label)+' <span style="font-weight:600;color:#5a6b7a">('+g.itemOrd.length+'품목)</span></td>'
         +'<td style="text-align:right">'+_ohQ(g.oQty)+'</td><td style="text-align:right">'+_ohQ(g.sQty)+'</td>'
         +'<td style="text-align:right" class="'+(Math.abs(gap)<1e-6?'oh-ok':'oh-gap')+'">'+_ohQ(gap)+'</td><td></td>'
@@ -3697,8 +3867,13 @@
     };
     var pages=Math.max(1,Math.ceil(list.length/OH_ROWS)); if(_ohPage>pages)_ohPage=pages;
     var rS=(_ohPage-1)*OH_ROWS, rE=Math.min(rS+OH_ROWS, list.length), body='';
-    if(rS<rE && list[rS].t!=='g') body+=grpRow(list[rS].gi);   // 문맥 헤더
-    for(var i=rS;i<rE;i++){ var r=list[i]; body += (r.t==='g') ? grpRow(r.gi) : itRow(r.gi,r.k); }
+    if(rS<rE){ var f=list[rS];   // 페이지가 그룹 중간에서 시작하면 소속 헤더(묶음→출고장 순)를 문맥으로 먼저
+      if(f.t!=='G' && f.e) body+=L0Row(f.e);
+      if(f.t==='it') body+=grpRow(f.gi, !!f.e);
+    }
+    for(var i=rS;i<rE;i++){ var r=list[i];
+      body += (r.t==='G') ? L0Row(r.e) : (r.t==='g') ? grpRow(r.gi, !!r.e) : itRow(r.gi,r.k);
+    }
     wrap.innerHTML=h+body+'</tbody></table>';
     _ohPager(pages);
   }
@@ -3709,29 +3884,87 @@
       +'<div style="font-size:13.5px;font-weight:800;color:#c47f17;margin-bottom:6px">'+title+'</div>'
       +'<div style="font-size:12.5px;line-height:1.7">'+desc+'</div></td></tr>';
   }
-  // ③ 정산 상세(엑셀 원본행) + 출고내역 대사 열
+  /* ④ 정산서 원본(엑셀) — 출고장별로 묶고 접기/펼치기 + 소계 (②③과 동일한 방식)
+       ★출고수량 소계는 '행별 값의 합'이 아니라 '대사키 distinct 합'이다.
+         정산서 2행이 같은 (발주일자·출고장·품목)이면 두 행 모두 같은 출고합계를 표시하므로
+         그대로 더하면 이중계상된다. used 로 키당 1회만 더한다. */
   function _ohRenderSettle(wrap, sQ, sA){
-    var idx=_ohIndex(_ohShip,'curQty'), rows=_ohSales;
+    var idx=_ohIndex(_ohShip,'curQty');
     var h='<table class="logi-tb"><thead><tr><th>납품일자</th><th>출고장</th><th>발주번호</th><th>항번</th><th>품목코드</th><th>품목명</th>'
         +'<th style="text-align:right">발주량</th><th style="text-align:right">정산수량</th>'
         +'<th style="text-align:right">출고수량</th>'
         +'<th style="text-align:right">판매단가</th><th style="text-align:right">정산금액</th><th>원본파일</th></tr></thead><tbody>';
-    h+='<tr class="close-total"><td colspan="6">■ 총합계</td><td></td>'
-      +'<td style="text-align:right">'+_ohQ(sQ)+'</td><td></td><td></td>'
-      +'<td style="text-align:right">'+_cnum(sA)+'</td><td></td></tr>';
-    if(!rows.length){
+    if(!_ohSales.length){
+      h+='<tr class="close-total"><td colspan="6">■ 총합계</td><td></td>'
+        +'<td style="text-align:right">'+_ohQ(sQ)+'</td><td></td><td></td>'
+        +'<td style="text-align:right">'+_cnum(sA)+'</td><td></td></tr>';
       wrap.innerHTML=h+_ohEmptyRow(12, '이 기간 정산서(엑셀) 자료가 없습니다',
         '이 탭은 <b>출고장이 보내준 정산 엑셀의 원본 행</b>을 그대로 보여줍니다.<br>'
         +'조회기간에 저장된 정산서가 없어 띄울 행이 없습니다'
         +(_ohShip.length ? ' — 출고는 <b>'+_ohShip.length.toLocaleString()+'행</b> 있으니 <b>정산서가 아직 안 온 날</b>입니다.' : '.')
-        +'<br>위 <b>📁 파일 선택</b> 으로 해당 날짜 정산 엑셀을 올리면 여기에 채워집니다.')
+        +'<br>위 <b>📥 정산 엑셀</b> 로 해당 날짜 파일을 올리면 여기에 채워집니다.')
         +'</tbody></table>';
       _ohPager(1); return;
     }
-    var pages=Math.max(1,Math.ceil(rows.length/OH_ROWS)); if(_ohPage>pages)_ohPage=pages;
-    rows.slice((_ohPage-1)*OH_ROWS, _ohPage*OH_ROWS).forEach(function(r){
-      var k=_ohKey(r), m=k?idx[k]:null, oq=m?m.q:null;
-      h+='<tr><td>'+_cesc(r.dlvDt)+'</td><td>'+_cesc(r.dcNm)+'</td><td>'+_cesc(r.ordNo)+'</td><td>'+_cesc(r.ordItemNo)+'</td>'
+    // 출고장별로 묶기
+    var S=[], sm={}, tO=0, tUsed={};
+    _ohSales.forEach(function(r){
+      var k=_ohDcOf(r)||'(출고장 미지정)';
+      var g=sm[k]; if(!g){ g=sm[k]={ dc:k, label:k, rows:[], sQty:0, sAmt:0, oQty:0, miss:0, used:{} }; S.push(g); }
+      g.rows.push(r); g.sQty+=(+r.outQty||0); g.sAmt+=(+r.saleAmt||0);
+      var kk=_ohKey(r), hit=kk?idx[kk]:null;
+      if(hit){
+        if(!g.used[kk]){ g.used[kk]=1; g.oQty+=hit.q; }
+        if(!tUsed[kk]){ tUsed[kk]=1; tO+=hit.q; }
+      } else g.miss++;
+    });
+    S.sort(function(a,b){ return a.dc.localeCompare(b.dc,'ko'); });
+    h+='<tr class="close-total"><td colspan="6">■ 총합계</td><td></td>'
+      +'<td style="text-align:right">'+_ohQ(sQ)+'</td>'
+      +'<td style="text-align:right">'+_ohQ(tO)+'</td><td></td>'
+      +'<td style="text-align:right">'+_cnum(sA)+'</td><td></td></tr>';
+    // 표시행 평면화 (3단: 물류센터 묶음(d4:) → 출고장(t:) → 정산행. 접힘 반영. 묶음이 2곳 이상일 때만 머리행)
+    var L0s=[], lm={};
+    S.forEach(function(g,gi){
+      var lbl=_ohDcGrp(g.dc);
+      var e=lm[lbl]; if(!e){ e=lm[lbl]={ label:lbl, gis:[], rowsN:0, sQty:0, sAmt:0, oQty:0, miss:0 }; L0s.push(e); }
+      e.gis.push(gi); e.rowsN+=g.rows.length; e.sQty+=g.sQty; e.sAmt+=g.sAmt; e.oQty+=g.oQty; e.miss+=g.miss;
+    });
+    L0s.sort(function(a,b){ return a.label.localeCompare(b.label,'ko'); });
+    var list=[];
+    L0s.forEach(function(e){
+      var multi=e.gis.length>1;
+      if(multi){ list.push({t:'G',e:e}); if(_ohIsCol2('d4:'+e.label,false)) return; }
+      e.gis.forEach(function(gi){
+        var g=S[gi];
+        list.push({t:'g',gi:gi,e:multi?e:null});
+        if(_ohIsCol2('t:'+g.dc, _ohAllCol)) return;
+        g.rows.forEach(function(r,ri){ list.push({t:'r',gi:gi,ri:ri,e:multi?e:null}); });
+      });
+    });
+    var L0Row=function(e){
+      var col=_ohIsCol2('d4:'+e.label,false);
+      return '<tr class="close-grp" onclick="ohGrp(\''+encodeURIComponent('d4:'+e.label)+'\')"><td colspan="6">'
+        +'<span class="ccar">'+(col?'▶':'▼')+'</span> 🗂️ '+_cesc(e.label)
+        +' <span style="font-weight:600;color:#5a6b7a">('+e.gis.length+'곳 · '+e.rowsN.toLocaleString()+'행)</span>'
+        +(e.miss?' <span style="font-weight:700;color:#c0392b">· 출고미상 '+e.miss+'</span>':'')+'</td>'
+        +'<td></td><td style="text-align:right">'+_ohQ(e.sQty)+'</td>'
+        +'<td style="text-align:right">'+_ohQ(e.oQty)+'</td><td></td>'
+        +'<td style="text-align:right">'+_cnum(e.sAmt)+'</td><td></td></tr>';
+    };
+    var grpRow=function(gi, ind){
+      var g=S[gi], col=_ohIsCol2('t:'+g.dc, _ohAllCol);
+      return '<tr class="close-grp" onclick="ohGrp(\''+encodeURIComponent('t:'+g.dc)+'\')"><td colspan="6"'+(ind?' style="padding-left:24px"':'')+'>'
+        +'<span class="ccar">'+(col?'▶':'▼')+'</span> 🏭 '+_cesc(g.label)
+        +' <span style="font-weight:600;color:#5a6b7a">('+g.rows.length.toLocaleString()+'행)</span>'
+        +(g.miss?' <span style="font-weight:700;color:#c0392b" title="출고내역에 짝이 없는 정산행(보낸 적 없는데 청구된 건일 수 있음)">· 출고미상 '+g.miss+'</span>':'')+'</td>'
+        +'<td></td><td style="text-align:right">'+_ohQ(g.sQty)+'</td>'
+        +'<td style="text-align:right">'+_ohQ(g.oQty)+'</td><td></td>'
+        +'<td style="text-align:right">'+_cnum(g.sAmt)+'</td><td></td></tr>';
+    };
+    var detRow=function(gi,ri){
+      var r=S[gi].rows[ri], k=_ohKey(r), m=k?idx[k]:null, oq=m?m.q:null;
+      return '<tr><td>'+_cesc(r.dlvDt)+'</td><td>'+_cesc(r.dcNm)+'</td><td>'+_cesc(r.ordNo)+'</td><td>'+_cesc(r.ordItemNo)+'</td>'
         +'<td>'+_cesc(r.itemCd)+'</td><td class="txt-l">'+_cesc(r.itemNm)+'</td>'
         +'<td style="text-align:right">'+(r.ordQty==null?'':_ohQ(r.ordQty))+'</td>'
         +'<td style="text-align:right;'+((+r.outQty||0)<0?'color:#c0392b':'')+'">'+(r.outQty==null?'':_ohQ(r.outQty))+'</td>'
@@ -3740,8 +3973,17 @@
         +'<td style="text-align:right">'+_cnum(r.salePrice)+'</td>'
         +'<td style="text-align:right;font-weight:700;color:#137a6c">'+_cnum(r.saleAmt)+'</td>'
         +'<td class="txt-l" style="color:#9aa7b3">'+_cesc(r.srcFile)+'</td></tr>';
-    });
-    wrap.innerHTML=h+'</tbody></table>';
+    };
+    var pages=Math.max(1,Math.ceil(list.length/OH_ROWS)); if(_ohPage>pages)_ohPage=pages;
+    var rS=(_ohPage-1)*OH_ROWS, rE=Math.min(rS+OH_ROWS, list.length), body='';
+    if(rS<rE){ var f=list[rS];   // 페이지가 그룹 중간에서 시작하면 소속 헤더(묶음→출고장 순)를 문맥으로 먼저
+      if(f.t!=='G' && f.e) body+=L0Row(f.e);
+      if(f.t==='r') body+=grpRow(f.gi, !!f.e);
+    }
+    for(var i=rS;i<rE;i++){ var x=list[i];
+      body += (x.t==='G') ? L0Row(x.e) : (x.t==='g') ? grpRow(x.gi, !!x.e) : detRow(x.gi,x.ri);
+    }
+    wrap.innerHTML=h+body+'</tbody></table>';
     _ohPager(pages);
   }
 
@@ -3763,39 +4005,58 @@
     B.forEach(function(g){ tT.hit+=g.hit; tT.unpaid+=g.unpaid; tT.noKey+=g.noKey; });
     h+='<tr class="close-total"><td colspan="5">■ 총합계 <span style="font-weight:600" title="사업장별 정산금액은 만들지 않습니다. 정산서는 발주 단위, 출고는 발주×사업장 단위라 쪼개면 추정이 됩니다. 금액은 ①②탭에서 보세요.">(출고수량 전용 · 금액은 ①②탭)</span></td>'
       +'<td style="text-align:right">'+_ohQ(oQ)+'</td><td>'+_ohStat(tT)+'</td></tr>';
-    // 표시행 평면화 (3단: 출고장 → 사업장 → 출고 원본행. 접힘 반영)
-    var list=[];
+    // 표시행 평면화 (4단: 물류센터 묶음(d3:) → 출고장(s:) → 사업장(b:) → 출고 원본행. 접힘 반영. 묶음이 2곳 이상일 때만 머리행)
+    var L0s=[], lm={};
     B.forEach(function(g,gi){
-      list.push({t:'g',gi:gi});
-      if(_ohIsCol2('s:'+g.dc, _ohAllCol)) return;
-      g.bizOrd.forEach(function(bk,bi){
-        list.push({t:'b',gi:gi,bi:bi});
-        if(_ohIsCol2('b:'+g.dc+'|'+bk, true)) return;          // 사업장 하위(원본행)는 기본 접힘
-        g.biz[bk].rows.forEach(function(x,xi){ list.push({t:'r',gi:gi,bi:bi,xi:xi}); });
+      var lbl=_ohDcGrp(g.dc);
+      var e=lm[lbl]; if(!e){ e=lm[lbl]={ label:lbl, gis:[], oRows:0, oQty:0, hit:0, unpaid:0, noKey:0, bizN:0 }; L0s.push(e); }
+      e.gis.push(gi); e.oRows+=g.oRows; e.oQty+=g.oQty; e.hit+=g.hit; e.unpaid+=g.unpaid; e.noKey+=g.noKey; e.bizN+=g.bizOrd.length;
+    });
+    L0s.sort(function(a,b){ return a.label.localeCompare(b.label,'ko'); });
+    var list=[];
+    L0s.forEach(function(e){
+      var multi=e.gis.length>1;
+      if(multi){ list.push({t:'G',e:e}); if(_ohIsCol2('d3:'+e.label,false)) return; }
+      e.gis.forEach(function(gi){
+        var g=B[gi];
+        list.push({t:'g',gi:gi,e:multi?e:null});
+        if(_ohIsCol2('s:'+g.dc, _ohAllCol)) return;
+        g.bizOrd.forEach(function(bk,bi){
+          list.push({t:'b',gi:gi,bi:bi,e:multi?e:null});
+          if(_ohIsCol2('b:'+g.dc+'|'+bk, true)) return;          // 사업장 하위(원본행)는 기본 접힘
+          g.biz[bk].rows.forEach(function(x,xi){ list.push({t:'r',gi:gi,bi:bi,xi:xi,e:multi?e:null}); });
+        });
       });
     });
-    var grpRow=function(gi){
+    var L0Row=function(e){
+      var col=_ohIsCol2('d3:'+e.label,false);
+      return '<tr class="close-grp" onclick="ohGrp(\''+encodeURIComponent('d3:'+e.label)+'\')"><td colspan="5">'
+        +'<span class="ccar">'+(col?'▶':'▼')+'</span> 🗂️ '+_cesc(e.label)
+        +' <span style="font-weight:600;color:#5a6b7a">('+e.gis.length+'곳 · '+e.bizN+'개 사업장 · '+e.oRows.toLocaleString()+'행)</span></td>'
+        +'<td style="text-align:right">'+_ohQ(e.oQty)+'</td><td>'+_ohStat(e)+'</td></tr>';
+    };
+    var grpRow=function(gi, ind){
       var g=B[gi], gk='s:'+g.dc, gcol=_ohIsCol2(gk, _ohAllCol);
-      return '<tr class="close-grp" onclick="ohGrp(\''+encodeURIComponent(gk)+'\')"><td colspan="5">'
+      return '<tr class="close-grp" onclick="ohGrp(\''+encodeURIComponent(gk)+'\')"><td colspan="5"'+(ind?' style="padding-left:24px"':'')+'>'
         +'<span class="ccar">'+(gcol?'▶':'▼')+'</span> 🏭 '+_cesc(g.label)
         +' <span style="font-weight:600;color:#5a6b7a">('+g.bizOrd.length+'개 사업장 · '+g.oRows.toLocaleString()+'행)</span></td>'
         +'<td style="text-align:right">'+_ohQ(g.oQty)+'</td><td>'+_ohStat(g)+'</td></tr>';
     };
-    var bizRow=function(gi,bi){
+    var bizRow=function(gi,bi,ind){
       var g=B[gi], bk=g.bizOrd[bi], b=g.biz[bk], bcol=_ohIsCol2('b:'+g.dc+'|'+bk, true);
       return '<tr class="close-sub" style="cursor:pointer" onclick="ohGrp(\''+encodeURIComponent('b:'+g.dc+'|'+bk)+'\')">'
-        +'<td class="txt-l" style="padding-left:24px"><span class="ccar">'+(bcol?'▶':'▼')+'</span> 🏢 '+_cesc(b.bizNm)
+        +'<td class="txt-l" style="padding-left:'+(ind?44:24)+'px"><span class="ccar">'+(bcol?'▶':'▼')+'</span> 🏢 '+_cesc(b.bizNm)
         +' <span style="font-weight:600;color:#5a6b7a">('+b.rows.length+'행)</span></td>'
         +'<td colspan="4" style="color:#9aa7b3">'+_cesc(b.bizCd)+'</td>'
         +'<td style="text-align:right">'+_ohQ(b.oQty)+'</td><td>'+_ohStat(b)+'</td></tr>';
     };
-    var detRow=function(gi,bi,xi){
+    var detRow=function(gi,bi,xi,ind){
       var g=B[gi], x=g.biz[g.bizOrd[bi]].rows[xi], r=x.r;
       // 이 행의 (발주일자·출고장·품목코드)가 정산서에 있느냐 — 사실만 표시(사업장별 금액 배분은 하지 않는다)
       var st = x.hit ? '<span style="color:#137a6c;font-weight:700" title="이 행의 발주일자·출고장·품목코드가 정산서에 있습니다.&#10;금액은 품목 합계 단위라 ①②탭에서 보세요.">대사됨</span>'
                      : (x.k ? '<span style="color:#c0392b;font-weight:700" title="보냈는데 정산서에 이 발주일자·출고장·품목이 없습니다 — 청구 누락 후보.">미정산</span>'
                             : '<span style="color:#9aa7b3" title="발주일자·출고장·품목코드 중 빈 칸이 있어 키가 서지 않습니다(정상 자료에는 없습니다).">키없음</span>');
-      return '<tr><td class="txt-l" style="padding-left:46px">'+_cesc(r.itemNm)+'</td>'
+      return '<tr><td class="txt-l" style="padding-left:'+(ind?66:46)+'px">'+_cesc(r.itemNm)+'</td>'
         +'<td>'+_cesc(r.itemCd)+'</td>'
         +'<td>'+(_cesc(r.ordNo)||'<span style="color:#c9d2d0">—</span>')+'</td><td>'+_cesc(r.ordItemNo)+'</td>'
         +'<td>'+_cesc(r.shpoutDt)+(_ohYmd(r.shpoutDt)!==_ohYmd(r.dlvDt)?' <span style="color:#c47f17" title="발주일자 '+_cesc(r.dlvDt)+' — 먼 지역은 하루 당겨 출고합니다">*</span>':'')+'</td>'
@@ -3804,12 +4065,16 @@
     };
     var pages=Math.max(1,Math.ceil(list.length/OH_ROWS)); if(_ohPage>pages)_ohPage=pages;
     var rS=(_ohPage-1)*OH_ROWS, rE=Math.min(rS+OH_ROWS, list.length), body='';
-    if(rS<rE){ var f=list[rS];   // 페이지가 그룹 중간에서 시작하면 소속 헤더를 문맥으로 먼저
-      if(f.t!=='g') body+=grpRow(f.gi);
-      if(f.t==='r') body+=bizRow(f.gi,f.bi);
+    if(rS<rE){ var f=list[rS];   // 페이지가 그룹 중간에서 시작하면 소속 헤더(묶음→출고장→사업장 순)를 문맥으로 먼저
+      if(f.t!=='G' && f.e) body+=L0Row(f.e);
+      if(f.t==='b'||f.t==='r') body+=grpRow(f.gi, !!f.e);
+      if(f.t==='r') body+=bizRow(f.gi,f.bi, !!f.e);
     }
     for(var i=rS;i<rE;i++){ var r2=list[i];
-      body += (r2.t==='g') ? grpRow(r2.gi) : (r2.t==='b') ? bizRow(r2.gi,r2.bi) : detRow(r2.gi,r2.bi,r2.xi);
+      body += (r2.t==='G') ? L0Row(r2.e)
+            : (r2.t==='g') ? grpRow(r2.gi, !!r2.e)
+            : (r2.t==='b') ? bizRow(r2.gi,r2.bi, !!r2.e)
+            : detRow(r2.gi,r2.bi,r2.xi, !!r2.e);
     }
     wrap.innerHTML=h+body+'</tbody></table>';
     _ohPager(pages);
@@ -3989,16 +4254,36 @@
              background:#f1f5f4; color:#5a6b7a; font-weight:700; font-size:12px; cursor:help; white-space:nowrap; }
       .tipx:hover{ border-color:#137a6c; color:#137a6c; background:#eaf5f3; }
       /* 목록 그리드 — 헤더 고정 + 화면 높이에 맞춰 스크롤(위쪽 카드가 커져도 그리드가 안 밀림) */
-      #ohWrap{ max-height:calc(100vh - 202px); min-height:240px; overflow:auto; }
-      /* 표를 위로 끌어올리려고 탭·요약줄을 최소 높이로(2026-07-22 요청) — 이 화면에만 적용 */
-      #ohSum{ margin:1px 0 2px !important; font-size:12.5px; line-height:1.3; }
-      #ohTabs{ margin:4px 0 0 !important; }
+      #ohWrap{ max-height:calc(100vh - 214px); min-height:240px; overflow:auto; }
+      /* 표를 위로 끌어올리려고 탭·요약줄을 최소 높이로(2026-07-22 요청) — 이 화면에만 적용.
+         단 탭 바의 2px 경계선에 요약줄 글자가 붙어 겹쳐 보이므로, 여백은 '탭 아래쪽'에 준다
+         (요약줄 위 여백으로 주면 칩 배경이 경계선에 닿아 여전히 붙어 보인다) */
+      #ohTabs{ margin:4px 0 12px !important; }
+      #ohSum{ margin:0 0 6px !important; padding-top:2px; font-size:12.5px; line-height:1.35; }
       #ohTabs .ctab{ height:30px; padding:0 12px; font-size:12.5px; }
       #ohTabs .btn-line{ height:26px !important; margin-bottom:2px; }
       #ohWrap table.logi-tb thead th{ position:sticky; top:0; z-index:2; box-shadow:inset 0 -1px 0 var(--logi-border); }
       /* 정산 엑셀 저장 팝업의 파일 목록 — 칸이 줄바꿈되면 읽기 나쁘므로 한 줄로 고정, 넘치면 가로 스크롤 */
       #slsUpWrap .sls-ftb th, #slsUpWrap .sls-ftb td{ white-space:nowrap; }
       #slsUpWrap{ overflow:auto; }
+      /* 출고장 다중선택 드롭다운 — 대시보드(데시보드1 .dc-pop)와 같은 형태 */
+      .ohdc-wrap{ position:relative; display:block; }
+      #ohDcBtn{ width:100%; height:34px; display:flex; align-items:center; justify-content:space-between; gap:6px; text-align:left; }
+      #ohDcBtn .arr{ margin-left:auto; flex:0 0 auto; color:#178074; }
+      /* ★width:230px 을 min-width 로 주면 부모(.fld 190px)에 눌려 글자가 세로로 접힌다 — 고정폭 + nowrap 필수 */
+      .ohdc-pop{ display:none; position:absolute; top:38px; left:0; z-index:60; background:#fff; border:1px solid var(--logi-border);
+                 border-radius:8px; box-shadow:0 6px 18px rgba(31,42,55,.18); padding:8px 6px;
+                 width:250px; max-height:340px; overflow-y:auto; overflow-x:hidden; box-sizing:border-box; }
+      .ohdc-pop.open{ display:block; }
+      .ohdc-pop label{ display:flex; align-items:center; gap:8px; padding:6px 10px; font-size:12.5px; color:#37475a;
+                       cursor:pointer; border-radius:6px; white-space:nowrap; }
+      .ohdc-pop label:hover{ background:#eef3f2; }
+      /* 체크박스가 flex 아이템이라 늘어나는 것을 막는다(캡처의 거대 체크박스 원인) */
+      .ohdc-pop label input[type=checkbox]{ flex:0 0 auto; width:14px; height:14px; margin:0; }
+      .ohdc-pop label > span{ flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; }
+      .ohdc-pop label.all{ color:#178074; font-weight:700; border-bottom:1px dashed var(--logi-border); border-radius:6px 6px 0 0; margin-bottom:4px; }
+      .ohdc-pop label.on{ color:#0e6657; background:#e3f4ef; }
+      .ohdc-pop label.kid{ padding-left:28px; font-size:12px; }        /* 묶음 하위 개별 출고장 */
       /* 대사(합계) 열 — 정산이 없는 출고, 출고가 없는 정산을 눈에 띄게 */
       .oh-gap{ color:#c0392b; font-weight:800; }
       .oh-ok{ color:#137a6c; font-weight:800; }
@@ -4038,15 +4323,22 @@
         <div class="form-row" style="margin-bottom:0; align-items:flex-end">
           <div class="fld" style="flex:0 0 150px"><label>납품일자(시작)</label><input type="date" id="slsFrom"></div>
           <div class="fld" style="flex:0 0 150px"><label>납품일자(종료)</label><input type="date" id="slsTo"></div>
-          <div class="fld" style="flex:0 0 130px"><label>출고장</label><input type="text" id="slsDc" placeholder="전체"></div>
+          <div class="fld" style="flex:0 0 190px"><label>출고장</label>
+            <!-- 대시보드(데시보드1)와 같은 드롭다운 체크박스 다중선택. 묶음(오산센터)·개별 둘 다 고를 수 있다 -->
+            <div class="ohdc-wrap" id="ohDcWrap">
+              <button type="button" class="btn-line" id="ohDcBtn" onclick="ohDcOpen(event)" title="출고장을 하나 이상 선택하여 조회합니다. 아무것도 안 고르면 전체입니다.">
+                <span>🏬</span><span class="arr"><b id="ohDcLbl">전체</b> ▾</span></button>
+              <div class="ohdc-pop" id="ohDcPop"></div>
+            </div>
+          </div>
           <div class="fld" style="flex:0 0 170px"><label>품목코드/품목명</label><input type="text" id="slsItemCd" placeholder="전체 (부분검색)"></div>
           <div class="fld" style="flex:0 0 90px"><button class="btn-teal" style="width:100%" onclick="ohQuery()">조회</button></div>
           <div class="fld" style="flex:0 0 auto; margin-left:auto">
-            <span class="tipx" title="[관점 환산] 엑셀은 출고장 기준이라 우리 기준으로 뒤집어 담습니다.&#10;  입고량→우리 출고량 · 단가→우리 판매단가 · 매입금액→우리 매출액 · 입고일자→우리 출고일자&#10;  ※ 엑셀의 '매입금액'은 우리 매입이 아닙니다(우리 매입가는 상품관리가 담당).&#10;&#10;[읽는 규칙] 품목코드 없는 행(합계행)은 제외 · 발주번호 병합셀은 위 값 승계 · 수량은 소수/음수 보존 · 납품일자는 엑셀 값, 출고장만 파일명에서 인식.&#10;&#10;[저장 단위] (납품일자+출고장) 1배치. 같은 배치를 다시 올리면 기존 자료를 이력마감한 뒤 새로 적재(이전 자료는 이력으로 남음).&#10;&#10;[판매단가 이력] 저장 시 판매가 이력에도 반영(적용일자=납품일자=발주일자) → 매출마감 출고단가가 (마스터) 대신 (이력) 확정가로 잡힘. 같은 품목·같은 날 단가가 다르면 건너뜀.&#10;&#10;[조회기간] 진입 시=이번 달 1일~오늘 / 엑셀 업로드 시=납품일자가 속한 달 전체.&#10;&#10;[기간 기준] 납품일자(=발주일자)로 양쪽을 맞춥니다. 출고내역은 먼 지역이 하루 당겨 출고하므로 앞뒤 7일을 넉넉히 읽어 발주일자로 다시 거릅니다.&#10;&#10;[대사 규칙] ★발주일자 + 출고장 + 품목코드 로 짝을 맞춥니다(합계 대 합계).&#10;  · 출고는 사업장이 여럿이면 자동으로 합쳐집니다(정산서에 사업장 칸이 없음).&#10;  · 짝 없는 출고 = 미정산(보냈는데 청구 안 됨) / 짝 없는 정산 = 출고미상(보낸 적 없는데 청구됨).&#10;  · 발주번호는 발주현황표에 절반이 비어 있어 키로 쓰지 않습니다(참고 표시만).">ℹ️ 도움말</span>
+            <span class="tipx" title="[관점 환산] 엑셀은 출고장 기준이라 우리 기준으로 뒤집어 담습니다.&#10;  입고량→우리 출고량 · 단가→우리 판매단가 · 매입금액→우리 매출액 · 입고일자→우리 출고일자&#10;  ※ 엑셀의 '매입금액'은 우리 매입이 아닙니다(우리 매입가는 상품관리가 담당).&#10;&#10;[읽는 규칙] 품목코드 없는 행(합계행)은 제외 · 발주번호 병합셀은 위 값 승계 · 수량은 소수/음수 보존 · 납품일자는 엑셀 값, 출고장만 파일명에서 인식.&#10;&#10;[저장 단위] (납품일자+출고장) 1배치. 같은 배치를 다시 올리면 기존 자료를 이력마감한 뒤 새로 적재(이전 자료는 이력으로 남음).&#10;&#10;[판매단가 이력] 저장 시 판매가 이력에도 반영(적용일자=납품일자=발주일자) → 매출마감 출고단가가 (마스터) 대신 (이력) 확정가로 잡힘. 같은 품목·같은 날 단가가 다르면 건너뜀.&#10;&#10;[조회기간] 진입 시=이번 달 1일~오늘 / 엑셀 업로드 시=납품일자가 속한 달 전체.&#10;&#10;[기간 기준] 납품일자(=발주일자)로 양쪽을 맞춥니다. 출고내역은 출고일자로만 조회되는데 먼 지역이 하루 당겨 출고하므로, 앞뒤 한 달을 넉넉히 읽어 발주일자로 다시 걸러 정산과 같은 기간으로 맞춥니다.&#10;&#10;[대사 규칙] ★발주일자 + 출고장 + 품목코드 로 짝을 맞춥니다(합계 대 합계).&#10;  · 출고는 사업장이 여럿이면 자동으로 합쳐집니다(정산서에 사업장 칸이 없음).&#10;  · 짝 없는 출고 = 미정산(보냈는데 청구 안 됨) / 짝 없는 정산 = 출고미상(보낸 적 없는데 청구됨).&#10;  · 발주번호는 발주현황표에 절반이 비어 있어 키로 쓰지 않습니다(참고 표시만).">ℹ️ 도움말</span>
           </div>
         </div>
         <div class="close-tabs" id="ohTabs" style="margin:6px 0 0">
-          <button type="button" class="ctab on" data-t="dc"     onclick="ohTab('dc')" title="원천: 정산서 ∪ 출고내역(합집합) — 한쪽만 있어도 줄이 생깁니다.&#10;한 줄 = 출고장 1곳. 왼쪽 「출고건수·출고수량」=발주현황표 / 오른쪽 「정산행수·정산수량·평균단가·정산금액」=정산서.">🏭 출고장별 합계</button>
+          <button type="button" class="ctab on" data-t="dc"     onclick="ohTab('dc')" title="원천: 정산서 ∪ 출고내역(합집합) — 한쪽만 있어도 줄이 생깁니다.&#10;한 줄 = 출고장 1곳. 왼쪽 「출고건수·출고수량」=발주현황표 / 오른쪽 「정산행수·정산수량·평균단가·정산금액」=정산서.&#10;&#10;★출고장 줄을 클릭하면 ② 품목 탭으로 넘어가 그 출고장만 펼쳐 보여줍니다 — 차이가 난 품목을 바로 찾을 때.">🏭 출고장별 합계</button>
           <button type="button" class="ctab"    data-t="item"   onclick="ohTab('item')" title="원천: 정산서 ∪ 출고내역(합집합) · 품목축&#10;①에서 난 차이가 어느 품목 때문인지 찾습니다. 출고장 머리행을 눌러 접기/펼치기.">🧾 출고장 ▸ 품목</button>
           <button type="button" class="ctab"    data-t="ship"   onclick="ohTab('ship')" title="원천: 출고내역(발주현황표) · 사업장축 · 출고수량 전용&#10;어느 점포로 얼마나 나갔나. 사업장 줄을 누르면 출고 원본행이 펼쳐집니다.&#10;&#10;※ 사업장별 정산금액은 만들지 않습니다.&#10;   정산서에 사업장 칸이 없어 쪼개면 추정이 되기 때문입니다.&#10;   금액은 ①출고장별 합계 · ②출고장▸품목 에서 보세요.&#10;&#10;맨 오른쪽 「정산 대사」는 배분이 아니라 사실입니다 —&#10;   대사됨: 이 행의 발주일자·출고장·품목코드가 정산서에 있음&#10;   미정산: 보냈는데 정산서에 없음(청구 누락 후보)">🏢 출고장 ▸ 사업장</button>
           <button type="button" class="ctab"    data-t="settle" onclick="ohTab('settle')" title="원천: 정산서(TBL_SALES_MST) 단독&#10;출고장이 보낸 엑셀 원본 행 그대로. 「출고수량」 한 열만 대사로 붙였습니다.">📋 정산서 원본(엑셀)</button>
@@ -4265,7 +4557,7 @@
               </tbody>
             </table>
             <div style="margin-top:6px"><b style="color:#c47f17">★①②는 '정산서 기준'이 아니다</b> — 정산서와 출고내역의 <b>합집합</b>이라 <b>한쪽만 있어도 줄이 생긴다</b>. 그래야 <b>정산 미도착</b>(출고만 있음)과 <b>출고내역 없음</b>(정산만 있음)을 잡아낸다. 정산서 단독 화면은 ④뿐이고, ③은 사업장이 정산서에 없으므로 출고내역 기준이다. 각 탭 위에 원천이 한 줄로 표시된다.</div>
-            <div style="margin-top:6px">공통 규칙 — 짝 맞추기는 <b style="color:#137a6c">발주일자 + 출고장 + 품목코드</b>이며 <b>행 대 행이 아니라 합계 대 합계</b>다. 출고는 사업장이 여럿이면 자동으로 합쳐진다(정산서에 사업장 칸이 없으므로 이 단위가 정산서의 자연 단위다). <b>발주번호는 키로 쓰지 않는다</b> — 발주현황표에 절반이 비어 있어(원본이 그렇다) 그만큼 영영 대사가 안 되기 때문. 화면에는 참고로만 표시한다. 기간은 <b>납품일자(=발주일자)</b> 기준. 출고내역은 출고일자로만 조회되는데 <b>먼 지역은 발주분을 하루 당겨 출고</b>하므로 앞뒤 7일을 넉넉히 읽어 발주일자로 다시 걸러 양쪽 기간을 맞춘다. 출고장 이름은 <b>정산서는 '평택', 발주현황표는 '평택물류센터'</b> 라서 <b>'(물류)센터·출고장·끝숫자'를 떼고 같은 곳으로 묶는다</b>. 수량은 소수·음수(반품)를 그대로 두고 금액만 반올림한다.</div></td></tr>
+            <div style="margin-top:6px">공통 규칙 — 짝 맞추기는 <b style="color:#137a6c">발주일자 + 출고장 + 품목코드</b>이며 <b>행 대 행이 아니라 합계 대 합계</b>다. 출고는 사업장이 여럿이면 자동으로 합쳐진다(정산서에 사업장 칸이 없으므로 이 단위가 정산서의 자연 단위다). <b>발주번호는 키로 쓰지 않는다</b> — 발주현황표에 절반이 비어 있어(원본이 그렇다) 그만큼 영영 대사가 안 되기 때문. 화면에는 참고로만 표시한다. 기간은 <b>납품일자(=발주일자)</b> 기준. 출고내역은 출고일자로만 조회되는데 <b>먼 지역은 발주분을 하루 당겨 출고</b>하므로 <b>앞뒤 한 달</b>을 넉넉히 읽어 발주일자로 다시 걸러 양쪽 기간을 맞춘다. (창 밖으로 벗어난 행은 경고 없이 빠지고 화면은 <b>일치</b>로 보이므로, 감지 장치 대신 창을 크게 잡았다) 출고장 이름은 <b>정산서는 '평택', 발주현황표는 '평택물류센터'</b> 라서 <b>'(물류)센터·출고장·끝숫자'를 떼고 같은 곳으로 묶는다</b>. 수량은 소수·음수(반품)를 그대로 두고 금액만 반올림한다.</div></td></tr>
           <tr><td class="m">물품동선관리 <span style="color:#9aa7b3;font-size:11px">(예정·데모)</span></td><td>창고/로케이션·입고등록(창고선정)·창고별 재고현황·재고/위치조회·출고지시 — 물품 이동(입고→위치→피킹→출고) 데모 화면. 향후 실데이터 연동 예정.</td></tr>
         </tbody></table>
       </div>
