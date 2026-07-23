@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="egovframework.sejong.admin.mapper.AdminMapper">
+
+
+
+   <!-- faq 목록조회 -->
+   <select id="selectfaqList" parameterType="FaqDTO" resultType="FaqDTO"><![CDATA[
+         select  FAQ_GB
+               , QSTN_CONTS
+               , ANSR_CONTS
+               , USE_YN
+               , REG_ID
+               , REG_DTM
+               , MOD_ID
+               , MOD_DTM
+               , FAQ_SEQ
+        from T_FAQ_TRAN
+       where 1=1
+       ]]>
+      <choose>
+        <when test="searchGb != 'ALL' "><![CDATA[
+            AND FAQ_GB = #{searchGb}
+        ]]></when>
+        <when test="searchGb = 'ALL' and searchText != null and searchText != ''"><![CDATA[
+            AND (QSTN_CONTS LIKE CONCAT('%', #{searchText}, '%')
+            OR ANSR_CONTS LIKE CONCAT('%', #{searchText}, '%'))
+        ]]></when>
+        <when test="searchGb != 'ALL' and searchText != null and searchText != ''"><![CDATA[
+            AND FAQ_GB = #{searchGb}
+            AND (QSTN_CONTS LIKE CONCAT('%', #{searchText}, '%')
+            OR  ANSR_CONTS LIKE CONCAT('%', #{searchText}, '%'))
+        ]]></when>
+        <when test="searchGb = 'ALL' "><![CDATA[
+        ]]></when>
+      </choose>
+       <![CDATA[
+        order by MOD_DTM DESC
+       ]]>
+   </select>
+
+	<!-- 선택된 faq 조회-->
+	<select id="faqInfo" parameterType="FaqDTO" resultType="FaqDTO"><![CDATA[
+		 select  FAQ_GB
+               , QSTN_CONTS
+               , ANSR_CONTS
+               , USE_YN
+               , REG_ID
+               , REG_DTM
+               , MOD_ID
+               , MOD_DTM
+               , FAQ_SEQ
+		  from T_FAQ_TRAN
+		 where 1=1
+		   and FAQ_SEQ = #{faqSeq}
+		]]>
+	</select>
+
+	<insert id="insertfaq" parameterType="FaqDTO"><![CDATA[
+	  INSERT INTO T_FAQ_TRAN
+      (FAQ_GB  ,
+       QSTN_CONTS  ,
+       ANSR_CONTS ,
+       USE_YN  ,
+       REG_ID   ,
+       REG_DTM  ,
+       MOD_ID   ,
+       MOD_DTM
+      ) VALUES
+      (
+       #{faqGb},
+       #{qstnConts},
+       #{ansrConts},
+       #{useYn},
+       'admin',
+        now(),
+       'admin',
+        now()
+      )
+	]]>
+	</insert>
+
+    <update id="updatefaq" parameterType="FaqDTO"><![CDATA[
+       UPDATE T_FAQ_TRAN
+          SET QSTN_CONTS  = #{qstnConts},
+              ANSR_CONTS  = #{ansrConts},
+              USE_YN      = #{useYn},
+              MOD_ID      = 'admin' ,
+              MOD_DTM     = now()
+		 where 1=1
+		   and FAQ_SEQ = #{faqSeq}
+    ]]>
+    </update>
+    
+
+    <update id="deletefaq" parameterType="FaqDTO"><![CDATA[
+       UPDATE T_FAQ_TRAN
+          SET USE_YN    = 'N',
+              MOD_ID    = 'admin',
+              MOD_DTM   = now()
+       where 1=1
+		  And FAQ_SEQ = #{faqSeq}
+    ]]>
+    </update>
+
+   <!-- 환자 질의응답 목록조회 -->
+   <select id="selectasqList" parameterType="AsqDTO" resultType="AsqDTO"><![CDATA[
+        Select   A.ASQ_SEQ
+               , A.USER_UUID
+               , B.USER_NM
+      		   , B.GENDER
+			   , B.BIRTH
+               , A.QSTN_TITL
+               , A.QSTN_CONTS
+               , A.QSTN_YMD
+               , A.ANSR_CONTS
+               , A.ANSR_YN
+        From T_ASQ_TRAN A , T_USER_TRAN B
+       where 1=1
+         AND  A.USER_UUID = B.USER_UUID
+       ]]>
+      <choose>
+        <when test= "searchText != null and searchText != ''"><![CDATA[
+            AND (QSTN_TITL LIKE CONCAT('%', #{searchText}, '%'))
+        ]]></when>
+      </choose>
+       <![CDATA[
+        order by QSTN_YMD DESC
+       ]]>
+   </select>
+
+	<!-- 선택된 질의응답 조회 -->
+	<select id="asqInfo" parameterType="AsqDTO" resultType="AsqDTO"><![CDATA[
+		 Select  ASQ_SEQ
+               , USER_UUID
+               , QSTN_TITL
+               , QSTN_CONTS
+               , QSTN_YMD
+               , ANSR_CONTS
+               , ANSR_YN
+		 From T_ASQ_TRAN
+		 where 1=1
+		   and ASQ_SEQ = #{asqSeq}
+		]]>
+	</select>
+
+    <update id="updateasq" parameterType="AsqDTO"><![CDATA[
+       UPDATE T_ASQ_TRAN
+          SET QSTN_TITL   = #{qstnTitl},
+              QSTN_CONTS  = #{qstnConts},
+              ANSR_CONTS  = #{ansrConts},
+              ANSR_YN     = #{ansrYn},
+              QSTN_YMD    = NOW()
+		 where 1=1
+		   and ASQ_SEQ = #{asqSeq}
+    ]]>
+    </update>
+
+	<!-- 환자 본인 1:1 문의 목록 (sejong_app ASQ 참조) -->
+	<select id="selectMyAsqList" parameterType="AsqDTO" resultType="AsqDTO"><![CDATA[
+	     Select   ASQ_SEQ
+	            , USER_UUID
+	            , QSTN_TITL
+	            , QSTN_CONTS
+	            , QSTN_YMD
+	            , ANSR_CONTS
+	            , ANSR_YN
+	       From T_ASQ_TRAN
+	      where USER_UUID = #{userUuid}
+	      order by QSTN_YMD DESC
+	]]></select>
+
+	<!-- 환자 본인 1:1 문의 등록 -->
+	<insert id="insertasq" parameterType="AsqDTO"><![CDATA[
+	   INSERT INTO T_ASQ_TRAN
+	     ( USER_UUID
+	     , QSTN_TITL
+	     , QSTN_CONTS
+	     , QSTN_YMD
+	     , ANSR_YN )
+	   VALUES
+	     ( #{userUuid}
+	     , #{qstnTitl}
+	     , #{qstnConts}
+	     , NOW()
+	     , 'N' )
+	]]></insert>
+
+	<!-- 환자 본인 1:1 문의 삭제 -->
+	<delete id="deleteasq" parameterType="AsqDTO"><![CDATA[
+	   DELETE FROM T_ASQ_TRAN
+	    WHERE USER_UUID = #{userUuid}
+	      AND ASQ_SEQ   = #{asqSeq}
+	]]></delete>
+
+</mapper>

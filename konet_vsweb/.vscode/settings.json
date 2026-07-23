@@ -1,0 +1,38 @@
+{
+    "files.encoding": "utf8",
+    "editor.minimap.enabled": false,
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "java.configuration.maven.userSettings": "C:\\Users\\user\\.m2\\settings.xml",
+    "maven.executable.path": "D:\\egv\\apache-maven-3.8.4\\bin\\mvn.cmd",
+    "maven.terminal.useJavaHome": true,
+    "maven.terminal.customEnv": [
+        {
+            "environmentVariable": "JAVA_HOME",
+            "value": "C:\\Program Files\\Java\\jre-1.8"
+        }
+    ],
+    "maven.terminal.favorites": [
+        {
+            "alias": "WAR 빌드 (오프라인)",
+            "command": "-o -DskipTests clean package"
+        },
+        {
+            "alias": "WAR 빌드 (의존성 갱신)",
+            "command": "-DskipTests clean package"
+        }
+    ],
+    "java.import.maven.enabled": true,
+    "java.compile.nullAnalysis.mode": "automatic",
+    "files.exclude": {
+        "**/bin": true,
+        "**/target": true
+    },
+    "search.exclude": {
+        "**/bin": true,
+        "**/target": true,
+        "**/.settings": true
+    },
+    "files.associations": {
+        "*.jsp": "html"
+    }
+}

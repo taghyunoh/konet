@@ -1,0 +1,12 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "톰캣 디버그 연결 (konet_vsweb)",
+            "request": "attach",
+            "hostName": "localhost",
+            "port": 9171
+        }
+    ]
+}

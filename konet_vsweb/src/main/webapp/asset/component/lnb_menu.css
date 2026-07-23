@@ -1,0 +1,52 @@
+@charset "UTF-8";
+
+/* LNB 메뉴 lnb-menu */
+.lnb-menu {
+  width: 240px;
+  height: 100%;
+  border-right: 1px solid var(--color-lightgray);
+}
+.lnb-wrap {
+  width: 100%;
+  height: 100%;
+  padding: 30px;
+}
+.lnb-nav {
+  display: flex;
+  flex-flow: column nowrap;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 10px;
+}
+.lnb-nav .menu-item .btn {
+  color: #000;
+}
+.lnb-nav .accordion-item {
+}
+.lnb-nav .menu-item {
+  /* border-bottom: 1px solid var(--color-lightgray); */
+}
+.lnb-nav .accordion-item {
+  background-color: transparent;
+  border: none;
+}
+.lnb-nav .accordion-button {
+  background-color: transparent;
+  padding: 6px 12px;
+  font-weight: 700;
+}
+.lnb-nav .accordion-item:first-of-type .accordion-button {
+  border-radius: 0px;
+}
+.lnb-nav .accordion-item .accordion-body > li {
+  padding: 6px 0px;
+}
+.lnb-nav .accordion-item .accordion-body a {
+  color: #000;
+  text-decoration: none;
+}
+.lnb-nav .accordion-item .accordion-body a:hover,
+.lnb-nav .accordion-item .accordion-body a:active,
+.lnb-nav .accordion-item .accordion-body a:focus {
+  color: var(--color-primary);
+}

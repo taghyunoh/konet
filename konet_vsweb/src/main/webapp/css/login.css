@@ -1,0 +1,95 @@
+@charset "UTF-8";
+
+#login.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--color-primary-v1);
+}
+
+#login .login-box {
+  /* width: 760px; */
+  height: 400px;
+  background-color: white;
+  /* background-image: url(/asset/img/login_bg.png); */
+  /* background-position: right; */
+  /* background-size: contain; */
+  /* background-repeat: no-repeat; */
+  padding: 0px;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+.login-box .login-wrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin: 0px 50px;
+}
+.login-wrap .id-box {
+  display: flex;
+  flex-direction: column;
+}
+.login-wrap h1 {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--color-primary-v1);
+  margin-bottom: 20px;
+}
+.login-wrap h2 {
+  font-size: 18px;
+  font-weight: 100;
+  align-items: left;
+  color: var(--color-dark);
+  font-weight: bold;
+  margin-bottom: 3px;
+}
+.login-wrap h3 {
+  font-size: 30px;
+  font-weight: 50;
+  color: var(--color-dark);
+}
+.set-btn-box {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.set-btn-box button {
+  flex: 1;
+}
+.login-box .img-wrap {
+  padding: 0px;
+  margin: 0px;
+  height: 100%;
+}
+
+/* 비밀번호 변경 창 */
+#login .set-pass-box {
+  width: 400px;
+  background-color: white;
+  padding: 30px 50px;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+#login h3 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-primary-v1);
+}
+.set-pass-box .set-pass-wrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 16px;
+  width: 100%;
+}

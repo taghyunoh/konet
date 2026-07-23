@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- 부트스트랩 css -->
+  <link href="/bootstrap/css/bootstrap.css" rel="stylesheet">
+
+  <link href="/asset/css/common.css" rel="stylesheet">
+
+  <!-- 부트스트랩 js -->
+  <script src="/bootstrap/js/bootstrap.bundle.js"></script>
+  <!-- JQuery -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+
+  <title>GNB 메뉴</title>
+</head>
+
+<body>
+
+  <nav class="navbar navbar-expand-lg bg-primary-v1 gnb-container">
+    <div class="container-fluid">
+      <div class="logo-wrap">
+        <img src="/asset/img/logo_01.png" alt="allCare">
+      </div>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav">
+          <li class="menu-item dropdown" data-menu="01">
+            <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              관리자 메뉴
+            </button>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item menu-link" href="#" data-cate="base" name="">서브 메뉴 01</a></li>
+              <li><a class="dropdown-item menu-link" href="#" data-cate="base" name="">서브 메뉴 02</a></li>
+              <li><a class="dropdown-item menu-link" href="#" data-cate="base" name="">서브 메뉴 03</a></li>
+              <li><a class="dropdown-item menu-link" href="#" data-cate="base" name="">서브 메뉴 04</a></li>
+            </ul>
+          </li>
+          <li class="menu-item" data-menu="02">
+            <button class="btn" type="button">
+              회원관리
+            </button>
+          </li>
+          <li class="menu-item" data-menu="03">
+            <button class="btn" type="button">
+              공지사항
+            </button>
+          </li>
+          <li class="menu-item" data-menu="04">
+            <button class="btn" type="button">
+              FAQ
+            </button>
+          </li>
+          <li class="menu-item" data-menu="05">
+            <button class="btn" type="button">
+              서비스정보
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <script>
+        // GNB 메뉴 인터렉션
+        // 메뉴 클릭시 on 클래스 추가
+        $(document).ready(function () {
+          $('.menu-item').click(function () {
+            $('.menu-item').removeClass('on');
+            $(this).addClass('on');
+          });
+        });
+      </script>
+
+      <!-- 로그인 정보 start -->
+      <div class="login-info">
+        <span class="notice on">
+          <img src="/asset/img/icon_notice.png" alt="공지알림">
+        </span>
+        <span class="user-name">김유진 관리자</span>
+        <button class="btn btn-sm btn-outline-dark">비밀번호 변경</button>
+        <a class="logout">
+          <img src="/asset/img/icon_logout_white.png" alt="로그아웃">
+        </a>
+        <!-- 로그인 정보 edn -->
+      </div>
+  </nav>
+
+</body>
+
+</html>

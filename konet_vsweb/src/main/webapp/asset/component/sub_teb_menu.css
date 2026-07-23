@@ -1,0 +1,50 @@
+@charset "UTF-8";
+
+/* 서브탭메뉴 stab-menu */
+.stab-menu {
+  display: flex;
+  flex-flow: row nowrap;
+  justify-content: center;
+  align-items: center;
+  border-radius: 4px;
+  background: var(--color-lightestgray);
+  width: 100%;
+}
+.stab-menu .stab-item > a {
+  display: flex;
+  padding: 15px 40px;
+  justify-content: center;
+  align-items: center;
+  color: #000;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 500;
+  border-radius: 4px;
+  text-decoration: none;
+}
+.stab-menu .stab-item > a:hover {
+  background: var(--color-primary-v3);
+}
+.stab-menu .stab-item > a.active {
+  background: var(--color-primary);
+  color: #fff;
+}
+.stab-content {
+  width: 100%;
+  height: 100%;
+  display: none;
+  margin-top: 40px;
+}
+.stab-content.active {
+  display: block !important;
+}
+.stab-content .steb-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 20px;
+}
+.stab-content .content-row {
+  gap: 20px;
+}

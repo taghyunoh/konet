@@ -1,0 +1,81 @@
+.mp-monthpicker {
+  position: relative;
+  display: inline-block;
+}
+.mp-dialog {
+  position: absolute;
+  z-index: 1000;
+  width: 282px;
+  height: 260px;
+  background: #fff;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  display: none;
+}
+.mp-title {
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 20px;
+  border-radius: 5px 5px 0 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 0;
+}
+.mp-title i {
+  cursor: pointer;
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+}
+.mp-title i.mp-year-prev {
+  background-image: url(/asset/img/icon_prev.png);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+}
+.mp-title i.mp-year-next {
+  background-image: url(/asset/img/icon_next.png);
+}
+.mp-content {
+}
+.mp-content ul {
+  list-style: none;
+  margin: 0;
+  padding: 20px;
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 16px;
+}
+.mp-content li {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  /* float: left; */
+  /* margin: 6px; */
+  width: 48px;
+  height: 48px;
+  border: 1px solid #ccc;
+  background-color: white;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.mp-content li:hover,
+.mp-content li.active {
+  background: var(--color-primary-v2);
+  color: #fff;
+}
+.mp-content li.disabled,
+.mp-content li.disabled:hover {
+  color: #000;
+  background-color: var(--color-lightgray);
+  cursor: default;
+}

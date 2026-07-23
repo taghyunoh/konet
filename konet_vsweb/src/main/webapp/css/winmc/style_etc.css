@@ -1,0 +1,90 @@
+/******* Bootstrap Theming ********/
+/*!
+ * Bootstrap v4.5.3 (https://getbootstrap.com/)
+ * Copyright 2011-2020 The Bootstrap Authors
+ * Copyright 2011-2020 Twitter, Inc.
+ * Licensed under MIT (https://github.com/twbs/bootstrap/blob/main/LICENSE)
+ */
+ body {
+     font-family: 'Arial', sans-serif;
+     margin: 0;
+     padding: 0;
+     background-color: #f8f9fa;
+ }
+ .faq-container {
+     width: 80%;
+     max-width: 800px;
+     margin: 50px auto;
+     background: white;
+     padding: 20px;
+     border-radius: 10px;
+     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+ }
+ h2 {
+     text-align: center;
+     color: #333;
+     margin-bottom: 20px;
+ }
+ .faq-item {
+     background: #ffffff;
+     border: 1px solid #ddd;
+     border-radius: 5px;
+     margin-bottom: 10px;
+     overflow: hidden;
+ }
+ .faq-question {
+     font-size: 14px;
+     font-weight: bold;
+     color: #007bff;
+     padding: 8px;
+     cursor: pointer;
+     display: flex;
+     justify-content: space-between;
+     align-items: center;
+     background: #f8f9fa;
+     border-radius: 5px;
+     transition: background 0.3s, color 0.3s;
+ }
+ .faq-question:hover {
+     background: #e9ecef;
+ }
+ .faq-answer {
+     display: none;
+     padding: 30px;
+     border-top: 1px solid #ddd;
+     font-size: 13px;
+     color: #333;
+     background: #ffffff;
+ }
+ .faq-item.active .faq-question {
+     background: #007bff;
+     color: white;
+ }
+ .faq-item.active .faq-answer {
+     display: block;
+ }
+ .arrow {
+     font-size: 16px;
+     transition: transform 0.3s;
+ }
+ .faq-item.active .arrow {
+     transform: rotate(180deg);
+     color: white;
+ }
+ .faq-button {
+     display: block;
+     width: 200px;
+     margin: 0 auto 20px;
+     padding: 10px;
+     font-size: 16px;
+     color: white;
+     background-color: #007bff;
+     border: none;
+     border-radius: 5px;
+     cursor: pointer;
+     transition: background 0.3s;
+     text-align: center;
+ }
+ .faq-button:hover {
+     background-color: #0056b3;
+ }

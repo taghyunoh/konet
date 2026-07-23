@@ -1,0 +1,704 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="egovframework.sejong.blood.mapper.BloodMapper">
+
+	<insert id="insertToken">
+		INSERT INTO T_BLDCON_MST (
+			 USER_UUID
+			,ISENS_ID
+			,ACC_TOKEN
+			,REF_TOKEN
+			,EXPRE_TIME
+			,TOKEN_YN
+			,LINK_STRT_DTM
+			,LINK_END_DTM
+			,REG_DTM
+			,MOD_DTM
+		)VALUES (
+			#{userUuid}
+			,#{user_id}
+        	,#{accessToken}
+        	,#{refresh_token}
+        	,#{expires_in}
+        	,'Y'
+        	,NOW()
+        	,NOW()
+        	,NOW()
+        	,NOW()
+		)ON DUPLICATE KEY UPDATE
+			ISENS_ID  = VALUES(ISENS_ID),
+			ACC_TOKEN = VALUES(ACC_TOKEN),
+			REF_TOKEN = VALUES(REF_TOKEN),
+			EXPRE_TIME = VALUES(EXPRE_TIME),
+			MOD_DTM = NOW()
+	</insert>
+
+	<!-- 환자 동기화 컨텍스트 (토큰 + 마지막 측정시각) -->
+	<select id="getSyncContext" parameterType="String" resultType="map"><![CDATA[
+		SELECT  M.USER_UUID                                                     AS userUuid
+		       ,M.ACC_TOKEN                                                     AS accToken
+		       ,M.REF_TOKEN                                                     AS refToken
+		       ,M.EXPRE_TIME                                                    AS expreTime
+		       ,(SELECT MAX(CGM_DTM) FROM T_BLDINF_TRAN
+		           WHERE USER_UUID = M.USER_UUID)                              AS lastCgmDtm
+		  FROM T_BLDCON_MST M
+		 WHERE M.USER_UUID = #{userUuid}
+		   AND IFNULL(M.TOKEN_YN,'Y') = 'Y'
+	]]>
+	</select>
+
+	<!-- 환자별 마지막 CGM 측정시각 (없으면 NULL) -->
+	<select id="getLastCgmDtm" parameterType="String" resultType="String"><![CDATA[
+		SELECT DATE_FORMAT(MAX(CGM_DTM), '%Y-%m-%dT%H:%i:%s')
+		  FROM T_BLDINF_TRAN
+		 WHERE USER_UUID = #{userUuid}
+	]]>
+	</select>
+
+	<!-- refresh 후 토큰만 갱신 -->
+	<update id="updateToken" parameterType="map"><![CDATA[
+		UPDATE T_BLDCON_MST
+		   SET ACC_TOKEN  = #{accessToken}
+		      ,REF_TOKEN  = #{refresh_token}
+		      ,EXPRE_TIME = #{expires_in}
+		      ,TOKEN_YN   = 'Y'
+		      ,MOD_DTM    = NOW()
+		 WHERE USER_UUID = #{userUuid}
+	]]>
+	</update>
+
+	<!-- insertBloodData -->
+	<insert id="insertBloodData" parameterType="java.util.List">
+    	INSERT INTO T_BLDINF_TRAN (
+    		SERIAL,
+       		CGM_SEQ,
+     	 	CGM_DTM,
+        	INIT_VALUE,
+        	UPT_VALUE,
+        	TREND_RATE,
+        	TREND,
+        	ERROR_CODE,
+        	USER_UUID
+    	) VALUES
+    	<foreach collection="list" item="item" separator=",">
+           (#{item.serialNumber},
+        	#{item.seqNumber},
+        	CONVERT_TZ(
+                STR_TO_DATE(SUBSTRING_INDEX(#{item.eventAt}, '+', 1), '%Y-%m-%dT%H:%i:%s'),
+                '+00:00', '+09:00'
+            ),
+        	#{item.initialValue},
+        	#{item.value},
+        	#{item.trendRate},
+        	#{item.trend},
+        	#{item.errorCode},
+        	#{item.userUuid})
+    	</foreach>
+	</insert>
+
+
+	<select id="getBloodUserData" parameterType="String" resultType="map">
+		SELECT ACC_TOKEN
+		      ,USER_UUID
+		  FROM T_BLDCON_MST
+		 WHERE ISENS_ID  = #{userId}
+	</select>
+
+	<!-- showBloodData -->
+	<select id="showBloodData" parameterType="String" resultType="map">
+		WITH COMM AS ( SELECT  CGM_DTM
+           			  		  ,UPT_VALUE
+      					 FROM T_BLDINF_TRAN
+     					WHERE USER_UUID = #{userId}
+       					  AND CAST(CGM_DTM AS DATETIME) BETWEEN CAST(#{start} AS DATETIME) AND CAST(#{end} AS DATETIME)
+		) SELECT CGM_DTM AS DTM
+       			,UPT_VALUE AS UPT
+       			,(SELECT AVG(UPT_VALUE) FROM COMM) AS AVG_UPT
+  			FROM COMM
+ 		   ORDER BY CGM_DTM DESC
+ 		 	LIMIT 2
+	</select>
+
+
+	<!-- 공복혈당 평균 구하기 -->
+	<select id="getAvgFastingBlood" parameterType="String" resultType="String">
+		SELECT AVG(a.UPT_VALUE) AS avgBlood
+		  FROM T_BLDINF_TRAN a
+		 WHERE a.USER_UUID = #{userId}
+    	   AND DATE(a.CGM_DTM) = DATE(DATE_FORMAT(#{date}, '%Y-%m-%d %H:%i:%s'))
+    	   AND TIME(DATE_FORMAT(a.CGM_DTM, '%Y-%m-%d %H:%i:%s')) BETWEEN '03:00:00'
+    	   AND COALESCE(
+    				 	( SELECT MIN(TIME(STR_TO_DATE(CONCAT(b.EAT_DATE, b.EAT_STIME), '%Y%m%d%H%i%s')))
+         					FROM T_FOOD_TRAN b
+         			       WHERE b.USER_UUID = a.USER_UUID
+           				 	 AND b.EAT_DATE = DATE_FORMAT(#{date}, '%Y%m%d')
+           				 	 AND TIME(STR_TO_DATE(CONCAT(b.EAT_DATE, b.EAT_STIME), '%Y%m%d%H%i%s')) BETWEEN '03:00:00' AND '06:00:00')
+        				, '06:00:00'
+    			)
+	</select>
+
+	<!-- 일일 혈당 그래프 -->
+	<select id="getBloodChartData" parameterType="String" resultType="map">
+      SELECT UPT_VALUE as UPT
+           , CGM_DTM as DTM
+           , DATE_FORMAT(CGM_DTM, '%H:%i') as HM
+          FROM T_BLDINF_TRAN
+       WHERE USER_UUID = #{userId}
+       	 AND IFNULL(CAST(UPT_VALUE AS UNSIGNED),0) > 0
+         AND DATE(CGM_DTM) = #{end}
+       ORDER BY CGM_DTM ASC
+   </select>
+
+	<!-- 식사메모 그래프 -->
+	<select id="drawOneMealChart" parameterType="String" resultType="map"><![CDATA[
+		SELECT dtm , eatType , hh
+			 , REPLACE(GROUP_CONCAT(foodNm),  ',' ,    '\r\n' ) AS foodNm
+		 FROM
+		(
+		      SELECT FOOD_SEQ as foodSeq,
+		             RTRIM(FOOD_NAME) as foodNm,
+		             STR_TO_DATE(CONCAT(EAT_DATE, EAT_STIME), '%Y%m%d%H%i%s') as dtm,
+		             CAST(LEFT(EAT_STIME, 2) AS UNSIGNED) as hh,
+		             CASE WHEN HOUR(STR_TO_DATE(CONCAT(EAT_DATE, EAT_STIME), '%Y%m%d%H%i%s')) < 11 THEN '0'
+		                  WHEN HOUR(STR_TO_DATE(CONCAT(EAT_DATE, EAT_STIME), '%Y%m%d%H%i%s')) < 16 THEN '1'
+		                  ELSE '2' END as eatType
+		        FROM T_FOOD_TRAN
+		       WHERE USER_UUID = #{userId}
+		         AND EAT_DATE = REPLACE(#{end}, '-', '')
+		         AND FOOD_NAME <> '음식아님'
+		       ORDER BY FOOD_SEQ
+		) K GROUP BY dtm , eatType , hh
+	]]>
+	</select>
+
+	<select id="drawBloodBarChart" parameterType="String" resultType="map">
+		<![CDATA[
+		WITH COMM AS ( SELECT *
+    					 FROM T_BLDINF_TRAN
+   		 				WHERE USER_UUID = #{userId}
+   		 				  AND ifnull(UPT_VALUE,0) > 0
+      					  AND CGM_DTM BETWEEN STR_TO_DATE(#{start}, '%Y-%m-%dT%H:%i:%s') AND STR_TO_DATE(#{end}, '%Y-%m-%dT%H:%i:%s')
+		)SELECT  COALESCE(SUM(CASE WHEN UPT_VALUE > 250 THEN 1 ELSE 0 END) ,0) AS HIGHTEST
+    			,COALESCE(SUM(CASE WHEN UPT_VALUE > 180 AND UPT_VALUE <= 250 THEN 1 ELSE 0 END),0) AS HIGHT
+    			,COALESCE(SUM(CASE WHEN UPT_VALUE >= 70 AND UPT_VALUE <= 180 THEN 1 ELSE 0 END),0) AS NORMAL
+    			,COALESCE(SUM(CASE WHEN UPT_VALUE >= 54 AND UPT_VALUE < 70 THEN 1 ELSE 0 END),0) AS LOW
+    			,COALESCE(SUM(CASE WHEN UPT_VALUE < 54 THEN 1 ELSE 0 END),0) AS LOWEST
+		   FROM COMM
+		]]>
+	</select>
+
+
+	<select id="calcBlood" parameterType="String" resultType="map">
+		<![CDATA[
+		SELECT COALESCE(AVG(UPT_VALUE),0) AS AvgBlood
+    		  ,COALESCE(ROUND(STDDEV_SAMP(UPT_VALUE), 1),0) AS stdBlood
+    		  ,COALESCE(ROUND((STDDEV_SAMP(UPT_VALUE) / AVG(UPT_VALUE)) * 100, 1),0) AS CV
+    		  ,COALESCE(ROUND((0.02392 * AVG(UPT_VALUE)) + 3.31, 1),0) AS GMI
+    		  ,(SELECT COALESCE(AVG(a.UPT_VALUE),0)
+		  		FROM T_BLDINF_TRAN a
+		 		WHERE a.USER_UUID = #{userId}
+    	   		AND CGM_DTM BETWEEN STR_TO_DATE(#{start}, '%Y-%m-%dT%H:%i:%s') AND STR_TO_DATE(#{end}, '%Y-%m-%dT%H:%i:%s')
+    	   		AND TIME(DATE_FORMAT(a.CGM_DTM, '%Y-%m-%d %H:%i:%s')) BETWEEN '03:00:00'
+    	   		AND COALESCE(
+    				 	( SELECT MIN(TIME(STR_TO_DATE(CONCAT(b.EAT_DATE, b.EAT_STIME), '%Y%m%d%H%i%s')))
+         					FROM T_FOOD_TRAN b
+         			       WHERE b.USER_UUID = a.USER_UUID
+           				 	 AND STR_TO_DATE(CONCAT(b.EAT_DATE, b.EAT_STIME), '%Y%m%d%H%i%s') BETWEEN STR_TO_DATE(#{start}, '%Y-%m-%dT%H:%i:%s') AND STR_TO_DATE(#{end}, '%Y-%m-%dT%H:%i:%s')
+           				 	 AND TIME(STR_TO_DATE(CONCAT(b.EAT_DATE, b.EAT_STIME), '%Y%m%d%H%i%s')) BETWEEN '03:00:00' AND '06:00:00')
+        				, '06:00:00'
+    				)
+    			) AS FASTING
+		  FROM T_BLDINF_TRAN
+		 WHERE USER_UUID = #{userId}
+			AND CGM_DTM >= STR_TO_DATE(#{start}, '%Y-%m-%dT%H:%i:%s')
+		    AND CGM_DTM <= STR_TO_DATE(#{end}, '%Y-%m-%dT%H:%i:%s')
+	]]>
+	</select>
+
+
+	<!-- 식후 혈당2시간 -->
+	<select id="mealAvg" parameterType="String" resultType="map"> <![CDATA[
+		select  ROUND(AVG(IFNULL(ROUND ( (IFNULL(breakfast,0) + IFNULL(lunch,0) + IFNULL(dinner,0)) /
+		       (3 -  (IF(IFNULL(breakfast,0) = 0,1,0) + IF(IFNULL(lunch,0)  = 0,1,0)
+		                                              + IF(IFNULL(dinner,0) = 0,1,0) ))  ,.1),0)),.1)  AS avgBlood
+		 from
+		(
+			select USER_UUID , date
+			        , case when IFNULL(CAST(breakfast AS UNSIGNED),0) > 0
+								then (select UPT_VALUE from T_BLDINF_TRAN
+									   where USER_UUID = k.USER_UUID
+									   and   cgm_dtm =  k.breakfast)   end  breakfast
+					, case when IFNULL(CAST(lunch AS UNSIGNED),0) > 0
+								then (select UPT_VALUE from T_BLDINF_TRAN
+									   where USER_UUID = k.USER_UUID
+									   and   cgm_dtm =  k.lunch)       end  lunch
+					, case when IFNULL(CAST(dinner AS UNSIGNED),0) > 0
+								then (select UPT_VALUE from T_BLDINF_TRAN
+									   where USER_UUID = k.USER_UUID
+									   and   cgm_dtm =  k.dinner)      end  dinner
+			from (
+			SELECT  DATE_FORMAT(b.EAT_DATE, '%c/%e') AS date , a.USER_UUID ,
+				MIN(CASE when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME <= date_add(a.cgm_dtm,interval 2 hour)
+		                                                              AND  HOUR(b.EAT_DATETIME) < 11  THEN a.cgm_dtm   END) breakfast ,
+				MIN(CASE when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME <= date_add(a.cgm_dtm,interval 2 hour)
+		                                                              AND  HOUR(b.EAT_DATETIME) >= 11 AND HOUR(b.EAT_DATETIME) < 16  THEN a.cgm_dtm   END) lunch ,
+				MIN(CASE when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME <= date_add(a.cgm_dtm,interval 2 hour)
+		                                                              AND  HOUR(b.EAT_DATETIME) >= 16  THEN a.cgm_dtm   END) dinner
+			FROM T_BLDINF_TRAN a , (SELECT USER_UUID , STR_TO_DATE(EAT_DATE, '%Y%m%d') as EAT_DATE ,
+			                               STR_TO_DATE(CONCAT(EAT_DATE, EAT_STIME), '%Y%m%d%H%i%s') AS EAT_DATETIME
+		                                FROM T_FOOD_TRAN
+		                                GROUP BY USER_UUID , EAT_DATE , EAT_STIME) b
+			WHERE a.USER_UUID  = #{userId}
+			  AND b.USER_UUID  =  a.USER_UUID
+			  AND b.EAT_DATE >= DATE(#{start})
+		      AND b.EAT_DATE <  DATE(#{end})
+			Group by DATE_FORMAT(b.EAT_DATE, '%c/%e')
+			) k
+		) l
+    ]]>
+	</select>
+
+	<!-- 공복혈당 식전 가장 최근것 -->
+	<select id="foodAvg" parameterType="String" resultType="map"> <![CDATA[
+		select ROUND(AVG(IFNULL(ROUND ( (ifnull(breakfast,0) + ifnull(lunch,0) + ifnull(dinner,0)) /
+		      (3 -  (IF(ifnull(breakfast,0) = 0,1,0) + IF(ifnull(lunch,0) = 0,1,0)
+		                                             + IF(ifnull(dinner,0) = 0,1,0) ))  ,.1),0)) ,.1)  as avgFASTING
+		 from
+		(
+			select USER_UUID , date , case when breakfast is not null
+								then (select UPT_VALUE from T_BLDINF_TRAN
+									   where USER_UUID = k.USER_UUID
+									   and   cgm_dtm =  k.breakfast)   end  breakfast
+					, case when lunch is not null
+								then (select UPT_VALUE from T_BLDINF_TRAN
+									   where USER_UUID = k.USER_UUID
+									   and   cgm_dtm =  k.lunch)   end  lunch
+					, case when dinner is not null
+								then (select UPT_VALUE from T_BLDINF_TRAN
+									   where USER_UUID = k.USER_UUID
+									   and   cgm_dtm =  k.dinner)   end  dinner
+			from (
+			SELECT  DATE_FORMAT(b.EAT_DATE, '%c/%e') AS date , a.USER_UUID ,
+				Max(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME >= a.cgm_dtm
+		                                                              AND  HOUR(b.EAT_DATETIME) < 11  THEN a.cgm_dtm   END) breakfast ,
+				Max(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME >= a.cgm_dtm
+		                                                              AND  HOUR(b.EAT_DATETIME) >= 11 AND HOUR(b.EAT_DATETIME) < 16  THEN a.cgm_dtm   END) lunch ,
+				Max(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME >= a.cgm_dtm
+		                                                              AND HOUR(b.EAT_DATETIME) >= 16  THEN a.cgm_dtm    END) dinner
+			FROM T_BLDINF_TRAN a , (SELECT USER_UUID , STR_TO_DATE(EAT_DATE, '%Y%m%d') as EAT_DATE ,
+			                               STR_TO_DATE(CONCAT(EAT_DATE, EAT_STIME), '%Y%m%d%H%i%s') AS EAT_DATETIME
+		                                FROM T_FOOD_TRAN
+		                                GROUP BY USER_UUID , EAT_DATE , EAT_STIME) b
+			WHERE a.USER_UUID  = #{userId}
+			  AND b.USER_UUID  =  a.USER_UUID
+			  AND b.EAT_DATE >= DATE(#{start})
+		      AND b.EAT_DATE <= DATE(#{end})
+			Group by DATE_FORMAT(b.EAT_DATE, '%c/%e')
+			) k
+		) l
+    ]]>
+	</select>
+
+	<select id="tokenYn" parameterType="String" resultType="int">
+		SELECT
+			count(*)
+		FROM
+			T_BLDCON_MST
+		WHERE
+			USER_UUID = #{userUuid}
+	</select>
+
+	<select id="refreshToken" parameterType="String" resultType="String">
+		SELECT
+			REF_TOKEN
+		FROM
+			T_BLDCON_MST
+		WHERE
+			USER_UUID = #{userUuid}
+	</select>
+
+	<select id="getTodayBlood" parameterType="String" resultType="map"><![CDATA[
+		SELECT  CGM_DTM,
+				CONCAT(
+				    IF(DATE_FORMAT(CGM_DTM, '%p') = 'AM', '오전', '오후'),
+				    ' ',
+    				DATE_FORMAT(CGM_DTM, '%h:%i')) AS formatedDate
+         			,UPT_VALUE
+      	FROM T_BLDINF_TRAN
+     	WHERE
+     	USER_UUID = #{userUuid} AND
+       	DATE(CGM_DTM) = CURDATE()
+ 		   ORDER BY CGM_DTM DESC
+ 		 	LIMIT 2
+	]]>
+	</select>
+
+	<!-- 최근 1주일 범위에 데이터가 없을 때 화면 좌측에 표시할 '가장 최근 측정일' 1건(일평균) -->
+	<select id="getLastBloodDay" parameterType="String" resultType="map"><![CDATA[
+		SELECT SUBSTRING(a.CGM_DTM,1,10)            AS date2,
+		       DATE_FORMAT(a.CGM_DTM, '%c/%e')      AS date,
+		       COALESCE(ROUND(AVG(a.UPT_VALUE),1),0) AS avgBlood
+		  FROM T_BLDINF_TRAN a
+		 WHERE a.USER_UUID = #{userId}
+		   AND IFNULL(a.UPT_VALUE,0) > 0
+		   AND DATE(a.CGM_DTM) = (
+		         SELECT MAX(DATE(b.CGM_DTM))
+		           FROM T_BLDINF_TRAN b
+		          WHERE b.USER_UUID = #{userId}
+		            AND IFNULL(b.UPT_VALUE,0) > 0
+		       )
+		 GROUP BY date2, date
+	]]>
+	</select>
+
+	<select id="getTodayMealBlood" parameterType="String" resultType="map"><![CDATA[
+		SELECT
+			COALESCE(ROUND(AVG(a.UPT_VALUE), 1),0) AS avgBlood
+		FROM T_BLDINF_TRAN a
+		JOIN T_FOOD_TRAN b ON a.USER_UUID = b.USER_UUID
+		WHERE a.USER_UUID = #{userId}
+		  AND DATE(a.CGM_DTM) = CURDATE()
+		  AND b.EAT_DATE = DATE_FORMAT(CURDATE(), '%Y%m%d')
+		  AND TIME(a.CGM_DTM) BETWEEN
+		      TIME(DATE_ADD(STR_TO_DATE(CONCAT(b.EAT_DATE, b.EAT_STIME), '%Y%m%d%H%i%s'), INTERVAL 90  MINUTE))
+		  AND TIME(DATE_ADD(STR_TO_DATE(CONCAT(b.EAT_DATE, b.EAT_STIME), '%Y%m%d%H%i%s'), INTERVAL 150 MINUTE));
+	]]>
+	</select>
+
+	<!-- 오늘 공복 평균: 새벽 03:00~06:00 CGM 평균 (해당 시간 데이터 없으면 0 → 컨트롤러에서 전체평균 대체) -->
+	<select id="getTodayFastBlood" parameterType="String" resultType="map"><![CDATA[
+		SELECT COALESCE(ROUND(AVG(a.UPT_VALUE), 1), 0) AS avgBlood
+		  FROM T_BLDINF_TRAN a
+		 WHERE a.USER_UUID = #{userId}
+		   AND DATE(a.CGM_DTM) = CURDATE()
+		   AND TIME(a.CGM_DTM) >= '03:00:00'
+		   AND TIME(a.CGM_DTM) <  '06:00:00'
+		   AND IFNULL(a.UPT_VALUE,0) > 0
+	]]>
+	</select>
+
+	<!-- 오늘 전체 평균: 공복 시간대/식사 데이터 없을 때 대체값 -->
+	<select id="getTodayAvgBlood" parameterType="String" resultType="map"><![CDATA[
+		SELECT COALESCE(ROUND(AVG(a.UPT_VALUE), 1), 0) AS avgBlood
+		  FROM T_BLDINF_TRAN a
+		 WHERE a.USER_UUID = #{userId}
+		   AND DATE(a.CGM_DTM) = CURDATE()
+		   AND IFNULL(a.UPT_VALUE,0) > 0
+	]]>
+	</select>
+
+	<!-- 일별 전체 평균 -->
+	<select id="getWeeklyBloodData" parameterType="String" resultType="map"><![CDATA[
+	  	SELECT DATE_FORMAT(a.CGM_DTM, '%c/%e') AS date,
+	  		   SUBSTRING(a.CGM_DTM,1,10) AS date2,
+	    COALESCE(ROUND(AVG(a.UPT_VALUE), 1), 0) AS avgBlood
+	    FROM T_BLDINF_TRAN a
+	    WHERE a.USER_UUID = #{userId}
+	    AND a.CGM_DTM >= DATE(#{start})
+        AND a.CGM_DTM < DATE_ADD(DATE(#{end}), INTERVAL 1 DAY)
+        and ifnull(a.UPT_VALUE,0) > 0
+		group by date, date2  order by date2
+	]]>
+	</select>
+
+	<!-- 다중 챠트 기간별 평균 -->
+	<select id="getBloodChartDataMulti" parameterType="String" resultType="map"><![CDATA[
+	  	SELECT ROUND(AVG(UPT_VALUE),.1)       UPT_VALUE
+             , DATE_FORMAT(CGM_DTM,'%y%m%d')  CGM_DTM
+             , SUBSTR(CGM_DTM,11,3)           CGM_TM
+	    FROM T_BLDINF_TRAN a
+	    WHERE a.USER_UUID = #{userId}
+	    AND a.CGM_DTM >= DATE(#{start})
+        AND a.CGM_DTM < DATE_ADD(DATE(#{end}), INTERVAL 1 DAY)
+        AND ifnull(a.UPT_VALUE,0) > 0
+        GROUP BY DATE_FORMAT(CGM_DTM,'%y%m%d') , SUBSTR(CGM_DTM,11,3)
+		Order by CGM_DTM , CGM_TM asc
+	]]>
+	</select>
+
+	<!-- 혈당 활동 개요 (AGP) -->
+	<select id="getActionBloodChart" parameterType="String" resultType="map"><![CDATA[
+        SELECT A.CGM_DTM , A.AVG_VALUE , A.MAX_VALUE  , A.MIN_VALUE as MIN_VALUE
+		      ,	(SELECT    ROUND(AVG(B.UPT_VALUE),.1)   AS AVG_VALUE
+				    FROM T_BLDINF_TRAN B
+				    WHERE B.USER_UUID = A.USER_UUID
+				    AND DATE(B.CGM_DTM) >= DATE(#{start})
+			        AND DATE(B.CGM_DTM) <= DATE(#{end})+'23:59:59'
+			        AND IFNULL(B.UPT_VALUE,0) > 0
+			        AND A.CGM_DTM = SUBSTR(B.CGM_DTM,12,2)
+			        AND A.AVG_VALUE <  B.UPT_VALUE
+		       ) AVGM_VALUE
+		  ,(SELECT    ROUND(AVG(C.UPT_VALUE),.1)   AS AVG_VALUE
+				    FROM T_BLDINF_TRAN C
+				    WHERE C.USER_UUID = A.USER_UUID
+				    AND DATE(C.CGM_DTM) >= DATE(#{start})
+			        AND DATE(C.CGM_DTM) <= DATE(#{end})+'23:59:59'
+			        AND IFNULL(C.UPT_VALUE,0) > 0
+			        AND A.CGM_DTM = SUBSTR(C.CGM_DTM,12,2)
+			        AND A.AVG_VALUE >  C.UPT_VALUE
+		       ) AVGL_VALUE
+		 FROM
+		(
+			  	SELECT    A.USER_UUID
+			  	        , SUBSTR(A.CGM_DTM,12,2)       AS CGM_DTM
+		                , ROUND(AVG(A.UPT_VALUE),.1)   AS AVG_VALUE
+		                , MAX(IFNULL(CAST(A.UPT_VALUE AS UNSIGNED),0))  AS MAX_VALUE
+		                , MIN(IFNULL(CAST(A.UPT_VALUE AS UNSIGNED),0))  AS MIN_VALUE
+			    FROM T_BLDINF_TRAN A
+	            WHERE A.USER_UUID = #{userId}
+	            AND A.CGM_DTM >= DATE(#{start})
+                AND A.CGM_DTM < DATE_ADD(DATE(#{end}), INTERVAL 1 DAY)
+		        AND IFNULL(A.UPT_VALUE,0) > 0
+				GROUP BY SUBSTR(A.CGM_DTM,12,2)  , A.USER_UUID
+		        ORDER BY SUBSTR(A.CGM_DTM,12,2)
+		) A
+	]]>
+	</select>
+
+	<!-- 일별 일자별 평균 ,공복 , 식후 혈당 -->
+	<select id="getDaylyBloodData" parameterType="String" resultType="map"><![CDATA[
+		SELECT date , date2
+		     , sum(CASE WHEN GUBUN = '1' THEN avgblood  end) avgBlood
+		     , sum(CASE WHEN GUBUN = '2' THEN avgblood  end) avgpost
+		     , sum(CASE WHEN GUBUN = '3' THEN avgblood  end) avgfasting
+		 FROM
+		(
+		  	SELECT '1' AS GUBUN , DATE_FORMAT(a.CGM_DTM, '%c/%e') AS date,
+		  		   SUBSTRING(a.CGM_DTM,1,10) AS date2,
+		    COALESCE(ROUND(AVG(a.UPT_VALUE), 1), 0) AS avgBlood
+		    FROM T_BLDINF_TRAN a
+		    WHERE a.USER_UUID = #{userId}
+		    AND a.CGM_DTM >= STR_TO_DATE(#{start}, '%Y-%m-%dT%H:%i:%s')
+	        AND a.CGM_DTM <= STR_TO_DATE(#{end}, '%Y-%m-%dT%H:%i:%s')
+	        and ifnull(a.UPT_VALUE,0) > 0
+			group by date , date2
+
+		    UNION ALL
+		    select '2' AS GUBUN , date , date2
+			   , IFNULL(ROUND ( (IFNULL(breakfast,0) + IFNULL(lunch,0) + IFNULL(dinner,0)) /
+			      (3 -  (IF(IFNULL(breakfast,0) = 0,1,0) + IF(IFNULL(lunch,0) = 0,1,0)
+			                                             + IF(IFNULL(dinner,0) = 0,1,0) ))  ,.1),0)   as avgPostMeal
+	           from
+			(
+				select USER_UUID , date , date2 , case when breakfast is not null
+									then (select UPT_VALUE from T_BLDINF_TRAN
+										   where USER_UUID = k.USER_UUID
+										   and   cgm_dtm =  k.breakfast)   end  breakfast
+						, case when lunch is not null
+									then (select UPT_VALUE from T_BLDINF_TRAN
+										   where USER_UUID = k.USER_UUID
+										   and   cgm_dtm =  k.lunch)   end  lunch
+						, case when dinner is not null
+									then (select UPT_VALUE from T_BLDINF_TRAN
+										   where USER_UUID = k.USER_UUID
+										   and   cgm_dtm =  k.dinner)   end  dinner
+				from (
+				SELECT  DATE_FORMAT(b.EAT_DATE, '%c/%e') AS date , a.USER_UUID ,  DATE(b.EAT_DATE) AS date2  ,
+					MIN(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME <= date_add(a.cgm_dtm,interval 2 hour)
+			                                                              AND  HOUR(b.EAT_DATETIME) < 11  THEN a.cgm_dtm   END) breakfast ,
+					MIN(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME <= date_add(a.cgm_dtm,interval 2 hour)
+			                                                              AND  HOUR(b.EAT_DATETIME) >= 11 AND HOUR(b.EAT_DATETIME) < 16  THEN a.cgm_dtm   END) lunch ,
+					MIN(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME <= date_add(a.cgm_dtm,interval 2 hour)
+			                                                              AND  HOUR(b.EAT_DATETIME) >= 16  THEN a.cgm_dtm   END) dinner
+				FROM T_BLDINF_TRAN a , (SELECT USER_UUID , STR_TO_DATE(EAT_DATE, '%Y%m%d') as EAT_DATE ,
+				                               STR_TO_DATE(CONCAT(EAT_DATE, EAT_STIME), '%Y%m%d%H%i%s') AS EAT_DATETIME
+			                                FROM T_FOOD_TRAN
+			                                GROUP BY USER_UUID , EAT_DATE , EAT_STIME) b
+				WHERE a.USER_UUID  = #{userId}
+				AND b.USER_UUID  =  a.USER_UUID
+			    AND b.EAT_DATE >= DATE(#{start})
+		        AND b.EAT_DATE < DATE(#{end})+'23:59:59'
+				Group by DATE_FORMAT(b.EAT_DATE, '%c/%e')  , date2
+				) k
+			) l
+			UNION ALL
+	 	    select '3' AS GUBUN  ,  date  , date2
+			   , IFNULL(ROUND ( (ifnull(breakfast,0) + ifnull(lunch,0) + ifnull(dinner,0)) /
+			      (3 -  (IF(ifnull(breakfast,0) = 0,1,0) + IF(ifnull(lunch,0) = 0,1,0)
+			                                             + IF(ifnull(dinner,0) = 0,1,0) ))  ,.1),0)   as avgFasting
+			 from
+			(
+				select USER_UUID , date , date2 , case when breakfast is not null
+									then (select UPT_VALUE from T_BLDINF_TRAN
+										   where USER_UUID = k.USER_UUID
+										   and   cgm_dtm =  k.breakfast)   end  breakfast
+						, case when lunch is not null
+									then (select UPT_VALUE from T_BLDINF_TRAN
+										   where USER_UUID = k.USER_UUID
+										   and   cgm_dtm =  k.lunch)   end  lunch
+						, case when dinner is not null
+									then (select UPT_VALUE from T_BLDINF_TRAN
+										   where USER_UUID = k.USER_UUID
+										   and   cgm_dtm =  k.dinner)   end  dinner
+				from (
+				SELECT  DATE_FORMAT(b.EAT_DATE, '%c/%e') AS date , a.USER_UUID ,  DATE(b.EAT_DATE) AS date2  ,
+					Max(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME >= a.cgm_dtm
+			                                                              AND  HOUR(b.EAT_DATETIME) < 11  THEN a.cgm_dtm   END) breakfast ,
+					Max(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME >= a.cgm_dtm
+			                                                              AND  HOUR(b.EAT_DATETIME) >= 11 AND HOUR(b.EAT_DATETIME) < 16  THEN a.cgm_dtm   END) lunch ,
+					Max(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME >= a.cgm_dtm
+			                                                              AND HOUR(b.EAT_DATETIME) >= 16  THEN a.cgm_dtm   END) dinner
+				FROM T_BLDINF_TRAN a , (SELECT USER_UUID , STR_TO_DATE(EAT_DATE, '%Y%m%d') as EAT_DATE ,
+				                               STR_TO_DATE(CONCAT(EAT_DATE, EAT_STIME), '%Y%m%d%H%i%s') AS EAT_DATETIME
+			                                FROM T_FOOD_TRAN
+			                                GROUP BY USER_UUID , EAT_DATE , EAT_STIME) b
+				WHERE a.USER_UUID  = #{userId}
+				  and b.USER_UUID  =  a.USER_UUID
+			    AND b.EAT_DATE >= DATE(#{start})
+		        AND b.EAT_DATE < DATE(#{end})+'23:59:59'
+				Group by DATE_FORMAT(b.EAT_DATE, '%c/%e')  , date2
+				) k
+			) l
+		) M group by date , date2  order by date2
+	]]>
+	</select>
+
+	<!-- 요일별 범위내 시간 -->
+	<select id="drawRangeChart" parameterType="String" resultType="map"><![CDATA[
+	   SELECT USER_UUID , WEEK_GU
+		   , CASE WHEN WEEK_GU = '0' THEN '월요일'
+		          WHEN WEEK_GU = '1' THEN '화요일'
+		          WHEN WEEK_GU = '2' THEN '수요일'
+		          WHEN WEEK_GU = '3' THEN '목요일'
+		          WHEN WEEK_GU = '4' THEN '금요일'
+		          WHEN WEEK_GU = '5' THEN '토요일'
+		          WHEN WEEK_GU = '6' THEN '일요일' END weekNm
+		   , ROUND(SUM(IFNULL(LOW,0))   / SUM(IFNULL(LOW,0) + IFNULL(NOR,0) + IFNULL(WARN,0) + IFNULL(DANR,0)) * 100,.1)   lowAvg
+		   , ROUND(SUM(IFNULL(NOR,0))   / SUM(IFNULL(LOW,0) + IFNULL(NOR,0) + IFNULL(WARN,0) + IFNULL(DANR,0)) * 100,.1)   norAvg
+		   , ROUND(SUM(IFNULL(WARN,0))  / SUM(IFNULL(LOW,0) + IFNULL(NOR,0) + IFNULL(WARN,0) + IFNULL(DANR,0)) * 100,.1)   warnAvg
+		   , ROUND(SUM(IFNULL(DANR,0))  / SUM(IFNULL(LOW,0) + IFNULL(NOR,0) + IFNULL(WARN,0) + IFNULL(DANR,0)) * 100,.1)   dangAvg
+		   , SUM(LOW + NOR +WARN + DANR) AS TOTAL_CNT
+		FROM
+		(
+		 	SELECT  a.USER_UUID ,WEEKDAY(DATE(CGM_DTM)) WEEK_GU
+		    ,  IFNULL(CASE WHEN  UPT_VALUE >= 0     AND  UPT_VALUE < 70   THEN  1 end,0)  LOW
+		    ,  IFNULL(CASE WHEN  UPT_VALUE >= 70    AND  UPT_VALUE < 140  THEN  1 end,0)  NOR
+		    ,  IFNULL(CASE WHEN  UPT_VALUE >= 140   AND  UPT_VALUE < 200  THEN  1 end,0)  WARN
+		    ,  IFNULL(Case when  UPT_VALUE >= 200   tHEN  1 end,0)                        DANR
+		   	FROM T_BLDINF_TRAN a
+		     where a.USER_UUID  = #{userId}
+			   and DATE(a.cgm_dtm) BETWEEN #{start} AND #{end}
+		       and ifnull(a.UPT_VALUE,0) > 0
+		) K GROUP BY  USER_UUID , WEEK_GU ORDER BY WEEK_GU ASC
+		]]>
+	</select>
+
+	<!-- 식후혈당 -->
+	<select id="getPostBlood" parameterType="String" resultType="map"><![CDATA[
+	   select USER_UUID , date ,date2
+		   , IFNULL(breakfast,0) breakfast
+		   , IFNULL(lunch,0) lunch
+		   , IFNULL(dinner,0) dinner
+		   , IFNULL(ROUND ( (IFNULL(breakfast,0) + IFNULL(lunch,0) + IFNULL(dinner,0)) /
+		      (3 -  (IF(IFNULL(breakfast,0) = 0,1,0) + IF(IFNULL(lunch,0) = 0,1,0)
+		                                             + IF(IFNULL(dinner,0) = 0,1,0) ))  ,.1),0)   as avgPostMeal
+		   , case when ifnull(breakfast,0) + ifnull(lunch,0) + ifnull(dinner,0) > 0
+             then ceil(greatest(ifnull(breakfast,0), ifnull(lunch,0), ifnull(dinner,0))/100)*100
+                 else 0 end as max
+           from
+		(
+			select USER_UUID , date , IFNULL(CAST(date2 AS UNSIGNED),0) date2
+			        , case when breakfast is not null
+								then (select UPT_VALUE from T_BLDINF_TRAN
+									   where USER_UUID = k.USER_UUID
+									   and   cgm_dtm =  k.breakfast)   end  breakfast
+					, case when lunch is not null
+								then (select UPT_VALUE from T_BLDINF_TRAN
+									   where USER_UUID = k.USER_UUID
+									   and   cgm_dtm =  k.lunch)   end  lunch
+					, case when dinner is not null
+								then (select UPT_VALUE from T_BLDINF_TRAN
+									   where USER_UUID = k.USER_UUID
+									   and   cgm_dtm =  k.dinner)   end  dinner
+			from (
+			SELECT  DATE_FORMAT(b.EAT_DATE, '%c/%e') AS date , a.USER_UUID ,  DATE_FORMAT(b.EAT_DATE, '%m%d') AS date2 ,
+				MIN(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME <= date_add(a.cgm_dtm,interval 2 hour)
+		                                                              AND  HOUR(b.EAT_DATETIME) < 11  THEN a.cgm_dtm   END) breakfast ,
+				MIN(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME <= date_add(a.cgm_dtm,interval 2 hour)
+		                                                              AND  HOUR(b.EAT_DATETIME) >= 11 AND HOUR(b.EAT_DATETIME) < 16  THEN a.cgm_dtm   END) lunch ,
+				MIN(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME <= date_add(a.cgm_dtm,interval 2 hour)
+		                                                              AND  HOUR(b.EAT_DATETIME) >= 16  THEN a.cgm_dtm   END) dinner
+			FROM T_BLDINF_TRAN a , (SELECT USER_UUID , STR_TO_DATE(EAT_DATE, '%Y%m%d') as EAT_DATE ,
+			                               STR_TO_DATE(CONCAT(EAT_DATE, EAT_STIME), '%Y%m%d%H%i%s') AS EAT_DATETIME
+		                                FROM T_FOOD_TRAN
+		                                GROUP BY USER_UUID , EAT_DATE , EAT_STIME) b
+			WHERE a.USER_UUID  = #{userId}
+			AND b.USER_UUID  =  a.USER_UUID
+		    AND b.EAT_DATE >= DATE(#{start})
+	        AND b.EAT_DATE < DATE(#{end})+'23:59:59'
+			Group by DATE_FORMAT(b.EAT_DATE, '%c/%e')  , DATE_FORMAT(b.EAT_DATE, '%m%d')
+			) k
+		) l order by date2 ,date ASC
+	]]>
+	</select>
+
+	<!-- 공복 혈당 -->
+	<select id="getFastingBlood" parameterType="String" resultType="map"><![CDATA[
+	   select USER_UUID , date
+		   , ifnull(breakfast,0) breakfast
+		   , ifnull(lunch,0) lunch
+		   , ifnull(dinner,0) dinner
+		   , IFNULL(ROUND ( (ifnull(breakfast,0) + ifnull(lunch,0) + ifnull(dinner,0)) /
+		      (3 -  (IF(ifnull(breakfast,0) = 0,1,0) + IF(ifnull(lunch,0) = 0,1,0)
+		                                             + IF(ifnull(dinner,0) = 0,1,0) ))  ,.1),0)   as avgFasting
+		 from
+		(
+			select USER_UUID , date , case when breakfast is not null
+								then (select UPT_VALUE from T_BLDINF_TRAN
+									   where USER_UUID = k.USER_UUID
+									   and   cgm_dtm =  k.breakfast)   end  breakfast
+					, case when lunch is not null
+								then (select UPT_VALUE from T_BLDINF_TRAN
+									   where USER_UUID = k.USER_UUID
+									   and   cgm_dtm =  k.lunch)   end  lunch
+					, case when dinner is not null
+								then (select UPT_VALUE from T_BLDINF_TRAN
+									   where USER_UUID = k.USER_UUID
+									   and   cgm_dtm =  k.dinner)   end  dinner
+			from (
+			SELECT  DATE_FORMAT(b.EAT_DATE, '%c/%e') AS date , a.USER_UUID ,
+				Max(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME >= a.cgm_dtm
+		                                                              AND  HOUR(b.EAT_DATETIME) < 11  THEN a.cgm_dtm   END) breakfast ,
+				Max(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME >= a.cgm_dtm
+		                                                              AND  HOUR(b.EAT_DATETIME) >= 11 AND HOUR(b.EAT_DATETIME) < 16  THEN a.cgm_dtm   END) lunch ,
+				Max(case when date(b.EAT_DATETIME) = DATE(a.cgm_dtm)  AND  b.EAT_DATETIME >= a.cgm_dtm
+		                                                              AND HOUR(b.EAT_DATETIME) >= 16  THEN a.cgm_dtm   END) dinner
+			FROM T_BLDINF_TRAN a , (SELECT USER_UUID , STR_TO_DATE(EAT_DATE, '%Y%m%d') as EAT_DATE ,
+			                               STR_TO_DATE(CONCAT(EAT_DATE, EAT_STIME), '%Y%m%d%H%i%s') AS EAT_DATETIME
+		                                FROM T_FOOD_TRAN
+		                                GROUP BY USER_UUID , EAT_DATE , EAT_STIME) b
+			WHERE a.USER_UUID  = #{userId}
+			  and b.USER_UUID  =  a.USER_UUID
+		    AND b.EAT_DATE >= DATE(#{start})
+	        AND b.EAT_DATE < DATE(#{end})+'23:59:59'
+			Group by DATE_FORMAT(b.EAT_DATE, '%c/%e')
+			) k
+		) l order by date
+	]]>
+	</select>
+
+	<!-- 주중 주말 평균 -->
+	<select id="getWeekHoliAvg" parameterType="String" resultType="map"><![CDATA[
+	        select USER_UUID , sum(holiday)      as holiday
+              , sum(holiday_cnt)  as holiday_cnt
+              , round(sum(holiday) / sum(holiday_cnt),.1) as  holiday_avg
+              , sum(weekday)      as weekday
+              , sum(weekday_cnt)  as  weekday_cnt
+              , round(sum(weekday) / sum(weekday_cnt),.1) as  weekday_avg
+			 from
+			 (
+			SELECT  a.USER_UUID
+			 ,  CASE when WEEKDAY(DATE(a.cgm_dtm) ) in ('5','6')              then  a.UPT_VALUE end holiday
+			 ,  CASE when WEEKDAY(DATE(a.cgm_dtm) ) in ('5','6')              then  1 end holiday_cnt
+			 ,  Case when WEEKDAY(DATE(a.cgm_dtm) ) in ('0','1','2','3','4')  then  a.UPT_VALUE end weekday
+			 ,  CASE when WEEKDAY(DATE(a.cgm_dtm) ) in ('0','1','2','3','4')  then  1 end weekday_cnt
+			FROM T_BLDINF_TRAN a
+			  where a.USER_UUID  = #{userId}
+			    AND a.CGM_DTM >= DATE(#{start})
+		        AND a.CGM_DTM < DATE_ADD(DATE(#{end}), INTERVAL 1 DAY)
+			    and ifnull(a.UPT_VALUE,0) > 0
+ 				) k group by USER_UUID
+	]]>
+	</select>
+
+</mapper>

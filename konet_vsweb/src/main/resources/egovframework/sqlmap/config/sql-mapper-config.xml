@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE configuration PUBLIC "-//mybatis.org//DTD Config 3.0//EN" "http://mybatis.org/dtd/mybatis-3-config.dtd">
+
+<configuration>
+	<settings>
+		<setting name="mapUnderscoreToCamelCase" value="true" />
+		<setting name="jdbcTypeForNull" value="NULL" />
+	</settings>
+	<typeAliases>
+		<typeAlias alias="UserDTO"    type="egovframework.sejong.user.model.UserDTO"/>
+		<typeAlias alias="CompMdDTO"  type="egovframework.sejong.user.model.CompMdDTO"/>
+		<typeAlias alias="CompConDTO" type="egovframework.sejong.user.model.CompConDTO"/>
+		<typeAlias alias="CodeMdDTO"  type="egovframework.sejong.user.model.CodeMdDTO"/>
+		<typeAlias alias="FaqDTO"     type="egovframework.sejong.admin.model.FaqDTO"/>
+		<typeAlias alias="AsqDTO"     type="egovframework.sejong.admin.model.AsqDTO"/>
+		<typeAlias alias="CommDTO"    type="egovframework.sejong.admin.model.CommDTO"/>
+ 	    <typeAlias alias="SjgnDTO"    type="egovframework.sejong.user.model.SjgnDTO"/>
+	</typeAliases>
+
+</configuration>

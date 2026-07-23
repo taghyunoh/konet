@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- 부트스트랩 css -->
+  <link href="/bootstrap/css/bootstrap.css" rel="stylesheet">
+
+  <link href="/asset/css/common.css" rel="stylesheet">
+  <link href="lnb_menu.css" rel="stylesheet" />
+
+  <title>LNB 메뉴 컴포넌트</title>
+</head>
+
+<body>
+  <!-- 부트스트랩 js -->
+  <script src="/bootstrap/js/bootstrap.bundle.js"></script>
+
+  <!-- LNB 메뉴 컴포넌트 start -->
+
+  <nav class="lnb-menu bg-light vh-100">
+    <div class="lnb-wrap" id="lnb">
+      <ul class="lnb-nav">
+        <li class="accordion-item" data-menu="01">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+              data-bs-target="#panelsStayOpen-collapseOne" aria-expanded="true"
+              aria-controls="panelsStayOpen-collapseOne">
+              보고서
+            </button>
+          </h2>
+          <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse">
+            <ul class="accordion-body">
+              <li><a class="menu-link" href="#" data-cate="main" name="sub_001">개 요</a>
+              </li>
+              <li><a class="menu-link" href="#" data-cate="main" name="sub_002">AGP 보고서</a></li>
+              <li><a class="menu-link" href="#" data-cate="stat" name="sub_003">혈당 그래프</a>
+              </li>
+              <li><a class="menu-link" href="#" data-cate="stat" name="sub_004">통 계</a>
+              </li>
+            </ul>
+          </div>
+        </li>
+        <div class="line"></div>
+        <!-- <li class="menu-item" data-menu="01">
+          <button class="btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            보고서
+          </button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item menu-link" href="#" data-cate="main" name="sub_001">개 요</a>
+            </li>
+            <li><a class="dropdown-item menu-link" href="#" data-cate="main" name="sub_002">AGP 보고서</a></li>
+            <li><a class="dropdown-item menu-link" href="#" data-cate="stat" name="sub_003">혈당 그래프</a>
+            </li>
+            <li><a class="dropdown-item menu-link" href="#" data-cate="stat" name="sub_004">통 계</a>
+            </li>
+          </ul>
+        </li> -->
+        <li class="menu-item" data-menu="02">
+          <button class="btn" type="button" aria-expanded="false">
+            회원관리
+          </button>
+        </li>
+        <div class="line"></div>
+        <li class="menu-item" data-menu="03">
+          <button class="btn" type="button" aria-expanded="false">
+            공지사항
+          </button>
+        </li>
+        <div class="line"></div>
+        <li class="menu-item" data-menu="04">
+          <button class="btn" type="button" aria-expanded="false">
+            FAQ
+          </button>
+        </li>
+        <div class="line"></div>
+        <li class="menu-item" data-menu="05">
+          <button class="btn" type="button" aria-expanded="false">
+            서비스 정보
+          </button>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- //LNB 메뉴 컴포넌트 end -->
+
+</body>
+
+</html>
