@@ -2,6 +2,7 @@
     "files.encoding": "utf8",
     "editor.minimap.enabled": false,
     "git.openRepositoryInParentFolders": "always",
+    "git.useEditorAsCommitInput": false,
     "java.configuration.updateBuildConfiguration": "automatic",
     "java.configuration.maven.userSettings": "C:\\Users\\user\\.m2\\settings.xml",
     "maven.executable.path": "D:\\egv\\apache-maven-3.8.4\\bin\\mvn.cmd",

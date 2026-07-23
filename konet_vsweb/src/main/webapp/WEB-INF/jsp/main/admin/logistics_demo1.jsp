@@ -22,6 +22,7 @@
   html, body { height:100%; }
   body { margin:0; background:var(--bg); font-family:"Malgun Gothic","맑은 고딕",sans-serif; color:#10161d; font-weight:700; }
   b, th, h2 { font-weight:900; }
+  
 
   /* 화면(iframe) 높이를 세로로 꽉 채움 — 그리드가 남는 공간을 모두 차지(해상도 커져도 하단 빈공간 없음) */
   .d2-wrap { padding:14px 12px 10px; height:100vh; display:flex; flex-direction:column; }
@@ -78,6 +79,7 @@
   .d2-toolbar .sep { padding-left:8px; margin-left:2px; border-left:1px solid var(--bd); display:inline-flex; gap:6px; align-items:center; }
   /* 접기/펼치기 라벨 길이가 달라도 폭 고정 — 줄바꿈 위치가 밀려 버튼이 이동하는 현상 방지 */
   #d2BtnZoneToggle { min-width:112px; text-align:center; }
+  
 
   /* 본문: 출고장 + 내용 한 그리드 — 남는 세로 공간을 모두 차지(flex 채움) */
   .card { background:#fff; border:1px solid var(--bd); border-radius:10px; padding:12px 10px; flex:1 1 auto; display:flex; flex-direction:column; min-height:0; }
@@ -131,6 +133,7 @@
   table.d2-tb td.bcell-h .bh-dt  { display:block; font-size:9px; font-weight:700; color:#8fa6b6; }
   table.d2-tb td.bcell-h .bh-sum { display:block; font-size:15px; font-weight:900; color:#1f2a37; }
 
+  
   /* 전체 합계(맨 위) — 데시보드1 tr.ztot 속성 */
   table.d2-tb tr.tot td { background:#11161d; color:#fff; font-weight:700; border-bottom:2px solid #0e1620;
                           position:sticky; top:30px; z-index:3; }   /* 헤더(30px) 바로 아래에 고정 — 스크롤해도 전체합계 유지 */
