@@ -129,6 +129,7 @@
        ]]>
    </select>
 
+
 	<!-- 선택된 질의응답 조회 -->
 	<select id="asqInfo" parameterType="AsqDTO" resultType="AsqDTO"><![CDATA[
 		 Select  ASQ_SEQ
