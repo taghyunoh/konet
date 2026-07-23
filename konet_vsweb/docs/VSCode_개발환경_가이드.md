@@ -12,16 +12,31 @@ VS Code 설치 후 **서버 실행 · WAR 빌드 · Git 동기화**까지 한 �
 
 ## 0. 이 프로젝트의 전제
 
-| 항목 | 값 | 비고 |
+> **⚠ 경로 기준 = C:\egv (2026-07-23 통일)** — `.vscode` 공유 설정은 **C:\egv 경로**를 쓴다.
+> 도구가 `D:\egv` 에 있는 PC(1호기 등)는 **정션 한 줄**만 만들면 그대로 동작한다 (복사 불필요, pull 후 1회):
+>
+> ```
+> mklink /J C:\egv D:\egv
+> ```
+>
+> 관리자 권한 불필요, 재부팅에도 유지. 이후 `C:\egv\...` 접근이 전부 `D:\egv\...` 로 통한다.
+> 새 PC도 도구를 아무 드라이브에나 설치하고 같은 방식으로 `C:\egv` 정션만 만들면 된다.
+
+| 항목 | 1호기 (user / 최초 구축) | 2호기 (HYUN / 2026-07-23 구축) |
 |---|---|---|
-| 프로젝트 | `C:\Users\user\git\konet\konet_vsweb` | VS Code 전용 사본 |
-| Git 저장소 | `C:\Users\user\git\konet` (**상위 폴더**) | `konet_web` 과 공용 |
-| 원격 | `https://github.com/taghyunoh/konet.git` (Private) | 인증: `taghyunoh` + PAT |
-| **JDK** | **`C:\Program Files\Java\jre-1.8`** | 이름은 jre 지만 실제 **JDK 8**. 11 이상 쓰면 로그인 실패(§6-2) |
-| Maven | `D:\egv\apache-maven-3.8.4` | 설치본 아님 — Eclipse 내장 부품 조립(§4-3) |
-| 톰캣 | `D:\egv\Servers\konet_vsweb-tomcat` | 8.5.66 전용 복사본 |
-| 웹앱 JAR | `D:\egv\Servers\konet_vsweb-vscode\lib` | 113개 |
-| HTTP / 셧다운 / 디버그 포트 | 9071 / 9013 / 9171 | Eclipse `konet_web` 은 9070 → **동시 실행 가능** |
+| 프로젝트 | `C:\Users\user\git\konet\konet_vsweb` | `C:\Users\HYUN\git\konet\konet_vsweb` |
+| Git 저장소 | `C:\Users\user\git\konet` (**상위 폴더**) | `C:\Users\HYUN\git\konet` (**상위 폴더**) |
+| 원격 | `https://github.com/taghyunoh/konet.git` | 동일 |
+| **자바 (톰캣 구동)** | `C:\Program Files\Java\jre-1.8` — 이름은 jre 지만 실제 **JDK 8** | `C:\Program Files\Java\jre-1.8` — **진짜 JRE 8** (javac 없음, 구동은 문제 없음) |
+| **자바 (WAR 빌드)** | 위와 동일 (JDK 8) | **jdk-11** — `mvn.cmd` 가 javac 없으면 자동 전환(아래 참고). pom 이 source/target 1.8 이라 결과 동일 |
+| Maven | `C:\egv\apache-maven-3.8.4` (조립, §4-3) | 동일 경로 (이 PC의 eGovFrameDev-4.1.0 부품으로 조립) |
+| 톰캣 | `C:\egv\Servers\konet_vsweb-tomcat` | 동일 경로 |
+| 웹앱 JAR | `C:\egv\Servers\konet_vsweb-vscode\lib` | 동일 경로 (113개, 3개 제외 §6-1) |
+| HTTP / 셧다운 / 디버그 포트 | 9071 / 9013 / 9171 | 동일 |
+
+- 2호기의 `mvn.cmd` 는 `JAVA_HOME\bin\javac.exe` 가 없으면 `C:\Program Files\Java\jdk-11` 로 자동 전환하는 보정이 들어 있다
+  (공유 설정 `maven.terminal.customEnv`/`tasks.json` 의 `JAVA_HOME=jre-1.8` 을 고치지 않고 이 PC에서만 흡수).
+- **로그인 500 주의(§6-2)는 "톰캣 구동 JDK" 이야기**다 — 구동은 양쪽 다 8(JRE 포함)이라 안전. 빌드 JDK 는 무관.
 
 `konet_web`(Eclipse용)과 `konet_vsweb`(VS Code용)은 **독립된 사본**이다.
 한쪽 수정이 다른 쪽에 반영되지 않으므로 **고친 쪽에서 빌드**할 것.
@@ -70,10 +85,10 @@ VS Code 설치 후 **서버 실행 · WAR 빌드 · Git 동기화**까지 한 �
 1. `Community Server Connector` 우클릭(또는 **+**) → **Create New Server**
    - 처음 펼칠 때 RSP 실행모듈을 자동 다운로드한다(인터넷 필요, 수십 초)
 2. **"No, use server on disk"** 선택
-3. 폴더 → `D:\egv\Servers\konet_vsweb-tomcat`
+3. 폴더 → `C:\egv\Servers\konet_vsweb-tomcat`
 4. `Apache Tomcat 8.5` 자동 감지 → Enter
 5. **Server Name** 입력 (예: `konet_vsweb`) — 비우면 `Tomcat 8.5` 로 등록되고 **이름 변경 기능은 없다**(바꾸려면 Remove 후 재등록)
-6. **`Required Attributes` 를 펼쳐** `server.home.dir` = `D:\egv\Servers\konet_vsweb-tomcat`
+6. **`Required Attributes` 를 펼쳐** `server.home.dir` = `C:\egv\Servers\konet_vsweb-tomcat`
    - 접혀 있으면 값이 비어 Finish 가 안 눌린다
 7. `Optional Attributes`
    - `vm.install.path` = `C:\Program Files\Java\jre-1.8` ← **JDK 8 필수**
@@ -82,6 +97,12 @@ VS Code 설치 후 **서버 실행 · WAR 빌드 · Git 동기화**까지 한 �
 
 등록 후 우클릭 → **Edit Server** 에서 `server.http.port` 를 **9071** 로 고치고 `Ctrl+S`.
 (기본값 8080 이라 그대로 두면 Open in Browser 가 엉뚱한 포트로 열린다)
+
+> **지름길 (2호기에서 사용한 방법)**: 위저드 대신 등록 파일을 직접 만들어도 된다 —
+> `C:\Users\<사용자>\.rsp\redhat-community-server-connector\servers\konet_vsweb` (확장자 없음, JSON)
+> 에 `server.home.dir`/`server.base.dir`=`C:\egv\Servers\konet_vsweb-tomcat`, `server.http.port`=`9071`,
+> `vm.install.path`=`C:\Program Files\Java\jre-1.8` 을 넣고 **VS Code 재시작**(또는 RSP Stop/Start)하면 목록에 나타난다.
+> 기존 파일(예: 낡은 `Tomcat 8.5` 등록)을 참고해 복사·수정하는 게 가장 쉽다.
 
 ### 3-2. 사용
 
@@ -119,7 +140,7 @@ artifactId 가 `konet_web` 그대로라 **기존 배포 파일명과 동일** �
 
 ```
 set JAVA_HOME=C:\Program Files\Java\jre-1.8
-D:\egv\apache-maven-3.8.4\bin\mvn.cmd -o -DskipTests clean package
+C:\egv\apache-maven-3.8.4\bin\mvn.cmd -o -DskipTests clean package
 ```
 
 ### 4-2. 배포 원칙 (CLAUDE.md 와 동일)
@@ -131,7 +152,7 @@ D:\egv\apache-maven-3.8.4\bin\mvn.cmd -o -DskipTests clean package
 
 이 PC 에 Maven 이 설치돼 있지 않아, **Eclipse(eGovFrame) 내장 m2e Maven 3.8.4 부품을 모아 조립**했다(다운로드 없음).
 
-- `lib\` ← `D:\egv\eGovFrameDev-4.1.0-64bit\eclipse\plugins\org.eclipse.m2e.maven.runtime_*\jars\*.jar` + `...slf4j.simple_*\jars\*.jar`
+- `lib\` ← `C:\egv\eGovFrameDev-4.1.0-64bit\eclipse\plugins\org.eclipse.m2e.maven.runtime_*\jars\*.jar` + `...slf4j.simple_*\jars\*.jar`
 - `bin\m2.conf`, `bin\mvn.cmd` — 직접 작성
 - **추가로 채워야 하는 3개** (m2e 는 OSGi 런타임에서 받으므로 jars 폴더에 없음):
 
@@ -197,7 +218,7 @@ git -C C:\Users\user\git\konet push origin main
 
 ### 6-1. 웹앱 JAR 3개 제외
 
-`D:\egv\Servers\konet_vsweb-vscode\lib` 에서 아래 3개를 **반드시 제외**한다.
+`C:\egv\Servers\konet_vsweb-vscode\lib` 에서 아래 3개를 **반드시 제외**한다.
 두면 기동은 되지만 **첫 화면 요청에서 500** — `ClassNotFoundException: com.sun.el.ExpressionFactoryImpl`.
 컨테이너가 제공하는 API 를 웹앱 JAR 가 덮어쓰기 때문이며, 컴파일 전용 스텁이라 런타임엔 불필요하다.
 
@@ -208,7 +229,7 @@ git -C C:\Users\user\git\konet push origin main
 의존성 갱신 시:
 
 ```
-robocopy C:\Users\user\git\konet\konet_vsweb\target\konet_web-1.0.0\WEB-INF\lib D:\egv\Servers\konet_vsweb-vscode\lib /E /XF javaee-api-7.0.jar servlet-api-2.5.jar jsp-api-2.1.jar
+robocopy <프로젝트경로>\target\konet_web-1.0.0\WEB-INF\lib C:\egv\Servers\konet_vsweb-vscode\lib /E /XF javaee-api-7.0.jar servlet-api-2.5.jar jsp-api-2.1.jar
 ```
 
 ### 6-2. JDK 11 이상이면 **로그인만** 실패
@@ -296,9 +317,19 @@ Get-NetTCPConnection -State Listen -LocalPort 9013,9071 | Select-Object LocalPor
 
 1. GitHub 에서 clone — `git clone https://github.com/taghyunoh/konet.git` (PAT 인증)
 2. VS Code 설치 → 프로젝트 폴더 열기 → 권장 확장 설치 → **`migrate-java-to-azure` 비활성화**(§6-5)
-3. JDK 8 확인 (`C:\Program Files\Java\jre-1.8`)
-4. Maven 준비 — 정식 설치하거나 §4-3 방식으로 조립 후 `settings.json` 의 `maven.executable.path` 수정
-5. 톰캣 복사본 만들기 — `apache-tomcat-8.5.66` 복사 → `conf\server.xml` 에 포트(9071/9013)와 프로젝트 Context 지정, `conf\logging.properties` 준비
-6. 웹앱 JAR 채우기 — §6-1 의 3개 제외
+3. 자바 확인 — 톰캣 구동용 **8**(`C:\Program Files\Java\jre-1.8`, JRE 라도 됨) + 빌드용 javac(JDK 8 또는 11)
+4. Maven 준비 — **`C:\egv\apache-maven-3.8.4`** 에 정식 설치하거나 §4-3 방식으로 조립.
+   가장 쉬운 방법은 **기존 PC의 `C:\egv\apache-maven-3.8.4` + `C:\egv\Servers` 를 통째로 복사**하는 것(조립 생략).
+   도구를 D: 등 다른 드라이브에 두고 싶으면 그 위치에 두고 `mklink /J C:\egv D:\egv` 정션만 추가(§0)
+5. 톰캣 복사본 만들기 — `apache-tomcat-8.5.66` → **`C:\egv\Servers\konet_vsweb-tomcat`** 복사 → `conf\server.xml` 에 포트(9071/9013)와 프로젝트 Context 지정(docBase=자기 PC의 `...\konet_vsweb\src\main\webapp`), `conf\logging.properties`(EUC-KR)·`logging-utf8.properties`(UTF-8) 준비
+6. 웹앱 JAR 채우기 — WAR 1회 빌드 후 `WEB-INF\lib` → `C:\egv\Servers\konet_vsweb-vscode\lib` 복사, §6-1 의 3개 제외
 7. SERVERS 패널에 등록(§3-1) → Start → http://localhost:9071/ 로그인까지 확인
 8. WAR 빌드 1회 검증(§4)
+
+### 7-1. 2호기(HYUN) 구축 기록 (2026-07-23)
+
+- 위 순서 그대로 수행. Maven 은 이 PC의 `C:\egv\eGovFrameDev-4.1.0-64bit` 부품으로 §4-3 조립
+  (m2e runtime 1.18.3 = Maven 3.8.4, slf4j-api-1.7.36·javax.inject-1 은 `.m2`, guava-30.1.0 은 plugins 에서 확보 — 전부 로컬, 다운로드 없음).
+- `server.xml` 의 docBase/PreResources 는 `C:\Users\HYUN\git\...` 로 지정 (server.xml 은 git 밖 파일이라 PC별로 달라도 됨).
+- 검증 완료: 오프라인 WAR 빌드 28.6초 성공(`target\konet_web-1.0.0.war`), 톰캣 기동 30.7초·오류 없음, `http://localhost:9071/` 로그인 화면 HTTP 200.
+- `.vscode` 경로를 D:\egv → **C:\egv 로 통일 커밋**한 것이 이때다(§0 경고 참조).
