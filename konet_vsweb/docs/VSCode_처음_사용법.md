@@ -58,6 +58,17 @@ VS Code 를 처음 접하는 사람을 위한 최소 안내. 이클립스와 비
 
 - **모르는 팝업이 "Allow / 예" 를 물으면 일단 Skip / 취소.**
   JDK 21 을 설치하고 소스를 갈아엎으려던 자동 업그레이드 확장이 실제로 있었다(§6-5 참고 — 확장은 제거함).
+
+### 팝업별 정답
+
+| 팝업 | 답 | 이유 |
+|---|---|---|
+| `"git fetch" 를 정기적으로 실행하시겠습니까?` | **예** | 원격 변경을 확인만 함(덮어쓰지 않음). 다른 PC 의 push 를 `↓1` 로 알려줘 유용 |
+| `older Java runtime (8) ... upgrade to the latest LTS?` <br>(Install Extension and Upgrade) | **Not Now** | **절대 설치 금지.** 오늘 제거한 modernization 확장을 다시 설치하라는 권유 |
+| `pwsh 명령을 실행하시겠습니까` (JDK 설치 류) | **Skip** | Allow 누르면 JDK 21 설치·업그레이드가 시작됨 |
+
+두 번째 팝업은 `.vscode/settings.json` 의 **`java.dependency.enableDependencyCheckup: false`** 로 꺼 뒀으므로
+정상적으로는 더 뜨지 않는다. 그래도 뜨면 **Not Now**.
 - **커밋 전 3초 점검**
   1. 좌측 하단 브랜치가 **`main`** 인가 (`appmod/...` 면 중단)
   2. 변경 파일이 **진짜 프로젝트 소스**인가 (`.github/modernize`, `plan.md`, `progress.md` 면 커밋 금지)

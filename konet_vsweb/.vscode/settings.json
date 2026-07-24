@@ -25,6 +25,10 @@
     ],
     "java.import.maven.enabled": true,
     "java.compile.nullAnalysis.mode": "automatic",
+    // [중요] "Java 8 → 최신 LTS 업그레이드" 권유 팝업 차단.
+    // 이 프로젝트는 Java 8 전용(pom source/target 1.8)이라 업그레이드하면 기동조차 안 되고,
+    // 권유대로 설치되는 modernization 확장이 실제로 소스를 삭제한 사고 이력이 있다(가이드 §6-5).
+    "java.dependency.enableDependencyCheckup": false,
     "files.exclude": {
         "**/bin": true,
         "**/target": true
