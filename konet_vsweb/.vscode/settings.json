@@ -4,12 +4,13 @@
     "git.openRepositoryInParentFolders": "always",
     "git.useEditorAsCommitInput": false,
     "java.configuration.updateBuildConfiguration": "automatic",
-    "maven.executable.path": "C:\\Users\\user\\.maven\\maven-3.10.0-rc-1\\bin\\mvn.cmd",
+    "java.configuration.maven.userSettings": "C:\\Users\\HYUN\\.m2\\settings.xml",
+    "maven.executable.path": "C:\\egv\\apache-maven-3.8.4\\bin\\mvn.cmd",
     "maven.terminal.useJavaHome": true,
     "maven.terminal.customEnv": [
         {
             "environmentVariable": "JAVA_HOME",
-            "value": "C:\\Program Files\\Java\\jre-1.8"
+            "value": "C:\\Program Files\\Java\\jdk-11"
         }
     ],
     "maven.terminal.favorites": [
