@@ -15,6 +15,7 @@
   .swal2-popup:not(.swal2-toast) .swal2-styled{ padding:.5em 1.4em; font-size:.95em; }
 </style>
 <style>
+  
   :root { --logi-teal:#1f9b8e; --logi-teal-dark:#178074; --logi-border:#dfe6e3; --logi-bg:#f4f8f7; }
   /* 흐린 회색 글자를 진한 색으로 (또렷하게) */
   .logi-wrap .sub, .logi-wrap .wh-meta, .logi-wrap .note,
@@ -4186,12 +4187,9 @@
 
     <div class="grp">조회·대시보드관리 ★</div>
     <a class="mi core on" data-key="shipstatus2" onclick="logiShipView('zone', this)"><span class="ic">🗂️</span>출고현황표(대시보드)</a>
-     <a class="mi has-sub" data-sub="shipwork" onclick="logiToggleSub('shipwork', this)"><span class="ic">🚚</span>출고세부조회<span class="caret">▶</span></a>
-    <div class="sub-menu" id="sub-shipwork">
-      <a class="mi" data-key="shipstatus2" onclick="logiShipView('zoneitem', this)"><span class="ic">🏬</span>출고장별 품목조회</a>
-      <a class="mi" data-key="shipstatus2" onclick="logiShipView('biz', this)"><span class="ic">🏢</span>사업장별 조회</a>
-      <a class="mi" data-key="shipstatus2" onclick="logiShipView('item', this)"><span class="ic">📦</span>품목별 조회</a>
-    </div>
+     <%-- 출고세부조회: 출고장별 품목·사업장별·품목별을 한 화면 3탭으로 통합(2026-07-24).
+          서브메뉴 3개 → 단일 메뉴. 탭 전환은 iframe(logistics_demo1) 상단 뷰버튼(zoneitem/biz/item). --%>
+     <a class="mi" data-key="shipstatus2" onclick="logiShipView('zoneitem', this)"><span class="ic">🚚</span>출고세부조회</a>
 
     <div class="grp">매입·재고관리</div>
     <a class="mi" data-key="inboundList" onclick="logiGo('inboundList', this); inbInit(); inboundListLoad();"><span class="ic">📄</span>입고내역</a>
@@ -4542,7 +4540,7 @@
         <div class="gd">발주현황표(엑셀)를 올려 출고량·출고장별 수량을 자동 작성합니다.</div>
         <table><tbody>
           <tr><td class="m">출고현황표(대시보드1/2)</td><td>발주현황표 엑셀 업로드 → 출고장·사업장·품목별 출고량 집계. 출고데이타 저장(TBL_SHIPOUT_MST). 매출마감의 원천.</td></tr>
-          <tr><td class="m">출고세부조회</td><td>출고장별·사업장별·품목별로 저장된 출고 내역을 조회.</td></tr>
+          <tr><td class="m">출고세부조회</td><td>저장된 출고 내역을 <b>한 화면 3탭</b>(출고장별 품목 · 사업장별 · 품목별)으로 전환하며 조회.</td></tr>
         </tbody></table>
       </div>
 

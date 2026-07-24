@@ -20,7 +20,7 @@
 <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/vendor/fonts/fontawesome/css/fontawesome-all.css">
 <link rel="stylesheet" href="https://cdn.datatables.net/v/dt/jszip-3.10.1/dt-2.1.8/b-3.2.0/b-colvis-3.2.0/b-html5-3.2.0/b-print-3.2.0/datatables.min.css">
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/addstyle.css?v=100">
-<style> html, body { font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo',sans-serif; } </style>
+<style> /* 글꼴 지정 제거: 재고현황·거래처관리 등과 동일하게 기본 sans 글꼴 상속 */ </style>
 <!-- jQuery 먼저 -->
 <script src="https://code.jquery.com/jquery-3.7.1.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
@@ -58,7 +58,7 @@ $(document).on('init.dt', function(e, settings) {
 
 <!-- Customized Bootstrap Stylesheet -->
 <link href="${pageContext.request.contextPath}/css/winmc/style_comm.css?v=127"  rel="stylesheet">
-<link href="${pageContext.request.contextPath}/css/winmc/logi-skin.css?v=1"  rel="stylesheet"> <!-- logistics_demo 스타일 리스킨 -->
+<link href="${pageContext.request.contextPath}/css/winmc/logi-skin.css?v=2"  rel="stylesheet"> <!-- logistics_demo 스타일 리스킨 -->
 <style>
   /* ★ style_comm.css(.dashboard-wrapper margin-left:300px) 뒤에서 덮어써 우측 전체폭 사용 */
   html, body { margin:0 !important; padding:0 !important; }
@@ -163,7 +163,7 @@ $(document).on('init.dt', function(e, settings) {
 								  </div>
 								</div>
 								<table id="cd_tableName"
-									class="display nowrap table table-striped table-bordered">
+									class="display nowrap stripe hover cell-border order-column responsive">
 									<!-- 테이블 내용 -->
 								</table>
 							</div>
@@ -283,9 +283,9 @@ $(document).on('init.dt', function(e, settings) {
 		data-keyboard="false">
 		<div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"
 			role="dialog"
-			style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50vw; max-width: 50vw; max-height: 50vh;">
+			style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50vw; max-width: 50vw; max-height: 90vh;">
 			<div class="modal-content"
-				style="height: 62%; display: flex; flex-direction: column;">
+				style="height: auto; display: flex; flex-direction: column;">
 				<div class="modal-header bg-light">
 					<h6 class="modal-title" id="cd_modalHead"></h6>
 					<div class="form-row">
@@ -339,8 +339,9 @@ $(document).on('init.dt', function(e, settings) {
 							<label for="subCodeNm_one"
 								class="col-2 col-sm-2 col-form-label text-left">세부명칭</label>
 							<div class="col-10 col-sm-10">
-								<input id="subCodeNm_one" name="subCodeNm_one" type="text"
-									class="form-control text-left" placeholder="세부명칭을 입력하세요">
+								<textarea id="subCodeNm_one" name="subCodeNm_one" rows="8"
+									class="form-control text-left" placeholder="세부명칭을 입력하세요"
+										style="height:100px; min-height:90px; resize:vertical; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.5;"></textarea>
 							</div>
 						</div>
 						<div class="form-group row ">
@@ -1721,7 +1722,7 @@ $(document).on('init.dt', function(e, settings) {
         		codeCd_one:     $('#codeCd_one').val(),
             	dtlCodeNm_one:  $('#dtlCodeNm_one').val(),
         		subCode_one:    $('#subCode_one').val(),
-        		subCodeNm_one:  $('#subCodeNm_one').val(),
+        		subCodeNm_one:  ($('#subCodeNm_one').val() || '').replace(/\r\n|\r|\n/g, '\\r\\n'),
         		startDt_one:    $('#startDt_one').val(),
         		endDt_one:      $('#endDt_one').val(),
         		sort_one:       $('#sort_one').val(),
@@ -2024,6 +2025,9 @@ $(document).on('init.dt', function(e, settings) {
 				// 수정.삭제 모드 (대상확인)
 				if (cdedit_Data) {
 					formValueSet(cd_inputZone.id,cdedit_Data);
+					// 세부명칭(메모): 저장된 리터럴 개행(\r\n)을 실제 줄바꿈으로 표시 — 저장 시 cd_newuptData에서 다시 \r\n으로 복원
+					var _cdSn = document.getElementById('subCodeNm_one');
+					if (_cdSn) _cdSn.value = String(cdedit_Data.subCodeNm_one == null ? '' : cdedit_Data.subCodeNm_one).replace(/\\r\\n|\\n|\\r/g, '\n');
 			
 				} else {
 					cd_modal_OpenFlag = false;

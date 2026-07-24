@@ -8,9 +8,9 @@
   --logi-border:#dfe6e3; --logi-bg:#f4f8f7; --logi-ink:#1f2a37;
 }
 
-/* 전체 배경/폰트 */
+/* 전체 배경/폰트 — 재고현황(logistics_demo)과 동일하게 글꼴 미지정(기본 sans 상속), 굵게만 유지 */
 html, body { background:var(--logi-bg) !important; color:#10161d !important;
-  font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo',sans-serif !important; font-weight:700; }
+  font-weight:700; }
 .dashboard-wrapper, .dashboard-content { background:var(--logi-bg) !important; }
 
 /* 카드 */
