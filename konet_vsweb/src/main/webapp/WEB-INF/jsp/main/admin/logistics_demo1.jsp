@@ -231,10 +231,15 @@
   <div class="d2-head">
     <div>
       <h2>출고현황표 <span class="badge" id="d2ViewTag">출고장별 보기</span>
-        <span style="margin-left:8px;white-space:nowrap">
-          <button class="btn-teal" id="d2ViewBtn_zone" onclick="d2SetView('zone')" style="padding:3px 10px;font-size:12px">출고장별</button>
-          <button class="btn-line" id="d2ViewBtn_biz"  onclick="d2SetView('biz')"  style="padding:3px 10px;font-size:12px">사업장별</button>
-          <button class="btn-line" id="d2ViewBtn_item" onclick="d2SetView('item')" style="padding:3px 10px;font-size:12px">품목별</button>
+        <span style="margin-left:12px;white-space:nowrap;display:inline-flex;gap:6px;vertical-align:middle">
+          <%-- 보기전환: 버튼 4개 → 화살표 콤보박스 하나로 변경(2026-07-24). 선택 즉시 d2SetView 호출 --%>
+          <select id="d2ViewSel" onchange="d2SetView(this.value)" title="보기 방식 선택 (출고장별 / 출고장별 품목 / 사업장별 / 품목별)"
+                  style="height:34px;border:1px solid var(--bd);border-radius:8px;padding:0 30px 0 14px;font-size:13.5px;font-weight:800;cursor:pointer;color:#137a6c;background:#fff url(&quot;data:image/svg+xml;utf8,&lt;svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23137a6c' stroke-width='3'&gt;&lt;path d='M6 9l6 6 6-6'/&gt;&lt;/svg&gt;&quot;) no-repeat right 10px center;-webkit-appearance:none;-moz-appearance:none;appearance:none">
+            <option value="zone">출고장별</option>
+            <option value="zoneitem">출고장별 품목</option>
+            <option value="biz">사업장별</option>
+            <option value="item">품목별</option>
+          </select>
         </span>
       </h2>
       <div class="sub">발주현황표(엑셀)를 업로드하면 <b>사업장·품목별 출고량</b> 과 <b>출고장별 수량</b> 이 자동 작성됩니다.</div>
@@ -1269,8 +1274,10 @@
       itemSet[ik]=1;
       var rk=(r.biz||'')+'|'+ik;
       var row=z.rows[rk];
-      if(!row) row=z.rows[rk]={biz:(r.biz||''), name:r.item, code:r.code, qty:0, uploadDttm:(r.uploadDttm||''), firstDttm:(r.firstDttm||'')};
+      if(!row) row=z.rows[rk]={biz:(r.biz||''), name:r.item, code:r.code, qty:0, uploadDttm:(r.uploadDttm||''), firstDttm:(r.firstDttm||''), ozones:{}};
       row.qty+=q;
+      // 원래 출고장 분포 누적(사업장별 뷰에서 품목명 옆 출고장 콤보용, 2026-07-24). origZone 없으면(=출고장별 뷰) 무시
+      if(r.origZone){ if(!row.ozones) row.ozones={}; row.ozones[r.origZone]=(row.ozones[r.origZone]||0)+q; }
       if(r.uploadDttm && r.uploadDttm>(row.uploadDttm||'')) row.uploadDttm=r.uploadDttm;   // 변경일시 최신값
       if(r.firstDttm && (!row.firstDttm || r.firstDttm<row.firstDttm)) row.firstDttm=r.firstDttm;   // 최초일시 최소값
     });
@@ -1332,9 +1339,8 @@
   // ── 보기 모드 전환 (출고장별/사업장별/품목별) — 메뉴 또는 툴바에서 호출
   function d2SetView(v){
     D2_VIEW=(v==='biz'||v==='item'||v==='zoneitem')?v:'zone';
-    // 상단 보기버튼 하이라이트 (zoneitem 은 zone 버튼에 표시)
-    var btnKey=(D2_VIEW==='zoneitem')?'zone':D2_VIEW;
-    ['zone','biz','item'].forEach(function(k){ var b=document.getElementById('d2ViewBtn_'+k); if(b) b.className=(k===btnKey)?'btn-teal':'btn-line'; });
+    // 상단 보기 콤보박스 선택 동기화 — 메뉴/외부 호출로 바뀔 때도 콤보가 따라오게(2026-07-24)
+    var sel=document.getElementById('d2ViewSel'); if(sel && sel.value!==D2_VIEW) sel.value=D2_VIEW;
     var t=document.getElementById('d2ViewTag'); if(t) t.textContent=(D2_VIEW==='biz'?'사업장별 보기':(D2_VIEW==='item'?'품목별 보기':(D2_VIEW==='zoneitem'?'출고장별 품목보기':'출고장별 보기')));
     // 출력 형식 셀렉터를 현재 보기와 동기화 → 상단 '일자별/합계 출력'이 현재 보기 형식으로 나감
     var pf=document.getElementById('d2PrintFmt'); if(pf){ var want=(D2_VIEW==='zone')?'zone':D2_VIEW; for(var i=0;i<pf.options.length;i++){ if(pf.options[i].value===want){ pf.value=want; break; } } }
@@ -1343,12 +1349,16 @@
   // 부모(사이드바 메뉴)에서 보기 전환 요청 수신
   window.addEventListener('message', function(e){ var d=e.data; if(d && d.type==='d2view'){ d2SetView(d.view); } });
 
-  // ag → 품목별 합산 목록 [{code,name,qty}]
+  // ag → 품목별 합산 목록 [{code,name,qty,zones:{출고장:수량},bizs:{사업장:수량}}]
+  //   zones/bizs = 이 품목이 어느 출고장·사업장에 얼마나 나갔는지(연계자료, 2026-07-24). 순수 화면단 집계.
   function d2ItemsFromAg(ag){
     var items={};
     ag.zoneOrder.forEach(function(zn){ var z=ag.zones[zn]; Object.keys(z.rows).forEach(function(rk){
       var r=z.rows[rk]; if(!((+r.qty||0)>0)) return; var k=r.code?('C:'+r.code):('N:'+r.name);
-      if(!items[k]) items[k]={code:r.code||'',name:r.name||'',qty:0}; items[k].qty+=(+r.qty||0);
+      if(!items[k]) items[k]={code:r.code||'',name:r.name||'',qty:0,zones:{},bizs:{}};
+      var q=(+r.qty||0); items[k].qty+=q;
+      if(zn) items[k].zones[zn]=(items[k].zones[zn]||0)+q;
+      var b=r.biz||'(사업장 미지정)'; items[k].bizs[b]=(items[k].bizs[b]||0)+q;
     }); });
     return Object.keys(items).map(function(k){ return items[k]; }).sort(function(a,b){ return a.name.localeCompare(b.name,'ko')||a.code.localeCompare(b.code,'ko'); });
   }
@@ -1371,8 +1381,10 @@
       Object.keys(z.rows).forEach(function(rk){
         var r=z.rows[rk]; if(!((+r.qty||0)>0)) return;
         var k=r.code?('C:'+r.code):('N:'+r.name);
-        if(!items[k]) items[k]={code:r.code||'',name:r.name||'',qty:0};
-        items[k].qty+=(+r.qty||0);
+        if(!items[k]) items[k]={code:r.code||'',name:r.name||'',qty:0,bizs:{}};
+        var q=(+r.qty||0); items[k].qty+=q;
+        // 이 품목이 이 출고장에서 어느 사업장으로 나갔나(품목명 옆 사업장 콤보용, 2026-07-24)
+        var b=r.biz||'(사업장 미지정)'; items[k].bizs[b]=(items[k].bizs[b]||0)+q;
       });
       var list=Object.keys(items).map(function(k){ return items[k]; })
         .sort(function(a,b){ return a.name.localeCompare(b.name,'ko')||a.code.localeCompare(b.code,'ko'); });
@@ -1396,36 +1408,63 @@
   }
   // 출고장별 품목 한 집계(ag) → 표 HTML (출고장 그룹 + 품목코드 합산 목록)
   function d2ZoneItemsTableHtml(ag){
-    var COLG='<colgroup><col style="width:7%"><col style="width:17%"><col style="width:56%"><col style="width:20%"></colgroup>';
-    var THEAD='<thead><tr><th>No</th><th>품목코드</th><th>품목명</th><th>출고수량</th></tr></thead>';
+    // 출고장별 품목 — 품목명 옆에 사업장 분포 열 추가(2026-07-24). 이 출고장에서 이 품목이 어느 사업장으로 나갔나. 대표 1곳 + 2곳↑이면 콤보
+    var COLG='<colgroup><col style="width:6%"><col style="width:15%"><col style="width:38%"><col style="width:28%"><col style="width:13%"></colgroup>';
+    var THEAD='<thead><tr><th>No</th><th>품목코드</th><th>품목명</th><th>사업장</th><th>출고수량</th></tr></thead>';
     var zones=d2ZoneItemsFromAg(ag), grand=0; zones.forEach(function(z){ grand+=z.tot; });
     var gp=d2GroupZones(zones);
     var html='<table class="d2-tb d2-tb-blk">'+COLG+THEAD+'<tbody>';
-    html+='<tr class="tot"><td class="txt-l" colspan="3">전체 합계 (출고장 '+zones.length+'곳)</td><td class="num">'+d2Num(grand)+'</td></tr>';
-    if(!zones.length) html+='<tr class="item"><td class="txt-l" colspan="4"><div class="d2-empty">표시할 출고장이 없습니다.</div></td></tr>';
+    html+='<tr class="tot"><td class="txt-l" colspan="4">전체 합계 (출고장 '+zones.length+'곳)</td><td class="num">'+d2Num(grand)+'</td></tr>';
+    if(!zones.length) html+='<tr class="item"><td class="txt-l" colspan="5"><div class="d2-empty">표시할 출고장이 없습니다.</div></td></tr>';
     gp.order.forEach(function(g){
       var zs=gp.groups[g], gtot=0; zs.forEach(function(z){ gtot+=z.tot; });
       // 대표그룹(오산센터 등) 헤더
-      html+='<tr class="grp"><td class="txt-l" colspan="3">🏬 '+d2Esc(g)+' <span style="font-weight:600">('+zs.length+'개 출고장)</span></td><td class="num">'+d2Num(gtot)+'</td></tr>';
+      html+='<tr class="grp"><td class="txt-l" colspan="4">🏬 '+d2Esc(g)+' <span style="font-weight:600">('+zs.length+'개 출고장)</span></td><td class="num">'+d2Num(gtot)+'</td></tr>';
       zs.forEach(function(z){
         // 출고장 소계 + 품목(코드 합산)
-        html+='<tr class="sub"><td class="txt-l" colspan="3" style="padding-left:20px">↳ '+d2Esc(z.zone)+(z.dcCd?' <span style="font-weight:600">('+d2Esc(z.dcCd)+')</span>':'')+' <span style="color:#9aa7b3">(품목 '+z.items.length+'종)</span></td><td class="num">'+d2Num(z.tot)+'</td></tr>';
-        z.items.forEach(function(r,ix){ html+='<tr class="item"><td>'+(ix+1)+'</td><td>'+d2Esc(r.code)+'</td><td class="txt-l">'+d2Esc(r.name)+'</td><td class="num">'+d2Num0(r.qty)+'</td></tr>'; });
+        html+='<tr class="sub"><td class="txt-l" colspan="4" style="padding-left:20px">↳ '+d2Esc(z.zone)+(z.dcCd?' <span style="font-weight:600">('+d2Esc(z.dcCd)+')</span>':'')+' <span style="color:#9aa7b3">(품목 '+z.items.length+'종)</span></td><td class="num">'+d2Num(z.tot)+'</td></tr>';
+        z.items.forEach(function(r,ix){ html+='<tr class="item"><td>'+(ix+1)+'</td><td>'+d2Esc(r.code)+'</td><td class="txt-l">'+d2Esc(r.name)+'</td><td class="txt-l">'+d2DistCell(r.bizs,'사업장')+'</td><td class="num">'+d2Num0(r.qty)+'</td></tr>'; });
       });
     });
     return html+'</tbody></table>';
   }
+  // 품목별 분포 셀(출고장/사업장): 대표(최다) 1곳만 보이고, 2곳↑이면 화살표 콤보박스로 전체 열람 (2026-07-24)
+  //   dist = {이름:수량}. 수량 내림차순 정렬 → 첫 곳(대표)이 기본 선택. 화살표 클릭 시 전체 목록이 펼쳐진다.
+  function d2DistCell(dist, unit){
+    var keys=Object.keys(dist||{});
+    if(!keys.length) return '<span style="color:#c0392b">-</span>';
+    keys.sort(function(a,b){ return (dist[b]||0)-(dist[a]||0)||a.localeCompare(b,'ko'); });
+    // 1곳뿐이면 콤보 불필요 — 이름만 표기(수량 생략, 2026-07-24)
+    if(keys.length<2) return '<span>'+d2Esc(keys[0])+'</span>';
+    var opts=keys.map(function(k){ return '<option>'+d2Esc(k)+'  ('+d2Num0(dist[k])+')</option>'; }).join('');
+    var arrow="url(&quot;data:image/svg+xml;utf8,&lt;svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%23137a6c' stroke-width='3'&gt;&lt;path d='M6 9l6 6 6-6'/&gt;&lt;/svg&gt;&quot;)";
+    return '<select title="'+d2Esc(unit)+' '+keys.length+'곳 전체 보기" onclick="event.stopPropagation()"'
+         +' style="max-width:100%;height:28px;border:1px solid var(--bd);border-radius:6px;padding:0 26px 0 9px;font-size:12.5px;font-weight:700;cursor:pointer;color:#137a6c;'
+         +'background:#fff '+arrow+' no-repeat right 8px center;-webkit-appearance:none;-moz-appearance:none;appearance:none">'
+         +opts+'</select>'
+         +' <span style="color:#9aa7b3;font-size:11.5px">'+keys.length+'곳</span>';
+  }
   // 사업장별/품목별 한 집계(ag) → 표 HTML 한 개
   function d2GroupTableHtml(ag, mode){
-    var COLG='<colgroup><col style="width:7%"><col style="width:17%"><col style="width:56%"><col style="width:20%"></colgroup>';
-    var THEAD='<thead><tr><th>No</th><th>품목코드</th><th>품목명</th><th>출고수량</th></tr></thead>';
-    var html='<table class="d2-tb d2-tb-blk">'+COLG+THEAD+'<tbody>';
+    var html;
     if(mode==='item'){
+      // 품목별 — 품목명 뒤에 연계자료(출고장 분포·사업장 분포) 열 추가(2026-07-24). 각 셀은 대표 1곳 + [＋N] 펼침
+      var COLG='<colgroup><col style="width:5%"><col style="width:13%"><col style="width:26%"><col style="width:26%"><col style="width:20%"><col style="width:10%"></colgroup>';
+      var THEAD='<thead><tr><th>No</th><th>품목코드</th><th>품목명</th><th>출고장 분포</th><th>사업장</th><th>출고수량</th></tr></thead>';
+      html='<table class="d2-tb d2-tb-blk">'+COLG+THEAD+'<tbody>';
       var items=d2ItemsFromAg(ag), grand=0; items.forEach(function(r){ grand+=r.qty; });
-      html+='<tr class="tot"><td class="txt-l" colspan="3">품목 합계 ('+items.length+'종)</td><td class="num">'+d2Num(grand)+'</td></tr>';
-      if(!items.length) html+='<tr class="item"><td class="txt-l" colspan="4"><div class="d2-empty">표시할 품목이 없습니다.</div></td></tr>';
-      items.forEach(function(r,ix){ html+='<tr class="item"><td>'+(ix+1)+'</td><td>'+d2Esc(r.code)+'</td><td class="txt-l">'+d2Esc(r.name)+'</td><td class="num">'+d2Num0(r.qty)+'</td></tr>'; });
+      html+='<tr class="tot"><td class="txt-l" colspan="5">품목 합계 ('+items.length+'종)</td><td class="num">'+d2Num(grand)+'</td></tr>';
+      if(!items.length) html+='<tr class="item"><td class="txt-l" colspan="6"><div class="d2-empty">표시할 품목이 없습니다.</div></td></tr>';
+      items.forEach(function(r,ix){
+        html+='<tr class="item"><td>'+(ix+1)+'</td><td>'+d2Esc(r.code)+'</td><td class="txt-l">'+d2Esc(r.name)+'</td>'
+            +'<td class="txt-l">'+d2DistCell(r.zones,'출고장')+'</td>'
+            +'<td class="txt-l">'+d2DistCell(r.bizs,'사업장')+'</td>'
+            +'<td class="num">'+d2Num0(r.qty)+'</td></tr>';
+      });
     } else {
+      var COLG='<colgroup><col style="width:7%"><col style="width:17%"><col style="width:56%"><col style="width:20%"></colgroup>';
+      var THEAD='<thead><tr><th>No</th><th>품목코드</th><th>품목명</th><th>출고수량</th></tr></thead>';
+      html='<table class="d2-tb d2-tb-blk">'+COLG+THEAD+'<tbody>';
       var bm=d2BizFromAg(ag), names=Object.keys(bm).sort(function(a,b){ return a.localeCompare(b,'ko'); }), gtot=0;
       names.forEach(function(b){ gtot+=bm[b].tot; });
       html+='<tr class="tot"><td class="txt-l" colspan="3">사업장 합계 ('+names.length+' 사업장)</td><td class="num">'+d2Num(gtot)+'</td></tr>';
@@ -1450,7 +1489,7 @@
     if(mode==='biz'){
       // 사업장을 '출고장(zone)'처럼 매핑 → 기존 배치 매트릭스 렌더(현재/직전·소계) 재사용
       D2_UNIT='사업장';
-      var _mapB=function(r){ return { code:r.code, item:r.item, biz:r.biz, bizCode:r.bizCode, dc:'전체 사업장', dcCd:(r.bizCode||''), inwh:'', zone:(r.biz||'(사업장 미지정)'), qty:r.qty, dlvDt:r.dlvDt, date:r.date, uploadDttm:r.uploadDttm, firstDttm:r.firstDttm, jobSeq:r.jobSeq }; };
+      var _mapB=function(r){ return { code:r.code, item:r.item, biz:r.biz, bizCode:r.bizCode, dc:'전체 사업장', dcCd:(r.bizCode||''), inwh:'', zone:(r.biz||'(사업장 미지정)'), origZone:(r.zone||''), qty:r.qty, dlvDt:r.dlvDt, date:r.date, uploadDttm:r.uploadDttm, firstDttm:r.firstDttm, jobSeq:r.jobSeq }; };
       var dataB=(D2_DATA||[]).map(_mapB), histB=(D2_HISTALL||[]).map(_mapB);
       if(dates.length<=1){
         var agB=d2Aggregate(dataB, from, to);
@@ -1695,7 +1734,10 @@
     var lastK = D2_COLS[D2_COLS.length-1].k;
     var thh='<thead><tr>'
       + fixCols.map(function(c){
-          return '<th data-ck="'+c.k+'"'+(c.batch?' class="bcol"':'')+'>'+d2Esc(c.nm)
+          // 사업장별 조회 헤더 조정(2026-07-24): 좌측 'zone'=대표사업장, 중복이던 'biz'열을 '출고장'으로 재활용
+          var hnm=c.nm;
+          if(D2_VIEW==='biz'){ if(c.k==='zone') hnm='대표사업장'; else if(c.k==='biz') hnm='출고장'; }
+          return '<th data-ck="'+c.k+'"'+(c.batch?' class="bcol"':'')+'>'+d2Esc(hnm)
             +(c.k!==lastK?'<span class="col-rz" data-ck="'+c.k+'" title="드래그하여 열 너비 조절 (더블클릭 시 기본값 복원)"></span>':'')+'</th>';
         }).join('')
       + (chgCols.length ? '<th class="bcol bcol-chg" colspan="'+chgCols.length+'">변동사항</th>' : '')
@@ -1755,8 +1797,10 @@
           if(!coll){
             keys.forEach(function(k,ix){
               var r=z.rows[k];
+              // 사업장별 뷰: 중복이던 '사업장' 칸을 '출고장' 화살표 콤보박스로 교체(원래 어느 출고장에서 나갔나, 2026-07-24)
+              var bizCell=(D2_VIEW==='biz')?d2DistCell(r.ozones,'출고장'):d2Esc(r.biz);
               h+='<tr class="item'+(r.isNew?' r-new':'')+(itemRowChanged(zn,k)?' r-diff':'')+'"><td>'+(ix+1)+'</td>'
-                +'<td class="txt-l">'+d2Esc(r.biz)+'</td>'
+                +'<td class="txt-l">'+bizCell+'</td>'
                 +'<td>'+d2Esc(r.code)+'</td>'
                 +'<td class="txt-l">'+d2Esc(r.name)+'</td>'
                 + itemRowCells(zn, k)
@@ -1766,7 +1810,7 @@
             dels.forEach(function(r){
               var rk=delRk(r);
               h+='<tr class="item r-del"><td>–</td>'
-                +'<td class="txt-l">'+d2Esc(r.biz)+'</td>'
+                +'<td class="txt-l">'+((D2_VIEW==='biz')?d2DistCell(r.ozones,'출고장'):d2Esc(r.biz))+'</td>'
                 +'<td>'+d2Esc(r.code)+'</td>'
                 +'<td class="txt-l">'+d2Esc(r.name)+' <span class="hist-badge del">삭제</span></td>'
                 + itemRowCells(zn, rk)
