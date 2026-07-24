@@ -9,7 +9,7 @@
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; }
   *{ box-sizing:border-box; }
-  body{ margin:0; font-family:'맑은 고딕',Malgun Gothic,sans-serif; color:#1f2a37; background:var(--bg); font-size:13px; }
+  body{ margin:0; color:#1f2a37; background:var(--bg); font-size:13px; }
   .wrap{ padding:18px 20px; }
   h2{ margin:0 0 4px; font-size:20px; }
   .sub{ color:#6b7a89; margin-bottom:14px; }
@@ -19,15 +19,17 @@
   .btn:hover{ border-color:var(--teal); }
   .btn-teal{ background:var(--teal); color:#fff; border-color:var(--teal); }
   .btn-danger{ color:#c0392b; border-color:#e3b4ae; }
-  .cnt{ margin-left:auto; color:#6b7a89; font-size:12.5px; }
+  .cnt{ margin-left:8px; color:#6b7a89; font-size:12.5px; }
   .tabs{ display:flex; gap:4px; margin-bottom:10px; border-bottom:2px solid #e2e8e6; }
   .tabs .t{ height:32px; padding:0 14px; border:1px solid #dfe6e3; border-bottom:none; background:#f1f5f4; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; font-weight:700; color:#5a6b7a; }
   .tabs .t.on{ background:var(--teal); color:#fff; border-color:var(--teal); }
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; }
-  table{ width:100%; border-collapse:collapse; font-size:12.5px; white-space:nowrap; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; font-weight:700; white-space:nowrap; }
   thead th{ background:#1f2a37; color:#fff; font-weight:700; padding:9px 10px; text-align:left; position:sticky; top:0; z-index:1; }
   tbody td{ border-bottom:1px solid #eef1f5; padding:6px 10px; vertical-align:middle; }
   tbody tr:hover td{ background:#f3f8f6; }
+  tbody tr{ cursor:pointer; }
+  tbody tr.sel td{ background:#dcefe9 !important; }
   td.code{ font-family:Consolas,monospace; }
   td.nm{ white-space:normal; min-width:160px; max-width:260px; }
   .gb{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#fff; }
@@ -48,8 +50,9 @@
   #ov .mb{ padding:16px 18px; overflow:auto; display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; }
   #ov .fld{ display:flex; flex-direction:column; gap:4px; }
   #ov .fld.full{ grid-column:1 / -1; }
-  #ov label{ font-size:12px; font-weight:700; color:#37475a; }
-  #ov input, #ov select, #ov textarea{ height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13px; font-family:inherit; }
+  #ov label{ font-size:13px; font-weight:500; color:#333; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:flex-start; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
+  #ov label.wide{ width:auto; }
+  #ov input, #ov select, #ov textarea{ height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:14px; font-family:inherit; }
   #ov textarea{ height:auto; padding:6px 8px; resize:vertical; }
   #ov .mf{ padding:12px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
 </style>
@@ -63,7 +66,9 @@
   <div class="bar">
     <input type="text" class="search" id="q" placeholder="코드·거래처명·정식명칭·별칭·사업자번호·대표자 검색" onkeyup="vmFilter()">
     <button class="btn" onclick="vmLoad()">↻ 조회</button>
-    <button class="btn btn-teal" onclick="vmOpen()">＋ 거래처 추가</button>
+    <button class="btn btn-teal" style="margin-left:auto" onclick="vmOpen()">＋ 거래처 추가</button>
+    <button class="btn" onclick="vmEditSel()">✎ 수정</button>
+    <button class="btn btn-danger" onclick="vmDelSel()">🗑 삭제</button>
     <button class="btn" onclick="document.getElementById('upFile').click()" title="회계시스템의 거래처리스트.xls 를 다시 올리면 코드 기준으로 갱신·추가됩니다(있으면 갱신, 없으면 신규). 삭제는 하지 않습니다.">📤 거래처리스트 재업로드</button>
     <input type="file" id="upFile" accept=".xls,.xlsx,.html,.htm" style="display:none" onchange="vmUpload(this)">
     <button class="btn" onclick="vmExcel()">📥 엑셀 출력</button>
@@ -80,9 +85,9 @@
     <table>
       <thead><tr>
         <th>코드</th><th>거래처명</th><th>별칭</th><th>거래유형</th><th>사업자번호</th><th>대표자</th>
-        <th>담당자</th><th>연락처</th><th>전화</th><th>부가세</th><th>물류센터</th><th style="width:110px">관리</th>
+        <th>담당자</th><th>연락처</th><th>전화</th><th>부가세</th><th>물류센터</th>
       </tr></thead>
-      <tbody id="tb"><tr><td colspan="12" class="empty">불러오는 중…</td></tr></tbody>
+      <tbody id="tb"><tr><td colspan="11" class="empty">불러오는 중…</td></tr></tbody>
     </table>
   </div>
   <div id="pager" class="pager"></div>
@@ -104,7 +109,7 @@
       <div class="fld"><label>담당자코드</label><input id="f_mgrcd"></div>
       <div class="fld"><label>담당자명</label><input id="f_mgrnm"></div>
       <div class="fld"><label>우편번호</label><input id="f_zip"></div>
-      <div class="fld"><label>물류센터코드 <span style="color:#9aa7b3;font-weight:400">(삼성웰스토리 지점만, 예: E500)</span></label><input id="f_dc" placeholder="비워두면 일반 거래처"></div>
+      <div class="fld"><label class="wide">물류센터코드 <span style="color:#9aa7b3;font-weight:400">(삼성웰스토리 지점만, 예: E500)</span></label><input id="f_dc" placeholder="비워두면 일반 거래처"></div>
       <div class="fld full"><label>주소</label><input id="f_addr"></div>
       <div class="fld full"><label>상세주소</label><input id="f_addr2"></div>
       <div class="fld"><label>연락처(휴대폰)</label><input id="f_hp"></div>
@@ -157,23 +162,31 @@ function vmFilter(){
 function vmRender(){
   var tot=_view.length, pages=Math.max(1,Math.ceil(tot/PAGE)); if(_page>pages)_page=pages;
   document.getElementById('cnt').textContent=tot.toLocaleString()+'건 / 전체 '+LIST.length.toLocaleString()+'건';
-  var tb=document.getElementById('tb');
-  if(!tot){ tb.innerHTML='<tr><td colspan="12" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1); return; }
+  var tb=document.getElementById('tb'); _selReset();
+  if(!tot){ tb.innerHTML='<tr><td colspan="11" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1); return; }
   var GB_COLOR={ '매입':'#a85700', '매출':'#2e7d32', '매입&매출':'#137a6c' };
   tb.innerHTML=_view.slice((_page-1)*PAGE,(_page-1)*PAGE+PAGE).map(function(o){
     var c=GB_COLOR[o.vendorGb]||'#5a6b7a';
-    return '<tr>'
+    return '<tr data-cd="'+esc(o.vendorCd)+'" onclick="vmSel(this,\''+esc(o.vendorCd)+'\')" ondblclick="vmOpen(\''+esc(o.vendorCd)+'\')">'
       +'<td class="code">'+esc(o.vendorCd)+'</td><td class="nm">'+esc(o.vendorNm)+'</td><td>'+esc(o.alias)+'</td>'
       +'<td><span class="gb" style="background:'+c+'">'+esc(o.vendorGb||'-')+'</span></td>'
       +'<td>'+esc(o.bizno)+'</td><td>'+esc(o.ceoNm)+'</td><td>'+esc(o.mgrNm)+'</td>'
       +'<td>'+esc(o.hp)+'</td><td>'+esc(o.tel)+'</td><td>'+esc(o.vatGb)+'</td>'
       +'<td>'+(o.dcCd?('<span class="dc">'+esc(o.dcCd)+'</span>'):'')+'</td>'
-      +'<td class="act"><button class="btn" onclick="vmOpen(\''+esc(o.vendorCd)+'\')">수정</button> <button class="btn btn-danger" onclick="vmDel(\''+esc(o.vendorCd)+'\')">삭제</button></td>'
     +'</tr>';
   }).join('');
   _pager(pages,_page);
 }
 function _go(p){ _page=p; vmRender(); }
+var _sel=null;
+function _selReset(){ _sel=null; }
+function vmSel(tr,cd){
+  var tb=document.getElementById('tb');
+  Array.prototype.forEach.call(tb.querySelectorAll('tr.sel'),function(r){ r.classList.remove('sel'); });
+  tr.classList.add('sel'); _sel=cd;
+}
+function vmEditSel(){ if(!_sel){ toast('⚠️ 수정할 행을 먼저 선택하세요.'); return; } vmOpen(_sel); }
+function vmDelSel(){ if(!_sel){ toast('⚠️ 삭제할 행을 먼저 선택하세요.'); return; } vmDel(_sel); }
 function _pager(pages,cur){
   var el=document.getElementById('pager'); if(pages<=1){ el.innerHTML=''; return; }
   var h='<button '+(cur<=1?'disabled':'')+' onclick="_go('+(cur-1)+')">‹</button>';

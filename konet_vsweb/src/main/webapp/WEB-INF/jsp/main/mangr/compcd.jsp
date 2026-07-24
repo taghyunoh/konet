@@ -21,7 +21,7 @@
 <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/vendor/fonts/fontawesome/css/fontawesome-all.css">
 <link rel="stylesheet" href="https://cdn.datatables.net/v/dt/jszip-3.10.1/dt-2.1.8/b-3.2.0/b-colvis-3.2.0/b-html5-3.2.0/b-print-3.2.0/datatables.min.css">
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/addstyle.css?v=100">
-<style> html, body { font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo',sans-serif; } </style>
+<style> /* 글꼴 지정 제거: 재고현황·거래처관리 등과 동일하게 기본 sans 글꼴 상속 */ </style>
 <!-- jQuery 먼저 -->
 <script src="https://code.jquery.com/jquery-3.7.1.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
@@ -62,7 +62,7 @@ $(document).on('init.dt', function(e, settings) {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" /> <!-- 파일다운로드관련아이콘 -->
 
 <link href="${pageContext.request.contextPath}/css/winmc/style_comm.css?v=126"  rel="stylesheet">
-<link href="${pageContext.request.contextPath}/css/winmc/logi-skin.css?v=1"  rel="stylesheet"> <!-- logistics_demo 스타일 리스킨 -->
+<link href="${pageContext.request.contextPath}/css/winmc/logi-skin.css?v=2"  rel="stylesheet"> <!-- logistics_demo 스타일 리스킨 -->
 <style>
   /* ★ style_comm.css(.dashboard-wrapper margin-left:300px) 뒤에서 덮어써 우측 전체폭 사용 */
   html, body { margin:0 !important; padding:0 !important; }

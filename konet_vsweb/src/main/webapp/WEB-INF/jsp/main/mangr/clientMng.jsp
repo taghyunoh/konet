@@ -9,7 +9,7 @@
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; }
   *{ box-sizing:border-box; }
-  body{ margin:0; font-family:'맑은 고딕',Malgun Gothic,sans-serif; color:#1f2a37; background:var(--bg); font-size:13px; }
+  body{ margin:0; color:#1f2a37; background:var(--bg); font-size:13px; }
   .wrap{ padding:18px 20px; }
   h2{ margin:0 0 4px; font-size:20px; }
   .sub{ color:#6b7a89; margin-bottom:14px; }
@@ -19,12 +19,15 @@
   .btn:hover{ border-color:var(--teal); }
   .btn-teal{ background:var(--teal); color:#fff; border-color:var(--teal); }
   .btn-danger{ color:#c0392b; border-color:#e3b4ae; }
-  .cnt{ margin-left:auto; color:#6b7a89; font-size:12.5px; }
+  .cnt{ margin-left:8px; color:#6b7a89; font-size:12.5px; }
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; }
-  table{ width:100%; border-collapse:collapse; font-size:12.5px; white-space:nowrap; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; font-weight:700; white-space:nowrap; }
   thead th{ background:#1f2a37; color:#fff; font-weight:700; padding:9px 10px; text-align:left; position:sticky; top:0; z-index:1; }
   tbody td{ border-bottom:1px solid #eef1f5; padding:6px 10px; vertical-align:middle; }
   tbody tr:hover td{ background:#f3f8f6; }
+  tbody tr{ cursor:pointer; }
+  tbody tr.sel td{ background:#dcefe9 !important; }
+  .btn:disabled{ opacity:.45; cursor:default; }
   td.code{ font-family:Consolas,monospace; }
   td.nm{ white-space:normal; min-width:180px; max-width:280px; }
   .gb{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#fff; }
@@ -44,8 +47,8 @@
   #ov .mb{ padding:16px 18px; overflow:auto; display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; }
   #ov .fld{ display:flex; flex-direction:column; gap:4px; }
   #ov .fld.full{ grid-column:1 / -1; }
-  #ov label{ font-size:12px; font-weight:700; color:#37475a; }
-  #ov input, #ov select, #ov textarea{ height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13px; font-family:inherit; }
+  #ov label{ font-size:13px; font-weight:500; color:#333; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:flex-start; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
+  #ov input, #ov select, #ov textarea{ height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:14px; font-family:inherit; }
   #ov textarea{ height:auto; padding:6px 8px; resize:vertical; }
   #ov .mf{ padding:12px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
 </style>
@@ -58,7 +61,9 @@
   <div class="bar">
     <input type="text" class="search" id="q" placeholder="코드·사업장명·약칭·사업자번호·대표자 검색" onkeyup="if(event.keyCode===13)cliLoad()">
     <button class="btn" onclick="cliLoad()">↻ 조회</button>
-    <button class="btn btn-teal" onclick="cliOpen()">＋ 거래처 추가</button>
+    <button class="btn btn-teal" style="margin-left:auto" onclick="cliOpen()">＋ 거래처 추가</button>
+    <button class="btn" id="btnEdit" onclick="cliEditSel()">✎ 수정</button>
+    <button class="btn btn-danger" id="btnDel" onclick="cliDelSel()">🗑 삭제</button>
     <button class="btn" onclick="cliExcel()">📥 엑셀 출력</button>
     <span class="cnt" id="cnt">0건</span>
   </div>
@@ -67,9 +72,9 @@
     <table>
       <thead><tr>
         <th>코드</th><th>사업장명</th><th>약칭</th><th>거래구분</th><th>사업자번호</th><th>대표자</th>
-        <th>업태</th><th>종목</th><th>전화</th><th>휴대폰</th><th>담당자</th><th style="width:110px">관리</th>
+        <th>업태</th><th>종목</th><th>전화</th><th>휴대폰</th><th>담당자</th>
       </tr></thead>
-      <tbody id="tb"><tr><td colspan="12" class="empty">불러오는 중…</td></tr></tbody>
+      <tbody id="tb"><tr><td colspan="11" class="empty">불러오는 중…</td></tr></tbody>
     </table>
   </div>
   <div id="pager" class="pager"></div>
@@ -124,18 +129,18 @@ function cliLoad(){
     }).catch(function(e){ toast('⚠️ 통신오류: '+e.message); });
 }
 function cliRender(){
+  _selReset();
   var tot=_view.length, pages=Math.max(1,Math.ceil(tot/PAGE)); if(_page>pages)_page=pages;
   document.getElementById('cnt').textContent=tot.toLocaleString()+'건';
   var tb=document.getElementById('tb');
-  if(!tot){ tb.innerHTML='<tr><td colspan="12" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1); return; }
+  if(!tot){ tb.innerHTML='<tr><td colspan="11" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1); return; }
   var rows=_view.slice((_page-1)*PAGE,(_page-1)*PAGE+PAGE);
   tb.innerHTML=rows.map(function(o){
     var g=GB_MAP[o.bizGb], gb=g?'<span class="gb" style="background:'+g[1]+'">'+g[0]+'</span>':'';
-    return '<tr>'
+    return '<tr data-cd="'+esc(o.bizCd)+'" onclick="cliSel(this,\''+esc(o.bizCd)+'\')" ondblclick="cliOpen(\''+esc(o.bizCd)+'\')">'
       +'<td class="code">'+esc(o.bizCd)+'</td><td class="nm">'+esc(o.bizNm)+'</td><td>'+esc(o.bizSmallNm)+'</td>'
       +'<td>'+gb+'</td><td>'+esc(o.bizno)+'</td><td>'+esc(o.ceoNm)+'</td>'
       +'<td>'+esc(o.bizCond)+'</td><td>'+esc(o.bizItem)+'</td><td>'+esc(o.tel)+'</td><td>'+esc(o.hp)+'</td><td>'+esc(o.manager)+'</td>'
-      +'<td class="act"><button class="btn" onclick="cliOpen(\''+esc(o.bizCd)+'\')">수정</button> <button class="btn btn-danger" onclick="cliDel(\''+esc(o.bizCd)+'\')">삭제</button></td>'
     +'</tr>';
   }).join('');
   _pager(pages,_page);
@@ -187,6 +192,15 @@ function cliDel(cd){
       .then(function(r){ if(!r.ok){ toast('⚠️ 삭제 실패'); return; } toast('🗑️ 삭제 완료'); cliLoad(); });
   });
 }
+var _sel=null;
+function _selReset(){ _sel=null; }
+function cliSel(tr,cd){
+  var tb=document.getElementById('tb');
+  Array.prototype.forEach.call(tb.querySelectorAll('tr.sel'),function(r){ r.classList.remove('sel'); });
+  tr.classList.add('sel'); _sel=cd;
+}
+function cliEditSel(){ if(!_sel){ toast('⚠️ 수정할 행을 먼저 선택하세요.'); return; } cliOpen(_sel); }
+function cliDelSel(){ if(!_sel){ toast('⚠️ 삭제할 행을 먼저 선택하세요.'); return; } cliDel(_sel); }
 function cliExcel(){
   var list=_view; if(!list.length){ toast('⚠️ 출력할 데이터가 없습니다.'); return; }
   var head=['코드','사업장명','약칭','거래구분','사업자번호','대표자','업태','종목','우편번호','주소','상세주소','전화','팩스','휴대폰','이메일','담당자','정렬','비고'];
