@@ -356,6 +356,10 @@
   .ss-modal.on { display:flex; align-items:flex-start; justify-content:center; }
   .ss-modal .box { background:#fff; width:min(1120px,95vw); margin-top:4vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); max-height:90vh; display:flex; flex-direction:column; }
   #ssPvOverlay .box { width:min(1600px,96vw); }   /* 발주현황표 미리보기: 좌측 목록 + 우측 일자컬럼까지 보이도록 넓게 */
+  /* 반영 확인(ssConfirm) — 화면 정중앙 + 다른 오버레이(미리보기·저장·패널·풀스크린)보다 항상 위 (2026-07-24 요청) */
+  #ssConfirmOv.on { align-items:center; }
+  #ssConfirmOv .box { margin-top:0; width:min(440px,92vw); }
+  #ssConfirmOv { z-index:100000; }
   .ss-modal .mh { background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:14px 20px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
   .ss-modal .mh h4 { margin:0; font-size:16px; font-weight:600; }
   .ss-modal .mh .x { cursor:pointer; font-size:22px; line-height:1; color:#fff; opacity:.9; background:none; border:none; }
@@ -2651,16 +2655,20 @@
     if(!rows.length){ ssToast('⚠️ 데이터 행이 없습니다.'); return; }
     var sheetNm=ssPvWb.SheetNames[+(document.getElementById('ssPvSheet').value||0)];
     var _upZ={}; rows.forEach(function(r){ if(r.zone) _upZ[r.zone]=1; }); var _zc=Object.keys(_upZ).length;
-    // 출고일자 확인 — 비어있으면 막고, 값이 있으면 "이 날짜 맞냐" 를 크게 먼저 물음
+    // 출고일자 — 비어있으면 막는다(반영 확인창 하단에 이 값을 함께 표시)
     var _shpEl=document.getElementById('ssPvShpoutDt'); var _shp=(_shpEl&&_shpEl.value)||'';
     if(!_shp){ ssToast('⚠️ 출고일자를 입력하세요.'); if(_shpEl) _shpEl.focus(); return; }
-    // 1단계: 작성 실행 전 출고일자 맞는지 먼저 확인
-    ssConfirm('<div style="text-align:center;line-height:1.7">출고일자 <b style="color:#137a6c;font-size:22px">'+_shp+'</b></div>',
+    // 반영 확인(단일) — 예전 1단계 '출고일자' 별도 창은 제거하고, 이 창 하단에 출고일자를 명시(2026-07-24 요청)
+    ssConfirm('파일 <b>'+ssPvName+'</b> · 시트 "<b>'+sheetNm+'</b>"<br>발주 <b style="color:#137a6c">'+rows.length+'</b>건 · 출고장 <b style="color:#137a6c">'+_zc+'</b>곳을 반영하시겠습니까?'
+      +'<br><br><span style="color:#b3760f">※ <b>기존 화면 자료를 초기화한 뒤</b> 이 파일로 새로 생성하고, <b>서버(TBL_SHIPOUT_MST)에 저장</b>됩니다. (같은 <b>출고일자·납기일자·출고장</b>의 기존 저장분은 이력으로 남고 새 버전이 활성화됩니다.)</span>'
+      +'<div style="text-align:center;margin-top:14px;padding-top:12px;border-top:1px solid #e6ecf0">출고일자 '
+      +'<input type="date" id="ssConfirmShpDt" value="'+_shp+'" style="font-size:18px;font-weight:700;color:#137a6c;text-align:center;border:1px solid #cdd7dd;border-radius:6px;padding:4px 8px">'
+      +'<div style="font-size:11.5px;color:#9aa7b3;margin-top:5px">이 날짜로 전체 행이 저장됩니다 — 필요하면 여기서 바로 수정하세요</div></div>',
       function(){
-        // 2단계: 기존 반영 확인 메시지 (출고일자 문구 없음)
-        ssConfirm('파일 <b>'+ssPvName+'</b> · 시트 "<b>'+sheetNm+'</b>"<br>발주 <b style="color:#137a6c">'+rows.length+'</b>건 · 출고장 <b style="color:#137a6c">'+_zc+'</b>곳을 반영하시겠습니까?'
-          +'<br><br><span style="color:#b3760f">※ <b>기존 화면 자료를 초기화한 뒤</b> 이 파일로 새로 생성하고, <b>서버(TBL_SHIPOUT_MST)에 저장</b>됩니다. (같은 출고일자·납기일자의 기존 저장분은 이력으로 남고 새 버전이 활성화됩니다.)</span>',
-          function(){ ssDoApply(rows, sheetNm); });
+        var _ce=document.getElementById('ssConfirmShpDt');
+        var _nv=(_ce&&_ce.value)||_shp;                                   // 확인창에서 수정한 값 우선, 비었으면 원래 값
+        var _pv=document.getElementById('ssPvShpoutDt'); if(_pv) _pv.value=_nv;   // ssDoApply 가 여기서 읽음
+        ssDoApply(rows, sheetNm);
       });
   }
 
@@ -2754,25 +2762,83 @@
     }
     return out;
   }
+  /* 발주현황표 서버저장 진행바 — 정산엑셀(slsProg)과 동일 원리: 업로드 실측(0~25%) → 서버추정(25~95%) → 완료(100%).
+       이 저장은 프리뷰 모달이 닫힌 뒤 백그라운드로 도므로, 전용 중앙 오버레이로 표시한다(자체 <style> 포함·독립). */
+  var SHP_PROG_UP=25, SHP_PROG_CEIL=95;
+  var _shpProgTimer=null, _shpProgSrvStart=0, _shpProgTau=3000;
+  function _shpProgEnsure(){
+    var ov=document.getElementById('shpProgOv');
+    if(!ov){
+      ov=document.createElement('div'); ov.id='shpProgOv';
+      ov.style.cssText='display:none;position:fixed;inset:0;z-index:100001;background:rgba(15,23,32,.35);align-items:center;justify-content:center';
+      ov.innerHTML='<style>@keyframes shpProgFlow{0%{background-position:0 0}100%{background-position:34px 0}}'
+        +'.shp-prog-indet{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.28) 0 9px,rgba(255,255,255,0) 9px 17px),linear-gradient(90deg,#17a589,#137a6c)!important;background-size:34px 34px,100% 100%!important;animation:shpProgFlow .7s linear infinite}</style>'
+        +'<div style="background:#fff;width:min(420px,92vw);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">'
+        +'<div style="background:linear-gradient(135deg,#1f9b8e,#137a6c);color:#fff;padding:12px 18px;font-size:15px;font-weight:600">💾 발주현황표 저장</div>'
+        +'<div style="padding:18px 20px 20px">'
+        +'<div style="display:flex;justify-content:space-between;font-size:12px;color:#5a6b7a;margin-bottom:6px"><span id="shpProgLab">저장 준비 중…</span><span id="shpProgPct" style="font-weight:700;color:#137a6c"></span></div>'
+        +'<div style="height:11px;background:#e6ecf0;border-radius:6px;overflow:hidden"><div id="shpProgFill" style="height:100%;width:0%;background:linear-gradient(90deg,#17a589,#137a6c);border-radius:6px;transition:width .2s ease"></div></div>'
+        +'</div></div>';
+      document.body.appendChild(ov);
+    }
+    return ov;
+  }
+  function _shpProgWidth(pct, stripe){
+    pct=Math.max(0,Math.min(100,pct));
+    var f=document.getElementById('shpProgFill'), p=document.getElementById('shpProgPct');
+    if(f){ f.style.width=pct+'%'; if(stripe) f.classList.add('shp-prog-indet'); else f.classList.remove('shp-prog-indet'); }
+    if(p) p.textContent=Math.round(pct)+'%';
+  }
+  function _shpProgLab(t){ var l=document.getElementById('shpProgLab'); if(l && t!=null) l.textContent=t; }
+  function shpProgShow(lab){ _shpProgEnsure().style.display='flex'; _shpProgWidth(0,false); _shpProgLab(lab||'저장 준비 중…'); }
+  function shpProgUpload(frac, lab){ _shpProgWidth((+frac||0)*SHP_PROG_UP, false); _shpProgLab(lab); }
+  function shpProgServerStart(rows){
+    _shpProgTau=Math.max(1500, (+rows||0)*7);
+    _shpProgSrvStart=Date.now();
+    _shpProgWidth(SHP_PROG_UP, true);
+    _shpProgLab('서버 반영 중… (이력마감·배치 저장)');
+    if(_shpProgTimer) clearInterval(_shpProgTimer);
+    _shpProgTimer=setInterval(function(){
+      var t=Date.now()-_shpProgSrvStart;
+      _shpProgWidth(SHP_PROG_UP + (SHP_PROG_CEIL-SHP_PROG_UP)*(t/(t+_shpProgTau)), true);
+    }, 150);
+  }
+  function _shpProgStop(){ if(_shpProgTimer){ clearInterval(_shpProgTimer); _shpProgTimer=null; } }
+  function shpProgDone(){ _shpProgStop(); _shpProgWidth(100,false); _shpProgLab('완료'); }
+  function shpProgHide(){ _shpProgStop(); var ov=document.getElementById('shpProgOv'); if(ov) ov.style.display='none'; var f=document.getElementById('shpProgFill'); if(f){ f.classList.remove('shp-prog-indet'); f.style.width='0%'; } }
   function ssSaveShipoutToDB(aoa, baseDt){
     var rows=ssBuildShipoutRows(aoa);
     if(!rows.length) return;
     var srcFile=ssPvName;
     // 복합키=(납기일자 DLV_DT 행별) + (출고일자 SHPOUT_DT=baseDt, 프리뷰 확정 단일값) + (물류센터 DC_CD 행별). 사업장은 키 아님.
     rows.forEach(function(o){ if(!o.dlvDt) o.dlvDt=baseDt; o.shpoutDt=baseDt; o.srcFile=srcFile; });
-    fetch('${pageContext.request.contextPath}/shipout/saveShipoutMst.do', {
-      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
-      body: JSON.stringify(rows)
-    })
-    .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, t:t}; }); })
-    .then(function(r){
-      if(r.ok){
-        ssToast('💾 서버 저장 완료 — 출고일자 '+baseDt+' · <b>'+r.t+'</b>건 (기존 자료 초기화 후 생성)');
+    var body=JSON.stringify(rows), nRows=rows.length;
+    shpProgShow('업로드 중… (0 / '+nRows.toLocaleString()+'건)');
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST', '${pageContext.request.contextPath}/shipout/saveShipoutMst.do', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.withCredentials=true;
+    // 1) 업로드 진행 — 실제 전송 바이트로 0~25% (건수는 근사표기)
+    xhr.upload.onprogress=function(ev){
+      if(!ev.lengthComputable) return;
+      var frac=ev.loaded/ev.total;
+      shpProgUpload(frac, '업로드 중… ('+Math.round(frac*nRows).toLocaleString()+' / '+nRows.toLocaleString()+'건)');
+    };
+    // 2) 업로드 완료 → 서버 반영 구간: 경과시간 추정 %로 25→95% 전진
+    xhr.upload.onload=function(){ shpProgServerStart(nRows); };
+    xhr.onload=function(){
+      shpProgDone();                 // 실제 응답 → 100% 스냅
+      setTimeout(shpProgHide, 500);
+      var ok=(xhr.status>=200 && xhr.status<300), t=xhr.responseText;
+      if(ok){
+        ssToast('💾 서버 저장 완료 — 출고일자 '+baseDt+' · <b>'+t+'</b>건 (기존 자료 초기화 후 생성)');
         if(window.ssLoadShipoutFromDB) ssLoadShipoutFromDB();   // 저장 끝나면 출고일자로 DB 조회 1회 자동 실행
       }
-      else     ssToast('⚠️ 서버 저장 실패: '+(r.t||'오류'));
-    })
-    .catch(function(e){ ssToast('⚠️ 서버 저장 통신오류: '+e.message); });
+      else ssToast('⚠️ 서버 저장 실패: '+(t||('HTTP '+xhr.status)));
+    };
+    xhr.onerror=function(){ shpProgHide(); ssToast('⚠️ 서버 저장 통신오류 — 네트워크를 확인하세요.'); };
+    xhr.ontimeout=function(){ shpProgHide(); ssToast('⚠️ 저장 시간 초과 — 잠시 후 다시 시도하세요.'); };
+    xhr.send(body);
   }
 
   // 일자별(단일 일자) 조건인지
@@ -3233,7 +3299,16 @@
     var v=(''+(s==null?'':s)).replace(/\s+/g,'');
     return v.replace(/\d+$/,'').replace(/(물류)?센터$/,'').replace(/출고장$/,'').replace(/\d+$/,'');
   }
-  function konetDcCd(nm){ return KONET_DC_R[konetDcShort(nm)] || ''; }        // 이름 → 코드
+  // 이름 → 코드. ①정규화 후 정확 매칭 우선 → ②실패 시 LIKE(지역명 포함) 매칭
+  //   파일명이 규칙에서 벗어나(예: 날짜 누락 '2026.07._광주.xlsx') 출고장 칸에 통째로 들어와도
+  //   그 안에 지역명(광주 등)이 있으면 해당 센터코드로 잡는다.
+  function konetDcCd(nm){
+    var hit=KONET_DC_R[konetDcShort(nm)];
+    if(hit) return hit;                                              // ① 정확 매칭
+    var v=(''+(nm==null?'':nm)).replace(/\s+/g,'');
+    for(var region in KONET_DC_R){ if(region && v.indexOf(region)>=0) return KONET_DC_R[region]; }  // ② LIKE
+    return '';
+  }
   function konetDcNmOf(r){                                                     // 행 → 지역명 (DC_CD 우선)
     var cd=(''+((r&&r.dcCd)||'')).trim().toUpperCase();
     return KONET_DC[cd] || konetDcShort(r&&r.dcNm);
@@ -3311,8 +3386,11 @@
   function slsParseName(fname){
     var base=(''+fname).replace(/\.[^.]+$/,'');
     var m=base.match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})[\s_\-]*(.*)$/);
-    if(!m) return { dt:'', dc:base.trim() };
-    return { dt:m[1]+'-'+ssPad(+m[2])+'-'+ssPad(+m[3]), dc:(m[4]||'').trim() };
+    if(m) return { dt:m[1]+'-'+ssPad(+m[2])+'-'+ssPad(+m[3]), dc:(m[4]||'').trim() };
+    // 날짜가 불완전한 파일명(일 누락 등)도 앞 날짜류 접두어를 걷어내고 지역명만 취한다.
+    //   예: '2026.07._광주' → 날짜 인식 실패 → dc='광주' (통째로 남지 않게)
+    var d=base.replace(/^\s*\d{4}[.\-\/]\d{1,2}(?:[.\-\/]\d{0,2})?[\s._\-]*/,'').trim();
+    return { dt:'', dc:(d||base.trim()) };
   }
   function slsStr(v){ return (''+(v==null?'':v)).trim(); }
   function slsNum(v){
@@ -3398,14 +3476,22 @@
     if(!ov){
       ov=document.createElement('div'); ov.id='slsUpOv'; ov.className='ss-modal';
       ov.innerHTML='<div class="box" style="width:min(1150px,90vw)">'
+        +'<style>@keyframes slsProgFlow{0%{background-position:0 0}100%{background-position:34px 0}}'
+        +'.sls-prog-indet{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.28) 0 9px,rgba(255,255,255,0) 9px 17px),linear-gradient(90deg,#17a589,#137a6c)!important;background-size:34px 34px,100% 100%!important;animation:slsProgFlow .7s linear infinite}</style>'
         +'<div class="mh"><h4>📥 정산 엑셀 저장</h4><button class="x" onclick="slsUpClose()">&times;</button></div>'
         +'<div class="mbar"><span id="slsUpSum"></span></div>'
         +'<div class="mbody" id="slsUpWrap"></div>'
+        +'<div id="slsProg" style="display:none;padding:8px 16px 2px">'
+        +'  <div style="display:flex;justify-content:space-between;font-size:12px;color:#5a6b7a;margin-bottom:5px">'
+        +'    <span id="slsProgLab">저장 중…</span><span id="slsProgPct" style="font-weight:700;color:#137a6c"></span></div>'
+        +'  <div style="height:11px;background:#e6ecf0;border-radius:6px;overflow:hidden">'
+        +'    <div id="slsProgFill" style="height:100%;width:0%;background:linear-gradient(90deg,#17a589,#137a6c);border-radius:6px;transition:width .2s ease"></div>'
+        +'  </div></div>'
         +'<div class="mfoot">'
         +'<button class="btn-line" style="margin-right:auto" onclick="document.getElementById(\'slsFile\').click()">📁 파일 추가</button>'
         +'<button class="btn-line" onclick="slsClear()">🧹 비우기</button>'
         +'<button class="btn-line" onclick="slsUpClose()">닫기</button>'
-        +'<button class="btn-teal" onclick="slsSave()">💾 저장</button>'
+        +'<button class="btn-teal" id="slsSaveBtn" onclick="slsSave()">💾 저장</button>'
         +'</div></div>';
       document.body.appendChild(ov);
       // ※ 바깥 클릭으로는 안 닫는다(요청 2026-07-22) — 고른 파일이 실수로 날아가는 걸 막기 위함.
@@ -3472,6 +3558,38 @@
     }
     wrap.innerHTML=h;
   }
+  /* 저장 진행바 — 업로드(실측 바이트 0~25%) → 서버 반영(경과시간 추정 25~95%) → 완료(100%)
+       서버가 진행률을 안 알려주므로 서버 구간은 경과시간으로 %를 계산한다.
+         p = UP + (CEIL-UP) * t/(t+tau)   (tau=행수 기반 예상시간)
+       추정이 빗나가도 상한(CEIL)에 점근할 뿐 넘지 않고, 실제 응답이 오면 100%로 스냅 → 거짓 완료 없음. */
+  var SLS_PROG_UP=25, SLS_PROG_CEIL=95;
+  var _slsProgTimer=null, _slsProgSrvStart=0, _slsProgTau=3000;
+  function _slsProgWidth(pct, stripe){
+    pct=Math.max(0,Math.min(100,pct));
+    var f=document.getElementById('slsProgFill'), p=document.getElementById('slsProgPct');
+    if(f){ f.style.width=pct+'%'; if(stripe) f.classList.add('sls-prog-indet'); else f.classList.remove('sls-prog-indet'); }
+    if(p) p.textContent=Math.round(pct)+'%';
+  }
+  function _slsProgLab(t){ var l=document.getElementById('slsProgLab'); if(l && t!=null) l.textContent=t; }
+  function slsProgShow(lab){ var b=document.getElementById('slsProg'); if(b) b.style.display=''; _slsProgWidth(0,false); _slsProgLab(lab||'저장 준비 중…'); }
+  // 업로드 실측 — bytes 비율(0~1) → 0~UP%
+  function slsProgUpload(frac, lab){ _slsProgWidth((+frac||0)*SLS_PROG_UP, false); _slsProgLab(lab); }
+  // 서버 반영 — 경과시간 추정 %로 계속 전진(줄무늬 애니메이션 병행)
+  function slsProgServerStart(rows){
+    _slsProgTau=Math.max(1500, (+rows||0)*7);          // 대략 행당 7ms 가정(느린 편 — 빗나가도 자기보정)
+    _slsProgSrvStart=Date.now();
+    _slsProgWidth(SLS_PROG_UP, true);
+    _slsProgLab('서버 반영 중… (이력마감·단가이력 처리)');
+    if(_slsProgTimer) clearInterval(_slsProgTimer);
+    _slsProgTimer=setInterval(function(){
+      var t=Date.now()-_slsProgSrvStart;
+      _slsProgWidth(SLS_PROG_UP + (SLS_PROG_CEIL-SLS_PROG_UP)*(t/(t+_slsProgTau)), true);
+    }, 150);
+  }
+  function _slsProgStop(){ if(_slsProgTimer){ clearInterval(_slsProgTimer); _slsProgTimer=null; } }
+  function slsProgDone(){ _slsProgStop(); _slsProgWidth(100, false); _slsProgLab('완료'); }
+  function slsProgHide(){ _slsProgStop(); var b=document.getElementById('slsProg'), f=document.getElementById('slsProgFill'); if(b) b.style.display='none'; if(f){ f.classList.remove('sls-prog-indet'); f.style.width='0%'; } }
+  function slsSaveBtnBusy(on){ var b=document.getElementById('slsSaveBtn'); if(b){ b.disabled=!!on; b.style.opacity=on?'0.55':''; b.style.pointerEvents=on?'none':''; } }
   function slsSave(){
     if(!_slsFiles.length){ ssToast('⚠️ 업로드된 파일이 없습니다.'); return; }
     var payload=[], bad=[], noDt=0;
@@ -3499,25 +3617,42 @@
       +(noDt?('<br><span style="color:#a85700">※ 납품일자 없는 '+noDt+'행은 제외됩니다.</span>'):'')
       +(dup?('<br><span style="color:#a85700">※ 이미 반영된 파일 '+dup+'개 — 같은 (납품일자+출고장) 기존 자료는 이력마감 후 새로 적재됩니다.</span>'):''),
       function(){
-        fetch('${pageContext.request.contextPath}/sales/saveSalesMst.do', {
-          method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
-          body: JSON.stringify(payload)
-        })
-        .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, t:t}; }); })
-        .then(function(r){
-          if(!r.ok){ ssToast('⚠️ 저장 실패: '+(r.t||'오류')); return; }
+        var body=JSON.stringify(payload);
+        var nRows=payload.length;
+        slsSaveBtnBusy(true);
+        slsProgShow('업로드 중… (0 / '+nRows.toLocaleString()+'행)');
+        var xhr=new XMLHttpRequest();
+        xhr.open('POST', '${pageContext.request.contextPath}/sales/saveSalesMst.do', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.withCredentials=true;
+        // 1) 업로드 진행 — 실제 전송 바이트로 0~25% (행수는 근사표기)
+        xhr.upload.onprogress=function(ev){
+          if(!ev.lengthComputable) return;
+          var frac=ev.loaded/ev.total;
+          slsProgUpload(frac, '업로드 중… ('+Math.round(frac*nRows).toLocaleString()+' / '+nRows.toLocaleString()+'행)');
+        };
+        // 2) 업로드 완료 → 서버 반영 구간: 경과시간 추정 %로 25→95% 전진
+        xhr.upload.onload=function(){ slsProgServerStart(nRows); };
+        xhr.onload=function(){
+          slsProgDone();                 // 실제 응답 → 100% 스냅
+          setTimeout(slsProgHide, 500);
+          slsSaveBtnBusy(false);
+          var ok=(xhr.status>=200 && xhr.status<300), t=xhr.responseText;
+          if(!ok){ ssToast('⚠️ 저장 실패: '+(t||('HTTP '+xhr.status))); return; }
           // 응답 = {saved:행수, price:판매단가 이력 반영 품목수, none:변화없음, skip:단가 충돌로 제외}
           //  · 문자열로 한 번 더 감싸져 오면(서버가 String 으로 반환하면) 풀어준다 — 안 그러면 전부 0으로 보임
-          var j=null; try{ j=JSON.parse(r.t); }catch(e){}
+          var j=null; try{ j=JSON.parse(t); }catch(e){}
           if(typeof j==='string'){ try{ j=JSON.parse(j); }catch(e){ j=null; } }
-          if(!j || typeof j!=='object'){ ssToast('💾 저장 완료 — <b>'+_cesc(r.t)+'</b>'); _slsFiles=[]; slsUpClose(); slsLoadDone(); slsQuery(); return; }
+          if(!j || typeof j!=='object'){ ssToast('💾 저장 완료 — <b>'+_cesc(t)+'</b>'); _slsFiles=[]; slsUpClose(); slsLoadDone(); slsQuery(); return; }
           var msg='💾 저장 완료 — <b>'+(+j.saved||0).toLocaleString()+'</b>행 · 판매단가 이력 <b>'+(+j.price||0)+'</b>종 반영';
           if(+j.none)  msg+=' · <span style="color:#9aa7b3">변화없음 '+j.none+'종</span>';
           if(+j.skip)  msg+=' · <span style="color:#a85700">단가충돌 '+j.skip+'종 제외</span>';
           ssToast(msg);
           _slsFiles=[]; slsUpClose(); slsLoadDone(); slsQuery();
-        })
-        .catch(function(e){ ssToast('⚠️ 통신오류: '+e.message); });
+        };
+        xhr.onerror=function(){ slsProgHide(); slsSaveBtnBusy(false); ssToast('⚠️ 통신오류 — 네트워크를 확인하세요.'); };
+        xhr.ontimeout=function(){ slsProgHide(); slsSaveBtnBusy(false); ssToast('⚠️ 저장 시간 초과 — 잠시 후 다시 시도하세요.'); };
+        xhr.send(body);
       });
   }
   /* ══════════════════════════════════════════════════════════════════════════
@@ -3528,7 +3663,9 @@
        · 기간 기준 = 납품일자(=발주일자 DLV_DT). 출고내역은 SHPOUT_DT 로만 조회되는데
          먼 지역은 발주분을 하루 당겨 출고하므로 ±7일 넉넉히 읽어 DLV_DT 로 다시 거른다.
      ══════════════════════════════════════════════════════════════════════════ */
-  var _ohSales=[], _ohShip=[], _ohTab='dc', _ohPage=1, _ohCol={}, _ohAllCol=false, OH_ROWS=KONET_GRID_ROWS;
+  // OH_ROWS 를 크게 두어 매출내역 4탭은 페이징 없이 전체 행 표시(하단 페이저 자동 비움) — 2026-07-24 요청.
+  //   (입고내역 INB_PAGE·재고현황 STK_PAGE 등 다른 화면의 페이징에는 영향 없음)
+  var _ohSales=[], _ohShip=[], _ohTab='dc', _ohPage=1, _ohCol={}, _ohAllCol=false, OH_ROWS=1000000;
   var _ohSalesAll=[], _ohShipAll=[];   // 출고장 선택 전 원본 — 선택은 화면에서만 거르므로 재조회 없이 되돌릴 수 있다
 
   function _ohQ(v){   // 수량 — 소수·음수 보존(반품행 0.49/-0.49)
@@ -3583,7 +3720,8 @@
   function _ohIsCol2(k, def){ return (k in _ohCol) ? _ohCol[k] : def; }
   function ohGrp(k){
     k=decodeURIComponent(k);
-    var def = (k.indexOf('b:')===0) ? true            // 사업장 하위(원본행) = 기본 접힘
+    var def = (k==='dtsec')         ? true            // ①탭 일자별 구획 = 기본 접힘
+            : (k.indexOf('b:')===0) ? true            // 사업장 하위(원본행) = 기본 접힘
             : (/^d\d*:/.test(k))    ? false           // 물류센터 묶음(d:①/d2:②/d3:③/d4:④) = 기본 펼침 (_ohAllCol 영향 안 받음)
             : _ohAllCol;
     _ohCol[k] = !_ohIsCol2(k, def);
@@ -3666,6 +3804,37 @@
       Object.keys(g.oKeys).forEach(function(x){ if(!g.sKeys[x]) g.oOnly++; });
     });
     return ord.sort(function(a,b){ return a.localeCompare(b,'ko'); }).map(function(k){ return m[k]; });
+  }
+  function _ohDateFmt(d){ d=''+(d==null?'':d); return d.length===8 ? d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8) : d; }
+  /* 일자(납품일자 DLV_DT) → 출고장 로 접어 담기 — ①탭 '일자별' 구획 소스.
+       _ohRoll 과 같은 규칙(대사키 date|dc|item 이 이미 날짜 포함)이라 날짜로 한 겹 더 나눠도 미정산/출고미상이 일관.
+       ※ 납품일자 없는 행(키없음)은 날짜 배치가 안 되므로 이 구획에서 빠진다 → 일자합 총합 ≤ 총합계(정상). */
+  function _ohRollByDate(){
+    var dm={};
+    var pick=function(r0, nm){
+      var d=_ohYmd(r0 && r0.dlvDt) || '';
+      var k=_ohDcOf(r0)||'(출고장 미지정)';
+      if(!dm[d]) dm[d]={ date:d, m:{}, ord:[] };
+      var D=dm[d];
+      if(!D.m[k]){ D.m[k]={ dc:k, label:k, raw:{}, sRows:0,sQty:0,sAmt:0, oRows:0,oQty:0, sKeys:{}, oKeys:{}, sOnly:0, oOnly:0 }; D.ord.push(k); }
+      if(nm) D.m[k].raw[nm]=1;
+      return D.m[k];
+    };
+    _ohSales.forEach(function(r){ var g=pick(r, r.dcNm); g.sRows++; g.sQty+=(+r.outQty||0); g.sAmt+=(+r.saleAmt||0); var kk=_ohKey(r); if(kk) g.sKeys[kk]=1; });
+    _ohShip.forEach(function(r){ var g=pick(r, r.dcNm); g.oRows++; g.oQty+=(+r.curQty||0); var kk=_ohKey(r); if(kk) g.oKeys[kk]=1; });
+    var dates=Object.keys(dm).filter(function(d){ return d; }).sort().reverse();   // YYYYMMDD 최근순
+    return dates.map(function(d){
+      var D=dm[d];
+      var kids=D.ord.sort(function(a,b){ return a.localeCompare(b,'ko'); }).map(function(k){
+        var g=D.m[k];
+        Object.keys(g.sKeys).forEach(function(x){ if(!g.oKeys[x]) g.sOnly++; });
+        Object.keys(g.oKeys).forEach(function(x){ if(!g.sKeys[x]) g.oOnly++; });
+        return g;
+      });
+      var tot={ oRows:0,oQty:0,sRows:0,sQty:0,sAmt:0,sOnly:0,oOnly:0 };
+      kids.forEach(function(g){ tot.oRows+=g.oRows; tot.oQty+=g.oQty; tot.sRows+=g.sRows; tot.sQty+=g.sQty; tot.sAmt+=g.sAmt; tot.sOnly+=g.sOnly; tot.oOnly+=g.oOnly; });
+      return { date:d, kids:kids, tot:tot };
+    });
   }
   // 발주번호+항번 → 상대편 행 (상세 2탭의 대사 열). a=정산금액(정산서 인덱스일 때만 값이 있다)
   function _ohIndex(rows, qtyField){
@@ -3764,6 +3933,13 @@
       + ' title="클릭 → ② 출고장 ▸ 품목 탭에서 '+_cesc(g.label)+'만 펼쳐 어느 품목이 어긋났는지 봅니다">'
       + _ohStBadge(g)+'</td>';
   }
+  // 묶음/일자 머리행의 상태칸 — 표시 전용. 클릭 미적용(접기·드릴 모두 없음).
+  //   줄 전체가 접기 토글이라, 이 칸 클릭이 접기로 이어지지 않게 stopPropagation 만 건다.
+  function _ohStCellGrp(gg){
+    return '<td onclick="event.stopPropagation()" style="cursor:default"'
+      + ' title="묶음 합계 상태 (이 칸은 클릭·접기 없음)">'
+      + _ohStBadge(gg)+'</td>';
+  }
   // 숫자 칸 8개(출고건수~정산금액) — ①탭 1·2단 공용
   function _ohDcCells(o){
     var gap=o.oQty-o.sQty, ok=Math.abs(gap)<1e-6;
@@ -3811,9 +3987,35 @@
       h+='<tr class="close-grp" onclick="ohGrp(\''+encodeURIComponent('d:'+gg.label)+'\')" title="클릭 → 소속 출고장 '+gg.kids.length+'곳 접기/펼치기">'
         +'<td><span class="ccar">'+(col?'▶':'▼')+'</span> 🗂️ '+_cesc(gg.label)
         +' <span style="font-weight:600;color:#5a6b7a">('+gg.kids.length+'곳)</span></td>'
-        +_ohDcCells(gg)+'<td>'+_ohStBadge(gg)+'</td></tr>';
+        +_ohDcCells(gg)+_ohStCellGrp(gg)+'</tr>';
       if(!col) gg.kids.forEach(function(g){ h+=kidRow(g, true); });
     });
+    // ── 일자별 (최근순) 구획 — 원래 기간합(위) 다음에 배치. 기본 접힘, 캐럿으로 펼치기(2026-07-24 요청)
+    //     날짜 머리행 = 접기/펼치기(캐럿). 상태 칸은 클릭 미적용(_ohStCellGrp). 개별 출고장은 드릴 가능(_ohStCell).
+    var DBYD=_ohRollByDate();
+    if(DBYD.length){
+      var dsecCol=_ohIsCol2('dtsec', true);   // 구획 전체 = 기본 접힘
+      h+='<tr class="close-grp" onclick="ohGrp(\'dtsec\')" title="클릭 → 일자별 구획 접기/펼치기">'
+        +'<td colspan="9"><span class="ccar">'+(dsecCol?'▶':'▼')+'</span> 📅 <b>일자별 합계</b>'
+        +' <span style="font-weight:600;color:#5a6b7a">(최근순 · '+DBYD.length+'일 · 납품일자 기준'+(dsecCol?' · 접힘, 클릭해 펼치기':'')+')</span></td></tr>';
+      if(!dsecCol) DBYD.forEach(function(D){
+        var dk='dt:'+D.date, dCol=_ohIsCol2(dk, false), dgap=D.tot.oQty-D.tot.sQty;
+        h+='<tr class="close-grp" onclick="ohGrp(\''+encodeURIComponent(dk)+'\')" title="클릭 → '+_ohDateFmt(D.date)+' 소속 출고장 접기/펼치기">'
+          +'<td style="padding-left:22px"><span class="ccar">'+(dCol?'▶':'▼')+'</span> 🗓️ '+_ohDateFmt(D.date)
+          +' <span style="font-weight:600;color:#5a6b7a">('+D.kids.length+'곳)</span></td>'
+          +'<td style="text-align:right">'+D.tot.oRows.toLocaleString()+'</td><td style="text-align:right">'+_ohQ(D.tot.oQty)+'</td>'
+          +'<td style="text-align:right">'+D.tot.sRows.toLocaleString()+'</td><td style="text-align:right">'+_ohQ(D.tot.sQty)+'</td>'
+          +'<td style="text-align:right" class="'+(Math.abs(dgap)<1e-6?'oh-ok':'oh-gap')+'">'+_ohQ(dgap)+'</td>'
+          +'<td style="text-align:right">'+(D.tot.sQty?_cnum(D.tot.sAmt/D.tot.sQty):'')+'</td>'
+          +'<td style="text-align:right;font-weight:800;color:#137a6c">'+_cnum(D.tot.sAmt)+'</td>'
+          +_ohStCellGrp(D.tot)+'</tr>';
+        if(!dCol) D.kids.forEach(function(g){
+          h+='<tr title="원표기: '+_cesc(Object.keys(g.raw).join(' / '))+'">'
+            +'<td class="txt-l" style="padding-left:40px"><b>'+_cesc(g.label)+'</b></td>'
+            +_ohDcCells(g)+_ohStCell(g)+'</tr>';
+        });
+      });
+    }
     wrap.innerHTML=h+'</tbody></table>';
     _ohPager(1);
   }
