@@ -54,6 +54,11 @@ public class ShipoutDTO {
 	private String  jumunNo;       // 주문번호
 	private String  jumunItemNo;   // 주문ITEM번호
 	private String  sorter;        // 소터
+	/* 판매단가 — 조회 전용(비영속). 마감관리(selectClosing)와 똑같은 규칙으로 붙인다:
+	     판매단가 이력(APPLY_DT ≤ 납품일자, 공통가) 최신 → 없으면 상품마스터 SALE_PRICE.
+	   쓰는 곳: 매출내역 — 정산서가 아직 안 온 출고행의 매출금액을 이 단가로 채운다(2026-07-25 요청). */
+	private java.math.BigDecimal saleUnit;   // 판매단가
+	private String  saleSrc;                 // 단가 근거 '이력' | '마스터'
 
 	// ----- 감사 -----
 	private String  regUser;
@@ -128,6 +133,10 @@ public class ShipoutDTO {
 	public void setRtSeq(String rtSeq) { this.rtSeq = rtSeq; }
 	public Integer getCurQty() { return curQty; }
 	public void setCurQty(Integer curQty) { this.curQty = curQty; }
+	public java.math.BigDecimal getSaleUnit() { return saleUnit; }
+	public void setSaleUnit(java.math.BigDecimal saleUnit) { this.saleUnit = saleUnit; }
+	public String getSaleSrc() { return saleSrc; }
+	public void setSaleSrc(String saleSrc) { this.saleSrc = saleSrc; }
 	public String getDlvGb() { return dlvGb; }
 	public void setDlvGb(String dlvGb) { this.dlvGb = dlvGb; }
 	public String getRemark() { return remark; }

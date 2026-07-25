@@ -123,6 +123,8 @@ public interface UserMapper {
 
 	// ===== 마감(매출/매입/마진) 집계 — 출고(TBL_SHIPOUT_MST) × 단가이력/마스터 =====
 	java.util.List<egovframework.sejong.user.model.ClosingDTO> selectClosing(egovframework.sejong.user.model.ClosingDTO dto) throws Exception;
+	/* 출고미상 — 정산서에는 있는데 출고 자료에 짝이 없는 행(마감에서 통째로 빠지는 금액) */
+	java.util.List<egovframework.sejong.user.model.ClosingDTO> selectClosingUnmatched(egovframework.sejong.user.model.ClosingDTO dto) throws Exception;
 	// ===== 재고마감 집계 — TBL_STOCK_LEDGER (기초+입고-출고±조정=기말) =====
 	java.util.List<egovframework.sejong.user.model.StockClosingDTO> selectStockClosing(egovframework.sejong.user.model.StockClosingDTO dto) throws Exception;
 	// ===== 입고(매입)마감 집계 — TBL_STOCK_LEDGER 당월 입고(IO_GB='I') =====

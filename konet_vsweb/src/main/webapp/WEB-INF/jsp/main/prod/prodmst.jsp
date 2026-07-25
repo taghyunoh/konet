@@ -35,9 +35,12 @@
   .btn-teal{ background:var(--teal); color:#fff; border-color:var(--teal); }
   .btn-danger{ color:#c0392b; border-color:#e3b4ae; }
   .cnt{ margin-left:auto; color:#6b7a89; font-size:12.5px; }
-  /* 목록 카드 = 6행 높이만큼만 차지하고, 남는 공간을 아래 페이저에 넘긴다.
-     행이 넘치면(창이 작을 때) 여기서만 스크롤 — 위 제목·검색줄은 그대로 남는다 */
-  .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; flex:0 1 auto; min-height:90px; }
+  /* 목록 카드 = 위(제목·검색줄)와 아래(이력/재고 패널) 사이를 채우고, 넘치는 행은 여기서만 스크롤.
+     2026-07-25: 매출내역과 같이 18행씩 보여주고 스크롤하면 자동으로 이어붙인다(페이지 버튼 없음).
+     그래서 flex 를 0 1 → 1 1 로 바꿨다 — 카드가 남는 공간을 다 차지해야 스크롤이 생기고 이어붙이기가 돈다. */
+  .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; flex:1 1 auto; min-height:90px; }
+  /* 이어붙이며 내려도 머리글은 남아야 한다(하단 패널 표와 동일 규칙). z-index 없으면 행이 머리글 위로 그려진다 */
+  .card thead th{ position:sticky; top:0; z-index:3; }
   /* ★표 서식 = 매출내역(logistics_demo2 table.logi-tb)과 동일하게 맞춤(2026-07-22 요청)
        13px · 셀 padding 9px 10px · 실선 격자 · 가운데 정렬 · 연한 헤더(#eef3f2/진한 글자)
        숫자·상품명 등은 아래 개별 규칙으로 우/좌 정렬을 되돌린다 */
@@ -321,7 +324,9 @@
 <script>
 var CTX = '${pageContext.request.contextPath}';
 /* 한 페이지 6행 — 하단 이력/재고 패널(48vh)과 나눠 쓰므로 목록은 짧게 두고 페이징으로 넘긴다(2026-07-22 요청) */
-var PROD = [], _view = [], _page = 1, PAGE_SIZE = 6, _byseq = {};
+/* 목록 표시 — 한 번에 18행, 나머지는 스크롤이 바닥에 닿으면 자동으로 이어붙인다(2026-07-25 요청. 매출내역과 동일 방식).
+   종전에는 6행씩 페이지 버튼(1 2 3 … 324)으로 넘겼다. _shown = 지금까지 붙인 행수. */
+var PROD = [], _view = [], PAGE_SIZE = 18, _shown = 0, _byseq = {};
 
 function toast(s){ if(window.Swal){ Swal.fire({toast:true, position:'top-end', html:s, showConfirmButton:false, timer:2600, timerProgressBar:true}); return; } var m=document.getElementById('msg'); m.innerHTML=s; m.classList.add('on'); clearTimeout(m._t); m._t=setTimeout(function(){ m.classList.remove('on'); }, 2600); }
 function swConfirm(msg, title){ if(window.Swal) return Swal.fire({title:title||'확인', html:msg, icon:'question', showCancelButton:true, confirmButtonText:'확인', cancelButtonText:'취소', confirmButtonColor:'#137a6c', cancelButtonColor:'#94a3b8'}).then(function(r){ return r.isConfirmed; }); return Promise.resolve(confirm((''+msg).replace(/<br\s*\/?>/gi,'\n'))); }
@@ -344,38 +349,64 @@ function prodFilter(){
   _view = !q ? PROD.slice() : PROD.filter(function(o){
     return [o.prodCd,o.prodNm,o.spec,o.makerNm,o.typeNm].some(function(x){ return (''+(x||'')).toLowerCase().indexOf(q)>=0; });
   });
-  _page=1; prodRender();
+  prodRender();
+}
+function _prow(o){
+  return '<tr class="prow" onclick="hvOpen('+o.prodSeq+')" data-seq="'+o.prodSeq+'">'
+    +'<td class="code">'+esc(o.prodCd)+'</td>'
+    +'<td class="nm">'+esc(o.prodNm)+'</td>'
+    +'<td>'+esc(o.spec)+'</td><td>'+esc(o.makerNm)+'</td><td>'+esc(o.typeNm)+'</td><td>'+esc(o.taxGb)+'</td>'
+    +'<td class="num">'+num(o.packQty)+'</td><td class="num">'+num(o.inPrice)+'</td><td class="num">'+num(o.salePrice)+'</td><td class="num">'+num(o.wholePrice)+'</td>'
+    +'<td class="num">'+num(o.safeStock)+'</td><td class="num">'+num(o.saleBaseQty)+'</td>'
+    +'<td>'+esc(o.unitBarcode)+'</td><td>'+esc(o.boxBarcode)+'</td>'
+    +'<td class="act"><button class="btn" onclick="event.stopPropagation();prodOpen('+o.prodSeq+')">수정</button> <button class="btn btn-danger" onclick="event.stopPropagation();prodDel('+o.prodSeq+')">삭제</button></td>'
+  +'</tr>';
+}
+function _selKeep(){   // 선택행 하이라이트 유지 — 새로 붙인 행에 그 품목이 있을 수 있어 이어붙일 때마다 다시 건다
+  if(typeof HVP==='undefined' || !HVP) return;
+  var sr=document.querySelector('#tb tr.prow[data-seq="'+HVP.prodSeq+'"]'); if(sr) sr.classList.add('sel');
 }
 function prodRender(){
-  var tot=_view.length, pages=Math.max(1, Math.ceil(tot/PAGE_SIZE)); if(_page>pages)_page=pages;
+  var tot=_view.length;
   document.getElementById('cnt').textContent = tot.toLocaleString()+'건';
   var tb=document.getElementById('tb');
-  if(!tot){ tb.innerHTML='<tr><td colspan="15" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1); return; }
-  var start=(_page-1)*PAGE_SIZE, rows=_view.slice(start,start+PAGE_SIZE);
-  tb.innerHTML = rows.map(function(o){
-    return '<tr class="prow" onclick="hvOpen('+o.prodSeq+')" data-seq="'+o.prodSeq+'">'
-      +'<td class="code">'+esc(o.prodCd)+'</td>'
-      +'<td class="nm">'+esc(o.prodNm)+'</td>'
-      +'<td>'+esc(o.spec)+'</td><td>'+esc(o.makerNm)+'</td><td>'+esc(o.typeNm)+'</td><td>'+esc(o.taxGb)+'</td>'
-      +'<td class="num">'+num(o.packQty)+'</td><td class="num">'+num(o.inPrice)+'</td><td class="num">'+num(o.salePrice)+'</td><td class="num">'+num(o.wholePrice)+'</td>'
-      +'<td class="num">'+num(o.safeStock)+'</td><td class="num">'+num(o.saleBaseQty)+'</td>'
-      +'<td>'+esc(o.unitBarcode)+'</td><td>'+esc(o.boxBarcode)+'</td>'
-      +'<td class="act"><button class="btn" onclick="event.stopPropagation();prodOpen('+o.prodSeq+')">수정</button> <button class="btn btn-danger" onclick="event.stopPropagation();prodDel('+o.prodSeq+')">삭제</button></td>'
-    +'</tr>';
-  }).join('');
-  if(typeof HVP!=='undefined' && HVP){ var _sr=tb.querySelector('tr.prow[data-seq="'+HVP.prodSeq+'"]'); if(_sr) _sr.classList.add('sel'); }  // 새로고침 후 선택행 유지
-  _pager(pages,_page);
+  if(!tot){ tb.innerHTML='<tr><td colspan="15" class="empty">데이터가 없습니다.</td></tr>'; _shown=0; _info(); return; }
+  _shown=Math.min(PAGE_SIZE, tot);
+  tb.innerHTML=_view.slice(0,_shown).map(_prow).join('');
+  _selKeep(); _bindMore();
+  _fillUntilScrollable();
+  _info();
 }
-function _go(p){ _page=p; prodRender(); }
-function _pager(pages,cur){
-  var el=document.getElementById('pager'); if(pages<=1){ el.innerHTML=''; return; }
-  var h='<button '+(cur<=1?'disabled':'')+' onclick="_go('+(cur-1)+')">‹</button>';
-  var from=Math.max(1,cur-3), to=Math.min(pages,cur+3);
-  if(from>1){ h+='<button onclick="_go(1)">1</button>'; if(from>2)h+='<span class="ell">…</span>'; }
-  for(var p=from;p<=to;p++) h+='<button class="'+(p===cur?'on':'')+'" onclick="_go('+p+')">'+p+'</button>';
-  if(to<pages){ if(to<pages-1)h+='<span class="ell">…</span>'; h+='<button onclick="_go('+pages+')">'+pages+'</button>'; }
-  h+='<button '+(cur>=pages?'disabled':'')+' onclick="_go('+(cur+1)+')">›</button>';
-  el.innerHTML=h;
+function _card(){ return document.querySelector('.card'); }
+function _more(n){   // 다음 n행(기본 18) 이어붙이기
+  var tot=_view.length; if(_shown>=tot) return;
+  var to=Math.min(_shown+(n||PAGE_SIZE), tot), tb=document.getElementById('tb');
+  if(!tb) return;
+  tb.insertAdjacentHTML('beforeend', _view.slice(_shown,to).map(_prow).join(''));
+  _shown=to; _selKeep(); _info();
+}
+// 18행이 카드 높이보다 짧으면 스크롤이 안 생겨 영영 안 채워진다 — 스크롤이 생길 때까지 미리 붙인다
+function _fillUntilScrollable(){
+  var c=_card(); if(!c) return;
+  for(var g=0; _shown<_view.length && c.scrollHeight<=c.clientHeight+2 && g<300; g++) _more();
+}
+function _bindMore(){
+  var c=_card(); if(!c || c._moreBound) return; c._moreBound=1;
+  c.addEventListener('scroll', function(){
+    if(_shown>=_view.length) return;
+    if(c.scrollTop+c.clientHeight >= c.scrollHeight-60) _more();   // 바닥 60px 전에 미리 채운다
+  });
+  window.addEventListener('resize', _fillUntilScrollable);
+}
+function _showAll(){ _more(_view.length); }   // 남은 행 한 번에 (Ctrl+F 검색·전체 복사용)
+function _info(){
+  var el=document.getElementById('pager'), tot=_view.length;
+  if(_shown>=tot){ el.innerHTML = tot>PAGE_SIZE
+      ? '<span style="color:#9aa7b3;font-size:12px">총 '+tot.toLocaleString()+'건 — 모두 표시됨</span>' : '';
+    return; }
+  el.innerHTML='<span style="color:#5a6b7a;font-size:12px">'+_shown.toLocaleString()+' / <b>'+tot.toLocaleString()+'</b>건'
+    +' <span style="color:#9aa7b3">— 아래로 스크롤하면 이어서 나옵니다</span></span>'
+    +' <button class="btn" style="height:26px;margin-left:8px;font-size:12px" onclick="_showAll()" title="남은 행을 한 번에 펼칩니다(검색·복사용)">모두 표시</button>';
 }
 
 function prodOpen(seq){
@@ -524,15 +555,12 @@ function hvFindKey(e){
 function hvPick(seq){
   document.getElementById('hvFindPop').classList.remove('open');
   document.getElementById('hvFind').value='';
-  /* 위 목록에서도 그 품목이 보이도록 페이지를 맞춘다 — 선택 하이라이트가 화면에 남게.
-     ※ 상단 검색어 때문에 _view 에 없으면 페이지 이동만 건너뛴다.
+  /* 위 목록에서도 그 품목이 보이도록 그 행까지 이어붙인다 — 선택 하이라이트가 화면에 남게.
+     ※ 상단 검색어 때문에 _view 에 없으면 건너뛴다.
         hvOpen 은 _byseq(PROD 전량)를 보므로 이력/재고는 정상 표시된다. */
   var idx=-1;
   for(var i=0;i<(_view||[]).length;i++){ if(_view[i].prodSeq===seq){ idx=i; break; } }
-  if(idx>=0){
-    var pg=Math.floor(idx/PAGE_SIZE)+1;
-    if(pg!==_page){ _page=pg; prodRender(); }
-  }
+  if(idx>=_shown) _more(idx-_shown+PAGE_SIZE);   // 아직 안 붙은 뒤쪽이면 그 행이 나올 때까지
   hvOpen(seq);
   var tr=document.querySelector('#tb tr.prow[data-seq="'+seq+'"]');
   if(tr) tr.scrollIntoView({block:'center', behavior:'smooth'});

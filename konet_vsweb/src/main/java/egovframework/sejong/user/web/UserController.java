@@ -768,6 +768,16 @@ public class UserController {
 			return response;
 		}
 
+		/* 출고미상 — 정산서에는 있는데 출고 자료에 짝이 없는 행. 마감에서 빠지는 금액이라 화면에 경고로 띄운다 */
+		@RequestMapping(value="/shipout/selectClosingUnmatched.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectClosingUnmatched(@ModelAttribute("DTO") egovframework.sejong.user.model.ClosingDTO dto,
+		                                                 HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectClosingUnmatched(dto));
+			return response;
+		}
+
 		/* 재고마감 — TBL_STOCK_LEDGER 기준 기초+입고-출고±조정=기말 + 이동평균 재고금액 */
 		@RequestMapping(value="/shipout/selectStockClosing.do", method = RequestMethod.POST)
 		@ResponseBody

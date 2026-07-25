@@ -473,16 +473,42 @@
 	  SELECT
 	      t.SHPOUT_DT AS shpoutDt, t.DLV_DT AS dlvDt, t.JOB_SEQ AS jobSeq, t.ROW_NO AS rowNo, t.SRC_FILE AS srcFile,
 	      CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm,
-	      ( SELECT CONVERT(varchar(19), MIN(m.UPLOAD_DTTM), 120) FROM TBL_SHIPOUT_MST m
-	         WHERE m.SHPOUT_DT = t.SHPOUT_DT AND ISNULL(m.DC_CD,'') = ISNULL(t.DC_CD,'')
-	           AND ISNULL(m.BIZ_CD,'') = ISNULL(t.BIZ_CD,'') AND ISNULL(m.ITEM_CD,'') = ISNULL(t.ITEM_CD,'') ) AS firstDttm,
+	      -- ★firstDttm(같은 품목 최초 업로드일시) — 종전에는 행마다 상관 서브쿼리로 같은 테이블을 다시 뒤졌다.
+	      --   4,562행 조회에서 이 한 칸이 871ms 를 먹었다(944ms → 73ms, 2026-07-25 실측).
+	      --   윈도우 함수로 한 번에 계산한다(=167ms). 파티션 범위는 종전과 동일 — 기간·ACTION_YN 과 무관하게
+	      --   같은 (출고일자+출고장+사업장+품목)의 전체 최소값이라 아래 t 서브쿼리 안에서 먼저 계산해야 한다.
+	      t.firstDttm,
 	      t.DC_CD AS dcCd, t.DC_NM AS dcNm, t.VENDOR_CD AS vendorCd, t.VENDOR_NM AS vendorNm,
 	      t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
 	      t.BOX_QTY AS boxQty, t.LABEL_QTY AS labelQty, t.UNPAID_LABEL_QTY AS unpaidLabelQty,
 	      t.INWH AS inwh, t.ZONE AS zone, t.BUS_NO AS busNo, t.RT_SEQ AS rtSeq, t.CUR_QTY AS curQty,
 	      t.DLV_GB AS dlvGb, t.REMARK AS remark, t.PROD_KIND AS prodKind, t.TEMP_GB AS tempGb, t.ORD_GB AS ordGb,
-	      t.UNIT AS unit, t.ORD_NO AS ordNo, t.ORD_ITEM_NO AS ordItemNo, t.JUMUN_NO AS jumunNo, t.JUMUN_ITEM_NO AS jumunItemNo
-	    FROM TBL_SHIPOUT_MST t
+	      t.UNIT AS unit, t.ORD_NO AS ordNo, t.ORD_ITEM_NO AS ordItemNo, t.JUMUN_NO AS jumunNo, t.JUMUN_ITEM_NO AS jumunItemNo,
+	      -- ★판매단가 — 마감관리(selectClosing)와 똑같은 규칙(2026-07-25). 매출내역에서 정산서가 아직 안 온
+	      --   출고행의 매출금액을 이 단가로 채운다. 기준일은 마감과 같이 납품일자(DLV_DT).
+	      u.saleUnit, u.saleSrc
+	    FROM ( SELECT s0.*,
+	                  CONVERT(varchar(19),
+	                    MIN(s0.UPLOAD_DTTM) OVER (PARTITION BY s0.SHPOUT_DT, ISNULL(s0.DC_CD,''), ISNULL(s0.BIZ_CD,''), ISNULL(s0.ITEM_CD,'')),
+	                    120) AS firstDttm
+	             FROM TBL_SHIPOUT_MST s0 ) t
+	    LEFT JOIN (
+	          SELECT p.PROD_CD, p.SALE_PRICE
+	            FROM TBL_PROD_MST p
+	           WHERE p.ACTION_YN = 'Y'
+	             AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
+	    ) pm ON pm.PROD_CD = t.ITEM_CD
+	    OUTER APPLY (
+	          SELECT TOP 1 h.SALE_PRICE
+	            FROM TBL_PROD_SALEPRICE_HST h
+	           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = t.ITEM_CD AND h.APPLY_DT <= t.DLV_DT
+	             AND h.VENDOR_CD IS NULL   -- 공통가만 (마감과 동일 — 판매처 전용가는 섞지 않는다)
+	           ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
+	    ) sh
+	    CROSS APPLY (
+	          SELECT ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) AS saleUnit,
+	                 CASE WHEN sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc
+	    ) u
 	   WHERE t.ACTION_YN = 'Y'
 	     AND (
 	           ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') <> ''
@@ -1128,62 +1154,254 @@
 	     · 최소단위 그룹(품목+사업장+매입처) — 화면별 재집계는 클라이언트에서 수행
 	     ============================================================ -->
 	<select id="selectClosing" parameterType="egovframework.sejong.user.model.ClosingDTO" resultType="egovframework.sejong.user.model.ClosingDTO"><![CDATA[
+	  /* ★매출액 = 정산서 우선, 없으면 판매단가 계산 (2026-07-25 사용자 확정)
+	       · 정산서(TBL_SALES_MST) = 출고장이 준 실제 청구 금액. 있으면 그게 매출이고,
+	         우리가 매긴 판매단가는 '정산서가 아직 안 온 건'에만 쓰는 추정치다.
+	         (정산서만 인정하면 미도착분 매출이 통째로 빠져 월 매출이 과소계상되고 귀속월이 밀린다)
+	       · 대사키 = 납품일자(DLV_DT) + 출고장 + 품목코드 — 매출내역 화면과 같은 규칙.
+	         출고장은 DC_CD 우선, 없으면 이름으로 코드 환원(정산서는 2026-07-22 이전 자료에 DC_CD 가 없다).
+	       · 정산서에는 사업장(BIZ_CD)이 없다(발주 단위). 마감은 사업장까지 쪼개 집계하므로
+	         그 키의 정산금액을 출고수량 비율로 안분한다 → saleSrc='정산안분'.
+	         출고장별 탭에서는 키가 다시 합쳐지므로 정산서 금액과 정확히 일치한다.
+	       · 매입액(costAmt)은 종전대로 매입단가 계산 — 정산서와 무관하다.
+	       · 기간 귀속 = 납품일자(DLV_DT). 정산서에는 출고일자가 없어 출고일자로 귀속하면
+	         월 경계에서 정산서와 계속 어긋난다(2026-07-25 변경. 종전 SHPOUT_DT).
+
+	     ★성능 (2026-07-25) — 정산서 집계를 임시테이블 #SLK 로 한 번만 만든다.
+	       인라인 파생테이블로 두면 옵티마이저가 출고 행마다(4,184회) 이 집계를 다시 실행해
+	       마감 조회가 16초였다. CTE·TOP 실체화·조인힌트는 모두 더 나빠졌고(27초/48초/계획불가),
+	       임시테이블 + 클러스터 인덱스가 유일하게 통했다. UNION 쪽 출고미상도 같은 #SLK 를 재사용한다. */
+	  SET NOCOUNT ON;
+
+	  IF OBJECT_ID('tempdb..#SLK') IS NOT NULL DROP TABLE #SLK;
+
+	  SELECT x.dlvKey, x.dcKey, x.itemCd,
+	         MAX(x.itemNm) AS itemNm, MAX(x.dcNm) AS dcNm,
+	         SUM(x.outQty) AS stlQty, SUM(x.saleAmt) AS stlAmt
+	    INTO #SLK
+	    FROM (
+	          SELECT REPLACE(ISNULL(m.DLV_DT,''),'-','') AS dlvKey,
+	                 CASE WHEN ISNULL(m.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(m.DC_CD)))
+	                      WHEN ISNULL(m.DC_NM,'') LIKE '%용인%' THEN 'E100'
+	                      WHEN ISNULL(m.DC_NM,'') LIKE '%왜관%' THEN 'E200'
+	                      WHEN ISNULL(m.DC_NM,'') LIKE '%김해%' THEN 'E300'
+	                      WHEN ISNULL(m.DC_NM,'') LIKE '%광주%' THEN 'E400'
+	                      WHEN ISNULL(m.DC_NM,'') LIKE '%평택%' THEN 'E500'
+	                      WHEN ISNULL(m.DC_NM,'') LIKE '%제주%' THEN 'E600'
+	                      WHEN ISNULL(m.DC_NM,'') LIKE '%오산%' THEN 'E700'
+	                      ELSE '' END AS dcKey,
+	                 ISNULL(m.ITEM_CD,'') AS itemCd, m.ITEM_NM AS itemNm, m.DC_NM AS dcNm,
+	                 ISNULL(m.OUT_QTY,0) AS outQty, ISNULL(m.SALE_AMT,0) AS saleAmt
+	            FROM TBL_SALES_MST m
+	           WHERE m.ACTION_YN = 'Y'
+	    ) x
+	   WHERE x.dlvKey <> '' AND x.dcKey <> '' AND x.itemCd <> ''
+	   GROUP BY x.dlvKey, x.dcKey, x.itemCd;
+
+	  CREATE CLUSTERED INDEX IX_SLK ON #SLK(dlvKey, dcKey, itemCd);
+
 	  SELECT itemCd, MAX(itemNm) AS itemNm, bizCd, MAX(bizNm) AS bizNm,
 	         dcCd, MAX(dcNm) AS dcNm, vendorCd, MAX(vendorNm) AS vendorNm,
 	         SUM(outQty) AS outQty,
 	         SUM(salesAmt) AS salesAmt, SUM(costAmt) AS costAmt, SUM(marginAmt) AS marginAmt,
 	         MAX(saleSrc) AS saleSrc, MAX(inSrc) AS inSrc
 	    FROM (
-	      SELECT s.ITEM_CD AS itemCd, s.ITEM_NM AS itemNm,
-	             ISNULL(s.BIZ_CD,'') AS bizCd, s.BIZ_NM AS bizNm,
-	             ISNULL(s.DC_CD,'') AS dcCd, s.DC_NM AS dcNm,
-	             ISNULL(s.VENDOR_CD,'') AS vendorCd, s.VENDOR_NM AS vendorNm,
-	             ISNULL(s.CUR_QTY,0) AS outQty,
-	             ISNULL(s.CUR_QTY,0) * u.saleUnit AS salesAmt,
-	             ISNULL(s.CUR_QTY,0) * u.inUnit   AS costAmt,
-	             ISNULL(s.CUR_QTY,0) * (u.saleUnit - u.inUnit) AS marginAmt,
-	             u.saleSrc, u.inSrc
-	        FROM TBL_SHIPOUT_MST s
+	      SELECT w.itemCd, w.itemNm, w.bizCd, w.bizNm, w.dcCd, w.dcNm, w.vendorCd, w.vendorNm,
+	             w.outQty, w.salesAmt, w.costAmt, w.salesAmt - w.costAmt AS marginAmt,
+	             w.saleSrc, w.inSrc
+	        FROM (
+	          SELECT v.itemCd, v.itemNm, v.bizCd, v.bizNm, v.dcCd, v.dcNm, v.vendorCd, v.vendorNm,
+	                 v.outQty,
+	                 /* 안분: 보통은 출고수량 비율. 단 그 키의 출고수량 합이 0이면(반품이 상쇄된 키 등)
+	                          비율을 못 내므로 행수로 균등 배분한다 — 안 그러면 정산금액이 통째로 0원이 된다(실측 8키 369,865원). */
+	                 CASE WHEN v.stlAmt IS NULL THEN v.outQty * v.saleUnit
+	                      WHEN v.keyQty <> 0
+	                      THEN v.stlAmt * (CAST(v.outQty AS DECIMAL(19,6)) / CAST(v.keyQty AS DECIMAL(19,6)))
+	                      ELSE v.stlAmt / CAST(v.keyRows AS DECIMAL(19,6)) END AS salesAmt,
+	                 v.outQty * v.inUnit AS costAmt,
+	                 /* '정산' = 그 키의 정산금액이 이 줄 하나로 통째로 들어간 경우(나눈 적 없음).
+	                    나눠 담았으면 '정산안분'. 분모가 0이라 행수로 균등 배분한 경우도 2줄 이상이면 안분이다. */
+	                 CASE WHEN v.stlAmt IS NULL THEN v.saleSrc
+	                      WHEN v.keyQty <> 0 AND v.outQty = v.keyQty THEN '정산'
+	                      WHEN v.keyQty =  0 AND v.keyRows = 1       THEN '정산'
+	                      ELSE '정산안분' END AS saleSrc,
+	                 v.inSrc
+	            FROM (
+	              SELECT s.ITEM_CD AS itemCd, s.ITEM_NM AS itemNm,
+	                     ISNULL(s.BIZ_CD,'') AS bizCd, s.BIZ_NM AS bizNm,
+	                     ISNULL(s.DC_CD,'') AS dcCd, s.DC_NM AS dcNm,
+	                     ISNULL(s.VENDOR_CD,'') AS vendorCd, s.VENDOR_NM AS vendorNm,
+	                     ISNULL(s.CUR_QTY,0) AS outQty,
+	                     u.saleUnit, u.inUnit, u.saleSrc, u.inSrc, st.stlAmt,
+	                     -- 같은 대사키의 출고수량 합 = 정산금액을 사업장별로 안분할 때의 분모
+	                     SUM(ISNULL(s.CUR_QTY,0)) OVER (PARTITION BY dk.dcKey, s.ITEM_CD, dk.dlvKey) AS keyQty,
+	                     COUNT(*)                 OVER (PARTITION BY dk.dcKey, s.ITEM_CD, dk.dlvKey) AS keyRows
+	                FROM TBL_SHIPOUT_MST s
+	                LEFT JOIN (
+	                      SELECT p.PROD_CD, p.IN_PRICE, p.SALE_PRICE
+	                        FROM TBL_PROD_MST p
+	                       WHERE p.ACTION_YN = 'Y'
+	                         AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
+	                ) pm ON pm.PROD_CD = s.ITEM_CD
+	                -- ★단가 기준일 = 발주일자(DLV_DT). 출고일자(SHPOUT_DT) 아님.
+	                --   먼 지역은 발주분을 하루 당겨 출고한다(실측: 발주 20260708 → 출고 20260707 이 15행).
+	                --   출고일자로 맞추면 '적용일자(발주일) > 출고일자' 가 되어 그 발주건의 확정단가가 영영 안 걸린다.
+	                OUTER APPLY (
+	                      SELECT TOP 1 h.SALE_PRICE
+	                        FROM TBL_PROD_SALEPRICE_HST h
+	                       WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.DLV_DT
+	                         AND h.VENDOR_CD IS NULL   -- 공통가만. 판매처 전용가는 물류센터 출고 마감에 안 섞는다
+	                       ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
+	                ) sh
+	                OUTER APPLY (
+	                      SELECT TOP 1 h.IN_PRICE
+	                        FROM TBL_PROD_INPRICE_HST h
+	                       WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.DLV_DT
+	                       ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
+	                ) ih
+	                CROSS APPLY (
+	                      SELECT ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) AS saleUnit,
+	                             ISNULL(ih.IN_PRICE,   ISNULL(pm.IN_PRICE,0))   AS inUnit,
+	                             CASE WHEN sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc,
+	                             CASE WHEN ih.IN_PRICE   IS NOT NULL THEN '이력' ELSE '마스터' END AS inSrc
+	                ) u
+	                -- 대사키 정규화 : 출고장(DC_CD 우선, 없으면 이름→코드) + 납품일자(하이픈 제거)
+	                CROSS APPLY (
+	                      SELECT CASE WHEN ISNULL(s.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s.DC_CD)))
+	                                  WHEN ISNULL(s.DC_NM,'') LIKE '%용인%' THEN 'E100'
+	                                  WHEN ISNULL(s.DC_NM,'') LIKE '%왜관%' THEN 'E200'
+	                                  WHEN ISNULL(s.DC_NM,'') LIKE '%김해%' THEN 'E300'
+	                                  WHEN ISNULL(s.DC_NM,'') LIKE '%광주%' THEN 'E400'
+	                                  WHEN ISNULL(s.DC_NM,'') LIKE '%평택%' THEN 'E500'
+	                                  WHEN ISNULL(s.DC_NM,'') LIKE '%제주%' THEN 'E600'
+	                                  WHEN ISNULL(s.DC_NM,'') LIKE '%오산%' THEN 'E700'
+	                                  ELSE '' END AS dcKey,
+	                             REPLACE(ISNULL(s.DLV_DT,''),'-','') AS dlvKey
+	                ) dk
+	                LEFT JOIN #SLK st ON st.dlvKey = dk.dlvKey AND st.dcKey = dk.dcKey AND st.itemCd = s.ITEM_CD
+	               WHERE s.ACTION_YN = 'Y'
+	                 AND (
+	                       ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{toDt,jdbcType=VARCHAR},'') <> ''
+	                         AND ISNULL(NULLIF(dk.dlvKey,''), s.SHPOUT_DT) BETWEEN REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
+	                    OR ( ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = '' OR ISNULL(#{toDt,jdbcType=VARCHAR},'') = '' )
+	                         AND LEFT(ISNULL(NULLIF(dk.dlvKey,''), s.SHPOUT_DT),6) = REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-','') )
+	                     )
+	            ) v
+	        ) w
+	      /* ★출고미상 — 정산서에는 있는데 출고 자료에 짝이 없는 건 (2026-07-25 사용자 확정)
+	           위 블록은 출고 테이블에서 출발하므로 이 건을 구조적으로 못 잡는다. 그대로 두면
+	           매출마감이 매출내역보다 그만큼 적어져(2026-07 실측 16,640,146원) 두 화면 설명이 어려워진다.
+	           → 두 화면을 같은 정의로 통일한다 : 매출 = 정산서 청구액 + 정산서 없는 출고의 추정액.
+	           · 수량은 출고 자료가 없으므로 정산서의 출고수량(OUT_QTY)으로 대신 잡는다.
+	           · 매입액도 정산수량 × 매입단가로 추정한다 — 안 그러면 이 금액이 통째로 순마진에 얹힌다.
+	           · 사업장·매입처는 정산서에 없다 → 빈 값. 근거 배지 saleSrc='출고미상' / inSrc='추정'.
+	           · 발주현황표를 올려 출고 자료가 생기면 이 줄은 사라지고 정상 줄로 흡수된다(자동 해소).
+	           · '짝 없음' 판정은 출고 키 집합과의 LEFT JOIN — NOT EXISTS 상관 서브쿼리는 3.7초였다. */
+	      UNION ALL
+	      SELECT g.itemCd, g.itemNm, '' AS bizCd, N'(사업장 미상)' AS bizNm,
+	             g.dcKey AS dcCd, g.dcNm, '' AS vendorCd, CAST(NULL AS NVARCHAR(200)) AS vendorNm,
+	             g.stlQty AS outQty,
+	             g.stlAmt AS salesAmt,
+	             g.stlQty * ISNULL(ih2.IN_PRICE, ISNULL(pm2.IN_PRICE,0)) AS costAmt,
+	             g.stlAmt - (g.stlQty * ISNULL(ih2.IN_PRICE, ISNULL(pm2.IN_PRICE,0))) AS marginAmt,
+	             '출고미상' AS saleSrc, '추정' AS inSrc
+	        FROM #SLK g
 	        LEFT JOIN (
-	              SELECT p.PROD_CD, p.IN_PRICE, p.SALE_PRICE
+	              SELECT DISTINCT
+	                     REPLACE(ISNULL(s2.DLV_DT,''),'-','') AS dlvKey,
+	                     CASE WHEN ISNULL(s2.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s2.DC_CD)))
+	                          WHEN ISNULL(s2.DC_NM,'') LIKE '%용인%' THEN 'E100'
+	                          WHEN ISNULL(s2.DC_NM,'') LIKE '%왜관%' THEN 'E200'
+	                          WHEN ISNULL(s2.DC_NM,'') LIKE '%김해%' THEN 'E300'
+	                          WHEN ISNULL(s2.DC_NM,'') LIKE '%광주%' THEN 'E400'
+	                          WHEN ISNULL(s2.DC_NM,'') LIKE '%평택%' THEN 'E500'
+	                          WHEN ISNULL(s2.DC_NM,'') LIKE '%제주%' THEN 'E600'
+	                          WHEN ISNULL(s2.DC_NM,'') LIKE '%오산%' THEN 'E700'
+	                          ELSE '' END AS dcKey,
+	                     ISNULL(s2.ITEM_CD,'') AS itemCd
+	                FROM TBL_SHIPOUT_MST s2
+	               WHERE s2.ACTION_YN = 'Y'
+	        ) k ON k.dlvKey = g.dlvKey AND k.dcKey = g.dcKey AND k.itemCd = g.itemCd
+	        LEFT JOIN (
+	              SELECT p.PROD_CD, p.IN_PRICE
 	                FROM TBL_PROD_MST p
 	               WHERE p.ACTION_YN = 'Y'
 	                 AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
-	        ) pm ON pm.PROD_CD = s.ITEM_CD
-        -- ★단가 기준일 = 발주일자(DLV_DT). 출고일자(SHPOUT_DT) 아님.
-        --   먼 지역은 발주분을 하루 당겨 출고한다(실측: 발주 20260708 → 출고 20260707 이 15행).
-        --   출고일자로 맞추면 '적용일자(발주일) > 출고일자' 가 되어 그 발주건의 확정단가가 영영 안 걸린다.
-        --   매출 엑셀 판매단가도 APPLY_DT = 납품일자(=발주일자) 로 적재하므로 기준을 발주일자로 통일한다.
-        --   (마감 기간 귀속은 종전대로 출고일자 기준 — 아래 WHERE 절은 그대로)
-	        OUTER APPLY (
-	              SELECT TOP 1 h.SALE_PRICE
-	                FROM TBL_PROD_SALEPRICE_HST h
-	               WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.DLV_DT
-	               AND h.VENDOR_CD IS NULL   -- 공통가만. 판매처 전용가는 물류센터 출고 마감에 안 섞는다
-	               ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
-	        ) sh
+	        ) pm2 ON pm2.PROD_CD = g.itemCd
 	        OUTER APPLY (
 	              SELECT TOP 1 h.IN_PRICE
 	                FROM TBL_PROD_INPRICE_HST h
-	               WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.DLV_DT
+	               WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = g.itemCd AND h.APPLY_DT <= g.dlvKey
 	               ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
-	        ) ih
-	        CROSS APPLY (
-	              SELECT ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) AS saleUnit,
-	                     ISNULL(ih.IN_PRICE,   ISNULL(pm.IN_PRICE,0))   AS inUnit,
-	                     CASE WHEN sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc,
-	                     CASE WHEN ih.IN_PRICE   IS NOT NULL THEN '이력' ELSE '마스터' END AS inSrc
-	        ) u
-	       WHERE s.ACTION_YN = 'Y'
+	        ) ih2
+	       WHERE k.dlvKey IS NULL
 	         AND (
 	               ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{toDt,jdbcType=VARCHAR},'') <> ''
-	                 AND s.SHPOUT_DT BETWEEN REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
+	                 AND g.dlvKey BETWEEN REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
 	            OR ( ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = '' OR ISNULL(#{toDt,jdbcType=VARCHAR},'') = '' )
-	                 AND LEFT(s.SHPOUT_DT,6) = REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-','') )
+	                 AND LEFT(g.dlvKey,6) = REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-','') )
 	             )
 	    ) t
 	   GROUP BY itemCd, bizCd, dcCd, vendorCd
 	   ORDER BY MAX(bizNm), itemCd
+	]]></select>
+
+	<!-- ============================================================
+	     출고미상 — 정산서(TBL_SALES_MST)에는 있는데 출고 자료에 짝이 없는 행 (2026-07-25)
+	     · 마감(selectClosing)은 출고에서 출발하므로 이 금액이 통째로 빠진다.
+	       실측 2026-07: 113행 16,640,146원 — 그중 4행 10,946,000원은 품목 자체가 7월 출고에 없다
+	       (발주현황표 업로드 누락 의심). 나머지는 날짜(±1~3일)나 출고장 표기가 어긋난 키 불일치.
+	     · 마감 화면에서 경고로 띄워 마감 확정 전에 놓치지 않게 한다.
+	     · 대사키·기간 기준은 selectClosing 과 동일(납품일자 + 출고장 + 품목코드 / DLV_DT 귀속).
+	     ============================================================ -->
+	<select id="selectClosingUnmatched" parameterType="egovframework.sejong.user.model.ClosingDTO" resultType="egovframework.sejong.user.model.ClosingDTO"><![CDATA[
+	  SELECT sl.dlvKey AS dlvDt, sl.dcKey AS dcCd, MAX(sl.dcNm) AS dcNm,
+	         sl.itemCd AS itemCd, MAX(sl.itemNm) AS itemNm,
+	         SUM(sl.outQty) AS settleQty, SUM(sl.saleAmt) AS salesAmt
+	    FROM (
+	          SELECT REPLACE(ISNULL(m.DLV_DT,''),'-','') AS dlvKey,
+	                 CASE WHEN ISNULL(m.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(m.DC_CD)))
+	                      WHEN ISNULL(m.DC_NM,'') LIKE '%용인%' THEN 'E100'
+	                      WHEN ISNULL(m.DC_NM,'') LIKE '%왜관%' THEN 'E200'
+	                      WHEN ISNULL(m.DC_NM,'') LIKE '%김해%' THEN 'E300'
+	                      WHEN ISNULL(m.DC_NM,'') LIKE '%광주%' THEN 'E400'
+	                      WHEN ISNULL(m.DC_NM,'') LIKE '%평택%' THEN 'E500'
+	                      WHEN ISNULL(m.DC_NM,'') LIKE '%제주%' THEN 'E600'
+	                      WHEN ISNULL(m.DC_NM,'') LIKE '%오산%' THEN 'E700'
+	                      ELSE '' END AS dcKey,
+	                 ISNULL(m.ITEM_CD,'') AS itemCd, m.ITEM_NM AS itemNm, m.DC_NM AS dcNm,
+	                 ISNULL(m.OUT_QTY,0) AS outQty, ISNULL(m.SALE_AMT,0) AS saleAmt
+	            FROM TBL_SALES_MST m
+	           WHERE m.ACTION_YN = 'Y'
+	    ) sl
+	    LEFT JOIN (
+	          SELECT DISTINCT
+	                 REPLACE(ISNULL(s.DLV_DT,''),'-','') AS dlvKey,
+	                 CASE WHEN ISNULL(s.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s.DC_CD)))
+	                      WHEN ISNULL(s.DC_NM,'') LIKE '%용인%' THEN 'E100'
+	                      WHEN ISNULL(s.DC_NM,'') LIKE '%왜관%' THEN 'E200'
+	                      WHEN ISNULL(s.DC_NM,'') LIKE '%김해%' THEN 'E300'
+	                      WHEN ISNULL(s.DC_NM,'') LIKE '%광주%' THEN 'E400'
+	                      WHEN ISNULL(s.DC_NM,'') LIKE '%평택%' THEN 'E500'
+	                      WHEN ISNULL(s.DC_NM,'') LIKE '%제주%' THEN 'E600'
+	                      WHEN ISNULL(s.DC_NM,'') LIKE '%오산%' THEN 'E700'
+	                      ELSE '' END AS dcKey,
+	                 ISNULL(s.ITEM_CD,'') AS itemCd
+	            FROM TBL_SHIPOUT_MST s
+	           WHERE s.ACTION_YN = 'Y'
+	    ) k ON k.dlvKey = sl.dlvKey AND k.dcKey = sl.dcKey AND k.itemCd = sl.itemCd
+	   WHERE sl.dlvKey <> '' AND sl.dcKey <> '' AND sl.itemCd <> ''
+	     AND (
+	           ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{toDt,jdbcType=VARCHAR},'') <> ''
+	             AND sl.dlvKey BETWEEN REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
+	        OR ( ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = '' OR ISNULL(#{toDt,jdbcType=VARCHAR},'') = '' )
+	             AND LEFT(sl.dlvKey,6) = REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-','') )
+	         )
+	     /* '짝 없음' = 출고 키 집합에 없음. NOT EXISTS 상관 서브쿼리는 출고장 키가 CASE 식이라
+	        인덱스를 못 타 매번 전체 스캔이 돌았다(3.7초 → 0.05초, 2026-07-25 실측). */
+	     AND k.dlvKey IS NULL
+	   GROUP BY sl.dlvKey, sl.dcKey, sl.itemCd
+	   ORDER BY SUM(sl.saleAmt) DESC
 	]]></select>
 
 	<!-- ============================================================

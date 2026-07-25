@@ -25,9 +25,17 @@ public class ClosingDTO {
     private Double  salesAmt;   // 매출액 = Σ(출고수량 × 출고단가)
     private Double  costAmt;    // 매입액 = Σ(출고수량 × 매입단가)
     private Double  marginAmt;  // 순수마진액 = 매출액 − 매입액
-    private String  saleSrc;    // 출고단가 근거 ('이력'/'마스터')
+    private String  saleSrc;    // 매출액 근거 ('정산'/'정산안분'/'이력'/'마스터')
     private String  inSrc;      // 매입단가 근거 ('이력'/'마스터')
+    /* 출고미상(selectClosingUnmatched) 전용 — 정산서에는 있는데 출고 자료에 짝이 없는 행.
+       마감은 출고에서 출발하므로 이 금액이 통째로 빠진다. 마감 화면에서 경고로 띄운다(2026-07-25). */
+    private String  dlvDt;      // 납품일자 'yyyymmdd'
+    private Double  settleQty;  // 정산수량
 
+    public String getDlvDt() { return dlvDt; }
+    public void setDlvDt(String dlvDt) { this.dlvDt = dlvDt; }
+    public Double getSettleQty() { return settleQty; }
+    public void setSettleQty(Double settleQty) { this.settleQty = settleQty; }
     public String getYm() { return ym; }
     public void setYm(String ym) { this.ym = ym; }
     public String getFromDt() { return fromDt; }

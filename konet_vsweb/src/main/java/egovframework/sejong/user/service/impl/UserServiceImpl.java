@@ -287,6 +287,7 @@ public class UserServiceImpl implements UserService {
 
 	/* ===== 마감 집계 ===== */
 	@Override public java.util.List<egovframework.sejong.user.model.ClosingDTO> selectClosing(egovframework.sejong.user.model.ClosingDTO dto) throws Exception { return mapper.selectClosing(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.ClosingDTO> selectClosingUnmatched(egovframework.sejong.user.model.ClosingDTO dto) throws Exception { return mapper.selectClosingUnmatched(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.StockClosingDTO> selectStockClosing(egovframework.sejong.user.model.StockClosingDTO dto) throws Exception { return mapper.selectStockClosing(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.StockClosingDTO> selectInboundClosing(egovframework.sejong.user.model.StockClosingDTO dto) throws Exception { return mapper.selectInboundClosing(dto); }
 
