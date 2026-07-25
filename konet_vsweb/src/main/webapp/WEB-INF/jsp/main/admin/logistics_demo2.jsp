@@ -16,6 +16,7 @@
 </style>
 <style>
   
+  
   :root { --logi-teal:#1f9b8e; --logi-teal-dark:#178074; --logi-border:#dfe6e3; --logi-bg:#f4f8f7; }
   /* 흐린 회색 글자를 진한 색으로 (또렷하게) */
   .logi-wrap .sub, .logi-wrap .wh-meta, .logi-wrap .note,
