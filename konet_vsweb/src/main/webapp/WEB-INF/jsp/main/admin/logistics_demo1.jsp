@@ -231,8 +231,12 @@
   <div class="d2-head">
     <div>
       <h2>출고현황표 <span class="badge" id="d2ViewTag">출고장별 보기</span>
-        <span style="margin-left:12px;white-space:nowrap;display:inline-flex;gap:6px;vertical-align:middle">
-          <%-- 보기전환: 버튼 4개 → 화살표 콤보박스 하나로 변경(2026-07-24). 선택 즉시 d2SetView 호출 --%>
+        <%-- 보기전환 콤보 — 대시보드(출고장별)에서는 감추고, 출고세부조회에서는 보인다(2026-07-25 요청).
+             대시보드는 좌측 메뉴가 이미 그 보기를 정해줘 콤보가 자리만 차지했다. 반면 출고세부조회는
+             출고장별품목 ↔ 사업장별 ↔ 품목별 을 오가는 화면이라 콤보가 있어야 한다.
+             ★요소를 지우지는 않는다 — d2SetView 가 sel.value 를 읽고 쓰기 때문에 지우면 보기 전환이 깨진다.
+             표시/숨김은 d2SetView 안에서 D2_VIEW 로 판단한다. --%>
+        <span id="d2ViewSelBox" style="display:none; margin-left:12px;white-space:nowrap;gap:6px;vertical-align:middle">
           <select id="d2ViewSel" onchange="d2SetView(this.value)" title="보기 방식 선택 (출고장별 / 출고장별 품목 / 사업장별 / 품목별)"
                   style="height:34px;border:1px solid var(--bd);border-radius:8px;padding:0 30px 0 14px;font-size:13.5px;font-weight:800;cursor:pointer;color:#137a6c;background:#fff url(&quot;data:image/svg+xml;utf8,&lt;svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23137a6c' stroke-width='3'&gt;&lt;path d='M6 9l6 6 6-6'/&gt;&lt;/svg&gt;&quot;) no-repeat right 10px center;-webkit-appearance:none;-moz-appearance:none;appearance:none">
             <option value="zone">출고장별</option>
@@ -1341,6 +1345,8 @@
     D2_VIEW=(v==='biz'||v==='item'||v==='zoneitem')?v:'zone';
     // 상단 보기 콤보박스 선택 동기화 — 메뉴/외부 호출로 바뀔 때도 콤보가 따라오게(2026-07-24)
     var sel=document.getElementById('d2ViewSel'); if(sel && sel.value!==D2_VIEW) sel.value=D2_VIEW;
+    /* 콤보는 출고세부조회에서만 보인다 — 대시보드(zone)는 좌측 메뉴가 보기를 정해줘 필요 없다(2026-07-25 요청) */
+    var box=document.getElementById('d2ViewSelBox'); if(box) box.style.display=(D2_VIEW==='zone')?'none':'inline-flex';
     var t=document.getElementById('d2ViewTag'); if(t) t.textContent=(D2_VIEW==='biz'?'사업장별 보기':(D2_VIEW==='item'?'품목별 보기':(D2_VIEW==='zoneitem'?'출고장별 품목보기':'출고장별 보기')));
     // 출력 형식 셀렉터를 현재 보기와 동기화 → 상단 '일자별/합계 출력'이 현재 보기 형식으로 나감
     var pf=document.getElementById('d2PrintFmt'); if(pf){ var want=(D2_VIEW==='zone')?'zone':D2_VIEW; for(var i=0;i<pf.options.length;i++){ if(pf.options[i].value===want){ pf.value=want; break; } } }

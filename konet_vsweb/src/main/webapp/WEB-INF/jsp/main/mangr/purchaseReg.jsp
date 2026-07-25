@@ -15,11 +15,12 @@
   /* 글자 크기 한 단계 키움(2026-07-25 요청) — 기준 13 → 14px */
   .pu-wrap{ padding:16px 18px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }
   .pu-wrap h2{ margin:0 0 4px; font-size:20px; }
-  .pu-sub{ color:#6b7a89; margin-bottom:12px; font-size:12.5px; }
+  .pu-sub{ color:#1f2a37; margin-bottom:12px; font-size:12.5px; font-weight:600; }
   .pu-card{ background:#fff; border:1px solid var(--pu-bd); border-radius:10px; padding:12px; margin-bottom:12px; }
-  .pu-row{ display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:8px; }
+  /* 검색·조건줄은 한 줄로 붙인다(2026-07-25 요청). 넘치면 이 줄만 가로 스크롤 */
+  .pu-row{ display:flex; gap:8px; align-items:flex-end; flex-wrap:nowrap; overflow-x:auto; margin-bottom:8px; }
   .pu-fld{ display:flex; flex-direction:column; gap:3px; }
-  .pu-fld label{ font-size:11px; font-weight:700; color:#6b7a89; }
+  .pu-fld label{ font-size:12px; font-weight:700; color:#1f2a37; white-space:nowrap; }
   .pu-fld input, .pu-fld select{ height:32px; border:1px solid var(--pu-bd); border-radius:6px; padding:0 8px; font-size:13.5px; }
   .pu-btn{ height:32px; border:1px solid var(--pu-bd); background:#fff; border-radius:7px; padding:0 12px; cursor:pointer; font-size:13px; font-weight:700; color:#37475a; }
   .pu-btn:hover{ border-color:var(--pu-teal); }
@@ -75,7 +76,7 @@
   .pu-pop td.num{ text-align:right; }
   .pu-pop tr.pick{ cursor:pointer; }
   .pu-pop tr.pick:hover td{ background:#f3f8f6; }
-  .pu-msg{ padding:10px; color:#9aa7b3; text-align:center; font-size:12.5px; }
+  .pu-msg{ padding:10px; color:#5a6b7a; text-align:center; font-size:12.5px; }
   /* 원장 합계 — 스크롤 영역 밖에 고정 */
   .pu-lgfoot{ overflow:hidden; border:1px solid var(--pu-bd); border-top:0; border-radius:0 0 8px 8px; }
   .pu-lgfoot table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
@@ -149,7 +150,7 @@
       <button class="pu-btn" onclick="puSave()">💾 저장</button>
       <button class="pu-btn" onclick="puReload()">🔄 새로고침</button>
       <button class="pu-btn red" onclick="puDelete()">✖ 삭제하기</button>
-      <span id="puState" style="margin-left:8px; color:#6b7a89; font-size:12.5px"></span>
+      <span id="puState" style="margin-left:8px; color:#3d4d5c; font-size:12.5px"></span>
     </div>
   </div>
 
@@ -187,7 +188,7 @@
   <div class="pu-card" style="flex:0 0 460px">
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
       <b>원장</b>
-      <span style="margin-left:auto; font-size:11.5px; color:#9aa7b3">* 매출&amp;매입 거래처는 최종 잔고만 표시됩니다.</span>
+      <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a">* 매출&amp;매입 거래처는 최종 잔고만 표시됩니다.</span>
     </div>
     <div style="border:1px solid var(--pu-bd); border-radius:6px; padding:6px 8px; margin-bottom:6px; font-size:12.5px">
       <b>거래처명</b> <span id="lgVen" style="margin-left:8px">—</span>
@@ -252,7 +253,7 @@
         <table><thead><tr><th style="width:90px">거래처코드</th><th>거래처명</th><th style="width:120px">별칭</th><th style="width:100px">대표자</th><th style="width:90px">담당사원</th></tr></thead>
           <tbody id="cpBody"></tbody></table>
       </div>
-      <div style="margin-top:8px; color:#6b7a89; font-size:12.5px">거래처를 클릭하면 그 거래처·일자로 <b>새 전표</b>가 만들어집니다. 내용을 확인한 뒤 [저장]을 누르세요.</div>
+      <div style="margin-top:8px; color:#3d4d5c; font-size:12.5px">거래처를 클릭하면 그 거래처·일자로 <b>새 전표</b>가 만들어집니다. 내용을 확인한 뒤 [저장]을 누르세요.</div>
     </div>
     <div class="ft"><button class="pu-btn" onclick="puCopyClose()">닫기</button></div>
   </div>
@@ -273,7 +274,7 @@
       </table>
       <div style="display:flex; align-items:center; margin:8px 0 6px; font-size:12.5px">
         <span id="hvCnt" style="font-weight:700">[ 조회 건 수: 0/0 ]</span>
-        <span style="margin-left:auto; color:#6b7a89">최대 3년 전 단가 이력까지 볼 수 있습니다.</span>
+        <span style="margin-left:auto; color:#3d4d5c">최대 3년 전 단가 이력까지 볼 수 있습니다.</span>
       </div>
       <div style="max-height:300px; overflow:auto; border:1px solid var(--pu-bd); border-radius:6px">
         <table><thead><tr>
@@ -292,6 +293,10 @@
 
 <script>
 var CTX = '${pageContext.request.contextPath}';
+/* 명세 그리드 페이징 상태 — ★선언이 init() 아래에 있으면 첫 렌더 때 undefined 가 된다.
+     init() → puNew()/saNew() → 렌더가 '동기'로 돌아 이 줄보다 먼저 실행되기 때문.
+     실제로 합계 아래 표시가 'undefined / 5행' 으로 나왔다(2026-07-25 수정). */
+var PU_ROWS = 8, _pShown = 0, _pBound = false;
 var _rows = [];        // 명세 행
 var _list = [];        // 전표 목록
 var _vendors = [];     // 거래처 마스터
@@ -396,7 +401,7 @@ function puNextNo(){
 /* 명세 그리드도 매출내역과 같은 방식 — 8행씩 보여주고 스크롤하면 이어붙인다(2026-07-25 요청).
      · 화면에 안 그려진 행도 _rows 에 그대로 있어 저장에는 전부 들어간다(입력값 보존).
      · 편집으로 다시 그릴 때 이미 펼친 만큼(_pShown)은 유지한다 — 안 그러면 보던 줄이 접힌다. */
-var PU_ROWS = 8, _pShown = 0, _pBound = false;
+// (PU_ROWS·_pShown·_pBound 선언은 파일 위 전역 블록으로 옮겼다 — init() 보다 먼저 값이 있어야 한다)
 function puGridMore(cnt){
   if (_pShown >= _rows.length) return;
   _pShown = Math.min(_pShown + (cnt||PU_ROWS), _rows.length);
@@ -414,11 +419,11 @@ function puGridPager(){
   var el = document.getElementById('puGridPager');
   if (_pShown >= _rows.length) {
     el.innerHTML = _rows.length > PU_ROWS
-      ? '<span style="color:#9aa7b3; font-size:12.5px">총 '+_rows.length+'행 — 모두 표시됨</span>' : '';
+      ? '<span style="color:#5a6b7a; font-size:12.5px">총 '+_rows.length+'행 — 모두 표시됨</span>' : '';
     return;
   }
   el.innerHTML = '<span style="color:#5a6b7a; font-size:12.5px">'+_pShown+' / <b>'+_rows.length+'</b>행'
-    + ' <span style="color:#9aa7b3">— 아래로 스크롤하면 이어서 나옵니다</span></span>'
+    + ' <span style="color:#5a6b7a">— 아래로 스크롤하면 이어서 나옵니다</span></span>'
     + ' <button class="pu-btn" style="height:22px;margin-left:8px;font-size:12px" onclick="puGridMore('+_rows.length+')">모두 표시</button>';
 }
 function puRender(){
@@ -524,16 +529,16 @@ function puSave(){
   post('/mangr/purchaseSave.do', dto, true).then(function(r){
     return r.text().then(function(t2){ if(!r.ok) throw new Error(t2); return t2; });
   }).then(function(){ swOk('저장했습니다.'); puNew(); puLoad(); })
-    .catch(function(e){ swErr('저장에 실패했습니다.<br><span style="font-size:12.5px;color:#6b7a89">'+esc(e.message)+'</span>'); });
+    .catch(function(e){ swErr('저장에 실패했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
 }
 function puDelete(){
   if (!_cur) { swErr('목록에서 전표를 먼저 선택하세요.'); return; }
-  swConfirm('이 전표를 삭제할까요?<br><span style="font-size:13px;color:#6b7a89">재고(수불원장)에 기록된 입고도 함께 취소됩니다.</span>', null, '삭제')
+  swConfirm('이 전표를 삭제할까요?<br><span style="font-size:13px;color:#3d4d5c">재고(수불원장)에 기록된 입고도 함께 취소됩니다.</span>', null, '삭제')
     .then(function(ok){
       if(!ok) return;
       post('/mangr/purchaseDelete.do', { purchSeq:_cur.purchSeq, purchDt:_cur.purchDt, purchNo:_cur.purchNo }, true)
         .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t); }); swOk('삭제했습니다.'); puNew(); puLoad(); })
-        .catch(function(e){ swErr('삭제에 실패했습니다.<br><span style="font-size:12.5px;color:#6b7a89">'+esc(e.message)+'</span>'); });
+        .catch(function(e){ swErr('삭제에 실패했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
     });
 }
 
@@ -587,11 +592,11 @@ function puPagerRender(){
   var el = document.getElementById('puPager');
   if (_lShown >= _list.length) {
     el.innerHTML = _list.length > LIST_ROWS
-      ? '<span style="color:#9aa7b3; font-size:12.5px">총 '+_list.length+'건 — 모두 표시됨</span>' : '';
+      ? '<span style="color:#5a6b7a; font-size:12.5px">총 '+_list.length+'건 — 모두 표시됨</span>' : '';
     return;
   }
   el.innerHTML = '<span style="color:#5a6b7a; font-size:12.5px">'+_lShown+' / <b>'+_list.length+'</b>건'
-    + ' <span style="color:#9aa7b3">— 아래로 스크롤하면 이어서 나옵니다</span></span>'
+    + ' <span style="color:#5a6b7a">— 아래로 스크롤하면 이어서 나옵니다</span></span>'
     + ' <button class="pu-btn" style="height:24px;margin-left:8px;font-size:12px" onclick="puListMore('+_list.length+')">모두 표시</button>';
 }
 function fmtDt(s){ s=String(s||''); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : s; }
@@ -675,7 +680,7 @@ function puCopyPick(cd){
       '복사본 — ' + dt + ' / ' + (ven?ven.vendorNm:'') + ' · 내용 확인 후 [저장]';
     puNextNo();
     Array.prototype.forEach.call(document.querySelectorAll('#puListBody tr'), function(tr){ tr.classList.remove('on'); });
-  }).catch(function(e){ swErr('복사에 실패했습니다.<br><span style="font-size:12.5px;color:#6b7a89">'+esc(e.message)+'</span>'); });
+  }).catch(function(e){ swErr('복사에 실패했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
 }
 
 /* ── 거래처 / 상품 / 단가이력 팝업 ───────────────────── */

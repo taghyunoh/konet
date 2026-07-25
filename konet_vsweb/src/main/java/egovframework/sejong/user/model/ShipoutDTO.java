@@ -28,6 +28,7 @@ public class ShipoutDTO {
 	private String  dlvDt;         // 납기일자
 	private String  shpoutDt;      // 출고일자 — 배치·이력 복합키(DLV_DT+SHPOUT_DT) + 조회·출력 기준
 	private String  shpoutDtFrom;  // 기간조회 시작일 (조회 전용·비영속) — 값 있으면 SHPOUT_DT BETWEEN 조회
+	private String  findData;      // 출고현황이력조회 검색어(출고장명·파일명) — 조회 전용·비영속
 	private String  shpoutDtTo;    // 기간조회 종료일 (조회 전용·비영속)
 	private String  statYn;        // 상황여부
 	private String  prodKind;      // 상품종류
@@ -101,6 +102,8 @@ public class ShipoutDTO {
 	public void setDlvDt(String dlvDt) { this.dlvDt = dlvDt; }
 	public String getShpoutDt() { return shpoutDt; }
 	public void setShpoutDt(String shpoutDt) { this.shpoutDt = shpoutDt; }
+	public String getFindData() { return findData; }
+	public void setFindData(String findData) { this.findData = findData; }
 	public String getShpoutDtFrom() { return shpoutDtFrom; }
 	public void setShpoutDtFrom(String shpoutDtFrom) { this.shpoutDtFrom = shpoutDtFrom; }
 	public String getShpoutDtTo() { return shpoutDtTo; }

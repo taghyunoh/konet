@@ -38,6 +38,11 @@ public interface UserMapper {
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutPrev(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutHistory(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutHistAll(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	/* 발주현황표 업로드 이력 — 출고현황이력조회 화면 (2026-07-25). 배치 단위 집계 + 배치 명세 */
+	java.util.List<java.util.Map<String,Object>> selectSalesChart(egovframework.sejong.user.model.ClosingDTO dto) throws Exception;        /* 매출 그래프 — 월별·출고장별 (2026-07-25) */
+	java.util.List<java.util.Map<String,Object>> selectSalesChartDaily(egovframework.sejong.user.model.ClosingDTO dto) throws Exception;   /* 매출 그래프 — 일자별. 월별과 따로 둔다 */
+	java.util.List<java.util.Map<String,Object>> selectShipoutUploadHist(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectShipoutUploadDtl(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutSrcFiles() throws Exception;   // 이미 업로드(반영)된 원본 파일명 목록 — 폴더 업로드 화면 '이미 반영' 표시용
 
 	// ===== 매출(판매) 확정내역 — 출고장 제공 엑셀 업로드 저장 (TBL_SALES_MST) =====
@@ -202,4 +207,19 @@ public interface UserMapper {
 	int updateSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
 	int deleteSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectCustLedger(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+
+	/* ===== 판매등록 (TBL_SALES_TRX_MST/DTL) — 2026-07-25. 매입등록과 대칭 ===== */
+	java.util.List<egovframework.sejong.user.model.SalesTrxDTO> selectSalesTrxList(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.SalesTrxDtlDTO> selectSalesTrxDtl(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	String selectSalesTrxNextNo(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	int insertSalesTrxMst(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	int updateSalesTrxMst(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	int deleteSalesTrxMst(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	int deleteSalesTrxDtlAll(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	int insertSalesTrxDtl(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;
+	int deleteSalesTrxLedger(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	Double selectCustLastPrice(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.SalesTrxDtlDTO> selectSalesPriceHist(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;
+	/** 매출내역 화면에 얹을 판매전표 명세 — 정산서 행과 같은 모양으로 돌아온다 */
+	java.util.List<java.util.Map<String,Object>> selectSalesTrxHist(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
 }

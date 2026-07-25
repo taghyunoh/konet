@@ -900,6 +900,62 @@ public class UserController {
 			return response;
 		}
 
+		/* ===== 매출 그래프 — 월별 / 출고장별 매출액 (2026-07-25 사용자 요청) =====
+		   금액 정의는 마감현황(selectClosing)과 같다 : 정산서 + 정산서 없는 출고의 추정 + 직접판매.
+		   실측 202607 = 254,850,543 으로 마감현황과 일치함을 확인했다. */
+		@RequestMapping(value="/shipout/salesChart.do")
+		public String salesChart(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/admin/salesChart";
+		}
+		@RequestMapping(value="/shipout/selectSalesChart.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectSalesChart(@ModelAttribute("DTO") egovframework.sejong.user.model.ClosingDTO dto,
+		                                           HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectSalesChart(dto));
+			return response;
+		}
+		/** 매출 그래프(일자별) — 월별과 별도 화면·별도 쿼리. 기간은 날짜 그대로 받는다(기본 일주일) */
+		@RequestMapping(value="/shipout/salesChartDay.do")
+		public String salesChartDay(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/admin/salesChartDay";
+		}
+		@RequestMapping(value="/shipout/selectSalesChartDaily.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectSalesChartDaily(@ModelAttribute("DTO") egovframework.sejong.user.model.ClosingDTO dto,
+		                                                HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectSalesChartDaily(dto));
+			return response;
+		}
+
+		/* ===== 출고현황이력조회 — 발주현황표 엑셀 업로드 이력 (2026-07-25 사용자 요청) =====
+		   대시보드에서 엑셀을 올릴 때마다 배치(출고일자+출고장+차수)가 남는다.
+		   언제·누가·어느 파일로·몇 건을 올렸는지, 몇 차까지 다시 올렸는지를 일자별로 보여준다. */
+		@RequestMapping(value="/shipout/shipoutHist.do")
+		public String shipoutHist(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/admin/shipoutHist";
+		}
+		@RequestMapping(value="/shipout/selectShipoutUploadHist.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectShipoutUploadHist(@ModelAttribute("DTO") egovframework.sejong.user.model.ShipoutDTO dto,
+		                                                  HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectShipoutUploadHist(dto));
+			return response;
+		}
+		@RequestMapping(value="/shipout/selectShipoutUploadDtl.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectShipoutUploadDtl(@ModelAttribute("DTO") egovframework.sejong.user.model.ShipoutDTO dto,
+		                                                 HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectShipoutUploadDtl(dto));
+			return response;
+		}
+
 		/* ============================================================
 		   사업장 분류 마스터 (TBL_BIZI_MST)
 		   · 출고현황표 분류용 목록조회 + 업로드 자동등록(없을때만) + 관리화면 CRUD
@@ -1098,6 +1154,85 @@ public class UserController {
 		public Map<String,Object> purchaseLedger(@ModelAttribute("DTO") egovframework.sejong.user.model.PurchaseDTO dto, HttpSession session) throws Exception {
 			Map<String,Object> response = new HashMap<String,Object>();
 			response.put("data", svc.selectPurchaseLedger(dto));
+			return response;
+		}
+
+		/* ================= 판매등록 (TBL_SALES_TRX_MST/DTL) — 2026-07-25 =================
+		   매입등록과 대칭. 정산서(TBL_SALES_MST)와는 별개 표다 — 그쪽은 출고장 엑셀 적재표라
+		   재업로드하면 기존 행이 죽으므로 손으로 친 판매를 섞을 수 없다. */
+		@RequestMapping(value="/mangr/salesReg.do")
+		public String salesReg(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/salesReg";
+		}
+		@RequestMapping(value="/mangr/salesTrxList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesTrxList(@ModelAttribute("DTO") egovframework.sejong.user.model.SalesTrxDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectSalesTrxList(dto));
+			return response;
+		}
+		@RequestMapping(value="/mangr/salesTrxDetail.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesTrxDetail(@ModelAttribute("DTO") egovframework.sejong.user.model.SalesTrxDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectSalesTrxOne(dto));
+			return response;
+		}
+		@RequestMapping(value="/mangr/salesTrxNextNo.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesTrxNextNo(@ModelAttribute("DTO") egovframework.sejong.user.model.SalesTrxDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectSalesTrxNextNo(dto));
+			return response;
+		}
+		/** 전표 저장 — 헤더+명세를 통째로 받는다(JSON). 신규/수정 모두 이 하나로 */
+		@RequestMapping(value="/mangr/salesTrxSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> salesTrxSave(@RequestBody egovframework.sejong.user.model.SalesTrxDTO dto,
+		                                           HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getSaleDt()==null || dto.getSaleDt().trim().isEmpty()) return ResponseEntity.status(400).body("판매일자를 선택하세요.");
+				if (dto.getCustCd()==null || dto.getCustCd().trim().isEmpty()) return ResponseEntity.status(400).body("거래처를 선택하세요.");
+				if (dto.getItems()==null || dto.getItems().isEmpty()) return ResponseEntity.status(400).body("상품을 한 줄 이상 입력하세요.");
+				String u = (session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"");
+				dto.setRegUser(u); dto.setUpdUser(u);
+				dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());
+				int n = svc.saveSalesTrx(dto);
+				return ResponseEntity.ok("{\"rows\":" + n + ",\"saleSeq\":" + dto.getSaleSeq() + ",\"saleNo\":\"" + dto.getSaleNo() + "\"}");
+			} catch (Exception e) { log.error(" salesTrxSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/salesTrxDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> salesTrxDelete(@RequestBody egovframework.sejong.user.model.SalesTrxDTO dto,
+		                                             HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getSaleSeq()==null) return ResponseEntity.status(400).body("전표 키가 필요합니다.");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):""));
+				dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.deleteSalesTrx(dto)));
+			} catch (Exception e) { log.error(" salesTrxDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		/** 품목 선택 시 그 거래처의 최근 판매단가 (remark 칸에 거래처코드를 담아 보낸다) */
+		@RequestMapping(value="/mangr/salesLastPrice.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesLastPrice(@ModelAttribute("DTO") egovframework.sejong.user.model.SalesTrxDtlDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectCustLastPrice(dto));
+			return response;
+		}
+		/** 매출내역·마감현황에 얹을 판매전표 명세 — 정산서 행과 같은 모양으로 돌려준다 */
+		@RequestMapping(value="/mangr/salesTrxHist.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesTrxHist(@ModelAttribute("DTO") egovframework.sejong.user.model.SalesTrxDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectSalesTrxHist(dto));
+			return response;
+		}
+		/** 품명 클릭 → 거래처 × 상품 판매단가 이력(최대 3년) */
+		@RequestMapping(value="/mangr/salesPriceHist.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesPriceHist(@ModelAttribute("DTO") egovframework.sejong.user.model.SalesTrxDtlDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectSalesPriceHist(dto));
 			return response;
 		}
 
@@ -1465,6 +1600,15 @@ public class UserController {
 				if (dto.getProdSeq()==null) return ResponseEntity.status(400).body("PROD_SEQ 필요");
 				if (dto.getIoGb()==null || dto.getIoGb().trim().isEmpty()) return ResponseEntity.status(400).body("입출구분 필요");
 				if (dto.getQty()==null) return ResponseEntity.status(400).body("수량 필요");
+				/* 수기 수불은 조정(A)만 받는다 — 2026-07-25.
+				   입고(I)·출고(O)·반품(R)은 전표가 만든다(매입등록 PURCH / 판매등록 SALE / 발주현황표 SHIPOUT).
+				   여기로 또 들어오면 재고가 두 번 움직이고 되짚을 전표가 없다.
+				   화면 드롭다운에서도 조정만 남겼지만, 그 길은 우회가 되므로 서버에서 막는다. */
+				if (!"A".equals(dto.getIoGb()))
+					return ResponseEntity.status(400).body("수기 입력은 재고 조정(A)만 가능합니다. 입고·출고·반품은 매입등록·판매등록에서 처리하세요.");
+				if (dto.getRemark()==null || dto.getRemark().trim().isEmpty())
+					return ResponseEntity.status(400).body("조정 사유를 입력하세요.");
+				dto.setRefGb(null); dto.setRefNo(null);   // 수기 조정은 근거 전표가 없다 — 출처 칸이 '수기 조정'으로 뜬다
 				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
 				return ResponseEntity.ok(String.valueOf(svc.insertStockLedger(dto)));
 			} catch (Exception e) { log.error(" stockInsert ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }

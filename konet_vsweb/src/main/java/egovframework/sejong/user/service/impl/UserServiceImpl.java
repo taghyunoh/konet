@@ -63,6 +63,10 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutPrev(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutPrev(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutHistory(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutHistory(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutHistAll(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutHistAll(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectSalesChart(egovframework.sejong.user.model.ClosingDTO dto) throws Exception { return mapper.selectSalesChart(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectSalesChartDaily(egovframework.sejong.user.model.ClosingDTO dto) throws Exception { return mapper.selectSalesChartDaily(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectShipoutUploadHist(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutUploadHist(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectShipoutUploadDtl(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutUploadDtl(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutSrcFiles() throws Exception { return mapper.selectShipoutSrcFiles(); }
 
 	// ===== 매출(판매) 확정내역 — 출고장 제공 엑셀 업로드 저장 (TBL_SALES_MST) =====
@@ -474,4 +478,99 @@ public class UserServiceImpl implements UserService {
 	@Override public int updateSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.updateSettleTrx(dto); }
 	@Override public int deleteSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.deleteSettleTrx(dto); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectCustLedger(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectCustLedger(dto); }
+
+	/* ===== 판매등록 — 2026-07-25. savePurchase 와 대칭 =====
+	   매입은 재고가 들어오고(I), 판매는 나간다(O). 그 한 가지가 다르다.
+	   매입에 있던 '매입단가 이력 적재'는 여기 없다 — 판매단가 이력은 상품관리의
+	   판매가 탭(TBL_PROD_SALEPRICE_HST)이 따로 담당하고, 그건 정산서 밖 판매도
+	   손으로 등록할 수 있게 열어둔 칸이라 전표가 덮어쓰면 안 된다. */
+	@Override public java.util.List<egovframework.sejong.user.model.SalesTrxDTO> selectSalesTrxList(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception { return mapper.selectSalesTrxList(dto); }
+	@Override public String selectSalesTrxNextNo(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception { return mapper.selectSalesTrxNextNo(dto); }
+	@Override public Double selectCustLastPrice(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception { return mapper.selectCustLastPrice(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.SalesTrxDtlDTO> selectSalesPriceHist(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception { return mapper.selectSalesPriceHist(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectSalesTrxHist(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception { return mapper.selectSalesTrxHist(dto); }
+
+	@Override public egovframework.sejong.user.model.SalesTrxDTO selectSalesTrxOne(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception {
+		java.util.List<egovframework.sejong.user.model.SalesTrxDTO> l = mapper.selectSalesTrxList(dto);
+		egovframework.sejong.user.model.SalesTrxDTO head = null;
+		for (egovframework.sejong.user.model.SalesTrxDTO r : l) {
+			if (r.getSaleSeq()!=null && r.getSaleSeq().equals(dto.getSaleSeq())) { head = r; break; }
+		}
+		if (head == null) return null;
+		head.setItems(mapper.selectSalesTrxDtl(dto));
+		return head;
+	}
+
+	@Override public int saveSalesTrx(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception {
+		boolean isNew = (dto.getSaleSeq() == null || dto.getSaleSeq() <= 0);
+		if (isNew) {
+			if (dto.getSaleNo()==null || dto.getSaleNo().trim().isEmpty()) dto.setSaleNo(mapper.selectSalesTrxNextNo(dto));
+			mapper.insertSalesTrxMst(dto);          // useGeneratedKeys → dto.saleSeq 채워짐
+		} else {
+			// 이 전표가 만든 파생 원장·명세를 먼저 걷어낸다(전표번호는 그대로 유지)
+			mapper.deleteSalesTrxLedger(dto);
+			mapper.deleteSalesTrxDtlAll(dto);
+			mapper.updateSalesTrxMst(dto);
+		}
+		java.util.List<egovframework.sejong.user.model.SalesTrxDtlDTO> items = dto.getItems();
+		if (items == null) return 0;
+		String refNo = ym8(dto.getSaleDt()) + "-" + (dto.getSaleNo()==null?"":dto.getSaleNo());
+		int rowNo = 0;
+		for (egovframework.sejong.user.model.SalesTrxDtlDTO d : items) {
+			if (d.getProdCd()==null || d.getProdCd().trim().isEmpty()) continue;   // 빈 줄 건너뜀
+			rowNo++;
+			d.setSaleSeq(dto.getSaleSeq());
+			d.setRowNo(rowNo);
+			d.setRegUser(dto.getRegUser()); d.setRegIp(dto.getRegIp());
+			if (d.getTrxGb()==null || d.getTrxGb().trim().isEmpty()) d.setTrxGb("판매");
+
+			// 파생 재고원장 — 판매는 출고 'O', 판매반품(고객이 되돌려줌)은 'R'.
+			// ★ 부호 주의 : 집계(recalcStockMst·재고현황)가
+			//     IO_GB IN ('I','R') → +QTY,  IO_GB='O' → -QTY
+			//   로 뒤집으므로 QTY 는 둘 다 양수로 넣는다. 여기서 음수를 넣으면
+			//   판매했는데 재고가 늘어난다. (매입의 '반품'은 우리가 되돌려보내는 것이라
+			//    'R'에 음수를 넣는데, 판매반품은 방향이 반대라 양수다.)
+			// 원장 QTY 는 int 라 반올림한다(매입과 같다).
+			egovframework.sejong.user.model.StockLedgerDTO led = new egovframework.sejong.user.model.StockLedgerDTO();
+			led.setProdSeq(d.getProdSeq()); led.setProdCd(d.getProdCd());
+			led.setTrxDt(dto.getSaleDt());
+			boolean isReturn = "반품".equals(d.getTrxGb());
+			led.setIoGb(isReturn ? "R" : "O");
+			double q = d.getQty()==null ? 0d : d.getQty();
+			led.setQty((int) Math.round(Math.abs(q)));
+			led.setUnitPrice(d.getUnitPrice());
+			led.setAmt(d.getAmt());
+			led.setVendorCd(dto.getCustCd());
+			led.setRefGb("SALE"); led.setRefNo(refNo);
+			led.setRemark(d.getRemark());
+			led.setRegUser(dto.getRegUser()); led.setRegIp(dto.getRegIp());
+			mapper.insertStockLedger(led);
+			mapper.recalcStockMst(led);
+
+			mapper.insertSalesTrxDtl(d);
+
+			// ② 판매단가 이력 — 매입등록이 매입단가 이력을 쌓는 것과 대칭(2026-07-25 추가).
+			//    상품관리의 판매가 탭을 조회 전용으로 바꾸면서, 이력을 만드는 책임이 전표로 넘어왔다.
+			//    ★ vendorCd 를 함께 넣는다 = '그 거래처 전용가'로 쌓인다.
+			//      insertSaleprice 는 거래처가 비었을 때만 마스터 SALE_PRICE 를 덮으므로,
+			//      한 거래처에 싸게 판 값이 전 품목 기본 판매가를 덮어쓰는 사고가 나지 않는다.
+			if (d.getUnitPrice()!=null && d.getUnitPrice() > 0 && !"반품".equals(d.getTrxGb())) {
+				egovframework.sejong.user.model.ProdSalepriceDTO sp = new egovframework.sejong.user.model.ProdSalepriceDTO();
+				sp.setProdSeq(d.getProdSeq()); sp.setProdCd(d.getProdCd());
+				sp.setVendorCd(dto.getCustCd()); sp.setVendorNm(dto.getCustNm());
+				sp.setApplyDt(dto.getSaleDt()); sp.setSalePrice(d.getUnitPrice());
+				sp.setRemark("판매등록 " + refNo);
+				sp.setRegUser(dto.getRegUser()); sp.setRegIp(dto.getRegIp());
+				try { insertSaleprice(sp); }
+				catch (Exception ignore) { LOGGER.warn("판매단가 이력 적재 건너뜀 : " + d.getProdCd() + " / " + ignore.getMessage()); }
+			}
+		}
+		return rowNo;
+	}
+
+	@Override public int deleteSalesTrx(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception {
+		mapper.deleteSalesTrxLedger(dto);
+		mapper.deleteSalesTrxDtlAll(dto);
+		return mapper.deleteSalesTrxMst(dto);
+	}
 }

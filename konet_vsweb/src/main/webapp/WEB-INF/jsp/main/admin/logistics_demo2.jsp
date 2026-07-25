@@ -483,12 +483,17 @@
   function _srcBadge(map){
     var keys=Object.keys(map||{}); if(!keys.length) return '';
     var txt=(keys.indexOf('마스터')>=0 && keys.indexOf('이력')>=0) ? '이력+마스터' : keys[0];
-    var col= (txt==='출고미상') ? '#c0392b'
+    var col= (txt==='출고미상' || txt==='매입가없음') ? '#c0392b'
            : (txt.indexOf('정산')===0) ? '#1a73c7'
+           : txt==='전표' ? '#1a73c7'
            : txt==='이력' ? '#137a6c' : (txt==='마스터' ? '#a85700' : '#7f8c9a');
     var tip= (txt==='정산')     ? '정산서 금액 그대로'
            : (txt==='정산안분') ? '정산서 금액을 사업장별 출고수량 비율로 안분'
            : (txt==='출고미상') ? '정산서에는 있는데 출고 자료가 없는 건 — 수량·매입액은 정산서 기준 추정입니다. 발주현황표를 올리면 정상 줄로 흡수됩니다.'
+           : (txt==='전표')     ? '판매등록으로 직접 입력한 매출(정산서 밖 직접판매)'
+           /* 매입단가를 어디서도 못 찾은 건 — 종전엔 '마스터'로 뭉뚱그려져 값을 찾은 것처럼 보였다.
+              매입액이 0으로 잡혀 마진율이 100%로 뜨므로 반드시 눈에 띄어야 한다(2026-07-25). */
+           : (txt==='매입가없음') ? '이 품목의 매입단가가 상품마스터에도 이력에도 없습니다.\n매입액이 0으로 잡혀 순마진·마진율이 실제보다 크게 나옵니다. 매입등록을 하거나 상품마스터 매입가를 채워 주세요.'
            : (txt==='추정')     ? '출고 자료가 없어 정산수량 × 매입단가로 추정한 매입액'
            : '정산서 미도착 — 판매단가로 계산한 추정치';
     return ' <span style="font-size:11px;font-weight:700;color:'+col+'" title="'+tip+'">('+txt+')</span>';
@@ -3653,6 +3658,9 @@
        성격: 행 대 행이 아니라 **합계 대 합계**.
          정산서 105행 → 103키 / 출고 1145행 → 888키 (출고는 사업장이 자동 합산된다) */
   function _ohKey(o){
+    /* 판매전표(직접판매)는 대사 대상이 아니다 — 출고장 발주현황표에 짝이 있을 수 없다.
+       키를 안 만들어야 '출고미상'(정산엔 있는데 출고가 없음)으로 오분류되지 않는다(2026-07-25). */
+    if(o && o.trxYn==='Y') return '';
     var d=_ohYmd(o&&o.dlvDt), dc=_ohDcOf(o), it=(''+((o&&o.itemCd)||'')).trim();
     return (d&&dc&&it) ? (d+'|'+dc+'|'+it) : '';   // 셋 중 하나라도 비면 키가 안 선다(실측 0건)
   }
@@ -3722,9 +3730,16 @@
     var pShip = (f && t)
       ? post('/shipout/selectShipoutMst.do', 'shpoutDtFrom='+encodeURIComponent(_ohShift(f,-OH_WIN))+'&shpoutDtTo='+encodeURIComponent(_ohShift(t,OH_WIN)))
       : post('/shipout/selectShipoutMst.do', '');
-    Promise.all([pSales, pShip]).then(function(a){
+    /* 판매전표(직접판매) — 정산서 밖에서 직접 판 건. 서버가 정산서 행과 같은 모양으로 준다(2026-07-25 요청).
+       출고장이 아니라 '직접판매(전표)' 라는 별도 묶음으로 서고, trxYn='Y' 표시가 붙어 온다.
+       그 표시가 있으면 _ohKey 가 대사키를 만들지 않는다 — 출고 자료에 짝이 있을 수 없어서
+       그냥 넣으면 전부 '출고미상'(빨간 경고)으로 잡히기 때문. */
+    var pTrx=post('/mangr/salesTrxHist.do',
+      'fromDt='+encodeURIComponent(f)+'&toDt='+encodeURIComponent(t)+'&findData='+encodeURIComponent(ic))
+      .catch(function(){ return []; });
+    Promise.all([pSales, pShip, pTrx]).then(function(a){
       var fY=_ohYmd(f), tY=_ohYmd(t), icQ=ic.toLowerCase();
-      _ohSalesAll=a[0]||[];
+      _ohSalesAll=(a[0]||[]).concat(a[2]||[]);
       _ohShipAll=(a[1]||[]).filter(function(r){
         var d=_ohYmd(r.dlvDt)||_ohYmd(r.shpoutDt);
         if(fY && tY && (d<fY || d>tY)) return false;
@@ -3757,6 +3772,7 @@
     };
     _ohSales.forEach(function(r){
       var g=pick(r, r.dcNm); g.sRows++; g.sQty+=(+r.outQty||0); g.sAmt+=(+r.saleAmt||0);
+      if(r.trxYn==="Y") g.trx=true;   // 직접판매 묶음 표시 — 대사 대상이 아니라는 뜻
       var kk=_ohKey(r); if(kk) g.sKeys[kk]=1;
       var it=item(g, r.itemCd, r.itemNm); it.sQty+=(+r.outQty||0); it.sAmt+=(+r.saleAmt||0);
       if(it.price==null && r.salePrice!=null) it.price=+r.salePrice;
@@ -3801,7 +3817,8 @@
       if(nm) D.m[k].raw[nm]=1;
       return D.m[k];
     };
-    _ohSales.forEach(function(r){ var g=pick(r, r.dcNm); g.sRows++; g.sQty+=(+r.outQty||0); g.sAmt+=(+r.saleAmt||0); var kk=_ohKey(r); if(kk) g.sKeys[kk]=1; });
+    _ohSales.forEach(function(r){ var g=pick(r, r.dcNm); g.sRows++; g.sQty+=(+r.outQty||0); g.sAmt+=(+r.saleAmt||0);
+      if(r.trxYn==='Y') g.trx=true; var kk=_ohKey(r); if(kk) g.sKeys[kk]=1; });
     _ohShip.forEach(function(r){ var g=pick(r, r.dcNm); g.oRows++; g.oQty+=(+r.curQty||0); var kk=_ohKey(r); if(kk) g.oKeys[kk]=1;
       if(!kk || !g.sKeys[kk]){ var q=(+r.curQty||0); g.eQty+=q; g.eAmt+=q*(+r.saleUnit||0); }   // 미정산 = 추정매출(위 _ohRoll 과 같은 규칙)
     });
@@ -3907,16 +3924,24 @@
       sum.innerHTML=_ohSrcChip()+'조회된 자료가 없습니다. (정산 엑셀 저장분·발주현황표 출고 모두 없음)';
       wrap.innerHTML=''; wrap._lz=null; if(pg) pg.innerHTML=''; return;   // 남아있던 '더 붙일 행'도 함께 버린다
     }
-    var sQ=0,sA=0,oQ=0,noKey=0;
-    _ohSales.forEach(function(r){ sQ+=(+r.outQty||0); sA+=(+r.saleAmt||0); });
+    /* sQ/sA = 정산수량·정산금액(직접판매 포함).
+       tQ/tA = 그중 직접판매(전표)분. 수량차이는 대사 대상만 봐야 하므로 sQ 에서 tQ 를 뺀 값으로 잰다
+       — 안 그러면 전표를 넣는 순간 없던 '수량차이'가 생긴 것처럼 보인다(2026-07-25). */
+    var sQ=0,sA=0,oQ=0,noKey=0,tQ=0,tA=0,tRows=0;
+    _ohSales.forEach(function(r){
+      sQ+=(+r.outQty||0); sA+=(+r.saleAmt||0);
+      if(r.trxYn==='Y'){ tQ+=(+r.outQty||0); tA+=(+r.saleAmt||0); tRows++; }
+    });
     _ohShip.forEach(function(r){ oQ+=(+r.curQty||0); if(!_ohKey(r)) noKey++; });
+    var gapQ = oQ - (sQ - tQ);   // 대사용 수량차이 — 직접판매는 빼고 잰다
     var G=_ohRoll();
     var eA=0; G.forEach(function(g){ eA+=(+g.eAmt||0); });   // 정산서 안 온 출고의 추정매출 합
     sum.innerHTML=_ohSrcChip()+'출고장 <b>'+G.length+'</b>곳 · 출고내역 <b>'+_ohShip.length.toLocaleString()+'</b>행/<b>'+_ohQ(oQ)+'</b>'
       +' · 정산 <b>'+_ohSales.length.toLocaleString()+'</b>행/<b>'+_ohQ(sQ)+'</b>'
       +' · <span style="color:#137a6c">정산금액 <b>'+_cnum(sA+eA)+'</b></span>'
       +(eA?' <span style="color:#a85700" title="정산서가 아직 안 온 출고를 판매단가(마감관리와 같은 규칙)로 채운 금액입니다.">(정산 '+_cnum(sA)+' + 추정 '+_cnum(eA)+')</span>':'')
-      +(Math.abs(oQ-sQ)>1e-6 ? ' · <span class="oh-gap">수량차이 '+_ohQ(oQ-sQ)+'</span>' : ' · <span class="oh-ok">수량 일치</span>')
+      +(tRows ? ' · <span style="color:#1a73c7;font-weight:700" title="판매등록으로 직접 입력한 매출. 출고장 대사 대상이 아니라 수량차이 계산에서 빠집니다.">직접판매 '+tRows.toLocaleString()+'행/'+_cnum(tA)+'</span>' : '')
+      +(Math.abs(gapQ)>1e-6 ? ' · <span class="oh-gap">수량차이 '+_ohQ(gapQ)+'</span>' : ' · <span class="oh-ok">수량 일치</span>')
       // 짝 없는 대사키 — 수량이 상쇄돼 '일치'로 보일 수 있으므로 건수를 따로 띄운다
       +(function(){ var so=0,oo=0; G.forEach(function(g){ so+=g.sOnly; oo+=g.oOnly; });
           return (oo?' · <span style="color:#c0392b;font-weight:700" title="보냈는데 정산서에 없는 품목(청구 누락 후보)">미정산 '+oo+'품목</span>':'')
@@ -3933,6 +3958,9 @@
 
   // 개별 출고장 상태 뱃지 — ①탭 1·2단 공용
   function _ohStBadge(g){
+    /* 직접판매(판매등록 전표)는 출고장 발주현황표와 맞출 대상이 아니다.
+       출고내역이 없는 게 정상이라 '출고내역 없음'·'출고미상' 을 띄우면 오해를 부른다(2026-07-25). */
+    if(g.trx) return '<span class="badge b-done" title="판매등록으로 직접 입력한 매출입니다.&#10;출고장 발주현황표와 대사하는 대상이 아니라 수량차이·출고미상이 잡히지 않습니다.">전표</span>';
     var gap=g.oQty-g.sQty, ok=Math.abs(gap)<1e-6;
     // ★수량 합계만 보면 안 된다 — '정산에만 5개 + 출고에만 5개' 가 상쇄돼 차이 0 이 될 수 있다.
     //   짝 없는 대사키가 하나라도 있으면 '일치'로 부르지 않는다.
@@ -3973,9 +4001,13 @@
   // 숫자 칸 8개(출고건수~정산금액) — ①탭 1·2단 공용
   function _ohDcCells(o){
     var gap=o.oQty-o.sQty, ok=Math.abs(gap)<1e-6, aq=_ohAmtQ(o);
+    // 직접판매는 출고 짝이 없는 게 정상 — 수량차이를 숫자로 띄우면 어긋난 것처럼 보인다
+    var gapCell = o.trx
+      ? '<td style="text-align:right;color:#9aa7b3" title="직접판매 전표라 대사 대상이 아닙니다">—</td>'
+      : '<td style="text-align:right" class="'+(ok?'oh-ok':'oh-gap')+'">'+_ohQ(gap)+'</td>';
     return '<td style="text-align:right">'+o.oRows.toLocaleString()+'</td><td style="text-align:right">'+_ohQ(o.oQty)+'</td>'
       +'<td style="text-align:right">'+o.sRows.toLocaleString()+'</td><td style="text-align:right">'+_ohQ(o.sQty)+'</td>'
-      +'<td style="text-align:right" class="'+(ok?'oh-ok':'oh-gap')+'">'+_ohQ(gap)+'</td>'
+      +gapCell
       +'<td style="text-align:right">'+(aq?_cnum(_ohAmt(o)/aq):'')+'</td>'
       +_ohAmtCell(o,true);
   }
@@ -3991,11 +4023,12 @@
         +'<th style="text-align:right">수량차이</th><th style="text-align:right">평균단가</th>'
         +'<th style="text-align:right" title="정산서 금액 + 정산서가 안 온 출고의 추정매출(판매단가). 추정이 섞인 줄에는 &quot;추정&quot; 표시가 붙습니다.">정산금액(받을 금액)</th><th>상태</th></tr></thead><tbody>';
     var T={ sAmt:0, eAmt:0, sQty:sQ, eQty:0 };   // 총합계 줄도 개별 줄과 같은 셀 함수를 쓴다
-    G.forEach(function(g){ T.sAmt+=(+g.sAmt||0); T.eAmt+=(+g.eAmt||0); T.eQty+=(+g.eQty||0); });
+    var tQ2=0;                                    // 직접판매 정산수량 — 총합계 수량차이에서 뺀다
+    G.forEach(function(g){ T.sAmt+=(+g.sAmt||0); T.eAmt+=(+g.eAmt||0); T.eQty+=(+g.eQty||0); if(g.trx) tQ2+=(+g.sQty||0); });
     h+='<tr class="close-total"><td>■ 총합계</td>'
       +'<td style="text-align:right">'+_ohShip.length.toLocaleString()+'</td><td style="text-align:right">'+_ohQ(oQ)+'</td>'
       +'<td style="text-align:right">'+_ohSales.length.toLocaleString()+'</td><td style="text-align:right">'+_ohQ(sQ)+'</td>'
-      +'<td style="text-align:right">'+_ohQ(oQ-sQ)+'</td>'
+      +'<td style="text-align:right">'+_ohQ(oQ-(sQ-tQ2))+'</td>'
       +'<td style="text-align:right">'+(_ohAmtQ(T)?_cnum(_ohAmt(T)/_ohAmtQ(T)):'')+'</td>'
       +_ohAmtCell(T,true)+'<td></td></tr>';
     // 지역명 → 대시보드 그룹 (KONET_DC_R 로 코드 환원 후 CLOSE_DCGROUP 조회 — 매핑 원천 재사용)
@@ -4007,6 +4040,7 @@
       var gg=GM[lbl]; if(!gg){ gg=GM[lbl]={ label:lbl, kids:[], oRows:0, oQty:0, sRows:0, sQty:0, sAmt:0, eQty:0, eAmt:0, sOnly:0, oOnly:0 }; GL.push(gg); }
       gg.kids.push(g); gg.oRows+=g.oRows; gg.oQty+=g.oQty; gg.sRows+=g.sRows; gg.sQty+=g.sQty; gg.sAmt+=g.sAmt;
       gg.eQty+=(+g.eQty||0); gg.eAmt+=(+g.eAmt||0); gg.sOnly+=g.sOnly; gg.oOnly+=g.oOnly;
+      if(g.trx) gg.trx=true;   // 묶음 머리행도 '전표' 로 — 하위가 직접판매면 대사 대상이 아니다
     });
     GL.sort(function(a,b){ return a.label.localeCompare(b.label,'ko'); });
     // 줄 전체가 아니라 '상태' 칸을 눌렀을 때만 ②탭으로 이동한다(2026-07-22 요청) — 실수 이동 방지
@@ -4462,6 +4496,9 @@
      <%-- 출고세부조회: 출고장별 품목·사업장별·품목별을 한 화면 3탭으로 통합(2026-07-24).
           서브메뉴 3개 → 단일 메뉴. 탭 전환은 iframe(logistics_demo1) 상단 뷰버튼(zoneitem/biz/item). --%>
      <a class="mi" data-key="shipstatus2" onclick="logiShipView('zoneitem', this)"><span class="ic">🚚</span>출고세부조회</a>
+     <%-- 출고현황이력조회(2026-07-25 요청) — 발주현황표 엑셀을 언제·누가·몇 차로 올렸는지와 그 발생내역.
+          업로드가 배치(출고일자+출고장+차수)로 남으므로 그 흐름을 일자별로 보여준다. --%>
+     <a class="mi" data-key="shipouthist" onclick="logiFrame('shipouthist','${pageContext.request.contextPath}/shipout/shipoutHist.do', this)"><span class="ic">🗂️</span>출고현황이력조회</a>
 
     <%-- 메뉴 배열 = 홀세일닥터 구조에 맞춤(2026-07-25 요청).
          업무 단위(매출/매입/재고)로 묶고 그 안에 등록·정산·마감을 함께 둔다.
@@ -4471,6 +4508,7 @@
     <a class="mi has-sub" data-sub="salesmng" onclick="logiToggleSub('salesmng', this)"><span class="ic">💰</span>매출 관리<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-salesmng">
       <a class="mi" data-key="outHist" onclick="logiGo('outHist', this); ohEnter();"><span class="ic">📤</span>매출내역</a>
+      <a class="mi" data-key="salesreg" onclick="logiFrame('salesreg','${pageContext.request.contextPath}/mangr/salesReg.do', this)"><span class="ic">🧾</span>판매 등록</a>
       <a class="mi" data-key="rcvreg" onclick="logiFrame('rcvreg','${pageContext.request.contextPath}/mangr/rcvReg.do', this)"><span class="ic">🧾</span>수금 등록</a>
       <%-- 수금 / 미수금(월 단위, TBL_RECEIVE_MST) 메뉴 내림 : 2026-07-25.
            '수금 등록'(건별 전표)이 같은 일을 하고 원장의 [월 계] 로 월 합계까지 나온다.
@@ -4504,6 +4542,14 @@
     <a class="mi has-sub" data-sub="infomng" onclick="logiToggleSub('infomng', this)"><span class="ic">📈</span>정보 현황<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-infomng">
       <a class="mi" data-key="closeStatus" onclick="logiGo('closeStatus', this)"><span class="ic">📊</span>마감현황(월계표)</a>
+      <%-- 매출 그래프(2026-07-25 요청) — 출고장별·월별 매출액.
+           금액 정의를 마감현황(selectClosing)과 같게 맞췄다(실측 202607 = 254,850,543 일치).
+           마감현황 화면에 끼워 넣지 않고 따로 둔 이유 : 마감현황은 '한 달'을 보는 표라
+           12개월 추이가 어색하고, 표가 이미 빽빽해 차트를 얹을 자리가 없다. --%>
+      <a class="mi" data-key="saleschart" onclick="logiFrame('saleschart','${pageContext.request.contextPath}/shipout/salesChart.do', this)"><span class="ic">📈</span>매출 그래프(월별)</a>
+      <%-- 일자별은 화면·쿼리를 따로 둔다(2026-07-25 지시) — 합치면 월별이 일자 단위 자료를 받아
+           무거워지고 '기간'의 뜻도 달라진다. 일자별 기본 조회기간은 일주일. --%>
+      <a class="mi" data-key="saleschartday" onclick="logiFrame('saleschartday','${pageContext.request.contextPath}/shipout/salesChartDay.do', this)"><span class="ic">🗓️</span>매출 그래프(일자별)</a>
       <a class="mi" data-key="closeHist"   onclick="logiGo('closeHist', this); closeHistLoad();"><span class="ic">📅</span>월별 마감이력</a>
     </div>
 
@@ -4532,7 +4578,7 @@
       <a class="mi" onclick="swAlert('견적서 목록/조회는 향후 추진 예정입니다.','info')"><span class="ic">📋</span>견적서 목록/조회</a>
       <a class="mi" onclick="swAlert('견적서 출력(PDF/엑셀)은 향후 추진 예정입니다.','info')"><span class="ic">🖨️</span>견적서 출력</a>
     </div>
-    <a class="mi has-sub" data-sub="kakao" onclick="logiToggleSub('kakao', this)"><span class="ic">💬</span>카카오톡문자관리 <span style="font-size:10px;color:#9aa7b3">(협의후 예정)</span><span class="caret">▶</span></a>
+    <a class="mi has-sub" data-sub="kakao" onclick="logiToggleSub('kakao', this)"><span class="ic">💬</span>카카오톡관리 <span style="font-size:10px;color:#9aa7b3">(협의후 예정)</span><span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-kakao">
       <a class="mi" onclick="swAlert('카카오톡/문자 발송은 협의 후 추진 예정입니다.','info')"><span class="ic">📨</span>메시지 발송</a>
       <a class="mi" onclick="swAlert('발송 이력 조회는 협의 후 추진 예정입니다.','info')"><span class="ic">📜</span>발송 이력</a>
@@ -5449,6 +5495,24 @@
     <!-- ===== 수금등록 (2026-07-25) ===== -->
     <section id="panel-rcvreg" class="panel" style="padding:0;">
       <iframe id="if-rcvreg" src="" title="수금등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+
+    <!-- ===== 판매등록 (2026-07-25) ===== -->
+    <section id="panel-salesreg" class="panel" style="padding:0;">
+      <iframe id="if-salesreg" src="" title="판매등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+
+    <!-- ===== 출고현황이력조회 (2026-07-25) ===== -->
+    <section id="panel-shipouthist" class="panel" style="padding:0;">
+      <iframe id="if-shipouthist" src="" title="출고현황이력조회" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+
+    <!-- ===== 매출 그래프 — 월별 / 일자별 (2026-07-25) ===== -->
+    <section id="panel-saleschart" class="panel" style="padding:0;">
+      <iframe id="if-saleschart" src="" title="매출 그래프(월별)" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <section id="panel-saleschartday" class="panel" style="padding:0;">
+      <iframe id="if-saleschartday" src="" title="매출 그래프(일자별)" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
 
     <!-- 시스템관리 — 자체완결 화면을 iframe으로 사이드메뉴 우측에 종속 -->

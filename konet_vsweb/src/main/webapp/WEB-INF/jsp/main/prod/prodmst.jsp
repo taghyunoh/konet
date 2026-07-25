@@ -226,58 +226,46 @@
       <button class="tab"    id="tab_stock" onclick="hvTab('stock')">📦 재고(수불)</button>
     </div>
     <div class="mb2">
-      <!-- 매입가 -->
+      <%-- 매입가 — 조회 전용 (2026-07-25 변경)
+           매입등록 전표를 저장하면 UserServiceImpl.savePurchase() 가 같은 경로
+           (insertInprice + syncProdInPrice)로 이력을 쌓고 마스터 IN_PRICE 까지 맞춘다.
+           여기서 수기로 또 넣으면 전표 없는 이력이 생겨 매입등록의 단가이력과 어긋나므로
+           입력줄과 행별 삭제를 걷어냈다. 이력은 전표에서만 만들어진다.
+           (변경 시점 기준 살아있는 66건 전부 '매입등록 전표'출처, 수기분 0건 — 잃은 데이터 없음)
+           서버의 /prod/inpriceInsert.do · /prod/inpriceDelete.do 는 그대로 두었다.
+           판매가는 반대다 : 정산서 밖에서 파는 건이 있어 수기 등록을 남긴다. --%>
       <div class="panel" id="p_in">
-        <div class="subbar">
-          <div class="fld"><label>적용일</label><input type="date" id="in_dt"></div>
-          <div class="fld"><label>매입처</label>
-            <div class="vsel" id="in_vendor_box">
-              <input type="hidden" id="in_vendor">
-              <button type="button" class="vsel-btn empty" id="in_vendor_btn" onclick="vselOpen('in_vendor')" title="클릭 후 검색해서 선택 (거래처 마스터의 매입 거래처)">(선택)</button>
-              <div class="vsel-dd" id="in_vendor_dd">
-                <input type="text" class="q" id="in_vendor_q" placeholder="🔎 이름·코드 찾기" autocomplete="off" oninput="vselFilter('in_vendor')" onkeydown="vselKey(event,'in_vendor')">
-                <div class="vsel-list" id="in_vendor_list"></div>
-              </div>
-            </div></div>
-          <div class="fld"><label>매입단가</label><input type="number" id="in_price" step="0.01" style="width:110px" value="0"></div>
-          <div class="fld"><label>비고</label><input type="text" id="in_remark" style="width:180px"></div>
-          <button class="btn btn-teal" onclick="hvAddIn()">＋ 추가</button>
+        <div class="subbar" style="color:#6b7a89; font-size:12.5px">
+          🔒 매입단가는 <b>매입등록</b> 전표에서 자동으로 쌓입니다. 이 화면은 조회 전용입니다.
         </div>
         <div class="tbwrap">
         <table>
-          <thead><tr><th>적용일</th><th>매입처</th><th style="text-align:right">매입단가</th><th style="text-align:right">직전가</th><th>비고</th><th>등록</th><th style="width:56px"></th></tr></thead>
-          <tbody id="in_tb"><tr><td colspan="7" class="empty">-</td></tr></tbody>
+          <thead><tr><th>적용일</th><th>매입처</th><th style="text-align:right">매입단가</th><th style="text-align:right">직전가</th><th>비고</th><th>등록</th></tr></thead>
+          <tbody id="in_tb"><tr><td colspan="6" class="empty">-</td></tr></tbody>
         </table>
         </div>
       </div>
-      <!-- 판매가 -->
+      <%-- 판매가 — 조회 전용 (2026-07-25 변경. 매입가 탭과 같은 처리)
+           판매등록 전표를 저장하면 saveSalesTrx() 가 판매단가 이력을 쌓는다(그 거래처 전용가).
+           정산서(매출 엑셀) 업로드도 mergeSalepriceFromSales 로 이력을 쌓는다.
+           수기로 또 넣으면 어느 값이 맞는지 알 수 없어 입력줄과 행별 삭제를 걷어냈다.
+           ※ 종전에는 '정산서 밖 판매를 등록할 데가 없다'는 이유로 열어뒀는데,
+              그 자리를 판매등록이 대신하게 되어 닫는다.
+           서버의 /prod/salepriceInsert.do · /prod/salepriceDelete.do 는 그대로 두었다. --%>
       <div class="panel" id="p_sale" style="display:none">
-        <div class="subbar">
-          <div class="fld"><label>적용일</label><input type="date" id="sl_dt"></div>
-          <div class="fld"><label>판매처 <span style="color:#9aa7b3;font-weight:400">(비우면 공통가)</span></label>
-            <div class="vsel" id="sl_vendor_box">
-              <input type="hidden" id="sl_vendor">
-              <button type="button" class="vsel-btn empty" id="sl_vendor_btn" onclick="vselOpen('sl_vendor')" title="거래처 마스터의 매출 거래처 — 비우면 공통(기본) 판매가, 선택하면 그 판매처 전용가">(공통가)</button>
-              <div class="vsel-dd" id="sl_vendor_dd">
-                <input type="text" class="q" id="sl_vendor_q" placeholder="🔎 이름·코드 찾기" autocomplete="off" oninput="vselFilter('sl_vendor')" onkeydown="vselKey(event,'sl_vendor')">
-                <div class="vsel-list" id="sl_vendor_list"></div>
-              </div>
-            </div></div>
-          <div class="fld"><label>판매단가</label><input type="number" id="sl_price" step="0.01" style="width:110px" value="0"></div>
-          <div class="fld"><label>도매단가</label><input type="number" id="sl_whole" step="0.01" style="width:110px" value="0"></div>
-          <div class="fld"><label>비고</label><input type="text" id="sl_remark" style="width:180px"></div>
-          <button class="btn btn-teal" onclick="hvAddSale()">＋ 추가</button>
+        <div class="subbar" style="color:#6b7a89; font-size:12.5px">
+          🔒 판매단가는 <b>판매등록</b> 전표와 <b>정산서 업로드</b>에서 자동으로 쌓입니다. 이 화면은 조회 전용입니다.
         </div>
         <div class="tbwrap">
         <table>
-          <thead><tr><th>적용일</th><th>판매처</th><th style="text-align:right">판매가</th><th style="text-align:right">도매가</th><th style="text-align:right">기준매입</th><th style="text-align:right">마진율</th><th>비고</th><th>등록</th><th style="width:56px"></th></tr></thead>
-          <tbody id="sl_tb"><tr><td colspan="9" class="empty">-</td></tr></tbody>
+          <thead><tr><th>적용일</th><th>판매처</th><th style="text-align:right">판매가</th><th style="text-align:right">도매가</th><th style="text-align:right">기준매입</th><th style="text-align:right">마진율</th><th>비고</th><th>등록</th></tr></thead>
+          <tbody id="sl_tb"><tr><td colspan="8" class="empty">-</td></tr></tbody>
         </table>
         </div>
       </div>
       <!-- 매출단가(조회) — 매출 확정내역(TBL_SALES_MST, 발주서 업로드분)의 실제 판매단가. 조회 전용 -->
       <div class="panel" id="p_sales" style="display:none">
-        <div class="stockhdr" id="ss_hdr">매출 확정내역(발주서 업로드분)의 실제 판매단가 — 조회 전용. 입력·삭제는 견적서관리 ▸ 매출 엑셀 업로드에서.</div>
+        <div class="stockhdr" id="ss_hdr">매출 확정내역(발주서 업로드분)의 실제 판매단가 — 조회 전용</div>
         <div class="tbwrap">
         <table>
           <thead><tr><th>납품일자</th><th>출고장</th><th>발주번호</th><th style="text-align:right">판매단가</th><th style="text-align:right">출고량</th><th style="text-align:right">매출액</th><th>원본파일</th></tr></thead>
@@ -288,32 +276,29 @@
       <!-- 재고 -->
       <div class="panel" id="p_stock" style="display:none">
         <div class="stockhdr" id="st_hdr">현재고 정보 없음</div>
+        <%-- 수불 입력 = 조정(±) 전용 (2026-07-25 변경)
+             입고·출고·반품은 전표가 만든다 : 매입등록 → REF_GB='PURCH'(I) / 판매등록 → 'SALE'(O)
+             / 발주현황표 업로드 → 'SHIPOUT'(O). 여기서 또 넣으면 재고가 두 번 움직인다.
+             조정만 남긴 이유 : 실사에서 장부와 실물이 어긋났을 때 맞출 전표가 따로 없다.
+             (변경 시점 재고원장 : PURCH 5건 · SHIPOUT 2,220건 · 수기 0건 — 잃은 데이터 없음) --%>
         <div class="subbar">
           <div class="fld"><label>거래일</label><input type="date" id="st_dt"></div>
           <div class="fld"><label>구분</label>
             <select id="st_io" onchange="hvStockPrefill(true)">
-              <option value="I">입고(+)</option><option value="O">출고(-)</option>
-              <option value="R">반품(+)</option><option value="A">조정(±)</option>
+              <option value="A">조정(±)</option>
             </select>
           </div>
-          <div class="fld"><label>수량</label><input type="number" id="st_qty" style="width:90px" value="0" oninput="hvStockPrefill(false)"></div>
+          <div class="fld"><label>수량 <span style="color:#9aa7b3;font-weight:400">(늘리면 +, 줄이면 −)</span></label><input type="number" id="st_qty" style="width:110px" value="0" oninput="hvStockPrefill(false)"></div>
           <div class="fld"><label>단가 <span style="color:#9aa7b3;font-weight:400">(자동·수정가능)</span></label><input type="number" id="st_price" step="0.01" style="width:110px" value="0" title="품목 입고가 자동표시 · 수정 가능"></div>
-          <div class="fld"><label>매입처</label>
-            <div class="vsel" id="st_vendor_box">
-              <input type="hidden" id="st_vendor">
-              <button type="button" class="vsel-btn empty" id="st_vendor_btn" onclick="vselOpen('st_vendor')" title="클릭 후 검색해서 선택 (거래처 마스터의 매입 거래처 — 입고 시)">(선택)</button>
-              <div class="vsel-dd" id="st_vendor_dd">
-                <input type="text" class="q" id="st_vendor_q" placeholder="🔎 이름·코드 찾기" autocomplete="off" oninput="vselFilter('st_vendor')" onkeydown="vselKey(event,'st_vendor')">
-                <div class="vsel-list" id="st_vendor_list"></div>
-              </div>
-            </div></div>
-          <div class="fld"><label>비고</label><input type="text" id="st_remark" style="width:150px"></div>
-          <button class="btn btn-teal" onclick="hvAddStock()">＋ 추가</button>
+          <div class="fld"><label>사유 <span style="color:#c0392b;font-weight:400">필수</span></label><input type="text" id="st_remark" style="width:230px" placeholder="예) 실사 차이 · 파손 폐기"></div>
+          <input type="hidden" id="st_vendor">
+          <button class="btn btn-teal" onclick="hvAddStock()">＋ 조정 추가</button>
+          <span style="color:#6b7a89; font-size:12px; align-self:center">입고·출고·반품은 <b>매입등록·판매등록</b>에서 자동으로 쌓입니다.</span>
         </div>
         <div class="tbwrap">
         <table>
-          <thead><tr><th>거래일</th><th>구분</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>매입처</th><th>비고</th><th>등록</th><th style="width:56px"></th></tr></thead>
-          <tbody id="st_tb"><tr><td colspan="9" class="empty">-</td></tr></tbody>
+          <thead><tr><th>거래일</th><th>구분</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>매입처</th><th>출처</th><th>비고</th><th>등록</th><th style="width:56px"></th></tr></thead>
+          <tbody id="st_tb"><tr><td colspan="10" class="empty">-</td></tr></tbody>
         </table>
         </div>
       </div>
@@ -505,10 +490,9 @@ function hvOpen(seq){
   var el=document.getElementById('hv'); el.classList.remove('min');           // 접혀 있으면 펼침
   document.getElementById('hvToggleBtn').innerHTML='▾';
   document.getElementById('hvTit').innerHTML = '이력/재고 · <b style="font-weight:400">['+esc(HVP.prodCd)+'] '+esc(HVP.prodNm||'')+'</b>';
-  document.getElementById('in_dt').value = today();
-  document.getElementById('sl_dt').value = today();
+  // sl_dt·in_dt 는 판매가·매입가 입력줄과 함께 없앴다(둘 다 조회 전용)
   document.getElementById('st_dt').value = today();
-  hvStockPrefill(true);   // 재고 입고 단가 = 품목마스터 입고가 자동채움
+  hvStockPrefill(true);   // 재고 조정 단가 = 품목마스터 매입가 자동채움
   Array.prototype.forEach.call(document.querySelectorAll('#tb tr.prow'), function(tr){   // 선택 행 하이라이트
     tr.classList.toggle('sel', tr.getAttribute('data-seq')===String(seq));
   });
@@ -583,11 +567,10 @@ function hvTab(t){
 function hvLoadIn(){
   _listPost('/prod/inpriceList.do', HVP.prodSeq).then(function(j){
     var rows=(j&&j.data)||[], tb=document.getElementById('in_tb');
-    if(!rows.length){ tb.innerHTML='<tr><td colspan="7" class="empty">이력이 없습니다.</td></tr>'; return; }
+    if(!rows.length){ tb.innerHTML='<tr><td colspan="6" class="empty">이력이 없습니다. 매입등록 전표를 저장하면 쌓입니다.</td></tr>'; return; }
     tb.innerHTML = rows.map(function(o){
       return '<tr><td>'+fmtDt(o.applyDt)+'</td><td>'+esc(o.vendorNm)+'</td><td class="num">'+num(o.inPrice)+'</td>'
-        +'<td class="num">'+num(o.prevPrice)+'</td><td>'+esc(o.remark)+'</td><td>'+esc(o.regDttm)+'</td>'
-        +'<td><button class="btn btn-danger" onclick="hvDel(\'in\','+o.inpriceSeq+')">삭제</button></td></tr>';
+        +'<td class="num">'+num(o.prevPrice)+'</td><td>'+esc(o.remark)+'</td><td>'+esc(o.regDttm)+'</td></tr>';
     }).join('');
   });
 }
@@ -696,49 +679,24 @@ document.addEventListener('scroll', function(e){
   while(t && t.classList){ if(t.classList.contains('vsel-dd')) return; t=t.parentNode; }
   vselCloseAll();
 }, true);
-function hvAddIn(){
-  var price=gnum('in_price'); if(price==null){ toast('⚠️ 매입단가를 입력하세요.'); return; }
-  var vcd=gv('in_vendor')||null;
-  var dto={ prodSeq:HVP.prodSeq, prodCd:HVP.prodCd, applyDt:gv('in_dt')||today(),
-    vendorCd:vcd, vendorNm:(vcd?vendorNmOf(vcd):null), inPrice:price, taxGb:HVP.taxGb||null, remark:gv('in_remark')||null };
-  _post('/prod/inpriceInsert.do', dto).then(function(r){
-    if(!r.ok){ toast('⚠️ 실패(HTTP '+r.status+'): '+(r.t||'').slice(0,120)); return; }
-    document.getElementById('in_remark').value=''; toast('💰 매입가 등록 · 마스터 반영');
-    hvLoadIn(); prodLoad();   // 마스터 IN_PRICE 동기화분 반영
-  });
-}
+/* hvAddIn() 제거 — 매입단가 수기 등록은 매입등록 전표로 일원화(2026-07-25).
+   서버 /prod/inpriceInsert.do 는 남아 있으니 되살릴 일이 있으면 이 함수와 입력줄만 복구하면 된다. */
 
 /* ---- 판매가 ---- */
 function hvLoadSale(){
   _listPost('/prod/salepriceList.do', HVP.prodSeq).then(function(j){
     var rows=(j&&j.data)||[], tb=document.getElementById('sl_tb');
-    if(!rows.length){ tb.innerHTML='<tr><td colspan="9" class="empty">이력이 없습니다.</td></tr>'; return; }
+    if(!rows.length){ tb.innerHTML='<tr><td colspan="8" class="empty">이력이 없습니다. 판매등록 전표나 정산서 업로드에서 쌓입니다.</td></tr>'; return; }
     tb.innerHTML = rows.map(function(o){
       var mr=(o.marginRt==null?'':Number(o.marginRt).toFixed(1)+'%');
       var vn = o.vendorCd ? esc(o.vendorNm||o.vendorCd) : '<span style="color:#9aa7b3">공통</span>';
       return '<tr><td>'+fmtDt(o.applyDt)+'</td><td>'+vn+'</td><td class="num">'+num(o.salePrice)+'</td><td class="num">'+num(o.wholePrice)+'</td>'
-        +'<td class="num">'+num(o.baseInprice)+'</td><td class="num">'+mr+'</td><td>'+esc(o.remark)+'</td><td>'+esc(o.regDttm)+'</td>'
-        +'<td><button class="btn btn-danger" onclick="hvDel(\'sale\','+o.salepriceSeq+')">삭제</button></td></tr>';
+        +'<td class="num">'+num(o.baseInprice)+'</td><td class="num">'+mr+'</td><td>'+esc(o.remark)+'</td><td>'+esc(o.regDttm)+'</td></tr>';
     }).join('');
   });
 }
-function hvAddSale(){
-  var price=gnum('sl_price'); if(price==null){ toast('⚠️ 판매단가를 입력하세요.'); return; }
-  var base=(HVP.inPrice!=null?Number(HVP.inPrice):null);
-  var margin=(base!=null && price>0)? ((price-base)/price*100) : null;   // 마진율 = (판매-매입)/판매
-  var vcd=gv('sl_vendor')||null;   // 비우면 공통(기본)가 — 마스터 동기화됨. 선택하면 그 판매처 전용가(마스터 안 건드림)
-  var dto={ prodSeq:HVP.prodSeq, prodCd:HVP.prodCd, applyDt:gv('sl_dt')||today(),
-    vendorCd:vcd, vendorNm:(vcd?_vnmOf('sl_vendor',vcd):null),
-    salePrice:price, wholePrice:gnum('sl_whole'), baseInprice:base, marginRt:margin, remark:gv('sl_remark')||null };
-  _post('/prod/salepriceInsert.do', dto).then(function(r){
-    if(!r.ok){ toast('⚠️ 실패(HTTP '+r.status+'): '+(r.t||'').slice(0,120)); return; }
-    document.getElementById('sl_remark').value='';
-    toast(vcd ? ('🏷️ 판매처 전용가 등록 — '+esc(_vnmOf('sl_vendor',vcd)||vcd)+' <span style="color:#9aa7b3">(기본가는 그대로)</span>')
-              : '🏷️ 판매가 등록 · 마스터 반영');
-    hvLoadSale(); prodLoad();
-  });
-}
-
+/* hvAddSale() 제거 — 판매단가 수기 등록은 판매등록 전표·정산서 업로드로 일원화(2026-07-25).
+   서버 /prod/salepriceInsert.do 는 남아 있으니 되살릴 일이 있으면 이 함수와 입력줄만 복구하면 된다. */
 /* ---- 매출단가(조회) — 매출 확정내역(TBL_SALES_MST) 그대로. 조회 전용 ---- */
 function hvLoadSalesPrice(){
   var tb=document.getElementById('ss_tb'), hd=document.getElementById('ss_hdr');
@@ -754,7 +712,7 @@ function hvLoadSalesPrice(){
         tb.innerHTML='<tr><td colspan="7" class="empty">이 품목의 매출 확정내역이 없습니다.</td></tr>'; return;
       }
       var q=0,a=0,prices={}; rows.forEach(function(r){ q+=(+r.outQty||0); a+=(+r.saleAmt||0); if(r.salePrice!=null) prices[r.salePrice]=1; });
-      hd.innerHTML='총 <b>'+rows.length.toLocaleString()+'</b>행 · 단가 <b>'+Object.keys(prices).length+'</b>종 · 출고량 <b>'+num(q)+'</b> · 매출액 <b>'+num(a)+'</b> <span style="color:#9aa7b3">— 조회 전용(원본: 견적서관리 ▸ 매출 엑셀 업로드)</span>';
+      hd.innerHTML='총 <b>'+rows.length.toLocaleString()+'</b>행 · 단가 <b>'+Object.keys(prices).length+'</b>종 · 출고량 <b>'+num(q)+'</b> · 매출액 <b>'+num(a)+'</b>';   // 원본 안내('견적서관리 ▸ 매출 엑셀 업로드')는 없는 화면을 가리켜 걷어냈다(2026-07-25)
       tb.innerHTML = rows.map(function(r){
         return '<tr><td>'+fmtDt(r.dlvDt)+'</td><td>'+esc(r.dcNm)+'</td><td>'+esc(r.ordNo)+'</td>'
           +'<td class="num">'+num(r.salePrice)+'</td><td class="num">'+num(r.outQty)+'</td><td class="num">'+num(r.saleAmt)+'</td>'
@@ -776,49 +734,63 @@ function hvLoadStock(){
           +' &nbsp;·&nbsp; 재고금액 '+num(st.stockAmt)+' &nbsp;·&nbsp; 최근입고 '+fmtDt(st.lastInDt)+' / 최근출고 '+fmtDt(st.lastOutDt);
       } else { hdr.innerHTML = '현재고 <b>0</b> &nbsp;·&nbsp; (수불 내역 없음)'; }
       var tb=document.getElementById('st_tb');
-      if(!rows.length){ tb.innerHTML='<tr><td colspan="9" class="empty">수불 내역이 없습니다.</td></tr>'; return; }
+      if(!rows.length){ tb.innerHTML='<tr><td colspan="10" class="empty">수불 내역이 없습니다.</td></tr>'; return; }
+      /* 출처 = 이 줄을 만든 전표. 전표에서 온 줄은 여기서 지우면 전표만 남고 재고가 틀어지므로
+         삭제 버튼을 안 준다. 되돌리려면 그 전표를 고치거나 지워야 한다(2026-07-25). */
+      var SRC={ PURCH:'매입등록', SALE:'판매등록', SHIPOUT:'발주현황표' };
       tb.innerHTML = rows.map(function(o){
         var bd='<span class="badge" style="background:'+(IO_COLOR[o.ioGb]||'#888')+'">'+(IO_MAP[o.ioGb]||o.ioGb)+'</span>';
+        var g=o.refGb||'', src = g
+              ? '<span title="'+esc((SRC[g]||g)+' '+(o.refNo||''))+'">'+esc(SRC[g]||g)+(o.refNo?(' <span style="color:#9aa7b3">'+esc(o.refNo)+'</span>'):'')+'</span>'
+              : '<span style="color:#137a6c;font-weight:700">수기 조정</span>';
+        var del = g ? '<span style="color:#c9d2da" title="전표에서 만들어진 줄입니다. '+esc(SRC[g]||g)+' 화면에서 고치거나 지우세요.">—</span>'
+                    : '<button class="btn btn-danger" onclick="hvDel(\'stock\','+o.ledgerSeq+')">삭제</button>';
         return '<tr><td>'+fmtDt(o.trxDt)+'</td><td>'+bd+'</td><td class="num">'+num(o.qty)+'</td><td class="num">'+num(o.unitPrice)+'</td>'
-          +'<td class="num">'+num(o.amt)+'</td><td>'+esc(vendorNmOf(o.vendorCd)||o.vendorCd)+'</td><td>'+esc(o.remark)+'</td><td>'+esc(o.regDttm)+'</td>'
-          +'<td><button class="btn btn-danger" onclick="hvDel(\'stock\','+o.ledgerSeq+')">삭제</button></td></tr>';
+          +'<td class="num">'+num(o.amt)+'</td><td>'+esc(vendorNmOf(o.vendorCd)||o.vendorCd)+'</td><td>'+src+'</td>'
+          +'<td>'+esc(o.remark)+'</td><td>'+esc(o.regDttm)+'</td>'
+          +'<td>'+del+'</td></tr>';
       }).join('');
     });
 }
-function hvStockPrefill(force){   // 단가 자동채움: 매입정보 없으면 품목마스터 금액(입고/반품=입고가, 출고=판매가, 조정=0)
+/* 조정 단가 자동채움 — 재고금액을 얼마로 움직일지의 기준이라 품목마스터 매입가를 쓴다.
+   (입고/출고/반품 분기는 그 입력이 사라져 함께 걷어냈다 — 2026-07-25) */
+function hvStockPrefill(force){
   if(!HVP) return;
   var cur=gv('st_price');
   if(!force && cur!=='' && Number(cur)!==0) return;   // 수량 입력 시엔 수동 입력한 단가 보존
-  var io=gv('st_io');
-  var p = (io==='I'||io==='R') ? HVP.inPrice : (io==='O' ? HVP.salePrice : 0);
-  document.getElementById('st_price').value = (p!=null ? p : 0);
+  document.getElementById('st_price').value = (HVP.inPrice!=null ? HVP.inPrice : 0);
 }
+/* 수불 수기 입력 = 조정(A) 전용. 입고·출고·반품은 전표가 만든다(2026-07-25).
+   ioGb 를 화면 값이 아니라 'A' 로 못박는다 — 드롭다운에 조정만 남겼지만
+   개발자 도구로 값을 바꿔 넣는 길까지 막아 둔다. 사유(remark)는 필수 :
+   조정은 왜 맞췄는지가 남아야 나중에 되짚을 수 있다. */
 function hvAddStock(){
-  var qty=gnum('st_qty'); if(qty==null || qty===0){ toast('⚠️ 수량을 입력하세요.'); return; }
-  var io=gv('st_io'), up=gnum('st_price');
-  if((up==null || up===0) && (io==='I'||io==='R') && HVP.inPrice!=null){   // 추가 시 단가 없으면 품목마스터 입고가로
-    up=Number(HVP.inPrice); document.getElementById('st_price').value=up;
-  }
+  var qty=gnum('st_qty'); if(qty==null || qty===0){ toast('⚠️ 조정 수량을 입력하세요. (늘리면 +, 줄이면 −)'); return; }
+  var rm=(gv('st_remark')||'').trim();
+  if(!rm){ toast('⚠️ 조정 사유를 적어 주세요. (예: 실사 차이 · 파손 폐기)'); return; }
+  var up=gnum('st_price');
   var dto={ prodSeq:HVP.prodSeq, prodCd:HVP.prodCd, trxDt:gv('st_dt')||today(),
-    ioGb:io, qty:qty, unitPrice:up, vendorCd:gv('st_vendor')||null, remark:gv('st_remark')||null };
+    ioGb:'A', qty:qty, unitPrice:up, vendorCd:null, remark:rm };
   _post('/prod/stockInsert.do', dto).then(function(r){
     if(!r.ok){ toast('⚠️ 실패(HTTP '+r.status+'): '+(r.t||'').slice(0,120)); return; }
-    document.getElementById('st_remark').value=''; vselPick('st_vendor',''); toast('📦 수불 등록 · 현재고 반영');
-    hvLoadStock();
+    document.getElementById('st_remark').value=''; document.getElementById('st_qty').value='0';
+    toast('📦 재고 조정 · 현재고 반영');
+    hvLoadStock(); prodLoad();
   });
 }
 
 /* ---- 공통 삭제 ---- */
+/* 남은 삭제 대상은 '재고 수기조정' 하나뿐이다(2026-07-25).
+   매입가·판매가 이력은 전표가 만든 파생이라 여기서 지우면 전표와 어긋나 삭제 버튼을 뺐다.
+   kind 인자는 호출부 호환을 위해 남겨 두었다. */
 function hvDel(kind, seq){
-  swConfirm('이 내역을 삭제하시겠습니까?','삭제').then(function(ok){ if(!ok) return;
-    var url, dto={};
-    if(kind==='in'){ url='/prod/inpriceDelete.do'; dto={inpriceSeq:seq}; }
-    else if(kind==='sale'){ url='/prod/salepriceDelete.do'; dto={salepriceSeq:seq}; }
-    else { url='/prod/stockDelete.do'; dto={ledgerSeq:seq, prodSeq:HVP.prodSeq, prodCd:HVP.prodCd}; }  // 재고는 재집계 위해 prodSeq 동봉
+  swConfirm('이 조정 내역을 삭제하시겠습니까?','삭제').then(function(ok){ if(!ok) return;
+    var url='/prod/stockDelete.do';
+    var dto={ledgerSeq:seq, prodSeq:HVP.prodSeq, prodCd:HVP.prodCd};   // 재고는 재집계 위해 prodSeq 동봉
     _post(url, dto).then(function(r){
       if(!r.ok){ toast('⚠️ 삭제 실패(HTTP '+r.status+')'); return; }
       toast('🗑️ 삭제 완료');
-      if(kind==='in') hvLoadIn(); else if(kind==='sale') hvLoadSale(); else hvLoadStock();
+      hvLoadStock(); prodLoad();
     });
   });
 }
@@ -826,7 +798,7 @@ function hvDel(kind, seq){
 prodLoad();
 vendorLoad();   // 매입처 선택 목록 채우기 (거래처 마스터 '매입' 거래처 — 위 찾기 입력으로 좁히기)
 // 진입 시 날짜 기본값 = 오늘 (품목 클릭 전에도 비어있지 않게. 품목 클릭 시 hvOpen 이 다시 오늘로 셋팅)
-['in_dt','sl_dt','st_dt'].forEach(function(id){ var e=document.getElementById(id); if(e && !e.value) e.value=today(); });
+['st_dt'].forEach(function(id){ var e=document.getElementById(id); if(e && !e.value) e.value=today(); });
 </script>
 </body>
 </html>

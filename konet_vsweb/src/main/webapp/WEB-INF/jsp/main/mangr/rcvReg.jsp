@@ -13,7 +13,7 @@
   *{ box-sizing:border-box; }
   .sv-wrap{ padding:12px 14px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }
   .sv-wrap h2{ margin:0 0 2px; font-size:18px; }
-  .sv-sub{ color:#6b7a89; margin-bottom:8px; font-size:12px; }
+  .sv-sub{ color:#1f2a37; margin-bottom:8px; font-size:12.5px; font-weight:600; }
   .sv-card{ background:#fff; border:1px solid var(--sv-bd); border-radius:10px; padding:10px; margin-bottom:10px; }
   .sv-btn{ height:32px; border:1px solid var(--sv-bd); background:#fff; border-radius:7px; padding:0 12px; cursor:pointer; font-size:13px; font-weight:700; color:#37475a; }
   .sv-btn:hover{ border-color:var(--sv-teal); }
@@ -26,7 +26,7 @@
   .sv-form input, .sv-form select{ height:29px; border:1px solid var(--sv-bd); border-radius:6px; padding:0 8px; font-size:13.5px; }
   .sv-form input.num{ text-align:right; }
   .sv-form input[readonly]{ background:#f5f7f9; }
-  .sv-lbl{ color:#6b7a89; margin:0 5px 0 10px; font-size:12.5px; }
+  .sv-lbl{ color:#1f2a37; margin:0 4px 0 8px; font-size:12.5px; font-weight:700; white-space:nowrap; }
   .sv-bal{ font-weight:800; font-size:15px; color:#c0392b; }
   /* 목록 — 5행 고정 + 자동 스크롤(매출내역과 같은 방식) */
   .sv-list{ max-height:196px; overflow:auto; border:1px solid var(--sv-bd); border-radius:8px; }
@@ -53,7 +53,7 @@
   .sv-pop td{ border:1px solid var(--sv-bd); padding:6px 8px; text-align:center; }
   .sv-pop tr.pick{ cursor:pointer; }
   .sv-pop tr.pick:hover td{ background:#f3f8f6; }
-  .sv-msg{ padding:10px; color:#9aa7b3; text-align:center; font-size:12.5px; }
+  .sv-msg{ padding:10px; color:#5a6b7a; text-align:center; font-size:12.5px; }
   /* 원장 합계 — 스크롤 영역 밖에 고정 */
   .sv-lgfoot{ overflow:hidden; border:1px solid var(--sv-bd); border-top:0; border-radius:0 0 8px 8px; }
   .sv-lgfoot table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
@@ -77,7 +77,7 @@
       <button class="sv-btn" onclick="svSave()">💾 저장</button>
       <button class="sv-btn" onclick="svReload()">🔄 새로고침</button>
       <button class="sv-btn red" onclick="svDelete()">✖ 삭제하기</button>
-      <span id="svState" style="margin-left:8px; align-self:center; color:#6b7a89; font-size:12.5px"></span>
+      <span id="svState" style="margin-left:8px; align-self:center; color:#3d4d5c; font-size:12.5px"></span>
     </div>
     <table class="sv-form">
       <tr>
@@ -125,7 +125,9 @@
 
   <!-- ===== 목록 ===== -->
     <div class="sv-card">
-      <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:8px">
+      <%-- 검색줄은 한 줄로 붙인다(2026-07-25 요청) — flex-wrap:wrap 이면 창이 좁을 때 접혀
+           [리스트조회] 만 아랫줄로 떨어져 보기 나쁘다. 넘치면 이 줄만 가로 스크롤한다. --%>
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:nowrap; overflow-x:auto; margin-bottom:8px">
         <span style="font-weight:700; align-self:center">Total : <span id="svTotal">0</span></span>
         <span class="sv-lbl">검색기간</span>
         <input type="date" id="svFrom" style="height:32px; border:1px solid var(--sv-bd); border-radius:6px; padding:0 8px">
@@ -163,7 +165,7 @@
     <div class="sv-card" style="flex:0 0 470px">
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
         <b>원장</b>
-        <span style="margin-left:auto; font-size:11.5px; color:#9aa7b3">* 매출&amp;매입 거래처는 최종 잔고만 표시됩니다.</span>
+        <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a">* 매출&amp;매입 거래처는 최종 잔고만 표시됩니다.</span>
       </div>
       <div style="border:1px solid var(--sv-bd); border-radius:6px; padding:6px 8px; margin-bottom:6px; font-size:13px">
         <b>거래처명</b> <span id="lgCust" style="margin-left:8px">—</span>
@@ -282,7 +284,7 @@ function svSave(){
   post('/mangr/settleSave.do', dto, true)
     .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
     .then(function(){ swOk('저장했습니다.'); svNew(); svLoad(); })
-    .catch(function(e){ swErr('저장에 실패했습니다.<br><span style="font-size:13px;color:#6b7a89">'+esc(e.message)+'</span>'); });
+    .catch(function(e){ swErr('저장에 실패했습니다.<br><span style="font-size:13px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
 }
 function svDelete(){
   if (!_cur) { swErr('목록에서 전표를 먼저 선택하세요.'); return; }
@@ -290,7 +292,7 @@ function svDelete(){
     if(!ok) return;
     post('/mangr/settleDelete.do', { trxSeq:_cur.trxSeq }, true)
       .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t); }); swOk('삭제했습니다.'); svNew(); svLoad(); })
-      .catch(function(e){ swErr('삭제에 실패했습니다.<br><span style="font-size:13px;color:#6b7a89">'+esc(e.message)+'</span>'); });
+      .catch(function(e){ swErr('삭제에 실패했습니다.<br><span style="font-size:13px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
   });
 }
 function svReload(){ svLoad(); var cd=document.getElementById('svCustNm').dataset.cd||''; if(cd){ svBal(cd); } }
@@ -339,11 +341,11 @@ function svBind(){
 function svPager(){
   var el = document.getElementById('svPager');
   if(_lShown >= _list.length){
-    el.innerHTML = _list.length > LIST_ROWS ? '<span style="color:#9aa7b3;font-size:12.5px">총 '+_list.length+'건 — 모두 표시됨</span>' : '';
+    el.innerHTML = _list.length > LIST_ROWS ? '<span style="color:#5a6b7a;font-size:12.5px">총 '+_list.length+'건 — 모두 표시됨</span>' : '';
     return;
   }
   el.innerHTML = '<span style="color:#5a6b7a;font-size:12.5px">'+_lShown+' / <b>'+_list.length+'</b>건'
-    + ' <span style="color:#9aa7b3">— 아래로 스크롤하면 이어서 나옵니다</span></span>'
+    + ' <span style="color:#5a6b7a">— 아래로 스크롤하면 이어서 나옵니다</span></span>'
     + ' <button class="sv-btn" style="height:24px;margin-left:8px;font-size:12px" onclick="svMore('+_list.length+')">모두 표시</button>';
 }
 function svSum(){
