@@ -181,4 +181,25 @@ public interface UserMapper {
 
 	/** 동의이력 INSERT (T_PERSIGN_TRAN) — 회원가입 시 termsGb 1/2/3 각 1건씩 호출 */
 	int insertPersign(PersignDTO dto) throws Exception;
+
+	/* ===== 매입등록 (TBL_PURCHASE_MST / DTL) — 2026-07-25 ===== */
+	java.util.List<egovframework.sejong.user.model.PurchaseDTO> selectPurchaseList(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.PurchaseDtlDTO> selectPurchaseDtl(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	String selectPurchaseNextNo(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	int insertPurchaseMst(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	int updatePurchaseMst(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	int deletePurchaseMst(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	int deletePurchaseDtlAll(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	int insertPurchaseDtl(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;
+	int deletePurchaseLedger(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	Double selectVendorLastPrice(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.PurchaseDtlDTO> selectPurchasePriceHist(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPurchaseLedger(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	/* ===== 수금/지급 등록 (TBL_SETTLE_TRX) — 2026-07-25 ===== */
+	java.util.List<egovframework.sejong.user.model.SettleTrxDTO> selectSettleList(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	String selectSettleNextNo(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	int insertSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	int updateSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	int deleteSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectCustLedger(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
 }

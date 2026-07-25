@@ -1833,4 +1833,281 @@
 	         'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
 	]]></update>
 
+
+	<!-- ============================================================
+	     매입등록 — TBL_PURCHASE_MST(헤더) + TBL_PURCHASE_DTL(명세)   (2026-07-25 신설)
+	     · 홀세일닥터 매입등록 이관. 설계 근거는 docs/매입등록_설계안.md
+	     · 저장하면 명세마다 TBL_STOCK_LEDGER(입고/반품) + TBL_PROD_INPRICE_HST(매입단가 이력)가
+	       파생 생성된다 → 재고현황·재고마감·매입마감·매출마감 원가가 자동으로 맞는다.
+	     · 원본은 항상 전표다. 파생 원장은 사람이 직접 손대지 않는다.
+	     ============================================================ -->
+
+	<!-- 전표 목록 — 기간·거래처 검색. 상품수는 명세 건수 -->
+	<select id="selectPurchaseList" parameterType="egovframework.sejong.user.model.PurchaseDTO" resultType="egovframework.sejong.user.model.PurchaseDTO"><![CDATA[
+	  SELECT m.PURCH_SEQ AS purchSeq, m.PURCH_DT AS purchDt, m.PURCH_NO AS purchNo,
+	         m.VENDOR_CD AS vendorCd, m.VENDOR_NM AS vendorNm,
+	         m.MGR_CD AS mgrCd, m.MGR_NM AS mgrNm, m.WH_CD AS whCd, m.WH_NM AS whNm,
+	         m.TOT_BOX_QTY AS totBoxQty, m.TOT_EA_QTY AS totEaQty, m.TOT_QTY AS totQty,
+	         m.SUPPLY_AMT AS supplyAmt, m.VAT_AMT AS vatAmt, m.TOT_AMT AS totAmt,
+	         m.DC_AMT AS dcAmt, m.PAY_GB AS payGb, m.PAY_AMT AS payAmt, m.REMARK AS remark,
+	         m.REG_DTTM AS regDttm, m.REG_USER AS regUser,
+	         (SELECT COUNT(*) FROM TBL_PURCHASE_DTL d WHERE d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN='Y') AS prodCnt
+	    FROM TBL_PURCHASE_MST m
+	   WHERE m.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = '' OR m.PURCH_DT >= REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'')   = '' OR m.PURCH_DT <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{vendorCd,jdbcType=VARCHAR},'') = '' OR m.VENDOR_CD = #{vendorCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{mgrCd,jdbcType=VARCHAR},'') = '' OR m.MGR_CD = #{mgrCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = '' OR ISNULL(m.VENDOR_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	   ORDER BY m.PURCH_DT DESC, m.PURCH_NO DESC, m.PURCH_SEQ DESC
+	]]></select>
+
+	<!-- 전표 1건의 명세 -->
+	<select id="selectPurchaseDtl" parameterType="egovframework.sejong.user.model.PurchaseDTO" resultType="egovframework.sejong.user.model.PurchaseDtlDTO"><![CDATA[
+	  SELECT d.DTL_SEQ AS dtlSeq, d.PURCH_SEQ AS purchSeq, d.ROW_NO AS rowNo,
+	         d.PROD_SEQ AS prodSeq, d.PROD_CD AS prodCd, d.PROD_NM AS prodNm, d.SPEC AS spec,
+	         d.PACK_QTY AS packQty, d.BOX_QTY AS boxQty, d.EA_QTY AS eaQty, d.QTY AS qty,
+	         d.UNIT_PRICE AS unitPrice, d.AMT AS amt, d.DC_AMT AS dcAmt,
+	         d.SUPPLY_AMT AS supplyAmt, d.VAT_AMT AS vatAmt, d.TOT_AMT AS totAmt,
+	         d.SERVICE_QTY AS serviceQty, d.REMARK AS remark, d.EVENT_YN AS eventYn,
+	         d.TRX_GB AS trxGb, d.LEDGER_SEQ AS ledgerSeq
+	    FROM TBL_PURCHASE_DTL d
+	   WHERE d.ACTION_YN = 'Y' AND d.PURCH_SEQ = #{purchSeq}
+	   ORDER BY d.ROW_NO
+	]]></select>
+
+	<!-- 그날의 다음 전표번호 '0001' — UX_PURCH_NO(PURCH_DT,PURCH_NO) 유니크와 짝 -->
+	<select id="selectPurchaseNextNo" parameterType="egovframework.sejong.user.model.PurchaseDTO" resultType="string"><![CDATA[
+	  SELECT RIGHT('000' + CAST(ISNULL(MAX(CAST(PURCH_NO AS INT)),0) + 1 AS VARCHAR(4)), 4)
+	    FROM TBL_PURCHASE_MST
+	   WHERE ACTION_YN = 'Y' AND PURCH_DT = REPLACE(#{purchDt,jdbcType=VARCHAR},'-','')
+	]]></select>
+
+	<insert id="insertPurchaseMst" parameterType="egovframework.sejong.user.model.PurchaseDTO"
+	        useGeneratedKeys="true" keyProperty="purchSeq" keyColumn="PURCH_SEQ"><![CDATA[
+	  INSERT INTO TBL_PURCHASE_MST
+	    (PURCH_DT, PURCH_NO, VENDOR_CD, VENDOR_NM, MGR_CD, MGR_NM, WH_CD, WH_NM,
+	     TOT_BOX_QTY, TOT_EA_QTY, TOT_QTY, SUPPLY_AMT, VAT_AMT, TOT_AMT, DC_AMT,
+	     PAY_GB, PAY_AMT, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (REPLACE(ISNULL(#{purchDt,jdbcType=VARCHAR},''),'-',''), #{purchNo,jdbcType=VARCHAR},
+	     #{vendorCd,jdbcType=VARCHAR}, #{vendorNm,jdbcType=NVARCHAR},
+	     #{mgrCd,jdbcType=VARCHAR}, #{mgrNm,jdbcType=NVARCHAR},
+	     #{whCd,jdbcType=VARCHAR}, #{whNm,jdbcType=NVARCHAR},
+	     #{totBoxQty,jdbcType=DECIMAL}, #{totEaQty,jdbcType=DECIMAL}, #{totQty,jdbcType=DECIMAL},
+	     #{supplyAmt,jdbcType=DECIMAL}, #{vatAmt,jdbcType=DECIMAL}, #{totAmt,jdbcType=DECIMAL}, #{dcAmt,jdbcType=DECIMAL},
+	     #{payGb,jdbcType=VARCHAR}, #{payAmt,jdbcType=DECIMAL}, #{remark,jdbcType=NVARCHAR},
+	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
+	]]></insert>
+
+	<update id="updatePurchaseMst" parameterType="egovframework.sejong.user.model.PurchaseDTO"><![CDATA[
+	  UPDATE TBL_PURCHASE_MST
+	     SET PURCH_DT = REPLACE(ISNULL(#{purchDt,jdbcType=VARCHAR},''),'-',''),
+	         VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}, VENDOR_NM = #{vendorNm,jdbcType=NVARCHAR},
+	         MGR_CD = #{mgrCd,jdbcType=VARCHAR}, MGR_NM = #{mgrNm,jdbcType=NVARCHAR},
+	         WH_CD = #{whCd,jdbcType=VARCHAR}, WH_NM = #{whNm,jdbcType=NVARCHAR},
+	         TOT_BOX_QTY = #{totBoxQty,jdbcType=DECIMAL}, TOT_EA_QTY = #{totEaQty,jdbcType=DECIMAL},
+	         TOT_QTY = #{totQty,jdbcType=DECIMAL}, SUPPLY_AMT = #{supplyAmt,jdbcType=DECIMAL},
+	         VAT_AMT = #{vatAmt,jdbcType=DECIMAL}, TOT_AMT = #{totAmt,jdbcType=DECIMAL}, DC_AMT = #{dcAmt,jdbcType=DECIMAL},
+	         PAY_GB = #{payGb,jdbcType=VARCHAR}, PAY_AMT = #{payAmt,jdbcType=DECIMAL}, REMARK = #{remark,jdbcType=NVARCHAR},
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE PURCH_SEQ = #{purchSeq}
+	]]></update>
+
+	<!-- 논리삭제 : 헤더 + 명세. 파생 원장은 서비스가 LEDGER_SEQ 로 따로 지운다 -->
+	<update id="deletePurchaseMst" parameterType="egovframework.sejong.user.model.PurchaseDTO"><![CDATA[
+	  UPDATE TBL_PURCHASE_MST SET ACTION_YN='N',
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE PURCH_SEQ = #{purchSeq}
+	]]></update>
+
+	<update id="deletePurchaseDtlAll" parameterType="egovframework.sejong.user.model.PurchaseDTO"><![CDATA[
+	  UPDATE TBL_PURCHASE_DTL SET ACTION_YN='N',
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE PURCH_SEQ = #{purchSeq} AND ACTION_YN='Y'
+	]]></update>
+
+	<insert id="insertPurchaseDtl" parameterType="egovframework.sejong.user.model.PurchaseDtlDTO"
+	        useGeneratedKeys="true" keyProperty="dtlSeq" keyColumn="DTL_SEQ"><![CDATA[
+	  INSERT INTO TBL_PURCHASE_DTL
+	    (PURCH_SEQ, ROW_NO, PROD_SEQ, PROD_CD, PROD_NM, SPEC, PACK_QTY, BOX_QTY, EA_QTY, QTY,
+	     UNIT_PRICE, AMT, DC_AMT, SUPPLY_AMT, VAT_AMT, TOT_AMT, SERVICE_QTY, REMARK, EVENT_YN,
+	     TRX_GB, LEDGER_SEQ, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (#{purchSeq}, #{rowNo}, #{prodSeq,jdbcType=INTEGER}, #{prodCd,jdbcType=VARCHAR}, #{prodNm,jdbcType=NVARCHAR},
+	     #{spec,jdbcType=NVARCHAR}, #{packQty,jdbcType=DECIMAL}, #{boxQty,jdbcType=DECIMAL}, #{eaQty,jdbcType=DECIMAL},
+	     #{qty,jdbcType=DECIMAL}, #{unitPrice,jdbcType=DECIMAL}, #{amt,jdbcType=DECIMAL}, #{dcAmt,jdbcType=DECIMAL},
+	     #{supplyAmt,jdbcType=DECIMAL}, #{vatAmt,jdbcType=DECIMAL}, #{totAmt,jdbcType=DECIMAL},
+	     #{serviceQty,jdbcType=DECIMAL}, #{remark,jdbcType=NVARCHAR}, #{eventYn,jdbcType=CHAR},
+	     #{trxGb,jdbcType=VARCHAR}, #{ledgerSeq,jdbcType=INTEGER},
+	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
+	]]></insert>
+
+	<!-- 전표가 만든 파생 재고원장 논리삭제 (수정/삭제 시) -->
+	<update id="deletePurchaseLedger" parameterType="egovframework.sejong.user.model.PurchaseDTO"><![CDATA[
+	  UPDATE TBL_STOCK_LEDGER SET ACTION_YN='N',
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE ACTION_YN='Y' AND REF_GB='PURCH'
+	     AND REF_NO = REPLACE(ISNULL(#{purchDt,jdbcType=VARCHAR},''),'-','') + '-' + #{purchNo,jdbcType=VARCHAR}
+	]]></update>
+
+	<!-- 거래처 × 품목의 최근 매입단가 (품목 선택 시 단가 자동 채움) -->
+	<select id="selectVendorLastPrice" parameterType="egovframework.sejong.user.model.PurchaseDtlDTO" resultType="java.lang.Double"><![CDATA[
+	  SELECT TOP 1 d.UNIT_PRICE
+	    FROM TBL_PURCHASE_DTL d
+	    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN='Y'
+	   WHERE d.ACTION_YN='Y' AND d.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{remark,jdbcType=VARCHAR},'') = '' OR m.VENDOR_CD = #{remark,jdbcType=VARCHAR} )
+	   ORDER BY m.PURCH_DT DESC, m.PURCH_NO DESC
+	]]></select>
+
+	<!-- 품목 매입단가 이력 (품명 클릭 팝업) — 거래처 × 상품, 최근순 -->
+	<select id="selectPurchasePriceHist" parameterType="egovframework.sejong.user.model.PurchaseDtlDTO" resultType="egovframework.sejong.user.model.PurchaseDtlDTO"><![CDATA[
+	  SELECT m.PURCH_DT AS spec,            -- 거래일자 (화면 표시용으로 spec 칸 재사용)
+	         m.VENDOR_NM AS prodNm,         -- 거래처
+	         d.UNIT_PRICE AS unitPrice, d.BOX_QTY AS boxQty, d.EA_QTY AS eaQty, d.QTY AS qty,
+	         d.AMT AS amt, d.EVENT_YN AS eventYn, d.TRX_GB AS trxGb
+	    FROM TBL_PURCHASE_DTL d
+	    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN='Y'
+	   WHERE d.ACTION_YN='Y' AND d.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{remark,jdbcType=VARCHAR},'') = '' OR m.VENDOR_CD = #{remark,jdbcType=VARCHAR} )
+	     AND m.PURCH_DT >= CONVERT(VARCHAR(8), DATEADD(YEAR,-3,GETDATE()), 112)   -- 최대 3년
+	   ORDER BY m.PURCH_DT DESC, m.PURCH_NO DESC
+	]]></select>
+
+	<!-- 거래처 원장(분개장) — 매입등록 화면 우측. 일자별 매입·DC·지급·할인.
+	     잔고 누계와 [월 계]·[합 계] 는 화면에서 계산한다(원본 화면과 같은 형태).
+	     원천 : 매입 전표(TBL_PURCHASE_MST) + 지급 전표(TBL_SETTLE_TRX, TRX_GB='PAY')
+	     ※ 지급등록 화면은 아직 없어 지금은 전표의 지급액만 잡힌다 — 2단계에서 채워진다. -->
+	<select id="selectPurchaseLedger" parameterType="egovframework.sejong.user.model.PurchaseDTO" resultType="java.util.HashMap"><![CDATA[
+	  SELECT x.dt AS dt,
+	         SUM(x.purchAmt) AS purchAmt,
+	         SUM(x.dcAmt)    AS dcAmt,
+	         SUM(x.payAmt)   AS payAmt,
+	         SUM(x.discAmt)  AS discAmt
+	    FROM (
+	          SELECT m.PURCH_DT AS dt,
+	                 ISNULL(m.TOT_AMT,0) AS purchAmt, 0 AS dcAmt,
+	                 ISNULL(m.PAY_AMT,0) AS payAmt,  ISNULL(m.DC_AMT,0) AS discAmt
+	            FROM TBL_PURCHASE_MST m
+	           WHERE m.ACTION_YN = 'Y' AND m.VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}
+	          UNION ALL
+	          SELECT t.TRX_DT AS dt,
+	                 0 AS purchAmt, 0 AS dcAmt,
+	                 ISNULL(t.AMT,0) AS payAmt, ISNULL(t.DC_AMT,0) AS discAmt
+	            FROM TBL_SETTLE_TRX t
+	           WHERE t.ACTION_YN = 'Y' AND t.TRX_GB = 'PAY' AND t.CUST_CD = #{vendorCd,jdbcType=VARCHAR}
+	    ) x
+	   GROUP BY x.dt
+	   ORDER BY x.dt
+	]]></select>
+
+	<!-- ============================================================
+	     수금/지급 등록 — TBL_SETTLE_TRX (TRX_GB : 'RCV'=수금 / 'PAY'=지급)  2026-07-25 신설
+	     · 한 테이블·한 쿼리로 두 화면을 다룬다. 화면이 TRX_GB 만 다르게 넘긴다.
+	     · 원장(거래처별 일자 잔고)은 selectCustLedger 하나로 매출·수금·매입·지급을 모두 모은다.
+	     ============================================================ -->
+
+	<select id="selectSettleList" parameterType="egovframework.sejong.user.model.SettleTrxDTO" resultType="egovframework.sejong.user.model.SettleTrxDTO"><![CDATA[
+	  SELECT t.TRX_SEQ AS trxSeq, t.TRX_GB AS trxGb, t.TRX_DT AS trxDt, t.TRX_NO AS trxNo,
+	         t.PAY_GB AS payGb, t.ACCT_CD AS acctCd, t.ACCT_NM AS acctNm,
+	         t.CUST_CD AS custCd, t.CUST_NM AS custNm, t.MGR_CD AS mgrCd, t.MGR_NM AS mgrNm,
+	         t.AMT AS amt, t.DC_AMT AS dcAmt, t.SALE_DC_AMT AS saleDcAmt, t.TOT_AMT AS totAmt,
+	         t.REMARK AS remark, t.REG_DTTM AS regDttm, t.REG_USER AS regUser
+	    FROM TBL_SETTLE_TRX t
+	   WHERE t.ACTION_YN = 'Y'
+	     AND t.TRX_GB = #{trxGb,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = '' OR t.TRX_DT >= REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'')   = '' OR t.TRX_DT <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{custCd,jdbcType=VARCHAR},'') = '' OR t.CUST_CD = #{custCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{payGb,jdbcType=VARCHAR},'')  = '' OR t.PAY_GB = #{payGb,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{mgrCd,jdbcType=VARCHAR},'')  = '' OR t.MGR_CD = #{mgrCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = '' OR ISNULL(t.CUST_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	   ORDER BY t.TRX_DT DESC, t.TRX_NO DESC, t.TRX_SEQ DESC
+	]]></select>
+
+	<select id="selectSettleNextNo" parameterType="egovframework.sejong.user.model.SettleTrxDTO" resultType="string"><![CDATA[
+	  SELECT RIGHT('000' + CAST(ISNULL(MAX(CAST(TRX_NO AS INT)),0) + 1 AS VARCHAR(4)), 4)
+	    FROM TBL_SETTLE_TRX
+	   WHERE ACTION_YN = 'Y' AND TRX_GB = #{trxGb,jdbcType=VARCHAR}
+	     AND TRX_DT = REPLACE(#{trxDt,jdbcType=VARCHAR},'-','')
+	]]></select>
+
+	<insert id="insertSettleTrx" parameterType="egovframework.sejong.user.model.SettleTrxDTO"
+	        useGeneratedKeys="true" keyProperty="trxSeq" keyColumn="TRX_SEQ"><![CDATA[
+	  INSERT INTO TBL_SETTLE_TRX
+	    (TRX_GB, TRX_DT, TRX_NO, PAY_GB, ACCT_CD, ACCT_NM, CUST_CD, CUST_NM, MGR_CD, MGR_NM,
+	     AMT, DC_AMT, SALE_DC_AMT, TOT_AMT, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (#{trxGb,jdbcType=VARCHAR}, REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-',''), #{trxNo,jdbcType=VARCHAR},
+	     #{payGb,jdbcType=VARCHAR}, #{acctCd,jdbcType=VARCHAR}, #{acctNm,jdbcType=NVARCHAR},
+	     #{custCd,jdbcType=VARCHAR}, #{custNm,jdbcType=NVARCHAR}, #{mgrCd,jdbcType=VARCHAR}, #{mgrNm,jdbcType=NVARCHAR},
+	     #{amt,jdbcType=DECIMAL}, #{dcAmt,jdbcType=DECIMAL}, #{saleDcAmt,jdbcType=DECIMAL}, #{totAmt,jdbcType=DECIMAL},
+	     #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
+	]]></insert>
+
+	<update id="updateSettleTrx" parameterType="egovframework.sejong.user.model.SettleTrxDTO"><![CDATA[
+	  UPDATE TBL_SETTLE_TRX
+	     SET TRX_DT = REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-',''),
+	         PAY_GB = #{payGb,jdbcType=VARCHAR}, ACCT_CD = #{acctCd,jdbcType=VARCHAR}, ACCT_NM = #{acctNm,jdbcType=NVARCHAR},
+	         CUST_CD = #{custCd,jdbcType=VARCHAR}, CUST_NM = #{custNm,jdbcType=NVARCHAR},
+	         MGR_CD = #{mgrCd,jdbcType=VARCHAR}, MGR_NM = #{mgrNm,jdbcType=NVARCHAR},
+	         AMT = #{amt,jdbcType=DECIMAL}, DC_AMT = #{dcAmt,jdbcType=DECIMAL},
+	         SALE_DC_AMT = #{saleDcAmt,jdbcType=DECIMAL}, TOT_AMT = #{totAmt,jdbcType=DECIMAL},
+	         REMARK = #{remark,jdbcType=NVARCHAR},
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE TRX_SEQ = #{trxSeq}
+	]]></update>
+
+	<update id="deleteSettleTrx" parameterType="egovframework.sejong.user.model.SettleTrxDTO"><![CDATA[
+	  UPDATE TBL_SETTLE_TRX SET ACTION_YN='N',
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE TRX_SEQ = #{trxSeq}
+	]]></update>
+
+	<!-- 거래처 원장 — 일자별 매출·DC·수금·매입·지급·할인. 잔고 누계와 [월 계]·[합 계] 는 화면에서 만든다.
+	     매출 = 정산서(TBL_SALES_MST) / 매입 = 매입전표 / 수금·지급 = TBL_SETTLE_TRX
+
+	     ★ 매출↔거래처 연결 (2026-07-25 추가, 협의 전 잠정) ─────────────────────────
+	       정산서는 거래처코드를 안 갖고 출고장코드(DC_CD : E100~E700)만 갖는다.
+	       거래처마스터에도 DC_CD 가 있어 그걸로 잇는다.  v.DC_CD = s.DC_CD
+	       현재 DC_CD 가 채워진 거래처는 7건뿐이고 출고장과 1:1 이다 (2026-07-25 확인) :
+	         E100 삼성웰스토리 용인(00273) / E200 왜관(00275) / E300 김해(00274)
+	         E400 광주(00276) / E500 평택(00272) / E600 제주(00277) / E700 오산(00278)
+	       나머지 425개 거래처는 DC_CD 가 비어 매출이 0으로 나온다 — 정상이다(매입처).
+	       DC_CD 가 빈 거래처끼리 ''=''  로 엮이지 않도록 서브쿼리에서 빈값을 걸러낸다.
+	       ※ 이 연결 방식은 협의 대상. 거래처별 매출을 더 잘게 붙이려면 정산서에
+	          거래처코드를 싣거나 매핑표가 필요하다.
+	     일자는 마감·매출내역과 같게 납품일자(DLV_DT) 기준, 없으면 출고일자로 떨어뜨린다. -->
+	<select id="selectCustLedger" parameterType="egovframework.sejong.user.model.SettleTrxDTO" resultType="java.util.HashMap"><![CDATA[
+	  SELECT x.dt AS dt,
+	         SUM(x.saleAmt)  AS saleAmt,
+	         SUM(x.dcAmt)    AS dcAmt,
+	         SUM(x.rcvAmt)   AS rcvAmt,
+	         SUM(x.purchAmt) AS purchAmt,
+	         SUM(x.payAmt)   AS payAmt,
+	         SUM(x.discAmt)  AS discAmt
+	    FROM (
+	          SELECT ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) AS dt, ISNULL(s.SALE_AMT,0) AS saleAmt,
+	                 0 AS dcAmt, 0 AS rcvAmt, 0 AS purchAmt, 0 AS payAmt, 0 AS discAmt
+	            FROM TBL_SALES_MST s
+	           WHERE s.ACTION_YN = 'Y'
+	             AND ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) IS NOT NULL
+	             AND s.DC_CD = ( SELECT MAX(v.DC_CD) FROM TBL_VENDOR_MST v
+	                              WHERE v.VENDOR_CD = #{custCd,jdbcType=VARCHAR}
+	                                AND v.ACTION_YN = 'Y' AND ISNULL(v.DC_CD,'') <> '' )
+	          UNION ALL
+	          SELECT m.PURCH_DT AS dt, 0 AS saleAmt, 0 AS dcAmt, 0 AS rcvAmt,
+	                 ISNULL(m.TOT_AMT,0) AS purchAmt, ISNULL(m.PAY_AMT,0) AS payAmt, ISNULL(m.DC_AMT,0) AS discAmt
+	            FROM TBL_PURCHASE_MST m
+	           WHERE m.ACTION_YN = 'Y' AND m.VENDOR_CD = #{custCd,jdbcType=VARCHAR}
+	          UNION ALL
+	          SELECT t.TRX_DT, 0, ISNULL(t.SALE_DC_AMT,0), CASE WHEN t.TRX_GB='RCV' THEN ISNULL(t.AMT,0) ELSE 0 END,
+	                 0, CASE WHEN t.TRX_GB='PAY' THEN ISNULL(t.AMT,0) ELSE 0 END, ISNULL(t.DC_AMT,0)
+	            FROM TBL_SETTLE_TRX t
+	           WHERE t.ACTION_YN = 'Y' AND t.CUST_CD = #{custCd,jdbcType=VARCHAR}
+	    ) x
+	   GROUP BY x.dt
+	   ORDER BY x.dt
+	]]></select>
 </mapper>

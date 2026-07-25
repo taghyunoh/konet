@@ -16,7 +16,7 @@
 </style>
 <style>
   
-  
+
   :root { --logi-teal:#1f9b8e; --logi-teal-dark:#178074; --logi-border:#dfe6e3; --logi-bg:#f4f8f7; }
   /* 흐린 회색 글자를 진한 색으로 (또렷하게) */
   .logi-wrap .sub, .logi-wrap .wh-meta, .logi-wrap .note,
@@ -52,11 +52,12 @@
   .logi-side a.mi.has-sub.open .caret { transform:rotate(90deg); }
   .logi-side .sub-menu { display:none; background:#1a232e; }
   .logi-side .sub-menu.open { display:block; }
-  .logi-side .sub-menu a.mi { padding-left:34px; font-size:13px; }
+  .logi-side .sub-menu a.mi { padding-left:34px; font-size:12.5px; padding-top:5px; padding-bottom:5px; }
   .logi-side .side-tit { padding:18px 20px; font-size:17px; font-weight:700; color:#fff; border-bottom:1px solid #2c3a4a; }
   .logi-side .side-tit small { display:block; font-size:11px; font-weight:400; color:#8a98a8; margin-top:3px; }
-  .logi-side .grp { padding:14px 20px 6px; font-size:11px; letter-spacing:.5px; color:#7d8b9c; }
-  .logi-side a.mi { display:flex; align-items:center; gap:9px; padding:9px 20px; color:#cdd6e0; text-decoration:none; font-size:13.5px; border-left:3px solid transparent; cursor:pointer; }
+  /* 메뉴 간격 — 그룹이 6개로 늘어 세로가 길어져 촘촘하게 줄였다(2026-07-25 요청) */
+  .logi-side .grp { padding:9px 20px 3px; font-size:11px; letter-spacing:.5px; color:#7d8b9c; }
+  .logi-side a.mi { display:flex; align-items:center; gap:8px; padding:6px 20px; color:#cdd6e0; text-decoration:none; font-size:13.5px; border-left:3px solid transparent; cursor:pointer; }
   .logi-side a.mi:hover { background:#28333f; color:#fff; }
   .logi-side a.mi.on { background:var(--logi-teal); color:#fff; border-left:5px solid #0b5a52; padding-left:16px; font-weight:800; box-shadow:inset -3px 0 0 rgba(255,255,255,.18); }
   .logi-side a.mi.on .ic, .logi-side a.mi.on .caret { color:#fff; }
@@ -4462,27 +4463,58 @@
           서브메뉴 3개 → 단일 메뉴. 탭 전환은 iframe(logistics_demo1) 상단 뷰버튼(zoneitem/biz/item). --%>
      <a class="mi" data-key="shipstatus2" onclick="logiShipView('zoneitem', this)"><span class="ic">🚚</span>출고세부조회</a>
 
-    <div class="grp">매입·재고관리</div>
-    <a class="mi" data-key="inboundList" onclick="logiGo('inboundList', this); inbInit(); inboundListLoad();"><span class="ic">📄</span>입고내역</a>
-    <a class="mi" data-key="outHist" onclick="logiGo('outHist', this); ohEnter();"><span class="ic">📤</span>매출내역</a>
-    <a class="mi" data-key="stockStatus" onclick="logiGo('stockStatus', this); stkStatusLoad();"><span class="ic">📊</span>재고현황</a>
-    <a class="mi" data-key="prodmst" onclick="logiFrame('prodmst','${pageContext.request.contextPath}/prod/prodmst.do', this)"><span class="ic">📦</span>상품(품목)관리</a>
+    <%-- 메뉴 배열 = 홀세일닥터 구조에 맞춤(2026-07-25 요청).
+         업무 단위(매출/매입/재고)로 묶고 그 안에 등록·정산·마감을 함께 둔다.
+         대시보드는 기존대로 맨 위 고정. 화면(패널)과 동작은 그대로이고 배치만 바꿨다. --%>
 
-    <div class="grp">마감관리 ★</div>
-    <a class="mi has-sub" data-sub="closing" onclick="logiToggleSub('closing', this)"><span class="ic">📒</span>마감관리<span class="caret">▶</span></a>
-    <div class="sub-menu" id="sub-closing">
-      <a class="mi" data-key="closeSales"  onclick="logiGo('closeSales', this)"><span class="ic">💰</span>매출마감</a>
-      <a class="mi" data-key="closeCost"   onclick="logiGo('closeCost', this)"><span class="ic">🧾</span>매입마감</a>
-      <a class="mi" data-key="closeStock"  onclick="logiGo('closeStock', this)"><span class="ic">📦</span>재고마감</a>
+    <div class="grp">매출 관리</div>
+    <a class="mi has-sub" data-sub="salesmng" onclick="logiToggleSub('salesmng', this)"><span class="ic">💰</span>매출 관리<span class="caret">▶</span></a>
+    <div class="sub-menu" id="sub-salesmng">
+      <a class="mi" data-key="outHist" onclick="logiGo('outHist', this); ohEnter();"><span class="ic">📤</span>매출내역</a>
+      <a class="mi" data-key="rcvreg" onclick="logiFrame('rcvreg','${pageContext.request.contextPath}/mangr/rcvReg.do', this)"><span class="ic">🧾</span>수금 등록</a>
+      <%-- 수금 / 미수금(월 단위, TBL_RECEIVE_MST) 메뉴 내림 : 2026-07-25.
+           '수금 등록'(건별 전표)이 같은 일을 하고 원장의 [월 계] 로 월 합계까지 나온다.
+           두 군데 입력하면 잔고가 갈라져서 뺐다. 실사용 0건이라 잃는 데이터 없음.
+           화면(receiveMng.jsp)·컨트롤러·패널은 그대로 두었다. 되돌리려면
+           logiFrame('receive', <컨텍스트>+'/mangr/receiveMng.do', this) 메뉴 한 줄만 다시 넣으면 된다.
+           (EL 표기는 JSP 주석 안에서도 파서를 건드릴 수 있어 일부러 풀어 적었다) --%>
+      <a class="mi" data-key="closeSales" onclick="logiGo('closeSales', this)"><span class="ic">📒</span>매출마감</a>
+    </div>
+
+    <div class="grp">매입 관리</div>
+    <a class="mi has-sub" data-sub="purchmng" onclick="logiToggleSub('purchmng', this)"><span class="ic">🛒</span>매입 관리<span class="caret">▶</span></a>
+    <div class="sub-menu" id="sub-purchmng">
+      <a class="mi" data-key="purchase" onclick="logiFrame('purchase','${pageContext.request.contextPath}/mangr/purchaseReg.do', this)"><span class="ic">🧾</span>매입 등록</a>
+      <a class="mi" data-key="payreg" onclick="logiFrame('payreg','${pageContext.request.contextPath}/mangr/payReg.do', this)"><span class="ic">💸</span>지급 등록</a>
+      <%-- 출금 / 미지급(월 단위, TBL_PAYMENT_MST) 메뉴 내림 : 2026-07-25. 위 '수금 / 미수금' 과 같은 이유.
+           '지급 등록'(건별 전표)이 대신하고, 월 합계는 원장의 [월 계] 로 나온다. 실사용 0건.
+           되돌리려면 logiFrame('payment', <컨텍스트>+'/mangr/paymentMng.do', this) 메뉴 한 줄만 다시 넣는다. --%>
+      <a class="mi" data-key="inboundList" onclick="logiGo('inboundList', this); inbInit(); inboundListLoad();"><span class="ic">📄</span>입고내역</a>
+      <a class="mi" data-key="closeCost" onclick="logiGo('closeCost', this)"><span class="ic">📒</span>매입마감</a>
+    </div>
+
+    <div class="grp">재고 관리</div>
+    <a class="mi has-sub" data-sub="stockmng" onclick="logiToggleSub('stockmng', this)"><span class="ic">📦</span>재고 관리<span class="caret">▶</span></a>
+    <div class="sub-menu" id="sub-stockmng">
+      <a class="mi" data-key="stockStatus" onclick="logiGo('stockStatus', this); stkStatusLoad();"><span class="ic">📊</span>재고현황</a>
+      <a class="mi" data-key="closeStock" onclick="logiGo('closeStock', this)"><span class="ic">📒</span>재고마감</a>
+    </div>
+
+    <div class="grp">정보 현황</div>
+    <a class="mi has-sub" data-sub="infomng" onclick="logiToggleSub('infomng', this)"><span class="ic">📈</span>정보 현황<span class="caret">▶</span></a>
+    <div class="sub-menu" id="sub-infomng">
       <a class="mi" data-key="closeStatus" onclick="logiGo('closeStatus', this)"><span class="ic">📊</span>마감현황(월계표)</a>
       <a class="mi" data-key="closeHist"   onclick="logiGo('closeHist', this); closeHistLoad();"><span class="ic">📅</span>월별 마감이력</a>
     </div>
 
-    <div class="grp">정산관리</div>
-    <a class="mi has-sub" data-sub="settle" onclick="logiToggleSub('settle', this)"><span class="ic">🧮</span>정산관리<span class="caret">▶</span></a>
-    <div class="sub-menu" id="sub-settle">
-      <a class="mi" data-key="receive" onclick="logiFrame('receive','${pageContext.request.contextPath}/mangr/receiveMng.do', this)"><span class="ic">🧾</span>수금 / 미수금</a>
-      <a class="mi" data-key="payment" onclick="logiFrame('payment','${pageContext.request.contextPath}/mangr/paymentMng.do', this)"><span class="ic">💸</span>출금 / 미지급</a>
+    <div class="grp">기준정보</div>
+    <a class="mi" data-key="prodmst" onclick="logiFrame('prodmst','${pageContext.request.contextPath}/prod/prodmst.do', this)"><span class="ic">📦</span>상품(품목)관리</a>
+    <a class="mi has-sub" data-sub="baseinfo" onclick="logiToggleSub('baseinfo', this)"><span class="ic">📂</span>기준정보관리<span class="caret">▶</span></a>
+    <div class="sub-menu" id="sub-baseinfo">
+      <a class="mi" data-key="vendor"  onclick="logiFrame('vendor','${pageContext.request.contextPath}/mangr/vendorMng.do', this)"><span class="ic">🧾</span>매입/매출 거래처</a>
+      <a class="mi" data-key="client"  onclick="logiFrame('client','${pageContext.request.contextPath}/mangr/clientMng.do', this)"><span class="ic">🤝</span>거래처관리(사업장)</a>
+      <a class="mi" data-key="compcd" onclick="logiFrame('compcd','${pageContext.request.contextPath}/mangr/compcd.do', this)"><span class="ic">🏢</span>회사/사용자 관리</a>
+      <a class="mi" data-key="codecd" onclick="logiFrame('codecd','${pageContext.request.contextPath}/base/commcd.do', this)"><span class="ic">🧩</span>공통코드 관리</a>
     </div>
 
     <div class="grp">부가·예정관리</div>
@@ -4505,15 +4537,6 @@
       <a class="mi" onclick="swAlert('카카오톡/문자 발송은 협의 후 추진 예정입니다.','info')"><span class="ic">📨</span>메시지 발송</a>
       <a class="mi" onclick="swAlert('발송 이력 조회는 협의 후 추진 예정입니다.','info')"><span class="ic">📜</span>발송 이력</a>
       <a class="mi" onclick="swAlert('문자 템플릿 관리는 협의 후 추진 예정입니다.','info')"><span class="ic">🧩</span>문자 템플릿 관리</a>
-    </div>
-
-    <div class="grp">시스템관리</div>
-    <a class="mi has-sub" data-sub="baseinfo" onclick="logiToggleSub('baseinfo', this)"><span class="ic">📂</span>기준정보관리<span class="caret">▶</span></a>
-    <div class="sub-menu" id="sub-baseinfo">
-      <a class="mi" data-key="compcd" onclick="logiFrame('compcd','${pageContext.request.contextPath}/mangr/compcd.do', this)"><span class="ic">🏢</span>회사/사용자 관리</a>
-      <a class="mi" data-key="codecd" onclick="logiFrame('codecd','${pageContext.request.contextPath}/base/commcd.do', this)"><span class="ic">🧩</span>공통코드 관리</a>
-      <a class="mi" data-key="client"  onclick="logiFrame('client','${pageContext.request.contextPath}/mangr/clientMng.do', this)"><span class="ic">🤝</span>거래처관리(사업장)</a>
-      <a class="mi" data-key="vendor"  onclick="logiFrame('vendor','${pageContext.request.contextPath}/mangr/vendorMng.do', this)"><span class="ic">🧾</span>매입/매출 거래처</a>
     </div>
 
     <div class="grp">도움말</div>
@@ -5410,6 +5433,22 @@
     <!-- ===== 수금 / 미수금 ===== -->
     <section id="panel-receive" class="panel" style="padding:0;">
       <iframe id="if-receive" src="" title="수금/미수금" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+
+    <!-- ===== 매입등록 (2026-07-25) — logiGo 는 #panel-<key>, logiFrame 은 #if-<key> 를 찾는다.
+             메뉴만 추가하고 이 두 요소를 안 만들면 화면이 빈 채로 뜬다. ===== -->
+    <section id="panel-purchase" class="panel" style="padding:0;">
+      <iframe id="if-purchase" src="" title="매입등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+
+    <!-- ===== 지급등록 (2026-07-25) ===== -->
+    <section id="panel-payreg" class="panel" style="padding:0;">
+      <iframe id="if-payreg" src="" title="지급등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+
+    <!-- ===== 수금등록 (2026-07-25) ===== -->
+    <section id="panel-rcvreg" class="panel" style="padding:0;">
+      <iframe id="if-rcvreg" src="" title="수금등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
 
     <!-- 시스템관리 — 자체완결 화면을 iframe으로 사이드메뉴 우측에 종속 -->

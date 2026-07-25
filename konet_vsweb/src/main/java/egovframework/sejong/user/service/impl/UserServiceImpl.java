@@ -378,4 +378,100 @@ public class UserServiceImpl implements UserService {
 		return total;
 	}
 
+
+	/* ===== 매입등록 (2026-07-25) =====================================================
+	   전표가 원본이고, 재고원장·매입단가 이력은 저장할 때 만들어지는 파생 기록이다.
+	   그래서 재고현황·재고마감·매입마감·매출마감 원가가 별도 작업 없이 맞는다.
+	   수정은 '지우고 다시 넣기' — 명세 행이 늘거나 줄 수 있어 부분 갱신보다 안전하다. */
+	@Override public java.util.List<egovframework.sejong.user.model.PurchaseDTO> selectPurchaseList(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception { return mapper.selectPurchaseList(dto); }
+	@Override public String selectPurchaseNextNo(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception { return mapper.selectPurchaseNextNo(dto); }
+	@Override public Double selectVendorLastPrice(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception { return mapper.selectVendorLastPrice(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.PurchaseDtlDTO> selectPurchasePriceHist(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception { return mapper.selectPurchasePriceHist(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectPurchaseLedger(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception { return mapper.selectPurchaseLedger(dto); }
+
+	@Override public egovframework.sejong.user.model.PurchaseDTO selectPurchaseOne(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception {
+		java.util.List<egovframework.sejong.user.model.PurchaseDTO> l = mapper.selectPurchaseList(dto);
+		egovframework.sejong.user.model.PurchaseDTO head = null;
+		for (egovframework.sejong.user.model.PurchaseDTO r : l) {
+			if (r.getPurchSeq()!=null && r.getPurchSeq().equals(dto.getPurchSeq())) { head = r; break; }
+		}
+		if (head == null) return null;
+		head.setItems(mapper.selectPurchaseDtl(dto));
+		return head;
+	}
+
+	@Override public int savePurchase(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception {
+		boolean isNew = (dto.getPurchSeq() == null || dto.getPurchSeq() <= 0);
+		if (isNew) {
+			if (dto.getPurchNo()==null || dto.getPurchNo().trim().isEmpty()) dto.setPurchNo(mapper.selectPurchaseNextNo(dto));
+			mapper.insertPurchaseMst(dto);          // useGeneratedKeys → dto.purchSeq 채워짐
+		} else {
+			// 이 전표가 만든 파생 원장·명세를 먼저 걷어낸다(전표번호는 그대로 유지)
+			mapper.deletePurchaseLedger(dto);
+			mapper.deletePurchaseDtlAll(dto);
+			mapper.updatePurchaseMst(dto);
+		}
+		java.util.List<egovframework.sejong.user.model.PurchaseDtlDTO> items = dto.getItems();
+		if (items == null) return 0;
+		String refNo = ym8(dto.getPurchDt()) + "-" + (dto.getPurchNo()==null?"":dto.getPurchNo());
+		int rowNo = 0;
+		for (egovframework.sejong.user.model.PurchaseDtlDTO d : items) {
+			if (d.getProdCd()==null || d.getProdCd().trim().isEmpty()) continue;   // 빈 줄 건너뜀
+			rowNo++;
+			d.setPurchSeq(dto.getPurchSeq());
+			d.setRowNo(rowNo);
+			d.setRegUser(dto.getRegUser()); d.setRegIp(dto.getRegIp());
+			if (d.getTrxGb()==null || d.getTrxGb().trim().isEmpty()) d.setTrxGb("매입");
+
+			// ① 파생 재고원장 — 반품이면 R(+), 매입이면 I(+). 원장 QTY 는 int 라 반올림한다
+			egovframework.sejong.user.model.StockLedgerDTO led = new egovframework.sejong.user.model.StockLedgerDTO();
+			led.setProdSeq(d.getProdSeq()); led.setProdCd(d.getProdCd());
+			led.setTrxDt(dto.getPurchDt());
+			led.setIoGb("반품".equals(d.getTrxGb()) ? "R" : "I");
+			double q = d.getQty()==null ? 0d : d.getQty();
+			led.setQty((int) Math.round("반품".equals(d.getTrxGb()) ? -q : q));
+			led.setUnitPrice(d.getUnitPrice());
+			led.setAmt(d.getAmt());
+			led.setVendorCd(dto.getVendorCd());
+			led.setRefGb("PURCH"); led.setRefNo(refNo);
+			led.setRemark(d.getRemark());
+			led.setRegUser(dto.getRegUser()); led.setRegIp(dto.getRegIp());
+			mapper.insertStockLedger(led);
+			mapper.recalcStockMst(led);
+
+			mapper.insertPurchaseDtl(d);
+
+			// ② 매입단가 이력 — 판매단가가 정산엑셀에서 쌓이는 것과 같은 방식(적용일자 = 매입일자)
+			if (d.getUnitPrice()!=null && d.getUnitPrice() > 0 && !"반품".equals(d.getTrxGb())) {
+				egovframework.sejong.user.model.ProdInpriceDTO ip = new egovframework.sejong.user.model.ProdInpriceDTO();
+				ip.setProdSeq(d.getProdSeq()); ip.setProdCd(d.getProdCd());
+				ip.setVendorCd(dto.getVendorCd()); ip.setVendorNm(dto.getVendorNm());
+				ip.setApplyDt(dto.getPurchDt()); ip.setInPrice(d.getUnitPrice());
+				ip.setRemark("매입등록 " + refNo);
+				ip.setRegUser(dto.getRegUser()); ip.setRegIp(dto.getRegIp());
+				try { mapper.insertInprice(ip); mapper.syncProdInPrice(ip); }
+				catch (Exception ignore) { LOGGER.warn("매입단가 이력 적재 건너뜀 : " + d.getProdCd() + " / " + ignore.getMessage()); }
+			}
+		}
+		return rowNo;
+	}
+
+	@Override public int deletePurchase(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception {
+		mapper.deletePurchaseLedger(dto);
+		mapper.deletePurchaseDtlAll(dto);
+		return mapper.deletePurchaseMst(dto);
+	}
+
+	/** 'yyyy-mm-dd' | 'yyyymmdd' → 'yyyymmdd' */
+	private String ym8(String s) { return s==null ? "" : s.replace("-", "").trim(); }
+	/* ===== 수금/지급 등록 — 2026-07-25 ===== */
+	@Override public java.util.List<egovframework.sejong.user.model.SettleTrxDTO> selectSettleList(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectSettleList(dto); }
+	@Override public String selectSettleNextNo(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectSettleNextNo(dto); }
+	@Override public int insertSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception {
+		if (dto.getTrxNo()==null || dto.getTrxNo().trim().isEmpty()) dto.setTrxNo(mapper.selectSettleNextNo(dto));
+		return mapper.insertSettleTrx(dto);
+	}
+	@Override public int updateSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.updateSettleTrx(dto); }
+	@Override public int deleteSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.deleteSettleTrx(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectCustLedger(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectCustLedger(dto); }
 }

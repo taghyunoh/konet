@@ -1023,6 +1023,141 @@ public class UserController {
 			} catch (Exception e) { log.error(" clientDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
+		/* ================= 매입등록 (TBL_PURCHASE_MST/DTL) — 2026-07-25 ================= */
+		@RequestMapping(value="/mangr/purchaseReg.do")
+		public String purchaseReg(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/purchaseReg";
+		}
+		@RequestMapping(value="/mangr/purchaseList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> purchaseList(@ModelAttribute("DTO") egovframework.sejong.user.model.PurchaseDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectPurchaseList(dto));
+			return response;
+		}
+		@RequestMapping(value="/mangr/purchaseDetail.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> purchaseDetail(@ModelAttribute("DTO") egovframework.sejong.user.model.PurchaseDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectPurchaseOne(dto));
+			return response;
+		}
+		@RequestMapping(value="/mangr/purchaseNextNo.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> purchaseNextNo(@ModelAttribute("DTO") egovframework.sejong.user.model.PurchaseDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectPurchaseNextNo(dto));
+			return response;
+		}
+		/** 전표 저장 — 헤더+명세를 통째로 받는다(JSON). 신규/수정 모두 이 하나로 */
+		@RequestMapping(value="/mangr/purchaseSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> purchaseSave(@RequestBody egovframework.sejong.user.model.PurchaseDTO dto,
+		                                           HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getPurchDt()==null || dto.getPurchDt().trim().isEmpty()) return ResponseEntity.status(400).body("매입일자를 선택하세요.");
+				if (dto.getVendorCd()==null || dto.getVendorCd().trim().isEmpty()) return ResponseEntity.status(400).body("거래처를 선택하세요.");
+				if (dto.getItems()==null || dto.getItems().isEmpty()) return ResponseEntity.status(400).body("상품을 한 줄 이상 입력하세요.");
+				String u = (session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"");
+				dto.setRegUser(u); dto.setUpdUser(u);
+				dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());
+				int n = svc.savePurchase(dto);
+				return ResponseEntity.ok("{\"rows\":" + n + ",\"purchSeq\":" + dto.getPurchSeq() + ",\"purchNo\":\"" + dto.getPurchNo() + "\"}");
+			} catch (Exception e) { log.error(" purchaseSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/purchaseDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> purchaseDelete(@RequestBody egovframework.sejong.user.model.PurchaseDTO dto,
+		                                             HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getPurchSeq()==null) return ResponseEntity.status(400).body("전표 키가 필요합니다.");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):""));
+				dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.deletePurchase(dto)));
+			} catch (Exception e) { log.error(" purchaseDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		/** 품목 선택 시 그 거래처의 최근 매입단가 (remark 칸에 거래처코드를 담아 보낸다) */
+		@RequestMapping(value="/mangr/purchaseLastPrice.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> purchaseLastPrice(@ModelAttribute("DTO") egovframework.sejong.user.model.PurchaseDtlDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectVendorLastPrice(dto));
+			return response;
+		}
+		/** 품명 클릭 → 거래처 × 상품 매입단가 이력(최대 3년) */
+		@RequestMapping(value="/mangr/purchasePriceHist.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> purchasePriceHist(@ModelAttribute("DTO") egovframework.sejong.user.model.PurchaseDtlDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectPurchasePriceHist(dto));
+			return response;
+		}
+
+		/** 거래처 원장(분개장) — 매입등록 화면 우측. 일자별 매입·DC·지급·할인 */
+		@RequestMapping(value="/mangr/purchaseLedger.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> purchaseLedger(@ModelAttribute("DTO") egovframework.sejong.user.model.PurchaseDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectPurchaseLedger(dto));
+			return response;
+		}
+
+		/* ================= 수금/지급 등록 (TBL_SETTLE_TRX) — 2026-07-25 =================
+		   한 컨트롤러로 두 화면을 다룬다. 화면이 trxGb 로 'RCV'(수금)/'PAY'(지급)를 넘긴다. */
+		@RequestMapping(value="/mangr/payReg.do")
+		public String payReg(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/payReg";
+		}
+		@RequestMapping(value="/mangr/rcvReg.do")
+		public String rcvReg(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/rcvReg";
+		}
+		@RequestMapping(value="/mangr/settleList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> settleList(@ModelAttribute("DTO") egovframework.sejong.user.model.SettleTrxDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectSettleList(dto));
+			return response;
+		}
+		@RequestMapping(value="/mangr/settleNextNo.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> settleNextNo(@ModelAttribute("DTO") egovframework.sejong.user.model.SettleTrxDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectSettleNextNo(dto));
+			return response;
+		}
+		@RequestMapping(value="/mangr/settleSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> settleSave(@RequestBody egovframework.sejong.user.model.SettleTrxDTO dto,
+		                                         HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getTrxDt()==null || dto.getTrxDt().trim().isEmpty()) return ResponseEntity.status(400).body("일자를 선택하세요.");
+				if (dto.getCustCd()==null || dto.getCustCd().trim().isEmpty()) return ResponseEntity.status(400).body("거래처를 선택하세요.");
+				String u = (session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"");
+				dto.setRegUser(u); dto.setUpdUser(u);
+				dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());
+				int n = (dto.getTrxSeq()==null || dto.getTrxSeq()<=0) ? svc.insertSettleTrx(dto) : svc.updateSettleTrx(dto);
+				return ResponseEntity.ok("{\"rows\":" + n + ",\"trxSeq\":" + dto.getTrxSeq() + ",\"trxNo\":\"" + dto.getTrxNo() + "\"}");
+			} catch (Exception e) { log.error(" settleSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/settleDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> settleDelete(@RequestBody egovframework.sejong.user.model.SettleTrxDTO dto,
+		                                           HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getTrxSeq()==null) return ResponseEntity.status(400).body("전표 키가 필요합니다.");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):""));
+				dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.deleteSettleTrx(dto)));
+			} catch (Exception e) { log.error(" settleDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/custLedger.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> custLedger(@ModelAttribute("DTO") egovframework.sejong.user.model.SettleTrxDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectCustLedger(dto));
+			return response;
+		}
+
 		/* ================= 수금/미수금 (TBL_RECEIVE_MST) ================= */
 		@RequestMapping(value="/mangr/receiveMng.do")
 		public String receiveMng(HttpSession session) {

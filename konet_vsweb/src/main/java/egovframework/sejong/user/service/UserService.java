@@ -174,4 +174,22 @@ public interface UserService {
 	 * @return 실제 INSERT 된 row 수 (정상이면 3)
 	 */
 	int saveAllPatientAgreements(String userUuid, String regId) throws Exception;
+
+	/* ===== 매입등록 — 2026-07-25 ===== */
+	java.util.List<egovframework.sejong.user.model.PurchaseDTO> selectPurchaseList(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	egovframework.sejong.user.model.PurchaseDTO selectPurchaseOne(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	String selectPurchaseNextNo(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	/** 전표 저장(신규/수정) — 헤더·명세 + 파생 재고원장 + 매입단가 이력을 한 번에 */
+	int savePurchase(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	int deletePurchase(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	Double selectVendorLastPrice(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.PurchaseDtlDTO> selectPurchasePriceHist(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPurchaseLedger(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	/* ===== 수금/지급 등록 (TBL_SETTLE_TRX) — 2026-07-25 ===== */
+	java.util.List<egovframework.sejong.user.model.SettleTrxDTO> selectSettleList(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	String selectSettleNextNo(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	int insertSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	int updateSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	int deleteSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectCustLedger(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
 }
