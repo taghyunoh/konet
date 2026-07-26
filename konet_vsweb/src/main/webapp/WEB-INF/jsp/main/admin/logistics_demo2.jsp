@@ -379,6 +379,19 @@
   table.ss-pv td.hl { background:#fff7cc; }
   table.ss-pv td.dlv { background:#e1efff; font-weight:700; color:#1257a8; }   /* 납기일자 컬럼 구분 */
   table.ss-pv td.rn { background:#f4f8f7; color:#9aa7b3; text-align:right; position:sticky; left:0; }
+  table.ss-pv tr.badrow td { background:#fdecea; }                                  /* 값이 빠진 행 — 오류내역과 같이 본다 */
+  table.ss-pv tr.badrow td.rn { background:#f8d7d3; color:#c0392b; font-weight:700; }
+  /* 업로드 오류내역 — 양식이 다르거나 값이 빠졌을 때 '무엇이 어떻게 다른지'를 목록으로 (2026-07-26) */
+  .ss-pverr { font-size:12.5px; background:#fff6f5; border:1px solid #f3c9c3; border-radius:7px; padding:8px 12px; margin-bottom:10px; color:#7a3b34; }
+  .ss-pverr .eh { font-weight:700; color:#c0392b; margin-bottom:5px; }
+  .ss-pverr ol, .ss-pverr ul { margin:0; padding-left:18px; }
+  .ss-pverr li { line-height:1.65; }
+  .ss-pverr .bad { color:#c0392b; }
+  .ss-pverr .ok  { color:#137a6c; }
+  .ss-pverr .dim { color:#8a9199; }
+  .ss-pverr .ln  { color:#6b7a89; font-size:11.5px; }
+  .ss-pverr.warn { background:#fff9ec; border-color:#f0dcae; color:#7a6310; }
+  .ss-pverr.warn .eh { color:#b3760f; }
 
   /* 출고장 변경 알림 — 화면 하단 독립 고정 바 (데시보드2 iframe에서 postMessage 수신, 위너넷 알림바 스타일) */
   #konetAsqBar { position:fixed; bottom:0; left:0; width:100%; height:36px; color:#fff; display:none; align-items:center;
@@ -2409,6 +2422,7 @@
         zoneVal=(''+(row[m.cZone]||'')).trim();
       }
       rows.push({
+        ln:r+1,                                   // 엑셀 행번호(오류내역 표시용)
         code:(''+(m.cCode>=0?row[m.cCode]:'')).trim(),
         item:nm,
         biz:bizLbl,
@@ -2425,6 +2439,120 @@
   }
 
   var ssPvCur=null, ssPvBadFile=null;
+
+  /* ══ 업로드 오류내역 (발주현황표) — 2026-07-26 요청 ══════════════════════════
+       종전에는 양식이 다르면 "형식이 맞지 않는 자료입니다" 한 줄만 떴다 → 어디가 다른지 알 수 없었다.
+       이제 두 가지를 나눠 보여준다.
+         ① 양식 대조 : 기대 컬럼 중 무엇이 없는지 · 이 파일에 실제로 있는 머리글은 무엇인지
+         ② 행 대조   : 양식은 맞지만 값이 빠져 집계가 어긋날 행(출고장·수량·품목코드·사업장·납기일자)
+       ②는 저장을 막지 않는다(경고) — 막으면 정상 자료 대부분이 함께 걸리기 때문. 빨간 행으로 함께 표시.  */
+  var SS_FMT_SPEC=[
+    { key:'konet', name:'코네트 발주현황표(출고장)', req:['물류센터명','품목명','입고장'], qty:['수량','현 발주','현발주'],
+      opt:['품목코드','사업장명','사업장코드','납기일자'] },
+    { key:'old',   name:'기존 발주현황표(2행 헤더)', req:['품목명','사업장명','존'],       qty:['수량'],
+      opt:['품목코드','사업장코드','납기일자','18차 가마감 일시'] }
+  ];
+  // 앞쪽 몇 행에서 머리글 후보(짧은 문자열)를 모은다 — 파일에 뭐가 들었는지 보여주려는 것
+  function ssHdrCells(aoa, maxRow){
+    var set={}, list=[];
+    for(var i=0;i<Math.min(aoa.length, maxRow||8);i++){
+      (aoa[i]||[]).forEach(function(c){
+        var s=(''+(c==null?'':c)).trim();
+        if(s && s.length<=20 && !set[s]){ set[s]=1; list.push(s); }
+      });
+    }
+    // has() = 실제 파서(findIn)와 같은 부분일치. '수량(EA)' 같은 머리글을 '없다'고 잘못 적지 않으려는 것
+    var has=function(n){
+      if(set[n]) return true;
+      for(var i=0;i<list.length;i++){ if(list[i].indexOf(n)>=0) return true; }
+      return false;
+    };
+    return { set:set, list:list, has:has };
+  }
+  // 양식별 대조 — 맞은 개수가 많은 쪽을 '가장 가까운 양식'으로 앞에 놓는다
+  function ssFmtDiag(aoa){
+    var hd=ssHdrCells(aoa,8);
+    var cand=SS_FMT_SPEC.map(function(sp){
+      var miss=sp.req.filter(function(n){ return !hd.has(n); });
+      if(!sp.qty.some(function(n){ return hd.has(n); })) miss=miss.concat([sp.qty[0]]);
+      return { spec:sp, miss:miss, optMiss:sp.opt.filter(function(n){ return !hd.has(n); }), hit:(sp.req.length+1)-miss.length };
+    });
+    cand.sort(function(a,b){ return b.hit-a.hit; });
+    return { hdr:hd, cand:cand };
+  }
+  // 양식 자체가 안 맞을 때의 오류내역 HTML
+  function ssFmtErrHtml(aoa){
+    var h='<div class="ss-pverr"><div class="eh">⚠️ 오류내역 — 이 엑셀은 <b>발주현황표 양식</b>이 아닙니다</div><ol>';
+    if(!aoa.length){
+      h+='<li>선택한 시트가 <b class="bad">비어 있습니다</b> (읽은 행 0). 다른 시트를 골라 보세요.</li>';
+    } else {
+      var d=ssFmtDiag(aoa);
+      d.cand.forEach(function(c,i){
+        h+='<li>'+(i===0?'<b>[가장 가까운 양식]</b> ':'')+'<b>'+_cesc(c.spec.name)+'</b> 기준 — '
+          + (c.miss.length ? '없는 컬럼 <b class="bad">'+c.miss.map(_cesc).join(' · ')+'</b>'
+                           : '<span class="ok">필수 컬럼은 모두 있음</span>')
+          + (c.optMiss.length ? ' <span class="dim">(선택 컬럼 없음: '+c.optMiss.map(_cesc).join(' · ')+')</span>' : '')
+          + '</li>';
+      });
+      h+='<li>이 시트에서 찾은 머리글 <span class="dim">'
+        + (d.hdr.list.length ? _cesc(d.hdr.list.slice(0,25).join(' · '))+(d.hdr.list.length>25?(' … 외 '+(d.hdr.list.length-25)+'개'):'') : '없음')
+        + '</span></li>';
+      h+='<li class="dim">시트가 여러 개면 위 <b>시트</b> 선택을 바꿔 보고, 그래도 같으면 출고장에서 받은 <b>원본 파일</b>이 맞는지 확인하세요.</li>';
+    }
+    return h+'</ol></div>';
+  }
+  // 양식은 맞을 때 — 값이 빠진 행 찾기. 반환 bad = { 엑셀행index0 : 1 } (미리보기 빨간 행)
+  function ssRowDiag(aoa, m){
+    var _start=(m.dataRow!=null)?m.dataRow:(m.h+2);
+    var d={ skip:[], zone:[], qty:[], code:[], biz:[], dlv:[], bad:{}, n:0 };
+    for(var r=_start;r<aoa.length;r++){
+      var row=aoa[r]||[];
+      var nm=(''+(row[m.cItem]||'')).trim();
+      if(!nm){
+        // 품목명이 빈 행 — 완전 빈 행은 무시, 다른 칸에 값이 있으면 '반영 안 되는 행'(합계행 등)
+        var any=false;
+        for(var c=0;c<row.length;c++){ if((''+(row[c]==null?'':row[c])).trim()!==''){ any=true; break; } }
+        if(any){ d.skip.push(r+1); d.bad[r]=1; }
+        continue;
+      }
+      d.n++;
+      var zone;
+      if(m.zoneJoin) zone=((''+(m.cCenter>=0?row[m.cCenter]:'')).trim()+(''+(m.cInb>=0?row[m.cInb]:'')).trim()).trim();
+      else zone=(''+(row[m.cZone]||'')).trim();
+      var qraw=(''+(m.cQty>=0?(row[m.cQty]==null?'':row[m.cQty]):'')).trim();
+      var qok=(qraw!=='' && !isNaN(+qraw.replace(/[^0-9.\-]/g,'')) && qraw.replace(/[^0-9.\-]/g,'')!=='');
+      if(!zone){ d.zone.push(r+1); d.bad[r]=1; }
+      if(!qok){ d.qty.push(r+1); d.bad[r]=1; }
+      if(m.cCode>=0 && !(''+(row[m.cCode]||'')).trim()) d.code.push(r+1);
+      if(m.cBiz >=0 && !(''+(row[m.cBiz ]||'')).trim()) d.biz.push(r+1);
+      if(m.cDlv >=0 && !ssFmtDate(row[m.cDlv]))         d.dlv.push(r+1);
+    }
+    return d;
+  }
+  // 행번호 목록을 짧게 — "12, 13, 14 … 외 20행"
+  function ssLnList(arr, max){
+    max=max||8;
+    var s=arr.slice(0,max).join(', ');
+    return '<span class="ln">엑셀 '+s+(arr.length>max?(' … 외 '+(arr.length-max)+'행'):'')+' 행</span>';
+  }
+  // 행 오류내역 HTML — 없으면 빈 문자열
+  function ssRowErrHtml(d){
+    var e=[], w=[];
+    if(d.zone.length) e.push({t:'<b class="bad">출고장이 비어 있음</b> — 이 행은 집계·저장에서 빠집니다', a:d.zone});
+    if(d.qty.length)  e.push({t:'<b class="bad">수량이 비었거나 숫자가 아님</b> — 0 으로 저장됩니다',      a:d.qty});
+    if(d.skip.length) w.push({t:'품목명이 없어 <b>반영되지 않는 행</b> (합계행·소계행일 수 있음)',          a:d.skip});
+    if(d.code.length) w.push({t:'품목코드 없음 — 품목명으로만 매칭됩니다',                                  a:d.code});
+    if(d.biz.length)  w.push({t:'사업장명 없음 — 사업장별 집계에서 빠집니다',                               a:d.biz});
+    if(d.dlv.length)  w.push({t:'납기일자를 날짜로 못 읽음 — 출고일자 자동계산에서 빠집니다',               a:d.dlv});
+    if(!e.length && !w.length) return '';
+    var cls=e.length?'ss-pverr':'ss-pverr warn';
+    var tot=e.reduce(function(s,x){return s+x.a.length;},0), wtot=w.reduce(function(s,x){return s+x.a.length;},0);
+    var h='<div class="'+cls+'"><div class="eh">⚠️ 오류내역 — 데이터 '+d.n.toLocaleString()+'행 중 '
+        + (tot?('<b>오류 '+tot.toLocaleString()+'행</b>'):'')+(tot&&wtot?' · ':'')+(wtot?('주의 '+wtot.toLocaleString()+'행'):'')
+        + ' <span class="dim">(미리보기에서 <b>빨간 행</b>)</span></div><ul>';
+    e.concat(w).forEach(function(x){ h+='<li>'+x.t+' '+ssLnList(x.a)+'</li>'; });
+    return h+'</ul></div>';
+  }
 
   // 도움말의 chrome://settings/downloads 복사 — 설정 주소는 링크로 못 열어(브라우저가 막음) 복사해서 주소창에 붙여넣게 한다.
   //   navigator.clipboard 는 https/localhost 에서만 되므로 execCommand 폴백을 함께 둔다(사내 http 접속 대비).
@@ -2467,6 +2595,7 @@
       // 아직 아무 파일도 안 읽은 상태로 열릴 수 있다(버튼이 곧바로 이 모달을 연다) → 우측 빈칸 대신 안내
       if(!ssPvWb){
         var _i=document.getElementById('ssPvInfo'), _t=document.getElementById('ssPvTbl'), _f=document.getElementById('ssPvFile');
+        var _e=document.getElementById('ssPvErr'); if(_e) _e.innerHTML='';
         if(_f) _f.textContent='-';
         if(_t) _t.innerHTML='';
         if(_i){ _i.className='ss-pvinfo';
@@ -2493,8 +2622,10 @@
     var m=ssMapCols(aoa);
     ssPvCur={aoa:aoa, map:m};
     var info=document.getElementById('ssPvInfo');
+    var errBox=document.getElementById('ssPvErr');
     var btn=document.getElementById('ssPvApplyBtn');
-    var hlCols={}, dlvCol=-1;
+    var hlCols={}, dlvCol=-1, badRows={};
+    if(errBox) errBox.innerHTML='';
     var _earlyElReset=document.getElementById('ssPvEarlyMsg'); if(_earlyElReset){ _earlyElReset.style.display='none'; _earlyElReset.innerHTML=''; }
     if(m){
       [m.cItem,m.cBiz,m.cBizCode,m.cZone,m.cQty,m.cCode,m.cInb,m.cCenter].forEach(function(c){ if(c>=0) hlCols[c]=1; });
@@ -2536,16 +2667,26 @@
           + (m.cCode>=0?'<span class="tag">품목코드</span>':'')
           + ' · 데이터 <b>'+cnt+'</b>건 (노란 칸이 반영 대상)';
       }
+      // 양식은 맞아도 값이 빠진 행이 있으면 오류내역을 함께 (저장은 막지 않음)
+      var _rd=ssRowDiag(aoa,m); badRows=_rd.bad;
+      var _rh=ssRowErrHtml(_rd);
+      if(errBox) errBox.innerHTML=_rh;
+      if(_rh && (_rd.zone.length||_rd.qty.length) && ssPvBadFile!==ssPvName){
+        ssPvBadFile=ssPvName;
+        ssToast('⚠️ 오류내역 있음 — 출고장/수량이 빠진 행 '+(_rd.zone.length+_rd.qty.length)+'행 (미리보기 위쪽 확인)');
+      }
       btn.removeAttribute('disabled'); btn.style.opacity='1';
     } else {
       info.className='ss-pvinfo warn';
       info.innerHTML='⚠️ <b>형식이 맞지 않는 자료입니다</b> — 발주현황표(출고) 양식이 아닙니다.<br>'
         + '헤더에 <b>물류센터명·품목명·현 발주</b>(코네트) 또는 <b>품목명·사업장명·존·수량</b> 이 있어야 합니다. 시트를 바꿔 보세요.';
+      if(errBox) errBox.innerHTML=ssFmtErrHtml(aoa);   // 무엇이 다른지 목록으로
       btn.setAttribute('disabled','disabled'); btn.style.opacity='.5';
       // 같은 파일엔 한 번만 팝업(시트 바꿀 때마다 반복 방지)
-      if(ssPvBadFile!==ssPvName){ ssPvBadFile=ssPvName; ssToast('⚠️ 형식이 맞지 않는 자료입니다'); }
+      if(ssPvBadFile!==ssPvName){ ssPvBadFile=ssPvName; ssToast('⚠️ 형식이 맞지 않는 자료입니다 — 오류내역을 확인하세요'); }
     }
-    if(m) ssPvBadFile=null;
+    // ※ ssPvBadFile 은 '이 파일로 이미 알렸다' 표시 — 오류가 없을 때만 푼다(있으면 시트 바꿔도 재알림 안 함)
+    if(m && !Object.keys(badRows).length) ssPvBadFile=null;
     // 미리보기 표 (전체 행 표시 — 모달 내 스크롤)
     var maxR=Math.min(aoa.length,2000), maxC=0;
     for(var i=0;i<maxR;i++) maxC=Math.max(maxC,(aoa[i]||[]).length);
@@ -2553,7 +2694,7 @@
     var html='';
     for(var r=0;r<maxR;r++){
       var isHdr = m && (r===m.h || r===m.h+1);
-      html+= isHdr ? '<tr class="hdr">' : '<tr>';
+      html+= isHdr ? '<tr class="hdr">' : (badRows[r] ? '<tr class="badrow">' : '<tr>');
       html+='<td class="rn">'+(r+1)+'</td>';
       for(var c=0;c<maxC;c++){
         var v=ssCellDisp(aoa[r]&&aoa[r][c]);
@@ -3485,12 +3626,25 @@
     if(C.taxGb<0) C.taxGb=eq(hr,'면과세구분');
     var g=function(row,i){ return i>=0 ? row[i] : ''; };
     var out=[], lastOrd='';
+    /* ★오류 행은 아예 담지 않는다(2026-07-26 사용자 확정) — 담아서 경고만 하던 것을 '저장 안 함'으로 바꿨다.
+         사유는 화면에 길게 늘어놓지 않고 확인창에 '오류 N행 제외 (사유 개수)' 한 줄로만 알린다.
+         · 담기지 않으므로 파일 목록의 행수·출고량·매출액 = 실제로 저장될 값이 된다(어긋날 여지 없음). */
+    var nBad=0, badWhy={};
+    var _mark=function(w){ nBad++; badWhy[w]=(badWhy[w]||0)+1; };
     for(var r=h+1;r<aoa.length;r++){
       var row=aoa[r]||[];
       var cd=slsStr(g(row,C.itemCd));
-      if(!cd) continue;                       // 품목코드 없는 행 = 합계행/빈행 → 제외
+      if(!cd) continue;                       // 품목코드 없는 행 = 합계행/빈행 → 제외(오류 아님)
       var ono=slsStr(g(row,C.ordNo));
       if(ono) lastOrd=ono; else ono=lastOrd;  // 발주번호 병합셀(B3:B63) → 위 값 승계
+      var _dlv=ssFmtDate(g(row,C.dlvDt));
+      var _rq=slsStr(g(row,C.outQty)), _ra=slsStr(g(row,C.saleAmt));
+      var _q=slsNum(g(row,C.outQty)), _p=slsNum(g(row,C.salePrice)), _a=slsNum(g(row,C.saleAmt));
+      if(!_dlv){                    _mark('납품일자'); continue; }   // 배치키(납품일자+출고장)가 안 섬
+      if(!ono){                     _mark('발주번호'); continue; }   // 위에도 값이 없어 승계 실패
+      if(_rq==='' || _q===null){    _mark('입고량');   continue; }
+      if(_ra==='' || _a===null){    _mark('매입금액'); continue; }
+      if(_p!==null && Math.abs(_a - _q*_p) > 1){ _mark('매입금액≠입고량×단가'); continue; }   // 원본 검산
       out.push({
         rowNo:slsNum(g(row,C.rowNo)), ordNo:ono, ordItemNo:slsStr(g(row,C.ordItemNo)),
         itemCd:cd, itemNm:slsStr(g(row,C.itemNm)), spec:slsStr(g(row,C.spec)), unit:slsStr(g(row,C.unit)),
@@ -3500,7 +3654,26 @@
         dlvType:slsStr(g(row,C.dlvType)), taxGb:slsStr(g(row,C.taxGb))
       });
     }
-    return { rows:out, err: out.length?'':'품목코드가 있는 데이터행이 없습니다.' };
+    // 한 행도 못 담았으면 이유를 err 로 — 목록 상태칸에 그대로 뜬다(문구는 종전처럼 한 줄)
+    var e0 = out.length ? ''
+           : (nBad ? ('모든 행에 오류가 있어 저장할 수 없습니다 ('+nBad.toLocaleString()+'행)')
+                   : '품목코드가 있는 데이터행이 없습니다.');
+    return { rows:out, err:e0, nBad:nBad, badWhy:badWhy };
+  }
+  // 오류 행 사유 요약 한 줄 — "매입금액 12 · 납품일자 3" (확인창·상태칸용, 목록으로 늘어놓지 않는다)
+  function slsBadWhy(f){
+    var w=(f&&f.badWhy)||{}, a=[];
+    for(var k in w){ if(w.hasOwnProperty(k)) a.push({k:k, n:w[k]}); }
+    a.sort(function(x,y){ return y.n-x.n; });
+    return a.map(function(x){ return x.k+' '+x.n.toLocaleString(); }).join(' · ');
+  }
+  /* ★이 파일이 저장에서 빠지는 이유 — 없으면 ''. 목록 상태칸(slsRender)과 저장(slsSave)이 같은 판정을 쓰도록 한 곳에 둔다.
+       여기 걸린 파일만 제외되고 나머지는 저장된다(2026-07-26 'A안' — 종전에는 하나만 걸려도 전체가 막혔다). */
+  function slsSkipWhy(f){
+    if(!f) return '';
+    if(!f.rows.length)        return f.err || '저장할 행 없음';   // 오류 행은 이미 rows 에서 빠져 있다
+    if(!(f.dcNm||'').trim())  return '출고장이 비어 있음';
+    return '';
   }
   // 이미 반영된 파일명 목록 (재업로드=기존배치 대체 임을 화면에 알림)
   function slsLoadDone(){
@@ -3523,7 +3696,7 @@
             var aoa=ws?XLSX.utils.sheet_to_json(ws,{header:1,defval:''}):[];
             var b=slsBuildRows(aoa);
             _slsFiles=_slsFiles.filter(function(x){ return x.name!==f.name; });   // 같은 파일 다시 고르면 교체
-            _slsFiles.push({ name:f.name, dcNm:slsParseName(f.name).dc, rows:b.rows, err:b.err });
+            _slsFiles.push({ name:f.name, dcNm:slsParseName(f.name).dc, rows:b.rows, err:b.err, nBad:b.nBad, badWhy:b.badWhy });
           }catch(err){ _slsFiles.push({ name:f.name, dcNm:'', rows:[], err:err.message }); }
           fin();
         }, function(err){ _slsFiles.push({ name:f.name, dcNm:'', rows:[], err:err.message }); fin(); });
@@ -3584,15 +3757,22 @@
     if(!_slsFiles.length){ sum.textContent=''; wrap.innerHTML='<div style="padding:24px;text-align:center;color:#9aa7b3">고른 파일이 없습니다. <b>📁 파일 추가</b> 로 정산 엑셀을 선택하세요.</div>'; return; }
     var tQ=0, tA=0, tR=0;
     _slsFiles.forEach(function(f){ f.rows.forEach(function(r){ tR++; tQ+=(+r.outQty||0); tA+=(+r.saleAmt||0); }); });
-    sum.innerHTML='파일 <b>'+_slsFiles.length+'</b>개 · 행 <b>'+tR.toLocaleString()+'</b> · 출고량 <b>'+_cnum(tQ)+'</b> · 매출액 <b style="color:#137a6c">'+_cnum(tA)+'</b>';
+    var tB=_slsFiles.reduce(function(s,f){ return s+(+f.nBad||0); }, 0);       // 오류로 빠진 행(rows 에 이미 없음)
+    sum.innerHTML='파일 <b>'+_slsFiles.length+'</b>개 · 행 <b>'+tR.toLocaleString()+'</b> · 출고량 <b>'+_cnum(tQ)+'</b> · 매출액 <b style="color:#137a6c">'+_cnum(tA)+'</b>'
+      + (tB?(' · <span style="color:#c0392b">오류 <b>'+tB.toLocaleString()+'</b>행 제외</span>'):'');
     var h='<table class="logi-tb sls-ftb"><thead><tr><th>파일명</th><th>출고장</th><th>센터코드</th><th>납품일자</th>'
         + '<th style="text-align:right">행</th><th style="text-align:right">출고량</th><th style="text-align:right">매출액</th><th>상태</th><th></th></tr></thead><tbody>';
     _slsFiles.forEach(function(f,i){
       var q=0,a=0; f.rows.forEach(function(r){ q+=(+r.outQty||0); a+=(+r.saleAmt||0); });
       var ds=slsDates(f), dlab=ds.length?(ds[0]+(ds.length>1?(' 외 '+(ds.length-1)+'일'):'')):'<span style="color:#c0392b">없음</span>';
-      var st = f.err ? '<span style="color:#c0392b">⚠ '+_cesc(f.err)+'</span>'
-             : (_slsDone[f.name] ? '<span style="color:#a85700">↻ 이미 반영됨 ('+_cesc(_slsDone[f.name].uploadDttm||'')+') — 저장 시 대체</span>'
-                                 : '<span style="color:#137a6c">신규</span>');
+      // 저장에서 빠지는 파일은 이유를 한 줄로 — 나머지 파일은 그대로 저장된다(전체가 막히지 않음)
+      var _sw=slsSkipWhy(f), st;
+      if(_sw) st='<span style="color:#c0392b">⚠ '+_cesc(_sw)+'</span>';
+      else {
+        st = _slsDone[f.name] ? '<span style="color:#a85700">↻ 이미 반영됨 ('+_cesc(_slsDone[f.name].uploadDttm||'')+') — 저장 시 대체</span>'
+                              : '<span style="color:#137a6c">신규</span>';
+        if(+f.nBad) st+=' <span style="color:#c0392b">· 오류 '+(+f.nBad).toLocaleString()+'행 제외</span>';
+      }
       h+='<tr><td class="txt-l">'+_cesc(f.name)+'</td>'
         +'<td><input class="cq" style="width:120px;height:26px" value="'+_cesc(f.dcNm)+'" oninput="slsSetDc('+i+',this.value)" placeholder="예: 평택"></td>'
         +'<td>'+(slsDcCd(f.dcNm)
@@ -3659,32 +3839,48 @@
   function slsProgDone(){ _slsProgStop(); _slsProgWidth(100, false); _slsProgLab('완료'); }
   function slsProgHide(){ _slsProgStop(); var b=document.getElementById('slsProg'), f=document.getElementById('slsProgFill'); if(b) b.style.display='none'; if(f){ f.classList.remove('sls-prog-indet'); f.style.width='0%'; } }
   function slsSaveBtnBusy(on){ var b=document.getElementById('slsSaveBtn'); if(b){ b.disabled=!!on; b.style.opacity=on?'0.55':''; b.style.pointerEvents=on?'none':''; } }
+  /* 저장 뒤 정리 — 저장에 들어간 파일만 목록에서 빼고, 제외된 파일은 남겨 고쳐서 다시 저장할 수 있게 한다.
+       남은 게 없으면 종전대로 팝업을 닫는다. 반환 = 목록에 남은(제외된) 파일 수. */
+  function _slsAfterSave(savedNames){
+    _slsFiles=_slsFiles.filter(function(f){ return !savedNames[f.name]; });
+    var left=_slsFiles.length;
+    slsLoadDone();                       // 반영 파일 목록 갱신(내부에서 slsRender)
+    slsQuery();
+    if(left) slsRender(); else slsUpClose();
+    return left;
+  }
   function slsSave(){
     if(!_slsFiles.length){ ssToast('⚠️ 업로드된 파일이 없습니다.'); return; }
-    var payload=[], bad=[], noDt=0;
+    /* ★저장 가능한 파일만 저장한다(2026-07-26 요청) — 종전에는 한 파일이라도 문제가 있으면 전체가 막혔다.
+         문제 파일은 payload 에서 빼고 `bad` 에 사유를 남겨 확인창에 보여준 뒤, 저장 후에도 목록에 남긴다. */
+    var payload=[], bad=[], okFiles=[];
     _slsFiles.forEach(function(f){
-      var dc=(f.dcNm||'').trim();
-      if(!f.rows.length){ bad.push(f.name+' — 저장할 행 없음'); return; }
-      if(!dc){ bad.push(f.name+' — 출고장이 비어 있음'); return; }
-      var dcc=slsDcCd(dc);                  // 물류센터코드 — 못 찾으면 빈값으로 두고 저장은 진행
-      f.rows.forEach(function(o){
-        if(!o.dlvDt){ noDt++; return; }     // 납품일자 없는 행은 배치키가 안 서므로 제외
+      var why=slsSkipWhy(f);
+      if(why){ bad.push(f.name+' — '+why); return; }
+      var dc=(f.dcNm||'').trim(), dcc=slsDcCd(dc);   // 물류센터코드 — 못 찾으면 빈값으로 두고 저장은 진행
+      f.rows.forEach(function(o){          // rows 에는 오류 행이 이미 없다(slsBuildRows 에서 제외)
         payload.push({ srcFile:f.name, dcNm:dc, dcCd:dcc,
           rowNo:o.rowNo, ordNo:o.ordNo, ordItemNo:o.ordItemNo, itemCd:o.itemCd, itemNm:o.itemNm,
           spec:o.spec, unit:o.unit, ordQty:o.ordQty, settleQty:o.settleQty, settleAmt:o.settleAmt,
           dlvDt:o.dlvDt, outDt:o.outDt, outQty:o.outQty, salePrice:o.salePrice, saleAmt:o.saleAmt,
           dlvType:o.dlvType, taxGb:o.taxGb });
       });
+      okFiles.push(f);
     });
-    if(bad.length){ ssToast('⚠️ 저장 불가:<br>'+bad.map(_cesc).join('<br>')); return; }
-    if(!payload.length){ ssToast('⚠️ 저장할 행이 없습니다.'); return; }
+    if(!payload.length){ ssToast('⚠️ 저장할 수 있는 파일이 없습니다.'+(bad.length?('<br>'+bad.map(_cesc).join('<br>')):'')); return; }
     var q=0,a=0; payload.forEach(function(r){ q+=(+r.outQty||0); a+=(+r.saleAmt||0); });
-    var dup=_slsFiles.filter(function(f){ return _slsDone[f.name]; }).length;
+    var dup=okFiles.filter(function(f){ return _slsDone[f.name]; }).length;
+    var savedNames={}; okFiles.forEach(function(f){ savedNames[f.name]=1; });   // 저장 뒤 목록에서 뺄 파일
+    // 오류 행은 파싱 단계에서 이미 빠져 있다 → 몇 행이 왜 빠졌는지만 한 줄로 알린다
+    var nBad=okFiles.reduce(function(s,f){ return s+(+f.nBad||0); }, 0);
+    var whys={}; okFiles.forEach(function(f){ for(var k in (f.badWhy||{})) whys[k]=(whys[k]||0)+f.badWhy[k]; });
+    var whyTxt=slsBadWhy({badWhy:whys});
     ssConfirm('매출 확정내역 <b>'+payload.length.toLocaleString()+'</b>행을 저장하시겠습니까?<br>'
-      +'출고장 <b>'+_cesc(_slsFiles.map(function(f){return f.dcNm;}).join(', '))+'</b>'
+      +'파일 <b>'+okFiles.length+'</b>개 · 출고장 <b>'+_cesc(okFiles.map(function(f){return f.dcNm;}).join(', '))+'</b>'
       +' · 출고량 <b style="color:#137a6c">'+_cnum(q)+'</b> · 매출액 <b style="color:#137a6c">'+_cnum(a)+'</b>'
-      +(noDt?('<br><span style="color:#a85700">※ 납품일자 없는 '+noDt+'행은 제외됩니다.</span>'):'')
-      +(dup?('<br><span style="color:#a85700">※ 이미 반영된 파일 '+dup+'개 — 같은 (납품일자+출고장) 기존 자료는 이력마감 후 새로 적재됩니다.</span>'):''),
+      +(nBad?('<br><span style="color:#c0392b">※ 오류 '+nBad.toLocaleString()+'행은 저장하지 않습니다'+(whyTxt?(' ('+_cesc(whyTxt)+')'):'')+'.</span>'):'')
+      +(dup?('<br><span style="color:#a85700">※ 이미 반영된 파일 '+dup+'개 — 같은 (납품일자+출고장) 기존 자료는 이력마감 후 새로 적재됩니다.</span>'):'')
+      +(bad.length?('<br><span style="color:#c0392b">※ '+bad.length+'개 파일은 저장 제외 — '+bad.map(_cesc).join(' / ')+'</span>'):''),
       function(){
         var body=JSON.stringify(payload);
         var nRows=payload.length;
@@ -3712,12 +3908,14 @@
           //  · 문자열로 한 번 더 감싸져 오면(서버가 String 으로 반환하면) 풀어준다 — 안 그러면 전부 0으로 보임
           var j=null; try{ j=JSON.parse(t); }catch(e){}
           if(typeof j==='string'){ try{ j=JSON.parse(j); }catch(e){ j=null; } }
-          if(!j || typeof j!=='object'){ ssToast('💾 저장 완료 — <b>'+_cesc(t)+'</b>'); _slsFiles=[]; slsUpClose(); slsLoadDone(); slsQuery(); return; }
+          // 저장된 파일만 목록에서 빠지고, 제외된 파일은 남는다 → 남은 수를 알림에 덧붙인다
+          var _leftMsg=function(n){ return n?(' · <span style="color:#c0392b">제외 '+n+'개 파일은 목록에 남김</span>'):''; };
+          if(!j || typeof j!=='object'){ var l0=_slsAfterSave(savedNames); ssToast('💾 저장 완료 — <b>'+_cesc(t)+'</b>'+_leftMsg(l0)); return; }
           var msg='💾 저장 완료 — <b>'+(+j.saved||0).toLocaleString()+'</b>행 · 판매단가 이력 <b>'+(+j.price||0)+'</b>종 반영';
           if(+j.none)  msg+=' · <span style="color:#9aa7b3">변화없음 '+j.none+'종</span>';
           if(+j.skip)  msg+=' · <span style="color:#a85700">단가충돌 '+j.skip+'종 제외</span>';
+          msg+=_leftMsg(_slsAfterSave(savedNames));
           ssToast(msg);
-          _slsFiles=[]; slsUpClose(); slsLoadDone(); slsQuery();
         };
         xhr.onerror=function(){ slsProgHide(); slsSaveBtnBusy(false); ssToast('⚠️ 통신오류 — 네트워크를 확인하세요.'); };
         xhr.ontimeout=function(){ slsProgHide(); slsSaveBtnBusy(false); ssToast('⚠️ 저장 시간 초과 — 잠시 후 다시 시도하세요.'); };
@@ -5223,6 +5421,8 @@
             <!-- 우측: 기존 미리보기 표 -->
             <div style="flex:1; min-width:0">
               <div id="ssPvInfo"></div>
+              <%-- 오류내역 — 양식이 다르거나 값이 빠진 행이 있을 때만 채워진다(ssPvRender) --%>
+              <div id="ssPvErr"></div>
               <div style="max-height:56vh; overflow:auto; border:1px solid var(--logi-border); border-radius:7px">
                 <table class="ss-pv" id="ssPvTbl"></table>
               </div>
