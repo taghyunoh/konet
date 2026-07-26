@@ -160,22 +160,13 @@
 		</dependency>
 		<!-- Tiles -->
 		<!-- ajax -->
+		<!-- jackson-core / jackson-databind 는 아래 jsonView 설정의 2.10.3 선언으로 통합 -->
 		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-core</artifactId>
-			<version>2.9.8</version>
-		</dependency>
-		<dependency>    
-		    <groupId>org.codehaus.jackson</groupId>    
-		    <artifactId>jackson-mapper-asl</artifactId>    
+		    <groupId>org.codehaus.jackson</groupId>
+		    <artifactId>jackson-mapper-asl</artifactId>
 		    <version>1.9.13</version>
 		</dependency>
 
-		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-databind</artifactId>
-			<version>2.9.8</version>
-		</dependency>
 		<dependency>
 			<groupId>com.googlecode.json-simple</groupId>
             <artifactId>json-simple</artifactId>
