@@ -250,7 +250,9 @@
       <div class="sub">발주현황표(엑셀)를 업로드하면 <b>사업장·품목별 출고량</b> 과 <b>출고장별 수량</b> 이 자동 작성됩니다.</div>
     </div>
     <div class="actions">
-      <button class="btn-teal" onclick="d2Go('upload')" title="데시보드1로 이동하여 발주현황표 엑셀을 업로드합니다">📤 발주현황표 엑셀 업로드</button>
+      <%-- 2026-07-26 사용자: 누르자마자 탐색기(파일 선택창)가 뜨지 않게 — 지정 폴더의 자료를 최신순으로 보여주는
+           미리보기 모달을 먼저 연다. 탐색기가 필요하면 모달 안 [📄 파일 선택]. --%>
+      <button class="btn-teal" onclick="d2Go('upload')" title="지정한 자료 폴더의 발주현황표를 최신순으로 보여줍니다 (탐색기는 모달 안 [📄 파일 선택])">📤 발주현황표 엑셀 보기 / 업로드</button>
       <%-- [삭제 2026-07-05] 매출금액/매입금액 업로드·출고데이타저장 버튼 제거 (마감관리 메뉴로 일원화) --%>
       <select id="d2PrintFmt" title="출력 형식 선택 (출고장별 / 품목별)" style="height:35px;border:1px solid var(--bd);border-radius:6px;padding:0 8px;font-size:13px;font-weight:700;cursor:pointer;color:#37475a;background:#fff">
         <option value="zone">출고장별</option>
@@ -479,7 +481,12 @@
     }catch(e){}
     function lift(id){ try{ var el=p.document.getElementById(id); if(el && el.parentNode!==p.document.body) p.document.body.appendChild(el); }catch(e){} }
     try{
-      if(act==='upload'){ lift('ssPvOverlay'); var e=p.document.getElementById('ssFile'); if(e) e.click(); }
+      // 업로드 = 탐색기부터 열지 않는다(2026-07-26 사용자). 미리보기 모달을 열면
+      //   ssPvOpen(true) → ssHistRefresh → 지정 폴더 스캔(최신순) → 최신 파일 자동 표시.
+      //   구버전(ssPvOpen 없음) 대비로만 파일선택창 폴백.
+      if(act==='upload'){ lift('ssPvOverlay');
+        if(p.ssPvOpen) p.ssPvOpen(true);
+        else { var e=p.document.getElementById('ssFile'); if(e) e.click(); } }
       else if(act==='sales'){ lift('ssSalesPvOverlay'); var e2=p.document.getElementById('ssSalesFile'); if(e2) e2.click(); }
       else if(act==='cost'){ lift('ssCostPvOverlay'); var e3=p.document.getElementById('ssCostFile'); if(e3) e3.click(); }
       else if(act==='save' && p.ssSaveData) p.ssSaveData();
