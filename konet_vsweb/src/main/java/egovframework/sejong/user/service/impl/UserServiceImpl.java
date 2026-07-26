@@ -478,6 +478,8 @@ public class UserServiceImpl implements UserService {
 	@Override public int updateSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.updateSettleTrx(dto); }
 	@Override public int deleteSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.deleteSettleTrx(dto); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectCustLedger(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectCustLedger(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectCustBalance(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectCustBalance(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectDayBook(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectDayBook(dto); }
 
 	/* ===== 판매등록 — 2026-07-25. savePurchase 와 대칭 =====
 	   매입은 재고가 들어오고(I), 판매는 나간다(O). 그 한 가지가 다르다.

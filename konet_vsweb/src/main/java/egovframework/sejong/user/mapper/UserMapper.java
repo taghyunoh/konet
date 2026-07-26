@@ -207,6 +207,8 @@ public interface UserMapper {
 	int updateSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
 	int deleteSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectCustLedger(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectCustBalance(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;   /* 거래처별 받을금액/지급할금액 — 전 거래처 × 월 (2026-07-26) */
+	java.util.List<java.util.Map<String,Object>> selectDayBook(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;       /* 일계장 — 하루치 거래처별 매출·매입·수금·지급 (2026-07-26) */
 
 	/* ===== 판매등록 (TBL_SALES_TRX_MST/DTL) — 2026-07-25. 매입등록과 대칭 ===== */
 	java.util.List<egovframework.sejong.user.model.SalesTrxDTO> selectSalesTrxList(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;

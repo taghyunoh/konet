@@ -4469,9 +4469,12 @@
     <div class="row"><div class="nm">매입마감</div><code>TBL_STOCK_LEDGER</code> 입고(<code>IO_GB='I'</code>) × 매입처(<code>VENDOR_CD</code>).</div>
     <div class="row"><div class="nm">재고마감</div><code>TBL_STOCK_LEDGER</code> 기간집계(기초+입−출±조정=기말) + 이월 스냅샷 <code>TBL_CLOSING_STOCK</code>.</div>
     <div class="row"><div class="nm">마감현황 / 월별 마감이력</div>확정 헤더 <code>TBL_CLOSING_MST</code>(+<code>TBL_CLOSING_STOCK</code>). 잠금=<code>STATUS='C'</code>.</div>
+    <div class="row"><div class="nm">매출 그래프(월별/일자별)</div>집계 전용 조회 <code>selectSalesChart</code>/<code>selectSalesChartDaily</code> — 정산서 <code>TBL_SALES_MST</code> + 출고 <code>TBL_SHIPOUT_MST</code> + 전표 <code>TBL_SALES_TRX_MST/DTL</code>. 매입액=출고수량×<code>TBL_PROD_INPRICE_HST</code>(APPLY_DT≤<code>DLV_DT</code> 최신, 없으면 <code>TBL_PROD_MST.IN_PRICE</code>), 순마진=매출−매입. <b>금액 정의는 <code>selectClosing</code>과 동일</b>.</div>
 
     <div class="grp">정산관리</div>
-    <div class="row"><div class="nm">수금 / 미수금</div><code>TBL_RECEIVE_MST</code>(거래처×귀속월). 월마감 <code>TBL_SETTLE_CLOSE_MST</code>(<code>SETTLE_GB='RCV'</code>).</div>
+    <div class="row"><div class="nm">거래처별 채권·채무</div>조회 전용 <code>selectCustBalance</code> — 정산서 <code>TBL_SALES_MST</code>(거래처마스터 <code>DC_CD</code>로 연결) + 판매전표 <code>TBL_SALES_TRX_MST</code> + 매입전표 <code>TBL_PURCHASE_MST</code> + 수금·지급 <code>TBL_SETTLE_TRX</code>. 거래처명·구분은 <code>TBL_VENDOR_MST</code>. <b>전 거래처 × 월</b>을 한 번에 내려 화면에서 누계·이력으로 접음(기간 파라미터 없음 — 잔액이 누계라서).</div>
+    <div class="row"><div class="nm">일계장</div>조회 전용 <code>selectDayBook</code> — 원천은 <code>selectCustBalance</code>와 동일(정산서·판매전표·매입전표·<code>TBL_SETTLE_TRX</code>), 낟알만 <b>일자</b>. 한 쿼리로 <b>당일 발생 + 전일까지 누계</b>(<code>dt='00000000'</code> 행)를 함께 반환.</div>
+    <div class="row"><div class="nm">수금 / 미수금</div><code>TBL_RECEIVE_MST</code>(거래처×귀속월). 월마감 <code>TBL_SETTLE_CLOSE_MST</code>(<code>SETTLE_GB='RCV'</code>). <b style="color:#c0392b">※ 메뉴 내림(2026-07-25)</b> — 실제 잔액은 위 전표 원장 기준.</div>
     <div class="row"><div class="nm">출금 / 미지급</div><code>TBL_PAYMENT_MST</code>(매입처×귀속월). 월마감 <code>TBL_SETTLE_CLOSE_MST</code>(<code>SETTLE_GB='PAY'</code>).</div>
 
     <div class="grp">시스템관리</div>
@@ -4517,6 +4520,11 @@
            logiFrame('receive', <컨텍스트>+'/mangr/receiveMng.do', this) 메뉴 한 줄만 다시 넣으면 된다.
            (EL 표기는 JSP 주석 안에서도 파서를 건드릴 수 있어 일부러 풀어 적었다) --%>
       <a class="mi" data-key="closeSales" onclick="logiGo('closeSales', this)"><span class="ic">📒</span>매출마감</a>
+      <%-- 매출 그래프 2종 — 원래 '정보 현황' 에 있던 것을 2026-07-26 요청으로 매출 관리로 옮김.
+           금액 정의는 마감현황(selectClosing)과 같게 맞춰 두었다(실측 202607 = 254,850,543 일치).
+           월별/일자별을 따로 두는 이유 : 합치면 월별이 일자 단위 자료를 받아 무거워지고 '기간'의 뜻도 달라진다. --%>
+      <a class="mi" data-key="saleschart" onclick="logiFrame('saleschart','${pageContext.request.contextPath}/shipout/salesChart.do', this)"><span class="ic">📈</span>매출 그래프(월별)</a>
+      <a class="mi" data-key="saleschartday" onclick="logiFrame('saleschartday','${pageContext.request.contextPath}/shipout/salesChartDay.do', this)"><span class="ic">🗓️</span>매출 그래프(일자별)</a>
     </div>
 
     <div class="grp">매입 관리</div>
@@ -4542,15 +4550,19 @@
     <a class="mi has-sub" data-sub="infomng" onclick="logiToggleSub('infomng', this)"><span class="ic">📈</span>정보 현황<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-infomng">
       <a class="mi" data-key="closeStatus" onclick="logiGo('closeStatus', this)"><span class="ic">📊</span>마감현황(월계표)</a>
-      <%-- 매출 그래프(2026-07-25 요청) — 출고장별·월별 매출액.
-           금액 정의를 마감현황(selectClosing)과 같게 맞췄다(실측 202607 = 254,850,543 일치).
-           마감현황 화면에 끼워 넣지 않고 따로 둔 이유 : 마감현황은 '한 달'을 보는 표라
-           12개월 추이가 어색하고, 표가 이미 빽빽해 차트를 얹을 자리가 없다. --%>
-      <a class="mi" data-key="saleschart" onclick="logiFrame('saleschart','${pageContext.request.contextPath}/shipout/salesChart.do', this)"><span class="ic">📈</span>매출 그래프(월별)</a>
-      <%-- 일자별은 화면·쿼리를 따로 둔다(2026-07-25 지시) — 합치면 월별이 일자 단위 자료를 받아
-           무거워지고 '기간'의 뜻도 달라진다. 일자별 기본 조회기간은 일주일. --%>
-      <a class="mi" data-key="saleschartday" onclick="logiFrame('saleschartday','${pageContext.request.contextPath}/shipout/salesChartDay.do', this)"><span class="ic">🗓️</span>매출 그래프(일자별)</a>
       <a class="mi" data-key="closeHist"   onclick="logiGo('closeHist', this); closeHistLoad();"><span class="ic">📅</span>월별 마감이력</a>
+    </div>
+
+    <%-- 원장관리 (2026-07-26 요청) — 정보 현황 안에 있던 두 화면을 별도 그룹으로 분리.
+         둘 다 '전표(TBL_SETTLE_TRX·매입/판매 전표) + 정산서' 라는 같은 원천을 보는 짝이라 묶어 둔다.
+         거래처별 채권·채무 = 잔액(누계) / 일계장 = 하루치 발생 + 전일잔액.
+         ※ 이름은 처음 '채권·채무 관리' → 사용자 제안으로 '원장관리'. 재고의 수불원장(TBL_STOCK_LEDGER)과는 다른 뜻이니
+           이 그룹에 재고 관련 화면을 넣지 말 것(여기는 거래처 금액 장부). --%>
+    <div class="grp">원장관리</div>
+    <a class="mi has-sub" data-sub="ledgermng" onclick="logiToggleSub('ledgermng', this)"><span class="ic">📚</span>원장관리<span class="caret">▶</span></a>
+    <div class="sub-menu" id="sub-ledgermng">
+      <a class="mi" data-key="daybook" onclick="logiFrame('daybook','${pageContext.request.contextPath}/mangr/dayBook.do', this)"><span class="ic">📒</span>일계장</a>
+      <a class="mi" data-key="custbal" onclick="logiFrame('custbal','${pageContext.request.contextPath}/mangr/custBalance.do', this)"><span class="ic">💳</span>거래처별 채권·채무</a>
     </div>
 
     <div class="grp">기준정보</div>
@@ -4926,6 +4938,11 @@
           <tr><td class="m">매입마감</td><td><b>입고(수불) 기준</b> 당월 매입을 <b>매입처·품목별</b>로 집계.</td></tr>
           <tr><td class="m">재고마감</td><td>기초+입고−출고±조정=<b>기말</b>, 재고금액=기말×이동평균. 기초는 <b>직전 확정월 기말에서 이월</b>.</td></tr>
           <tr><td class="m">마감현황(월계표)</td><td>선택 월 매출·매입·순마진 요약(KPI) + <b>🔒 마감 확정 / 🔓 해제</b>. 확정 = 3종 통합 저장 + 기말재고 스냅샷 + 그 달 수불 잠금.</td></tr>
+          <tr><td class="m">매출 그래프(월별)</td><td>출고장별·월별 <b>매출액 · 매입액 · 순마진</b> 그래프+표. 보기 3가지 — <b>매입액·순마진</b>(쌓으면 막대 높이가 매출액) / 매출 구성(정산서·추정·직접판매) / 매출액만. <b>금액 기준은 마감현황과 동일</b>(매출=정산서+정산서 없는 출고의 추정+직접판매, 매입=나간 수량×매입단가). <span style="color:#b45309">매입가 미등록 품목은 매입액 0이라 마진이 커 보임.</span></td></tr>
+          <tr><td class="m">매출 그래프(일자별)</td><td>같은 기준을 <b>하루 단위</b>로. 기본 최근 일주일, 주말 구분 표시. 출고장으로 쪼개지 않고 하루 합계만.</td></tr>
+          <tr><td class="m">거래처별 채권·채무</td><td>거래처마다 <b>받을금액</b>과 <b>지급할금액</b>을 한 줄로. <b>받을금액</b>=(매출−매출할인)−수금 / <b>지급할금액</b>=(매입−매입할인)−지급. <b>이월 + 당월매출 − 당월수금 = 남은금액</b> 으로 펼쳐 보여주고, 줄 클릭 → 오른쪽 <b>월별 이력</b>(최근 달부터).
+            <div style="margin-top:3px;color:#5a6b7a">잔액은 <b>전 기간 누계</b>라 기간 대신 <b>기준월</b>로 봅니다(그 달 말 시점 잔액). 원천은 수금등록·지급등록의 거래처 원장과 같습니다. <b>조회 전용</b> — 금액 수정은 판매·매입·수금·지급 등록 화면에서.</div></td></tr>
+          <tr><td class="m">일계장</td><td>고른 <b>하루</b>의 매출·매입·수금·지급을 거래처별로. <b>전일잔액 + 당일매출 − 당일수금 = 잔액</b>. 기본은 <b>그날 움직인 거래처만</b>(체크하면 잔액만 남은 곳까지). <b>🖨 인쇄</b>는 A4 세로로 표만 출력합니다. 금액 규칙은 거래처별 채권·채무와 같습니다.</td></tr>
           <tr><td class="m">월별 마감이력</td><td>확정한 <b>여러 달</b>의 매출·원가·마진·매입·기말재고금액 목록. 행 클릭 → 그 달 마감현황.</td></tr>
         </tbody></table>
       </div>
@@ -5513,6 +5530,16 @@
     </section>
     <section id="panel-saleschartday" class="panel" style="padding:0;">
       <iframe id="if-saleschartday" src="" title="매출 그래프(일자별)" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+
+    <!-- ===== 거래처별 받을금액·지급할금액 (2026-07-26) — logiFrame 은 #panel-<key> + #if-<key> 를 함께 찾는다 ===== -->
+    <section id="panel-custbal" class="panel" style="padding:0;">
+      <iframe id="if-custbal" src="" title="거래처별 채권·채무 현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+
+    <!-- ===== 일계장 (2026-07-26) ===== -->
+    <section id="panel-daybook" class="panel" style="padding:0;">
+      <iframe id="if-daybook" src="" title="일계장" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
 
     <!-- 시스템관리 — 자체완결 화면을 iframe으로 사이드메뉴 우측에 종속 -->

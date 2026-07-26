@@ -1293,6 +1293,37 @@ public class UserController {
 			return response;
 		}
 
+		/* ===== 거래처별 받을금액·지급할금액 (2026-07-26 신설) — 정보 현황 ▸ 조회 전용 =====
+		   전 거래처 × 월 한 번에 내려주고 화면에서 잔액 누계·이력으로 접는다(기간 파라미터 없음).
+		   잔액은 '전 기간 누계'라 기간을 걸면 잔액이 아니게 되기 때문. 자세한 근거는 SQL 주석 참조. */
+		@RequestMapping(value="/mangr/custBalance.do")
+		public String custBalance(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/custBalance";
+		}
+		@RequestMapping(value="/mangr/selectCustBalance.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectCustBalance(@ModelAttribute("DTO") egovframework.sejong.user.model.SettleTrxDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectCustBalance(dto));
+			return response;
+		}
+
+		/* ===== 일계장 (2026-07-26 신설) — 하루치 거래처별 매출·매입·수금·지급 + 전일잔액 =====
+		   금액 규칙은 거래처별 채권·채무(selectCustBalance)와 같고 낟알만 일자다. 조회 전용·인쇄용. */
+		@RequestMapping(value="/mangr/dayBook.do")
+		public String dayBook(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/dayBook";
+		}
+		@RequestMapping(value="/mangr/selectDayBook.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectDayBook(@ModelAttribute("DTO") egovframework.sejong.user.model.SettleTrxDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectDayBook(dto));
+			return response;
+		}
+
 		/* ================= 수금/미수금 (TBL_RECEIVE_MST) ================= */
 		@RequestMapping(value="/mangr/receiveMng.do")
 		public String receiveMng(HttpSession session) {
