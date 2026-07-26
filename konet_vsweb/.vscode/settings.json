@@ -40,5 +40,6 @@
     },
     "files.associations": {
         "*.jsp": "html"
-    }
+    },
+    "maven.view": "flat"
 }
