@@ -6,3 +6,7 @@ bin
 
 # Claude 임시 워크트리 (eGit 이 서브모듈로 오인해 null-sha 커밋 -> push 500 원인)
 .claude/worktrees/
+
+# PC마다 경로가 달라(C:\egv vs D:\egv) 공유 불가 -> 템플릿은 .vscode-sample/ 참고
+.vscode/settings.json
+.vscode/tasks.json
