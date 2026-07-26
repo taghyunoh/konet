@@ -3966,6 +3966,7 @@
     ord.forEach(function(k){ m[k].bizOrd.sort(function(a,b){ return m[k].biz[a].bizNm.localeCompare(m[k].biz[b].bizNm,'ko'); }); });
     return ord.map(function(k){ return m[k]; });
   }
+  
   // 대사 상태 요약 — 건수만(금액 아님). noKey 는 세 칸 중 하나가 빈 이상행(실측 0건)
   function _ohStat(o){
     return (o.hit  ? ' <span style="font-weight:700;color:#137a6c">대사 '+o.hit+'</span>' : '')
