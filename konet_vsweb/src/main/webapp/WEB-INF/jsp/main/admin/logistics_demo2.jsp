@@ -1948,17 +1948,27 @@
       return;
     }
     var p;
-    try{ p=window.showDirectoryPicker({mode:'readwrite'}); }
+    // startIn:'downloads' = 다운로드에서 열림 / id = 지정한 폴더를 다음부터 기억(같은 위치에서 열림)
+    //  ★다운로드 '루트' 는 브라우저가 막는다(시스템 폴더 취급) → 그 안에 전용 하위폴더를 만들어 지정해야 한다
+    try{ p=window.showDirectoryPicker({mode:'readwrite', startIn:'downloads', id:'ssOrderDir'}); }
     catch(e){ ssToast('⚠️ 폴더 지정 오류: '+ssHistEsc(e&&e.message||'')); return; }
     p.then(function(h){ ssDirHandle=h; ssIdbPut(h); ssAutoPick=true; ssDirList(); })   // readwrite = 목록 + 삭제
-     .catch(function(e){ if(e && e.name==='AbortError') return; ssToast('⚠️ 폴더 지정 실패: '+ssHistEsc((e&&(e.name+': '+e.message))||'')); });   // 취소는 무시
+     .catch(function(e){ if(e && e.name==='AbortError') return;   // 취소는 무시
+       ssToast('⚠️ 폴더 지정 실패: '+ssHistEsc((e&&(e.name+': '+e.message))||'')
+         +'<br><b>다운로드 폴더 자체</b>는 브라우저가 막습니다. 그 안에 <b>「코네트_발주현황표」</b> 같은 하위폴더를 만들어 지정하세요.'); });
   }
   function ssDirRestore(){ if(ssDirHandle) return Promise.resolve(); return ssIdbGet().then(function(h){ if(h) ssDirHandle=h; }); }
   // 목록 표시 — 권한 확인은 queryPermission(제스처 불필요)만. 권한 없으면 '이 폴더 열기' 버튼 표시.
   function ssDirList(){
     var box=document.getElementById('ssPvHist'), nm=document.getElementById('ssPvDirName'); if(!box) return;
-    if(!window.showDirectoryPicker){ if(nm) nm.textContent=''; box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:12px;line-height:1.6">이 브라우저는 폴더 지정을<br>지원하지 않습니다.<br>상단 <b>📄 파일 선택</b>으로 진행하세요.<br>(Chrome/Edge 권장)</div>'; return; }
-    if(!ssDirHandle){ if(nm) nm.textContent=''; box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:12px;line-height:1.6"><b>📂 폴더 지정</b>을 눌러<br>자료 폴더를 선택하면<br>파일이 여기 표시됩니다.</div>'; return; }
+    if(!window.showDirectoryPicker){ if(nm) nm.textContent=''; box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:12px;line-height:1.6">이 브라우저는 폴더 지정을<br>지원하지 않습니다.<br>위쪽 <b>📄 파일 선택</b>으로 진행하세요.<br>(Chrome/Edge 권장)</div>'; return; }
+    if(!ssDirHandle){ if(nm) nm.textContent='';
+      box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:12px;line-height:1.6">위쪽 <b>📂 폴더 지정</b>을 눌러<br>자료 폴더를 선택하면<br>파일이 여기 표시됩니다.<br><span style="color:#b6c0c9">자세한 설명은 위쪽 <b>ℹ️ 도움말</b>.</span>'
+        +'<div style="margin-top:10px;padding:8px 9px;background:#fdf6e8;border:1px solid #f0dfb8;border-radius:5px;color:#8a6414">'
+        +'⚠️ <b>다운로드 폴더 자체는 지정할 수 없습니다</b>(브라우저가 시스템 폴더로 막음).<br>'
+        +'다운로드 안에 <b>「코네트_발주현황표」</b> 같은 <u>하위폴더</u>를 만들고 받은 파일을 그리로 옮긴 뒤, 그 폴더를 지정하세요.<br>'
+        +'<span style="color:#a58a52">개인 자료가 섞인 폴더를 통째로 열지 않게 됩니다.</span><br>'
+        +'<span style="color:#8a6414">받는 위치까지 그 폴더로 바꾸려면 위쪽 <b>ℹ️ 도움말</b> ▸ <b>⚙️ 크롬 다운로드 위치 바꾸기</b>.</span></div></div>'; return; }
     if(nm) nm.textContent='📂 '+ssDirHandle.name;
     ssDirHandle.queryPermission({mode:'readwrite'}).then(function(p){
       if(p==='granted'){ box.innerHTML='<div style="padding:10px;color:#9aa7b3;font-size:12px">불러오는 중…</div>'; ssDirScan(); }
@@ -1982,7 +1992,7 @@
     function step(){ return it.next().then(function(res){
       if(res.done) return;
       var h=res.value;
-      if(h.kind==='file' && /\.xlsx?$/i.test(h.name) && SS_NAME_RE.test(h.name) && h.name.indexOf('(')<0){
+      if(h.kind==='file' && /\.xlsx?$/i.test(h.name) && SS_NAME_RE.test(h.name)){
         tasks.push(h.getFile().then(function(f){ ssDirFiles.push({name:h.name, time:f.lastModified, size:f.size, handle:h}); }));
       }
       return step();
@@ -2416,11 +2426,56 @@
 
   var ssPvCur=null, ssPvBadFile=null;
 
+  // 도움말의 chrome://settings/downloads 복사 — 설정 주소는 링크로 못 열어(브라우저가 막음) 복사해서 주소창에 붙여넣게 한다.
+  //   navigator.clipboard 는 https/localhost 에서만 되므로 execCommand 폴백을 함께 둔다(사내 http 접속 대비).
+  function ssCopyTxt(txt, btn){
+    function done(ok){
+      if(btn){ var _o=btn.innerHTML; btn.innerHTML = ok?'✔ 복사됨':'복사 실패'; setTimeout(function(){ btn.innerHTML=_o; }, 1500); }
+      ssToast(ok ? '📋 복사했습니다 — 크롬 <b>주소창</b>에 붙여넣고 Enter: <b>'+ssHistEsc(txt)+'</b>'
+                 : '⚠️ 복사가 막혔습니다. 주소창에 직접 입력하세요: <b>'+ssHistEsc(txt)+'</b>');
+    }
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(txt).then(function(){ done(true); }, function(){ done(ssCopyFallback(txt)); });
+        return;
+      }
+    }catch(e){}
+    done(ssCopyFallback(txt));
+  }
+  function ssCopyFallback(txt){
+    try{
+      var ta=document.createElement('textarea'); ta.value=txt;
+      ta.style.cssText='position:fixed;left:-9999px;top:0'; document.body.appendChild(ta);
+      ta.select(); var ok=document.execCommand('copy'); document.body.removeChild(ta); return ok;
+    }catch(e){ return false; }
+  }
+
+  // 상단 [ℹ️ 도움말] 토글 — 기본 접힘. 접힘 상태를 브라우저에 기억(한번 읽은 사람은 계속 접힌 채로)
+  function ssPvHelp(force){
+    var box=document.getElementById('ssPvHelpBox'), btn=document.getElementById('ssPvHelpBtn'); if(!box) return;
+    var on = (force===undefined) ? (box.style.display==='none') : !!force;
+    box.style.display = on ? '' : 'none';
+    if(btn) btn.innerHTML = on ? '✕ 도움말 닫기' : 'ℹ️ 도움말';
+    if(force===undefined){ try{ localStorage.setItem('ssPvHelpOpen', on?'1':'0'); }catch(e){} }
+  }
+
   function ssPvOpen(show){
     var ov=document.getElementById('ssPvOverlay'); if(!ov) return;
     var wasOpen=ov.classList.contains('on');
     ov.classList.toggle('on', !!show);
-    if(show && !wasOpen){ ssAutoPick=true; ssHistRefresh(); }   // 열 때만 폴더 목록 로드 + 최신 파일 자동선택(파일 클릭마다 재스캔 방지)
+    if(show && !wasOpen){
+      // 아직 아무 파일도 안 읽은 상태로 열릴 수 있다(버튼이 곧바로 이 모달을 연다) → 우측 빈칸 대신 안내
+      if(!ssPvWb){
+        var _i=document.getElementById('ssPvInfo'), _t=document.getElementById('ssPvTbl'), _f=document.getElementById('ssPvFile');
+        if(_f) _f.textContent='-';
+        if(_t) _t.innerHTML='';
+        if(_i){ _i.className='ss-pvinfo';
+          _i.innerHTML='📂 왼쪽 <b>업로드 파일</b> 목록에서 파일을 누르면 내용이 여기 표시됩니다. '
+            +'<span style="color:#6b7a89">폴더를 아직 지정하지 않았다면 위쪽 <b>📂 폴더 지정</b>, 폴더 밖 파일이면 <b>📄 파일 선택</b>. 자세한 설명은 <b>ℹ️ 도움말</b>.</span>'; }
+      }
+      try{ ssPvHelp(localStorage.getItem('ssPvHelpOpen')==='1'); }catch(e){ ssPvHelp(false); }   // 도움말은 기본 접힘(지난번 펼쳐 뒀으면 그대로)
+      ssAutoPick=true; ssHistRefresh();   // 열 때만 폴더 목록 로드 + 최신 파일 자동선택(파일 클릭마다 재스캔 방지)
+    }
   }
 
   // 셀 표시값 — 날짜는 엑셀처럼 YYYY-MM-DD(시간 있으면 포함)
@@ -2647,6 +2702,8 @@
 
   // 작성(반영): 확인 메시지 후 실행
   function ssPvApply(){
+    // 파일을 아직 안 고른 채로 열릴 수 있다(버튼이 곧바로 모달을 연다) → '형식 오류'와 구분해서 안내
+    if(!ssPvWb){ ssToast('⚠️ 먼저 왼쪽 목록에서 파일을 고르거나 <b>📄 파일 선택</b>으로 엑셀을 여세요.'); return; }
     if(!ssPvCur || !ssPvCur.map){ ssToast('⚠️ 형식이 맞지 않는 자료입니다 — 발주현황표(출고) 양식이 아니라 서버(TBL_SHIPOUT_MST)에 반영할 수 없습니다.'); return; }
     var rows=ssExtractRows(ssPvCur.aoa, ssPvCur.map);
     if(!rows.length){ ssToast('⚠️ 데이터 행이 없습니다.'); return; }
@@ -3948,8 +4005,6 @@
     var tip='같은 대사키(납품일자+출고장+품목)에 단가가 서로 다른 정산서 행이 섞였습니다.\n'
       +'이 경우 매출마감의 사업장별 안분(출고수량 비율)이 발주 단위로 나눈 값과 달라집니다.\n'
       +'총액·출고장별 금액은 영향이 없고, 사업장별 배분만 어긋납니다.\n\n금액 큰 순:\n';
-
-      
     x.list.slice(0,5).forEach(function(o){
       var p=o.k.split('|');
       tip += '· '+_ohDateFmt(p[0])+' '+p[1]+' '+(o.r.itemNm||p[2])+' — 단가 '+o.prices.join(' / ')+' · '+_cnum(o.amt)+'원\n';
@@ -4955,7 +5010,7 @@
         <h3>1. 출고 관리</h3>
         <div class="gd">발주현황표(엑셀)를 올려 출고량·출고장별 수량을 자동 작성합니다.</div>
         <table><tbody>
-          <tr><td class="m">출고현황표(대시보드1/2)</td><td>발주현황표 엑셀 업로드 → 출고장·사업장·품목별 출고량 집계. 출고데이타 저장(TBL_SHIPOUT_MST). 매출마감의 원천.<br><b>※ 김해·제주는 조기출고</b> — 그 출고장 행의 <b>출고일자(SHPOUT_DT)= 납기일자 2일 전</b>으로 자동 저장됩니다(그 외 출고장은 미리보기에서 지정한 출고일자). 미리보기 하단(출고일자 좌측)에 안내 문구가 뜹니다.</td></tr>
+          <tr><td class="m">출고현황표(대시보드1/2)</td><td>발주현황표 엑셀 업로드 → 출고장·사업장·품목별 출고량 집계. 출고데이타 저장(TBL_SHIPOUT_MST). 매출마감의 원천.<br><b>※ [📤 발주현황표 엑셀 보기 / 업로드]</b> 를 누르면 <b>탐색기가 아니라 미리보기 화면</b>이 열립니다 — 지정해 둔 자료 폴더의 파일을 <b>최신순</b>으로 보여주고 <b>가장 최근 파일 내용이 자동으로 펼쳐집니다</b>. 그 화면 <b>상단</b>에 <b>📂 폴더 지정 · 📄 파일 선택(탐색기) · ↻ 새로고침 · ℹ️ 도움말</b> 이 있습니다(도움말은 기본 접힘).<br><b>※ 김해·제주는 조기출고</b> — 그 출고장 행의 <b>출고일자(SHPOUT_DT)= 납기일자 2일 전</b>으로 자동 저장됩니다(그 외 출고장은 미리보기에서 지정한 출고일자). 미리보기 하단(출고일자 좌측)에 안내 문구가 뜹니다.</td></tr>
           <tr><td class="m">출고세부조회</td><td>저장된 출고 내역을 <b>한 화면 3탭</b>(출고장별 품목 · 사업장별 · 품목별)으로 전환하며 조회.</td></tr>
         </tbody></table>
       </div>
@@ -5074,7 +5129,9 @@
         <div><h2>출고현황표 <span class="badge b-done">핵심</span></h2>
           <div class="sub">발주현황표(엑셀)를 업로드하면 <b>사업장·품목별 출고량</b> 과 <b>출고장별 수량</b> 이 자동 작성됩니다. 기준일자 <b id="ssDate">2026.06.19</b></div></div>
         <div class="actions">
-          <button class="btn-teal" id="ssBtnUpload" onclick="document.getElementById('ssFile').click()">📤 발주현황표 엑셀 업로드</button>
+          <%-- 2026-07-26 사용자: 탐색기(파일 선택창)를 먼저 띄우지 않는다 → 미리보기 모달을 열어
+               지정 폴더의 자료를 최신순으로 보여주고, 최신 파일 내용을 바로 펼친다. --%>
+          <button class="btn-teal" id="ssBtnUpload" onclick="ssPvOpen(true)" title="지정한 자료 폴더의 발주현황표를 최신순으로 보여줍니다 (탐색기는 모달 안 [📄 파일 선택])">📤 발주현황표 엑셀 보기 / 업로드</button>
           <%-- [삭제 2026-07-05] 매출금액/매입금액 업로드·출고데이타저장 버튼 제거 → 좌측 '마감관리' 전용 메뉴(매출마감/매입마감/마감현황)로 대체 --%>
           <%-- [제외 2026-07-02] 출고현황표 다운로드 버튼 — 재노출 시 주석 해제 (ssDownload 함수는 유지)
           <button class="btn-line" id="ssBtnDownload" onclick="ssDownload()">📥 출고현황표 다운로드</button>
@@ -5096,24 +5153,67 @@
             <h4>📋 발주현황표 미리보기 — 내용 확인 후 작성</h4>
             <button class="x" onclick="ssPvOpen(false)">&times;</button>
           </div>
+          <%-- 2026-07-26 사용자: [폴더 지정]·[파일 선택]·[도움말]을 좌측 목록 머리에서 <b>모달 상단</b>으로 올림.
+               자료를 여는 두 가지 방법이 화면 맨 위에 나란히 보이게 하고, 긴 설명은 도움말 카드로 접어 둔다. --%>
           <div class="mbar">
+            <button class="btn-teal" style="padding:4px 12px; font-size:12.5px" onclick="ssPickDir()"
+                    title="자료가 있는 폴더를 지정하면 그 안의 발주현황표가 좌측에 최신순으로 나열됩니다(다음부터 기억).&#10;※ 다운로드 폴더 자체는 브라우저가 막습니다 — 그 안에 전용 하위폴더를 만들어 지정하세요.">📂 폴더 지정</button>
+            <button class="btn-line" style="padding:4px 12px; font-size:12.5px" onclick="document.getElementById('ssFile').click()"
+                    title="탐색기에서 엑셀 파일을 직접 하나 엽니다(폴더 밖 파일용)">📄 파일 선택</button>
+            <button class="btn-line" style="padding:4px 10px; font-size:12.5px" onclick="ssDirList()" title="지정한 폴더의 목록을 다시 읽습니다">↻ 새로고침</button>
+            <span style="flex:0 0 1px; width:1px; height:20px; background:var(--logi-border)"></span>
             <span>파일 <b id="ssPvFile">-</b></span>
             <span id="ssPvSheetWrap" style="display:none">시트
               <select id="ssPvSheet" onchange="ssPvRender()"></select>
             </span>
-            <span style="margin-left:auto; color:#6b7a89">아래 <b>출고일자</b> 확인·수정 후 <b>작성(반영)</b> 을 누르세요</span>
+            <button class="btn-line" id="ssPvHelpBtn" style="margin-left:auto; padding:4px 12px; font-size:12.5px" onclick="ssPvHelp()"
+                    title="이 화면 사용법 — 폴더 지정 / 파일 선택 / 출고일자">ℹ️ 도움말</button>
+          </div>
+          <%-- 도움말: 기본 접힘(화면이 빽빽해 상시 노출하면 미리보기 표가 밀림 — 매출 그래프 도움말과 같은 방식) --%>
+          <div id="ssPvHelpBox" style="display:none; flex:0 0 auto; margin:12px 20px 0; padding:11px 14px; background:#f4f8f7; border:1px solid #d5e6e2; border-radius:8px; font-size:12.5px; line-height:1.75; color:#37475a">
+            <div style="display:flex; gap:18px; flex-wrap:wrap">
+              <div style="flex:1 1 320px; min-width:280px">
+                <b style="color:#137a6c">📂 폴더 지정</b> — 발주현황표를 받아 두는 <b>폴더를 한 번만</b> 지정하면 그 안의 파일이 왼쪽에 <b>최신순</b>으로 나열되고, 이 화면을 열 때마다 <b>가장 최근 파일이 자동으로 펼쳐집니다</b>. 지정한 폴더는 브라우저가 기억합니다(다음엔 권한만 한 번 허용).<br>
+                <span style="color:#8a6414">⚠️ <b>다운로드 폴더 자체는 지정할 수 없습니다</b>(브라우저가 시스템 폴더로 막음). 그 안에 <b>「코네트_발주현황표」</b> 같은 하위폴더를 만들어 지정하세요.</span><br>
+                <span style="color:#6b7a89">※ Chrome·Edge 에서, 그리고 https 또는 localhost 접속일 때만 됩니다. 안 되면 <b>📄 파일 선택</b>을 쓰세요.</span>
+              </div>
+              <div style="flex:1 1 320px; min-width:280px">
+                <b style="color:#137a6c">📄 파일 선택</b> — 폴더 밖에 있는 파일 하나를 탐색기로 직접 엽니다. 지정한 폴더를 쓰지 않아도 되는 <b>예전 방식</b>입니다.<br>
+                <b style="color:#137a6c">목록에 뜨는 파일</b> — 이름이 <code>2026.07.11_13.25.10</code> 처럼 <b>날짜·시각으로 시작하는 xlsx</b>만 나옵니다(출고장이 내려주는 파일 이름 규칙). 뒤에 붙는 말은 무엇이든 상관없습니다.<br>
+                <b style="color:#137a6c">🗑</b> — 파일을 <b>「_삭제됨」 하위폴더로 이동</b>합니다(지우는 게 아니라 복구 가능).
+              </div>
+              <div style="flex:1 1 320px; min-width:280px">
+                <b style="color:#137a6c">작성(반영) 전에</b> — 내용을 확인하고 아래 <b>출고일자</b>를 확인·수정한 뒤 <b>✔ 작성</b>을 누르면 서버(TBL_SHIPOUT_MST)에 저장되고 대시보드에 반영됩니다.<br>
+                <span style="color:#c0392b">※ <b>김해·제주</b>는 조기출고라 <b>납기일자 2일 전</b>으로 저장됩니다</span>(해당 출고장이 파일에 있으면 아래에 안내가 뜹니다). 출고일자를 직접 바꾸면 그 값으로 통일 저장됩니다.<br>
+                <span style="color:#6b7a89">미리보기의 <b>노란 칸</b>이 실제로 반영되는 컬럼입니다.</span>
+              </div>
+            </div>
+            <%-- 브라우저 다운로드 위치를 전용 폴더로 바꿔 두면 '받기 → 옮기기'가 사라진다.
+                 ★chrome:// 주소는 링크 클릭으로 못 연다(브라우저가 막음) → 복사해서 주소창에 붙여넣게 안내 + [복사] 버튼. --%>
+            <div style="margin-top:10px; padding:10px 12px; background:#fff; border:1px dashed #bcd6d0; border-radius:7px">
+              <div style="font-weight:700; color:#137a6c; margin-bottom:5px">⚙️ 받은 파일이 바로 그 폴더에 쌓이게 하기 <span style="font-weight:400; color:#9aa7b3; font-size:11.5px">— 크롬 다운로드 위치 바꾸기(한 번만)</span></div>
+              <div style="color:#6b7a89; margin-bottom:6px">이렇게 해 두면 출고장에서 파일을 <b>받는 순간 이 목록에 뜹니다</b>. 매번 옮길 필요가 없습니다.</div>
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:6px">
+                <span><b>①</b> 크롬 주소창에 붙여넣고 Enter</span>
+                <code id="ssPvChromeUrl" style="background:#eef4f3; border:1px solid #d5e6e2; border-radius:4px; padding:2px 7px; font-size:12.5px; color:#1f2a37">chrome://settings/downloads</code>
+                <button class="btn-line" style="padding:2px 9px; font-size:11.5px" onclick="ssCopyTxt('chrome://settings/downloads', this)" title="주소를 복사합니다. 크롬 주소창에 붙여넣고 Enter 를 누르세요.">📋 복사</button>
+                <span style="color:#9aa7b3; font-size:11.5px">(엣지는 <code style="background:#eef4f3;border:1px solid #d5e6e2;border-radius:4px;padding:1px 5px">edge://settings/downloads</code>
+                  <button class="btn-line" style="padding:1px 7px; font-size:11px" onclick="ssCopyTxt('edge://settings/downloads', this)">📋</button>)</span>
+              </div>
+              <div style="color:#8a6414; font-size:11.5px; margin-bottom:6px">※ 이 글자를 눌러도 안 열립니다 — 브라우저가 설정 페이지로의 <b>링크 이동을 막기</b> 때문입니다. 꼭 <b>복사해서 주소창에</b> 붙여넣으세요.</div>
+              <div><b>②</b> <b>「다운로드 위치」 → [변경]</b> → 새 폴더 <b>「코네트_발주현황표」</b> 를 만들어 지정<br>
+                <span style="color:#6b7a89; font-size:11.5px">다운로드 폴더 <u>안</u>에 만들어도 됩니다. 폴더 <b>자체</b>가 아니라 그 <b>하위폴더</b>라야 이 화면에서 지정할 수 있습니다.</span></div>
+              <div style="margin-top:4px"><b>③</b> <b>「다운로드하기 전에 각 파일의 저장 위치 확인」</b> 을 <b>끄기</b> <span style="color:#6b7a89; font-size:11.5px">(받을 때마다 창이 뜨지 않게 — 선택)</span></div>
+              <div style="margin-top:4px"><b>④</b> 이 화면 위쪽 <b>📂 폴더 지정</b> 에서 <b>같은 폴더</b>를 골라 주세요 <span style="color:#6b7a89; font-size:11.5px">(한 번만 — 다음부터는 기억합니다)</span></div>
+            </div>
           </div>
           <div class="mbody" style="display:flex; gap:12px; align-items:flex-start">
             <!-- 좌측: 지정한 자료 폴더의 파일 목록. 클릭하면 우측 미리보기에 표시 -->
             <div style="width:400px; flex:0 0 400px; border:1px solid var(--logi-border); border-radius:7px; display:flex; flex-direction:column; height:60vh">
+              <%-- 폴더 지정·파일 선택·새로고침 버튼은 모달 상단(mbar)으로 이동(2026-07-26). 여기는 제목만. --%>
               <div style="padding:7px 9px; border-bottom:1px solid var(--logi-border); background:#f4f8f7; flex:0 0 auto">
                 <div style="display:flex; align-items:center; gap:6px">
-                  <span style="flex:1; font-weight:700; color:#37475a">📁 업로드 파일</span>
-                  <button class="btn-line" style="padding:2px 7px; font-size:11px" onclick="ssDirList()" title="폴더 목록 새로고침">↻</button>
-                </div>
-                <div style="display:flex; gap:6px; margin-top:6px">
-                  <button class="btn-teal" style="flex:1; padding:3px 4px; font-size:11px" onclick="ssPickDir()" title="자료가 있는 폴더 지정 → 목록 표시">📂 폴더 지정</button>
-                  <button class="btn-line" style="flex:1; padding:3px 4px; font-size:11px" onclick="document.getElementById('ssFile').click()" title="엑셀 파일 직접 선택(기존 방식)">📄 파일 선택</button>
+                  <span style="flex:1; font-weight:700; color:#37475a">📁 업로드 파일 <span style="font-weight:400;font-size:11px;color:#9aa7b3" title="파일 수정시각 기준 내림차순 — 맨 위가 가장 최근 자료이고, 모달을 열면 그 파일이 자동으로 펼쳐집니다">(최신순)</span></span>
                 </div>
               </div>
               <div id="ssPvDirName" style="padding:4px 9px; font-size:11px; color:#137a6c; border-bottom:1px solid #eef3f1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:0 0 auto"></div>
