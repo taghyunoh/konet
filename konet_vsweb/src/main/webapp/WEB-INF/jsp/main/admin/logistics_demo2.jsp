@@ -392,6 +392,9 @@
   .ss-pverr .ln  { color:#6b7a89; font-size:11.5px; }
   .ss-pverr.warn { background:#fff9ec; border-color:#f0dcae; color:#7a6310; }
   .ss-pverr.warn .eh { color:#b3760f; }
+  /* '이전 자료' 알림 — 살짝 깜박(2026-07-27 사용자 요청). 10회(약 10초) 뒤엔 빨강 그대로 남는다(계속 깜박이면 눈에 거슬림) */
+  @keyframes ssBlink { 0%,100%{ opacity:1 } 50%{ opacity:.28 } }
+  .ss-blink { animation: ssBlink 1s ease-in-out 0s 10 both; }
 
   /* 출고장 변경 알림 — 화면 하단 독립 고정 바 (데시보드2 iframe에서 postMessage 수신, 위너넷 알림바 스타일) */
   #konetAsqBar { position:fixed; bottom:0; left:0; width:100%; height:36px; color:#fff; display:none; align-items:center;
@@ -2239,6 +2242,7 @@
     .catch(function(){ box.innerHTML='<div style="padding:10px;color:#c0392b;font-size:13px">업로드 이력 통신오류 — ↻ 로 다시 시도하세요.</div>'; });
   }
   function ssUpHistRender(){
+    if(window.ssBackMsgUpd) ssBackMsgUpd();     // 이력이 늦게 도착해도 하단 알림이 맞게(모달 열자마자 파일이 펼쳐지는 경우)
     var box=document.getElementById('ssPvUpHist'); if(!box || ssUpHist==null) return;
     var only1=(ssUpHistDays===1);
     var lim=ssUpHistYmd(-(ssUpHistDays-1));                         // 오늘 포함 N일
@@ -2336,6 +2340,54 @@
     if(!file){ ssToast('이 업로드에는 파일명이 기록되어 있지 않습니다.'); return; }
     for(var k=0;k<ssDirFiles.length;k++){ if(ssDirFiles[k].name===file){ ssDirOpen(k); return; } }
     ssToast('📄 <b>'+ssHistEsc(file)+'</b> — 지정 폴더에 없습니다<br><span style="font-size:11px">이미 옮겼거나 다른 PC에서 올린 자료입니다.</span>');
+  }
+
+  /* ══ 역순 업로드 알림 — 올리려는 자료가 '마지막에 올린 자료'보다 이전이면 알린다 (2026-07-27 사용자 요청) ══
+       · ★막지 않는다. 알리고 그대로 진행한다 — 지난 날짜를 뒤늦게 올리는 정상 업무가 있다.
+       · 비교기준 = 출고일자(SHPOUT_DT). '마지막에 올린 자료' = ssUpHist 중 업로드시각이 가장 늦은 묶음
+         (묶음키는 목록과 같은 ssUpHistPack = 파일명+업로드시각(분) → 한 번에 올린 7개 출고장이 한 건).
+       · ssUpHist 는 모달 열 때 1회 조회분(출고일자 ±120일). 아직 안 왔거나 창 밖이면 조용히 넘어간다(헛경고 방지). */
+  function ssBackNorm(v){ var s=(''+(v==null?'':v)).replace(/-/g,''); return /^\d{8}$/.test(s)?s:''; }
+  function ssLastUpGrp(){
+    var rows=(ssUpHist||[]).filter(function(o){ return (''+(o.uploadDttm||'')).length>=10; });
+    if(!rows.length) return null;
+    rows=rows.slice().sort(function(a,b){ return (''+(b.uploadDttm||'')).localeCompare(''+(a.uploadDttm||'')); });
+    var ups=ssUpHistPack(rows);
+    return ups.length ? ups[0] : null;     // 업로드시각 내림차순이라 맨 앞 = 마지막에 올린 묶음
+  }
+  // null = 알릴 것 없음 / {cur,prev,g} = 이전 자료
+  function ssBackChk(shpDt){
+    var cur=ssBackNorm(shpDt); if(!cur) return null;
+    var g=ssLastUpGrp(); if(!g || !g.sdMax) return null;
+    if(cur>=g.sdMax) return null;
+    return { cur:cur, prev:g.sdMax, g:g };
+  }
+  function ssBackTxt(c){
+    return '이전 자료입니다 — 마지막 업로드(<b>'+ssHistEsc((c.g.day||'').slice(5))+' '+ssHistEsc(c.g.hm||'')+'</b> · '
+         + ssHistEsc(c.g.file||'파일명 없음')+')의 출고일자 <b>'+ssUpHistMd(c.prev)+'</b> 보다 <b>'+ssUpHistMd(c.cur)+'</b> 가 이전입니다.';
+  }
+  // 깜박임 다시 시작 — 클래스를 뗐다 붙이면 애니메이션이 처음부터 돈다(reflow 강제 필요)
+  function ssBlinkOn(el){ if(!el) return; el.classList.remove('ss-blink'); void el.offsetWidth; el.classList.add('ss-blink'); }
+  // 미리보기 하단 알림 — 파일을 펼쳤을 때·출고일자를 고쳤을 때·이력이 늦게 도착했을 때 갱신
+  function ssBackMsgUpd(){
+    var el=document.getElementById('ssPvBackMsg'); if(!el) return;
+    var dt=document.getElementById('ssPvShpoutDt');
+    var c=(ssPvCur&&ssPvCur.map) ? ssBackChk((dt&&dt.value)||'') : null;
+    if(!c){ el.style.display='none'; el.innerHTML=''; el.classList.remove('ss-blink'); return; }
+    var h='⚠️ '+ssBackTxt(c)+' <span style="font-weight:400;color:#8a6b6b">— 그대로 진행할 수 있습니다</span>';
+    var same=(el.innerHTML===h && el.style.display!=='none');
+    el.style.display=''; el.innerHTML=h;
+    if(!same) ssBlinkOn(el);        // 내용이 바뀔 때만 다시 깜박(이력 재렌더마다 재시작 방지)
+  }
+  // 반영 확인창 안의 알림 — 확인창에서 출고일자를 고치면 즉시 다시 판정한다
+  function ssConfirmBackUpd(){
+    var box=document.getElementById('ssConfirmBack'); if(!box) return;
+    var dt=document.getElementById('ssConfirmShpDt');
+    var c=ssBackChk((dt&&dt.value)||'');
+    var h = c ? ('<div class="ss-blink" style="margin-top:12px;padding:9px 11px;border:1px solid #f3c9c3;background:#fff6f5;border-radius:6px;'
+        +'font-size:12.5px;color:#c0392b;font-weight:700;line-height:1.55;text-align:left">⚠️ '+ssBackTxt(c)
+        +'<br><span style="color:#8a6b6b;font-weight:400">그래도 반영하려면 <b>반영</b>을 누르세요 — 막지 않습니다.</span></div>') : '';
+    if(box.innerHTML!==h) box.innerHTML=h;   // 같은 내용이면 그대로 둔다(깜박임이 처음부터 다시 돌지 않게)
   }
 
   // ArrayBuffer(엑셀) → 미리보기 모달에 로드 (수동선택·폴더선택 공용). 이후 작성/저장은 기존 ssPvApply 재사용
@@ -2960,6 +3012,7 @@
     }
     if(aoa.length>2000) html+='<tr><td class="rn">…</td><td colspan="'+maxC+'" style="color:#9aa7b3">이하 '+(aoa.length-2000)+'행 생략 (작성 시 전체 반영)</td></tr>';
     document.getElementById('ssPvTbl').innerHTML=html;
+    ssBackMsgUpd();   // 마지막에 올린 자료보다 이전 출고일자면 하단에 알림(막지는 않음)
   }
 
   // 앱 스타일 확인 메시지 박스 (native confirm 대체)
@@ -3117,8 +3170,9 @@
     ssConfirm('파일 <b>'+ssPvName+'</b> · 시트 "<b>'+sheetNm+'</b>"<br>발주 <b style="color:#137a6c">'+rows.length+'</b>건 · 출고장 <b style="color:#137a6c">'+_zc+'</b>곳을 반영하시겠습니까?'
       +'<br><br><span style="color:#b3760f">※ <b>기존 화면 자료를 초기화한 뒤</b> 이 파일로 새로 생성하고, <b>서버(TBL_SHIPOUT_MST)에 저장</b>됩니다. (같은 <b>출고일자·납기일자·출고장</b>의 기존 저장분은 이력으로 남고 새 버전이 활성화됩니다.)</span>'
       +'<div style="text-align:center;margin-top:14px;padding-top:12px;border-top:1px solid #e6ecf0">출고일자 '
-      +'<input type="date" id="ssConfirmShpDt" value="'+_shp+'" style="font-size:18px;font-weight:700;color:#137a6c;text-align:center;border:1px solid #cdd7dd;border-radius:6px;padding:4px 8px">'
-      +'<div style="font-size:11.5px;color:#9aa7b3;margin-top:5px">이 날짜로 저장됩니다 — 필요하면 여기서 바로 수정하세요<br>'+_earlyNote+'</div></div>',
+      +'<input type="date" id="ssConfirmShpDt" value="'+_shp+'" oninput="ssConfirmBackUpd()" style="font-size:18px;font-weight:700;color:#137a6c;text-align:center;border:1px solid #cdd7dd;border-radius:6px;padding:4px 8px">'
+      +'<div style="font-size:11.5px;color:#9aa7b3;margin-top:5px">이 날짜로 저장됩니다 — 필요하면 여기서 바로 수정하세요<br>'+_earlyNote+'</div>'
+      +'<div id="ssConfirmBack"></div></div>',   // 마지막에 올린 자료보다 이전이면 여기 경고가 채워진다(ssConfirmBackUpd)
       function(){
         var _ce=document.getElementById('ssConfirmShpDt');
         var _nv=(_ce&&_ce.value)||_shp;                                   // 확인창에서 수정한 값 우선, 비었으면 원래 값
@@ -3128,6 +3182,7 @@
         var _pv=document.getElementById('ssPvShpoutDt'); if(_pv) _pv.value=_nv;   // ssDoApply 가 여기서 읽음
         ssDoApply(rows, sheetNm);
       });
+    ssConfirmBackUpd();   // 확인창을 그린 뒤 '이전 자료' 여부 판정(내용은 위 #ssConfirmBack 에 채워진다)
   }
 
   // 실제 반영 처리 — ★ 기존화면 자료 초기화 후 생성 (업로드 파일로 전체 교체) + 서버 저장
@@ -5532,7 +5587,7 @@
         <h3>1. 출고 관리</h3>
         <div class="gd">발주현황표(엑셀)를 올려 출고량·출고장별 수량을 자동 작성합니다.</div>
         <table><tbody>
-          <tr><td class="m">출고현황표(대시보드1/2)</td><td>발주현황표 엑셀 업로드 → 출고장·사업장·품목별 출고량 집계. 출고데이타 저장(TBL_SHIPOUT_MST). 매출마감의 원천.<br><b>※ [📤 발주현황표 엑셀 보기 / 업로드]</b> 를 누르면 <b>탐색기가 아니라 미리보기 화면</b>이 열립니다 — 지정해 둔 자료 폴더의 파일을 <b>최신순</b>으로 보여주고 <b>가장 최근 파일 내용이 자동으로 펼쳐집니다</b>. 그 화면 <b>상단</b>에 <b>📂 폴더 지정 · 📄 파일 선택(탐색기) · ↻ 새로고침 · ℹ️ 도움말</b> 이 있습니다(도움말은 기본 접힘).<br><b>※ 김해·제주는 조기출고</b> — 그 출고장 행의 <b>출고일자(SHPOUT_DT)= 납기일자 2일 전</b>으로 자동 저장됩니다(그 외 출고장은 미리보기에서 지정한 출고일자). 미리보기 하단(출고일자 좌측)에 안내 문구가 뜹니다.</td></tr>
+          <tr><td class="m">출고현황표(대시보드1/2)</td><td>발주현황표 엑셀 업로드 → 출고장·사업장·품목별 출고량 집계. 출고데이타 저장(TBL_SHIPOUT_MST). 매출마감의 원천.<br><b>※ [📤 발주현황표 엑셀 보기 / 업로드]</b> 를 누르면 <b>탐색기가 아니라 미리보기 화면</b>이 열립니다 — 지정해 둔 자료 폴더의 파일을 <b>최신순</b>으로 보여주고 <b>가장 최근 파일 내용이 자동으로 펼쳐집니다</b>. 그 화면 <b>상단</b>에 <b>📂 폴더 지정 · 📄 파일 선택(탐색기) · ↻ 새로고침 · ℹ️ 도움말</b> 이 있습니다(도움말은 기본 접힘).<br><b>※ 김해·제주는 조기출고</b> — 그 출고장 행의 <b>출고일자(SHPOUT_DT)= 납기일자 2일 전</b>으로 자동 저장됩니다(그 외 출고장은 미리보기에서 지정한 출고일자). 미리보기 하단(출고일자 좌측)에 안내 문구가 뜹니다.<br><b>※ 이전 자료 알림</b> — 올리려는 파일의 <b>출고일자</b>가 <b>마지막에 올린 자료보다 이전</b>이면 미리보기 하단과 반영 확인창에 <b>알림</b>이 뜹니다. <b>막지는 않습니다</b> — 지난 날짜를 뒤늦게 올리는 경우가 있으니 확인만 하고 그대로 <b>반영</b>하면 됩니다.</td></tr>
           <tr><td class="m">출고세부조회</td><td>저장된 출고 내역을 <b>한 화면 3탭</b>(출고장별 품목 · 사업장별 · 품목별)으로 전환하며 조회.</td></tr>
         </tbody></table>
       </div>
@@ -5771,9 +5826,14 @@
             </div>
           </div>
           <div class="mfoot" style="align-items:center">
-            <span id="ssPvEarlyMsg" style="margin-right:auto;font-size:12.5px;font-weight:700;color:#c0392b;display:none"></span>
+            <%-- 좌측 알림 두 줄: 조기출고(김해·제주) / 역순 업로드(마지막에 올린 자료보다 이전) --%>
+            <span style="margin-right:auto;min-width:0;display:flex;flex-direction:column;gap:2px">
+              <span id="ssPvEarlyMsg" style="font-size:12.5px;font-weight:700;color:#c0392b;display:none"></span>
+              <%-- 이전 자료 알림 — 빨강 + 살짝 깜박(.ss-blink, ssBackMsgUpd 가 붙였다 뗀다) --%>
+              <span id="ssPvBackMsg" style="font-size:12.5px;font-weight:700;color:#c0392b;display:none"></span>
+            </span>
             <span style="font-size:16px;font-weight:700;color:#37475a;margin-right:10px">출고일자
-              <input type="date" id="ssPvShpoutDt" oninput="this.setAttribute('data-touched','1')"
+              <input type="date" id="ssPvShpoutDt" oninput="this.setAttribute('data-touched','1');ssBackMsgUpd()"
                      style="height:38px;border:1px solid var(--logi-border);border-radius:6px;padding:0 10px;font-size:16px;font-weight:700;margin:0 4px"
                      title="엑셀 기준 출고일자 — 수정 가능. 이 날짜로 전체 행이 저장되고 조회됩니다">
             </span>
