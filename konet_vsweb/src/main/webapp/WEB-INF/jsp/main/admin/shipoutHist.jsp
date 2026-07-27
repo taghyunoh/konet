@@ -35,6 +35,11 @@
   .sh-list tbody tr:hover td{ background:#f3f8f6; }
   .sh-list tr.on td{ background:#fdeef0; font-weight:700; }
   .sh-list tr.dgrp td{ background:#e8f6ec; font-weight:800; cursor:default; text-align:left; }
+  /* 같은 시각 업로드 묶음 머리줄 (2026-07-27) — 발주현황표 한 장이 출고장별 배치로 갈리므로 한 줄로 접는다 */
+  .sh-list tr.ugrp td{ background:#f2f7f5; font-weight:700; cursor:pointer; }
+  .sh-list tr.ugrp:hover td{ background:#e7f0ec; }
+  .sh-list tr.ugrp .car{ display:inline-block; width:13px; color:#1f9b8e; }
+  .sh-list tr.ukid td:first-child{ padding-left:22px; }
   .sh-dtl{ max-height:300px; overflow:auto; border:1px solid var(--sh-bd); border-radius:8px; }
   .sh-dtl table{ width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap; }
   .sh-dtl th{ background:#eef3f2; border:1px solid var(--sh-bd); padding:6px 8px; position:sticky; top:0; z-index:2; }
@@ -238,31 +243,103 @@ function shRender(){
   document.getElementById('kRow').textContent   = fmt(rows);
   document.getElementById('kQty').textContent   = fmt(qty);
   document.getElementById('shSum').innerHTML = _view.length
-    ? '배지 — <span class="badge b-live">반영중</span> 지금 쓰이는 자료 · <span class="badge b-old">이력</span> 재업로드로 밀려난 지난 자료 · <span class="badge b-re">N차</span> 같은 날 다시 올린 횟수'
+    ? '<b>📦 줄</b> = 같은 시각에 올린 한 번의 업로드(출고장별로 갈린 배치를 묶음) — <b>클릭하면 출고장별로 펼쳐집니다</b>'
+      + ' · 배지 — <span class="badge b-live">반영중</span> 지금 쓰이는 자료 · <span class="badge b-old">이력</span> 재업로드로 밀려난 지난 자료 · <span class="badge b-re">N차</span> 같은 날 다시 올린 횟수'
     : '';
 
   var tb=document.getElementById('shBody');
   if(!_view.length){ tb.innerHTML='<tr><td colspan="12" class="sh-msg">해당 조건의 업로드 이력이 없습니다.</td></tr>'; _shown=0; shPager(); return; }
+  shUpBuild();                                  // [묶음] 같은 시각 업로드끼리 인접하도록 재정렬 + 묶음 집계
   _shown = Math.min(LIST_ROWS, _view.length);
   tb.innerHTML = shRows(0, _shown);
-  shBind(); shPager();
+  shBind(); shPager(); shFillView();
 }
 
-/* 같은 출고일자끼리 머리줄로 묶어 하루에 몇 번 올렸는지 한눈에 보이게 한다 */
+/* 묶음이 접히면 배치 15건이 화면상 2~3줄로 줄어 스크롤이 생기지 않고, 그러면 스크롤 더보기가
+   영영 안 걸려 나머지 자료에 닿을 수 없다 → 스크롤이 생길 때까지(또는 전부 실릴 때까지) 미리 채운다. */
+function shFillView(){
+  var w=document.getElementById('shWrap'); if(!w) return;
+  var guard=0;
+  while(_shown<_view.length && w.scrollHeight<=w.clientHeight+10 && guard++<60) shMore();
+}
+
+/* ══ 같은 시각 업로드 묶음 (2026-07-27 사용자 지시) ═══════════════════════════════════
+     발주현황표 한 장을 저장하면 배치가 출고장별로 갈려 같은 업로드가 6~7줄로 늘어난다.
+     화면에서 한 줄로 접고, 펼치면 종전처럼 출고장별 줄이 나와 발생내역을 볼 수 있게 한다.
+      · 묶음키 = 원본파일 + 업로드일시(분 단위). 초 단위는 배치마다 몇 초 흔들릴 수 있어 분으로 자른다.
+      · ★서버 정렬이 (출고일자 DESC, DC_CD, 납기일자, 차수 DESC)라 같은 시각 행이 떨어져 있다
+        → 묶음이 붙어 나오도록 화면에서 (출고일자 DESC, 업로드분 DESC, 파일, DC_CD)로 재정렬한다.
+      · _view 인덱스로 발생내역을 조회하므로(shPick) 정렬은 렌더 전에 끝내고 이후 인덱스는 건드리지 않는다. */
+var _upMap = {}, _upCol = {};                   // 묶음 집계 / 접힘상태(기본 접힘)
+function shUpKey(o){ return String(o.srcFile||'')+'|'+String(o.uploadDttm||'').slice(0,16); }
+function shUpIsCol(k){ return _upCol[k]!==false; }
+function shUpToggle(kEnc){
+  var k = decodeURIComponent(kEnc);            // 머리줄 onclick 에 실려 오는 값은 인코딩되어 있다
+  _upCol[k] = shUpIsCol(k) ? false : true;
+  document.getElementById('shBody').innerHTML = shRows(0, _shown);   // 접힘만 바뀌므로 현재 분량 그대로 다시 그린다
+  shFillView();                                                      // 접어서 줄이 줄었으면 스크롤이 생길 만큼 더 채운다
+}
+function shUpBuild(){
+  _view.sort(function(a,b){
+    return String(b.shpoutDt||'').localeCompare(String(a.shpoutDt||''))
+        || String(b.uploadDttm||'').slice(0,16).localeCompare(String(a.uploadDttm||'').slice(0,16))
+        || String(a.srcFile||'').localeCompare(String(b.srcFile||''))
+        || String(a.dcCd||'').localeCompare(String(b.dcCd||''));
+  });
+  _upMap = {};
+  _view.forEach(function(o){
+    var k=shUpKey(o), g=_upMap[k];
+    if(!g){ g=_upMap[k]={ n:0, live:0, hist:0, rowCnt:0, qtySum:0, jobMax:0, dcs:[], _seen:{},
+                          file:String(o.srcFile||''), hm:String(o.uploadDttm||'').slice(11,16) }; }
+    var dc=String(o.dcNm||o.dcCd||'미지정').replace(/\s+/g,'').replace(/(물류)?센터$/,'');   // '용인물류센터'→'용인'
+    if(!g._seen[dc]){ g._seen[dc]=1; g.dcs.push(dc); }
+    g.n++; g.rowCnt+=n(o.rowCnt); g.qtySum+=n(o.qtySum);
+    if(o.actionYn==='Y') g.live++; else g.hist++;
+    if(n(o.jobSeq)>g.jobMax) g.jobMax=n(o.jobSeq);
+  });
+}
+// 묶음 머리줄 — 접힘/펼침 캐럿 + 출고장 묶음 + 합계. 상태는 묶음 안이 섞이면 '일부 반영중'으로.
+function shUpRow(k){
+  var g=_upMap[k]; if(!g) return '';
+  var col=shUpIsCol(k);
+  var st = g.hist===0 ? '<span class="badge b-live">반영중</span>'
+         : (g.live===0 ? '<span class="badge b-old">이력</span>'
+                       : '<span class="badge b-live">반영중</span> <span class="badge b-old">일부 이력</span>');
+  if(g.jobMax>1) st += ' <span class="badge b-re">'+g.jobMax+'차</span>';
+  return '<tr class="ugrp" onclick="shUpToggle(\''+esc(encodeURIComponent(k))+'\')"'
+       + ' title="클릭 → 이 업로드의 출고장 '+g.n+'건 접기/펼치기">'
+       + '<td colspan="4"><span class="car">'+(col?'▶':'▼')+'</span> 📦 출고장 <b>'+g.dcs.length+'곳</b>'
+       + ' <span style="color:#5a6b7a;font-weight:600">'+esc(g.dcs.join('·'))+'</span></td>'
+       + '<td>'+st+'</td>'
+       + '<td>'+esc(g.hm)+'</td><td></td>'
+       + '<td class="num">'+fmt(g.rowCnt)+'</td><td class="num"></td><td class="num"></td>'
+       + '<td class="num">'+fmt(g.qtySum)+'</td>'
+       + '<td class="txt" style="color:#6b7a89">'+esc(g.file)+'</td></tr>';
+}
+
+/* 같은 출고일자끼리 머리줄로 묶고(▣), 그 안에서 같은 시각 업로드끼리 다시 묶는다(📦).
+   묶음이 접혀 있으면 하위 출고장 줄은 건너뛴다 — 스크롤 더보기(shMore)로 이어 그릴 때도
+   직전 줄에서 출고일자·묶음키를 되살려 머리줄이 중복/누락되지 않게 한다. */
 function shRows(from, to){
   var h='', prev = from>0 ? _view[from-1].shpoutDt : null;
+  var prevK = from>0 ? shUpKey(_view[from-1]) : null;
   for(var i=from;i<to;i++){
     var o=_view[i];
     if(o.shpoutDt!==prev){
       var same=_view.filter(function(x){ return x.shpoutDt===o.shpoutDt; });
       var cnt=same.length, r=same.filter(function(x){ return n(x.jobSeq)>1; }).length;
-      h += '<tr class="dgrp"><td colspan="12">▣ '+esc(fmtDt(o.shpoutDt))+' — 업로드 '+cnt+'건'
+      var ups={}; same.forEach(function(x){ ups[shUpKey(x)]=1; });   // 그날 실제 '업로드 횟수'(묶음 수)
+      h += '<tr class="dgrp"><td colspan="12">▣ '+esc(fmtDt(o.shpoutDt))+' — 업로드 '+Object.keys(ups).length+'회'
+         + ' <span style="color:#6b7a89;font-weight:600">(배치 '+cnt+'건)</span>'
          + (r?(' <span style="color:#c47f17">· 재업로드 '+r+'건</span>'):'')+'</td></tr>';
-      prev=o.shpoutDt;
+      prev=o.shpoutDt; prevK=null;
     }
+    var k=shUpKey(o);
+    if(k!==prevK){ h += shUpRow(k); prevK=k; }
+    if(shUpIsCol(k)) continue;                 // 접힌 묶음의 하위 줄은 그리지 않는다
     var st = (o.actionYn==='Y') ? '<span class="badge b-live">반영중</span>' : '<span class="badge b-old">이력</span>';
     if(n(o.jobSeq)>1) st += ' <span class="badge b-re">'+n(o.jobSeq)+'차</span>';
-    h += '<tr onclick="shPick('+i+')">'
+    h += '<tr class="ukid" onclick="shPick('+i+')">'
       + '<td>'+esc(fmtDt(o.shpoutDt))+'</td><td>'+esc(fmtDt(o.dlvDt))+'</td>'
       + '<td class="txt">'+esc(o.dcNm||'(미지정)')+(o.dcCd?(' <span style="color:#9aa7b3">'+esc(o.dcCd)+'</span>'):'')+'</td>'
       + '<td>'+n(o.jobSeq)+'</td><td>'+st+'</td>'
