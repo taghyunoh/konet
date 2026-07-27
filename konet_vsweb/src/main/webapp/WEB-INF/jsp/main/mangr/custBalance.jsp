@@ -37,10 +37,12 @@
 <style>
   :root{ --cb-bd:#dbe2ea; --cb-teal:#137a6c; --cb-red:#c0392b; }
   *{ box-sizing:border-box; }
-  .cb-wrap{ padding:14px 16px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }
+  /* ★좌우 여백을 줄여 표에 자리를 준다(2026-07-28 요청) — 이 화면은 옆으로 긴 표가 둘이라
+       바깥 여백 1px 이 곧 표 1px 이다. 위아래(14px)는 그대로 두고 좌우만 6px 로. */
+  .cb-wrap{ padding:14px 6px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }
   .cb-wrap h2{ margin:0 0 3px; font-size:19px; }
   .cb-sub{ color:#1f2a37; margin-bottom:10px; font-size:12.5px; font-weight:600; }
-  .cb-card{ background:#fff; border:1px solid var(--cb-bd); border-radius:10px; padding:11px 13px; margin-bottom:11px; }
+  .cb-card{ background:#fff; border:1px solid var(--cb-bd); border-radius:10px; padding:11px 9px; margin-bottom:11px; }
   .cb-row{ display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
   .cb-fld{ display:flex; flex-direction:column; gap:3px; }
   .cb-fld label{ font-size:12px; font-weight:700; color:#1f2a37; }
@@ -58,11 +60,22 @@
   .kpi b{ display:block; font-size:19px; color:var(--cb-teal); margin-top:2px; white-space:nowrap; }
   .kpi b.red{ color:var(--cb-red); }
   .kpi span{ font-size:12px; color:#1f2a37; font-weight:700; }
-  .cb-two{ display:flex; gap:11px; align-items:flex-start; flex-wrap:wrap; }
-  /* 왼쪽 표가 [특정일자 발생] 4칸만큼 넓어져 자리를 더 준다(2026-07-27).
-     그래도 최근거래일까지는 다 안 들어오는데, **가로스크롤로 보는 것이 확정**이라 거래처 칸을 고정해 뒀다. */
-  .cb-two > .l{ flex:4 1 700px; min-width:0; }
-  .cb-two > .r{ flex:1 1 360px; min-width:0; }
+  /* ★[함정] 주석 끝기호를 주석 안에 적지 말 것. 끝기호가 나오는 순간 주석이 거기서 닫히고,
+       남은 글이 CSS 로 읽혀 **바로 뒤 규칙이 통째로 버려진다**. 2026-07-28 에 두 번 당했다 —
+       .cb-two 의 display:flex 가 죽어 좌우 두 칸이 위아래로 접혔다(증상: 오른쪽이 텅 빔). */
+  /* ★위아래 2단으로 확정 (2026-07-28 사용자 확정 — "이전내용 좋습니다, 보완만")
+       거래처별 잔액 → 월별 이력 → 건별 내역 순으로 쌓고 **둘 다 화면 폭을 꽉 채운다**.
+       좌우로 나눠 놨을 때는 어느 쪽을 늘려도 다른 쪽이 잘렸다 —
+         · 왼쪽 잔액표는 16칸이라 다 보이려면 1084px 필요 (거래처·구분·받을4·지급4·발생4·순액·최근거래일)
+         · 오른쪽 월별이력은 9칸이라 566px 필요
+       둘을 한 줄에 넣으면 1650 이상이어야 해서 실제 창에서는 늘 한쪽이 스크롤이었다.
+       위아래로 쌓으니 **양쪽 다 가로스크롤 없이** 들어온다 — 잔액표의 최근거래일까지 보인다.
+     ★클래스 이름(.l/.r)은 예전 좌우 배치 때 붙인 것이라 지금은 위/아래라는 뜻이다. 이름만 남겨 둔다. */
+  .cb-two{ display:block; }
+  .cb-two > .l, .cb-two > .r{ width:100%; min-width:0; }
+  /* 월별 이력은 한 달에 한 줄이라 보통 두세 줄이다 — 좌우 배치 때 쓰던 min-height:220px 를 그대로 두면
+     폭이 넓어진 만큼 아래가 휑하게 빈다. 줄 수만큼만 차지하게 풀어 준다(2026-07-28 보완). */
+  .cb-two > .r .cb-tbwrap{ min-height:0; max-height:44vh; }
   .cb-tit{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; font-weight:800; }
   .cb-tit small{ font-weight:600; color:#2b3a48; font-size:12px; }
   .cb-tbwrap{ max-height:calc(100vh - 330px); min-height:220px; overflow:auto; border:1px solid var(--cb-bd); border-radius:8px; }
@@ -120,6 +133,16 @@
   table.cb-tb tr.mtot td{ background:#eef3f2; font-weight:800; }
   /* 하단 건별 내역의 합계는 **맨 위**(2026-07-27 요청) — 머리글(28px) 바로 아래에 붙여 스크롤해도 따라오게 */
   #cbDtl tr.mtot td{ position:sticky; top:28px; z-index:1; border-bottom:2px solid #cfe0db; }
+  /* ★건별 내역 칸 폭 — 품목명이 남는 자리를 다 먹어 수량·단가·금액·비고가 답답했다(2026-07-28 요청).
+       숫자·비고 칸에 min-width 를 깔아 두면 표(width:100%)가 남는 자리를 품목명 대신 이쪽에 준다.
+       품목명 글자를 자르는 것이 아니라 **남는 자리 배분만** 바꾸는 것이라 이름은 그대로 다 보인다.
+     ★[함정] 탭에 따라 칸수가 다르다 — 물건 탭 10칸(…6 품목명·7 수량·8 단가·9 금액·10 비고) / 돈 탭 7칸(…6 금액·7 비고).
+         그래서 수량·단가는 nth-child + nth-last-child 를 같이 걸어 **10칸일 때만** 잡고,
+         금액·비고는 두 탭 모두 끝에서 2번째·마지막이라 뒤에서 세어 잡는다(합계줄 colspan 에도 안 흔들린다). */
+  #cbDtl th:nth-child(7):nth-last-child(4), #cbDtl td:nth-child(7):nth-last-child(4){ min-width:74px; }   /* 수량 */
+  #cbDtl th:nth-child(8):nth-last-child(3), #cbDtl td:nth-child(8):nth-last-child(3){ min-width:92px; }   /* 단가 */
+  #cbDtl th:nth-last-child(2), #cbDtl td:nth-last-child(2){ min-width:112px; }                            /* 금액 */
+  #cbDtl th:last-child,        #cbDtl td:last-child{ min-width:72px; }                                    /* 비고 */
   /* 출고장 묶음 머리행 — 대시보드와 같은 2단 트리 */
   table.cb-tb tr.grow td{ background:#e9f1ef; font-weight:800; border-top:2px solid #cfe0db; }
   table.cb-tb tr.grow td .cnt{ font-size:11px; font-weight:600; color:#5a6b7a; }
@@ -175,11 +198,13 @@
         <input type="text" id="cbFind" placeholder="예: 대양 / 00272" onkeyup="if(event.keyCode===13) cbRender()">
       </div>
       <button class="cb-btn teal" onclick="cbLoad()">조회</button>
-      <button class="cb-btn" onclick="cbThisMonth()" title="기준월을 이번 달로 (잔액)">이번 달</button>
+      <%-- ★[오늘]을 [이번 달] 앞으로 (2026-07-28 요청) — 매일 누르는 것이 [오늘]이라 조회 버튼 바로 옆에 둔다 --%>
       <button class="cb-btn" onclick="cbToday()" title="특정일자를 오늘로 (발생 칸 · 아래 건별 내역)">오늘</button>
+      <button class="cb-btn" onclick="cbThisMonth()" title="기준월을 이번 달로 (잔액)">이번 달</button>
       <%-- 출고장 묶음(대시보드와 같은 규칙) — 기본 켬. 끄면 거래처만 평평하게 나온다 --%>
       <label class="cb-chk"><input type="checkbox" id="cbGroup" checked onchange="cbRender()"> 출고장 묶음</label>
-      <button class="cb-btn" onclick="cbToggleAll()" title="묶음 전체 접기/펼치기">⊟ 접기</button>
+      <%-- 글자는 cbAllBtn() 이 지금 상태에 맞춰 [⊟ 접기] ↔ [⊞ 펼치기] 로 바꾼다 --%>
+      <button class="cb-btn" id="cbAllBtn" onclick="cbToggleAll()" title="묶음 전체 접기/펼치기">⊟ 접기</button>
       <button class="cb-btn" onclick="cbHelp()" id="cbHelpBtn" style="margin-left:auto">ℹ️ 도움말</button>
     </div>
     <div class="kpi">
@@ -513,13 +538,20 @@ function cbRender(){
   cbDtlLoad();      // 필터에서 선택 거래처가 빠졌을 수 있으니 하단도 맞춰 준다(같은 조건이면 재조회 안 함)
 }
 
+/* 정렬키 → _day(그날 발생분) 안의 이름. 묶음줄 소계키(ds/dr/dp/dy)와 짝이 맞아야 한다 */
+var CB_DAYK = { dSale:'sale', dRcv:'rcv', dPurch:'purch', dPay:'pay' };
+var CB_DAYG = { dSale:'ds',   dRcv:'dr',  dPurch:'dp',    dPay:'dy'  };
 function cbSortList(){
   var k=_sort.key, d=_sort.desc?-1:1;
   _list.sort(function(a,b){
     var x,y;
     if(k==='nm'){ x=(a.custNm||''); y=(b.custNm||''); return x<y?d*-1:(x>y?d:0); }
     if(k==='dt'){ x=a.lastDt||''; y=b.lastDt||''; return x<y?d*-1:(x>y?d:0); }
-    if(k==='net'){ x=a.recv-a.pay; y=b.recv-b.pay; }
+    /* ★[특정일자 발생] 4칸 정렬 (2026-07-28 요청 — "해당일자 한눈에")
+         이 값은 거래처 객체가 아니라 _day(일계장 응답)에 있어 따로 꺼내야 한다.
+         아직 발생분을 못 읽었으면 cbDayOf 가 0짜리를 주므로 전부 0으로 묶여 순서가 안 바뀐다(안전). */
+    if(CB_DAYK[k]){ x=cbDayOf(a.custCd)[CB_DAYK[k]]; y=cbDayOf(b.custCd)[CB_DAYK[k]]; }
+    else if(k==='net'){ x=a.recv-a.pay; y=b.recv-b.pay; }
     else { x=a[k]; y=b[k]; }
     return x===y ? 0 : (x<y?d*-1:d);
   });
@@ -563,7 +595,12 @@ function cbListRender(tR, tP){
       + '<th class="sortable num" onclick="cbSort(\'recv\')">남은금액'+_arrow('recv')+'</th>'
       + '<th class="num">이월</th><th class="num">당월매입</th><th class="num">당월지급</th>'
       + '<th class="sortable num" onclick="cbSort(\'pay\')">남은금액'+_arrow('pay')+'</th>'
-      + '<th class="dayh num">매출</th><th class="dayh num">수금</th><th class="dayh num">매입</th><th class="dayh num">지급</th>'
+      /* ★발생 4칸도 누르면 정렬된다(2026-07-28 요청) — 그날 움직인 거래처를 맨 위로 올려 한눈에 본다.
+           묶음(오산센터 등) 순서도 같은 값으로 다시 세운다 — 안 그러면 묶음 안에서만 정렬돼 위로 못 올라온다. */
+      + '<th class="dayh num sortable" onclick="cbSort(\'dSale\')" title="그날 매출이 큰 곳부터">매출'+_arrow('dSale')+'</th>'
+      + '<th class="dayh num sortable" onclick="cbSort(\'dRcv\')"  title="그날 수금이 큰 곳부터">수금'+_arrow('dRcv')+'</th>'
+      + '<th class="dayh num sortable" onclick="cbSort(\'dPurch\')" title="그날 매입이 큰 곳부터">매입'+_arrow('dPurch')+'</th>'
+      + '<th class="dayh num sortable" onclick="cbSort(\'dPay\')"  title="그날 지급이 큰 곳부터">지급'+_arrow('dPay')+'</th>'
       + '</tr></thead><tbody>';
   h+='<tr class="tot"><td class="txt">■ 합계 ('+_list.length.toLocaleString()+'곳)</td><td></td>'
    + '<td>'+fmt(s.pr)+'</td><td>'+fmt(s.cs)+'</td><td>'+fmt(s.cr)+'</td><td>'+fmt(tR)+'</td>'
@@ -574,6 +611,7 @@ function cbListRender(tR, tP){
   if(!document.getElementById('cbGroup').checked){
     _list.forEach(function(o){ h+=cbRowHtml(o, false); });
     el.innerHTML=h+'</tbody>';
+    cbAllBtn([]);        // 묶음이 없으니 접기 버튼은 쓸 일이 없다
     return;
   }
 
@@ -593,11 +631,24 @@ function cbListRender(tR, tP){
     t.ds+=d.sale; t.dr+=d.rcv; t.dp+=d.purch; t.dy+=d.pay;
     if((o.lastDt||'') > t.lastDt) t.lastDt=o.lastDt||'';
   });
+  /* ★묶음 순서도 지금 누른 정렬을 따른다 (2026-07-28) — 종전엔 무조건 '소계 받을금액 큰 순'이라
+       [특정일자 발생]으로 정렬해도 묶음 안에서만 바뀌어 그날 움직인 곳이 위로 못 올라왔다.
+     '기타 거래처'는 성격이 달라 예전처럼 **항상 맨 아래**로 둔다. */
   gord.sort(function(a,b){
     if(a===CB_ETC) return 1;
     if(b===CB_ETC) return -1;
-    return gm[b].recv - gm[a].recv;
+    /* ★부호 주의 — cbSortList 와 **같은 방향**이어야 한다(줄은 내림차순인데 묶음만 오름차순으로 뒤집힌 적 있음) */
+    var ta=gm[a], tb2=gm[b], k=_sort.key, d=_sort.desc?-1:1, x, y;
+    if(k==='nm'){ return (a<b?-1:(a>b?1:0)) * (_sort.desc?-1:1); }
+    if(k==='dt'){ x=ta.lastDt||''; y=tb2.lastDt||''; return x===y?0:(x<y?-d:d); }
+    if(CB_DAYG[k]){ x=ta[CB_DAYG[k]]; y=tb2[CB_DAYG[k]]; }
+    else if(k==='net'){ x=ta.recv-ta.pay; y=tb2.recv-tb2.pay; }
+    else if(k==='pay'){ x=ta.pay; y=tb2.pay; }
+    else { x=ta.recv; y=tb2.recv; }
+    return x===y ? 0 : (x<y?-d:d);
   });
+
+  cbAllBtn(gord);        // [⊟ 접기]/[⊞ 펼치기] 글자를 지금 상태에 맞춘다
 
   gord.forEach(function(g){
     var t=gm[g], off=!!_col[g], net=t.recv-t.pay;
@@ -663,13 +714,36 @@ function cbRowHtml(o, sub){
    + '<td class="ctr">'+dtLbl(o.lastDt)+'</td></tr>';
 }
 
-function cbToggle(g){ _col[g]=!_col[g]; cbListRender(); }
+function cbToggle(g){ _col[g]=!_col[g]; cbListRender(); if(_col[g]) cbListTop(); }
 function cbToggleAll(){
   /* 하나라도 펼쳐져 있으면 전부 접고, 다 접혀 있으면 전부 펼친다 */
   var gs={}; _list.forEach(function(o){ gs[cbGrpOf(o)]=1; });
   var ks=Object.keys(gs), anyOpen=ks.some(function(g){ return !_col[g]; });
   ks.forEach(function(g){ _col[g]=anyOpen; });
   cbListRender();
+  if(anyOpen) cbListTop();      // 접었을 때만 — 펼칠 때는 보던 자리를 지킨다
+}
+/* ★접으면 표가 짧아지는데 스크롤은 내려가 있던 그대로라 빈 자리만 보였다(2026-07-28 지적).
+     표 안 세로스크롤을 맨 위로 올리고, 카드가 화면 위로 넘어가 있으면 카드째 끌어내린다.
+     가로스크롤(scrollLeft)은 **건드리지 않는다** — 오른쪽 칸을 보던 중이면 그 자리를 잃는다. */
+function cbListTop(){
+  var el=document.getElementById('cbList'); if(!el) return;
+  var wrap=el.parentNode;
+  if(wrap) wrap.scrollTop=0;
+  var card=(el.closest ? el.closest('.cb-card') : null) || wrap;
+  var top=card.getBoundingClientRect().top;
+  if(top < 0) window.scrollBy({ top:top-12, behavior:'smooth' });
+}
+/* [⊟ 접기] ↔ [⊞ 펼치기] — 다음에 눌렀을 때 무슨 일이 일어나는지를 글자로 보여준다.
+   묶음이 없으면(출고장 묶음 체크 해제) 누를 것이 없어 흐리게 둔다. */
+function cbAllBtn(gs){
+  var b=document.getElementById('cbAllBtn'); if(!b) return;
+  var ks=gs||[], has=ks.length>0;
+  var anyOpen=ks.some(function(g){ return !_col[g]; });
+  b.textContent = (has && !anyOpen) ? '⊞ 펼치기' : '⊟ 접기';
+  b.title = has ? (anyOpen ? '묶음을 전부 접습니다' : '묶음을 전부 펼칩니다') : '출고장 묶음일 때만 씁니다';
+  b.disabled = !has;
+  b.style.opacity = has ? '' : '.45';
 }
 
 function cbPick(cd){ _pick=cd; cbListRender(); cbHistRender(); cbDtlLoad(); }
