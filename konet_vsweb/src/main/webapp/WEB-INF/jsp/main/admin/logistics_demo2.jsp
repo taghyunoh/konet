@@ -4366,11 +4366,27 @@
   function ohGrp(k){
     k=decodeURIComponent(k);
     var def = (k==='dtsec')         ? true            // ①탭 일자별 구획 = 기본 접힘
+            : (k.indexOf('gq:')===0)? true            // ⑤탭 품목 하위(출고 원본행) = 기본 접힘
             : (k.indexOf('b:')===0) ? true            // 사업장 하위(원본행) = 기본 접힘
             : (/^d\d*:/.test(k))    ? false           // 물류센터 묶음(d:①/d2:②/d3:③/d4:④) = 기본 펼침 (_ohAllCol 영향 안 받음)
             : _ohAllCol;
     _ohCol[k] = !_ohIsCol2(k, def);
-    ohRender();
+    _ohKeepScroll(ohRender);   // ★접기/펼치기 후 화면이 맨 위로 튀지 않게 (2026-07-27 지적)
+  }
+  /* 접기/펼치기는 표를 innerHTML 로 통째로 다시 그린다(lzMount) → #ohWrap 의 scrollTop 이 0으로 초기화되면서
+     보고 있던 줄이 화면 밖으로 사라진다. 그래서 위치를 저장했다가 되돌린다.
+      · 다시 그리면 앞 N행만 붙고 나머지는 스크롤할 때 채워지므로(lzFill), 저장한 위치가 보일 만큼 먼저 채운다.
+      · 페이지 자체 스크롤(window)도 함께 되돌린다 — 표 높이가 바뀌면 페이지가 밀릴 수 있다. */
+  function _ohKeepScroll(fn){
+    var w=document.getElementById('ohWrap');
+    var top=w?w.scrollTop:0, winY=(window.pageYOffset||document.documentElement.scrollTop||0);
+    fn();
+    w=document.getElementById('ohWrap');
+    if(w){
+      for(var g=0; w._lz && w._lz.from<w._lz.list.length && w.scrollHeight < top+w.clientHeight && g<400; g++) lzFill(w);
+      w.scrollTop=top;
+    }
+    if(winY) window.scrollTo(0, winY);
   }
   function _ohIsCol(k){ return _ohIsCol2('i:'+k, _ohAllCol); }
 
@@ -4444,6 +4460,7 @@
       if(r.trxYn==="Y") g.trx=true;   // 직접판매 묶음 표시 — 대사 대상이 아니라는 뜻
       var kk=_ohKey(r); if(kk) g.sKeys[kk]=1;
       var it=item(g, r.itemCd, r.itemNm); it.sQty+=(+r.outQty||0); it.sAmt+=(+r.saleAmt||0);
+      it.sRows=(it.sRows||0)+1;   // [⑤차이탭] '정산서가 온 품목'인지 판정용 — 수량이 0인 정산행도 온 것으로 본다
       if(it.price==null && r.salePrice!=null) it.price=+r.salePrice;
     });
     /* ★정산서가 아직 안 온 출고의 매출금액 — 마감관리와 같은 방식으로 채운다(2026-07-25 요청).
@@ -4546,7 +4563,7 @@
 
   /* 탭별 원천 — 요약줄 맨 앞에 칩으로 붙인다(전용 줄을 두면 상단이 무거워짐. 자세한 건 탭 버튼 hover).
      ①②는 정산서 기준이 아니라 양쪽 합집합이다(한쪽만 있어도 줄이 생겨야 '정산 미도착'을 잡는다). */
-  var OH_DESC={ dc:'정산서 ∪ 출고내역', item:'정산서 ∪ 출고내역 · 품목축', ship:'출고내역 · 사업장축', settle:'정산서 단독' };
+  var OH_DESC={ dc:'정산서 ∪ 출고내역', item:'정산서 ∪ 출고내역 · 품목축', gap:'정산서 온 품목 · 수량 불일치만', ship:'출고내역 · 사업장축', settle:'정산서 단독' };
   function _ohSrcChip(){
     return '<span style="display:inline-block;padding:1px 8px;margin-right:6px;border-radius:999px;background:#eaf3f1;color:#137a6c;font-size:11.5px;font-weight:700"'
       + ' title="이 탭이 어느 표에서 줄을 가져오는지. 자세한 설명은 탭 이름에 마우스를 올려 보세요.">'+(OH_DESC[_ohTab]||'')+'</span>';
@@ -4588,7 +4605,8 @@
     if(!wrap) return;
     // ⊟ 전체 접기 — 그룹이 있는 탭에서만. ④(settle)도 출고장별 묶음이 생겼으므로 포함(2026-07-22)
     //   빠뜨리면 그룹은 접힌 채인데 펼칠 수단이 없어진다
-    var btn=document.getElementById('ohAllBtn'); if(btn) btn.style.display=(_ohTab==='dc')?'none':'';
+    // 접기 버튼은 트리가 있는 탭에서만 — ①(1단만)·⑤(평면 목록)에는 접을 것이 없다
+    var btn=document.getElementById('ohAllBtn'); if(btn) btn.style.display=(_ohTab==='dc'||_ohTab==='gap')?'none':'';
     _ohUpdAllBtn();   // 라벨(접기/펼치기)이 현재 상태와 어긋나지 않게 매 렌더마다 맞춘다
     if(!_ohSales.length && !_ohShip.length){
       sum.innerHTML=_ohSrcChip()+'조회된 자료가 없습니다. (정산 엑셀 저장분·발주현황표 출고 모두 없음)';
@@ -4622,8 +4640,195 @@
       +_ohMixNote();
     if(_ohTab==='dc')          _ohRenderDc(G, wrap, oQ, sQ, sA);
     else if(_ohTab==='item')   _ohRenderItem(G, wrap, oQ, sQ, sA);
+    else if(_ohTab==='gap')    _ohRenderGap(G, wrap);
     else if(_ohTab==='settle') _ohRenderSettle(wrap, sQ, sA);
     else                       _ohRenderShip(wrap, oQ);
+  }
+
+  /* ⑤ 수량차이 품목 (2026-07-27 요청) — "정산서 온 것 기준으로, 출고수량과 정산수량이 다른 품목".
+       ①②의 트리에 필터를 걸면 소계가 필터 전/후로 갈려 읽기 나빠지므로, 별도 탭에 평면 목록으로 뽑는다.
+       ★대상 기준 = <정산서에 온 품목>(it.sRows>0). "정산서 온 것만 대사" (2026-07-27 사용자 확정).
+         · 정산서에 아예 없는 품목은 대사 대상이 아니다 → 목록에 넣지 않는다.
+           (그건 '차이'가 아니라 청구가 안 된 것 = 미정산. ①탭 상태 칸에서 본다.)
+         · 다만 몇 건이 그렇게 빠졌는지는 총합계 줄에 숫자로만 알려 준다 — 조용히 빠지면 다 본 줄 알기 때문.
+       정렬 = 차이 절대값 큰 순. 부호로 방향을 구분한다.
+         · +  출고 > 정산 = 보냈는데 청구가 덜 됐다(청구 누락 후보)
+         · −  정산 > 출고 = 청구가 더 됐다(과청구·출고기록 누락 후보)                          */
+  function _ohRenderGap(G, wrap){
+    /* ★수량차이 = <정산수량 − 출고수량> (2026-07-27 사용자 확정). 정산서 기준 탭이라 정산서를 앞에 둔다.
+         ①②③탭은 반대(출고−정산)라 부호가 뒤집혀 보인다 — 이 탭은 정산서 기준이라는 뜻이므로 헷갈리지 않게
+         컬럼도 '정산수량 → 출고수량' 순으로 놓고, 머리글·툴팁에 계산식을 적어 둔다.
+           +  정산 > 출고 = 청구가 더 됐다(과청구·출고기록 누락 후보)
+           −  출고 > 정산 = 보냈는데 청구가 덜 됐다(청구 누락 후보) */
+    var rows=[], tO=0, tS=0, sMore=0, oMore=0, skipNB=0, dcN=0;
+    G.forEach(function(g){
+      if(!(g.sRows>0)) return;                                     // 정산서가 통째로 안 온 출고장은 대사 불가
+      dcN++;
+      g.itemOrd.forEach(function(k){
+        var it=g.items[k];
+        var d=(+it.sQty||0)-(+it.oQty||0);                         // 정산수량 − 출고수량
+        if(!(it.sRows>0)){                                         // 정산서에 없는 품목 = 대사 대상 아님
+          if(Math.abs(d)>0.0001) skipNB++;                         //   몇 건 빠졌는지만 세어 알린다
+          return;
+        }
+        if(Math.abs(d)<=0.0001) return;                            // 수량이 맞는 품목 제외
+        rows.push({ dc:g.label, it:it, d:d });
+        tO+=(+it.oQty||0); tS+=(+it.sQty||0);
+        if(d>0) sMore++; else oMore++;
+      });
+    });
+    /* [통합해서 본 것도 표시] 총합계(전체) → 출고장별 소계 → 그 출고장의 차이 품목.
+         차이가 큰 출고장부터, 그 안에서도 차이가 큰 품목부터 나온다. */
+    var gm={}, gs=[];
+    rows.forEach(function(r){
+      var e=gm[r.dc];
+      if(!e){ e=gm[r.dc]={ dc:r.dc, its:[], oQty:0, sQty:0, d:0 }; gs.push(e); }
+      e.its.push(r); e.oQty+=(+r.it.oQty||0); e.sQty+=(+r.it.sQty||0); e.d+=r.d;
+    });
+    gs.forEach(function(e){ e.its.sort(function(a,b){ return Math.abs(b.d)-Math.abs(a.d); }); });
+    gs.sort(function(a,b){ return Math.abs(b.d)-Math.abs(a.d) || String(a.dc).localeCompare(String(b.dc),'ko'); });
+    /* 품목 줄을 누르면 그 아래에 <출고 원본행>을 펼친다(다시 누르면 접힘) — 눈으로 대사하기 위한 것.
+         같은 주문번호(JUMUN_NO)가 출고일자 두 곳에 걸쳐 있으면 재저장 후보라 배지로 표시한다.
+         출고 조회가 이미 ordNo·jumunNo·zone·inwh·bizCd·srcFile 을 주므로 서버 변경 없이 만들 수 있다. */
+    var list=[];
+    gs.forEach(function(e){
+      list.push({ t:'g', e:e });
+      e.its.forEach(function(r){
+        var key='gq:'+r.dc+'|'+r.it.itemCd;
+        var col=_ohIsCol2(key, true);
+        list.push({ t:'it', r:r, key:key, col:col });
+        if(col) return;
+        // 정산서 원본행 먼저 — 발주일자(DLV_DT)·출고일자(OUT_DT)를 보여 출고 쪽 날짜와 나란히 대사한다(2026-07-27 요청)
+        var sraw=_ohSales.filter(function(x){ return (_ohDcOf(x)||'(출고장 미지정)')===r.dc && (''+(x.itemCd||''))===r.it.itemCd; });
+        sraw.sort(function(a,b){ return String(a.dlvDt||'').localeCompare(String(b.dlvDt||'')) || String(a.ordNo||'').localeCompare(String(b.ordNo||'')); });
+        sraw.forEach(function(x){ list.push({ t:'sraw', x:x }); });
+        var raw=_ohShip.filter(function(x){ return (_ohDcOf(x)||'(출고장 미지정)')===r.dc && (''+(x.itemCd||''))===r.it.itemCd; });
+        raw.sort(function(a,b){ return String(a.shpoutDt||'').localeCompare(String(b.shpoutDt||'')) || String(a.zone||'').localeCompare(String(b.zone||'')); });
+        var jm={};   // 주문번호별 출고일자 집합 — 2개 이상이면 재저장 후보
+        raw.forEach(function(x){ var j=(''+(x.jumunNo||'')).trim(); if(!j) return; (jm[j]=jm[j]||{})[(''+(x.shpoutDt||''))]=1; });
+        raw.forEach(function(x){
+          var j=(''+(x.jumunNo||'')).trim();
+          list.push({ t:'raw', x:x, dup:!!(j && Object.keys(jm[j]||{}).length>1) });
+        });
+        if(!raw.length) list.push({ t:'none' });
+      });
+    });
+
+    var RED='color:#c0392b;font-weight:800';
+    var h='<table class="logi-tb"><thead><tr><th>출고장</th><th>품목코드</th><th>품목명</th>'
+        +'<th style="text-align:right">정산수량</th><th style="text-align:right">출고수량</th>'
+        +'<th style="text-align:right" title="정산수량 − 출고수량&#10;+ 정산이 많음 = 청구가 더 됨(과청구·출고기록 누락 후보)&#10;− 출고가 많음 = 보냈는데 청구가 덜 됨(청구 누락 후보)">수량차이<br><span style="font-weight:400;font-size:10.5px">정산−출고</span></th>'
+        +'<th style="text-align:right">판매단가</th>'
+        +'<th style="text-align:right" title="정산서 금액 + 정산서가 안 온 출고의 추정매출(판매단가).">정산금액</th></tr></thead><tbody>';
+    h+='<tr class="close-total"><td colspan="3">■ 차이 품목 '+rows.length.toLocaleString()+'건'
+      +(rows.length?(' <span style="font-weight:600">(정산 많음 '+sMore+' · 출고 많음 '+oMore+' · 출고장 '+gs.length+'곳)</span>'):'')
+      +' <span style="font-weight:600;font-size:11.5px">— 정산서 온 출고장 '+dcN+'곳 · 정산서에 있는 품목만 대사</span>'
+      +(skipNB?('<br><span style="font-weight:600;font-size:11.5px;color:#ffe9c9">※ 정산서에 없는 품목 '+skipNB+'건은 대사 대상이 아니라 제외 — ①탭 상태 칸의 <b>미정산</b>에서 확인</span>'):'')
+      +'</td>'
+      +'<td style="text-align:right">'+_ohQ(tS)+'</td><td style="text-align:right">'+_ohQ(tO)+'</td>'
+      +'<td style="text-align:right">'+_ohQ(tS-tO)+'</td><td></td><td></td></tr>';
+    if(!rows.length){
+      _ohMount(wrap, h+_ohEmptyRow(8, (dcN ? '수량이 어긋난 품목이 없습니다' : '이 기간 정산서 자료가 없습니다'),
+        (dcN
+          ? '정산서가 온 출고장 <b>'+dcN+'곳</b>에서 정산서에 있는 품목은 <b>출고수량과 정산수량이 모두 일치</b>합니다.'
+            +(skipNB?('<br>정산서에 없는 품목 <b>'+skipNB+'건</b>은 대사 대상이 아니라 제외했습니다(①탭 <b>미정산</b>).'):'')
+          : '비교할 정산서가 없어 차이를 낼 수 없습니다.<br>정산 엑셀을 올린 뒤 다시 조회하거나, 정산서가 안 온 건은 ①탭 상태 칸에서 <b>미정산</b>으로 확인하세요.')), [], _ohIdent);
+      return;
+    }
+    // 출고장 소계(통합) 줄 — 빨간색은 품목 줄에만 쓴다(2026-07-27 요청). 소계는 기본 색.
+    var gRow=function(e){
+      var up=e.d>0;
+      return '<tr class="close-grp" style="cursor:default"><td colspan="3">🏭 '+_cesc(e.dc)
+        +' <span style="font-weight:600;color:#5a6b7a">(차이 '+e.its.length+'품목)</span></td>'
+        +'<td style="text-align:right">'+_ohQ(e.sQty)+'</td><td style="text-align:right">'+_ohQ(e.oQty)+'</td>'
+        +'<td style="text-align:right">'+(up?'+':'')+_ohQ(e.d)+'</td><td></td><td></td></tr>';
+    };
+    // 품목 줄 — 여기만 빨간색. 누르면 아래에 출고 원본행이 펼쳐진다.
+    var itRow=function(r, key, col){
+      var it=r.it, up=r.d>0;
+      // ★펼치기/접기는 <화살표를 눌렀을 때만> 동작한다(2026-07-27 요청) — 줄 전체 클릭은 쓰지 않는다.
+      //   품목명·수치를 마우스로 긁어 복사할 때 표가 접히거나 펼쳐지는 것을 막기 위한 것.
+      return '<tr title="'
+        + (up?'정산이 출고보다 많음 — 과청구·출고기록 누락 여부 확인':'출고가 정산보다 많음 — 청구 누락 여부 확인')+'">'
+        + '<td class="txt-l" style="color:#8a95a1">'+_cesc(r.dc)+'</td>'
+        + '<td style="'+RED+'">'
+        +   '<span onclick="event.stopPropagation();ohGrp(\''+encodeURIComponent(key)+'\')"'
+        +   ' title="'+(col?'출고 원본행 펼치기':'출고 원본행 접기')+'"'
+        +   ' style="color:#c0392b;cursor:pointer;display:inline-block;width:20px;text-align:center;'
+        +   'user-select:none;-webkit-user-select:none">'+(col?'▶':'▼')+'</span> '
+        +   _cesc(it.itemCd)+'</td>'
+        // '펼치기/접기' 글자 배지는 제거(2026-07-27 요청) — 줄을 클릭하면 되고, 상태는 왼쪽 캐럿(▶/▼)으로 보인다
+        + '<td class="txt-l" style="'+RED+'">'+_cesc(it.itemNm)+'</td>'
+        + '<td style="text-align:right">'+_ohQ(it.sQty)+'</td>'
+        + '<td style="text-align:right">'+_ohQ(it.oQty)+'</td>'
+        + '<td style="text-align:right;'+RED+'">'+(up?'+':'')+_ohQ(r.d)+'</td>'
+        + '<td style="text-align:right">'+(it.price==null?'':_cnum(it.price))+'</td>'
+        + _ohAmtCell(it)+'</tr>';
+    };
+    /* 정산서 원본행.
+         ★대사는 <납품일자>만 비교한다(2026-07-27 사용자 확정). 출고일자는 정산서와 출고장이 서로 다를 수 있다
+           — 김해·제주는 조기출고(납기보다 앞당겨 출고)라 다른 것이 정상이다. 그래서 출고일자는 참고로만
+           회색·괄호로 두고, '날짜 다름' 같은 경고 표시는 붙이지 않는다(정상을 오류로 보이게 하므로).
+         수량은 <정산수량 칸>에 놓아(출고행은 출고수량 칸) 어느 쪽 자료인지 위치로 구분된다.
+         ※ 정산서에는 사업장·주문번호 칸이 없다(출고 자료에만 있음). */
+    var srawRow=function(x){
+      var ord=(''+(x.ordNo||'')).trim();
+      return '<tr style="background:#f4fbf8">'
+        + '<td></td>'
+        + '<td colspan="2" class="txt-l" style="padding-left:26px;color:#137a6c;font-size:12.5px">'
+        //   출고일자도 읽히게 진하게 둔다(2026-07-27) — 대사 기준은 아니지만 조기출고 확인에 자주 본다.
+        +   '↳ <b>정산서</b> · 납품일자 <b>'+_cesc(_ohDateFmt(x.dlvDt))+'</b>'
+        +   ' <span style="color:#5a6b7a">(출고일자 <b>'+_cesc(_ohDateFmt(x.outDt))+'</b>)</span>'
+        + '</td>'
+        + '<td style="text-align:right;color:#137a6c;font-weight:700">'+_ohQ(x.outQty)+'</td>'
+        + '<td></td>'
+        + '<td colspan="3" class="txt-l" style="color:#9aa7b3;font-size:11.5px">'
+        +   '발주 '+(ord?_cesc(ord):'<span style="color:#c47f17">없음</span>')
+        +   (x.ordItemNo?('-'+_cesc(x.ordItemNo)):'')
+        +   (x.ordQty!=null?(' · 발주량 '+_ohQ(x.ordQty)):'')
+        +   (x.srcFile?(' · '+_cesc(x.srcFile)):'')
+        + '</td></tr>';
+    };
+    /* 출고 원본행 — 무엇 때문에 차이가 났는지 눈으로 대사하는 줄.
+         출고일자·차수 / 입고장·존·사업장 / 수량 / 발주번호·주문번호·원본파일.
+         같은 주문번호가 출고일자 두 곳에 있으면 '중복 합산' 배지 — 이게 이중계상의 정체다.
+         (날짜를 비교해서 붙이는 게 아니다 — 출고일자 차이는 조기출고라 정상이다.) */
+    var rawRow=function(x, dup){
+      var inwh=(''+(x.inwh||'')).trim(), zone=(''+(x.zone||'')).trim();
+      var biz=(''+(x.bizNm||x.bizCd||'')).trim();
+      var ord=(''+(x.ordNo||'')).trim(), jum=(''+(x.jumunNo||'')).trim();
+      return '<tr style="background:#fcfdfe">'
+        + '<td></td>'
+        + '<td colspan="2" class="txt-l" style="padding-left:26px;color:#5a6b7a;font-size:12.5px">'
+        //   ★대사 기준은 납품일자뿐이다. 출고일자는 참고 — 코네트에서 김해·제주는 멀어서 미리 출고하므로
+        //     정산서의 출고일자와 다른 것이 정상이다(경고로 보이지 않게 회색 괄호로 둔다).
+        +   '↳ <b>출고내역</b> · 납품일자 <b>'+_cesc(_ohDateFmt(x.dlvDt))+'</b>'
+        +   ' <span style="color:#5a6b7a">(출고일자 <b>'+_cesc(_ohDateFmt(x.shpoutDt))+'</b>'+(x.jobSeq?(' '+x.jobSeq+'차'):'')+')</span>'
+        +   (inwh?(' · 입고장 '+_cesc(inwh)):'')+(zone?(' · 존 '+_cesc(zone)):'')+(biz?(' · '+_cesc(biz)):'')
+        /* ★배지 문구 주의(2026-07-27) — '재저장 의심'이라고 쓰니 "출고일자가 달라서 오류"로 읽혔다.
+             출고일자 차이는 정상이다(김해·제주는 멀어서 미리 출고). 이 배지가 뜻하는 것은
+             <같은 주문번호가 서로 다른 배치에 활성으로 남아 출고수량이 두 번 더해졌다>는 것뿐이다.
+             그래서 날짜를 가리키지 않는 말('중복 합산')로 바꾸고, 툴팁에 이유를 적는다. */
+        +   (dup?' <span title="같은 주문번호가 서로 다른 배치에 활성으로 남아 있어 출고수량이 두 번 더해졌습니다.&#10;'
+                 +'※ 출고일자가 다른 것 자체는 정상입니다(김해·제주는 멀어서 미리 출고). 문제는 같은 주문이 두 번 저장된 것입니다."'
+                 +' style="font-size:11px;font-weight:700;color:#c0392b;border:1px solid #f0c9c2;background:#fff7f6;border-radius:4px;padding:0 5px;cursor:help">중복 합산</span>':'')
+        + '</td>'
+        + '<td></td>'
+        + '<td style="text-align:right;color:#37475a">'+_ohQ(x.curQty)+'</td>'
+        + '<td colspan="3" class="txt-l" style="color:#9aa7b3;font-size:11.5px">'
+        +   '발주 '+(ord?_cesc(ord):'<span style="color:#c47f17">없음</span>')
+        +   (x.ordItemNo?('-'+_cesc(x.ordItemNo)):'')
+        +   ' · 주문 '+(jum?_cesc(jum):'-')
+        +   (x.srcFile?(' · '+_cesc(x.srcFile)):'')
+        + '</td></tr>';
+    };
+    _ohMount(wrap, h, list, function(x){
+      return x.t==='g'    ? gRow(x.e)
+           : x.t==='it'   ? itRow(x.r, x.key, x.col)
+           : x.t==='sraw' ? srawRow(x.x)
+           : x.t==='raw'  ? rawRow(x.x, x.dup)
+           : '<tr style="background:#fcfdfe"><td></td><td colspan="7" class="txt-l" style="padding-left:26px;color:#9aa7b3;font-size:12px">↳ 이 기간 출고 원본행이 없습니다(정산서만 온 건).</td></tr>';
+    });
   }
 
   // 개별 출고장 상태 뱃지 — ①탭 1·2단 공용
@@ -5332,6 +5537,10 @@
       #ohTabs{ margin:4px 0 12px !important; }
       #ohSum{ margin:0 0 6px !important; padding-top:2px; font-size:12.5px; line-height:1.35; }
       #ohTabs .ctab{ height:30px; padding:0 12px; font-size:12.5px; }
+      /* ⑤ 수량차이 품목 탭만 빨간색 — 눈에 먼저 걸리게(2026-07-27 요청) */
+      #ohTabs .ctab.ctab-red{ color:#c0392b; border-color:#f0c9c2; background:#fff7f6; }
+      #ohTabs .ctab.ctab-red:hover{ background:#ffeeec; }
+      #ohTabs .ctab.ctab-red.on{ background:#c0392b; color:#fff; border-color:#c0392b; }
       #ohTabs .btn-line{ height:26px !important; margin-bottom:2px; }
       #ohWrap table.logi-tb thead th{ position:sticky; top:0; z-index:2; box-shadow:inset 0 -1px 0 var(--logi-border); }
       /* ①출고장별 합계 — 출고장 이름이 잘려 보인다는 지적(2026-07-27). 머리글은 그대로, 자료칸만 넓힌다.
@@ -5417,13 +5626,14 @@
         <div class="form-row" style="margin-bottom:0; align-items:flex-end">
           <div class="fld" style="flex:0 0 150px"><label>납품일자(시작)</label><input type="date" id="slsFrom" onchange="ohRangeSync()"></div>
           <div class="fld" style="flex:0 0 150px"><label>납품일자(종료)</label><input type="date" id="slsTo" onchange="ohRangeSync()"></div>
-          <%-- 기간 빠른 선택 (2026-07-27 요청) — 당일 / 1주일 / 해당월(1일~오늘) / 직접 입력 --%>
+          <%-- 기간 빠른 선택 (2026-07-27) — 당일 / 1주일 / 해당월(1일~오늘).
+               ★'직접 입력' 버튼은 제거했다(2026-07-27 요청) — 날짜칸을 마우스로 고르면 되고,
+                 고치는 순간 ohRangeSync 가 자동으로 직접입력 모드('c')로 내려 버튼 강조를 푼다. --%>
           <div class="fld" style="flex:0 0 auto"><label>기간</label>
             <div style="display:flex; gap:4px">
               <button type="button" class="btn-line" id="ohRgD" style="height:36px; padding:0 12px" onclick="ohRange('d')" title="오늘 하루만 (납품일자 = 오늘). 진입 시 기본값입니다. 누르면 바로 조회합니다.">당일</button>
               <button type="button" class="btn-line" id="ohRgW" style="height:36px; padding:0 12px" onclick="ohRange('w')" title="오늘 포함 최근 7일 (오늘−6일 ~ 오늘). 누르면 바로 조회합니다.">1주일</button>
               <button type="button" class="btn-line" id="ohRgM" style="height:36px; padding:0 12px" onclick="ohRange('m')" title="이번 달 1일 ~ 오늘 (말일까지가 아니라 오늘까지). 누르면 바로 조회합니다.">해당월</button>
-              <button type="button" class="btn-line" id="ohRgC" style="height:36px; padding:0 12px" onclick="ohRange('c')" title="시작·종료 날짜를 직접 골라 [조회]를 누르세요. 날짜를 손으로 고치면 자동으로 이 모드가 됩니다.">직접 입력</button>
             </div>
           </div>
           <div class="fld" style="flex:0 0 190px"><label>출고장</label>
@@ -5437,12 +5647,13 @@
           <div class="fld" style="flex:0 0 170px"><label>품목코드/품목명</label><input type="text" id="slsItemCd" placeholder="전체 (부분검색)"></div>
           <div class="fld" style="flex:0 0 90px"><button class="btn-teal" style="width:100%" onclick="ohQuery()">조회</button></div>
           <div class="fld" style="flex:0 0 auto; margin-left:auto">
-            <span class="tipx" title="[관점 환산] 엑셀은 출고장 기준이라 우리 기준으로 뒤집어 담습니다.&#10;  입고량→우리 출고량 · 단가→우리 판매단가 · 매입금액→우리 매출액 · 입고일자→우리 출고일자&#10;  ※ 엑셀의 '매입금액'은 우리 매입이 아닙니다(우리 매입가는 상품관리가 담당).&#10;&#10;[읽는 규칙] 품목코드 없는 행(합계행)은 제외 · 발주번호 병합셀은 위 값 승계 · 수량은 소수/음수 보존 · 납품일자는 엑셀 값, 출고장만 파일명에서 인식.&#10;&#10;[저장 단위] (납품일자+출고장) 1배치. 같은 배치를 다시 올리면 기존 자료를 이력마감한 뒤 새로 적재(이전 자료는 이력으로 남음).&#10;&#10;[판매단가 이력] 저장 시 판매가 이력에도 반영(적용일자=납품일자=발주일자) → 매출마감 출고단가가 (마스터) 대신 (이력) 확정가로 잡힘. 같은 품목·같은 날 단가가 다르면 건너뜀.&#10;&#10;[조회기간] 진입 시=당일(오늘 하루) / 엑셀 업로드 시=납품일자가 속한 달 전체.&#10;  · 기간 버튼 — 당일 / 1주일(오늘 포함 최근 7일) / 해당월(1일~오늘, 말일 아님) / 직접 입력&#10;  · 앞 3개는 누르는 즉시 조회합니다. 직접 입력은 날짜를 고른 뒤 [조회]를 누르세요.&#10;  · 날짜칸을 손으로 고치면 자동으로 '직접 입력'으로 바뀝니다.&#10;&#10;[기간 기준] 납품일자(=발주일자)로 양쪽을 맞춥니다. 출고내역은 출고일자로만 조회되는데 먼 지역이 하루 당겨 출고하므로, 앞뒤 한 달을 넉넉히 읽어 발주일자로 다시 걸러 정산과 같은 기간으로 맞춥니다.&#10;&#10;[대사 규칙] ★발주일자 + 출고장 + 품목코드 로 짝을 맞춥니다(합계 대 합계).&#10;  · 출고는 사업장이 여럿이면 자동으로 합쳐집니다(정산서에 사업장 칸이 없음).&#10;  · 짝 없는 출고 = 미정산(보냈는데 청구 안 됨) / 짝 없는 정산 = 출고미상(보낸 적 없는데 청구됨).&#10;  · 발주번호는 키로 쓰지 않습니다(참고 표시만) — 발주현황표에 비어 있는 행이 있고(2026-07 실측 4,184행 중 424행),&#10;    발주번호로 대사하면 매칭률이 88%→82%로 오히려 떨어집니다. 발주번호로만 짝이 맞는 금액은 0원이었습니다.">ℹ️ 도움말</span>
+            <span class="tipx" title="[관점 환산] 엑셀은 출고장 기준이라 우리 기준으로 뒤집어 담습니다.&#10;  입고량→우리 출고량 · 단가→우리 판매단가 · 매입금액→우리 매출액 · 입고일자→우리 출고일자&#10;  ※ 엑셀의 '매입금액'은 우리 매입이 아닙니다(우리 매입가는 상품관리가 담당).&#10;&#10;[읽는 규칙] 품목코드 없는 행(합계행)은 제외 · 발주번호 병합셀은 위 값 승계 · 수량은 소수/음수 보존 · 납품일자는 엑셀 값, 출고장만 파일명에서 인식.&#10;&#10;[저장 단위] (납품일자+출고장) 1배치. 같은 배치를 다시 올리면 기존 자료를 이력마감한 뒤 새로 적재(이전 자료는 이력으로 남음).&#10;&#10;[판매단가 이력] 저장 시 판매가 이력에도 반영(적용일자=납품일자=발주일자) → 매출마감 출고단가가 (마스터) 대신 (이력) 확정가로 잡힘. 같은 품목·같은 날 단가가 다르면 건너뜀.&#10;&#10;[조회기간] 진입 시=당일(오늘 하루) / 엑셀 업로드 시=납품일자가 속한 달 전체.&#10;  · 기간 버튼 — 당일 / 1주일(오늘 포함 최근 7일) / 해당월(1일~오늘, 말일 아님)&#10;  · 누르는 즉시 조회합니다. 그 밖의 기간은 날짜칸을 직접 고른 뒤 [조회]를 누르세요(버튼 강조가 자동으로 풀립니다).&#10;&#10;[기간 기준] 납품일자(=발주일자)로 양쪽을 맞춥니다. 출고내역은 출고일자로만 조회되는데 먼 지역이 하루 당겨 출고하므로, 앞뒤 한 달을 넉넉히 읽어 발주일자로 다시 걸러 정산과 같은 기간으로 맞춥니다.&#10;&#10;[대사 규칙] ★발주일자 + 출고장 + 품목코드 로 짝을 맞춥니다(합계 대 합계).&#10;  · 출고는 사업장이 여럿이면 자동으로 합쳐집니다(정산서에 사업장 칸이 없음).&#10;  · 짝 없는 출고 = 미정산(보냈는데 청구 안 됨) / 짝 없는 정산 = 출고미상(보낸 적 없는데 청구됨).&#10;  · 발주번호는 키로 쓰지 않습니다(참고 표시만) — 발주현황표에 비어 있는 행이 있고(2026-07 실측 4,184행 중 424행),&#10;    발주번호로 대사하면 매칭률이 88%→82%로 오히려 떨어집니다. 발주번호로만 짝이 맞는 금액은 0원이었습니다.">ℹ️ 도움말</span>
           </div>
         </div>
         <div class="close-tabs" id="ohTabs" style="margin:6px 0 0">
           <button type="button" class="ctab on" data-t="dc"     onclick="ohTab('dc')" title="원천: 정산서 ∪ 출고내역(합집합) — 한쪽만 있어도 줄이 생깁니다.&#10;한 줄 = 출고장 1곳. 왼쪽 「출고건수·출고수량」=발주현황표 / 오른쪽 「정산행수·정산수량·평균단가·정산금액」=정산서.&#10;&#10;★출고장 줄을 클릭하면 ② 품목 탭으로 넘어가 그 출고장만 펼쳐 보여줍니다 — 차이가 난 품목을 바로 찾을 때.">🏭 출고장별 합계</button>
           <button type="button" class="ctab"    data-t="item"   onclick="ohTab('item')" title="원천: 정산서 ∪ 출고내역(합집합) · 품목축&#10;①에서 난 차이가 어느 품목 때문인지 찾습니다. 출고장 머리행을 눌러 접기/펼치기.">🧾 출고장 ▸ 품목</button>
+          <button type="button" class="ctab ctab-red" data-t="gap" onclick="ohTab('gap')" title="정산서가 왔는데 출고수량과 정산수량이 다른 품목만 모아 봅니다(2026-07-27 요청).&#10;· 정산서가 아직 안 온 건은 '차이'가 아니라 미정산이라 여기 안 나옵니다 — ①탭 상태 칸에서 보세요.&#10;· 차이가 큰 것부터 정렬되고, 출고장 소계(통합)도 함께 나옵니다.&#10;· 수량차이 = <b>정산수량 − 출고수량</b>  ( + 정산이 많음 = 과청구·출고기록 누락 후보 / − 출고가 많음 = 청구 누락 후보 )&#10;  ※ ①②③탭의 수량차이는 반대 방향(출고−정산)입니다.&#10;· 품목코드 앞 화살표(▶)를 누르면 <b>정산서 원본행 + 출고 원본행</b>이 펼쳐집니다.&#10;★대사는 <b>납품일자</b>만 비교합니다. 출고일자는 정산서와 출고장이 다를 수 있어 비교하지 않습니다&#10;   — 코네트에서 <b>김해·제주는 멀어서 미리 출고</b>하기 때문입니다(정상). 화면에서도 참고용(회색 괄호)으로만 보여 줍니다.">⚠️ 수량차이 품목</button>
           <button type="button" class="ctab"    data-t="ship"   onclick="ohTab('ship')" title="원천: 출고내역(발주현황표) · 사업장축 · 출고수량 전용&#10;어느 점포로 얼마나 나갔나. 사업장 줄을 누르면 출고 원본행이 펼쳐집니다.&#10;&#10;※ 사업장별 정산금액은 만들지 않습니다.&#10;   정산서에 사업장 칸이 없어 쪼개면 추정이 되기 때문입니다.&#10;   금액은 ①출고장별 합계 · ②출고장▸품목 에서 보세요.&#10;&#10;맨 오른쪽 「정산 대사」는 배분이 아니라 사실입니다 —&#10;   대사됨: 이 행의 발주일자·출고장·품목코드가 정산서에 있음&#10;   미정산: 보냈는데 정산서에 없음(청구 누락 후보)">🏢 출고장 ▸ 사업장</button>
           <button type="button" class="ctab"    data-t="settle" onclick="ohTab('settle')" title="원천: 정산서(TBL_SALES_MST) 단독&#10;출고장이 보낸 엑셀 원본 행 그대로. 「출고수량」 한 열만 대사로 붙였습니다.">📋 정산서 원본(엑셀)</button>
           <span style="margin-left:auto"></span>
@@ -5649,7 +5860,7 @@
           <tr><td class="m">매출내역</td><td><b>출고장이 준 정산서(엑셀)</b> = 그 출고장에서 <b>우리가 받을 금액</b>. 우리 <b>출고내역</b>과 나란히 놓고 <b>빠진 게 없는지 대사</b>합니다.
             <div style="margin:6px 0 3px">엑셀은 출고장 기준이라 뒤집어 담습니다 — <b>입고량→출고량 · 단가→판매단가 · 매입금액→매출액</b>. 저장하면 판매단가가 <b>판매가 이력</b>에도 들어가 <b>매출마감 단가가 실제 확정가</b>로 잡힙니다.</div>
             <div style="margin:6px 0 3px">4탭 — <b>①출고장별 합계</b>(받을 금액·수량차이·상태) · <b>②출고장▸품목</b>(어느 품목이 어긋났나) · <b>③출고장▸사업장</b>(어느 점포로 나갔나·출고수량 전용) · <b>④정산서 원본</b>(엑셀 그대로). 모두 <b>대시보드처럼 물류센터로 묶고</b> 펼치면 개별 출고장입니다.</div>
-            <div style="margin:6px 0 3px">조회기간은 <b>기간 버튼</b>으로 한 번에 — <b>당일</b>(진입 시 기본) <b>· 1주일</b>(오늘 포함 최근 7일) <b>· 해당월</b>(1일~오늘, 말일 아님) <b>· 직접 입력</b>. 앞 3개는 누르면 바로 조회하고, 직접 입력은 날짜를 고른 뒤 <b>[조회]</b>를 누릅니다(날짜를 손으로 고쳐도 직접 입력으로 바뀝니다).</div>
+            <div style="margin:6px 0 3px">조회기간은 <b>기간 버튼</b>으로 한 번에 — <b>당일</b>(진입 시 기본) <b>· 1주일</b>(오늘 포함 최근 7일) <b>· 해당월</b>(1일~오늘, 말일 아님). 누르면 바로 조회합니다. 그 밖의 기간은 <b>날짜칸을 직접 고른 뒤</b> <b>[조회]</b>를 누르세요.</div>
             <div style="margin-top:3px;color:#5a6b7a">짝 맞추기 = <b>발주일자 + 출고장 + 품목코드</b> (합계 대 합계). 짝 없는 출고 = <b style="color:#c0392b">미정산</b>(청구 누락 후보), 짝 없는 정산 = <b style="color:#c0392b">출고미상</b>. 자세한 규칙은 화면의 <b>ℹ️ 도움말</b>에 있습니다.</div></td></tr>          <tr><td class="m">물품동선관리 <span style="color:#9aa7b3;font-size:11px">(예정·데모)</span></td><td>창고/로케이션·입고등록(창고선정)·창고별 재고현황·재고/위치조회·출고지시 — 물품 이동(입고→위치→피킹→출고) 데모 화면. 향후 실데이터 연동 예정.</td></tr>
         </tbody></table>
       </div>
