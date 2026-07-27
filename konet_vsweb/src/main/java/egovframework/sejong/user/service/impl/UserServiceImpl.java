@@ -75,6 +75,14 @@ public class UserServiceImpl implements UserService {
 	@Override public int insertSalesMst(egovframework.sejong.user.model.SalesDTO dto) throws Exception { return mapper.insertSalesMst(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.SalesDTO> selectSalesMst(egovframework.sejong.user.model.SalesDTO dto) throws Exception { return mapper.selectSalesMst(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.SalesDTO> selectSalesSrcFiles() throws Exception { return mapper.selectSalesSrcFiles(); }
+
+	/* 출고장 정정(2026-07-27) — 배치키가 (DLV_DT + DC_NM) 이라 이름 변경 = 그 배치를 옮기는 것.
+	     옮겨갈 이름으로 '같은 납품일자에 이미 활성배치'가 있으면 정정하면 안 된다(활성배치가 둘 → 매출 이중계상).
+	     그때는 -1 을 돌려 화면이 "이미 그 출고장 자료가 있다"고 안내하게 한다. */
+	@Override public int renameSalesDc(egovframework.sejong.user.model.SalesDTO dto) throws Exception {
+		if (mapper.countSalesDcConflict(dto) > 0) return -1;
+		return mapper.updateSalesDcNm(dto);
+	}
 	@Override public int mergeSalepriceFromSales(egovframework.sejong.user.model.SalesDTO dto) throws Exception { return mapper.mergeSalepriceFromSales(dto); }
 
 	// ===== 거래처 마스터 (TBL_VENDOR_MST) =====

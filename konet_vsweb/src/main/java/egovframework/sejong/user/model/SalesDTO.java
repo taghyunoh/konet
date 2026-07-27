@@ -53,6 +53,13 @@ public class SalesDTO {
 	private String     dlvDtFrom;     // 기간조회 시작일 — 값 있으면 DLV_DT BETWEEN 조회
 	private String     dlvDtTo;       // 기간조회 종료일
 
+	/* ----- 출고장 정정 전용(비영속) — 2026-07-27 -----
+	   엑셀 파일명에서 잘못 딴 출고장(예: '15.24.')이 그대로 저장된 지난 자료를 바로잡는다.
+	   배치키가 (DLV_DT + DC_NM) 이라 이름을 바꾸는 것이 곧 그 배치를 옮기는 것 →
+	   dcNm(현재값)으로 찾아 newDcNm/newDcCd 로 갱신한다. 행수·금액은 건드리지 않는다. */
+	private String     newDcNm;       // 바꿀 출고장명
+	private String     newDcCd;       // 바꿀 물류센터코드(이름으로 판정한 값)
+
 	// ----- 감사 -----
 	private String     regUser;
 	private String     regIp;
@@ -114,6 +121,11 @@ public class SalesDTO {
 	public void setDlvDtFrom(String dlvDtFrom) { this.dlvDtFrom = dlvDtFrom; }
 	public String getDlvDtTo() { return dlvDtTo; }
 	public void setDlvDtTo(String dlvDtTo) { this.dlvDtTo = dlvDtTo; }
+
+	public String getNewDcNm() { return newDcNm; }
+	public void setNewDcNm(String newDcNm) { this.newDcNm = newDcNm; }
+	public String getNewDcCd() { return newDcCd; }
+	public void setNewDcCd(String newDcCd) { this.newDcCd = newDcCd; }
 
 	public String getRegUser() { return regUser; }
 	public void setRegUser(String regUser) { this.regUser = regUser; }

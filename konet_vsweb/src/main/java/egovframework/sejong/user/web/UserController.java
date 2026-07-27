@@ -748,6 +748,33 @@ public class UserController {
 			return res;
 		}
 
+		/* 출고장 정정(2026-07-27) — 엑셀 파일명에서 잘못 딴 출고장(예: '15.24.')이 그대로 저장된 지난 자료를
+		     바로잡는다. 범위 = 조회 기간(dlvDtFrom~dlvDtTo) 안의 그 출고장 전체(활성+이력).
+		   응답: {ok:true, rows:n} / 키 충돌이면 {ok:false, conflict:true} / 입력오류면 {ok:false, msg:...} */
+		@RequestMapping(value="/sales/renameSalesDc.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> renameSalesDc(@ModelAttribute("DTO") egovframework.sejong.user.model.SalesDTO dto,
+		                                        HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new java.util.HashMap<String,Object>();
+			try {
+				String oldNm = dto.getDcNm()    == null ? "" : dto.getDcNm().trim();
+				String newNm = dto.getNewDcNm() == null ? "" : dto.getNewDcNm().trim();
+				if (oldNm.isEmpty() || newNm.isEmpty()) { res.put("ok", false); res.put("msg", "출고장이 비어 있습니다."); return res; }
+				if (oldNm.equals(newNm))                { res.put("ok", false); res.put("msg", "같은 출고장입니다.");     return res; }
+				dto.setDcNm(oldNm); dto.setNewDcNm(newNm);
+				dto.setUpdUser(session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id"))
+				             : (session.getAttribute("s_comp_cd") != null ? String.valueOf(session.getAttribute("s_comp_cd")) : ""));
+				dto.setUpdIp(request.getRemoteAddr());
+				int n = svc.renameSalesDc(dto);
+				if (n < 0) { res.put("ok", false); res.put("conflict", true); return res; }   // 같은 납품일자에 그 출고장 활성배치가 이미 있다
+				res.put("ok", true); res.put("rows", n);
+			} catch (Exception e) {
+				log.error(" renameSalesDc ERROR ! : " + e.getMessage());
+				res.put("ok", false); res.put("msg", "서버 오류: " + e.getMessage());
+			}
+			return res;
+		}
+
 		/* 출고현황표 화면 — 선택한 납기일자(단일)의 활성배치 조회 (JSON: {data:[...]}) */
 		@RequestMapping(value="/shipout/selectShipoutMst.do", method = RequestMethod.POST)
 		@ResponseBody

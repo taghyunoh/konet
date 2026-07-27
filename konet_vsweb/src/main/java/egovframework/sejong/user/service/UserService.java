@@ -47,6 +47,9 @@ public interface UserService {
 	int insertSalesMst(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.SalesDTO> selectSalesMst(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.SalesDTO> selectSalesSrcFiles() throws Exception;
+
+	// 출고장 정정(2026-07-27) — 반환: 바뀐 행수. 키가 겹치면 -1(정정 불가, 화면에서 안내)
+	int renameSalesDc(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
 	int mergeSalepriceFromSales(egovframework.sejong.user.model.SalesDTO dto) throws Exception;   // 매출 엑셀 판매단가 → 판매가 이력 upsert
 
 	// ===== 거래처 마스터 (TBL_VENDOR_MST) =====

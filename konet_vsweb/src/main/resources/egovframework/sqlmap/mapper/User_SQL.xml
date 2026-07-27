@@ -570,6 +570,39 @@
 	  )
 	]]></insert>
 
+	<!-- ③-2 출고장 정정 (2026-07-27) — 엑셀 파일명에서 잘못 딴 출고장(예: '15.24.')이 그대로 저장된
+	         지난 자료를 바로잡는다. 배치키가 (DLV_DT + DC_NM) 이라 이름 변경 = 그 배치를 옮기는 것.
+	       · 범위 = 조회 기간(dlvDtFrom~dlvDtTo) 안의 그 출고장 전체. 기간이 없으면 전체 기간.
+	       · ★활성(Y)·이력(N) 을 모두 함께 바꾼다 — 한쪽만 바꾸면 다음 재업로드 때 markSalesHistory 가
+	         옛 이름 배치를 못 찾아 이력마감이 어긋나고 활성배치가 둘이 된다.
+	       · 행수·수량·금액은 건드리지 않는다(이름·코드만). -->
+	<update id="updateSalesDcNm" parameterType="egovframework.sejong.user.model.SalesDTO"><![CDATA[
+	  UPDATE TBL_SALES_MST
+	     SET DC_NM = #{newDcNm,jdbcType=VARCHAR}, DC_CD = #{newDcCd,jdbcType=VARCHAR},
+	         UPD_DTTM = CONVERT(varchar(19), GETDATE(), 120),
+	         UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE ISNULL(DC_NM,'') = ISNULL(#{dcNm,jdbcType=VARCHAR},'')
+	     AND ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') = '' OR ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'') = ''
+	           OR DLV_DT BETWEEN REPLACE(#{dlvDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{dlvDtTo,jdbcType=VARCHAR},'-','') )
+	]]></update>
+
+	<!-- ③-3 정정 전 충돌 확인 — 옮겨갈 이름으로 '같은 납품일자에 이미 활성배치가 있는' 일자 수.
+	         0 이 아니면 정정하면 안 된다(같은 키에 활성배치가 둘이 되어 매출이 두 번 잡힌다).
+	         그 경우는 정정이 아니라 잘못 올린 배치를 지우는 게 맞다 → 서비스단에서 막고 알린다. -->
+	<select id="countSalesDcConflict" parameterType="egovframework.sejong.user.model.SalesDTO" resultType="int"><![CDATA[
+	  SELECT COUNT(*)
+	    FROM ( SELECT DISTINCT DLV_DT
+	             FROM TBL_SALES_MST
+	            WHERE ISNULL(DC_NM,'') = ISNULL(#{dcNm,jdbcType=VARCHAR},'')
+	              AND ACTION_YN = 'Y'
+	              AND ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') = '' OR ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'') = ''
+	                    OR DLV_DT BETWEEN REPLACE(#{dlvDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{dlvDtTo,jdbcType=VARCHAR},'-','') ) ) o
+	   WHERE EXISTS ( SELECT 1 FROM TBL_SALES_MST n
+	                   WHERE ISNULL(n.DC_NM,'') = ISNULL(#{newDcNm,jdbcType=VARCHAR},'')
+	                     AND n.ACTION_YN = 'Y'
+	                     AND n.DLV_DT = o.DLV_DT )
+	]]></select>
+
 	<!-- ④ 활성배치 조회 — 기간(dlvDtFrom~dlvDtTo) 우선, 없으면 단일 납품일자, 그것도 없으면 전체 -->
 	<select id="selectSalesMst" parameterType="egovframework.sejong.user.model.SalesDTO" resultType="egovframework.sejong.user.model.SalesDTO"><![CDATA[
 	  SELECT

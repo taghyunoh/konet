@@ -51,6 +51,10 @@ public interface UserMapper {
 	int insertSalesMst(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.SalesDTO> selectSalesMst(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.SalesDTO> selectSalesSrcFiles() throws Exception;
+
+	// 출고장 정정(2026-07-27) — 잘못 저장된 DC_NM 을 바로잡는다. 옮겨갈 이름에 활성배치가 이미 있으면 막는다
+	int countSalesDcConflict(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
+	int updateSalesDcNm(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
 	int mergeSalepriceFromSales(egovframework.sejong.user.model.SalesDTO dto) throws Exception;   // 매출 엑셀 판매단가 → TBL_PROD_SALEPRICE_HST upsert (APPLY_DT=발주일자)
 
 	// ===== 거래처 마스터 (TBL_VENDOR_MST) — TBL_BIZI_MST(사업장)와 별개 =====

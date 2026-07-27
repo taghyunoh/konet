@@ -1974,9 +1974,9 @@
   // 목록 표시 — 권한 확인은 queryPermission(제스처 불필요)만. 권한 없으면 '이 폴더 열기' 버튼 표시.
   function ssDirList(){
     var box=document.getElementById('ssPvHist'), nm=document.getElementById('ssPvDirName'); if(!box) return;
-    if(!window.showDirectoryPicker){ if(nm) nm.textContent=''; box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:12px;line-height:1.6">이 브라우저는 폴더 지정을<br>지원하지 않습니다.<br>위쪽 <b>📄 파일 선택</b>으로 진행하세요.<br>(Chrome/Edge 권장)</div>'; return; }
+    if(!window.showDirectoryPicker){ if(nm) nm.textContent=''; box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:13px;line-height:1.6">이 브라우저는 폴더 지정을<br>지원하지 않습니다.<br>위쪽 <b>📄 파일 선택</b>으로 진행하세요.<br>(Chrome/Edge 권장)</div>'; return; }
     if(!ssDirHandle){ if(nm) nm.textContent='';
-      box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:12px;line-height:1.6">위쪽 <b>📂 폴더 지정</b>을 눌러<br>자료 폴더를 선택하면<br>파일이 여기 표시됩니다.<br><span style="color:#b6c0c9">자세한 설명은 위쪽 <b>ℹ️ 도움말</b>.</span>'
+      box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:13px;line-height:1.6">위쪽 <b>📂 폴더 지정</b>을 눌러<br>자료 폴더를 선택하면<br>파일이 여기 표시됩니다.<br><span style="color:#b6c0c9">자세한 설명은 위쪽 <b>ℹ️ 도움말</b>.</span>'
         +'<div style="margin-top:10px;padding:8px 9px;background:#fdf6e8;border:1px solid #f0dfb8;border-radius:5px;color:#8a6414">'
         +'⚠️ <b>다운로드 폴더 자체는 지정할 수 없습니다</b>(브라우저가 시스템 폴더로 막음).<br>'
         +'다운로드 안에 <b>「코네트_발주현황표」</b> 같은 <u>하위폴더</u>를 만들고 받은 파일을 그리로 옮긴 뒤, 그 폴더를 지정하세요.<br>'
@@ -1984,8 +1984,8 @@
         +'<span style="color:#8a6414">받는 위치까지 그 폴더로 바꾸려면 위쪽 <b>ℹ️ 도움말</b> ▸ <b>⚙️ 크롬 다운로드 위치 바꾸기</b>.</span></div></div>'; return; }
     if(nm) nm.textContent='📂 '+ssDirHandle.name;
     ssDirHandle.queryPermission({mode:'readwrite'}).then(function(p){
-      if(p==='granted'){ box.innerHTML='<div style="padding:10px;color:#9aa7b3;font-size:12px">불러오는 중…</div>'; ssDirScan(); }
-      else { box.innerHTML='<div style="padding:12px;color:#b3760f;font-size:12px;line-height:1.6">저장된 폴더(<b>'+ssHistEsc(ssDirHandle.name)+'</b>)를<br>다시 사용하려면 권한이 필요합니다.<br><button class="btn-teal" style="margin-top:8px;padding:4px 12px" onclick="ssGrantDir()">📂 이 폴더 열기</button></div>'; }
+      if(p==='granted'){ box.innerHTML='<div style="padding:10px;color:#9aa7b3;font-size:13px">불러오는 중…</div>'; ssDirScan(); }
+      else { box.innerHTML='<div style="padding:12px;color:#b3760f;font-size:13px;line-height:1.6">저장된 폴더(<b>'+ssHistEsc(ssDirHandle.name)+'</b>)를<br>다시 사용하려면 권한이 필요합니다.<br><button class="btn-teal" style="margin-top:8px;padding:4px 12px" onclick="ssGrantDir()">📂 이 폴더 열기</button></div>'; }
     }).catch(function(e){ box.innerHTML='<div style="padding:12px;color:#c0392b;font-size:12px">폴더 오류: '+ssHistEsc(e&&e.message||'')+'</div>'; });
   }
   // 사용자 클릭(제스처) 안에서만 권한 요청 — requestPermission 을 즉시 호출해야 'User activation' 오류가 안 남
@@ -2019,16 +2019,105 @@
   }
   function ssHistRenderList(){
     var box=document.getElementById('ssPvHist'); if(!box) return;
-    if(!ssDirFiles.length){ box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:12px">폴더에 엑셀(xlsx) 파일이<br>없습니다.</div>'; return; }
+    if(!ssDirFiles.length){ box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:13px">폴더에 엑셀(xlsx) 파일이<br>없습니다.</div>'; return; }
     box.innerHTML=ssDirFiles.map(function(x,i){
-      var cur=(x.name===ssPvName);
-      return '<div onclick="ssDirOpen('+i+')" title="'+ssHistEsc(x.name)+'&#10;클릭하면 우측에 표시" '
-        +'style="display:flex;align-items:center;gap:8px;padding:5px 9px;border-bottom:1px solid #eef3f1;cursor:pointer;font-size:12px'+(cur?';background:#e7f3ef':'')+'">'
-        +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'+(cur?'font-weight:700;color:#137a6c':'color:#28323c')+'">📄 '+ssHistEsc(x.name)+'</span>'
-        +'<span style="flex:0 0 auto;color:#9aa7b3;white-space:nowrap;font-size:11px">'+ssFmtTime(x.time)+' · <b style="color:#6b7a89">'+ssFmtSize(x.size)+'</b></span>'
-        +'<span onclick="event.stopPropagation();ssDirDelete('+i+')" title="이 파일 삭제" style="flex:0 0 auto;cursor:pointer;color:#c0392b;font-size:13px;padding:0 2px">🗑</span>'
-        +'</div>';
+      var cur=(x.name===ssPvName), m=ssDirMetaGet(x) || (i>=SS_DIRMETA_MAX ? {skip:1} : null);
+      return '<div onclick="ssDirOpen('+i+')" title="'+ssHistEsc(x.name)+ssDirMetaTip(m)+'&#10;클릭하면 우측에 표시" '
+        +'style="padding:5px 9px 6px;border-bottom:1px solid #eef3f1;cursor:pointer;font-size:13px'+(cur?';background:#e7f3ef':'')+'">'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+          +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'+(cur?'font-weight:700;color:#137a6c':'color:#28323c')+'">📄 '+ssHistEsc(x.name)+'</span>'
+          +'<span style="flex:0 0 auto;color:#9aa7b3;white-space:nowrap;font-size:12px">'+ssFmtTime(x.time)+' · <b style="color:#6b7a89">'+ssFmtSize(x.size)+'</b></span>'
+          +'<span onclick="event.stopPropagation();ssDirDelete('+i+')" title="이 파일 삭제" style="flex:0 0 auto;cursor:pointer;color:#c0392b;font-size:14px;padding:0 2px">🗑</span>'
+        +'</div>'
+        // 2행 = 파일을 실제로 읽어 뽑은 출고장 묶음(아래 '올린 이력'과 같은 형식)
+        +'<div id="ssDirMeta'+i+'" style="display:flex;align-items:center;gap:5px;color:#9aa7b3;font-size:11.5px;margin-top:1px">'+ssDirMetaHtml(m)+'</div>'
+      +'</div>';
     }).join('');
+    ssDirMetaScan();     // 아직 안 읽은 파일은 뒤에서 하나씩 열어 출고장을 채운다
+  }
+  /* ══ 폴더 엑셀의 출고장 미리읽기 (2026-07-27 사용자 지시) ═════════════════════════════
+       아래 '올린 이력'처럼 위 목록에도 출고장을 보여 달라는 요청. 서버엔 아직 없는 자료라
+       파일을 직접 읽어야 한다 → 목록을 먼저 그린 뒤 백그라운드로 한 파일씩 파싱해 2행을 채운다.
+        · 캐시키 = 파일명|수정시각|크기 → localStorage 보관(같은 파일을 다시 파싱하지 않는다).
+          파일이 바뀌면 수정시각·크기가 달라져 자동으로 다시 읽는다.
+        · 파싱은 무겁다(1건 수십~수백ms) → 순차 + setTimeout 으로 UI를 막지 않고,
+          목록이 아주 길면 최신 SS_DIRMETA_MAX 개까지만 읽는다(나머지는 '—' 로 둔다).       */
+  var ssDirMeta=(function(){ try{ return JSON.parse(localStorage.getItem('ssDirMeta')||'{}')||{}; }catch(e){ return {}; } })();
+  var ssDirMetaBusy=false;
+  var SS_DIRMETA_MAX=60;
+  function ssDirMetaKey(x){ return x.name+'|'+x.time+'|'+x.size; }
+  function ssDirMetaGet(x){ return ssDirMeta[ssDirMetaKey(x)]||null; }
+  function ssDirMetaSave(){
+    try{
+      var ks=Object.keys(ssDirMeta);
+      if(ks.length>300){ var d={}; ks.slice(-300).forEach(function(k){ d[k]=ssDirMeta[k]; }); ssDirMeta=d; }
+      localStorage.setItem('ssDirMeta', JSON.stringify(ssDirMeta));
+    }catch(e){}
+  }
+  // 워크북 → {dcs:[출고장], dcRow:{출고장:행수}, cnt:행수, dlvMin, dlvMax}
+  function ssDirMetaOf(wb){
+    var ws=wb.Sheets[(wb.SheetNames||[])[0]];
+    var aoa=ws?XLSX.utils.sheet_to_json(ws,{header:1,defval:''}):[];
+    var m=ssMapCols(aoa);
+    if(!m) return { bad:1 };                                  // 발주현황표 양식이 아님
+    var rows=ssExtractRows(aoa,m);
+    var o={ dcs:[], dcRow:{}, cnt:rows.length, dlvMin:'', dlvMax:'' }, seen={};
+    rows.forEach(function(r){
+      // '용인물류센터1' → '용인' / 예전 2행헤더 양식은 존이 코드('E100')로 들어와 그것도 이름으로 바꾼다
+      var dc=konetDcNmOf({ dcCd:r.zone, dcNm:r.zone })||'미기재';
+      if(!seen[dc]){ seen[dc]=1; o.dcs.push(dc); }
+      o.dcRow[dc]=(o.dcRow[dc]||0)+1;
+      var d=(''+(r.dlvDt||'')).replace(/-/g,'');
+      if(d){ if(!o.dlvMin||d<o.dlvMin) o.dlvMin=d; if(!o.dlvMax||d>o.dlvMax) o.dlvMax=d; }
+    });
+    return o;
+  }
+  function ssDirMetaHtml(m){
+    if(!m)     return '<span style="flex:1;color:#b6c0c9">출고장 확인 중…</span>';
+    if(m.skip) return '<span style="flex:1;color:#b6c0c9">—</span>';
+    if(m.bad)  return '<span style="flex:1;color:#c0392b">발주현황표 양식이 아닙니다</span>';
+    if(m.err)  return '<span style="flex:1;color:#c0392b">파일을 읽지 못했습니다</span>';
+    var dcTxt=(m.dcs&&m.dcs.length) ? (m.dcs.length+'곳 · '+m.dcs.join('·')) : '미기재';
+    var dl = m.dlvMin ? (m.dlvMin===m.dlvMax ? ssUpHistMd(m.dlvMin) : (ssUpHistMd(m.dlvMin)+'~'+ssUpHistMd(m.dlvMax).slice(3))) : '-';
+    // 행수도 함께 — 아래 '올린 이력'의 '147행' 과 같은 표기(2026-07-27 사용자)
+    return '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">출고장 '+ssHistEsc(dcTxt)+'</span>'
+         + '<span style="flex:0 0 auto;color:#6b7a89"><b>'+(+m.cnt||0).toLocaleString()+'</b>행</span>'
+         + '<span style="flex:0 0 auto">납기 '+dl+'</span>';
+  }
+  // 툴팁은 두 갈래 — 처음 그릴 때는 HTML 속성(&#10;), 나중에 JS 로 title 을 갈아끼울 때는 생문자(\n).
+  //   JS 로 '&#10;' 를 넣으면 글자 그대로 보인다(속성 파싱이 아니라 프로퍼티 대입이라서).
+  function ssDirMetaTipTxt(m){
+    if(!m || m.skip || m.bad || m.err) return '';
+    var det=(m.dcs||[]).map(function(d){ return d+' '+(m.dcRow[d]||0); }).join(' · ');
+    return '\n출고장 '+det+' (행)\n데이터 '+(+m.cnt||0).toLocaleString()+'건';
+  }
+  function ssDirMetaTip(m){ return ssHistEsc(ssDirMetaTipTxt(m)).replace(/\n/g,'&#10;'); }
+  function ssDirMetaScan(){
+    if(ssDirMetaBusy || typeof XLSX==='undefined') return;
+    var todo=[];
+    ssDirFiles.forEach(function(x,i){
+      if(ssDirMetaGet(x) || i>=SS_DIRMETA_MAX) return;   // 이미 읽음 / 너무 많으면 최신것만(skip 은 캐시에 남기지 않는다)
+      todo.push({x:x, i:i});
+    });
+    if(!todo.length) return;
+    ssDirMetaBusy=true;
+    var n=0;
+    var put=function(t,m){
+      ssDirMeta[ssDirMetaKey(t.x)]=m;
+      var el=document.getElementById('ssDirMeta'+t.i);
+      if(el) el.innerHTML=ssDirMetaHtml(m);
+      var row=el&&el.parentNode; if(row) row.title=t.x.name+ssDirMetaTipTxt(m)+'\n클릭하면 우측에 표시';
+      setTimeout(step, 0);
+    };
+    var step=function(){
+      if(n>=todo.length){ ssDirMetaBusy=false; ssDirMetaSave(); return; }
+      var t=todo[n++];
+      t.x.handle.getFile().then(function(f){ return f.arrayBuffer(); }).then(function(buf){
+        ssReadXlsx(buf, function(wb){ var m; try{ m=ssDirMetaOf(wb); }catch(e){ m={err:1}; } put(t,m); },
+                        function(){ put(t,{err:1}); });
+      }).catch(function(){ put(t,{err:1}); });
+    };
+    setTimeout(step, 300);  // 목록·자동펼침(최신 파일 미리보기)이 먼저 끝난 뒤 시작
   }
   // 목록의 파일을 '_삭제됨' 하위폴더로 이동(소프트 삭제 — 복구 가능). readwrite 권한 필요
   var SS_TRASH='_삭제됨';
@@ -2042,10 +2131,11 @@
         }).catch(function(e){ ssToast('⚠️ 이동 실패: '+ssHistEsc(e&&e.message||'')); });
       }, {title:'🗑 파일 이동', yes:'이동'});
   }
-  // 원본 읽기 → _삭제됨 폴더에 쓰기 → 원본 제거 (= 이동)
-  function ssMoveToTrash(x){
+  // 원본 읽기 → 대상 하위폴더에 쓰기 → 원본 제거 (= 이동). dest 없으면 _삭제됨
+  function ssMoveToTrash(x, dest, icon){
+    var dir=dest||SS_TRASH, ic=icon||'🗑';
     return x.handle.getFile().then(function(f){ return f.arrayBuffer(); }).then(function(buf){
-      return ssDirHandle.getDirectoryHandle(SS_TRASH, {create:true}).then(function(trash){
+      return ssDirHandle.getDirectoryHandle(dir, {create:true}).then(function(trash){
         return ssTrashName(trash, x.name).then(function(finalName){
           return trash.getFileHandle(finalName, {create:true}).then(function(fh){
             return fh.createWritable().then(function(w){ return w.write(buf).then(function(){ return w.close(); }); });
@@ -2053,9 +2143,28 @@
         });
       });
     }).then(function(){
-      return ssDirHandle.removeEntry(x.name);   // 원본 제거(복사본은 _삭제됨에 남음)
-    }).then(function(){ ssToast('🗑 「'+SS_TRASH+'」 폴더로 이동: '+x.name); ssDirList(); })
+      return ssDirHandle.removeEntry(x.name);   // 원본 제거(복사본은 대상 폴더에 남음)
+    }).then(function(){ ssToast(ic+' 「'+dir+'」 폴더로 이동: '+x.name); ssDirList(); })
       .catch(function(e){ ssToast('⚠️ 이동 실패: '+ssHistEsc(e&&e.message||'')); });
+  }
+  /* ══ 작성(대시보드 반영) 성공 → 그 엑셀을 상단 목록에서 치운다 (2026-07-27 사용자 지시) ══════
+       "반영하면 위에서 없어지고 아래 이력에 최신으로 올라오게" — 이미 올린 파일이 목록에 남아
+       또 올리는 일을 막는 것이 목적이다.
+        ★브라우저는 지정 폴더의 <상위>(다운로드)로는 못 옮긴다 — 우리가 가진 건 지정 폴더 핸들뿐이고
+          File System Access API 는 부모 디렉터리 접근을 주지 않는다. 그래서 지정 폴더 안의
+          「_반영됨」 하위폴더로 옮긴다(파일은 그대로 남아 되찾을 수 있다).
+        · 📄 파일 선택으로 연 폴더 밖 파일은 핸들이 없어 건너뛴다(조용히).
+        · 쓰기 권한이 없으면 반영은 그대로 두고 이동만 못 했다고 알린다(제스처 없이 요청 불가).      */
+  var SS_DONE='_반영됨';
+  function ssArchiveApplied(fileName){
+    if(!fileName || !ssDirHandle) return;
+    var x=null;
+    for(var k=0;k<ssDirFiles.length;k++){ if(ssDirFiles[k].name===fileName){ x=ssDirFiles[k]; break; } }
+    if(!x) return;                                     // 폴더 밖 파일(📄 파일 선택) → 옮길 게 없다
+    ssDirHandle.queryPermission({mode:'readwrite'}).then(function(p){
+      if(p!=='granted'){ ssToast('반영은 끝났습니다. 다만 파일 이동은 <b>쓰기 권한</b>이 없어 못 했습니다 — 위쪽 <b>📂 폴더 지정</b>으로 폴더를 다시 골라 주세요.'); return; }
+      return ssMoveToTrash(x, SS_DONE, '📦');          // 이동 후 ssDirList() 로 상단 목록 갱신
+    }).catch(function(){});
   }
   // 대상 폴더에 같은 이름 있으면 시각 접미사 붙여 충돌 방지
   function ssTrashName(trash, name){
@@ -2085,6 +2194,150 @@
   // 모달 열릴 때 저장된 폴더 복원 + 목록 갱신
   function ssHistRefresh(){ ssDirRestore().then(function(){ ssDirList(); }); }
 
+  /* ══ 좌측 하단 : 서버 업로드 이력 (기본=오늘 · 최신이 위) — 2026-07-27 사용자 요청 ═══════
+       좌측을 위/아래 반반으로 나눠 위=폴더의 엑셀, 아래=서버(TBL_SHIPOUT_MST)에 실제로
+       반영된 배치를 업로드 시각 최신순으로 보여준다. 기본은 '오늘 올린 것'(3일 전환 가능).
+        · 엔드포인트는 업로드이력 화면(shipoutHist)과 같은 것을 재사용 → 서버 수정 없음
+          /shipout/selectShipoutUploadHist.do  (배치 1건 = SHPOUT_DT+DLV_DT+DC_CD+JOB_SEQ 그룹)
+        · ★그 SQL은 '출고일자' 범위만 걸 수 있고 '업로드 시각'으로는 못 거른다 → 출고일자 ±120일을
+          읽어 화면에서 업로드 날짜로 거른다. 하루에 두 달 전 출고일자(예: 07-26에 출고 05-30)까지
+          같이 올리는 일이 있어 창을 넉넉히 잡았다. 그보다 먼 자료는 목록에 안 뜬다(정확히 하려면
+          User_SQL 에 UPLOAD_DTTM 조건 추가 필요 = 재배포).
+        · 지금 펼쳐 둔 파일과 같은 파일명은 초록 강조 — 이미 올린 자료를 또 올리는 것을 막는다.
+        · 줄을 누르면 그 파일을 다시 펼친다(지정 폴더에 남아 있을 때).                      */
+  var ssUpHistDays=1;       // 1=오늘만(기본) / 3=최근 3일 (2026-07-27 사용자: 7일→3일)
+  var ssUpHist=null;        // 조회 결과 캐시(모달 열 때·저장 후 1회)
+  var ssUpHistView=[];      // 화면에 그린 순서(줄 클릭 → 인덱스로 되찾기)
+  function ssUpHistSetDays(n){ ssUpHistDays=n; ssUpHistRender(); }   // 조회는 그대로 두고 화면에서만 거른다
+  function ssUpHistYmd(shift){ var d=new Date(); d.setDate(d.getDate()+(shift||0)); return d.getFullYear()+'-'+ssPad(d.getMonth()+1)+'-'+ssPad(d.getDate()); }
+  function ssUpHistMd(v){    // 'yyyymmdd' 또는 'yyyy-mm-dd' → 'MM-DD'
+    var s=(''+(v==null?'':v)).replace(/-/g,'');
+    return /^\d{8}$/.test(s) ? (s.slice(4,6)+'-'+s.slice(6,8)) : (s||'-');
+  }
+  function ssUpHistDayLab(d){
+    var W=['일','월','화','수','목','금','토'];
+    var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(d); if(!m) return d;
+    var w=W[new Date(+m[1],+m[2]-1,+m[3]).getDay()];
+    var tag = (d===ssUpHistYmd(0)) ? ' <span style="color:#137a6c;font-weight:700">오늘</span>'
+            : (d===ssUpHistYmd(-1) ? ' <span style="color:#6b7a89">어제</span>' : '');
+    return m[2]+'-'+m[3]+'('+w+')'+tag;
+  }
+  function ssUpHistLoad(){
+    var box=document.getElementById('ssPvUpHist'); if(!box) return;
+    box.innerHTML='<div style="padding:10px;color:#9aa7b3;font-size:13px">업로드 이력 불러오는 중…</div>';
+    fetch('${pageContext.request.contextPath}/shipout/selectShipoutUploadHist.do', {
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin',
+      body:'shpoutDtFrom='+encodeURIComponent(ssUpHistYmd(-120))+'&shpoutDtTo='+encodeURIComponent(ssUpHistYmd(120))
+    })
+    .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, status:res.status, t:t}; }); })
+    .then(function(r){
+      if(!r.ok){ box.innerHTML='<div style="padding:10px;color:#c0392b;font-size:13px">업로드 이력 조회 실패 (HTTP '+r.status+')</div>'; return; }
+      var j; try{ j=JSON.parse(r.t); }catch(e){ box.innerHTML='<div style="padding:10px;color:#c0392b;font-size:13px">업로드 이력 응답형식 오류(로그인 만료일 수 있습니다)</div>'; return; }
+      ssUpHist=(j&&j.data)||[];
+      ssUpHistRender();
+    })
+    .catch(function(){ box.innerHTML='<div style="padding:10px;color:#c0392b;font-size:13px">업로드 이력 통신오류 — ↻ 로 다시 시도하세요.</div>'; });
+  }
+  function ssUpHistRender(){
+    var box=document.getElementById('ssPvUpHist'); if(!box || ssUpHist==null) return;
+    var only1=(ssUpHistDays===1);
+    var lim=ssUpHistYmd(-(ssUpHistDays-1));                         // 오늘 포함 N일
+    var rows=(ssUpHist||[]).filter(function(o){ var u=(''+(o.uploadDttm||'')).slice(0,10); return u && u>=lim; });
+    rows.sort(function(a,b){ return (''+(b.uploadDttm||'')).localeCompare(''+(a.uploadDttm||'')); });   // 최근이 위
+    // 머리글 — 제목·건수·기간 전환 링크
+    var titEl=document.getElementById('ssPvUpHistTit'); if(titEl) titEl.textContent = only1 ? '오늘' : '최근 3일';
+    var tabEl=document.getElementById('ssPvUpHistTab');
+    if(tabEl) tabEl.innerHTML = only1
+      ? '<span onclick="ssUpHistSetDays(3)" title="최근 3일치를 날짜별로 봅니다(오늘·어제·그저께)" style="cursor:pointer;text-decoration:underline">3일</span>'
+      : '<span onclick="ssUpHistSetDays(1)" title="오늘 올린 것만 봅니다" style="cursor:pointer;text-decoration:underline">오늘만</span>';
+    // ★한 번에 올린 것은 한 줄로 — 출고장 묶음 (2026-07-27 사용자 지시)
+    var ups=ssUpHistPack(rows);
+    var cntEl=document.getElementById('ssPvUpHistCnt');
+    if(cntEl){ var tot=0; ups.forEach(function(g){ tot+=g.rowCnt; });
+      cntEl.textContent = ups.length ? (ups.length+'회 · '+tot.toLocaleString()+'행') : ''; }
+    if(!rows.length){
+      ssUpHistView=[];
+      box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:13px;line-height:1.6">'
+        +(only1?'오늘':'최근 3일 안에')+' 서버에 반영한<br>자료가 없습니다.<br>'
+        +'<span style="color:#b6c0c9">파일을 열어 <b>✔ 작성</b>을 누르면 여기에 쌓입니다.'
+        +(only1?'<br>지난 자료는 위 <b>3일</b>을 누르세요.':'')+'</span></div>';
+      return;
+    }
+    ssUpHistView=[]; var out=[];
+    if(only1){
+      // 오늘만 — 날짜 머리글 없이 시각순으로 쭉 (같은 날이라 머리글이 군더더기)
+      ups.forEach(function(g){ out.push(ssUpHistRowHtml(g, ssUpHistView.length)); ssUpHistView.push(g); });
+    } else {
+      // 업로드 날짜로 묶기 (ups 가 이미 내림차순이라 그룹 순서도 최신일부터)
+      var days={}, order=[];
+      ups.forEach(function(g){ if(!days[g.day]){ days[g.day]=[]; order.push(g.day); } days[g.day].push(g); });
+      order.forEach(function(d){
+        var gs=days[d], cnt=0; gs.forEach(function(g){ cnt+=g.rowCnt; });
+        out.push('<div style="display:flex;align-items:center;gap:6px;padding:4px 9px;background:#eef4f3;border-bottom:1px solid #e2ebe8;font-size:12.5px;position:sticky;top:0">'
+          +'<span style="flex:1;font-weight:700;color:#37475a">'+ssUpHistDayLab(d)+'</span>'
+          +'<span style="color:#9aa7b3">'+gs.length+'회 · '+cnt.toLocaleString()+'행</span></div>');
+        gs.forEach(function(g){ out.push(ssUpHistRowHtml(g, ssUpHistView.length)); ssUpHistView.push(g); });
+      });
+    }
+    box.innerHTML=out.join('');
+  }
+  /* 배치(출고장×납기일자×버전) → '업로드 1회' 로 묶기.
+       발주현황표 한 장에 물류센터 7곳이 들어 있어 저장하면 배치가 출고장별로 갈린다.
+       그대로 늘어놓으면 한 번 올린 것이 7줄(7일치 605줄)이 되어 읽을 수 없다.
+       묶음키 = 파일명 + 업로드시각(분). 같은 분에 다른 파일을 올렸으면 파일별로 나뉜다.  */
+  function ssUpHistPack(rows){
+    var map={}, order=[];
+    rows.forEach(function(o){
+      var up=(''+(o.uploadDttm||''));
+      var file=(''+(o.srcFile||'')).trim();
+      var key=file+'|'+up.slice(0,16);
+      var g=map[key];
+      if(!g){ g={ file:file, up:up, day:up.slice(0,10), hm:up.slice(11,16), user:(''+(o.regUser||'')).trim(),
+                  n:0, nHist:0, rowCnt:0, qtySum:0, dcs:[], _seen:{}, dcRow:{}, sdMin:'', sdMax:'' };
+              map[key]=g; order.push(g); }
+      var dc=konetDcShort(o.dcNm||'')||(''+(o.dcCd||'')).trim()||'미기재';   // '평택물류센터'→'평택'
+      if(!g._seen[dc]){ g._seen[dc]=1; g.dcs.push(dc); }
+      g.dcRow[dc]=(g.dcRow[dc]||0)+(+o.rowCnt||0);
+      g.n++; g.rowCnt+=(+o.rowCnt||0); g.qtySum+=(+o.qtySum||0);
+      if((''+(o.actionYn||'')).toUpperCase()==='N') g.nHist++;
+      var sd=(''+(o.shpoutDt||'')).replace(/-/g,'');
+      if(sd){ if(!g.sdMin||sd<g.sdMin) g.sdMin=sd; if(!g.sdMax||sd>g.sdMax) g.sdMax=sd; }
+      if(up>g.up) g.up=up;
+    });
+    return order;   // rows 가 업로드시각 내림차순이라 그룹 순서도 최신부터
+  }
+  function ssUpHistRowHtml(g, i){
+    var cur = !!(ssPvName && g.file===ssPvName);                    // 지금 펼쳐 둔 파일
+    var dcTxt = g.dcs.length ? (g.dcs.length+'곳 · '+g.dcs.join('·')) : '출고장 미기재';
+    var sdTxt = g.sdMin ? (g.sdMin===g.sdMax ? ssUpHistMd(g.sdMin) : (ssUpHistMd(g.sdMin)+'~'+ssUpHistMd(g.sdMax).slice(3))) : '-';
+    var histTag = g.nHist===0 ? '' : (g.nHist===g.n ? '이력' : '일부 이력');
+    var dcDetail = g.dcs.map(function(d){ return d+' '+(g.dcRow[d]||0); }).join(' · ');
+    return '<div onclick="ssUpHistPick('+i+')" title="'+ssHistEsc(g.file||'(파일명 없음)')+'&#10;업로드 '+ssHistEsc(g.up)+(g.user?(' · '+ssHistEsc(g.user)):'')
+      +'&#10;출고장 '+ssHistEsc(dcDetail)+' (행)'
+      +'&#10;출고일자 '+sdTxt+' · 합계 '+g.rowCnt.toLocaleString()+'행 · 수량 '+g.qtySum.toLocaleString()
+      +(histTag?('&#10;※ '+(g.nHist===g.n?'이 업로드는 뒤에 올린 자료로 덮여 이력으로 남았습니다':'일부 출고장이 뒤에 올린 자료로 덮였습니다')):'')
+      +'&#10;클릭하면 이 파일을 다시 펼칩니다(지정 폴더에 있을 때)" '
+      +'style="padding:5px 9px 6px;border-bottom:1px solid #eef3f1;cursor:pointer;font-size:12.5px'+(cur?';background:#e7f3ef':'')+'">'
+      +'<div style="display:flex;align-items:center;gap:5px">'
+        +'<span style="flex:0 0 auto;color:#9aa7b3">'+g.hm+'</span>'
+        +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:'+(cur?'#137a6c':'#37475a')+'">'+ssHistEsc(g.file||'(파일명 없음)')+'</span>'
+        +(histTag?'<span style="flex:0 0 auto;color:#9aa7b3;border:1px solid #e0e6ea;border-radius:3px;padding:0 3px;font-size:11px">'+histTag+'</span>':'')
+        +'<span style="flex:0 0 auto;color:#6b7a89"><b>'+g.rowCnt.toLocaleString()+'</b>행</span>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:5px;color:#9aa7b3;font-size:11.5px;margin-top:1px">'
+        +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">출고장 '+ssHistEsc(dcTxt)+'</span>'
+        +'<span style="flex:0 0 auto">출고 '+sdTxt+'</span>'
+      +'</div></div>';
+  }
+  // 이력 줄 클릭 → 같은 이름의 파일이 지정 폴더에 있으면 우측에 다시 펼친다
+  function ssUpHistPick(i){
+    var g=ssUpHistView[i]; if(!g) return;
+    var file=(''+(g.file||'')).trim();
+    if(!file){ ssToast('이 업로드에는 파일명이 기록되어 있지 않습니다.'); return; }
+    for(var k=0;k<ssDirFiles.length;k++){ if(ssDirFiles[k].name===file){ ssDirOpen(k); return; } }
+    ssToast('📄 <b>'+ssHistEsc(file)+'</b> — 지정 폴더에 없습니다<br><span style="font-size:11px">이미 옮겼거나 다른 PC에서 올린 자료입니다.</span>');
+  }
+
   // ArrayBuffer(엑셀) → 미리보기 모달에 로드 (수동선택·폴더선택 공용). 이후 작성/저장은 기존 ssPvApply 재사용
   function ssLoadWorkbookBuf(buf, fileName, skipHist){
     if(typeof XLSX==='undefined'){ ssBusy(false); ssToast('⚠️ 엑셀 파서를 불러오지 못했습니다(인터넷 필요).'); return; }
@@ -2104,6 +2357,7 @@
       ssPvRender();
       ssPvOpen(true);
       ssHistRenderList();   // 현재 파일 강조 갱신(폴더 목록)
+      ssUpHistRender();     // 현재 파일 강조 갱신(업로드 이력 — 이미 올린 파일인지 바로 보이게)
     }catch(err){ ssToast('⚠️ 엑셀 처리 오류: '+err.message); }
     ssBusy(false);
     }, function(err){ ssBusy(false); ssToast('⚠️ 엑셀 처리 오류: '+err.message); });
@@ -2604,6 +2858,7 @@
       }
       try{ ssPvHelp(localStorage.getItem('ssPvHelpOpen')==='1'); }catch(e){ ssPvHelp(false); }   // 도움말은 기본 접힘(지난번 펼쳐 뒀으면 그대로)
       ssAutoPick=true; ssHistRefresh();   // 열 때만 폴더 목록 로드 + 최신 파일 자동선택(파일 클릭마다 재스캔 방지)
+      ssUpHistLoad();                     // 좌측 하단 업로드 이력(오늘·3일)도 열 때 1회 갱신
     }
   }
 
@@ -3043,6 +3298,8 @@
       if(ok){
         ssToast('💾 서버 저장 완료 — 출고일자 '+baseDt+' · <b>'+t+'</b>건 (기존 자료 초기화 후 생성)');
         if(window.ssLoadShipoutFromDB) ssLoadShipoutFromDB();   // 저장 끝나면 출고일자로 DB 조회 1회 자동 실행
+        if(window.ssUpHistLoad) ssUpHistLoad();                 // 방금 올린 배치가 좌측 '올린 이력' 맨 위로 올라오게
+        if(window.ssArchiveApplied) ssArchiveApplied(srcFile);  // 반영 끝난 엑셀은 상단 목록에서 「_반영됨」으로 치운다
       }
       else ssToast('⚠️ 서버 저장 실패: '+(t||('HTTP '+xhr.status)));
     };
@@ -3586,6 +3843,58 @@
     });
     pop.innerHTML=h;
   }
+  /* ══ 출고장 표시이름 + 정정 (2026-07-27) ═══════════════════════════════════════════
+       표시이름 : 7곳으로 인식되는 이름은 통일키(용인·평택…), 인식 안 되는 이름은 <원표기 그대로>.
+         konetDcShort 가 끝 숫자를 떼기 때문에('평택물류센터1'→'평택') 잘못 저장된 이름은
+         DB 값이 '15.24.51' 인데도 화면엔 '15.24.' 로 잘려 보였다(사용자 지적). 정정하려면 원표기가 보여야 한다.
+       정정 : 저장된 DC_NM 을 7곳 중 하나로 바꾼다 → /sales/renameSalesDc.do
+         ★UPDATE 대상은 정규화된 라벨이 아니라 <원표기(raw)> 다 — 라벨로 찾으면 한 건도 못 고친다.
+         원표기가 여러 개 섞인 줄은 무엇을 고칠지 모호해 버튼을 내지 않는다(각 원표기가 각자 줄로 나올 때만).
+         이미 7곳으로 인식되는 줄에도 내지 않는다(오조작 방지).                                */
+  function _ohDcLabel(g){
+    if(KONET_DC_R[g.dc]) return g.dc;                     // 용인·왜관·김해·광주·평택·제주·오산
+    var raws=Object.keys(g.raw||{});
+    return raws.length ? raws.join(' / ') : g.label;
+  }
+  function ohDcFixBtn(g){
+    if(KONET_DC_R[g.dc]) return '';                       // 정상 인식되는 출고장은 버튼 없음
+    var raws=Object.keys(g.raw||{});
+    if(raws.length!==1) return '';                        // 원표기가 여러 개면 대상이 모호
+    return ' <span onclick="event.stopPropagation();ohDcFix(\''+encodeURIComponent(raws[0])+'\')"'
+      +' title="저장된 출고장 이름이 잘못됐습니다 — 눌러서 바로잡기"'
+      +' style="cursor:pointer;color:#c0392b;font-weight:700;font-size:11.5px;border:1px solid #f0c9c2;border-radius:4px;padding:1px 6px;background:#fff;margin-left:6px">✏️ 출고장 고치기</span>';
+  }
+  function ohDcFix(rawEnc){
+    var raw=decodeURIComponent(rawEnc);
+    var f=(document.getElementById('slsFrom')||{}).value||'', t=(document.getElementById('slsTo')||{}).value||'';
+    var names=[]; for(var cd in KONET_DC){ if(KONET_DC.hasOwnProperty(cd)) names.push(KONET_DC[cd]); }
+    var sel='<select id="ohDcFixSel" style="height:34px;font-size:15px;font-weight:700;color:#137a6c;border:1px solid #cdd7dd;border-radius:6px;padding:0 10px">'
+      +'<option value="">선택하세요</option>'
+      +names.map(function(n){ return '<option value="'+_cesc(n)+'">'+_cesc(n)+'</option>'; }).join('')+'</select>';
+    ssConfirm('저장된 <b>출고장 이름</b>을 바로잡습니다.<br><br>'
+      +'현재 <b style="color:#c0392b;word-break:break-all">'+_cesc(raw)+'</b> &nbsp;→&nbsp; 바꿀 출고장 '+sel
+      +'<div style="margin-top:12px;font-size:12px;color:#6b7a89;line-height:1.7">'
+      +'대상 = 조회 기간 <b>'+_cesc(f||'전체')+' ~ '+_cesc(t||'전체')+'</b> 의 이 출고장 자료 전부(활성분 + 이력분)<br>'
+      +'행수·수량·금액은 그대로이고 <b>출고장 이름·센터코드만</b> 바뀝니다.<br>'
+      +'<span style="color:#a85700">같은 납품일자에 그 출고장 자료가 이미 있으면 정정하지 않습니다</span>(매출이 두 번 잡히므로).</div>',
+      function(){
+        var v=((document.getElementById('ohDcFixSel')||{}).value||'').trim();
+        if(!v){ ssToast('⚠️ 바꿀 출고장을 고르세요.'); return; }
+        fetch('${pageContext.request.contextPath}/sales/renameSalesDc.do', {
+          method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin',
+          body:'dcNm='+encodeURIComponent(raw)+'&newDcNm='+encodeURIComponent(v)+'&newDcCd='+encodeURIComponent(konetDcCd(v)||'')
+              +'&dlvDtFrom='+encodeURIComponent(f)+'&dlvDtTo='+encodeURIComponent(t)
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+          if(j && j.ok){ ssToast('✏️ 출고장 정정 — <b>'+_cesc(raw)+'</b> → <b>'+_cesc(v)+'</b> ('+(+j.rows||0).toLocaleString()+'행)'); ohQuery(); return; }
+          if(j && j.conflict){ ssToast('⚠️ 정정하지 않았습니다 — 같은 납품일자에 <b>'+_cesc(v)+'</b> 자료가 이미 있습니다.<br><span style="font-size:11px">이 경우는 이름 정정이 아니라 잘못 올린 자료를 지워야 합니다.</span>'); return; }
+          ssToast('⚠️ 정정 실패: '+_cesc((j&&j.msg)||'알 수 없는 오류'));
+        })
+        .catch(function(){ ssToast('⚠️ 정정 통신오류 — 잠시 후 다시 시도하세요.'); });
+      }, {title:'✏️ 출고장 정정', yes:'정정'});
+  }
+
   // 이 행이 현재 선택에 걸리는가 — 묶음명·개별명 어느 쪽으로 체크했든 통한다
   function _ohDcHit(dc){
     if(!Object.keys(_ohDcSel).length) return true;    // 선택 없음 = 전체
@@ -3672,7 +3981,13 @@
   function slsSkipWhy(f){
     if(!f) return '';
     if(!f.rows.length)        return f.err || '저장할 행 없음';   // 오류 행은 이미 rows 에서 빠져 있다
-    if(!(f.dcNm||'').trim())  return '출고장이 비어 있음';
+    var _dc=(f.dcNm||'').trim();
+    if(!_dc)                  return '출고장이 비어 있음';
+    /* ★출고장을 물류센터로 알아보지 못한 파일도 저장하지 않는다 (2026-07-27 사용자 지시).
+         종전에는 '미확인'이어도 DC_CD 를 빈값으로 두고 저장했다 → 그 자료는 출고장으로 묶이지 않아
+         대사·출고장별 집계에서 통째로 빠지고, 파일명에서 잘못 딴 값(예: '09.49.30')이 그대로 남았다.
+         형식오류와 같은 급으로 막고, 출고장 칸을 고치면 곧바로 저장 가능해진다(입력값으로 재판정). */
+    if(!slsDcCd(_dc))         return '출고장 미확인 — 용인·왜관·김해·광주·평택·제주·오산 중 선택';
     return '';
   }
   // 이미 반영된 파일명 목록 (재업로드=기존배치 대체 임을 화면에 알림)
@@ -3774,10 +4089,12 @@
         if(+f.nBad) st+=' <span style="color:#c0392b">· 오류 '+(+f.nBad).toLocaleString()+'행 제외</span>';
       }
       h+='<tr><td class="txt-l">'+_cesc(f.name)+'</td>'
-        +'<td><input class="cq" style="width:120px;height:26px" value="'+_cesc(f.dcNm)+'" oninput="slsSetDc('+i+',this.value)" placeholder="예: 평택"></td>'
+        // 출고장을 고치면 칸을 벗어날 때(onchange) 다시 그려 센터코드·상태를 즉시 재판정한다.
+        //   oninput 마다 재그리면 입력 중 포커스가 날아가므로 값 갱신만 한다.
+        +'<td><input class="cq" style="width:120px;height:26px'+(slsDcCd(f.dcNm)?'':';border-color:#c0392b')+'" value="'+_cesc(f.dcNm)+'" oninput="slsSetDc('+i+',this.value)" onchange="slsSetDc('+i+',this.value);slsRender()" placeholder="예: 평택"></td>'
         +'<td>'+(slsDcCd(f.dcNm)
                  ? '<b style="color:#137a6c">'+slsDcCd(f.dcNm)+'</b>'
-                 : '<span style="color:#c0392b" title="출고장명으로 물류센터코드를 찾지 못했습니다. 용인·왜관·김해·광주·평택·제주·오산 중 하나로 적어주세요. (비워둬도 저장은 됩니다)">미확인</span>')+'</td>'
+                 : '<span style="color:#c0392b" title="출고장명으로 물류센터코드를 찾지 못했습니다. 용인·왜관·김해·광주·평택·제주·오산 중 하나로 적어주세요.&#10;★이 파일은 저장되지 않습니다 — 출고장 칸을 고치면 곧바로 저장 대상이 됩니다.">미확인</span>')+'</td>'
         +'<td>'+dlab+'</td>'
         +'<td style="text-align:right">'+f.rows.length.toLocaleString()+'</td>'
         +'<td style="text-align:right">'+_cnum(q)+'</td>'
@@ -3857,7 +4174,7 @@
     _slsFiles.forEach(function(f){
       var why=slsSkipWhy(f);
       if(why){ bad.push(f.name+' — '+why); return; }
-      var dc=(f.dcNm||'').trim(), dcc=slsDcCd(dc);   // 물류센터코드 — 못 찾으면 빈값으로 두고 저장은 진행
+      var dc=(f.dcNm||'').trim(), dcc=slsDcCd(dc);   // 물류센터코드 — 여기 온 파일은 slsSkipWhy 를 통과했으므로 항상 값이 있다
       f.rows.forEach(function(o){          // rows 에는 오류 행이 이미 없다(slsBuildRows 에서 제외)
         payload.push({ srcFile:f.name, dcNm:dc, dcCd:dcc,
           rowNo:o.rowNo, ordNo:o.ordNo, ordItemNo:o.ordItemNo, itemCd:o.itemCd, itemNm:o.itemNm,
@@ -4315,7 +4632,9 @@
        묶음이 실제로 생기는 그룹(2곳 이상)만 머리행을 만들고, 용인·평택처럼 혼자인 곳은 그냥 한 줄.
        접기키 'd:' + 그룹라벨, 기본 = 펼침(개별 출고장·상태가 바로 보이는 게 이 표의 목적이라). */
   function _ohRenderDc(G, wrap, oQ, sQ, sA){
-    var h='<table class="logi-tb"><thead><tr><th>출고장</th>'
+    // 출고장 칸 넓히기(2026-07-27) — 머리글(th)은 그대로 두고 자료칸(tbody td)에만 최소폭을 준다.
+    //   테이블 클래스 oh-dc 로 이 표만 겨냥한다(.logi-tb 는 다른 표와 공용이라 전역으로 주면 안 된다).
+    var h='<table class="logi-tb oh-dc"><thead><tr><th>출고장</th>'
         +'<th style="text-align:right">출고건수</th><th style="text-align:right">출고수량</th>'
         +'<th style="text-align:right">정산행수</th><th style="text-align:right">정산수량</th>'
         +'<th style="text-align:right">수량차이</th><th style="text-align:right">평균단가</th>'
@@ -4344,7 +4663,7 @@
     // 줄 전체가 아니라 '상태' 칸을 눌렀을 때만 ②탭으로 이동한다(2026-07-22 요청) — 실수 이동 방지
     var kidRow=function(g, indent){
       return '<tr title="원표기: '+_cesc(Object.keys(g.raw).join(' / '))+'">'
-        +'<td class="txt-l"'+(indent?' style="padding-left:26px"':'')+'><b>'+_cesc(g.label)+'</b></td>'
+        +'<td class="txt-l"'+(indent?' style="padding-left:26px"':'')+'><b>'+_cesc(_ohDcLabel(g))+'</b>'+ohDcFixBtn(g)+'</td>'
         +_ohDcCells(g)+_ohStCell(g)+'</tr>';
     };
     GL.forEach(function(gg){
@@ -4378,7 +4697,7 @@
           +_ohStCellGrp(D.tot)+'</tr>');
         if(!dCol) D.kids.forEach(function(g){
           R.push('<tr title="원표기: '+_cesc(Object.keys(g.raw).join(' / '))+'">'
-            +'<td class="txt-l" style="padding-left:40px"><b>'+_cesc(g.label)+'</b></td>'
+            +'<td class="txt-l" style="padding-left:40px"><b>'+_cesc(_ohDcLabel(g))+'</b></td>'
             +_ohDcCells(g)+_ohStCell(g)+'</tr>');
         });
       });
@@ -4922,6 +5241,9 @@
       #ohTabs .ctab{ height:30px; padding:0 12px; font-size:12.5px; }
       #ohTabs .btn-line{ height:26px !important; margin-bottom:2px; }
       #ohWrap table.logi-tb thead th{ position:sticky; top:0; z-index:2; box-shadow:inset 0 -1px 0 var(--logi-border); }
+      /* ①출고장별 합계 — 출고장 이름이 잘려 보인다는 지적(2026-07-27). 머리글은 그대로, 자료칸만 넓힌다.
+         auto layout 이라 자료칸 최소폭이 곧 그 열의 폭이 된다(머리글도 따라 넓어지지만 th 규격은 손대지 않음). */
+      table.logi-tb.oh-dc tbody td:first-child{ min-width:320px; }
       /* 정산 엑셀 저장 팝업의 파일 목록 — 칸이 줄바꿈되면 읽기 나쁘므로 한 줄로 고정, 넘치면 가로 스크롤 */
       #slsUpWrap .sls-ftb th, #slsUpWrap .sls-ftb td{ white-space:nowrap; }
       #slsUpWrap{ overflow:auto; }
@@ -5380,7 +5702,11 @@
               <div style="flex:1 1 320px; min-width:280px">
                 <b style="color:#137a6c">📄 파일 선택</b> — 폴더 밖에 있는 파일 하나를 탐색기로 직접 엽니다. 지정한 폴더를 쓰지 않아도 되는 <b>예전 방식</b>입니다.<br>
                 <b style="color:#137a6c">목록에 뜨는 파일</b> — 이름이 <code>2026.07.11_13.25.10</code> 처럼 <b>날짜·시각으로 시작하는 xlsx</b>만 나옵니다(출고장이 내려주는 파일 이름 규칙). 뒤에 붙는 말은 무엇이든 상관없습니다.<br>
-                <b style="color:#137a6c">🗑</b> — 파일을 <b>「_삭제됨」 하위폴더로 이동</b>합니다(지우는 게 아니라 복구 가능).
+                <b style="color:#137a6c">🗑</b> — 파일을 <b>「_삭제됨」 하위폴더로 이동</b>합니다(지우는 게 아니라 복구 가능).<br>
+                <b style="color:#137a6c">✔ 작성 후</b> — 반영이 끝난 엑셀은 <b>「_반영됨」 하위폴더로 자동 이동</b>해 위 목록에서 사라지고, 아래 <b>올린 이력</b> 맨 위로 올라옵니다(같은 파일을 두 번 올리지 않게). 파일은 그 폴더에 그대로 있습니다.<br>
+                <span style="color:#6b7a89">※ 다운로드 폴더(지정 폴더의 <u>상위</u>)로는 옮길 수 없습니다 — 브라우저가 상위 폴더 접근을 주지 않습니다.</span><br>
+                <b style="color:#137a6c">🕘 올린 이력</b> — 좌측 아래에 <b>서버에 실제로 반영한</b> 것이 <b>최신부터</b> 쌓입니다(위는 폴더의 파일, 아래는 반영 결과). 기본은 <b>오늘</b>이고 머리글의 <b>3일</b>을 누르면 최근 3일을 날짜별로 봅니다.<br>
+                <span style="color:#6b7a89">한 번에 올린 것은 <b>출고장이 갈려도 한 줄</b>로 묶입니다 — <code>출고장 7곳 · 오산·용인·왜관…</code>. 출고장별 행수는 줄에 마우스를 올리면 나옵니다.</span> <b style="color:#137a6c">초록 줄</b>은 지금 펼쳐 둔 파일 = <b>이미 올린 자료</b>, <span style="color:#9aa7b3">이력</span> 표시는 뒤에 올린 자료로 덮인 것입니다. 줄을 누르면 그 파일을 다시 펼칩니다.
               </div>
               <div style="flex:1 1 320px; min-width:280px">
                 <b style="color:#137a6c">작성(반영) 전에</b> — 내용을 확인하고 아래 <b>출고일자</b>를 확인·수정한 뒤 <b>✔ 작성</b>을 누르면 서버(TBL_SHIPOUT_MST)에 저장되고 대시보드에 반영됩니다.<br>
@@ -5413,11 +5739,26 @@
               <%-- 폴더 지정·파일 선택·새로고침 버튼은 모달 상단(mbar)으로 이동(2026-07-26). 여기는 제목만. --%>
               <div style="padding:7px 9px; border-bottom:1px solid var(--logi-border); background:#f4f8f7; flex:0 0 auto">
                 <div style="display:flex; align-items:center; gap:6px">
-                  <span style="flex:1; font-weight:700; color:#37475a">📁 업로드 파일 <span style="font-weight:400;font-size:11px;color:#9aa7b3" title="파일 수정시각 기준 내림차순 — 맨 위가 가장 최근 자료이고, 모달을 열면 그 파일이 자동으로 펼쳐집니다">(최신순)</span></span>
+                  <%-- 2026-07-27: 아래 '업로드 이력'과 이름이 겹쳐 헷갈린다 → 위는 '폴더의 엑셀'로 명시 --%>
+                  <span style="flex:1; font-weight:700; color:#37475a; font-size:14px">📁 폴더의 엑셀 <span style="font-weight:400;font-size:12px;color:#9aa7b3" title="지정한 폴더에 있는 발주현황표 파일입니다(아직 서버에 올린 것과는 무관).&#10;파일 수정시각 기준 내림차순 — 맨 위가 가장 최근 자료이고, 모달을 열면 그 파일이 자동으로 펼쳐집니다">(최신순)</span></span>
                 </div>
               </div>
-              <div id="ssPvDirName" style="padding:4px 9px; font-size:11px; color:#137a6c; border-bottom:1px solid #eef3f1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:0 0 auto"></div>
-              <div id="ssPvHist" style="overflow-y:auto; flex:1 1 auto; min-height:0"></div>
+              <div id="ssPvDirName" style="padding:4px 9px; font-size:12px; color:#137a6c; border-bottom:1px solid #eef3f1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:0 0 auto"></div>
+              <%-- ★위/아래를 반반으로 고정(2026-07-27) — flex:1 1 0 이라 한쪽 내용이 많아도 다른 쪽이 찌그러지지 않는다.
+                   종전 flex:0 1 auto 는 아래 이력이 수백 건이면 위 파일 목록이 0으로 밀렸다. --%>
+              <div id="ssPvHist" style="overflow-y:auto; flex:1 1 0; min-height:96px"></div>
+              <%-- 좌측 하단: 서버에 실제 반영된 업로드 이력 (기본 = 오늘 올린 것) — 2026-07-27 사용자 요청 --%>
+              <div style="display:flex; align-items:center; gap:6px; padding:6px 9px; background:#f4f8f7; border-top:2px solid var(--logi-border); border-bottom:1px solid var(--logi-border); flex:0 0 auto">
+                <span style="flex:1; min-width:0; font-weight:700; color:#37475a; font-size:14px">🕘 <span id="ssPvUpHistTit">오늘</span> 올린 이력
+                  <span style="font-weight:400; font-size:12px; color:#9aa7b3"
+                        title="서버(TBL_SHIPOUT_MST)에 실제로 반영된 배치입니다. 업로드한 시각 기준 최신이 맨 위에 옵니다.&#10;· 초록 줄 = 지금 펼쳐 둔 파일 (이미 올린 자료)&#10;· 이력 = 뒤에 올린 자료로 덮인 예전 배치&#10;· 줄을 누르면 그 파일을 다시 펼칩니다(지정 폴더에 있을 때)">(최신순)</span>
+                  <b id="ssPvUpHistCnt" style="font-weight:700; font-size:12px; color:#137a6c; margin-left:2px"></b>
+                </span>
+                <%-- 기본은 '오늘'. 지난 자료 확인용으로 '3일' 전환 링크만 둔다(2026-07-27: 7일→3일) --%>
+                <span id="ssPvUpHistTab" style="flex:0 0 auto; font-size:12px; color:#9aa7b3"></span>
+                <span onclick="ssUpHistLoad()" title="업로드 이력 다시 읽기" style="flex:0 0 auto; cursor:pointer; color:#137a6c; font-size:14px">↻</span>
+              </div>
+              <div id="ssPvUpHist" style="overflow-y:auto; flex:1 1 0; min-height:96px"></div>
             </div>
             <!-- 우측: 기존 미리보기 표 -->
             <div style="flex:1; min-width:0">
