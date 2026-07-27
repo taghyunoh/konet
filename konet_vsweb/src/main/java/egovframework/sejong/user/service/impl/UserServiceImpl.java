@@ -55,6 +55,7 @@ public class UserServiceImpl implements UserService {
 	@Override public int updateCompCdMst(CompMdDTO dto) throws Exception { return mapper.updateCompCdMst(dto); }
 
 	// ===== 출고장(발주현황표) 업로드 저장 (TBL_SHIPOUT_MST) =====
+	@Override public java.util.List<String> selectShipoutActiveShpoutDts(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutActiveShpoutDts(dto); }
 	@Override public int markShipoutHistory(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.markShipoutHistory(dto); }
 	@Override public int deleteShipoutZone(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.deleteShipoutZone(dto); }
 	@Override public int getShipoutNextJobSeq(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.getShipoutNextJobSeq(dto); }
@@ -487,6 +488,7 @@ public class UserServiceImpl implements UserService {
 	@Override public int deleteSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.deleteSettleTrx(dto); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectCustLedger(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectCustLedger(dto); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectCustBalance(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectCustBalance(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectCustDayDetail(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectCustDayDetail(dto); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectDayBook(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectDayBook(dto); }
 
 	/* ===== 판매등록 — 2026-07-25. savePurchase 와 대칭 =====

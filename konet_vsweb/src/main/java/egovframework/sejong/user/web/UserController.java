@@ -480,7 +480,10 @@ public class UserController {
 		}
 
 		/* ---- 출고장(발주현황표) 엑셀 업로드 저장 ----
-		   · 논리키 = (DLV_DT 납기일자 + SHPOUT_DT 출고일자 + DC_CD 물류센터코드). 조합별 1배치 — 기존 활성배치 이력마감 후 JOB_SEQ+1 신규 INSERT
+		   · 논리키 = (DLV_DT 납품일자 + DC_CD 물류센터코드). 조합별 1배치 — 기존 활성배치 이력마감 후 JOB_SEQ+1 신규 INSERT
+		   · ★SHPOUT_DT(출고일자)는 키에서 제외(2026-07-27 요청). 종전 키에는 출고일자가 있어, 같은 납품일자·출고장을
+		     다른 출고일자로 다시 올리면 기존 자료가 활성인 채 남아 두 배치가 함께 잡혔다(이중계상). 이제 대체된다.
+		     출고일자는 저장·조회 컬럼으로는 그대로 쓴다(화면 조회 기준은 여전히 SHPOUT_DT).
 		   · "기존화면 자료 초기화 후 생성" = 기존 활성배치 ACTION_YN='N' 처리(이력보존) 후 신규 적재
 		   · 날짜('-' 포함 yyyy-mm-dd)는 매퍼에서 REPLACE 로 '-' 제거하여 NVARCHAR(10) 저장 */
 		@RequestMapping(value="/shipout/saveShipoutMst.do", method = RequestMethod.POST)
@@ -493,12 +496,11 @@ public class UserController {
 				               : (session.getAttribute("s_comp_cd") != null ? String.valueOf(session.getAttribute("s_comp_cd")) : "");
 				String regIp   = request.getRemoteAddr();
 
-				// (납기일자 DLV_DT + 출고일자 SHPOUT_DT + 물류센터 DC_CD) 복합키로 묶어 각 조합을 1배치로 저장 (사업장은 키 아님)
+				// (납품일자 DLV_DT + 물류센터 DC_CD) 복합키로 묶어 각 조합을 1배치로 저장 (출고일자·사업장은 키 아님)
 				java.util.LinkedHashMap<String, java.util.List<egovframework.sejong.user.model.ShipoutDTO>> groups
 				    = new java.util.LinkedHashMap<String, java.util.List<egovframework.sejong.user.model.ShipoutDTO>>();
 				for (egovframework.sejong.user.model.ShipoutDTO r : rows) {
 					String key = (r.getDlvDt() == null ? "" : r.getDlvDt())
-					           + "|" + (r.getShpoutDt() == null ? "" : r.getShpoutDt())
 					           + "|" + (r.getDcCd() == null ? "" : r.getDcCd());
 					java.util.List<egovframework.sejong.user.model.ShipoutDTO> g = groups.get(key);
 					if (g == null) { g = new java.util.ArrayList<egovframework.sejong.user.model.ShipoutDTO>(); groups.put(key, g); }
@@ -508,10 +510,16 @@ public class UserController {
 				int total = 0;
 				java.util.LinkedHashSet<String> syncDates = new java.util.LinkedHashSet<String>();
 				for (java.util.List<egovframework.sejong.user.model.ShipoutDTO> grp : groups.values()) {
-					// 1) 해당 납기일자 기존 활성배치 이력마감(삭제이력)  2) 신규 JOB_SEQ  3) 그룹 전체행 INSERT
+					// 0) 이력마감으로 사라질 기존 활성배치의 출고일자 수집  1) 같은 (납품일자,물류센터) 기존 활성배치 이력마감(삭제이력)
+					// 2) 신규 JOB_SEQ  3) 그룹 전체행 INSERT
 					egovframework.sejong.user.model.ShipoutDTO head = grp.get(0);
 					head.setUpdUser(regUser);
 					head.setUpdIp(regIp);
+					// ★출고일자가 키에서 빠지면서 '옛 배치의 출고일자 ≠ 새 배치의 출고일자' 가 가능해졌다.
+					//   그 경우 옛 출고일자의 재고원장 O행이 그대로 남으므로, 마감 전에 미리 받아 함께 재동기화한다.
+					java.util.List<String> oldDts = svc.selectShipoutActiveShpoutDts(head);
+					//   ※ DB 값은 'yyyymmdd', 화면에서 온 값은 'yyyy-mm-dd' — 같은 날이 두 번 돌지 않게 '-' 를 떼어 담는다.
+					if (oldDts != null) for (String d : oldDts) if (d != null && !d.trim().isEmpty()) syncDates.add(d.trim().replace("-", ""));
 					svc.markShipoutHistory(head);
 
 					int jobSeq = svc.getShipoutNextJobSeq(head);
@@ -525,7 +533,10 @@ public class UserController {
 						svc.insertShipoutMst(r);
 						seq++; total++;
 					}
-					if (head.getShpoutDt() != null && !head.getShpoutDt().trim().isEmpty()) syncDates.add(head.getShpoutDt());
+					// 새 배치의 출고일자 — 그룹키에 출고일자가 없으므로 한 그룹 안에 두 날짜가 섞일 여지가 있다(행 단위로 모은다)
+					for (egovframework.sejong.user.model.ShipoutDTO r : grp) {
+						if (r.getShpoutDt() != null && !r.getShpoutDt().trim().isEmpty()) syncDates.add(r.getShpoutDt().trim().replace("-", ""));
+					}
 				}
 				// (A) 출고→재고 자동연동 : 저장된 출고일자별로 원장 O행 재동기화 후 전체 현재고 재집계
 				//     (재고 동기화 실패가 출고 저장 자체를 롤백하지 않도록 별도 try — 실패 시 로그만)
@@ -1320,9 +1331,10 @@ public class UserController {
 			return response;
 		}
 
-		/* ===== 거래처별 받을금액·지급할금액 (2026-07-26 신설) — 정보 현황 ▸ 조회 전용 =====
+		/* ===== 거래처별 받을금액·지급할금액 (2026-07-26 신설) — 원장관리 ▸ 조회 전용 =====
 		   전 거래처 × 월 한 번에 내려주고 화면에서 잔액 누계·이력으로 접는다(기간 파라미터 없음).
-		   잔액은 '전 기간 누계'라 기간을 걸면 잔액이 아니게 되기 때문. 자세한 근거는 SQL 주석 참조. */
+		   잔액은 '전 기간 누계'라 기간을 걸면 잔액이 아니게 되기 때문. 자세한 근거는 SQL 주석 참조.
+		   ※ 2026-07-27 에 추가된 '특정일자'는 이 잔액과 무관하다 — 아래 selectCustDayDetail(하단 내역) 전용. */
 		@RequestMapping(value="/mangr/custBalance.do")
 		public String custBalance(HttpSession session) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
@@ -1333,6 +1345,16 @@ public class UserController {
 		public Map<String,Object> selectCustBalance(@ModelAttribute("DTO") egovframework.sejong.user.model.SettleTrxDTO dto, HttpSession session) throws Exception {
 			Map<String,Object> response = new HashMap<String,Object>();
 			response.put("data", svc.selectCustBalance(dto));
+			return response;
+		}
+		/* 위 화면 하단 — 고른 거래처의 **특정일자 하루** 건별 내역(출고·매입·입금·출금).
+		   ★위 잔액(누계)과는 별개다. 한 표에 섞었다가 "너무 복잡"하다는 지적으로 갈라 놓은 것이니 다시 섞지 말 것.
+		   파라미터 = custCd + trxDt. */
+		@RequestMapping(value="/mangr/selectCustDayDetail.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> selectCustDayDetail(@ModelAttribute("DTO") egovframework.sejong.user.model.SettleTrxDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectCustDayDetail(dto));
 			return response;
 		}
 

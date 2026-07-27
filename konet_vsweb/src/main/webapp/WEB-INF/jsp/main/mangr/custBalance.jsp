@@ -6,6 +6,22 @@
     · 메뉴 이름은 "거래처별 채권·채무"(사용자 유지 요청), 화면 표기는 쉬운 말로 — 받을금액 / 지급할금액 / 이월 / 남은금액.
       한번 회계용어(매출채권·미수금 …)로 바꿨다가 "너무 딱딱하다"는 지적으로 되돌렸다. 다시 바꾸자는 얘기가 나오면 이 이력을 먼저 확인할 것.
     · 왼쪽 = 거래처별 남은금액 한 줄씩 / 오른쪽 = 그 거래처의 월별 이력(최근부터)
+      / 아래 = 그 거래처가 **특정일자 하루**에 한 거래 4탭(출고·매입·입금·출금) — 2026-07-27 추가
+
+    ★★특정일자와 잔액은 서로 무관하다 (2026-07-27 사용자 확정)
+      · 위(잔액·월별이력) = 기준월 말까지의 **누계**  — 종전 그대로, 아무것도 안 바뀌었다
+      · 아래(건별 내역)   = 특정일자 **하루에 벌어진 일** — 이번에 새로 붙인 것
+      한때 특정일자로 잔액까지 잘랐다(서버 낟알도 월→일자로 내렸다). "기존것에 합친것은 너무 복잡함"
+      지적으로 **전부 되돌리고** 둘을 갈라 놓았다. 다시 합치자는 얘기가 나오면 이 이력부터 확인할 것.
+
+    ★[특정일자 발생 칸] (2026-07-27 2차 요청 — "첫번째 내용은 유지하고 특정일자에 발생 내역도")
+      잔액표에 **[특정일자 발생] 4칸(매출·수금·매입·지급)** 을 덧붙였다.
+      · **누계 칸(이월·당월·남은금액)은 하나도 안 건드렸다** — 위 확정 그대로다.
+        '잔액을 날짜로 자른 것'이 아니라 **그날 얼마가 움직였나를 옆에 나란히 붙인 것**이다.
+      · 원천은 **일계장의 `selectDayBook`(fromDt=toDt=특정일자)** 을 그대로 쓴다.
+        일계장과 금액 규칙(UNION 4갈래)이 같아 두 화면 숫자가 어긋날 수 없고, 서버를 새로 만들 필요도 없다.
+        응답 중 `dt='00000000'`(전일누계) 줄은 여기서는 안 쓰고 버린다 — 누계는 이미 위 칸이 갖고 있다.
+      · 이 칸을 보고 움직인 거래처를 찾아 줄을 누르면 **아래 건별 내역**에 그 하루가 펼쳐진다(같은 날짜).
     · 원천은 수금등록·지급등록 화면의 원장(selectCustLedger)과 같다. 다만 '한 거래처 × 일자'가 아니라
       '전 거래처 × 월' 로 넓혀 한 번에 받는다(selectCustBalance).
 
@@ -43,8 +59,10 @@
   .kpi b.red{ color:var(--cb-red); }
   .kpi span{ font-size:12px; color:#1f2a37; font-weight:700; }
   .cb-two{ display:flex; gap:11px; align-items:flex-start; flex-wrap:wrap; }
-  .cb-two > .l{ flex:2 1 520px; min-width:0; }
-  .cb-two > .r{ flex:1 1 420px; min-width:0; }
+  /* 왼쪽 표가 [특정일자 발생] 4칸만큼 넓어져 자리를 더 준다(2026-07-27).
+     그래도 최근거래일까지는 다 안 들어오는데, **가로스크롤로 보는 것이 확정**이라 거래처 칸을 고정해 뒀다. */
+  .cb-two > .l{ flex:4 1 700px; min-width:0; }
+  .cb-two > .r{ flex:1 1 360px; min-width:0; }
   .cb-tit{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; font-weight:800; }
   .cb-tit small{ font-weight:600; color:#2b3a48; font-size:12px; }
   .cb-tbwrap{ max-height:calc(100vh - 330px); min-height:220px; overflow:auto; border:1px solid var(--cb-bd); border-radius:8px; }
@@ -53,6 +71,43 @@
   /* ★머리글이 2줄이라 둘째 줄과 합계줄의 sticky 위치를 손으로 내려 준다(안 하면 겹쳐서 가린다) */
   table.cb-tb thead tr:nth-child(2) th{ top:28px; }
   table.cb-tb th.grp{ background:#e3edea; }
+  /* ★머리글 정렬을 칸 내용에 맞춘다 (2026-07-27 요청) — 숫자칸 머리글은 오른쪽, 이름칸은 왼쪽.
+       묶음 머리글(받을금액·지급할금액…)만 가운데로 남긴다. */
+  table.cb-tb th.lft{ text-align:left; }
+  table.cb-tb th.num{ text-align:right; }
+  /* 거래처 칸 — 출고장 꼬리표를 뺀 만큼 폭을 줄이고, 이름이 길면 …로 줄인다(줄바꿈은 안 한다) */
+  table.cb-tb td.txt .nm{ display:inline-block; max-width:158px; overflow:hidden;
+                          text-overflow:ellipsis; vertical-align:bottom; }
+  /* [특정일자 발생] 묶음 — 누계 칸과 눈으로 바로 갈리게 조회줄의 '특정일자'와 같은 호박색 계열로 */
+  table.cb-tb th.grpd{ background:#f9ecd5; color:#7a4b0a; }
+  table.cb-tb th.dayh{ background:#fdf5e6; color:#7a4b0a; }
+  table.cb-tb td.dayc{ background:#fffaf1; }
+  table.cb-tb tr.tot td.dayc{ background:#0f6a5e; }
+  table.cb-tb tr.grow td.dayc{ background:#f3ecdd; }
+  .amt-d{ color:#b45309; font-weight:700; }          /* 그날 발생 금액 */
+  /* ★칸 폭 — 받을금액·지급할금액은 넓게, [특정일자 발생]은 조금 좁게 (2026-07-27 요청).
+       발생 칸은 보통 한두 칸에만 금액이 들어 비어 있는 자리가 넓어 보였고,
+       정작 매일 보는 누계 칸(당월매출·남은금액)이 좁아 숫자가 답답했다.
+     ★[함정] 위치(nth-child) 기준이라 **칸 순서가 바뀌면 여기도 같이 고쳐야 한다**.
+         본문 16칸 = 1 거래처 · 2 구분 · 3~6 받을금액 · 7~10 지급할금액 · 11~14 특정일자 발생 · 15 순액 · 16 최근거래일
+         머리글 둘째 줄 12칸 = 1~4 받을금액 · 5~8 지급할금액 · 9~12 특정일자 발생 */
+  #cbList thead tr:nth-child(2) th:nth-child(-n+8){ min-width:98px; }
+  #cbList tbody td:nth-child(n+3):nth-child(-n+10){ min-width:98px; }
+  #cbList th.dayh, #cbList td.dayc{ min-width:76px; }
+  /* ★거래처 칸 가로 고정 (2026-07-27 요청) — 최근거래일까지 옆으로 밀어 봐도 이름은 남아 있어야 한다.
+       머리글은 **첫 줄의 첫 칸만** 잡는다(둘째 줄 '이월'이 딸려 붙지 않게 tr:first-child 필수).
+       sticky 칸은 배경이 비치면 안 되므로 줄 종류마다 배경색을 다시 지정한다. */
+  /* ★머리글은 고정된 거래처 칸(z-index:3~4)보다 반드시 위에 있어야 한다 —
+       안 그러면 세로로 스크롤할 때 거래처 이름이 머리글을 뚫고 올라온다. */
+  #cbList thead th{ z-index:7; }
+  #cbList thead tr:first-child th:first-child{ position:sticky; left:0; top:0; z-index:8;
+                                               background:#eef3f2; border-right:2px solid #cfe0db; }
+  #cbList tbody td:first-child{ position:sticky; left:0; z-index:3;
+                                background:#fff; border-right:2px solid #cfe0db; }
+  #cbList tbody tr.tot td:first-child{ background:var(--cb-teal); z-index:4; }
+  #cbList tbody tr.grow td:first-child{ background:#e9f1ef; }
+  #cbList tbody tr.on td:first-child{ background:#fdeef0; }
+  #cbList tbody tr.pick:hover td:first-child{ background:#f3f8f6; }
   table.cb-tb th.sortable{ cursor:pointer; }
   table.cb-tb th.sortable:hover{ color:var(--cb-teal); }
   table.cb-tb td{ border:1px solid var(--cb-bd); padding:6px 8px; text-align:right; }
@@ -63,6 +118,8 @@
   table.cb-tb tbody tr.pick:hover td{ background:#f3f8f6; }
   table.cb-tb tbody tr.on td{ background:#fdeef0; font-weight:700; }
   table.cb-tb tr.mtot td{ background:#eef3f2; font-weight:800; }
+  /* 하단 건별 내역의 합계는 **맨 위**(2026-07-27 요청) — 머리글(28px) 바로 아래에 붙여 스크롤해도 따라오게 */
+  #cbDtl tr.mtot td{ position:sticky; top:28px; z-index:1; border-bottom:2px solid #cfe0db; }
   /* 출고장 묶음 머리행 — 대시보드와 같은 2단 트리 */
   table.cb-tb tr.grow td{ background:#e9f1ef; font-weight:800; border-top:2px solid #cfe0db; }
   table.cb-tb tr.grow td .cnt{ font-size:11px; font-weight:600; color:#5a6b7a; }
@@ -74,6 +131,19 @@
   .amt-r{ color:var(--cb-teal); font-weight:700; }   /* 받을금액 */
   .amt-p{ color:var(--cb-red);  font-weight:700; }   /* 지급할금액 */
   .gb{ font-size:11px; padding:1px 6px; border-radius:9px; background:#eef3f2; color:#37475a; font-weight:700; }
+  /* 구분 꼬리표 — gbx = 거래처마스터 등록값과 다름(실거래로 판정한 값을 보여주는 중) / gbm = 거래가 없어 마스터값을 그대로 */
+  .gb.gbx{ background:#fdf0dc; color:#7a4b0a; }
+  .gb.gbx i{ font-style:normal; margin-left:1px; }
+  .gb.gbm{ opacity:.5; }
+  /* 하단 건별 명세 — 탭 + 안내줄 */
+  .cb-tabs{ display:flex; gap:5px; flex-wrap:wrap; }
+  .cb-tab{ border:1px solid var(--cb-bd); background:#fff; border-radius:7px; padding:4px 11px; cursor:pointer;
+           font-size:12.5px; font-weight:700; color:#37475a; white-space:nowrap; }
+  .cb-tab:hover{ border-color:var(--cb-teal); }
+  .cb-tab.on{ background:var(--cb-teal); color:#fff; border-color:var(--cb-teal); }
+  .cb-tab .c{ font-weight:600; opacity:.75; margin-left:3px; }
+  .cb-dtlnote{ margin-top:6px; font-size:12px; color:#5a6b7a; font-weight:600; }
+  .cb-dtlnote b{ color:#37475a; }
   .cb-msg{ padding:24px; text-align:center; color:#2b3a48; font-size:13.5px; font-weight:600; }
   .cb-note{ font-size:12.5px; color:#1f2a37; line-height:1.75; font-weight:600; }
   .cb-note b{ color:#37475a; }
@@ -81,16 +151,23 @@
 
 <div class="cb-wrap">
   <h2>💳 거래처별 채권·채무 <span style="font-size:13px; font-weight:600; color:#5a6b7a">— 받을금액 · 지급할금액</span></h2>
-  <div class="cb-sub">거래처별 <b>받을금액</b>과 <b>지급할금액</b>입니다 — <b>이월 + 당월 − 당월수금 = 남은금액</b>. 줄을 누르면 오른쪽에 <b>월별 이력</b>이 펼쳐집니다.</div>
+  <div class="cb-sub">거래처별 <b>받을금액</b>과 <b>지급할금액</b>입니다 — <b>이월 + 당월 − 당월수금 = 남은금액</b>(기준월 말 누계). 오른쪽 <b style="color:#b45309">특정일자 발생</b> 칸은 그 <b>하루에 움직인 금액</b>이고, 줄을 누르면 <b>월별 이력</b>과 그 하루의 <b>건별 내역</b>이 펼쳐집니다.</div>
 
   <div class="cb-card">
     <div class="cb-row">
-      <div class="cb-fld" style="flex:0 0 150px"><label>기준월 (이 달 말 기준 잔액)</label><input type="month" id="cbYm"></div>
-      <div class="cb-fld" style="flex:0 0 170px"><label>보기</label>
+      <div class="cb-fld" style="flex:0 0 150px"><label>기준월 (이 달 말 기준 잔액)</label><input type="month" id="cbYm" onchange="cbRender()"></div>
+      <%-- ★특정일자 (2026-07-27 요청) — 위 '잔액(누계)' 칸과는 **무관**하다.
+             이 날짜가 쓰이는 곳은 딱 둘 : 표의 [특정일자 발생] 4칸 + 아래 건별 내역.
+             한때 이 날짜로 잔액까지 잘랐다가 "기존것에 합친것은 너무 복잡함" 지적으로 갈라 놓았다.
+             ★잔액(이월·당월·남은금액)은 앞으로도 기준월 것이다 — 날짜로 자르지 말 것. --%>
+      <div class="cb-fld" style="flex:0 0 195px"><label style="color:#b45309">특정일자 (발생 칸·아래 내역)</label>
+        <input type="date" id="cbDt" onchange="cbDayChg()" style="border-color:#e3c08a"></div>
+      <div class="cb-fld" style="flex:0 0 195px"><label>보기</label>
         <select id="cbFilter" onchange="cbRender()">
           <option value="bal">잔액 있는 거래처만</option>
           <option value="recv">받을금액 있는 곳만</option>
           <option value="pay">지급할금액 있는 곳만</option>
+          <option value="day">특정일자에 거래 있는 곳만</option>
           <option value="all">전체(거래 있는 곳)</option>
         </select>
       </div>
@@ -98,7 +175,8 @@
         <input type="text" id="cbFind" placeholder="예: 대양 / 00272" onkeyup="if(event.keyCode===13) cbRender()">
       </div>
       <button class="cb-btn teal" onclick="cbLoad()">조회</button>
-      <button class="cb-btn" onclick="cbThisMonth()">이번 달</button>
+      <button class="cb-btn" onclick="cbThisMonth()" title="기준월을 이번 달로 (잔액)">이번 달</button>
+      <button class="cb-btn" onclick="cbToday()" title="특정일자를 오늘로 (발생 칸 · 아래 건별 내역)">오늘</button>
       <%-- 출고장 묶음(대시보드와 같은 규칙) — 기본 켬. 끄면 거래처만 평평하게 나온다 --%>
       <label class="cb-chk"><input type="checkbox" id="cbGroup" checked onchange="cbRender()"> 출고장 묶음</label>
       <button class="cb-btn" onclick="cbToggleAll()" title="묶음 전체 접기/펼치기">⊟ 접기</button>
@@ -128,13 +206,27 @@
       그 화면들은 <b>정산서가 아직 안 온 출고분(추정)</b>까지 매출로 잡지만,
       여기 받을금액은 <b>청구가 확정된 것만</b>(정산서 + 직접 판 전표) 셉니다. 아직 청구서가 없는 건은 받을 돈으로 세지 않습니다.<br><br>
 
-      <b style="color:#137a6c">■ 기준월 · 이월 · 당월</b><br>
+      <b style="color:#137a6c">■ 기준월 · 이월 · 당월</b> <span style="color:#5a6b7a">— 위쪽 잔액표</span><br>
       <b style="color:#137a6c">이월 + 당월매출 − 당월수금 = 남은금액</b> (지급 쪽도 같은 구조: 이월 + 당월매입 − 당월지급 = 남은금액)<br>
       &nbsp;&nbsp;· <b>이월</b> — 기준월 <b>앞달 말</b>의 잔액. 여러 달 밀린 못 받은·못 준 돈이 전부 여기 쌓입니다.<br>
       &nbsp;&nbsp;· <b>당월</b> — 기준월 <b>그 달에만</b> 생긴 매출·수금(매입·지급).<br>
       &nbsp;&nbsp;· <b>남은금액</b> — 처음부터 그 달 말까지 쌓인 금액 = 지금 실제로 받을(줄) 돈.<br>
       기준월을 과거로 옮기면 <b>그 시점</b> 기준으로 이월·당월·잔액이 다시 계산됩니다. 기본값은 이번 달.<br>
       <span style="color:#b45309">이 화면에 '기간(부터~까지)'이 없는 이유 — 기간으로 자르면 그 사이 증감만 남아 잔액이 아니게 됩니다.</span><br><br>
+
+      <b style="color:#137a6c">■ 특정일자 — 발생 칸 · 아래 건별 내역</b><br>
+      <span style="color:#b45309"><b>★조회줄의 「특정일자」는 위 잔액(이월·당월·남은금액)을 바꾸지 않습니다.</b></span>
+      이 날짜가 쓰이는 곳은 <b>두 군데</b>입니다 — 표 오른쪽의 <b style="color:#b45309">특정일자 발생</b> 칸과, 화면 <b>아래 건별 내역</b>입니다.
+      잔액은 <b>기준월</b>, 이 둘은 <b>특정일자</b>로 따로 움직입니다.<br>
+      &nbsp;&nbsp;· <b style="color:#b45309">특정일자 발생</b> — 그 <b>하루에 움직인</b> 매출·수금·매입·지급입니다.
+      왼쪽 누계 칸과 <b>더하거나 빼는 칸이 아니라</b>, 나란히 놓고 보는 칸입니다(오늘 무슨 일이 있었나).
+      금액 규칙은 <b>일계장</b>과 같아 두 화면 숫자가 맞습니다.<br>
+      &nbsp;&nbsp;· 보기를 <b>특정일자에 거래 있는 곳만</b>으로 두면 그날 움직인 거래처만 남습니다.<br>
+      왼쪽에서 거래처를 고르면 화면 아래에 그 거래처가 <b>그 날 하루</b>에 한 거래가 건별로 펼쳐집니다 —
+      <b>출고내역</b>(정산서 품목행 + 직접 판 판매전표) · <b>매입내역</b>(매입전표 명세) · <b>입금내역</b>(수금 전표) · <b>출금내역</b>(지급 전표).<br>
+      &nbsp;&nbsp;· 탭 옆 숫자는 그 날 그 종류의 <b>건수</b>라, 눌러보지 않아도 어디에 자료가 있는지 알 수 있습니다.<br>
+      &nbsp;&nbsp;· 위(누계)와 아래(하루)는 <b>서로 다른 것을 보는 표</b>라 숫자가 맞지 않는 것이 정상입니다.<br>
+      &nbsp;&nbsp;· 전표(판매·매입)는 <b>명세 줄</b>을 폅니다. 전표 머리에 할인이 걸려 있으면 명세 합계가 잔액에 잡힌 전표 금액과 다를 수 있습니다.<br><br>
 
       <b style="color:#137a6c">■ 출고장 묶음</b><br>
       물류센터 거래처(삼성웰스토리 지점)는 <b>대시보드·매출마감과 같은 규칙</b>으로 묶입니다 —
@@ -150,6 +242,9 @@
       &nbsp;&nbsp;· <b>받을금액이 0인 거래처가 대부분인 것은 정상</b>입니다. 정산서에는 거래처코드가 없어
       거래처마스터의 <b>출고장코드(DC_CD)</b>로만 매출이 이어지는데, 그 코드가 있는 곳은 <b>삼성웰스토리 지점 7곳</b>뿐입니다.
       나머지는 매입처라 매출이 없습니다.<br>
+      &nbsp;&nbsp;· <b>구분(매입·매출)은 실제 거래로 판정</b>합니다 — 매출·수금만 있으면 <b>매출</b>, 매입·지급만 있으면 <b>매입</b>, 둘 다면 <b>매입&amp;매출</b>(기준월과 무관하게 전 기간으로 봅니다).
+      거래처관리에 <b>등록된 거래유형과 다르면 호박색에 <span class="gb gbx">매출<i>*</i></span> 처럼 별표</b>가 붙습니다. 거래가 아예 없는 곳은 등록값을 흐리게 보여줍니다.
+      꼬리표에 마우스를 올리면 등록값이 같이 나옵니다. <b>여기서 등록값을 고치지는 않습니다</b> — 거래처관리 화면에서 수정하세요.<br>
       &nbsp;&nbsp;· <b>매입·매출을 같이 하는 거래처</b>는 한 줄에 양쪽 금액이 다 뜹니다. <b>상계(서로 빼기)는 하지 않고</b> 순액 칸으로만 보여줍니다.<br>
       &nbsp;&nbsp;· 여기서 <b>수정은 안 됩니다</b>. 금액을 바꾸려면 판매·매입·수금·지급 <b>등록 화면에서 전표를 고쳐야</b> 합니다.<br>
       &nbsp;&nbsp;· 사업장(거래처관리(사업장), TBL_BIZI_MST)과는 <b>다른 모집단</b>입니다. 여기 나오는 건 회계 거래처입니다.
@@ -171,6 +266,23 @@
       </div>
     </div>
   </div>
+
+  <%-- ★하단 건별 명세 (2026-07-27 요청) — 좌측에서 거래처를 고르면 그 거래처의 **기준일자 하루** 거래를 건별로 편다.
+         위(좌측·우측)는 '누계'이고 여기는 '그날 무슨 일이 있었나'다 — 성격이 달라 화면도 나눠 둔다.
+         탭 4개 = 출고내역 / 매입내역 / 입금내역 / 출금내역. --%>
+  <div class="cb-card" id="cbDtlCard">
+    <div class="cb-tit">
+      <span>📄 건별 내역 <small id="cbDtlSub">거래처를 고르면 그 날짜의 거래가 나옵니다</small></span>
+      <span id="cbDtlTabs" class="cb-tabs"></span>
+    </div>
+    <div class="cb-tbwrap" style="max-height:340px; min-height:120px"><table class="cb-tb" id="cbDtl"></table></div>
+    <div class="cb-dtlnote">
+      위 잔액(이월·당월·남은금액)은 <b>기준월 말까지 쌓인 누계</b>이고, 이 표는 조회줄의 <b>특정일자 하루</b>에 벌어진 거래입니다 —
+      <b>서로 다른 것을 보는 표</b>라 숫자가 맞지 않는 것이 정상입니다.
+      위 표의 <b style="color:#b45309">특정일자 발생</b> 칸과는 <b>같은 날짜</b>라 그 칸의 금액이 여기 건별로 펼쳐집니다.
+      <span id="cbDtlWarn"></span>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -180,6 +292,13 @@ var _list = [];        // 화면용 거래처별 집계
 var _pick = null;      // 선택한 거래처코드
 var _sort = { key:'recv', desc:true };
 var _col  = {};        // 접힌 묶음 { 묶음이름: true }
+/* ★[특정일자 발생] — 잔액(누계)과 별개로 '그 하루에 움직인 금액'만 담는다.
+     _day[거래처코드] = { sale, rcv, purch, pay }  (없으면 그날 거래가 없는 곳)
+     _dayKey = 마지막으로 읽은 일자(재조회 방지) · _dayOn = 한 번이라도 읽었는지 */
+var _day    = {};
+var _dayKey = '';
+var _dayOn  = false;
+var _dayErr = '';      // 발생분 조회 실패 메시지(부제에만 조용히 적는다 — 잔액은 멀쩡하므로 팝업까지는 안 띄운다)
 
 /* ★출고장 묶음 — 대시보드1·매출마감과 같은 규칙(2026-07-26 요청).
      오산센터 = 왜관·김해·광주·제주·오산 / 용인·평택은 단독.
@@ -208,24 +327,85 @@ function cbGrpOf(o){
 }
 function cbDcNm(o){ return CB_DC[cbDcCdOf(o)] || ''; }
 
+/* 실거래 기준 구분 — 받을 쪽(매출·수금) / 지급 쪽(매입·지급) 움직임이 있었는지로만 본다.
+   둘 다 없으면 '' (거래가 아예 없는 거래처 → 화면은 마스터 등록값을 흐리게 보여준다) */
+function cbGbReal(a){
+  if(!a) return '';
+  var r=Math.round(a.r)!==0, p=Math.round(a.p)!==0;
+  return (r&&p) ? '매입&매출' : (r ? '매출' : (p ? '매입' : ''));
+}
 function n(v){ var x=Number(String(v==null?'':v).replace(/,/g,'')); return isFinite(x)?x:0; }
 function fmt(v){ v=Math.round(n(v)); return v===0 ? '-' : v.toLocaleString(); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function ymLbl(s){ s=String(s||''); return s.length===6 ? s.slice(0,4)+'-'+s.slice(4,6) : s; }
 function dtLbl(s){ s=String(s||''); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : (s||'-'); }
 function thisMonth(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); }
+function today(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
 
 (function init(){
-  document.getElementById('cbYm').value = thisMonth();
+  document.getElementById('cbYm').value = thisMonth();   // 잔액용 — 종전 그대로
+  document.getElementById('cbDt').value = today();       // 아래 건별 내역용 — 잔액과 무관
   document.getElementById('cbList').innerHTML =
     '<tbody><tr><td class="cb-msg">[조회]를 누르면 거래처별 잔액이 나옵니다.</td></tr></tbody>';
   document.getElementById('cbHist').innerHTML = '';
+  cbDtlRender();
 })();
 
+/* ★기준월(잔액)과 특정일자(발생 칸·아래 내역)는 서로 건드리지 않는다 (2026-07-27 사용자 확정).
+     한때 두 칸을 연동해 특정일자로 잔액까지 잘랐는데 "기존것에 합친것은 너무 복잡함" 지적으로 갈라 놓았다.
+     · 이번 달 → 기준월만 (잔액 누계)   · 오늘 → 특정일자만 (발생 칸 + 아래 내역)
+   ★다시 연동하지 말 것 — 특정일자를 바꿔도 이월·당월·남은금액은 그대로여야 정상이다. */
 function cbThisMonth(){ document.getElementById('cbYm').value = thisMonth(); cbRender(); }
+function cbToday(){ document.getElementById('cbDt').value = today(); cbDayChg(); }
+/* 특정일자가 바뀌면 — 발생 칸과 아래 건별 내역을 함께 다시 읽는다(잔액은 손대지 않는다) */
+function cbDayChg(){ cbDayLoad(); cbDtlLoad(); }
+/* 발생 칸·건별 내역이 볼 날짜 — 'yyyymmdd' */
+function cbDtVal(){ return (document.getElementById('cbDt').value||'').replace(/-/g,''); }
+
+/* ★특정일자 발생분 — 일계장(selectDayBook)을 그대로 쓴다.
+     fromDt=toDt=특정일자 로 부르면 '그날 거래처별 매출·매입·수금·지급'이 온다.
+     ★새 서버 조회를 만들지 않은 이유 : 일계장과 금액 규칙(UNION 4갈래)이 같아야 두 화면 숫자가 맞고,
+       이미 있는 것을 쓰면 WAR 재빌드 없이 화면만 고쳐 반영된다.
+     응답에는 dt='00000000'(그 전날까지의 누계) 줄도 섞여 오는데 여기서는 **버린다** —
+     누계는 위 잔액 칸이 이미 갖고 있어 겹치면 오히려 헷갈린다. */
+function cbDayLoad(){
+  var dt=cbDtVal();
+  if(!dt){ _day={}; _dayKey=''; _dayOn=false; _dayErr=''; return; }
+  if(dt===_dayKey) return;                       // 같은 날짜면 다시 안 읽는다
+  _dayKey=dt; _dayErr='';
+  fetch(CTX+'/mangr/selectDayBook.do', { method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'fromDt='+encodeURIComponent(dt)+'&toDt='+encodeURIComponent(dt) })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(_dayKey!==dt) return;                   // 그 사이 날짜를 또 바꿨으면 버린다
+      var m={};
+      ((j&&j.data)||[]).forEach(function(r){
+        if(String(r.dt||'')==='00000000') return;          // 전일누계 줄 — 안 쓴다
+        var k=String(r.custCd||''); if(!k) return;
+        if(!m[k]) m[k]={ sale:0, rcv:0, purch:0, pay:0 };
+        m[k].sale  += n(r.saleAmt)  - n(r.saleDcAmt);      // 잔액 칸과 같은 규칙(할인 뺀 금액)
+        m[k].rcv   += n(r.rcvAmt);
+        m[k].purch += n(r.purchAmt) - n(r.purchDcAmt);
+        m[k].pay   += n(r.payAmt);
+      });
+      _day=m; _dayOn=true;
+      if(_rows.length) cbRender();               // 필터·합계까지 다시 맞춘다
+    })
+    .catch(function(e){
+      if(_dayKey!==dt) return;
+      _day={}; _dayOn=false; _dayErr='발생분을 읽지 못했습니다';
+      if(_rows.length) cbRender();               // 잔액은 그대로 두고 발생 칸만 비운다
+    });
+}
+/* 그날 발생분 꺼내기 — 없으면 0짜리 */
+function cbDayOf(cd){ return _day[cd] || { sale:0, rcv:0, purch:0, pay:0 }; }
+function cbDayAny(cd){ var d=cbDayOf(cd); return Math.round(d.sale)!==0 || Math.round(d.rcv)!==0
+                                              || Math.round(d.purch)!==0 || Math.round(d.pay)!==0; }
 
 /* ★서버는 '전 기간 × 전 거래처'를 한 번에 준다 — 잔액이 누계라 기간을 걸 수 없기 때문이다.
-     한 번 받아두면 기준월·필터·검색을 바꿔도 재조회가 없다(매출 그래프 일자별과 같은 방식). */
+     한 번 받아두면 기준월·필터·검색을 바꿔도 재조회가 없다(매출 그래프 일자별과 같은 방식).
+     ※ 하단 건별 내역만 예외로 그때그때 읽는다(하루치라 가볍고, 이 응답에 없는 낟알이라). */
 function cbLoad(){
   document.getElementById('kRange').textContent='조회 중…';
   fetch(CTX+'/mangr/selectCustBalance.do', { method:'POST', credentials:'same-origin',
@@ -239,17 +419,32 @@ function cbLoad(){
 }
 
 /* 거래처별로 접는다. 기준월(ymTo) 이후 달은 잔액에서 뺀다 — '그 시점 잔액'을 보기 위함.
+   ★조회줄의 '특정일자'는 여기 안 쓴다 — 그건 아래 건별 내역 전용이다(2026-07-27).
    ★이월 / 당월 분리 (2026-07-26 요청) : 기준월보다 앞선 달 = 이월, 기준월 = 당월.
      이월 + 당월매출 − 당월수금 = 남은금액  (지급 쪽도 같은 구조)
      기준월을 비워 두면 당월이 없어 전부 이월로 잡힌다. */
 function cbFold(){
   var ymTo=(document.getElementById('cbYm').value||'').replace('-','');
+  /* ★구분(매입/매출)은 **실제 거래 기준**으로 판정한다 (2026-07-27 확정).
+       종전엔 거래처마스터 `VENDOR_GB` 를 그대로 찍었는데, 거래처 엑셀 가져오기가 같은 코드의 거래유형을
+       합집합으로 병합해(vendorMng.jsp) 매출만 하는 웰스토리 지점까지 '매입&매출'로 뭉뚱그려져
+       화면 숫자(지급할금액 전부 0)와 어긋나 보였다. 마스터값은 꼬리표 설명(title)에 남기고, 다르면 표시한다.
+     ★기준월과 무관하게 **전 기간**으로 본다 — 기준월을 옮길 때마다 구분이 바뀌면 '성격' 표시가 아니게 된다.
+     ★수금·지급도 활동으로 센다 — 옛 매출을 이번에 받기만 한 달도 '매출 거래처'다. */
+  var act={};
+  _rows.forEach(function(r){
+    var k=String(r.custCd||''); if(!k) return;
+    if(!act[k]) act[k]={ r:0, p:0 };
+    act[k].r += Math.abs(n(r.saleAmt))  + Math.abs(n(r.rcvAmt));
+    act[k].p += Math.abs(n(r.purchAmt)) + Math.abs(n(r.payAmt));
+  });
   var m={}, ord=[];
   _rows.forEach(function(r){
     var ym=String(r.ym||'');
     if(ymTo && ym > ymTo) return;                 // 기준월 이후는 아직 안 일어난 일로 본다
     var k=String(r.custCd||'');
-    if(!m[k]){ m[k]={ custCd:k, custNm:r.custNm||k, gb:r.vendorGb||'', mgrNm:r.mgrNm||'', tel:r.tel||'', dcCd:r.dcCd||'',
+    if(!m[k]){ m[k]={ custCd:k, custNm:r.custNm||k, gb:r.vendorGb||'', gbReal:cbGbReal(act[k]),
+                      mgrNm:r.mgrNm||'', tel:r.tel||'', dcCd:r.dcCd||'',
                       recv:0, pay:0, sale:0, rcv:0, purch:0, payout:0,
                       prevRecv:0, prevPay:0, curSale:0, curRcv:0, curPurch:0, curPay:0,
                       lastDt:'', months:[] }; ord.push(k); }
@@ -281,6 +476,8 @@ function cbRender(){
     if(f==='recv' && Math.round(o.recv)===0) return false;
     if(f==='pay'  && Math.round(o.pay)===0)  return false;
     if(f==='bal'  && Math.round(o.recv)===0 && Math.round(o.pay)===0) return false;
+    /* '특정일자에 거래 있는 곳만' — 발생분을 아직 못 읽었으면 거르지 않는다(빈 화면이 되지 않게) */
+    if(f==='day'  && _dayOn && !cbDayAny(o.custCd)) return false;
     if(q && (o.custNm||'').toLowerCase().indexOf(q)<0 && (o.custCd||'').toLowerCase().indexOf(q)<0) return false;
     return true;
   });
@@ -300,14 +497,20 @@ function cbRender(){
   var yms={}; _rows.forEach(function(r){ if(r.ym) yms[r.ym]=1; });
   var yk=Object.keys(yms).sort();
   document.getElementById('kRange').textContent = yk.length ? (ymLbl(yk[0])+' ~ '+ymLbl(yk[yk.length-1])) : '자료 없음';
+  /* 부제 = 누계 기준 + 그날 움직인 곳 수(발생 칸을 읽었을 때만) */
+  var dayCnt=0; if(_dayOn) _list.forEach(function(o){ if(cbDayAny(o.custCd)) dayCnt++; });
   document.getElementById('cbListSub').textContent =
-      (document.getElementById('cbYm').value||'전체') + ' 말 기준 누계 · ' + _list.length.toLocaleString() + '곳';
+      (document.getElementById('cbYm').value||'전체') + ' 말 기준 누계 · ' + _list.length.toLocaleString() + '곳'
+      + (_dayOn ? ' · ' + (document.getElementById('cbDt').value||'') + ' 거래 ' + dayCnt.toLocaleString() + '곳'
+                : (_dayErr ? ' · ' + _dayErr : ''));
 
   cbSortList();
   cbListRender(tR, tP);
   /* 선택했던 거래처가 필터에서 빠지면 이력을 비운다 */
-  if(_pick && !_list.some(function(o){ return o.custCd===_pick; })) { _pick=null; cbHistRender(); }
-  else cbHistRender();
+  if(_pick && !_list.some(function(o){ return o.custCd===_pick; })) _pick=null;
+  cbHistRender();
+  cbDayLoad();      // 특정일자 발생 칸 (같은 날짜면 재조회 안 함)
+  cbDtlLoad();      // 필터에서 선택 거래처가 빠졌을 수 있으니 하단도 맞춰 준다(같은 조건이면 재조회 안 함)
 }
 
 function cbSortList(){
@@ -336,27 +539,36 @@ function cbListRender(tR, tP){
   }
   if(tR===undefined){ tR=0; tP=0; _list.forEach(function(o){ tR+=o.recv; tP+=o.pay; }); }
   /* 합계줄의 이월·당월도 같이 낸다 — 잔액만 합치면 '이월+당월=잔액' 이 합계줄에서 안 맞아 보인다 */
-  var s={pr:0,cs:0,cr:0,pp:0,cp:0,cy:0};
+  var s={pr:0,cs:0,cr:0,pp:0,cp:0,cy:0, ds:0,dr:0,dp:0,dy:0};
   _list.forEach(function(o){ s.pr+=o.prevRecv; s.cs+=o.curSale; s.cr+=o.curRcv;
-                             s.pp+=o.prevPay;  s.cp+=o.curPurch; s.cy+=o.curPay; });
+                             s.pp+=o.prevPay;  s.cp+=o.curPurch; s.cy+=o.curPay;
+                             var d=cbDayOf(o.custCd);
+                             s.ds+=d.sale; s.dr+=d.rcv; s.dp+=d.purch; s.dy+=d.pay; });
   /* ★머리글 2줄 — 받을금액·지급할금액을 각각 [이월·당월·남은금액] 으로 편다(2026-07-26 요청).
-       이월 = 기준월 앞달 말 잔액 · 당월 = 기준월에 생긴 것 · 남은금액 = 이월+당월매출−당월수금 */
+       이월 = 기준월 앞달 말 잔액 · 당월 = 기준월에 생긴 것 · 남은금액 = 이월+당월매출−당월수금
+     ★셋째 묶음 [특정일자 발생] 은 누계가 아니라 **그 하루** 것이다(2026-07-27 2차).
+       앞의 두 묶음과 더하거나 빼는 칸이 아니다 — 나란히 놓고 보는 칸이다. */
+  var dLb=document.getElementById('cbDt').value||'';
   var h='<thead><tr>'
-      + '<th rowspan="2" class="sortable" onclick="cbSort(\'nm\')">거래처'+_arrow('nm')+'</th>'
+      + '<th rowspan="2" class="sortable lft" onclick="cbSort(\'nm\')">거래처'+_arrow('nm')+'</th>'
       + '<th rowspan="2">구분</th>'
       + '<th colspan="4" class="grp">받을금액</th>'
       + '<th colspan="4" class="grp">지급할금액</th>'
-      + '<th rowspan="2" class="sortable" onclick="cbSort(\'net\')">순액'+_arrow('net')+'</th>'
+      + '<th colspan="4" class="grpd" title="이 하루에 움직인 금액입니다 — 왼쪽 누계와 더하는 칸이 아닙니다">'
+      +   '특정일자 발생 <span style="font-weight:600">'+esc(dLb||'-')+'</span></th>'
+      + '<th rowspan="2" class="sortable num" onclick="cbSort(\'net\')">순액'+_arrow('net')+'</th>'
       + '<th rowspan="2" class="sortable" onclick="cbSort(\'dt\')">최근거래일'+_arrow('dt')+'</th>'
       + '</tr><tr>'
-      + '<th>이월</th><th>당월매출</th><th>당월수금</th>'
-      + '<th class="sortable" onclick="cbSort(\'recv\')">남은금액'+_arrow('recv')+'</th>'
-      + '<th>이월</th><th>당월매입</th><th>당월지급</th>'
-      + '<th class="sortable" onclick="cbSort(\'pay\')">남은금액'+_arrow('pay')+'</th>'
+      + '<th class="num">이월</th><th class="num">당월매출</th><th class="num">당월수금</th>'
+      + '<th class="sortable num" onclick="cbSort(\'recv\')">남은금액'+_arrow('recv')+'</th>'
+      + '<th class="num">이월</th><th class="num">당월매입</th><th class="num">당월지급</th>'
+      + '<th class="sortable num" onclick="cbSort(\'pay\')">남은금액'+_arrow('pay')+'</th>'
+      + '<th class="dayh num">매출</th><th class="dayh num">수금</th><th class="dayh num">매입</th><th class="dayh num">지급</th>'
       + '</tr></thead><tbody>';
   h+='<tr class="tot"><td class="txt">■ 합계 ('+_list.length.toLocaleString()+'곳)</td><td></td>'
    + '<td>'+fmt(s.pr)+'</td><td>'+fmt(s.cs)+'</td><td>'+fmt(s.cr)+'</td><td>'+fmt(tR)+'</td>'
    + '<td>'+fmt(s.pp)+'</td><td>'+fmt(s.cp)+'</td><td>'+fmt(s.cy)+'</td><td>'+fmt(tP)+'</td>'
+   + cbDayCells(s.ds, s.dr, s.dp, s.dy)
    + '<td>'+(Math.round(tR-tP)).toLocaleString()+'</td><td></td></tr>';
 
   if(!document.getElementById('cbGroup').checked){
@@ -370,12 +582,15 @@ function cbListRender(tR, tP){
   var gm={}, gord=[];
   _list.forEach(function(o){
     var g=cbGrpOf(o);
-    if(!gm[g]){ gm[g]={ nm:g, rows:[], recv:0, pay:0, pr:0, cs:0, cr:0, pp:0, cp:0, cy:0, lastDt:'' }; gord.push(g); }
+    if(!gm[g]){ gm[g]={ nm:g, rows:[], recv:0, pay:0, pr:0, cs:0, cr:0, pp:0, cp:0, cy:0,
+                        ds:0, dr:0, dp:0, dy:0, lastDt:'' }; gord.push(g); }
     var t=gm[g];
     t.rows.push(o);
     t.recv+=o.recv; t.pay+=o.pay;
     t.pr+=o.prevRecv; t.cs+=o.curSale; t.cr+=o.curRcv;
     t.pp+=o.prevPay;  t.cp+=o.curPurch; t.cy+=o.curPay;
+    var d=cbDayOf(o.custCd);
+    t.ds+=d.sale; t.dr+=d.rcv; t.dp+=d.purch; t.dy+=d.pay;
     if((o.lastDt||'') > t.lastDt) t.lastDt=o.lastDt||'';
   });
   gord.sort(function(a,b){
@@ -395,6 +610,7 @@ function cbListRender(tR, tP){
      +   esc(g)+' <span class="cnt">'+t.rows.length+'곳</span></td><td></td>'
      + '<td>'+fmt(t.pr)+'</td><td>'+fmt(t.cs)+'</td><td>'+fmt(t.cr)+'</td><td class="amt-r">'+fmt(t.recv)+'</td>'
      + '<td>'+fmt(t.pp)+'</td><td>'+fmt(t.cp)+'</td><td>'+fmt(t.cy)+'</td><td class="amt-p">'+fmt(t.pay)+'</td>'
+     + cbDayCells(t.ds, t.dr, t.dp, t.dy)
      + '<td>'+(Math.round(net)===0?'-':Math.round(net).toLocaleString())+'</td>'
      + '<td class="ctr">'+dtLbl(t.lastDt)+'</td></tr>';
     if(off) return;
@@ -403,17 +619,46 @@ function cbListRender(tR, tP){
   el.innerHTML=h+'</tbody>';
 }
 
+/* [특정일자 발생] 4칸 — 합계줄·묶음줄·거래처줄이 모두 같은 함수를 쓴다.
+   ★칸 수(4개)는 머리글과 반드시 맞아야 한다. 아직 안 읽었으면 '…' 로 비워 둔다(0 으로 보이면 거래가 없는 줄 알까봐). */
+function cbDayCells(sale, rcv, purch, pay){
+  if(!_dayOn) return '<td class="dayc">…</td><td class="dayc">…</td><td class="dayc">…</td><td class="dayc">…</td>';
+  return '<td class="dayc'+(Math.round(sale) ?' amt-d':'')+'">'+fmt(sale)+'</td>'
+       + '<td class="dayc'+(Math.round(rcv)  ?' amt-d':'')+'">'+fmt(rcv)+'</td>'
+       + '<td class="dayc'+(Math.round(purch)?' amt-d':'')+'">'+fmt(purch)+'</td>'
+       + '<td class="dayc'+(Math.round(pay)  ?' amt-d':'')+'">'+fmt(pay)+'</td>';
+}
+
+/* 구분 칸 — **실거래 기준**이 원칙(2026-07-27 확정).
+     · 거래가 있으면 그 거래로 판정한 값을 보여주고, 마스터 등록값과 다르면 꼬리표를 호박색으로 표시한다.
+     · 거래가 아예 없으면 판정할 근거가 없어 마스터 등록값을 흐리게 보여준다.
+   ★마스터(TBL_VENDOR_MST.VENDOR_GB)는 고치지 않는다 — 여기는 조회 화면이고, 등록값 수정은 거래처관리에서. */
+function cbGbCell(o){
+  var gbR=o.gbReal||'', gbM=o.gb||'', txt=gbR||gbM;
+  if(!txt) return '<td class="ctr"></td>';
+  var diff=!!(gbR && gbM && gbR!==gbM);
+  var tip = (gbR ? '실거래 기준 '+gbR : '거래 없음 — 거래처마스터 등록값')
+          + (gbM ? ' · 마스터 등록 '+gbM : '')
+          + (diff ? ' (등록값과 다름)' : '');
+  return '<td class="ctr"><span class="gb'+(diff?' gbx':'')+(gbR?'':' gbm')+'" title="'+esc(tip)+'">'
+       + esc(txt)+(diff?'<i>*</i>':'')+'</span></td>';
+}
+
 /* 거래처 한 줄. sub=true 면 묶음 아래 들여쓰기 */
 function cbRowHtml(o, sub){
-  var net=o.recv-o.pay, dc=cbDcNm(o);
+  /* ★출고장 꼬리표(평택·오산…)는 안 붙인다 (2026-07-27 요청) — 거래처명에 이미 지역이 들어 있어 겹치는 표시였다.
+       대신 마우스를 올리면 나오는 설명(title)에 남겨 둔다. 뺀 만큼 거래처 칸을 좁혔다. */
+  var net=o.recv-o.pay, dc=cbDcNm(o), d=cbDayOf(o.custCd);
   return '<tr class="pick'+(_pick===o.custCd?' on':'')+'" onclick="cbPick(\''+esc(o.custCd).replace(/'/g,"\\'")+'\')">'
-   + '<td class="txt'+(sub?' ind':'')+'" title="'+esc(o.custCd)+(o.mgrNm?' · 담당 '+esc(o.mgrNm):'')+(o.tel?' · '+esc(o.tel):'')+'">'
-   +   esc(o.custNm)+(dc?' <span class="gb">'+esc(dc)+'</span>':'')+'</td>'
-   + '<td class="ctr">'+(o.gb?'<span class="gb">'+esc(o.gb)+'</span>':'')+'</td>'
+   + '<td class="txt'+(sub?' ind':'')+'" title="'+esc(o.custNm)+' ('+esc(o.custCd)+')'+(dc?' · 출고장 '+esc(dc):'')
+   +   (o.mgrNm?' · 담당 '+esc(o.mgrNm):'')+(o.tel?' · '+esc(o.tel):'')+'">'
+   +   '<span class="nm">'+esc(o.custNm)+'</span></td>'
+   + cbGbCell(o)
    + '<td>'+fmt(o.prevRecv)+'</td><td>'+fmt(o.curSale)+'</td><td>'+fmt(o.curRcv)+'</td>'
    + '<td class="amt-r">'+fmt(o.recv)+'</td>'
    + '<td>'+fmt(o.prevPay)+'</td><td>'+fmt(o.curPurch)+'</td><td>'+fmt(o.curPay)+'</td>'
    + '<td class="amt-p">'+fmt(o.pay)+'</td>'
+   + cbDayCells(d.sale, d.rcv, d.purch, d.pay)
    + '<td>'+(Math.round(net)===0?'-':Math.round(net).toLocaleString())+'</td>'
    + '<td class="ctr">'+dtLbl(o.lastDt)+'</td></tr>';
 }
@@ -427,7 +672,7 @@ function cbToggleAll(){
   cbListRender();
 }
 
-function cbPick(cd){ _pick=cd; cbListRender(); cbHistRender(); }
+function cbPick(cd){ _pick=cd; cbListRender(); cbHistRender(); cbDtlLoad(); }
 
 /* 월별 이력 — 잔액은 오래된 달부터 누적해서 만들고, 화면에는 최근 달부터 보여준다 */
 function cbHistRender(){
@@ -463,8 +708,8 @@ function cbHistRender(){
   var h='<thead><tr><th rowspan="2">월</th>'
       + '<th colspan="4" class="grp">받을금액</th>'
       + '<th colspan="4" class="grp">지급할금액</th></tr>'
-      + '<tr><th>이월</th><th>매출</th><th>수금</th><th>남은금액</th>'
-      + '<th>이월</th><th>매입</th><th>지급</th><th>남은금액</th></tr></thead><tbody>';
+      + '<tr><th class="num">이월</th><th class="num">매출</th><th class="num">수금</th><th class="num">남은금액</th>'
+      + '<th class="num">이월</th><th class="num">매입</th><th class="num">지급</th><th class="num">남은금액</th></tr></thead><tbody>';
   h+='<tr class="mtot"><td class="ctr">누계</td>'
    + '<td>-</td><td>'+fmt(o.sale)+'</td><td>'+fmt(o.rcv)+'</td><td class="amt-r">'+fmt(o.recv)+'</td>'
    + '<td>-</td><td>'+fmt(o.purch)+'</td><td>'+fmt(o.payout)+'</td><td class="amt-p">'+fmt(o.pay)+'</td></tr>';
@@ -474,6 +719,124 @@ function cbHistRender(){
      + '<td>'+fmt(r.prevP)+'</td><td>'+fmt(r.purch)+'</td><td>'+fmt(r.pay)+'</td><td class="amt-p">'+fmt(r.balP)+'</td></tr>';
   });
   el.innerHTML=h+'</tbody>';
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   하단 건별 명세 (2026-07-27 요청) — 고른 거래처의 **기준일자 하루** 거래
+     · 위(잔액·월별이력)는 누계, 여기는 그날 발생분. 성격이 달라 표를 나눠 둔다.
+     · 탭 4개 : 출고내역(정산서+판매전표) / 매입내역 / 입금내역 / 출금내역
+     · 서버 selectCustDayDetail 은 4갈래를 한 번에 주고, 탭은 화면에서 gb 로 거른다
+       (탭을 옮길 때마다 다시 부르지 않게 — 하루치라 양이 작다).
+   ══════════════════════════════════════════════════════════════════ */
+var _dtl = null;          // 서버 응답(그 거래처·그 날짜 전부). null = 아직 안 읽음
+var _dtlTab = 'SALE';     // 'SALE' 출고 / 'PURCH' 매입 / 'RCV' 입금 / 'PAY' 출금
+var _dtlKey = '';         // 마지막으로 읽은 (거래처|일자) — 같은 조건 재조회 방지
+var CB_TABS = [
+  { gb:'SALE',  nm:'출고내역', hint:'정산서 품목행 + 직접 판 판매전표' },
+  { gb:'PURCH', nm:'매입내역', hint:'매입전표 명세' },
+  { gb:'RCV',   nm:'입금내역', hint:'수금 전표' },
+  { gb:'PAY',   nm:'출금내역', hint:'지급 전표' }
+];
+/* 출고내역 탭에는 정산서(SALE)와 판매전표(STRX)를 함께 담는다 — 잔액의 매출이 그 둘의 합이라서 */
+function _dtlIn(r, tab){
+  var g=String(r.gb||'');
+  return tab==='SALE' ? (g==='SALE' || g==='STRX') : g===tab;
+}
+
+function cbDtlLoad(){
+  var dt=cbDtVal();
+  if(!_pick || !dt){ _dtl=null; _dtlKey=''; cbDtlRender(); return; }
+  var key=_pick+'|'+dt;
+  if(key===_dtlKey) { cbDtlRender(); return; }     // 같은 조건이면 다시 안 읽는다
+  _dtlKey=key; _dtl=null; cbDtlRender('읽는 중…');
+  fetch(CTX+'/mangr/selectCustDayDetail.do', { method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'custCd='+encodeURIComponent(_pick)+'&trxDt='+encodeURIComponent(dt) })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(_dtlKey!==key) return;                    // 그 사이 다른 거래처를 골랐으면 버린다
+      _dtl=(j&&j.data)||[];
+      cbDtlRender();
+    })
+    .catch(function(e){
+      if(_dtlKey!==key) return;
+      _dtl=[]; cbDtlRender('내역을 읽지 못했습니다 — '+esc(e.message));
+    });
+}
+
+function cbDtlTab(gb){ _dtlTab=gb; cbDtlRender(); }
+
+function cbDtlRender(msg){
+  var el=document.getElementById('cbDtl'), sub=document.getElementById('cbDtlSub'),
+      tabs=document.getElementById('cbDtlTabs'), warn=document.getElementById('cbDtlWarn');
+  var dtLb=document.getElementById('cbDt').value||'';
+  var o=null; _list.some(function(x){ if(x.custCd===_pick){ o=x; return true; } return false; });
+
+  if(!o){
+    sub.textContent='거래처를 고르면 그 날짜의 거래가 나옵니다';
+    tabs.innerHTML=''; warn.innerHTML='';
+    el.innerHTML='<tbody><tr><td class="cb-msg">왼쪽에서 <b>거래처 줄</b>을 누르세요.</td></tr></tbody>';
+    return;
+  }
+  sub.textContent=o.custNm+' ('+o.custCd+') · '+(dtLb||'-')+' 하루';
+
+  /* 탭 — 건수를 같이 찍어 어디에 자료가 있는지 눌러보지 않고 알게 한다 */
+  var cnt={SALE:0,PURCH:0,RCV:0,PAY:0};
+  (_dtl||[]).forEach(function(r){ CB_TABS.forEach(function(t){ if(_dtlIn(r,t.gb)) cnt[t.gb]++; }); });
+  tabs.innerHTML = CB_TABS.map(function(t){
+    return '<span class="cb-tab'+(_dtlTab===t.gb?' on':'')+'" onclick="cbDtlTab(\''+t.gb+'\')" title="'+esc(t.hint)+'">'
+         + esc(t.nm)+'<span class="c">'+(_dtl?cnt[t.gb]:'-')+'</span></span>';
+  }).join('');
+
+  if(msg){ warn.innerHTML=''; el.innerHTML='<tbody><tr><td class="cb-msg">'+esc(msg)+'</td></tr></tbody>'; return; }
+  if(_dtl===null){ warn.innerHTML=''; el.innerHTML='<tbody><tr><td class="cb-msg">읽는 중…</td></tr></tbody>'; return; }
+
+  var rows=(_dtl||[]).filter(function(r){ return _dtlIn(r,_dtlTab); });
+  var tabNm=(CB_TABS.filter(function(t){ return t.gb===_dtlTab; })[0]||{}).nm||'';
+  /* 전표 명세는 헤더 할인(DC_AMT) 때문에 합계가 잔액쪽 전표금액과 다를 수 있다 — 해당 탭에서만 알린다 */
+  warn.innerHTML = (_dtlTab==='PURCH' || rows.some(function(r){ return r.gb==='STRX'; }))
+    ? ' 전표는 <b>명세 줄</b>을 폅니다 — 전표 머리의 할인이 있으면 명세 합계가 잔액에 잡힌 전표 금액과 다를 수 있습니다.' : '';
+
+  if(!rows.length){
+    el.innerHTML='<tbody><tr><td class="cb-msg">'+esc(dtLb)+' 에 <b>'+esc(tabNm)+'</b>이 없습니다.'
+      + '<br><span style="font-size:12.5px; color:#5a6b7a; font-weight:600">기준일자를 바꾸거나 다른 탭을 눌러 보세요.</span></td></tr></tbody>';
+    return;
+  }
+
+  /* 입금·출금은 품목이 없다(계좌·수단이 그 자리) → 표 모양이 다르다.
+       ★합계줄 colspan 은 머리글 칸수와 반드시 맞아야 한다 : 돈 탭 7칸(합계 colspan 5) / 물건 탭 10칸(합계 colspan 6). */
+  var money=(_dtlTab==='RCV'||_dtlTab==='PAY');
+  var neg  =(_dtlTab==='PURCH'||_dtlTab==='PAY') ? 'amt-p' : 'amt-r';
+  var h='<thead><tr><th>구분</th><th>일자</th><th class="lft">전표번호</th>'
+      + (money ? '<th class="lft">계좌</th><th class="lft">수단</th>'
+               : '<th class="lft">출고장·창고</th><th class="lft">품목코드</th><th class="lft">품목명</th>'
+                 + '<th class="num">수량</th><th class="num">단가</th>')
+      + '<th class="num">금액</th><th class="lft">비고</th></tr></thead><tbody>';
+
+  /* ★합계는 맨 위 (2026-07-27 요청) — 건수가 많으면 아래 합계는 스크롤해야 보인다.
+       그래서 합계줄을 먼저 그려 두고 자리(idx)만 잡아 둔 뒤, 줄을 다 돈 다음 금액을 끼워 넣는다.
+       머리글 바로 아래 sticky 로 붙어 스크롤해도 따라온다. */
+  var totIdx=h.length;
+  var tQ=0, tA=0;
+  rows.forEach(function(r){
+    tQ+=n(r.qty); tA+=n(r.amt);
+    h+='<tr>'
+     + '<td class="ctr"><span class="gb">'+esc(r.gbNm||'')+'</span></td>'
+     + '<td class="ctr">'+dtLbl(r.dt)+'</td>'
+     + '<td class="txt">'+esc(r.docNo||'-')+'</td>'
+     + (money ? '<td class="txt">'+esc(r.place||'-')+'</td><td class="txt">'+esc(r.itemNm||'-')+'</td>'
+              : '<td class="txt">'+esc(r.place||'-')+'</td>'
+                + '<td class="txt">'+esc(r.itemCd||'-')+'</td>'
+                + '<td class="txt" title="'+esc(r.itemNm||'')+'">'+esc(r.itemNm||'-')+'</td>'
+                + '<td>'+(n(r.qty)===0?'-':n(r.qty).toLocaleString())+'</td>'
+                + '<td>'+fmt(r.price)+'</td>')
+     + '<td class="'+neg+'">'+fmt(r.amt)+'</td>'
+     + '<td class="txt">'+esc(r.remark||'')+'</td></tr>';
+  });
+  var tot='<tr class="mtot"><td class="txt" colspan="'+(money?5:6)+'">■ '+esc(tabNm)+' 합계 ('+rows.length.toLocaleString()+'건)</td>'
+   + (money ? '' : '<td>'+(Math.round(tQ)===0?'-':Math.round(tQ).toLocaleString())+'</td><td>-</td>')
+   + '<td class="'+neg+'">'+fmt(tA)+'</td><td></td></tr>';
+  el.innerHTML = h.slice(0,totIdx) + tot + h.slice(totIdx) + '</tbody>';
 }
 
 /* 도움말 열고닫기 — 인자 없이 부르면 토글, false 면 닫기 */

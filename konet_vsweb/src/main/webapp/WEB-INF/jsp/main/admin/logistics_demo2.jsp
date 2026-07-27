@@ -3168,7 +3168,7 @@
     var _shpTouched = !!(_shpEl && _shpEl.getAttribute('data-touched')==='1');   // 프리뷰 필드를 직접 수정했는지
     // 반영 확인(단일) — 예전 1단계 '출고일자' 별도 창은 제거하고, 이 창 하단에 출고일자를 명시(2026-07-24 요청)
     ssConfirm('파일 <b>'+ssPvName+'</b> · 시트 "<b>'+sheetNm+'</b>"<br>발주 <b style="color:#137a6c">'+rows.length+'</b>건 · 출고장 <b style="color:#137a6c">'+_zc+'</b>곳을 반영하시겠습니까?'
-      +'<br><br><span style="color:#b3760f">※ <b>기존 화면 자료를 초기화한 뒤</b> 이 파일로 새로 생성하고, <b>서버(TBL_SHIPOUT_MST)에 저장</b>됩니다. (같은 <b>출고일자·납기일자·출고장</b>의 기존 저장분은 이력으로 남고 새 버전이 활성화됩니다.)</span>'
+      +'<br><br><span style="color:#b3760f">※ <b>기존 화면 자료를 초기화한 뒤</b> 이 파일로 새로 생성하고, <b>서버(TBL_SHIPOUT_MST)에 저장</b>됩니다. (같은 <b>납품일자·출고장</b>의 기존 저장분은 <b>출고일자가 달라도</b> 이력으로 남고 새 버전이 활성화됩니다.)</span>'
       +'<div style="text-align:center;margin-top:14px;padding-top:12px;border-top:1px solid #e6ecf0">출고일자 '
       +'<input type="date" id="ssConfirmShpDt" value="'+_shp+'" oninput="ssConfirmBackUpd()" style="font-size:18px;font-weight:700;color:#137a6c;text-align:center;border:1px solid #cdd7dd;border-radius:6px;padding:4px 8px">'
       +'<div style="font-size:11.5px;color:#9aa7b3;margin-top:5px">이 날짜로 저장됩니다 — 필요하면 여기서 바로 수정하세요<br>'+_earlyNote+'</div>'
@@ -3240,7 +3240,8 @@
 
   // ── 발주현황표(코네트 출고장) 원본 전체컬럼을 서버 TBL_SHIPOUT_MST 에 저장
   //    헤더 2행(1행=메인/2행=현발주 하위) → 컬럼 매핑 후 /shipout/saveShipoutMst.do POST
-  //    복합키 = (DLV_DT 납기일자 + SHPOUT_DT 출고일자 + DC_CD 물류센터코드). 서버에서 조합별 그룹·버전관리
+  //    복합키 = (DLV_DT 납품일자 + DC_CD 물류센터코드). 서버에서 조합별 그룹·버전관리
+  //    ★출고일자(SHPOUT_DT)는 키에서 제외(2026-07-27) — 같은 납품일자·출고장을 다른 출고일자로 다시 올려도 기존 자료를 대체한다
   function ssBuildShipoutRows(aoa){
     function eq(arr,name){ for(var k=0;k<arr.length;k++){ if((''+arr[k]).trim()===name) return k; } return -1; }
     // 헤더행 탐색 (1행에 물류센터명+품목명)
@@ -3327,7 +3328,7 @@
     var rows=ssBuildShipoutRows(aoa);
     if(!rows.length) return;
     var srcFile=ssPvName;
-    // 복합키=(납기일자 DLV_DT 행별) + (출고일자 SHPOUT_DT 행별) + (물류센터 DC_CD 행별). 사업장은 키 아님.
+    // 복합키=(납품일자 DLV_DT 행별) + (물류센터 DC_CD 행별). 출고일자·사업장은 키 아님(출고일자는 값으로만 저장).
     //  ★김해·제주는 납기일자 2일 전으로 출고일자 저장(조기출고), 그 외는 baseDt(프리뷰 확정값)
     //   단, 사용자가 출고일자를 직접 지정(_ssShpOverride)했으면 김해·제주도 baseDt 로 통일(수정값 우선).
     var _ov = !!window._ssShpOverride;
@@ -5371,7 +5372,7 @@
     <div class="tih"><span><b>🛈 화면 ↔ DB 테이블 맵</b> <small>개발자 참조</small></span><button onclick="document.getElementById('tblinfoPanel').classList.remove('on')">&times;</button></div>
 
     <div class="grp">조회·대시보드관리</div>
-    <div class="row"><div class="nm">출고현황표 1·2 / 출고세부조회</div>출고 원천 <code>TBL_SHIPOUT_MST</code>. 배치키=납기<code>DLV_DT</code>+출고일<code>SHPOUT_DT</code>+출고장<code>DC_CD</code>, 버전 <code>JOB_SEQ</code>·활성 <code>ACTION_YN='Y'</code>(재업로드 시 이전 배치 'N'). 품목=<code>ITEM_CD</code>, 수량=<code>CUR_QTY</code>.</div>
+    <div class="row"><div class="nm">출고현황표 1·2 / 출고세부조회</div>출고 원천 <code>TBL_SHIPOUT_MST</code>. 배치키=납품<code>DLV_DT</code>+출고장<code>DC_CD</code>, 버전 <code>JOB_SEQ</code>·활성 <code>ACTION_YN='Y'</code>(재업로드 시 이전 배치 'N'). <b>출고일<code>SHPOUT_DT</code>은 배치키가 아니다</b>(2026-07-27 — 출고일을 바꿔 다시 올려도 같은 납품일자·출고장이면 대체된다. 조회 기준으로는 계속 사용). 품목=<code>ITEM_CD</code>, 수량=<code>CUR_QTY</code>.</div>
 
     <div class="grp">매입·재고관리</div>
     <div class="row"><div class="nm">입고내역</div><code>TBL_STOCK_LEDGER</code> 중 <code>IO_GB='I'</code>(입고). 매입처=<code>VENDOR_CD</code>.</div>
@@ -5875,8 +5876,8 @@
           <tr><td class="m">마감현황(월계표)</td><td>선택 월 매출·매입·순마진 요약(KPI) + <b>🔒 마감 확정 / 🔓 해제</b>. 확정 = 3종 통합 저장 + 기말재고 스냅샷 + 그 달 수불 잠금.</td></tr>
           <tr><td class="m">매출 그래프(월별)</td><td>출고장별·월별 <b>매출액 · 매입액 · 순마진</b> 그래프+표. 보기 3가지 — <b>매입액·순마진</b>(쌓으면 막대 높이가 매출액) / 매출 구성(정산서·추정·직접판매) / 매출액만. <b>금액 기준은 마감현황과 동일</b>(매출=정산서+정산서 없는 출고의 추정+직접판매, 매입=나간 수량×매입단가). <span style="color:#b45309">매입가 미등록 품목은 매입액 0이라 마진이 커 보임.</span></td></tr>
           <tr><td class="m">매출 그래프(일자별)</td><td>같은 기준을 <b>하루 단위</b>로. 기본 최근 일주일, 주말 구분 표시. 출고장으로 쪼개지 않고 하루 합계만.</td></tr>
-          <tr><td class="m">거래처별 채권·채무</td><td>거래처마다 <b>받을금액</b>과 <b>지급할금액</b>을 한 줄로. <b>받을금액</b>=(매출−매출할인)−수금 / <b>지급할금액</b>=(매입−매입할인)−지급. <b>이월 + 당월매출 − 당월수금 = 남은금액</b> 으로 펼쳐 보여주고, 줄 클릭 → 오른쪽 <b>월별 이력</b>(최근 달부터).
-            <div style="margin-top:3px;color:#5a6b7a">잔액은 <b>전 기간 누계</b>라 기간 대신 <b>기준월</b>로 봅니다(그 달 말 시점 잔액). 원천은 수금등록·지급등록의 거래처 원장과 같습니다. <b>조회 전용</b> — 금액 수정은 판매·매입·수금·지급 등록 화면에서.</div></td></tr>
+          <tr><td class="m">거래처별 채권·채무</td><td>거래처마다 <b>받을금액</b>과 <b>지급할금액</b>을 한 줄로. <b>받을금액</b>=(매출−매출할인)−수금 / <b>지급할금액</b>=(매입−매입할인)−지급. <b>이월 + 당월매출 − 당월수금 = 남은금액</b> 으로 펼쳐 보여주고, 오른쪽 끝에 <b>특정일자 발생</b>(그 하루의 매출·수금·매입·지급) 4칸. 줄 클릭 → 오른쪽 <b>월별 이력</b>(최근 달부터) + <b>아래 건별 내역</b> 4탭(출고·매입·입금·출금).
+            <div style="margin-top:3px;color:#5a6b7a">잔액은 <b>전 기간 누계</b>라 기간 대신 <b>기준월</b>로 봅니다(그 달 말 시점 잔액). 조회줄의 <b>특정일자</b>는 <b>발생 칸과 아래 건별 내역 전용</b>이라 위 잔액을 바꾸지 않습니다 — 누계 칸과 하루 칸을 나란히 놓고 보는 것이라 숫자가 다른 것이 정상입니다(발생 칸 금액 규칙은 <b>일계장</b>과 같습니다). 보기를 <b>특정일자에 거래 있는 곳만</b>으로 두면 그날 움직인 거래처만 남습니다. <b>구분(매입·매출)은 실제 거래로 판정</b>합니다 — 거래처관리에 등록된 거래유형과 다르면 별표가 붙습니다(등록값 수정은 거래처관리에서). 원천은 수금등록·지급등록의 거래처 원장과 같습니다. <b>조회 전용</b> — 금액 수정은 판매·매입·수금·지급 등록 화면에서.</div></td></tr>
           <tr><td class="m">일계장</td><td>고른 <b>하루</b>의 매출·매입·수금·지급을 거래처별로. <b>전일잔액 + 당일매출 − 당일수금 = 잔액</b>. 기본은 <b>그날 움직인 거래처만</b>(체크하면 잔액만 남은 곳까지). <b>🖨 인쇄</b>는 A4 세로로 표만 출력합니다. 금액 규칙은 거래처별 채권·채무와 같습니다.</td></tr>
           <tr><td class="m">월별 마감이력</td><td>확정한 <b>여러 달</b>의 매출·원가·마진·매입·기말재고금액 목록. 행 클릭 → 그 달 마감현황.</td></tr>
         </tbody></table>
@@ -6003,48 +6004,50 @@
               <select id="ssPvSheet" onchange="ssPvRender()"></select>
             </span>
             <button class="btn-line" id="ssPvHelpBtn" style="margin-left:auto; padding:4px 12px; font-size:12.5px" onclick="ssPvHelp()"
-                    title="이 화면 사용법 — 폴더 지정 / 파일 선택 / 출고일자">ℹ️ 도움말</button>
+                    title="이 화면 사용법 — 데이터 연계(출고장+납품일자가 같으면 대체) / 폴더 지정 / 파일 선택 / 출고일자">ℹ️ 도움말</button>
           </div>
-          <%-- 도움말: 기본 접힘(화면이 빽빽해 상시 노출하면 미리보기 표가 밀림 — 매출 그래프 도움말과 같은 방식) --%>
-          <div id="ssPvHelpBox" style="display:none; flex:0 0 auto; margin:12px 20px 0; padding:11px 14px; background:#f4f8f7; border:1px solid #d5e6e2; border-radius:8px; font-size:12.5px; line-height:1.75; color:#37475a">
-            <div style="display:flex; gap:18px; flex-wrap:wrap">
-              <div style="flex:1 1 320px; min-width:280px">
-                <b style="color:#137a6c">📂 폴더 지정</b> — 발주현황표를 받아 두는 <b>폴더를 한 번만</b> 지정하면 그 안의 파일이 왼쪽에 <b>최신순</b>으로 나열되고, 이 화면을 열 때마다 <b>가장 최근 파일이 자동으로 펼쳐집니다</b>. 지정한 폴더는 브라우저가 기억합니다(다음엔 권한만 한 번 허용).<br>
-                <span style="color:#8a6414">⚠️ <b>다운로드 폴더 자체는 지정할 수 없습니다</b>(브라우저가 시스템 폴더로 막음). 그 안에 <b>「코네트_발주현황표」</b> 같은 하위폴더를 만들어 지정하세요.</span><br>
-                <span style="color:#6b7a89">※ Chrome·Edge 에서, 그리고 https 또는 localhost 접속일 때만 됩니다. 안 되면 <b>📄 파일 선택</b>을 쓰세요.</span>
+          <%-- 도움말: 기본 접힘(화면이 빽빽해 상시 노출하면 미리보기 표가 밀림 — 매출 그래프 도움말과 같은 방식).
+               ★2026-07-27 사용자: "도움말이 너무 방대" → 한 줄 요약형으로 줄임. 세부 설명은 각 버튼·아이콘의 hover 툴팁에 있다.
+                 다시 늘리자는 얘기가 나오면 이 이력부터 확인할 것. --%>
+          <div id="ssPvHelpBox" style="display:none; flex:0 0 auto; margin:12px 20px 0; padding:11px 14px; background:#f4f8f7; border:1px solid #d5e6e2; border-radius:8px; font-size:12.5px; line-height:1.7; color:#37475a">
+            <%-- ① 데이터 연계 = 기존자료가 있을 때 어떻게 되나 (2026-07-27 요청) — 이 화면에서 가장 헷갈리는 규칙이라 맨 위·단독 카드.
+                 구현: UserController.saveShipoutMst(그룹키) · User_SQL markShipoutHistory / getShipoutNextJobSeq.
+                 ★규칙을 고치면 이 카드도 같이 고칠 것. --%>
+            <div style="padding:9px 12px; background:#fff; border:1px solid #bcd6d0; border-left:4px solid #1f9b8e; border-radius:7px; margin-bottom:10px">
+              <div style="font-weight:700; color:#137a6c; margin-bottom:3px">🔗 데이터 연계 <span style="font-weight:400; color:#9aa7b3; font-size:11.5px">— 이미 올린 자료가 있을 때</span></div>
+              <div><b style="color:#c0392b">출고장 + 납품일자</b> 가 같으면 <b>기존 자료를 대체</b>합니다. <b>출고일자는 보지 않습니다.</b><br>
+                기존 자료는 지워지지 않고 <b>이력으로 내려가고</b> 새로 올린 것이 활성이 됩니다 — <b>잘못 올렸으면 바른 파일을 그냥 다시 올리면</b> 됩니다.<br>
+                <span style="color:#6b7a89">다른 출고장·다른 납품일자 자료는 그대로 남습니다(한 파일에 물류센터가 여러 곳이면 조합마다 따로 판정). 화면은 이 파일로 <b>통째 교체</b>되고, 재고는 출고일자별로 다시 계산됩니다.</span></div>
+            </div>
+            <div style="display:flex; gap:16px; flex-wrap:wrap">
+              <div style="flex:1 1 300px; min-width:270px">
+                <b style="color:#137a6c">📂 폴더 지정</b> — 자료 폴더를 <b>한 번만</b> 지정하면 그 안의 파일이 좌측에 최신순으로 나열되고 최근 파일이 자동으로 펼쳐집니다.<br>
+                <span style="color:#8a6414">⚠️ 다운로드 폴더 <b>자체</b>는 안 됩니다 — 그 안에 하위폴더를 만들어 지정하세요(Chrome·Edge 전용).</span><br>
+                <b style="color:#137a6c">📄 파일 선택</b> — 폴더 밖 파일 하나를 직접 엽니다.
               </div>
-              <div style="flex:1 1 320px; min-width:280px">
-                <b style="color:#137a6c">📄 파일 선택</b> — 폴더 밖에 있는 파일 하나를 탐색기로 직접 엽니다. 지정한 폴더를 쓰지 않아도 되는 <b>예전 방식</b>입니다.<br>
-                <b style="color:#137a6c">목록에 뜨는 파일</b> — 이름이 <code>2026.07.11_13.25.10</code> 처럼 <b>날짜·시각으로 시작하는 xlsx</b>만 나옵니다(출고장이 내려주는 파일 이름 규칙). 뒤에 붙는 말은 무엇이든 상관없습니다.<br>
-                <b style="color:#137a6c">🗑</b> — 파일을 <b>「_삭제됨」 하위폴더로 이동</b>합니다(지우는 게 아니라 복구 가능).<br>
-                <b style="color:#137a6c">✔ 작성 후</b> — 반영이 끝난 엑셀은 <b>「_반영됨」 하위폴더로 자동 이동</b>해 위 목록에서 사라지고, 아래 <b>올린 이력</b> 맨 위로 올라옵니다(같은 파일을 두 번 올리지 않게). 파일은 그 폴더에 그대로 있습니다.<br>
-                <span style="color:#6b7a89">※ 다운로드 폴더(지정 폴더의 <u>상위</u>)로는 옮길 수 없습니다 — 브라우저가 상위 폴더 접근을 주지 않습니다.</span><br>
-                <b style="color:#137a6c">🕘 올린 이력</b> — 좌측 아래에 <b>서버에 실제로 반영한</b> 것이 <b>최신부터</b> 쌓입니다(위는 폴더의 파일, 아래는 반영 결과). 기본은 <b>오늘</b>이고 머리글의 <b>3일</b>을 누르면 최근 3일을 날짜별로 봅니다.<br>
-                <span style="color:#6b7a89">한 번에 올린 것은 <b>출고장이 갈려도 한 줄</b>로 묶입니다 — <code>출고장 7곳 · 오산·용인·왜관…</code>. 출고장별 행수는 줄에 마우스를 올리면 나옵니다.</span> <b style="color:#137a6c">초록 줄</b>은 지금 펼쳐 둔 파일 = <b>이미 올린 자료</b>, <span style="color:#9aa7b3">이력</span> 표시는 뒤에 올린 자료로 덮인 것입니다. 줄을 누르면 그 파일을 다시 펼칩니다.
+              <div style="flex:1 1 300px; min-width:270px">
+                <b style="color:#137a6c">파일 목록</b> — <code>2026.07.11_13.25.10</code> 처럼 <b>날짜로 시작하는 xlsx</b>만 나옵니다. <b>🗑</b>=「_삭제됨」, <b>작성 후</b>=「_반영됨」 하위폴더로 이동(복구 가능).<br>
+                <b style="color:#137a6c">🕘 올린 이력</b> — 좌측 아래, <b>서버에 실제 반영한</b> 것이 최신순. <b style="color:#137a6c">초록 줄</b>=지금 펼친 파일(이미 올린 자료).
               </div>
-              <div style="flex:1 1 320px; min-width:280px">
-                <b style="color:#137a6c">작성(반영) 전에</b> — 내용을 확인하고 아래 <b>출고일자</b>를 확인·수정한 뒤 <b>✔ 작성</b>을 누르면 서버(TBL_SHIPOUT_MST)에 저장되고 대시보드에 반영됩니다.<br>
-                <span style="color:#c0392b">※ <b>김해·제주</b>는 조기출고라 <b>납기일자 2일 전</b>으로 저장됩니다</span>(해당 출고장이 파일에 있으면 아래에 안내가 뜹니다). 출고일자를 직접 바꾸면 그 값으로 통일 저장됩니다.<br>
-                <span style="color:#6b7a89">미리보기의 <b>노란 칸</b>이 실제로 반영되는 컬럼입니다.</span>
+              <div style="flex:1 1 300px; min-width:270px">
+                <b style="color:#137a6c">✔ 작성 전에</b> — 내용을 확인하고 아래 <b>출고일자</b>를 확인·수정한 뒤 누르세요. 미리보기의 <b>노란 칸</b>이 반영되는 컬럼입니다.<br>
+                <span style="color:#c0392b">※ <b>김해·제주</b>는 조기출고라 <b>납기일자 2일 전</b>으로 저장됩니다</span> — 출고일자를 직접 바꾸면 그 값으로 통일됩니다.<br>
+                <span style="color:#6b7a89">오류가 있어도 저장은 진행됩니다(알림만). 새 사업장은 자동 등록됩니다.</span>
               </div>
             </div>
             <%-- 브라우저 다운로드 위치를 전용 폴더로 바꿔 두면 '받기 → 옮기기'가 사라진다.
                  ★chrome:// 주소는 링크 클릭으로 못 연다(브라우저가 막음) → 복사해서 주소창에 붙여넣게 안내 + [복사] 버튼. --%>
-            <div style="margin-top:10px; padding:10px 12px; background:#fff; border:1px dashed #bcd6d0; border-radius:7px">
-              <div style="font-weight:700; color:#137a6c; margin-bottom:5px">⚙️ 받은 파일이 바로 그 폴더에 쌓이게 하기 <span style="font-weight:400; color:#9aa7b3; font-size:11.5px">— 크롬 다운로드 위치 바꾸기(한 번만)</span></div>
-              <div style="color:#6b7a89; margin-bottom:6px">이렇게 해 두면 출고장에서 파일을 <b>받는 순간 이 목록에 뜹니다</b>. 매번 옮길 필요가 없습니다.</div>
-              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:6px">
-                <span><b>①</b> 크롬 주소창에 붙여넣고 Enter</span>
+            <div style="margin-top:10px; padding:8px 12px; background:#fff; border:1px dashed #bcd6d0; border-radius:7px">
+              <div style="font-weight:700; color:#137a6c; margin-bottom:3px">⚙️ 받은 파일이 바로 그 폴더에 쌓이게 하기 <span style="font-weight:400; color:#9aa7b3; font-size:11.5px">— 크롬 다운로드 위치 바꾸기(한 번만)</span></div>
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
+                <span><b>①</b> 주소창에 붙여넣고 Enter</span>
                 <code id="ssPvChromeUrl" style="background:#eef4f3; border:1px solid #d5e6e2; border-radius:4px; padding:2px 7px; font-size:12.5px; color:#1f2a37">chrome://settings/downloads</code>
-                <button class="btn-line" style="padding:2px 9px; font-size:11.5px" onclick="ssCopyTxt('chrome://settings/downloads', this)" title="주소를 복사합니다. 크롬 주소창에 붙여넣고 Enter 를 누르세요.">📋 복사</button>
-                <span style="color:#9aa7b3; font-size:11.5px">(엣지는 <code style="background:#eef4f3;border:1px solid #d5e6e2;border-radius:4px;padding:1px 5px">edge://settings/downloads</code>
+                <button class="btn-line" style="padding:2px 9px; font-size:11.5px" onclick="ssCopyTxt('chrome://settings/downloads', this)" title="주소를 복사합니다. 크롬 주소창에 붙여넣고 Enter 를 누르세요.&#10;※ 눌러서는 안 열립니다 — 브라우저가 설정 페이지로의 링크 이동을 막습니다.">📋 복사</button>
+                <span style="color:#9aa7b3; font-size:11.5px">(엣지 <code style="background:#eef4f3;border:1px solid #d5e6e2;border-radius:4px;padding:1px 5px">edge://settings/downloads</code>
                   <button class="btn-line" style="padding:1px 7px; font-size:11px" onclick="ssCopyTxt('edge://settings/downloads', this)">📋</button>)</span>
               </div>
-              <div style="color:#8a6414; font-size:11.5px; margin-bottom:6px">※ 이 글자를 눌러도 안 열립니다 — 브라우저가 설정 페이지로의 <b>링크 이동을 막기</b> 때문입니다. 꼭 <b>복사해서 주소창에</b> 붙여넣으세요.</div>
-              <div><b>②</b> <b>「다운로드 위치」 → [변경]</b> → 새 폴더 <b>「코네트_발주현황표」</b> 를 만들어 지정<br>
-                <span style="color:#6b7a89; font-size:11.5px">다운로드 폴더 <u>안</u>에 만들어도 됩니다. 폴더 <b>자체</b>가 아니라 그 <b>하위폴더</b>라야 이 화면에서 지정할 수 있습니다.</span></div>
-              <div style="margin-top:4px"><b>③</b> <b>「다운로드하기 전에 각 파일의 저장 위치 확인」</b> 을 <b>끄기</b> <span style="color:#6b7a89; font-size:11.5px">(받을 때마다 창이 뜨지 않게 — 선택)</span></div>
-              <div style="margin-top:4px"><b>④</b> 이 화면 위쪽 <b>📂 폴더 지정</b> 에서 <b>같은 폴더</b>를 골라 주세요 <span style="color:#6b7a89; font-size:11.5px">(한 번만 — 다음부터는 기억합니다)</span></div>
+              <div style="margin-top:3px"><b>②</b> <b>「다운로드 위치」 → [변경]</b> → 새 하위폴더 지정 &nbsp;<b>③</b> 이 화면 <b>📂 폴더 지정</b> 에서 <b>같은 폴더</b> 선택
+                <span style="color:#8a6414; font-size:11.5px">— 위 주소는 눌러도 안 열립니다. 꼭 <b>복사해서 주소창에</b> 붙여넣으세요.</span></div>
             </div>
           </div>
           <div class="mbody" style="display:flex; gap:12px; align-items:flex-start">

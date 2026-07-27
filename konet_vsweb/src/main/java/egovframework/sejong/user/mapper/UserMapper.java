@@ -30,6 +30,7 @@ public interface UserMapper {
 	List<java.util.Map<String,Object>> selectCommCodeList(java.util.Map<String,Object> param) throws Exception;
 
 	// ===== 출고장(발주현황표) 업로드 저장 (TBL_SHIPOUT_MST) =====
+	java.util.List<String> selectShipoutActiveShpoutDts(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;  // 이력마감 전 (납품일자+물류센터) 활성배치의 출고일자 — 재고연동용
 	int markShipoutHistory(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 	int deleteShipoutZone(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;   // 출고장(DC_CD+INWH)+출고일자 활성분 소프트 삭제(ACTION_YN='D')
 	int getShipoutNextJobSeq(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
@@ -212,6 +213,7 @@ public interface UserMapper {
 	int deleteSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectCustLedger(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectCustBalance(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;   /* 거래처별 받을금액/지급할금액 — 전 거래처 × 월 (2026-07-26) */
+	java.util.List<java.util.Map<String,Object>> selectCustDayDetail(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception; /* 위 화면 하단 — 한 거래처의 특정일자 하루 건별 내역(출고·매입·입금·출금) (2026-07-27) */
 	java.util.List<java.util.Map<String,Object>> selectDayBook(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;       /* 일계장 — 하루치 거래처별 매출·매입·수금·지급 (2026-07-26) */
 
 	/* ===== 판매등록 (TBL_SALES_TRX_MST/DTL) — 2026-07-25. 매입등록과 대칭 ===== */

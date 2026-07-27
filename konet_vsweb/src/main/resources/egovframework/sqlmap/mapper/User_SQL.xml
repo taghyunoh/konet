@@ -411,18 +411,30 @@
 
 	<!-- ============================================================
 	     출고장(발주현황표) 업로드 저장 — TBL_SHIPOUT_MST  (MSSQL)
-	     · 배치·이력 복합키 = (DLV_DT 납기일자 + SHPOUT_DT 출고일자 + DC_CD 물류센터코드) / 버전 JOB_SEQ / 활성·이력 ACTION_YN
-	     · 조회·출력 기준 = SHPOUT_DT(출고일자)
+	     · 배치·이력 복합키 = (DLV_DT 납품일자 + DC_CD 물류센터코드) / 버전 JOB_SEQ / 활성·이력 ACTION_YN
+	       ★SHPOUT_DT(출고일자)는 키에서 제외(2026-07-27) — 같은 납품일자·출고장을 다른 출고일자로 다시 올리면
+	         종전에는 별개 배치가 되어 옛 자료가 활성인 채 남아 이중계상됐다. 이제 출고일자가 달라도 대체된다.
+	     · 조회·출력 기준 = SHPOUT_DT(출고일자) — 키가 아닐 뿐 저장·조회 컬럼으로는 그대로 쓴다
 	     · 날짜(DLV_DT/SHPOUT_DT)는 NVARCHAR(10) 문자저장, '-' 제거(REPLACE) 후 저장/비교
-	     · 저장 1회 = ① 같은 (납기일자,출고일자,물류센터) 기존활성 이력마감 → ② JOB_SEQ+1 신규배치 INSERT
+	     · 저장 1회 = ⓪ 기존활성 출고일자 수집(재고연동용) → ① 같은 (납품일자,물류센터) 기존활성 이력마감 → ② JOB_SEQ+1 신규배치 INSERT
 	     ============================================================ -->
 
-	<!-- ① 같은 (납기일자,출고일자,물류센터) 기존 활성배치 이력마감(삭제이력 남김) -->
+	<!-- ⓪ 이력마감 전, 같은 (납품일자,물류센터) 기존 활성배치의 출고일자 목록
+	       — 출고일자가 바뀐 재업로드에서 옛 출고일자의 재고원장(O행)도 다시 동기화해야 하므로 미리 받아둔다 -->
+	<select id="selectShipoutActiveShpoutDts" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="string"><![CDATA[
+	  SELECT DISTINCT SHPOUT_DT
+	    FROM TBL_SHIPOUT_MST
+	   WHERE DLV_DT = REPLACE(ISNULL(#{dlvDt},''),'-','')
+	     AND ISNULL(DC_CD,'') = ISNULL(#{dcCd},'')
+	     AND ACTION_YN = 'Y'
+	     AND ISNULL(SHPOUT_DT,'') <> ''
+	]]></select>
+
+	<!-- ① 같은 (납품일자,물류센터) 기존 활성배치 이력마감(삭제이력 남김) — ★출고일자는 보지 않는다 -->
 	<update id="markShipoutHistory" parameterType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
 	  UPDATE TBL_SHIPOUT_MST
 	     SET ACTION_YN = 'N', UPD_DTTM = GETDATE(), UPD_USER = #{updUser}, UPD_IP = #{updIp}
 	   WHERE DLV_DT    = REPLACE(ISNULL(#{dlvDt},''),'-','')
-	     AND SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
 	     AND ISNULL(DC_CD,'') = ISNULL(#{dcCd},'')
 	     AND ACTION_YN = 'Y'
 	]]></update>
@@ -438,12 +450,11 @@
 	     AND ACTION_YN = 'Y'
 ]]></update>
 
-	<!-- ② 같은 (납기일자,출고일자,물류센터)의 다음 배치 JOB_SEQ -->
+	<!-- ② 같은 (납품일자,물류센터)의 다음 배치 JOB_SEQ — ★①과 같은 키(출고일자 제외)여야 버전이 어긋나지 않는다 -->
 	<select id="getShipoutNextJobSeq" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="int"><![CDATA[
 	  SELECT ISNULL(MAX(JOB_SEQ),0)+1
 	    FROM TBL_SHIPOUT_MST
 	   WHERE DLV_DT    = REPLACE(ISNULL(#{dlvDt},''),'-','')
-	     AND SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
 	     AND ISNULL(DC_CD,'') = ISNULL(#{dcCd},'')
 	]]></select>
 
@@ -2617,8 +2628,12 @@
 	]]></select>
 
 	<!-- ============================================================
-	     거래처별 받을금액·지급할금액 (2026-07-26 신설) — 정보 현황 ▸ custBalance.jsp
+	     거래처별 받을금액·지급할금액 (2026-07-26 신설) — 원장관리 ▸ custBalance.jsp
 	     ★ selectCustLedger(한 거래처의 일자별 원장)를 '전 거래처 × 월' 로 넓힌 것.
+	       [2026-07-27] 특정일자 기준으로 잔액을 자르려고 낟알을 일자로 내렸다가 **되돌렸다**.
+	         잔액(누계)과 하루치 발생을 한 표에 섞으니 '이월/당월'이 무슨 뜻인지 헷갈린다는 사용자 지적.
+	         → 잔액은 종전대로 **기준월** 누계, 특정일자는 **하단 건별 내역 전용**으로 분리했다.
+	         다시 일자로 내리자는 얘기가 나오면 이 이력부터 확인할 것.
 	       같은 원천·같은 부호규칙을 쓴다. 두 화면 숫자가 다르면 설명이 안 된다.
 
 	     [원천 4갈래]
@@ -2723,6 +2738,99 @@
 	    ) g
 	    LEFT JOIN TBL_VENDOR_MST v ON v.VENDOR_CD = g.custCd AND v.ACTION_YN = 'Y'
 	   ORDER BY g.custCd, g.ym
+	]]></select>
+
+	<!-- ============================================================
+	     거래처 하루치 건별 명세 (2026-07-27 요청) — custBalance.jsp 하단
+	     좌측에서 거래처를 고르면 그 거래처의 **기준일자 하루** 거래를 건별로 편다.
+	       ① 출고내역 = 정산서 TBL_SALES_MST 품목행   ② 매입내역 = 매입전표 명세 TBL_PURCHASE_DTL
+	       ③ 입금내역 = 수금 TBL_SETTLE_TRX(RCV)      ④ 출금내역 = 지급 TBL_SETTLE_TRX(PAY)
+	       (직접 판 판매전표는 ①에 'STRX' 로 함께 — 잔액의 매출이 정산서+판매전표라서)
+
+	     ★거래처↔출고장 매칭 규칙은 selectCustBalance 와 반드시 같아야 한다.
+	       거기서 'DC_CD 별 MIN(VENDOR_CD) 1곳' 으로 접었으므로 여기서도 같은 식으로 고른다.
+	       한쪽만 고치면 "잔액에는 잡히는데 명세에는 안 나온다"가 된다.
+	     ★기간을 안 건다 = 하루치만 본다 (2026-07-27 사용자 확정). 잔액은 누계지만 명세는 그날 발생분이다.
+	     [주의] 전표(판매·매입)는 **명세행**을 편다 — 헤더 할인(DC_AMT)이 있으면 명세 합계가
+	            잔액에 잡힌 전표 금액(TOT_AMT)과 다를 수 있다. 화면에 그 뜻을 적어 뒀다.
+	     ============================================================ -->
+	<select id="selectCustDayDetail" parameterType="egovframework.sejong.user.model.SettleTrxDTO" resultType="java.util.HashMap"><![CDATA[
+	  SELECT z.gb AS gb, z.gbNm AS gbNm, z.dt AS dt, z.docNo AS docNo, z.place AS place,
+	         z.itemCd AS itemCd, z.itemNm AS itemNm,
+	         z.qty AS qty, z.price AS price, z.amt AS amt, z.remark AS remark
+	    FROM (
+	          -- ① 출고(정산서) — 거래처마스터 DC_CD 로 이어진다
+	          SELECT 'SALE' AS gb, N'출고(정산서)' AS gbNm,
+	                 ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) AS dt,
+	                 LTRIM(RTRIM(ISNULL(s.ORD_NO,'')))
+	                   + CASE WHEN ISNULL(s.ORD_ITEM_NO,'') <> '' THEN '-' + LTRIM(RTRIM(s.ORD_ITEM_NO)) ELSE '' END AS docNo,
+	                 ISNULL(s.DC_NM,'') AS place,
+	                 ISNULL(s.ITEM_CD,'') AS itemCd, ISNULL(s.ITEM_NM,'') AS itemNm,
+	                 ISNULL(s.OUT_QTY,0) AS qty, ISNULL(s.SALE_PRICE,0) AS price, ISNULL(s.SALE_AMT,0) AS amt,
+	                 ISNULL(s.UNIT,'') AS remark
+	            FROM TBL_SALES_MST s
+	            CROSS APPLY (
+	                  SELECT CASE WHEN ISNULL(s.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s.DC_CD)))
+	                              WHEN ISNULL(s.DC_NM,'') LIKE '%용인%' THEN 'E100'
+	                              WHEN ISNULL(s.DC_NM,'') LIKE '%왜관%' THEN 'E200'
+	                              WHEN ISNULL(s.DC_NM,'') LIKE '%김해%' THEN 'E300'
+	                              WHEN ISNULL(s.DC_NM,'') LIKE '%광주%' THEN 'E400'
+	                              WHEN ISNULL(s.DC_NM,'') LIKE '%평택%' THEN 'E500'
+	                              WHEN ISNULL(s.DC_NM,'') LIKE '%제주%' THEN 'E600'
+	                              WHEN ISNULL(s.DC_NM,'') LIKE '%오산%' THEN 'E700'
+	                              ELSE '' END AS dcKey
+	            ) dk
+	           WHERE s.ACTION_YN = 'Y'
+	             AND ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) = REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-','')
+	             AND dk.dcKey <> ''
+	             AND dk.dcKey IN ( SELECT DC_CD FROM TBL_VENDOR_MST
+	                                WHERE ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> ''
+	                                GROUP BY DC_CD HAVING MIN(VENDOR_CD) = #{custCd,jdbcType=VARCHAR} )
+
+	          UNION ALL
+	          -- ①-2 직접 판 판매전표 명세 (출고내역 탭에 함께 — 잔액의 매출이 정산서 + 이 전표라서)
+	          SELECT 'STRX', N'판매전표',
+	                 ISNULL(NULLIF(t2.DLV_DT,''), t2.SALE_DT),
+	                 ISNULL(t2.SALE_DT,'') + '-' + ISNULL(t2.SALE_NO,''),
+	                 ISNULL(t2.WH_NM,''),
+	                 ISNULL(d2.PROD_CD,''), ISNULL(d2.PROD_NM, N'(명세 없음)'),
+	                 ISNULL(d2.QTY,0), ISNULL(d2.UNIT_PRICE,0), ISNULL(d2.TOT_AMT, t2.TOT_AMT),
+	                 ISNULL(d2.REMARK, ISNULL(t2.REMARK,''))
+	            FROM TBL_SALES_TRX_MST t2
+	            LEFT JOIN TBL_SALES_TRX_DTL d2 ON d2.SALE_SEQ = t2.SALE_SEQ AND d2.ACTION_YN = 'Y'
+	           WHERE t2.ACTION_YN = 'Y' AND t2.CUST_CD = #{custCd,jdbcType=VARCHAR}
+	             AND ISNULL(NULLIF(t2.DLV_DT,''), t2.SALE_DT) = REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-','')
+
+	          UNION ALL
+	          -- ② 매입내역 — 매입전표 명세
+	          SELECT 'PURCH', N'매입전표',
+	                 m.PURCH_DT,
+	                 ISNULL(m.PURCH_DT,'') + '-' + ISNULL(m.PURCH_NO,''),
+	                 ISNULL(m.WH_NM,''),
+	                 ISNULL(d.PROD_CD,''), ISNULL(d.PROD_NM, N'(명세 없음)'),
+	                 ISNULL(d.QTY,0), ISNULL(d.UNIT_PRICE,0), ISNULL(d.TOT_AMT, m.TOT_AMT),
+	                 ISNULL(d.REMARK, ISNULL(m.REMARK,''))
+	            FROM TBL_PURCHASE_MST m
+	            LEFT JOIN TBL_PURCHASE_DTL d ON d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN = 'Y'
+	           WHERE m.ACTION_YN = 'Y' AND m.VENDOR_CD = #{custCd,jdbcType=VARCHAR}
+	             AND m.PURCH_DT = REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-','')
+
+	          UNION ALL
+	          -- ③④ 입금(수금)·출금(지급) 전표 — 같은 표에서 TRX_GB 로 갈린다
+	          SELECT CASE WHEN t.TRX_GB = 'RCV' THEN 'RCV' ELSE 'PAY' END,
+	                 CASE WHEN t.TRX_GB = 'RCV' THEN N'입금(수금)' ELSE N'출금(지급)' END,
+	                 t.TRX_DT,
+	                 ISNULL(t.TRX_DT,'') + '-' + ISNULL(t.TRX_NO,''),
+	                 ISNULL(t.ACCT_NM, ISNULL(t.PAY_GB,'')),
+	                 '', ISNULL(t.PAY_GB, N'(구분 없음)'),
+	                 0, 0, ISNULL(t.AMT,0),
+	                 ISNULL(t.REMARK,'')
+	            FROM TBL_SETTLE_TRX t
+	           WHERE t.ACTION_YN = 'Y' AND t.CUST_CD = #{custCd,jdbcType=VARCHAR}
+	             AND t.TRX_DT = REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-','')
+	    ) z
+	   ORDER BY CASE z.gb WHEN 'SALE' THEN 1 WHEN 'STRX' THEN 2 WHEN 'PURCH' THEN 3 WHEN 'RCV' THEN 4 ELSE 5 END,
+	            z.docNo, z.itemCd
 	]]></select>
 
 	<!-- ============================================================
