@@ -5080,11 +5080,48 @@
   function _ohMount(wrap, head, list, rowFn){
     lzMount({ wrap:wrap, pager:'ohPager', head:head, list:list, rowFn:rowFn, rows:OH_ROWS, capTop:214 });
   }
-  // 진입 기본값 = 이번 달 1일 ~ 오늘
+  /* ══ 매출내역 기간 빠른 선택 (2026-07-27 요청) ═══════════════════════════════
+     당일 / 1주일(오늘 포함 최근 7일) / 해당월(1일~오늘, 말일 아님) / 직접 입력.
+     · 프리셋 3개는 누르는 즉시 조회, '직접 입력'은 날짜만 열어 두고 [조회]를 기다린다.
+     · 모드는 `_ohRg` 에 담되 **날짜칸 값과 어긋나면 자동으로 '직접 입력'으로 내려간다**
+       (`ohRangeSync`) — 손으로 날짜를 고치거나 업로드가 기간을 바꿔도(slsSyncDates)
+       버튼 표시가 실제 조회기간과 거짓말하지 않게. ★버튼 색만 바꾸고 조회는 안 한다. */
+  var _ohRg='d';                                   // 진입 기본 = 당일 (2026-07-27 사용자 요청, 종전 '해당월')
+  function _ohDayShift(n){ var d=new Date(); d.setDate(d.getDate()+n); return d.getFullYear()+'-'+ssPad(d.getMonth()+1)+'-'+ssPad(d.getDate()); }
+  function _ohRgRange(m){
+    if(m==='d') return [SS_TODAY, SS_TODAY];
+    if(m==='w') return [_ohDayShift(-6), SS_TODAY];            // 오늘 포함 7일
+    if(m==='m') return [SS_TODAY.slice(0,7)+'-01', SS_TODAY];  // 이번 달 1일 ~ 오늘
+    return null;                                               // 'c' = 직접 입력
+  }
+  function ohRangeSync(){
+    var fe=document.getElementById('slsFrom'), te=document.getElementById('slsTo');
+    if(!fe || !te) return;   // ★head 로드 시점엔 패널이 아직 없다 — 빈 값으로 비교하면 기본(당일)이 '직접 입력'으로 내려간다
+    var f=fe.value||'', t=te.value||'';
+    var r=_ohRgRange(_ohRg);
+    if(r && (f!==r[0] || t!==r[1])) _ohRg='c';                 // 칸을 손대면 직접 입력으로
+    [['d','ohRgD'],['w','ohRgW'],['m','ohRgM'],['c','ohRgC']].forEach(function(p){
+      var b=document.getElementById(p[1]); if(b) b.className=(p[0]===_ohRg)?'btn-teal':'btn-line';
+    });
+  }
+  function ohRange(m){
+    _ohRg=m;
+    var r=_ohRgRange(m);
+    if(!r){ ohRangeSync(); var e=document.getElementById('slsFrom');   // 직접 입력 — 시작일 칸으로 넘긴다
+            if(e){ e.focus(); if(e.showPicker){ try{ e.showPicker(); }catch(x){} } } return; }
+    var a=document.getElementById('slsFrom'), b=document.getElementById('slsTo');
+    if(a) a.value=r[0];
+    if(b) b.value=r[1];
+    ohRangeSync();
+    ohQuery();                                                 // 프리셋은 누르는 즉시 조회
+  }
+  // 진입 기본값 = 당일(오늘 하루) — 기본 모드 `_ohRg='d'` 와 반드시 같아야 한다
+  //  (어긋나면 ohRangeSync 가 곧바로 '직접 입력'으로 내려버린다)
   function slsInit(){
     var f=document.getElementById('slsFrom'), t=document.getElementById('slsTo');
-    if(f && !f.value) f.value=SS_TODAY.slice(0,7)+'-01';
+    if(f && !f.value) f.value=SS_TODAY;
     if(t && !t.value) t.value=SS_TODAY;
+    ohRangeSync();
   }
   // 업로드 후 = 엑셀 납품일자가 속한 '달 전체'(1일~말일)로 조회기간 셋팅
   //  · 여러 달이 섞이면 가장 이른 달 1일 ~ 가장 늦은 달 말일
@@ -5100,6 +5137,7 @@
     var f=document.getElementById('slsFrom'), t=document.getElementById('slsTo');
     if(f) f.value=y1+'-'+ssPad(m1)+'-01';
     if(t) t.value=y2+'-'+ssPad(m2)+'-'+ssPad(last);
+    ohRangeSync();   // 업로드가 기간을 바꿨으니 기간 버튼 표시도 맞춘다(대개 '직접 입력'으로 내려감)
   }
   document.addEventListener('DOMContentLoaded', function(){ ssInit(); slsInit(); });
   (function(){ ssInit(); slsInit(); })();
@@ -5377,8 +5415,17 @@
       <div class="card" style="padding-top:10px; padding-bottom:10px">
         <input type="file" id="slsFile" accept=".xlsx,.xls" multiple style="display:none" onchange="slsUpload(this)">
         <div class="form-row" style="margin-bottom:0; align-items:flex-end">
-          <div class="fld" style="flex:0 0 150px"><label>납품일자(시작)</label><input type="date" id="slsFrom"></div>
-          <div class="fld" style="flex:0 0 150px"><label>납품일자(종료)</label><input type="date" id="slsTo"></div>
+          <div class="fld" style="flex:0 0 150px"><label>납품일자(시작)</label><input type="date" id="slsFrom" onchange="ohRangeSync()"></div>
+          <div class="fld" style="flex:0 0 150px"><label>납품일자(종료)</label><input type="date" id="slsTo" onchange="ohRangeSync()"></div>
+          <%-- 기간 빠른 선택 (2026-07-27 요청) — 당일 / 1주일 / 해당월(1일~오늘) / 직접 입력 --%>
+          <div class="fld" style="flex:0 0 auto"><label>기간</label>
+            <div style="display:flex; gap:4px">
+              <button type="button" class="btn-line" id="ohRgD" style="height:36px; padding:0 12px" onclick="ohRange('d')" title="오늘 하루만 (납품일자 = 오늘). 진입 시 기본값입니다. 누르면 바로 조회합니다.">당일</button>
+              <button type="button" class="btn-line" id="ohRgW" style="height:36px; padding:0 12px" onclick="ohRange('w')" title="오늘 포함 최근 7일 (오늘−6일 ~ 오늘). 누르면 바로 조회합니다.">1주일</button>
+              <button type="button" class="btn-line" id="ohRgM" style="height:36px; padding:0 12px" onclick="ohRange('m')" title="이번 달 1일 ~ 오늘 (말일까지가 아니라 오늘까지). 누르면 바로 조회합니다.">해당월</button>
+              <button type="button" class="btn-line" id="ohRgC" style="height:36px; padding:0 12px" onclick="ohRange('c')" title="시작·종료 날짜를 직접 골라 [조회]를 누르세요. 날짜를 손으로 고치면 자동으로 이 모드가 됩니다.">직접 입력</button>
+            </div>
+          </div>
           <div class="fld" style="flex:0 0 190px"><label>출고장</label>
             <!-- 대시보드(데시보드1)와 같은 드롭다운 체크박스 다중선택. 묶음(오산센터)·개별 둘 다 고를 수 있다 -->
             <div class="ohdc-wrap" id="ohDcWrap">
@@ -5390,7 +5437,7 @@
           <div class="fld" style="flex:0 0 170px"><label>품목코드/품목명</label><input type="text" id="slsItemCd" placeholder="전체 (부분검색)"></div>
           <div class="fld" style="flex:0 0 90px"><button class="btn-teal" style="width:100%" onclick="ohQuery()">조회</button></div>
           <div class="fld" style="flex:0 0 auto; margin-left:auto">
-            <span class="tipx" title="[관점 환산] 엑셀은 출고장 기준이라 우리 기준으로 뒤집어 담습니다.&#10;  입고량→우리 출고량 · 단가→우리 판매단가 · 매입금액→우리 매출액 · 입고일자→우리 출고일자&#10;  ※ 엑셀의 '매입금액'은 우리 매입이 아닙니다(우리 매입가는 상품관리가 담당).&#10;&#10;[읽는 규칙] 품목코드 없는 행(합계행)은 제외 · 발주번호 병합셀은 위 값 승계 · 수량은 소수/음수 보존 · 납품일자는 엑셀 값, 출고장만 파일명에서 인식.&#10;&#10;[저장 단위] (납품일자+출고장) 1배치. 같은 배치를 다시 올리면 기존 자료를 이력마감한 뒤 새로 적재(이전 자료는 이력으로 남음).&#10;&#10;[판매단가 이력] 저장 시 판매가 이력에도 반영(적용일자=납품일자=발주일자) → 매출마감 출고단가가 (마스터) 대신 (이력) 확정가로 잡힘. 같은 품목·같은 날 단가가 다르면 건너뜀.&#10;&#10;[조회기간] 진입 시=이번 달 1일~오늘 / 엑셀 업로드 시=납품일자가 속한 달 전체.&#10;&#10;[기간 기준] 납품일자(=발주일자)로 양쪽을 맞춥니다. 출고내역은 출고일자로만 조회되는데 먼 지역이 하루 당겨 출고하므로, 앞뒤 한 달을 넉넉히 읽어 발주일자로 다시 걸러 정산과 같은 기간으로 맞춥니다.&#10;&#10;[대사 규칙] ★발주일자 + 출고장 + 품목코드 로 짝을 맞춥니다(합계 대 합계).&#10;  · 출고는 사업장이 여럿이면 자동으로 합쳐집니다(정산서에 사업장 칸이 없음).&#10;  · 짝 없는 출고 = 미정산(보냈는데 청구 안 됨) / 짝 없는 정산 = 출고미상(보낸 적 없는데 청구됨).&#10;  · 발주번호는 키로 쓰지 않습니다(참고 표시만) — 발주현황표에 비어 있는 행이 있고(2026-07 실측 4,184행 중 424행),&#10;    발주번호로 대사하면 매칭률이 88%→82%로 오히려 떨어집니다. 발주번호로만 짝이 맞는 금액은 0원이었습니다.">ℹ️ 도움말</span>
+            <span class="tipx" title="[관점 환산] 엑셀은 출고장 기준이라 우리 기준으로 뒤집어 담습니다.&#10;  입고량→우리 출고량 · 단가→우리 판매단가 · 매입금액→우리 매출액 · 입고일자→우리 출고일자&#10;  ※ 엑셀의 '매입금액'은 우리 매입이 아닙니다(우리 매입가는 상품관리가 담당).&#10;&#10;[읽는 규칙] 품목코드 없는 행(합계행)은 제외 · 발주번호 병합셀은 위 값 승계 · 수량은 소수/음수 보존 · 납품일자는 엑셀 값, 출고장만 파일명에서 인식.&#10;&#10;[저장 단위] (납품일자+출고장) 1배치. 같은 배치를 다시 올리면 기존 자료를 이력마감한 뒤 새로 적재(이전 자료는 이력으로 남음).&#10;&#10;[판매단가 이력] 저장 시 판매가 이력에도 반영(적용일자=납품일자=발주일자) → 매출마감 출고단가가 (마스터) 대신 (이력) 확정가로 잡힘. 같은 품목·같은 날 단가가 다르면 건너뜀.&#10;&#10;[조회기간] 진입 시=당일(오늘 하루) / 엑셀 업로드 시=납품일자가 속한 달 전체.&#10;  · 기간 버튼 — 당일 / 1주일(오늘 포함 최근 7일) / 해당월(1일~오늘, 말일 아님) / 직접 입력&#10;  · 앞 3개는 누르는 즉시 조회합니다. 직접 입력은 날짜를 고른 뒤 [조회]를 누르세요.&#10;  · 날짜칸을 손으로 고치면 자동으로 '직접 입력'으로 바뀝니다.&#10;&#10;[기간 기준] 납품일자(=발주일자)로 양쪽을 맞춥니다. 출고내역은 출고일자로만 조회되는데 먼 지역이 하루 당겨 출고하므로, 앞뒤 한 달을 넉넉히 읽어 발주일자로 다시 걸러 정산과 같은 기간으로 맞춥니다.&#10;&#10;[대사 규칙] ★발주일자 + 출고장 + 품목코드 로 짝을 맞춥니다(합계 대 합계).&#10;  · 출고는 사업장이 여럿이면 자동으로 합쳐집니다(정산서에 사업장 칸이 없음).&#10;  · 짝 없는 출고 = 미정산(보냈는데 청구 안 됨) / 짝 없는 정산 = 출고미상(보낸 적 없는데 청구됨).&#10;  · 발주번호는 키로 쓰지 않습니다(참고 표시만) — 발주현황표에 비어 있는 행이 있고(2026-07 실측 4,184행 중 424행),&#10;    발주번호로 대사하면 매칭률이 88%→82%로 오히려 떨어집니다. 발주번호로만 짝이 맞는 금액은 0원이었습니다.">ℹ️ 도움말</span>
           </div>
         </div>
         <div class="close-tabs" id="ohTabs" style="margin:6px 0 0">
@@ -5602,6 +5649,7 @@
           <tr><td class="m">매출내역</td><td><b>출고장이 준 정산서(엑셀)</b> = 그 출고장에서 <b>우리가 받을 금액</b>. 우리 <b>출고내역</b>과 나란히 놓고 <b>빠진 게 없는지 대사</b>합니다.
             <div style="margin:6px 0 3px">엑셀은 출고장 기준이라 뒤집어 담습니다 — <b>입고량→출고량 · 단가→판매단가 · 매입금액→매출액</b>. 저장하면 판매단가가 <b>판매가 이력</b>에도 들어가 <b>매출마감 단가가 실제 확정가</b>로 잡힙니다.</div>
             <div style="margin:6px 0 3px">4탭 — <b>①출고장별 합계</b>(받을 금액·수량차이·상태) · <b>②출고장▸품목</b>(어느 품목이 어긋났나) · <b>③출고장▸사업장</b>(어느 점포로 나갔나·출고수량 전용) · <b>④정산서 원본</b>(엑셀 그대로). 모두 <b>대시보드처럼 물류센터로 묶고</b> 펼치면 개별 출고장입니다.</div>
+            <div style="margin:6px 0 3px">조회기간은 <b>기간 버튼</b>으로 한 번에 — <b>당일</b>(진입 시 기본) <b>· 1주일</b>(오늘 포함 최근 7일) <b>· 해당월</b>(1일~오늘, 말일 아님) <b>· 직접 입력</b>. 앞 3개는 누르면 바로 조회하고, 직접 입력은 날짜를 고른 뒤 <b>[조회]</b>를 누릅니다(날짜를 손으로 고쳐도 직접 입력으로 바뀝니다).</div>
             <div style="margin-top:3px;color:#5a6b7a">짝 맞추기 = <b>발주일자 + 출고장 + 품목코드</b> (합계 대 합계). 짝 없는 출고 = <b style="color:#c0392b">미정산</b>(청구 누락 후보), 짝 없는 정산 = <b style="color:#c0392b">출고미상</b>. 자세한 규칙은 화면의 <b>ℹ️ 도움말</b>에 있습니다.</div></td></tr>          <tr><td class="m">물품동선관리 <span style="color:#9aa7b3;font-size:11px">(예정·데모)</span></td><td>창고/로케이션·입고등록(창고선정)·창고별 재고현황·재고/위치조회·출고지시 — 물품 이동(입고→위치→피킹→출고) 데모 화면. 향후 실데이터 연동 예정.</td></tr>
         </tbody></table>
       </div>
