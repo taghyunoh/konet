@@ -4655,24 +4655,38 @@
        정렬 = 차이 절대값 큰 순. 부호로 방향을 구분한다.
          · +  출고 > 정산 = 보냈는데 청구가 덜 됐다(청구 누락 후보)
          · −  정산 > 출고 = 청구가 더 됐다(과청구·출고기록 누락 후보)                          */
+  /* ★[미정산 같이 보기] (2026-07-28 요청) — 기본은 끔.
+       켜면 <정산서에 없는 품목>(=미정산)까지 같은 표에 회색·호박색으로 섞어 보여 준다.
+       · 이때는 **정산서가 통째로 안 온 출고장**까지 훑는다 — 미정산은 거기 몰려 있기 때문이다.
+       · 미정산 줄은 '차이'가 아니므로 (정산 많음 · 출고 많음) 건수에는 넣지 않는다. 따로 센다.
+       · 제외 건수(skipNB)는 켜고 끄고에 상관없이 **항상 전체 기준**으로 센다 — 안 그러면 같은 화면에서
+         숫자가 오락가락한다(종전엔 정산서 온 출고장 안에서만 세어 실제보다 적게 나왔다). */
+  var _ohGapNB=false;
+  function ohGapNB(){ _ohGapNB=!_ohGapNB; ohRender(); }
+
   function _ohRenderGap(G, wrap){
     /* ★수량차이 = <정산수량 − 출고수량> (2026-07-27 사용자 확정). 정산서 기준 탭이라 정산서를 앞에 둔다.
          ①②③탭은 반대(출고−정산)라 부호가 뒤집혀 보인다 — 이 탭은 정산서 기준이라는 뜻이므로 헷갈리지 않게
          컬럼도 '정산수량 → 출고수량' 순으로 놓고, 머리글·툴팁에 계산식을 적어 둔다.
            +  정산 > 출고 = 청구가 더 됐다(과청구·출고기록 누락 후보)
            −  출고 > 정산 = 보냈는데 청구가 덜 됐다(청구 누락 후보) */
-    var rows=[], tO=0, tS=0, sMore=0, oMore=0, skipNB=0, dcN=0;
+    var rows=[], tO=0, tS=0, sMore=0, oMore=0, skipNB=0, dcN=0, nbN=0;
     G.forEach(function(g){
-      if(!(g.sRows>0)) return;                                     // 정산서가 통째로 안 온 출고장은 대사 불가
-      dcN++;
+      var hasS=(g.sRows>0);                                        // 이 출고장에 정산서가 왔는가
+      if(hasS) dcN++;
       g.itemOrd.forEach(function(k){
         var it=g.items[k];
         var d=(+it.sQty||0)-(+it.oQty||0);                         // 정산수량 − 출고수량
-        if(!(it.sRows>0)){                                         // 정산서에 없는 품목 = 대사 대상 아님
-          if(Math.abs(d)>0.0001) skipNB++;                         //   몇 건 빠졌는지만 세어 알린다
+        if(Math.abs(d)<=0.0001) return;                            // 수량이 맞는 품목 제외
+        if(!(it.sRows>0)){                                         // 정산서에 없는 품목 = 미정산(대사 대상 아님)
+          skipNB++;                                                //   전체 기준으로 항상 센다
+          if(!_ohGapNB) return;                                    //   [미정산 같이 보기] 꺼져 있으면 여기까지
+          nbN++;
+          rows.push({ dc:g.label, it:it, d:d, nb:true });
+          tO+=(+it.oQty||0); tS+=(+it.sQty||0);
           return;
         }
-        if(Math.abs(d)<=0.0001) return;                            // 수량이 맞는 품목 제외
+        if(!hasS) return;                                          // 방어 — 정산행이 있으면 hasS 가 참이어야 한다
         rows.push({ dc:g.label, it:it, d:d });
         tO+=(+it.oQty||0); tS+=(+it.sQty||0);
         if(d>0) sMore++; else oMore++;
@@ -4683,8 +4697,9 @@
     var gm={}, gs=[];
     rows.forEach(function(r){
       var e=gm[r.dc];
-      if(!e){ e=gm[r.dc]={ dc:r.dc, its:[], oQty:0, sQty:0, d:0 }; gs.push(e); }
+      if(!e){ e=gm[r.dc]={ dc:r.dc, its:[], oQty:0, sQty:0, d:0, nb:0 }; gs.push(e); }
       e.its.push(r); e.oQty+=(+r.it.oQty||0); e.sQty+=(+r.it.sQty||0); e.d+=r.d;
+      if(r.nb) e.nb++;
     });
     gs.forEach(function(e){ e.its.sort(function(a,b){ return Math.abs(b.d)-Math.abs(a.d); }); });
     gs.sort(function(a,b){ return Math.abs(b.d)-Math.abs(a.d) || String(a.dc).localeCompare(String(b.dc),'ko'); });
@@ -4721,10 +4736,20 @@
         +'<th style="text-align:right" title="정산수량 − 출고수량&#10;+ 정산이 많음 = 청구가 더 됨(과청구·출고기록 누락 후보)&#10;− 출고가 많음 = 보냈는데 청구가 덜 됨(청구 누락 후보)">수량차이<br><span style="font-weight:400;font-size:10.5px">정산−출고</span></th>'
         +'<th style="text-align:right">판매단가</th>'
         +'<th style="text-align:right" title="정산서 금액 + 정산서가 안 온 출고의 추정매출(판매단가).">정산금액</th></tr></thead><tbody>';
-    h+='<tr class="close-total"><td colspan="3">■ 차이 품목 '+rows.length.toLocaleString()+'건'
-      +(rows.length?(' <span style="font-weight:600">(정산 많음 '+sMore+' · 출고 많음 '+oMore+' · 출고장 '+gs.length+'곳)</span>'):'')
-      +' <span style="font-weight:600;font-size:11.5px">— 정산서 온 출고장 '+dcN+'곳 · 정산서에 있는 품목만 대사</span>'
-      +(skipNB?('<br><span style="font-weight:600;font-size:11.5px;color:#ffe9c9">※ 정산서에 없는 품목 '+skipNB+'건은 대사 대상이 아니라 제외 — ①탭 상태 칸의 <b>미정산</b>에서 확인</span>'):'')
+    /* [미정산 같이 보기] 스위치 — 합계줄 안에 둔다(표 밖에 두면 페이저가 다시 그릴 때 사라진다) */
+    var nbBtn = '<span onclick="ohGapNB()" title="'
+      + (_ohGapNB ? '미정산 품목을 숨기고 수량차이만 봅니다'
+                  : '정산서에 없는 품목(미정산)까지 같은 표에 섞어 봅니다 — 정산서가 아예 안 온 출고장도 포함')
+      + '" style="cursor:pointer;user-select:none;font-weight:700;font-size:11.5px;'
+      + 'border:1px solid rgba(255,255,255,.55);border-radius:6px;padding:1px 8px;margin-left:8px;'
+      + (_ohGapNB ? 'background:#ffe9c9;color:#7a4b0a' : 'color:#ffe9c9') + '">'
+      + (_ohGapNB ? '☑' : '☐') + ' 미정산 같이 보기'+(skipNB?(' '+skipNB+'건'):'')+'</span>';
+    h+='<tr class="close-total"><td colspan="3">■ 차이 품목 '+(rows.length-nbN).toLocaleString()+'건'
+      +((rows.length-nbN)?(' <span style="font-weight:600">(정산 많음 '+sMore+' · 출고 많음 '+oMore+' · 출고장 '+gs.length+'곳)</span>'):'')
+      +(nbN?(' <span style="font-weight:700;font-size:11.5px;color:#ffe9c9">+ 미정산 '+nbN+'건</span>'):'')
+      +' <span style="font-weight:600;font-size:11.5px">— 정산서 온 출고장 '+dcN+'곳'+(_ohGapNB?'':' · 정산서에 있는 품목만 대사')+'</span>'
+      + nbBtn
+      +(skipNB && !_ohGapNB ?('<br><span style="font-weight:600;font-size:11.5px;color:#ffe9c9">※ 정산서에 없는 품목 '+skipNB+'건은 대사 대상이 아니라 제외 — 위 [미정산 같이 보기] 또는 ①탭 상태 칸의 <b>미정산</b>에서 확인</span>'):'')
       +'</td>'
       +'<td style="text-align:right">'+_ohQ(tS)+'</td><td style="text-align:right">'+_ohQ(tO)+'</td>'
       +'<td style="text-align:right">'+_ohQ(tS-tO)+'</td><td></td><td></td></tr>';
@@ -4732,7 +4757,7 @@
       _ohMount(wrap, h+_ohEmptyRow(8, (dcN ? '수량이 어긋난 품목이 없습니다' : '이 기간 정산서 자료가 없습니다'),
         (dcN
           ? '정산서가 온 출고장 <b>'+dcN+'곳</b>에서 정산서에 있는 품목은 <b>출고수량과 정산수량이 모두 일치</b>합니다.'
-            +(skipNB?('<br>정산서에 없는 품목 <b>'+skipNB+'건</b>은 대사 대상이 아니라 제외했습니다(①탭 <b>미정산</b>).'):'')
+            +(skipNB?('<br>정산서에 없는 품목 <b>'+skipNB+'건</b>은 대사 대상이 아니라 제외했습니다 — 위 <b>[미정산 같이 보기]</b>를 누르면 여기 같이 나옵니다(①탭 <b>미정산</b>과 같은 것).'):'')
           : '비교할 정산서가 없어 차이를 낼 수 없습니다.<br>정산 엑셀을 올린 뒤 다시 조회하거나, 정산서가 안 온 건은 ①탭 상태 칸에서 <b>미정산</b>으로 확인하세요.')), [], _ohIdent);
       return;
     }
@@ -4740,29 +4765,37 @@
     var gRow=function(e){
       var up=e.d>0;
       return '<tr class="close-grp" style="cursor:default"><td colspan="3">🏭 '+_cesc(e.dc)
-        +' <span style="font-weight:600;color:#5a6b7a">(차이 '+e.its.length+'품목)</span></td>'
+        +' <span style="font-weight:600;color:#5a6b7a">(차이 '+(e.its.length-e.nb)+'품목'
+        +(e.nb?(' · <span style="color:#c47f17">미정산 '+e.nb+'품목</span>'):'')+')</span></td>'
         +'<td style="text-align:right">'+_ohQ(e.sQty)+'</td><td style="text-align:right">'+_ohQ(e.oQty)+'</td>'
         +'<td style="text-align:right">'+(up?'+':'')+_ohQ(e.d)+'</td><td></td><td></td></tr>';
     };
     // 품목 줄 — 여기만 빨간색. 누르면 아래에 출고 원본행이 펼쳐진다.
     var itRow=function(r, key, col){
       var it=r.it, up=r.d>0;
+      /* ★미정산 줄은 **빨강이 아니라 호박색**으로 — '수량이 어긋난 것'과 '아직 청구가 안 된 것'은
+           성격이 달라 같은 빨강으로 두면 대사할 것이 뒤섞여 보인다(2026-07-28). */
+      var nb=!!r.nb, CLR=nb?'color:#c47f17;font-weight:700':RED;
       // ★펼치기/접기는 <화살표를 눌렀을 때만> 동작한다(2026-07-27 요청) — 줄 전체 클릭은 쓰지 않는다.
       //   품목명·수치를 마우스로 긁어 복사할 때 표가 접히거나 펼쳐지는 것을 막기 위한 것.
-      return '<tr title="'
-        + (up?'정산이 출고보다 많음 — 과청구·출고기록 누락 여부 확인':'출고가 정산보다 많음 — 청구 누락 여부 확인')+'">'
+      return '<tr'+(nb?' style="background:#fffaf1"':'')+' title="'
+        + (nb?'정산서에 이 품목이 없습니다 — 아직 청구가 안 된 것(미정산). 수량차이가 아닙니다'
+            : up?'정산이 출고보다 많음 — 과청구·출고기록 누락 여부 확인':'출고가 정산보다 많음 — 청구 누락 여부 확인')+'">'
         + '<td class="txt-l" style="color:#8a95a1">'+_cesc(r.dc)+'</td>'
-        + '<td style="'+RED+'">'
+        + '<td style="'+CLR+'">'
         +   '<span onclick="event.stopPropagation();ohGrp(\''+encodeURIComponent(key)+'\')"'
         +   ' title="'+(col?'출고 원본행 펼치기':'출고 원본행 접기')+'"'
-        +   ' style="color:#c0392b;cursor:pointer;display:inline-block;width:20px;text-align:center;'
+        +   ' style="'+(nb?'color:#c47f17':'color:#c0392b')+';cursor:pointer;display:inline-block;width:20px;text-align:center;'
         +   'user-select:none;-webkit-user-select:none">'+(col?'▶':'▼')+'</span> '
         +   _cesc(it.itemCd)+'</td>'
         // '펼치기/접기' 글자 배지는 제거(2026-07-27 요청) — 줄을 클릭하면 되고, 상태는 왼쪽 캐럿(▶/▼)으로 보인다
-        + '<td class="txt-l" style="'+RED+'">'+_cesc(it.itemNm)+'</td>'
+        + '<td class="txt-l" style="'+CLR+'">'
+        +   (nb?'<span style="font-size:10.5px;border:1px solid #e3c08a;background:#fdf5e6;color:#7a4b0a;'
+        +       'border-radius:9px;padding:1px 6px;margin-right:5px;font-weight:700">미정산</span> ':'')
+        +   _cesc(it.itemNm)+'</td>'
         + '<td style="text-align:right">'+_ohQ(it.sQty)+'</td>'
         + '<td style="text-align:right">'+_ohQ(it.oQty)+'</td>'
-        + '<td style="text-align:right;'+RED+'">'+(up?'+':'')+_ohQ(r.d)+'</td>'
+        + '<td style="text-align:right;'+CLR+'">'+(up?'+':'')+_ohQ(r.d)+'</td>'
         + '<td style="text-align:right">'+(it.price==null?'':_cnum(it.price))+'</td>'
         + _ohAmtCell(it)+'</tr>';
     };
