@@ -662,7 +662,7 @@ function cbListRender(tR, tP){
      + '<td>'+fmt(t.pr)+'</td><td>'+fmt(t.cs)+'</td><td>'+fmt(t.cr)+'</td><td class="amt-r">'+fmt(t.recv)+'</td>'
      + '<td>'+fmt(t.pp)+'</td><td>'+fmt(t.cp)+'</td><td>'+fmt(t.cy)+'</td><td class="amt-p">'+fmt(t.pay)+'</td>'
      + cbDayCells(t.ds, t.dr, t.dp, t.dy)
-     + '<td>'+(Math.round(net)===0?'-':Math.round(net).toLocaleString())+'</td>'
+     + cbNetCell(t.recv, t.pay)
      + '<td class="ctr">'+dtLbl(t.lastDt)+'</td></tr>';
     if(off) return;
     t.rows.forEach(function(o){ h+=cbRowHtml(o, true); });
@@ -710,8 +710,17 @@ function cbRowHtml(o, sub){
    + '<td>'+fmt(o.prevPay)+'</td><td>'+fmt(o.curPurch)+'</td><td>'+fmt(o.curPay)+'</td>'
    + '<td class="amt-p">'+fmt(o.pay)+'</td>'
    + cbDayCells(d.sale, d.rcv, d.purch, d.pay)
-   + '<td>'+(Math.round(net)===0?'-':Math.round(net).toLocaleString())+'</td>'
+   + cbNetCell(o.recv, o.pay)
    + '<td class="ctr">'+dtLbl(o.lastDt)+'</td></tr>';
+}
+
+/* 순액 칸 = 받을 남은금액 − 지급 남은금액. **모든 줄에 그대로 찍는다.**
+   ★[이력] 2026-07-28 — 한쪽만 있는 거래처는 순액이 옆 칸(남은금액)과 같은 값이라
+     "둘 다 있는 줄에서만 숫자, 나머지는 비우기"로 바꿨다가 **사용자가 보고 원복 요청**("그냥 표현해주세요").
+     같은 값이라도 한 줄에서 끝까지 눈으로 훑는 쪽이 낫다는 판단이다. 다시 비우자는 얘기가 나오면 이 이력을 먼저 확인할 것. */
+function cbNetCell(recv, pay){
+  var net=Math.round(recv-pay);
+  return '<td>'+(net===0?'-':net.toLocaleString())+'</td>';
 }
 
 function cbToggle(g){ _col[g]=!_col[g]; cbListRender(); if(_col[g]) cbListTop(); }
