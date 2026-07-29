@@ -2657,19 +2657,13 @@
     return ws ? XLSX.utils.sheet_to_json(ws,{header:1,defval:''}) : [];
   }
 
-  // ── 김해·제주 조기출고 규칙 (2026-07-26) ──
-  //   김해·제주는 먼 지역이라 납기일자보다 2일 앞당겨 출고한다 → 그 행의 출고일자(SHPOUT_DT)= 납기일자 - 2일.
-  //   그 외 출고장은 프리뷰에서 확정한 출고일자(baseDt)를 그대로 쓴다.
-  function ssIsEarlyZone(name){ return /김해|제주/.test(''+(name==null?'':name)); }
-  function ssShiftYmd(ymd, days){   // 'yyyy-mm-dd' (+days) → 'yyyy-mm-dd'
-    var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(''+(ymd==null?'':ymd)); if(!m) return (''+(ymd==null?'':ymd));
-    var d=new Date(+m[1], +m[2]-1, +m[3]); d.setDate(d.getDate()+days);
-    return d.getFullYear()+'-'+ssPad(d.getMonth()+1)+'-'+ssPad(d.getDate());
-  }
-  // 행의 확정 출고일자: 김해·제주면 납기일자-2일, 아니면 baseDt. 납기일자가 없으면 baseDt.
-  function ssRowShpoutDt(zoneOrCenter, dlvDt, baseDt){
-    return (ssIsEarlyZone(zoneOrCenter) && dlvDt) ? ssShiftYmd(dlvDt, -2) : baseDt;
-  }
+  /* ── 출고일자 규칙 (2026-07-29 사용자 확정) ──────────────────────────────────
+       ★출고장에 상관없이 <엑셀의 발주일자(납기일자)를 그대로> 출고일자(SHPOUT_DT)로 쓴다.
+         프리뷰 하단 '출고일자' 칸이 그 값이고(수정 가능), 전 행이 그 하나의 날짜로 저장된다.
+       [이력] 2026-07-26~07-28 에는 <김해·제주 = 납기일자 2일 전>(조기출고) 예외가 있었으나
+         사용자 요청으로 제거했다(ssIsEarlyZone/ssShiftYmd/ssRowShpoutDt/_ssShpOverride 삭제).
+         그 기간에 올린 자료에는 2일 당겨진 출고일자가 남아 있다 — 다시 올리면 엑셀 날짜로 대체된다.
+         예외를 되살리자는 얘기가 나오면 이 이력부터 확인할 것.                                */
 
   // 컬럼 자동 인식 — 매핑화면 없이 내부 처리
   //  · (신규) 코네트 발주현황표: 단일 헤더행. 출고장=물류센터명, 사업장=품목명 () 접두,
@@ -2941,29 +2935,18 @@
     var btn=document.getElementById('ssPvApplyBtn');
     var hlCols={}, dlvCol=-1, badRows={};
     if(errBox) errBox.innerHTML='';
-    var _earlyElReset=document.getElementById('ssPvEarlyMsg'); if(_earlyElReset){ _earlyElReset.style.display='none'; _earlyElReset.innerHTML=''; }
     if(m){
       [m.cItem,m.cBiz,m.cBizCode,m.cZone,m.cQty,m.cCode,m.cInb,m.cCenter].forEach(function(c){ if(c>=0) hlCols[c]=1; });
       if(m.cDate>=0){ dlvCol=m.cDate; }   // 납기일자 컬럼(구분 표시)
       var _exRows=ssExtractRows(aoa,m);
       var cnt=_exRows.length;
-      // 김해·제주 조기출고 안내 — 해당 출고장이 파일에 있으면 출고일자 좌측에 메시지 표시
-      var _earlyEl=document.getElementById('ssPvEarlyMsg');
-      if(_earlyEl){
-        var _earlyZ={}; _exRows.forEach(function(r){ if(ssIsEarlyZone(r.zone)){ var _n=(/김해/.test(r.zone)?'김해':'제주'); _earlyZ[_n]=1; } });
-        var _ez=Object.keys(_earlyZ);
-        if(_ez.length){
-          _earlyEl.style.display='';
-          _earlyEl.innerHTML='⚠️ '+_ez.join('·')+'는 출고일자가 <u>납기일자 2일 전</u>으로 저장됩니다 (조기출고)';
-        } else { _earlyEl.style.display='none'; _earlyEl.innerHTML=''; }
-      }
-      // 출고일자 기본값 = 엑셀 계산값(18차 가마감 일시 우선, 없으면 납기일자) — 사용자가 고치지 않았으면 채움
-      //  ★김해·제주 행은 조기출고라 여기서도 납기일자 2일 전을 반영(파일이 김해/제주 단일센터면 필드가 곧 2일전으로 뜬다)
+      // 출고일자 기본값 = 엑셀에서 읽은 날짜(코네트 양식 = 발주일자/납기일자) 그대로 — 사용자가 고치지 않았으면 채움
+      //  ★출고장(김해·제주 포함) 구분 없이 같은 값. 여러 날짜가 섞여 있으면 가장 늦은 날짜.
       var shpEl=document.getElementById('ssPvShpoutDt');
       if(shpEl){
         if(shpEl.getAttribute('data-file')!==ssPvName){ shpEl.removeAttribute('data-touched'); shpEl.setAttribute('data-file', ssPvName||''); }
         if(shpEl.getAttribute('data-touched')!=='1'){
-          var _ds=_exRows.map(function(r){ return ssRowShpoutDt(r.zone, r.dlvDt, r.date); }).filter(Boolean).sort();
+          var _ds=_exRows.map(function(r){ return r.date; }).filter(Boolean).sort();
           shpEl.value = _ds.length ? _ds[_ds.length-1] : SS_TODAY;
         }
       }
@@ -3166,27 +3149,20 @@
     if(!rows.length){ ssToast('⚠️ 데이터 행이 없습니다.'); return; }
     var sheetNm=ssPvWb.SheetNames[+(document.getElementById('ssPvSheet').value||0)];
     var _upZ={}; rows.forEach(function(r){ if(r.zone) _upZ[r.zone]=1; }); var _zc=Object.keys(_upZ).length;
-    // 김해·제주 조기출고 안내 (있으면 확인창에서 예외 문구 표시)
-    var _earlyZ={}; rows.forEach(function(r){ if(ssIsEarlyZone(r.zone)) _earlyZ[/김해/.test(r.zone)?'김해':'제주']=1; });
-    var _earlyList=Object.keys(_earlyZ);
-    var _earlyNote = _earlyList.length ? ('<span style="color:#c0392b">기본값은 <b>'+_earlyList.join('·')+'</b>의 <u>납기일자 2일 전</u>입니다(조기출고). 위 날짜를 직접 바꾸면 <b>'+_earlyList.join('·')+'</b>도 그 값으로 저장됩니다.</span>') : '';
     // 출고일자 — 비어있으면 막는다(반영 확인창 하단에 이 값을 함께 표시)
+    //  ★출고장 구분 없이 이 날짜 하나로 전 행이 저장된다(기본값 = 엑셀 발주일자, 여기서 수정 가능).
     var _shpEl=document.getElementById('ssPvShpoutDt'); var _shp=(_shpEl&&_shpEl.value)||'';
     if(!_shp){ ssToast('⚠️ 출고일자를 입력하세요.'); if(_shpEl) _shpEl.focus(); return; }
-    var _shpTouched = !!(_shpEl && _shpEl.getAttribute('data-touched')==='1');   // 프리뷰 필드를 직접 수정했는지
     // 반영 확인(단일) — 예전 1단계 '출고일자' 별도 창은 제거하고, 이 창 하단에 출고일자를 명시(2026-07-24 요청)
     ssConfirm('파일 <b>'+ssPvName+'</b> · 시트 "<b>'+sheetNm+'</b>"<br>발주 <b style="color:#137a6c">'+rows.length+'</b>건 · 출고장 <b style="color:#137a6c">'+_zc+'</b>곳을 반영하시겠습니까?'
       +'<br><br><span style="color:#b3760f">※ <b>기존 화면 자료를 초기화한 뒤</b> 이 파일로 새로 생성하고, <b>서버(TBL_SHIPOUT_MST)에 저장</b>됩니다. (같은 <b>납품일자·출고장</b>의 기존 저장분은 <b>출고일자가 달라도</b> 이력으로 남고 새 버전이 활성화됩니다.)</span>'
       +'<div style="text-align:center;margin-top:14px;padding-top:12px;border-top:1px solid #e6ecf0">출고일자 '
       +'<input type="date" id="ssConfirmShpDt" value="'+_shp+'" oninput="ssConfirmBackUpd()" style="font-size:18px;font-weight:700;color:#137a6c;text-align:center;border:1px solid #cdd7dd;border-radius:6px;padding:4px 8px">'
-      +'<div style="font-size:11.5px;color:#9aa7b3;margin-top:5px">이 날짜로 저장됩니다 — 필요하면 여기서 바로 수정하세요<br>'+_earlyNote+'</div>'
+      +'<div style="font-size:11.5px;color:#9aa7b3;margin-top:5px">이 날짜로 <b>전 출고장</b>이 저장됩니다(기본값 = 엑셀 발주일자) — 필요하면 여기서 바로 수정하세요</div>'
       +'<div id="ssConfirmBack"></div></div>',   // 마지막에 올린 자료보다 이전이면 여기 경고가 채워진다(ssConfirmBackUpd)
       function(){
         var _ce=document.getElementById('ssConfirmShpDt');
         var _nv=(_ce&&_ce.value)||_shp;                                   // 확인창에서 수정한 값 우선, 비었으면 원래 값
-        // ★출고일자를 사용자가 직접 지정했으면(프리뷰 필드 수정 or 확인창에서 값 변경) 김해·제주도 그 값으로 저장(수정값 우선).
-        //   손대지 않았으면 김해·제주는 납기일자 2일 전 규칙 적용.
-        window._ssShpOverride = _shpTouched || (_nv !== _shp);
         var _pv=document.getElementById('ssPvShpoutDt'); if(_pv) _pv.value=_nv;   // ssDoApply 가 여기서 읽음
         ssDoApply(rows, sheetNm);
       });
@@ -3206,12 +3182,9 @@
     var _shpEl=document.getElementById('ssPvShpoutDt');
     var theDay = (_shpEl && _shpEl.value) ? _shpEl.value : (upD.length ? upD[upD.length-1] : SS_TODAY);
     // 화면 표시·날짜필터 기준을 출고일자로 통일 (엑셀엔 납기일자만 있어 r.date=납기일자로 채워지므로 덮어씀)
-    //  ★김해·제주는 납기일자 2일 전(조기출고)이라 출고일자가 갈린다 → 행별로 확정하고, 갈리면 기간(min~max)으로 조회해 모두 보이게 한다.
-    //   단, 사용자가 출고일자를 직접 지정(_ssShpOverride)했으면 김해·제주도 그 값(theDay)으로 통일한다(수정값 우선).
-    var _ov = !!window._ssShpOverride;
-    var _minD=theDay, _maxD=theDay;
-    SHIP_DATA.forEach(function(r){ r.date = _ov ? theDay : ssRowShpoutDt(r.zone, r.dlvDt, theDay); if(r.date<_minD)_minD=r.date; if(r.date>_maxD)_maxD=r.date; });
-    ssSetVal('ssDateFrom', _minD); ssSetVal('ssDateTo', _maxD);
+    //  ★출고장 구분 없이 전 행이 theDay(= 엑셀 발주일자, 프리뷰에서 수정 가능) 하나로 통일된다.
+    SHIP_DATA.forEach(function(r){ r.date = theDay; });
+    ssSetVal('ssDateFrom', theDay); ssSetVal('ssDateTo', theDay);
     window.ssSrcUp=true;
     window.ssSrcInfo='✅ 업로드(초기화 후 생성): '+ssPvName+' · 출고장 '+zoneList.length+'곳 · '+rows.length+'건';
     ssRender();
@@ -3337,10 +3310,8 @@
     if(!rows.length) return;
     var srcFile=ssPvName;
     // 복합키=(납품일자 DLV_DT 행별) + (물류센터 DC_CD 행별). 출고일자·사업장은 키 아님(출고일자는 값으로만 저장).
-    //  ★김해·제주는 납기일자 2일 전으로 출고일자 저장(조기출고), 그 외는 baseDt(프리뷰 확정값)
-    //   단, 사용자가 출고일자를 직접 지정(_ssShpOverride)했으면 김해·제주도 baseDt 로 통일(수정값 우선).
-    var _ov = !!window._ssShpOverride;
-    rows.forEach(function(o){ if(!o.dlvDt) o.dlvDt=baseDt; o.shpoutDt = _ov ? baseDt : ssRowShpoutDt(o.dcNm||o.zone, o.dlvDt, baseDt); o.srcFile=srcFile; });
+    //  ★출고일자 = baseDt(프리뷰 확정값 = 엑셀 발주일자) — 출고장 구분 없이 전 행 동일(2026-07-29 확정).
+    rows.forEach(function(o){ if(!o.dlvDt) o.dlvDt=baseDt; o.shpoutDt=baseDt; o.srcFile=srcFile; });
     var body=JSON.stringify(rows), nRows=rows.length;
     shpProgShow('업로드 중… (0 / '+nRows.toLocaleString()+'건)');
     var xhr=new XMLHttpRequest();
@@ -4808,9 +4779,10 @@
         + _ohAmtCell(it)+'</tr>';
     };
     /* 정산서 원본행.
-         ★대사는 <납품일자>만 비교한다(2026-07-27 사용자 확정). 출고일자는 정산서와 출고장이 서로 다를 수 있다
-           — 김해·제주는 조기출고(납기보다 앞당겨 출고)라 다른 것이 정상이다. 그래서 출고일자는 참고로만
-           회색·괄호로 두고, '날짜 다름' 같은 경고 표시는 붙이지 않는다(정상을 오류로 보이게 하므로).
+         ★대사는 <납품일자>만 비교한다(2026-07-27 사용자 확정). 출고일자는 정산서(출고장이 적어 준 값)와
+           우리 출고자료가 서로 다를 수 있다 — 특히 2026-07-28 이전 업로드분은 김해·제주에 '납기 2일 전'
+           규칙이 적용돼 있었다(2026-07-29 폐지). 그래서 출고일자는 참고로만 회색·괄호로 두고,
+           '날짜 다름' 같은 경고 표시는 붙이지 않는다(정상을 오류로 보이게 하므로).
          수량은 <정산수량 칸>에 놓아(출고행은 출고수량 칸) 어느 쪽 자료인지 위치로 구분된다.
          ※ 정산서에는 사업장·주문번호 칸이 없다(출고 자료에만 있음). */
     var srawRow=function(x){
@@ -4818,7 +4790,7 @@
       return '<tr style="background:#f4fbf8">'
         + '<td></td>'
         + '<td colspan="2" class="txt-l" style="padding-left:26px;color:#137a6c;font-size:12.5px">'
-        //   출고일자도 읽히게 진하게 둔다(2026-07-27) — 대사 기준은 아니지만 조기출고 확인에 자주 본다.
+        //   출고일자도 읽히게 진하게 둔다(2026-07-27) — 대사 기준은 아니지만 날짜 확인에 자주 본다.
         +   '↳ <b>정산서</b> · 납품일자 <b>'+_cesc(_ohDateFmt(x.dlvDt))+'</b>'
         +   ' <span style="color:#5a6b7a">(출고일자 <b>'+_cesc(_ohDateFmt(x.outDt))+'</b>)</span>'
         + '</td>'
@@ -4834,7 +4806,7 @@
     /* 출고 원본행 — 무엇 때문에 차이가 났는지 눈으로 대사하는 줄.
          출고일자·차수 / 입고장·존·사업장 / 수량 / 발주번호·주문번호·원본파일.
          같은 주문번호가 출고일자 두 곳에 있으면 '중복 합산' 배지 — 이게 이중계상의 정체다.
-         (날짜를 비교해서 붙이는 게 아니다 — 출고일자 차이는 조기출고라 정상이다.) */
+         (날짜를 비교해서 붙이는 게 아니다 — 대사 기준은 납품일자뿐이라 출고일자 차이는 오류가 아니다.) */
     var rawRow=function(x, dup){
       var inwh=(''+(x.inwh||'')).trim(), zone=(''+(x.zone||'')).trim();
       var biz=(''+(x.bizNm||x.bizCd||'')).trim();
@@ -4842,17 +4814,17 @@
       return '<tr style="background:#fcfdfe">'
         + '<td></td>'
         + '<td colspan="2" class="txt-l" style="padding-left:26px;color:#5a6b7a;font-size:12.5px">'
-        //   ★대사 기준은 납품일자뿐이다. 출고일자는 참고 — 코네트에서 김해·제주는 멀어서 미리 출고하므로
-        //     정산서의 출고일자와 다른 것이 정상이다(경고로 보이지 않게 회색 괄호로 둔다).
+        //   ★대사 기준은 납품일자뿐이다. 출고일자는 참고 — 정산서의 출고일자와 다를 수 있고
+        //     (2026-07-28 이전 김해·제주 조기출고 저장분 포함) 그것 자체는 오류가 아니다(회색 괄호로 둔다).
         +   '↳ <b>출고내역</b> · 납품일자 <b>'+_cesc(_ohDateFmt(x.dlvDt))+'</b>'
         +   ' <span style="color:#5a6b7a">(출고일자 <b>'+_cesc(_ohDateFmt(x.shpoutDt))+'</b>'+(x.jobSeq?(' '+x.jobSeq+'차'):'')+')</span>'
         +   (inwh?(' · 입고장 '+_cesc(inwh)):'')+(zone?(' · 존 '+_cesc(zone)):'')+(biz?(' · '+_cesc(biz)):'')
         /* ★배지 문구 주의(2026-07-27) — '재저장 의심'이라고 쓰니 "출고일자가 달라서 오류"로 읽혔다.
-             출고일자 차이는 정상이다(김해·제주는 멀어서 미리 출고). 이 배지가 뜻하는 것은
+             출고일자 차이 자체는 오류가 아니다(대사 기준은 납품일자). 이 배지가 뜻하는 것은
              <같은 주문번호가 서로 다른 배치에 활성으로 남아 출고수량이 두 번 더해졌다>는 것뿐이다.
              그래서 날짜를 가리키지 않는 말('중복 합산')로 바꾸고, 툴팁에 이유를 적는다. */
         +   (dup?' <span title="같은 주문번호가 서로 다른 배치에 활성으로 남아 있어 출고수량이 두 번 더해졌습니다.&#10;'
-                 +'※ 출고일자가 다른 것 자체는 정상입니다(김해·제주는 멀어서 미리 출고). 문제는 같은 주문이 두 번 저장된 것입니다."'
+                 +'※ 출고일자가 다른 것 자체는 오류가 아닙니다(대사 기준은 납품일자). 문제는 같은 주문이 두 번 저장된 것입니다."'
                  +' style="font-size:11px;font-weight:700;color:#c0392b;border:1px solid #f0c9c2;background:#fff7f6;border-radius:4px;padding:0 5px;cursor:help">중복 합산</span>':'')
         + '</td>'
         + '<td></td>'
@@ -5878,7 +5850,7 @@
           <tr><td class="m">출고현황표(대시보드)</td><td>발주현황표 엑셀을 올려 <b>출고장·사업장·품목별 출고량</b>을 작성합니다. 매출마감·재고차감의 원천.
             <div style="margin-top:4px;color:#5a6b7a"><b>· 대체 규칙</b> <b style="color:#c0392b">출고장 + 납품일자</b>가 같으면 기존 자료를 대체(출고일자는 보지 않음). 예전 것은 이력으로 내려가니 <b>잘못 올렸으면 다시 올리면</b> 됩니다.<br>
             <b>· [📤 …보기 / 업로드]</b> = 탐색기가 아니라 <b>미리보기</b>가 열려 지정 폴더 파일을 최신순으로 보여줍니다(최근 파일 자동 펼침). 상단에 📂폴더 지정 · 📄파일 선택 · ↻새로고침 · ℹ️도움말.<br>
-            <b>· 김해·제주</b>는 조기출고라 출고일자가 <b>납기일자 2일 전</b>으로 저장됩니다.<br>
+            <b>· 출고일자</b>는 <b>엑셀의 발주일자</b> 그대로 — <b>출고장(김해·제주 포함) 구분 없이</b> 전 행이 같은 날짜로 저장됩니다(작성 전 화면에서 수정 가능).<br>
             <b>· 이전 자료 알림</b> 마지막에 올린 것보다 출고일자가 앞서면 알려만 주고 <b>막지 않습니다</b>.</div></td></tr>
           <tr><td class="m">출고세부조회</td><td>저장된 출고를 <b>3탭</b>(출고장▸품목 · 사업장별 · 품목별)으로 전환하며 조회.</td></tr>
           <tr><td class="m">출고현황이력조회</td><td>발주현황표를 <b>언제·몇 차로</b> 올렸는지와 그 발생내역을 일자별로.</td></tr>
@@ -6068,7 +6040,7 @@
               </div>
               <div style="flex:1 1 300px; min-width:270px">
                 <b style="color:#137a6c">✔ 작성 전에</b> — 내용을 확인하고 아래 <b>출고일자</b>를 확인·수정한 뒤 누르세요. 미리보기의 <b>노란 칸</b>이 반영되는 컬럼입니다.<br>
-                <span style="color:#c0392b">※ <b>김해·제주</b>는 조기출고라 <b>납기일자 2일 전</b>으로 저장됩니다</span> — 출고일자를 직접 바꾸면 그 값으로 통일됩니다.<br>
+                <span style="color:#137a6c">※ <b>출고일자</b>는 <b>엑셀의 발주일자</b>가 그대로 들어옵니다 — <b>출고장(김해·제주 포함) 구분 없이</b> 전 행이 이 날짜로 저장됩니다.</span><br>
                 <span style="color:#6b7a89">오류가 있어도 저장은 진행됩니다(알림만). 새 사업장은 자동 등록됩니다.</span>
               </div>
             </div>
@@ -6125,16 +6097,16 @@
             </div>
           </div>
           <div class="mfoot" style="align-items:center">
-            <%-- 좌측 알림 두 줄: 조기출고(김해·제주) / 역순 업로드(마지막에 올린 자료보다 이전) --%>
+            <%-- 좌측 알림: 역순 업로드(마지막에 올린 자료보다 이전)
+                 ※ 조기출고(김해·제주) 알림줄은 2026-07-29 규칙 폐지로 제거 --%>
             <span style="margin-right:auto;min-width:0;display:flex;flex-direction:column;gap:2px">
-              <span id="ssPvEarlyMsg" style="font-size:12.5px;font-weight:700;color:#c0392b;display:none"></span>
               <%-- 이전 자료 알림 — 빨강 + 살짝 깜박(.ss-blink, ssBackMsgUpd 가 붙였다 뗀다) --%>
               <span id="ssPvBackMsg" style="font-size:12.5px;font-weight:700;color:#c0392b;display:none"></span>
             </span>
             <span style="font-size:16px;font-weight:700;color:#37475a;margin-right:10px">출고일자
               <input type="date" id="ssPvShpoutDt" oninput="this.setAttribute('data-touched','1');ssBackMsgUpd()"
                      style="height:38px;border:1px solid var(--logi-border);border-radius:6px;padding:0 10px;font-size:16px;font-weight:700;margin:0 4px"
-                     title="엑셀 기준 출고일자 — 수정 가능. 이 날짜로 전체 행이 저장되고 조회됩니다">
+                     title="엑셀의 발주일자가 그대로 들어옵니다 — 수정 가능.&#10;출고장(김해·제주 포함) 구분 없이 이 날짜로 전체 행이 저장되고 조회됩니다">
             </span>
             <button class="btn-line" onclick="ssPvOpen(false)">취소</button>
             <button class="btn-teal" id="ssPvApplyBtn" onclick="ssPvApply()">✔ 작성 (대시보드 반영)</button>
@@ -6580,8 +6552,10 @@
     </section>
 
     <!-- ===== 거래처별 받을금액·지급할금액 (2026-07-26) — logiFrame 은 #panel-<key> + #if-<key> 를 함께 찾는다 ===== -->
-    <section id="panel-custbal" class="panel" style="padding:0;">
-      <iframe id="if-custbal" src="" title="거래처별 채권·채무 현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    <%-- ★위 여백 축소(2026-07-29 요청) — 바깥 .logi-main 의 padding-top(22px)을 이 패널만 -14px 로 끌어올리고
+           그만큼 iframe 을 키운다. 다른 패널은 그대로. --%>
+    <section id="panel-custbal" class="panel" style="padding:0; margin-top:-14px;">
+      <iframe id="if-custbal" src="" title="거래처별 채권·채무 현황" style="width:100%; height:calc(100vh - 56px); border:0; display:block;"></iframe>
     </section>
 
     <!-- ===== 일계장 (2026-07-26) ===== -->

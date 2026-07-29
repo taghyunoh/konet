@@ -224,7 +224,10 @@
   .d2-toast { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:#1f2a37; color:#fff; border-radius:8px; padding:10px 18px; font-size:13px; z-index:9999; display:none; max-width:80vw; }
   /* 조회 중 안내 — 진입/조회 시 DB 응답이 올 때까지 화면을 덮는다 (빈 표가 잠깐 보이는 것 방지)
      z-index 는 토스트(9999)·삭제모달(9998) 아래 */
-  .d2-loading { position:fixed; inset:0; background:rgba(255,255,255,.72); z-index:9997; display:none; align-items:center; justify-content:center; }
+  /* ★조회 중 안내는 '알림'일 뿐 클릭을 막지 않는다(pointer-events:none) — 2026-07-29.
+       종전에는 inset:0 로 화면 전체를 덮어 <상단 [📤 발주현황표 엑셀 보기/업로드]> 클릭이 통째로 먹혔다.
+       조회가 끝날 때까지(응답이 안 오면 최대 20초) 버튼이 죽은 것처럼 보여 "두 번 눌러야 된다"는 증상이 났다. */
+  .d2-loading { position:fixed; inset:0; background:rgba(255,255,255,.72); z-index:9997; display:none; align-items:center; justify-content:center; pointer-events:none; }
   .d2-loading.on { display:flex; }
   .d2-loading .box { display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--bd); border-radius:12px; padding:16px 22px; box-shadow:0 10px 30px rgba(0,0,0,.14); font-size:14px; font-weight:800; color:#137a6c; }
   .d2-loading .sp { width:20px; height:20px; border:3px solid #d7ece7; border-top-color:#137a6c; border-radius:50%; animation:d2spin .8s linear infinite; flex:0 0 auto; }
@@ -498,6 +501,15 @@
     var p=null;
     try{ if(window.parent && window.parent!==window && window.parent.logiGo) p=window.parent; }catch(e){}
     if(!p){ d2Toast('⚠️ 물류관리 메인(사이드바) 안에서 열었을 때만 동작합니다.'); return; }
+    function lift(id){ try{ var el=p.document.getElementById(id); if(el && el.parentNode!==p.document.body) p.document.body.appendChild(el); }catch(e){} }
+    /* ★업로드 모달은 아래 '날짜 동기화(재조회)'보다 먼저 연다 — 2026-07-29.
+         재조회가 걸리면 그 사이 조회중 안내가 뜨고 모달이 늦게 떠서 "안 눌렸다"로 보였다.
+         모달은 조회 결과와 무관(엑셀 미리보기)하므로 먼저 열어도 안전하다. */
+    if(act==='upload'){
+      lift('ssPvOverlay');
+      if(p.ssPvOpen) p.ssPvOpen(true);
+      else { var e0=p.document.getElementById('ssFile'); if(e0) e0.click(); }   // 구버전 폴백
+    }
     try{
       var f=(document.getElementById('d2DateFrom')||{}).value||'';
       var t=(document.getElementById('d2DateTo')||{}).value||'';
@@ -506,15 +518,10 @@
         if(df && dt && (df.value!==f || dt.value!==f)){ df.value=f; dt.value=f; if(p.ssLoadShipoutFromDB) p.ssLoadShipoutFromDB(); }
       }
     }catch(e){}
-    function lift(id){ try{ var el=p.document.getElementById(id); if(el && el.parentNode!==p.document.body) p.document.body.appendChild(el); }catch(e){} }
     try{
-      // 업로드 = 탐색기부터 열지 않는다(2026-07-26 사용자). 미리보기 모달을 열면
+      // 업로드(act==='upload')는 위에서 이미 처리했다 — 탐색기부터 열지 않고 미리보기 모달을 연다(2026-07-26 사용자).
       //   ssPvOpen(true) → ssHistRefresh → 지정 폴더 스캔(최신순) → 최신 파일 자동 표시.
-      //   구버전(ssPvOpen 없음) 대비로만 파일선택창 폴백.
-      if(act==='upload'){ lift('ssPvOverlay');
-        if(p.ssPvOpen) p.ssPvOpen(true);
-        else { var e=p.document.getElementById('ssFile'); if(e) e.click(); } }
-      else if(act==='sales'){ lift('ssSalesPvOverlay'); var e2=p.document.getElementById('ssSalesFile'); if(e2) e2.click(); }
+      if(act==='sales'){ lift('ssSalesPvOverlay'); var e2=p.document.getElementById('ssSalesFile'); if(e2) e2.click(); }
       else if(act==='cost'){ lift('ssCostPvOverlay'); var e3=p.document.getElementById('ssCostFile'); if(e3) e3.click(); }
       else if(act==='save' && p.ssSaveData) p.ssSaveData();
       else if(act==='zoneprint') d2DownloadByZone();
