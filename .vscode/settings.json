@@ -1,0 +1,13 @@
+{
+    "java.compile.nullAnalysis.mode": "automatic",
+    "maven.terminal.favorites": [
+        {
+            "alias": "clean install (테스트 skip)",
+            "command": "clean install -DskipTests"
+        },
+        {
+            "alias": "clean package",
+            "command": "clean package -DskipTests"
+        }
+     ]
+}

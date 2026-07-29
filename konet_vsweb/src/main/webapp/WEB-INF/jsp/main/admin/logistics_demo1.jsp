@@ -222,6 +222,13 @@
 
   /* 토스트 */
   .d2-toast { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:#1f2a37; color:#fff; border-radius:8px; padding:10px 18px; font-size:13px; z-index:9999; display:none; max-width:80vw; }
+  /* 조회 중 안내 — 진입/조회 시 DB 응답이 올 때까지 화면을 덮는다 (빈 표가 잠깐 보이는 것 방지)
+     z-index 는 토스트(9999)·삭제모달(9998) 아래 */
+  .d2-loading { position:fixed; inset:0; background:rgba(255,255,255,.72); z-index:9997; display:none; align-items:center; justify-content:center; }
+  .d2-loading.on { display:flex; }
+  .d2-loading .box { display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--bd); border-radius:12px; padding:16px 22px; box-shadow:0 10px 30px rgba(0,0,0,.14); font-size:14px; font-weight:800; color:#137a6c; }
+  .d2-loading .sp { width:20px; height:20px; border:3px solid #d7ece7; border-top-color:#137a6c; border-radius:50%; animation:d2spin .8s linear infinite; flex:0 0 auto; }
+  @keyframes d2spin { to { transform:rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -340,6 +347,12 @@
 
 </div>
 <div class="d2-toast" id="d2Toast"></div>
+
+<%-- 조회 중 안내 — 처음 진입 시 DB 조회(사업장분류→출고→직전배치→차수이력)가 끝날 때까지 표시.
+     화면이 그려지기 전부터 보여야 하므로 'on' 상태로 시작하고 d2Render() 에서 해제한다. --%>
+<div class="d2-loading on" id="d2Loading">
+  <div class="box"><span class="sp"></span><span id="d2LoadingMsg">출고현황 자료를 불러오는 중입니다…</span></div>
+</div>
 
 <!-- 사업장 출고 삭제 모달 (소프트 삭제 · 이력 보존) -->
 <div id="d2DelOverlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:9998; align-items:flex-start; justify-content:center;">
@@ -460,6 +473,21 @@
     var t=document.getElementById('d2Toast'); if(!t) return;
     t.innerHTML=html; t.style.display='block';
     clearTimeout(t._tm); t._tm=setTimeout(function(){ t.style.display='none'; }, 3200);
+  }
+  /* 조회 중 안내 — d2Load() 시작에 켜고 d2Render() 에서 끈다.
+     모든 조회 경로(단일일자·기간·오류)가 마지막에 d2Render() 로 수렴하므로 해제 지점은 한 곳이면 된다.
+     응답이 끝내 오지 않는 경우 대비 20초 자동 해제 */
+  var _d2LoadingTmr=null;
+  function d2LoadingOn(msg){
+    var o=document.getElementById('d2Loading'); if(!o) return;
+    if(msg) d2Set('d2LoadingMsg', msg);
+    o.classList.add('on');
+    clearTimeout(_d2LoadingTmr);
+    _d2LoadingTmr=setTimeout(d2LoadingOff, 20000);
+  }
+  function d2LoadingOff(){
+    var o=document.getElementById('d2Loading'); if(o) o.classList.remove('on');
+    clearTimeout(_d2LoadingTmr); _d2LoadingTmr=null;
   }
 
 
@@ -1131,7 +1159,7 @@
       _d2DateSyncing=true; f.value=d.from||''; t.value=d.to||''; d2Load(); _d2DateSyncing=false;
     }catch(_){}
   });
-  function d2Load(){ if(!_d2DateSyncing) d2SaveSharedDate(); d2LoadBizi(function(){ _d2LoadInner(); }); }   // 조회 직전 분류표 최신화 + 날짜 공유 저장
+  function d2Load(){ d2LoadingOn(); if(!_d2DateSyncing) d2SaveSharedDate(); d2LoadBizi(function(){ _d2LoadInner(); }); }   // 조회 직전 분류표 최신화 + 날짜 공유 저장
   function _d2LoadInner(){
     var f=(document.getElementById('d2DateFrom')||{}).value||'';
     var t=(document.getElementById('d2DateTo')||{}).value||'';
@@ -1551,6 +1579,7 @@
   }
 
   function d2Render(){
+    d2LoadingOff();   // 조회 중 안내 해제 (모든 조회 경로가 이 함수로 수렴)
     var ag=d2Aggregate();
     var from=(document.getElementById('d2DateFrom')||{}).value||'';
     var to=(document.getElementById('d2DateTo')||{}).value||'';

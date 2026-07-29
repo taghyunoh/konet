@@ -153,6 +153,14 @@
   .note { font-size:12px; color:#9aa7b3; margin-top:6px; }
   .panel { display:none; }
   .panel.show { display:block; }
+  /* 대시보드(출고현황표) iframe 최초 로딩 안내 — 로그인 직후 흰 화면이 잠깐 보이는 것을 덮는다.
+     iframe 의 load 이벤트에서 해제(해제 후에는 iframe 안 자체 '조회 중' 안내가 이어서 표시됨) */
+  #panel-shipstatus2 { position:relative; }
+  #d2FrameLoading { position:absolute; inset:0; background:#fff; z-index:50; display:flex; align-items:center; justify-content:center; }
+  #d2FrameLoading.off { display:none; }
+  #d2FrameLoading .box { display:flex; align-items:center; gap:12px; font-size:14px; font-weight:800; color:#137a6c; }
+  #d2FrameLoading .sp { width:20px; height:20px; border:3px solid #d7ece7; border-top-color:#137a6c; border-radius:50%; animation:konetFrmSpin .8s linear infinite; flex:0 0 auto; }
+  @keyframes konetFrmSpin { to { transform:rotate(360deg); } }
 
   /* ===== 출고현황표 전용 ===== */
   .ss-upload { display:flex; align-items:center; gap:12px; background:#eafaf6; border:1px dashed #8fd6c2; border-radius:10px; padding:14px 16px; margin-bottom:16px; }
@@ -6586,6 +6594,8 @@
          iframe 높이를 main 상하패딩(44px)만 뺀 값으로 잡아 세로를 거의 꽉 채움 -->
     <section id="panel-shipstatus2" class="panel show" style="padding:0;">
       <iframe id="if-shipstatus2" src="" title="출고현황표(데시보드2)" style="width:100%; height:calc(100vh - 44px); border:0; display:block;"></iframe>
+      <%-- iframe 이 뜰 때까지의 흰 화면 대체 안내 (아래 스크립트에서 load 시 해제) --%>
+      <div id="d2FrameLoading"><div class="box"><span class="sp"></span><span>대시보드를 불러오는 중입니다…</span></div></div>
     </section>
 
     <section id="panel-compcd" class="panel" style="padding:0;">
@@ -6621,6 +6631,17 @@
   <button class="ka-toggle" id="konetAsqToggle" onclick="konetAsqToggle()" title="알림 멈춤/재생">끄기</button>
 </div>
 <script type="text/javascript">
+  /* ── 대시보드(출고현황표) iframe 로딩 안내 해제 ──
+     src 는 ssInit()/logiFrame() 이 나중에 넣는다. src 가 빈 상태(about:blank)로 뜨는 최초 load 는 무시.
+     load 가 끝내 오지 않는 경우 대비 15초 후 강제 해제 */
+  (function(){
+    var f=document.getElementById('if-shipstatus2'), o=document.getElementById('d2FrameLoading');
+    if(!f || !o) return;
+    var hide=function(){ o.classList.add('off'); };
+    f.addEventListener('load', function(){ var s=f.getAttribute('src')||''; if(s && s!=='about:blank') hide(); });
+    setTimeout(hide, 15000);
+  })();
+
   // ── 하단 알림 바 — 대시보드1(자체 데이터)·대시보드2(iframe) 요약을 활성 화면에 맞춰 표시 ──
   window._konetAsqDash1=null;   // {hide, html} — 대시보드1이 직접 생성
   window._konetAsqDash2=null;   // {hide, html} — 대시보드2 iframe postMessage
