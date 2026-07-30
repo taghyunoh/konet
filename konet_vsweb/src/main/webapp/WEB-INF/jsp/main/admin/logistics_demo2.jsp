@@ -55,6 +55,9 @@
   .logi-side .sub-menu a.mi { padding-left:34px; font-size:12.5px; padding-top:5px; padding-bottom:5px; }
   .logi-side .side-tit { padding:18px 20px; font-size:17px; font-weight:700; color:#fff; border-bottom:1px solid #2c3a4a; }
   .logi-side .side-tit small { display:block; font-size:11px; font-weight:400; color:#8a98a8; margin-top:3px; }
+  /* 로그인 회사명 표시줄 (side-tit 바로 아래) */
+  .logi-side .side-comp { display:flex; align-items:center; gap:7px; padding:10px 20px; font-size:13px; font-weight:700; color:#e8f6f3; background:#233240; border-bottom:1px solid #2c3a4a; }
+  .logi-side .side-comp .cnm { color:#4dd0b5; }
   /* 메뉴 간격 — 그룹이 6개로 늘어 세로가 길어져 촘촘하게 줄였다(2026-07-25 요청) */
   .logi-side .grp { padding:9px 20px 3px; font-size:11px; letter-spacing:.5px; color:#7d8b9c; }
   .logi-side a.mi { display:flex; align-items:center; gap:8px; padding:6px 20px; color:#cdd6e0; text-decoration:none; font-size:13.5px; border-left:3px solid transparent; cursor:pointer; }
@@ -5423,6 +5426,8 @@
 
   <nav class="logi-side">
     <div class="side-tit">📦 물류관리<small>도매유통 · 입고/재고/발주/출고</small></div>
+    <%-- 로그인 회사명 — compLogin 이 세션에 심는 s_comp_nm/s_user_nm (다중회사: 어느 회사로 들어왔는지 상시 표시) --%>
+    <div class="side-comp">🏢 <span class="cnm">${empty sessionScope.s_comp_nm ? '미로그인' : sessionScope.s_comp_nm}</span></div>
 
     <div class="grp">조회·대시보드관리 ★</div>
     <a class="mi core on" data-key="shipstatus2" onclick="logiShipView('zone', this)"><span class="ic">🗂️</span>출고현황표(대시보드)</a>
@@ -5529,6 +5534,20 @@
 
     <div class="grp">도움말</div>
     <a class="mi" data-key="guide" onclick="logiGo('guide', this)"><span class="ic">📖</span>업무 설명서</a>
+
+    <%-- 로그아웃 — 세션 초기화(/user/loginOutAct.do) 후 로그인 화면으로.
+         확인창은 로그인 화면과 같은 공통 모달(asset/js/ui-message.js _confirmBox) 스타일 --%>
+    <div class="grp">&nbsp;</div>
+    <a class="mi" onclick="logiLogout()"><span class="ic">🚪</span>로그아웃</a>
+    <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
+    <script>
+      function logiLogout(){
+        var go = function(){ location.href='${pageContext.request.contextPath}/user/loginOutAct.do'; };
+        if (window._confirmBox) {
+          _confirmBox({ msg:'로그아웃 하시겠습니까?', icon:'🚪', okText:'로그아웃', okColor:'blue', onOk:go });
+        } else if (confirm('로그아웃 하시겠습니까?')) { go(); }
+      }
+    </script>
   </nav>
 
   <!-- ───────────── 우측 콘텐츠 ───────────── -->

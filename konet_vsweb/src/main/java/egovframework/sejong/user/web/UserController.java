@@ -238,7 +238,8 @@ public class UserController {
 			//세션 초기화
 			session.invalidate();
 
-			return "forward:/login.do";
+			// forward:/login.do 는 이 앱에 매핑이 없어 빈 화면이 떴음(2026-07-30) → 로그인 정문(/konet.do)으로
+			return "redirect:/konet.do";
 		}
 
 		// =====================================================================
