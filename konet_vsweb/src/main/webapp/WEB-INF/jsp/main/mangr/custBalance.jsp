@@ -163,8 +163,17 @@
   .cb-wrap.cb-occ .l .cb-tbwrap{ max-height:52vh; }
   /* 일자(월) 머리행 — 그 하루(한 달)의 소계. 묶음 머리행보다 한 단계 위라 색을 진하게 준다.
      ★글자도 **한 단계 크게**(2026-07-29 요청) — 소계 줄이 거래처 줄에 묻히지 않게. */
-  table.cb-tb tr.dgrow td{ background:#dfeeea; border-top:2px solid #b9d5ce; font-size:14.5px; }
+  /* ★낟알(일자·월) 사이를 선으로 가른다 (2026-07-30 요청 "월에 일자, 년에 월 표시 라인 구분되게") —
+       종전 2px 연한 선은 아래 거래처 줄들과 붙어 보여 "여기서 다음 날짜가 시작된다"가 안 읽혔다.
+       위 = 진한 teal 3px(구역 시작) / 아래 = 얇은 선(머리행과 거래처 줄 분리).
+       월 모드(일자)·년 모드(월)가 같은 dgrow 를 쓰므로 이 한 곳으로 둘 다 적용된다.
+       ※ 묶음 머리행(.grow)은 2px 연한 선 그대로 — 단계 차이가 보이게 일부러 다르게 둔다. */
+  table.cb-tb tr.dgrow td{ background:#dfeeea; font-size:14.5px;
+                           border-top:3px solid var(--cb-teal); border-bottom:1px solid #b9d5ce; }
   table.cb-tb tr.dgrow td b{ font-size:15.5px; }
+  /* 첫 낟알 앞에는 보통 ■합계 줄(tr.tot)이 있어 굵은 선이 오히려 구분에 도움이 된다.
+     합계 줄이 없는 경우(=낟알이 tbody 첫 줄)만 겹쳐 보이므로 그때만 위 선을 뺀다. */
+  table.cb-tb tbody tr.dgrow:first-child td{ border-top:0; }
   #cbList tbody tr.dgrow td:first-child{ background:#dfeeea; }
   /* 년 모드에서 고른 달 — 아래 [일자별 발생]이 이 달을 보고 있다는 표시 */
   table.cb-tb tr.dgrow.on td{ background:#cfe6df; }
