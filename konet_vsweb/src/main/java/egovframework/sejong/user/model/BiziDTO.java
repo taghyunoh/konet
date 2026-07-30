@@ -8,6 +8,11 @@ package egovframework.sejong.user.model;
  */
 public class BiziDTO {
 
+	// ----- 다중회사(멀티테넌트) — 로그인 세션(s_comp_cd)에서 주입 -----
+	private String compCd;        // 회사코드(COMP_CD)
+	public String getCompCd() { return compCd; }
+	public void setCompCd(String compCd) { this.compCd = compCd; }
+
 	private String  bizCd;     // 사업장코드 (PK)
 	private Integer jobSeq;    // 버전
 	private String  actionYn;  // 'Y'=활성

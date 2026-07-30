@@ -6,6 +6,16 @@
 - **물류관리 화면은 `.raw/main/admin/logistics_demo2.jsp`(약 3000줄) 단독 셸** — 좌측 사이드바 + 모든 패널 + JS를 한 파일에 내장. 대시보드1(출고현황표)=`logistics_demo1.jsp`(iframe 로드). 사이드바 메뉴 onclick이 demo2 내부 함수/패널에 강결합 → 리팩터링 시 주의.
 - 컨벤션: PK `XXX_SEQ IDENTITY`, 품목연결 `PROD_SEQ`+`PROD_CD`, 금액 `DECIMAL(18,2)`, 일자 `NVARCHAR(8)'YYYYMMDD'`·일시 `NVARCHAR(19)`, 소프트삭제 `ACTION_YN`, 감사컬럼 `REG_/UPD_`. 날짜 저장 시 `REPLACE(...,'-','')`. XML `<=`/`<` 는 CDATA 필수.
 
+## 다중회사(멀티테넌트) — 업무 테이블 COMP_CD (2026-07-30)
+**로그인(COMP_CD+USER_ID)의 회사코드로 모든 업무 데이터를 회사별 분리.** 기존 데이터는 전부 코네트(`W1234567`) 귀속.
+- **DB (적용 완료·재실행 안전)**: [sql/comp_cd_multitenant_alter.sql](sql/comp_cd_multitenant_alter.sql) — 업무 테이블 **19개**에 `COMP_CD VARCHAR(10) NOT NULL DEFAULT 'W1234567' WITH VALUES`(기존행 자동 백필). **DEFAULT 제약은 지우지 말 것** — COMP_CD를 안 넣는 구버전 코드가 돌아도 기본회사로 들어가는 안전망. 업무키 확장: PK에 COMP_CD 포함(BIZI/VENDOR/SETTLE_CLOSE), UNIQUE에 포함(CLOSING_MST·PAYMENT·RECEIVE·PURCHASE UX_PURCH_NO·SETTLE_TRX UX). IDENTITY(…_SEQ) PK와 `TBL_CODE_MST/DTL`(회사 공유 공통코드)은 제외.
+- **주입은 중앙 1곳 — 컨트롤러는 안 고쳤다**: `CompCdFilter`(web.xml `*.do`, 세션 `s_comp_cd`→ThreadLocal) → `CompCdContext` → **`CompCdMybatisInterceptor`**(sql-mapper-config.xml plugins) 가 모든 SQL 실행 직전 파라미터에 compCd 자동 주입. DTO는 비었을 때만 채움(로그인 폼 입력 존중) · Map은 `compCd` 키 주입 · **파라미터 없는 구문(null)은 compCd만 담은 Map으로 대체**(selectBiziMst 등 5건이 이 경로) · compCd 없는 DTO(공통코드)는 조용히 통과. **새 화면을 추가해도 주입 누락이 없다** — 엔드포인트별 dto.setCompCd(...) 방식 쓰지 말 것.
+- **User_SQL.xml 123개 구문 전부 COMP_CD 반영**: SELECT/UPDATE/DELETE는 기존 관용구와 같은 **fail-open** `AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR 별칭.COMP_CD = #{compCd...} )`(미주입=기존 동작 → 화면 안 깨짐). INSERT/MERGE ON은 **확정값** `ISNULL(#{compCd...},'W1234567')`(NOT NULL이라 명시 NULL 불가). 조인·서브쿼리·OUTER APPLY 안의 업무 테이블은 파라미터가 아니라 **본체와 COMP_CD 상관조건**(`p2.COMP_CD = p.COMP_CD` 등). 윈도우 파티션 2곳(firstDttm·keyQty/keyRows)에도 COMP_CD 추가.
+- **[함정] 단일 String 파라미터 매퍼 메서드는 `@Param` 필수** — `isClosedYm`/`deleteClosingStock`은 `@Param("closeYm")`을 붙여 ParamMap이 되게 했다(안 붙이면 `#{compCd}`가 closeYm 값으로 바인딩되어 조회 0건/삭제 0건). 앞으로 업무 테이블을 만지는 새 매퍼 메서드도 단일 원시타입이면 반드시 @Param.
+- **DTO 20개에 compCd 필드 추가**(Bizi/Closing(Mst)/Payment/Prod(Inprice·Saleprice)/Purchase(Dtl)/Receive/Sales(Trx·TrxDtl)/SettleClose/SettleTrx/Shipout/StockClosing/StockLedger/StockMst/Vendor). 새 업무 DTO에도 compCd 넣을 것(없으면 인터셉터가 조용히 통과 → fail-open이라 단일회사에선 티 안 남).
+- **2번째 회사 등록 시**: TBL_COMP_MST/TBL_USER_MST에 회사·사용자만 넣으면 됨(compcd.jsp). 공통코드는 공유. 상품/거래처/사업장은 회사별로 새로 등록해야 함(PROD_CD 등 자연키는 회사별 독립).
+- **배포**: 자바+XML+web.xml 변경 → **WAR 재빌드 필수** (빌드 확인 완료).
+
 ## 상품 가격/재고 관리 (prodmst.jsp ↔ TBL_PROD_MST)
 상품관리 각 행 클릭 → 하단 도킹 **이력/재고 4탭**(매입가/판매가/매출단가(조회)/재고 수불).
 - **거래처 콤보(vsel)**: 매입처(매입가·재고입고)=매입 거래처 121종, 판매처(판매가)=매출 거래처 334종. '선택 안에 찾기' — 버튼 클릭→드롭다운 내 검색창, Enter=첫 후보, 아래 공간 부족 시 위로 열림(하단 도킹 패널이라 보통 위로). 데이터 원천은 `_vdata(id)` — `sl_vendor`만 SVENDORS(매출).

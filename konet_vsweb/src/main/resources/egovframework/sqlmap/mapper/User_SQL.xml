@@ -428,6 +428,7 @@
 	     AND ISNULL(DC_CD,'') = ISNULL(#{dcCd},'')
 	     AND ACTION_YN = 'Y'
 	     AND ISNULL(SHPOUT_DT,'') <> ''
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
 	<!-- ① 같은 (납품일자,물류센터) 기존 활성배치 이력마감(삭제이력 남김) — ★출고일자는 보지 않는다 -->
@@ -437,6 +438,7 @@
 	   WHERE DLV_DT    = REPLACE(ISNULL(#{dlvDt},''),'-','')
 	     AND ISNULL(DC_CD,'') = ISNULL(#{dcCd},'')
 	     AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- ①-D 출고장 출고 소프트 삭제 — 특정 출고장(DC_CD+INWH)+출고일자의 활성분(ACTION_YN=Y)을 D(삭제)로 표시. 이력 보존(복구 가능) -->
@@ -448,6 +450,7 @@
 	     AND ISNULL(INWH,'') = ISNULL(#{inwh,jdbcType=VARCHAR},'')
 	     AND ISNULL(#{dcCd,jdbcType=VARCHAR},'') <> ''
 	     AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 ]]></update>
 
 	<!-- ② 같은 (납품일자,물류센터)의 다음 배치 JOB_SEQ — ★①과 같은 키(출고일자 제외)여야 버전이 어긋나지 않는다 -->
@@ -456,12 +459,13 @@
 	    FROM TBL_SHIPOUT_MST
 	   WHERE DLV_DT    = REPLACE(ISNULL(#{dlvDt},''),'-','')
 	     AND ISNULL(DC_CD,'') = ISNULL(#{dcCd},'')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
 	<!-- ③ 신규 배치 행 INSERT (ACTION_YN='Y') -->
 	<insert id="insertShipoutMst" parameterType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
 	  INSERT INTO TBL_SHIPOUT_MST (
-	      SHPOUT_DT, DLV_DT, JOB_SEQ, ACTION_YN, ROW_NO, SRC_FILE, UPLOAD_DTTM,
+	      COMP_CD, SHPOUT_DT, DLV_DT, JOB_SEQ, ACTION_YN, ROW_NO, SRC_FILE, UPLOAD_DTTM,
 	      INRSV_YN, LABEL_PRT_GB, DC_CD, DC_NM, VENDOR_CD, VENDOR_NM, ITEM_CD, ITEM_NM,
 	      FSFD_GB, STAT_YN, PROD_KIND, TEMP_GB, ORD_GB, BIZ_CD, BIZ_NM,
 	      BOX_QTY, LABEL_QTY, UNPAID_LABEL_QTY,
@@ -469,6 +473,7 @@
 	      UNIT, INDIV_ID, ORD_NO, ORD_ITEM_NO, JUMUN_NO, JUMUN_ITEM_NO, SORTER,
 	      REG_DTTM, REG_USER, REG_IP
 	  ) VALUES (
+	      ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'),
 	      REPLACE(ISNULL(#{shpoutDt},''),'-',''), REPLACE(ISNULL(#{dlvDt},''),'-',''), #{jobSeq}, 'Y', #{rowNo}, #{srcFile}, GETDATE(),
 	      #{inrsvYn}, #{labelPrtGb}, #{dcCd}, #{dcNm}, #{vendorCd}, #{vendorNm}, #{itemCd}, #{itemNm},
 	      #{fsfdGb}, #{statYn}, #{prodKind}, #{tempGb}, #{ordGb}, #{bizCd}, #{bizNm},
@@ -500,19 +505,19 @@
 	      u.saleUnit, u.saleSrc
 	    FROM ( SELECT s0.*,
 	                  CONVERT(varchar(19),
-	                    MIN(s0.UPLOAD_DTTM) OVER (PARTITION BY s0.SHPOUT_DT, ISNULL(s0.DC_CD,''), ISNULL(s0.BIZ_CD,''), ISNULL(s0.ITEM_CD,'')),
+	                    MIN(s0.UPLOAD_DTTM) OVER (PARTITION BY s0.COMP_CD, s0.SHPOUT_DT, ISNULL(s0.DC_CD,''), ISNULL(s0.BIZ_CD,''), ISNULL(s0.ITEM_CD,'')),
 	                    120) AS firstDttm
 	             FROM TBL_SHIPOUT_MST s0 ) t
 	    LEFT JOIN (
-	          SELECT p.PROD_CD, p.SALE_PRICE
+	          SELECT p.PROD_CD, p.SALE_PRICE, p.COMP_CD
 	            FROM TBL_PROD_MST p
 	           WHERE p.ACTION_YN = 'Y'
-	             AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
-	    ) pm ON pm.PROD_CD = t.ITEM_CD
+	             AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
+	    ) pm ON pm.PROD_CD = t.ITEM_CD AND pm.COMP_CD = t.COMP_CD
 	    OUTER APPLY (
 	          SELECT TOP 1 h.SALE_PRICE
 	            FROM TBL_PROD_SALEPRICE_HST h
-	           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = t.ITEM_CD AND h.APPLY_DT <= t.DLV_DT
+	           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = t.ITEM_CD AND h.APPLY_DT <= t.DLV_DT AND h.COMP_CD = t.COMP_CD
 	             AND h.VENDOR_CD IS NULL   -- 공통가만 (마감과 동일 — 판매처 전용가는 섞지 않는다)
 	           ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
 	    ) sh
@@ -521,6 +526,7 @@
 	                 CASE WHEN sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc
 	    ) u
 	   WHERE t.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND (
 	           ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') <> ''
 	             AND t.SHPOUT_DT BETWEEN REPLACE(#{shpoutDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{shpoutDtTo,jdbcType=VARCHAR},'-','') )
@@ -551,6 +557,7 @@
 	   WHERE DLV_DT = REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-','')
 	     AND ISNULL(DC_NM,'') = ISNULL(#{dcNm,jdbcType=VARCHAR},'')
 	     AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- ② 같은 (납품일자,출고장)의 다음 배치 JOB_SEQ -->
@@ -559,18 +566,20 @@
 	    FROM TBL_SALES_MST
 	   WHERE DLV_DT = REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-','')
 	     AND ISNULL(DC_NM,'') = ISNULL(#{dcNm,jdbcType=VARCHAR},'')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
 	<!-- ③ 신규 배치 행 INSERT (ACTION_YN='Y') -->
 	<insert id="insertSalesMst" parameterType="egovframework.sejong.user.model.SalesDTO"><![CDATA[
 	  INSERT INTO TBL_SALES_MST (
-	      JOB_SEQ, ACTION_YN, ROW_NO, SRC_FILE, UPLOAD_DTTM,
+	      COMP_CD, JOB_SEQ, ACTION_YN, ROW_NO, SRC_FILE, UPLOAD_DTTM,
 	      DC_CD, DC_NM,
 	      ORD_NO, ORD_ITEM_NO, ITEM_CD, ITEM_NM, SPEC, UNIT,
 	      ORD_QTY, SETTLE_QTY, SETTLE_AMT,
 	      DLV_DT, OUT_DT, OUT_QTY, SALE_PRICE, SALE_AMT, DLV_TYPE, TAX_GB,
 	      REG_DTTM, REG_USER, REG_IP
 	  ) VALUES (
+	      ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'),
 	      #{jobSeq}, 'Y', #{rowNo,jdbcType=INTEGER}, #{srcFile,jdbcType=VARCHAR}, GETDATE(),
 	      #{dcCd,jdbcType=VARCHAR}, #{dcNm,jdbcType=VARCHAR},
 	      #{ordNo,jdbcType=VARCHAR}, #{ordItemNo,jdbcType=VARCHAR}, #{itemCd,jdbcType=VARCHAR}, #{itemNm,jdbcType=VARCHAR}, #{spec,jdbcType=VARCHAR}, #{unit,jdbcType=VARCHAR},
@@ -595,6 +604,7 @@
 	   WHERE ISNULL(DC_NM,'') = ISNULL(#{dcNm,jdbcType=VARCHAR},'')
 	     AND ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') = '' OR ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'') = ''
 	           OR DLV_DT BETWEEN REPLACE(#{dlvDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{dlvDtTo,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- ③-3 정정 전 충돌 확인 — 옮겨갈 이름으로 '같은 납품일자에 이미 활성배치가 있는' 일자 수.
@@ -606,11 +616,13 @@
 	             FROM TBL_SALES_MST
 	            WHERE ISNULL(DC_NM,'') = ISNULL(#{dcNm,jdbcType=VARCHAR},'')
 	              AND ACTION_YN = 'Y'
+	              AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	              AND ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') = '' OR ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'') = ''
 	                    OR DLV_DT BETWEEN REPLACE(#{dlvDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{dlvDtTo,jdbcType=VARCHAR},'-','') ) ) o
 	   WHERE EXISTS ( SELECT 1 FROM TBL_SALES_MST n
 	                   WHERE ISNULL(n.DC_NM,'') = ISNULL(#{newDcNm,jdbcType=VARCHAR},'')
 	                     AND n.ACTION_YN = 'Y'
+	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR n.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                     AND n.DLV_DT = o.DLV_DT )
 	]]></select>
 
@@ -628,6 +640,7 @@
 	      t.DLV_TYPE AS dlvType, t.TAX_GB AS taxGb
 	    FROM TBL_SALES_MST t
 	   WHERE t.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{dcNm,jdbcType=VARCHAR},'') = '' OR ISNULL(t.DC_NM,'') = #{dcNm,jdbcType=VARCHAR} )
      AND ( ISNULL(#{itemCd,jdbcType=VARCHAR},'') = ''
            OR ISNULL(t.ITEM_CD,'') LIKE '%' + #{itemCd,jdbcType=VARCHAR} + '%'
@@ -660,11 +673,13 @@
 	             #{salePrice,jdbcType=DECIMAL} AS SALE_PRICE
 	        FROM TBL_PROD_MST pm
 	       WHERE pm.ACTION_YN = 'Y'
+	         AND pm.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')
 	         AND pm.PROD_CD = #{itemCd,jdbcType=VARCHAR}
 	         AND pm.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2
-	                             WHERE p2.PROD_CD = pm.PROD_CD AND p2.ACTION_YN = 'Y')
+	                             WHERE p2.PROD_CD = pm.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = pm.COMP_CD)
 	  ) AS s
-	     ON (t.PROD_CD = s.PROD_CD AND t.APPLY_DT = s.APPLY_DT AND t.ACTION_YN = 'Y' AND t.VENDOR_CD IS NULL)
+	     ON (t.PROD_CD = s.PROD_CD AND t.APPLY_DT = s.APPLY_DT AND t.ACTION_YN = 'Y' AND t.VENDOR_CD IS NULL
+	         AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
 	  WHEN MATCHED AND ISNULL(t.SALE_PRICE, -1) <> s.SALE_PRICE THEN
 	      UPDATE SET t.SALE_PRICE = s.SALE_PRICE,
 	                 t.REMARK     = N'매출 엑셀 업로드 반영',
@@ -672,8 +687,8 @@
 	                 t.UPD_USER   = #{regUser,jdbcType=VARCHAR},
 	                 t.UPD_IP     = #{regIp,jdbcType=VARCHAR}
 	  WHEN NOT MATCHED BY TARGET THEN
-	      INSERT (PROD_SEQ, PROD_CD, APPLY_DT, SALE_PRICE, BASE_INPRICE, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
-	      VALUES (s.PROD_SEQ, s.PROD_CD, s.APPLY_DT, s.SALE_PRICE, s.IN_PRICE, N'매출 엑셀 업로드 반영', 'Y',
+	      INSERT (COMP_CD, PROD_SEQ, PROD_CD, APPLY_DT, SALE_PRICE, BASE_INPRICE, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	      VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), s.PROD_SEQ, s.PROD_CD, s.APPLY_DT, s.SALE_PRICE, s.IN_PRICE, N'매출 엑셀 업로드 반영', 'Y',
 	              CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=VARCHAR}, #{regIp,jdbcType=VARCHAR});
 	]]></update>
 
@@ -693,6 +708,7 @@
 	         REG_DTTM AS regDttm, UPD_DTTM AS updDttm
 	    FROM TBL_VENDOR_MST
 	   WHERE ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{gbFilter,jdbcType=VARCHAR},'') = ''
 	           OR VENDOR_GB LIKE '%' + #{gbFilter,jdbcType=VARCHAR} + '%' )
 	     AND ( ISNULL(#{findData,jdbcType=VARCHAR},'') = ''
@@ -709,16 +725,18 @@
 	<!-- 거래처 코드 중복 체크 (신규 등록 시) -->
 	<select id="vendorDupChk" parameterType="egovframework.sejong.user.model.VendorDTO" resultType="int"><![CDATA[
 	  SELECT COUNT(*) FROM TBL_VENDOR_MST WHERE VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
 	<!-- 거래처 신규 등록 (화면 수기 등록) -->
 	<insert id="insertVendorMst" parameterType="egovframework.sejong.user.model.VendorDTO"><![CDATA[
 	  INSERT INTO TBL_VENDOR_MST (
-	      VENDOR_CD, VENDOR_NM, FULL_NM, ALIAS, CEO_NM, VENDOR_GB, BIZ_COND, BIZ_ITEM,
+	      COMP_CD, VENDOR_CD, VENDOR_NM, FULL_NM, ALIAS, CEO_NM, VENDOR_GB, BIZ_COND, BIZ_ITEM,
 	      MGR_CD, MGR_NM, TYPE_CD, TYPE_NM, AREA_CD, AREA_NM, ZIPCD, ADDR, ADDR2,
 	      EMAIL, HP, TEL, FAX, BIZNO, BANK_ACCT, TAXBILL_GB, VAT_GB, REG_DT, DC_CD, SORT_ORD, REMARK,
 	      ACTION_YN, REG_DTTM, REG_USER, REG_IP
 	  ) VALUES (
+	      ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'),
 	      #{vendorCd,jdbcType=VARCHAR}, #{vendorNm,jdbcType=VARCHAR}, #{fullNm,jdbcType=VARCHAR}, #{alias,jdbcType=VARCHAR},
 	      #{ceoNm,jdbcType=VARCHAR}, #{vendorGb,jdbcType=VARCHAR}, #{bizCond,jdbcType=VARCHAR}, #{bizItem,jdbcType=VARCHAR},
 	      #{mgrCd,jdbcType=VARCHAR}, #{mgrNm,jdbcType=VARCHAR}, #{typeCd,jdbcType=VARCHAR}, #{typeNm,jdbcType=VARCHAR},
@@ -746,6 +764,7 @@
 	         DC_CD = #{dcCd,jdbcType=VARCHAR}, SORT_ORD = #{sortOrd,jdbcType=INTEGER}, REMARK = #{remark,jdbcType=VARCHAR},
 	         UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- 거래처 소프트 삭제 (ACTION_YN='N' — 이력·참조 보존) -->
@@ -754,6 +773,7 @@
 	     SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120),
 	         UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- 거래처리스트.xls 재업로드 upsert — VENDOR_CD 있으면 갱신, 없으면 신규 (초기적재 vendor_mst_insert.sql 과 동일 규칙)
@@ -761,7 +781,7 @@
 	<update id="mergeVendorMst" parameterType="egovframework.sejong.user.model.VendorDTO"><![CDATA[
 	  MERGE dbo.TBL_VENDOR_MST AS t
 	  USING (SELECT #{vendorCd,jdbcType=VARCHAR} AS VENDOR_CD) AS s
-	     ON (t.VENDOR_CD = s.VENDOR_CD)
+	     ON (t.VENDOR_CD = s.VENDOR_CD AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
 	  WHEN MATCHED THEN UPDATE SET
 	         t.VENDOR_NM = #{vendorNm,jdbcType=VARCHAR}, t.FULL_NM = #{fullNm,jdbcType=VARCHAR}, t.ALIAS = #{alias,jdbcType=VARCHAR},
 	         t.CEO_NM = #{ceoNm,jdbcType=VARCHAR}, t.VENDOR_GB = #{vendorGb,jdbcType=VARCHAR},
@@ -778,11 +798,12 @@
 	         t.REMARK = #{remark,jdbcType=VARCHAR}, t.ACTION_YN = 'Y',
 	         t.UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER = #{updUser,jdbcType=VARCHAR}, t.UPD_IP = #{updIp,jdbcType=VARCHAR}
 	  WHEN NOT MATCHED THEN INSERT (
-	         VENDOR_CD, VENDOR_NM, FULL_NM, ALIAS, CEO_NM, VENDOR_GB, BIZ_COND, BIZ_ITEM,
+	         COMP_CD, VENDOR_CD, VENDOR_NM, FULL_NM, ALIAS, CEO_NM, VENDOR_GB, BIZ_COND, BIZ_ITEM,
 	         MGR_CD, MGR_NM, TYPE_CD, TYPE_NM, AREA_CD, AREA_NM, ZIPCD, ADDR, ADDR2,
 	         EMAIL, HP, TEL, FAX, BIZNO, BANK_ACCT, TAXBILL_GB, VAT_GB, REG_DT, DC_CD, REMARK,
 	         ACTION_YN, REG_DTTM, REG_USER, REG_IP )
 	       VALUES (
+	         ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'),
 	         #{vendorCd,jdbcType=VARCHAR}, #{vendorNm,jdbcType=VARCHAR}, #{fullNm,jdbcType=VARCHAR}, #{alias,jdbcType=VARCHAR},
 	         #{ceoNm,jdbcType=VARCHAR}, #{vendorGb,jdbcType=VARCHAR}, #{bizCond,jdbcType=VARCHAR}, #{bizItem,jdbcType=VARCHAR},
 	         #{mgrCd,jdbcType=VARCHAR}, #{mgrNm,jdbcType=VARCHAR}, #{typeCd,jdbcType=VARCHAR}, #{typeNm,jdbcType=VARCHAR},
@@ -801,6 +822,7 @@
 	         CONVERT(varchar(19), MAX(UPLOAD_DTTM), 120) AS uploadDttm
 	    FROM TBL_SALES_MST
 	   WHERE ISNULL(SRC_FILE,'') <> '' AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   GROUP BY SRC_FILE
 	]]></select>
 
@@ -812,6 +834,7 @@
 	         CONVERT(varchar(19), MAX(UPLOAD_DTTM), 120) AS uploadDttm
 	    FROM TBL_SHIPOUT_MST
 	   WHERE ISNULL(SRC_FILE,'') <> ''
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   GROUP BY SRC_FILE
 	]]></select>
 
@@ -824,6 +847,7 @@
 	      CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm,
 	      ( SELECT CONVERT(varchar(19), MIN(m.UPLOAD_DTTM), 120) FROM TBL_SHIPOUT_MST m
 	         WHERE m.SHPOUT_DT = t.SHPOUT_DT AND ISNULL(m.DC_CD,'') = ISNULL(t.DC_CD,'')
+	           AND m.COMP_CD = t.COMP_CD
 	           AND ISNULL(m.BIZ_CD,'') = ISNULL(t.BIZ_CD,'') AND ISNULL(m.ITEM_CD,'') = ISNULL(t.ITEM_CD,'') ) AS firstDttm,
 	      t.DC_CD AS dcCd, t.DC_NM AS dcNm, t.VENDOR_CD AS vendorCd, t.VENDOR_NM AS vendorNm,
 	      t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
@@ -834,11 +858,13 @@
 	    FROM TBL_SHIPOUT_MST t
 	   WHERE t.SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
 	     AND t.ACTION_YN = 'N'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND t.JOB_SEQ = (
 	           SELECT MAX(x.JOB_SEQ) FROM TBL_SHIPOUT_MST x
 	            WHERE x.SHPOUT_DT = t.SHPOUT_DT
 	              AND x.DLV_DT = t.DLV_DT
 	              AND ISNULL(x.DC_CD,'') = ISNULL(t.DC_CD,'')
+	              AND x.COMP_CD = t.COMP_CD
 	              AND x.ACTION_YN = 'N'
 	         )
 	   ORDER BY t.BIZ_NM, t.ITEM_NM, t.ROW_NO
@@ -861,6 +887,7 @@
 	     AND ISNULL(t.DC_CD,'') = ISNULL(#{dcCd},'')
 	     AND ISNULL(t.INWH,'')  = ISNULL(#{inwh},'')
 	     AND ISNULL(t.ACTION_YN,'') <> 'D'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY t.UPLOAD_DTTM, t.BIZ_NM, t.ITEM_NM, t.ROW_NO
 	]]></select>
 
@@ -935,23 +962,24 @@
 	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%제주%' THEN 'E600'
 	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%오산%' THEN 'E700'
 	                              ELSE '' END AS dcKey,
-	                         ISNULL(o2.ITEM_CD,'') AS itemCd
+	                         ISNULL(o2.ITEM_CD,'') AS itemCd, o2.COMP_CD AS compCd
 	                    FROM TBL_SHIPOUT_MST o2
 	                   WHERE o2.ACTION_YN = 'Y'
-	            ) ok ON ok.dlvKey = dk.dlvKey AND ok.dcKey = dk.dcKey AND ok.itemCd = ISNULL(s.ITEM_CD,'')
+	            ) ok ON ok.dlvKey = dk.dlvKey AND ok.dcKey = dk.dcKey AND ok.itemCd = ISNULL(s.ITEM_CD,'') AND ok.compCd = s.COMP_CD
 	            LEFT JOIN (
-	                  SELECT p.PROD_CD, p.IN_PRICE
+	                  SELECT p.PROD_CD, p.IN_PRICE, p.COMP_CD
 	                    FROM TBL_PROD_MST p
 	                   WHERE p.ACTION_YN = 'Y'
-	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
-	            ) pm ON pm.PROD_CD = s.ITEM_CD
+	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
+	            ) pm ON pm.PROD_CD = s.ITEM_CD AND pm.COMP_CD = s.COMP_CD
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.IN_PRICE
 	                    FROM TBL_PROD_INPRICE_HST h
-	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= dk.dlvKey
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = s.COMP_CD
 	                   ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	            ) ih
 	           WHERE s.ACTION_YN = 'Y'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	             AND ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) IS NOT NULL
 
 	          UNION ALL
@@ -981,22 +1009,22 @@
 	                         REPLACE(ISNULL(o.DLV_DT,''),'-','') AS dlvKey
 	            ) dk
 	            LEFT JOIN (
-	                  SELECT p.PROD_CD, p.SALE_PRICE, p.IN_PRICE
+	                  SELECT p.PROD_CD, p.SALE_PRICE, p.IN_PRICE, p.COMP_CD
 	                    FROM TBL_PROD_MST p
 	                   WHERE p.ACTION_YN = 'Y'
-	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
-	            ) pm ON pm.PROD_CD = o.ITEM_CD
+	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
+	            ) pm ON pm.PROD_CD = o.ITEM_CD AND pm.COMP_CD = o.COMP_CD
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.SALE_PRICE
 	                    FROM TBL_PROD_SALEPRICE_HST h
-	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND h.APPLY_DT <= dk.dlvKey
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD
 	                     AND h.VENDOR_CD IS NULL
 	                   ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
 	            ) sh
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.IN_PRICE
 	                    FROM TBL_PROD_INPRICE_HST h
-	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND h.APPLY_DT <= dk.dlvKey
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD
 	                   ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	            ) ih
 	            CROSS APPLY ( SELECT ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) AS saleUnit,
@@ -1012,11 +1040,12 @@
 	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%제주%' THEN 'E600'
 	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%오산%' THEN 'E700'
 	                              ELSE '' END AS dcKey,
-	                         ISNULL(s2.ITEM_CD,'') AS itemCd
+	                         ISNULL(s2.ITEM_CD,'') AS itemCd, s2.COMP_CD AS compCd
 	                    FROM TBL_SALES_MST s2
 	                   WHERE s2.ACTION_YN = 'Y'
-	            ) sk ON sk.dlvKey = dk.dlvKey AND sk.dcKey = dk.dcKey AND sk.itemCd = ISNULL(o.ITEM_CD,'')
+	            ) sk ON sk.dlvKey = dk.dlvKey AND sk.dcKey = dk.dcKey AND sk.itemCd = ISNULL(o.ITEM_CD,'') AND sk.compCd = o.COMP_CD
 	           WHERE o.ACTION_YN = 'Y'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 
 	          UNION ALL
 	          /* ③ 판매전표(직접판매) — 매입액 = 판매수량 × 매입단가(마감과 같은 규칙).
@@ -1030,21 +1059,22 @@
 	                 CASE WHEN d.TRX_GB = N'반품' THEN -ISNULL(d.QTY,0) ELSE ISNULL(d.QTY,0) END
 	                   * ISNULL(ih3.IN_PRICE, ISNULL(pm3.IN_PRICE,0)) AS costAmt
 	            FROM TBL_SALES_TRX_DTL d
-	            JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y'
+	            JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
 	            LEFT JOIN (
-	                  SELECT p.PROD_CD, p.IN_PRICE
+	                  SELECT p.PROD_CD, p.IN_PRICE, p.COMP_CD
 	                    FROM TBL_PROD_MST p
 	                   WHERE p.ACTION_YN = 'Y'
-	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
-	            ) pm3 ON pm3.PROD_CD = d.PROD_CD
+	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
+	            ) pm3 ON pm3.PROD_CD = d.PROD_CD AND pm3.COMP_CD = d.COMP_CD
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.IN_PRICE
 	                    FROM TBL_PROD_INPRICE_HST h
-	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = d.PROD_CD
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = d.PROD_CD AND h.COMP_CD = d.COMP_CD
 	                     AND h.APPLY_DT <= REPLACE(ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT),'-','')
 	                   ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	            ) ih3
 	           WHERE d.ACTION_YN = 'Y'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	    ) x
 	   WHERE ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = '' OR x.ym >= LEFT(REPLACE(#{fromDt,jdbcType=VARCHAR},'-',''),6) )
 	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'')   = '' OR x.ym <= LEFT(REPLACE(#{toDt,jdbcType=VARCHAR},'-',''),6) )
@@ -1100,23 +1130,24 @@
 	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%제주%' THEN 'E600'
 	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%오산%' THEN 'E700'
 	                              ELSE '' END AS dcKey,
-	                         ISNULL(o2.ITEM_CD,'') AS itemCd
+	                         ISNULL(o2.ITEM_CD,'') AS itemCd, o2.COMP_CD AS compCd
 	                    FROM TBL_SHIPOUT_MST o2
 	                   WHERE o2.ACTION_YN = 'Y'
-	            ) ok ON ok.dlvKey = dk.dlvKey AND ok.dcKey = dk.dcKey AND ok.itemCd = ISNULL(s.ITEM_CD,'')
+	            ) ok ON ok.dlvKey = dk.dlvKey AND ok.dcKey = dk.dcKey AND ok.itemCd = ISNULL(s.ITEM_CD,'') AND ok.compCd = s.COMP_CD
 	            LEFT JOIN (
-	                  SELECT p.PROD_CD, p.IN_PRICE
+	                  SELECT p.PROD_CD, p.IN_PRICE, p.COMP_CD
 	                    FROM TBL_PROD_MST p
 	                   WHERE p.ACTION_YN = 'Y'
-	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
-	            ) pm ON pm.PROD_CD = s.ITEM_CD
+	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
+	            ) pm ON pm.PROD_CD = s.ITEM_CD AND pm.COMP_CD = s.COMP_CD
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.IN_PRICE
 	                    FROM TBL_PROD_INPRICE_HST h
-	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= dk.dlvKey
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = s.COMP_CD
 	                   ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	            ) ih
 	           WHERE s.ACTION_YN = 'Y'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	             AND ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) IS NOT NULL
 
 	          UNION ALL
@@ -1141,22 +1172,22 @@
 	                         REPLACE(ISNULL(o.DLV_DT,''),'-','') AS dlvKey
 	            ) dk
 	            LEFT JOIN (
-	                  SELECT p.PROD_CD, p.SALE_PRICE, p.IN_PRICE
+	                  SELECT p.PROD_CD, p.SALE_PRICE, p.IN_PRICE, p.COMP_CD
 	                    FROM TBL_PROD_MST p
 	                   WHERE p.ACTION_YN = 'Y'
-	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
-	            ) pm ON pm.PROD_CD = o.ITEM_CD
+	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
+	            ) pm ON pm.PROD_CD = o.ITEM_CD AND pm.COMP_CD = o.COMP_CD
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.SALE_PRICE
 	                    FROM TBL_PROD_SALEPRICE_HST h
-	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND h.APPLY_DT <= dk.dlvKey
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD
 	                     AND h.VENDOR_CD IS NULL
 	                   ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
 	            ) sh
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.IN_PRICE
 	                    FROM TBL_PROD_INPRICE_HST h
-	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND h.APPLY_DT <= dk.dlvKey
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD
 	                   ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	            ) ih
 	            CROSS APPLY ( SELECT ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) AS saleUnit,
@@ -1172,11 +1203,12 @@
 	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%제주%' THEN 'E600'
 	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%오산%' THEN 'E700'
 	                              ELSE '' END AS dcKey,
-	                         ISNULL(s2.ITEM_CD,'') AS itemCd
+	                         ISNULL(s2.ITEM_CD,'') AS itemCd, s2.COMP_CD AS compCd
 	                    FROM TBL_SALES_MST s2
 	                   WHERE s2.ACTION_YN = 'Y'
-	            ) sk ON sk.dlvKey = dk.dlvKey AND sk.dcKey = dk.dcKey AND sk.itemCd = ISNULL(o.ITEM_CD,'')
+	            ) sk ON sk.dlvKey = dk.dlvKey AND sk.dcKey = dk.dcKey AND sk.itemCd = ISNULL(o.ITEM_CD,'') AND sk.compCd = o.COMP_CD
 	           WHERE o.ACTION_YN = 'Y'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 
 	          UNION ALL
 	          -- ③ 판매전표(직접판매) — 매입액 = 판매수량 × 매입단가
@@ -1187,21 +1219,22 @@
 	                 CASE WHEN d.TRX_GB = N'반품' THEN -ISNULL(d.QTY,0) ELSE ISNULL(d.QTY,0) END
 	                   * ISNULL(ih3.IN_PRICE, ISNULL(pm3.IN_PRICE,0)) AS costAmt
 	            FROM TBL_SALES_TRX_DTL d
-	            JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y'
+	            JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
 	            LEFT JOIN (
-	                  SELECT p.PROD_CD, p.IN_PRICE
+	                  SELECT p.PROD_CD, p.IN_PRICE, p.COMP_CD
 	                    FROM TBL_PROD_MST p
 	                   WHERE p.ACTION_YN = 'Y'
-	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
-	            ) pm3 ON pm3.PROD_CD = d.PROD_CD
+	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
+	            ) pm3 ON pm3.PROD_CD = d.PROD_CD AND pm3.COMP_CD = d.COMP_CD
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.IN_PRICE
 	                    FROM TBL_PROD_INPRICE_HST h
-	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = d.PROD_CD
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = d.PROD_CD AND h.COMP_CD = d.COMP_CD
 	                     AND h.APPLY_DT <= REPLACE(ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT),'-','')
 	                   ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	            ) ih3
 	           WHERE d.ACTION_YN = 'Y'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	    ) x
 	   GROUP BY x.dt
 	   ORDER BY x.dt
@@ -1240,6 +1273,7 @@
 	         SUM(ISNULL(t.CUR_QTY,0))                      AS qtySum
 	    FROM TBL_SHIPOUT_MST t
 	   WHERE ISNULL(t.ACTION_YN,'') <> 'D'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND (
 	           ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') <> ''
 	             AND t.SHPOUT_DT BETWEEN REPLACE(#{shpoutDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{shpoutDtTo,jdbcType=VARCHAR},'-','') )
@@ -1265,6 +1299,7 @@
 	     AND ISNULL(t.DLV_DT,'') = ISNULL(#{dlvDt,jdbcType=VARCHAR},'')
 	     AND t.JOB_SEQ = #{jobSeq}
 	     AND ISNULL(t.ACTION_YN,'') <> 'D'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY t.BIZ_NM, t.ITEM_NM, t.ROW_NO
 	]]></select>
 
@@ -1279,7 +1314,9 @@
 	      t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
 	      t.CUR_QTY AS curQty
 	    FROM TBL_SHIPOUT_MST t
-	   WHERE ISNULL(t.ACTION_YN,'') <> 'D' AND (
+	   WHERE ISNULL(t.ACTION_YN,'') <> 'D'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND (
 	           ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') <> ''
 	             AND t.SHPOUT_DT BETWEEN REPLACE(#{shpoutDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{shpoutDtTo,jdbcType=VARCHAR},'-','') )
 	        OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') <> ''
@@ -1297,14 +1334,16 @@
 	  SELECT BIZ_CD AS bizCd, JOB_SEQ AS jobSeq, ACTION_YN AS actionYn, BIZ_NM AS bizNm
 	    FROM TBL_BIZI_MST
 	   WHERE ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY BIZ_NM
 	]]></select>
 
 	<!-- 사업장코드가 없을 때만 신규 등록 (기존 사업장명은 그대로 유지 — insert if absent) -->
 	<insert id="insertBiziIfAbsent" parameterType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
-	  INSERT INTO TBL_BIZI_MST (BIZ_CD, JOB_SEQ, ACTION_YN, BIZ_NM, REG_DTTM, REG_USER, REG_IP)
-	  SELECT #{bizCd}, 1, 'Y', #{bizNm}, GETDATE(), #{regUser}, #{regIp}
-	   WHERE NOT EXISTS (SELECT 1 FROM TBL_BIZI_MST t WHERE t.BIZ_CD = #{bizCd})
+	  INSERT INTO TBL_BIZI_MST (COMP_CD, BIZ_CD, JOB_SEQ, ACTION_YN, BIZ_NM, REG_DTTM, REG_USER, REG_IP)
+	  SELECT ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{bizCd}, 1, 'Y', #{bizNm}, GETDATE(), #{regUser}, #{regIp}
+	   WHERE NOT EXISTS (SELECT 1 FROM TBL_BIZI_MST t WHERE t.BIZ_CD = #{bizCd}
+	                        AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
 	]]></insert>
 
 	<!-- 관리화면: 사업장명 수정 -->
@@ -1313,6 +1352,7 @@
 	     SET BIZ_NM = #{bizNm}, ACTION_YN = 'Y',
 	         UPD_DTTM = GETDATE(), UPD_USER = #{updUser}, UPD_IP = #{updIp}
 	   WHERE BIZ_CD = #{bizCd}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- 관리화면: 사업장 삭제(비활성화 ACTION_YN='N') -->
@@ -1321,6 +1361,7 @@
 	     SET ACTION_YN = 'N',
 	         UPD_DTTM = GETDATE(), UPD_USER = #{updUser}, UPD_IP = #{updIp}
 	   WHERE BIZ_CD = #{bizCd}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- ============================================================
@@ -1333,6 +1374,7 @@
 	         CONVERT(varchar(19),REG_DTTM,120) AS regDttm, CONVERT(varchar(19),UPD_DTTM,120) AS updDttm
 	    FROM TBL_BIZI_MST
 	   WHERE ISNULL(ACTION_YN,'Y') = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  <if test="findData != null and findData != ''">
 	     AND ( BIZ_CD LIKE '%' + #{findData} + '%' OR ISNULL(BIZ_NM,'') LIKE '%' + #{findData} + '%'
 	        OR ISNULL(BIZ_SMALL_NM,'') LIKE '%' + #{findData} + '%' OR ISNULL(BIZNO,'') LIKE '%' + #{findData} + '%'
@@ -1343,14 +1385,15 @@
 
 	<select id="biziDupChk" parameterType="egovframework.sejong.user.model.BiziDTO" resultType="int">
 	  SELECT COUNT(*) FROM TBL_BIZI_MST WHERE BIZ_CD = #{bizCd} AND ISNULL(ACTION_YN,'Y') = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	</select>
 
 	<insert id="insertBizi" parameterType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
 	  INSERT INTO TBL_BIZI_MST
-	    (BIZ_CD, JOB_SEQ, ACTION_YN, BIZ_NM, BIZ_SMALL_NM, BIZ_GB, BIZNO, CEO_NM, BIZ_COND, BIZ_ITEM,
+	    (COMP_CD, BIZ_CD, JOB_SEQ, ACTION_YN, BIZ_NM, BIZ_SMALL_NM, BIZ_GB, BIZNO, CEO_NM, BIZ_COND, BIZ_ITEM,
 	     ZIPCD, ADDR, ADDR2, TEL, FAX, HP, EMAIL, MANAGER, SORT_ORD, REMARK, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
-	    (#{bizCd}, 1, 'Y', #{bizNm,jdbcType=NVARCHAR}, #{bizSmallNm,jdbcType=NVARCHAR}, #{bizGb,jdbcType=NVARCHAR}, #{bizno,jdbcType=NVARCHAR},
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{bizCd}, 1, 'Y', #{bizNm,jdbcType=NVARCHAR}, #{bizSmallNm,jdbcType=NVARCHAR}, #{bizGb,jdbcType=NVARCHAR}, #{bizno,jdbcType=NVARCHAR},
 	     #{ceoNm,jdbcType=NVARCHAR}, #{bizCond,jdbcType=NVARCHAR}, #{bizItem,jdbcType=NVARCHAR}, #{zipcd,jdbcType=NVARCHAR}, #{addr,jdbcType=NVARCHAR}, #{addr2,jdbcType=NVARCHAR},
 	     #{tel,jdbcType=NVARCHAR}, #{fax,jdbcType=NVARCHAR}, #{hp,jdbcType=NVARCHAR}, #{email,jdbcType=NVARCHAR}, #{manager,jdbcType=NVARCHAR}, #{sortOrd,jdbcType=INTEGER}, #{remark,jdbcType=NVARCHAR},
 	     GETDATE(), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
@@ -1364,11 +1407,13 @@
 	         EMAIL=#{email,jdbcType=NVARCHAR}, MANAGER=#{manager,jdbcType=NVARCHAR}, SORT_ORD=#{sortOrd,jdbcType=INTEGER}, REMARK=#{remark,jdbcType=NVARCHAR},
 	         UPD_DTTM=GETDATE(), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE BIZ_CD = #{bizCd}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<update id="deleteBizi" parameterType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
 	  UPDATE TBL_BIZI_MST SET ACTION_YN='N', UPD_DTTM=GETDATE(), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE BIZ_CD = #{bizCd}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- ============================================================
@@ -1380,6 +1425,7 @@
 	         COLLECT_DT AS collectDt, PAY_GB AS payGb, REMARK AS remark, UPD_DTTM AS updDttm
 	    FROM TBL_RECEIVE_MST
 	   WHERE ISNULL(ACTION_YN,'Y') = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  <if test="rcvYm != null and rcvYm != ''">
 	     AND RCV_YM = REPLACE(#{rcvYm},'-','')
 	  </if>
@@ -1390,8 +1436,8 @@
 	</select>
 
 	<insert id="insertReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
-	  INSERT INTO TBL_RECEIVE_MST (RCV_YM, BIZ_CD, BIZ_NM, PREV_AMT, SALES_AMT, COLLECT_AMT, COLLECT_DT, PAY_GB, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
-	  VALUES (REPLACE(#{rcvYm},'-',''), #{bizCd,jdbcType=NVARCHAR}, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{salesAmt,jdbcType=DECIMAL}, #{collectAmt,jdbcType=DECIMAL},
+	  INSERT INTO TBL_RECEIVE_MST (COMP_CD, RCV_YM, BIZ_CD, BIZ_NM, PREV_AMT, SALES_AMT, COLLECT_AMT, COLLECT_DT, PAY_GB, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), REPLACE(#{rcvYm},'-',''), #{bizCd,jdbcType=NVARCHAR}, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{salesAmt,jdbcType=DECIMAL}, #{collectAmt,jdbcType=DECIMAL},
 	          REPLACE(ISNULL(#{collectDt,jdbcType=NVARCHAR},''),'-',''), #{payGb,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
 
@@ -1401,23 +1447,25 @@
 	         COLLECT_DT=REPLACE(ISNULL(#{collectDt,jdbcType=NVARCHAR},''),'-',''), PAY_GB=#{payGb,jdbcType=NVARCHAR}, REMARK=#{remark,jdbcType=NVARCHAR},
 	         UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE RCV_SEQ = #{rcvSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<update id="deleteReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
 	  UPDATE TBL_RECEIVE_MST SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE RCV_SEQ = #{rcvSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- 엑셀업로드: (귀속월+거래처) 있으면 UPDATE, 없으면 INSERT -->
 	<update id="upsertReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
 	  MERGE TBL_RECEIVE_MST AS t
 	  USING (SELECT REPLACE(#{rcvYm},'-','') AS RCV_YM, #{bizCd} AS BIZ_CD) AS s
-	  ON (t.RCV_YM = s.RCV_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,''))
+	  ON (t.RCV_YM = s.RCV_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,'') AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
 	  WHEN MATCHED THEN UPDATE SET
 	     t.BIZ_NM=#{bizNm,jdbcType=NVARCHAR}, t.PREV_AMT=#{prevAmt,jdbcType=DECIMAL}, t.SALES_AMT=#{salesAmt,jdbcType=DECIMAL}, t.COLLECT_AMT=#{collectAmt,jdbcType=DECIMAL},
 	     t.ACTION_YN='Y', t.UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER=#{regUser,jdbcType=NVARCHAR}, t.UPD_IP=#{regIp,jdbcType=NVARCHAR}
-	  WHEN NOT MATCHED THEN INSERT (RCV_YM, BIZ_CD, BIZ_NM, PREV_AMT, SALES_AMT, COLLECT_AMT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
-	     VALUES (s.RCV_YM, s.BIZ_CD, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{salesAmt,jdbcType=DECIMAL}, #{collectAmt,jdbcType=DECIMAL}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
+	  WHEN NOT MATCHED THEN INSERT (COMP_CD, RCV_YM, BIZ_CD, BIZ_NM, PREV_AMT, SALES_AMT, COLLECT_AMT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	     VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), s.RCV_YM, s.BIZ_CD, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{salesAmt,jdbcType=DECIMAL}, #{collectAmt,jdbcType=DECIMAL}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
 	]]></update>
 
 	<!-- 전월이월 자동이월: 전월(귀속월-1) 미수잔액(전월이월+당월매출-당월수금)을 당월 전월이월(PREV_AMT)로 이월 -->
@@ -1427,17 +1475,18 @@
 	           SUM(ISNULL(PREV_AMT,0)+ISNULL(SALES_AMT,0)-ISNULL(COLLECT_AMT,0)) AS DUE
 	      FROM TBL_RECEIVE_MST
 	     WHERE ISNULL(ACTION_YN,'Y')='Y'
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	       AND RCV_YM = FORMAT(DATEADD(MONTH,-1,CONVERT(date, REPLACE(#{rcvYm},'-','')+'01', 112)),'yyyyMM')
 	     GROUP BY BIZ_CD
 	  )
 	  MERGE TBL_RECEIVE_MST AS t
 	  USING (SELECT REPLACE(#{rcvYm},'-','') AS RCV_YM, BIZ_CD, BIZ_NM, DUE FROM prev) AS s
-	  ON (t.RCV_YM = s.RCV_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,''))
+	  ON (t.RCV_YM = s.RCV_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,'') AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
 	  WHEN MATCHED THEN UPDATE SET
 	     t.PREV_AMT = s.DUE, t.ACTION_YN='Y',
 	     t.UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER=#{regUser,jdbcType=NVARCHAR}, t.UPD_IP=#{regIp,jdbcType=NVARCHAR}
-	  WHEN NOT MATCHED AND s.DUE <> 0 THEN INSERT (RCV_YM, BIZ_CD, BIZ_NM, PREV_AMT, SALES_AMT, COLLECT_AMT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
-	     VALUES (s.RCV_YM, s.BIZ_CD, s.BIZ_NM, s.DUE, 0, 0, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
+	  WHEN NOT MATCHED AND s.DUE <> 0 THEN INSERT (COMP_CD, RCV_YM, BIZ_CD, BIZ_NM, PREV_AMT, SALES_AMT, COLLECT_AMT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	     VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), s.RCV_YM, s.BIZ_CD, s.BIZ_NM, s.DUE, 0, 0, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
 	]]></update>
 
 	<!-- ============================================================
@@ -1449,6 +1498,7 @@
 	         PAYOUT_DT AS payoutDt, PAY_GB AS payGb, REMARK AS remark, UPD_DTTM AS updDttm
 	    FROM TBL_PAYMENT_MST
 	   WHERE ISNULL(ACTION_YN,'Y') = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  <if test="payYm != null and payYm != ''">
 	     AND PAY_YM = REPLACE(#{payYm},'-','')
 	  </if>
@@ -1459,8 +1509,8 @@
 	</select>
 
 	<insert id="insertPayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
-	  INSERT INTO TBL_PAYMENT_MST (PAY_YM, BIZ_CD, BIZ_NM, PREV_AMT, PURCH_AMT, PAYOUT_AMT, PAYOUT_DT, PAY_GB, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
-	  VALUES (REPLACE(#{payYm},'-',''), #{bizCd,jdbcType=NVARCHAR}, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{purchAmt,jdbcType=DECIMAL}, #{payoutAmt,jdbcType=DECIMAL},
+	  INSERT INTO TBL_PAYMENT_MST (COMP_CD, PAY_YM, BIZ_CD, BIZ_NM, PREV_AMT, PURCH_AMT, PAYOUT_AMT, PAYOUT_DT, PAY_GB, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), REPLACE(#{payYm},'-',''), #{bizCd,jdbcType=NVARCHAR}, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{purchAmt,jdbcType=DECIMAL}, #{payoutAmt,jdbcType=DECIMAL},
 	          REPLACE(ISNULL(#{payoutDt,jdbcType=NVARCHAR},''),'-',''), #{payGb,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
 
@@ -1470,23 +1520,25 @@
 	         PAYOUT_DT=REPLACE(ISNULL(#{payoutDt,jdbcType=NVARCHAR},''),'-',''), PAY_GB=#{payGb,jdbcType=NVARCHAR}, REMARK=#{remark,jdbcType=NVARCHAR},
 	         UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE PAY_SEQ = #{paySeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<update id="deletePayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
 	  UPDATE TBL_PAYMENT_MST SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE PAY_SEQ = #{paySeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- 엑셀업로드: (귀속월+매입처) 있으면 UPDATE, 없으면 INSERT -->
 	<update id="upsertPayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
 	  MERGE TBL_PAYMENT_MST AS t
 	  USING (SELECT REPLACE(#{payYm},'-','') AS PAY_YM, #{bizCd} AS BIZ_CD) AS s
-	  ON (t.PAY_YM = s.PAY_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,''))
+	  ON (t.PAY_YM = s.PAY_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,'') AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
 	  WHEN MATCHED THEN UPDATE SET
 	     t.BIZ_NM=#{bizNm,jdbcType=NVARCHAR}, t.PREV_AMT=#{prevAmt,jdbcType=DECIMAL}, t.PURCH_AMT=#{purchAmt,jdbcType=DECIMAL}, t.PAYOUT_AMT=#{payoutAmt,jdbcType=DECIMAL},
 	     t.ACTION_YN='Y', t.UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER=#{regUser,jdbcType=NVARCHAR}, t.UPD_IP=#{regIp,jdbcType=NVARCHAR}
-	  WHEN NOT MATCHED THEN INSERT (PAY_YM, BIZ_CD, BIZ_NM, PREV_AMT, PURCH_AMT, PAYOUT_AMT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
-	     VALUES (s.PAY_YM, s.BIZ_CD, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{purchAmt,jdbcType=DECIMAL}, #{payoutAmt,jdbcType=DECIMAL}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
+	  WHEN NOT MATCHED THEN INSERT (COMP_CD, PAY_YM, BIZ_CD, BIZ_NM, PREV_AMT, PURCH_AMT, PAYOUT_AMT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	     VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), s.PAY_YM, s.BIZ_CD, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{purchAmt,jdbcType=DECIMAL}, #{payoutAmt,jdbcType=DECIMAL}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
 	]]></update>
 
 	<!-- 전월이월 자동이월: 전월(귀속월-1) 미지급잔액(전월이월+당월매입-당월출금)을 당월 전월이월(PREV_AMT)로 이월 -->
@@ -1496,17 +1548,18 @@
 	           SUM(ISNULL(PREV_AMT,0)+ISNULL(PURCH_AMT,0)-ISNULL(PAYOUT_AMT,0)) AS DUE
 	      FROM TBL_PAYMENT_MST
 	     WHERE ISNULL(ACTION_YN,'Y')='Y'
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	       AND PAY_YM = FORMAT(DATEADD(MONTH,-1,CONVERT(date, REPLACE(#{payYm},'-','')+'01', 112)),'yyyyMM')
 	     GROUP BY BIZ_CD
 	  )
 	  MERGE TBL_PAYMENT_MST AS t
 	  USING (SELECT REPLACE(#{payYm},'-','') AS PAY_YM, BIZ_CD, BIZ_NM, DUE FROM prev) AS s
-	  ON (t.PAY_YM = s.PAY_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,''))
+	  ON (t.PAY_YM = s.PAY_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,'') AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
 	  WHEN MATCHED THEN UPDATE SET
 	     t.PREV_AMT = s.DUE, t.ACTION_YN='Y',
 	     t.UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER=#{regUser,jdbcType=NVARCHAR}, t.UPD_IP=#{regIp,jdbcType=NVARCHAR}
-	  WHEN NOT MATCHED AND s.DUE <> 0 THEN INSERT (PAY_YM, BIZ_CD, BIZ_NM, PREV_AMT, PURCH_AMT, PAYOUT_AMT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
-	     VALUES (s.PAY_YM, s.BIZ_CD, s.BIZ_NM, s.DUE, 0, 0, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
+	  WHEN NOT MATCHED AND s.DUE <> 0 THEN INSERT (COMP_CD, PAY_YM, BIZ_CD, BIZ_NM, PREV_AMT, PURCH_AMT, PAYOUT_AMT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	     VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), s.PAY_YM, s.BIZ_CD, s.BIZ_NM, s.DUE, 0, 0, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
 	]]></update>
 
 	<!-- ============================================================
@@ -1515,6 +1568,7 @@
 	<select id="isSettleClosed" parameterType="egovframework.sejong.user.model.SettleCloseDTO" resultType="int">
 	  SELECT COUNT(1) FROM TBL_SETTLE_CLOSE_MST
 	   WHERE SETTLE_GB = #{settleGb} AND CLOSE_YM = REPLACE(#{closeYm},'-','') AND STATUS = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	</select>
 
 	<select id="selectSettleClose" parameterType="egovframework.sejong.user.model.SettleCloseDTO" resultType="egovframework.sejong.user.model.SettleCloseDTO">
@@ -1522,23 +1576,25 @@
 	         CONFIRM_DTTM AS confirmDttm, CONFIRM_USER AS confirmUser
 	    FROM TBL_SETTLE_CLOSE_MST
 	   WHERE SETTLE_GB = #{settleGb} AND CLOSE_YM = REPLACE(#{closeYm},'-','')
-	</select>
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+</select>
 
 	<update id="confirmSettleClose" parameterType="egovframework.sejong.user.model.SettleCloseDTO"><![CDATA[
 	  MERGE TBL_SETTLE_CLOSE_MST AS t
 	  USING (SELECT #{settleGb} AS SETTLE_GB, REPLACE(#{closeYm},'-','') AS CLOSE_YM) AS s
-	  ON (t.SETTLE_GB = s.SETTLE_GB AND t.CLOSE_YM = s.CLOSE_YM)
+	  ON (t.SETTLE_GB = s.SETTLE_GB AND t.CLOSE_YM = s.CLOSE_YM AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
 	  WHEN MATCHED THEN UPDATE SET
 	     t.STATUS='Y', t.UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER=#{confirmUser,jdbcType=NVARCHAR},
 	     t.CONFIRM_DTTM=ISNULL(t.CONFIRM_DTTM, CONVERT(VARCHAR(19),GETDATE(),120)), t.CONFIRM_USER=ISNULL(t.CONFIRM_USER, #{confirmUser,jdbcType=NVARCHAR})
-	  WHEN NOT MATCHED THEN INSERT (SETTLE_GB, CLOSE_YM, STATUS, CONFIRM_DTTM, CONFIRM_USER)
-	     VALUES (s.SETTLE_GB, s.CLOSE_YM, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{confirmUser,jdbcType=NVARCHAR});
+	  WHEN NOT MATCHED THEN INSERT (COMP_CD, SETTLE_GB, CLOSE_YM, STATUS, CONFIRM_DTTM, CONFIRM_USER)
+	     VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), s.SETTLE_GB, s.CLOSE_YM, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{confirmUser,jdbcType=NVARCHAR});
 	]]></update>
 
 	<update id="cancelSettleClose" parameterType="egovframework.sejong.user.model.SettleCloseDTO"><![CDATA[
 	  UPDATE TBL_SETTLE_CLOSE_MST
 	     SET STATUS='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}
 	   WHERE SETTLE_GB = #{settleGb} AND CLOSE_YM = REPLACE(#{closeYm},'-','')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- ============================================================
@@ -1554,6 +1610,7 @@
 	         REG_DTTM AS regDttm, UPD_DTTM AS updDttm
 	    FROM TBL_PROD_MST
 	   WHERE ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  <if test="findData != null and findData != ''">
 	     AND ( PROD_CD LIKE '%' + #{findData} + '%'
 	        OR PROD_NM LIKE '%' + #{findData} + '%'
@@ -1566,11 +1623,11 @@
 
 	<insert id="insertProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
 	  INSERT INTO TBL_PROD_MST
-	    (PROD_CD, PROD_NM, SPEC, MAKER_NM, TYPE_NM, SORT_ORD, TAX_GB, PACK_QTY,
+	    (COMP_CD, PROD_CD, PROD_NM, SPEC, MAKER_NM, TYPE_NM, SORT_ORD, TAX_GB, PACK_QTY,
 	     IN_PRICE, SALE_PRICE, WHOLE_PRICE, SAFE_STOCK, SALE_BASE_QTY, UNIT_BARCODE, BOX_BARCODE,
 	     ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
-	    (#{prodCd}, #{prodNm}, #{spec,jdbcType=NVARCHAR}, #{makerNm,jdbcType=NVARCHAR}, #{typeNm,jdbcType=NVARCHAR},
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{prodCd}, #{prodNm}, #{spec,jdbcType=NVARCHAR}, #{makerNm,jdbcType=NVARCHAR}, #{typeNm,jdbcType=NVARCHAR},
 	     #{sortOrd,jdbcType=INTEGER}, #{taxGb,jdbcType=NVARCHAR}, #{packQty,jdbcType=INTEGER},
 	     #{inPrice,jdbcType=DECIMAL}, #{salePrice,jdbcType=DECIMAL}, #{wholePrice,jdbcType=DECIMAL},
 	     #{safeStock,jdbcType=INTEGER}, #{saleBaseQty,jdbcType=INTEGER},
@@ -1587,12 +1644,14 @@
 	         UNIT_BARCODE=#{unitBarcode,jdbcType=NVARCHAR}, BOX_BARCODE=#{boxBarcode,jdbcType=NVARCHAR},
 	         UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE PROD_SEQ = #{prodSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<update id="deleteProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
 	  UPDATE TBL_PROD_MST
 	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE PROD_SEQ = #{prodSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- ============================================================
@@ -1639,9 +1698,10 @@
 	                      WHEN ISNULL(m.DC_NM,'') LIKE '%오산%' THEN 'E700'
 	                      ELSE '' END AS dcKey,
 	                 ISNULL(m.ITEM_CD,'') AS itemCd, m.ITEM_NM AS itemNm, m.DC_NM AS dcNm,
-	                 ISNULL(m.OUT_QTY,0) AS outQty, ISNULL(m.SALE_AMT,0) AS saleAmt
+	                 ISNULL(m.OUT_QTY,0) AS outQty, ISNULL(m.SALE_AMT,0) AS saleAmt, m.COMP_CD AS COMP_CD
 	            FROM TBL_SALES_MST m
 	           WHERE m.ACTION_YN = 'Y'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	    ) x
 	   WHERE x.dlvKey <> '' AND x.dcKey <> '' AND x.itemCd <> ''
 	   GROUP BY x.dlvKey, x.dcKey, x.itemCd;
@@ -1682,29 +1742,29 @@
 	                     ISNULL(s.CUR_QTY,0) AS outQty,
 	                     u.saleUnit, u.inUnit, u.saleSrc, u.inSrc, st.stlAmt,
 	                     -- 같은 대사키의 출고수량 합 = 정산금액을 사업장별로 안분할 때의 분모
-	                     SUM(ISNULL(s.CUR_QTY,0)) OVER (PARTITION BY dk.dcKey, s.ITEM_CD, dk.dlvKey) AS keyQty,
-	                     COUNT(*)                 OVER (PARTITION BY dk.dcKey, s.ITEM_CD, dk.dlvKey) AS keyRows
+	                     SUM(ISNULL(s.CUR_QTY,0)) OVER (PARTITION BY s.COMP_CD, dk.dcKey, s.ITEM_CD, dk.dlvKey) AS keyQty,
+	                     COUNT(*)                 OVER (PARTITION BY s.COMP_CD, dk.dcKey, s.ITEM_CD, dk.dlvKey) AS keyRows
 	                FROM TBL_SHIPOUT_MST s
 	                LEFT JOIN (
-	                      SELECT p.PROD_CD, p.IN_PRICE, p.SALE_PRICE
+	                      SELECT p.PROD_CD, p.IN_PRICE, p.SALE_PRICE, p.COMP_CD
 	                        FROM TBL_PROD_MST p
 	                       WHERE p.ACTION_YN = 'Y'
-	                         AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
-	                ) pm ON pm.PROD_CD = s.ITEM_CD
+	                         AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
+	                ) pm ON pm.PROD_CD = s.ITEM_CD AND pm.COMP_CD = s.COMP_CD
 	                -- ★단가 기준일 = 발주일자(DLV_DT). 출고일자(SHPOUT_DT) 아님.
 	                --   먼 지역은 발주분을 하루 당겨 출고한다(실측: 발주 20260708 → 출고 20260707 이 15행).
 	                --   출고일자로 맞추면 '적용일자(발주일) > 출고일자' 가 되어 그 발주건의 확정단가가 영영 안 걸린다.
 	                OUTER APPLY (
 	                      SELECT TOP 1 h.SALE_PRICE
 	                        FROM TBL_PROD_SALEPRICE_HST h
-	                       WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.DLV_DT
+	                       WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.DLV_DT AND h.COMP_CD = s.COMP_CD
 	                         AND h.VENDOR_CD IS NULL   -- 공통가만. 판매처 전용가는 물류센터 출고 마감에 안 섞는다
 	                       ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
 	                ) sh
 	                OUTER APPLY (
 	                      SELECT TOP 1 h.IN_PRICE
 	                        FROM TBL_PROD_INPRICE_HST h
-	                       WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.DLV_DT
+	                       WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.DLV_DT AND h.COMP_CD = s.COMP_CD
 	                       ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	                ) ih
 	                CROSS APPLY (
@@ -1734,6 +1794,7 @@
 	                ) dk
 	                LEFT JOIN #SLK st ON st.dlvKey = dk.dlvKey AND st.dcKey = dk.dcKey AND st.itemCd = s.ITEM_CD
 	               WHERE s.ACTION_YN = 'Y'
+	                 AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                 AND (
 	                       ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{toDt,jdbcType=VARCHAR},'') <> ''
 	                         AND ISNULL(NULLIF(dk.dlvKey,''), s.SHPOUT_DT) BETWEEN REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
@@ -1776,17 +1837,20 @@
 	                     ISNULL(s2.ITEM_CD,'') AS itemCd
 	                FROM TBL_SHIPOUT_MST s2
 	               WHERE s2.ACTION_YN = 'Y'
+	                 AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s2.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	        ) k ON k.dlvKey = g.dlvKey AND k.dcKey = g.dcKey AND k.itemCd = g.itemCd
 	        LEFT JOIN (
 	              SELECT p.PROD_CD, p.IN_PRICE
 	                FROM TBL_PROD_MST p
 	               WHERE p.ACTION_YN = 'Y'
-	                 AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
+	                 AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR p.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                 AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
 	        ) pm2 ON pm2.PROD_CD = g.itemCd
 	        OUTER APPLY (
 	              SELECT TOP 1 h.IN_PRICE
 	                FROM TBL_PROD_INPRICE_HST h
 	               WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = g.itemCd AND h.APPLY_DT <= g.dlvKey
+	                 AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR h.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	               ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	        ) ih2
 	       WHERE k.dlvKey IS NULL
@@ -1820,21 +1884,22 @@
 	             N'전표' AS saleSrc,
              CASE WHEN ISNULL(ih3.IN_PRICE, ISNULL(pm3.IN_PRICE,0)) > 0 THEN N'이력' ELSE N'매입가없음' END AS inSrc
 	        FROM TBL_SALES_TRX_DTL d
-	        JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y'
+	        JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
 	        LEFT JOIN (
-	              SELECT p.PROD_CD, p.IN_PRICE
+	              SELECT p.PROD_CD, p.IN_PRICE, p.COMP_CD
 	                FROM TBL_PROD_MST p
 	               WHERE p.ACTION_YN = 'Y'
-	                 AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
-	        ) pm3 ON pm3.PROD_CD = d.PROD_CD
+	                 AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
+	        ) pm3 ON pm3.PROD_CD = d.PROD_CD AND pm3.COMP_CD = d.COMP_CD
 	        OUTER APPLY (
 	              SELECT TOP 1 h.IN_PRICE
 	                FROM TBL_PROD_INPRICE_HST h
-	               WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = d.PROD_CD
+	               WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = d.PROD_CD AND h.COMP_CD = d.COMP_CD
 	                 AND h.APPLY_DT <= ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT)
 	               ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	        ) ih3
 	       WHERE d.ACTION_YN = 'Y'
+	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	         AND (
 	               ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{toDt,jdbcType=VARCHAR},'') <> ''
 	                 AND ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT) BETWEEN REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
@@ -1871,9 +1936,10 @@
 	                      WHEN ISNULL(m.DC_NM,'') LIKE '%오산%' THEN 'E700'
 	                      ELSE '' END AS dcKey,
 	                 ISNULL(m.ITEM_CD,'') AS itemCd, m.ITEM_NM AS itemNm, m.DC_NM AS dcNm,
-	                 ISNULL(m.OUT_QTY,0) AS outQty, ISNULL(m.SALE_AMT,0) AS saleAmt
+	                 ISNULL(m.OUT_QTY,0) AS outQty, ISNULL(m.SALE_AMT,0) AS saleAmt, m.COMP_CD AS COMP_CD
 	            FROM TBL_SALES_MST m
 	           WHERE m.ACTION_YN = 'Y'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	    ) sl
 	    LEFT JOIN (
 	          SELECT DISTINCT
@@ -1887,11 +1953,12 @@
 	                      WHEN ISNULL(s.DC_NM,'') LIKE '%제주%' THEN 'E600'
 	                      WHEN ISNULL(s.DC_NM,'') LIKE '%오산%' THEN 'E700'
 	                      ELSE '' END AS dcKey,
-	                 ISNULL(s.ITEM_CD,'') AS itemCd
+	                 ISNULL(s.ITEM_CD,'') AS itemCd, s.COMP_CD AS compCd
 	            FROM TBL_SHIPOUT_MST s
 	           WHERE s.ACTION_YN = 'Y'
-	    ) k ON k.dlvKey = sl.dlvKey AND k.dcKey = sl.dcKey AND k.itemCd = sl.itemCd
+	    ) k ON k.dlvKey = sl.dlvKey AND k.dcKey = sl.dcKey AND k.itemCd = sl.itemCd AND k.compCd = sl.COMP_CD
 	   WHERE sl.dlvKey <> '' AND sl.dcKey <> '' AND sl.itemCd <> ''
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR sl.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND (
 	           ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{toDt,jdbcType=VARCHAR},'') <> ''
 	             AND sl.dlvKey BETWEEN REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
@@ -1934,19 +2001,23 @@
 	             SUM(CASE WHEN l.IO_GB = 'I' THEN l.QTY ELSE 0 END) AS inQtyCum
 	        FROM TBL_STOCK_LEDGER l CROSS JOIN B
 	       WHERE l.ACTION_YN = 'Y' AND l.TRX_DT <= B.toB
+	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	       GROUP BY l.PROD_SEQ, l.PROD_CD
 	    ) t
 	    LEFT JOIN (
 	      SELECT p.PROD_CD, p.PROD_NM, p.IN_PRICE
 	        FROM TBL_PROD_MST p
 	       WHERE p.ACTION_YN = 'Y'
-	         AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
+	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR p.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	         AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
 	    ) pm ON pm.PROD_CD = t.prodCd
-	    LEFT JOIN TBL_CLOSING_STOCK cs ON cs.CLOSE_YM = (SELECT prevYm FROM B) AND cs.PROD_SEQ = t.prodSeq   -- 직전 확정월 기말 = 당월 기초 이월
+	    LEFT JOIN TBL_CLOSING_STOCK cs ON cs.CLOSE_YM = (SELECT prevYm FROM B) AND cs.PROD_SEQ = t.prodSeq
+	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR cs.COMP_CD = #{compCd,jdbcType=VARCHAR} )   -- 직전 확정월 기말 = 당월 기초 이월
 	    OUTER APPLY (
 	      SELECT TOP 1 lv.VENDOR_CD AS vendorCd
 	        FROM TBL_STOCK_LEDGER lv CROSS JOIN B
 	       WHERE lv.PROD_SEQ = t.prodSeq AND lv.ACTION_YN = 'Y' AND lv.IO_GB = 'I'
+	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR lv.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	         AND lv.TRX_DT BETWEEN B.fromB AND B.toB
 	       ORDER BY lv.TRX_DT DESC, lv.LEDGER_SEQ DESC
 	    ) v
@@ -1966,12 +2037,13 @@
 	         CASE WHEN SUM(l.QTY) > 0 THEN SUM(ISNULL(l.AMT, l.QTY * ISNULL(l.UNIT_PRICE,0))) / SUM(l.QTY) ELSE 0 END AS avgInPrice
 	    FROM TBL_STOCK_LEDGER l
 	    LEFT JOIN (
-	          SELECT p.PROD_CD, p.PROD_NM
+	          SELECT p.PROD_CD, p.PROD_NM, p.COMP_CD
 	            FROM TBL_PROD_MST p
 	           WHERE p.ACTION_YN = 'Y'
-	             AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y')
-	    ) pm ON pm.PROD_CD = l.PROD_CD
+	             AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
+	    ) pm ON pm.PROD_CD = l.PROD_CD AND pm.COMP_CD = l.COMP_CD
 	   WHERE l.ACTION_YN = 'Y' AND l.IO_GB = 'I'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND (
 	           ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{toDt,jdbcType=VARCHAR},'') <> ''
 	             AND l.TRX_DT BETWEEN REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
@@ -1992,6 +2064,7 @@
 	         CONFIRM_DTTM AS confirmDttm, CONFIRM_USER AS confirmUser
 	    FROM TBL_CLOSING_MST
 	   WHERE CLOSE_YM = #{closeYm} AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
 	<select id="selectClosingMstList" parameterType="egovframework.sejong.user.model.ClosingMstDTO" resultType="egovframework.sejong.user.model.ClosingMstDTO">
@@ -2001,6 +2074,7 @@
 	         CONFIRM_DTTM AS confirmDttm, CONFIRM_USER AS confirmUser
 	    FROM TBL_CLOSING_MST
 	   WHERE ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  <if test="ym != null and ym != ''">
 	     AND CLOSE_YM LIKE REPLACE(#{ym},'-','') + '%'
 	  </if>
@@ -2009,12 +2083,14 @@
 
 	<select id="isClosedYm" resultType="int"><![CDATA[
 	  SELECT COUNT(*) FROM TBL_CLOSING_MST WHERE CLOSE_YM = #{closeYm} AND STATUS = 'C' AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
 	<!-- 마감 확정월(YYYYMM) 목록 — 재집계 팝업에 '제외되는 마감월' 표시용 -->
 	<select id="selectClosedYmList" resultType="string"><![CDATA[
 	  SELECT CLOSE_YM FROM TBL_CLOSING_MST
 	   WHERE STATUS = 'C' AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY CLOSE_YM
 	]]></select>
 
@@ -2026,35 +2102,41 @@
 	         CONFIRM_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), CONFIRM_USER=#{regUser,jdbcType=NVARCHAR},
 	         UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{regUser,jdbcType=NVARCHAR}, UPD_IP=#{regIp,jdbcType=NVARCHAR}
 	   WHERE CLOSE_YM = #{closeYm}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<insert id="insertClosingMst" parameterType="egovframework.sejong.user.model.ClosingMstDTO"><![CDATA[
-	  INSERT INTO TBL_CLOSING_MST (CLOSE_YM, STATUS, SALES_AMT, COGS_AMT, MARGIN_AMT, PURCHASE_AMT, STOCK_AMT, CONFIRM_DTTM, CONFIRM_USER, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
-	  VALUES (#{closeYm}, 'C', #{salesAmt,jdbcType=DECIMAL}, #{cogsAmt,jdbcType=DECIMAL}, #{marginAmt,jdbcType=DECIMAL}, #{purchaseAmt,jdbcType=DECIMAL}, #{stockAmt,jdbcType=DECIMAL},
+	  INSERT INTO TBL_CLOSING_MST (COMP_CD, CLOSE_YM, STATUS, SALES_AMT, COGS_AMT, MARGIN_AMT, PURCHASE_AMT, STOCK_AMT, CONFIRM_DTTM, CONFIRM_USER, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{closeYm}, 'C', #{salesAmt,jdbcType=DECIMAL}, #{cogsAmt,jdbcType=DECIMAL}, #{marginAmt,jdbcType=DECIMAL}, #{purchaseAmt,jdbcType=DECIMAL}, #{stockAmt,jdbcType=DECIMAL},
 	          CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
 
 	<update id="cancelClosingMst" parameterType="egovframework.sejong.user.model.ClosingMstDTO"><![CDATA[
 	  UPDATE TBL_CLOSING_MST SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE CLOSE_YM = #{closeYm}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<delete id="deleteClosingStock"><![CDATA[
 	  DELETE FROM TBL_CLOSING_STOCK WHERE CLOSE_YM = #{closeYm}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></delete>
 
 	<insert id="insertClosingStock" parameterType="egovframework.sejong.user.model.StockClosingDTO"><![CDATA[
-	  INSERT INTO TBL_CLOSING_STOCK (CLOSE_YM, PROD_SEQ, PROD_CD, END_QTY, AVG_IN_PRICE, STOCK_AMT, REG_DTTM)
-	  VALUES (REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-',''), #{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, #{endQty,jdbcType=INTEGER}, #{avgInPrice,jdbcType=DECIMAL},
+	  INSERT INTO TBL_CLOSING_STOCK (COMP_CD, CLOSE_YM, PROD_SEQ, PROD_CD, END_QTY, AVG_IN_PRICE, STOCK_AMT, REG_DTTM)
+	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-',''), #{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, #{endQty,jdbcType=INTEGER}, #{avgInPrice,jdbcType=DECIMAL},
 	          ISNULL(#{endQty,jdbcType=INTEGER},0) * ISNULL(#{avgInPrice,jdbcType=DECIMAL},0), CONVERT(VARCHAR(19),GETDATE(),120))
 	]]></insert>
 
 	<!-- 연관 정보(매입가/판매가/재고) 활성건수 — 삭제 가드용 -->
 	<select id="countProdRelated" parameterType="egovframework.sejong.user.model.ProdDTO" resultType="int"><![CDATA[
 	  SELECT
-	      (SELECT COUNT(*) FROM TBL_PROD_INPRICE_HST   WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y')
-	    + (SELECT COUNT(*) FROM TBL_PROD_SALEPRICE_HST WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y')
-	    + (SELECT COUNT(*) FROM TBL_STOCK_LEDGER       WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y')
+	      (SELECT COUNT(*) FROM TBL_PROD_INPRICE_HST   WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
+	          AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} ))
+	    + (SELECT COUNT(*) FROM TBL_PROD_SALEPRICE_HST WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
+	          AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} ))
+	    + (SELECT COUNT(*) FROM TBL_STOCK_LEDGER       WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
+	          AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} ))
 	]]></select>
 
 	<!-- ============================================================
@@ -2068,17 +2150,20 @@
 	         REG_DTTM AS regDttm, REG_USER AS regUser
 	    FROM TBL_PROD_INPRICE_HST
 	   WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY APPLY_DT DESC, INPRICE_SEQ DESC
 	]]></select>
 
 	<insert id="insertInprice" parameterType="egovframework.sejong.user.model.ProdInpriceDTO"><![CDATA[
 	  INSERT INTO TBL_PROD_INPRICE_HST
-	    (PROD_SEQ, PROD_CD, VENDOR_CD, VENDOR_NM, APPLY_DT, IN_PRICE, PREV_PRICE, TAX_GB, REMARK,
+	    (COMP_CD, PROD_SEQ, PROD_CD, VENDOR_CD, VENDOR_NM, APPLY_DT, IN_PRICE, PREV_PRICE, TAX_GB, REMARK,
 	     ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
-	    (#{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, #{vendorCd,jdbcType=NVARCHAR}, #{vendorNm,jdbcType=NVARCHAR},
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'),
+	     #{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, #{vendorCd,jdbcType=NVARCHAR}, #{vendorNm,jdbcType=NVARCHAR},
 	     REPLACE(ISNULL(#{applyDt,jdbcType=NVARCHAR},''),'-',''), #{inPrice,jdbcType=DECIMAL},
-	     (SELECT IN_PRICE FROM TBL_PROD_MST WHERE PROD_SEQ = #{prodSeq}),
+	     (SELECT IN_PRICE FROM TBL_PROD_MST WHERE PROD_SEQ = #{prodSeq}
+	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )),
 	     #{taxGb,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR},
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
@@ -2087,6 +2172,7 @@
 	  UPDATE TBL_PROD_INPRICE_HST
 	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE INPRICE_SEQ = #{inpriceSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- 마스터 현재 매입단가 동기화 -->
@@ -2095,6 +2181,7 @@
 	     SET IN_PRICE = #{inPrice,jdbcType=DECIMAL},
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{regUser,jdbcType=NVARCHAR}, UPD_IP=#{regIp,jdbcType=NVARCHAR}
 	   WHERE PROD_SEQ = #{prodSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- ============================================================
@@ -2108,20 +2195,24 @@
 	         REG_DTTM AS regDttm, REG_USER AS regUser
 	    FROM TBL_PROD_SALEPRICE_HST
 	   WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY APPLY_DT DESC, SALEPRICE_SEQ DESC
 	]]></select>
 
 	<insert id="insertSaleprice" parameterType="egovframework.sejong.user.model.ProdSalepriceDTO"><![CDATA[
 	  INSERT INTO TBL_PROD_SALEPRICE_HST
-	    (PROD_SEQ, PROD_CD, VENDOR_CD, VENDOR_NM, APPLY_DT, SALE_PRICE, WHOLE_PRICE, BASE_INPRICE, MARGIN_RT, PREV_PRICE, REMARK,
+	    (COMP_CD, PROD_SEQ, PROD_CD, VENDOR_CD, VENDOR_NM, APPLY_DT, SALE_PRICE, WHOLE_PRICE, BASE_INPRICE, MARGIN_RT, PREV_PRICE, REMARK,
 	     ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
-	    (#{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, #{vendorCd,jdbcType=NVARCHAR}, #{vendorNm,jdbcType=NVARCHAR},
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'),
+	     #{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, #{vendorCd,jdbcType=NVARCHAR}, #{vendorNm,jdbcType=NVARCHAR},
 	     REPLACE(ISNULL(#{applyDt,jdbcType=NVARCHAR},''),'-',''),
 	     #{salePrice,jdbcType=DECIMAL}, #{wholePrice,jdbcType=DECIMAL},
-	     ISNULL(#{baseInprice,jdbcType=DECIMAL}, (SELECT IN_PRICE FROM TBL_PROD_MST WHERE PROD_SEQ = #{prodSeq})),
+	     ISNULL(#{baseInprice,jdbcType=DECIMAL}, (SELECT IN_PRICE FROM TBL_PROD_MST WHERE PROD_SEQ = #{prodSeq}
+	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} ))),
 	     #{marginRt,jdbcType=DECIMAL},
-	     (SELECT SALE_PRICE FROM TBL_PROD_MST WHERE PROD_SEQ = #{prodSeq}),
+	     (SELECT SALE_PRICE FROM TBL_PROD_MST WHERE PROD_SEQ = #{prodSeq}
+	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )),
 	     #{remark,jdbcType=NVARCHAR},
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
@@ -2130,6 +2221,7 @@
 	  UPDATE TBL_PROD_SALEPRICE_HST
 	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE SALEPRICE_SEQ = #{salepriceSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- 마스터 현재 판매/도매단가 동기화 -->
@@ -2139,6 +2231,7 @@
 	         WHOLE_PRICE = ISNULL(#{wholePrice,jdbcType=DECIMAL}, WHOLE_PRICE),
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{regUser,jdbcType=NVARCHAR}, UPD_IP=#{regIp,jdbcType=NVARCHAR}
 	   WHERE PROD_SEQ = #{prodSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- ============================================================
@@ -2155,6 +2248,7 @@
 	              ISNULL(STUFF((SELECT DISTINCT ', ' + s.BIZ_NM
 	                              FROM TBL_SHIPOUT_MST s
 	                             WHERE s.ACTION_YN = 'Y' AND s.ITEM_CD = l.PROD_CD
+	                               AND s.COMP_CD = l.COMP_CD
 	                               AND s.SHPOUT_DT = l.REF_NO AND ISNULL(s.BIZ_NM,'') <> ''
 	                               AND ISNULL(s.CUR_QTY,0) > 0
 	                               FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 2, ''), l.BIZ_CD)
@@ -2163,15 +2257,16 @@
 	         l.REG_DTTM AS regDttm, l.REG_USER AS regUser
 	    FROM TBL_STOCK_LEDGER l
 	   WHERE l.PROD_SEQ = #{prodSeq} AND l.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY l.TRX_DT DESC, l.LEDGER_SEQ DESC
 	]]></select>
 
 	<insert id="insertStockLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
 	  INSERT INTO TBL_STOCK_LEDGER
-	    (PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, UNIT_PRICE, AMT, VENDOR_CD, BIZ_CD, REF_GB, REF_NO, REMARK,
+	    (COMP_CD, PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, UNIT_PRICE, AMT, VENDOR_CD, BIZ_CD, REF_GB, REF_NO, REMARK,
 	     ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
-	    (#{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, REPLACE(ISNULL(#{trxDt,jdbcType=NVARCHAR},''),'-',''), #{ioGb,jdbcType=NCHAR},
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, REPLACE(ISNULL(#{trxDt,jdbcType=NVARCHAR},''),'-',''), #{ioGb,jdbcType=NCHAR},
 	     #{qty,jdbcType=INTEGER}, #{unitPrice,jdbcType=DECIMAL},
 	     ISNULL(#{amt,jdbcType=DECIMAL}, #{qty,jdbcType=INTEGER} * ISNULL(#{unitPrice,jdbcType=DECIMAL},0)),
 	     #{vendorCd,jdbcType=NVARCHAR}, #{bizCd,jdbcType=NVARCHAR}, #{refGb,jdbcType=NVARCHAR}, #{refNo,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR},
@@ -2187,6 +2282,7 @@
 	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE LEDGER_SEQ = #{ledgerSeq}
 	     AND ISNULL(REF_GB,'') = ''
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<select id="selectStockMst" parameterType="egovframework.sejong.user.model.StockLedgerDTO" resultType="egovframework.sejong.user.model.StockMstDTO"><![CDATA[
@@ -2195,6 +2291,7 @@
 	         STOCK_AMT AS stockAmt, LAST_IN_DT AS lastInDt, LAST_OUT_DT AS lastOutDt
 	    FROM TBL_STOCK_MST
 	   WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
 	<!-- 입고내역 — 전체 입고(수불 IO_GB='I') 거래 목록 -->
@@ -2202,8 +2299,9 @@
 	  SELECT l.LEDGER_SEQ AS ledgerSeq, l.PROD_CD AS prodCd, p.PROD_NM AS prodNm, l.TRX_DT AS trxDt,
 	         l.VENDOR_CD AS vendorCd, l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt, l.REMARK AS remark, l.REG_DTTM AS regDttm
 	    FROM TBL_STOCK_LEDGER l
-	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = l.PROD_SEQ
+	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = l.PROD_SEQ AND p.COMP_CD = l.COMP_CD
 	   WHERE l.ACTION_YN = 'Y' AND l.IO_GB = 'I'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  <if test="fromDt != null and fromDt != '' and toDt != null and toDt != ''">
 	     AND l.TRX_DT BETWEEN REPLACE(#{fromDt},'-','') AND REPLACE(#{toDt},'-','')
 	  </if>
@@ -2228,9 +2326,10 @@
 	         MAX(CASE WHEN l.IO_GB='I' THEN l.TRX_DT END) AS lastInDt,
 	         MAX(CASE WHEN l.IO_GB='O' THEN l.TRX_DT END) AS lastOutDt
 	    FROM TBL_STOCK_LEDGER l
-	    LEFT JOIN TBL_STOCK_MST m ON m.PROD_SEQ = l.PROD_SEQ
-	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = l.PROD_CD AND p2.ACTION_YN='Y')
+	    LEFT JOIN TBL_STOCK_MST m ON m.PROD_SEQ = l.PROD_SEQ AND m.COMP_CD = l.COMP_CD
+	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = l.PROD_CD AND p2.ACTION_YN='Y' AND p2.COMP_CD = l.COMP_CD)
 	   WHERE l.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  <if test="asOfDt != null and asOfDt != ''">
 	     <![CDATA[ AND l.TRX_DT <= REPLACE(#{asOfDt},'-','') ]]>
 	  </if>
@@ -2245,6 +2344,7 @@
 	<select id="selectShipoutDates" resultType="string"><![CDATA[
 	  SELECT DISTINCT SHPOUT_DT FROM TBL_SHIPOUT_MST
 	   WHERE ACTION_YN='Y' AND ISNULL(SHPOUT_DT,'') <> ''
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY SHPOUT_DT
 	]]></select>
 
@@ -2252,20 +2352,22 @@
 	<delete id="deleteShipoutLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
 	  DELETE FROM TBL_STOCK_LEDGER
 	   WHERE REF_GB = 'SHIPOUT' AND REF_NO = REPLACE(ISNULL(#{trxDt},''),'-','')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></delete>
 
 	<!-- (A) 출고→원장 자동연동 : 특정 출고일자의 활성 SHIPOUT을 품목별로 합산해 O행 생성 (상품마스터에 있는 품목만) -->
 	<insert id="insertShipoutLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
-	  INSERT INTO TBL_STOCK_LEDGER (PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, UNIT_PRICE, AMT, BIZ_CD, REF_GB, REF_NO, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
-	  SELECT pm.PROD_SEQ, s.ITEM_CD, s.SHPOUT_DT, 'O', SUM(ISNULL(s.CUR_QTY,0)) AS QTY,
+	  INSERT INTO TBL_STOCK_LEDGER (COMP_CD, PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, UNIT_PRICE, AMT, BIZ_CD, REF_GB, REF_NO, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  SELECT s.COMP_CD, pm.PROD_SEQ, s.ITEM_CD, s.SHPOUT_DT, 'O', SUM(ISNULL(s.CUR_QTY,0)) AS QTY,
 	         NULL, NULL, NULL, 'SHIPOUT', s.SHPOUT_DT, N'출고 자동연동(SHIPOUT)', 'Y',
 	         CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR}
 	    FROM TBL_SHIPOUT_MST s
-	    JOIN ( SELECT PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ FROM TBL_PROD_MST WHERE ACTION_YN='Y' GROUP BY PROD_CD ) pm
-	      ON pm.PROD_CD = s.ITEM_CD
+	    JOIN ( SELECT COMP_CD, PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ FROM TBL_PROD_MST WHERE ACTION_YN='Y' GROUP BY COMP_CD, PROD_CD ) pm
+	      ON pm.PROD_CD = s.ITEM_CD AND pm.COMP_CD = s.COMP_CD
 	   WHERE s.ACTION_YN = 'Y' AND ISNULL(s.ITEM_CD,'') <> ''
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND s.SHPOUT_DT = REPLACE(ISNULL(#{trxDt},''),'-','')
-	   GROUP BY pm.PROD_SEQ, s.ITEM_CD, s.SHPOUT_DT
+	   GROUP BY s.COMP_CD, pm.PROD_SEQ, s.ITEM_CD, s.SHPOUT_DT
 	  HAVING SUM(ISNULL(s.CUR_QTY,0)) > 0
 	]]></insert>
 
@@ -2281,9 +2383,10 @@
 	        MAX(CASE WHEN IO_GB='O' THEN TRX_DT END) AS LAST_OUT_DT
 	      FROM TBL_STOCK_LEDGER
 	     WHERE ACTION_YN='Y'
+	       AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')
 	     GROUP BY PROD_SEQ
 	  ) AS s
-	  ON (t.PROD_SEQ = s.PROD_SEQ)
+	  ON (t.PROD_SEQ = s.PROD_SEQ AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
 	  WHEN MATCHED THEN UPDATE SET
 	        t.CUR_QTY      = ISNULL(s.CUR_QTY,0),
 	        t.AVG_IN_PRICE = CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN t.AVG_IN_PRICE ELSE s.IN_AMT/s.IN_QTY END,
@@ -2292,9 +2395,9 @@
 	        t.LAST_OUT_DT  = s.LAST_OUT_DT,
 	        t.UPD_DTTM     = CONVERT(VARCHAR(19), GETDATE(), 120), t.UPD_USER=#{regUser,jdbcType=NVARCHAR}, t.UPD_IP=#{regIp,jdbcType=NVARCHAR}
 	  WHEN NOT MATCHED THEN INSERT
-	        (PROD_SEQ, PROD_CD, CUR_QTY, AVG_IN_PRICE, STOCK_AMT, LAST_IN_DT, LAST_OUT_DT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	        (COMP_CD, PROD_SEQ, PROD_CD, CUR_QTY, AVG_IN_PRICE, STOCK_AMT, LAST_IN_DT, LAST_OUT_DT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	      VALUES
-        (s.PROD_SEQ, s.PROD_CD, ISNULL(s.CUR_QTY,0),
+        (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), s.PROD_SEQ, s.PROD_CD, ISNULL(s.CUR_QTY,0),
          CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN NULL ELSE s.IN_AMT/s.IN_QTY END,
          ISNULL(s.CUR_QTY,0) * CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN 0 ELSE s.IN_AMT/s.IN_QTY END,
          s.LAST_IN_DT, s.LAST_OUT_DT,
@@ -2314,26 +2417,28 @@
 	        MAX(CASE WHEN IO_GB='O' THEN TRX_DT END) AS LAST_OUT_DT
 	      FROM TBL_STOCK_LEDGER
 	     WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
+	       AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')
 	  ) AS s
-	  ON (t.PROD_SEQ = s.PROD_SEQ)
+	  ON (t.PROD_SEQ = s.PROD_SEQ AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
 	  WHEN MATCHED THEN UPDATE SET
 	        t.CUR_QTY      = ISNULL(s.CUR_QTY,0),
 	        t.AVG_IN_PRICE = CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN t.AVG_IN_PRICE ELSE s.IN_AMT/s.IN_QTY END,
-	        t.LAST_INPRICE = ISNULL((SELECT TOP 1 UNIT_PRICE FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq} AND ACTION_YN='Y' AND IO_GB='I' ORDER BY TRX_DT DESC, LEDGER_SEQ DESC), t.LAST_INPRICE),
-	        t.LAST_SALEPRICE = ISNULL((SELECT TOP 1 UNIT_PRICE FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq} AND ACTION_YN='Y' AND IO_GB='O' ORDER BY TRX_DT DESC, LEDGER_SEQ DESC), t.LAST_SALEPRICE),
+	        t.LAST_INPRICE = ISNULL((SELECT TOP 1 UNIT_PRICE FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq} AND ACTION_YN='Y' AND IO_GB='I' AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567') ORDER BY TRX_DT DESC, LEDGER_SEQ DESC), t.LAST_INPRICE),
+	        t.LAST_SALEPRICE = ISNULL((SELECT TOP 1 UNIT_PRICE FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq} AND ACTION_YN='Y' AND IO_GB='O' AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567') ORDER BY TRX_DT DESC, LEDGER_SEQ DESC), t.LAST_SALEPRICE),
 	        t.STOCK_AMT    = ISNULL(s.CUR_QTY,0) * CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN ISNULL(t.AVG_IN_PRICE,0) ELSE s.IN_AMT/s.IN_QTY END,
 	        t.LAST_IN_DT   = s.LAST_IN_DT,
 	        t.LAST_OUT_DT  = s.LAST_OUT_DT,
 	        t.UPD_DTTM     = CONVERT(VARCHAR(19), GETDATE(), 120), t.UPD_USER=#{regUser,jdbcType=NVARCHAR}, t.UPD_IP=#{regIp,jdbcType=NVARCHAR}
 	  WHEN NOT MATCHED THEN INSERT
-	        (PROD_SEQ, PROD_CD, CUR_QTY, AVG_IN_PRICE, LAST_INPRICE, LAST_SALEPRICE, STOCK_AMT, LAST_IN_DT, LAST_OUT_DT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	        (COMP_CD, PROD_SEQ, PROD_CD, CUR_QTY, AVG_IN_PRICE, LAST_INPRICE, LAST_SALEPRICE, STOCK_AMT, LAST_IN_DT, LAST_OUT_DT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	      VALUES
-	        (#{prodSeq},
-	         COALESCE(#{prodCd,jdbcType=NVARCHAR}, (SELECT TOP 1 PROD_CD FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq})),
+	        (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'),
+	         #{prodSeq},
+	         COALESCE(#{prodCd,jdbcType=NVARCHAR}, (SELECT TOP 1 PROD_CD FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq} AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))),
 	         ISNULL(s.CUR_QTY,0),
 	         CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN NULL ELSE s.IN_AMT/s.IN_QTY END,
-	         (SELECT TOP 1 UNIT_PRICE FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq} AND ACTION_YN='Y' AND IO_GB='I' ORDER BY TRX_DT DESC, LEDGER_SEQ DESC),
-	         (SELECT TOP 1 UNIT_PRICE FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq} AND ACTION_YN='Y' AND IO_GB='O' ORDER BY TRX_DT DESC, LEDGER_SEQ DESC),
+	         (SELECT TOP 1 UNIT_PRICE FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq} AND ACTION_YN='Y' AND IO_GB='I' AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567') ORDER BY TRX_DT DESC, LEDGER_SEQ DESC),
+	         (SELECT TOP 1 UNIT_PRICE FROM TBL_STOCK_LEDGER WHERE PROD_SEQ=#{prodSeq} AND ACTION_YN='Y' AND IO_GB='O' AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567') ORDER BY TRX_DT DESC, LEDGER_SEQ DESC),
 	         ISNULL(s.CUR_QTY,0) * CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN 0 ELSE s.IN_AMT/s.IN_QTY END,
 	         s.LAST_IN_DT, s.LAST_OUT_DT,
 	         'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
@@ -2357,9 +2462,10 @@
 	         m.SUPPLY_AMT AS supplyAmt, m.VAT_AMT AS vatAmt, m.TOT_AMT AS totAmt,
 	         m.DC_AMT AS dcAmt, m.PAY_GB AS payGb, m.PAY_AMT AS payAmt, m.REMARK AS remark,
 	         m.REG_DTTM AS regDttm, m.REG_USER AS regUser,
-	         (SELECT COUNT(*) FROM TBL_PURCHASE_DTL d WHERE d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN='Y') AS prodCnt
+	         (SELECT COUNT(*) FROM TBL_PURCHASE_DTL d WHERE d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN='Y' AND d.COMP_CD = m.COMP_CD) AS prodCnt
 	    FROM TBL_PURCHASE_MST m
 	   WHERE m.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = '' OR m.PURCH_DT >= REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') )
 	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'')   = '' OR m.PURCH_DT <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
 	     AND ( ISNULL(#{vendorCd,jdbcType=VARCHAR},'') = '' OR m.VENDOR_CD = #{vendorCd,jdbcType=VARCHAR} )
@@ -2379,6 +2485,7 @@
 	         d.TRX_GB AS trxGb, d.LEDGER_SEQ AS ledgerSeq
 	    FROM TBL_PURCHASE_DTL d
 	   WHERE d.ACTION_YN = 'Y' AND d.PURCH_SEQ = #{purchSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY d.ROW_NO
 	]]></select>
 
@@ -2387,16 +2494,18 @@
 	  SELECT RIGHT('000' + CAST(ISNULL(MAX(CAST(PURCH_NO AS INT)),0) + 1 AS VARCHAR(4)), 4)
 	    FROM TBL_PURCHASE_MST
 	   WHERE ACTION_YN = 'Y' AND PURCH_DT = REPLACE(#{purchDt,jdbcType=VARCHAR},'-','')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
 	<insert id="insertPurchaseMst" parameterType="egovframework.sejong.user.model.PurchaseDTO"
 	        useGeneratedKeys="true" keyProperty="purchSeq" keyColumn="PURCH_SEQ"><![CDATA[
 	  INSERT INTO TBL_PURCHASE_MST
-	    (PURCH_DT, PURCH_NO, VENDOR_CD, VENDOR_NM, MGR_CD, MGR_NM, WH_CD, WH_NM,
+	    (COMP_CD, PURCH_DT, PURCH_NO, VENDOR_CD, VENDOR_NM, MGR_CD, MGR_NM, WH_CD, WH_NM,
 	     TOT_BOX_QTY, TOT_EA_QTY, TOT_QTY, SUPPLY_AMT, VAT_AMT, TOT_AMT, DC_AMT,
 	     PAY_GB, PAY_AMT, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
-	    (REPLACE(ISNULL(#{purchDt,jdbcType=VARCHAR},''),'-',''), #{purchNo,jdbcType=VARCHAR},
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'),
+	     REPLACE(ISNULL(#{purchDt,jdbcType=VARCHAR},''),'-',''), #{purchNo,jdbcType=VARCHAR},
 	     #{vendorCd,jdbcType=VARCHAR}, #{vendorNm,jdbcType=NVARCHAR},
 	     #{mgrCd,jdbcType=VARCHAR}, #{mgrNm,jdbcType=NVARCHAR},
 	     #{whCd,jdbcType=VARCHAR}, #{whNm,jdbcType=NVARCHAR},
@@ -2418,6 +2527,7 @@
 	         PAY_GB = #{payGb,jdbcType=VARCHAR}, PAY_AMT = #{payAmt,jdbcType=DECIMAL}, REMARK = #{remark,jdbcType=NVARCHAR},
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE PURCH_SEQ = #{purchSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- 논리삭제 : 헤더 + 명세. 파생 원장은 서비스가 LEDGER_SEQ 로 따로 지운다 -->
@@ -2425,22 +2535,24 @@
 	  UPDATE TBL_PURCHASE_MST SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE PURCH_SEQ = #{purchSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<update id="deletePurchaseDtlAll" parameterType="egovframework.sejong.user.model.PurchaseDTO"><![CDATA[
 	  UPDATE TBL_PURCHASE_DTL SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE PURCH_SEQ = #{purchSeq} AND ACTION_YN='Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<insert id="insertPurchaseDtl" parameterType="egovframework.sejong.user.model.PurchaseDtlDTO"
 	        useGeneratedKeys="true" keyProperty="dtlSeq" keyColumn="DTL_SEQ"><![CDATA[
 	  INSERT INTO TBL_PURCHASE_DTL
-	    (PURCH_SEQ, ROW_NO, PROD_SEQ, PROD_CD, PROD_NM, SPEC, PACK_QTY, BOX_QTY, EA_QTY, QTY,
+	    (COMP_CD, PURCH_SEQ, ROW_NO, PROD_SEQ, PROD_CD, PROD_NM, SPEC, PACK_QTY, BOX_QTY, EA_QTY, QTY,
 	     UNIT_PRICE, AMT, DC_AMT, SUPPLY_AMT, VAT_AMT, TOT_AMT, SERVICE_QTY, REMARK, EVENT_YN,
 	     TRX_GB, LEDGER_SEQ, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
-	    (#{purchSeq}, #{rowNo}, #{prodSeq,jdbcType=INTEGER}, #{prodCd,jdbcType=VARCHAR}, #{prodNm,jdbcType=NVARCHAR},
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{purchSeq}, #{rowNo}, #{prodSeq,jdbcType=INTEGER}, #{prodCd,jdbcType=VARCHAR}, #{prodNm,jdbcType=NVARCHAR},
 	     #{spec,jdbcType=NVARCHAR}, #{packQty,jdbcType=DECIMAL}, #{boxQty,jdbcType=DECIMAL}, #{eaQty,jdbcType=DECIMAL},
 	     #{qty,jdbcType=DECIMAL}, #{unitPrice,jdbcType=DECIMAL}, #{amt,jdbcType=DECIMAL}, #{dcAmt,jdbcType=DECIMAL},
 	     #{supplyAmt,jdbcType=DECIMAL}, #{vatAmt,jdbcType=DECIMAL}, #{totAmt,jdbcType=DECIMAL},
@@ -2455,14 +2567,16 @@
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE ACTION_YN='Y' AND REF_GB='PURCH'
 	     AND REF_NO = REPLACE(ISNULL(#{purchDt,jdbcType=VARCHAR},''),'-','') + '-' + #{purchNo,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- 거래처 × 품목의 최근 매입단가 (품목 선택 시 단가 자동 채움) -->
 	<select id="selectVendorLastPrice" parameterType="egovframework.sejong.user.model.PurchaseDtlDTO" resultType="java.lang.Double"><![CDATA[
 	  SELECT TOP 1 d.UNIT_PRICE
 	    FROM TBL_PURCHASE_DTL d
-	    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN='Y'
+	    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN='Y' AND m.COMP_CD = d.COMP_CD
 	   WHERE d.ACTION_YN='Y' AND d.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{remark,jdbcType=VARCHAR},'') = '' OR m.VENDOR_CD = #{remark,jdbcType=VARCHAR} )
 	   ORDER BY m.PURCH_DT DESC, m.PURCH_NO DESC
 	]]></select>
@@ -2474,8 +2588,9 @@
 	         d.UNIT_PRICE AS unitPrice, d.BOX_QTY AS boxQty, d.EA_QTY AS eaQty, d.QTY AS qty,
 	         d.AMT AS amt, d.EVENT_YN AS eventYn, d.TRX_GB AS trxGb
 	    FROM TBL_PURCHASE_DTL d
-	    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN='Y'
+	    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN='Y' AND m.COMP_CD = d.COMP_CD
 	   WHERE d.ACTION_YN='Y' AND d.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{remark,jdbcType=VARCHAR},'') = '' OR m.VENDOR_CD = #{remark,jdbcType=VARCHAR} )
 	     AND m.PURCH_DT >= CONVERT(VARCHAR(8), DATEADD(YEAR,-3,GETDATE()), 112)   -- 최대 3년
 	   ORDER BY m.PURCH_DT DESC, m.PURCH_NO DESC
@@ -2497,12 +2612,14 @@
 	                 ISNULL(m.PAY_AMT,0) AS payAmt,  ISNULL(m.DC_AMT,0) AS discAmt
 	            FROM TBL_PURCHASE_MST m
 	           WHERE m.ACTION_YN = 'Y' AND m.VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	          UNION ALL
 	          SELECT t.TRX_DT AS dt,
 	                 0 AS purchAmt, 0 AS dcAmt,
 	                 ISNULL(t.AMT,0) AS payAmt, ISNULL(t.DC_AMT,0) AS discAmt
 	            FROM TBL_SETTLE_TRX t
 	           WHERE t.ACTION_YN = 'Y' AND t.TRX_GB = 'PAY' AND t.CUST_CD = #{vendorCd,jdbcType=VARCHAR}
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	    ) x
 	   GROUP BY x.dt
 	   ORDER BY x.dt
@@ -2522,6 +2639,7 @@
 	         t.REMARK AS remark, t.REG_DTTM AS regDttm, t.REG_USER AS regUser
 	    FROM TBL_SETTLE_TRX t
 	   WHERE t.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND t.TRX_GB = #{trxGb,jdbcType=VARCHAR}
 	     AND ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = '' OR t.TRX_DT >= REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') )
 	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'')   = '' OR t.TRX_DT <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
@@ -2537,15 +2655,16 @@
 	    FROM TBL_SETTLE_TRX
 	   WHERE ACTION_YN = 'Y' AND TRX_GB = #{trxGb,jdbcType=VARCHAR}
 	     AND TRX_DT = REPLACE(#{trxDt,jdbcType=VARCHAR},'-','')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
 	<insert id="insertSettleTrx" parameterType="egovframework.sejong.user.model.SettleTrxDTO"
 	        useGeneratedKeys="true" keyProperty="trxSeq" keyColumn="TRX_SEQ"><![CDATA[
 	  INSERT INTO TBL_SETTLE_TRX
-	    (TRX_GB, TRX_DT, TRX_NO, PAY_GB, ACCT_CD, ACCT_NM, CUST_CD, CUST_NM, MGR_CD, MGR_NM,
+	    (COMP_CD, TRX_GB, TRX_DT, TRX_NO, PAY_GB, ACCT_CD, ACCT_NM, CUST_CD, CUST_NM, MGR_CD, MGR_NM,
 	     AMT, DC_AMT, SALE_DC_AMT, TOT_AMT, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
-	    (#{trxGb,jdbcType=VARCHAR}, REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-',''), #{trxNo,jdbcType=VARCHAR},
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{trxGb,jdbcType=VARCHAR}, REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-',''), #{trxNo,jdbcType=VARCHAR},
 	     #{payGb,jdbcType=VARCHAR}, #{acctCd,jdbcType=VARCHAR}, #{acctNm,jdbcType=NVARCHAR},
 	     #{custCd,jdbcType=VARCHAR}, #{custNm,jdbcType=NVARCHAR}, #{mgrCd,jdbcType=VARCHAR}, #{mgrNm,jdbcType=NVARCHAR},
 	     #{amt,jdbcType=DECIMAL}, #{dcAmt,jdbcType=DECIMAL}, #{saleDcAmt,jdbcType=DECIMAL}, #{totAmt,jdbcType=DECIMAL},
@@ -2563,12 +2682,14 @@
 	         REMARK = #{remark,jdbcType=NVARCHAR},
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE TRX_SEQ = #{trxSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<update id="deleteSettleTrx" parameterType="egovframework.sejong.user.model.SettleTrxDTO"><![CDATA[
 	  UPDATE TBL_SETTLE_TRX SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE TRX_SEQ = #{trxSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- 거래처 원장 — 일자별 매출·DC·수금·매입·지급·할인. 잔고 누계와 [월 계]·[합 계] 는 화면에서 만든다.
@@ -2602,9 +2723,11 @@
 	                 0 AS dcAmt, 0 AS rcvAmt, 0 AS purchAmt, 0 AS payAmt, 0 AS discAmt
 	            FROM TBL_SALES_MST s
 	           WHERE s.ACTION_YN = 'Y'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	             AND ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) IS NOT NULL
 	             AND s.DC_CD = ( SELECT MAX(v.DC_CD) FROM TBL_VENDOR_MST v
 	                              WHERE v.VENDOR_CD = #{custCd,jdbcType=VARCHAR}
+	                                AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                                AND v.ACTION_YN = 'Y' AND ISNULL(v.DC_CD,'') <> '' )
 	          UNION ALL
 	          -- 판매전표(정산서 밖에서 직접 판 건) — 거래처코드로 바로 붙는다
@@ -2612,16 +2735,19 @@
 	                 ISNULL(t2.DC_AMT,0) AS dcAmt, ISNULL(t2.PAY_AMT,0) AS rcvAmt, 0 AS purchAmt, 0 AS payAmt, 0 AS discAmt
 	            FROM TBL_SALES_TRX_MST t2
 	           WHERE t2.ACTION_YN = 'Y' AND t2.CUST_CD = #{custCd,jdbcType=VARCHAR}
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t2.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	          UNION ALL
 	          SELECT m.PURCH_DT AS dt, 0 AS saleAmt, 0 AS dcAmt, 0 AS rcvAmt,
 	                 ISNULL(m.TOT_AMT,0) AS purchAmt, ISNULL(m.PAY_AMT,0) AS payAmt, ISNULL(m.DC_AMT,0) AS discAmt
 	            FROM TBL_PURCHASE_MST m
 	           WHERE m.ACTION_YN = 'Y' AND m.VENDOR_CD = #{custCd,jdbcType=VARCHAR}
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	          UNION ALL
 	          SELECT t.TRX_DT, 0, ISNULL(t.SALE_DC_AMT,0), CASE WHEN t.TRX_GB='RCV' THEN ISNULL(t.AMT,0) ELSE 0 END,
 	                 0, CASE WHEN t.TRX_GB='PAY' THEN ISNULL(t.AMT,0) ELSE 0 END, ISNULL(t.DC_AMT,0)
 	            FROM TBL_SETTLE_TRX t
 	           WHERE t.ACTION_YN = 'Y' AND t.CUST_CD = #{custCd,jdbcType=VARCHAR}
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	    ) x
 	   GROUP BY x.dt
 	   ORDER BY x.dt
@@ -2699,8 +2825,10 @@
 	                    JOIN ( SELECT DC_CD, MIN(VENDOR_CD) AS VENDOR_CD, MIN(VENDOR_NM) AS VENDOR_NM
 	                             FROM TBL_VENDOR_MST
 	                            WHERE ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> ''
+	                              AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                            GROUP BY DC_CD ) vm ON vm.DC_CD = dk.dcKey
 	                   WHERE s.ACTION_YN = 'Y'
+	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                     AND ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) IS NOT NULL
 
 	                  UNION ALL
@@ -2712,6 +2840,7 @@
 	                         0, 0, 0
 	                    FROM TBL_SALES_TRX_MST t2
 	                   WHERE t2.ACTION_YN = 'Y'
+	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t2.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 
 	                  UNION ALL
 	                  -- ③ 매입전표 — 매입 + 전표에 적힌 즉시지급
@@ -2720,6 +2849,7 @@
 	                         ISNULL(m.TOT_AMT,0), ISNULL(m.DC_AMT,0), ISNULL(m.PAY_AMT,0)
 	                    FROM TBL_PURCHASE_MST m
 	                   WHERE m.ACTION_YN = 'Y'
+	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 
 	                  UNION ALL
 	                  -- ④ 수금/지급 전표 — 같은 표에 TRX_GB 로 갈린다
@@ -2732,11 +2862,13 @@
 	                         CASE WHEN t.TRX_GB = 'PAY' THEN ISNULL(t.AMT,0)         ELSE 0 END
 	                    FROM TBL_SETTLE_TRX t
 	                   WHERE t.ACTION_YN = 'Y'
+	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	            ) x
 	           WHERE ISNULL(x.custCd,'') <> '' AND ISNULL(x.ym,'') <> ''
 	           GROUP BY x.custCd, x.ym
 	    ) g
 	    LEFT JOIN TBL_VENDOR_MST v ON v.VENDOR_CD = g.custCd AND v.ACTION_YN = 'Y'
+	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY g.custCd, g.ym
 	]]></select>
 
@@ -2781,10 +2913,12 @@
 	                              ELSE '' END AS dcKey
 	            ) dk
 	           WHERE s.ACTION_YN = 'Y'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	             AND ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) = REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-','')
 	             AND dk.dcKey <> ''
 	             AND dk.dcKey IN ( SELECT DC_CD FROM TBL_VENDOR_MST
 	                                WHERE ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> ''
+	                                  AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                                GROUP BY DC_CD HAVING MIN(VENDOR_CD) = #{custCd,jdbcType=VARCHAR} )
 
 	          UNION ALL
@@ -2797,8 +2931,9 @@
 	                 ISNULL(d2.QTY,0), ISNULL(d2.UNIT_PRICE,0), ISNULL(d2.TOT_AMT, t2.TOT_AMT),
 	                 ISNULL(d2.REMARK, ISNULL(t2.REMARK,''))
 	            FROM TBL_SALES_TRX_MST t2
-	            LEFT JOIN TBL_SALES_TRX_DTL d2 ON d2.SALE_SEQ = t2.SALE_SEQ AND d2.ACTION_YN = 'Y'
+	            LEFT JOIN TBL_SALES_TRX_DTL d2 ON d2.SALE_SEQ = t2.SALE_SEQ AND d2.ACTION_YN = 'Y' AND d2.COMP_CD = t2.COMP_CD
 	           WHERE t2.ACTION_YN = 'Y' AND t2.CUST_CD = #{custCd,jdbcType=VARCHAR}
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t2.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	             AND ISNULL(NULLIF(t2.DLV_DT,''), t2.SALE_DT) = REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-','')
 
 	          UNION ALL
@@ -2811,8 +2946,9 @@
 	                 ISNULL(d.QTY,0), ISNULL(d.UNIT_PRICE,0), ISNULL(d.TOT_AMT, m.TOT_AMT),
 	                 ISNULL(d.REMARK, ISNULL(m.REMARK,''))
 	            FROM TBL_PURCHASE_MST m
-	            LEFT JOIN TBL_PURCHASE_DTL d ON d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN = 'Y'
+	            LEFT JOIN TBL_PURCHASE_DTL d ON d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN = 'Y' AND d.COMP_CD = m.COMP_CD
 	           WHERE m.ACTION_YN = 'Y' AND m.VENDOR_CD = #{custCd,jdbcType=VARCHAR}
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	             AND m.PURCH_DT = REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-','')
 
 	          UNION ALL
@@ -2827,6 +2963,7 @@
 	                 ISNULL(t.REMARK,'')
 	            FROM TBL_SETTLE_TRX t
 	           WHERE t.ACTION_YN = 'Y' AND t.CUST_CD = #{custCd,jdbcType=VARCHAR}
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	             AND t.TRX_DT = REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-','')
 	    ) z
 	   ORDER BY CASE z.gb WHEN 'SALE' THEN 1 WHEN 'STRX' THEN 2 WHEN 'PURCH' THEN 3 WHEN 'RCV' THEN 4 ELSE 5 END,
@@ -2868,8 +3005,10 @@
 	          JOIN ( SELECT DC_CD, MIN(VENDOR_CD) AS VENDOR_CD, MIN(VENDOR_NM) AS VENDOR_NM
 	                   FROM TBL_VENDOR_MST
 	                  WHERE ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> ''
+	                    AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                  GROUP BY DC_CD ) vm ON vm.DC_CD = dk.dcKey
 	         WHERE s.ACTION_YN = 'Y'
+	           AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	           AND ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) IS NOT NULL
 
 	        UNION ALL
@@ -2878,6 +3017,7 @@
 	               ISNULL(t2.TOT_AMT,0), ISNULL(t2.DC_AMT,0), ISNULL(t2.PAY_AMT,0), 0, 0, 0
 	          FROM TBL_SALES_TRX_MST t2
 	         WHERE t2.ACTION_YN = 'Y'
+	           AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t2.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 
 	        UNION ALL
 	        -- ③ 매입전표
@@ -2885,6 +3025,7 @@
 	               0, 0, 0, ISNULL(m.TOT_AMT,0), ISNULL(m.DC_AMT,0), ISNULL(m.PAY_AMT,0)
 	          FROM TBL_PURCHASE_MST m
 	         WHERE m.ACTION_YN = 'Y'
+	           AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 
 	        UNION ALL
 	        -- ④ 수금/지급 전표
@@ -2897,6 +3038,7 @@
 	               CASE WHEN t.TRX_GB = 'PAY' THEN ISNULL(t.AMT,0)         ELSE 0 END
 	          FROM TBL_SETTLE_TRX t
 	         WHERE t.ACTION_YN = 'Y'
+	           AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  )
 	  SELECT g.dt AS dt, g.custCd AS custCd,
 	         ISNULL(v.VENDOR_NM, g.custNm) AS custNm,
@@ -2926,6 +3068,7 @@
 	           GROUP BY x.custCd
 	    ) g
 	    LEFT JOIN TBL_VENDOR_MST v ON v.VENDOR_CD = g.custCd AND v.ACTION_YN = 'Y'
+	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY g.dt, g.custCd
 	]]></select>
 
@@ -2946,9 +3089,10 @@
 	         m.SUPPLY_AMT AS supplyAmt, m.VAT_AMT AS vatAmt, m.TOT_AMT AS totAmt,
 	         m.DC_AMT AS dcAmt, m.PAY_GB AS payGb, m.PAY_AMT AS payAmt, m.TAX_GB AS taxGb, m.REMARK AS remark,
 	         m.REG_DTTM AS regDttm, m.REG_USER AS regUser,
-	         (SELECT COUNT(*) FROM TBL_SALES_TRX_DTL d WHERE d.SALE_SEQ = m.SALE_SEQ AND d.ACTION_YN='Y') AS prodCnt
+	         (SELECT COUNT(*) FROM TBL_SALES_TRX_DTL d WHERE d.SALE_SEQ = m.SALE_SEQ AND d.ACTION_YN='Y' AND d.COMP_CD = m.COMP_CD) AS prodCnt
 	    FROM TBL_SALES_TRX_MST m
 	   WHERE m.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = '' OR m.SALE_DT >= REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') )
 	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'')   = '' OR m.SALE_DT <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
 	     AND ( ISNULL(#{custCd,jdbcType=VARCHAR},'') = '' OR m.CUST_CD = #{custCd,jdbcType=VARCHAR} )
@@ -2967,6 +3111,7 @@
 	         d.TRX_GB AS trxGb, d.LEDGER_SEQ AS ledgerSeq
 	    FROM TBL_SALES_TRX_DTL d
 	   WHERE d.ACTION_YN = 'Y' AND d.SALE_SEQ = #{saleSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY d.ROW_NO
 	]]></select>
 
@@ -2974,16 +3119,18 @@
 	  SELECT RIGHT('000' + CAST(ISNULL(MAX(CAST(SALE_NO AS INT)),0) + 1 AS VARCHAR(4)), 4)
 	    FROM TBL_SALES_TRX_MST
 	   WHERE ACTION_YN = 'Y' AND SALE_DT = REPLACE(#{saleDt,jdbcType=VARCHAR},'-','')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
 	<insert id="insertSalesTrxMst" parameterType="egovframework.sejong.user.model.SalesTrxDTO"
 	        useGeneratedKeys="true" keyProperty="saleSeq" keyColumn="SALE_SEQ"><![CDATA[
 	  INSERT INTO TBL_SALES_TRX_MST
-	    (SALE_DT, SALE_NO, DLV_DT, CUST_CD, CUST_NM, MGR_CD, MGR_NM, WH_CD, WH_NM,
+	    (COMP_CD, SALE_DT, SALE_NO, DLV_DT, CUST_CD, CUST_NM, MGR_CD, MGR_NM, WH_CD, WH_NM,
 	     TOT_BOX_QTY, TOT_EA_QTY, TOT_QTY, SUPPLY_AMT, VAT_AMT, TOT_AMT, DC_AMT,
 	     PAY_GB, PAY_AMT, TAX_GB, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
-	    (REPLACE(ISNULL(#{saleDt,jdbcType=VARCHAR},''),'-',''), #{saleNo,jdbcType=VARCHAR},
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'),
+	     REPLACE(ISNULL(#{saleDt,jdbcType=VARCHAR},''),'-',''), #{saleNo,jdbcType=VARCHAR},
 	     NULLIF(REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-',''),''),
 	     #{custCd,jdbcType=VARCHAR}, #{custNm,jdbcType=NVARCHAR},
 	     #{mgrCd,jdbcType=VARCHAR}, #{mgrNm,jdbcType=NVARCHAR},
@@ -3008,28 +3155,31 @@
 	         TAX_GB = #{taxGb,jdbcType=VARCHAR}, REMARK = #{remark,jdbcType=NVARCHAR},
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE SALE_SEQ = #{saleSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<update id="deleteSalesTrxMst" parameterType="egovframework.sejong.user.model.SalesTrxDTO"><![CDATA[
 	  UPDATE TBL_SALES_TRX_MST SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE SALE_SEQ = #{saleSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<update id="deleteSalesTrxDtlAll" parameterType="egovframework.sejong.user.model.SalesTrxDTO"><![CDATA[
 	  UPDATE TBL_SALES_TRX_DTL SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE SALE_SEQ = #{saleSeq} AND ACTION_YN='Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<insert id="insertSalesTrxDtl" parameterType="egovframework.sejong.user.model.SalesTrxDtlDTO"
 	        useGeneratedKeys="true" keyProperty="dtlSeq" keyColumn="DTL_SEQ"><![CDATA[
 	  INSERT INTO TBL_SALES_TRX_DTL
-	    (SALE_SEQ, ROW_NO, PROD_SEQ, PROD_CD, PROD_NM, SPEC, PACK_QTY, BOX_QTY, EA_QTY, QTY,
+	    (COMP_CD, SALE_SEQ, ROW_NO, PROD_SEQ, PROD_CD, PROD_NM, SPEC, PACK_QTY, BOX_QTY, EA_QTY, QTY,
 	     UNIT_PRICE, AMT, DC_AMT, SUPPLY_AMT, VAT_AMT, TOT_AMT, SERVICE_QTY, REMARK, EVENT_YN,
 	     TRX_GB, LEDGER_SEQ, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
-	    (#{saleSeq}, #{rowNo}, #{prodSeq,jdbcType=INTEGER}, #{prodCd,jdbcType=VARCHAR}, #{prodNm,jdbcType=NVARCHAR},
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{saleSeq}, #{rowNo}, #{prodSeq,jdbcType=INTEGER}, #{prodCd,jdbcType=VARCHAR}, #{prodNm,jdbcType=NVARCHAR},
 	     #{spec,jdbcType=NVARCHAR}, #{packQty,jdbcType=DECIMAL}, #{boxQty,jdbcType=DECIMAL}, #{eaQty,jdbcType=DECIMAL},
 	     #{qty,jdbcType=DECIMAL}, #{unitPrice,jdbcType=DECIMAL}, #{amt,jdbcType=DECIMAL}, #{dcAmt,jdbcType=DECIMAL},
 	     #{supplyAmt,jdbcType=DECIMAL}, #{vatAmt,jdbcType=DECIMAL}, #{totAmt,jdbcType=DECIMAL},
@@ -3043,6 +3193,7 @@
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE ACTION_YN='Y' AND REF_GB='SALE'
 	     AND REF_NO = REPLACE(ISNULL(#{saleDt,jdbcType=VARCHAR},''),'-','') + '-' + #{saleNo,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- 거래처 × 품목의 최근 판매단가 (품목 선택 시 단가 자동 채움).
@@ -3051,8 +3202,9 @@
 	<select id="selectCustLastPrice" parameterType="egovframework.sejong.user.model.SalesTrxDtlDTO" resultType="java.lang.Double"><![CDATA[
 	  SELECT TOP 1 d.UNIT_PRICE
 	    FROM TBL_SALES_TRX_DTL d
-	    JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN='Y'
+	    JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN='Y' AND m.COMP_CD = d.COMP_CD
 	   WHERE d.ACTION_YN='Y' AND d.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{remark,jdbcType=VARCHAR},'') = '' OR m.CUST_CD = #{remark,jdbcType=VARCHAR} )
 	   ORDER BY m.SALE_DT DESC, m.SALE_NO DESC
 	]]></select>
@@ -3077,8 +3229,9 @@
 	         ISNULL(d.UNIT_PRICE,0) AS salePrice,
 	         'Y' AS trxYn, d.TRX_GB AS trxGb
 	    FROM TBL_SALES_TRX_DTL d
-	    JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y'
+	    JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
 	   WHERE d.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = ''
 	           OR ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT) >= REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') )
 	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'') = ''
@@ -3096,8 +3249,9 @@
 	         d.UNIT_PRICE AS unitPrice, d.BOX_QTY AS boxQty, d.EA_QTY AS eaQty, d.QTY AS qty,
 	         d.AMT AS amt, d.EVENT_YN AS eventYn, d.TRX_GB AS trxGb
 	    FROM TBL_SALES_TRX_DTL d
-	    JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN='Y'
+	    JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN='Y' AND m.COMP_CD = d.COMP_CD
 	   WHERE d.ACTION_YN='Y' AND d.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{remark,jdbcType=VARCHAR},'') = '' OR m.CUST_CD = #{remark,jdbcType=VARCHAR} )
 	     AND m.SALE_DT >= CONVERT(VARCHAR(8), DATEADD(YEAR,-3,GETDATE()), 112)   -- 최대 3년
 	   ORDER BY m.SALE_DT DESC, m.SALE_NO DESC

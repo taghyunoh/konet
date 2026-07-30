@@ -12,6 +12,11 @@ import java.util.List;
  */
 public class PurchaseDTO {
 
+	// ----- 다중회사(멀티테넌트) — 로그인 세션(s_comp_cd)에서 주입 -----
+	private String compCd;        // 회사코드(COMP_CD)
+	public String getCompCd() { return compCd; }
+	public void setCompCd(String compCd) { this.compCd = compCd; }
+
     private Long    purchSeq;      // PK
     private String  purchDt;       // 매입일자 yyyymmdd (화면은 yyyy-mm-dd)
     private String  purchNo;       // 그날의 순번 '0001'

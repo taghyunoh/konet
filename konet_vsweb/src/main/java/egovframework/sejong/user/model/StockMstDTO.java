@@ -6,6 +6,11 @@ package egovframework.sejong.user.model;
  */
 public class StockMstDTO {
 
+	// ----- 다중회사(멀티테넌트) — 로그인 세션(s_comp_cd)에서 주입 -----
+	private String compCd;        // 회사코드(COMP_CD)
+	public String getCompCd() { return compCd; }
+	public void setCompCd(String compCd) { this.compCd = compCd; }
+
     private Long    stockSeq;      // PK
     private Long    prodSeq;       // 품목마스터 PK (UNIQUE)
     private String  prodCd;        // 품목코드

@@ -10,6 +10,11 @@ package egovframework.sejong.user.model;
  */
 public class ClosingDTO {
 
+	// ----- 다중회사(멀티테넌트) — 로그인 세션(s_comp_cd)에서 주입 -----
+	private String compCd;        // 회사코드(COMP_CD)
+	public String getCompCd() { return compCd; }
+	public void setCompCd(String compCd) { this.compCd = compCd; }
+
     private String  ym;         // 마감월(요청) 'YYYY-MM' — from/to 없을 때 월 전체
     private String  fromDt;     // 시작일자(요청) 'YYYY-MM-DD' — 있으면 기간 BETWEEN
     private String  toDt;       // 종료일자(요청) 'YYYY-MM-DD'

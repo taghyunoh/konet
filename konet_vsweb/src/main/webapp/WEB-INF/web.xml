@@ -14,6 +14,16 @@
     <filter-name>encodingFilter</filter-name>
     <url-pattern>*.do</url-pattern>
   </filter-mapping>
+  <!-- 다중회사(멀티테넌트) — 로그인 세션(s_comp_cd)의 회사코드를 요청 스레드에 실어
+       MyBatis 인터셉터(CompCdMybatisInterceptor)가 모든 SQL 에 compCd 를 자동 주입하게 한다 -->
+  <filter>
+    <filter-name>compCdFilter</filter-name>
+    <filter-class>egovframework.sejong.cmmn.CompCdFilter</filter-class>
+  </filter>
+  <filter-mapping>
+    <filter-name>compCdFilter</filter-name>
+    <url-pattern>*.do</url-pattern>
+  </filter-mapping>
   <filter>
     <filter-name>HTMLTagFilter</filter-name>
     <filter-class>org.egovframe.rte.ptl.mvc.filter.HTMLTagFilter</filter-class>

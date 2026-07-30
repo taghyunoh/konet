@@ -7,6 +7,11 @@ package egovframework.sejong.user.model;
  */
 public class ProdDTO {
 
+	// ----- 다중회사(멀티테넌트) — 로그인 세션(s_comp_cd)에서 주입 -----
+	private String compCd;        // 회사코드(COMP_CD)
+	public String getCompCd() { return compCd; }
+	public void setCompCd(String compCd) { this.compCd = compCd; }
+
     private Long    prodSeq;       // 대체키(PK)
     private String  prodCd;        // 코드
     private String  prodNm;        // 상품명

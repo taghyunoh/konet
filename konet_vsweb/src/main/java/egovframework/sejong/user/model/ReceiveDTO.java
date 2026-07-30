@@ -6,6 +6,11 @@ package egovframework.sejong.user.model;
  */
 public class ReceiveDTO {
 
+	// ----- 다중회사(멀티테넌트) — 로그인 세션(s_comp_cd)에서 주입 -----
+	private String compCd;        // 회사코드(COMP_CD)
+	public String getCompCd() { return compCd; }
+	public void setCompCd(String compCd) { this.compCd = compCd; }
+
     private Long    rcvSeq;
     private String  rcvYm;       // 귀속월 'YYYYMM' 또는 'YYYY-MM'(요청)
     private String  bizCd;       // 거래처코드

@@ -17,4 +17,10 @@
  	    <typeAlias alias="SjgnDTO"    type="egovframework.sejong.user.model.SjgnDTO"/>
 	</typeAliases>
 
+	<!-- 다중회사(멀티테넌트) — 모든 SQL 실행 직전 로그인 회사코드(compCd) 자동 주입
+	     (CompCdFilter 가 세션 s_comp_cd 를 ThreadLocal 에 실어 두면 여기서 파라미터에 채운다) -->
+	<plugins>
+		<plugin interceptor="egovframework.sejong.cmmn.CompCdMybatisInterceptor"/>
+	</plugins>
+
 </configuration>
