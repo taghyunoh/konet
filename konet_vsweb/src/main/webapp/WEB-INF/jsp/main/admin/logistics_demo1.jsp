@@ -103,7 +103,7 @@
   table.d2-tb td.zone { background:#f4f8f7; color:#178074; font-weight:600; text-align:left; vertical-align:top; position:sticky; left:0; z-index:2; cursor:pointer; }
   table.d2-tb td.zone:hover { background:#eef3f2; }
   table.d2-tb td.zone .zcaret { display:inline-block; width:12px; color:#1f9b8e; font-size:10px; }
-  /* 발주일자 — 출고장명 아래 줄에 표시 (한 줄 표기 시 잘리는 문제 방지) */
+  /* 납기일자 — 출고장명 아래 줄에 표시 (한 줄 표기 시 잘리는 문제 방지) */
   table.d2-tb td.zone .z-dlv { display:block; color:#c47f17; font-weight:700; font-size:11.5px; margin-left:14px; margin-top:2px; }
   /* 출고장명 옆 물류센터코드 — 괄호 표기(예: 광주물류센터 출고장 (E400)) */
   table.d2-tb td.zone .z-dc { color:#5b6b7a; font-weight:600; font-size:inherit; margin-left:4px; }
@@ -669,8 +669,8 @@
               var A=z.rows[a],B=z.rows[b];
               return A.biz.localeCompare(B.biz,'ko')||A.name.localeCompare(B.name,'ko');
             });
-            var dla=Object.keys(z.dlv).sort();   // 발주일자 — 출고일자와 무관하게 항상 표시
-            var dl=dla.length?('발주일자 '+dla.join(', ')):'';
+            var dla=Object.keys(z.dlv).sort();   // 납기일자 — 출고일자와 무관하게 항상 표시
+            var dl=dla.length?('납기일자 '+dla.join(', ')):'';
             push(['▣ '+zn+' 출고장   (품목 '+keys.length+'종 · 출고 '+d2Num(z.tot)+(dl?(' · '+dl):'')+')'],'zone',COLS-1);
             push(['No','사업장','품목명','품목코드','출고수량'],'head');
             keys.forEach(function(k,ix){ var r=z.rows[k]; push([ix+1, r.biz, r.name, r.code, r.qty],'item'); });
@@ -1696,9 +1696,9 @@
     // ── 한 그리드: 출고장(좌) + 내용(우), 맨 위 전체 합계 + 출고장별 소계(블록 상단)
     var zonesSorted=d2ZonesSorted(ag);
     var zonesWithItems=zonesSorted.filter(function(zn){ var z=ag.zones[zn]; return Object.keys(z.rows).length>0 || (z.delRows&&z.delRows.length>0); });
-    function dlvLabel(z){   // 발주일자 — 출고일자와 같든 다르든 항상 표시
+    function dlvLabel(z){   // 납기일자 — 출고일자와 같든 다르든 항상 표시
       var a=Object.keys(z.dlv).sort();
-      return a.length ? ('발주일자 '+a.join(', ')) : '';
+      return a.length ? ('납기일자 '+a.join(', ')) : '';
     }
     // ── 차수(배치) 매트릭스 — D2_HISTALL(전 배치)로 (출고장+사업장+품목) × 배치(업로드 분) 피벗. 이력 팝업과 동일 개념
     var SEP='';
