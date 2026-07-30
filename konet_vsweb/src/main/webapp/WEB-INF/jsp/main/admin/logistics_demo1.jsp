@@ -1166,84 +1166,83 @@
       _d2DateSyncing=true; f.value=d.from||''; t.value=d.to||''; d2Load(); _d2DateSyncing=false;
     }catch(_){}
   });
-  function d2Load(){ d2LoadingOn(); if(!_d2DateSyncing) d2SaveSharedDate(); d2LoadBizi(function(){ _d2LoadInner(); }); }   // 조회 직전 분류표 최신화 + 날짜 공유 저장
+  function d2Load(){ d2LoadingOn(); if(!_d2DateSyncing) d2SaveSharedDate(); _d2LoadInner(); }   // 조회 시작(분류표는 안에서 병렬 조회) + 날짜 공유 저장
+  // ★속도 개선(2026-07-31): 종전엔 분류표→출고→직전배치→차수이력 4건을 순차 호출해 최초 진입이
+  //   합산 지연(운영 실측 약 0.5+0.7+2.2+1.3 ≈ 4.8초)이었다 → 4건을 병렬로 던지고 전부 도착하면 1회 렌더.
+  //   체감 대기 = 가장 느린 1건(직전배치 ≈ 2.2초) 수준. 쿼리·서버는 무변경(JSP만).
   function _d2LoadInner(){
     var f=(document.getElementById('d2DateFrom')||{}).value||'';
     var t=(document.getElementById('d2DateTo')||{}).value||'';
     // 단일일자(시작=종료)=기존 배치 매트릭스 경로. 그 외(기간·전체)=날짜별 독립 블록 경로.
     if(!(f && f===t)){ _d2LoadRange(f, t); return; }
-    fetch(CTX+'/shipout/selectShipoutMst.do', {
-      method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'},
-      credentials:'same-origin',
-      body:'shpoutDt='+encodeURIComponent(f)
+    var _body='shpoutDt='+encodeURIComponent(f);
+    var pBizi=new Promise(function(done){ d2LoadBizi(done); });   // 분류표(TBL_BIZI_MST) — 렌더 전까지만 도착하면 됨
+    // 현재 배치 — 실패 시에도 렌더는 한 번만(전부 도착 후). 오류 문구/토스트는 종전과 동일.
+    var pMst=fetch(CTX+'/shipout/selectShipoutMst.do', {
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin', body:_body
     })
     .then(function(res){ return res.text().then(function(txt){ return {status:res.status, ok:res.ok, txt:txt}; }); })
     .then(function(r){
-      if(!r.ok){ D2_SRC='⚠️ DB 조회 HTTP '+r.status; D2_UP=false; D2_DATA=[]; d2Render();
-        d2Toast('⚠️ 출고 조회 실패 (HTTP '+r.status+')'); return; }
-      var j; try{ j=JSON.parse(r.txt); }catch(e){ D2_SRC='⚠️ 응답형식 오류'; D2_UP=false; D2_DATA=[]; d2Render();
-        d2Toast('⚠️ 조회 응답이 JSON이 아닙니다'); return; }
+      if(!r.ok){ D2_SRC='⚠️ DB 조회 HTTP '+r.status; D2_UP=false; D2_DATA=[]; d2Toast('⚠️ 출고 조회 실패 (HTTP '+r.status+')'); return; }
+      var j; try{ j=JSON.parse(r.txt); }catch(e){ D2_SRC='⚠️ 응답형식 오류'; D2_UP=false; D2_DATA=[]; d2Toast('⚠️ 조회 응답이 JSON이 아닙니다'); return; }
       var rows=(j&&j.data)||[];
       D2_DATA = rows.map(function(o){ return d2MapRow(o, f); });
       D2_UP = rows.length>0;
       D2_SRC = rows.length>0 ? ('🗄️ DB 조회 '+f+' · '+rows.length+'건') : ('🗄️ DB '+f+' — 데이터 없음');
       D2_COLL={};
-      // 이어서 직전 배치(이력) + 전 배치(차수 매트릭스) 조회 후 렌더 — 실패해도 현재본은 그대로 표시
-      fetch(CTX+'/shipout/selectShipoutPrev.do', {
-        method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin',
-        body:'shpoutDt='+encodeURIComponent(f)
-      })
-      .then(function(res){ return res.ok?res.text():''; })
-      .then(function(txt){ var pj; try{ pj=JSON.parse(txt); }catch(e){ pj=null; }
-        var prows=(pj&&pj.data)||[]; D2_PREV=prows.map(function(o){ return d2MapRow(o, f); }); })
-      .catch(function(){ D2_PREV=[]; })
-      .then(function(){
-        // 차수 매트릭스용 전 배치(모든 출고장)
-        return fetch(CTX+'/shipout/selectShipoutHistAll.do', {
-          method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin',
-          body:'shpoutDt='+encodeURIComponent(f)
-        })
-        .then(function(res){ return res.ok?res.text():''; })
-        .then(function(txt){ var hj; try{ hj=JSON.parse(txt); }catch(e){ hj=null; }
-          var hrows=(hj&&hj.data)||[]; D2_HISTALL=hrows.map(function(o){ return d2MapRow(o, f); }); })
-        .catch(function(){ D2_HISTALL=[]; });
-      })
-      .then(function(){ d2Render(); });
     })
-    .catch(function(e){ D2_SRC='⚠️ DB 통신오류'; D2_UP=false; D2_DATA=[]; D2_PREV=[]; d2Render(); d2Toast('⚠️ 출고 조회 통신오류: '+e.message); });
+    .catch(function(e){ D2_SRC='⚠️ DB 통신오류'; D2_UP=false; D2_DATA=[]; d2Toast('⚠️ 출고 조회 통신오류: '+e.message); });
+    // 직전 배치(이력) — 실패해도 현재본은 그대로 표시
+    var pPrev=fetch(CTX+'/shipout/selectShipoutPrev.do', {
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin', body:_body
+    })
+    .then(function(res){ return res.ok?res.text():''; })
+    .then(function(txt){ var pj; try{ pj=JSON.parse(txt); }catch(e){ pj=null; }
+      var prows=(pj&&pj.data)||[]; D2_PREV=prows.map(function(o){ return d2MapRow(o, f); }); })
+    .catch(function(){ D2_PREV=[]; });
+    // 차수 매트릭스용 전 배치(모든 출고장)
+    var pHist=fetch(CTX+'/shipout/selectShipoutHistAll.do', {
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin', body:_body
+    })
+    .then(function(res){ return res.ok?res.text():''; })
+    .then(function(txt){ var hj; try{ hj=JSON.parse(txt); }catch(e){ hj=null; }
+      var hrows=(hj&&hj.data)||[]; D2_HISTALL=hrows.map(function(o){ return d2MapRow(o, f); }); })
+    .catch(function(){ D2_HISTALL=[]; });
+    Promise.all([pBizi, pMst, pPrev, pHist]).then(function(){ d2Render(); });
   }
 
-  // 기간/전체 조회 — 날짜별 독립 블록용. (직전배치·차수 매트릭스는 단일일자 전용이라 생략)
+  // 기간/전체 조회 — 날짜별 독립 블록용. (직전배치는 단일일자 전용이라 생략)
+  //  ★속도 개선(2026-07-31): 출고·차수이력·분류표를 병렬 조회 후 1회 렌더(단일일자 경로와 동일 방침).
   function _d2LoadRange(f, t){
     var body, lab;
     if(f && t){ body='shpoutDtFrom='+encodeURIComponent(f)+'&shpoutDtTo='+encodeURIComponent(t); lab=f+' ~ '+t; }
     else      { body=''; lab='전체(전 기간)'; }   // 날짜 비우면 전 기간
-    fetch(CTX+'/shipout/selectShipoutMst.do', {
+    var pBizi=new Promise(function(done){ d2LoadBizi(done); });
+    var pMst=fetch(CTX+'/shipout/selectShipoutMst.do', {
       method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin', body:body
     })
     .then(function(res){ return res.text().then(function(txt){ return {ok:res.ok, status:res.status, txt:txt}; }); })
     .then(function(r){
-      if(!r.ok){ D2_SRC='⚠️ DB 조회 HTTP '+r.status; D2_UP=false; D2_DATA=[]; D2_PREV=[]; D2_HISTALL=[]; d2Render(); d2Toast('⚠️ 출고 조회 실패 (HTTP '+r.status+')'); return; }
-      var j; try{ j=JSON.parse(r.txt); }catch(e){ D2_SRC='⚠️ 응답형식 오류'; D2_UP=false; D2_DATA=[]; D2_PREV=[]; D2_HISTALL=[]; d2Render(); d2Toast('⚠️ 조회 응답이 JSON이 아닙니다'); return; }
+      if(!r.ok){ D2_SRC='⚠️ DB 조회 HTTP '+r.status; D2_UP=false; D2_DATA=[]; d2Toast('⚠️ 출고 조회 실패 (HTTP '+r.status+')'); return; }
+      var j; try{ j=JSON.parse(r.txt); }catch(e){ D2_SRC='⚠️ 응답형식 오류'; D2_UP=false; D2_DATA=[]; d2Toast('⚠️ 조회 응답이 JSON이 아닙니다'); return; }
       var rows=(j&&j.data)||[];
       D2_DATA = rows.map(function(o){ return d2MapRow(o, f); });
-      D2_PREV=[]; D2_HISTALL=[];               // 신규/삭제 비교는 생략, 현재/직전 차수는 아래 histAll 로 채움
       D2_UP = rows.length>0;
       var nd={}; D2_DATA.forEach(function(x){ nd[x.date]=1; });
       D2_SRC = rows.length>0 ? ('🗄️ DB 조회 '+lab+' · '+rows.length+'건 · '+Object.keys(nd).length+'일') : ('🗄️ DB '+lab+' — 데이터 없음');
       D2_COLL={};
-      // 배치이력(현재/직전 차수) 기간 조회 → 날짜별 블록에서 각 날짜로 필터해 사용 (단일일자와 동일 로직)
-      fetch(CTX+'/shipout/selectShipoutHistAll.do', {
-        method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin', body:body
-      })
-      .then(function(res){ return res.ok?res.text():''; })
-      .then(function(txt){ var hj; try{ hj=JSON.parse(txt); }catch(e){ hj=null; }
-        var hrows=(hj&&hj.data)||[]; D2_HISTALL=hrows.map(function(o){ return d2MapRow(o, f); }); })
-      .catch(function(){ D2_HISTALL=[]; })
-      .then(function(){ d2Render(); });
     })
-    .catch(function(e){ D2_SRC='⚠️ DB 통신오류'; D2_UP=false; D2_DATA=[]; D2_PREV=[]; D2_HISTALL=[]; d2Render(); d2Toast('⚠️ 출고 조회 통신오류: '+e.message); });
+    .catch(function(e){ D2_SRC='⚠️ DB 통신오류'; D2_UP=false; D2_DATA=[]; d2Toast('⚠️ 출고 조회 통신오류: '+e.message); });
+    // 배치이력(현재/직전 차수) 기간 조회 → 날짜별 블록에서 각 날짜로 필터해 사용 (단일일자와 동일 로직)
+    var pHist=fetch(CTX+'/shipout/selectShipoutHistAll.do', {
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin', body:body
+    })
+    .then(function(res){ return res.ok?res.text():''; })
+    .then(function(txt){ var hj; try{ hj=JSON.parse(txt); }catch(e){ hj=null; }
+      var hrows=(hj&&hj.data)||[]; D2_HISTALL=hrows.map(function(o){ return d2MapRow(o, f); }); })
+    .catch(function(){ D2_HISTALL=[]; });
+    D2_PREV=[];   // 신규/삭제 비교는 기간 모드에서 생략(종전과 동일)
+    Promise.all([pBizi, pMst, pHist]).then(function(){ d2Render(); });
   }
   // DB행 → 화면행 매핑(현재/직전 공용). date = 행의 실제 출고일자(SHPOUT_DT) — 기간조회 시 날짜별 분리에 사용
   // 화면 표시용 물류센터 그룹 치환 — 특정 물류센터코드는 하나의 대표그룹으로 묶어 표시(DB 저장은 무관)

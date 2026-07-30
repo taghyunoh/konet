@@ -3,7 +3,10 @@
 <head>
   
 <meta charset="UTF-8">
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<%-- defer(2026-07-31 속도): CDN 스크립트가 head 에서 첫 렌더를 막지 않게. swAlert/swConfirm 은 window.Swal 가드가 있어 안전 --%>
+<script defer src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<%-- 공통 알림/확인 표준(_alertBox/_confirmBox/_toast — 로그인 화면과 동일 스타일). 새 알림·확인은 이걸 쓸 것 --%>
+<script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
 <style>
   /* SWAL 확인/알림 모달 축소 (토스트 제외) */
   .swal2-popup:not(.swal2-toast){ width:440px!important; padding:1.1em 1em 1.2em!important; font-size:14px; }
@@ -55,6 +58,8 @@
   .logi-side .sub-menu a.mi { padding-left:34px; font-size:12.5px; padding-top:5px; padding-bottom:5px; }
   .logi-side .side-tit { padding:18px 20px; font-size:17px; font-weight:700; color:#fff; border-bottom:1px solid #2c3a4a; }
   .logi-side .side-tit small { display:block; font-size:11px; font-weight:400; color:#8a98a8; margin-top:3px; }
+  /* 로그인 회사명 — 대시보드 메뉴 위, 물류관리 제목과 같은 17px (2026-07-31 요청) */
+  .logi-side .side-comp { padding:12px 20px 6px; font-size:17px; font-weight:700; color:#ffd98a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   /* 메뉴 간격 — 그룹이 6개로 늘어 세로가 길어져 촘촘하게 줄였다(2026-07-25 요청) */
   .logi-side .grp { padding:9px 20px 3px; font-size:11px; letter-spacing:.5px; color:#7d8b9c; }
   .logi-side a.mi { display:flex; align-items:center; gap:8px; padding:6px 20px; color:#cdd6e0; text-decoration:none; font-size:13.5px; border-left:3px solid transparent; cursor:pointer; }
@@ -468,6 +473,14 @@
     if (!box) return;
     var open = box.classList.toggle('open');
     if (el) el.classList.toggle('open', open);
+  }
+  // 로그아웃 — 사이드바 맨 하단 메뉴 (2026-07-31). 확인 후 세션 종료(/user/loginOutAct.do → 로그인 화면)
+  //  ★확인창은 공통 표준 _confirmBox(ui-message.js) — ssConfirm(발주 반영 확인 전용 teal 모달)을 쓰지 말 것(제목 '반영 확인'이 어긋남).
+  function logiLogout(){
+    _confirmBox({
+      msg: '로그아웃 하시겠습니까?', icon: '🚪', okText: '로그아웃', okColor: 'blue',
+      onOk: function(){ location.href='${pageContext.request.contextPath}/user/loginOutAct.do'; }
+    });
   }
   // 마감관리 기간(년월) 기본값 = 현재월. 각 마감 패널 진입 시 표시용
   function closePeriodInit(){
@@ -3153,9 +3166,17 @@
     //  ★출고장 구분 없이 이 날짜 하나로 전 행이 저장된다(기본값 = 엑셀 납기일자, 여기서 수정 가능).
     var _shpEl=document.getElementById('ssPvShpoutDt'); var _shp=(_shpEl&&_shpEl.value)||'';
     if(!_shp){ ssToast('⚠️ 출고일자를 입력하세요.'); if(_shpEl) _shpEl.focus(); return; }
+    // 김해·제주 출고장 포함 여부 — 조기출고(앞당겨 출고) 관행이 있어 확인창에서 출고일자 변경 여부를 물어본다(2026-07-31 요청).
+    //  ★자동으로 날짜를 바꾸지는 않는다(2026-07-29 조기출고 예외 폐지 유지) — 알림만 하고 수정은 사용자가 확인창의 출고일자 칸에서.
+    //  판정은 출고장 이름으로 — 업로드 행(ssExtractRows)에는 dcCd 가 없고 zone 이름(예: 김해물류센터1)뿐이다.
+    var _kj = rows.some(function(r){ return /김해|제주/.test(''+(r.zone||'')); });
     // 반영 확인(단일) — 예전 1단계 '출고일자' 별도 창은 제거하고, 이 창 하단에 출고일자를 명시(2026-07-24 요청)
+    //  ※ 종전의 "기존 화면 자료를 초기화한 뒤 … 이력으로 남고 새 버전이 활성화" 안내문은 사용자 요청으로 제거(2026-07-31)
+    //     — 같은 내용이 도움말 「🔗 데이터 연계」 카드·업무설명서에 있다. 그 자리에 김해·제주 알림을 넣는다.
     ssConfirm('파일 <b>'+ssPvName+'</b> · 시트 "<b>'+sheetNm+'</b>"<br>발주 <b style="color:#137a6c">'+rows.length+'</b>건 · 출고장 <b style="color:#137a6c">'+_zc+'</b>곳을 반영하시겠습니까?'
-      +'<br><br><span style="color:#b3760f">※ <b>기존 화면 자료를 초기화한 뒤</b> 이 파일로 새로 생성하고, <b>서버(TBL_SHIPOUT_MST)에 저장</b>됩니다. (같은 <b>납품일자·출고장</b>의 기존 저장분은 <b>출고일자가 달라도</b> 이력으로 남고 새 버전이 활성화됩니다.)</span>'
+      +(_kj ? '<div class="ss-blink" style="margin-top:12px;padding:9px 11px;border:1px solid #f0d9a8;background:#fff9ec;border-radius:6px;'
+        +'font-size:12.5px;color:#8a6414;font-weight:700;line-height:1.55;text-align:left">⚠️ <b>김해·제주</b> 출고장이 포함되어 있습니다 — <b>출고일자 변경 여부</b>를 확인하세요.'
+        +'<br><span style="font-weight:400">김해·제주는 앞당겨 출고하는 경우가 있습니다. 변경이 필요하면 아래 <b>출고일자</b>를 수정한 뒤 [반영]을 누르세요.</span></div>' : '')
       +'<div style="text-align:center;margin-top:14px;padding-top:12px;border-top:1px solid #e6ecf0">출고일자 '
       +'<input type="date" id="ssConfirmShpDt" value="'+_shp+'" oninput="ssConfirmBackUpd()" style="font-size:18px;font-weight:700;color:#137a6c;text-align:center;border:1px solid #cdd7dd;border-radius:6px;padding:4px 8px">'
       +'<div style="font-size:11.5px;color:#9aa7b3;margin-top:5px">이 날짜로 <b>전 출고장</b>이 저장됩니다(기본값 = 엑셀 납기일자) — 필요하면 여기서 바로 수정하세요</div>'
@@ -3647,12 +3668,23 @@
       _ssDateSyncing=true; f.value=d.from||''; t.value=d.to||''; ssLoadShipoutFromDB(); _ssDateSyncing=false;
     }catch(_){}
   });
-  function ssLoadShipoutFromDB(){ if(!_ssDateSyncing) ssSaveSharedDate(); ssLoadBiziMst(function(){ _ssLoadShipoutInner(); }); }   // 조회 직전 분류표 최신화 + 날짜 공유 저장
+  // ★속도 개선(2026-07-31): 분류표(selectBiziMst)와 출고 조회를 병렬로 — 종전엔 순차라 최초 진입이 합산 지연.
+  //   대개 분류표(≈0.5s)가 출고(≈0.7s~)보다 먼저 끝나 렌더 시점엔 분류가 준비돼 있고,
+  //   드물게 분류표가 늦으면 도착 시 ssRender() 한 번만 더(추가 조회 없음 — 분류 라벨 갱신).
+  var _ssLoadSeq=0, _ssShipDone=false;
+  function ssLoadShipoutFromDB(){
+    if(!_ssDateSyncing) ssSaveSharedDate();
+    var seq=(++_ssLoadSeq); _ssShipDone=false;
+    ssLoadBiziMst(function(){ if(seq===_ssLoadSeq && _ssShipDone) ssRender(); });
+    _ssLoadShipoutInner();
+  }
   function _ssLoadShipoutInner(){
+    // 종착점 공용 렌더 — 분류표 병렬화의 재렌더 판정용 완료 표시를 함께 남긴다
+    function _rend(){ _ssShipDone=true; ssRender(); }
     var f=(document.getElementById('ssDateFrom')||{}).value||'';
     var t=(document.getElementById('ssDateTo')||{}).value||'';
     // 단일일자=단일조회 / 기간(시작≠종료)=기간 전체 합산 조회 (둘 다 있어야 조회)
-    if(!f || !t){ ssRender(); if(typeof konetAsqSetDash1==='function') konetAsqSetDash1({hide:true}); return; }
+    if(!f || !t){ _rend(); if(typeof konetAsqSetDash1==='function') konetAsqSetDash1({hide:true}); return; }
     var _single=(f===t);
     fetch('${pageContext.request.contextPath}/shipout/selectShipoutMst.do', {
       method:'POST',
@@ -3665,13 +3697,13 @@
     .then(function(r){
       // HTTP 오류(404=엔드포인트 미배포 / 500=서버오류 등) — 상태·본문을 그대로 노출
       if(!r.ok){
-        window.ssSrcInfo='⚠️ DB 조회 HTTP '+r.status; SHIP_DATA=[]; ssRender();
+        window.ssSrcInfo='⚠️ DB 조회 HTTP '+r.status; SHIP_DATA=[]; _rend();
         if(window.ssToast) ssToast('⚠️ 출고 조회 실패 (HTTP '+r.status+')<br><span style="font-size:11px">'+(r.txt||'').replace(/[<>]/g,'').slice(0,300)+'</span>');
         return;
       }
       // 본문이 JSON 이 아니면(로그인 HTML 리다이렉트 등) 파싱 실패 — 본문 노출
       var j; try{ j=JSON.parse(r.txt); }catch(e){
-        window.ssSrcInfo='⚠️ 응답형식 오류'; SHIP_DATA=[]; ssRender();
+        window.ssSrcInfo='⚠️ 응답형식 오류'; SHIP_DATA=[]; _rend();
         if(window.ssToast) ssToast('⚠️ 조회 응답이 JSON이 아닙니다<br><span style="font-size:11px">'+(r.txt||'').replace(/[<>]/g,'').slice(0,300)+'</span>');
         return;
       }
@@ -3690,11 +3722,11 @@
       window.ssSrcUp   = rows.length>0;
       var _lab=_single?f:(f+'~'+t+' 합산');
       window.ssSrcInfo = rows.length>0 ? ('🗄️ DB 조회 '+_lab+' · '+rows.length+'건') : ('🗄️ DB '+_lab+' — 데이터 없음');
-      ssRender();
+      _rend();
       if(_single) ssLoadAsqBar();   // 직전배치 대조 알림바는 단일일자만
       else if(typeof konetAsqSetDash1==='function') konetAsqSetDash1({hide:true});
     })
-    .catch(function(e){ window.ssSrcInfo='⚠️ DB 통신오류'; SHIP_DATA=[]; ssRender(); if(typeof konetAsqSetDash1==='function') konetAsqSetDash1({hide:true}); if(window.ssToast) ssToast('⚠️ 출고 조회 통신오류: '+e.message); });
+    .catch(function(e){ window.ssSrcInfo='⚠️ DB 통신오류'; SHIP_DATA=[]; _rend(); if(typeof konetAsqSetDash1==='function') konetAsqSetDash1({hide:true}); if(window.ssToast) ssToast('⚠️ 출고 조회 통신오류: '+e.message); });
   }
 
   // ── 하단 알림 바(대시보드1 자체) — 현재 SHIP_DATA vs 직전 배치 대조 요약 ──
@@ -5424,6 +5456,12 @@
   <nav class="logi-side">
     <div class="side-tit">📦 물류관리<small>도매유통 · 입고/재고/발주/출고</small></div>
 
+    <%-- 로그인 회사명 — 대시보드 메뉴 위 표시 (2026-07-31 요청, 물류관리 제목과 같은 폰트크기) --%>
+    <% String _compNm = (String)session.getAttribute("s_comp_nm");
+       if (_compNm != null && !_compNm.trim().isEmpty()) { %>
+    <div class="side-comp" title="로그인 회사">🏢 <%= _compNm.trim() %></div>
+    <% } %>
+
     <div class="grp">조회·대시보드관리 ★</div>
     <a class="mi core on" data-key="shipstatus2" onclick="logiShipView('zone', this)"><span class="ic">🗂️</span>출고현황표(대시보드)</a>
      <%-- 출고세부조회: 출고장별 품목·사업장별·품목별을 한 화면 3탭으로 통합(2026-07-24).
@@ -5501,8 +5539,12 @@
     <div class="sub-menu" id="sub-baseinfo">
       <a class="mi" data-key="vendor"  onclick="logiFrame('vendor','${pageContext.request.contextPath}/mangr/vendorMng.do', this)"><span class="ic">🧾</span>매입/매출 거래처</a>
       <a class="mi" data-key="client"  onclick="logiFrame('client','${pageContext.request.contextPath}/mangr/clientMng.do', this)"><span class="ic">🤝</span>거래처관리(사업장)</a>
+      <%-- 회사/사용자 관리 + 공통코드 관리 = 관리자 회사(TBL_COMP_MST.COMMST_YN='Y')만 노출 (2026-07-31).
+           서버측도 /mangr/compcd.do · /base/commcd.do 에서 s_admin_yn 가드로 직접 URL 접근 차단. --%>
+      <% if ("Y".equals(session.getAttribute("s_admin_yn"))) { %>
       <a class="mi" data-key="compcd" onclick="logiFrame('compcd','${pageContext.request.contextPath}/mangr/compcd.do', this)"><span class="ic">🏢</span>회사/사용자 관리</a>
       <a class="mi" data-key="codecd" onclick="logiFrame('codecd','${pageContext.request.contextPath}/base/commcd.do', this)"><span class="ic">🧩</span>공통코드 관리</a>
+      <% } %>
     </div>
 
     <div class="grp">부가·예정관리</div>
@@ -5529,6 +5571,10 @@
 
     <div class="grp">도움말</div>
     <a class="mi" data-key="guide" onclick="logiGo('guide', this)"><span class="ic">📖</span>업무 설명서</a>
+
+    <%-- 로그아웃 — 메뉴 맨 하단 (2026-07-31 요청, 같은 날 "조금 아래로" 요청으로 위 여백 추가).
+         확인 후 /user/loginOutAct.do(세션 invalidate → 로그인 화면) --%>
+    <a class="mi" style="margin-top:26px" onclick="logiLogout()"><span class="ic">🚪</span>로그아웃</a>
   </nav>
 
   <!-- ───────────── 우측 콘텐츠 ───────────── -->
@@ -5851,6 +5897,7 @@
             <div style="margin-top:4px;color:#5a6b7a"><b>· 대체 규칙</b> <b style="color:#c0392b">출고장 + 납품일자</b>가 같으면 기존 자료를 대체(출고일자는 보지 않음). 예전 것은 이력으로 내려가니 <b>잘못 올렸으면 다시 올리면</b> 됩니다.<br>
             <b>· [📤 …보기 / 업로드]</b> = 탐색기가 아니라 <b>미리보기</b>가 열려 지정 폴더 파일을 최신순으로 보여줍니다(최근 파일 자동 펼침). 상단에 📂폴더 지정 · 📄파일 선택 · ↻새로고침 · ℹ️도움말.<br>
             <b>· 출고일자</b>는 <b>엑셀의 납기일자</b> 그대로 — <b>출고장(김해·제주 포함) 구분 없이</b> 전 행이 같은 날짜로 저장됩니다(작성 전 화면에서 수정 가능).<br>
+            <b>· 김해·제주 알림</b> 파일에 김해·제주 출고장이 있으면 반영 확인창에서 <b>출고일자 변경 여부</b>를 물어봅니다(자동 변경은 안 함 — 필요 시 확인창에서 직접 수정).<br>
             <b>· 이전 자료 알림</b> 마지막에 올린 것보다 출고일자가 앞서면 알려만 주고 <b>막지 않습니다</b>.</div></td></tr>
           <tr><td class="m">출고세부조회</td><td>저장된 출고를 <b>3탭</b>(출고장▸품목 · 사업장별 · 품목별)으로 전환하며 조회.</td></tr>
           <tr><td class="m">출고현황이력조회</td><td>발주현황표를 <b>언제·몇 차로</b> 올렸는지와 그 발생내역을 일자별로.</td></tr>
@@ -5896,7 +5943,7 @@
         <h3>5. 기준정보 · 예정 기능</h3>
         <table><tbody>
           <tr><td class="m">상품(품목)관리</td><td>품목 등록/수정. 행 클릭 → 아래 <b>이력/재고</b> 4탭에서 <b>매입가·판매가 이력</b>과 <b>재고 수불(입·출고·조정·반품)</b> 등록.</td></tr>
-          <tr><td class="m">기준정보관리</td><td><b>매입/매출 거래처</b>(회계 거래처 · 거래처리스트.xls 재업로드) · <b>거래처관리(사업장)</b>(배송 점포, 발주 업로드 시 자동등록) · 회사/사용자 · 공통코드.</td></tr>
+          <tr><td class="m">기준정보관리</td><td><b>매입/매출 거래처</b>(회계 거래처 · 거래처리스트.xls 재업로드) · <b>거래처관리(사업장)</b>(배송 점포, 발주 업로드 시 자동등록) · 회사/사용자 · 공통코드. <span style="color:#5a6b7a">회사/사용자·공통코드 관리는 <b>관리자 회사</b>(코네트)에만 보입니다.</span></td></tr>
           <tr><td class="m">예정 기능 <span style="color:#9aa7b3;font-size:11px">(데모)</span></td><td>물품동선관리(창고·위치·피킹) · 견적서관리 · 카카오톡관리 — 향후 추진.</td></tr>
         </tbody></table>
       </div>
