@@ -3,6 +3,8 @@
 ## ★알림·확인 메시지 표준 (상시 방침 — 사용자 반복 지적)
 - **모든 알림(1버튼)·확인(2버튼)은 [ui-message.js](src/main/webapp/asset/js/ui-message.js)** 의 `_alertBox(msg,{icon,okText,okColor})` / `_confirmBox({msg,icon,okText,okColor,onOk})` / `_toast(msg,type)` — 로그인 화면과 동일한 흰 카드+아이콘+파란 확인 버튼 스타일. **새 알림·확인은 무조건 이걸 쓴다.**
 - **Swal(SweetAlert) 기본값 금지** — demo2 의 `swAlert` 는 기존 잔존분(신규 사용 금지). jQuery 불필요, `<script src=".../asset/js/ui-message.js">` 한 줄로 어느 화면에서나 동작(CSS 자동 주입). demo2 도 로드해 둠(2026-07-31).
+- **거래처 칸은 「입력검색」 = [vendor-pick.js](src/main/webapp/asset/js/vendor-pick.js)** (2026-08-01 요청) — 판매·매입·수금·지급 등록 4화면 공용. 칸에 직접 쳐서 고른다(거래처명·코드·별칭·대표·담당 부분일치, ↑↓·Enter·Esc). **[거래처] 팝업은 그대로 둔다**(이름 모를 때 훑는 용도) — 둘 다 같은 `_vendors` 를 본다. 고르는 동작은 **페이지의 기존 pick 함수**(`saVenPick`/`puVenPick`/`svCustPick`)를 그대로 부른다: 잔고·원장·담당자 갱신이 거기 붙어 있어 값만 넣으면 화면이 반쪽만 바뀐다. 이름·코드가 어긋난 채 남지 않게 blur 시 되돌린다(후보 1건이면 확정). 실제 값은 `input.dataset.cd`.
+- **작업 버튼(신규등록·저장·새로고침·삭제하기)은 입력 칸 '아래'** — 4화면 통일(2026-08-01). 종전 수금·지급만 카드 맨 위에 있었다.
 - **`ssConfirm`(teal 「반영 확인」 모달)은 발주현황표 업로드 반영류 확인 전용** — 일반 확인에 쓰면 제목('반영 확인')·버튼('반영')이 어긋난다. 실제 사고: 로그아웃 확인을 ssConfirm 으로 냈다가 지적받고 `_confirmBox` 로 교체(2026-07-31).
 
 ## 스택/구조

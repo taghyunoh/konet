@@ -3,6 +3,8 @@
 <%-- 메시지는 프로젝트 공통 컴포넌트를 쓴다 — 로그인 화면(base_login.jsp)과 같은 모양.
      SweetAlert 가 아니라 이 파일이 표준이다(_alertBox / _confirmBox / _toast). --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
+<%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js"></script>
 <!--
   판매등록 (2026-07-25 신설) — 매입등록 화면과 대칭. 같은 조작감으로 쓰도록 구조를 그대로 맞췄다.
     · 상단 = 전표 입력(헤더 + 명세 그리드) / 하단 좌 = 기간 전표 목록 / 하단 우 = 거래처 원장
@@ -101,7 +103,8 @@
     <div class="sa-row">
       <div class="sa-fld" style="flex:0 0 140px"><label>판매일자</label><input type="date" id="saDt" onchange="saNextNo()"></div>
       <div class="sa-fld" style="flex:0 0 90px"><label>전표번호</label><input type="text" id="saNo" readonly style="background:#f5f7f9"></div>
-      <div class="sa-fld" style="flex:0 0 220px"><label>거래처</label><input type="text" id="saVenNm" readonly placeholder="거래처를 선택하세요" style="background:#f5f7f9"></div>
+      <%-- 거래처 = 직접 입력검색(거래처명·코드·별칭·대표·담당 부분일치). 목록을 훑어보려면 [거래처] 버튼. --%>
+      <div class="sa-fld" style="flex:0 0 220px"><label>거래처</label><input type="text" id="saVenNm" placeholder="거래처명 입력 또는 [거래처]" title="거래처명·코드·별칭·대표자·담당자로 검색합니다. ↑↓ 로 고르고 Enter."></div>
       <button class="sa-btn teal" onclick="saVenOpen()">거래처</button>
       <%-- 납품분 = 그 거래처에 이미 나간 품목(판매전표+정산서)을 중복 없이 모아 보여준다.
            체크한 순서 그대로 명세에 담긴다 — 주문 받은 순서대로 입력하기 위한 장치(2026-07-31). --%>
@@ -442,6 +445,13 @@ function post(url, body, isJson){
   saNew();
   saLoadMasters();
   saLoad();
+  /* 거래처 칸 입력검색 — 고르는 동작은 팝업과 같은 saVenPick() 을 그대로 탄다(잔고·원장·담당자 갱신 포함).
+     _vendors 는 saLoadMasters() 가 나중에 채우므로 배열이 아니라 '함수'로 넘긴다. */
+  _vendorPick(document.getElementById('saVenNm'), {
+    list   : function(){ return _vendors; },
+    onPick : function(o){ saVenPick(o.vendorCd); },
+    onClear: function(){ document.getElementById('saMgrNm').value=''; document.getElementById('saMgrNm').dataset.cd=''; saVenBal(''); }
+  });
 })();
 
 /* 합계 표는 그리드 밖에 있으므로 가로 스크롤을 따라가게 맞춘다 */

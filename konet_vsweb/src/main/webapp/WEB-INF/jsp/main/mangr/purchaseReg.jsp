@@ -3,6 +3,8 @@
 <%-- 메시지는 프로젝트 공통 컴포넌트를 쓴다 — 로그인 화면(base_login.jsp)과 같은 모양.
      SweetAlert 가 아니라 이 파일이 표준이다(_alertBox / _confirmBox / _toast). --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
+<%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js"></script>
 <!--
   매입등록 — 홀세일닥터 매입등록 이관 (2026-07-25 신설)
     · 상단 = 전표 입력(헤더 + 명세 그리드) / 하단 = 기간 전표 목록
@@ -98,7 +100,8 @@
     <div class="pu-row">
       <div class="pu-fld" style="flex:0 0 140px"><label>매입일자</label><input type="date" id="puDt" onchange="puNextNo()"></div>
       <div class="pu-fld" style="flex:0 0 90px"><label>전표번호</label><input type="text" id="puNo" readonly style="background:#f5f7f9"></div>
-      <div class="pu-fld" style="flex:0 0 220px"><label>거래처</label><input type="text" id="puVenNm" readonly placeholder="거래처를 선택하세요" style="background:#f5f7f9"></div>
+      <%-- 거래처 = 직접 입력검색(거래처명·코드·별칭·대표·담당 부분일치). 목록을 훑어보려면 [거래처] 버튼. --%>
+      <div class="pu-fld" style="flex:0 0 220px"><label>거래처</label><input type="text" id="puVenNm" placeholder="거래처명 입력 또는 [거래처]" title="거래처명·코드·별칭·대표자·담당자로 검색합니다. ↑↓ 로 고르고 Enter."></div>
       <button class="pu-btn teal" onclick="puVenOpen()">거래처</button>
       <%-- 매입분 = 그 매입처에서 이미 사 온 품목(매입전표 + 매입단가이력)을 중복 없이.
            체크한 순서 그대로 명세에 담긴다 — 판매등록의 [납품분]과 같은 장치(2026-07-31). --%>
@@ -435,6 +438,13 @@ function post(url, body, isJson){
   puNew();
   puLoadMasters();
   puLoad();
+  /* 거래처 칸 입력검색 — 고르는 동작은 팝업과 같은 puVenPick() 을 그대로 탄다(잔고·원장·담당자 갱신 포함).
+     _vendors 는 puLoadMasters() 가 나중에 채우므로 배열이 아니라 '함수'로 넘긴다. */
+  _vendorPick(document.getElementById('puVenNm'), {
+    list   : function(){ return _vendors; },
+    onPick : function(o){ puVenPick(o.vendorCd); },
+    onClear: function(){ document.getElementById('puMgrNm').value=''; document.getElementById('puMgrNm').dataset.cd=''; puVenBal(''); }
+  });
 })();
 
 /* 합계 표는 그리드 밖에 있으므로 가로 스크롤을 따라가게 맞춘다 */
