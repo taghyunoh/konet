@@ -1410,15 +1410,16 @@ $(document).on('init.dt', function(e, settings) {
 			            contentType: "application/json",
 			    	    dataType: "json",
 			            success: function(response) {
-			            	// checkbox, 자동순번은 넣지 않습니다.
-			            	// *******단, 나머지 컬럼은 반드시 기술해야 합니다. 
-			            	let newData = newuptData();
-	
-			            	dataTable.row.add(newData).draw(false);
-			            	
-			            	messageBox("1","<h5> 정상처리 되었습니다 ...... </h5><p></p><br>",mainFocus,"","");	            	
+			            	// ★그리드 갱신 = 서버 재조회 (2026-07-31)
+			            	//   종전 row.add(newuptData())는 폼 일부 필드만 담은 행을 직접 추가해
+			            	//   그리드 컬럼에 없는 필드(compAddr 등) 때문에 DataTables 경고
+			            	//   ("Requested unknown parameter ...")가 뜨고 주소·등록일자가 비어 보였다.
+			            	//   재조회하면 DB값 그대로 전 컬럼이 채워진다.
+			            	dataTable.ajax.reload(null, false);
+
+			            	messageBox("1","<h5> 정상처리 되었습니다 ...... </h5><p></p><br>",mainFocus,"","");
 			            	$("#" + modalName.id).modal('hide');
-			            	
+
 			        	},
 			        	error: function(xhr, status, error) {
 				         	switch (xhr.status){  
@@ -1477,15 +1478,10 @@ $(document).on('init.dt', function(e, settings) {
 		                // 6. DataTable에 변경된 값 반영
 		                let updatedData = newuptData();		                
 
-		                selectedRows.every(function(rowIdx) {
-		                    let rowData = this.data();
-		                    Object.keys(updatedData).forEach(function(key) {
-		                    	rowData[key] = updatedData[key];
-		                    });
-		                    this.data(rowData);
-		                });
-		
-		                dataTable.draw(false);
+		                // ★그리드 갱신 = 서버 재조회 (2026-07-31)
+		                //   종전엔 updatedData(폼 일부 필드)만 행에 덮어써서 주소(compAddr) 등
+		                //   수정값이 그리드에 반영되지 않았다. 재조회로 DB값 그대로 표시.
+		                dataTable.ajax.reload(null, false);
 		                
 		                // 7. 모달 닫기 및 성공 메시지 표시
 		                $("#" + modalName.id).modal('hide');

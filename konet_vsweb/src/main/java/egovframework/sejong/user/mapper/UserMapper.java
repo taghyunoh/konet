@@ -3,6 +3,7 @@ package egovframework.sejong.user.mapper;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.ibatis.annotations.Param;
 import org.egovframe.rte.psl.dataaccess.mapper.Mapper;
 
 import egovframework.sejong.user.model.CompConDTO;
@@ -143,11 +144,11 @@ public interface UserMapper {
 	// ===== 마감 확정/잠금/이월 — TBL_CLOSING_MST / TBL_CLOSING_STOCK =====
 	egovframework.sejong.user.model.ClosingMstDTO selectClosingMst(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 헤더 조회(없으면 null)
 	java.util.List<egovframework.sejong.user.model.ClosingMstDTO> selectClosingMstList(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 월별 마감 이력 목록
-	int isClosedYm(String closeYm) throws Exception;                        // 확정(잠금) 여부 count
+	int isClosedYm(@Param("closeYm") String closeYm) throws Exception;      // 확정(잠금) 여부 count — @Param 필수(COMP_CD 인터셉터가 ParamMap에 compCd 주입)
 	int updateClosingMst(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 확정 UPDATE(있으면)
 	int insertClosingMst(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 확정 INSERT(없으면)
 	int cancelClosingMst(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 확정 해제(ACTION_YN='N')
-	int deleteClosingStock(String closeYm) throws Exception;                // 재고 스냅샷 삭제(재확정/해제 시)
+	int deleteClosingStock(@Param("closeYm") String closeYm) throws Exception; // 재고 스냅샷 삭제(재확정/해제 시) — @Param 필수(COMP_CD 인터셉터 주입)
 	int insertClosingStock(egovframework.sejong.user.model.StockClosingDTO dto) throws Exception; // 재고 스냅샷 1건
 
 	// ===== 공통코드 관리 (codecd.jsp) =====

@@ -1,10 +1,34 @@
 # konet_web 프로젝트 메모
 
+## ★알림·확인 메시지 표준 (상시 방침 — 사용자 반복 지적)
+- **모든 알림(1버튼)·확인(2버튼)은 [ui-message.js](src/main/webapp/asset/js/ui-message.js)** 의 `_alertBox(msg,{icon,okText,okColor})` / `_confirmBox({msg,icon,okText,okColor,onOk})` / `_toast(msg,type)` — 로그인 화면과 동일한 흰 카드+아이콘+파란 확인 버튼 스타일. **새 알림·확인은 무조건 이걸 쓴다.**
+- **Swal(SweetAlert) 기본값 금지** — demo2 의 `swAlert` 는 기존 잔존분(신규 사용 금지). jQuery 불필요, `<script src=".../asset/js/ui-message.js">` 한 줄로 어느 화면에서나 동작(CSS 자동 주입). demo2 도 로드해 둠(2026-07-31).
+- **`ssConfirm`(teal 「반영 확인」 모달)은 발주현황표 업로드 반영류 확인 전용** — 일반 확인에 쓰면 제목('반영 확인')·버튼('반영')이 어긋난다. 실제 사고: 로그아웃 확인을 ssConfirm 으로 냈다가 지적받고 `_confirmBox` 로 교체(2026-07-31).
+
 ## 스택/구조
 - **MSSQL** + egovframework + MyBatis, 패키지 `egovframework.sejong`
 - 뷰: Apache Tiles. `.raw/*` = tiles 래핑 없는 단독 페이지, `.main/*` = 표준 레이아웃(main.jsp+top.jsp, top.jsp는 사실상 비어있음 — 실제 네비 없음)
 - **물류관리 화면은 `.raw/main/admin/logistics_demo2.jsp`(약 3000줄) 단독 셸** — 좌측 사이드바 + 모든 패널 + JS를 한 파일에 내장. 대시보드1(출고현황표)=`logistics_demo1.jsp`(iframe 로드). 사이드바 메뉴 onclick이 demo2 내부 함수/패널에 강결합 → 리팩터링 시 주의.
 - 컨벤션: PK `XXX_SEQ IDENTITY`, 품목연결 `PROD_SEQ`+`PROD_CD`, 금액 `DECIMAL(18,2)`, 일자 `NVARCHAR(8)'YYYYMMDD'`·일시 `NVARCHAR(19)`, 소프트삭제 `ACTION_YN`, 감사컬럼 `REG_/UPD_`. 날짜 저장 시 `REPLACE(...,'-','')`. XML `<=`/`<` 는 CDATA 필수.
+
+## 다중회사(멀티테넌트) — 업무 테이블 COMP_CD (2026-07-30)
+**로그인(COMP_CD+USER_ID)의 회사코드로 모든 업무 데이터를 회사별 분리.** 기존 데이터는 전부 코네트(`W1234567`) 귀속.
+- **DB (적용 완료·재실행 안전)**: [sql/comp_cd_multitenant_alter.sql](sql/comp_cd_multitenant_alter.sql) — 업무 테이블 **19개**에 `COMP_CD VARCHAR(10) NOT NULL DEFAULT 'W1234567' WITH VALUES`(기존행 자동 백필). **DEFAULT 제약은 지우지 말 것** — COMP_CD를 안 넣는 구버전 코드가 돌아도 기본회사로 들어가는 안전망. 업무키 확장: PK에 COMP_CD 포함(BIZI/VENDOR/SETTLE_CLOSE), UNIQUE에 포함(CLOSING_MST·PAYMENT·RECEIVE·PURCHASE UX_PURCH_NO·SETTLE_TRX UX). IDENTITY(…_SEQ) PK와 `TBL_CODE_MST/DTL`(회사 공유 공통코드)은 제외.
+- **주입은 중앙 1곳 — 컨트롤러는 안 고쳤다**: `CompCdFilter`(web.xml `*.do`, 세션 `s_comp_cd`→ThreadLocal) → `CompCdContext` → **`CompCdMybatisInterceptor`**(sql-mapper-config.xml plugins) 가 모든 SQL 실행 직전 파라미터에 compCd 자동 주입. DTO는 비었을 때만 채움(로그인 폼 입력 존중) · Map은 `compCd` 키 주입 · **파라미터 없는 구문(null)은 compCd만 담은 Map으로 대체**(selectBiziMst 등 5건이 이 경로) · compCd 없는 DTO(공통코드)는 조용히 통과. **새 화면을 추가해도 주입 누락이 없다** — 엔드포인트별 dto.setCompCd(...) 방식 쓰지 말 것.
+- **User_SQL.xml 123개 구문 전부 COMP_CD 반영**: SELECT/UPDATE/DELETE는 기존 관용구와 같은 **fail-open** `AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR 별칭.COMP_CD = #{compCd...} )`(미주입=기존 동작 → 화면 안 깨짐). INSERT/MERGE ON은 **확정값** `ISNULL(#{compCd...},'W1234567')`(NOT NULL이라 명시 NULL 불가). 조인·서브쿼리·OUTER APPLY 안의 업무 테이블은 파라미터가 아니라 **본체와 COMP_CD 상관조건**(`p2.COMP_CD = p.COMP_CD` 등). 윈도우 파티션 2곳(firstDttm·keyQty/keyRows)에도 COMP_CD 추가.
+- **[함정] 단일 String 파라미터 매퍼 메서드는 `@Param` 필수** — `isClosedYm`/`deleteClosingStock`은 `@Param("closeYm")`을 붙여 ParamMap이 되게 했다(안 붙이면 `#{compCd}`가 closeYm 값으로 바인딩되어 조회 0건/삭제 0건). 앞으로 업무 테이블을 만지는 새 매퍼 메서드도 단일 원시타입이면 반드시 @Param.
+- **DTO 20개에 compCd 필드 추가**(Bizi/Closing(Mst)/Payment/Prod(Inprice·Saleprice)/Purchase(Dtl)/Receive/Sales(Trx·TrxDtl)/SettleClose/SettleTrx/Shipout/StockClosing/StockLedger/StockMst/Vendor). 새 업무 DTO에도 compCd 넣을 것(없으면 인터셉터가 조용히 통과 → fail-open이라 단일회사에선 티 안 남).
+- **2번째 회사 등록 시**: TBL_COMP_MST/TBL_USER_MST에 회사·사용자만 넣으면 됨(compcd.jsp). 공통코드는 공유. 상품/거래처/사업장은 회사별로 새로 등록해야 함(PROD_CD 등 자연키는 회사별 독립).
+- **배포**: 자바+XML+web.xml 변경 → **WAR 재빌드 필수** (빌드 확인 완료).
+
+### [완료 2026-07-31] 회사/사용자 관리 = 관리자 회사(TBL_COMP_MST.COMMST_YN='Y') 전용 + 전체 회사코드 조회
+- **s_admin_yn 원천 변경**: 종전 TBL_USER_MST.COMMST_YN(사용자 단위) → **회사(TBL_COMP_MST.COMMST_YN) 기준**. `compLoginCheck` 에 `ISNULL(C.COMMST_YN,'N') AS compAdminYn` 추가 + **조인에 `C.ACTION_YN='Y'`**(이력형 테이블이라 없으면 중복행). UserDTO.compAdminYn 신설, 로그인 시 s_admin_yn/login_AdminYn = 'Y'/'N' 정규화.
+- **메뉴 노출**: 사이드바 '회사/사용자 관리'(logistics_demo2.jsp)는 `s_admin_yn=='Y'` 일 때만 렌더(스크립틀릿). `/mangr/compcd.do` 도 서버 가드 — 비관리자 직접 URL 접근 시 `redirect:/main.do`.
+- **관리자 전체 회사코드 조회**: 멀티테넌트 인터셉터가 빈 compCd 를 자기 회사로 채우므로, `compCdList.do` 컨트롤러가 관리자+compCd 미지정이면 **CompMdDTO.allYn='Y'** 세팅 → `selCompCdList` 가 compCd 필터를 건너뜀(전체). compCd 명시 호출(계약저장 후 1건 갱신 등)은 종전대로 필터. 비관리자는 인터셉터 주입 그대로 자기 회사 1건만.
+- **공통코드 관리도 동일 가드**(같은 날 추가 요청): 사이드바 노출 + `/base/commcd.do` 서버 가드 둘 다 관리자 회사만. 업무설명서 기준정보관리 행에 명시.
+- **compcd.jsp 회사 그리드 갱신 = 서버 재조회로 교체**(2026-07-31, JSP만): 입력/수정 성공 후 `row.add(newuptData())`·부분 덮어쓰기를 하던 것을 `dataTable.ajax.reload(null,false)` 로 — 종전엔 newuptData 에 **compAddr 가 없어** 입력 직후 DataTables 경고("Requested unknown parameter")가 뜨고 주소·등록일자가 빈 채 표시, 수정 시엔 주소 수정값이 그리드에 반영 안 됐다. 계약(hc_)·사용자(hu_) 그리드는 필드가 전부 일치해 그대로 둠.
+- **로그아웃 메뉴 + 빈화면 수정**(같은 날 추가 요청): 사이드바 맨 하단 `🚪 로그아웃`(`logiLogout` — ssConfirm 확인 후 `/user/loginOutAct.do`). **[함정 발견] 종전 loginOutAct 는 `forward:/login.do` 인데 이 컨텍스트에 /login.do 매핑이 없어 로그아웃 후 빈 화면(404)** → `redirect:/konet.do`(로그인 정문) 로 수정.
+- **자바+XML 변경 → WAR 재빌드 필수.**
 
 ## 상품 가격/재고 관리 (prodmst.jsp ↔ TBL_PROD_MST)
 상품관리 각 행 클릭 → 하단 도킹 **이력/재고 4탭**(매입가/판매가/매출단가(조회)/재고 수불).
@@ -104,11 +128,27 @@
 - **★뜻은 그대로 `DLV_DT` 하나다** — 이 문서(CLAUDE.md)와 DB 컬럼·변수명(`dlvDt`)은 여전히 납품일자/발주일자로 적혀 있다. **말만 바뀐 것이니 로직을 찾을 땐 `DLV_DT`/`dlvDt` 로 볼 것.** 화면 문구를 새로 쓸 때만 '납기일자'.
 - `납품일자(=발주일자)` 같은 병기는 `납품일자(=납기일자)` 로. **JSP만 변경 → WAR 재빌드 불필요.**
 
+### [완료 2026-07-31] 반영 확인창 — ※초기화/이력 안내문 제거 + 김해·제주 출고일자 변경 알림(깜박)
+- **제거**: 확인창(ssPvApply)의 "※ 기존 화면 자료를 초기화한 뒤 … 이력으로 남고 새 버전이 활성화" 문구 — 사용자 요청. 같은 내용은 도움말 「🔗 데이터 연계」 카드·업무설명서에 남아 있다(그쪽은 유지).
+- **추가**: 파일에 **김해·제주 출고장이 있으면** 그 자리에 호박색 깜박(`ss-blink`) 알림 — *"김해·제주 출고장이 포함되어 있습니다 — 출고일자 변경 여부를 확인하세요"*. **자동으로 날짜를 바꾸지 않는다**(2026-07-29 조기출고 예외 폐지 유지) — 수정은 확인창의 출고일자 칸에서 사용자가 직접.
+- 판정은 zone **이름** `/김해|제주/` — 업로드 행(ssExtractRows)에는 dcCd 가 없다. 업무설명서 출고현황표 행에 '김해·제주 알림' 한 줄 동기화.
+- **JSP만 변경 → WAR 재빌드 불필요.**
+
 ### [완료] 대시보드 「📤 발주현황표 엑셀 보기 / 업로드」 첫 클릭이 먹히던 문제 (2026-07-29)
 - **증상**: 대시보드(iframe `logistics_demo1.jsp`)에서 버튼을 누르면 *"출고현황 자료를 불러오는 중입니다…"* 안내만 뜨고 모달이 안 열림 → 한 번 더 눌러야 열림.
 - **원인**: 조회중 안내 `.d2-loading` 이 `position:fixed; inset:0` 로 **화면 전체를 덮어 클릭을 먹었다**. 조회가 끝날 때까지(응답이 끝내 안 오면 `d2LoadingOn` 의 **20초** 자동해제까지) 상단 버튼이 죽은 것처럼 보인다. 진입 직후엔 이 오버레이가 `on` 으로 시작한다.
 - **조치 2가지**(둘 다 `logistics_demo1.jsp`, JSP만): ① `.d2-loading{pointer-events:none}` — 안내는 **알림일 뿐 클릭을 막지 않는다**. ② `d2Go('upload')` 에서 **모달 열기를 날짜 동기화(재조회)보다 먼저** 실행 — 재조회가 걸려도 모달은 즉시 뜬다(모달은 조회 결과와 무관한 엑셀 미리보기).
 - **[참고] 다른 전체화면 오버레이**: 파싱 중 `ssBusy`(demo2, z-index 99999)·서버저장 진행바 `shpProgOv` 는 **실제 작업 중**이라 클릭 차단을 그대로 둔다.
+
+### [완료 2026-07-31] 대시보드 최초 진입 속도 — 순차 조회 → 병렬(Promise.all) (demo1 + demo2 셸)
+- **원인(운영 실측)**: 최초 로그인 시 ① demo1(iframe) 이 selectBiziMst 0.5s → selectShipoutMst 0.7s → selectShipoutPrev **2.2s** → selectShipoutHistAll 1.3s 를 **순차** 호출(합산 ≈ 4.8s 동안 `.d2-loading` 오버레이) ② demo2 셸도 자체적으로 분류표→출고 **순차** 2건 ③ head 의 SweetAlert CDN 이 동기 로드라 첫 렌더 차단.
+- **조치(전부 JSP만)**:
+  - demo1: `d2Load` 의 d2LoadBizi 콜백 체인을 없애고 `_d2LoadInner` 에서 4건 **병렬** → 전부 도착 후 `d2Render()` 1회. `_d2LoadRange`(기간)도 동일(3건 병렬). 체감 = 가장 느린 1건(직전배치 ≈ 2.2s) 수준.
+  - demo2 셸: `ssLoadShipoutFromDB` 분류표∥출고 병렬. 완료 판정 `_ssLoadSeq/_ssShipDone` + 내부 `_rend()`(종착점 5곳 공용) — 분류표가 늦게 오면 도착 시 ssRender 1회만 더(추가 조회 없음).
+  - SweetAlert CDN `defer`(swAlert/swConfirm 은 window.Swal 가드 있어 안전).
+- **전송량은 문제 아님**: nginx 가 gzip 함(selectBiziMst 570KB→34KB, 브라우저는 자동). 병목은 쿼리 시간.
+- **selectShipoutPrev SQL 재작성(2026-07-31, 사용자 요청)**: 행마다 돌던 상관 서브쿼리 2개(firstDttm MIN·직전차수 MAX(JOB_SEQ))를 **윈도우 함수**로 — selectShipoutMst 의 firstDttm 최적화(944ms→73ms) 전례와 같은 수법. firstDttm 파티션은 종전과 동일(ACTION_YN 무관 전체 최소값 → 가장 안쪽 계층), maxSeq 는 ACTION_YN='N' 필터 후 계산(종전 서브쿼리와 동일 의미). **XML 변경 → WAR 재빌드 필수.**
+- **인덱스 신설**: [sql/shipout_perf_index.sql](sql/shipout_perf_index.sql) — TBL_SHIPOUT_MST 에 인덱스가 하나도 없어 매 조회가 풀스캔이었다. `IX_SHIPOUT_DASH(SHPOUT_DT, ACTION_YN, COMP_CD)`(대시보드 조회) + `IX_SHIPOUT_BATCH(DLV_DT, DC_CD, ACTION_YN, COMP_CD)`(업로드 배치 대체·대사). **운영 DB에서 1회 실행 필요**(재실행 안전). [미검증] 실측은 배포+인덱스 생성 후.
 
 ## 엑셀 양식 검증 (2026-07-26 / logistics_demo2.jsp JSP만)
 **★두 업로드 화면이 서로 다른 방식을 쓴다 — 통일하지 말 것(사용자가 그렇게 정했다).**

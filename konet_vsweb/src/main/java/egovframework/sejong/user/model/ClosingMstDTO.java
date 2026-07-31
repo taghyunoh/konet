@@ -6,6 +6,11 @@ package egovframework.sejong.user.model;
  */
 public class ClosingMstDTO {
 
+	// ----- 다중회사(멀티테넌트) — 로그인 세션(s_comp_cd)에서 주입 -----
+	private String compCd;        // 회사코드(COMP_CD)
+	public String getCompCd() { return compCd; }
+	public void setCompCd(String compCd) { this.compCd = compCd; }
+
     private Long    closeSeq;
     private String  ym;           // 요청 마감월 'YYYY-MM' (SQL에서 '-' 제거)
     private String  closeYm;      // 저장/조회 'YYYYMM'

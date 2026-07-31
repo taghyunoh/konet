@@ -7,6 +7,11 @@ package egovframework.sejong.user.model;
  */
 public class ShipoutDTO {
 
+	// ----- 다중회사(멀티테넌트) — 로그인 세션(s_comp_cd)에서 주입 -----
+	private String compCd;        // 회사코드(COMP_CD)
+	public String getCompCd() { return compCd; }
+	public void setCompCd(String compCd) { this.compCd = compCd; }
+
 	// ----- 버전·이력 메타 -----
 	private Integer jobSeq;        // 업로드(배치) 버전
 	private String  actionYn;      // 'Y'=활성 / 'N'=이력(삭제)
