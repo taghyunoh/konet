@@ -45,7 +45,8 @@ public class UserDTO{
 	private String mainGu;     // 사용자구분(MAIN_GU)
 	private String startDt;    // 시작일자(START_DT)
 	private String endDt;      // 종료일자(END_DT)
-	private String commstYn;   // COMMST_YN
+	private String commstYn;     // COMMST_YN (TBL_USER_MST — 사용자 단위)
+	private String compAdminYn;  // TBL_COMP_MST.COMMST_YN — 회사(거래처) 단위 관리자여부. s_admin_yn 의 원천
 	private String actionYn;   // 활성여부(ACTION_YN)
 
 	public String getCompCd() { return compCd; }
@@ -68,6 +69,9 @@ public class UserDTO{
 
 	public String getCommstYn() { return commstYn; }
 	public void setCommstYn(String commstYn) { this.commstYn = commstYn; }
+
+	public String getCompAdminYn() { return compAdminYn; }
+	public void setCompAdminYn(String compAdminYn) { this.compAdminYn = compAdminYn; }
 
 	public String getActionYn() { return actionYn; }
 	public void setActionYn(String actionYn) { this.actionYn = actionYn; }

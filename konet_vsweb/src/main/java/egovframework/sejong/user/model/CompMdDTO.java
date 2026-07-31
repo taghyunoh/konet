@@ -38,6 +38,7 @@ public class CompMdDTO {
 	private String fileYn;     // 첨부파일 존재여부
 	private String findData;   // 조회조건
 	private String keyCompCd;  // 그리드 PK(수정/삭제용)
+	private String allYn;      // 'Y' = 관리자 전체 회사 조회(멀티테넌트 compCd 필터 우회 — selCompCdList)
 
 	public String getCompCd() { return compCd; }
 	public void setCompCd(String compCd) { this.compCd = compCd; }
@@ -97,4 +98,6 @@ public class CompMdDTO {
 	public void setFindData(String findData) { this.findData = findData; }
 	public String getKeyCompCd() { return keyCompCd; }
 	public void setKeyCompCd(String keyCompCd) { this.keyCompCd = keyCompCd; }
+	public String getAllYn() { return allYn; }
+	public void setAllYn(String allYn) { this.allYn = allYn; }
 }

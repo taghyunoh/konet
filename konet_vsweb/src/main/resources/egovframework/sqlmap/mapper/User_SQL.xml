@@ -19,9 +19,10 @@
 	         A.END_DT                         AS endDt,
 	         A.USE_YN                         AS useYn,
 	         A.COMMST_YN                      AS commstYn,
+	         ISNULL(C.COMMST_YN,'N')          AS compAdminYn,
 	         A.ACTION_YN                      AS actionYn
 	    FROM TBL_USER_MST A
-	    LEFT JOIN TBL_COMP_MST C ON C.COMP_CD = A.COMP_CD
+	    LEFT JOIN TBL_COMP_MST C ON C.COMP_CD = A.COMP_CD AND C.ACTION_YN = 'Y'
 	   WHERE A.COMP_CD = #{compCd}
 	     AND LTRIM(RTRIM(A.USER_ID)) = #{userId}
 	     AND A.ACTION_YN = 'Y'
@@ -92,7 +93,10 @@
 	    FROM TBL_COMP_MST CM
 	   WHERE CM.ACTION_YN = 'Y'
 	]]>
-	<if test='compCd != null and compCd != "" '>
+	<!-- allYn='Y' = 관리자(TBL_COMP_MST.COMMST_YN='Y' 회사) 전체 회사 조회.
+	     멀티테넌트 인터셉터가 빈 compCd 를 로그인 회사로 자동 주입하므로,
+	     관리자 전체조회는 이 플래그로 compCd 필터를 통째로 건너뛴다(컨트롤러 compCdList 가 세팅). -->
+	<if test='(allYn == null or allYn != "Y") and compCd != null and compCd != "" '>
 	    AND CM.COMP_CD = #{compCd}
 	</if>
 	<if test='findData != null and findData != "" '>
@@ -842,31 +846,34 @@
 	     · 그룹(DLV_DT+SHPOUT_DT+DC_CD)별 ACTION_YN='N' 중 MAX(JOB_SEQ) = 직전 업로드본
 	     · 현재 활성배치(④)와 (사업장코드+품목코드)로 대조하여 신규/삭제 판정 -->
 	<select id="selectShipoutPrev" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
+	  -- ★속도(2026-07-31): 행마다 돌던 상관 서브쿼리 2개(firstDttm MIN / 직전차수 MAX(JOB_SEQ))를
+	  --   윈도우 함수로 교체 — selectShipoutMst 의 firstDttm 최적화(944ms→73ms, 2026-07-25)와 같은 수법.
+	  --   운영 실측 이 쿼리 단독 2.2s 가 대시보드 최초 진입의 최장 병목이었다.
+	  --   · firstDttm 파티션은 종전 서브쿼리와 동일(ACTION_YN 무관 전체 최소값) → 가장 안쪽에서 계산
+	  --   · maxSeq(직전차수)는 ACTION_YN='N' 필터 후 계산해야 종전과 동일(이력 중 최신 차수)
 	  SELECT
 	      t.SHPOUT_DT AS shpoutDt, t.DLV_DT AS dlvDt, t.JOB_SEQ AS jobSeq, t.ROW_NO AS rowNo, t.SRC_FILE AS srcFile,
 	      CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm,
-	      ( SELECT CONVERT(varchar(19), MIN(m.UPLOAD_DTTM), 120) FROM TBL_SHIPOUT_MST m
-	         WHERE m.SHPOUT_DT = t.SHPOUT_DT AND ISNULL(m.DC_CD,'') = ISNULL(t.DC_CD,'')
-	           AND m.COMP_CD = t.COMP_CD
-	           AND ISNULL(m.BIZ_CD,'') = ISNULL(t.BIZ_CD,'') AND ISNULL(m.ITEM_CD,'') = ISNULL(t.ITEM_CD,'') ) AS firstDttm,
+	      t.firstDttm,
 	      t.DC_CD AS dcCd, t.DC_NM AS dcNm, t.VENDOR_CD AS vendorCd, t.VENDOR_NM AS vendorNm,
 	      t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
 	      t.BOX_QTY AS boxQty, t.LABEL_QTY AS labelQty, t.UNPAID_LABEL_QTY AS unpaidLabelQty,
 	      t.INWH AS inwh, t.ZONE AS zone, t.BUS_NO AS busNo, t.RT_SEQ AS rtSeq, t.CUR_QTY AS curQty,
 	      t.DLV_GB AS dlvGb, t.REMARK AS remark, t.PROD_KIND AS prodKind, t.TEMP_GB AS tempGb, t.ORD_GB AS ordGb,
 	      t.UNIT AS unit, t.ORD_NO AS ordNo, t.ORD_ITEM_NO AS ordItemNo, t.JUMUN_NO AS jumunNo, t.JUMUN_ITEM_NO AS jumunItemNo
-	    FROM TBL_SHIPOUT_MST t
-	   WHERE t.SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
-	     AND t.ACTION_YN = 'N'
-	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	     AND t.JOB_SEQ = (
-	           SELECT MAX(x.JOB_SEQ) FROM TBL_SHIPOUT_MST x
-	            WHERE x.SHPOUT_DT = t.SHPOUT_DT
-	              AND x.DLV_DT = t.DLV_DT
-	              AND ISNULL(x.DC_CD,'') = ISNULL(t.DC_CD,'')
-	              AND x.COMP_CD = t.COMP_CD
-	              AND x.ACTION_YN = 'N'
-	         )
+	    FROM (
+	      SELECT s.*,
+	             MAX(s.JOB_SEQ) OVER (PARTITION BY s.COMP_CD, s.SHPOUT_DT, s.DLV_DT, ISNULL(s.DC_CD,'')) AS maxSeq
+	        FROM ( SELECT s0.*,
+	                      CONVERT(varchar(19),
+	                        MIN(s0.UPLOAD_DTTM) OVER (PARTITION BY s0.COMP_CD, s0.SHPOUT_DT, ISNULL(s0.DC_CD,''), ISNULL(s0.BIZ_CD,''), ISNULL(s0.ITEM_CD,'')),
+	                        120) AS firstDttm
+	                 FROM TBL_SHIPOUT_MST s0 ) s
+	       WHERE s.SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
+	         AND s.ACTION_YN = 'N'
+	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	    ) t
+	   WHERE t.JOB_SEQ = t.maxSeq
 	   ORDER BY t.BIZ_NM, t.ITEM_NM, t.ROW_NO
 ]]></select>
 

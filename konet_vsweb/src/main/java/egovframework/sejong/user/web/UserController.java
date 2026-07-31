@@ -203,7 +203,10 @@ public class UserController {
 				session.setAttribute("s_user_id", result.getUserId());
 				session.setAttribute("s_user_nm", result.getUserNm());
 				session.setAttribute("s_main_gu", result.getMainGu());     // 사용자구분
-				session.setAttribute("s_admin_yn", result.getCommstYn());  // ★ 관리자여부(구 WINNER_YN→COMMST_YN)
+				// ★ 관리자여부 = 회사(TBL_COMP_MST.COMMST_YN) 기준 (2026-07-31 변경 — 종전엔 TBL_USER_MST.COMMST_YN)
+				//   'Y' 회사만 회사/사용자 관리 메뉴 노출 + 전체 회사코드 조회 허용
+				String adminYn = "Y".equals(result.getCompAdminYn()) ? "Y" : "N";
+				session.setAttribute("s_admin_yn", adminYn);
 				session.setAttribute("s_conn_ip", request.getRemoteAddr());
 				// 기존 진입 가드(KonetEntry/main.do)가 q_user_id 로 미로그인 판정하므로 함께 세팅
 				session.setAttribute("q_user_id", result.getUserId());
@@ -217,7 +220,7 @@ public class UserController {
 
 				res.put("login_Comp", result.getCompNm());
 				res.put("login_User", result.getUserNm());
-				res.put("login_AdminYn", result.getCommstYn());   // 관리자여부
+				res.put("login_AdminYn", adminYn);   // 관리자여부(회사 COMMST_YN 기준)
 				res.put("error_code", "00000");
 				res.put("error_mess", "정상적 처리 되었습니다.");
 				return res;
@@ -230,7 +233,9 @@ public class UserController {
 			}
 		}
 
-		/* 사용자 로그아웃 처리 */
+		/* 사용자 로그아웃 처리 — 사이드바 하단 '로그아웃' 메뉴(logistics_demo2.jsp logiLogout)·header.jsp 공용.
+		   ※ /login.do 는 이 컨텍스트에 매핑이 없어 종전 forward:/login.do 는 404 였다(2026-07-31 수정)
+		      → 정문(/konet.do = 로그인 화면)으로 리다이렉트. */
 		@RequestMapping(value="/user/loginOutAct.do")
 		 public String UserLogOutProcess(@ModelAttribute("DTO") UserDTO dto, HttpServletRequest request, ModelMap model) throws Exception {
 
@@ -238,7 +243,6 @@ public class UserController {
 			//세션 초기화
 			session.invalidate();
 
-			// forward:/login.do 는 이 앱에 매핑이 없어 빈 화면이 떴음(2026-07-30) → 로그인 정문(/konet.do)으로
 			return "redirect:/konet.do";
 		}
 
@@ -440,6 +444,8 @@ public class UserController {
 		@RequestMapping(value="/mangr/compcd.do")
 		public String compcd(HttpSession session, ModelMap model) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			// ★ 회사/사용자 관리 = 관리자 회사(TBL_COMP_MST.COMMST_YN='Y')만 — 메뉴 숨김 + 직접 URL 접근도 차단
+			if (!"Y".equals(session.getAttribute("s_admin_yn"))) return "redirect:/main.do";
 			return ".raw/main/mangr/compcd";
 		}
 
@@ -448,6 +454,13 @@ public class UserController {
 		@ResponseBody
 		public Map<String,Object> compCdList(@ModelAttribute("DTO") CompMdDTO dto, HttpSession session) throws Exception {
 			if (session.getAttribute("s_comp_cd") == null) return null;
+			// ★ 관리자 회사(COMMST_YN='Y')가 특정 회사코드 없이 조회하면 전체 회사 목록.
+			//   (멀티테넌트 인터셉터가 빈 compCd 를 자기 회사로 채우므로 allYn 으로 필터를 우회)
+			//   비관리자는 인터셉터 주입 그대로 → 자기 회사 1건만.
+			if ("Y".equals(session.getAttribute("s_admin_yn"))
+			 && (dto.getCompCd() == null || dto.getCompCd().trim().isEmpty())) {
+				dto.setAllYn("Y");
+			}
 			Map<String,Object> response = new HashMap<String,Object>();
 			response.put("data", svc.selCompCdList(dto));
 			return response;
@@ -1841,6 +1854,8 @@ public class UserController {
 		@RequestMapping(value="/base/commcd.do")
 		public String commcd(HttpSession session, ModelMap model) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			// ★ 공통코드 관리 = 관리자 회사(TBL_COMP_MST.COMMST_YN='Y')만 (2026-07-31 — 회사/사용자 관리와 동일 가드)
+			if (!"Y".equals(session.getAttribute("s_admin_yn"))) return "redirect:/main.do";
 			return ".raw/main/base/codecd";
 		}
 
