@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import org.springframework.http.ResponseEntity;
@@ -1286,6 +1287,49 @@ public class UserController {
 			Map<String,Object> response = new HashMap<String,Object>();
 			response.put("data", svc.selectSalesPriceHist(dto));
 			return response;
+		}
+
+		/* ===== 납품분 (2026-07-31) — 그 거래처에 이미 나간 품목을 중복 없이 =====
+		   판매전표 + 정산서를 함께 본다. 체크한 순서대로 명세에 담는 건 화면이 한다.
+		   제외는 거래처별(TBL_SALES_DLV_EXCL) — DDL: sql/sales_dlv_excl_ddl.sql */
+		@RequestMapping(value="/mangr/salesDlvList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesDlvList(@ModelAttribute("DTO") egovframework.sejong.user.model.SalesDlvDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectSalesDlvList(dto));
+			return response;
+		}
+		/** 매입분 — 그 매입처에서 사 온 품목(매입전표 + 매입단가이력). 매입등록 화면의 [매입분] */
+		@RequestMapping(value="/mangr/purchDlvList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> purchDlvList(@ModelAttribute("DTO") egovframework.sejong.user.model.SalesDlvDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectPurchDlvList(dto));
+			return response;
+		}
+		/** 제외이력보기 — 그 거래처에서 빼 둔 품목. gb 'S' 판매(납품분) / 'P' 매입(매입분) */
+		@RequestMapping(value="/mangr/salesDlvExclList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesDlvExclList(@ModelAttribute("DTO") egovframework.sejong.user.model.SalesDlvDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectSalesDlvExclList(dto));
+			return response;
+		}
+		/** 납품분제외 / 제외해제 — prodCds 에 상품코드를 콤마로 이어 보낸다. actionYn 'Y' 제외 / 'N' 해제 */
+		@RequestMapping(value="/mangr/salesDlvExclSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> salesDlvExclSave(@ModelAttribute("DTO") egovframework.sejong.user.model.SalesDlvDTO dto,
+		                                               @RequestParam(value="prodCds", required=false) String prodCds,
+		                                               HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getCustCd()==null || dto.getCustCd().trim().isEmpty()) return ResponseEntity.status(400).body("거래처를 선택하세요.");
+				if (prodCds==null || prodCds.trim().isEmpty()) return ResponseEntity.status(400).body("품목을 선택하세요.");
+				java.util.List<String> l = new java.util.ArrayList<String>(java.util.Arrays.asList(prodCds.split(",")));
+				if (l.size() > 1) dto.setProdNm(null);   // 이름 스냅샷은 한 건일 때만 — 여러 건이면 상품마스터가 채운다
+				String u = (session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"");
+				dto.setRegUser(u); dto.setUpdUser(u);
+				dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.saveSalesDlvExcl(dto, l)));
+			} catch (Exception e) { log.error(" salesDlvExclSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
 		/* ================= 수금/지급 등록 (TBL_SETTLE_TRX) — 2026-07-25 =================

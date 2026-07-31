@@ -66,9 +66,13 @@
   <div class="sv-sub">매출처에서 받은 금액을 건 단위로 기록합니다. 우측 원장에 매출·수금·잔고가 함께 쌓입니다.</div>
 
   <%-- 좌우 2단 : 왼쪽에 입력+목록, 오른쪽 원장은 ★맨 위부터 시작한다(2026-07-25 요청).
-       전에는 원장이 하단 목록과 같은 줄에서 시작해 화면 오른쪽 위가 비어 보였다. --%>
-  <div style="display:flex; gap:12px; align-items:flex-start">
-  <div style="flex:1 1 auto; min-width:0">
+       전에는 원장이 하단 목록과 같은 줄에서 시작해 화면 오른쪽 위가 비어 보였다.
+       ★2026-07-31 : 좌우 비중 조정. 720px 로 묶었더니 입력 칸이 줄바꿈되고 목록에 가로
+         스크롤이 생겨 너무 좁았다 → '좌측이 조금 더 넓은 반반'으로 되돌린다.
+         고정폭이 아니라 비율이라 화면이 넓어지면 양쪽이 같이 늘어난다.
+         좁은 화면에서는 wrap 으로 원장이 아래로 내려간다. --%>
+  <div style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap">
+  <div style="flex:1.25 1 720px; min-width:0">
 
   <!-- ===== 입력 ===== -->
   <div class="sv-card">
@@ -161,11 +165,12 @@
 
     </div><!-- /좌측 열 -->
 
-    <!-- 거래처 원장 — 우측 열, 화면 맨 위부터 -->
-    <div class="sv-card" style="flex:0 0 470px">
+    <!-- 우측 열 — 원장 + 그 날 매출품목 (2026-07-31). 좌측보다 조금 좁은 비율 -->
+    <div style="flex:1 1 620px; min-width:520px">
+    <div class="sv-card">
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
         <b>원장</b>
-        <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a">* 매출&amp;매입 거래처는 최종 잔고만 표시됩니다.</span>
+        <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a">* 일자를 클릭하면 아래에 그 날 매출품목이 나옵니다.</span>
       </div>
       <div style="border:1px solid var(--sv-bd); border-radius:6px; padding:6px 8px; margin-bottom:6px; font-size:13px">
         <b>거래처명</b> <span id="lgCust" style="margin-left:8px">—</span>
@@ -186,6 +191,25 @@
         </table>
       </div>
     </div>
+
+    <%-- 원장 일자를 누르면 여기에 그 날 매출품목이 펼쳐진다 (2026-07-31 요청).
+         원천은 원장 금액과 같다(selectCustDayDetail) — 정산서 매출 + 판매전표 명세.
+         수금등록에는 명세 그리드가 없으므로 '보여주기'만 한다(불러오기 없음). --%>
+    <div class="sv-card" id="svDayCard" style="display:none">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
+        <b>매출품목</b> <span id="svDayTitle" style="color:#137a6c; font-weight:700">—</span>
+        <span style="margin-left:auto; font-size:12.5px">합계 <b id="svDaySum" style="color:#c0392b">0</b></span>
+        <span class="sv-btn" style="cursor:pointer" onclick="svDayClose()">✕ 닫기</span>
+      </div>
+      <div class="sv-list" style="max-height:300px">
+        <table>
+          <colgroup><col style="width:90px"><col style="width:130px"><col style="width:110px"><col><col style="width:80px"><col style="width:90px"><col style="width:100px"></colgroup>
+          <thead><tr><th>구분</th><th>전표·발주</th><th>품목코드</th><th>품목명</th><th>수량</th><th>단가</th><th>금액</th></tr></thead>
+          <tbody id="svDayBody"></tbody>
+        </table>
+      </div>
+    </div>
+    </div><!-- /우측 열 -->
   </div>
 </div>
 
@@ -401,8 +425,13 @@ function svBal(cd){
   }).catch(function(){});
 }
 
-/* ── 원장 ── */
+/* ── 원장 ──
+     ★ 원장을 그린 거래처를 따로 들고 있는다(2026-07-31). 저장·신규등록으로 상단 거래처가
+       비어도 원장은 그대로 남는다 — 일자 클릭은 '원장에 보이는 거래처' 기준이어야 한다. */
+var _lgCd = '';
 function svLedger(cd){
+  _lgCd = cd || '';
+  svDayClose();
   var tb=document.getElementById('lgBody');
   document.getElementById('lgCust').textContent = cd ? (document.getElementById('svCustNm').value||cd) : '—';
   if(!cd){ tb.innerHTML='<tr><td colspan="8" class="sv-msg">거래처를 선택하세요.</td></tr>'; document.getElementById('lgFoot').innerHTML=''; return; }
@@ -426,7 +455,9 @@ function svLedger(cd){
       bal += s - d - r - c;                    // 매출처 잔고 = 매출 − DC − 수금 − 할인
       m.s+=s;m.d+=d;m.r+=r;m.p+=p;m.y+=y;m.c+=c;
       t.s+=s;t.d+=d;t.r+=r;t.p+=p;t.y+=y;t.c+=c;
-      h += '<tr><td>'+esc(fmtDt(dt))+'</td><td class="num">'+fmt(s)+'</td><td class="num">'+fmt(d)+'</td><td class="num">'+fmt(r)
+      /* 일자 줄 클릭 → 아래 카드에 그 날 매출품목. [월 계]·[합 계] 줄은 클릭 대상이 아니다 */
+      h += '<tr data-dt="'+esc(dt)+'" onclick="svDayOpen(\''+dt+'\')" title="클릭 → 이 날 매출품목 보기">'
+         + '<td>'+esc(fmtDt(dt))+'</td><td class="num">'+fmt(s)+'</td><td class="num">'+fmt(d)+'</td><td class="num">'+fmt(r)
          + '</td><td class="num">'+fmt(p)+'</td><td class="num">'+fmt(y)+'</td><td class="num">'+fmt(c)
          + '</td><td class="num"><b>'+fmt(bal)+'</b></td></tr>';
     });
@@ -437,5 +468,41 @@ function svLedger(cd){
       '<tr><td>합 계</td><td>'+fmt(t.s)+'</td><td>'+fmt(t.d)+'</td><td>'+fmt(t.r)+'</td><td>'+fmt(t.p)
       + '</td><td>'+fmt(t.y)+'</td><td>'+fmt(t.c)+'</td><td>'+fmt(bal)+'</td></tr>';
   }).catch(function(){ tb.innerHTML='<tr><td colspan="8" class="sv-msg" style="color:#c0392b">원장 조회 오류</td></tr>'; });
+}
+
+/* ── 원장 일자 클릭 → 그 날 매출품목 (2026-07-31 요청) ────
+     원장 금액과 같은 원천(selectCustDayDetail)에서 그 날 것만 읽어
+     정산서 매출(SALE)과 판매전표 명세(STRX)만 보여준다 — '무엇을 팔아서 이 금액이 됐는지'.
+     수금등록에는 명세 그리드가 없으므로 조회 전용이다(불러오기 없음). */
+function svDayClose(){
+  document.getElementById('svDayCard').style.display = 'none';
+  Array.prototype.forEach.call(document.querySelectorAll('#lgBody tr'), function(tr){ tr.classList.remove('on'); });
+}
+function svDayOpen(dt){
+  var cd = _lgCd || document.getElementById('svCustNm').dataset.cd || '';
+  if (!dt) return;
+  if (!cd) { swErr('거래처를 먼저 선택하세요.'); return; }
+  /* 고른 줄을 표시해 둔다 — 어느 날을 펼쳐 놓았는지 원장에서 바로 보인다 */
+  Array.prototype.forEach.call(document.querySelectorAll('#lgBody tr'), function(tr){
+    tr.classList.toggle('on', tr.getAttribute('data-dt') === dt);
+  });
+  document.getElementById('svDayTitle').textContent = fmtDt(dt) + ' · ' + (document.getElementById('lgCust').textContent||cd);
+  document.getElementById('svDaySum').textContent = '0';
+  document.getElementById('svDayBody').innerHTML = '<tr><td colspan="7" class="sv-msg">불러오는 중…</td></tr>';
+  document.getElementById('svDayCard').style.display = '';
+  post('/mangr/selectCustDayDetail.do','custCd='+encodeURIComponent(cd)+'&trxDt='+encodeURIComponent(dt))
+    .then(function(r){return r.json();}).then(function(j){
+      var l = ((j&&j.data)||[]).filter(function(o){ return o.gb==='SALE' || o.gb==='STRX'; });
+      var sum = 0;
+      document.getElementById('svDayBody').innerHTML = l.length ? l.map(function(o){
+        sum += n(o.amt);
+        return '<tr><td>'+esc(o.gbNm)+'</td><td>'+esc(o.docNo)+'</td><td>'+esc(o.itemCd)+'</td>'
+          + '<td class="txt" style="text-align:left">'+esc(o.itemNm)+'</td>'
+          + '<td class="num">'+fmt(o.qty)+'</td><td class="num">'+fmt(o.price)+'</td><td class="num">'+fmt(o.amt)+'</td></tr>';
+      }).join('') : '<tr><td colspan="7" class="sv-msg">이 날 매출품목이 없습니다(수금·매입만 있는 날).</td></tr>';
+      document.getElementById('svDaySum').textContent = fmt(sum);
+    }).catch(function(){
+      document.getElementById('svDayBody').innerHTML = '<tr><td colspan="7" class="sv-msg" style="color:#c0392b">조회 오류</td></tr>';
+    });
 }
 </script>

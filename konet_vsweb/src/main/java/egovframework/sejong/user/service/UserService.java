@@ -215,4 +215,11 @@ public interface UserService {
 	java.util.List<egovframework.sejong.user.model.SalesTrxDtlDTO> selectSalesPriceHist(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;
 	/** 매출내역 화면에 얹을 판매전표 명세 — 정산서 행과 같은 모양 */
 	java.util.List<java.util.Map<String,Object>> selectSalesTrxHist(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+
+	/* ===== 납품분(그 거래처에 나간 품목) / 납품분 제외 — 2026-07-31 ===== */
+	java.util.List<egovframework.sejong.user.model.SalesDlvDTO> selectSalesDlvList(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.SalesDlvDTO> selectPurchDlvList(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.SalesDlvDTO> selectSalesDlvExclList(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
+	/** 납품분 제외 켜기/끄기 — dto.actionYn 'Y' 제외 / 'N' 해제. 처리한 품목 수를 돌려준다 */
+	int saveSalesDlvExcl(egovframework.sejong.user.model.SalesDlvDTO dto, java.util.List<String> prodCds) throws Exception;
 }

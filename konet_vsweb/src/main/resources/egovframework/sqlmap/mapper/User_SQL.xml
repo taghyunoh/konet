@@ -3263,4 +3263,226 @@
 	     AND m.SALE_DT >= CONVERT(VARCHAR(8), DATEADD(YEAR,-3,GETDATE()), 112)   -- 최대 3년
 	   ORDER BY m.SALE_DT DESC, m.SALE_NO DESC
 	]]></select>
+
+	<!-- ============================================================
+	     납품분 — 그 거래처에 이미 나간 품목을 중복 없이 모아 보여준다  (2026-07-31 신설)
+	       판매등록 화면의 [납품분] 팝업. 주문 받은 품목을 상품마스터에서 하나씩 찾지 않고
+	       '이 거래처가 늘 받는 것' 중에서 골라 순서대로 담게 하는 게 목적이다.
+
+	     ★ 원천은 둘 다 본다 (2026-07-31 협의)
+	       ① 판매전표 TBL_SALES_TRX_DTL — 거래처코드로 바로 붙는다
+	       ② 정산서   TBL_SALES_MST     — 거래처코드가 없고 출고장(DC_CD)만 있어
+	                                      거래처마스터의 DC_CD 로 잇는다. 이름 대체키까지
+	                                      selectCustDayDetail 과 똑같이 맞췄다(두 화면 결과 일치).
+	     ★ 중복제거 : PROD_CD 하나당 한 줄. 남는 줄은 '가장 최근 거래'다.
+	       ROW_NUMBER 로 최근 건을 고르고, 같은 창에서 COUNT/MAX 로 거래횟수·최근일자를 낸다
+	       (원천 UNION 을 두 번 훑지 않는다).
+	     ★ 제외된 품목은 빠진다 — TBL_SALES_DLV_EXCL, 거래처별. DDL: sql/sales_dlv_excl_ddl.sql
+	     ============================================================ -->
+	<select id="selectSalesDlvList" parameterType="egovframework.sejong.user.model.SalesDlvDTO" resultType="egovframework.sejong.user.model.SalesDlvDTO"><![CDATA[
+	  SELECT x.prodCd     AS prodCd,
+	         ISNULL(p.PROD_NM, x.prodNm)   AS prodNm,
+	         ISNULL(p.SPEC, '')            AS spec,
+	         ISNULL(p.MAKER_NM, '')        AS makerNm,
+	         ISNULL(p.PACK_QTY, 1)         AS packQty,
+	         ISNULL(p.TAX_GB, N'과세')      AS taxGb,
+	         p.PROD_SEQ                    AS prodSeq,
+	         x.unitPrice AS unitPrice, x.qty AS qty,
+	         x.lastDt    AS lastDt,  x.cnt AS cnt, x.srcGb AS srcGb,
+	         ISNULL(st.curQty, 0)          AS curQty
+	    FROM (
+	          SELECT u.prodCd, u.prodNm, u.unitPrice, u.qty, u.srcGb,
+	                 ROW_NUMBER() OVER (PARTITION BY u.prodCd ORDER BY u.dt DESC, u.unitPrice DESC) AS rn,
+	                 COUNT(*)    OVER (PARTITION BY u.prodCd) AS cnt,
+	                 MAX(u.dt)   OVER (PARTITION BY u.prodCd) AS lastDt
+	            FROM (
+	                  /* ① 판매전표 — 직접 판 건 */
+	                  SELECT d.PROD_CD AS prodCd, d.PROD_NM AS prodNm,
+	                         ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT) AS dt,
+	                         ISNULL(d.UNIT_PRICE,0) AS unitPrice, ISNULL(d.QTY,0) AS qty, N'전표' AS srcGb
+	                    FROM TBL_SALES_TRX_DTL d
+	                    JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN='Y' AND m.COMP_CD = d.COMP_CD
+	                   WHERE d.ACTION_YN='Y' AND ISNULL(d.PROD_CD,'') <> ''
+	                     AND m.CUST_CD = #{custCd,jdbcType=VARCHAR}
+	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                     AND ( ISNULL(#{srcFilter,jdbcType=VARCHAR},'') IN ('','TRX') )
+	                     AND ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = ''
+	                           OR ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT) >= REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') )
+	                  UNION ALL
+	                  /* ② 정산서 — 출고장이 준 실제 납품분. 거래처마스터 DC_CD 로 잇는다 */
+	                  SELECT s.ITEM_CD, s.ITEM_NM,
+	                         ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT),
+	                         ISNULL(s.SALE_PRICE,0), ISNULL(s.OUT_QTY,0), N'정산서'
+	                    FROM TBL_SALES_MST s
+	                    CROSS APPLY (
+	                          SELECT CASE WHEN ISNULL(s.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s.DC_CD)))
+	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%용인%' THEN 'E100'
+	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%왜관%' THEN 'E200'
+	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%김해%' THEN 'E300'
+	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%광주%' THEN 'E400'
+	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%평택%' THEN 'E500'
+	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%제주%' THEN 'E600'
+	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%오산%' THEN 'E700'
+	                                      ELSE '' END AS dcKey
+	                    ) dk
+	                   WHERE s.ACTION_YN='Y' AND ISNULL(s.ITEM_CD,'') <> ''
+	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                     AND ( ISNULL(#{srcFilter,jdbcType=VARCHAR},'') IN ('','MST') )
+	                     AND dk.dcKey <> ''
+	                     AND dk.dcKey IN ( SELECT DC_CD FROM TBL_VENDOR_MST
+	                                        WHERE ACTION_YN='Y' AND ISNULL(DC_CD,'') <> ''
+	                                          AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                                        GROUP BY DC_CD HAVING MIN(VENDOR_CD) = #{custCd,jdbcType=VARCHAR} )
+	                     AND ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) IS NOT NULL
+	                     AND ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = ''
+	                           OR ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) >= REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') )
+	            ) u
+	    ) x
+	    /* 상품마스터는 같은 코드가 여럿일 수 있어 최신 한 줄만 붙인다 */
+	    OUTER APPLY ( SELECT TOP 1 p2.PROD_SEQ, p2.PROD_NM, p2.SPEC, p2.MAKER_NM, p2.PACK_QTY, p2.TAX_GB
+	                    FROM TBL_PROD_MST p2
+	                   WHERE p2.ACTION_YN='Y' AND p2.PROD_CD = x.prodCd
+	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR p2.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                   ORDER BY p2.PROD_SEQ DESC ) p
+	    /* 현재고 = 수불원장 집계. 재고현황(selectStockMstList)과 같은 식 */
+	    LEFT JOIN ( SELECT l.PROD_CD,
+	                       SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY WHEN l.IO_GB='O' THEN -l.QTY ELSE 0 END) AS curQty
+	                  FROM TBL_STOCK_LEDGER l
+	                 WHERE l.ACTION_YN='Y'
+	                   AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                 GROUP BY l.PROD_CD ) st ON st.PROD_CD = x.prodCd
+	   WHERE x.rn = 1
+	     AND NOT EXISTS ( SELECT 1 FROM TBL_SALES_DLV_EXCL e
+	                       WHERE e.ACTION_YN='Y' AND e.GB = 'S'
+	                         AND e.CUST_CD = #{custCd,jdbcType=VARCHAR} AND e.PROD_CD = x.prodCd
+	                         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR e.COMP_CD = #{compCd,jdbcType=VARCHAR} ) )
+	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = ''
+	           OR x.prodCd LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR ISNULL(p.PROD_NM, x.prodNm) LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR ISNULL(p.SPEC,'')     LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR ISNULL(p.MAKER_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	   ORDER BY x.lastDt DESC, x.prodCd
+	]]></select>
+
+	<!-- 제외이력 — [납품분제외]로 빼 둔 품목(그 거래처). 여기서 해제하면 다시 납품분에 나온다 -->
+	<select id="selectSalesDlvExclList" parameterType="egovframework.sejong.user.model.SalesDlvDTO" resultType="egovframework.sejong.user.model.SalesDlvDTO"><![CDATA[
+	  SELECT e.EXCL_SEQ AS exclSeq, e.CUST_CD AS custCd, e.PROD_CD AS prodCd,
+	         ISNULL(p.PROD_NM, e.PROD_NM) AS prodNm,
+	         ISNULL(p.SPEC,'')       AS spec,
+	         ISNULL(p.MAKER_NM,'')   AS makerNm,
+	         ISNULL(p.PACK_QTY,1)    AS packQty,
+	         ISNULL(p.TAX_GB, N'과세') AS taxGb,
+	         p.PROD_SEQ              AS prodSeq,
+	         ISNULL(p.SALE_PRICE,0)  AS unitPrice,
+	         e.REASON AS reason, e.REG_DTTM AS regDttm, e.REG_USER AS regUser
+	    FROM TBL_SALES_DLV_EXCL e
+	    OUTER APPLY ( SELECT TOP 1 p2.PROD_SEQ, p2.PROD_NM, p2.SPEC, p2.MAKER_NM, p2.PACK_QTY, p2.TAX_GB, p2.SALE_PRICE
+	                    FROM TBL_PROD_MST p2
+	                   WHERE p2.ACTION_YN='Y' AND p2.PROD_CD = e.PROD_CD AND p2.COMP_CD = e.COMP_CD
+	                   ORDER BY p2.PROD_SEQ DESC ) p
+	   WHERE e.ACTION_YN='Y' AND e.CUST_CD = #{custCd,jdbcType=VARCHAR}
+	     AND e.GB = ISNULL(#{gb,jdbcType=VARCHAR},'S')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR e.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = ''
+	           OR e.PROD_CD LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR ISNULL(p.PROD_NM, e.PROD_NM) LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	   ORDER BY e.REG_DTTM DESC, e.PROD_CD
+	]]></select>
+
+	<!-- 제외 켜기/끄기 — (회사+거래처+상품) 한 줄을 ACTION_YN 으로 뒤집는다.
+	     먼저 이 UPDATE 를 돌리고 0건이면 INSERT 한다(서비스에서 판단). 물리삭제는 안 한다. -->
+	<update id="updateSalesDlvExcl" parameterType="egovframework.sejong.user.model.SalesDlvDTO"><![CDATA[
+	  UPDATE TBL_SALES_DLV_EXCL
+	     SET ACTION_YN = ISNULL(#{actionYn,jdbcType=VARCHAR},'Y'),   -- 'Y' 제외 / 'N' 해제
+	         PROD_NM  = ISNULL(#{prodNm,jdbcType=NVARCHAR}, PROD_NM),
+	         REASON   = ISNULL(#{reason,jdbcType=NVARCHAR}, REASON),
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE CUST_CD = #{custCd,jdbcType=VARCHAR} AND PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	     AND GB = ISNULL(#{gb,jdbcType=VARCHAR},'S')
+	     AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')
+	]]></update>
+
+	<insert id="insertSalesDlvExcl" parameterType="egovframework.sejong.user.model.SalesDlvDTO"><![CDATA[
+	  INSERT INTO TBL_SALES_DLV_EXCL
+	    (COMP_CD, GB, CUST_CD, PROD_CD, PROD_NM, REASON, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), ISNULL(#{gb,jdbcType=VARCHAR},'S'),
+	     #{custCd,jdbcType=VARCHAR}, #{prodCd,jdbcType=VARCHAR},
+	     #{prodNm,jdbcType=NVARCHAR}, #{reason,jdbcType=NVARCHAR}, 'Y',
+	     CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
+	]]></insert>
+
+	<!-- ============================================================
+	     매입분 — 그 거래처(매입처)에서 이미 사 온 품목을 중복 없이   (2026-07-31 신설)
+	       매입등록의 [매입분] 팝업. 판매등록의 [납품분]과 완전 대칭이다.
+	     ★ 원천 둘
+	       ① 매입전표 TBL_PURCHASE_DTL — 거래처코드(VENDOR_CD)로 바로 붙는다
+	       ② 매입단가이력 TBL_PROD_INPRICE_HST — 상품관리에서 '매입처별 단가'를 등록해 둔 품목.
+	          전표가 아직 없는 매입처도 이 이력만 있으면 매입분이 채워진다.
+	     ★ 제외는 같은 표(TBL_SALES_DLV_EXCL)의 GB='P'. DDL: sql/sales_dlv_excl_gb_alter.sql
+	     ============================================================ -->
+	<select id="selectPurchDlvList" parameterType="egovframework.sejong.user.model.SalesDlvDTO" resultType="egovframework.sejong.user.model.SalesDlvDTO"><![CDATA[
+	  SELECT x.prodCd     AS prodCd,
+	         ISNULL(p.PROD_NM, x.prodNm)   AS prodNm,
+	         ISNULL(p.SPEC, '')            AS spec,
+	         ISNULL(p.MAKER_NM, '')        AS makerNm,
+	         ISNULL(p.PACK_QTY, 1)         AS packQty,
+	         ISNULL(p.TAX_GB, N'과세')      AS taxGb,
+	         p.PROD_SEQ                    AS prodSeq,
+	         x.unitPrice AS unitPrice, x.qty AS qty,
+	         x.lastDt    AS lastDt,  x.cnt AS cnt, x.srcGb AS srcGb,
+	         ISNULL(st.curQty, 0)          AS curQty
+	    FROM (
+	          SELECT u.prodCd, u.prodNm, u.unitPrice, u.qty, u.srcGb,
+	                 ROW_NUMBER() OVER (PARTITION BY u.prodCd ORDER BY u.dt DESC, u.unitPrice DESC) AS rn,
+	                 COUNT(*)    OVER (PARTITION BY u.prodCd) AS cnt,
+	                 MAX(u.dt)   OVER (PARTITION BY u.prodCd) AS lastDt
+	            FROM (
+	                  /* ① 매입전표 */
+	                  SELECT d.PROD_CD AS prodCd, d.PROD_NM AS prodNm, m.PURCH_DT AS dt,
+	                         ISNULL(d.UNIT_PRICE,0) AS unitPrice, ISNULL(d.QTY,0) AS qty, N'전표' AS srcGb
+	                    FROM TBL_PURCHASE_DTL d
+	                    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN='Y' AND m.COMP_CD = d.COMP_CD
+	                   WHERE d.ACTION_YN='Y' AND ISNULL(d.PROD_CD,'') <> ''
+	                     AND m.VENDOR_CD = #{custCd,jdbcType=VARCHAR}
+	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                     AND ( ISNULL(#{srcFilter,jdbcType=VARCHAR},'') IN ('','TRX') )
+	                     AND ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = ''
+	                           OR m.PURCH_DT >= REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') )
+	                  UNION ALL
+	                  /* ② 매입단가이력 — 상품관리에서 매입처별로 등록해 둔 단가 */
+	                  SELECT h.PROD_CD, N'', h.APPLY_DT,     -- 품명은 아래 상품마스터에서 채운다
+	                         ISNULL(h.IN_PRICE,0), 0, N'단가이력'
+	                    FROM TBL_PROD_INPRICE_HST h
+	                   WHERE h.ACTION_YN='Y' AND ISNULL(h.PROD_CD,'') <> ''
+	                     AND h.VENDOR_CD = #{custCd,jdbcType=VARCHAR}
+	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR h.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                     AND ( ISNULL(#{srcFilter,jdbcType=VARCHAR},'') IN ('','HST') )
+	                     AND ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = ''
+	                           OR h.APPLY_DT >= REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') )
+	            ) u
+	    ) x
+	    OUTER APPLY ( SELECT TOP 1 p2.PROD_SEQ, p2.PROD_NM, p2.SPEC, p2.MAKER_NM, p2.PACK_QTY, p2.TAX_GB
+	                    FROM TBL_PROD_MST p2
+	                   WHERE p2.ACTION_YN='Y' AND p2.PROD_CD = x.prodCd
+	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR p2.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                   ORDER BY p2.PROD_SEQ DESC ) p
+	    LEFT JOIN ( SELECT l.PROD_CD,
+	                       SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY WHEN l.IO_GB='O' THEN -l.QTY ELSE 0 END) AS curQty
+	                  FROM TBL_STOCK_LEDGER l
+	                 WHERE l.ACTION_YN='Y'
+	                   AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                 GROUP BY l.PROD_CD ) st ON st.PROD_CD = x.prodCd
+	   WHERE x.rn = 1
+	     AND NOT EXISTS ( SELECT 1 FROM TBL_SALES_DLV_EXCL e
+	                       WHERE e.ACTION_YN='Y' AND e.GB = 'P'
+	                         AND e.CUST_CD = #{custCd,jdbcType=VARCHAR} AND e.PROD_CD = x.prodCd
+	                         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR e.COMP_CD = #{compCd,jdbcType=VARCHAR} ) )
+	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = ''
+	           OR x.prodCd LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR ISNULL(p.PROD_NM, x.prodNm) LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR ISNULL(p.SPEC,'')     LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR ISNULL(p.MAKER_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	   ORDER BY x.lastDt DESC, x.prodCd
+	]]></select>
 </mapper>

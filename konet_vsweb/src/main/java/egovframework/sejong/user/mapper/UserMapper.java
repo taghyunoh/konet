@@ -231,4 +231,12 @@ public interface UserMapper {
 	java.util.List<egovframework.sejong.user.model.SalesTrxDtlDTO> selectSalesPriceHist(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;
 	/** 매출내역 화면에 얹을 판매전표 명세 — 정산서 행과 같은 모양으로 돌아온다 */
 	java.util.List<java.util.Map<String,Object>> selectSalesTrxHist(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+
+	/* ===== 납품분 / 납품분 제외 — 2026-07-31. DDL: sql/sales_dlv_excl_ddl.sql ===== */
+	java.util.List<egovframework.sejong.user.model.SalesDlvDTO> selectSalesDlvList(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
+	/** 매입분 — 그 매입처에서 사 온 품목(매입전표 + 매입단가이력). 제외는 같은 표의 GB='P' */
+	java.util.List<egovframework.sejong.user.model.SalesDlvDTO> selectPurchDlvList(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.SalesDlvDTO> selectSalesDlvExclList(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
+	int updateSalesDlvExcl(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
+	int insertSalesDlvExcl(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
 }

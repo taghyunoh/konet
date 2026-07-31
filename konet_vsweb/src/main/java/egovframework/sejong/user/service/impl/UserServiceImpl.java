@@ -502,6 +502,27 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<egovframework.sejong.user.model.SalesTrxDtlDTO> selectSalesPriceHist(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception { return mapper.selectSalesPriceHist(dto); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectSalesTrxHist(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception { return mapper.selectSalesTrxHist(dto); }
 
+	/* ===== 납품분 / 납품분 제외 — 2026-07-31 ===== */
+	@Override public java.util.List<egovframework.sejong.user.model.SalesDlvDTO> selectSalesDlvList(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception { return mapper.selectSalesDlvList(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.SalesDlvDTO> selectPurchDlvList(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception { return mapper.selectPurchDlvList(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.SalesDlvDTO> selectSalesDlvExclList(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception { return mapper.selectSalesDlvExclList(dto); }
+	/** 제외 켜기/끄기 — (거래처+상품) 한 줄을 뒤집는다. 없으면 새로 만든다(켤 때만).
+	 *  UNIQUE(COMP_CD,CUST_CD,PROD_CD) 라 같은 품목을 두 번 빼도 줄이 늘지 않는다. */
+	@Override public int saveSalesDlvExcl(egovframework.sejong.user.model.SalesDlvDTO dto, java.util.List<String> prodCds) throws Exception {
+		if (prodCds == null || prodCds.isEmpty()) return 0;
+		boolean on = !"N".equals(dto.getActionYn());
+		dto.setActionYn(on ? "Y" : "N");
+		int cnt = 0;
+		for (String cd : prodCds) {
+			if (cd == null || cd.trim().isEmpty()) continue;
+			dto.setProdCd(cd.trim());
+			int n = mapper.updateSalesDlvExcl(dto);
+			if (n == 0 && on) n = mapper.insertSalesDlvExcl(dto);   // 해제는 없는 줄을 만들 필요가 없다
+			cnt += n;
+		}
+		return cnt;
+	}
+
 	@Override public egovframework.sejong.user.model.SalesTrxDTO selectSalesTrxOne(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception {
 		java.util.List<egovframework.sejong.user.model.SalesTrxDTO> l = mapper.selectSalesTrxList(dto);
 		egovframework.sejong.user.model.SalesTrxDTO head = null;

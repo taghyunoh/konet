@@ -47,6 +47,11 @@
   .pu-grid tr.tot td{ background:#137a6c; color:#fff; font-weight:800; }
   .pu-grid .lnk{ color:#137a6c; text-decoration:underline; cursor:pointer; }
   .pu-grid .del{ color:#c0392b; cursor:pointer; font-weight:700; }
+  /* 행 조작(삽입·위·아래) — 주문·발주 순서 그대로 입력하기 위한 열(2026-07-31, 판매등록과 같다) */
+  .pu-grid td.ops{ white-space:nowrap; padding:2px 1px; }
+  .pu-grid td.ops span{ display:inline-block; width:20px; height:20px; line-height:19px; margin:0 1px;
+                        border:1px solid var(--pu-bd); border-radius:4px; cursor:pointer; font-size:11px; color:#37475a; background:#fff; }
+  .pu-grid td.ops span:hover{ border-color:var(--pu-teal); color:var(--pu-teal); }
   .pu-grid .hist{ cursor:pointer; font-size:13px; }
   .pu-grid .hist:hover{ filter:brightness(1.3); }
   /* 하단 목록 */
@@ -95,6 +100,9 @@
       <div class="pu-fld" style="flex:0 0 90px"><label>전표번호</label><input type="text" id="puNo" readonly style="background:#f5f7f9"></div>
       <div class="pu-fld" style="flex:0 0 220px"><label>거래처</label><input type="text" id="puVenNm" readonly placeholder="거래처를 선택하세요" style="background:#f5f7f9"></div>
       <button class="pu-btn teal" onclick="puVenOpen()">거래처</button>
+      <%-- 매입분 = 그 매입처에서 이미 사 온 품목(매입전표 + 매입단가이력)을 중복 없이.
+           체크한 순서 그대로 명세에 담긴다 — 판매등록의 [납품분]과 같은 장치(2026-07-31). --%>
+      <button class="pu-btn teal" onclick="puDlvOpen()" title="이 매입처에서 사 온 품목 목록에서 골라 담기">매입분</button>
       <div class="pu-fld" style="flex:0 0 120px"><label>담당자</label><input type="text" id="puMgrNm" readonly style="background:#f5f7f9"></div>
       <div class="pu-fld" style="flex:0 0 130px"><label>창고</label><input type="text" id="puWhNm" value="물류창고"></div>
       <div class="pu-bal">
@@ -108,9 +116,9 @@
          가로 스크롤은 JS 로 동기화한다. --%>
     <div class="pu-grid" id="puGridWrap">
       <table>
-        <colgroup><col style="width:36px"><col style="width:110px"><col style="width:230px"><col style="width:110px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
+        <colgroup><col style="width:82px"><col style="width:110px"><col style="width:230px"><col style="width:110px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
         <thead><tr>
-          <th>＋</th><th>상품코드</th><th>품명(단가이력조회)</th>
+          <th>행(＋삽입/▲▼)</th><th>상품코드</th><th>품명(단가이력조회)</th>
           <th>[입수량]규격</th><th>BOX수량</th><th>EA수량</th>
           <th>합계수량</th><th>단가</th><th>금액</th>
           <th>DC</th><th>공급가</th><th>부가세</th>
@@ -123,7 +131,7 @@
     <div id="puGridPager" style="padding:5px 2px 0; text-align:center; min-height:22px"></div>
     <div class="pu-foot" id="puFootWrap">
       <table>
-        <colgroup><col style="width:36px"><col style="width:110px"><col style="width:230px"><col style="width:110px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
+        <colgroup><col style="width:82px"><col style="width:110px"><col style="width:230px"><col style="width:110px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
         <tbody><tr class="tot">
           <td colspan="4">■ 합계</td>
           <td class="num" id="tBox">0</td><td class="num" id="tEa">0</td><td class="num" id="tQty">0</td>
@@ -188,7 +196,7 @@
   <div class="pu-card" style="flex:0 0 460px">
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
       <b>원장</b>
-      <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a">* 매출&amp;매입 거래처는 최종 잔고만 표시됩니다.</span>
+      <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a">* 일자를 클릭하면 그 날 매입품목이 보입니다.</span>
     </div>
     <div style="border:1px solid var(--pu-bd); border-radius:6px; padding:6px 8px; margin-bottom:6px; font-size:12.5px">
       <b>거래처명</b> <span id="lgVen" style="margin-left:8px">—</span>
@@ -232,6 +240,84 @@
     <div class="bd"><table><thead><tr><th style="width:110px">상품코드</th><th>상품명</th><th style="width:110px">규격</th><th style="width:60px">입수</th><th style="width:90px">매입가</th></tr></thead>
       <tbody id="puProdBody"></tbody></table></div>
     <div class="ft"><button class="pu-btn" onclick="puProdClose()">닫기</button></div>
+  </div>
+</div>
+
+<!-- 매입분 검색 팝업 (2026-07-31) —————————————————————————————
+     그 매입처에서 이미 사 온 품목을 중복 없이 모아 보여준다(매입전표 + 매입단가이력).
+       · 체크한 '순서'가 곧 명세 줄 순서다. 체크 칸에 1,2,3… 이 찍혀 순서를 눈으로 확인한다.
+       · [매입분제외] = 앞으로 이 목록에 안 나오게 한다(거래처별). 매입 이력은 그대로 둔다.
+       · 판매등록의 [납품분]과 같은 표를 쓰되 GB='P' 로 갈린다 — 매출에서 뺀 게 매입에 영향 없다. -->
+<div class="pu-pop" id="puDlvPop">
+  <div class="box" style="width:min(980px,96vw)">
+    <div class="hd">매입분 검색
+      <select id="dvPeriod" style="height:30px; border:1px solid var(--pu-bd); border-radius:6px; padding:0 6px; font-size:12.5px" onchange="puDlvLoad()">
+        <option value="1">최근 1년</option><option value="3">최근 3년</option><option value="">전체</option>
+      </select>
+      <select id="dvSrc" style="height:30px; border:1px solid var(--pu-bd); border-radius:6px; padding:0 6px; font-size:12.5px" onchange="puDlvLoad()">
+        <option value="">전체(전표+단가이력)</option><option value="TRX">매입전표만</option><option value="HST">매입단가이력만</option>
+      </select>
+      <button class="pu-btn" id="dvExclBtn" onclick="puDlvToggleExcl()">📋 제외이력보기</button>
+      <span style="margin-left:auto"><span class="pu-btn" style="border:0;background:transparent;font-size:18px" onclick="puDlvClose()">✕</span></span>
+    </div>
+    <div class="bd">
+      <div style="display:flex; gap:6px; margin-bottom:8px">
+        <input type="text" id="dvQ" placeholder="상품코드·상품명·규격·제조사" style="flex:1; height:32px; border:1px solid var(--pu-bd); border-radius:6px; padding:0 8px; font-size:13.5px" oninput="puDlvRender()">
+        <button class="pu-btn" onclick="puDlvRender()">🔍</button>
+      </div>
+      <div style="max-height:420px; overflow:auto; border:1px solid var(--pu-bd); border-radius:6px">
+        <table>
+          <thead><tr>
+            <th style="width:46px"><input type="checkbox" id="dvAll" onchange="puDlvAll(this.checked)"></th>
+            <th style="width:110px">상품코드</th><th>상품명</th><th style="width:110px">규격</th>
+            <th style="width:110px">제조사</th><th style="width:90px">단가</th><th style="width:90px">현재고</th>
+            <th style="width:96px">최근거래</th><th style="width:76px">원천</th>
+          </tr></thead>
+          <tbody id="dvBody"><tr><td colspan="9" class="pu-msg">거래처를 먼저 선택하세요.</td></tr></tbody>
+        </table>
+      </div>
+      <div style="margin-top:8px; font-size:12.5px; color:#3d4d5c">
+        체크한 <b>순서대로</b> 명세에 담깁니다. <span id="dvPickInfo" style="color:#137a6c; font-weight:700"></span>
+      </div>
+    </div>
+    <div class="ft" style="display:flex; align-items:center; gap:8px">
+      <span style="font-size:12.5px; color:#5a6b7a" id="dvCnt">0건</span>
+      <span style="margin-left:auto"></span>
+      <button class="pu-btn red" id="dvExclSave" onclick="puDlvExclSave()">🚫 매입분제외</button>
+      <button class="pu-btn teal" id="dvOk" onclick="puDlvApply()">확인 — 순서대로 담기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 원장 일자 클릭 → 그 날 매입품목 (2026-07-31) —————————————
+     원장 금액과 같은 원천(selectCustDayDetail)에서 그 날 매입전표 줄만 골라 보여준다.
+     [불러오기] 는 '새 전표'로 올린다 — 그 날 전표를 여는 게 아니다.
+     그대로 저장하면 매입이 한 번 더 잡히므로 미리 알린다. -->
+<div class="pu-pop" id="puDayPop">
+  <div class="box" style="width:min(900px,96vw)">
+    <div class="hd">원장 — <span id="dyTitle">일자별 매입품목</span>
+      <span style="margin-left:auto"><span class="pu-btn" style="border:0;background:transparent;font-size:18px" onclick="puDayClose()">✕</span></span>
+    </div>
+    <div class="bd">
+      <div style="max-height:380px; overflow:auto; border:1px solid var(--pu-bd); border-radius:6px">
+        <table>
+          <thead><tr>
+            <th style="width:90px">구분</th><th style="width:130px">전표</th><th style="width:110px">품목코드</th>
+            <th>품목명</th><th style="width:80px">수량</th><th style="width:90px">단가</th><th style="width:100px">금액</th>
+          </tr></thead>
+          <tbody id="dyBody"><tr><td colspan="7" class="pu-msg">불러오는 중…</td></tr></tbody>
+        </table>
+      </div>
+      <div style="margin-top:8px; font-size:12.5px; color:#3d4d5c">
+        <b>합계</b> <span id="dySum" style="color:#c0392b; font-weight:700">0</span>
+        <span style="margin-left:12px">* [불러오기] 는 이 품목들을 <b>새 전표</b>로 올립니다. 그대로 저장하면 매입이 한 번 더 잡힙니다.</span>
+      </div>
+    </div>
+    <div class="ft" style="display:flex; align-items:center; gap:8px">
+      <span style="margin-left:auto"></span>
+      <button class="pu-btn teal" onclick="puDayApply()">⤓ 불러오기</button>
+      <button class="pu-btn" onclick="puDayClose()">닫기</button>
+    </div>
   </div>
 </div>
 
@@ -432,8 +518,16 @@ function puRender(){
   if (_pShown > _rows.length) _pShown = _rows.length;
   _rows.slice(0, _pShown).forEach(function(o,i){
     h += '<tr>'
-      + '<td><span class="lnk" onclick="puProdOpen('+i+')">＋</span></td>'
-      + '<td>'+ (o.prodCd ? esc(o.prodCd) : '<span class="lnk" onclick="puProdOpen('+i+')">선택</span>') +'</td>'
+      /* 행 조작 — 발주·주문 순서 그대로 넣기 위한 열(2026-07-31).
+           ＋ = 이 줄 '위'에 빈 줄 삽입 / ▲▼ = 순서 바꾸기.
+         (예전 ＋ 는 상품선택이었다. 상품선택은 아래 상품코드 칸을 눌러 그대로 쓴다) */
+      + '<td class="ops">'
+      +   '<span title="이 줄 위에 새 줄 삽입" onclick="puInsRow('+i+')">＋</span>'
+      +   '<span title="한 줄 위로" onclick="puMoveRow('+i+',-1)">▲</span>'
+      +   '<span title="한 줄 아래로" onclick="puMoveRow('+i+',1)">▼</span>'
+      + '</td>'
+      + '<td>'+ (o.prodCd ? '<span class="lnk" title="클릭 → 다른 상품으로 바꾸기" onclick="puProdOpen('+i+')">'+esc(o.prodCd)+'</span>'
+                          : '<span class="lnk" onclick="puProdOpen('+i+')">선택</span>') +'</td>'
       /* 품명 클릭 = 그 거래처의 매입단가 이력. 찾기 쉽게 📈 아이콘을 붙였다(2026-07-25) */
       + '<td class="txt">'+ (o.prodNm
           ? '<span class="lnk" onclick="puHistOpen('+i+')" title="클릭 → 이 거래처의 매입단가 이력(최대 3년)">'+esc(o.prodNm)+'</span>'
@@ -476,7 +570,30 @@ function puCalcRow(o){
   o.vatAmt = tax ? Math.round(o.amt * 0.1) : 0;
   o.totAmt = o.supplyAmt + o.vatAmt;
 }
-function puDelRow(i){ _rows.splice(i,1); if(!_rows.length) _rows.push(emptyRow()); puRender(); }
+function puDelRow(i){ _rows.splice(i,1); puTail(); puRender(); }
+/* ── 행 순서 (2026-07-31) ───────────────────────────────
+     발주한 순서 그대로 명세가 서야 한다. 저장할 때 화면 순서가 그대로 ROW_NO 1,2,3… 이 되므로
+     여기서 줄을 옮기면 전표에도 그 순서로 남는다. 판매등록과 같은 동작이다.
+     맨 아래 빈 줄은 항상 하나 있어야 한다 — '마지막 줄을 쓰면 새 줄이 붙는' 규칙(puSet)이 거기 걸려 있다. */
+function puTail(){
+  if (!_rows.length) { _rows.push(emptyRow()); return; }
+  if (_rows[_rows.length-1].prodCd) _rows.push(emptyRow());
+}
+function puInsRow(i){
+  _rows.splice(i, 0, emptyRow());
+  puTail();
+  _pShown = Math.min(_rows.length, Math.max(_pShown + 1, i + 2));   // 끼운 줄이 화면에 보이게
+  puRender();
+}
+function puMoveRow(i, d){
+  var j = i + d;
+  if (j < 0 || j >= _rows.length) return;
+  if (!_rows[i].prodCd && !_rows[j].prodCd) return;                 // 빈 줄끼리는 의미 없음
+  var t = _rows[i]; _rows[i] = _rows[j]; _rows[j] = t;
+  puTail();
+  if (_pShown < j + 1) _pShown = Math.min(j + 1, _rows.length);
+  puRender();
+}
 function puCalc(){
   var t = {box:0, ea:0, qty:0, amt:0, dc:0, sup:0, vat:0, tot:0, svc:0};
   _rows.forEach(function(o){
@@ -717,7 +834,12 @@ function puVenBal(cd){
 /* ── 거래처 원장(분개장) ──────────────────────────────
      서버는 일자별 매입·DC·지급·할인만 준다. 잔고 누계와 [월 계]·[합 계] 는 여기서 만든다
      (원본 화면과 같은 형태 — 월이 바뀌는 자리에 월계 줄을 끼워 넣는다). */
+/* ★ 원장을 그린 거래처를 따로 들고 있는다 (2026-07-31).
+     저장 후 puNew() 는 상단 거래처를 비우지만 원장은 그대로 남는다. 그 상태에서
+     원장 일자를 눌렀을 때 상단 거래처(빈 값)를 보면 아무 일도 안 일어난 것처럼 죽는다. */
+var _lgCd = '';
 function puLedger(cd){
+  _lgCd = cd || '';
   var tb = document.getElementById('lgBody');
   document.getElementById('lgVen').textContent = cd ? (document.getElementById('puVenNm').value||cd) : '—';
   if(!cd){ tb.innerHTML='<tr><td colspan="6" class="pu-msg">거래처를 선택하세요.</td></tr>'; document.getElementById('lgFoot').innerHTML=''; return; }
@@ -739,7 +861,9 @@ function puLedger(cd){
       bal += p - d - y - c;
       m.p+=p; m.d+=d; m.y+=y; m.c+=c;
       t.p+=p; t.d+=d; t.y+=y; t.c+=c;
-      h += '<tr><td>'+esc(fmtDt(dt))+'</td><td class="num">'+fmt(p)+'</td><td class="num">'+fmt(d)
+      /* 일자 줄 클릭 → 그 날 매입품목 팝업(2026-07-31). [월 계]·[합 계] 줄은 클릭 대상이 아니다 */
+      h += '<tr onclick="puDayOpen(\''+dt+'\')" title="클릭 → 이 날 매입품목 보기">'
+         + '<td>'+esc(fmtDt(dt))+'</td><td class="num">'+fmt(p)+'</td><td class="num">'+fmt(d)
          + '</td><td class="num">'+fmt(y)+'</td><td class="num">'+fmt(c)+'</td><td class="num"><b>'+fmt(bal)+'</b></td></tr>';
     });
     h += monthRow();
@@ -816,4 +940,222 @@ function puHistRender(){
   }).join('') : '<tr><td colspan="10" class="pu-msg">'+(only?'행사 매입 이력이 없습니다.':'이 상품의 매입 이력이 아직 없습니다.')+'</td></tr>';
 }
 function puHistClose(){ document.getElementById('puHistPop').classList.remove('on'); }
+
+/* ── 매입분 (2026-07-31) ────────────────────────────────
+     [매입분] = 그 매입처에서 이미 사 온 품목을 중복 없이 모은 목록.
+       원천 ① 매입전표 명세  ② 매입단가이력(상품관리에서 매입처별 단가를 등록해 둔 품목)
+     상품마스터 전체에서 찾지 않고 '이 매입처에서 늘 사는 것' 중에서 고른다.
+
+     ★ 핵심은 '순서' — 발주한 순서대로 체크하면 그 순서 그대로 명세에 담긴다.
+       체크 순서를 _dvPick 에 쌓고 체크 칸에 1,2,3… 을 찍어 눈으로 확인한다.
+     ★ [매입분제외] 는 판매등록의 [납품분제외]와 같은 표를 쓰되 GB='P' 로 갈린다.
+       매출에서 뺀 품목이 매입에서 사라지는 사고가 없다. */
+var _dlv = [], _dvPick = [], _dvExclMode = false;
+
+function puDlvOpen(){
+  var cd = document.getElementById('puVenNm').dataset.cd || '';
+  if (!cd) { swErr('거래처를 먼저 선택하세요.'); return; }
+  _dvPick = []; _dvExclMode = false;
+  document.getElementById('dvQ').value = '';
+  document.getElementById('dvAll').checked = false;
+  document.getElementById('puDlvPop').classList.add('on');
+  puDlvLoad();
+}
+function puDlvClose(){ document.getElementById('puDlvPop').classList.remove('on'); }
+function puDlvToggleExcl(){ _dvExclMode = !_dvExclMode; _dvPick = []; puDlvLoad(); }
+function puDlvLoad(){
+  var cd = document.getElementById('puVenNm').dataset.cd || '';
+  if (!cd) return;
+  var yrs = document.getElementById('dvPeriod').value;
+  var from = '';
+  if (yrs) { var d = new Date(); d.setFullYear(d.getFullYear() - Number(yrs)); from = d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+  var url = _dvExclMode ? '/mangr/salesDlvExclList.do' : '/mangr/purchDlvList.do';
+  var body = 'custCd='+encodeURIComponent(cd) + '&gb=P'
+           + '&fromDt='+encodeURIComponent(_dvExclMode ? '' : from)
+           + '&srcFilter='+encodeURIComponent(_dvExclMode ? '' : document.getElementById('dvSrc').value);
+  document.getElementById('dvBody').innerHTML = '<tr><td colspan="9" class="pu-msg">불러오는 중…</td></tr>';
+  document.getElementById('dvExclBtn').textContent = _dvExclMode ? '↩ 매입분으로' : '📋 제외이력보기';
+  document.getElementById('dvExclSave').textContent = _dvExclMode ? '↩ 제외해제' : '🚫 매입분제외';
+  document.getElementById('dvOk').style.display = _dvExclMode ? 'none' : '';
+  document.getElementById('dvPeriod').disabled = _dvExclMode;
+  document.getElementById('dvSrc').disabled = _dvExclMode;
+  post(url, body).then(function(r){return r.json();}).then(function(j){
+    _dlv = (j&&j.data)||[]; puDlvRender();
+  }).catch(function(e){
+    document.getElementById('dvBody').innerHTML =
+      '<tr><td colspan="9" class="pu-msg" style="color:#c0392b">조회 오류 — 제외표(TBL_SALES_DLV_EXCL)가 없거나 GB 칸이 없으면 sql/sales_dlv_excl_ddl.sql · sales_dlv_excl_gb_alter.sql 을 먼저 실행하세요.</td></tr>';
+  });
+}
+function puDlvFiltered(){
+  var q = (document.getElementById('dvQ').value||'').toLowerCase();
+  return _dlv.filter(function(o){
+    if(!q) return true;
+    return [o.prodCd,o.prodNm,o.spec,o.makerNm].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; });
+  });
+}
+function puDlvRender(){
+  var l = puDlvFiltered();
+  document.getElementById('dvCnt').textContent = l.length + '건'
+    + (l.length !== _dlv.length ? ' (전체 '+_dlv.length+'건 중)' : '');
+  document.getElementById('dvBody').innerHTML = l.length ? l.map(function(o){
+    var cd = String(o.prodCd||'');
+    var k  = _dvPick.indexOf(cd);
+    var st = n(o.curQty);
+    return '<tr class="pick" onclick="puDlvPick(\''+esc(cd)+'\')">'
+      + '<td>' + (k>=0
+          ? '<b style="color:#137a6c">'+(k+1)+'</b>'
+          : '<input type="checkbox" onclick="event.stopPropagation();puDlvPick(\''+esc(cd)+'\')">') + '</td>'
+      + '<td>'+esc(cd)+'</td>'
+      + '<td class="txt" style="text-align:left">'+esc(o.prodNm)+'</td>'
+      + '<td>'+esc(o.spec)+'</td><td>'+esc(o.makerNm)+'</td>'
+      + '<td class="num">'+fmt(o.unitPrice)+'</td>'
+      + '<td class="num"'+(st<0?' style="color:#c0392b;font-weight:700"':'')+'>'+fmt(st)+'</td>'
+      + '<td>'+esc(_dvExclMode ? String(o.regDttm||'').slice(0,10) : fmtDt(o.lastDt))+'</td>'
+      + '<td>'+esc(_dvExclMode ? '제외' : (o.srcGb||''))+'</td></tr>';
+  }).join('') : '<tr><td colspan="9" class="pu-msg">'
+      + (_dvExclMode ? '제외해 둔 품목이 없습니다.' : '이 매입처에서 사 온 품목이 아직 없습니다.') + '</td></tr>';
+  puDlvInfo();
+}
+function puDlvPick(cd){
+  var k = _dvPick.indexOf(cd);
+  if (k >= 0) _dvPick.splice(k,1); else _dvPick.push(cd);   // 뺀 자리는 뒤 번호가 당겨진다
+  puDlvRender();
+}
+function puDlvAll(on){
+  _dvPick = on ? puDlvFiltered().map(function(o){ return String(o.prodCd||''); }) : [];
+  puDlvRender();
+}
+function puDlvInfo(){
+  var el = document.getElementById('dvPickInfo');
+  el.textContent = _dvPick.length ? ('선택 '+_dvPick.length+'건 — '+_dvPick.join(' → ')) : '';
+}
+/* [확인] — 체크한 순서대로 명세에 담는다 */
+function puDlvApply(){
+  if (!_dvPick.length) { swErr('담을 품목을 체크하세요.'); return; }
+  var rows = _rows.filter(function(o){ return o.prodCd; });
+  var added = 0, dup = [];
+  _dvPick.forEach(function(cd){
+    var s = _dlv.filter(function(x){ return String(x.prodCd)===String(cd); })[0]; if(!s) return;
+    if (rows.some(function(o){ return String(o.prodCd)===String(cd); })) { dup.push(cd); return; }
+    var o = emptyRow();
+    o.prodSeq  = s.prodSeq;  o.prodCd = s.prodCd; o.prodNm = s.prodNm; o.spec = s.spec||'';
+    o.packQty  = n(s.packQty)||1;
+    o.taxGb    = s.taxGb || '과세';
+    o.unitPrice= n(s.unitPrice);      // 그 매입처의 최근 매입단가
+    puCalcRow(o);
+    rows.push(o); added++;
+  });
+  rows.push(emptyRow());
+  _rows = rows; _pShown = _rows.length;
+  puRender();
+  puDlvClose();
+  if (dup.length) swAlert(added+'건을 담았습니다.<br><span style="font-size:12.5px;color:#3d4d5c">이미 명세에 있는 '+dup.length+'건은 건너뛰었습니다 — '+esc(dup.join(', '))+'</span>');
+}
+/* [매입분제외] / [제외해제] — 체크한 품목을 거래처별로 넣거나 뺀다(GB='P') */
+function puDlvExclSave(){
+  var cd = document.getElementById('puVenNm').dataset.cd || '';
+  if (!cd) { swErr('거래처를 먼저 선택하세요.'); return; }
+  if (!_dvPick.length) { swErr('품목을 체크하세요.'); return; }
+  var on = !_dvExclMode;
+  var msg = on
+    ? '체크한 '+_dvPick.length+'건을 <b>매입분에서 제외</b>할까요?<br><span style="font-size:13px;color:#3d4d5c">'
+      + document.getElementById('puVenNm').value + ' 거래처의 매입분 목록에만 안 나옵니다. 지난 매입 자료는 그대로입니다.</span>'
+    : '체크한 '+_dvPick.length+'건의 <b>제외를 해제</b>할까요?<br><span style="font-size:13px;color:#3d4d5c">다시 매입분 목록에 나옵니다.</span>';
+  swConfirm(msg, null, on?'제외':'해제').then(function(ok){
+    if(!ok) return;
+    var one = (_dvPick.length===1) ? (_dlv.filter(function(x){ return String(x.prodCd)===String(_dvPick[0]); })[0]||{}) : {};
+    var body = 'custCd='+encodeURIComponent(cd) + '&gb=P'
+             + '&actionYn='+(on?'Y':'N')
+             + '&prodNm='+encodeURIComponent(one.prodNm||'')
+             + '&prodCds='+encodeURIComponent(_dvPick.join(','));
+    post('/mangr/salesDlvExclSave.do', body).then(function(r){
+      return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; });
+    }).then(function(){
+      _dvPick = [];
+      document.getElementById('dvAll').checked = false;
+      puDlvLoad();
+      swOk(on ? '매입분에서 제외했습니다.' : '제외를 해제했습니다.');
+    }).catch(function(e){ swErr('처리에 실패했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
+  });
+}
+
+/* ── 원장 일자 클릭 → 그 날 매입품목 (2026-07-31) ────────
+     원장 금액과 같은 원천(selectCustDayDetail)에서 그 날 매입전표(PURCH) 줄만 골라 보여준다.
+     [불러오기] 는 그 품목들을 '새 전표'로 올린다 — 그 날 전표를 여는 게 아니다. */
+var _day = [], _dayDt = '';
+function puDayOpen(dt){
+  var cd = _lgCd || document.getElementById('puVenNm').dataset.cd || '';
+  if (!dt) return;
+  if (!cd) { swErr('거래처를 먼저 선택하세요.'); return; }
+  _dayDt = dt; _day = [];
+  var nm = (_lgCd && _lgCd === (document.getElementById('puVenNm').dataset.cd||''))
+             ? document.getElementById('puVenNm').value
+             : (document.getElementById('lgVen').textContent||cd);
+  document.getElementById('dyTitle').textContent = fmtDt(dt) + ' · ' + (nm||cd);
+  document.getElementById('dyBody').innerHTML = '<tr><td colspan="7" class="pu-msg">불러오는 중…</td></tr>';
+  document.getElementById('dySum').textContent = '0';
+  document.getElementById('puDayPop').classList.add('on');
+  post('/mangr/selectCustDayDetail.do','custCd='+encodeURIComponent(cd)+'&trxDt='+encodeURIComponent(dt))
+    .then(function(r){return r.json();}).then(function(j){
+      _day = ((j&&j.data)||[]).filter(function(o){ return o.gb==='PURCH'; });
+      puDayRender();
+    }).catch(function(e){
+      document.getElementById('dyBody').innerHTML = '<tr><td colspan="7" class="pu-msg" style="color:#c0392b">조회 오류</td></tr>';
+    });
+}
+function puDayClose(){ document.getElementById('puDayPop').classList.remove('on'); }
+function puDayRender(){
+  var sum = 0;
+  document.getElementById('dyBody').innerHTML = _day.length ? _day.map(function(o){
+    sum += n(o.amt);
+    return '<tr><td>'+esc(o.gbNm)+'</td><td>'+esc(o.docNo)+'</td><td>'+esc(o.itemCd)+'</td>'
+      + '<td class="txt" style="text-align:left">'+esc(o.itemNm)+'</td>'
+      + '<td class="num">'+fmt(o.qty)+'</td><td class="num">'+fmt(o.price)+'</td><td class="num">'+fmt(o.amt)+'</td></tr>';
+  }).join('') : '<tr><td colspan="7" class="pu-msg">이 날 매입품목이 없습니다.</td></tr>';
+  document.getElementById('dySum').textContent = fmt(sum);
+}
+function puDayApply(){
+  if (!_day.length) { swErr('불러올 품목이 없습니다.'); return; }
+  swConfirm(fmtDt(_dayDt)+' 매입품목 '+_day.length+'건을 <b>새 전표</b>로 올릴까요?'
+    + '<br><span style="font-size:13px;color:#c0392b">이 날 이미 저장된 매입전표입니다. 그대로 저장하면 매입이 한 번 더 잡힙니다.</span>'
+    + '<br><span style="font-size:13px;color:#3d4d5c">지금 입력 중인 명세는 지워집니다.</span>', null, '불러오기')
+  .then(function(ok){
+    if(!ok) return;
+    /* 거래처는 원장 기준(_lgCd). 상단이 비어 있거나 다른 거래처면 거래처마스터에서 채운다 */
+    var cur = document.getElementById('puVenNm').dataset.cd||'';
+    var ven;
+    if (_lgCd && _lgCd !== cur) {
+      var v0 = _vendors.filter(function(x){ return String(x.vendorCd)===String(_lgCd); })[0] || {};
+      ven = { cd:_lgCd, nm: v0.vendorNm || document.getElementById('lgVen').textContent || _lgCd,
+              mgrCd: v0.mgrCd||'', mgrNm: v0.mgrNm||'' };
+    } else {
+      ven = { cd: cur, nm: document.getElementById('puVenNm').value||'',
+              mgrCd: document.getElementById('puMgrNm').dataset.cd||'', mgrNm: document.getElementById('puMgrNm').value||'' };
+    }
+    puNew();
+    var v = document.getElementById('puVenNm'); v.value = ven.nm; v.dataset.cd = ven.cd;
+    var m = document.getElementById('puMgrNm'); m.value = ven.mgrNm; m.dataset.cd = ven.mgrCd;
+    document.getElementById('puDt').value = fmtDt(_dayDt);
+    var rows = [];
+    _day.forEach(function(o){
+      var p = _prods.filter(function(x){ return String(x.prodCd)===String(o.itemCd); })[0] || {};
+      var r = emptyRow();
+      r.prodSeq = p.prodSeq; r.prodCd = o.itemCd; r.prodNm = o.itemNm || p.prodNm || '';
+      r.spec = p.spec || ''; r.packQty = n(p.packQty)||1; r.taxGb = p.taxGb || '과세';
+      r.unitPrice = n(o.price);
+      /* 수량은 총수량으로 온다 — 입수가 있으면 박스/낱개로 쪼갠다 */
+      var q = n(o.qty), pk = n(r.packQty)||1;
+      if (pk > 1) { r.boxQty = Math.floor(Math.abs(q)/pk) * (q<0?-1:1); r.eaQty = q - r.boxQty*pk; }
+      else { r.boxQty = 0; r.eaQty = q; }
+      if (q < 0) { r.trxGb = '반품'; r.boxQty = Math.abs(r.boxQty); r.eaQty = Math.abs(r.eaQty); }
+      puCalcRow(r);
+      rows.push(r);
+    });
+    rows.push(emptyRow());
+    _rows = rows; _pShown = _rows.length;
+    document.getElementById('puState').textContent = '원장에서 불러옴 — '+fmtDt(_dayDt)+' · 내용 확인 후 [저장]';
+    puRender(); puNextNo(); puVenBal(ven.cd);
+    puDayClose();
+  });
+}
 </script>
