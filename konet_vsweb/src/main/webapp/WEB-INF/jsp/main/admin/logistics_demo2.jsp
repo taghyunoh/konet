@@ -1280,8 +1280,13 @@
               +'<td style="text-align:right">'+_cnum(l.qty)+'</td>'
               +'<td style="text-align:right">'+_cnum(l.unitPrice)+'</td>'
               +'<td style="text-align:right">'+_cnum(l.amt)+'</td>'
-              +'<td>'+_cesc(l.vendorCd||'')+'</td>'
-              +'<td>'+_bizCell(l.bizCd)+'</td>'
+              /* 매입처는 '코드', 사업장은 '이름' — 둘 다 이름으로 두면 같은 값이 두 번 나온다(2026-08-01 지적).
+                 코드 칸에는 이름을 hover 로 붙여 둔다. */
+              +'<td title="'+_cesc(l.vendorNm||'')+'">'+_cesc(l.vendorCd||'')+'</td>'
+              /* 사업장 — 출고(SHIPOUT)만 원장에 사업장이 남는다. 전표(SALE·PURCH)는 사업장 대신
+                 거래처로 관리하므로, 비어 있으면 그 거래처명을 대신 보여 준다(빈칸으로 두면 '누락'처럼 보인다). */
+              +'<td>'+(l.bizCd ? _bizCell(l.bizCd)
+                               : (l.vendorNm ? '<span style="color:#5a6b7a">'+_cesc(l.vendorNm)+'</span>' : ''))+'</td>'
               +'<td>'+_cesc(l.refGb||'')+'</td>'
               +'<td>'+_cesc(l.refNo||'')+'</td>'
               +'<td>'+_cesc(l.remark||'')+'</td>'

@@ -2249,6 +2249,10 @@
 	  SELECT l.LEDGER_SEQ AS ledgerSeq, l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, l.TRX_DT AS trxDt, l.IO_GB AS ioGb,
 	         l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt, l.BAL_QTY AS balQty,
 	         l.VENDOR_CD AS vendorCd,
+	         /* 거래처명 — 코드만 보이면 어디로 나간 건지 읽을 수 없다(2026-08-01 요청).
+	            판매전표(SALE)의 거래처는 삼성웰스토리 지점 같은 '사업장' 이라 이 이름이 곧 사업장 명칭이 된다. */
+	         (SELECT MAX(v.VENDOR_NM) FROM TBL_VENDOR_MST v
+	           WHERE v.VENDOR_CD = l.VENDOR_CD AND v.ACTION_YN='Y' AND v.COMP_CD = l.COMP_CD) AS vendorNm,
 	         /* 사업장: SHIPOUT 자동연동 행은 BIZ_CD 가 NULL → 출고원본(TBL_SHIPOUT_MST)에서
 	            같은 품목·출고일자의 사업장명을 모아 표시 (여러 곳이면 콤마 구분) */
 	         CASE WHEN l.REF_GB = 'SHIPOUT' THEN
