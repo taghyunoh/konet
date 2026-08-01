@@ -130,9 +130,21 @@ public interface UserMapper {
 	int clearSalesProdByExtCd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	int resolveShipoutProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;        // 1차 : XREF 매핑
 	int resolveSalesProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
-	int resolveShipoutProdDirect(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 2차 : 코드 직결(거래처 코드 = 우리 코드)
+	int resolveShipoutProdExt(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;     // 2차 : 통보품목 대장에 골라 둔 우리 상품코드
+	int resolveSalesProdExt(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int resolveShipoutProdDirect(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 3차 : 코드 직결(거래처 코드 = 우리 코드)
 	int resolveSalesProdDirect(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	java.util.List<String> selectShipoutDatesByProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 소급 재고반영 대상 출고일자
+
+	/* ===== 거래처 통보품목 — TBL_EXT_ITEM_MST (2026-08-01) =====
+	   거래처가 미리 통보해 주는 코드·품명을 원문 그대로 받아 두는 접수대장.
+	   ★매핑 표가 아니다(우리 품목과 잇는 방식은 추후 결정) — TBL_PROD_XREF 와 섞지 말 것. */
+	java.util.List<egovframework.sejong.user.model.ExtItemDTO> selectExtItemList(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	int countExtItemCd(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;   // (거래처+코드) 중복 확인
+	int insertExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	int updateExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	int deleteExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	int mergeExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;     // 통보서 붙여넣기(있으면 갱신)
 	int syncProdInPrice(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;   // TBL_PROD_MST.IN_PRICE 동기화
 
 	// ===== 판매가 이력 (TBL_PROD_SALEPRICE_HST) =====
