@@ -101,9 +101,37 @@
   #mc .addbar .f{ display:flex; flex-direction:column; gap:3px; }
   #mc .addbar label{ font-size:11px; font-weight:700; color:#6b7a89; }
   #mc .addbar input, #mc .addbar select{ height:32px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13px; }
-  #mc .addbar .grow{ flex:1 1 220px; }
+  /* 품목명 입력칸 — 화면 폭을 다 먹지 않게 580px 로 (2026-08-02 요청, 380→490→580 재조정). 좁아지면 줄어들기만 한다 */
+  #mc .addbar .grow{ flex:0 1 580px; }
   #mc .addbar .grow input{ width:100%; }
+  /* 표 맨 끝 빈 칸 — 남는 폭을 여기서 먹어 품목명 칸이 늘어나지 않게 한다 */
+  #mc thead th.sp{ border-left:none; }
+  #mc tbody td.sp{ border-left:none; }
   #mc .addbar .btn{ height:32px; }
+  /* ───── 품목코드 칸의 주상품코드 검색 (2026-08-02 요청) ─────
+     거래처가 부르는 코드를 받아 적을 때 "이게 어느 주상품에 붙는 코드인지"를 이 자리에서 찾는다.
+     ★위로 펼친다(bottom:100%) — 등록 줄이 화면 맨 아래라 아래로 열면 잘린다. */
+  #mc .addbar .f.acwrap{ position:relative; }
+  #mc .ac{ position:absolute; bottom:calc(100% + 4px); left:0; width:560px; max-height:340px;
+           background:#fff; border:1px solid var(--bd); border-radius:8px; box-shadow:0 -8px 26px rgba(0,0,0,.20);
+           z-index:60; font-size:12.5px; display:flex; flex-direction:column; }
+  /* 창 안의 검색칸 — 위(품목코드)는 '등록할 거래처 코드', 여기는 '주상품 찾기'다. 둘을 섞지 않는다 */
+  #mc .ac .ac-s{ flex:0 0 auto; padding:7px 8px; border-bottom:1px solid var(--bd); background:#f7f9fa; display:flex; gap:6px; align-items:center; }
+  #mc .ac .ac-s input{ flex:1 1 auto; height:30px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13px; }
+  #mc .ac .ac-s .lb{ flex:0 0 auto; font-size:11.5px; font-weight:700; color:#6b7a89; }
+  #mc .ac .ac-b{ flex:1 1 auto; min-height:0; overflow:auto; }
+  #mc .ac .ac-i{ padding:6px 10px; border-bottom:1px solid #f0f3f5; cursor:pointer; display:flex; gap:8px; align-items:baseline; }
+  #mc .ac .ac-i:last-child{ border-bottom:none; }
+  #mc .ac .ac-i:hover, #mc .ac .ac-i.on{ background:#eef4ff; }
+  #mc .ac .ac-i .c{ font-family:Consolas,monospace; font-weight:700; color:#274b8f; flex:0 0 110px; }
+  #mc .ac .ac-i .n{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#1f2a37; }
+  #mc .ac .ac-i .s{ flex:0 0 auto; color:#9aa7b3; font-size:11.5px; }
+  #mc .ac .ac-i.self .c{ color:#9aa7b3; }          /* 붙일 상품 자기 자신 — 고를 일이 거의 없는 줄 */
+  #mc .ac .ac-w{ padding:7px 10px; background:#fff6e8; border-bottom:1px solid #f2dfc2; color:#8a5a00; font-weight:700; }
+  #mc .ac .ac-w.dup{ background:#fdeceb; border-bottom-color:#f5cfcc; color:#a5342c; }
+  #mc .ac .nohit{ cursor:default; }                /* 알림 줄 — 누르는 자리가 아니다 */
+  #mc .ac .ac-h{ padding:5px 10px; background:#f7f9fa; color:#6b7a89; font-size:11.5px; position:sticky; top:0; }
+  #mc .ac .ac-f{ padding:5px 10px; background:#f7f9fa; color:#9aa7b3; font-size:11px; border-top:1px solid #f0f3f5; }
   /* 하단 패널 높이만큼 본문(스크롤 목록)이 짧아진다 — padding 이 아니라 높이로 뺀다 */
   .wrap{ height:calc(100% - var(--mc-h)); }
   .tag{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; background:#eef4ff; color:#274b8f; border:1px solid #c9d9f5; }
@@ -173,15 +201,22 @@
       <div class="tbwrap">
         <table>
           <thead id="mth"></thead>
-          <tbody id="mtb"><tr><td colspan="8" class="empty">위 목록에서 상품 줄을 고르세요.</td></tr></tbody>
+          <tbody id="mtb"><tr><td colspan="9" class="empty">위 목록에서 상품 줄을 고르세요.</td></tr></tbody>
         </table>
       </div>
       <div class="addbar">
         <%-- 거래처를 고르지 않으면 빈 값으로 저장되고 목록에는 '신규코드'로 표시된다(어느 거래처에도 매이지 않는 코드) --%>
         <div class="f"><label>거래처</label><select id="a_ven" style="width:170px"><option value="">(해당없음)</option></select></div>
-        <div class="f"><label>품목코드 *</label><input id="a_cd" style="width:130px" onkeydown="if(event.keyCode===13)mcAdd()"></div>
+        <%-- 품목코드 = 이 상품에 붙일 코드. 칸을 누르면 상품마스터 검색창이 열린다(2026-08-02 요청).
+             ① 창에서 줄을 고르면 품목코드·품목명·규격이 그 줄 값으로 채워진다
+             ② 붙는 곳은 언제나 '위에서 고른 상품' — 이 창은 대상 상품을 바꾸지 않는다 --%>
+        <div class="f acwrap"><label>품목코드 *</label>
+          <input id="a_cd" style="width:130px" autocomplete="off"
+                 onclick="mcAcOpen()" onfocus="mcAcOpen()" oninput="mcAcTyped()" onkeydown="mcAcKey(event)">
+          <div id="a_ac" class="ac" style="display:none"></div>
+        </div>
         <div class="f grow"><label>품목명</label><input id="a_nm" onkeydown="if(event.keyCode===13)mcAdd()"></div>
-        <div class="f"><label>규격</label><input id="a_spec" style="width:110px"></div>
+        <div class="f"><label>규격</label><input id="a_spec" style="width:160px"></div>
         <div class="f"><label>단위</label><input id="a_unit" style="width:70px" placeholder="BOX"></div>
         <div class="f"><label>단가</label><input id="a_price" type="number" step="0.01" style="width:100px"></div>
         <div class="f"><label>받은날</label><input id="a_noti" type="date" style="width:140px"></div>
@@ -443,13 +478,15 @@ function mcPickProd(seq){
    ★머리글이 모드마다 달라 thead(#mth)도 여기서 그린다 — 정적 thead 를 두면 칸 수가 어긋난다. */
 function mcRender(){
   var th=document.getElementById('mth'), tb=document.getElementById('mtb');
-  var HEAD_ONE='<tr><th style="width:150px">거래처</th><th style="width:130px">품목코드</th><th>품목명</th>'
-    +'<th style="width:120px">규격</th><th class="r" style="width:90px">단가</th>'
-    +'<th style="width:100px">받은날</th><th style="width:150px">비고</th><th style="width:64px">관리</th></tr>';
+  /* 품목명 칸을 줄이고, 남는 폭은 맨 끝 빈 칸(sp)이 먹는다 (2026-08-02 요청).
+     ★품목명에 폭만 주면 소용없다 — table{width:100%} 이라 남는 폭이 제일 긴 칸(품목명)으로 다시 몰린다. */
+  var HEAD_ONE='<tr><th style="width:150px">거래처</th><th style="width:130px">품목코드</th><th style="width:570px">품목명</th>'
+    +'<th style="width:175px">규격</th><th class="r" style="width:90px">단가</th>'
+    +'<th style="width:100px">받은날</th><th style="width:150px">비고</th><th style="width:64px">관리</th><th class="sp"></th></tr>';
   var HEAD_ALL='<tr><th style="width:120px">상품코드</th><th style="width:230px">상품명</th>'
-    +'<th style="width:150px">거래처</th><th style="width:130px">품목코드</th><th>품목명</th>'
-    +'<th style="width:120px">규격</th><th class="r" style="width:90px">단가</th>'
-    +'<th style="width:100px">받은날</th><th style="width:64px">관리</th></tr>';
+    +'<th style="width:150px">거래처</th><th style="width:130px">품목코드</th><th style="width:500px">품목명</th>'
+    +'<th style="width:175px">규격</th><th class="r" style="width:90px">단가</th>'
+    +'<th style="width:100px">받은날</th><th style="width:64px">관리</th><th class="sp"></th></tr>';
   function row(o, all){
     // 거래처를 안 고른 줄 = 어느 거래처에도 매이지 않은 코드 → '신규코드'로 표시(값은 빈 값으로 저장)
     //   ★esc() 로 감싸면 태그가 글자로 보인다 — 태그는 밖에 두고 값만 esc 한다
@@ -463,20 +500,20 @@ function mcRender(){
       +'<td>'+esc(mcFmtDt(o.notiDt))+'</td>';
     if(!all) h+='<td>'+esc(o.remark)+'</td>';
     h+='<td><button class="btn btn-danger" style="height:26px;padding:0 9px;font-size:11.5px"'
-      +' onclick="event.stopPropagation();mcDel('+o.extSeq+')">삭제</button></td></tr>';
+      +' onclick="event.stopPropagation();mcDel('+o.extSeq+')">삭제</button></td><td class="sp"></td></tr>';
     return h;
   }
   if(_mcAll){
     th.innerHTML=HEAD_ALL;
     tb.innerHTML = MC.length ? MC.map(function(o){ return row(o,true); }).join('')
-                             : '<tr><td colspan="9" class="empty">등록된 매칭코드가 없습니다.</td></tr>';
+                             : '<tr><td colspan="10" class="empty">등록된 매칭코드가 없습니다.</td></tr>';
     return;
   }
   th.innerHTML=HEAD_ONE;
-  if(!_mcCur){ tb.innerHTML='<tr><td colspan="8" class="empty">위 목록에서 상품 줄을 고르세요.'
+  if(!_mcCur){ tb.innerHTML='<tr><td colspan="9" class="empty">위 목록에서 상품 줄을 고르세요.'
     +' <span style="color:#5a6b7a">— 등록된 것을 다 보려면 [📋 전체 보기]</span></td></tr>'; return; }
   var l=MC.filter(function(o){ return String(o.prodSeq)===String(_mcCur.prodSeq); });
-  if(!l.length){ tb.innerHTML='<tr><td colspan="8" class="empty">이 상품에 붙여 둔 거래처 코드가 없습니다 — 아래에서 등록하세요.'
+  if(!l.length){ tb.innerHTML='<tr><td colspan="9" class="empty">이 상품에 붙여 둔 거래처 코드가 없습니다 — 아래에서 등록하세요.'
     +' <span style="color:#c0392b">(없으면 그 코드로 오는 자료는 미매핑이 됩니다)</span></td></tr>'; return; }
   tb.innerHTML=l.map(function(o){ return row(o,false); }).join('');
 }
@@ -501,6 +538,152 @@ function mcGoProd(seq){
           sr.classList.add('sel'); sr.scrollIntoView({block:'center'}); }
   else toast('이 상품은 지금 보고 있는 목록(페이지·필터) 밖에 있습니다.','warn');
 }
+/* ==================== 품목코드 칸 — 상품코드 검색 (2026-08-02 요청) ====================
+   잘못 만들어진 코드를 제 주코드 밑으로 정리하는 작업용이다.
+     ① 칸을 누르면 바로 열리고, 창 안 검색칸으로 상품마스터를 좁혀 본다(코드 앞부분 → 코드 포함 → 상품명 포함)
+     ② 줄을 고르면 **품목코드·품목명·규격**이 그 줄 값으로 채워진다 (= 붙일 코드를 받아 적는 것)
+     ③ 친 코드가 이미 다른 상품 매칭코드거나 상품마스터에도 있으면 맨 위에 알림 줄(누르는 자리 아님)
+   ★붙일 상품은 언제나 **위 목록에서 고른 상품**이다 — 이 창은 대상 상품을 바꾸지 않고, 위 목록도 움직이지 않는다
+     (2026-08-02 확정: "상단 선택코드에 매칭코드로 넣어야 함 · 정리는 상단에서").
+   ★검색은 이미 받아 둔 LIST(상품 전체)·MC(매칭코드 전체)만 본다 — 서버를 다시 부르지 않는다. */
+var _acRows=[], _acIdx=-1, AC_MAX=200, _acLock=false;   // AC_MAX = 한 번에 그릴 줄 수(1,941건 전부 그리면 열 때마다 버벅인다)
+function mcAcOpened(){ var d=document.getElementById('a_ac'); return !!(d && d.style.display!=='none'); }
+/* 상품을 고른 뒤·등록 직후에 커서를 품목코드 칸으로 돌려놓는데, 그냥 focus() 하면
+   onfocus 가 창을 도로 연다. 그 한 번만 막는다(_acLock). */
+function mcAcFocusCd(){
+  _acLock=true;
+  var el=document.getElementById('a_cd'); if(el) el.focus();
+  setTimeout(function(){ _acLock=false; }, 0);
+}
+function mcAcHide(){
+  _acRows=[]; _acIdx=-1;
+  var d=document.getElementById('a_ac'); if(d){ d.style.display='none'; d.innerHTML=''; }
+}
+/* 칸을 클릭(또는 포커스)하면 바로 연다 — 글자를 안 쳐도 전 상품이 보인다.
+   창 안의 검색칸으로 좁혀 간다. 창을 다시 그릴 때 검색칸을 새로 만들면 타이핑 중 포커스가 튀므로
+   껍데기(검색칸)는 한 번만 만들고 목록(.ac-b)만 다시 그린다. */
+function mcAcOpen(){
+  if(_acLock) return;
+  var d=document.getElementById('a_ac'); if(!d) return;
+  if(mcAcOpened()) return;                 // 이미 열려 있으면 그대로 둔다(검색어·스크롤 유지)
+  d.innerHTML='<div class="ac-s"><span class="lb">주상품 찾기</span>'
+    + '<input id="ac_q" autocomplete="off" placeholder="상품코드 · 상품명으로 검색"'
+    + ' oninput="mcAcBody()" onkeydown="mcAcKey(event)"></div>'
+    + '<div class="ac-b" id="ac_b"></div>';
+  d.style.display='';
+  var q=document.getElementById('ac_q'); if(q) q.value=gv('a_cd');   // 이미 친 코드가 있으면 그걸로 시작
+  mcAcBody();
+}
+/* 품목코드 칸에 글자를 치면 — 경고(정확히 같은 코드)와 후보를 그 글자로 다시 맞춘다 */
+function mcAcTyped(){
+  if(!mcAcOpened()){ mcAcOpen(); return; }
+  var q=document.getElementById('ac_q'); if(q) q.value=gv('a_cd');
+  mcAcBody();
+}
+function mcAcBody(){
+  var b=document.getElementById('ac_b'); if(!b) return;
+  var code=gv('a_cd').toLowerCase();                                   // 등록하려는 거래처 코드(경고 판정용)
+  var qe=document.getElementById('ac_q'), ql=((qe&&qe.value)||'').trim().toLowerCase();   // 창 안 검색어
+  var i, h='', rows=[];
+  /* (1) 경고 — 품목코드 칸의 값이 '정확히 같을' 때만. 부분일치까지 경고하면 타이핑 내내 뜬다.
+         ★알림 줄일 뿐 누르는 자리가 아니다 — 여기 적힌 상품은 '주코드'라서, 눌러서 채우면
+           붙일 코드가 주코드로 바뀌어 버린다(반대로 등록됨). */
+  if(code){
+    for(i=0;i<MC.length;i++){
+      if(String(MC[i].extItemCd||'').toLowerCase()!==code) continue;
+      var m=MC[i], mp=_byseq[m.prodSeq]||{}, mine=(_mcCur && String(m.prodSeq)===String(_mcCur.prodSeq));
+      h+='<div class="ac-w dup nohit">'
+        + (mine ? '⚠ 이 상품에 이미 등록된 매칭코드입니다 (중복 등록 안 됨)'
+                : '⚠ 이미 매칭코드로 등록됨 — '+esc(m.prodCd||mp.prodCd||'')+' '+esc(mp.prodNm||''))
+        + '</div>';
+    }
+    for(i=0;i<LIST.length;i++){
+      if(String(LIST[i].prodCd||'').toLowerCase()!==code) continue;
+      h+='<div class="ac-w nohit">⚠ 이 코드는 상품마스터에도 있는 코드입니다 — '
+        + esc(LIST[i].prodCd)+' '+esc(LIST[i].prodNm||'')+'</div>';
+      break;
+    }
+  }
+  /* (2) 목록 — 검색어가 없으면 전 상품(앞 AC_MAX건). 있으면 코드 앞부분 → 코드 포함 → 상품명 포함 순 */
+  var cand;
+  if(!ql){ cand=LIST.slice(0); }
+  else {
+    var a=[], b2=[], c=[];
+    for(i=0;i<LIST.length;i++){
+      var o=LIST[i], cd=String(o.prodCd||'').toLowerCase(), nm=String(o.prodNm||'').toLowerCase();
+      if(cd.indexOf(ql)===0) a.push(o); else if(cd.indexOf(ql)>=0) b2.push(o); else if(nm.indexOf(ql)>=0) c.push(o);
+    }
+    cand=a.concat(b2,c);
+  }
+  var tot=cand.length, more=Math.max(0, tot-AC_MAX); cand=cand.slice(0, AC_MAX);
+  h+='<div class="ac-h">상품 '+tot.toLocaleString()+'건'+(more?(' 중 앞 '+AC_MAX+'건 — 위 칸에서 더 좁혀 주세요'):'')
+    + ' · 고르면 <b>품목코드·품목명·규격</b>이 그 줄 값으로 채워집니다'
+    + (_mcCur ? (' → <b>'+esc(_mcCur.prodCd)+'</b> 에 붙습니다') : '') + '</div>';
+  if(!tot){ h+='<div class="ac-f">찾는 상품이 없습니다.</div>'; }
+  h+=cand.map(function(o){
+    rows.push(o.prodSeq);
+    var sel=(_mcCur && String(o.prodSeq)===String(_mcCur.prodSeq));
+    return '<div class="ac-i'+(sel?' self':'')+'" data-i="'+(rows.length-1)+'" onmousedown="mcAcPick('+o.prodSeq+')">'
+      +'<span class="c">'+esc(o.prodCd)+'</span><span class="n">'+esc(o.prodNm||'')+'</span>'
+      +'<span class="s">'+(sel?'붙일 상품(자기 자신)':(_mcCnt[o.prodSeq]?('매칭 '+_mcCnt[o.prodSeq]):''))+'</span></div>';
+  }).join('');
+  h+='<div class="ac-f">붙일 상품은 <b>위 목록에서 고른 상품</b> 그대로입니다 — 이 창은 붙일 코드를 찾는 곳입니다. (Esc 닫기)</div>';
+  /* ★목록은 언제나 맨 위부터 — 고른 상품 줄로 스크롤해 두면 '검색하면 그 코드로 따라가는' 느낌이 된다
+       (2026-08-02 사용자 지적). 여기서 찾는 것은 붙일 코드지, 붙일 상품이 아니다. */
+  _acRows=rows; _acIdx=-1;
+  b.innerHTML=h; b.scrollTop=0;
+}
+function mcAcKey(e){
+  var b=document.getElementById('ac_b'), open=(mcAcOpened() && _acRows.length);
+  var inQ=(e.target && e.target.id==='ac_q');
+  if(e.keyCode===27){ mcAcHide(); mcAcFocusCd(); return; }   // Esc — 그냥 focus() 하면 창이 도로 열린다
+  if(open && (e.keyCode===38 || e.keyCode===40)){                                      // ↑ ↓
+    e.preventDefault();
+    _acIdx += (e.keyCode===40?1:-1);
+    if(_acIdx<0) _acIdx=_acRows.length-1; if(_acIdx>=_acRows.length) _acIdx=0;
+    Array.prototype.forEach.call(b.querySelectorAll('[data-i]'), function(el){
+      var on=(Number(el.getAttribute('data-i'))===_acIdx);
+      el.classList.toggle('on', on); if(on) el.scrollIntoView({block:'nearest'});
+    });
+    return;
+  }
+  if(e.keyCode!==13) return;
+  /* Enter
+       · 창 안 검색칸 : 고른 줄(또는 결과가 하나면 그것)을 선택 — 여기서 등록이 되면 안 된다
+       · 품목코드 칸  : 방향키로 고른 줄이 있을 때만 선택, 그 외에는 종전대로 등록
+                        (기존 손버릇 = 코드 치고 Enter → 등록. 가로채면 흐름이 끊긴다) */
+  if(inQ){
+    e.preventDefault();
+    if(_acIdx>=0) mcAcPick(_acRows[_acIdx]);
+    else if(_acRows.length===1) mcAcPick(_acRows[0]);
+    return;
+  }
+  if(open && _acIdx>=0){ e.preventDefault(); mcAcPick(_acRows[_acIdx]); return; }
+  mcAcHide(); mcAdd();
+}
+/* 바깥을 누르면 닫는다 — 창 안(검색칸·줄)을 누를 때는 닫히면 안 되므로 blur 로 닫지 않는다 */
+document.addEventListener('mousedown', function(e){
+  if(!mcAcOpened()) return;
+  var w=document.querySelector('#mc .addbar .acwrap');
+  if(w && !w.contains(e.target)) mcAcHide();
+});
+/* 후보를 고르면 = '붙일 코드'를 받아 적는 것 (2026-08-02 확정)
+     ★붙일 상품(_mcCur)은 **위에서 고른 상품 그대로** 둔다 — 매칭코드는 언제나 상단 선택 코드에 붙는다.
+       (잘못 만들어진 코드 정리는 위 목록에서 상품을 골라 가며 한다)
+     ★위 목록도 건드리지 않는다 — 페이지를 넘기거나 그 줄로 스크롤하면 보고 있던 자리를 잃는다.
+     여기서 고른 상품의 코드·상품명·규격이 등록 줄(품목코드·품목명·규격)로 들어온다. */
+function mcAcPick(seq){
+  mcAcHide();
+  var o=(seq==null)?null:_byseq[seq];
+  if(!o){ toast('상품마스터에서 찾을 수 없는 줄입니다.','warn'); mcAcFocusCd(); return; }
+  if(!_mcCur) toast('위 목록에서 붙일 상품을 먼저 고르세요 — 코드만 채웠습니다.','warn');
+  else if(String(o.prodSeq)===String(_mcCur.prodSeq)) toast('붙일 상품과 같은 코드입니다 — 확인하세요.','warn');
+  _set('a_cd', o.prodCd||'');
+  _set('a_nm', o.prodNm||'');
+  _set('a_spec', o.spec||'');
+  mcAcFocusCd();
+}
+
 /* ★두 번 눌리는 것을 막는다 (2026-08-01 증상: "이미 저장됐다고 뜨는데 조금 뒤 보면 등록돼 있음")
      저장은 과거 업로드분 소급 반영·재고 재계산까지 하느라 응답이 늦다. 그 사이 [등록]을 다시 누르거나
      Enter 를 또 치면 두 번째 요청이 **이미 저장된 코드**를 만나 409(이미 등록된 품목코드)로 튕겼다.
@@ -531,7 +714,7 @@ function mcAdd(){
       // 연달아 받아 적는 흐름 — 코드·품명·규격·단가만 비우고 거래처·받은날은 남긴다
       _set('a_cd',''); _set('a_nm',''); _set('a_spec',''); _set('a_price','');
       toast('＋ 매칭코드 등록 — '+esc(cd),'ok');
-      document.getElementById('a_cd').focus();
+      mcAcHide(); mcAcFocusCd();          // 등록 직후에 후보창이 도로 열리지 않게
       mcLoad();
     })
     .catch(function(e){ _mcBusy(false); toast('통신오류: '+e.message,'err'); });

@@ -1307,33 +1307,61 @@
          · 연결     = 업로드 미리보기·품목코드(매핑)에서 이은 것 (TBL_PROD_XREF)
        ★코드 직결(거래처 코드 = 우리 코드)은 여기 안 나온다 — 별칭이 아니라 같은 코드라 보여 줄 것이 없다. */
   var _stkAlias=null;      // { 우리코드 : [{cd, nm, via:'매칭'|'연결'}] }
+  /* ★역방향 (2026-08-02 요청) — { 거래처코드 : [{cd:주코드, nm:주코드 품목명, via}] }
+       매칭·연결 전에 들어온 출고는 거래처 코드 그대로 재고가 잡혀 있어서, 그 행의 '품목코드'가
+       사실은 매칭코드다(예: 1000800225 · 현재고 -18). 그때 "이건 어느 주코드에 붙는 코드인지"를
+       같은 칸에 보여 주지 않으면, 조회한 사람이 상품코드등록 화면까지 가서 찾아봐야 한다. */
+  var _stkAliasRev=null;
   function stkAliasLoad(cb){
-    var ctx='${pageContext.request.contextPath}', m={}, left=2;
-    function put(prodCd, cd, nm, via){
+    var ctx='${pageContext.request.contextPath}', m={}, rv={}, left=2;
+    function put(prodCd, prodNm, cd, nm, via){
       var k=String(prodCd||'').trim(), c=String(cd||'').trim(); if(!k||!c) return;
       (m[k]=m[k]||[]).push({cd:c, nm:nm||'', via:via});
+      (rv[c]=rv[c]||[]).push({cd:k, nm:prodNm||'', via:via});
     }
-    function done(){ if(--left===0){ _stkAlias=m; if(cb) cb(); } }
+    function done(){ if(--left===0){ _stkAlias=m; _stkAliasRev=rv; if(cb) cb(); } }
     fetch(ctx+'/prod/extItemList.do', { method:'POST', credentials:'same-origin',
              headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
       .then(function(r){ return r.json(); })
-      .then(function(j){ ((j&&j.data)||[]).forEach(function(o){ put(o.prodCd, o.extItemCd, o.extItemNm, '매칭'); }); done(); })
+      .then(function(j){ ((j&&j.data)||[]).forEach(function(o){ put(o.prodCd, o.prodNm, o.extItemCd, o.extItemNm, '매칭'); }); done(); })
       .catch(function(){ done(); });
     fetch(ctx+'/prod/xrefList.do', { method:'POST', credentials:'same-origin',
              headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
       .then(function(r){ return r.json(); })
-      .then(function(j){ ((j&&j.data)||[]).forEach(function(o){ put(o.prodCd, o.extItemCd, o.extItemNm, '연결'); }); done(); })
+      .then(function(j){ ((j&&j.data)||[]).forEach(function(o){ put(o.prodCd, o.prodNm, o.extItemCd, o.extItemNm, '연결'); }); done(); })
       .catch(function(){ done(); });
+  }
+  /* 주코드를 눌러 그 코드로 바로 다시 조회 — 행 클릭(②수불내역)과 겹치므로 stopPropagation 필수 */
+  function stkSrchGo(cd, e){
+    if(e){ e.stopPropagation(); }
+    var el=document.getElementById('stkSrch'); if(el) el.value=cd||'';
+    stkStatusLoad();
   }
   function stkAliasCell(prodCd){
     if(!_stkAlias) return '<span style="color:#c8ced4">…</span>';
-    var l=_stkAlias[String(prodCd||'').trim()]||[];
-    if(!l.length) return '<span style="color:#c8ced4">-</span>';
-    // 두 개까지만 칸에 쓰고 나머지는 +N — 툴팁에는 전부(코드 · 거래처 품명 · 출처)
-    var tip=l.map(function(o){ return o.cd+(o.nm?(' · '+o.nm):'')+' ('+o.via+')'; }).join('&#10;');
-    var show=l.slice(0,2).map(function(o){ return _cesc(o.cd); }).join(', ');
-    return '<span title="'+tip.replace(/"/g,'&quot;')+'" style="cursor:help">'+show
-      + (l.length>2 ? (' <b style="color:#274b8f">+'+(l.length-2)+'</b>') : '') + '</span>';
+    var key=String(prodCd||'').trim();
+    var l=_stkAlias[key]||[];
+    if(l.length){
+      // 두 개까지만 칸에 쓰고 나머지는 +N — 툴팁에는 전부(코드 · 거래처 품명 · 출처)
+      var tip=l.map(function(o){ return o.cd+(o.nm?(' · '+o.nm):'')+' ('+o.via+')'; }).join('&#10;');
+      var show=l.slice(0,2).map(function(o){ return _cesc(o.cd); }).join(', ');
+      return '<span title="'+tip.replace(/"/g,'&quot;')+'" style="cursor:help">'+show
+        + (l.length>2 ? (' <b style="color:#274b8f">+'+(l.length-2)+'</b>') : '') + '</span>';
+    }
+    /* 매칭코드가 아예 없는 행 — 이 행의 품목코드 자체가 남의 '매칭코드'인지 되짚어 본다(역방향).
+       ★같은 코드가 여러 주코드에 붙어 있을 수 있어 첫 건만 칸에 쓰고 나머지는 +N(툴팁에 전부). */
+    var rl=(_stkAliasRev&&_stkAliasRev[key])||[];
+    if(rl.length){
+      var tipR='이 코드는 아래 주코드의 매칭코드로 등록되어 있습니다.&#10;(클릭 → 주코드로 재조회)&#10;'
+             + rl.map(function(o){ return '　' + o.cd + (o.nm?(' · '+o.nm):'') + ' ('+o.via+')'; }).join('&#10;');
+      var one=rl[0];
+      var arg=_cesc(one.cd).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      return '<a href="javascript:void(0)" onclick="stkSrchGo(\''+arg+'\', event)"'
+        +    ' title="'+tipR.replace(/"/g,'&quot;')+'"'
+        +    ' style="color:#274b8f;font-weight:800;text-decoration:none">🔖 주코드 '+_cesc(one.cd)+'</a>'
+        + (rl.length>1 ? (' <b style="color:#274b8f">+'+(rl.length-1)+'</b>') : '');
+    }
+    return '<span style="color:#c8ced4">-</span>';
   }
 
   function stkStatusRender(){
@@ -1342,7 +1370,8 @@
        재고는 언제나 우리 코드 하나로 합산되는데, 그러면 "이 수량이 어느 코드로 들어온 건지" 를 볼 수가 없다.
        매칭코드(TBL_EXT_ITEM_MST)와 연결(TBL_PROD_XREF)을 우리 코드 기준으로 모아 보여 준다. */
     /* ★칸 이름은 '매칭코드' — '거래처코드' 라고 하면 아래 수불내역의 매입처(00272 같은 거래처 코드)와 헷갈린다(2026-08-01 지적) */
-    var thead='<thead><tr><th>품목코드</th><th>품목명</th><th style="width:140px">매칭코드</th><th style="text-align:right">입고</th><th style="text-align:right">출고</th><th style="text-align:right">현재고</th><th style="text-align:right">이동평균단가</th><th style="text-align:right">재고금액</th><th>최근입고</th><th>최근출고</th></tr></thead>';
+    /* ★칸 폭 160px — '🔖 주코드 9904013265' 가 한 줄에 들어가야 한다(2026-08-02) */
+    var thead='<thead><tr><th>품목코드</th><th>품목명</th><th style="width:160px" title="이 품목에 붙어 있는 거래처 코드(매칭·연결).&#10;&#10;반대로 이 행의 품목코드 자체가 남의 매칭코드이면 [🔖 주코드 …] 로 표시됩니다 — 매칭 전 출고가 거래처 코드로 잡힌 행입니다. 클릭하면 주코드로 다시 조회합니다.">매칭코드</th><th style="text-align:right">입고</th><th style="text-align:right">출고</th><th style="text-align:right">현재고</th><th style="text-align:right">이동평균단가</th><th style="text-align:right">재고금액</th><th>최근입고</th><th>최근출고</th></tr></thead>';
     var tI=0,tO=0,tQ=0,tA=0; _stkRows.forEach(function(r){ tI+=(+r.inQty||0); tO+=(+r.outQty||0); tQ+=(+r.curQty||0); tA+=(+r.stockAmt||0); });
     if(!_stkRows.length){ sum.textContent='현재고 데이터가 없습니다. (입고 수불 등록 또는 출고(SHIPOUT) 발생 시 표시)'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
     sum.innerHTML='총 <b>'+_stkRows.length.toLocaleString()+'</b>품목 · 입고합 <b>'+_cnum(tI)+'</b> · 출고합 <b>'+_cnum(tO)+'</b> · 현재고합 <b>'+_cnum(tQ)+'</b> · 재고금액합 <b>'+_cnum(tA)+'</b>';
@@ -6594,10 +6623,11 @@
     </div>
 
     <div class="grp">기준정보</div>
-    <a class="mi" data-key="prodmst" onclick="logiFrame('prodmst','${pageContext.request.contextPath}/prod/prodmst.do', this)"><span class="ic">📦</span>상품(품목)관리</a>
     <%-- 상품코드등록 (2026-08-01 요청) — 상품(품목)관리와 같은 마스터(TBL_PROD_MST)를 보는 등록 전용 화면.
-         이력/재고 패널 없이 목록+등록만. 서식은 매입/매출 거래처 관리와 동일(버튼 상단 공통 · 그리드에 수정/삭제 없음). --%>
+         이력/재고 패널 없이 목록+등록만. 서식은 매입/매출 거래처 관리와 동일(버튼 상단 공통 · 그리드에 수정/삭제 없음).
+         ★2026-08-02 사용자 요청으로 상품(품목)관리보다 위로 — 코드 등록·정리가 먼저 들어가는 화면이다. --%>
     <a class="mi" data-key="prodcd" onclick="logiFrame('prodcd','${pageContext.request.contextPath}/prod/prodcd.do', this)"><span class="ic">🏷️</span>상품코드등록</a>
+    <a class="mi" data-key="prodmst" onclick="logiFrame('prodmst','${pageContext.request.contextPath}/prod/prodmst.do', this)"><span class="ic">📦</span>상품(품목)관리</a>
     <%-- 거래처 매칭코드는 별도 메뉴로 두지 않는다(2026-08-01 확정) — 상품코드등록 화면 하단에 붙였다.
          자료가 구두·문서로 오고 진입이 언제나 '우리 상품이 먼저' 라, 상품을 고른 자리에서 바로 붙이는 게 맞다. --%>
     <%-- 품목코드(매핑)은 재고 관리 그룹으로 옮겼다(2026-08-01) — 여기 있던 자리 --%>
