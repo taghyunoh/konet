@@ -117,6 +117,15 @@ public interface UserService {
 	int resolveShipoutProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	int resolveSalesProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 
+	/* ===== 거래처 통보품목 — TBL_EXT_ITEM_MST (2026-08-01) =====
+	   거래처가 미리 통보한 코드·품명 접수대장. ★매핑 표가 아니다(우리 품목과 잇는 방식은 추후 결정). */
+	java.util.List<egovframework.sejong.user.model.ExtItemDTO> selectExtItemList(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	int countExtItemCd(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	int insertExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	int updateExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	int deleteExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	int mergeExtItems(java.util.List<egovframework.sejong.user.model.ExtItemDTO> list) throws Exception;   // 통보서 붙여넣기 일괄
+
 	// ===== 판매가 이력 =====
 	java.util.List<egovframework.sejong.user.model.ProdSalepriceDTO> selectSalepriceList(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception;
 	int insertSaleprice(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception; // 이력 INSERT + 마스터 SALE/WHOLE 동기화

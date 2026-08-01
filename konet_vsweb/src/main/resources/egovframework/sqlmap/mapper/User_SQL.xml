@@ -2304,16 +2304,20 @@
 	<!-- 입고내역 — 전체 입고(수불 IO_GB='I') 거래 목록 -->
 	<select id="selectInboundList" parameterType="egovframework.sejong.user.model.StockLedgerDTO" resultType="egovframework.sejong.user.model.StockLedgerDTO">
 	  SELECT l.LEDGER_SEQ AS ledgerSeq, l.PROD_CD AS prodCd, p.PROD_NM AS prodNm, l.TRX_DT AS trxDt,
-	         l.VENDOR_CD AS vendorCd, l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt, l.REMARK AS remark, l.REG_DTTM AS regDttm
+	         l.VENDOR_CD AS vendorCd, v.VENDOR_NM AS vendorNm,
+	         l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt, l.REMARK AS remark, l.REG_DTTM AS regDttm
 	    FROM TBL_STOCK_LEDGER l
 	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = l.PROD_SEQ AND p.COMP_CD = l.COMP_CD
+	    <!-- 매입처명 — 코드 옆에 이름을 같이 보여준다(2026-08-01 요청). 마스터에 없는 코드면 NULL → 화면에서 '-' -->
+	    LEFT JOIN TBL_VENDOR_MST v ON v.VENDOR_CD = l.VENDOR_CD AND v.ACTION_YN = 'Y' AND v.COMP_CD = l.COMP_CD
 	   WHERE l.ACTION_YN = 'Y' AND l.IO_GB = 'I'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  <if test="fromDt != null and fromDt != '' and toDt != null and toDt != ''">
 	     AND l.TRX_DT BETWEEN REPLACE(#{fromDt},'-','') AND REPLACE(#{toDt},'-','')
 	  </if>
 	  <if test="findData != null and findData != ''">
-	     AND ( l.PROD_CD LIKE '%' + #{findData} + '%' OR ISNULL(p.PROD_NM,'') LIKE '%' + #{findData} + '%' OR ISNULL(l.VENDOR_CD,'') LIKE '%' + #{findData} + '%' )
+	     AND ( l.PROD_CD LIKE '%' + #{findData} + '%' OR ISNULL(p.PROD_NM,'') LIKE '%' + #{findData} + '%'
+	           OR ISNULL(l.VENDOR_CD,'') LIKE '%' + #{findData} + '%' OR ISNULL(v.VENDOR_NM,'') LIKE '%' + #{findData} + '%' )
 	  </if>
 	   ORDER BY l.TRX_DT DESC, l.LEDGER_SEQ DESC
 	</select>
@@ -3665,13 +3669,57 @@
 	     AND ( #{prodSeq,jdbcType=BIGINT} IS NULL OR x.PROD_SEQ = #{prodSeq,jdbcType=BIGINT} )
 	]]></update>
 
-	<!-- ★2차 패스 : 코드 직결(거래처 코드 = 우리 코드) ============================================
+	<!-- ★2차 패스 : 거래처 통보품목 대장(TBL_EXT_ITEM_MST) — 2026-08-01 통화 확정 ==================
+	     거래처가 미리 통보해 준 코드에 **우리 상품코드를 골라 둔 것이 있으면** 그걸로 해석한다.
+	       · 즉 통보 시점에 미리 이어 두면 업로드할 때 '미매핑'으로 잡히지 않는다.
+	       · 골라 둔 것이 없으면(PROD_SEQ NULL) 이 패스는 아무 일도 안 한다 → 종전대로 미매핑 →
+	         품목코드(매핑)·업로드 미리보기의 [연결] 흐름이 **그대로 살아 있다**(사용자 확정).
+	     ★순서는 XREF → 통보대장 → 코드직결.
+	       XREF 가 먼저인 이유 : 잘못 이어진 통보분을 사람이 XREF 에서 고쳤을 때 그 수정이 이겨야 한다.
+	       코드직결이 마지막인 이유 : 우연히 코드가 같은 경우가 사람이 지정한 연결을 덮으면 안 된다.
+	     ========================================================================================== -->
+	<update id="resolveShipoutProdExt" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  UPDATE s
+	     SET s.PROD_SEQ = e.PROD_SEQ, s.PROD_CD = e.PROD_CD
+	    FROM TBL_SHIPOUT_MST s
+	    JOIN TBL_EXT_ITEM_MST e
+	      ON  e.COMP_CD = s.COMP_CD
+	     AND  e.ACTION_YN = 'Y'
+	     AND  e.PROD_SEQ IS NOT NULL          /* 우리 상품코드를 골라 둔 통보분만 */
+	     AND  e.EXT_ITEM_CD = s.ITEM_CD
+	     /* 거래처를 안 가린 통보(VENDOR_CD 비어 있음) = 모든 거래처에 걸린다 */
+	     AND  ISNULL(e.VENDOR_CD,'') IN ('', ISNULL(s.VENDOR_CD,''))
+	   WHERE s.PROD_SEQ IS NULL
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( #{jobSeq,jdbcType=BIGINT} IS NULL OR s.JOB_SEQ = #{jobSeq,jdbcType=BIGINT} )
+	     AND ( ISNULL(#{dlvDt,jdbcType=NVARCHAR},'') = '' OR s.DLV_DT = REPLACE(#{dlvDt,jdbcType=NVARCHAR},'-','') )
+	     AND ( ISNULL(#{dcCd,jdbcType=NVARCHAR},'')  = '' OR s.DC_CD = #{dcCd,jdbcType=NVARCHAR} )
+	     AND ( #{prodSeq,jdbcType=BIGINT} IS NULL OR e.PROD_SEQ = #{prodSeq,jdbcType=BIGINT} )
+	]]></update>
+
+	<update id="resolveSalesProdExt" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  UPDATE s
+	     SET s.PROD_SEQ = e.PROD_SEQ, s.PROD_CD = e.PROD_CD
+	    FROM TBL_SALES_MST s
+	    JOIN TBL_EXT_ITEM_MST e
+	      ON  e.COMP_CD = s.COMP_CD
+	     AND  e.ACTION_YN = 'Y'
+	     AND  e.PROD_SEQ IS NOT NULL
+	     AND  e.EXT_ITEM_CD = s.ITEM_CD
+	   WHERE s.PROD_SEQ IS NULL
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( #{jobSeq,jdbcType=BIGINT} IS NULL OR s.JOB_SEQ = #{jobSeq,jdbcType=BIGINT} )
+	     AND ( ISNULL(#{dlvDt,jdbcType=NVARCHAR},'') = '' OR s.DLV_DT = REPLACE(#{dlvDt,jdbcType=NVARCHAR},'-','') )
+	     AND ( #{prodSeq,jdbcType=BIGINT} IS NULL OR e.PROD_SEQ = #{prodSeq,jdbcType=BIGINT} )
+	]]></update>
+
+	<!-- ★3차 패스 : 코드 직결(거래처 코드 = 우리 코드) ============================================
 	     거래처가 우리와 '같은 코드'로 요청하는 품목까지 XREF 에 일일이 등록하게 하면 부담이 크다.
 	     XREF 로 못 찾은 행만 골라 ITEM_CD 를 우리 PROD_CD 로 그대로 해석한다.
 	       · 종전 동작(pm.PROD_CD = s.ITEM_CD 직접 비교)과 같은 규칙이라 결과가 달라지지 않는다
 	       · 즉 XREF 는 '코드가 다를 때만' 필요하다
-	     ★반드시 XREF 패스 뒤에 돌려야 한다. 먼저 돌면 거래처 코드가 우연히 우리 코드와 같을 때
-	       XREF 에 걸어 둔 매핑을 덮어쓴다(XREF 가 우선이어야 사람이 고친 것이 이긴다).
+	     ★반드시 XREF·통보대장 패스 뒤에 돌려야 한다. 먼저 돌면 거래처 코드가 우연히 우리 코드와 같을 때
+	       사람이 지정해 둔 연결을 덮어쓴다(사람이 고친 것이 이겨야 한다).
 	     ========================================================================================== -->
 	<update id="resolveShipoutProdDirect" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
@@ -4017,4 +4065,135 @@
 	    LEFT JOIN TBL_STOCK_MST k  ON k.PROD_SEQ  = g.prodSeq AND k.ACTION_YN = 'Y'
 	   ORDER BY g.matchScore DESC, ISNULL(k.CUR_QTY,0) DESC, ISNULL(k.LAST_OUT_DT,'') DESC, g.prodCd
 	]]></select>
+
+	<!-- ============================================================
+	     거래처 통보품목 — TBL_EXT_ITEM_MST  (2026-08-01 신설, DDL: sql/ext_item_ddl.sql)
+	     거래처가 **미리 통보**해 주는 품목코드·품목명을 원문 그대로 받아 두는 접수대장.
+	     ★매핑 표가 아니다 — 우리 품목과 잇는 방식은 다음에 결정한다(PROD_SEQ 칸만 있고 채우는 로직 없음).
+	       TBL_PROD_XREF(확정 연결, 재고·출고서가 보는 표)와 섞지 말 것.
+	     ============================================================ -->
+	<select id="selectExtItemList" parameterType="egovframework.sejong.user.model.ExtItemDTO" resultType="egovframework.sejong.user.model.ExtItemDTO">
+	  SELECT e.EXT_SEQ AS extSeq, e.VENDOR_CD AS vendorCd, e.VENDOR_NM AS vendorNm,
+	         e.DC_CD AS dcCd, e.DC_NM AS dcNm,
+	         e.EXT_ITEM_CD AS extItemCd, e.EXT_ITEM_NM AS extItemNm, e.EXT_SPEC AS extSpec,
+	         e.EXT_UNIT AS extUnit, e.EXT_PRICE AS extPrice, e.TAX_GB AS taxGb,
+	         e.NOTI_DT AS notiDt, e.USE_FR_DT AS useFrDt, e.STAT_GB AS statGb,
+	         e.PROD_SEQ AS prodSeq, e.PROD_CD AS prodCd, p.PROD_NM AS prodNm, e.XREF_SEQ AS xrefSeq,
+	         e.REMARK AS remark, e.REG_DTTM AS regDttm, e.REG_USER AS regUser, e.UPD_DTTM AS updDttm
+	    FROM TBL_EXT_ITEM_MST e
+	    <!-- 우리 품목명은 '연결해 둔 경우에만' 보여 주는 참고 표시다(이 화면이 매핑을 만들지는 않는다) -->
+	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = e.PROD_SEQ AND p.ACTION_YN = 'Y' AND p.COMP_CD = e.COMP_CD
+	   WHERE e.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR e.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	  <if test="vendorCd != null and vendorCd != ''">
+	     AND e.VENDOR_CD = #{vendorCd,jdbcType=NVARCHAR}
+	  </if>
+	  <if test="prodSeq != null">
+	     AND e.PROD_SEQ = #{prodSeq}
+	  </if>
+	  <if test="fromDt != null and fromDt != '' and toDt != null and toDt != ''">
+	     AND ISNULL(e.NOTI_DT,'') BETWEEN REPLACE(#{fromDt},'-','') AND REPLACE(#{toDt},'-','')
+	  </if>
+	  <if test="findData != null and findData != ''">
+	     AND ( e.EXT_ITEM_CD LIKE '%' + #{findData} + '%'
+	        OR ISNULL(e.EXT_ITEM_NM,'') LIKE '%' + #{findData} + '%'
+	        OR ISNULL(e.EXT_SPEC,'')    LIKE '%' + #{findData} + '%'
+	        OR ISNULL(e.VENDOR_NM,'')   LIKE '%' + #{findData} + '%'
+	        OR ISNULL(e.VENDOR_CD,'')   LIKE '%' + #{findData} + '%' )
+	  </if>
+	   ORDER BY ISNULL(e.NOTI_DT,'') DESC, e.EXT_SEQ DESC
+	</select>
+
+	<!-- 같은 (거래처 + 코드)가 이미 있는지 — UX_EXT_ITEM_CD 위반을 미리 잡아 안내한다.
+	     수정 시 자기 자신은 빼야 하므로 extSeq 를 같이 받는다(신규는 NULL). -->
+	<select id="countExtItemCd" parameterType="egovframework.sejong.user.model.ExtItemDTO" resultType="int"><![CDATA[
+	  SELECT COUNT(*) FROM TBL_EXT_ITEM_MST
+	   WHERE ACTION_YN = 'Y'
+	     AND EXT_ITEM_CD = #{extItemCd,jdbcType=NVARCHAR}
+	     AND ISNULL(VENDOR_CD,'') = ISNULL(NULLIF(#{vendorCd,jdbcType=NVARCHAR},''),'')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( #{extSeq,jdbcType=INTEGER} IS NULL OR EXT_SEQ <> #{extSeq,jdbcType=INTEGER} )
+	]]></select>
+
+	<insert id="insertExtItem" parameterType="egovframework.sejong.user.model.ExtItemDTO"><![CDATA[
+	  INSERT INTO TBL_EXT_ITEM_MST
+	    (COMP_CD, VENDOR_CD, VENDOR_NM, DC_CD, DC_NM,
+	     EXT_ITEM_CD, EXT_ITEM_NM, EXT_SPEC, EXT_UNIT, EXT_PRICE, TAX_GB,
+	     NOTI_DT, USE_FR_DT, STAT_GB, PROD_SEQ, PROD_CD,
+	     REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'),
+	     NULLIF(#{vendorCd,jdbcType=NVARCHAR},''), #{vendorNm,jdbcType=NVARCHAR},
+	     NULLIF(#{dcCd,jdbcType=NVARCHAR},''), #{dcNm,jdbcType=NVARCHAR},
+	     #{extItemCd,jdbcType=NVARCHAR}, #{extItemNm,jdbcType=NVARCHAR}, #{extSpec,jdbcType=NVARCHAR},
+	     #{extUnit,jdbcType=NVARCHAR}, #{extPrice,jdbcType=DECIMAL}, #{taxGb,jdbcType=NVARCHAR},
+	     REPLACE(ISNULL(#{notiDt,jdbcType=NVARCHAR},''),'-',''), REPLACE(ISNULL(#{useFrDt,jdbcType=NVARCHAR},''),'-',''),
+	     #{statGb,jdbcType=NVARCHAR}, #{prodSeq,jdbcType=INTEGER}, #{prodCd,jdbcType=NVARCHAR},
+	     #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	]]></insert>
+
+	<update id="updateExtItem" parameterType="egovframework.sejong.user.model.ExtItemDTO"><![CDATA[
+	  UPDATE TBL_EXT_ITEM_MST
+	     SET VENDOR_CD   = NULLIF(#{vendorCd,jdbcType=NVARCHAR},''),
+	         VENDOR_NM   = #{vendorNm,jdbcType=NVARCHAR},
+	         DC_CD       = NULLIF(#{dcCd,jdbcType=NVARCHAR},''),
+	         DC_NM       = #{dcNm,jdbcType=NVARCHAR},
+	         EXT_ITEM_CD = #{extItemCd,jdbcType=NVARCHAR},
+	         EXT_ITEM_NM = #{extItemNm,jdbcType=NVARCHAR},
+	         EXT_SPEC    = #{extSpec,jdbcType=NVARCHAR},
+	         EXT_UNIT    = #{extUnit,jdbcType=NVARCHAR},
+	         EXT_PRICE   = #{extPrice,jdbcType=DECIMAL},
+	         TAX_GB      = #{taxGb,jdbcType=NVARCHAR},
+	         NOTI_DT     = REPLACE(ISNULL(#{notiDt,jdbcType=NVARCHAR},''),'-',''),
+	         USE_FR_DT   = REPLACE(ISNULL(#{useFrDt,jdbcType=NVARCHAR},''),'-',''),
+	         STAT_GB     = #{statGb,jdbcType=NVARCHAR},
+	         /* 우리 상품코드 — 비우면 연결 해제(미연결로 되돌림). 업로드 해석이 이 칸을 본다 */
+	         PROD_SEQ    = #{prodSeq,jdbcType=INTEGER},
+	         PROD_CD     = #{prodCd,jdbcType=NVARCHAR},
+	         REMARK      = #{remark,jdbcType=NVARCHAR},
+	         UPD_DTTM    = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=NVARCHAR}
+	   WHERE EXT_SEQ = #{extSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
+	<!-- 소프트삭제 — 통보 이력이라 지운 기록도 남긴다(UX 인덱스는 ACTION_YN='Y' 필터라 같은 코드 재등록 가능) -->
+	<update id="deleteExtItem" parameterType="egovframework.sejong.user.model.ExtItemDTO"><![CDATA[
+	  UPDATE TBL_EXT_ITEM_MST
+	     SET ACTION_YN = 'N',
+	         UPD_DTTM  = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=NVARCHAR}
+	   WHERE EXT_SEQ = #{extSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
+	<!-- 통보서 여러 줄 붙여넣기 — 같은 (거래처+코드)면 갱신, 없으면 신규. 지우지는 않는다.
+	     ★통보는 '다시 온다' — 같은 코드로 품명·단가가 바뀐 통보가 오면 그 줄을 고치는 게 맞다.
+	     MERGE ON 의 COMP_CD 는 확정값(NOT NULL 이라 명시 NULL 불가) -->
+	<update id="mergeExtItem" parameterType="egovframework.sejong.user.model.ExtItemDTO"><![CDATA[
+	  MERGE dbo.TBL_EXT_ITEM_MST AS t
+	  USING (SELECT ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567') AS COMP_CD,
+	                NULLIF(#{vendorCd,jdbcType=NVARCHAR},'')      AS VENDOR_CD,
+	                #{extItemCd,jdbcType=NVARCHAR}               AS EXT_ITEM_CD) AS s
+	     ON  t.COMP_CD = s.COMP_CD
+	     AND ISNULL(t.VENDOR_CD,'') = ISNULL(s.VENDOR_CD,'')
+	     AND t.EXT_ITEM_CD = s.EXT_ITEM_CD
+	     AND t.ACTION_YN = 'Y'
+	  WHEN MATCHED THEN UPDATE SET
+	         VENDOR_NM   = ISNULL(#{vendorNm,jdbcType=NVARCHAR}, t.VENDOR_NM),
+	         EXT_ITEM_NM = ISNULL(#{extItemNm,jdbcType=NVARCHAR}, t.EXT_ITEM_NM),
+	         EXT_SPEC    = ISNULL(#{extSpec,jdbcType=NVARCHAR},  t.EXT_SPEC),
+	         EXT_UNIT    = ISNULL(#{extUnit,jdbcType=NVARCHAR},  t.EXT_UNIT),
+	         EXT_PRICE   = ISNULL(#{extPrice,jdbcType=DECIMAL},  t.EXT_PRICE),
+	         TAX_GB      = ISNULL(#{taxGb,jdbcType=NVARCHAR},    t.TAX_GB),
+	         NOTI_DT     = ISNULL(NULLIF(REPLACE(ISNULL(#{notiDt,jdbcType=NVARCHAR},''),'-',''),''), t.NOTI_DT),
+	         STAT_GB     = ISNULL(#{statGb,jdbcType=NVARCHAR},   t.STAT_GB),
+	         UPD_DTTM    = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}
+	  WHEN NOT MATCHED THEN INSERT
+	        (COMP_CD, VENDOR_CD, VENDOR_NM, EXT_ITEM_CD, EXT_ITEM_NM, EXT_SPEC, EXT_UNIT, EXT_PRICE, TAX_GB,
+	         NOTI_DT, STAT_GB, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES (s.COMP_CD, s.VENDOR_CD, #{vendorNm,jdbcType=NVARCHAR}, s.EXT_ITEM_CD,
+	         #{extItemNm,jdbcType=NVARCHAR}, #{extSpec,jdbcType=NVARCHAR}, #{extUnit,jdbcType=NVARCHAR},
+	         #{extPrice,jdbcType=DECIMAL}, #{taxGb,jdbcType=NVARCHAR},
+	         REPLACE(ISNULL(#{notiDt,jdbcType=NVARCHAR},''),'-',''), #{statGb,jdbcType=NVARCHAR},
+	         #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
+	]]></update>
 </mapper>

@@ -1613,6 +1613,12 @@ public class UserController {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
 			return ".raw/main/prod/prodmst";
 		}
+		/* 상품코드 등록 — 같은 TBL_PROD_MST 를 보는 등록 전용 화면(목록/저장은 아래 prod* 엔드포인트 공용) */
+		@RequestMapping(value="/prod/prodcd.do")
+		public String prodcd(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/prod/prodcd";
+		}
 		@RequestMapping(value="/prod/prodList.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,Object> prodList(@ModelAttribute("DTO") egovframework.sejong.user.model.ProdDTO dto, HttpSession session) throws Exception {
@@ -1742,6 +1748,58 @@ public class UserController {
 				log.error(" xrefDelete ERROR ! : " + e.getMessage());
 				return ResponseEntity.status(500).body(e.getMessage());
 			}
+		}
+
+		/* ================= 상품 매칭코드 (TBL_EXT_ITEM_MST) — 2026-08-01 =================
+		   거래처가 **구두·문서로** 알려 주는 품목코드·품목명을 우리 상품에 붙여 두는 표.
+		   화면은 별도 메뉴가 아니라 **상품코드등록(prodcd.jsp) 하단 패널** 이다 — 진입이 언제나 '우리 상품이 먼저'.
+		   ★등록해 두면 발주현황표 업로드가 이 코드를 읽어 그 상품으로 해석한다(미매핑으로 안 잡힘).
+		     등록이 없으면 종전과 동일 — 미매핑 → 품목코드(매핑)·[연결](TBL_PROD_XREF) 흐름 유지. */
+		@RequestMapping(value="/prod/extItemList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> extItemList(@ModelAttribute("DTO") egovframework.sejong.user.model.ExtItemDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectExtItemList(dto));
+			return response;
+		}
+		@RequestMapping(value="/prod/extItemSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> extItemSave(@RequestBody egovframework.sejong.user.model.ExtItemDTO dto,
+		                                          HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getExtItemCd() == null || dto.getExtItemCd().trim().isEmpty())
+					return ResponseEntity.status(400).body("품목코드 필요");
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				// (거래처 + 코드)는 한 건만 — UX_EXT_ITEM_CD 위반을 500 대신 안내로 돌려준다
+				if (svc.countExtItemCd(dto) > 0)
+					return ResponseEntity.status(409).body("이미 등록된 품목코드입니다 — " + dto.getExtItemCd());
+				if (dto.getExtSeq() == null) {
+					dto.setRegUser(u); dto.setRegIp(request.getRemoteAddr());
+					return ResponseEntity.ok(String.valueOf(svc.insertExtItem(dto)));
+				}
+				dto.setUpdUser(u); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.updateExtItem(dto)));
+			} catch (Exception e) { log.error(" extItemSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/prod/extItemDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> extItemDelete(@RequestBody egovframework.sejong.user.model.ExtItemDTO dto,
+		                                            HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getExtSeq() == null) return ResponseEntity.status(400).body("EXT_SEQ 필요");
+				dto.setUpdUser(session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "");
+				dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.deleteExtItem(dto)));
+			} catch (Exception e) { log.error(" extItemDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		/* 통보서 여러 줄 붙여넣기 — 같은 (거래처+코드)면 갱신, 없으면 신규. 지우지는 않는다. */
+		@RequestMapping(value="/prod/extItemBulk.do", method = RequestMethod.POST)
+		public ResponseEntity<String> extItemBulk(@RequestBody java.util.List<egovframework.sejong.user.model.ExtItemDTO> list,
+		                                          HttpServletRequest request, HttpSession session) {
+			try {
+				if (list == null || list.isEmpty()) return ResponseEntity.status(400).body("등록할 자료가 없습니다");
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				for (egovframework.sejong.user.model.ExtItemDTO d : list) { d.setRegUser(u); d.setRegIp(request.getRemoteAddr()); }
+				return ResponseEntity.ok(String.valueOf(svc.mergeExtItems(list)));
+			} catch (Exception e) { log.error(" extItemBulk ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
 		@RequestMapping(value="/prod/inpriceList.do", method = RequestMethod.POST)

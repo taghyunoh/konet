@@ -265,18 +265,66 @@ public class UserServiceImpl implements UserService {
 		return n;
 	}
 
-	/* 업로드 자료의 '우리 품목' 해석 — 반드시 2패스, 순서가 중요하다.
-	     1차 XREF 매핑 : 거래처가 다른 코드로 보내는 품목
-	     2차 코드 직결 : 거래처가 우리와 같은 코드로 보내는 품목(대다수) — 종전 동작과 동일
-	   ★XREF 를 먼저 돌려야 사람이 걸어 둔 매핑이 이긴다. 직결을 먼저 돌리면 거래처 코드가
-	     우연히 우리 코드와 같을 때 매핑을 덮어쓴다.
-	   ★둘 다 못 찾으면 PROD_CD 가 NULL 로 남는다 = 미매핑 → 재고에서 빠진다(보류).
-	     이건 종전과 같은 결과다 — 예전에도 상품마스터에 없는 ITEM_CD 는 조인에서 빠졌다. */
+	/* 업로드 자료의 '우리 품목' 해석 — 반드시 3패스, 순서가 중요하다. (2026-08-01 통보대장 추가)
+	     1차 XREF 매핑   : 사람이 확정한 연결 (품목코드(매핑)·업로드 미리보기의 [연결])
+	     2차 통보품목대장 : 거래처 통보를 받아 두면서 우리 상품코드를 미리 골라 둔 것
+	     3차 코드 직결   : 거래처가 우리와 같은 코드로 보내는 품목(대다수) — 종전 동작과 동일
+	   ★사람이 지정한 것(1·2차)이 먼저다. 직결을 먼저 돌리면 거래처 코드가 우연히 우리 코드와
+	     같을 때 지정한 연결을 덮어쓴다. 1차가 2차보다 먼저인 이유 = 잘못 이어진 통보분을
+	     XREF 에서 고쳤을 때 그 수정이 이겨야 하기 때문.
+	   ★셋 다 못 찾으면 PROD_CD 가 NULL 로 남는다 = 미매핑 → 재고에서 빠진다(보류).
+	     즉 **통보대장에 골라 둔 것이 없으면 종전과 완전히 같은 결과**이고,
+	     품목코드(매핑)·[연결] 흐름이 그대로 필요하다(2026-08-01 사용자 확정). */
 	@Override public int resolveShipoutProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception {
-		return mapper.resolveShipoutProd(dto) + mapper.resolveShipoutProdDirect(dto);
+		return mapper.resolveShipoutProd(dto) + mapper.resolveShipoutProdExt(dto) + mapper.resolveShipoutProdDirect(dto);
 	}
 	@Override public int resolveSalesProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception {
-		return mapper.resolveSalesProd(dto) + mapper.resolveSalesProdDirect(dto);
+		return mapper.resolveSalesProd(dto) + mapper.resolveSalesProdExt(dto) + mapper.resolveSalesProdDirect(dto);
+	}
+
+	/* ===== 거래처 통보품목 — TBL_EXT_ITEM_MST (2026-08-01) =====
+	   거래처가 미리 통보한 코드·품명을 원문 그대로 받아 두는 접수대장.
+	   ★여기서 우리 품목과 잇지 않는다 — 매핑 방식은 추후 결정. 그래서 resolve*·재고 재집계를 부르지 않는다
+	     (부르면 안 된다. 이 표는 업로드 해석 경로에 아직 끼어 있지 않다). */
+	@Override public java.util.List<egovframework.sejong.user.model.ExtItemDTO> selectExtItemList(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception { return mapper.selectExtItemList(dto); }
+	@Override public int countExtItemCd(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception { return mapper.countExtItemCd(dto); }
+	@Override public int insertExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception {
+		int n = mapper.insertExtItem(dto); extItemRetro(dto); return n;
+	}
+	@Override public int updateExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception {
+		int n = mapper.updateExtItem(dto); extItemRetro(dto); return n;
+	}
+	@Override public int deleteExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception { return mapper.deleteExtItem(dto); }
+
+	/* ★매칭코드를 붙이면 과거 업로드분까지 소급으로 채운다 (saveXref 와 같은 이유·같은 방식)
+	     붙이기 전에 들어온 출고·정산 행은 PROD_SEQ 가 비어 재고에서 빠져 있다. 저장만 하고 끝내면
+	     "등록했는데 재고가 그대로 · 품목코드(매핑) 화면에 여전히 미매핑으로 남아 있다" 가 된다.
+	   ★상품을 안 고른 줄(prodSeq 없음)은 해석에 쓰이지 않으므로 아무 일도 하지 않는다.
+	   ★재고 재동기화 실패가 매칭코드 저장을 롤백하지 않도록 별도 try — 실패해도 [재고 재집계]로 복구된다. */
+	private void extItemRetro(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception {
+		if (dto == null || dto.getProdSeq() == null) return;
+		egovframework.sejong.user.model.ProdXrefDTO f = new egovframework.sejong.user.model.ProdXrefDTO();
+		f.setCompCd(dto.getCompCd());
+		f.setProdSeq(dto.getProdSeq());
+		int back = mapper.resolveShipoutProdExt(f) + mapper.resolveSalesProdExt(f);
+		if (back <= 0) return;
+		try {
+			java.util.List<String> ds = mapper.selectShipoutDatesByProd(f);
+			if (ds != null) for (String d : ds) syncShipoutLedgerDate(d, dto.getRegUser(), dto.getRegIp());
+			recalcStockMstAll(dto.getRegUser(), dto.getRegIp());
+		} catch (Exception se) {
+			LOGGER.error(" extItemRetro 재고 소급반영 WARN : " + se.getMessage());
+		}
+	}
+	/* 통보서 붙여넣기 — 한 줄씩 MERGE(있으면 갱신·없으면 신규). 한 트랜잭션이라 중간에 실패하면 전부 취소된다. */
+	@Override public int mergeExtItems(java.util.List<egovframework.sejong.user.model.ExtItemDTO> list) throws Exception {
+		if (list == null || list.isEmpty()) return 0;
+		int n = 0;
+		for (egovframework.sejong.user.model.ExtItemDTO d : list) {
+			if (d == null || d.getExtItemCd() == null || d.getExtItemCd().trim().isEmpty()) continue;
+			n += mapper.mergeExtItem(d);
+		}
+		return n;
 	}
 
 	/* ===== 판매가 이력 : 등록 시 마스터(SALE_PRICE/WHOLE_PRICE) 동기화 ===== */

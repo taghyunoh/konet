@@ -26,6 +26,7 @@ public class StockLedgerDTO {
     private Double  amt;           // 금액
     private Integer balQty;        // 거래 후 잔량(스냅샷)
     private String  vendorCd;      // 매입처(입고)
+    private String  vendorNm;      // 매입처명 — TBL_VENDOR_MST 조인, 비영속(입고내역 표시용)
     private String  bizCd;         // 사업장(출고)
     private String  refGb;         // 근거구분(SHIPOUT 등)
     private String  refNo;         // 근거번호
@@ -66,6 +67,8 @@ public class StockLedgerDTO {
     public void setBalQty(Integer balQty) { this.balQty = balQty; }
     public String getVendorCd() { return vendorCd; }
     public void setVendorCd(String vendorCd) { this.vendorCd = vendorCd; }
+    public String getVendorNm() { return vendorNm; }
+    public void setVendorNm(String vendorNm) { this.vendorNm = vendorNm; }
     public String getBizCd() { return bizCd; }
     public void setBizCd(String bizCd) { this.bizCd = bizCd; }
     public String getRefGb() { return refGb; }

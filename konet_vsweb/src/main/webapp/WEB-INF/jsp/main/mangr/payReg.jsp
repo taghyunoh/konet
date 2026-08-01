@@ -168,8 +168,11 @@
 
     </div><!-- /좌측 열 -->
 
-    <!-- 거래처 원장 — 우측 열, 화면 맨 위부터. 폭은 수금등록과 같은 비율(고정 470px 아님) -->
-    <div class="sv-card" style="flex:1 1 620px; min-width:520px">
+    <%-- 거래처 원장 — 우측 열, 화면 맨 위부터. 폭은 수금등록과 같은 비율(고정 470px 아님).
+         ★2026-08-01 : 원장 아래에 [매입등록 내역] 카드를 붙였다(원장 줄 클릭 → 그 날 매입전표 명세).
+           그래서 우측을 세로 2단으로 감싼다 — 감싸지 않으면 새 카드가 flex 3번째 칸이 되어 옆으로 붙는다. --%>
+    <div style="flex:1 1 620px; min-width:520px; display:flex; flex-direction:column">
+    <div class="sv-card">
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
         <b>원장</b>
         <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a">* 매출&amp;매입 거래처는 최종 잔고만 표시됩니다.</span>
@@ -199,6 +202,25 @@
         </table>
       </div>
     </div>
+
+    <%-- 매입등록 내역 — 원장의 일자 줄을 누르면 그 날 매입전표(TBL_PURCHASE_MST/DTL) 명세를 편다(2026-08-01 요청).
+         조회 전용. 서버는 거래처별 채권·채무와 같은 selectCustDayDetail 을 쓰고 화면에서 gb='PURCH' 만 거른다. --%>
+    <div class="sv-card" id="pdCard">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
+        <b>매입등록 내역</b>
+        <span id="pdSub" style="font-size:12px; color:#5a6b7a">원장에서 일자 줄을 누르세요.</span>
+        <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a">* 전표 헤더 할인이 있으면 명세 합계와 원장 매입액이 다를 수 있습니다.</span>
+      </div>
+      <div class="sv-list" id="pdWrap" style="max-height:300px">
+        <table>
+          <colgroup><col style="width:16%"><col style="width:14%"><col style="width:28%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col></colgroup>
+          <thead><tr><th>전표번호</th><th>품목코드</th><th>품목명</th><th>수량</th><th>단가</th><th>금액</th><th>비고</th></tr></thead>
+          <tbody id="pdBody"><tr><td colspan="7" class="sv-msg">원장에서 일자 줄을 누르면 그 날 매입등록 내역이 나옵니다.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    </div><!-- /우측 열 -->
   </div>
 </div>
 
@@ -505,6 +527,8 @@ window.addEventListener('resize', lgFootPad);
 
 function svLedger(cd){
   var tb=document.getElementById('lgBody');
+  _lgCd = cd || '';                 // 아래 [매입등록 내역]이 쓸 거래처
+  svPurchClear();                   // 거래처가 바뀌면 명세는 지운다(옛 거래처 것이 남으면 오해)
   document.getElementById('lgCust').textContent = cd ? (document.getElementById('svCustNm').value||cd) : '—';
   if(!cd){ tb.innerHTML='<tr><td colspan="8" class="sv-msg">거래처를 선택하세요.</td></tr>'; document.getElementById('lgFoot').innerHTML=''; return; }
   tb.innerHTML='<tr><td colspan="8" class="sv-msg">불러오는 중…</td></tr>';
@@ -527,7 +551,9 @@ function svLedger(cd){
       bal += p - y - c;                        // 매입처 잔고 = 매입 − 지급 − 할인
       m.s+=s;m.d+=d;m.r+=r;m.p+=p;m.y+=y;m.c+=c;
       t.s+=s;t.d+=d;t.r+=r;t.p+=p;t.y+=y;t.c+=c;
-      h += '<tr><td>'+esc(fmtDt(dt))+'</td><td class="num">'+fmt(s)+'</td><td class="num">'+fmt(d)+'</td><td class="num">'+fmt(r)
+      // 일자 줄 클릭 → 아래 [매입등록 내역] ([월 계]·합계 줄은 클릭 대상이 아니다)
+      h += '<tr class="lgrow" data-dt="'+esc(dt)+'" onclick="svPurchDtl(\''+esc(dt)+'\', this)">'
+         + '<td>'+esc(fmtDt(dt))+'</td><td class="num">'+fmt(s)+'</td><td class="num">'+fmt(d)+'</td><td class="num">'+fmt(r)
          + '</td><td class="num">'+fmt(p)+'</td><td class="num">'+fmt(y)+'</td><td class="num">'+fmt(c)
          + '</td><td class="num"><b>'+fmt(bal)+'</b></td></tr>';
     });
@@ -539,5 +565,50 @@ function svLedger(cd){
       + '</td><td>'+fmt(t.y)+'</td><td>'+fmt(t.c)+'</td><td>'+fmt(bal)+'</td></tr>';
     lgFootPad();
   }).catch(function(){ tb.innerHTML='<tr><td colspan="8" class="sv-msg" style="color:#c0392b">원장 조회 오류</td></tr>'; });
+}
+
+/* ── 매입등록 내역 (원장 줄 클릭) ── 2026-08-01 요청
+   원장은 일자별 합계라 '이 매입액이 무슨 물건이었는지'를 알 수 없었다. 줄을 누르면 그 날 매입전표 명세를 편다.
+   ★서버는 거래처별 채권·채무(custBalance)와 같은 /mangr/selectCustDayDetail.do 를 그대로 쓴다(출고·매입·입금·출금을
+     한 번에 주므로 여기서 gb='PURCH' 만 거른다) — 지급등록 전용 쿼리를 새로 만들면 두 화면 숫자가 갈라진다.
+   ★조회 전용이다. 고치려면 매입등록 화면으로. */
+var _lgCd = '', _pdKey = '';
+function svPurchClear(){
+  _pdKey='';
+  var b=document.getElementById('pdBody'), s=document.getElementById('pdSub');
+  if(s) s.textContent='원장에서 일자 줄을 누르세요.';
+  if(b) b.innerHTML='<tr><td colspan="7" class="sv-msg">원장에서 일자 줄을 누르면 그 날 매입등록 내역이 나옵니다.</td></tr>';
+}
+function svPurchDtl(dt, tr){
+  if(!_lgCd || !dt) return;
+  var body=document.getElementById('lgBody');
+  if(body) Array.prototype.forEach.call(body.querySelectorAll('tr.on'), function(r){ r.classList.remove('on'); });
+  if(tr) tr.classList.add('on');
+  var sub=document.getElementById('pdSub'), tb=document.getElementById('pdBody');
+  sub.textContent=(document.getElementById('svCustNm').value||_lgCd)+' · '+fmtDt(dt)+' 하루';
+  tb.innerHTML='<tr><td colspan="7" class="sv-msg">불러오는 중…</td></tr>';
+  var key=_lgCd+'|'+dt; _pdKey=key;
+  post('/mangr/selectCustDayDetail.do','custCd='+encodeURIComponent(_lgCd)+'&trxDt='+encodeURIComponent(dt))
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(_pdKey!==key) return;                       // 그 사이 다른 줄을 눌렀으면 버린다
+      var l=((j&&j.data)||[]).filter(function(o){ return String(o.gb||'')==='PURCH'; });
+      if(!l.length){ tb.innerHTML='<tr><td colspan="7" class="sv-msg">이 날짜의 매입등록 내역이 없습니다.</td></tr>'; return; }
+      var h='', tq=0, ta=0;
+      l.forEach(function(o){
+        var q=n(o.qty), p=n(o.price), a=n(o.amt); tq+=q; ta+=a;
+        h+='<tr><td>'+esc(o.docNo||'')+'</td><td>'+esc(o.itemCd||'')+'</td>'
+          +'<td style="text-align:left">'+esc(o.itemNm||'')+'</td>'
+          +'<td class="num">'+fmt(q)+'</td><td class="num">'+fmt(p)+'</td><td class="num"><b>'+fmt(a)+'</b></td>'
+          +'<td style="text-align:left">'+esc(o.remark||'')+'</td></tr>';
+      });
+      h+='<tr style="background:#d9f0e0;font-weight:800"><td colspan="3">합 계 ('+l.length+'건)</td>'
+        +'<td class="num">'+fmt(tq)+'</td><td></td><td class="num">'+fmt(ta)+'</td><td></td></tr>';
+      tb.innerHTML=h;
+    })
+    .catch(function(e){
+      if(_pdKey!==key) return;
+      tb.innerHTML='<tr><td colspan="7" class="sv-msg" style="color:#c0392b">매입내역 조회 오류 — '+esc(e.message)+'</td></tr>';
+    });
 }
 </script>

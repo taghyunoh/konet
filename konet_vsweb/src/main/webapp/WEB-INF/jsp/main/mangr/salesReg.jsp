@@ -86,6 +86,11 @@
   .sa-pop td.num{ text-align:right; }
   .sa-pop tr.pick{ cursor:pointer; }
   .sa-pop tr.pick:hover td{ background:#f3f8f6; }
+  /* 매칭코드 줄 — 원코드 줄과 '같은 칸'에 맞춰 그리되(코드는 코드 칸, 품명은 품명 칸),
+     그 상품에 딸린 줄임을 알 수 있게 파란 계열 + 왼쪽 띠만 다르게 둔다 */
+  .sa-pop tr.sa-exrow td{ color:#274b8f; background:#f7faff; }
+  .sa-pop tr.sa-exrow td:first-child{ box-shadow:inset 3px 0 0 #c9d9f5; }
+  .sa-pop tr.sa-exrow:hover td{ background:#eef4ff; }
   .sa-msg{ padding:10px; color:#5a6b7a; text-align:center; font-size:12.5px; }
   /* 원장 합계 — 스크롤 영역 밖에 고정 */
   .sa-lgfoot{ overflow:hidden; border:1px solid var(--sa-bd); border-top:0; border-radius:0 0 8px 8px; }
@@ -95,8 +100,23 @@
 </style>
 
 <div class="sa-wrap">
-  <h2>🧾 판매등록</h2>
-  <div class="sa-sub">정산서 밖에서 <b>직접 판 건</b>을 입력합니다. 저장 시 <b>재고가 출고</b>로 빠지고 거래처 원장의 매출·미수에 잡힙니다.</div>
+  <%-- 제목줄 = 제목 + (우측) 정산 엑셀 올리기. 정산 엑셀 버튼은 매출내역 화면에서 이 자리로 옮겨왔다(2026-08-01 요청)
+       — 매출을 넣는 화면에서 정산서도 같이 올리도록. 실제 파일 선택·확인·저장은 부모(물류관리 셸)의 기존 흐름 그대로다. --%>
+  <div style="display:flex; align-items:flex-start; gap:12px">
+    <div style="flex:1 1 auto; min-width:0">
+      <h2>🧾 판매등록</h2>
+      <div class="sa-sub">정산서 밖에서 <b>직접 판 건</b>을 입력합니다. 저장 시 <b>재고가 출고</b>로 빠지고 거래처 원장의 매출·미수에 잡힙니다.</div>
+    </div>
+    <%-- 설명은 버튼 '앞(왼쪽)' — 버튼 아래에 두면 아래 입력카드와 붙어 읽기 나빴다(2026-08-01 요청) --%>
+    <div style="flex:0 0 auto; display:flex; align-items:center; gap:10px">
+      <span style="font-size:11.5px; color:#5a6b7a; line-height:1.5; text-align:right">
+        출고장이 보내준 <b>정산서(받을 금액)</b> 엑셀을 가져옵니다.<br>
+        가져온 내용은 <b>매출내역</b> 화면에서 출고와 대사됩니다.
+      </span>
+      <button class="sa-btn teal" onclick="saSlsExcel()"
+              title="출고장이 준 정산 엑셀을 고릅니다(여러 개 가능).&#10;고르면 확인·저장 창이 열립니다.&#10;출고장은 파일명에서 인식합니다 — 2026.07.11_평택.xlsx → 평택">📥 정산서 가져오기</button>
+    </div>
+  </div>
 
   <!-- ========== 전표 입력 ========== -->
   <div class="sa-card">
@@ -245,7 +265,15 @@
 <div class="sa-pop" id="saProdPop">
   <div class="box">
     <div class="hd">상품 선택
-      <input type="text" id="saProdQ" placeholder="상품코드·상품명" style="flex:1; height:30px; border:1px solid var(--sa-bd); border-radius:6px; padding:0 8px" oninput="saProdRender()">
+      <input type="text" id="saProdQ" placeholder="상품코드·상품명 — 거래처가 준 품목코드로도 찾습니다" style="flex:1; height:30px; border:1px solid var(--sa-bd); border-radius:6px; padding:0 8px" oninput="saProdRender()">
+    </div>
+    <%-- 거래처 통보품목으로 찾기 (2026-08-01 통화 확정)
+         거래처가 준 코드로 입력할 때, 원 상품코드를 골라 둔 통보분이면 그대로 우리 상품이 잡히고,
+         안 골라 둔 것(미연결)은 그 자리에서 알려 준다 — 몰래 다른 상품으로 넣지 않는다. --%>
+    <div class="bd" id="saExtWrap" style="display:none; padding-bottom:0">
+      <div style="font-size:12px; font-weight:800; color:#37475a; margin-bottom:4px">🔖 거래처 매칭코드</div>
+      <table><thead><tr><th style="width:110px">거래처 코드</th><th>거래처가 부르는 품목명</th><th style="width:110px">규격</th><th style="width:150px">우리 상품코드</th></tr></thead>
+        <tbody id="saExtBody"></tbody></table>
     </div>
     <div class="bd"><table><thead><tr><th style="width:110px">상품코드</th><th>상품명</th><th style="width:110px">규격</th><th style="width:60px">입수</th><th style="width:90px">판매가</th></tr></thead>
       <tbody id="saProdBody"></tbody></table></div>
@@ -397,6 +425,7 @@ var _rows = [];        // 명세 행
 var _list = [];        // 전표 목록
 var _vendors = [];     // 거래처 마스터
 var _prods = [];       // 상품 마스터
+var _extItems = [];    // 거래처 통보품목(TBL_EXT_ITEM_MST) — 거래처가 준 코드로 찾기용
 var _cur = null;       // 선택된 전표(수정 모드)
 /* 수정 중인 전표가 '저장된 상태로' 현잔고에 이미 반영해 놓은 금액(판매금액 − 수금액 − 할인액).
    현잔고는 그 전표를 포함해 계산되므로, 거래후잔고를 낼 때 이 값을 빼지 않으면 이중으로 더해진다.
@@ -422,6 +451,18 @@ function swErr(msg){
 function swAlert(msg){
   if (window._alertBox) return _alertBox(msg, { icon:'ℹ️' });
   alert(String(msg).replace(/<br\s*\/?>/gi,'\n'));
+}
+/* 📥 정산 엑셀 — 매출내역 화면에 있던 버튼을 이 화면으로 옮겼다(2026-08-01 요청).
+   ★기능 자체는 옮기지 않았다. 파일 선택·미리보기·저장은 부모(물류관리 셸 logistics_demo2)의 기존 흐름을 그대로 부른다
+     — 파서·출고장 인식·중복 파일 판정이 거기 다 있어서, 여기로 복사하면 두 벌이 되어 갈라진다.
+   ★확인·저장 창은 화면 전체를 덮는 오버레이라 이 화면 위에 그대로 뜬다. */
+function saSlsExcel(){
+  try{
+    if (window.parent && window.parent !== window && typeof window.parent.konetSlsExcelPick === 'function'){
+      if (window.parent.konetSlsExcelPick()) return;
+    }
+  }catch(e){}   // 부모 접근 불가(단독 창으로 연 경우 등)
+  swAlert('정산 엑셀은 <b>물류관리</b> 화면 안에서만 올릴 수 있습니다.<br>왼쪽 메뉴로 들어와 <b>매출 관리 ▸ 판매 등록</b> 에서 다시 눌러 주세요.');
 }
 function swConfirm(msg, title, okText){
   return new Promise(function(resolve){
@@ -476,9 +517,21 @@ function saReload(){
   }
 }
 
+/* ★기준자료(상품·거래처·매칭코드)는 화면을 열 때 한 번만 읽으면 안 된다 (2026-08-01 지적:
+     "상품 등록하고 다시 로그인하지 않으면 상품검색이 이전 것으로 나온다").
+     이 화면은 물류관리 셸 안의 iframe 이라 한 번 뜨면 다시 로드되지 않는다 —
+     다른 화면에서 상품·매칭코드를 등록해도 여기 목록은 옛것 그대로였다.
+     그래서 상품 선택 팝업을 열 때마다 다시 읽고, 도착하면 열려 있는 목록을 그 자리에서 다시 그린다. */
 function saLoadMasters(){
   post('/vendor/selectVendorMst.do','').then(function(r){return r.json();}).then(function(j){ _vendors=(j&&j.data)||[]; }).catch(function(){});
-  post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){ _prods=(j&&j.data)||[]; }).catch(function(){});
+  post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){ _prods=(j&&j.data)||[]; saProdRefreshed(); }).catch(function(){});
+  /* 거래처 매칭코드 — 상품 선택 팝업에서 '거래처가 준 코드'로도 찾기 위한 목록 (2026-08-01) */
+  post('/prod/extItemList.do','').then(function(r){return r.json();}).then(function(j){ _extItems=(j&&j.data)||[]; saProdRefreshed(); }).catch(function(){});
+}
+/* 새로 읽은 목록이 도착했을 때 — 팝업이 열려 있으면 그 자리에서 다시 그린다(닫혀 있으면 아무 일 없음) */
+function saProdRefreshed(){
+  var p=document.getElementById('saProdPop');
+  if(p && p.classList.contains('on')) saProdRender();
 }
 
 /* ── 전표 입력 ────────────────────────────────────────── */
@@ -545,8 +598,13 @@ function saRender(){
       +   '<span title="한 줄 위로" onclick="saMoveRow('+i+',-1)">▲</span>'
       +   '<span title="한 줄 아래로" onclick="saMoveRow('+i+',1)">▼</span>'
       + '</td>'
+      /* 상품코드 = 우리 코드. 그 아래 작게 '거래처가 부르는 코드'(매칭코드)를 함께 보여 준다(2026-08-01).
+         수동 판매는 주문서에 적힌 대로 넣고 확인해야 해서, 우리 코드만 보이면 대조가 안 된다. */
       + '<td>'+ (o.prodCd ? '<span class="lnk" title="클릭 → 다른 상품으로 바꾸기" onclick="saProdOpen('+i+')">'+esc(o.prodCd)+'</span>'
-                          : '<span class="lnk" onclick="saProdOpen('+i+')">선택</span>') +'</td>'
+                          : '<span class="lnk" onclick="saProdOpen('+i+')">선택</span>')
+             /* 매칭으로 골라 넣은 행만 그 코드를 보여 준다 — 원코드로 넣었으면 표시가 없다(구별) */
+             + (o.extCd ? '<div style="font-size:11px;color:#274b8f;margin-top:1px" title="거래처가 부르는 품목코드 (매칭코드)로 넣었습니다">🔖 '+esc(o.extCd)+'</div>' : '')
+             +'</td>'
       /* 품명 클릭 = 그 거래처의 판매단가 이력. 찾기 쉽게 📈 아이콘을 붙였다(2026-07-25)
          ★거래처 표기로 바뀐 품명은 🔗 로 표시하고 우리 품명은 hover 로 함께 보여 준다(2026-08-01).
            출고는 요청한 이름으로 나가야 하지만, 우리가 무엇을 파는지도 화면에서 잃으면 안 된다. */
@@ -584,12 +642,17 @@ function saRender(){
 function saSet(i, k, v){
   var o = _rows[i]; if(!o) return;
   o[k] = (k==='remark'||k==='eventYn'||k==='trxGb') ? v : n(v);
+  /* ★BOX수량을 치면 EA수량이 '친 대로' 따라온다 (2026-08-01 확정 — 입수로 환산하지 않는다).
+       입수 48짜리에 BOX 1 → EA 1 · 합계 1. 합계수량은 EA 를 따라가고 화면에서 고칠 수 없다(계산 전용). */
+  if (k==='boxQty') o.eaQty = n(o.boxQty);
   saCalcRow(o);
   if (i === _rows.length-1 && o.prodCd) { _rows.push(emptyRow()); _pShown = _rows.length; }   // 마지막 줄을 쓰면 새 줄 자동 추가(그 줄이 보이게)
   saRender();
 }
 function saCalcRow(o){
-  o.qty = n(o.boxQty) * (n(o.packQty)||1) + n(o.eaQty);
+  /* 합계수량 = EA수량 그대로 (2026-08-01 확정 — 입수로 환산하지 않는다).
+     BOX 1 치면 EA 1 · 합계 1. 입수([48])는 규격 칸에 참고로 보일 뿐 수량 계산에 쓰지 않는다. */
+  o.qty = n(o.eaQty);
   o.amt = Math.round(o.qty * n(o.unitPrice)) - n(o.dcAmt);
   var tax = (o.taxGb !== '면세');
   o.supplyAmt = o.amt;
@@ -964,24 +1027,132 @@ function saLedger(cd){
   }).catch(function(e){ tb.innerHTML='<tr><td colspan="6" class="sa-msg" style="color:#c0392b">원장 조회 오류</td></tr>'; });
 }
 
-function saProdOpen(i){ _prodTargetRow=i; document.getElementById('saProdPop').classList.add('on'); document.getElementById('saProdQ').value=''; saProdRender(); }
+/* 열 때마다 기준자료를 다시 읽는다 — 방금 등록한 상품·매칭코드가 바로 보여야 한다(재로그인 없이).
+   먼저 들고 있던 목록으로 즉시 그리고, 새 목록이 도착하면 saProdRefreshed 가 다시 그린다(기다리게 하지 않는다). */
+function saProdOpen(i){
+  _prodTargetRow=i;
+  document.getElementById('saProdPop').classList.add('on');
+  document.getElementById('saProdQ').value='';
+  saProdRender();
+  saLoadMasters();
+}
 function saProdClose(){ document.getElementById('saProdPop').classList.remove('on'); }
 function saProdRender(){
   var q = (document.getElementById('saProdQ').value||'').toLowerCase();
+  /* ★검색은 매칭코드까지 훑는다 (2026-08-01) — 주문서에 적힌 '거래처 코드·거래처 품명' 으로 쳐도
+       우리 상품이 나와야 한다. 그 코드로 걸린 상품코드 집합을 먼저 만들어 아래 필터에서 함께 본다. */
+  var byExt={};
+  if(q) _extItems.forEach(function(e){
+    if(!e.prodCd) return;
+    if([e.extItemCd,e.extItemNm,e.extSpec].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; }))
+      byExt[String(e.prodCd)]=1;
+  });
   var l = _prods.filter(function(o){
     if(!q) return true;
+    if(byExt[String(o.prodCd)]) return true;                       // 매칭코드로 걸린 상품
     return [o.prodCd,o.prodNm,o.spec].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; });
   }).slice(0,200);
   document.getElementById('saProdBody').innerHTML = l.length ? l.map(function(o){
-    return '<tr class="pick" onclick="saProdPick(\''+esc(o.prodCd)+'\')"><td>'+esc(o.prodCd)+'</td><td class="txt" style="text-align:left">'+esc(o.prodNm)+'</td>'
+    /* ★한 상품에 매칭코드가 여럿일 수 있다 — 전부 보여 주고 **무엇으로 넣을지 골라 누르게** 한다(2026-08-01).
+         · 줄(상품코드·상품명) 클릭 = 우리 원코드·우리 품명으로 넣기
+         · 🔖 줄 클릭            = 그 거래처 코드·그 품명으로 넣기(주문서에 적힌 대로)
+       종전에는 매칭 하나만 골라 보여 주고 자동으로 그 품명을 썼다 — 어느 것으로 들어갔는지 알 수 없었다. */
+    var exl=saExtListFor(o.prodCd);
+    /* 원코드 줄 — 누르면 우리 코드·우리 품명으로 넣는다 */
+    var h='<tr class="pick" onclick="saProdPick(\''+esc(o.prodCd)+'\')" title="이 줄을 누르면 우리 원코드로 넣습니다">'
+         + '<td>'+esc(o.prodCd)+'</td>'
+         + '<td class="txt" style="text-align:left">'+esc(o.prodNm)+'</td>'
          + '<td>'+esc(o.spec)+'</td><td class="num">'+n(o.packQty)+'</td><td class="num">'+fmt(o.salePrice)+'</td></tr>';
+    /* 매칭코드 줄 — ★같은 칸(코드는 코드 칸, 품명은 품명 칸)에 맞춰 별도 줄로 둔다(2026-08-01 지적).
+       품명 칸에 코드까지 몰아넣으니 어느 것이 코드인지 읽히지 않았다. */
+    h += exl.map(function(e){
+      return '<tr class="pick sa-exrow" onclick="saExtPick('+e.extSeq+')"'
+        + ' title="이 거래처 코드·품명으로 넣습니다'+(e.vendorNm?(' — '+esc(e.vendorNm)):'')+'">'
+        + '<td>🔖 '+esc(e.extItemCd)+'</td>'
+        + '<td class="txt" style="text-align:left">'+esc(e.extItemNm||'')
+        +   (e.vendorNm?(' <span style="color:#8a97a3">('+esc(e.vendorNm)+')</span>'):'')+'</td>'
+        + '<td>'+esc(e.extSpec||'')+'</td><td class="num"></td>'
+        + '<td class="num">'+(e.extPrice!=null?fmt(e.extPrice):'')+'</td></tr>';
+    }).join('');
+    return h;
   }).join('') : '<tr><td colspan="5" class="sa-msg">검색 결과가 없습니다.</td></tr>';
+  saExtRender(q);
+}
+/* 거래처 통보품목으로 찾기 (2026-08-01 통화 확정)
+     · 원 상품코드를 골라 둔 통보분 → 누르면 그 우리 상품이 그대로 잡힌다(품명은 거래처 통보명으로).
+     · 안 골라 둔 것(미연결) → 누르면 알려만 준다. 임의로 다른 상품에 붙이지 않는다.
+   현재 거래처의 통보분을 위로 올린다(거래처를 안 가린 공통 통보도 함께). */
+/* 우리 상품코드 → 그 거래처가 부르는 코드(매칭코드) 하나 찾기.
+   같은 상품에 코드가 여럿이면 ① 지금 고른 거래처 것 ② 거래처를 안 가린 것(신규코드) 순으로 고른다. */
+function saExtCdFor(prodCd){
+  var l=saExtListFor(prodCd); return l.length?l[0]:null;
+}
+/* 그 상품에 붙어 있는 매칭코드 전부 — 지금 고른 거래처 것을 앞에, 거래처를 안 가린 것(신규코드)을 뒤에 */
+function saExtListFor(prodCd){
+  if(!prodCd || !_extItems.length) return [];
+  var ven=document.getElementById('saVenNm').dataset.cd||'';
+  var l=_extItems.filter(function(o){ return String(o.prodCd||'')===String(prodCd); });
+  l.sort(function(a,b){
+    var av=(ven&&a.vendorCd===ven)?0:(a.vendorCd?2:1), bv=(ven&&b.vendorCd===ven)?0:(b.vendorCd?2:1);
+    return av-bv;
+  });
+  return l;
+}
+function saExtRender(q){
+  var wrap=document.getElementById('saExtWrap'), body=document.getElementById('saExtBody');
+  if(!wrap||!body) return;
+  if(!_extItems.length){ wrap.style.display='none'; body.innerHTML=''; return; }
+  var ven=document.getElementById('saVenNm').dataset.cd||'';
+  /* 검색어가 없어도 '지금 고른 거래처의 매칭코드'는 먼저 펼쳐 둔다(2026-08-01) —
+     수동 판매는 주문서의 거래처 코드로 찾는 일이 잦아, 매번 쳐야 하면 이 목록이 없는 것과 같다. */
+  var l;
+  if(q){
+    l=_extItems.filter(function(o){
+      return [o.extItemCd,o.extItemNm,o.extSpec].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; });
+    });
+  }else{
+    if(!ven){ wrap.style.display='none'; body.innerHTML=''; return; }   // 거래처도 검색어도 없으면 접어 둔다
+    l=_extItems.filter(function(o){ return o.vendorCd===ven; });
+  }
+  if(ven) l.sort(function(a,b){ return ((b.vendorCd===ven)?1:0)-((a.vendorCd===ven)?1:0); });
+  l=l.slice(0,30);
+  if(!l.length){ wrap.style.display='none'; body.innerHTML=''; return; }
+  body.innerHTML=l.map(function(o){
+    var linked=!!o.prodCd;
+    return '<tr class="pick" onclick="saExtPick('+o.extSeq+')">'
+      + '<td>'+esc(o.extItemCd)+'</td>'
+      + '<td class="txt" style="text-align:left">'+esc(o.extItemNm||'')
+      +   (o.vendorNm?(' <span style="color:#9aa7b3;font-size:11.5px">'+esc(o.vendorNm)+'</span>'):'')+'</td>'
+      + '<td>'+esc(o.extSpec||'')+'</td>'
+      + '<td>'+(linked ? ('<b style="color:#137a6c">'+esc(o.prodCd)+'</b>')
+                       : '<span style="color:#c0392b;font-weight:700">미연결</span>')+'</td></tr>';
+  }).join('');
+  wrap.style.display='';
+}
+function saExtPick(seq){
+  var o=null; for(var i=0;i<_extItems.length;i++){ if(String(_extItems[i].extSeq)===String(seq)){ o=_extItems[i]; break; } }
+  if(!o) return;
+  if(!o.prodCd){
+    swAlert('<b>'+esc(o.extItemCd)+'</b> 은 아직 우리 상품과 <b>연결되지 않았습니다</b>.<br>'
+      + '기준정보 ▸ <b>상품코드등록</b> 화면에서 상품을 고른 뒤 하단 <b>거래처 매칭코드</b> 에 등록해 주세요.<br>'
+      + '<span style="color:#5a6b7a;font-size:12.5px">연결 전에는 아래 목록에서 상품을 직접 고르셔도 됩니다.</span>');
+    return;
+  }
+  saProdPick(o.prodCd);
+  /* 매칭으로 고른 것 — 코드·품명을 그 표기로 바꿔 두고, 어느 매칭으로 넣었는지 행에 남긴다.
+     (saProdPick 이 extCd 를 지우므로 반드시 그 뒤에) */
+  var r=_rows[_prodTargetRow];
+  if(r){ r.extCd=o.extItemCd; r.extNm=o.extItemNm||''; if(o.extItemNm) r.prodNm=o.extItemNm; saRender(); }
 }
 function saProdPick(cd){
   var p = _prods.filter(function(x){ return String(x.prodCd)===String(cd); })[0]; if(!p) return;
   var o = _rows[_prodTargetRow]; if(!o) return;
   /* 품명 = 그 거래처가 요청한 이름(있으면). 없으면 우리 품명 그대로 */
   o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=saNmFor(p.prodCd, p.prodNm); o.spec=p.spec||'';
+  /* ★매칭 품명을 여기서 자동으로 씌우지 않는다 (2026-08-01) — 매칭으로 넣으려면 팝업에서 🔖 줄을 고른다.
+       자동으로 바꾸면 '원코드로 넣었는지 매칭으로 넣었는지' 를 화면에서 구별할 수 없다.
+       원코드로 고르면 이 행의 매칭 표시(extCd)도 지운다. */
+  o.extCd=null; o.extNm=null;
   o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
   o.unitPrice=n(p.salePrice);   // 기본값 = 상품마스터 판매가 (매입 화면은 inPrice 를 쓴다)
   saProdClose();
@@ -1241,11 +1412,10 @@ function saDayApply(){
       r.prodSeq = p.prodSeq; r.prodCd = o.itemCd; r.prodNm = o.itemNm || p.prodNm || '';
       r.spec = p.spec || ''; r.packQty = n(p.packQty)||1; r.taxGb = p.taxGb || '과세';
       r.unitPrice = n(o.price);
-      /* 수량은 총수량으로 온다 — 입수가 있으면 박스/낱개로 쪼개 원본 화면과 같은 모양으로 둔다 */
-      var q = n(o.qty), pk = n(r.packQty)||1;
-      if (pk > 1) { r.boxQty = Math.floor(Math.abs(q)/pk) * (q<0?-1:1); r.eaQty = q - r.boxQty*pk; }
-      else { r.boxQty = 0; r.eaQty = q; }
-      if (q < 0) { r.trxGb = '반품'; r.boxQty = Math.abs(r.boxQty); r.eaQty = Math.abs(r.eaQty); }
+      /* 저장된 수량을 그대로 되돌린다 — 입수로 쪼개지 않는다(합계 = EA 규칙과 같은 모양). */
+      var q = n(o.qty), aq = Math.abs(q);
+      r.boxQty = aq; r.eaQty = aq;
+      if (q < 0) r.trxGb = '반품';
       saCalcRow(r);
       rows.push(r);
     });

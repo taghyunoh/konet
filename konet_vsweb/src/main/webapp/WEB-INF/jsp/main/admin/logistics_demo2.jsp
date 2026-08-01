@@ -428,6 +428,8 @@
   table.ss-pv td.xrbad:hover { background:#fbd9d4; }
   table.ss-pv td.xrpend { background:#e6f7f0; color:#137a6c; font-weight:700; cursor:pointer; }
   table.ss-pv td.xrlnk { color:#137a6c; cursor:pointer; }                          /* 이미 연결된 코드 — 수정·해제하러 들어갈 수 있다 */
+  /* 거래처 매칭코드로 풀리는 코드 — 여기서는 못 고친다(상품코드등록 화면이 주인) → 커서·밑줄 없이 색만 */
+  table.ss-pv td.xrext { color:#274b8f; }
   /* ★품목코드 앞의 상태 딱지 (2026-08-01 요청) — 색만으로는 "연결이 된 건지" 를 말해 주지 못한다.
      빨강/초록을 못 가르는 눈에도, 흑백으로 뽑아도 읽힌다. */
   table.ss-pv .xrchip { display:inline-block; font-size:10px; font-weight:700; line-height:14px;
@@ -1125,15 +1127,16 @@
   function inboundListGo(p){ _inbPage=p; inboundListRender(); }
   function inboundListRender(){
     var wrap=document.getElementById('inbWrap'), sum=document.getElementById('inbSum'), pg=document.getElementById('inbPager');
-    var thead='<thead><tr><th>입고일</th><th>매입처</th><th>품목코드</th><th>품목명</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>비고</th></tr></thead>';
+    // 매입처는 코드 + 이름 두 칸 (2026-08-01 요청) — 총합계 colspan 은 아래에서 같이 5로 맞춰 둔다
+    var thead='<thead><tr><th>입고일</th><th>매입처</th><th>매입처명</th><th>품목코드</th><th>품목명</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>비고</th></tr></thead>';
     var tQ=0,tA=0; _inbRows.forEach(function(r){ tQ+=(+r.qty||0); tA+=(+r.amt||0); });
     if(!_inbRows.length){ sum.textContent='입고 내역이 없습니다. (상품관리 ▸ 재고 탭에서 입고 등록 시 표시)'; wrap.innerHTML=''; pg.innerHTML=''; return; }
     sum.innerHTML='총 <b>'+_inbRows.length.toLocaleString()+'</b>건 · 수량합 <b>'+_cnum(tQ)+'</b> · 금액합 <b>'+_cnum(tA)+'</b>';
-    var totalRow='<tr class="close-total"><td colspan="4" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tQ)+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td></tr>';
+    var totalRow='<tr class="close-total"><td colspan="5" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tQ)+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td></tr>';
     var pages=Math.max(1,Math.ceil(_inbRows.length/INB_PAGE)); if(_inbPage>pages)_inbPage=pages;
     var pr=_inbRows.slice((_inbPage-1)*INB_PAGE, (_inbPage-1)*INB_PAGE+INB_PAGE);
     var body=pr.map(function(r){
-      return '<tr><td>'+_fmtYmd(r.trxDt)+'</td><td>'+_cesc(r.vendorCd||'-')+'</td><td>'+_cesc(r.prodCd)+'</td><td class="txt-l">'+_cesc(r.prodNm)+'</td>'
+      return '<tr><td>'+_fmtYmd(r.trxDt)+'</td><td>'+_cesc(r.vendorCd||'-')+'</td><td class="txt-l">'+_cesc(r.vendorNm||'-')+'</td><td>'+_cesc(r.prodCd)+'</td><td class="txt-l">'+_cesc(r.prodNm)+'</td>'
         +'<td style="text-align:right">'+_cnum(r.qty)+'</td><td style="text-align:right">'+_cnum(r.unitPrice)+'</td>'
         +'<td style="text-align:right">'+_cnum(r.amt)+'</td><td>'+_cesc(r.remark)+'</td></tr>';
     }).join('');
@@ -1156,6 +1159,9 @@
     var lbl=document.getElementById('stkAsOfLbl'); if(lbl) lbl.textContent = asOf ? ('기준일 '+asOf+' 까지 (기말)') : '전체 (현재고)';
     fetch(ctx+'/prod/stockStatusList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'findData='+encodeURIComponent(q)+'&asOfDt='+encodeURIComponent(asOf) })
       .then(function(r){ return r.text(); }).then(function(t){ var j; try{ j=JSON.parse(t); }catch(e){ swAlert('재고현황 응답 오류','error'); return; } _stkRows=(j&&j.data)||[]; stkStatusRender();
+        /* 거래처코드 칸 — 조회할 때마다 다시 읽는다(재고 조회를 기다리게 하지 않고, 도착하면 표만 다시 그린다).
+           ★한 번만 읽고 캐시하면 방금 등록한 매칭코드가 재로그인 전까지 안 보인다(2026-08-01 지적). */
+        stkAliasLoad(function(){ stkStatusRender(); });
         var st=document.getElementById('stkStamp'); if(st) st.textContent=_now2(); })
       .catch(function(e){ swAlert('통신오류: '+e.message,'error'); });
   }
@@ -1289,15 +1295,56 @@
   /* ①품목별 현재고 — 10행씩 + 자동 스크롤(2026-07-25 요청).
        아래에 ②수불 내역 패널이 붙어 있어 이 표는 10행이면 한 화면에 둘 다 들어온다.
        페이지 버튼(1 2 3 … 20)은 없앴다 — 스크롤이 바닥에 닿으면 다음 10행이 저절로 붙는다(lzMount). */
+  /* ── 우리 코드 → 거래처 코드들 (재고현황 '거래처코드' 칸) ─────────────────────────
+       재고는 우리 코드 하나로 합산된다. 그러면 "이 수량이 어느 거래처 코드로 들어온 건지" 를 볼 수 없어
+       두 표를 우리 코드 기준으로 모아 둔다(2026-08-01 요청).
+         · 매칭코드 = 상품코드등록 화면에서 붙인 것 (TBL_EXT_ITEM_MST)
+         · 연결     = 업로드 미리보기·품목코드(매핑)에서 이은 것 (TBL_PROD_XREF)
+       ★코드 직결(거래처 코드 = 우리 코드)은 여기 안 나온다 — 별칭이 아니라 같은 코드라 보여 줄 것이 없다. */
+  var _stkAlias=null;      // { 우리코드 : [{cd, nm, via:'매칭'|'연결'}] }
+  function stkAliasLoad(cb){
+    var ctx='${pageContext.request.contextPath}', m={}, left=2;
+    function put(prodCd, cd, nm, via){
+      var k=String(prodCd||'').trim(), c=String(cd||'').trim(); if(!k||!c) return;
+      (m[k]=m[k]||[]).push({cd:c, nm:nm||'', via:via});
+    }
+    function done(){ if(--left===0){ _stkAlias=m; if(cb) cb(); } }
+    fetch(ctx+'/prod/extItemList.do', { method:'POST', credentials:'same-origin',
+             headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ ((j&&j.data)||[]).forEach(function(o){ put(o.prodCd, o.extItemCd, o.extItemNm, '매칭'); }); done(); })
+      .catch(function(){ done(); });
+    fetch(ctx+'/prod/xrefList.do', { method:'POST', credentials:'same-origin',
+             headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ ((j&&j.data)||[]).forEach(function(o){ put(o.prodCd, o.extItemCd, o.extItemNm, '연결'); }); done(); })
+      .catch(function(){ done(); });
+  }
+  function stkAliasCell(prodCd){
+    if(!_stkAlias) return '<span style="color:#c8ced4">…</span>';
+    var l=_stkAlias[String(prodCd||'').trim()]||[];
+    if(!l.length) return '<span style="color:#c8ced4">-</span>';
+    // 두 개까지만 칸에 쓰고 나머지는 +N — 툴팁에는 전부(코드 · 거래처 품명 · 출처)
+    var tip=l.map(function(o){ return o.cd+(o.nm?(' · '+o.nm):'')+' ('+o.via+')'; }).join('&#10;');
+    var show=l.slice(0,2).map(function(o){ return _cesc(o.cd); }).join(', ');
+    return '<span title="'+tip.replace(/"/g,'&quot;')+'" style="cursor:help">'+show
+      + (l.length>2 ? (' <b style="color:#274b8f">+'+(l.length-2)+'</b>') : '') + '</span>';
+  }
+
   function stkStatusRender(){
     var wrap=document.getElementById('stkStatusWrap'), sum=document.getElementById('stkStatusSum'), pg=document.getElementById('stkStatusPager');
-    var thead='<thead><tr><th>품목코드</th><th>품목명</th><th style="text-align:right">입고</th><th style="text-align:right">출고</th><th style="text-align:right">현재고</th><th style="text-align:right">이동평균단가</th><th style="text-align:right">재고금액</th><th>최근입고</th><th>최근출고</th></tr></thead>';
+    /* '거래처코드' 칸 = 이 재고가 어떤 거래처 코드들로 합쳐진 것인지 (2026-08-01 요청).
+       재고는 언제나 우리 코드 하나로 합산되는데, 그러면 "이 수량이 어느 코드로 들어온 건지" 를 볼 수가 없다.
+       매칭코드(TBL_EXT_ITEM_MST)와 연결(TBL_PROD_XREF)을 우리 코드 기준으로 모아 보여 준다. */
+    /* ★칸 이름은 '매칭코드' — '거래처코드' 라고 하면 아래 수불내역의 매입처(00272 같은 거래처 코드)와 헷갈린다(2026-08-01 지적) */
+    var thead='<thead><tr><th>품목코드</th><th>품목명</th><th style="width:140px">매칭코드</th><th style="text-align:right">입고</th><th style="text-align:right">출고</th><th style="text-align:right">현재고</th><th style="text-align:right">이동평균단가</th><th style="text-align:right">재고금액</th><th>최근입고</th><th>최근출고</th></tr></thead>';
     var tI=0,tO=0,tQ=0,tA=0; _stkRows.forEach(function(r){ tI+=(+r.inQty||0); tO+=(+r.outQty||0); tQ+=(+r.curQty||0); tA+=(+r.stockAmt||0); });
     if(!_stkRows.length){ sum.textContent='현재고 데이터가 없습니다. (입고 수불 등록 또는 출고(SHIPOUT) 발생 시 표시)'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
     sum.innerHTML='총 <b>'+_stkRows.length.toLocaleString()+'</b>품목 · 입고합 <b>'+_cnum(tI)+'</b> · 출고합 <b>'+_cnum(tO)+'</b> · 현재고합 <b>'+_cnum(tQ)+'</b> · 재고금액합 <b>'+_cnum(tA)+'</b>';
-    var totalRow='<tr class="close-total"><td colspan="2" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tI)+'</td><td style="text-align:right">'+_cnum(tO)+'</td><td style="text-align:right">'+_cnum(tQ)+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td><td></td></tr>';
+    var totalRow='<tr class="close-total"><td colspan="3" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tI)+'</td><td style="text-align:right">'+_cnum(tO)+'</td><td style="text-align:right">'+_cnum(tQ)+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td><td></td></tr>';
     var stkRow=function(r){ var neg=(+r.curQty||0)<0;
       return '<tr style="cursor:pointer" onclick="stkLedgerDetail('+(r.prodSeq||0)+', this)" title="클릭 → 아래 ② 수불 내역(근거) 표시"><td>'+_cesc(r.prodCd)+'</td><td class="txt-l">'+_cesc(r.prodNm)+'</td>'
+        +'<td class="txt-l">'+stkAliasCell(r.prodCd)+'</td>'
         +'<td style="text-align:right;color:#137a6c">'+_cnum(r.inQty)+'</td>'
         +'<td style="text-align:right;color:#b06a00">'+_cnum(r.outQty)+'</td>'
         +'<td style="text-align:right;font-weight:700;color:'+(neg?'#c0392b':'#137a6c')+'">'+_cnum(r.curQty)+'</td>'
@@ -3407,9 +3454,26 @@
      ssXrefMap = 그중 **연결(XREF)로 잡힌 것만** — 이 파일에서 연결해 둔 내역을 보여주고
                  거기서 바로 수정·해제하려면 xrefSeq 까지 들고 있어야 한다(2026-08-01 요청) */
   var ssXrefMap={};
+  /* ssXrefExt = 상품코드등록 화면에서 붙여 둔 **거래처 매칭코드**(TBL_EXT_ITEM_MST) — 2026-08-01 추가.
+     서버 해석이 XREF → 매칭코드 → 코드직결 3패스로 바뀌었으므로, 미리보기도 매칭코드를 알아야
+     '해석될 코드'를 미연결이라고 잘못 경고하지 않는다. 여기 있는 코드는 '연결됨'으로 본다. */
+  var ssXrefExt={};
   function ssXrefLoad(cb){
-    var ctx='${pageContext.request.contextPath}', set={}, map={}, left=2;
-    function done(){ if(--left===0){ ssXrefSet=set; ssXrefMap=map; if(cb) cb(); } }
+    var ctx='${pageContext.request.contextPath}', set={}, map={}, ext={}, left=3;
+    function done(){ if(--left===0){ ssXrefSet=set; ssXrefMap=map; ssXrefExt=ext; if(cb) cb(); } }
+    fetch(ctx+'/prod/extItemList.do', { method:'POST', credentials:'same-origin',
+             headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        ((j&&j.data)||[]).forEach(function(o){
+          var k=String(o.extItemCd||'').trim();
+          if(!k || !o.prodCd) return;              // 상품을 안 고른 줄은 해석에 안 쓰인다(미연결 그대로)
+          set[k]=1;
+          ext[k]={ prodCd:o.prodCd, prodNm:o.prodNm||'', vendorNm:o.vendorNm||'', extItemNm:o.extItemNm||'' };
+        });
+        done();
+      })
+      .catch(function(){ done(); });
     fetch(ctx+'/prod/xrefList.do', { method:'POST', credentials:'same-origin',
              headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
       .then(function(r){ return r.json(); })
@@ -3433,8 +3497,10 @@
   /* 이번 파일에서 해석 안 되는 코드만 (코드별 1건으로 묶는다 — 행 단위로 늘어놓으면 수백 줄이 된다) */
   var ssXrefSeen=0;        // 이번 파일의 품목코드 종수(중복 제외) — 결과를 눈으로 확인시키기 위한 값
   var ssXrefLinked=[];     // 이 파일의 코드 중 '연결(XREF)로 잡힌 것' — 여기서 수정·해제한다
+  var ssXrefExtHit=[];     // 이 파일의 코드 중 '거래처 매칭코드'로 해석되는 것 (2026-08-01)
+                           //   ★수정·해제는 여기서 안 한다 — 상품코드등록 화면이 주인이다. 숫자로만 알린다.
   function ssXrefScan(rows){
-    ssXrefUnmap=[]; ssXrefLinked=[]; ssXrefSeen=0;
+    ssXrefUnmap=[]; ssXrefLinked=[]; ssXrefExtHit=[]; ssXrefSeen=0;
     if(!ssXrefSet) return;                       // 아직 목록이 안 왔으면 조용히 넘어간다
     var seen={}, all={};
     (rows||[]).forEach(function(r){
@@ -3445,6 +3511,9 @@
       /* 연결로 잡힌 코드 — 우리 코드와 같아서 그냥 붙는 것(코드 직결)은 대상이 아니다.
          '사람이 이어 붙인 것'만 보여줘야 수정할 거리가 눈에 띈다. */
       if(ssXrefMap[cd]){ ssXrefLinked.push({code:cd, item:r.item||'', info:ssXrefMap[cd]}); return; }
+      /* 거래처 매칭코드로 해석되는 코드 — 서버가 2차 패스에서 이 코드로 상품을 찾는다.
+         미연결 경고 대상이 아니다(경고하면 '이미 등록했는데 또 물어본다'가 된다). */
+      if(ssXrefExt[cd]){ ssXrefExtHit.push({code:cd, item:r.item||'', info:ssXrefExt[cd]}); return; }
       if(ssXrefSet[cd] || ssXrefPend[cd]) return;   // 코드 직결이거나 이번에 연결하기로 한 코드
       seen[cd]={code:cd, item:r.item||'', zone:r.zone||'', n:1};
       ssXrefUnmap.push(seen[cd]);
@@ -3472,7 +3541,8 @@
 
     ssXrefBadSet={};
     ssXrefUnmap.forEach(function(u){ ssXrefBadSet[u.code]=1; });
-    var nNew=ssXrefUnmap.length, nPend=Object.keys(ssXrefPend).length, nLink=ssXrefLinked.length;
+    var nNew=ssXrefUnmap.length, nPend=Object.keys(ssXrefPend).length, nLink=ssXrefLinked.length,
+        nExt=ssXrefExtHit.length;
 
     if(!ssXrefSeen){
       box.innerHTML='<div class="ss-pverr dim" style="color:#8a9199">ℹ️ 품목코드 칸을 찾지 못해 매핑 검사를 건너뜁니다</div>';
@@ -3488,6 +3558,8 @@
       + (nNew  ? ' <span'+(nNew!==_sxLastNew?' class="ss-blink"':'')+' style="color:#c0392b;font-weight:700;margin-left:10px">⚠ 미연결 '+nNew+'</span>' : '')
       + (nPend ? ' <span style="color:#137a6c;font-weight:700;margin-left:10px">저장 예정 '+nPend+'</span>' : '')
       + (nLink ? ' <span style="color:#6b7a89;margin-left:10px">연결됨 '+nLink+'</span>' : '')
+      /* 상품코드등록 화면에 붙여 둔 매칭코드로 풀리는 것 — 여기서 손댈 거리가 아니라 숫자로만 알린다 */
+      + (nExt  ? ' <span style="color:#274b8f;margin-left:10px" title="상품코드등록 화면의 [거래처 매칭코드]로 상품이 정해집니다.">매칭코드 '+nExt+'</span>' : '')
       + (nNew  ? ' <span style="color:#7a3b34;margin-left:12px;font-size:13px">— 아래 표의 <b style="color:#c0392b">빨간 품목코드</b>를 누르면 연결합니다</span>'
                : ' <span style="color:#137a6c;margin-left:12px;font-size:13px">— 모두 우리 품목으로 연결됩니다</span>')
       + '<label style="margin-left:auto;font-size:13px;color:#5a6b7a;cursor:pointer;white-space:nowrap"'
@@ -3948,6 +4020,13 @@
             cls='xrlnk';  pre='<span class="xrchip">연결</span>';
             extra=' onclick="ssXrefCellClick('+r+',\''+_sxQ(cd)+'\')"'
               + ' title="🔗 '+ssEscHtml(lk.prodCd||'')+' '+ssEscHtml(lk.prodNm||'')+' 로 연결돼 있습니다. 눌러서 수정·해제"';
+          } else if(ssXrefExt[cd]){
+            /* 상품코드등록 화면에 붙여 둔 거래처 매칭코드로 상품이 정해지는 코드 (2026-08-01).
+               여기서는 누를 수 없다 — 고치려면 그 화면에서. 딱지로 '무엇으로 풀렸는지'만 알려 준다. */
+            var ex=ssXrefExt[cd];
+            cls='xrext';  pre='<span class="xrchip">매칭</span>';
+            extra=' title="🔖 거래처 매칭코드 → '+ssEscHtml(ex.prodCd||'')+' '+ssEscHtml(ex.prodNm||'')
+              + ' &#10;고치려면 기준정보 ▸ 상품코드등록 화면의 [거래처 매칭코드] 에서."';
           }
         }
         if(!extra) extra=' title="'+v.replace(/"/g,'&quot;')+'"';
@@ -5028,6 +5107,15 @@
       .then(function(j){ _slsDone={}; ((j&&j.data)||[]).forEach(function(o){ _slsDone[o.srcFile]={uploadDttm:o.uploadDttm, dcNm:o.dcNm}; }); slsRender(); })
       .catch(function(){});
   }
+  /* 정산 엑셀 고르기 진입점 (2026-08-01) — 버튼을 판매등록 화면(salesReg.jsp, iframe)으로 옮기면서 만든 것.
+     iframe 쪽에서 parent.konetSlsExcelPick() 로 부른다. 파일 input·확인 저장 팝업은 여기(부모)에 그대로 두었다 —
+     팝업은 화면 전체를 덮는 오버레이라 어느 화면을 보고 있든 그 위에 뜬다. */
+  function konetSlsExcelPick(){
+    var f=document.getElementById('slsFile');
+    if(!f){ if(typeof ssToast==='function') ssToast('⚠️ 정산 엑셀 입력을 찾지 못했습니다.'); return false; }
+    f.click(); return true;
+  }
+  window.konetSlsExcelPick = konetSlsExcelPick;   // iframe(판매등록)에서 부르므로 window 에 명시 등록
   function slsUpload(input){
     var fs=input.files; if(!fs||!fs.length) return;
     if(typeof XLSX==='undefined'){ ssToast('⚠️ 엑셀 파서를 불러오지 못했습니다(인터넷 필요).'); input.value=''; return; }
@@ -6064,7 +6152,7 @@
         '이 탭은 <b>출고장이 보내준 정산 엑셀의 원본 행</b>을 그대로 보여줍니다.<br>'
         +'조회기간에 저장된 정산서가 없어 띄울 행이 없습니다'
         +(_ohShip.length ? ' — 출고는 <b>'+_ohShip.length.toLocaleString()+'행</b> 있으니 <b>정산서가 아직 안 온 날</b>입니다.' : '.')
-        +'<br>위 <b>📥 정산 엑셀</b> 로 해당 날짜 파일을 올리면 여기에 채워집니다.'), [], _ohIdent);
+        +'<br><b>매출 관리 ▸ 판매 등록</b> 화면의 <b>📥 정산서 가져오기</b> 로 해당 날짜 파일을 올리면 여기에 채워집니다.'), [], _ohIdent);
       return;
     }
     // 출고장별로 묶기
@@ -6502,6 +6590,11 @@
 
     <div class="grp">기준정보</div>
     <a class="mi" data-key="prodmst" onclick="logiFrame('prodmst','${pageContext.request.contextPath}/prod/prodmst.do', this)"><span class="ic">📦</span>상품(품목)관리</a>
+    <%-- 상품코드등록 (2026-08-01 요청) — 상품(품목)관리와 같은 마스터(TBL_PROD_MST)를 보는 등록 전용 화면.
+         이력/재고 패널 없이 목록+등록만. 서식은 매입/매출 거래처 관리와 동일(버튼 상단 공통 · 그리드에 수정/삭제 없음). --%>
+    <a class="mi" data-key="prodcd" onclick="logiFrame('prodcd','${pageContext.request.contextPath}/prod/prodcd.do', this)"><span class="ic">🏷️</span>상품코드등록</a>
+    <%-- 거래처 매칭코드는 별도 메뉴로 두지 않는다(2026-08-01 확정) — 상품코드등록 화면 하단에 붙였다.
+         자료가 구두·문서로 오고 진입이 언제나 '우리 상품이 먼저' 라, 상품을 고른 자리에서 바로 붙이는 게 맞다. --%>
     <%-- 품목코드(매핑)은 재고 관리 그룹으로 옮겼다(2026-08-01) — 여기 있던 자리 --%>
     <a class="mi has-sub" data-sub="baseinfo" onclick="logiToggleSub('baseinfo', this)"><span class="ic">📂</span>기준정보관리<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-baseinfo">
@@ -6643,10 +6736,12 @@
       <div class="logi-head" style="margin-bottom:8px">
         <div><h2 style="margin:0">매출내역 <span class="badge b-done">정산</span>
           <span style="font-size:12px;font-weight:400;color:#9aa7b3;margin-left:6px">정산서(받을 금액) × 발주현황표 출고내역</span></h2></div>
+        <%-- [📥 정산 엑셀] 버튼은 판매등록 화면으로 옮겼다(2026-08-01 요청) — 매출을 넣는 자리에서 같이 올리도록.
+             파일 input(#slsFile)과 확인·저장 팝업은 여기 그대로 두고, 판매등록이 konetSlsExcelPick() 로 부른다.
+             저장 대기 칩은 남긴다 — 저장 안 하고 닫은 파일을 이 화면에서 이어서 처리할 수 있어야 한다. --%>
         <div class="actions">
-          <!-- 파일을 고르면 목록·저장은 전부 팝업에서. 본 화면에는 버튼 하나만 남긴다 -->
           <button class="btn-line" id="slsUpChip" onclick="slsUpOpen()" style="display:none" title="저장 대기 중인 파일이 있습니다. 눌러서 확인·저장하세요."></button>
-          <button class="btn-teal" onclick="document.getElementById('slsFile').click()" title="출고장이 준 정산 엑셀을 고릅니다(여러 개 가능).&#10;고르면 확인·저장 창이 열립니다.&#10;출고장은 파일명에서 인식합니다 — 2026.07.11_평택.xlsx → 평택">📥 정산 엑셀</button>
+          <span style="font-size:12px;color:#9aa7b3">정산서 가져오기는 <b>매출 관리 ▸ 판매 등록</b> 화면에 있습니다</span>
         </div>
       </div>
       <div class="card" style="padding-top:10px; padding-bottom:10px">
@@ -7048,11 +7143,13 @@
           <div class="fld" style="flex:0 0 170px"><label>기준일 <span style="color:#9aa7b3;font-weight:400">(비우면 지금 현재고)</span></label><input type="date" id="stkAsOf" onchange="stkStatusLoad()"></div>
           <%-- 날짜를 매번 달력에서 고르는 게 번거로워 빠른 선택을 붙였다(2026-08-01).
                [전체]=비움(지금 현재고) · [오늘]·[전월말]=그 시점 재고 --%>
-          <div class="fld" style="flex:0 0 176px"><label>&nbsp;</label>
+          <%-- ★버튼 폭을 flex:1 로 나눠 주면 '전월말' 이 세 글자라 칸이 모자라 글자가 세로로 쪼개진다(2026-08-01 지적).
+                 내용만큼만 차지하게 두고 white-space:nowrap 으로 줄바꿈을 막는다. --%>
+          <div class="fld" style="flex:0 0 auto"><label>&nbsp;</label>
             <div style="display:flex; gap:4px">
-              <button class="btn-line" style="flex:1" onclick="stkAsOfClear()" title="기준일을 비웁니다 — 지금 이 순간의 재고">전체</button>
-              <button class="btn-line" style="flex:1" onclick="stkAsOfSet(0)" title="오늘 자정까지 반영된 재고">오늘</button>
-              <button class="btn-line" style="flex:1" onclick="stkAsOfSet(-1)" title="지난달 말일 기준 재고 — 월말 재고 확인용">전월말</button>
+              <button class="btn-line" style="white-space:nowrap; padding:0 12px" onclick="stkAsOfClear()" title="기준일을 비웁니다 — 지금 이 순간의 재고">전체</button>
+              <button class="btn-line" style="white-space:nowrap; padding:0 12px" onclick="stkAsOfSet(0)" title="오늘 자정까지 반영된 재고">오늘</button>
+              <button class="btn-line" style="white-space:nowrap; padding:0 12px" onclick="stkAsOfSet(-1)" title="지난달 말일 기준 재고 — 월말 재고 확인용">전월말</button>
             </div>
           </div>
           <div class="fld" style="flex:0 0 90px"><button class="btn-teal" style="width:100%" onclick="stkStatusLoad()">조회</button></div>
@@ -7709,6 +7806,11 @@
     <section id="panel-prodmst" class="panel" style="padding:0;">
       <iframe id="if-prodmst" src="" title="상품(품목) 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
+
+    <section id="panel-prodcd" class="panel" style="padding:0;">
+      <iframe id="if-prodcd" src="" title="상품코드 등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+
 
   </main>
 </div>
