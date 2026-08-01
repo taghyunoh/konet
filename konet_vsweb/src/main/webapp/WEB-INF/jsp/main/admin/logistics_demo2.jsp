@@ -543,6 +543,20 @@
     var send = function(){ try{ if (f && f.contentWindow) f.contentWindow.postMessage({type:'d2view', view:view}, '*'); }catch(e){} };
     send(); setTimeout(send, 350);   // 방금 로드된 경우 대비 재전송
   }
+  /* 태블릿 메뉴 열고 닫기 (2026-08-02) — 폭 ≤1100px 에서만 CSS 가 사이드바를 화면 밖에 세워 둔다.
+     여기서는 body 클래스만 켜고 끈다(위치·애니메이션은 전부 konet-notebook.css). */
+  function konetSideToggle(force){
+    var on = (force===undefined) ? !document.body.classList.contains('konet-side-open') : !!force;
+    document.body.classList.toggle('konet-side-open', on);
+  }
+  /* 메뉴를 고르면 닫는다 — 안 닫으면 고른 화면이 오버레이에 가려 안 보인다.
+     ★서브메뉴 펼치기(has-sub)는 예외 — 그건 하위 항목을 보려고 누른 것이라 닫으면 안 된다. */
+  document.addEventListener('click', function(e){
+    if(!document.body.classList.contains('konet-side-open')) return;
+    var t = e.target, a = null;
+    while(t && t !== document){ if(t.classList && t.classList.contains('mi')){ a = t; break; } t = t.parentNode; }
+    if(a && !a.classList.contains('has-sub')) konetSideToggle(false);
+  });
   // 주메뉴(기준정보관리 등) 접기/펼치기 토글
   function logiToggleSub(sub, el){
     var box = document.getElementById('sub-'+sub);
@@ -6486,6 +6500,13 @@
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">
 </head>
 <body>
+<%-- 태블릿(폭 ≤1100px) 메뉴 열기 버튼 + 뒷막 — 2026-08-02.
+     데스크탑·노트북에서는 konet-notebook.css 가 display:none 으로 숨겨 없는 것과 같다.
+     ★버튼을 .logi-wrap 안(사이드바 앞)에 두는 이유 = position:fixed 라 위치는 무관하지만,
+       메뉴와 한 덩어리로 읽히게 두는 편이 다음 사람이 찾기 쉽다. --%>
+<button id="konetSideBtn" type="button" onclick="konetSideToggle()" title="메뉴 열기/닫기" aria-label="메뉴 열기">☰</button>
+<div id="konetSideBack" onclick="konetSideToggle(false)"></div>
+
 <div class="logi-wrap">
 
   <!-- ───────────── 좌측 사이드바 ───────────── -->

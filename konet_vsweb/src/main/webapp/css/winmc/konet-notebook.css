@@ -95,3 +95,50 @@
   .sh-wrap h2, .sc-wrap h2, .sd-wrap h2, .sa-wrap h2, .sv-wrap h2,
   .pu-wrap h2, .db-wrap h2, .cb-wrap h2{ font-size:16px; }
 }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   태블릿 (2026-08-02 추가) — 폭 1100px 이하
+   iPad 세로는 768px 인데 좌측 메뉴가 208px(27%)를 먹어 본문이 560px 밖에 안 남는다.
+   그래서 이 폭부터는 메뉴를 **화면 밖으로 빼고 ☰ 로 꺼내 쓴다** — 본문이 전폭을 쓴다.
+   ★위 노트북 블록보다 뒤에 둔다 — iPad 가로(1024×768)는 두 블록에 다 걸리는데,
+     그때는 '터치 크기'가 이겨야 한다(같은 특이성이면 나중 것이 이긴다).
+   ★표를 카드형으로 바꾸는 것은 하지 않았다(화면마다 새로 짜는 일) — 가로 스크롤로 둔다.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* ☰ 버튼과 뒷막은 셸(logistics_demo2.jsp)에 항상 있지만, 평소에는 숨어 있다 */
+#konetSideBtn{ display:none; position:fixed; left:8px; top:8px; z-index:81; width:40px; height:36px;
+  align-items:center; justify-content:center; font-size:19px; line-height:1;
+  background:#1f2a37; color:#fff; border:none; border-radius:8px;
+  box-shadow:0 2px 8px rgba(0,0,0,.25); cursor:pointer; }
+#konetSideBack{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.45); z-index:79; }
+
+@media screen and (max-width:1100px){
+  /* 메뉴를 fixed 로 빼면 flex 자리에서 빠져 본문(.logi-main)이 저절로 전폭이 된다 */
+  .logi-wrap .logi-side{
+    position:fixed; left:0; top:0; height:100vh; width:250px; flex-basis:250px;
+    transform:translateX(-100%); transition:transform .18s ease-out;
+    z-index:80; box-shadow:6px 0 24px rgba(0,0,0,.35);
+  }
+  body.konet-side-open .logi-wrap .logi-side{ transform:none; }
+  .logi-wrap .logi-main{ padding-top:46px; }          /* ☰ 버튼이 앉을 자리 */
+  #konetSideBtn{ display:flex; }
+  body.konet-side-open #konetSideBack{ display:block; }
+
+  /* iframe 화면(거래처·판매등록 등)은 높이가 inline 이라 여기서만 !important 로 맞춘다.
+     원래 calc(100vh - 70px) = 본문 상하 여백 44 + 패널 몫 26. 여기서는 여백이 46+14 로 늘어 86. */
+  .logi-wrap iframe[id^="if-"]{ height:calc(100vh - 86px) !important; }
+}
+
+/* 손가락으로 누르는 기기에서만 크기를 키운다 — 창을 좁힌 데스크탑 사용자는 그대로 촘촘하게 */
+@media screen and (max-width:1100px) and (pointer:coarse){
+  .logi-wrap .logi-side a.mi{ padding:11px 16px; font-size:14px; }
+  .logi-wrap .logi-side .sub-menu a.mi{ padding-left:32px; font-size:13.5px; }
+  .logi-wrap .logi-side .grp{ padding:10px 16px 4px; }
+
+  .btn, .btn-teal, .btn-line{ min-height:38px; }
+  .bar input.search, input, select{ min-height:38px; }
+  .tabs .t{ height:38px; }
+  tbody td{ padding:8px 9px; }
+  #ov input, #ov select{ height:38px; }
+  #mc .addbar input, #mc .addbar select{ height:36px; }
+}
