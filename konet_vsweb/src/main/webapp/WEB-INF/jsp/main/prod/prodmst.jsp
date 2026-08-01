@@ -359,8 +359,14 @@
           <div class="fld"><label>대표</label>
             <select id="xr_main" style="width:70px" title="그 거래처로 출고할 때 기본으로 쓸 표기"><option value="N">-</option><option value="Y">대표</option></select>
           </div>
-          <button class="btn btn-teal" onclick="xrSave()">＋ 연결</button>
+          <button class="btn btn-teal" id="xr_saveBtn" onclick="xrSave()">＋ 연결</button>
+          <button class="btn" id="xr_cancelBtn" onclick="xrEditCancel()" style="display:none">취소</button>
         </div>
+        <%-- ★어느 품목에 붙일지는 여기서 정한다 (2026-08-01 요청 "선택 후 연결에서 기능 적용").
+             [미매핑에서 고르기] 는 조회용 — 코드를 골라 위 칸에 채우기만 한다. 그 코드에 맞을 만한
+             우리 품목은 규격·단가로 찾아 이 줄에 띄우고, 여기서 고른 것이 연결 대상이 된다.
+             아무것도 안 고르면 위 목록에서 잡아 둔 품목(HVP)에 붙는다 — 종전 방식 그대로. --%>
+        <div class="subbar" id="xr_tgtBar" style="padding-top:0; align-items:center; gap:8px; display:none"></div>
         <div class="subbar" style="color:#6b7a89; font-size:12.5px; padding-top:0">
           ⚠️ 거래처는 <b>품명도 자기 식으로</b> 보냅니다 — 이름만 보고 판단하지 마세요.
           같은 물건이면 <b>규격·단가</b>가 맞아야 합니다. 확인이 끝나면 <b>[확인]</b>을 눌러 확정하세요.
@@ -667,11 +673,15 @@ function xrLoad(){
         + '<td>'+(o.mainYn==='Y'?'★':'')+'</td>'
         + '<td>'+badge+'</td>'
         + '<td>'+esc((o.regDttm||'').slice(0,10))+'</td>'
-        + '<td>'
+        /* ★[수정] 추가 (2026-08-01 요청) — 잘못 붙였을 때 지웠다 다시 거는 대신 이 줄을 위 입력줄로
+             불러올린다. 저장할 때 옛 연결을 먼저 지우고 새로 건다(UNIQUE UX_PROD_XREF_EXT 때문). */
+        + '<td style="white-space:nowrap">'
         +   (ok?'':'<button class="btn" style="height:22px;padding:0 6px;font-size:11.5px" onclick="xrConfirm('+o.xrefSeq+')">확인</button> ')
-        +   '<button class="btn" style="height:22px;padding:0 6px;font-size:11.5px" onclick="xrDelete('+o.xrefSeq+')">삭제</button>'
+        +   '<button class="btn" style="height:22px;padding:0 6px;font-size:11.5px" onclick="xrEdit('+o.xrefSeq+')">수정</button> '
+        +   '<button class="btn" style="height:22px;padding:0 6px;font-size:11.5px;color:#c0392b" onclick="xrDelete('+o.xrefSeq+')">해제</button>'
         + '</td></tr>';
     }).join('');
+    window._xrList = rows;   // [수정] 이 그 줄을 되찾을 수 있게 들고 있는다
   });
 }
 
@@ -686,28 +696,75 @@ function xrVenCd(){
   return f? f.vendorCd : '';
 }
 
+/* ★[수정] — 그 줄을 위 입력줄로 불러올린다. 저장할 때 옛 연결을 지우고 새로 건다(`_xrEditSeq`). */
+var _xrEditSeq=null;
+function xrEdit(seq){
+  var o=null, L=window._xrList||[];
+  for(var i=0;i<L.length;i++) if(L[i].xrefSeq===seq) o=L[i];
+  if(!o){ toast('⚠️ 그 줄을 못 찾았습니다 — 새로고침 해 보세요'); return; }
+  _xrEditSeq = seq;
+  document.getElementById('xr_venNm').value   = o.vendorNm||'';
+  document.getElementById('xr_extCd').value   = o.extItemCd||'';
+  document.getElementById('xr_extNm').value   = o.extItemNm||'';
+  document.getElementById('xr_extSpec').value = o.extSpec||'';
+  document.getElementById('xr_extUnit').value = o.extUnit||'';
+  document.getElementById('xr_conv').value    = (o.convQty==null?1:o.convQty);
+  document.getElementById('xr_main').value    = (o.mainYn==='Y'?'Y':'N');
+  _xrTgt = HVP ? { prodSeq:HVP.prodSeq, prodCd:HVP.prodCd, prodNm:HVP.prodNm, extSpec:HVP.spec, salePrice:HVP.salePrice } : null;
+  xrTgtLoad(o.extItemCd, o.extItemNm);        // 다른 품목으로 옮길 수 있게 후보도 같이 띄운다
+  xrSaveBtn(true);
+  toast('불러왔습니다 — 고친 뒤 <b>[✎ 수정 저장]</b>. 다른 품목으로 옮기려면 <b>연결 대상</b> 에서 고르세요');
+}
+function xrSaveBtn(edit){
+  var b=document.getElementById('xr_saveBtn'); if(!b) return;
+  b.textContent = edit ? '✎ 수정 저장' : '＋ 연결';
+  var c=document.getElementById('xr_cancelBtn'); if(c) c.style.display = edit ? '' : 'none';
+}
+function xrEditCancel(){
+  _xrEditSeq=null; xrTgtClear(); xrSaveBtn(false);
+  ['xr_extCd','xr_extNm','xr_extSpec','xr_extUnit'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('xr_conv').value='1'; document.getElementById('xr_main').value='N';
+}
 function xrSave(){
-  if(!HVP){ toast('⚠️ 품목을 먼저 고르세요'); return; }
   var extCd = gv('xr_extCd');
   if(!extCd){ toast('⚠️ 거래처 품목코드를 고르세요'); return; }
+  /* ★연결 대상 = 연결 줄에서 고른 후보 우선, 없으면 위 목록에서 잡아 둔 품목(HVP).
+       둘 다 없으면 붙일 곳이 없다 — 후보가 떠 있는데 안 골랐을 수도 있으니 그것도 짚어 준다. */
+  var T = _xrTgt || HVP;
+  if(!T){
+    var has=(_xrCandCache[extCd]||[]).length;
+    toast(has ? '⚠️ 아래 <b>연결 대상</b> 에서 우리 품목을 고르세요'
+              : '⚠️ 위 목록에서 우리 품목 행을 클릭해 잡으세요');
+    return;
+  }
   var nm = gv('xr_venNm');
   if(nm && !xrVenCd()){ toast('⚠️ 거래처를 목록에서 고르세요'); return; }
   var dto = {
-    prodSeq: HVP.prodSeq, prodCd: HVP.prodCd,
+    prodSeq: T.prodSeq, prodCd: T.prodCd,
     vendorCd: xrVenCd(), vendorNm: nm,
     extItemCd: extCd, extItemNm: gv('xr_extNm'), extSpec: gv('xr_extSpec'), extUnit: gv('xr_extUnit'),
     convQty: gnum('xr_conv')==null?1:gnum('xr_conv'),
     mainYn: gv('xr_main'),
     confirmYn: 'N'          // 연결 직후는 '확인 필요' — 규격·단가로 대조한 뒤 [확인]
   };
-  _post('/prod/xrefSave.do', dto).then(function(r){
-    if(!r.ok){ toast('⚠️ '+esc(r.t||'연결 실패')); return; }
-    /* 저장하면 서버가 과거 업로드분까지 소급으로 해석하고 재고를 다시 만든다(saveXref) */
-    toast('연결했습니다. 과거 업로드분도 이 품목으로 반영됩니다.');
-    document.getElementById('xr_extCd').value=''; document.getElementById('xr_extNm').value='';
-    document.getElementById('xr_extSpec').value=''; document.getElementById('xr_extUnit').value='';
-    document.getElementById('xr_conv').value='1'; document.getElementById('xr_main').value='N';
-    xrLoad();
+  /* ★수정 = 지우고 새로 걸기 — 같은 코드에 연결이 둘 생기면 UNIQUE(UX_PROD_XREF_EXT) 위반이다.
+       순서도 중요하다: 먼저 지워야 서버(deleteXref)가 옛 연결분 재고를 되돌린 뒤 새로 반영한다. */
+  var edit=_xrEditSeq;
+  var first = edit ? _post('/prod/xrefDelete.do', { xrefSeq: edit }) : Promise.resolve({ok:true});
+  first.then(function(r0){
+    if(!r0.ok){ toast('⚠️ 옛 연결 해제 실패 — '+esc(r0.t||'')); return; }
+    return _post('/prod/xrefSave.do', dto).then(function(r){
+      if(!r.ok){ toast('⚠️ '+esc(r.t||'연결 실패')); return; }
+      /* 저장하면 서버가 과거 업로드분까지 소급으로 해석하고 재고를 다시 만든다(saveXref) */
+      toast((edit?'수정했습니다':'연결했습니다')+' — <b>'+esc(extCd)+'</b> → '+esc(T.prodCd)+'. 과거 업로드분도 이 품목으로 반영됩니다.');
+      _xrEditSeq=null; xrSaveBtn(false);
+      document.getElementById('xr_extCd').value=''; document.getElementById('xr_extNm').value='';
+      document.getElementById('xr_extSpec').value=''; document.getElementById('xr_extUnit').value='';
+      document.getElementById('xr_conv').value='1'; document.getElementById('xr_main').value='N';
+      delete _xrCandCache[extCd];   // 이제 미매핑이 아니다 — 다음에 열면 다시 조회
+      xrTgtClear();
+      xrLoad();
+    });
   });
 }
 function xrConfirm(seq){
@@ -747,11 +804,15 @@ function _xrPickOv(){
     ov.innerHTML =
       '<div class="xrp-box">'
       + '<div class="xrp-hd"><span>📥 미매핑 코드에서 고르기 '
-      +   '<span style="font-weight:400;font-size:12.5px;opacity:.85">— 업로드된 자료에 있는데 <b>상품마스터에 없는</b> 코드입니다 (그만큼 재고에서 빠져 있습니다)</span></span>'
+      +   '<span style="font-weight:400;font-size:12.5px;opacity:.85">— 업로드된 자료에 있는데 <b>상품마스터에 없는</b> 코드입니다 (그만큼 재고에서 빠져 있습니다). '
+      +   '<b>줄을 누르면</b> 입력칸에 채워집니다 — 연결은 아래 <b>[＋ 연결]</b> 줄에서</span></span>'
       +   '<span style="cursor:pointer;font-size:18px" onclick="xrPickClose()" title="닫기">✕</span></div>'
       + '<div class="xrp-bar">'
       +   '<input id="xrPickQ" placeholder="거래처 · 코드 · 품목명으로 좁히기" oninput="xrPickDraw()" autocomplete="off">'
+      +   '<button class="btn" id="xrPickAll" onclick="xrPickClear()" style="height:32px;white-space:nowrap"'
+      +     ' title="검색어를 지우고 미매핑 전체를 봅니다">전체 보기</button>'
       +   '<span id="xrPickCnt"></span></div>'
+      + '<div id="xrPickWhy" style="padding:0 18px 6px;font-size:12px;color:#8a97a3"></div>'
       + '<div class="xrp-bd" id="xrPickBd"></div>'
       + '<div class="xrp-ft"><button class="btn" onclick="xrPickClose()">닫기</button></div>'
       + '</div>';
@@ -760,13 +821,22 @@ function _xrPickOv(){
   return ov;
 }
 function xrPickClose(){ var ov=document.getElementById('xrPickOv'); if(ov) ov.style.display='none'; }
-function xrPickDraw(){
+/* 걸러진 목록 — 그리기와 '열 때 좁혀 보기' 가 같은 규칙을 쓰도록 한곳에 둔다.
+   ★띄어쓰기로 나눠 모두 만족하는 것만 남긴다 — 품명은 거래처마다 순서가 달라 통짜로 찾으면 못 찾는다. */
+function xrPickRows(){
   var q=((document.getElementById('xrPickQ')||{}).value||'').trim().toLowerCase();
   var all=window._xrPick||[];
-  var rows = q ? all.filter(function(o){
-        return [o.vendorNm,o.dcCd,o.extItemCd,o.extItemNm,o.extSpec].some(function(x){
-          return String(x||'').toLowerCase().indexOf(q)>=0; });
-      }) : all;
+  if(!q) return all;
+  var ws=q.split(/\s+/).filter(Boolean);
+  return all.filter(function(o){
+    var hay=[o.vendorNm,o.dcCd,o.extItemCd,o.extItemNm,o.extSpec].map(function(x){
+      return String(x||'').toLowerCase(); }).join(' ');
+    return ws.every(function(w){ return hay.indexOf(w)>=0; });
+  });
+}
+function xrPickDraw(){
+  var all=window._xrPick||[];
+  var rows=xrPickRows();
   document.getElementById('xrPickCnt').textContent = rows.length + ' / ' + all.length + '종';
   document.getElementById('xrPickBd').innerHTML =
     '<table class="xrp-tb"><thead><tr>'
@@ -777,7 +847,7 @@ function xrPickDraw(){
     + '<th style="width:86px">최근</th><th style="width:56px">건수</th></tr></thead><tbody>'
     + (rows.length ? rows.map(function(o){
         var i = all.indexOf(o);
-        return '<tr onclick="xrPick('+i+')" title="누르면 위 입력칸에 채워집니다">'
+        return '<tr onclick="xrPick('+i+')" title="누르면 위 입력칸에 채워지고, 맞을 만한 우리 품목을 찾아 [＋ 연결] 줄에 띄웁니다">'
           + '<td><b>'+esc(o.extItemCd)+'</b></td>'
           + '<td class="l" title="'+esc(o.extItemNm)+'">'+esc(o.extItemNm)+'</td>'
           + '<td class="l" title="'+esc(o.extSpec||'')+'">'+esc(o.extSpec||'')+'</td>'
@@ -786,8 +856,57 @@ function xrPickDraw(){
           + '<td>'+esc(o.matchWhy||'')+'</td>'
           + '<td>'+fmtDt(o.lastDt)+'</td>'
           + '<td style="text-align:right">'+esc(o.useQty)+'</td></tr>';
-      }).join('') : '<tr><td colspan="8" style="padding:14px;text-align:center;color:#8a97a3">결과가 없습니다.</td></tr>')
+      }).join('') : '<tr><td colspan="8" style="padding:14px;text-align:center;color:#8a97a3">'
+        + '그 말로는 미매핑이 없습니다 — <b>전체 보기</b> 를 누르거나 검색어를 줄여 보세요.</td></tr>')
     + '</tbody></table>';
+}
+/* ★열 때 이미 좁혀서 보여 준다 (2026-08-01 지적 "검색 내용을 기준으로 검색해야 하지 않나요").
+     종전에는 미매핑 전체를 그대로 늘어놓았다. 이 창은 '지금 보고 있는 품목에 거래처 코드를
+     달아 주는' 자리인데, 무엇을 보고 있었는지를 버리고 24종을 다시 눈으로 훑게 했다.
+     이제 품목코드(매핑) 화면처럼 **찾던 말**을 그대로 이어받는다.
+       ① 위 검색칸(#q)에 뭔가 쳐 놨으면 그 말
+       ② 아니면 아래 [이력/재고] 에 잡혀 있는 품목(HVP)의 품명 핵심조각
+     걸러서 0건이면 자동으로 전체를 보여 준다 — 빈 화면을 주는 것보다 낫다.
+     [전체 보기] 로 언제든 푼다. */
+function _xrFrag(nm){
+  var n=String(nm||'').replace(/\s/g,'');
+  var p=n.indexOf(')');
+  if(p>=1 && p<=11) n=n.substring(p+1);     // 앞의 (브랜드) 는 거래처마다 달라 대조에 방해된다
+  n=n.replace(/^[,\-·]+/,'');
+  var c=n.indexOf(',');                      // 첫 쉼표 앞이 품목의 본이름(뒤는 규격·색·수량)
+  if(c>=2) n=n.substring(0,c);
+  return n.substring(0,8);
+}
+/* ★무엇으로 좁힐지 — 순서가 중요하다 (2026-08-01 "상품코드와는 상관없네요").
+     이 목록은 **거래처가 보낸 코드·거래처가 쓰는 품명**이다. 우리 상품코드와는 아무 관계가 없고
+     (관계가 있으면 애초에 미매핑이 아니다), 품명도 거래처마다 제 식으로 적어 온다.
+     그래서 우리 품명으로 좁히면 헛치기 쉽다. 실제로 맞는 것을 찾아 주는 근거는 **규격**이다
+     — 이 프로젝트가 후보 추천에서 단가·규격을 1순위로 두는 것과 같은 이유다.
+       ① 위 검색칸에 직접 친 말 (사람이 뜻을 갖고 넣은 것이니 최우선)
+       ② 잡혀 있는 품목의 규격
+       ③ 그래도 없으면 품명 핵심조각
+     ②③은 걸어 보고 0건이면 다음으로 넘어가고, 다 없으면 전체를 보여 준다. */
+function _xrTry(q){                     // 그 말로 몇 건이 남는지 (실제 그리기 규칙 그대로)
+  var el=document.getElementById('xrPickQ'); if(!el) return 0;
+  var keep=el.value; el.value=q;
+  var n=xrPickRows().length; el.value=keep; return n;
+}
+function xrPickSeed(){
+  var mq=((document.getElementById('q')||{}).value||'').trim();
+  if(mq) return { q:mq, why:'위 <b>검색</b> 에 넣은 말로 좁혔습니다' };
+  var P=(typeof HVP!=='undefined') ? HVP : null;
+  if(P){
+    var sp=String(P.spec||'').trim();
+    if(sp && _xrTry(sp)) return { q:sp, why:'잡혀 있는 품목의 <b>규격 '+esc(sp)+'</b> 으로 좁혔습니다 <span style="color:#b3760f">(품명은 거래처마다 달라 규격이 더 정확합니다)</span>' };
+    var f=_xrFrag(P.prodNm);
+    if(f && _xrTry(f)) return { q:f, why:'잡혀 있는 품목 <b>['+esc(P.prodCd)+'] '+esc(P.prodNm)+'</b> 의 품명으로 좁혔습니다' };
+  }
+  return { q:'', why:'' };
+}
+function xrPickClear(){
+  var q=document.getElementById('xrPickQ'); if(q){ q.value=''; q.focus(); }
+  var w=document.getElementById('xrPickWhy'); if(w) w.innerHTML='';
+  xrPickDraw();
 }
 function xrPickOpen(){
   fetch(CTX+'/prod/xrefUnmapped.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
@@ -798,11 +917,147 @@ function xrPickOpen(){
       if(!rows.length){ toast('미매핑 코드가 없습니다.'); return; }
       window._xrPick = rows;
       _xrPickOv().style.display='flex';
-      var q=document.getElementById('xrPickQ'); if(q){ q.value=''; }
+      var q=document.getElementById('xrPickQ'); if(q) q.value='';
+      var s=xrPickSeed();
+      if(q) q.value=s.q;
+      var w=document.getElementById('xrPickWhy');
+      if(s.q && xrPickRows().length===0){       // ①(사람이 친 말)로 좁혔는데 없을 때 — 전체로 되돌린다
+        if(q) q.value='';
+        s={ q:'', why:'그 말로는 미매핑이 없어 <b>전체</b> 를 보여 줍니다' };
+      }
+      /* ★이 창은 조회용 — 고르면 닫히고, 무엇에 붙일지는 [＋ 연결] 줄에서 정한다(2026-08-01 결정).
+           위 목록에서 품목을 미리 잡을 필요가 없다는 점은 여기서 분명히 해 둔다. */
+      if(w) w.innerHTML = (s.why ? ('🔎 '+s.why+' — 다르면 <b>전체 보기</b>. ') : '')
+        + '<span style="color:#b3760f">이 코드들은 <b>거래처가 보낸 코드·품명</b>이라 우리 상품코드와 겹치지 않습니다.'
+        + ' 고르면 <b>[＋ 연결]</b> 줄에 규격·단가로 찾은 우리 품목 후보가 뜹니다 — 위 목록을 미리 고르지 않아도 됩니다.</span>';
       xrPickDraw();
-      if(q) q.focus();
+      if(q){ q.focus(); q.select(); }
     })
     .catch(function(e){ toast('⚠️ 통신오류: '+e.message); });
+}
+/* ★[미매핑에서 고르기] 는 조회용이다 — 코드를 골라 입력칸에 채우기만 한다 (2026-08-01 결정).
+     연결 대상(우리 품목)은 아래 [＋ 연결] 줄에서 정한다.
+
+     왜 이렇게 나눴나 :
+       · 위 목록에서 우리 품목을 먼저 잡으라고 하면, **어느 품목인지 알려면 이미 매칭을 알아야 한다**
+         — 모르니까 이 창을 여는 것이라 앞뒤가 맞지 않았다("그것도 모르고 일단 선택인가요").
+       · 그렇다고 조회 창에서 바로 연결해 버리면, 이 창이 목록도 되고 저장도 하는 두 일을 하게 된다.
+       · 그래서 창은 **고르기까지만**, 무엇에 붙일지는 저장 버튼이 있는 줄에서 — 손이 한 자리에 모인다.
+
+     코드를 고르면 그 코드에 맞을 만한 우리 품목을 규격·단가로 찾아(`/prod/xrefCandidates.do`)
+     연결 줄에 띄운다. 거기서 고른 것이 연결 대상이 되고, 아무것도 안 고르면 위 목록에서
+     잡아 둔 품목(HVP)에 붙는다 — 종전 방식도 그대로 살아 있다. */
+var _xrTgt=null;          // 연결 대상으로 고른 후보 {prodSeq, prodCd, prodNm}
+var _xrCandCache={};      // 코드별 후보 (같은 코드를 다시 고를 때 서버를 또 부르지 않게)
+
+function xrTgtClear(){ _xrTgt=null; var b=document.getElementById('xr_tgtBar'); if(b){ b.style.display='none'; b.innerHTML=''; } }
+function xrTgtPick(k){
+  var L=(_xrCandCache[gv('xr_extCd')]||[]);
+  _xrTgt = (k<0) ? null : L[k];
+  xrTgtDraw(L);
+}
+function _xrN(v){ return (v==null||v==='') ? '-' : Number(v).toLocaleString(); }
+function xrTgtDraw(cands){
+  var b=document.getElementById('xr_tgtBar'); if(!b) return;
+  b.style.display='flex';
+  var cd=gv('xr_extCd');
+  if(cands===null){ b.innerHTML='<span style="color:#8a97a3;font-size:12.5px">🔎 <b>'+esc(cd)+'</b> 에 맞을 만한 우리 품목을 찾는 중…</span>'; return; }
+
+  /* 고른 것이 있으면 그것만 크게 보여 준다 — 무엇에 붙는지가 [＋ 연결] 바로 위에 있어야 한다 */
+  if(_xrTgt){
+    b.innerHTML='<span style="font-size:12.5px;color:#5a6b7a">연결 대상</span>'
+      + '<span style="background:#e6f7f0;border:1px solid #9ed6c6;border-radius:6px;padding:3px 10px;font-size:13px">'
+      +   '<b style="color:#137a6c">'+esc(_xrTgt.prodCd)+'</b> '+esc(_xrTgt.prodNm)
+      +   '<span style="color:#6b7a89;font-size:12px;margin-left:8px">'+esc(_xrTgt.extSpec||'')+'</span>'
+      +   '<span style="color:#6b7a89;font-size:12px;margin-left:8px">판매가 '+_xrN(_xrTgt.salePrice)+' · 재고 '+_xrN(_xrTgt.curQty)+'</span>'
+      + '</span>'
+      + '<button class="btn" onclick="xrTgtPick(-1)" title="다시 고릅니다">↩ 다시</button>'
+      + '<span style="color:#b3760f;font-size:12px">규격·단가가 맞는지 보고 <b>[＋ 연결]</b></span>';
+    return;
+  }
+  /* ★후보가 마땅찮을 때 쓰는 [직접 찾기] — 매핑 화면과 같은 장치다(2026-08-01 요청).
+       상품마스터는 이미 화면에 다 들어와 있으므로(PROD) 서버를 부르지 않고 그 자리에서 찾는다. */
+  var findBtn = '<button class="btn" onclick="xrFindToggle()" title="상품마스터에서 직접 찾습니다">🔍 직접 찾기</button>'
+    + '<span id="xr_findWrap" style="display:none;align-items:center;gap:6px">'
+    +   '<input id="xr_findQ" placeholder="코드 · 상품명 · 규격" oninput="xrFindDraw()" autocomplete="off"'
+    +     ' style="height:28px;border:1px solid var(--bd);border-radius:6px;padding:0 10px;width:240px">'
+    + '</span>';
+
+  if(!cands || !cands.length){
+    b.innerHTML='<span style="font-size:12.5px;color:#c07a02;white-space:nowrap">⚠ <b>'+esc(cd)+'</b> 에 맞을 만한 우리 품목을 못 찾았습니다</span>'
+      + findBtn
+      + '<span style="font-size:12px;color:#6b7a89">또는 위 목록에서 품목 행을 클릭해 잡은 뒤 <b>[＋ 연결]</b>'
+      + (HVP ? ' (지금 잡힌 품목: <b>'+esc(HVP.prodCd)+'</b> '+esc(HVP.prodNm||'')+')' : '')+'</span>'
+      + '<div id="xr_findRes" style="flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px"></div>';
+    return;
+  }
+  /* 후보가 여럿이면 버튼으로 늘어놓는다 — 드롭다운은 규격·단가를 나란히 못 보여 준다 */
+  b.innerHTML='<span style="font-size:12.5px;color:#5a6b7a;white-space:nowrap">연결 대상 고르기</span>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">'
+    + cands.map(function(c,k){
+        var dead=(!c.curQty||Number(c.curQty)===0) && !c.lastOutDt;   // 재고도 거래도 없으면 옛 가상코드일 수 있다
+        return '<button class="btn" onclick="xrTgtPick('+k+')" style="height:auto;padding:3px 10px;text-align:left;line-height:1.35'
+          + (dead?';opacity:.6':'')+'" title="'+esc(c.prodNm)+'">'
+          + '<b style="color:#137a6c">'+esc(c.prodCd)+'</b> '
+          + '<span style="font-size:12px">'+esc(String(c.prodNm||'').substring(0,26))+'</span>'
+          + '<span style="color:#6b7a89;font-size:11.5px;margin-left:6px">'+esc(c.extSpec||'')+'</span>'
+          + '<span style="color:#6b7a89;font-size:11.5px;margin-left:6px">'+_xrN(c.salePrice)+'원 · 재고 '+_xrN(c.curQty)+'</span>'
+          + '<span style="color:#b3760f;font-size:11.5px;margin-left:6px;font-weight:700">'+esc(c.matchWhy||'')+'</span>'
+          + '</button>';
+      }).join('')
+    + findBtn
+    + '</div><div id="xr_findRes" style="flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px"></div>';
+}
+/* ---- 직접 찾기 (상품마스터에서 고르기) ---- */
+function xrFindToggle(){
+  var w=document.getElementById('xr_findWrap'); if(!w) return;
+  var on = (w.style.display==='none');
+  w.style.display = on ? 'inline-flex' : 'none';
+  var q=document.getElementById('xr_findQ');
+  if(on && q){
+    /* 거래처 규격을 첫 검색어로 넣어 준다 — 이름은 거래처마다 달라도 규격은 같다 */
+    if(!q.value) q.value = gv('xr_extSpec') || '';
+    q.focus(); q.select(); xrFindDraw();
+  } else { var r=document.getElementById('xr_findRes'); if(r) r.innerHTML=''; }
+}
+function xrFindDraw(){
+  var r=document.getElementById('xr_findRes'); if(!r) return;
+  var q=((document.getElementById('xr_findQ')||{}).value||'').trim().toLowerCase();
+  if(!q){ r.innerHTML='<span style="color:#8a97a3;font-size:12px">코드·상품명·규격을 입력하세요</span>'; return; }
+  var ws=q.split(/\s+/).filter(Boolean);
+  var hit=PROD.filter(function(o){
+    var hay=[o.prodCd,o.prodNm,o.spec,o.makerNm].map(function(x){ return String(x||'').toLowerCase(); }).join(' ');
+    return ws.every(function(w){ return hay.indexOf(w)>=0; });
+  }).slice(0,30);
+  window._xrFind=hit;
+  r.innerHTML = hit.length
+    ? hit.map(function(o,k){
+        return '<button class="btn" onclick="xrFindPick('+k+')" style="height:auto;padding:3px 10px;text-align:left;line-height:1.35" title="'+esc(o.prodNm)+'">'
+          + '<b style="color:#137a6c">'+esc(o.prodCd)+'</b> '
+          + '<span style="font-size:12px">'+esc(String(o.prodNm||'').substring(0,26))+'</span>'
+          + '<span style="color:#6b7a89;font-size:11.5px;margin-left:6px">'+esc(o.spec||'')+'</span>'
+          + '<span style="color:#6b7a89;font-size:11.5px;margin-left:6px">'+_xrN(o.salePrice)+'원</span>'
+          + '</button>';
+      }).join('') + (hit.length>=30 ? '<span style="color:#8a97a3;font-size:12px">…30개까지만</span>' : '')
+    : '<span style="color:#c07a02;font-size:12px">찾는 품목이 없습니다 — 검색어를 줄여 보세요</span>';
+}
+function xrFindPick(k){
+  var o=(window._xrFind||[])[k]; if(!o) return;
+  _xrTgt={ prodSeq:o.prodSeq, prodCd:o.prodCd, prodNm:o.prodNm, extSpec:o.spec, salePrice:o.salePrice, curQty:null };
+  xrTgtDraw(_xrCandCache[gv('xr_extCd')]||[]);
+}
+/* 코드가 정해지면 후보를 찾아 연결 줄에 띄운다 */
+function xrTgtLoad(extCd, extNm){
+  _xrTgt=null;
+  if(!extCd){ xrTgtClear(); return; }
+  if(_xrCandCache[extCd]){ xrTgtDraw(_xrCandCache[extCd]); return; }
+  xrTgtDraw(null);
+  fetch(CTX+'/prod/xrefCandidates.do', { method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'extItemCd='+encodeURIComponent(extCd)+'&extItemNm='+encodeURIComponent(extNm||'') })
+    .then(function(r){ return r.json(); })
+    .then(function(j){ var c=(j&&j.data)||[]; _xrCandCache[extCd]=c; xrTgtDraw(c); })
+    .catch(function(){ _xrCandCache[extCd]=[]; xrTgtDraw([]); });
 }
 function xrPick(i){
   var o=(window._xrPick||[])[i]; if(!o) return;
@@ -812,7 +1067,8 @@ function xrPick(i){
   document.getElementById('xr_extSpec').value = o.extSpec||'';
   document.getElementById('xr_extUnit').value = o.extUnit||'';
   if(o.vendorNm) document.getElementById('xr_venNm').value = o.vendorNm;
-  toast('입력칸에 채웠습니다 — 우리 품목이 맞는지 <b>규격·단가</b>로 확인한 뒤 [＋ 연결]');
+  xrTgtLoad(o.extItemCd, o.extItemNm);   // 그 코드에 맞을 만한 우리 품목을 연결 줄에 띄운다
+  toast('채웠습니다 — 아래 <b>연결 대상</b> 에서 우리 품목을 고른 뒤 [＋ 연결]');
 }
 
 /* ---- 매입가 ---- */
