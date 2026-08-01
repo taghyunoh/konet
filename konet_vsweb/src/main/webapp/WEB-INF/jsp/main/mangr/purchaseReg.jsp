@@ -1169,3 +1169,7 @@ function puDayApply(){
   });
 }
 </script>
+
+<%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
+     ★이 화면은 <head> 가 없는 조각 JSP 라 문서 맨 끝에 둔다 — 위 <style> 보다 뒤에 와야 값이 덮인다. --%>
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">

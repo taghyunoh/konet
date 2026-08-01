@@ -233,6 +233,11 @@
   .d2-loading .sp { width:20px; height:20px; border:3px solid #d7ece7; border-top-color:#137a6c; border-radius:50%; animation:d2spin .8s linear infinite; flex:0 0 auto; }
   @keyframes d2spin { to { transform:rotate(360deg); } }
 </style>
+<%-- 노트북(1366×768·1440×900) 대응 — 2026-08-02 추가.
+     viewport 는 이 화면이 tiles 를 안 거치는 .raw 페이지라 여기에 직접 둔다(셸 = 최상위 문서).
+     CSS 는 이 한 줄만 빼면 종전 데스크탑 화면 그대로다. --%>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">
 </head>
 <body>
 <div class="d2-wrap">

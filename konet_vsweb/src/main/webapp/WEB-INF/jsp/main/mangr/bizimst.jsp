@@ -45,6 +45,9 @@
   .pager button:disabled{ opacity:.45; cursor:default; }
   .pager .ell{ padding:0 4px; color:#9aa7b3; }
 </style>
+<%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
+     이 한 줄만 빼면 종전 데스크탑 화면 그대로다(파일 안에서 폭·높이 조건으로만 동작). --%>
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">
 </head>
 <body>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />

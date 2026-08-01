@@ -172,6 +172,9 @@
   .vsel-list .it .cd{ color:#9aa7b3; font-size:11px; margin-left:5px; }
   .vsel-list .none{ padding:12px; text-align:center; color:#9aa7b3; font-size:12px; }
 </style>
+<%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
+     이 한 줄만 빼면 종전 데스크탑 화면 그대로다(파일 안에서 폭·높이 조건으로만 동작). --%>
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">
 </head>
 <body>
 <div class="wrap">

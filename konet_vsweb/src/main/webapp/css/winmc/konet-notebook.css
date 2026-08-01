@@ -1,0 +1,97 @@
+@charset "UTF-8";
+/* ============================================================================
+   konet 노트북 대응 — 2026-08-02 신설
+   대상 : 1366×768 · 1440×900 노트북 (사용자 확정 범위. 태블릿 세로·폰은 범위 밖)
+   문제 : 이 앱은 데스크탑(1920×1080)을 전제로 짜여 있어, 노트북에서는
+          ① 좌측 메뉴 236px 가 본문을 밀어내고
+          ② 제목·여백·입력 높이가 커서 세로 768px 안에 목록이 몇 줄 안 들어온다.
+
+   원칙 (여기서 하지 않는 것까지 적어 둔다)
+     · 화면을 새로 짜지 않는다 — 여백·글자·입력 높이만 줄여 '한 화면에 들어오게' 한다.
+       표를 카드형으로 바꾸거나 칸을 숨기는 것은 태블릿 범위라 하지 않았다.
+     · 데스크탑(폭 1500 초과 & 높이 900 초과)에서는 이 파일의 규칙이 **하나도** 적용되지 않는다.
+       → 기존 사용자 화면은 그대로다. 되돌리려면 각 JSP 의 <link> 한 줄만 빼면 된다.
+     · @media screen 으로 한정한다 — 미디어타입을 안 쓰면 인쇄(A4)에도 걸린다.
+       (일계장 dayBook 은 인쇄 전용 @media print 를 갖고 있어 실제로 부딪힌다)
+
+   ★붙이는 위치 : 각 화면 <style> **뒤**(</head> 직전, head 없는 조각 JSP 는 파일 끝).
+     같은 특이성이면 나중 것이 이기므로 !important 없이 덮인다.
+     inline style 속성만 !important 로 이긴다(현재 그런 규칙은 없다).
+   ========================================================================== */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   가로가 좁을 때 — 노트북 1366~1500px
+   좌측 메뉴를 236 → 208 로. 글자·좌우 여백을 같이 줄이지 않으면
+   '출고현황표(대시보드)' 같은 긴 메뉴가 두 줄로 접힌다.
+   ───────────────────────────────────────────────────────────────────────── */
+@media screen and (max-width:1500px){
+  .logi-wrap .logi-side{ width:208px; flex:0 0 208px; }
+  .logi-wrap .logi-side .side-tit{ padding:12px 14px; font-size:15px; }
+  .logi-wrap .logi-side .side-comp{ padding:9px 14px 4px; font-size:15px; }
+  .logi-wrap .logi-side .grp{ padding:7px 14px 2px; }
+  .logi-wrap .logi-side a.mi{ padding:5px 14px; font-size:13px; }
+  .logi-wrap .logi-side a.mi.on{ padding-left:10px; }          /* .on 은 border-left 가 굵어 안쪽을 더 준다 */
+  .logi-wrap .logi-side .sub-menu a.mi{ padding-left:26px; font-size:12px; }
+  .logi-wrap .logi-side .sub-menu a.mi.on{ padding-left:22px; }
+  .logi-wrap .logi-main{ padding:14px 10px; }
+
+  .wrap{ padding:14px 14px 8px; }
+  .bar input.search{ width:220px; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   세로가 짧을 때 — 노트북 768~900px
+   여기가 실제 체감의 대부분이다. 한 줄이라도 더 보이게 위아래를 걷어낸다.
+   ───────────────────────────────────────────────────────────────────────── */
+@media screen and (max-height:900px){
+
+  /* ── 공통 어휘 화면 (상품코드등록·상품관리·거래처·공통코드 등 .wrap 계열) ── */
+  .wrap{ padding:10px 14px 6px; }
+  .wrap > h2{ font-size:17px; }
+  .wrap > .sub{ margin-bottom:6px; font-size:12px; line-height:1.35; }
+  .bar{ margin-bottom:8px; gap:6px; }
+  .bar input.search{ height:30px; }
+  .btn{ height:30px; padding:0 11px; }
+  .tabs{ margin-bottom:7px; }
+  .tabs .t{ height:28px; }
+  thead th{ padding:6px 9px; }
+  tbody td{ padding:4px 9px; }
+  .pager{ padding:6px 0 2px; }
+
+  /* ── 하단 도킹 패널 (상품코드등록·상품(품목)관리) ──
+     34vh 는 768px 화면에서 261px 를 먹어 위 목록이 몇 줄 안 남는다.
+     ★JS(mcToggle)가 접었다 펴면 34vh 를 inline 으로 다시 넣는다 — 그때는 이 값이 아니라 34vh 가 된다.
+       접기 기능을 쓰지 않는 평상시에는 이 값이 그대로 산다. */
+  html:root{ --mc-h:31vh; }
+  #mc{ min-height:200px; }
+  #mc .mh{ padding:6px 14px; }
+  #mc .addbar{ padding:6px 10px; }
+  #mc .addbar input, #mc .addbar select{ height:29px; }
+  #mc .ac{ max-height:280px; }
+
+  /* ── 등록/수정 팝업(#ov) — 세로가 짧으면 버튼이 화면 밖으로 나간다 ── */
+  #ov .box{ margin-top:2vh; max-height:96vh; }
+  #ov .mh{ padding:9px 14px; }
+  #ov .mh b{ font-size:15px; }
+  #ov .mb{ padding:12px 14px; gap:9px 14px; }
+  #ov label{ min-height:24px; padding:3px 9px; }
+  #ov input, #ov select{ height:30px; font-size:13px; }
+  #ov .mf{ padding:9px 14px; }
+
+  /* ── 셸(물류관리 사이드바 화면) ── */
+  .logi-wrap .logi-main{ padding:12px 10px; }
+  .logi-wrap .card{ padding:12px 14px; margin-bottom:10px; }
+  .logi-wrap .logi-head{ margin-bottom:10px; }
+  .logi-wrap .logi-head h2{ font-size:17px; }
+  .logi-wrap table.logi-tb{ font-size:12.5px; }
+
+  /* ── 조각 화면(자체 프리픽스) ──
+     출고이력(sh)·매출차트(sc/sd)·판매등록(sa)·수금/지급등록(sv)·매입등록(pu)·일계장(db)·채권채무(cb).
+     뼈대가 전부 `.XX-wrap{ padding:16px 18px; font-size:14px }` 로 같아 한 줄로 묶인다. */
+  .sh-wrap, .sc-wrap, .sd-wrap, .sa-wrap, .sv-wrap, .pu-wrap, .db-wrap{
+    padding:9px 12px; font-size:13px;
+  }
+  .cb-wrap{ padding:4px 6px 10px; font-size:13px; }            /* 채권·채무만 원래 좌우 여백이 좁다 */
+  .sh-wrap h2, .sc-wrap h2, .sd-wrap h2, .sa-wrap h2, .sv-wrap h2,
+  .pu-wrap h2, .db-wrap h2, .cb-wrap h2{ font-size:16px; }
+}

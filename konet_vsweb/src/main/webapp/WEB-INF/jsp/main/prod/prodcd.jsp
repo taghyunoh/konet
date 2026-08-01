@@ -137,6 +137,9 @@
   .tag{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; background:#eef4ff; color:#274b8f; border:1px solid #c9d9f5; }
   .tag-n{ color:#9aa7b3; background:#f4f6f8; border-color:#e4e9ee; }
 </style>
+<%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
+     이 한 줄만 빼면 종전 데스크탑 화면 그대로다(파일 안에서 폭·높이 조건으로만 동작). --%>
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">
 </head>
 <body>
 <div class="wrap">

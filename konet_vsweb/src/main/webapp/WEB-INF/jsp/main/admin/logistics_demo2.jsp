@@ -6479,6 +6479,11 @@
   document.addEventListener('DOMContentLoaded', function(){ ssInit(); slsInit(); });
   (function(){ ssInit(); slsInit(); })();
 </script>
+<%-- 노트북(1366×768·1440×900) 대응 — 2026-08-02 추가.
+     viewport 는 이 화면이 tiles 를 안 거치는 .raw 페이지라 여기에 직접 둔다(셸 = 최상위 문서).
+     CSS 는 이 한 줄만 빼면 종전 데스크탑 화면 그대로다. --%>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">
 </head>
 <body>
 <div class="logi-wrap">
