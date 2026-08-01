@@ -194,6 +194,91 @@ public class UserServiceImpl implements UserService {
 	}
 	@Override public int deleteInprice(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception { return mapper.deleteInprice(dto); }
 
+	/* ===== 거래처별 품목 표기(교차참조) — TBL_PROD_XREF (2026-08-01) =====================
+	   코네트 품목은 하나, 거래처 요청 표기는 이 표에 N건. 가상코드를 만들지 않는다. */
+	@Override public java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefList(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception { return mapper.selectXrefList(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectUnmappedItems(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception { return mapper.selectUnmappedItems(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefCandidates(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception { return mapper.selectXrefCandidates(dto); }
+	@Override public int confirmXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception { return mapper.confirmXref(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefAudit(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception { return mapper.selectXrefAudit(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefNames(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception { return mapper.selectXrefNames(dto); }
+
+	/* 등록/수정 — 저장만 하고 끝내면 안 된다.
+	   ★매핑을 뒤늦게 걸면 그동안 PROD_SEQ 가 비어 재고에서 빠져 있던 출고분이 남는다.
+	     저장 직후 resolve* 로 과거분을 소급으로 채우고, 그 품목이 걸린 출고일자만 골라
+	     원장을 다시 만든다. 이 한 걸음이 빠지면 '연결했는데 재고가 그대로'가 된다.
+	   ★재고 재동기화 실패가 매핑 저장을 롤백하지 않도록 별도 try — 실패해도 매핑은 남고
+	     [재고 재집계] 버튼으로 복구할 수 있다. */
+	@Override public int saveXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception {
+		if ("Y".equals(dto.getMainYn())) mapper.clearXrefMain(dto);   // 그 거래처의 대표 표기는 하나
+		int n = (dto.getXrefSeq() == null) ? mapper.insertXref(dto) : mapper.updateXref(dto);
+
+		// 소급 반영 — 이 품목으로 해석되지 않은 과거 업로드분을 채운다
+		egovframework.sejong.user.model.ProdXrefDTO f = new egovframework.sejong.user.model.ProdXrefDTO();
+		f.setCompCd(dto.getCompCd());
+		f.setProdSeq(dto.getProdSeq());
+		int back = mapper.resolveShipoutProd(f) + mapper.resolveSalesProd(f);
+
+		if (back > 0) {
+			try {
+				java.util.List<String> ds = mapper.selectShipoutDatesByProd(f);
+				if (ds != null) for (String d : ds) syncShipoutLedgerDate(d, dto.getRegUser(), dto.getRegIp());
+				recalcStockMstAll(dto.getRegUser(), dto.getRegIp());
+			} catch (Exception se) {
+				LOGGER.error(" saveXref 재고 소급반영 WARN : " + se.getMessage());
+			}
+		}
+		return n;
+	}
+
+	/* ★잘못 연결했을 때 되돌리기 (2026-08-01 — 사용자 질문 "잘못 연결하면 어떻게 고치나요")
+	     매핑만 지우면 반쪽이다. 그 코드로 이미 채워진 행의 PROD_SEQ 가 남아 있어
+	     **엉뚱한 품목의 재고가 그대로 굳는다**. 그래서 지운 뒤에
+	       ① 그 코드로 채워진 출고·정산 행을 NULL 로 되돌리고
+	       ② 다시 해석한다(다른 매핑이나 코드 직결로 잡힐 수 있다)
+	       ③ 그 코드가 나갔던 출고일자만 골라 재고를 다시 만든다
+	     ★출고일자는 되돌리기 '전에' 받아 둔다 — PROD_SEQ 를 비운 뒤에는 찾을 수 없다.
+	     ★재고 재생성 실패가 삭제를 롤백하지 않도록 별도 try(로그만) — 실패해도 [재고 재집계]로 복구된다. */
+	@Override public int deleteXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception {
+		egovframework.sejong.user.model.ProdXrefDTO cur = mapper.selectXrefById(dto);   // 무엇을 지우는지 먼저 확보
+		int n = mapper.deleteXref(dto);
+		if (cur == null || cur.getExtItemCd() == null || cur.getExtItemCd().trim().isEmpty()) return n;
+
+		egovframework.sejong.user.model.ProdXrefDTO f = new egovframework.sejong.user.model.ProdXrefDTO();
+		f.setCompCd(dto.getCompCd());
+		f.setExtItemCd(cur.getExtItemCd());
+		java.util.List<String> ds = mapper.selectShipoutDatesByExtCd(f);   // ★비우기 전에 날짜 확보
+		mapper.clearShipoutProdByExtCd(f);
+		mapper.clearSalesProdByExtCd(f);
+
+		egovframework.sejong.user.model.ProdXrefDTO all = new egovframework.sejong.user.model.ProdXrefDTO();
+		all.setCompCd(dto.getCompCd());
+		resolveShipoutProd(all);   // 남은 매핑·코드 직결로 다시 해석 (없으면 미매핑으로 남는다)
+		resolveSalesProd(all);
+
+		try {
+			if (ds != null) for (String d : ds) syncShipoutLedgerDate(d, dto.getUpdUser(), dto.getUpdIp());
+			if (ds != null && !ds.isEmpty()) recalcStockMstAll(dto.getUpdUser(), dto.getUpdIp());
+		} catch (Exception se) {
+			LOGGER.error(" deleteXref 재고 되돌리기 WARN : " + se.getMessage());
+		}
+		return n;
+	}
+
+	/* 업로드 자료의 '우리 품목' 해석 — 반드시 2패스, 순서가 중요하다.
+	     1차 XREF 매핑 : 거래처가 다른 코드로 보내는 품목
+	     2차 코드 직결 : 거래처가 우리와 같은 코드로 보내는 품목(대다수) — 종전 동작과 동일
+	   ★XREF 를 먼저 돌려야 사람이 걸어 둔 매핑이 이긴다. 직결을 먼저 돌리면 거래처 코드가
+	     우연히 우리 코드와 같을 때 매핑을 덮어쓴다.
+	   ★둘 다 못 찾으면 PROD_CD 가 NULL 로 남는다 = 미매핑 → 재고에서 빠진다(보류).
+	     이건 종전과 같은 결과다 — 예전에도 상품마스터에 없는 ITEM_CD 는 조인에서 빠졌다. */
+	@Override public int resolveShipoutProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception {
+		return mapper.resolveShipoutProd(dto) + mapper.resolveShipoutProdDirect(dto);
+	}
+	@Override public int resolveSalesProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception {
+		return mapper.resolveSalesProd(dto) + mapper.resolveSalesProdDirect(dto);
+	}
+
 	/* ===== 판매가 이력 : 등록 시 마스터(SALE_PRICE/WHOLE_PRICE) 동기화 ===== */
 	@Override public java.util.List<egovframework.sejong.user.model.ProdSalepriceDTO> selectSalepriceList(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception { return mapper.selectSalepriceList(dto); }
 	@Override public int insertSaleprice(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception {
@@ -226,7 +311,7 @@ public class UserServiceImpl implements UserService {
 	@Override public int syncShipoutLedgerDate(String shpoutDt, String regUser, String regIp) throws Exception {
 		if (shpoutDt == null || shpoutDt.trim().isEmpty()) return 0;
 		String cym = ym6FromTrx(shpoutDt);
-		if (cym != null && mapper.isClosedYm(cym) > 0) return 0;   // 마감 확정월 → 원장 건드리지 않음
+		if (cym != null && mapper.isClosedYm(cym, null) > 0) return 0;   // 마감 확정월 → 원장 건드리지 않음
 		egovframework.sejong.user.model.StockLedgerDTO d = new egovframework.sejong.user.model.StockLedgerDTO();
 		d.setTrxDt(shpoutDt); d.setRegUser(regUser); d.setRegIp(regIp);
 		mapper.deleteShipoutLedger(d);
@@ -240,16 +325,41 @@ public class UserServiceImpl implements UserService {
 	/* (A) 화면 버튼: 전체 출고일자를 돌며 원장 O행 재동기화 후 전체 현재고 재집계 (백필 SQL 없이 UI에서 실행) */
 	@Override public int rebuildShipoutLedgerAll(String regUser, String regIp) throws Exception {
 		int dates = 0;
-		java.util.List<String> ds = mapper.selectShipoutDates();
-		if (ds != null) for (String d : ds) { syncShipoutLedgerDate(d, regUser, regIp); dates++; }
-		recalcStockMstAll(regUser, regIp);
-		return dates;
+		/* ★재집계 전에 '우리 품목' 부터 해석한다 (2026-08-01).
+		   재고연동이 ITEM_CD 가 아니라 PROD_CD 기준으로 바뀌었으므로, PROD_CD 가 안 채워진
+		   자료(배포 이전 업로드분·매핑을 뒤늦게 건 품목)는 재집계해도 재고에 안 잡힌다.
+		   파라미터를 비우면 resolve* 의 조건이 모두 열려 전체를 훑는다 → 이 버튼 하나가
+		   '해석 + 재집계' 를 다 해 준다(배포 직후 1회 눌러 주면 된다). */
+		/* 진행 상황을 게시판(RebuildProgress)에 적어 둔다 — 화면이 폴링해 진짜 진행바를 그린다.
+		   가짜 막대를 쓰지 않는 이유 : 여기는 '출고일자 몇 개 중 몇 개' 를 실제로 알고 있다.
+		   ★반드시 finally 에서 end() — 안 그러면 다음에 열 때 '진행 중' 으로 남는다. */
+		String pk = regUser;
+		try {
+			egovframework.sejong.user.model.ProdXrefDTO all = new egovframework.sejong.user.model.ProdXrefDTO();
+			egovframework.sejong.cmmn.RebuildProgress.set(pk, "품목 해석 중… (거래처 코드 → 우리 품목)", 0, 0);
+			resolveShipoutProd(all);
+			resolveSalesProd(all);
+
+			java.util.List<String> ds = mapper.selectShipoutDates();
+			int total = (ds == null) ? 0 : ds.size();
+			egovframework.sejong.cmmn.RebuildProgress.set(pk, "출고 원장 재생성", 0, total);
+			if (ds != null) for (String d : ds) {
+				syncShipoutLedgerDate(d, regUser, regIp);
+				dates++;
+				egovframework.sejong.cmmn.RebuildProgress.set(pk, "출고 원장 재생성 — " + d, dates, total);
+			}
+			egovframework.sejong.cmmn.RebuildProgress.set(pk, "현재고 집계 중…", total, total);
+			recalcStockMstAll(regUser, regIp);
+			return dates;
+		} finally {
+			egovframework.sejong.cmmn.RebuildProgress.end(pk);
+		}
 	}
 	@Override public java.util.List<String> selectClosedYmList() throws Exception { return mapper.selectClosedYmList(); }
 	/* 거래일자(YYYY-MM-DD)의 월이 마감 확정되었으면 예외 → 수불 등록/삭제 차단 */
 	private void guardClosed(String trxDt) throws Exception {
 		String cym = ym6FromTrx(trxDt);
-		if (cym != null && mapper.isClosedYm(cym) > 0)
+		if (cym != null && mapper.isClosedYm(cym, null) > 0)
 			throw new Exception("["+cym.substring(0,4)+"-"+cym.substring(4,6)+"] 마감 확정된 월입니다. 마감 확정을 먼저 해제해야 재고 수불을 변경할 수 있습니다.");
 	}
 	private String ym6(String ymDash) { if (ymDash==null) return null; String s=ymDash.replace("-",""); return s.length()>=6 ? s.substring(0,6) : s; }
@@ -287,14 +397,14 @@ public class UserServiceImpl implements UserService {
 		dto.setSalesAmt(sAmt); dto.setCogsAmt(cogs); dto.setMarginAmt(sAmt-cogs); dto.setPurchaseAmt(pAmt); dto.setStockAmt(stkAmt);
 		if (mapper.updateClosingMst(dto) == 0) mapper.insertClosingMst(dto);
 		// ⑤ 재고 스냅샷 재작성(이월 근거)
-		mapper.deleteClosingStock(cym);
+		mapper.deleteClosingStock(cym, null);
 		for (egovframework.sejong.user.model.StockClosingDTO r : stock) { r.setYm(ymDash); mapper.insertClosingStock(r); }
 		return 1;
 	}
 	@Override public int cancelClosing(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception {
 		String cym = ym6(dto.getYm()); dto.setCloseYm(cym);
 		int n = mapper.cancelClosingMst(dto);
-		mapper.deleteClosingStock(cym);
+		mapper.deleteClosingStock(cym, null);
 		return n;
 	}
 

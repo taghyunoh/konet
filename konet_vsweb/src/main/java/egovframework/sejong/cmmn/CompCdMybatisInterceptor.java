@@ -41,19 +41,28 @@ public class CompCdMybatisInterceptor implements Interceptor {
 	@Override
 	public Object intercept(Invocation invocation) throws Throwable {
 		String compCd = CompCdContext.get();
-		if (compCd != null && !compCd.isEmpty()) {
-			Object param = invocation.getArgs()[1];
-			if (param == null) {
-				Map<String, Object> m = new HashMap<String, Object>();
-				m.put("compCd", compCd);
-				invocation.getArgs()[1] = m;
-			} else if (param instanceof Map) {
-				injectIntoMap((Map<Object, Object>) param, compCd);
-			} else if (!(param instanceof String) && !(param instanceof Number) && !(param instanceof Boolean)) {
-				injectIntoBean(param, compCd);
-			}
-			// String/Number 단일 파라미터 구문은 주입 불가 — 해당 구문은 Map 파라미터로 바꿔서 쓸 것
+		/* ★미로그인(회사코드 없음)이어도 '키는 반드시' 채운다 (2026-08-01).
+		     종전에는 compCd 가 비면 아무것도 안 하고 넘어갔는데, 그러면
+		       · 파라미터 없는 구문 → param 이 null 인 채로 #{compCd} 참조
+		       · @Param 구문(ParamMap) → 없는 키를 get() 하는 순간
+		     둘 다 BindingException("Parameter 'compCd' not found") 로 **터진다**.
+		     주석에 적힌 fail-open(전체 조회) 이 되려면 키가 있고 값이 빈 문자열이어야 한다.
+		     실제 사고: 세션이 끊긴 뒤 [출고반영 재집계] → isClosedYm 에서 500. */
+		if (compCd == null) compCd = "";
+		Object param = invocation.getArgs()[1];
+		if (param == null) {
+			Map<String, Object> m = new HashMap<String, Object>();
+			m.put("compCd", compCd);
+			invocation.getArgs()[1] = m;
+		} else if (param instanceof Map) {
+			injectIntoMap((Map<Object, Object>) param, compCd);
+		} else if (!compCd.isEmpty()
+		           && !(param instanceof String) && !(param instanceof Number) && !(param instanceof Boolean)) {
+			/* DTO 는 compCd 속성이 이미 있어 #{compCd} 가 터지지 않는다 →
+			   회사코드가 있을 때만 채우면 되고, 빈 값을 덮어쓸 필요가 없다. */
+			injectIntoBean(param, compCd);
 		}
+		// String/Number 단일 파라미터 구문은 주입 불가 — 해당 구문은 @Param 을 붙여 ParamMap 으로 만들 것
 		return invocation.proceed();
 	}
 

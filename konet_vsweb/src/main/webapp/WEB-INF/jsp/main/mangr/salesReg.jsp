@@ -450,7 +450,7 @@ function post(url, body, isJson){
   _vendorPick(document.getElementById('saVenNm'), {
     list   : function(){ return _vendors; },
     onPick : function(o){ saVenPick(o.vendorCd); },
-    onClear: function(){ document.getElementById('saMgrNm').value=''; document.getElementById('saMgrNm').dataset.cd=''; saVenBal(''); }
+    onClear: function(){ document.getElementById('saMgrNm').value=''; document.getElementById('saMgrNm').dataset.cd=''; saVenBal(''); saXrefLoad(''); }
   });
 })();
 
@@ -484,6 +484,7 @@ function saLoadMasters(){
 /* ── 전표 입력 ────────────────────────────────────────── */
 function saNew(){
   _cur = null; _curNet = 0; _rows = [];
+  _xrefNm = {};                       // 거래처가 비워지므로 그 거래처 표기표도 비운다
   document.getElementById('saVenNm').value=''; document.getElementById('saVenNm').dataset.cd='';
   document.getElementById('saMgrNm').value=''; document.getElementById('saMgrNm').dataset.cd='';
   document.getElementById('saRemark').value=''; document.getElementById('saPayAmt').value='0'; document.getElementById('saDcAmt').value='0';
@@ -546,11 +547,18 @@ function saRender(){
       + '</td>'
       + '<td>'+ (o.prodCd ? '<span class="lnk" title="클릭 → 다른 상품으로 바꾸기" onclick="saProdOpen('+i+')">'+esc(o.prodCd)+'</span>'
                           : '<span class="lnk" onclick="saProdOpen('+i+')">선택</span>') +'</td>'
-      /* 품명 클릭 = 그 거래처의 판매단가 이력. 찾기 쉽게 📈 아이콘을 붙였다(2026-07-25) */
-      + '<td class="txt">'+ (o.prodNm
-          ? '<span class="lnk" onclick="saHistOpen('+i+')" title="클릭 → 이 거래처의 판매단가 이력(최대 3년)">'+esc(o.prodNm)+'</span>'
-            + ' <span class="hist" onclick="saHistOpen('+i+')" title="판매단가 이력 보기">📈</span>'
-          : '') +'</td>'
+      /* 품명 클릭 = 그 거래처의 판매단가 이력. 찾기 쉽게 📈 아이콘을 붙였다(2026-07-25)
+         ★거래처 표기로 바뀐 품명은 🔗 로 표시하고 우리 품명은 hover 로 함께 보여 준다(2026-08-01).
+           출고는 요청한 이름으로 나가야 하지만, 우리가 무엇을 파는지도 화면에서 잃으면 안 된다. */
+      + '<td class="txt">'+ (function(){
+            if(!o.prodNm) return '';
+            var our = saOurNm(o.prodCd), alias = (our && our !== o.prodNm);
+            return '<span class="lnk" onclick="saHistOpen('+i+')" title="'
+              + (alias ? '거래처가 요청한 품명입니다 (우리 품명: '+esc(our)+')&#10;' : '')
+              + '클릭 → 이 거래처의 판매단가 이력(최대 3년)">'+esc(o.prodNm)+'</span>'
+              + (alias ? ' <span title="거래처 요청 품명 — 이 이름으로 출고됩니다 (우리 품명: '+esc(our)+')" style="cursor:help">🔗</span>' : '')
+              + ' <span class="hist" onclick="saHistOpen('+i+')" title="판매단가 이력 보기">📈</span>';
+          })() +'</td>'
       + '<td class="txt">'+ (o.packQty?('['+fmt(o.packQty)+']'):'') + esc(o.spec) +'</td>'
       + '<td><input value="'+n(o.boxQty)+'" onchange="saSet('+i+',\'boxQty\',this.value)"></td>'
       + '<td><input value="'+n(o.eaQty)+'" onchange="saSet('+i+',\'eaQty\',this.value)"></td>'
@@ -774,6 +782,8 @@ function saApply(d){
   document.getElementById('saDcAmt').value = n(d.dcAmt);
   _rows = (d.items||[]).map(function(x){ x.taxGb='과세'; return x; });
   _rows.push(emptyRow());
+  /* 저장된 품명은 그대로 둔다(그 전표의 사실). 표기표는 이후 '품목 추가' 에만 쓴다. */
+  saXrefLoad(d.custCd||'', false);
   document.getElementById('saState').textContent = '수정 중 — '+fmtDt(d.saleDt)+' / '+d.saleNo;
   saRender(); saVenBal(d.custCd);
 }
@@ -843,7 +853,59 @@ function saVenPick(cd){
   var o = _vendors.filter(function(x){ return String(x.vendorCd)===String(cd); })[0]; if(!o) return;
   var v = document.getElementById('saVenNm'); v.value = o.vendorNm||''; v.dataset.cd = o.vendorCd||'';
   var m = document.getElementById('saMgrNm'); m.value = o.mgrNm||''; m.dataset.cd = o.mgrCd||'';
-  saVenClose(); saVenBal(o.vendorCd);
+  saVenClose(); saVenBal(o.vendorCd); saXrefLoad(o.vendorCd);
+}
+
+/* ── 거래처 표기(품명) ────────────────────────────────────
+     ★출고는 '거래처가 요청한 품목명' 으로 나가야 한다 (2026-08-01).
+     코네트 품목은 하나지만 거래처는 같은 물건을 자기 이름으로 부른다. 그 이름을 명세 품명에
+     채워 저장하면 TBL_SALES_TRX_DTL.PROD_NM 에 그대로 남아 명세서·조회에 그 이름으로 보인다.
+     · 표기가 없는 품목은 우리 PROD_NM 을 그대로 쓴다(_xrefNm 에 없으면 원래 동작).
+     · 품명 칸은 입력칸이 아니라 표시 전용이라, 거래처를 바꾸면 담긴 행도 다시 맞춰도 안전하다
+       (사람이 손으로 고쳐 둔 값을 덮어쓸 여지가 없다).
+     · 우리 품명은 사라지지 않는다 — 셀 hover(title)로 함께 보여 준다. */
+var _xrefNm = {};        // 우리 prodCd → 그 거래처 표기(EXT_ITEM_NM)
+/* 우리 품명은 '상품마스터(_prods)' 에서 직접 읽는다 (2026-08-01).
+   ★행에 찍힌 prodNm 을 우리 이름으로 기억해 두면 안 된다 — 저장된 전표를 불러올 때 거기 찍힌 것은
+     이미 '거래처 표기' 라, 그걸 우리 이름으로 잘못 기억하면 다른 거래처로 바꿀 때 옛 거래처 이름이 남는다. */
+var _ourNmMap = null;
+function saOurNm(cd){
+  if(!cd) return '';
+  var n0 = (_prods||[]).length;
+  if(!_ourNmMap || _ourNmMap.__n !== n0){       // 마스터가 늦게 도착하므로 건수가 바뀌면 다시 만든다
+    _ourNmMap = { __n: n0 };
+    (_prods||[]).forEach(function(p){ if(p.prodCd) _ourNmMap[p.prodCd] = p.prodNm; });
+  }
+  return _ourNmMap[cd] || '';
+}
+/* apply=false 로 부르면 표기표만 받아 두고 담긴 행은 건드리지 않는다.
+   ★저장된 전표를 불러올 때가 그 경우다 — 그때 찍힌 이름이 그 전표의 사실이므로,
+     지금 매핑이 바뀌었다고 과거 전표의 품명을 조용히 갈아치우면 안 된다. */
+function saXrefLoad(cd, apply){
+  if(apply === undefined) apply = true;
+  _xrefNm = {};
+  if(!cd){ if(apply) saXrefApply(); return; }
+  post('/prod/xrefNames.do','vendorCd='+encodeURIComponent(cd))
+    .then(function(r){return r.json();})
+    .then(function(j){
+      ((j&&j.data)||[]).forEach(function(x){ if(x.prodCd && x.extItemNm) _xrefNm[x.prodCd]=x.extItemNm; });
+      if(apply) saXrefApply();
+    })
+    .catch(function(){ if(apply) saXrefApply(); });   // 실패해도 우리 품명으로 그냥 간다
+}
+/* 그 거래처 표기로 품명을 맞춘다(표기 없으면 우리 품명으로 되돌린다) */
+function saXrefApply(){
+  var changed = false;
+  _rows.forEach(function(o){
+    if(!o.prodCd) return;
+    var want = _xrefNm[o.prodCd] || saOurNm(o.prodCd) || o.prodNm;
+    if(want && want !== o.prodNm){ o.prodNm = want; changed = true; }
+  });
+  if(changed) saRender();
+}
+/* 품목을 담을 때 쓸 이름 — 그 거래처 표기 우선 */
+function saNmFor(prodCd, ourNm){
+  return (prodCd && _xrefNm[prodCd]) ? _xrefNm[prodCd] : ourNm;
 }
 /* 현잔고 = 그 거래처의 미수 누계 = 매출 − DC − 수금 − 할인.
    수금등록(rcvReg)과 같은 쿼리·같은 식이라 두 화면 잔고가 어긋나지 않는다.
@@ -918,7 +980,8 @@ function saProdRender(){
 function saProdPick(cd){
   var p = _prods.filter(function(x){ return String(x.prodCd)===String(cd); })[0]; if(!p) return;
   var o = _rows[_prodTargetRow]; if(!o) return;
-  o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=p.prodNm; o.spec=p.spec||'';
+  /* 품명 = 그 거래처가 요청한 이름(있으면). 없으면 우리 품명 그대로 */
+  o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=saNmFor(p.prodCd, p.prodNm); o.spec=p.spec||'';
   o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
   o.unitPrice=n(p.salePrice);   // 기본값 = 상품마스터 판매가 (매입 화면은 inPrice 를 쓴다)
   saProdClose();
@@ -1069,7 +1132,7 @@ function saDlvApply(){
     var s = _dlv.filter(function(x){ return String(x.prodCd)===String(cd); })[0]; if(!s) return;
     if (rows.some(function(o){ return String(o.prodCd)===String(cd); })) { dup.push(cd); return; }
     var o = emptyRow();
-    o.prodSeq  = s.prodSeq;  o.prodCd = s.prodCd; o.prodNm = s.prodNm; o.spec = s.spec||'';
+    o.prodSeq  = s.prodSeq;  o.prodCd = s.prodCd; o.prodNm = saNmFor(s.prodCd, s.prodNm); o.spec = s.spec||'';
     o.packQty  = n(s.packQty)||1;
     o.taxGb    = s.taxGb || '과세';
     o.unitPrice= n(s.unitPrice);      // 그 거래처의 최근 거래단가

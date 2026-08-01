@@ -548,6 +548,17 @@ public class UserController {
 						svc.insertShipoutMst(r);
 						seq++; total++;
 					}
+					/* ★거래처 코드 → 우리 품목 해석 (2026-08-01). 반드시 INSERT 뒤·재고연동(A) 앞.
+					   · 원본 ITEM_CD/ITEM_NM 은 건드리지 않는다. PROD_SEQ 칸만 채운다.
+					   · 행마다 조회하지 않는다 — 배치 단위 UPDATE 한 문장(resolveShipoutProd).
+					   · 매핑이 없으면 PROD_SEQ 가 NULL 로 남고, 그 행은 재고연동에서 자연히 빠진다
+					     (= 미매핑 보류). 나중에 매핑을 걸면 saveXref 가 소급으로 채운다. */
+					egovframework.sejong.user.model.ProdXrefDTO rx = new egovframework.sejong.user.model.ProdXrefDTO();
+					rx.setJobSeq(Long.valueOf(jobSeq));
+					rx.setDlvDt(head.getDlvDt());
+					rx.setDcCd(head.getDcCd());
+					svc.resolveShipoutProd(rx);
+
 					// 새 배치의 출고일자 — 그룹키에 출고일자가 없으므로 한 그룹 안에 두 날짜가 섞일 여지가 있다(행 단위로 모은다)
 					for (egovframework.sejong.user.model.ShipoutDTO r : grp) {
 						if (r.getShpoutDt() != null && !r.getShpoutDt().trim().isEmpty()) syncDates.add(r.getShpoutDt().trim().replace("-", ""));
@@ -622,6 +633,13 @@ public class UserController {
 						svc.insertSalesMst(r);
 						seq++; total++;
 					}
+					/* ★거래처 코드 → 우리 품목 해석 (2026-08-01) — 발주현황표와 같은 처리.
+					   정산서에는 규격·단가·면과세가 있어 매핑 '검증' 의 주 근거가 된다.
+					   여기서 PROD_SEQ 가 채워지면 매출내역 대사가 우리 품목 기준으로 통일된다. */
+					egovframework.sejong.user.model.ProdXrefDTO rx = new egovframework.sejong.user.model.ProdXrefDTO();
+					rx.setJobSeq(Long.valueOf(jobSeq));
+					rx.setDlvDt(head.getDlvDt());
+					svc.resolveSalesProd(rx);
 				}
 
 				// (B) 판매단가 이력 반영 — 매출마감의 출고단가가 '(마스터)' 폴백이 아니라 '(이력)' = 실제 확정가로 잡히게 한다.
@@ -1633,6 +1651,99 @@ public class UserController {
 		}
 
 		/* ================= 매입가 이력 (TBL_PROD_INPRICE_HST) ================= */
+		/* ===== 거래처별 품목 표기(교차참조) — TBL_PROD_XREF (2026-08-01) =====================
+		   코네트 품목은 하나, 거래처가 요청하는 코드·품명은 XREF 에 N건. 가상코드를 만들지 않는다.
+		   등록 지점 = 상품관리(상품코드) 화면의 [거래처 코드] 탭 + 업로드 프리뷰의 미매핑 연결. */
+		@RequestMapping(value="/prod/xrefList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> xrefList(@ModelAttribute("DTO") egovframework.sejong.user.model.ProdXrefDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectXrefList(dto));
+			return response;
+		}
+		/* 미매핑 목록 — 업로드된 자료 중 우리 품목으로 해석되지 않은 코드(거래처·코드별 집계) */
+		@RequestMapping(value="/prod/xrefUnmapped.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> xrefUnmapped(@ModelAttribute("DTO") egovframework.sejong.user.model.ProdXrefDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectUnmappedItems(dto));
+			return response;
+		}
+		/* 후보 추천 — ★품명은 거래처마다 제각각으로 들어오므로 보조 신호일 뿐이다.
+		   단가(extPrice)·규격(extSpec)이 있으면 그것이 1순위 근거가 된다. 자동 확정은 없다. */
+		@RequestMapping(value="/prod/xrefCandidates.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> xrefCandidates(@ModelAttribute("DTO") egovframework.sejong.user.model.ProdXrefDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectXrefCandidates(dto));
+			return response;
+		}
+		/* 매핑 점검 리포트 — 틀린 매핑이 남기는 신호를 한 화면에.
+		   ①미매핑(재고 보류) ②단가 이탈(정산 vs 우리 판매가 10%↑) ③미확인 출고 ④재고 음수.
+		   기간(일)은 matchScore 칸을 빌려 쓴다(기본 30). */
+		/* 그 거래처로 나갈 때 쓸 품명 — 판매등록이 명세 품명을 이걸로 채운다.
+		   "출고는 거래처가 요청한 품목명으로 나가야 한다" 는 요구가 실제로 지켜지는 지점. */
+		@RequestMapping(value="/prod/xrefNames.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> xrefNames(@ModelAttribute("DTO") egovframework.sejong.user.model.ProdXrefDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectXrefNames(dto));
+			return response;
+		}
+		@RequestMapping(value="/prod/xrefAudit.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> xrefAudit(@ModelAttribute("DTO") egovframework.sejong.user.model.ProdXrefDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectXrefAudit(dto));
+			return response;
+		}
+		@RequestMapping(value="/prod/xrefSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> xrefSave(@RequestBody egovframework.sejong.user.model.ProdXrefDTO dto,
+		                                       HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getProdSeq() == null) return ResponseEntity.status(400).body("우리 품목(PROD_SEQ)을 고르세요.");
+				if (dto.getExtItemCd() == null || dto.getExtItemCd().trim().isEmpty())
+					return ResponseEntity.status(400).body("거래처 품목코드가 필요합니다.");
+				String regUser = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id"))
+				               : (session.getAttribute("s_comp_cd") != null ? String.valueOf(session.getAttribute("s_comp_cd")) : "");
+				dto.setRegUser(regUser); dto.setUpdUser(regUser);
+				dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.saveXref(dto)));
+			} catch (org.springframework.dao.DuplicateKeyException de) {
+				/* UX_PROD_XREF_EXT 위반 = 같은 거래처의 같은 코드가 이미 다른 품목에 걸려 있다.
+				   데이터가 깨지지 않게 DB 가 막아 준 것이므로 사용자에게 그대로 알린다. */
+				return ResponseEntity.status(409).body("이미 다른 품목에 연결된 거래처 코드입니다. 기존 연결을 먼저 확인하세요.");
+			} catch (Exception e) {
+				log.error(" xrefSave ERROR ! : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+		/* 대사 확정 — 정산서의 단가·규격이 맞았을 때 또는 상품관리에서 사람이 직접 */
+		@RequestMapping(value="/prod/xrefConfirm.do", method = RequestMethod.POST)
+		public ResponseEntity<String> xrefConfirm(@RequestBody egovframework.sejong.user.model.ProdXrefDTO dto, HttpSession session) {
+			try {
+				if (dto.getXrefSeq() == null) return ResponseEntity.status(400).body("XREF_SEQ 필요");
+				dto.setConfirmUser(session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "");
+				return ResponseEntity.ok(String.valueOf(svc.confirmXref(dto)));
+			} catch (Exception e) {
+				log.error(" xrefConfirm ERROR ! : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+		@RequestMapping(value="/prod/xrefDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> xrefDelete(@RequestBody egovframework.sejong.user.model.ProdXrefDTO dto,
+		                                         HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getXrefSeq() == null) return ResponseEntity.status(400).body("XREF_SEQ 필요");
+				dto.setUpdUser(session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "");
+				dto.setUpdIp(request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.deleteXref(dto)));
+			} catch (Exception e) {
+				log.error(" xrefDelete ERROR ! : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+
 		@RequestMapping(value="/prod/inpriceList.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,Object> inpriceList(@ModelAttribute("DTO") egovframework.sejong.user.model.ProdInpriceDTO dto, HttpSession session) throws Exception {
@@ -1721,6 +1832,20 @@ public class UserController {
 				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
 				return ResponseEntity.ok(String.valueOf(svc.rebuildShipoutLedgerAll(u, request.getRemoteAddr())));
 			} catch (Exception e) { log.error(" stockRebuild ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* 재집계 진행률 — 위 stockRebuild 가 도는 동안 화면이 짧은 주기로 물어본다.
+		   DB 를 건드리지 않는 메모리 조회라 재집계 트랜잭션을 방해하지 않는다.
+		   running=false 면 아직 시작 전이거나 이미 끝난 것 — 화면은 그때 진행바를 닫는다. */
+		@RequestMapping(value="/prod/stockRebuildProgress.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockRebuildProgress(HttpSession session) {
+			String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
+			egovframework.sejong.cmmn.RebuildProgress.P p = egovframework.sejong.cmmn.RebuildProgress.get(u);
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("running", p != null);
+			if (p != null) { res.put("phase", p.phase); res.put("done", p.done); res.put("total", p.total); }
+			return res;
 		}
 
 		/* 입고내역 — 전체 입고(수불 IO_GB='I') 거래 목록 */

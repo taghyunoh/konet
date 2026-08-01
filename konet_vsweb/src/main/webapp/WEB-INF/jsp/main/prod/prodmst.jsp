@@ -13,6 +13,30 @@
   .swal2-popup:not(.swal2-toast) .swal2-html-container{ font-size:.95em; margin:.5em 1em 0; }
   .swal2-popup:not(.swal2-toast) .swal2-actions{ margin-top:1em; }
   .swal2-popup:not(.swal2-toast) .swal2-styled{ padding:.5em 1.4em; font-size:.95em; }
+
+  /* 미매핑 코드 고르기 — 전용 모달.
+     ★위 컴팩트 표준(440px!important)은 프로젝트 방침이라 그대로 두고, 표가 필요한 이 창만 따로 만든다.
+       Swal 로 띄우면 440px 안에 눌려 가로 스크롤이 생긴다(2026-08-01 지적).
+     ★바깥 클릭으로는 안 닫는다 — 고르는 중에 닫히면 처음부터 다시 해야 한다. */
+  #xrPickOv{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.45); z-index:10050;
+             align-items:center; justify-content:center; }
+  #xrPickOv .xrp-box{ background:#fff; width:min(1080px,96vw); max-height:86vh; border-radius:12px;
+             box-shadow:0 14px 44px rgba(0,0,0,.3); display:flex; flex-direction:column; overflow:hidden; }
+  #xrPickOv .xrp-hd{ background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:12px 18px;
+             font-size:15px; font-weight:600; display:flex; justify-content:space-between; align-items:center; }
+  #xrPickOv .xrp-bar{ display:flex; gap:10px; align-items:center; padding:10px 18px 8px; }
+  #xrPickOv .xrp-bar input{ flex:1; height:32px; border:1px solid var(--bd); border-radius:6px; padding:0 10px; font-size:13px; }
+  #xrPickOv .xrp-bar span{ color:#6b7a89; font-size:12.5px; white-space:nowrap; }
+  #xrPickOv .xrp-bd{ flex:1 1 auto; min-height:0; overflow:auto; padding:0 18px; }
+  #xrPickOv .xrp-ft{ padding:10px 18px 14px; text-align:right; border-top:1px solid var(--bd); }
+  #xrPickOv .xrp-tb{ width:100%; border-collapse:collapse; font-size:12.5px; table-layout:fixed; }
+  #xrPickOv .xrp-tb th{ background:#eef3f2; border:1px solid var(--bd); padding:6px 7px; color:#37475a;
+             position:sticky; top:0; z-index:1; }
+  #xrPickOv .xrp-tb td{ border:1px solid #e6ecf0; padding:5px 7px; text-align:center; color:#37475a;
+             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #xrPickOv .xrp-tb td.l{ text-align:left; }
+  #xrPickOv .xrp-tb tbody tr{ cursor:pointer; }
+  #xrPickOv .xrp-tb tbody tr:hover td{ background:#eefaf6; }
 </style>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>상품(품목) 관리 (TBL_PROD_MST)</title>
@@ -224,6 +248,10 @@
       <button class="tab"    id="tab_sale"  onclick="hvTab('sale')">🏷️ 판매가</button>
       <button class="tab"    id="tab_sales" onclick="hvTab('sales')">🧾 매출단가(조회)</button>
       <button class="tab"    id="tab_stock" onclick="hvTab('stock')">📦 재고(수불)</button>
+      <%-- 거래처 코드 — 같은 물건을 거래처가 자기 코드·자기 품명으로 요청할 때 여기에 등록한다(2026-08-01).
+           ★가상코드(같은 물건을 상품마스터에 또 등록)는 이제 만들지 않는다 — 재고가 갈라진다.
+             재고·원가의 주인은 언제나 이 품목 하나(PROD_SEQ)고, 여기 등록한 이름이 출고서에 찍힌다. --%>
+      <button class="tab"    id="tab_xref"  onclick="hvTab('xref')">🔗 거래처 코드</button>
     </div>
     <div class="mb2">
       <%-- 매입가 — 조회 전용 (2026-07-25 변경)
@@ -299,6 +327,51 @@
         <table>
           <thead><tr><th>거래일</th><th>구분</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>매입처</th><th>출처</th><th>비고</th><th>등록</th><th style="width:56px"></th></tr></thead>
           <tbody id="st_tb"><tr><td colspan="10" class="empty">-</td></tr></tbody>
+        </table>
+        </div>
+      </div>
+
+      <%-- ===== 거래처 코드(교차참조) — TBL_PROD_XREF ==========================================
+           · 거래처 품목코드는 **자유 입력이 아니라 실제로 들어온 코드 중에서 고른다**(미매핑 목록).
+             오타로 있지도 않은 코드를 매핑하는 사고가 원천 차단된다.
+           · ★품명은 거래처마다 제각각으로 들어온다 — 이름만 보고 판단하지 말 것.
+             판정 근거는 **단가 · 규격**이고(정산서에만 있다), 최종 확인은 사람이 한다.
+           · [확인] 을 눌러야 CONFIRM_YN='Y'. 자동 확정은 없다.
+           ====================================================================================== --%>
+      <div class="panel" id="p_xref" style="display:none">
+        <div class="subbar">
+          <div class="fld"><label>거래처</label>
+            <input type="text" id="xr_venNm" list="xr_venList" style="width:200px" placeholder="비우면 모든 거래처 공통" title="이 거래처가 쓰는 표기입니다. 비우면 거래처 구분 없이 적용됩니다.">
+            <datalist id="xr_venList"></datalist>
+          </div>
+          <div class="fld"><label>거래처 품목코드 <span style="color:#c0392b;font-weight:400">필수</span></label>
+            <input type="text" id="xr_extCd" style="width:150px" placeholder="[불러오기]로 고르세요" title="실제로 업로드된 코드 중에서 고르는 것이 안전합니다.">
+          </div>
+          <button class="btn" onclick="xrPickOpen()" title="업로드된 자료 중 아직 우리 품목에 연결되지 않은 코드 목록">📥 미매핑에서 고르기</button>
+          <div class="fld"><label>거래처 품목명 <span style="color:#9aa7b3;font-weight:400">(출고서에 찍히는 이름)</span></label>
+            <input type="text" id="xr_extNm" style="width:260px">
+          </div>
+          <div class="fld"><label>규격</label><input type="text" id="xr_extSpec" style="width:130px"></div>
+          <div class="fld"><label>단위</label><input type="text" id="xr_extUnit" style="width:70px" placeholder="BOX"></div>
+          <div class="fld"><label>환산 <span style="color:#9aa7b3;font-weight:400">(거래처1=우리N)</span></label>
+            <input type="number" id="xr_conv" step="0.001" style="width:80px" value="1" title="거래처가 박스로 세고 우리가 낱개로 셀 때만 바꿉니다. 보통 1.">
+          </div>
+          <div class="fld"><label>대표</label>
+            <select id="xr_main" style="width:70px" title="그 거래처로 출고할 때 기본으로 쓸 표기"><option value="N">-</option><option value="Y">대표</option></select>
+          </div>
+          <button class="btn btn-teal" onclick="xrSave()">＋ 연결</button>
+        </div>
+        <div class="subbar" style="color:#6b7a89; font-size:12.5px; padding-top:0">
+          ⚠️ 거래처는 <b>품명도 자기 식으로</b> 보냅니다 — 이름만 보고 판단하지 마세요.
+          같은 물건이면 <b>규격·단가</b>가 맞아야 합니다. 확인이 끝나면 <b>[확인]</b>을 눌러 확정하세요.
+        </div>
+        <div class="tbwrap">
+        <table>
+          <thead><tr>
+            <th>거래처</th><th>거래처 품목코드</th><th>거래처 품목명(출고서 표기)</th>
+            <th>규격</th><th>단위</th><th style="text-align:right">환산</th><th>대표</th><th>확인</th><th>등록</th><th style="width:96px"></th>
+          </tr></thead>
+          <tbody id="xr_tb"><tr><td colspan="10" class="empty">-</td></tr></tbody>
         </table>
         </div>
       </div>
@@ -555,12 +628,191 @@ document.addEventListener('click', function(e){
 });
 function hvTab(t){
   HVT=t;
-  ['in','sale','sales','stock'].forEach(function(k){
+  ['in','sale','sales','stock','xref'].forEach(function(k){
     document.getElementById('tab_'+k).classList.toggle('on', k===t);
     document.getElementById('p_'+k).style.display = (k===t)?'flex':'none';   // flex = 표만 스크롤되는 세로 배치
   });
   if(!HVP) return;   // 품목 미선택 시 탭 하이라이트만
-  if(t==='in') hvLoadIn(); else if(t==='sale') hvLoadSale(); else if(t==='sales') hvLoadSalesPrice(); else hvLoadStock();
+  if(t==='in') hvLoadIn(); else if(t==='sale') hvLoadSale(); else if(t==='sales') hvLoadSalesPrice();
+  else if(t==='xref') xrLoad(); else hvLoadStock();
+}
+
+/* ================= 거래처 코드(교차참조) — TBL_PROD_XREF (2026-08-01) =================
+   같은 물건을 거래처가 자기 코드·자기 품명으로 요청할 때 여기에 등록한다.
+   ★상품마스터에 '가상코드'를 또 만들지 않는다 — 그러면 재고가 원코드와 가상코드로 갈라진다.
+     재고·원가의 주인은 이 품목 하나(PROD_SEQ)고, 여기 등록한 EXT_ITEM_NM 이 출고서에 찍힌다.
+   ★거래처는 품명도 자기 식으로 보낸다. 이름으로 판단하지 말고 규격·단가로 확인할 것.
+   ==================================================================================== */
+function xrLoad(){
+  if(!HVP) return;
+  _listPost('/prod/xrefList.do', HVP.prodSeq).then(function(j){
+    var rows=(j&&j.data)||[], tb=document.getElementById('xr_tb');
+    if(!rows.length){
+      tb.innerHTML='<tr><td colspan="10" class="empty">연결된 거래처 코드가 없습니다. 거래처가 다른 코드로 요청하면 여기에 등록하세요.</td></tr>';
+      return;
+    }
+    tb.innerHTML = rows.map(function(o){
+      /* 확인 전(CONFIRM_YN='N')은 눈에 띄게 — 재고는 이미 반영되지만 검증이 안 끝난 상태다 */
+      var ok = (o.confirmYn==='Y');
+      var badge = ok ? '<span style="color:#137a6c;font-weight:700" title="'+esc(o.confirmUser||'')+' '+esc(o.confirmDttm||'')+'">✔ 확인</span>'
+                     /* '미확인' 은 문제처럼 읽힌다 — 연결도 됐고 재고도 정상이다(2026-08-01 지적).
+                        남은 일이 무엇인지만 담백하게 적는다. */
+                     : '<span style="color:#c07a02;font-weight:700" title="연결됐고 재고도 정상입니다. 규격·단가만 한 번 대조한 뒤 [확인]을 누르면 끝입니다.">확인 필요</span>';
+      return '<tr>'
+        + '<td>'+esc(o.vendorNm|| (o.vendorCd||'<span style="color:#9aa7b3">공통</span>'))+'</td>'
+        + '<td><b>'+esc(o.extItemCd)+'</b></td>'
+        + '<td style="text-align:left">'+esc(o.extItemNm)+'</td>'
+        + '<td>'+esc(o.extSpec)+'</td><td>'+esc(o.extUnit)+'</td>'
+        + '<td class="num">'+(o.convQty==null?'1':Number(o.convQty))+'</td>'
+        + '<td>'+(o.mainYn==='Y'?'★':'')+'</td>'
+        + '<td>'+badge+'</td>'
+        + '<td>'+esc((o.regDttm||'').slice(0,10))+'</td>'
+        + '<td>'
+        +   (ok?'':'<button class="btn" style="height:22px;padding:0 6px;font-size:11.5px" onclick="xrConfirm('+o.xrefSeq+')">확인</button> ')
+        +   '<button class="btn" style="height:22px;padding:0 6px;font-size:11.5px" onclick="xrDelete('+o.xrefSeq+')">삭제</button>'
+        + '</td></tr>';
+    }).join('');
+  });
+}
+
+/* 거래처 콤보 — 매출 거래처(SVENDORS)를 쓴다. 출고를 받는 쪽이라 매입처가 아니다. */
+function xrVenFill(){
+  var dl=document.getElementById('xr_venList'); if(!dl) return;
+  dl.innerHTML = (SVENDORS||[]).map(function(v){ return '<option value="'+esc(v.vendorNm)+'">'+esc(v.vendorCd)+'</option>'; }).join('');
+}
+function xrVenCd(){
+  var nm=gv('xr_venNm'); if(!nm) return '';
+  var f=(SVENDORS||[]).filter(function(v){ return v.vendorNm===nm; })[0];
+  return f? f.vendorCd : '';
+}
+
+function xrSave(){
+  if(!HVP){ toast('⚠️ 품목을 먼저 고르세요'); return; }
+  var extCd = gv('xr_extCd');
+  if(!extCd){ toast('⚠️ 거래처 품목코드를 고르세요'); return; }
+  var nm = gv('xr_venNm');
+  if(nm && !xrVenCd()){ toast('⚠️ 거래처를 목록에서 고르세요'); return; }
+  var dto = {
+    prodSeq: HVP.prodSeq, prodCd: HVP.prodCd,
+    vendorCd: xrVenCd(), vendorNm: nm,
+    extItemCd: extCd, extItemNm: gv('xr_extNm'), extSpec: gv('xr_extSpec'), extUnit: gv('xr_extUnit'),
+    convQty: gnum('xr_conv')==null?1:gnum('xr_conv'),
+    mainYn: gv('xr_main'),
+    confirmYn: 'N'          // 연결 직후는 '확인 필요' — 규격·단가로 대조한 뒤 [확인]
+  };
+  _post('/prod/xrefSave.do', dto).then(function(r){
+    if(!r.ok){ toast('⚠️ '+esc(r.t||'연결 실패')); return; }
+    /* 저장하면 서버가 과거 업로드분까지 소급으로 해석하고 재고를 다시 만든다(saveXref) */
+    toast('연결했습니다. 과거 업로드분도 이 품목으로 반영됩니다.');
+    document.getElementById('xr_extCd').value=''; document.getElementById('xr_extNm').value='';
+    document.getElementById('xr_extSpec').value=''; document.getElementById('xr_extUnit').value='';
+    document.getElementById('xr_conv').value='1'; document.getElementById('xr_main').value='N';
+    xrLoad();
+  });
+}
+function xrConfirm(seq){
+  swConfirm('규격·단가를 확인하셨나요?<br><span style="font-size:12.5px;color:#6b7a89">품명이 달라도 규격·단가가 맞으면 같은 물건입니다.</span>', '대사 확인')
+    .then(function(ok){
+      if(!ok) return;
+      _post('/prod/xrefConfirm.do', { xrefSeq: seq }).then(function(r){
+        if(!r.ok){ toast('⚠️ '+esc(r.t||'실패')); return; }
+        toast('확정했습니다.'); xrLoad();
+      });
+    });
+}
+function xrDelete(seq){
+  /* 지우면 그 코드로 이미 반영된 재고까지 되돌린다(서버 deleteXref) — 되돌리기가 반쪽이면
+     엉뚱한 품목의 재고가 그대로 굳는다. 그래서 무슨 일이 일어나는지 미리 알린다. */
+  swConfirm('이 연결을 지울까요?<br><span style="font-size:12.5px;color:#6b7a89">이 코드로 <b>이미 반영된 출고·정산도 함께 되돌리고</b> 재고를 다시 계산합니다.<br>다른 매핑이나 같은 코드의 품목이 있으면 그쪽으로 다시 잡히고, 없으면 미매핑으로 남습니다.</span>', '삭제')
+    .then(function(ok){
+      if(!ok) return;
+      _post('/prod/xrefDelete.do', { xrefSeq: seq }).then(function(r){
+        if(!r.ok){ toast('⚠️ '+esc(r.t||'실패')); return; }
+        toast('지웠습니다.'); xrLoad();
+      });
+    });
+}
+
+/* 미매핑에서 고르기 — ★거래처 코드를 손으로 치지 않게 하는 장치.
+   업로드된 자료 중 아직 우리 품목으로 해석되지 않은 코드만 나온다. 있지도 않은 코드를
+   오타로 매핑하는 사고가 원천 차단되고, 그 코드가 살아 있다는 것(최근 일자·건수)도 함께 보인다. */
+/* 미매핑 코드 고르기 — 전용 모달.
+   ★Swal 을 쓰면 안 된다: 이 프로젝트는 `.swal2-popup{width:440px!important}` 로 컴팩트 표준을
+     걸어 두어 width 지정이 무시되고, 표가 440px 안에 눌려 가로 스크롤이 생긴다(2026-08-01 지적).
+     그 표준은 프로젝트 방침이라 건드리지 않고 여기만 별도 모달을 쓴다. */
+function _xrPickOv(){
+  var ov=document.getElementById('xrPickOv');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='xrPickOv';
+    ov.innerHTML =
+      '<div class="xrp-box">'
+      + '<div class="xrp-hd"><span>📥 미매핑 코드에서 고르기 '
+      +   '<span style="font-weight:400;font-size:12.5px;opacity:.85">— 업로드된 자료에 있는데 <b>상품마스터에 없는</b> 코드입니다 (그만큼 재고에서 빠져 있습니다)</span></span>'
+      +   '<span style="cursor:pointer;font-size:18px" onclick="xrPickClose()" title="닫기">✕</span></div>'
+      + '<div class="xrp-bar">'
+      +   '<input id="xrPickQ" placeholder="거래처 · 코드 · 품목명으로 좁히기" oninput="xrPickDraw()" autocomplete="off">'
+      +   '<span id="xrPickCnt"></span></div>'
+      + '<div class="xrp-bd" id="xrPickBd"></div>'
+      + '<div class="xrp-ft"><button class="btn" onclick="xrPickClose()">닫기</button></div>'
+      + '</div>';
+    document.body.appendChild(ov);   // 바깥 클릭으로는 닫지 않는다(고르는 중 실수 방지)
+  }
+  return ov;
+}
+function xrPickClose(){ var ov=document.getElementById('xrPickOv'); if(ov) ov.style.display='none'; }
+function xrPickDraw(){
+  var q=((document.getElementById('xrPickQ')||{}).value||'').trim().toLowerCase();
+  var all=window._xrPick||[];
+  var rows = q ? all.filter(function(o){
+        return [o.vendorNm,o.dcCd,o.extItemCd,o.extItemNm,o.extSpec].some(function(x){
+          return String(x||'').toLowerCase().indexOf(q)>=0; });
+      }) : all;
+  document.getElementById('xrPickCnt').textContent = rows.length + ' / ' + all.length + '종';
+  document.getElementById('xrPickBd').innerHTML =
+    '<table class="xrp-tb"><thead><tr>'
+    + '<th style="width:120px">코드</th><th>품목명</th>'
+    + '<th style="width:150px">규격</th><th style="width:56px">단위</th>'
+    + '<th style="width:150px" title="이 코드가 들어온 출고장(여러 곳이면 콤마)">출고장</th>'
+    + '<th style="width:76px" title="발주현황표(출고) / 정산서(정산) 중 어디서 들어왔나 — 정산서에만 규격·단가가 있다">원천</th>'
+    + '<th style="width:86px">최근</th><th style="width:56px">건수</th></tr></thead><tbody>'
+    + (rows.length ? rows.map(function(o){
+        var i = all.indexOf(o);
+        return '<tr onclick="xrPick('+i+')" title="누르면 위 입력칸에 채워집니다">'
+          + '<td><b>'+esc(o.extItemCd)+'</b></td>'
+          + '<td class="l" title="'+esc(o.extItemNm)+'">'+esc(o.extItemNm)+'</td>'
+          + '<td class="l" title="'+esc(o.extSpec||'')+'">'+esc(o.extSpec||'')+'</td>'
+          + '<td>'+esc(o.extUnit||'')+'</td>'
+          + '<td class="l" title="'+esc(o.vendorNm||'')+'">'+esc(o.vendorNm||'')+'</td>'
+          + '<td>'+esc(o.matchWhy||'')+'</td>'
+          + '<td>'+fmtDt(o.lastDt)+'</td>'
+          + '<td style="text-align:right">'+esc(o.useQty)+'</td></tr>';
+      }).join('') : '<tr><td colspan="8" style="padding:14px;text-align:center;color:#8a97a3">결과가 없습니다.</td></tr>')
+    + '</tbody></table>';
+}
+function xrPickOpen(){
+  fetch(CTX+'/prod/xrefUnmapped.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      var j; try{ j=JSON.parse(t); }catch(e){ toast('⚠️ 조회 오류'); return; }
+      var rows=(j&&j.data)||[];
+      if(!rows.length){ toast('미매핑 코드가 없습니다.'); return; }
+      window._xrPick = rows;
+      _xrPickOv().style.display='flex';
+      var q=document.getElementById('xrPickQ'); if(q){ q.value=''; }
+      xrPickDraw();
+      if(q) q.focus();
+    })
+    .catch(function(e){ toast('⚠️ 통신오류: '+e.message); });
+}
+function xrPick(i){
+  var o=(window._xrPick||[])[i]; if(!o) return;
+  xrPickClose();
+  document.getElementById('xr_extCd').value   = o.extItemCd||'';
+  document.getElementById('xr_extNm').value   = o.extItemNm||'';
+  document.getElementById('xr_extSpec').value = o.extSpec||'';
+  document.getElementById('xr_extUnit').value = o.extUnit||'';
+  if(o.vendorNm) document.getElementById('xr_venNm').value = o.vendorNm;
+  toast('입력칸에 채웠습니다 — 우리 품목이 맞는지 <b>규격·단가</b>로 확인한 뒤 [＋ 연결]');
 }
 
 /* ---- 매입가 ---- */
@@ -591,7 +843,7 @@ function vendorLoad(){
       .catch(function(){ /* 목록 실패해도 화면은 살려둔다 */ });
   }
   one('매입', function(d){ VENDORS=d; });
-  one('매출', function(d){ SVENDORS=d; });
+  one('매출', function(d){ SVENDORS=d; xrVenFill(); });   // 거래처 코드 탭 datalist 도 같이 채운다
 }
 /* 콤보별 데이터 원천 — sl_vendor(판매처)=매출 거래처, 그 외(매입처)=매입 거래처 */
 function _vdata(id){ return id==='sl_vendor' ? SVENDORS : VENDORS; }

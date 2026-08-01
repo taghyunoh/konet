@@ -109,6 +109,30 @@ public interface UserMapper {
 	java.util.List<egovframework.sejong.user.model.ProdInpriceDTO> selectInpriceList(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;
 	int insertInprice(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;
 	int deleteInprice(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;
+
+	/* ===== 거래처별 품목 표기(교차참조) — TBL_PROD_XREF (2026-08-01) =====
+	   코네트 품목은 하나, 거래처가 요청하는 코드·품명은 이 표에 N건. 가상코드를 만들지 않는다.
+	   resolve* 는 업로드 배치의 PROD_SEQ 를 '한 문장에' 채운다(행마다 조회하지 않음). */
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefList(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectUnmappedItems(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefCandidates(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefAudit(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 매핑 점검 리포트
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefNames(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 그 거래처로 나갈 때 쓸 품명(품목당 1건)
+	int insertXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int updateXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int confirmXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int deleteXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int clearXrefMain(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	/* 잘못 연결한 매핑을 지우거나 고칠 때 — 그 코드로 이미 채워진 행을 되돌리기 위한 것들 */
+	egovframework.sejong.user.model.ProdXrefDTO selectXrefById(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	java.util.List<String> selectShipoutDatesByExtCd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int clearShipoutProdByExtCd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int clearSalesProdByExtCd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int resolveShipoutProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;        // 1차 : XREF 매핑
+	int resolveSalesProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int resolveShipoutProdDirect(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 2차 : 코드 직결(거래처 코드 = 우리 코드)
+	int resolveSalesProdDirect(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	java.util.List<String> selectShipoutDatesByProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 소급 재고반영 대상 출고일자
 	int syncProdInPrice(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;   // TBL_PROD_MST.IN_PRICE 동기화
 
 	// ===== 판매가 이력 (TBL_PROD_SALEPRICE_HST) =====
@@ -144,11 +168,11 @@ public interface UserMapper {
 	// ===== 마감 확정/잠금/이월 — TBL_CLOSING_MST / TBL_CLOSING_STOCK =====
 	egovframework.sejong.user.model.ClosingMstDTO selectClosingMst(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 헤더 조회(없으면 null)
 	java.util.List<egovframework.sejong.user.model.ClosingMstDTO> selectClosingMstList(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 월별 마감 이력 목록
-	int isClosedYm(@Param("closeYm") String closeYm) throws Exception;      // 확정(잠금) 여부 count — @Param 필수(COMP_CD 인터셉터가 ParamMap에 compCd 주입)
+	int isClosedYm(@Param("closeYm") String closeYm, @Param("compCd") String compCd) throws Exception;   // ★compCd 를 시그니처에 둔다 — 인터셉터가 못 넣어도 ParamMap 에 키가 있어 #{compCd} 가 안 터진다(fail-open)
 	int updateClosingMst(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 확정 UPDATE(있으면)
 	int insertClosingMst(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 확정 INSERT(없으면)
 	int cancelClosingMst(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 확정 해제(ACTION_YN='N')
-	int deleteClosingStock(@Param("closeYm") String closeYm) throws Exception; // 재고 스냅샷 삭제(재확정/해제 시) — @Param 필수(COMP_CD 인터셉터 주입)
+	int deleteClosingStock(@Param("closeYm") String closeYm, @Param("compCd") String compCd) throws Exception; // 재고 스냅샷 삭제 — compCd 는 위와 같은 이유
 	int insertClosingStock(egovframework.sejong.user.model.StockClosingDTO dto) throws Exception; // 재고 스냅샷 1건
 
 	// ===== 공통코드 관리 (codecd.jsp) =====

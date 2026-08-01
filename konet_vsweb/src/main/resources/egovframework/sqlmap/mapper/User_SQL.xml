@@ -517,11 +517,11 @@
 	            FROM TBL_PROD_MST p
 	           WHERE p.ACTION_YN = 'Y'
 	             AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
-	    ) pm ON pm.PROD_CD = t.ITEM_CD AND pm.COMP_CD = t.COMP_CD
+	    ) pm ON pm.PROD_CD = t.PROD_CD AND pm.COMP_CD = t.COMP_CD
 	    OUTER APPLY (
 	          SELECT TOP 1 h.SALE_PRICE
 	            FROM TBL_PROD_SALEPRICE_HST h
-	           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = t.ITEM_CD AND h.APPLY_DT <= t.DLV_DT AND h.COMP_CD = t.COMP_CD
+	           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = t.PROD_CD AND h.APPLY_DT <= t.DLV_DT AND h.COMP_CD = t.COMP_CD
 	             AND h.VENDOR_CD IS NULL   -- 공통가만 (마감과 동일 — 판매처 전용가는 섞지 않는다)
 	           ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
 	    ) sh
@@ -978,11 +978,11 @@
 	                    FROM TBL_PROD_MST p
 	                   WHERE p.ACTION_YN = 'Y'
 	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
-	            ) pm ON pm.PROD_CD = s.ITEM_CD AND pm.COMP_CD = s.COMP_CD
+	            ) pm ON pm.PROD_CD = s.PROD_CD AND pm.COMP_CD = s.COMP_CD
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.IN_PRICE
 	                    FROM TBL_PROD_INPRICE_HST h
-	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = s.COMP_CD
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.PROD_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = s.COMP_CD
 	                   ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	            ) ih
 	           WHERE s.ACTION_YN = 'Y'
@@ -1020,18 +1020,18 @@
 	                    FROM TBL_PROD_MST p
 	                   WHERE p.ACTION_YN = 'Y'
 	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
-	            ) pm ON pm.PROD_CD = o.ITEM_CD AND pm.COMP_CD = o.COMP_CD
+	            ) pm ON pm.PROD_CD = o.PROD_CD AND pm.COMP_CD = o.COMP_CD
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.SALE_PRICE
 	                    FROM TBL_PROD_SALEPRICE_HST h
-	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.PROD_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD
 	                     AND h.VENDOR_CD IS NULL
 	                   ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
 	            ) sh
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.IN_PRICE
 	                    FROM TBL_PROD_INPRICE_HST h
-	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.PROD_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD
 	                   ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	            ) ih
 	            CROSS APPLY ( SELECT ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) AS saleUnit,
@@ -1146,11 +1146,11 @@
 	                    FROM TBL_PROD_MST p
 	                   WHERE p.ACTION_YN = 'Y'
 	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
-	            ) pm ON pm.PROD_CD = s.ITEM_CD AND pm.COMP_CD = s.COMP_CD
+	            ) pm ON pm.PROD_CD = s.PROD_CD AND pm.COMP_CD = s.COMP_CD
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.IN_PRICE
 	                    FROM TBL_PROD_INPRICE_HST h
-	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = s.COMP_CD
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.PROD_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = s.COMP_CD
 	                   ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	            ) ih
 	           WHERE s.ACTION_YN = 'Y'
@@ -1183,18 +1183,18 @@
 	                    FROM TBL_PROD_MST p
 	                   WHERE p.ACTION_YN = 'Y'
 	                     AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
-	            ) pm ON pm.PROD_CD = o.ITEM_CD AND pm.COMP_CD = o.COMP_CD
+	            ) pm ON pm.PROD_CD = o.PROD_CD AND pm.COMP_CD = o.COMP_CD
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.SALE_PRICE
 	                    FROM TBL_PROD_SALEPRICE_HST h
-	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.PROD_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD
 	                     AND h.VENDOR_CD IS NULL
 	                   ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
 	            ) sh
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.IN_PRICE
 	                    FROM TBL_PROD_INPRICE_HST h
-	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.PROD_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD
 	                   ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	            ) ih
 	            CROSS APPLY ( SELECT ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) AS saleUnit,
@@ -1757,21 +1757,21 @@
 	                        FROM TBL_PROD_MST p
 	                       WHERE p.ACTION_YN = 'Y'
 	                         AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
-	                ) pm ON pm.PROD_CD = s.ITEM_CD AND pm.COMP_CD = s.COMP_CD
+	                ) pm ON pm.PROD_CD = s.PROD_CD AND pm.COMP_CD = s.COMP_CD
 	                -- ★단가 기준일 = 발주일자(DLV_DT). 출고일자(SHPOUT_DT) 아님.
 	                --   먼 지역은 발주분을 하루 당겨 출고한다(실측: 발주 20260708 → 출고 20260707 이 15행).
 	                --   출고일자로 맞추면 '적용일자(발주일) > 출고일자' 가 되어 그 발주건의 확정단가가 영영 안 걸린다.
 	                OUTER APPLY (
 	                      SELECT TOP 1 h.SALE_PRICE
 	                        FROM TBL_PROD_SALEPRICE_HST h
-	                       WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.DLV_DT AND h.COMP_CD = s.COMP_CD
+	                       WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.PROD_CD AND h.APPLY_DT <= s.DLV_DT AND h.COMP_CD = s.COMP_CD
 	                         AND h.VENDOR_CD IS NULL   -- 공통가만. 판매처 전용가는 물류센터 출고 마감에 안 섞는다
 	                       ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
 	                ) sh
 	                OUTER APPLY (
 	                      SELECT TOP 1 h.IN_PRICE
 	                        FROM TBL_PROD_INPRICE_HST h
-	                       WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND h.APPLY_DT <= s.DLV_DT AND h.COMP_CD = s.COMP_CD
+	                       WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.PROD_CD AND h.APPLY_DT <= s.DLV_DT AND h.COMP_CD = s.COMP_CD
 	                       ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	                ) ih
 	                CROSS APPLY (
@@ -2254,7 +2254,7 @@
 	         CASE WHEN l.REF_GB = 'SHIPOUT' THEN
 	              ISNULL(STUFF((SELECT DISTINCT ', ' + s.BIZ_NM
 	                              FROM TBL_SHIPOUT_MST s
-	                             WHERE s.ACTION_YN = 'Y' AND s.ITEM_CD = l.PROD_CD
+	                             WHERE s.ACTION_YN = 'Y' AND s.PROD_CD = l.PROD_CD
 	                               AND s.COMP_CD = l.COMP_CD
 	                               AND s.SHPOUT_DT = l.REF_NO AND ISNULL(s.BIZ_NM,'') <> ''
 	                               AND ISNULL(s.CUR_QTY,0) > 0
@@ -2362,19 +2362,25 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></delete>
 
-	<!-- (A) 출고→원장 자동연동 : 특정 출고일자의 활성 SHIPOUT을 품목별로 합산해 O행 생성 (상품마스터에 있는 품목만) -->
+	<!-- (A) 출고→원장 자동연동 : 특정 출고일자의 활성 SHIPOUT을 품목별로 합산해 O행 생성.
+	     ★2026-08-01 : 기준을 거래처 코드(ITEM_CD) → 우리 코드(PROD_CD) 로 바꿨다.
+	       · PROD_CD 는 업로드 직후 resolve* 가 채운다(XREF 매핑 → 없으면 코드 직결).
+	       · 그래서 **거래처가 코드를 다르게 보낸 행들이 여기서 한 품목으로 합산된다** —
+	         종전에는 표기마다 다른 품목(가상코드)으로 갈라져 재고가 나뉘었다.
+	       · PROD_CD 가 NULL(미매핑)이면 조인에서 빠져 재고에 반영되지 않는다 = 보류.
+	         매핑을 걸면 saveXref 가 소급으로 채우고 이 구문이 다시 돌아 재고가 맞춰진다. -->
 	<insert id="insertShipoutLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
 	  INSERT INTO TBL_STOCK_LEDGER (COMP_CD, PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, UNIT_PRICE, AMT, BIZ_CD, REF_GB, REF_NO, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
-	  SELECT s.COMP_CD, pm.PROD_SEQ, s.ITEM_CD, s.SHPOUT_DT, 'O', SUM(ISNULL(s.CUR_QTY,0)) AS QTY,
+	  SELECT s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, s.SHPOUT_DT, 'O', SUM(ISNULL(s.CUR_QTY,0)) AS QTY,
 	         NULL, NULL, NULL, 'SHIPOUT', s.SHPOUT_DT, N'출고 자동연동(SHIPOUT)', 'Y',
 	         CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR}
 	    FROM TBL_SHIPOUT_MST s
 	    JOIN ( SELECT COMP_CD, PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ FROM TBL_PROD_MST WHERE ACTION_YN='Y' GROUP BY COMP_CD, PROD_CD ) pm
-	      ON pm.PROD_CD = s.ITEM_CD AND pm.COMP_CD = s.COMP_CD
-	   WHERE s.ACTION_YN = 'Y' AND ISNULL(s.ITEM_CD,'') <> ''
+	      ON pm.PROD_CD = s.PROD_CD AND pm.COMP_CD = s.COMP_CD
+	   WHERE s.ACTION_YN = 'Y' AND ISNULL(s.PROD_CD,'') <> ''
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND s.SHPOUT_DT = REPLACE(ISNULL(#{trxDt},''),'-','')
-	   GROUP BY s.COMP_CD, pm.PROD_SEQ, s.ITEM_CD, s.SHPOUT_DT
+	   GROUP BY s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, s.SHPOUT_DT
 	  HAVING SUM(ISNULL(s.CUR_QTY,0)) > 0
 	]]></insert>
 
@@ -3484,5 +3490,531 @@
 	           OR ISNULL(p.SPEC,'')     LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
 	           OR ISNULL(p.MAKER_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
 	   ORDER BY x.lastDt DESC, x.prodCd
+	]]></select>
+
+	<!-- ==========================================================================================
+	     거래처별 품목 표기(교차참조) — TBL_PROD_XREF                            2026-08-01
+	     ==========================================================================================
+	     코네트 품목은 하나, 거래처가 요청하는 코드·품명은 이 표에 N건.
+	     종전처럼 표기마다 TBL_PROD_MST 에 '가상코드'를 등록하지 않는다(재고가 갈라진다).
+	     · 재고·원가의 주인 = PROD_SEQ 하나
+	     · 업로드 원본(ITEM_CD/ITEM_NM)은 그대로 두고 PROD_SEQ 칸만 덧붙인다
+	     · DDL : sql/prod_xref_ddl.sql
+	     ========================================================================================== -->
+
+	<!-- 상품관리 [거래처 코드] 탭 — 이 품목의 거래처별 표기 -->
+	<select id="selectXrefList" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  SELECT x.XREF_SEQ AS xrefSeq, x.PROD_SEQ AS prodSeq, x.PROD_CD AS prodCd, p.PROD_NM AS prodNm,
+	         x.VENDOR_CD AS vendorCd, x.VENDOR_NM AS vendorNm, x.DC_CD AS dcCd,
+	         x.EXT_ITEM_CD AS extItemCd, x.EXT_ITEM_NM AS extItemNm, x.EXT_SPEC AS extSpec, x.EXT_UNIT AS extUnit,
+	         x.CONV_QTY AS convQty, x.MAIN_YN AS mainYn,
+	         x.MATCH_SCORE AS matchScore, x.CONFIRM_YN AS confirmYn, x.CONFIRM_USER AS confirmUser, x.CONFIRM_DTTM AS confirmDttm,
+	         x.REMARK AS remark, x.REG_DTTM AS regDttm, x.REG_USER AS regUser
+	    FROM TBL_PROD_XREF x
+	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = x.PROD_SEQ AND p.COMP_CD = x.COMP_CD
+	   WHERE x.ACTION_YN = 'Y'
+	     AND ( #{prodSeq,jdbcType=BIGINT} IS NULL OR x.PROD_SEQ = #{prodSeq,jdbcType=BIGINT} )
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR x.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = ''
+	           OR x.EXT_ITEM_CD LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR ISNULL(x.EXT_ITEM_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR ISNULL(x.VENDOR_NM,'')   LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	   ORDER BY x.MAIN_YN DESC, x.VENDOR_NM, x.EXT_ITEM_CD
+	]]></select>
+
+	<!-- 등록. ★UX_PROD_XREF_EXT 가 (거래처+출고장+거래처코드) 중복을 막는다 —
+	     같은 코드를 두 품목에 붙이면 여기서 INSERT 가 실패한다(의도된 동작, 화면에서 메시지 처리). -->
+	<insert id="insertXref" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  INSERT INTO TBL_PROD_XREF
+	    (COMP_CD, PROD_SEQ, PROD_CD, VENDOR_CD, VENDOR_NM, DC_CD,
+	     EXT_ITEM_CD, EXT_ITEM_NM, EXT_SPEC, EXT_UNIT, CONV_QTY, MAIN_YN,
+	     MATCH_SCORE, CONFIRM_YN, CONFIRM_USER, CONFIRM_DTTM,
+	     REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{prodSeq}, #{prodCd,jdbcType=NVARCHAR},
+	     NULLIF(#{vendorCd,jdbcType=NVARCHAR},''), #{vendorNm,jdbcType=NVARCHAR}, NULLIF(#{dcCd,jdbcType=NVARCHAR},''),
+	     #{extItemCd,jdbcType=NVARCHAR}, #{extItemNm,jdbcType=NVARCHAR}, #{extSpec,jdbcType=NVARCHAR}, #{extUnit,jdbcType=NVARCHAR},
+	     ISNULL(#{convQty,jdbcType=DECIMAL},1), ISNULL(#{mainYn,jdbcType=NCHAR},'N'),
+	     #{matchScore,jdbcType=INTEGER}, ISNULL(#{confirmYn,jdbcType=NCHAR},'N'),
+	     CASE WHEN #{confirmYn,jdbcType=NCHAR} = 'Y' THEN #{regUser,jdbcType=NVARCHAR} END,
+	     CASE WHEN #{confirmYn,jdbcType=NCHAR} = 'Y' THEN CONVERT(VARCHAR(19), GETDATE(), 120) END,
+	     #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	]]></insert>
+
+	<update id="updateXref" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  UPDATE TBL_PROD_XREF
+	     SET EXT_ITEM_NM = #{extItemNm,jdbcType=NVARCHAR},
+	         EXT_SPEC    = #{extSpec,jdbcType=NVARCHAR},
+	         EXT_UNIT    = #{extUnit,jdbcType=NVARCHAR},
+	         CONV_QTY    = ISNULL(#{convQty,jdbcType=DECIMAL},1),
+	         MAIN_YN     = ISNULL(#{mainYn,jdbcType=NCHAR},'N'),
+	         REMARK      = #{remark,jdbcType=NVARCHAR},
+	         UPD_DTTM    = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=NVARCHAR}
+	   WHERE XREF_SEQ = #{xrefSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
+	<!-- 확인(대사 확정) — 정산서 업로드에서 단가·규격이 맞았을 때, 또는 상품관리에서 사람이 직접.
+	     ★자동으로 'Y' 를 넣는 경로는 두지 않는다. 잘못 매핑되면 재고와 매출이 동시에 틀어진다. -->
+	<update id="confirmXref" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  UPDATE TBL_PROD_XREF
+	     SET CONFIRM_YN   = 'Y',
+	         CONFIRM_USER = #{confirmUser,jdbcType=NVARCHAR},
+	         CONFIRM_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120),
+	         MATCH_SCORE  = ISNULL(#{matchScore,jdbcType=INTEGER}, MATCH_SCORE),
+	         UPD_DTTM     = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{confirmUser,jdbcType=NVARCHAR}
+	   WHERE XREF_SEQ = #{xrefSeq} AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
+	<!-- 삭제/수정 전에 '무엇을 지우는지' 를 알아 둔다 — 되돌릴 대상(EXT_ITEM_CD)을 알아야
+	     이미 그 코드로 반영된 출고·정산 행의 PROD_SEQ 를 되돌릴 수 있다. -->
+	<select id="selectXrefById" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  SELECT XREF_SEQ AS xrefSeq, PROD_SEQ AS prodSeq, PROD_CD AS prodCd,
+	         VENDOR_CD AS vendorCd, VENDOR_NM AS vendorNm, DC_CD AS dcCd,
+	         EXT_ITEM_CD AS extItemCd, EXT_ITEM_NM AS extItemNm, CONFIRM_YN AS confirmYn
+	    FROM TBL_PROD_XREF
+	   WHERE XREF_SEQ = #{xrefSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></select>
+
+	<!-- ★잘못 연결했을 때 되돌리기 (2026-08-01)
+	     매핑을 지우거나 다른 품목으로 고치면, 그 코드로 이미 채워진 행의 PROD_SEQ 가 남아 있어
+	     **엉뚱한 품목의 재고가 계속 그 상태로 굳는다**. 그래서 그 코드로 채워진 행을 NULL 로
+	     되돌린 뒤 다시 해석(resolve)하고 재고를 다시 만든다.
+	     되돌릴 출고일자는 지우기 '전에' 받아 둬야 한다 — 지운 뒤에는 찾을 수 없다. -->
+	<select id="selectShipoutDatesByExtCd" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="string"><![CDATA[
+	  SELECT DISTINCT s.SHPOUT_DT
+	    FROM TBL_SHIPOUT_MST s
+	   WHERE s.ACTION_YN='Y' AND s.ITEM_CD = #{extItemCd} AND ISNULL(s.SHPOUT_DT,'') <> ''
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   ORDER BY s.SHPOUT_DT
+	]]></select>
+
+	<update id="clearShipoutProdByExtCd" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET PROD_SEQ = NULL, PROD_CD = NULL
+	   WHERE ITEM_CD = #{extItemCd}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
+	<update id="clearSalesProdByExtCd" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  UPDATE TBL_SALES_MST
+	     SET PROD_SEQ = NULL, PROD_CD = NULL
+	   WHERE ITEM_CD = #{extItemCd}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
+	<!-- 소프트삭제. UNIQUE 가 ACTION_YN='Y' 필터라 지운 뒤 같은 코드를 다시 걸 수 있다. -->
+	<update id="deleteXref" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  UPDATE TBL_PROD_XREF
+	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
+	   WHERE XREF_SEQ = #{xrefSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
+	<!-- 한 거래처의 대표 표기는 하나 — MAIN_YN='Y' 로 올리기 전에 나머지를 내린다 -->
+	<update id="clearXrefMain" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  UPDATE TBL_PROD_XREF SET MAIN_YN='N'
+	   WHERE ACTION_YN='Y' AND PROD_SEQ = #{prodSeq}
+	     AND ISNULL(VENDOR_CD,'') = ISNULL(#{vendorCd,jdbcType=NVARCHAR},'')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
+	<!-- ==========================================================================================
+	     업로드 해석 — 배치의 PROD_SEQ 를 XREF 로 '한 문장에' 채운다
+	     ★행마다 조회하지 않는다. insertShipoutMst 루프가 끝난 뒤 배치 단위로 한 번 돈다.
+	     ★같은 문장이 두 가지 일을 한다
+	         ① 업로드 직후 : 이미 걸려 있는 매핑을 채움 (배치키로 좁혀서)
+	         ② 나중에 매핑을 걸었을 때 : 파라미터를 비우면 미해석분 전체를 소급으로 채움
+	     ★PROD_SEQ 가 NULL 로 남은 행 = 미매핑 → 재고연동에서 자연히 빠진다(별도 조건 불필요)
+	     ========================================================================================== -->
+	<update id="resolveShipoutProd" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  UPDATE s
+	     SET s.PROD_SEQ = x.PROD_SEQ, s.PROD_CD = x.PROD_CD
+	    FROM TBL_SHIPOUT_MST s
+	    JOIN TBL_PROD_XREF x
+	      ON  x.COMP_CD = s.COMP_CD
+	     AND  x.ACTION_YN = 'Y'
+	     AND  x.EXT_ITEM_CD = s.ITEM_CD
+	     /* 거래처·출고장이 비어 있는 XREF = 공통 별칭 → 모든 거래처에 걸린다 */
+	     AND  ISNULL(x.VENDOR_CD,'') IN ('', ISNULL(s.VENDOR_CD,''))
+	     AND  ISNULL(x.DC_CD,'')     IN ('', ISNULL(s.DC_CD,''))
+	   WHERE s.PROD_SEQ IS NULL
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( #{jobSeq,jdbcType=BIGINT} IS NULL OR s.JOB_SEQ = #{jobSeq,jdbcType=BIGINT} )
+	     AND ( ISNULL(#{dlvDt,jdbcType=NVARCHAR},'') = '' OR s.DLV_DT = REPLACE(#{dlvDt,jdbcType=NVARCHAR},'-','') )
+	     AND ( ISNULL(#{dcCd,jdbcType=NVARCHAR},'')  = '' OR s.DC_CD = #{dcCd,jdbcType=NVARCHAR} )
+	     /* 소급 반영 시 특정 품목만 돌리고 싶을 때 */
+	     AND ( #{prodSeq,jdbcType=BIGINT} IS NULL OR x.PROD_SEQ = #{prodSeq,jdbcType=BIGINT} )
+	]]></update>
+
+	<update id="resolveSalesProd" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  UPDATE s
+	     SET s.PROD_SEQ = x.PROD_SEQ, s.PROD_CD = x.PROD_CD
+	    FROM TBL_SALES_MST s
+	    JOIN TBL_PROD_XREF x
+	      ON  x.COMP_CD = s.COMP_CD
+	     AND  x.ACTION_YN = 'Y'
+	     AND  x.EXT_ITEM_CD = s.ITEM_CD
+	     AND  ISNULL(x.DC_CD,'') IN ('', ISNULL(s.DC_CD,''))
+	   WHERE s.PROD_SEQ IS NULL
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( #{jobSeq,jdbcType=BIGINT} IS NULL OR s.JOB_SEQ = #{jobSeq,jdbcType=BIGINT} )
+	     AND ( ISNULL(#{dlvDt,jdbcType=NVARCHAR},'') = '' OR s.DLV_DT = REPLACE(#{dlvDt,jdbcType=NVARCHAR},'-','') )
+	     AND ( #{prodSeq,jdbcType=BIGINT} IS NULL OR x.PROD_SEQ = #{prodSeq,jdbcType=BIGINT} )
+	]]></update>
+
+	<!-- ★2차 패스 : 코드 직결(거래처 코드 = 우리 코드) ============================================
+	     거래처가 우리와 '같은 코드'로 요청하는 품목까지 XREF 에 일일이 등록하게 하면 부담이 크다.
+	     XREF 로 못 찾은 행만 골라 ITEM_CD 를 우리 PROD_CD 로 그대로 해석한다.
+	       · 종전 동작(pm.PROD_CD = s.ITEM_CD 직접 비교)과 같은 규칙이라 결과가 달라지지 않는다
+	       · 즉 XREF 는 '코드가 다를 때만' 필요하다
+	     ★반드시 XREF 패스 뒤에 돌려야 한다. 먼저 돌면 거래처 코드가 우연히 우리 코드와 같을 때
+	       XREF 에 걸어 둔 매핑을 덮어쓴다(XREF 가 우선이어야 사람이 고친 것이 이긴다).
+	     ========================================================================================== -->
+	<update id="resolveShipoutProdDirect" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  UPDATE s
+	     SET s.PROD_SEQ = pm.PROD_SEQ, s.PROD_CD = pm.PROD_CD
+	    FROM TBL_SHIPOUT_MST s
+	    JOIN ( SELECT COMP_CD, PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ FROM TBL_PROD_MST WHERE ACTION_YN='Y' GROUP BY COMP_CD, PROD_CD ) pm
+	      ON pm.PROD_CD = s.ITEM_CD AND pm.COMP_CD = s.COMP_CD
+	   WHERE s.PROD_SEQ IS NULL
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( #{jobSeq,jdbcType=BIGINT} IS NULL OR s.JOB_SEQ = #{jobSeq,jdbcType=BIGINT} )
+	     AND ( ISNULL(#{dlvDt,jdbcType=NVARCHAR},'') = '' OR s.DLV_DT = REPLACE(#{dlvDt,jdbcType=NVARCHAR},'-','') )
+	     AND ( ISNULL(#{dcCd,jdbcType=NVARCHAR},'')  = '' OR s.DC_CD = #{dcCd,jdbcType=NVARCHAR} )
+	]]></update>
+
+	<update id="resolveSalesProdDirect" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  UPDATE s
+	     SET s.PROD_SEQ = pm.PROD_SEQ, s.PROD_CD = pm.PROD_CD
+	    FROM TBL_SALES_MST s
+	    JOIN ( SELECT COMP_CD, PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ FROM TBL_PROD_MST WHERE ACTION_YN='Y' GROUP BY COMP_CD, PROD_CD ) pm
+	      ON pm.PROD_CD = s.ITEM_CD AND pm.COMP_CD = s.COMP_CD
+	   WHERE s.PROD_SEQ IS NULL
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( #{jobSeq,jdbcType=BIGINT} IS NULL OR s.JOB_SEQ = #{jobSeq,jdbcType=BIGINT} )
+	     AND ( ISNULL(#{dlvDt,jdbcType=NVARCHAR},'') = '' OR s.DLV_DT = REPLACE(#{dlvDt,jdbcType=NVARCHAR},'-','') )
+	]]></update>
+
+	<!-- 소급 반영용 — 매핑을 뒤늦게 걸면 그동안 밀려 있던 출고분의 재고를 다시 만들어야 한다.
+	     그 품목이 걸린 출고일자만 뽑아 syncShipoutLedgerDate 를 돌린다(전체 재집계는 과하다). -->
+	<select id="selectShipoutDatesByProd" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="string"><![CDATA[
+	  SELECT DISTINCT s.SHPOUT_DT
+	    FROM TBL_SHIPOUT_MST s
+	   WHERE s.ACTION_YN='Y' AND s.PROD_SEQ = #{prodSeq}
+	     AND ISNULL(s.SHPOUT_DT,'') <> ''
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   ORDER BY s.SHPOUT_DT
+	]]></select>
+
+	<!-- ==========================================================================================
+	     미매핑 목록 — '처음 보는 코드'를 거래처·코드별로 모아 준다(행 단위 아님).
+	     발주현황표(출고)와 정산서를 UNION 해서 한 화면에 — 정산서 쪽에만 규격·단가·면과세가 있어
+	     검증 근거가 되므로 그 칸을 함께 올린다.
+	     ========================================================================================== -->
+	<!-- ★코드 하나에 한 줄 (2026-08-01 수정)
+	       종전에는 (코드+품명+규격+거래처+출고장) 으로 묶어서 **같은 코드가 여러 줄**로 나왔다
+	       (발주현황표에서 온 것 / 정산서에서 온 것이 따로). 연결은 코드 단위로 하는 일이라 한 줄이 맞다.
+	     ★'거래처' 로 VENDOR_NM 을 보여 주던 것도 잘못이었다 — 발주현황표의 VENDOR_NM 은
+	       협력업체(=우리 코네트)라 거래처가 아니다. 대신 **출고장(DC)** 과 **원천(출고/정산)** 을 준다. -->
+	<select id="selectUnmappedItems" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  SELECT TOP 500
+	         u.extItemCd,
+	         MAX(u.extItemNm) AS extItemNm,
+	         MAX(u.extSpec)   AS extSpec,
+	         MAX(u.extUnit)   AS extUnit,
+	         /* 출고장 — 여러 곳이면 콤마로 (연결은 코드 단위지만 어디서 온 코드인지는 보여야 한다) */
+	         STUFF((SELECT DISTINCT ', ' + u2.dcNm FROM (
+	                  SELECT s2.ITEM_CD AS c, ISNULL(s2.DC_NM, s2.DC_CD) AS dcNm FROM TBL_SHIPOUT_MST s2
+	                   WHERE s2.ACTION_YN='Y' AND s2.PROD_SEQ IS NULL AND ISNULL(s2.DC_NM,s2.DC_CD) IS NOT NULL
+	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s2.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                  UNION ALL
+	                  SELECT m2.ITEM_CD, ISNULL(m2.DC_NM, m2.DC_CD) FROM TBL_SALES_MST m2
+	                   WHERE m2.ACTION_YN='Y' AND m2.PROD_SEQ IS NULL AND ISNULL(m2.DC_NM,m2.DC_CD) IS NOT NULL
+	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m2.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                ) u2 WHERE u2.c = u.extItemCd FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 2, '') AS vendorNm,
+	         /* 원천 — 출고(발주현황표) / 정산(정산서) / 둘 다. 정산서 쪽에만 규격·단가가 있다 */
+	         CASE WHEN MAX(u.src)=MIN(u.src) THEN MAX(u.src) ELSE N'출고·정산' END AS matchWhy,
+	         MAX(u.lastDt) AS lastDt,
+	         CONVERT(NVARCHAR(20), COUNT(*)) AS useQty
+	    FROM (
+	          SELECT s.ITEM_CD AS extItemCd, s.ITEM_NM AS extItemNm, CAST(NULL AS NVARCHAR(300)) AS extSpec,
+	                 s.UNIT AS extUnit, s.SHPOUT_DT AS lastDt, N'출고' AS src
+	            FROM TBL_SHIPOUT_MST s
+	           WHERE s.ACTION_YN='Y' AND s.PROD_SEQ IS NULL AND ISNULL(s.ITEM_CD,'') <> ''
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	          UNION ALL
+	          SELECT m.ITEM_CD, m.ITEM_NM, m.SPEC, m.UNIT, m.DLV_DT, N'정산'
+	            FROM TBL_SALES_MST m
+	           WHERE m.ACTION_YN='Y' AND m.PROD_SEQ IS NULL AND ISNULL(m.ITEM_CD,'') <> ''
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	         ) u
+	   WHERE ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = ''
+	           OR u.extItemCd LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR ISNULL(u.extItemNm,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	   GROUP BY u.extItemCd
+	   ORDER BY MAX(u.lastDt) DESC, u.extItemCd
+	]]></select>
+
+	<!-- ==========================================================================================
+	     그 거래처로 나갈 때 쓸 품명 — 판매등록이 명세에 채운다 (2026-08-01).
+	     "출고는 거래처가 요청한 품목명으로 나가야 한다" 는 요구의 마지막 조각.
+	     한 품목에 표기가 여럿일 수 있으므로 우선순위를 정해 품목당 1건만 준다
+	       ① 그 거래처 전용 표기 > 공통 별칭(VENDOR_CD NULL)
+	       ② 같은 조건이면 MAIN_YN='Y'(대표 표기)
+	       ③ 그래도 같으면 최근 등록분
+	     표기가 없는 품목은 여기 안 나온다 → 화면이 우리 PROD_NM 을 그대로 쓴다.
+	     ========================================================================================== -->
+	<select id="selectXrefNames" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  SELECT prodCd, extItemCd, extItemNm, extSpec, confirmYn
+	    FROM ( SELECT x.PROD_CD AS prodCd, x.EXT_ITEM_CD AS extItemCd, x.EXT_ITEM_NM AS extItemNm,
+	                  x.EXT_SPEC AS extSpec, x.CONFIRM_YN AS confirmYn,
+	                  ROW_NUMBER() OVER ( PARTITION BY x.PROD_CD
+	                                      ORDER BY CASE WHEN ISNULL(x.VENDOR_CD,'') <> '' THEN 0 ELSE 1 END,
+	                                               CASE WHEN x.MAIN_YN = 'Y' THEN 0 ELSE 1 END,
+	                                               x.XREF_SEQ DESC ) AS rn
+	             FROM TBL_PROD_XREF x
+	            WHERE x.ACTION_YN = 'Y' AND ISNULL(x.EXT_ITEM_NM,'') <> ''
+	              AND ISNULL(x.VENDOR_CD,'') IN ('', ISNULL(#{vendorCd,jdbcType=NVARCHAR},''))
+	              AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR x.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	         ) t
+	   WHERE rn = 1
+	]]></select>
+
+	<!-- ==========================================================================================
+	     매핑 점검 리포트 — 틀린 매핑은 반드시 티가 난다. 그 신호를 한 화면에 모은다.
+	       ① 미매핑        : 해석이 안 돼 **재고에서 빠져 있는** 출고. 가장 급하다
+	       ② 단가 이탈     : 정산 단가가 우리 판매가와 10% 이상 벌어짐 = 다른 품목에 걸었을 가능성
+	       ③ 연결 처리됨   : ①을 연결한 결과. 재고도 정상 — 규격·단가 대조만 남은 상태(문제 아님)
+	       ④ 재고 음수     : 매핑 뒤 현재고가 마이너스 — 엉뚱한 품목에서 까고 있을 수 있다
+	     기간은 최근 N일(기본 30). 주 1회만 봐도 사고가 오래 가지 않는다.
+	     ========================================================================================== -->
+	<select id="selectXrefAudit" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  /* ★기간 CTE 는 '스칼라 서브쿼리'로 쓴다 (2026-08-01 수정)
+	       종전에는 FROM TBL_XXX x, fr JOIN ... ON ... 처럼 콤마조인과 JOIN 을 섞었는데,
+	       그러면 JOIN 의 ON 절이 콤마 앞 별칭(x·m)을 못 본다 → "multi-part identifier could not be bound" 500.
+	       조인이 필요 없는 값이므로 (SELECT d FROM fr) 로 참조하는 것이 맞다. */
+	  ;WITH fr AS ( SELECT CONVERT(NVARCHAR(8), DATEADD(DAY, -ISNULL(#{matchScore,jdbcType=INTEGER},30), GETDATE()), 112) AS d )
+	  /* ① 미매핑 — 재고 반영이 보류된 출고 */
+	  /* ★'해석 대기' 와 '진짜 미매핑' 을 가른다 (2026-08-01 지적)
+	       PROD_SEQ 는 업로드할 때나 재집계할 때만 채워진다. 그래서 **상품마스터에 같은 코드가
+	       멀쩡히 있는데도** 옛 배치라 아직 안 채워진 행이 '미매핑' 으로 잡혀,
+	       연결할 필요가 없는 것을 "연결하세요" 로 안내하고 있었다.
+	       상품마스터에 같은 코드가 있으면 → [재집계]만 하면 되는 건(우리 코드 칸을 채워 알린다).
+	       없으면 → 진짜로 연결이 필요한 건. */
+	  SELECT CASE WHEN MAX(pm.PROD_CD) IS NULL THEN N'① 미매핑' ELSE N'① 재집계 대기' END AS matchWhy,
+	         s.ITEM_CD AS extItemCd, MAX(s.ITEM_NM) AS extItemNm,
+	         MAX(pm.PROD_CD) AS prodCd, MAX(pm.PROD_NM) AS prodNm,
+	         MAX(ISNULL(s.DC_NM, s.DC_CD)) AS vendorNm, MAX(s.SHPOUT_DT) AS lastDt,
+	         CONVERT(NVARCHAR(20), COUNT(*)) AS useQty,
+	         CASE WHEN MAX(pm.PROD_CD) IS NULL
+	              THEN N'상품마스터에 없는 코드입니다 — 우리 품목에 연결하세요'
+	              ELSE N'상품마스터에 같은 코드가 있습니다 — [출고반영 재집계]만 돌리면 해결됩니다' END AS remark,
+	         /* ★xrefSeq — 점검 화면에서 그 자리에 [확인]·[수정]·[해제] 를 하려면 필요하다.
+	              ①은 아직 연결이 없으니 NULL(=화면은 [연결] 버튼을 준다). 네 갈래의 컬럼 수가
+	              반드시 같아야 UNION 이 선다. */
+	         CAST(NULL AS INT) AS xrefSeq
+	    FROM TBL_SHIPOUT_MST s
+	    LEFT JOIN ( SELECT COMP_CD, PROD_CD, MAX(PROD_NM) AS PROD_NM
+	                  FROM TBL_PROD_MST WHERE ACTION_YN='Y' GROUP BY COMP_CD, PROD_CD ) pm
+	      ON pm.PROD_CD = s.ITEM_CD AND pm.COMP_CD = s.COMP_CD
+	   WHERE s.ACTION_YN='Y' AND s.PROD_SEQ IS NULL AND ISNULL(s.ITEM_CD,'') <> ''
+	     AND s.SHPOUT_DT >= (SELECT d FROM fr)
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   GROUP BY s.ITEM_CD
+	  UNION ALL
+	  /* ② 단가 이탈 — 정산 단가 vs 우리 판매가. 매핑이 틀리면 여기서 제일 먼저 드러난다 */
+	  SELECT N'② 단가 이탈', m.ITEM_CD, MAX(m.ITEM_NM), MAX(m.PROD_CD), MAX(p.PROD_NM),
+	         MAX(ISNULL(m.DC_NM, m.DC_CD)), MAX(m.DLV_DT), CONVERT(NVARCHAR(20), COUNT(*)),
+	         N'정산 ' + CONVERT(NVARCHAR(20), CAST(MAX(m.SALE_PRICE) AS INT))
+	           + N' / 우리 ' + CONVERT(NVARCHAR(20), CAST(MAX(p.SALE_PRICE) AS INT)) + N' — 매핑 확인 필요',
+	         MAX(xr.XREF_SEQ)
+	    FROM TBL_SALES_MST m
+	    JOIN ( SELECT COMP_CD, PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ FROM TBL_PROD_MST WHERE ACTION_YN='Y' GROUP BY COMP_CD, PROD_CD ) pk
+	      ON pk.PROD_CD = m.PROD_CD AND pk.COMP_CD = m.COMP_CD
+	    JOIN TBL_PROD_MST p ON p.PROD_SEQ = pk.PROD_SEQ
+	    LEFT JOIN TBL_PROD_XREF xr ON xr.EXT_ITEM_CD = m.ITEM_CD AND xr.COMP_CD = m.COMP_CD AND xr.ACTION_YN='Y'
+	   WHERE m.ACTION_YN='Y' AND m.PROD_CD IS NOT NULL
+	     AND m.DLV_DT >= (SELECT d FROM fr)
+	     AND ISNULL(m.SALE_PRICE,0) > 0 AND ISNULL(p.SALE_PRICE,0) > 0
+	     AND ABS(m.SALE_PRICE - p.SALE_PRICE) > p.SALE_PRICE * 0.1
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   GROUP BY m.ITEM_CD
+	  UNION ALL
+	  /* ③ 미확인 매핑으로 출고가 나감 — 검증이 안 끝났는데 재고는 이미 움직였다 */
+	  SELECT N'③ 연결 처리됨', x.EXT_ITEM_CD, MAX(x.EXT_ITEM_NM), MAX(x.PROD_CD), MAX(p.PROD_NM),
+	         MAX(ISNULL(s.DC_NM, s.DC_CD)), MAX(s.SHPOUT_DT), CONVERT(NVARCHAR(20), COUNT(*)),
+	         N'연결 처리했습니다 · 재고 정상 — 규격·단가 대조만 남았습니다',
+	         MAX(x.XREF_SEQ)
+	    FROM TBL_PROD_XREF x
+	    JOIN TBL_SHIPOUT_MST s ON s.ITEM_CD = x.EXT_ITEM_CD AND s.COMP_CD = x.COMP_CD AND s.ACTION_YN='Y'
+	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = x.PROD_SEQ
+	   WHERE x.ACTION_YN='Y' AND x.CONFIRM_YN <> 'Y'
+	     AND s.SHPOUT_DT >= (SELECT d FROM fr)
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR x.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   GROUP BY x.EXT_ITEM_CD
+	  UNION ALL
+	  /* ④ 재고 음수 — 엉뚱한 품목에서 까고 있을 수 있다 */
+	  SELECT N'④ 재고 음수', k.PROD_CD, MAX(p.PROD_NM), MAX(k.PROD_CD), MAX(p.PROD_NM),
+	         CAST(NULL AS NVARCHAR(100)), MAX(k.LAST_OUT_DT), CONVERT(NVARCHAR(20), CAST(MIN(k.CUR_QTY) AS INT)),
+	         N'현재고가 마이너스입니다 — 매핑이나 입고 누락을 확인하세요',
+	         CAST(NULL AS INT)
+	    FROM TBL_STOCK_MST k
+	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = k.PROD_SEQ
+	   WHERE k.ACTION_YN='Y' AND ISNULL(k.CUR_QTY,0) < 0
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR k.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   GROUP BY k.PROD_CD
+	   ORDER BY 1, 7 DESC
+	]]></select>
+
+	<!-- ==========================================================================================
+	     후보 추천 — 처음 보는 코드가 왔을 때 '아는 것' 에서 먼저 찾는다.
+
+	     ★품명은 믿을 수 없다(2026-08-01 사용자 지적). 거래처는 코드뿐 아니라 **품명도 자기 식으로**
+	       보낸다 — 띄어쓰기·약어·괄호는 물론 아예 다른 이름으로 오기도 한다. 그래서 품명 일치는
+	       '보조 신호'로만 쓰고 점수를 낮게 준다.
+
+	     신뢰 순서 (정산서가 온 경우 ①②가 살아 있다 — 발주현황표에는 규격·단가가 아예 없다)
+	       ① 단가 일치      — 숫자라 흔들리지 않는다. 실측상 정산 단가 = 우리 출고단가
+	                          (평택 6건 중 5건 정확히 일치 / 매입단가 일치 0건, CLAUDE.md)
+	       ② 규격 일치      — 기호·공백을 떼고 비교
+	       ③ 이전 표기      — 같은 거래처가 예전에 쓰던 품명과 같다 = 코드만 바뀐 경우.
+	                          ★이건 '거래처 품명 ↔ 거래처 품명' 비교라 우리 품명과 대조하는 것보다 훨씬 낫다
+	       ④ 그 거래처 취급품목 — 이미 그 거래처로 나가는 품목. 목록이 짧아 사람이 고르기 쉽다
+	       ⑤ 품명 부분일치  — 마지막 보조
+
+	     ★자동 확정은 없다. 여기 결과는 '사람이 고르기 쉽게 줄 세운 것'일 뿐이고,
+	       화면에는 항상 우리 품목을 직접 검색해 고르는 길이 함께 있어야 한다.
+	     ========================================================================================== -->
+	<select id="selectXrefCandidates" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  /* ★단가·규격을 정산서에서 스스로 찾아 온다 (2026-08-01)
+	       발주현황표에는 규격도 단가도 없어서 화면이 품명밖에 못 보낸다. 그러면 정작 못 믿는
+	       품명으로만 추천하게 된다. 그런데 **같은 코드로 정산서가 이미 들어와 있으면**
+	       거기엔 단가·규격이 있다 — 그걸 끌어와 1순위 근거로 쓴다.
+	       화면이 extPrice/extSpec 를 직접 준 경우에는 그 값이 우선(ISNULL 순서). */
+	  ;WITH pv AS (
+	      SELECT TOP 1 m.SALE_PRICE AS px, m.SPEC AS spx
+	        FROM TBL_SALES_MST m
+	       WHERE m.ACTION_YN='Y' AND m.ITEM_CD = #{extItemCd,jdbcType=NVARCHAR}
+	         AND ISNULL(m.SALE_PRICE,0) > 0
+	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	       ORDER BY m.DLV_DT DESC
+	  ),
+	  /* ★품명 비교용 조각 (2026-08-01)
+	       거래처 품명과 우리 품명은 **가운데·끝이 자주 다르다** —
+	         거래처 (뜨돈)소스용기,95파이*H47MM,200ML,흰색,PS,1000EA/B
+	         우리   (뜨돈)소스용기,95파이*H47MM(소,200ML,흰색,PS,1000EA
+	       그래서 '통째로 포함되나' 로 보면 못 잡는다(실제로 후보 0건이 나왔다).
+	       사람이 직접 찾을 때처럼 **앞쪽 조각**으로 본다.
+	         pre10 = 공백 뗀 앞 10자        (앞이 같은 것)
+	         core8 = 맨 앞 괄호묶음을 뗀 뒤 8자 (브랜드 표기가 달라도 잡히게) */
+	  nk AS (
+	      SELECT n,
+	             SUBSTRING(n,1,10) AS pre10,
+	             CASE WHEN CHARINDEX(N')', n) BETWEEN 2 AND 12
+	                  THEN SUBSTRING(n, CHARINDEX(N')', n)+1, 8)
+	                  ELSE SUBSTRING(n,1,8) END AS core8
+	        FROM ( SELECT REPLACE(ISNULL(#{extItemNm,jdbcType=NVARCHAR},''),' ','') AS n ) t0
+	  )
+	  /* ★후보가 비슷비슷할 때 고를 재료를 붙인다 (2026-08-01 요청)
+	       품명·규격이 같은 후보가 둘 나오면 근거만으로는 못 고른다. 어느 쪽이 '살아 있는' 품목인지
+	       — 판매단가·현재고·최근 출고 — 를 함께 준다. 재고도 거래도 없는 쪽은 예전에 만든
+	       가상코드일 가능성이 높다. 정렬도 점수 → 현재고 → 최근출고 순으로 실제 쓰는 것이 위로 온다. */
+	  SELECT TOP 10 g.prodSeq, g.prodCd, g.prodNm, g.extItemCd, g.extItemNm, g.extSpec,
+	         g.matchScore, g.matchWhy,
+	         pm.SALE_PRICE AS salePrice, pm.MAKER_NM AS makerNm,
+	         ISNULL(k.CUR_QTY,0) AS curQty, k.LAST_OUT_DT AS lastOutDt
+	    FROM (
+	  SELECT c.prodSeq, c.prodCd, c.prodNm, c.extItemCd, c.extItemNm, c.extSpec,
+	         MAX(c.matchScore) AS matchScore, MIN(c.matchWhy) AS matchWhy
+	    FROM (
+	          /* ① 단가 일치 — 우리 판매가(마스터/이력)와 정산 단가가 같은 품목 */
+	          SELECT p.PROD_SEQ AS prodSeq, p.PROD_CD AS prodCd, p.PROD_NM AS prodNm,
+	                 CAST(NULL AS NVARCHAR(30)) AS extItemCd, CAST(NULL AS NVARCHAR(300)) AS extItemNm,
+	                 p.SPEC AS extSpec, 95 AS matchScore, N'단가 일치' AS matchWhy
+	            FROM TBL_PROD_MST p
+	           WHERE p.ACTION_YN='Y'
+	             /* ★TBL_PROD_MST 는 이력형 — 같은 PROD_CD 의 최신 행만(기존 관용구와 동일) */
+	             AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2
+	                                WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN='Y' AND p2.COMP_CD = p.COMP_CD)
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR p.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	             AND ISNULL( ISNULL(#{extPrice,jdbcType=DECIMAL}, (SELECT px FROM pv)), 0) > 0
+	             AND ( p.SALE_PRICE = ISNULL(#{extPrice,jdbcType=DECIMAL}, (SELECT px FROM pv))
+	                OR EXISTS ( SELECT 1 FROM TBL_PROD_SALEPRICE_HST h
+	                             WHERE h.ACTION_YN='Y' AND h.PROD_SEQ = p.PROD_SEQ
+	                               AND h.SALE_PRICE = ISNULL(#{extPrice,jdbcType=DECIMAL}, (SELECT px FROM pv))
+	                               AND h.COMP_CD = p.COMP_CD ) )
+	          UNION ALL
+	          /* ② 규격 일치 — 공백·기호를 떼고 비교(500ml×20 ↔ 500ml*20) */
+	          SELECT p.PROD_SEQ, p.PROD_CD, p.PROD_NM, NULL, NULL, p.SPEC, 80, N'규격 일치'
+	            FROM TBL_PROD_MST p
+	           WHERE p.ACTION_YN='Y'
+	             /* ★TBL_PROD_MST 는 이력형 — 같은 PROD_CD 의 최신 행만(기존 관용구와 동일) */
+	             AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2
+	                                WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN='Y' AND p2.COMP_CD = p.COMP_CD)
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR p.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	             AND ISNULL( NULLIF(#{extSpec,jdbcType=NVARCHAR},''), (SELECT spx FROM pv) ) IS NOT NULL
+	             AND ISNULL(p.SPEC,'') <> ''
+	             AND REPLACE(REPLACE(REPLACE(REPLACE(p.SPEC,' ',''),'*',''),'X',''),'x','')
+	               = REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(NULLIF(#{extSpec,jdbcType=NVARCHAR},''),(SELECT spx FROM pv)),' ',''),'*',''),'X',''),'x','')
+	          UNION ALL
+	          /* ③ 같은 거래처의 '이전 표기' — 거래처 품명끼리의 비교라 우리 품명 대조보다 신뢰도가 높다 */
+	          SELECT x.PROD_SEQ, x.PROD_CD, p.PROD_NM, x.EXT_ITEM_CD, x.EXT_ITEM_NM, x.EXT_SPEC,
+	                 CASE WHEN x.EXT_ITEM_NM = #{extItemNm,jdbcType=NVARCHAR} THEN 85 ELSE 55 END,
+	                 N'이전 코드'
+	            FROM TBL_PROD_XREF x
+	            LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = x.PROD_SEQ AND p.COMP_CD = x.COMP_CD
+	           WHERE x.ACTION_YN='Y'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR x.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	             AND ISNULL(x.VENDOR_CD,'') IN ('', ISNULL(#{vendorCd,jdbcType=NVARCHAR},''))
+	             AND ISNULL(#{extItemNm,jdbcType=NVARCHAR},'') <> ''
+	             AND ( x.EXT_ITEM_NM = #{extItemNm,jdbcType=NVARCHAR}
+	                OR REPLACE(x.EXT_ITEM_NM,' ','') LIKE '%' + REPLACE(#{extItemNm,jdbcType=NVARCHAR},' ','') + '%'
+	                OR REPLACE(#{extItemNm,jdbcType=NVARCHAR},' ','') LIKE '%' + REPLACE(x.EXT_ITEM_NM,' ','') + '%' )
+	          UNION ALL
+	          /* ④ 그 거래처로 이미 나가는 품목 — 근거는 약하지만 목록이 짧아 눈으로 고르기 좋다.
+	                거래처가 받는 품목은 한정적이라, 새 코드도 대개 이 안에 있다. */
+	          SELECT x.PROD_SEQ, x.PROD_CD, p.PROD_NM, x.EXT_ITEM_CD, x.EXT_ITEM_NM, x.EXT_SPEC,
+	                 30, N'이 거래처 취급품목'
+	            FROM TBL_PROD_XREF x
+	            LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = x.PROD_SEQ AND p.COMP_CD = x.COMP_CD
+	           WHERE x.ACTION_YN='Y' AND ISNULL(#{vendorCd,jdbcType=NVARCHAR},'') <> ''
+	             AND x.VENDOR_CD = #{vendorCd,jdbcType=NVARCHAR}
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR x.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	          UNION ALL
+	          /* ⑥ 품명 '조각' 일치 — ⑤(통째 포함)로는 못 잡는 것을 잡는다.
+	                사람이 직접 찾을 때 치는 것과 같은 방식이다. 앞이 같으면 더 높게 준다. */
+	          SELECT p.PROD_SEQ, p.PROD_CD, p.PROD_NM, NULL, NULL, p.SPEC,
+	                 CASE WHEN REPLACE(p.PROD_NM,' ','') LIKE nk.pre10 + '%' THEN 45 ELSE 35 END,
+	                 N'품명 조각'
+	            FROM TBL_PROD_MST p, nk
+	           WHERE p.ACTION_YN='Y'
+	             AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2
+	                                WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN='Y' AND p2.COMP_CD = p.COMP_CD)
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR p.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	             AND LEN(nk.core8) >= 4
+	             AND ( REPLACE(p.PROD_NM,' ','') LIKE '%' + nk.core8 + '%'
+	                OR REPLACE(p.PROD_NM,' ','') LIKE nk.pre10 + '%' )
+	          UNION ALL
+	          /* ⑤ 우리 품명과의 부분일치 — 가장 약한 신호. 없는 것보다 낫다는 정도 */
+	          SELECT p.PROD_SEQ, p.PROD_CD, p.PROD_NM, NULL, NULL, p.SPEC, 25, N'품명 유사'
+	            FROM TBL_PROD_MST p
+	           WHERE p.ACTION_YN='Y'
+	             /* ★TBL_PROD_MST 는 이력형 — 같은 PROD_CD 의 최신 행만(기존 관용구와 동일) */
+	             AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2
+	                                WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN='Y' AND p2.COMP_CD = p.COMP_CD)
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR p.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	             AND ISNULL(#{extItemNm,jdbcType=NVARCHAR},'') <> ''
+	             AND ( REPLACE(p.PROD_NM,' ','') LIKE '%' + REPLACE(#{extItemNm,jdbcType=NVARCHAR},' ','') + '%'
+	                OR REPLACE(#{extItemNm,jdbcType=NVARCHAR},' ','') LIKE '%' + REPLACE(p.PROD_NM,' ','') + '%' )
+	         ) c
+	   WHERE c.prodSeq IS NOT NULL
+	   GROUP BY c.prodSeq, c.prodCd, c.prodNm, c.extItemCd, c.extItemNm, c.extSpec
+	         ) g
+	    LEFT JOIN TBL_PROD_MST  pm ON pm.PROD_SEQ = g.prodSeq
+	    LEFT JOIN TBL_STOCK_MST k  ON k.PROD_SEQ  = g.prodSeq AND k.ACTION_YN = 'Y'
+	   ORDER BY g.matchScore DESC, ISNULL(k.CUR_QTY,0) DESC, ISNULL(k.LAST_OUT_DT,'') DESC, g.prodCd
 	]]></select>
 </mapper>

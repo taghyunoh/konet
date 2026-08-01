@@ -370,11 +370,31 @@
   .ss-modal { display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:9998; }
   .ss-modal.on { display:flex; align-items:flex-start; justify-content:center; }
   .ss-modal .box { background:#fff; width:min(1120px,95vw); margin-top:4vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); max-height:90vh; display:flex; flex-direction:column; }
-  #ssPvOverlay .box { width:min(1600px,96vw); }   /* 발주현황표 미리보기: 좌측 목록 + 우측 일자컬럼까지 보이도록 넓게 */
+  /* 발주현황표 미리보기: 좌측 목록 + 우측 일자컬럼까지 보이도록 넓게.
+     ★위로 조금 올리고 세로도 늘린다(2026-08-01 요청) — 품목코드 연결 표가 생기면서
+       모달이 길어져 아래쪽 [작성] 줄이 화면 밖으로 밀리기 쉬웠다. */
+  #ssPvOverlay .box { width:min(1600px,96vw); margin-top:1.5vh; max-height:96vh; }
   /* 반영 확인(ssConfirm) — 화면 정중앙 + 다른 오버레이(미리보기·저장·패널·풀스크린)보다 항상 위 (2026-07-24 요청) */
   #ssConfirmOv.on { align-items:center; }
   #ssConfirmOv .box { margin-top:0; width:min(440px,92vw); }
   #ssConfirmOv { z-index:100000; }
+  /* 품목 연결 팝업 — 미리보기 모달 '위'에 뜨므로 z-index 를 더 높인다.
+     ★공용 알림(_alertBox, 340px 컴팩트)을 쓰지 않는다 — 코드·품명·규격을 나란히 봐야 고를 수 있는데
+       좁으면 품명이 세 줄로 접히고 가로 스크롤이 생긴다(2026-08-01 지적). 여기만 넓게. */
+  #ssXrefPop { z-index:100001; }
+  #ssXrefPop.on { align-items:center; }
+  #ssXrefPop .box { margin-top:0; width:min(980px,96vw); }
+  #ssXrefPop .xr-row { display:flex; gap:10px; align-items:center; padding:6px 4px; border-top:1px solid #eef2f1; }
+  #ssXrefPop .xr-cd  { flex:0 0 110px; color:#137a6c; font-weight:700; }
+  #ssXrefPop .xr-nm  { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #ssXrefPop .xr-sp  { flex:0 0 160px; color:#6b7a89; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* 단가·현재고·최근출고 — 비슷한 후보를 가르는 실제 판단 근거라 숫자는 오른쪽 정렬 */
+  #ssXrefPop .xr-n   { flex:0 0 70px; text-align:right; color:#37475a; font-size:12px; white-space:nowrap; }
+  #ssXrefPop .xr-wy  { flex:0 0 100px; color:#b3760f; font-size:12px; font-weight:600; }
+  /* [연결] 버튼 — 열이 늘면서 눌려 '연/결' 로 두 줄이 됐다(2026-08-01).
+     ★button 은 브라우저 기본이 border-box 라 52px 로는 좌우 padding(20px)·테두리를 빼면
+       글자 자리가 30px 남짓이라 아슬아슬했다. 넉넉히 잡고 줄바꿈을 막는다. */
+  #ssXrefPop .xr-row .ss-btn { flex:0 0 64px; white-space:nowrap; word-break:keep-all; text-align:center; }
   .ss-modal .mh { background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:14px 20px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
   .ss-modal .mh h4 { margin:0; font-size:16px; font-weight:600; }
   .ss-modal .mh .x { cursor:pointer; font-size:22px; line-height:1; color:#fff; opacity:.9; background:none; border:none; }
@@ -405,6 +425,36 @@
   .ss-pverr .ln  { color:#6b7a89; font-size:11.5px; }
   .ss-pverr.warn { background:#fff9ec; border-color:#f0dcae; color:#7a6310; }
   .ss-pverr.warn .eh { color:#b3760f; }
+  /* 이상 없음(초록) — 기본형이 빨간 오류상자라 '문제 없음' 을 그대로 쓰면 경고로 읽힌다.
+     품목코드 매핑 점검처럼 '검사했고 괜찮다' 를 알릴 때 쓴다(2026-08-01) */
+  .ss-pverr.good { background:#f2faf7; border-color:#cfe8de; color:#1f6f5c; }
+  /* 거래처 코드 점검 툴바 — 셀렉트·입력·버튼 높이를 맞춘다(2026-08-01 지적).
+     각자 기본 높이가 달라 들쭉날쭉했다. 이 패널에만 적용해 다른 화면은 건드리지 않는다. */
+  #panel-xrefAudit .actions { display:flex; align-items:center; gap:6px; }
+  #panel-xrefAudit .actions select,
+  #panel-xrefAudit .actions input,
+  #panel-xrefAudit .actions button { height:30px; line-height:28px; font-size:12.5px;
+     box-sizing:border-box; padding:0 12px; margin:0; }
+  #panel-xrefAudit .actions select { padding:0 6px; }
+  /* 거래처 코드 점검 — 행마다 바로 처리하는 작은 버튼 */
+  .xa-b { display:inline-block; height:21px; line-height:19px; padding:0 8px; font-size:11.5px;
+          border:1px solid var(--logi-border); border-radius:5px; background:#fff; cursor:pointer;
+          white-space:nowrap; color:#37475a; }
+  .xa-b:hover { border-color:#137a6c; background:#f3faf8; }
+  /* 품목코드 연결 그리드 — 미리보기 안에 들어가므로 촘촘하게. 설명 문단 대신 이 표가 말한다 */
+  .xr-tb { width:100%; border-collapse:collapse; font-size:12.5px; background:#fff; table-layout:fixed; }
+  .xr-tb th { background:#eef3f2; border:1px solid #dbe3ea; padding:5px 7px; color:#37475a; font-weight:700; }
+  .xr-tb td { border:1px solid #e6ecf0; padding:4px 7px; text-align:center; color:#37475a;
+              white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .xr-tb td.l { text-align:left; }
+  .xr-tb .xr-b { display:inline-block; height:21px; line-height:19px; padding:0 8px; font-size:11.5px;
+                 border:1px solid var(--logi-border); border-radius:5px; background:#fff; cursor:pointer; }
+  .xr-tb .xr-b:hover { border-color:#137a6c; }
+  /* 스크롤 상자 — 이 상자가 커지면 그만큼 아래 미리보기 표가 줄어든다(우측이 고정 높이라).
+     4~5행 정도만 보이고 나머지는 표 안에서 스크롤. 머리글은 sticky. */
+  .xr-wrap { max-height:150px; overflow-y:auto; border:1px solid #dbe3ea; border-radius:6px; }
+  .xr-wrap .xr-tb th { position:sticky; top:0; z-index:1; }
+  .xr-wrap .xr-tb { border-collapse:separate; border-spacing:0; }
   /* '이전 자료' 알림 — 살짝 깜박(2026-07-27 사용자 요청). 10회(약 10초) 뒤엔 빨강 그대로 남는다(계속 깜박이면 눈에 거슬림) */
   @keyframes ssBlink { 0%,100%{ opacity:1 } 50%{ opacity:.28 } }
   .ss-blink { animation: ssBlink 1s ease-in-out 0s 10 both; }
@@ -1087,6 +1137,14 @@
   }
   function _now2(){ var d=new Date(), p=function(n){return ('0'+n).slice(-2);}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds()); }
   function stkAsOfClear(){ var el=document.getElementById('stkAsOf'); if(el) el.value=''; stkStatusLoad(); }
+  /* 기준일 빠른 선택 — 0=오늘, -1=전월 말일(new Date(y,m,0) 이 전달 마지막 날이다) */
+  function stkAsOfSet(kind){
+    var el=document.getElementById('stkAsOf'); if(!el) return;
+    var d=new Date();
+    if(kind===-1) d=new Date(d.getFullYear(), d.getMonth(), 0);
+    el.value = d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+    stkStatusLoad();
+  }
   // (A) 출고반영 재집계 — 전체 SHIPOUT을 원장 O행으로 재동기화 + 현재고 재계산
   function _fmtYm6(m){ m=(''+(m||'')); return m.length===6 ? m.slice(0,4)+'-'+m.slice(4,6) : m; }
   function stkRebuild(){
@@ -1097,11 +1155,51 @@
       .then(function(j){
         var ms=(j&&j.months)||[];
         var excl = ms.length ? ('제외되는 <b style="color:#c0392b">마감 확정월: '+ms.map(_fmtYm6).join(', ')+'</b>') : '제외할 마감 확정월 없음 — <b>전체 기간 반영</b>';
-        swConfirm('전체 <b>출고(SHIPOUT)</b>를 재고 수불원장에 반영하고 현재고를 다시 계산합니다.<br>'+excl+'<br>진행할까요?','🔄 출고반영 재집계').then(function(ok){ if(!ok) return;
+        swConfirm('전체 <b>출고(SHIPOUT)</b>를 재고 수불원장에 반영하고 현재고를 다시 계산합니다.<br>'+excl
+                 +'<br><span style="font-size:12.5px;color:#5a6b7a">여러 번 눌러도 안전합니다 — 지우고 다시 만드는 방식이라 결과가 같습니다.</span>'
+                 +'<br>진행할까요?','🔄 출고반영 재집계').then(function(ok){ if(!ok) return;
+          /* ★진행바 = 서버가 알려주는 '실제' 진행률 (2026-08-01).
+               재집계는 출고일자 수만큼 원장을 다시 만들어 자료가 쌓이면 수십 초가 걸리는데,
+               요청이 POST 하나라 화면이 멈춘 것처럼 보였다.
+               서버(RebuildProgress)가 '몇 개 중 몇 개'를 적어 두고 여기서 짧게 물어본다 —
+               시간으로 늘어나는 가짜 막대를 쓰지 않는 이유다. */
+          shpProgShow('시작하는 중…', '🔄 출고반영 재집계');
+          _shpProgIndet('시작하는 중…');                 // 총량을 받기 전 — 꽉 찬 줄무늬로 '살아있음'을 보인다
+          var _t0 = Date.now();
+          function _tick(){
+            fetch(ctx+'/prod/stockRebuildProgress.do', { method:'POST', credentials:'same-origin' })
+              .then(function(r){ return r.json(); })
+              .then(function(p){
+                var el = Math.round((Date.now()-_t0)/1000) + '초';
+                if(!p || !p.running){                   // 시작 전이거나 이미 끝남 — POST 응답이 마무리한다
+                  _shpProgIndet('진행 중… (경과 '+el+')'); return;
+                }
+                if(p.total > 0){
+                  /* 마지막 '현재고 집계' 단계가 남아 있으므로 95% 에서 멈춰 둔다 */
+                  _shpProgWidth(Math.min(95, p.done * 95 / p.total), false);
+                  _shpProgLab(p.phase + '  ('+p.done+' / '+p.total+' · 경과 '+el+')');
+                } else {
+                  _shpProgIndet((p.phase||'준비 중…')+'  (경과 '+el+')');
+                }
+              })
+              .catch(function(){                        // 폴링 실패해도 멈춘 것처럼 보이지 않게
+                _shpProgIndet('진행 중… (경과 '+Math.round((Date.now()-_t0)/1000)+'초)');
+              });
+          }
+          _tick();                                      // 첫 조회를 기다리지 않는다(첫 단계가 길 수 있다)
+          var poll = setInterval(_tick, 500);
+          function stop(){ clearInterval(poll); shpProgHide(); }
           fetch(ctx+'/prod/stockRebuild.do', { method:'POST', credentials:'same-origin' })
             .then(function(res){ return res.text().then(function(t){ return {ok:res.ok,t:t}; }); })
-            .then(function(r){ if(!r.ok){ swAlert('재집계 실패: '+((r.t||'').trim()),'error'); return; } swAlert('출고반영 재집계 완료 · 출고일자 <b>'+(r.t||'0')+'</b>건 반영','success'); stkStatusLoad(); })
-            .catch(function(e){ swAlert('통신오류: '+e.message,'error'); });
+            .then(function(r){
+              clearInterval(poll);
+              if(!r.ok){ shpProgHide(); swAlert('재집계 실패: '+((r.t||'').trim()),'error'); return; }
+              shpProgDone();
+              setTimeout(function(){ shpProgHide();
+                swAlert('출고반영 재집계 완료 · 출고일자 <b>'+(r.t||'0')+'</b>건 반영','success'); stkStatusLoad();
+              }, 350);
+            })
+            .catch(function(e){ stop(); swAlert('통신오류: '+e.message,'error'); });
         });
       });
   }
@@ -2000,12 +2098,11 @@
     var box=document.getElementById('ssPvHist'), nm=document.getElementById('ssPvDirName'); if(!box) return;
     if(!window.showDirectoryPicker){ if(nm) nm.textContent=''; box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:13px;line-height:1.6">이 브라우저는 폴더 지정을<br>지원하지 않습니다.<br>위쪽 <b>📄 파일 선택</b>으로 진행하세요.<br>(Chrome/Edge 권장)</div>'; return; }
     if(!ssDirHandle){ if(nm) nm.textContent='';
-      box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:13px;line-height:1.6">위쪽 <b>📂 폴더 지정</b>을 눌러<br>자료 폴더를 선택하면<br>파일이 여기 표시됩니다.<br><span style="color:#b6c0c9">자세한 설명은 위쪽 <b>ℹ️ 도움말</b>.</span>'
-        +'<div style="margin-top:10px;padding:8px 9px;background:#fdf6e8;border:1px solid #f0dfb8;border-radius:5px;color:#8a6414">'
-        +'⚠️ <b>다운로드 폴더 자체는 지정할 수 없습니다</b>(브라우저가 시스템 폴더로 막음).<br>'
-        +'다운로드 안에 <b>「코네트_발주현황표」</b> 같은 <u>하위폴더</u>를 만들고 받은 파일을 그리로 옮긴 뒤, 그 폴더를 지정하세요.<br>'
-        +'<span style="color:#a58a52">개인 자료가 섞인 폴더를 통째로 열지 않게 됩니다.</span><br>'
-        +'<span style="color:#8a6414">받는 위치까지 그 폴더로 바꾸려면 위쪽 <b>ℹ️ 도움말</b> ▸ <b>⚙️ 크롬 다운로드 위치 바꾸기</b>.</span></div></div>'; return; }
+      /* 종전엔 여기에 '다운로드 폴더는 못 지정한다 / 하위폴더를 만들어라' 안내 상자가 붙어 있었다.
+         화면을 차지해 지웠다(2026-08-01 요청). 같은 내용은 두 곳에 남아 있다 —
+           · [📂 폴더 지정] 버튼 hover(title)
+           · ℹ️ 도움말 ▸ ⚙️ 받은 파일이 바로 그 폴더에 쌓이게 하기 */
+      box.innerHTML='<div style="padding:12px;color:#9aa7b3;font-size:13px;line-height:1.6">위쪽 <b>📂 폴더 지정</b>을 눌러<br>자료 폴더를 선택하면<br>파일이 여기 표시됩니다.<br><span style="color:#b6c0c9">자세한 설명은 위쪽 <b>ℹ️ 도움말</b>.</span></div>'; return; }
     if(nm) nm.textContent='📂 '+ssDirHandle.name;
     ssDirHandle.queryPermission({mode:'readwrite'}).then(function(p){
       if(p==='granted'){ box.innerHTML='<div style="padding:10px;color:#9aa7b3;font-size:13px">불러오는 중…</div>'; ssDirScan(); }
@@ -2912,11 +3009,14 @@
     var ov=document.getElementById('ssPvOverlay'); if(!ov) return;
     var wasOpen=ov.classList.contains('on');
     ov.classList.toggle('on', !!show);
+    /* 닫으면(취소·✕) 연결 '예정' 은 버린다 — 저장하지 않고 나갔으니 아무것도 남으면 안 된다 */
+    if(!show){ ssXrefPendClear(); ssXrefPopClose(); }
     if(show && !wasOpen){
       // 아직 아무 파일도 안 읽은 상태로 열릴 수 있다(버튼이 곧바로 이 모달을 연다) → 우측 빈칸 대신 안내
       if(!ssPvWb){
         var _i=document.getElementById('ssPvInfo'), _t=document.getElementById('ssPvTbl'), _f=document.getElementById('ssPvFile');
         var _e=document.getElementById('ssPvErr'); if(_e) _e.innerHTML='';
+        var _x=document.getElementById('ssPvXref'); if(_x) _x.innerHTML=''; ssXrefUnmap=[]; ssXrefPendClear();
         if(_f) _f.textContent='-';
         if(_t) _t.innerHTML='';
         if(_i){ _i.className='ss-pvinfo';
@@ -2926,6 +3026,9 @@
       try{ ssPvHelp(localStorage.getItem('ssPvHelpOpen')==='1'); }catch(e){ ssPvHelp(false); }   // 도움말은 기본 접힘(지난번 펼쳐 뒀으면 그대로)
       ssAutoPick=true; ssHistRefresh();   // 열 때만 폴더 목록 로드 + 최신 파일 자동선택(파일 클릭마다 재스캔 방지)
       ssUpHistLoad();                     // 좌측 하단 업로드 이력(오늘·3일)도 열 때 1회 갱신
+      /* 해석 가능한 코드 집합(XREF ∪ 우리 품목코드) — 모달 열 때 1회.
+         늦게 도착해도 되도록 도착 시 미리보기를 한 번 다시 그린다(파일이 이미 골라져 있으면). */
+      ssXrefLoad(function(){ ssXrefRefresh(); });
     }
   }
 
@@ -2938,6 +3041,675 @@
     }
     return (v==null?'':(''+v));
   }
+  /* ===== 거래처 코드 점검 리포트 (2026-08-01) =============================================
+     매핑이 틀리면 ①재고에서 빠지고 ②단가가 튀고 ③확인 없이 출고가 나가고 ④재고가 음수가 된다.
+     그 네 신호를 서버(selectXrefAudit)에서 한 번에 받아 그대로 보여 준다. 고치는 곳은
+     상품관리 [거래처 코드] 탭 / 업로드 프리뷰의 [연결] 이고, 여기는 조회 전용이다.
+     ========================================================================================= */
+  var xaAll=[], xaView=[], xaShown=0, XA_PAGE=200, xaBound=false;
+  function xaLoad(){
+    var days=((document.getElementById('xaDays')||{}).value)||'30';
+    var tb=document.getElementById('xaBody');
+    if(!tb) return;
+    tb.innerHTML='<tr><td colspan="10" style="text-align:center;color:#8a97a3;padding:14px">조회 중…</td></tr>';
+    fetch('${pageContext.request.contextPath}/prod/xrefAudit.do', { method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'matchScore='+encodeURIComponent(days) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ xaAll=(j&&j.data)||[]; xaDraw(); xaBind(); })
+      .catch(function(e){ xaAll=[]; tb.innerHTML='<tr><td colspan="10" style="text-align:center;color:#c0392b;padding:14px">조회 오류: '+ssEscHtml(e.message)+'</td></tr>'; });
+  }
+  /* 구분·검색으로 거르고 처음 200건만 그린다 — 수백 건을 한 번에 그리면 화면이 굳는다.
+     바닥에 닿으면 다음 묶음을 이어붙인다(이 프로젝트의 목록 화면들과 같은 방식). */
+  function xaDraw(){
+    var gb=((document.getElementById('xaGb')||{}).value)||'';
+    var q=(((document.getElementById('xaFind')||{}).value)||'').trim().toLowerCase();
+    xaView = xaAll.filter(function(o){
+      if(gb && String(o.matchWhy||'').indexOf(gb)!==0) return false;
+      if(!q) return true;
+      return [o.extItemCd,o.extItemNm,o.prodCd,o.prodNm].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; });
+    });
+    /* ★구분 이름 그대로 센다 — ①이 '미매핑' 과 '재집계 대기' 로 갈리므로 첫 글자로 묶으면
+         전혀 다른 두 가지가 한 숫자로 합쳐진다(2026-08-01). */
+    var c={}; xaAll.forEach(function(o){ var k=(o.matchWhy||'-'); c[k]=(c[k]||0)+1; });
+    var sum=document.getElementById('xaSum');
+    if(sum){
+      sum.innerHTML = xaAll.length
+        ? Object.keys(c).sort().map(function(k){
+            var col = (k.indexOf('미매핑')>=0) ? '#c0392b'
+                    : (k.indexOf('재집계')>=0) ? '#1f6fb3'
+                    : (k.indexOf('연결 처리')>=0) ? '#137a6c'
+                    : (k.indexOf('재고 음수')>=0) ? '#b3760f' : '#5a6b7a';
+            return '<span style="margin-right:16px;color:'+col+'">'+ssEscHtml(k)+' <b>'+c[k]+'</b>건</span>'; }).join('')
+        : '<span style="color:#137a6c">✅ 이상 없습니다</span>';
+    }
+    xaShown = 0;
+    document.getElementById('xaBody').innerHTML='';
+    if(!xaView.length){
+      document.getElementById('xaBody').innerHTML='<tr><td colspan="10" style="text-align:center;color:#8a97a3;padding:14px">'
+        + (xaAll.length?'조건에 맞는 항목이 없습니다.':'✅ 이상 없습니다.')+'</td></tr>';
+      xaPager(); return;
+    }
+    xaMore();
+    var w=document.getElementById('xaWrap'); if(w) w.scrollTop=0;
+  }
+  function xaRowHtml(o){
+    var urgent = (o.matchWhy||'').indexOf('①')===0;
+    return '<tr id="xa-r-'+xaAll.indexOf(o)+'"'+(urgent?' style="background:#fff6f6"':'')+'>'
+      + '<td>'+ssEscHtml(o.matchWhy)+'</td>'
+      + '<td><b>'+ssEscHtml(o.extItemCd)+'</b></td>'
+      + '<td style="text-align:left">'+ssEscHtml(o.extItemNm)+'</td>'
+      + '<td>'+ssEscHtml(o.prodCd||'')+'</td>'
+      + '<td style="text-align:left">'+ssEscHtml(o.prodNm||'')+'</td>'
+      + '<td>'+ssEscHtml(o.vendorNm||'')+'</td>'
+      + '<td>'+ssEscHtml(o.lastDt||'')+'</td>'
+      + '<td style="text-align:right">'+ssEscHtml(o.useQty||'')+'</td>'
+      + '<td style="text-align:left;color:#5a6b7a">'+ssEscHtml(o.remark||'')+'</td>'
+      + '<td style="white-space:nowrap">'+xaActHtml(o)+'</td></tr>';
+  }
+  /* 구분에 따라 할 수 있는 일이 다르다 — 아무 데나 같은 버튼을 두면 헷갈린다 */
+  function xaActHtml(o){
+    if(o._done) return '<span style="color:#137a6c;font-weight:700">✔ 완료</span>';   // 이미 처리한 줄
+    var i=xaAll.indexOf(o), gb=(o.matchWhy||'').slice(0,1);
+    var B=function(act,txt,col){ return '<span class="xa-b" data-act="'+act+'"'+(col?' style="color:'+col+'"':'')
+        +' onclick="xaAct('+i+',\''+act+'\')">'+txt+'</span>'; };
+    /* ★①이라도 상품마스터에 같은 코드가 있으면(우리 코드가 채워져 있으면) 연결할 일이 아니다 —
+         [출고반영 재집계] 한 번이면 해결된다. 버튼 대신 그렇게 안내한다(2026-08-01 지적). */
+    if(gb==='①'){
+      return o.prodCd
+        ? '<span style="color:#1f6fb3;font-size:11.5px" title="상품마스터에 같은 코드가 있습니다. 연결할 필요 없이 재고 관리 ▸ 재고현황 ▸ [🔄 출고반영 재집계] 한 번이면 해석됩니다.">재집계로 해결</span>'
+        : B('link','연결 ▾');
+    }
+    if(gb==='②') return (o.xrefSeq ? B('link','수정 ▾')+' '+B('unlink','해제','#c0392b') : '');
+    if(gb==='③') return B('confirm','확인','#137a6c')+' '+B('link','수정 ▾')+' '+B('unlink','해제','#c0392b');
+    return '';   // ④ 재고 음수 — 매핑 문제가 아닐 수 있다(입고 누락). 버튼을 주지 않는다
+  }
+  function xaMore(all){
+    if(xaShown>=xaView.length) return;
+    var to = all ? xaView.length : Math.min(xaShown+XA_PAGE, xaView.length), h='';
+    for(var i=xaShown;i<to;i++) h += xaRowHtml(xaView[i]);
+    document.getElementById('xaBody').insertAdjacentHTML('beforeend', h);
+    xaShown = to; xaPager();
+  }
+  function xaPager(){
+    var el=document.getElementById('xaPager'); if(!el) return;
+    if(xaShown>=xaView.length){
+      el.innerHTML = xaView.length ? ('총 <b>'+xaView.length+'</b>건 — 모두 표시됨'
+        + (xaView.length<xaAll.length ? ' <span style="color:#9aa7b3">(전체 '+xaAll.length+'건 중)</span>' : '')) : '';
+      return;
+    }
+    el.innerHTML = xaShown+' / <b>'+xaView.length+'</b>건 — 아래로 스크롤하면 이어서 나옵니다'
+      + ' <button class="btn-line" style="height:24px;margin-left:8px;font-size:12px" onclick="xaMore(true)">모두 표시</button>';
+  }
+  /* ===== 점검 화면에서 바로 고치기 (2026-08-01 요청) =====================================
+     종전에는 '현상만' 보여 주고 고치려면 상품관리로 옮겨 가야 했다. 여기서 끝내게 한다.
+       ① 미매핑   → [연결]           (연결 팝업 · 즉시 저장)
+       ② 단가 이탈 → [수정]·[해제]    (매핑이 틀렸을 가능성)
+       ③ 확인 필요 → [확인] + [수정]·[해제]
+       ④ 재고 음수 → 매핑 문제가 아닐 수 있어(입고 누락) 버튼을 주지 않는다
+     ======================================================================================== */
+  function _xaPost(url, body){
+    return fetch('${pageContext.request.contextPath}'+url, { method:'POST', credentials:'same-origin',
+             headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+      .then(function(r){ return r.text().then(function(t){ return {ok:r.ok,t:t}; }); });
+  }
+  /* after 를 주면 목록 전체를 다시 읽지 않는다 — 63건을 연달아 처리할 때 매번 재조회하면
+     화면이 튀고 느리다. 처리한 줄만 '완료'로 바꾸고, 숫자는 [새로고침] 때 맞춘다. */
+  function ssXrefSaveNow(u, prodSeq, prodCd, prodNm, after){
+    var first = u.xrefSeq ? _xaPost('/prod/xrefDelete.do', { xrefSeq:u.xrefSeq })
+                          : Promise.resolve({ok:true});
+    first.then(function(x0){
+      if(!x0.ok){ ssToast('⚠️ 기존 연결 해제 실패 — '+x0.t); return; }
+      return _xaPost('/prod/xrefSave.do', { prodSeq:prodSeq, prodCd:prodCd,
+               extItemCd:u.code, extItemNm:u.item, confirmYn:'N' })
+        .then(function(x){
+          if(!x.ok){ ssToast('⚠️ 연결 저장 실패 — '+x.t); return; }
+          ssXrefPopClose();
+          if(window._toast) _toast('연결했습니다 — '+u.code+' → '+prodCd+' (과거분도 반영)','ok');
+          if(after) after(); else xaLoad();
+        });
+    });
+  }
+  /* 처리한 줄 — 지우지 않고 '완료'로 바꿔 둔다. 몇 개를 처리했는지 눈으로 보이는 게 낫다. */
+  function xaRowDone(i, prodCd){
+    xaSubRemove(i);
+    var o=xaAll[i]; if(o) o._done=prodCd;
+    var tr=document.getElementById('xa-r-'+i); if(!tr) return;
+    tr.style.background='#f2faf7'; tr.style.opacity='.75';
+    var td=tr.children;
+    if(td.length>=10){
+      td[3].innerHTML='<b>'+ssEscHtml(prodCd)+'</b>';
+      td[8].innerHTML='<span style="color:#137a6c">연결 완료 — [새로고침] 하면 목록에서 빠집니다</span>';
+      td[9].innerHTML='<span style="color:#137a6c;font-weight:700">✔ 완료</span>';
+    }
+  }
+  /* ★후보를 그 행 '밑에' 펼친다 (2026-08-01 요청) — 63건을 팝업 63번 여는 건 못 할 일이다.
+       한 번 조회한 후보는 캐시해 두고, 다시 누르면 접는다. 팝업(직접 찾기)은 후보가 없을 때만 쓴다. */
+  var xaCand={};
+  function xaSubRemove(i){
+    Array.prototype.forEach.call(document.querySelectorAll('tr.xa-sub[data-for="'+i+'"]'), function(t){ t.parentNode.removeChild(t); });
+  }
+  function xaSubDraw(i, cands){
+    xaSubRemove(i);
+    var tr=document.getElementById('xa-r-'+i); if(!tr) return;
+    var o=xaAll[i], html;
+    if(cands===null){
+      html='<tr class="xa-sub" data-for="'+i+'"><td colspan="10" style="padding:6px 26px;color:#8a97a3">후보 찾는 중…</td></tr>';
+    } else if(!cands.length){
+      html='<tr class="xa-sub" data-for="'+i+'"><td colspan="10" style="padding:6px 26px;color:#8a97a3">'
+        +'비슷한 품목을 못 찾았습니다 — <span class="xa-b" onclick="xaAct('+i+',\'find\')">직접 찾기</span></td></tr>';
+    } else {
+      /* 펼친 후보 묶음 맨 위에 접기 줄 — 후보가 여러 개면 아래 버튼이 화면 밖으로 나갈 수 있다 */
+      html='<tr class="xa-sub" data-for="'+i+'"><td colspan="10" style="padding:3px 26px;background:#f7fafb">'
+        + '<span style="display:inline-block;width:14px;color:#9aa7b3">┌</span>'
+        + '<span style="color:#6b7a89;font-size:12px">비슷한 품목 '+cands.length+'개 — 단가·재고를 보고 고르세요</span>'
+        + ' <span class="xa-b" style="margin-left:8px" onclick="xaAct('+i+',\'link\')">접기 ▴</span></td></tr>'
+        + cands.map(function(c){
+        var dead=(!c.curQty||Number(c.curQty)===0) && !c.lastOutDt;
+        return '<tr class="xa-sub" data-for="'+i+'"'+(dead?' style="opacity:.6"':'')+'>'
+          + '<td colspan="10" style="padding:4px 26px;text-align:left">'
+          +   '<span style="display:inline-block;width:14px;color:#9aa7b3">└</span>'
+          +   '<span style="display:inline-block;width:110px;color:#137a6c;font-weight:700">'+ssEscHtml(c.prodCd)+'</span>'
+          +   '<span style="display:inline-block;width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom" title="'+ssEscHtml(c.prodNm)+'">'+ssEscHtml(c.prodNm)+'</span>'
+          +   '<span style="display:inline-block;width:170px;color:#6b7a89;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom">'+ssEscHtml(c.extSpec||'')+'</span>'
+          +   '<span style="display:inline-block;width:80px;text-align:right" title="판매단가">'+_num(c.salePrice)+'</span>'
+          +   '<span style="display:inline-block;width:70px;text-align:right" title="현재고">'+_num(c.curQty)+'</span>'
+          +   '<span style="display:inline-block;width:60px;text-align:right;color:#6b7a89" title="최근 출고">'+_dt(c.lastOutDt)+'</span>'
+          +   '<span style="display:inline-block;width:100px;color:#b3760f;font-size:12px;font-weight:600;padding-left:10px">'+ssEscHtml(c.matchWhy||'')+'</span>'
+          +   '<span class="xa-b" onclick="xaPick('+i+','+c.prodSeq+',\''+ssEscHtml(c.prodCd)+'\')">연결</span>'
+          + '</td></tr>';
+      }).join('')
+      + '<tr class="xa-sub" data-for="'+i+'"><td colspan="10" style="padding:2px 26px 6px">'
+      +   '<span style="display:inline-block;width:14px"></span>'
+      +   '<span class="xa-b" onclick="xaAct('+i+',\'find\')">직접 찾기…</span></td></tr>';
+    }
+    tr.insertAdjacentHTML('afterend', html);
+  }
+  /* 펼침/접힘에 따라 버튼 글자를 바꾼다 — 같은 버튼이 토글이라는 걸 글자로 보여 준다 */
+  function xaBtnState(i, open){
+    var tr=document.getElementById('xa-r-'+i); if(!tr) return;
+    var b=tr.querySelector('.xa-b[data-act="link"]'); if(!b) return;
+    var gb=((xaAll[i]||{}).matchWhy||'').slice(0,1);
+    b.textContent = open ? '접기 ▴' : (gb==='①' ? '연결 ▾' : '수정 ▾');
+  }
+  /* 도움말 — 접힘이 기본, 펼쳐 뒀으면 다음에도 그대로(업로드 모달 도움말과 같은 방식) */
+  function xaHelp(show){
+    var box=document.getElementById('xaHelp'), btn=document.getElementById('xaHelpBtn'); if(!box) return;
+    var on = (show===undefined) ? (box.style.display==='none') : !!show;
+    box.style.display = on ? 'block' : 'none';
+    if(btn) btn.textContent = on ? '✕ 도움말 닫기' : 'ℹ️ 도움말';
+    try{ localStorage.setItem('xaHelpOpen', on?'1':'0'); }catch(e){}
+  }
+  function xaCollapseAll(){
+    Array.prototype.forEach.call(document.querySelectorAll('tr.xa-sub'), function(t){ t.parentNode.removeChild(t); });
+    Array.prototype.forEach.call(document.querySelectorAll('#xaBody .xa-b[data-act="link"]'), function(b){
+      var tr=b.closest ? b.closest('tr') : null; if(!tr) return;
+      var i=+String(tr.id||'').replace('xa-r-','');
+      var gb=((xaAll[i]||{}).matchWhy||'').slice(0,1);
+      b.textContent = (gb==='①' ? '연결 ▾' : '수정 ▾');
+    });
+  }
+  function xaExpand(i){
+    if(document.querySelector('tr.xa-sub[data-for="'+i+'"]')){ xaSubRemove(i); xaBtnState(i,false); return; }   // 토글 = 접기
+    var o=xaAll[i]; if(!o) return;
+    xaBtnState(i,true);
+    if(xaCand[o.extItemCd]){ xaSubDraw(i, xaCand[o.extItemCd]); return; }
+    xaSubDraw(i, null);
+    fetch('${pageContext.request.contextPath}/prod/xrefCandidates.do', { method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:'extItemCd='+encodeURIComponent(o.extItemCd)+'&extItemNm='+encodeURIComponent(o.extItemNm||'') })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ var c=(j&&j.data)||[]; xaCand[o.extItemCd]=c; xaSubDraw(i, c); })
+      .catch(function(){ xaCand[o.extItemCd]=[]; xaSubDraw(i, []); });
+  }
+  /* 펼쳐진 후보에서 바로 연결 */
+  function xaPick(i, prodSeq, prodCd){
+    var o=xaAll[i]; if(!o) return;
+    ssXrefSaveNow({ code:o.extItemCd, item:o.extItemNm||'', xrefSeq:o.xrefSeq||null }, prodSeq, prodCd, '',
+                  function(){ xaRowDone(i, prodCd); });
+  }
+  /* 처리한 줄 공통 표시 — 확인/해제도 연결과 같은 방식으로 제자리에서 끝낸다 */
+  function xaRowMark(i, txt, col){
+    xaSubRemove(i);
+    var o=xaAll[i]; if(o) o._done=txt;
+    var tr=document.getElementById('xa-r-'+i); if(!tr) return;
+    tr.style.background='#f7f9fa'; tr.style.opacity='.75';
+    var td=tr.children;
+    if(td.length>=10){
+      td[8].innerHTML='<span style="color:'+(col||'#137a6c')+'">'+txt+' — [새로고침] 하면 목록에서 빠집니다</span>';
+      td[9].innerHTML='<span style="color:'+(col||'#137a6c')+';font-weight:700">✔ 완료</span>';
+    }
+  }
+  function xaAct(i, act){
+    var o=xaAll[i]; if(!o) return;
+    if(act==='link'){ xaExpand(i); return; }              // 팝업 대신 행 밑에 펼친다
+    if(act==='find'){                                     // 후보가 없거나 더 찾고 싶을 때만 팝업
+      ssXrefOpenFor({ code:o.extItemCd, item:o.extItemNm||'', zone:o.vendorNm||'',
+                      xrefSeq:o.xrefSeq || null,
+                      cur: o.prodCd ? { prodCd:o.prodCd, prodNm:o.prodNm||'' } : null }, true);
+      return;
+    }
+    if(act==='confirm'){
+      _xaPost('/prod/xrefConfirm.do', { xrefSeq:o.xrefSeq }).then(function(x){
+        if(!x.ok){ ssToast('⚠️ '+x.t); return; }
+        if(window._toast) _toast('확인했습니다 — '+o.extItemCd,'ok');
+        xaRowMark(i, '확인 완료');
+      });
+      return;
+    }
+    if(act==='unlink'){
+      ssConfirm('연결을 해제할까요?<br><b>'+ssEscHtml(o.extItemCd)+'</b> → '+ssEscHtml(o.prodCd||'')
+        +'<div style="margin-top:6px;font-size:12.5px;color:#5a6b7a">이 코드로 반영된 출고·정산도 함께 되돌리고 재고를 다시 계산합니다.</div>',
+        function(){
+          _xaPost('/prod/xrefDelete.do', { xrefSeq:o.xrefSeq }).then(function(x){
+            if(!x.ok){ ssToast('⚠️ '+x.t); return; }
+            if(window._toast) _toast('해제했습니다 — '+o.extItemCd,'ok');
+            xaRowMark(i, '연결 해제됨', '#c0392b');
+          });
+        });
+    }
+  }
+  function xaBind(){
+    var w=document.getElementById('xaWrap'); if(!w||xaBound) return; xaBound=true;
+    w.addEventListener('scroll', function(){
+      if(xaShown>=xaView.length) return;
+      if(w.scrollTop + w.clientHeight >= w.scrollHeight - 40) xaMore();
+    });
+  }
+
+  /* ===== 미매핑 품목 연결 (2026-08-01) =====================================================
+     거래처(출고장)는 같은 물건을 자기 코드·자기 품명으로 요청한다. 종전에는 그 표기마다
+     상품마스터에 '가상코드'를 새로 등록해야 했고 그래서 재고가 갈라졌다.
+     이제 코네트 품목은 하나로 두고 (거래처 코드 → 우리 품목) 매핑만 TBL_PROD_XREF 에 쌓는다.
+
+     화면이 하는 일은 '해석되지 않는 코드를 저장 전에 알려주고 그 자리에서 연결'하는 것뿐이다.
+       · 해석 규칙은 서버와 동일 : ① XREF 에 등록된 거래처 코드 ② 우리 PROD_CD 와 같은 코드
+         → 둘 다 아니면 미매핑. (②가 있어서 코드가 같은 품목은 등록이 아예 필요 없다)
+       · ★저장을 막지 않는다. 원본은 그대로 들어가고 그 행만 재고 반영이 보류된다.
+       · 연결하면 서버(saveXref)가 과거 업로드분까지 소급으로 채우고 재고를 다시 만든다.
+     ========================================================================================= */
+  var ssXrefSet=null;      // 해석 가능한 코드 집합 (XREF 등록분 ∪ 우리 품목코드)
+  var ssXrefUnmap=[];      // 이번 파일의 미매핑 [{code,item}]
+  var ssXrefProds=null;    // 우리 품목 목록(연결 팝업 검색용 — 처음 열 때 1회)
+
+  /* ssXrefSet = 해석 가능한 코드 전체(연결분 ∪ 우리 품목코드) — 미매핑 판정용
+     ssXrefMap = 그중 **연결(XREF)로 잡힌 것만** — 이 파일에서 연결해 둔 내역을 보여주고
+                 거기서 바로 수정·해제하려면 xrefSeq 까지 들고 있어야 한다(2026-08-01 요청) */
+  var ssXrefMap={};
+  function ssXrefLoad(cb){
+    var ctx='${pageContext.request.contextPath}', set={}, map={}, left=2;
+    function done(){ if(--left===0){ ssXrefSet=set; ssXrefMap=map; if(cb) cb(); } }
+    fetch(ctx+'/prod/xrefList.do', { method:'POST', credentials:'same-origin',
+             headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        ((j&&j.data)||[]).forEach(function(o){
+          var k=String(o.extItemCd||'').trim(); if(!k) return;
+          set[k]=1;
+          map[k]={ xrefSeq:o.xrefSeq, prodCd:o.prodCd, prodNm:o.prodNm||'', confirmYn:o.confirmYn,
+                   vendorNm:o.vendorNm||'', extItemNm:o.extItemNm||'' };
+        });
+        done();
+      })
+      .catch(function(){ done(); });   // 조회 실패해도 화면은 살려 둔다
+    fetch(ctx+'/prod/prodList.do', { method:'POST', credentials:'same-origin',
+             headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'findData=' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ ((j&&j.data)||[]).forEach(function(o){ var k=String(o.prodCd||'').trim(); if(k) set[k]=1; }); done(); })
+      .catch(function(){ done(); });
+  }
+
+  /* 이번 파일에서 해석 안 되는 코드만 (코드별 1건으로 묶는다 — 행 단위로 늘어놓으면 수백 줄이 된다) */
+  var ssXrefSeen=0;        // 이번 파일의 품목코드 종수(중복 제외) — 결과를 눈으로 확인시키기 위한 값
+  var ssXrefLinked=[];     // 이 파일의 코드 중 '연결(XREF)로 잡힌 것' — 여기서 수정·해제한다
+  function ssXrefScan(rows){
+    ssXrefUnmap=[]; ssXrefLinked=[]; ssXrefSeen=0;
+    if(!ssXrefSet) return;                       // 아직 목록이 안 왔으면 조용히 넘어간다
+    var seen={}, all={};
+    (rows||[]).forEach(function(r){
+      var cd=(r.code||'').trim();
+      if(!cd) return;                            // 품목코드가 없는 양식은 이 기능 대상이 아니다
+      if(all[cd]) { if(seen[cd]) seen[cd].n++; return; }
+      all[cd]=1; ssXrefSeen++;
+      /* 연결로 잡힌 코드 — 우리 코드와 같아서 그냥 붙는 것(코드 직결)은 대상이 아니다.
+         '사람이 이어 붙인 것'만 보여줘야 수정할 거리가 눈에 띈다. */
+      if(ssXrefMap[cd]){ ssXrefLinked.push({code:cd, item:r.item||'', info:ssXrefMap[cd]}); return; }
+      if(ssXrefSet[cd] || ssXrefPend[cd]) return;   // 코드 직결이거나 이번에 연결하기로 한 코드
+      seen[cd]={code:cd, item:r.item||'', zone:r.zone||'', n:1};
+      ssXrefUnmap.push(seen[cd]);
+    });
+  }
+
+  /* ★한 그리드로 합친다 (2026-08-01 요청) — 종전에는 '연결해 둔 것' 과 '처음 보는 것' 이
+       상자 두 개로 갈려 있어, 이 파일에서 손볼 게 뭔지 한눈에 안 들어왔다.
+       이제 이 파일의 품목코드 중 **손댈 거리가 있는 것만** 한 표에 모으고 급한 순으로 세운다.
+         ① 미연결(재고에서 빠짐 — 가장 급함) → ② 저장 예정 → ③ 이미 연결됨(고칠 수 있음)
+       코드 직결(우리 코드와 같아 그냥 붙는 것)은 넣지 않는다 — 사람이 손댄 게 아니라 고칠 거리가 아니고,
+       넣으면 75종이 전부 나열되어 정작 봐야 할 게 묻힌다. */
+  var ssXrefOrd={}, ssXrefOrdFile='';   // 줄 순서 고정용(파일이 바뀌면 초기화)
+  function ssXrefRender(){
+    var box=document.getElementById('ssPvXref'); if(!box) return;
+    /* 다시 그려도 보던 위치가 유지되게 스크롤을 기억했다 되돌린다 */
+    var _w=box.querySelector('.xr-wrap'), _sc=_w?_w.scrollTop:0;
+    var _n = ssXrefSet ? Object.keys(ssXrefSet).length : 0;
+    if(!ssXrefSet){
+      box.innerHTML='<div style="font-size:12.5px;color:#8a9199;margin-bottom:10px">⏳ 품목 목록을 불러오는 중…</div>';
+      return;
+    }
+
+    /* 이 파일에서 손볼 거리 모으기 */
+    var rows=[], byCd={};
+    ssXrefUnmap.forEach(function(u){ var r={st:'new', code:u.code, item:u.item, n:u.n}; rows.push(r); byCd[u.code]=r; });
+    ssXrefLinked.forEach(function(L){ var r={st:'linked', code:L.code, item:L.item, info:L.info}; rows.push(r); byCd[L.code]=r; });
+    Object.keys(ssXrefPend).forEach(function(cd){
+      var p=ssXrefPend[cd];
+      if(byCd[cd]) byCd[cd].pend=p;
+      else rows.push({ st:'new', code:cd, item:p.extItemNm||'', pend:p });   // 연결 예정이라 미매핑 목록에서 빠진 것
+    });
+    /* ★한 번 정한 줄 순서는 그 파일을 보는 동안 바꾸지 않는다 (2026-08-01 요청).
+         연결하면 상태가 '미연결 → 저장 예정' 으로 바뀌는데, 그때마다 다시 정렬하면
+         방금 누른 줄이 아래로 내려가 다음 줄을 누르기가 어려웠다.
+         처음 볼 때만 '미연결 먼저' 로 세우고, 그 뒤로는 그 순서를 유지한다. */
+    if(ssXrefOrdFile !== ssPvName){ ssXrefOrd={}; ssXrefOrdFile=ssPvName; }
+    var ord={ new:0, linked:2 }, seqN=0;
+    Object.keys(ssXrefOrd).forEach(function(k){ if(ssXrefOrd[k]>=seqN) seqN=ssXrefOrd[k]+1; });
+    rows.slice().sort(function(a,b){                       // 새로 나타난 줄에만 번호를 준다
+      var ao=a.pend?1:ord[a.st], bo=b.pend?1:ord[b.st];
+      return ao-bo || (a.code<b.code?-1:1);
+    }).forEach(function(r){ if(ssXrefOrd[r.code]==null) ssXrefOrd[r.code]=seqN++; });
+    rows.sort(function(a,b){ return ssXrefOrd[a.code]-ssXrefOrd[b.code]; });
+
+    if(!rows.length){
+      box.innerHTML = ssXrefSeen
+        ? '<div class="ss-pverr good">✅ 품목코드 <b>'+ssXrefSeen+'종</b> — 모두 우리 품목으로 연결됩니다'
+          + ' <span style="color:#6b7a89">(대조 '+_n+'종)</span></div>'
+        : '<div class="ss-pverr dim" style="color:#8a9199">ℹ️ 품목코드 칸을 찾지 못해 매핑 검사를 건너뜁니다 (대조 '+_n+'종)</div>';
+      return;
+    }
+
+    var nNew=0, nPend=0, nLink=0;
+    rows.forEach(function(r){ if(r.pend) nPend++; else if(r.st==='new') nNew++; else nLink++; });
+    /* 머리줄은 숫자만 — 설명은 배지 hover 로 */
+    var head = '<span style="font-weight:700">🔗 품목코드 연결</span>'
+      + ' <span style="color:#8a97a3">이 파일 '+ssXrefSeen+'종</span>'
+      + (nNew  ? ' <span style="color:#c0392b;font-weight:700;margin-left:10px">미연결 '+nNew+'</span>' : '')
+      + (nPend ? ' <span style="color:#137a6c;font-weight:700;margin-left:10px">저장 예정 '+nPend+'</span>' : '')
+      + (nLink ? ' <span style="color:#6b7a89;margin-left:10px">연결됨 '+nLink+'</span>' : '');
+
+    var body = rows.map(function(r, i){
+      var st, our, cfm, act, bg='';
+      if(r.pend){
+        bg=' style="background:#f2faf7"';
+        var pl = (r.pend.op==='unlink') ? '해제 예정' : (r.pend.op==='relink' ? '변경 예정' : '연결 예정');
+        st = '<span style="color:'+(r.pend.op==='unlink'?'#c0392b':'#137a6c')+';font-weight:700"'
+           + ' title="아직 저장되지 않았습니다. [작성] 을 누를 때 적용되고 [취소] 로 나가면 사라집니다.">'+pl+'</span>';
+        our = (r.pend.op==='unlink') ? '<span style="color:#c0392b">연결 없음</span>'
+            : '<b>'+ssEscHtml(r.pend.prodCd)+'</b> '+ssEscHtml(r.pend.prodNm);
+        cfm = '<span style="color:#8a97a3">저장 전</span>';
+        act = '<span class="ss-btn xr-b" onclick="ssXrefUndo(\''+ssEscHtml(r.code)+'\')">되돌리기</span>';
+      } else if(r.st==='new'){
+        bg=' style="background:#fffaf3"';
+        st  = '<span style="color:#c0392b;font-weight:700" title="우리 품목을 찾지 못했습니다. 연결 전까지 이 품목은 재고에서 빠집니다.">⚠ 미연결</span>';
+        our = '<span style="color:#c0392b">재고에서 빠짐</span>';
+        cfm = '';
+        act = '<span class="ss-btn xr-b" title="거래처는 품명도 자기 식으로 보냅니다 — 이름이 아니라 규격·단가로 확인하세요"'
+            + ' onclick="ssXrefLinkOpenCd(\''+ssEscHtml(r.code)+'\')">연결</span>';
+      } else {
+        st  = '<span style="color:#137a6c">🔗 연결됨</span>';
+        our = '<b>'+ssEscHtml(r.info.prodCd)+'</b> '+ssEscHtml(r.info.prodNm);
+        cfm = (r.info.confirmYn==='Y') ? '<span style="color:#137a6c">✔ 확인</span>'
+                                       : '<span style="color:#c07a02" title="연결됐고 재고도 정상입니다. 규격·단가 대조만 남았습니다.">확인 필요</span>';
+        act = '<span class="ss-btn xr-b" onclick="ssXrefEditOpen(\''+ssEscHtml(r.code)+'\')">수정</span>'
+            + ' <span class="ss-btn xr-b" style="color:#c0392b" onclick="ssXrefUnlink(\''+ssEscHtml(r.code)+'\')">해제</span>';
+      }
+      return '<tr'+bg+'><td style="color:#8a97a3">'+(i+1)+'</td>'
+        + '<td>'+st+'</td>'
+        + '<td><b>'+ssEscHtml(r.code)+'</b></td>'
+        + '<td class="l" title="'+ssEscHtml(r.item)+'">'+ssEscHtml(r.item)+'</td>'
+        + '<td class="l">'+our+'</td>'
+        + '<td>'+cfm+'</td>'
+        + '<td>'+act+'</td></tr>';
+    }).join('');
+
+    box.innerHTML =
+      '<div class="ss-pverr'+(nNew?' warn':' good')+'" style="margin-top:8px">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+head+'</div>'
+      /* 설명 문단은 두지 않는다 — 겹겹이 붙이니 오히려 헷갈린다는 지적(2026-08-01).
+         자세한 것은 각 배지·버튼의 hover(title) 로. 이 프로젝트의 도움말 축약 방침과 같다. */
+      + '<div class="xr-wrap"><table class="xr-tb"><thead><tr>'
+      +   '<th style="width:38px">No</th><th style="width:82px">상태</th><th style="width:110px">거래처 코드</th><th>거래처 품명</th>'
+      +   '<th style="width:34%">우리 품목</th><th style="width:66px">확인</th><th style="width:112px">작업</th>'
+      + '</tr></thead><tbody>'+body+'</tbody></table></div>'
+      + (rows.length>4 ? '<div style="font-size:11.5px;color:#8a97a3;margin-top:4px">'
+                       + '총 '+rows.length+'종 — 표 안에서 스크롤하면 이어서 나옵니다</div>' : '')
+      + '</div>';
+    var _w2=box.querySelector('.xr-wrap'); if(_w2) _w2.scrollTop=_sc;   // 보던 자리 유지
+  }
+  /* 연결·해제·되돌리기 뒤에는 이 상자만 다시 그린다 — ssPvRender 를 부르면 미리보기 표까지
+     통째로 다시 그려져 화면이 튄다(2026-08-01 지적). */
+  function ssXrefRefresh(){
+    if(!(ssPvCur && ssPvCur.aoa && ssPvCur.map)) return;
+    ssXrefScan(ssExtractRows(ssPvCur.aoa, ssPvCur.map));
+    ssXrefRender();
+  }
+  /* 코드로 연결 팝업 열기 — 그리드는 정렬돼 있어 ssXrefUnmap 의 index 와 어긋난다 */
+  function ssXrefLinkOpenCd(code){
+    for(var i=0;i<ssXrefUnmap.length;i++) if(ssXrefUnmap[i].code===code){ ssXrefOpenFor(ssXrefUnmap[i]); return; }
+    ssXrefOpenFor({ code:code, item:(ssXrefPend[code]&&ssXrefPend[code].extItemNm)||'', zone:'' });
+  }
+  function ssEscHtml(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  /* 연결 팝업 — 후보(서버 추천) + 직접 검색.
+     ★추천 근거는 단가·규격이 1순위고 품명은 보조다(서버 selectXrefCandidates). 자동 확정은 없다.
+     ★공용 알림(_alertBox)이 아니라 전용 모달을 쓴다 — 340px 컴팩트라 품명이 세 줄로 접히고
+       가로 스크롤이 생겨 고를 수가 없었다(2026-08-01 지적).
+     ★바깥을 눌러도 닫히지 않는다 — 품목을 고르는 중에 실수로 닫히면 처음부터 다시 해야 한다.
+       닫는 길은 헤더 ✕ 와 하단 [닫기] 뿐이다. */
+  function _ssXrefPopEnsure(){
+    var ov=document.getElementById('ssXrefPop');
+    if(!ov){
+      ov=document.createElement('div'); ov.className='ss-modal'; ov.id='ssXrefPop';
+      ov.innerHTML=
+        '<div class="box">'
+        + '<div class="mh"><span>🔗 품목 연결</span>'
+        +   '<span style="cursor:pointer;font-size:18px" onclick="ssXrefPopClose()" title="닫기">✕</span></div>'
+        + '<div id="ssXrefBody" style="padding:16px 20px; overflow:auto; font-size:13px; text-align:left"></div>'
+        + '<div style="padding:10px 20px 14px; border-top:1px solid var(--logi-border); text-align:right">'
+        +   '<button class="ss-btn" onclick="ssXrefPopClose()">닫기</button></div>'
+        + '</div>';
+      /* 배경 클릭으로 닫지 않는다(핸들러를 아예 안 단다) — 상자 안 클릭이 배경으로 새는 것만 막는다 */
+      document.body.appendChild(ov);
+    } else if (ov.parentNode !== document.body) {
+      document.body.appendChild(ov);      // 미리보기 모달이 body 로 옮겨질 때 같이 따라가게
+    }
+    return ov;
+  }
+  function ssXrefPopClose(){ var ov=document.getElementById('ssXrefPop'); if(ov) ov.classList.remove('on'); }
+
+  /* ★비슷한 후보가 여럿일 때 고를 재료 (2026-08-01 지적).
+       품명·규격이 같으면 근거만으로는 못 고른다 — 단가·재고·최근출고가 실제 판단 근거다.
+       재고도 거래도 없는 쪽은 예전에 만든 가상코드일 가능성이 높다(흐리게 표시).
+       ★추천 후보와 직접 찾기가 같이 쓰므로 바깥 범위에 둔다. */
+  function _num(v){ return (v==null||v==='') ? '' : Number(v).toLocaleString(); }
+  function _dt(v){ v=(''+(v||'')); return v.length===8 ? v.slice(4,6)+'-'+v.slice(6,8) : ''; }
+  /* 품명에서 찾기 좋은 조각을 뽑는다 — 서버 추천(nk.core8)과 같은 규칙.
+     맨 앞 괄호묶음(브랜드 표기)은 거래처마다 달라 빼고, 그 뒤 8자를 쓴다.
+     예) (런던&레이&하이)줄무늬크라프트유산지,350*250MM → '줄무늬크라프트유' */
+  function ssXrefFrag(nm){
+    var n=String(nm||'').replace(/\s/g,'');
+    var p=n.indexOf(')');
+    if(p>=1 && p<=11) n=n.substring(p+1);
+    n=n.replace(/^[,\-·]+/,'');
+    return n.substring(0,8);
+  }
+
+  function ssXrefLinkOpen(i){ var u=ssXrefUnmap[i]; if(u) ssXrefOpenFor(u); }
+  /* now=true 면 고르는 즉시 저장한다 — 점검 화면에는 [작성] 같은 확정 단계가 없다.
+     업로드 미리보기(now 아님)는 예정으로만 담고 [작성] 때 적용한다. */
+  function ssXrefOpenFor(u, now){
+    window._ssXrefCur=u; window._ssXrefNow=!!now;
+    var ctx='${pageContext.request.contextPath}';
+    function row(o){
+      var dead = (!o.curQty || Number(o.curQty)===0) && !o.lastOutDt;   // 재고·거래 둘 다 없음
+      return '<div class="xr-row"'+(dead?' style="opacity:.62"':'')+'>'
+        + '<span class="xr-cd">'+ssEscHtml(o.prodCd)+'</span>'
+        + '<span class="xr-nm" title="'+ssEscHtml(o.prodNm)+'">'+ssEscHtml(o.prodNm)+'</span>'
+        + '<span class="xr-sp" title="'+ssEscHtml(o.extSpec||'')+'">'+ssEscHtml(o.extSpec||'')+'</span>'
+        + '<span class="xr-n" title="판매단가">'+_num(o.salePrice)+'</span>'
+        + '<span class="xr-n" title="현재고">'+_num(o.curQty)+'</span>'
+        + '<span class="xr-n" title="최근 출고">'+_dt(o.lastOutDt)+'</span>'
+        + '<span class="xr-wy">'+ssEscHtml(o.matchWhy||'')+'</span>'
+        + '<button class="ss-btn" style="height:24px;padding:0 10px;font-size:12px" '
+        +   'onclick="ssXrefLink('+o.prodSeq+',\''+ssEscHtml(o.prodCd)+'\',\''+ssEscHtml(String(o.prodNm||'').replace(/'/g,'')) +'\')">연결</button>'
+        + '</div>';
+    }
+    function paint(cands){
+      var html=
+          '<div style="padding:10px 12px;background:#f4f8f7;border:1px solid #d5e6e2;border-radius:7px;margin-bottom:12px;line-height:1.7">'
+        +   '<span style="color:#6b7a89">거래처 코드</span> <b>'+ssEscHtml(u.code)+'</b>'
+        +   '<span style="margin-left:16px;color:#6b7a89">거래처 품명</span> <b>'+ssEscHtml(u.item)+'</b>'
+        +   (u.zone?'<span style="margin-left:16px;color:#6b7a89">출고장</span> '+ssEscHtml(u.zone):'')
+        +   (u.cur?'<div style="margin-top:6px;padding-top:6px;border-top:1px solid #d5e6e2">'
+                 + '<span style="color:#6b7a89">지금 연결</span> <b>'+ssEscHtml(u.cur.prodCd)+'</b> '
+                 + ssEscHtml(u.cur.prodNm)+' <span style="color:#8a97a3">— 아래에서 다른 품목을 고르면 바뀝니다</span></div>':'')
+        + '</div>'
+        + '<div style="color:#c0392b;font-size:12px;margin-bottom:8px">'
+        +   '⚠️ 거래처는 품명도 자기 식으로 보냅니다 — 이름이 아니라 <b>규격·단가</b>로 확인하세요.</div>';
+      if(cands && cands.length){
+        html += '<div style="font-weight:700;margin-bottom:2px">추천 후보</div>'
+          + '<div class="xr-row" style="border:0;color:#8a97a3;font-size:11.5px;padding-bottom:0">'
+          +   '<span class="xr-cd">품목코드</span><span class="xr-nm">품명</span><span class="xr-sp">규격</span>'
+          +   '<span class="xr-n">판매단가</span><span class="xr-n">현재고</span><span class="xr-n">최근출고</span>'
+          +   '<span class="xr-wy">근거</span><span style="flex:0 0 64px"></span></div>'
+          + cands.map(row).join('');
+      } else {
+        html += '<div style="color:#8a97a3">추천할 후보가 없습니다 — 아래에 <b>품명 조각</b>을 넣어 뒀습니다. 지우고 다르게 쳐도 됩니다.</div>';
+      }
+      html += '<div style="margin-top:16px;font-weight:700">직접 찾기</div>'
+        + '<input id="ssXrefQ" placeholder="품목코드 · 품명 · 규격" autocomplete="off"'
+        +   ' style="width:100%;height:32px;border:1px solid #cfd8e3;border-radius:6px;padding:0 10px;margin:6px 0" oninput="ssXrefSearch()">'
+        + '<div id="ssXrefRes"></div>';
+      var ov=_ssXrefPopEnsure();
+      document.getElementById('ssXrefBody').innerHTML = html;
+      document.getElementById('ssXrefBody').style.maxHeight = '70vh';
+      ov.classList.add('on');
+      var q=document.getElementById('ssXrefQ');
+      if(q){
+        /* 추천이 비면 검색창을 비워 두지 않는다 — 사용자가 매번 품명에서 조각을 골라
+           손으로 치고 있었다. 서버 추천과 같은 규칙(맨 앞 괄호묶음을 떼고 8자)으로 채워 준다. */
+        if(!(cands && cands.length)){ q.value = ssXrefFrag(u.item); ssXrefSearch(); }
+        q.focus(); q.select();
+      }
+    }
+    /* ★코드도 보낸다 — 서버가 그 코드로 들어온 정산서에서 단가·규격을 찾아 1순위 근거로 쓴다.
+         발주현황표에는 규격·단가가 없어서 품명만 보내면 못 믿는 근거로만 추천하게 된다. */
+    fetch(ctx+'/prod/xrefCandidates.do', { method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:'extItemCd='+encodeURIComponent(u.code)+'&extItemNm='+encodeURIComponent(u.item) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ paint((j&&j.data)||[]); })
+      .catch(function(){ paint([]); });
+  }
+  function ssXrefSearch(){
+    var q=((document.getElementById('ssXrefQ')||{}).value||'').trim().toLowerCase();
+    var res=document.getElementById('ssXrefRes'); if(!res) return;
+    function draw(){
+      var l=(ssXrefProds||[]).filter(function(p){
+        if(!q) return false;
+        return [p.prodCd,p.prodNm,p.spec].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; });
+      }).slice(0,30);
+      /* 추천 후보와 같은 열 구성 — 여기서도 단가를 봐야 고를 수 있다(재고·최근출고는 목록에 없다) */
+      res.innerHTML = l.length ? l.map(function(p){
+        return '<div class="xr-row">'
+          + '<span class="xr-cd">'+ssEscHtml(p.prodCd)+'</span>'
+          + '<span class="xr-nm" title="'+ssEscHtml(p.prodNm)+'">'+ssEscHtml(p.prodNm)+'</span>'
+          + '<span class="xr-sp" title="'+ssEscHtml(p.spec||'')+'">'+ssEscHtml(p.spec||'')+'</span>'
+          + '<span class="xr-n" title="판매단가">'+_num(p.salePrice)+'</span>'
+          + '<span class="xr-n"></span><span class="xr-n"></span>'
+          + '<span class="xr-wy"></span>'
+          + '<button class="ss-btn" style="height:24px;padding:0 10px;font-size:12px" onclick="ssXrefLink('+p.prodSeq+',\''+ssEscHtml(p.prodCd)+'\',\''+ssEscHtml(String(p.prodNm||'').replace(/'/g,''))+'\')">연결</button>'
+          + '</div>';
+      }).join('') : (q?'<div style="color:#8a97a3;padding:6px 0">결과가 없습니다.</div>':'');
+    }
+    if(ssXrefProds) { draw(); return; }
+    fetch('${pageContext.request.contextPath}/prod/prodList.do', { method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'findData=' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ ssXrefProds=(j&&j.data)||[]; draw(); })
+      .catch(function(){ res.innerHTML='<div style="color:#c0392b">품목 조회 오류</div>'; });
+  }
+  /* ★고른 것은 '예정' 으로만 담아 둔다 — 실제 저장은 [작성] 을 눌러야 한다 (2026-08-01 지적).
+       이 모달은 '내용 확인 후 작성' 흐름인데 [연결]만 즉시 DB 에 쓰면 흐름이 어긋난다.
+       [취소]로 나가면 아무것도 안 남아야 한다.
+     거래처·출고장은 비워 공통 별칭으로 저장한다 — 품목코드는 출고장 7곳이 공유하므로
+     출고장별로 나눠 걸면 같은 코드를 7번 등록하게 된다. 예외는 상품관리 탭에서 거래처를 지정해 추가. */
+  var ssXrefPend={};   // 거래처코드 → {op:'link'|'relink'|'unlink', xrefSeq?, prodSeq, prodCd, prodNm}
+  function ssXrefLink(prodSeq, prodCd, prodNm){
+    var u=window._ssXrefCur; if(!u) return;
+    /* 점검 화면에서 부른 경우 — 즉시 저장. 이미 연결이 있으면 지우고 새로 건다(UNIQUE 때문). */
+    if(window._ssXrefNow){ ssXrefSaveNow(u, prodSeq, prodCd, prodNm); return; }
+    var old = ssXrefMap[u.code];          // 이미 연결돼 있으면 '변경'이다 — 옛 연결을 지우고 새로 건다
+    ssXrefPend[u.code] = { op: old ? 'relink' : 'link', xrefSeq: old ? old.xrefSeq : null,
+                           prodSeq:prodSeq, prodCd:prodCd, prodNm:prodNm||'', extItemNm:u.item };
+    ssXrefPopClose();
+    if(window._toast) _toast((old?'변경':'연결')+' 예정 — '+u.code+' → '+prodCd+' · [작성] 할 때 적용됩니다','ok');
+    ssXrefRefresh();
+  }
+  /* 이미 연결된 코드를 고친다 — 연결 팝업을 그대로 재사용하고, 고르면 위에서 relink 로 담긴다 */
+  function ssXrefEditOpen(code){
+    var L=null; for(var i=0;i<ssXrefLinked.length;i++) if(ssXrefLinked[i].code===code) L=ssXrefLinked[i];
+    if(!L) return;
+    ssXrefOpenFor({ code:L.code, item:L.item, zone:'', cur:L.info });
+  }
+  /* 연결 해제 — 즉시 지우지 않고 예정으로 담는다([작성] 때 적용, [취소]면 없던 일) */
+  function ssXrefUnlink(code){
+    var m=ssXrefMap[code]; if(!m) return;
+    ssXrefPend[code] = { op:'unlink', xrefSeq:m.xrefSeq, prodCd:m.prodCd, prodNm:m.prodNm };
+    if(window._toast) _toast('해제 예정 — '+code+' · [작성] 할 때 적용됩니다','warn');
+    ssXrefRefresh();
+  }
+  function ssXrefUndo(code){ delete ssXrefPend[code]; ssXrefRefresh(); }
+  function ssXrefPendClear(){ ssXrefPend={}; }
+  function ssXrefLinkedToggle(){ window._ssXrefLinkOpen = !window._ssXrefLinkOpen; ssXrefRefresh(); }
+
+  /* [작성] 직전에 예정분을 실제로 저장한다. 하나라도 실패하면 업로드를 진행하지 않는다
+     — 매핑이 빠진 채로 저장되면 그 품목이 재고에서 조용히 빠지기 때문이다. */
+  function ssXrefPendSave(){
+    var keys=Object.keys(ssXrefPend);
+    if(!keys.length) return Promise.resolve(true);
+    var ctx='${pageContext.request.contextPath}';
+    function post(url, body){
+      return fetch(ctx+url, { method:'POST', credentials:'same-origin',
+                 headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+        .then(function(r){ return r.text().then(function(t){ return {ok:r.ok,t:t}; }); });
+    }
+    return keys.reduce(function(chain, cd){
+      return chain.then(function(ok){
+        if(!ok) return false;
+        var p=ssXrefPend[cd];
+        /* 해제·변경은 먼저 옛 연결을 지운다 — 서버가 그때 이미 반영된 출고·정산까지 되돌린다.
+           변경은 '지우고 새로 걸기' 다(같은 코드에 두 연결이 생기면 UNIQUE 위반). */
+        var first = (p.op==='unlink' || p.op==='relink')
+          ? post('/prod/xrefDelete.do', { xrefSeq:p.xrefSeq })
+          : Promise.resolve({ok:true, t:''});
+        return first.then(function(x0){
+          if(!x0.ok){ ssToast('⚠️ 연결 해제 실패 ('+cd+') — '+x0.t); return false; }
+          if(p.op==='unlink') return true;
+          return post('/prod/xrefSave.do', { prodSeq:p.prodSeq, prodCd:p.prodCd,
+                       /* 연결 시점에는 규격·단가가 없어(발주현황표에 그 칸이 없다) 품명만 보고 고르게 된다.
+                          그래서 '확인 필요' 상태로 저장하고, 정산서가 와서 대조가 되면 확정한다. */
+                       extItemCd:cd, extItemNm:p.extItemNm, confirmYn:'N' })
+            .then(function(x){
+              if(!x.ok){ ssToast('⚠️ 품목 연결 저장 실패 ('+cd+') — '+x.t); return false; }
+              return true;
+            });
+        });
+      });
+    }, Promise.resolve(true)).then(function(ok){
+      if(ok){ ssXrefPendClear(); ssXrefLoad(function(){}); }   // 저장됐으니 예정 목록을 비우고 코드집합 갱신
+      return ok;
+    });
+  }
+
   // 미리보기 렌더 (엑셀 내용 그대로 + 인식컬럼 하이라이트)
   function ssPvRender(){
     var aoa=ssPvAoa();
@@ -2978,6 +3750,8 @@
           + (m.cCode>=0?'<span class="tag">품목코드</span>':'')
           + ' · 데이터 <b>'+cnt+'</b>건 (노란 칸이 반영 대상)';
       }
+      // 우리 품목으로 해석 안 되는 품목코드 — 저장은 막지 않고 알리기만(재고 반영만 보류된다)
+      ssXrefScan(_exRows); ssXrefRender();
       // 양식은 맞아도 값이 빠진 행이 있으면 오류내역을 함께 (저장은 막지 않음)
       var _rd=ssRowDiag(aoa,m); badRows=_rd.bad;
       var _rh=ssRowErrHtml(_rd);
@@ -2988,6 +3762,7 @@
       }
       btn.removeAttribute('disabled'); btn.style.opacity='1';
     } else {
+      ssXrefUnmap=[]; ssXrefRender();   // 양식부터 안 맞으면 미매핑을 따질 단계가 아니다
       info.className='ss-pvinfo warn';
       info.innerHTML='⚠️ <b>형식이 맞지 않는 자료입니다</b> — 발주현황표(출고) 양식이 아닙니다.<br>'
         + '헤더에 <b>물류센터명·품목명·현 발주</b>(코네트) 또는 <b>품목명·사업장명·존·수량</b> 이 있어야 합니다. 시트를 바꿔 보세요.';
@@ -3185,7 +3960,10 @@
         var _ce=document.getElementById('ssConfirmShpDt');
         var _nv=(_ce&&_ce.value)||_shp;                                   // 확인창에서 수정한 값 우선, 비었으면 원래 값
         var _pv=document.getElementById('ssPvShpoutDt'); if(_pv) _pv.value=_nv;   // ssDoApply 가 여기서 읽음
-        ssDoApply(rows, sheetNm);
+        /* ★품목 연결 '예정' 분을 먼저 저장한다 — 업로드 저장 직후 서버가 resolve 를 돌리므로
+             그 전에 매핑이 들어가 있어야 이번 자료부터 바로 재고에 잡힌다.
+             실패하면 업로드를 진행하지 않는다(매핑 빠진 채 저장되면 그 품목이 조용히 빠진다). */
+        ssXrefPendSave().then(function(ok){ if(ok) ssDoApply(rows, sheetNm); });
       });
     ssConfirmBackUpd();   // 확인창을 그린 뒤 '이전 자료' 여부 판정(내용은 위 #ssConfirmBack 에 채워진다)
   }
@@ -3294,7 +4072,7 @@
       ov.innerHTML='<style>@keyframes shpProgFlow{0%{background-position:0 0}100%{background-position:34px 0}}'
         +'.shp-prog-indet{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.28) 0 9px,rgba(255,255,255,0) 9px 17px),linear-gradient(90deg,#17a589,#137a6c)!important;background-size:34px 34px,100% 100%!important;animation:shpProgFlow .7s linear infinite}</style>'
         +'<div style="background:#fff;width:min(420px,92vw);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">'
-        +'<div style="background:linear-gradient(135deg,#1f9b8e,#137a6c);color:#fff;padding:12px 18px;font-size:15px;font-weight:600">💾 발주현황표 저장</div>'
+        +'<div id="shpProgTit" style="background:linear-gradient(135deg,#1f9b8e,#137a6c);color:#fff;padding:12px 18px;font-size:15px;font-weight:600">💾 발주현황표 저장</div>'
         +'<div style="padding:18px 20px 20px">'
         +'<div style="display:flex;justify-content:space-between;font-size:12px;color:#5a6b7a;margin-bottom:6px"><span id="shpProgLab">저장 준비 중…</span><span id="shpProgPct" style="font-weight:700;color:#137a6c"></span></div>'
         +'<div style="height:11px;background:#e6ecf0;border-radius:6px;overflow:hidden"><div id="shpProgFill" style="height:100%;width:0%;background:linear-gradient(90deg,#17a589,#137a6c);border-radius:6px;transition:width .2s ease"></div></div>'
@@ -3309,8 +4087,21 @@
     if(f){ f.style.width=pct+'%'; if(stripe) f.classList.add('shp-prog-indet'); else f.classList.remove('shp-prog-indet'); }
     if(p) p.textContent=Math.round(pct)+'%';
   }
+  /* 총량을 모르는 단계(품목 해석 등) — 막대를 꽉 채우고 줄무늬만 흐르게 한다.
+     ★_shpProgWidth(0,true) 로 두면 폭이 0% 라 줄무늬가 보일 자리가 없어 '멈춘 화면'처럼 보인다
+       (2026-08-01 실제 지적). 퍼센트도 0% 대신 '진행 중' 으로 적는다 — 아직 셀 수 없는 단계다. */
+  function _shpProgIndet(lab){
+    _shpProgWidth(100, true);
+    var p=document.getElementById('shpProgPct'); if(p) p.textContent='진행 중';
+    _shpProgLab(lab);
+  }
   function _shpProgLab(t){ var l=document.getElementById('shpProgLab'); if(l && t!=null) l.textContent=t; }
-  function shpProgShow(lab){ _shpProgEnsure().style.display='flex'; _shpProgWidth(0,false); _shpProgLab(lab||'저장 준비 중…'); }
+  /* 제목은 부르는 쪽이 정한다 — 이 진행바를 발주현황표 저장과 재고 재집계가 함께 쓴다(2026-08-01).
+     인자를 안 주면 종전 그대로 '발주현황표 저장' 이라 기존 호출부는 손댈 것이 없다. */
+  function shpProgShow(lab, title){
+    _shpProgEnsure().style.display='flex'; _shpProgWidth(0,false); _shpProgLab(lab||'저장 준비 중…');
+    var t=document.getElementById('shpProgTit'); if(t) t.textContent = title || '💾 발주현황표 저장';
+  }
   function shpProgUpload(frac, lab){ _shpProgWidth((+frac||0)*SHP_PROG_UP, false); _shpProgLab(lab); }
   function shpProgServerStart(rows){
     _shpProgTau=Math.max(1500, (+rows||0)*7);
@@ -5512,6 +6303,9 @@
     <div class="sub-menu" id="sub-stockmng">
       <a class="mi" data-key="stockStatus" onclick="logiGo('stockStatus', this); stkStatusLoad();"><span class="ic">📊</span>재고현황</a>
       <a class="mi" data-key="closeStock" onclick="logiGo('closeStock', this)"><span class="ic">📒</span>재고마감</a>
+      <%-- 품목코드(매핑) — 기준정보에 있다가 재고 관리 맨 아래로 옮김(2026-08-01 요청).
+           매핑이 안 되면 그 품목이 재고에서 빠지므로, 재고를 보다가 바로 갈 수 있는 자리가 맞다. --%>
+      <a class="mi" data-key="xrefAudit" onclick="logiGo('xrefAudit', this); xaLoad();"><span class="ic">🔗</span>품목코드(매핑)</a>
     </div>
 
     <div class="grp">정보 현황</div>
@@ -5535,6 +6329,7 @@
 
     <div class="grp">기준정보</div>
     <a class="mi" data-key="prodmst" onclick="logiFrame('prodmst','${pageContext.request.contextPath}/prod/prodmst.do', this)"><span class="ic">📦</span>상품(품목)관리</a>
+    <%-- 품목코드(매핑)은 재고 관리 그룹으로 옮겼다(2026-08-01) — 여기 있던 자리 --%>
     <a class="mi has-sub" data-sub="baseinfo" onclick="logiToggleSub('baseinfo', this)"><span class="ic">📂</span>기준정보관리<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-baseinfo">
       <a class="mi" data-key="vendor"  onclick="logiFrame('vendor','${pageContext.request.contextPath}/mangr/vendorMng.do', this)"><span class="ic">🧾</span>매입/매출 거래처</a>
@@ -5978,6 +6773,92 @@
     </section>
 
     <!-- ===== 재고현황 (전체 품목 현재고) ===== -->
+    <%-- ===== 거래처 코드 점검 (2026-08-01) =====================================================
+         코네트 품목은 하나, 거래처 요청 표기는 TBL_PROD_XREF 에 N건. 매핑이 틀리면 반드시 티가 난다 —
+         그 신호 네 가지를 한 화면에 모은다. 이 화면은 '보여주기' 전용이고, 고치는 것은
+         상품관리 ▸ [🔗 거래처 코드] 탭 또는 업로드 프리뷰의 [연결] 이다. ===================== --%>
+    <section id="panel-xrefAudit" class="panel">
+      <div class="logi-head" style="margin-bottom:8px">
+        <div><h2 style="margin:0">품목코드(매핑) <span class="badge b-done">점검</span>
+          <span style="font-size:12px;font-weight:400;color:#9aa7b3;margin-left:6px">거래처가 다른 코드·다른 품명으로 보낸 것이 우리 품목에 제대로 붙었는지</span></h2></div>
+        <div class="actions">
+          <%-- 구분별 조회 — 한 번에 수백 건이라 '무엇부터 볼지' 를 고를 수 있어야 한다(2026-08-01 요청).
+               서버를 다시 부르지 않고 받아 둔 자료에서 거른다. --%>
+          <select id="xaGb" onchange="xaDraw()" style="border:1px solid var(--logi-border);border-radius:6px">
+            <option value="">구분 전체</option>
+            <option value="① 미매핑">① 미매핑 (상품마스터에 없음)</option><option value="① 재집계">① 재집계 대기 (코드는 있음)</option><option value="②">② 단가 이탈</option>
+            <option value="③">③ 연결 처리됨</option><option value="④">④ 재고 음수</option>
+          </select>
+          <input id="xaFind" placeholder="코드·품명 검색" oninput="xaDraw()" autocomplete="off"
+                 style="width:170px;border:1px solid var(--logi-border);border-radius:6px">
+          <select id="xaDays" onchange="xaLoad()" style="border:1px solid var(--logi-border);border-radius:6px">
+            <option value="7">최근 7일</option><option value="30" selected>최근 30일</option><option value="90">최근 90일</option><option value="3650">전체</option>
+          </select>
+          <button class="btn-line" onclick="xaCollapseAll()" title="펼쳐 놓은 후보 목록을 모두 접습니다">⌃ 모두 접기</button>
+          <button class="btn-line" id="xaHelpBtn" onclick="xaHelp()">ℹ️ 도움말</button>
+          <button class="btn-teal" onclick="xaLoad()">↻ 새로고침</button>
+        </div>
+      </div>
+      <div class="card" style="padding-top:12px">
+        <%-- 긴 설명은 도움말로 접어 둔다(2026-08-01) — 본문에 문단이 쌓이면 오히려 헷갈린다는 지적.
+             화면에는 한 줄만 두고, 자세한 것은 ℹ️ 도움말. --%>
+        <div style="font-size:12.5px;color:#5a6b7a;margin-bottom:6px">
+          <b style="color:#c0392b">① 미매핑</b> → <b>[연결 ▾]</b> →
+          <b style="color:#137a6c">③ 연결 처리됨</b> <span style="color:#9aa7b3">(재고 정상)</span> → <b>[확인]</b> → 목록에서 빠짐
+          <span style="color:#9aa7b3;margin-left:10px">자세한 설명은 <b>ℹ️ 도움말</b></span>
+        </div>
+        <div id="xaHelp" style="display:none; margin-bottom:8px; padding:11px 14px; background:#f4f8f7;
+             border:1px solid #d5e6e2; border-radius:8px; font-size:12.5px; line-height:1.75; color:#37475a">
+          <div style="font-weight:700; color:#137a6c; margin-bottom:3px">🔗 품목코드 매핑은 어디서 하나 — 세 군데</div>
+          <table style="width:100%; border-collapse:collapse; font-size:12.5px; margin-bottom:9px">
+            <thead><tr style="color:#6b7a89">
+              <th style="text-align:left; padding:3px 6px; border-bottom:1px solid #d5e6e2; width:230px">화면</th>
+              <th style="text-align:left; padding:3px 6px; border-bottom:1px solid #d5e6e2">할 수 있는 일</th>
+              <th style="text-align:left; padding:3px 6px; border-bottom:1px solid #d5e6e2; width:150px">저장 시점</th>
+            </tr></thead>
+            <tbody>
+              <tr><td style="padding:3px 6px"><b>여기</b> (품목코드 매핑)</td>
+                  <td style="padding:3px 6px">연결 · 확인 · 수정 · 해제 — 행 밑에 후보가 펼쳐집니다</td>
+                  <td style="padding:3px 6px"><b>즉시</b></td></tr>
+              <tr><td style="padding:3px 6px">상품(품목)관리 ▸ [🔗 거래처 코드]</td>
+                  <td style="padding:3px 6px">그 상품에 붙은 표기 관리 · [📥 미매핑에서 고르기]</td>
+                  <td style="padding:3px 6px"><b>즉시</b></td></tr>
+              <tr><td style="padding:3px 6px">발주현황표 업로드 미리보기</td>
+                  <td style="padding:3px 6px">그 파일에서 처음 보는 코드를 그 자리에서 연결</td>
+                  <td style="padding:3px 6px"><b>[작성] 누를 때</b><br><span style="color:#9aa7b3">([취소]면 사라짐)</span></td></tr>
+            </tbody>
+          </table>
+          <div style="font-weight:700; color:#137a6c; margin-bottom:3px">구분이 뜻하는 것</div>
+          <div><b style="color:#c0392b">① 미매핑</b> 우리 품목을 못 찾음 → <b style="color:#c0392b">재고에서 빠져 있습니다</b>. 가장 급합니다.</div>
+          <div><b style="color:#137a6c">③ 연결 처리됨</b> ①을 <b>연결한 결과</b>입니다. 재고도 정상이고, 규격·단가 대조만 남았습니다 — 급하지 않습니다.</div>
+          <div><b>② 단가 이탈</b> 정산 단가가 우리 판매가와 10% 이상 차이 — <b>다른 품목에 걸었을 가능성</b>이 있으니 [수정]으로 확인하세요.</div>
+          <div><b>④ 재고 음수</b> 매핑 탓일 수도, <b>입고 자료가 없어서</b>일 수도 있습니다. 그래서 여기서는 버튼을 주지 않습니다.</div>
+          <div style="margin-top:8px; padding-top:7px; border-top:1px solid #d5e6e2; color:#5a6b7a">
+            ⚠️ 거래처는 <b>품명도 자기 식으로</b> 보냅니다 — 후보를 고를 때 이름이 아니라 <b>단가·규격·현재고</b>로 확인하세요.
+            재고도 거래도 없는 후보는 흐리게 표시됩니다(예전에 만든 가상코드일 가능성).
+          </div>
+        </div>
+        <div id="xaSum" style="font-size:13px;font-weight:700;margin-bottom:6px">-</div>
+        <%-- 화면 아래까지 쓴다 — 종전 56vh 는 표가 짧고 그 아래가 통째로 비었다(2026-08-01 요청).
+             머리글은 sticky, 바닥에 닿으면 다음 묶음을 이어붙인다(수백 건을 한 번에 그리면 느리다). --%>
+        <%-- 표와 '더 보기' 줄을 한 상자로 묶는다(2026-08-01 요청) — 상자 밖에 떠 있으면
+             표와 별개인 것처럼 보이고, 그 사이 여백만큼 화면도 낭비된다. --%>
+        <div style="border:1px solid var(--logi-border); border-radius:7px; overflow:hidden">
+          <div id="xaWrap" style="height:calc(100vh - 246px); min-height:300px; overflow:auto">
+            <table class="tbl" style="width:100%;border-collapse:collapse;font-size:12.5px;white-space:nowrap">
+              <thead><tr style="position:sticky;top:0;z-index:1;background:#eef3f2">
+                <th style="width:110px">구분</th><th style="width:120px">거래처 코드</th><th>거래처 품명</th>
+                <th style="width:100px">우리 코드</th><th>우리 품명</th>
+                <th style="width:100px">출고장</th><th style="width:90px">최근</th><th style="width:70px">건수</th><th>메모</th><th style="width:132px">작업</th>
+              </tr></thead>
+              <tbody id="xaBody"><tr><td colspan="10" style="text-align:center;color:#8a97a3;padding:14px">[새로고침]을 누르세요.</td></tr></tbody>
+            </table>
+          </div>
+          <div id="xaPager" style="padding:6px 8px; text-align:center; min-height:22px; font-size:12.5px; color:#5a6b7a; background:#fafcfd; border-top:1px solid var(--logi-border)"></div>
+        </div>
+      </div>
+    </section>
+
     <section id="panel-stockStatus" class="panel">
       <!-- 상단은 제목줄 + 조회줄 2줄만. 설명·경고는 전부 hover(title)로 뺐다 -->
       <div class="logi-head" style="margin-bottom:8px">
@@ -5991,8 +6872,16 @@
       <div class="card" style="padding-top:12px">
         <div class="form-row" style="margin-bottom:0; align-items:flex-end">
           <div class="fld" style="flex:0 0 300px"><label>검색(품목코드/품목명)</label><input id="stkSrch" placeholder="검색어 입력" onkeyup="if(event.keyCode===13)stkStatusLoad()"></div>
-          <div class="fld" style="flex:0 0 170px"><label>기준일 <span style="color:#9aa7b3;font-weight:400">(비우면 전체)</span></label><input type="date" id="stkAsOf" onchange="stkStatusLoad()"></div>
-          <div class="fld" style="flex:0 0 70px"><button class="btn-line" style="width:100%" onclick="stkAsOfClear()">전체</button></div>
+          <div class="fld" style="flex:0 0 170px"><label>기준일 <span style="color:#9aa7b3;font-weight:400">(비우면 지금 현재고)</span></label><input type="date" id="stkAsOf" onchange="stkStatusLoad()"></div>
+          <%-- 날짜를 매번 달력에서 고르는 게 번거로워 빠른 선택을 붙였다(2026-08-01).
+               [전체]=비움(지금 현재고) · [오늘]·[전월말]=그 시점 재고 --%>
+          <div class="fld" style="flex:0 0 176px"><label>&nbsp;</label>
+            <div style="display:flex; gap:4px">
+              <button class="btn-line" style="flex:1" onclick="stkAsOfClear()" title="기준일을 비웁니다 — 지금 이 순간의 재고">전체</button>
+              <button class="btn-line" style="flex:1" onclick="stkAsOfSet(0)" title="오늘 자정까지 반영된 재고">오늘</button>
+              <button class="btn-line" style="flex:1" onclick="stkAsOfSet(-1)" title="지난달 말일 기준 재고 — 월말 재고 확인용">전월말</button>
+            </div>
+          </div>
           <div class="fld" style="flex:0 0 90px"><button class="btn-teal" style="width:100%" onclick="stkStatusLoad()">조회</button></div>
           <div class="fld" style="flex:0 0 auto; margin-left:auto">
             <span class="tipx" title="[현재고] = 입고(I·R·A) − 출고(O). 수불원장(TBL_STOCK_LEDGER) 단일 소스라 재고마감과 같은 값입니다.&#10;출고는 발주현황표 저장 시 원장에 자동 기록되므로 따로 넣지 않아도 됩니다.&#10;&#10;[기준일] 비우면 전체(=지금 현재고) / 날짜를 넣으면 그날까지의 기말.&#10;  → 마감월 말일로 맞추면 재고마감 기말과 대사됩니다.&#10;&#10;[음수 현재고] 입고 없이 출고만 있다는 뜻 = 입고 누락 신호입니다(오류가 아니라 알림).&#10;&#10;[② 수불 내역] ① 표에서 품목 행을 클릭하면 그 품목을 이루는 개별 입·출고 거래가 아래에 나옵니다.">ℹ️ 도움말</span>
@@ -6001,9 +6890,12 @@
         <!-- ① 제목 · 요약 · 상태를 한 줄에. stkStatusSum 은 JS가 통째로 덮어쓰므로 형제로 분리해 둔다 -->
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 4px">
           <span style="font-weight:800;font-size:13.5px;color:#1f2a37;border-left:4px solid var(--logi-teal);padding-left:9px;white-space:nowrap">① 품목별 현재고</span>
+          <%-- ★기준일 표시를 제목 바로 옆으로 (2026-08-01 지적) — 오른쪽 끝에 두니 화면이 좁을 때
+               잘려서, 지금 보고 있는 게 '현재고'인지 '과거 어느 시점'인지 알 수 없었다. --%>
+          <b id="stkAsOfLbl" style="font-size:12.5px;color:#178074;white-space:nowrap">전체 (현재고)</b>
           <span class="close-summary" id="stkStatusSum" style="margin:0">[조회] 또는 [새로고침]을 누르세요.</span>
           <span style="margin-left:auto;font-size:11.5px;color:#9aa7b3;white-space:nowrap">
-            <b id="stkAsOfLbl" style="color:#178074">전체 (현재고)</b> · 집계 <b id="stkStamp" style="color:#178074">—</b> · 행 클릭 → ② 수불내역
+            집계 <b id="stkStamp" style="color:#178074">—</b> · 행 클릭 → ② 수불내역
           </span>
         </div>
         <div id="stkStatusWrap" style="max-height:46vh; overflow:auto"></div>
@@ -6108,7 +7000,12 @@
           </div>
           <div class="mbody" style="display:flex; gap:12px; align-items:flex-start">
             <!-- 좌측: 지정한 자료 폴더의 파일 목록. 클릭하면 우측 미리보기에 표시 -->
-            <div style="width:400px; flex:0 0 400px; border:1px solid var(--logi-border); border-radius:7px; display:flex; flex-direction:column; height:60vh">
+            <%-- ★좌우 높이를 같은 값으로 '고정'한다 (2026-08-01 요청)
+                 종전에는 우측이 내용만큼 늘어나서, 품목코드 연결 표가 생기면 모달이 통째로 커지고
+                 파일을 고를 때마다 화면이 출렁였다. 이제 파일 선택 전·후 높이가 같고,
+                 연결 표가 생기면 아래 미리보기 표 영역만 그만큼 줄어든다.
+                 기본 높이도 60vh → 72vh 로 키웠다(처음부터 넓게 보이게). --%>
+            <div style="width:400px; flex:0 0 400px; border:1px solid var(--logi-border); border-radius:7px; display:flex; flex-direction:column; height:72vh">
               <%-- 폴더 지정·파일 선택·새로고침 버튼은 모달 상단(mbar)으로 이동(2026-07-26). 여기는 제목만. --%>
               <div style="padding:7px 9px; border-bottom:1px solid var(--logi-border); background:#f4f8f7; flex:0 0 auto">
                 <div style="display:flex; align-items:center; gap:6px">
@@ -6133,12 +7030,19 @@
               </div>
               <div id="ssPvUpHist" style="overflow-y:auto; flex:1 1 0; min-height:96px"></div>
             </div>
-            <!-- 우측: 기존 미리보기 표 -->
-            <div style="flex:1; min-width:0">
-              <div id="ssPvInfo"></div>
+            <!-- 우측: 기존 미리보기 표. 좌측과 같은 고정 높이(72vh)의 세로 flex —
+                 위쪽(인식결과·오류·연결표)이 늘어나면 아래 표가 그만큼 줄고, 바깥 높이는 안 변한다. -->
+            <div style="flex:1; min-width:0; height:72vh; display:flex; flex-direction:column">
+              <div id="ssPvInfo" style="flex:0 0 auto"></div>
               <%-- 오류내역 — 양식이 다르거나 값이 빠진 행이 있을 때만 채워진다(ssPvRender) --%>
-              <div id="ssPvErr"></div>
-              <div style="max-height:56vh; overflow:auto; border:1px solid var(--logi-border); border-radius:7px">
+              <div id="ssPvErr" style="flex:0 0 auto"></div>
+              <%-- 미매핑 — 우리 품목으로 해석되지 않는 품목코드가 있을 때만 나온다(ssXrefRender, 2026-08-01).
+                   ★저장을 막지 않는다. 원본은 그대로 저장되고 그 행만 재고 반영이 보류된다.
+                     여기서 연결하면 서버가 과거분까지 소급으로 채운다. --%>
+              <div id="ssPvXref" style="flex:0 0 auto"></div>
+              <%-- ★max-height 가 아니라 flex 로 남는 높이를 차지한다. min-height:0 이 없으면
+                   flex 항목이 내용만큼 부풀어 스크롤이 안 생긴다(세로 flex 의 고전적 함정). --%>
+              <div style="flex:1 1 auto; min-height:0; overflow:auto; border:1px solid var(--logi-border); border-radius:7px">
                 <table class="ss-pv" id="ssPvTbl"></table>
               </div>
             </div>

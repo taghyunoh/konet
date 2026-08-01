@@ -105,6 +105,18 @@ public interface UserService {
 	int insertInprice(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;   // 이력 INSERT + 마스터 IN_PRICE 동기화
 	int deleteInprice(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;
 
+	/* ===== 거래처별 품목 표기(교차참조) — TBL_PROD_XREF (2026-08-01) ===== */
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefList(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectUnmappedItems(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefCandidates(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefAudit(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 매핑 점검 리포트
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefNames(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 그 거래처로 나갈 때 쓸 품명(품목당 1건)
+	int saveXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;    // 등록/수정 + 대표표기 정리 + 소급 반영
+	int confirmXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int deleteXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int resolveShipoutProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int resolveSalesProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+
 	// ===== 판매가 이력 =====
 	java.util.List<egovframework.sejong.user.model.ProdSalepriceDTO> selectSalepriceList(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception;
 	int insertSaleprice(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception; // 이력 INSERT + 마스터 SALE/WHOLE 동기화
