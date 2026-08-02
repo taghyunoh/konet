@@ -4696,7 +4696,9 @@ var KONET_CTX = window.KONET_CTX || '';
           });
         });
       });
-      dOrd.sort(function(a,b){ return (a?a:'99999999').localeCompare(b?b:'99999999'); });   // 빈 날짜는 맨 뒤
+      /* 최근 날짜부터 위로 (2026-08-02 요청) — 빈 날짜는 그대로 맨 뒤
+         (내림차순이라 빈 날짜는 '00000000' 으로 낮춰 잡아야 아래로 간다) */
+      dOrd.sort(function(a,b){ return (b?b:'00000000').localeCompare(a?a:'00000000'); });
       var dlist=[];
       dOrd.forEach(function(d){
         var D=DM[d];
