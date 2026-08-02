@@ -31,6 +31,9 @@
   .sh-list td{ border:1px solid var(--sh-bd); padding:6px 8px; text-align:center; }
   .sh-list td.num{ text-align:right; }
   .sh-list td.txt{ text-align:left; }
+  /* 업로드 일시 = 날짜(작게·흐리게) 위 / 시각(굵게) 아래. 줄높이를 줄여 목록 행 높이는 그대로 둔다 */
+  .sh-list .up-d{ display:block; font-size:11px; color:#8b98a5; line-height:1.15; font-weight:400; }
+  .sh-list .up-t{ display:block; line-height:1.15; }
   .sh-list tbody tr{ cursor:pointer; }
   .sh-list tbody tr:hover td{ background:#f3f8f6; }
   .sh-list tr.on td{ background:#fdeef0; font-weight:700; }
@@ -155,6 +158,14 @@ function n(v){ var x=Number(String(v==null?'':v).replace(/,/g,'')); return isFin
 function fmt(v){ return Math.round(n(v)).toLocaleString(); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtDt(s){ s=String(s||''); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : s; }
+/* 업로드 일시 — '2026-08-02 16:45:18' 을 날짜(흐리게)+시각 두 줄로. 시각만 보이면 출고일자 머리줄(▣)의
+   날짜와 같은 날인 줄 오해한다(2026-08-03 요청). 실제로 8/2 에 올린 자료가 8/3 머리줄 아래 있다. */
+function fmtUp(s){
+  s=String(s||''); if(!s) return '';
+  // 시각은 받은 만큼 그대로 — 묶음 머리줄은 분까지(16자), 출고장 줄은 초까지(19자) 넘어온다
+  var d=s.slice(0,10), t=s.slice(11);
+  return t ? '<span class="up-d">'+esc(d)+'</span><span class="up-t">'+esc(t)+'</span>' : esc(s);
+}
 function today(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
 function shift(days){ var d=new Date(); d.setDate(d.getDate()+days);
   return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
@@ -290,7 +301,8 @@ function shUpBuild(){
   _view.forEach(function(o){
     var k=shUpKey(o), g=_upMap[k];
     if(!g){ g=_upMap[k]={ n:0, live:0, hist:0, rowCnt:0, qtySum:0, jobMax:0, dcs:[], _seen:{},
-                          file:String(o.srcFile||''), hm:String(o.uploadDttm||'').slice(11,16) }; }
+                          // 날짜+분까지 — 출고일자 머리줄(▣)과 업로드 날짜가 다를 수 있어 시각만으로는 헷갈린다(2026-08-03)
+                          file:String(o.srcFile||''), hm:String(o.uploadDttm||'').slice(0,16) }; }
     var dc=String(o.dcNm||o.dcCd||'미지정').replace(/\s+/g,'').replace(/(물류)?센터$/,'');   // '용인물류센터'→'용인'
     if(!g._seen[dc]){ g._seen[dc]=1; g.dcs.push(dc); }
     g.n++; g.rowCnt+=n(o.rowCnt); g.qtySum+=n(o.qtySum);
@@ -311,7 +323,7 @@ function shUpRow(k){
        + '<td colspan="4"><span class="car">'+(col?'▶':'▼')+'</span> 📦 출고장 <b>'+g.dcs.length+'곳</b>'
        + ' <span style="color:#5a6b7a;font-weight:600">'+esc(g.dcs.join('·'))+'</span></td>'
        + '<td>'+st+'</td>'
-       + '<td>'+esc(g.hm)+'</td><td></td>'
+       + '<td>'+fmtUp(g.hm)+'</td><td></td>'
        + '<td class="num">'+fmt(g.rowCnt)+'</td><td class="num"></td><td class="num"></td>'
        + '<td class="num">'+fmt(g.qtySum)+'</td>'
        + '<td class="txt" style="color:#6b7a89">'+esc(g.file)+'</td></tr>';
@@ -343,7 +355,7 @@ function shRows(from, to){
       + '<td>'+esc(fmtDt(o.shpoutDt))+'</td><td>'+esc(fmtDt(o.dlvDt))+'</td>'
       + '<td class="txt">'+esc(o.dcNm||'(미지정)')+(o.dcCd?(' <span style="color:#9aa7b3">'+esc(o.dcCd)+'</span>'):'')+'</td>'
       + '<td>'+n(o.jobSeq)+'</td><td>'+st+'</td>'
-      + '<td>'+esc(o.uploadDttm)+'</td><td>'+esc(o.regUser)+'</td>'
+      + '<td>'+fmtUp(o.uploadDttm)+'</td><td>'+esc(o.regUser)+'</td>'
       + '<td class="num">'+fmt(o.rowCnt)+'</td><td class="num">'+fmt(o.bizCnt)+'</td><td class="num">'+fmt(o.itemCnt)+'</td>'
       + '<td class="num">'+fmt(o.qtySum)+'</td>'
       + '<td class="txt" style="color:#6b7a89">'+esc(o.srcFile)+'</td></tr>';
