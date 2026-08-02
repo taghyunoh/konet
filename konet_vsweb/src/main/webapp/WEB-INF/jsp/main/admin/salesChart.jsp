@@ -146,7 +146,7 @@
   </div>
 
   <div class="sc-note" style="padding:0 2px 6px">
-    막대 = <b style="color:#b0bfc9">■</b> 매입액 + <b style="color:#137a6c">■</b> 순마진 (합계 = 매출액) ·
+    막대 = <b style="color:#F5A623">■</b> 매입액 + <b style="color:#2E9E4F">■</b> 순마진 (합계 = 매출액) ·
     금액 기준은 마감현황과 같습니다 · 자세한 설명은 위 <b>ℹ️ 도움말</b>.
   </div>
 </div>
@@ -302,6 +302,35 @@ function scHelp(on){
   if(show) box.scrollIntoView({ block:'nearest' });
 }
 
+/* ── 막대 안 값 라벨 (2026-08-02 요청 스타일) ──────────────────────────────
+   chartjs-plugin-datalabels 같은 외부 플러그인을 쓰지 않는다 — 이 화면은 CDN 없이
+   프로젝트 안 Chart.js 2.7.2 만 쓰기로 되어 있어(파일 머리 주석), 인라인 플러그인으로 직접 그린다.
+   ★안 그리는 경우를 둔 이유
+     · 값 0        : 빈 칸에 '0' 이 찍히면 막대가 있는 것처럼 보인다
+     · 높이 < 18px : 글자가 세그먼트 밖으로 삐져나와 옆 조각과 겹친다
+     · 폭  < 26px  : 일자별처럼 막대가 많으면 숫자가 서로 붙어 못 읽는다
+   → 안 보이는 것보다 겹쳐 보이는 게 나쁘다. 정확한 값은 아래 표에 있다. */
+var scBarLabel = {
+  afterDatasetsDraw: function(chart){
+    var ctx = chart.ctx;
+    ctx.save();
+    ctx.font = '700 12px "맑은 고딕",Malgun Gothic,sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#1f2a37';
+    chart.data.datasets.forEach(function(ds, di){
+      var meta = chart.getDatasetMeta(di);
+      if (meta.hidden) return;                       // 범례에서 끈 항목
+      meta.data.forEach(function(el, i){
+        var v = n(ds.data[i]); if (!v) return;
+        var m = el._model, h = Math.abs(m.base - m.y);
+        if (h < 18 || (m.width && m.width < 26)) return;
+        ctx.fillText(shortAmt(v), m.x, (m.base + m.y) / 2);
+      });
+    });
+    ctx.restore();
+  }
+};
+
 /* Chart.js 2.7.2 — 보기(mode) 세 가지
      pl  : 매입액 + 순마진 누적 → 막대 전체 높이가 매출액이 된다(둘을 한 눈에)
      mix : 정산서·추정·직접판매 누적(매출 구성)
@@ -319,22 +348,24 @@ function scBar(cid, mid, list, mode, lblFn){
   if(mode==='pl'){
     /* 매입액을 아래, 순마진을 위에 쌓는다 — 매입액+순마진=매출액 이라 총 높이가 매출액.
        매입가가 없는 품목은 매입액 0이라 막대가 통째로 마진색이 된다(설명은 하단 안내에). */
-    ds = [ { label:'매입액', backgroundColor:'#b0bfc9', data:list.map(function(o){ return Math.round(o.c); }) },
-           { label:'순마진', backgroundColor:'#137a6c', data:list.map(function(o){ return Math.round(o.s-o.c); }) } ];
+    ds = [ { label:'매입액', backgroundColor:'#F5A623', data:list.map(function(o){ return Math.round(o.c); }) },
+           { label:'순마진', backgroundColor:'#2E9E4F', data:list.map(function(o){ return Math.round(o.s-o.c); }) } ];
   } else if(mode==='mix'){
-    ds = [ { label:'정산서 확정', backgroundColor:'#137a6c', data:list.map(function(o){ return Math.round(o.st); }) },
-           { label:'추정',        backgroundColor:'#7fc4b6', data:list.map(function(o){ return Math.round(o.es); }) },
-           { label:'직접판매',    backgroundColor:'#c47f17', data:list.map(function(o){ return Math.round(o.tx); }) } ];
+    ds = [ { label:'정산서 확정', backgroundColor:'#2E9E4F', data:list.map(function(o){ return Math.round(o.st); }) },
+           { label:'추정',        backgroundColor:'#7ECB84', data:list.map(function(o){ return Math.round(o.es); }) },
+           { label:'직접판매',    backgroundColor:'#F5A623', data:list.map(function(o){ return Math.round(o.tx); }) } ];
   } else {
-    ds = [ { label:'매출액',      backgroundColor:'#137a6c', data:list.map(function(o){ return Math.round(o.s); }) } ];
+    ds = [ { label:'매출액',      backgroundColor:'#2E9E4F', data:list.map(function(o){ return Math.round(o.s); }) } ];
   }
 
   var ch = new Chart(box.getContext('2d'), {
     type:'bar',
+    plugins:[scBarLabel],                       // 막대 안 값 라벨 (아래 정의)
     data:{ labels:labels, datasets:ds },
     options:{
       responsive:true, maintainAspectRatio:false,
-      legend:{ display:stack, position:'bottom', labels:{ boxWidth:12, fontSize:12, fontColor:'#1f2a37', fontStyle:'700' } },
+      layout:{ padding:{ top:10 } },            // 맨 위 막대의 라벨이 잘리지 않게
+      legend:{ display:stack, position:'bottom', labels:{ usePointStyle:true, boxWidth:8, padding:14, fontSize:12, fontColor:'#1f2a37', fontStyle:'700' } },
       tooltips:{
         mode:'index', intersect:false,
         callbacks:{
@@ -348,9 +379,14 @@ function scBar(cid, mid, list, mode, lblFn){
           }
         }
       },
+      /* ★세로축(금액 눈금)을 없앴다 — 2026-08-02 요청 스타일(참조 화면)에 맞춘 것.
+           값은 막대 안에 직접 찍고, 정확한 숫자는 아래 표에서 본다.
+           눈금을 도로 켜려면 yAxes 의 display:false 만 지우면 된다. */
       scales:{
-        xAxes:[{ stacked:stack, gridLines:{ display:false }, ticks:{ fontSize:12, fontColor:'#2b3a48', fontStyle:'700', autoSkip:false, maxRotation:40 } }],
-        yAxes:[{ stacked:stack, ticks:{ beginAtZero:true, fontSize:12, fontColor:'#2b3a48', callback:function(v){ return shortAmt(v); } } }]
+        xAxes:[{ stacked:stack, barPercentage:0.62, categoryPercentage:0.9,
+                 gridLines:{ display:false, drawBorder:true, color:'#1f2a37' },
+                 ticks:{ fontSize:12, fontColor:'#2b3a48', fontStyle:'700', autoSkip:false, maxRotation:40 } }],
+        yAxes:[{ stacked:stack, display:false, gridLines:{ display:false }, ticks:{ beginAtZero:true } }]
       }
     }
   });

@@ -125,7 +125,7 @@
     <div id="mDay" class="sd-msg" style="display:none">해당 기간에 자료가 없습니다.</div>
     <div class="sd-tbwrap"><table class="sd-tb" id="tDay"></table></div>
     <div class="sd-note" style="margin-top:10px">
-      막대 = <b style="color:#b0bfc9">■</b> 매입액 + <b style="color:#137a6c">■</b> 순마진 (합계 = 매출액) ·
+      막대 = <b style="color:#F5A623">■</b> 매입액 + <b style="color:#2E9E4F">■</b> 순마진 (합계 = 매출액) ·
       <span style="background:#fdf3e8; padding:0 5px; border-radius:3px">주말</span>은 표에서 색으로 구분 ·
       자세한 설명은 위 <b>ℹ️ 도움말</b>.
     </div>
@@ -261,6 +261,33 @@ function sdRender(){
 /* 보기(mode) 세 가지 — 월별 화면과 같은 규칙
      pl : 매입액 아래 + 순마진 위 누적 → 막대 전체 높이가 매출액
      mix: 매출 구성(정산서·추정·직접판매) / sum: 매출액 한 덩어리 */
+/* ── 막대 안 값 라벨 (2026-08-02 요청 스타일) ──────────────────────────────
+   외부 플러그인(chartjs-plugin-datalabels)을 쓰지 않는다 — 이 화면은 CDN 없이
+   프로젝트 안 Chart.js 2.7.2 만 쓰기로 되어 있어 인라인 플러그인으로 직접 그린다.
+   ★안 그리는 경우 : 값 0 / 높이<18px / 폭<26px
+     일자별은 막대가 31개까지 늘어 폭이 좁아진다 — 그때는 숫자가 서로 붙어 못 읽으므로
+     아예 안 찍는다(겹쳐 보이는 게 안 보이는 것보다 나쁘다). 정확한 값은 아래 표에 있다. */
+var sdBarLabel = {
+  afterDatasetsDraw: function(chart){
+    var ctx = chart.ctx;
+    ctx.save();
+    ctx.font = '700 11.5px "맑은 고딕",Malgun Gothic,sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#1f2a37';
+    chart.data.datasets.forEach(function(ds, di){
+      var meta = chart.getDatasetMeta(di);
+      if (meta.hidden) return;                       // 범례에서 끈 항목
+      meta.data.forEach(function(el, i){
+        var v = n(ds.data[i]); if (!v) return;
+        var m = el._model, h = Math.abs(m.base - m.y);
+        if (h < 18 || (m.width && m.width < 26)) return;
+        ctx.fillText(shortAmt(v), m.x, (m.base + m.y) / 2);
+      });
+    });
+    ctx.restore();
+  }
+};
+
 function sdBar(list, mode){
   var box=document.getElementById('cDay'), msg=document.getElementById('mDay');
   if(_chart){ _chart.destroy(); _chart=null; }      // 안 지우면 겹쳐 그려지고 툴팁이 두 번 뜬다
@@ -271,22 +298,24 @@ function sdBar(list, mode){
   var labels = list.map(function(o){ return (+o.key.slice(6,8))+'일('+WD[o.wd]+')'; });
   var ds;
   if(mode==='pl'){
-    ds = [ { label:'매입액', backgroundColor:'#b0bfc9', data:list.map(function(o){ return Math.round(o.c); }) },
-           { label:'순마진', backgroundColor:'#137a6c', data:list.map(function(o){ return Math.round(o.s-o.c); }) } ];
+    ds = [ { label:'매입액', backgroundColor:'#F5A623', data:list.map(function(o){ return Math.round(o.c); }) },
+           { label:'순마진', backgroundColor:'#2E9E4F', data:list.map(function(o){ return Math.round(o.s-o.c); }) } ];
   } else if(mode==='mix'){
-    ds = [ { label:'정산서 확정', backgroundColor:'#137a6c', data:list.map(function(o){ return Math.round(o.st); }) },
-           { label:'추정',        backgroundColor:'#7fc4b6', data:list.map(function(o){ return Math.round(o.es); }) },
-           { label:'직접판매',    backgroundColor:'#c47f17', data:list.map(function(o){ return Math.round(o.tx); }) } ];
+    ds = [ { label:'정산서 확정', backgroundColor:'#2E9E4F', data:list.map(function(o){ return Math.round(o.st); }) },
+           { label:'추정',        backgroundColor:'#7ECB84', data:list.map(function(o){ return Math.round(o.es); }) },
+           { label:'직접판매',    backgroundColor:'#F5A623', data:list.map(function(o){ return Math.round(o.tx); }) } ];
   } else {
-    ds = [ { label:'매출액',      backgroundColor:'#137a6c', data:list.map(function(o){ return Math.round(o.s); }) } ];
+    ds = [ { label:'매출액',      backgroundColor:'#2E9E4F', data:list.map(function(o){ return Math.round(o.s); }) } ];
   }
 
   _chart = new Chart(box.getContext('2d'), {
     type:'bar',
+    plugins:[sdBarLabel],                       // 막대 안 값 라벨 (아래 정의)
     data:{ labels:labels, datasets:ds },
     options:{
       responsive:true, maintainAspectRatio:false,
-      legend:{ display:stack, position:'bottom', labels:{ boxWidth:12, fontSize:12, fontColor:'#1f2a37', fontStyle:'700' } },
+      layout:{ padding:{ top:10 } },            // 맨 위 막대의 라벨이 잘리지 않게
+      legend:{ display:stack, position:'bottom', labels:{ usePointStyle:true, boxWidth:8, padding:14, fontSize:12, fontColor:'#1f2a37', fontStyle:'700' } },
       tooltips:{ mode:'index', intersect:false,
         callbacks:{
           title:function(tis){ var i=tis[0].index, o=list[i];
@@ -300,9 +329,14 @@ function sdBar(list, mode){
             return '매출액 : '+fmt(o.s)+'원  (마진율 '+rate(o.s-o.c, o.s)+')';
           }
         } },
+      /* ★세로축(금액 눈금)을 없앴다 — 2026-08-02 요청 스타일(참조 화면)에 맞춘 것.
+           값은 막대 안에 직접 찍고, 정확한 숫자는 아래 표에서 본다.
+           눈금을 도로 켜려면 yAxes 의 display:false 만 지우면 된다. */
       scales:{
-        xAxes:[{ stacked:stack, gridLines:{ display:false }, ticks:{ fontSize:11, fontColor:'#2b3a48', fontStyle:'700', autoSkip:false, maxRotation:60 } }],
-        yAxes:[{ stacked:stack, ticks:{ beginAtZero:true, fontSize:12, fontColor:'#2b3a48', callback:function(v){ return shortAmt(v); } } }]
+        xAxes:[{ stacked:stack, barPercentage:0.66, categoryPercentage:0.9,
+                 gridLines:{ display:false, drawBorder:true, color:'#1f2a37' },
+                 ticks:{ fontSize:11, fontColor:'#2b3a48', fontStyle:'700', autoSkip:false, maxRotation:60 } }],
+        yAxes:[{ stacked:stack, display:false, gridLines:{ display:false }, ticks:{ beginAtZero:true } }]
       }
     }
   });
