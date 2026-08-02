@@ -1711,13 +1711,13 @@
            logiFrame('receive', <컨텍스트>+'/mangr/receiveMng.do', this) 메뉴 한 줄만 다시 넣으면 된다.
            (EL 표기는 JSP 주석 안에서도 파서를 건드릴 수 있어 일부러 풀어 적었다) --%>
       <a class="mi" data-key="closeSales" onclick="logiGo('closeSales', this)"><span class="ic">📒</span>매출마감</a>
-      <%-- 정산 그래프 (2026-08-02 요청) — 정산서(TBL_SALES_MST) 금액(SALE_AMT)을 일자별/월별 탭으로.
-           ★매출 그래프 위에 둔다(사용자 지정 순서). JS 는 전부 logi-oh.js(sg*) — 이 JSP 에 스크립트 금지(65535). --%>
-      <a class="mi" data-key="settleChart" onclick="logiGo('settleChart', this); sgEnter();"><span class="ic">📊</span>정산 그래프</a>
       <%-- 매출 그래프 — 월별/일자별 화면 2개를 탭 하나로 통합(2026-08-02 요청).
            화면 자체(salesChart(Day).jsp)는 그대로 두고, 셸에서 iframe 을 탭으로 갈아끼운다.
            '월별이 일자 자료를 받아 무거워진다' 던 분리 사유는 iframe 탭이라 그대로 유효하다(각자 따로 조회). --%>
       <a class="mi" data-key="salesChartTab" onclick="logiGo('salesChartTab', this); scTabEnter();"><span class="ic">📈</span>매출 그래프</a>
+      <%-- 정산 그래프 — 정산서(TBL_SALES_MST)+직접판매를 일자별/월별 탭으로. JS 는 전부 logi-oh.js(sg*) — 이 JSP 에 스크립트 금지(65535).
+           ★순서 확정 이력: 처음엔 매출 그래프 위(2026-08-02 오전 지정) → 같은 날 매출 그래프 아래로 재지정. --%>
+      <a class="mi" data-key="settleChart" onclick="logiGo('settleChart', this); sgEnter();"><span class="ic">📊</span>정산 그래프</a>
     </div>
 
     <div class="grp">매입 관리</div>
@@ -3057,10 +3057,12 @@
       </div>
       <%-- KPI 카드 — 매출 그래프(일자별)의 카드 줄을 정산 용어로 맞춘 것(2026-08-02 요청). 값은 sgRender 가 채운다. --%>
       <style>
-        #sgKpi{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
-        #sgKpi .k{ flex:1 1 150px; min-width:140px; border:1px solid var(--logi-border); border-radius:8px; padding:8px 12px; background:#fbfdfc; }
-        #sgKpi .k span{ display:block; font-size:12px; color:#1f2a37; font-weight:700; }
-        #sgKpi .k b{ display:block; font-size:18px; color:#137a6c; margin-top:2px; white-space:nowrap; }
+        /* 카드 10개를 **한 줄**에 (2026-08-02 요청) — wrap 을 끄고 카드가 폭을 나눠 갖는다.
+             좁은 화면에서 넘치면 카드가 줄어들다가, 그래도 모자라면 이 줄만 좌우 스크롤(줄바꿈보다 낫다). */
+        #sgKpi{ display:flex; gap:8px; flex-wrap:nowrap; overflow-x:auto; margin-bottom:10px; padding-bottom:2px; }
+        #sgKpi .k{ flex:1 1 0; min-width:96px; border:1px solid var(--logi-border); border-radius:8px; padding:7px 10px; background:#fbfdfc; }
+        #sgKpi .k span{ display:block; font-size:11.5px; color:#1f2a37; font-weight:700; white-space:nowrap; }
+        #sgKpi .k b{ display:block; font-size:16px; color:#137a6c; margin-top:2px; white-space:nowrap; }
         #sgKpi .k b.warn{ color:#c0392b; }
         #sgKpi .k b.amber{ color:#a85700; }
         /* 하단 표 — 매출 그래프(일자별)처럼 안에서 스크롤 + 머리글 고정 (2026-08-02 요청) */
