@@ -3169,6 +3169,7 @@
     var sel=document.getElementById('konetAsqRefresh'); if(sel) sel.value=String(sec);
     konetAsqSetRefresh(sec);
   })();
+  
 </script>
 </body>
 </html>
