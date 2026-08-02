@@ -1711,11 +1711,13 @@
            logiFrame('receive', <컨텍스트>+'/mangr/receiveMng.do', this) 메뉴 한 줄만 다시 넣으면 된다.
            (EL 표기는 JSP 주석 안에서도 파서를 건드릴 수 있어 일부러 풀어 적었다) --%>
       <a class="mi" data-key="closeSales" onclick="logiGo('closeSales', this)"><span class="ic">📒</span>매출마감</a>
-      <%-- 매출 그래프 2종 — 원래 '정보 현황' 에 있던 것을 2026-07-26 요청으로 매출 관리로 옮김.
-           금액 정의는 마감현황(selectClosing)과 같게 맞춰 두었다(실측 202607 = 254,850,543 일치).
-           월별/일자별을 따로 두는 이유 : 합치면 월별이 일자 단위 자료를 받아 무거워지고 '기간'의 뜻도 달라진다. --%>
-      <a class="mi" data-key="saleschart" onclick="logiFrame('saleschart','${pageContext.request.contextPath}/shipout/salesChart.do', this)"><span class="ic">📈</span>매출 그래프(월별)</a>
-      <a class="mi" data-key="saleschartday" onclick="logiFrame('saleschartday','${pageContext.request.contextPath}/shipout/salesChartDay.do', this)"><span class="ic">🗓️</span>매출 그래프(일자별)</a>
+      <%-- 정산 그래프 (2026-08-02 요청) — 정산서(TBL_SALES_MST) 금액(SALE_AMT)을 일자별/월별 탭으로.
+           ★매출 그래프 위에 둔다(사용자 지정 순서). JS 는 전부 logi-oh.js(sg*) — 이 JSP 에 스크립트 금지(65535). --%>
+      <a class="mi" data-key="settleChart" onclick="logiGo('settleChart', this); sgEnter();"><span class="ic">📊</span>정산 그래프</a>
+      <%-- 매출 그래프 — 월별/일자별 화면 2개를 탭 하나로 통합(2026-08-02 요청).
+           화면 자체(salesChart(Day).jsp)는 그대로 두고, 셸에서 iframe 을 탭으로 갈아끼운다.
+           '월별이 일자 자료를 받아 무거워진다' 던 분리 사유는 iframe 탭이라 그대로 유효하다(각자 따로 조회). --%>
+      <a class="mi" data-key="salesChartTab" onclick="logiGo('salesChartTab', this); scTabEnter();"><span class="ic">📈</span>매출 그래프</a>
     </div>
 
     <div class="grp">매입 관리</div>
@@ -3010,12 +3012,87 @@
       <iframe id="if-shipouthist" src="" title="출고현황이력조회" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
 
-    <!-- ===== 매출 그래프 — 월별 / 일자별 (2026-07-25) ===== -->
-    <section id="panel-saleschart" class="panel" style="padding:0;">
-      <iframe id="if-saleschart" src="" title="매출 그래프(월별)" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    <%-- ===== 정산 그래프 (2026-08-02) — 정산서 금액을 일자별/월별로. JS=logi-oh.js sg* ===== --%>
+    <%-- 좌우 18px = 매출 그래프 iframe 안(.sd-wrap/.sc-wrap)과 같은 안쪽 여백 —
+         탭을 오갈 때 두 화면의 좌우 시작선이 같아야 한다(2026-08-02 요청) --%>
+    <section id="panel-settleChart" class="panel" style="padding:6px 18px 16px">
+      <div class="logi-head" style="margin-bottom:8px">
+        <div><h2 style="margin:0">정산 그래프 <span class="badge b-done">정산서+직접판매</span>
+          <span style="font-size:12px;font-weight:400;color:#9aa7b3;margin-left:6px">정산서 금액(매입금액) + 직접판매(전표) · 매입원가 · 마진 · 추정 미포함</span></h2></div>
+      </div>
+      <div class="card" style="padding-top:10px; padding-bottom:10px">
+        <div class="form-row" style="margin-bottom:0; align-items:flex-end">
+          <div class="fld" style="flex:0 0 auto"><label>보기</label>
+            <div style="display:flex; gap:4px">
+              <button type="button" class="btn-line" id="sgTabD" style="height:36px; padding:0 14px" onclick="sgTab('d')">일자별</button>
+              <button type="button" class="btn-line" id="sgTabM" style="height:36px; padding:0 14px" onclick="sgTab('m')">월별</button>
+            </div>
+          </div>
+          <div class="fld" style="flex:0 0 150px" id="sgFromWrap"><label>납품일자(시작)</label><input type="date" id="sgFrom"></div>
+          <div class="fld" style="flex:0 0 150px" id="sgToWrap"><label>납품일자(종료)</label><input type="date" id="sgTo"></div>
+          <%-- [조회]는 종료일자 옆(2026-08-02 요청). 탭마다 조건 묶음이 달라 일자별/월별 각자 버튼을 두고 같이 숨긴다 --%>
+          <div class="fld" style="flex:0 0 auto; min-width:0" id="sgBtnDWrap"><label>&nbsp;</label><button class="btn-teal" style="padding:0 18px; height:36px" onclick="sgLoad()">조회</button></div>
+          <%-- 기간 빠른 선택 — 매출 그래프(일자별)와 같은 구성(2026-08-02 요청). 다만 여기는 누르면 바로 조회한다. --%>
+          <div class="fld" style="flex:0 0 auto; min-width:0" id="sgQuickWrap"><label>&nbsp;</label>
+            <div style="display:flex; gap:4px">
+              <button type="button" class="btn-line" style="height:36px; padding:0 11px" onclick="sgQuick(7)">최근 1주</button>
+              <button type="button" class="btn-line" style="height:36px; padding:0 11px" onclick="sgQuick(14)">최근 2주</button>
+              <button type="button" class="btn-line" style="height:36px; padding:0 11px" onclick="sgQuick(30)">최근 30일</button>
+              <button type="button" class="btn-line" style="height:36px; padding:0 11px" onclick="sgMonth()">이번 달</button>
+            </div>
+          </div>
+          <%-- 월별 탭 조건 — 매출 그래프(월별)와 같은 구성(2026-08-02 요청): 시작월~종료월 + 올해/최근6·12개월/전체 --%>
+          <div class="fld" style="flex:0 0 140px; display:none" id="sgMFromWrap"><label>기간(시작월)</label><input type="month" id="sgMFrom"></div>
+          <div class="fld" style="flex:0 0 140px; display:none" id="sgMToWrap"><label>기간(종료월)</label><input type="month" id="sgMTo"></div>
+          <div class="fld" style="flex:0 0 auto; min-width:0; display:none" id="sgBtnMWrap"><label>&nbsp;</label><button class="btn-teal" style="padding:0 18px; height:36px" onclick="sgLoad()">조회</button></div>
+          <div class="fld" style="flex:0 0 auto; min-width:0; display:none" id="sgMQuickWrap"><label>&nbsp;</label>
+            <div style="display:flex; gap:4px">
+              <button type="button" class="btn-line" style="height:36px; padding:0 11px" onclick="sgMYear()">올해</button>
+              <button type="button" class="btn-line" style="height:36px; padding:0 11px" onclick="sgMQuick(6)">최근 6개월</button>
+              <button type="button" class="btn-line" style="height:36px; padding:0 11px" onclick="sgMQuick(12)">최근 12개월</button>
+              <button type="button" class="btn-line" style="height:36px; padding:0 11px" onclick="sgMQuick(0)">전체</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <%-- KPI 카드 — 매출 그래프(일자별)의 카드 줄을 정산 용어로 맞춘 것(2026-08-02 요청). 값은 sgRender 가 채운다. --%>
+      <style>
+        #sgKpi{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+        #sgKpi .k{ flex:1 1 150px; min-width:140px; border:1px solid var(--logi-border); border-radius:8px; padding:8px 12px; background:#fbfdfc; }
+        #sgKpi .k span{ display:block; font-size:12px; color:#1f2a37; font-weight:700; }
+        #sgKpi .k b{ display:block; font-size:18px; color:#137a6c; margin-top:2px; white-space:nowrap; }
+        #sgKpi .k b.warn{ color:#c0392b; }
+        #sgKpi .k b.amber{ color:#a85700; }
+        /* 하단 표 — 매출 그래프(일자별)처럼 안에서 스크롤 + 머리글 고정 (2026-08-02 요청) */
+        #sgTbl table.logi-tb thead th, #sgDcTbl table.logi-tb thead th{ position:sticky; top:0; z-index:2; box-shadow:inset 0 -1px 0 var(--logi-border); }
+        #sgTbl tr.sg-we td{ background:#fdf4ea; }                 /* 주말 줄 배경 */
+      </style>
+      <div class="card">
+        <div id="sgKpi"></div>
+        <span class="close-summary" id="sgSum">[조회]를 누르세요.</span>
+      </div>
+      <%-- 월별 탭 = 매출 그래프(월별)처럼 [출고장별 | 월별] 두 블록 나란히(2026-08-02 요청).
+           일자별 탭에서는 출고장별 카드를 숨겨 본 카드가 전폭을 쓴다(sgTab 이 토글). --%>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:stretch">
+        <div class="card" id="sgDcCard" style="flex:1 1 480px; min-width:420px; display:none">
+          <div style="font-weight:800; font-size:13.5px; color:#1f2a37; margin-bottom:4px">📊 출고장별 매입원가·마진 <span style="font-weight:400; color:#9aa7b3">(합=매출) · 선택 기간 합계</span></div>
+          <div style="position:relative; height:34vh; min-height:260px"><canvas id="sgDcCanvas"></canvas></div>
+          <div id="sgDcTbl" style="margin-top:10px; max-height:30vh; overflow:auto"></div>
+        </div>
+        <div class="card" style="flex:1 1 480px; min-width:420px">
+          <div id="sgMainTit" style="font-weight:800; font-size:13.5px; color:#1f2a37; margin-bottom:4px">🗓️ 일자별 매입원가·마진 <span style="font-weight:400; color:#9aa7b3">(합=매출)</span></div>
+          <div style="position:relative; height:34vh; min-height:260px"><canvas id="sgCanvas"></canvas></div>
+          <div id="sgTbl" style="margin-top:10px; max-height:30vh; overflow:auto"></div>
+        </div>
+      </div>
     </section>
-    <section id="panel-saleschartday" class="panel" style="padding:0;">
-      <iframe id="if-saleschartday" src="" title="매출 그래프(일자별)" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+
+    <%-- ===== 매출 그래프 — 일자별/월별 탭 통합 (2026-08-02, 종전 화면 2개는 그대로 iframe 재사용) ===== --%>
+    <%-- 탭 버튼은 셸이 아니라 **각 화면의 조회줄 맨 앞**에 있다(2026-08-02, 정산 그래프와 같은 자리).
+         셸은 iframe 갈아끼우기(scTabGo)만 맡는다 — 화면 안 버튼이 parent.scTabGo 를 부른다. --%>
+    <section id="panel-salesChartTab" class="panel" style="padding:0;">
+      <iframe id="if-saleschartday" src="" title="매출 그래프(일자별)" style="width:100%; height:calc(100vh - 70px); border:0; display:none;"></iframe>
+      <iframe id="if-saleschart" src="" title="매출 그래프(월별)" style="width:100%; height:calc(100vh - 70px); border:0; display:none;"></iframe>
     </section>
 
     <!-- ===== 거래처별 받을금액·지급할금액 (2026-07-26) — logiFrame 은 #panel-<key> + #if-<key> 를 함께 찾는다 ===== -->

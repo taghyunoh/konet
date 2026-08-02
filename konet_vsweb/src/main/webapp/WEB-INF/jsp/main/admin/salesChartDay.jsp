@@ -17,7 +17,7 @@
 <style>
   :root{ --sd-bd:#dbe2ea; --sd-teal:#137a6c; }
   *{ box-sizing:border-box; }
-  .sd-wrap{ padding:16px 18px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }
+  .sd-wrap{ padding:6px 18px 16px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }   /* 위 16→6px — 셸 iframe 안에서 빈 띠로 보임(2026-08-02) */
   .sd-wrap h2{ margin:0 0 4px; font-size:20px; }
   .sd-sub{ color:#1f2a37; margin-bottom:12px; font-size:12.5px; font-weight:600; }
   .sd-card{ background:#fff; border:1px solid var(--sd-bd); border-radius:10px; padding:12px 14px; margin-bottom:12px; }
@@ -50,11 +50,20 @@
 </style>
 
 <div class="sd-wrap">
-  <h2>🗓️ 매출 그래프 (일자별)</h2>
+  <%-- 제목의 (일자별)은 뺐다(2026-08-02) — 보기[일자별|월별] 버튼이 바로 아래 있어 중복이다 --%>
+  <h2>🗓️ 매출 그래프</h2>
   <div class="sd-sub">하루 단위 <b>매출액 · 매입액 · 순마진</b>입니다. 기본은 <b>최근 일주일</b>입니다. 금액 기준은 <b>마감현황·월별 그래프와 같습니다</b>.</div>
 
   <div class="sd-card">
     <div class="sd-row">
+      <%-- 보기 전환 (2026-08-02 요청) — 정산 그래프처럼 제목 아래 조회줄 맨 앞.
+           셸(iframe 탭) 안에서는 부모의 scTabGo 로 월별 화면과 갈아끼운다. 단독으로 열렸으면 직접 이동. --%>
+      <div class="sd-fld" style="flex:0 0 auto"><label>보기</label>
+        <div style="display:flex; gap:4px">
+          <button type="button" class="sd-btn teal">일자별</button>
+          <button type="button" class="sd-btn" onclick="try{ parent.scTabGo('m'); }catch(e){ location.href='${pageContext.request.contextPath}/shipout/salesChart.do'; }">월별</button>
+        </div>
+      </div>
       <div class="sd-fld" style="flex:0 0 160px"><label>조회기간(시작)</label><input type="date" id="sdFrom"></div>
       <div class="sd-fld" style="flex:0 0 160px"><label>조회기간(종료)</label><input type="date" id="sdTo"></div>
       <button class="sd-btn teal" onclick="sdLoad()">조회</button>
@@ -271,7 +280,7 @@ var sdBarLabel = {
   afterDatasetsDraw: function(chart){
     var ctx = chart.ctx;
     ctx.save();
-    ctx.font = '700 11.5px "맑은 고딕",Malgun Gothic,sans-serif';
+    ctx.font = '700 12.5px "맑은 고딕",Malgun Gothic,sans-serif';   /* 한 단계 크게 (2026-08-02 요청) */
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = '#1f2a37';
     chart.data.datasets.forEach(function(ds, di){
@@ -295,7 +304,8 @@ function sdBar(list, mode){
   box.style.display=''; msg.style.display='none';
 
   var stack = (mode!=='sum');
-  var labels = list.map(function(o){ return (+o.key.slice(6,8))+'일('+WD[o.wd]+')'; });
+  // '2일(일)' 만으로는 월 경계에서 몇 월인지 안 갈린다(2026-08-02 지적) → '8/2(일)' 로 월까지
+  var labels = list.map(function(o){ return o.key.slice(4,6)+'-'+o.key.slice(6,8)+'('+WD[o.wd]+')'; });
   var ds;
   if(mode==='pl'){
     ds = [ { label:'매입액', backgroundColor:'#F5A623', data:list.map(function(o){ return Math.round(o.c); }) },
@@ -335,7 +345,7 @@ function sdBar(list, mode){
       scales:{
         xAxes:[{ stacked:stack, barPercentage:0.66, categoryPercentage:0.9,
                  gridLines:{ display:false, drawBorder:true, color:'#1f2a37' },
-                 ticks:{ fontSize:11, fontColor:'#2b3a48', fontStyle:'700', autoSkip:false, maxRotation:60 } }],
+                 ticks:{ fontSize:12, fontColor:'#2b3a48', fontStyle:'700', autoSkip:false, maxRotation:60 } }],
         yAxes:[{ stacked:stack, display:false, gridLines:{ display:false }, ticks:{ beginAtZero:true } }]
       }
     }

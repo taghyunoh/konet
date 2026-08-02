@@ -5426,3 +5426,359 @@ var KONET_CTX = window.KONET_CTX || '';
               rows:KONET_GRID_ROWS, capTop:214 });
 
   }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     매출 그래프 탭 (2026-08-02) — 종전 화면 2개(salesChartDay/salesChart)를 iframe 그대로 탭으로.
+     ★화면 자체는 안 건드렸다 — 셸에서 갈아끼우기만 한다. 각 탭은 처음 열 때 한 번만 로드(상태 유지).
+     ══════════════════════════════════════════════════════════════════════════ */
+  function scTabGo(v){
+    var fd=document.getElementById('if-saleschartday'), fm=document.getElementById('if-saleschart');
+    var bd=document.getElementById('scTabD'), bm=document.getElementById('scTabM');
+    if(!fd||!fm) return;
+    var on='background:var(--logi-teal);color:#fff;border-color:var(--logi-teal)';
+    if(bd) bd.style.cssText='height:32px;padding:0 16px;'+(v==='d'?on:'');
+    if(bm) bm.style.cssText='height:32px;padding:0 16px;'+(v==='m'?on:'');
+    var f=(v==='d')?fd:fm, url=KONET_CTX+((v==='d')?'/shipout/salesChartDay.do':'/shipout/salesChart.do');
+    fd.style.display=(v==='d')?'block':'none';
+    fm.style.display=(v==='d')?'none':'block';
+    if(!f.getAttribute('src')) f.src=url;          // 처음 열 때만 로드 — 탭을 오가도 조회 상태가 유지된다
+  }
+  function scTabEnter(){ scTabGo('d'); }           // 진입 기본 = 일자별 (사용자 나열 순서)
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     정산 그래프 (2026-08-02) — 정산서(TBL_SALES_MST)의 SALE_AMT 를 일자별/월별로.
+       매출  = SALE_AMT 합 (정산실적 화면의 정산금액/매입금액 과 같은 원천 — 화면끼리 숫자가 같아야 한다)
+       원가  = 입고량 × 코네트 매입가 (정산실적 매입원가 와 같은 규칙, _spPrice 재사용)
+       마진  = 매출 − 원가.  매입가 없는 품목은 원가 0 으로 잡히므로 마진이 부풀 수 있다 — 요약줄에 알린다.
+     ★Chart.js 는 셸에 없어서 처음 열 때 /js/Chart.min.js 를 심는다(매출 그래프 화면과 같은 2.7.2).
+     ══════════════════════════════════════════════════════════════════════════ */
+  var _sgTab='d', _sgChart=null, _sgDcChart=null, _sgRows=[];
+  function _sgChartJs(cb){
+    if(window.Chart){ cb(); return; }
+    var sc=document.createElement('script');
+    sc.src=KONET_CTX+'/js/Chart.min.js';
+    sc.onload=function(){ if(window.Chart){ Chart.defaults.global.defaultFontColor='#1f2a37'; Chart.defaults.global.defaultFontSize=12; } cb(); };
+    sc.onerror=function(){ var el=document.getElementById('sgSum'); if(el) el.textContent='Chart.min.js 를 불러오지 못했습니다.'; };
+    document.head.appendChild(sc);
+  }
+  function sgEnter(){
+    var f=document.getElementById('sgFrom');
+    if(f && !f.value){
+      var r=_ohRgRange('w'); f.value=r[0];   // 일자별 기본 = 최근 1주 (2026-08-02 요청, 매출 그래프(일자별)와 동일)
+      var t=document.getElementById('sgTo'); if(t) t.value=r[1];
+      sgTab('d'); return;
+    }
+    if(!_sgRows.length) sgLoad();
+  }
+  /* 기간 빠른 선택 — 매출 그래프(일자별) sdQuick/sdMonth 와 같은 계산.
+     차이 하나: 거기는 날짜만 바꾸고 [조회]를 기다리지만, 여기는 누르는 즉시 조회한다(정산실적과 같은 조작감). */
+  function sgQuick(days){
+    var f=document.getElementById('sgFrom'), t=document.getElementById('sgTo');
+    if(f) f.value=_ohDayShift(-(days-1));
+    if(t) t.value=SS_TODAY;
+    sgLoad();
+  }
+  function sgMonth(){
+    var f=document.getElementById('sgFrom'), t=document.getElementById('sgTo');
+    if(f) f.value=SS_TODAY.slice(0,7)+'-01';
+    if(t) t.value=SS_TODAY;
+    sgLoad();
+  }
+  /* 월별 탭 빠른선택 — 매출 그래프(월별) scQuick/scYear 와 같은 계산.
+       올해 = 1월~이번 달 · 최근 N개월 = 이번 달 포함 N개월 · 전체 = 기간 비움(서버가 전 기간 반환).
+       여기는 누르는 즉시 조회한다(일자별 빠른선택과 같은 조작감). */
+  function _sgThisM(){ return SS_TODAY.slice(0,7); }
+  function _sgShiftM(n){                       // 이번 달에서 n개월 전 'YYYY-MM'
+    var y=+SS_TODAY.slice(0,4), mo=+SS_TODAY.slice(5,7)-1+n;
+    var d=new Date(y, mo, 1);
+    return d.getFullYear()+'-'+ssPad(d.getMonth()+1);
+  }
+  function sgMQuick(n){
+    var f=document.getElementById('sgMFrom'), t=document.getElementById('sgMTo');
+    if(f) f.value = n ? _sgShiftM(-(n-1)) : '';
+    if(t) t.value = n ? _sgThisM() : '';
+    sgLoad();
+  }
+  function sgMYear(){
+    var f=document.getElementById('sgMFrom'), t=document.getElementById('sgMTo');
+    if(f) f.value=SS_TODAY.slice(0,4)+'-01';
+    if(t) t.value=_sgThisM();
+    sgLoad();
+  }
+  function sgTab(v){
+    _sgTab=v;
+    var on='background:var(--logi-teal);color:#fff;border-color:var(--logi-teal)';
+    var bd=document.getElementById('sgTabD'), bm=document.getElementById('sgTabM');
+    if(bd) bd.style.cssText='height:36px;padding:0 14px;'+(v==='d'?on:'');
+    if(bm) bm.style.cssText='height:36px;padding:0 14px;'+(v==='m'?on:'');
+    var D=(v==='d');
+    ['sgFromWrap','sgToWrap','sgBtnDWrap','sgQuickWrap'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display=D?'':'none'; });
+    ['sgMFromWrap','sgMToWrap','sgBtnMWrap','sgMQuickWrap'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display=D?'none':''; });
+    var dcCard=document.getElementById('sgDcCard'); if(dcCard) dcCard.style.display=D?'none':'';
+    var tit=document.getElementById('sgMainTit');
+    if(tit) tit.innerHTML=(D?'🗓️ 일자별':'🗓️ 월별')+' 매입원가·마진 <span style="font-weight:400; color:#9aa7b3">(합=매출)'+(D?'':' · 최근 달부터')+'</span>';
+    if(!D){   // 월별 첫 진입 기본 = 올해 1월~이번 달 (매출 그래프(월별)와 같은 기본값 — 최근 12개월은 빈 달이 많다)
+      var f=document.getElementById('sgMFrom');
+      if(f && !f.value){ f.value=SS_TODAY.slice(0,4)+'-01'; var t=document.getElementById('sgMTo'); if(t) t.value=_sgThisM(); }
+    }
+    sgLoad();
+  }
+  function sgLoad(){
+    var sum=document.getElementById('sgSum'); if(sum) sum.textContent='조회 중…';
+    var f,t;
+    if(_sgTab==='d'){ f=(document.getElementById('sgFrom')||{}).value||''; t=(document.getElementById('sgTo')||{}).value||''; }
+    else {
+      var mf=(document.getElementById('sgMFrom')||{}).value||'', mt=(document.getElementById('sgMTo')||{}).value||'';
+      f = mf ? (mf+'-01') : '';
+      t = mt ? (mt+'-31') : '';    // 문자열 비교(YYYYMMDD)라 짧은 달도 '31'이 상한으로 안전하다
+    }
+    /* 직접판매(판매전표) 포함 (2026-08-02 요청) — 매출내역과 같은 API.
+         서버가 정산서 행과 같은 모양으로 주고 trxYn='Y'·출고장='직접판매(전표)' 로 온다.
+         ★추정(정산서 미도착 출고)은 여기 안 넣는다 — 출고내역 대사까지 필요해 화면이 무거워지고,
+           그 용도는 매출 그래프가 이미 담당한다. */
+    var _post=function(url, body){
+      return fetch(KONET_CTX+url, { method:'POST', credentials:'same-origin',
+          headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:body })
+        .then(function(r){ return r.json(); }).then(function(j){ return (j&&j.data)||[]; });
+    };
+    Promise.all([
+      _post('/sales/selectSalesMst.do', 'dlvDtFrom='+encodeURIComponent(f)+'&dlvDtTo='+encodeURIComponent(t)+'&itemCd='),
+      _post('/mangr/salesTrxHist.do',   'fromDt='+encodeURIComponent(f)+'&toDt='+encodeURIComponent(t)+'&findData=').catch(function(){ return []; })
+    ]).then(function(a){
+      _sgRows=(a[0]||[]).concat(a[1]||[]);
+      _sgChartJs(function(){ _spLoadInPrice(function(){ sgRender(); }); });
+    }).catch(function(e){ if(sum) sum.textContent='통신오류: '+e.message; });
+  }
+  function sgRender(){
+    var rows=_sgRows;
+    /* 일자별 = YYYYMMDD 그대로, 월별 = YYYYMM 으로 접는다 */
+    var m={}, ord=[], noCost=0;
+    rows.forEach(function(r){
+      var d=_ohYmd(r.dlvDt)||''; if(!d) return;
+      var k=(_sgTab==='d')?d:d.slice(0,6);
+      var e=m[k]; if(!e){ e=m[k]={ amt:0, cost:0, n:0 }; ord.push(k); }
+      e.amt+=(+r.saleAmt||0); e.n++;
+      var pc=_spPrice(r);
+      if(pc==null){ if(_spInPrice) noCost++; } else e.cost+=(+r.outQty||0)*pc;
+    });
+    ord.sort().reverse();   // ★최근 것부터(왼쪽이 최신) — 매출 그래프와 같은 방향(2026-08-02 요청)
+    /* 축 라벨 = 07-27(월) · 표 라벨 = 2026-07-27 (월) — 매출 그래프(일자별)와 같은 표기(2026-08-02 요청) */
+    var _WD=['일','월','화','수','목','금','토'];
+    var _wd=function(k){ return _WD[new Date(+k.slice(0,4), +k.slice(4,6)-1, +k.slice(6,8)).getDay()]; };
+    var labels=ord.map(function(k){ return (_sgTab==='d') ? (k.slice(4,6)+'-'+k.slice(6,8)+'('+_wd(k)+')') : (k.slice(0,4)+'-'+k.slice(4,6)); });
+    var labelsFull=ord.map(function(k){ return (_sgTab==='d') ? (k.slice(0,4)+'-'+k.slice(4,6)+'-'+k.slice(6,8)+' ('+_wd(k)+')') : (k.slice(0,4)+'-'+k.slice(4,6)); });
+    var amt=ord.map(function(k){ return Math.round(m[k].amt); });
+    var cost=ord.map(function(k){ return Math.round(m[k].cost); });
+    var tA=0,tC=0; ord.forEach(function(k){ tA+=m[k].amt; tC+=m[k].cost; });
+    /* ── KPI 카드 (2026-08-02 요청) — 매출 그래프(일자별)의 카드 줄을 정산 용어로.
+         · 반품 = 입고량 음수 행(정산실적의 반품 판정과 같은 규칙). 금액도 그 행의 SALE_AMT 합(음수).
+         · 일평균/월평균 = 정산이 있는 구간만으로 나눈다(빈 날을 끼우면 평균이 실제보다 작아 보인다).
+         · 최고 = 금액이 가장 큰 구간(일자별=하루, 월별=한 달). */
+    (function(){
+      var kp=document.getElementById('sgKpi'); if(!kp) return;
+      var nRet=0, retAmt=0, tTrx=0, nTrx=0;
+      rows.forEach(function(r){
+        if((+r.outQty||0)<0){ nRet++; retAmt+=(+r.saleAmt||0); }
+        if(r.trxYn==='Y'){ nTrx++; tTrx+=(+r.saleAmt||0); }
+      });
+      var bestK='', bestV=-1;
+      ord.forEach(function(k,i){ if(m[k].amt>bestV){ bestV=m[k].amt; bestK=labels[i]; } });
+      var unit=(_sgTab==='d')?'일':'월';
+      var card=function(nm,val,cls){ return '<div class="k"><span>'+nm+'</span><b'+(cls?(' class="'+cls+'"'):'')+'>'+val+'</b></div>'; };
+      kp.innerHTML =
+          card('매출 합계', _cnum(tA))
+        + card('정산서', _cnum(tA-tTrx))
+        + card('직접판매(전표)', nTrx?(_cnum(tTrx)):'0')
+        + card('매입원가', _cnum(tC), 'amber')
+        + card('마진', _cnum(tA-tC), (tA-tC)<0?'warn':'')
+        + card('마진율', tA?(((tA-tC)/tA*100).toFixed(1)+'%'):'-')
+        + card('반품', nRet?(nRet.toLocaleString()+'행 · '+_cnum(retAmt)):'없음', nRet?'warn':'')
+        + card(_sgTab==='d'?'정산 있는 일':'자료 있는 달', ord.length?(ord.length.toLocaleString()+(_sgTab==='d'?'일':'개월')):'-')
+        + card(unit+'평균 (정산 있는 '+unit+')', ord.length?_cnum(Math.round(tA/ord.length)):'-')
+        + card('최고 '+(_sgTab==='d'?'하루':'달'), bestV>=0?(_cnum(Math.round(bestV))+' <span style="display:inline;font-size:11px;color:#9aa7b3">('+bestK+')</span>'):'-');
+    })();
+    var sum=document.getElementById('sgSum');
+    var _tTrx2=0; rows.forEach(function(r){ if(r.trxYn==='Y') _tTrx2+=(+r.saleAmt||0); });
+    if(sum) sum.innerHTML=(_sgTab==='d'?'일자별':'월별')+' <b>'+ord.length+'</b>구간 · 행 <b>'+rows.length.toLocaleString()+'</b>'
+      +' · <span style="color:#137a6c">매출 <b>'+_cnum(tA)+'</b></span>'
+      +(_tTrx2?(' <span style="color:#1a73c7">(정산서 '+_cnum(tA-_tTrx2)+' + 직접판매 '+_cnum(_tTrx2)+')</span>'):'')
+      +' · <span style="color:#a85700">매입원가 <b>'+_cnum(tC)+'</b></span>'
+      +' · 마진 <b>'+_cnum(tA-tC)+'</b>'+(tA?(' ('+((tA-tC)/tA*100).toFixed(1)+'%)'):'')
+      +(noCost?(' <span style="color:#c0392b;font-size:11.5px">※ 매입가 없는 품목 '+noCost.toLocaleString()+'행은 원가 미포함 — 마진이 실제보다 커 보일 수 있음</span>'):'');
+    var box=document.getElementById('sgCanvas'); if(!box || !window.Chart) return;
+    if(_sgChart){ _sgChart.destroy(); _sgChart=null; }   // 안 지우면 겹쳐 그려지고 툴팁이 두 번 뜬다(매출 그래프와 동일)
+    /* 막대 값 라벨 (2026-08-02 요청: 항상 표시) — 막대가 좁으면 **세로로 돌려** 막대 위에 쓴다.
+         종전에는 폭<30px 이면 생략했는데, 일자별은 한 달만 잡아도 좁아져 라벨이 하나도 안 보였다.
+       ★shortAmt 는 salesChart.jsp 안의 함수라 여기(외부 JS)엔 없다 — 그대로 부르면 ReferenceError 로
+         차트가 통째로 죽는다(폭 가드 덕에 조용했던 지뢰). 자체 축약(_sgAmtS)을 쓴다. */
+    var _sgAmtS=function(v){
+      v=Math.round(+v||0);
+      var a=Math.abs(v), sg=v<0?'-':'';
+      if(a>=100000000) return sg+(a/100000000).toFixed(1).replace(/\.0$/,'')+'억';
+      if(a>=10000)     return sg+Math.round(a/10000).toLocaleString()+'만';
+      return v.toLocaleString();
+    };
+    var lbl={ afterDatasetsDraw:function(ch){
+      var ctx=ch.ctx; ctx.save();
+      ctx.font='700 12.5px Malgun Gothic,sans-serif';   /* 매출 그래프와 같은 크기 (2026-08-02) */
+      /* 조각 안 = 그 조각 값(들어갈 때만) · 막대 꼭대기 = 매출 합계(좁으면 세로) — 매출 그래프와 같은 읽기 방식 */
+      var m0=ch.getDatasetMeta(0), m1=ch.getDatasetMeta(1);
+      ch.data.labels.forEach(function(_, i){
+        var e0=m0.data[i], e1=m1.data[i]; if(!e0) return;
+        var c=+ch.data.datasets[0].data[i]||0, mg=+ch.data.datasets[1].data[i]||0, tot=c+mg;
+        if(!tot && !c) return;
+        [ [e0,c,'#7a4b0a'], [e1,mg,'#0d5c30'] ].forEach(function(seg){
+          var el=seg[0], v=seg[1]; if(!el || !v) return;
+          var md=el._model, h=Math.abs(md.base-md.y);
+          if(h>=16 && md.width>=34){
+            ctx.fillStyle=seg[2]; ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText(_sgAmtS(v), md.x, (md.base+md.y)/2);
+          }
+        });
+        var top=(e1&&e1._model)?e1._model:e0._model;   // 마진 조각이 숨김이면 원가 꼭대기
+        ctx.fillStyle='#1f2a37';
+        if(top.width>=46){
+          ctx.textAlign='center'; ctx.textBaseline='bottom';
+          ctx.fillText(_sgAmtS(tot), top.x, top.y-3);
+        } else {
+          ctx.save();
+          ctx.translate(top.x, top.y-4); ctx.rotate(-Math.PI/2);
+          ctx.textAlign='left'; ctx.textBaseline='middle';
+          ctx.fillText(_sgAmtS(tot), 0, 0);
+          ctx.restore();
+        }
+      });
+      ctx.restore();
+    }};
+    _sgChart=new Chart(box.getContext('2d'), {
+      type:'bar', plugins:[lbl],
+      /* 한 막대 쌓기 (2026-08-02 요청) — 매출 그래프의 [매입·마진] 보기와 같은 구성.
+           매입원가(주황) 아래 + 마진(초록) 위 → 막대 전체 높이 = 매출(정산서). */
+      data:{ labels:labels, datasets:[
+        { label:'매입원가', backgroundColor:'#F5A623', data:cost },
+        { label:'마진',     backgroundColor:'#2E9E4F', data:amt.map(function(v,i){ return v-cost[i]; }) }
+      ]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        layout:{ padding:{ top:52 } },   /* 세로 라벨(최대 '9,999만')이 막대 위로 서므로 그만큼 띄운다 */
+        legend:{ position:'bottom', labels:{ usePointStyle:true, boxWidth:8, padding:14, fontSize:12, fontColor:'#1f2a37', fontStyle:'700' } },
+        tooltips:{ mode:'index', intersect:false, callbacks:{
+          label:function(ti,d){ return d.datasets[ti.datasetIndex].label+' : '+_cnum(ti.yLabel)+'원'; },
+          footer:function(tis){ var c=+tis[0].yLabel||0, mg=(tis[1]?+tis[1].yLabel:0)||0, a=c+mg;
+            return '매출(정산서) : '+_cnum(a)+'원'+(a?(' · 마진율 '+(mg/a*100).toFixed(1)+'%'):''); }
+        }},
+        scales:{
+          xAxes:[{ stacked:true, gridLines:{ display:false, drawBorder:true, color:'#1f2a37' },
+                   ticks:{ fontSize:12, fontColor:'#2b3a48', fontStyle:'700', autoSkip:_sgTab==='d', maxRotation:60 } }],
+          yAxes:[{ stacked:true, display:false, gridLines:{ display:false }, ticks:{ beginAtZero:true } }]
+        }
+      }
+    });
+    /* ── 아래 표 — 매출 그래프(일자별)와 같은 모양 (2026-08-02 요청) ─────────────
+         · 요일 칸 분리, 주말 줄 배경색(일=빨강 글씨·토=파랑 글씨)
+         · **조회기간의 모든 날짜를 나열**하고 정산 없는 날은 0 으로 — 빠진 날이 안 보이면 "왜 없지"를 못 잡는다
+           (그래프는 매출 그래프처럼 자료 있는 날만 그린다 — 빈 막대로 채우면 옆으로만 길어진다)
+         · 스크롤은 CSS(#sgTbl sticky) — 표가 길어도 머리글이 남는다 */
+    var tb=document.getElementById('sgTbl');
+    if(tb){
+      var isD=(_sgTab==='d');
+      /* 기간 전체 날짜 나열(일자별) — 기간칸이 비면(전체 등) 자료 있는 날만 */
+      var tOrd=ord;
+      if(isD){
+        var f0=_ohYmd((document.getElementById('sgFrom')||{}).value||''), t0=_ohYmd((document.getElementById('sgTo')||{}).value||'');
+        if(f0 && t0 && f0<=t0){
+          tOrd=[]; var cur=new Date(+f0.slice(0,4), +f0.slice(4,6)-1, +f0.slice(6,8));
+          var end=new Date(+t0.slice(0,4), +t0.slice(4,6)-1, +t0.slice(6,8));
+          for(var g=0; cur<=end && g<400; g++){
+            tOrd.push(''+cur.getFullYear()+ssPad(cur.getMonth()+1)+ssPad(cur.getDate()));
+            cur.setDate(cur.getDate()+1);
+          }
+        }
+      }
+      var h='<table class="logi-tb"><thead><tr><th>'+(isD?'일자':'월')+'</th>'
+          +(isD?'<th style="width:52px">요일</th>':'')
+          +'<th style="text-align:right">행수</th>'
+          +'<th style="text-align:right">매출(정산서)</th><th style="text-align:right">매입원가</th>'
+          +'<th style="text-align:right">마진</th><th style="text-align:right">마진율</th>'
+          +'<th style="text-align:right">비중</th></tr></thead><tbody>';
+      h+='<tr class="close-total"><td'+(isD?' colspan="2"':'')+'>■ 합계</td><td style="text-align:right">'+rows.length.toLocaleString()+'</td>'
+        +'<td style="text-align:right">'+_cnum(tA)+'</td><td style="text-align:right">'+_cnum(tC)+'</td>'
+        +'<td style="text-align:right">'+_cnum(tA-tC)+'</td><td style="text-align:right">'+(tA?((tA-tC)/tA*100).toFixed(1)+'%':'')+'</td>'
+        +'<td style="text-align:right">100%</td></tr>';
+      /* 일자별 달력 나열(tOrd)은 오름차순으로 만들어져 뒤집고, 월별(tOrd=ord)은 이미 최신순이라 그대로 */
+      (isD ? tOrd.slice().reverse() : tOrd.slice()).forEach(function(k){
+        var e=m[k]||{amt:0,cost:0,n:0};
+        var wd=isD?_wd(k):'', we=(wd==='토'||wd==='일');
+        var wdc = wd==='일' ? 'color:#c0392b !important;font-weight:800' : (wd==='토' ? 'color:#1a6fb3 !important;font-weight:800' : '');
+        var la = isD ? (k.slice(0,4)+'-'+k.slice(4,6)+'-'+k.slice(6,8)) : (k.slice(0,4)+'-'+k.slice(4,6));
+        h+='<tr'+(we?' class="sg-we"':'')+'><td>'+la+'</td>'
+          +(isD?('<td style="text-align:center;'+wdc+'">'+wd+'</td>'):'')
+          +'<td style="text-align:right">'+(e.n?e.n.toLocaleString():'0')+'</td>'
+          +'<td style="text-align:right">'+_cnum(e.amt)+'</td><td style="text-align:right">'+_cnum(e.cost)+'</td>'
+          +'<td style="text-align:right'+((e.amt-e.cost)<0?';color:#c0392b !important;font-weight:800':'')+'">'+_cnum(e.amt-e.cost)+'</td>'
+          +'<td style="text-align:right">'+(e.amt?((e.amt-e.cost)/e.amt*100).toFixed(1)+'%':'—')+'</td>'
+          +'<td style="text-align:right">'+(tA?(e.amt/tA*100).toFixed(1)+'%':'0.0%')+'</td></tr>';
+      });
+      tb.innerHTML=h+'</tbody></table>';
+    }
+    /* ── 출고장별 블록 (월별 탭 전용, 2026-08-02) — 매출 그래프(월별)의 왼쪽 블록과 같은 구성.
+         묶음 규칙은 다른 화면과 같은 _ohDcGrp(오산센터 = 왜관·김해·광주·제주·오산). */
+    if(_sgDcChart){ _sgDcChart.destroy(); _sgDcChart=null; }
+    if(_sgTab==='m'){
+      var dm={}, dOrd=[];
+      rows.forEach(function(r){
+        var g=_ohDcGrp(_ohDcOf(r)||'(출고장 미지정)');
+        var e=dm[g]; if(!e){ e=dm[g]={ amt:0, cost:0, n:0 }; dOrd.push(g); }
+        e.amt+=(+r.saleAmt||0); e.n++;
+        var pc=_spPrice(r); if(pc!=null) e.cost+=(+r.outQty||0)*pc;
+      });
+      dOrd.sort(function(x,y){ return dm[y].amt-dm[x].amt; });   // 매출 큰 곳부터 — 매출 그래프와 같은 정렬
+      var dBox=document.getElementById('sgDcCanvas');
+      if(dBox && window.Chart){
+        _sgDcChart=new Chart(dBox.getContext('2d'), {
+          type:'bar', plugins:[lbl],
+          data:{ labels:dOrd, datasets:[
+            { label:'매입원가', backgroundColor:'#F5A623', data:dOrd.map(function(g){ return Math.round(dm[g].cost); }) },
+            { label:'마진',     backgroundColor:'#2E9E4F', data:dOrd.map(function(g){ return Math.round(dm[g].amt-dm[g].cost); }) }
+          ]},
+          options:{
+            responsive:true, maintainAspectRatio:false,
+            layout:{ padding:{ top:52 } },
+            legend:{ position:'bottom', labels:{ usePointStyle:true, boxWidth:8, padding:14, fontSize:12, fontColor:'#1f2a37', fontStyle:'700' } },
+            tooltips:{ mode:'index', intersect:false, callbacks:{
+              label:function(ti,d){ return d.datasets[ti.datasetIndex].label+' : '+_cnum(ti.yLabel)+'원'; },
+              footer:function(tis){ var c=+tis[0].yLabel||0, mg=(tis[1]?+tis[1].yLabel:0)||0, a2=c+mg;
+                return '매출(정산서) : '+_cnum(a2)+'원'+(a2?(' · 마진율 '+(mg/a2*100).toFixed(1)+'%'):''); }
+            }},
+            scales:{
+              xAxes:[{ stacked:true, gridLines:{ display:false, drawBorder:true, color:'#1f2a37' },
+                       ticks:{ fontSize:12, fontColor:'#2b3a48', fontStyle:'700', autoSkip:false, maxRotation:40 } }],
+              yAxes:[{ stacked:true, display:false, gridLines:{ display:false }, ticks:{ beginAtZero:true } }]
+            }
+          }
+        });
+      }
+      var dtb=document.getElementById('sgDcTbl');
+      if(dtb){
+        var dh='<table class="logi-tb"><thead><tr><th>출고장</th><th style="text-align:right">행수</th>'
+            +'<th style="text-align:right">매출(정산서)</th><th style="text-align:right">매입원가</th>'
+            +'<th style="text-align:right">마진</th><th style="text-align:right">마진율</th>'
+            +'<th style="text-align:right">비중</th></tr></thead><tbody>';
+        dh+='<tr class="close-total"><td>■ 합계</td><td style="text-align:right">'+rows.length.toLocaleString()+'</td>'
+          +'<td style="text-align:right">'+_cnum(tA)+'</td><td style="text-align:right">'+_cnum(tC)+'</td>'
+          +'<td style="text-align:right">'+_cnum(tA-tC)+'</td><td style="text-align:right">'+(tA?((tA-tC)/tA*100).toFixed(1)+'%':'')+'</td>'
+          +'<td style="text-align:right">100%</td></tr>';
+        dOrd.forEach(function(g){
+          var e=dm[g];
+          dh+='<tr><td class="txt-l">'+_cesc(g)+'</td><td style="text-align:right">'+e.n.toLocaleString()+'</td>'
+            +'<td style="text-align:right">'+_cnum(e.amt)+'</td><td style="text-align:right">'+_cnum(e.cost)+'</td>'
+            +'<td style="text-align:right'+((e.amt-e.cost)<0?';color:#c0392b !important;font-weight:800':'')+'">'+_cnum(e.amt-e.cost)+'</td>'
+            +'<td style="text-align:right">'+(e.amt?((e.amt-e.cost)/e.amt*100).toFixed(1)+'%':'—')+'</td>'
+            +'<td style="text-align:right">'+(tA?(e.amt/tA*100).toFixed(1)+'%':'0.0%')+'</td></tr>';
+        });
+        dtb.innerHTML=dh+'</tbody></table>';
+      }
+    } else {
+      var dtb0=document.getElementById('sgDcTbl'); if(dtb0) dtb0.innerHTML='';
+    }
+  }

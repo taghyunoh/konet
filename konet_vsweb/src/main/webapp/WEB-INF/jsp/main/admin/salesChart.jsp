@@ -22,7 +22,7 @@
 <style>
   :root{ --sc-bd:#dbe2ea; --sc-teal:#137a6c; }
   *{ box-sizing:border-box; }
-  .sc-wrap{ padding:16px 18px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }
+  .sc-wrap{ padding:6px 18px 16px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }   /* 위 16→6px — 일자별과 같게(탭 전환 시 덜컹임 방지, 2026-08-02) */
   .sc-wrap h2{ margin:0 0 4px; font-size:20px; }
   .sc-sub{ color:#1f2a37; margin-bottom:12px; font-size:12.5px; font-weight:600; }
   .sc-card{ background:#fff; border:1px solid var(--sc-bd); border-radius:10px; padding:12px 14px; margin-bottom:12px; }
@@ -63,6 +63,13 @@
 
   <div class="sc-card">
     <div class="sc-row">
+      <%-- 보기 전환 (2026-08-02 요청) — 정산 그래프처럼 제목 아래 조회줄 맨 앞. --%>
+      <div class="sc-fld" style="flex:0 0 auto"><label>보기</label>
+        <div style="display:flex; gap:4px">
+          <button type="button" class="sc-btn" onclick="try{ parent.scTabGo('d'); }catch(e){ location.href='${pageContext.request.contextPath}/shipout/salesChartDay.do'; }">일자별</button>
+          <button type="button" class="sc-btn teal">월별</button>
+        </div>
+      </div>
       <div class="sc-fld" style="flex:0 0 150px"><label>기간(시작월)</label><input type="month" id="scFrom"></div>
       <div class="sc-fld" style="flex:0 0 150px"><label>기간(종료월)</label><input type="month" id="scTo"></div>
       <button class="sc-btn teal" onclick="scLoad()">조회</button>
