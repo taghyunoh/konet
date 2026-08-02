@@ -71,6 +71,7 @@
   .dc-pop label:hover { background:#eef3f2; }
   .dc-pop label.all { color:#178074; border-bottom:1px dashed var(--bd); border-radius:6px 6px 0 0; margin-bottom:4px; }
   .dc-pop label.on { color:#0e6657; background:#e3f4ef; }
+  .dc-pop label.kid { padding-left:26px; font-size:12px; }   /* 묶음 하위 개별 출고장 (2026-08-02) */
   .d2-toolbar label { font-size:13px; color:#37475a; font-weight:700; }
   .d2-toolbar input[type=text] { height:32px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13px; width:130px; font-weight:700; }
   .d2-toolbar select { height:32px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13px; font-weight:700; max-width:150px; }
@@ -1293,7 +1294,7 @@
     var findLc=D2_FIND.toLowerCase();
     var ifindTk=D2_IFIND.toLowerCase().split(/\s+/).filter(function(s){ return s; });
     var dcAny=Object.keys(D2_DCSEL).length>0;
-    var zones={}, zoneOrder=[], itemSet={}, bizSet={}, bizAll={}, dcAll={}, totQty=0, curDttm='';
+    var zones={}, zoneOrder=[], itemSet={}, bizSet={}, bizAll={}, dcAll={}, zoneAll={}, totQty=0, curDttm='';
     (rowsIn||D2_DATA).forEach(function(r){
       var d=r.date||D2_TODAY;
       if(from && d<from) return;
@@ -1301,8 +1302,11 @@
       if(r.uploadDttm && r.uploadDttm>curDttm) curDttm=r.uploadDttm;   // 현재 배치 업로드(=삭제 발생) 시각
       var dcg=r.dc||r.zone||'미배정';
       dcAll[dcg]=1;                                            // 필터 무관 전체 대표출고장(콤보 목록용)
+      /* 개별 출고장도 모은다 — 콤보를 2단(묶음 + 개별)으로 만들기 위해서(2026-08-02 요청).
+         ★반드시 '필터 앞'에서 모아야 한다. 걸러진 뒤에 모으면 한 곳을 고른 순간 나머지가 목록에서 사라져 되돌릴 수 없다. */
+      if(r.zone){ (zoneAll[dcg]||(zoneAll[dcg]={}))[r.zone]=1; }
       if(r.biz) bizAll[r.biz]=1;                               // 필터 무관 전체 사업장(옵션용)
-      if(dcAny && !D2_DCSEL[dcg]) return;                      // 대표출고장 다중선택(선택 없으면 전체)
+      if(dcAny && !(D2_DCSEL[dcg] || (r.zone && D2_DCSEL[r.zone]))) return;   // 대표출고장/개별 출고장 다중선택(선택 없으면 전체)
       if(bizSel!=='__ALL__' && r.biz!==bizSel) return;         // 사업장 보기(정확일치)
       if(findLc && (r.biz||'').toLowerCase().indexOf(findLc)<0) return;   // 사업장 찾기(부분일치)
       if(ifindTk.length){                                      // 품목 찾기 — 행 전체 LIKE(사업장명+품목명+품목코드), 공백 구분 다중 키워드 AND
@@ -1339,7 +1343,7 @@
     var histOn = !!(histC && histC.checked && from && from===to && rowsIn==null);   // 단일일자 전역 렌더에서만(날짜별 블록 제외)
     function _pass(r){   // 현재 필터를 삭제행에도 동일 적용
       var dcg=r.dc||r.zone||'미배정';
-      if(dcAny && !D2_DCSEL[dcg]) return false;
+      if(dcAny && !(D2_DCSEL[dcg] || (r.zone && D2_DCSEL[r.zone]))) return false;
       if(bizSel!=='__ALL__' && r.biz!==bizSel) return false;
       if(findLc && (r.biz||'').toLowerCase().indexOf(findLc)<0) return false;
       if(ifindTk.length){ var hay=((r.biz||'')+' '+(r.item||'')+' '+(r.code||'')).toLowerCase();
@@ -1383,6 +1387,7 @@
               if(ib>=0) return 1;
               return a.localeCompare(b,'ko');
             }),
+            zoneAll:zoneAll,                 // { 묶음: {개별출고장:1} } — 콤보 2단용(2026-08-02)
             totQty:totQty, curDttm:curDttm};
   }
 
@@ -1621,14 +1626,28 @@
     // 대표출고장(물류센터) 다중선택 콤보 — 버튼 라벨 + 드롭다운 체크박스 (열림 상태 유지)
     var dcSelCnt=Object.keys(D2_DCSEL).length;
     d2Set('d2DcLbl', dcSelCnt===0 ? '전체' : (dcSelCnt===1 ? Object.keys(D2_DCSEL)[0] : dcSelCnt+'곳 선택'));
+    /* 2단 콤보 (2026-08-02 요청) — 1단 묶음(오산센터 등) / 2단 개별 출고장.
+       ★묶음을 고르면 그 아래 개별을 따로 안 골라도 전부 나온다(필터가 둘 중 하나만 맞으면 통과).
+       ★출고장이 1곳뿐인 묶음은 하위를 또 보여줄 필요가 없어 접어 둔다(줄만 늘어난다). */
+    var _zAll=(ag.zoneAll||{});
+    var _kidHtml=function(z){
+      var kon=!!D2_DCSEL[z];
+      return '<label class="kid'+(kon?' on':'')+'">'
+        +'<input type="checkbox"'+(kon?' checked':'')+' data-g="'+d2Esc(z)+'" '
+        +'onchange="d2DcToggle(this.getAttribute(&#39;data-g&#39;))"> '+d2Esc(z)+'</label>';
+    };
     d2Set('d2DcPop',
       '<label class="all'+(dcSelCnt===0?' on':'')+'">'
       +'<input type="checkbox"'+(dcSelCnt===0?' checked':'')+' onchange="d2DcAllSel()"> 전체 ('+ag.dcAll.length+'개 물류센터)</label>'
       + ag.dcAll.map(function(g){
           var on=!!D2_DCSEL[g];
-          return '<label class="'+(on?'on':'')+'">'
+          var kids=Object.keys(_zAll[g]||{}).sort(function(a,b){ return a.localeCompare(b,'ko'); });
+          var h='<label class="'+(on?'on':'')+'">'
             +'<input type="checkbox"'+(on?' checked':'')+' data-g="'+d2Esc(g)+'" '
-            +'onchange="d2DcToggle(this.getAttribute(\'data-g\'))"> '+d2Esc(g)+'</label>';
+            +'onchange="d2DcToggle(this.getAttribute(&#39;data-g&#39;))"> &#128451; '+d2Esc(g)
+            +(kids.length>1?' <span style="color:#9aa7b3">('+kids.length+'곳)</span>':'')+'</label>';
+          if(kids.length>1) h+=kids.map(_kidHtml).join('');
+          return h;
         }).join(''));
 
     // 사업장 찾기 datalist + 사업장 보기 select (전체 사업장 기준, 선택 유지)
