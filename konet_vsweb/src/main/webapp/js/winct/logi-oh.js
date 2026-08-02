@@ -5281,10 +5281,20 @@ var KONET_CTX = window.KONET_CTX || '';
          입고금액 = saleAmt  ← 정산서 엑셀의 '매입금액' 칸 (입고량 × 단가). 거래처가 우리에게 줄 돈.
          정산금액 = settleAmt ← 정산서 엑셀의 '정산금액' 칸 (정산수량 × 단가).
        처음에 정산금액 자리에 saleAmt 를 넣어 두 값이 뒤바뀌어 있었다. */
-    var tOrd=0,tIn=0,tInAmt=0,tSet=0,tAmt=0,tCost=0, nRet=0, noCost=0;
+    /* ★정산서는 '정산 전'과 '정산 후' 두 시점에 올 수 있다 (2026-08-02 확정).
+         · 정산 후(확정본) : SETTLE_QTY/SETTLE_AMT 에 값이 있다  → 그 값을 쓴다
+         · 정산 전         : 두 칸이 0 이고 OUT_QTY/SALE_AMT 만 있다 → 그것으로 대체해 보여 준다
+       ★컬럼(정산수량·정산금액)은 **항상 고정**이다 — 파일에 따라 칸이 생겼다 사라지면 못 쓴다.
+         대체로 채운 값은 회색으로 표시하고 hover 로 근거를 남긴다(확정값과 눈으로 구분되게). */
+    var _setQ=function(r){ var v=+r.settleQty||0;
+      return Math.abs(v)>1e-9 ? {v:v, est:false} : {v:(+r.outQty||0), est:true}; };
+    var _setA=function(r){ var v=+r.settleAmt||0;
+      return Math.abs(v)>1e-9 ? {v:v, est:false} : {v:(+r.saleAmt||0), est:true}; };
+    var tOrd=0,tIn=0,tInAmt=0,tSet=0,tAmt=0,tCost=0, nRet=0, noCost=0, nEst=0;
     rows.forEach(function(r){
       tOrd+=(+r.ordQty||0); tIn+=(+r.outQty||0); tInAmt+=(+r.saleAmt||0);
-      tSet+=(+r.settleQty||0); tAmt+=(+r.settleAmt||0);
+      var eq=_setQ(r), ea=_setA(r);
+      tSet+=eq.v; tAmt+=ea.v; if(ea.est) nEst++;
       /* ★매입원가 기준수량 = **입고량**(2026-08-02 확정) — 매입금액(=입고량×단가)과 같은 기준이라야
            둘을 나란히 놓고 마진을 볼 수 있다. 정산수량 기준이면 미정산 구간에서 원가가 0 이 되어 비교가 안 된다. */
       var pc=_spPrice(r);
@@ -5293,8 +5303,10 @@ var KONET_CTX = window.KONET_CTX || '';
     });
     if(sum) sum.innerHTML='총 <b>'+rows.length.toLocaleString()+'</b>행'
       +(nRet?(' · <span style="color:#c0392b;font-weight:800">반품 '+nRet.toLocaleString()+'행</span>'):'')
-      +' · 발주량 <b>'+_ohQ(tOrd)+'</b> · 입고량 <b>'+_ohQ(tIn)+'</b>'
-      +' · 정산금액 <b>'+_cnum(tInAmt)+'</b>'
+      +' · 발주량 <b>'+_ohQ(tOrd)+'</b> · 입고량 <b>'+_ohQ(tIn)+'</b> · 정산수량 <b>'+_ohQ(tSet)+'</b>'
+      +' · <span style="color:#137a6c">정산금액 <b>'+_cnum(tAmt)+'</b></span>'
+      +(nEst?(' <span style="color:#9aa7b3;font-size:11.5px" title="정산서에 정산금액이 아직 없어 입고금액(매입금액)으로 대신 잡은 행입니다.">(정산 전 '+nEst.toLocaleString()+'행 포함)</span>'):'')
+      +' · 매입금액 <b>'+_cnum(tInAmt)+'</b>'
       +' · <span style="color:#a85700">매입원가 <b>'+_cnum(tCost)+'</b></span>'
       +(noCost?(' <span style="color:#c0392b;font-size:11.5px">※ 매입가 없는 품목 '+noCost+'행 제외</span>'):'')
 
@@ -5308,9 +5320,11 @@ var KONET_CTX = window.KONET_CTX || '';
       +'<th>납품일자</th><th>입고일자</th><th>출고장</th><th>발주번호</th>'
       +'<th>품목코드</th><th>품목명</th><th>규격</th><th>단위</th>'
       +'<th style="text-align:right">발주량</th>'
-      +'<th style="text-align:right" title="정산서 원본의 &quot;입고량&quot; — 거래처가 받은 수량입니다. 반품이면 음수로 옵니다.">입고량<br><span style="font-weight:400;font-size:10.5px">/ 정산수량</span></th>'
+      +'<th style="text-align:right" title="정산서 원본의 &quot;입고량&quot; — 거래처가 받은 수량입니다. 반품이면 음수로 옵니다.">입고량</th>'
+      +'<th style="text-align:right" title="정산 확정본(SETTLE_QTY)이 오면 그 값, 아직이면 입고량(OUT_QTY)으로 대체해 보여 줍니다.&#10;대체된 값은 회색으로 표시됩니다.">정산수량</th>'
       +'<th style="text-align:right">단가</th>'
-      +'<th style="text-align:right" title="정산서 원본의 &quot;매입금액&quot; 칸 = 입고량 × 단가.&#10;거래처가 우리에게 줄 돈입니다(우리 매출).">정산금액<br><span style="font-weight:400;font-size:10.5px">/ 매입금액</span></th>'
+      +'<th style="text-align:right" title="정산 확정본(SETTLE_AMT)이 오면 그 값, 아직이면 매입금액(SALE_AMT=입고량×단가)으로 대체해 보여 줍니다.&#10;대체된 값은 회색으로 표시됩니다.">정산금액</th>'
+      +'<th style="text-align:right" title="정산서 원본의 &quot;매입금액&quot; 칸 = 입고량 × 단가.&#10;거래처가 우리에게 줄 돈입니다(우리 매출).">매입금액</th>'
       +'<th style="text-align:right" title="입고량 × 매입단가 (매입금액과 같은 수량 기준)&#10;매입단가는 상품코드등록의 매입가 이력에 마지막으로 입력한 값(TBL_PROD_MST.IN_PRICE)입니다 = 코네트가 사 온 값.&#10;※ 납품일자 시점의 단가가 아니라 최신 단가라, 기간 중 단가가 바뀌었다면 그만큼 차이가 납니다.&#10;※ 매입가를 안 넣은 품목은 - 로 둡니다.">매입원가<br><span style="font-weight:400;font-size:10.5px">입고량×매입가</span></th>'
       +'<th>납품유형</th></tr></thead><tbody>';
     /* ★[전체 접기/펼치기] 버튼은 표 안이 아니라 요약줄 오른쪽 끝(#spAllBtn)에 있다 —
@@ -5319,7 +5333,9 @@ var KONET_CTX = window.KONET_CTX || '';
     var totRow='<tr class="close-total"><td colspan="8">■ 총합계</td>'
       +'<td style="text-align:right">'+_ohQ(tOrd)+'</td>'
       +'<td style="text-align:right">'+_ohQ(tIn)+'</td>'
+      +'<td style="text-align:right">'+_ohQ(tSet)+'</td>'
       +'<td></td>'
+      +'<td style="text-align:right">'+_cnum(tAmt)+'</td>'
       +'<td style="text-align:right">'+_cnum(tInAmt)+'</td>'
       +'<td style="text-align:right">'+_cnum(tCost)+'</td><td></td></tr>';
     /* ── 출고장 그룹 (2026-08-02 요청) ────────────────────────────────────
@@ -5334,9 +5350,10 @@ var KONET_CTX = window.KONET_CTX || '';
       var e=lm[lbl]; if(!e){ e=lm[lbl]={ label:lbl, gs:{}, gOrd:[], ord:0, inq:0, inamt:0, set:0, amt:0, cost:0, n:0 }; L.push(e); }
       var g=e.gs[dc]; if(!g){ g=e.gs[dc]={ dc:dc, rows:[], ord:0, inq:0, inamt:0, set:0, amt:0, cost:0 }; e.gOrd.push(dc); }
       var pc=_spPrice(r), c=(pc==null?0:(+r.outQty||0)*pc);      // 매입원가 = 입고량 × 매입가
+      var q2=_setQ(r).v, a2=_setA(r).v;                            // 정산 확정값, 없으면 입고량/매입금액으로 대체
       g.rows.push(r);
-      g.ord+=(+r.ordQty||0); g.inq+=(+r.outQty||0); g.inamt+=(+r.saleAmt||0); g.set+=(+r.settleQty||0); g.amt+=(+r.settleAmt||0); g.cost+=c;
-      e.ord+=(+r.ordQty||0); e.inq+=(+r.outQty||0); e.inamt+=(+r.saleAmt||0); e.set+=(+r.settleQty||0); e.amt+=(+r.settleAmt||0); e.cost+=c; e.n++;
+      g.ord+=(+r.ordQty||0); g.inq+=(+r.outQty||0); g.inamt+=(+r.saleAmt||0); g.set+=q2; g.amt+=a2; g.cost+=c;
+      e.ord+=(+r.ordQty||0); e.inq+=(+r.outQty||0); e.inamt+=(+r.saleAmt||0); e.set+=q2; e.amt+=a2; e.cost+=c; e.n++;
     });
     L.sort(function(a,b){ return a.label.localeCompare(b.label,'ko'); });
     L.forEach(function(e){ e.gOrd.sort(function(a,b){ return a.localeCompare(b,'ko'); }); });
@@ -5353,7 +5370,7 @@ var KONET_CTX = window.KONET_CTX || '';
     });
 
     if(!rows.length){
-      wrap.innerHTML=head+totRow+'<tr><td colspan="14" style="text-align:center;color:#9aa7b3;padding:22px">'
+      wrap.innerHTML=head+totRow+'<tr><td colspan="16" style="text-align:center;color:#9aa7b3;padding:22px">'
         +'조회된 정산서 자료가 없습니다. (기간·품목·납품유형을 확인하세요)</td></tr></tbody></table>';
       var pg0=document.getElementById('spPager'); if(pg0) pg0.innerHTML='';
       return;
@@ -5367,8 +5384,8 @@ var KONET_CTX = window.KONET_CTX || '';
         +'<td colspan="8"'+(ind?' style="padding-left:24px"':'')+'>'
         +'<span class="ccar">'+car+'</span> '+(ind===null?'🗂️':'🏭')+' '+_cesc(label)
         +' <span style="font-weight:600;color:#5a6b7a">('+cnt+')</span></td>'
-        +_num(o.ord)+_num(o.inq,true)+'<td></td>'
-        +_amt(o.inamt)+_amt(o.cost)+'<td></td></tr>';
+        +_num(o.ord)+_num(o.inq,true)+_num(o.set,true)+'<td></td>'
+        +_amt(o.amt)+_amt(o.inamt)+_amt(o.cost)+'<td></td></tr>';
     };
     var rowFn=function(x){
       if(x.t==='G') return gRow(x.e, 'g1:'+x.e.label, x.e.label, null, x.e.gOrd.length+'곳 · '+x.e.n+'행');
@@ -5390,7 +5407,13 @@ var KONET_CTX = window.KONET_CTX || '';
         +'<td>'+_cesc(r.unit||'')+'</td>'
         +'<td style="text-align:right">'+_ohQ(r.ordQty)+'</td>'
         +'<td style="text-align:right'+neg(r.outQty)+'">'+_ohQ(r.outQty)+'</td>'
+        +(function(){ var q=_setQ(r);
+            return '<td style="text-align:right;'+(q.est?'color:#8a95a1':'')+neg(q.v)
+              +'" title="'+(q.est?'정산 확정 전 — 입고량으로 대체':'정산 확정값(SETTLE_QTY)')+'">'+_ohQ(q.v)+'</td>'; })()
         +'<td style="text-align:right">'+_cnum(r.salePrice)+'</td>'
+        +(function(){ var a=_setA(r);
+            return '<td style="text-align:right;'+(a.est?'color:#8a95a1':'')+neg(a.v)
+              +'" title="'+(a.est?'정산 확정 전 — 매입금액(입고량×단가)으로 대체':'정산 확정값(SETTLE_AMT)')+'">'+_cnum(a.v)+'</td>'; })()
         +'<td style="text-align:right'+neg(r.saleAmt)+'">'+_cnum(r.saleAmt)+'</td>'
         +(function(){
             var pc=_spPrice(r);
