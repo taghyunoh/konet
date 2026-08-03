@@ -3452,6 +3452,12 @@ var KONET_CTX = window.KONET_CTX || '';
   }
   function ohDcFixBtn(g){
     if(KONET_DC_R[g.dc]) return '';                       // 정상 인식되는 출고장은 버튼 없음
+    /* ★직접판매(전표)는 정정 대상이 아니다 (2026-08-03 지적) — 판매등록 전표에는 출고장이 아예 없고
+         '직접판매(전표)' 는 화면에서 붙인 고정 라벨이다. 7곳으로 인식되지 않으니 위 가드를 통과해
+         '잘못 저장된 이름'처럼 버튼이 났지만, 고칠 DC_NM 이 TBL_SALES_MST 에 없어 눌러도 0행이다
+         (renameSalesDc 는 정산서 전용). 라벨까지 함께 보는 이유 = 전표만 있는 묶음이면 g.trx 로 잡히지만
+         라벨이 원표기로 들어오는 경로가 생겨도 안전하게. */
+    if(g.trx || /직접판매/.test(''+(g.dc||''))) return '';
     var raws=Object.keys(g.raw||{});
     if(raws.length!==1) return '';                        // 원표기가 여러 개면 대상이 모호
     return ' <span onclick="event.stopPropagation();ohDcFix(\''+encodeURIComponent(raws[0])+'\')"'
