@@ -32,6 +32,11 @@
   /* 입력값 placeholder 도 또렷하게 */
   .logi-wrap ::placeholder { color:#5b6775; opacity:1; }
 
+  /* ★화면 글꼴 통일 (2026-08-03) — 셸·모든 iframe 화면이 같은 글꼴/기본 크기를 쓴다.
+     기준: '맑은 고딕' 13.5px. 표·버튼 등 자체 크기를 지정한 곳은 그대로 유지된다. */
+  .logi-wrap { font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:14px; }
+  .logi-wrap input, .logi-wrap select, .logi-wrap button, .logi-wrap textarea { font-family:inherit; }
+
   /* 전체 셸: 좌측 사이드바 + 우측 콘텐츠 */
   .logi-wrap { display:flex; min-height:100vh; background:#fff; font-weight:700; }
   /* 전역 글자 진하게: 기본 700, 강조 800~900 */
@@ -71,8 +76,10 @@
   .logi-side a.mi.core { color:#aef0e7; }
 
 
-  /* 우측 콘텐츠 */
-  .logi-main { flex:1; padding:22px 14px; background:var(--logi-bg); overflow:auto; }
+  /* 우측 콘텐츠
+     ★좌우 여백은 셸이 갖지 않는다 (2026-08-03) — iframe 화면은 여기 좌우 여백 위에 자기 여백을 또
+       얹어 화면마다 좌우가 달라졌다. 좌우 0.3cm(11px)은 각 화면(.panel / iframe 안 wrap)이 가진다. */
+  .logi-main { flex:1; padding:22px 0; background:var(--logi-bg); overflow:auto; }
   .logi-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
   .logi-head h2 { margin:0; font-size:20px; font-weight:700; color:#1f2a37; }
   .logi-head .sub { font-size:13px; color:#6b7a89; margin-top:4px; }
@@ -156,8 +163,16 @@
   .b-ship { background:#e8effc; color:#3b6fd1; }
   .b-due  { background:#fde8e8; color:#c0392b; }
   .note { font-size:12px; color:#9aa7b3; margin-top:6px; }
-  .panel { display:none; }
+  /* ★화면 여백 통일 (2026-08-03) — 좌측 메뉴를 눌러 바뀌는 모든 화면이 같은 자리에서 시작한다.
+       · 위   : 제목줄이 우측 영역 위에서 36px(약 1cm)  = .logi-main 22px + 화면 14px
+       · 좌우 : 11px(약 0.3cm)                        = .logi-main 0    + 화면 11px
+       · 셸 자체 화면(inline panel) 은 아래 .panel 이, iframe 화면은 각 화면 JSP 의 wrap 이 그 값을 가진다.
+     iframe 패널은 style="padding:0" 이라 이 padding 이 안 먹는다 — 그래서 값이 화면 쪽에 있다.
+     ※ 값을 바꾸려면 여기(14px/11px)와 각 iframe 화면의 wrap padding 을 함께 고칠 것. */
+  .panel { display:none; padding:14px 11px 0; }
   .panel.show { display:block; }
+  /* 제목줄(.logi-head)은 패널 맨 위에 붙는다 — 위 여백은 .panel 이 갖는다 */
+  .panel > .logi-head:first-child { margin-top:0; }
   /* 대시보드(출고현황표) iframe 최초 로딩 안내 — 로그인 직후 흰 화면이 잠깐 보이는 것을 덮는다.
      iframe 의 load 이벤트에서 해제(해제 후에는 iframe 안 자체 '조회 중' 안내가 이어서 표시됨) */
   #panel-shipstatus2 { position:relative; }
@@ -3013,9 +3028,9 @@
     </section>
 
     <%-- ===== 정산 그래프 (2026-08-02) — 정산서 금액을 일자별/월별로. JS=logi-oh.js sg* ===== --%>
-    <%-- 좌우 18px = 매출 그래프 iframe 안(.sd-wrap/.sc-wrap)과 같은 안쪽 여백 —
-         탭을 오갈 때 두 화면의 좌우 시작선이 같아야 한다(2026-08-02 요청) --%>
-    <section id="panel-settleChart" class="panel" style="padding:6px 18px 16px">
+    <%-- 좌우 11px = 매출 그래프 iframe 안(.sd-wrap/.sc-wrap)과 같은 안쪽 여백 —
+         탭을 오갈 때 두 화면의 좌우 시작선이 같아야 한다(2026-08-02 요청, 2026-08-03 공통값 0.3cm 로) --%>
+    <section id="panel-settleChart" class="panel" style="padding:14px 11px 16px">
       <div class="logi-head" style="margin-bottom:8px">
         <div><h2 style="margin:0">정산 그래프 <span class="badge b-done">정산서+직접판매</span>
           <span style="font-size:12px;font-weight:400;color:#9aa7b3;margin-left:6px">정산서 금액(매입금액) + 직접판매(전표) · 매입원가 · 마진 · 추정 미포함</span></h2></div>
@@ -3098,10 +3113,10 @@
     </section>
 
     <!-- ===== 거래처별 받을금액·지급할금액 (2026-07-26) — logiFrame 은 #panel-<key> + #if-<key> 를 함께 찾는다 ===== -->
-    <%-- ★위 여백 축소(2026-07-29 요청) — 바깥 .logi-main 의 padding-top(22px)을 이 패널만 -14px 로 끌어올리고
-           그만큼 iframe 을 키운다. 다른 패널은 그대로. --%>
-    <section id="panel-custbal" class="panel" style="padding:0; margin-top:-14px;">
-      <iframe id="if-custbal" src="" title="거래처별 채권·채무 현황" style="width:100%; height:calc(100vh - 56px); border:0; display:block;"></iframe>
+    <%-- ★2026-08-03: 이 패널만 위로 끌어올리던 margin-top:-14px 해제 — 화면 시작 위치를 전 화면 공통(36px)으로
+           맞추기 위해서다(위 .panel 주석 참고). 대신 custBalance.jsp 의 .cb-wrap padding-top 을 14px 로 통일. --%>
+    <section id="panel-custbal" class="panel" style="padding:0;">
+      <iframe id="if-custbal" src="" title="거래처별 채권·채무 현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
 
     <!-- ===== 일계장 (2026-07-26) ===== -->

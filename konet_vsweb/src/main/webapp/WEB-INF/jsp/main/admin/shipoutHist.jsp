@@ -13,7 +13,9 @@
 <style>
   :root{ --sh-bd:#dbe2ea; --sh-teal:#137a6c; }
   *{ box-sizing:border-box; }
-  .sh-wrap{ padding:16px 18px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }
+  /* ★화면 시작 위치·글꼴 통일 (2026-08-03) — 셸(logistics_demo2.jsp)의 .panel 주석 참고 */
+  html,body{ margin:0; padding:0; }
+  .sh-wrap{ padding:14px 11px 16px; font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:14px; color:#1f2a37; }
   .sh-wrap h2{ margin:0 0 4px; font-size:20px; }
   .sh-sub{ color:#6b7a89; margin-bottom:12px; font-size:12.5px; }
   .sh-card{ background:#fff; border:1px solid var(--sh-bd); border-radius:10px; padding:12px; margin-bottom:12px; }

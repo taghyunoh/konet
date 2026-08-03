@@ -14,8 +14,10 @@
 <style>
   :root{ --pu-bd:#dbe2ea; --pu-teal:#137a6c; --pu-bg:#f5f7f9; }
   *{ box-sizing:border-box; }
-  /* 글자 크기 한 단계 키움(2026-07-25 요청) — 기준 13 → 14px */
-  .pu-wrap{ padding:16px 18px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }
+  /* ★화면 시작 위치·글꼴 통일 (2026-08-03) — 셸(logistics_demo2.jsp)의 .panel 주석 참고 */
+  html,body{ margin:0; padding:0; }
+  /* 글자 크기 한 단계 키움(2026-07-25 요청) — 기준 13 → 14px. 이 14px 이 전 화면 공통 기준이 됐다(2026-08-03) */
+  .pu-wrap{ padding:14px 11px 16px; font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:14px; color:#1f2a37; }
   .pu-wrap h2{ margin:0 0 4px; font-size:20px; }
   .pu-sub{ color:#1f2a37; margin-bottom:12px; font-size:12.5px; font-weight:600; }
   .pu-card{ background:#fff; border:1px solid var(--pu-bd); border-radius:10px; padding:12px; margin-bottom:12px; }

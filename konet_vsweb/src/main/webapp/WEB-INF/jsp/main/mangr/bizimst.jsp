@@ -9,8 +9,12 @@
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; }
   *{ box-sizing:border-box; }
-  body{ margin:0; font-family:'맑은 고딕',Malgun Gothic,sans-serif; color:#1f2a37; background:var(--bg); font-size:13.5px; }
-  .wrap{ max-width:880px; margin:0 auto; padding:22px 20px; }
+  /* ★화면 시작 위치·글꼴 통일 (2026-08-03) — 셸(logistics_demo2.jsp)의 .panel 주석 참고 */
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'맑은 고딕','Malgun Gothic',sans-serif; color:#1f2a37; background:var(--bg); font-size:14px; }
+  /* ★max-width:880px + 가운데 정렬 해제 (2026-08-03) — 이 화면만 가운데로 몰려 있어 넓은 모니터에서
+       좌우 여백이 다른 화면(0.3cm)과 크게 달라 보였다. 이제 다른 관리 화면과 같은 전체폭. */
+  .wrap{ padding:14px 11px 16px; }
   h2{ margin:0 0 4px; font-size:20px; }
   .sub{ color:#6b7a89; margin-bottom:16px; }
   .sub b{ color:var(--teal); }

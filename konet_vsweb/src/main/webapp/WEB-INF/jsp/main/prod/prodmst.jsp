@@ -43,12 +43,14 @@
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; }
   *{ box-sizing:border-box; }
-  body{ margin:0; font-family:'맑은 고딕',Malgun Gothic,sans-serif; color:#1f2a37; background:var(--bg); font-size:13px; }
+  /* ★화면 시작 위치·글꼴 통일 (2026-08-03) — 셸(logistics_demo2.jsp)의 .panel 주석 참고 */
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'맑은 고딕','Malgun Gothic',sans-serif; color:#1f2a37; background:var(--bg); font-size:14px; }
   /* ★상단(제목·검색줄)은 고정, 목록만 스크롤(2026-07-22 요청).
      종전에는 페이지 전체가 스크롤돼서 내리면 검색창·＋상품 추가 버튼이 사라졌다.
      화면 = [고정 헤더] + [스크롤되는 목록] + [하단 도킹 패널] 3층 구조. */
   html,body{ height:100%; overflow:hidden; }
-  .wrap{ padding:18px 20px 0; height:100%; box-sizing:border-box; display:flex; flex-direction:column; min-height:0; }
+  .wrap{ padding:14px 11px 0; height:100%; box-sizing:border-box; display:flex; flex-direction:column; min-height:0; }
   .wrap > h2, .wrap > .sub, .wrap > .bar, .wrap > .pager{ flex:0 0 auto; }
   h2{ margin:0 0 4px; font-size:20px; }
   .sub{ color:#6b7a89; margin-bottom:14px; }

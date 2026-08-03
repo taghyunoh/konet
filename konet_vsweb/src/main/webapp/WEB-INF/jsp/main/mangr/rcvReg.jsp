@@ -13,8 +13,10 @@
 <style>
   :root{ --sv-bd:#dbe2ea; --sv-teal:#137a6c; }
   *{ box-sizing:border-box; }
-  .sv-wrap{ padding:12px 14px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }
-  .sv-wrap h2{ margin:0 0 2px; font-size:18px; }
+  /* ★화면 시작 위치·글꼴 통일 (2026-08-03) — 셸(logistics_demo2.jsp)의 .panel 주석 참고 */
+  html,body{ margin:0; padding:0; }
+  .sv-wrap{ padding:14px 11px 16px; font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:14px; color:#1f2a37; }
+  .sv-wrap h2{ margin:0 0 4px; font-size:20px; }
   .sv-sub{ color:#1f2a37; margin-bottom:8px; font-size:12.5px; font-weight:600; }
   .sv-card{ background:#fff; border:1px solid var(--sv-bd); border-radius:10px; padding:10px; margin-bottom:10px; }
   .sv-btn{ height:32px; border:1px solid var(--sv-bd); background:#fff; border-radius:7px; padding:0 12px; cursor:pointer; font-size:13px; font-weight:700; color:#37475a; }

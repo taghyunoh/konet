@@ -39,12 +39,13 @@
   *{ box-sizing:border-box; }
   /* ★iframe 안 기본 body 여백(8px) 제거 — 제목 위 빈 자리를 없앤다(2026-07-29 요청) */
   html, body{ margin:0; padding:0; }
-  /* ★좌우 여백을 줄여 표에 자리를 준다(2026-07-28 요청) — 이 화면은 옆으로 긴 표가 둘이라
-       바깥 여백 1px 이 곧 표 1px 이다. 위아래(14px)는 그대로 두고 좌우만 6px 로. */
-  /* ★위쪽 여백은 최소로 (2026-07-29 요청 "위로 조금 올려주세요") — 제목 위 빈 자리를 표에 준다.
-       아래·좌우는 그대로. 이 화면은 iframe 이라 위 여백이 곧 낭비되는 자리다. */
-  .cb-wrap{ padding:4px 6px 14px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }
-  .cb-wrap h2{ margin:0 0 6px; font-size:19px; }
+  /* ★여백은 전 화면 공통값 — 위 14px · 좌우 11px(0.3cm) (2026-08-03).
+       종전엔 위 4px(+셸의 margin-top:-14px)·좌우 6px 이라 이 화면만 유독 위·옆에 붙어 있었다.
+       좌우를 6px 로 줄였던 것은 옆으로 긴 표에 자리를 주려던 것(2026-07-28)인데, 셸이 갖고 있던
+       좌우 14px 을 이번에 0 으로 내렸으므로 11px 로도 표에 쓰는 폭은 오히려 늘었다.
+       (셸 logistics_demo2.jsp 의 .panel 주석 참고 — 값을 바꾸려면 양쪽을 함께 고칠 것) */
+  .cb-wrap{ padding:14px 11px 14px; font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:14px; color:#1f2a37; }
+  .cb-wrap h2{ margin:0 0 4px; font-size:20px; }
   .cb-sub{ color:#1f2a37; margin-bottom:10px; font-size:12.5px; font-weight:600; }
   .cb-card{ background:#fff; border:1px solid var(--cb-bd); border-radius:10px; padding:11px 9px; margin-bottom:11px; }
   .cb-row{ display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }

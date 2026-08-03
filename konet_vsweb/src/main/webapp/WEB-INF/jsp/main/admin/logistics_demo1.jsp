@@ -21,12 +21,13 @@
   :root { --teal:#1f9b8e; --teal-dk:#178074; --bd:#dfe6e3; --bg:#f4f8f7; }
   * { box-sizing:border-box; }
   html, body { height:100%; }
-  body { margin:0; background:var(--bg); font-family:"Malgun Gothic","맑은 고딕",sans-serif; color:#10161d; font-weight:700; }
+  /* ★글꼴·기본 크기는 전 화면 공통 (2026-08-03) — 셸(logistics_demo2.jsp)의 .panel 주석 참고 */
+  body { margin:0; padding:0; background:var(--bg); font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:14px; color:#10161d; font-weight:700; }
   b, th, h2 { font-weight:900; }
   
 
   /* 화면(iframe) 높이를 세로로 꽉 채움 — 그리드가 남는 공간을 모두 차지(해상도 커져도 하단 빈공간 없음) */
-  .d2-wrap { padding:14px 12px 10px; height:100vh; display:flex; flex-direction:column; }
+  .d2-wrap { padding:14px 11px 10px; height:100vh; display:flex; flex-direction:column; }
   .d2-head, .d2-topbar { flex:0 0 auto; }
   .d2-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
   .d2-head h2 { margin:0; font-size:20px; color:#1f2a37; }

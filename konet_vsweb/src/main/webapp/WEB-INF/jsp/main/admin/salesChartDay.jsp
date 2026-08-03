@@ -17,7 +17,9 @@
 <style>
   :root{ --sd-bd:#dbe2ea; --sd-teal:#137a6c; }
   *{ box-sizing:border-box; }
-  .sd-wrap{ padding:6px 18px 16px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }   /* 위 16→6px — 셸 iframe 안에서 빈 띠로 보임(2026-08-02) */
+  /* ★화면 시작 위치·글꼴 통일 (2026-08-03) — 셸(logistics_demo2.jsp)의 .panel 주석 참고 */
+  html,body{ margin:0; padding:0; }
+  .sd-wrap{ padding:14px 11px 16px; font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:14px; color:#1f2a37; }
   .sd-wrap h2{ margin:0 0 4px; font-size:20px; }
   .sd-sub{ color:#1f2a37; margin-bottom:12px; font-size:12.5px; font-weight:600; }
   .sd-card{ background:#fff; border:1px solid var(--sd-bd); border-radius:10px; padding:12px 14px; margin-bottom:12px; }

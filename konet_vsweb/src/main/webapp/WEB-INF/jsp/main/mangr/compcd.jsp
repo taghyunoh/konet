@@ -53,7 +53,12 @@ $(document).on('init.dt', function(e, settings) {
 <style>
   /* iframe 단독 표시 — 테마의 사이드바 여백(264px) 제거하고 우측 전체 폭 사용 */
   html, body { margin:0 !important; padding:0 !important; }
-  .dashboard-wrapper { margin-left:0 !important; padding:8px !important; width:100% !important; }
+  .dashboard-wrapper { margin-left:0 !important; padding:14px 11px 16px !important; width:100% !important; }
+  /* ★화면 시작 위치·글꼴 통일 (2026-08-03) — 셸(logistics_demo2.jsp)의 .panel 주석 참고.
+     이 화면은 부트스트랩 테마라 글꼴이 혼자 달랐다 → 다른 화면과 같은 '맑은 고딕' 14px 로 맞춘다. */
+  body, .dashboard-wrapper { font-family:'맑은 고딕','Malgun Gothic',sans-serif; }
+  .konet-ptit { margin:0 0 4px; font-size:20px; font-weight:700; color:#1f2a37; }
+  .konet-psub { color:#6b7a89; font-size:12.5px; margin-bottom:14px; }
   .dashboard-content, .container-fluid { max-width:100% !important; width:100% !important; margin:0 !important; padding:0 !important; }
 </style>
 
@@ -66,7 +71,12 @@ $(document).on('init.dt', function(e, settings) {
 <style>
   /* ★ style_comm.css(.dashboard-wrapper margin-left:300px) 뒤에서 덮어써 우측 전체폭 사용 */
   html, body { margin:0 !important; padding:0 !important; }
-  .dashboard-wrapper { margin-left:0 !important; padding:8px !important; width:100% !important; }
+  .dashboard-wrapper { margin-left:0 !important; padding:14px 11px 16px !important; width:100% !important; }
+  /* ★화면 시작 위치·글꼴 통일 (2026-08-03) — 셸(logistics_demo2.jsp)의 .panel 주석 참고.
+     이 화면은 부트스트랩 테마라 글꼴이 혼자 달랐다 → 다른 화면과 같은 '맑은 고딕' 14px 로 맞춘다. */
+  body, .dashboard-wrapper { font-family:'맑은 고딕','Malgun Gothic',sans-serif; }
+  .konet-ptit { margin:0 0 4px; font-size:20px; font-weight:700; color:#1f2a37; }
+  .konet-psub { color:#6b7a89; font-size:12.5px; margin-bottom:14px; }
   .dashboard-content, .container-fluid { max-width:100% !important; width:100% !important; margin:0 !important; padding:0 !important; }
   /* 메인 그리드가 컨테이너 우측 끝까지 채우도록 강제 + 주소 컬럼이 남는 폭 흡수 */
   table#tableName.dataTable { width:100% !important; }
@@ -127,6 +137,10 @@ $(document).on('init.dt', function(e, settings) {
 </head>
 <body>
 <div class="dashboard-wrapper">
+	<%-- ★화면 제목 (2026-08-03 추가) — 다른 화면은 모두 맨 위에 제목이 있는데 이 화면만 없어
+	     좌측 메뉴를 옮길 때 시작 위치가 달라 보였다. 위치·글자는 공통 규격(.konet-ptit). --%>
+	<h2 class="konet-ptit">🏢 회사 / 사용자 관리</h2>
+	<div class="konet-psub">회사(사업자) · 계약 · 사용자 계정을 등록·수정합니다. 관리자 회사만 보입니다.</div>
 	<div class="container-fluid  dashboard-content">
 		<div class="row">
 			<!-- ============================================================== -->

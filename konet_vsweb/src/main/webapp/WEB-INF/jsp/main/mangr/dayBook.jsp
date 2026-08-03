@@ -15,8 +15,10 @@
 <style>
   :root{ --db-bd:#dbe2ea; --db-teal:#137a6c; --db-red:#c0392b; }
   *{ box-sizing:border-box; }
-  .db-wrap{ padding:14px 16px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }
-  .db-wrap h2{ margin:0 0 3px; font-size:19px; }
+  /* ★화면 시작 위치·글꼴 통일 (2026-08-03) — 셸(logistics_demo2.jsp)의 .panel 주석 참고 */
+  html,body{ margin:0; padding:0; }
+  .db-wrap{ padding:14px 11px 16px; font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:14px; color:#1f2a37; }
+  .db-wrap h2{ margin:0 0 4px; font-size:20px; }
   .db-sub{ color:#1f2a37; margin-bottom:10px; font-size:12.5px; font-weight:600; }
   .db-card{ background:#fff; border:1px solid var(--db-bd); border-radius:10px; padding:11px 13px; margin-bottom:11px; }
   .db-row{ display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }

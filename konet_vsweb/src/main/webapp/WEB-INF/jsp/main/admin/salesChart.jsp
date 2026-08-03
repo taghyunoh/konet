@@ -22,7 +22,10 @@
 <style>
   :root{ --sc-bd:#dbe2ea; --sc-teal:#137a6c; }
   *{ box-sizing:border-box; }
-  .sc-wrap{ padding:6px 18px 16px; font-family:'맑은 고딕',Malgun Gothic,sans-serif; font-size:14px; color:#1f2a37; }   /* 위 16→6px — 일자별과 같게(탭 전환 시 덜컹임 방지, 2026-08-02) */
+  /* ★화면 시작 위치·글꼴 통일 (2026-08-03) — 셸(logistics_demo2.jsp)의 .panel 주석 참고.
+     body margin 0 + wrap padding-top 14px = 모든 화면 제목이 같은 높이(약 1cm)에서 시작 */
+  html,body{ margin:0; padding:0; }
+  .sc-wrap{ padding:14px 11px 16px; font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:14px; color:#1f2a37; }
   .sc-wrap h2{ margin:0 0 4px; font-size:20px; }
   .sc-sub{ color:#1f2a37; margin-bottom:12px; font-size:12.5px; font-weight:600; }
   .sc-card{ background:#fff; border:1px solid var(--sc-bd); border-radius:10px; padding:12px 14px; margin-bottom:12px; }

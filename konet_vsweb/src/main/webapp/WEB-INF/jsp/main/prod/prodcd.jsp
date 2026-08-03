@@ -15,12 +15,14 @@
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; }
   *{ box-sizing:border-box; }
-  body{ margin:0; font-family:'맑은 고딕',Malgun Gothic,sans-serif; color:#1f2a37; background:var(--bg); font-size:13px; }
+  /* ★화면 시작 위치·글꼴 통일 (2026-08-03) — 셸(logistics_demo2.jsp)의 .panel 주석 참고 */
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'맑은 고딕','Malgun Gothic',sans-serif; color:#1f2a37; background:var(--bg); font-size:14px; }
   /* ★목록을 화면 아래까지 채운다(2026-08-01 요청) — [고정 머리(제목·검색줄·탭)] + [남는 공간 전부 = 목록] + [하단 페이지줄] 3층.
      페이지 안 행이 화면보다 많으면 목록 칸 안에서만 스크롤된다(머리글은 sticky 로 붙어 있음).
      종전에는 페이지 전체가 흐르는 구조라 목록 아래가 통째로 비어 보였다. */
   html,body{ height:100%; overflow:hidden; }
-  .wrap{ padding:18px 20px 10px; height:100%; display:flex; flex-direction:column; min-height:0; }
+  .wrap{ padding:14px 11px 10px; height:100%; display:flex; flex-direction:column; min-height:0; }
   .wrap > h2, .wrap > .sub, .wrap > .bar, .wrap > .tabs, .wrap > .pager{ flex:0 0 auto; }
   h2{ margin:0 0 4px; font-size:20px; }
   .sub{ color:#6b7a89; margin-bottom:14px; }
