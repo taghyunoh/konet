@@ -37,6 +37,12 @@
   + '.vp-cd{flex:0 0 88px;color:#137a6c;font-weight:700;}'
   + '.vp-nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;}'
   + '.vp-sub{margin-left:auto;padding-left:12px;color:#6b7c8c;font-size:12px;}'
+  + '.vp-tag{flex:0 0 auto;padding:0 6px;border-radius:9px;font-size:11px;font-weight:800;line-height:17px;}'
+  + '.vp-tag.gb{background:#e9f4f1;color:#137a6c;border:1px solid #b9ded4;}'
+  + '.vp-tag.gb.both{background:#eef0ff;color:#3f43a8;border-color:#c9cdf3;}'
+  + '.vp-tag.vat{background:#eef3f2;color:#37475a;border:1px solid #cfd8e3;}'
+  + '.vp-tag.vat.inc{background:#eaf3ff;color:#1a56a8;border-color:#b9d3f2;}'
+  + '.vp-tag.vat.free{background:#fff1e8;color:#b45309;border-color:#f0c9a4;}'
   + '.vp-msg{padding:10px;color:#6b7c8c;text-align:center;}'
   + '.vp-more{padding:6px 10px;color:#6b7c8c;font-size:12px;text-align:center;border-top:1px solid #eef2f6;background:#fafcfd;}'
   + '.vp-hit{background:#ffe9a8;border-radius:2px;}';
@@ -131,9 +137,16 @@
         var ql = String(q||'').trim().toLowerCase();
         dd.innerHTML = all.map(function(o,i){
           var sub = [o.alias, o.ceoNm, o.mgrNm].filter(function(x){ return x; }).join(' · ');
+          /* 거래유형·부가세도 같이 보여 준다 (2026-08-03 요청) — 고르기 전에 성격을 알 수 있게.
+             부가세가 비어 있는 예전 거래처는 '별도*' — 계산도 별도로 하고 있음을 별표로 알린다.
+             (같은 표기를 거래처 팝업 목록에서도 쓴다) */
+          var gb = String(o.vendorGb||''), vt = String(o.vatGb||'') || '별도';
           return '<div class="vp-it' + (i===0?' on':'') + '" data-i="' + i + '">'
                +   '<span class="vp-cd">' + hi(o[CD], ql) + '</span>'
                +   '<span class="vp-nm">' + hi(o[NM], ql) + '</span>'
+               +   (gb ? '<span class="vp-tag gb' + (gb.indexOf('&')>=0?' both':'') + '">' + esc(gb) + '</span>' : '')
+               +   '<span class="vp-tag vat' + (vt==='면세'?' free':(vt==='포함'?' inc':'')) + '">'
+               +     esc(vt) + (o.vatGb?'':'*') + '</span>'
                +   (sub ? '<span class="vp-sub">' + hi(sub, ql) + '</span>' : '')
                + '</div>';
         }).join('') + (more ? '<div class="vp-more">… 외 ' + more + '건 — 더 입력해 좁히세요</div>' : '');

@@ -25,7 +25,10 @@
   .tabs{ display:flex; gap:4px; margin-bottom:10px; border-bottom:2px solid #e2e8e6; }
   .tabs .t{ height:32px; padding:0 14px; border:1px solid #dfe6e3; border-bottom:none; background:#f1f5f4; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; font-weight:700; color:#5a6b7a; }
   .tabs .t.on{ background:var(--teal); color:#fff; border-color:var(--teal); }
+  /* ★목록이 창 아래까지 차게 (2026-08-03 요청) — 종전에는 20줄만 그리고 그 아래가 통째로 비었다.
+     높이는 JS(vmFit)가 실제 위치를 재서 넣는다. 고정 calc() 는 배율·줌마다 어긋난다(마감업로드에서 겪음). */
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; }
+  #listCard{ min-height:220px; }
   table{ width:100%; border-collapse:collapse; font-size:13px; font-weight:700; white-space:nowrap; }
   thead th{ background:#1f2a37; color:#fff; font-weight:700; padding:9px 10px; text-align:left; position:sticky; top:0; z-index:1; }
   tbody td{ border-bottom:1px solid #eef1f5; padding:6px 10px; vertical-align:middle; }
@@ -38,25 +41,40 @@
   .dc{ display:inline-block; padding:1px 7px; border-radius:8px; font-size:11px; font-weight:700; background:#eef4ff; color:#274b8f; border:1px solid #c9d9f5; }
   .act .btn{ height:26px; padding:0 9px; font-size:11.5px; }
   .empty{ padding:26px; text-align:center; color:#9aa7b3; }
-  .pager{ display:flex; gap:4px; justify-content:center; align-items:center; margin-top:14px; flex-wrap:wrap; }
+  .pager{ display:flex; gap:8px; justify-content:center; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  .pgnote{ font-size:12.5px; color:#5a6b7a; font-weight:600; }
+  .pgnote b{ color:var(--teal); }
   .pager button{ min-width:32px; height:32px; border:1px solid var(--bd); background:#fff; border-radius:7px; cursor:pointer; font-size:12.5px; font-weight:700; color:#37475a; padding:0 8px; }
   .pager button.on{ background:var(--teal); color:#fff; border-color:var(--teal); }
   .pager button:disabled{ opacity:.45; cursor:default; }
   .pager .ell{ padding:0 4px; color:#9aa7b3; }
   #ov{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:50; align-items:flex-start; justify-content:center; }
   #ov.on{ display:flex; }
-  #ov .box{ background:#fff; width:min(820px,94vw); margin-top:3vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); max-height:93vh; display:flex; flex-direction:column; }
-  #ov .mh{ background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:13px 18px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
+  /* ★한 화면에 들어오게 (2026-08-03 요청) — 종전 2단 22칸이라 창이 세로로 길어
+       노트북(768px)에서는 스크롤을 내려야 부가세·거래유형이 보였다.
+       3단으로 넓히고(창 폭 1080px) 칸 높이·여백을 줄여 스크롤 없이 끝나게 한다. */
+  #ov .box{ background:#fff; width:min(1080px,96vw); margin-top:2vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); max-height:96vh; display:flex; flex-direction:column; }
+  #ov .mh{ background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:9px 18px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
   #ov .mh b{ font-size:16px; }
   #ov .mh .x{ background:none; border:none; color:#fff; font-size:22px; cursor:pointer; }
-  #ov .mb{ padding:16px 18px; overflow:auto; display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; }
-  #ov .fld{ display:flex; flex-direction:column; gap:4px; }
+  #ov .mb{ padding:12px 18px; overflow:auto; display:grid; grid-template-columns:1fr 1fr 1fr; gap:7px 14px; }
+  #ov .fld{ display:flex; flex-direction:column; gap:2px; }
   #ov .fld.full{ grid-column:1 / -1; }
-  #ov label{ font-size:13px; font-weight:500; color:#333; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:flex-start; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
+  #ov .fld.two{ grid-column:span 2; }
+  /* 칸 묶음 제목 — 어디까지가 한 덩어리인지 보이면 훑는 속도가 빨라진다 */
+  #ov .sep{ grid-column:1 / -1; margin:5px 0 0; padding-top:5px; border-top:1px dashed #cfd8e3;
+            font-size:12px; font-weight:800; color:#137a6c; }
+  #ov .sep:first-child{ border-top:0; padding-top:0; margin-top:0; }
+  /* 창이 좁으면(태블릿·작은 노트북) 2단으로 접는다 — 3단을 우겨넣으면 칸이 너무 좁아진다 */
+  @media (max-width:900px){
+    #ov .mb{ grid-template-columns:1fr 1fr; }
+    #ov .fld.two{ grid-column:span 2; }
+  }
+  #ov label{ font-size:12px; font-weight:500; color:#333; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:flex-start; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
   #ov label.wide{ width:auto; }
-  #ov input, #ov select, #ov textarea{ height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:14px; font-family:inherit; }
+  #ov input, #ov select, #ov textarea{ height:30px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:14px; font-family:inherit; }
   #ov textarea{ height:auto; padding:6px 8px; resize:vertical; }
-  #ov .mf{ padding:12px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
+  #ov .mf{ padding:9px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
 </style>
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
      이 한 줄만 빼면 종전 데스크탑 화면 그대로다(파일 안에서 폭·높이 조건으로만 동작). --%>
@@ -86,7 +104,7 @@
     <button class="t"    data-g="매출"  onclick="vmTab('매출')">매출처</button>
   </div>
 
-  <div class="card">
+  <div class="card" id="listCard">
     <table>
       <thead><tr>
         <th>코드</th><th>거래처명</th><th>별칭</th><th>거래유형</th><th>사업자번호</th><th>대표자</th>
@@ -102,28 +120,32 @@
   <div class="box">
     <div class="mh"><b id="ovTit">거래처 추가</b><button class="x" onclick="vmClose()">&times;</button></div>
     <div class="mb">
+      <div class="sep">기본</div>
       <div class="fld"><label>거래처코드 *</label><input id="f_cd" placeholder="예: 0089"></div>
       <div class="fld"><label>거래유형 *</label><select id="f_gb"><option value="매입">매입</option><option value="매출">매출</option><option value="매입&매출">매입&매출</option></select></div>
-      <div class="fld full"><label>거래처명 *</label><input id="f_nm"></div>
+      <div class="fld"><label>부가세</label><select id="f_vat" title="이 거래처의 매입·판매 등록에서 부가세를 어떻게 계산할지 정합니다. 비워 두면 별도로 봅니다."><option value="">- (별도와 같음)</option><option value="별도">별도 (단가 + 10%)</option><option value="포함">포함 (단가 안에 10% 들어 있음)</option><option value="면세">면세 (부가세 없음)</option></select></div>
+      <div class="fld two"><label>거래처명 *</label><input id="f_nm"></div>
+      <div class="fld"><label>계산서발행</label><select id="f_taxbill"><option value="">-</option><option value="발행">발행</option><option value="미발행">미발행</option></select></div>
       <div class="fld"><label>정식명칭</label><input id="f_full"></div>
       <div class="fld"><label>별칭</label><input id="f_alias"></div>
       <div class="fld"><label>사업자등록번호</label><input id="f_bizno"></div>
+      <div class="sep">사업자</div>
       <div class="fld"><label>대표자</label><input id="f_ceo"></div>
       <div class="fld"><label>업태</label><input id="f_cond"></div>
       <div class="fld"><label>종목</label><input id="f_item"></div>
       <div class="fld"><label>담당자코드</label><input id="f_mgrcd"></div>
       <div class="fld"><label>담당자명</label><input id="f_mgrnm"></div>
-      <div class="fld"><label>우편번호</label><input id="f_zip"></div>
       <div class="fld"><label class="wide">물류센터코드 <span style="color:#9aa7b3;font-weight:400">(삼성웰스토리 지점만, 예: E500)</span></label><input id="f_dc" placeholder="비워두면 일반 거래처"></div>
-      <div class="fld full"><label>주소</label><input id="f_addr"></div>
-      <div class="fld full"><label>상세주소</label><input id="f_addr2"></div>
+      <div class="sep">연락처·주소</div>
       <div class="fld"><label>연락처(휴대폰)</label><input id="f_hp"></div>
       <div class="fld"><label>전화</label><input id="f_tel"></div>
       <div class="fld"><label>팩스</label><input id="f_fax"></div>
       <div class="fld"><label>이메일</label><input id="f_email"></div>
-      <div class="fld"><label>계산서발행</label><select id="f_taxbill"><option value="">-</option><option value="발행">발행</option><option value="미발행">미발행</option></select></div>
-      <div class="fld"><label>부가세</label><select id="f_vat"><option value="">-</option><option value="포함">포함</option><option value="별도">별도</option></select></div>
-      <div class="fld full"><label>계좌</label><input id="f_acct" placeholder="예: 우리은행/1005-…((주)코네트)"></div>
+      <div class="fld"><label>우편번호</label><input id="f_zip"></div>
+      <div class="fld two"><label>주소</label><input id="f_addr"></div>
+      <div class="fld two"><label>상세주소</label><input id="f_addr2"></div>
+      <div class="fld"><label>계좌</label><input id="f_acct" placeholder="예: 우리은행/1005-…((주)코네트)"></div>
+      <div class="sep">기타</div>
       <div class="fld full"><label>비고</label><textarea id="f_remark" rows="2"></textarea></div>
     </div>
     <div class="mf">
@@ -135,7 +157,11 @@
 
 <script>
 var CTX='${pageContext.request.contextPath}';
-var LIST=[], _view=[], _page=1, PAGE=20, _bycd={}, _gb='';
+/* 목록은 페이지 버튼 없이 **스크롤로 이어서** 나온다 (2026-08-03 요청).
+   _shown = 지금까지 그려 둔 줄 수. 바닥 가까이 내려가면 CHUNK 만큼 더 그린다.
+   ★한 번에 전부 그리지 않는 이유 — 거래처가 400여 종이고 여기에 뱃지·이벤트가 붙어
+     통째로 그리면 첫 표시가 눈에 띄게 느려진다. */
+var LIST=[], _view=[], _shown=0, PAGE=20, CHUNK=40, _bycd={}, _gb='';
 /* 물류센터 ↔ 삼성웰스토리 지점 거래처 (발주현황표 DC_CD 와 1:1 — 재업로드 시 자동 부여) */
 var DC_MAP={ '00273':'E100', '00275':'E200', '00274':'E300', '00276':'E400', '00272':'E500', '00277':'E600', '00278':'E700' };
 
@@ -162,15 +188,19 @@ function vmFilter(){
     if(!q) return true;
     return [o.vendorCd,o.vendorNm,o.fullNm,o.alias,o.bizno,o.ceoNm].some(function(v){ return (''+(v||'')).toLowerCase().indexOf(q)>=0; });
   });
-  _page=1; vmRender();
+  _shown=0;
+  var _c=document.getElementById('listCard'); if(_c) _c.scrollTop=0;   // 새로 거른 목록은 맨 위부터 본다
+  vmRender();
 }
 function vmRender(){
-  var tot=_view.length, pages=Math.max(1,Math.ceil(tot/PAGE)); if(_page>pages)_page=pages;
+  var tot=_view.length;
+  if(_shown<PAGE) _shown=PAGE;
+  if(_shown>tot) _shown=tot;
   document.getElementById('cnt').textContent=tot.toLocaleString()+'건 / 전체 '+LIST.length.toLocaleString()+'건';
   var tb=document.getElementById('tb'); _selReset();
-  if(!tot){ tb.innerHTML='<tr><td colspan="11" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1); return; }
+  if(!tot){ tb.innerHTML='<tr><td colspan="11" class="empty">데이터가 없습니다.</td></tr>'; _info(0,0); vmFit(); return; }
   var GB_COLOR={ '매입':'#a85700', '매출':'#2e7d32', '매입&매출':'#137a6c' };
-  tb.innerHTML=_view.slice((_page-1)*PAGE,(_page-1)*PAGE+PAGE).map(function(o){
+  tb.innerHTML=_view.slice(0,_shown).map(function(o){
     var c=GB_COLOR[o.vendorGb]||'#5a6b7a';
     return '<tr data-cd="'+esc(o.vendorCd)+'" onclick="vmSel(this,\''+esc(o.vendorCd)+'\')" ondblclick="vmOpen(\''+esc(o.vendorCd)+'\')">'
       +'<td class="code">'+esc(o.vendorCd)+'</td><td class="nm">'+esc(o.vendorNm)+'</td><td>'+esc(o.alias)+'</td>'
@@ -180,9 +210,41 @@ function vmRender(){
       +'<td>'+(o.dcCd?('<span class="dc">'+esc(o.dcCd)+'</span>'):'')+'</td>'
     +'</tr>';
   }).join('');
-  _pager(pages,_page);
+  _info(_shown, tot);
+  vmFit();
 }
-function _go(p){ _page=p; vmRender(); }
+
+
+/* ── 목록 높이 자동 맞춤 ───────────────────────────────────────────
+   ① 목록 카드를 창 아래(페이징 위)까지 늘리고, 그 안에서 스크롤하게 한다.
+   ② 늘어난 높이에 맞춰 **한 쪽에 담는 줄 수(PAGE)** 도 다시 잡는다 —
+      높이만 늘리면 20줄 밑이 그대로 비어 요청한 '빈 공간까지 쓰기' 가 안 된다.
+   ★위치는 반드시 '문서 기준'(rect.top + scrollY)으로 잰다. 화면 기준으로 재면
+     스크롤할 때마다 값이 달라져 높이가 계속 자라는 자가증식이 된다(마감업로드에서 겪은 함정). */
+var _fitting = false;
+function vmFit(){
+  if (_fitting) return; _fitting = true;
+  try {
+    var card = document.getElementById('listCard'), pg = document.getElementById('pager');
+    if (!card) return;
+    var top = card.getBoundingClientRect().top + (window.pageYOffset || 0);
+    var pgH = pg ? (pg.offsetHeight + 10) : 0;
+    var h = Math.max(220, Math.floor(window.innerHeight - top - pgH - 14));
+    card.style.height = h + 'px';
+
+    /* 한 줄 높이는 실제로 그려진 줄에서 잰다(글꼴·배율마다 다르다). 없으면 30px 로 본다. */
+    var tr = card.querySelector('tbody tr'), th = card.querySelector('thead');
+    var rowH = (tr && tr.offsetHeight) || 30, headH = (th && th.offsetHeight) || 34;
+    var fit = Math.max(10, Math.floor((h - headH) / rowH));
+    if (fit !== PAGE) { PAGE = fit; if (_shown < PAGE) { vmRender(); } }   // 첫 화면이 꽉 차게(가드가 되돌이를 막는다)
+    _bindScroll();
+    /* 창을 키워 목록이 스크롤 없이 다 들어오면, 스크롤 이벤트가 안 오므로 여기서 더 채운다 */
+    if (_shown < _view.length && card.scrollHeight <= card.clientHeight + 4) {
+      _shown = Math.min(_shown + CHUNK, _view.length); vmRender();
+    }
+  } finally { _fitting = false; }
+}
+window.addEventListener('resize', function(){ clearTimeout(window._fitT); window._fitT = setTimeout(vmFit, 120); });
 var _sel=null;
 function _selReset(){ _sel=null; }
 function vmSel(tr,cd){
@@ -192,15 +254,30 @@ function vmSel(tr,cd){
 }
 function vmEditSel(){ if(!_sel){ toast('⚠️ 수정할 행을 먼저 선택하세요.'); return; } vmOpen(_sel); }
 function vmDelSel(){ if(!_sel){ toast('⚠️ 삭제할 행을 먼저 선택하세요.'); return; } vmDel(_sel); }
-function _pager(pages,cur){
-  var el=document.getElementById('pager'); if(pages<=1){ el.innerHTML=''; return; }
-  var h='<button '+(cur<=1?'disabled':'')+' onclick="_go('+(cur-1)+')">‹</button>';
-  var from=Math.max(1,cur-3), to=Math.min(pages,cur+3);
-  if(from>1){ h+='<button onclick="_go(1)">1</button>'; if(from>2)h+='<span class="ell">…</span>'; }
-  for(var p=from;p<=to;p++) h+='<button class="'+(p===cur?'on':'')+'" onclick="_go('+p+')">'+p+'</button>';
-  if(to<pages){ if(to<pages-1)h+='<span class="ell">…</span>'; h+='<button onclick="_go('+pages+')">'+pages+'</button>'; }
-  h+='<button '+(cur>=pages?'disabled':'')+' onclick="_go('+(cur+1)+')">›</button>';
-  el.innerHTML=h;
+/* 페이지 버튼을 없앤 자리 — 지금 몇 줄까지 보고 있는지와 [모두 표시]만 남긴다.
+   (다른 화면의 목록과 같은 방식이라 조작이 눈에 익다) */
+function _info(shown, tot){
+  var el=document.getElementById('pager'); if(!el) return;
+  if(!tot){ el.innerHTML=''; return; }
+  el.innerHTML = shown>=tot
+    ? '<span class="pgnote">전체 <b>'+tot.toLocaleString()+'</b>건을 모두 보고 있습니다</span>'
+    : '<span class="pgnote"><b>'+shown.toLocaleString()+'</b> / '+tot.toLocaleString()+'건 — 아래로 스크롤하면 이어서 나옵니다</span>'
+      + '<button onclick="vmShowAll()">모두 표시</button>';
+}
+function vmShowAll(){ _shown=_view.length; vmRender(); }
+
+/* 목록 바닥 가까이 내려가면 이어서 그린다. 카드가 스크롤 영역이라 여기에 건다.
+   ★목록을 다시 그려도 이벤트가 살아 있도록 카드(고정 요소)에 한 번만 건다. */
+function _bindScroll(){
+  var card=document.getElementById('listCard'); if(!card || card._bound) return;
+  card._bound = true;
+  card.addEventListener('scroll', function(){
+    if (_shown >= _view.length) return;
+    if (card.scrollTop + card.clientHeight >= card.scrollHeight - 80) {
+      _shown = Math.min(_shown + CHUNK, _view.length);
+      vmRender();
+    }
+  });
 }
 function _set(id,v){ document.getElementById(id).value=(v==null?'':v); }
 function vmOpen(cd){

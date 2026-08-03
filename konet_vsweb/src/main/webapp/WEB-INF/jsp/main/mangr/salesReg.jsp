@@ -5,6 +5,7 @@
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
 <%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-quick.js"></script>
 <!--
   판매등록 (2026-07-25 신설) — 매입등록 화면과 대칭. 같은 조작감으로 쓰도록 구조를 그대로 맞췄다.
     · 상단 = 전표 입력(헤더 + 명세 그리드) / 하단 좌 = 기간 전표 목록 / 하단 우 = 거래처 원장
@@ -55,6 +56,23 @@
   .sa-grid .lnk{ color:#137a6c; text-decoration:underline; cursor:pointer; }
   .sa-grid .del{ color:#c0392b; cursor:pointer; font-weight:700; }
   /* 행 조작(삽입·위·아래) — 주문 받은 순서 그대로 입력하기 위한 열(2026-07-31) */
+  /* 거래처 부가세 설정 표시 — 계산이 왜 그렇게 나왔는지 화면에서 바로 보이게(2026-08-03) */
+  /* 거래처 목록의 거래유형 — 이 화면(매출)에는 그 유형 + '매입&매출' + 유형 미지정이 함께 보인다.
+     섞여 있어도 한눈에 갈리게 색을 준다(2026-08-03 요청) */
+  .vp-gb{ display:inline-block; white-space:nowrap; padding:1px 7px; border-radius:10px; font-size:11.5px; font-weight:800;
+          background:#e9f4f1; color:#137a6c; border:1px solid #b9ded4; }
+  .vp-gb.both{ background:#eef0ff; color:#3f43a8; border-color:#c9cdf3; }
+  .vp-gb.none{ background:#f2f4f6; color:#8a97a4; border-color:#dde3e9; }
+  .vat-tag{ display:inline-block; white-space:nowrap; margin-left:6px; padding:1px 7px; border-radius:10px; font-size:11.5px;
+            font-weight:800; background:#eef3f2; color:#37475a; border:1px solid #cfd8e3; vertical-align:middle; }
+  .vat-tag.inc { background:#eaf3ff; color:#1a56a8; border-color:#b9d3f2; }
+  .vat-tag.free{ background:#fff1e8; color:#b45309; border-color:#f0c9a4; }
+  .sa-grid td.no{ text-align:center; color:#8a97a4; font-weight:700; background:#fbfcfd; }
+  /* 반품 줄 — 글자를 전부 빨강으로. 안쪽 input·select 까지 물려야 줄 전체가 빨갛게 보인다.
+     배경까지 칠하면 입력칸이 묻혀 읽기 어려워, 아주 옅은 분홍만 깐다. */
+  .sa-grid tr.ret td{ color:#c0392b; background:#fff5f4; }
+  .sa-grid tr.ret td.no{ background:#ffe9e6; color:#c0392b; }
+  .sa-grid tr.ret input, .sa-grid tr.ret select, .sa-grid tr.ret .lnk{ color:#c0392b; font-weight:700; }
   .sa-grid td.ops{ white-space:nowrap; padding:2px 1px; }
   .sa-grid td.ops span{ display:inline-block; width:20px; height:20px; line-height:19px; margin:0 1px;
                         border:1px solid var(--sa-bd); border-radius:4px; cursor:pointer; font-size:11px; color:#37475a; background:#fff; }
@@ -78,13 +96,23 @@
   /* 팝업 */
   .sa-pop{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; }
   .sa-pop.on{ display:block; }
-  .sa-pop .box{ background:#fff; width:min(760px,94vw); max-height:80vh; margin:6vh auto; border-radius:12px; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.3); }
+  .sa-pop .box{ background:#fff; width:min(940px,96vw); max-height:80vh; margin:6vh auto; border-radius:12px; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.3); }
   .sa-pop .hd{ padding:12px 16px; border-bottom:1px solid var(--sa-bd); font-weight:800; display:flex; align-items:center; gap:8px; }
-  .sa-pop .bd{ padding:12px 16px; overflow:auto; }
+  /* ★padding-top 을 0 으로 (2026-08-03) — sticky 머리글은 이 영역의 '패딩 안쪽' 맨 위에 서기 때문에
+     위쪽 여백 12px 구간으로 지나가는 줄이 머리글 위에 비쳐 보였다.
+     표가 제목줄(.hd) 밑선에 딱 붙게 되는데, .hd 에 아래 테두리가 있어 그대로 깔끔하다. */
+  .sa-pop .bd{ padding:0 16px 12px; overflow:auto; }
   .sa-pop .ft{ padding:10px 16px; border-top:1px solid var(--sa-bd); text-align:right; }
   .sa-pop table{ width:100%; border-collapse:collapse; font-size:12.5px; }
-  .sa-pop th{ background:#eef3f2; border:1px solid var(--sa-bd); padding:6px 8px; }
+  /* ★머리글 고정 (2026-08-03 요청) — 목록을 내리면 어느 칸이 무엇인지 알 수 없었다.
+     border-collapse 표에서는 sticky th 의 테두리가 같이 안 따라와 줄이 사라지므로
+     box-shadow 로 아래·위 선을 그려 준다. */
+  .sa-pop thead th{ background:#eef3f2; border:1px solid var(--sa-bd); padding:6px 8px;
+                 position:sticky; top:0; z-index:5;
+                 box-shadow:inset 0 1px 0 var(--sa-bd), inset 0 -1px 0 var(--sa-bd); }
+  .sa-pop tbody td{ position:relative; z-index:1; }   /* 줄이 머리글을 덮지 않게 */
   .sa-pop td{ border:1px solid var(--sa-bd); padding:6px 8px; text-align:center; }
+  .sa-pop td .vat-tag{ margin-left:0; }
   .sa-pop td.num{ text-align:right; }
   .sa-pop tr.pick{ cursor:pointer; }
   .sa-pop tr.pick:hover td{ background:#f3f8f6; }
@@ -126,8 +154,9 @@
       <div class="sa-fld" style="flex:0 0 140px"><label>판매일자</label><input type="date" id="saDt" onchange="saNextNo()"></div>
       <div class="sa-fld" style="flex:0 0 90px"><label>전표번호</label><input type="text" id="saNo" readonly style="background:#f5f7f9"></div>
       <%-- 거래처 = 직접 입력검색(거래처명·코드·별칭·대표·담당 부분일치). 목록을 훑어보려면 [거래처] 버튼. --%>
-      <div class="sa-fld" style="flex:0 0 220px"><label>거래처</label><input type="text" id="saVenNm" placeholder="거래처명 입력 또는 [거래처]" title="거래처명·코드·별칭·대표자·담당자로 검색합니다. ↑↓ 로 고르고 Enter."></div>
+      <div class="sa-fld" style="flex:0 0 220px"><label>거래처</label><input type="text" id="saVenNm" placeholder="거래처명 입력 또는 [거래처]" title="거래처명·코드·별칭·대표자·담당자로 검색합니다. ↑↓ 로 고르고 Enter."><span id="saVatTag" class="vat-tag" style="display:none"></span></div>
       <button class="sa-btn teal" onclick="saVenOpen()">거래처</button>
+      <button class="sa-btn" onclick="saVenNew()" title="없는 거래처를 이 자리에서 바로 등록합니다">＋신규</button>
       <%-- 납품분 = 그 거래처에 이미 나간 품목(판매전표+정산서)을 중복 없이 모아 보여준다.
            체크한 순서 그대로 명세에 담긴다 — 주문 받은 순서대로 입력하기 위한 장치(2026-07-31). --%>
       <button class="sa-btn teal" onclick="saDlvOpen()" title="이 거래처가 받아 온 품목 목록에서 골라 담기">납품분</button>
@@ -147,9 +176,9 @@
          가로 스크롤은 JS 로 동기화한다. --%>
     <div class="sa-grid" id="saGridWrap">
       <table>
-        <colgroup><col style="width:82px"><col style="width:110px"><col style="width:230px"><col style="width:110px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
+        <colgroup><col style="width:38px"><col style="width:82px"><col style="width:110px"><col style="width:230px"><col style="width:110px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
         <thead><tr>
-          <th>행(＋삽입/▲▼)</th><th>상품코드</th><th>품명(단가이력조회)</th>
+          <th>No</th><th>행(＋삽입/▲▼)</th><th>상품코드</th><th>품명(단가이력조회)</th>
           <th>[입수량]규격</th><th>BOX수량</th><th>EA수량</th>
           <th>합계수량</th><th>단가</th><th>금액</th>
           <th>DC</th><th>공급가</th><th>부가세</th>
@@ -162,9 +191,9 @@
     <div id="saGridPager" style="padding:5px 2px 0; text-align:center; min-height:22px"></div>
     <div class="sa-foot" id="saFootWrap">
       <table>
-        <colgroup><col style="width:82px"><col style="width:110px"><col style="width:230px"><col style="width:110px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
+        <colgroup><col style="width:38px"><col style="width:82px"><col style="width:110px"><col style="width:230px"><col style="width:110px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
         <tbody><tr class="tot">
-          <td colspan="4">■ 합계</td>
+          <td colspan="5">■ 합계</td>
           <td class="num" id="tBox">0</td><td class="num" id="tEa">0</td><td class="num" id="tQty">0</td>
           <td></td><td class="num" id="tAmt">0</td><td class="num" id="tDc">0</td>
           <td class="num" id="tSup">0</td><td class="num" id="tVat">0</td><td class="num" id="tTot">0</td>
@@ -257,9 +286,9 @@
     <div class="hd">거래처 선택
       <input type="text" id="saVenQ" placeholder="거래처명·코드·별칭·대표자" style="flex:1; height:30px; border:1px solid var(--sa-bd); border-radius:6px; padding:0 8px" oninput="saVenRender()">
     </div>
-    <div class="bd"><table><thead><tr><th style="width:90px">코드</th><th>거래처명</th><th style="width:140px">별칭</th><th style="width:110px">대표자</th><th style="width:100px">담당사원</th></tr></thead>
+    <div class="bd"><table><thead><tr><th style="width:78px">코드</th><th>거래처명</th><th style="width:96px">거래유형</th><th style="width:74px">부가세</th><th style="width:120px">별칭</th><th style="width:96px">대표자</th><th style="width:92px">담당사원</th></tr></thead>
       <tbody id="saVenBody"></tbody></table></div>
-    <div class="ft"><button class="sa-btn" onclick="saVenClose()">닫기</button></div>
+    <div class="ft" style="justify-content:space-between"><span style="display:flex;gap:6px"><button class="sa-btn" id="saVenAllBtn" onclick="saVenAll(!_venAll)" title="끄면 매출 거래처(+유형 미지정)만 보입니다">전체</button><button class="sa-btn teal" onclick="saVenNew()">＋ 신규 거래처</button></span><button class="sa-btn" onclick="saVenClose()">닫기</button></div>
   </div>
 </div>
 
@@ -426,6 +455,9 @@ var PU_ROWS = 8, _pShown = 0, _pBound = false;
 var _rows = [];        // 명세 행
 var _list = [];        // 전표 목록
 var _vendors = [];     // 거래처 마스터
+/* 고른 거래처의 부가세 설정 '별도'|'포함'|'면세' (TBL_VENDOR_MST.VAT_GB).
+   비어 있으면 '별도' 로 본다 — 예전 자료는 이 칸이 비어 있는데, 지금까지의 동작이 별도였다. */
+var _venVat = '별도';
 var _prods = [];       // 상품 마스터
 var _extItems = [];    // 거래처 통보품목(TBL_EXT_ITEM_MST) — 거래처가 준 코드로 찾기용
 var _cur = null;       // 선택된 전표(수정 모드)
@@ -491,9 +523,9 @@ function post(url, body, isJson){
   /* 거래처 칸 입력검색 — 고르는 동작은 팝업과 같은 saVenPick() 을 그대로 탄다(잔고·원장·담당자 갱신 포함).
      _vendors 는 saLoadMasters() 가 나중에 채우므로 배열이 아니라 '함수'로 넘긴다. */
   _vendorPick(document.getElementById('saVenNm'), {
-    list   : function(){ return _vendors; },
+    list   : function(){ return _vendors.filter(saVenFit); },   // 거래유형 필터(＋신규/전체 버튼과 같은 기준)
     onPick : function(o){ saVenPick(o.vendorCd); },
-    onClear: function(){ document.getElementById('saMgrNm').value=''; document.getElementById('saMgrNm').dataset.cd=''; saVenBal(''); saXrefLoad(''); }
+    onClear: function(){ saVenVat(null); document.getElementById('saMgrNm').value=''; document.getElementById('saMgrNm').dataset.cd=''; saVenBal(''); saXrefLoad(''); }
   });
 })();
 
@@ -591,7 +623,12 @@ function saRender(){
   if (_pShown < PU_ROWS) _pShown = PU_ROWS;
   if (_pShown > _rows.length) _pShown = _rows.length;
   _rows.slice(0, _pShown).forEach(function(o,i){
-    h += '<tr>'
+    /* 반품 줄은 **줄 전체를 빨간색**으로 (2026-08-03 요청) — 거래구분 칸만 봐서는
+         여러 줄 중 어느 것이 반품인지 눈에 안 들어온다. 글자색은 CSS(tr.ret)에서 준다. */
+    h += '<tr'+(o.trxGb==='반품' ? ' class="ret"' : '')+'>'
+      /* 맨 앞 순번 — 화면에 보이는 줄 번호(1부터). 저장 자료가 아니라 표시용이라
+         줄을 지우거나 순서를 바꾸면 자동으로 다시 매겨진다. */
+      + '<td class="no">'+(i+1)+'</td>'
       /* 행 조작 — 주문 받은 순서대로 넣기 위한 열(2026-07-31).
            ＋ = 이 줄 '위'에 빈 줄 삽입 / ▲▼ = 순서 바꾸기.
          (예전 ＋ 는 상품선택이었다. 상품선택은 아래 상품코드 칸을 눌러 그대로 쓴다) */
@@ -648,7 +685,7 @@ function saSet(i, k, v){
        입수 48짜리에 BOX 1 → EA 1 · 합계 1. 합계수량은 EA 를 따라가고 화면에서 고칠 수 없다(계산 전용). */
   if (k==='boxQty') o.eaQty = n(o.boxQty);
   saCalcRow(o);
-  if (i === _rows.length-1 && o.prodCd) { _rows.push(emptyRow()); _pShown = _rows.length; }   // 마지막 줄을 쓰면 새 줄 자동 추가(그 줄이 보이게)
+  if (i === _rows.length-1 && o.prodCd) saEnsureTail();   // 마지막 줄을 쓰면 새 줄 자동 추가(그 줄이 보이게)
   saRender();
 }
 function saCalcRow(o){
@@ -656,10 +693,30 @@ function saCalcRow(o){
      BOX 1 치면 EA 1 · 합계 1. 입수([48])는 규격 칸에 참고로 보일 뿐 수량 계산에 쓰지 않는다. */
   o.qty = n(o.eaQty);
   o.amt = Math.round(o.qty * n(o.unitPrice)) - n(o.dcAmt);
-  var tax = (o.taxGb !== '면세');
-  o.supplyAmt = o.amt;
-  o.vatAmt = tax ? Math.round(o.amt * 0.1) : 0;
+  /* 부가세 = ① 거래처 설정(TBL_VENDOR_MST.VAT_GB) × ② 품목 과세여부 (2026-08-03 요청)
+       · 별도(기본) : 공급가 = 금액,        부가세 = 금액의 10%   → 합계 = 금액 + 부가세
+       · 포함       : 공급가 = 금액 ÷ 1.1,  부가세 = 금액 − 공급가 → 합계 = 금액 (그대로)
+       · 면세       : 부가세 0
+     ★품목이 면세면 거래처가 무엇이든 면세다(면세 품목에 세금을 붙일 수는 없다).
+     ★거래처를 바꾸면 담긴 줄을 전부 다시 계산한다(saVenVat 참고). */
+  var vg = _venVat || '별도';
+  var tax = (o.taxGb !== '면세') && (vg !== '면세');
+  if (!tax)                 { o.supplyAmt = o.amt;                        o.vatAmt = 0; }
+  else if (vg === '포함')   { o.supplyAmt = Math.round(o.amt / 1.1);      o.vatAmt = o.amt - o.supplyAmt; }
+  else                      { o.supplyAmt = o.amt;                        o.vatAmt = Math.round(o.amt * 0.1); }
   o.totAmt = o.supplyAmt + o.vatAmt;
+}
+/* 거래처의 부가세 설정을 화면에 반영 — 담긴 줄 전부 재계산 + 거래처 칸 옆 표시 */
+function saVenVat(o){
+  _venVat = (o && o.vatGb) || '별도';
+  var b = document.getElementById('saVatTag');
+  if (b) {
+    b.textContent = '부가세 ' + _venVat;
+    b.style.display = '';
+    b.className = 'vat-tag' + (_venVat === '면세' ? ' free' : (_venVat === '포함' ? ' inc' : ''));
+  }
+  /* 담긴 줄을 다시 계산하고 화면·합계까지 갱신 — 거래처를 바꾸면 부가세가 그 자리에서 달라져야 한다 */
+  _rows.forEach(saCalcRow); saRender();
 }
 function saDelRow(i){ _rows.splice(i,1); saTail(); saRender(); }
 /* ── 행 순서 (2026-07-31) ───────────────────────────────
@@ -670,6 +727,29 @@ function saDelRow(i){ _rows.splice(i,1); saTail(); saRender(); }
        (빈 줄은 항상 맨 아래에 있어야 '마지막 줄을 쓰면 새 줄 추가' 규칙이 깨지지 않는다) */
 /* 맨 아래 빈 줄은 항상 하나 있어야 한다 — '마지막 줄을 쓰면 새 줄이 붙는' 규칙(saSet)이
    거기에 걸려 있다. 줄을 끼우거나 옮기거나 지운 뒤 이걸 불러 모양을 되돌린다. */
+/* 마지막 줄에 상품이 들어오면 그 뒤에 빈 줄('선택')을 하나 남겨 둔다 (2026-08-03 요청).
+   ★_pShown 까지 같이 늘려야 한다 — 줄을 배열에 넣기만 하고 '보여 줄 줄 수'를 안 늘리면
+     줄은 생겼는데 화면에는 안 나온다(상품을 골라 담을 때 실제로 그랬다). */
+function saEnsureTail(){
+  var last = _rows[_rows.length-1];
+  if (!last || last.prodCd) { _rows.push(emptyRow()); }
+  if (_pShown < _rows.length) _pShown = _rows.length;
+  saScrollTail();
+}
+/* 새로 생긴 빈 줄이 화면에 보이게 그리드를 끝까지 내린다 (2026-08-03 요청).
+   그리드는 높이가 고정(210px)이라 줄이 늘면 아래로 밀려 나가는데, 지금까지는
+   오른쪽 스크롤막대를 손으로 내려야 그 줄이 보였다.
+   ★다시 그린 뒤라야 높이가 반영되므로 setTimeout 으로 한 박자 늦춘다. */
+function saScrollTail(){
+  setTimeout(function(){
+    var w = document.getElementById('saGridWrap');
+    if (!w) return;
+    /* 사용자가 위쪽 줄을 보려고 일부러 올려 둔 경우까지 끌어내리지는 않는다 —
+       마지막 줄 근처(두 줄 높이 안)에 있을 때만 따라 내린다. */
+    var gap = w.scrollHeight - w.scrollTop - w.clientHeight;
+    if (gap <= 74) w.scrollTop = w.scrollHeight;
+  }, 0);
+}
 function saTail(){
   if (!_rows.length) { _rows.push(emptyRow()); return; }
   if (_rows[_rows.length-1].prodCd) _rows.push(emptyRow());
@@ -839,6 +919,9 @@ function saApply(d){
   document.getElementById('saNo').value = d.saleNo;
   var v = document.getElementById('saVenNm'); v.value = d.custNm||''; v.dataset.cd = d.custCd||'';
   var m = document.getElementById('saMgrNm'); m.value = d.mgrNm||''; m.dataset.cd = d.mgrCd||'';
+  /* 저장된 전표를 열 때도 그 거래처의 부가세 설정을 적용한다 —
+     안 하면 직전에 보던 거래처의 설정이 남아 금액이 달리 보인다. */
+  saVenVat(_vendors.filter(function(x){ return String(x.vendorCd)===String(d.custCd||''); })[0]);
   document.getElementById('saWhNm').value = d.whNm||'물류창고';
   document.getElementById('saDlvDt').value = d.dlvDt ? fmtDt(d.dlvDt) : '';
   document.getElementById('saRemark').value = d.remark||'';
@@ -869,6 +952,7 @@ function saCopyClose(){ document.getElementById('saCopyPop').classList.remove('o
 function saCopyRender(){
   var q = (document.getElementById('cpQ').value||'').toLowerCase();
   var l = _vendors.filter(function(o){
+    if(!saVenFit(o)) return false;
     if(!q) return true;
     return [o.vendorCd,o.vendorNm,o.alias,o.ceoNm,o.mgrNm].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; });
   }).slice(0,200);
@@ -876,7 +960,7 @@ function saCopyRender(){
     return '<tr class="pick" onclick="saCopyPick(\''+esc(o.vendorCd)+'\')"><td>'+esc(o.vendorCd)+'</td>'
          + '<td class="txt" style="text-align:left">'+esc(o.vendorNm)+'</td><td>'+esc(o.alias)+'</td>'
          + '<td>'+esc(o.ceoNm)+'</td><td>'+esc(o.mgrNm)+'</td></tr>';
-  }).join('') : '<tr><td colspan="5" class="sa-msg">검색 결과가 없습니다.</td></tr>';
+  }).join('') : '<tr><td colspan="7" class="sa-msg">검색 결과가 없습니다.</td></tr>';
 }
 function saCopyPick(cd){
   var src = _list[_cpSrc]; if(!src) { saCopyClose(); return; }
@@ -901,16 +985,61 @@ function saCopyPick(cd){
 }
 
 /* ── 거래처 / 상품 / 단가이력 팝업 ───────────────────── */
-function saVenOpen(){ document.getElementById('saVenPop').classList.add('on'); document.getElementById('saVenQ').value=''; saVenRender(); }
+/* ── 거래처 거래유형 필터 (2026-08-03 요청) ─────────────────────────
+     이 화면은 '매출' 화면이라 매출 거래처만 보여 주는 게 맞다(거래처가 400여 종이라
+     반대편 거래처가 섞이면 고르기 어렵다). 다만 —
+     · '매입&매출' 은 양쪽 다 보인다.
+     · **거래유형이 안 적힌 예전 거래처는 그대로 보여 준다** — 안 그러면 분류를 안 해 둔
+       거래처가 화면에서 통째로 사라져 "거래처가 없어졌다" 가 된다.
+     · [전체] 로 끄면 모두 보인다(오분류를 찾을 때 필요). */
+  var _venAll = false;
+  function saVenFit(o){
+    if (_venAll) return true;
+    var g = String((o && o.vendorGb) || '');
+    return !g || g.indexOf('매출') >= 0;
+  }
+  function saVenAll(on){
+    _venAll = !!on;
+    var b = document.getElementById('saVenAllBtn');
+    if (b) { b.textContent = _venAll ? '전체 ✔' : '전체'; b.classList.toggle('teal', _venAll); }
+    saVenRender();
+  }
+  /* 없는 거래처를 이 자리에서 등록 — 저장되면 목록에 넣고 곧바로 고른 상태로 만든다 */
+  function saVenNew(){
+    var box = document.getElementById('saVenNm');
+    var typed = (box && box.value || '').trim();
+    /* 팝업 검색칸에 친 글자가 있으면 그걸 우선 쓴다(대개 거기서 못 찾아 누른다) */
+    var q = document.getElementById('saVenQ');
+    if (q && document.getElementById('saVenPop').classList.contains('on') && (q.value||'').trim()) typed = q.value.trim();
+    _vendorQuickOpen({
+      gb: '매출', ctx: CTX, name: typed,
+      list: function(){ return _vendors; },
+      onDone: function(o){
+        _vendors.push(o);
+        saVenClose();
+        if (box) { box.value = o.vendorNm; box.dataset.cd = o.vendorCd; }
+        saVenPick(o.vendorCd);
+        swOk('거래처를 등록했습니다 — '+o.vendorNm+' ('+o.vendorCd+')');
+      }
+    });
+  }
+  function saVenOpen(){ document.getElementById('saVenPop').classList.add('on'); document.getElementById('saVenQ').value=''; saVenRender(); }
 function saVenClose(){ document.getElementById('saVenPop').classList.remove('on'); }
 function saVenRender(){
   var q = (document.getElementById('saVenQ').value||'').toLowerCase();
   var l = _vendors.filter(function(o){
+    if(!saVenFit(o)) return false;
     if(!q) return true;
     return [o.vendorCd,o.vendorNm,o.alias,o.ceoNm,o.mgrNm].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; });
   }).slice(0,200);
   document.getElementById('saVenBody').innerHTML = l.length ? l.map(function(o){
+    var gb = String(o.vendorGb||''), vt = String(o.vatGb||'') || '별도';
     return '<tr class="pick" onclick="saVenPick(\''+esc(o.vendorCd)+'\')"><td>'+esc(o.vendorCd)+'</td><td class="txt" style="text-align:left">'+esc(o.vendorNm)+'</td>'
+         /* 거래유형·부가세도 같이 보여 준다 (2026-08-03 요청) — 고르기 전에 성격을 알 수 있게.
+            부가세가 비어 있는 예전 거래처는 '별도*' 로 — 계산도 별도로 하고 있음을 별표로 알린다. */
+         + '<td>'+(gb ? '<span class="vp-gb'+(gb.indexOf('&')>=0?' both':'')+'">'+esc(gb)+'</span>'
+                      : '<span class="vp-gb none">미지정</span>')+'</td>'
+         + '<td><span class="vat-tag'+(vt==='면세'?' free':(vt==='포함'?' inc':''))+'">'+esc(vt)+(o.vatGb?'':'*')+'</span></td>'
          + '<td>'+esc(o.alias)+'</td><td>'+esc(o.ceoNm)+'</td><td>'+esc(o.mgrNm)+'</td></tr>';
   }).join('') : '<tr><td colspan="5" class="sa-msg">검색 결과가 없습니다.</td></tr>';
 }
@@ -918,6 +1047,7 @@ function saVenPick(cd){
   var o = _vendors.filter(function(x){ return String(x.vendorCd)===String(cd); })[0]; if(!o) return;
   var v = document.getElementById('saVenNm'); v.value = o.vendorNm||''; v.dataset.cd = o.vendorCd||'';
   var m = document.getElementById('saMgrNm'); m.value = o.mgrNm||''; m.dataset.cd = o.mgrCd||'';
+  saVenVat(o);
   saVenClose(); saVenBal(o.vendorCd); saXrefLoad(o.vendorCd);
 }
 
@@ -1164,7 +1294,7 @@ function saProdPick(cd){
     .then(function(r){return r.json();}).then(function(j){ if(j&&j.data) o.unitPrice=n(j.data); })
     .catch(function(){}).then(function(){
       saCalcRow(o);
-      if (_prodTargetRow === _rows.length-1) _rows.push(emptyRow());
+      if (_prodTargetRow === _rows.length-1) saEnsureTail();
       saRender();
     });
 }
