@@ -47,6 +47,21 @@
   .logi-wrap .lc-code, .logi-wrap h2, .logi-wrap h3, .logi-wrap .k-val,
   .logi-wrap a.mi.on, .logi-wrap .side-tit { font-weight:900; }
 
+  /* ★셸을 <화면 높이에 고정>한다 (2026-08-05 요청) — 스크롤은 <좌측 메뉴 안>과 <본문 안>에서만 일어난다.
+       종전 : 문서(body)가 통째로 스크롤됐다. .logi-main 은 overflow:auto 라 sticky 의 기준 상자가
+              되지만, 높이가 내용을 따라 늘어나 <자기 안에서는 스크롤이 없었다> → 상단
+              <자주 쓰는 메뉴> 줄의 sticky 가 걸리지 않고 목록이 긴 화면에서 위로 밀려 사라졌다.
+              (iframe 화면은 안쪽에서만 스크롤돼 안 밀리니 '화면마다 다르게' 보였다)
+              좌측 메뉴도 같이 밀려 올라가 로그아웃까지 내리려면 본문이 함께 움직였다.
+       이제 : .logi-wrap 을 100vh 로 잘라 문서는 아예 스크롤되지 않는다.
+              좌측 메뉴는 자기 안에서(overflow-y:auto), 본문은 .logi-main 안에서 스크롤한다.
+       ※ body 기본 여백 8px 을 없앤다 — 남겨 두면 그만큼 문서가 또 스크롤돼 위 두 개가 다시 밀린다.
+       ※ box-sizing 이 없으면 .logi-side 의 아래 여백 30px 이 100vh 밖으로 나가 [로그아웃]이 잘린다.
+       ※ logiGo 의 `.logi-main.scrollTop=0`(화면 바꾸면 맨 위로)도 이제야 실제로 동작한다. */
+  html, body { margin:0; padding:0; }
+  .logi-wrap { height:100vh; overflow:hidden; }
+  .logi-side, .logi-main { box-sizing:border-box; }
+
   /* 좌측 사이드바 */
   .logi-side { width:236px; flex:0 0 236px; background:#1f2a37; color:#cdd6e0; padding:0 0 30px;
                height:100vh; position:sticky; top:0; overflow-y:auto; overflow-x:hidden; }
@@ -104,6 +119,35 @@
   #favBar #favHint b { color:#d8a92a; }
   #favBar #favClearBtn { margin-left:auto; font-size:12px; color:#9aa7b3; cursor:pointer; white-space:nowrap; }
   #favBar #favClearBtn:hover { color:#c0392b; }
+
+  /* ★그 줄을 화면 맨 위에 <딱> 붙인다 (2026-08-05 요청) —
+       sticky 는 스크롤 상자의 <안쪽 위 여백(padding-top)> 아래에서 멈춘다. 본문 위 여백이 남아 있으면
+       그 틈(12~22px)으로 스크롤되는 내용이 줄 위를 비쳐 지나간다. 그래서 본문의 <위> 여백을 0 으로 두고
+       그 자리를 favBar 가 직접 갖는다 — 종전 '패딩 22 + 마진 -22' 상쇄와 화면 결과는 같다.
+       ※ 태블릿(≤1100px)은 제외 : 거기 위 여백 46px 은 ☰ 버튼 자리다.
+       ※ konet-notebook.css 가 뒤에 로드되며 padding 을 다시 넣으므로 특이성을 한 단계 올렸다(body …). */
+  @media screen and (min-width:1101px){
+    body .logi-wrap .logi-main { padding-top:0; }
+    body #favBar { margin-top:0; }
+  }
+
+  /* ── 좌측 메뉴 접기 · 펼치기 (2026-08-05 요청) ─────────────────────
+       왜 : 위 <자주 쓰는 메뉴> 줄로 자주 보는 화면은 메뉴 없이도 갈 수 있게 되어,
+            236px 짜리 좌측 메뉴를 접고 본문을 넓게 쓸 수 있다(표가 한 화면에 더 들어온다).
+       버튼 : <자주 쓰는 메뉴> 줄 맨 앞 <하나>뿐이다 — 접으나 펴나 같은 자리라 잃어버리지 않는다.
+       ★태블릿(폭 ≤1100px)에는 걸지 않는다 — 거기서는 이미 메뉴가 화면 밖에 서 있고
+         ☰(konet-notebook.css / konetSideToggle)로 꺼내 쓴다. 두 벌이 겹치면 메뉴가 아예 안 나온다. */
+  #favBar #sideFoldBtn { display:inline-flex; align-items:center; gap:5px; margin-right:4px; padding:5px 10px;
+                         border:1px solid #cfd8dd; border-radius:8px; background:#f3f6f8; color:#3d4b59;
+                         font-family:inherit; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap; }
+  #favBar #sideFoldBtn:hover { background:#e7eef2; border-color:#9fb0bd; color:#1f2a37; }
+  #favBar #sideFoldBtn .fi { font-size:13px; }
+  @media screen and (min-width:1101px){
+    /* 폭만 줄인다 — 메뉴는 DOM 에 그대로 있어야 한다(자주 쓰는 메뉴 칩이 원래 메뉴의 onclick 을 부른다) */
+    .logi-wrap .logi-side { transition:width .16s ease-out, flex-basis .16s ease-out; }
+    body.logi-side-fold .logi-wrap .logi-side { width:0; flex-basis:0; padding:0; overflow:hidden; }
+  }
+  @media screen and (max-width:1100px){ #favBar #sideFoldBtn { display:none; } }
 
 
   /* 우측 콘텐츠
@@ -1913,6 +1957,10 @@
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">
 </head>
 <body>
+<%-- 좌측 메뉴 접힘 상태를 <그리기 전에> 입힌다 (2026-08-05) —
+     DOMContentLoaded 까지 기다리면 메뉴가 폈다가 접히는 게 한 번 보인다(깜빡임).
+     실제 접기/펼치기 동작은 logi-oh.js 의 logiSideFold* 가 맡는다. --%>
+<script>try{ if(localStorage.getItem('konetLogiSideFold')==='1') document.body.classList.add('logi-side-fold'); }catch(e){}</script>
 <%-- 태블릿(폭 ≤1100px) 메뉴 열기 버튼 + 뒷막 — 2026-08-02.
      데스크탑·노트북에서는 konet-notebook.css 가 display:none 으로 숨겨 없는 것과 같다.
      ★버튼을 .logi-wrap 안(사이드바 앞)에 두는 이유 = position:fixed 라 위치는 무관하지만,
@@ -2125,6 +2173,10 @@
                        ☆(사이드바)로 고정하면 사용량과 무관하게 맨 앞에 남고, 칩의 ✕ 로 내린다.
          · 실행      : 원래 메뉴의 onclick 을 그대로 부른다 — 화면 여는 방법이 두 벌이 되지 않게. --%>
     <div id="favBar">
+      <%-- 좌측 메뉴 접기·펼치기 (2026-08-05 요청) — 글자·아이콘은 logiSideFoldSet 이 상태에 맞춰 바꾼다.
+           이 줄에 두는 이유 : 어느 화면에서도 늘 같은 자리(맨 위·맨 앞)에 있어 접어 둔 뒤에도 찾기 쉽다. --%>
+      <button id="sideFoldBtn" type="button" onclick="logiSideFoldToggle()"
+              title="좌측 메뉴를 접어 본문을 넓게 씁니다"><span class="fi">◀</span>메뉴 접기</button>
       <span class="ft">⭐ 자주 쓰는 메뉴 <span id="favCnt"></span></span>
       <div id="favList"></div>
       <span id="favHint">메뉴를 쓰시면 여기에 <b>자주 쓰는 순서</b>로 쌓입니다 (최대 7개 · ☆ 로 고정)</span>

@@ -5800,3 +5800,40 @@ var KONET_CTX = window.KONET_CTX || '';
       var dtb0=document.getElementById('sgDcTbl'); if(dtb0) dtb0.innerHTML='';
     }
   }
+
+/* ══ 좌측 메뉴 접기 · 펼치기 — 2026-08-05 요청 ═══════════════════════════════
+     왜 : 상단에 <자주 쓰는 메뉴> 줄이 생겨 자주 보는 화면은 좌측 메뉴 없이도 갈 수 있다.
+          그래서 236px(노트북 208px) 짜리 메뉴를 접어 본문을 넓게 쓴다.
+     버튼 : <자주 쓰는 메뉴> 줄 맨 앞 #sideFoldBtn <하나>가 접기·펼치기를 겸한다.
+            접으나 펴나 자리가 같아야 "메뉴가 사라졌다"가 안 된다.
+     보관 : localStorage(브라우저별) — 다음에 들어와도 접어 둔 대로 열린다.
+            첫 그림에서 폈다 접히는 깜빡임이 없게, 몸통 클래스는 JSP 의 <body> 첫 줄에서 미리 입힌다.
+     ★메뉴는 <폭만> 0 이 된다. DOM 에서 빼면 안 된다 —
+       상단 칩(favRun)이 원래 메뉴의 onclick 을 그대로 부르는 구조라 메뉴가 없으면 화면이 안 열린다.
+     ★태블릿(폭 ≤1100px)에서는 버튼을 숨긴다(CSS) — 거기서는 이미 메뉴가 화면 밖에 서 있고
+       ☰(konetSideToggle)로 꺼내 쓴다. 두 방식이 겹치면 메뉴가 아예 안 나온다. */
+var LOGI_FOLD_KEY='konetLogiSideFold';
+function logiSideFoldSet(on, save){
+  document.body.classList.toggle('logi-side-fold', !!on);
+  var b=document.getElementById('sideFoldBtn');
+  if(b){
+    b.innerHTML = on ? '<span class="fi">☰</span>메뉴 펼치기' : '<span class="fi">◀</span>메뉴 접기';
+    b.title = on ? '좌측 메뉴를 다시 펼칩니다' : '좌측 메뉴를 접어 본문을 넓게 씁니다';
+  }
+  if(save!==false){ try{ localStorage.setItem(LOGI_FOLD_KEY, on?'1':'0'); }catch(e){} }
+  /* 본문 폭이 바뀐 것을 iframe 안 화면에도 알린다 — 그래프(canvas)는 스스로 다시 그려야 넓어진 폭을 쓴다.
+     CSS 전환(.16s)이 끝난 뒤에 보내야 <바뀐 폭>이 읽힌다. */
+  setTimeout(function(){
+    try{ window.dispatchEvent(new Event('resize')); }catch(e){}
+    document.querySelectorAll('.logi-main iframe').forEach(function(f){
+      try{ f.contentWindow.dispatchEvent(new Event('resize')); }catch(e){}
+    });
+  }, 200);
+}
+function logiSideFoldToggle(){ logiSideFoldSet(!document.body.classList.contains('logi-side-fold')); }
+function logiSideFoldInit(){
+  var on=false; try{ on = localStorage.getItem(LOGI_FOLD_KEY)==='1'; }catch(e){}
+  logiSideFoldSet(on, false);        // 저장은 하지 않는다 — 읽어서 그대로 입히는 것뿐
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', logiSideFoldInit);
+else logiSideFoldInit();
