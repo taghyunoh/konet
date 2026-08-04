@@ -22,10 +22,11 @@
      페이지 안 행이 화면보다 많으면 목록 칸 안에서만 스크롤된다(머리글은 sticky 로 붙어 있음).
      종전에는 페이지 전체가 흐르는 구조라 목록 아래가 통째로 비어 보였다. */
   html,body{ height:100%; overflow:hidden; }
-  .wrap{ padding:14px 11px 10px; height:100%; display:flex; flex-direction:column; min-height:0; }
+  /* 위 여백을 줄여 목록을 조금 올렸다(2026-08-04 요청) — 설명줄을 뺀 만큼 표가 더 보인다 */
+  .wrap{ padding:8px 11px 10px; height:100%; display:flex; flex-direction:column; min-height:0; }
   .wrap > h2, .wrap > .sub, .wrap > .bar, .wrap > .tabs, .wrap > .pager{ flex:0 0 auto; }
-  h2{ margin:0 0 4px; font-size:20px; }
-  .sub{ color:#6b7a89; margin-bottom:14px; }
+  h2{ margin:0 0 2px; font-size:20px; }
+  .sub{ color:#9aa7b3; font-size:12px; margin-bottom:8px; }
   .bar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
   .bar input.search{ height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 10px; font-size:13px; width:280px; }
   .btn{ height:34px; border:1px solid var(--bd); background:#fff; border-radius:7px; padding:0 14px; cursor:pointer; font-size:13px; font-weight:700; color:#37475a; }
@@ -70,9 +71,33 @@
   #ov .mb{ padding:16px 18px; overflow:auto; display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; }
   #ov .fld{ display:flex; flex-direction:column; gap:4px; }
   #ov .fld.full{ grid-column:1 / -1; }
-  #ov label{ font-size:13px; font-weight:500; color:#333; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:flex-start; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
+  <%-- 라벨 = 진하게·가운데 정렬 (2026-08-04 요청) --%>
+  #ov label{ font-size:13px; font-weight:700; color:#1f2a37; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:center; text-align:center; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
   #ov input, #ov select{ height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:14px; font-family:inherit; }
+  /* 규격·제조사명은 한 단계 크게 (2026-08-04 요청) — 값을 눈으로 대조하며 고르는 칸이라 */
+  #ov #f_spec, #ov #f_maker{ font-size:15px; height:36px; }
   #ov .mf{ padding:12px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
+  /* 취소·저장은 가로를 넉넉히 (2026-08-04 요청) — 창을 닫는 마지막 손동작이라 누르기 쉬워야 한다 */
+  #ov .mf .btn{ min-width:104px; padding:0 22px; }
+  /* ───── 규격·제조사명 입력검색 (2026-08-04 요청) ─────
+     이미 쓰고 있는 값 중에서 골라 넣는다 — 같은 규격이 표기만 달라 갈라지는 것을 막으려는 것.
+     ★목록에 없는 값도 그냥 칠 수 있다(규격은 이제부터 채워 나가는 칸이라 고르기를 강요하면 못 쓴다).
+     ★자리는 fixed 로 잡는다 — 모달 본문(.mb)이 overflow:auto 라 안쪽에 절대배치하면 목록이 잘린다. */
+  .pfac{ position:fixed; z-index:70; background:#fff; border:1px solid var(--bd); border-radius:8px;
+         box-shadow:0 8px 26px rgba(0,0,0,.20); font-size:13.5px; display:none; flex-direction:column; max-height:320px; }
+  .pfac.on{ display:flex; }
+  /* 안내줄은 반드시 한 줄 (2026-08-04 지적) — 두 줄로 접히면 그만큼 목록이 밀려 첫 후보가 안 보인다 */
+  .pfac .h{ flex:0 0 auto; padding:5px 10px; background:#f7f9fa; color:#6b7a89; font-size:11.5px; border-bottom:1px solid #f0f3f5;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pfac .b{ flex:1 1 auto; min-height:0; overflow:auto; }
+  .pfac .i{ padding:6px 10px; border-bottom:1px solid #f0f3f5; cursor:pointer; display:flex; gap:8px; align-items:center; }
+  .pfac .i:last-child{ border-bottom:none; }
+  .pfac .i:hover, .pfac .i.on{ background:#eef4ff; }
+  .pfac .i .v{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#1f2a37; font-weight:700; }
+  /* 건수 = 이 값을 쓰는 상품 수. 값 이름이 길어도 이 칸은 줄지 않는다(밀려서 잘리던 것 수정) */
+  .pfac .i .c{ flex:0 0 auto; margin-left:auto; white-space:nowrap; color:#5a6b7a; background:#eef2f5;
+               border-radius:9px; padding:1px 7px; font-size:11px; font-weight:700; }
+  .pfac .nohit{ padding:9px 10px; color:#9aa7b3; cursor:default; }
   /* ───────── 거래처 매칭코드 — 하단 도킹 패널 (상품(품목)관리의 이력/재고 패널과 같은 방식) ─────────
      높이는 한 곳(--mc-h)에서만 정한다. .wrap 높이와 어긋나면 목록 끝이 패널에 가린다. */
   :root{ --mc-h:34vh; }
@@ -90,8 +115,10 @@
   #mc .mb2{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
   #mc .tbwrap{ flex:1 1 auto; min-height:60px; overflow:auto; }
   #mc table{ width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap; }
-  #mc thead th{ background:#eef3f2; color:#1f2a37; border:1px solid var(--bd); padding:7px 10px; text-align:left;
-                position:sticky; top:0; z-index:3; font-size:12.5px; }
+  /* 머리글 — 조금 크게·구분색 (2026-08-04 요청). 위 목록의 검은 머리글과 색을 달리해
+     '여기부터는 거래처 매칭코드 표'라는 것이 한눈에 갈리게 한다(패널 제목줄의 teal 과 같은 계열). */
+  #mc thead th{ background:#cfe6e1; color:#0f5c52; border:1px solid #b6d6cf; border-bottom:2px solid var(--teal);
+                padding:9px 10px; text-align:left; position:sticky; top:0; z-index:3; font-size:13.5px; font-weight:700; }
   #mc thead th.r{ text-align:right; }
   #mc tbody td{ border:1px solid var(--bd); padding:6px 10px; color:#10161d; }
   #mc tbody td.num{ text-align:right; }
@@ -101,15 +128,16 @@
   #mc .addbar{ flex:0 0 auto; border-top:1px solid var(--bd); background:#fafbfc; padding:9px 12px;
                display:flex; gap:6px; flex-wrap:wrap; align-items:flex-end; }
   #mc .addbar .f{ display:flex; flex-direction:column; gap:3px; }
-  #mc .addbar label{ font-size:11px; font-weight:700; color:#6b7a89; }
-  #mc .addbar input, #mc .addbar select{ height:32px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13px; }
+  /* 글자 한 단계 크게 + 칸이름 진하게 (2026-08-04 요청) — 매일 받아 적는 자리라 흐리면 눈이 피로하다 */
+  #mc .addbar label{ font-size:12.5px; font-weight:700; color:#1f2a37; }
+  #mc .addbar input, #mc .addbar select{ height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:14px; }
   /* 품목명 입력칸 — 화면 폭을 다 먹지 않게 580px 로 (2026-08-02 요청, 380→490→580 재조정). 좁아지면 줄어들기만 한다 */
   #mc .addbar .grow{ flex:0 1 580px; }
   #mc .addbar .grow input{ width:100%; }
   /* 표 맨 끝 빈 칸 — 남는 폭을 여기서 먹어 품목명 칸이 늘어나지 않게 한다 */
   #mc thead th.sp{ border-left:none; }
   #mc tbody td.sp{ border-left:none; }
-  #mc .addbar .btn{ height:32px; }
+  #mc .addbar .btn{ height:34px; font-size:13.5px; }   /* 입력칸이 커진 만큼 [＋ 등록]도 같이 (2026-08-04) */
   /* ───── 품목코드 칸의 주상품코드 검색 (2026-08-02 요청) ─────
      거래처가 부르는 코드를 받아 적을 때 "이게 어느 주상품에 붙는 코드인지"를 이 자리에서 찾는다.
      ★위로 펼친다(bottom:100%) — 등록 줄이 화면 맨 아래라 아래로 열면 잘린다. */
@@ -146,8 +174,9 @@
 <body>
 <div class="wrap">
   <h2>🏷️ 상품코드 등록 <span style="font-size:13px;color:#9aa7b3;font-weight:400">(상품마스터 · TBL_PROD_MST)</span></h2>
-  <div class="sub">상품코드 조회 · 추가 · 수정 · 삭제 · 엑셀 — 상품(품목)관리와 같은 마스터입니다.
-    매입가·판매가 이력과 재고(수불)는 <b>상품(품목)관리</b> 화면에서 봅니다.</div>
+  <%-- 설명줄은 뺐다(2026-08-04 요청) — 늘 같은 말이라 자리만 먹었다. 키 안내만 남긴다 --%>
+  <div class="sub">⌨ <b>↑↓</b> 줄 이동 · <b>Enter</b> 수정 · <b>Alt+N</b> 추가
+    &nbsp;|&nbsp; 창에서 <b>Enter</b> 다음 칸 · <b>Ctrl+S</b> 저장 · <b>Esc</b> 닫기</div>
 
   <div class="bar">
     <input type="text" class="search" id="q" placeholder="코드·상품명·규격·제조사·유형·바코드 검색" onkeyup="pcFilter()">
@@ -195,7 +224,8 @@
 <div id="mc">
   <div class="box">
     <div class="mh">
-      <b>🔖 거래처 매칭코드</b>
+      <%-- 제목에서 '거래처' 는 뺐다(2026-08-04 요청) — 바로 아래 첫 칸이 '거래처'라 같은 말이 겹쳤다 --%>
+      <b>🔖 매칭코드</b>
       <span class="pick" id="mcPick">위 목록에서 상품을 고르세요.</span>
       <%-- 전체 보기 — 고른 상품 것만이 아니라 등록된 매칭코드 전부를 상품코드·상품명과 함께 본다 --%>
       <button class="btn" id="mcAllBtn" style="height:26px;padding:0 10px;font-size:12px" onclick="mcAllToggle()"
@@ -241,8 +271,9 @@
       <div class="fld"><label>상품코드 *</label><input id="f_cd" placeholder="예: 1000455367"></div>
       <div class="fld"><label>과세</label><select id="f_tax"><option value="과세">과세</option><option value="면세">면세</option></select></div>
       <div class="fld full"><label>상품명 *</label><input id="f_nm" placeholder="상품명"></div>
-      <div class="fld full"><label>규격</label><input id="f_spec" placeholder="규격"></div>
-      <div class="fld"><label>제조사명</label><input id="f_maker"></div>
+      <%-- 규격·제조사명은 쓰던 값을 찾아 넣는다(2026-08-04) — 목록에 없으면 그냥 쳐도 된다 --%>
+      <div class="fld full"><label>규격</label><input id="f_spec" placeholder="규격 — 쓰던 값 검색 (없으면 그냥 입력)" autocomplete="off"></div>
+      <div class="fld"><label>제조사명</label><input id="f_maker" placeholder="쓰던 값 검색 (없으면 그냥 입력)" autocomplete="off"></div>
       <div class="fld"><label>유형명</label><input id="f_type"></div>
       <div class="fld"><label>입수수량</label><input id="f_pack" type="number" value="1"></div>
       <div class="fld"><label>조회순서</label><input id="f_sort" type="number" value="999999"></div>
@@ -281,7 +312,9 @@ function pcLoad(){
   fetch(CTX+'/prod/prodList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
     .then(function(r){ return r.text(); })
     .then(function(txt){ var j; try{ j=JSON.parse(txt); }catch(e){ toast('목록 응답 오류','err'); return; }
-      LIST=(j&&j.data)||[]; _byseq={}; LIST.forEach(function(o){ _byseq[o.prodSeq]=o; }); pcFilter();
+      LIST=(j&&j.data)||[]; _byseq={}; LIST.forEach(function(o){ _byseq[o.prodSeq]=o; });
+      pcUniqBuild();                     // 규격·제조사명 입력검색이 볼 값 목록(2026-08-04)
+      pcFilter();
     })
     .catch(function(e){ toast('통신오류: '+e.message,'err'); });
 }
@@ -383,8 +416,12 @@ function pcOpen(seq){
   _set('f_base', o?(o.saleBaseQty!=null?o.saleBaseQty:0):0);
   _set('f_ubc', o?o.unitBarcode:''); _set('f_bbc', o?o.boxBarcode:'');
   document.getElementById('ov').classList.add('on');
+  pcAcClose();                        // 이전에 열려 있던 규격·제조사 후보창은 닫고 시작한다
+  // 창을 열면 곧바로 칠 수 있게(2026-08-04) — 추가는 상품코드부터, 수정은 코드가 잠겨 있으니 상품명부터
+  var first=document.getElementById(o?'f_nm':'f_cd');
+  setTimeout(function(){ if(first){ first.focus(); if(first.select) first.select(); } }, 0);
 }
-function pcClose(){ document.getElementById('ov').classList.remove('on'); }
+function pcClose(){ document.getElementById('ov').classList.remove('on'); pcAcClose(); }
 function pcSave(){
   var seq=gv('f_seq'), cd=gv('f_cd'), nm=gv('f_nm');
   if(!cd){ toast('상품코드를 입력하세요.','warn'); return; }
@@ -742,7 +779,195 @@ function mcToggle(){
   document.getElementById('mcToggleBtn').innerHTML = min ? '&#9652;' : '&#9662;';
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   규격 · 제조사명 입력검색 (2026-08-04 요청) — 상품코드 추가/수정 창 전용
+   ─────────────────────────────────────────────────────────────────────────
+   왜 : 같은 물건인데 규격을 사람마다 다르게 적으면(`150*200*H35MM` / `150X200X35`)
+        한 규격이 여러 개로 갈라져 나중에 묶어 보지 못한다. 그래서 **이미 쓰고 있는 값**을
+        먼저 보여 주고 그중에서 고르게 한다. 제조사명은 이미 값이 쌓여 있어 바로 쓸 수 있고,
+        규격은 대부분 비어 있어 **여기서부터 채워 나가는 칸**이다.
+   ★고르기를 강요하지 않는다 — 목록에 없으면 그냥 치면 그대로 저장된다(새 규격이 그렇게 는다).
+   ★원천은 이미 화면에 들어와 있는 LIST(상품마스터 전 건) — 서버를 따로 부르지 않는다.
+   ★거래처 매칭코드 줄(mcAc*)과는 별개다 — 그쪽은 손대지 않았다(2026-08-04 "거래처는 제외").
+   ══════════════════════════════════════════════════════════════════════════ */
+var _uniq={ spec:[], maker:[] };
+function pcUniqBuild(){
+  var m={ spec:{}, maker:{} };
+  LIST.forEach(function(o){
+    var s=(''+(o.spec||'')).trim();    if(s) m.spec[s]  = (m.spec[s]||0)+1;
+    var k=(''+(o.makerNm||'')).trim(); if(k) m.maker[k] = (m.maker[k]||0)+1;
+  });
+  ['spec','maker'].forEach(function(t){
+    // 많이 쓰는 값이 위 — 자주 쓰는 것이 손에 가깝게. 건수가 같으면 이름순
+    _uniq[t]=Object.keys(m[t]).map(function(v){ return {v:v, n:m[t][v]}; })
+      .sort(function(a,b){ return b.n-a.n || (a.v<b.v?-1:(a.v>b.v?1:0)); });
+  });
+}
+var _faEl=null, _faFor=null, _faKind='', _faIdx=-1, _faRows=[];
+function pcAcBox(){
+  if(_faEl) return _faEl;
+  _faEl=document.createElement('div'); _faEl.className='pfac';
+  // ★mousedown 을 막아야 한다 — 안 막으면 입력칸 blur 가 먼저 나 목록이 닫히고 클릭이 허공을 친다
+  _faEl.addEventListener('mousedown', function(e){ e.preventDefault(); });
+  document.body.appendChild(_faEl);
+  return _faEl;
+}
+function pcAcClose(){ if(_faEl) _faEl.classList.remove('on'); _faFor=null; _faIdx=-1; _faRows=[]; }
+function pcAcPos(inp){
+  var box=pcAcBox(), r=inp.getBoundingClientRect(), below=window.innerHeight-r.bottom;
+  box.style.left=r.left+'px';
+  // 입력칸보다 좁아지지 않게 + 최소 340px — 값 이름과 건수가 한 줄에 같이 들어가야 한다
+  box.style.width=Math.max(r.width, 340)+'px';
+  // 아래가 좁으면 위로 편다(창을 아래로 내려 열었을 때)
+  if(below<190 && r.top>below){ box.style.top='auto'; box.style.bottom=(window.innerHeight-r.top+4)+'px'; }
+  else                        { box.style.bottom='auto'; box.style.top=(r.bottom+4)+'px'; }
+}
+function pcAcDraw(inp, kind){
+  var q=(inp.value||'').trim().toLowerCase(), ws=q?q.split(/\s+/):[];
+  // 띄어쓰기로 나눠 AND — 규격은 낱말 순서가 제각각이라 통짜 비교로는 잘 안 걸린다
+  _faRows=_uniq[kind].filter(function(o){
+    if(!ws.length) return true;
+    var lv=o.v.toLowerCase();
+    return ws.every(function(w){ return lv.indexOf(w)>=0; });
+  }).slice(0,60);
+  _faFor=inp; _faKind=kind; _faIdx=-1;
+  var lab=(kind==='spec'?'규격':'제조사명'), box=pcAcBox();
+  // ★한 줄에 담기게 짧게 — 길게 쓰면 접혀서 목록 첫 줄을 밀어낸다(2026-08-04 지적)
+  var h='<div class="h">'+lab+' '+_uniq[kind].length.toLocaleString()+'종'
+      + (q ? (' · 검색 '+_faRows.length+'건') : '')
+      + ' · 없으면 그냥 입력</div><div class="b">';
+  if(!_faRows.length) h+='<div class="nohit">맞는 값이 없습니다 — 새 '+lab+'으로 저장됩니다</div>';
+  else _faRows.forEach(function(o,i){
+    h+='<div class="i" data-i="'+i+'" onclick="pcAcPick('+i+')">'
+      +'<span class="v">'+esc(o.v)+'</span><span class="c">'+o.n+'건</span></div>';
+  });
+  box.innerHTML=h+'</div>';
+  box.classList.add('on'); pcAcPos(inp);
+}
+function pcAcMove(d){
+  if(!_faRows.length) return;
+  _faIdx += d;
+  if(_faIdx<0) _faIdx=_faRows.length-1;
+  if(_faIdx>=_faRows.length) _faIdx=0;
+  var box=pcAcBox();
+  Array.prototype.forEach.call(box.querySelectorAll('.i'), function(el){
+    var on = (Number(el.getAttribute('data-i'))===_faIdx);
+    el.classList.toggle('on', on);
+    if(on && el.scrollIntoView) el.scrollIntoView({block:'nearest'});
+  });
+}
+function pcAcPick(i){
+  var o=_faRows[i]; if(!o || !_faFor) return;
+  var inp=_faFor; inp.value=o.v; pcAcClose(); inp.focus();
+}
+function pcAcAttach(id, kind){
+  var inp=document.getElementById(id); if(!inp) return;
+  inp.addEventListener('focus', function(){ pcAcDraw(inp, kind); });
+  inp.addEventListener('input', function(){ pcAcDraw(inp, kind); });
+  inp.addEventListener('blur',  function(){ setTimeout(pcAcClose, 120); });   // 클릭이 끝날 틈을 준다
+  inp.addEventListener('keydown', function(e){
+    var open=_faEl && _faEl.classList.contains('on');
+    if(e.key==='ArrowDown'){ e.preventDefault(); if(open) pcAcMove(1); else pcAcDraw(inp,kind); }
+    else if(e.key==='ArrowUp'){ if(open){ e.preventDefault(); pcAcMove(-1); } }
+    // Enter 는 고른 줄이 있을 때만 가로챈다 — 그냥 친 값으로 넘어가려는 것을 막으면 안 된다.
+    // ★stopPropagation 필수 — 안 하면 창의 'Enter=다음 칸' 이 이어서 돌아, 고른 값을 볼 새도 없이 넘어간다.
+    else if(e.key==='Enter'){ if(open && _faIdx>=0){ e.preventDefault(); e.stopPropagation(); pcAcPick(_faIdx); } }
+    // ★Esc 도 마찬가지 — 안 하면 후보창만 닫으려던 Esc 가 창까지 같이 닫는다
+    else if(e.key==='Escape'){ if(open){ e.preventDefault(); e.stopPropagation(); pcAcClose(); } }
+  });
+}
+pcAcAttach('f_spec','spec'); pcAcAttach('f_maker','maker');
+
+/* ══════════════════════════════════════════════════════════════════════════
+   키보드 편의 (2026-08-04 요청) — 손이 마우스로 안 가게
+   ★적용 범위는 「위쪽」뿐이다 : 목록 + 상품코드 추가/수정 창.
+     하단 [거래처 매칭코드] 패널은 제외(사용자 지정) — 그쪽은 이미 자체 키 처리(mcAcKey)가 있고,
+     아래 두 핸들러 모두 #mc 안에서 눌린 키는 손대지 않고 그대로 흘려보낸다.
+   ─────────────────────────────────────────────────────────────────────────
+   목록 : 진입 시 검색칸 포커스 · ↑↓ 행 이동(페이지 경계에서 자동으로 앞뒤 장 넘김) · Enter 수정 · Alt+N 추가
+   창   : Enter 다음 칸(마지막 칸에서는 저장) · Ctrl+S 저장 · Esc 닫기
+   ══════════════════════════════════════════════════════════════════════════ */
+function pcOvOpen(){ return document.getElementById('ov').classList.contains('on'); }
+function pcInMc(t){ var el=document.getElementById('mc'); return !!(el && t && el.contains(t)); }
+
+/* ── 창 안 이동 순서 = 화면에 보이는 순서(모달이 2단 격자라 DOM 순서와 같다) ── */
+var PC_FLOW=['f_cd','f_tax','f_nm','f_spec','f_maker','f_type','f_pack','f_sort',
+             'f_in','f_sale','f_whole','f_safe','f_base','f_ubc','f_bbc'];
+function pcNext(id){
+  var i=PC_FLOW.indexOf(id); if(i<0) return null;
+  for(var k=i+1;k<PC_FLOW.length;k++){
+    var el=document.getElementById(PC_FLOW[k]);
+    if(el && !el.readOnly && !el.disabled) return el;      // 수정 시 잠긴 상품코드 같은 칸은 건너뛴다
+  }
+  return null;                                             // 마지막 칸 = 저장
+}
+document.getElementById('ov').addEventListener('keydown', function(e){
+  if(e.key!=='Enter') return;
+  var t=e.target; if(!t || PC_FLOW.indexOf(t.id)<0) return;
+  // 규격·제조사 후보창에서 줄을 고르는 Enter 는 그쪽이 먼저 먹고 여기까지 오지 않는다(stopPropagation)
+  e.preventDefault(); pcAcClose();
+  var nx=pcNext(t.id);
+  if(nx){ nx.focus(); if(nx.select) nx.select(); }
+  else pcSave();                                           // 박스바코드에서 Enter = 저장
+});
+
+document.addEventListener('keydown', function(e){
+  if(pcInMc(e.target)) return;                             // ★하단 거래처 매칭코드 패널은 제외
+
+  if((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')){ // 저장 — 창이 떠 있을 때만
+    if(pcOvOpen()){ e.preventDefault(); pcSave(); }
+    return;
+  }
+  if(e.altKey && (e.key==='n'||e.key==='N')){ e.preventDefault(); pcOpen(null); return; }   // 새 상품코드
+  if(e.key==='Escape' && pcOvOpen()){ e.preventDefault(); pcClose(); return; }
+  if(pcOvOpen()) return;                                   // 창이 떠 있으면 아래 목록 조작은 안 한다
+
+  // 목록 조작 — 검색칸(#q)에서는 그대로 먹힌다(검색어 치고 ↓ 로 바로 결과로 내려가라고).
+  // 그 밖의 입력칸에 커서가 있으면 손대지 않는다.
+  var t=e.target, tag=(t&&t.tagName||'').toUpperCase();
+  if((tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA') && t.id!=='q') return;
+  if(e.key==='ArrowDown'){ e.preventDefault(); pcRowMove(1); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); pcRowMove(-1); }
+  else if(e.key==='Enter'){
+    if(_sel==null){ pcRowMove(1); return; }                // 아직 고른 줄이 없으면 첫 줄부터
+    e.preventDefault(); pcOpen(_sel);
+  }
+});
+/* ↑↓ 행 이동 — 이 장의 끝에 닿으면 앞뒤 장으로 넘어가 첫/끝 줄을 잡는다.
+   (mcPickProd 는 이미 받아 둔 자료만 보므로 빠르게 눌러도 서버를 부르지 않는다) */
+function pcRowMove(d){
+  var tb=document.getElementById('tb');
+  var rows=Array.prototype.slice.call(tb.querySelectorAll('tr[data-seq]'));
+  if(!rows.length) return;
+  var i=-1;
+  if(_sel!=null) for(var k=0;k<rows.length;k++){ if(rows[k].getAttribute('data-seq')===String(_sel)){ i=k; break; } }
+  var n=(i<0) ? (d>0?0:rows.length-1) : i+d;
+  if(n<0 || n>=rows.length){
+    var pages=Math.max(1,Math.ceil(_view.length/PAGE));
+    if(!_all && n<0 && _page>1){ _go(_page-1); pcRowEdge(false); return; }
+    if(!_all && n>=rows.length && _page<pages){ _go(_page+1); pcRowEdge(true); return; }
+    n=(n<0)?0:rows.length-1;                               // 첫 장 맨 위·끝 장 맨 아래에서는 제자리
+  }
+  pcSel(rows[n], Number(rows[n].getAttribute('data-seq')));
+  if(rows[n].scrollIntoView) rows[n].scrollIntoView({block:'nearest'});
+}
+function pcRowEdge(first){
+  var rows=document.getElementById('tb').querySelectorAll('tr[data-seq]');
+  if(!rows.length) return;
+  var tr=first?rows[0]:rows[rows.length-1];
+  pcSel(tr, Number(tr.getAttribute('data-seq')));
+  if(tr.scrollIntoView) tr.scrollIntoView({block:'nearest'});
+}
+/* 창 본문을 스크롤하면 입력칸이 움직인다 — 붙어 있던 목록도 같이 따라가야 한다 */
+(function(){
+  var mb=document.querySelector('#ov .mb');
+  if(mb) mb.addEventListener('scroll', function(){ if(_faFor) pcAcPos(_faFor); });
+  window.addEventListener('resize', function(){ if(_faFor) pcAcPos(_faFor); });
+})();
+
 pcLoad(); mcVendors(); mcLoad(true);
+/* 진입하면 검색칸에 커서 — 코드를 쳐서 찾는 것이 이 화면의 첫 동작이다(2026-08-04) */
+(function(){ var q=document.getElementById('q'); if(q) q.focus(); })();
 </script>
 </body>
 </html>
