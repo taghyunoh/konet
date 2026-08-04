@@ -735,7 +735,9 @@
 	     · 거래가 있는 거래처만 돌려준다(없는 거래처는 화면에서 0 취급). -->
 	<select id="selectVendorTrxSum" parameterType="egovframework.sejong.user.model.VendorDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT ven.VENDOR_CD AS vendorCd,
-	         ISNULL(sm.amt,0) + ISNULL(st.amt,0) AS saleAmt,
+	         ISNULL(sm.amt,0) + ISNULL(st.amt,0) AS saleAmt,     /* 매출 합계 = 정산서 + 판매전표 */
+	         ISNULL(sm.amt,0)                    AS settleAmt,   /* 그 중 정산서(TBL_SALES_MST) 몫 */
+	         ISNULL(st.amt,0)                    AS trxAmt,      /* 그 중 판매전표(TBL_SALES_TRX_MST) 몫 */
 	         ISNULL(pm.amt,0)                    AS purchAmt
 	    FROM TBL_VENDOR_MST ven
 	    LEFT JOIN ( SELECT v2.VENDOR_CD AS cd, SUM(ISNULL(s.SALE_AMT,0)) AS amt

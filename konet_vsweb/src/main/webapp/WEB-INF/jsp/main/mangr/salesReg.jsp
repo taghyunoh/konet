@@ -307,7 +307,7 @@
       <input type="text" id="saVenQ" placeholder="거래처명·코드·별칭·대표자" style="flex:1; height:30px; border:1px solid var(--sa-bd); border-radius:6px; padding:0 8px" oninput="saVenRender()">
     </div>
     <%-- 총판매·총매입 표시(2026-08-04) — 정렬(총판매 순)의 근거가 화면에 보이게 --%>
-    <div class="bd"><table><thead><tr><th style="width:78px">코드</th><th>거래처명</th><th style="width:96px">거래유형</th><th style="width:74px">부가세</th><th style="width:108px">총판매</th><th style="width:108px">총매입</th><th style="width:110px">별칭</th><th style="width:92px">대표자</th><th style="width:88px">담당사원</th></tr></thead>
+    <div class="bd"><table><thead><tr><th style="width:78px">코드</th><th>거래처명</th><th style="width:96px">거래유형</th><th style="width:74px">부가세</th><th style="width:108px" title="정산서 매출 + 판매전표를 모두 더한 금액입니다. 숫자에 마우스를 올리면 내역이 보입니다.">총판매</th><th style="width:108px">총매입</th><th style="width:110px">별칭</th><th style="width:92px">대표자</th><th style="width:88px">담당사원</th></tr></thead>
       <tbody id="saVenBody"></tbody></table></div>
     <div class="ft" style="justify-content:space-between"><span style="display:flex;gap:6px"><button class="sa-btn" id="saVenAllBtn" onclick="saVenAll(!_venAll)" title="끄면 매출 거래처(+유형 미지정)만 보입니다">전체</button><button class="sa-btn teal" onclick="saVenNew()">＋ 신규 거래처</button></span><button class="sa-btn" onclick="saVenClose()">닫기</button></div>
   </div>
@@ -633,7 +633,10 @@ function saLoadMasters(){
      못 받아와도 팝업은 이름순·금액 0 으로 그대로 뜬다. */
   post('/vendor/vendorTrxSum.do','').then(function(r){return r.json();}).then(function(j){
     _venSum = {};
-    ((j&&j.data)||[]).forEach(function(o){ _venSum[o.vendorCd] = { s:n(o.saleAmt), p:n(o.purchAmt) }; });
+    ((j&&j.data)||[]).forEach(function(o){
+      /* 총판매 = 정산서(settleAmt) + 판매전표(trxAmt) — 내역은 칸에 마우스를 올리면 보인다 */
+      _venSum[o.vendorCd] = { s:n(o.saleAmt), p:n(o.purchAmt), st:n(o.settleAmt), tx:n(o.trxAmt) };
+    });
     }).catch(function(){});
   post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){ _prods=(j&&j.data)||[]; saProdRefreshed(); }).catch(function(){});
   /* 거래처 매칭코드 — 상품 선택 팝업에서 '거래처가 준 코드'로도 찾기 위한 목록 (2026-08-01) */
@@ -1138,8 +1141,10 @@ function saVenRender(){
          + '<td>'+(gb ? '<span class="vp-gb'+(gb.indexOf('&')>=0?' both':'')+'">'+esc(gb)+'</span>'
                       : '<span class="vp-gb none">미지정</span>')+'</td>'
          + '<td><span class="vat-tag'+(vt==='면세'?' free':(vt==='포함'?' inc':''))+'">'+esc(vt)+(o.vatGb?'':'*')+'</span></td>'
-         /* 총판매·총매입 — 0 이면 빈칸(숫자 소음을 줄인다). 이 목록의 정렬 기준이 총판매다 */
-         + '<td class="num">'+(sum.s ? fmt(sum.s) : '')+'</td>'
+         /* 총판매·총매입 — 0 이면 빈칸(숫자 소음을 줄인다). 이 목록의 정렬 기준이 총판매다.
+            ★총판매에는 <정산서 매출과 판매전표가 모두> 들어간다 — hover 로 내역을 보여 준다(2026-08-04). */
+         + '<td class="num"'+(sum.s ? ' title="정산서 '+fmt(sum.st)+' + 판매전표 '+fmt(sum.tx)+' = '+fmt(sum.s)+'"' : '')+'>'
+         +   (sum.s ? fmt(sum.s) : '')+'</td>'
          + '<td class="num">'+(sum.p ? fmt(sum.p) : '')+'</td>'
          + '<td>'+esc(o.alias)+'</td><td>'+esc(o.ceoNm)+'</td><td>'+esc(o.mgrNm)+'</td></tr>';
   }).join('') : '<tr><td colspan="9" class="sa-msg">검색 결과가 없습니다.</td></tr>';
