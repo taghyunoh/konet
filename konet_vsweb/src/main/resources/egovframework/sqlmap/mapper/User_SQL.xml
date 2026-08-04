@@ -726,6 +726,41 @@
 	   ORDER BY ISNULL(SORT_ORD, 999999), VENDOR_NM
 	]]></select>
 
+	<!-- 거래처별 거래액 합계 (2026-08-04)
+	     · 용도 : 거래처 선택 팝업 — <총판매금액·총매입금액> 표시 + 그 금액 순 정렬
+	       (판매등록은 총판매 순, 매입등록은 총매입 순).
+	     · 매출 = 정산서 매출(TBL_SALES_MST, DC_CD 로 연결) + 판매전표(TBL_SALES_TRX_MST, CUST_CD)
+	       매입 = 매입전표(TBL_PURCHASE_MST, VENDOR_CD)  — 원장(selectCustLedger)과 같은 원천이다.
+	     · <전체 누적>이다 — 처음엔 최근 6개월이었으나 화면에 '총액'을 보여 달라는 요청(2026-08-04)으로 전환.
+	     · 거래가 있는 거래처만 돌려준다(없는 거래처는 화면에서 0 취급). -->
+	<select id="selectVendorTrxSum" parameterType="egovframework.sejong.user.model.VendorDTO" resultType="java.util.HashMap"><![CDATA[
+	  SELECT ven.VENDOR_CD AS vendorCd,
+	         ISNULL(sm.amt,0) + ISNULL(st.amt,0) AS saleAmt,
+	         ISNULL(pm.amt,0)                    AS purchAmt
+	    FROM TBL_VENDOR_MST ven
+	    LEFT JOIN ( SELECT v2.VENDOR_CD AS cd, SUM(ISNULL(s.SALE_AMT,0)) AS amt
+	                  FROM TBL_SALES_MST s
+	                  JOIN TBL_VENDOR_MST v2
+	                    ON v2.DC_CD = s.DC_CD AND v2.ACTION_YN = 'Y' AND ISNULL(v2.DC_CD,'') <> ''
+	                   AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v2.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                 WHERE s.ACTION_YN = 'Y'
+	                   AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                 GROUP BY v2.VENDOR_CD ) sm ON sm.cd = ven.VENDOR_CD
+	    LEFT JOIN ( SELECT t2.CUST_CD AS cd, SUM(ISNULL(t2.TOT_AMT,0)) AS amt
+	                  FROM TBL_SALES_TRX_MST t2
+	                 WHERE t2.ACTION_YN = 'Y'
+	                   AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t2.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                 GROUP BY t2.CUST_CD ) st ON st.cd = ven.VENDOR_CD
+	    LEFT JOIN ( SELECT m.VENDOR_CD AS cd, SUM(ISNULL(m.TOT_AMT,0)) AS amt
+	                  FROM TBL_PURCHASE_MST m
+	                 WHERE m.ACTION_YN = 'Y'
+	                   AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                 GROUP BY m.VENDOR_CD ) pm ON pm.cd = ven.VENDOR_CD
+	   WHERE ven.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR ven.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ISNULL(sm.amt,0) + ISNULL(st.amt,0) + ISNULL(pm.amt,0) > 0
+	]]></select>
+
 	<!-- 거래처 코드 중복 체크 (신규 등록 시) -->
 	<select id="vendorDupChk" parameterType="egovframework.sejong.user.model.VendorDTO" resultType="int"><![CDATA[
 	  SELECT COUNT(*) FROM TBL_VENDOR_MST WHERE VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}

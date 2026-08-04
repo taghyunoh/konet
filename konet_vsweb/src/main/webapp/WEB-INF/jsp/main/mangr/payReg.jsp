@@ -84,7 +84,7 @@
         <th>지급일자</th>
         <td>
           <input type="date" id="svDt" onchange="svNextNo()">
-          <span class="sv-lbl">번호</span><input type="text" id="svNo" readonly style="width:70px">
+          <span class="sv-lbl">번호</span><input type="text" id="svNo" readonly tabindex="-1" style="width:70px">
           <span class="sv-lbl">구분</span>
           <select id="svPayGb"><option>무통장지급</option><option>현금</option><option>카드</option><option>계좌이체</option><option>어음</option></select>
           <span class="sv-lbl">지급계좌</span>
@@ -100,23 +100,23 @@
         <td>
           <%-- 거래처 = 직접 입력검색(거래처명·코드·별칭·대표·담당 부분일치). 목록을 훑어보려면 [거래처] 버튼. --%>
           <input type="text" id="svCustNm" placeholder="매입처명 입력 또는 [거래처]" style="width:230px" title="거래처명·코드·별칭·대표자·담당자로 검색합니다. ↑↓ 로 고르고 Enter.">
-          <button class="sv-btn teal" onclick="svCustOpen()">거래처</button>
-          <span class="sv-lbl">담당자</span><input type="text" id="svMgrNm" readonly style="width:110px">
+          <button class="sv-btn teal" tabindex="-1" onclick="svCustOpen()">거래처</button>
+          <span class="sv-lbl">담당자</span><input type="text" id="svMgrNm" readonly tabindex="-1" style="width:110px">
           <span class="sv-lbl">현잔고</span><span class="sv-bal" id="svBal">0</span>
           <%-- 남은 미지급을 그대로 새 지급 전표로 올린다(2026-08-01, 수금등록과 동일). 잔고가 있을 때만 보인다. --%>
-          <button class="sv-btn teal" id="svBalBtn" style="display:none; margin-left:10px" onclick="svBalTake()"
+          <button class="sv-btn teal" id="svBalBtn" tabindex="-1" style="display:none; margin-left:10px" onclick="svBalTake()"
                   title="이 거래처의 남은 미지급을 새 지급 전표로 올립니다. 금액·일자를 확인한 뒤 [저장]을 누르세요.">잔고 지급</button>
         </td>
       </tr>
       <tr>
         <th>금액</th>
         <td>
-          <span class="sv-lbl" style="margin-left:0">지급액</span><input type="text" class="num" id="svAmt" value="0" style="width:150px" oninput="svCalc()">
-          <span class="sv-lbl">할인액</span><input type="text" class="num" id="svDc" value="0" style="width:130px" oninput="svCalc()">
-          <span class="sv-lbl">합계금액</span><input type="text" class="num" id="svTot" value="0" readonly style="width:150px">
+          <span class="sv-lbl" style="margin-left:0">지급액</span><input type="text" class="num" id="svAmt" value="0" style="width:150px" oninput="svCalc()" onkeydown="svKey(event)">
+          <span class="sv-lbl">할인액</span><input type="text" class="num" id="svDc" value="0" style="width:130px" oninput="svCalc()" onkeydown="svKey(event)">
+          <span class="sv-lbl">합계금액</span><input type="text" class="num" id="svTot" value="0" readonly tabindex="-1" style="width:150px">
         </td>
       </tr>
-      <tr><th>메모</th><td><input type="text" id="svRemark" style="width:100%"></td></tr>
+      <tr><th>메모</th><td><input type="text" id="svRemark" style="width:100%" onkeydown="svKey(event)"></td></tr>
     </table>
     <%-- 작업 버튼은 입력 칸 아래 — 판매등록·매입등록과 같은 자리(2026-08-01 요청).
          종전에는 이 카드 맨 위에 있어 네 화면의 버튼 위치가 서로 달랐다. --%>
@@ -126,6 +126,8 @@
       <button class="sv-btn" onclick="svReload()">🔄 새로고침</button>
       <button class="sv-btn red" onclick="svDelete()">✖ 삭제하기</button>
       <span id="svState" style="margin-left:8px; align-self:center; color:#3d4d5c; font-size:12.5px"></span>
+      <span style="margin-left:auto; align-self:center; color:#8a97a4; font-size:11.5px"
+            title="거래처 칸에 쳐서 ↑↓·Enter 로 고르면 금액칸으로 넘어갑니다. 금액칸에서 Enter 로 저장.">⌨ 거래처 입력검색 · 금액칸 Enter 저장 · Ctrl+S 저장 · Alt+N 신규</span>
     </div>
   </div>
 
@@ -291,6 +293,7 @@ function svNew(){
   document.getElementById('svState').textContent='신규 전표';
   svCalc(); svNextNo(); svLedger(''); svBalBtnUpd();
   Array.prototype.forEach.call(document.querySelectorAll('#svListBody tr'), function(tr){ tr.classList.remove('on'); });
+  svFocusCust();                     // 신규는 거래처부터(2026-08-04)
 }
 function svNextNo(){
   var dt = document.getElementById('svDt').value;
@@ -316,6 +319,7 @@ function svNewKeep(){
   svCalc(); svNextNo();
   svBal(cd); svLedger(cd);          // 방금 저장분이 반영된 잔고·원장을 다시 읽는다
   Array.prototype.forEach.call(document.querySelectorAll('#svListBody tr'), function(tr){ tr.classList.remove('on'); });
+  svFocusAmt();                     // 같은 거래처로 이어 넣으니 금액칸으로(2026-08-04)
 }
 function svSave(){
   var cd = document.getElementById('svCustNm').dataset.cd||'';
@@ -474,6 +478,7 @@ function svCustPick(cd){
   var c=document.getElementById('svCustNm'); c.value=o.vendorNm||''; c.dataset.cd=o.vendorCd||'';
   var m=document.getElementById('svMgrNm'); m.value=o.mgrNm||''; m.dataset.cd=o.mgrCd||'';
   svCustClose(); svBal(o.vendorCd); svLedger(o.vendorCd);
+  svFocusAmt();                     // 거래처를 고르면 곧바로 금액 입력으로(2026-08-04)
 }
 /* 현잔고 = 매입 − 지급 − 할인 누계 (미지급 잔액) */
 function svBal(cd){
@@ -613,6 +618,20 @@ function svPurchDtl(dt, tr){
       tb.innerHTML='<tr><td colspan="7" class="sv-msg" style="color:#c0392b">매입내역 조회 오류 — '+esc(e.message)+'</td></tr>';
     });
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   키보드 편의 (2026-08-04) — 수금등록(rcvReg)과 같은 방식. 명세 그리드가 없는 단순 폼이라
+   네이티브 Tab 이 그대로 통한다. 표시 전용 칸을 Tab 에서 빼고(tabindex=-1) 손이 덜 가게만 했다.
+     · 신규/진입 → 거래처 칸에 커서. 거래처를 고르면(입력검색·팝업 공용) 금액칸으로 넘어간다.
+     · 지급액·할인칸·메모칸에서 Enter = 저장. Ctrl+S = 저장, Alt+N = 신규.
+   (함수 선언은 hoisting 되므로 init 의 svNew() 보다 뒤에 있어도 안전하다) */
+function svFocusCust(){ var c=document.getElementById('svCustNm'); if(c){ c.focus(); if(c.select) c.select(); } }
+function svFocusAmt(){ var a=document.getElementById('svAmt'); if(a){ a.focus(); if(a.select) a.select(); } }
+function svKey(e){ if(e.key==='Enter'){ e.preventDefault(); svSave(); } }   // 금액·메모칸 Enter=저장
+document.addEventListener('keydown', function(e){
+  if((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')){ e.preventDefault(); svSave(); }
+  else if(e.altKey && (e.key==='n'||e.key==='N')){ e.preventDefault(); svNew(); }
+});
 </script>
 
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.

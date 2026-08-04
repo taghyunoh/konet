@@ -88,6 +88,7 @@ public class UserServiceImpl implements UserService {
 
 	// ===== 거래처 마스터 (TBL_VENDOR_MST) =====
 	@Override public java.util.List<egovframework.sejong.user.model.VendorDTO> selectVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.selectVendorMst(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectVendorTrxSum(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.selectVendorTrxSum(dto); }
 	@Override public int vendorDupChk(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.vendorDupChk(dto); }
 	@Override public int insertVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.insertVendorMst(dto); }
 	@Override public int updateVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.updateVendorMst(dto); }

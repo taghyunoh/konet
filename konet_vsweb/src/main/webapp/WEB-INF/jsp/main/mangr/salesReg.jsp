@@ -37,16 +37,28 @@
   .sa-bal{ margin-left:auto; display:flex; gap:14px; align-items:center; font-size:12.5px; }
   .sa-bal b{ font-size:15px; color:#c0392b; }
   /* 명세 그리드 */
-  /* 상단 명세 그리드 — 행수가 늘어도 화면이 안 흔들리게 높이 고정(2026-07-25 요청) */
-  .sa-grid{ height:210px; overflow:auto; border:1px solid var(--sa-bd); border-radius:8px 8px 0 0; }
+  /* 상단 명세 그리드 — 기본 높이 210px, ★아래 모서리를 끌어 늘리고 줄일 수 있다(2026-08-04 요청).
+     resize 는 overflow 있는 요소에서만 동작한다. 합계줄은 별도 표라 그리드만 늘어난다. */
+  .sa-grid{ height:210px; min-height:112px; max-height:70vh; resize:vertical;
+            overflow:auto; scrollbar-gutter:stable; border:1px solid var(--sa-bd); border-radius:8px 8px 0 0; }
   /* 합계 — 그리드 바로 밑 고정. 가로 스크롤은 JS 가 그리드와 맞춘다 */
-  .sa-foot{ overflow:hidden; border:1px solid var(--sa-bd); border-top:0; border-radius:0 0 8px 8px; }
-  .sa-foot table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
+  .sa-foot{ overflow:hidden; scrollbar-gutter:stable; border:1px solid var(--sa-bd); border-top:0; border-radius:0 0 8px 8px; }
+  /* ★그리드 표와 합계 표의 칸 맞춤(2026-08-04) :
+       · 두 표 모두 table-layout:fixed + 같은 colgroup + 같은 min-width(colgroup 합 1740px).
+       · 화면이 그보다 넓으면 width:100% 로 <우측 끝까지> 늘어난다 — 남는 폭은 두 표가
+         같은 비율로 나눠 갖고, scrollbar-gutter 로 세로 스크롤바 자리도 똑같이 예약하므로
+         어느 쪽도 밀리지 않는다(종전엔 그리드만 스크롤바만큼 좁아져 칸이 어긋났다). */
+  .sa-foot table{ width:100%; min-width:1740px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .sa-foot td{ border:1px solid var(--sa-bd); padding:6px 4px; text-align:center; background:#137a6c; color:#fff; font-weight:800; }
   .sa-foot td.num{ text-align:right; }
-  .sa-grid table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
+  .sa-grid table{ width:100%; min-width:1740px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .sa-grid th{ background:#eef3f2; color:#1f2a37; font-weight:700; border:1px solid var(--sa-bd); padding:7px 6px; position:sticky; top:0; z-index:2; }
-  .sa-grid td{ border:1px solid var(--sa-bd); padding:2px 4px; text-align:center; }
+  /* 컬럼 폭 조절 손잡이 — 머리글 오른쪽 경계를 끌면 그 칼럼이 늘고 줄어든다(2026-08-04 요청).
+     합계줄 colgroup 도 같이 움직여 칸 맞춤이 유지된다(saColResize). */
+  .sa-colrz{ position:absolute; top:0; right:-4px; width:8px; height:100%; cursor:col-resize; z-index:4; }
+  .sa-colrz:hover{ background:rgba(19,122,108,.25); }
+  .sa-grid td{ border:1px solid var(--sa-bd); padding:2px 4px; text-align:center;
+               overflow:hidden; text-overflow:ellipsis; }   /* 고정 폭이라 긴 품명은 …로 줄인다(전체는 hover 안내) */
   .sa-grid td.num{ text-align:right; }
   .sa-grid td.txt{ text-align:left; }
   .sa-grid input{ width:100%; border:0; background:transparent; font-size:13.5px; padding:4px 2px; text-align:right; }
@@ -63,7 +75,7 @@
           background:#e9f4f1; color:#137a6c; border:1px solid #b9ded4; }
   .vp-gb.both{ background:#eef0ff; color:#3f43a8; border-color:#c9cdf3; }
   .vp-gb.none{ background:#f2f4f6; color:#8a97a4; border-color:#dde3e9; }
-  .vat-tag{ display:inline-block; white-space:nowrap; margin-left:6px; padding:1px 7px; border-radius:10px; font-size:11.5px;
+  .vat-tag{ display:inline-block; white-space:nowrap; margin-left:6px; padding:2px 8px; border-radius:10px; font-size:12.5px;
             font-weight:800; background:#eef3f2; color:#37475a; border:1px solid #cfd8e3; vertical-align:middle; }
   .vat-tag.inc { background:#eaf3ff; color:#1a56a8; border-color:#b9d3f2; }
   .vat-tag.free{ background:#fff1e8; color:#b45309; border-color:#f0c9a4; }
@@ -176,7 +188,7 @@
          가로 스크롤은 JS 로 동기화한다. --%>
     <div class="sa-grid" id="saGridWrap">
       <table>
-        <colgroup><col style="width:38px"><col style="width:82px"><col style="width:110px"><col style="width:230px"><col style="width:110px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
+        <colgroup><col style="width:38px"><col style="width:82px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
         <thead><tr>
           <th>No</th><th>행(＋삽입/▲▼)</th><th>상품코드</th><th>품명(단가이력조회)</th>
           <th>[입수량]규격</th><th>BOX수량</th><th>EA수량</th>
@@ -191,7 +203,7 @@
     <div id="saGridPager" style="padding:5px 2px 0; text-align:center; min-height:22px"></div>
     <div class="sa-foot" id="saFootWrap">
       <table>
-        <colgroup><col style="width:38px"><col style="width:82px"><col style="width:110px"><col style="width:230px"><col style="width:110px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
+        <colgroup><col style="width:38px"><col style="width:82px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
         <tbody><tr class="tot">
           <td colspan="5">■ 합계</td>
           <td class="num" id="tBox">0</td><td class="num" id="tEa">0</td><td class="num" id="tQty">0</td>
@@ -219,6 +231,8 @@
       <button class="sa-btn" onclick="saReload()">🔄 새로고침</button>
       <button class="sa-btn red" onclick="saDelete()">✖ 삭제하기</button>
       <span id="saState" style="margin-left:8px; color:#3d4d5c; font-size:12.5px"></span>
+      <span style="margin-left:auto; color:#8a97a4; font-size:11.5px"
+            title="상품칸에 바로 입력해 ↑↓·Enter 로 고르고, Enter 로 다음 칸/다음 줄, ↑↓ 로 줄을 오갑니다">⌨ 상품칸 입력검색 · Enter 다음칸 · ↑↓ 줄이동 · Ctrl+S 저장 · Alt+N 신규</span>
     </div>
   </div>
 
@@ -235,9 +249,10 @@
     <div class="sa-list" id="saListWrap">
       <table>
         <thead><tr>
-          <th style="width:70px">복사저장</th><th style="width:110px">판매일시</th><th style="width:70px">번호</th>
-          <th>거래처명</th><th style="width:90px">담당사원</th><th style="width:70px">상품수</th>
-          <th style="width:120px">금액</th><th style="width:90px">창고</th><th style="width:90px">등록자</th>
+          <th style="width:70px">복사저장</th><th style="width:110px">판매일시</th><th style="width:64px">번호</th>
+          <%-- 거래처명은 폭을 지정해 줄인다(2026-08-04) — 자동 폭이면 남는 자리를 혼자 다 먹었다 --%>
+          <th style="width:220px">거래처명</th><th style="width:84px">담당사원</th><th style="width:64px">상품수</th>
+          <th style="width:110px">금액</th><th style="width:84px">창고</th><th style="width:84px">등록자</th>
         </tr></thead>
         <tbody id="saListBody"><tr><td colspan="9" class="sa-msg">[리스트조회]를 누르세요.</td></tr></tbody>
       </table>
@@ -253,8 +268,9 @@
   </div>
 
   <!-- 거래처 원장(분개장) — 거래처를 고르면 그 거래처의 일자별 매출·수금·잔고.
-       수금등록과 같은 쿼리(/mangr/custLedger.do)라 두 화면의 잔고가 항상 같다. -->
-  <div class="sa-card" style="flex:0 0 460px">
+       수금등록과 같은 쿼리(/mangr/custLedger.do)라 두 화면의 잔고가 항상 같다.
+       460→560→680px (2026-08-04 "원장 좌측으로 확대") — 왼쪽 목록은 그만큼 자동으로 줄어든다. -->
+  <div class="sa-card" style="flex:0 0 680px">
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
       <b>원장</b>
       <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a">* 일자를 클릭하면 그 날 매출품목이 보입니다.</span>
@@ -265,14 +281,18 @@
     <%-- 원장 스크롤 : 머리글 고정 + 합계는 스크롤 영역 밖(항상 보임). 지급등록 화면과 같은 규격 --%>
     <div class="sa-list" id="lgWrap" style="max-height:300px; border-radius:8px 8px 0 0">
       <table>
-        <colgroup><col style="width:88px"><col><col style="width:52px"><col style="width:70px"><col style="width:52px"><col style="width:90px"></colgroup>
+        <%-- 균형 배분(2026-08-04) — 매출만 넓고 나머지가 좁아 한쪽으로 쏠려 보였다.
+             금액 4칸(매출·수금·잔고 + DC·할인)을 고르게 나눈다. --%>
+        <colgroup><col style="width:96px"><col><col style="width:88px"><col style="width:112px"><col style="width:88px"><col style="width:122px"></colgroup>
         <thead><tr><th>일자</th><th>매출</th><th>DC</th><th>수금</th><th>할인</th><th>잔고</th></tr></thead>
         <tbody id="lgBody"><tr><td colspan="6" class="sa-msg">거래처를 선택하세요.</td></tr></tbody>
       </table>
     </div>
     <div class="sa-lgfoot">
       <table>
-        <colgroup><col style="width:88px"><col><col style="width:52px"><col style="width:70px"><col style="width:52px"><col style="width:90px"></colgroup>
+        <%-- 균형 배분(2026-08-04) — 매출만 넓고 나머지가 좁아 한쪽으로 쏠려 보였다.
+             금액 4칸(매출·수금·잔고 + DC·할인)을 고르게 나눈다. --%>
+        <colgroup><col style="width:96px"><col><col style="width:88px"><col style="width:112px"><col style="width:88px"><col style="width:122px"></colgroup>
         <tbody id="lgFoot"></tbody>
       </table>
     </div>
@@ -282,11 +302,12 @@
 
 <!-- 거래처 선택 팝업 -->
 <div class="sa-pop" id="saVenPop">
-  <div class="box">
+  <div class="box" style="width:min(1140px,96vw)"><%-- 총판매·총매입 칼럼이 늘어 기본(940)보다 넓게 --%>
     <div class="hd">거래처 선택
       <input type="text" id="saVenQ" placeholder="거래처명·코드·별칭·대표자" style="flex:1; height:30px; border:1px solid var(--sa-bd); border-radius:6px; padding:0 8px" oninput="saVenRender()">
     </div>
-    <div class="bd"><table><thead><tr><th style="width:78px">코드</th><th>거래처명</th><th style="width:96px">거래유형</th><th style="width:74px">부가세</th><th style="width:120px">별칭</th><th style="width:96px">대표자</th><th style="width:92px">담당사원</th></tr></thead>
+    <%-- 총판매·총매입 표시(2026-08-04) — 정렬(총판매 순)의 근거가 화면에 보이게 --%>
+    <div class="bd"><table><thead><tr><th style="width:78px">코드</th><th>거래처명</th><th style="width:96px">거래유형</th><th style="width:74px">부가세</th><th style="width:108px">총판매</th><th style="width:108px">총매입</th><th style="width:110px">별칭</th><th style="width:92px">대표자</th><th style="width:88px">담당사원</th></tr></thead>
       <tbody id="saVenBody"></tbody></table></div>
     <div class="ft" style="justify-content:space-between"><span style="display:flex;gap:6px"><button class="sa-btn" id="saVenAllBtn" onclick="saVenAll(!_venAll)" title="끄면 매출 거래처(+유형 미지정)만 보입니다">전체</button><button class="sa-btn teal" onclick="saVenNew()">＋ 신규 거래처</button></span><button class="sa-btn" onclick="saVenClose()">닫기</button></div>
   </div>
@@ -455,6 +476,7 @@ var PU_ROWS = 8, _pShown = 0, _pBound = false;
 var _rows = [];        // 명세 행
 var _list = [];        // 전표 목록
 var _vendors = [];     // 거래처 마스터
+var _venSum = {};      // 거래처별 총판매·총매입 {s,p} — 팝업에 표시하고 총판매 순으로 정렬(2026-08-04)
 /* 고른 거래처의 부가세 설정 '별도'|'포함'|'면세' (TBL_VENDOR_MST.VAT_GB).
    비어 있으면 '별도' 로 본다 — 예전 자료는 이 칸이 비어 있는데, 지금까지의 동작이 별도였다. */
 var _venVat = '별도';
@@ -535,6 +557,55 @@ function post(url, body, isJson){
   if (g && f) g.addEventListener('scroll', function(){ f.scrollLeft = g.scrollLeft; });
 })();
 
+/* 컬럼 폭 조절(2026-08-04 요청) — 머리글 오른쪽 경계를 끌면 그 칼럼이 늘고 준다.
+   ★그리드와 합계 표의 colgroup 을 <같이> 바꾼다 — 한쪽만 바꾸면 칸 맞춤이 깨진다.
+   ★끌고 나면 두 표의 min-width 를 칼럼 합으로 다시 잡는다 — 안 잡으면 넓힌 만큼
+     다른 칼럼이 눌려 전체 폭이 그대로가 된다(table-layout:fixed 의 배분 규칙). */
+(function bindColResize(){
+  var gw = document.getElementById('saGridWrap'), fw = document.getElementById('saFootWrap');
+  if (!gw || !fw) return;
+  var gc = gw.querySelectorAll('colgroup col'), fc = fw.querySelectorAll('colgroup col');
+  var gt = gw.querySelector('table'), ft = fw.querySelector('table');
+  var ths = gw.querySelectorAll('thead th');
+
+  function applyMin(){
+    var sum = 0;
+    for (var i = 0; i < gc.length; i++) sum += parseInt(gc[i].style.width, 10) || 0;
+    gt.style.minWidth = sum + 'px';
+    ft.style.minWidth = sum + 'px';
+  }
+  ths.forEach(function(th, i){
+    if (i >= gc.length) return;
+    var h = document.createElement('span');
+    h.className = 'sa-colrz';
+    h.title = '끌어서 칼럼 폭 조절';
+    th.appendChild(h);
+    h.addEventListener('mousedown', function(e){
+      e.preventDefault(); e.stopPropagation();
+      var sx = e.clientX, w0 = th.offsetWidth;
+      function mv(ev){
+        var w = Math.max(36, w0 + (ev.clientX - sx));
+        gc[i].style.width = w + 'px';
+        fc[i].style.width = w + 'px';
+        applyMin();
+      }
+      function up(){
+        document.removeEventListener('mousemove', mv);
+        document.removeEventListener('mouseup', up);
+        document.body.style.cursor = '';
+      }
+      document.body.style.cursor = 'col-resize';
+      document.addEventListener('mousemove', mv);
+      document.addEventListener('mouseup', up);
+    });
+    /* 더블클릭 = 처음 폭으로 */
+    var w0px = gc[i].style.width;
+    h.addEventListener('dblclick', function(){
+      gc[i].style.width = w0px; fc[i].style.width = w0px; applyMin();
+    });
+  });
+})();
+
 /* 등록내용 새로고침 — 지금 보고 있는 전표를 서버에서 다시 읽는다.
    목록·원장·잔고도 같이 갱신한다. 신규 작성 중이면 목록만 새로 읽는다(입력분은 보존). */
 function saReload(){
@@ -558,6 +629,12 @@ function saReload(){
      그래서 상품 선택 팝업을 열 때마다 다시 읽고, 도착하면 열려 있는 목록을 그 자리에서 다시 그린다. */
 function saLoadMasters(){
   post('/vendor/selectVendorMst.do','').then(function(r){return r.json();}).then(function(j){ _vendors=(j&&j.data)||[]; }).catch(function(){});
+  /* 거래처 팝업용 — 거래처별 총판매·총매입(2026-08-04). 표시 + 총판매 순 정렬에 쓴다.
+     못 받아와도 팝업은 이름순·금액 0 으로 그대로 뜬다. */
+  post('/vendor/vendorTrxSum.do','').then(function(r){return r.json();}).then(function(j){
+    _venSum = {};
+    ((j&&j.data)||[]).forEach(function(o){ _venSum[o.vendorCd] = { s:n(o.saleAmt), p:n(o.purchAmt) }; });
+    }).catch(function(){});
   post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){ _prods=(j&&j.data)||[]; saProdRefreshed(); }).catch(function(){});
   /* 거래처 매칭코드 — 상품 선택 팝업에서 '거래처가 준 코드'로도 찾기 위한 목록 (2026-08-01) */
   post('/prod/extItemList.do','').then(function(r){return r.json();}).then(function(j){ _extItems=(j&&j.data)||[]; saProdRefreshed(); }).catch(function(){});
@@ -580,6 +657,7 @@ function saNew(){
   for (var i=0;i<5;i++) _rows.push(emptyRow());
   saRender(); saNextNo();
   Array.prototype.forEach.call(document.querySelectorAll('#saListBody tr'), function(tr){ tr.classList.remove('on'); });
+  saFocusFirstProd();                    // 진입 즉시 첫 상품칸에 커서(2026-08-04)
 }
 function emptyRow(){ return { prodCd:'', prodNm:'', spec:'', packQty:1, boxQty:0, eaQty:0, qty:0, unitPrice:0, amt:0, dcAmt:0,
                               supplyAmt:0, vatAmt:0, totAmt:0, serviceQty:0, remark:'', eventYn:'N', trxGb:'판매', taxGb:'과세' }; }
@@ -619,6 +697,7 @@ function saGridPager(){
     + ' <button class="sa-btn" style="height:22px;margin-left:8px;font-size:12px" onclick="saGridMore('+_rows.length+')">모두 표시</button>';
 }
 function saRender(){
+  var _keep = saCaptureFocus();          // 다시 그려도 커서가 있던 칸을 유지(2026-08-04 키보드 입력)
   var h = '';
   if (_pShown < PU_ROWS) _pShown = PU_ROWS;
   if (_pShown > _rows.length) _pShown = _rows.length;
@@ -638,12 +717,20 @@ function saRender(){
       +   '<span title="한 줄 아래로" onclick="saMoveRow('+i+',1)">▼</span>'
       + '</td>'
       /* 상품코드 = 우리 코드. 그 아래 작게 '거래처가 부르는 코드'(매칭코드)를 함께 보여 준다(2026-08-01).
-         수동 판매는 주문서에 적힌 대로 넣고 확인해야 해서, 우리 코드만 보이면 대조가 안 된다. */
-      + '<td>'+ (o.prodCd ? '<span class="lnk" title="클릭 → 다른 상품으로 바꾸기" onclick="saProdOpen('+i+')">'+esc(o.prodCd)+'</span>'
-                          : '<span class="lnk" onclick="saProdOpen('+i+')">선택</span>')
-             /* 매칭으로 골라 넣은 행만 그 코드를 보여 준다 — 원코드로 넣었으면 표시가 없다(구별) */
-             + (o.extCd ? '<div style="font-size:11px;color:#274b8f;margin-top:1px" title="거래처가 부르는 품목코드 (매칭코드)로 넣었습니다">🔖 '+esc(o.extCd)+'</div>' : '')
-             +'</td>'
+         수동 판매는 주문서에 적힌 대로 넣고 확인해야 해서, 우리 코드만 보이면 대조가 안 된다.
+         ★빈 줄은 '상품코드 칸에 직접 입력검색'(2026-08-04) — 칸에 쳐서 ↑↓·Enter 로 고른다(saPin*).
+           고르면 그 행에 담기고 커서가 EA수량 칸으로 넘어간다. [🔍]는 종전 상품 선택 팝업. */
+      + (o.prodCd
+          ? '<td><span class="lnk" title="클릭 → 다른 상품으로 바꾸기" onclick="saProdOpen('+i+')">'+esc(o.prodCd)+'</span>'
+              /* 매칭으로 골라 넣은 행만 그 코드를 보여 준다 — 원코드로 넣었으면 표시가 없다(구별) */
+              + (o.extCd ? '<div style="font-size:11px;color:#274b8f;margin-top:1px" title="거래처가 부르는 품목코드 (매칭코드)로 넣었습니다">🔖 '+esc(o.extCd)+'</div>' : '')
+              + '</td>'
+          : '<td class="txt" style="padding:2px 3px"><div style="display:flex;align-items:center;gap:2px">'
+              + '<input class="saPin" data-r="'+i+'" data-f="prod" placeholder="상품검색" autocomplete="off"'
+              +   ' oninput="saPinInput(this)" onkeydown="saPinKey(this,event)" onblur="saPinBlur()"'
+              +   ' style="width:100%;border:0;background:transparent;font-size:13.5px;text-align:left;padding:4px 2px">'
+              + '<span class="lnk" title="상품 선택 팝업으로 찾기" style="font-size:12px" onclick="saProdOpen('+i+')">🔍</span>'
+              + '</div></td>')
       /* 품명 클릭 = 그 거래처의 판매단가 이력. 찾기 쉽게 📈 아이콘을 붙였다(2026-07-25)
          ★거래처 표기로 바뀐 품명은 🔗 로 표시하고 우리 품명은 hover 로 함께 보여 준다(2026-08-01).
            출고는 요청한 이름으로 나가야 하지만, 우리가 무엇을 파는지도 화면에서 잃으면 안 된다. */
@@ -657,17 +744,18 @@ function saRender(){
               + ' <span class="hist" onclick="saHistOpen('+i+')" title="판매단가 이력 보기">📈</span>';
           })() +'</td>'
       + '<td class="txt">'+ (o.packQty?('['+fmt(o.packQty)+']'):'') + esc(o.spec) +'</td>'
-      + '<td><input value="'+n(o.boxQty)+'" onchange="saSet('+i+',\'boxQty\',this.value)"></td>'
-      + '<td><input value="'+n(o.eaQty)+'" onchange="saSet('+i+',\'eaQty\',this.value)"></td>'
+      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="boxQty" value="'+n(o.boxQty)+'" onchange="saSet('+i+',\'boxQty\',this.value)"></td>'
+      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="eaQty" value="'+n(o.eaQty)+'" onchange="saSet('+i+',\'eaQty\',this.value)"></td>'
       + '<td class="num">'+fmt(o.qty)+'</td>'
-      + '<td><input value="'+n(o.unitPrice)+'" onchange="saSet('+i+',\'unitPrice\',this.value)"></td>'
+      /* 단가·DC 는 천단위 콤마로 보여 준다(2026-08-04 "단가 단위구분") — n() 이 콤마를 지우므로 계산은 그대로다 */
+      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="unitPrice" value="'+fmt(o.unitPrice)+'" onchange="saSet('+i+',\'unitPrice\',this.value)"></td>'
       + '<td class="num">'+fmt(o.amt)+'</td>'
-      + '<td><input value="'+n(o.dcAmt)+'" onchange="saSet('+i+',\'dcAmt\',this.value)"></td>'
+      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="dcAmt" value="'+fmt(o.dcAmt)+'" onchange="saSet('+i+',\'dcAmt\',this.value)"></td>'
       + '<td class="num">'+fmt(o.supplyAmt)+'</td>'
       + '<td class="num">'+fmt(o.vatAmt)+'</td>'
       + '<td class="num">'+fmt(o.totAmt)+'</td>'
-      + '<td><input value="'+n(o.serviceQty)+'" onchange="saSet('+i+',\'serviceQty\',this.value)"></td>'
-      + '<td><input class="txt" value="'+esc(o.remark)+'" onchange="saSet('+i+',\'remark\',this.value)"></td>'
+      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="serviceQty" value="'+n(o.serviceQty)+'" onchange="saSet('+i+',\'serviceQty\',this.value)"></td>'
+      + '<td><input class="txt" data-r="'+i+'" data-f="remark" value="'+esc(o.remark)+'" onchange="saSet('+i+',\'remark\',this.value)"></td>'
       + '<td><input type="checkbox" '+(o.eventYn==='Y'?'checked':'')+' onchange="saSet('+i+',\'eventYn\',this.checked?\'Y\':\'N\')"></td>'
       + '<td><select onchange="saSet('+i+',\'trxGb\',this.value)" style="border:0;background:transparent;font-size:12.5px">'
       +   '<option '+(o.trxGb==='판매'?'selected':'')+'>판매</option><option '+(o.trxGb==='반품'?'selected':'')+'>반품</option></select>'
@@ -677,6 +765,7 @@ function saRender(){
   document.getElementById('saBody').innerHTML = h;
   saGridBind(); saGridPager();
   saCalc();
+  saRestoreFocus(_keep);                 // _focusNext 가 있으면 그 칸으로, 없으면 있던 칸 그대로
 }
 function saSet(i, k, v){
   var o = _rows[i]; if(!o) return;
@@ -949,13 +1038,21 @@ function saCopy(i){
   document.getElementById('saCopyPop').classList.add('on');
 }
 function saCopyClose(){ document.getElementById('saCopyPop').classList.remove('on'); }
+/* 거래처 팝업 공통 정렬 — <총판매금액 많은 순>, 같거나 없으면 이름순(2026-08-04 요청) */
+function saVenSort(l){
+  l.sort(function(a,b){
+    var d = ((_venSum[b.vendorCd]||{}).s||0) - ((_venSum[a.vendorCd]||{}).s||0);
+    return d || String(a.vendorNm||'').localeCompare(String(b.vendorNm||''), 'ko');
+  });
+  return l;
+}
 function saCopyRender(){
   var q = (document.getElementById('cpQ').value||'').toLowerCase();
-  var l = _vendors.filter(function(o){
+  var l = saVenSort(_vendors.filter(function(o){
     if(!saVenFit(o)) return false;
     if(!q) return true;
     return [o.vendorCd,o.vendorNm,o.alias,o.ceoNm,o.mgrNm].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; });
-  }).slice(0,200);
+  })).slice(0,200);
   document.getElementById('cpBody').innerHTML = l.length ? l.map(function(o){
     return '<tr class="pick" onclick="saCopyPick(\''+esc(o.vendorCd)+'\')"><td>'+esc(o.vendorCd)+'</td>'
          + '<td class="txt" style="text-align:left">'+esc(o.vendorNm)+'</td><td>'+esc(o.alias)+'</td>'
@@ -1027,21 +1124,25 @@ function saCopyPick(cd){
 function saVenClose(){ document.getElementById('saVenPop').classList.remove('on'); }
 function saVenRender(){
   var q = (document.getElementById('saVenQ').value||'').toLowerCase();
-  var l = _vendors.filter(function(o){
+  var l = saVenSort(_vendors.filter(function(o){
     if(!saVenFit(o)) return false;
     if(!q) return true;
     return [o.vendorCd,o.vendorNm,o.alias,o.ceoNm,o.mgrNm].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; });
-  }).slice(0,200);
+  })).slice(0,200);
   document.getElementById('saVenBody').innerHTML = l.length ? l.map(function(o){
     var gb = String(o.vendorGb||''), vt = String(o.vatGb||'') || '별도';
+    var sum = _venSum[o.vendorCd] || {};
     return '<tr class="pick" onclick="saVenPick(\''+esc(o.vendorCd)+'\')"><td>'+esc(o.vendorCd)+'</td><td class="txt" style="text-align:left">'+esc(o.vendorNm)+'</td>'
          /* 거래유형·부가세도 같이 보여 준다 (2026-08-03 요청) — 고르기 전에 성격을 알 수 있게.
             부가세가 비어 있는 예전 거래처는 '별도*' 로 — 계산도 별도로 하고 있음을 별표로 알린다. */
          + '<td>'+(gb ? '<span class="vp-gb'+(gb.indexOf('&')>=0?' both':'')+'">'+esc(gb)+'</span>'
                       : '<span class="vp-gb none">미지정</span>')+'</td>'
          + '<td><span class="vat-tag'+(vt==='면세'?' free':(vt==='포함'?' inc':''))+'">'+esc(vt)+(o.vatGb?'':'*')+'</span></td>'
+         /* 총판매·총매입 — 0 이면 빈칸(숫자 소음을 줄인다). 이 목록의 정렬 기준이 총판매다 */
+         + '<td class="num">'+(sum.s ? fmt(sum.s) : '')+'</td>'
+         + '<td class="num">'+(sum.p ? fmt(sum.p) : '')+'</td>'
          + '<td>'+esc(o.alias)+'</td><td>'+esc(o.ceoNm)+'</td><td>'+esc(o.mgrNm)+'</td></tr>';
-  }).join('') : '<tr><td colspan="5" class="sa-msg">검색 결과가 없습니다.</td></tr>';
+  }).join('') : '<tr><td colspan="9" class="sa-msg">검색 결과가 없습니다.</td></tr>';
 }
 function saVenPick(cd){
   var o = _vendors.filter(function(x){ return String(x.vendorCd)===String(cd); })[0]; if(!o) return;
@@ -1107,11 +1208,9 @@ function saNmFor(prodCd, ourNm){
    여기 매출에는 정산서(TBL_SALES_MST)와 판매전표가 함께 들어간다. */
 function saVenBal(cd){
   if(!cd){ document.getElementById('saBalNow').textContent='0'; saCalc(); saLedger(''); return; }
-  post('/mangr/custLedger.do','custCd='+encodeURIComponent(cd)).then(function(r){return r.json();}).then(function(j){
-    var l=(j&&j.data)||[], bal=0;
-    l.forEach(function(o){ bal += n(o.saleAmt) - n(o.dcAmt) - n(o.rcvAmt) - n(o.discAmt); });
-    document.getElementById('saBalNow').textContent = fmt(bal); saCalc();
-  }).catch(function(){});
+  /* ★원장 조회 한 번으로 현잔고까지 계산한다(2026-08-04 "깜박거림") —
+       종전엔 같은 custLedger.do 를 잔고용·원장용으로 <두 번> 불러 화면이 두 번 출렁였다.
+       잔고 = 원장 마지막 누계와 같은 식이라 saLedger 안에서 함께 채운다. */
   saLedger(cd);
 }
 
@@ -1122,16 +1221,27 @@ function saVenBal(cd){
      저장 후 saNew() 는 상단 거래처를 비우지만 원장은 그대로 남는다. 그 상태에서
      원장 일자를 눌렀을 때 상단 거래처(빈 값)를 보면 아무 일도 안 일어난 것처럼 죽는다.
      원장에 보이는 것이 곧 이 거래처이므로, 일자 클릭은 이 값을 기준으로 삼는다. */
-var _lgCd = '';
+var _lgCd = '', _lgSeq = 0;
 function saLedger(cd){
   _lgCd = cd || '';
-  var tb = document.getElementById('lgBody');
+  var tb = document.getElementById('lgBody'), wrap = document.getElementById('lgWrap');
+  var seq = ++_lgSeq;                     /* 행을 연달아 눌러도 <마지막 요청>만 화면에 남는다 */
   document.getElementById('lgVen').textContent = cd ? (document.getElementById('saVenNm').value||cd) : '—';
   if(!cd){ tb.innerHTML='<tr><td colspan="6" class="sa-msg">거래처를 선택하세요.</td></tr>'; document.getElementById('lgFoot').innerHTML=''; return; }
-  tb.innerHTML = '<tr><td colspan="6" class="sa-msg">불러오는 중…</td></tr>';
+  /* ★깜박임 방지(2026-08-04) — 표를 지우지 않는다. 종전엔 '불러오는 중…' 으로 비웠다가
+       다시 그려서 행을 누를 때마다 원장이 하얗게 번쩍였다. 기존 내용을 살짝 흐리게만 두고
+       새 자료가 오면 통째로 갈아끼운다. */
+  wrap.style.transition = 'opacity .15s'; wrap.style.opacity = '.55';
   post('/mangr/custLedger.do','custCd='+encodeURIComponent(cd)).then(function(r){return r.json();}).then(function(j){
+    if (seq !== _lgSeq) return;           /* 더 새 요청이 이미 나갔다 — 이 응답은 버린다 */
+    wrap.style.opacity = '';
     var l = (j&&j.data)||[];
-    if(!l.length){ tb.innerHTML='<tr><td colspan="6" class="sa-msg">거래 내역이 없습니다.</td></tr>'; return; }
+    if(!l.length){
+      tb.innerHTML='<tr><td colspan="6" class="sa-msg">거래 내역이 없습니다.</td></tr>';
+      document.getElementById('lgFoot').innerHTML='';
+      document.getElementById('saBalNow').textContent='0'; saCalc();
+      return;
+    }
     var h='', bal=0, mm=null, m={p:0,d:0,y:0,c:0}, t={p:0,d:0,y:0,c:0};
     function monthRow(){
       if(mm===null) return '';
@@ -1156,7 +1266,13 @@ function saLedger(cd){
     /* 합계는 스크롤 영역 밖에 — 아무리 내려도 항상 보인다 */
     document.getElementById('lgFoot').innerHTML =
       '<tr><td>합 계</td><td>'+fmt(t.p)+'</td><td>'+fmt(t.d)+'</td><td>'+fmt(t.y)+'</td><td>'+fmt(t.c)+'</td><td>'+fmt(bal)+'</td></tr>';
-  }).catch(function(e){ tb.innerHTML='<tr><td colspan="6" class="sa-msg" style="color:#c0392b">원장 조회 오류</td></tr>'; });
+    /* 현잔고 = 원장 마지막 누계 — 같은 응답으로 함께 채운다(별도 조회 없음) */
+    document.getElementById('saBalNow').textContent = fmt(bal); saCalc();
+  }).catch(function(e){
+    if (seq !== _lgSeq) return;
+    wrap.style.opacity = '';
+    tb.innerHTML='<tr><td colspan="6" class="sa-msg" style="color:#c0392b">원장 조회 오류</td></tr>';
+  });
 }
 
 /* 열 때마다 기준자료를 다시 읽는다 — 방금 등록한 상품·매칭코드가 바로 보여야 한다(재로그인 없이).
@@ -1558,6 +1674,175 @@ function saDayApply(){
     saDayClose();
   });
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   명세 그리드 키보드 입력 (2026-08-04) — 현장/영업 중 사장이 노트북으로 빠르게 친다.
+     ① 빈 줄 '상품코드' 칸에 직접 쳐서 ↑↓·Enter 로 상품을 고른다(saPin*) — 팝업을 안 열어도 된다.
+     ② 칸에서 Enter = 다음 칸, 줄 끝이면 다음 줄로. ↑↓ = 같은 칸으로 윗줄/아랫줄.
+     ③ 진입하면 첫 상품칸에 커서. Ctrl+S = 저장, Alt+N = 신규.
+   ★그리드는 값이 바뀔 때마다 통째로 다시 그린다(saRender). 그래서 커서가 튀지 않게
+     '다시 그리기 전에 어느 칸에 있었는지'를 잡아 두었다가(saCaptureFocus) 다시 그린 뒤 되돌린다.
+     다음 칸으로 옮길 때는 _focusNext 에 목표 칸을 적어 두면 saRestoreFocus 가 그쪽을 먼저 본다.
+   기존 동작(최근단가 자동채움·부가세·반품·납품분·복사저장)은 그대로다 — 위에 얹기만 했다. */
+var _focusNext = null;                     // 다음에 커서를 둘 칸 {r,f,sel} — saRender 가 소비하고 비운다
+
+function saCaptureFocus(){
+  var a = document.activeElement;
+  if (!a || !a.dataset || a.dataset.r == null) return null;      // 그리드 입력칸이 아니면 신경쓰지 않는다
+  if (!a.closest || !a.closest('#saBody')) return null;
+  var s = null, e = null;
+  try { s = a.selectionStart; e = a.selectionEnd; } catch(_){}    // 텍스트칸이면 캐럿 위치 보존
+  return { r:a.dataset.r, f:a.dataset.f, s:s, e:e };
+}
+function saRestoreFocus(keep){
+  var t = _focusNext; _focusNext = null;   // 이동 목표가 있으면 그쪽이 먼저
+  if (t) { saFocusCell(t); return; }
+  if (keep) saFocusCell(keep);             // 없으면 있던 칸 그대로(단순 재계산 재렌더)
+}
+function saFocusCell(t){
+  if (!t) return false;
+  var el = document.querySelector('#saBody [data-r="'+t.r+'"][data-f="'+t.f+'"]');
+  if (!el && t.f === 'prod') el = document.querySelector('#saBody [data-r="'+t.r+'"][data-f="eaQty"]');
+  if (!el) return false;                   // 그 줄이 아직 없거나(꼬리줄 대기) 페이징 밖이면 실패
+  try {
+    el.focus();
+    if (t.sel === 'all' || t.s == null) { if (el.select) el.select(); }
+    else el.setSelectionRange(t.s, t.e);
+  } catch(_){}
+  return true;
+}
+function saFocusFirstProd(){
+  setTimeout(function(){
+    var el = document.querySelector('#saBody input.saPin[data-f="prod"]');
+    if (el) el.focus();
+  }, 0);
+}
+
+/* 칸 사이 이동 — Enter 는 '상품 → EA수량 → 단가 → (다음 줄)'. 그 밖의 칸은 다음 줄로 넘어간다.
+   중간 줄이면 다음 줄이 이미 차 있으니 그 줄 EA수량으로, 맨 끝 줄이면 새 빈 줄의 상품칸으로 간다. */
+function saNextEnter(r, f){
+  if (f === 'prod') return { r:r, f:'eaQty' };
+  if (f === 'boxQty' || f === 'eaQty') return { r:r, f:'unitPrice' };
+  var nr = r + 1;
+  if (_rows[nr] && _rows[nr].prodCd) return { r:nr, f:'eaQty' };
+  return { r:nr, f:'prod' };
+}
+/* #saBody 에 위임 — 숫자·비고 칸의 Enter/↑/↓. 상품 입력칸(saPin)은 자체 처리하므로 건너뛴다. */
+function saGridKey(e){
+  var t = e.target;
+  if (!t || !t.dataset || t.dataset.r == null) return;
+  if (t.classList && t.classList.contains('saPin')) return;
+  var r = +t.dataset.r, f = t.dataset.f;
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    var nx = saNextEnter(r, f);
+    _focusNext = nx ? { r:nx.r, f:nx.f, sel:'all' } : null;
+    t.blur();                              // 값 확정(onchange→saSet→saRender→_focusNext 로 이동)
+    if (_focusNext) {                      // 값이 안 바뀌어 재렌더가 없었던 경우
+      if (!saFocusCell(_focusNext)) {      // 갈 줄이 아직 없으면 꼬리 빈 줄을 만들어 그린다
+        saTail(); if (_pShown < _rows.length) _pShown = _rows.length; saRender();
+      } else { _focusNext = null; }
+    }
+  } else if (e.key === 'ArrowDown') { e.preventDefault(); saStepRow(t, 1); }
+  else if (e.key === 'ArrowUp')     { e.preventDefault(); saStepRow(t, -1); }
+}
+function saStepRow(t, dr){
+  var r = +t.dataset.r, f = t.dataset.f, nr = r + dr;
+  if (nr < 0 || nr >= _rows.length) return;
+  _focusNext = { r:nr, f:f, sel:'all' };
+  t.blur();
+  if (_focusNext) { saFocusCell(_focusNext); _focusNext = null; }
+}
+
+/* 상품코드 칸 입력검색 — vendor-pick 과 같은 조작감(↑↓·Enter·Esc)을 상품에 준다.
+     이미 화면에 들고 있는 상품마스터(_prods)·매칭코드(_extItems)만 훑어 서버를 부르지 않는다.
+     · 우리 코드/품명/규격 + 거래처 매칭코드(🔖, 연결된 것만)로 찾는다.
+     · 고르면 그 행에 담기고(saProdPick / saExtPick 재사용) 커서가 EA수량으로 넘어간다.
+   드롭다운은 그리드가 overflow 라 잘리므로 body 에 position:fixed 로 띄운다. */
+var _pinInp = null, _pinRow = -1, _pinList = [], _pinIdx = -1, _pinDrop = null;
+function _pinHit(q){ return function(x){ return String(x==null?'':x).toLowerCase().indexOf(q) >= 0; }; }
+function saPinCands(q){
+  var out = [], ven = (document.getElementById('saVenNm').dataset.cd) || '';
+  var ext = _extItems.filter(function(x){ return x.prodCd && [x.extItemCd,x.extItemNm,x.extSpec].some(_pinHit(q)); });
+  ext.sort(function(a,b){ return ((b.vendorCd===ven)?1:0) - ((a.vendorCd===ven)?1:0); });   // 지금 거래처 것 먼저
+  ext.slice(0,5).forEach(function(x){
+    out.push({ k:'ext', seq:x.extSeq, code:x.extItemCd, nm:x.extItemNm||'', spec:x.extSpec||'', price:x.extPrice, vendorNm:x.vendorNm });
+  });
+  for (var i=0; i<_prods.length && out.length<12; i++){
+    var p = _prods[i]; if (!p.prodCd) continue;
+    if (![p.prodCd,p.prodNm,p.spec].some(_pinHit(q))) continue;
+    out.push({ k:'prod', code:p.prodCd, nm:p.prodNm, spec:p.spec, price:p.salePrice, prodCd:p.prodCd });
+  }
+  return out.slice(0,12);
+}
+function saPinInput(inp){
+  _pinInp = inp; _pinRow = +inp.dataset.r;
+  var q = String(inp.value||'').trim().toLowerCase();
+  if (!q) { saPinClose(); return; }
+  _pinList = saPinCands(q); _pinIdx = _pinList.length ? 0 : -1;
+  saPinDraw(inp);
+}
+function saPinDraw(inp){
+  if (!_pinDrop) {
+    _pinDrop = document.createElement('div');
+    _pinDrop.id = 'saPinDrop';
+    _pinDrop.style.cssText = 'position:fixed;z-index:400;background:#fff;border:1px solid #cfd8e3;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.18);font-size:12.5px;max-height:260px;overflow:auto';
+    document.body.appendChild(_pinDrop);
+  }
+  if (!_pinList.length) { saPinClose(); return; }
+  var rc = inp.getBoundingClientRect();
+  _pinDrop.style.left = rc.left + 'px';
+  _pinDrop.style.top = (rc.bottom + 2) + 'px';
+  _pinDrop.style.minWidth = Math.max(380, rc.width) + 'px';
+  _pinDrop.innerHTML = _pinList.map(function(it,k){
+    var on = (k === _pinIdx);
+    var badge = (it.k === 'ext') ? '<span style="color:#274b8f">🔖 </span>' : '';
+    return '<div data-k="'+k+'" onmousedown="saPinPickMd(event,'+k+')"'
+      + ' style="display:flex;gap:8px;padding:6px 10px;cursor:pointer;white-space:nowrap;'+(on?'background:#e9f4f1;':'')+'">'
+      + '<b style="min-width:100px;color:#137a6c">'+badge+esc(it.code)+'</b>'
+      + '<span style="flex:1;text-align:left;color:#1f2a37">'+esc(it.nm)+'</span>'
+      + '<span style="min-width:96px;color:#8a97a4">'+esc(it.spec||'')+'</span>'
+      + '<span style="min-width:66px;text-align:right;color:#37475a">'+(it.price!=null&&it.price!==''?fmt(it.price):'')+'</span>'
+      + (it.vendorNm ? '<span style="color:#9aa7b3">('+esc(it.vendorNm)+')</span>' : '')
+      + '</div>';
+  }).join('');
+  _pinDrop.style.display = 'block';
+}
+function saPinKey(inp, e){
+  if (e.key === 'ArrowDown') { e.preventDefault(); if (_pinList.length){ _pinIdx = Math.min(_pinList.length-1, _pinIdx+1); saPinDraw(inp); } }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); if (_pinList.length){ _pinIdx = Math.max(0, _pinIdx-1); saPinDraw(inp); } }
+  else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (_pinList.length && _pinIdx >= 0) saPinPick(_pinIdx);
+    else saProdOpen(+inp.dataset.r);       // 후보가 없으면 상품 선택 팝업으로
+  }
+  else if (e.key === 'Escape') { saPinClose(); }
+}
+function saPinPickMd(e, k){ e.preventDefault(); saPinPick(k); }   // mousedown 이라 input blur 보다 먼저
+function saPinPick(k){
+  var it = _pinList[k]; if (!it) { saPinClose(); return; }
+  var row = _pinRow;
+  saPinClose();
+  _prodTargetRow = row;
+  _focusNext = { r:row, f:'eaQty', sel:'all' };   // 담긴 뒤 커서는 EA수량으로
+  if (it.k === 'ext') saExtPick(it.seq); else saProdPick(it.prodCd);   // 기존 담기 로직 재사용
+}
+function saPinClose(){ if (_pinDrop) _pinDrop.style.display = 'none'; _pinList = []; _pinIdx = -1; }
+function saPinBlur(){ setTimeout(saPinClose, 150); }
+
+/* 전역 리스너 — 그리드 키 위임, 스크롤 시 드롭다운 닫기, 저장/신규 단축키.
+   (함수 선언은 hoisting 되므로 init 보다 뒤에 있어도 안전하다) */
+(function saKbdBind(){
+  var b = document.getElementById('saBody');
+  if (b) b.addEventListener('keydown', saGridKey);
+  var g = document.getElementById('saGridWrap');
+  if (g) g.addEventListener('scroll', saPinClose);
+  window.addEventListener('resize', saPinClose);
+  document.addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); saSave(); }
+    else if (e.altKey && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); saNew(); }
+  });
+})();
 </script>
 
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.

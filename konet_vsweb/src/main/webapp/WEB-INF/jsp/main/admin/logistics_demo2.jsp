@@ -74,6 +74,36 @@
   .logi-side .sub-menu a.mi.on { padding-left:30px; }
   .logi-side a.mi .ic { width:18px; text-align:center; }
   .logi-side a.mi.core { color:#aef0e7; }
+  /* ── 자주 쓰는 메뉴(최대 7개) ─────────────────────
+       메뉴에 마우스를 올리면 오른쪽 끝에 ☆ 가 나온다. 담긴 메뉴는 ★(노랑)로 항상 보인다. */
+  /* ☆ 는 평소 아주 흐리게라도 보여 둔다 — 완전히 감춰 두면 기능이 있는 줄 모른다(2026-08-04) */
+  .logi-side a.mi .fav { margin-left:auto; padding:0 2px; font-size:12px; color:#5d6b7c; opacity:.35; transition:opacity .12s, color .12s; }
+  .logi-side a.mi:hover .fav { opacity:1; }
+  .logi-side a.mi .fav.on { opacity:1; color:#ffd15c; }
+  .logi-side a.mi .fav:hover { color:#ffd15c; }
+  .logi-side a.mi.has-sub .fav { display:none; }        /* 펼침 메뉴는 화살표 자리라 제외 */
+  /* ── 상단 공통 영역 : 자주 쓰는 메뉴 줄 ─────────────────────
+       우측 본문 맨 위에 고정. 어느 화면을 열어도 같은 자리에 있고, 내려도 따라온다. */
+  #favBar { position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+            margin:-22px 0 12px; padding:8px 14px; background:#fff; border-bottom:1px solid #e2e8e6;
+            box-shadow:0 1px 4px rgba(31,42,55,.06); }
+  #favBar .ft { font-size:13.5px; font-weight:800; color:#8a7526; white-space:nowrap; }
+  #favBar #favCnt { color:#a9b3bd; font-weight:600; }
+  #favBar #favList { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  /* 글자 12.5 → 14px (2026-08-04 요청) — 10개까지 늘어 한 줄을 넘길 수 있으므로 위 flex-wrap 으로 접힌다 */
+  #favBar a.favmi { display:inline-flex; align-items:center; gap:6px; padding:5px 14px; border-radius:18px;
+                    border:1px solid #e6d29a; background:#fffbef; color:#5a4b13; font-size:14px; font-weight:700;
+                    text-decoration:none; cursor:pointer; white-space:nowrap; }
+  #favBar a.favmi:hover { background:#fff3d0; border-color:#e0be6a; }
+  #favBar a.favmi.on { background:var(--logi-teal); border-color:var(--logi-teal); color:#fff; }
+  #favBar a.favmi .pin { font-size:11px; opacity:.85; }
+  #favBar a.favmi .x { color:#b9a45f; font-weight:800; padding-left:3px; font-size:13px; }
+  #favBar a.favmi .x:hover { color:#c0392b; }
+  #favBar a.favmi.on .x { color:#cfeee8; }
+  #favBar #favHint { font-size:13px; color:#9aa7b3; }
+  #favBar #favHint b { color:#d8a92a; }
+  #favBar #favClearBtn { margin-left:auto; font-size:12px; color:#9aa7b3; cursor:pointer; white-space:nowrap; }
+  #favBar #favClearBtn:hover { color:#c0392b; }
 
 
   /* 우측 콘텐츠
@@ -533,6 +563,11 @@
   function logiGo(key, el){
     document.querySelectorAll('.logi-side a.mi').forEach(function(a){ a.classList.remove('on'); });
     if (el) el.classList.add('on');
+    /* ★메뉴를 열 때마다 사용 횟수를 센다 — 상단 <자주 쓰는 메뉴>가 저절로 쌓이는 근거다.
+         logiFrame·logiShipView 도 결국 여기를 지나므로 이 한 곳이면 전부 잡힌다.
+         (상단 줄에서 눌러 들어온 경우도 같은 메뉴를 세는 것이라 그대로 둔다) */
+    if (typeof favUseBump==='function' && el) favUseBump(favLabel(el));
+    if (typeof favRender==='function') favRender();
     document.querySelectorAll('.logi-main .panel').forEach(function(p){ p.classList.remove('show'); });
     var t = document.getElementById('panel-'+key);
     if (t) t.classList.add('show');
@@ -541,6 +576,203 @@
     if (typeof konetAsqRender === 'function') konetAsqRender();
     if (typeof closePeriodInit === 'function') closePeriodInit();   // 마감 패널 진입 시 마감월 기본값
   }
+  /* ══ 자주 쓰는 메뉴 (사용 순 자동 · 최대 7개) — 2026-08-04 요청 ═══════════════
+       · 담는 법 : 사이드바 메뉴에 마우스를 올리면 오른쪽 끝 ☆ 를 누른다.
+       · 보관   : localStorage (브라우저별). 서버·세션이 아니라 로그인 없이도 남는다.
+       · 실행   : 원래 메뉴의 onclick 을 <그대로> 부른다 — 화면 여는 방법이 두 벌이 되면
+                  나중에 한쪽만 고쳐져 어긋난다(logiGo/logiFrame/logiShipView 가 제각각이다).
+       · 식별   : data-key 는 겹치는 것이 있어(출고현황표·출고세부조회 모두 shipstatus2)
+                  <메뉴 이름>으로 찾는다. 이름이 바뀌면 그 즐겨찾기는 조용히 사라진다(무해). */
+  /* ★보관 키에 판(v2)을 붙였다 (2026-08-04) —
+       처음 판에서 담긴 이름에는 아이콘이 섞여 있었고("📤매출내역"), [비우기]를 누른 브라우저에는
+       빈 목록이 저장돼 있었다. 그 값이 남아 있으면 기본 메뉴가 <영영 안 나온다>.
+       키를 갈아 옛 값을 무시한다 — 쓰던 사람도 새로 담으면 그만이다.
+     ★'손댔음' 표시를 따로 둔다 — 목록이 비었을 때 그것이 <아직 안 건드린 것>인지
+       <사용자가 일부러 비운 것>인지 구별해야 한다(전자만 기본값을 넣는다). */
+  var FAV_KEY='konetLogiFav2', FAV_TOUCH='konetLogiFav2Set', FAV_USE='konetLogiFavUse',
+      FAV_ORDER='konetLogiFavOrder', FAV_MAX=7;
+  /* ★처음 들어온 사람에게도 <메뉴가 보이게> 기본 5개를 담아 둔다(2026-08-04 요청).
+       빈 줄로 두면 기능이 있는 줄 모른다. 마음에 안 들면 ✕ 로 빼고 다른 걸 담으면 된다.
+       (한 번이라도 손대면 그 뒤로는 사용자가 정한 목록만 쓴다 — 저장값이 [] 여도 존중) */
+  var FAV_DEFAULT=['매출내역','판매 등록','수금 등록','매입 등록','지급 등록','입고내역','재고현황'];
+  /* ── 사용 횟수 (자동으로 쌓인다) ────────────────────────────
+       ★"자주 쓰는 메뉴"는 손으로 담는 것이 아니라 <쓰면 저절로 올라오는> 것이라야 한다
+         (2026-08-04 "추가 업무가 뒤에 안 붙네요"). 메뉴를 열 때마다 그 메뉴의 횟수를 센다. */
+  function favUseLoad(){ try{ var v=JSON.parse(localStorage.getItem(FAV_USE)||'{}'); return (v&&typeof v==='object')?v:{}; }catch(e){ return {}; } }
+  function favUseSave(u){ try{ localStorage.setItem(FAV_USE, JSON.stringify(u)); }catch(e){} }
+
+  /* ── 화면에 보이는 <자리>는 고정이다 (2026-08-04 "다른 게 선택되는 것처럼") ──────
+       ★쓸 때마다 많이 쓴 순으로 다시 줄 세우면, 누르는 순간 칩들이 자리를 바꿔 버린다.
+         내가 누른 자리에 다른 메뉴가 와서 <엉뚱한 게 선택된 것처럼> 보인다.
+       그래서 <표시 순서(FAV_ORDER)>를 따로 저장하고 한 번 잡힌 자리는 움직이지 않는다.
+       사용 횟수는 <자리가 다 찼을 때 누구를 들일지> 정하는 데만 쓴다. */
+  function favOrderLoad(){
+    try{ var v=JSON.parse(localStorage.getItem(FAV_ORDER)||'null'); return Array.isArray(v)?v:null; }
+    catch(e){ return null; }
+  }
+  function favOrderSave(l){ try{ localStorage.setItem(FAV_ORDER, JSON.stringify(l.slice(0,FAV_MAX))); }catch(e){} }
+
+  function favLoad(){
+    var o=favOrderLoad();
+    if(o===null){ o=FAV_DEFAULT.filter(favFind).slice(0,FAV_MAX); favOrderSave(o); }   // 첫 진입
+    return o.filter(favFind).slice(0,FAV_MAX);          // 사라진 메뉴는 조용히 걸러 낸다
+  }
+  /* 메뉴를 열 때 — 횟수를 세고, 목록에 없으면 <빈 자리에만> 새로 넣는다.
+     자리가 다 찼으면 고정(★) 아닌 것 중 가장 적게 쓴 것과 견줘 더 많이 썼을 때만 그 자리를 대신한다
+     (자리 번호는 그대로라 화면이 출렁이지 않는다). */
+  function favUseBump(nm){
+    if(!nm) return;
+    var u=favUseLoad();
+    u[nm]=(u[nm]||0)+1;
+    favUseSave(u);
+
+    var o=favOrderLoad(); if(o===null){ favLoad(); o=favOrderLoad()||[]; }
+    if(o.indexOf(nm)>=0) return;                        // 이미 있다 — 자리 그대로
+    if(o.length<FAV_MAX){ o.push(nm); favOrderSave(o); return; }
+
+    var pin=favPins();
+    var cand=o.filter(function(x){ return pin.indexOf(x)<0; });
+    if(!cand.length) return;                            // 전부 고정이면 건드리지 않는다
+    var worst=cand.reduce(function(a,b){ return (u[a]||0)<=(u[b]||0) ? a : b; });
+    if((u[nm]||0) > (u[worst]||0)){ o[o.indexOf(worst)]=nm; favOrderSave(o); }
+  }
+  /* 손으로 고정한 목록(★) — 종전의 저장 구조를 그대로 쓴다 */
+  function favPins(){
+    try{
+      if(localStorage.getItem(FAV_TOUCH)!=='1') return [];
+      var v=JSON.parse(localStorage.getItem(FAV_KEY)||'[]');
+      return Array.isArray(v)?v.slice(0,FAV_MAX):[];
+    }catch(e){ return []; }
+  }
+  function favSave(l){
+    try{
+      localStorage.setItem(FAV_KEY, JSON.stringify(l.slice(0,FAV_MAX)));
+      localStorage.setItem(FAV_TOUCH, '1');                                // 이제부터는 사용자 목록
+    }catch(e){}
+  }
+  /* ★메뉴 이름은 <글자 노드만> 모아 만든다 (2026-08-04 수정).
+       종전엔 textContent 를 썼는데, 그러면 아이콘(<span class="ic">📤</span>)과
+       뒤에 붙인 ☆ 까지 이름에 섞여 "📤매출내역☆" 가 된다. 담을 때 붙인 이름과
+       나중에 찾을 때 만든 이름이 서로 달라 <아무 일도 안 일어난 것처럼> 보였다. */
+  function favLabel(a){
+    var s='';
+    for(var i=0;i<a.childNodes.length;i++){
+      var c=a.childNodes[i];
+      if(c.nodeType===3) s+=c.nodeValue;           // 글자 노드만 — 아이콘·☆·캐럿 제외
+    }
+    return s.replace(/\s+/g,' ').trim();
+  }
+  /* 사이드바의 <실제 메뉴> 중 이름이 같은 것 (즐겨찾기 목록 자신은 뺀다) */
+  function favFind(nm){
+    var hit=null;
+    document.querySelectorAll('.logi-side a.mi').forEach(function(a){
+      if(hit) return;
+      if(favLabel(a)===nm) hit=a;
+    });
+    return hit;
+  }
+  /* ☆ = 고정/해제. 고정하면 자리를 다른 메뉴에게 내주지 않는다.
+       ★고정해도 <자리는 그대로>다 — 앞으로 끌어올리면 그것도 화면이 출렁이는 원인이 된다.
+       목록에 없던 메뉴를 고정하면 빈 자리(또는 가장 적게 쓴 자리)에 들어간다. */
+  function favToggle(ev, nm){
+    ev.preventDefault(); ev.stopPropagation();        // 메뉴 자체가 열리지 않게
+    var l=favPins(), i=l.indexOf(nm);
+    if(i>=0) l.splice(i,1);
+    else{
+      if(l.length>=FAV_MAX){
+        if(typeof ssToast==='function') ssToast('⭐ 고정은 '+FAV_MAX+'개까지입니다. 하나를 풀고 고정해 주세요.');
+        else alert('고정은 '+FAV_MAX+'개까지입니다.');
+        return;
+      }
+      l.push(nm);
+      /* 아직 상단 줄에 없으면 자리를 하나 마련해 준다 */
+      var o=favLoad().slice(), u=favUseLoad();
+      if(o.indexOf(nm)<0){
+        if(o.length<FAV_MAX) o.push(nm);
+        else{
+          var cand=o.filter(function(x){ return l.indexOf(x)<0; });
+          if(cand.length){
+            var worst=cand.reduce(function(a,b){ return (u[a]||0)<=(u[b]||0) ? a : b; });
+            o[o.indexOf(worst)]=nm;
+          }
+        }
+        favOrderSave(o);
+      }
+    }
+    favSave(l); favRender();
+  }
+  /* 상단 줄의 ✕ = 그 메뉴만 자리에서 내린다 — 고정을 풀고 사용 횟수도 0 으로 되돌린다
+     (횟수를 안 지우면 곧바로 다시 올라와 "안 지워진다" 가 된다) */
+  function favDrop(ev, nm){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+    favSave(favPins().filter(function(x){ return x!==nm; }));
+    favOrderSave(favLoad().filter(function(x){ return x!==nm; }));
+    var u=favUseLoad(); delete u[nm]; favUseSave(u);
+    favRender();
+  }
+  /* 비우기 = 고정·사용횟수를 모두 지운다 → 기본 5개도 다시 나오지 않는다 */
+  function favClear(){
+    favSave([]); favOrderSave([]); favUseSave({});
+    favRender();
+  }
+  function favRun(nm){
+    var a=favFind(nm); if(!a) { favOrderSave(favLoad().filter(function(x){return x!==nm;})); favRender(); return; }
+    /* 접혀 있는 펼침메뉴 안에 있으면 그 묶음을 펼쳐 준다(어디서 왔는지 보이게) */
+    var sub=a.closest('.sub-menu');
+    if(sub && !sub.classList.contains('open')){
+      sub.classList.add('open');
+      var head=sub.previousElementSibling;
+      if(head && head.classList.contains('has-sub')) head.classList.add('open');
+    }
+    a.click();
+  }
+  function favRender(){
+    var l=favLoad(), list=document.getElementById('favList');
+    if(!list) return;
+    /* 비어 있어도 줄은 남긴다 — 담긴 게 생기면 안내를 감춘다 */
+    var hint=document.getElementById('favHint'), clr=document.getElementById('favClearBtn');
+    if(hint) hint.style.display = l.length ? 'none' : '';
+    if(clr)  clr.style.display  = l.length ? '' : 'none';
+    document.getElementById('favCnt').textContent = l.length ? '('+l.length+'/'+FAV_MAX+')' : '';
+    /* 지금 열려 있는 화면과 같은 이름이면 켜 준다 */
+    var curNm=''; var onMi=document.querySelector('.logi-side a.mi.on'); if(onMi) curNm=favLabel(onMi);
+    var pin=favPins(), u=favUseLoad();
+    list.innerHTML = l.map(function(nm){
+      var a=favFind(nm), ic='⭐';
+      if(a){ var s=a.querySelector('.ic'); if(s) ic=s.textContent; }
+      var q=String(nm).replace(/'/g,"\\'"), isPin=pin.indexOf(nm)>=0;
+      return '<a class="favmi'+(nm===curNm?' on':'')+'" onclick="favRun(\''+q+'\')"'
+           +   ' title="'+nm+(isPin?' — 고정됨':(u[nm]?' — '+u[nm]+'번 사용':''))+'">'
+           +   (isPin?'<span class="pin" title="고정됨">📌</span>':'')
+           +   '<span>'+ic+'</span>'+nm
+           +   '<span class="x" title="이 메뉴 내리기" onclick="favDrop(event,\''+q+'\')">✕</span>'
+           + '</a>';
+    }).join('');
+    /* 사이드바 메뉴의 ☆/★ = <고정 여부>를 나타낸다(목록에 있는지가 아니라) */
+    document.querySelectorAll('.logi-side a.mi').forEach(function(a){
+      var st=a.querySelector('.fav'); if(!st) return;
+      var on = pin.indexOf(favLabel(a))>=0;
+      st.textContent = on ? '★' : '☆';
+      st.classList.toggle('on', on);
+      st.title = on ? '고정 해제 (해제해도 자주 쓰면 다시 올라옵니다)'
+                    : '자주 쓰는 메뉴에 고정 (최대 '+FAV_MAX+'개)';
+    });
+  }
+  /* 메뉴마다 ☆ 를 달아 둔다 — 펼침메뉴(has-sub)는 화살표 자리라 뺀다 */
+  function favInit(){
+    document.querySelectorAll('.logi-side a.mi').forEach(function(a){
+      if(a.classList.contains('has-sub') || a.querySelector('.fav')) return;
+      var nm=favLabel(a); if(!nm) return;
+      var s=document.createElement('span');
+      s.className='fav'; s.textContent='☆';
+      s.setAttribute('onclick', "favToggle(event,'"+nm.replace(/'/g,"\\'")+"')");
+      a.appendChild(s);
+    });
+    favRender();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', favInit);
+  else favInit();
+
   // 자체완결 화면(회사/사용자·공통코드)을 우측 iframe 패널에 로드 (사이드메뉴 종속)
   function logiFrame(key, url, el){
     logiGo(key, el);
@@ -1153,30 +1385,87 @@
       .then(function(r){ return r.text(); }).then(function(t2){ var j; try{ j=JSON.parse(t2); }catch(e){ swAlert('입고내역 응답 오류','error'); return; } _inbRows=(j&&j.data)||[]; _inbPage=1; inboundListRender(); })
       .catch(function(e){ swAlert('통신오류: '+e.message,'error'); });
   }
-  function inboundListGo(p){ _inbPage=p; inboundListRender(); }
+  /* ── 입고내역 = 2단 묶음(소계) + 접기/펼치기 + 스크롤 이어보기 (2026-08-04 요청)
+       · 묶음 : [일자 ▸ 매입처] 또는 [매입처 ▸ 일자] — 위 버튼으로 바꾼다.
+       · 각 묶음 줄에 <수량·금액 소계>를 달고, 줄을 누르면 접힌다(매출내역 출고장별 합계와 같은 규칙).
+       · 표는 화면 바닥까지 채우고(lzMount fill), 아래로 내리면 다음 행이 이어 붙는다. */
+  var _inbGrpBy='dt';                 // 'dt' = 일자▸매입처 / 'ven' = 매입처▸일자
+  var _inbCollapsed={};               // 접힌 묶음 키
+  var _inbFolded=false;               // 지금 '모두 접힘' 상태인지
+  /* ★묶음 기준은 <버튼 2개 그대로> (2026-08-04 확정) — 지금 무엇으로 묶였는지 두 기준을
+       나란히 놓고 봐야 알기 쉽다. 접기/펼치기만 <토글 하나>로 둔다. */
+  function inbGrpBy(v){ _inbGrpBy=v; _inbCollapsed={}; _inbFolded=false; inboundListRender(); }
+  function inbToggle(k){ _inbCollapsed[k]=!_inbCollapsed[k]; inboundListRender(); }
+  function inbFoldToggle(){
+    _inbFolded=!_inbFolded;
+    _inbCollapsed={};
+    if(_inbFolded) inbBuild().L1.forEach(function(g1,i1){ _inbCollapsed['1#'+i1]=true; });   // 1단만 남긴다
+    inboundListRender();
+  }
+  /* 자료 → 2단 묶음 구조 */
+  function inbBuild(){
+    var L1=[], m1={};
+    _inbRows.forEach(function(r){
+      var k1 = (_inbGrpBy==='dt') ? _fmtYmd(r.trxDt) : (r.vendorNm||'(미지정)');
+      var k2 = (_inbGrpBy==='dt') ? (r.vendorNm||'(미지정)') : _fmtYmd(r.trxDt);
+      var g1=m1[k1]; if(!g1){ g1=m1[k1]={ label:k1, l2:[], m2:{}, q:0, a:0, cnt:0 }; L1.push(g1); }
+      g1.q+=(+r.qty||0); g1.a+=(+r.amt||0); g1.cnt++;
+      var g2=g1.m2[k2]; if(!g2){ g2=g1.m2[k2]={ label:k2, items:[], q:0, a:0 }; g1.l2.push(g2); }
+      g2.q+=(+r.qty||0); g2.a+=(+r.amt||0); g2.items.push(r);
+    });
+    return { L1:L1 };
+  }
   function inboundListRender(){
     var wrap=document.getElementById('inbWrap'), sum=document.getElementById('inbSum'), pg=document.getElementById('inbPager');
     // 매입처는 코드 + 이름 두 칸 (2026-08-01 요청) — 총합계 colspan 은 아래에서 같이 5로 맞춰 둔다
     var thead='<thead><tr><th>입고일</th><th>매입처</th><th>매입처명</th><th>품목코드</th><th>품목명</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>비고</th></tr></thead>';
     var tQ=0,tA=0; _inbRows.forEach(function(r){ tQ+=(+r.qty||0); tA+=(+r.amt||0); });
     if(!_inbRows.length){ sum.textContent='입고 내역이 없습니다. (상품관리 ▸ 재고 탭에서 입고 등록 시 표시)'; wrap.innerHTML=''; pg.innerHTML=''; return; }
-    sum.innerHTML='총 <b>'+_inbRows.length.toLocaleString()+'</b>건 · 수량합 <b>'+_cnum(tQ)+'</b> · 금액합 <b>'+_cnum(tA)+'</b>';
-    var totalRow='<tr class="close-total"><td colspan="5" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tQ)+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td></tr>';
-    var pages=Math.max(1,Math.ceil(_inbRows.length/INB_PAGE)); if(_inbPage>pages)_inbPage=pages;
-    var pr=_inbRows.slice((_inbPage-1)*INB_PAGE, (_inbPage-1)*INB_PAGE+INB_PAGE);
-    var body=pr.map(function(r){
+    var b=inbBuild(), L1=b.L1;
+    sum.innerHTML='총 <b>'+_inbRows.length.toLocaleString()+'</b>건 · 수량합 <b>'+_cnum(tQ)+'</b> · 금액합 <b>'+_cnum(tA)+'</b>'
+      +' <span style="margin-left:10px;color:#5a6b7a">묶음</span>'
+      +' <button type="button" class="'+(_inbGrpBy==='dt'?'on':'')+'" onclick="inbGrpBy(\'dt\')">일자 ▸ 매입처</button>'
+      +' <button type="button" class="'+(_inbGrpBy==='ven'?'on':'')+'" onclick="inbGrpBy(\'ven\')">매입처 ▸ 일자</button>'
+      +' <button type="button" style="margin-left:6px" onclick="inbFoldToggle()"'
+      +   ' title="누르면 접기 ↔ 펼치기가 바뀝니다 (접으면 1단 묶음만 남습니다)">'
+      +   (_inbFolded ? '⊞ 모두 펼치기' : '⊟ 모두 접기')+'</button>';
+    var totalRow='<tr class="close-total"><td colspan="5" style="text-align:left">■ 총합계 ('+L1.length.toLocaleString()+(_inbGrpBy==='dt'?'일':'개 매입처')+')</td><td style="text-align:right">'+_cnum(tQ)+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td></tr>';
+
+    /* 표시행 목록 — 접힘을 반영해 <행 단위>로 만든다(스크롤 이어보기가 행 수로 자른다) */
+    var list=[];
+    L1.forEach(function(g1,i1){
+      list.push({t:'1',i1:i1});
+      if(_inbCollapsed['1#'+i1]) return;
+      g1.l2.forEach(function(g2,i2){
+        list.push({t:'2',i1:i1,i2:i2});
+        if(_inbCollapsed['2#'+i1+'.'+i2]) return;
+        g2.items.forEach(function(r){ list.push({t:'d',r:r}); });
+      });
+    });
+
+    var g1Row=function(i1){
+      var g=L1[i1], c=!!_inbCollapsed['1#'+i1];
+      return '<tr class="close-grp" onclick="inbToggle(\'1#'+i1+'\')" style="cursor:pointer">'
+        +'<td colspan="5" style="text-align:left"><span class="ccar">'+(c?'▶':'▼')+'</span><b>'+_cesc(g.label)+'</b>'
+        +' <span style="color:#5b6b7a;font-weight:600">('+g.l2.length+(_inbGrpBy==='dt'?'개 매입처':'일')+' · '+g.cnt+'건)</span></td>'
+        +'<td style="text-align:right">'+_cnum(g.q)+'</td><td></td><td style="text-align:right">'+_cnum(g.a)+'</td><td></td></tr>';
+    };
+    var g2Row=function(i1,i2){
+      var g=L1[i1].l2[i2], c=!!_inbCollapsed['2#'+i1+'.'+i2];
+      return '<tr class="close-sub" onclick="inbToggle(\'2#'+i1+'.'+i2+'\')" style="cursor:pointer">'
+        +'<td colspan="5" style="text-align:left; padding-left:26px"><span class="ccar">'+(c?'▶':'▼')+'</span>'+_cesc(g.label)
+        +' <span style="color:#5b6b7a;font-weight:600">(품목 '+g.items.length+'건)</span></td>'
+        +'<td style="text-align:right">'+_cnum(g.q)+'</td><td></td><td style="text-align:right">'+_cnum(g.a)+'</td><td></td></tr>';
+    };
+    var dRow=function(r){
       return '<tr><td>'+_fmtYmd(r.trxDt)+'</td><td>'+_cesc(r.vendorCd||'-')+'</td><td class="txt-l">'+_cesc(r.vendorNm||'-')+'</td><td>'+_cesc(r.prodCd)+'</td><td class="txt-l">'+_cesc(r.prodNm)+'</td>'
         +'<td style="text-align:right">'+_cnum(r.qty)+'</td><td style="text-align:right">'+_cnum(r.unitPrice)+'</td>'
         +'<td style="text-align:right">'+_cnum(r.amt)+'</td><td>'+_cesc(r.remark)+'</td></tr>';
-    }).join('');
-    wrap.innerHTML='<table class="logi-tb">'+thead+'<tbody>'+totalRow+body+'</tbody></table>';
-    if(pages<=1){ pg.innerHTML=''; return; }
-    var h='<button '+(_inbPage<=1?'disabled':'')+' onclick="inboundListGo('+(_inbPage-1)+')">‹</button>';
-    var from=Math.max(1,_inbPage-3), to=Math.min(pages,_inbPage+3);
-    if(from>1) h+='<button onclick="inboundListGo(1)">1</button>'+(from>2?'<span style="padding:0 4px;color:#9aa7b3">…</span>':'');
-    for(var p=from;p<=to;p++) h+='<button class="'+(p===_inbPage?'on':'')+'" onclick="inboundListGo('+p+')">'+p+'</button>';
-    if(to<pages) h+=(to<pages-1?'<span style="padding:0 4px;color:#9aa7b3">…</span>':'')+'<button onclick="inboundListGo('+pages+')">'+pages+'</button>';
-    h+='<button '+(_inbPage>=pages?'disabled':'')+' onclick="inboundListGo('+(_inbPage+1)+')">›</button>'; pg.innerHTML=h;
+    };
+    lzMount({ wrap:wrap, pager:'inbPager', head:'<table class="logi-tb">'+thead+'<tbody>'+totalRow,
+              list:list, rows:INB_PAGE, capTop:214, fill:true,
+              rowFn:function(x){ return (x.t==='1') ? g1Row(x.i1) : (x.t==='2') ? g2Row(x.i1,x.i2) : dRow(x.r); } });
+    wrap.scrollTop=0;
   }
   // ── 재고현황 (전체 품목 현재고) ──
   // 한 번에 보여줄 행수 10 — 이 표만 예외다(공통 18 아님). 아래 ②수불 내역까지 한 화면에 들어와야 해서(2026-07-25 요청).
@@ -1830,6 +2119,19 @@
   <!-- ───────────── 우측 콘텐츠 ───────────── -->
   <main class="logi-main">
 
+    <%-- ══ 상단 공통 영역 — 자주 쓰는 메뉴 (2026-08-04 요청) ═══════════════════
+         · 어느 화면을 열어도 항상 같은 자리(맨 위)에 있다. 화면을 내려도 따라온다(sticky).
+         · 쌓이는 법 : 메뉴를 열 때마다 횟수를 세어 <많이 쓴 순>으로 최대 7개까지 저절로 올라온다.
+                       ☆(사이드바)로 고정하면 사용량과 무관하게 맨 앞에 남고, 칩의 ✕ 로 내린다.
+         · 실행      : 원래 메뉴의 onclick 을 그대로 부른다 — 화면 여는 방법이 두 벌이 되지 않게. --%>
+    <div id="favBar">
+      <span class="ft">⭐ 자주 쓰는 메뉴 <span id="favCnt"></span></span>
+      <div id="favList"></div>
+      <span id="favHint">메뉴를 쓰시면 여기에 <b>자주 쓰는 순서</b>로 쌓입니다 (최대 7개 · ☆ 로 고정)</span>
+      <span id="favClearBtn" title="전부 비웁니다" onclick="favClear()">✕ 비우기</span>
+    </div>
+
+
     <style>
       .close-tabs{ display:flex; gap:4px; margin:6px 0 10px; border-bottom:2px solid #e2e8e6; }
       .close-tabs .ctab{ height:34px; padding:0 14px; border:1px solid #dfe6e3; border-bottom:none; background:#f1f5f4; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; font-weight:700; color:#5a6b7a; }
@@ -1900,6 +2202,18 @@
       table.logi-tb tr.close-total td:first-child, table.logi-tb tr.close-grp td:first-child, table.logi-tb tr.close-sub td:first-child{ text-align:left; }
       /* 재고현황 ① 그리드: 스크롤해도 헤더 + 총합계 행 고정 */
       #stkStatusWrap table.logi-tb thead th{ position:sticky; top:0; z-index:4; box-shadow:inset 0 -1px 0 var(--logi-border); }
+      /* 입고내역 — 스크롤 목록(lzMount)이 되면서 필요해진 규칙(2026-08-04)
+           ★overflow 가 없으면 스크롤 자체가 안 생겨 '이어서 나옴'이 동작하지 않는다(정산서 원본 탭에서 겪은 것과 같음).
+             실제 높이는 lzFit(fill)이 인라인 maxHeight 로 화면 바닥까지 잡는다. */
+      #inbWrap{ overflow:auto; min-height:240px; }
+      #inbWrap table.logi-tb thead th{ position:sticky; top:0; z-index:4; box-shadow:inset 0 -1px 0 var(--logi-border); }
+      #inbWrap table.logi-tb tr.close-total td{ position:sticky; top:37px; z-index:3; }
+      /* 묶음 토글 — 매출내역(출고장별 합계)과 같은 색. 조회줄을 가리지 않게 작게 */
+      #inbSum button{ flex:0 0 auto; border:1px solid var(--logi-border); background:#fff; border-radius:14px;
+                      padding:3px 11px; font-size:12px; font-weight:700; color:#37475a; cursor:pointer; white-space:nowrap; }
+      #inbSum button:hover{ border-color:#137a6c; color:#137a6c; }
+      #inbSum button.on{ background:#137a6c; color:#fff; border-color:#137a6c; }
+      #inbSum button.on:hover{ background:#0f6b5c; color:#fff; }
       #stkStatusWrap table.logi-tb tbody tr.close-total td{ position:sticky; top:34px; z-index:3; box-shadow:inset 0 -1px 0 rgba(255,255,255,.3); }
       /* 조회 진행바 — 정산서 대사가 붙으면서 마감·매출내역 조회가 무거워졌다(2026-07-25).
          응답이 올 때까지 표 자리에 띄운다. 진행률을 알 수 없는 조회라 좌우로 흐르는 무한 바. */
@@ -2844,7 +3158,8 @@
             <span class="tipx" title="[원천] 재고 수불원장(TBL_STOCK_LEDGER) 중 입고(IO_GB='I') 거래만 최신순으로.&#10;&#10;[등록하는 곳] 상품(품목)관리 ▸ 품목 행 클릭 ▸ 하단 재고 탭에서 입고를 등록하면 여기에 나옵니다.&#10;  (이 화면은 조회 전용입니다)&#10;&#10;[기간] 비우면 전체입니다.&#10;&#10;[출고는 안 나옵니다] 출고는 발주현황표에서 자동 기록되며 재고현황·매출내역에서 봅니다.">ℹ️ 도움말</span>
           </div>
         </div>
-        <div class="close-summary" id="inbSum" style="margin:10px 0 4px">[조회] 또는 [새로고침]을 누르세요.</div>
+        <%-- 요약 + 묶음 토글. 위 조회줄과 겹치지 않게 한 줄로 흐르되 넘치면 자연스럽게 접힌다 --%>
+        <div class="close-summary" id="inbSum" style="margin:10px 0 4px; display:flex; align-items:center; flex-wrap:wrap; gap:6px">[조회] 또는 [새로고침]을 누르세요.</div>
         <div id="inbWrap"></div>
         <div class="close-pager" id="inbPager"></div>
       </div>

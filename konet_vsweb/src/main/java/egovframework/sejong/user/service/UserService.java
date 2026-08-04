@@ -55,6 +55,7 @@ public interface UserService {
 
 	// ===== 거래처 마스터 (TBL_VENDOR_MST) =====
 	java.util.List<egovframework.sejong.user.model.VendorDTO> selectVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectVendorTrxSum(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
 	int vendorDupChk(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
 	int insertVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
 	int updateVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;

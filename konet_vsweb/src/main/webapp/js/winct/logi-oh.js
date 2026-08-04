@@ -5000,21 +5000,33 @@ var KONET_CTX = window.KONET_CTX || '';
          (Ctrl+F 검색·전체 드래그 복사에는 전부 펼쳐야 하므로 수단은 남겨 둔다).
        ※ 상태(_lz)는 표 컨테이너에 붙여 둔다 — 화면마다 표가 따로 살아 있어야 하므로 전역 하나로는 안 된다. */
   function lzIdent(s){ return s; }   // list 가 이미 행 HTML 문자열인 표(①탭·재고현황)용
-  function lzMount(o){               // {wrap, pager, head, list, rowFn, rows, capTop}
+  function lzMount(o){               // {wrap, pager, head, list, rowFn, rows, capTop, fill}
     var wrap=(typeof o.wrap==='string')?document.getElementById(o.wrap):o.wrap; if(!wrap) return;
     var rows=o.rows||KONET_GRID_ROWS, list=o.list||[], rowFn=o.rowFn||lzIdent;
     var n=Math.min(rows, list.length), body='';
     for(var i=0;i<n;i++) body+=rowFn(list[i]);
     wrap.innerHTML=o.head+body+'</tbody></table>';
-    wrap._lz={ list:list, from:n, rowFn:rowFn, rows:rows, pager:o.pager||'', capTop:o.capTop||214 };
+    wrap._lz={ list:list, from:n, rowFn:rowFn, rows:rows, pager:o.pager||'', capTop:o.capTop||214, fill:!!o.fill };
     lzFit(wrap); lzBind(wrap);
-    // N행이 표 높이보다 짧으면(행이 얇거나 창이 큰 경우) 스크롤이 안 생겨 영영 안 채워진다 — 찰 때까지 미리 붙인다
+    // N행이 표 높이보다 짧으면(행이 얇거나 창이 큰 경우) 스크롤이 안 생겨 영영 안 채워지고,
+    // fill 표는 화면을 채울 만큼 행이 필요하다 — 어느 쪽이든 찰 때까지 미리 붙인다
     for(var g=0; wrap._lz.from<list.length && wrap.scrollHeight<=wrap.clientHeight+2 && g<200; g++) lzFill(wrap);
     lzInfo(wrap);
   }
   function lzFit(wrap){
     var z=wrap._lz; if(!z) return;
     var cap=Math.max(240, window.innerHeight-z.capTop);   // 창을 벗어나면 안 됨
+    /* ★fill 표(매출내역 탭들)는 <화면 바닥까지> 쓴다 (2026-08-04 "빈공간").
+         N행 높이로 상한을 걸면 큰 화면에서 표 아래가 텅 비었다. 표 시작 위치를 실측해
+         (창높이 − 시작위치 − 하단안내줄) 로 상한을 잡는다 — 행이 모자라면 표는 짧게 끝나고,
+         남으면 lzMount 의 미리 붙이기가 바닥까지 채운다.
+       재고현황처럼 표 두 개를 한 화면에 두는 곳은 fill 없이 종전(N행 상한) 그대로다. */
+    if (z.fill && wrap.offsetParent){
+      var top=wrap.getBoundingClientRect().top + (window.scrollY||window.pageYOffset||0);
+      cap=Math.max(240, window.innerHeight - top - 46);
+      wrap.style.maxHeight=cap+'px';
+      return;
+    }
     var tb=wrap.querySelector('table');
     if(!tb){ wrap.style.maxHeight=cap+'px'; return; }
     // 행 높이가 종류마다 달라(그룹 머리행·설명행) 계산하지 않고 실측한다. +1 = 맨 위 '■ 총합계' 줄
@@ -5058,7 +5070,7 @@ var KONET_CTX = window.KONET_CTX || '';
   // 매출내역 4탭 — 위 공통 표에 얹기 (호출부는 list/rowFn 만 넘긴다)
   function _ohIdent(s){ return s; }
   function _ohMount(wrap, head, list, rowFn){
-    lzMount({ wrap:wrap, pager:'ohPager', head:head, list:list, rowFn:rowFn, rows:OH_ROWS, capTop:214 });
+    lzMount({ wrap:wrap, pager:'ohPager', head:head, list:list, rowFn:rowFn, rows:OH_ROWS, capTop:214, fill:true });
   }
   /* ══ 매출내역 기간 빠른 선택 (2026-07-27 요청) ═══════════════════════════════
      당일 / 1주일(오늘 포함 최근 7일) / 해당월(1일~오늘, 말일 아님) / 직접 입력.
@@ -5429,7 +5441,7 @@ var KONET_CTX = window.KONET_CTX || '';
         +'<td title="'+_cesc(_spTypeTip(r))+'">'+(ret?'<span style="color:#c0392b;font-weight:800">반품</span>':_cesc(_spType(r)))+'</td></tr>';
     };
     lzMount({ wrap:wrap, pager:'spPager', head:head+totRow, list:list, rowFn:rowFn,
-              rows:KONET_GRID_ROWS, capTop:214 });
+              rows:KONET_GRID_ROWS, capTop:214, fill:true });
 
   }
 

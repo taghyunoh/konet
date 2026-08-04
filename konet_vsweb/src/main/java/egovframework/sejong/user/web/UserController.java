@@ -778,6 +778,23 @@ public class UserController {
 			return res;
 		}
 
+		/* 거래처별 최근 6개월 매출·매입 합계 (2026-08-04)
+		   — 거래처 선택 팝업 정렬용: 판매등록은 saleAmt, 매입등록은 purchAmt 내림차순으로 쓴다. */
+		@RequestMapping(value="/vendor/vendorTrxSum.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> vendorTrxSum(@ModelAttribute("DTO") egovframework.sejong.user.model.VendorDTO dto,
+		                                        HttpSession session) throws Exception {
+			Map<String,Object> res = new java.util.HashMap<String,Object>();
+			try {
+				res.put("data", svc.selectVendorTrxSum(dto));
+			} catch (Exception e) {
+				log.error(" vendorTrxSum ERROR ! : " + e.getMessage());
+				res.put("data", new java.util.ArrayList<Object>());
+				res.put("error", e.getMessage());
+			}
+			return res;
+		}
+
 		/* 이미 업로드(반영)된 매출 엑셀 파일 목록 — 업로드 화면 '이미 반영' 배지용 */
 		@RequestMapping(value="/sales/selectSalesSrcFiles.do", method = RequestMethod.POST)
 		@ResponseBody

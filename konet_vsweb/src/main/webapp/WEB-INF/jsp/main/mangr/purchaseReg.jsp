@@ -35,15 +35,25 @@
   .pu-bal b{ font-size:15px; color:#c0392b; }
   /* 명세 그리드 */
   /* 상단 명세 그리드 — 행수가 늘어도 화면이 안 흔들리게 높이 고정(2026-07-25 요청) */
-  .pu-grid{ height:210px; overflow:auto; border:1px solid var(--pu-bd); border-radius:8px 8px 0 0; }
+  /* 기본 210px, ★아래 모서리를 끌어 늘리고 줄일 수 있다(2026-08-04 — 판매등록과 동일) */
+  .pu-grid{ height:210px; min-height:112px; max-height:70vh; resize:vertical;
+            overflow:auto; scrollbar-gutter:stable; border:1px solid var(--pu-bd); border-radius:8px 8px 0 0; }
   /* 합계 — 그리드 바로 밑 고정. 가로 스크롤은 JS 가 그리드와 맞춘다 */
-  .pu-foot{ overflow:hidden; border:1px solid var(--pu-bd); border-top:0; border-radius:0 0 8px 8px; }
-  .pu-foot table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
+  .pu-foot{ overflow:hidden; scrollbar-gutter:stable; border:1px solid var(--pu-bd); border-top:0; border-radius:0 0 8px 8px; }
+  /* ★그리드 표와 합계 표의 칸 맞춤(2026-08-04 — 판매등록과 동일한 방식):
+       두 표 모두 table-layout:fixed + 같은 colgroup + 같은 min-width(colgroup 합 1740px).
+       화면이 그보다 넓으면 width:100% 로 우측 끝까지 늘어난다 — 남는 폭은 두 표가 같은 비율로
+       나눠 갖고, scrollbar-gutter 로 세로 스크롤바 자리도 똑같이 예약해 어느 쪽도 밀리지 않는다. */
+  .pu-foot table{ width:100%; min-width:1740px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .pu-foot td{ border:1px solid var(--pu-bd); padding:6px 4px; text-align:center; background:#137a6c; color:#fff; font-weight:800; }
   .pu-foot td.num{ text-align:right; }
-  .pu-grid table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
+  .pu-grid table{ width:100%; min-width:1740px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .pu-grid th{ background:#eef3f2; color:#1f2a37; font-weight:700; border:1px solid var(--pu-bd); padding:7px 6px; position:sticky; top:0; z-index:2; }
-  .pu-grid td{ border:1px solid var(--pu-bd); padding:2px 4px; text-align:center; }
+  /* 컬럼 폭 조절 손잡이 — 머리글 오른쪽 경계를 끌면 그 칼럼이 늘고 줄어든다(bindColResize) */
+  .pu-colrz{ position:absolute; top:0; right:-4px; width:8px; height:100%; cursor:col-resize; z-index:4; }
+  .pu-colrz:hover{ background:rgba(19,122,108,.25); }
+  .pu-grid td{ border:1px solid var(--pu-bd); padding:2px 4px; text-align:center;
+               overflow:hidden; text-overflow:ellipsis; }   /* 고정 폭이라 긴 품명은 …로 줄인다 */
   .pu-grid td.num{ text-align:right; }
   .pu-grid td.txt{ text-align:left; }
   .pu-grid input{ width:100%; border:0; background:transparent; font-size:13.5px; padding:4px 2px; text-align:right; }
@@ -60,7 +70,7 @@
           background:#e9f4f1; color:#137a6c; border:1px solid #b9ded4; }
   .vp-gb.both{ background:#eef0ff; color:#3f43a8; border-color:#c9cdf3; }
   .vp-gb.none{ background:#f2f4f6; color:#8a97a4; border-color:#dde3e9; }
-  .vat-tag{ display:inline-block; white-space:nowrap; margin-left:6px; padding:1px 7px; border-radius:10px; font-size:11.5px;
+  .vat-tag{ display:inline-block; white-space:nowrap; margin-left:6px; padding:2px 8px; border-radius:10px; font-size:12.5px;
             font-weight:800; background:#eef3f2; color:#37475a; border:1px solid #cfd8e3; vertical-align:middle; }
   .vat-tag.inc { background:#eaf3ff; color:#1a56a8; border-color:#b9d3f2; }
   .vat-tag.free{ background:#fff1e8; color:#b45309; border-color:#f0c9a4; }
@@ -150,7 +160,7 @@
          가로 스크롤은 JS 로 동기화한다. --%>
     <div class="pu-grid" id="puGridWrap">
       <table>
-        <colgroup><col style="width:38px"><col style="width:82px"><col style="width:110px"><col style="width:230px"><col style="width:110px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
+        <colgroup><col style="width:38px"><col style="width:82px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
         <thead><tr>
           <th>No</th><th>행(＋삽입/▲▼)</th><th>상품코드</th><th>품명(단가이력조회)</th>
           <th>[입수량]규격</th><th>BOX수량</th><th>EA수량</th>
@@ -165,7 +175,7 @@
     <div id="puGridPager" style="padding:5px 2px 0; text-align:center; min-height:22px"></div>
     <div class="pu-foot" id="puFootWrap">
       <table>
-        <colgroup><col style="width:38px"><col style="width:82px"><col style="width:110px"><col style="width:230px"><col style="width:110px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
+        <colgroup><col style="width:38px"><col style="width:82px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
         <tbody><tr class="tot">
           <td colspan="5">■ 합계</td>
           <td class="num" id="tBox">0</td><td class="num" id="tEa">0</td><td class="num" id="tQty">0</td>
@@ -193,6 +203,8 @@
       <button class="pu-btn" onclick="puReload()">🔄 새로고침</button>
       <button class="pu-btn red" onclick="puDelete()">✖ 삭제하기</button>
       <span id="puState" style="margin-left:8px; color:#3d4d5c; font-size:12.5px"></span>
+      <span style="margin-left:auto; color:#8a97a4; font-size:11.5px"
+            title="상품칸에 바로 입력해 ↑↓·Enter 로 고르고, Enter 로 다음 칸/다음 줄, ↑↓ 로 줄을 오갑니다">⌨ 상품칸 입력검색 · Enter 다음칸 · ↑↓ 줄이동 · Ctrl+S 저장 · Alt+N 신규</span>
     </div>
   </div>
 
@@ -209,9 +221,10 @@
     <div class="pu-list" id="puListWrap">
       <table>
         <thead><tr>
-          <th style="width:70px">복사저장</th><th style="width:110px">매입일시</th><th style="width:70px">번호</th>
-          <th>거래처명</th><th style="width:90px">담당사원</th><th style="width:70px">상품수</th>
-          <th style="width:120px">금액</th><th style="width:90px">창고</th><th style="width:90px">등록자</th>
+          <th style="width:70px">복사저장</th><th style="width:110px">매입일시</th><th style="width:64px">번호</th>
+          <%-- 거래처명은 폭을 지정해 줄인다(2026-08-04 — 판매등록과 동일) --%>
+          <th style="width:220px">거래처명</th><th style="width:84px">담당사원</th><th style="width:64px">상품수</th>
+          <th style="width:110px">금액</th><th style="width:84px">창고</th><th style="width:84px">등록자</th>
         </tr></thead>
         <tbody id="puListBody"><tr><td colspan="9" class="pu-msg">[리스트조회]를 누르세요.</td></tr></tbody>
       </table>
@@ -227,7 +240,8 @@
   </div>
 
   <!-- 거래처 원장(분개장) — 거래처를 고르면 그 거래처의 일자별 매입·지급·잔고 -->
-  <div class="pu-card" style="flex:0 0 460px">
+  <%-- 460→680px (2026-08-04 — 판매등록과 동일) — 왼쪽 목록은 그만큼 자동으로 줄어든다 --%>
+  <div class="pu-card" style="flex:0 0 680px">
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
       <b>원장</b>
       <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a">* 일자를 클릭하면 그 날 매입품목이 보입니다.</span>
@@ -238,14 +252,16 @@
     <%-- 원장 스크롤 : 머리글 고정 + 합계는 스크롤 영역 밖(항상 보임). 지급등록 화면과 같은 규격 --%>
     <div class="pu-list" id="lgWrap" style="max-height:300px; border-radius:8px 8px 0 0">
       <table>
-        <colgroup><col style="width:88px"><col><col style="width:52px"><col style="width:70px"><col style="width:52px"><col style="width:90px"></colgroup>
+        <%-- 균형 배분(2026-08-04 — 판매등록과 동일) --%>
+        <colgroup><col style="width:96px"><col><col style="width:88px"><col style="width:112px"><col style="width:88px"><col style="width:122px"></colgroup>
         <thead><tr><th>일자</th><th>매입</th><th>DC</th><th>지급</th><th>할인</th><th>잔고</th></tr></thead>
         <tbody id="lgBody"><tr><td colspan="6" class="pu-msg">거래처를 선택하세요.</td></tr></tbody>
       </table>
     </div>
     <div class="pu-lgfoot">
       <table>
-        <colgroup><col style="width:88px"><col><col style="width:52px"><col style="width:70px"><col style="width:52px"><col style="width:90px"></colgroup>
+        <%-- 균형 배분(2026-08-04 — 판매등록과 동일) --%>
+        <colgroup><col style="width:96px"><col><col style="width:88px"><col style="width:112px"><col style="width:88px"><col style="width:122px"></colgroup>
         <tbody id="lgFoot"></tbody>
       </table>
     </div>
@@ -255,11 +271,12 @@
 
 <!-- 거래처 선택 팝업 -->
 <div class="pu-pop" id="puVenPop">
-  <div class="box">
+  <div class="box" style="width:min(1140px,96vw)"><%-- 총판매·총매입 칼럼이 늘어 기본(940)보다 넓게 --%>
     <div class="hd">거래처 선택
       <input type="text" id="puVenQ" placeholder="거래처명·코드·별칭·대표자" style="flex:1; height:30px; border:1px solid var(--pu-bd); border-radius:6px; padding:0 8px" oninput="puVenRender()">
     </div>
-    <div class="bd"><table><thead><tr><th style="width:78px">코드</th><th>거래처명</th><th style="width:96px">거래유형</th><th style="width:74px">부가세</th><th style="width:120px">별칭</th><th style="width:96px">대표자</th><th style="width:92px">담당사원</th></tr></thead>
+    <%-- 총매입·총판매 표시(2026-08-04) — 정렬(총매입 순)의 근거가 화면에 보이게. 매입 화면이라 매입을 앞에 --%>
+    <div class="bd"><table><thead><tr><th style="width:78px">코드</th><th>거래처명</th><th style="width:96px">거래유형</th><th style="width:74px">부가세</th><th style="width:108px">총매입</th><th style="width:108px">총판매</th><th style="width:110px">별칭</th><th style="width:92px">대표자</th><th style="width:88px">담당사원</th></tr></thead>
       <tbody id="puVenBody"></tbody></table></div>
     <div class="ft" style="justify-content:space-between"><span style="display:flex;gap:6px"><button class="pu-btn" id="puVenAllBtn" onclick="puVenAll(!_venAll)" title="끄면 매입 거래처(+유형 미지정)만 보입니다">전체</button><button class="pu-btn teal" onclick="puVenNew()">＋ 신규 거래처</button></span><button class="pu-btn" onclick="puVenClose()">닫기</button></div>
   </div>
@@ -420,6 +437,7 @@ var PU_ROWS = 8, _pShown = 0, _pBound = false;
 var _rows = [];        // 명세 행
 var _list = [];        // 전표 목록
 var _vendors = [];     // 거래처 마스터
+var _venSum = {};      // 거래처별 총판매·총매입 {s,p} — 팝업에 표시하고 총매입 순으로 정렬(2026-08-04)
 /* 고른 거래처의 부가세 설정 '별도'|'포함'|'면세' (TBL_VENDOR_MST.VAT_GB).
    비어 있으면 '별도' 로 본다 — 예전 자료는 이 칸이 비어 있는데, 지금까지의 동작이 별도였다. */
 var _venVat = '별도';
@@ -487,6 +505,55 @@ function post(url, body, isJson){
   if (g && f) g.addEventListener('scroll', function(){ f.scrollLeft = g.scrollLeft; });
 })();
 
+/* 컬럼 폭 조절(2026-08-04 — 판매등록과 동일) — 머리글 오른쪽 경계를 끌면 그 칼럼이 늘고 준다.
+   ★그리드와 합계 표의 colgroup 을 <같이> 바꾼다 — 한쪽만 바꾸면 칸 맞춤이 깨진다.
+   ★끌고 나면 두 표의 min-width 를 칼럼 합으로 다시 잡는다 — 안 잡으면 넓힌 만큼
+     다른 칼럼이 눌려 전체 폭이 그대로가 된다(table-layout:fixed 의 배분 규칙). */
+(function bindColResize(){
+  var gw = document.getElementById('puGridWrap'), fw = document.getElementById('puFootWrap');
+  if (!gw || !fw) return;
+  var gc = gw.querySelectorAll('colgroup col'), fc = fw.querySelectorAll('colgroup col');
+  var gt = gw.querySelector('table'), ft = fw.querySelector('table');
+  var ths = gw.querySelectorAll('thead th');
+
+  function applyMin(){
+    var sum = 0;
+    for (var i = 0; i < gc.length; i++) sum += parseInt(gc[i].style.width, 10) || 0;
+    gt.style.minWidth = sum + 'px';
+    ft.style.minWidth = sum + 'px';
+  }
+  ths.forEach(function(th, i){
+    if (i >= gc.length) return;
+    var h = document.createElement('span');
+    h.className = 'pu-colrz';
+    h.title = '끌어서 칼럼 폭 조절';
+    th.appendChild(h);
+    h.addEventListener('mousedown', function(e){
+      e.preventDefault(); e.stopPropagation();
+      var sx = e.clientX, w0 = th.offsetWidth;
+      function mv(ev){
+        var w = Math.max(36, w0 + (ev.clientX - sx));
+        gc[i].style.width = w + 'px';
+        fc[i].style.width = w + 'px';
+        applyMin();
+      }
+      function up(){
+        document.removeEventListener('mousemove', mv);
+        document.removeEventListener('mouseup', up);
+        document.body.style.cursor = '';
+      }
+      document.body.style.cursor = 'col-resize';
+      document.addEventListener('mousemove', mv);
+      document.addEventListener('mouseup', up);
+    });
+    /* 더블클릭 = 처음 폭으로 */
+    var w0px = gc[i].style.width;
+    h.addEventListener('dblclick', function(){
+      gc[i].style.width = w0px; fc[i].style.width = w0px; applyMin();
+    });
+  });
+})();
+
 /* 등록내용 새로고침 — 지금 보고 있는 전표를 서버에서 다시 읽는다.
    목록·원장·잔고도 같이 갱신한다. 신규 작성 중이면 목록만 새로 읽는다(입력분은 보존). */
 function puReload(){
@@ -505,6 +572,12 @@ function puReload(){
 
 function puLoadMasters(){
   post('/vendor/selectVendorMst.do','').then(function(r){return r.json();}).then(function(j){ _vendors=(j&&j.data)||[]; }).catch(function(){});
+  /* 거래처 팝업용 — 거래처별 총판매·총매입(2026-08-04). 표시 + 총매입 순 정렬에 쓴다.
+     못 받아와도 팝업은 이름순·금액 0 으로 그대로 뜬다. */
+  post('/vendor/vendorTrxSum.do','').then(function(r){return r.json();}).then(function(j){
+    _venSum = {};
+    ((j&&j.data)||[]).forEach(function(o){ _venSum[o.vendorCd] = { s:n(o.saleAmt), p:n(o.purchAmt) }; });
+  }).catch(function(){});
   post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){ _prods=(j&&j.data)||[]; }).catch(function(){});
 }
 
@@ -518,6 +591,7 @@ function puNew(){
   for (var i=0;i<5;i++) _rows.push(emptyRow());
   puRender(); puNextNo();
   Array.prototype.forEach.call(document.querySelectorAll('#puListBody tr'), function(tr){ tr.classList.remove('on'); });
+  puFocusFirstProd();                    // 진입 즉시 첫 상품칸에 커서(2026-08-04)
 }
 function emptyRow(){ return { prodCd:'', prodNm:'', spec:'', packQty:1, boxQty:0, eaQty:0, qty:0, unitPrice:0, amt:0, dcAmt:0,
                               supplyAmt:0, vatAmt:0, totAmt:0, serviceQty:0, remark:'', eventYn:'N', trxGb:'매입', taxGb:'과세' }; }
@@ -557,6 +631,7 @@ function puGridPager(){
     + ' <button class="pu-btn" style="height:22px;margin-left:8px;font-size:12px" onclick="puGridMore('+_rows.length+')">모두 표시</button>';
 }
 function puRender(){
+  var _keep = puCaptureFocus();          // 다시 그려도 커서가 있던 칸을 유지(2026-08-04 키보드 입력)
   var h = '';
   if (_pShown < PU_ROWS) _pShown = PU_ROWS;
   if (_pShown > _rows.length) _pShown = _rows.length;
@@ -575,25 +650,34 @@ function puRender(){
       +   '<span title="한 줄 위로" onclick="puMoveRow('+i+',-1)">▲</span>'
       +   '<span title="한 줄 아래로" onclick="puMoveRow('+i+',1)">▼</span>'
       + '</td>'
-      + '<td>'+ (o.prodCd ? '<span class="lnk" title="클릭 → 다른 상품으로 바꾸기" onclick="puProdOpen('+i+')">'+esc(o.prodCd)+'</span>'
-                          : '<span class="lnk" onclick="puProdOpen('+i+')">선택</span>') +'</td>'
+      /* ★빈 줄은 '상품코드 칸에 직접 입력검색'(2026-08-04) — 칸에 쳐서 ↑↓·Enter 로 고른다(puPin*).
+           고르면 그 행에 담기고 커서가 BOX수량 칸으로 넘어간다(매입 합계=BOX×입수+EA). [🔍]는 종전 팝업. */
+      + (o.prodCd
+          ? '<td><span class="lnk" title="클릭 → 다른 상품으로 바꾸기" onclick="puProdOpen('+i+')">'+esc(o.prodCd)+'</span></td>'
+          : '<td class="txt" style="padding:2px 3px"><div style="display:flex;align-items:center;gap:2px">'
+              + '<input class="puPin" data-r="'+i+'" data-f="prod" placeholder="상품검색" autocomplete="off"'
+              +   ' oninput="puPinInput(this)" onkeydown="puPinKey(this,event)" onblur="puPinBlur()"'
+              +   ' style="width:100%;border:0;background:transparent;font-size:13.5px;text-align:left;padding:4px 2px">'
+              + '<span class="lnk" title="상품 선택 팝업으로 찾기" style="font-size:12px" onclick="puProdOpen('+i+')">🔍</span>'
+              + '</div></td>')
       /* 품명 클릭 = 그 거래처의 매입단가 이력. 찾기 쉽게 📈 아이콘을 붙였다(2026-07-25) */
       + '<td class="txt">'+ (o.prodNm
           ? '<span class="lnk" onclick="puHistOpen('+i+')" title="클릭 → 이 거래처의 매입단가 이력(최대 3년)">'+esc(o.prodNm)+'</span>'
             + ' <span class="hist" onclick="puHistOpen('+i+')" title="매입단가 이력 보기">📈</span>'
           : '') +'</td>'
       + '<td class="txt">'+ (o.packQty?('['+fmt(o.packQty)+']'):'') + esc(o.spec) +'</td>'
-      + '<td><input value="'+n(o.boxQty)+'" onchange="puSet('+i+',\'boxQty\',this.value)"></td>'
-      + '<td><input value="'+n(o.eaQty)+'" onchange="puSet('+i+',\'eaQty\',this.value)"></td>'
+      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="boxQty" value="'+n(o.boxQty)+'" onchange="puSet('+i+',\'boxQty\',this.value)"></td>'
+      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="eaQty" value="'+n(o.eaQty)+'" onchange="puSet('+i+',\'eaQty\',this.value)"></td>'
       + '<td class="num">'+fmt(o.qty)+'</td>'
-      + '<td><input value="'+n(o.unitPrice)+'" onchange="puSet('+i+',\'unitPrice\',this.value)"></td>'
+      /* 단가·DC 는 천단위 콤마로 보여 준다(2026-08-04 — 판매등록과 동일). n() 이 콤마를 지우므로 계산은 그대로다 */
+      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="unitPrice" value="'+fmt(o.unitPrice)+'" onchange="puSet('+i+',\'unitPrice\',this.value)"></td>'
       + '<td class="num">'+fmt(o.amt)+'</td>'
-      + '<td><input value="'+n(o.dcAmt)+'" onchange="puSet('+i+',\'dcAmt\',this.value)"></td>'
+      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="dcAmt" value="'+fmt(o.dcAmt)+'" onchange="puSet('+i+',\'dcAmt\',this.value)"></td>'
       + '<td class="num">'+fmt(o.supplyAmt)+'</td>'
       + '<td class="num">'+fmt(o.vatAmt)+'</td>'
       + '<td class="num">'+fmt(o.totAmt)+'</td>'
-      + '<td><input value="'+n(o.serviceQty)+'" onchange="puSet('+i+',\'serviceQty\',this.value)"></td>'
-      + '<td><input class="txt" value="'+esc(o.remark)+'" onchange="puSet('+i+',\'remark\',this.value)"></td>'
+      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="serviceQty" value="'+n(o.serviceQty)+'" onchange="puSet('+i+',\'serviceQty\',this.value)"></td>'
+      + '<td><input class="txt" data-r="'+i+'" data-f="remark" value="'+esc(o.remark)+'" onchange="puSet('+i+',\'remark\',this.value)"></td>'
       + '<td><input type="checkbox" '+(o.eventYn==='Y'?'checked':'')+' onchange="puSet('+i+',\'eventYn\',this.checked?\'Y\':\'N\')"></td>'
       + '<td><select onchange="puSet('+i+',\'trxGb\',this.value)" style="border:0;background:transparent;font-size:12.5px">'
       +   '<option '+(o.trxGb==='매입'?'selected':'')+'>매입</option><option '+(o.trxGb==='반품'?'selected':'')+'>반품</option></select>'
@@ -603,6 +687,7 @@ function puRender(){
   document.getElementById('puBody').innerHTML = h;
   puGridBind(); puGridPager();
   puCalc();
+  puRestoreFocus(_keep);                 // _focusNext 가 있으면 그 칸으로, 없으면 있던 칸 그대로
 }
 function puSet(i, k, v){
   var o = _rows[i]; if(!o) return;
@@ -943,17 +1028,27 @@ function puVenRender(){
     if(!puVenFit(o)) return false;
     if(!q) return true;
     return [o.vendorCd,o.vendorNm,o.alias,o.ceoNm,o.mgrNm].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; });
-  }).slice(0,200);
+  });
+  /* 총매입금액 많은 순 — 같거나 없으면 이름순(2026-08-04 요청) */
+  l.sort(function(a,b){
+    var d = ((_venSum[b.vendorCd]||{}).p||0) - ((_venSum[a.vendorCd]||{}).p||0);
+    return d || String(a.vendorNm||'').localeCompare(String(b.vendorNm||''), 'ko');
+  });
+  l = l.slice(0,200);
   document.getElementById('puVenBody').innerHTML = l.length ? l.map(function(o){
     var gb = String(o.vendorGb||''), vt = String(o.vatGb||'') || '별도';
+    var sum = _venSum[o.vendorCd] || {};
     return '<tr class="pick" onclick="puVenPick(\''+esc(o.vendorCd)+'\')"><td>'+esc(o.vendorCd)+'</td><td class="txt" style="text-align:left">'+esc(o.vendorNm)+'</td>'
          /* 거래유형·부가세도 같이 보여 준다 (2026-08-03 요청) — 고르기 전에 성격을 알 수 있게.
             부가세가 비어 있는 예전 거래처는 '별도*' 로 — 계산도 별도로 하고 있음을 별표로 알린다. */
          + '<td>'+(gb ? '<span class="vp-gb'+(gb.indexOf('&')>=0?' both':'')+'">'+esc(gb)+'</span>'
                       : '<span class="vp-gb none">미지정</span>')+'</td>'
          + '<td><span class="vat-tag'+(vt==='면세'?' free':(vt==='포함'?' inc':''))+'">'+esc(vt)+(o.vatGb?'':'*')+'</span></td>'
+         /* 총매입·총판매 — 0 이면 빈칸(숫자 소음을 줄인다). 이 목록의 정렬 기준이 총매입이다 */
+         + '<td class="num">'+(sum.p ? fmt(sum.p) : '')+'</td>'
+         + '<td class="num">'+(sum.s ? fmt(sum.s) : '')+'</td>'
          + '<td>'+esc(o.alias)+'</td><td>'+esc(o.ceoNm)+'</td><td>'+esc(o.mgrNm)+'</td></tr>';
-  }).join('') : '<tr><td colspan="5" class="pu-msg">검색 결과가 없습니다.</td></tr>';
+  }).join('') : '<tr><td colspan="9" class="pu-msg">검색 결과가 없습니다.</td></tr>';
 }
 function puVenPick(cd){
   var o = _vendors.filter(function(x){ return String(x.vendorCd)===String(cd); })[0]; if(!o) return;
@@ -979,16 +1074,21 @@ function puVenBal(cd){
 /* ★ 원장을 그린 거래처를 따로 들고 있는다 (2026-07-31).
      저장 후 puNew() 는 상단 거래처를 비우지만 원장은 그대로 남는다. 그 상태에서
      원장 일자를 눌렀을 때 상단 거래처(빈 값)를 보면 아무 일도 안 일어난 것처럼 죽는다. */
-var _lgCd = '';
+var _lgCd = '', _lgSeq = 0;
 function puLedger(cd){
   _lgCd = cd || '';
-  var tb = document.getElementById('lgBody');
+  var tb = document.getElementById('lgBody'), wrap = document.getElementById('lgWrap');
+  var seq = ++_lgSeq;                     /* 행을 연달아 눌러도 <마지막 요청>만 화면에 남는다 */
   document.getElementById('lgVen').textContent = cd ? (document.getElementById('puVenNm').value||cd) : '—';
   if(!cd){ tb.innerHTML='<tr><td colspan="6" class="pu-msg">거래처를 선택하세요.</td></tr>'; document.getElementById('lgFoot').innerHTML=''; return; }
-  tb.innerHTML = '<tr><td colspan="6" class="pu-msg">불러오는 중…</td></tr>';
+  /* ★깜박임 방지(2026-08-04 — 판매등록과 동일) — 표를 지우지 않고 살짝 흐리게만 두었다가
+       새 자료가 오면 통째로 갈아끼운다. '불러오는 중…' 으로 비우면 행을 누를 때마다 번쩍인다. */
+  wrap.style.transition = 'opacity .15s'; wrap.style.opacity = '.55';
   post('/mangr/purchaseLedger.do','vendorCd='+encodeURIComponent(cd)).then(function(r){return r.json();}).then(function(j){
+    if (seq !== _lgSeq) return;           /* 더 새 요청이 이미 나갔다 — 이 응답은 버린다 */
+    wrap.style.opacity = '';
     var l = (j&&j.data)||[];
-    if(!l.length){ tb.innerHTML='<tr><td colspan="6" class="pu-msg">거래 내역이 없습니다.</td></tr>'; return; }
+    if(!l.length){ tb.innerHTML='<tr><td colspan="6" class="pu-msg">거래 내역이 없습니다.</td></tr>'; document.getElementById('lgFoot').innerHTML=''; return; }
     var h='', bal=0, mm=null, m={p:0,d:0,y:0,c:0}, t={p:0,d:0,y:0,c:0};
     function monthRow(){
       if(mm===null) return '';
@@ -1013,7 +1113,11 @@ function puLedger(cd){
     /* 합계는 스크롤 영역 밖에 — 아무리 내려도 항상 보인다 */
     document.getElementById('lgFoot').innerHTML =
       '<tr><td>합 계</td><td>'+fmt(t.p)+'</td><td>'+fmt(t.d)+'</td><td>'+fmt(t.y)+'</td><td>'+fmt(t.c)+'</td><td>'+fmt(bal)+'</td></tr>';
-  }).catch(function(e){ tb.innerHTML='<tr><td colspan="6" class="pu-msg" style="color:#c0392b">원장 조회 오류</td></tr>'; });
+  }).catch(function(e){
+    if (seq !== _lgSeq) return;
+    wrap.style.opacity = '';
+    tb.innerHTML='<tr><td colspan="6" class="pu-msg" style="color:#c0392b">원장 조회 오류</td></tr>';
+  });
 }
 
 function puProdOpen(i){ _prodTargetRow=i; document.getElementById('puProdPop').classList.add('on'); document.getElementById('puProdQ').value=''; puProdRender(); }
@@ -1300,6 +1404,165 @@ function puDayApply(){
     puDayClose();
   });
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   명세 그리드 키보드 입력 (2026-08-04) — 판매등록과 같은 방식을 이식.
+     ① 빈 줄 '상품코드' 칸에 직접 쳐서 ↑↓·Enter 로 상품을 고른다(puPin*) — 팝업을 안 열어도 된다.
+     ② 칸에서 Enter = 다음 칸, 줄 끝이면 다음 줄로. ↑↓ = 같은 칸으로 윗줄/아랫줄.
+     ③ 진입하면 첫 상품칸에 커서. Ctrl+S = 저장, Alt+N = 신규.
+   ★판매와 다른 점 두 가지:
+     · 매입 합계수량 = BOX×입수 + EA 라, 상품을 담으면 커서를 'BOX수량' 으로 보낸다(판매는 EA수량).
+       Enter 경로도 상품 → BOX수량 → 단가 → 다음 줄.
+     · 매입은 우리 코드 기준이라 '거래처 매칭코드' 검색이 없다 — 상품마스터(_prods)만 훑는다.
+   ★그리드는 값이 바뀔 때마다 통째로 다시 그리므로(puRender) 커서가 튀지 않게 위치를 잡아 두었다 되돌린다.
+   기존 동작(최근 매입단가 자동채움·부가세·반품·매입분·복사저장)은 그대로다. */
+var _focusNext = null;                     // 다음에 커서를 둘 칸 {r,f,sel} — puRender 가 소비하고 비운다
+
+function puCaptureFocus(){
+  var a = document.activeElement;
+  if (!a || !a.dataset || a.dataset.r == null) return null;
+  if (!a.closest || !a.closest('#puBody')) return null;
+  var s = null, e = null;
+  try { s = a.selectionStart; e = a.selectionEnd; } catch(_){}
+  return { r:a.dataset.r, f:a.dataset.f, s:s, e:e };
+}
+function puRestoreFocus(keep){
+  var t = _focusNext; _focusNext = null;
+  if (t) { puFocusCell(t); return; }
+  if (keep) puFocusCell(keep);
+}
+function puFocusCell(t){
+  if (!t) return false;
+  var el = document.querySelector('#puBody [data-r="'+t.r+'"][data-f="'+t.f+'"]');
+  if (!el && t.f === 'prod') el = document.querySelector('#puBody [data-r="'+t.r+'"][data-f="boxQty"]');
+  if (!el) return false;
+  try {
+    el.focus();
+    if (t.sel === 'all' || t.s == null) { if (el.select) el.select(); }
+    else el.setSelectionRange(t.s, t.e);
+  } catch(_){}
+  return true;
+}
+function puFocusFirstProd(){
+  setTimeout(function(){
+    var el = document.querySelector('#puBody input.puPin[data-f="prod"]');
+    if (el) el.focus();
+  }, 0);
+}
+
+/* 칸 사이 이동 — Enter 는 '상품 → BOX수량 → 단가 → (다음 줄)'. 그 밖의 칸은 다음 줄로 넘어간다. */
+function puNextEnter(r, f){
+  if (f === 'prod') return { r:r, f:'boxQty' };
+  if (f === 'boxQty' || f === 'eaQty') return { r:r, f:'unitPrice' };
+  var nr = r + 1;
+  if (_rows[nr] && _rows[nr].prodCd) return { r:nr, f:'boxQty' };
+  return { r:nr, f:'prod' };
+}
+function puGridKey(e){
+  var t = e.target;
+  if (!t || !t.dataset || t.dataset.r == null) return;
+  if (t.classList && t.classList.contains('puPin')) return;   // 상품 입력칸은 자체 처리
+  var r = +t.dataset.r, f = t.dataset.f;
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    var nx = puNextEnter(r, f);
+    _focusNext = nx ? { r:nx.r, f:nx.f, sel:'all' } : null;
+    t.blur();                              // 값 확정(onchange→puSet→puRender→_focusNext 로 이동)
+    if (_focusNext) {                      // 값이 안 바뀌어 재렌더가 없었던 경우
+      if (!puFocusCell(_focusNext)) {      // 갈 줄이 아직 없으면 꼬리 빈 줄을 만들어 그린다
+        puTail(); if (_pShown < _rows.length) _pShown = _rows.length; puRender();
+      } else { _focusNext = null; }
+    }
+  } else if (e.key === 'ArrowDown') { e.preventDefault(); puStepRow(t, 1); }
+  else if (e.key === 'ArrowUp')     { e.preventDefault(); puStepRow(t, -1); }
+}
+function puStepRow(t, dr){
+  var r = +t.dataset.r, f = t.dataset.f, nr = r + dr;
+  if (nr < 0 || nr >= _rows.length) return;
+  _focusNext = { r:nr, f:f, sel:'all' };
+  t.blur();
+  if (_focusNext) { puFocusCell(_focusNext); _focusNext = null; }
+}
+
+/* 상품코드 칸 입력검색 — 이미 들고 있는 상품마스터(_prods)만 훑어 서버를 부르지 않는다.
+     · 우리 코드/품명/규격으로 찾는다(매입은 매칭코드가 없다).
+     · 고르면 그 행에 담기고(puProdPick 재사용) 커서가 BOX수량으로 넘어간다.
+   드롭다운은 그리드가 overflow 라 잘리므로 body 에 position:fixed 로 띄운다. */
+var _pinInp = null, _pinRow = -1, _pinList = [], _pinIdx = -1, _pinDrop = null;
+function _pinHit(q){ return function(x){ return String(x==null?'':x).toLowerCase().indexOf(q) >= 0; }; }
+function puPinCands(q){
+  var out = [];
+  for (var i=0; i<_prods.length && out.length<12; i++){
+    var p = _prods[i]; if (!p.prodCd) continue;
+    if (![p.prodCd,p.prodNm,p.spec].some(_pinHit(q))) continue;
+    out.push({ code:p.prodCd, nm:p.prodNm, spec:p.spec, price:p.inPrice, prodCd:p.prodCd });   // 매입가 표시
+  }
+  return out;
+}
+function puPinInput(inp){
+  _pinInp = inp; _pinRow = +inp.dataset.r;
+  var q = String(inp.value||'').trim().toLowerCase();
+  if (!q) { puPinClose(); return; }
+  _pinList = puPinCands(q); _pinIdx = _pinList.length ? 0 : -1;
+  puPinDraw(inp);
+}
+function puPinDraw(inp){
+  if (!_pinDrop) {
+    _pinDrop = document.createElement('div');
+    _pinDrop.id = 'puPinDrop';
+    _pinDrop.style.cssText = 'position:fixed;z-index:400;background:#fff;border:1px solid #cfd8e3;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.18);font-size:12.5px;max-height:260px;overflow:auto';
+    document.body.appendChild(_pinDrop);
+  }
+  if (!_pinList.length) { puPinClose(); return; }
+  var rc = inp.getBoundingClientRect();
+  _pinDrop.style.left = rc.left + 'px';
+  _pinDrop.style.top = (rc.bottom + 2) + 'px';
+  _pinDrop.style.minWidth = Math.max(380, rc.width) + 'px';
+  _pinDrop.innerHTML = _pinList.map(function(it,k){
+    var on = (k === _pinIdx);
+    return '<div data-k="'+k+'" onmousedown="puPinPickMd(event,'+k+')"'
+      + ' style="display:flex;gap:8px;padding:6px 10px;cursor:pointer;white-space:nowrap;'+(on?'background:#e9f4f1;':'')+'">'
+      + '<b style="min-width:100px;color:#137a6c">'+esc(it.code)+'</b>'
+      + '<span style="flex:1;text-align:left;color:#1f2a37">'+esc(it.nm)+'</span>'
+      + '<span style="min-width:96px;color:#8a97a4">'+esc(it.spec||'')+'</span>'
+      + '<span style="min-width:66px;text-align:right;color:#37475a">'+(it.price!=null&&it.price!==''?fmt(it.price):'')+'</span>'
+      + '</div>';
+  }).join('');
+  _pinDrop.style.display = 'block';
+}
+function puPinKey(inp, e){
+  if (e.key === 'ArrowDown') { e.preventDefault(); if (_pinList.length){ _pinIdx = Math.min(_pinList.length-1, _pinIdx+1); puPinDraw(inp); } }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); if (_pinList.length){ _pinIdx = Math.max(0, _pinIdx-1); puPinDraw(inp); } }
+  else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (_pinList.length && _pinIdx >= 0) puPinPick(_pinIdx);
+    else puProdOpen(+inp.dataset.r);       // 후보가 없으면 상품 선택 팝업으로
+  }
+  else if (e.key === 'Escape') { puPinClose(); }
+}
+function puPinPickMd(e, k){ e.preventDefault(); puPinPick(k); }
+function puPinPick(k){
+  var it = _pinList[k]; if (!it) { puPinClose(); return; }
+  var row = _pinRow;
+  puPinClose();
+  _prodTargetRow = row;
+  _focusNext = { r:row, f:'boxQty', sel:'all' };   // 담긴 뒤 커서는 BOX수량으로
+  puProdPick(it.prodCd);
+}
+function puPinClose(){ if (_pinDrop) _pinDrop.style.display = 'none'; _pinList = []; _pinIdx = -1; }
+function puPinBlur(){ setTimeout(puPinClose, 150); }
+
+(function puKbdBind(){
+  var b = document.getElementById('puBody');
+  if (b) b.addEventListener('keydown', puGridKey);
+  var g = document.getElementById('puGridWrap');
+  if (g) g.addEventListener('scroll', puPinClose);
+  window.addEventListener('resize', puPinClose);
+  document.addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); puSave(); }
+    else if (e.altKey && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); puNew(); }
+  });
+})();
 </script>
 
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.

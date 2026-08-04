@@ -61,6 +61,7 @@ public interface UserMapper {
 
 	// ===== 거래처 마스터 (TBL_VENDOR_MST) — TBL_BIZI_MST(사업장)와 별개 =====
 	java.util.List<egovframework.sejong.user.model.VendorDTO> selectVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectVendorTrxSum(egovframework.sejong.user.model.VendorDTO dto) throws Exception;   // 최근 6개월 거래처별 매출·매입 합계 (거래처 팝업 정렬용)
 	int vendorDupChk(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
 	int insertVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
 	int updateVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
