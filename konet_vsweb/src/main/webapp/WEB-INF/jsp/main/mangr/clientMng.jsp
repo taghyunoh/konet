@@ -55,10 +55,13 @@
   #ov .mb{ padding:16px 18px; overflow:auto; display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; }
   #ov .fld{ display:flex; flex-direction:column; gap:4px; }
   #ov .fld.full{ grid-column:1 / -1; }
-  #ov label{ font-size:13px; font-weight:500; color:#333; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:flex-start; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
+  <%-- 라벨 = 진하게·가운데 정렬 (2026-08-04 요청, 다른 등록 창과 동일) --%>
+  #ov label{ font-size:13px; font-weight:700; color:#1f2a37; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:center; text-align:center; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
   #ov input, #ov select, #ov textarea{ height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:14px; font-family:inherit; }
   #ov textarea{ height:auto; padding:6px 8px; resize:vertical; }
   #ov .mf{ padding:12px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
+  /* 취소·저장은 가로를 넉넉히 (2026-08-04 요청) */
+  #ov .mf .btn{ min-width:104px; padding:0 22px; }
 </style>
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
      이 한 줄만 빼면 종전 데스크탑 화면 그대로다(파일 안에서 폭·높이 조건으로만 동작). --%>
@@ -67,7 +70,10 @@
 <body>
 <div class="wrap">
   <h2>🤝 거래처관리 <span style="font-size:13px;color:#9aa7b3;font-weight:400">(사업장 · TBL_BIZI_MST)</span></h2>
-  <div class="sub">사업장(거래처) 조회 · 추가 · 수정 · 삭제 · 엑셀출력</div>
+  <div class="sub">사업장(거래처) 조회 · 추가 · 수정 · 삭제 · 엑셀출력
+    <%-- 키 안내 (2026-08-04) — 안 보이면 아무도 안 쓴다 --%>
+    <div style="margin-top:3px;font-size:12px;color:#9aa7b3">⌨ <b>↑↓</b> 줄 이동 · <b>Enter</b> 수정 · <b>Alt+N</b> 추가
+      &nbsp;|&nbsp; 창에서 <b>Enter</b> 다음 칸 · <b>Ctrl+S</b> 저장 · <b>Esc</b> 닫기</div></div>
 
   <div class="bar">
     <input type="text" class="search" id="q" placeholder="코드·사업장명·약칭·사업자번호·대표자 검색" onkeyup="if(event.keyCode===13)cliLoad()">
@@ -228,6 +234,9 @@ function cliOpen(cd){
   _set('f_sort',o?(o.sortOrd!=null?o.sortOrd:999999):999999); _set('f_addr',o?o.addr:''); _set('f_addr2',o?o.addr2:'');
   _set('f_tel',o?o.tel:''); _set('f_fax',o?o.fax:''); _set('f_hp',o?o.hp:''); _set('f_email',o?o.email:''); _set('f_remark',o?o.remark:'');
   document.getElementById('ov').classList.add('on');
+  // 창을 열면 곧바로 칠 수 있게(2026-08-04) — 추가는 사업장코드부터, 수정은 코드가 잠겨 있으니 사업장명부터
+  var first=document.getElementById(o?'f_nm':'f_cd');
+  setTimeout(function(){ if(first){ first.focus(); if(first.select) first.select(); } }, 0);
 }
 function cliClose(){ document.getElementById('ov').classList.remove('on'); }
 function cliSave(){
@@ -274,7 +283,75 @@ function cliExcel(){
   function csv(){ var c=aoa.map(function(r){ return r.map(function(x){ x=(x==null?'':(''+x)); return '"'+x.replace(/"/g,'""')+'"'; }).join(','); }).join('\r\n');
     var b=new Blob(['﻿'+c],{type:'text/csv;charset=utf-8'}), a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='거래처.csv'; document.body.appendChild(a); a.click(); a.remove(); toast('📥 CSV 저장 완료'); }
 }
+/* ══════════════════════════════════════════════════════════════════════════
+   키보드 편의 (2026-08-04 요청) — 매입/매출 거래처·상품코드 등록 화면과 같은 규칙
+     목록 : 진입 시 검색칸 포커스 · ↑↓ 줄 이동 · Enter 수정 · Alt+N 추가
+     창   : Enter 다음 칸(마지막 칸에서는 저장) · Ctrl+S 저장 · Esc 닫기
+   ══════════════════════════════════════════════════════════════════════════ */
+function cliOvOpen(){ return document.getElementById('ov').classList.contains('on'); }
+/* 창 안 이동 순서 = 화면에 보이는 순서. 비고(textarea)는 줄바꿈이 필요해 뺀다 */
+var CLI_FLOW=['f_cd','f_gb','f_nm','f_snm','f_bizno','f_ceo','f_mgr','f_cond','f_item','f_zip','f_sort',
+              'f_addr','f_addr2','f_tel','f_fax','f_hp','f_email'];
+function cliNext(id){
+  var i=CLI_FLOW.indexOf(id); if(i<0) return null;
+  for(var k=i+1;k<CLI_FLOW.length;k++){
+    var el=document.getElementById(CLI_FLOW[k]);
+    if(el && !el.readOnly && !el.disabled) return el;      // 수정 시 잠긴 사업장코드 같은 칸은 건너뛴다
+  }
+  return null;                                             // 마지막 칸 = 저장
+}
+document.getElementById('ov').addEventListener('keydown', function(e){
+  if(e.key!=='Enter') return;
+  var t=e.target; if(!t || CLI_FLOW.indexOf(t.id)<0) return;   // 비고는 여기 없어 줄바꿈이 그대로 된다
+  e.preventDefault();
+  var nx=cliNext(t.id);
+  if(nx){ nx.focus(); if(nx.select) nx.select(); }
+  else cliSave();                                          // 이메일 칸에서 Enter = 저장
+});
+document.addEventListener('keydown', function(e){
+  if((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')){
+    if(cliOvOpen()){ e.preventDefault(); cliSave(); }
+    return;
+  }
+  if(e.altKey && (e.key==='n'||e.key==='N')){ e.preventDefault(); cliOpen(); return; }
+  if(e.key==='Escape' && cliOvOpen()){ e.preventDefault(); cliClose(); return; }
+  if(cliOvOpen()) return;                                  // 창이 떠 있으면 아래 목록 조작은 안 한다
+
+  var t=e.target, tag=(t&&t.tagName||'').toUpperCase();
+  if((tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA') && t.id!=='q') return;
+  // ★검색칸의 Enter 는 건드리지 않는다 — 이 화면은 서버로 다시 조회하는 검색이라 Enter 가 [조회]다
+  if(e.key==='Enter' && t.id==='q') return;
+  if(e.key==='ArrowDown'){ e.preventDefault(); cliRowMove(1); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); cliRowMove(-1); }
+  else if(e.key==='Enter'){
+    if(!_sel){ cliRowMove(1); return; }                    // 아직 고른 줄이 없으면 첫 줄부터
+    e.preventDefault(); cliOpen(_sel);
+  }
+});
+/* ↑↓ 행 이동 — 스크롤로 이어 그리는 목록이라, 끝줄에서 더 내려가면 다음 묶음을 먼저 그린다 */
+function cliRowMove(d){
+  var tb=document.getElementById('tb');
+  var rows=Array.prototype.slice.call(tb.querySelectorAll('tr[data-cd]'));
+  if(!rows.length) return;
+  var i=-1;
+  if(_sel) for(var k=0;k<rows.length;k++){ if(rows[k].getAttribute('data-cd')===_sel){ i=k; break; } }
+  var n=(i<0) ? (d>0?0:rows.length-1) : i+d;
+  if(n>=rows.length){
+    if(_shown<_view.length){
+      _shown=Math.min(_shown+CHUNK, _view.length); cliRender();
+      rows=Array.prototype.slice.call(tb.querySelectorAll('tr[data-cd]'));
+    }
+    if(n>=rows.length) n=rows.length-1;                    // 맨 끝이면 제자리
+  }
+  if(n<0) n=0;
+  var tr=rows[n]; if(!tr) return;
+  cliSel(tr, tr.getAttribute('data-cd'));
+  if(tr.scrollIntoView) tr.scrollIntoView({block:'nearest'});
+}
+
 cliLoad();
+/* 진입하면 검색칸에 커서 — 이름을 쳐서 찾는 것이 이 화면의 첫 동작이다 */
+(function(){ var q=document.getElementById('q'); if(q) q.focus(); })();
 </script>
 </body>
 </html>
