@@ -24,7 +24,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.security.MessageDigest; 
-import egovframework.util.EgovResourceCloseHelper;
 
 import org.apache.commons.codec.binary.Base64;
 

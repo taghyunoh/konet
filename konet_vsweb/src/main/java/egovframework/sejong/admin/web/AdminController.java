@@ -1,22 +1,11 @@
 package egovframework.sejong.admin.web;
 
-import java.net.URLEncoder;
 import java.util.List;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.hssf.util.HSSFColor.HSSFColorPredefined;
-import org.apache.poi.ss.usermodel.BorderStyle;
-import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.FillPatternType;
-import org.apache.poi.ss.usermodel.HorizontalAlignment;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
@@ -25,14 +14,12 @@ import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
-import org.w3c.dom.ls.LSInput;
 
 import egovframework.sejong.admin.service.AdminService;
 import egovframework.sejong.admin.service.CommService;
 import egovframework.sejong.admin.model.AsqDTO;
 import egovframework.sejong.admin.model.FaqDTO;
 import egovframework.sejong.admin.model.CommDTO;
-import egovframework.util.EgovFileScrty;
 
 @Controller
 public class AdminController {
