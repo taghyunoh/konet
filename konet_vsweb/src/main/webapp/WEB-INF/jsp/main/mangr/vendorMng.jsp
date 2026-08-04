@@ -70,11 +70,14 @@
     #ov .mb{ grid-template-columns:1fr 1fr; }
     #ov .fld.two{ grid-column:span 2; }
   }
-  #ov label{ font-size:12px; font-weight:500; color:#333; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:flex-start; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
+  <%-- 라벨 = 진하게·가운데 정렬 (2026-08-04 요청, 상품코드 등록 창과 동일) --%>
+  #ov label{ font-size:12px; font-weight:700; color:#1f2a37; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:center; text-align:center; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
   #ov label.wide{ width:auto; }
   #ov input, #ov select, #ov textarea{ height:30px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:14px; font-family:inherit; }
   #ov textarea{ height:auto; padding:6px 8px; resize:vertical; }
   #ov .mf{ padding:9px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
+  /* 취소·저장은 가로를 넉넉히 (2026-08-04 요청) — 창을 닫는 마지막 손동작이라 누르기 쉬워야 한다 */
+  #ov .mf .btn{ min-width:104px; padding:0 22px; }
 </style>
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
      이 한 줄만 빼면 종전 데스크탑 화면 그대로다(파일 안에서 폭·높이 조건으로만 동작). --%>
@@ -84,7 +87,10 @@
 <div class="wrap">
   <h2>🧾 매입/매출 거래처 관리 <span style="font-size:13px;color:#9aa7b3;font-weight:400">(회계 거래처 · TBL_VENDOR_MST)</span></h2>
   <div class="sub">회계 거래처 조회 · 추가 · 수정 · 삭제 · 엑셀 — 사업장(TBL_BIZI_MST, 배송 점포)과는 별개 마스터입니다.
-    매입가·재고입고 화면의 매입처 선택은 여기의 <b>매입</b> 거래처를 씁니다.</div>
+    매입가·재고입고 화면의 매입처 선택은 여기의 <b>매입</b> 거래처를 씁니다.
+    <%-- 키 안내 (2026-08-04) — 안 보이면 아무도 안 쓴다 --%>
+    <div style="margin-top:3px;font-size:12px;color:#9aa7b3">⌨ <b>↑↓</b> 줄 이동 · <b>Enter</b> 수정 · <b>Alt+N</b> 추가
+      &nbsp;|&nbsp; 창에서 <b>Enter</b> 다음 칸 · <b>Ctrl+S</b> 저장 · <b>Esc</b> 닫기</div></div>
 
   <div class="bar">
     <input type="text" class="search" id="q" placeholder="코드·거래처명·정식명칭·별칭·사업자번호·대표자 검색" onkeyup="vmFilter()">
@@ -292,6 +298,9 @@ function vmOpen(cd){
   _set('f_hp',o?o.hp:''); _set('f_tel',o?o.tel:''); _set('f_fax',o?o.fax:''); _set('f_email',o?o.email:'');
   _set('f_taxbill',o?(o.taxbillGb||''):''); _set('f_vat',o?(o.vatGb||''):''); _set('f_acct',o?o.bankAcct:''); _set('f_remark',o?o.remark:'');
   document.getElementById('ov').classList.add('on');
+  // 창을 열면 곧바로 칠 수 있게(2026-08-04) — 추가는 거래처코드부터, 수정은 코드가 잠겨 있으니 거래처명부터
+  var first=document.getElementById(o?'f_nm':'f_cd');
+  setTimeout(function(){ if(first){ first.focus(); if(first.select) first.select(); } }, 0);
 }
 function vmClose(){ document.getElementById('ov').classList.remove('on'); }
 function vmDto(){
@@ -400,7 +409,76 @@ function vmExcel(){
   function csv(){ var c=aoa.map(function(r){ return r.map(function(x){ x=(x==null?'':(''+x)); return '"'+x.replace(/"/g,'""')+'"'; }).join(','); }).join('\r\n');
     var b=new Blob(['﻿'+c],{type:'text/csv;charset=utf-8'}), a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='매입매출거래처.csv'; document.body.appendChild(a); a.click(); a.remove(); toast('📥 CSV 저장 완료'); }
 }
+/* ══════════════════════════════════════════════════════════════════════════
+   키보드 편의 (2026-08-04 요청) — 상품코드 등록(prodcd.jsp)과 같은 규칙
+     목록 : 진입 시 검색칸 포커스 · ↑↓ 줄 이동 · Enter 수정 · Alt+N 추가
+     창   : Enter 다음 칸(마지막 칸에서는 저장) · Ctrl+S 저장 · Esc 닫기
+   ══════════════════════════════════════════════════════════════════════════ */
+function vmOvOpen(){ return document.getElementById('ov').classList.contains('on'); }
+/* 창 안 이동 순서 = 화면에 보이는 순서(격자라 DOM 순서와 같다). 비고(textarea)는 줄바꿈이 필요해 뺀다 */
+var VM_FLOW=['f_cd','f_gb','f_vat','f_nm','f_taxbill','f_full','f_alias','f_bizno',
+             'f_ceo','f_cond','f_item','f_mgrcd','f_mgrnm','f_dc',
+             'f_hp','f_tel','f_fax','f_email','f_zip','f_addr','f_addr2','f_acct'];
+function vmNext(id){
+  var i=VM_FLOW.indexOf(id); if(i<0) return null;
+  for(var k=i+1;k<VM_FLOW.length;k++){
+    var el=document.getElementById(VM_FLOW[k]);
+    if(el && !el.readOnly && !el.disabled) return el;      // 수정 시 잠긴 거래처코드 같은 칸은 건너뛴다
+  }
+  return null;                                             // 마지막 칸 = 저장
+}
+document.getElementById('ov').addEventListener('keydown', function(e){
+  if(e.key!=='Enter') return;
+  var t=e.target; if(!t || VM_FLOW.indexOf(t.id)<0) return;   // 비고는 여기 없어 줄바꿈이 그대로 된다
+  e.preventDefault();
+  var nx=vmNext(t.id);
+  if(nx){ nx.focus(); if(nx.select) nx.select(); }
+  else vmSave();                                           // 계좌 칸에서 Enter = 저장
+});
+document.addEventListener('keydown', function(e){
+  if((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')){
+    if(vmOvOpen()){ e.preventDefault(); vmSave(); }
+    return;
+  }
+  if(e.altKey && (e.key==='n'||e.key==='N')){ e.preventDefault(); vmOpen(); return; }
+  if(e.key==='Escape' && vmOvOpen()){ e.preventDefault(); vmClose(); return; }
+  if(vmOvOpen()) return;                                   // 창이 떠 있으면 아래 목록 조작은 안 한다
+
+  // 검색칸(#q)에서는 그대로 먹힌다 — 검색어 치고 ↓ 로 바로 결과로 내려가라고
+  var t=e.target, tag=(t&&t.tagName||'').toUpperCase();
+  if((tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA') && t.id!=='q') return;
+  if(e.key==='ArrowDown'){ e.preventDefault(); vmRowMove(1); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); vmRowMove(-1); }
+  else if(e.key==='Enter'){
+    if(!_sel){ vmRowMove(1); return; }                     // 아직 고른 줄이 없으면 첫 줄부터
+    e.preventDefault(); vmOpen(_sel);
+  }
+});
+/* ↑↓ 행 이동 — 이 화면은 스크롤로 이어 그리는 목록이라, 끝줄에서 더 내려가면 다음 묶음을 먼저 그린다.
+   ★vmRender 가 _selReset() 을 하므로 다시 그린 뒤에 vmSel 로 잡아 준다(순서를 바꾸면 선택이 풀린다). */
+function vmRowMove(d){
+  var tb=document.getElementById('tb');
+  var rows=Array.prototype.slice.call(tb.querySelectorAll('tr[data-cd]'));
+  if(!rows.length) return;
+  var i=-1;
+  if(_sel) for(var k=0;k<rows.length;k++){ if(rows[k].getAttribute('data-cd')===_sel){ i=k; break; } }
+  var n=(i<0) ? (d>0?0:rows.length-1) : i+d;
+  if(n>=rows.length){
+    if(_shown<_view.length){                               // 아직 안 그린 줄이 남아 있으면 이어서 그린다
+      _shown=Math.min(_shown+CHUNK, _view.length); vmRender();
+      rows=Array.prototype.slice.call(tb.querySelectorAll('tr[data-cd]'));
+    }
+    if(n>=rows.length) n=rows.length-1;                    // 맨 끝이면 제자리
+  }
+  if(n<0) n=0;
+  var tr=rows[n]; if(!tr) return;
+  vmSel(tr, tr.getAttribute('data-cd'));
+  if(tr.scrollIntoView) tr.scrollIntoView({block:'nearest'});
+}
+
 vmLoad();
+/* 진입하면 검색칸에 커서 — 이름을 쳐서 찾는 것이 이 화면의 첫 동작이다 */
+(function(){ var q=document.getElementById('q'); if(q) q.focus(); })();
 </script>
 </body>
 </html>

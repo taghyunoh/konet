@@ -23,6 +23,10 @@
   .btn-danger{ color:#c0392b; border-color:#e3b4ae; }
   .cnt{ margin-left:8px; color:#6b7a89; font-size:12.5px; }
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; }
+  /* 목록 높이는 cliFit() 이 창 크기에 맞춰 px 로 잡는다(매입/매출 거래처 화면과 같은 방식) */
+  #listCard{ min-height:220px; }
+  /* 스크롤해도 머리글은 남아야 한다. z-index 없으면 행이 머리글 위로 그려진다 */
+  .card thead th{ position:sticky; top:0; z-index:3; }
   table{ width:100%; border-collapse:collapse; font-size:13px; font-weight:700; white-space:nowrap; }
   thead th{ background:#1f2a37; color:#fff; font-weight:700; padding:9px 10px; text-align:left; position:sticky; top:0; z-index:1; }
   tbody td{ border-bottom:1px solid #eef1f5; padding:6px 10px; vertical-align:middle; }
@@ -35,7 +39,9 @@
   .gb{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#fff; }
   .act .btn{ height:26px; padding:0 9px; font-size:11.5px; }
   .empty{ padding:26px; text-align:center; color:#9aa7b3; }
-  .pager{ display:flex; gap:4px; justify-content:center; align-items:center; margin-top:14px; flex-wrap:wrap; }
+  .pager{ display:flex; gap:8px; justify-content:center; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  .pgnote{ font-size:12.5px; color:#5a6b7a; font-weight:600; }
+  .pgnote b{ color:var(--teal); }
   .pager button{ min-width:32px; height:32px; border:1px solid var(--bd); background:#fff; border-radius:7px; cursor:pointer; font-size:12.5px; font-weight:700; color:#37475a; padding:0 8px; }
   .pager button.on{ background:var(--teal); color:#fff; border-color:var(--teal); }
   .pager button:disabled{ opacity:.45; cursor:default; }
@@ -73,7 +79,7 @@
     <span class="cnt" id="cnt">0건</span>
   </div>
 
-  <div class="card">
+  <div class="card" id="listCard">
     <table>
       <thead><tr>
         <th>코드</th><th>사업장명</th><th>약칭</th><th>거래구분</th><th>사업자번호</th><th>대표자</th>
@@ -117,7 +123,11 @@
 
 <script>
 var CTX='${pageContext.request.contextPath}';
-var LIST=[], _view=[], _page=1, PAGE=20, _bycd={};
+/* 목록은 페이지 버튼 없이 **스크롤로 이어서** 나온다 (2026-08-04 요청 — 매입/매출 거래처 화면과 같은 방식).
+   _shown = 지금까지 그려 둔 줄 수. 바닥 가까이 내려가면 CHUNK 만큼 더 그린다.
+   ★한 번에 전부 그리지 않는 이유 — 사업장이 1,300여 종이라 통째로 그리면 첫 표시가 눈에 띄게 느려진다.
+   PAGE 는 고정값이 아니라 cliFit() 이 실제 창 높이에서 다시 잡는다(첫 화면이 꽉 차게). */
+var LIST=[], _view=[], _shown=0, PAGE=20, CHUNK=40, _bycd={};
 var GB_MAP={ '매출':['매출처','#2e7d32'], '매입':['매입처','#a85700'], 'both':['매입+매출','#137a6c'] };
 
 function toast(s){ if(window.Swal){ Swal.fire({toast:true,position:'top-end',html:s,showConfirmButton:false,timer:2500,timerProgressBar:true}); return; } }
@@ -130,17 +140,20 @@ function cliLoad(){
   var q=(document.getElementById('q').value||'').trim();
   fetch(CTX+'/mangr/clientList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'findData='+encodeURIComponent(q) })
     .then(function(r){ return r.text(); }).then(function(t){ var j; try{ j=JSON.parse(t); }catch(e){ toast('⚠️ 목록 응답 오류'); return; }
-      LIST=(j&&j.data)||[]; _bycd={}; LIST.forEach(function(o){ _bycd[o.bizCd]=o; }); _view=LIST.slice(); _page=1; cliRender();
+      LIST=(j&&j.data)||[]; _bycd={}; LIST.forEach(function(o){ _bycd[o.bizCd]=o; }); _view=LIST.slice();
+      _shown=0; _selReset();      // 새로 읽어 온 목록이라 고른 줄은 푼다(지워진 줄일 수 있다)
+      var c=document.getElementById('listCard'); if(c) c.scrollTop=0;   // 새로 조회한 목록은 맨 위부터 본다
+      cliRender();
     }).catch(function(e){ toast('⚠️ 통신오류: '+e.message); });
 }
 function cliRender(){
-  _selReset();
-  var tot=_view.length, pages=Math.max(1,Math.ceil(tot/PAGE)); if(_page>pages)_page=pages;
+  var tot=_view.length;
+  if(_shown<PAGE) _shown=PAGE;
+  if(_shown>tot) _shown=tot;
   document.getElementById('cnt').textContent=tot.toLocaleString()+'건';
   var tb=document.getElementById('tb');
-  if(!tot){ tb.innerHTML='<tr><td colspan="11" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1); return; }
-  var rows=_view.slice((_page-1)*PAGE,(_page-1)*PAGE+PAGE);
-  tb.innerHTML=rows.map(function(o){
+  if(!tot){ tb.innerHTML='<tr><td colspan="11" class="empty">데이터가 없습니다.</td></tr>'; _selReset(); _info(0,0); cliFit(); return; }
+  tb.innerHTML=_view.slice(0,_shown).map(function(o){
     var g=GB_MAP[o.bizGb], gb=g?'<span class="gb" style="background:'+g[1]+'">'+g[0]+'</span>':'';
     return '<tr data-cd="'+esc(o.bizCd)+'" onclick="cliSel(this,\''+esc(o.bizCd)+'\')" ondblclick="cliOpen(\''+esc(o.bizCd)+'\')">'
       +'<td class="code">'+esc(o.bizCd)+'</td><td class="nm">'+esc(o.bizNm)+'</td><td>'+esc(o.bizSmallNm)+'</td>'
@@ -148,18 +161,61 @@ function cliRender(){
       +'<td>'+esc(o.bizCond)+'</td><td>'+esc(o.bizItem)+'</td><td>'+esc(o.tel)+'</td><td>'+esc(o.hp)+'</td><td>'+esc(o.manager)+'</td>'
     +'</tr>';
   }).join('');
-  _pager(pages,_page);
+  // ★고른 줄 표시를 되살린다 — 스크롤로 이어 그릴 때마다 선택이 풀리면
+  //   줄을 고른 뒤 조금만 내려도 [수정]이 "행을 먼저 선택하세요"로 튕긴다.
+  if(_sel!=null){ var sr=tb.querySelector('tr[data-cd="'+_sel+'"]'); if(sr) sr.classList.add('sel'); }
+  _info(_shown, tot);
+  cliFit();
 }
-function _go(p){ _page=p; cliRender(); }
-function _pager(pages,cur){
-  var el=document.getElementById('pager'); if(pages<=1){ el.innerHTML=''; return; }
-  var h='<button '+(cur<=1?'disabled':'')+' onclick="_go('+(cur-1)+')">‹</button>';
-  var from=Math.max(1,cur-3), to=Math.min(pages,cur+3);
-  if(from>1){ h+='<button onclick="_go(1)">1</button>'; if(from>2)h+='<span class="ell">…</span>'; }
-  for(var p=from;p<=to;p++) h+='<button class="'+(p===cur?'on':'')+'" onclick="_go('+p+')">'+p+'</button>';
-  if(to<pages){ if(to<pages-1)h+='<span class="ell">…</span>'; h+='<button onclick="_go('+pages+')">'+pages+'</button>'; }
-  h+='<button '+(cur>=pages?'disabled':'')+' onclick="_go('+(cur+1)+')">›</button>';
-  el.innerHTML=h;
+/* 페이지 버튼을 없앤 자리 — 지금 몇 줄까지 보고 있는지와 [모두 표시]만 남긴다 */
+function _info(shown, tot){
+  var el=document.getElementById('pager'); if(!el) return;
+  if(!tot){ el.innerHTML=''; return; }
+  el.innerHTML = shown>=tot
+    ? '<span class="pgnote">전체 <b>'+tot.toLocaleString()+'</b>건을 모두 보고 있습니다</span>'
+    : '<span class="pgnote"><b>'+shown.toLocaleString()+'</b> / '+tot.toLocaleString()+'건 — 아래로 스크롤하면 이어서 나옵니다</span>'
+      + '<button onclick="cliShowAll()">모두 표시</button>';
+}
+function cliShowAll(){ _shown=_view.length; cliRender(); }
+/* ── 목록 높이 자동 맞춤 (매입/매출 거래처 화면 vmFit 과 같은 방식) ─────────
+   ① 목록 카드를 창 아래(안내줄 위)까지 늘리고, 그 안에서 스크롤하게 한다.
+   ② 늘어난 높이에 맞춰 첫 화면에 담는 줄 수(PAGE)도 다시 잡는다 — 높이만 늘리면 20줄 밑이 그대로 빈다.
+   ★위치는 반드시 '문서 기준'(rect.top + scrollY)으로 잰다. 화면 기준으로 재면
+     스크롤할 때마다 값이 달라져 높이가 계속 자라는 자가증식이 된다. */
+var _fitting=false;
+function cliFit(){
+  if(_fitting) return; _fitting=true;
+  try{
+    var card=document.getElementById('listCard'), pg=document.getElementById('pager');
+    if(!card) return;
+    var top=card.getBoundingClientRect().top + (window.pageYOffset||0);
+    var pgH=pg ? (pg.offsetHeight+10) : 0;
+    var h=Math.max(220, Math.floor(window.innerHeight - top - pgH - 14));
+    card.style.height=h+'px';
+    // 한 줄 높이는 실제로 그려진 줄에서 잰다(글꼴·배율마다 다르다). 없으면 30px 로 본다
+    var tr=card.querySelector('tbody tr'), th=card.querySelector('thead');
+    var rowH=(tr&&tr.offsetHeight)||30, headH=(th&&th.offsetHeight)||34;
+    var fit=Math.max(10, Math.floor((h-headH)/rowH));
+    if(fit!==PAGE){ PAGE=fit; if(_shown<PAGE){ cliRender(); } }   // 가드가 되돌이를 막는다
+    _bindScroll();
+    // 창을 키워 목록이 스크롤 없이 다 들어오면 스크롤 이벤트가 안 오므로 여기서 더 채운다
+    if(_shown<_view.length && card.scrollHeight<=card.clientHeight+4){
+      _shown=Math.min(_shown+CHUNK, _view.length); cliRender();
+    }
+  } finally { _fitting=false; }
+}
+window.addEventListener('resize', function(){ clearTimeout(window._fitT); window._fitT=setTimeout(cliFit,120); });
+/* 목록 바닥 가까이 내려가면 이어서 그린다 — 카드가 스크롤 영역이라 여기에 건다.
+   ★목록을 다시 그려도 이벤트가 살아 있도록 카드(고정 요소)에 한 번만 건다. */
+function _bindScroll(){
+  var card=document.getElementById('listCard'); if(!card || card._bound) return;
+  card._bound=true;
+  card.addEventListener('scroll', function(){
+    if(_shown>=_view.length) return;
+    if(card.scrollTop + card.clientHeight >= card.scrollHeight - 80){
+      _shown=Math.min(_shown+CHUNK, _view.length); cliRender();
+    }
+  });
 }
 function _set(id,v){ document.getElementById(id).value=(v==null?'':v); }
 function cliOpen(cd){
