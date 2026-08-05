@@ -620,28 +620,32 @@
     if (typeof konetAsqRender === 'function') konetAsqRender();
     if (typeof closePeriodInit === 'function') closePeriodInit();   // 마감 패널 진입 시 마감월 기본값
   }
-  /* ══ 자주 쓰는 메뉴 (사용 순 자동 · 최대 7개) — 2026-08-04 요청 ═══════════════
-       · 담는 법 : 사이드바 메뉴에 마우스를 올리면 오른쪽 끝 ☆ 를 누른다.
+  /* ══ 자주 쓰는 메뉴 (최대 7개 · 한 번 담기면 고정) — 2026-08-04 요청 ═══════════════
+       · 담는 법 : 메뉴를 열면 <빈 자리에> 저절로 담긴다. 손으로 담으려면 사이드바 메뉴 오른쪽 끝 ☆.
+       · 내리는 법 : 상단 칩의 ✕ <하나뿐이다>. 자동으로 밀려나는 일은 없다(2026-08-05).
        · 보관   : localStorage (브라우저별). 서버·세션이 아니라 로그인 없이도 남는다.
        · 실행   : 원래 메뉴의 onclick 을 <그대로> 부른다 — 화면 여는 방법이 두 벌이 되면
                   나중에 한쪽만 고쳐져 어긋난다(logiGo/logiFrame/logiShipView 가 제각각이다).
        · 식별   : data-key 는 겹치는 것이 있어(출고현황표·출고세부조회 모두 shipstatus2)
                   <메뉴 이름>으로 찾는다. 이름이 바뀌면 그 즐겨찾기는 조용히 사라진다(무해). */
-  /* ★보관 키에 판(v2)을 붙였다 (2026-08-04) —
-       처음 판에서 담긴 이름에는 아이콘이 섞여 있었고("📤매출내역"), [비우기]를 누른 브라우저에는
-       빈 목록이 저장돼 있었다. 그 값이 남아 있으면 기본 메뉴가 <영영 안 나온다>.
-       키를 갈아 옛 값을 무시한다 — 쓰던 사람도 새로 담으면 그만이다.
-     ★'손댔음' 표시를 따로 둔다 — 목록이 비었을 때 그것이 <아직 안 건드린 것>인지
-       <사용자가 일부러 비운 것>인지 구별해야 한다(전자만 기본값을 넣는다). */
-  var FAV_KEY='konetLogiFav2', FAV_TOUCH='konetLogiFav2Set', FAV_USE='konetLogiFavUse',
-      FAV_ORDER='konetLogiFavOrder', FAV_MAX=7;
-  /* ★처음 들어온 사람에게도 <메뉴가 보이게> 기본 5개를 담아 둔다(2026-08-04 요청).
-       빈 줄로 두면 기능이 있는 줄 모른다. 마음에 안 들면 ✕ 로 빼고 다른 걸 담으면 된다.
-       (한 번이라도 손대면 그 뒤로는 사용자가 정한 목록만 쓴다 — 저장값이 [] 여도 존중) */
-  var FAV_DEFAULT=['매출내역','판매 등록','수금 등록','매입 등록','지급 등록','입고내역','재고현황'];
-  /* ── 사용 횟수 (자동으로 쌓인다) ────────────────────────────
-       ★"자주 쓰는 메뉴"는 손으로 담는 것이 아니라 <쓰면 저절로 올라오는> 것이라야 한다
-         (2026-08-04 "추가 업무가 뒤에 안 붙네요"). 메뉴를 열 때마다 그 메뉴의 횟수를 센다. */
+  /* [이력] v2 (2026-08-04) — 처음 판에서 담긴 이름에 아이콘이 섞여 있어("📤매출내역") 키를 갈았다.
+       그때 두었던 '손댔음' 표시(FAV_TOUCH)는 기본값 자동주입 여부를 가리는 용도였는데,
+       아래에서 자동주입 자체를 없앴으므로 지금은 <고정 목록을 저장한 적이 있는가>만 뜻한다. */
+  /* ★보관 키 판을 한 번 더 올린다 (2026-08-05) —
+       쓰던 브라우저에는 <옛 기본 7개>(매출내역·판매 등록…)가 이미 저장돼 있다. 아래 새 규칙에서는
+       자리를 자동으로 갈아치우지 않으므로, 그 7개가 자리를 다 차지한 채 <영영 안 빠진다>.
+       키를 갈아 옛 값을 무시한다 — 다들 빈 줄에서 자기 메뉴로 새로 채우게 된다. */
+  var FAV_KEY='konetLogiFav3', FAV_TOUCH='konetLogiFav3Set', FAV_USE='konetLogiFavUse',
+      FAV_ORDER='konetLogiFavOrder2', FAV_MAX=7;
+  /* ★★초기 자동셋팅은 하지 않는다 (2026-08-05 요청 "초기 시작은 자동셋팅 무시").
+       종전에는 첫 진입에 기본 7개(매출내역·판매 등록…)를 미리 담아 두었다. 그러면 정작 내가 쓰는
+       메뉴가 들어올 자리가 <처음부터 다 차 있어> 한 칸도 남지 않는다 — 아래 '자리는 대체하지 않는다'
+       규칙과 겹치면 기본값이 영영 안 빠지는 셈이 된다. 그래서 <빈 줄>로 시작하고,
+       쓰는 메뉴가 순서대로 7칸을 채우게 둔다. 안내문(#favHint)이 빈 줄의 뜻을 알려 준다. */
+  var FAV_DEFAULT=[];
+  /* ── 사용 횟수 ────────────────────────────
+       메뉴를 열 때마다 센다. 담기는 <쓰면 저절로> 이지만(2026-08-04 "추가 업무가 뒤에 안 붙네요"),
+       ★2026-08-05 부터 이 숫자는 <누구를 들이고 뺄지>를 정하지 않는다 — 칩 툴팁 표시용일 뿐. */
   function favUseLoad(){ try{ var v=JSON.parse(localStorage.getItem(FAV_USE)||'{}'); return (v&&typeof v==='object')?v:{}; }catch(e){ return {}; } }
   function favUseSave(u){ try{ localStorage.setItem(FAV_USE, JSON.stringify(u)); }catch(e){} }
 
@@ -649,7 +653,7 @@
        ★쓸 때마다 많이 쓴 순으로 다시 줄 세우면, 누르는 순간 칩들이 자리를 바꿔 버린다.
          내가 누른 자리에 다른 메뉴가 와서 <엉뚱한 게 선택된 것처럼> 보인다.
        그래서 <표시 순서(FAV_ORDER)>를 따로 저장하고 한 번 잡힌 자리는 움직이지 않는다.
-       사용 횟수는 <자리가 다 찼을 때 누구를 들일지> 정하는 데만 쓴다. */
+       ★이 목록이 화면에 보이는 그 자체다 — 7칸을 채우고 나면 ✕ 로 내리기 전까지 그대로다. */
   function favOrderLoad(){
     try{ var v=JSON.parse(localStorage.getItem(FAV_ORDER)||'null'); return Array.isArray(v)?v:null; }
     catch(e){ return null; }
@@ -658,12 +662,16 @@
 
   function favLoad(){
     var o=favOrderLoad();
-    if(o===null){ o=FAV_DEFAULT.filter(favFind).slice(0,FAV_MAX); favOrderSave(o); }   // 첫 진입
+    if(o===null){ o=FAV_DEFAULT.filter(favFind).slice(0,FAV_MAX); favOrderSave(o); }   // 첫 진입 = 빈 줄(자동셋팅 없음)
     return o.filter(favFind).slice(0,FAV_MAX);          // 사라진 메뉴는 조용히 걸러 낸다
   }
-  /* 메뉴를 열 때 — 횟수를 세고, 목록에 없으면 <빈 자리에만> 새로 넣는다.
-     자리가 다 찼으면 고정(★) 아닌 것 중 가장 적게 쓴 것과 견줘 더 많이 썼을 때만 그 자리를 대신한다
-     (자리 번호는 그대로라 화면이 출렁이지 않는다). */
+  /* ★★자리는 <대체하지 않는다> (2026-08-05 요청 "삭제 하지 않으면 7개 고정 · 다른 내용이 대체가 아니구").
+       메뉴를 열 때 — 횟수를 세고, 목록에 없으면 <빈 자리에만> 새로 넣는다.
+       7칸이 다 차면 그것으로 끝이다. 아무리 많이 써도 남의 자리를 밀어내지 않는다.
+       자리를 바꾸려면 사용자가 칩의 ✕(favDrop)로 <직접 내려야> 한다.
+       왜 : 종전에는 가장 적게 쓴 자리를 자동으로 갈아치웠다. 그러면 잠깐 다른 화면을 몇 번 들락거린 것만으로
+            늘 쓰던 메뉴가 소리 없이 사라져, 있던 자리에 손이 갔다가 엉뚱한 화면이 열린다.
+            사용 횟수(FAV_USE)는 이제 <몇 번 썼는지 보여 주는 용도>로만 남는다. */
   function favUseBump(nm){
     if(!nm) return;
     var u=favUseLoad();
@@ -672,13 +680,8 @@
 
     var o=favOrderLoad(); if(o===null){ favLoad(); o=favOrderLoad()||[]; }
     if(o.indexOf(nm)>=0) return;                        // 이미 있다 — 자리 그대로
-    if(o.length<FAV_MAX){ o.push(nm); favOrderSave(o); return; }
-
-    var pin=favPins();
-    var cand=o.filter(function(x){ return pin.indexOf(x)<0; });
-    if(!cand.length) return;                            // 전부 고정이면 건드리지 않는다
-    var worst=cand.reduce(function(a,b){ return (u[a]||0)<=(u[b]||0) ? a : b; });
-    if((u[nm]||0) > (u[worst]||0)){ o[o.indexOf(worst)]=nm; favOrderSave(o); }
+    if(o.length>=FAV_MAX) return;                       // ★다 찼으면 그대로 둔다(대체 없음)
+    o.push(nm); favOrderSave(o);
   }
   /* 손으로 고정한 목록(★) — 종전의 저장 구조를 그대로 쓴다 */
   function favPins(){
@@ -715,38 +718,32 @@
     });
     return hit;
   }
-  /* ☆ = 고정/해제. 고정하면 자리를 다른 메뉴에게 내주지 않는다.
+  /* ☆ = 담기/빼기. (자리 대체가 없어진 뒤로 '고정'은 📌 표시 + 담는 통로 구실만 한다)
        ★고정해도 <자리는 그대로>다 — 앞으로 끌어올리면 그것도 화면이 출렁이는 원인이 된다.
-       목록에 없던 메뉴를 고정하면 빈 자리(또는 가장 적게 쓴 자리)에 들어간다. */
+       ★★7칸이 다 차 있으면 <넣지 않고 알린다> (2026-08-05) — 여기서 남의 자리를 갈아치우면
+         'favUseBump 는 대체 안 하는데 ☆ 는 대체한다' 가 되어 규칙이 두 벌이 된다.
+         내리는 길은 오직 하나, 칩의 ✕ 다. */
   function favToggle(ev, nm){
     ev.preventDefault(); ev.stopPropagation();        // 메뉴 자체가 열리지 않게
     var l=favPins(), i=l.indexOf(nm);
     if(i>=0) l.splice(i,1);
     else{
-      if(l.length>=FAV_MAX){
-        if(typeof ssToast==='function') ssToast('⭐ 고정은 '+FAV_MAX+'개까지입니다. 하나를 풀고 고정해 주세요.');
-        else alert('고정은 '+FAV_MAX+'개까지입니다.');
-        return;
+      var o=favLoad().slice();
+      if(o.indexOf(nm)<0){
+        if(o.length>=FAV_MAX){
+          var msg='⭐ 자주 쓰는 메뉴는 '+FAV_MAX+'개까지입니다. 위 줄에서 ✕ 로 하나를 내린 뒤 담아 주세요.';
+          if(typeof ssToast==='function') ssToast(msg); else alert(msg);
+          return;
+        }
+        o.push(nm); favOrderSave(o);                  // 빈 자리에만 들어간다
       }
       l.push(nm);
-      /* 아직 상단 줄에 없으면 자리를 하나 마련해 준다 */
-      var o=favLoad().slice(), u=favUseLoad();
-      if(o.indexOf(nm)<0){
-        if(o.length<FAV_MAX) o.push(nm);
-        else{
-          var cand=o.filter(function(x){ return l.indexOf(x)<0; });
-          if(cand.length){
-            var worst=cand.reduce(function(a,b){ return (u[a]||0)<=(u[b]||0) ? a : b; });
-            o[o.indexOf(worst)]=nm;
-          }
-        }
-        favOrderSave(o);
-      }
     }
     favSave(l); favRender();
   }
-  /* 상단 줄의 ✕ = 그 메뉴만 자리에서 내린다 — 고정을 풀고 사용 횟수도 0 으로 되돌린다
-     (횟수를 안 지우면 곧바로 다시 올라와 "안 지워진다" 가 된다) */
+  /* 상단 줄의 ✕ = 그 메뉴만 자리에서 내린다 — 고정을 풀고 사용 횟수도 0 으로 되돌린다.
+     ★자리를 비우는 길은 이것 하나뿐이다(자동 대체 없음). 비운 칸은 <다음에 여는 메뉴>가 채운다 —
+       내리자마자 저절로 다른 게 들어오지는 않는다(그 메뉴를 실제로 열어야 들어온다). */
   function favDrop(ev, nm){
     if(ev){ ev.preventDefault(); ev.stopPropagation(); }
     favSave(favPins().filter(function(x){ return x!==nm; }));
@@ -754,7 +751,7 @@
     var u=favUseLoad(); delete u[nm]; favUseSave(u);
     favRender();
   }
-  /* 비우기 = 고정·사용횟수를 모두 지운다 → 기본 5개도 다시 나오지 않는다 */
+  /* 비우기 = 7칸을 통째로 비운다(고정·사용횟수까지). 다시 쓰는 메뉴부터 순서대로 채워진다 */
   function favClear(){
     favSave([]); favOrderSave([]); favUseSave({});
     favRender();
@@ -777,7 +774,11 @@
     var hint=document.getElementById('favHint'), clr=document.getElementById('favClearBtn');
     if(hint) hint.style.display = l.length ? 'none' : '';
     if(clr)  clr.style.display  = l.length ? '' : 'none';
-    document.getElementById('favCnt').textContent = l.length ? '('+l.length+'/'+FAV_MAX+')' : '';
+    /* ★가득 찼으면 그렇다고 적어 둔다 — 자동 대체가 없어졌으므로, 새 메뉴가 안 올라오는 것이
+         고장이 아니라 <자리가 없어서>임을 이 한 마디로 알 수 있어야 한다 */
+    var cnt=document.getElementById('favCnt');
+    cnt.textContent = l.length ? '('+l.length+'/'+FAV_MAX+(l.length>=FAV_MAX?' · 가득 참':'')+')' : '';
+    cnt.title = l.length>=FAV_MAX ? '자리가 다 찼습니다 — ✕ 로 하나를 내리면 그 자리에 다음에 여는 메뉴가 들어옵니다' : '';
     /* 지금 열려 있는 화면과 같은 이름이면 켜 준다 */
     var curNm=''; var onMi=document.querySelector('.logi-side a.mi.on'); if(onMi) curNm=favLabel(onMi);
     var pin=favPins(), u=favUseLoad();
@@ -793,13 +794,15 @@
            + '</a>';
     }).join('');
     /* 사이드바 메뉴의 ☆/★ = <고정 여부>를 나타낸다(목록에 있는지가 아니라) */
+    var full = l.length>=FAV_MAX;
     document.querySelectorAll('.logi-side a.mi').forEach(function(a){
       var st=a.querySelector('.fav'); if(!st) return;
       var on = pin.indexOf(favLabel(a))>=0;
       st.textContent = on ? '★' : '☆';
       st.classList.toggle('on', on);
-      st.title = on ? '고정 해제 (해제해도 자주 쓰면 다시 올라옵니다)'
-                    : '자주 쓰는 메뉴에 고정 (최대 '+FAV_MAX+'개)';
+      st.title = on ? '고정 해제'
+                    : (full ? '자주 쓰는 메뉴가 '+FAV_MAX+'개로 가득 찼습니다 — 위 줄에서 ✕ 로 하나를 내려 주세요'
+                            : '자주 쓰는 메뉴에 담기 (최대 '+FAV_MAX+'개)');
     });
   }
   /* 메뉴마다 ☆ 를 달아 둔다 — 펼침메뉴(has-sub)는 화살표 자리라 뺀다 */
@@ -2169,8 +2172,9 @@
 
     <%-- ══ 상단 공통 영역 — 자주 쓰는 메뉴 (2026-08-04 요청) ═══════════════════
          · 어느 화면을 열어도 항상 같은 자리(맨 위)에 있다. 화면을 내려도 따라온다(sticky).
-         · 쌓이는 법 : 메뉴를 열 때마다 횟수를 세어 <많이 쓴 순>으로 최대 7개까지 저절로 올라온다.
-                       ☆(사이드바)로 고정하면 사용량과 무관하게 맨 앞에 남고, 칩의 ✕ 로 내린다.
+         · 쌓이는 법 : 메뉴를 여는 대로 <빈 자리에> 차곡차곡 담긴다. 최대 7개.
+         · ★7개가 차면 그대로 고정 — 새 메뉴가 옛 메뉴를 밀어내지 않는다(2026-08-05 요청).
+                       바꾸려면 칩의 ✕ 로 <직접> 내려야 한다. 첫 진입 기본값(자동셋팅)도 없다 — 빈 줄로 시작.
          · 실행      : 원래 메뉴의 onclick 을 그대로 부른다 — 화면 여는 방법이 두 벌이 되지 않게. --%>
     <div id="favBar">
       <%-- 좌측 메뉴 접기·펼치기 (2026-08-05 요청) — 글자·아이콘은 logiSideFoldSet 이 상태에 맞춰 바꾼다.
@@ -2179,7 +2183,7 @@
               title="좌측 메뉴를 접어 본문을 넓게 씁니다"><span class="fi">◀</span>메뉴 접기</button>
       <span class="ft">⭐ 자주 쓰는 메뉴 <span id="favCnt"></span></span>
       <div id="favList"></div>
-      <span id="favHint">메뉴를 쓰시면 여기에 <b>자주 쓰는 순서</b>로 쌓입니다 (최대 7개 · ☆ 로 고정)</span>
+      <span id="favHint">메뉴를 쓰시면 여기에 <b>쓴 순서대로</b> 쌓입니다 — 최대 7개 (한 번 담기면 <b>✕ 로 내리기 전까지 고정</b>)</span>
       <span id="favClearBtn" title="전부 비웁니다" onclick="favClear()">✕ 비우기</span>
     </div>
 
@@ -2580,6 +2584,20 @@
           <span class="fl"><span class="n">[4]</span> <b>재고현황 · 재고마감</b> ← 같은 원장 <span style="color:#5a6b7a">(재고현황 기준일 = 마감월 말일이면 재고마감 기말과 일치)</span></span>
           <span class="fl"><span class="n">[5]</span> 🔒 <b>마감 확정</b> → 기말재고 스냅샷 저장 + 그 달 수불 잠금 <span style="color:#5a6b7a">(다음 달 기초로 이월)</span></span>
         </div>
+      </div>
+
+      <%-- ★모든 화면 맨 위에 늘 있는 줄이라 설명서에도 맨 앞에 둔다.
+             규칙(7개·대체 없음·자동셋팅 없음)을 고치면 이 칸도 같이 고칠 것. --%>
+      <div class="g-sec">
+        <h3>0-1. 화면 맨 위 공통 줄</h3>
+        <table><tbody>
+          <tr><td class="m">⭐ 자주 쓰는 메뉴</td><td>어느 화면에서든 <b>맨 위에 따라다니는</b> 바로가기 줄. 메뉴를 열면 <b>빈 자리에 저절로 담깁니다</b>(최대 <b>7개</b>).
+            <div style="margin-top:4px;color:#5a6b7a"><b>· 한 번 담기면 그대로</b> — 7개가 차면 <b style="color:#c0392b">새 메뉴가 옛 메뉴를 밀어내지 않습니다.</b> 바꾸려면 칩의 <b>✕</b>로 직접 내리고, 그 빈자리는 다음에 여는 메뉴가 채웁니다.<br>
+            <b>· 처음에는 비어 있습니다</b> — 기본값을 미리 넣어 두지 않습니다(자리가 처음부터 차 있으면 내 메뉴가 들어갈 곳이 없어서).<br>
+            <b>· ☆</b> 사이드바 메뉴 오른쪽 끝 별표로 직접 담을 수도 있습니다(담긴 것은 📌). <b>✕ 비우기</b>는 7칸을 통째로 비웁니다.<br>
+            <b>· 브라우저에 저장</b>됩니다 — PC·브라우저마다 따로이고, 로그인 계정과는 무관합니다.</div></td></tr>
+          <tr><td class="m">◀ 메뉴 접기</td><td>왼쪽 메뉴를 접어 <b>본문을 넓게</b> 씁니다(표가 한 화면에 더 들어옵니다). 접어도 위 <b>자주 쓰는 메뉴</b>로 이동할 수 있습니다. 버튼은 접으나 펴나 <b>같은 자리</b>.</td></tr>
+        </tbody></table>
       </div>
 
       <div class="g-sec">
