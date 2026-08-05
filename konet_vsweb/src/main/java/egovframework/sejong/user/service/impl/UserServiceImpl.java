@@ -147,7 +147,13 @@ public class UserServiceImpl implements UserService {
 	}
 	/* ===== 수금/미수금 ===== */
 	@Override public java.util.List<egovframework.sejong.user.model.ReceiveDTO> selectReceiveList(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception { return mapper.selectReceiveList(dto); }
-	@Override public int insertReceive(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception { guardSettleClosed("RCV", dto.getRcvYm()); return mapper.insertReceive(dto); }
+	@Override public int insertReceive(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception {
+		guardSettleClosed("RCV", dto.getRcvYm());
+		/* MERGE — 삭제(N)행 되살림/신규 INSERT. 살아있는 중복이면 0건 → 2601 대신 알아듣는 안내(2026-08-05) */
+		int n = mapper.insertReceive(dto);
+		if (n == 0) throw new Exception("이미 등록된 귀속월·거래처입니다. 목록에서 해당 행을 직접 수정하세요.");
+		return n;
+	}
 	@Override public int updateReceive(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception { guardSettleClosed("RCV", dto.getRcvYm()); return mapper.updateReceive(dto); }
 	@Override public int deleteReceive(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception { guardSettleClosed("RCV", dto.getRcvYm()); return mapper.deleteReceive(dto); }
 	@Override public int upsertReceiveList(java.util.List<egovframework.sejong.user.model.ReceiveDTO> rows, String regUser, String regIp) throws Exception {
@@ -164,7 +170,13 @@ public class UserServiceImpl implements UserService {
 	@Override public int carryForwardReceive(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception { guardSettleClosed("RCV", dto.getRcvYm()); return mapper.carryForwardReceive(dto); }
 	/* ===== 출금/미지급 ===== */
 	@Override public java.util.List<egovframework.sejong.user.model.PaymentDTO> selectPaymentList(egovframework.sejong.user.model.PaymentDTO dto) throws Exception { return mapper.selectPaymentList(dto); }
-	@Override public int insertPayment(egovframework.sejong.user.model.PaymentDTO dto) throws Exception { guardSettleClosed("PAY", dto.getPayYm()); return mapper.insertPayment(dto); }
+	@Override public int insertPayment(egovframework.sejong.user.model.PaymentDTO dto) throws Exception {
+		guardSettleClosed("PAY", dto.getPayYm());
+		/* MERGE — 삭제(N)행 되살림/신규 INSERT. 살아있는 중복이면 0건 → 2601 대신 알아듣는 안내(2026-08-05) */
+		int n = mapper.insertPayment(dto);
+		if (n == 0) throw new Exception("이미 등록된 귀속월·매입처입니다. 목록에서 해당 행을 직접 수정하세요.");
+		return n;
+	}
 	@Override public int updatePayment(egovframework.sejong.user.model.PaymentDTO dto) throws Exception { guardSettleClosed("PAY", dto.getPayYm()); return mapper.updatePayment(dto); }
 	@Override public int deletePayment(egovframework.sejong.user.model.PaymentDTO dto) throws Exception { guardSettleClosed("PAY", dto.getPayYm()); return mapper.deletePayment(dto); }
 	@Override public int upsertPaymentList(java.util.List<egovframework.sejong.user.model.PaymentDTO> rows, String regUser, String regIp) throws Exception {

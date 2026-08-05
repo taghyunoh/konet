@@ -1479,10 +1479,24 @@
 	   ORDER BY RCV_YM DESC, BIZ_NM, BIZ_CD
 	</select>
 
+	<!-- 수기 추가 — INSERT 가 아니라 MERGE (2026-08-05).
+	     (귀속월+거래처) UNIQUE 가 논리삭제(N) 행까지 점유해서, 행을 지웠다 같은 월·거래처를 다시
+	     등록하면 2601(중복 키)로 터졌다. 매입전표처럼 UNIQUE 에 필터를 걸면 안 된다 — 엑셀
+	     upsert·전월이월 MERGE 의 ON 이 ACTION_YN 무관 매칭이라 N행+Y행이 동시에 걸리면 8672 가 난다.
+	     그래서 물리 행은 키당 1개를 유지하고 수기 추가가 삭제행을 되살린다:
+	     · 삭제(N)행 있으면 → 입력값으로 되살림  · 살아있는(Y) 중복이면 → 0건(서비스가 "이미 등록" 안내)
+	     · 없으면 → INSERT -->
 	<insert id="insertReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
-	  INSERT INTO TBL_RECEIVE_MST (COMP_CD, RCV_YM, BIZ_CD, BIZ_NM, PREV_AMT, SALES_AMT, COLLECT_AMT, COLLECT_DT, PAY_GB, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
-	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), REPLACE(#{rcvYm},'-',''), #{bizCd,jdbcType=NVARCHAR}, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{salesAmt,jdbcType=DECIMAL}, #{collectAmt,jdbcType=DECIMAL},
-	          REPLACE(ISNULL(#{collectDt,jdbcType=NVARCHAR},''),'-',''), #{payGb,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	  MERGE TBL_RECEIVE_MST AS t
+	  USING (SELECT REPLACE(#{rcvYm},'-','') AS RCV_YM, #{bizCd,jdbcType=NVARCHAR} AS BIZ_CD) AS s
+	  ON (t.RCV_YM = s.RCV_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,'') AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
+	  WHEN MATCHED AND ISNULL(t.ACTION_YN,'Y') = 'N' THEN UPDATE SET
+	     t.BIZ_NM=#{bizNm,jdbcType=NVARCHAR}, t.PREV_AMT=#{prevAmt,jdbcType=DECIMAL}, t.SALES_AMT=#{salesAmt,jdbcType=DECIMAL}, t.COLLECT_AMT=#{collectAmt,jdbcType=DECIMAL},
+	     t.COLLECT_DT=REPLACE(ISNULL(#{collectDt,jdbcType=NVARCHAR},''),'-',''), t.PAY_GB=#{payGb,jdbcType=NVARCHAR}, t.REMARK=#{remark,jdbcType=NVARCHAR},
+	     t.ACTION_YN='Y', t.UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER=#{regUser,jdbcType=NVARCHAR}, t.UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	  WHEN NOT MATCHED THEN INSERT (COMP_CD, RCV_YM, BIZ_CD, BIZ_NM, PREV_AMT, SALES_AMT, COLLECT_AMT, COLLECT_DT, PAY_GB, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	     VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), s.RCV_YM, s.BIZ_CD, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{salesAmt,jdbcType=DECIMAL}, #{collectAmt,jdbcType=DECIMAL},
+	             REPLACE(ISNULL(#{collectDt,jdbcType=NVARCHAR},''),'-',''), #{payGb,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
 	]]></insert>
 
 	<update id="updateReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
@@ -1552,10 +1566,18 @@
 	   ORDER BY PAY_YM DESC, BIZ_NM, BIZ_CD
 	</select>
 
+	<!-- 수기 추가 — INSERT 가 아니라 MERGE (2026-08-05, insertReceive 와 같은 이유·같은 규칙) -->
 	<insert id="insertPayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
-	  INSERT INTO TBL_PAYMENT_MST (COMP_CD, PAY_YM, BIZ_CD, BIZ_NM, PREV_AMT, PURCH_AMT, PAYOUT_AMT, PAYOUT_DT, PAY_GB, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
-	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), REPLACE(#{payYm},'-',''), #{bizCd,jdbcType=NVARCHAR}, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{purchAmt,jdbcType=DECIMAL}, #{payoutAmt,jdbcType=DECIMAL},
-	          REPLACE(ISNULL(#{payoutDt,jdbcType=NVARCHAR},''),'-',''), #{payGb,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	  MERGE TBL_PAYMENT_MST AS t
+	  USING (SELECT REPLACE(#{payYm},'-','') AS PAY_YM, #{bizCd,jdbcType=NVARCHAR} AS BIZ_CD) AS s
+	  ON (t.PAY_YM = s.PAY_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,'') AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
+	  WHEN MATCHED AND ISNULL(t.ACTION_YN,'Y') = 'N' THEN UPDATE SET
+	     t.BIZ_NM=#{bizNm,jdbcType=NVARCHAR}, t.PREV_AMT=#{prevAmt,jdbcType=DECIMAL}, t.PURCH_AMT=#{purchAmt,jdbcType=DECIMAL}, t.PAYOUT_AMT=#{payoutAmt,jdbcType=DECIMAL},
+	     t.PAYOUT_DT=REPLACE(ISNULL(#{payoutDt,jdbcType=NVARCHAR},''),'-',''), t.PAY_GB=#{payGb,jdbcType=NVARCHAR}, t.REMARK=#{remark,jdbcType=NVARCHAR},
+	     t.ACTION_YN='Y', t.UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER=#{regUser,jdbcType=NVARCHAR}, t.UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	  WHEN NOT MATCHED THEN INSERT (COMP_CD, PAY_YM, BIZ_CD, BIZ_NM, PREV_AMT, PURCH_AMT, PAYOUT_AMT, PAYOUT_DT, PAY_GB, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	     VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), s.PAY_YM, s.BIZ_CD, #{bizNm,jdbcType=NVARCHAR}, #{prevAmt,jdbcType=DECIMAL}, #{purchAmt,jdbcType=DECIMAL}, #{payoutAmt,jdbcType=DECIMAL},
+	             REPLACE(ISNULL(#{payoutDt,jdbcType=NVARCHAR},''),'-',''), #{payGb,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
 	]]></insert>
 
 	<update id="updatePayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
