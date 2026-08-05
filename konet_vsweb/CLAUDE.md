@@ -3,6 +3,8 @@
 ## ★알림·확인 메시지 표준 (상시 방침 — 사용자 반복 지적)
 - **모든 알림(1버튼)·확인(2버튼)은 [ui-message.js](src/main/webapp/asset/js/ui-message.js)** 의 `_alertBox(msg,{icon,okText,okColor})` / `_confirmBox({msg,icon,okText,okColor,onOk})` / `_toast(msg,type)` — 로그인 화면과 동일한 흰 카드+아이콘+파란 확인 버튼 스타일. **새 알림·확인은 무조건 이걸 쓴다.**
 - **Swal(SweetAlert) 기본값 금지** — demo2 의 `swAlert` 는 기존 잔존분(신규 사용 금지). jQuery 불필요, `<script src=".../asset/js/ui-message.js">` 한 줄로 어느 화면에서나 동작(CSS 자동 주입). demo2 도 로드해 둠(2026-07-31).
+- **입력검색 후보 정렬 = 거래금액 많은 순 + 영타 자동인식** (2026-08-05 요청): vendor-pick.js 에 `rank` 옵션(매입등록=총매입 `_venSum.p`, 판매등록=총판매 `_venSum.s` — [거래처] 팝업과 같은 기준) + **영타→한글 변환 매칭**(`engToKor`, "eodudwjstks"→"대영전산" — 한/영 키를 안 눌러도 걸림. 브라우저는 Windows IME 한/영 모드를 못 바꾸므로 '한글모드 전환' 요청은 이 방식으로 해결). 코드·별칭 등 진짜 영문은 원검색어로 그대로 걸리므로 손실 없음. 수금·지급은 rank 미지정(종전 순서). 공용 JS 수정이라 4화면 include 에 `?v=20260805` 캐시버스터 부여 — **다음에 vendor-pick.js 고칠 때도 버전을 올릴 것.**
+- **매입·판매등록 UI 확정 3건(2026-08-05, 두 화면 동일)**: ①상품 선택 팝업 = 열리면 검색칸 자동 포커스 + **ESC 로 닫기**(한글 조합 중 ESC 는 IME 취소라 제외) ②상품검색 결과 = **코드 매치(굵은 초록, 코드순) 먼저 + 그 뒤에 찾은 코드 '다음' 코드의 상품들을 이어붙임**(장부 넘겨 보기 — "걸린 것만 나오면 이웃 상품을 못 고른다" 2026-08-05 재지적으로 확장, 판매는 매칭코드 걸린 상품도 코드 그룹, 이름·규격 매치는 맨 뒤) ③**단가만 소수점 표시 `fmtP()`**(소수 2자리·콤마) — 값은 원래 소수 저장이 됐는데 `fmt()` 반올림 때문에 231 로 보였던 것. 금액·합계는 종전대로 정수 `fmt()`.
 - **거래처 칸은 「입력검색」 = [vendor-pick.js](src/main/webapp/asset/js/vendor-pick.js)** (2026-08-01 요청) — 판매·매입·수금·지급 등록 4화면 공용. 칸에 직접 쳐서 고른다(거래처명·코드·별칭·대표·담당 부분일치, ↑↓·Enter·Esc). **[거래처] 팝업은 그대로 둔다**(이름 모를 때 훑는 용도) — 둘 다 같은 `_vendors` 를 본다. 고르는 동작은 **페이지의 기존 pick 함수**(`saVenPick`/`puVenPick`/`svCustPick`)를 그대로 부른다: 잔고·원장·담당자 갱신이 거기 붙어 있어 값만 넣으면 화면이 반쪽만 바뀐다. 이름·코드가 어긋난 채 남지 않게 blur 시 되돌린다(후보 1건이면 확정). 실제 값은 `input.dataset.cd`.
 - **작업 버튼(신규등록·저장·새로고침·삭제하기)은 입력 칸 '아래'** — 4화면 통일(2026-08-01). 종전 수금·지급만 카드 맨 위에 있었다.
 - **`ssConfirm`(teal 「반영 확인」 모달)은 발주현황표 업로드 반영류 확인 전용** — 일반 확인에 쓰면 제목('반영 확인')·버튼('반영')이 어긋난다. 실제 사고: 로그아웃 확인을 ssConfirm 으로 냈다가 지적받고 `_confirmBox` 로 교체(2026-07-31).
@@ -12,6 +14,14 @@
 - 뷰: Apache Tiles. `.raw/*` = tiles 래핑 없는 단독 페이지, `.main/*` = 표준 레이아웃(main.jsp+top.jsp, top.jsp는 사실상 비어있음 — 실제 네비 없음)
 - **물류관리 화면은 `.raw/main/admin/logistics_demo2.jsp`(약 3000줄) 단독 셸** — 좌측 사이드바 + 모든 패널 + JS를 한 파일에 내장. 대시보드1(출고현황표)=`logistics_demo1.jsp`(iframe 로드). 사이드바 메뉴 onclick이 demo2 내부 함수/패널에 강결합 → 리팩터링 시 주의.
 - 컨벤션: PK `XXX_SEQ IDENTITY`, 품목연결 `PROD_SEQ`+`PROD_CD`, 금액 `DECIMAL(18,2)`, 일자 `NVARCHAR(8)'YYYYMMDD'`·일시 `NVARCHAR(19)`, 소프트삭제 `ACTION_YN`, 감사컬럼 `REG_/UPD_`. 날짜 저장 시 `REPLACE(...,'-','')`. XML `<=`/`<` 는 CDATA 필수.
+
+## [완료 2026-08-05] 매입등록 특정 일자만 저장 실패 — 전표번호 UNIQUE 가 논리삭제분까지 점유
+- **증상**: 매입일자 2026-05-07 로 저장하면 오류(화면엔 "저장에 실패했습니다 / Failed to fetch"), 2026-08-07 은 정상. 품목·거래처와 무관하게 **그 일자만** 계속 실패.
+- **원인**: 등록했다 삭제한 전표(20260507/0003, ACTION_YN='N')가 남아 있는데 `UX_PURCH_NO`(COMP_CD, PURCH_DT, PURCH_NO)가 **무필터 UNIQUE** 라 죽은 행이 키를 계속 점유. 채번 `selectPurchaseNextNo` 는 **활성(Y) 행만** 세서 같은 0003 을 다시 주므로 INSERT 가 2601(중복 키)로 터짐 → **삭제 이력이 있는 일자는 영원히 저장 불가**. (comp_cd_multitenant_alter.sql 이 UX 를 COMP_CD 포함으로 재생성하면서 필터 없이 만든 게 발단)
+- **조치 (DB만, WAR 재빌드 불필요)**: [sql/purch_settle_unique_filter_alter.sql](sql/purch_settle_unique_filter_alter.sql) — `UX_PURCH_NO`·`UX_SETTLE_TRX_NO`(수금/지급, 같은 구조)에 `WHERE ACTION_YN='Y'` 필터를 걸어 삭제분을 키에서 제외(=삭제된 번호 재사용, 채번 기준과 일치). **운영DB(saynice.co.kr KOLGSDB) 적용·검증 완료**(20260507/0003 INSERT 성공 확인 후 롤백). 재실행 안전, multitenant alter 의 UX 블록은 COMP_CD 포함이면 안 건드리므로 필터가 안 덮인다.
+- **판매등록(TBL_SALES_TRX_MST)은 전표번호 UNIQUE 자체가 없었음**(이 오류는 안 나지만 중복도 무방비) → 같은 날 `UX_SALES_TRX_NO`(COMP_CD, SALE_DT, SALE_NO) WHERE ACTION_YN='Y' **신설·운영DB 적용 완료**(기존 활성 중복 없음 확인).
+- **[미조치] 수금현황/지급현황 월별(TBL_RECEIVE_MST·TBL_PAYMENT_MST)**: UQ(COMP_CD, 귀속월, BIZ_CD) 무필터 + 논리삭제 + 수기추가는 insertReceive/insertPayment → "행 삭제 후 같은 월·거래처 재등록"에서 같은 2601 소지. **단순 필터 적용 금지** — upsert/carryForward MERGE 의 ON 이 ACTION_YN 무관 매칭이라, 필터 걸면 N행+Y행 동시 매칭(8672) 위험. 고치려면 MERGE ON 조건과 세트로.
+- **[함정] 화면의 "Failed to fetch"는 네트워크 오류처럼 보여도 이 케이스였다** — 서버 500 메시지가 표시 안 되는 환경(중간 프록시 등)이면 중복 키도 이렇게 보인다. 특정 일자만 실패하면 그 일자의 삭제 전표부터 볼 것: `SELECT * FROM TBL_PURCHASE_MST WHERE PURCH_DT='YYYYMMDD'`.
 
 ## 다중회사(멀티테넌트) — 업무 테이블 COMP_CD (2026-07-30)
 **로그인(COMP_CD+USER_ID)의 회사코드로 모든 업무 데이터를 회사별 분리.** 기존 데이터는 전부 코네트(`W1234567`) 귀속.

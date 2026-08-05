@@ -4,7 +4,7 @@
      SweetAlert 가 아니라 이 파일이 표준이다(_alertBox / _confirmBox / _toast). --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
 <%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260805"></script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-quick.js"></script>
 <!--
   판매등록 (2026-07-25 신설) — 매입등록 화면과 대칭. 같은 조작감으로 쓰도록 구조를 그대로 맞췄다.
@@ -491,6 +491,9 @@ var _prodTargetRow = -1;
 
 function n(v){ var x = Number(String(v==null?'':v).replace(/,/g,'')); return isFinite(x) ? x : 0; }
 function fmt(v){ return Math.round(n(v)).toLocaleString(); }
+/* 단가 표시용 — 소수점을 살린다(소수 2자리, 2026-08-05 요청·매입등록과 동일). fmt 는 반올림이라 230.5 가 231 로 보였다.
+   금액(합계)은 종전대로 정수 반올림(fmt) — DB 도 DECIMAL(18,2)라 소수 2자리까지 저장된다. */
+function fmtP(v){ v = Math.round(n(v)*100)/100; return v.toLocaleString(undefined, {maximumFractionDigits:2}); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function today(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
 /* 메시지 — 프로젝트 공통 컴포넌트(asset/js/ui-message.js). 로그인 화면이 쓰는 그것과 같다.
@@ -546,6 +549,7 @@ function post(url, body, isJson){
      _vendors 는 saLoadMasters() 가 나중에 채우므로 배열이 아니라 '함수'로 넘긴다. */
   _vendorPick(document.getElementById('saVenNm'), {
     list   : function(){ return _vendors.filter(saVenFit); },   // 거래유형 필터(＋신규/전체 버튼과 같은 기준)
+    rank   : function(o){ return (_venSum[o.vendorCd]||{}).s||0; },   // 총판매(정산서+판매전표) 많은 순 — [거래처] 팝업과 같은 기준(2026-08-05)
     onPick : function(o){ saVenPick(o.vendorCd); },
     onClear: function(){ saVenVat(null); document.getElementById('saMgrNm').value=''; document.getElementById('saMgrNm').dataset.cd=''; saVenBal(''); saXrefLoad(''); }
   });
@@ -751,7 +755,7 @@ function saRender(){
       + '<td><input inputmode="numeric" data-r="'+i+'" data-f="eaQty" value="'+n(o.eaQty)+'" onchange="saSet('+i+',\'eaQty\',this.value)"></td>'
       + '<td class="num">'+fmt(o.qty)+'</td>'
       /* 단가·DC 는 천단위 콤마로 보여 준다(2026-08-04 "단가 단위구분") — n() 이 콤마를 지우므로 계산은 그대로다 */
-      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="unitPrice" value="'+fmt(o.unitPrice)+'" onchange="saSet('+i+',\'unitPrice\',this.value)"></td>'
+      + '<td><input inputmode="decimal" data-r="'+i+'" data-f="unitPrice" value="'+fmtP(o.unitPrice)+'" onchange="saSet('+i+',\'unitPrice\',this.value)"></td>'
       + '<td class="num">'+fmt(o.amt)+'</td>'
       + '<td><input inputmode="numeric" data-r="'+i+'" data-f="dcAmt" value="'+fmt(o.dcAmt)+'" onchange="saSet('+i+',\'dcAmt\',this.value)"></td>'
       + '<td class="num">'+fmt(o.supplyAmt)+'</td>'
@@ -1285,9 +1289,11 @@ function saLedger(cd){
 function saProdOpen(i){
   _prodTargetRow=i;
   document.getElementById('saProdPop').classList.add('on');
-  document.getElementById('saProdQ').value='';
+  var q=document.getElementById('saProdQ'); q.value='';
   saProdRender();
   saLoadMasters();
+  /* 열리면 바로 검색칸에 커서 — 마우스로 칸을 다시 누를 필요 없이 즉시 친다(2026-08-05 요청, 매입등록과 동일) */
+  setTimeout(function(){ q.focus(); }, 0);
 }
 function saProdClose(){ document.getElementById('saProdPop').classList.remove('on'); }
 function saProdRender(){
@@ -1300,11 +1306,26 @@ function saProdRender(){
     if([e.extItemCd,e.extItemNm,e.extSpec].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; }))
       byExt[String(e.prodCd)]=1;
   });
-  var l = _prods.filter(function(o){
-    if(!q) return true;
-    if(byExt[String(o.prodCd)]) return true;                       // 매칭코드로 걸린 상품
-    return [o.prodCd,o.prodNm,o.spec].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; });
-  }).slice(0,200);
+  /* 코드로 검색하면 장부 넘겨 보듯 — 걸린 상품(우리 코드·매칭코드, 코드순)을 앞에 두고, 그 뒤에
+     **찾은 코드 다음 코드의 상품들을 이어서** 보여 준다(2026-08-05 요청·매입등록과 동일 —
+     걸린 것만 나오면 이웃 상품을 못 고른다). 걸린 상품은 코드를 굵은 초록으로 구분. 이름·규격 매치는 맨 뒤. */
+  var l, hit = {};
+  if(!q){ l = _prods.slice(0,200); }
+  else{
+    var byCd=[], byNm=[];
+    _prods.forEach(function(o){
+      if(String(o.prodCd||'').toLowerCase().indexOf(q)>=0 || byExt[String(o.prodCd)]) byCd.push(o);
+      else if([o.prodNm,o.spec].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; })) byNm.push(o);
+    });
+    var byCode = function(a,b){ return String(a.prodCd||'').localeCompare(String(b.prodCd||'')); };
+    byCd.sort(byCode);
+    if(byCd.length){
+      byCd.forEach(function(o){ hit[String(o.prodCd)]=1; });
+      var first = String(byCd[0].prodCd||'');
+      var after = _prods.filter(function(o){ return !hit[String(o.prodCd)] && String(o.prodCd||'') > first; }).sort(byCode);
+      l = byCd.concat(after).concat(byNm).slice(0,200);
+    }else l = byNm.slice(0,200);
+  }
   document.getElementById('saProdBody').innerHTML = l.length ? l.map(function(o){
     /* ★한 상품에 매칭코드가 여럿일 수 있다 — 전부 보여 주고 **무엇으로 넣을지 골라 누르게** 한다(2026-08-01).
          · 줄(상품코드·상품명) 클릭 = 우리 원코드·우리 품명으로 넣기
@@ -1313,7 +1334,7 @@ function saProdRender(){
     var exl=saExtListFor(o.prodCd);
     /* 원코드 줄 — 누르면 우리 코드·우리 품명으로 넣는다 */
     var h='<tr class="pick" onclick="saProdPick(\''+esc(o.prodCd)+'\')" title="이 줄을 누르면 우리 원코드로 넣습니다">'
-         + '<td>'+esc(o.prodCd)+'</td>'
+         + '<td>'+(hit[String(o.prodCd)] ? '<b style="color:#137a6c">'+esc(o.prodCd)+'</b>' : esc(o.prodCd))+'</td>'
          + '<td class="txt" style="text-align:left">'+esc(o.prodNm)+'</td>'
          + '<td>'+esc(o.spec)+'</td><td class="num">'+n(o.packQty)+'</td><td class="num">'+fmt(o.salePrice)+'</td></tr>';
     /* 매칭코드 줄 — ★같은 칸(코드는 코드 칸, 품명은 품명 칸)에 맞춰 별도 줄로 둔다(2026-08-01 지적).
@@ -1449,7 +1470,7 @@ function saHistRender(){
   document.getElementById('hvCnt').textContent = '[ 조회 건 수: '+l.length+'/'+_hist.length+' ]';
   document.getElementById('saHistBody').innerHTML = l.length ? l.map(function(x,k){
     return '<tr><td>'+(k+1)+'</td><td>'+esc(fmtDt(x.spec))+'</td><td class="txt" style="text-align:left">'+esc(x.prodNm)+'</td>'
-         + '<td class="num">'+fmt(x.unitPrice)+'</td><td class="num">'+n(x.boxQty)+'</td><td class="num">'+n(x.eaQty)+'</td>'
+         + '<td class="num">'+fmtP(x.unitPrice)+'</td><td class="num">'+n(x.boxQty)+'</td><td class="num">'+n(x.eaQty)+'</td>'
          + '<td class="num">'+n(x.qty)+'</td><td class="num">'+fmt(x.amt)+'</td>'
          + '<td>'+(x.eventYn==='Y'?'●':'')+'</td><td>'+(x.trxGb==='반품'?'●':'')+'</td></tr>';
   }).join('') : '<tr><td colspan="10" class="sa-msg">'+(only?'행사 판매 이력이 없습니다.':'이 상품의 판매 이력이 아직 없습니다.')+'</td></tr>';
@@ -1525,7 +1546,7 @@ function saDlvRender(){
       + '<td>'+esc(cd)+'</td>'
       + '<td class="txt" style="text-align:left">'+esc(o.prodNm)+'</td>'
       + '<td>'+esc(o.spec)+'</td><td>'+esc(o.makerNm)+'</td>'
-      + '<td class="num">'+fmt(o.unitPrice)+'</td>'
+      + '<td class="num">'+fmtP(o.unitPrice)+'</td>'
       + '<td class="num"'+(st<0?' style="color:#c0392b;font-weight:700"':'')+'>'+fmt(st)+'</td>'
       + '<td>'+esc(_dvExclMode ? String(o.regDttm||'').slice(0,10) : fmtDt(o.lastDt))+'</td>'
       + '<td>'+esc(_dvExclMode ? '제외' : (o.srcGb||''))+'</td></tr>';
@@ -1846,6 +1867,11 @@ function saPinBlur(){ setTimeout(saPinClose, 150); }
   document.addEventListener('keydown', function(e){
     if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); saSave(); }
     else if (e.altKey && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); saNew(); }
+    /* ESC = 상품 선택 팝업 닫기(2026-08-05 요청, 매입등록과 동일) — 한글 조합 중 ESC 는 IME 취소라 건드리지 않는다 */
+    else if (e.key === 'Escape' && !e.isComposing){
+      var p = document.getElementById('saProdPop');
+      if (p && p.classList.contains('on')) { e.preventDefault(); saProdClose(); }
+    }
   });
 })();
 </script>

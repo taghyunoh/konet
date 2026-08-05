@@ -3,7 +3,7 @@
 <%-- 메시지는 프로젝트 공통 컴포넌트(로그인 화면과 동일) --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
 <%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260805"></script>
 <!--
   수금등록 — 홀세일닥터 '수금 등록' 이관 (2026-07-25 신설)
     · 원천 : TBL_SETTLE_TRX (TRX_GB='RCV'). 지급등록과 같은 테이블·같은 쿼리를 쓴다
