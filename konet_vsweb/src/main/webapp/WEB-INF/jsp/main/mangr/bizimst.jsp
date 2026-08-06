@@ -68,8 +68,11 @@
 
   <div class="card">
     <table>
-      <thead><tr><th style="width:160px">사업장코드</th><th>사업장명</th><th style="width:150px">관리</th></tr></thead>
-      <tbody id="tb"><tr><td colspan="3" class="empty">불러오는 중…</td></tr></tbody>
+      <%-- 택배 정보(2026-08-06 신설) — 택배출고관리 엑셀이 쓰는 값. 주소는 택배주소 우선, 없으면 기본주소 --%>
+      <thead><tr><th style="width:130px">사업장코드</th><th>사업장명</th>
+        <th style="width:290px">택배주소</th><th style="width:130px">수령자</th><th style="width:120px">택배전화</th><th style="width:120px">택배휴대폰</th><th style="width:84px">기본운임</th>
+        <th style="width:150px">관리</th></tr></thead>
+      <tbody id="tb"><tr><td colspan="8" class="empty">불러오는 중…</td></tr></tbody>
     </table>
   </div>
 
@@ -113,13 +116,20 @@ function biziRender(list, keepPage){
   if(_page>pages) _page=pages;
   document.getElementById('cnt').textContent = tot+'건';
   var tb=document.getElementById('tb');
-  if(!tot){ tb.innerHTML='<tr><td colspan="3" class="empty">등록된 사업장이 없습니다. ＋ 사업장 추가</td></tr>'; _renderPager(0,1); return; }
+  if(!tot){ tb.innerHTML='<tr><td colspan="8" class="empty">등록된 사업장이 없습니다. ＋ 사업장 추가</td></tr>'; _renderPager(0,1); return; }
   var start=(_page-1)*PAGE_SIZE, rows=_view.slice(start, start+PAGE_SIZE);
   tb.innerHTML = rows.map(function(o){
     var cd=esc(o.bizCd), nm=esc(o.bizNm);
+    /* 택배주소가 비면 기본주소를 흐리게 안내(placeholder) — 실제 저장은 택배주소 칸 값만 */
+    var pa=esc(o.parcelAddr||''), pt=esc(o.parcelTel||''), ph=esc(o.parcelHp||''), pf=(o.parcelFee==null?'':o.parcelFee);
     return '<tr data-cd="'+cd+'">'
       + '<td class="code">'+cd+'</td>'
       + '<td><input class="nm" value="'+nm+'" data-orig="'+nm+'" oninput="biziDirty(this)"></td>'
+      + '<td><input class="nm pa" value="'+pa+'" placeholder="'+(esc(o.addr||'')||'택배주소')+'" title="비우면 기본주소를 씁니다"></td>'
+      + '<td><input class="nm pn" value="'+esc(o.parcelNm||'')+'" placeholder="수령자"></td>'
+      + '<td><input class="nm pt" value="'+pt+'" placeholder="'+(esc(o.tel||'')||'전화')+'"></td>'
+      + '<td><input class="nm ph" value="'+ph+'" placeholder="'+(esc(o.hp||'')||'휴대폰')+'"></td>'
+      + '<td><input class="nm pf" value="'+pf+'" placeholder="4500" inputmode="numeric" style="text-align:right"></td>'
       + '<td class="act">'
         + '<button class="btn btn-teal" onclick="biziSaveRow(this)">저장</button> '
         + '<button class="btn btn-danger" onclick="biziDelRow(this)">삭제</button>'
@@ -157,6 +167,11 @@ function biziAddRow(){
   var tr=document.createElement('tr'); tr.className='neww';
   tr.innerHTML='<td><input class="cd" placeholder="A0000000"></td>'
     + '<td><input class="nm dirty" placeholder="사업장명"></td>'
+    + '<td><input class="nm pa" placeholder="택배주소"></td>'
+    + '<td><input class="nm pn" placeholder="수령자"></td>'
+    + '<td><input class="nm pt" placeholder="전화"></td>'
+    + '<td><input class="nm ph" placeholder="휴대폰"></td>'
+    + '<td><input class="nm pf" placeholder="4500" inputmode="numeric" style="text-align:right"></td>'
     + '<td class="act"><button class="btn btn-teal" onclick="biziInsertRow(this)">등록</button> '
     + '<button class="btn" onclick="this.closest(\'tr\').remove()">취소</button></td>';
   tb.insertBefore(tr, tb.firstChild);
@@ -173,18 +188,37 @@ function _post(url, payload, okMsg){
     .catch(function(e){ toast('⚠️ 통신오류: '+e.message); return false; });
 }
 
+/* 저장 = 사업장명(biziUpdate) + 택배정보(biziParcelUpdate) 함께 (2026-08-06) */
 function biziSaveRow(btn){
   var tr=btn.closest('tr'), cd=tr.getAttribute('data-cd'), inp=tr.querySelector('.nm');
   var nm=(inp.value||'').trim();
   if(!nm){ toast('⚠️ 사업장명을 입력하세요.'); return; }
-  _post('/mangr/biziUpdate.do', [{bizCd:cd, bizNm:nm}], '💾 저장됨: '+cd).then(function(ok){ if(ok){ inp.setAttribute('data-orig', nm); inp.classList.remove('dirty'); biziLoad(); } });
+  var pa=(tr.querySelector('.pa').value||'').trim(), pt=(tr.querySelector('.pt').value||'').trim();
+  var ph=(tr.querySelector('.ph').value||'').trim(), pfv=(tr.querySelector('.pf').value||'').trim();
+  var pn=(tr.querySelector('.pn').value||'').trim();
+  var pf=pfv===''?null:Number(pfv.replace(/,/g,''));
+  _post('/mangr/biziUpdate.do', [{bizCd:cd, bizNm:nm}], '💾 저장됨: '+cd).then(function(ok){
+    if(!ok) return;
+    _post('/mangr/biziParcelUpdate.do', [{bizCd:cd, parcelAddr:pa, parcelNm:pn, parcelTel:pt, parcelHp:ph, parcelFee:pf}], '💾 저장됨: '+cd)
+      .then(function(){ inp.setAttribute('data-orig', nm); inp.classList.remove('dirty'); biziLoad(); });
+  });
 }
 
 function biziInsertRow(btn){
   var tr=btn.closest('tr'), cd=(tr.querySelector('.cd').value||'').trim(), nm=(tr.querySelector('.nm').value||'').trim();
   if(!cd){ toast('⚠️ 사업장코드를 입력하세요.'); return; }
   if(!nm){ toast('⚠️ 사업장명을 입력하세요.'); return; }
-  _post('/mangr/biziInsert.do', [{bizCd:cd, bizNm:nm}], '＋ 등록: '+cd).then(function(ok){ if(ok) biziLoad(); });
+  var pa=(tr.querySelector('.pa').value||'').trim(), pt=(tr.querySelector('.pt').value||'').trim();
+  var ph=(tr.querySelector('.ph').value||'').trim(), pfv=(tr.querySelector('.pf').value||'').trim();
+  var pn=(tr.querySelector('.pn').value||'').trim();
+  var pf=pfv===''?null:Number(pfv.replace(/,/g,''));
+  _post('/mangr/biziInsert.do', [{bizCd:cd, bizNm:nm}], '＋ 등록: '+cd).then(function(ok){
+    if(!ok) return;
+    if(pa||pn||pt||ph||pf!=null){
+      _post('/mangr/biziParcelUpdate.do', [{bizCd:cd, bizNm:nm, parcelAddr:pa, parcelNm:pn, parcelTel:pt, parcelHp:ph, parcelFee:pf}], '＋ 등록: '+cd)
+        .then(function(){ biziLoad(); });
+    } else biziLoad();
+  });
 }
 
 function biziDelRow(btn){

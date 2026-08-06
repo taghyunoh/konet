@@ -827,6 +827,16 @@
     if (f) {
       var cur = f.getAttribute('src') || '';
       if (!cur || cur === 'about:blank') { f.src = url; }   // 비어있으면(최초/재진입) 로드 — 이미 로드됐으면 상태 유지
+      /* ★세션이 끊긴 채 눌러 '로그인 화면'이 들어가 있으면 다시 부른다 (2026-08-06).
+           컨트롤러가 세션 없을 때 로그인 뷰를 돌려주는데, 위 규칙(이미 로드면 유지) 때문에
+           재로그인 뒤 메뉴를 다시 눌러도 그 빈 화면이 그대로 남아 "화면이 안 뜬다"가 된다.
+           같은 출처라 안쪽 문서를 볼 수 있다 — 로그인 입력칸이 보이면 새로 로드. */
+      else {
+        try {
+          var d = f.contentDocument;
+          if (d && d.getElementById('userId')) { f.src = url; }
+        } catch(e) {}
+      }
       f.setAttribute('data-loaded','1');
     }
   }
@@ -2046,6 +2056,9 @@
      <%-- 출고현황이력조회(2026-07-25 요청) — 발주현황표 엑셀을 언제·누가·몇 차로 올렸는지와 그 발생내역.
           업로드가 배치(출고일자+출고장+차수)로 남으므로 그 흐름을 일자별로 보여준다. --%>
      <a class="mi" data-key="shipouthist" onclick="logiFrame('shipouthist','${pageContext.request.contextPath}/shipout/shipoutHist.do', this)"><span class="ic">🗂️</span>출고현황이력조회</a>
+     <%-- 택배출고관리(2026-08-06 신설) — 출고일자의 직송(ZONE='직송')을 택배 발송 엑셀로.
+          주소·운임은 사업장(TBL_BIZI_MST)의 택배 정보를 쓰고, 그 화면에서 바로 채워 저장할 수 있다. --%>
+     <a class="mi" data-key="parcelout" onclick="logiFrame('parcelout','${pageContext.request.contextPath}/shipout/parcelOut.do', this)"><span class="ic">🚛</span>택배출고관리</a>
 
     <%-- 메뉴 배열 = 홀세일닥터 구조에 맞춤(2026-07-25 요청).
          업무 단위(매출/매입/재고)로 묶고 그 안에 등록·정산·마감을 함께 둔다.
@@ -3410,6 +3423,13 @@
     <!-- ===== 출고현황이력조회 (2026-07-25) ===== -->
     <section id="panel-shipouthist" class="panel" style="padding:0;">
       <iframe id="if-shipouthist" src="" title="출고현황이력조회" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+
+    <%-- ===== 택배출고관리 (2026-08-06) — 출고일자의 직송(ZONE='직송')을 택배 발송 엑셀로.
+         ★메뉴(logiFrame('parcelout',…))만 넣고 이 패널을 빠뜨리면 눌러도 아무 일이 없다
+           (if-<key> iframe 이 없어 src 를 넣을 곳이 없다). 새 iframe 화면은 메뉴+패널을 짝으로 넣을 것. --%>
+    <section id="panel-parcelout" class="panel" style="padding:0;">
+      <iframe id="if-parcelout" src="" title="택배출고관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
 
     <%-- ===== 정산 그래프 (2026-08-02) — 정산서 금액을 일자별/월별로. JS=logi-oh.js sg* ===== --%>

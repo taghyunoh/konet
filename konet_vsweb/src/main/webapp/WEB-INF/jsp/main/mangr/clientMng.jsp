@@ -36,6 +36,8 @@
   .btn:disabled{ opacity:.45; cursor:default; }
   td.code{ font-family:Consolas,monospace; }
   td.nm{ white-space:normal; min-width:180px; max-width:280px; }
+  /* 주소 칸 — 길어서 가로가 터지지 않게 폭 제한 + 말줄임(전체는 마우스 올리면 툴팁) */
+  td.ad{ max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500; }
   .gb{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#fff; }
   .act .btn{ height:26px; padding:0 9px; font-size:11.5px; }
   .empty{ padding:26px; text-align:center; color:#9aa7b3; }
@@ -48,13 +50,19 @@
   .pager .ell{ padding:0 4px; color:#9aa7b3; }
   #ov{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:50; align-items:flex-start; justify-content:center; }
   #ov.on{ display:flex; }
-  #ov .box{ background:#fff; width:min(760px,94vw); margin-top:4vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); max-height:92vh; display:flex; flex-direction:column; }
+  <%-- 3단 배치(2026-08-06 요청) — 칸이 늘어 두 줄이 길어졌다. 폭도 함께 넓혀 칸이 좁아지지 않게 --%>
+  #ov .box{ background:#fff; width:min(1080px,96vw); margin-top:4vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); max-height:92vh; display:flex; flex-direction:column; }
   #ov .mh{ background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:13px 18px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
   #ov .mh b{ font-size:16px; }
   #ov .mh .x{ background:none; border:none; color:#fff; font-size:22px; cursor:pointer; }
-  #ov .mb{ padding:16px 18px; overflow:auto; display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; }
+  #ov .mb{ padding:16px 18px; overflow:auto; display:grid; grid-template-columns:repeat(3,1fr); gap:12px 16px; }
   #ov .fld{ display:flex; flex-direction:column; gap:4px; }
   #ov .fld.full{ grid-column:1 / -1; }
+  /* 사업장명·주소류는 3단에서도 넓게 — 두 칸 차지 */
+  #ov .fld.wide{ grid-column:span 2; }
+  /* 좁은 화면에서는 2단 → 1단으로 접힌다 */
+  @media (max-width:900px){ #ov .mb{ grid-template-columns:1fr 1fr; } }
+  @media (max-width:620px){ #ov .mb{ grid-template-columns:1fr; } #ov .fld.wide{ grid-column:auto; } }
   <%-- 라벨 = 진하게·가운데 정렬 (2026-08-04 요청, 다른 등록 창과 동일) --%>
   #ov label{ font-size:13px; font-weight:700; color:#1f2a37; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:center; text-align:center; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
   #ov input, #ov select, #ov textarea{ height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:14px; font-family:inherit; }
@@ -76,7 +84,7 @@
       &nbsp;|&nbsp; 창에서 <b>Enter</b> 다음 칸 · <b>Ctrl+S</b> 저장 · <b>Esc</b> 닫기</div></div>
 
   <div class="bar">
-    <input type="text" class="search" id="q" placeholder="코드·사업장명·약칭·사업자번호·대표자 검색" onkeyup="if(event.keyCode===13)cliLoad()">
+    <input type="text" class="search" id="q" placeholder="코드·사업장명·약칭·사업자번호·대표자 검색" oninput="cliFilter()" onkeyup="if(event.keyCode===13)cliFilter()">
     <button class="btn" onclick="cliLoad()">↻ 조회</button>
     <button class="btn btn-teal" style="margin-left:auto" onclick="cliOpen()">＋ 거래처 추가</button>
     <button class="btn" id="btnEdit" onclick="cliEditSel()">✎ 수정</button>
@@ -87,11 +95,14 @@
 
   <div class="card" id="listCard">
     <table>
+      <%-- 목록 칸 = 실제로 채워 쓰는 정보로 교체 (2026-08-06 요청)
+           약칭·거래구분·사업자번호·대표자·업태·종목은 사업장 자료에 거의 비어 있어 자리만 차지했다.
+           대신 배송·택배에 필요한 주소·수령자·연락처·운임을 보여 준다. 상세는 더블클릭(수정창). --%>
       <thead><tr>
-        <th>코드</th><th>사업장명</th><th>약칭</th><th>거래구분</th><th>사업자번호</th><th>대표자</th>
-        <th>업태</th><th>종목</th><th>전화</th><th>휴대폰</th><th>담당자</th>
+        <th>코드</th><th>사업장명</th><th>배송처 주소</th><th>택배주소</th>
+        <th>수령자</th><th>전화</th><th>휴대폰</th><th>운임</th><th>담당자</th>
       </tr></thead>
-      <tbody id="tb"><tr><td colspan="11" class="empty">불러오는 중…</td></tr></tbody>
+      <tbody id="tb"><tr><td colspan="9" class="empty">불러오는 중…</td></tr></tbody>
     </table>
   </div>
   <div id="pager" class="pager"></div>
@@ -103,7 +114,7 @@
     <div class="mb">
       <div class="fld"><label>사업장코드 *</label><input id="f_cd" placeholder="예: A0386956"></div>
       <div class="fld"><label>거래구분</label><select id="f_gb"><option value="">-</option><option value="매출">매출처</option><option value="매입">매입처</option><option value="both">매입+매출</option></select></div>
-      <div class="fld full"><label>사업장명 *</label><input id="f_nm" placeholder="사업장명"></div>
+      <div class="fld wide"><label>사업장명 *</label><input id="f_nm" placeholder="사업장명"></div>
       <div class="fld"><label>약칭</label><input id="f_snm" placeholder="약어 명칭"></div>
       <div class="fld"><label>사업자등록번호</label><input id="f_bizno"></div>
       <div class="fld"><label>대표자</label><input id="f_ceo"></div>
@@ -112,12 +123,22 @@
       <div class="fld"><label>종목</label><input id="f_item"></div>
       <div class="fld"><label>우편번호</label><input id="f_zip"></div>
       <div class="fld"><label>정렬순서</label><input id="f_sort" type="number" value="999999"></div>
-      <div class="fld full"><label>주소</label><input id="f_addr"></div>
-      <div class="fld full"><label>상세주소</label><input id="f_addr2"></div>
+      <div class="fld wide"><label>주소</label><input id="f_addr"></div>
+      <div class="fld wide"><label>상세주소</label><input id="f_addr2"></div>
       <div class="fld"><label>전화</label><input id="f_tel"></div>
       <div class="fld"><label>팩스</label><input id="f_fax"></div>
       <div class="fld"><label>휴대폰</label><input id="f_hp"></div>
       <div class="fld"><label>이메일</label><input id="f_email"></div>
+      <%-- 택배 정보 (2026-08-06 신설) — 택배출고관리 엑셀이 쓰는 값.
+           택배주소가 비면 위 [주소]를 쓴다. 운임은 비우면 4,500 기본. --%>
+      <div class="fld wide" style="border-top:1px dashed #dbe2ea; padding-top:8px; margin-top:2px">
+        <label style="color:#137a6c">🚛 택배주소 <span style="font-weight:500;color:#8a98a8">(비우면 위 주소 사용)</span></label>
+        <input id="f_paddr" placeholder="택배 발송 주소">
+      </div>
+      <div class="fld"><label>택배 수령자</label><input id="f_pnm" placeholder="수령자"></div>
+      <div class="fld"><label>택배 전화</label><input id="f_ptel"></div>
+      <div class="fld"><label>택배 휴대폰</label><input id="f_php"></div>
+      <div class="fld"><label>택배 기본운임</label><input id="f_pfee" type="number" placeholder="4500"></div>
       <div class="fld full"><label>비고</label><textarea id="f_remark" rows="2"></textarea></div>
     </div>
     <div class="mf">
@@ -142,15 +163,68 @@ function esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'
 function gv(id){ return (document.getElementById(id).value||'').trim(); }
 function gnum(id){ var v=gv(id); return v===''?null:Number(v); }
 
+/* ── 검색 (2026-08-06 개편) ─────────────────────────────────
+     ★목록은 서버에서 전부 받아 두고 **화면에서 거른다** — 사업장이 1,400여 종이라 가볍고,
+       무엇보다 '영문 자판으로 친 한글'(ghgh → 호호) 검색을 서버 LIKE 로는 할 수 없다.
+     비교 방법 : 글자 그대로 비교 + **자모(초·중·종성) 나열 비교**.
+       친 영문을 두벌식 자판대로 자모로 바꾸고(ghgh → ㅎㅗㅎㅗ),
+       자료의 한글도 자모로 풀어(호호 → ㅎㅗㅎㅗ) 부분일치를 본다.
+       겹자모(ㅘ·ㄺ 등)는 양쪽 모두 낱자로 쪼개 비교해야 맞는다(ㅗ+ㅏ 로 치기 때문). */
+var _KMAP={q:'ㅂ',w:'ㅈ',e:'ㄷ',r:'ㄱ',t:'ㅅ',y:'ㅛ',u:'ㅕ',i:'ㅑ',o:'ㅐ',p:'ㅔ',
+           a:'ㅁ',s:'ㄴ',d:'ㅇ',f:'ㄹ',g:'ㅎ',h:'ㅗ',j:'ㅓ',k:'ㅏ',l:'ㅣ',
+           z:'ㅋ',x:'ㅌ',c:'ㅊ',v:'ㅍ',b:'ㅠ',n:'ㅜ',m:'ㅡ',
+           Q:'ㅃ',W:'ㅉ',E:'ㄸ',R:'ㄲ',T:'ㅆ',O:'ㅒ',P:'ㅖ'};
+var _CHO='ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+var _JUNG='ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ';
+var _JONG=['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+var _SPLIT={'ㅘ':'ㅗㅏ','ㅙ':'ㅗㅐ','ㅚ':'ㅗㅣ','ㅝ':'ㅜㅓ','ㅞ':'ㅜㅔ','ㅟ':'ㅜㅣ','ㅢ':'ㅡㅣ',
+            'ㄳ':'ㄱㅅ','ㄵ':'ㄴㅈ','ㄶ':'ㄴㅎ','ㄺ':'ㄹㄱ','ㄻ':'ㄹㅁ','ㄼ':'ㄹㅂ','ㄽ':'ㄹㅅ','ㄾ':'ㄹㅌ','ㄿ':'ㄹㅍ','ㅀ':'ㄹㅎ','ㅄ':'ㅂㅅ'};
+function _jamo(s){                       /* 한글 → 자모 나열(겹자모는 낱자로) */
+  s=''+(s==null?'':s); var out='';
+  for(var i=0;i<s.length;i++){
+    var ch=s.charAt(i), c=s.charCodeAt(i);
+    if(c>=0xAC00 && c<=0xD7A3){
+      var x=c-0xAC00, ju=_JUNG.charAt(Math.floor((x%588)/28)), jo=_JONG[x%28];
+      out += _CHO.charAt(Math.floor(x/588)) + (_SPLIT[ju]||ju) + (jo?(_SPLIT[jo]||jo):'');
+    } else out += (_SPLIT[ch]||ch);
+  }
+  return out;
+}
+function _engJamo(s){                    /* 영문 자판 → 자모 (ghgh → ㅎㅗㅎㅗ) */
+  s=''+(s==null?'':s); var out='';
+  for(var i=0;i<s.length;i++){
+    var ch=s.charAt(i);
+    out += (_KMAP[ch] || _KMAP[ch.toLowerCase()] || ch);
+  }
+  return out;
+}
+function _cliHit(o,q){
+  if(!q) return true;
+  var joined=[o.bizCd,o.bizNm,o.bizSmallNm,o.bizno,o.ceoNm,o.addr,o.addr2,o.parcelAddr,o.parcelNm,
+              o.tel,o.hp,o.parcelTel,o.parcelHp,o.manager]
+             .map(function(x){ return x==null?'':(''+x); }).join(' ');
+  if(joined.toLowerCase().indexOf(q.toLowerCase())>=0) return true;
+  if(/[a-zA-Z]/.test(q)){                /* 영문이 섞였으면 '영타로 친 한글'로도 본다 */
+    var qj=_jamo(_engJamo(q)).replace(/\s+/g,'');
+    if(qj && _jamo(joined).replace(/\s+/g,'').indexOf(qj)>=0) return true;
+  }
+  return false;
+}
+var _ALL=[];                             /* 서버에서 받은 전체 목록(검색은 여기서 거른다) */
 function cliLoad(){
-  var q=(document.getElementById('q').value||'').trim();
-  fetch(CTX+'/mangr/clientList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'findData='+encodeURIComponent(q) })
+  fetch(CTX+'/mangr/clientList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'findData=' })
     .then(function(r){ return r.text(); }).then(function(t){ var j; try{ j=JSON.parse(t); }catch(e){ toast('⚠️ 목록 응답 오류'); return; }
-      LIST=(j&&j.data)||[]; _bycd={}; LIST.forEach(function(o){ _bycd[o.bizCd]=o; }); _view=LIST.slice();
-      _shown=0; _selReset();      // 새로 읽어 온 목록이라 고른 줄은 푼다(지워진 줄일 수 있다)
-      var c=document.getElementById('listCard'); if(c) c.scrollTop=0;   // 새로 조회한 목록은 맨 위부터 본다
-      cliRender();
+      _ALL=(j&&j.data)||[];
+      cliFilter();
     }).catch(function(e){ toast('⚠️ 통신오류: '+e.message); });
+}
+function cliFilter(){
+  var q=(document.getElementById('q').value||'').trim();
+  LIST=q ? _ALL.filter(function(o){ return _cliHit(o,q); }) : _ALL.slice();
+  _bycd={}; LIST.forEach(function(o){ _bycd[o.bizCd]=o; }); _view=LIST.slice();
+  _shown=0; _selReset();      // 새로 거른 목록이라 고른 줄은 푼다(빠진 줄일 수 있다)
+  var c=document.getElementById('listCard'); if(c) c.scrollTop=0;
+  cliRender();
 }
 function cliRender(){
   var tot=_view.length;
@@ -158,13 +232,22 @@ function cliRender(){
   if(_shown>tot) _shown=tot;
   document.getElementById('cnt').textContent=tot.toLocaleString()+'건';
   var tb=document.getElementById('tb');
-  if(!tot){ tb.innerHTML='<tr><td colspan="11" class="empty">데이터가 없습니다.</td></tr>'; _selReset(); _info(0,0); cliFit(); return; }
+  if(!tot){ tb.innerHTML='<tr><td colspan="9" class="empty">데이터가 없습니다.</td></tr>'; _selReset(); _info(0,0); cliFit(); return; }
   tb.innerHTML=_view.slice(0,_shown).map(function(o){
-    var g=GB_MAP[o.bizGb], gb=g?'<span class="gb" style="background:'+g[1]+'">'+g[0]+'</span>':'';
+    /* 택배주소·전화·휴대폰은 **택배값이 없으면 배송지(기본) 값으로 대체**해 보여 준다 (2026-08-06 확정)
+       — 택배출고관리·엑셀이 실제로 쓰는 값과 목록에 보이는 값이 같아야 한다.
+       대체된 주소는 회색 + [배송지] 꼬리표로 구분한다(택배주소를 따로 등록한 것과 헷갈리지 않게). */
+    var tel=o.parcelTel||o.tel||'', hp=o.parcelHp||o.hp||'';
+    var pAddr=o.parcelAddr ? esc(o.parcelAddr)
+              : (o.addr ? '<span style="color:#8a98a8;font-weight:500">'+esc(o.addr)
+                          +' <span style="font-size:11px;color:#b9c3cd">[배송지]</span></span>'
+                        : '<span style="color:#c9d2da;font-weight:500">—</span>');
     return '<tr data-cd="'+esc(o.bizCd)+'" onclick="cliSel(this,\''+esc(o.bizCd)+'\')" ondblclick="cliOpen(\''+esc(o.bizCd)+'\')">'
-      +'<td class="code">'+esc(o.bizCd)+'</td><td class="nm">'+esc(o.bizNm)+'</td><td>'+esc(o.bizSmallNm)+'</td>'
-      +'<td>'+gb+'</td><td>'+esc(o.bizno)+'</td><td>'+esc(o.ceoNm)+'</td>'
-      +'<td>'+esc(o.bizCond)+'</td><td>'+esc(o.bizItem)+'</td><td>'+esc(o.tel)+'</td><td>'+esc(o.hp)+'</td><td>'+esc(o.manager)+'</td>'
+      +'<td class="code">'+esc(o.bizCd)+'</td><td class="nm">'+esc(o.bizNm)+'</td>'
+      +'<td class="ad">'+esc(o.addr)+'</td><td class="ad">'+pAddr+'</td>'
+      +'<td>'+esc(o.parcelNm)+'</td><td>'+esc(tel)+'</td><td>'+esc(hp)+'</td>'
+      +'<td style="text-align:right">'+(o.parcelFee!=null?Number(o.parcelFee).toLocaleString():'')+'</td>'
+      +'<td>'+esc(o.manager)+'</td>'
     +'</tr>';
   }).join('');
   // ★고른 줄 표시를 되살린다 — 스크롤로 이어 그릴 때마다 선택이 풀리면
@@ -233,6 +316,10 @@ function cliOpen(cd){
   _set('f_cond',o?o.bizCond:''); _set('f_item',o?o.bizItem:''); _set('f_zip',o?o.zipcd:'');
   _set('f_sort',o?(o.sortOrd!=null?o.sortOrd:999999):999999); _set('f_addr',o?o.addr:''); _set('f_addr2',o?o.addr2:'');
   _set('f_tel',o?o.tel:''); _set('f_fax',o?o.fax:''); _set('f_hp',o?o.hp:''); _set('f_email',o?o.email:''); _set('f_remark',o?o.remark:'');
+  /* 택배 정보 (2026-08-06) — 택배출고관리가 쓰는 값. 빈 칸이면 위 주소·전화를 쓴다 */
+  _set('f_paddr',o?o.parcelAddr:''); _set('f_pnm',o?o.parcelNm:'');
+  _set('f_ptel',o?o.parcelTel:'');   _set('f_php',o?o.parcelHp:'');
+  _set('f_pfee',o&&o.parcelFee!=null?o.parcelFee:'');
   document.getElementById('ov').classList.add('on');
   // 창을 열면 곧바로 칠 수 있게(2026-08-04) — 추가는 사업장코드부터, 수정은 코드가 잠겨 있으니 사업장명부터
   var first=document.getElementById(o?'f_nm':'f_cd');
@@ -247,11 +334,19 @@ function cliSave(){
     ceoNm:gv('f_ceo')||null, manager:gv('f_mgr')||null, bizCond:gv('f_cond')||null, bizItem:gv('f_item')||null,
     zipcd:gv('f_zip')||null, addr:gv('f_addr')||null, addr2:gv('f_addr2')||null, tel:gv('f_tel')||null, fax:gv('f_fax')||null,
     hp:gv('f_hp')||null, email:gv('f_email')||null, sortOrd:gnum('f_sort'), remark:gv('f_remark')||null };
+  /* 택배 정보는 별도 저장(biziParcelUpdate) — 기존 clientUpdate 쿼리를 건드리지 않는다(2026-08-06) */
+  var parcel={ bizCd:cd, bizNm:nm, parcelAddr:gv('f_paddr')||'', parcelNm:gv('f_pnm')||'',
+               parcelTel:gv('f_ptel')||'', parcelHp:gv('f_php')||'', parcelFee:gnum('f_pfee') };
   var isEdit=document.getElementById('f_cd').readOnly;
   var url=isEdit?'/mangr/clientUpdate.do':'/mangr/clientInsert.do';
   fetch(CTX+url, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body:JSON.stringify(dto) })
     .then(function(res){ return res.text().then(function(t){ return {ok:res.ok,t:t}; }); })
-    .then(function(r){ if(!r.ok){ toast('⚠️ '+((r.t||'').trim()||'저장 실패')); return; } cliClose(); toast(isEdit?'💾 수정 완료':'＋ 등록 완료'); cliLoad(); })
+    .then(function(r){
+      if(!r.ok){ toast('⚠️ '+((r.t||'').trim()||'저장 실패')); return; }
+      return fetch(CTX+'/mangr/biziParcelUpdate.do', { method:'POST', headers:{'Content-Type':'application/json'},
+                 credentials:'same-origin', body:JSON.stringify([parcel]) })
+        .then(function(){ cliClose(); toast(isEdit?'💾 수정 완료':'＋ 등록 완료'); cliLoad(); });
+    })
     .catch(function(e){ toast('⚠️ 통신오류: '+e.message); });
 }
 function cliDel(cd){
@@ -273,8 +368,8 @@ function cliEditSel(){ if(!_sel){ toast('⚠️ 수정할 행을 먼저 선택�
 function cliDelSel(){ if(!_sel){ toast('⚠️ 삭제할 행을 먼저 선택하세요.'); return; } cliDel(_sel); }
 function cliExcel(){
   var list=_view; if(!list.length){ toast('⚠️ 출력할 데이터가 없습니다.'); return; }
-  var head=['코드','사업장명','약칭','거래구분','사업자번호','대표자','업태','종목','우편번호','주소','상세주소','전화','팩스','휴대폰','이메일','담당자','정렬','비고'];
-  var aoa=[head].concat(list.map(function(o){ return [o.bizCd,o.bizNm,o.bizSmallNm,o.bizGb,o.bizno,o.ceoNm,o.bizCond,o.bizItem,o.zipcd,o.addr,o.addr2,o.tel,o.fax,o.hp,o.email,o.manager,o.sortOrd,o.remark]; }));
+  var head=['코드','사업장명','약칭','거래구분','사업자번호','대표자','업태','종목','우편번호','주소','상세주소','전화','팩스','휴대폰','이메일','담당자','정렬','비고','택배주소(실제사용)','택배수령자','택배전화(실제사용)','택배휴대폰(실제사용)','택배운임'];
+  var aoa=[head].concat(list.map(function(o){ return [o.bizCd,o.bizNm,o.bizSmallNm,o.bizGb,o.bizno,o.ceoNm,o.bizCond,o.bizItem,o.zipcd,o.addr,o.addr2,o.tel,o.fax,o.hp,o.email,o.manager,o.sortOrd,o.remark,(o.parcelAddr||o.addr||''),o.parcelNm,(o.parcelTel||o.tel||''),(o.parcelHp||o.hp||''),o.parcelFee]; }));
   var P=window.parent;
   function byLib(LIB){ var ws=LIB.utils.aoa_to_sheet(aoa); var wb=LIB.utils.book_new(); LIB.utils.book_append_sheet(wb,ws,'거래처'); LIB.writeFile(wb,'거래처.xlsx'); toast('📥 엑셀 저장 완료 · '+list.length+'건'); }
   try{ if(P && P.ssLoadStyleXlsx){ P.ssLoadStyleXlsx(function(XS){ var LIB=XS||P.XLSX; if(LIB){ byLib(LIB); } else { csv(); } }); return; } }catch(e){}
@@ -291,7 +386,7 @@ function cliExcel(){
 function cliOvOpen(){ return document.getElementById('ov').classList.contains('on'); }
 /* 창 안 이동 순서 = 화면에 보이는 순서. 비고(textarea)는 줄바꿈이 필요해 뺀다 */
 var CLI_FLOW=['f_cd','f_gb','f_nm','f_snm','f_bizno','f_ceo','f_mgr','f_cond','f_item','f_zip','f_sort',
-              'f_addr','f_addr2','f_tel','f_fax','f_hp','f_email'];
+              'f_addr','f_addr2','f_tel','f_fax','f_hp','f_email','f_paddr','f_pnm','f_ptel','f_php','f_pfee'];
 function cliNext(id){
   var i=CLI_FLOW.indexOf(id); if(i<0) return null;
   for(var k=i+1;k<CLI_FLOW.length;k++){

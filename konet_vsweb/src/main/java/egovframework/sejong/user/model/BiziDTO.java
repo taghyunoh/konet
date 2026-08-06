@@ -33,6 +33,12 @@ public class BiziDTO {
 	private String  manager;   // 담당자
 	private Integer sortOrd;   // 정렬순서
 	private String  remark;    // 비고
+	// ----- 택배 정보 (2026-08-06 신설) — 사업장관리·택배출고관리에서 입력 -----
+	private String  parcelAddr; // 택배주소(있으면 ADDR 보다 우선)
+	private String  parcelTel;  // 택배 전화
+	private String  parcelHp;   // 택배 휴대폰
+	private String  parcelNm;   // 택배 수령자(SRM 비상연락망의 수령자)
+	private Integer parcelFee;  // 기본 택배운임(원) — 비면 화면에서 4500
 	private String  regDttm;   // 등록일시(조회)
 	private String  updDttm;   // 수정일시(조회)
 	private String  findData;  // 검색어(코드/명/약칭/사업자번호/대표자) — 비영속
@@ -97,4 +103,15 @@ public class BiziDTO {
 	public void setUpdUser(String updUser) { this.updUser = updUser; }
 	public String getUpdIp() { return updIp; }
 	public void setUpdIp(String updIp) { this.updIp = updIp; }
+
+	public String getParcelAddr() { return parcelAddr; }
+	public void setParcelAddr(String parcelAddr) { this.parcelAddr = parcelAddr; }
+	public String getParcelTel() { return parcelTel; }
+	public void setParcelTel(String parcelTel) { this.parcelTel = parcelTel; }
+	public String getParcelHp() { return parcelHp; }
+	public void setParcelHp(String parcelHp) { this.parcelHp = parcelHp; }
+	public String getParcelNm() { return parcelNm; }
+	public void setParcelNm(String parcelNm) { this.parcelNm = parcelNm; }
+	public Integer getParcelFee() { return parcelFee; }
+	public void setParcelFee(Integer parcelFee) { this.parcelFee = parcelFee; }
 }

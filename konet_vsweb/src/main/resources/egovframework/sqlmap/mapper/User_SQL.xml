@@ -1375,7 +1375,11 @@
 	     · 업로드 분류용. 활성(ACTION_YN='Y') 전체 조회 / 사업장코드 단위 upsert
 	     ============================================================ -->
 	<select id="selectBiziMst" resultType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
-	  SELECT BIZ_CD AS bizCd, JOB_SEQ AS jobSeq, ACTION_YN AS actionYn, BIZ_NM AS bizNm
+	  -- 택배 정보·주소도 함께 (2026-08-06) — 사업장관리 화면이 이 목록으로 그린다
+	  SELECT BIZ_CD AS bizCd, JOB_SEQ AS jobSeq, ACTION_YN AS actionYn, BIZ_NM AS bizNm,
+	         ZIPCD AS zipcd, ADDR AS addr, TEL AS tel, HP AS hp,
+	         PARCEL_ADDR AS parcelAddr, PARCEL_NM AS parcelNm, PARCEL_TEL AS parcelTel,
+	         PARCEL_HP AS parcelHp, PARCEL_FEE AS parcelFee
 	    FROM TBL_BIZI_MST
 	   WHERE ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -1415,6 +1419,7 @@
 	  SELECT BIZ_CD AS bizCd, BIZ_NM AS bizNm, BIZ_SMALL_NM AS bizSmallNm, BIZ_GB AS bizGb, BIZNO AS bizno,
 	         CEO_NM AS ceoNm, BIZ_COND AS bizCond, BIZ_ITEM AS bizItem, ZIPCD AS zipcd, ADDR AS addr, ADDR2 AS addr2,
 	         TEL AS tel, FAX AS fax, HP AS hp, EMAIL AS email, MANAGER AS manager, SORT_ORD AS sortOrd, REMARK AS remark,
+	         PARCEL_ADDR AS parcelAddr, PARCEL_TEL AS parcelTel, PARCEL_HP AS parcelHp, PARCEL_NM AS parcelNm, PARCEL_FEE AS parcelFee,
 	         CONVERT(varchar(19),REG_DTTM,120) AS regDttm, CONVERT(varchar(19),UPD_DTTM,120) AS updDttm
 	    FROM TBL_BIZI_MST
 	   WHERE ISNULL(ACTION_YN,'Y') = 'Y'
@@ -1459,6 +1464,41 @@
 	   WHERE BIZ_CD = #{bizCd}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
+
+	<!-- 택배 정보만 저장 (2026-08-06 신설) — 사업장관리·택배출고관리 공용.
+	     updateBiziMst(이름만)와 분리해 다른 칼럼을 건드리지 않는다. -->
+	<update id="updateBiziParcel" parameterType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
+	  UPDATE TBL_BIZI_MST
+	     SET PARCEL_ADDR = #{parcelAddr,jdbcType=NVARCHAR}, PARCEL_TEL = #{parcelTel,jdbcType=NVARCHAR},
+	         PARCEL_HP = #{parcelHp,jdbcType=NVARCHAR}, PARCEL_NM = #{parcelNm,jdbcType=NVARCHAR},
+	         PARCEL_FEE = #{parcelFee,jdbcType=INTEGER},
+	         UPD_DTTM = GETDATE(), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=NVARCHAR}
+	   WHERE BIZ_CD = #{bizCd}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
+	<!-- 택배출고관리 (2026-08-06 신설) — 그 출고일의 직송(ZONE='직송') 줄 + 사업장 택배정보.
+	     주소·전화 = 택배값 우선, 없으면 기본값(사용자 확정). fee 0 = 미설정(화면에서 4500 기본). -->
+	<select id="selectParcelOutList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT s.SEQ AS seq, s.SHPOUT_DT AS outDt, s.BIZ_CD AS bizCd, s.BIZ_NM AS bizNm, s.ITEM_NM AS itemNm,
+	         CASE WHEN ISNULL(s.BOX_QTY,0) < 1 THEN 1 ELSE s.BOX_QTY END AS boxQty,
+	         ISNULL(NULLIF(b.PARCEL_ADDR,''), ISNULL(b.ADDR,'')) AS addr,
+	         ISNULL(NULLIF(b.PARCEL_TEL,''),  ISNULL(b.TEL,''))  AS tel,
+	         ISNULL(NULLIF(b.PARCEL_HP,''),   ISNULL(b.HP,''))   AS hp,
+	         ISNULL(b.PARCEL_NM,'') AS parcelNm,
+	         ISNULL(b.PARCEL_FEE, 0) AS fee,
+	         CASE WHEN b.BIZ_CD IS NULL THEN 'N' ELSE 'Y' END AS bizYn
+	    FROM TBL_SHIPOUT_MST s
+	    LEFT JOIN TBL_BIZI_MST b
+	      ON b.BIZ_CD = s.BIZ_CD AND ISNULL(b.ACTION_YN,'Y') = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR b.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   WHERE s.ACTION_YN = 'Y' AND s.ZONE = N'직송'
+	     -- 출고일자 기간 (2026-08-06) — 하루만 볼 때는 시작·종료를 같은 날로 보낸다
+	     AND s.SHPOUT_DT >= REPLACE(ISNULL(#{frDt,jdbcType=VARCHAR},''),'-','')
+	     AND s.SHPOUT_DT <= REPLACE(ISNULL(#{toDt,jdbcType=VARCHAR},''),'-','')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   ORDER BY s.SHPOUT_DT, s.BIZ_NM, s.ROW_NO, s.SEQ
+	]]></select>
 
 	<!-- ============================================================
 	     수금/미수금 — TBL_RECEIVE_MST (거래처 × 귀속월). 미수잔액=전월이월+당월매출-당월수금

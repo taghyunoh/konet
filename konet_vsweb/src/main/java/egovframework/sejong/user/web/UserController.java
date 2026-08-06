@@ -1128,6 +1128,49 @@ public class UserController {
 			} catch (Exception e) { log.error(" biziDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
+		/* ===== 택배 정보 저장 (2026-08-06) — 사업장관리·택배출고관리 공용.
+		   사업장이 아직 TBL_BIZI_MST 에 없으면(출고자료에만 있는 신규) 먼저 등록하고 택배정보를 채운다. */
+		@RequestMapping(value="/mangr/biziParcelUpdate.do", method = RequestMethod.POST)
+		public ResponseEntity<String> biziParcelUpdate(@RequestBody List<egovframework.sejong.user.model.BiziDTO> data,
+		                                               HttpServletRequest request, HttpSession session) {
+			try {
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				String ip = request.getRemoteAddr();
+				int n = 0;
+				for (egovframework.sejong.user.model.BiziDTO d : data) {
+					if (d.getBizCd() == null || d.getBizCd().trim().isEmpty()) continue;
+					d.setRegUser(u); d.setRegIp(ip); d.setUpdUser(u); d.setUpdIp(ip);
+					if (d.getBizNm() != null && !d.getBizNm().trim().isEmpty()) svc.insertBiziIfAbsent(d);
+					n += svc.updateBiziParcel(d);
+				}
+				return ResponseEntity.ok(String.valueOf(n));
+			} catch (Exception e) { log.error(" biziParcelUpdate ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* ===== 택배출고관리 (2026-08-06 신설) — 출고일자의 직송(ZONE='직송') 줄을 택배 발송 양식으로 =====
+		   화면: parcelOut.jsp. 주소·전화는 택배값 우선(없으면 기본값), 운임은 PARCEL_FEE(없으면 4500). */
+		@RequestMapping(value="/shipout/parcelOut.do")
+		public String parcelOut(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/parcelOut";
+		}
+		@RequestMapping(value="/shipout/parcelList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> parcelList(@RequestParam(value="frDt", required=false) String frDt,
+		                                     @RequestParam(value="toDt", required=false) String toDt,
+		                                     @RequestParam(value="outDt", required=false) String outDt,
+		                                     HttpSession session) throws Exception {
+			/* 출고일자 기간 (2026-08-06). 옛 호출(outDt 하나)도 그대로 받도록 남겨 둔다 */
+			if (frDt == null || frDt.trim().isEmpty()) frDt = outDt;
+			if (toDt == null || toDt.trim().isEmpty()) toDt = (outDt != null ? outDt : frDt);
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("frDt", frDt);
+			p.put("toDt", toDt);
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectParcelOutList(p));
+			return response;
+		}
+
 		/* ================= 거래처관리 (사업장 TBL_BIZI_MST) ================= */
 		@RequestMapping(value="/mangr/clientMng.do")
 		public String clientMng(HttpSession session) {
