@@ -309,7 +309,39 @@ public class UserServiceImpl implements UserService {
 	@Override public int updateExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception {
 		int n = mapper.updateExtItem(dto); extItemRetro(dto); return n;
 	}
-	@Override public int deleteExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception { return mapper.deleteExtItem(dto); }
+	/* ★매칭코드를 지우면 붙여 놨던 것도 되돌린다 (2026-08-06 — deleteXref 와 같은 구조·같은 이유)
+	     종전에는 지우기만 해서, 잘못 붙인 코드를 지워도 과거 출고·정산은 그 주코드에 붙은 채 남았다.
+	     [출고반영 재집계]로도 안 돌아온다 — resolve* 는 빈 행만 채우고 repoint* 는 매칭코드가 있어야 돈다.
+	   ★순서 : 날짜 확보 → 비우기 → 다시 해석(XREF → 남은 매칭코드 → 코드 직결) → 원장 재생성.
+	     출고일자는 **비우기 전에** 받아 둔다 — PROD_SEQ 를 지운 뒤에는 그 품목으로 찾을 수 없다.
+	   ★상품을 안 고른 줄(prodSeq 없음)은 해석에 쓰인 적이 없으므로 아무것도 되돌릴 게 없다.
+	   ★되돌리기 실패가 삭제를 롤백하지 않도록 별도 try — 실패해도 [출고반영 재집계]로 복구된다. */
+	@Override public int deleteExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception {
+		egovframework.sejong.user.model.ExtItemDTO cur = mapper.selectExtItemById(dto);   // 무엇을 지우는지 먼저 확보
+		int n = mapper.deleteExtItem(dto);
+		if (cur == null || cur.getProdSeq() == null) return n;
+		if (cur.getExtItemCd() == null || cur.getExtItemCd().trim().isEmpty()) return n;
+
+		egovframework.sejong.user.model.ProdXrefDTO f = new egovframework.sejong.user.model.ProdXrefDTO();
+		f.setCompCd(dto.getCompCd());
+		f.setExtItemCd(cur.getExtItemCd());
+		java.util.List<String> ds = mapper.selectShipoutDatesByExtCd(f);   // ★비우기 전에 날짜 확보
+		mapper.clearShipoutProdByExtCd(f);
+		mapper.clearSalesProdByExtCd(f);
+
+		egovframework.sejong.user.model.ProdXrefDTO all = new egovframework.sejong.user.model.ProdXrefDTO();
+		all.setCompCd(dto.getCompCd());
+		resolveShipoutProd(all);   // 남은 매핑·코드 직결로 다시 해석 (없으면 미매핑으로 남는다)
+		resolveSalesProd(all);
+
+		try {
+			if (ds != null) for (String d : ds) syncShipoutLedgerDate(d, dto.getUpdUser(), dto.getUpdIp());
+			if (ds != null && !ds.isEmpty()) recalcStockMstAll(dto.getUpdUser(), dto.getUpdIp());
+		} catch (Exception se) {
+			LOGGER.error(" deleteExtItem 재고 되돌리기 WARN : " + se.getMessage());
+		}
+		return n;
+	}
 
 	/* ★매칭코드를 붙이면 과거 업로드분까지 소급으로 채운다 (saveXref 와 같은 이유·같은 방식)
 	     붙이기 전에 들어온 출고·정산 행은 PROD_SEQ 가 비어 재고에서 빠져 있다. 저장만 하고 끝내면

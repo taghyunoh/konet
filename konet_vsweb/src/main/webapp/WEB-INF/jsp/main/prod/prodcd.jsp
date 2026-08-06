@@ -813,7 +813,8 @@ function mcDel(seq){
   var o=null; for(var i=0;i<MC.length;i++){ if(String(MC[i].extSeq)===String(seq)){ o=MC[i]; break; } }
   if(!o) return;
   confirmBox('['+esc(o.extItemCd)+'] '+esc(o.extItemNm||'')+'<br>이 매칭코드를 지우시겠습니까?'
-    +'<br><span style="color:#9aa7b3;font-size:12px">지우면 이 코드로 오는 자료는 다시 미매핑이 됩니다.</span>', function(){
+    +'<br><span style="color:#9aa7b3;font-size:12px">지우면 이 코드로 오는 자료는 다시 미매핑이 되고,'
+    +'<br><b>이미 이 상품에 붙어 있던 과거 출고·정산도 되돌아갑니다</b>(재고 다시 계산 — 몇 초 걸릴 수 있음).</span>', function(){
     fetch(CTX+'/prod/extItemDelete.do', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body:JSON.stringify({extSeq:Number(seq)}) })
       .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, t:t}; }); })
       .then(function(r){ if(!r.ok){ toast((r.t||'').trim()||'삭제 실패','err'); return; } toast('🗑️ 삭제 완료','ok'); mcLoad(); })

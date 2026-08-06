@@ -4333,6 +4333,15 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
+	<!-- 지우기 전에 '무엇을 지우는지' 확보 — 되돌리기(소급 원복)에 EXT_ITEM_CD·PROD_SEQ 가 필요하다 -->
+	<select id="selectExtItemById" parameterType="egovframework.sejong.user.model.ExtItemDTO" resultType="egovframework.sejong.user.model.ExtItemDTO"><![CDATA[
+	  SELECT EXT_SEQ AS extSeq, VENDOR_CD AS vendorCd, EXT_ITEM_CD AS extItemCd, EXT_ITEM_NM AS extItemNm,
+	         PROD_SEQ AS prodSeq, PROD_CD AS prodCd, ACTION_YN AS actionYn
+	    FROM TBL_EXT_ITEM_MST
+	   WHERE EXT_SEQ = #{extSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></select>
+
 	<!-- 소프트삭제 — 통보 이력이라 지운 기록도 남긴다(UX 인덱스는 ACTION_YN='Y' 필터라 같은 코드 재등록 가능) -->
 	<update id="deleteExtItem" parameterType="egovframework.sejong.user.model.ExtItemDTO"><![CDATA[
 	  UPDATE TBL_EXT_ITEM_MST

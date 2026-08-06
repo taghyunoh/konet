@@ -149,6 +149,7 @@ public interface UserMapper {
 	int countExtItemCd(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;   // (거래처+코드) 중복 확인
 	int insertExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
 	int updateExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	egovframework.sejong.user.model.ExtItemDTO selectExtItemById(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;  // 삭제 전 원본 확보(되돌리기용)
 	int deleteExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
 	int mergeExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;     // 통보서 붙여넣기(있으면 갱신)
 	int syncProdInPrice(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;   // TBL_PROD_MST.IN_PRICE 동기화
