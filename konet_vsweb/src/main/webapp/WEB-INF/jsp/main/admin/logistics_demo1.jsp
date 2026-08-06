@@ -1182,6 +1182,7 @@
     var f=(document.getElementById('d2DateFrom')||{}).value||'';
     var t=(document.getElementById('d2DateTo')||{}).value||'';
     // 단일일자(시작=종료)=기존 배치 매트릭스 경로. 그 외(기간·전체)=날짜별 독립 블록 경로.
+    _d2PerfStart();
     if(!(f && f===t)){ _d2LoadRange(f, t); return; }
     var _body='shpoutDt='+encodeURIComponent(f);
     var pBizi=new Promise(function(done){ d2LoadBizi(done); });   // 분류표(TBL_BIZI_MST) — 렌더 전까지만 도착하면 됨
@@ -1216,12 +1217,53 @@
     .then(function(txt){ var hj; try{ hj=JSON.parse(txt); }catch(e){ hj=null; }
       var hrows=(hj&&hj.data)||[]; D2_HISTALL=hrows.map(function(o){ return d2MapRow(o, f); }); })
     .catch(function(){ D2_HISTALL=[]; });
-    Promise.all([pBizi, pMst, pPrev, pHist]).then(function(){ d2Render(); });
+    Promise.all([pBizi, pMst, pPrev, pHist]).then(function(){ _d2Perf('단일일자 '+f); d2Render(); _d2PerfDraw(); });
+  }
+
+  /* ── 속도 계측 (2026-08-07 요청) ──────────────────────────────────
+       이 화면은 조회 4개(분류표·현재배치·직전배치·차수이력)를 **동시에** 부르고
+       전부 도착한 뒤 한 번만 그린다. 그래서 체감 시간 = **가장 느린 조회 하나**다.
+       어느 조회가 발목을 잡는지 모르면 엉뚱한 곳을 고치게 되므로, 넷을 따로 잰다.
+       F12 콘솔에 [출고현황표] 로 찍힌다. */
+  var _d2T0=0, _d2Mark={};
+  function _d2PerfStart(){
+    _d2T0=(window.performance&&performance.now)?performance.now():0; _d2Mark={};
+    /* fetch 를 잠깐 감싸 각 조회의 왕복 시간을 잰다 — 원래 호출부는 손대지 않는다 */
+    if(window._d2FetchWrapped) return; window._d2FetchWrapped=true;
+    var of=window.fetch;
+    window.fetch=function(u,o){
+      var nm=String(u||'').split('/').pop().split('?')[0];
+      if(nm.indexOf('.do')<0) return of.apply(this,arguments);
+      var t=(window.performance&&performance.now)?performance.now():0;
+      return of.apply(this,arguments).then(function(r){
+        var e=(window.performance&&performance.now)?performance.now():0;
+        _d2Mark[nm]=Math.round(e-t); return r;
+      });
+    };
+  }
+  function _d2Perf(lab){
+    if(!window.console||!console.log) return;
+    var t=(window.performance&&performance.now)?performance.now():0;
+    var parts=[], mx=0;
+    for(var k in _d2Mark){ parts.push(k.replace('.do','')+' '+_d2Mark[k]+'ms'); if(_d2Mark[k]>mx) mx=_d2Mark[k]; }
+    /* ★'조회합계'는 벽시계가 아니라 **가장 느린 조회**로 잡는다 —
+         넷을 동시에 부르므로 체감 시간은 합이 아니라 최댓값이고,
+         벽시계로 재면 렌더 경로에 따라 0ms 같은 엉뚱한 값이 찍힌다(2026-08-07 관찰). */
+    console.log('[출고현황표] '+lab+' · 가장느린조회 '+mx+'ms'
+      +(parts.length?(' · '+parts.join(' / ')):'')+' · 행 '+(D2_DATA?D2_DATA.length:0)+'건');
+    _d2T0=t;   // 여기서부터는 그리기 시간
+  }
+  function _d2PerfDraw(){
+    if(!window.console||!console.log||!_d2T0) return;
+    var t=(window.performance&&performance.now)?performance.now():0;
+    console.log('[출고현황표] 그리기 '+Math.round(t-_d2T0)+'ms');
+    _d2T0=0;
   }
 
   // 기간/전체 조회 — 날짜별 독립 블록용. (직전배치는 단일일자 전용이라 생략)
   //  ★속도 개선(2026-07-31): 출고·차수이력·분류표를 병렬 조회 후 1회 렌더(단일일자 경로와 동일 방침).
   function _d2LoadRange(f, t){
+    _d2PerfStart();
     var body, lab;
     if(f && t){ body='shpoutDtFrom='+encodeURIComponent(f)+'&shpoutDtTo='+encodeURIComponent(t); lab=f+' ~ '+t; }
     else      { body=''; lab='전체(전 기간)'; }   // 날짜 비우면 전 기간
@@ -1250,7 +1292,7 @@
       var hrows=(hj&&hj.data)||[]; D2_HISTALL=hrows.map(function(o){ return d2MapRow(o, f); }); })
     .catch(function(){ D2_HISTALL=[]; });
     D2_PREV=[];   // 신규/삭제 비교는 기간 모드에서 생략(종전과 동일)
-    Promise.all([pBizi, pMst, pHist]).then(function(){ d2Render(); });
+    Promise.all([pBizi, pMst, pHist]).then(function(){ _d2Perf(lab); d2Render(); _d2PerfDraw(); });
   }
   // DB행 → 화면행 매핑(현재/직전 공용). date = 행의 실제 출고일자(SHPOUT_DT) — 기간조회 시 날짜별 분리에 사용
   // 화면 표시용 물류센터 그룹 치환 — 특정 물류센터코드는 하나의 대표그룹으로 묶어 표시(DB 저장은 무관)

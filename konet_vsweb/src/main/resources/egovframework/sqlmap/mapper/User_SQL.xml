@@ -511,7 +511,24 @@
 	                  CONVERT(varchar(19),
 	                    MIN(s0.UPLOAD_DTTM) OVER (PARTITION BY s0.COMP_CD, s0.SHPOUT_DT, ISNULL(s0.DC_CD,''), ISNULL(s0.BIZ_CD,''), ISNULL(s0.ITEM_CD,'')),
 	                    120) AS firstDttm
-	             FROM TBL_SHIPOUT_MST s0 ) t
+	             FROM TBL_SHIPOUT_MST s0
+	      -- ★★속도 (2026-08-07 실측) — 이 안쪽 WHERE 가 핵심이다.
+	      --   종전에는 여기가 `FROM TBL_SHIPOUT_MST s0` 뿐이라, 하루치 257건을 보려고
+	      --   **49,933행 전체**에 윈도우 함수를 돌린 뒤 바깥에서 날짜로 걸렀다(810ms).
+	      --   ★안전한 이유 : PARTITION BY 에 SHPOUT_DT·COMP_CD 가 이미 들어 있다.
+	      --     다른 날짜/회사 행은 애초에 다른 파티션이라 결과에 영향을 줄 수 없으므로,
+	      --     날짜·회사 조건을 안쪽으로 옮겨도 firstDttm 값이 100% 같다.
+	      --   ★ACTION_YN 은 절대 안쪽으로 옮기지 말 것 — 파티션 키가 아니고,
+	      --     firstDttm 은 '이력 포함 전체 최소값' 이어야 한다(바깥 WHERE 에 그대로 둔다).
+	            WHERE ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s0.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	              AND (
+	                    ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') <> ''
+	                      AND s0.SHPOUT_DT BETWEEN REPLACE(#{shpoutDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{shpoutDtTo,jdbcType=VARCHAR},'-','') )
+	                 OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') <> ''
+	                      AND s0.SHPOUT_DT = REPLACE(#{shpoutDt,jdbcType=VARCHAR},'-','') )
+	                 OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') = '' )
+	                  )
+	          ) t
 	    LEFT JOIN (
 	          SELECT p.PROD_CD, p.SALE_PRICE, p.COMP_CD
 	            FROM TBL_PROD_MST p
@@ -905,7 +922,18 @@
 	                      CONVERT(varchar(19),
 	                        MIN(s0.UPLOAD_DTTM) OVER (PARTITION BY s0.COMP_CD, s0.SHPOUT_DT, ISNULL(s0.DC_CD,''), ISNULL(s0.BIZ_CD,''), ISNULL(s0.ITEM_CD,'')),
 	                        120) AS firstDttm
-	                 FROM TBL_SHIPOUT_MST s0 ) s
+	                 FROM TBL_SHIPOUT_MST s0
+	      -- ★★속도 (2026-08-07 실측) — 이 안쪽 WHERE 가 핵심이다.
+	      --   종전에는 여기가 `FROM TBL_SHIPOUT_MST s0` 뿐이라, 하루치 257건을 보려고
+	      --   **49,933행 전체**에 윈도우 함수를 돌린 뒤 바깥에서 날짜로 걸렀다(810ms).
+	      --   ★안전한 이유 : PARTITION BY 에 SHPOUT_DT·COMP_CD 가 이미 들어 있다.
+	      --     다른 날짜/회사 행은 애초에 다른 파티션이라 결과에 영향을 줄 수 없으므로,
+	      --     날짜·회사 조건을 안쪽으로 옮겨도 firstDttm 값이 100% 같다.
+	      --   ★ACTION_YN 은 절대 안쪽으로 옮기지 말 것 — 파티션 키가 아니고,
+	      --     firstDttm 은 '이력 포함 전체 최소값' 이어야 한다(바깥 WHERE 에 그대로 둔다).
+	                WHERE s0.SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
+	                  AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s0.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	              ) s
 	       WHERE s.SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
 	         AND s.ACTION_YN = 'N'
 	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )

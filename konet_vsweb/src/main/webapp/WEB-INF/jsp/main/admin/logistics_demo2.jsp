@@ -10,12 +10,20 @@
 <style>
   /* SWAL 확인/알림 모달 축소 (토스트 제외) */
   .swal2-popup:not(.swal2-toast){ width:440px!important; padding:1.1em 1em 1.2em!important; font-size:14px; }
-  .swal2-popup:not(.swal2-toast) .swal2-icon{ width:3em; height:3em; margin:.6em auto .3em; }
-  .swal2-popup:not(.swal2-toast) .swal2-icon .swal2-icon-content{ font-size:1.8em; }
+  /* ★아이콘 크기를 줄이지 않는다 (2026-08-07 수정) —
+     SweetAlert 의 X·느낌표 선은 기본 5em 아이콘에 맞춰 em 값으로 박혀 있어,
+     3em 으로 줄이면 선이 엉뷱한 데 놓여 ✖ 가 깨져 보인다(사용자 지적).
+     여백만 좀 줄이고 크기는 기본값을 그대로 둔다. */
+  .swal2-popup:not(.swal2-toast) .swal2-icon{ margin:.6em auto .3em; }
+  /* ★오류 아이콘 — 동그라미 테두리를 없애고 ✖ 만 굵게 (2026-08-07, 로그인 화면 스타일에 맞춤).
+     SweetAlert 기본은 '원 안에 X' 인데, 앱의 다른 메시지는 테두리 없는 굵은 X 다. */
+  .swal2-popup:not(.swal2-toast) .swal2-icon.swal2-error{ border:0; }
+  .swal2-popup:not(.swal2-toast) .swal2-icon.swal2-error [class^='swal2-x-mark-line']{ height:.42em; border-radius:.21em; }
   .swal2-popup:not(.swal2-toast) .swal2-title{ font-size:1.2em; padding:.2em 1em 0; }
   .swal2-popup:not(.swal2-toast) .swal2-html-container{ font-size:.95em; margin:.5em 1em 0; }
   .swal2-popup:not(.swal2-toast) .swal2-actions{ margin-top:1em; }
-  .swal2-popup:not(.swal2-toast) .swal2-styled{ padding:.5em 1.4em; font-size:.95em; }
+  /* 확인 버튼은 앱의 다른 메시지처럼 넓게 — 좀았던 버튼이 한눈에 달라 보였다 */
+  .swal2-popup:not(.swal2-toast) .swal2-styled{ padding:.62em 2em; font-size:1em; min-width:210px; border-radius:.4em; }
 </style>
 <style>
   
@@ -168,6 +176,15 @@
   #stkStatusWrap tbody tr.stk-on td { background:#e6f4f1 !important; }
   #stkStatusWrap tbody tr { cursor:pointer; }
   #stkLedgerBody { will-change:opacity; }
+  /* ★입·출고 나누어보기 — 표 머리줄 고정 (2026-08-07 요청).
+     출고는 수백 줄이라 내리다 보면 어느 칸이 무엇인지 알 수 없게 된다.
+     border-collapse 표는 sticky th 의 테두리가 같이 안 따라와 줄이 사라지므로
+     box-shadow 로 위·아래 선을 그려 준다(거래처 목록에서 쓴 것과 같은 수법). */
+  #stkSplitBody table thead th{
+    position:sticky; top:0; z-index:3; background:#eef3f2;
+    box-shadow:inset 0 1px 0 var(--logi-border), inset 0 -1px 0 var(--logi-border);
+  }
+  #stkSplitBody table tbody td{ position:relative; z-index:1; }
   .btn-teal:disabled:hover { background:var(--logi-teal); }
   .btn-line:disabled:hover { background:#fff; }
 
@@ -1349,7 +1366,19 @@
               rowFn:function(r){ return (r.t==='it') ? _statItemRow(r.o,1) : _hdr(r); } });
   }
   // ── SWAL 공용(프로젝트 표준 SweetAlert2) ──
-  function swAlert(msg, icon){ if(window.Swal) return Swal.fire({html:msg, icon:icon||'info', confirmButtonText:'확인', confirmButtonColor:'#137a6c'}); alert((''+msg).replace(/<br\s*\/?>/gi,'\n')); }
+  /* ★경고·오류는 앱 공통 스타일(SweetAlert 기본 = 빨간 아이콘 + 빨간 확인버튼)을 그대로 쓴다.
+       (2026-08-07 지적 — 이 화면만 확인버튼을 초록으로 덮어써서 다른 화면과 달라 보였다)
+     성공·안내(success/info)는 화면 색과 맞춰 초록을 유지한다. */
+  function swAlert(msg, icon){
+    if(window.Swal){
+      var o = {html:msg, icon:icon||'info', confirmButtonText:'확인'};
+      /* ★색을 반드시 박아 둔다 — SweetAlert 기본 확인버튼은 보라(#7066e0)라
+         생략하면 앱의 다른 메시지(빨간 버튼)와 달라 보인다(2026-08-07 지적). */
+      o.confirmButtonColor = (icon==='error' || icon==='warning') ? '#e0342c' : '#137a6c';
+      return Swal.fire(o);
+    }
+    alert((''+msg).replace(/<br\s*\/?>/gi,'\n'));
+  }
   function swConfirm(msg, title){ if(window.Swal) return Swal.fire({title:title||'확인', html:msg, icon:'question', showCancelButton:true, confirmButtonText:'확인', cancelButtonText:'취소', confirmButtonColor:'#137a6c', cancelButtonColor:'#94a3b8'}).then(function(r){ return r.isConfirmed; }); return Promise.resolve(confirm((''+msg).replace(/<br\s*\/?>/gi,'\n'))); }
   // ── 마감 확정/해제/상태 ──
   function _closeAction(mode, ym, after){   // mode='confirm'|'cancel'
@@ -1534,6 +1563,7 @@
   var _stkRows=[], STK_PAGE=10;
   function _fmtYmd(s){ s=(''+(s||'')); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : s; }
   function stkStatusLoad(){
+    stkSrchTog();
     _stkLedCache={};   // 새로 조회하면 수불내역 캐시도 버린다(출고 반영분을 놓치지 않게)
     var q=(document.getElementById('stkSrch')||{}).value||'', ctx='${pageContext.request.contextPath}';
     var asOf=(document.getElementById('stkAsOf')||{}).value||'';
@@ -1654,7 +1684,7 @@
               ③ 응답이 오면 흐림만 풀고 본문을 바꾼다 */
     var hd=document.getElementById('stkLedgerHead'), bd=document.getElementById('stkLedgerBody');
     hd.innerHTML='<div style="font-weight:800;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_cesc(row?row.prodCd:'')+' <span style="font-weight:400;color:#37475a">'+_cesc(row?row.prodNm:'')+'</span></div>'
-      + '<div style="color:#9aa7b3;font-size:14px;white-space:nowrap;margin-left:20px;margin-right:34px;padding-left:20px;border-left:1px solid #dbe2ea">불러오는 중…</div>';
+      + '<div style="color:#9aa7b3;font-size:13px;white-space:nowrap;margin-left:14px">불러오는 중…</div>';
     /* ★한 번 본 품목은 다시 부르지 않는다 (2026-08-06 속도 확인) —
          ↑↓ 로 목록을 훑을 때 같은 줄을 오가는 일이 잦은데, 그때마다 서버를 부르면
          50~200ms 씩 기다린다. 캐시가 있으면 그리기만 하므로 눈에 띄게 빨라진다.
@@ -1730,24 +1760,12 @@
     var cut=_stkLedCut();
     var rows = cut ? _stkLedRaw.filter(function(l){ return String(l.trxDt||'').replace(/-/g,'') >= cut; }) : _stkLedRaw;
     {
-        var tIn=0,tOut=0,tAmt=0; rows.forEach(function(l){ var q=+l.qty||0; if(l.ioGb==='O') tOut+=q; else tIn+=q; tAmt+=(+l.amt||0); });
-        var neg=(row&&+row.curQty<0);
-        /* ★바깥 div 없이 두 조각만 넣는다 — stkLedgerHead 자체가 이미
+        /* ★요약(입고계·출고계·현재고…)은 뺐다 (2026-08-07 요청) —
+             같은 수치가 위 ①표의 그 품목 줄에 이미 있고,
+             [입·출고 나누어보기] 창 상단 그리드에도 또 있다. 세 군데는 과하다.
+           ★머리는 바깥 div 없이 한 조각만 넣는다 — stkLedgerHead 자체가 이미
              제목과 같은 줄에 서 있는 flex 줄이다(2026-08-06 한 줄 통합). */
-        var head=  '<div style="font-weight:800;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_cesc(row?row.prodCd:'')+' <span style="font-weight:400;color:#37475a">'+_cesc(row?row.prodNm:'')+'</span></div>'
-               /* 요약 수치는 이 화면에서 가장 자주 읽는 값이라 조금 키웠다 12.5 → 14px (2026-08-06 요청).
-                  ★품목명 바로 옆에 붙어 어디까지가 이름이고 어디부터가 수치인지 헷갈렸다 —
-                    왼쪽에 여백 + 세로 구분선을 둬 눈으로 갈리게 한다(2026-08-06 지적). */
-               +   '<div style="color:#37475a;font-size:14px;white-space:nowrap;margin-left:20px;margin-right:34px;padding-left:20px;border-left:1px solid #dbe2ea">'
-               /* ★기간을 앞에 밝힌다 — 입고계·출고계·건수는 '이 기간' 것이고
-                    현재고·이동평균단가·재고금액은 언제나 '전체' 기준이다. 안 적어 두면
-                    "입고계 0 인데 현재고가 왜 있지?" 로 읽힌다(2026-08-06 기간 도입). */
-               /* 기간 라벨('전체 기간'/'최근 N개월')은 뻐다(2026-08-06 요청) —
-                  오른쪽 기간 버튼이 바로 옆에 눈에 띄게 눌려 있어 중복이다. */
-               +     '입고계 <b style="color:#137a6c">'+_cnum(tIn)+'</b> · 출고계 <b style="color:#b06a00">'+_cnum(tOut)+'</b> · <b>'+rows.length+'</b>건'
-               +     ' <span style="color:#9aa7b3">|</span> 현재고 <b style="color:'+(neg?'#c0392b':'#137a6c')+'">'+_cnum(row?row.curQty:(tIn-tOut))+'</b>'
-               +     ' · 이동평균단가 '+_cnum(row?row.avgInPrice:0)+' · 재고금액 '+_cnum(row?row.stockAmt:0)+'</div>'
-               +   '';
+        var head=  '<div style="font-weight:800;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_cesc(row?row.prodCd:'')+' <span style="font-weight:400;color:#37475a">'+_cesc(row?row.prodNm:'')+'</span></div>';
         var thead='<thead><tr><th>일자</th><th>품목코드</th><th>구분</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>매입처</th><th>사업장</th><th>근거구분</th><th>근거번호</th><th>비고</th><th>등록일시</th><th>등록자</th></tr></thead>';
         var body= rows.length ? rows.map(function(l){
             var io=_IOGB[l.ioGb]||l.ioGb, isOut=(l.ioGb==='O');
@@ -1814,9 +1832,19 @@
       .catch(function(){ done(); });
   }
   /* 주코드를 눌러 그 코드로 바로 다시 조회 — 행 클릭(②수불내역)과 겹치므로 stopPropagation 필수 */
+  /* 검색어 유무에 따라 지우개를 켜고 끈다 (2026-08-07) */
+  function stkSrchTog(){
+    var i=document.getElementById('stkSrch'), b=document.getElementById('stkSrchClr');
+    if(i&&b) b.style.display = (i.value||'').trim() ? '' : 'none';
+  }
+  function stkSrchClear(){
+    var i=document.getElementById('stkSrch'); if(i) i.value='';
+    stkSrchTog(); stkStatusLoad();
+  }
   function stkSrchGo(cd, e){
     if(e){ e.stopPropagation(); }
     var el=document.getElementById('stkSrch'); if(el) el.value=cd||'';
+    stkSrchTog();
     stkStatusLoad();
   }
   /* ── 키보드로 목록 넘기기 (2026-08-06 요청) ─────────────────────────
@@ -1873,6 +1901,124 @@
     if(_stkAliasRev && (_stkAliasRev[k]||[]).length) return true;
     return false;
   }
+  /* ── 입·출고 나눠보기 (2026-08-07 요청) ──────────────────────────────
+       ② 수불내역과 **같은 자료·같은 기간**을 쓰되 방향으로만 갈라 그린다.
+       ★서버를 다시 부르지 않는다 — _stkLedRaw 를 그대로 쓴다(즉시 열림).
+       ★'기타(반품·조정)' 칸을 따로 두는 이유 : 원장에는 I·O 말고 R(반품)·A(조정)도 올 수 있다.
+         입고·출고 둘로만 나누면 그런 줄이 **조용히 사라져** 합이 안 맞는다. 있을 때만 보여 준다. */
+  function stkSplitOpen(){
+    /* 메시지는 앱 공통 스타일(빨간 아이콘 + 빨간 확인버튼)로 — 2026-08-07 지정.
+       순서 안내라 'warning' 이 맞고, 버튼 색은 swAlert 가 공통 스타일로 맞춰 준다. */
+    if(!_stkLedRow || !_stkLedRaw.length){ swAlert('위 ① <b>품목별 현재고</b> 표에서 품목을 먼저 고르세요.','error'); return; }
+    var cut=_stkLedCut();
+    var rows = cut ? _stkLedRaw.filter(function(l){ return String(l.trxDt||'').replace(/-/g,'') >= cut; }) : _stkLedRaw;
+    var inR=[], outR=[], etcR=[];
+    rows.forEach(function(l){ if(l.ioGb==='O') outR.push(l); else if(l.ioGb==='I') inR.push(l); else etcR.push(l); });
+
+    var r=_stkLedRow;
+    document.getElementById('stkSplitTit').innerHTML =
+      '<b>'+_cesc(r.prodCd||'')+'</b> <span style="color:#37475a">'+_cesc(r.prodNm||'')+'</span>'
+      + ' <span style="color:#9aa7b3;font-size:12.5px">('+(_stkLedMon?('최근 '+_stkLedMon+'개월'):'전체 기간')+')</span>';
+    var sum=function(a){ var q=0,m=0; a.forEach(function(l){ q+=(+l.qty||0); m+=(+l.amt||0); }); return {q:q,m:m}; };
+    var si=sum(inR), so=sum(outR);
+    document.getElementById('stkSplitSum').innerHTML =
+        '입고 <b style="color:#137a6c">'+_cnum(si.q)+'</b>'
+      + ' · 출고 <b style="color:#b06a00">'+_cnum(so.q)+'</b>'
+      + ' · 차 <b style="color:'+((si.q-so.q)<0?'#c0392b':'#137a6c')+'">'+_cnum(si.q-so.q)+'</b>'
+      + ' <span style="color:#9aa7b3">|</span> 현재고 <b>'+_cnum(r.curQty)+'</b>';
+
+    /* 상단도 그리드로 (2026-08-07 확정) — 그리드 3개 : 선택품목 / 입고 / 출고 */
+    document.getElementById('stkSplitBody').innerHTML =
+        _stkSplitTop(r, si, so)
+      /* ★표별 높이를 따로 준다 (2026-08-07 요청) — 입고는 보통 몇 줄이고
+         출고는 수십~수백 줄이라, 둘을 같은 높이로 두면 출고만 답답해진다. */
+      /* ★입고는 대개 몇 줄이라 '줄 수만큼'만 차지하게 하고(최대 18vh),
+         남는 자리를 출고에 몰아준다(2026-08-07 '출고 좀 더 많이'). */
+      + _stkSplitTb('⬇️ 입고내역', inR,  '#137a6c', true,  '18vh')
+      /* 한 줄 ≈ 31px — 두 줄만큼 줄인다(2026-08-07 요청). 다시 늘리려면 62px 를 빼면 된다. */
+      + _stkSplitTb('⬆️ 출고내역', outR, '#b06a00', false, 'calc(58vh - 62px)')
+      + (etcR.length ? _stkSplitTb('◇ 기타(반품·조정)', etcR, '#5a6b7a', true, '16vh') : '');
+    document.getElementById('stkSplitPop').classList.add('on');
+  }
+  function stkSplitClose(){ document.getElementById('stkSplitPop').classList.remove('on'); }
+
+  /* 상단 — 고른 품목 한 줄을 ①재고현황과 같은 칸으로 보여 준다.
+     ★입고·출고 칸은 '이 창에서 보고 있는 기간' 합계다(아래 두 표의 합과 같다).
+       현재고·이동평균단가·재고금액은 기간과 무관한 전체 기준이라 칸 바탕을 달리 둔다 —
+       섞여 있으면 "기간을 줄였는데 현재고가 왜 그대로지?" 가 된다. */
+  function _stkSplitTop(r, si, so){
+    var neg=(+r.curQty||0)<0;
+    return '<div style="display:flex;align-items:baseline;gap:10px;margin:2px 0 5px">'
+         +   '<b style="font-size:16.5px;color:#1f2a37">◆ 선택 품목</b>'
+         +   '<span style="color:#9aa7b3;font-size:12.5px">입고·출고 = 이 창에서 보는 기간 합계 · 현재고부터는 전체 기준</span></div>'
+         + '<div style="border:1px solid var(--logi-border);border-radius:8px;overflow:auto">'
+         + '<table class="logi-tb"><thead><tr>'
+         +   '<th>품목코드</th><th>품목명</th>'
+         /* 매칭코드도 보여 준다 (2026-08-07 요청) — ①표와 같은 칸이라
+            창을 띄우고 보는 중에도 "이 품목이 어떤 코드와 묶여 있는지" 를 바로 안다. */
+         +   '<th style="width:170px">매칭코드</th>'
+         +   '<th style="text-align:right">입고</th><th style="text-align:right">출고</th>'
+         +   '<th style="text-align:right">현재고</th><th style="text-align:right">이동평균단가</th>'
+         +   '<th style="text-align:right">재고금액</th>'
+         + '</tr></thead><tbody><tr>'
+         +   '<td>'+_cesc(r.prodCd||'')+'</td><td class="txt-l">'+_cesc(r.prodNm||'')+'</td>'
+         +   '<td class="txt-l">'+stkAliasCell(r.prodCd)+'</td>'
+         +   '<td style="text-align:right;color:#137a6c;font-weight:700">'+_cnum(si.q)+'</td>'
+         +   '<td style="text-align:right;color:#b06a00;font-weight:700">'+_cnum(so.q)+'</td>'
+         +   '<td style="text-align:right;font-weight:800;background:#f7fafc;color:'+(neg?'#c0392b':'#137a6c')+'">'+_cnum(r.curQty)+'</td>'
+         +   '<td style="text-align:right;background:#f7fafc">'+_cnum(r.avgInPrice)+'</td>'
+         +   '<td style="text-align:right;background:#f7fafc">'+_cnum(r.stockAmt)+'</td>'
+         + '</tr></tbody></table></div>';
+  }
+
+  /* 한 방향짜리 표 하나. 입고는 매입처·단가가 뜻이 있고, 출고는 사업장이 뜻이 있어
+     칸 구성을 조금 다르게 둔다(빈 칸을 늘어놓으면 읽기만 나빠진다). */
+  function _stkSplitTb(title, rows, color, isIn, maxH){
+    var q=0,m=0; rows.forEach(function(l){ q+=(+l.qty||0); m+=(+l.amt||0); });
+    /* 글자 확대 (2026-08-07 요청) — 이 줄이 각 표의 '결론'이라
+       본문보다 크게 두어야 훑을 때 눈에 먼저 들어온다. */
+    var head = '<div style="display:flex;align-items:baseline;gap:10px;margin:12px 0 6px">'
+             +   '<b style="font-size:16.5px;color:'+color+'">'+title+'</b>'
+             +   '<span style="color:#37475a;font-size:14px;font-weight:600">수량 <b>'+_cnum(q)+'</b>'
+             +   ' · 금액 <b>'+_cnum(m)+'</b>'
+             +   ' · <b>'+rows.length+'</b>건</span></div>';
+    if(!rows.length) return head + '<div style="padding:14px;text-align:center;color:#9aa7b3;border:1px solid var(--logi-border);border-radius:8px">내역이 없습니다.</div>';
+    /* 품목코드·품목명 추가 (2026-08-07 요청) — 한 품목짜리 창이라 값은 다 같지만,
+         표를 긁거나 내려받았을 때 무슨 품목인지 알 수 있어야 한다.
+       ★원장에 품목명이 비어 있는 줄이 있어(서버가 prodNm 을 안 채운다)
+         고른 품목의 이름(_stkLedRow.prodNm)을 대신 쓴다. */
+    /* 맨 앞 순번 (2026-08-07 요청) — "몇 번째 줄까지 봤는지" 를 잡기 위해.
+       저장 자료가 아니라 보이는 순서만 매긴다(기간을 바꾸면 다시 1부터). */
+    var th = isIn
+      ? '<thead><tr><th style="width:44px">No</th><th>일자</th><th>품목코드</th><th>품목명</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>매입처</th><th>근거구분</th><th>근거번호</th><th>비고</th></tr></thead>'
+      : '<thead><tr><th style="width:44px">No</th><th>일자</th><th>품목코드</th><th>품목명</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>사업장</th><th>근거구분</th><th>근거번호</th><th>비고</th></tr></thead>';
+    var _nm = (_stkLedRow && _stkLedRow.prodNm) || '';
+    var body = rows.map(function(l, _i){
+      var no='<td style="text-align:center;color:#8a97a4;font-weight:700;background:#fbfcfd">'+(_i+1)+'</td>';
+      return isIn
+        ? '<tr>'+no+'<td>'+_fmtYmd(l.trxDt)+'</td>'
+          +'<td>'+_cesc(l.prodCd||'')+'</td>'
+          +'<td class="txt-l">'+_cesc(l.prodNm||_nm)+'</td>'
+          +'<td style="text-align:right;font-weight:700;color:#137a6c">'+_cnum(l.qty)+'</td>'
+          +'<td style="text-align:right">'+_cnum(l.unitPrice)+'</td><td style="text-align:right">'+_cnum(l.amt)+'</td>'
+          +'<td title="'+_cesc(l.vendorNm||'')+'">'+_cesc(l.vendorCd||'')+(l.vendorNm?(' <span style="color:#5a6b7a">'+_cesc(l.vendorNm)+'</span>'):'')+'</td>'
+          +'<td>'+_cesc(l.refGb||'')+'</td><td>'+_cesc(l.refNo||'')+'</td><td>'+_cesc(l.remark||'')+'</td></tr>'
+        : '<tr>'+no+'<td>'+_fmtYmd(l.trxDt)+'</td>'
+          +'<td>'+_cesc(l.prodCd||'')+'</td>'
+          +'<td class="txt-l">'+_cesc(l.prodNm||_nm)+'</td>'
+          +'<td style="text-align:right;font-weight:700;color:#b06a00">'+_cnum(l.qty)+'</td>'
+          /* ★출고의 단가·금액은 대부분 0 이다 (2026-08-07 요청으로 칸을 넣음) —
+             출고(SHIPOUT) 자동연동 줄은 수량만 남기고 금액은 정산서·판매전표 쪽에서 잡히기 때문.
+             0 을 그대로 보이면 '빠졌나?' 가 되므로 흐리게 둔다. */
+          +'<td style="text-align:right'+((+l.unitPrice||0)?'':';color:#c8ced4')+'">'+_cnum(l.unitPrice)+'</td>'
+          +'<td style="text-align:right'+((+l.amt||0)?'':';color:#c8ced4')+'">'+_cnum(l.amt)+'</td>'
+          +'<td>'+(l.bizCd ? _bizCell(l.bizCd) : (l.vendorNm ? '<span style="color:#5a6b7a">'+_cesc(l.vendorNm)+'</span>' : ''))+'</td>'
+          +'<td>'+_cesc(l.refGb||'')+'</td><td>'+_cesc(l.refNo||'')+'</td><td>'+_cesc(l.remark||'')+'</td></tr>';
+    }).join('');
+    /* 표가 길어도 창이 무한정 늘어나지 않게 각 표에 높이 상한을 둔다 */
+    return head + '<div style="max-height:'+(maxH||'34vh')+';overflow:auto;border:1px solid var(--logi-border);border-radius:8px">'
+                + '<table class="logi-tb">'+th+'<tbody>'+body+'</tbody></table></div>';
+  }
   function stkAliasCell(prodCd){
     var BSQ="\\'";   // onclick 안 따옴표 이스케이프용(역슬래시+홈따옴표)
     if(!_stkAlias) return '<span style="color:#c8ced4">…</span>';
@@ -1884,13 +2030,12 @@
       /* 매칭코드마다 돋보기를 붙인다 — 그 코드로 목록을 다시 조회한다(2026-08-06 요청).
            ★코드 글자 자체는 링크가 아니다 — 칸이 넓어 행을 고르려다 눈릀 검색되는 일을 막기 위해,
              주코드 칸과 같은 규칙으로 '돋보기만' 누르게 했다. */
-      var show=l.slice(0,2).map(function(o){
-        var a=_cesc(o.cd).replace(/'/g,BSQ).replace(/"/g,'&quot;');
-        return _cesc(o.cd)
-             + ' <a href="javascript:void(0)" onclick="stkSrchGo(\''+a+'\', event)"'
-             +   ' title="'+_cesc(o.cd)+' 로 목록을 다시 조회합니다"'
-             +   ' style="color:#137a6c;text-decoration:none;font-size:11.5px">🔍</a>';
-      }).join(', ');
+      /* ★돋보기(이 코드로 재조회)를 뻐다 (2026-08-07, 두 번째 지적) —
+           글자 바로 옆이라 행을 고르려고 누를 때 번번이 걸려,
+           검색어 칸에 코드가 박히고 목록이 한 줄로 줄어들었다.
+           코드로 찾을 때는 왼쪽 [검색어] 칸에 직접 넣으면 된다(바로 위에 있다).
+         되살리려면 아래 map 에서 stkSrchGo 링크를 다시 붙이면 된다(함수는 남겨 둔다). */
+      var show=l.slice(0,2).map(function(o){ return _cesc(o.cd); }).join(', ');
       return '<span title="'+tip.replace(/"/g,'&quot;')+'" style="cursor:help">'+show
         + (l.length>2 ? (' <b style="color:#274b8f">+'+(l.length-2)+'</b>') : '') + '</span>';
     }
@@ -1908,14 +2053,23 @@
            '내가 검색한 적 없는데 검색된' 상태가 됐다. 재조회는 뒤의 돋보기 아이콘만 한다. */
       return '<span title="'+tipR.replace(/"/g,'&quot;')+'"'
         +    ' style="color:#274b8f;font-weight:800">🔖 주코드 '+_cesc(one.cd)+'</span>'
-        + (rl.length>1 ? (' <b style="color:#274b8f">+'+(rl.length-1)+'</b>') : '')
-        + ' <a href="javascript:void(0)" onclick="stkSrchGo(\''+arg+'\', event)"'
-        +    ' title="이 주코드로 목록을 다시 조회합니다"'
-        +    ' style="color:#137a6c;text-decoration:none;font-size:12px;margin-left:3px">🔍</a>';
+        + (rl.length>1 ? (' <b style="color:#274b8f">+'+(rl.length-1)+'</b>') : '');
     }
     return '<span style="color:#c8ced4">-</span>';
   }
 
+  /* 바깥을 누르거나 Esc 로도 닫히게 — 닫기 버튼만 두면 창에 갇힌 느낌이 든다 */
+  (function(){
+    document.addEventListener('click', function(e){
+      var p=document.getElementById('stkSplitPop');
+      if(p && p.classList.contains('on') && e.target===p) stkSplitClose();
+    });
+    document.addEventListener('keydown', function(e){
+      if(e.key!=='Escape') return;
+      var p=document.getElementById('stkSplitPop');
+      if(p && p.classList.contains('on')) stkSplitClose();
+    });
+  })();
   function stkStatusRender(){
     _stkKeyBind();   // 표를 그릴 때마다 확인(내부에서 한 번만 건다)
     var wrap=document.getElementById('stkStatusWrap'), sum=document.getElementById('stkStatusSum'), pg=document.getElementById('stkStatusPager');
@@ -2989,7 +3143,15 @@
       </div>
       <div class="card" style="padding-top:12px">
         <div class="form-row" style="margin-bottom:0; align-items:flex-end">
-          <div class="fld" style="flex:0 0 300px"><label>검색(품목코드/품목명)</label><input id="stkSrch" placeholder="검색어 입력" onkeyup="if(event.keyCode===13)stkStatusLoad()"></div>
+          <div class="fld" style="flex:0 0 300px"><label>검색(품목코드/품목명)</label><div style="position:relative">
+              <input id="stkSrch" placeholder="검색어 입력" onkeyup="if(event.keyCode===13)stkStatusLoad()" oninput="stkSrchTog()" style="width:100%;padding-right:30px">
+              <%-- 검색어가 걸려 있을 때만 뜨는 지우개. "일부만 보이는 상태"에서 전체로 돌아오는 길을
+                   한 번에 만들어 준다 — 칸을 손으로 비우고 다시 [조회]를 누르는 건 두 단계다. --%>
+              <button type="button" id="stkSrchClr" onclick="stkSrchClear()" title="검색어를 지우고 전체를 다시 봅니다"
+                      style="display:none;position:absolute;right:5px;top:50%;transform:translateY(-50%);
+                             width:22px;height:22px;line-height:20px;padding:0;border:1px solid #cfd8e3;border-radius:11px;
+                             background:#fff;color:#8a97a4;cursor:pointer;font-size:13px;font-weight:800">✕</button>
+            </div></div>
           <div class="fld" style="flex:0 0 170px"><label>기준일 <span style="color:#9aa7b3;font-weight:400">(비우면 지금 현재고)</span></label><input type="date" id="stkAsOf" onchange="stkStatusLoad()"></div>
           <%-- 날짜를 매번 달력에서 고르는 게 번거로워 빠른 선택을 붙였다(2026-08-01).
                [전체]=비움(지금 현재고) · [오늘]·[전월말]=그 시점 재고 --%>
@@ -3039,9 +3201,18 @@
         <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin:0 0 6px">
           <div style="font-weight:800;font-size:13.5px;color:#1f2a37;border-left:4px solid #b06a00;padding-left:9px;white-space:nowrap">② 선택 품목 수불 내역 <span class="badge b-done" style="margin-left:4px">근거</span></div>
           <%-- 제목과 같은 줄에 서야 하므로 flex 로 둘을 양 끝으로 밀어 놓는다 --%>
-          <div id="stkLedgerHead" style="flex:1 1 auto; min-width:0; display:flex; justify-content:space-between; align-items:baseline; gap:12px; color:#6b7a89">위 ① 표에서 <b>품목을 클릭</b>하면 그 품목의 수불 내역이 여기에 표시됩니다.</div>
+          <div id="stkLedgerHead" style="flex:1 1 auto; min-width:0; display:flex; justify-content:space-between; align-items:baseline; gap:12px; color:#6b7a89"><%-- ★반드시 한 덩어리(span)로 감싼다 — 이 div 는 justify-content:space-between 인
+              flex 줄이라, 글자와 <b> 를 낱개로 두면 조각들이 좌우 끝으로 밀려 버린다(2026-08-07 목격). --%><span>위 ① 표에서 <b>품목을 클릭</b>하면 그 품목의 수불 내역이 여기에 표시됩니다.</span></div>
           <%-- 기간 (2026-08-06 요청) — 기본 1개월. 오래된 품목은 수백 건이 한꺼번에 나와
                  최근 흐름이 안 보였다. ★서버 재조회 없이 화면에서만 자르므로 즉시 바뀐다. --%>
+          <%-- 입고와 출고를 갈라 보는 별도 창 (2026-08-07 요청) —
+                 ② 표는 입·출고가 한 줄로 섞여 있어 "얼마 들어와서 얼마 나갔나" 를 눈으로 세야 했다. --%>
+          <%-- 큰 버튼·색 입힌다 (2026-08-07 요청) — 기간 버튼 틈에 섮여 안 보였다.
+               기간 버튼은 '보기 설정'이고 이건 '다른 화면을 여는' 일이라 가중치가 다르다. --%>
+          <button class="btn-teal" onclick="stkSplitOpen()"
+                  style="padding:0 14px;height:31px;font-size:13.5px;font-weight:800;white-space:nowrap;margin-right:10px;
+                         background:#b06a00;border-color:#b06a00;box-shadow:0 1px 4px rgba(176,106,0,.35)"
+                  title="선택한 품목의 입고내역과 출고내역을 따로 나눠 봅니다">⬇️⬆️ 입·출고 나누어보기</button>
           <div id="stkLedMonBox" style="display:flex; gap:3px; white-space:nowrap">
             <%-- ★처음 누렸던 상태(btn-teal)는 위 _stkLedMon 기본값과 반드시 같아야 한다 —
                    어긋나면 다른 버튼이 눌린 듯 보이는데 실제로는 다른 기간이 나온다 --%>
@@ -3054,6 +3225,25 @@
           </div>
         </div>
         <div id="stkLedgerBody" tabindex="0" style="max-height:210px; overflow:auto; outline:none"></div>
+      </div>
+
+      <%-- 입·출고 나눠보기 창 — 서버를 다시 부르지 않는다. ② 가 이미 받아 둔
+           _stkLedRaw 를 그대로 갈라 그리므로 즉시 열린다. --%>
+      <div class="ss-modal" id="stkSplitPop">
+        <div class="box" style="width:min(1500px,96vw); margin-top:1.5vh; max-height:97vh">
+          <div style="padding:11px 16px; border-bottom:1px solid var(--logi-border); display:flex; align-items:baseline; gap:12px; flex-wrap:wrap">
+            <b style="font-size:15px; white-space:nowrap">⬇️⬆️ 입·출고 나누어보기</b>
+            <span id="stkSplitTit" style="color:#37475a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap"></span>
+            <span id="stkSplitSum" style="margin-left:auto; color:#37475a; font-size:13.5px; white-space:nowrap"></span>
+            <%-- 닫기를 크게 (2026-08-07 요청) — 화면을 거의 다 덮는 창이라
+                   빠져나오는 길이 한눈에 보여야 한다. --%>
+            <button class="btn-line" onclick="stkSplitClose()"
+                    style="padding:0 18px;height:36px;font-size:14.5px;font-weight:800;white-space:nowrap;
+                           border-width:2px;border-color:#b06a00;color:#b06a00">닫기 ✕</button>
+          </div>
+          <%-- 창 안 표는 목록 화면보다 한 단계 크게 — 보려고 여는 창이라 여백이 있다 --%>
+          <div id="stkSplitBody" style="padding:12px 16px; overflow:auto; font-size:13.5px"></div>
+        </div>
       </div>
     </section>
 
