@@ -38,6 +38,7 @@ public class SalesTrxDtlDTO {
     private String  eventYn;
     private String  trxGb;         // 판매 | 반품
     private Long    ledgerSeq;     // 파생 재고원장 행
+    private String  extCd;         // 거래처 매칭코드 — 매칭코드로 판매한 줄만 값이 있다(EXT_CD, 2026-08-06 신설)
 
     private String  actionYn;
     private String  regDttm;
@@ -47,6 +48,8 @@ public class SalesTrxDtlDTO {
     private String  updUser;
     private String  updIp;
 
+    public String getExtCd() { return extCd; }
+    public void setExtCd(String extCd) { this.extCd = extCd; }
     public Long getDtlSeq() { return dtlSeq; }
     public void setDtlSeq(Long dtlSeq) { this.dtlSeq = dtlSeq; }
     public Long getSaleSeq() { return saleSeq; }

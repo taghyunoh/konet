@@ -174,6 +174,8 @@
       <button class="sa-btn teal" onclick="saDlvOpen()" title="이 거래처가 받아 온 품목 목록에서 골라 담기">납품분</button>
       <div class="sa-fld" style="flex:0 0 120px"><label>담당자</label><input type="text" id="saMgrNm" readonly style="background:#f5f7f9"></div>
       <div class="sa-fld" style="flex:0 0 130px"><label>창고</label><input type="text" id="saWhNm" value="물류창고"></div>
+      <%-- 일괄등록 (2026-08-06 — 매입등록과 동일) — 거래처는 그대로 두고 일자만 바꿔 여러 상품을 일자별 전표로 저장 --%>
+      <button class="sa-btn teal" onclick="saBatchOpen()" title="거래처가 선택된 상태에서 일자만 바꿔 여러 상품을 일자별 전표로 저장합니다">일괄등록</button>
       <%-- 납품일자 = 원장에 잡히는 날. 비우면 판매일자를 그대로 쓴다.
            정산서(TBL_SALES_MST)가 DLV_DT 로 귀속되는 것과 같은 규칙이라 두 매출이 같은 기준에 선다. --%>
       <div class="sa-fld" style="flex:0 0 140px"><label>납품일자(비우면 판매일)</label><input type="date" id="saDlvDt"></div>
@@ -327,9 +329,77 @@
       <table><thead><tr><th style="width:110px">거래처 코드</th><th>거래처가 부르는 품목명</th><th style="width:110px">규격</th><th style="width:150px">우리 상품코드</th></tr></thead>
         <tbody id="saExtBody"></tbody></table>
     </div>
-    <div class="bd"><table><thead><tr><th style="width:110px">상품코드</th><th>상품명</th><th style="width:110px">규격</th><th style="width:60px">입수</th><th style="width:90px">판매가</th></tr></thead>
+    <%-- ✔칸으로 여러 상품을 체크해 한꺼번에 담을 수 있다(2026-08-06 요청, 매입등록·납품분 팝업과 같은 방식).
+         줄 클릭 = 종전 그대로 한 건 즉시 담기. 🔖 매칭코드 줄은 종전대로 클릭으로만 담는다. --%>
+    <div class="bd"><table><thead><tr><th style="width:44px" title="체크한 순서대로 한꺼번에 담습니다">✔</th><th style="width:110px">상품코드</th><th>상품명</th><th style="width:110px">규격</th><th style="width:60px">입수</th><th style="width:90px">판매가</th></tr></thead>
       <tbody id="saProdBody"></tbody></table></div>
-    <div class="ft"><button class="sa-btn" onclick="saProdClose()">닫기</button></div>
+    <div class="ft" style="display:flex; align-items:center; gap:8px">
+      <span id="saPickInfo" style="font-size:12.5px; color:#137a6c; font-weight:700"></span>
+      <span style="margin-left:auto"></span>
+      <button class="sa-btn teal" onclick="saProdMultiApply()" title="체크한 상품을 순서대로 명세에 담습니다. BOX수량은 1로 채워집니다">확인 — 선택 담기</button>
+      <button class="sa-btn" onclick="saProdClose()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 일괄등록 팝업 (2026-08-06 — 매입등록과 동일) —————————————————————
+     좌 = 담을 내용(전표 미리보기, BOX·EA·단가 수정 가능) / 우 = [상품코드]·[최근 판매내역] 두 탭.
+     체크하는 순간의 '판매일자'가 그 줄의 등록일자 — 일자를 바꿔 체크하면 일자별 전표로 나뉘고
+     [일괄저장]이 일자마다 전표 한 장씩 바로 저장한다(팝업 유지, 명세 그리드는 건드리지 않음). -->
+<div class="sa-pop" id="saBatchPop">
+  <div class="box" style="width:min(1600px,97vw)">
+<%-- 머리줄 글자·버튼 높이 30px 통일 — 한 선상 정렬(2026-08-06 요청, 매입등록과 동일) --%>
+    <div class="hd" style="align-items:center">일괄등록 — <span id="btVen" style="color:#137a6c">—</span>
+      <span class="sa-btn" style="pointer-events:none; background:#f1f5f4; height:30px; line-height:28px; padding:0 10px">판매일자</span>
+      <input type="date" id="btDt" style="height:30px; border:1px solid var(--sa-bd); border-radius:6px; padding:0 8px; font-size:13px" onchange="saBatchDtHint();saBatchRender()">
+      <span id="btDtHint" style="font-size:12px; font-weight:700; color:#c0392b; line-height:30px"></span>
+      <%-- 담을 내용 비우기 — [전체 초기화]만 여기에. 일자별 삭제는 왼쪽 일자 머리줄의 ✖ 로 --%>
+      <button class="sa-btn red" style="height:30px; line-height:1; padding:0 10px" onclick="saBatchDelAll()" title="담을 내용을 모두 비웁니다">전체 초기화</button>
+      <%-- [일괄저장]은 상단 우측(✕ 옆) 배치 (2026-08-06 확정 — 판매·매입 동일). 누르면 확인창이 먼저 뜬다 --%>
+      <span style="margin-left:auto; display:flex; align-items:center; gap:8px">
+        <%-- 버튼 너비(112px)만큼 왼쪽으로 — ✕ 와 붙어 잘못 누르는 것 방지(2026-08-06 요청) --%>
+        <button class="sa-btn teal" style="min-width:112px; height:30px; line-height:1; margin-right:112px" onclick="saBatchApply()" title="담을 내용을 일자별 전표로 한 장씩 바로 저장합니다 (확인창이 먼저 뜹니다)">💾 일괄저장</button>
+        <span class="sa-btn" style="border:0;background:transparent;font-size:18px" onclick="saBatchClose()">✕</span>
+      </span>
+    </div>
+    <div class="bd">
+      <div style="display:flex; gap:12px; align-items:flex-start; margin-top:10px">
+        <div style="flex:1 1 58%; min-width:0">
+          <div style="font-size:12.5px; font-weight:800; color:#37475a; margin:0 0 4px">⤒ 담을 내용
+            <span style="font-weight:600; color:#8a97a4">— 오른쪽 목록에서 체크한 상품이 순서대로 쌓입니다. 확인 후 [일괄저장]</span></div>
+          <div style="height:60vh; overflow:auto; border:1px solid var(--sa-bd); border-radius:6px">
+            <table>
+              <%-- 순서(▲▼)는 코드 앞 (2026-08-06 요청 — 명세 그리드의 행 조작 열과 같은 자리) --%>
+              <thead><tr><th style="width:36px">#</th><th style="width:52px" title="▲▼ 순서 조정(같은 일자 안)">순서</th><th style="width:106px">상품코드</th><th>상품명</th>
+                <th style="width:104px">[입수량]규격</th><th style="width:58px">BOX</th><th style="width:58px">EA</th><th style="width:64px">합계</th><th style="width:82px">단가</th><th style="width:92px">금액</th><th style="width:34px"></th></tr></thead>
+              <tbody id="btSelBody"><tr><td colspan="11" class="sa-msg">오른쪽 목록에서 체크하면 여기에 순서대로 담깁니다.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div style="flex:1 1 42%; min-width:0">
+          <div style="display:flex; gap:6px; margin:0 0 6px">
+            <button class="sa-btn" id="btTab1" onclick="saBatchTab(1)">상품코드</button>
+            <button class="sa-btn" id="btTab2" onclick="saBatchTab(2)">최근 판매내역</button>
+            <input type="text" id="btQ" placeholder="상품코드·상품명" style="flex:1; height:32px; border:1px solid var(--sa-bd); border-radius:6px; padding:0 8px; font-size:13.5px" oninput="saBatchRender()">
+          </div>
+          <div style="height:56vh; overflow:auto; border:1px solid var(--sa-bd); border-radius:6px">
+            <table>
+              <thead id="btHead"></thead>
+              <tbody id="btBody"></tbody>
+            </table>
+          </div>
+          <div style="margin-top:6px; font-size:12px; color:#3d4d5c">
+            체크하면 위 <b>판매일자</b>로 담깁니다 — <b>일자를 바꿔 체크하면 일자별 전표로 나뉘고</b>, [일괄저장]이 전표를 일자마다 한 장씩 저장합니다.
+            상품코드 탭은 BOX수량 1(=EA 1), 최근 판매내역 탭은 그때의 수량·단가 그대로. 담긴 줄은 왼쪽에서 고치거나 ✖ 로 뺍니다.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ft" style="display:flex; align-items:center; gap:8px">
+      <span style="font-size:12.5px; color:#137a6c; font-weight:700" id="btCnt"></span>
+      <span style="margin-left:auto"></span>
+      <button class="sa-btn" style="min-width:112px" onclick="saBatchClose()">닫기</button>
+    </div>
   </div>
 </div>
 
@@ -1024,6 +1094,8 @@ function saApply(d){
   document.getElementById('saPayGb').value = d.payGb||'외상';
   document.getElementById('saPayAmt').value = n(d.payAmt);
   document.getElementById('saDcAmt').value = n(d.dcAmt);
+  /* 매칭판매 표기(extCd)는 이제 DB(TBL_SALES_TRX_DTL.EXT_CD)에서 그대로 온다 (2026-08-06 신설) —
+     품명 추정 방식은 통보명=마스터명인 상품에서 오판해 폐기. EXT_CD 칼럼 추가 이전의 옛 전표는 표시가 없다(정확). */
   _rows = (d.items||[]).map(function(x){ x.taxGb='과세'; return x; });
   _rows.push(emptyRow());
   /* 저장된 품명은 그대로 둔다(그 전표의 사실). 표기표는 이후 '품목 추가' 에만 쓴다. */
@@ -1290,6 +1362,7 @@ function saProdOpen(i){
   _prodTargetRow=i;
   document.getElementById('saProdPop').classList.add('on');
   var q=document.getElementById('saProdQ'); q.value='';
+  _ppPick = [];                          // 다중선택은 열 때마다 새로 시작
   saProdRender();
   saLoadMasters();
   /* 열리면 바로 검색칸에 커서 — 마우스로 칸을 다시 누를 필요 없이 즉시 친다(2026-08-05 요청, 매입등록과 동일) */
@@ -1332,16 +1405,27 @@ function saProdRender(){
          · 🔖 줄 클릭            = 그 거래처 코드·그 품명으로 넣기(주문서에 적힌 대로)
        종전에는 매칭 하나만 골라 보여 주고 자동으로 그 품명을 썼다 — 어느 것으로 들어갔는지 알 수 없었다. */
     var exl=saExtListFor(o.prodCd);
+    /* ✔칸 — 체크하면 순번(1,2,3…)이 찍히고 그 순서대로 담긴다. 체크박스 클릭이 줄 클릭(한 건 담기)으로
+       번지지 않게 td 에서 끊는다(매입등록과 동일). */
+    var k = _ppPick.indexOf(String(o.prodCd));
     /* 원코드 줄 — 누르면 우리 코드·우리 품명으로 넣는다 */
     var h='<tr class="pick" onclick="saProdPick(\''+esc(o.prodCd)+'\')" title="이 줄을 누르면 우리 원코드로 넣습니다">'
+         + '<td style="cursor:pointer" onclick="event.stopPropagation();saProdToggle(\''+esc(o.prodCd)+'\')">'
+         +   (k>=0 ? '<b style="color:#137a6c">'+(k+1)+'</b>' : '<input type="checkbox" style="pointer-events:none">')
+         + '</td>'
          + '<td>'+(hit[String(o.prodCd)] ? '<b style="color:#137a6c">'+esc(o.prodCd)+'</b>' : esc(o.prodCd))+'</td>'
          + '<td class="txt" style="text-align:left">'+esc(o.prodNm)+'</td>'
          + '<td>'+esc(o.spec)+'</td><td class="num">'+n(o.packQty)+'</td><td class="num">'+fmt(o.salePrice)+'</td></tr>';
     /* 매칭코드 줄 — ★같은 칸(코드는 코드 칸, 품명은 품명 칸)에 맞춰 별도 줄로 둔다(2026-08-01 지적).
-       품명 칸에 코드까지 몰아넣으니 어느 것이 코드인지 읽히지 않았다. */
+       품명 칸에 코드까지 몰아넣으니 어느 것이 코드인지 읽히지 않았다.
+       🔖 줄도 ✔ 체크로 다중선택된다(2026-08-06 요청) — 담기면 그 거래처 코드·품명으로 들어간다. */
     h += exl.map(function(e){
+      var ek = _ppPick.indexOf('ext:'+String(e.extSeq));
       return '<tr class="pick sa-exrow" onclick="saExtPick('+e.extSeq+')"'
         + ' title="이 거래처 코드·품명으로 넣습니다'+(e.vendorNm?(' — '+esc(e.vendorNm)):'')+'">'
+        + '<td style="cursor:pointer" onclick="event.stopPropagation();saExtToggle('+e.extSeq+')">'
+        +   (ek>=0 ? '<b style="color:#137a6c">'+(ek+1)+'</b>' : '<input type="checkbox" style="pointer-events:none">')
+        + '</td>'
         + '<td>🔖 '+esc(e.extItemCd)+'</td>'
         + '<td class="txt" style="text-align:left">'+esc(e.extItemNm||'')
         +   (e.vendorNm?(' <span style="color:#8a97a3">('+esc(e.vendorNm)+')</span>'):'')+'</td>'
@@ -1349,8 +1433,66 @@ function saProdRender(){
         + '<td class="num">'+(e.extPrice!=null?fmt(e.extPrice):'')+'</td></tr>';
     }).join('');
     return h;
-  }).join('') : '<tr><td colspan="5" class="sa-msg">검색 결과가 없습니다.</td></tr>';
+  }).join('') : '<tr><td colspan="6" class="sa-msg">검색 결과가 없습니다.</td></tr>';
+  saPickInfo();
   saExtRender(q);
+}
+/* ── 상품 다중선택 담기 (2026-08-06 요청, 매입등록과 동일) ─────────────────
+     ✔를 체크한 순서대로 명세에 한꺼번에 담는다. 담긴 줄의 BOX수량은 기본 1 —
+     이 화면 규칙(BOX 치면 EA 가 친 대로 따라온다, saSet 참고)대로 EA수량도 1 로 채운다.
+     줄 클릭(한 건 즉시 담기)·🔖 매칭코드 줄은 종전 그대로다. */
+var _ppPick = [];   // 원코드는 상품코드 그대로, 🔖 매칭코드 줄은 'ext:extSeq' 로 섞여 들어간다(체크 순서 유지)
+function saProdToggle(cd){
+  cd = String(cd);
+  var k = _ppPick.indexOf(cd);
+  if (k >= 0) _ppPick.splice(k,1); else _ppPick.push(cd);   // 뺀 자리는 뒤 번호가 당겨진다
+  saProdRender();
+}
+function saExtToggle(seq){
+  var tk = 'ext:'+String(seq);
+  var k = _ppPick.indexOf(tk);
+  if (k >= 0) _ppPick.splice(k,1); else _ppPick.push(tk);
+  saProdRender();
+}
+function saPickInfo(){
+  var el = document.getElementById('saPickInfo');
+  if (el) el.textContent = _ppPick.length ? ('선택 '+_ppPick.length+'건 — 체크한 순서대로 담깁니다 (BOX수량 1)') : '';
+}
+function saProdMultiApply(){
+  if (!_ppPick.length) { swErr('담을 상품을 체크하세요.<br><span style="font-size:12.5px;color:#3d4d5c">한 건만 담을 때는 줄을 바로 클릭하면 됩니다.</span>'); return; }
+  var ven = document.getElementById('saVenNm').dataset.cd || '';
+  var rows = _rows.filter(function(o){ return o.prodCd; });
+  var added = [], dup = [];
+  _ppPick.forEach(function(tk){
+    /* 🔖 매칭코드 줄('ext:extSeq')이면 연결된 우리 상품을 찾아 그 거래처 코드·품명으로 담는다(saExtPick 과 같은 규칙) */
+    var ext = null, cd = String(tk);
+    if (cd.indexOf('ext:') === 0){
+      ext = _extItems.filter(function(x){ return String(x.extSeq)===cd.slice(4); })[0];
+      if (!ext || !ext.prodCd) return;
+      cd = String(ext.prodCd);
+    }
+    var p = _prods.filter(function(x){ return String(x.prodCd)===String(cd); })[0]; if(!p) return;
+    if (rows.some(function(o){ return String(o.prodCd)===String(cd); })) { dup.push(ext?ext.extItemCd:cd); return; }
+    var o = emptyRow();
+    o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=saNmFor(p.prodCd, p.prodNm); o.spec=p.spec||'';
+    o.extCd=null; o.extNm=null;                   // 원코드 기본 — 매칭 체크면 바로 아래에서 덮는다
+    if (ext){ o.extCd=ext.extItemCd; o.extNm=ext.extItemNm||''; if(ext.extItemNm) o.prodNm=ext.extItemNm; }
+    o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
+    o.unitPrice=n(p.salePrice);
+    o.boxQty=1; o.eaQty=1;                        // BOX수량 기본 1 → EA 1 (2026-08-06 요청)
+    saCalcRow(o);
+    rows.push(o); added.push(o);
+  });
+  rows.push(emptyRow());
+  _rows = rows; _pShown = _rows.length;
+  saRender(); saProdClose();
+  /* 그 거래처의 최근 판매단가가 있으면 그 값으로 덮는다 — 한 건 담기(saProdPick)와 같은 규칙 */
+  added.forEach(function(o){
+    post('/mangr/salesLastPrice.do','prodCd='+encodeURIComponent(o.prodCd)+'&remark='+encodeURIComponent(ven))
+      .then(function(r){return r.json();}).then(function(j){ if(j&&j.data){ o.unitPrice=n(j.data); saCalcRow(o); saRender(); } })
+      .catch(function(){});
+  });
+  if (dup.length) swAlert(added.length+'건을 담았습니다.<br><span style="font-size:12.5px;color:#3d4d5c">이미 명세에 있는 '+dup.length+'건은 건너뛰었습니다 — '+esc(dup.join(', '))+'</span>');
 }
 /* 거래처 통보품목으로 찾기 (2026-08-01 통화 확정)
      · 원 상품코드를 골라 둔 통보분 → 누르면 그 우리 상품이 그대로 잡힌다(품명은 거래처 통보명으로).
@@ -1429,6 +1571,9 @@ function saProdPick(cd){
   o.extCd=null; o.extNm=null;
   o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
   o.unitPrice=n(p.salePrice);   // 기본값 = 상품마스터 판매가 (매입 화면은 inPrice 를 쓴다)
+  /* 수량이 빈 줄이면 BOX수량 기본 1 → EA 1 (2026-08-06 요청 — 🔖 매칭코드·인라인 검색 담기 포함).
+     이미 수량이 있는 줄(다른 상품으로 바꾸기)은 건드리지 않는다. */
+  if (!n(o.boxQty) && !n(o.eaQty)) { o.boxQty = 1; o.eaQty = 1; }
   saProdClose();
   // 그 거래처의 최근 판매단가가 있으면 그 값으로 덮는다
   var ven = document.getElementById('saVenNm').dataset.cd||'';
@@ -1439,6 +1584,397 @@ function saProdPick(cd){
       if (_prodTargetRow === _rows.length-1) saEnsureTail();
       saRender();
     });
+}
+
+/* ── 일괄등록 (2026-08-06 — 매입등록(puBatch*)과 동일 구조, 판매 규칙으로 치환) ─────
+     · 탭1 [상품코드]      : 상품마스터 코드순(이웃검색) — 담으면 BOX 1 → EA 1(판매 합계=EA 규칙).
+     · 탭2 [최근 판매내역] : 원장(custLedger)에서 매출 있던 일자(최근 15일치) → selectCustDayDetail
+       의 SALE·STRX 줄. 일자 머리줄 ✔=그 날 전체선택. 수량은 BOX=EA=|수량| 그대로(원장 불러오기와 동일).
+     · 체크 순간의 판매일자(dt)로 담기고, [일괄저장]이 일자마다 전표 한 장씩 저장(팝업 유지). */
+var _btTab = 1, _btDays = null;
+var _btSel = [];
+function btDtVal(){ return document.getElementById('btDt').value || today(); }
+function btSelIdx1(cd){ var d=btDtVal(); for (var i=0;i<_btSel.length;i++){ var s=_btSel[i]; if (s.t===1 && !s.ext && String(s.cd)===String(cd) && s.dt===d) return i; } return -1; }
+/* 🔖 매칭코드 줄로 체크한 항목 — 원코드 체크와 따로 센다 */
+function btSelIdx1e(seq){ var d=btDtVal(); for (var i=0;i<_btSel.length;i++){ var s=_btSel[i]; if (s.t===1 && String(s.ext||'')===String(seq) && s.dt===d) return i; } return -1; }
+function btSelIdx2(di,ii){ var d=btDtVal(); for (var i=0;i<_btSel.length;i++){ var s=_btSel[i]; if (s.t===2 && s.di===di && s.ii===ii && s.dt===d) return i; } return -1; }
+function btOrderOf(k){ if (k<0) return 0; var d=_btSel[k].dt, c=0; for (var i=0;i<=k;i++){ if (_btSel[i].dt===d) c++; } return c; }
+
+function saBatchOpen(){
+  var cd = document.getElementById('saVenNm').dataset.cd || '';
+  if (!cd) { swErr('거래처를 먼저 선택하세요.'); return; }
+  _btTab = 1; _btSel = []; _btDays = null;
+  document.getElementById('btVen').textContent = document.getElementById('saVenNm').value || cd;
+  document.getElementById('btDt').value = document.getElementById('saDt').value || today();
+  document.getElementById('btQ').value = '';
+  document.getElementById('saBatchPop').classList.add('on');
+  saBatchTab(1);
+  saBatchSelRender();
+  saBatchDtHint();
+}
+function saBatchClose(){ document.getElementById('saBatchPop').classList.remove('on'); }
+/* 판매일자를 바꾸면 그 날 이 거래처 판매전표가 이미 있는지 옆에 알려 준다(저장은 막지 않는다) */
+var _btDtSeq = 0;
+function saBatchDtHint(){
+  var el = document.getElementById('btDtHint');
+  var venNm = document.getElementById('saVenNm').value || '';
+  var dt = document.getElementById('btDt').value;
+  if (!el) return;
+  el.textContent = '';
+  if (!venNm || !dt) return;
+  var seq = ++_btDtSeq;
+  post('/mangr/salesTrxList.do','fromDt='+encodeURIComponent(dt)+'&toDt='+encodeURIComponent(dt)+'&findData='+encodeURIComponent(venNm))
+    .then(function(r){return r.json();}).then(function(j){
+      if (seq !== _btDtSeq) return;
+      var ex = ((j&&j.data)||[]).filter(function(o){ return String(o.custNm||'')===venNm; });
+      el.textContent = ex.length ? ('⚠ 이 일자에 전표 '+ex.length+'건 있음') : '';
+    }).catch(function(){});
+}
+function saBatchTab(t){
+  _btTab = t;
+  document.getElementById('btTab1').classList.toggle('teal', t===1);
+  document.getElementById('btTab2').classList.toggle('teal', t===2);
+  if (t===2 && _btDays === null) { saBatchLoad2(); return; }
+  saBatchRender();
+}
+/* 탭2 자료 — 원장에서 매출이 있던 일자를 최근 것부터 15일치 골라, 날짜별 매출 줄을 병렬로 읽는다 */
+function saBatchLoad2(){
+  var cd = document.getElementById('saVenNm').dataset.cd || '';
+  document.getElementById('btHead').innerHTML = '';
+  document.getElementById('btBody').innerHTML = '<tr><td class="sa-msg">최근 판매내역을 불러오는 중…</td></tr>';
+  post('/mangr/custLedger.do','custCd='+encodeURIComponent(cd)).then(function(r){return r.json();}).then(function(j){
+    var dts = [];
+    ((j&&j.data)||[]).forEach(function(o){ if (n(o.saleAmt)) dts.push(String(o.dt||'')); });
+    dts = dts.filter(function(d,i){ return d && dts.indexOf(d)===i; }).sort().reverse().slice(0,15);
+    if (!dts.length) { _btDays = []; saBatchRender(); return; }
+    return Promise.all(dts.map(function(dt){
+      return post('/mangr/selectCustDayDetail.do','custCd='+encodeURIComponent(cd)+'&trxDt='+encodeURIComponent(dt))
+        .then(function(r){return r.json();})
+        /* 직접판매(판매전표 STRX)만 (2026-08-06 확정) — 정산서(SALE) 매출은 일자별 목록에서 제외 */
+        .then(function(j2){ return { dt:dt, items:((j2&&j2.data)||[]).filter(function(o){ return o.gb==='STRX'; }) }; })
+        .catch(function(){ return { dt:dt, items:[] }; });
+    })).then(function(gs){ _btDays = gs.filter(function(g){ return g.items.length; }); saBatchRender(); });
+  }).catch(function(){
+    _btDays = [];
+    document.getElementById('btBody').innerHTML = '<tr><td class="sa-msg" style="color:#c0392b">최근 판매내역 조회 오류</td></tr>';
+  });
+}
+function saBatchRender(){ if (_btTab===1) saBatchRender1(); else saBatchRender2(); }
+function saBatchRender1(){
+  var q = (document.getElementById('btQ').value||'').toLowerCase();
+  document.getElementById('btHead').innerHTML =
+    '<tr><th style="width:44px" title="체크한 순서대로 담깁니다">✔</th><th style="width:110px">상품코드</th><th>상품명</th>'
+    + '<th style="width:110px">규격</th><th style="width:60px">입수</th><th style="width:90px">판매가</th></tr>';
+  /* 검색은 매입과 같은 장부식(걸린 코드 + 다음 코드 이웃) + 거래처 매칭코드로도 찾는다.
+     🔖 매칭코드 줄도 체크 가능 — 담긴 줄에는 '주코드'가 보이고 매칭코드는 그 밑에 작게 붙는다(2026-08-06). */
+  var byExt = {};
+  if(q) _extItems.forEach(function(e){
+    if(!e.prodCd) return;
+    if([e.extItemCd,e.extItemNm,e.extSpec].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; }))
+      byExt[String(e.prodCd)]=1;
+  });
+  var byCode = function(a,b){ return String(a.prodCd||'').localeCompare(String(b.prodCd||'')); };
+  var l, hit = {};
+  if(!q){ l = _prods.slice().sort(byCode).slice(0,300); }
+  else{
+    var byCd=[], byNm=[];
+    _prods.forEach(function(o){
+      if(String(o.prodCd||'').toLowerCase().indexOf(q)>=0 || byExt[String(o.prodCd)]) byCd.push(o);
+      else if([o.prodNm,o.spec].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; })) byNm.push(o);
+    });
+    byCd.sort(byCode);
+    if(byCd.length){
+      byCd.forEach(function(o){ hit[String(o.prodCd)]=1; });
+      var first = String(byCd[0].prodCd||'');
+      var after = _prods.filter(function(o){ return !hit[String(o.prodCd)] && String(o.prodCd||'') > first; }).sort(byCode);
+      l = byCd.concat(after).concat(byNm).slice(0,300);
+    }else l = byNm.slice(0,300);
+  }
+  document.getElementById('btBody').innerHTML = l.length ? l.map(function(o){
+    var k = btSelIdx1(o.prodCd);
+    var cd = hit[String(o.prodCd)] ? '<b style="color:#137a6c">'+esc(o.prodCd)+'</b>' : esc(o.prodCd);
+    var h = '<tr class="pick" onclick="saBatchTgl1(\''+esc(o.prodCd)+'\')">'
+      + '<td>'+(k>=0 ? '<b style="color:#137a6c">'+btOrderOf(k)+'</b>' : '<input type="checkbox" style="pointer-events:none">')+'</td>'
+      + '<td>'+cd+'</td><td class="txt" style="text-align:left;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(o.prodNm)+'">'+esc(o.prodNm)+'</td>'
+      + '<td>'+esc(o.spec)+'</td><td class="num">'+n(o.packQty)+'</td><td class="num">'+fmt(o.salePrice)+'</td></tr>';
+    /* 🔖 매칭코드 줄 — 체크하면 담을 내용에 주코드 + 매칭코드(작게)로 표시된다 */
+    h += saExtListFor(o.prodCd).map(function(e){
+      var ek = btSelIdx1e(e.extSeq);
+      return '<tr class="pick sa-exrow" onclick="saBatchTglE('+e.extSeq+',\''+esc(o.prodCd)+'\')"'
+        + ' title="이 거래처 코드·품명으로 담깁니다'+(e.vendorNm?(' — '+esc(e.vendorNm)):'')+'">'
+        + '<td>'+(ek>=0 ? '<b style="color:#137a6c">'+btOrderOf(ek)+'</b>' : '<input type="checkbox" style="pointer-events:none">')+'</td>'
+        + '<td>🔖 '+esc(e.extItemCd)+'</td>'
+        + '<td class="txt" style="text-align:left;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(e.extItemNm||'')+'">'+esc(e.extItemNm||'')
+        +   (e.vendorNm?(' <span style="color:#8a97a3">('+esc(e.vendorNm)+')</span>'):'')+'</td>'
+        + '<td>'+esc(e.extSpec||'')+'</td><td class="num"></td>'
+        + '<td class="num">'+(e.extPrice!=null?fmt(e.extPrice):'')+'</td></tr>';
+    }).join('');
+    return h;
+  }).join('') : '<tr><td colspan="6" class="sa-msg">검색 결과가 없습니다.</td></tr>';
+  saBatchInfo();
+}
+function saBatchRender2(){
+  document.getElementById('btHead').innerHTML =
+    '<tr><th style="width:44px">✔</th><th style="width:106px">상품코드</th><th>상품명</th>'
+    + '<th style="width:66px">수량</th><th style="width:84px">단가</th><th style="width:96px">금액</th></tr>';
+  if (_btDays === null) return;
+  var q = (document.getElementById('btQ').value||'').toLowerCase();
+  var h = '';
+  _btDays.forEach(function(g, di){
+    var idx = [];
+    g.items.forEach(function(o, ii){
+      if (!q || [o.itemCd,o.itemNm].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; })) idx.push(ii);
+    });
+    if (!idx.length) return;
+    var all = idx.every(function(ii){ return btSelIdx2(di,ii) >= 0; });
+    var sum = 0, dns = [];
+    idx.forEach(function(ii){ sum += n(g.items[ii].amt);
+      var dn = String(g.items[ii].docNo||''); if (dn && dns.indexOf(dn)<0) dns.push(dn); });
+    h += '<tr style="background:#e8f6ec; cursor:pointer" onclick="saBatchDayAll('+di+','+(all?'false':'true')+')" title="클릭 → 이 날 전체선택/해제">'
+      + '<td><input type="checkbox" style="pointer-events:none"'+(all?' checked':'')+'></td>'
+      + '<td colspan="2" class="txt" style="text-align:left"><b>'+esc(fmtDt(g.dt))+'</b> — '+idx.length+'건'
+      +   (dns.length ? ' <span style="color:#137a6c;font-weight:700">전표 '+esc(dns.join(', '))+'</span>' : '')
+      +   ' <span style="color:#5a6b7a">(일자별 전체선택)</span></td>'
+      + '<td></td><td></td><td class="num"><b>'+fmt(sum)+'</b></td></tr>';
+    idx.forEach(function(ii){
+      var o = g.items[ii], on = btSelIdx2(di,ii) >= 0;
+      /* '매칭코드로 판매했는지'는 저장된 EXT_CD 로 판별 (2026-08-06 신설 — selectCustDayDetail 이 extCd 를 준다).
+         원코드 판매·옛 전표(EXT_CD 없음)에는 안 붙는다. 표기는 본 명세 그리드와 동일: 주코드 위, 🔖 매칭코드 아래 */
+      h += '<tr class="pick" onclick="saBatchTgl2('+di+','+ii+')">'
+        + '<td><input type="checkbox" style="pointer-events:none"'+(on?' checked':'')+'></td>'
+        + '<td>'+esc(o.itemCd)
+        +   (o.extCd ? '<div style="font-size:11px;color:#274b8f;margin-top:1px;white-space:nowrap" title="매칭코드로 판매한 건입니다">🔖 '+esc(o.extCd)+'</div>' : '')
+        + '</td>'
+        + '<td class="txt" style="text-align:left;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(o.itemNm)+'">'+esc(o.itemNm)+'</td>'
+        + '<td class="num">'+fmt(o.qty)+'</td><td class="num">'+fmtP(o.price)+'</td><td class="num">'+fmt(o.amt)+'</td></tr>';
+    });
+  });
+  document.getElementById('btBody').innerHTML = h || '<tr><td colspan="6" class="sa-msg">'
+    + (q ? '검색 결과가 없습니다.' : '이 거래처의 최근 판매내역이 없습니다.') + '</td></tr>';
+  saBatchInfo();
+}
+function saBatchTgl1(cd){
+  var k = btSelIdx1(cd);
+  if (k>=0) _btSel.splice(k,1); else _btSel.push({ t:1, cd:String(cd), dt:btDtVal() });
+  saBatchRender1(); saBatchSelRender();
+}
+/* 🔖 매칭코드 줄 체크 — 주코드로 담기되 매칭 표기(extCd·품명)를 행에 남긴다 */
+function saBatchTglE(seq, cd){
+  var k = btSelIdx1e(seq);
+  if (k>=0) _btSel.splice(k,1); else _btSel.push({ t:1, cd:String(cd), ext:String(seq), dt:btDtVal() });
+  saBatchRender1(); saBatchSelRender();
+}
+function saBatchTgl2(di, ii){
+  var k = btSelIdx2(di, ii);
+  if (k>=0) _btSel.splice(k,1); else _btSel.push({ t:2, di:di, ii:ii, dt:btDtVal() });
+  saBatchRender2(); saBatchSelRender();
+}
+function saBatchDayAll(di, on){
+  var q = (document.getElementById('btQ').value||'').toLowerCase();
+  var g = _btDays[di]; if(!g) return;
+  g.items.forEach(function(o, ii){
+    if (q && ![o.itemCd,o.itemNm].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; })) return;
+    var k = btSelIdx2(di, ii);
+    if (on) { if (k<0) _btSel.push({ t:2, di:di, ii:ii, dt:btDtVal() }); }
+    else if (k>=0) _btSel.splice(k,1);
+  });
+  saBatchRender2(); saBatchSelRender();
+}
+function saBatchInfo(){
+  document.getElementById('btCnt').textContent = _btSel.length ? ('담을 내용 '+_btSel.length+'건') : '';
+}
+/* 체크 하나 → 명세 행 하나 (미리보기·저장 공용) */
+function saBatchRowFor(s){
+  if (s.t===1){
+    var p = _prods.filter(function(x){ return String(x.prodCd)===String(s.cd); })[0]; if(!p) return null;
+    var o = emptyRow();
+    o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=saNmFor(p.prodCd, p.prodNm); o.spec=p.spec||'';
+    o.extCd=null; o.extNm=null;
+    /* 🔖 매칭코드로 체크한 줄 — 주코드는 그대로, 매칭 코드·품명을 행에 남긴다(saExtPick 과 같은 규칙) */
+    if (s.ext){
+      var e = _extItems.filter(function(x){ return String(x.extSeq)===String(s.ext); })[0];
+      if (e){ o.extCd=e.extItemCd; o.extNm=e.extItemNm||''; if(e.extItemNm) o.prodNm=e.extItemNm; }
+    }
+    o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
+    o.unitPrice=n(p.salePrice);
+    o.boxQty=1; o.eaQty=1;                            /* BOX 1 → EA 1 (판매 합계=EA 규칙) */
+    saCalcRow(o);
+    return btSelOverride(s, o);
+  }
+  var g = (_btDays||[])[s.di], it = g && g.items[s.ii]; if(!it) return null;
+  var p2 = _prods.filter(function(x){ return String(x.prodCd)===String(it.itemCd); })[0] || {};
+  var r = emptyRow();
+  r.prodSeq = p2.prodSeq; r.prodCd = it.itemCd; r.prodNm = it.itemNm || p2.prodNm || '';
+  r.spec = p2.spec || ''; r.packQty = n(p2.packQty)||1; r.taxGb = p2.taxGb || '과세';
+  r.unitPrice = n(it.price);
+  /* 매칭판매였던 줄은 저장된 EXT_CD 를 그대로 잇는다 — 미리보기·재저장에 🔖 유지 (2026-08-06) */
+  if (it.extCd){ r.extCd = it.extCd; r.extNm = it.itemNm || ''; }
+  /* 저장된 수량 그대로 — 입수로 쪼개지 않는다(원장 [불러오기]와 동일, 합계=EA 규칙) */
+  var qv = n(it.qty), aq = Math.abs(qv);
+  r.boxQty = aq; r.eaQty = aq;
+  if (qv < 0) r.trxGb = '반품';
+  saCalcRow(r);
+  return btSelOverride(s, r);
+}
+/* 미리보기에서 고친 값(BOX·EA·단가)은 체크 항목(s)에 남겨 두었다가 매번 덮어씌운다.
+   판매 규칙대로 BOX 를 고치면 EA 가 친 대로 따라온다(saSet 과 동일) — EA 를 따로 고치면 그 값 우선. */
+function btSelOverride(s, o){
+  if (s.boxQty != null) { o.boxQty = n(s.boxQty); o.eaQty = n(s.boxQty); }
+  if (s.eaQty  != null) o.eaQty = n(s.eaQty);
+  if (s.unitPrice != null) o.unitPrice = n(s.unitPrice);
+  if (s.boxQty != null || s.eaQty != null || s.unitPrice != null) saCalcRow(o);
+  return o;
+}
+function saBatchSelSet(i, k, v){
+  var s = _btSel[i]; if(!s) return;
+  s[k] = n(v);
+  saBatchSelRender();
+}
+/* 좌측 '담을 내용' — 등록일자(dt)별 머리줄 + 일자마다 순번 1부터. BOX·EA·단가는 입력칸 */
+function saBatchSelRender(){
+  var tb = document.getElementById('btSelBody');
+  if (!_btSel.length){
+    tb.innerHTML = '<tr><td colspan="11" class="sa-msg">오른쪽 목록에서 체크하면 여기에 담깁니다. 일자를 바꿔 체크하면 일자별 전표로 나뉩니다.</td></tr>';
+    saBatchInfo(); return;
+  }
+  var perDt = {};
+  _btSel.forEach(function(s){ perDt[s.dt] = (perDt[s.dt]||0) + 1; });
+  var inp = 'style="width:100%;border:0;background:transparent;font-size:13px;text-align:right;padding:2px"';
+  var h = '', tot = 0, cnt = 0, num = 0, lastDt = null;
+  _btSel.forEach(function(s, i){
+    var o = saBatchRowFor(s); if(!o) return;
+    if (s.dt !== lastDt){
+      lastDt = s.dt; num = 0;
+      h += '<tr style="background:#e8f6ec"><td colspan="10" class="txt" style="text-align:left"><b>📅 '+esc(s.dt)+'</b> 전표 — '+perDt[s.dt]+'건 <span style="color:#5a6b7a">— 이 일자로 저장됩니다</span></td>'
+        + '<td><span style="color:#c0392b;cursor:pointer;font-weight:700;white-space:nowrap" title="'+esc(s.dt)+' 전표로 담은 줄 모두 빼기" onclick="saBatchDelDtOf(\''+esc(s.dt)+'\')">✖</span></td></tr>';
+    }
+    num++; cnt++; tot += n(o.totAmt) * (o.trxGb==='반품' ? -1 : 1);
+    /* 매칭코드로 담은 줄 — 주코드를 보여주고 매칭코드는 그 밑에 작게(명세 그리드와 같은 표기, 2026-08-06 요청) */
+    h += '<tr'+(o.trxGb==='반품' ? ' style="color:#c0392b"' : '')+'><td>'+num+'</td>'
+      /* ▲▼ 순서 조정 — 코드 앞 (2026-08-06 요청). 같은 일자(전표) 안에서만 움직인다 */
+      + '<td style="white-space:nowrap">'
+      +   '<span style="cursor:pointer;color:#37475a" title="한 줄 위로" onclick="saBatchSelMove('+i+',-1)">▲</span>'
+      +   '<span style="cursor:pointer;color:#37475a" title="한 줄 아래로" onclick="saBatchSelMove('+i+',1)">▼</span></td>'
+      /* 상품코드 표기는 본 명세 그리드와 동일 (2026-08-06 확정) — 주코드 위, 매칭코드는 아래 작게 🔖 */
+      + '<td>'+esc(o.prodCd)
+      +   (o.extCd ? '<div style="font-size:11px;color:#274b8f;margin-top:1px;white-space:nowrap" title="거래처가 부르는 품목코드 (매칭코드)로 넣었습니다">🔖 '+esc(o.extCd)+'</div>' : '')
+      + '</td><td class="txt" style="text-align:left">'+esc(o.prodNm)+'</td>'
+      + '<td class="txt">'+ (o.packQty?('['+fmt(o.packQty)+']'):'') + esc(o.spec||'') +'</td>'
+      + '<td><input inputmode="numeric" '+inp+' value="'+n(o.boxQty)+'" onchange="saBatchSelSet('+i+',\'boxQty\',this.value)"></td>'
+      + '<td><input inputmode="numeric" '+inp+' value="'+n(o.eaQty)+'" onchange="saBatchSelSet('+i+',\'eaQty\',this.value)"></td>'
+      + '<td class="num">'+fmt(o.qty)+'</td>'
+      + '<td><input inputmode="decimal" '+inp+' value="'+fmtP(o.unitPrice)+'" onchange="saBatchSelSet('+i+',\'unitPrice\',this.value)"></td>'
+      + '<td class="num">'+fmt(o.totAmt)+'</td>'
+      + '<td><span style="color:#c0392b;cursor:pointer;font-weight:700" title="빼기" onclick="saBatchSelDel('+i+')">✖</span></td></tr>';
+  });
+  h += '<tr style="background:#137a6c;color:#fff;font-weight:800"><td colspan="9">■ 합계 '+cnt+'건 · 전표 '+Object.keys(perDt).length+'장</td><td class="num">'+fmt(tot)+'</td><td></td></tr>';
+  tb.innerHTML = h;
+  saBatchInfo();
+}
+function saBatchSelDel(i){
+  _btSel.splice(i,1);
+  saBatchRender(); saBatchSelRender();
+}
+/* ▲▼ 순서 조정 — 같은 일자(전표) 안에서만 옮긴다 */
+function saBatchSelMove(i, d){
+  var j = i + d;
+  if (j < 0 || j >= _btSel.length) return;
+  if (_btSel[i].dt !== _btSel[j].dt) return;
+  var t = _btSel[i]; _btSel[i] = _btSel[j]; _btSel[j] = t;
+  saBatchRender(); saBatchSelRender();
+}
+function saBatchDelDtOf(d){
+  _btSel = _btSel.filter(function(s){ return s.dt!==d; });
+  saBatchRender(); saBatchSelRender();
+}
+function saBatchDelAll(){
+  if (!_btSel.length) { swAlert('담은 내용이 없습니다.'); return; }
+  swConfirm('담을 내용 '+_btSel.length+'건을 모두 비울까요?', null, '전체 초기화').then(function(ok){
+    if(!ok) return;
+    _btSel = [];
+    saBatchRender(); saBatchSelRender();
+  });
+}
+/* [일괄저장] — 등록일자별로 전표 한 장씩 바로 저장. 팝업 유지, 명세 그리드는 건드리지 않는다 */
+function saBatchApply(){
+  var venCd = document.getElementById('saVenNm').dataset.cd || '';
+  if (!venCd) { swErr('거래처를 먼저 선택하세요.'); return; }
+  var venNm = document.getElementById('saVenNm').value || '';
+  var entries = _btSel.map(function(s){ var r = saBatchRowFor(s); return r ? { s:s, row:r } : null; }).filter(Boolean);
+  if (!entries.length) { swErr('담을 상품을 체크하세요.'); return; }
+  var dts = [], byDt = {};
+  entries.forEach(function(e){
+    if (dts.indexOf(e.s.dt) < 0) dts.push(e.s.dt);
+    (byDt[e.s.dt] = byDt[e.s.dt] || []).push(e);
+  });
+  /* [같은 일자 전표에 합치기]는 2026-08-06 사용자 요청으로 제거 — 항상 별도 전표로 추가한다.
+     (같은 일괄저장 안의 같은 일자 체크분은 어차피 한 전표로 묶인다) */
+  Promise.all(dts.map(function(d){
+    return post('/mangr/salesTrxList.do','fromDt='+encodeURIComponent(d)+'&toDt='+encodeURIComponent(d)+'&findData='+encodeURIComponent(venNm))
+      .then(function(r){return r.json();})
+      .then(function(j){
+        var ex = ((j&&j.data)||[]).filter(function(o){ return String(o.custNm||'')===venNm; });
+        if (!ex.length) return '';
+        var sum = 0; ex.forEach(function(o){ sum += n(o.totAmt); });
+        return '<br><span style="font-size:13px;color:#c0392b">⚠ '+d+' 에 이미 전표 '+ex.length+'건 ('+fmt(sum)+'원) — 별도 전표로 추가됩니다.</span>';
+      }).catch(function(){ return ''; });
+  })).then(function(exArr){
+    var brk = dts.map(function(d){ return d+' '+byDt[d].length+'건'; }).join(' · ');
+    var msg = '총 '+entries.length+'건을 <b>일자별 전표 '+dts.length+'장</b>으로 바로 저장할까요?'
+      + '<br><span style="font-size:13px;color:#3d4d5c">'+esc(brk)+'</span>' + exArr.join('');
+    return swConfirm(msg, null, '일괄저장');
+  }).then(function(ok){
+    if(!ok) return;
+    var jobs = [];
+    entries.forEach(function(e){
+      if (e.s.t !== 1) return;
+      if (e.s.unitPrice != null) return;   /* 단가를 직접 고친 줄은 그 값 그대로 */
+      jobs.push(post('/mangr/salesLastPrice.do','prodCd='+encodeURIComponent(e.row.prodCd)+'&remark='+encodeURIComponent(venCd))
+        .then(function(r){return r.json();}).then(function(j){ if(j&&j.data){ e.row.unitPrice=n(j.data); saCalcRow(e.row); } })
+        .catch(function(){}));
+    });
+    var made = [];                       /* 저장된 전표 [일자 · 번호] — 완료 알림에 보여 준다 */
+    function saveOne(k){
+      if (k >= dts.length) return Promise.resolve();
+      var d = dts[k], grp = byDt[d].map(function(e){ return e.row; });
+      return post('/mangr/salesTrxNextNo.do','saleDt='+encodeURIComponent(d))
+        .then(function(r){ return r.json(); }).then(function(j){ return (j&&j.data)||'0001'; })
+        .catch(function(){ return '0001'; })
+        .then(function(no){
+          var t = {box:0, ea:0, qty:0, sup:0, vat:0, tot:0, svc:0};
+          grp.forEach(function(o){
+            var sg = (o.trxGb==='반품') ? -1 : 1;
+            t.box+=n(o.boxQty)*sg; t.ea+=n(o.eaQty)*sg; t.qty+=n(o.qty)*sg;
+            t.sup+=n(o.supplyAmt)*sg; t.vat+=n(o.vatAmt)*sg; t.tot+=n(o.totAmt)*sg; t.svc+=n(o.serviceQty);
+          });
+          var dto = {
+            saleSeq:null, saleDt:d, dlvDt:d, saleNo:no,
+            custCd:venCd, custNm:venNm,
+            mgrCd: document.getElementById('saMgrNm').dataset.cd||'', mgrNm: document.getElementById('saMgrNm').value||'',
+            whCd:'', whNm: document.getElementById('saWhNm').value||'물류창고',
+            totBoxQty:t.box, totEaQty:t.ea, totQty:t.qty,
+            supplyAmt:t.sup, vatAmt:t.vat, totAmt:t.tot, dcAmt:0,
+            payGb: document.getElementById('saPayGb').value||'외상', payAmt:0,
+            taxGb:'과세', remark:'', items: grp
+          };
+          return post('/mangr/salesTrxSave.do', dto, true)
+            .then(function(r){ return r.text().then(function(t2){ if(!r.ok) throw new Error(d+' — '+t2); made.push(d+' · 전표 '+no+' ('+grp.length+'건)'); }); });
+        })
+        .then(function(){ return saveOne(k+1); });
+    }
+    Promise.all(jobs).then(function(){ return saveOne(0); }).then(function(){
+      swOk('일자별 전표 '+dts.length+'장, 총 '+entries.length+'건을 저장했습니다.'
+        + '<br><span style="font-size:12.5px;color:#3d4d5c">'+made.join('<br>')+'</span>');
+      _btSel = []; _btDays = null;
+      if (_btTab === 2) saBatchLoad2(); else saBatchRender();
+      saBatchSelRender(); saBatchDtHint();
+      saLoad(); saVenBal(venCd);            /* 하단 목록·현잔고·원장 갱신 — 명세 그리드는 건드리지 않는다 */
+    }).catch(function(e){
+      swErr('저장 중 오류가 났습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)
+        + '<br>이미 저장된 일자 전표는 하단 목록에서 확인하세요.</span>');
+      saLoad();
+    });
+  });
 }
 
 /* 거래처 상품 판매 단가 이력 — 품명을 클릭하면 뜬다.
@@ -1871,6 +2407,8 @@ function saPinBlur(){ setTimeout(saPinClose, 150); }
     else if (e.key === 'Escape' && !e.isComposing){
       var p = document.getElementById('saProdPop');
       if (p && p.classList.contains('on')) { e.preventDefault(); saProdClose(); }
+      var b = document.getElementById('saBatchPop');
+      if (b && b.classList.contains('on')) { e.preventDefault(); saBatchClose(); }
     }
   });
 })();

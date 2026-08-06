@@ -2969,7 +2969,7 @@
 	<select id="selectCustDayDetail" parameterType="egovframework.sejong.user.model.SettleTrxDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT z.gb AS gb, z.gbNm AS gbNm, z.dt AS dt, z.docNo AS docNo, z.place AS place,
 	         z.itemCd AS itemCd, z.itemNm AS itemNm,
-	         z.qty AS qty, z.price AS price, z.amt AS amt, z.remark AS remark
+	         z.qty AS qty, z.price AS price, z.amt AS amt, z.remark AS remark, z.extCd AS extCd
 	    FROM (
 	          -- ① 출고(정산서) — 거래처마스터 DC_CD 로 이어진다
 	          SELECT 'SALE' AS gb, N'출고(정산서)' AS gbNm,
@@ -2979,7 +2979,7 @@
 	                 ISNULL(s.DC_NM,'') AS place,
 	                 ISNULL(s.ITEM_CD,'') AS itemCd, ISNULL(s.ITEM_NM,'') AS itemNm,
 	                 ISNULL(s.OUT_QTY,0) AS qty, ISNULL(s.SALE_PRICE,0) AS price, ISNULL(s.SALE_AMT,0) AS amt,
-	                 ISNULL(s.UNIT,'') AS remark
+	                 ISNULL(s.UNIT,'') AS remark, '' AS extCd
 	            FROM TBL_SALES_MST s
 	            CROSS APPLY (
 	                  SELECT CASE WHEN ISNULL(s.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s.DC_CD)))
@@ -3009,7 +3009,7 @@
 	                 ISNULL(t2.WH_NM,''),
 	                 ISNULL(d2.PROD_CD,''), ISNULL(d2.PROD_NM, N'(명세 없음)'),
 	                 ISNULL(d2.QTY,0), ISNULL(d2.UNIT_PRICE,0), ISNULL(d2.TOT_AMT, t2.TOT_AMT),
-	                 ISNULL(d2.REMARK, ISNULL(t2.REMARK,''))
+	                 ISNULL(d2.REMARK, ISNULL(t2.REMARK,'')), ISNULL(d2.EXT_CD,'')
 	            FROM TBL_SALES_TRX_MST t2
 	            LEFT JOIN TBL_SALES_TRX_DTL d2 ON d2.SALE_SEQ = t2.SALE_SEQ AND d2.ACTION_YN = 'Y' AND d2.COMP_CD = t2.COMP_CD
 	           WHERE t2.ACTION_YN = 'Y' AND t2.CUST_CD = #{custCd,jdbcType=VARCHAR}
@@ -3024,7 +3024,7 @@
 	                 ISNULL(m.WH_NM,''),
 	                 ISNULL(d.PROD_CD,''), ISNULL(d.PROD_NM, N'(명세 없음)'),
 	                 ISNULL(d.QTY,0), ISNULL(d.UNIT_PRICE,0), ISNULL(d.TOT_AMT, m.TOT_AMT),
-	                 ISNULL(d.REMARK, ISNULL(m.REMARK,''))
+	                 ISNULL(d.REMARK, ISNULL(m.REMARK,'')), ''
 	            FROM TBL_PURCHASE_MST m
 	            LEFT JOIN TBL_PURCHASE_DTL d ON d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN = 'Y' AND d.COMP_CD = m.COMP_CD
 	           WHERE m.ACTION_YN = 'Y' AND m.VENDOR_CD = #{custCd,jdbcType=VARCHAR}
@@ -3040,7 +3040,7 @@
 	                 ISNULL(t.ACCT_NM, ISNULL(t.PAY_GB,'')),
 	                 '', ISNULL(t.PAY_GB, N'(구분 없음)'),
 	                 0, 0, ISNULL(t.AMT,0),
-	                 ISNULL(t.REMARK,'')
+	                 ISNULL(t.REMARK,''), ''
 	            FROM TBL_SETTLE_TRX t
 	           WHERE t.ACTION_YN = 'Y' AND t.CUST_CD = #{custCd,jdbcType=VARCHAR}
 	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -3188,7 +3188,7 @@
 	         d.UNIT_PRICE AS unitPrice, d.AMT AS amt, d.DC_AMT AS dcAmt,
 	         d.SUPPLY_AMT AS supplyAmt, d.VAT_AMT AS vatAmt, d.TOT_AMT AS totAmt,
 	         d.SERVICE_QTY AS serviceQty, d.REMARK AS remark, d.EVENT_YN AS eventYn,
-	         d.TRX_GB AS trxGb, d.LEDGER_SEQ AS ledgerSeq
+	         d.TRX_GB AS trxGb, d.LEDGER_SEQ AS ledgerSeq, d.EXT_CD AS extCd
 	    FROM TBL_SALES_TRX_DTL d
 	   WHERE d.ACTION_YN = 'Y' AND d.SALE_SEQ = #{saleSeq}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -3254,17 +3254,19 @@
 
 	<insert id="insertSalesTrxDtl" parameterType="egovframework.sejong.user.model.SalesTrxDtlDTO"
 	        useGeneratedKeys="true" keyProperty="dtlSeq" keyColumn="DTL_SEQ"><![CDATA[
+	  -- EXT_CD (2026-08-06 신설) : 매칭코드로 판매한 줄의 거래처 매칭코드. 원코드 판매는 NULL.
+	  --   ★적용 전 운영DB에 docs/sql/sales_trx_dtl_extcd_alter.sql 을 먼저 실행할 것(칼럼 없으면 저장이 통째로 실패한다)
 	  INSERT INTO TBL_SALES_TRX_DTL
 	    (COMP_CD, SALE_SEQ, ROW_NO, PROD_SEQ, PROD_CD, PROD_NM, SPEC, PACK_QTY, BOX_QTY, EA_QTY, QTY,
 	     UNIT_PRICE, AMT, DC_AMT, SUPPLY_AMT, VAT_AMT, TOT_AMT, SERVICE_QTY, REMARK, EVENT_YN,
-	     TRX_GB, LEDGER_SEQ, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	     TRX_GB, LEDGER_SEQ, EXT_CD, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
 	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{saleSeq}, #{rowNo}, #{prodSeq,jdbcType=INTEGER}, #{prodCd,jdbcType=VARCHAR}, #{prodNm,jdbcType=NVARCHAR},
 	     #{spec,jdbcType=NVARCHAR}, #{packQty,jdbcType=DECIMAL}, #{boxQty,jdbcType=DECIMAL}, #{eaQty,jdbcType=DECIMAL},
 	     #{qty,jdbcType=DECIMAL}, #{unitPrice,jdbcType=DECIMAL}, #{amt,jdbcType=DECIMAL}, #{dcAmt,jdbcType=DECIMAL},
 	     #{supplyAmt,jdbcType=DECIMAL}, #{vatAmt,jdbcType=DECIMAL}, #{totAmt,jdbcType=DECIMAL},
 	     #{serviceQty,jdbcType=DECIMAL}, #{remark,jdbcType=NVARCHAR}, #{eventYn,jdbcType=CHAR},
-	     #{trxGb,jdbcType=VARCHAR}, #{ledgerSeq,jdbcType=INTEGER},
+	     #{trxGb,jdbcType=VARCHAR}, #{ledgerSeq,jdbcType=INTEGER}, #{extCd,jdbcType=NVARCHAR},
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
 	]]></insert>
 
