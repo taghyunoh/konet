@@ -163,6 +163,11 @@
   .btn-line { background:#fff; color:#37475a; border:1px solid var(--logi-border); border-radius:6px; padding:8px 14px; font-size:13px; cursor:pointer; }
   .btn-line:hover { background:#eef3f2; }
   .btn-teal:disabled, .btn-line:disabled { opacity:.42; cursor:not-allowed; }
+  /* 재고현황 ① 선택행 — 클래스 하나로 표시한다(2026-08-06).
+     행마다 인라인 style 을 지우고 다시 넣으면 그때마다 화면이 다시 계산돼 껌벅인다. */
+  #stkStatusWrap tbody tr.stk-on td { background:#e6f4f1 !important; }
+  #stkStatusWrap tbody tr { cursor:pointer; }
+  #stkLedgerBody { will-change:opacity; }
   .btn-teal:disabled:hover { background:var(--logi-teal); }
   .btn-line:disabled:hover { background:#fff; }
 
@@ -1529,6 +1534,7 @@
   var _stkRows=[], STK_PAGE=10;
   function _fmtYmd(s){ s=(''+(s||'')); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : s; }
   function stkStatusLoad(){
+    _stkLedCache={};   // 새로 조회하면 수불내역 캐시도 버린다(출고 반영분을 놓치지 않게)
     var q=(document.getElementById('stkSrch')||{}).value||'', ctx='${pageContext.request.contextPath}';
     var asOf=(document.getElementById('stkAsOf')||{}).value||'';
     var lbl=document.getElementById('stkAsOfLbl'); if(lbl) lbl.textContent = asOf ? ('기준일 '+asOf+' 까지 (기말)') : '전체 (현재고)';
@@ -1627,25 +1633,121 @@
     var open=(f.style.display==='none');
     f.style.display=open?'':'none'; s.style.display=open?'none':'';
   }
+  /* 하단 ②수불내역을 부를 때마다 1 씩 올린다 — 늦게 도착한 옛 응답이 새 선택을
+     덮어써서 '엉뚱한 품목이 잠깐 보이는' 현상을 막는다. */
+  var _stkLedSeq = 0;
   function stkLedgerDetail(prodSeq, el){
-    // 선택행 하이라이트
-    var wrap=document.getElementById('stkStatusWrap'); if(wrap){ var trs=wrap.querySelectorAll('tbody tr'); for(var k=0;k<trs.length;k++) trs[k].style.background=''; }
-    if(el){ el.style.background='#e6f4f1'; }
+    /* 선택행 하이라이트 — 전 행을 돌며 인라인 style 을 지우면 그때마다 화면이 다시 계산돼
+       행이 많을수록 눈에 띄게 껌벅인다. 직전 선택 하나만 벗긴다(2026-08-06 지적). */
+    var wrap=document.getElementById('stkStatusWrap');
+    if(wrap){ var prev=wrap.querySelector('tbody tr.stk-on'); if(prev){ prev.classList.remove('stk-on'); prev.style.background=''; } }
+    if(el){ el.classList.add('stk-on'); el.style.background='#e6f4f1'; }
     if(!prodSeq){ document.getElementById('stkLedgerHead').innerHTML='<span style="color:#c0392b">이 품목은 수불원장 키가 없어 내역을 조회할 수 없습니다.</span>'; document.getElementById('stkLedgerBody').innerHTML=''; return; }
     var ctx='${pageContext.request.contextPath}', row=null;
     for(var i=0;i<_stkRows.length;i++){ if((_stkRows[i].prodSeq||0)==prodSeq){ row=_stkRows[i]; break; } }
-    document.getElementById('stkLedgerHead').innerHTML='<span style="color:#9aa7b3">불러오는 중…</span>';
+    var myTurn = ++_stkLedSeq;
+    /* ★껌벅임 해결 (2026-08-06 지적) —
+       종전엔 머리줄을 '불러오는 중…' 한 줄로 갈아치웠다. 그래서 누를 때마다 제목이
+       사라졌다 나타나고, 응답이 오면 표가 훌쩍 뛰었다.
+       이제 : ① 제목·품명은 이미 손에 있는 상단 행 자료로 **즉시** 그린다(기다릴 이유가 없다)
+              ② 본문은 지우지 않고 살짝 흐리게만 — 자리가 그대로라 표가 안 뛴다
+              ③ 응답이 오면 흐림만 풀고 본문을 바꾼다 */
+    var hd=document.getElementById('stkLedgerHead'), bd=document.getElementById('stkLedgerBody');
+    hd.innerHTML='<div style="font-weight:800;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_cesc(row?row.prodCd:'')+' <span style="font-weight:400;color:#37475a">'+_cesc(row?row.prodNm:'')+'</span></div>'
+      + '<div style="color:#9aa7b3;font-size:14px;white-space:nowrap;margin-left:20px;margin-right:34px;padding-left:20px;border-left:1px solid #dbe2ea">불러오는 중…</div>';
+    /* ★한 번 본 품목은 다시 부르지 않는다 (2026-08-06 속도 확인) —
+         ↑↓ 로 목록을 훑을 때 같은 줄을 오가는 일이 잦은데, 그때마다 서버를 부르면
+         50~200ms 씩 기다린다. 캐시가 있으면 그리기만 하므로 눈에 띄게 빨라진다.
+       ★캐시는 [조회]·[새로고침] 때 비운다(stkStatusLoad) — 출고가 반영되면 옛 값이 남으면 안 된다. */
+    if(_stkLedCache[prodSeq]){
+      _stkLedRaw=_stkLedCache[prodSeq]; _stkLedRow=row;
+      if(bd) bd.style.opacity='1';
+      var _t0=(window.performance&&performance.now)?performance.now():0;
+      _stkLedPaint();
+      _stkLedLog(prodSeq, -1, _t0);
+      return;
+    }
+    if(bd){ bd.style.transition='opacity .12s'; bd.style.opacity='.45'; }
+    var _tReq=(window.performance&&performance.now)?performance.now():0;
     fetch(ctx+'/prod/stockList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'prodSeq='+encodeURIComponent(prodSeq) })
-      .then(function(r){ return r.text(); }).then(function(t){ var j; try{ j=JSON.parse(t); }catch(e){ swAlert('수불 내역 응답 오류','error'); return; }
-        var rows=(j&&j.data)||[];
+      .then(function(r){ return r.text(); }).then(function(t){
+        if(myTurn!==_stkLedSeq) return;                 // 그새 다른 행을 눌렀다 — 이 응답은 버린다
+        var _tGot=(window.performance&&performance.now)?performance.now():0;
+        if(bd) bd.style.opacity='1';
+        var j; try{ j=JSON.parse(t); }catch(e){ swAlert('수불 내역 응답 오류','error'); return; }
+        /* 서버는 전 기간을 한 번에 준다. 받은 것을 그대로 들고 있다가 화면에서 기간만 잘라 쓴다
+           — 기간 버튼(1/2/3/6개월·전체)을 눌러도 다시 조회하지 않아 즉시 바뀐다(2026-08-06 요청). */
+        _stkLedRaw = (j&&j.data)||[];
+        _stkLedCache[prodSeq] = _stkLedRaw;
+        _stkLedRow = row;
+        _stkLedPaint();
+        _stkLedLog(prodSeq, _tGot-_tReq, _tGot);
+      }).catch(function(e){
+        if(myTurn!==_stkLedSeq) return;
+        if(bd) bd.style.opacity='1';
+        swAlert('통신오류: '+e.message,'error');
+      });
+  }
+
+  /* ── ②수불내역 기간 (2026-08-06 요청) ────────────────────────────────
+       기본 1개월. 오래된 품목은 수백 건이 한꺼번에 나와 최근 흐름이 안 보였다.
+       ★서버 재조회 없이 화면에서만 자른다 — 버튼을 눌러도 기다림이 없다. */
+  /* _stkLedMon : 몇 개월치를 보여 줄지. **0 = 전체**
+       기본값 변경 이력(2026-08-06) : 1개월 → 2개월 → 12개월 → **전체**(최종).
+       인덱스 추가로 서버가 100ms 안쪽으로 빨라져 전체를 봐도 느리지 않다. */
+  var _stkLedRaw=[], _stkLedRow=null, _stkLedMon=0;
+  /* 품목별 수불내역 캐시 — [조회]·[새로고침] 때 비운다(stkStatusLoad) */
+  var _stkLedCache={};
+  /* 속도 확인용 로그 (2026-08-06) — F12 콘솔에 찍힌다.
+       서버 : 응답까지 걸린 시간 (캐시면 '캐시')
+       그리기 : 받은 뒤 화면에 뿌리는 데 걸린 시간
+     둘 중 어느 쪽이 느린지 이걸로 가른다 — 느리다는 느낌만으로는 고칠 곳을 몸른다. */
+  function _stkLedLog(prodSeq, ms, t0){
+    if(!window.console||!console.log) return;
+    var t1=(window.performance&&performance.now)?performance.now():0;
+    var draw=(t0&&t1)?Math.round(t1-t0):0;
+    console.log('[수불내역] prodSeq='+prodSeq
+      +' · 서버 '+(ms<0?'캐시(0ms)':Math.round(ms)+'ms')
+      +' · 그리기 '+draw+'ms'
+      +' · 전체 '+_stkLedRaw.length+'건');
+  }
+  function stkLedMon(m){
+    _stkLedMon = m;
+    var box=document.getElementById('stkLedMonBox');
+    if(box){ var b=box.querySelectorAll('button');
+      for(var i=0;i<b.length;i++) b[i].className = (String(b[i].getAttribute('data-m'))===String(m)) ? 'btn-teal' : 'btn-line'; }
+    _stkLedPaint();
+  }
+  /* 기준일 = 오늘에서 m개월 전 (YYYYMMDD 문자열로 비교 — trxDt 가 그 형식이다) */
+  function _stkLedCut(){
+    if(!_stkLedMon) return '';
+    var d=new Date(); d.setMonth(d.getMonth()-_stkLedMon);
+    return d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);
+  }
+  function _stkLedPaint(){
+    var row=_stkLedRow, hd=document.getElementById('stkLedgerHead'), bd=document.getElementById('stkLedgerBody');
+    if(!hd||!bd) return;
+    var cut=_stkLedCut();
+    var rows = cut ? _stkLedRaw.filter(function(l){ return String(l.trxDt||'').replace(/-/g,'') >= cut; }) : _stkLedRaw;
+    {
         var tIn=0,tOut=0,tAmt=0; rows.forEach(function(l){ var q=+l.qty||0; if(l.ioGb==='O') tOut+=q; else tIn+=q; tAmt+=(+l.amt||0); });
         var neg=(row&&+row.curQty<0);
-        var head='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin:2px 0 8px">'
-               +   '<div style="font-weight:800;font-size:15px">'+_cesc(row?row.prodCd:'')+' <span style="font-weight:400;color:#37475a">'+_cesc(row?row.prodNm:'')+'</span></div>'
-               +   '<div style="color:#37475a;font-size:12.5px;white-space:nowrap">'
-               +     '입고계 <b style="color:#137a6c">'+_cnum(tIn)+'</b> · 출고계 <b style="color:#b06a00">'+_cnum(tOut)+'</b> · 현재고 <b style="color:'+(neg?'#c0392b':'#137a6c')+'">'+_cnum(row?row.curQty:(tIn-tOut))+'</b>'
-               +     ' · 이동평균단가 '+_cnum(row?row.avgInPrice:0)+' · 재고금액 '+_cnum(row?row.stockAmt:0)+' · 총 <b>'+rows.length+'</b>건</div>'
-               +   '</div>';
+        /* ★바깥 div 없이 두 조각만 넣는다 — stkLedgerHead 자체가 이미
+             제목과 같은 줄에 서 있는 flex 줄이다(2026-08-06 한 줄 통합). */
+        var head=  '<div style="font-weight:800;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_cesc(row?row.prodCd:'')+' <span style="font-weight:400;color:#37475a">'+_cesc(row?row.prodNm:'')+'</span></div>'
+               /* 요약 수치는 이 화면에서 가장 자주 읽는 값이라 조금 키웠다 12.5 → 14px (2026-08-06 요청).
+                  ★품목명 바로 옆에 붙어 어디까지가 이름이고 어디부터가 수치인지 헷갈렸다 —
+                    왼쪽에 여백 + 세로 구분선을 둬 눈으로 갈리게 한다(2026-08-06 지적). */
+               +   '<div style="color:#37475a;font-size:14px;white-space:nowrap;margin-left:20px;margin-right:34px;padding-left:20px;border-left:1px solid #dbe2ea">'
+               /* ★기간을 앞에 밝힌다 — 입고계·출고계·건수는 '이 기간' 것이고
+                    현재고·이동평균단가·재고금액은 언제나 '전체' 기준이다. 안 적어 두면
+                    "입고계 0 인데 현재고가 왜 있지?" 로 읽힌다(2026-08-06 기간 도입). */
+               /* 기간 라벨('전체 기간'/'최근 N개월')은 뻐다(2026-08-06 요청) —
+                  오른쪽 기간 버튼이 바로 옆에 눈에 띄게 눌려 있어 중복이다. */
+               +     '입고계 <b style="color:#137a6c">'+_cnum(tIn)+'</b> · 출고계 <b style="color:#b06a00">'+_cnum(tOut)+'</b> · <b>'+rows.length+'</b>건'
+               +     ' <span style="color:#9aa7b3">|</span> 현재고 <b style="color:'+(neg?'#c0392b':'#137a6c')+'">'+_cnum(row?row.curQty:(tIn-tOut))+'</b>'
+               +     ' · 이동평균단가 '+_cnum(row?row.avgInPrice:0)+' · 재고금액 '+_cnum(row?row.stockAmt:0)+'</div>'
+               +   '';
         var thead='<thead><tr><th>일자</th><th>품목코드</th><th>구분</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>매입처</th><th>사업장</th><th>근거구분</th><th>근거번호</th><th>비고</th><th>등록일시</th><th>등록자</th></tr></thead>';
         var body= rows.length ? rows.map(function(l){
             var io=_IOGB[l.ioGb]||l.ioGb, isOut=(l.ioGb==='O');
@@ -1667,10 +1769,15 @@
               +'<td>'+_cesc(l.remark||'')+'</td>'
               +'<td style="color:#9aa7b3">'+_cesc(l.regDttm||'')+'</td>'
               +'<td style="color:#9aa7b3">'+_cesc(l.regUser||'')+'</td></tr>';
-          }).join('') : '<tr><td colspan="13" style="text-align:center;color:#9aa7b3;padding:20px">수불 내역이 없습니다. (이 품목은 입고/출고 원장 기록이 없음)</td></tr>';
-        document.getElementById('stkLedgerHead').innerHTML=head;
-        document.getElementById('stkLedgerBody').innerHTML='<table class="logi-tb">'+thead+'<tbody>'+body+'</tbody></table>';
-      }).catch(function(e){ swAlert('통신오류: '+e.message,'error'); });
+          }).join('')
+          /* 기간을 좁혀 비었을 때와, 원장 자체가 없을 때를 구분해 안내한다 —
+             똑같이 '없습니다' 라고만 하면 기간 탓인 줄 모르고 자료가 없다고 오해한다. */
+          : (_stkLedRaw.length
+              ? '<tr><td colspan="13" style="text-align:center;color:#9aa7b3;padding:20px">최근 <b>'+_stkLedMon+'개월</b> 안에는 수불 내역이 없습니다. (전체 <b>'+_stkLedRaw.length+'</b>건 — 위 기간 버튼을 넓혀 보세요)</td></tr>'
+              : '<tr><td colspan="13" style="text-align:center;color:#9aa7b3;padding:20px">수불 내역이 없습니다. (이 품목은 입고/출고 원장 기록이 없음)</td></tr>');
+        hd.innerHTML=head;
+        bd.innerHTML='<table class="logi-tb">'+thead+'<tbody>'+body+'</tbody></table>';
+    }
   }
   /* ①품목별 현재고 — 10행씩 + 자동 스크롤(2026-07-25 요청).
        아래에 ②수불 내역 패널이 붙어 있어 이 표는 10행이면 한 화면에 둘 다 들어온다.
@@ -1712,14 +1819,78 @@
     var el=document.getElementById('stkSrch'); if(el) el.value=cd||'';
     stkStatusLoad();
   }
+  /* ── 키보드로 목록 넘기기 (2026-08-06 요청) ─────────────────────────
+       마우스 휠로만 움직이던 두 표를 키보드로도 다룰 수 있게 한다.
+       · ①재고현황 : ↑↓ = 한 줄씩 **선택** 이동(아래 ②수불내역도 따라 바뀐다)
+                     PageUp/PageDown/Home/End = 화면 단위 스크롤
+       · ②수불내역 : 방향키·Page·Home/End 모두 브라우저 기본 스크롤
+       ★div 는 tabindex 가 없으면 키를 못 받는다 — 위 마크업에 tabindex=0 을 넣은 이유.
+       ★행을 눌렀을 때 그 표에 초점을 줘야 곧바로 방향키가 먹는다(안 그러면 한 번 더 눌러야 한다). */
+  function _stkKeyBind(){
+    var w=document.getElementById('stkStatusWrap');
+    if(!w || w._keyBound) return;
+    w._keyBound=true;
+
+    /* 행을 누르면 그 표에 초점 — 클릭 직후 바로 ↑↓ 로 이어 갈 수 있게 */
+    w.addEventListener('click', function(){ try{ w.focus({preventScroll:true}); }catch(e){ w.focus(); } });
+
+    w.addEventListener('keydown', function(e){
+      var k=e.key;
+      if(k!=='ArrowDown' && k!=='ArrowUp' && k!=='Enter') return;   // Page/Home/End 는 브라우저에 맡긴다
+      var rows=w.querySelectorAll('tbody tr[onclick]');
+      if(!rows.length) return;
+      var cur=-1;
+      for(var i=0;i<rows.length;i++){ if(rows[i].classList.contains('stk-on')){ cur=i; break; } }
+      if(k==='Enter'){ if(cur>=0) rows[cur].click(); return; }
+      e.preventDefault();                       // 표 안에서 움직일 때 페이지가 같이 스크롤되지 않게
+      var next = (cur<0) ? 0 : cur + (k==='ArrowDown' ? 1 : -1);
+      if(next<0) next=0;
+      if(next>rows.length-1){
+        /* 마지막 줄에서 더 내리면 — 아직 안 그린 다음 묶음이 있으면 스크롤을 바닥으로 밀어
+           lzMount 가 이어 그리게 하고, 이번 키는 흘려보낸다(다음 키부터 새 줄로 간다). */
+        w.scrollTop = w.scrollHeight;
+        next = rows.length-1;
+      }
+      var tr=rows[next]; if(!tr) return;
+      tr.click();                                // 선택 표시 + ②수불내역 갱신은 기존 경로 그대로
+      if(tr.scrollIntoView) tr.scrollIntoView({block:'nearest'});
+    });
+
+    /* ②수불내역도 키보드로 — 여기는 선택 개념이 없어 브라우저 기본 스크롤이면 충분하다.
+       클릭하면 초점만 준다. */
+    var b=document.getElementById('stkLedgerBody');
+    if(b && !b._keyBound){ b._keyBound=true;
+      b.addEventListener('click', function(){ try{ b.focus({preventScroll:true}); }catch(e){ b.focus(); } });
+    }
+  }
+  /* 이 품목에 매칭코드가 붙어 있나 (2026-08-06 요청 — 상단 [매칭코드 있는 것만] 체크용).
+       두 방향을 다 본다 : 이 코드에 매칭코드가 달린 경우(정방향) + 이 코드 자체가
+       남의 매칭코드인 경우(역방향, 화면에 '주코드 …' 로 뜨는 행). 화면에서 매칭코드 칸이
+       '-' 가 아닌 행 = 여기서 true 인 행이라, 눈에 보이는 것과 결과가 어긋나지 않는다. */
+  function _stkHasAlias(prodCd){
+    var k=String(prodCd||'').trim();
+    if(_stkAlias && (_stkAlias[k]||[]).length) return true;
+    if(_stkAliasRev && (_stkAliasRev[k]||[]).length) return true;
+    return false;
+  }
   function stkAliasCell(prodCd){
+    var BSQ="\\'";   // onclick 안 따옴표 이스케이프용(역슬래시+홈따옴표)
     if(!_stkAlias) return '<span style="color:#c8ced4">…</span>';
     var key=String(prodCd||'').trim();
     var l=_stkAlias[key]||[];
     if(l.length){
       // 두 개까지만 칸에 쓰고 나머지는 +N — 툴팁에는 전부(코드 · 거래처 품명 · 출처)
       var tip=l.map(function(o){ return o.cd+(o.nm?(' · '+o.nm):'')+' ('+o.via+')'; }).join('&#10;');
-      var show=l.slice(0,2).map(function(o){ return _cesc(o.cd); }).join(', ');
+      /* 매칭코드마다 돋보기를 붙인다 — 그 코드로 목록을 다시 조회한다(2026-08-06 요청).
+           ★코드 글자 자체는 링크가 아니다 — 칸이 넓어 행을 고르려다 눈릀 검색되는 일을 막기 위해,
+             주코드 칸과 같은 규칙으로 '돋보기만' 누르게 했다. */
+      var show=l.slice(0,2).map(function(o){
+        var a=_cesc(o.cd).replace(/'/g,BSQ).replace(/"/g,'&quot;');
+        return _cesc(o.cd)
+             + ' <a href="javascript:void(0)" onclick="stkSrchGo(\''+a+'\', event)"'
+             +   ' title="'+_cesc(o.cd)+' 로 목록을 다시 조회합니다"'
+             +   ' style="color:#137a6c;text-decoration:none;font-size:11.5px">🔍</a>';
+      }).join(', ');
       return '<span title="'+tip.replace(/"/g,'&quot;')+'" style="cursor:help">'+show
         + (l.length>2 ? (' <b style="color:#274b8f">+'+(l.length-2)+'</b>') : '') + '</span>';
     }
@@ -1727,19 +1898,26 @@
        ★같은 코드가 여러 주코드에 붙어 있을 수 있어 첫 건만 칸에 쓰고 나머지는 +N(툴팁에 전부). */
     var rl=(_stkAliasRev&&_stkAliasRev[key])||[];
     if(rl.length){
-      var tipR='이 코드는 아래 주코드의 매칭코드로 등록되어 있습니다.&#10;(클릭 → 주코드로 재조회)&#10;'
+      var tipR='이 코드는 아래 주코드의 매칭코드로 등록되어 있습니다.&#10;'
              + rl.map(function(o){ return '　' + o.cd + (o.nm?(' · '+o.nm):'') + ' ('+o.via+')'; }).join('&#10;');
       var one=rl[0];
       var arg=_cesc(one.cd).replace(/'/g,"\\'").replace(/"/g,'&quot;');
-      return '<a href="javascript:void(0)" onclick="stkSrchGo(\''+arg+'\', event)"'
-        +    ' title="'+tipR.replace(/"/g,'&quot;')+'"'
-        +    ' style="color:#274b8f;font-weight:800;text-decoration:none">🔖 주코드 '+_cesc(one.cd)+'</a>'
-        + (rl.length>1 ? (' <b style="color:#274b8f">+'+(rl.length-1)+'</b>') : '');
+      /* ★글자는 '표시'일 뿐 — 누르면 다른 칸과 똑같이 그 행이 선택된다(②수불내역 표시). (2026-08-06 지적)
+           종전에는 '주코드 9900112233' 글자 전체가 재조회 링크였다. 칸이 넓어서 행을 고르려고
+           누를 때 번번이 걸려, 검색어 칸에 코드가 박히고 목록이 통째로 바뀌어
+           '내가 검색한 적 없는데 검색된' 상태가 됐다. 재조회는 뒤의 돋보기 아이콘만 한다. */
+      return '<span title="'+tipR.replace(/"/g,'&quot;')+'"'
+        +    ' style="color:#274b8f;font-weight:800">🔖 주코드 '+_cesc(one.cd)+'</span>'
+        + (rl.length>1 ? (' <b style="color:#274b8f">+'+(rl.length-1)+'</b>') : '')
+        + ' <a href="javascript:void(0)" onclick="stkSrchGo(\''+arg+'\', event)"'
+        +    ' title="이 주코드로 목록을 다시 조회합니다"'
+        +    ' style="color:#137a6c;text-decoration:none;font-size:12px;margin-left:3px">🔍</a>';
     }
     return '<span style="color:#c8ced4">-</span>';
   }
 
   function stkStatusRender(){
+    _stkKeyBind();   // 표를 그릴 때마다 확인(내부에서 한 번만 건다)
     var wrap=document.getElementById('stkStatusWrap'), sum=document.getElementById('stkStatusSum'), pg=document.getElementById('stkStatusPager');
     /* '거래처코드' 칸 = 이 재고가 어떤 거래처 코드들로 합쳐진 것인지 (2026-08-01 요청).
        재고는 언제나 우리 코드 하나로 합산되는데, 그러면 "이 수량이 어느 코드로 들어온 건지" 를 볼 수가 없다.
@@ -1747,9 +1925,21 @@
     /* ★칸 이름은 '매칭코드' — '거래처코드' 라고 하면 아래 수불내역의 매입처(00272 같은 거래처 코드)와 헷갈린다(2026-08-01 지적) */
     /* ★칸 폭 160px — '🔖 주코드 9904013265' 가 한 줄에 들어가야 한다(2026-08-02) */
     var thead='<thead><tr><th>품목코드</th><th>품목명</th><th style="width:160px" title="이 품목에 붙어 있는 거래처 코드(매칭·연결).&#10;&#10;반대로 이 행의 품목코드 자체가 남의 매칭코드이면 [🔖 주코드 …] 로 표시됩니다 — 매칭 전 출고가 거래처 코드로 잡힌 행입니다. 클릭하면 주코드로 다시 조회합니다.">매칭코드</th><th style="text-align:right">입고</th><th style="text-align:right">출고</th><th style="text-align:right">현재고</th><th style="text-align:right">이동평균단가</th><th style="text-align:right">재고금액</th><th>최근입고</th><th>최근출고</th></tr></thead>';
-    var tI=0,tO=0,tQ=0,tA=0; _stkRows.forEach(function(r){ tI+=(+r.inQty||0); tO+=(+r.outQty||0); tQ+=(+r.curQty||0); tA+=(+r.stockAmt||0); });
+    /* [매칭코드 있는 것만] 체크 (2026-08-06 요청) — 합계·건수도 걸러 낸 것만 센다.
+       ★매칭코드 자료(_stkAlias)는 목록보다 늦게 도착한다. 아직 없으면 거르지 않는다 —
+         안 그러면 화면이 잠깐 텅 비어 '자료가 없다'로 오해하게 된다. */
+    var _onlyA = (function(){ var c=document.getElementById('stkOnlyAlias'); return !!(c && c.checked); })();
+    var _aliasReady = !!_stkAlias;
+    var view = (_onlyA && _aliasReady) ? _stkRows.filter(function(r){ return _stkHasAlias(r.prodCd); }) : _stkRows;
+    var tI=0,tO=0,tQ=0,tA=0; view.forEach(function(r){ tI+=(+r.inQty||0); tO+=(+r.outQty||0); tQ+=(+r.curQty||0); tA+=(+r.stockAmt||0); });
+    if(_onlyA && _aliasReady && !view.length){
+      sum.innerHTML='<b style="color:#b06a00">매칭코드가 등록된 품목이 없습니다.</b> (체크를 풀면 전체가 보입니다)';
+      wrap.innerHTML=''; if(pg) pg.innerHTML=''; return;
+    }
     if(!_stkRows.length){ sum.textContent='현재고 데이터가 없습니다. (입고 수불 등록 또는 출고(SHIPOUT) 발생 시 표시)'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
-    sum.innerHTML='총 <b>'+_stkRows.length.toLocaleString()+'</b>품목 · 입고합 <b>'+_cnum(tI)+'</b> · 출고합 <b>'+_cnum(tO)+'</b> · 현재고합 <b>'+_cnum(tQ)+'</b> · 재고금액합 <b>'+_cnum(tA)+'</b>';
+    sum.innerHTML=(_onlyA ? (_aliasReady ? '<b style="color:#b06a00">매칭코드 있는 것만</b> · '
+                                        : '<span style="color:#9aa7b3">매칭코드 불러오는 중…</span> · ') : '')
+      +'총 <b>'+view.length.toLocaleString()+'</b>품목 · 입고합 <b>'+_cnum(tI)+'</b> · 출고합 <b>'+_cnum(tO)+'</b> · 현재고합 <b>'+_cnum(tQ)+'</b> · 재고금액합 <b>'+_cnum(tA)+'</b>';
     var totalRow='<tr class="close-total"><td colspan="3" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tI)+'</td><td style="text-align:right">'+_cnum(tO)+'</td><td style="text-align:right">'+_cnum(tQ)+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td><td></td></tr>';
     var stkRow=function(r){ var neg=(+r.curQty||0)<0;
       return '<tr style="cursor:pointer" onclick="stkLedgerDetail('+(r.prodSeq||0)+', this)" title="클릭 → 아래 ② 수불 내역(근거) 표시"><td>'+_cesc(r.prodCd)+'</td><td class="txt-l">'+_cesc(r.prodNm)+'</td>'
@@ -1762,7 +1952,7 @@
     };
     lzMount({ wrap:wrap, pager:'stkStatusPager', rows:STK_PAGE, capTop:300,
               head:'<table class="logi-tb">'+thead+'<tbody>'+totalRow,
-              list:_stkRows, rowFn:stkRow });
+              list:view, rowFn:stkRow });
   }
   // 창고별 세부 로케이션 더미 데이터 (s: empty=빈자리, use=사용중, full=만재)
   var WH_DATA = {
@@ -2806,7 +2996,15 @@
           <%-- ★버튼 폭을 flex:1 로 나눠 주면 '전월말' 이 세 글자라 칸이 모자라 글자가 세로로 쪼개진다(2026-08-01 지적).
                  내용만큼만 차지하게 두고 white-space:nowrap 으로 줄바꿈을 막는다. --%>
           <div class="fld" style="flex:0 0 auto"><label>&nbsp;</label>
-            <div style="display:flex; gap:4px">
+            <%-- ★체크와 버튼을 같은 flex 줄에 둔다 (2026-08-06 지적) — 따로 .fld 로 두면
+                   글자 높이가 달라 체크만 살짝 위로 떠 보인다. 같은 줄이면 어긋날 수가 없다.
+                 매칭코드 체크는 다시 조회하지 않는다 — 받아 둔 목록을 화면에서 거를 뿐이라 즉시 바뀐다. --%>
+            <div style="display:flex; gap:4px; align-items:center">
+              <label style="display:flex;align-items:center;gap:5px;height:34px;margin-right:8px;white-space:nowrap;cursor:pointer;font-size:13px;font-weight:700;color:#37475a"
+                     title="매칭코드(또는 주코드)가 등록된 품목만 보여 줍니다. 조회를 다시 하지 않고 화면에서만 거릅니다.">
+                <input type="checkbox" id="stkOnlyAlias" onchange="stkStatusRender()" style="width:15px;height:15px;cursor:pointer">
+                매칭코드 있는 것만
+              </label>
               <button class="btn-line" style="white-space:nowrap; padding:0 12px" onclick="stkAsOfClear()" title="기준일을 비웁니다 — 지금 이 순간의 재고">전체</button>
               <button class="btn-line" style="white-space:nowrap; padding:0 12px" onclick="stkAsOfSet(0)" title="오늘 자정까지 반영된 재고">오늘</button>
               <button class="btn-line" style="white-space:nowrap; padding:0 12px" onclick="stkAsOfSet(-1)" title="지난달 말일 기준 재고 — 월말 재고 확인용">전월말</button>
@@ -2828,13 +3026,34 @@
             집계 <b id="stkStamp" style="color:#178074">—</b> · 행 클릭 → ② 수불내역
           </span>
         </div>
-        <div id="stkStatusWrap" style="max-height:46vh; overflow:auto"></div>
+        <%-- ★높이를 두 줄만큼 줄였다 (2026-08-06 요청) — 그만큼 아래 ②수불내역이 올라온다.
+               한 줄 ≈ 34px 라 68px 를 미리 뺀다. 줄 수가 아니라 높이만 줄이므로
+               목록 자체는 그대로고 스크롤로 이어서 본다. 되돌리려면 calc 를 빼고 46vh 로. --%>
+        <div id="stkStatusWrap" tabindex="0" style="max-height:calc(46vh - 68px); overflow:auto; outline:none"></div>
         <div class="close-pager" id="stkStatusPager"></div>
       </div>
-      <div class="card" style="margin-top:10px">
-        <div style="font-weight:800;font-size:13.5px;color:#1f2a37;margin:2px 0 4px;border-left:4px solid #b06a00;padding-left:9px">② 선택 품목 수불 내역 <span class="badge b-done" style="margin-left:4px">근거</span> <span style="font-weight:400;font-size:11.5px;color:#9aa7b3;margin-left:6px" title="TBL_STOCK_LEDGER — 이 품목을 이루는 개별 입·출고 거래">현재고의 근거</span></div>
-        <div id="stkLedgerHead" style="color:#6b7a89;padding:8px 2px 10px">위 ① 표에서 <b>품목을 클릭</b>하면 그 품목의 수불 내역이 여기에 표시됩니다.</div>
-        <div id="stkLedgerBody" style="max-height:210px; overflow:auto"></div>
+      <%-- ★머리를 한 줄로 (2026-08-06 요청) — 종전에는 [제목] / [품목명] / [요약] 이
+           서로 다른 줄에 있어 세 줄을 잡아먹고 그만큼 표가 아래로 밀렸다.
+           한 줄에 모아 그만큼 표를 위로 올린다(카드 여백도 10→6px). --%>
+      <div class="card" style="margin-top:6px">
+        <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin:0 0 6px">
+          <div style="font-weight:800;font-size:13.5px;color:#1f2a37;border-left:4px solid #b06a00;padding-left:9px;white-space:nowrap">② 선택 품목 수불 내역 <span class="badge b-done" style="margin-left:4px">근거</span></div>
+          <%-- 제목과 같은 줄에 서야 하므로 flex 로 둘을 양 끝으로 밀어 놓는다 --%>
+          <div id="stkLedgerHead" style="flex:1 1 auto; min-width:0; display:flex; justify-content:space-between; align-items:baseline; gap:12px; color:#6b7a89">위 ① 표에서 <b>품목을 클릭</b>하면 그 품목의 수불 내역이 여기에 표시됩니다.</div>
+          <%-- 기간 (2026-08-06 요청) — 기본 1개월. 오래된 품목은 수백 건이 한꺼번에 나와
+                 최근 흐름이 안 보였다. ★서버 재조회 없이 화면에서만 자르므로 즉시 바뀐다. --%>
+          <div id="stkLedMonBox" style="display:flex; gap:3px; white-space:nowrap">
+            <%-- ★처음 누렸던 상태(btn-teal)는 위 _stkLedMon 기본값과 반드시 같아야 한다 —
+                   어긋나면 다른 버튼이 눌린 듯 보이는데 실제로는 다른 기간이 나온다 --%>
+            <button class="btn-line" data-m="1"  style="padding:0 9px;height:26px;font-size:12px" onclick="stkLedMon(1)">1개월</button>
+            <button class="btn-line" data-m="2"  style="padding:0 9px;height:26px;font-size:12px" onclick="stkLedMon(2)">2개월</button>
+            <button class="btn-line" data-m="3"  style="padding:0 9px;height:26px;font-size:12px" onclick="stkLedMon(3)">3개월</button>
+            <button class="btn-line" data-m="6"  style="padding:0 9px;height:26px;font-size:12px" onclick="stkLedMon(6)">6개월</button>
+            <button class="btn-line" data-m="12" style="padding:0 9px;height:26px;font-size:12px" onclick="stkLedMon(12)">12개월</button>
+            <button class="btn-teal" data-m="0"  style="padding:0 9px;height:26px;font-size:12px" onclick="stkLedMon(0)" title="이 품목의 전 기간 수불 내역">전체</button>
+          </div>
+        </div>
+        <div id="stkLedgerBody" tabindex="0" style="max-height:210px; overflow:auto; outline:none"></div>
       </div>
     </section>
 
