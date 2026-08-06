@@ -15,6 +15,8 @@
       사업장이 아직 없으면(출고자료에만 있는 신규) 자동 등록 후 저장(biziParcelUpdate.do)
     · 엑셀 9칼럼: A=받는분 · C=주소 · D=전화 · E=휴대폰 · G=운임 · I=품목명 (B/F/H 빈칸),
       시트명=MMDD. ★박스수만큼 행 반복(원양식이 같은 줄을 박스 수대로 되풀이한다 — 송장 1박스 1줄)
+    · ★머리글 줄과 출고일자 칸은 넣지 않는다(2026-08-06 확정) — 택배사 양식에 그대로 붙여 쓰려고
+      원양식(머리글 없는 9칸)을 지킨다. 화면 목록에는 출고일자가 그대로 있다.
 -->
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; }
@@ -274,17 +276,15 @@ function poExcelMake(){
   /* 시트명·파일명 = 시작일자 기준(기간이면 '0806-0808' 로) */
   var dt = document.getElementById('outFr').value, dt2 = document.getElementById('outTo').value;
   var mmdd = dt.slice(5,7)+dt.slice(8,10) + (dt2 && dt2!==dt ? '-'+dt2.slice(5,7)+dt2.slice(8,10) : '');
-  /* 머리글 한 줄 (2026-08-06 요청) — 원양식은 머리글이 없었으나, 무슨 칸인지 알아보게 붙인다.
-     칸 순서·개수(9칸)는 원양식 그대로 — 택배사 양식에 맞춰 쓰려면 이 줄만 지우면 된다. */
-  /* 원양식 9칸 + 맨 뒤에 출고일자 (2026-08-06 요청) — 앞 9칸 순서는 그대로 두어야
-     택배사 양식에 그대로 붙여 쓸 수 있다. 그래서 새 칸은 10번째(J)에 붙인다. */
-  var aoa = [[ '받는분', '', '주소', '전화번호', '휴대폰', '', '운임', '', '품목명', '출고일자' ]];
+  /* ★머리글 줄·출고일자 칸 없음 (2026-08-06 재요청) — 원양식(9칸, 머리글 없음) 그대로 만든다.
+     한때 머리글 한 줄과 10번째(J) 출고일자 칸을 붙였으나, 택배사 양식에 그대로 붙여 쓰려면
+     군더더기 없이 자료 줄만 있어야 한다. 다시 붙이자는 얘기가 나오면 이 이력부터 확인할 것. */
+  var aoa = [];
   var cnt = 0;
   /* ★체크를 푼 줄(o.off)은 빼고 만든다 (2026-08-06 요청) */
   ROWS.filter(function(o){ return !o.off; }).forEach(function(o){
     var fee = n(o.fee) || 4500;
-    var od  = (''+(o.outDt||'')); od = od.length===8 ? od.slice(0,4)+'-'+od.slice(4,6)+'-'+od.slice(6,8) : od;
-    var line = [ o.bizNm||'', '', o.addr||'', o.tel||'', o.hp||'', '', fee, '', o.itemNm||'', od ];
+    var line = [ o.bizNm||'', '', o.addr||'', o.tel||'', o.hp||'', '', fee, '', o.itemNm||'' ];
     for (var b=0; b<Math.max(1, n(o.boxQty)); b++) { aoa.push(line.slice()); cnt++; }
   });
   /* 색·테두리를 넣으려면 스타일 지원본(xlsx-js-style)이 필요하다 — 출고장별 엑셀과 같은 방식.
@@ -292,24 +292,20 @@ function poExcelMake(){
   poLoadStyleXlsx(function(LIBS){
     var LIB = LIBS || XLSX, styled = !!LIBS;
     var ws = LIB.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:24},{wch:4},{wch:46},{wch:14},{wch:14},{wch:4},{wch:8},{wch:4},{wch:44},{wch:12}];
-    ws['!freeze'] = { xSplit:0, ySplit:1 };   /* 머리글 줄 고정 */
+    ws['!cols'] = [{wch:24},{wch:4},{wch:46},{wch:14},{wch:14},{wch:4},{wch:8},{wch:4},{wch:44}];
     if (styled) {
-      /* 색상은 다른 화면(출고장별 엑셀)과 같은 계열 — 머리글 연녹 배경·초록 글자, 본문은 얇은 구분선 */
+      /* 색상은 다른 화면(출고장별 엑셀)과 같은 계열 — 머리글이 없으므로 본문 구분선만 */
       var LINE = { style:'thin', color:{ rgb:'DFE6E3' } };
       var box  = { top:LINE, bottom:LINE, left:LINE, right:LINE };
-      var HEAD = { fill:{ fgColor:{ rgb:'E3F4EF' } }, font:{ color:{ rgb:'137A6C' }, bold:true },
-                   alignment:{ horizontal:'center', vertical:'center' }, border:box };
       var CELL = { alignment:{ vertical:'center' }, border:box };
       var NUM  = { alignment:{ horizontal:'right', vertical:'center' }, border:box };
       for (var r=0; r<aoa.length; r++){
-        for (var c=0; c<10; c++){
+        for (var c=0; c<9; c++){
           var ref = LIB.utils.encode_cell({ r:r, c:c });
           if (!ws[ref]) ws[ref] = { t:'s', v:'' };          // 빈 칸도 테두리가 이어지게
-          ws[ref].s = (r===0) ? HEAD : (c===6 ? NUM : CELL);
+          ws[ref].s = (c===6 ? NUM : CELL);
         }
       }
-      ws['!rows'] = [{ hpt:22 }];                            // 머리글 줄 높이
     }
     var wb = LIB.utils.book_new();
     LIB.utils.book_append_sheet(wb, ws, mmdd);

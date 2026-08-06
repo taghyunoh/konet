@@ -137,6 +137,9 @@ public interface UserMapper {
 	int resolveSalesProdExt(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	int resolveShipoutProdDirect(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 3차 : 코드 직결(거래처 코드 = 우리 코드)
 	int resolveSalesProdDirect(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	// 되돌려 붙이기 : 직결로 이미 붙은 행을 매칭코드의 주코드로 (2026-08-06 — 매칭코드를 늦게 등록한 과거분)
+	int repointShipoutProdExt(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int repointSalesProdExt(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	java.util.List<String> selectShipoutDatesByProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 소급 재고반영 대상 출고일자
 
 	/* ===== 거래처 통보품목 — TBL_EXT_ITEM_MST (2026-08-01) =====
@@ -168,6 +171,7 @@ public interface UserMapper {
 	int deleteShipoutLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;  // 특정 출고일자 SHIPOUT 파생 O행 삭제
 	int insertShipoutLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;  // 특정 출고일자 활성 SHIPOUT → O행 생성
 	int recalcStockMstAll(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;    // 전체 품목 현재고 재집계
+	int zeroOrphanStockMst(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;  // 원장에서 사라진 품목의 캐시 0으로
 	java.util.List<String> selectShipoutDates() throws Exception;                                 // 활성 SHIPOUT의 출고일자 목록(전체 재집계용)
 	java.util.List<String> selectClosedYmList() throws Exception;                                 // 마감 확정월(YYYYMM) 목록
 

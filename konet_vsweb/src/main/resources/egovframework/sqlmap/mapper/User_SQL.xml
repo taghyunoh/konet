@@ -2524,6 +2524,22 @@
          'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
 	]]></update>
 
+	<!-- (A) 원장에서 사라진 품목의 캐시 0으로 (2026-08-06)
+	     위 MERGE 는 원장에 남아 있는 품목만 손댄다(WHEN NOT MATCHED BY SOURCE 없음).
+	     매칭코드로 출고를 주코드로 옮기면 옛 코드는 원장에서 통째로 빠지는데, 캐시표에는 옛 수량이
+	     그대로 남아 점검화면 '④ 재고 음수' 에 유령으로 계속 떴다.
+	     ★행을 지우지는 않는다 — 단가(AVG_IN_PRICE)·이력은 남겨 두고 수량·금액만 0으로. -->
+	<update id="zeroOrphanStockMst" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	  UPDATE t
+	     SET t.CUR_QTY = 0, t.STOCK_AMT = 0,
+	         t.UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), t.UPD_USER = #{regUser,jdbcType=NVARCHAR}, t.UPD_IP = #{regIp,jdbcType=NVARCHAR}
+	    FROM TBL_STOCK_MST t
+	   WHERE t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')
+	     AND ISNULL(t.CUR_QTY,0) <> 0
+	     AND NOT EXISTS ( SELECT 1 FROM TBL_STOCK_LEDGER l
+	                       WHERE l.PROD_SEQ = t.PROD_SEQ AND l.COMP_CD = t.COMP_CD AND l.ACTION_YN = 'Y' )
+	]]></update>
+
 	<!-- 원장 누계로 현재고 재집계 (INSERT/DELETE 후 호출). 없으면 생성(MERGE) -->
 	<update id="recalcStockMst" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
 	  MERGE TBL_STOCK_MST AS t
@@ -3853,6 +3869,62 @@
 
 	<!-- 소급 반영용 — 매핑을 뒤늦게 걸면 그동안 밀려 있던 출고분의 재고를 다시 만들어야 한다.
 	     그 품목이 걸린 출고일자만 뽑아 syncShipoutLedgerDate 를 돌린다(전체 재집계는 과하다). -->
+	<!-- ==========================================================================================
+	     매칭코드가 '직결로 이미 붙은' 행을 되돌려 붙인다 (2026-08-06)
+	     ★왜 필요한가 : resolve*Ext 는 `PROD_SEQ IS NULL` 인 행만 채운다. 거래처 코드가 우연히
+	       우리 상품마스터에도 있으면 3차 '코드 직결' 이 먼저 그 코드 자신에게 붙여 버리고,
+	       나중에 매칭코드(주코드)를 등록해도 과거분이 그대로 남는다
+	       → 매입은 주코드에, 출고는 거래처 코드에 갈라져 재고가 음수로 보인다.
+	       (실제 사례 : 1000736040 출고 2,999 / 주코드 9904013222 매입 3,195 — 2026-08-06)
+	     ★안전장치 — 사람이 지정한 연결은 절대 건드리지 않는다
+	       · `s.PROD_CD = s.ITEM_CD` : 직결로 붙은 행이라는 표식(XREF·EXT 로 붙었으면 코드가 다르다)
+	       · TBL_PROD_XREF 에 그 코드가 있으면 제외 : XREF(1차) 가 EXT(2차) 보다 우선
+	       · `e.PROD_SEQ <> s.PROD_SEQ` : 실제로 다른 상품을 가리킬 때만 -->
+	<update id="repointShipoutProdExt" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  UPDATE s
+	     SET s.PROD_SEQ = e.PROD_SEQ, s.PROD_CD = e.PROD_CD
+	    FROM TBL_SHIPOUT_MST s
+	    JOIN TBL_EXT_ITEM_MST e
+	      ON  e.COMP_CD = s.COMP_CD
+	     AND  e.ACTION_YN = 'Y'
+	     AND  e.PROD_SEQ IS NOT NULL
+	     AND  e.EXT_ITEM_CD = s.ITEM_CD
+	     AND  ISNULL(e.VENDOR_CD,'') IN ('', ISNULL(s.VENDOR_CD,''))
+	     AND  e.PROD_SEQ <> s.PROD_SEQ
+	   WHERE s.PROD_SEQ IS NOT NULL
+	     AND s.PROD_CD = s.ITEM_CD
+	     AND NOT EXISTS ( SELECT 1 FROM TBL_PROD_XREF x
+	                       WHERE x.COMP_CD = s.COMP_CD AND x.ACTION_YN = 'Y'
+	                         AND x.EXT_ITEM_CD = s.ITEM_CD
+	                         AND ISNULL(x.VENDOR_CD,'') IN ('', ISNULL(s.VENDOR_CD,''))
+	                         AND ISNULL(x.DC_CD,'')     IN ('', ISNULL(s.DC_CD,'')) )
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( #{jobSeq,jdbcType=BIGINT} IS NULL OR s.JOB_SEQ = #{jobSeq,jdbcType=BIGINT} )
+	     AND ( ISNULL(#{dlvDt,jdbcType=NVARCHAR},'') = '' OR s.DLV_DT = REPLACE(#{dlvDt,jdbcType=NVARCHAR},'-','') )
+	     AND ( ISNULL(#{dcCd,jdbcType=NVARCHAR},'')  = '' OR s.DC_CD = #{dcCd,jdbcType=NVARCHAR} )
+	     AND ( #{prodSeq,jdbcType=BIGINT} IS NULL OR e.PROD_SEQ = #{prodSeq,jdbcType=BIGINT} )
+	]]></update>
+
+	<update id="repointSalesProdExt" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	  UPDATE s
+	     SET s.PROD_SEQ = e.PROD_SEQ, s.PROD_CD = e.PROD_CD
+	    FROM TBL_SALES_MST s
+	    JOIN TBL_EXT_ITEM_MST e
+	      ON  e.COMP_CD = s.COMP_CD
+	     AND  e.ACTION_YN = 'Y'
+	     AND  e.PROD_SEQ IS NOT NULL
+	     AND  e.EXT_ITEM_CD = s.ITEM_CD
+	     AND  e.PROD_SEQ <> s.PROD_SEQ
+	   WHERE s.PROD_SEQ IS NOT NULL
+	     AND s.PROD_CD = s.ITEM_CD
+	     AND NOT EXISTS ( SELECT 1 FROM TBL_PROD_XREF x
+	                       WHERE x.COMP_CD = s.COMP_CD AND x.ACTION_YN = 'Y'
+	                         AND x.EXT_ITEM_CD = s.ITEM_CD )
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( #{jobSeq,jdbcType=BIGINT} IS NULL OR s.JOB_SEQ = #{jobSeq,jdbcType=BIGINT} )
+	     AND ( #{prodSeq,jdbcType=BIGINT} IS NULL OR e.PROD_SEQ = #{prodSeq,jdbcType=BIGINT} )
+	]]></update>
+
 	<select id="selectShipoutDatesByProd" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="string"><![CDATA[
 	  SELECT DISTINCT s.SHPOUT_DT
 	    FROM TBL_SHIPOUT_MST s

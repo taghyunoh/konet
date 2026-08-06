@@ -315,13 +315,18 @@ public class UserServiceImpl implements UserService {
 	     붙이기 전에 들어온 출고·정산 행은 PROD_SEQ 가 비어 재고에서 빠져 있다. 저장만 하고 끝내면
 	     "등록했는데 재고가 그대로 · 품목코드(매핑) 화면에 여전히 미매핑으로 남아 있다" 가 된다.
 	   ★상품을 안 고른 줄(prodSeq 없음)은 해석에 쓰이지 않으므로 아무 일도 하지 않는다.
-	   ★재고 재동기화 실패가 매칭코드 저장을 롤백하지 않도록 별도 try — 실패해도 [재고 재집계]로 복구된다. */
+	   ★재고 재동기화 실패가 매칭코드 저장을 롤백하지 않도록 별도 try — 실패해도 [재고 재집계]로 복구된다.
+	   ★repoint* 도 같이 돈다 (2026-08-06) — resolve* 는 '아직 안 붙은' 행만 채우므로,
+	     거래처 코드가 우리 상품마스터에도 있어 3차 직결로 이미 제 코드에 붙어 버린 과거분은
+	     매칭코드를 등록해도 안 옮겨졌다. 그 결과 매입은 주코드·출고는 거래처 코드로 갈려
+	     재고가 음수로 보였다(1000736040 → 주코드 9904013222 사례). */
 	private void extItemRetro(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception {
 		if (dto == null || dto.getProdSeq() == null) return;
 		egovframework.sejong.user.model.ProdXrefDTO f = new egovframework.sejong.user.model.ProdXrefDTO();
 		f.setCompCd(dto.getCompCd());
 		f.setProdSeq(dto.getProdSeq());
-		int back = mapper.resolveShipoutProdExt(f) + mapper.resolveSalesProdExt(f);
+		int back = mapper.resolveShipoutProdExt(f) + mapper.resolveSalesProdExt(f)
+		         + mapper.repointShipoutProdExt(f) + mapper.repointSalesProdExt(f);
 		if (back <= 0) return;
 		try {
 			java.util.List<String> ds = mapper.selectShipoutDatesByProd(f);
@@ -383,7 +388,13 @@ public class UserServiceImpl implements UserService {
 	@Override public int recalcStockMstAll(String regUser, String regIp) throws Exception {
 		egovframework.sejong.user.model.StockLedgerDTO d = new egovframework.sejong.user.model.StockLedgerDTO();
 		d.setRegUser(regUser); d.setRegIp(regIp);
-		return mapper.recalcStockMstAll(d);
+		int n = mapper.recalcStockMstAll(d);
+		/* ★원장에서 사라진 품목의 캐시 0으로 (2026-08-06)
+		   위 MERGE 는 원장에 있는 품목만 갱신한다(WHEN NOT MATCHED BY SOURCE 없음). 매칭코드로
+		   출고를 주코드로 옮기면 옛 코드는 원장에서 통째로 빠지는데, 캐시표에는 옛 수량이 그대로 남아
+		   점검화면 '④ 재고 음수' 에 유령으로 계속 떴다. 재고현황 화면은 원장 직접 집계라 무관. */
+		mapper.zeroOrphanStockMst(d);
+		return n;
 	}
 	/* (A) 화면 버튼: 전체 출고일자를 돌며 원장 O행 재동기화 후 전체 현재고 재집계 (백필 SQL 없이 UI에서 실행) */
 	@Override public int rebuildShipoutLedgerAll(String regUser, String regIp) throws Exception {
@@ -402,6 +413,11 @@ public class UserServiceImpl implements UserService {
 			egovframework.sejong.cmmn.RebuildProgress.set(pk, "품목 해석 중… (거래처 코드 → 우리 품목)", 0, 0);
 			resolveShipoutProd(all);
 			resolveSalesProd(all);
+			/* ★매칭코드를 뒤늦게 등록한 품목 되돌려 붙이기 (2026-08-06)
+			   resolve* 는 안 붙은 행만 채운다. 거래처 코드가 우리 상품마스터에도 있어 3차 직결로
+			   제 코드에 붙어 버린 과거분은 이 버튼으로만 주코드로 옮겨진다. */
+			mapper.repointShipoutProdExt(all);
+			mapper.repointSalesProdExt(all);
 
 			java.util.List<String> ds = mapper.selectShipoutDates();
 			int total = (ds == null) ? 0 : ds.size();

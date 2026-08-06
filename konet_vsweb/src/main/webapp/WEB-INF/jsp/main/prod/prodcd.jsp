@@ -636,7 +636,8 @@ function mcAcBody(){
       var m=MC[i], mp=_byseq[m.prodSeq]||{}, mine=(_mcCur && String(m.prodSeq)===String(_mcCur.prodSeq));
       h+='<div class="ac-w dup nohit">'
         + (mine ? '⚠ 이 상품에 이미 등록된 매칭코드입니다 (중복 등록 안 됨)'
-                : '⚠ 이미 매칭코드로 등록됨 — '+esc(m.prodCd||mp.prodCd||'')+' '+esc(mp.prodNm||''))
+                : ('⚠ 이미 매칭코드로 등록됨 — 주코드 '+esc(m.prodCd||mp.prodCd||'')+' '+esc(mp.prodNm||'')
+                   + ' <span style="color:#9aa7b3">(옮기려면 그 주코드에서 삭제한 뒤 여기에 등록)</span>'))
         + '</div>';
     }
     for(i=0;i<LIST.length;i++){
@@ -736,6 +737,29 @@ function _mcBusy(on){
   var b=document.getElementById('a_addBtn');
   if(b){ b.disabled=on; b.textContent=on?'저장 중…':'＋ 등록'; b.style.opacity=on?'.6':''; }
 }
+/* ★"이미 등록되어 있다는데 이 상품엔 아무것도 없다" (2026-08-06 지적 — 원인은 그 코드를 다른 주코드에 넣어 둔 것)
+     같은 (거래처 + 품목코드)는 표 전체에 한 건뿐이라 서버가 409 로 막는데,
+     하단 표는 **고른 상품 것만** 보여 준다 — 그 코드가 다른 주코드에 붙어 있으면
+     화면은 비어 있는 채 "이미 등록"만 떠서 어디 있는지 알 길이 없었다.
+     → 종전 메시지 뒤에 **어느 주코드에 붙어 있는지**를 붙여 준다(MC = 전 건이라 서버를 더 부르지 않는다). */
+function mcFindDup(cd, ven){
+  var k=String(cd||'').trim().toLowerCase(), v=String(ven||'');
+  for(var i=0;i<MC.length;i++){
+    if(String(MC[i].extItemCd||'').trim().toLowerCase()!==k) continue;
+    if(String(MC[i].vendorCd||'')!==v) continue;      // 거래처가 다르면 별개 코드다
+    return MC[i];
+  }
+  return null;
+}
+/* 종전 메시지 + 붙어 있는 주코드. 상품에 안 붙은 줄(주코드 없음)도 알려 준다 */
+function mcDupMsg(cd, dup){
+  var m='이미 등록된 품목코드입니다 — '+esc(cd);
+  if(!dup) return m;
+  if(String(dup.prodSeq)===String((_mcCur||{}).prodSeq)) return '이 상품에 이미 등록된 품목코드입니다 — '+esc(cd);
+  var p=_byseq[dup.prodSeq]||{};
+  return m + '<br>' + (dup.prodSeq==null ? '주코드에 붙어 있지 않은 코드입니다 ([📋 전체 보기]에서 확인)'
+    : ('주코드 <b>'+esc(dup.prodCd||p.prodCd||'')+'</b> '+esc(dup.prodNm||p.prodNm||'')+' 에 등록돼 있습니다'));
+}
 function mcAdd(){
   if(_mcSaving) return;                      // 저장이 끝날 때까지는 받지 않는다
   if(!_mcCur){ toast('먼저 위 목록에서 상품을 고르세요.','warn'); return; }
@@ -747,12 +771,24 @@ function mcAdd(){
     vendorCd:ven||null, vendorNm:ven?mcVenNm(ven):null,
     notiDt:gv('a_noti')||null, statGb:'신규', remark:gv('a_remark')||null,
     prodSeq:_mcCur.prodSeq, prodCd:_mcCur.prodCd };
+  /* 보내기 전에 전 건에서 찾아 본다 — 있으면 어느 주코드인지까지 적어 돌려준다(서버 호출 없음) */
+  var dup=mcFindDup(cd, ven);
+  if(dup){ toast(mcDupMsg(cd, dup),'warn'); return; }
+  mcSend(dto);
+}
+function mcSend(dto){
+  var cd=dto.extItemCd;
   _mcBusy(true);
   fetch(CTX+'/prod/extItemSave.do', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body:JSON.stringify(dto) })
     .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, status:res.status, t:t}; }); })
     .then(function(r){
       _mcBusy(false);
-      if(!r.ok){ toast((r.t||'').trim()||('등록 실패 (HTTP '+r.status+')'),'err'); return; }
+      if(!r.ok){
+        /* 409 = 서버가 막은 중복. 화면이 들고 있던 MC 가 낡아 미리 못 잡은 경우다
+           (다른 사람이 방금 등록했거나, 목록을 읽은 뒤 바뀐 경우) — 다시 읽어 주코드까지 알려 준다. */
+        if(r.status===409){ mcRecheckDup(dto); return; }
+        toast((r.t||'').trim()||('등록 실패 (HTTP '+r.status+')'),'err'); return;
+      }
       // 연달아 받아 적는 흐름 — 코드·품명·규격·단가만 비우고 거래처·받은날은 남긴다
       _set('a_cd',''); _set('a_nm',''); _set('a_spec',''); _set('a_price','');
       toast('＋ 매칭코드 등록 — '+esc(cd),'ok');
@@ -760,6 +796,18 @@ function mcAdd(){
       mcLoad();
     })
     .catch(function(e){ _mcBusy(false); toast('통신오류: '+e.message,'err'); });
+}
+/* 서버가 409 를 줬는데 화면에선 못 찾았을 때 — 목록을 새로 읽고 다시 찾아 안내한다 */
+function mcRecheckDup(dto){
+  fetch(CTX+'/prod/extItemList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      MC=(j&&j.data)||[]; _mcCnt={};
+      MC.forEach(function(o){ if(o.prodSeq!=null) _mcCnt[o.prodSeq]=(_mcCnt[o.prodSeq]||0)+1; });
+      mcRender();
+      toast(mcDupMsg(dto.extItemCd, mcFindDup(dto.extItemCd, dto.vendorCd||'')),'warn');
+    })
+    .catch(function(){ toast('이미 등록된 품목코드입니다 — '+esc(dto.extItemCd),'err'); });
 }
 function mcDel(seq){
   var o=null; for(var i=0;i<MC.length;i++){ if(String(MC[i].extSeq)===String(seq)){ o=MC[i]; break; } }
