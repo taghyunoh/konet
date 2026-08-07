@@ -71,8 +71,11 @@
        13px · 셀 padding 9px 10px · 실선 격자 · 가운데 정렬 · 연한 헤더(#eef3f2/진한 글자)
        숫자·상품명 등은 아래 개별 규칙으로 우/좌 정렬을 되돌린다 */
   table{ width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap; }
-  thead th{ background:#eef3f2; color:#1f2a37; font-weight:700; border:1px solid var(--bd);
-            padding:9px 10px; text-align:center; position:sticky; top:0; z-index:1; }
+  /* 머리글 — 색을 진하게, 글자도 한 단계 (2026-08-07 요청). 자료 줄(13px)과 같은 톤이라
+     머리글이 표에 묻혀 보였다. 색은 재고현황 ①표·품목코드(매핑) 머리글과 같은 회청색 계열. */
+  thead th{ background:#c8d5e2; color:#1f2a37; font-weight:800; font-size:14px; border:1px solid #a8bacb;
+            box-shadow:inset 0 -2px 0 #5a7a9a;
+            padding:10px 10px; text-align:center; position:sticky; top:0; z-index:1; }
   tbody td{ border:1px solid var(--bd); padding:9px 10px; text-align:center; vertical-align:middle; color:#10161d; }
   tbody tr:hover td{ background:#f3f8f6; }
   tbody tr.prow{ cursor:pointer; }
@@ -150,7 +153,10 @@
   #hv .subbar input, #hv .subbar select{ height:32px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13px; }
   #hv table{ width:100%; border-collapse:collapse; font-size:13px; }
   /* 하단 패널 표도 매출내역과 같은 서식. z-index 없으면 스크롤된 행이 머리글 위로 그려져 '고정 안 된 것'처럼 보인다 */
-  #hv thead th{ background:#eef3f2; color:#1f2a37; border:1px solid var(--bd); padding:9px 10px;
+  /* 하단(이력/재고) 머리글은 청록 — 위 목록과 색을 갈라야 '여기부터 다른 표'라는 게 읽힌다.
+     재고현황의 상단 회청 / 하단 청록 규칙과 같다(2026-08-07). */
+  #hv thead th{ background:#b9ded4; color:#0b4f43; font-weight:800; font-size:14px;
+                border:1px solid #93c7b9; box-shadow:inset 0 -2px 0 #0e6657; padding:10px 10px;
                 text-align:center; position:sticky; top:0; z-index:3; }
   #hv tbody td{ border:1px solid var(--bd); padding:9px 10px; text-align:center; color:#10161d; }
   #hv td.num{ text-align:right; }

@@ -28,7 +28,7 @@
   .cnt{ margin-left:auto; color:#6b7a89; font-size:12.5px; }
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:hidden; }
   table{ width:100%; border-collapse:collapse; font-size:13px; }
-  thead th{ background:#1f2a37; color:#fff; font-weight:700; padding:10px 12px; text-align:left; position:sticky; top:0; }
+  thead th{ background:#b9ded4; color:#0b4f43; font-weight:800; font-size:14px; box-shadow:inset 0 -2px 0 #0e6657; padding:10px 12px; text-align:left; position:sticky; top:0; }
   tbody td{ border-bottom:1px solid #eef1f5; padding:7px 12px; vertical-align:middle; }
   tbody tr:hover td{ background:#f3f8f6; }
   td.code{ font-family:Consolas,monospace; white-space:nowrap; }

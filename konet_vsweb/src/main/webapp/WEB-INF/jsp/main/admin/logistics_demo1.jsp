@@ -180,15 +180,23 @@
   table.d2-tb tr.r-new td { background:#f2fbf8 !important; }
   table.d2-tb tr.r-new td.txt-l { color:#0e6657; }
   table.d2-tb tr.r-chg td { background:#fffdf6 !important; }
-  /* 현재≠직전(수량 차이) 행 — 사업장·품목코드·품목명·현재·직전 칸만 노란색 강조 (No·변동사항 제외) */
-  table.d2-tb tr.item.r-diff td:nth-child(2),
+  /* 현재≠직전(수량 차이) 행 — 사업장·품목코드·품목명·현재·직전 칸만 노란색 강조
+     (No·현재고·변동사항 제외)
+     ★칸 번호가 한 칸씩 밀렸다 (2026-08-07 현재고 열이 No 뒤에 들어왔다) —
+       1=No 2=현재고 3=사업장 4=품목코드 5=품목명 6=현재 7=직전.
+     ★현재고는 일부러 뺀다 (2026-08-07 요청 "노란색에 겹쳐도 기존 색깔 유지") —
+       노랑은 <출고 수량이 직전과 다르다> 는 뜻이라 재고와는 상관이 없고,
+       덮어 칠하면 음수 빨강·양수 초록이 지워져 재고를 못 읽는다. */
   table.d2-tb tr.item.r-diff td:nth-child(3),
   table.d2-tb tr.item.r-diff td:nth-child(4),
   table.d2-tb tr.item.r-diff td:nth-child(5),
-  table.d2-tb tr.item.r-diff td:nth-child(6) { background:#ffe680 !important; color:#1f2a37 !important; }
-  table.d2-tb tr.item.r-diff td:nth-child(5) b,
-  table.d2-tb tr.item.r-diff td:nth-child(6) b { color:#8a5a00 !important; }
+  table.d2-tb tr.item.r-diff td:nth-child(6),
+  table.d2-tb tr.item.r-diff td:nth-child(7) { background:#ffe680 !important; color:#1f2a37 !important; }
+  table.d2-tb tr.item.r-diff td:nth-child(6) b,
+  table.d2-tb tr.item.r-diff td:nth-child(7) b { color:#8a5a00 !important; }
   table.d2-tb tr.r-del td { background:#fbf4f4 !important; color:#b06a66; text-decoration:line-through; text-decoration-color:#d99; }
+  /* 삭제 줄이라도 재고는 지워진 게 아니다 — 취소선·회색을 걷어 원래 색을 지킨다(2026-08-07) */
+  table.d2-tb tr.item.r-del td:nth-child(2) { text-decoration:none; color:inherit; }
   table.d2-tb tr.r-del td.num { color:#b06a66; }
   .d2-empty { padding:38px 20px; text-align:center; color:#6b7a89; font-size:13.5px; }
   .note { font-size:12px; color:#6b7a89; margin-top:8px; }
@@ -426,6 +434,9 @@
   var D2_BASECOLS=[
     {k:'zone', nm:'출고장', f:0.14},
     {k:'no',   nm:'No',    f:0.035},
+    /* 현재고 (2026-08-07 요청 "No 뒤에") — 근거는 재고현황(①)과 같다: 수불원장 입고−출고.
+       여기서 바로 보이면 "이만큼 나가는데 재고는 있나" 를 화면을 옮기지 않고 안다. */
+        {k:'stock',nm:'현재고', f:0.038},
     {k:'biz',  nm:'사업장', f:0.16},
     {k:'code', nm:'품목코드', f:0.075},
     {k:'item', nm:'품목명', f:0.33}
@@ -475,6 +486,66 @@
 
   function d2Pad(n){ return (n<10?'0':'')+n; }
   var D2_TODAY=(function(){ var d=new Date(); return d.getFullYear()+'-'+d2Pad(d.getMonth()+1)+'-'+d2Pad(d.getDate()); })();
+  /* ── 현재고 (2026-08-07 요청) ─────────────────────────────
+       근거를 재고현황(②번째 화면)과 <같은 것>으로 둔다 — 같은 서버 조회를 그대로 부른다.
+       여기서 따로 계산하면 두 화면이 어긋나고, 어느 쪽이 맞는지 아무도 모르게 된다.
+     · 원장(TBL_STOCK_LEDGER) 기준이라 <출고반영된 분>까지 빠져 있는 값이다.
+       아직 재집계하지 않은 업로드분은 안 빠져 있다 — 그때는 재고현황의 [출고반영 재집계] 한 번.
+     · 목록을 기다리게 하지 않는다. 도착하면 표만 다시 그린다(안 왔으면 칸은 비어 있다). */
+  var D2_STOCK=null, D2_MAINCD=null, _d2StkBusy=false;
+  function d2StockLoad(cb){
+    if(D2_STOCK || _d2StkBusy) { if(cb&&D2_STOCK) cb(); return; }
+    _d2StkBusy=true;
+    var left=3, m={}, mc={};
+    function done(){ if(--left) return; D2_STOCK=m; D2_MAINCD=mc; _d2StkBusy=false; if(cb) cb(); }
+    /* ★재고현황(stockStatusList)이 아니라 <가벼운 전용 조회>를 부른다 (2026-08-07 속도개선).
+         근거(수불원장 입고−출고)는 똑같고, 화면에 안 쓰는 extQtys 만 안 만든다.
+         실측 664ms → 29ms. 값이 어긋날 일은 없다 — 같은 원장을 같은 규칙으로 더한다. */
+    fetch(CTX+'/prod/stockQtyMap.do', { method:'POST', credentials:'same-origin',
+            headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ ((j&&j.data)||[]).forEach(function(o){
+              var c=(''+(o.prodCd||'')).trim();
+              if(c) m[c]={ q:(+o.curQty||0), i:(+o.inQty||0) }; }); done(); })
+      .catch(done);
+    /* 매칭코드 → 주코드. 재고는 주코드로만 쌓이므로(원장 PROD_CD) 이 표가 없으면
+       매칭코드 줄은 영영 빈칸이다. '매칭'과 '연결' 둘 다 같은 구실을 하므로 함께 읽는다. */
+    ['/prod/extItemList.do','/prod/xrefList.do'].forEach(function(u){
+      fetch(CTX+u, { method:'POST', credentials:'same-origin',
+              headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+        .then(function(r){ return r.json(); })
+        .then(function(j){ ((j&&j.data)||[]).forEach(function(o){
+                var e=(''+(o.extItemCd||'')).trim(), p=(''+(o.prodCd||'')).trim();
+                if(e && p && !mc[e]) mc[e]=p; }); done(); })
+        .catch(done);
+    });
+  }
+  /* 현재고 칸.
+     · 그 코드로 재고가 잡혀 있으면 그대로.
+     · 매칭코드면 재고가 <주코드>에 있다 — 그 값을 대신 보여주고 어디 재고인지 밝힌다
+       (2026-08-07 "그런 찾아서 -82를 해야할것같은데"). 같은 주코드를 쓰는 줄이 여럿이면
+       같은 숫자가 되풀이되는데, 실제로 같은 재고를 나눠 쓰는 것이므로 그게 맞다.
+     · 어느 쪽도 아니면 '·' — 0으로 쓰면 '재고 없음' 으로 잘못 읽힌다. */
+  /* fld : 'q'=현재고, 'i'=입고. 입고도 재고와 <똑같이> 주코드를 타고 찾는다
+     (2026-08-07 "입고수량도 같이 같은 매칭") — 매입은 언제나 주코드로 들어오므로
+     매칭코드 줄에서 입고를 보려면 주코드 쪽을 볼 수밖에 없다. */
+  function d2StockCell(code, fld){
+    fld = fld || 'q';
+    var c=(''+(code||'')).trim();
+    if(!D2_STOCK || !c) return '<td class="num" style="color:#c3ccd4">·</td>';
+    var o=D2_STOCK[c], main='';
+    if(o==null && D2_MAINCD && D2_MAINCD[c]){ main=D2_MAINCD[c]; o=D2_STOCK[main]; }
+    if(o==null) return '<td class="num" style="color:#c3ccd4" title="이 코드로도, 주코드로도 재고가 잡혀 있지 않습니다.">·</td>';
+    var v=(+o[fld]||0), isQ=(fld==='q');
+    var what = isQ ? '재고' : '입고';
+    var tip = main ? ('이 코드는 매칭코드입니다. '+what+'는 주코드 '+main+' 에 잡혀 있어 그 값을 보여줍니다.')
+                   : '재고현황과 같은 근거(수불원장)입니다.';
+    var col = isQ ? (v<0?'#c0392b':'#137a6c') : '#137a6c';
+    return '<td class="num" style="font-weight:700;color:'+col+'" title="'+d2Esc(tip)+'">'
+         + (v===0 && !isQ ? '<span style="color:#c3ccd4;font-weight:400">0</span>' : d2Num(v))
+         + (main ? ' <span style="font-size:10px;font-weight:400;color:#8a97a3">주</span>' : '')
+         + '</td>';
+  }
   function d2Num(n){ return (Math.round(n||0)).toLocaleString(); }
   function d2Num0(n){ return (Math.round(n||0)===0) ? '' : d2Num(n); }   // 0은 빈칸 표시
   function d2Esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -1640,6 +1711,9 @@
 
   function d2Render(){
     d2LoadingOff();   // 조회 중 안내 해제 (모든 조회 경로가 이 함수로 수렴)
+    /* 현재고는 목록을 기다리게 하지 않는다 — 없으면 그 칸만 '·' 로 두고, 도착하면 한 번 더 그린다.
+       ★재귀 조심 : D2_STOCK 이 채워진 뒤에만 다시 부르므로 두 번째에는 이 가지로 안 들어온다. */
+    if(!D2_STOCK) d2StockLoad(function(){ d2Render(); });
     var ag=d2Aggregate();
     var from=(document.getElementById('d2DateFrom')||{}).value||'';
     var to=(document.getElementById('d2DateTo')||{}).value||'';
@@ -1885,7 +1959,7 @@
       // ▼ 대표그룹 헤더 (데시보드1 lgrp 형태: "▼ 광주물류센터" + "1개 출고장") — 클릭 시 그룹 접기/펼치기
       h+='<tr class="grp" data-g="'+d2Esc(g)+'" onclick="d2ToggleGroup(this.getAttribute(\'data-g\'))" title="클릭하여 그룹 접기/펼치기">'
         +'<td><span class="zcaret">'+(gColl?'▶':'▼')+'</span> '+d2Esc(g)+'</td>'
-        +'<td colspan="4">'+zs.length+'개 '+D2_UNIT+(gColl?' <span style="color:#9aa7b3">— 접힘(클릭하여 펼치기)</span>':'')+'</td>'
+        +'<td colspan="5">'+zs.length+'개 '+D2_UNIT+(gColl?' <span style="color:#9aa7b3">— 접힘(클릭하여 펼치기)</span>':'')+'</td>'
         + slotTotalCells(zs)+'</tr>';
 
       if(!gColl){
@@ -1906,7 +1980,7 @@
             +((D2_VIEW==='zone' && z.dcCd)?'<span class="z-del" title="이 출고장의 해당 출고일자 출고분을 삭제(이력 보존)" data-dt="'+d2Esc(blockDate||from||'')+'" data-cd="'+d2Esc(z.dcCd||'')+'" data-iw="'+d2Esc(z.inwh||'')+'" data-zn="'+d2Esc(zn)+'" onclick="event.stopPropagation(); d2DelZoneFromGrid(this)">🗑️</span>':'')
             +(dl?'<span class="z-dlv">('+d2Esc(dl)+')</span>':'')+'</td>';
           // 출고장 소계(블록 상단) + 차수별 소계
-          h+='<tr class="sub">'+zoneCell+'<td></td><td class="txt-l" colspan="3" data-z="'+d2Esc(zn)+'" '
+          h+='<tr class="sub">'+zoneCell+'<td></td><td></td><td class="txt-l" colspan="3" data-z="'+d2Esc(zn)+'" '
             +'onclick="d2ToggleZone(this.getAttribute(\'data-z\'))" style="cursor:pointer" title="클릭하여 접기/펼치기">소계 '
             +'<span style="color:#9aa7b3">(품목 '+keys.length+'종'+(coll?' — 접힘':'')+')</span>'
             +'</td>'+zoneHeadCells(zn)+'</tr>';
@@ -1916,6 +1990,7 @@
               // 사업장별 뷰: 중복이던 '사업장' 칸을 '출고장' 화살표 콤보박스로 교체(원래 어느 출고장에서 나갔나, 2026-07-24)
               var bizCell=(D2_VIEW==='biz')?d2DistCell(r.ozones,'출고장'):d2Esc(r.biz);
               h+='<tr class="item'+(r.isNew?' r-new':'')+(itemRowChanged(zn,k)?' r-diff':'')+'"><td>'+(ix+1)+'</td>'
+                + d2StockCell(r.code,'q')
                 +'<td class="txt-l">'+bizCell+'</td>'
                 +'<td>'+d2Esc(r.code)+'</td>'
                 +'<td class="txt-l">'+d2Esc(r.name)+'</td>'
@@ -1926,6 +2001,7 @@
             dels.forEach(function(r){
               var rk=delRk(r);
               h+='<tr class="item r-del"><td>–</td>'
+                + d2StockCell(r.code,'q')
                 +'<td class="txt-l">'+((D2_VIEW==='biz')?d2DistCell(r.ozones,'출고장'):d2Esc(r.biz))+'</td>'
                 +'<td>'+d2Esc(r.code)+'</td>'
                 +'<td class="txt-l">'+d2Esc(r.name)+' <span class="hist-badge del">삭제</span></td>'
@@ -1936,7 +2012,7 @@
         });
       }
       // 물류센터 합계 행 (데시보드1 lsub 형태: "광주물류센터 합계") — 상대 슬롯별 합계
-      h+='<tr class="gsub"><td>'+d2Esc(g)+' 합계</td><td colspan="4"></td>'
+      h+='<tr class="gsub"><td>'+d2Esc(g)+' 합계</td><td colspan="5"></td>'
         + slotTotalCells(zs)+'</tr>';
     });
     h+='</tbody>';

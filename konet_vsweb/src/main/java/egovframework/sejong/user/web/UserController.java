@@ -1935,6 +1935,14 @@ public class UserController {
 			response.put("data", svc.selectStockMstList(dto));
 			return response;
 		}
+		/* 출고현황표(대시보드) 전용 — 코드별 재고만. extQtys 를 안 만들어 664ms→29ms (2026-08-07 실측) */
+		@RequestMapping(value="/prod/stockQtyMap.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockQtyMap(@ModelAttribute("DTO") egovframework.sejong.user.model.StockMstDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectStockQtyMap(dto));
+			return response;
+		}
 		/* 마감 확정월 목록 — 재집계 팝업에 '제외되는 마감월' 표시용 */
 		@RequestMapping(value="/prod/closedMonths.do", method = RequestMethod.POST)
 		@ResponseBody

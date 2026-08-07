@@ -85,7 +85,7 @@
   .cb-tit small{ font-weight:600; color:#2b3a48; font-size:12px; }
   .cb-tbwrap{ max-height:calc(100vh - 330px); min-height:220px; overflow:auto; border:1px solid var(--cb-bd); border-radius:8px; }
   table.cb-tb{ width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap; }
-  table.cb-tb th{ background:#eef3f2; border:1px solid var(--cb-bd); padding:6px 8px; position:sticky; top:0; z-index:2; }
+  table.cb-tb th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--cb-bd); padding:6px 8px; position:sticky; top:0; z-index:2; }
   /* ★머리글이 2줄이라 둘째 줄과 합계줄의 sticky 위치를 손으로 내려 준다(안 하면 겹쳐서 가린다) */
   table.cb-tb thead tr:nth-child(2) th{ top:28px; }
   table.cb-tb th.grp{ background:#e3edea; }

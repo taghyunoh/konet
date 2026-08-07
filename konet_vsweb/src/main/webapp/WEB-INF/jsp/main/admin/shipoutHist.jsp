@@ -29,7 +29,7 @@
   /* 목록 — 고정 높이 + 자동 스크롤(매출내역과 같은 방식) */
   .sh-list{ max-height:340px; overflow:auto; border:1px solid var(--sh-bd); border-radius:8px; }
   .sh-list table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
-  .sh-list th{ background:#eef3f2; border:1px solid var(--sh-bd); padding:7px 8px; position:sticky; top:0; z-index:2; }
+  .sh-list th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--sh-bd); padding:7px 8px; position:sticky; top:0; z-index:2; }
   .sh-list td{ border:1px solid var(--sh-bd); padding:6px 8px; text-align:center; }
   .sh-list td.num{ text-align:right; }
   .sh-list td.txt{ text-align:left; }
@@ -47,7 +47,7 @@
   .sh-list tr.ukid td:first-child{ padding-left:22px; }
   .sh-dtl{ max-height:300px; overflow:auto; border:1px solid var(--sh-bd); border-radius:8px; }
   .sh-dtl table{ width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap; }
-  .sh-dtl th{ background:#eef3f2; border:1px solid var(--sh-bd); padding:6px 8px; position:sticky; top:0; z-index:2; }
+  .sh-dtl th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--sh-bd); padding:6px 8px; position:sticky; top:0; z-index:2; }
   .sh-dtl td{ border:1px solid var(--sh-bd); padding:5px 8px; text-align:center; }
   .sh-dtl td.num{ text-align:right; }
   .sh-dtl td.txt{ text-align:left; }

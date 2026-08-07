@@ -406,6 +406,7 @@ public class UserServiceImpl implements UserService {
 		return n;
 	}
 	@Override public java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockMstList(egovframework.sejong.user.model.StockMstDTO dto) throws Exception { return mapper.selectStockMstList(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockQtyMap(egovframework.sejong.user.model.StockMstDTO dto) throws Exception { return mapper.selectStockQtyMap(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.StockLedgerDTO> selectInboundList(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception { return mapper.selectInboundList(dto); }
 	/* (A) 출고(SHIPOUT)→원장 자동연동 : 해당 출고일자 O행을 지우고 활성 SHIPOUT으로 다시 생성. 마감 확정월이면 원장 불변이므로 skip */
 	@Override public int syncShipoutLedgerDate(String shpoutDt, String regUser, String regIp) throws Exception {

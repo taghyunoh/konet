@@ -42,7 +42,7 @@
   /* 스크롤해도 머리글은 남아야 한다. z-index 없으면 행이 머리글 위로 그려진다 */
   .card thead th{ position:sticky; top:0; z-index:3; }
   table{ width:100%; border-collapse:collapse; font-size:13px; font-weight:700; white-space:nowrap; }
-  thead th{ background:#1f2a37; color:#fff; font-weight:700; padding:9px 10px; text-align:left; position:sticky; top:0; z-index:1; }
+  thead th{ background:#b9ded4; color:#0b4f43; font-weight:800; font-size:14px; box-shadow:inset 0 -2px 0 #0e6657; padding:9px 10px; text-align:left; position:sticky; top:0; z-index:1; }
   thead th.r{ text-align:right; }
   tbody td{ border-bottom:1px solid #eef1f5; padding:6px 10px; vertical-align:middle; }
   tbody tr:hover td{ background:#f3f8f6; }
@@ -117,7 +117,7 @@
   #mc table{ width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap; }
   /* 머리글 — 조금 크게·구분색 (2026-08-04 요청). 위 목록의 검은 머리글과 색을 달리해
      '여기부터는 거래처 매칭코드 표'라는 것이 한눈에 갈리게 한다(패널 제목줄의 teal 과 같은 계열). */
-  #mc thead th{ background:#cfe6e1; color:#0f5c52; border:1px solid #b6d6cf; border-bottom:2px solid var(--teal);
+  #mc thead th{ background:#b9ded4; color:#0b4f43; font-weight:800; border:1px solid #b6d6cf; border-bottom:2px solid var(--teal);
                 padding:9px 10px; text-align:left; position:sticky; top:0; z-index:3; font-size:13.5px; font-weight:700; }
   #mc thead th.r{ text-align:right; }
   #mc tbody td{ border:1px solid var(--bd); padding:6px 10px; color:#10161d; }

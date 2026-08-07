@@ -78,7 +78,7 @@
   /* 더미 테이블 */
   table.logi-tb { width:100%; border-collapse:collapse; font-size:13px; }
   table.logi-tb th, table.logi-tb td { border:1px solid var(--logi-border); padding:9px 10px; text-align:center; }
-  table.logi-tb thead th { background:#eef3f2; color:#37475a; }
+  table.logi-tb thead th { background:#b9ded4; color:#0b4f43; font-weight:800; font-size:14px; box-shadow:inset 0 -2px 0 #0e6657; }
   table.logi-tb .loc { font-weight:700; color:var(--logi-teal); }
   table.logi-tb .txt-l { text-align:left; }
 

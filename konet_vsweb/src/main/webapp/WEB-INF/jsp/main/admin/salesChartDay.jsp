@@ -40,7 +40,7 @@
   .sd-canvas{ position:relative; height:330px; }
   .sd-msg{ padding:26px; text-align:center; color:#2b3a48; font-size:13.5px; font-weight:600; }
   table.sd-tb{ width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
-  table.sd-tb th{ background:#eef3f2; border:1px solid var(--sd-bd); padding:6px 8px; position:sticky; top:0; }
+  table.sd-tb th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--sd-bd); padding:6px 8px; position:sticky; top:0; }
   table.sd-tb td{ border:1px solid var(--sd-bd); padding:6px 8px; text-align:right; }
   table.sd-tb td.txt{ text-align:left; }
   table.sd-tb tr.tot td{ background:#137a6c; color:#fff; font-weight:800; }

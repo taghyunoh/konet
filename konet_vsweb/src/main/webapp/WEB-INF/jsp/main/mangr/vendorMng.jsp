@@ -30,7 +30,7 @@
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; }
   #listCard{ min-height:220px; }
   table{ width:100%; border-collapse:collapse; font-size:13px; font-weight:700; white-space:nowrap; }
-  thead th{ background:#1f2a37; color:#fff; font-weight:700; padding:9px 10px; text-align:left; position:sticky; top:0; z-index:1; }
+  thead th{ background:#b9ded4; color:#0b4f43; font-weight:800; font-size:14px; box-shadow:inset 0 -2px 0 #0e6657; padding:9px 10px; text-align:left; position:sticky; top:0; z-index:1; }
   tbody td{ border-bottom:1px solid #eef1f5; padding:6px 10px; vertical-align:middle; }
   tbody tr:hover td{ background:#f3f8f6; }
   tbody tr{ cursor:pointer; }

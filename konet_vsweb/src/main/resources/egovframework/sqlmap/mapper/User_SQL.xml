@@ -2497,6 +2497,22 @@
 	     · 출고(SHIPOUT)는 저장 시 원장에 O행으로 자동기록되므로(REF_GB='SHIPOUT'), 여기서 별도 계산 불필요
 	     · 현재고 = 입고(I+R+A) − 출고(O). 입고 없이 출고만 있으면 음수(입고 누락/불일치 신호)
 	     · 재고마감(selectStockClosing)과 동일 원장 소스 → 두 화면 값 일치 -->
+	<!-- ★출고현황표(대시보드) 전용 — 코드별 재고만 (2026-08-07)
+	       대시보드는 prodCd·inQty·curQty 세 값만 쓰는데, selectStockMstList 를 부르면
+	       화면에 쓰지도 않는 extQtys(매칭코드별 출고를 FOR XML 로 이어붙이는 부분)까지 만든다.
+	     실측 : selectStockMstList 664ms / 이 조회 29ms — 같은 값에 23배 (667행, 3회 최소값)
+	       ※ 재고현황(①표)은 extQtys 가 있어야 하므로 그쪽은 그대로 둔다. 두 화면의 쓰임이 다르다. -->
+	<select id="selectStockQtyMap" parameterType="egovframework.sejong.user.model.StockMstDTO" resultType="egovframework.sejong.user.model.StockMstDTO">
+		SELECT l.PROD_CD AS prodCd,
+		       SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY ELSE 0 END)     AS inQty,
+		       SUM(CASE WHEN l.IO_GB = 'O'            THEN l.QTY ELSE 0 END)     AS outQty,
+		       SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY ELSE -l.QTY END) AS curQty
+		  FROM TBL_STOCK_LEDGER l
+		 WHERE l.ACTION_YN = 'Y'
+		   AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+		 GROUP BY l.PROD_CD
+	</select>
+
 	<select id="selectStockMstList" parameterType="egovframework.sejong.user.model.StockMstDTO" resultType="egovframework.sejong.user.model.StockMstDTO">
 	  SELECT l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, ISNULL(p.PROD_NM,'') AS prodNm,
 	         SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY ELSE 0 END) AS inQty,

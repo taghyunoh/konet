@@ -54,7 +54,7 @@
   .sc-note{ margin-top:8px; font-size:12.5px; color:#1f2a37; line-height:1.7; font-weight:600; }
   .sc-note b{ color:#37475a; }
   table.sc-tb{ width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
-  table.sc-tb th{ background:#eef3f2; border:1px solid var(--sc-bd); padding:6px 8px; }
+  table.sc-tb th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--sc-bd); padding:6px 8px; }
   table.sc-tb td{ border:1px solid var(--sc-bd); padding:6px 8px; text-align:right; }
   table.sc-tb td.txt{ text-align:left; }
   table.sc-tb tr.tot td{ background:#137a6c; color:#fff; font-weight:800; }

@@ -39,7 +39,7 @@
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; }
   /* 글자 한 단계 키움 (2026-08-06 요청) — 13 → 14px, 행 여백도 함께 */
   table{ width:100%; min-width:1280px; border-collapse:collapse; font-size:14px; }
-  thead th{ background:#1f2a37; color:#fff; font-weight:700; padding:10px 8px; font-size:13.5px; text-align:center; position:sticky; top:0; z-index:2; white-space:nowrap; }
+  thead th{ background:#b9ded4; color:#0b4f43; font-weight:800; font-size:14px; box-shadow:inset 0 -2px 0 #0e6657; padding:10px 8px; text-align:center; position:sticky; top:0; z-index:2; white-space:nowrap; }
   tbody td{ border-bottom:1px solid #eef1f5; padding:7px 6px; vertical-align:middle; }
   tbody tr:hover td{ background:#f3f8f6; }
   td.c{ text-align:center; } td.num{ text-align:right; }

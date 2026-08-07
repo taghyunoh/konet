@@ -214,6 +214,18 @@
   /* ①품목별 현재고(상단) — 아래 표들과 구분되게 회청색 */
   #stkStatusWrap table thead th{ background:#c8d5e2; color:#1f2a37; border-color:#a8bacb;
                                  box-shadow:inset 0 -2px 0 #5a7a9a; }
+  /* 품목코드(매핑) 점검표 머리글 (2026-08-07 요청) — 글자를 한 단계 키우고 색을 진하게.
+     자료 줄이 12.5px 라 머리글이 같은 크기·연한 색이면 어디까지가 머리인지 안 갈린다.
+     색은 ①품목별 현재고와 같은 회청색 계열로 맞춰 화면끼리 따로 놀지 않게 한다. */
+  /* 줄 높이도 한 단계 — 머리글이 자료 줄과 같은 높이면 표 위에 얹힌 띠처럼 안 보인다(2026-08-07) */
+  #xaWrap table thead th{ background:#c8d5e2; color:#1f2a37; font-size:14.5px; font-weight:800;
+                          padding:10px 8px; line-height:1.35;
+                          box-shadow:inset 0 -2px 0 #5a7a9a; }
+  /* 고른 줄 표시 (2026-08-07 요청) — 재고현황 ②수불 내역의 선택행과 같은 초록으로 맞춘다.
+     ★!important — ① 미매핑 줄은 인라인으로 분홍(#fff6f6)이 칠해져 있어 그냥은 안 덮인다. */
+  #xaBody tr{ cursor:pointer; }
+  #xaBody tr.xa-on td{ background:#cfeae3 !important; font-weight:700; }
+  #xaBody tr.xa-on td:first-child{ box-shadow: inset 4px 0 0 #137a6c; }
   .btn-teal:disabled:hover { background:var(--logi-teal); }
   .btn-line:disabled:hover { background:#fff; }
 
@@ -266,7 +278,10 @@
   /* 더미 테이블 */
   table.logi-tb { width:100%; border-collapse:collapse; font-size:13px; }
   table.logi-tb th, table.logi-tb td { border:1px solid var(--logi-border); padding:9px 10px; text-align:center; }
-  table.logi-tb thead th { background:#eef3f2; color:#37475a; }
+  /* 이 화면의 <기본> 머리글 (2026-08-07) — 매출내역·마감현황처럼 따로 색을 안 준 표들이 쓴다.
+     재고현황·나누어보기처럼 id/클래스로 색을 지정한 표는 그쪽이 이긴다(특이도가 높다). */
+  table.logi-tb thead th { background:#b9ded4; color:#0b4f43; font-weight:800; font-size:14px;
+                           box-shadow:inset 0 -2px 0 #0e6657; }
   table.logi-tb .loc { font-weight:700; color:var(--logi-teal); }
   table.logi-tb .txt-l { text-align:left; }
 
@@ -3619,7 +3634,8 @@
         <div style="border:1px solid var(--logi-border); border-radius:7px; overflow:hidden">
           <div id="xaWrap" style="height:calc(100vh - 246px); min-height:300px; overflow:auto">
             <table class="tbl" style="width:100%;border-collapse:collapse;font-size:12.5px;white-space:nowrap">
-              <thead><tr style="position:sticky;top:0;z-index:1;background:#eef3f2">
+              <%-- 머리글 색·크기는 위 CSS(#xaWrap table thead th)가 준다 — 여기 인라인으로 또 칠하면 안 먹는다 --%>
+              <thead><tr style="position:sticky;top:0;z-index:1">
                 <th style="width:110px">구분</th><th style="width:120px">거래처 코드</th><th>거래처 품명</th>
                 <th style="width:100px">우리 코드</th><th>우리 품명</th>
                 <th style="width:100px">출고장</th><th style="width:90px">최근</th><th style="width:70px">건수</th><th>메모</th><th style="width:132px">작업</th>

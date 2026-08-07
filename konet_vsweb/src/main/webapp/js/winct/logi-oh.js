@@ -1917,6 +1917,15 @@ var KONET_CTX = window.KONET_CTX || '';
       if(xaShown>=xaView.length) return;
       if(w.scrollTop + w.clientHeight >= w.scrollHeight - 40) xaMore();
     });
+    /* 줄 선택 표시 (2026-08-07 요청) — 줄이 많아 가로로 눈이 흐르면 어느 줄을 보던 중인지 놓친다.
+       ★위임으로 건다 — 줄은 스크롤에 따라 이어 붙으므로(xaMore) 줄마다 걸면 새 줄에는 안 걸린다.
+       [연결 ▾] 같은 작업 글자에는 각자 onclick 이 따로 있고, 눌러도 줄 표시가 같이 되는 게 자연스럽다. */
+    w.addEventListener('click', function(e){
+      var tr=e.target; while(tr && tr.tagName!=='TR') tr=tr.parentNode;
+      if(!tr || !tr.id || tr.id.indexOf('xa-r-')!==0) return;
+      var prev=w.querySelector('tbody tr.xa-on'); if(prev) prev.classList.remove('xa-on');
+      tr.classList.add('xa-on');
+    });
   }
 
   /* ===== 미매핑 품목 연결 (2026-08-01) =====================================================
@@ -2683,8 +2692,10 @@ var KONET_CTX = window.KONET_CTX || '';
     //     — 같은 내용이 도움말 「🔗 데이터 연계」 카드·업무설명서에 있다. 그 자리에 김해·제주 알림을 넣는다.
     ssConfirm('파일 <b>'+ssPvName+'</b> · 시트 "<b>'+sheetNm+'</b>"<br>발주 <b style="color:#137a6c">'+rows.length+'</b>건 · 출고장 <b style="color:#137a6c">'+_zc+'</b>곳을 반영하시겠습니까?'
       +(_kj ? '<div class="ss-blink" style="margin-top:12px;padding:9px 11px;border:1px solid #f0d9a8;background:#fff9ec;border-radius:6px;'
-        +'font-size:12.5px;color:#8a6414;font-weight:700;line-height:1.55;text-align:left">⚠️ <b>김해·제주</b> 출고장이 포함되어 있습니다 — <b>출고일자 변경 여부</b>를 확인하세요.'
-        +'<br><span style="font-weight:400">김해·제주는 앞당겨 출고하는 경우가 있습니다. 변경이 필요하면 아래 <b>출고일자</b>를 수정한 뒤 [반영]을 누르세요.</span></div>' : '')
+        /* 글자를 키운다 (2026-08-07 요청, 두 번째로 더) — 놓치면 출고일자가 틀린 채로 반영되는
+           안내라 확인창에서 가장 먼저 읽혀야 한다. 12.5 → 17px, 아랫줄 15px. */
+        +'font-size:17px;color:#8a6414;font-weight:800;line-height:1.6;text-align:left">⚠️ <b>김해·제주</b> 출고장이 포함되어 있습니다 — <b>출고일자 변경 여부</b>를 확인하세요.'
+        +'<br><span style="font-weight:400;font-size:15px">김해·제주는 앞당겨 출고하는 경우가 있습니다. 변경이 필요하면 아래 <b>출고일자</b>를 수정한 뒤 [반영]을 누르세요.</span></div>' : '')
       +'<div style="text-align:center;margin-top:14px;padding-top:12px;border-top:1px solid #e6ecf0">출고일자 '
       +'<input type="date" id="ssConfirmShpDt" value="'+_shp+'" oninput="ssConfirmBackUpd()" style="font-size:18px;font-weight:700;color:#137a6c;text-align:center;border:1px solid #cdd7dd;border-radius:6px;padding:4px 8px">'
       +'<div style="font-size:11.5px;color:#9aa7b3;margin-top:5px">이 날짜로 <b>전 출고장</b>이 저장됩니다(기본값 = 엑셀 납기일자) — 필요하면 여기서 바로 수정하세요</div>'

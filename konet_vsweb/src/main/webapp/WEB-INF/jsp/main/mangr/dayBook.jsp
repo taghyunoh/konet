@@ -40,7 +40,7 @@
   .db-tit{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; font-weight:800; }
   .db-tbwrap{ max-height:calc(100vh - 300px); overflow:auto; border:1px solid var(--db-bd); border-radius:8px; }
   table.db-tb{ width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap; }
-  table.db-tb th{ background:#eef3f2; border:1px solid var(--db-bd); padding:6px 8px; position:sticky; top:0; z-index:2; }
+  table.db-tb th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--db-bd); padding:6px 8px; position:sticky; top:0; z-index:2; }
   table.db-tb thead tr:nth-child(2) th{ top:28px; }
   table.db-tb th.grp{ background:#e3edea; }
   table.db-tb td{ border:1px solid var(--db-bd); padding:6px 8px; text-align:right; }
