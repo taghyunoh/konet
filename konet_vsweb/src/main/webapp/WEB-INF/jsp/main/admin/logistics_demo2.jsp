@@ -2027,8 +2027,9 @@
                  + ';color:#fff;font-weight:800'
                  + (_stkLedMax ? ';background:#137a6c;border-color:#137a6c' : ';background:#b06a00;border-color:#b06a00')+'"'
                  + ' title="'+(_stkLedMax?'위 ① 목록을 원래 높이로 되돌립니다. (ESC 로도 됩니다)'
-                                        :'위 ①은 고른 줄과 그 매칭 줄만 남기고, 이 표를 화면 끝까지 아래로 폅니다.')+'">'
-                 + (_stkLedMax?'▼ 접기':'▲ 아래로 펼치기')+'</button>'
+                                        :'위 ①은 고른 줄과 그 매칭 줄만 남기고, 이 표를 위로 끌어올려 화면 끝까지 폅니다.')+'">'
+                 /* 글자와 화살표를 맞춘다 — ①이 줄면서 이 표가 <위로> 올라오는 동작이다(2026-08-07) */
+                 + (_stkLedMax?'▼ 접기':'▲ 위로 펼치기')+'</button>'
                  /* 매칭코드로 걸러 보는 중이면 그 사실과 푸는 길을 함께 보여 준다(2026-08-07) */
                  + (_stkLedExt ? ' <span style="color:#b06a00;font-weight:800;font-size:12px;white-space:nowrap"'
                                + ' title="매칭코드는 출고에만 붙습니다(입고는 대표코드로 들어옴). 그래서 이 상태에서는 출고 줄만 보이고, 수량도 이 코드로 나간 몫만 나옵니다.">'
