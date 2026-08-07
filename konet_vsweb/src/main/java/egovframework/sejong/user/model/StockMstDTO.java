@@ -15,6 +15,7 @@ public class StockMstDTO {
     private Long    prodSeq;       // 품목마스터 PK (UNIQUE)
     private String  prodCd;        // 품목코드
     private String  prodNm;        // 품목명(조인)
+    private String  extQtys;       // 매칭코드별 출고수량 "코드:수량|코드:수량" — 화면이 ↳ 줄에 붙인다(2026-08-07)
     private String  findData;      // 검색어(코드/품목명) — 비영속
     private String  asOfDt;        // 기준일(종료일) — 비우면 전체(현재고), 넣으면 그 날짜까지 누계(재고마감 기말과 대사) — 비영속
     private Integer curQty;        // 현재고 수량 = 입고누계 − 출고누계
@@ -40,6 +41,8 @@ public class StockMstDTO {
     public void setProdSeq(Long prodSeq) { this.prodSeq = prodSeq; }
     public String getProdCd() { return prodCd; }
     public void setProdCd(String prodCd) { this.prodCd = prodCd; }
+    public String getExtQtys() { return extQtys; }
+    public void setExtQtys(String extQtys) { this.extQtys = extQtys; }
     public String getProdNm() { return prodNm; }
     public void setProdNm(String prodNm) { this.prodNm = prodNm; }
     public String getFindData() { return findData; }

@@ -28,6 +28,7 @@ public class StockLedgerDTO {
     private String  vendorCd;      // 매입처(입고)
     private String  vendorNm;      // 매입처명 — TBL_VENDOR_MST 조인, 비영속(입고내역 표시용)
     private String  bizCd;         // 사업장(출고)
+    private String  extCds;        // 대체출고 내역 — 매칭코드(수량) 목록. 대체가 있는 SHIPOUT 줄만 값이 있다(2026-08-07)
     private String  refGb;         // 근거구분(SHIPOUT 등)
     private String  refNo;         // 근거번호
     private String  remark;
@@ -71,6 +72,8 @@ public class StockLedgerDTO {
     public void setVendorNm(String vendorNm) { this.vendorNm = vendorNm; }
     public String getBizCd() { return bizCd; }
     public void setBizCd(String bizCd) { this.bizCd = bizCd; }
+    public String getExtCds() { return extCds; }
+    public void setExtCds(String extCds) { this.extCds = extCds; }
     public String getRefGb() { return refGb; }
     public void setRefGb(String refGb) { this.refGb = refGb; }
     public String getRefNo() { return refNo; }

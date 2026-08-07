@@ -48,7 +48,7 @@
   .pu-foot td{ border:1px solid var(--pu-bd); padding:6px 4px; text-align:center; background:#137a6c; color:#fff; font-weight:800; }
   .pu-foot td.num{ text-align:right; }
   .pu-grid table{ width:100%; min-width:1740px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
-  .pu-grid th{ background:#eef3f2; color:#1f2a37; font-weight:700; border:1px solid var(--pu-bd); padding:7px 6px; position:sticky; top:0; z-index:2; }
+  .pu-grid th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--pu-bd); padding:7px 6px; position:sticky; top:0; z-index:2; }
   /* 컬럼 폭 조절 손잡이 — 머리글 오른쪽 경계를 끌면 그 칼럼이 늘고 줄어든다(bindColResize) */
   .pu-colrz{ position:absolute; top:0; right:-4px; width:8px; height:100%; cursor:col-resize; z-index:4; }
   .pu-colrz:hover{ background:rgba(19,122,108,.25); }
@@ -90,7 +90,7 @@
   /* 하단 목록 — 5행 고정 + 자동 스크롤(매출내역과 같은 방식) */
   .pu-list{ max-height:196px; overflow:auto; border:1px solid var(--pu-bd); border-radius:8px; }
   .pu-list table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
-  .pu-list th{ background:#eef3f2; border:1px solid var(--pu-bd); padding:7px 8px; position:sticky; top:0; z-index:2; }
+  .pu-list th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--pu-bd); padding:7px 8px; position:sticky; top:0; z-index:2; }
   .pu-list td{ border:1px solid var(--pu-bd); padding:6px 8px; text-align:center; }
   .pu-list td.num{ text-align:right; }
   .pu-list tr{ cursor:pointer; }

@@ -52,7 +52,7 @@
   .sa-foot td{ border:1px solid var(--sa-bd); padding:6px 4px; text-align:center; background:#137a6c; color:#fff; font-weight:800; }
   .sa-foot td.num{ text-align:right; }
   .sa-grid table{ width:100%; min-width:1740px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
-  .sa-grid th{ background:#eef3f2; color:#1f2a37; font-weight:700; border:1px solid var(--sa-bd); padding:7px 6px; position:sticky; top:0; z-index:2; }
+  .sa-grid th{ background:#f4dcbc; color:#6f4200; font-weight:800; box-shadow:inset 0 -2px 0 #b06a00; border:1px solid var(--sa-bd); padding:7px 6px; position:sticky; top:0; z-index:2; }
   /* 컬럼 폭 조절 손잡이 — 머리글 오른쪽 경계를 끌면 그 칼럼이 늘고 줄어든다(2026-08-04 요청).
      합계줄 colgroup 도 같이 움직여 칸 맞춤이 유지된다(saColResize). */
   .sa-colrz{ position:absolute; top:0; right:-4px; width:8px; height:100%; cursor:col-resize; z-index:4; }
@@ -95,7 +95,7 @@
   /* 하단 목록 — 5행 고정 + 자동 스크롤(매출내역과 같은 방식) */
   .sa-list{ max-height:196px; overflow:auto; border:1px solid var(--sa-bd); border-radius:8px; }
   .sa-list table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
-  .sa-list th{ background:#eef3f2; border:1px solid var(--sa-bd); padding:7px 8px; position:sticky; top:0; z-index:2; }
+  .sa-list th{ background:#f4dcbc; color:#6f4200; font-weight:800; box-shadow:inset 0 -2px 0 #b06a00; border:1px solid var(--sa-bd); padding:7px 8px; position:sticky; top:0; z-index:2; }
   .sa-list td{ border:1px solid var(--sa-bd); padding:6px 8px; text-align:center; }
   .sa-list td.num{ text-align:right; }
   .sa-list tr{ cursor:pointer; }

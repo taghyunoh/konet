@@ -97,7 +97,7 @@
   .logi-side .sub-menu a.mi.on { padding-left:30px; }
   .logi-side a.mi .ic { width:18px; text-align:center; }
   .logi-side a.mi.core { color:#aef0e7; }
-  /* ── 자주 쓰는 메뉴(최대 7개) ─────────────────────
+  /* ── 자주 쓰는 메뉴(최대 5개) ─────────────────────
        메뉴에 마우스를 올리면 오른쪽 끝에 ☆ 가 나온다. 담긴 메뉴는 ★(노랑)로 항상 보인다. */
   /* ☆ 는 평소 아주 흐리게라도 보여 둔다 — 완전히 감춰 두면 기능이 있는 줄 모른다(2026-08-04) */
   .logi-side a.mi .fav { margin-left:auto; padding:0 2px; font-size:12px; color:#5d6b7c; opacity:.35; transition:opacity .12s, color .12s; }
@@ -173,7 +173,10 @@
   .btn-teal:disabled, .btn-line:disabled { opacity:.42; cursor:not-allowed; }
   /* 재고현황 ① 선택행 — 클래스 하나로 표시한다(2026-08-06).
      행마다 인라인 style 을 지우고 다시 넣으면 그때마다 화면이 다시 계산돼 껌벅인다. */
-  #stkStatusWrap tbody tr.stk-on td { background:#e6f4f1 !important; }
+  /* 선택행 — 옅은 색이라 어느 줄을 골랐는지 눈에 안 들어왔다(2026-08-07 지적).
+     배경을 진하게 하고 왼쪽에 굵은 세로선을 둬 한눈에 잡히게 한다. */
+  #stkStatusWrap tbody tr.stk-on td { background:#cfeae3 !important; font-weight:700; }
+  #stkStatusWrap tbody tr.stk-on td:first-child { box-shadow: inset 4px 0 0 #137a6c; }
   #stkStatusWrap tbody tr { cursor:pointer; }
   #stkLedgerBody { will-change:opacity; }
   /* ★입·출고 나누어보기 — 표 머리줄 고정 (2026-08-07 요청).
@@ -185,6 +188,32 @@
     box-shadow:inset 0 1px 0 var(--logi-border), inset 0 -1px 0 var(--logi-border);
   }
   #stkSplitBody table tbody td{ position:relative; z-index:1; }
+  /* ★표 머리줄 색 구분 (2026-08-07 요청)
+       머리줄이 세 표 모두 같은 회색이라, 스크롤하면 지금 보는 게 입고인지 출고인지
+       제목을 다시 올려다봐야 알 수 있었다. 제목에 이미 쓰는 색(입고 청록 / 출고 주황)을
+       머리줄에도 그대로 입혀 색만 보고 구분되게 한다.
+     ※ #stkSplitBody 쪽은 위 sticky 규칙이 background 를 이미 잡고 있어 더 구체적으로 덮어쓴다.
+     ※ 처음엔 색을 옅게 뒀는데 머리줄과 자료가 구분이 안 됐다(2026-08-07 재지적) →
+        배경을 한 단계 진하게, 글자는 굵게, 아래에 굵은 밑줄을 둬 경계를 분명히 한다. */
+  #stkSplitBody table.sp-top thead th,
+  #stkSplitBody table.sp-in  thead th,
+  #stkSplitBody table.sp-out thead th,
+  #stkLedgerBody table thead th,
+  #stkStatusWrap table thead th{ font-weight:800; }
+  /* 팝업 맨 위 '◆ 선택 품목' 요약표 — 입고/출고 어느 쪽도 아닌 머리말이라
+     상단 ①현재고와 같은 회청색으로 둔다(2026-08-07 지적으로 추가). */
+  #stkSplitBody table.sp-top thead th{ background:#c8d5e2; color:#1f2a37; border-color:#a8bacb;
+                                       box-shadow:inset 0 -2px 0 #5a7a9a; }
+  #stkSplitBody table.sp-in  thead th{ background:#b9ded4; color:#0b4f43; border-color:#93c7b9;
+                                       box-shadow:inset 0 -2px 0 #0e6657; }
+  #stkSplitBody table.sp-out thead th{ background:#f4dcbc; color:#6f4200; border-color:#dfbe8e;
+                                       box-shadow:inset 0 -2px 0 #b06a00; }
+  /* ②수불 내역(하단) = 입·출고가 섞인 표. 상단 ①과 헷갈리지 않게 청록 계열 */
+  #stkLedgerBody table thead th{ background:#b9ded4; color:#0b4f43; border-color:#93c7b9;
+                                 box-shadow:inset 0 -2px 0 #0e6657; }
+  /* ①품목별 현재고(상단) — 아래 표들과 구분되게 회청색 */
+  #stkStatusWrap table thead th{ background:#c8d5e2; color:#1f2a37; border-color:#a8bacb;
+                                 box-shadow:inset 0 -2px 0 #5a7a9a; }
   .btn-teal:disabled:hover { background:var(--logi-teal); }
   .btn-line:disabled:hover { background:#fff; }
 
@@ -642,7 +671,7 @@
     if (typeof konetAsqRender === 'function') konetAsqRender();
     if (typeof closePeriodInit === 'function') closePeriodInit();   // 마감 패널 진입 시 마감월 기본값
   }
-  /* ══ 자주 쓰는 메뉴 (최대 7개 · 한 번 담기면 고정) — 2026-08-04 요청 ═══════════════
+  /* ══ 자주 쓰는 메뉴 (최대 5개 · 한 번 담기면 고정) — 2026-08-04 요청 ═══════════════
        · 담는 법 : 메뉴를 열면 <빈 자리에> 저절로 담긴다. 손으로 담으려면 사이드바 메뉴 오른쪽 끝 ☆.
        · 내리는 법 : 상단 칩의 ✕ <하나뿐이다>. 자동으로 밀려나는 일은 없다(2026-08-05).
        · 보관   : localStorage (브라우저별). 서버·세션이 아니라 로그인 없이도 남는다.
@@ -658,12 +687,15 @@
        자리를 자동으로 갈아치우지 않으므로, 그 7개가 자리를 다 차지한 채 <영영 안 빠진다>.
        키를 갈아 옛 값을 무시한다 — 다들 빈 줄에서 자기 메뉴로 새로 채우게 된다. */
   var FAV_KEY='konetLogiFav3', FAV_TOUCH='konetLogiFav3Set', FAV_USE='konetLogiFavUse',
-      FAV_ORDER='konetLogiFavOrder2', FAV_MAX=7;
+      /* ★7 → 5 (2026-08-07 요청). 줄이면 이미 7개를 담아 둔 브라우저는 다음 저장 때
+           뒤 2개가 조용히 잘려 나간다(favLoad·favSave 가 다 slice 로 자른다) — 그대로 둔다.
+           지금 당장 5개로 보이게 하려면 칩의 ✕ 로 내리면 된다. */
+      FAV_ORDER='konetLogiFavOrder2', FAV_MAX=5;
   /* ★★초기 자동셋팅은 하지 않는다 (2026-08-05 요청 "초기 시작은 자동셋팅 무시").
        종전에는 첫 진입에 기본 7개(매출내역·판매 등록…)를 미리 담아 두었다. 그러면 정작 내가 쓰는
        메뉴가 들어올 자리가 <처음부터 다 차 있어> 한 칸도 남지 않는다 — 아래 '자리는 대체하지 않는다'
        규칙과 겹치면 기본값이 영영 안 빠지는 셈이 된다. 그래서 <빈 줄>로 시작하고,
-       쓰는 메뉴가 순서대로 7칸을 채우게 둔다. 안내문(#favHint)이 빈 줄의 뜻을 알려 준다. */
+       쓰는 메뉴가 순서대로 5칸을 채우게 둔다. 안내문(#favHint)이 빈 줄의 뜻을 알려 준다. */
   var FAV_DEFAULT=[];
   /* ── 사용 횟수 ────────────────────────────
        메뉴를 열 때마다 센다. 담기는 <쓰면 저절로> 이지만(2026-08-04 "추가 업무가 뒤에 안 붙네요"),
@@ -1560,7 +1592,38 @@
   }
   // ── 재고현황 (전체 품목 현재고) ──
   // 한 번에 보여줄 행수 10 — 이 표만 예외다(공통 18 아님). 아래 ②수불 내역까지 한 화면에 들어와야 해서(2026-07-25 요청).
-  var _stkRows=[], STK_PAGE=10;
+  /* 상단 재고 그리드 행수 — 10 → 7 (2026-08-07 요청).
+     10 → 7 로 줄였다가, 조회줄 라벨을 빼 자리가 남아 11 로 늘렸다(2026-08-07 요청).
+     하단 ②는 남은 화면 높이를 자동으로 채우므로(_stkLedFit) 이 값만 바꾸면 된다. */
+  var _stkRows=[], STK_PAGE=11;
+  /* 매칭코드 하위 행 접기 상태 (2026-08-07 요청)
+       _stkExpAll = 전체 기본값(true=펼침) · _stkExp[코드] = 그 줄만 뒤집기
+     토글하면 stkStatusRender() 로 다시 그린다 — DOM 을 뒤지는 것보다 단순하고,
+     스크롤로 행이 이어붙어도 상태가 어긋나지 않는다. */
+  var _stkExpAll = true, _stkExp = {};
+  function stkExpOn(cd){ var v=_stkExp[cd]; return (v===undefined) ? _stkExpAll : v; }
+  function stkExpToggle(cd, ev){ if(ev) ev.stopPropagation(); _stkExp[cd] = !stkExpOn(cd); stkStatusRender(); }
+  /* 접기·펼치기 버튼의 모양을 상태에 맞춰 칠한다 (2026-08-07).
+       on=기본(펼침) 이면 수수하게, off=접은 상태면 주황으로 채워 '지금 접어 놨다' 를 알린다.
+     같은 규칙을 ①표·②수불 내역이 함께 쓰므로 한 군데에 둔다. */
+  function _stkExpBtnPaint(b, on, onTxt, offTxt){
+    if(!b) return;
+    b.innerHTML = on ? onTxt : offTxt;
+    /* ②의 [아래로 펼치기]와 같은 규칙 — 두 쪽 다 칠하되 색을 갈라 둔다(2026-08-07).
+       접기(펼쳐져 있는 상태) = 초록 / 펼치기(접혀 있는 상태) = 주황. */
+    b.style.color='#fff'; b.style.fontWeight='800';
+    b.style.background = on ? '#137a6c' : '#b06a00';
+    b.style.borderColor = on ? '#137a6c' : '#b06a00';
+  }
+  function stkExpToggleAll(){
+    _stkExpAll = !_stkExpAll; _stkExp = {};   /* 개별 설정은 초기화 — 안 그러면 버튼과 화면이 어긋난다 */
+    /* ★펼친 상태와 접은 상태를 색으로 갈라 둔다 (2026-08-07 요청 "펼치기 접기 구분되게") —
+         글자만 바뀌면 ▼/▶ 를 읽어야 지금 어느 쪽인지 알 수 있었다.
+       펼침(기본) = 흐린 테두리 / 접힘(손댄 상태) = 주황 채움. 매칭줄 색과 같은 계열이다. */
+    var b=document.getElementById("stkExpBtn");
+    if(b) _stkExpBtnPaint(b, _stkExpAll, "▼ 매칭 접기", "▶ 매칭 펼치기");
+    stkStatusRender();
+  }
   function _fmtYmd(s){ s=(''+(s||'')); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : s; }
   function stkStatusLoad(){
     stkSrchTog();
@@ -1647,6 +1710,73 @@
   // 재고현황 행 클릭 → 그 품목의 수불 내역(근거)을 하단 ② 그리드에 표시
   var _IOGB={I:'입고',O:'출고',R:'반품',A:'조정'};
   // 사업장 셀: 여러 곳이면 첫 곳 + [＋N] 만 표시 — 클릭하면 전체 펼침/접기
+  /* 대체출고 표시 — 품목코드 칸 아래에 '실제로 나간 매칭코드(수량)' 를 한 줄에 하나씩 붙인다.
+       재고는 대표코드(주코드) 하나로 떨어지지만 실제 출고는 거래처 매칭코드다.
+       서버(selectStockLedgerList.extCds)가 '코드(수량), 코드(수량)' 으로 주고,
+       대체가 없는 줄은 빈 값이라 평소 화면은 대표코드 한 줄만 보인다.
+     ★한 줄에 하나씩 : 콤마로 이어 붙이면 두 개만 돼도 줄이 접혀 읽기 어렵다(2026-08-07 요청).
+     수불 내역·입출고 나누어보기 세 곳이 같이 쓰므로 함수로 뺐다. */
+  /* ②수불 내역 표 높이를 '화면에 남은 만큼' 으로 맞춘다 (2026-08-07).
+       종전엔 max-height 가 210px 로 박혀 있어, 검색으로 상단 그리드가 짧아지면
+       아래에 큰 빈 공간이 남고 정작 수불 내역은 좁은 칸에서 스크롤해야 했다.
+     · 상단 그리드 행수(STK_PAGE)가 바뀌어도 알아서 따라온다.
+     · 창 크기가 바뀔 때도 다시 잡는다(아래 resize). 최소 180px 는 지켜 너무 납작해지지 않게. */
+  function _stkLedFit(){
+    var b=document.getElementById('stkLedgerBody'); if(!b) return;
+    var top=b.getBoundingClientRect().top;
+    if(!top) return;                       // 아직 안 그려졌으면 건너뛴다
+    b.style.maxHeight=Math.max(180, Math.floor(window.innerHeight - top - 20))+'px';
+  }
+  window.addEventListener('resize', function(){ _stkLedFit(); });
+
+  /* 서버 형식 '코드(수량)~사업장들|코드(수량)~사업장들' → [{cd,qty,biz}, …] */
+  function _extParse(v){
+    if(!v) return [];
+    return String(v).split('|').map(function(seg){
+      var t=seg.split('~'), head=t[0]||'', biz=t.slice(1).join('~')||'';
+      var m=head.match(/^(.*)\((\-?[\d.]+)\)$/);
+      return m ? { cd:m[1], qty:m[2], biz:biz } : { cd:head, qty:'', biz:biz };
+    });
+  }
+  /* ★매칭코드를 고르면 그 코드분만 남긴 '가짜 원장 줄' 을 만든다 (2026-08-07 수정)
+       종전에는 날짜 줄을 통째로 남겨서
+         · 수량은 대표 전체(그 날 나간 모든 코드 합)로 잡히고
+         · 하위 행에는 고르지 않은 코드까지 그대로 나왔다
+       그래서 "매칭 1000455376 만" 인데 총계·하위가 안 맞았다(사용자 지적).
+     → 수량·사업장·extCds 를 그 코드 것으로 갈아 끼운 사본을 돌려준다.
+       그 코드가 없는 날짜 줄은 null → 걸러진다. 금액은 원장이 코드별로 안 나뉘어 0. */
+  function _extPick(l, cd){
+    /* ★매칭이 '섞인 날'만 서버가 extCds 를 채운다(그 날만 코드별로 갈라야 하니까).
+         매칭이 하나도 없는 날은 빈 값이고, 그 날 출고는 전부 대표코드 몫이다.
+         그 줄까지 버리면 대표코드를 골랐을 때 수량이 확 줄어 ①표와 안 맞는다
+         (실측 1000455376 : ①55 인데 ②6 만 — 55 = 혼재일 6 + 매칭없는날 49, 2026-08-07).
+       그래서 '대표코드를 고른 경우' 에 한해 빈 줄은 통째로 살린다. */
+    if(!l.extCds && cd===l.prodCd) return l;
+    var e=_extParse(l.extCds).filter(function(x){ return x.cd===cd; })[0];
+    if(!e) return null;
+    var o={}; for(var k in l) o[k]=l[k];
+    /* ★품목코드 칸도 고른 코드로 바꾼다 (2026-08-07 요청 "매칭선택시에는 자기것만 나와야 합니다").
+         재고가 빠지는 건 대표코드지만, 이 표는 지금 그 매칭코드로 나간 내역만 보고 있다.
+         칸에 대표코드가 남아 있으면 줄마다 고른 코드와 다른 코드가 적혀 있어 딴 걸 보는 듯하다. */
+    o.prodCd = cd;
+    /* 품명도 그 코드의 거래처 품명으로 맞춘다(등록이 없으면 대표 품명 그대로 둔다). */
+    o.prodNm = _extNmOf(l.prodCd, cd) || l.prodNm;
+    o.qty = +e.qty || 0;
+    o.amt = 0; o.unitPrice = 0;
+    o.bizCd = e.biz || '';
+    o.extCds = cd+'('+e.qty+')~'+(e.biz||'');
+    return o;
+  }
+  /* 매칭코드의 '거래처 품명' — 대체출고 줄의 품명 칸에 쓴다(2026-08-07 요청).
+     매칭표(_stkAlias)는 주코드로 걸려 있고 그 안에 {cd, nm} 이 들어 있다.
+     대표코드 자신이거나 이름이 없으면 빈 문자열 — 억지로 대표 품명을 넣지 않는다.
+     (같은 코드인데 이름만 다르면 "다른 물건인가" 하고 헷갈린다) */
+  function _extNmOf(prodCd, extCd){
+    if(!_stkAlias || !extCd) return '';
+    var l=_stkAlias[String(prodCd||'').trim()]||[];
+    for(var i=0;i<l.length;i++) if(l[i].cd===extCd) return l[i].nm||'';
+    return '';
+  }
   function _bizCell(v){
     v=(''+(v||'')).trim(); if(!v) return '';
     var a=v.split(', ');
@@ -1666,12 +1796,56 @@
   /* 하단 ②수불내역을 부를 때마다 1 씩 올린다 — 늦게 도착한 옛 응답이 새 선택을
      덮어써서 '엉뚱한 품목이 잠깐 보이는' 현상을 막는다. */
   var _stkLedSeq = 0;
-  function stkLedgerDetail(prodSeq, el){
+  /* extCd 를 주면 그 매칭코드로 나간 줄만 아래 ②에 보여 준다 (2026-08-07 요청).
+     ①표의 ↳ 매칭코드 줄을 눌렀을 때 쓴다. 서버는 그대로 두고 화면에서 거른다 —
+     원장은 대표코드 하루 한 줄이고, 매칭코드별 내역은 extCds 안에 이미 들어 있다. */
+  /* ★고른 품목을 ①그리드 맨 위로 올리고, ②를 화면 끝까지 펴 준다 (2026-08-07 요청).
+       종전에는 목록 한가운데를 누르면 그 줄이 중간에 걸리고, ②는 화면 밖으로 밀려
+       한 뼘밖에 안 보였다. 둘은 늘 같이 움직여야 뜻이 산다 — 위에서 고른 것을 아래에서 보니까.
+     1) ①안쪽 스크롤 : 고른 줄이 얼어 있는 머리(머리줄+총합계) 바로 밑에 서게 한다.
+        ↳ 매칭 줄을 눌렀어도 <대표코드 줄>을 올린다 — 대표가 위, 매칭이 그 아래여야 순서가 맞다.
+     2) 바깥(.logi-main) 스크롤 : ②가 화면 아래로 잘려 있으면 그만큼 끌어올린다.
+     3) _stkLedFit : 남은 높이를 ②가 다 쓰게 한다.
+     ※ 줄이 스크롤에 따라 이어 붙는 목록(lzMount)이라, 다음 프레임에 한 번 더 잡는다. */
+  function _stkScrollTop(wrap, el){
+    var run=function(){
+      var top=el;
+      while(top && !top.getAttribute('data-main')) top=top.previousElementSibling;
+      if(!top) top=el;
+      var frozen=0;
+      var _th=wrap.querySelector('table thead');          if(_th) frozen+=_th.offsetHeight;
+      var _tt=wrap.querySelector('tbody tr.close-total'); if(_tt) frozen+=_tt.offsetHeight;
+      wrap.scrollTop += top.getBoundingClientRect().top - wrap.getBoundingClientRect().top - frozen;
+      /* ②를 화면 끝까지 — 카드가 아래로 잘려 있으면 바깥 스크롤을 그만큼 내린다 */
+      var main=document.querySelector('.logi-main'), bd=document.getElementById('stkLedgerBody');
+      if(main && bd){
+        var need = bd.getBoundingClientRect().top + 180 + 20 - window.innerHeight;
+        if(need > 0) main.scrollTop += need;
+      }
+      _stkLedFit();
+    };
+    run();
+    if(window.requestAnimationFrame) requestAnimationFrame(run);
+  }
+  var _stkSelSeq = 0;   /* 지금 고른 품목 — 표를 다시 그려도 선택을 되살리는 데 쓴다(2026-08-07) */
+  function stkLedgerDetail(prodSeq, el, extCd){
+    _stkLedExt = extCd || "";   /* ①의 ↳ 매칭 줄을 눌렀으면 그 코드, 대표 줄이면 빈 값 */
+    _stkSelSeq = prodSeq || 0;
     /* 선택행 하이라이트 — 전 행을 돌며 인라인 style 을 지우면 그때마다 화면이 다시 계산돼
        행이 많을수록 눈에 띄게 껌벅인다. 직전 선택 하나만 벗긴다(2026-08-06 지적). */
     var wrap=document.getElementById('stkStatusWrap');
     if(wrap){ var prev=wrap.querySelector('tbody tr.stk-on'); if(prev){ prev.classList.remove('stk-on'); prev.style.background=''; } }
-    if(el){ el.classList.add('stk-on'); el.style.background='#e6f4f1'; }
+    /* 배경은 위 CSS(.stk-on)가 준다 — 인라인으로 또 칠하면 CSS 를 고쳐도 안 바뀐다(2026-08-07) */
+    if(el){ el.classList.add('stk-on'); }
+    /* ★고른 품목을 그리드 맨 위로 올린다 (2026-08-07 요청).
+         목록 한가운데를 누르면 그 줄과 딸린 ↳ 매칭 줄이 화면 중간에 걸려,
+         아래 ②와 견주려면 눈이 위아래로 왔다 갔다 해야 했다.
+       · ↳ 줄을 눌렀어도 <대표코드 줄>을 올린다 — 대표가 위, 매칭이 그 아래로 서야 순서가 맞다.
+       · 얼어 있는 머리(표 머리줄 + 총합계 줄) 높이만큼 빼야 그 바로 밑에 붙는다. */
+    /* ★줄을 눌렀다고 목록을 움직이지 않는다 (2026-08-07 "상단 클릭시 무조건 상단으로 가는데").
+         맨 위로 올리는 건 [▲ 아래로 펼치기] 를 눌렀을 때뿐이고, [▼ 접기] 면 있던 자리로 돌아온다.
+         펼쳐 놓은 채로 다른 줄을 고르면 그 줄에 맞춰 다시 잡아 준다. */
+    if(_stkLedMax && el && wrap){ _stkTopFitSel(true); _stkScrollTop(wrap, el); }
     if(!prodSeq){ document.getElementById('stkLedgerHead').innerHTML='<span style="color:#c0392b">이 품목은 수불원장 키가 없어 내역을 조회할 수 없습니다.</span>'; document.getElementById('stkLedgerBody').innerHTML=''; return; }
     var ctx='${pageContext.request.contextPath}', row=null;
     for(var i=0;i<_stkRows.length;i++){ if((_stkRows[i].prodSeq||0)==prodSeq){ row=_stkRows[i]; break; } }
@@ -1726,6 +1900,74 @@
        기본값 변경 이력(2026-08-06) : 1개월 → 2개월 → 12개월 → **전체**(최종).
        인덱스 추가로 서버가 100ms 안쪽으로 빨라져 전체를 봐도 느리지 않다. */
   var _stkLedRaw=[], _stkLedRow=null, _stkLedMon=0;
+  /* ②수불 내역 대체출고 하위 행 펼침 상태 (2026-08-07 요청) */
+  var _ledExpAll = true;
+  /* ①에서 고른 매칭코드 — 빈 문자열이면 그 품목 전체(2026-08-07) */
+  var _stkLedExt = "";
+  function ledExpToggle(){ _ledExpAll = !_ledExpAll; _stkLedPaint(); }
+
+  /* ★②를 화면 위까지 끌어올리기 (2026-08-07 요청 — "하단 내용을 위까지 올리는 것").
+       종전에 넣은 [매칭 접기] 는 하위 줄을 접는 것이라 뜻이 달랐다.
+       여기서는 ①카드를 통째로 접어, 남는 자리를 ②가 다 쓰게 한다(높이는 _stkLedFit 이 알아서).
+     · 조회 조건·상단 그리드는 접힐 뿐 지워지지 않는다 — 다시 누르면 그대로 돌아온다.
+     · ESC 로도 풀 수 있게 해 둔다(넓혀 놓고 버튼을 못 찾는 일을 막는다). */
+  var _stkLedMax = false;
+  /* ★①은 그대로 두고 ②만 아래로 편다 (2026-08-07 "상단내용 밑으로 펼쳐져야 함").
+       처음에는 ①카드를 감춰 ②를 끌어올렸는데, 그러면 위에서 무엇을 골랐는지가 안 보이고
+       되돌릴 때 화면이 튀었다("접기하면 반대로"). 위는 자리를 지키고, 아래가 길어지는 게 맞다.
+     펼침 = ②의 높이 제한을 풀어 <모든 줄>을 그대로 늘어놓는다(스크롤은 바깥 화면이 맡는다).
+     접힘 = 종전처럼 남은 화면 높이에 맞춘 상자 안에서 스크롤(_stkLedFit). */
+  /* 펼칠 때 ①을 <고른 줄과 그 매칭 줄들> 높이로만 줄인다 (2026-08-07 "매칭코드있으면 그밑으로 까지").
+       ①을 통째로 감추면 무엇을 고른 건지 안 보이고, 그대로 두면 ②가 커질 자리가 없다.
+       고른 줄 묶음만 남기면 위는 뜻을 잃지 않고 아래는 화면 끝까지 쓴다.
+     접을 때는 lzFit 이 잡아 둔 높이를 도로 넣는다(직접 계산하지 않는다 — 규칙이 두 벌이 되면 어긋난다). */
+  function _stkTopFitSel(on){
+    var w=document.getElementById('stkStatusWrap'); if(!w) return;
+    var main=document.querySelector('.logi-main');
+    if(!on){
+      /* ★접으면 <있던 자리로> 되돌린다 (2026-08-07 요청 "원위치 하면 원복") —
+           높이만 되돌리고 스크롤을 그대로 두면, 보던 줄이 아닌 엉뚱한 데서 다시 시작한다. */
+      if(w._savedMax!=null){ w.style.maxHeight=w._savedMax; w._savedMax=null; }
+      if(w._savedTop!=null){ w.scrollTop=w._savedTop;       w._savedTop=null; }
+      if(main && w._savedMainTop!=null){ main.scrollTop=w._savedMainTop; w._savedMainTop=null; }
+      return;
+    }
+    var sel=_stkSelSeq ? w.querySelector('tbody tr[data-seq="'+_stkSelSeq+'"]') : null;
+    if(!sel) return;
+    if(w._savedMax==null){
+      w._savedMax=w.style.maxHeight;
+      w._savedTop=w.scrollTop;
+      if(main) w._savedMainTop=main.scrollTop;
+    }
+    var h=0;
+    var th=w.querySelector('table thead');          if(th) h+=th.offsetHeight;
+    var tt=w.querySelector('tbody tr.close-total'); if(tt) h+=tt.offsetHeight;
+    h+=sel.offsetHeight;
+    /* 다음 품목 줄(data-main) 이 나오기 전까지가 이 줄에 딸린 ↳ 매칭 줄들이다 */
+    var n=sel.nextElementSibling;
+    while(n && !n.getAttribute('data-main')){ h+=n.offsetHeight; n=n.nextElementSibling; }
+    w.style.maxHeight=(h+2)+'px';
+  }
+  function stkLedMaxToggle(){
+    _stkLedMax = !_stkLedMax;
+    _stkLedPaint();          // 버튼 글자를 바꾸기 위해 머리를 다시 그린다
+    _stkTopFitSel(_stkLedMax);
+    if(_stkLedMax){
+      /* 펼칠 때<만> 고른 묶음을 맨 위로 올린다 — 줄만 눌렀을 땐 목록이 움직이지 않는다
+         (2026-08-07 "펼치기 할때 가게, 원위치 하면 원위치로"). */
+      var w=document.getElementById('stkStatusWrap');
+      var sel = (w && _stkSelSeq) ? w.querySelector('tbody tr[data-seq="'+_stkSelSeq+'"]') : null;
+      if(w && sel) _stkScrollTop(w, sel);
+      else _stkLedFit();
+    }else{
+      _stkLedFit();   // 자리는 _stkTopFitSel 이 이미 되돌렸다
+    }
+  }
+  document.addEventListener('keydown', function(e){
+    if(e.keyCode===27 && _stkLedMax) stkLedMaxToggle();
+  });
+  /* 매칭코드 선택 해제 — 그 품목 전체 내역으로 되돌린다 */
+  function stkLedExtClear(){ _stkLedExt=""; _stkLedPaint(); }
   /* 품목별 수불내역 캐시 — [조회]·[새로고침] 때 비운다(stkStatusLoad) */
   var _stkLedCache={};
   /* 속도 확인용 로그 (2026-08-06) — F12 콘솔에 찍힌다.
@@ -1759,17 +2001,46 @@
     if(!hd||!bd) return;
     var cut=_stkLedCut();
     var rows = cut ? _stkLedRaw.filter(function(l){ return String(l.trxDt||'').replace(/-/g,'') >= cut; }) : _stkLedRaw;
+    /* ①에서 ↳ 매칭 줄을 눌러 들어온 경우 — 그 코드가 섞인 날짜 줄만 남긴다(2026-08-07). */
+    if(_stkLedExt) rows = rows.map(function(l){ return (l.ioGb==='O') ? _extPick(l, _stkLedExt) : null; }).filter(Boolean);
+    /* 걸러 보는 중에는 '출고'만 남는다 — 매칭코드는 출고에만 붙기 때문(입고는 주코드로 들어온다).
+       그래서 입고·조정 줄이 통째로 빠지고 수량도 그 코드 몫만 남아, 표만 보면 값이 틀린 줄 안다
+       (2026-08-07 "표시 주는 값이 이상함" 지적). 무엇을 보고 있는지 머리말에 숫자로 밝혀 둔다. */
+    var _extSum=0, _extDays=0;
+    if(_stkLedExt){ rows.forEach(function(l){ _extSum += (+l.qty||0); _extDays++; }); }
     {
         /* ★요약(입고계·출고계·현재고…)은 뺐다 (2026-08-07 요청) —
              같은 수치가 위 ①표의 그 품목 줄에 이미 있고,
              [입·출고 나누어보기] 창 상단 그리드에도 또 있다. 세 군데는 과하다.
            ★머리는 바깥 div 없이 한 조각만 넣는다 — stkLedgerHead 자체가 이미
              제목과 같은 줄에 서 있는 flex 줄이다(2026-08-06 한 줄 통합). */
-        var head=  '<div style="font-weight:800;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_cesc(row?row.prodCd:'')+' <span style="font-weight:400;color:#37475a">'+_cesc(row?row.prodNm:'')+'</span></div>';
+        /* 대체출고 하위 행 접기/펼치기 (2026-08-07 요청) — ①표와 같은 방식.
+           매칭이 섞인 날은 한 날짜가 여러 줄이 되어 훑기 어렵다. 여기서 한꺼번에 접는다. */
+        var head=  '<div style="display:flex;align-items:center;gap:8px;min-width:0">'
+                 + '<span style="font-weight:800;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_cesc(row?row.prodCd:'')+' <span style="font-weight:400;color:#37475a">'+_cesc(row?row.prodNm:'')+'</span></span>'
+                 /* ★[위로 넓히기] — ①카드를 접어 이 표가 화면 위까지 올라오게 한다(2026-08-07 요청).
+                      종전 자리에 있던 [매칭 접기] 는 뜻이 달라 뺐다("이 기능 제외하고" 지적). */
+                 /* ★두 상태 다 채움색으로 두되 색을 갈라 둔다 (2026-08-07 "접기처럼 색깔") —
+                      한쪽만 칠해 두면 안 칠해진 쪽이 눌리지 않는 글자처럼 보였다.
+                    펼치기 = 주황(매칭줄 계열) / 접기 = 초록(이 화면의 기본색). 화살표도 뒤집었다. */
+                 + '<button class="btn-line" onclick="stkLedMaxToggle()" style="height:22px;padding:0 8px;font-size:11.5px;white-space:nowrap;flex:0 0 auto'
+                 + ';color:#fff;font-weight:800'
+                 + (_stkLedMax ? ';background:#137a6c;border-color:#137a6c' : ';background:#b06a00;border-color:#b06a00')+'"'
+                 + ' title="'+(_stkLedMax?'위 ① 목록을 원래 높이로 되돌립니다. (ESC 로도 됩니다)'
+                                        :'위 ①은 고른 줄과 그 매칭 줄만 남기고, 이 표를 화면 끝까지 아래로 폅니다.')+'">'
+                 + (_stkLedMax?'▼ 접기':'▲ 아래로 펼치기')+'</button>'
+                 /* 매칭코드로 걸러 보는 중이면 그 사실과 푸는 길을 함께 보여 준다(2026-08-07) */
+                 + (_stkLedExt ? ' <span style="color:#b06a00;font-weight:800;font-size:12px;white-space:nowrap"'
+                               + ' title="매칭코드는 출고에만 붙습니다(입고는 대표코드로 들어옴). 그래서 이 상태에서는 출고 줄만 보이고, 수량도 이 코드로 나간 몫만 나옵니다.">'
+                               + '· '+_cesc(_stkLedExt)+' 출고만 &nbsp;<span style="color:#137a6c">'+_cnum(_extSum)+'</span>'
+                               + ' <span style="font-weight:400;color:#5a6b7a">('+_extDays+'일)</span></span>'
+                               + ' <a href="javascript:void(0)" onclick="stkLedExtClear()" style="font-size:11.5px;color:#137a6c;font-weight:800;text-decoration:none;white-space:nowrap" title="이 품목 전체로 되돌립니다">✕ 전체</a>' : '')
+                 + '</div>';
         var thead='<thead><tr><th>일자</th><th>품목코드</th><th>구분</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>매입처</th><th>사업장</th><th>근거구분</th><th>근거번호</th><th>비고</th><th>등록일시</th><th>등록자</th></tr></thead>';
         var body= rows.length ? rows.map(function(l){
             var io=_IOGB[l.ioGb]||l.ioGb, isOut=(l.ioGb==='O');
             return '<tr><td>'+_fmtYmd(l.trxDt)+'</td>'
+              /* 품목코드 = 재고가 떨어진 '대표코드(주코드)'. 대체출고분은 아래에 하위 행으로 편다. */
               +'<td style="color:#37475a">'+_cesc(l.prodCd||'')+'</td>'
               +'<td style="font-weight:700;color:'+(isOut?'#b06a00':'#137a6c')+'">'+io+'</td>'
               +'<td style="text-align:right">'+_cnum(l.qty)+'</td>'
@@ -1786,7 +2057,30 @@
               +'<td>'+_cesc(l.refNo||'')+'</td>'
               +'<td>'+_cesc(l.remark||'')+'</td>'
               +'<td style="color:#9aa7b3">'+_cesc(l.regDttm||'')+'</td>'
-              +'<td style="color:#9aa7b3">'+_cesc(l.regUser||'')+'</td></tr>';
+              +'<td style="color:#9aa7b3">'+_cesc(l.regUser||'')+'</td></tr>'
+              /* ★대체출고 하위 행 (2026-08-07 요청) — 대표 줄 아래에 매칭코드마다 한 줄.
+                   품목코드·수량·사업장을 대표 줄과 '같은 칸' 에 세워 바로 견줄 수 있게 한다.
+                   대체가 없는 날은 서버가 빈 값을 줘 하위 행이 아예 안 생긴다.
+                   수량의 합 = 대표 줄 수량. 사업장도 코드별로 갈라 담아 온다. */
+              /* ★쪼갤 게 없으면 안 그린다 (2026-08-07 지적) — ①표의 split 규칙과 같다.
+                   · 코드를 골라 보는 중(_stkLedExt) 이면 표 전체가 이미 그 코드분이다.
+                     줄마다 ↳ 를 또 달면 바로 위 줄과 수량·사업장이 똑같은 줄이 하나씩 더 생긴다.
+                     '어느 코드를 보고 있나' 는 머리말 배지에 이미 적혀 있다.
+                   · 안 걸렀더라도 그 날이 '대표코드 하나' 뿐이면 마찬가지로 되풀이다.
+                     (단, 대표와 다른 코드 하나뿐인 날은 남긴다 — 대표코드 줄만 봐서는
+                      실제로 어떤 코드로 나갔는지 알 수 없으니 그건 뜻이 있다.) */
+              + ((_ledExpAll && !_stkLedExt) ? _extParse(l.extCds) : []).filter(function(e, i, a){
+                  return !(a.length===1 && e.cd===l.prodCd);
+                }).map(function(e){
+                  return '<tr style="background:#fffaf3">'
+                    +'<td></td>'
+                    +'<td style="text-align:right;padding-right:14px;color:#b06a00;font-weight:700;white-space:nowrap" title="대체출고 — 재고는 대표코드로 빠지고 실제로는 이 매칭코드로 나갔습니다.">↳ '+_cesc(e.cd)+'</td>'
+                    +'<td></td>'
+                    +'<td style="text-align:right;color:#b06a00;font-weight:700">'+_cnum(e.qty)+'</td>'
+                    +'<td></td><td></td><td></td>'
+                    +'<td>'+(e.biz ? _bizCell(e.biz) : '')+'</td>'
+                    +'<td></td><td></td><td></td><td></td><td></td></tr>';
+                }).join('');
           }).join('')
           /* 기간을 좁혀 비었을 때와, 원장 자체가 없을 때를 구분해 안내한다 —
              똑같이 '없습니다' 라고만 하면 기간 탓인 줄 모르고 자료가 없다고 오해한다. */
@@ -1795,6 +2089,7 @@
               : '<tr><td colspan="13" style="text-align:center;color:#9aa7b3;padding:20px">수불 내역이 없습니다. (이 품목은 입고/출고 원장 기록이 없음)</td></tr>');
         hd.innerHTML=head;
         bd.innerHTML='<table class="logi-tb">'+thead+'<tbody>'+body+'</tbody></table>';
+        _stkLedFit();   // 남은 화면 높이만큼 표를 늘린다(아래 여백 방지)
     }
   }
   /* ①품목별 현재고 — 10행씩 + 자동 스크롤(2026-07-25 요청).
@@ -1906,21 +2201,49 @@
        ★서버를 다시 부르지 않는다 — _stkLedRaw 를 그대로 쓴다(즉시 열림).
        ★'기타(반품·조정)' 칸을 따로 두는 이유 : 원장에는 I·O 말고 R(반품)·A(조정)도 올 수 있다.
          입고·출고 둘로만 나누면 그런 줄이 **조용히 사라져** 합이 안 맞는다. 있을 때만 보여 준다. */
+  /* 팝업에서 고른 매칭코드 — 빈 문자열이면 그 품목 전체(2026-08-07 요청) */
+  var _splitExt = '';
+  function stkSplitExt(cd){ _splitExt = (_splitExt===cd) ? '' : cd; stkSplitOpen(); }   // 같은 줄을 다시 누르면 해제
+  function stkSplitExtClear(){ _splitExt=''; stkSplitOpen(); }
   function stkSplitOpen(){
     /* 메시지는 앱 공통 스타일(빨간 아이콘 + 빨간 확인버튼)로 — 2026-08-07 지정.
        순서 안내라 'warning' 이 맞고, 버튼 색은 swAlert 가 공통 스타일로 맞춰 준다. */
     if(!_stkLedRow || !_stkLedRaw.length){ swAlert('위 ① <b>품목별 현재고</b> 표에서 품목을 먼저 고르세요.','error'); return; }
     var cut=_stkLedCut();
     var rows = cut ? _stkLedRaw.filter(function(l){ return String(l.trxDt||'').replace(/-/g,'') >= cut; }) : _stkLedRaw;
+    /* 요약표의 ↳ 매칭코드 줄을 누르면 그 코드가 섞인 날짜만 남긴다(2026-08-07 요청).
+       입고는 언제나 대표코드라 매칭을 고르면 입고내역은 자연히 비게 된다 — 맞는 동작이다. */
+    /* ★위 [선택 품목] 요약표는 '거르기 전' 값으로 둔다 (2026-08-07 지적).
+         종전에는 코드를 고르면 요약표의 하위 줄까지 그 코드 하나만 남아,
+         다른 코드로 갈아타려면 매번 '전체보기' 로 되돌아가야 했다.
+       요약표 = 이 품목의 전체 그림이자 코드를 갈아 끼우는 스위치,
+       아래 입고·출고 내역 = 고른 코드분. 이렇게 역할을 갈라 둔다. */
+    var rowsAll=rows;
+    if(_splitExt){
+      /* 그 코드분만 남긴 사본으로 갈아 끼운다 — 수량·사업장·하위 행이 모두 그 코드 기준이 된다.
+         입고는 대표코드로만 들어오므로 자연히 0건이 된다(맞는 결과). */
+      rows = rows.map(function(l){ return (l.ioGb==='O') ? _extPick(l, _splitExt) : null; }).filter(Boolean);
+    }
+    var inA=[], outA=[];
+    rowsAll.forEach(function(l){ if(l.ioGb==='O') outA.push(l); else if(l.ioGb==='I') inA.push(l); });
     var inR=[], outR=[], etcR=[];
     rows.forEach(function(l){ if(l.ioGb==='O') outR.push(l); else if(l.ioGb==='I') inR.push(l); else etcR.push(l); });
 
     var r=_stkLedRow;
     document.getElementById('stkSplitTit').innerHTML =
       '<b>'+_cesc(r.prodCd||'')+'</b> <span style="color:#37475a">'+_cesc(r.prodNm||'')+'</span>'
-      + ' <span style="color:#9aa7b3;font-size:12.5px">('+(_stkLedMon?('최근 '+_stkLedMon+'개월'):'전체 기간')+')</span>';
+      + ' <span style="color:#9aa7b3;font-size:12.5px">('+(_stkLedMon?('최근 '+_stkLedMon+'개월'):'전체 기간')+')</span>'
+      /* 매칭코드로 걸러 보는 중이면 그 사실과 푸는 길을 함께 보여 준다 */
+      + (_splitExt ? ' <span style="color:#b06a00;font-weight:800;font-size:12.5px"'
+                   + ' title="매칭코드는 출고에만 붙습니다(입고는 대표코드로 들어옴). 그래서 입고는 0건이 되고, 출고 수량도 이 코드 몫만 나옵니다.">'
+                   + '· 매칭코드 '+_cesc(_splitExt)+' 출고만 &nbsp;<span style="color:#137a6c">'
+                   + _cnum(outR.reduce(function(a,l){ return a+(+l.qty||0); },0))+'</span></span>'
+                   + ' <a href="javascript:void(0)" onclick="stkSplitExtClear()" style="font-size:12px;color:#137a6c;font-weight:800;text-decoration:none" title="이 품목 전체로 되돌립니다">✕ 전체보기</a>' : '');
     var sum=function(a){ var q=0,m=0; a.forEach(function(l){ q+=(+l.qty||0); m+=(+l.amt||0); }); return {q:q,m:m}; };
-    var si=sum(inR), so=sum(outR);
+    /* 오른쪽 위 요약도 '거르기 전' 값이다 — 아래 요약표와 같은 뜻이어야 한다.
+       코드를 골랐을 때 여기만 걸러진 값이면 입고 0 · 차 -55 처럼 읽혀 장부가 깨진 듯 보인다.
+       고른 코드분은 아래 '출고내역' 머리에 따로 적힌다(2026-08-07). */
+    var si=sum(inA), so=sum(outA);
     document.getElementById('stkSplitSum').innerHTML =
         '입고 <b style="color:#137a6c">'+_cnum(si.q)+'</b>'
       + ' · 출고 <b style="color:#b06a00">'+_cnum(so.q)+'</b>'
@@ -1952,23 +2275,28 @@
          +   '<b style="font-size:16.5px;color:#1f2a37">◆ 선택 품목</b>'
          +   '<span style="color:#9aa7b3;font-size:12.5px">입고·출고 = 이 창에서 보는 기간 합계 · 현재고부터는 전체 기준</span></div>'
          + '<div style="border:1px solid var(--logi-border);border-radius:8px;overflow:auto">'
-         + '<table class="logi-tb"><thead><tr>'
+         + '<table class="logi-tb sp-top"><thead><tr>'
+         /* 매칭코드 열을 없애고 품목코드 밑에 붙인다 (2026-08-07 요청) —
+            ①표·②수불 내역과 같은 모양으로 통일. 세 표가 제각각이면 같은 값인데도 다르게 읽힌다. */
          +   '<th>품목코드</th><th>품목명</th>'
-         /* 매칭코드도 보여 준다 (2026-08-07 요청) — ①표와 같은 칸이라
-            창을 띄우고 보는 중에도 "이 품목이 어떤 코드와 묶여 있는지" 를 바로 안다. */
-         +   '<th style="width:170px">매칭코드</th>'
          +   '<th style="text-align:right">입고</th><th style="text-align:right">출고</th>'
          +   '<th style="text-align:right">현재고</th><th style="text-align:right">이동평균단가</th>'
          +   '<th style="text-align:right">재고금액</th>'
          + '</tr></thead><tbody><tr>'
          +   '<td>'+_cesc(r.prodCd||'')+'</td><td class="txt-l">'+_cesc(r.prodNm||'')+'</td>'
-         +   '<td class="txt-l">'+stkAliasCell(r.prodCd)+'</td>'
          +   '<td style="text-align:right;color:#137a6c;font-weight:700">'+_cnum(si.q)+'</td>'
          +   '<td style="text-align:right;color:#b06a00;font-weight:700">'+_cnum(so.q)+'</td>'
          +   '<td style="text-align:right;font-weight:800;background:#f7fafc;color:'+(neg?'#c0392b':'#137a6c')+'">'+_cnum(r.curQty)+'</td>'
          +   '<td style="text-align:right;background:#f7fafc">'+_cnum(r.avgInPrice)+'</td>'
          +   '<td style="text-align:right;background:#f7fafc">'+_cnum(r.stockAmt)+'</td>'
-         + '</tr></tbody></table></div>';
+         + '</tr>'
+         /* 매칭코드 하위 행 — 7열, 품목코드=0번 칸, 출고=3번 칸.
+            ★코드를 골라도 줄은 다 남긴다 — 고른 줄에만 표시를 넣는다(2026-08-07 지적).
+              줄이 하나만 남으면 다른 코드로 갈아타는 길이 막혀 '전체보기' 를 거쳐야 했다.
+              위 출고 칸도 거르기 전 값이라 하위 합과 그대로 맞는다. */
+         + stkAliasRows(r.prodCd, r.extQtys, 7, 0, 3,
+                        function(cd){ return "stkSplitExt('"+cd+"')"; }, _splitExt)
+         + '</tbody></table></div>';
   }
 
   /* 한 방향짜리 표 하나. 입고는 매입처·단가가 뜻이 있고, 출고는 사업장이 뜻이 있어
@@ -1992,7 +2320,29 @@
     var th = isIn
       ? '<thead><tr><th style="width:44px">No</th><th>일자</th><th>품목코드</th><th>품목명</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>매입처</th><th>근거구분</th><th>근거번호</th><th>비고</th></tr></thead>'
       : '<thead><tr><th style="width:44px">No</th><th>일자</th><th>품목코드</th><th>품목명</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>사업장</th><th>근거구분</th><th>근거번호</th><th>비고</th></tr></thead>';
-    var _nm = (_stkLedRow && _stkLedRow.prodNm) || '';
+    /* 매칭코드를 골라 보는 중이면 품명도 그 코드의 거래처 품명으로 — 코드는 매칭인데
+       품명만 대표 것이면 짝이 안 맞는다(2026-08-07). 등록된 품명이 없으면 대표 품명 그대로. */
+    var _nm = (_splitExt && _stkLedRow ? _extNmOf(_stkLedRow.prodCd, _splitExt) : '')
+              || (_stkLedRow && _stkLedRow.prodNm) || '';
+    /* 대체출고 하위 행 — 수불 내역과 같은 규격(2026-08-07 요청).
+       이 표는 열이 11개라 앞 4칸(No·일자·품목코드·품목명) 뒤에 수량, 그 다음이 사업장이다. */
+    var _sub = function(l){
+      /* 안 갈린 날은 하위 줄을 안 그린다 — 위 ②수불 내역과 같은 규칙(2026-08-07).
+         코드를 골라 보는 중이면 목록 전체가 그 코드분이라 ↳ 줄은 전부 되풀이다. */
+      return (_splitExt ? [] : _extParse(l.extCds)).filter(function(e, i, a){
+        return !(a.length===1 && e.cd===l.prodCd);
+      }).map(function(e){
+        return '<tr style="background:#fffaf3">'
+          +'<td></td><td></td>'
+          +'<td style="text-align:right;padding-right:14px;color:#b06a00;font-weight:700;white-space:nowrap" title="대체출고 — 재고는 대표코드로 빠지고 실제로는 이 매칭코드로 나갔습니다.">↳ '+_cesc(e.cd)+'</td>'
+          /* 품명 — 그 매칭코드의 거래처 품명(2026-08-07 요청). 비어 있으면 그냥 빈 칸으로 둔다. */
+          +'<td class="txt-l" style="color:#8a5200" title="거래처 품명">'+_cesc(_extNmOf(l.prodCd, e.cd))+'</td>'
+          +'<td style="text-align:right;color:#b06a00;font-weight:700">'+_cnum(e.qty)+'</td>'
+          +'<td></td><td></td>'
+          +'<td>'+(e.biz ? _bizCell(e.biz) : '')+'</td>'
+          +'<td></td><td></td><td></td></tr>';
+      }).join('');
+    };
     var body = rows.map(function(l, _i){
       var no='<td style="text-align:center;color:#8a97a4;font-weight:700;background:#fbfcfd">'+(_i+1)+'</td>';
       return isIn
@@ -2002,7 +2352,7 @@
           +'<td style="text-align:right;font-weight:700;color:#137a6c">'+_cnum(l.qty)+'</td>'
           +'<td style="text-align:right">'+_cnum(l.unitPrice)+'</td><td style="text-align:right">'+_cnum(l.amt)+'</td>'
           +'<td title="'+_cesc(l.vendorNm||'')+'">'+_cesc(l.vendorCd||'')+(l.vendorNm?(' <span style="color:#5a6b7a">'+_cesc(l.vendorNm)+'</span>'):'')+'</td>'
-          +'<td>'+_cesc(l.refGb||'')+'</td><td>'+_cesc(l.refNo||'')+'</td><td>'+_cesc(l.remark||'')+'</td></tr>'
+          +'<td>'+_cesc(l.refGb||'')+'</td><td>'+_cesc(l.refNo||'')+'</td><td>'+_cesc(l.remark||'')+'</td></tr>'+_sub(l)
         : '<tr>'+no+'<td>'+_fmtYmd(l.trxDt)+'</td>'
           +'<td>'+_cesc(l.prodCd||'')+'</td>'
           +'<td class="txt-l">'+_cesc(l.prodNm||_nm)+'</td>'
@@ -2013,15 +2363,129 @@
           +'<td style="text-align:right'+((+l.unitPrice||0)?'':';color:#c8ced4')+'">'+_cnum(l.unitPrice)+'</td>'
           +'<td style="text-align:right'+((+l.amt||0)?'':';color:#c8ced4')+'">'+_cnum(l.amt)+'</td>'
           +'<td>'+(l.bizCd ? _bizCell(l.bizCd) : (l.vendorNm ? '<span style="color:#5a6b7a">'+_cesc(l.vendorNm)+'</span>' : ''))+'</td>'
-          +'<td>'+_cesc(l.refGb||'')+'</td><td>'+_cesc(l.refNo||'')+'</td><td>'+_cesc(l.remark||'')+'</td></tr>';
+          +'<td>'+_cesc(l.refGb||'')+'</td><td>'+_cesc(l.refNo||'')+'</td><td>'+_cesc(l.remark||'')+'</td></tr>'+_sub(l);
     }).join('');
     /* 표가 길어도 창이 무한정 늘어나지 않게 각 표에 높이 상한을 둔다 */
     return head + '<div style="max-height:'+(maxH||'34vh')+';overflow:auto;border:1px solid var(--logi-border);border-radius:8px">'
-                + '<table class="logi-tb">'+th+'<tbody>'+body+'</tbody></table></div>';
+                + '<table class="logi-tb '+(isIn?'sp-in':'sp-out')+'">'+th+'<tbody>'+body+'</tbody></table></div>';
+  }
+  /* ①표 품목코드 칸 아래에 붙일 매칭코드 — 한 줄에 하나씩 (2026-08-07 요청).
+       종전에는 '매칭코드' 열을 따로 뒀는데, ②수불 내역이 이미 품목코드 밑에 ↳ 로
+       보여주고 있어 두 표의 모양이 달랐다. 열을 없애고 아래 규칙으로 통일한다.
+     · 이 행에 붙은 매칭코드가 있으면  ↳ 코드
+     · 반대로 이 행의 코드가 남의 매칭코드이면  🔖 주코드 xxxx
+     · 아무것도 없으면 빈 값 — '없음' 을 줄마다 찍으면 표가 시끄럽다.
+     자세한 내용(거래처 품명·출처)은 종전처럼 hover 툴팁에 담는다. */
+  /* 매칭코드를 '하위 행' 으로 편다 — ②수불 내역과 같은 모양(2026-08-07 요청).
+       칸 안에 (수량) 을 괄호로 붙이면 대표 줄의 숫자와 세로로 안 맞아 견주기 어렵다.
+       행을 따로 세우면 출고 칸이 정확히 대표 줄 출고 아래에 선다.
+     · nCol = 그 표의 전체 열 수, iCd/iOut = 품목코드·출고 칸의 자리(0부터).
+       ①표(9열: 코드·품명·입고·출고·현재고·단가·금액·최근입고·최근출고)와
+       팝업 요약표(7열: 코드·품명·입고·출고·현재고·단가·금액)가 자리가 달라 인자로 받는다.
+     · ★입고 칸은 비워 둔다 — 매입은 언제나 '대표코드로' 들어오기 때문이다(2026-08-07 확인).
+       매칭코드는 거래처가 주문서에 쓰는 코드라 출고에만 나타난다. 그래서 하위 행에는
+       출고수량만 붙고 입고·현재고·단가·금액은 대표 줄의 합산 하나만 있는 게 맞다.
+       출고수량은 서버가 '코드:수량|코드:수량' 으로 준다. */
+  /* selCd = 지금 골라 놓은 매칭코드(없으면 빈 값). 그 줄만 배경·왼쪽 띠로 표시한다.
+     ①표는 _stkLedExt, 팝업은 _splitExt 를 넘긴다 — 어느 줄을 보고 있는지 표에서 바로 알게. */
+  function stkAliasRows(prodCd, extQtys, nCol, iCd, iOut, mkClick, selCd){
+    if(!_stkAlias) return '';
+    var key=String(prodCd||'').trim();
+    var qm={};
+    String(extQtys||'').split('|').forEach(function(s){
+      var t=s.split(':'); if(t.length===2 && t[0]) qm[t[0]]=t[1];
+    });
+    /* ★두 줄은 뜻이 반대라 배경까지 갈라 둔다 (2026-08-07 요청)
+         ↳ 매칭코드  = 이 품목(대표)에 딸린 거래처 코드      → 주황 계열
+         🔖 주코드   = 반대로 이 품목이 남의 매칭코드일 때   → 파랑 계열
+       색이 같으면 "내 아래 딸린 것" 과 "나를 거느린 것" 이 뒤집혀 읽힌다. */
+    /* 하위 행도 '눌러서 고를 수 있게' 한다 (2026-08-07 요청) —
+         매칭코드 줄을 누르면 아래 ②수불 내역이 그 코드분만 걸러서 나온다.
+         품목(prodSeq)은 대표와 같고, extCd 만 넘겨 화면에서 거른다.
+       ※ 경계선은 넣었다가 도로 뺐다(같은 날) — 배경색만으로도 묶음이 읽힌다. */
+    var mk=function(cells, bg, onclick, on){
+      /* 고른 줄은 ②수불 내역의 선택행(.stk-on)과 같은 초록으로 맞춘다 —
+         위아래가 다른 색이면 같은 걸 골랐는데도 딴 줄처럼 보인다(2026-08-07). */
+      var h='<tr style="background:'+(on?'#cfeae3':(bg||'#fffaf3'))+(onclick?';cursor:pointer':'')+'"'
+          + (onclick?(' onclick="'+onclick+'" title="'+(on?'다시 누르면 전체로 되돌립니다':'이 매칭코드로 나간 내역만 아래에 봅니다')+'"'):'')+'>';
+      for(var i=0;i<nCol;i++){
+        var c=(cells[i]!=null ? cells[i] : '<td></td>');
+        /* 첫 칸에 왼쪽 띠 — 어느 줄이 골라져 있는지 한눈에.
+           이미 style 이 있으면 그 앞에 끼워 넣고, 없으면 새로 단다(속성이 두 번 붙으면 뒤엣것이 죽는다). */
+        if(on && i===0){
+          c = /<td[^>]*\sstyle="/.test(c)
+                ? c.replace(/(<td[^>]*\sstyle=")/, '$1box-shadow:inset 4px 0 0 #137a6c;')
+                : c.replace(/^<td/, '<td style="box-shadow:inset 4px 0 0 #137a6c"');
+        }
+        h += c;
+      }
+      return h+'</tr>';
+    };
+    /* ★하위 행은 '등록된 매칭코드' 가 아니라 '실제로 출고된 코드' 로 그린다 (2026-08-07 수정)
+         종전에는 _stkAlias(등록표)만 돌아서, 대표코드 자신으로 나간 분이 빠졌다.
+         실측 1000778869 : 출고 172 = 매칭 1000772461(161) + 대표 1000778869(11)
+         인데 161 만 보여 11 이 사라진 것처럼 됐다(사용자 지적).
+       → 서버가 준 출고분(qm)을 기준으로 돌면 하위 합이 언제나 대표 줄 출고와 맞는다.
+         등록만 되고 아직 출고가 없는 매칭코드는 뒤에 수량 없이 덧붙인다. */
+    var nmOf={}; (_stkAlias[key]||[]).forEach(function(o){ nmOf[o.cd]=o.nm||''; });
+    var ship=Object.keys(qm).sort(function(a,b){ return (+qm[b]||0)-(+qm[a]||0); });
+    var restAlias=(_stkAlias[key]||[]).filter(function(o){ return qm[o.cd]==null; });
+    /* ★하위 행은 '출고가 실제로 갈렸을 때' 만 편다 (2026-08-07 요청)
+         하위 행의 존재 이유는 "대표코드 출고가 어떤 코드로 나갔는지" 를 쪼개 보여주는 것뿐이다.
+         · 출고가 없는 줄(입고만 있는 품목) — 입고는 언제나 대표코드로 들어오므로 쪼갤 게 없다.
+           그런데도 🔖 주코드 줄이 떠서 "입고인데 매칭이 보인다" 가 됐다(사용자 지적).
+         · 출고가 대표코드 하나뿐인 줄 — '↳ 1000455368 (대표) 14' 처럼 바로 위 줄과
+           같은 코드·같은 수량을 되풀이할 뿐이라 군더더기다.
+       두 경우 모두 아무것도 그리지 않는다. */
+    var split = ship.length > 1 || (ship.length === 1 && ship[0] !== key);
+    if(!split) return '';
+    if(ship.length || restAlias.length){
+      var rows=[];
+      var out=ship.map(function(cd){
+        var self=(cd===key);       // 대표코드 자신으로 나간 분
+        var nm=self?'':(nmOf[cd]||'');
+        var tip=(self ? '대표코드로 바로 나간 출고입니다(매칭코드 없이 주문된 건).'
+                      : (cd+(nm?(' · '+nm):'')+'\n이 코드로 나간 출고 '+qm[cd])).replace(/"/g,'&quot;').replace(/\n/g,'&#10;');
+        var c={};
+        c[iCd]='<td style="text-align:right;padding-right:14px; color:'+(self?'#5a6b7a':'#b06a00')+';font-weight:700;white-space:nowrap" title="'+tip+'">'
+             + '↳ '+_cesc(cd)+'</td>';
+        /* '(대표)' 는 코드 뒤가 아니라 품명 칸 앞에 붙인다 (2026-08-07 요청) —
+           코드 옆에 두면 그 줄만 길어져 다른 매칭코드 줄과 세로로 안 맞는다.
+           코드는 코드끼리 같은 자리에 서야 견주기 쉽다. */
+        c[iCd+1]='<td class="txt-l" style="color:#8a5200" title="'+(self?'대표코드로 바로 나간 출고':'거래처 품명')+'">'
+               + (self?'<span style="color:#5a6b7a;font-weight:700">(대표코드 직접출고)</span>':_cesc(nm))+'</td>';
+        c[iOut]='<td style="text-align:right;color:'+(self?'#5a6b7a':'#b06a00')+';font-weight:700">'+_cnum(qm[cd])+'</td>';
+        return { c:c, bg:(self?"#f6f8fa":"#fff6ea"), cd:cd };
+      });
+      // 등록은 됐는데 아직 그 코드로 나간 적이 없는 매칭코드
+      out=out.concat(restAlias.map(function(o){
+        var tip=(o.cd+(o.nm?(' · '+o.nm):'')+' ('+o.via+')\n아직 이 코드로 나간 출고가 없습니다.').replace(/"/g,'&quot;').replace(/\n/g,'&#10;');
+        var c={};
+        c[iCd]='<td style="text-align:right;padding-right:14px; color:#b06a00;font-weight:700;white-space:nowrap;opacity:.65" title="'+tip+'">↳ '+_cesc(o.cd)+'</td>';
+        if(o.nm) c[iCd+1]='<td class="txt-l" style="color:#8a5200;opacity:.65" title="거래처 품명">'+_cesc(o.nm)+'</td>';
+        return { c:c, bg:'#fff6ea', cd:o.cd };
+      }));
+      return out.map(function(o){
+        /* onclick 은 부르는 쪽이 정한다 — ①표는 안 걸고(접기/펼치기로 정리),
+           [입·출고 나누어보기] 팝업은 그 코드만 보도록 건다(2026-08-07 요청). */
+        return mk(o.c, o.bg, mkClick ? mkClick(o.cd) : null, !!selCd && o.cd===selCd);
+      }).join('');
+    }
+    var rl=(_stkAliasRev&&_stkAliasRev[key])||[];
+    if(rl.length){
+      return rl.map(function(o){
+        var tip=('이 코드는 '+o.cd+(o.nm?(' · '+o.nm):'')+' 의 매칭코드로 등록되어 있습니다.').replace(/"/g,'&quot;');
+        var c={};
+        c[iCd]='<td style="text-align:right;padding-right:14px; color:#274b8f;font-weight:800;white-space:nowrap" title="'+tip+'">🔖 주코드 '+_cesc(o.cd)+'</td>';
+        if(o.nm) c[iCd+1]='<td class="txt-l" style="color:#274b8f">'+_cesc(o.nm)+'</td>';
+        return { c:c, bg:'#eef3fb' };
+      }).map(function(o){ return mk(o.c, o.bg, null); }).join('');
+    }
+    return '';
   }
   function stkAliasCell(prodCd){
     var BSQ="\\'";   // onclick 안 따옴표 이스케이프용(역슬래시+홈따옴표)
-    if(!_stkAlias) return '<span style="color:#c8ced4">…</span>';
+    if(!_stkAlias) return '<span style="color:#8a97a4">…</span>';   // 아직 매칭표를 못 읽음
     var key=String(prodCd||'').trim();
     var l=_stkAlias[key]||[];
     if(l.length){
@@ -2055,7 +2519,8 @@
         +    ' style="color:#274b8f;font-weight:800">🔖 주코드 '+_cesc(one.cd)+'</span>'
         + (rl.length>1 ? (' <b style="color:#274b8f">+'+(rl.length-1)+'</b>') : '');
     }
-    return '<span style="color:#c8ced4">-</span>';
+    /* 매칭코드가 없는 품목 — 종전 색(#c8ced4)이 너무 옅어 '칸이 비었다' 로 보였다(2026-08-07 지적) */
+    return '<span style="color:#8a97a4" title="이 품목에 등록된 매칭코드가 없습니다.">없음</span>';
   }
 
   /* 바깥을 누르거나 Esc 로도 닫히게 — 닫기 버튼만 두면 창에 갇힌 느낌이 든다 */
@@ -2078,7 +2543,7 @@
        매칭코드(TBL_EXT_ITEM_MST)와 연결(TBL_PROD_XREF)을 우리 코드 기준으로 모아 보여 준다. */
     /* ★칸 이름은 '매칭코드' — '거래처코드' 라고 하면 아래 수불내역의 매입처(00272 같은 거래처 코드)와 헷갈린다(2026-08-01 지적) */
     /* ★칸 폭 160px — '🔖 주코드 9904013265' 가 한 줄에 들어가야 한다(2026-08-02) */
-    var thead='<thead><tr><th>품목코드</th><th>품목명</th><th style="width:160px" title="이 품목에 붙어 있는 거래처 코드(매칭·연결).&#10;&#10;반대로 이 행의 품목코드 자체가 남의 매칭코드이면 [🔖 주코드 …] 로 표시됩니다 — 매칭 전 출고가 거래처 코드로 잡힌 행입니다. 클릭하면 주코드로 다시 조회합니다.">매칭코드</th><th style="text-align:right">입고</th><th style="text-align:right">출고</th><th style="text-align:right">현재고</th><th style="text-align:right">이동평균단가</th><th style="text-align:right">재고금액</th><th>최근입고</th><th>최근출고</th></tr></thead>';
+    var thead='<thead><tr><th>품목코드</th><th>품목명</th><th style="text-align:right">입고</th><th style="text-align:right">출고</th><th style="text-align:right">현재고</th><th style="text-align:right">이동평균단가</th><th style="text-align:right">재고금액</th><th>최근입고</th><th>최근출고</th></tr></thead>';
     /* [매칭코드 있는 것만] 체크 (2026-08-06 요청) — 합계·건수도 걸러 낸 것만 센다.
        ★매칭코드 자료(_stkAlias)는 목록보다 늦게 도착한다. 아직 없으면 거르지 않는다 —
          안 그러면 화면이 잠깐 텅 비어 '자료가 없다'로 오해하게 된다. */
@@ -2094,19 +2559,53 @@
     sum.innerHTML=(_onlyA ? (_aliasReady ? '<b style="color:#b06a00">매칭코드 있는 것만</b> · '
                                         : '<span style="color:#9aa7b3">매칭코드 불러오는 중…</span> · ') : '')
       +'총 <b>'+view.length.toLocaleString()+'</b>품목 · 입고합 <b>'+_cnum(tI)+'</b> · 출고합 <b>'+_cnum(tO)+'</b> · 현재고합 <b>'+_cnum(tQ)+'</b> · 재고금액합 <b>'+_cnum(tA)+'</b>';
-    var totalRow='<tr class="close-total"><td colspan="3" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tI)+'</td><td style="text-align:right">'+_cnum(tO)+'</td><td style="text-align:right">'+_cnum(tQ)+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td><td></td></tr>';
+    var totalRow='<tr class="close-total"><td colspan="2" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tI)+'</td><td style="text-align:right">'+_cnum(tO)+'</td><td style="text-align:right">'+_cnum(tQ)+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td><td></td></tr>';
     var stkRow=function(r){ var neg=(+r.curQty||0)<0;
-      return '<tr style="cursor:pointer" onclick="stkLedgerDetail('+(r.prodSeq||0)+', this)" title="클릭 → 아래 ② 수불 내역(근거) 표시"><td>'+_cesc(r.prodCd)+'</td><td class="txt-l">'+_cesc(r.prodNm)+'</td>'
-        +'<td class="txt-l">'+stkAliasCell(r.prodCd)+'</td>'
+      /* 하위 행이 붙는 줄은 대표 줄 위에도 선을 그어 '한 덩어리' 로 보이게 한다(2026-08-07 요청).
+         하위가 없으면 선도 없어 평소 표는 그대로다. */
+      /* ↳ 매칭 줄도 눌러서 고를 수 있다 — 아래 ②가 그 코드로 나간 날짜만 보여 준다(2026-08-07 요청).
+         품목(prodSeq)은 대표와 같고 세 번째 인자로 코드를 넘긴다. */
+      var _ps=(r.prodSeq||0);
+      var sub=stkAliasRows(r.prodCd, r.extQtys, 9, 0, 3, function(cd){
+        return 'stkLedgerDetail('+_ps+", this, '"+String(cd).replace(/'/g,'')+"')";
+      /* 지금 ②에서 걸러 보고 있는 코드가 이 품목의 것일 때만 표시한다 —
+         다른 품목 줄까지 초록이 되면 어느 줄을 보고 있는지 되레 헷갈린다. */
+      }, (_stkLedRow && _stkLedRow.prodCd===r.prodCd) ? _stkLedExt : '');
+      /* 접혀 있으면 하위 행을 아예 안 그린다. 대신 품목코드 앞에 ▼/▶ 를 붙여
+         "펼칠 게 있다" 는 것과 몇 개인지를 알린다(2026-08-07 요청). */
+      var open=stkExpOn(r.prodCd), nSub=sub ? (sub.match(/<tr/g)||[]).length : 0;
+      var caret = sub
+        ? '<a href="javascript:void(0)" onclick="stkExpToggle(\''+_cesc(r.prodCd)+'\',event)"'
+          + ' style="color:#b06a00;font-weight:800;text-decoration:none;margin-right:4px" title="매칭코드 '+nSub+'줄 접기/펼치기">'
+          + (open?'▼':'▶')+'</a>' : '';
+      if(!open) sub='';
+      /* data-main : 이 줄이 '품목 줄' 이라는 표시. 하위 ↳ 줄을 눌렀을 때 그 줄이 딸린
+         품목 줄을 거슬러 찾아 맨 위로 올리는 데 쓴다(2026-08-07 요청). */
+      return '<tr class="'+(nSub?'stk-grp':'')+'" data-main="1" data-seq="'+(r.prodSeq||0)+'" style="cursor:pointer" onclick="stkLedgerDetail('+(r.prodSeq||0)+', this)" title="클릭 → 아래 ② 수불 내역(근거) 표시"><td>'+caret+_cesc(r.prodCd)+(nSub&&!open?' <span style="color:#b06a00;font-size:11px;font-weight:700">+'+nSub+'</span>':'')+'</td><td class="txt-l">'+_cesc(r.prodNm)+'</td>'
         +'<td style="text-align:right;color:#137a6c">'+_cnum(r.inQty)+'</td>'
         +'<td style="text-align:right;color:#b06a00">'+_cnum(r.outQty)+'</td>'
         +'<td style="text-align:right;font-weight:700;color:'+(neg?'#c0392b':'#137a6c')+'">'+_cnum(r.curQty)+'</td>'
         +'<td style="text-align:right">'+_cnum(r.avgInPrice)+'</td><td style="text-align:right">'+_cnum(r.stockAmt)+'</td>'
-        +'<td>'+_fmtYmd(r.lastInDt)+'</td><td>'+_fmtYmd(r.lastOutDt)+'</td></tr>';
+        +'<td>'+_fmtYmd(r.lastInDt)+'</td><td>'+_fmtYmd(r.lastOutDt)+'</td></tr>'
+        /* 매칭코드 하위 행 — 9열, 품목코드=0번 칸, 출고=3번 칸.
+           lzMount 는 rowFn 이 돌려준 문자열을 그대로 이어 붙이므로 <tr> 을 여러 개 줘도 된다. */
+        + sub;
     };
     lzMount({ wrap:wrap, pager:'stkStatusPager', rows:STK_PAGE, capTop:300,
               head:'<table class="logi-tb">'+thead+'<tbody>'+totalRow,
               list:view, rowFn:stkRow });
+    /* ★다시 그려도 고른 줄을 그대로 둔다 (2026-08-07).
+         lzMount 는 innerHTML 을 통째로 갈아 끼운다 — 그래서 매칭 접기/펼치기나 조회를 하면
+         선택 표시(.stk-on)가 사라지고 스크롤도 맨 위로 튀었다. 같은 줄을 찾아 도로 표시하고
+         맨 위로 올린다. 아직 안 붙은(스크롤로 이어 붙는) 줄이면 조용히 건너뛴다. */
+    /* 버튼 색은 처음 그릴 때부터 상태를 따르게 한다 — 눌러야 색이 붙으면 첫 화면만 딴판이 된다 */
+    _stkExpBtnPaint(document.getElementById('stkExpBtn'), _stkExpAll, '▼ 매칭 접기', '▶ 매칭 펼치기');
+    if(_stkSelSeq){
+      var _sel=wrap.querySelector('tbody tr[data-seq="'+_stkSelSeq+'"]');
+      /* 표시는 언제나 되살리고, 자리를 옮기는 건 펼쳐 놓았을 때만 */
+      if(_sel){ _sel.classList.add('stk-on'); if(_stkLedMax){ _stkTopFitSel(true); _stkScrollTop(wrap, _sel); } }
+    }
+    _stkLedFit();   // 상단 그리드 높이가 바뀌면 아래 수불 표도 다시 맞춘다(검색으로 행수가 줄 때)
   }
   // 창고별 세부 로케이션 더미 데이터 (s: empty=빈자리, use=사용중, full=만재)
   var WH_DATA = {
@@ -2603,7 +3102,8 @@
       .close-tabs .cq{ height:30px; width:210px; margin-bottom:2px; padding:0 10px; border:1px solid #dfe6e3; border-radius:6px; font-size:12.5px; color:#37475a; background:#fff; }
       .close-tabs .cq:focus{ outline:none; border-color:#137a6c; box-shadow:0 0 0 2px rgba(19,122,108,.15); }
       .close-summary{ margin:6px 0; font-size:13px; color:#37475a; font-weight:600; }
-      .close-pager{ display:flex; gap:4px; justify-content:center; align-items:center; margin:12px 0 4px; flex-wrap:wrap; }
+      /* ①표와 ②수불내역 사이가 넓어 보여 여백을 줄였다(2026-08-07 요청) — 12/4 → 5/2 */
+      .close-pager{ display:flex; gap:4px; justify-content:center; align-items:center; margin:5px 0 2px; flex-wrap:wrap; }
       .close-pager button{ min-width:30px; height:30px; border:1px solid #dfe6e3; background:#fff; border-radius:6px; cursor:pointer; font-size:12.5px; font-weight:700; color:#37475a; padding:0 8px; }
       .close-pager button.on{ background:#137a6c; color:#fff; border-color:#137a6c; }
       .close-pager button:disabled{ opacity:.45; cursor:default; }
@@ -3141,10 +3641,14 @@
           <button class="btn-teal" onclick="stkStatusLoad()">↻ 새로고침</button>
         </div>
       </div>
-      <div class="card" style="padding-top:12px">
-        <div class="form-row" style="margin-bottom:0; align-items:flex-end">
-          <div class="fld" style="flex:0 0 300px"><label>검색(품목코드/품목명)</label><div style="position:relative">
-              <input id="stkSrch" placeholder="검색어 입력" onkeyup="if(event.keyCode===13)stkStatusLoad()" oninput="stkSrchTog()" style="width:100%;padding-right:30px">
+      <%-- ★조회줄 라벨을 뺐다 (2026-08-07 요청) — 칸마다 무슨 값인지는 placeholder·툴팁으로 알 수 있고,
+             라벨 한 줄이 사라진 만큼 아래 ①표가 위로 올라와 자료가 더 보인다.
+             라벨이 없어져도 뜻이 흐려지지 않게 placeholder 를 '검색어' → '품목코드/품목명 검색' 으로 늘렸다. --%>
+      <%-- id 는 ②의 [위로 넓히기] 가 이 카드를 통째로 접기 위해 쓴다 (2026-08-07) --%>
+      <div class="card" id="stkTopCard" style="padding-top:8px">
+        <div class="form-row" style="margin-bottom:0; align-items:center">
+          <div class="fld" style="flex:0 0 300px"><div style="position:relative">
+              <input id="stkSrch" placeholder="품목코드/품목명 검색" title="품목코드 또는 품목명으로 찾습니다. Enter 로 조회." onkeyup="if(event.keyCode===13)stkStatusLoad()" oninput="stkSrchTog()" style="width:100%;padding-right:30px">
               <%-- 검색어가 걸려 있을 때만 뜨는 지우개. "일부만 보이는 상태"에서 전체로 돌아오는 길을
                    한 번에 만들어 준다 — 칸을 손으로 비우고 다시 [조회]를 누르는 건 두 단계다. --%>
               <button type="button" id="stkSrchClr" onclick="stkSrchClear()" title="검색어를 지우고 전체를 다시 봅니다"
@@ -3152,12 +3656,12 @@
                              width:22px;height:22px;line-height:20px;padding:0;border:1px solid #cfd8e3;border-radius:11px;
                              background:#fff;color:#8a97a4;cursor:pointer;font-size:13px;font-weight:800">✕</button>
             </div></div>
-          <div class="fld" style="flex:0 0 170px"><label>기준일 <span style="color:#9aa7b3;font-weight:400">(비우면 지금 현재고)</span></label><input type="date" id="stkAsOf" onchange="stkStatusLoad()"></div>
+          <div class="fld" style="flex:0 0 170px"><input type="date" id="stkAsOf" onchange="stkStatusLoad()" title="기준일 — 비우면 지금 현재고, 날짜를 넣으면 그날까지의 기말 재고"></div>
           <%-- 날짜를 매번 달력에서 고르는 게 번거로워 빠른 선택을 붙였다(2026-08-01).
                [전체]=비움(지금 현재고) · [오늘]·[전월말]=그 시점 재고 --%>
           <%-- ★버튼 폭을 flex:1 로 나눠 주면 '전월말' 이 세 글자라 칸이 모자라 글자가 세로로 쪼개진다(2026-08-01 지적).
                  내용만큼만 차지하게 두고 white-space:nowrap 으로 줄바꿈을 막는다. --%>
-          <div class="fld" style="flex:0 0 auto"><label>&nbsp;</label>
+          <div class="fld" style="flex:0 0 auto">
             <%-- ★체크와 버튼을 같은 flex 줄에 둔다 (2026-08-06 지적) — 따로 .fld 로 두면
                    글자 높이가 달라 체크만 살짝 위로 떠 보인다. 같은 줄이면 어긋날 수가 없다.
                  매칭코드 체크는 다시 조회하지 않는다 — 받아 둔 목록을 화면에서 거를 뿐이라 즉시 바뀐다. --%>
@@ -3184,6 +3688,10 @@
                잘려서, 지금 보고 있는 게 '현재고'인지 '과거 어느 시점'인지 알 수 없었다. --%>
           <b id="stkAsOfLbl" style="font-size:12.5px;color:#178074;white-space:nowrap">전체 (현재고)</b>
           <span class="close-summary" id="stkStatusSum" style="margin:0">[조회] 또는 [새로고침]을 누르세요.</span>
+          <%-- 매칭코드 하위 행 일괄 접기/펼치기 (2026-08-07 요청) — 매칭이 여럿인 품목은
+               한 줄이 다섯 줄까지 늘어나 목록을 훑기 어렵다. 줄마다 ▼ 로도 접을 수 있다. --%>
+          <button class="btn-line" id="stkExpBtn" onclick="stkExpToggleAll()" style="height:24px;padding:0 9px;font-size:12px;white-space:nowrap"
+                  title="매칭코드 하위 줄을 한꺼번에 접거나 펼칩니다. 줄마다 있는 ▼ 로 하나씩도 됩니다.">▼ 매칭 접기</button>
           <span style="margin-left:auto;font-size:11.5px;color:#9aa7b3;white-space:nowrap">
             집계 <b id="stkStamp" style="color:#178074">—</b> · 행 클릭 → ② 수불내역
           </span>
@@ -3197,7 +3705,7 @@
       <%-- ★머리를 한 줄로 (2026-08-06 요청) — 종전에는 [제목] / [품목명] / [요약] 이
            서로 다른 줄에 있어 세 줄을 잡아먹고 그만큼 표가 아래로 밀렸다.
            한 줄에 모아 그만큼 표를 위로 올린다(카드 여백도 10→6px). --%>
-      <div class="card" style="margin-top:6px">
+      <div class="card" style="margin-top:2px">
         <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin:0 0 6px">
           <div style="font-weight:800;font-size:13.5px;color:#1f2a37;border-left:4px solid #b06a00;padding-left:9px;white-space:nowrap">② 선택 품목 수불 내역 <span class="badge b-done" style="margin-left:4px">근거</span></div>
           <%-- 제목과 같은 줄에 서야 하므로 flex 로 둘을 양 끝으로 밀어 놓는다 --%>
@@ -3209,7 +3717,7 @@
                  ② 표는 입·출고가 한 줄로 섞여 있어 "얼마 들어와서 얼마 나갔나" 를 눈으로 세야 했다. --%>
           <%-- 큰 버튼·색 입힌다 (2026-08-07 요청) — 기간 버튼 틈에 섮여 안 보였다.
                기간 버튼은 '보기 설정'이고 이건 '다른 화면을 여는' 일이라 가중치가 다르다. --%>
-          <button class="btn-teal" onclick="stkSplitOpen()"
+          <button class="btn-teal" onclick="stkSplitExtClear()"
                   style="padding:0 14px;height:31px;font-size:13.5px;font-weight:800;white-space:nowrap;margin-right:10px;
                          background:#b06a00;border-color:#b06a00;box-shadow:0 1px 4px rgba(176,106,0,.35)"
                   title="선택한 품목의 입고내역과 출고내역을 따로 나눠 봅니다">⬇️⬆️ 입·출고 나누어보기</button>

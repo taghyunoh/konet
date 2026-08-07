@@ -35,7 +35,7 @@
   /* 목록 — 5행 고정 + 자동 스크롤(매출내역과 같은 방식) */
   .sv-list{ max-height:196px; overflow:auto; border:1px solid var(--sv-bd); border-radius:8px; }
   .sv-list table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
-  .sv-list th{ background:#eef3f2; border:1px solid var(--sv-bd); padding:7px 8px; position:sticky; top:0; z-index:2; }
+  .sv-list th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--sv-bd); padding:7px 8px; position:sticky; top:0; z-index:2; }
   .sv-list td{ border:1px solid var(--sv-bd); padding:6px 8px; text-align:center; }
   .sv-list td.num{ text-align:right; }
   .sv-list tr{ cursor:pointer; }
