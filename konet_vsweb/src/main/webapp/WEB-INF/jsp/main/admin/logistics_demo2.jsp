@@ -1640,10 +1640,24 @@
     stkStatusRender();
   }
   function _fmtYmd(s){ s=(''+(s||'')); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : s; }
+  /* 매칭코드로 찾아 대표코드로 바꾸었을 때, 원래 친 매칭코드를 기억해 요약줄에 알린다 */
+  var _stkSrchVia = '';
   function stkStatusLoad(){
     stkSrchTog();
     _stkLedCache={};   // 새로 조회하면 수불내역 캐시도 버린다(출고 반영분을 놓치지 않게)
     var q=(document.getElementById('stkSrch')||{}).value||'', ctx='${pageContext.request.contextPath}';
+    /* ★매칭코드로 찾으면 대표코드로 바꿔 찾는다 (2026-08-07 — "검색이 안됨").
+         재고표(TBL_STOCK_MST)는 대표코드로만 쌓인다. 매칭코드는 그 밑에 달린 이름일 뿐이라
+         그대로 서버에 보내면 언제나 '자료가 없습니다' 가 된다(↳ 줄의 돋보기를 눌러도 마찬가지).
+       역방향 표(_stkAliasRev)가 이미 화면에 있으므로 보내기 전에 바꿔 준다.
+       ★검색어 칸은 그대로 둔다 — 친 글자가 임의로 바뀌면 "내가 친 게 아닌데?" 가 된다.
+         대신 아래 요약줄에 "…의 대표코드로 찾았습니다" 를 적어 둔다. */
+    _stkSrchVia = '';
+    var _qq=String(q).trim();
+    if(_qq && _stkAliasRev && (_stkAliasRev[_qq]||[]).length){
+      _stkSrchVia = _qq;                       // 사용자가 넣은 매칭코드
+      q = _stkAliasRev[_qq][0].cd;             // 실제로 찾을 대표코드
+    }
     var asOf=(document.getElementById('stkAsOf')||{}).value||'';
     var lbl=document.getElementById('stkAsOfLbl'); if(lbl) lbl.textContent = asOf ? ('기준일 '+asOf+' 까지 (기말)') : '전체 (현재고)';
     fetch(ctx+'/prod/stockStatusList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'findData='+encodeURIComponent(q)+'&asOfDt='+encodeURIComponent(asOf) })
@@ -1849,7 +1863,13 @@
     /* 선택행 하이라이트 — 전 행을 돌며 인라인 style 을 지우면 그때마다 화면이 다시 계산돼
        행이 많을수록 눈에 띄게 껌벅인다. 직전 선택 하나만 벗긴다(2026-08-06 지적). */
     var wrap=document.getElementById('stkStatusWrap');
-    if(wrap){ var prev=wrap.querySelector('tbody tr.stk-on'); if(prev){ prev.classList.remove('stk-on'); prev.style.background=''; } }
+    /* ★querySelector 는 첫 줄 하나만 반환한다 — 선택 표시가 둘 이상일 때
+       하나만 벗겨져 이전 것이 남았다(2026-08-07 지적: 대표 줄 + ↳ 줄이 동시에 초록).
+       표시는 .stk-on 이 붙은 줄뿐이라 전부 벗겨도 부담이 없다(대개 1~2개). */
+    if(wrap){
+      var _prevs=wrap.querySelectorAll('tbody tr.stk-on');
+      for(var _p=0;_p<_prevs.length;_p++){ _prevs[_p].classList.remove('stk-on'); _prevs[_p].style.background=''; }
+    }
     /* 배경은 위 CSS(.stk-on)가 준다 — 인라인으로 또 칠하면 CSS 를 고쳐도 안 바뀐다(2026-08-07) */
     if(el){ el.classList.add('stk-on'); }
     /* ★고른 품목을 그리드 맨 위로 올린다 (2026-08-07 요청).
@@ -2404,7 +2424,18 @@
        출고수량은 서버가 '코드:수량|코드:수량' 으로 준다. */
   /* selCd = 지금 골라 놓은 매칭코드(없으면 빈 값). 그 줄만 배경·왼쪽 띠로 표시한다.
      ①표는 _stkLedExt, 팝업은 _splitExt 를 넘긴다 — 어느 줄을 보고 있는지 표에서 바로 알게. */
-  function stkAliasRows(prodCd, extQtys, nCol, iCd, iOut, mkClick, selCd){
+  /* withSrch : ↳ 코드 옆에 돋보기를 붙일지 (2026-08-07 요청).
+       ①표에서만 켜다 — [입·출고 나누어보기] 창은 이미 한 품목만 보는 자리라 검색할 일이 없다. */
+  function stkAliasRows(prodCd, extQtys, nCol, iCd, iOut, mkClick, selCd, withSrch){
+    /* 돋보기 한 개 — 줄 클릭(②를 그 코드로 거르기)과 섞이지 않게
+       stopPropagation 은 stkSrchGo 안에서 한다. 간격을 넓게 두어 잘못 누르는 일을 줄인다. */
+    var _sIcon=function(cd){
+      if(!withSrch) return '';
+      var a=String(cd).replace(/'/g,'');
+      return ' <a href="javascript:void(0)" onclick="stkSrchGo(\''+a+'\', event)"'
+           + ' title="이 코드로 ① 목록을 다시 조회합니다"'
+           + ' style="margin-left:10px;padding:0 4px;color:#137a6c;text-decoration:none;font-size:12.5px">🔍</a>';
+    };
     if(!_stkAlias) return '';
     var key=String(prodCd||'').trim();
     var qm={};
@@ -2464,7 +2495,7 @@
                       : (cd+(nm?(' · '+nm):'')+'\n이 코드로 나간 출고 '+qm[cd])).replace(/"/g,'&quot;').replace(/\n/g,'&#10;');
         var c={};
         c[iCd]='<td style="text-align:right;padding-right:14px; color:'+(self?'#5a6b7a':'#b06a00')+';font-weight:700;white-space:nowrap" title="'+tip+'">'
-             + '↳ '+_cesc(cd)+'</td>';
+             + '↳ '+_cesc(cd)+_sIcon(cd)+'</td>';
         /* '(대표)' 는 코드 뒤가 아니라 품명 칸 앞에 붙인다 (2026-08-07 요청) —
            코드 옆에 두면 그 줄만 길어져 다른 매칭코드 줄과 세로로 안 맞는다.
            코드는 코드끼리 같은 자리에 서야 견주기 쉽다. */
@@ -2477,7 +2508,7 @@
       out=out.concat(restAlias.map(function(o){
         var tip=(o.cd+(o.nm?(' · '+o.nm):'')+' ('+o.via+')\n아직 이 코드로 나간 출고가 없습니다.').replace(/"/g,'&quot;').replace(/\n/g,'&#10;');
         var c={};
-        c[iCd]='<td style="text-align:right;padding-right:14px; color:#b06a00;font-weight:700;white-space:nowrap;opacity:.65" title="'+tip+'">↳ '+_cesc(o.cd)+'</td>';
+        c[iCd]='<td style="text-align:right;padding-right:14px; color:#b06a00;font-weight:700;white-space:nowrap;opacity:.65" title="'+tip+'">↳ '+_cesc(o.cd)+_sIcon(o.cd)+'</td>';
         if(o.nm) c[iCd+1]='<td class="txt-l" style="color:#8a5200;opacity:.65" title="거래처 품명">'+_cesc(o.nm)+'</td>';
         return { c:c, bg:'#fff6ea', cd:o.cd };
       }));
@@ -2571,9 +2602,14 @@
       sum.innerHTML='<b style="color:#b06a00">매칭코드가 등록된 품목이 없습니다.</b> (체크를 풀면 전체가 보입니다)';
       wrap.innerHTML=''; if(pg) pg.innerHTML=''; return;
     }
+    if(!_stkRows.length && _stkSrchVia){
+      sum.innerHTML='<b style="color:#b06a00">'+_cesc(_stkSrchVia)+'</b> 는 매칭코드입니다. 대표코드로 바꿔 찾았으나 재고가 없습니다.';
+      wrap.innerHTML=''; if(pg) pg.innerHTML=''; return;
+    }
     if(!_stkRows.length){ sum.textContent='현재고 데이터가 없습니다. (입고 수불 등록 또는 출고(SHIPOUT) 발생 시 표시)'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
     sum.innerHTML=(_onlyA ? (_aliasReady ? '<b style="color:#b06a00">매칭코드 있는 것만</b> · '
                                         : '<span style="color:#9aa7b3">매칭코드 불러오는 중…</span> · ') : '')
+      +(_stkSrchVia ? ('<b style="color:#b06a00">'+_cesc(_stkSrchVia)+'</b><span style="color:#9aa7b3">는 매칭코드 — 대표코드로 찾았습니다</span> · ') : '')
       +'총 <b>'+view.length.toLocaleString()+'</b>품목 · 입고합 <b>'+_cnum(tI)+'</b> · 출고합 <b>'+_cnum(tO)+'</b> · 현재고합 <b>'+_cnum(tQ)+'</b> · 재고금액합 <b>'+_cnum(tA)+'</b>';
     var totalRow='<tr class="close-total"><td colspan="2" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tI)+'</td><td style="text-align:right">'+_cnum(tO)+'</td><td style="text-align:right">'+_cnum(tQ)+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td><td></td></tr>';
     var stkRow=function(r){ var neg=(+r.curQty||0)<0;
@@ -2586,7 +2622,7 @@
         return 'stkLedgerDetail('+_ps+", this, '"+String(cd).replace(/'/g,'')+"')";
       /* 지금 ②에서 걸러 보고 있는 코드가 이 품목의 것일 때만 표시한다 —
          다른 품목 줄까지 초록이 되면 어느 줄을 보고 있는지 되레 헷갈린다. */
-      }, (_stkLedRow && _stkLedRow.prodCd===r.prodCd) ? _stkLedExt : '');
+      }, (_stkLedRow && _stkLedRow.prodCd===r.prodCd) ? _stkLedExt : '', true);   /* true = ↳ 옆 돋보기 켜기 */
       /* 접혀 있으면 하위 행을 아예 안 그린다. 대신 품목코드 앞에 ▼/▶ 를 붙여
          "펼칠 게 있다" 는 것과 몇 개인지를 알린다(2026-08-07 요청). */
       var open=stkExpOn(r.prodCd), nSub=sub ? (sub.match(/<tr/g)||[]).length : 0;

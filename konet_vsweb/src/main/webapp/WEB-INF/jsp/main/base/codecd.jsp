@@ -83,6 +83,24 @@ $(document).on('init.dt', function(e, settings) {
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
      이 한 줄만 빼면 종전 데스크탑 화면 그대로다(파일 안에서 폭·높이 조건으로만 동작). --%>
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">
+<%-- 그리드 머리글을 진하게 (2026-08-07 요청) —
+       거래처관리(vendorMng)와 같은 색으로 맞춰 화면끼리 따로 놀지 않게 한다.
+       ★DataTables 가 자체 스타일을 늦게 입히므로 !important 가 필요하다.
+       ★정렬 화살표는 currentColor 가 아니라 따로 지정해야 배경에 묻히지 않는다. --%>
+<style>
+  table.dataTable thead th,
+  table.dataTable thead td,
+  .dataTables_scrollHead table thead th{
+    background:#b9ded4 !important; color:#0b4f43 !important;
+    font-weight:800 !important; font-size:14px !important;
+    box-shadow:inset 0 -2px 0 #0e6657 !important;
+    border-bottom-color:#0e6657 !important;
+  }
+  table.dataTable thead th.sorting:after, table.dataTable thead th.sorting_asc:after,
+  table.dataTable thead th.sorting_desc:after,
+  table.dataTable thead th.sorting:before, table.dataTable thead th.sorting_asc:before,
+  table.dataTable thead th.sorting_desc:before{ color:#0b4f43 !important; opacity:.55; }
+</style>
 </head>
 <body>
 <div class="dashboard-wrapper">
