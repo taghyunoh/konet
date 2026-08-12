@@ -78,6 +78,15 @@
   #ov .mf{ padding:9px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
   /* 취소·저장은 가로를 넉넉히 (2026-08-04 요청) — 창을 닫는 마지막 손동작이라 누르기 쉬워야 한다 */
   #ov .mf .btn{ min-width:104px; padding:0 22px; }
+  /* 「최종 코드」 안내 — 코드 칸 바로 아래 한 줄 (2026-08-12 요청). 추가할 때만 보인다. */
+  #ov .lastcd{ flex-direction:row; align-items:center; gap:7px; flex-wrap:wrap;
+               background:#f2f8f6; border:1px solid #cfe3dd; border-radius:7px; padding:6px 10px; font-size:13.5px; color:#37475a; }
+  #ov .lastcd b{ font-family:Consolas,monospace; font-size:14.5px; color:#0e6657; }
+  #ov .lastcd .nmx{ font-weight:700; color:#1f2a37; }   /* 코드와 함께 '무슨 거래처였나'가 보여야 한다 */
+  #ov .lastcd .dim{ color:#8b98a5; }
+  #ov .lastcd button{ height:26px; padding:0 11px; font-size:12.5px; font-weight:700; border:1px solid var(--teal);
+                      background:#fff; color:var(--teal); border-radius:6px; cursor:pointer; }
+  #ov .lastcd button:hover{ background:var(--teal); color:#fff; }
 </style>
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
      이 한 줄만 빼면 종전 데스크탑 화면 그대로다(파일 안에서 폭·높이 조건으로만 동작). --%>
@@ -130,6 +139,8 @@
       <div class="fld"><label>거래처코드 *</label><input id="f_cd" placeholder="예: 0089"></div>
       <div class="fld"><label>거래유형 *</label><select id="f_gb"><option value="매입">매입</option><option value="매출">매출</option><option value="매입&매출">매입&매출</option></select></div>
       <div class="fld"><label>부가세</label><select id="f_vat" title="이 거래처의 매입·판매 등록에서 부가세를 어떻게 계산할지 정합니다. 비워 두면 별도로 봅니다."><option value="">- (별도와 같음)</option><option value="별도">별도 (단가 + 10%)</option><option value="포함">포함 (단가 안에 10% 들어 있음)</option><option value="면세">면세 (부가세 없음)</option></select></div>
+      <%-- 코드 칸 바로 아래 줄 = 마지막으로 등록한 거래처코드 (2026-08-12). 추가할 때만 나온다. --%>
+      <div class="fld full lastcd" id="lastCd" style="display:none"></div>
       <div class="fld two"><label>거래처명 *</label><input id="f_nm"></div>
       <div class="fld"><label>계산서발행</label><select id="f_taxbill"><option value="">-</option><option value="발행">발행</option><option value="미발행">미발행</option></select></div>
       <div class="fld"><label>정식명칭</label><input id="f_full"></div>
@@ -286,6 +297,66 @@ function _bindScroll(){
   });
 }
 function _set(id,v){ document.getElementById(id).value=(v==null?'':v); }
+
+/* ── 신규등록 창 「최종 코드」 안내 (2026-08-12 요청) ─────────────────────────────
+   새 코드를 붙이려면 '지금 어디까지 썼나'를 먼저 알아야 한다. 목록은 코드순이라
+   ★맨 끝 줄이 최근 등록분이 아니다 — 0089 뒤에 001585 가 온다. 그래서 두 가지를 같이 낸다:
+     ① 가장 최근 등록(REG_DTTM 기준) ② 그 코드와 같은 형식 중 가장 큰 코드 → 다음 코드.
+   ★형식(접두 + 자릿수)이 다른 코드는 한 줄에 세우지 않는다 — 2-57 · 0089 · 001585 가
+     섞이면 '가장 큰 코드'가 뜻을 잃는다. 최근 등록 코드와 같은 형식만 모아 최대값을 낸다.
+   ★목록(LIST)은 이미 화면에 들어와 있으므로 서버를 부르지 않는다. */
+var _nextCd = '';
+function _cdParse(cd){                       // 코드 → {pre, num, w} · 끝의 숫자 덩어리를 본다
+  var m=/^(.*?)(\d+)$/.exec(String(cd==null?'':cd));
+  if(!m || m[2].length>15) return null;      // 16자리 넘는 숫자는 Number 로 정확히 못 다룬다 → 아예 추천하지 않는다
+  return { pre:m[1], num:m[2], w:m[2].length };
+}
+function _cdNext(cd){                        // 같은 접두·자릿수로 +1 (자릿수가 넘치면 그대로 늘어난다)
+  var p=_cdParse(cd); if(!p) return '';
+  var n=String(Number(p.num)+1);
+  while(n.length<p.w) n='0'+n;
+  return p.pre+n;
+}
+function vmLastInfo(){
+  if(!LIST.length) return null;
+  var last=null;
+  LIST.forEach(function(o){                  // REG_DTTM 은 'YYYY-MM-DD HH:MM:SS' 문자열이라 그대로 비교된다
+    if(!o.regDttm) return;
+    if(!last || String(o.regDttm) > String(last.regDttm)) last=o;
+  });
+  // 등록일시가 아예 없는 자료(옛 적재분만 있는 경우)면 코드가 가장 큰 줄을 대신 잡는다
+  if(!last) LIST.forEach(function(o){ if(!last || String(o.vendorCd) > String(last.vendorCd)) last=o; });
+  var p=_cdParse(last.vendorCd), max=null, mx=-1;
+  if(p) LIST.forEach(function(o){
+    var q=_cdParse(o.vendorCd);
+    if(!q || q.pre!==p.pre || q.w!==p.w) return;
+    if(Number(q.num) > mx){ mx=Number(q.num); max=o.vendorCd; }
+  });
+  return { last:last, max:max, next:max?_cdNext(max):'' };
+}
+function vmLastCdShow(on){
+  var el=document.getElementById('lastCd'); if(!el) return;
+  _nextCd='';
+  var i = on ? vmLastInfo() : null;
+  if(!i){ el.style.display='none'; el.innerHTML=''; return; }
+  var h='🕘 <span class="dim">최근 등록</span> <b>'+esc(i.last.vendorCd)+'</b> '
+      + '<span class="nmx" title="'+esc(i.last.fullNm||i.last.vendorNm||'')+'">'+esc(i.last.vendorNm||'(이름 없음)')+'</span>'
+      + (i.last.regDttm ? ' <span class="dim">· '+esc(String(i.last.regDttm).slice(0,10))+'</span>' : '');
+  if(i.max && i.max!==i.last.vendorCd)       // 최근 등록분이 그 형식의 최대값이 아니면 그 사실도 보여야 한다
+    h+=' <span class="dim">· 같은 형식 최대</span> <b>'+esc(i.max)+'</b>';
+  if(i.next){
+    _nextCd=i.next;
+    h+=' <span class="dim">→ 다음</span> <b>'+esc(i.next)+'</b>'
+     + ' <button type="button" onclick="vmUseNext()" title="거래처코드 칸에 넣습니다. 그냥 참고만 하고 직접 쳐도 됩니다.">넣기</button>';
+  }
+  el.innerHTML=h; el.style.display='flex';
+}
+function vmUseNext(){
+  if(!_nextCd) return;
+  var el=document.getElementById('f_cd');
+  el.value=_nextCd; el.focus();
+}
+
 function vmOpen(cd){
   var o=cd?_bycd[cd]:null;
   document.getElementById('ovTit').textContent=o?('거래처 수정 — '+o.vendorCd):'거래처 추가';
@@ -297,6 +368,7 @@ function vmOpen(cd){
   _set('f_addr',o?o.addr:''); _set('f_addr2',o?o.addr2:'');
   _set('f_hp',o?o.hp:''); _set('f_tel',o?o.tel:''); _set('f_fax',o?o.fax:''); _set('f_email',o?o.email:'');
   _set('f_taxbill',o?(o.taxbillGb||''):''); _set('f_vat',o?(o.vatGb||''):''); _set('f_acct',o?o.bankAcct:''); _set('f_remark',o?o.remark:'');
+  vmLastCdShow(!o);          // 추가일 때만 「최근 등록 코드·거래처명」 줄을 낸다 (수정은 코드가 잠겨 있어 쓸모없다)
   document.getElementById('ov').classList.add('on');
   // 창을 열면 곧바로 칠 수 있게(2026-08-04) — 추가는 거래처코드부터, 수정은 코드가 잠겨 있으니 거래처명부터
   var first=document.getElementById(o?'f_nm':'f_cd');

@@ -106,6 +106,16 @@
   #ov label{ font-size:12px; font-weight:700; color:#37475a; }
   #ov input, #ov select{ height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13px; }
   #ov .mf{ padding:12px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
+  /* 「최종 코드」 안내 — 코드 칸 바로 아래 한 줄 (2026-08-12 요청). 추가할 때만 보인다.
+     거래처 관리 화면(vendorMng.jsp)과 같은 모양 — 두 화면을 오갈 때 눈이 자리를 다시 잡지 않게. */
+  #ov .lastcd{ flex-direction:row; align-items:center; gap:7px; flex-wrap:wrap;
+               background:#f2f8f6; border:1px solid #cfe3dd; border-radius:7px; padding:6px 10px; font-size:13.5px; color:#37475a; }
+  #ov .lastcd b{ font-family:Consolas,monospace; font-size:14.5px; color:#0e6657; }
+  #ov .lastcd .nmx{ font-weight:700; color:#1f2a37; }   /* 코드와 함께 '무슨 상품이었나'가 보여야 한다 */
+  #ov .lastcd .dim{ color:#8b98a5; }
+  #ov .lastcd button{ height:26px; padding:0 11px; font-size:12.5px; font-weight:700; border:1px solid var(--teal);
+                      background:#fff; color:var(--teal); border-radius:6px; cursor:pointer; }
+  #ov .lastcd button:hover{ background:var(--teal); color:#fff; }
   .btn-hist{ color:#137a6c; border-color:#a9d5cd; }
   /* 이력/재고 — 하단 상시 도킹 그리드(3탭 마스터-디테일) */
   /* 높이 = 한 곳에서만 정한다(#hv 와 .wrap 이 어긋나면 목록 끝이 패널에 가린다) — 2026-07-22 상향 34vh→48vh */
@@ -219,6 +229,8 @@
       <input type="hidden" id="f_seq">
       <div class="fld"><label>코드 *</label><input id="f_cd" placeholder="예: 1000455367"></div>
       <div class="fld"><label>과세</label><select id="f_tax"><option value="과세">과세</option><option value="면세">면세</option></select></div>
+      <%-- 코드 칸 바로 아래 줄 = 마지막으로 등록한 상품코드·상품명 (2026-08-12). 추가할 때만 나온다. --%>
+      <div class="fld full lastcd" id="lastCd" style="display:none"></div>
       <div class="fld full"><label>상품명 *</label><input id="f_nm" placeholder="상품명"></div>
       <div class="fld full"><label>규격</label><input id="f_spec" placeholder="규격"></div>
       <div class="fld"><label>제조사명</label><input id="f_maker"></div>
@@ -484,6 +496,66 @@ function _info(){
     +' <button class="btn" style="height:26px;margin-left:8px;font-size:12px" onclick="_showAll()" title="남은 행을 한 번에 펼칩니다(검색·복사용)">모두 표시</button>';
 }
 
+/* ── 신규등록 창 「최종 코드」 안내 (2026-08-12 요청) ─────────────────────────────
+   새 상품코드를 붙이려면 '지금 어디까지 썼나'를 먼저 알아야 한다. 목록은 코드순이라
+   ★맨 끝 줄이 최근 등록분이 아니다. 그래서 두 가지를 같이 낸다:
+     ① 가장 최근 등록(REG_DTTM 기준 · 코드 + 상품명) ② 그 코드와 같은 형식 중 최대 코드 → 다음 코드.
+   ★형식(접두 + 자릿수)이 다른 코드는 한 줄에 세우지 않는다 — 자릿수가 섞이면 '가장 큰 코드'가 뜻을 잃는다.
+   ★수정은 REG_DTTM 을 안 건드리므로(UPDATE 제자리) '최근 등록'이 실제 신규 등록순 그대로다.
+   ★목록(PROD)은 이미 화면에 들어와 있으므로 서버를 부르지 않는다.
+   거래처 관리 화면(vendorMng.jsp)에 같은 것이 있다 — 규칙을 고치면 그쪽도 함께. */
+var _nextCd = '';
+function _cdParse(cd){                       // 코드 → {pre, num, w} · 끝의 숫자 덩어리를 본다
+  var m=/^(.*?)(\d+)$/.exec(String(cd==null?'':cd));
+  if(!m || m[2].length>15) return null;      // 16자리 넘는 숫자는 Number 로 정확히 못 다룬다 → 아예 추천하지 않는다
+  return { pre:m[1], num:m[2], w:m[2].length };
+}
+function _cdNext(cd){                        // 같은 접두·자릿수로 +1 (자릿수가 넘치면 그대로 늘어난다)
+  var p=_cdParse(cd); if(!p) return '';
+  var n=String(Number(p.num)+1);
+  while(n.length<p.w) n='0'+n;
+  return p.pre+n;
+}
+function prodLastInfo(){
+  if(!PROD.length) return null;
+  var last=null;
+  PROD.forEach(function(o){                  // REG_DTTM 은 'YYYY-MM-DD HH:MM:SS' 문자열이라 그대로 비교된다
+    if(!o.regDttm) return;
+    if(!last || String(o.regDttm) > String(last.regDttm)) last=o;
+  });
+  // 등록일시가 아예 없는 자료면 코드가 가장 큰 줄을 대신 잡는다
+  if(!last) PROD.forEach(function(o){ if(!last || String(o.prodCd) > String(last.prodCd)) last=o; });
+  var p=_cdParse(last.prodCd), max=null, mx=-1;
+  if(p) PROD.forEach(function(o){
+    var q=_cdParse(o.prodCd);
+    if(!q || q.pre!==p.pre || q.w!==p.w) return;
+    if(Number(q.num) > mx){ mx=Number(q.num); max=o.prodCd; }
+  });
+  return { last:last, max:max, next:max?_cdNext(max):'' };
+}
+function prodLastCdShow(on){
+  var el=document.getElementById('lastCd'); if(!el) return;
+  _nextCd='';
+  var i = on ? prodLastInfo() : null;
+  if(!i){ el.style.display='none'; el.innerHTML=''; return; }
+  var h='🕘 <span class="dim">최근 등록</span> <b>'+esc(i.last.prodCd)+'</b> '
+      + '<span class="nmx" title="'+esc(i.last.spec||'')+'">'+esc(i.last.prodNm||'(이름 없음)')+'</span>'
+      + (i.last.regDttm ? ' <span class="dim">· '+esc(String(i.last.regDttm).slice(0,10))+'</span>' : '');
+  if(i.max && i.max!==i.last.prodCd)         // 최근 등록분이 그 형식의 최대값이 아니면 그 사실도 보여야 한다
+    h+=' <span class="dim">· 같은 형식 최대</span> <b>'+esc(i.max)+'</b>';
+  if(i.next){
+    _nextCd=i.next;
+    h+=' <span class="dim">→ 다음</span> <b>'+esc(i.next)+'</b>'
+     + ' <button type="button" onclick="prodUseNext()" title="코드 칸에 넣습니다. 그냥 참고만 하고 직접 쳐도 됩니다.">넣기</button>';
+  }
+  el.innerHTML=h; el.style.display='flex';
+}
+function prodUseNext(){
+  if(!_nextCd) return;
+  var el=document.getElementById('f_cd');
+  el.value=_nextCd; el.focus();
+}
+
 function prodOpen(seq){
   var o = seq!=null ? _byseq[seq] : null;
   document.getElementById('ovTit').textContent = o ? '상품 수정' : '상품 추가';
@@ -504,6 +576,7 @@ function prodOpen(seq){
   document.getElementById('f_base').value = o ? (o.saleBaseQty!=null?o.saleBaseQty:0) : 0;
   document.getElementById('f_ubc').value = o ? (o.unitBarcode||'') : '';
   document.getElementById('f_bbc').value = o ? (o.boxBarcode||'') : '';
+  prodLastCdShow(!o);        // 추가일 때만 「최근 등록 코드·상품명」 줄을 낸다 (수정은 코드가 잠겨 있어 쓸모없다)
   document.getElementById('ov').classList.add('on');
 }
 function prodClose(){ document.getElementById('ov').classList.remove('on'); }

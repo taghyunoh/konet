@@ -79,6 +79,16 @@
   #ov .mf{ padding:12px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
   /* 취소·저장은 가로를 넉넉히 (2026-08-04 요청) — 창을 닫는 마지막 손동작이라 누르기 쉬워야 한다 */
   #ov .mf .btn{ min-width:104px; padding:0 22px; }
+  /* 「최종 코드」 안내 — 상품코드 칸 바로 아래 한 줄 (2026-08-12 요청). 추가할 때만 보인다.
+     상품(품목)관리·매입/매출 거래처 화면과 같은 모양 — 세 화면을 오갈 때 눈이 자리를 다시 잡지 않게. */
+  #ov .lastcd{ flex-direction:row; align-items:center; gap:7px; flex-wrap:wrap;
+               background:#f2f8f6; border:1px solid #cfe3dd; border-radius:7px; padding:6px 10px; font-size:13.5px; color:#37475a; }
+  #ov .lastcd b{ font-family:Consolas,monospace; font-size:14.5px; color:#0e6657; }
+  #ov .lastcd .nmx{ font-weight:700; color:#1f2a37; }   /* 코드와 함께 '무슨 상품이었나'가 보여야 한다 */
+  #ov .lastcd .dim{ color:#8b98a5; }
+  #ov .lastcd button{ height:26px; padding:0 11px; font-size:12.5px; font-weight:700; border:1px solid var(--teal);
+                      background:#fff; color:var(--teal); border-radius:6px; cursor:pointer; }
+  #ov .lastcd button:hover{ background:var(--teal); color:#fff; }
   /* ───── 규격·제조사명 입력검색 (2026-08-04 요청) ─────
      이미 쓰고 있는 값 중에서 골라 넣는다 — 같은 규격이 표기만 달라 갈라지는 것을 막으려는 것.
      ★목록에 없는 값도 그냥 칠 수 있다(규격은 이제부터 채워 나가는 칸이라 고르기를 강요하면 못 쓴다).
@@ -270,6 +280,8 @@
       <input type="hidden" id="f_seq">
       <div class="fld"><label>상품코드 *</label><input id="f_cd" placeholder="예: 1000455367"></div>
       <div class="fld"><label>과세</label><select id="f_tax"><option value="과세">과세</option><option value="면세">면세</option></select></div>
+      <%-- 코드 칸 바로 아래 줄 = 마지막으로 등록한 상품코드·상품명 (2026-08-12). 추가할 때만 나온다. --%>
+      <div class="fld full lastcd" id="lastCd" style="display:none"></div>
       <div class="fld full"><label>상품명 *</label><input id="f_nm" placeholder="상품명"></div>
       <%-- 규격·제조사명은 쓰던 값을 찾아 넣는다(2026-08-04) — 목록에 없으면 그냥 쳐도 된다 --%>
       <div class="fld full"><label>규격</label><input id="f_spec" placeholder="규격 — 쓰던 값 검색 (없으면 그냥 입력)" autocomplete="off"></div>
@@ -399,6 +411,68 @@ function _pager(pages,cur,tot,from,to){
 function pcExpand(){ _all=true; pcRender(); var c=document.querySelector('.card'); if(c) c.scrollTop=0; }
 function pcCollapse(){ _all=false; _page=1; pcRender(); var c=document.querySelector('.card'); if(c) c.scrollTop=0; }
 function _set(id,v){ document.getElementById(id).value=(v==null?'':v); }
+
+/* ── 신규등록 창 「최종 코드」 안내 (2026-08-12 요청) ─────────────────────────────
+   새 상품코드를 붙이려면 '지금 어디까지 썼나'를 먼저 알아야 한다. 목록은 코드순이라
+   ★맨 끝 줄이 최근 등록분이 아니다. 그래서 두 가지를 같이 낸다:
+     ① 가장 최근 등록(REG_DTTM 기준 · 코드 + 상품명) ② 그 코드와 같은 형식 중 최대 코드 → 다음 코드.
+   ★형식(접두 + 자릿수)이 다른 코드는 한 줄에 세우지 않는다 — 자릿수가 섞이면 '가장 큰 코드'가 뜻을 잃는다.
+   ★수정은 REG_DTTM 을 안 건드리므로(updateProd 는 제자리 UPDATE) '최근 등록'이 실제 신규 등록순 그대로다.
+   ★목록(LIST)은 이미 화면에 들어와 있으므로 서버를 부르지 않는다. 탭·검색은 화면단 필터라
+     LIST 는 늘 전체다 — '최근 등록'이 지금 보고 있는 탭에 따라 달라지지 않는다.
+   같은 것이 상품(품목)관리(prodmst.jsp)·매입/매출 거래처(vendorMng.jsp)에 있다 — 규칙을 고치면 함께. */
+var _nextCd = '';
+function _cdParse(cd){                       // 코드 → {pre, num, w} · 끝의 숫자 덩어리를 본다
+  var m=/^(.*?)(\d+)$/.exec(String(cd==null?'':cd));
+  if(!m || m[2].length>15) return null;      // 16자리 넘는 숫자는 Number 로 정확히 못 다룬다 → 아예 추천하지 않는다
+  return { pre:m[1], num:m[2], w:m[2].length };
+}
+function _cdNext(cd){                        // 같은 접두·자릿수로 +1 (자릿수가 넘치면 그대로 늘어난다)
+  var p=_cdParse(cd); if(!p) return '';
+  var n=String(Number(p.num)+1);
+  while(n.length<p.w) n='0'+n;
+  return p.pre+n;
+}
+function pcLastInfo(){
+  if(!LIST.length) return null;
+  var last=null;
+  LIST.forEach(function(o){                  // REG_DTTM 은 'YYYY-MM-DD HH:MM:SS' 문자열이라 그대로 비교된다
+    if(!o.regDttm) return;
+    if(!last || String(o.regDttm) > String(last.regDttm)) last=o;
+  });
+  // 등록일시가 아예 없는 자료면 코드가 가장 큰 줄을 대신 잡는다
+  if(!last) LIST.forEach(function(o){ if(!last || String(o.prodCd) > String(last.prodCd)) last=o; });
+  var p=_cdParse(last.prodCd), max=null, mx=-1;
+  if(p) LIST.forEach(function(o){
+    var q=_cdParse(o.prodCd);
+    if(!q || q.pre!==p.pre || q.w!==p.w) return;
+    if(Number(q.num) > mx){ mx=Number(q.num); max=o.prodCd; }
+  });
+  return { last:last, max:max, next:max?_cdNext(max):'' };
+}
+function pcLastCdShow(on){
+  var el=document.getElementById('lastCd'); if(!el) return;
+  _nextCd='';
+  var i = on ? pcLastInfo() : null;
+  if(!i){ el.style.display='none'; el.innerHTML=''; return; }
+  var h='🕘 <span class="dim">최근 등록</span> <b>'+esc(i.last.prodCd)+'</b> '
+      + '<span class="nmx" title="'+esc(i.last.spec||'')+'">'+esc(i.last.prodNm||'(이름 없음)')+'</span>'
+      + (i.last.regDttm ? ' <span class="dim">· '+esc(String(i.last.regDttm).slice(0,10))+'</span>' : '');
+  if(i.max && i.max!==i.last.prodCd)         // 최근 등록분이 그 형식의 최대값이 아니면 그 사실도 보여야 한다
+    h+=' <span class="dim">· 같은 형식 최대</span> <b>'+esc(i.max)+'</b>';
+  if(i.next){
+    _nextCd=i.next;
+    h+=' <span class="dim">→ 다음</span> <b>'+esc(i.next)+'</b>'
+     + ' <button type="button" onclick="pcUseNext()" title="상품코드 칸에 넣습니다. 그냥 참고만 하고 직접 쳐도 됩니다.">넣기</button>';
+  }
+  el.innerHTML=h; el.style.display='flex';
+}
+function pcUseNext(){
+  if(!_nextCd) return;
+  var el=document.getElementById('f_cd');
+  el.value=_nextCd; el.focus();
+}
+
 function pcOpen(seq){
   var o=(seq!=null)?_byseq[seq]:null;
   document.getElementById('ovTit').textContent=o?('상품코드 수정 — '+o.prodCd):'상품코드 추가';
@@ -415,6 +489,7 @@ function pcOpen(seq){
   _set('f_safe', o?(o.safeStock!=null?o.safeStock:0):0);
   _set('f_base', o?(o.saleBaseQty!=null?o.saleBaseQty:0):0);
   _set('f_ubc', o?o.unitBarcode:''); _set('f_bbc', o?o.boxBarcode:'');
+  pcLastCdShow(!o);                   // 추가일 때만 「최근 등록 코드·상품명」 줄을 낸다 (수정은 코드가 잠겨 있어 쓸모없다)
   document.getElementById('ov').classList.add('on');
   pcAcClose();                        // 이전에 열려 있던 규격·제조사 후보창은 닫고 시작한다
   // 창을 열면 곧바로 칠 수 있게(2026-08-04) — 추가는 상품코드부터, 수정은 코드가 잠겨 있으니 상품명부터
