@@ -278,7 +278,8 @@
     <div class="mh"><b id="ovTit">상품코드 추가</b><button class="x" onclick="pcClose()">&times;</button></div>
     <div class="mb">
       <input type="hidden" id="f_seq">
-      <div class="fld"><label>상품코드 *</label><input id="f_cd" placeholder="예: 1000455367"></div>
+      <%-- 새 코드는 9번대(2026-08-12) — 원천 코드(1000…)와 부딪히지 않게. 원천 코드를 직접 넣는 것은 막지 않는다. --%>
+      <div class="fld"><label>상품코드 *</label><input id="f_cd" placeholder="예: 9000000001 (새 코드는 9번대)" title="새로 만드는 상품코드는 9로 시작합니다. 아래 줄의 새 코드가 미리 들어가 있습니다."></div>
       <div class="fld"><label>과세</label><select id="f_tax"><option value="과세">과세</option><option value="면세">면세</option></select></div>
       <%-- 코드 칸 바로 아래 줄 = 마지막으로 등록한 상품코드·상품명 (2026-08-12). 추가할 때만 나온다. --%>
       <div class="fld full lastcd" id="lastCd" style="display:none"></div>
@@ -415,8 +416,8 @@ function _set(id,v){ document.getElementById(id).value=(v==null?'':v); }
 /* ── 신규등록 창 「최종 코드」 안내 (2026-08-12 요청) ─────────────────────────────
    새 상품코드를 붙이려면 '지금 어디까지 썼나'를 먼저 알아야 한다. 목록은 코드순이라
    ★맨 끝 줄이 최근 등록분이 아니다. 그래서 두 가지를 같이 낸다:
-     ① 가장 최근 등록(REG_DTTM 기준 · 코드 + 상품명) ② 그 코드와 같은 형식 중 최대 코드 → 다음 코드.
-   ★형식(접두 + 자릿수)이 다른 코드는 한 줄에 세우지 않는다 — 자릿수가 섞이면 '가장 큰 코드'가 뜻을 잃는다.
+     ① 가장 최근 등록(REG_DTTM 기준 · 코드 + 상품명) ② ★9번대 최대 코드 → 다음 코드(아래 규칙).
+   ★자릿수가 다른 코드는 한 줄에 세우지 않는다 — 섞이면 '가장 큰 코드'가 뜻을 잃는다.
    ★수정은 REG_DTTM 을 안 건드리므로(updateProd 는 제자리 UPDATE) '최근 등록'이 실제 신규 등록순 그대로다.
    ★목록(LIST)은 이미 화면에 들어와 있으므로 서버를 부르지 않는다. 탭·검색은 화면단 필터라
      LIST 는 늘 전체다 — '최근 등록'이 지금 보고 있는 탭에 따라 달라지지 않는다.
@@ -433,8 +434,34 @@ function _cdNext(cd){                        // 같은 접두·자릿수로 +1 (
   while(n.length<p.w) n='0'+n;
   return p.pre+n;
 }
+/* ── ★새 상품코드는 「9」로 시작한다 (2026-08-12 확정) ───────────────────────────
+   원천 코드(웰스토리 발주현황표)는 `1000…` 번대다. 우리가 직접 붙이는 코드를 그 번호대에
+   끼워 넣으면 뒤에 들어올 원천 코드와 부딪친다 → ★신규 코드는 9번대만 쓴다.
+   그래서 '다음 코드'는 최근 등록분의 형식이 아니라 ★9로 시작하는 코드 중 최대값 +1.
+   자릿수는 9번대 코드가 있으면 그 중 가장 최근 등록분을 따르고, 하나도 없으면 NEW_W
+   (10자리 = 원천 코드와 같은 길이) 로 9000000001 부터 시작한다.
+   ★9가 아닌 코드도 등록은 막지 않는다 — 원천 코드를 손으로 넣어야 할 때가 있다(안내만 한다). */
+var NEW_PRE='9', NEW_W=10;
+function _isNewCd(cd){ return /^9\d*$/.test(String(cd==null?'':cd)); }   // 9로 시작하는 숫자코드
+function pcNineInfo(list){                   // 9번대 최대코드 → 다음코드
+  var nine=[], recent=null;
+  list.forEach(function(o){
+    if(!_isNewCd(o.prodCd)) return;
+    nine.push(o);
+    if(!recent || String(o.regDttm||'') > String(recent.regDttm||'')) recent=o;
+  });
+  if(!nine.length){                          // 9번대가 아직 하나도 없다 → 시작 코드를 만들어 준다
+    var s='1'; while(s.length < NEW_W-1) s='0'+s;
+    return { max:null, next:NEW_PRE+s };
+  }
+  var w=String(recent.prodCd).length, max=null, mx=-1;   // 자릿수가 섞여 있으면 최근 등록분의 형식만 센다
+  nine.forEach(function(o){
+    var c=String(o.prodCd); if(c.length!==w) return;
+    if(Number(c) > mx){ mx=Number(c); max=c; }
+  });
+  return { max:max, next:max?_cdNext(max):'' };
+}
 function pcLastInfo(){
-  if(!LIST.length) return null;
   var last=null;
   LIST.forEach(function(o){                  // REG_DTTM 은 'YYYY-MM-DD HH:MM:SS' 문자열이라 그대로 비교된다
     if(!o.regDttm) return;
@@ -442,28 +469,26 @@ function pcLastInfo(){
   });
   // 등록일시가 아예 없는 자료면 코드가 가장 큰 줄을 대신 잡는다
   if(!last) LIST.forEach(function(o){ if(!last || String(o.prodCd) > String(last.prodCd)) last=o; });
-  var p=_cdParse(last.prodCd), max=null, mx=-1;
-  if(p) LIST.forEach(function(o){
-    var q=_cdParse(o.prodCd);
-    if(!q || q.pre!==p.pre || q.w!==p.w) return;
-    if(Number(q.num) > mx){ mx=Number(q.num); max=o.prodCd; }
-  });
-  return { last:last, max:max, next:max?_cdNext(max):'' };
+  var n=pcNineInfo(LIST);
+  return { last:last, max:n.max, next:n.next };   // 목록이 비어 있어도 시작 코드는 낸다
 }
 function pcLastCdShow(on){
   var el=document.getElementById('lastCd'); if(!el) return;
   _nextCd='';
   var i = on ? pcLastInfo() : null;
   if(!i){ el.style.display='none'; el.innerHTML=''; return; }
-  var h='🕘 <span class="dim">최근 등록</span> <b>'+esc(i.last.prodCd)+'</b> '
-      + '<span class="nmx" title="'+esc(i.last.spec||'')+'">'+esc(i.last.prodNm||'(이름 없음)')+'</span>'
-      + (i.last.regDttm ? ' <span class="dim">· '+esc(String(i.last.regDttm).slice(0,10))+'</span>' : '');
-  if(i.max && i.max!==i.last.prodCd)         // 최근 등록분이 그 형식의 최대값이 아니면 그 사실도 보여야 한다
-    h+=' <span class="dim">· 같은 형식 최대</span> <b>'+esc(i.max)+'</b>';
+  var h='';
+  if(i.last)                                 // 최근 등록은 9번대가 아니어도 그대로 보여 준다(무엇을 마지막에 넣었나)
+    h+='🕘 <span class="dim">최근 등록</span> <b>'+esc(i.last.prodCd)+'</b> '
+     + '<span class="nmx" title="'+esc(i.last.spec||'')+'">'+esc(i.last.prodNm||'(이름 없음)')+'</span>'
+     + (i.last.regDttm ? ' <span class="dim">· '+esc(String(i.last.regDttm).slice(0,10))+'</span>' : '')
+     + ' <span class="dim">·</span>';
+  h+=' <span class="dim">9번대 마지막</span> '
+   + (i.max ? '<b>'+esc(i.max)+'</b>' : '<span class="dim">아직 없음</span>');
   if(i.next){
     _nextCd=i.next;
-    h+=' <span class="dim">→ 다음</span> <b>'+esc(i.next)+'</b>'
-     + ' <button type="button" onclick="pcUseNext()" title="상품코드 칸에 넣습니다. 그냥 참고만 하고 직접 쳐도 됩니다.">넣기</button>';
+    h+=' <span class="dim">→ 새 코드</span> <b>'+esc(i.next)+'</b>'
+     + ' <button type="button" onclick="pcUseNext()" title="상품코드 칸에 넣습니다. 창을 열면 이미 들어가 있습니다 — 그대로 두거나 직접 쳐도 됩니다.">넣기</button>';
   }
   el.innerHTML=h; el.style.display='flex';
 }
@@ -490,6 +515,8 @@ function pcOpen(seq){
   _set('f_base', o?(o.saleBaseQty!=null?o.saleBaseQty:0):0);
   _set('f_ubc', o?o.unitBarcode:''); _set('f_bbc', o?o.boxBarcode:'');
   pcLastCdShow(!o);                   // 추가일 때만 「최근 등록 코드·상품명」 줄을 낸다 (수정은 코드가 잠겨 있어 쓸모없다)
+  // 추가는 9번대 새 코드를 미리 넣어 둔다 — 아래에서 코드 칸을 select 하므로 그냥 쳐서 바꿀 수 있다
+  if(!o && _nextCd) _set('f_cd', _nextCd);
   document.getElementById('ov').classList.add('on');
   pcAcClose();                        // 이전에 열려 있던 규격·제조사 후보창은 닫고 시작한다
   // 창을 열면 곧바로 칠 수 있게(2026-08-04) — 추가는 상품코드부터, 수정은 코드가 잠겨 있으니 상품명부터
