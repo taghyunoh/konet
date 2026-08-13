@@ -1510,6 +1510,11 @@
 	<select id="selectParcelOutList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
 	  SELECT s.SEQ AS seq, s.SHPOUT_DT AS outDt, s.BIZ_CD AS bizCd, s.BIZ_NM AS bizNm, s.ITEM_NM AS itemNm,
 	         CASE WHEN ISNULL(s.BOX_QTY,0) < 1 THEN 1 ELSE s.BOX_QTY END AS boxQty,
+	         -- 총수량 = 발주현황표(엑셀)의 '수량'(CUR_QTY) 원값 그대로 (2026-08-13 확정).
+	         --   대시보드1 이 쓰는 칸과 같다 — 두 화면 숫자가 어긋나지 않는다.
+	         -- ★박스 × 입수로 계산하지 말 것: 상품마스터 입수가 미등록(1)이거나 품목명 표기와
+	         --   달라(마스터 48 vs 품목명 100EA/BOX) 줄마다 1·48·100·2000 이 뒤섞여 나왔다.
+	         ISNULL(s.CUR_QTY,0) AS totQty,
 	         ISNULL(NULLIF(b.PARCEL_ADDR,''), ISNULL(b.ADDR,'')) AS addr,
 	         ISNULL(NULLIF(b.PARCEL_TEL,''),  ISNULL(b.TEL,''))  AS tel,
 	         ISNULL(NULLIF(b.PARCEL_HP,''),   ISNULL(b.HP,''))   AS hp,

@@ -83,14 +83,16 @@
       <colgroup>
         <col style="width:36px"><col style="width:34px"><col style="width:52px"><col style="width:86px"><col style="width:96px"><col style="width:190px"><col>
         <col style="width:130px"><col style="width:130px"><col style="width:84px">
-        <col style="width:300px"><col style="width:52px"><col style="width:110px">
+        <col style="width:300px"><col style="width:52px"><col style="width:72px"><col style="width:110px">
       </colgroup>
       <thead><tr>
         <th title="체크를 풀면 엑셀에서 빠집니다"><input type="checkbox" id="poAll" checked onchange="poAllChk(this.checked)"></th>
         <th>#</th><th>구분</th><th>출고일자</th><th>사업장코드</th><th>사업장명(받는분)</th><th>택배주소</th>
-        <th>전화</th><th>휴대폰</th><th>운임</th><th>품목명</th><th>박스</th><th>택배정보</th>
+        <th>전화</th><th>휴대폰</th><th>운임</th><th>품목명</th><th>박스</th>
+        <th title="발주현황표에 올라온 수량 그대로입니다(계산하지 않습니다). 대시보드의 수량과 같은 값입니다.">총수량</th>
+        <th>택배정보</th>
       </tr></thead>
-      <tbody id="tb"><tr><td colspan="13" class="empty">출고일자를 고르고 [조회]를 누르세요.</td></tr></tbody>
+      <tbody id="tb"><tr><td colspan="14" class="empty">출고일자를 고르고 [조회]를 누르세요.</td></tr></tbody>
     </table>
   </div>
   <%-- 목록 아래 진행 표시 (2026-08-06 요청) — 몇 줄까지 보고 있는지·더 있는지 알려 준다
@@ -141,13 +143,13 @@ document.getElementById('listCard').addEventListener('scroll', function(){ clear
 function poLoad(){
   var fr = document.getElementById('outFr').value, to = document.getElementById('outTo').value;
   if(!fr || !to){ swErr('출고일자(시작·종료)를 선택하세요.'); return; }
-  document.getElementById('tb').innerHTML = '<tr><td colspan="13" class="empty">조회 중…</td></tr>';
+  document.getElementById('tb').innerHTML = '<tr><td colspan="14" class="empty">조회 중…</td></tr>';
   fetch(CTX+'/shipout/parcelList.do', { method:'POST', credentials:'same-origin',
       headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:'frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to) })
     .then(function(r){ return r.json(); })
-    .then(function(j){ ROWS=(j&&j.data)||[]; poRender(); })
-    .catch(function(e){ document.getElementById('tb').innerHTML='<tr><td colspan="13" class="empty">조회 오류: '+esc(e.message)+'</td></tr>'; });
+    .then(function(j){ ROWS=poMerge((j&&j.data)||[]); poRender(); })
+    .catch(function(e){ document.getElementById('tb').innerHTML='<tr><td colspan="14" class="empty">조회 오류: '+esc(e.message)+'</td></tr>'; });
 }
 
 /* 한 화면에 18줄까지 보이고 그 아래는 스크롤 (2026-08-06 요청).
@@ -181,13 +183,41 @@ function poPager(){
   if(seen>=tot) el.innerHTML = '총 <b>'+tot+'</b>건 — 모두 표시됨';
   else el.innerHTML = seen+' / <b>'+tot+'</b>건 <span style="color:#8a98a8">— 아래로 스크롤하면 이어서 나옵니다</span>';
 }
+/* 같은 출고일자·사업장·품목은 한 줄로 합친다 (2026-08-13 요청 "대시보드 같은 식으로 합쳐서").
+   발주현황표는 같은 사업장·품목이 여러 줄로 올라오는데, 택배는 한 곳에 한 번 보내므로
+   화면에서 줄이 나뉘어 있을 이유가 없다. 대시보드1 이 사업장+품목으로 합산해 보여 주는 것과 같은 셈법.
+   · 더하는 것은 <박스>와 <총수량> 둘뿐. 주소·전화·운임은 사업장 값이라 어차피 같다.
+   · ★엑셀 결과는 달라지지 않는다 — 엑셀은 박스 수만큼 줄을 되풀이하므로(1박스 1송장)
+     1박스짜리 3줄이든 3박스짜리 1줄이든 똑같이 3줄로 나간다.
+   · 몇 줄을 합쳤는지는 mergeCnt 에 담아 화면에 밝힌다(원자료가 몇 줄이었는지 감춰지지 않게). */
+function poMerge(list){
+  var out=[], idx={};
+  (list||[]).forEach(function(o){
+    var k=(o.outDt||'')+'|'+(o.bizCd||'')+'|'+(o.itemNm||'');
+    if(idx[k]==null){
+      var c={}; for(var f in o){ if(Object.prototype.hasOwnProperty.call(o,f)) c[f]=o[f]; }
+      c.mergeCnt=1; idx[k]=out.length; out.push(c); return;
+    }
+    var m=out[idx[k]];
+    m.boxQty=n(m.boxQty)+n(o.boxQty);
+    m.totQty=n(m.totQty)+n(o.totQty);
+    m.mergeCnt=(m.mergeCnt||1)+1;
+  });
+  return out;
+}
+
+/* 총수량 = 발주현황표(엑셀)의 '수량' 원값 그대로 (2026-08-13 확정 "발주한 대로 그대로").
+   ★계산하지 않는다. 한때 '박스 × 입수' 로 냈다가 폐기했다 — 상품마스터 입수가 미등록(1)이거나
+     품목명 표기와 달라(마스터 48 vs 품목명 100EA/BOX) 줄마다 1·48·100·2000 이 뒤섞여 나왔다.
+   대시보드1 이 쓰는 칸(CUR_QTY)과 같아 두 화면 숫자가 어긋나지 않는다. */
 function poRender(){
   var tb=document.getElementById('tb');
   poCnt();
-  if(!ROWS.length){ tb.innerHTML='<tr><td colspan="13" class="empty">이 날짜의 직송 출고가 없습니다.</td></tr>'; poFit(); return; }
+  if(!ROWS.length){ tb.innerHTML='<tr><td colspan="14" class="empty">이 날짜의 직송 출고가 없습니다.</td></tr>'; poFit(); return; }
   tb.innerHTML = ROWS.map(function(o,i){
     var fee = n(o.fee) || 4500;                      /* 미설정(0) = 기본 4500 */
     var missA = !(o.addr && (''+o.addr).trim());
+    var box = n(o.boxQty), tot = n(o.totQty);   /* 총수량 = 발주현황표 '수량' 원값 */
     /* 엑셀 제외 (2026-08-06 요청) — 체크를 풀면 그 줄은 엑셀에서 빠진다(화면 목록에는 남는다).
        o.off 가 true 면 제외. 조회하면 전부 포함(체크) 상태로 시작한다. */
     return '<tr'+(o.off?' style="opacity:.45"':'')+'>'
@@ -202,7 +232,12 @@ function poRender(){
       + '<td><input data-i="'+i+'" data-f="hp" value="'+esc(o.hp)+'" onchange="poSet(this)"></td>'
       + '<td><input data-i="'+i+'" data-f="fee" class="fee" inputmode="numeric" value="'+fee+'" onchange="poSet(this)"></td>'
       + '<td>'+esc(o.itemNm)+'</td>'
-      + '<td class="c">'+n(o.boxQty)+'</td>'
+      + '<td class="c">'+box
+          + (n(o.mergeCnt)>1 ? '<span style="font-size:10px;font-weight:400;color:#8a97a3" title="발주현황표에 같은 사업장·품목으로 '+n(o.mergeCnt)+'줄 올라온 것을 한 줄로 합쳤습니다. 엑셀은 박스 수만큼 줄이 나가므로 결과는 같습니다."> ('+n(o.mergeCnt)+'줄)</span>' : '')
+          + '</td>'
+      + (tot > 0
+          ? '<td class="num" title="발주현황표에 올라온 수량 그대로입니다.">'+tot.toLocaleString()+'</td>'
+          : '<td class="c" style="color:#b0bac4" title="발주현황표에 수량이 비어 있습니다.">-</td>')
       + '<td class="c act"><button class="btn" onclick="poSaveBiz('+i+')" title="이 행의 주소·전화·운임을 사업장에 저장">택배정보저장</button></td>'
       + '</tr>';
   }).join('');
