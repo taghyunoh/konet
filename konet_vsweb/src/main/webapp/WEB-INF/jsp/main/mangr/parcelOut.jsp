@@ -13,8 +13,11 @@
     · 운임 = PARCEL_FEE, 없으면 4500 기본(행에서 수정 가능 — 같은 사업장도 품목 따라 3500 등)
     · [택배정보저장] = 그 행의 주소·전화·운임을 사업장(TBL_BIZI_MST)에 저장.
       사업장이 아직 없으면(출고자료에만 있는 신규) 자동 등록 후 저장(biziParcelUpdate.do)
-    · 엑셀 9칼럼: A=받는분 · C=주소 · D=전화 · E=휴대폰 · G=운임 · I=품목명 (B/F/H 빈칸),
-      시트명=MMDD. ★박스수만큼 행 반복(원양식이 같은 줄을 박스 수대로 되풀이한다 — 송장 1박스 1줄)
+    · 엑셀 9칼럼: A=받는분 · C=주소 · D=전화 · E=휴대폰 · F=총수량 · G=운임 · I=품목명 (B/H 빈칸),
+      ※F=총수량 은 2026-08-14 요청으로 추가(그 전까지 F 는 빈칸이었다).
+      시트명=MMDD. ★화면에 보이는 줄 그대로 한 줄씩 나간다(2026-08-14 확정).
+      한때 박스 수만큼 같은 줄을 되풀이했으나(1박스 1송장) 화면에서 합친 줄이 엑셀에서 다시
+      갈라져 두 곳이 어긋나 보였다 — 되풀이는 폐지. 되살리자는 얘기가 나오면 이 이력부터 확인.
     · ★머리글 줄과 출고일자 칸은 넣지 않는다(2026-08-06 확정) — 택배사 양식에 그대로 붙여 쓰려고
       원양식(머리글 없는 9칸)을 지킨다. 화면 목록에는 출고일자가 그대로 있다.
 -->
@@ -89,7 +92,7 @@
         <th title="체크를 풀면 엑셀에서 빠집니다"><input type="checkbox" id="poAll" checked onchange="poAllChk(this.checked)"></th>
         <th>#</th><th>구분</th><th>출고일자</th><th>사업장코드</th><th>사업장명(받는분)</th><th>택배주소</th>
         <th>전화</th><th>휴대폰</th><th>운임</th><th>품목명</th><th>박스</th>
-        <th title="발주현황표에 올라온 수량 그대로입니다(계산하지 않습니다). 대시보드의 수량과 같은 값입니다.">총수량</th>
+        <th title="발주현황표에 올라온 수량 그대로입니다(계산하지 않습니다). 대시보드의 수량과 같은 값입니다. 엑셀 F칸으로 나갑니다.">총수량</th>
         <th>택배정보</th>
       </tr></thead>
       <tbody id="tb"><tr><td colspan="14" class="empty">출고일자를 고르고 [조회]를 누르세요.</td></tr></tbody>
@@ -187,8 +190,9 @@ function poPager(){
    발주현황표는 같은 사업장·품목이 여러 줄로 올라오는데, 택배는 한 곳에 한 번 보내므로
    화면에서 줄이 나뉘어 있을 이유가 없다. 대시보드1 이 사업장+품목으로 합산해 보여 주는 것과 같은 셈법.
    · 더하는 것은 <박스>와 <총수량> 둘뿐. 주소·전화·운임은 사업장 값이라 어차피 같다.
-   · ★엑셀 결과는 달라지지 않는다 — 엑셀은 박스 수만큼 줄을 되풀이하므로(1박스 1송장)
-     1박스짜리 3줄이든 3박스짜리 1줄이든 똑같이 3줄로 나간다.
+   · ★엑셀도 이 합친 줄 그대로 나간다 (2026-08-14 확정) — 종전에는 엑셀이 박스 수만큼 줄을
+     되풀이해(1박스 1송장) 합친 줄이 다시 갈라졌지만, 이제 되풀이하지 않는다.
+     즉 합치는 규칙을 고치면 엑셀 줄 수도 함께 바뀐다.
    · 몇 줄을 합쳤는지는 mergeCnt 에 담아 화면에 밝힌다(원자료가 몇 줄이었는지 감춰지지 않게). */
 function poMerge(list){
   var out=[], idx={};
@@ -233,7 +237,7 @@ function poRender(){
       + '<td><input data-i="'+i+'" data-f="fee" class="fee" inputmode="numeric" value="'+fee+'" onchange="poSet(this)"></td>'
       + '<td>'+esc(o.itemNm)+'</td>'
       + '<td class="c">'+box
-          + (n(o.mergeCnt)>1 ? '<span style="font-size:10px;font-weight:400;color:#8a97a3" title="발주현황표에 같은 사업장·품목으로 '+n(o.mergeCnt)+'줄 올라온 것을 한 줄로 합쳤습니다. 엑셀은 박스 수만큼 줄이 나가므로 결과는 같습니다."> ('+n(o.mergeCnt)+'줄)</span>' : '')
+          + (n(o.mergeCnt)>1 ? '<span style="font-size:10px;font-weight:400;color:#8a97a3" title="발주현황표에 같은 사업장·품목으로 '+n(o.mergeCnt)+'줄 올라온 것을 한 줄로 합쳤습니다. 엑셀도 이 한 줄로 나갑니다."> ('+n(o.mergeCnt)+'줄)</span>' : '')
           + '</td>'
       + (tot > 0
           ? '<td class="num" title="발주현황표에 올라온 수량 그대로입니다.">'+tot.toLocaleString()+'</td>'
@@ -295,7 +299,7 @@ function poSaveBiz(i){
     .catch(function(e){ swErr('저장에 실패했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message).slice(0,150)+'</span>'); });
 }
 
-/* 엑셀 — 원양식(9칼럼, 시트명 MMDD) 그대로. 박스수만큼 행 반복(1박스=1줄) */
+/* 엑셀 — 원양식(9칼럼, 시트명 MMDD) 그대로. 화면에 보이는 줄 그대로 한 줄씩(2026-08-14) */
 function poExcel(){
   if(!ROWS.length){ swErr('먼저 조회하세요.'); return; }
   var USE = ROWS.filter(function(o){ return !o.off; });          /* 체크 푼 줄은 제외(2026-08-06) */
@@ -316,18 +320,26 @@ function poExcelMake(){
      군더더기 없이 자료 줄만 있어야 한다. 다시 붙이자는 얘기가 나오면 이 이력부터 확인할 것. */
   var aoa = [];
   var cnt = 0;
-  /* ★체크를 푼 줄(o.off)은 빼고 만든다 (2026-08-06 요청) */
+  /* ★화면에 보이는 줄 = 엑셀 줄 (2026-08-14 확정) — 박스 수만큼 되풀이하지 않는다.
+       종전에는 '1박스 1송장' 이라 박스 수대로 같은 줄을 되풀이했는데, 그러면 화면에서 한 줄로
+       합쳐 놓은 것(같은 출고일자·사업장·품목)이 엑셀에서 다시 갈라져 두 곳이 어긋나 보였다.
+       (사용자 예: 박스 2 인 기흥점 한 줄이 엑셀에서 두 줄로 나왔다)
+     ★같은 사업장이라도 품목이 다르면 줄은 나뉜다 — 화면 합침 규칙(poMerge)과 똑같이 간다.
+     ★체크를 푼 줄(o.off)은 빼고 만든다 (2026-08-06 요청) */
   ROWS.filter(function(o){ return !o.off; }).forEach(function(o){
     var fee = n(o.fee) || 4500;
-    var line = [ o.bizNm||'', '', o.addr||'', o.tel||'', o.hp||'', '', fee, '', o.itemNm||'' ];
-    for (var b=0; b<Math.max(1, n(o.boxQty)); b++) { aoa.push(line.slice()); cnt++; }
+    /* ★F칸 = 총수량 (2026-08-14 요청). 화면 '총수량' 칸과 같은 값(발주현황표 '수량' 원값)을
+       손대지 않고 그대로 넣는다 — 빈값 대체·계산 없음(사용자 확정 "수량이 없을 수는 없음"). */
+    aoa.push([ o.bizNm||'', '', o.addr||'', o.tel||'', o.hp||'', n(o.totQty), fee, '', o.itemNm||'' ]);
+    cnt++;
   });
   /* 색·테두리를 넣으려면 스타일 지원본(xlsx-js-style)이 필요하다 — 출고장별 엑셀과 같은 방식.
      못 불러오면 기본 라이브러리로 '무색' 저장까지는 되게 한다(2026-08-06). */
   poLoadStyleXlsx(function(LIBS){
     var LIB = LIBS || XLSX, styled = !!LIBS;
     var ws = LIB.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:24},{wch:4},{wch:46},{wch:14},{wch:14},{wch:4},{wch:8},{wch:4},{wch:44}];
+    /* F(6번째)는 총수량이 들어가므로 폭을 넓혔다(4 → 9) */
+    ws['!cols'] = [{wch:24},{wch:4},{wch:46},{wch:14},{wch:14},{wch:9},{wch:8},{wch:4},{wch:44}];
     if (styled) {
       /* 색상은 다른 화면(출고장별 엑셀)과 같은 계열 — 머리글이 없으므로 본문 구분선만 */
       var LINE = { style:'thin', color:{ rgb:'DFE6E3' } };
@@ -338,7 +350,7 @@ function poExcelMake(){
         for (var c=0; c<9; c++){
           var ref = LIB.utils.encode_cell({ r:r, c:c });
           if (!ws[ref]) ws[ref] = { t:'s', v:'' };          // 빈 칸도 테두리가 이어지게
-          ws[ref].s = (c===6 ? NUM : CELL);
+          ws[ref].s = ((c===5 || c===6) ? NUM : CELL);   /* F=총수량 · G=운임 = 숫자칸(우측정렬) */
         }
       }
     }
@@ -347,7 +359,7 @@ function poExcelMake(){
     LIB.writeFile(wb, '택배출고_'+dt.replace(/-/g,'')+'.xlsx');
     /* 성공 알림창은 띄우지 않는다 (2026-08-06 요청) — 파일이 받아지면 그것으로 충분하다.
        하단 토스트로만 조용히 알린다. 다만 색·테두리가 빠진 경우는 알아야 하므로 그때만 알림창. */
-    if (styled) toast('📥 엑셀 생성 — 발송 '+cnt+'줄');
+    if (styled) toast('📥 엑셀 생성 — '+cnt+'줄 (화면 목록과 같은 줄 수)');
     else swAlert('엑셀을 만들었습니다.<br><span style="font-size:12.5px;color:#c0392b">색·테두리 없이 저장했습니다(스타일 모듈을 못 불러옴).</span>');
   });
 }
