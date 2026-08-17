@@ -27,6 +27,7 @@ public class UserServiceImpl implements UserService {
 	@Autowired
 	private UserMapper mapper;
 
+
 	@Override
 	public UserDTO userLoginCheck(UserDTO dto) throws Exception {
 		// TODO Auto-generated method stub
@@ -200,6 +201,10 @@ public class UserServiceImpl implements UserService {
 	@Override public int deleteProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.deleteProd(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.ProdDTO> selectProdDeletedList(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.selectProdDeletedList(dto); }
 	@Override public int restoreProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.restoreProd(dto); }
+	@Override public int stopProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.stopProd(dto); }
+	@Override public int unstopProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.unstopProd(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.ProdDTO> selectStoppedAmong(java.util.Map<String,Object> p) throws Exception { return mapper.selectStoppedAmong(p); }
+
 	@Override public int countProdRelated(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.countProdRelated(dto); }
 
 	/* ===== 매입가 이력 : 등록 시 마스터(IN_PRICE) 동기화 ===== */

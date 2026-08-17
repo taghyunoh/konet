@@ -1254,6 +1254,11 @@ public class UserController {
 				   ⚠판매전표(salesTrxSave)는 막지 않는다 — 거래처에 나갈 때는 그쪽 코드를 쓰는 것이 정상이다. */
 				String subMsg = subCodeBlockMsg(dto, session);
 				if (subMsg != null) return ResponseEntity.status(409).body(subMsg);
+				/* ★거래중지 코드 차단 (2026-08-17) — 전표일자 기준 */
+				java.util.List<String> pCodes = new java.util.ArrayList<String>();
+				for (egovframework.sejong.user.model.PurchaseDtlDTO it : dto.getItems()) pCodes.add(it.getProdCd());
+				String stopMsg = stopBlockMsg(pCodes, dto.getPurchDt(), session);
+				if (stopMsg != null) return ResponseEntity.status(409).body(stopMsg);
 				String u = (session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"");
 				dto.setRegUser(u); dto.setUpdUser(u);
 				dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());
@@ -1261,6 +1266,39 @@ public class UserController {
 				return ResponseEntity.ok("{\"rows\":" + n + ",\"purchSeq\":" + dto.getPurchSeq() + ",\"purchNo\":\"" + dto.getPurchNo() + "\"}");
 			} catch (Exception e) { log.error(" purchaseSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
+
+		/**
+		 * ★거래중지된 코드가 섞였으면 막는 문구를 만든다. 없으면 null. (2026-08-17 요청)
+		 *
+		 * <p>거래가 붙어 <b>지울 수 없는</b> 잘못된 코드를 「거래중지」로 표시해 두면,
+		 * 옛 전표·재고는 그대로 남고 <b>새 거래만</b> 여기서 막힌다.
+		 * <p>⚠견주는 것은 <b>전표일자</b>다(오늘 날짜가 아니다) — 지난 일자로 넣는 전표가 실제로 있어,
+		 *   오늘로 판정하면 "중지 전에 있었던 거래"까지 막아 버린다.
+		 * <p>★매입·판매 <b>둘 다</b> 막는다(사용자 지시). 서브코드 차단이 매입만인 것과 다르다 —
+		 *   그쪽은 "거래처 코드로 나가는 판매는 정상"이지만, 중지된 코드는 어느 쪽으로도 쓰면 안 된다.
+		 */
+		private String stopBlockMsg(java.util.List<String> codes, String trxDt, HttpSession session) throws Exception {
+			java.util.LinkedHashSet<String> set = new java.util.LinkedHashSet<String>();
+			if (codes != null) for (String c : codes) if (c != null && !c.trim().isEmpty()) set.add(c.trim());
+			if (set.isEmpty() || trxDt == null || trxDt.trim().isEmpty()) return null;
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("codes", new java.util.ArrayList<String>(set));
+			p.put("trxDt", trxDt);
+			p.put("compCd", session.getAttribute("s_comp_cd"));
+			java.util.List<egovframework.sejong.user.model.ProdDTO> st = svc.selectStoppedAmong(p);
+			if (st == null || st.isEmpty()) return null;
+			StringBuilder sb = new StringBuilder("거래중지된 상품코드가 있어 저장할 수 없습니다.
+");
+			for (egovframework.sejong.user.model.ProdDTO d : st) {
+				sb.append("
+· ").append(d.getProdCd()).append(" ").append(d.getProdNm()==null?"":d.getProdNm());
+				sb.append("  (").append(d.getStopFrDt()).append(" 부터 중지");
+				if (d.getStopMemo()!=null && !d.getStopMemo().isEmpty()) sb.append(" · ").append(d.getStopMemo());
+				sb.append(")");
+			}
+			return sb.toString();
+		}
+
 		/**
 		 * 매입 명세에 <b>서브코드</b>가 섞였으면 막는 문구를 만든다. 없으면 null.
 		 *
@@ -1385,6 +1423,13 @@ public class UserController {
 				if (dto.getSaleDt()==null || dto.getSaleDt().trim().isEmpty()) return ResponseEntity.status(400).body("판매일자를 선택하세요.");
 				if (dto.getCustCd()==null || dto.getCustCd().trim().isEmpty()) return ResponseEntity.status(400).body("거래처를 선택하세요.");
 				if (dto.getItems()==null || dto.getItems().isEmpty()) return ResponseEntity.status(400).body("상품을 한 줄 이상 입력하세요.");
+				/* ★거래중지 코드 차단 (2026-08-17 지시 "매입등록시, 판매등록시 조건 추가") — 판매일자 기준.
+				   ⚠서브코드 차단은 매입만이지만(판매는 거래처 코드로 나가는 것이 정상), ***중지된 코드는
+				     어느 쪽으로도 쓰면 안 된다*** — 그래서 판매도 막는다. */
+				java.util.List<String> sCodes = new java.util.ArrayList<String>();
+				for (egovframework.sejong.user.model.SalesTrxDtlDTO it : dto.getItems()) sCodes.add(it.getProdCd());
+				String sStopMsg = stopBlockMsg(sCodes, dto.getSaleDt(), session);
+				if (sStopMsg != null) return ResponseEntity.status(409).body(sStopMsg);
 				String u = (session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"");
 				dto.setRegUser(u); dto.setUpdUser(u);
 				dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());
@@ -1768,6 +1813,32 @@ public class UserController {
 				if (svc.restoreProd(dto) == 0) return ResponseEntity.status(409).body("되살릴 상품을 찾을 수 없습니다. (이미 살아 있거나 다른 회사의 상품입니다)");
 				return ResponseEntity.ok("1");
 			} catch (Exception e) { log.error(" prodRestore ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
+		/* ===== 거래중지 처리 · 해제 (2026-08-17 요청) ==========================================
+		   거래가 붙어 **지울 수 없는** 잘못된 코드를 「앞으로 안 쓰는 코드」로 표시한다.
+		   옛 전표·재고는 손대지 않는다 — 이력은 그대로, 새 거래만 막는다. */
+		@RequestMapping(value="/prod/prodStop.do", method = RequestMethod.POST)
+		public ResponseEntity<String> prodStop(@RequestBody egovframework.sejong.user.model.ProdDTO dto,
+		                                       HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getProdSeq()==null) return ResponseEntity.status(400).body("PROD_SEQ 필요");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):""));
+				dto.setUpdIp(request.getRemoteAddr());
+				if (svc.stopProd(dto) == 0) return ResponseEntity.status(409).body("대상 상품을 찾을 수 없습니다.");
+				return ResponseEntity.ok("1");
+			} catch (Exception e) { log.error(" prodStop ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/prod/prodUnstop.do", method = RequestMethod.POST)
+		public ResponseEntity<String> prodUnstop(@RequestBody egovframework.sejong.user.model.ProdDTO dto,
+		                                         HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getProdSeq()==null) return ResponseEntity.status(400).body("PROD_SEQ 필요");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):""));
+				dto.setUpdIp(request.getRemoteAddr());
+				if (svc.unstopProd(dto) == 0) return ResponseEntity.status(409).body("대상 상품을 찾을 수 없습니다.");
+				return ResponseEntity.ok("1");
+			} catch (Exception e) { log.error(" prodUnstop ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
 		@RequestMapping(value="/prod/prodInsert.do", method = RequestMethod.POST)

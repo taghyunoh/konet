@@ -1746,7 +1746,12 @@
 	         IN_PRICE AS inPrice, SALE_PRICE AS salePrice, WHOLE_PRICE AS wholePrice,
 	         SAFE_STOCK AS safeStock, SALE_BASE_QTY AS saleBaseQty,
 	         UNIT_BARCODE AS unitBarcode, BOX_BARCODE AS boxBarcode,
-	         REG_DTTM AS regDttm, UPD_DTTM AS updDttm
+	         REG_DTTM AS regDttm, UPD_DTTM AS updDttm,
+	         /* ★거래중지 (2026-08-17) — ***여기서 거르지 않는다.***
+	            상품코드 등록은 중지된 것도 보여야 하고(표시·해제), 매입·판매 화면은 숨긴다.
+	            즉 거르는 자리는 화면이고, 이 조회는 **사실만** 실어 준다. */
+	         STOP_YN AS stopYn, STOP_FR_DT AS stopFrDt, STOP_DTTM AS stopDttm,
+	         STOP_USER AS stopUser, STOP_MEMO AS stopMemo
 	    FROM TBL_PROD_MST
 	   WHERE ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -1785,6 +1790,44 @@
 	   WHERE PROD_SEQ = #{prodSeq}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
+
+	<!-- ==========================================================================================
+	     ★거래중지 처리 · 해제 (2026-08-17 요청)
+	       거래가 붙어 **지울 수 없는** 코드를 「앞으로 안 쓰는 코드」로 표시한다.
+	       옛 전표·재고는 손대지 않는다 — 이력은 그대로 두고 새 거래만 막는 것이 목적이다.
+	       ⚠STOP_FR_DT(중지 시작일)를 안 주면 오늘로 둔다 — 비면 막을 기준이 없다.
+	     ========================================================================================== -->
+	<update id="stopProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
+	  UPDATE TBL_PROD_MST
+	     SET STOP_YN    = 'Y',
+	         STOP_FR_DT = ISNULL(NULLIF(#{stopFrDt,jdbcType=VARCHAR},''), CONVERT(VARCHAR(8), GETDATE(), 112)),
+	         STOP_MEMO  = #{stopMemo,jdbcType=NVARCHAR},
+	         STOP_DTTM  = CONVERT(VARCHAR(19), GETDATE(), 120),
+	         STOP_USER  = #{updUser,jdbcType=NVARCHAR}
+	   WHERE PROD_SEQ = #{prodSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<update id="unstopProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
+	  UPDATE TBL_PROD_MST
+	     SET STOP_YN='N', STOP_FR_DT=NULL, STOP_MEMO=NULL,
+	         STOP_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), STOP_USER = #{updUser,jdbcType=NVARCHAR}
+	   WHERE PROD_SEQ = #{prodSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
+	<!-- ★전표일자 기준으로 **중지된 코드**만 골라 돌려준다 (매입·판매 저장 관문에서 쓴다).
+	     ⚠오늘 날짜가 아니라 **전표일자(trxDt)** 와 견준다 — 지난 일자로 넣는 전표가 실제로 있다. -->
+	<select id="selectStoppedAmong" resultType="egovframework.sejong.user.model.ProdDTO">
+	  SELECT PROD_CD AS prodCd, PROD_NM AS prodNm, STOP_FR_DT AS stopFrDt, STOP_MEMO AS stopMemo
+	    FROM TBL_PROD_MST
+	   WHERE ACTION_YN='Y' AND STOP_YN='Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ISNULL(STOP_FR_DT,'') &lt;&gt; ''
+	     AND REPLACE(#{trxDt,jdbcType=VARCHAR},'-','') &gt;= STOP_FR_DT
+	     AND PROD_CD IN
+	         <foreach collection="codes" item="c" open="(" separator="," close=")">#{c}</foreach>
+	   ORDER BY PROD_CD
+	</select>
 
 	<update id="deleteProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
 	  UPDATE TBL_PROD_MST

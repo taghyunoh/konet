@@ -37,6 +37,15 @@ public class ProdDTO {
     private String  updUser;
     private String  updIp;
 
+
+    /* ★거래중지 (2026-08-17) — 삭제할 수 없는(거래가 붙은) 코드를 「앞으로 안 쓰는 코드」로 표시한다.
+       ⚠ACTION_YN(삭제)과 축이 다르다 : 중지는 목록에 보이고 **새 거래만** 막힌다.
+       ⚠막을 때 견주는 것은 stopFrDt 와 **전표일자**다(오늘 날짜가 아니다 — 지난 일자 전표가 있다). */
+    private String  stopYn;        // 'Y' = 거래중지
+    private String  stopFrDt;      // 중지 시작일(YYYYMMDD) — 이 날짜부터 새 거래를 막는다
+    private String  stopDttm;      // 중지 처리한 시각(감사 기록)
+    private String  stopUser;
+    private String  stopMemo;      // 사유 (예: "9904013214 로 대체")
     private String  findData;      // 검색어(코드/상품명/규격/제조사)
 
     public Long getProdSeq() { return prodSeq; }
@@ -87,4 +96,15 @@ public class ProdDTO {
     public void setUpdIp(String updIp) { this.updIp = updIp; }
     public String getFindData() { return findData; }
     public void setFindData(String findData) { this.findData = findData; }
+
+    public String getStopYn() { return stopYn; }
+    public void setStopYn(String stopYn) { this.stopYn = stopYn; }
+    public String getStopFrDt() { return stopFrDt; }
+    public void setStopFrDt(String stopFrDt) { this.stopFrDt = stopFrDt; }
+    public String getStopDttm() { return stopDttm; }
+    public void setStopDttm(String stopDttm) { this.stopDttm = stopDttm; }
+    public String getStopUser() { return stopUser; }
+    public void setStopUser(String stopUser) { this.stopUser = stopUser; }
+    public String getStopMemo() { return stopMemo; }
+    public void setStopMemo(String stopMemo) { this.stopMemo = stopMemo; }
 }

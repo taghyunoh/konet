@@ -674,7 +674,13 @@ function puLoadMasters(){
       _venSum[o.vendorCd] = { s:n(o.saleAmt), p:n(o.purchAmt), st:n(o.settleAmt), tx:n(o.trxAmt) };
     });
   }).catch(function(){});
-  post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){ _prods=(j&&j.data)||[]; }).catch(function(){});
+  post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){
+    /* ★거래중지된 코드 — **빼지 않고 표시한다** (2026-08-17 지시 "중지일 표시").
+       종전에는 목록에서 뺐는데, 그러면 ***왜 안 보이는지 알 수 없다***("있는 코드인데 검색이 안 된다").
+       ⇒ 보여 주고 「중지」와 중지일을 적어 **고를 수 없게** 만든다(줄 클릭도 막는다).
+       실제 차단은 언제나 서버(저장 관문)가 전표일자로 판정한다. */
+    _prods=(j&&j.data)||[];
+  }).catch(function(){});
   /* ★거래처 통보품목(=서브코드) — 판매등록과 **같은 원천**을 쓴다(2026-08-17).
      이걸 받아야 상품검색에 🔖 줄이 나오고, 서브코드를 골랐을 때 마스터를 알려 줄 수 있다. */
   post('/prod/extItemList.do','').then(function(r){return r.json();}).then(function(j){
@@ -1355,6 +1361,22 @@ function puProdRender(){
     /* ✔칸 — 체크하면 순번(1,2,3…)이 찍히고 그 순서대로 담긴다. 체크박스 클릭이 줄 클릭(한 건 담기)으로
        번지지 않게 td 에서 끊는다. 체크박스 자체 클릭도 td 로 흘러 한 번만 토글된다(pointer-events 없음). */
     var k = _ppPick.indexOf(String(o.prodCd));
+    /* ★거래중지된 코드 — 「중지」와 중지일을 적고 **고를 수 없게** 한다 (2026-08-17 지시).
+       숨기지 않는 이유 : 안 보이면 「있는 코드인데 검색이 안 된다」가 된다. 보여 주고 이유를 말한다. */
+    if(o.stopYn==='Y'){
+      var sd=String(o.stopFrDt||'');
+      if(sd.length===8) sd=sd.slice(0,4)+'-'+sd.slice(4,6)+'-'+sd.slice(6,8);
+      /* ★한 줄로 (2026-08-17 지시) — 코드 칸이 좁아 배지·날짜를 아래로 내리면 세 줄이 된다.
+         ⇒ 코드 칸엔 **배지만**(줄바꿈 금지), 날짜는 **상품명 뒤에** 붙인다. */
+      return '<tr style="background:#f5f6f7;color:#9aa7b3" title="거래중지된 코드입니다 — 쓸 수 없습니다">'
+           + '<td></td>'
+           + '<td style="white-space:nowrap">'+esc(o.prodCd)
+           +   ' <span style="display:inline-block;padding:0 5px;border-radius:8px;background:#eceff1;'
+           +   'color:#546e7a;font-size:11px;font-weight:700">중지</span></td>'
+           + '<td class="txt" style="text-align:left">'+esc(o.prodNm)
+           +   (sd?' <span style="font-size:11.5px">('+esc(sd)+' 부터 중지)</span>':'')+'</td>'
+           + '<td>'+esc(o.spec)+'</td><td class="num">'+n(o.packQty)+'</td><td class="num">'+fmt(o.inPrice)+'</td></tr>';
+    }
     /* ★이 줄 자체가 서브코드면 **줄을 눌러도 마스터로 담고 메시지를 띄운다** (2026-08-17 요청).
        종전에는 🔖 줄에서만 안내가 떠서, 상품마스터에 서브코드로 등록된 줄을 그냥 고르면 조용히 들어갔다. */
     var pickCd = sb ? sb.prodCd : o.prodCd;

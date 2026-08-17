@@ -102,7 +102,12 @@ public interface UserService {
 	int updateProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
 	int deleteProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.ProdDTO> selectProdDeletedList(egovframework.sejong.user.model.ProdDTO dto) throws Exception;   // 삭제한 상품(ACTION_YN='N') 목록
-	int restoreProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;                              // 되살리기 — 0건이면 이미 살아 있음
+	int restoreProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	/* ★거래중지 (2026-08-17) — 지울 수 없는 코드를 「앞으로 안 쓰는 코드」로 표시한다. */
+	int stopProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	int unstopProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	/** 전표일자 기준으로 **중지된 코드만** 골라 준다(매입·판매 저장 관문). */
+	java.util.List<egovframework.sejong.user.model.ProdDTO> selectStoppedAmong(java.util.Map<String,Object> p) throws Exception;
 	int countProdRelated(egovframework.sejong.user.model.ProdDTO dto) throws Exception;   // 연관(매입가/판매가/재고) 활성건수
 
 	// ===== 매입가 이력 =====

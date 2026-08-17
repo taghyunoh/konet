@@ -87,6 +87,14 @@
           white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #rc td.num{ text-align:right; }
   #rc .empty{ text-align:center; color:#8a97a3; padding:26px 0; }
+  /* ⛔ 거래중지 입력창 (2026-08-17) — prompt() 대신 프로젝트 창 모양으로. **중지일만** 받는다 */
+  #sp{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:70; align-items:flex-start; justify-content:center; }
+  #sp.on{ display:flex; }
+  #sp .box{ background:#fff; width:min(460px,94vw); margin-top:12vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); }
+  #sp .mh{ background:linear-gradient(135deg,#c0392b,#96281b); color:#fff; padding:12px 16px; border-radius:12px 12px 0 0; font-weight:700; }
+  #sp .mb{ padding:16px; }
+  #sp .mb input{ height:36px; width:100%; border:1px solid var(--bd); border-radius:7px; padding:0 10px; font-size:14px; }
+  #sp .mf{ padding:0 16px 14px; display:flex; gap:8px; justify-content:flex-end; }
   #ov .fld.full{ grid-column:1 / -1; }
   <%-- 라벨 = 진하게·가운데 정렬 (2026-08-04 요청) --%>
   #ov label{ font-size:13px; font-weight:700; color:#1f2a37; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:center; text-align:center; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
@@ -217,9 +225,19 @@
       <option value="Y">매칭된 것만</option>
       <option value="N">미매칭만</option>
     </select>
+    <%-- ★거래중지 조건 (2026-08-17 요청) — 중지한 코드만 모아 보거나, 살아 있는 것만 본다 --%>
+    <select id="fStop" onchange="pcFilter()" style="height:34px;border:1px solid var(--bd);border-radius:7px;padding:0 8px;font-size:13px;font-weight:700;color:#37475a"
+            title="거래중지된 상품만 / 중지 안 된 것만">
+      <option value="">전체 (중지 무관)</option>
+      <option value="Y">거래중지만</option>
+      <option value="N">중지 안 된 것만</option>
+    </select>
     <button class="btn btn-teal" style="margin-left:auto" onclick="pcOpen()">＋ 상품코드 추가</button>
     <button class="btn" onclick="pcEditSel()">✎ 수정</button>
     <button class="btn btn-danger" onclick="pcDelSel()">🗑 삭제</button>
+    <%-- ★거래중지 (2026-08-17) — 거래가 붙어 **지울 수 없는** 잘못된 코드를 「앞으로 안 쓰는 코드」로.
+         옛 전표·재고는 그대로 두고 매입·판매에서만 막힌다. --%>
+    <button class="btn" id="btStop" onclick="pcStopSel()" title="이 코드를 앞으로 쓰지 않게 표시합니다(옛 자료는 그대로)">⛔ 거래중지</button>
     <%-- 삭제는 소프트 삭제라 자료가 남아 있다 — 실수로 지운 것을 여기서 되살린다 (2026-08-17 요청) --%>
     <button class="btn" onclick="rcOpen()" title="삭제한 상품코드를 보고 되살립니다">♻ 삭제 목록</button>
     <button class="btn" onclick="pcExcel()">📥 엑셀 출력</button>
@@ -237,7 +255,7 @@
       <thead><tr>
         <th>코드</th><th>상품명</th><th>규격</th><th>제조사</th><th>유형</th><th>과세</th>
         <th class="r">입수</th><th class="r">입고가</th><th class="r">판매가</th><th class="r">도매가</th>
-        <th class="r">적정재고</th><th class="r">기본수량</th><th>낱개BC</th><th>박스BC</th><th>매칭</th>
+        <th class="r">적정재고</th><th class="r">기본수량</th><th>낱개BC</th><th>박스BC</th><th title="거래중지 시작일 — 이 날짜부터 매입·판매에서 막힙니다">중지일</th><th>매칭</th>
       </tr></thead>
       <tbody id="tb"><tr><td colspan="15" class="empty">불러오는 중…</td></tr></tbody>
     </table>
@@ -281,7 +299,18 @@
                  onclick="mcAcOpen()" onfocus="mcAcOpen()" oninput="mcAcTyped()" onkeydown="mcAcKey(event)">
           <div id="a_ac" class="ac" style="display:none"></div>
         </div>
-        <div class="f grow"><label>품목명</label><input id="a_nm" onkeydown="if(event.keyCode===13)mcAdd()"></div>
+        <%-- 품목명 + [유사 품명] — 치고 나서 **누를 때** 찾아 본다(2026-08-17 요청).
+             코드가 달라도 같은 물건을 또 등록하는 것을 막을 사람은 사용자뿐이라, 판단 재료를 여기서 준다. --%>
+        <div class="f grow"><label>품목명</label>
+          <div style="display:flex; gap:6px">
+            <%-- ★품목명을 치고 칸을 벗어나면 **그 자리에서** 비슷한 이름을 확인한다(2026-08-17 지시).
+                 저장 순간이 아니라 **입력 직후**라야 고쳐 넣을 여지가 있다. --%>
+            <input id="a_nm" style="flex:1" onblur="mcSimBlur()"
+                   onkeydown="if(event.keyCode===13){ mcSimBlur(); mcAdd(); }">
+            <button class="btn" style="flex:0 0 auto" onclick="mcSimShow()"
+                    title="비슷한 품목명이 이미 등록돼 있는지 찾아 봅니다">🔍 유사 품명</button>
+          </div>
+        </div>
         <div class="f"><label>규격</label><input id="a_spec" style="width:160px"></div>
         <div class="f"><label>단위</label><input id="a_unit" style="width:70px" placeholder="BOX"></div>
         <div class="f"><label>단가</label><input id="a_price" type="number" step="0.01" style="width:100px"></div>
@@ -304,7 +333,16 @@
       <div class="fld"><label>과세</label><select id="f_tax"><option value="과세">과세</option><option value="면세">면세</option></select></div>
       <%-- 코드 칸 바로 아래 줄 = 마지막으로 등록한 상품코드·상품명 (2026-08-12). 추가할 때만 나온다. --%>
       <div class="fld full lastcd" id="lastCd" style="display:none"></div>
-      <div class="fld full"><label>상품명 *</label><input id="f_nm" placeholder="상품명"></div>
+      <%-- ★상품명을 치고 칸을 벗어나면 **비슷한 상품이 이미 있는지** 알려 준다 (2026-08-17 요청).
+           신규 등록 순간이 유일한 방어선이다 — 같은 물건을 다른 이름·다른 코드로 또 만들면
+           ***재고가 두 코드로 갈라지고*** 뒤에 합칠 방법이 없다. 막지는 않는다(다른 물건일 수 있다). --%>
+      <div class="fld full"><label>상품명 *</label>
+        <div style="display:flex; gap:6px">
+          <input id="f_nm" placeholder="상품명" style="flex:1" onblur="pcSimBlur()">
+          <button type="button" class="btn" style="flex:0 0 auto" onclick="pcSimShow()"
+                  title="비슷한 상품명이 이미 등록돼 있는지 찾아 봅니다">🔍 유사 상품</button>
+        </div>
+      </div>
       <%-- 규격·제조사명은 쓰던 값을 찾아 넣는다(2026-08-04) — 목록에 없으면 그냥 쳐도 된다 --%>
       <div class="fld full"><label>규격</label><input id="f_spec" placeholder="규격 — 쓰던 값 검색 (없으면 그냥 입력)" autocomplete="off"></div>
       <div class="fld"><label>제조사명</label><input id="f_maker" placeholder="쓰던 값 검색 (없으면 그냥 입력)" autocomplete="off"></div>
@@ -333,9 +371,18 @@ var CTX='${pageContext.request.contextPath}';
 var LIST=[], _view=[], _page=1, PAGE=50, _byseq={}, _tax='', _sel=null, _all=false;   // _all = 전체 펼침
 
 function toast(s,t){ if(window._toast) window._toast(s, t||'info'); }
-function confirmBox(msg, onOk){
-  if(window._confirmBox){ window._confirmBox({ msg:msg, icon:'🗑️', okText:'삭제', onOk:onOk }); return; }
+/* 확인창. ★단추 글자·아이콘을 **부르는 쪽이 정한다** (2026-08-17) —
+   기본이 '삭제/🗑️' 로 박혀 있어서 거래해제 창에도 [삭제] 가 떴다(사용자 지적).
+   ***창의 단추는 그 창이 실제로 하는 일을 말해야 한다.*** */
+function confirmBox(msg, onOk, okText, icon){
+  if(window._confirmBox){ window._confirmBox({ msg:msg, icon:icon||'🗑️', okText:okText||'삭제', onOk:onOk }); return; }
   if(confirm((''+msg).replace(/<br\s*\/?>/gi,'\n'))) onOk();
+}
+/* 알림 — ★공통 표준(ui-message.js)을 쓴다. **Swal 직접 사용 금지**(이 파일 머리 규칙).
+   삭제 확인창과 같은 모양이라 사용자에게도 같은 창으로 읽힌다. 없으면 alert 로 내려간다. */
+function alertBox(msg, icon){
+  if(window._alertBox){ window._alertBox(msg, { icon: icon || 'ℹ️' }); return; }
+  alert((''+msg).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,''));
 }
 function esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function num(v){ return (v==null||v==='')?'':Number(v).toLocaleString(); }
@@ -360,11 +407,14 @@ function pcTab(g){
 function pcFilter(){
   var q=(document.getElementById('q').value||'').trim().toLowerCase();
   var mc=(document.getElementById('fMc')||{}).value||'';
+  var sp=(document.getElementById('fStop')||{}).value||'';   // ★거래중지 조건(2026-08-17)
   _view=LIST.filter(function(o){
     if(_tax && (''+(o.taxGb||''))!==_tax) return false;
     // 매칭 필터 — _mcCnt 는 하단 [거래처 매칭코드] 를 읽을 때 채워진다(상품별 건수)
     if(mc==='Y' && !_mcCnt[o.prodSeq]) return false;
     if(mc==='N' &&  _mcCnt[o.prodSeq]) return false;
+    if(sp==='Y' && o.stopYn!=='Y') return false;
+    if(sp==='N' && o.stopYn==='Y') return false;
     if(!q) return true;
     return [o.prodCd,o.prodNm,o.spec,o.makerNm,o.typeNm,o.unitBarcode,o.boxBarcode]
       .some(function(v){ return (''+(v||'')).toLowerCase().indexOf(q)>=0; });
@@ -377,7 +427,7 @@ function pcRender(){
   // ★_sel 은 지우지 않는다 — 매칭코드 등록 후 목록을 다시 그려도 고른 상품이 풀리면 안 된다
   //   (그 행이 이번 화면에 없으면 아래 복원에서 자연히 표시만 안 된다)
   var tb=document.getElementById('tb');
-  if(!tot){ tb.innerHTML='<tr><td colspan="15" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1,0); return; }
+  if(!tot){ tb.innerHTML='<tr><td colspan="16" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1,0); return; }
   // 펼침(_all)이면 조회된 전 건을 한 번에 — 페이지 버튼 대신 목록 스크롤로 훑는다
   var from = _all ? 0 : (_page-1)*PAGE, to = _all ? tot : Math.min(from+PAGE, tot);
   tb.innerHTML=_view.slice(from,to).map(function(o){
@@ -386,6 +436,13 @@ function pcRender(){
        매입등록 상품검색과 **같은 모양**(빨간 '서브' 배지 + → 주코드, 아래에 마스터 상품명).
        주코드를 누르면 그 상품 줄로 옮겨 간다(이미 있는 mcGoProd 를 쓴다). */
     var sb=_subOf[String(o.prodCd)], cdCell=esc(o.prodCd), mstNm='';
+    /* ★거래중지 표시 (2026-08-17) — 목록에서 지우지 않는다(해제도 여기서 한다).
+       ★코드 칸엔 **배지만 한 줄로** 붙인다 — 날짜는 오른쪽 [중지일] 칸에 따로 있다. */
+    if(o.stopYn==='Y'){
+      cdCell = '<span style="white-space:nowrap">' + cdCell
+             + ' <span style="display:inline-block;padding:0 5px;border-radius:8px;'
+             + 'background:#eceff1;color:#546e7a;font-size:11px;font-weight:700">중지</span></span>';
+    }
     if(sb){
       var mp=_byseq[sb.prodSeq]||{};
       cdCell += '<div style="margin-top:2px"><span style="display:inline-block;padding:0 5px;border-radius:8px;'
@@ -403,6 +460,9 @@ function pcRender(){
       +'<td class="num">'+num(o.salePrice)+'</td><td class="num">'+num(o.wholePrice)+'</td>'
       +'<td class="num">'+num(o.safeStock)+'</td><td class="num">'+num(o.saleBaseQty)+'</td>'
       +'<td>'+esc(o.unitBarcode)+'</td><td>'+esc(o.boxBarcode)+'</td>'
+      /* 중지일 — 값이 있으면 회색으로. 코드 아래 배지와 겹치지만, ***칸으로도 있어야*** 훑거나
+         엑셀로 뽑을 때 읽힌다(2026-08-17 요청). */
+      +'<td style="white-space:nowrap;color:#546e7a">'+(o.stopYn==='Y'?esc(pcFmtDt8(o.stopFrDt)):'')+'</td>'
       // 매칭 = 이 상품에 붙여 둔 거래처 코드 수. 0이면 그 코드로 오는 자료는 미매핑이 된다
       +'<td>'+(_mcCnt[o.prodSeq] ? ('<span class="tag">'+_mcCnt[o.prodSeq]+'</span>') : '<span class="tag tag-n">0</span>')+'</td>'
     +'</tr>';
@@ -418,6 +478,21 @@ function pcSel(tr,seq){
   Array.prototype.forEach.call(tb.querySelectorAll('tr.sel'),function(r){ r.classList.remove('sel'); });
   tr.classList.add('sel'); _sel=seq;
   mcPickProd(seq);           // 아래 [거래처 매칭코드] 패널을 이 상품으로 맞춘다
+  pcStopBtnSync();           // ★고른 상품이 중지 상태면 단추를 [거래해제] 로 (2026-08-17 요청)
+}
+/* 단추 하나로 중지·해제를 다 한다 — 두 개를 나란히 두면 어느 것이 지금 쓸 것인지 헷갈린다.
+   ★고른 상품의 상태를 단추가 그대로 말해 준다. 아무것도 안 골랐으면 기본 문구. */
+function pcStopBtnSync(){
+  var b=document.getElementById('btStop'); if(!b) return;
+  var o=(_sel!=null)?(_byseq[_sel]||{}):{};
+  if(o.stopYn==='Y'){
+    b.textContent='▶ 거래해제';
+    b.title='이 코드를 다시 매입·판매에 쓸 수 있게 합니다'
+          + (o.stopFrDt ? (' (지금 '+pcFmtDt8(o.stopFrDt)+' 부터 중지)') : '');
+  }else{
+    b.textContent='⛔ 거래중지';
+    b.title='이 코드를 앞으로 쓰지 않게 표시합니다(옛 자료는 그대로)';
+  }
 }
 function pcEditSel(){ if(_sel==null){ toast('수정할 행을 먼저 선택하세요.','warn'); return; } pcOpen(_sel); }
 function pcDelSel(){ if(_sel==null){ toast('삭제할 행을 먼저 선택하세요.','warn'); return; } pcDel(_sel); }
@@ -534,6 +609,7 @@ function pcUseNext(){
 
 function pcOpen(seq){
   var o=(seq!=null)?_byseq[seq]:null;
+  _pcSimLast = o ? String(o.prodNm||'') : '';   // ★새로 열면 유사 확인을 다시 한다(수정은 원래 이름은 넘긴다)
   document.getElementById('ovTit').textContent=o?('상품코드 수정 — '+o.prodCd):'상품코드 추가';
   _set('f_seq', o?o.prodSeq:'');
   _set('f_cd', o?o.prodCd:''); document.getElementById('f_cd').readOnly=!!o;   // 수정 시 코드는 잠금
@@ -925,6 +1001,134 @@ function mcDupMsg(cd, dup){
   return m + '<br>' + (dup.prodSeq==null ? '주코드에 붙어 있지 않은 코드입니다 ([📋 전체 보기]에서 확인)'
     : ('주코드 <b>'+esc(dup.prodCd||p.prodCd||'')+'</b> '+esc(dup.prodNm||p.prodNm||'')+' 에 등록돼 있습니다'));
 }
+/* ═══ 비슷한 품목명 찾기 (2026-08-17 요청) ══════════════════════════════════
+   ★코드가 달라도 **같은 물건**을 다른 이름으로 또 등록하는 것이 실제 사고다.
+     코드 중복(mcFindDup)은 서버가 막지만, ***이름이 비슷한 것은 아무도 안 막는다.***
+   ⇒ 등록 직전에 비슷한 이름을 찾아 **주코드와 함께** 보여 주고 사람이 판단하게 한다(막지는 않는다).
+   ★비교는 **정규화 후**에 한다 — 같은 물건인데 띄어쓰기·괄호·쉼표만 다른 경우가 대부분이다.
+     예) "아이스컵,14OZ,92Ø(파이)" ↔ "아이스컵 14oz 92파이"  */
+function mcNorm(s){
+  return String(s||'').toLowerCase()
+    .replace(/[\s,.\-_/()\[\]]/g,'')     // 띄어쓰기·구두점은 뜻을 안 바꾼다
+    .replace(/파이/g,'ø');               // 같은 것을 두 가지로 쓴다
+}
+/** 비슷한 이름 후보 — 상품마스터(LIST)와 등록된 매칭코드(MC) 양쪽에서 찾는다. 최대 6건. */
+function mcSimilar(nm){
+  var q=mcNorm(nm); if(q.length<3) return [];      // 너무 짧으면 아무거나 걸린다
+  var out=[], seen={};
+  function push(cd, name, why, seq){
+    var k=String(cd)+'|'+String(name); if(seen[k]) return; seen[k]=1;
+    out.push({cd:cd, nm:name, why:why, seq:seq});
+  }
+  function hit(a){
+    if(!a) return null;
+    if(a===q) return '같은 이름';
+    if(a.indexOf(q)>=0 || q.indexOf(a)>=0) return '이름이 포함됨';
+    /* 앞부분이 길게 같으면 같은 계열 — 품명은 앞에서 갈리는 일이 드물다 */
+    var n=Math.min(a.length,q.length,10);
+    if(n>=6 && a.slice(0,n)===q.slice(0,n)) return '앞부분이 같음';
+    return null;
+  }
+  for(var i=0;i<LIST.length && out.length<6;i++){
+    var w=hit(mcNorm(LIST[i].prodNm));
+    if(w) push(LIST[i].prodCd, LIST[i].prodNm, '상품마스터 · '+w, LIST[i].prodSeq);
+  }
+  for(var j=0;j<MC.length && out.length<6;j++){
+    var w2=hit(mcNorm(MC[j].extItemNm));
+    if(w2){ var p=_byseq[MC[j].prodSeq]||{};
+            push(MC[j].extItemCd, MC[j].extItemNm, '이미 등록된 코드 · 주코드 '+(MC[j].prodCd||p.prodCd||'?'), MC[j].prodSeq); }
+  }
+  return out;
+}
+/* ═══ 신규 상품 등록 — 비슷한 상품명 확인 (2026-08-17 요청) ═════════════════════
+   ★***신규 등록 순간이 유일한 방어선***이다. 같은 물건을 다른 이름·다른 코드로 또 만들면
+     재고가 두 코드로 갈라지고, 이미 거래가 붙은 뒤에는 합칠 방법이 없다.
+   ⚠수정 중(f_seq 있음)이면 **자기 자신은 뺀다** — 제 이름과 같다고 알릴 일이 아니다.
+   ⚠막지는 않는다. 규격만 다른 별개 품목이 실제로 많다(14oz / 20oz). 판단은 사람이 한다. */
+function pcSimFind(nm){
+  var q=mcNorm(nm); if(q.length<3) return [];
+  var mySeq=String(gv('f_seq')||''), out=[];
+  function hit(a){
+    if(!a) return null;
+    if(a===q) return '같은 이름';
+    if(a.indexOf(q)>=0 || q.indexOf(a)>=0) return '이름이 포함됨';
+    var n=Math.min(a.length,q.length,10);
+    if(n>=6 && a.slice(0,n)===q.slice(0,n)) return '앞부분이 같음';
+    return null;
+  }
+  for(var i=0;i<LIST.length && out.length<8;i++){
+    if(mySeq && String(LIST[i].prodSeq)===mySeq) continue;     // 자기 자신
+    var w=hit(mcNorm(LIST[i].prodNm));
+    if(w) out.push({cd:LIST[i].prodCd, nm:LIST[i].prodNm, why:w, seq:LIST[i].prodSeq});
+  }
+  /* 같은 이름 → 포함 → 앞부분 순으로 위에 오게 (급한 것부터 읽힌다) */
+  var rank={'같은 이름':0,'이름이 포함됨':1,'앞부분이 같음':2};
+  out.sort(function(a,b){ return (rank[a.why]||9)-(rank[b.why]||9); });
+  return out;
+}
+function pcSimTell(nm, sim, quiet){
+  if(!sim.length){ if(!quiet) toast('비슷한 상품명이 없습니다 — 새 상품으로 보입니다.','ok'); return; }
+  /* ★문구는 **사실만** (2026-08-17 지시) — 「그 코드를 쓰세요」 같은 지시문은 뺐다.
+     같은 물건인지 아닌지는 화면이 알 수 없고, 판단은 사용자가 한다. */
+  /* ★공통 표준 창으로 (2026-08-17 지시 "직관적으로") — 코드는 초록 굵게, 근거는 작은 회색.
+     한눈에 「어느 코드와 비슷한가」가 읽히게 한다. */
+  alertBox('<div style="text-align:left"><b style="font-size:15px">유사상품 있습니다</b>'
+    + ' <span style="color:#8a97a3;font-size:12.5px">('+sim.length+'건)</span>'
+    + '<div style="margin-top:10px">'
+    + sim.map(function(s){
+        return '<div style="padding:6px 0;border-top:1px solid #eef1f4">'
+             + '<b style="color:#137a6c">'+esc(s.cd)+'</b> '+esc(s.nm||'')
+             + '<div style="font-size:11.5px;color:#9aa7b3">'+esc(s.why)+'</div></div>';
+      }).join('')
+    + '</div></div>', '🔍');
+}
+function pcSimShow(){
+  var nm=gv('f_nm');
+  if(!nm){ toast('상품명을 먼저 입력하세요.','warn'); document.getElementById('f_nm').focus(); return; }
+  pcSimTell(nm, pcSimFind(nm), false);
+}
+/* 칸을 벗어날 때 자동 확인 — 같은 값으로 두 번 알리지 않는다(드나들 때마다 뜨면 못 쓴다).
+   없을 때는 조용히 지나간다 — 새 상품을 넣을 때마다 「없습니다」가 뜨면 걸림돌이다. */
+var _pcSimLast='';
+function pcSimBlur(){
+  var nm=gv('f_nm');
+  if(!nm){ _pcSimLast=''; return; }
+  if(nm===_pcSimLast) return;
+  _pcSimLast=nm;
+  pcSimTell(nm, pcSimFind(nm), true);
+}
+
+/** 유사 품명 결과를 알린다. 공통 — 버튼과 자동확인이 같은 문구를 쓴다. */
+function mcSimTell(nm, sim, quiet){
+  if(!sim.length){ if(!quiet) toast('비슷한 품목명이 없습니다 — 새 품목으로 보입니다.','ok'); return; }
+  /* 문구는 사실만 · 창은 공통 표준 — 상품명 쪽(pcSimTell)과 같은 모양으로 맞춘다(2026-08-17) */
+  alertBox('<div style="text-align:left"><b style="font-size:15px">유사품목 있습니다</b>'
+    + ' <span style="color:#8a97a3;font-size:12.5px">('+sim.length+'건)</span>'
+    + '<div style="margin-top:10px">'
+    + sim.map(function(s){
+        return '<div style="padding:6px 0;border-top:1px solid #eef1f4">'
+             + '<b style="color:#137a6c">'+esc(s.cd)+'</b> '+esc(s.nm||'')
+             + '<div style="font-size:11.5px;color:#9aa7b3">'+esc(s.why)+'</div></div>';
+      }).join('')
+    + '</div></div>', '🔍');
+}
+/** [🔍 유사 품명] 단추 — 언제든 눌러 본다. 없으면 없다고도 알려 준다. */
+function mcSimShow(){
+  var nm=gv('a_nm');
+  if(!nm){ toast('품목명을 먼저 입력하세요.','warn'); document.getElementById('a_nm').focus(); return; }
+  mcSimTell(nm, mcSimilar(nm), false);
+}
+/* ★품목명을 치고 칸을 벗어날 때 자동 확인 (2026-08-17 지시 — 저장 때가 아니라 **입력 직후**).
+   ⚠같은 값으로 두 번 알리지 않는다 — 칸을 드나들 때마다 창이 뜨면 못 쓴다.
+   ⚠없을 때는 조용히 지나간다(quiet) — 새 품목을 넣을 때마다 「없습니다」가 뜨면 걸림돌이다. */
+var _mcSimLast='';
+function mcSimBlur(){
+  var nm=gv('a_nm');
+  if(!nm){ _mcSimLast=''; return; }
+  if(nm===_mcSimLast) return;
+  _mcSimLast=nm;
+  mcSimTell(nm, mcSimilar(nm), true);
+}
 function mcAdd(){
   if(_mcSaving) return;                      // 저장이 끝날 때까지는 받지 않는다
   if(!_mcCur){ toast('먼저 위 목록에서 상품을 고르세요.','warn'); return; }
@@ -939,6 +1143,8 @@ function mcAdd(){
   /* 보내기 전에 전 건에서 찾아 본다 — 있으면 어느 주코드인지까지 적어 돌려준다(서버 호출 없음) */
   var dup=mcFindDup(cd, ven);
   if(dup){ toast(mcDupMsg(cd, dup),'warn'); return; }
+  /* ⚠유사 품명 확인은 **저장 때 하지 않는다**(2026-08-17 사용자 지시) —
+     품목명을 치고 칸을 벗어날 때(mcSimBlur) 이미 확인했다. 저장 순간에 또 묻으면 걸림돌만 된다. */
   mcSend(dto);
 }
 function mcSend(dto){
@@ -1236,6 +1442,49 @@ function rcRestore(seq){
     .catch(function(e){ toast(e.message||'되살리지 못했습니다.','err'); });
 }
 
+
+/* ═══ 거래중지 (2026-08-17 요청) ══════════════════════════════════════════════
+   ★거래가 붙은 코드는 **지울 수 없다**(매입가·판매가 이력·재고 원장이 막는다). 지워서도 안 된다 —
+     지우면 그 원장 행이 주인 없는 자료가 된다.
+   ⇒ 지우는 대신 「앞으로 안 쓰는 코드」로 표시한다. ***옛 전표·재고는 그대로 유지***되고,
+     매입등록·판매등록에서만 막힌다(서버 stopBlockMsg 가 전표일자로 판정).
+   ★중지 시작일을 받는다 — 「언제부터 중지인지」가 있어야 지난 전표를 잘못 막지 않는다. */
+function pcFmtDt8(d){ d=String(d||''); return d.length===8 ? d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8) : d; }
+function pcStopSel(){
+  if(!_sel){ toast('목록에서 상품을 먼저 고르세요.','warn'); return; }
+  var o=_byseq[_sel]||{};
+  if(o.stopYn==='Y'){                                  // 이미 중지 → 해제를 묻는다
+    confirmBox('['+esc(o.prodCd)+'] '+esc(o.prodNm||'')
+      +'<br><br>거래중지를 <b>해제</b>할까요?<br><span style="font-size:12.5px;color:#5b6b7a">다시 매입·판매에 쓸 수 있게 됩니다.</span>',
+      function(){ pcStopSend('/prod/prodUnstop.do', {prodSeq:o.prodSeq}, '거래중지를 해제했습니다'); },
+      '거래해제', '▶');   // ★[삭제] 가 아니라 [거래해제] — 하는 일을 단추가 말한다
+    return;
+  }
+  /* ★prompt 대신 창으로 (2026-08-17 지시) — **중지일만** 받는다. 사유는 묻지 않는다. */
+  var d=new Date();
+  document.getElementById('spWho').innerHTML='<b>'+esc(o.prodCd)+'</b> '+esc(o.prodNm||'');
+  document.getElementById('spDt').value =
+    d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+  document.getElementById('sp').classList.add('on');
+  document.getElementById('spDt').focus();
+}
+function spClose(){ document.getElementById('sp').classList.remove('on'); }
+function spOk(){
+  var o=_byseq[_sel]||{};
+  var v=(document.getElementById('spDt').value||'').replace(/[^0-9]/g,'');   // YYYY-MM-DD → YYYYMMDD
+  if(v.length!==8){ toast('중지 시작일을 고르세요.','warn'); return; }
+  spClose();
+  pcStopSend('/prod/prodStop.do', {prodSeq:o.prodSeq, stopFrDt:v},
+             pcFmtDt8(v)+' 부터 거래중지로 표시했습니다');
+}
+function pcStopSend(url, body, okMsg){
+  fetch(CTX+url,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
+    .then(function(){ toast(okMsg,'ok');
+      /* 목록을 다시 읽은 뒤 단추도 맞춘다 — 안 하면 해제했는데 단추가 [거래해제] 로 남는다 */
+      pcLoad(); setTimeout(pcStopBtnSync, 300); })
+    .catch(function(e){ toast(e.message||'처리하지 못했습니다.','err'); });
+}
 </script>
 
 <%-- ───────── ♻ 삭제 목록 (2026-08-17 요청) ─────────
@@ -1260,6 +1509,25 @@ function rcRestore(seq){
       <div style="margin-top:10px;font-size:12.5px;color:#8a97a3">
         되살리면 목록에 다시 나타납니다. 매입가·판매가·재고 이력은 삭제 때 지워지지 않으므로 그대로 남아 있습니다.
       </div>
+    </div>
+  </div>
+</div>
+
+<%-- ⛔ 거래중지 — **중지일만** 받는다 (2026-08-17 지시). 사유는 안 묻는다(입력 단계를 늘리지 않는다) --%>
+<div id="sp">
+  <div class="box">
+    <div class="mh">⛔ 거래중지</div>
+    <div class="mb">
+      <div id="spWho" style="font-size:13px;color:#37475a;margin-bottom:10px"></div>
+      <label style="font-size:12.5px;font-weight:700;color:#1f2a37">중지 시작일</label>
+      <input type="date" id="spDt">
+      <div style="margin-top:8px;font-size:12px;color:#8a97a3">
+        이 날짜부터 매입·판매에서 막힙니다. <b>그 전 전표와 재고는 그대로</b> 유지됩니다.
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn" onclick="spClose()">취소</button>
+      <button class="btn btn-danger" onclick="spOk()">⛔ 거래중지</button>
     </div>
   </div>
 </div>

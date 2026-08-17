@@ -712,7 +712,14 @@ function saLoadMasters(){
       _venSum[o.vendorCd] = { s:n(o.saleAmt), p:n(o.purchAmt), st:n(o.settleAmt), tx:n(o.trxAmt) };
     });
     }).catch(function(){});
-  post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){ _prods=(j&&j.data)||[]; saProdRefreshed(); }).catch(function(){});
+  post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){
+    /* ★거래중지된 코드 — **빼지 않고 표시한다** (2026-08-17 지시 "중지일 표시").
+       종전에는 목록에서 뺐는데, 그러면 ***왜 안 보이는지 알 수 없다***("있는 코드인데 검색이 안 된다").
+       ⇒ 보여 주고 「중지」와 중지일을 적어 **고를 수 없게** 만든다(줄 클릭도 막는다).
+       실제 차단은 언제나 서버(저장 관문)가 전표일자로 판정한다. */
+    _prods=(j&&j.data)||[];
+    saProdRefreshed();
+  }).catch(function(){});
   /* 거래처 매칭코드 — 상품 선택 팝업에서 '거래처가 준 코드'로도 찾기 위한 목록 (2026-08-01) */
   post('/prod/extItemList.do','').then(function(r){return r.json();}).then(function(j){ _extItems=(j&&j.data)||[]; saProdRefreshed(); }).catch(function(){});
 }
@@ -1408,6 +1415,23 @@ function saProdRender(){
     /* ✔칸 — 체크하면 순번(1,2,3…)이 찍히고 그 순서대로 담긴다. 체크박스 클릭이 줄 클릭(한 건 담기)으로
        번지지 않게 td 에서 끊는다(매입등록과 동일). */
     var k = _ppPick.indexOf(String(o.prodCd));
+    /* ★거래중지된 코드 — 「중지」와 중지일을 적고 **고를 수 없게** 한다 (2026-08-17 지시).
+       숨기지 않는 이유 : 안 보이면 「있는 코드인데 검색이 안 된다」가 된다. 보여 주고 이유를 말한다.
+       ⚠서브코드(🔖) 줄도 이 상품 밑에는 안 붙인다 — 어차피 못 고르는 상품이다. */
+    if(o.stopYn==='Y'){
+      var sd=String(o.stopFrDt||'');
+      if(sd.length===8) sd=sd.slice(0,4)+'-'+sd.slice(4,6)+'-'+sd.slice(6,8);
+      /* ★한 줄로 (2026-08-17 지시) — 코드 칸이 좁아 배지·날짜를 아래로 내리면 세 줄이 된다.
+         ⇒ 코드 칸엔 **배지만**(줄바꿈 금지), 날짜는 **상품명 뒤에** 붙인다. */
+      return '<tr style="background:#f5f6f7;color:#9aa7b3" title="거래중지된 코드입니다 — 쓸 수 없습니다">'
+           + '<td></td>'
+           + '<td style="white-space:nowrap">'+esc(o.prodCd)
+           +   ' <span style="display:inline-block;padding:0 5px;border-radius:8px;background:#eceff1;'
+           +   'color:#546e7a;font-size:11px;font-weight:700">중지</span></td>'
+           + '<td class="txt" style="text-align:left">'+esc(o.prodNm)
+           +   (sd?' <span style="font-size:11.5px">('+esc(sd)+' 부터 중지)</span>':'')+'</td>'
+           + '<td>'+esc(o.spec)+'</td><td class="num">'+n(o.packQty)+'</td><td class="num">'+fmt(o.salePrice)+'</td></tr>';
+    }
     /* 원코드 줄 — 누르면 우리 코드·우리 품명으로 넣는다 */
     var h='<tr class="pick" onclick="saProdPick(\''+esc(o.prodCd)+'\')" title="이 줄을 누르면 우리 원코드로 넣습니다">'
          + '<td style="cursor:pointer" onclick="event.stopPropagation();saProdToggle(\''+esc(o.prodCd)+'\')">'
