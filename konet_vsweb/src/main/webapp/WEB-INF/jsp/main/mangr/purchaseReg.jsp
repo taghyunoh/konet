@@ -375,7 +375,8 @@
        · [매입분제외] = 앞으로 이 목록에 안 나오게 한다(거래처별). 매입 이력은 그대로 둔다.
        · 판매등록의 [납품분]과 같은 표를 쓰되 GB='P' 로 갈린다 — 매출에서 뺀 게 매입에 영향 없다. -->
 <div class="pu-pop" id="puDlvPop">
-  <div class="box" style="width:min(980px,96vw)">
+  <%-- 매입횟수 칸이 늘어 980 으로는 최근거래·원천이 두 줄로 접혔다 ⇒ 1120 (2026-08-17) --%>
+  <div class="box" style="width:min(1120px,97vw)">
     <div class="hd">매입분 검색
       <select id="dvPeriod" style="height:30px; border:1px solid var(--pu-bd); border-radius:6px; padding:0 6px; font-size:12.5px" onchange="puDlvLoad()">
         <option value="1">최근 1년</option><option value="3">최근 3년</option><option value="">전체</option>
@@ -397,9 +398,13 @@
             <th style="width:46px"><input type="checkbox" id="dvAll" onchange="puDlvAll(this.checked)"></th>
             <th style="width:110px">상품코드</th><th>상품명</th><th style="width:110px">규격</th>
             <th style="width:110px">제조사</th><th style="width:90px">단가</th><th style="width:90px">현재고</th>
-            <th style="width:96px">최근거래</th><th style="width:76px">원천</th>
+            <%-- ★자주 매입한 순으로 나오므로 그 근거(횟수)를 보여 준다 (2026-08-17) — 안 보이면 왜 이 차례인지 모른다 --%>
+            <th style="width:64px" title="이 기간에 매입한 횟수 — 이 순서로 정렬됩니다">매입<br>횟수</th>
+            <%-- 날짜(2026-07-16)·'단가이력'이 접히지 않을 만큼 준다 — 접히면 줄 높이가 들쭉날쭉해 읽기 나쁘다 --%>
+            <th style="width:104px; white-space:nowrap">최근거래</th>
+            <th style="width:86px; white-space:nowrap">원천</th>
           </tr></thead>
-          <tbody id="dvBody"><tr><td colspan="9" class="pu-msg">거래처를 먼저 선택하세요.</td></tr></tbody>
+          <tbody id="dvBody"><tr><td colspan="10" class="pu-msg">거래처를 먼저 선택하세요.</td></tr></tbody>
         </table>
       </div>
       <div style="margin-top:8px; font-size:12.5px; color:#3d4d5c">
@@ -1009,7 +1014,7 @@ function puLoad(){
   document.getElementById('puListBody').innerHTML = '<tr><td colspan="9" class="pu-msg">조회 중…</td></tr>';
   post('/mangr/purchaseList.do', b).then(function(r){return r.json();}).then(function(j){
     _list = (j&&j.data)||[]; puListRender();
-  }).catch(function(e){ document.getElementById('puListBody').innerHTML='<tr><td colspan="9" class="pu-msg" style="color:#c0392b">조회 오류 : '+esc(e.message)+'</td></tr>'; });
+  }).catch(function(e){ document.getElementById('puListBody').innerHTML='<tr><td colspan="10" class="pu-msg" style="color:#c0392b">조회 오류 : '+esc(e.message)+'</td></tr>'; });
 }
 /* 하단 목록 — 5행만 보여주고 스크롤이 바닥에 닿으면 다음 5행을 이어붙인다(매출내역과 같은 방식).
      행수에 따라 화면 높이가 들쑥날쑥하던 것을 막는다(2026-07-25 요청).
@@ -1933,7 +1938,7 @@ function puDlvLoad(){
   var body = 'custCd='+encodeURIComponent(cd) + '&gb=P'
            + '&fromDt='+encodeURIComponent(_dvExclMode ? '' : from)
            + '&srcFilter='+encodeURIComponent(_dvExclMode ? '' : document.getElementById('dvSrc').value);
-  document.getElementById('dvBody').innerHTML = '<tr><td colspan="9" class="pu-msg">불러오는 중…</td></tr>';
+  document.getElementById('dvBody').innerHTML = '<tr><td colspan="10" class="pu-msg">불러오는 중…</td></tr>';
   document.getElementById('dvExclBtn').textContent = _dvExclMode ? '↩ 매입분으로' : '📋 제외이력보기';
   document.getElementById('dvExclSave').textContent = _dvExclMode ? '↩ 제외해제' : '🚫 매입분제외';
   document.getElementById('dvOk').style.display = _dvExclMode ? 'none' : '';
@@ -1943,7 +1948,7 @@ function puDlvLoad(){
     _dlv = (j&&j.data)||[]; puDlvRender();
   }).catch(function(e){
     document.getElementById('dvBody').innerHTML =
-      '<tr><td colspan="9" class="pu-msg" style="color:#c0392b">조회 오류 — 제외표(TBL_SALES_DLV_EXCL)가 없거나 GB 칸이 없으면 sql/sales_dlv_excl_ddl.sql · sales_dlv_excl_gb_alter.sql 을 먼저 실행하세요.</td></tr>';
+      '<tr><td colspan="10" class="pu-msg" style="color:#c0392b">조회 오류 — 제외표(TBL_SALES_DLV_EXCL)가 없거나 GB 칸이 없으면 sql/sales_dlv_excl_ddl.sql · sales_dlv_excl_gb_alter.sql 을 먼저 실행하세요.</td></tr>';
   });
 }
 function puDlvFiltered(){
@@ -1970,9 +1975,12 @@ function puDlvRender(){
       + '<td>'+esc(o.spec)+'</td><td>'+esc(o.makerNm)+'</td>'
       + '<td class="num">'+fmtP(o.unitPrice)+'</td>'
       + '<td class="num"'+(st<0?' style="color:#c0392b;font-weight:700"':'')+'>'+fmt(st)+'</td>'
-      + '<td>'+esc(_dvExclMode ? String(o.regDttm||'').slice(0,10) : fmtDt(o.lastDt))+'</td>'
-      + '<td>'+esc(_dvExclMode ? '제외' : (o.srcGb||''))+'</td></tr>';
-  }).join('') : '<tr><td colspan="9" class="pu-msg">'
+      /* 매입횟수 — 정렬 근거. 제외이력 모드에는 뜻이 없으므로 비워 둔다 */
+      + '<td class="num">'+(_dvExclMode ? '' : (n(o.cnt)||''))+'</td>'
+      /* ★날짜·원천은 접히면 줄 높이가 들쭉날쭉해진다 — 머리글과 본문 **둘 다** 막아야 실제로 안 접힌다 */
+      + '<td style="white-space:nowrap">'+esc(_dvExclMode ? String(o.regDttm||'').slice(0,10) : fmtDt(o.lastDt))+'</td>'
+      + '<td style="white-space:nowrap">'+esc(_dvExclMode ? '제외' : (o.srcGb||''))+'</td></tr>';
+  }).join('') : '<tr><td colspan="10" class="pu-msg">'
       + (_dvExclMode ? '제외해 둔 품목이 없습니다.' : '이 매입처에서 사 온 품목이 아직 없습니다.') + '</td></tr>';
   puDlvInfo();
 }

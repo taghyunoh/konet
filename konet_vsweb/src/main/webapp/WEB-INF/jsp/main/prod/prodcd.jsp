@@ -126,9 +126,11 @@
                border-radius:9px; padding:1px 7px; font-size:11px; font-weight:700; }
   .pfac .nohit{ padding:9px 10px; color:#9aa7b3; cursor:default; }
   /* ───────── 거래처 매칭코드 — 하단 도킹 패널 (상품(품목)관리의 이력/재고 패널과 같은 방식) ─────────
-     높이는 한 곳(--mc-h)에서만 정한다. .wrap 높이와 어긋나면 목록 끝이 패널에 가린다. */
-  :root{ --mc-h:34vh; }
-  #mc{ position:fixed; left:0; right:0; bottom:0; height:var(--mc-h); min-height:250px; z-index:45; }
+     높이는 한 곳(--mc-h)에서만 정한다. .wrap 높이와 어긋나면 목록 끝이 패널에 가린다.
+     ★2026-08-17 : 매칭코드가 여러 건인 상품이 늘어 34vh 로는 두세 줄밖에 안 보였다 ⇒ **46vh** 로 넓혔다.
+       (입력 방식은 그대로다 — 보이는 공간만 늘렸다. 접기(▾)를 누르면 종전처럼 44px 로 접힌다.) */
+  :root{ --mc-h:46vh; }
+  #mc{ position:fixed; left:0; right:0; bottom:0; height:var(--mc-h); min-height:330px; z-index:45; }
   #mc.min{ height:44px; min-height:0; }
   #mc .box{ background:#fff; width:100%; height:100%; border-radius:12px 12px 0 0; box-shadow:0 -10px 34px rgba(0,0,0,.18);
             border-top:2px solid var(--teal); display:flex; flex-direction:column; }
@@ -991,7 +993,7 @@ function mcDel(seq){
 /* 접기/펼치기 — 목록을 넓게 보고 싶을 때. 접으면 그만큼 위 목록이 늘어난다 */
 function mcToggle(){
   var el=document.getElementById('mc'), min=el.classList.toggle('min');
-  document.documentElement.style.setProperty('--mc-h', min ? '44px' : '34vh');
+  document.documentElement.style.setProperty('--mc-h', min ? '44px' : '46vh');   // 펼침 높이는 CSS 의 --mc-h 와 같아야 한다
   document.getElementById('mcToggleBtn').innerHTML = min ? '&#9652;' : '&#9662;';
 }
 
@@ -1233,6 +1235,7 @@ function rcRestore(seq){
     })
     .catch(function(e){ toast(e.message||'되살리지 못했습니다.','err'); });
 }
+
 </script>
 
 <%-- ───────── ♻ 삭제 목록 (2026-08-17 요청) ─────────

@@ -3757,7 +3757,13 @@
 	           OR ISNULL(p.PROD_NM, x.prodNm) LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
 	           OR ISNULL(p.SPEC,'')     LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
 	           OR ISNULL(p.MAKER_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
-	   ORDER BY x.lastDt DESC, x.prodCd
+	   /* ★자주 매입한 것부터 (2026-08-17 요청) — 종전에는 '최근 거래순'이라 어쩌다 한 번 산 품목이
+	      맨 위로 올라와, 늘 사는 품목을 찾으려면 목록을 훑어야 했다.
+	      cnt = 그 기간의 매입 건수(전표+단가이력)로 **이미 위에서 세어 둔 값**이다 — 새 조회가 필요 없다.
+	      ⚠검색·기간·원천 조건은 **그대로**다. 바뀐 것은 나오는 차례뿐이다.
+	      ⚠판매 쪽(selectSalesDlvList)은 요청 밖이라 최근 거래순 그대로 둔다.
+	      횟수가 같으면 최근 거래가 먼저 — 같은 값끼리 차례가 흔들리지 않게 prodCd 로 마무리한다. */
+	   ORDER BY x.cnt DESC, x.lastDt DESC, x.prodCd
 	]]></select>
 
 	<!-- ==========================================================================================
