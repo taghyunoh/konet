@@ -26,6 +26,12 @@ public class ProdDTO {
     private Double  wholePrice;    // 도매단가
     private Integer safeStock;     // 적정재고
     private Integer saleBaseQty;   // 판매기본수량
+    /* ★[2026-08-17 신설] 이 상품을 주로 대는 거래처 (TBL_PROD_MST.VENDOR_CD / VENDOR_NM).
+       ★거래처코드 매칭(TBL_EXT_ITEM_MST)과 **다른 것**이다 — 이쪽은 사람이 보는 정보,
+         그쪽은 매입 자료를 잡는 열쇠(코드가 반드시 있어야 한다). 섞지 말 것.
+       ★이름을 함께 두는 이유 = 목록·엑셀에서 조인 없이 바로 보여 주려는 것. */
+    private String  vendorCd;      // 거래처코드
+    private String  vendorNm;      // 거래처명(그때 그 이름)
     private String  unitBarcode;   // 낱개바코드
     private String  boxBarcode;    // 박스바코드
 
@@ -78,6 +84,10 @@ public class ProdDTO {
     public void setSaleBaseQty(Integer saleBaseQty) { this.saleBaseQty = saleBaseQty; }
     public String getUnitBarcode() { return unitBarcode; }
     public void setUnitBarcode(String unitBarcode) { this.unitBarcode = unitBarcode; }
+    public String getVendorCd() { return vendorCd; }
+    public void setVendorCd(String vendorCd) { this.vendorCd = vendorCd; }
+    public String getVendorNm() { return vendorNm; }
+    public void setVendorNm(String vendorNm) { this.vendorNm = vendorNm; }
     public String getBoxBarcode() { return boxBarcode; }
     public void setBoxBarcode(String boxBarcode) { this.boxBarcode = boxBarcode; }
     public String getActionYn() { return actionYn; }

@@ -2247,11 +2247,34 @@ function puStepRow(t, dr){
    드롭다운은 그리드가 overflow 라 잘리므로 body 에 position:fixed 로 띄운다. */
 var _pinInp = null, _pinRow = -1, _pinList = [], _pinIdx = -1, _pinDrop = null;
 function _pinHit(q){ return function(x){ return String(x==null?'':x).toLowerCase().indexOf(q) >= 0; }; }
+/* 칸 안 후보 목록 — **서브코드도 찾는다**(2026-08-17 요청).
+     [증상] 서브코드(예: 65857)를 칸에 그대로 치면 후보가 하나도 안 뜨고, 그대로 저장을 눌러야
+            비로소 「이건 서브코드다」라는 안내가 나왔다 — ***주코드를 한참 뒤에 알게 된다.***
+     [원인] 여기서 **상품마스터(_prods)만** 훑았다. 서브코드는 `_extItems`(거래처 통보 코드)에 있다.
+     [고침] 서브코드가 걸리면 **그 주코드를 담는 후보**로 먼저 보여 준다 —
+            줄을 누르면 주코드로 담기고(puProdPick 의 viaSub 안내가 그대로 뜬다) 바로 이어 적을 수 있다.
+   ★서브 줄을 **맨 위에** 둔다 — 사용자가 방금 친 그 코드가 정확히 걸린 것이라 가장 알고 싶은 줄이다.
+   ★상품검색 팝업이 이미 🔖 줄로 같은 일을 한다 — **같은 모양**으로 맞춘 것이다(화면마다 다르면 헷갈린다). */
 function puPinCands(q){
-  var out = [];
+  var out = [], seen = {};
+  /* ⓐ 서브코드(거래처가 부르는 코드) — 코드·품목명 어느 쪽이 걸려도 잡는다 */
+  for (var j=0; j<_extItems.length && out.length<12; j++){
+    var e = _extItems[j];
+    if (!e || !e.prodCd || !e.extItemCd) continue;
+    if (String(e.extItemCd) === String(e.prodCd)) continue;          // 자기 자신은 서브가 아니다
+    if (![e.extItemCd, e.extItemNm].some(_pinHit(q))) continue;
+    var mp = _prods.filter(function(x){ return String(x.prodCd)===String(e.prodCd); })[0];
+    if (!mp) continue;                                              // 주코드가 마스터에 없으면 담을 수 없다
+    var key = 'S'+e.extItemCd+'>'+mp.prodCd;
+    if (seen[key]) continue; seen[key]=1;
+    out.push({ code:mp.prodCd, nm:mp.prodNm, spec:mp.spec, price:mp.inPrice, prodCd:mp.prodCd,
+               viaSub:String(e.extItemCd), subNm:e.extItemNm||'' });
+  }
+  /* ⓑ 상품마스터 — 종전 그대로 */
   for (var i=0; i<_prods.length && out.length<12; i++){
     var p = _prods[i]; if (!p.prodCd) continue;
     if (![p.prodCd,p.prodNm,p.spec].some(_pinHit(q))) continue;
+    if (seen['M'+p.prodCd]) continue; seen['M'+p.prodCd]=1;
     out.push({ code:p.prodCd, nm:p.prodNm, spec:p.spec, price:p.inPrice, prodCd:p.prodCd });   // 매입가 표시
   }
   return out;
@@ -2277,8 +2300,16 @@ function puPinDraw(inp){
   _pinDrop.style.minWidth = Math.max(380, rc.width) + 'px';
   _pinDrop.innerHTML = _pinList.map(function(it,k){
     var on = (k === _pinIdx);
+    /* ★서브코드로 걸린 줄은 **「서브 → 주코드」를 그 줄에서** 보여 준다(2026-08-17) —
+         누르면 주코드로 담기므로, 무엇이 담길지 누르기 전에 알 수 있어야 한다. */
+    var badge = it.viaSub
+      ? ('<span style="flex:0 0 auto;padding:0 5px;border-radius:8px;background:#fdecea;color:#c0392b;'
+        + 'font-size:11px;font-weight:800">서브 '+esc(it.viaSub)+' →</span>')
+      : '';
     return '<div data-k="'+k+'" onmousedown="puPinPickMd(event,'+k+')"'
-      + ' style="display:flex;gap:8px;padding:6px 10px;cursor:pointer;white-space:nowrap;'+(on?'background:#e9f4f1;':'')+'">'
+      + ' style="display:flex;gap:8px;padding:6px 10px;cursor:pointer;white-space:nowrap;'
+      +   (on?'background:#e9f4f1;':(it.viaSub?'background:#fffaf9;':''))+'">'
+      + badge
       + '<b style="min-width:100px;color:#137a6c">'+esc(it.code)+'</b>'
       + '<span style="flex:1;text-align:left;color:#1f2a37">'+esc(it.nm)+'</span>'
       + '<span style="min-width:96px;color:#8a97a4">'+esc(it.spec||'')+'</span>'
@@ -2304,7 +2335,9 @@ function puPinPick(k){
   puPinClose();
   _prodTargetRow = row;
   _focusNext = { r:row, f:'boxQty', sel:'all' };   // 담긴 뒤 커서는 BOX수량으로
-  puProdPick(it.prodCd);
+  /* ★viaSub 를 그대로 넘긴다 — puProdPick 이 「그 코드는 서브라서 주코드로 담았다」를 알려 준다
+       (팝업에서 🔖 줄을 고른 것과 **같은 안내**가 뜬다). */
+  puProdPick(it.prodCd, it.viaSub || null);
 }
 function puPinClose(){ if (_pinDrop) _pinDrop.style.display = 'none'; _pinList = []; _pinIdx = -1; }
 function puPinBlur(){ setTimeout(puPinClose, 150); }

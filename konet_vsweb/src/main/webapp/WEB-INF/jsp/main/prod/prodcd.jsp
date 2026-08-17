@@ -54,6 +54,24 @@
   tbody tr.sel td{ background:#dcefe9 !important; }
   td.code{ font-family:Consolas,monospace; }
   td.nm{ white-space:normal; min-width:220px; max-width:340px; }
+  /* ★[2026-08-17 요청 「거래처명이 제조사에 너무 붙어 있음 — 좌측으로 2.5cm」]
+       원인 : `table{width:100%}` 인데 폭을 정해 둔 칸이 상품명뿐이라 ***남는 폭을 규격이 다 먹었다.***
+              그래서 규격 칸이 넓게 벌어지고 거래처명이 오른쪽 끝(제조사 옆)까지 밀렸다.
+     ⇒ **규격에 상한을 주고**(3번째 칸) 거래처명에 제 폭을 준다(4번째) — 남는 폭은 상품명이 먹는다.
+     ★2.5cm ≒ 95px : 규격이 먹던 여백이 그만큼 줄어 거래처명이 왼쪽으로 당겨진다.
+     ⚠칸 번호(nth-child)로 지정한다 — **칸 순서를 바꾸면 이 숫자도 함께 고쳐야 한다.**
+       지금 순서 : 1코드 2상품명 3규격 4거래처명 5제조사 … */
+  /* ★규격 폭이 곧 **거래처명·제조사·유형 세 칸의 시작 위치**다 — 규격을 넓히면 그만큼 오른쪽으로 밀린다.
+       150 → 200 → 260 → **300px** (사용자가 보면서 조금씩 오른쪽으로 옮긴 값이다).
+       ⚠더 미세하게 조절할 곳은 이 한 줄이다(min/max 를 같이 올리거나 내린다). */
+    /* ★[2026-08-18] 규격이 길면 **거래처명 칸으로 삐져나왔다**(사용자 지적) —
+       `table{white-space:nowrap}` 이라 글자가 칸 밖으로 그대로 흘러 옆 칸 글자와 겹쳤다.
+       ⇒ 넘치면 **`…` 으로 자른다**(overflow:hidden + text-overflow:ellipsis).
+       ★잘린 전체 값은 **마우스를 올리면** 보인다(행을 만들 때 title 을 함께 넣는다).
+       ⚠td 에서 ellipsis 가 듣게 하려면 **max-width 가 반드시 있어야 한다** — 위 max-width 가 그 몫이다. */
+  .card table th:nth-child(3), .card table td:nth-child(3){ min-width:300px; max-width:320px;
+       overflow:hidden; text-overflow:ellipsis; }  /* 규격 */
+  .card table th:nth-child(4), .card table td:nth-child(4){ min-width:120px; }   /* 거래처명 */
   td.num{ text-align:right; }
   .tx{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#fff; }
   .empty{ padding:26px; text-align:center; color:#9aa7b3; }
@@ -103,6 +121,13 @@
   <%-- 라벨 = 진하게·가운데 정렬 (2026-08-04 요청) --%>
   #ov label{ font-size:13px; font-weight:700; color:#1f2a37; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:center; text-align:center; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
   #ov input, #ov select{ height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:14px; font-family:inherit; }
+  /* ★[2026-08-17 요청 「과세 이쪽으로 옮겨」] select 에 폭이 없어 **글자만큼만 좁게** 나와
+     오른쪽 칸의 왼쪽에 붙어 보였다 — 다른 입력칸처럼 칸을 채운다(자리가 옮겨진 것처럼 보인다). */
+  #ov select{ width:100%; }
+  /* 추가 창 안의 '거래처 코드' 묶음 — 상품 항목과 섞이지 않게 옅은 칸으로 감싼다 */
+  #ov .sub{ grid-column:1 / -1; border:1px dashed #b9c9d6; border-radius:8px; padding:10px 12px;
+            background:#f7fbfd; display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
+  #ov .sub .cap{ grid-column:1 / -1; font-size:12.5px; color:#5a6b7a; font-weight:700; }
   /* 규격·제조사명은 한 단계 크게 (2026-08-04 요청) — 값을 눈으로 대조하며 고르는 칸이라 */
   #ov #f_spec, #ov #f_maker{ font-size:15px; height:36px; }
   #ov .mf{ padding:12px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
@@ -257,11 +282,25 @@
   <div class="card">
     <table>
       <thead><tr>
-        <th>코드</th><th>상품명</th><th>규격</th><th>제조사</th><th>유형</th><th>과세</th>
+        <%-- ★[2026-08-17 요청] 적정재고를 **과세 앞으로** 옮겼다 — 오른쪽 끝에 있어 가로 스크롤을
+             해야 보였다. 제조사·유형은 요청대로 **그대로** 둔다.
+             ⚠칸 순서를 바꿀 때는 **머리글과 pcRender() 의 td 순서를 함께** 고쳐야 한다(둘 다 손댔다). --%>
+        <%-- ★[2026-08-17 요청] 칸 순서 재배치 — **가로 스크롤 없이 봐야 하는 것을 앞으로.**
+               · 적정재고 : **유형 뒤**로(제조사·유형은 원래 자리 그대로 앞에 둔다)
+               · 중지일·매칭 : 오른쪽 끝에 있어 **스크롤해야 보였다** → 기본수량 뒤로 당김
+               · 낱개BC·박스BC : 자주 안 보는 값이라 **맨 뒤로**
+             ⚠칸 순서를 바꿀 때는 **머리글과 pcRender() 의 td 순서를 함께** 고쳐야 한다(둘 다 손댔다).
+               어긋나면 값이 한 칸씩 밀려 엉뚱한 열에 보인다. --%>
+        <%-- ★[2026-08-17] 거래처명은 **규격 뒤**다(최종). 앞으로 당겼다가 되돌린 것이다 —
+             규격과 제조사 사이가 제자리라는 사용자 확인(「거래처명 규격 뒤에」). --%>
+        <th>코드</th><th>상품명</th><th>규격</th><th>거래처명</th>
+        <th>제조사</th><th>유형</th><th class="r">적정재고</th><th>과세</th>
         <th class="r">입수</th><th class="r">입고가</th><th class="r">판매가</th><th class="r">도매가</th>
-        <th class="r">적정재고</th><th class="r">기본수량</th><th>낱개BC</th><th>박스BC</th><th title="거래중지 시작일 — 이 날짜부터 매입·판매에서 막힙니다">중지일</th><th>매칭</th>
+        <th class="r">기본수량</th>
+        <th title="거래중지 시작일 — 이 날짜부터 매입·판매에서 막힙니다">중지일</th><th>매칭</th>
+        <th>낱개BC</th><th>박스BC</th>
       </tr></thead>
-      <tbody id="tb"><tr><td colspan="15" class="empty">불러오는 중…</td></tr></tbody>
+      <tbody id="tb"><tr><td colspan="17" class="empty">불러오는 중…</td></tr></tbody>
     </table>
   </div>
   <div id="pager" class="pager"></div>
@@ -289,7 +328,7 @@
       <div class="tbwrap">
         <table>
           <thead id="mth"></thead>
-          <tbody id="mtb"><tr><td colspan="11" class="empty">위 목록에서 상품 줄을 고르세요.</td></tr></tbody>
+          <tbody id="mtb"><tr><td colspan="9" class="empty">위 목록에서 상품 줄을 고르세요.</td></tr></tbody>
         </table>
       </div>
       <div class="addbar">
@@ -337,6 +376,24 @@
       <div class="fld"><label>과세</label><select id="f_tax"><option value="과세">과세</option><option value="면세">면세</option></select></div>
       <%-- 코드 칸 바로 아래 줄 = 마지막으로 등록한 상품코드·상품명 (2026-08-12). 추가할 때만 나온다. --%>
       <div class="fld full lastcd" id="lastCd" style="display:none"></div>
+      <%-- ★[2026-08-17] 상품마스터에 **거래처 칸을 새로 만들어**(sql/prod_mst_vendor_alter.sql)
+             여기서 「이 상품의 거래처」를 그대로 저장한다. 코드 칸이 필요 없어졌다.
+           ⚠***거래처코드 매칭(아래 패널)과 다른 것***이다 :
+             · 이 칸        = 「이 상품을 주로 대는 거래처」 — 사람이 보는 정보
+             · 아래 매칭코드 = 「거래처가 부르는 코드 ↔ 우리 상품코드」 — 매입 자료를 잡는 열쇠
+             매입 매칭은 여전히 코드가 있어야 도니, 코드를 붙일 때는 아래 패널을 쓴다.
+           ★목록은 **입력칸 바로 아래**에 붙는다(규격·제조사와 같은 입력검색 방식). --%>
+      <div class="fld full">
+        <label>거래처</label>
+        <%-- ★[2026-08-17] datalist 를 버렸다 — 브라우저가 **창 밖 화면 오른쪽 끝**에 목록을 그려
+             입력칸과 동떨어져 보였다(사용자 지적 「입력쪽으로 들어오게 다른 콤보처럼」).
+             ⇒ 이 화면에 이미 있는 **입력검색(규격·제조사, pcAc*)과 같은 방식**으로 바꿨다 —
+               목록이 입력칸 **바로 아래**에 붙고, 모양·조작(↑↓·Enter·Esc)도 같다. --%>
+        <input id="f_venQ" placeholder="거래처명·코드 몇 자 → 아래 목록에서 고르기 (비워도 됩니다)"
+               autocomplete="off"
+               title="이 상품을 주로 대는 거래처입니다. 매입 자료를 코드로 잡는 것은 아래 [거래처 매칭코드] 패널에서 합니다.">
+        <input type="hidden" id="f_ven">
+      </div>
       <%-- ★상품명을 치고 칸을 벗어나면 **비슷한 상품이 이미 있는지** 알려 준다 (2026-08-17 요청).
            신규 등록 순간이 유일한 방어선이다 — 같은 물건을 다른 이름·다른 코드로 또 만들면
            ***재고가 두 코드로 갈라지고*** 뒤에 합칠 방법이 없다. 막지는 않는다(다른 물건일 수 있다). --%>
@@ -372,7 +429,12 @@
 var CTX='${pageContext.request.contextPath}';
 /* 한 페이지 50행 — 목록이 화면 아래까지 늘어난 만큼 담는 양도 늘렸다(2026-08-01).
    화면보다 많으면 목록 칸 안에서 스크롤되고, 다 보고 나면 아래 페이지 버튼으로 넘어간다. */
-var LIST=[], _view=[], _page=1, PAGE=50, _byseq={}, _tax='', _sel=null, _all=false;   // _all = 전체 펼침
+/* ★[2026-08-17 요청 「하단 페이징 스크롤되게 변경」] **기본을 「전체 펼침」으로** 바꿨다(_all=true) —
+     페이지 단추(‹ 1 … 11 12 ›)를 눌러 넘기는 대신 ***목록을 그냥 스크롤***해 훑는다.
+     이미 있던 [▼ 전체 펼치기] 기능을 기본값으로 돌린 것이라 새 코드가 아니다.
+   ★`.card` 가 이미 `overflow:auto` 이고 머리글이 `position:sticky` 라 **스크롤해도 머리글은 남는다.**
+   ⚠[▲ 접기] 단추는 남겨 둔다 — 다시 페이지 단위로 보고 싶을 때 쓸 수 있어야 한다(되돌리는 문). */
+var LIST=[], _view=[], _page=1, PAGE=50, _byseq={}, _tax='', _sel=null, _all=true;   // _all = 전체 펼침(기본)
 
 function toast(s,t){ if(window._toast) window._toast(s, t||'info'); }
 /* 확인창. ★단추 글자·아이콘을 **부르는 쪽이 정한다** (2026-08-17) —
@@ -393,13 +455,16 @@ function num(v){ return (v==null||v==='')?'':Number(v).toLocaleString(); }
 function gv(id){ return (document.getElementById(id).value||'').trim(); }
 function gnum(id){ var v=gv(id); return v===''?null:Number(v); }
 
-function pcLoad(){
+/* ★done 콜백을 받는다(2026-08-17) — 상품을 새로 만든 뒤 **그 상품의 prodSeq 를 알아야** 매칭코드를
+     붙일 수 있어서, 목록을 다시 읽고 나서 이어 할 일을 넘긴다. 인수를 안 주면 종전과 똑같이 동작한다. */
+function pcLoad(done){
   fetch(CTX+'/prod/prodList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
     .then(function(r){ return r.text(); })
     .then(function(txt){ var j; try{ j=JSON.parse(txt); }catch(e){ toast('목록 응답 오류','err'); return; }
       LIST=(j&&j.data)||[]; _byseq={}; LIST.forEach(function(o){ _byseq[o.prodSeq]=o; });
       pcUniqBuild();                     // 규격·제조사명 입력검색이 볼 값 목록(2026-08-04)
       pcFilter();
+      if(typeof done==='function'){ try{ done(); }catch(e){} }
     })
     .catch(function(e){ toast('통신오류: '+e.message,'err'); });
 }
@@ -431,7 +496,7 @@ function pcRender(){
   // ★_sel 은 지우지 않는다 — 매칭코드 등록 후 목록을 다시 그려도 고른 상품이 풀리면 안 된다
   //   (그 행이 이번 화면에 없으면 아래 복원에서 자연히 표시만 안 된다)
   var tb=document.getElementById('tb');
-  if(!tot){ tb.innerHTML='<tr><td colspan="16" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1,0); return; }
+  if(!tot){ tb.innerHTML='<tr><td colspan="17" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1,0); return; }
   // 펼침(_all)이면 조회된 전 건을 한 번에 — 페이지 버튼 대신 목록 스크롤로 훑는다
   var from = _all ? 0 : (_page-1)*PAGE, to = _all ? tot : Math.min(from+PAGE, tot);
   tb.innerHTML=_view.slice(from,to).map(function(o){
@@ -451,24 +516,40 @@ function pcRender(){
       var mp=_byseq[sb.prodSeq]||{};
       cdCell += '<div style="margin-top:2px"><span style="display:inline-block;padding:0 5px;border-radius:8px;'
              +  'background:#fdecea;color:#c0392b;font-size:11px;font-weight:700">서브</span>'
-             +  ' <a href="javascript:;" style="font-size:11.5px;color:#1f7a4d;font-weight:700;text-decoration:underline"'
-             +  ' onclick="event.stopPropagation();mcGoProd('+sb.prodSeq+');" title="주코드 줄로 이동합니다">→ '
+             /* ★[2026-08-18] **인라인 onclick 을 없앴다** — 「주코드를 눌러도 다른 데로 간다 / 선택이 없어진다」가
+                  이어졌다. 원인 후보 1순위는 ***문자열로 조립한 onclick 속성***이었다(코드를 따옴표로 감싸며
+                  이스케이프가 어긋나면 핸들러가 통째로 죽고, ***누른 티도 안 난다*** — 화면은 직전 선택을
+                  그대로 들고 있어 「다른 코드로 갔다」처럼 보인다).
+                ⇒ 값은 **data 속성**으로만 싣고, 실제 처리는 **위임 핸들러 한 곳**에서 한다(아래 pcSubGoBind).
+                  조립할 JS 문자열이 없어져 이 부류의 오류가 원천 차단된다. */
+             +  ' <a href="javascript:;" class="subgo" data-cd="'+esc(sb.prodCd)+'" data-seq="'+sb.prodSeq+'"'
+             +  ' style="font-size:11.5px;color:#1f7a4d;font-weight:700;text-decoration:underline"'
+             +  ' title="주코드 '+esc(sb.prodCd)+' 줄로 이동합니다">→ '
              +  esc(sb.prodCd)+'</a></div>';
       if(mp.prodNm) mstNm='<div style="font-size:11.5px;color:#8a97a3;margin-top:2px">마스터 : '+esc(mp.prodNm)+'</div>';
     }
     return '<tr data-seq="'+o.prodSeq+'" onclick="pcSel(this,'+o.prodSeq+')" ondblclick="pcOpen('+o.prodSeq+')">'
       +'<td class="code">'+cdCell+'</td><td class="nm">'+esc(o.prodNm)+mstNm+'</td>'
-      +'<td>'+esc(o.spec)+'</td><td>'+esc(o.makerNm)+'</td><td>'+esc(o.typeNm)+'</td>'
+      /* ★칸 순서는 위 thead 와 **똑같이** 유지한다(2026-08-17 재배치) :
+           규격 → 제조사 → 유형 → 적정재고 → 과세 → … → 기본수량 → 중지일 → 매칭 → 낱개BC → 박스BC */
+      +'<td title="'+esc(o.spec)+'">'+esc(o.spec)+'</td>'   /* 잘려도 마우스로 전체를 본다 */
+      /* ★거래처명 — **상품마스터에 저장된 값**을 쓴다(2026-08-17 · VENDOR_CD/NM).
+         ★이름은 **지금 거래처 목록에서 코드로 찾아** 보여 준다 — 거래처명이 바뀌면 최신 이름이 나온다.
+           목록에 없으면(폐업 등) 저장해 둔 그때 그 이름으로 물러난다.
+         ⚠아래 [거래처 매칭코드] 패널의 거래처와 **다른 값**이다 — 그건 「그 코드를 통보한 거래처」다. */
+      +'<td style="color:#37556b">'+esc(o.vendorCd ? (mcVenNm(o.vendorCd)||o.vendorNm||o.vendorCd) : '')+'</td>'
+      +'<td>'+esc(o.makerNm)+'</td><td>'+esc(o.typeNm)+'</td>'
+      +'<td class="num">'+num(o.safeStock)+'</td>'
       +'<td><span class="tx" style="background:'+c+'">'+esc(o.taxGb||'-')+'</span></td>'
       +'<td class="num">'+num(o.packQty)+'</td><td class="num">'+num(o.inPrice)+'</td>'
       +'<td class="num">'+num(o.salePrice)+'</td><td class="num">'+num(o.wholePrice)+'</td>'
-      +'<td class="num">'+num(o.safeStock)+'</td><td class="num">'+num(o.saleBaseQty)+'</td>'
-      +'<td>'+esc(o.unitBarcode)+'</td><td>'+esc(o.boxBarcode)+'</td>'
+      +'<td class="num">'+num(o.saleBaseQty)+'</td>'
       /* 중지일 — 값이 있으면 회색으로. 코드 아래 배지와 겹치지만, ***칸으로도 있어야*** 훑거나
          엑셀로 뽑을 때 읽힌다(2026-08-17 요청). */
       +'<td style="white-space:nowrap;color:#546e7a">'+(o.stopYn==='Y'?esc(pcFmtDt8(o.stopFrDt)):'')+'</td>'
       // 매칭 = 이 상품에 붙여 둔 거래처 코드 수. 0이면 그 코드로 오는 자료는 미매핑이 된다
       +'<td>'+(_mcCnt[o.prodSeq] ? ('<span class="tag">'+_mcCnt[o.prodSeq]+'</span>') : '<span class="tag tag-n">0</span>')+'</td>'
+      +'<td>'+esc(o.unitBarcode)+'</td><td>'+esc(o.boxBarcode)+'</td>'
     +'</tr>';
   }).join('');
   // 선택행 하이라이트 복원 — 매칭코드를 등록하면 목록을 다시 그리는데, 고른 상품 표시가 풀리면 안 된다
@@ -605,6 +686,16 @@ function pcLastCdShow(on){
   }
   el.innerHTML=h; el.style.display='flex';
 }
+/* 추가/수정 창의 거래처 콤보 — 아래 [거래처 매칭코드] 패널이 읽어 둔 VEN 을 그대로 쓴다.
+   ★따로 불러오지 않는다 — 두 곳이 다른 목록을 보여 주면 어느 것이 맞는지 알 수 없다.
+   ⚠VEN 은 mcLoad 가 채운다. 아직 비어 있으면 '(해당없음)' 만 남는다 — 거래처 없이도 등록은 된다. */
+/* 거래처 후보를 **입력검색과 같은 자료 구조**(_uniq.ven)에 담는다 — 그림·조작이 저절로 같아진다.
+   ★표시는 「이름 [코드]」 — 같은 이름이 둘일 때 가려낼 수 있어야 한다.
+   ★고르면 pcAcPick 이 이름을 칸에 넣고, 숨은 칸(f_ven)에 **코드**를 담는다(서버에 보내는 값은 코드). */
+function pcVenFill(){
+  _uniq.ven=(VEN||[]).filter(function(v){ return v.vendorCd; })
+    .map(function(v){ return { v:(v.vendorNm||v.vendorCd)+' ['+v.vendorCd+']', n:0, cd:v.vendorCd }; });
+}
 function pcUseNext(){
   if(!_nextCd) return;
   var el=document.getElementById('f_cd');
@@ -628,6 +719,14 @@ function pcOpen(seq){
   _set('f_safe', o?(o.safeStock!=null?o.safeStock:0):0);
   _set('f_base', o?(o.saleBaseQty!=null?o.saleBaseQty:0):0);
   _set('f_ubc', o?o.unitBarcode:''); _set('f_bbc', o?o.boxBarcode:'');
+  /* ★거래처 코드 묶음 (2026-08-17) — **추가할 때만** 쓴다. 수정은 아래 패널에서 목록을 보며 고친다. */
+  /* ★거래처 코드 묶음은 **추가·수정 둘 다** 쓴다(2026-08-17) — 이미 있는 상품에 코드를 붙일 때도
+     아래 패널까지 내려가지 않아도 된다. **값은 열 때마다 비운다** — 남아 있으면 다른 상품에
+     엉뚱한 코드를 또 붙인다(이 칸은 「지금 새로 붙일 코드」를 받는 자리다). */
+  /* 거래처 — 저장된 값을 그대로 보여 준다(수정). 이름은 지금 목록에서 찾아 붙여 **바뀐 이름도 반영**한다. */
+  pcVenFill();                                         // 거래처 목록 = 아래 패널과 같은 자료(VEN)
+  _set('f_ven', o?(o.vendorCd||''):'');
+  _set('f_venQ', o&&o.vendorCd ? ((mcVenNm(o.vendorCd)||o.vendorNm||'')+' ['+o.vendorCd+']') : '');
   pcLastCdShow(!o);                   // 추가일 때만 「최근 등록 코드·상품명」 줄을 낸다 (수정은 코드가 잠겨 있어 쓸모없다)
   // 추가는 9번대 새 코드를 미리 넣어 둔다 — 아래에서 코드 칸을 select 하므로 그냥 쳐서 바꿀 수 있다
   if(!o && _nextCd) _set('f_cd', _nextCd);
@@ -646,14 +745,17 @@ function pcSave(){
     taxGb:gv('f_tax')||null, packQty:gnum('f_pack'), sortOrd:gnum('f_sort'),
     inPrice:gnum('f_in'), salePrice:gnum('f_sale'), wholePrice:gnum('f_whole'),
     safeStock:gnum('f_safe'), saleBaseQty:gnum('f_base'),
-    unitBarcode:gv('f_ubc')||null, boxBarcode:gv('f_bbc')||null };
+    unitBarcode:gv('f_ubc')||null, boxBarcode:gv('f_bbc')||null,
+    /* ★거래처 (2026-08-17) — 코드와 그때 그 이름을 함께 보낸다(목록에서 조인 없이 보여 주려고) */
+    vendorCd:gv('f_ven')||null, vendorNm:(gv('f_ven')?(mcVenNm(gv('f_ven'))||null):null) };
   var url, okmsg;
   if(seq){ dto.prodSeq=Number(seq); url='/prod/prodUpdate.do'; okmsg='💾 수정 완료'; }
   else   { url='/prod/prodInsert.do'; okmsg='＋ 등록 완료'; }
   fetch(CTX+url, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body:JSON.stringify(dto) })
     .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, status:res.status, t:t}; }); })
     .then(function(r){ if(!r.ok){ toast('실패 (HTTP '+r.status+'): '+(r.t||'').slice(0,120),'err'); return; }
-      pcClose(); toast(okmsg,'ok'); pcLoad(); })
+      pcClose(); toast(okmsg,'ok'); pcLoad();
+    })
     .catch(function(e){ toast('통신오류: '+e.message,'err'); });
 }
 function pcDel(seq){
@@ -760,11 +862,14 @@ function mcRender(){
   var th=document.getElementById('mth'), tb=document.getElementById('mtb');
   /* 품목명 칸을 줄이고, 남는 폭은 맨 끝 빈 칸(sp)이 먹는다 (2026-08-02 요청).
      ★품목명에 폭만 주면 소용없다 — table{width:100%} 이라 남는 폭이 제일 긴 칸(품목명)으로 다시 몰린다. */
-  /* ★주코드(마스터)·상품명 칸을 이 모드에도 둔다 (2026-08-17 요청 "보여주는 내용은 동일하게") —
-     패널 머리줄에 상품명이 있어도 ***줄마다 어느 주코드에 속한 서브코드인지*** 보여야 읽힌다.
-     ⇒ 두 모드가 **같은 칸**을 보여 준다(비고만 이 모드에 더 있다 — 전체 보기는 폭 때문에 뺐다). */
-  var HEAD_ONE='<tr><th style="width:120px">주코드</th><th style="width:230px">상품명</th>'
-    +'<th style="width:150px">거래처</th><th style="width:130px">품목코드</th><th style="width:400px">품목명</th>'
+  /* ★[2026-08-17 재요청 「주코드, 상품명 삭제」] **이 상품만 모드에서는 두 칸을 뺀다** —
+     이 모드는 고른 상품 하나의 것만 보여 주므로 줄마다 **같은 주코드·상품명이 되풀이**됐고,
+     그 값은 이미 **패널 머리줄**(📌 매칭코드 9904013213 은박보냉팩…)에 있다.
+     ⇒ 남는 폭은 품목명(400→560)이 먹어 실제로 봐야 할 칸이 넓어진다.
+   ⚠**전체 보기 모드(HEAD_ALL)는 그대로 둔다** — 여러 상품이 섞여 나오므로
+     「이 줄이 어느 상품 것인지」를 지우면 읽을 수 없다. */
+  var HEAD_ONE='<tr>'
+    +'<th style="width:150px">거래처</th><th style="width:130px">품목코드</th><th style="width:560px">품목명</th>'
     +'<th style="width:175px">규격</th><th class="r" style="width:90px">단가</th>'
     +'<th style="width:100px">받은날</th><th style="width:150px">비고</th><th style="width:64px">관리</th><th class="sp"></th></tr>';
   var HEAD_ALL='<tr><th style="width:120px">상품코드</th><th style="width:230px">상품명</th>'
@@ -776,11 +881,13 @@ function mcRender(){
     //   ★esc() 로 감싸면 태그가 글자로 보인다 — 태그는 밖에 두고 값만 esc 한다
     var vn=o.vendorNm||mcVenNm(o.vendorCd)||o.vendorCd||'';
     var h='<tr'+(all?(' style="cursor:pointer" onclick="mcGoProd('+o.prodSeq+')"'):'')+'>';
-    /* ★두 모드 모두 **주코드 + 상품명**을 먼저 적는다 (2026-08-17) — 이 줄이 어느 주코드의
-       서브코드인지 줄 자체가 말해 준다. 값은 통보에 적힌 PROD_CD, 없으면 상품마스터에서 채운다. */
-    var pm=_byseq[o.prodSeq]||{};
-    h+='<td class="code"'+(all?'':' style="color:#1f7a4d;font-weight:700"')+'>'+esc(o.prodCd||pm.prodCd||'')+'</td>'
-      +'<td>'+esc(pm.prodNm||'')+'</td>';
+    /* ★상품코드·상품명 칸은 **전체 보기에서만** 적는다(2026-08-17 「주코드, 상품명 삭제」) —
+       이 상품만 모드에서는 같은 값이 줄마다 되풀이돼 지웠다(값은 패널 머리줄에 있다). */
+    if(all){
+      var pm=_byseq[o.prodSeq]||{};
+      h+='<td class="code">'+esc(o.prodCd||pm.prodCd||'')+'</td>'
+        +'<td>'+esc(pm.prodNm||'')+'</td>';
+    }
     h+='<td>'+(vn ? esc(vn) : '<span style="color:#9aa7b3">신규코드</span>')+'</td>'
       +'<td class="code">'+esc(o.extItemCd)+'</td><td>'+esc(o.extItemNm)+'</td>'
       +'<td>'+esc(o.extSpec)+'</td><td class="num">'+num(o.extPrice)+'</td>'
@@ -793,14 +900,14 @@ function mcRender(){
   if(_mcAll){
     th.innerHTML=HEAD_ALL;
     tb.innerHTML = MC.length ? MC.map(function(o){ return row(o,true); }).join('')
-                             : '<tr><td colspan="11" class="empty">등록된 매칭코드가 없습니다.</td></tr>';
+                             : '<tr><td colspan="10" class="empty">등록된 매칭코드가 없습니다.</td></tr>';
     return;
   }
   th.innerHTML=HEAD_ONE;
-  if(!_mcCur){ tb.innerHTML='<tr><td colspan="11" class="empty">위 목록에서 상품 줄을 고르세요.'
+  if(!_mcCur){ tb.innerHTML='<tr><td colspan="9" class="empty">위 목록에서 상품 줄을 고르세요.'
     +' <span style="color:#5a6b7a">— 등록된 것을 다 보려면 [📋 전체 보기]</span></td></tr>'; return; }
   var l=MC.filter(function(o){ return String(o.prodSeq)===String(_mcCur.prodSeq); });
-  if(!l.length){ tb.innerHTML='<tr><td colspan="11" class="empty">이 상품에 붙여 둔 거래처 코드가 없습니다 — 아래에서 등록하세요.'
+  if(!l.length){ tb.innerHTML='<tr><td colspan="9" class="empty">이 상품에 붙여 둔 거래처 코드가 없습니다 — 아래에서 등록하세요.'
     +' <span style="color:#c0392b">(없으면 그 코드로 오는 자료는 미매핑이 됩니다)</span></td></tr>'; return; }
   tb.innerHTML=l.map(function(o){ return row(o,false); }).join('');
 }
@@ -816,14 +923,58 @@ function mcAllToggle(){
   mcRender();
 }
 /* 전체 보기에서 줄을 누르면 그 상품으로 — 위 목록의 선택 상태까지 맞춘다 */
-function mcGoProd(seq){
+/* ★[2026-08-18] **화면에 보여 준 코드로 찾아간다**(cd 인수 신설) —
+     「주코드를 누르면 다른 코드로 간다」는 신고가 있었다. 자료는 정상이었다(통보줄의 prodSeq↔prodCd
+     어긋남 **0건** 실측). 그래도 ***보여 준 코드와 도착지가 다를 여지***를 아예 없애는 편이 낫다 :
+       · 코드를 받으면 **지금 목록(LIST)에서 그 코드의 줄을 찾아** 그 seq 로 간다
+       · 코드가 없거나 목록에 없으면 종전처럼 seq 로 간다(옛 호출도 그대로 동작)
+   ⇒ ***눈에 보인 코드 = 도착한 코드*** 가 보장된다. */
+/* 서브 배지의 주코드 링크 — **위임 처리**(2026-08-18). 표를 다시 그려도 다시 걸 필요가 없다.
+   ★행 클릭(pcSel)으로 번지지 않게 stopPropagation·preventDefault 를 여기서 한 번에 처리한다. */
+(function pcSubGoBind(){
+  document.addEventListener('click', function(ev){
+    var a=ev.target && ev.target.closest ? ev.target.closest('a.subgo') : null;
+    if(!a) return;
+    ev.preventDefault(); ev.stopPropagation();
+    mcGoProd(Number(a.getAttribute('data-seq'))||null, a.getAttribute('data-cd')||'');
+  }, true);   // ★캡처 단계 — 행 클릭 핸들러보다 먼저 잡아야 선택이 엉키지 않는다
+})();
+function mcGoProd(seq, cd){
+  if(cd){
+    for(var i=0;i<LIST.length;i++){
+      if(String(LIST[i].prodCd)===String(cd)){ seq=LIST[i].prodSeq; break; }
+    }
+  }
   if(seq==null) return;
   _mcAll=false; document.getElementById('mcAllBtn').textContent='📋 전체 보기';
   _sel=seq; mcPickProd(seq);
-  var sr=document.querySelector('#tb tr[data-seq="'+seq+'"]');
-  if(sr){ Array.prototype.forEach.call(document.querySelectorAll('#tb tr.sel'),function(r){ r.classList.remove('sel'); });
-          sr.classList.add('sel'); sr.scrollIntoView({block:'center'}); }
-  else toast('이 상품은 지금 보고 있는 목록(페이지·필터) 밖에 있습니다.','warn');
+  /* ★[2026-08-18] 그 줄이 화면에 없으면 **필터를 풀어 데려온다**(사용자 지적 「선택이 없어짐」) —
+       주코드는 검색어·과세탭·매칭·중지 조건에 걸려 목록에서 빠져 있기 쉽다(예: '99' 로 검색해 서브코드
+       줄만 보고 있는 상태). 종전에는 「목록 밖에 있습니다」 안내만 띄우고 **선택이 풀린 채로 끝났다.**
+     ⇒ 조건을 지우고 다시 그린 뒤 그 줄을 고른다. ***'이동'이라고 했으면 실제로 이동해야 한다.***
+     ⚠필터를 건드렸다는 사실은 알려 준다 — 사용자가 걸어 둔 조건이 말없이 사라지면 그게 또 혼란이다. */
+  function _pick(){
+    var sr=document.querySelector('#tb tr[data-seq="'+seq+'"]');
+    if(!sr) return false;
+    Array.prototype.forEach.call(document.querySelectorAll('#tb tr.sel'),function(r){ r.classList.remove('sel'); });
+    sr.classList.add('sel'); sr.scrollIntoView({block:'center'});
+    return true;
+  }
+  if(_pick()) return;
+  /* 조건 해제 — 검색어 · 과세탭 · 매칭 · 중지 */
+  var cleared=[];
+  var qEl=document.getElementById('q');
+  if(qEl && qEl.value.trim()){ cleared.push('검색어'); qEl.value=''; }
+  if(_tax){ cleared.push('과세 탭'); pcTab(''); }          // pcTab 이 안에서 pcFilter 까지 부른다
+  var fm=document.getElementById('fMc'), fs=document.getElementById('fStop');
+  if(fm && fm.value){ cleared.push('매칭 조건'); fm.value=''; }
+  if(fs && fs.value){ cleared.push('중지 조건'); fs.value=''; }
+  pcFilter();                                              // 조건을 지운 상태로 다시 그린다
+  if(_pick()){
+    if(cleared.length) toast('주코드로 이동하려고 '+cleared.join('·')+'을 해제했습니다.','warn');
+    return;
+  }
+  toast('주코드 줄을 목록에서 찾지 못했습니다 — 조회를 다시 해 보세요.','warn');
 }
 /* ==================== 품목코드 칸 — 상품코드 검색 (2026-08-02 요청) ====================
    잘못 만들어진 코드를 제 주코드 밑으로 정리하는 작업용이다.
@@ -1218,7 +1369,7 @@ function mcToggle(){
    ★원천은 이미 화면에 들어와 있는 LIST(상품마스터 전 건) — 서버를 따로 부르지 않는다.
    ★거래처 매칭코드 줄(mcAc*)과는 별개다 — 그쪽은 손대지 않았다(2026-08-04 "거래처는 제외").
    ══════════════════════════════════════════════════════════════════════════ */
-var _uniq={ spec:[], maker:[] };
+var _uniq={ spec:[], maker:[], ven:[] };   // ven = 거래처(2026-08-17)
 function pcUniqBuild(){
   var m={ spec:{}, maker:{} };
   LIST.forEach(function(o){
@@ -1259,15 +1410,16 @@ function pcAcDraw(inp, kind){
     return ws.every(function(w){ return lv.indexOf(w)>=0; });
   }).slice(0,60);
   _faFor=inp; _faKind=kind; _faIdx=-1;
-  var lab=(kind==='spec'?'규격':'제조사명'), box=pcAcBox();
+  var lab=(kind==='spec'?'규격':kind==='ven'?'거래처':'제조사명'), box=pcAcBox();
   // ★한 줄에 담기게 짧게 — 길게 쓰면 접혀서 목록 첫 줄을 밀어낸다(2026-08-04 지적)
-  var h='<div class="h">'+lab+' '+_uniq[kind].length.toLocaleString()+'종'
+  var h='<div class="h">'+lab+' '+_uniq[kind].length.toLocaleString()+(kind==='ven'?'곳':'종')
       + (q ? (' · 검색 '+_faRows.length+'건') : '')
-      + ' · 없으면 그냥 입력</div><div class="b">';
-  if(!_faRows.length) h+='<div class="nohit">맞는 값이 없습니다 — 새 '+lab+'으로 저장됩니다</div>';
+      + (kind==='ven' ? ' · 비워두면 등록 안 함' : ' · 없으면 그냥 입력')+'</div><div class="b">';
+  if(!_faRows.length) h+='<div class="nohit">맞는 값이 없습니다'
+      + (kind==='ven' ? ' — 거래처는 목록에 있는 것만 고를 수 있습니다' : (' — 새 '+lab+'으로 저장됩니다'))+'</div>';
   else _faRows.forEach(function(o,i){
     h+='<div class="i" data-i="'+i+'" onclick="pcAcPick('+i+')">'
-      +'<span class="v">'+esc(o.v)+'</span><span class="c">'+o.n+'건</span></div>';
+      +'<span class="v">'+esc(o.v)+'</span><span class="c">'+(kind==='ven'?'':(o.n+'건'))+'</span></div>';
   });
   box.innerHTML=h+'</div>';
   box.classList.add('on'); pcAcPos(inp);
@@ -1286,7 +1438,10 @@ function pcAcMove(d){
 }
 function pcAcPick(i){
   var o=_faRows[i]; if(!o || !_faFor) return;
-  var inp=_faFor; inp.value=o.v; pcAcClose(); inp.focus();
+  var inp=_faFor; inp.value=o.v;
+  /* ★거래처는 **코드를 숨은 칸에** 담는다 — 서버에 보내는 값은 이름이 아니라 코드다(2026-08-17) */
+  if(_faKind==='ven'){ var h=document.getElementById('f_ven'); if(h) h.value=o.cd||''; }
+  pcAcClose(); inp.focus();
 }
 function pcAcAttach(id, kind){
   var inp=document.getElementById(id); if(!inp) return;
@@ -1305,6 +1460,13 @@ function pcAcAttach(id, kind){
   });
 }
 pcAcAttach('f_spec','spec'); pcAcAttach('f_maker','maker');
+/* ★거래처도 **같은 입력검색**으로 (2026-08-17) — 목록이 입력칸 바로 아래에 붙는다.
+   ⚠거래처는 **목록에 있는 것만** 값이 된다(코드로 바꿔 저장하므로) — 그냥 친 글자는 값이 아니다.
+     칸을 지우면 숨은 칸(f_ven)도 비워 「거래처 없음」으로 저장된다. */
+pcAcAttach('f_venQ','ven');
+(function(){ var e=document.getElementById('f_venQ'); if(!e) return;
+  e.addEventListener('input', function(){ if(!e.value.trim()){ var h=document.getElementById('f_ven'); if(h) h.value=''; } });
+})();
 
 /* ══════════════════════════════════════════════════════════════════════════
    키보드 편의 (2026-08-04 요청) — 손이 마우스로 안 가게

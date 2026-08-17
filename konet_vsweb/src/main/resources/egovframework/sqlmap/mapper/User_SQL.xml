@@ -1747,6 +1747,9 @@
 	         SAFE_STOCK AS safeStock, SALE_BASE_QTY AS saleBaseQty,
 	         UNIT_BARCODE AS unitBarcode, BOX_BARCODE AS boxBarcode,
 	         REG_DTTM AS regDttm, UPD_DTTM AS updDttm,
+	         <!-- ★거래처 (2026-08-17 신설) — 「이 상품을 주로 대는 거래처」.
+	              ⚠거래처코드 매칭(TBL_EXT_ITEM_MST)과 다른 것이다 — 그쪽은 매입 자료를 잡는 열쇠다. -->
+	         VENDOR_CD AS vendorCd, VENDOR_NM AS vendorNm,
 	         /* ★거래중지 (2026-08-17) — ***여기서 거르지 않는다.***
 	            상품코드 등록은 중지된 것도 보여야 하고(표시·해제), 매입·판매 화면은 숨긴다.
 	            즉 거르는 자리는 화면이고, 이 조회는 **사실만** 실어 준다. */
@@ -1760,7 +1763,8 @@
 	        OR PROD_NM LIKE '%' + #{findData} + '%'
 	        OR ISNULL(SPEC,'')     LIKE '%' + #{findData} + '%'
 	        OR ISNULL(MAKER_NM,'') LIKE '%' + #{findData} + '%'
-	        OR ISNULL(TYPE_NM,'')  LIKE '%' + #{findData} + '%' )
+	        OR ISNULL(TYPE_NM,'')  LIKE '%' + #{findData} + '%'
+	        OR ISNULL(VENDOR_NM,'') LIKE '%' + #{findData} + '%' )   <!-- 거래처명으로도 찾는다(2026-08-17) -->
 	  </if>
 	   ORDER BY PROD_CD, PROD_SEQ
 	</select>
@@ -1769,6 +1773,7 @@
 	  INSERT INTO TBL_PROD_MST
 	    (COMP_CD, PROD_CD, PROD_NM, SPEC, MAKER_NM, TYPE_NM, SORT_ORD, TAX_GB, PACK_QTY,
 	     IN_PRICE, SALE_PRICE, WHOLE_PRICE, SAFE_STOCK, SALE_BASE_QTY, UNIT_BARCODE, BOX_BARCODE,
+	     VENDOR_CD, VENDOR_NM,
 	     ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
 	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{prodCd}, #{prodNm}, #{spec,jdbcType=NVARCHAR}, #{makerNm,jdbcType=NVARCHAR}, #{typeNm,jdbcType=NVARCHAR},
@@ -1776,6 +1781,7 @@
 	     #{inPrice,jdbcType=DECIMAL}, #{salePrice,jdbcType=DECIMAL}, #{wholePrice,jdbcType=DECIMAL},
 	     #{safeStock,jdbcType=INTEGER}, #{saleBaseQty,jdbcType=INTEGER},
 	     #{unitBarcode,jdbcType=NVARCHAR}, #{boxBarcode,jdbcType=NVARCHAR},
+	     #{vendorCd,jdbcType=NVARCHAR}, #{vendorNm,jdbcType=NVARCHAR},
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
 
@@ -1786,6 +1792,7 @@
 	         PACK_QTY=#{packQty,jdbcType=INTEGER}, IN_PRICE=#{inPrice,jdbcType=DECIMAL}, SALE_PRICE=#{salePrice,jdbcType=DECIMAL},
 	         WHOLE_PRICE=#{wholePrice,jdbcType=DECIMAL}, SAFE_STOCK=#{safeStock,jdbcType=INTEGER}, SALE_BASE_QTY=#{saleBaseQty,jdbcType=INTEGER},
 	         UNIT_BARCODE=#{unitBarcode,jdbcType=NVARCHAR}, BOX_BARCODE=#{boxBarcode,jdbcType=NVARCHAR},
+	         VENDOR_CD=#{vendorCd,jdbcType=NVARCHAR}, VENDOR_NM=#{vendorNm,jdbcType=NVARCHAR},
 	         UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE PROD_SEQ = #{prodSeq}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
