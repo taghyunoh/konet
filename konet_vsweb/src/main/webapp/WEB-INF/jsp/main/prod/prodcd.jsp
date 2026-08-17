@@ -70,6 +70,23 @@
   #ov .mh .x{ background:none; border:none; color:#fff; font-size:22px; cursor:pointer; }
   #ov .mb{ padding:16px 18px; overflow:auto; display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; }
   #ov .fld{ display:flex; flex-direction:column; gap:4px; }
+  /* ♻ 삭제 목록 모달 (2026-08-17) — #ov 와 같은 골격, 폭만 넓다(표를 본다) */
+  #rc{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:60; align-items:flex-start; justify-content:center; }
+  #rc.on{ display:flex; }
+  #rc .box{ background:#fff; width:min(1320px,97vw); margin-top:4vh; border-radius:12px;
+            box-shadow:0 12px 40px rgba(0,0,0,.3); max-height:90vh; display:flex; flex-direction:column; }
+  #rc .mh{ background:linear-gradient(135deg,#6b7a89,#48566a); color:#fff; padding:13px 18px;
+           border-radius:12px 12px 0 0; display:flex; gap:10px; align-items:center; }
+  #rc .mh b{ font-size:16px; } #rc .mh .x{ margin-left:auto; background:none; border:none; color:#fff; font-size:22px; cursor:pointer; }
+  #rc .mb{ padding:12px 16px; overflow:auto; }
+  /* ★table-layout:fixed 로 못 박는다 (2026-08-17) — 안 하면 상품명이 길어 표가 모달보다 넓어지고
+     ***오른쪽 [되살리기] 칸이 잘린다.*** 긴 글자는 줄임표로 접고, 전체 내용은 title 로 본다. */
+  #rc table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
+  #rc th{ background:#eef3f6; color:#3d4d5c; padding:7px 8px; text-align:left; position:sticky; top:0; }
+  #rc td{ padding:6px 8px; border-bottom:1px solid #eef1f4;
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #rc td.num{ text-align:right; }
+  #rc .empty{ text-align:center; color:#8a97a3; padding:26px 0; }
   #ov .fld.full{ grid-column:1 / -1; }
   <%-- 라벨 = 진하게·가운데 정렬 (2026-08-04 요청) --%>
   #ov label{ font-size:13px; font-weight:700; color:#1f2a37; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:center; text-align:center; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
@@ -201,6 +218,8 @@
     <button class="btn btn-teal" style="margin-left:auto" onclick="pcOpen()">＋ 상품코드 추가</button>
     <button class="btn" onclick="pcEditSel()">✎ 수정</button>
     <button class="btn btn-danger" onclick="pcDelSel()">🗑 삭제</button>
+    <%-- 삭제는 소프트 삭제라 자료가 남아 있다 — 실수로 지운 것을 여기서 되살린다 (2026-08-17 요청) --%>
+    <button class="btn" onclick="rcOpen()" title="삭제한 상품코드를 보고 되살립니다">♻ 삭제 목록</button>
     <button class="btn" onclick="pcExcel()">📥 엑셀 출력</button>
     <span class="cnt" id="cnt">0건</span>
   </div>
@@ -246,7 +265,7 @@
       <div class="tbwrap">
         <table>
           <thead id="mth"></thead>
-          <tbody id="mtb"><tr><td colspan="9" class="empty">위 목록에서 상품 줄을 고르세요.</td></tr></tbody>
+          <tbody id="mtb"><tr><td colspan="11" class="empty">위 목록에서 상품 줄을 고르세요.</td></tr></tbody>
         </table>
       </div>
       <div class="addbar">
@@ -361,8 +380,21 @@ function pcRender(){
   var from = _all ? 0 : (_page-1)*PAGE, to = _all ? tot : Math.min(from+PAGE, tot);
   tb.innerHTML=_view.slice(from,to).map(function(o){
     var c=(o.taxGb==='면세')?'#2e7d32':'#5a6b7a';
+    /* ★이 상품코드가 **다른 주코드의 서브로 등록돼 있으면** 그렇게 적는다 (2026-08-17 요청) —
+       매입등록 상품검색과 **같은 모양**(빨간 '서브' 배지 + → 주코드, 아래에 마스터 상품명).
+       주코드를 누르면 그 상품 줄로 옮겨 간다(이미 있는 mcGoProd 를 쓴다). */
+    var sb=_subOf[String(o.prodCd)], cdCell=esc(o.prodCd), mstNm='';
+    if(sb){
+      var mp=_byseq[sb.prodSeq]||{};
+      cdCell += '<div style="margin-top:2px"><span style="display:inline-block;padding:0 5px;border-radius:8px;'
+             +  'background:#fdecea;color:#c0392b;font-size:11px;font-weight:700">서브</span>'
+             +  ' <a href="javascript:;" style="font-size:11.5px;color:#1f7a4d;font-weight:700;text-decoration:underline"'
+             +  ' onclick="event.stopPropagation();mcGoProd('+sb.prodSeq+');" title="주코드 줄로 이동합니다">→ '
+             +  esc(sb.prodCd)+'</a></div>';
+      if(mp.prodNm) mstNm='<div style="font-size:11.5px;color:#8a97a3;margin-top:2px">마스터 : '+esc(mp.prodNm)+'</div>';
+    }
     return '<tr data-seq="'+o.prodSeq+'" onclick="pcSel(this,'+o.prodSeq+')" ondblclick="pcOpen('+o.prodSeq+')">'
-      +'<td class="code">'+esc(o.prodCd)+'</td><td class="nm">'+esc(o.prodNm)+'</td>'
+      +'<td class="code">'+cdCell+'</td><td class="nm">'+esc(o.prodNm)+mstNm+'</td>'
       +'<td>'+esc(o.spec)+'</td><td>'+esc(o.makerNm)+'</td><td>'+esc(o.typeNm)+'</td>'
       +'<td><span class="tx" style="background:'+c+'">'+esc(o.taxGb||'-')+'</span></td>'
       +'<td class="num">'+num(o.packQty)+'</td><td class="num">'+num(o.inPrice)+'</td>'
@@ -555,12 +587,28 @@ function pcDel(seq){
 
 function pcExcel(){
   var list=_view; if(!list.length){ toast('출력할 데이터가 없습니다.','warn'); return; }
-  var head=['코드','상품명','규격','제조사','유형','과세','입수수량','입고단가','판매단가','도매단가','적정재고','판매기본수량','낱개바코드','박스바코드','조회순서'];
-  var aoa=[head].concat(list.map(function(o){ return [o.prodCd,o.prodNm,o.spec,o.makerNm,o.typeNm,o.taxGb,o.packQty,o.inPrice,o.salePrice,o.wholePrice,o.safeStock,o.saleBaseQty,o.unitBarcode,o.boxBarcode,o.sortOrd]; }));
+  /* ★코드 관계를 **양쪽 다** 싣는다 (2026-08-17 요청) — 화면에서 보이는 것이 엑셀에도 있어야 한다.
+       · 구분 / 주코드      : 이 줄이 **다른 주코드의 서브**면 '서브' 와 그 주코드·상품명
+       · 서브코드(참고 품목코드) : 이 줄에 **붙여 둔 서브코드**들(여러 개면 줄바꿈으로)
+     ⇒ 한 파일에서 「이건 누구의 서브인가」와 「내 서브는 누구인가」가 같이 읽힌다. */
+  function subsOf(seq){
+    return MC.filter(function(x){ return String(x.prodSeq)===String(seq); })
+             .map(function(x){ return x.extItemCd + (x.extItemNm?(' '+x.extItemNm):''); });
+  }
+  var head=['코드','구분','주코드','주상품명','서브코드(참고 품목코드)',
+            '상품명','규격','제조사','유형','과세','입수수량','입고단가','판매단가','도매단가','적정재고','판매기본수량','낱개바코드','박스바코드','조회순서'];
+  var aoa=[head].concat(list.map(function(o){
+    var sb=_subOf[String(o.prodCd)], mp=sb?(_byseq[sb.prodSeq]||{}):{};
+    var mine=subsOf(o.prodSeq);
+    return [o.prodCd, sb?'서브':'', sb?sb.prodCd:'', sb?(mp.prodNm||''):'', mine.join('\n'),
+            o.prodNm,o.spec,o.makerNm,o.typeNm,o.taxGb,o.packQty,o.inPrice,o.salePrice,o.wholePrice,o.safeStock,o.saleBaseQty,o.unitBarcode,o.boxBarcode,o.sortOrd];
+  }));
   var P=window.parent;
   function byLib(LIB){
     var ws=LIB.utils.aoa_to_sheet(aoa);
-    ws['!cols']=[{wch:14},{wch:44},{wch:16},{wch:14},{wch:16},{wch:6},{wch:8},{wch:11},{wch:11},{wch:11},{wch:9},{wch:9},{wch:16},{wch:16},{wch:9}];
+    /* 코드 / 구분 / 주코드 / 주상품명 / 서브코드 … 앞 5칸이 새로 늘었다(2026-08-17) */
+    ws['!cols']=[{wch:14},{wch:6},{wch:14},{wch:36},{wch:40},
+                 {wch:44},{wch:16},{wch:14},{wch:16},{wch:6},{wch:8},{wch:11},{wch:11},{wch:11},{wch:9},{wch:9},{wch:16},{wch:16},{wch:9}];
     var wb=LIB.utils.book_new(); LIB.utils.book_append_sheet(wb,ws,'상품코드'); LIB.writeFile(wb,'상품코드.xlsx');
     toast('📥 엑셀 저장 완료 · '+list.length+'건','ok');
   }
@@ -576,7 +624,7 @@ function pcExcel(){
    거래처가 구두·문서로 알려 주는 코드·품명을 '고른 상품'에 붙인다.
    ★서버 표는 TBL_EXT_ITEM_MST. 업로드 해석이 이 표를 읽는다(XREF → 이 표 → 코드직결).
      붙여 둔 게 없으면 종전과 같다 — 미매핑으로 남고 품목코드(매핑)에서 연결. */
-var MC=[], VEN=[], _mcCnt={}, _mcCur=null, _mcAll=false;   // _mcAll = 전체 보기 모드
+var MC=[], VEN=[], _mcCnt={}, _mcCur=null, _mcAll=false, _subOf={};   // _subOf = 서브코드 → 그 주코드 통보줄   // _mcAll = 전체 보기 모드
 
 function mcVendors(){
   fetch(CTX+'/vendor/selectVendorMst.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
@@ -595,8 +643,14 @@ function mcLoad(keepList){
   fetch(CTX+'/prod/extItemList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
     .then(function(r){ return r.json(); })
     .then(function(j){
-      MC=(j&&j.data)||[]; _mcCnt={};
-      MC.forEach(function(o){ if(o.prodSeq!=null) _mcCnt[o.prodSeq]=(_mcCnt[o.prodSeq]||0)+1; });
+      MC=(j&&j.data)||[]; _mcCnt={}; _subOf={};
+      MC.forEach(function(o){
+        if(o.prodSeq!=null) _mcCnt[o.prodSeq]=(_mcCnt[o.prodSeq]||0)+1;
+        /* ★서브코드 지도 (2026-08-17 요청) — 상품마스터에 **서브코드로도 등록된** 코드가 있다.
+           그 줄에 「이건 어느 주코드의 서브다」를 매입등록 검색과 **같은 모양**으로 적어 준다.
+           자기 자신(서브=주)은 뺀다 — 알려 줄 것이 없다. */
+        if(o.prodCd && o.extItemCd && String(o.extItemCd)!==String(o.prodCd)) _subOf[String(o.extItemCd)]=o;
+      });
       if(!keepList){
         // 매칭 필터가 걸려 있으면 목록 자체가 바뀌므로 다시 거른다(그 외에는 보던 페이지 유지)
         if((document.getElementById('fMc')||{}).value) pcFilter(); else pcRender();
@@ -624,7 +678,11 @@ function mcRender(){
   var th=document.getElementById('mth'), tb=document.getElementById('mtb');
   /* 품목명 칸을 줄이고, 남는 폭은 맨 끝 빈 칸(sp)이 먹는다 (2026-08-02 요청).
      ★품목명에 폭만 주면 소용없다 — table{width:100%} 이라 남는 폭이 제일 긴 칸(품목명)으로 다시 몰린다. */
-  var HEAD_ONE='<tr><th style="width:150px">거래처</th><th style="width:130px">품목코드</th><th style="width:570px">품목명</th>'
+  /* ★주코드(마스터)·상품명 칸을 이 모드에도 둔다 (2026-08-17 요청 "보여주는 내용은 동일하게") —
+     패널 머리줄에 상품명이 있어도 ***줄마다 어느 주코드에 속한 서브코드인지*** 보여야 읽힌다.
+     ⇒ 두 모드가 **같은 칸**을 보여 준다(비고만 이 모드에 더 있다 — 전체 보기는 폭 때문에 뺐다). */
+  var HEAD_ONE='<tr><th style="width:120px">주코드</th><th style="width:230px">상품명</th>'
+    +'<th style="width:150px">거래처</th><th style="width:130px">품목코드</th><th style="width:400px">품목명</th>'
     +'<th style="width:175px">규격</th><th class="r" style="width:90px">단가</th>'
     +'<th style="width:100px">받은날</th><th style="width:150px">비고</th><th style="width:64px">관리</th><th class="sp"></th></tr>';
   var HEAD_ALL='<tr><th style="width:120px">상품코드</th><th style="width:230px">상품명</th>'
@@ -636,8 +694,11 @@ function mcRender(){
     //   ★esc() 로 감싸면 태그가 글자로 보인다 — 태그는 밖에 두고 값만 esc 한다
     var vn=o.vendorNm||mcVenNm(o.vendorCd)||o.vendorCd||'';
     var h='<tr'+(all?(' style="cursor:pointer" onclick="mcGoProd('+o.prodSeq+')"'):'')+'>';
-    if(all){ var p=_byseq[o.prodSeq]||{};
-             h+='<td class="code">'+esc(o.prodCd||p.prodCd||'')+'</td><td>'+esc(p.prodNm||'')+'</td>'; }
+    /* ★두 모드 모두 **주코드 + 상품명**을 먼저 적는다 (2026-08-17) — 이 줄이 어느 주코드의
+       서브코드인지 줄 자체가 말해 준다. 값은 통보에 적힌 PROD_CD, 없으면 상품마스터에서 채운다. */
+    var pm=_byseq[o.prodSeq]||{};
+    h+='<td class="code"'+(all?'':' style="color:#1f7a4d;font-weight:700"')+'>'+esc(o.prodCd||pm.prodCd||'')+'</td>'
+      +'<td>'+esc(pm.prodNm||'')+'</td>';
     h+='<td>'+(vn ? esc(vn) : '<span style="color:#9aa7b3">신규코드</span>')+'</td>'
       +'<td class="code">'+esc(o.extItemCd)+'</td><td>'+esc(o.extItemNm)+'</td>'
       +'<td>'+esc(o.extSpec)+'</td><td class="num">'+num(o.extPrice)+'</td>'
@@ -650,14 +711,14 @@ function mcRender(){
   if(_mcAll){
     th.innerHTML=HEAD_ALL;
     tb.innerHTML = MC.length ? MC.map(function(o){ return row(o,true); }).join('')
-                             : '<tr><td colspan="10" class="empty">등록된 매칭코드가 없습니다.</td></tr>';
+                             : '<tr><td colspan="11" class="empty">등록된 매칭코드가 없습니다.</td></tr>';
     return;
   }
   th.innerHTML=HEAD_ONE;
-  if(!_mcCur){ tb.innerHTML='<tr><td colspan="9" class="empty">위 목록에서 상품 줄을 고르세요.'
+  if(!_mcCur){ tb.innerHTML='<tr><td colspan="11" class="empty">위 목록에서 상품 줄을 고르세요.'
     +' <span style="color:#5a6b7a">— 등록된 것을 다 보려면 [📋 전체 보기]</span></td></tr>'; return; }
   var l=MC.filter(function(o){ return String(o.prodSeq)===String(_mcCur.prodSeq); });
-  if(!l.length){ tb.innerHTML='<tr><td colspan="9" class="empty">이 상품에 붙여 둔 거래처 코드가 없습니다 — 아래에서 등록하세요.'
+  if(!l.length){ tb.innerHTML='<tr><td colspan="11" class="empty">이 상품에 붙여 둔 거래처 코드가 없습니다 — 아래에서 등록하세요.'
     +' <span style="color:#c0392b">(없으면 그 코드로 오는 자료는 미매핑이 됩니다)</span></td></tr>'; return; }
   tb.innerHTML=l.map(function(o){ return row(o,false); }).join('');
 }
@@ -904,9 +965,13 @@ function mcRecheckDup(dto){
   fetch(CTX+'/prod/extItemList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
     .then(function(r){ return r.json(); })
     .then(function(j){
-      MC=(j&&j.data)||[]; _mcCnt={};
-      MC.forEach(function(o){ if(o.prodSeq!=null) _mcCnt[o.prodSeq]=(_mcCnt[o.prodSeq]||0)+1; });
+      MC=(j&&j.data)||[]; _mcCnt={}; _subOf={};
+      MC.forEach(function(o){
+        if(o.prodSeq!=null) _mcCnt[o.prodSeq]=(_mcCnt[o.prodSeq]||0)+1;
+        if(o.prodCd && o.extItemCd && String(o.extItemCd)!==String(o.prodCd)) _subOf[String(o.extItemCd)]=o;
+      });
       mcRender();
+      pcRender();   // ★그리드의 「서브 → 주코드」 표시도 새로 등록한 코드까지 반영한다
       toast(mcDupMsg(dto.extItemCd, mcFindDup(dto.extItemCd, dto.vendorCd||'')),'warn');
     })
     .catch(function(){ toast('이미 등록된 품목코드입니다 — '+esc(dto.extItemCd),'err'); });
@@ -1119,6 +1184,81 @@ function pcRowEdge(first){
 pcLoad(); mcVendors(); mcLoad(true);
 /* 진입하면 검색칸에 커서 — 코드를 쳐서 찾는 것이 이 화면의 첫 동작이다(2026-08-04) */
 (function(){ var q=document.getElementById('q'); if(q) q.focus(); })();
+
+/* ═══ ♻ 삭제 목록 · 되살리기 (2026-08-17 요청) ═══════════════════════════
+   ★삭제가 소프트 삭제라 **되살리기는 값 하나를 'Y' 로 되돌리는 것**뿐이다.
+     그래서 복원 표도 백업도 필요 없다. 서버가 ACTION_YN='N' 인 것만 되돌린다. */
+var RC=[];
+function rcOpen(){
+  document.getElementById('rc').classList.add('on');
+  document.getElementById('rcTb').innerHTML='<tr><td colspan="9" class="empty">불러오는 중…</td></tr>';
+  fetch(CTX+'/prod/prodDeletedList.do',{method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'findData='})
+    .then(function(r){return r.json();})
+    .then(function(j){ RC=(j&&j.data)||[]; rcRender(); })
+    .catch(function(){ document.getElementById('rcTb').innerHTML='<tr><td colspan="9" class="empty">불러오지 못했습니다.</td></tr>'; });
+}
+function rcClose(){ document.getElementById('rc').classList.remove('on'); }
+function rcRender(){
+  var q=(document.getElementById('rcQ').value||'').toLowerCase();
+  var l=RC.filter(function(o){
+    if(!q) return true;
+    return [o.prodCd,o.prodNm,o.spec,o.makerNm].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; });
+  });
+  document.getElementById('rcCnt').textContent=l.length+'건';
+  document.getElementById('rcTb').innerHTML = l.length ? l.map(function(o){
+    /* 줄임표로 접히므로 전체 글자는 title 로 본다(마우스를 올리면 뜬다) */
+    return '<tr><td class="code" title="'+esc(o.prodCd)+'">'+esc(o.prodCd)+'</td>'
+      +'<td title="'+esc(o.prodNm)+'">'+esc(o.prodNm)+'</td>'
+      +'<td title="'+esc(o.spec)+'">'+esc(o.spec)+'</td>'
+      +'<td title="'+esc(o.makerNm)+'">'+esc(o.makerNm)+'</td>'
+      +'<td class="num">'+num(o.inPrice)+'</td><td class="num">'+num(o.salePrice)+'</td>'
+      +'<td>'+esc(o.updDttm||'')+'</td><td>'+esc(o.updUser||'')+'</td>'
+      +'<td><button class="btn btn-teal" style="height:26px;padding:0 10px;font-size:11.5px"'
+      +' onclick="rcRestore('+o.prodSeq+')">되살리기</button></td></tr>';
+  }).join('') : '<tr><td colspan="9" class="empty">'+(q?'검색 결과가 없습니다.':'삭제한 상품코드가 없습니다.')+'</td></tr>';
+}
+function rcRestore(seq){
+  var o=null; for(var i=0;i<RC.length;i++){ if(String(RC[i].prodSeq)===String(seq)){ o=RC[i]; break; } }
+  if(!o) return;
+  if(!confirm('['+o.prodCd+'] '+(o.prodNm||'')+'\n\n이 상품코드를 되살릴까요?')) return;
+  fetch(CTX+'/prod/prodRestore.do',{method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({prodSeq:seq})})
+    .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
+    .then(function(){
+      toast('되살렸습니다 — '+o.prodCd,'ok');
+      RC=RC.filter(function(x){ return String(x.prodSeq)!==String(seq); });
+      rcRender();
+      pcLoad();     /* ★목록을 다시 읽는다 — 안 하면 되살렸는데 화면에 안 보인다 */
+    })
+    .catch(function(e){ toast(e.message||'되살리지 못했습니다.','err'); });
+}
 </script>
+
+<%-- ───────── ♻ 삭제 목록 (2026-08-17 요청) ─────────
+     삭제는 처음부터 **소프트 삭제**(ACTION_YN='N')였다 — 자료가 남아 있으니 되살리기는 값 하나를
+     되돌리는 것뿐이다. 「왜 지웠더라」를 판단하도록 **지운 날짜·지운 사람**을 같이 보여 준다. --%>
+<div id="rc">
+  <div class="box">
+    <div class="mh"><b>♻ 삭제한 상품코드</b>
+      <input id="rcQ" placeholder="코드·상품명·규격·제조사" oninput="rcRender()"
+             style="height:28px;border:0;border-radius:6px;padding:0 10px;width:280px;font-size:13px">
+      <span id="rcCnt" style="font-size:12.5px;opacity:.9"></span>
+      <button class="x" onclick="rcClose()">&times;</button>
+    </div>
+    <div class="mb">
+      <table>
+        <%-- 폭 합계가 모달 안쪽을 넘지 않게 잡는다(상품명만 남는 폭을 먹는다) — 넘치면 오른쪽이 잘린다 --%>
+        <thead><tr><th style="width:110px">코드</th><th>상품명</th><th style="width:150px">규격</th>
+          <th style="width:100px">제조사</th><th style="width:80px">입고가</th><th style="width:80px">판매가</th>
+          <th style="width:150px">지운 날</th><th style="width:90px">지운 사람</th><th style="width:86px">되살리기</th></tr></thead>
+        <tbody id="rcTb"><tr><td colspan="9" class="empty">불러오는 중…</td></tr></tbody>
+      </table>
+      <div style="margin-top:10px;font-size:12.5px;color:#8a97a3">
+        되살리면 목록에 다시 나타납니다. 매입가·판매가·재고 이력은 삭제 때 지워지지 않으므로 그대로 남아 있습니다.
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>

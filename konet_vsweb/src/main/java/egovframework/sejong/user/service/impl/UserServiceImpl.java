@@ -198,6 +198,8 @@ public class UserServiceImpl implements UserService {
 	@Override public int insertProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.insertProd(dto); }
 	@Override public int updateProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.updateProd(dto); }
 	@Override public int deleteProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.deleteProd(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.ProdDTO> selectProdDeletedList(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.selectProdDeletedList(dto); }
+	@Override public int restoreProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.restoreProd(dto); }
 	@Override public int countProdRelated(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.countProdRelated(dto); }
 
 	/* ===== 매입가 이력 : 등록 시 마스터(IN_PRICE) 동기화 ===== */
@@ -217,6 +219,7 @@ public class UserServiceImpl implements UserService {
 	@Override public int confirmXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception { return mapper.confirmXref(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefAudit(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception { return mapper.selectXrefAudit(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefNames(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception { return mapper.selectXrefNames(dto); }
+	@Override public java.util.List<egovframework.sejong.user.model.ExtItemDTO> selectSubCodesAmong(java.util.Map<String,Object> param) throws Exception { return mapper.selectSubCodesAmong(param); }
 
 	/* 등록/수정 — 저장만 하고 끝내면 안 된다.
 	   ★매핑을 뒤늦게 걸면 그동안 PROD_SEQ 가 비어 재고에서 빠져 있던 출고분이 남는다.

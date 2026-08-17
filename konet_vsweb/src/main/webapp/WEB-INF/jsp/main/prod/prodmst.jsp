@@ -635,15 +635,45 @@ function prodDel(seq){
   });
 }
 
+/* ★엑셀에 실을 코드 관계 — 거래처 통보품목(TBL_EXT_ITEM_MST) 전 건 (2026-08-17 요청).
+   화면은 고른 상품 것만 부르지만 엑셀은 전 건이 필요하다. 125건 남짓이라 한 번 받아 두면 된다. */
+var _extAll=[], _subOf={};
+function pmLoadExt(){
+  return fetch(CTX+'/prod/extItemList.do',{method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},body:''})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      _extAll=(j&&j.data)||[]; _subOf={};
+      _extAll.forEach(function(e){
+        if(e.prodCd && e.extItemCd && String(e.extItemCd)!==String(e.prodCd)) _subOf[String(e.extItemCd)]=e;
+      });
+    }).catch(function(){});
+}
 function prodExcel(){
   var list=_view;
   if(!list.length){ toast('⚠️ 출력할 데이터가 없습니다.'); return; }
-  var head=['코드','상품명','규격','제조사','유형','과세','입수수량','입고단가','판매단가','도매단가','적정재고','판매기본수량','낱개바코드','박스바코드','조회순서'];
-  var aoa=[head].concat(list.map(function(o){ return [o.prodCd,o.prodNm,o.spec,o.makerNm,o.typeNm,o.taxGb,o.packQty,o.inPrice,o.salePrice,o.wholePrice,o.safeStock,o.saleBaseQty,o.unitBarcode,o.boxBarcode,o.sortOrd]; }));
+  /* 아직 안 받았으면 받아 온 뒤 다시 부른다 — 관계 칸이 빈 채로 나가면 쓸모가 없다 */
+  if(!_extAll.length){ pmLoadExt().then(function(){ prodExcel(); }); return; }
+  function subsOf(seq){
+    return _extAll.filter(function(x){ return String(x.prodSeq)===String(seq); })
+                  .map(function(x){ return x.extItemCd + (x.extItemNm?(' '+x.extItemNm):''); });
+  }
+  var head=['코드','구분','주코드','주상품명','서브코드(참고 품목코드)',
+            '상품명','규격','제조사','유형','과세','입수수량','입고단가','판매단가','도매단가','적정재고','판매기본수량','낱개바코드','박스바코드','조회순서'];
+  var aoa=[head].concat(list.map(function(o){
+    var sb=_subOf[String(o.prodCd)];
+    var mnm='';
+    if(sb){ for(var i=0;i<list.length;i++){ if(String(list[i].prodCd)===String(sb.prodCd)){ mnm=list[i].prodNm||''; break; } }
+            if(!mnm) mnm=sb.prodNm||''; }
+    return [o.prodCd, sb?'서브':'', sb?sb.prodCd:'', mnm, subsOf(o.prodSeq).join('\n'),
+            o.prodNm,o.spec,o.makerNm,o.typeNm,o.taxGb,o.packQty,o.inPrice,o.salePrice,o.wholePrice,o.safeStock,o.saleBaseQty,o.unitBarcode,o.boxBarcode,o.sortOrd];
+  }));
   var P=window.parent;
   function byLib(LIB){
     var ws=LIB.utils.aoa_to_sheet(aoa);
-    ws['!cols']=[{wch:14},{wch:44},{wch:16},{wch:14},{wch:16},{wch:6},{wch:8},{wch:11},{wch:11},{wch:11},{wch:9},{wch:9},{wch:16},{wch:16},{wch:9}];
+    /* 코드 / 구분 / 주코드 / 주상품명 / 서브코드 … 앞 5칸이 새로 늘었다(2026-08-17) */
+    ws['!cols']=[{wch:14},{wch:6},{wch:14},{wch:36},{wch:40},
+                 {wch:44},{wch:16},{wch:14},{wch:16},{wch:6},{wch:8},{wch:11},{wch:11},{wch:11},{wch:9},{wch:9},{wch:16},{wch:16},{wch:9}];
     var wb=LIB.utils.book_new(); LIB.utils.book_append_sheet(wb,ws,'상품마스터'); LIB.writeFile(wb,'상품마스터.xlsx'); toast('📥 엑셀 저장 완료 · '+list.length+'건');
   }
   try{ if(P && P.ssLoadStyleXlsx){ P.ssLoadStyleXlsx(function(XS){ var LIB=XS||P.XLSX; if(LIB){ byLib(LIB); } else { csvFallback(); } }); return; } }catch(e){}

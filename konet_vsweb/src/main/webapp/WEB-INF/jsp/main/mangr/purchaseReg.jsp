@@ -517,6 +517,15 @@ var _venSum = {};      // 거래처별 총판매·총매입 {s,p} — 팝업에 
    비어 있으면 '별도' 로 본다 — 예전 자료는 이 칸이 비어 있는데, 지금까지의 동작이 별도였다. */
 var _venVat = '별도';
 var _prods = [];       // 상품 마스터
+/* ★거래처 통보품목(TBL_EXT_ITEM_MST) = ***서브코드*** (2026-08-17)
+   판매등록 상품검색이 🔖 줄로 보여 주는 바로 그 자료다. 매입등록도 **같은 화면**으로 맞춘다
+   (사용자 요청 — "똑같은 화면, 조건만 매입").
+   ⚠판매와 다른 점 : 판매는 🔖 줄을 누르면 **그 거래처 코드로** 넣지만,
+     매입은 ***마스터코드로 넣는다.*** 서브코드로 매입이 잡히면 재고가 갈라지기 때문이다. */
+var _extItems = [];
+/* 서브코드 → {prodCd(마스터), prodNm} 빠른 조회용. 목록의 「서브」 표시와 저장 전 검사에 쓴다.
+   실제로 막는 것은 언제나 서버(purchaseSave)다 — 이 지도가 비어 있어도 막힌다. */
+var _subMap = {};
 var _cur = null;       // 선택된 전표(수정 모드)
 /* 수정 중인 전표가 '저장된 상태로' 현잔고에 이미 반영해 놓은 금액(매입금액 − 지급액 − 할인액).
    현잔고는 그 전표를 포함해 계산되므로, 거래후잔고를 낼 때 이 값을 빼지 않으면 이중으로 더해진다.
@@ -661,6 +670,17 @@ function puLoadMasters(){
     });
   }).catch(function(){});
   post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){ _prods=(j&&j.data)||[]; }).catch(function(){});
+  /* ★거래처 통보품목(=서브코드) — 판매등록과 **같은 원천**을 쓴다(2026-08-17).
+     이걸 받아야 상품검색에 🔖 줄이 나오고, 서브코드를 골랐을 때 마스터를 알려 줄 수 있다. */
+  post('/prod/extItemList.do','').then(function(r){return r.json();}).then(function(j){
+    _extItems=(j&&j.data)||[];
+    _subMap = {};
+    _extItems.forEach(function(e){
+      /* 우리 상품에 연결된 통보만 지도에 담는다 — 연결이 없으면 알려 줄 마스터가 없다.
+         자기 자신(서브코드=마스터코드)도 뺀다. 막을 것이 없다. */
+      if (e.prodCd && String(e.extItemCd) !== String(e.prodCd)) _subMap[String(e.extItemCd)] = e;
+    });
+  }).catch(function(){});
 }
 
 /* ── 전표 입력 ────────────────────────────────────────── */
@@ -884,11 +904,72 @@ function puDcFill(){   // 털기 — 매입금액에서 지급액을 뺀 잔돈�
 }
 
 /* ── 저장 / 삭제 ──────────────────────────────────────── */
+/* ★★서브코드로 매입을 잡는 것을 막는다 (2026-08-17 요청) ─────────────────────────────
+   서브코드(거래처 매칭코드)는 '남의 코드'일 뿐 **재고의 주인이 아니다.**
+   그 코드로 매입이 잡히면 ***같은 물건의 재고가 마스터코드와 서브코드로 갈라진다.***
+
+   ★막는 곳은 **서버(purchaseSave)** 다 — 담기는 길이 여럿이라(상품선택·일괄담기·최근매입·전표복사)
+     화면에서만 막으면 반드시 새는 길이 생긴다. 여기 있는 것은 **먼저 알려 주고 고쳐 주는** 편의다.
+   ★[마스터코드로 바꾸기] 를 권한다 — 사용자가 목록을 다시 뒤지지 않아도 되게(2026-08-17 B안).
+   ⚠서브코드의 등록·수정은 **막지 않는다.** 막는 것은 '매입자료로 잡는 것' 하나다.
+   반환 : true = 저장 계속 / false = 저장 중단(사용자가 취소했거나 직접 고치겠다고 함) */
+function puSubCodeGuard(items){
+  var codes = items.map(function(o){ return o.prodCd; }).filter(Boolean);
+  if (!codes.length) return Promise.resolve(true);
+  return post('/prod/subCodeCheck.do', { codes: codes }, true)
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      var subs = (j && j.data) || [];
+      if (!subs.length) return true;                       // 서브코드 없음 — 그냥 저장
+      var map = {};
+      subs.forEach(function(s){ map[String(s.extItemCd)] = s; });
+      var lines = subs.map(function(s){
+        return '<div style="margin:4px 0"><b style="color:#c0392b">' + esc(s.extItemCd) + '</b> (서브)'
+             + ' &nbsp;→&nbsp; 마스터 <b style="color:#1f7a4d">' + esc(s.prodCd) + '</b>'
+             + (s.prodNm ? ' <span style="color:#5b6b7a;font-size:12.5px">' + esc(s.prodNm) + '</span>' : '')
+             + '</div>';
+      }).join('');
+      return swConfirm(
+          '<div style="text-align:left">서브코드로는 <b>매입을 잡을 수 없습니다.</b>'
+        + '<div style="margin:8px 0;font-size:12.5px;color:#5b6b7a">서브코드로 매입하면 같은 물건의 재고가 두 코드로 갈라집니다.</div>'
+        + lines
+        + '<div style="margin-top:8px;font-size:12.5px;color:#5b6b7a">마스터코드로 바꿔 드릴까요? '
+        + '[취소] 를 누르면 저장하지 않고 그대로 두니 직접 고치셔도 됩니다.</div></div>',
+          null, '마스터코드로 바꾸기')
+        .then(function(ok){
+          if (!ok) return false;                            // 저장 중단 — 줄은 그대로 둔다
+          _rows.forEach(function(o){
+            var s = map[String(o.prodCd)];
+            if (!s) return;
+            /* 마스터 줄의 실제 값(규격·입수·매입가)은 이미 화면에 있는 상품마스터에서 가져온다 —
+               서브 줄의 값을 그대로 물려주면 규격이 어긋난 채 저장된다. */
+            var m = null;
+            for (var i=0;i<_prods.length;i++){ if (String(_prods[i].prodCd) === String(s.prodCd)) { m = _prods[i]; break; } }
+            o.prodCd = s.prodCd;
+            o.prodSeq = (m && m.prodSeq) || s.prodSeq || null;
+            o.prodNm = (m && m.prodNm) || s.prodNm || o.prodNm;
+            if (m) { o.spec = m.spec || ''; if (m.packQty) o.packQty = m.packQty; }
+          });
+          puRender();
+          return true;                                      // 바꿨으니 이어서 저장
+        });
+    })
+    .catch(function(){ return true; });   // ★조회가 안 되면 저장을 막지 않는다 — 서버가 어차피 다시 막는다
+}
+
 function puSave(){
   var venCd = document.getElementById('puVenNm').dataset.cd || '';
   if (!venCd) { swErr('거래처를 선택하세요.'); return; }
   var items = _rows.filter(function(o){ return o.prodCd; });
   if (!items.length) { swErr('상품을 한 줄 이상 입력하세요.'); return; }
+  return puSubCodeGuard(items).then(function(go){
+    if (!go) return false;
+    return puSaveGo();
+  });
+}
+function puSaveGo(){
+  var venCd = document.getElementById('puVenNm').dataset.cd || '';
+  var items = _rows.filter(function(o){ return o.prodCd; });
   var t = puCalc();
   var dto = {
     purchSeq: _cur ? _cur.purchSeq : null,
@@ -1220,12 +1301,20 @@ function puProdRender(){
   /* 코드로 검색하면 장부 넘겨 보듯 — 걸린 상품(코드순)을 앞에 두고, 그 뒤에 **찾은 코드 다음
      코드의 상품들을 이어서** 보여 준다(2026-08-05 요청 — 걸린 것만 나오면 이웃 상품을 못 고른다).
      걸린 상품은 코드를 굵은 초록으로 표시해 이어붙은 이웃과 구분한다. 이름·규격 매치는 맨 뒤. */
+  /* ★검색은 서브코드까지 훑는다 (2026-08-17 · 판매등록과 같은 규칙) — 거래처가 부르는 코드·품명으로
+     쳐도 **우리 상품이 나와야** 한다. 그 코드로 걸린 상품코드 집합을 먼저 만든다. */
+  var byExt={};
+  if(q) _extItems.forEach(function(e){
+    if(!e.prodCd) return;
+    if([e.extItemCd,e.extItemNm,e.extSpec].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; }))
+      byExt[String(e.prodCd)]=1;
+  });
   var l, hit = {};
   if(!q){ l = _prods.slice(0,200); }
   else{
     var byCd=[], byNm=[];
     _prods.forEach(function(o){
-      if(String(o.prodCd||'').toLowerCase().indexOf(q)>=0) byCd.push(o);
+      if(String(o.prodCd||'').toLowerCase().indexOf(q)>=0 || byExt[String(o.prodCd)]) byCd.push(o);
       else if([o.prodNm,o.spec].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; })) byNm.push(o);
     });
     var byCode = function(a,b){ return String(a.prodCd||'').localeCompare(String(b.prodCd||'')); };
@@ -1239,15 +1328,53 @@ function puProdRender(){
   }
   document.getElementById('puProdBody').innerHTML = l.length ? l.map(function(o){
     var cd = hit[String(o.prodCd)] ? '<b style="color:#137a6c">'+esc(o.prodCd)+'</b>' : esc(o.prodCd);
+    /* ★이 상품코드 자체가 서브코드인 경우 — 상품마스터에 서브코드로도 한 줄이 등록돼 있다(실측 124건).
+       고르기 **전에** 알아채게 표시한다. 골라도 마스터로 바뀌므로 막지는 않는다.
+       ★★「서브」라고만 하면 **어느 마스터인지 모른다**(2026-08-17 지적) ⇒ 마스터 코드·품명을 같이 적는다. */
+    var sb = _subMap[String(o.prodCd)];
+    var mstNm = '';
+    if (sb) {
+      /* ★마스터코드를 **직접 누를 수 있게** 한다 (2026-08-17 요청 "주코드도 선택 가능하게").
+         줄 전체를 눌러도 마스터로 담기지만, 마스터코드 글자를 바로 누르는 길도 둔다. */
+      cd += '<div style="margin-top:2px"><span style="display:inline-block;padding:0 5px;border-radius:8px;'
+          + 'background:#fdecea;color:#c0392b;font-size:11px;font-weight:700">서브</span>'
+          + ' <a href="javascript:;" style="font-size:11.5px;color:#1f7a4d;font-weight:700;text-decoration:underline"'
+          + ' onclick="event.stopPropagation();puProdPick(\'' + esc(sb.prodCd) + '\');"'
+          + ' title="마스터코드로 담습니다">→ ' + esc(sb.prodCd) + '</a></div>';
+      /* 마스터 품명은 상품마스터에서 다시 찾는다 — 조인으로 온 이름이 비어 있는 통보도 있다. */
+      var mp = null;
+      for (var mi=0; mi<_prods.length; mi++){ if (String(_prods[mi].prodCd)===String(sb.prodCd)) { mp=_prods[mi]; break; } }
+      var nm = (mp && mp.prodNm) || sb.prodNm || '';
+      if (nm) mstNm = '<div style="font-size:11.5px;color:#8a97a3;margin-top:2px">마스터 : ' + esc(nm) + '</div>';
+    }
     /* ✔칸 — 체크하면 순번(1,2,3…)이 찍히고 그 순서대로 담긴다. 체크박스 클릭이 줄 클릭(한 건 담기)으로
        번지지 않게 td 에서 끊는다. 체크박스 자체 클릭도 td 로 흘러 한 번만 토글된다(pointer-events 없음). */
     var k = _ppPick.indexOf(String(o.prodCd));
-    return '<tr class="pick" onclick="puProdPick(\''+esc(o.prodCd)+'\')">'
+    /* ★이 줄 자체가 서브코드면 **줄을 눌러도 마스터로 담고 메시지를 띄운다** (2026-08-17 요청).
+       종전에는 🔖 줄에서만 안내가 떠서, 상품마스터에 서브코드로 등록된 줄을 그냥 고르면 조용히 들어갔다. */
+    var pickCd = sb ? sb.prodCd : o.prodCd;
+    var pickArg = sb ? ("'"+esc(sb.prodCd)+"','"+esc(o.prodCd)+"'") : ("'"+esc(o.prodCd)+"'");
+    var h = '<tr class="pick" onclick="puProdPick('+pickArg+')">'
          + '<td style="cursor:pointer" onclick="event.stopPropagation();puProdToggle(\''+esc(o.prodCd)+'\')">'
          +   (k>=0 ? '<b style="color:#137a6c">'+(k+1)+'</b>' : '<input type="checkbox" style="pointer-events:none">')
          + '</td>'
-         + '<td>'+cd+'</td><td class="txt" style="text-align:left">'+esc(o.prodNm)+'</td>'
+         + '<td>'+cd+'</td><td class="txt" style="text-align:left">'+esc(o.prodNm)+mstNm+'</td>'
          + '<td>'+esc(o.spec)+'</td><td class="num">'+n(o.packQty)+'</td><td class="num">'+fmt(o.inPrice)+'</td></tr>';
+    /* 🔖 서브코드 줄 — 판매등록과 **같은 모양**(코드는 코드 칸, 품명은 품명 칸)으로 붙인다.
+       ★다만 누르면 ***마스터코드로*** 담긴다 — 매입을 서브코드로 잡으면 재고가 갈라지기 때문이다.
+         (판매는 그 거래처 코드로 담는 것이 정상이라 거기서는 다르게 동작한다.) */
+    h += puExtListFor(o.prodCd).map(function(e){
+      return '<tr class="pick" style="background:#fbfdff" onclick="puProdPick(\''+esc(o.prodCd)+'\',\''+esc(e.extItemCd)+'\')"'
+        + ' title="서브코드입니다 — 누르면 마스터 '+esc(o.prodCd)+' 로 담깁니다'
+        +   (e.vendorNm?(' · '+esc(e.vendorNm)):'')+'">'
+        + '<td></td>'
+        + '<td style="color:#c0392b">🔖 '+esc(e.extItemCd)+'</td>'
+        + '<td class="txt" style="text-align:left;color:#5b6b7a">'+esc(e.extItemNm||'')
+        +   (e.vendorNm?(' <span style="color:#8a97a3">('+esc(e.vendorNm)+')</span>'):'')+'</td>'
+        + '<td>'+esc(e.extSpec||'')+'</td><td class="num"></td>'
+        + '<td class="num">'+(e.extPrice!=null?fmt(e.extPrice):'')+'</td></tr>';
+    }).join('');
+    return h;
   }).join('') : '<tr><td colspan="6" class="pu-msg">검색 결과가 없습니다.</td></tr>';
   puPickInfo();
 }
@@ -1270,8 +1397,12 @@ function puProdMultiApply(){
   if (!_ppPick.length) { swErr('담을 상품을 체크하세요.<br><span style="font-size:12.5px;color:#3d4d5c">한 건만 담을 때는 줄을 바로 클릭하면 됩니다.</span>'); return; }
   var ven = document.getElementById('puVenNm').dataset.cd || '';
   var rows = _rows.filter(function(o){ return o.prodCd; });
-  var added = [], dup = [];
+  var added = [], dup = [], swapped = [];
   _ppPick.forEach(function(cd){
+    /* ★체크로 담을 때도 서브코드는 **마스터로 바꿔** 담는다 (2026-08-17).
+       한 건 담기만 막아 두면 ✔다중담기로 서브코드가 그대로 들어간다. */
+    var sb = _subMap[String(cd)];
+    if (sb && sb.prodCd) { swapped.push(cd + ' → ' + sb.prodCd); cd = String(sb.prodCd); }
     var p = _prods.filter(function(x){ return String(x.prodCd)===String(cd); })[0]; if(!p) return;
     if (rows.some(function(o){ return String(o.prodCd)===String(cd); })) { dup.push(cd); return; }
     var o = emptyRow();
@@ -1291,11 +1422,49 @@ function puProdMultiApply(){
       .then(function(r){return r.json();}).then(function(j){ if(j&&j.data){ o.unitPrice=n(j.data); puCalcRow(o); puRender(); } })
       .catch(function(){});
   });
-  if (dup.length) swAlert(added.length+'건을 담았습니다.<br><span style="font-size:12.5px;color:#3d4d5c">이미 명세에 있는 '+dup.length+'건은 건너뛰었습니다 — '+esc(dup.join(', '))+'</span>');
+  /* 서브코드를 바꿔 담았으면 **반드시 알려 준다** — 말없이 바꾸면 잘못 담은 줄 안다(2026-08-17) */
+  if (swapped.length || dup.length) {
+    var m = added.length+'건을 담았습니다.';
+    if (swapped.length) m += '<br><span style="font-size:12.5px;color:#c0392b">서브코드 '+swapped.length
+        + '건은 마스터코드로 바꿔 담았습니다 — '+esc(swapped.join(', '))+'</span>';
+    if (dup.length) m += '<br><span style="font-size:12.5px;color:#3d4d5c">이미 명세에 있는 '+dup.length
+        + '건은 건너뛰었습니다 — '+esc(dup.join(', '))+'</span>';
+    swAlert(m);
+  }
 }
-function puProdPick(cd){
+/* 그 상품에 붙어 있는 서브코드 전부 — 지금 고른 거래처 것을 앞에, 거래처를 안 가린 것을 뒤에
+   (판매등록 saExtListFor 와 같은 규칙 · 2026-08-17) */
+function puExtListFor(prodCd){
+  if(!prodCd || !_extItems.length) return [];
+  var ven=document.getElementById('puVenNm').dataset.cd||'';
+  var l=_extItems.filter(function(o){ return String(o.prodCd||'')===String(prodCd); });
+  l.sort(function(a,b){
+    var av=(ven&&a.vendorCd===ven)?0:(a.vendorCd?2:1), bv=(ven&&b.vendorCd===ven)?0:(b.vendorCd?2:1);
+    return av-bv;
+  });
+  return l;
+}
+/**
+ * 상품 한 건 담기.
+ * @param cd     담을 **마스터** 상품코드
+ * @param viaSub 서브코드 줄(🔖)을 눌러 들어온 경우 그 서브코드 — 있으면 안내만 띄운다.
+ *   ★서브 줄을 눌러도 ***담기는 것은 언제나 마스터*** 다 (2026-08-17).
+ *     매입을 서브코드로 잡으면 같은 물건의 재고가 두 코드로 갈라지기 때문이다.
+ */
+function puProdPick(cd, viaSub){
   var p = _prods.filter(function(x){ return String(x.prodCd)===String(cd); })[0]; if(!p) return;
   var o = _rows[_prodTargetRow]; if(!o) return;
+  if (viaSub) {
+    /* 왜 다른 코드가 들어갔는지 **그 자리에서** 알려 준다 — 말없이 바꾸면 잘못 담은 줄 안다.
+       (사용자 요청 2026-08-17 : "서브코드 입력 시 마스터코드가 무엇인지 알려주는 메시지") */
+    swAlert('<div style="text-align:left">🔖 <b style="color:#c0392b">' + esc(viaSub) + '</b> 는 <b>서브코드</b>입니다.'
+          + '<div style="margin-top:6px">매입은 마스터코드로 잡아야 해서 '
+          + '<b style="color:#1f7a4d">' + esc(p.prodCd) + '</b> 로 담았습니다.</div>'
+          + '<div style="margin-top:6px;font-size:12.5px;color:#5b6b7a">'
+          + esc(p.prodNm||'') + '</div>'
+          + '<div style="margin-top:6px;font-size:12px;color:#8a97a3">'
+          + '서브코드로 매입하면 같은 물건의 재고가 두 코드로 갈라집니다.</div></div>');
+  }
   o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=p.prodNm; o.spec=p.spec||'';
   o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
   o.unitPrice=n(p.inPrice);
@@ -1958,7 +2127,10 @@ function puDayApply(){
    ★판매와 다른 점 두 가지:
      · 매입 합계수량 = BOX×입수 + EA 라, 상품을 담으면 커서를 'BOX수량' 으로 보낸다(판매는 EA수량).
        Enter 경로도 상품 → BOX수량 → 단가 → 다음 줄.
-     · 매입은 우리 코드 기준이라 '거래처 매칭코드' 검색이 없다 — 상품마스터(_prods)만 훑는다.
+     · ★매입도 **서브코드(거래처 통보품목)로 검색된다** (2026-08-17 변경 — 판매등록과 같은 화면으로).
+       종전에는 '매입은 우리 코드 기준' 이라며 아예 안 훑었는데, ***서브코드가 상품마스터에도
+       124건 등록돼 있어*** 검색에 안 띄워도 사용자가 그 코드를 직접 찾아 고를 수 있었다(구멍).
+       ⇒ **보여 주되 담길 때는 마스터코드로** 바꾼다. '매입은 우리 코드 기준'이라는 원칙은 그대로다.
    ★그리드는 값이 바뀔 때마다 통째로 다시 그리므로(puRender) 커서가 튀지 않게 위치를 잡아 두었다 되돌린다.
    기존 동작(최근 매입단가 자동채움·부가세·반품·매입분·복사저장)은 그대로다. */
 var _focusNext = null;                     // 다음에 커서를 둘 칸 {r,f,sel} — puRender 가 소비하고 비운다
@@ -2030,7 +2202,7 @@ function puStepRow(t, dr){
 }
 
 /* 상품코드 칸 입력검색 — 이미 들고 있는 상품마스터(_prods)만 훑어 서버를 부르지 않는다.
-     · 우리 코드/품명/규격으로 찾는다(매입은 매칭코드가 없다).
+     · 우리 코드/품명/규격 + **서브코드·서브품명**으로 찾는다(2026-08-17).
      · 고르면 그 행에 담기고(puProdPick 재사용) 커서가 BOX수량으로 넘어간다.
    드롭다운은 그리드가 overflow 라 잘리므로 body 에 position:fixed 로 띄운다. */
 var _pinInp = null, _pinRow = -1, _pinList = [], _pinIdx = -1, _pinDrop = null;

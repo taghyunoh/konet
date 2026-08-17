@@ -101,6 +101,8 @@ public interface UserService {
 	int insertProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
 	int updateProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
 	int deleteProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ProdDTO> selectProdDeletedList(egovframework.sejong.user.model.ProdDTO dto) throws Exception;   // 삭제한 상품(ACTION_YN='N') 목록
+	int restoreProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;                              // 되살리기 — 0건이면 이미 살아 있음
 	int countProdRelated(egovframework.sejong.user.model.ProdDTO dto) throws Exception;   // 연관(매입가/판매가/재고) 활성건수
 
 	// ===== 매입가 이력 =====
@@ -114,6 +116,8 @@ public interface UserService {
 	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefCandidates(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefAudit(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 매핑 점검 리포트
 	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefNames(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 그 거래처로 나갈 때 쓸 품명(품목당 1건)
+	/** ★넘긴 코드 중 <b>서브코드인 것</b>만 마스터코드와 함께 (2026-08-17 · 원천=TBL_EXT_ITEM_MST) — 매입을 서브코드로 잡는 것을 막는다. */
+	java.util.List<egovframework.sejong.user.model.ExtItemDTO> selectSubCodesAmong(java.util.Map<String,Object> param) throws Exception;
 	int saveXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;    // 등록/수정 + 대표표기 정리 + 소급 반영
 	int confirmXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	int deleteXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;

@@ -1245,6 +1245,15 @@ public class UserController {
 				if (dto.getPurchDt()==null || dto.getPurchDt().trim().isEmpty()) return ResponseEntity.status(400).body("매입일자를 선택하세요.");
 				if (dto.getVendorCd()==null || dto.getVendorCd().trim().isEmpty()) return ResponseEntity.status(400).body("거래처를 선택하세요.");
 				if (dto.getItems()==null || dto.getItems().isEmpty()) return ResponseEntity.status(400).body("상품을 한 줄 이상 입력하세요.");
+				/* ★★서브코드로 매입을 잡는 것을 막는다 (2026-08-17 요청) ─────────────────────────
+				   서브코드(거래처 매칭코드)는 '남의 코드'일 뿐 재고의 주인이 아니다. 그 코드로 매입이 잡히면
+				   ***같은 물건의 재고가 마스터코드와 서브코드로 갈라진다.***
+				   ★화면 경고만으로는 못 막는다 — 담기는 길이 여럿(상품선택·일괄담기·최근매입·전표복사)이라
+				     ***저장 관문 하나에서*** 걸러야 빠짐이 없다. 화면은 이보다 먼저 안내할 뿐이다.
+				   ⚠서브코드의 등록·수정은 막지 않는다(요청 그대로). 막는 것은 '매입자료로 잡는 것' 하나다.
+				   ⚠판매전표(salesTrxSave)는 막지 않는다 — 거래처에 나갈 때는 그쪽 코드를 쓰는 것이 정상이다. */
+				String subMsg = subCodeBlockMsg(dto, session);
+				if (subMsg != null) return ResponseEntity.status(409).body(subMsg);
 				String u = (session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"");
 				dto.setRegUser(u); dto.setUpdUser(u);
 				dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());
@@ -1252,6 +1261,57 @@ public class UserController {
 				return ResponseEntity.ok("{\"rows\":" + n + ",\"purchSeq\":" + dto.getPurchSeq() + ",\"purchNo\":\"" + dto.getPurchNo() + "\"}");
 			} catch (Exception e) { log.error(" purchaseSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
+		/**
+		 * 매입 명세에 <b>서브코드</b>가 섞였으면 막는 문구를 만든다. 없으면 null.
+		 *
+		 * <p>★코드는 <b>한 번에</b> 물어본다 — 줄마다 조회하면 100줄짜리 전표에서 100번 돈다.
+		 * <p>⚠빈 코드·중복은 미리 걸러 낸다(IN 절이 커지고 같은 답이 여러 번 온다).
+		 */
+		private String subCodeBlockMsg(egovframework.sejong.user.model.PurchaseDTO dto, HttpSession session) throws Exception {
+			java.util.LinkedHashSet<String> codes = new java.util.LinkedHashSet<String>();
+			for (egovframework.sejong.user.model.PurchaseDtlDTO it : dto.getItems()) {
+				if (it.getProdCd() != null && !it.getProdCd().trim().isEmpty()) codes.add(it.getProdCd().trim());
+			}
+			if (codes.isEmpty()) return null;
+			java.util.Map<String,Object> p = new HashMap<String,Object>();
+			p.put("codes", new java.util.ArrayList<String>(codes));
+			p.put("compCd", session.getAttribute("s_comp_cd"));   // ★Map 이라 인터셉터가 안 넣어 준다 — 직접 넣는다
+			java.util.List<egovframework.sejong.user.model.ProdXrefDTO> subs = svc.selectSubCodesAmong(p);
+			if (subs == null || subs.isEmpty()) return null;
+			StringBuilder sb = new StringBuilder();
+			sb.append("서브코드로는 매입을 잡을 수 없습니다. 마스터코드로 바꿔 주세요.\n");
+			for (egovframework.sejong.user.model.ProdXrefDTO x : subs) {
+				sb.append("\n· ").append(x.getExtItemCd()).append(" (서브)  →  마스터 ").append(x.getProdCd());
+				if (x.getProdNm() != null && !x.getProdNm().isEmpty()) sb.append("  ").append(x.getProdNm());
+			}
+			return sb.toString();
+		}
+
+		/**
+		 * 화면용 — 넘긴 코드 중 서브코드인 것을 마스터코드와 함께 돌려준다 (2026-08-17).
+		 * 매입등록이 <b>담는 순간</b> 안내하고 [마스터코드로 바꾸기]를 권하는 데 쓴다.
+		 * (막는 것은 저장 관문이고, 이것은 그보다 먼저 알려 주기 위한 것이다.)
+		 */
+		@RequestMapping(value="/prod/subCodeCheck.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> subCodeCheck(@RequestBody Map<String,Object> body, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); return res; }
+			Object raw = body.get("codes");
+			java.util.LinkedHashSet<String> codes = new java.util.LinkedHashSet<String>();
+			if (raw instanceof java.util.List) {
+				for (Object o : (java.util.List<?>) raw) {
+					if (o != null && !String.valueOf(o).trim().isEmpty()) codes.add(String.valueOf(o).trim());
+				}
+			}
+			if (codes.isEmpty()) { res.put("data", new java.util.ArrayList<Object>()); return res; }
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("codes", new java.util.ArrayList<String>(codes));
+			p.put("compCd", session.getAttribute("s_comp_cd"));
+			res.put("data", svc.selectSubCodesAmong(p));
+			return res;
+		}
+
 		@RequestMapping(value="/mangr/purchaseDelete.do", method = RequestMethod.POST)
 		public ResponseEntity<String> purchaseDelete(@RequestBody egovframework.sejong.user.model.PurchaseDTO dto,
 		                                             HttpServletRequest request, HttpSession session) {
@@ -1686,6 +1746,30 @@ public class UserController {
 			response.put("data", svc.selectProdList(dto));
 			return response;
 		}
+		/* ===== 삭제한 상품 보기 · 되살리기 (2026-08-17 요청) ================================
+		   삭제는 원래부터 소프트 삭제(ACTION_YN='N')라 자료가 남아 있다. 되살리기는 값 하나를
+		   'Y' 로 되돌리는 것뿐 — 그래서 복원 표도, 별도 백업도 필요 없다. */
+		@RequestMapping(value="/prod/prodDeletedList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> prodDeletedList(@ModelAttribute("DTO") egovframework.sejong.user.model.ProdDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { response.put("data", new java.util.ArrayList<Object>()); return response; }
+			response.put("data", svc.selectProdDeletedList(dto));
+			return response;
+		}
+		@RequestMapping(value="/prod/prodRestore.do", method = RequestMethod.POST)
+		public ResponseEntity<String> prodRestore(@RequestBody egovframework.sejong.user.model.ProdDTO dto,
+		                                          HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getProdSeq()==null) return ResponseEntity.status(400).body("PROD_SEQ 필요");
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):""));
+				dto.setUpdIp(request.getRemoteAddr());
+				/* 0건 = 이미 살아 있거나 남의 회사 것. WHERE 에 COMP_CD 가 있어 동작은 원래도 안전하다. */
+				if (svc.restoreProd(dto) == 0) return ResponseEntity.status(409).body("되살릴 상품을 찾을 수 없습니다. (이미 살아 있거나 다른 회사의 상품입니다)");
+				return ResponseEntity.ok("1");
+			} catch (Exception e) { log.error(" prodRestore ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
 		@RequestMapping(value="/prod/prodInsert.do", method = RequestMethod.POST)
 		public ResponseEntity<String> prodInsert(@RequestBody egovframework.sejong.user.model.ProdDTO dto,
 		                                         HttpServletRequest request, HttpSession session) {

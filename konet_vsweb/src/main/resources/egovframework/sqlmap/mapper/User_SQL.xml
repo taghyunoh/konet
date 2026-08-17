@@ -1793,6 +1793,39 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
+	<!-- ==========================================================================================
+	     ★삭제한 상품 보기 · 되살리기 (2026-08-17 요청)
+	       삭제는 처음부터 **소프트 삭제**(ACTION_YN='N')였다 — 자료는 그대로 있고 목록에서만 빠진다.
+	       그래서 되살리는 데 필요한 것은 값 하나를 'Y' 로 되돌리는 것뿐이다(복원 표가 따로 필요 없다).
+	       ★언제 지웠는지·누가 지웠는지를 같이 보여 준다 — 「이게 왜 지워졌더라」를 판단할 재료다.
+	       ⚠되살려도 **매입가·판매가·재고 이력은 그대로**다(그 표들은 삭제 때 건드리지 않는다).
+	     ========================================================================================== -->
+	<select id="selectProdDeletedList" parameterType="egovframework.sejong.user.model.ProdDTO" resultType="egovframework.sejong.user.model.ProdDTO">
+	  SELECT PROD_SEQ AS prodSeq, PROD_CD AS prodCd, PROD_NM AS prodNm, SPEC AS spec, MAKER_NM AS makerNm,
+	         TYPE_NM AS typeNm, TAX_GB AS taxGb, PACK_QTY AS packQty,
+	         IN_PRICE AS inPrice, SALE_PRICE AS salePrice,
+	         UNIT_BARCODE AS unitBarcode, BOX_BARCODE AS boxBarcode,
+	         REG_DTTM AS regDttm, UPD_DTTM AS updDttm, UPD_USER AS updUser
+	    FROM TBL_PROD_MST
+	   WHERE ACTION_YN = 'N'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	  <if test="findData != null and findData != ''">
+	     AND ( PROD_CD LIKE '%' + #{findData} + '%'
+	        OR PROD_NM LIKE '%' + #{findData} + '%'
+	        OR ISNULL(SPEC,'')     LIKE '%' + #{findData} + '%'
+	        OR ISNULL(MAKER_NM,'') LIKE '%' + #{findData} + '%' )
+	  </if>
+	   ORDER BY UPD_DTTM DESC, PROD_SEQ DESC   <!-- 최근에 지운 것이 위로 — 실수로 지운 것을 바로 찾는다 -->
+	</select>
+
+	<update id="restoreProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
+	  UPDATE TBL_PROD_MST
+	     SET ACTION_YN='Y', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
+	   WHERE PROD_SEQ = #{prodSeq}
+	     AND ACTION_YN = 'N'                 /* ★이미 살아 있는 것을 건드리지 않는다 — 0건이면 화면이 알려 준다 */
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
 	<!-- ============================================================
 	     마감 집계 — 출고(TBL_SHIPOUT_MST, 마감월=SHPOUT_DT) × 단가
 	     · 출고단가: TBL_PROD_SALEPRICE_HST 중 APPLY_DT <= 출고일자 최신 → 없으면 TBL_PROD_MST.SALE_PRICE
@@ -4117,6 +4150,42 @@
 	         ) t
 	   WHERE rn = 1
 	]]></select>
+
+	<!-- ==========================================================================================
+	     ★서브코드 판별 — **매입을 서브코드로 잡는 사고를 막는 유일한 관문** (2026-08-17 요청)
+
+	     서브코드 = ***거래처 통보품목(TBL_EXT_ITEM_MST)*** 이다. 거래처가 자기 코드·자기 품명으로
+	     알려 준 것으로, 판매등록 상품검색이 🔖 줄로 보여 주는 바로 그 자료다.
+	       ⚠**TBL_PROD_XREF 가 아니다**(2026-08-17 정정) — 그쪽은 살아 있는 행이 0건이라
+	         그 표로 만들면 아무것도 안 걸린다. 실제 서브코드는 이 표에 125건 있다.
+
+	     서브코드는 '남의 코드'일 뿐 **재고의 주인이 아니다.** 그 코드로 매입을 잡으면
+	     ***같은 물건의 재고가 마스터코드와 서브코드로 갈라진다.***
+	       · 넘긴 코드 목록(codes) 중 **서브코드인 것만** 마스터코드와 함께 돌려준다.
+	       · 화면 경고만으로는 못 막는다 — 담기는 길이 여럿(상품선택·일괄담기·최근매입·전표복사)이라
+	         ***서버 한 곳(purchaseSave)에서 막아야*** 빠짐이 없다.
+	     ⚠서브코드 자체의 등록·수정은 **막지 않는다**(요청 그대로). 막는 것은 '매입자료로 잡는 것' 하나다.
+	     ⚠판매는 막지 않는다 — 거래처로 나갈 때는 그쪽 코드를 쓰는 것이 정상이다.
+	     ========================================================================================== -->
+	<select id="selectSubCodesAmong" resultType="egovframework.sejong.user.model.ExtItemDTO">
+	  SELECT e.EXT_ITEM_CD AS extItemCd,     <!-- 서브코드(=매입에 쓰면 안 되는 코드) -->
+	         e.EXT_ITEM_NM AS extItemNm,
+	         e.EXT_SPEC    AS extSpec,
+	         e.PROD_CD     AS prodCd,        <!-- ★마스터코드(=대신 써야 할 코드) -->
+	         e.PROD_SEQ    AS prodSeq,       <!-- 화면이 줄을 바꿔치기할 때 쓴다 -->
+	         p.PROD_NM     AS prodNm,
+	         e.VENDOR_NM   AS vendorNm
+	    FROM TBL_EXT_ITEM_MST e
+	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = e.PROD_SEQ AND p.COMP_CD = e.COMP_CD
+	   WHERE e.ACTION_YN = 'Y'
+	     AND ISNULL(e.PROD_CD,'') &lt;&gt; ''          <!-- 아직 우리 상품에 연결 안 된 통보는 뺀다(알려 줄 마스터가 없다) -->
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR e.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND e.EXT_ITEM_CD IN
+	         <foreach collection="codes" item="c" open="(" separator="," close=")">#{c}</foreach>
+	     <!-- 서브코드가 마스터코드와 글자가 같으면 막을 것이 없다(자기 자신) -->
+	     AND e.EXT_ITEM_CD &lt;&gt; e.PROD_CD
+	   ORDER BY e.EXT_ITEM_CD
+	</select>
 
 	<!-- ==========================================================================================
 	     매핑 점검 리포트 — 틀린 매핑은 반드시 티가 난다. 그 신호를 한 화면에 모은다.
