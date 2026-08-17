@@ -1276,11 +1276,11 @@ public class UserController {
 			java.util.Map<String,Object> p = new HashMap<String,Object>();
 			p.put("codes", new java.util.ArrayList<String>(codes));
 			p.put("compCd", session.getAttribute("s_comp_cd"));   // ★Map 이라 인터셉터가 안 넣어 준다 — 직접 넣는다
-			java.util.List<egovframework.sejong.user.model.ProdXrefDTO> subs = svc.selectSubCodesAmong(p);
+			java.util.List<egovframework.sejong.user.model.ExtItemDTO> subs = svc.selectSubCodesAmong(p);
 			if (subs == null || subs.isEmpty()) return null;
 			StringBuilder sb = new StringBuilder();
 			sb.append("서브코드로는 매입을 잡을 수 없습니다. 마스터코드로 바꿔 주세요.\n");
-			for (egovframework.sejong.user.model.ProdXrefDTO x : subs) {
+			for (egovframework.sejong.user.model.ExtItemDTO x : subs) {
 				sb.append("\n· ").append(x.getExtItemCd()).append(" (서브)  →  마스터 ").append(x.getProdCd());
 				if (x.getProdNm() != null && !x.getProdNm().isEmpty()) sb.append("  ").append(x.getProdNm());
 			}
