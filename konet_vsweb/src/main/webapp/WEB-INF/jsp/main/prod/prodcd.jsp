@@ -31,7 +31,9 @@
   .wrap > h2, .wrap > .sub, .wrap > .bar, .wrap > .tabs, .wrap > .pager{ flex:0 0 auto; }
   h2{ margin:0 0 2px; font-size:20px; }
   .sub{ color:#9aa7b3; font-size:12px; margin-bottom:8px; }
-  .bar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+  /* ★[2026-08-18 요청] 검색·단추 줄과 아래 탭 줄 사이 **간격을 준다**(12 → 18 → 24px) —
+       두 줄이 붙어 있어 한 덩어리로 읽혔다. 여기 한 값만 고치면 된다. */
+  .bar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:24px; }
   .bar input.search{ height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 10px; font-size:13px; width:280px; }
   .btn{ height:34px; border:1px solid var(--bd); background:#fff; border-radius:7px; padding:0 14px; cursor:pointer; font-size:13px; font-weight:700; color:#37475a; }
   .btn:hover{ border-color:var(--teal); }
@@ -71,7 +73,11 @@
        ⚠td 에서 ellipsis 가 듣게 하려면 **max-width 가 반드시 있어야 한다** — 위 max-width 가 그 몫이다. */
   .card table th:nth-child(3), .card table td:nth-child(3){ min-width:300px; max-width:320px;
        overflow:hidden; text-overflow:ellipsis; }  /* 규격 */
-  .card table th:nth-child(4), .card table td:nth-child(4){ min-width:120px; }   /* 거래처명 */
+  /* ★[2026-08-18 요청 「제조사·유형을 조금 우측으로」]
+       제조사(5)·유형(6)은 **앞 칸이 끝나는 자리에서 시작**한다 — 두 칸을 직접 밀 방법은 없고
+       **바로 앞 거래처명(4) 폭을 넓히면** 그만큼 함께 오른쪽으로 밀린다.
+       120 → **180px** (≒1.6cm). ⚠더 밀거나 되돌릴 곳은 이 한 줄이다. */
+  .card table th:nth-child(4), .card table td:nth-child(4){ min-width:180px; }   /* 거래처명 */
   td.num{ text-align:right; }
   .tx{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#fff; }
   .empty{ padding:26px; text-align:center; color:#9aa7b3; }
@@ -296,8 +302,11 @@
         <th>코드</th><th>상품명</th><th>규격</th><th>거래처명</th>
         <th>제조사</th><th>유형</th><th class="r">적정재고</th><th>과세</th>
         <th class="r">입수</th><th class="r">입고가</th><th class="r">판매가</th><th class="r">도매가</th>
-        <th class="r">기본수량</th>
+        <%-- ★[2026-08-18 요청 「기본수량·매칭 위치 변경」] 기본수량을 **매칭 뒤로** 밀었다 —
+             중지일·매칭이 한 칸씩 앞으로 당겨져 가로 스크롤 없이 먼저 보인다(자주 보는 값이다).
+             바뀐 순서 : … 도매가 · 중지일 · 매칭 · **기본수량** · 낱개BC · 박스BC --%>
         <th title="거래중지 시작일 — 이 날짜부터 매입·판매에서 막힙니다">중지일</th><th>매칭</th>
+        <th class="r">기본수량</th>
         <th>낱개BC</th><th>박스BC</th>
       </tr></thead>
       <tbody id="tb"><tr><td colspan="17" class="empty">불러오는 중…</td></tr></tbody>
@@ -389,7 +398,9 @@
              입력칸과 동떨어져 보였다(사용자 지적 「입력쪽으로 들어오게 다른 콤보처럼」).
              ⇒ 이 화면에 이미 있는 **입력검색(규격·제조사, pcAc*)과 같은 방식**으로 바꿨다 —
                목록이 입력칸 **바로 아래**에 붙고, 모양·조작(↑↓·Enter·Esc)도 같다. --%>
-        <input id="f_venQ" placeholder="거래처명·코드 몇 자 → 아래 목록에서 고르기 (비워도 됩니다)"
+        <%-- ★[2026-08-18 요청] 팁 글자(placeholder)를 「거래처명 검색」 한 마디로 줄였다 —
+             긴 설명은 칸을 가득 채워 오히려 안 읽힌다. 자세한 안내는 아래 title(마우스 올림)에 있다. --%>
+        <input id="f_venQ" placeholder="거래처명 검색"
                autocomplete="off"
                title="이 상품을 주로 대는 거래처입니다. 매입 자료를 코드로 잡는 것은 아래 [거래처 매칭코드] 패널에서 합니다.">
         <input type="hidden" id="f_ven">
@@ -514,8 +525,10 @@ function pcRender(){
     }
     if(sb){
       var mp=_byseq[sb.prodSeq]||{};
+      /* ★[2026-08-18 요청] 「서브 → 주코드」 줄만 **두 단계 크게** — 배지 11→12→13px, 코드 11.5→12.5→13.5px.
+           누르는 자리인데 너무 작아 눈에 안 들어왔다. 아래 「마스터 : …」 는 읽기만 하는 줄이라 그대로 둔다. */
       cdCell += '<div style="margin-top:2px"><span style="display:inline-block;padding:0 5px;border-radius:8px;'
-             +  'background:#fdecea;color:#c0392b;font-size:11px;font-weight:700">서브</span>'
+             +  'background:#fdecea;color:#c0392b;font-size:13px;font-weight:700">서브</span>'
              /* ★[2026-08-18] **인라인 onclick 을 없앴다** — 「주코드를 눌러도 다른 데로 간다 / 선택이 없어진다」가
                   이어졌다. 원인 후보 1순위는 ***문자열로 조립한 onclick 속성***이었다(코드를 따옴표로 감싸며
                   이스케이프가 어긋나면 핸들러가 통째로 죽고, ***누른 티도 안 난다*** — 화면은 직전 선택을
@@ -523,15 +536,16 @@ function pcRender(){
                 ⇒ 값은 **data 속성**으로만 싣고, 실제 처리는 **위임 핸들러 한 곳**에서 한다(아래 pcSubGoBind).
                   조립할 JS 문자열이 없어져 이 부류의 오류가 원천 차단된다. */
              +  ' <a href="javascript:;" class="subgo" data-cd="'+esc(sb.prodCd)+'" data-seq="'+sb.prodSeq+'"'
-             +  ' style="font-size:11.5px;color:#1f7a4d;font-weight:700;text-decoration:underline"'
-             +  ' title="주코드 '+esc(sb.prodCd)+' 줄로 이동합니다">→ '
+             +  ' style="font-size:13.5px;color:#1f7a4d;font-weight:700;text-decoration:underline"'
+             +  ' title="주코드 '+esc(sb.prodCd)+' 를 선택합니다 — 화면은 그대로 있고 하단 매칭코드만 바뀝니다">→ '
              +  esc(sb.prodCd)+'</a></div>';
       if(mp.prodNm) mstNm='<div style="font-size:11.5px;color:#8a97a3;margin-top:2px">마스터 : '+esc(mp.prodNm)+'</div>';
     }
     return '<tr data-seq="'+o.prodSeq+'" onclick="pcSel(this,'+o.prodSeq+')" ondblclick="pcOpen('+o.prodSeq+')">'
       +'<td class="code">'+cdCell+'</td><td class="nm">'+esc(o.prodNm)+mstNm+'</td>'
-      /* ★칸 순서는 위 thead 와 **똑같이** 유지한다(2026-08-17 재배치) :
-           규격 → 제조사 → 유형 → 적정재고 → 과세 → … → 기본수량 → 중지일 → 매칭 → 낱개BC → 박스BC */
+      /* ★칸 순서는 위 thead 와 **똑같이** 유지한다(2026-08-18 재배치) :
+           규격 → 거래처명 → 제조사 → 유형 → 적정재고 → 과세 → 입수 → 입고가 → 판매가 → 도매가
+           → 중지일 → 매칭 → 기본수량 → 낱개BC → 박스BC */
       +'<td title="'+esc(o.spec)+'">'+esc(o.spec)+'</td>'   /* 잘려도 마우스로 전체를 본다 */
       /* ★거래처명 — **상품마스터에 저장된 값**을 쓴다(2026-08-17 · VENDOR_CD/NM).
          ★이름은 **지금 거래처 목록에서 코드로 찾아** 보여 준다 — 거래처명이 바뀌면 최신 이름이 나온다.
@@ -543,12 +557,13 @@ function pcRender(){
       +'<td><span class="tx" style="background:'+c+'">'+esc(o.taxGb||'-')+'</span></td>'
       +'<td class="num">'+num(o.packQty)+'</td><td class="num">'+num(o.inPrice)+'</td>'
       +'<td class="num">'+num(o.salePrice)+'</td><td class="num">'+num(o.wholePrice)+'</td>'
-      +'<td class="num">'+num(o.saleBaseQty)+'</td>'
       /* 중지일 — 값이 있으면 회색으로. 코드 아래 배지와 겹치지만, ***칸으로도 있어야*** 훑거나
          엑셀로 뽑을 때 읽힌다(2026-08-17 요청). */
       +'<td style="white-space:nowrap;color:#546e7a">'+(o.stopYn==='Y'?esc(pcFmtDt8(o.stopFrDt)):'')+'</td>'
       // 매칭 = 이 상품에 붙여 둔 거래처 코드 수. 0이면 그 코드로 오는 자료는 미매핑이 된다
       +'<td>'+(_mcCnt[o.prodSeq] ? ('<span class="tag">'+_mcCnt[o.prodSeq]+'</span>') : '<span class="tag tag-n">0</span>')+'</td>'
+      /* ★기본수량은 **매칭 뒤**다(2026-08-18) — 머리글과 순서를 맞춘 것이다. 어긋나면 값이 밀린다. */
+      +'<td class="num">'+num(o.saleBaseQty)+'</td>'
       +'<td>'+esc(o.unitBarcode)+'</td><td>'+esc(o.boxBarcode)+'</td>'
     +'</tr>';
   }).join('');
@@ -939,6 +954,14 @@ function mcAllToggle(){
     mcGoProd(Number(a.getAttribute('data-seq'))||null, a.getAttribute('data-cd')||'');
   }, true);   // ★캡처 단계 — 행 클릭 핸들러보다 먼저 잡아야 선택이 엉키지 않는다
 })();
+/* ★[2026-08-18 요청 「클릭하면 화면이 바뀐다 — 고정이어야 한다」 · 세 번째 신고]
+     서브 배지의 주코드를 누를 때 화면이 움직이는 곳은 **세 군데**였다. 셋 다 끊는다 :
+       ① `scrollIntoView` — ***스크롤되는 조상을 전부*** 굴린다(이 화면은 iframe 안이라 바깥 셸까지).
+       ② 목록(.card) 스크롤 — 주코드 줄로 굴리면 ***보던 자리를 잃는다.*** 2,001건이라 한참 멀다.
+       ③ 하단 매칭코드 패널 — mcPickProd 가 **접혀 있으면 펼친다**(44px → 46vh). 목록 높이가
+          통째로 줄어 「화면이 확 바뀐 것」의 실제 몸통이었다. ***사용자가 접어 둔 것은 접힌 채 둔다.***
+   ⇒ 이제 이 클릭이 바꾸는 것은 **선택된 줄과 하단 매칭코드 내용뿐**이다 — 스크롤·패널은 그대로.
+   ⚠되돌리려면(다시 그 줄로 굴러가게) _pick 안에서 .card 의 scrollTop 을 옮기면 된다. */
 function mcGoProd(seq, cd){
   if(cd){
     for(var i=0;i<LIST.length;i++){
@@ -947,7 +970,11 @@ function mcGoProd(seq, cd){
   }
   if(seq==null) return;
   _mcAll=false; document.getElementById('mcAllBtn').textContent='📋 전체 보기';
+  /* ★접어 둔 하단 패널은 접힌 채로 (2026-08-18) — mcPickProd 가 안에서 펼치므로 전후를 비교해 되돌린다.
+     ★행을 직접 누를 때(pcSel)는 종전대로 펼친다 — 그건 「이 상품 매칭코드를 보겠다」는 뜻이라 펼치는 게 맞다. */
+  var mcEl=document.getElementById('mc'), wasMin=!!(mcEl && mcEl.classList.contains('min'));
   _sel=seq; mcPickProd(seq);
+  if(wasMin && mcEl && !mcEl.classList.contains('min')) mcToggle();
   /* ★[2026-08-18] 그 줄이 화면에 없으면 **필터를 풀어 데려온다**(사용자 지적 「선택이 없어짐」) —
        주코드는 검색어·과세탭·매칭·중지 조건에 걸려 목록에서 빠져 있기 쉽다(예: '99' 로 검색해 서브코드
        줄만 보고 있는 상태). 종전에는 「목록 밖에 있습니다」 안내만 띄우고 **선택이 풀린 채로 끝났다.**
@@ -957,10 +984,12 @@ function mcGoProd(seq, cd){
     var sr=document.querySelector('#tb tr[data-seq="'+seq+'"]');
     if(!sr) return false;
     Array.prototype.forEach.call(document.querySelectorAll('#tb tr.sel'),function(r){ r.classList.remove('sel'); });
-    sr.classList.add('sel'); sr.scrollIntoView({block:'center'});
+    sr.classList.add('sel');   // ★굴리지 않는다 — 보던 자리를 그대로 둔다(위 ② 참고)
     return true;
   }
-  if(_pick()) return;
+  /* ★화면이 안 움직이니 **골랐다는 사실을 글로 알려 준다** — 안 그러면 누른 티가 안 난다.
+       (하단 매칭코드 줄도 그 상품으로 바뀌지만, 접어 둔 상태면 그것마저 안 보인다.) */
+  if(_pick()){ toast('주코드 '+(cd||seq)+' 을 선택했습니다 — 하단 매칭코드가 그 상품으로 바뀌었습니다.','ok'); return; }
   /* 조건 해제 — 검색어 · 과세탭 · 매칭 · 중지 */
   var cleared=[];
   var qEl=document.getElementById('q');
