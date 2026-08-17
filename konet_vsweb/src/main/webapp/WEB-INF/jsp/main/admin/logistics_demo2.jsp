@@ -7,6 +7,10 @@
 <script defer src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <%-- 공통 알림/확인 표준(_alertBox/_confirmBox/_toast — 로그인 화면과 동일 스타일). 새 알림·확인은 이걸 쓸 것 --%>
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
+<%-- ★날짜 칸에 [◀][▶][오늘] 을 자동으로 붙인다 (2026-08-17 요청) — 화면 수정 0.
+     브라우저 기본 달력의 ↑↓ 는 앞/뒤가 안 읽혀 엉뚱한 달로 넘어가는 일이 잦았다.
+     빼려면 그 칸에 data-nonav="1" --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js"></script>
 <style>
   /* SWAL 확인/알림 모달 축소 (토스트 제외) */
   .swal2-popup:not(.swal2-toast){ width:440px!important; padding:1.1em 1em 1.2em!important; font-size:14px; }

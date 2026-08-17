@@ -1,4 +1,8 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%-- ★날짜 칸에 달력 아이콘·[◀][▶][오늘] 을 자동으로 붙인다 (2026-08-17 요청) — 화면 수정 0.
+     기본 달력의 ↑↓ 는 앞/뒤가 안 읽혀, 월 이동을 ‹ › 로 둔 우리 달력을 띄운다.
+     빼려면 그 칸에 data-nonav="1" --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js"></script>
 <%--
   출고현황표(데시보드2) — 사이드바 iframe 패널로 로드되는 단독 화면 (logistics_demo.jsp 의 logiFrame 패턴)
   · 상단: 데시보드1과 공통 — 제목 + 액션버튼(엑셀업로드/매출·매입 업로드/출고데이타저장/출고장별 출력, 클릭 시 데시보드1로 전환하여 실행)

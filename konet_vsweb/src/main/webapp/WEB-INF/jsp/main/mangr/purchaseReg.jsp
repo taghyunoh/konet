@@ -3,6 +3,10 @@
 <%-- 메시지는 프로젝트 공통 컴포넌트를 쓴다 — 로그인 화면(base_login.jsp)과 같은 모양.
      SweetAlert 가 아니라 이 파일이 표준이다(_alertBox / _confirmBox / _toast). --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
+<%-- ★날짜 칸에 [◀][▶][오늘] 을 자동으로 붙인다 (2026-08-17 요청) — 화면 수정 0.
+     브라우저 기본 달력의 ↑↓ 는 앞/뒤가 안 읽혀 엉뚱한 달로 넘어가는 일이 잦았다.
+     빼려면 그 칸에 data-nonav="1" --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js"></script>
 <%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260805"></script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-quick.js"></script>
@@ -138,7 +142,8 @@
   <!-- ========== 전표 입력 ========== -->
   <div class="pu-card">
     <div class="pu-row">
-      <div class="pu-fld" style="flex:0 0 140px"><label>매입일자</label><input type="date" id="puDt" onchange="puNextNo()"></div>
+      <%-- 날짜 옆 [◀][▶][오늘] 은 **공통 ui-datenav.js 가 자동으로** 붙인다(2026-08-17) — 여기서 만들지 않는다 --%>
+      <div class="pu-fld" style="flex:0 0 232px"><label>매입일자</label><input type="date" id="puDt" onchange="puNextNo()"></div>
       <div class="pu-fld" style="flex:0 0 90px"><label>전표번호</label><input type="text" id="puNo" readonly style="background:#f5f7f9"></div>
       <%-- 거래처 = 직접 입력검색(거래처명·코드·별칭·대표·담당 부분일치). 목록을 훑어보려면 [거래처] 버튼. --%>
       <div class="pu-fld" style="flex:0 0 220px"><label>거래처</label><input type="text" id="puVenNm" placeholder="거래처명 입력 또는 [거래처]" title="거래처명·코드·별칭·대표자·담당자로 검색합니다. ↑↓ 로 고르고 Enter."><span id="puVatTag" class="vat-tag" style="display:none"></span></div>
@@ -786,7 +791,9 @@ function puRender(){
          단가는 소수점 입력 가능(fmtP — 2026-08-05 요청) */
       + '<td><input inputmode="decimal" data-r="'+i+'" data-f="unitPrice" value="'+fmtP(o.unitPrice)+'" onchange="puSet('+i+',\'unitPrice\',this.value)"></td>'
       + '<td class="num">'+fmt(o.amt)+'</td>'
-      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="dcAmt" value="'+fmt(o.dcAmt)+'" onchange="puSet('+i+',\'dcAmt\',this.value)"></td>'
+      /* ★DC 는 소수점 입력 가능 (2026-08-17 요청) — 단가와 같은 방식(decimal·fmtP).
+         종전 numeric+fmt 는 ***찍어도 정수로 잘렸다*** — 화면에도 저장에도 소수가 안 남았다. */
+      + '<td><input inputmode="decimal" data-r="'+i+'" data-f="dcAmt" value="'+fmtP(o.dcAmt)+'" onchange="puSet('+i+',\'dcAmt\',this.value)"></td>'
       + '<td class="num">'+fmt(o.supplyAmt)+'</td>'
       + '<td class="num">'+fmt(o.vatAmt)+'</td>'
       + '<td class="num">'+fmt(o.totAmt)+'</td>'
@@ -812,7 +819,9 @@ function puSet(i, k, v){
 }
 function puCalcRow(o){
   o.qty = n(o.boxQty) * (n(o.packQty)||1) + n(o.eaQty);
-  o.amt = Math.round(o.qty * n(o.unitPrice)) - n(o.dcAmt);
+  /* ★DC 를 **빼고 나서** 반올림한다 (2026-08-17) — 먼저 반올림하면 DC 소수점이 버려진다.
+     예) 49,990.5 − 10.5 = 49,980 / 종전 : 49,991 − 10 = 49,981 (DC 소수가 사라졌다) */
+  o.amt = Math.round(o.qty * n(o.unitPrice) - n(o.dcAmt));
   /* 부가세 = ① 거래처 설정(TBL_VENDOR_MST.VAT_GB) × ② 품목 과세여부 (2026-08-03 요청)
        · 별도(기본) : 공급가 = 금액,        부가세 = 금액의 10%   → 합계 = 금액 + 부가세
        · 포함       : 공급가 = 금액 ÷ 1.1,  부가세 = 금액 − 공급가 → 합계 = 금액 (그대로)
@@ -896,7 +905,8 @@ function puCalc(){
   });
   document.getElementById('tBox').textContent=fmt(t.box); document.getElementById('tEa').textContent=fmt(t.ea);
   document.getElementById('tQty').textContent=fmt(t.qty); document.getElementById('tAmt').textContent=fmt(t.amt);
-  document.getElementById('tDc').textContent=fmt(t.dc);   document.getElementById('tSup').textContent=fmt(t.sup);
+  /* ★DC 합계도 소수로 (2026-08-17) — 행은 10.5 인데 합계가 11 로 보이면 어긋난 것처럼 읽힌다 */
+  document.getElementById('tDc').textContent=fmtP(t.dc);   document.getElementById('tSup').textContent=fmt(t.sup);
   document.getElementById('tVat').textContent=fmt(t.vat); document.getElementById('tTot').textContent=fmt(t.tot);
   document.getElementById('tSvc').textContent=fmt(t.svc);
   /* 거래후잔고 = 현잔고 − (이 전표가 이미 반영해 둔 금액) + (지금 화면 금액)

@@ -108,6 +108,8 @@
 
 <%-- 메시지는 프로젝트 공통 컴포넌트(asset/js/ui-message.js) — 로그인 화면·매입등록과 같은 모양.
      브라우저 기본 confirm/alert 은 쓰지 않는다(2026-08-06 요청). --%>
+<%-- 날짜 칸 공통(달력·[◀][▶][오늘]) — 2026-08-17 --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js"></script>
 <script src="${ctx}/asset/js/ui-message.js"></script>
 <script src="${ctx}/assets/vendor/sheetjs/xlsx.full.min.js"></script>
 <script>
