@@ -1287,11 +1287,9 @@ public class UserController {
 			p.put("compCd", session.getAttribute("s_comp_cd"));
 			java.util.List<egovframework.sejong.user.model.ProdDTO> st = svc.selectStoppedAmong(p);
 			if (st == null || st.isEmpty()) return null;
-			StringBuilder sb = new StringBuilder("거래중지된 상품코드가 있어 저장할 수 없습니다.
-");
+			StringBuilder sb = new StringBuilder("거래중지된 상품코드가 있어 저장할 수 없습니다.\n");
 			for (egovframework.sejong.user.model.ProdDTO d : st) {
-				sb.append("
-· ").append(d.getProdCd()).append(" ").append(d.getProdNm()==null?"":d.getProdNm());
+				sb.append("\n· ").append(d.getProdCd()).append(" ").append(d.getProdNm()==null?"":d.getProdNm());
 				sb.append("  (").append(d.getStopFrDt()).append(" 부터 중지");
 				if (d.getStopMemo()!=null && !d.getStopMemo().isEmpty()) sb.append(" · ").append(d.getStopMemo());
 				sb.append(")");
