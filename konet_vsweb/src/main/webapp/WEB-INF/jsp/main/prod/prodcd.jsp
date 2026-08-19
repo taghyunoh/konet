@@ -80,11 +80,8 @@
        ⚠td 에서 ellipsis 가 듣게 하려면 **max-width 가 반드시 있어야 한다** — 위 max-width 가 그 몫이다. */
   .card table th:nth-child(3), .card table td:nth-child(3){ min-width:300px; max-width:320px;
        overflow:hidden; text-overflow:ellipsis; }  /* 규격 */
-  /* ★[2026-08-18 요청 「제조사·유형을 조금 우측으로」]
-       제조사(5)·유형(6)은 **앞 칸이 끝나는 자리에서 시작**한다 — 두 칸을 직접 밀 방법은 없고
-       **바로 앞 거래처명(4) 폭을 넓히면** 그만큼 함께 오른쪽으로 밀린다.
-       120 → **180px** (≒1.6cm). ⚠더 밀거나 되돌릴 곳은 이 한 줄이다. */
-  .card table th:nth-child(4), .card table td:nth-child(4){ min-width:180px; }   /* 거래처명 */
+  /* ★[2026-08-20] 거래처명 칸 삭제로 nth-child(4) 폭 규칙(2026-08-18 「제조사·유형 우측으로」 180px)도
+       걷어냈다 — 남겨 두면 이제 4번째가 된 제조사가 애꿎게 넓어진다. */
   td.num{ text-align:right; }
   .tx{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#fff; }
   .empty{ padding:26px; text-align:center; color:#9aa7b3; }
@@ -99,7 +96,9 @@
   .pager .pmore{ margin-left:10px; min-width:0; padding:0 12px; color:var(--teal); border-color:#a9d5cd; font-size:12.5px; }
   #ov{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:50; align-items:flex-start; justify-content:center; }
   #ov.on{ display:flex; }
-  #ov .box{ background:#fff; width:min(820px,94vw); margin-top:4vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); max-height:92vh; display:flex; flex-direction:column; }
+  /* ★폭 820 → 960 · 위 여백 4vh → 2vh (2026-08-20 요청 「모달 하단 확대 잘보이게」) —
+     아래 재고수량·조정 이력까지 스크롤 없이(또는 조금만 내려서) 한눈에 들어오게 */
+  #ov .box{ background:#fff; width:min(960px,94vw); margin-top:2vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); max-height:95vh; display:flex; flex-direction:column; }
   #ov .mh{ background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:13px 18px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
   #ov .mh b{ font-size:16px; }
   #ov .mh .x{ background:none; border:none; color:#fff; font-size:22px; cursor:pointer; }
@@ -141,6 +140,33 @@
   #ov .sub{ grid-column:1 / -1; border:1px dashed #b9c9d6; border-radius:8px; padding:10px 12px;
             background:#f7fbfd; display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
   #ov .sub .cap{ grid-column:1 / -1; font-size:12.5px; color:#5a6b7a; font-weight:700; }
+  /* ── 재고수량 (수정 창에만) — 재고 일괄조정(stockAdj.jsp)의 한 줄 판 ──
+     칸 배열·정렬을 그 화면과 똑같이 둔다(BOX재고·EA재고·합계재고 → 수정BOX·수정EA → 증감, 숫자는 오른쪽).
+     두 화면을 오가며 재고를 만지는 사람이 같은 눈으로 읽게 하려는 것. */
+  /* ★한 단계씩 키움 (2026-08-20 요청 「하단 확대 잘보이게」) — 글자 13→14.5px · 칸 여백·입력 높이 확대 */
+  #ov .stk{ grid-column:1 / -1; border:1px dashed #b9c9d6; border-radius:8px; padding:12px 14px; background:#f7fbfd; }
+  #ov .stk .cap{ font-size:13.5px; color:#5a6b7a; font-weight:700; margin-bottom:9px; }
+  #ov .stk table{ width:100%; border-collapse:collapse; font-size:14.5px; }
+  #ov .stk th{ background:#eef2f5; border:1px solid #d5dee6; padding:8px 9px; font-weight:700; color:#3a4a53; text-align:center; white-space:nowrap; font-size:14px; }
+  #ov .stk td{ border:1px solid #e3eaf0; padding:7px 9px; background:#fff; }
+  #ov .stk td.r{ text-align:right; }
+  #ov .stk td.c{ text-align:center; }
+  #ov .stk td.neg{ color:#b23b3b; font-weight:700; }        /* 음수 재고 = 입고 누락 신호 (stockAdj 와 동일) */
+  #ov .stk input{ width:104px; height:32px; text-align:right; font-size:14.5px; }
+  #ov .stk .diff{ font-weight:800; }
+  #ov .stk .diff.up{ color:#1f7a4b; }
+  #ov .stk .diff.dn{ color:#b23b3b; }
+  #ov .stk .rmk{ display:flex; gap:8px; align-items:center; margin-top:9px; }
+  #ov .stk .rmk input{ flex:1 1 auto; width:auto; height:32px; text-align:left; }
+  #ov .stk .dim{ color:#9aa7b3; }
+  /* 이 상품의 조정 이력 — stockAdj 하단 [조정 이력]의 축소판(이 상품 것만) */
+  #ov .stk .his{ margin-top:11px; border-top:1px dashed #b9c9d6; padding-top:9px; }
+  #ov .stk .his .hcap{ font-size:13.5px; color:#5a6b7a; font-weight:700; margin-bottom:6px; }
+  #ov .stk .hgrid{ max-height:220px; overflow:auto; }
+  #ov .stk .his table{ font-size:13.5px; }
+  #ov .stk .his th{ position:sticky; top:0; z-index:1; }
+  #ov .stk .undo{ height:24px; width:auto; border:1px solid #b23b3b; background:#fff; color:#b23b3b;
+                  border-radius:4px; padding:0 9px; font-size:12.5px; font-weight:700; cursor:pointer; text-align:center; }
   /* 규격·제조사명은 한 단계 크게 (2026-08-04 요청) — 값을 눈으로 대조하며 고르는 칸이라 */
   #ov #f_spec, #ov #f_maker{ font-size:15px; height:36px; }
   #ov .mf{ padding:12px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
@@ -183,14 +209,15 @@
   #mc{ position:fixed; left:0; right:0; bottom:0; height:var(--mc-h); min-height:330px; z-index:45; }
   #mc.min{ height:44px; min-height:0; }
   #mc .box{ background:#fff; width:100%; height:100%; border-radius:12px 12px 0 0; box-shadow:0 -10px 34px rgba(0,0,0,.18);
-            border-top:2px solid var(--teal); display:flex; flex-direction:column; }
+            border-top:2px solid #8fc7bc; display:flex; flex-direction:column; }
   #mc.min .mb2{ display:none; }
-  #mc .mh{ background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:8px 16px; border-radius:12px 12px 0 0;
+  /* ★제목 띠 = 진한 teal → 연한 teal (2026-08-20 요청 「너무 진한색 연하게」) — 글자·닫기 색도 어두운 초록으로 */
+  #mc .mh{ background:linear-gradient(135deg,#e3f2ee,#d2e9e2); color:#0b4f43; padding:8px 16px; border-radius:12px 12px 0 0;
            display:flex; align-items:center; gap:10px; }
   #mc .mh b{ font-size:14.5px; flex:0 0 auto; }
   #mc .mh .pick{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-                 background:rgba(255,255,255,.16); border-radius:6px; padding:4px 10px; font-size:12.5px; }
-  #mc .mh .x{ background:none; border:none; color:#fff; font-size:20px; cursor:pointer; flex:0 0 auto; }
+                 background:rgba(19,122,108,.08); border-radius:6px; padding:4px 10px; font-size:12.5px; }
+  #mc .mh .x{ background:none; border:none; color:#137a6c; font-size:20px; cursor:pointer; flex:0 0 auto; }
   #mc .mb2{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
   #mc .tbwrap{ flex:1 1 auto; min-height:60px; overflow:auto; }
   #mc table{ width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap; }
@@ -309,9 +336,10 @@
                · 낱개BC·박스BC : 자주 안 보는 값이라 **맨 뒤로**
              ⚠칸 순서를 바꿀 때는 **머리글과 pcRender() 의 td 순서를 함께** 고쳐야 한다(둘 다 손댔다).
                어긋나면 값이 한 칸씩 밀려 엉뚱한 열에 보인다. --%>
-        <%-- ★[2026-08-17] 거래처명은 **규격 뒤**다(최종). 앞으로 당겼다가 되돌린 것이다 —
-             규격과 제조사 사이가 제자리라는 사용자 확인(「거래처명 규격 뒤에」). --%>
-        <th>코드</th><th>상품명</th><th>규격</th><th>거래처명</th>
+        <%-- ★[2026-08-20 요청] 거래처명 칸 **삭제** — 거의 빈 칸이라 자리만 먹었다.
+             값 자체(VENDOR_CD/NM)는 마스터에 남아 있고 수정 창의 거래처 칸에서 본다.
+             (2026-08-17 「규격 뒤」 배치 이력은 git 참고. 되살리면 pcRender 의 td 도 같이.) --%>
+        <th>코드</th><th>상품명</th><th>규격</th>
         <th>제조사</th><th>유형</th><th class="r">적정재고</th><th>과세</th>
         <th class="r">입수</th><th class="r">입고가</th><th class="r">판매가</th><th class="r">도매가</th>
         <%-- ★[2026-08-18 요청 「기본수량·매칭 위치 변경」] 기본수량을 **매칭 뒤로** 밀었다 —
@@ -321,7 +349,7 @@
         <th class="r">기본수량</th>
         <th>낱개BC</th><th>박스BC</th>
       </tr></thead>
-      <tbody id="tb"><tr><td colspan="17" class="empty">불러오는 중…</td></tr></tbody>
+      <tbody id="tb"><tr><td colspan="16" class="empty">불러오는 중…</td></tr></tbody>
     </table>
   </div>
   <div id="pager" class="pager"></div>
@@ -401,26 +429,7 @@
       <div class="fld"><label>과세</label><select id="f_tax"><option value="과세">과세</option><option value="면세">면세</option></select></div>
       <%-- 코드 칸 바로 아래 줄 = 마지막으로 등록한 상품코드·상품명 (2026-08-12). 추가할 때만 나온다. --%>
       <div class="fld full lastcd" id="lastCd" style="display:none"></div>
-      <%-- ★[2026-08-17] 상품마스터에 **거래처 칸을 새로 만들어**(sql/prod_mst_vendor_alter.sql)
-             여기서 「이 상품의 거래처」를 그대로 저장한다. 코드 칸이 필요 없어졌다.
-           ⚠***거래처코드 매칭(아래 패널)과 다른 것***이다 :
-             · 이 칸        = 「이 상품을 주로 대는 거래처」 — 사람이 보는 정보
-             · 아래 매칭코드 = 「거래처가 부르는 코드 ↔ 우리 상품코드」 — 매입 자료를 잡는 열쇠
-             매입 매칭은 여전히 코드가 있어야 도니, 코드를 붙일 때는 아래 패널을 쓴다.
-           ★목록은 **입력칸 바로 아래**에 붙는다(규격·제조사와 같은 입력검색 방식). --%>
-      <div class="fld full">
-        <label>거래처</label>
-        <%-- ★[2026-08-17] datalist 를 버렸다 — 브라우저가 **창 밖 화면 오른쪽 끝**에 목록을 그려
-             입력칸과 동떨어져 보였다(사용자 지적 「입력쪽으로 들어오게 다른 콤보처럼」).
-             ⇒ 이 화면에 이미 있는 **입력검색(규격·제조사, pcAc*)과 같은 방식**으로 바꿨다 —
-               목록이 입력칸 **바로 아래**에 붙고, 모양·조작(↑↓·Enter·Esc)도 같다. --%>
-        <%-- ★[2026-08-18 요청] 팁 글자(placeholder)를 「거래처명 검색」 한 마디로 줄였다 —
-             긴 설명은 칸을 가득 채워 오히려 안 읽힌다. 자세한 안내는 아래 title(마우스 올림)에 있다. --%>
-        <input id="f_venQ" placeholder="거래처명 검색"
-               autocomplete="off"
-               title="이 상품을 주로 대는 거래처입니다. 매입 자료를 코드로 잡는 것은 아래 [거래처 매칭코드] 패널에서 합니다.">
-        <input type="hidden" id="f_ven">
-      </div>
+      <%-- 거래처 칸은 규격 줄 오른쪽으로 옮겼다 (2026-08-20 요청 「규격 줄 2등분 우측」) — 아래 규격 옆에 있다. --%>
       <%-- ★상품명을 치고 칸을 벗어나면 **비슷한 상품이 이미 있는지** 알려 준다 (2026-08-17 요청).
            신규 등록 순간이 유일한 방어선이다 — 같은 물건을 다른 이름·다른 코드로 또 만들면
            ***재고가 두 코드로 갈라지고*** 뒤에 합칠 방법이 없다. 막지는 않는다(다른 물건일 수 있다). --%>
@@ -432,10 +441,30 @@
         </div>
       </div>
       <%-- 규격·제조사명은 쓰던 값을 찾아 넣는다(2026-08-04) — 목록에 없으면 그냥 쳐도 된다 --%>
-      <div class="fld full"><label>규격</label><input id="f_spec" placeholder="규격 — 쓰던 값 검색 (없으면 그냥 입력)" autocomplete="off"></div>
+      <%-- ★규격 줄을 2등분 — 왼쪽 규격 · 오른쪽 거래처 (2026-08-20 요청). 둘 다 full 을 뗐다. --%>
+      <div class="fld"><label>규격</label><input id="f_spec" placeholder="규격 — 쓰던 값 검색 (없으면 그냥 입력)" autocomplete="off"></div>
+      <%-- ★[2026-08-17] 상품마스터에 **거래처 칸을 새로 만들어**(sql/prod_mst_vendor_alter.sql)
+             여기서 「이 상품의 거래처」를 그대로 저장한다. 코드 칸이 필요 없어졌다.
+           ⚠***거래처코드 매칭(아래 패널)과 다른 것***이다 :
+             · 이 칸        = 「이 상품을 주로 대는 거래처」 — 사람이 보는 정보
+             · 아래 매칭코드 = 「거래처가 부르는 코드 ↔ 우리 상품코드」 — 매입 자료를 잡는 열쇠
+             매입 매칭은 여전히 코드가 있어야 도니, 코드를 붙일 때는 아래 패널을 쓴다.
+           ★목록은 **입력칸 바로 아래**에 붙는다(규격·제조사와 같은 입력검색 방식 — pcAc 는 fixed 배치라
+             칸이 어디 있든 따라온다). datalist 폐기·placeholder 축약 이력은 git(2026-08-17·18) 참고. --%>
+      <div class="fld">
+        <label>거래처</label>
+        <input id="f_venQ" placeholder="거래처명 검색"
+               autocomplete="off"
+               title="이 상품을 주로 대는 거래처입니다. 매입 자료를 코드로 잡는 것은 아래 [거래처 매칭코드] 패널에서 합니다.">
+        <input type="hidden" id="f_ven">
+      </div>
       <div class="fld"><label>제조사명</label><input id="f_maker" placeholder="쓰던 값 검색 (없으면 그냥 입력)" autocomplete="off"></div>
       <div class="fld"><label>유형명</label><input id="f_type"></div>
-      <div class="fld"><label>입수수량</label><input id="f_pack" type="number" value="1"></div>
+      <%-- ★입수수량 입력칸은 **이 하나뿐**이다 (2026-08-20 「변수 중복」 지적) —
+             수정 창에서는 이 칸(f_pack)을 통째로 아래 재고 표의 첫 칸(s_pkTd)으로 **옮겨 달고** 이 자리는 숨긴다.
+             추가 창에서는 재고 표가 없으므로 여기 그대로 둔다. 값이 두 군데 살지 않으니 동기화도 없다. --%>
+      <div class="fld" id="packFld"><label>입수수량</label><input id="f_pack" type="number" value="1"
+           title="입수수량(BOX당 EA) — 고치면 BOX/EA 재고가 다시 나뉩니다"></div>
       <div class="fld"><label>조회순서</label><input id="f_sort" type="number" value="999999"></div>
       <div class="fld"><label>입고단가</label><input id="f_in" type="number" step="0.01" value="0"></div>
       <div class="fld"><label>판매단가</label><input id="f_sale" type="number" step="0.01" value="0"></div>
@@ -444,6 +473,52 @@
       <div class="fld"><label>판매기본수량</label><input id="f_base" type="number" value="0"></div>
       <div class="fld"><label>낱개바코드</label><input id="f_ubc"></div>
       <div class="fld"><label>박스바코드</label><input id="f_bbc"></div>
+      <%-- ★재고수량 (2026-08-20 요청) — **수정 창에만** 나온다(새 상품은 재고가 없다).
+             재고 일괄조정(stockAdj.jsp)과 같은 칸 배열 : 현재고(BOX·EA·합계) → 수정BOX·수정EA → 증감.
+           ★현재고는 창을 열 때 **이 상품 것만** 읽는다 — 목록(prodList)에 합계재고를 붙이면
+             원장 집계가 조회마다 돌아 느려진다(재고 일괄조정에서 겪은 그 문제). 여기는 창 열 때 한 번뿐.
+           ★저장은 stockAdjSave.do 재사용 — 덮어쓰지 않고 **차이만큼 조정행(IO_GB='A')** 이 남고,
+             재고 일괄조정 화면의 [조정 이력]에서 똑같이 보이고 되돌릴 수 있다. --%>
+      <div class="stk" id="stkBox" style="display:none">
+        <%-- 괄호 안내(재고 일괄조정과 같은 방식…)는 뺐다 — 2026-08-20 요청 「표시삭제」 --%>
+        <div class="cap">📦 재고수량 — 수정BOX·수정EA 를 고치면 <b>차이만큼 조정</b>으로 저장됩니다</div>
+        <%-- ★입수수량이 **제일 앞** (2026-08-20 요청) — 재고 일괄조정의 칸 순서(입수수량 → 재고들)와 같다.
+               이 칸은 비어 있다가 수정 창을 열 때 위 상품 항목의 입수수량 입력칸(f_pack)이 **통째로 옮겨 들어온다**
+               (pcStkOpen) — 같은 값을 두 칸에 두고 동기화하는 중복을 없앤 것(2026-08-20 「변수 중복」 지적). --%>
+        <table>
+          <thead><tr>
+            <th>입수수량</th>
+            <th>BOX재고</th><th>EA재고</th><th>합계재고</th>
+            <th>수정BOX재고</th><th>수정EA재고</th><th>증감</th>
+          </tr></thead>
+          <tbody><tr>
+            <td class="c" id="s_pkTd"></td>
+            <td class="r" id="s_vb">-</td>
+            <td class="r" id="s_ve">-</td>
+            <td class="r" id="s_cur">-</td>
+            <td class="c"><input id="s_bx" type="number" oninput="pcStkChg()" title="BOX 단위 재고 — 입수수량(BOX당 EA)으로 환산해 합계가 계산됩니다"></td>
+            <td class="c"><input id="s_ea" type="number" oninput="pcStkChg()" title="낱개(EA) 재고"></td>
+            <td class="r" id="s_df"><span class="dim">-</span></td>
+          </tr></tbody>
+        </table>
+        <div class="rmk"><label>사유</label><input id="s_rmk" placeholder="재고 조정 사유 (비우면 '상품코드등록에서 조정' 으로 남습니다)"></div>
+        <%-- 이 상품의 조정 이력 (2026-08-20 요청) — 재고 일괄조정 하단 [조정 이력]과 같은 내용을 이 상품 것만.
+             되돌리기는 stockAdj 와 같은 묶음(BATCH_NO) 단위 — 한 저장에 여러 상품이 섞였으면 **전부 함께** 내려간다. --%>
+        <div class="his">
+          <div class="hcap">📜 이 상품의 조정 이력</div>
+          <div class="hgrid">
+            <table>
+              <thead><tr>
+                <th>기준일자</th><th class="r">전</th><th class="r">후</th><th class="r">증감</th>
+                <th class="r">입수</th><th>사유</th><th>등록자</th><th>등록일시</th><th class="c">되돌리기</th>
+              </tr></thead>
+              <tbody id="s_hisBody">
+                <tr><td colspan="9" class="c dim" style="padding:10px">-</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="mf">
       <button class="btn" onclick="pcClose()">취소</button>
@@ -528,7 +603,7 @@ function pcRender(){
   // ★_sel 은 지우지 않는다 — 매칭코드 등록 후 목록을 다시 그려도 고른 상품이 풀리면 안 된다
   //   (그 행이 이번 화면에 없으면 아래 복원에서 자연히 표시만 안 된다)
   var tb=document.getElementById('tb');
-  if(!tot){ tb.innerHTML='<tr><td colspan="17" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1,0); return; }
+  if(!tot){ tb.innerHTML='<tr><td colspan="16" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1,0); return; }
   // 펼침(_all)이면 조회된 전 건을 한 번에 — 페이지 버튼 대신 목록 스크롤로 훑는다
   var from = _all ? 0 : (_page-1)*PAGE, to = _all ? tot : Math.min(from+PAGE, tot);
   tb.innerHTML=_view.slice(from,to).map(function(o){
@@ -565,15 +640,11 @@ function pcRender(){
     /* ★중지된 줄은 class="stopped" — 색칠하기는 CSS 가 한다(2026-08-19 요청) */
     return '<tr'+(o.stopYn==='Y'?' class="stopped"':'')+' data-seq="'+o.prodSeq+'" onclick="pcSel(this,'+o.prodSeq+')" ondblclick="pcOpen('+o.prodSeq+')">'
       +'<td class="code">'+cdCell+'</td><td class="nm">'+esc(o.prodNm)+mstNm+'</td>'
-      /* ★칸 순서는 위 thead 와 **똑같이** 유지한다(2026-08-18 재배치) :
-           규격 → 거래처명 → 제조사 → 유형 → 적정재고 → 과세 → 입수 → 입고가 → 판매가 → 도매가
-           → 중지일 → 매칭 → 기본수량 → 낱개BC → 박스BC */
+      /* ★칸 순서는 위 thead 와 **똑같이** 유지한다(2026-08-20 거래처명 칸 삭제) :
+           규격 → 제조사 → 유형 → 적정재고 → 과세 → 입수 → 입고가 → 판매가 → 도매가
+           → 중지일 → 매칭 → 기본수량 → 낱개BC → 박스BC
+         ★거래처명 칸은 뺐다(2026-08-20 요청) — 값(VENDOR_CD/NM)은 마스터에 그대로, 수정 창에서 본다. */
       +'<td title="'+esc(o.spec)+'">'+esc(o.spec)+'</td>'   /* 잘려도 마우스로 전체를 본다 */
-      /* ★거래처명 — **상품마스터에 저장된 값**을 쓴다(2026-08-17 · VENDOR_CD/NM).
-         ★이름은 **지금 거래처 목록에서 코드로 찾아** 보여 준다 — 거래처명이 바뀌면 최신 이름이 나온다.
-           목록에 없으면(폐업 등) 저장해 둔 그때 그 이름으로 물러난다.
-         ⚠아래 [거래처 매칭코드] 패널의 거래처와 **다른 값**이다 — 그건 「그 코드를 통보한 거래처」다. */
-      +'<td style="color:#37556b">'+esc(o.vendorCd ? (mcVenNm(o.vendorCd)||o.vendorNm||o.vendorCd) : '')+'</td>'
       +'<td>'+esc(o.makerNm)+'</td><td>'+esc(o.typeNm)+'</td>'
       +'<td class="num">'+num(o.safeStock)+'</td>'
       +'<td><span class="tx" style="background:'+c+'">'+esc(o.taxGb||'-')+'</span></td>'
@@ -765,15 +836,143 @@ function pcOpen(seq){
   _set('f_ven', o?(o.vendorCd||''):'');
   _set('f_venQ', o&&o.vendorCd ? ((mcVenNm(o.vendorCd)||o.vendorNm||'')+' ['+o.vendorCd+']') : '');
   pcLastCdShow(!o);                   // 추가일 때만 「최근 등록 코드·상품명」 줄을 낸다 (수정은 코드가 잠겨 있어 쓸모없다)
+  pcStkOpen(o);                       // 재고수량 칸 — 수정이면 이 상품의 현재고를 읽어 채운다(추가면 숨김)
   // 추가는 9번대 새 코드를 미리 넣어 둔다 — 아래에서 코드 칸을 select 하므로 그냥 쳐서 바꿀 수 있다
   if(!o && _nextCd) _set('f_cd', _nextCd);
   document.getElementById('ov').classList.add('on');
   pcAcClose();                        // 이전에 열려 있던 규격·제조사 후보창은 닫고 시작한다
-  // 창을 열면 곧바로 칠 수 있게(2026-08-04) — 추가는 상품코드부터, 수정은 코드가 잠겨 있으니 상품명부터
-  var first=document.getElementById(o?'f_nm':'f_cd');
-  setTimeout(function(){ if(first){ first.focus(); if(first.select) first.select(); } }, 0);
+  // 창을 열면 곧바로 칠 수 있게(2026-08-04) — 추가는 상품코드에 포커스.
+  // ★수정 창은 아무것도 선택하지 않는다 (2026-08-20 요청 「기본선택이 상품명인데 선택없게」) —
+  //   상품명이 통째로 선택된 채 열려 키를 잘못 누르면 이름이 날아갔다.
+  if(!o){
+    var first=document.getElementById('f_cd');
+    setTimeout(function(){ if(first){ first.focus(); if(first.select) first.select(); } }, 0);
+  }
 }
 function pcClose(){ document.getElementById('ov').classList.remove('on'); pcAcClose(); }
+
+/* ==================== 재고수량 (수정 창의 재고 칸) ====================
+   재고 일괄조정(stockAdj.jsp)의 한 줄 판 — 규칙을 그 화면과 똑같이 둔다.
+   ★현재고 = /prod/stockQtyMap.do (원장 합계, 대시보드가 쓰는 가벼운 조회 — 2026-08-07 실측 29ms).
+     ***목록 조회(prodList)에는 붙이지 않는다*** — 전 품목 원장 집계가 조회마다 돌면
+     재고 일괄조정에서 겪은 「현재고 계산 때문에 조회가 느려지는」 문제가 여기서도 생긴다.
+     창을 여는 순간 한 번만 읽는다.
+   ★BOX/EA 분해 = 현재고를 입수수량으로 나눈 표시일 뿐(음수는 부호 유지 — stockAdj 와 동일).
+     입수수량 칸(f_pack)을 고치면 그 자리에서 다시 나눈다(수정칸도 같이 맞춰 증감 0).
+   ★저장 = /prod/stockAdjSave.do 재사용 — 차이만큼 조정행(A)+이력. 되돌리기는 재고 일괄조정의 [조정 이력]. */
+var _stk=null, _stkSeq=null;   /* _stk = {curQty,box,ea} — null 이면 아직 못 읽음(재고 저장은 건너뜀) */
+function pcStkOpen(o){
+  var box=document.getElementById('stkBox');
+  _stk=null; _stkSeq=o?String(o.prodSeq):null;
+  document.getElementById('s_rmk').value='';
+  /* ★입수수량 입력칸(f_pack)은 하나뿐 — 수정 창에서는 재고 표 첫 칸으로 옮겨 달고 위 자리는 숨긴다.
+     추가 창에서는 원래 자리(packFld)로 되돌린다. 값이 두 군데 살지 않으니 동기화가 필요 없다. */
+  var pf=document.getElementById('packFld'), pi=document.getElementById('f_pack');
+  if(!o){ pf.appendChild(pi); pf.style.display=''; box.style.display='none'; return; }
+  document.getElementById('s_pkTd').appendChild(pi); pf.style.display='none';
+  box.style.display='block';
+  ['s_vb','s_ve','s_cur'].forEach(function(id){ var el=document.getElementById(id); el.textContent='…'; el.className='r'; });
+  document.getElementById('s_df').innerHTML='<span class="dim">-</span>';
+  ['s_bx','s_ea'].forEach(function(id){ var el=document.getElementById(id); el.value=''; el.disabled=true; });
+  pcStkHisLoad(o);                                     // 이 상품의 조정 이력 — 재고와 나란히 읽는다
+  fetch(CTX+'/prod/stockQtyMap.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(_stkSeq!==String(o.prodSeq)) return;          // 그 사이 다른 상품을 열었다 — 옛 응답은 버린다
+      var cur=0;
+      ((j&&j.data)||[]).some(function(x){ if(String(x.prodCd)===String(o.prodCd)){ cur=Number(x.curQty)||0; return true; } return false; });
+      _stk={ curQty:cur };
+      ['s_bx','s_ea'].forEach(function(id){ document.getElementById(id).disabled=false; });
+      pcStkSplit();
+    })
+    .catch(function(){
+      if(_stkSeq!==String(o.prodSeq)) return;
+      ['s_vb','s_ve','s_cur'].forEach(function(id){ document.getElementById(id).textContent='?'; });
+      toast('현재고를 불러오지 못했습니다 — 재고 칸은 이번 저장에서 빠집니다.','warn');
+    });
+}
+function pcStkPack(){ var v=Number(gv('f_pack')||0); return v<1?1:v; }
+function pcStkSplit(){
+  if(!_stk) return;
+  var pack=pcStkPack(), cur=_stk.curQty, sign=cur<0?-1:1;
+  var box=sign*Math.floor(Math.abs(cur)/pack), ea=sign*(Math.abs(cur)%pack);
+  _stk.box=box; _stk.ea=ea;
+  document.getElementById('s_vb').textContent=box;
+  document.getElementById('s_ve').textContent=ea;
+  var c=document.getElementById('s_cur'); c.textContent=cur; c.className='r'+(cur<0?' neg':'');
+  document.getElementById('s_bx').value=box;           // 수정칸 = 현재값 → 증감 0 에서 시작
+  document.getElementById('s_ea').value=ea;
+  pcStkChg();
+}
+function pcStkDiff(){
+  if(!_stk) return 0;
+  var aft=(Number(gv('s_bx'))||0)*pcStkPack()+(Number(gv('s_ea'))||0);
+  return aft-_stk.curQty;
+}
+function pcStkChg(){
+  var td=document.getElementById('s_df');
+  if(!_stk){ td.innerHTML='<span class="dim">-</span>'; return; }
+  var d=pcStkDiff();
+  td.innerHTML = d===0 ? '<span class="dim">-</span>'
+    : '<span class="diff '+(d>0?'up':'dn')+'">'+(d>0?'+':'')+d+'</span>';
+}
+/* 입수수량을 고치면 BOX/EA 를 그 자리에서 다시 나눈다 — 안 하면 옛 BOX 숫자가 새 입수수량으로
+   곱해져 건드리지도 않은 재고가 바뀐 것처럼 잡힌다(stockAdj packChg 와 같은 이유).
+   ★리스너는 요소에 붙어 있으므로 칸을 재고 표로 옮겨 달아도(appendChild) 그대로 산다. */
+(function(){ var p=document.getElementById('f_pack'); if(p) p.addEventListener('input', function(){ if(_stk) pcStkSplit(); }); })();
+function _todayYmd(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+
+/* ── 이 상품의 조정 이력 — stockAdj 하단 [조정 이력]의 축소판 ─────────────────
+   조회는 같은 엔드포인트(stockAdjHisList.do)에 prodSeq 만 얹는다(SQL 이 이미 받는다 — 서버 무변경).
+   되돌리기도 stockAdj 와 같은 묶음(BATCH_NO) 단위 — 한 저장에 여러 상품이 섞였으면 전부 함께 내려간다. */
+function pcStkHisLoad(o){
+  var tb=document.getElementById('s_hisBody');
+  tb.innerHTML='<tr><td colspan="9" class="c dim" style="padding:10px">불러오는 중…</td></tr>';
+  fetch(CTX+'/prod/stockAdjHisList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      credentials:'same-origin', body:'prodSeq='+encodeURIComponent(o.prodSeq) })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(_stkSeq!==String(o.prodSeq)) return;          // 그 사이 다른 상품을 열었다
+      var rows=(j&&j.data)||[];
+      if(!rows.length){ tb.innerHTML='<tr><td colspan="9" class="c dim" style="padding:10px">조정 이력이 없습니다.</td></tr>'; return; }
+      tb.innerHTML=rows.map(function(h){
+        var d=Number(h.diffQty)||0, bd=String(h.baseDt||'');
+        if(bd.length===8) bd=bd.slice(0,4)+'-'+bd.slice(4,6)+'-'+bd.slice(6,8);
+        return '<tr>'
+          + '<td class="c">'+esc(bd)+'</td>'
+          + '<td class="r">'+(h.befQty==null?'':h.befQty)+'</td>'
+          + '<td class="r">'+(h.aftQty==null?'':h.aftQty)+'</td>'
+          + '<td class="r"><span class="diff '+(d>0?'up':'dn')+'">'+(d>0?'+':'')+d+'</span></td>'
+          + '<td class="r">'+(h.packQty==null?'':h.packQty)+'</td>'
+          + '<td>'+esc(h.remark)+'</td>'
+          + '<td class="c">'+esc(h.regUser)+'</td>'
+          + '<td class="c">'+esc(h.regDttm)+'</td>'
+          + '<td class="c"><button type="button" class="undo" onclick="pcStkUndo(\''+esc(h.batchNo)+'\')">되돌리기</button></td>'
+          + '</tr>';
+      }).join('');
+    })
+    .catch(function(){
+      if(_stkSeq!==String(o.prodSeq)) return;
+      tb.innerHTML='<tr><td colspan="9" class="c dim" style="padding:10px">이력을 불러오지 못했습니다.</td></tr>';
+    });
+}
+function pcStkUndo(batchNo){
+  var seq=gv('f_seq'), o=seq?_byseq[seq]:null;
+  confirmBox('<b>'+esc(batchNo)+'</b> 묶음을 되돌립니다.<br>'
+           + '이 저장으로 만들어진 <b>조정행이 모두 내려갑니다</b> — 같은 저장에 다른 상품이 섞였으면 그것도 함께 되돌아갑니다.',
+    function(){
+      fetch(CTX+'/prod/stockAdjCancel.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+          credentials:'same-origin', body:'batchNo='+encodeURIComponent(batchNo) })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if(!d||d.result!=='OK'){ alertBox('되돌리지 못했습니다.<br>'+esc((d&&d.message)||''),'⚠️'); return; }
+          toast(d.cnt+'건 되돌렸습니다.','ok');
+          if(o) pcStkOpen(o);                          // 현재고·이력을 새 값으로 다시 읽는다 (사유 칸은 비워진다)
+        })
+        .catch(function(){ alertBox('되돌리지 못했습니다.','⚠️'); });
+    }, '되돌리기', '⚠️');
+}
+
 function pcSave(){
   var seq=gv('f_seq'), cd=gv('f_cd'), nm=gv('f_nm');
   if(!cd){ toast('상품코드를 입력하세요.','warn'); return; }
@@ -788,12 +987,41 @@ function pcSave(){
   var url, okmsg;
   if(seq){ dto.prodSeq=Number(seq); url='/prod/prodUpdate.do'; okmsg='💾 수정 완료'; }
   else   { url='/prod/prodInsert.do'; okmsg='＋ 등록 완료'; }
+
+  /* ★재고 증감 — 수정 창에서 재고 칸을 고쳤으면 상품 저장 **뒤에** 조정을 보낸다.
+       (stockAdj 와 같은 순서 : 입수수량이 먼저 저장돼야 조정 이력에 새 입수수량이 박힌다)
+     ★재고는 잘못 건드리면 티가 안 나므로, 0 이 아니면 저장 전에 한 번 묻는다. */
+  var stkDiff=(seq&&_stk)?pcStkDiff():0;
+
+  var go=function(){
   fetch(CTX+url, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body:JSON.stringify(dto) })
     .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, status:res.status, t:t}; }); })
     .then(function(r){ if(!r.ok){ toast('실패 (HTTP '+r.status+'): '+(r.t||'').slice(0,120),'err'); return; }
-      pcClose(); toast(okmsg,'ok'); pcLoad();
+      if(!stkDiff){ pcClose(); toast(okmsg,'ok'); pcLoad(); return; }
+      /* 재고 조정 — 재고 일괄조정의 저장 엔드포인트 그대로. 차이만큼 조정행(A)+이력이 남는다. */
+      fetch(CTX+'/prod/stockAdjSave.do', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
+          body: JSON.stringify({ baseDt:_todayYmd(), remark:gv('s_rmk')||'상품코드등록에서 조정',
+            rows:[{ prodSeq:Number(seq), prodCd:cd, packQty:pcStkPack(),
+                    befQty:_stk.curQty, befBox:_stk.box, befEa:_stk.ea,
+                    aftBox:Number(gv('s_bx'))||0, aftEa:Number(gv('s_ea'))||0 }] }) })
+        .then(function(res){ return res.json(); })
+        .then(function(d){
+          if(!d||d.result!=='OK'){ alertBox('상품은 저장됐지만 <b>재고 조정은 실패</b>했습니다.<br>'+esc((d&&d.message)||''),'⚠️'); }
+          else toast('💾 수정 + 재고 조정('+(stkDiff>0?'+':'')+stkDiff+') 완료','ok');
+          pcClose(); pcLoad();
+        })
+        .catch(function(e){ alertBox('상품은 저장됐지만 <b>재고 조정은 실패</b>했습니다.<br>'+esc(e&&e.message||''),'⚠️'); pcClose(); pcLoad(); });
     })
     .catch(function(e){ toast('통신오류: '+e.message,'err'); });
+  };
+
+  if(stkDiff){
+    var aft=(Number(gv('s_bx'))||0)*pcStkPack()+(Number(gv('s_ea'))||0);
+    confirmBox('재고를 <b>'+_stk.curQty+' → '+aft+'</b> (증감 <b>'+(stkDiff>0?'+':'')+stkDiff+'</b>) 로 조정합니다.<br>'
+             + '차이만큼 조정 이력이 남고, 재고 일괄조정의 [조정 이력]에서 되돌릴 수 있습니다.', go, '저장', '💾');
+    return;
+  }
+  go();
 }
 function pcDel(seq){
   var o=_byseq[seq]; if(!o) return;
@@ -1630,20 +1858,28 @@ pcAcAttach('f_venQ','ven');
 function pcOvOpen(){ return document.getElementById('ov').classList.contains('on'); }
 function pcInMc(t){ var el=document.getElementById('mc'); return !!(el && t && el.contains(t)); }
 
-/* ── 창 안 이동 순서 = 화면에 보이는 순서(모달이 2단 격자라 DOM 순서와 같다) ── */
-var PC_FLOW=['f_cd','f_tax','f_nm','f_spec','f_maker','f_type','f_pack','f_sort',
-             'f_in','f_sale','f_whole','f_safe','f_base','f_ubc','f_bbc'];
+/* ── 창 안 이동 순서 = 화면에 보이는 순서(모달이 2단 격자라 DOM 순서와 같다) ──
+   ★수정 창은 입수수량(f_pack)이 아래 재고 표 첫 칸으로 옮겨 가므로 순서도 그 자리다 —
+     한 배열로 쓰면 Enter 가 유형명 → (아래 표) 입수수량 → (다시 위로) 조회순서 로 널뛴다. */
+var PC_FLOW_ADD =['f_cd','f_tax','f_nm','f_spec','f_maker','f_type','f_pack','f_sort',
+                  'f_in','f_sale','f_whole','f_safe','f_base','f_ubc','f_bbc'];
+var PC_FLOW_EDIT=['f_cd','f_tax','f_nm','f_spec','f_maker','f_type','f_sort',
+                  'f_in','f_sale','f_whole','f_safe','f_base','f_ubc','f_bbc',
+                  'f_pack','s_bx','s_ea','s_rmk'];         // 재고 표 = 입수수량 → 수정BOX → 수정EA → 사유(마지막 = 저장)
+function pcFlow(){ return document.getElementById('stkBox').style.display==='none' ? PC_FLOW_ADD : PC_FLOW_EDIT; }
 function pcNext(id){
-  var i=PC_FLOW.indexOf(id); if(i<0) return null;
-  for(var k=i+1;k<PC_FLOW.length;k++){
-    var el=document.getElementById(PC_FLOW[k]);
-    if(el && !el.readOnly && !el.disabled) return el;      // 수정 시 잠긴 상품코드 같은 칸은 건너뛴다
+  var FLOW=pcFlow();
+  var i=FLOW.indexOf(id); if(i<0) return null;
+  for(var k=i+1;k<FLOW.length;k++){
+    var el=document.getElementById(FLOW[k]);
+    // 잠긴 칸(수정 시 상품코드)·안 보이는 칸은 건너뛴다 — offsetParent 는 display:none 이면 null
+    if(el && !el.readOnly && !el.disabled && el.offsetParent!==null) return el;
   }
   return null;                                             // 마지막 칸 = 저장
 }
 document.getElementById('ov').addEventListener('keydown', function(e){
   if(e.key!=='Enter') return;
-  var t=e.target; if(!t || PC_FLOW.indexOf(t.id)<0) return;
+  var t=e.target; if(!t || pcFlow().indexOf(t.id)<0) return;
   // 규격·제조사 후보창에서 줄을 고르는 Enter 는 그쪽이 먼저 먹고 여기까지 오지 않는다(stopPropagation)
   e.preventDefault(); pcAcClose();
   var nx=pcNext(t.id);

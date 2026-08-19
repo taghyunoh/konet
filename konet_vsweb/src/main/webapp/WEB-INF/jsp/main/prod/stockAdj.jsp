@@ -94,8 +94,10 @@
   .htab label{ font-size:13px; color:#48606f; font-weight:600; }
   .htab input{ height:26px; border:1px solid #cbd5e1; border-radius:4px; padding:0 7px;
                font-size:13px; font-family:inherit; }
-  /* ★이력이 높아진 만큼 위 목록(.grid, flex:1)이 자연히 줍어든다 — 28vh → 40vh (2026-08-19 요청) */
-  .hgrid{ max-height:40vh; overflow:auto; }
+  /* ★이력이 높아진 만큼 위 목록(.grid, flex:1)이 자연히 줍어든다 — 28vh → 40vh (2026-08-19 요청)
+     ★min-height 추가 (2026-08-20 요청 「하단을 조금 위로 확대」) — 내용이 없어도(이력조회 전)
+       이만큼 자리를 잡아 하단이 납작하게 붙지 않고, 위 목록이 그만큼 올라간다. */
+  .hgrid{ min-height:24vh; max-height:46vh; overflow:auto; }
   .hgrid table{ font-size:12.5px; }
   .hgrid thead th{ background:#f4f7f8; }
   .undo{ height:22px; border:1px solid #b23b3b; background:#fff; color:#b23b3b;
@@ -132,7 +134,10 @@
     <label>기준일자</label>
     <input type="date" id="baseDt">
 
-    <button type="button" class="btn ghost" onclick="load();">리스트조회</button>
+    <%-- ★한 번 읽었으면 화면에서 거른다 — 누를 때마다 현재고 집계(느린 조회)가 돌지 않게(2026-08-20).
+         서버를 다시 읽는 길 = 기준일자 변경 · 저장 직후 자동 재조회. --%>
+    <button type="button" class="btn ghost" onclick="_ALL.length?applyFilter():load();"
+            title="이미 읽어 둔 목록에서 검색·필터를 겁니다. 서버에서 다시 읽으려면 기준일자를 바꾸세요.">리스트조회</button>
     <button type="button" class="btn" id="btnSave" onclick="save();">수정저장</button>
     <button type="button" class="btn ghost" onclick="packAuto();"
             title="상품명 끝의 1000EA/BOX · 300EA · 2000매 같은 숫자를 읽어 입수수량에 채웁니다">입수수량 자동채우기</button>
@@ -140,8 +145,10 @@
     <span class="sp"></span>
 
     <label>상품</label>
-    <input type="text" id="findData" placeholder="코드 · 상품명 · 규격 — 치면 바로 조회" style="width:210px"
-           oninput="liveFind();" onkeydown="if(event.keyCode===13){ clearTimeout(FIND_T); _ALL.length?applyFilter():load(); }">
+    <%-- ★「치면 바로 조회」 폐지 (2026-08-20 요청) — 목록을 아직 안 읽은 상태에서 글자를 치면
+         현재고 집계(원장 합계) 조회가 바로 돌아 느렸다. 이제 **Enter 나 [리스트조회]를 눌러야** 검색된다. --%>
+    <input type="text" id="findData" placeholder="코드 · 상품명 · 규격 — 입력 후 Enter" style="width:210px"
+           onkeydown="if(event.keyCode===13){ _ALL.length?applyFilter():load(); }">
     <label>유형</label>
     <select id="typeNm"><option value="">전체</option></select>
     <label>제조사</label>
@@ -281,20 +288,11 @@ function fmtDt8(v){ v=String(v||'').replace(/-/g,''); return v.length===8 ? v.sl
 })();
 
 
-/* ── 치는 대로 조회 ──────────────────────────────────────────────────
-   [리스트조회] 를 누르지 않아도 검색어를 치면 바로 나온다.
-   ★글자마다 서버를 부르면 2,000품목 조회가 겹친다 — 350ms 쉬면 부른다(디바운스).
-   ★한 글자는 결과가 너무 넓어 부르지 않는다. 두 글자부터, 또는 비우면(전체) 부른다. */
-var FIND_T = null;
-function liveFind(){
-  clearTimeout(FIND_T);
-  /* ★[2026-08-19] 서버가 아니라 _ALL 을 걸러 바로 그린다 — 왕33복이 없으니
-     한 글자 제한도 필요 없고, 디바운스는 그리기 비용만 아끼는 150ms 로 줄였다. */
-  FIND_T = setTimeout(function(){
-    if (!_ALL.length){ load(); return; }  /* 아직 안 읽었으면 그때 한 번만 서버를 부른다 */
-    applyFilter();
-  }, 150);
-}
+/* ── 검색 = Enter 또는 [리스트조회] (2026-08-20 요청 — 「치는 대로 조회」 폐지) ─────
+   글자를 칠 때마다 그리면 ①목록 미조회 상태에선 현재고 집계(원장 합계) 조회까지 돌아 느리고
+   ②읽은 뒤에도 2,000행 재그리기가 반복돼 순간순간 늦었다.
+   이제 검색칸은 아무것도 하지 않는다 — Enter(위 onkeydown) 나 [리스트조회] 를 눌러야 걸린다.
+   되살리자는 얘기가 나오면 이 이력부터 확인할 것. */
 
 /* 드롭다운·체크·날짜는 바꾸는 즉시 조회 */
 (function(){
@@ -318,20 +316,40 @@ function applyFilter(){
   var sig = [q, ty, mk, z0?1:0, gel('sortGb').value, _allVer].join('|');
   if (sig === _fltSig) return;   /* 조건이 그대로면 2,000행을 또 그리지 않는다(수정 중이던 값도 안 날린다) */
   _fltSig = sig;
-  ROWS = _ALL.filter(function(r){
+  var base = _ALL.filter(function(r){
     if (z0 && nvl(r.curQty) === 0) return false;
     if (ty && String(r.typeNm||'')  !== ty) return false;
     if (mk && String(r.makerNm||'') !== mk) return false;
-    if (!q) return true;
-    return [r.prodCd, r.prodNm, r.spec].some(function(v){
-      return String(v||'').toLowerCase().indexOf(q) >= 0; });
+    return true;
   });
-  var sg = gel('sortGb').value;
-  ROWS.sort(function(a,b){
-    if (sg === 'QTY'){ var d = nvl(b.curQty) - nvl(a.curQty); if (d) return d; }
-    else if (sg === 'NM'){ var n = String(a.prodNm||'').localeCompare(String(b.prodNm||''),'ko'); if (n) return n; }
-    return String(a.prodCd||'') < String(b.prodCd||'') ? -1 : (String(a.prodCd||'') > String(b.prodCd||'') ? 1 : 0);
-  });
+  if (!q){
+    ROWS = base;
+    var sg = gel('sortGb').value;
+    ROWS.sort(function(a,b){
+      if (sg === 'QTY'){ var d = nvl(b.curQty) - nvl(a.curQty); if (d) return d; }
+      else if (sg === 'NM'){ var n = String(a.prodNm||'').localeCompare(String(b.prodNm||''),'ko'); if (n) return n; }
+      return String(a.prodCd||'') < String(b.prodCd||'') ? -1 : (String(a.prodCd||'') > String(b.prodCd||'') ? 1 : 0);
+    });
+  } else {
+    /* ★검색은 장부식 (2026-08-20 요청 — 판매·매입 상품검색과 같은 규칙, salesReg saProdRender 참조):
+         걸린 코드(코드순, 굵은 초록)를 앞에 두고, 그 뒤에 **찾은 코드 다음 코드부터 이어서** 보여 준다 —
+         걸린 것만 나오면 이웃 상품의 재고를 같이 못 본다. 이름·규격 매치는 맨 뒤.
+       ⚠검색 중에는 정렬 드롭다운을 무시한다 — 장부식 자체가 코드순이다. */
+    var byCd=[], byNm=[];
+    base.forEach(function(r){ r._hit=0;
+      if (String(r.prodCd||'').toLowerCase().indexOf(q) >= 0) byCd.push(r);
+      else if ([r.prodNm, r.spec].some(function(v){ return String(v||'').toLowerCase().indexOf(q) >= 0; })) byNm.push(r);
+    });
+    var byCode=function(a,b){ return String(a.prodCd||'').localeCompare(String(b.prodCd||'')); };
+    byCd.sort(byCode);
+    if (byCd.length){
+      var hit={};
+      byCd.forEach(function(r){ hit[String(r.prodCd)]=1; r._hit=1; });
+      var first=String(byCd[0].prodCd||'');
+      var after=base.filter(function(r){ return !hit[String(r.prodCd)] && String(r.prodCd||'') > first; }).sort(byCode);
+      ROWS = byCd.concat(after).concat(byNm);
+    } else ROWS = byNm;
+  }
   render();
 }
 /* ── 목록 ────────────────────────────────────────────────────────── */
@@ -367,6 +385,8 @@ function render(){
     /* ★상품코드등록과 같은 표시(2026-08-19) — 서브 배지 + → 주코드 + 마스터 상품명 / 중지행 빨강 */
     var st=_pm[r.prodSeq]||{}, stopped=(st.stopYn==='Y');
     var sb=_subOf[String(r.prodCd)], cdCell=esc(r.prodCd), mstNm='';
+    /* 검색에 걸린 코드는 굵은 초록 — 그 아래로는 다음 코드들이 이어진 것(장부식, 판매·매입 검색과 동일) */
+    if(r._hit) cdCell='<b style="color:#1f7a4d">'+cdCell+'</b>';
     if(stopped) cdCell='<span style="white-space:nowrap">'+cdCell+' <span class="stopbdg">중지</span></span>';
     if(sb){
       var mp=_pm[sb.prodSeq]||{};
