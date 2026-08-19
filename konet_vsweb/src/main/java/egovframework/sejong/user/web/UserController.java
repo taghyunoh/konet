@@ -642,6 +642,23 @@ public class UserController {
 					svc.resolveSalesProd(rx);
 				}
 
+				/* ★정산서 → 재고원장 동기화 (2026-08-19) — 출고 원천이 정산서로 바뀌면서 생긴 연결.
+				   종전에는 [재고 재집계] 버튼을 따로 눌러야 재고에 반영됐다 — 업로드만 하면 재고가
+				   그대로여서 「올렸는데 재고가 안 바뀜다」가 된다. 날짜당 1회(중복 제거).
+				   ★실패해도 정산서 저장 자체는 이미 끝난 것 — 롤백하지 않고 로그만 남긴다
+				   (판매단가 이력 반영과 같은 규칙). 마감 확정월은 서비스가 조용히 건너뛴다. */
+				int ledgerRows = 0;
+				try {
+					java.util.LinkedHashSet<String> dts = new java.util.LinkedHashSet<String>();
+					for (egovframework.sejong.user.model.SalesDTO r : rows)
+						if (r.getDlvDt() != null && !r.getDlvDt().trim().isEmpty()) dts.add(r.getDlvDt().trim());
+					for (String d : dts) ledgerRows += svc.syncSalesLedger(d, null, regUser, regIp);
+				} catch (Exception le) {
+					log.error(" saveSalesMst 재고원장 동기화 WARN : " + le.getMessage());
+					res.put("ledgerErr", le.getMessage());
+				}
+				res.put("ledger", ledgerRows);   // 재고원장에 만든 출고·반품 행수 (화면은 몰라도 무해)
+
 				// (B) 판매단가 이력 반영 — 매출마감의 출고단가가 '(마스터)' 폴백이 아니라 '(이력)' = 실제 확정가로 잡히게 한다.
 				//     · ★키 = 품목코드 + 납품일자(DLV_DT = 발주일자) → TBL_PROD_SALEPRICE_HST.APPLY_DT
 				//       출고일자를 쓰면 안 된다 — 먼 지역은 발주분을 하루 당겨 출고해서 출고일자가 발주일자보다 이를 수 있고,

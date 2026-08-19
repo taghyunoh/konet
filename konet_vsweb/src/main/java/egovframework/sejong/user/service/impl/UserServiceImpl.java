@@ -498,7 +498,7 @@ public class UserServiceImpl implements UserService {
 				int sdone = 0;
 				egovframework.sejong.cmmn.RebuildProgress.set(pk, "정산서 원장 재생성", 0, stotal);
 				for (String d : sds) {
-					syncSalesLedger(d, null, regUser, regIp);
+					syncSalesLedgerCore(d, null, regUser, regIp);   // 집계는 루프 끝 recalcStockMstAll 1회
 					sdone++;
 					egovframework.sejong.cmmn.RebuildProgress.set(pk, "정산서 원장 재생성 — " + d, sdone, stotal);
 				}
@@ -1000,15 +1000,33 @@ public class UserServiceImpl implements UserService {
 	 * 발주현황표 연동과 같은 방식이다 — 그 날짜의 파생행을 지우고 다시 만든다.
 	 * 그래서 같은 날짜를 몇 번 올려도 재고가 겹치지 않는다.
 	 *
-	 * ★아직 발주현황표 연동과 **함께 돈다**. 두 원천이 다 켜져 있으면 같은 출고가
-	 *   두 번 빠질 수 있다 — 어느 쪽을 쓸지(D1)가 정해지면 한쪽을 걸러야 한다.
-	 *   그때까지는 이 구문을 부르는 자리를 열어만 두고, 실제 호출은 업로드 뒤 1회다.
+	 * ★이중 차감 방지는 두 겹 — ①여기서 같은 날 SHIPOUT 파생행을 걷고
+	 *   ②insertShipoutLedger 는 정산서 있는 날을 안 만든다(NOT EXISTS).
+	 * ★마감 확정월은 **조용히 건너난다**(throw 아님) — syncShipoutLedgerDate 와 같은 규칙.
+	 *   던져 버리면 재집계(rebuild) 루프가 그 날짜에서 통째로 죽는다.
+	 * ★[수정 2026-08-19] 날짜 단위 동기화는 품목이 여럿이라 **recalcStockMst(품목 1건용)를 쓰면 안 된다** —
+	 *   prodSeq 가 비어 MERGE 가 PROD_SEQ NULL 행을 INSERT 하려다 NOT NULL 위반으로 터졌다
+	 *   (재집계가 한 번도 성공 못한 원인). 집계는 set 기반 recalcStockMstAll 로 한다(실측 20ms).
 	 */
 	@Override
 	@org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
 	public int syncSalesLedger(String dlvDt, String compCd, String regUser, String regIp) throws Exception {
+		int n = syncSalesLedgerCore(dlvDt, compCd, regUser, regIp);
+		/* 재집계 루프는 core 를 직접 부르고 끝에 한 번만 집계한다 — 여기는 단건(업로드 후) 경로 */
+		egovframework.sejong.user.model.StockLedgerDTO d = new egovframework.sejong.user.model.StockLedgerDTO();
+		d.setCompCd(compCd); d.setRegUser(regUser); d.setRegIp(regIp);
+		mapper.recalcStockMstAll(d);
+		mapper.zeroOrphanStockMst(d);   // 재업로드로 원장에서 빠진 품목의 캐시도 0 으로
+		return n;
+	}
+	/** 날짜 하나의 삭제+재생성만 — 현재고 집계는 부르는 쪽 몸이다(재집계 루프가 쓴다). */
+	private int syncSalesLedgerCore(String dlvDt, String compCd, String regUser, String regIp) throws Exception {
 		if (dlvDt == null || dlvDt.trim().isEmpty()) return 0;
 		String dt = dlvDt.replace("-", "");
+
+		/* 마감 확정월 → 원장 불변이므로 skip (syncShipoutLedgerDate 와 같은 규칙 — throw 하면 재집계 전체가 죽는다) */
+		String cym = ym6FromTrx(dt);
+		if (cym != null && mapper.isClosedYm(cym, null) > 0) return 0;
 
 		egovframework.sejong.user.model.StockLedgerDTO led =
 		        new egovframework.sejong.user.model.StockLedgerDTO();
@@ -1017,20 +1035,13 @@ public class UserServiceImpl implements UserService {
 		led.setRegUser(regUser);
 		led.setRegIp(regIp);
 
-		guardClosed(dt);                     // 마감 확정월은 건드리지 않는다
-
-		/* ★같은 날짜의 발주현황표 파생행을 먼저 걷어낸다 (2026-08-19).
-		   그 날은 정산서가 출고의 주인이다. 안 걷으면 같은 출고가 두 번 빠진다.
-		   insertShipoutLedger 에도 같은 규칙(정산서 있는 날은 안 만든다)이 걸려 있어,
-		   나중에 발주현황표를 다시 올려도 되살아나지 않는다. */
+		/* ★같은 날짜의 발주현황표 파생행을 먼저 걷어낸다 — 그 날은 정산서가 출고의 주인이다. */
 		egovframework.sejong.user.model.StockLedgerDTO sh =
 		        new egovframework.sejong.user.model.StockLedgerDTO();
 		sh.setTrxDt(dt); sh.setCompCd(compCd);
 		mapper.deleteShipoutLedger(sh);
 
 		mapper.deleteSalesLedger(led);
-		int n = mapper.insertSalesLedger(led);
-		mapper.recalcStockMst(led);
-		return n;
+		return mapper.insertSalesLedger(led);
 	}
 }
