@@ -293,4 +293,19 @@ public interface UserMapper {
 	java.util.List<egovframework.sejong.user.model.SalesDlvDTO> selectSalesDlvExclList(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
 	int updateSalesDlvExcl(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
 	int insertSalesDlvExcl(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
+
+	/* ── 재고 일괄조정 (2026-08-19) ───────────────────────────────────── */
+	java.util.List<egovframework.sejong.user.model.StockMstDTO>
+	    selectStockAdjList(egovframework.sejong.user.model.StockMstDTO dto) throws Exception;
+	int insertStockAdjHis(egovframework.sejong.user.model.StockAdjHisDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.StockAdjHisDTO>
+	    selectStockAdjHisList(egovframework.sejong.user.model.StockAdjHisDTO dto) throws Exception;
+	int cancelStockAdjBatchLedger(egovframework.sejong.user.model.StockAdjHisDTO dto) throws Exception;
+	int cancelStockAdjBatch(egovframework.sejong.user.model.StockAdjHisDTO dto) throws Exception;
+
+	/* ── 정산서 → 재고원장 연동 (2026-08-19) ──────────────────────────── */
+	java.util.List<String> selectSalesDates(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
+	int deleteSalesLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
+	int insertSalesLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
+	int updateProdPackQty(egovframework.sejong.user.model.StockMstDTO dto) throws Exception;
 }

@@ -81,33 +81,4 @@ public class StockMstDTO {
     public void setUpdUser(String updUser) { this.updUser = updUser; }
     public String getUpdIp() { return updIp; }
     public void setUpdIp(String updIp) { this.updIp = updIp; }
-
-    /* ── 재고 일괄조정 화면(2026-08-19) ─────────────────────────────────
-       BOX/EA 는 화면 표기일 뿐이다. 원장에는 EA 로 환산해 담는다
-       (EA = BOX × PACK_QTY + EA). 입수수량이 0·NULL 이면 1 로 본다. */
-    private String  spec;          // 규격
-    private String  typeNm;        // 유형
-    private String  makerNm;       // 제조사
-    private Integer packQty;       // 입수수량 (BOX 당 EA)
-    private Integer boxQty;        // BOX 재고 (현재고를 나눈 값)
-    private Integer eaQty;         // EA 재고 (나머지)
-    private String  zeroExcYn;     // 'Y' 면 재고 0 인 품목 제외 — 비영속
-    private String  sortGb;        // 정렬 CD(코드) / NM(품목명) / QTY(재고) — 비영속
-
-    public String  getSpec()      { return spec; }
-    public void    setSpec(String v)      { this.spec = v; }
-    public String  getTypeNm()    { return typeNm; }
-    public void    setTypeNm(String v)    { this.typeNm = v; }
-    public String  getMakerNm()   { return makerNm; }
-    public void    setMakerNm(String v)   { this.makerNm = v; }
-    public Integer getPackQty()   { return packQty; }
-    public void    setPackQty(Integer v)  { this.packQty = v; }
-    public Integer getBoxQty()    { return boxQty; }
-    public void    setBoxQty(Integer v)   { this.boxQty = v; }
-    public Integer getEaQty()     { return eaQty; }
-    public void    setEaQty(Integer v)    { this.eaQty = v; }
-    public String  getZeroExcYn() { return zeroExcYn; }
-    public void    setZeroExcYn(String v) { this.zeroExcYn = v; }
-    public String  getSortGb()    { return sortGb; }
-    public void    setSortGb(String v)    { this.sortGb = v; }
 }

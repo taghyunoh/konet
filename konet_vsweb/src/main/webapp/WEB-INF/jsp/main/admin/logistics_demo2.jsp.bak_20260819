@@ -3004,10 +3004,6 @@
     <div class="sub-menu" id="sub-stockmng">
       <a class="mi" data-key="stockStatus" onclick="logiGo('stockStatus', this); stkStatusLoad();"><span class="ic">📊</span>재고현황</a>
       <a class="mi" data-key="closeStock" onclick="logiGo('closeStock', this)"><span class="ic">📒</span>재고마감</a>
-      <%-- 재고 일괄조정 (2026-08-19 신설) — 기존화면의 [리스트조회]+[수정저장].
-           재고를 덮어쓰지 않고 차이만큼 조정행(A)을 더한다. 매입등록으로 맞추면
-           단가 0 입고가 이동평균 분모에 들어가 재고금액이 낮아져서, 조정 경로로 간다. --%>
-      <a class="mi" data-key="stockAdj" onclick="logiFrame('stockAdj','${pageContext.request.contextPath}/prod/stockAdj.do', this)"><span class="ic">🧮</span>재고 일괄조정</a>
       <%-- 품목코드(매핑) — 기준정보에 있다가 재고 관리 맨 아래로 옮김(2026-08-01 요청).
            매핑이 안 되면 그 품목이 재고에서 빠지므로, 재고를 보다가 바로 갈 수 있는 자리가 맞다. --%>
       <a class="mi" data-key="xrefAudit" onclick="logiGo('xrefAudit', this); xaLoad();"><span class="ic">🔗</span>품목코드(매핑)</a>
@@ -4533,12 +4529,6 @@
 
     <section id="panel-prodcd" class="panel" style="padding:0;">
       <iframe id="if-prodcd" src="" title="상품코드 등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
-    </section>
-
-    <%-- 재고 일괄조정 (2026-08-19 신설) — logiFrame 이 여는 아이프레임.
-         id 규칙 : if-<메뉴키>. 이게 없으면 메뉴만 켜지고 화면이 비어 보인다. --%>
-    <section id="panel-stockAdj" class="panel" style="padding:0;">
-      <iframe id="if-stockAdj" src="" title="재고 일괄조정" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
 
 

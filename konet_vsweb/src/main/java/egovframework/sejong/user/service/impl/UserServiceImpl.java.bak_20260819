@@ -416,22 +416,8 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockMstList(egovframework.sejong.user.model.StockMstDTO dto) throws Exception { return mapper.selectStockMstList(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockQtyMap(egovframework.sejong.user.model.StockMstDTO dto) throws Exception { return mapper.selectStockQtyMap(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.StockLedgerDTO> selectInboundList(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception { return mapper.selectInboundList(dto); }
-	/* ══════════════════════════════════════════════════════════════════════════
-	 *  발주현황표(SHIPOUT) → 재고원장 연동 종료                        2026-08-19
-	 *
-	 *  출고 원천을 정산서(TBL_SALES_MST)로 옮겼다. 발주현황표는 이제
-	 *  **출고현황을 보는 판**이고, 재고를 만들지 않는다.
-	 *
-	 *  ★기존 원장행(REF_GB='SHIPOUT')은 지우지 않는다 —
-	 *    정산서를 아직 안 올린 과거 기간의 재고가 그대로 유지된다.
-	 *    그 날짜에 정산서를 올리면 syncSalesLedger 가 걷어내고 정산서로 바꾼다.
-	 *  ★되돌리려면 이 값만 true 로 바꾸면 된다. 호출부는 그대로 두었다.
-	 * ════════════════════════════════════════════════════════════════════════ */
-	private static final boolean SHIPOUT_LEDGER_ON = false;
-
 	/* (A) 출고(SHIPOUT)→원장 자동연동 : 해당 출고일자 O행을 지우고 활성 SHIPOUT으로 다시 생성. 마감 확정월이면 원장 불변이므로 skip */
 	@Override public int syncShipoutLedgerDate(String shpoutDt, String regUser, String regIp) throws Exception {
-		if (!SHIPOUT_LEDGER_ON) return 0;          // 연동 종료 — 발주현황표는 재고를 만들지 않는다
 		if (shpoutDt == null || shpoutDt.trim().isEmpty()) return 0;
 		String cym = ym6FromTrx(shpoutDt);
 		if (cym != null && mapper.isClosedYm(cym, null) > 0) return 0;   // 마감 확정월 → 원장 건드리지 않음
@@ -474,34 +460,13 @@ public class UserServiceImpl implements UserService {
 			mapper.repointShipoutProdExt(all);
 			mapper.repointSalesProdExt(all);
 
-			/* 발주현황표 연동 종료(2026-08-19) — 기존 원장행은 그대로 두고 새로 만들지 않는다.
-			   되살리려면 SHIPOUT_LEDGER_ON 만 true 로. */
-			java.util.List<String> ds = SHIPOUT_LEDGER_ON ? mapper.selectShipoutDates()
-			                                              : new java.util.ArrayList<String>();
-			int total = ds.size();
+			java.util.List<String> ds = mapper.selectShipoutDates();
+			int total = (ds == null) ? 0 : ds.size();
 			egovframework.sejong.cmmn.RebuildProgress.set(pk, "출고 원장 재생성", 0, total);
 			if (ds != null) for (String d : ds) {
 				syncShipoutLedgerDate(d, regUser, regIp);
 				dates++;
 				egovframework.sejong.cmmn.RebuildProgress.set(pk, "출고 원장 재생성 — " + d, dates, total);
-			}
-
-			/* ★정산서 → 원장 재생성 (2026-08-19)
-			   출고 원천을 정산서로 옮기는 중이라, 이 버튼이 두 원천을 모두 다시 만든다.
-			   정산서가 있는 날짜만 돈다 — 없는 기간은 발주현황표 몫으로 남는다.
-			   ※두 원천이 같은 날을 덮으면 그 날 출고가 두 번 빠진다.
-			     어느 쪽을 쓸지(D1) 정해지면 여기서 한쪽을 걸러야 한다. */
-			java.util.List<String> sds = mapper.selectSalesDates(new egovframework.sejong.user.model.StockLedgerDTO());
-			int stotal = (sds == null) ? 0 : sds.size();
-			if (stotal > 0) {
-				int sdone = 0;
-				egovframework.sejong.cmmn.RebuildProgress.set(pk, "정산서 원장 재생성", 0, stotal);
-				for (String d : sds) {
-					syncSalesLedger(d, null, regUser, regIp);
-					sdone++;
-					egovframework.sejong.cmmn.RebuildProgress.set(pk, "정산서 원장 재생성 — " + d, sdone, stotal);
-				}
-				dates += sdone;
 			}
 			egovframework.sejong.cmmn.RebuildProgress.set(pk, "현재고 집계 중…", total, total);
 			recalcStockMstAll(regUser, regIp);
@@ -870,166 +835,5 @@ public class UserServiceImpl implements UserService {
 		mapper.deleteSalesTrxLedger(dto);
 		mapper.deleteSalesTrxDtlAll(dto);
 		return mapper.deleteSalesTrxMst(dto);
-	}
-
-	/* ══════════════════════════════════════════════════════════════════════════
-	 *  재고 일괄조정 (2026-08-19)
-	 *
-	 *  기존화면(거래처 시스템)의 [리스트조회] + [수정저장] 을 우리 구조로 옮긴 것.
-	 *  ★재고의 주인은 수불원장 하나다. 수정값으로 덮어쓰지 않고 **차이만큼 조정행(A)** 을 더한다.
-	 *    덮어쓰면 과거 이력이 사라지고, 같은 날 두 번 저장하면 값이 겹쳐 어긋난다.
-	 *  ★BOX/EA 는 화면 표기다. 원장에는 EA 로 환산해 담는다(EA = BOX × 입수수량 + EA).
-	 *  ★매입등록으로 맞추지 않는 이유 : 단가 0 입고가 이동평균 분모에 들어가
-	 *    재고금액이 실제보다 낮아진다. 조정행은 단가를 안 넣어 그 문제가 없다.
-	 * ════════════════════════════════════════════════════════════════════════ */
-
-	@Override
-	public java.util.List<egovframework.sejong.user.model.StockMstDTO>
-	    selectStockAdjList(egovframework.sejong.user.model.StockMstDTO dto) throws Exception {
-		return mapper.selectStockAdjList(dto);
-	}
-
-	@Override
-	@org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
-	public int saveStockAdjBatch(egovframework.sejong.user.model.StockAdjHisDTO head,
-	                             java.util.List<egovframework.sejong.user.model.StockAdjHisDTO> rows) throws Exception {
-
-		if (rows == null || rows.isEmpty()) return 0;
-
-		String baseDt = head.getBaseDt() == null ? "" : head.getBaseDt().replace("-", "");
-		guardClosed(baseDt);                       // 마감 확정월 잠금 — 다른 조정과 같은 규칙
-
-		// 저장 묶음 번호 : 되돌리기가 이 번호를 따라간다
-		String batchNo = "ADJ" + new java.text.SimpleDateFormat("yyyyMMddHHmmss")
-		                              .format(new java.util.Date());
-		int n = 0;
-
-		for (egovframework.sejong.user.model.StockAdjHisDTO r : rows) {
-			if (r == null || r.getProdSeq() == null) continue;
-
-			int pack = (r.getPackQty() == null || r.getPackQty() < 1) ? 1 : r.getPackQty();
-			int bef  = r.getBefQty() == null ? 0 : r.getBefQty();
-			int aft  = (r.getAftBox() == null ? 0 : r.getAftBox()) * pack
-			         + (r.getAftEa()  == null ? 0 : r.getAftEa());
-			int diff = aft - bef;
-
-			// 안 고친 줄은 건너뛴다 — 0짜리 조정행을 쌓지 않는다
-			if (diff == 0) continue;
-
-			/* ① 원장 조정행. 단가는 넣지 않는다(이동평균 보호).
-			      IO_GB : 늘리면 'A'(+), 줄이면 'A'(−) 로 음수 수량을 담는다.
-			      현재고 집계가 A 를 그대로 더하므로 음수면 차감된다. */
-			egovframework.sejong.user.model.StockLedgerDTO led =
-			        new egovframework.sejong.user.model.StockLedgerDTO();
-			led.setCompCd(head.getCompCd());
-			led.setProdSeq(r.getProdSeq());
-			led.setProdCd(r.getProdCd());
-			led.setTrxDt(baseDt);
-			led.setIoGb("A");
-			led.setQty(diff);
-			led.setRefGb("");                      // 수기조정 표식 — 삭제 가능 대상
-			led.setRemark(head.getRemark() == null || head.getRemark().trim().isEmpty()
-			              ? "재고 일괄조정" : head.getRemark());
-			led.setRegUser(head.getRegUser());
-			led.setRegIp(head.getRegIp());
-			mapper.insertStockLedger(led);         // useGeneratedKeys 로 ledgerSeq 채워짐
-
-			// ② 이력 — 원장에 안 남는 '전 → 후' 를 여기에 남긴다
-			r.setBatchNo(batchNo);
-			r.setCompCd(head.getCompCd());
-			r.setBaseDt(baseDt);
-			r.setAftQty(aft);
-			r.setDiffQty(diff);
-			r.setPackQty(pack);
-			r.setLedgerSeq(led.getLedgerSeq());
-			r.setRemark(led.getRemark());
-			r.setRegUser(head.getRegUser());
-			r.setRegIp(head.getRegIp());
-			mapper.insertStockAdjHis(r);
-
-			n++;
-		}
-
-		// ③ 현재고 재집계 — 한 번만 돈다(품목마다 돌리면 느리다)
-		if (n > 0) recalcStockMstAll(head.getRegUser(), head.getRegIp());
-
-		head.setBatchNo(batchNo);
-		return n;
-	}
-
-	@Override
-	public java.util.List<egovframework.sejong.user.model.StockAdjHisDTO>
-	    selectStockAdjHisList(egovframework.sejong.user.model.StockAdjHisDTO dto) throws Exception {
-		return mapper.selectStockAdjHisList(dto);
-	}
-
-	/** 묶음 되돌리기 — 원장행을 먼저 내리고(짝을 아직 아는 동안) 이력을 내린다. 순서를 바꾸면 짝을 잃는다. */
-	@Override
-	@org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
-	public int cancelStockAdjBatch(egovframework.sejong.user.model.StockAdjHisDTO dto) throws Exception {
-		mapper.cancelStockAdjBatchLedger(dto);
-		int n = mapper.cancelStockAdjBatch(dto);
-		if (n > 0) recalcStockMstAll(dto.getRegUser(), dto.getRegIp());
-		return n;
-	}
-
-	/**
-	 * 입수수량 일괄 저장 (2026-08-19).
-	 *
-	 * BOX/EA 는 이 값으로 나뉜다. 비어 있으면 BOX 칸에 전체 수량이 그대로 나온다.
-	 * 재고를 맞추다 알게 되는 값이라 같은 화면에서 바로 채울 수 있게 열었다.
-	 * ★재고(원장)는 건드리지 않는다 — 환산 기준만 바뀐다.
-	 *   이미 남은 조정 이력의 PACK_QTY 는 그때 값이 박혀 있어 과거 기록은 안 흔들린다.
-	 */
-	@Override
-	@org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
-	public int saveProdPackQty(java.util.List<egovframework.sejong.user.model.StockMstDTO> rows) throws Exception {
-		if (rows == null || rows.isEmpty()) return 0;
-		int n = 0;
-		for (egovframework.sejong.user.model.StockMstDTO r : rows) {
-			if (r == null || r.getProdSeq() == null) continue;
-			n += mapper.updateProdPackQty(r);
-		}
-		return n;
-	}
-
-	/**
-	 * 정산서 → 재고원장 재동기화 (2026-08-19).
-	 *
-	 * 발주현황표 연동과 같은 방식이다 — 그 날짜의 파생행을 지우고 다시 만든다.
-	 * 그래서 같은 날짜를 몇 번 올려도 재고가 겹치지 않는다.
-	 *
-	 * ★아직 발주현황표 연동과 **함께 돈다**. 두 원천이 다 켜져 있으면 같은 출고가
-	 *   두 번 빠질 수 있다 — 어느 쪽을 쓸지(D1)가 정해지면 한쪽을 걸러야 한다.
-	 *   그때까지는 이 구문을 부르는 자리를 열어만 두고, 실제 호출은 업로드 뒤 1회다.
-	 */
-	@Override
-	@org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
-	public int syncSalesLedger(String dlvDt, String compCd, String regUser, String regIp) throws Exception {
-		if (dlvDt == null || dlvDt.trim().isEmpty()) return 0;
-		String dt = dlvDt.replace("-", "");
-
-		egovframework.sejong.user.model.StockLedgerDTO led =
-		        new egovframework.sejong.user.model.StockLedgerDTO();
-		led.setTrxDt(dt);
-		led.setCompCd(compCd);
-		led.setRegUser(regUser);
-		led.setRegIp(regIp);
-
-		guardClosed(dt);                     // 마감 확정월은 건드리지 않는다
-
-		/* ★같은 날짜의 발주현황표 파생행을 먼저 걷어낸다 (2026-08-19).
-		   그 날은 정산서가 출고의 주인이다. 안 걷으면 같은 출고가 두 번 빠진다.
-		   insertShipoutLedger 에도 같은 규칙(정산서 있는 날은 안 만든다)이 걸려 있어,
-		   나중에 발주현황표를 다시 올려도 되살아나지 않는다. */
-		egovframework.sejong.user.model.StockLedgerDTO sh =
-		        new egovframework.sejong.user.model.StockLedgerDTO();
-		sh.setTrxDt(dt); sh.setCompCd(compCd);
-		mapper.deleteShipoutLedger(sh);
-
-		mapper.deleteSalesLedger(led);
-		int n = mapper.insertSalesLedger(led);
-		mapper.recalcStockMst(led);
-		return n;
 	}
 }

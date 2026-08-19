@@ -256,29 +256,4 @@ public interface UserService {
 	java.util.List<egovframework.sejong.user.model.SalesDlvDTO> selectSalesDlvExclList(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
 	/** 납품분 제외 켜기/끄기 — dto.actionYn 'Y' 제외 / 'N' 해제. 처리한 품목 수를 돌려준다 */
 	int saveSalesDlvExcl(egovframework.sejong.user.model.SalesDlvDTO dto, java.util.List<String> prodCds) throws Exception;
-
-	/* ── 재고 일괄조정 (2026-08-19) ─────────────────────────────────────
-	   기존화면(거래처 시스템)의 [리스트조회] + [수정저장].
-	   재고의 주인은 수불원장이다. 덮어쓰지 않고 **차이만큼 조정행(A)** 을 더한다. */
-
-	/** 목록 : 기준일자까지의 누계 현재고 + BOX/EA 환산 */
-	java.util.List<egovframework.sejong.user.model.StockMstDTO>
-	    selectStockAdjList(egovframework.sejong.user.model.StockMstDTO dto) throws Exception;
-
-	/** 일괄저장 : 차이만큼 조정행 생성 + 이력 기록. 처리한 품목 수를 돌려준다 */
-	int saveStockAdjBatch(egovframework.sejong.user.model.StockAdjHisDTO head,
-	                      java.util.List<egovframework.sejong.user.model.StockAdjHisDTO> rows) throws Exception;
-
-	/** 조정 이력 조회 */
-	java.util.List<egovframework.sejong.user.model.StockAdjHisDTO>
-	    selectStockAdjHisList(egovframework.sejong.user.model.StockAdjHisDTO dto) throws Exception;
-
-	/** 묶음 되돌리기 : 이력 + 짝인 원장 조정행을 함께 내린다 */
-	int cancelStockAdjBatch(egovframework.sejong.user.model.StockAdjHisDTO dto) throws Exception;
-
-	/** 입수수량만 고친다 — BOX/EA 환산 기준. 재고(원장)는 안 건드린다 */
-	int saveProdPackQty(java.util.List<egovframework.sejong.user.model.StockMstDTO> rows) throws Exception;
-
-	/** 정산서 → 재고원장 재동기화 : 그 납품일자의 SALES 파생행을 지우고 다시 만든다 */
-	int syncSalesLedger(String dlvDt, String compCd, String regUser, String regIp) throws Exception;
 }
