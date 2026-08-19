@@ -1822,6 +1822,22 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
+	<!-- ==========================================================================================
+	     ★[2026-08-19 요청] 매칭코드를 붙이려는 상품이 **거래중지**인지 본다(PROD_SEQ 1건).
+	       중지면 그 줄을, 아니면 **아무 줄도** 돌려주지 않는다 — 부르는 쪽은 null 만 보면 된다.
+	     ⚠여기에는 **날짜 비교가 없다**(selectStoppedAmong 과 다른 점).
+	       매입·판매는 '지난 일자 전표'가 있어 STOP_FR_DT 와 전표일자를 견줌지만,
+	       매칭코드는 「앞으로 이 코드로 들어올 자료를 이 상품로 잎겠다」는 뜻이라
+	       중지된 순간부터 날짜와 무관하게 막는 것이 맞다.
+	     ========================================================================================== -->
+	<select id="selectProdStopById" resultType="egovframework.sejong.user.model.ProdDTO">
+	  SELECT PROD_CD AS prodCd, PROD_NM AS prodNm, STOP_FR_DT AS stopFrDt, STOP_MEMO AS stopMemo
+	    FROM TBL_PROD_MST
+	   WHERE ACTION_YN='Y' AND STOP_YN='Y'
+	     AND PROD_SEQ = #{prodSeq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	</select>
+
 	<!-- ★전표일자 기준으로 **중지된 코드**만 골라 돌려준다 (매입·판매 저장 관문에서 쓴다).
 	     ⚠오늘 날짜가 아니라 **전표일자(trxDt)** 와 견준다 — 지난 일자로 넣는 전표가 실제로 있다. -->
 	<select id="selectStoppedAmong" resultType="egovframework.sejong.user.model.ProdDTO">

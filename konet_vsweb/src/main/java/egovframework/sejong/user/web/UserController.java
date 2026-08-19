@@ -1975,12 +1975,40 @@ public class UserController {
 			response.put("data", svc.selectExtItemList(dto));
 			return response;
 		}
+		/**
+		 * ★[2026-08-19 요청] 매칭코드를 붙이려는 상품이 <b>거래중지</b>면 막는 문구를 만든다. 아니면 null.
+		 *
+		 * <p>화면(prodcd.jsp)에서도 막고 있지만, <b>화면은 우회할 수 있다</b> — 열어 둔 창을 그대로 둔 채
+		 *   다른 사람이 그 상품을 중지했거나, 주소로 직접 부르면 화면 잠금은 지나간다.
+		 *   <b>자료가 실제로 들어가는 마지막 문은 여기</b>라, 규칙을 여기서 한 번 더 본다.
+		 * <p>⚠<b>날짜를 견주지 않는다</b>(매입·판매의 stopBlockMsg 와 다른 점) — 매칭코드는 전표가 아니라
+		 *   「앞으로 이 코드로 들어올 자료를 이 상품로 잍겠다」는 약속이다. 중지된 상품이면 날짜와 무관하게 막는다.
+		 */
+		private String extStopBlockMsg(Long prodSeq, HttpSession session) throws Exception {
+			if (prodSeq == null) return null;
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("prodSeq", prodSeq);
+			p.put("compCd", session.getAttribute("s_comp_cd"));
+			egovframework.sejong.user.model.ProdDTO d = svc.selectProdStopById(p);
+			if (d == null) return null;
+			StringBuilder sb = new StringBuilder("거래중지된 상품에는 매칭코드를 등록할 수 없습니다.\n\n· ");
+			sb.append(d.getProdCd()).append(" ").append(d.getProdNm()==null?"":d.getProdNm());
+			if (d.getStopFrDt()!=null && !d.getStopFrDt().isEmpty()) sb.append("  (").append(d.getStopFrDt()).append(" 부터 중지");
+			else sb.append("  (중지");
+			if (d.getStopMemo()!=null && !d.getStopMemo().isEmpty()) sb.append(" · ").append(d.getStopMemo());
+			sb.append(")");
+			sb.append("\n\n붙여야 한다면 상품코드등록에서 [▶ 거래해제] 를 먼저 누르세요.");
+			return sb.toString();
+		}
 		@RequestMapping(value="/prod/extItemSave.do", method = RequestMethod.POST)
 		public ResponseEntity<String> extItemSave(@RequestBody egovframework.sejong.user.model.ExtItemDTO dto,
 		                                          HttpServletRequest request, HttpSession session) {
 			try {
 				if (dto.getExtItemCd() == null || dto.getExtItemCd().trim().isEmpty())
 					return ResponseEntity.status(400).body("품목코드 필요");
+				// ★거래중지된 상품은 여기서 막는다(2026-08-19) — 화면을 거치지 않고 불러도 막힌다.
+				String blk = extStopBlockMsg(dto.getProdSeq(), session);
+				if (blk != null) return ResponseEntity.status(403).body(blk);   /* ★409(중복)와 가르려고 403 — 화면이 둘을 다르게 알린다 */
 				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
 				// (거래처 + 코드)는 한 건만 — UX_EXT_ITEM_CD 위반을 500 대신 안내로 돌려준다
 				if (svc.countExtItemCd(dto) > 0)
@@ -2009,6 +2037,14 @@ public class UserController {
 		                                          HttpServletRequest request, HttpSession session) {
 			try {
 				if (list == null || list.isEmpty()) return ResponseEntity.status(400).body("등록할 자료가 없습니다");
+				/* ★거래중지 가드는 여기도 같이(2026-08-19) — 한 줄이라도 중지된 상품이면 묶음 전체를 되돌린다.
+				   ⚠같은 PROD_SEQ 를 줄마다 묻지 않는다 — 중복을 걸러 한 번씩만 본다. */
+				java.util.LinkedHashSet<Long> seqs = new java.util.LinkedHashSet<Long>();
+				for (egovframework.sejong.user.model.ExtItemDTO d : list) if (d != null && d.getProdSeq() != null) seqs.add(d.getProdSeq());
+				for (Long sq : seqs) {
+					String blk = extStopBlockMsg(sq, session);
+					if (blk != null) return ResponseEntity.status(403).body(blk);
+				}
 				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
 				for (egovframework.sejong.user.model.ExtItemDTO d : list) { d.setRegUser(u); d.setRegIp(request.getRemoteAddr()); }
 				return ResponseEntity.ok(String.valueOf(svc.mergeExtItems(list)));

@@ -54,6 +54,13 @@
   tbody tr:hover td{ background:#f3f8f6; }
   tbody tr{ cursor:pointer; }
   tbody tr.sel td{ background:#dcefe9 !important; }
+  /* ★[2026-08-19 요청] 거래중지된 상품은 **줄 전체를 빨간색**으로 — 오른쪽 끝 [중지일] 칸과
+     코드 칸 배지만으로는 긴 목록을 스크롤하며 훑을 때 눈에 안 들어왔다.
+     ★칸에 직접 박은 색(거래처명 · 중지일 등)을 이기려고 `!important` 를 쓴다.
+       배지(과세·매칭·중지·서브)는 제 색을 그대로 둔다 — 전부 빨간색이 되면 오히려 구분이 안 된다. */
+  tbody tr.stopped td{ background:#fff4f3; color:#c0392b !important; }
+  tbody tr.stopped:hover td{ background:#ffe7e3; }
+  tbody tr.stopped.sel td{ background:#fbd5cf !important; }
   td.code{ font-family:Consolas,monospace; }
   td.nm{ white-space:normal; min-width:220px; max-width:340px; }
   /* ★[2026-08-17 요청 「거래처명이 제조사에 너무 붙어 있음 — 좌측으로 2.5cm」]
@@ -214,6 +221,11 @@
      거래처가 부르는 코드를 받아 적을 때 "이게 어느 주상품에 붙는 코드인지"를 이 자리에서 찾는다.
      ★위로 펼친다(bottom:100%) — 등록 줄이 화면 맨 아래라 아래로 열면 잘린다. */
   #mc .addbar .f.acwrap{ position:relative; }
+  /* ★[2026-08-19 요청] 품목코드 칸 옆 「이 코드가 상품코드에 있는가」 표시.
+     ★입력칸 **아래**가 아니라 **칸이름 줄**에 붙인다 — addbar 가 `align-items:flex-end` 라
+       아래에 줄을 더하면 그 칸만 위로 들려 옆 칸들과 높이가 어긋난다. */
+  #mc .addbar .acwrap label{ display:flex; align-items:baseline; gap:6px; max-width:520px; }
+  #mc .addbar .cdinfo{ font-size:11.5px; font-weight:700; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #mc .ac{ position:absolute; bottom:calc(100% + 4px); left:0; width:560px; max-height:340px;
            background:#fff; border:1px solid var(--bd); border-radius:8px; box-shadow:0 -8px 26px rgba(0,0,0,.20);
            z-index:60; font-size:12.5px; display:flex; flex-direction:column; }
@@ -346,7 +358,9 @@
         <%-- 품목코드 = 이 상품에 붙일 코드. 칸을 누르면 상품마스터 검색창이 열린다(2026-08-02 요청).
              ① 창에서 줄을 고르면 품목코드·품목명·규격이 그 줄 값으로 채워진다
              ② 붙는 곳은 언제나 '위에서 고른 상품' — 이 창은 대상 상품을 바꾸지 않는다 --%>
-        <div class="f acwrap"><label>품목코드 *</label>
+        <%-- ★[2026-08-19 요청] 친 코드가 상품코드(상품마스터)에 있으면 그 「주코드 명칭」을,
+             없으면 「코드 없음」을 그 자리에서 알려 준다(mcCdInfo). 등록을 막지는 않는다. --%>
+        <div class="f acwrap"><label>품목코드 * <span id="a_cdInfo" class="cdinfo"></span></label>
           <input id="a_cd" style="width:130px" autocomplete="off"
                  onclick="mcAcOpen()" onfocus="mcAcOpen()" oninput="mcAcTyped()" onkeydown="mcAcKey(event)">
           <div id="a_ac" class="ac" style="display:none"></div>
@@ -357,7 +371,9 @@
           <div style="display:flex; gap:6px">
             <%-- ★품목명을 치고 칸을 벗어나면 **그 자리에서** 비슷한 이름을 확인한다(2026-08-17 지시).
                  저장 순간이 아니라 **입력 직후**라야 고쳐 넣을 여지가 있다. --%>
-            <input id="a_nm" style="flex:1" onblur="mcSimBlur()"
+            <%-- ★onfocus=mcCdFill — Tab·Enter 말고 **마우스로 품목명 칸을 바로 누를 때도**
+                 채워진다(2026-08-19 추가 요청 「품명으로 선택해도」). 빈 칸일 때만 채우니 타이핑을 방해하지 않는다. --%>
+            <input id="a_nm" style="flex:1" onfocus="mcCdFill()" onblur="mcSimBlur()"
                    onkeydown="if(event.keyCode===13){ mcSimBlur(); mcAdd(); }">
             <button class="btn" style="flex:0 0 auto" onclick="mcSimShow()"
                     title="비슷한 품목명이 이미 등록돼 있는지 찾아 봅니다">🔍 유사 품명</button>
@@ -473,8 +489,13 @@ function pcLoad(done){
     .then(function(r){ return r.text(); })
     .then(function(txt){ var j; try{ j=JSON.parse(txt); }catch(e){ toast('목록 응답 오류','err'); return; }
       LIST=(j&&j.data)||[]; _byseq={}; LIST.forEach(function(o){ _byseq[o.prodSeq]=o; });
+      /* ★[2026-08-19] 고른 상품(_mcCur)도 **새로 읽은 줄로 갈아 끼운다** — 안 하면
+         [⛔ 거래중지]·[▶ 거래해제] 를 누른 뒤에도 **옆날 상태**를 들고 있어
+         매칭코드 잠금(아래 mcStopSync)이 그대로 남거나 풀리지 않는다. */
+      if(_mcCur) _mcCur=_byseq[_mcCur.prodSeq]||_mcCur;
       pcUniqBuild();                     // 규격·제조사명 입력검색이 볼 값 목록(2026-08-04)
       pcFilter();
+      mcStopSync();                      // 중지·해제가 반영되면 [＋ 등록] 잠금도 같이 맞춘다
       if(typeof done==='function'){ try{ done(); }catch(e){} }
     })
     .catch(function(e){ toast('통신오류: '+e.message,'err'); });
@@ -541,7 +562,8 @@ function pcRender(){
              +  esc(sb.prodCd)+'</a></div>';
       if(mp.prodNm) mstNm='<div style="font-size:11.5px;color:#8a97a3;margin-top:2px">마스터 : '+esc(mp.prodNm)+'</div>';
     }
-    return '<tr data-seq="'+o.prodSeq+'" onclick="pcSel(this,'+o.prodSeq+')" ondblclick="pcOpen('+o.prodSeq+')">'
+    /* ★중지된 줄은 class="stopped" — 색칠하기는 CSS 가 한다(2026-08-19 요청) */
+    return '<tr'+(o.stopYn==='Y'?' class="stopped"':'')+' data-seq="'+o.prodSeq+'" onclick="pcSel(this,'+o.prodSeq+')" ondblclick="pcOpen('+o.prodSeq+')">'
       +'<td class="code">'+cdCell+'</td><td class="nm">'+esc(o.prodNm)+mstNm+'</td>'
       /* ★칸 순서는 위 thead 와 **똑같이** 유지한다(2026-08-18 재배치) :
            규격 → 거래처명 → 제조사 → 유형 → 적정재고 → 과세 → 입수 → 입고가 → 판매가 → 도매가
@@ -865,6 +887,8 @@ function mcPickProd(seq){
   el.innerHTML='<b>'+esc(_mcCur.prodCd)+'</b> '+esc(_mcCur.prodNm||'')
     + (_mcCur.spec?(' · '+esc(_mcCur.spec)):'');
   document.getElementById('a_msg').textContent='이 상품에 거래처 코드를 붙입니다.';
+  mcStopSync();                            // ★중지된 상품이면 여기서 바로 잠긴다(2026-08-19)
+  mcCdInfo();                              // 친 코드가 남아 있으면 표시도 다시 맞춘다
   if(!gv('a_noti')) document.getElementById('a_noti').value=mcToday();
   if(document.getElementById('mc').classList.contains('min')) mcToggle();   // 접혀 있으면 펼친다
   mcRender();
@@ -1041,8 +1065,67 @@ function mcAcOpen(){
   var q=document.getElementById('ac_q'); if(q) q.value=gv('a_cd');   // 이미 친 코드가 있으면 그걸로 시작
   mcAcBody();
 }
+/* ★★[2026-08-19 요청] **거래중지(중지일 있는) 상품에는 매칭코드를 붙이지 못하게 막는다.**
+     「앞으로 안 쓰는 코드」에 새 이름표를 달면 그 코드로 오는 자료가 다시 그 상품으로 살아난다.
+   ★막는 자리는 두 곳 —
+       ① 눈으로 : [＋ 등록] 을 잠그고 **왜** 잠겼는지 옆에 적는다(mcStopSync)
+       ② 실제로 : mcAdd 에서 한 번 더 본다 — [＋ 등록] 도 Enter 도 결국 그 함수를 지난다
+   ★풀리는 길은 위 목록의 [▶ 거래해제] — 해제하면 목록을 다시 읽으면서 잠금도 같이 풀린다. */
+function mcCurLive(){ return _mcCur ? (_byseq[_mcCur.prodSeq]||_mcCur) : null; }
+function mcStopped(){ var c=mcCurLive(); return !!(c && c.stopYn==='Y'); }
+function mcStopSync(){
+  var b=document.getElementById('a_addBtn'), m=document.getElementById('a_msg');
+  if(!b) return;
+  var st=mcStopped(), c=mcCurLive();
+  if(!_mcSaving){ b.disabled=st; b.style.opacity=st?'.5':''; }   /* 저장 중이면 _mcBusy 가 임자다 */
+  b.title=st?'거래중지된 상품이라 매칭코드를 등록할 수 없습니다':'';
+  if(!m) return;
+  if(st){
+    m.innerHTML='<span style="color:#c0392b;font-weight:700">⛔ 거래중지된 상품 — 매칭코드를 등록할 수 없습니다'
+      + (c && c.stopFrDt ? (' ('+esc(pcFmtDt8(c.stopFrDt))+' 부터)') : '') + '</span>';
+  }else if(c){ m.textContent='이 상품에 거래처 코드를 붙입니다.'; }
+}
+/* ★[2026-08-19 요청] 품목코드 칸에 친 코드가 **상품코드(상품마스터)에 있는 코드인지**를
+     칸이름 줄에서 바로 알려 준다.
+       · 있으면 : ✔ 그 코드의 상품명(= 주코드 명칭)
+       · 없으면 : ⚠ 코드 없음
+   ★등록을 막지 않는다 — 거래처가 부르는 코드는 우리 상품코드와 다른 것이 정상이다
+     (달라서 매칭코드를 붙인다). 잘못 만들어진 코드를 제 주코드 밑으로 정리할 때
+     「이 코드가 우리 마스터에도 있나」를 보려는 것이다.
+   ★서버를 부르지 않는다 — 이미 받아 둔 LIST(상품 전체)만 본다. */
+function mcCdInfo(){
+  var el=document.getElementById('a_cdInfo'); if(!el) return;
+  var cd=gv('a_cd');
+  if(!cd || !LIST.length){ el.textContent=''; el.removeAttribute('title'); el.style.color=''; return; }   /* ★목록을 아직 못 읽었으면 아무 말도 하지 않는다 — 있는 코드를 '없음'으로 적으면 안 된다 */
+  var k=cd.toLowerCase(), p=null, i;
+  for(i=0;i<LIST.length;i++){ if(String(LIST[i].prodCd||'').toLowerCase()===k){ p=LIST[i]; break; } }
+  if(p && p.stopYn==='Y'){
+    /* ★친 코드가 **거래중지된 상품**의 코드면 빨강으로(2026-08-19 「중지된 코드는 빨간색」) —
+       초록 ✔ 로 띄우면 멀슐한 코드로 읽혀 중지 사실을 모르고 붙이게 된다. 등록 자체는 안 막는다 —
+       막히는 것은 「중지된 상품에 붙이기」지, 중지된 코드를 다른 산 상품의 매칭코드로 다는 것은 정상이다. */
+    el.textContent='⛔ '+(p.prodNm||'(이름 없음)')+' (중지'+(p.stopFrDt?(' '+pcFmtDt8(p.stopFrDt)):'')+')';
+    el.title='거래중지된 상품의 코드입니다 — '+p.prodCd+' '+(p.prodNm||'');
+    el.style.color='#c0392b';
+  }else if(p){
+    el.textContent='✔ '+(p.prodNm||'(이름 없음)');
+    el.title='상품코드(상품마스터)에 있는 코드입니다 — '+p.prodCd+' '+(p.prodNm||'')
+           + (p.spec?(' · '+p.spec):'');
+    el.style.color='#1f7a4d';
+  }else{
+    /* ★없는 코드여도 **등록은 된다** (2026-08-19 확정) — 거래처가 부르는 코드는
+       우리 상품코드와 다른 것이 정상이다(달라서 매칭코드를 붙인다).
+       대신 **어느 주코드에 붙는지**를 같이 적어 잘못 붙이는 것을 그 자리에서 막는다. */
+    var t=mcCurLive();
+    el.textContent='⚠ 없는 코드'
+      + (t ? (' → '+(t.prodCd||'')+' '+(t.prodNm||'')+' 에 등록') : '');
+    el.title='상품코드(상품마스터)에는 없는 코드입니다 — 그대로 등록됩니다.'
+           + (t ? ('\n붙을 주코드 : '+(t.prodCd||'')+' '+(t.prodNm||'')) : '');
+    el.style.color='#c0392b';
+  }
+}
 /* 품목코드 칸에 글자를 치면 — 경고(정확히 같은 코드)와 후보를 그 글자로 다시 맞춘다 */
 function mcAcTyped(){
+  mcCdInfo();                              // ★코드가 바뀌었으니 표시도 같이 (2026-08-19)
   if(!mcAcOpened()){ mcAcOpen(); return; }
   var q=document.getElementById('ac_q'); if(q) q.value=gv('a_cd');
   mcAcBody();
@@ -1101,10 +1184,29 @@ function mcAcBody(){
   _acRows=rows; _acIdx=-1;
   b.innerHTML=h; b.scrollTop=0;
 }
+/* ★[2026-08-19 요청] 품목코드 칸에서 **Tab·Enter** 를 치면 품목명을 채워 준다.
+     · 친 코드가 상품마스터에 **있으면** : 그 코드의 상품명·규격 (검색창에서 고른 것과 같은 값)
+     · **없으면** : 위에서 선택한 주코드(_mcCur)의 명칭·규격 — 거래처 코드는 보통 이름도
+       안 주고 오므로, 붙을 상품의 이름을 바로 잎어 치는 수고를 된다.
+   ★사람이 이미 친 품목명은 **덮지 않는다** — 거래처가 준 이름을 적는 것이 이 칸 본래 용도다.
+     (등록 직후에는 칸이 비니 연달아 받아 적는 흐름에서는 매번 채워진다.) */
+function mcCdFill(){
+  var cd=gv('a_cd'); if(!cd || gv('a_nm')) return;
+  var k=cd.toLowerCase(), p=null, i;
+  for(i=0;i<LIST.length;i++){ if(String(LIST[i].prodCd||'').toLowerCase()===k){ p=LIST[i]; break; } }
+  var src = p || mcCurLive();          // 마스터에 있으면 그 코드, 없으면 선택한 주코드
+  if(!src) return;
+  _set('a_nm', src.prodNm||'');
+  if(!gv('a_spec')) _set('a_spec', src.spec||'');
+  if(!p) toast('없는 코드라 주코드 명칭을 채웠습니다 — '+esc(src.prodCd||'')+' '+esc(src.prodNm||''),'info');
+}
 function mcAcKey(e){
   var b=document.getElementById('ac_b'), open=(mcAcOpened() && _acRows.length);
   var inQ=(e.target && e.target.id==='ac_q');
   if(e.keyCode===27){ mcAcHide(); mcAcFocusCd(); return; }   // Esc — 그냥 focus() 하면 창이 도로 열린다
+  /* ★Tab (2026-08-19) — 품목명을 채우고 창을 닫는다. preventDefault 는 안 한다 —
+       초점은 브라우저가 다음 칸(품목명)으로 그대로 옮긴다. 검색창 안(inQ)에서는 안 한다. */
+  if(e.keyCode===9 && !inQ){ mcCdFill(); mcAcHide(); return; }
   if(open && (e.keyCode===38 || e.keyCode===40)){                                      // ↑ ↓
     e.preventDefault();
     _acIdx += (e.keyCode===40?1:-1);
@@ -1127,6 +1229,7 @@ function mcAcKey(e){
     return;
   }
   if(open && _acIdx>=0){ e.preventDefault(); mcAcPick(_acRows[_acIdx]); return; }
+  mcCdFill();                          // ★Enter 로 바로 등록할 때도 품목명이 빈 채 들어가지 않게(2026-08-19)
   mcAcHide(); mcAdd();
 }
 /* 바깥을 누르면 닫는다 — 창 안(검색칸·줄)을 누를 때는 닫히면 안 되므로 blur 로 닫지 않는다 */
@@ -1149,6 +1252,7 @@ function mcAcPick(seq){
   _set('a_cd', o.prodCd||'');
   _set('a_nm', o.prodNm||'');
   _set('a_spec', o.spec||'');
+  mcCdInfo();                              // 고른 줄은 상품마스터 것이니 ✔ 로 바뀐다
   mcAcFocusCd();
 }
 
@@ -1316,6 +1420,17 @@ function mcSimBlur(){
 function mcAdd(){
   if(_mcSaving) return;                      // 저장이 끝날 때까지는 받지 않는다
   if(!_mcCur){ toast('먼저 위 목록에서 상품을 고르세요.','warn'); return; }
+  /* ★★[2026-08-19 요청] 거래중지된 상품은 여기서 막는다 — [＋ 등록]·Enter 둘 다 이 길을 지난다. */
+  if(mcStopped()){
+    var sc=mcCurLive()||{};
+    mcStopSync();
+    alertBox('<div style="text-align:left"><b style="font-size:15px">거래중지된 상품입니다</b>'
+      + '<div style="margin-top:8px"><b style="color:#137a6c">'+esc(sc.prodCd||'')+'</b> '+esc(sc.prodNm||'')+'</div>'
+      + (sc.stopFrDt ? ('<div style="font-size:12.5px;color:#9aa7b3">'+esc(pcFmtDt8(sc.stopFrDt))+' 부터 중지</div>') : '')
+      + '<div style="margin-top:10px;font-size:13px">중지된 코드에는 매칭코드를 등록할 수 없습니다.<br>'
+      + '붙여야 한다면 위 목록에서 그 상품을 고른 뒤 <b>[▶ 거래해제]</b> 를 먼저 누르세요.</div></div>', '⛔');
+    return;
+  }
   var cd=gv('a_cd');
   if(!cd){ toast('거래처가 부르는 품목코드를 입력하세요.','warn'); document.getElementById('a_cd').focus(); return; }
   var ven=gv('a_ven');
@@ -1342,10 +1457,16 @@ function mcSend(dto){
         /* 409 = 서버가 막은 중복. 화면이 들고 있던 MC 가 낡아 미리 못 잡은 경우다
            (다른 사람이 방금 등록했거나, 목록을 읽은 뒤 바뀐 경우) — 다시 읽어 주코드까지 알려 준다. */
         if(r.status===409){ mcRecheckDup(dto); return; }
+        /* ★403 = 서버가 막은 **거래중지** (2026-08-19). 화면이 미리 막지만, 창을 열어 둔 사이에
+           다른 사람이 중지했으면 여기로 온다 — 목록을 다시 읽어 화면 잠금도 같이 맞춘다. */
+        if(r.status===403){
+          alertBox('<div style="text-align:left;white-space:pre-wrap">'+esc((r.t||'거래중지된 상품입니다.').trim())+'</div>','⛔');
+          pcLoad(); return;
+        }
         toast((r.t||'').trim()||('등록 실패 (HTTP '+r.status+')'),'err'); return;
       }
       // 연달아 받아 적는 흐름 — 코드·품명·규격·단가만 비우고 거래처·받은날은 남긴다
-      _set('a_cd',''); _set('a_nm',''); _set('a_spec',''); _set('a_price','');
+      _set('a_cd',''); _set('a_nm',''); _set('a_spec',''); _set('a_price',''); mcCdInfo();
       toast('＋ 매칭코드 등록 — '+esc(cd),'ok');
       mcAcHide(); mcAcFocusCd();          // 등록 직후에 후보창이 도로 열리지 않게
       mcLoad();

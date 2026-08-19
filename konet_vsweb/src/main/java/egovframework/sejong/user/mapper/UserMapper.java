@@ -113,6 +113,8 @@ public interface UserMapper {
 	int unstopProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
 	/** 전표일자 기준으로 **중지된 코드만** 골라 준다(매입·판매 저장 관문). */
 	java.util.List<egovframework.sejong.user.model.ProdDTO> selectStoppedAmong(java.util.Map<String,Object> p) throws Exception;
+	/** PROD_SEQ 하나가 거래중지인지 — 중지면 그 줄, 아니면 null (매칭코드 등록 관문, 2026-08-19). */
+	egovframework.sejong.user.model.ProdDTO selectProdStopById(java.util.Map<String,Object> p) throws Exception;
 	int countProdRelated(egovframework.sejong.user.model.ProdDTO dto) throws Exception;   // 연관(매입가/판매가/재고) 활성건수
 
 	// ===== 매입가 이력 (TBL_PROD_INPRICE_HST) =====

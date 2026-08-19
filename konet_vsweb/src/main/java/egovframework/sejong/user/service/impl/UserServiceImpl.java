@@ -204,6 +204,7 @@ public class UserServiceImpl implements UserService {
 	@Override public int stopProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.stopProd(dto); }
 	@Override public int unstopProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.unstopProd(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.ProdDTO> selectStoppedAmong(java.util.Map<String,Object> p) throws Exception { return mapper.selectStoppedAmong(p); }
+	@Override public egovframework.sejong.user.model.ProdDTO selectProdStopById(java.util.Map<String,Object> p) throws Exception { return mapper.selectProdStopById(p); }
 
 	@Override public int countProdRelated(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.countProdRelated(dto); }
 

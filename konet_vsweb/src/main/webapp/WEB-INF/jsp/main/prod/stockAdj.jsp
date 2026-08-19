@@ -23,10 +23,11 @@
   *{ box-sizing:border-box; }
   html,body{ margin:0; padding:0; height:100%; overflow:hidden; }
   body{ font-family:'맑은 고딕','Malgun Gothic',sans-serif; color:#1f2a37; background:var(--bg); font-size:14px; }
-  .wrap{ padding:8px 11px 10px; height:100%; display:flex; flex-direction:column; min-height:0; }
+  /* ★[2026-08-19 요청 「상단을 조금 줄이고 조정이력을 위로 확대」] 위쪽 여백·조회줄 패딩을 한 단계씩 줄였다 */
+  .wrap{ padding:4px 11px 8px; height:100%; display:flex; flex-direction:column; min-height:0; }
 
-  .bar{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:8px 10px;
-        background:#fff; border:1px solid var(--bd); border-radius:8px; margin-bottom:8px; }
+  .bar{ display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; padding:5px 10px;
+        background:#fff; border:1px solid var(--bd); border-radius:8px; margin-bottom:6px; }
   .bar label{ font-size:13px; color:#48606f; font-weight:600; }
   .bar select, .bar input[type=text], .bar input[type=date]{
         height:30px; border:1px solid #cbd5e1; border-radius:5px; padding:0 8px; font-size:13px;
@@ -58,15 +59,32 @@
   input.ed:focus{ outline:none; border-color:var(--teal); }
   tr.chg{ background:#fff8e8; }                     /* 고친 줄 */
   tr.chg:hover{ background:#fff3d8; }
+  /* ★[2026-08-19 요청] 상품코드등록과 같은 표시 — 거래중지 상품은 줄 전체 빨간색.
+     ⚠chg(고친 줄)보다 뒤에 둔다 — 중지 표시가 누런 배경에 묻히면 안 된다. */
+  tr.stopped, tr.stopped:hover, tr.stopped.chg{ background:#fff4f3; }
+  /* ★!important — 음수(.neg) 등 칸에 박은 색을 이기고 줄 전체가 빨강이 되게(2026-08-19 재지적 「중지된 코드는 빨간색」) */
+  tr.stopped td{ color:#c0392b !important; }
+  /* 서브 배지·주코드 링크·마스터 상품명 — 상품코드등록(prodcd.jsp)과 같은 모양 */
+  .subbdg{ display:inline-block; padding:0 5px; border-radius:8px; background:#fdecea; color:#c0392b;
+           font-size:12px; font-weight:700; }
+  /* ★[2026-08-19 확정 「여기서는 주코드 보여주는 것」] 주코드는 **표시 전용** —
+     처음엔 링크(검색 이동 → 스크롤 이동)를 달았다가 액션 자체를 걷어냈다.
+     이 화면은 재고를 고치는 곳이지 코드를 다루는 곳이 아니다 — 코드 정리는 상품코드등록에서.
+     다시 달자는 얘기가 나오면 이 이력부터 확인할 것. */
+  .subgo{ font-size:12.5px; color:#1f7a4d; font-weight:700; }
+  .subgo.stop{ color:#c0392b; }              /* 주코드가 중지면 빨강 */
+  .mstnm{ font-size:11.5px; color:#8a97a3; margin-top:2px; white-space:normal; }
+  .stopbdg{ display:inline-block; padding:0 5px; border-radius:8px; background:#eceff1; color:#546e7a;
+            font-size:11px; font-weight:700; }
   .diff{ font-weight:800; }
   .diff.up{ color:#1f7a4b; }
   .diff.dn{ color:#b23b3b; }
 
-  .foot{ display:flex; align-items:center; gap:12px; padding:7px 10px; margin-top:8px;
+  .foot{ display:flex; align-items:center; gap:12px; padding:5px 10px; margin-top:6px;
          background:#fff; border:1px solid var(--bd); border-radius:8px; font-size:13px; }
   .foot b{ color:var(--teal); }
   /* ── 하단 조정 이력 ─────────────────────────────────────────── */
-  .hist{ margin-top:8px; background:#fff; border:1px solid var(--bd); border-radius:8px;
+  .hist{ margin-top:6px; background:#fff; border:1px solid var(--bd); border-radius:8px;
          display:flex; flex-direction:column; min-height:0; }
   .hist.off .hgrid{ display:none; }
   .htab{ display:flex; align-items:center; gap:6px 10px; padding:6px 10px; border-bottom:1px solid var(--bd); }
@@ -76,11 +94,21 @@
   .htab label{ font-size:13px; color:#48606f; font-weight:600; }
   .htab input{ height:26px; border:1px solid #cbd5e1; border-radius:4px; padding:0 7px;
                font-size:13px; font-family:inherit; }
-  .hgrid{ max-height:28vh; overflow:auto; }
+  /* ★이력이 높아진 만큼 위 목록(.grid, flex:1)이 자연히 줍어든다 — 28vh → 40vh (2026-08-19 요청) */
+  .hgrid{ max-height:40vh; overflow:auto; }
   .hgrid table{ font-size:12.5px; }
   .hgrid thead th{ background:#f4f7f8; }
   .undo{ height:22px; border:1px solid #b23b3b; background:#fff; color:#b23b3b;
          border-radius:4px; padding:0 8px; font-size:11.5px; font-weight:700; cursor:pointer; }
+  /* ★[2026-08-19 요청 「모래시계」] 조회 중 오버레이 — 진짜 작업 중이라 클릭을 막는다
+     (조회가 도는 사이 [수정저장]·재조회가 겹치면 안 된다 — shpProgOv 와 같은 원칙). */
+  .busy{ position:fixed; inset:0; background:rgba(255,255,255,.45); display:none; z-index:999;
+         align-items:center; justify-content:center; cursor:progress; }
+  .busy.on{ display:flex; }
+  .busy .bx{ background:#fff; border:1px solid var(--bd); border-radius:10px; padding:13px 24px;
+             font-size:14.5px; font-weight:700; color:var(--teal); box-shadow:0 8px 26px rgba(0,0,0,.18); }
+  .busy .hg{ display:inline-block; animation:hgFlip 1.2s linear infinite; margin-right:6px; }
+  @keyframes hgFlip{ 0%,80%{ transform:rotate(0) } 90%,100%{ transform:rotate(180deg) } }
 </style>
 </head>
 <body>
@@ -113,7 +141,7 @@
 
     <label>상품</label>
     <input type="text" id="findData" placeholder="코드 · 상품명 · 규격 — 치면 바로 조회" style="width:210px"
-           oninput="liveFind();" onkeydown="if(event.keyCode===13){ clearTimeout(FIND_T); load(); }">
+           oninput="liveFind();" onkeydown="if(event.keyCode===13){ clearTimeout(FIND_T); _ALL.length?applyFilter():load(); }">
     <label>유형</label>
     <select id="typeNm"><option value="">전체</option></select>
     <label>제조사</label>
@@ -129,6 +157,8 @@
           <th style="width:170px">규격</th>
           <th class="r" style="width:80px">입수수량</th>
           <th style="width:130px">유형</th>
+          <%-- ★[2026-08-19 요청] 상품코드등록처럼 중지일도 보여 준다 --%>
+          <th class="c" style="width:95px" title="거래중지 시작일 — 이 날짜부터 매입·판매에서 막힙니다">중지일</th>
           <th class="r" style="width:90px">BOX재고</th>
           <th class="r" style="width:80px">EA재고</th>
           <th class="r" style="width:95px">합계재고</th>
@@ -138,7 +168,7 @@
         </tr>
       </thead>
       <tbody id="body">
-        <tr><td colspan="11" class="c dim" style="padding:26px">[리스트조회] 를 눌러 주세요.</td></tr>
+        <tr><td colspan="12" class="c dim" style="padding:26px">[리스트조회] 를 눌러 주세요.</td></tr>
       </tbody>
     </table>
   </div>
@@ -191,9 +221,16 @@
   </div>
 </div>
 
+<%-- ★조회 중 모래시계 (2026-08-19 요청) --%>
+<div class="busy" id="busyOv"><div class="bx"><span class="hg">⏳</span><span class="tx">목록을 조회하는 중입니다…</span></div></div>
+
 <script type="text/javascript">
 var CTX  = '${pageContext.request.contextPath}';
-var ROWS = [];        /* 마지막으로 불러온 목록 */
+var ROWS = [];        /* 화면에 보이는 목록(= _ALL 을 검색·필터·정렬한 결과) */
+var _ALL = [];        /* ★[2026-08-19 요청 「조회가 느림」] 서버에서 받은 전 품목 —
+                          서버는 **기준일자가 바뀔 때만** 부른고(재고 누계가 그 날짜 기준이라),
+                          검색어·유형·제조사·재고0제외·정렬은 applyFilter 가 화면에서 바로 건다.
+                          종전에는 글자 칠 때마다 원장 집계 쿼리가 돌아 느렸다. */
 
 function gel(id){ return document.getElementById(id); }
 function esc(s){ return String(s == null ? '' : s)
@@ -204,6 +241,37 @@ function alertBox(msg, icon){
   else alert(String(msg).replace(/<[^>]+>/g,''));
 }
 function toast(msg){ if (window._toast) window._toast(msg); }
+/* 모래시계 — 서버 조회 동안만 켜진다. ⚠끄는 것은 반드시 응답 도착 지점 모두에서(then·catch) —
+   한 곳이라도 빠지면 '진행 중'으로 영영 남는다(RebuildProgress 전례). */
+function busy(on, msg){
+  var b=gel('busyOv'); if(!b) return;
+  if(msg){ var t=b.querySelector('.tx'); if(t) t.textContent=msg; }
+  b.classList.toggle('on', !!on);
+}
+
+/* ★[2026-08-19 요청] 상품코드등록(prodcd.jsp)과 같은 표시를 이 화면에도 —
+     · 서브코드면 빨간 「서브」 배지 + → 주코드 + 마스터 상품명
+     · 거래중지면 줄 전체 빨강 + 중지일 칸
+   ★서버 SQL(selectStockAdjList)은 안 고친다 — 이미 있는 두 조회(prodList·extItemList)를
+     한 번씩 받아 화면에서 짝을 맞춨다. **JSP만 바꿔 WAR 재빌드가 없다.**
+   ★늘게 도착해도 맞는다 — 보조자료가 오면 목록이 이미 떠 있을 때만 다시 그린다. */
+var _pm = {}, _subOf = {}, _auxOk = false;   /* _pm = prodSeq→상품줄(중지·이름) / _subOf = 서브코드→통보줄 */
+function fmtDt8(v){ v=String(v||'').replace(/-/g,''); return v.length===8 ? v.slice(0,4)+'-'+v.slice(4,6)+'-'+v.slice(6,8) : v; }
+(function(){
+  function post(u){ return fetch(CTX+u, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+                                          credentials:'same-origin', body:'' }).then(function(r){ return r.json(); }); }
+  Promise.all([ post('/prod/prodList.do'), post('/prod/extItemList.do') ])
+    .then(function(a){
+      ((a[0]&&a[0].data)||[]).forEach(function(o){ _pm[o.prodSeq]=o; });
+      /* 서브 판정은 prodcd.jsp 와 같은 규칙 — 통보 코드와 주코드가 다를 때만 서브다 */
+      ((a[1]&&a[1].data)||[]).forEach(function(o){
+        if(o.prodCd && o.extItemCd && String(o.extItemCd)!==String(o.prodCd)) _subOf[String(o.extItemCd)]=o;
+      });
+      _auxOk=true;
+      if(ROWS.length) render();          /* 목록이 먼저 떠 있으면 표시만 덧그린다 */
+    })
+    .catch(function(){ /* 보조표시만 빠질 뿐 조정 자체는 동작한다 — 조용히 넘어간다 */ });
+})();
 
 /* 오늘 날짜를 기본값으로 */
 (function(){
@@ -220,58 +288,108 @@ function toast(msg){ if (window._toast) window._toast(msg); }
 var FIND_T = null;
 function liveFind(){
   clearTimeout(FIND_T);
+  /* ★[2026-08-19] 서버가 아니라 _ALL 을 걸러 바로 그린다 — 왕33복이 없으니
+     한 글자 제한도 필요 없고, 디바운스는 그리기 비용만 아끼는 150ms 로 줄였다. */
   FIND_T = setTimeout(function(){
-    var v = gel('findData').value.trim();
-    if (v.length === 1) return;           /* 한 글자는 기다린다 */
-    load();
-  }, 350);
+    if (!_ALL.length){ load(); return; }  /* 아직 안 읽었으면 그때 한 번만 서버를 부른다 */
+    applyFilter();
+  }, 150);
 }
 
 /* 드롭다운·체크·날짜는 바꾸는 즉시 조회 */
 (function(){
-  ['sortGb','typeNm','makerNm','baseDt'].forEach(function(id){
-    var el = gel(id); if (el) el.onchange = function(){ if (ROWS.length || id === 'baseDt') load(); };
+  /* ★기준일자만 서버 재조회(재고 누계가 그 날짜 기준) — 나머지는 화면 필터만 재적용(2026-08-19) */
+  ['sortGb','typeNm','makerNm'].forEach(function(id){
+    var el = gel(id); if (el) el.onchange = function(){ if (_ALL.length) applyFilter(); };
   });
-  var z = gel('zeroExc'); if (z) z.onchange = function(){ load(); };
+  var b = gel('baseDt'); if (b) b.onchange = function(){ load(); };
+  var z = gel('zeroExc'); if (z) z.onchange = function(){ if (_ALL.length) applyFilter(); };
 })();
+
+/* ★검색·필터·정렬을 _ALL 에 걸어 ROWS 를 만든다 — 서버 SQL 과 같은 규칙
+   (검색 = 코드·상품명·규격 부분일치 / 유형·제조사 일치 / 재고 0 제외 / 정렬 CD·NM·QTY).
+   ⚠규칙을 바꾸면 selectStockAdjList 쪽 필터도 같이 볼 것 — 이 화면은 이제 안 타지만
+   SQL 에는 그대로 남아 있다(다른 호출부가 쓸 수 있어 안 지웠다). */
+var _fltSig = '';   /* 마지막으로 그린 조건 — 같으면 재렌더 생략(2026-08-19 「순간순간 늦다」) */
+var _allVer = 0;    /* load() 가 새 자료를 받을 때마다 올린다 — 같은 조건이라도 새 자료면 다시 그린다 */
+function applyFilter(){
+  var q  = gel('findData').value.trim().toLowerCase();
+  var ty = gel('typeNm').value, mk = gel('makerNm').value, z0 = gel('zeroExc').checked;
+  var sig = [q, ty, mk, z0?1:0, gel('sortGb').value, _allVer].join('|');
+  if (sig === _fltSig) return;   /* 조건이 그대로면 2,000행을 또 그리지 않는다(수정 중이던 값도 안 날린다) */
+  _fltSig = sig;
+  ROWS = _ALL.filter(function(r){
+    if (z0 && nvl(r.curQty) === 0) return false;
+    if (ty && String(r.typeNm||'')  !== ty) return false;
+    if (mk && String(r.makerNm||'') !== mk) return false;
+    if (!q) return true;
+    return [r.prodCd, r.prodNm, r.spec].some(function(v){
+      return String(v||'').toLowerCase().indexOf(q) >= 0; });
+  });
+  var sg = gel('sortGb').value;
+  ROWS.sort(function(a,b){
+    if (sg === 'QTY'){ var d = nvl(b.curQty) - nvl(a.curQty); if (d) return d; }
+    else if (sg === 'NM'){ var n = String(a.prodNm||'').localeCompare(String(b.prodNm||''),'ko'); if (n) return n; }
+    return String(a.prodCd||'') < String(b.prodCd||'') ? -1 : (String(a.prodCd||'') > String(b.prodCd||'') ? 1 : 0);
+  });
+  render();
+}
 /* ── 목록 ────────────────────────────────────────────────────────── */
 function load(){
+  /* ★서버에는 **기준일자만** 보낸다(2026-08-19) — 전 품목을 받아 두고
+     검색·필터·정렬은 applyFilter 가 화면에서 건다 — 글자 칠 때마다
+     원장 집계 쿼리가 도는 것이 느린 원인이었다. */
   var p = new URLSearchParams();
   p.append('asOfDt',    gel('baseDt').value || '');
-  p.append('findData',  gel('findData').value.trim());
-  p.append('typeNm',    gel('typeNm').value);
-  p.append('makerNm',   gel('makerNm').value);
-  p.append('sortGb',    gel('sortGb').value);
-  p.append('zeroExcYn', gel('zeroExc').checked ? 'Y' : 'N');
 
-  gel('body').innerHTML = '<tr><td colspan="11" class="c dim" style="padding:26px">불러오는 중…</td></tr>';
+  gel('body').innerHTML = '<tr><td colspan="12" class="c dim" style="padding:26px">불러오는 중…</td></tr>';
 
+  busy(true, '목록을 조회하는 중입니다…');           /* ★모래시계 — 문구는 '조회'(2026-08-19 지적: 재고집계 아님) */
   fetch(CTX + '/prod/stockAdjList.do', {
       method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
       credentials:'same-origin', body: p.toString() })
     .then(function(r){ return r.json(); })
-    .then(function(d){ ROWS = (d && d.data) || []; render(); fillFilters(); })
-    .catch(function(){ alertBox('목록을 불러오지 못했습니다.', '⚠️'); });
+    /* ★busy 는 applyFilter(=2,000행 그리기) 뒤에 끈다 — 그리기도 체감 대기시간이다.
+       applyFilter 가 터져도 아래 catch 가 받아 busy(false) 를 불러 안 남는다. */
+    .then(function(d){ _ALL = (d && d.data) || []; _allVer++; fillFilters(); applyFilter(); busy(false); })
+    .catch(function(){ busy(false); alertBox('목록을 불러오지 못했습니다.', '⚠️'); });
 }
 
 function render(){
   if (!ROWS.length){
-    gel('body').innerHTML = '<tr><td colspan="11" class="c dim" style="padding:26px">자료가 없습니다.</td></tr>';
+    gel('body').innerHTML = '<tr><td colspan="12" class="c dim" style="padding:26px">자료가 없습니다.</td></tr>';
     gel('cnt').textContent = '0건';
     gel('chgCnt').textContent = '0';
     return;
   }
   gel('body').innerHTML = ROWS.map(function(r, i){
     var cur = nvl(r.curQty);
-    return '<tr id="tr'+i+'">'
-      + '<td>' + esc(r.prodCd) + '</td>'
-      + '<td>' + esc(r.prodNm) + '</td>'
+    /* ★상품코드등록과 같은 표시(2026-08-19) — 서브 배지 + → 주코드 + 마스터 상품명 / 중지행 빨강 */
+    var st=_pm[r.prodSeq]||{}, stopped=(st.stopYn==='Y');
+    var sb=_subOf[String(r.prodCd)], cdCell=esc(r.prodCd), mstNm='';
+    if(stopped) cdCell='<span style="white-space:nowrap">'+cdCell+' <span class="stopbdg">중지</span></span>';
+    if(sb){
+      var mp=_pm[sb.prodSeq]||{};
+      /* ★주코드가 중지된 상품이면 링크도 빨강 + (중지) — 누르기 전에 알아보게(2026-08-19) */
+      var mStop=(mp.stopYn==='Y');
+      /* ★주코드는 여기서 **보여주기만** 한다(2026-08-19 확정) — 누르는 자리 아님 */
+      cdCell += '<div style="margin-top:2px"><span class="subbdg">서브</span>'
+             +  ' <span class="subgo'+(mStop?' stop':'')+'"'
+             +  ' title="이 코드는 주코드 '+esc(sb.prodCd)+' 의 매칭코드입니다'+(mStop?' (거래중지된 상품)':'')+'">→ '
+             +  esc(sb.prodCd)+(mStop?' (중지)':'')+'</span></div>';
+      if(mp.prodNm) mstNm='<div class="mstnm">마스터 : '+esc(mp.prodNm)+'</div>';
+    }
+    return '<tr id="tr'+i+'"'+(stopped?' class="stopped"':'')+'>'
+      + '<td>' + cdCell + '</td>'
+      + '<td style="white-space:normal">' + esc(r.prodNm) + mstNm + '</td>'
       + '<td>' + esc(r.spec) + '</td>'
       + '<td class="c"><input class="ed pk" id="pk'+i+'" value="' + nvl(r.packQty) + '"'
       +     ' title="입수수량(BOX당 EA) — 엔터를 치거나 칸을 벗어나면 BOX/EA 가 다시 나뉩니다"'
       +     ' onkeydown="if(event.keyCode===13){ packChg(' + i + '); this.blur(); }"'
       +     ' onchange="packChg(' + i + ')"></td>'
       + '<td>' + esc(r.typeNm) + '</td>'
+      /* 중지일 — 중지된 상품만 적힌다(2026-08-19) */
+      + '<td class="c">' + (stopped ? esc(fmtDt8(st.stopFrDt)) : '') + '</td>'
       + '<td class="r" id="vb'+i+'">' + nvl(r.boxQty) + '</td>'
       + '<td class="r" id="ve'+i+'">' + nvl(r.eaQty) + '</td>'
       + '<td class="r' + (cur < 0 ? ' neg' : '') + '">' + cur + '</td>'
@@ -279,11 +397,14 @@ function render(){
       +     ' oninput="chg(' + i + ')"></td>'
       + '<td class="c"><input class="ed" id="ea'+i+'" value="' + nvl(r.eaQty) + '"'
       +     ' oninput="chg(' + i + ')"></td>'
-      + '<td class="r" id="df'+i+'"></td>'
+      + '<td class="r" id="df'+i+'"><span class="dim">-</span></td>'
       + '</tr>';
   }).join('');
   gel('cnt').textContent = ROWS.length + '건';
-  for (var i = 0; i < ROWS.length; i++) chg(i, true);
+  /* ★[2026-08-19 「순간순간 늦다」] 종전에는 여기서 전 행에 chg() 를 돌렸다(2,000행×DOM 조회 5회 ≈ 1만 회).
+     그린 직후에는 수정칸 = 현재값이라 **증감이 전부 0** — 증감 칸은 HTML 에 '-' 로 바로 박고
+     건수만 0 으로 맞춘다. 값을 손대면 그때 chg(i) 가 그 한 줄만 다시 계산한다. */
+  gel('chgCnt').textContent = '0';
 }
 
 
@@ -394,7 +515,7 @@ function countChg(){
 function fillFilters(){
   ['typeNm','makerNm'].forEach(function(k){
     var sel = gel(k), keep = sel.value, seen = {}, opts = ['<option value="">전체</option>'];
-    ROWS.forEach(function(r){
+    _ALL.forEach(function(r){                 /* ★걸러진 ROWS 가 아니라 전 품목 — 고를수록 선택지가 줄면 안 된다 */
       var v = r[k];
       if (v && !seen[v]){ seen[v] = 1; opts.push('<option value="'+esc(v)+'">'+esc(v)+'</option>'); }
     });
@@ -438,6 +559,7 @@ function save(){
 
   var go = function(){
     gel('btnSave').disabled = true;
+    busy(true, '저장하는 중입니다…');            /* ★모래시계 (2026-08-19) — load() 가 이어서 제 문구로 갈아끼운다 */
 
     // 입수수량 먼저 → 그 다음 재고 조정
     var step1 = packs.length ? post('/prod/packQtySave.do', { rows: packs })
@@ -460,6 +582,7 @@ function save(){
     })
     .catch(function(e){
       gel('btnSave').disabled = false;
+      busy(false);
       alertBox('저장하지 못했습니다.<br>' + esc(e && e.message ? e.message : ''), '⚠️');
     });
   };
@@ -495,11 +618,13 @@ function hisLoad(){
 
   gel('hisBody').innerHTML = '<tr><td colspan="11" class="c dim" style="padding:18px">불러오는 중…</td></tr>';
 
+  busy(true, '조정 이력을 불러오는 중입니다…');   /* ★모래시계 (2026-08-19) */
   fetch(CTX + '/prod/stockAdjHisList.do', {
       method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
       credentials:'same-origin', body: p.toString() })
     .then(function(r){ return r.json(); })
     .then(function(d){
+      busy(false);
       var rows = (d && d.data) || [];
       if (!rows.length){
         gel('hisBody').innerHTML =
@@ -529,7 +654,7 @@ function hisLoad(){
           + '</tr>';
       }).join('');
     })
-    .catch(function(){ alertBox('이력을 불러오지 못했습니다.', '⚠️'); });
+    .catch(function(){ busy(false); alertBox('이력을 불러오지 못했습니다.', '⚠️'); });
 }
 
 /* 묶음 되돌리기 — 이력과 짝인 원장 조정행을 함께 내린다 */
