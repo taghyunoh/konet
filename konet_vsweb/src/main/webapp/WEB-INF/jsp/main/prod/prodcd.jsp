@@ -10,6 +10,11 @@
      빼려면 그 칸에 data-nonav="1" --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js"></script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
+<%-- ★[2026-08-20 요청 「글자체도」] 요즘 한국 업무화면에서 쓰는 **Pretendard**.
+     맑은 고딕보다 획이 고르고 숫자 폭이 일정해 표에서 자릿수가 맞는다.
+     ⚠외부 CDN 이라 못 받으면 **아래 font-family 의 맑은 고딕으로 조용히 내려간다**(화면이 깨지지 않는다).
+       사내망에서 막히면 이 <link> 한 줄만 빼면 종전 글자체로 돌아간다. --%>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <title>상품코드 등록 (TBL_PROD_MST)</title>
 <%-- 상품코드 등록 (2026-08-01 신설)
      ★같은 마스터(TBL_PROD_MST)를 보는 '등록 전용' 화면이다 — 상품(품목)관리와 데이터·엔드포인트가 같다.
@@ -21,7 +26,10 @@
   *{ box-sizing:border-box; }
   /* ★화면 시작 위치·글꼴 통일 (2026-08-03) — 셸(logistics_demo2.jsp)의 .panel 주석 참고 */
   html,body{ margin:0; padding:0; }
-  body{ font-family:'맑은 고딕','Malgun Gothic',sans-serif; color:#1f2a37; background:var(--bg); font-size:14px; }
+  <%-- 글자체 : Pretendard → (못 받으면) 맑은 고딕. 숫자는 표에서 자릿수가 맞도록 폭을 고정한다. --%>
+  body{ font-family:'Pretendard Variable',Pretendard,'맑은 고딕','Malgun Gothic',system-ui,sans-serif;
+        color:#1f2a37; background:var(--bg); font-size:14px; -webkit-font-smoothing:antialiased; }
+  input, select, textarea, button, table{ font-family:inherit; }
   /* ★목록을 화면 아래까지 채운다(2026-08-01 요청) — [고정 머리(제목·검색줄·탭)] + [남는 공간 전부 = 목록] + [하단 페이지줄] 3층.
      페이지 안 행이 화면보다 많으면 목록 칸 안에서만 스크롤된다(머리글은 sticky 로 붙어 있음).
      종전에는 페이지 전체가 흐르는 구조라 목록 아래가 통째로 비어 보였다. */
@@ -35,7 +43,7 @@
        두 줄이 붙어 있어 한 덩어리로 읽혔다. 여기 한 값만 고치면 된다. */
   .bar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:24px; }
   .bar input.search{ height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 10px; font-size:13px; width:280px; }
-  .btn{ height:34px; border:1px solid var(--bd); background:#fff; border-radius:7px; padding:0 14px; cursor:pointer; font-size:13px; font-weight:700; color:#37475a; }
+  .btn{ height:34px; border:1px solid var(--bd); background:#fff; border-radius:8px; padding:0 14px; cursor:pointer; font-size:13px; font-weight:500; color:#37475a; }
   .btn:hover{ border-color:var(--teal); }
   .btn-teal{ background:var(--teal); color:#fff; border-color:var(--teal); }
   .btn-danger{ color:#c0392b; border-color:#e3b4ae; }
@@ -47,10 +55,26 @@
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; flex:1 1 auto; min-height:120px; }
   /* 스크롤해도 머리글은 남아야 한다. z-index 없으면 행이 머리글 위로 그려진다 */
   .card thead th{ position:sticky; top:0; z-index:3; }
-  table{ width:100%; border-collapse:collapse; font-size:13px; font-weight:700; white-space:nowrap; }
-  thead th{ background:#b9ded4; color:#0b4f43; font-weight:800; font-size:14px; box-shadow:inset 0 -2px 0 #0e6657; padding:9px 10px; text-align:left; position:sticky; top:0; z-index:1; }
+  /* ★[2026-08-20 「다듬기」] 화면 규칙에 맞춘다(칸 순서·조작은 그대로) :
+       ① 값은 보통 굵기 — 표 전체가 700 이라 어디가 중요한지 구분이 안 됐다(코드·금액만 500).
+       ② 숫자는 자릿수 고정(tabular-nums) — 세로로 자릿수가 맞아 눈으로 검산된다.
+       ③ 머리글은 한 겹 선으로 — 안쪽 그림자(inset)로 굵은 밑줄을 그리던 것을 뗀다. */
+  <%-- ★★[2026-08-20 사용자 지정 콘셉] **그리드는 세로선이 있는 격자** —
+       머리글 가운데 정렬 · 칸마다 세로 구분선 · 금액은 오른쪽 + 자릿수 고정 · 고른 줄은 옅게 강조.
+       (앞서 「표는 가로선만」으로 뒀던 것은 이 결정으로 대체된다.) --%>
+  table{ width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap; }
+  thead th{ background:#eaf2f0; color:#125a4e; font-weight:600; font-size:12.5px; letter-spacing:.02em;
+            border-bottom:1px solid #cfe0da; border-right:1px solid #d8e6e1;
+            padding:9px 10px; text-align:center; position:sticky; top:0; z-index:1; }
+  thead th:last-child{ border-right:none; }
   thead th.r{ text-align:right; }
-  tbody td{ border-bottom:1px solid #eef1f5; padding:6px 10px; vertical-align:middle; }
+  tbody td{ border-bottom:1px solid #eef1f5; border-right:1px solid #eef1f5;
+            padding:7px 10px; vertical-align:middle; text-align:center; }
+  tbody td:last-child{ border-right:none; }
+  tbody td.num, thead th.r{ font-variant-numeric:tabular-nums; }
+  /* 긴 글자는 왼쪽 — 가운데 정렬은 짧은 값(코드·수량·상태)에만 어울린다 */
+  tbody td.nm{ text-align:left; }
+  tbody td.code{ font-weight:500; }
   tbody tr:hover td{ background:#f3f8f6; }
   tbody tr{ cursor:pointer; }
   tbody tr.sel td{ background:#dcefe9 !important; }
@@ -102,8 +126,26 @@
   #ov .mh{ background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:13px 18px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
   #ov .mh b{ font-size:16px; }
   #ov .mh .x{ background:none; border:none; color:#fff; font-size:22px; cursor:pointer; }
-  #ov .mb{ padding:16px 18px; overflow:auto; display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; }
-  #ov .fld{ display:flex; flex-direction:column; gap:4px; }
+  <%-- ★★[2026-08-20 사용자 지정 콘셉] **입력은 「표 형식」** — 라벨이 왼쪽 회색 칸, 값이 오른쪽 칸인 격자.
+       (거래처 사업자등록 화면과 같은 모양. 앞서 넣었던 '칸 위 작은 라벨' 은 이 결정으로 대체된다.)
+       ★HTML 은 그대로다 — `.fld` 한 덩이(라벨+입력)를 **두 칸짜리 격자**로 바꿔 표처럼 보이게 한 것뿐이다.
+         바깥 `.mb` 가 2열이라 한 줄에 [라벨|값][라벨|값] 네 칸이 선다.
+       ★선은 겹치지 않게 : 바깥이 위·왼쪽, 각 칸이 아래·오른쪽을 그린다(표 테두리 한 겹). --%>
+  <%-- ★[2026-08-20 요청 「좌우 조금만 간격유지」] 표를 창에 딱 붙이지 않는다 —
+       붙여 놨더니 왼쪽 라벨 글자가 창 테두리에 닿고 오른쪽 [유사 상품] 단추가 밖으로 밀려 잘렸다.
+       바깥 여백(14/16)을 되살리고, 값 칸 안에도 숨 쉴 자리(4/8)를 준다. --%>
+  #ov .mb{ padding:14px 16px; overflow:auto; display:grid; grid-template-columns:1fr 1fr; gap:0;
+           border-top:none; }
+  #ov .fld{ display:grid; grid-template-columns:132px minmax(0,1fr); align-items:center;
+            border-top:1px solid var(--bd); border-left:1px solid var(--bd);
+            border-right:1px solid var(--bd); border-bottom:1px solid var(--bd);
+            margin:0 0 -1px -1px;                          /* 이웃한 칸과 선을 1px 겹쳐 두 겹으로 보이지 않게 */
+            min-height:44px; min-width:0; }
+  <%-- 값 칸 안쪽 여백 — 입력칸이 셀 선에 닿지 않게. 상품명처럼 안에 묶음(div)이 든 칸도 같이. --%>
+  #ov .fld > input, #ov .fld > select, #ov .fld > div{ margin:4px 8px; min-width:0; }
+  <%-- ⚠예외 — 「최근 등록 코드」 안내줄은 라벨이 없는 한 줄 띠다. 표 칸으로 만들면 글이 눌린다. --%>
+  #ov .fld.lastcd{ display:flex; flex-direction:row; align-items:center; flex-wrap:wrap;
+                   border:none; margin:0; min-height:0; }
   /* ♻ 삭제 목록 모달 (2026-08-17) — #ov 와 같은 골격, 폭만 넓다(표를 본다) */
   #rc{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:60; align-items:flex-start; justify-content:center; }
   #rc.on{ display:flex; }
@@ -130,12 +172,28 @@
   #sp .mb input{ height:36px; width:100%; border:1px solid var(--bd); border-radius:7px; padding:0 10px; font-size:14px; }
   #sp .mf{ padding:0 16px 14px; display:flex; gap:8px; justify-content:flex-end; }
   #ov .fld.full{ grid-column:1 / -1; }
-  <%-- 라벨 = 진하게·가운데 정렬 (2026-08-04 요청) --%>
-  #ov label{ font-size:13px; font-weight:700; color:#1f2a37; background:linear-gradient(135deg,#b3ddf0 0%,#d4ecf7 100%); border-radius:3px; padding:4px 10px; display:inline-flex; align-items:center; justify-content:center; text-align:center; align-self:flex-start; min-width:104px; min-height:26px; white-space:nowrap; }
-  #ov input, #ov select{ height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:14px; font-family:inherit; }
-  /* ★[2026-08-17 요청 「과세 이쪽으로 옮겨」] select 에 폭이 없어 **글자만큼만 좁게** 나와
-     오른쪽 칸의 왼쪽에 붙어 보였다 — 다른 입력칸처럼 칸을 채운다(자리가 옮겨진 것처럼 보인다). */
-  #ov select{ width:100%; }
+  <%-- ★[2026-08-20 「다듬기」] 라벨에서 **파란 알약을 걷어냈다** — 칸 위 작은 회색 글씨로 통일.
+       왜 : 알약이 값보다 눈에 먼저 들어와 정작 읽어야 할 내용이 뒤로 밀렸고, 고정폭(104px)이
+            칸마다 다른 여백을 만들어 줄이 어긋나 보였다(2026-08-20 「규칙이 없다」 지적).
+       ⚠라벨은 자리만 바뀌지 않았다 — 종전에도 칸 위였다. 모양만 바꾼 것이라 조작은 그대로다.
+       (2026-08-04 「진하게·가운데」 는 이 결정으로 대체된다.) --%>
+  <%-- 라벨 = 왼쪽 회색 칸(표의 머리칸). 값 칸과 선으로 나뉜다. --%>
+  #ov label{ font-size:13px; font-weight:500; color:#37475a; background:#f6f8fa;
+             border-right:1px solid var(--bd); align-self:stretch;
+             display:flex; align-items:center; padding:0 12px; white-space:nowrap; margin:0; }
+  <%-- 입력칸 : 높이 38 · 모서리 8 · 테두리 한 겹 · 초점은 teal 링 하나로(화면 규칙) --%>
+  #ov input, #ov select{ height:38px; border:1px solid #cfd9e2; border-radius:8px; padding:0 11px;
+             font-size:14px; font-family:inherit; color:#1f2a37; background:#fff;
+             transition:border-color .12s, box-shadow .12s; }
+  #ov input:focus, #ov select:focus{ outline:none; border-color:var(--teal); box-shadow:0 0 0 3px rgba(19,122,108,.14); }
+  #ov input[readonly]{ background:#f2f5f7; color:#5f7381; }
+  /* ★[2026-08-17 요청 「과세 이쪽으로 옮겨」] select 에 폭이 없으면 **글자만큼만 좁게** 나와
+     오른쪽 칸의 왼쪽에 붙어 보였다 — 다른 입력칸처럼 칸을 채워야 한다.
+     ⚠[2026-08-20 수정] 그런데 `width:100%` 는 **표 형식으로 바꾼 뒤 셀 밖으로 삐져나온다** —
+       칸을 꽉 채운 폭에 좌우 여백(8px)이 더해져 화살표가 창 테두리에 걸렸다(사용자 지적).
+       격자 칸에서는 폭을 주지 않아도 **저절로 칸을 채운다**(stretch) ⇒ auto 로 되돌린다.
+       ***표 안의 입력칸에는 width:100% 를 쓰지 말 것.*** */
+  #ov select{ width:auto; }
   /* 추가 창 안의 '거래처 코드' 묶음 — 상품 항목과 섞이지 않게 옅은 칸으로 감싼다 */
   #ov .sub{ grid-column:1 / -1; border:1px dashed #b9c9d6; border-radius:8px; padding:10px 12px;
             background:#f7fbfd; display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
@@ -147,13 +205,13 @@
   #ov .stk{ grid-column:1 / -1; border:1px dashed #b9c9d6; border-radius:8px; padding:12px 14px; background:#f7fbfd; }
   #ov .stk .cap{ font-size:13.5px; color:#5a6b7a; font-weight:700; margin-bottom:9px; }
   #ov .stk table{ width:100%; border-collapse:collapse; font-size:14.5px; }
-  #ov .stk th{ background:#eef2f5; border:1px solid #d5dee6; padding:8px 9px; font-weight:700; color:#3a4a53; text-align:center; white-space:nowrap; font-size:14px; }
-  #ov .stk td{ border:1px solid #e3eaf0; padding:7px 9px; background:#fff; }
+  #ov .stk th{ background:#eaf2f0; border-bottom:1px solid #cfe0da; padding:8px 9px; font-weight:600; color:#125a4e; text-align:center; white-space:nowrap; font-size:12.5px; }
+  #ov .stk td{ border-bottom:1px solid #eef1f5; padding:7px 9px; background:#fff; font-variant-numeric:tabular-nums; }
   #ov .stk td.r{ text-align:right; }
   #ov .stk td.c{ text-align:center; }
-  #ov .stk td.neg{ color:#b23b3b; font-weight:700; }        /* 음수 재고 = 입고 누락 신호 (stockAdj 와 동일) */
-  #ov .stk input{ width:104px; height:32px; text-align:right; font-size:14.5px; }
-  #ov .stk .diff{ font-weight:800; }
+  #ov .stk td.neg{ color:#b23b3b; font-weight:500; }        /* 음수 재고 = 입고 누락 신호 (stockAdj 와 동일) */
+  #ov .stk input{ width:104px; height:34px; text-align:right; font-variant-numeric:tabular-nums; font-size:14.5px; }
+  #ov .stk .diff{ font-weight:600; }
   #ov .stk .diff.up{ color:#1f7a4b; }
   #ov .stk .diff.dn{ color:#b23b3b; }
   #ov .stk .rmk{ display:flex; gap:8px; align-items:center; margin-top:9px; }
@@ -168,7 +226,9 @@
   #ov .stk .undo{ height:24px; width:auto; border:1px solid #b23b3b; background:#fff; color:#b23b3b;
                   border-radius:4px; padding:0 9px; font-size:12.5px; font-weight:700; cursor:pointer; text-align:center; }
   /* 규격·제조사명은 한 단계 크게 (2026-08-04 요청) — 값을 눈으로 대조하며 고르는 칸이라 */
-  #ov #f_spec, #ov #f_maker{ font-size:15px; height:36px; }
+  <%-- ★[2026-08-20 「다듬기」] 높이 예외(36px)를 없앴다 — 한 줄에 38·36 이 섞여 칸 아래선이 어긋났다.
+       글자만 한 단계 크게 두던 뜻(값을 눈으로 대조하는 칸)은 그대로 살린다. --%>
+  #ov #f_spec, #ov #f_maker{ font-size:15px; }
   #ov .mf{ padding:12px 18px; border-top:1px solid var(--bd); display:flex; justify-content:flex-end; gap:8px; }
   /* 취소·저장은 가로를 넉넉히 (2026-08-04 요청) — 창을 닫는 마지막 손동작이라 누르기 쉬워야 한다 */
   #ov .mf .btn{ min-width:104px; padding:0 22px; }

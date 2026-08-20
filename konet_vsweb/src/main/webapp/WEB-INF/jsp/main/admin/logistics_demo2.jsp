@@ -356,8 +356,16 @@
 
   table.ss-tb { width:100%; border-collapse:collapse; font-size:12.5px; }
   table.ss-tb th, table.ss-tb td { border:1px solid var(--logi-border); padding:7px 8px; text-align:center; white-space:nowrap; }
-  table.ss-tb thead th { background:#1f9b8e; color:#fff; position:sticky; top:0; z-index:1; }
-  table.ss-tb thead th.sub { background:#34a99d; font-weight:600; }
+  <%-- ★[2026-08-20] 대시보드(출고현황표) 머리글을 화면 콘셉에 맞춘다 —
+       **연한 청록 바탕 + 진한 청록 글자**(다른 화면·공통 CSS 와 같은 색).
+       종전에는 **진한 청록을 꽉 채우고 흰 글자**라 머리글이 자료보다 먼저 눈에 들어왔다.
+       두 줄 머리글의 아랫줄(.sub)은 한 톤 더 옅게 해 위아래를 구분한다.
+       ⚠세로 구분선·가운데 정렬은 이미 콘셉과 같아 그대로 둔다. --%>
+  table.ss-tb thead th { background:#eaf2f0; color:#125a4e; font-weight:600; letter-spacing:.02em;
+                         border-bottom:1px solid #cfe0da; position:sticky; top:0; z-index:1; }
+  table.ss-tb thead th.sub { background:#f2f7f5; color:#2c6b60; font-weight:500; }
+  /* 숫자 칸은 자릿수 고정 — 세로로 자릿수가 맞아 눈으로 검산된다(콘셉 규칙 2) */
+  table.ss-tb td.num, table.ss-tb td.qty{ font-variant-numeric:tabular-nums; }
   table.ss-tb td.itnm { text-align:left; max-width:380px; white-space:normal; word-break:break-all; }
   table.ss-tb tr.grp td { background:#eef3f2; text-align:left; font-weight:700; color:#178074; cursor:pointer; user-select:none; }
   table.ss-tb tr.grp:hover td { background:#e3efec; }
@@ -2867,6 +2875,11 @@
      CSS 는 이 한 줄만 빼면 종전 데스크탑 화면 그대로다. --%>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">
+<%-- ★[2026-08-20] 화면 콘셉 공통 — 표 형식 입력 · 세로선 격자 · Pretendard.
+     반드시 이 화면의 <style>·다른 CSS **뒤에** 걸어야 옛 규칙을 덮는다.
+     이 두 줄만 빼면 이 화면만 예전 모습으로 돌아간다. 규칙 설명은 CSS 파일 머리말. --%>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/ui-concept.css?v=20260820">
 </head>
 <body>
 <%-- 좌측 메뉴 접힘 상태를 <그리기 전에> 입힌다 (2026-08-05) —

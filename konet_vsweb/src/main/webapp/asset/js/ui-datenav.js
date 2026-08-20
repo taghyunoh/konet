@@ -30,8 +30,18 @@
   var CSS =
     /* 기본 달력 아이콘을 감춘다 — 이걸 눌러야 브라우저 달력이 뜨므로, 감추면 우리 것만 뜬다 */
     'input[type=date].udn-on::-webkit-calendar-picker-indicator{ display:none; -webkit-appearance:none; }' +
-    /* ── 우리 달력 ── */
-    '.udnCal{ position:absolute; z-index:9999; background:#fff; border:1px solid #cfd9e0; border-radius:10px;' +
+    /* ★[2026-08-20 「달력이 없습니다」] 기본 아이콘을 감추면 **누를 수 있는 칸인지 알 수가 없다** —
+       화면에 따라 옆에 달력 그림이 따로 있는 곳도, 없는 곳도 있어 사용자가 "이 화면엔 달력이 없다"고 읽었다.
+       ⇒ 감춘 자리에 **우리 달력 아이콘**을 그려 넣는다. 모든 날짜 칸이 같은 모습이 된다(화면 수정 0). */
+    'input[type=date].udn-on{ cursor:pointer; background-repeat:no-repeat;' +
+    '  background-position:right 7px center; background-size:15px 15px; padding-right:26px;' +
+    '  background-image:url("data:image/svg+xml;charset=utf-8,' +
+    "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2348606f' stroke-width='2' stroke-linecap='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18'/%3E%3C/svg%3E" +
+    '"); }' +
+    /* ── 우리 달력 ──
+       ★z-index 는 **가장 위**로 (2026-08-20) — 화면마다 모달·상단바가 9998~100001 을 쓰고 있어
+         9999 로는 그 아래에 깔려 **열렸는데 안 보이는** 일이 생긴다. 달력은 언제나 맨 위여야 한다. */
+    '.udnCal{ position:absolute; z-index:2147483000; background:#fff; border:1px solid #cfd9e0; border-radius:10px;' +
     '  box-shadow:0 10px 30px rgba(15,23,32,.22); padding:8px; width:246px; font-size:13px; color:#1f2a37; }' +
     '.udnCal .hd{ display:flex; align-items:center; gap:3px; margin-bottom:6px; }' +
     '.udnCal .hd .t{ flex:1; text-align:center; font-weight:800; font-size:13.5px; }' +
@@ -88,6 +98,7 @@
       var proto = HTMLInputElement.prototype;
       if (!proto.showPicker || proto.__udnHooked) return;
       var orig = proto.showPicker;
+      nativeShowPicker = orig;                   // 대비용으로 원본을 들고 있는다
       proto.showPicker = function () {
         if (this.classList && this.classList.contains('udn-on')) { calOpen(this); return; }
         return orig.apply(this, arguments);
@@ -120,6 +131,9 @@
 
   /* ── 우리 달력 ──────────────────────────────────────────────────────────── */
   var cal = null, calFor = null, calYm = null;   // calYm = 보고 있는 달(그 달 1일)
+  /* ★[2026-08-20] 연 시각 — 여는 **그 순간의 스크롤로 스스로 닫히는 것**을 막는다(아래 scroll 처리 참고) */
+  var calAt = 0;
+  var nativeShowPicker = null;                   // 브라우저 기본 달력(우리 것이 못 뜰 때의 대비)
 
   function calClose() {
     if (cal && cal.parentNode) cal.parentNode.removeChild(cal);
@@ -180,6 +194,18 @@
     cal.style.top = Math.max(sy + 4, top) + 'px';
     cal.style.left = Math.max(sx + 4, left) + 'px';
 
+    calAt = +new Date();     /* ★여는 순간을 적어 둔다 — 바로 뒤따라오는 스크롤로 스스로 닫히지 않게 */
+
+    /* ★[2026-08-20] **안전망** — 우리 달력이 화면에 못 나오면(가려짐·크기 0)
+       칸을 눌러도 아무 일도 안 일어난 것처럼 보인다("달력이 없습니다" 신고).
+       그때는 **브라우저 기본 달력**이라도 띄운다.
+       ⚠`el.showPicker()` 를 부르면 안 된다 — 그건 위에서 **우리 달력으로 갈아 끼운 것**이라 제자리걸음이다.
+         반드시 들고 있던 **원본**을 부른다. */
+    if (!cal.offsetWidth || !cal.offsetHeight) {
+      calClose();
+      try { if (nativeShowPicker) nativeShowPicker.call(el); } catch (_) {}
+    }
+
     /* 달력을 눌러도 칸의 focus 를 잃지 않게 — 잃으면 blur 로 닫히며 클릭이 씹힌다 */
     cal.addEventListener('mousedown', function (e) { e.preventDefault(); });
     cal.addEventListener('click', function (e) {
@@ -201,7 +227,17 @@
     if (cal.contains(e.target) || e.target === calFor) return;
     calClose();
   }, true);
-  window.addEventListener('scroll', calClose, true);
+  /* 스크롤하면 닫는다 — 달력은 칸 옆에 절대좌표로 놓이므로 화면이 움직이면 자리가 어긋난다.
+     ★★[2026-08-20 「클릭하면 달력 실행 안 됨」의 진짜 원인] **여는 그 순간의 스크롤은 무시한다.**
+       칸을 누르면 `el.focus()` 가 도는데, 그 칸이 스크롤되는 영역 안에 있으면 브라우저가
+       칸을 보이게 하려고 **살짝 스크롤**한다. 그 scroll 이 곧바로 이 처리를 깨워
+       ***방금 연 달력을 즉시 닫아*** 「눌러도 아무 일도 안 일어난다」로 보였다.
+       (물류관리 셸처럼 본문이 스크롤되는 화면에서만 나타나, 화면마다 되고 안 되고가 갈렸다.)
+       ⇒ 연 지 0.4초 안의 스크롤은 흘려보낸다. 사람이 손으로 굴리는 스크롤은 그 뒤라 그대로 닫힌다. */
+  window.addEventListener('scroll', function () {
+    if (cal && (+new Date()) - calAt < 400) return;
+    calClose();
+  }, true);
   document.addEventListener('keydown', function (e) { if (e.keyCode === 27) calClose(); });
   /* ★★화면을 옮기면 달력을 닫는다 (2026-08-17 사고 "다른 화면 가면 달력 떠있음").
      달력은 `document.body` 에 붙는데, 이 앱은 **같은 문서에서 화면만 갈아 끼운다.**

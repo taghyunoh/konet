@@ -112,6 +112,11 @@
   .busy .hg{ display:inline-block; animation:hgFlip 1.2s linear infinite; margin-right:6px; }
   @keyframes hgFlip{ 0%,80%{ transform:rotate(0) } 90%,100%{ transform:rotate(180deg) } }
 </style>
+<%-- ★[2026-08-20] 화면 콘셉 공통 — 표 형식 입력 · 세로선 격자 · Pretendard.
+     반드시 이 화면의 <style>·다른 CSS **뒤에** 걸어야 옛 규칙을 덮는다.
+     이 두 줄만 빼면 이 화면만 예전 모습으로 돌아간다. 규칙 설명은 CSS 파일 머리말. --%>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/ui-concept.css?v=20260820">
 </head>
 <body>
 <div class="wrap">
@@ -155,7 +160,10 @@
     <select id="makerNm"><option value="">전체</option></select>
   </div>
 
-  <div class="grid">
+  <%-- ★[2026-08-20] 화면 콘셉 통일 — 목록 표를 다른 화면과 같은 격자로.
+       공통 CSS(ui-concept)는 「card」 안의 표에만 걸리므로 **class 에 card 를 더한다**(HTML 한 낱말).
+       이 화면은 부트스트랩을 안 쓰므로 card 라는 이름이 다른 모양을 끌고 오지 않는다. --%>
+  <div class="grid card">
     <table>
       <thead>
         <tr>
@@ -203,7 +211,7 @@
       <input type="text" id="hUser" style="width:110px" placeholder="아이디">
       <button type="button" class="btn ghost" onclick="hisLoad();">이력조회</button>
     </div>
-    <div class="hgrid" id="hisWrap">
+    <div class="hgrid card" id="hisWrap">
       <table>
         <thead>
           <tr>
@@ -401,7 +409,7 @@ function render(){
     }
     return '<tr id="tr'+i+'"'+(stopped?' class="stopped"':'')+'>'
       + '<td>' + cdCell + '</td>'
-      + '<td style="white-space:normal">' + esc(r.prodNm) + mstNm + '</td>'
+      + '<td class="nm" style="white-space:normal">' + esc(r.prodNm) + mstNm + '</td>'
       + '<td>' + esc(r.spec) + '</td>'
       + '<td class="c"><input class="ed pk" id="pk'+i+'" value="' + nvl(r.packQty) + '"'
       +     ' title="입수수량(BOX당 EA) — 엔터를 치거나 칸을 벗어나면 BOX/EA 가 다시 나뉩니다"'

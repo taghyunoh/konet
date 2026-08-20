@@ -254,9 +254,57 @@ function fnPwdClear(){
 	if(oPopup){oPopup.focus();}
    
 }
-</script>    
+</script>
 
+<%-- ★[2026-08-20] 로그인 화면을 **다른 화면과 같은 콘셉**으로 (요청 「로그인화면 콘셉에 맞게」).
+     종전에는 제목·로그인 단추가 **파랑(#1976d2)** 이라 업무화면(청록 #137a6c)과 따로 놀았다 —
+     같은 프로그램인데 문을 열면 색이 바뀌었다.
+     ★고친 것은 **색·글자체·모서리·초점 표시**뿐이다 — 배치·문구·동작은 그대로 두었다.
+     ★부트스트랩 기본값을 덮어야 해서 `!important` 를 쓴다(이 화면은 bootstrap.css 를 통째로 싣는다).
+     ⚠되돌리려면 이 블록만 지우면 된다. --%>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  /* 글자체 — 업무화면과 같은 것. 못 받으면 맑은 고딕으로 조용히 내려간다.
+     ⚠**`#login *` 로 안쪽까지 덮어야 한다** — `reset.css` 가 `h1,h2,p,label…` 을 낱개로 잡아
+       「Noto Sans KR」 을 박아 두어서, 바깥(#login)에만 걸면 제목·라벨이 안 바뀐다(2026-08-20 실측). */
+  #login, #login *{
+    font-family:'Pretendard Variable',Pretendard,'맑은 고딕','Malgun Gothic',system-ui,sans-serif;
+  }
+  /* 제목 — 파랑 → 청록. 로고는 그대로 둔다(회사 표시라 색을 바꾸지 않는다) */
+  #login .login-wrap h1{ color:#0e6657 !important; letter-spacing:-.02em; }
+  #login .login-wrap .id-box h2{ color:#37475a !important; font-weight:600; }
 
+  /* 입력칸 — 업무화면 규칙(모서리 8 · 한 겹 테두리 · 초점은 청록 링 하나) */
+  #login .login-wrap input.form-control{
+    height:46px !important; border:1px solid #cfd9e2 !important; border-radius:8px !important;
+    padding:0 13px !important; font-size:15px !important; color:#1f2a37 !important;
+    background:#fff !important; box-shadow:none !important;
+    transition:border-color .12s, box-shadow .12s;
+  }
+  #login .login-wrap input.form-control:focus{
+    border-color:#137a6c !important; box-shadow:0 0 0 3px rgba(19,122,108,.14) !important;
+  }
+  #login .login-wrap input.form-control::placeholder{ color:#9aa7b3; }
+
+  /* 로그인 단추 — 이 화면의 **주된 작업 하나**만 채운 색(화면 규칙 3) */
+  #login .login-wrap .btn-primary.btn-lg{
+    background:#137a6c !important; border-color:#137a6c !important; color:#fff !important;
+    border-radius:8px !important; text-decoration:none !important; letter-spacing:.01em;
+  }
+  #login .login-wrap .btn-primary.btn-lg:hover{ background:#0e6657 !important; border-color:#0e6657 !important; }
+  #login .login-wrap .btn-primary.btn-lg:focus{ box-shadow:0 0 0 3px rgba(19,122,108,.22) !important; }
+
+  /* 나머지 단추 — 테두리만(주된 작업과 헷갈리지 않게) */
+  #login .login-wrap .set-btn-box .btn{
+    border-radius:8px !important; border-color:#cfd9e2 !important; color:#37475a !important;
+    background:#fff !important; font-weight:500 !important;
+  }
+  #login .login-wrap .set-btn-box .btn:hover{ border-color:#137a6c !important; color:#0e6657 !important; }
+
+  /* 아이디 저장 체크 — 청록으로 */
+  #login .form-check-input:checked{ background-color:#137a6c !important; border-color:#137a6c !important; }
+  #login .form-check-input:focus{ box-shadow:0 0 0 3px rgba(19,122,108,.14) !important; border-color:#137a6c !important; }
+</style>
 </head>
 
 <body> 

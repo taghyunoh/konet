@@ -56,6 +56,13 @@
 <script type="text/javascript" src="<c:url value='/asset/js/tmpl.min.js' />"></script>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script> 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>  
+<%-- ★[2026-08-20] 화면 콘셉 공통 — 표 형식 입력 · 세로선 격자 · Pretendard.
+     ★여기(tiles 공통 헤더)에 걸면 **tiles 로 뜨는 화면 전부**에 한 번에 적용된다
+     (판매·매입·수금·지급 등록, 원장·일계장, 매출그래프, 출고이력…).
+     ⚠단독 화면(.raw/* — 물류관리 셸·상품코드등록 등)은 제 <head> 가 따로라 그 파일에도 걸어야 한다.
+     이 두 줄만 빼면 tiles 화면들이 예전 모습으로 돌아간다. --%>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/ui-concept.css?v=20260820">
 </head>  
 <style>
 	.black-btn {

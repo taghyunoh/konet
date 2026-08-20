@@ -152,6 +152,11 @@ $(document).on('init.dt', function(e, settings) {
   table.dataTable thead th.sorting:before, table.dataTable thead th.sorting_asc:before,
   table.dataTable thead th.sorting_desc:before{ color:#0b4f43 !important; opacity:.55; }
 </style>
+<%-- ★[2026-08-20] 화면 콘셉 공통 — 표 형식 입력 · 세로선 격자 · Pretendard.
+     반드시 이 화면의 <style>·다른 CSS **뒤에** 걸어야 옛 규칙을 덮는다.
+     이 두 줄만 빼면 이 화면만 예전 모습으로 돌아간다. 규칙 설명은 CSS 파일 머리말. --%>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/ui-concept.css?v=20260820">
 </head>
 <body>
 <div class="dashboard-wrapper">

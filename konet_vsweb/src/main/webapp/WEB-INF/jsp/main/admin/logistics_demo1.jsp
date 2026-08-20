@@ -39,9 +39,9 @@
   .d2-head .actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   .badge { display:inline-block; background:#e3f4ef; color:#137a6c; border:1px solid #b9e6dd; border-radius:11px; padding:1px 10px; font-size:11.5px; vertical-align:middle; }
 
-  .btn-teal { background:var(--teal); color:#fff; border:none; border-radius:6px; padding:8px 14px; font-size:13px; cursor:pointer; font-weight:700; }
+  .btn-teal { background:var(--teal); color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; font-weight:500; }
   .btn-teal:hover { background:var(--teal-dk); }
-  .btn-line { background:#fff; color:#37475a; border:1px solid var(--bd); border-radius:6px; padding:8px 14px; font-size:13px; cursor:pointer; font-weight:700; }
+  .btn-line { background:#fff; color:#37475a; border:1px solid var(--bd); border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; font-weight:500; }
   .btn-line:hover { background:#eef3f2; }
 
   /* 상단 조회바 + KPI (데시보드1 동일 스타일) */
@@ -49,7 +49,7 @@
                background:#fff; border:1px solid var(--bd); border-left:4px solid var(--teal); border-radius:10px; padding:10px 16px; margin-bottom:14px; }
   .d2-topbar .tb-left { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .d2-topbar label { font-size:13px; color:#37475a; }
-  .d2-topbar input[type=date] { height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 10px; font-size:13px; cursor:pointer; background:#fff; font-weight:700; }
+  .d2-topbar input[type=date] { height:34px; border:1px solid #cfd9e2; border-radius:8px; padding:0 10px; font-size:13px; cursor:pointer; background:#fff; font-weight:400; }
   .d2-topbar input[type=date]:hover { border-color:var(--teal); }
   .d2-topbar .btn-teal, .d2-topbar .btn-line { padding:5px 14px; }
   .d2-info { font-size:12px; color:#6b7a89; flex:1 1 200px; min-width:160px; line-height:1.4; }
@@ -79,7 +79,7 @@
   .dc-pop label.on { color:#0e6657; background:#e3f4ef; }
   .dc-pop label.kid { padding-left:26px; font-size:12px; }   /* 묶음 하위 개별 출고장 (2026-08-02) */
   .d2-toolbar label { font-size:13px; color:#37475a; font-weight:700; }
-  .d2-toolbar input[type=text] { height:32px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13px; width:130px; font-weight:700; }
+  .d2-toolbar input[type=text] { height:32px; border:1px solid #cfd9e2; border-radius:8px; padding:0 8px; font-size:13px; width:130px; font-weight:400; }
   .d2-toolbar select { height:32px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13px; font-weight:700; max-width:150px; }
   .d2-toolbar .btn-teal, .d2-toolbar .btn-line { padding:5px 11px; font-size:13px; }
   .d2-toolbar .zoomlbl { min-width:42px; text-align:center; font-size:13px; color:var(--teal-dk); font-weight:700; }
@@ -103,9 +103,12 @@
   .col-rz { position:absolute; top:0; right:0; width:8px; height:100%; cursor:col-resize; z-index:4; }
   .col-rz:hover { background:rgba(255,255,255,.5); }
   table.d2-tb th:first-child, table.d2-tb td:first-child { border-left:none; }
-  table.d2-tb thead th { position:sticky; top:0; z-index:3; background:var(--teal); color:#fff; font-weight:800; font-size:13px; border-bottom:2px solid var(--teal-dk); }
+  <%-- ★[2026-08-20] 화면 콘셉에 맞춘 머리글 — 다른 화면(공통 CSS)과 같은 **연한 청록 + 진한 청록 글자**.
+       종전에는 **진한 청록을 꽉 채우고 흰 글자(800)** 라 머리글이 자료보다 먼저 눈에 들어왔다.
+       표에서 읽어야 할 것은 값이다. 세로 구분선·가운데 정렬은 이미 콘셉과 같아 그대로 둔다. --%>
+  table.d2-tb thead th { position:sticky; top:0; z-index:3; background:#eaf2f0; color:#125a4e; font-weight:600; font-size:12.5px; letter-spacing:.02em; border-bottom:1px solid #cfe0da; }
   table.d2-tb td.txt-l { text-align:left; }
-  table.d2-tb td.num { text-align:right; }
+  table.d2-tb td.num { text-align:right; font-variant-numeric:tabular-nums; }  /* [2026-08-20] 콘셉 : 세로로 자릿수가 맞아 눈으로 검산된다 */
   /* 출고장 셀(좌측 rowspan) — 데시보드1의 td.stick 속성(#f4f8f7 / teal / weight 600) + 클릭으로 접기/펼치기 */
   table.d2-tb td.zone { background:#f4f8f7; color:#178074; font-weight:600; text-align:left; vertical-align:top; position:sticky; left:0; z-index:2; cursor:pointer; }
   table.d2-tb td.zone:hover { background:#eef3f2; }
@@ -253,6 +256,11 @@
      CSS 는 이 한 줄만 빼면 종전 데스크탑 화면 그대로다. --%>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">
+<%-- ★[2026-08-20] 화면 콘셉 공통 — 표 형식 입력 · 세로선 격자 · Pretendard.
+     반드시 이 화면의 <style>·다른 CSS **뒤에** 걸어야 옛 규칙을 덮는다.
+     이 두 줄만 빼면 이 화면만 예전 모습으로 돌아간다. 규칙 설명은 CSS 파일 머리말. --%>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/ui-concept.css?v=20260820">
 </head>
 <body>
 <div class="d2-wrap">
@@ -1937,8 +1945,14 @@
       + (chgCols.length ? '<th class="bcol bcol-chg" colspan="'+chgCols.length+'">변동사항</th>' : '')
       + '</tr></thead>';
     var h=colg+thh+'<tbody>';
-    // 전체 합계 (상단) — 기준 5열 + 차수별 총계
-    h+='<tr class="tot"><td class="txt-l">전체 '+D2_UNIT+' 합계</td><td></td>'
+    /* 전체 합계 (상단) — **기준 6열** + 차수별 총계
+       ★[2026-08-20 수정] 이 줄만 기준칸이 **5칸**이라 뒤의 숫자가 **한 칸씩 왼쪽으로 밀려**
+         머리글(현재·직전·변동사항)과 어긋났다. 맨 오른쪽 칸이 비어 보이던 것이 그 증거다.
+         (2026-08-07 에 **현재고** 칸을 No 뒤에 끼워 넣으면서 이 줄만 안 늘린 것이 원인.)
+       ⚠기준칸은 zone·no·**stock**·biz·code·item **6칸**이다 — 아래 그룹행(colspan 5+1)·
+         출고장행(1+1+1+colspan 3)·소계행(1+colspan 5) 은 모두 6칸으로 맞아 있었다.
+       ⚠칸을 더하거나 뺄 때는 **이 네 줄을 함께** 고쳐야 한다. */
+    h+='<tr class="tot"><td class="txt-l">전체 '+D2_UNIT+' 합계</td><td></td><td></td>'
       +'<td class="txt-l" colspan="3">'+D2_UNIT+' '+d2Num(zonesWithItems.length)+'곳 · 품목 '+d2Num(ag.itemCnt)+'종 · 사업장 '+d2Num(ag.bizCnt)+'곳</td>'
       + slotTotalCells(zonesWithItems)+'</tr>';
 
