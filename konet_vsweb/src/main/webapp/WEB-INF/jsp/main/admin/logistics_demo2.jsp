@@ -3017,12 +3017,8 @@
     <div class="sub-menu" id="sub-stockmng">
       <a class="mi" data-key="stockStatus" onclick="logiGo('stockStatus', this); stkStatusLoad();"><span class="ic">📊</span>재고현황</a>
       <a class="mi" data-key="closeStock" onclick="logiGo('closeStock', this)"><span class="ic">📒</span>재고마감</a>
-      <%-- ★재고 일괄조정 메뉴 제거 (2026-08-20 사용자 요청) — 2026-08-19 신설했다가 하루 만에 내림.
-           상품코드등록 수정 창의 재고수량 칸이 같은 조정(stockAdjSave/조정이력/되돌리기)을 품어 메뉴가 겹쳤다.
-           화면(stockAdj.jsp)·컨트롤러(/prod/stockAdj*.do)·아래 panel-stockAdj 아이프레임은 **그대로 있다** —
-           되살리려면 이 줄만 풀면 된다.
+      <%-- 재고 일괄조정 — 2026-08-20 잠깐 내렸다가 사용자 요청으로 되살림(입구는 여기 하나) --%>
       <a class="mi" data-key="stockAdj" onclick="logiFrame('stockAdj','${pageContext.request.contextPath}/prod/stockAdj.do', this)"><span class="ic">🧮</span>재고 일괄조정</a>
-      --%>
       <%-- 품목코드(매핑) — 기준정보에 있다가 재고 관리 맨 아래로 옮김(2026-08-01 요청).
            매핑이 안 되면 그 품목이 재고에서 빠지므로, 재고를 보다가 바로 갈 수 있는 자리가 맞다. --%>
       <a class="mi" data-key="xrefAudit" onclick="logiGo('xrefAudit', this); xaLoad();"><span class="ic">🔗</span>품목코드(매핑)</a>

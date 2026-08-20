@@ -317,47 +317,49 @@ function fmtDt8(v){ v=String(v||'').replace(/-/g,''); return v.length===8 ? v.sl
    ⚠규칙을 바꾸면 selectStockAdjList 쪽 필터도 같이 볼 것 — 이 화면은 이제 안 타지만
    SQL 에는 그대로 남아 있다(다른 호출부가 쓸 수 있어 안 지웠다). */
 var _fltSig = '';   /* 마지막으로 그린 조건 — 같으면 재렌더 생략(2026-08-19 「순간순간 늦다」) */
+var _hitCnt = null; /* 검색으로 실제 걸린 건수 — 건수칸에 같이 적어 '검색됐다'를 보이게 */
+/* ★한 번에 그리는 줄 수 상한 (2026-08-20 「속도가 많이 늦다」)
+     행마다 입력칸이 3개라 1,943행이면 5,800개다 — 그리는 것만으로 화면이 굳는다.
+     실제 사용은 '찾아서 몇 품목 고치기'라 전 품목을 펼쳐 둘 일이 없다.
+     ★넘친 줄은 조용히 버리지 않는다 — 건수칸에 몇 건이 안 보이는지 적는다. */
+var LIST_MAX = 200;
+var _cut     = 0;   /* 상한에 걸려 화면에서 빠진 줄 수 */
 var _allVer = 0;    /* load() 가 새 자료를 받을 때마다 올린다 — 같은 조건이라도 새 자료면 다시 그린다 */
 function applyFilter(){
   var q  = gel('findData').value.trim().toLowerCase();
   var ty = gel('typeNm').value, mk = gel('makerNm').value, z0 = gel('zeroExc').checked;
   var sig = [q, ty, mk, z0?1:0, gel('sortGb').value, _allVer].join('|');
-  if (sig === _fltSig) return;   /* 조건이 그대로면 2,000행을 또 그리지 않는다(수정 중이던 값도 안 날린다) */
+  if (sig === _fltSig) return;   /* 조건이 그대로면 또 그리지 않는다(수정 중이던 값도 안 날린다) */
   _fltSig = sig;
+
+  /* ★★검색 = 상품코드등록(prodcd.jsp pcFilter) 과 같은 규칙 (2026-08-20 요청)
+       「걸린 것만」 보여 준다 — 이웃도, 장부식도 없다.
+       거쳐 온 세 방식(걸린 것 맨 위 / 뒤쪽 이웃 100줄 / 앞뒤 이웃)은 모두 같은 문제를 낳았다 —
+       걸린 것이 이웃에 묻혀 "검색이 안 된다"로 보이거나, 걸린 줄을 위로 올려 코드 순서가 깨졌다.
+     ★검색 칸도 상품코드등록과 같다 — 코드·상품명·규격·제조사·유형.
+     ★정렬은 검색 중에도 그대로 먹는다(종전엔 장부식이라 무시했다). */
   var base = _ALL.filter(function(r){
     if (z0 && nvl(r.curQty) === 0) return false;
     if (ty && String(r.typeNm||'')  !== ty) return false;
     if (mk && String(r.makerNm||'') !== mk) return false;
-    return true;
+    if (!q) return true;
+    return [r.prodCd, r.prodNm, r.spec, r.makerNm, r.typeNm]
+             .some(function(v){ return String(v||'').toLowerCase().indexOf(q) >= 0; });
   });
-  if (!q){
-    ROWS = base;
-    var sg = gel('sortGb').value;
-    ROWS.sort(function(a,b){
-      if (sg === 'QTY'){ var d = nvl(b.curQty) - nvl(a.curQty); if (d) return d; }
-      else if (sg === 'NM'){ var n = String(a.prodNm||'').localeCompare(String(b.prodNm||''),'ko'); if (n) return n; }
-      return String(a.prodCd||'') < String(b.prodCd||'') ? -1 : (String(a.prodCd||'') > String(b.prodCd||'') ? 1 : 0);
-    });
-  } else {
-    /* ★검색은 장부식 (2026-08-20 요청 — 판매·매입 상품검색과 같은 규칙, salesReg saProdRender 참조):
-         걸린 코드(코드순, 굵은 초록)를 앞에 두고, 그 뒤에 **찾은 코드 다음 코드부터 이어서** 보여 준다 —
-         걸린 것만 나오면 이웃 상품의 재고를 같이 못 본다. 이름·규격 매치는 맨 뒤.
-       ⚠검색 중에는 정렬 드롭다운을 무시한다 — 장부식 자체가 코드순이다. */
-    var byCd=[], byNm=[];
-    base.forEach(function(r){ r._hit=0;
-      if (String(r.prodCd||'').toLowerCase().indexOf(q) >= 0) byCd.push(r);
-      else if ([r.prodNm, r.spec].some(function(v){ return String(v||'').toLowerCase().indexOf(q) >= 0; })) byNm.push(r);
-    });
-    var byCode=function(a,b){ return String(a.prodCd||'').localeCompare(String(b.prodCd||'')); };
-    byCd.sort(byCode);
-    if (byCd.length){
-      var hit={};
-      byCd.forEach(function(r){ hit[String(r.prodCd)]=1; r._hit=1; });
-      var first=String(byCd[0].prodCd||'');
-      var after=base.filter(function(r){ return !hit[String(r.prodCd)] && String(r.prodCd||'') > first; }).sort(byCode);
-      ROWS = byCd.concat(after).concat(byNm);
-    } else ROWS = byNm;
-  }
+
+  var sg = gel('sortGb').value;
+  base.sort(function(a,b){
+    if (sg === 'QTY'){ var d = nvl(b.curQty) - nvl(a.curQty); if (d) return d; }
+    else if (sg === 'NM'){ var n = String(a.prodNm||'').localeCompare(String(b.prodNm||''),'ko'); if (n) return n; }
+    return String(a.prodCd||'') < String(b.prodCd||'') ? -1 : (String(a.prodCd||'') > String(b.prodCd||'') ? 1 : 0);
+  });
+
+  /* 한 번에 그리는 줄 상한 — 행마다 입력칸이 3개라 전 품목을 펼치면 화면이 굳는다.
+     넘친 줄은 조용히 버리지 않고 건수칸에 적는다. */
+  _cut = 0;
+  if (base.length > LIST_MAX){ _cut = base.length - LIST_MAX; base = base.slice(0, LIST_MAX); }
+  ROWS = base;
+  _hitCnt = q ? (ROWS.length + _cut) : null;
   render();
 }
 /* ── 목록 ────────────────────────────────────────────────────────── */
@@ -428,7 +430,9 @@ function render(){
       + '<td class="r" id="df'+i+'"><span class="dim">-</span></td>'
       + '</tr>';
   }).join('');
-  gel('cnt').textContent = ROWS.length + '건';
+  gel('cnt').textContent = ROWS.length + '건'
+    + (_hitCnt != null ? ' (검색 ' + _hitCnt + '건 · 앞뒤 이웃 포함)' : '')
+    + (_cut ? ' · ' + _cut + '건은 안 보임 — 검색해서 좁히세요' : '');
   /* ★[2026-08-19 「순간순간 늦다」] 종전에는 여기서 전 행에 chg() 를 돌렸다(2,000행×DOM 조회 5회 ≈ 1만 회).
      그린 직후에는 수정칸 = 현재값이라 **증감이 전부 0** — 증감 칸은 HTML 에 '-' 로 바로 박고
      건수만 0 으로 맞춘다. 값을 손대면 그때 chg(i) 가 그 한 줄만 다시 계산한다. */
@@ -715,6 +719,15 @@ function hisCancel(batchNo){
     });
   } else if (confirm('되돌릴까요?')) go();
 }
+
+/* ── 진입하면 바로 목록을 읽는다 (2026-08-20 요청 「리스트조회 버튼 실행 없이」) ──────
+   종전에는 [리스트조회]를 눌러야 읽었다. 그렇게 둔 이유가 **조회가 느려서**였는데
+   ①원장 집계 인덱스(IX_STOCK_LEDGER_AGG) 를 운영 DB에 넣었고
+   ②화면에 그리는 줄을 LIST_MAX 로 끊어 5,800개 입력칸을 한 번에 그리던 것을 없앴다.
+   두 가지로 가벼워져 자동으로 돌려도 된다.
+   ★[리스트조회] 버튼은 그대로 둔다 — 읽은 뒤에는 화면에서 거르는 용도(applyFilter)로 계속 쓴다.
+   ★기준일자 기본값(위 IIFE)이 먼저 들어간 뒤라야 그 날짜로 읽는다 — 순서를 바꾸지 말 것. */
+load();
 </script>
 </body>
 </html>
