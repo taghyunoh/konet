@@ -92,6 +92,10 @@
   .logi-side .side-tit small { display:block; font-size:11px; font-weight:400; color:#8a98a8; margin-top:3px; }
   /* 로그인 회사명 — 대시보드 메뉴 위, 물류관리 제목과 같은 17px (2026-07-31 요청) */
   .logi-side .side-comp { padding:12px 20px 6px; font-size:17px; font-weight:700; color:#ffd98a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* ★[2026-08-21] 제목+회사명 고정(「스크롤해도 코네트까지 고정」) — .logi-side 가 스크롤 상자라
+     그 안 sticky 로 충분하다. 배경을 사이드 색으로 깔아야 메뉴 글자가 밑으로 비쳐도 안 겹쳐 보인다. */
+  .logi-side .side-fix { position:sticky; top:0; z-index:3; background:#1f2a37;
+                         box-shadow:0 6px 10px -6px rgba(0,0,0,.45); }
   /* 메뉴 간격 — 그룹이 6개로 늘어 세로가 길어져 촘촘하게 줄였다(2026-07-25 요청) */
   .logi-side .grp { padding:9px 20px 3px; font-size:11px; letter-spacing:.5px; color:#7d8b9c; }
   .logi-side a.mi { display:flex; align-items:center; gap:8px; padding:6px 20px; color:#cdd6e0; text-decoration:none; font-size:13.5px; border-left:3px solid transparent; cursor:pointer; }
@@ -1446,21 +1450,39 @@
     lzMount({ wrap:wrap, pager:'closeStatusPager', head:head, list:rowsD, rows:STAT_ROWS, capTop:320,
               rowFn:function(r){ return (r.t==='it') ? _statItemRow(r.o,1) : _hdr(r); } });
   }
-  // ── SWAL 공용(프로젝트 표준 SweetAlert2) ──
-  /* ★경고·오류는 앱 공통 스타일(SweetAlert 기본 = 빨간 아이콘 + 빨간 확인버튼)을 그대로 쓴다.
-       (2026-08-07 지적 — 이 화면만 확인버튼을 초록으로 덮어써서 다른 화면과 달라 보였다)
-     성공·안내(success/info)는 화면 색과 맞춰 초록을 유지한다. */
+  // ── SWAL 공용 → ★[2026-08-21] ui-message 위임으로 교체 ──
+  /* 사용자 지시 「(재집계 확인창) 메세지 두번째 스타일로」 + Swal 버튼이 세로로 쌓이던 문제.
+     demo2 에 남아 있던 Swal 창(swAlert 27곳 · swConfirm 3곳)을 ***호출부 수정 없이 한 번에***
+     표준(ui-message 흰 카드 — 이 파일 머리의 알림·확인 표준)으로 바꾼다 — 정의만 위임으로 교체.
+     반환 규약 유지 : swConfirm 은 Promise<boolean>, swAlert 는 Promise.
+     ⚠새 코드는 swAlert/swConfirm 을 쓰지 말 것 — _alertBox/_confirmBox 를 바로 쓴다(표준 그대로). */
   function swAlert(msg, icon){
+    if (typeof window._alertBox === 'function') {
+      var ic = icon==='success' ? '✅' : icon==='error' ? '❌' : icon==='warning' ? '⚠️' : 'ℹ️';
+      window._alertBox(msg, { icon:ic, okColor:(icon==='error'||icon==='warning') ? 'red' : 'blue' });
+      return Promise.resolve();
+    }
     if(window.Swal){
       var o = {html:msg, icon:icon||'info', confirmButtonText:'확인'};
-      /* ★색을 반드시 박아 둔다 — SweetAlert 기본 확인버튼은 보라(#7066e0)라
-         생략하면 앱의 다른 메시지(빨간 버튼)와 달라 보인다(2026-08-07 지적). */
       o.confirmButtonColor = (icon==='error' || icon==='warning') ? '#e0342c' : '#137a6c';
       return Swal.fire(o);
     }
     alert((''+msg).replace(/<br\s*\/?>/gi,'\n'));
+    return Promise.resolve();
   }
-  function swConfirm(msg, title){ if(window.Swal) return Swal.fire({title:title||'확인', html:msg, icon:'question', showCancelButton:true, confirmButtonText:'확인', cancelButtonText:'취소', confirmButtonColor:'#137a6c', cancelButtonColor:'#94a3b8'}).then(function(r){ return r.isConfirmed; }); return Promise.resolve(confirm((''+msg).replace(/<br\s*\/?>/gi,'\n'))); }
+  function swConfirm(msg, title){
+    if (typeof window._confirmBox === 'function') {
+      return new Promise(function(res){
+        window._confirmBox({
+          msg:(title ? '<b style="font-size:16.5px">'+title+'</b><br><br>' : '') + msg,
+          icon:'❓', okText:'확인', okColor:'blue',
+          onOk:function(){ res(true); }, onCancel:function(){ res(false); }
+        });
+      });
+    }
+    if(window.Swal) return Swal.fire({title:title||'확인', html:msg, icon:'question', showCancelButton:true, confirmButtonText:'확인', cancelButtonText:'취소', confirmButtonColor:'#137a6c', cancelButtonColor:'#94a3b8'}).then(function(r){ return r.isConfirmed; });
+    return Promise.resolve(confirm((''+msg).replace(/<br\s*\/?>/gi,'\n')));
+  }
   // ── 마감 확정/해제/상태 ──
   function _closeAction(mode, ym, after){   // mode='confirm'|'cancel'
     var isC = mode==='confirm';
@@ -1721,9 +1743,10 @@
       .then(function(r){ return r.json(); }).catch(function(){ return {months:[]}; })
       .then(function(j){
         var ms=(j&&j.months)||[];
-        var excl = ms.length ? ('제외되는 <b style="color:#c0392b">마감 확정월: '+ms.map(_fmtYm6).join(', ')+'</b>') : '제외할 마감 확정월 없음 — <b>전체 기간 반영</b>';
-        swConfirm('전체 <b>출고(SHIPOUT)</b>를 재고 수불원장에 반영하고 현재고를 다시 계산합니다.<br>'+excl
-                 +'<br><span style="font-size:12.5px;color:#5a6b7a">여러 번 눌러도 안전합니다 — 지우고 다시 만드는 방식이라 결과가 같습니다.</span>'
+        /* 문구 간결화(2026-08-21 지시) — 마감 확정월이 있을 때만 제외 안내를 붙인다.
+           뺀 세부(전체 기간 반영·여러 번 안전)는 버튼 tooltip·업무설명서에 남아 있다. */
+        var excl = ms.length ? ('<br>제외 : <b style="color:#c0392b">마감 확정월 '+ms.map(_fmtYm6).join(', ')+'</b>') : '';
+        swConfirm('전체 출고를 재고 원장에 반영하고 <b>현재고를 다시 계산</b>합니다.'+excl
                  +'<br>진행할까요?','🔄 출고반영 재집계').then(function(ok){ if(!ok) return;
           /* ★진행바 = 서버가 알려주는 '실제' 진행률 (2026-08-01).
                재집계는 출고일자 수만큼 원장을 다시 만들어 자료가 쌓이면 수십 초가 걸리는데,
@@ -2981,6 +3004,9 @@
   </script>
 
   <nav class="logi-side">
+    <%-- ★[2026-08-21] 제목·회사명(코네트)을 고정 — 메뉴가 길어 스크롤하면 머리가 딸려 올라갔다
+         (「스크롤해도 코네트까지 고정」). 래퍼 하나에 sticky — 메뉴만 그 밑에서 스크롤된다. --%>
+    <div class="side-fix">
     <div class="side-tit">📦 물류관리<small>도매유통 · 입고/재고/발주/출고</small></div>
     <%-- 로그인 회사명 — compLogin 이 세션에 심는 s_comp_nm (다중회사: 어느 회사로 들어왔는지 상시 표시).
          대시보드 메뉴 위, 물류관리 제목과 같은 폰트크기 (2026-07-31 요청) --%>
@@ -2988,6 +3014,7 @@
        if (_compNm != null && !_compNm.trim().isEmpty()) { %>
     <div class="side-comp" title="로그인 회사">🏢 <%= _compNm.trim() %></div>
     <% } %>
+    </div><%-- /side-fix --%>
 
     <div class="grp">조회·대시보드관리 ★</div>
     <a class="mi core on" data-key="shipstatus2" onclick="logiShipView('zone', this)"><span class="ic">🗂️</span>출고현황표(대시보드)</a>
@@ -3568,6 +3595,7 @@
             <b>· 이전 자료 알림</b> 마지막에 올린 것보다 출고일자가 앞서면 알려만 주고 <b>막지 않습니다</b>.</div></td></tr>
           <tr><td class="m">출고세부조회</td><td>저장된 출고를 <b>3탭</b>(출고장▸품목 · 사업장별 · 품목별)으로 전환하며 조회.</td></tr>
           <tr><td class="m">출고현황이력조회</td><td>발주현황표를 <b>언제·몇 차로</b> 올렸는지와 그 발생내역을 일자별로.</td></tr>
+          <tr><td class="m">택배출고관리</td><td>출고일자의 <b>직송</b> 출고를 택배 발송 엑셀로. 주소·운임은 사업장의 택배정보(행에서 저장 가능). <b>엑셀로 뽑은 줄은 「출력됨」으로 기록</b>되어 다음 조회부터 자동 제외 — 발주현황표를 다시 올려도 새 줄만 나갑니다. 전부 다시 뽑으려면 <b>[↺ 전체 포함]</b>.</td></tr>
         </tbody></table>
       </div>
 

@@ -52,6 +52,8 @@
   .newbiz{ display:inline-block; padding:1px 7px; border-radius:9px; font-size:11px; font-weight:800; background:#fff1e8; color:#b45309; border:1px solid #f0c9a4; white-space:nowrap; }
   /* 직송 표시 — 이 화면은 ZONE='직송' 출고만 조회한다(그 사실을 줄마다 보이게) */
   .zone{ display:inline-block; padding:1px 7px; border-radius:9px; font-size:11px; font-weight:800; background:#e9f4f1; color:#137a6c; border:1px solid #b9ded4; white-space:nowrap; }
+  /* 이미 엑셀로 뽑은 줄 표시(2026-08-21) — 회색 배지. 그 줄은 조회 때 자동으로 체크가 풀린다 */
+  .donebdg{ display:inline-block; padding:1px 7px; border-radius:9px; font-size:11px; font-weight:800; background:#eef0f3; color:#5a6b7a; border:1px solid #cfd8e0; white-space:nowrap; }
   .act .btn{ height:29px; padding:0 10px; font-size:12.5px; }
   .empty{ padding:26px; text-align:center; color:#9aa7b3; }
   #msg{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%); background:#1f2a37; color:#fff; padding:10px 18px; border-radius:9px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:50; }
@@ -84,7 +86,8 @@
     <button class="btn btn-teal" onclick="poLoad()">🔍 조회</button>
     <%-- 주소 없는 줄 일괄 제외 (2026-08-06 요청) — 주소가 비면 송장이 안 나가므로 한 번에 뺀다 --%>
     <button class="btn" onclick="poOffNoAddr()" title="택배주소·배송지주소가 모두 없는 줄의 체크를 한꺼번에 풉니다">🚫 주소없음 제외</button>
-    <button class="btn" onclick="poAllChk(true)" title="모든 줄을 다시 엑셀에 포함합니다">↺ 전체 포함</button>
+    <button class="btn" onclick="poAllChk(true)" title="모든 줄을 다시 엑셀에 포함합니다 — 이미 출력한 줄(출력됨)까지 전부 다시 뽑을 때">↺ 전체 포함</button>
+    <button class="btn" onclick="poDoneOff()" title="[전체 포함]을 되돌립니다 — 출력됨 줄만 다시 엑셀에서 뺍니다([조회]를 다시 눌러도 같습니다)">↩ 출력됨 제외</button>
     <button class="btn btn-teal" onclick="poExcel()">📥 엑셀 다운로드</button>
     <span class="cnt" id="cnt">-</span>
   </div>
@@ -161,7 +164,7 @@ function poLoad(){
       headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:'frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to) })
     .then(function(r){ return r.json(); })
-    .then(function(j){ ROWS=poMerge((j&&j.data)||[]); poRender(); })
+    .then(function(j){ ROWS=poDoneApply(poMerge((j&&j.data)||[])); poRender(); })
     .catch(function(e){ document.getElementById('tb').innerHTML='<tr><td colspan="14" class="empty">조회 오류: '+esc(e.message)+'</td></tr>'; });
 }
 
@@ -204,6 +207,56 @@ function poPager(){
      되풀이해(1박스 1송장) 합친 줄이 다시 갈라졌지만, 이제 되풀이하지 않는다.
      즉 합치는 규칙을 고치면 엑셀 줄 수도 함께 바뀐다.
    · 몇 줄을 합쳤는지는 mergeCnt 에 담아 화면에 밝힌다(원자료가 몇 줄이었는지 감춰지지 않게). */
+/* ══ 「이미 뽑은 줄」 기록 (2026-08-21 요청) ═══════════════════════════════════
+   「발주현황표를 다시 올리면 엑셀을 또 만들어야 하는데, 이미 다운로드한 줄까지 다시 나온다」
+   ⇒ 엑셀을 만들면 그 줄들을 브라우저(localStorage)에 기록하고, 다음 조회부터
+     **자동으로 체크를 풀어**(엑셀 제외) 새 줄만 나가게 한다.
+   · 키 = 병합키(출고일자|사업장|품목명)와 동일 — ★재업로드로 행이 다시 만들어져도 같은 키라
+     「출력됨」이 유지된다(이 요구의 핵심).
+   · **전부 다시 뽑고 싶으면 [↺ 전체 포함]** — 기존 버튼이 그대로 그 역할을 한다(사용자 임의 전체 출력).
+     낱줄은 체크를 다시 켜면 포함된다.
+   · 브라우저별 기록이다(PC 를 바꾸면 비어 있다) — 지금 운용(한 PC)에는 충분, 공유가 필요해지면 서버로. */
+var PO_DONE_KEY = 'konetParcelDone1';
+function poDoneKey(o){ return (o.outDt||'')+'|'+(o.bizCd||'')+'|'+(o.itemNm||''); }
+function poDoneMap(){
+  try { return JSON.parse(localStorage.getItem(PO_DONE_KEY) || '{}') || {}; } catch(e){ return {}; }
+}
+function poDoneSave(m){
+  /* 60일 지난 출고일자 기록은 버린다 — 키 맨 앞이 yyyymmdd 라 잘라 비교하면 된다 */
+  var lim = new Date(Date.now() - 60*86400000);
+  var cut = lim.getFullYear() + ('0'+(lim.getMonth()+1)).slice(-2) + ('0'+lim.getDate()).slice(-2);
+  var out = {};
+  for (var k in m){ if ((k.slice(0,8)||'') >= cut) out[k] = m[k]; }
+  try { localStorage.setItem(PO_DONE_KEY, JSON.stringify(out)); } catch(e){}
+}
+/* 조회 결과에 출력 기록을 입힌다 — 출력된 줄은 체크 해제 상태로 시작 */
+function poDoneApply(rows){
+  var m = poDoneMap();
+  rows.forEach(function(o){
+    o.done = m[poDoneKey(o)] || '';
+    if (o.done) o.off = true;
+  });
+  return rows;
+}
+/* 엑셀에 담긴 줄들을 출력됨으로 기록 */
+function poDoneMark(list){
+  var m = poDoneMap();
+  var d = new Date();
+  var tm = ('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)
+         + ' ' + ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+  list.forEach(function(o){ m[poDoneKey(o)] = tm; o.done = tm; o.off = true; });
+  poDoneSave(m);
+}
+/* [전체 포함] 되돌리기(2026-08-21 「전체포함으로 했다가 원위치는」) — 출력됨 줄만 다시 뺀다.
+   손으로 켠 일반 줄은 건드리지 않는다. [조회] 재실행도 같은 결과(poDoneApply). */
+function poDoneOff(){
+  if(!ROWS.length){ swErr('먼저 조회하세요.'); return; }
+  var hit = 0;
+  ROWS.forEach(function(o){ if (o.done && !o.off) { o.off = true; hit++; } });
+  poRender();
+  toast(hit ? ('↩ 출력됨 '+hit+'건을 다시 제외했습니다') : '되돌릴 출력됨 줄이 없습니다');
+}
+
 function poMerge(list){
   var out=[], idx={};
   (list||[]).forEach(function(o){
@@ -240,7 +293,9 @@ function poRender(){
       + '<td class="c"><span class="zone">직송</span></td>'
       + '<td class="c" style="color:#5a6b7a">'+esc(fmtDt(o.outDt))+'</td>'
       + '<td class="c">'+esc(o.bizCd)+(o.bizYn==='N'?' <span class="newbiz" title="사업장관리에 아직 없는 사업장 — 저장하면 함께 등록됩니다">신규</span>':'')+'</td>'
-      + '<td>'+esc(o.bizNm)+'</td>'
+      + '<td>'+esc(o.bizNm)
+          + (o.done ? ' <span class="donebdg" title="'+esc(o.done)+' 에 엑셀로 출력한 줄 — 체크를 켜면 다시 포함됩니다">출력됨</span>' : '')
+          + '</td>'
       + '<td><input data-i="'+i+'" data-f="addr" class="'+(missA?'miss':'')+'" value="'+esc(o.addr)+'" placeholder="택배주소 입력" onchange="poSet(this)"></td>'
       + '<td><input data-i="'+i+'" data-f="tel" value="'+esc(o.tel)+'" onchange="poSet(this)"></td>'
       + '<td><input data-i="'+i+'" data-f="hp" value="'+esc(o.hp)+'" onchange="poSet(this)"></td>'
@@ -281,8 +336,10 @@ function poOffNoAddr(){
   else     toast('주소 없는 줄이 없습니다');
 }
 function poCnt(){
-  var use = ROWS.filter(function(o){ return !o.off; }).length;
+  var use  = ROWS.filter(function(o){ return !o.off; }).length;
+  var done = ROWS.filter(function(o){ return o.done; }).length;
   document.getElementById('cnt').textContent = ROWS.length + '건'
+    + (done ? ' · 출력됨 '+done : '')
     + (use !== ROWS.length ? ' · 엑셀 '+use+'건' : '');
   var a=document.getElementById('poAll');
   if(a){ a.checked = (use===ROWS.length && use>0); a.indeterminate = (use>0 && use<ROWS.length); }
@@ -367,9 +424,13 @@ function poExcelMake(){
     var wb = LIB.utils.book_new();
     LIB.utils.book_append_sheet(wb, ws, mmdd);
     LIB.writeFile(wb, '택배출고_'+dt.replace(/-/g,'')+'.xlsx');
+    /* 담긴 줄을 「출력됨」으로 기록(2026-08-21) — 다음 조회부터 자동 제외된다.
+       지금 화면에서도 바로 체크가 풀리고 배지가 붙는다(어느 줄이 나갔는지 눈에 보이게). */
+    poDoneMark(ROWS.filter(function(o){ return !o.off; }));
+    poRender();
     /* 성공 알림창은 띄우지 않는다 (2026-08-06 요청) — 파일이 받아지면 그것으로 충분하다.
        하단 토스트로만 조용히 알린다. 다만 색·테두리가 빠진 경우는 알아야 하므로 그때만 알림창. */
-    if (styled) toast('📥 엑셀 생성 — '+cnt+'줄 (화면 목록과 같은 줄 수)');
+    if (styled) toast('📥 엑셀 생성 — '+cnt+'줄 · 출력됨으로 표시(다음 조회부터 자동 제외)');
     else swAlert('엑셀을 만들었습니다.<br><span style="font-size:12.5px;color:#c0392b">색·테두리 없이 저장했습니다(스타일 모듈을 못 불러옴).</span>');
   });
 }
