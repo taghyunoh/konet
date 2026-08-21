@@ -544,6 +544,20 @@ var KONET_CTX = window.KONET_CTX || '';
       var c=document.getElementById('zc_'+L); if(c) c.textContent = collapse?'▶':'▼';
     });
   }
+  // 도구줄(찾기·줌·출고장 접기…) 접기/펼치기 — 2026-08-21 요청. 상태는 localStorage 로 다음 접속에도 유지.
+  function ssTbFoldSet(on){
+    var c=document.getElementById('ssCard'), b=document.getElementById('ssTbFoldBtn');
+    if(!c||!b) return;
+    c.classList.toggle('tb-fold', !!on);
+    b.innerHTML = on ? '▾ 도구모음 펼치기' : '▴';
+    b.title = on ? '접어 둔 도구줄(찾기·줌·출고장 접기…)을 다시 폅니다'
+                 : '이 도구줄을 접습니다 (표가 그만큼 넓게 보입니다)';
+    try{ localStorage.setItem('konetSsTbFold', on?'1':''); }catch(e){}
+  }
+  function ssTbFold(){ var c=document.getElementById('ssCard'); ssTbFoldSet(!(c&&c.classList.contains('tb-fold'))); }
+  // 이 스크립트는 ssCard 마크업보다 먼저 실린다 — 복원은 load 뒤에
+  window.addEventListener('load', function(){ try{ if(localStorage.getItem('konetSsTbFold')==='1') ssTbFoldSet(true); }catch(e){} });
+
   // 출고장 전체 펼치기/접기 — 단일 토글 버튼
   var ssAllCollapsed=false;   // 기본 펼침 상태와 동기화
   function ssToggleAllZones(){

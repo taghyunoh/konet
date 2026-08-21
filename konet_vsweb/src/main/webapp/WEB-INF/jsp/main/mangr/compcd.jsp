@@ -134,6 +134,9 @@ $(document).on('init.dt', function(e, settings) {
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
      이 한 줄만 빼면 종전 데스크탑 화면 그대로다(파일 안에서 폭·높이 조건으로만 동작). --%>
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">
+<%-- ★공통 UI 보정 (2026-08-21) — 단추 글자 두 줄 접힘 방지 + [글자 축소/확대] 단추 모양.
+     화면 크기와 무관하게 늘 적용된다(위 konet-notebook.css 는 노트북 전용 @media 라 큰 화면에서는 안 걸린다). --%>
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-ui-fix.css?v=20260821i">
 <%-- 그리드 머리글을 진하게 (2026-08-07 요청) —
        거래처관리(vendorMng)와 같은 색으로 맞춰 화면끼리 따로 놀지 않게 한다.
        ★DataTables 가 자체 스타일을 늦게 입히므로 !important 가 필요하다.

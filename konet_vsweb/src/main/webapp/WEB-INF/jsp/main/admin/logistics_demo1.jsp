@@ -65,6 +65,29 @@
   .d2-toolbar { display:flex; align-items:center; justify-content:flex-start; gap:8px; flex-wrap:wrap; overflow:visible; margin-bottom:12px; }
   .d2-toolbar .tl, .d2-toolbar .tr { display:flex; gap:6px; align-items:center; flex-wrap:nowrap; flex:0 0 auto; }
   .d2-toolbar .tm { margin:0; flex:0 0 auto; }
+  /* ★[2026-08-21] 화면 배율(가－/가＋)로 유효 폭이 줄면 우측 덩어리(출고장 접기~사업장 보기)가
+     통째로 다음 줄로 떨어졌다(90% 실측 신고 「표시부분 밑으로 밀림」).
+     ⚠flex-shrink 로는 못 막는다 — flex-wrap 컨테이너는 **줄이기 전에 줄바꿈부터** 한다(실측).
+     ⇒ **컨테이너 쿼리** : 카드 폭이 좁아지면 검색칸·셀렉트·간격을 명시적으로 좁혀 한 줄을 지킨다.
+       (배율은 CSS px 폭을 바꾸므로 컨테이너 쿼리가 정확히 따라간다. 90%≈1560 · 100%≈1400 근방이 목표,
+        그보다 더 좁으면 종전대로 줄바꿈 — 110%↑ 배율에서는 어쩔 수 없다.)
+       ⚠overflow-x:auto 로 풀면 안 된다 — 대표출고장·그룹순서 드롭다운(.dc-pop)이 잘린다. */
+  #d2Card{ container-type:inline-size; }
+  /* 도구줄 접기(2026-08-21 요청) — 세 덩어리만 감춘다. 단추는 남아 다시 펼 수 있다. */
+  #d2Card.tb-fold .d2-toolbar .tl, #d2Card.tb-fold .d2-toolbar .tm, #d2Card.tb-fold .d2-toolbar .tr{ display:none; }
+  #d2Card.tb-fold .d2-toolbar{ margin-bottom:6px; }
+  #d2TbFoldBtn{ padding:3px 9px; font-size:11.5px; color:#6b7a89; }
+  @container (max-width:1660px){
+    .d2-toolbar input[type=text]{ width:100px; }
+  }
+  @container (max-width:1480px){
+    .d2-toolbar{ gap:6px; }
+    .d2-toolbar .tl, .d2-toolbar .tr{ gap:4px; }
+    .d2-toolbar input[type=text]{ width:76px; }
+    .d2-toolbar select{ max-width:110px; }
+    .d2-toolbar .sep{ padding-left:5px; gap:4px; }
+    .d2-toolbar .btn-teal, .d2-toolbar .btn-line{ padding:5px 8px; }
+  }
   .d2-toolbar > * { flex:0 0 auto; }
   /* 대표출고장(물류센터) 다중선택 콤보 — 드롭다운 체크박스(하나 이상 선택 조회) */
   .d2-toolbar .tm { position:relative; display:flex; align-items:center; }
@@ -256,6 +279,9 @@
      CSS 는 이 한 줄만 빼면 종전 데스크탑 화면 그대로다. --%>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">
+<%-- ★공통 UI 보정 (2026-08-21) — 단추 글자 두 줄 접힘 방지 + [글자 축소/확대] 단추 모양.
+     화면 크기와 무관하게 늘 적용된다(위 konet-notebook.css 는 노트북 전용 @media 라 큰 화면에서는 안 걸린다). --%>
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-ui-fix.css?v=20260821i">
 <%-- ★[2026-08-20] 화면 콘셉 공통 — 표 형식 입력 · 세로선 격자 · Pretendard.
      반드시 이 화면의 <style>·다른 CSS **뒤에** 걸어야 옛 규칙을 덮는다.
      이 두 줄만 빼면 이 화면만 예전 모습으로 돌아간다. 규칙 설명은 CSS 파일 머리말. --%>
@@ -328,6 +354,8 @@
   <div class="card" id="d2Card">
     <!-- 툴바 (데시보드1 공통 — 합계맨앞 없음) -->
     <div class="d2-toolbar">
+      <%-- 도구줄 접기/펼치기 (2026-08-21 요청, 대시보드와 같은 규칙) --%>
+      <button class="btn-line" id="d2TbFoldBtn" onclick="d2TbFold()" title="이 도구줄을 접습니다 (표가 그만큼 넓게 보입니다)">▴</button>
       <div class="tl">
         <label>🔎 사업장 찾기</label>
         <input id="d2BizFind" type="text" list="d2BizFindList" placeholder="사업장명 입력"
@@ -1192,6 +1220,19 @@
   // ── 출고장 접기/펼치기 (개별 + 물류센터 그룹 + 전체)
   function d2ToggleZone(zn){ if(D2_COLL[zn]) delete D2_COLL[zn]; else D2_COLL[zn]=1; d2Render(); }
   function d2ToggleGroup(g){ if(D2_GCOLL[g]) delete D2_GCOLL[g]; else D2_GCOLL[g]=1; d2Render(); }
+  // 도구줄(찾기·줌·대표출고장·출고장 접기…) 접기/펼치기 — 2026-08-21 요청, 대시보드(ssTbFold)와 같은 규칙
+  function d2TbFoldSet(on){
+    var c=document.getElementById('d2Card'), b=document.getElementById('d2TbFoldBtn');
+    if(!c||!b) return;
+    c.classList.toggle('tb-fold', !!on);
+    b.innerHTML = on ? '▾ 도구모음 펼치기' : '▴';
+    b.title = on ? '접어 둔 도구줄(찾기·줌·출고장 접기…)을 다시 폅니다'
+                 : '이 도구줄을 접습니다 (표가 그만큼 넓게 보입니다)';
+    try{ localStorage.setItem('konetD2TbFold', on?'1':''); }catch(e){}
+  }
+  function d2TbFold(){ var c=document.getElementById('d2Card'); d2TbFoldSet(!(c&&c.classList.contains('tb-fold'))); }
+  window.addEventListener('load', function(){ try{ if(localStorage.getItem('konetD2TbFold')==='1') d2TbFoldSet(true); }catch(e){} });
+
   function d2ToggleAllZones(){
     var ag=d2Aggregate();
     // 렌더(zonesWithItems)와 동일 기준 — 활성행 없이 '삭제행'만 있는 출고장도 접기 대상에 포함

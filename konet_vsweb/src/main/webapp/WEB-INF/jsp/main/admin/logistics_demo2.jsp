@@ -380,6 +380,28 @@
   table.ss-tb tr.gtot td { background:#1f2a37; color:#fff; font-weight:700; }
   table.ss-tb tr.gtot td.zero { color:#8a98a8; }
   .ss-scroll { max-height:74vh; overflow:auto; border:1px solid var(--logi-border); border-radius:8px; }
+  /* ★[2026-08-21] 대시보드 툴바 — 화면 배율(가－/가＋)로 유효 폭이 줄면 우측 덩어리(출고장 접기~사업장 보기)가
+     아랫줄로 밀렸다(90% 실측 신고 「표시부분 밑으로 밀림」, 출고세부조회(logistics_demo1)와 같은 원인).
+     ⚠flex-shrink 로는 못 막는다 — flex-wrap 컨테이너는 줄이기 전에 줄바꿈부터 한다(실측).
+     ⇒ 컨테이너 쿼리로 카드 폭이 좁아지면 검색칸·간격을 명시적으로 좁혀 한 줄을 지킨다.
+       (검색칸 width 는 inline 이라 !important 로만 덮인다. 더 좁으면 종전대로 줄바꿈 — 110%↑ 배율.) */
+  #ssCard{ container-type:inline-size; }
+  @container (max-width:1700px){
+    #ssCard #ssBizFind{ width:104px !important; }
+  }
+  @container (max-width:1540px){
+    #ssCard > div:first-child{ gap:6px !important; }
+    #ssCard > div:first-child > div{ gap:4px !important; }
+    #ssCard #ssBizFind{ width:80px !important; }
+    #ssCard #ssBizSel{ max-width:112px; }
+    #ssCard > div:first-child .btn-line, #ssCard > div:first-child .btn-teal{ padding:5px 8px !important; }
+    #ssCard #ssBtnZoneToggle{ min-width:0 !important; }
+  }
+  /* 도구줄 접기(2026-08-21 요청) — 줄의 두 덩어리만 감춘다. 단추는 남아 다시 펼 수 있다.
+     ⚠줄의 margin-bottom 은 inline(12px)이라 !important 로만 줄어든다. */
+  #ssCard.tb-fold > div:first-child > div{ display:none !important; }
+  #ssCard.tb-fold > div:first-child{ margin-bottom:6px !important; }
+  #ssTbFoldBtn{ padding:3px 9px !important; font-size:11.5px; color:#6b7a89; }
   /* 현재 선택(활성) 버튼 표시 */
   .btn-line.seg-on { background:#178074 !important; color:#fff !important; border-color:#178074 !important; font-weight:700; }
   /* 확대 — 출고현황표 카드가 전체 화면을 덮음 */
@@ -2875,11 +2897,18 @@
      CSS 는 이 한 줄만 빼면 종전 데스크탑 화면 그대로다. --%>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">
+<%-- ★공통 UI 보정 (2026-08-21) — 단추 글자 두 줄 접힘 방지 + [글자 축소/확대] 단추 모양.
+     화면 크기와 무관하게 늘 적용된다(위 konet-notebook.css 는 노트북 전용 @media 라 큰 화면에서는 안 걸린다). --%>
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-ui-fix.css?v=20260821i">
 <%-- ★[2026-08-20] 화면 콘셉 공통 — 표 형식 입력 · 세로선 격자 · Pretendard.
      반드시 이 화면의 <style>·다른 CSS **뒤에** 걸어야 옛 규칙을 덮는다.
      이 두 줄만 빼면 이 화면만 예전 모습으로 돌아간다. 규칙 설명은 CSS 파일 머리말. --%>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/ui-concept.css?v=20260820">
+<%-- ★글자 축소·확대 (2026-08-21 요청) — 상단 <자주 쓰는 메뉴> 줄 맨 오른쪽에 [가－][100%][가＋].
+     셸에만 걸면 된다 — iframe 업무화면은 이 스크립트가 알아서 같은 배율로 맞춘다.
+     빼려면 이 한 줄만 지우면 종전 크기로 돌아간다. --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-fontsize.js?v=20260821m"></script>
 </head>
 <body>
 <%-- 좌측 메뉴 접힘 상태를 <그리기 전에> 입힌다 (2026-08-05) —
@@ -4064,6 +4093,8 @@
       <!-- 메인 출고현황표 (상단: 사업장·품목명 / 좌측: 출고장 행 / 하단: 출고내역·재고) -->
       <div class="card" id="ssCard">
         <div style="display:flex; align-items:center; justify-content:flex-start; margin-bottom:12px; flex-wrap:wrap; gap:8px">
+          <%-- 도구줄 접기/펼치기 (2026-08-21 요청) — 동작은 logi-oh.js ssTbFold. 접힌 상태는 localStorage. --%>
+          <button class="btn-line" id="ssTbFoldBtn" onclick="ssTbFold()" title="이 도구줄을 접습니다 (표가 그만큼 넓게 보입니다)">▴</button>
           <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap">
             <label style="font-size:12px; color:#37475a; font-weight:700">🔎 사업장 찾기</label>
             <input id="ssBizFind" type="text" list="ssBizFindList" placeholder="사업장명 입력" oninput="ssBizFind(this.value, true)" onkeydown="if(event.keyCode===13){ssBizFind(this.value, false);}" style="height:32px; border:1px solid var(--logi-border); border-radius:6px; padding:0 8px; font-size:12.5px; width:160px">
