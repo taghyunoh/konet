@@ -76,6 +76,9 @@ public interface UserMapper {
 	int insertBiziIfAbsent(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
 	int updateBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
 	int updateBiziParcel(egovframework.sejong.user.model.BiziDTO dto) throws Exception; /* 택배 정보(주소·전화·운임)만 저장 (2026-08-06) */
+	/* 사업장 공통 매칭코드 (2026-08-28) — 선택한 사업장들에 코드·명칭 일괄 지정 / 다음 자동채번 번호 */
+	int updateBiziMatch(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	int biziMatchNextNo(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectParcelOutList(java.util.Map<String,Object> p) throws Exception; /* 택배출고관리 — 출고일자 직송 목록 (2026-08-06) */
 	int deleteBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
 	// ===== 거래처관리(사업장) CRUD — TBL_BIZI_MST =====

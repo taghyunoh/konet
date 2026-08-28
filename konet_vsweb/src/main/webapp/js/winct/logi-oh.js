@@ -3211,7 +3211,10 @@ var KONET_CTX = window.KONET_CTX || '';
     ssFlash();
     /* ★저장에 쓸 값은 <닫기 전에> 챙긴다 — 2026-08-28 부터 모달을 닫으면 담은 목록이 비워진다.
          닫은 뒤에 ssPvList 를 읽으면 빈 배열이라 <아무것도 저장되지 않는다>. */
-    var _saveList=ssPvList.map(function(f){ return { aoa:(f.cur&&f.cur.aoa)||[], name:f.name }; });
+    /* ★filter(가져올 범위)를 반드시 같이 넘긴다 — 빠뜨리면 ssSaveShipoutToDB 의 it.filter 가 undefined 라
+         화면만 걸러지고 <DB 에는 뺀 자료가 그대로> 들어간다. 2026-08-28 실제 발생:
+         08-29(김해·제주 제외) 파일의 김해 행과 08-31(김해·제주만) 파일의 나머지 행이 전부 저장됐다. */
+    var _saveList=ssPvList.map(function(f){ return { aoa:(f.cur&&f.cur.aoa)||[], name:f.name, filter:(f.filter||'') }; });
     var _fileLab = ssPvList.length>1 ? ('파일 '+ssPvList.length+'개') : ssPvName;
     ssPvOpen(false);
     /* ★ 서버 저장(TBL_SHIPOUT_MST) — 원본 전체컬럼, 기존 활성배치 이력마감 후 신규배치 INSERT.
@@ -3227,11 +3230,17 @@ var KONET_CTX = window.KONET_CTX || '';
   }
 
   // 업로드 행 중 "품목명 앞 () 없는" 사업장만 distinct 수집 → 서버 자동등록(insert if absent) → 분류 최신화
+  /* 업로드한 발주현황표에 나온 사업장을 TBL_BIZI_MST 에 <없을 때만> 넣는다(기존 이름은 안 건드림).
+     ★[2026-08-28] 종전의 「품목명이 ( 로 시작하면 제외」 규칙을 없앴다 —
+       그 규칙 때문에 576곳(배고픈덮밥이·파스타입니다·명동피자 …)이 영영 등록되지 않아
+       거래처관리 목록에 없었고, 그래서 <공통 매칭코드를 줄 수가 없었다>.
+     ⚠부작용을 알고 쓸 것 : 분류(ssRowBrand·d2Brand)는 사업장코드가 등록돼 있으면 <사업장명>으로,
+       없으면 <품목명 괄호 브랜드>로 묶는다. 새로 등록되는 사업장은 그 시점부터 사업장명으로 묶인다.
+       (이미 절반은 그렇게 묶이고 있었다 — 등록 여부로 갈리던 것이 이제 한 가지로 통일된다.) */
   function ssSaveBiziFromRows(rows){
     var seen={}, list=[];
     (rows||[]).forEach(function(r){
       var item=(''+(r.item||'')).trim(); if(!item) return;
-      if(/^\(/.test(item)) return;                       // 괄호有 제외
       var bc=(''+(r.bizCode||'')).trim(); if(!bc || seen[bc]) return;
       seen[bc]=1; list.push({ bizCd:bc, bizNm:(''+(r.bizName||'')).trim() });
     });

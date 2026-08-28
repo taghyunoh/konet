@@ -1437,7 +1437,9 @@
 	  SELECT BIZ_CD AS bizCd, JOB_SEQ AS jobSeq, ACTION_YN AS actionYn, BIZ_NM AS bizNm,
 	         ZIPCD AS zipcd, ADDR AS addr, TEL AS tel, HP AS hp,
 	         PARCEL_ADDR AS parcelAddr, PARCEL_NM AS parcelNm, PARCEL_TEL AS parcelTel,
-	         PARCEL_HP AS parcelHp, PARCEL_FEE AS parcelFee
+	         PARCEL_HP AS parcelHp, PARCEL_FEE AS parcelFee,
+	         -- 공통 매칭코드 (2026-08-28) — 출고현황표 가로표/엑셀이 사업장을 이 이름으로 묶는다
+	         MATCH_CD AS matchCd, MATCH_NM AS matchNm
 	    FROM TBL_BIZI_MST
 	   WHERE ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -1478,6 +1480,7 @@
 	         CEO_NM AS ceoNm, BIZ_COND AS bizCond, BIZ_ITEM AS bizItem, ZIPCD AS zipcd, ADDR AS addr, ADDR2 AS addr2,
 	         TEL AS tel, FAX AS fax, HP AS hp, EMAIL AS email, MANAGER AS manager, SORT_ORD AS sortOrd, REMARK AS remark,
 	         PARCEL_ADDR AS parcelAddr, PARCEL_TEL AS parcelTel, PARCEL_HP AS parcelHp, PARCEL_NM AS parcelNm, PARCEL_FEE AS parcelFee,
+	         MATCH_CD AS matchCd, MATCH_NM AS matchNm,
 	         CONVERT(varchar(19),REG_DTTM,120) AS regDttm, CONVERT(varchar(19),UPD_DTTM,120) AS updDttm
 	    FROM TBL_BIZI_MST
 	   WHERE ISNULL(ACTION_YN,'Y') = 'Y'
@@ -1485,7 +1488,8 @@
 	  <if test="findData != null and findData != ''">
 	     AND ( BIZ_CD LIKE '%' + #{findData} + '%' OR ISNULL(BIZ_NM,'') LIKE '%' + #{findData} + '%'
 	        OR ISNULL(BIZ_SMALL_NM,'') LIKE '%' + #{findData} + '%' OR ISNULL(BIZNO,'') LIKE '%' + #{findData} + '%'
-	        OR ISNULL(CEO_NM,'') LIKE '%' + #{findData} + '%' )
+	        OR ISNULL(CEO_NM,'') LIKE '%' + #{findData} + '%'
+	        OR ISNULL(MATCH_CD,'') LIKE '%' + #{findData} + '%' OR ISNULL(MATCH_NM,'') LIKE '%' + #{findData} + '%' )
 	  </if>
 	   ORDER BY ISNULL(SORT_ORD, 999999), BIZ_NM, BIZ_CD
 	</select>
@@ -1522,6 +1526,32 @@
 	   WHERE BIZ_CD = #{bizCd}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
+
+	<!-- ============================================================
+	     사업장 공통 매칭코드 (2026-08-28) — 여러 사업장을 하나로 묶는 코드/이름.
+	     ★DDL 먼저 : docs/sql/20260828_bizi_match_cd.sql (MATCH_CD/MATCH_NM 칸 추가)
+	     ★지금은 거래처관리 화면 전용 — 출고현황표 묶음에는 쓰지 않는다.
+	     ============================================================ -->
+	<!-- 선택한 사업장들에 매칭코드·명칭을 한 번에 지정. matchCd 가 비면 해제(NULL) 된다. -->
+	<update id="updateBiziMatch" parameterType="egovframework.sejong.user.model.BiziDTO">
+	  UPDATE TBL_BIZI_MST
+	     SET MATCH_CD = NULLIF(#{matchCd,jdbcType=NVARCHAR},''),
+	         MATCH_NM = NULLIF(#{matchNm,jdbcType=NVARCHAR},''),
+	         UPD_DTTM = GETDATE(), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=NVARCHAR}
+	   WHERE ISNULL(ACTION_YN,'Y') = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND BIZ_CD IN
+	     <foreach collection="bizCds" item="c" open="(" close=")" separator=",">#{c}</foreach>
+	</update>
+
+	<!-- 자동채번용 다음 코드 — 이미 쓰는 'M0001' 꼴 중 가장 큰 수 + 1.
+	     ★숫자 4자리 꼴만 센다(직접 입력한 다른 모양의 코드가 채번을 어지럽히지 않게). -->
+	<select id="biziMatchNextNo" parameterType="egovframework.sejong.user.model.BiziDTO" resultType="int"><![CDATA[
+	  SELECT ISNULL(MAX(CONVERT(int, SUBSTRING(MATCH_CD, 2, 4))), 0) + 1
+	    FROM TBL_BIZI_MST
+	   WHERE MATCH_CD LIKE 'M[0-9][0-9][0-9][0-9]' AND LEN(MATCH_CD) = 5
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></select>
 
 	<!-- 택배 정보만 저장 (2026-08-06 신설) — 사업장관리·택배출고관리 공용.
 	     updateBiziMst(이름만)와 분리해 다른 칼럼을 건드리지 않는다. -->

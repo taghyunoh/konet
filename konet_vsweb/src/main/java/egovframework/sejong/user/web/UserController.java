@@ -1237,6 +1237,40 @@ public class UserController {
 			} catch (Exception e) { log.error(" clientDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
+		/* ── 사업장 공통 매칭코드 (2026-08-28) ─────────────────────────────────────
+		     선택한 사업장들을 하나의 코드/이름으로 묶는다. 매칭코드를 비워 보내면 <해제>다.
+		     ★DDL 먼저 : docs/sql/20260828_bizi_match_cd.sql
+		     ★지금은 거래처관리 화면 전용 — 출고현황표 묶음에는 쓰지 않는다. */
+		@RequestMapping(value="/mangr/clientMatchNext.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> clientMatchNext(HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			egovframework.sejong.user.model.BiziDTO dto = new egovframework.sejong.user.model.BiziDTO();
+			int no = svc.biziMatchNextNo(dto);
+			res.put("matchCd", String.format("M%04d", no));
+			return res;
+		}
+		@RequestMapping(value="/mangr/clientMatchSet.do", method = RequestMethod.POST)
+		public ResponseEntity<String> clientMatchSet(@RequestBody egovframework.sejong.user.model.BiziDTO dto,
+		                                            HttpServletRequest request, HttpSession session) {
+			try {
+				if (dto.getBizCds()==null || dto.getBizCds().isEmpty()) return ResponseEntity.status(400).body("사업장을 하나 이상 고르세요");
+				/* 한 문장에 담을 수 있는 파라미터에 한계가 있어 300개씩 나눠 돌린다 —
+				   1,575건 전부를 한 번에 고를 수도 있다. */
+				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):""));
+				dto.setUpdIp(request.getRemoteAddr());
+				java.util.List<String> all = dto.getBizCds();
+				int n = 0;
+				final int CHUNK = 300;
+				for (int i = 0; i < all.size(); i += CHUNK) {
+					dto.setBizCds(all.subList(i, Math.min(i + CHUNK, all.size())));
+					n += svc.updateBiziMatch(dto);
+				}
+				dto.setBizCds(all);
+				return ResponseEntity.ok(String.valueOf(n));
+			} catch (Exception e) { log.error(" clientMatchSet ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
 		/* ================= 매입등록 (TBL_PURCHASE_MST/DTL) — 2026-07-25 ================= */
 		@RequestMapping(value="/mangr/purchaseReg.do")
 		public String purchaseReg(HttpSession session) {

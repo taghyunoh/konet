@@ -83,6 +83,74 @@
   /* 좌→우로 채우되 폭 부족 시 다음 줄로 내려감(데시보드1처럼). overflow:visible 이라야 드롭다운이 잘리지 않고 제자리에 뜸 */
   .d2-toolbar { display:flex; align-items:center; justify-content:flex-start; gap:8px; flex-wrap:wrap; overflow:visible; margin-bottom:12px; }
   .d2-toolbar .tl, .d2-toolbar .tr { display:flex; gap:6px; align-items:center; flex-wrap:nowrap; flex:0 0 auto; }
+  /* 보기 탭 — 목록 / 가로표 (2026-08-28) */
+  /* 보기 탭 — 2026-08-28 「표시 크게 / 기본선택표시」. 지금 어느 화면인지 한눈에 보여야 해서 크게+진하게. */
+  .d2-vtab { display:inline-flex; border:1px solid var(--bd); border-radius:9px; overflow:hidden; margin-right:8px; }
+  .d2-vtab .vt { border:0; background:#fff; color:#5a6b7a; font-size:15px; font-weight:800; padding:8px 22px; cursor:pointer; letter-spacing:-0.3px; }
+  .d2-vtab .vt + .vt { border-left:1px solid var(--bd); }
+  .d2-vtab .vt:hover { background:#eef3f2; }
+  .d2-vtab .vt.on { background:#137a6c; color:#fff; box-shadow:inset 0 -3px 0 rgba(0,0,0,.18); }
+  /* 제목줄 콤보가 길어지면 그 줄이 통째로 접혀 「엑셀 보기/출력」 단추가 아랫줄로 내려간다 — 폭을 묶어 막는다 */
+  .d2-head .actions select { max-width:150px; }
+  /* 가로표 — 첫 칸(출고장)과 머리줄을 고정해 옆으로 밀어도 무엇의 값인지 보인다 */
+  /* 글자 크기 (2026-08-28 「폰트 조금 크게」) — 표 13.5px / 품목 머리줄 12px.
+     ★키우면 칸도 같이 넓혀야 한다 — 안 그러면 품목명이 더 잘게 접혀 머리줄만 높아진다. */
+  table.d2-mx { border-collapse:separate; border-spacing:0; font-size:15px; }
+  table.d2-mx th, table.d2-mx td { border:1px solid var(--bd); padding:5px 9px; white-space:nowrap; text-align:right; background:#fff; }
+  table.d2-mx .cn { text-align:left; position:sticky; left:0; z-index:2; min-width:212px; font-weight:600; }
+  table.d2-mx thead th { position:sticky; top:0; z-index:3; background:#dfeaf5; color:#1f2a37; height:34px; }
+  /* 「출고장 / 품목」 모서리칸 · 사업장 머리줄은 표에서 길잡이라 본문보다 크게(2026-08-28) */
+  table.d2-mx thead th.cn { z-index:4; background:#dfeaf5; font-size:17px; font-weight:800; }
+  table.d2-mx thead th.it { top:34px; background:#eef4fa; font-weight:600; white-space:normal;
+                            min-width:132px; max-width:186px; line-height:1.4; font-size:13px; }
+  table.d2-mx thead th.it .nm { color:#5a6b7a; font-weight:400; }
+  table.d2-mx td.none { background:#f1f3f5; }
+  /* ★출고장 줄 높이를 못박는다 — 접었다 폈다 해도 위아래 간격이 그대로여야 눈이 줄을 안 놓친다(2026-08-28) */
+  table.d2-mx tbody td { height:29px; box-sizing:border-box; }
+  /* 사업장 머리칸 = 접기 손잡이 */
+  table.d2-mx thead th.bz { cursor:pointer; user-select:none; font-size:16px; font-weight:800; letter-spacing:-0.2px; padding:6px 9px; }
+  table.d2-mx thead th.bz:hover { background:#cfe0f0; }
+  /* 숨긴 사업장 되살리기 줄 — 가로로 밀어도 따라오게 sticky left:0 (2026-08-28 「숨김/펼치기」) */
+  .d2-mxhide { position:sticky; left:0; width:max-content; max-width:100%; margin:0 0 8px; padding:7px 10px;
+               background:#fff7e6; border:1px solid #f0d9a8; border-radius:8px; font-size:13px; color:#7a5a12;
+               display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .d2-mxhide .wn { color:#a1741c; font-size:12.5px; }
+  .d2-mxhide .hc { border:1px solid #e0c48a; background:#fff; color:#7a5a12; border-radius:14px; padding:3px 11px; font-size:12.5px; font-weight:700; cursor:pointer; }
+  .d2-mxhide .hc:hover { background:#fdf1d8; }
+  .d2-mxhide .hall { border:1px solid var(--bd); background:#fff; color:#137a6c; border-radius:8px; padding:3px 11px; font-size:12.5px; font-weight:700; cursor:pointer; }
+  .d2-mxhide .hall:hover { background:#eef3f2; }
+  table.d2-mx tr.grp td { background:#137a6c; color:#fff; font-weight:700; }
+  table.d2-mx tr.grp td.none { background:#0e6659; }
+  table.d2-mx tr.grp td.cn { background:#137a6c; }
+  table.d2-mx tr.grp .sub { font-weight:400; color:#cdeee8; font-size:13px; }
+  table.d2-mx td.cn.zn { padding-left:20px; font-weight:400; }
+  table.d2-mx td.rtot { background:#fff2cc; font-weight:700; }
+  table.d2-mx td.rcnt { background:#e2efda; font-weight:700; }
+  table.d2-mx th.rtot { background:#fbe9bd; }
+  table.d2-mx th.rcnt { background:#d5e8c6; }
+  table.d2-mx tr.sum td { background:#f2f2f2; font-weight:700; }
+  table.d2-mx tr.zc td { background:#e2efda; font-weight:700; color:#375623; }
+  table.d2-mx tr.stk td { background:#fff4e6; font-weight:700; color:#137a6c; }
+  table.d2-mx tr.stk td.neg { color:#c0392b; }
+  /* ★고정칸(출고장·합계·품목수)의 바탕은 반드시 <불투명한 색>이어야 한다.
+       background:inherit 은 tr 에 색이 없어 결국 투명 → 옆으로 밀면 스크롤되는 칸이 고정칸 <뒤로 비쳐>
+       「합계 1 209 179」처럼 없는 숫자가 겹쳐 보인다(2026-08-28 지적). 색을 직접 박는다. */
+  table.d2-mx tr.sum td.cn { background:#f2f2f2; }
+  table.d2-mx tr.zc  td.cn { background:#e2efda; }
+  table.d2-mx tr.stk td.cn { background:#fff4e6; }
+
+  /* ★합계·품목수를 「출고장」 바로 뒤로 옮기고 같이 얼린다(2026-08-28 요청) — 옆으로 끝까지 밀어도 총량이 보인다.
+     ★sticky 의 left 값은 앞칸 폭의 <합>이라 폭을 못박아야 한다. .cn 212 → 합계 212 → 품목수 212+86=298.
+       폭을 바꾸면 left 도 같이 고쳐야 한다(안 그러면 칸이 겹치거나 틈이 생긴다). */
+  table.d2-mx .cn   { width:212px; min-width:212px; max-width:212px; box-sizing:border-box; }
+  table.d2-mx .rtot { position:sticky; left:212px; z-index:2; width:86px;  min-width:86px;  max-width:86px;  box-sizing:border-box; }
+  table.d2-mx .rcnt { position:sticky; left:298px; z-index:2; width:78px;  min-width:78px;  max-width:78px;  box-sizing:border-box; }
+  table.d2-mx thead th.rtot, table.d2-mx thead th.rcnt { z-index:4; }
+  /* 줄 종류별 바탕색을 되살린다 — 안 넣으면 노랑/연두가 묶음줄·합계줄을 덮어쓴다 */
+  table.d2-mx tr.grp td.rtot, table.d2-mx tr.grp td.rcnt { background:#137a6c; color:#fff; }
+  table.d2-mx tr.sum td.rtot, table.d2-mx tr.sum td.rcnt { background:#f2f2f2; }
+  table.d2-mx tr.zc  td.rtot, table.d2-mx tr.zc  td.rcnt { background:#e2efda; color:#375623; }
+  table.d2-mx tr.stk td.rtot, table.d2-mx tr.stk td.rcnt { background:#fff4e6; }
   .d2-toolbar .tm { margin:0; flex:0 0 auto; }
   /* ★[2026-08-21] 화면 배율(가－/가＋)로 유효 폭이 줄면 우측 덩어리(출고장 접기~사업장 보기)가
      통째로 다음 줄로 떨어졌다(90% 실측 신고 「표시부분 밑으로 밀림」).
@@ -344,6 +412,8 @@
             <option value="zoneitem">출고장별 품목</option>
             <option value="biz">사업장별</option>
             <option value="item">품목별</option>
+            <%-- 엑셀 [출고장 × 품목 (가로표)] 과 같은 화면 (2026-08-28 요청) --%>
+            <option value="matrix">가로표 (출고장 × 품목)</option>
           </select>
         </span>
       </h2>
@@ -410,6 +480,12 @@
     <!-- 툴바 (데시보드1 공통 — 합계맨앞 없음) -->
     <div class="d2-toolbar">
       <div class="tl">
+        <%-- 보기 탭 (2026-08-28 요청 「기존 것 유지하면서 탭으로 두 개 선택」) —
+             대시보드에서는 위 보기 콤보가 숨겨져 있어 가로표로 갈 길이 없었다. 여기 탭으로 오간다. --%>
+        <span class="d2-vtab">
+          <button type="button" class="vt on" id="d2VtList" onclick="d2SetView('zone')" title="지금까지 쓰던 목록 화면">목록</button>
+          <button type="button" class="vt" id="d2VtMx" onclick="d2SetView('matrix')" title="엑셀 [출고장 × 품목] 과 같은 가로표">가로표</button>
+        </span>
         <label>🔎 사업장 찾기</label>
         <input id="d2BizFind" type="text" list="d2BizFindList" placeholder="사업장명 입력"
                oninput="d2BizFindSet(this.value)" onkeydown="if(event.keyCode===13){d2BizFindSet(this.value);}">
@@ -433,6 +509,9 @@
       </div>
       <div class="tr">
         <button class="btn-line" id="d2BtnZoneToggle" onclick="d2ToggleAllZones()">－ 출고장 접기</button>
+        <%-- 가로표 전용 : 세로줄(사업장) 접기. 목록에서는 숨는다(d2VtSync) --%>
+        <button class="btn-line" id="d2BtnBizFold" style="display:none" onclick="d2MxFoldAll()"
+                title="가로표에서 사업장 열을 숨깁니다 / 다시 폅니다 (사업장 머리칸을 눌러 하나씩도 됩니다)">－ 사업장 접기</button>
         <span style="position:relative" id="d2GordWrap">
           <button class="btn-line" onclick="d2GordOpen(event)" title="출고장 그룹(물류센터) 표시 순서를 지정합니다. 브라우저에 저장되어 수정하지 않는 한 유지됩니다">⚙ 그룹순서</button>
           <div class="dc-pop" id="d2GordPop" style="left:auto; right:0; min-width:260px"></div>
@@ -505,6 +584,14 @@
   var D2_PREV=[];            // 직전 배치(이력 비교용) — 같은 매핑
   var D2_HISTALL=[];         // 전 배치(모든 출고장) — 차수별 수량 매트릭스용(활성+이력)
   var D2_BIZI={};            // TBL_BIZI_MST {사업장코드:대표사업장명} — 사업장 유니크 카운트용(데시보드1 ssBiziMap 동일)
+  /* 사업장 공통 매칭 {사업장코드:매칭명칭} — 거래처관리에서 지정한다(2026-08-28).
+     ★쓰는 곳은 <가로표 화면 + 가로표 엑셀> 뿐이다. 목록 보기·KPI·다른 출력은 그대로 둔다.
+     ★매칭이 없는 사업장은 원래 사업장 이름을 그대로 쓴다(사용자 확정). */
+  var D2_BIZMT={};
+  function d2MtNm(r){
+    var c=(''+((r&&r.bizCode)||'')).trim();
+    return (c && D2_BIZMT[c]) || (r&&r.biz) || '(사업장없음)';
+  }
   var D2_SRC='', D2_UP=false;
   var D2_COLL={};            // 접힌 출고장 { zone:1 }
   var D2_GCOLL={};           // 접힌 물류센터 그룹 { dc:1 }
@@ -622,6 +709,15 @@
   /* fld : 'q'=현재고, 'i'=입고. 입고도 재고와 <똑같이> 주코드를 타고 찾는다
      (2026-08-07 "입고수량도 같이 같은 매칭") — 매입은 언제나 주코드로 들어오므로
      매칭코드 줄에서 입고를 보려면 주코드 쪽을 볼 수밖에 없다. */
+  /* 숫자만 필요할 때(엑셀 출력) — 화면 칸(d2StockCell)과 <같은 규칙>으로 값을 고른다.
+     매칭코드면 주코드 재고를 대신 본다. 어느 쪽도 없으면 null(빈칸). */
+  function d2StockQty(code){
+    var c=(''+(code||'')).trim();
+    if(!D2_STOCK || !c) return null;
+    var o=D2_STOCK[c];
+    if(o==null && D2_MAINCD && D2_MAINCD[c]) o=D2_STOCK[D2_MAINCD[c]];
+    return (o==null) ? null : (+o.q||0);
+  }
   function d2StockCell(code, fld){
     fld = fld || 'q';
     var c=(''+(code||'')).trim();
@@ -820,48 +916,67 @@
       var dlab=(from&&from===to)?from:(from+' ~ '+to);
       var aoa=[], merges=[], meta=[], maxW=1, made=0;
       function push(row,ty){ aoa.push(row); meta.push(ty||''); }
+      /* ★맨 위에 <화면 상단 조회조건>을 그대로 얹는다 (2026-08-28 요청 「상단 조건은 동일하게」).
+           나중에 이 파일만 보고도 <무슨 조건으로 뽑은 것인지> 알 수 있어야 한다.
+           값은 화면 KPI 칸에서 그대로 읽는다 — 따로 계산하면 화면과 어긋난다. */
+      function _txt(id){ var e=document.getElementById(id); return e ? (''+(e.textContent||'')).trim() : ''; }
+      push(['조회조건',
+            '출고일자  '+dlab,
+            (_txt('d2KpiPrefix')||'당일')+' 출고품목  '+(_txt('d2KpiItem')||'0'),
+            '출고수량(BOX)  '+(_txt('d2KpiQty')||'0'),
+            '출고장 수  '+(_txt('d2KpiZone')||'0'),
+            '사업장  '+(_txt('d2KpiBiz')||'0')], 'cond');
+      push([], 'blank');
+      d2StockLoad();   // 하단 '현재고' 줄에 쓸 값 — 아직 안 왔으면 그 줄은 비워 둔다
       function buildSection(ag, dateHdr){
         var zones=d2ZonesSorted(ag).filter(function(zn){
           var rs=ag.zones[zn].rows;
           return Object.keys(rs).some(function(k){ return (+rs[k].qty||0)>0; });
         });
         if(!zones.length) return;
+        /* 열 = <매칭명칭 x 품목> — 화면 가로표(d2RenderMatrixView)와 <같은 규칙>이어야 값이 안 어긋난다.
+           매칭이 없는 사업장은 원래 사업장 이름 그대로. 같은 매칭·같은 품목은 한 칸으로 더한다. */
         var colMap={}, cols=[];
         zones.forEach(function(zn){
           var rs=ag.zones[zn].rows;
           Object.keys(rs).forEach(function(rk){
-            if((+rs[rk].qty||0)<=0 || colMap[rk]) return;
-            var r=rs[rk];
-            colMap[rk]={ rk:rk, biz:(r.biz||'(사업장없음)'), code:(r.code||''), name:(r.name||'') };
-            cols.push(colMap[rk]);
+            var r=rs[rk]; if((+r.qty||0)<=0) return;
+            var ik=(r.code ? r.code : ('NM:'+(r.name||'')));
+            var ck=d2MtNm(r)+'\u0001'+ik;
+            var c=colMap[ck];
+            if(!c){ c=colMap[ck]={ ck:ck, biz:d2MtNm(r), code:(r.code||''), name:(r.name||''), keys:[], kset:{} }; cols.push(c); }
+            if(!c.kset[rk]){ c.kset[rk]=1; c.keys.push(rk); }
           });
         });
         if(!cols.length) return;
         cols.sort(function(a,b){ return a.biz.localeCompare(b.biz,'ko') || a.name.localeCompare(b.name,'ko'); });
+        function colQty(rs, c){ var t=0; for(var i=0;i<c.keys.length;i++){ var x=rs[c.keys[i]]; if(x) t+=(+x.qty||0); } return t; }
         /* 맨 위 '출고장일자' 줄은 뺐다 (2026-08-28 요청) — 이 날짜 배너가 같은 내용을 이미 담고 있다 */
         push(['📅 '+(dateHdr||dlab)+' 출고     ※ 회색 칸 = 그 출고장에 그 품목이 없음'], 'datehdr');
+        /* ★열 차례 : [0]출고장  [1]합계  [2]품목수  [3~]사업장·품목  (2026-08-28 「엑셀도 합계·품목수가 앞으로」)
+             화면 가로표와 같은 차례다. 세 칸을 틀 고정하므로 옆으로 끝까지 밀어도 총량이 보인다.
+           ⚠아래 서식 루프의 자리번호(1·2)와 !cols·!freeze(xSplit:3) 가 이 차례에 묶여 있다 — 바꾸면 같이 고칠 것. */
         var W=cols.length+3;
         if(W>maxW) maxW=W;
-        var cTot=cols.length+1, cCnt=cols.length+2;
+        var cTot=1, cCnt=2, cOff=3;                     // cOff = 첫 품목 열
         var r1=new Array(W); for(var i=0;i<W;i++) r1[i]='';
         r1[0]='구분';
-        var start=1, bz=cols[0].biz;
-        for(var i2=0;i2<cols.length;i2++){
-          if(cols[i2].biz!==bz){
-            r1[start]=bz;
-            if(i2-start>=1) merges.push({s:{r:aoa.length,c:start}, e:{r:aoa.length,c:i2}});
-            start=i2+1; bz=cols[i2].biz;
-          }
-        }
-        r1[start]=bz;
-        if(cols.length-start>=1) merges.push({s:{r:aoa.length,c:start}, e:{r:aoa.length,c:cols.length}});
         r1[cTot]='합계'; r1[cCnt]='품목수';
         merges.push({s:{r:aoa.length,c:cTot}, e:{r:aoa.length+1,c:cTot}});
         merges.push({s:{r:aoa.length,c:cCnt}, e:{r:aoa.length+1,c:cCnt}});
+        var start=0, bz=cols[0].biz;
+        for(var i2=0;i2<cols.length;i2++){
+          if(cols[i2].biz!==bz){
+            r1[start+cOff]=bz;
+            if(i2-start>=2) merges.push({s:{r:aoa.length,c:start+cOff}, e:{r:aoa.length,c:i2-1+cOff}});
+            start=i2; bz=cols[i2].biz;
+          }
+        }
+        r1[start+cOff]=bz;
+        if(cols.length-start>=2) merges.push({s:{r:aoa.length,c:start+cOff}, e:{r:aoa.length,c:cols.length-1+cOff}});
         push(r1,'bizhdr');
-        var r2=['출고장/품목'];
+        var r2=['출고장/품목','',''];
         cols.forEach(function(c){ r2.push(c.code ? (c.code+'('+c.name+')') : c.name); });
-        r2.push(''); r2.push('');
         push(r2,'colhdr');
         var sums=cols.map(function(){ return 0; });
         var zcnt=cols.map(function(){ return 0; });
@@ -881,28 +996,32 @@
           var gz=groups[g].slice().sort(function(a,b){ return a.localeCompare(b,'ko'); });
           var gs=cols.map(function(){ return 0; }), gItems={}, lines=[];
           gz.forEach(function(zn){
-            var rs=ag.zones[zn].rows, row=['    '+zn], rt=0, rc=0;
+            var rs=ag.zones[zn].rows, cells=[], rt=0, rc=0;
             cols.forEach(function(c,ix){
-              var q=(rs[c.rk] ? (+rs[c.rk].qty||0) : 0);
-              if(q>0){ sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; rt+=q; rc++; itemAll[c.rk]=1; gItems[c.rk]=1; }
-              row.push(q>0 ? q : '');
+              var q=colQty(rs,c);
+              if(q>0){ sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; rt+=q; rc++; itemAll[c.ck]=1; gItems[c.ck]=1; }
+              cells.push(q>0 ? q : '');
             });
-            row.push(rt||''); row.push(rc||'');
             grand+=rt;
-            lines.push(row);
+            lines.push(['    '+zn, rt||'', rc||''].concat(cells));
           });
           var gTot=0; gs.forEach(function(v){ gTot+=v; });
-          push(['▼ '+g+'   ('+gz.length+'개 출고장)']
-                 .concat(gs.map(function(v){ return v||''; }))
-                 .concat([gTot||'', Object.keys(gItems).length||'']), 'grp');
+          push(['▼ '+g+'   ('+gz.length+'개 출고장)', gTot||'', Object.keys(gItems).length||'']
+                 .concat(gs.map(function(v){ return v||''; })), 'grp');
           lines.forEach(function(r){ push(r,'body'); });
         });
-        var rowSum=['합계'].concat(sums.map(function(v){ return v||''; }));
-        rowSum.push(grand||''); rowSum.push(Object.keys(itemAll).length||'');
-        push(rowSum,'sum');
-        var rowCnt=['출고장수'].concat(zcnt.map(function(v){ return v||''; }));
-        rowCnt.push(zones.length); rowCnt.push('');
-        push(rowCnt,'zcnt');
+        push(['합계', grand||'', Object.keys(itemAll).length||'']
+               .concat(sums.map(function(v){ return v||''; })), 'sum');
+        push(['출고장수', zones.length, '']
+               .concat(zcnt.map(function(v){ return v||''; })), 'zcnt');
+        /* ★품목별 현재고 (2026-08-28 요청 「하단에 현재고 품목별 표시」) —
+             화면 '현재고' 칸과 같은 근거(수불원장). 값을 못 찾으면 0 이 아니라 빈칸으로 둔다
+             — 0 으로 적으면 '재고 없음'으로 잘못 읽힌다. */
+        var anyStk=false;
+        var rowStk=['현재고','',''].concat(cols.map(function(c){
+          var q=d2StockQty(c.code); if(q!=null) anyStk=true; return (q==null?'':q);
+        }));
+        if(anyStk) push(rowStk,'stk');
         push([], 'blank');
         push([], 'blank');
         made++;
@@ -919,8 +1038,7 @@
       var ws=LIB.utils.aoa_to_sheet(aoa);
       /* 품목 칸 폭 18 (2026-08-28 「품목 칸 폭도 조금 넓게」) — 14 에서는 품목명이 너무 잘게 접혔다.
          ⚠아래 머리줄 높이 계산의 '한 줄에 몇 자'(9자)도 이 폭에 맞춘 값이다 — 폭을 바꾸면 같이 바꿀 것. */
-      var cw=[{wch:24}]; for(var i3=1;i3<maxW-2;i3++) cw.push({wch:18});
-      cw.push({wch:10}); cw.push({wch:9});
+      var cw=[{wch:24},{wch:10},{wch:9}]; for(var i3=3;i3<maxW;i3++) cw.push({wch:18});
       ws['!cols']=cw;
       ws['!merges']=merges;
       /* ★틀 고정 — 출고장명 열(A)과 머리줄 3행을 얼려, 오른쪽으로 밀어도 <무엇의 값인지> 보이게 한다
@@ -928,7 +1046,9 @@
          ⚠xlsx-js-style 1.2.0 원본에는 이 기능이 <없다> — assets/vendor/xlsx-js-style/xlsx.bundle.js 를
            우리가 고쳐 넣었다(파일 머리 주석 참고). 그 파일을 새 버전으로 갈아 끼우면 고정이 조용히 사라진다.
            인터넷 CDN 폴백본에도 이 수정이 없다(로컬 파일이 먼저 시도되므로 평소엔 문제 없다). */
-      ws['!freeze']={xSplit:1, ySplit:3, topLeftCell:'B4', activePane:'bottomRight', state:'frozen'};
+      /* 조회조건 2줄이 앞에 붙었으므로 고정할 머리줄도 2줄 늘어난다(날짜배너·사업장·품목명 = 3+2=5) */
+      /* 출고장·합계·품목수 3열(A~C)과 머리줄 5행을 얼린다 — 앞으로 옮긴 두 칸도 같이 고정(2026-08-28) */
+      ws['!freeze']={xSplit:3, ySplit:5, topLeftCell:'D6', activePane:'bottomRight', state:'frozen'};
       if(styled){
         var enc=LIB.utils.encode_cell;
         var LINE={style:'thin', color:{rgb:'9BA7B4'}};
@@ -953,7 +1073,11 @@
           sumL:{ fill:{fgColor:{rgb:'F2F2F2'}}, font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
           sumN:{ fill:{fgColor:{rgb:'F2F2F2'}}, font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
           zcntL:{ fill:{fgColor:{rgb:'E2EFDA'}}, font:{bold:true,color:{rgb:'375623'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
-          zcntN:{ fill:{fgColor:{rgb:'E2EFDA'}}, font:{bold:true,color:{rgb:'375623'}}, alignment:{horizontal:'right',vertical:'center'}, border:box }
+          zcntN:{ fill:{fgColor:{rgb:'E2EFDA'}}, font:{bold:true,color:{rgb:'375623'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          cond:{ fill:{fgColor:{rgb:'EAF1F8'}}, font:{bold:true,color:{rgb:'20415A'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          stkL:{ fill:{fgColor:{rgb:'FFF4E6'}}, font:{bold:true,color:{rgb:'8A5B14'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          stkN:{ fill:{fgColor:{rgb:'FFF4E6'}}, font:{bold:true,color:{rgb:'137A6C'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          stkNeg:{ fill:{fgColor:{rgb:'FFF4E6'}}, font:{bold:true,color:{rgb:'C0392B'}}, alignment:{horizontal:'right',vertical:'center'}, border:box }
         };
         function put(r,c,st){ var ref=enc({r:r,c:c}); if(!ws[ref]) ws[ref]={t:'s',v:''}; ws[ref].s=st; }
         var rowsH=[];
@@ -977,8 +1101,9 @@
           }
           else if(ty==='body'){
             put(r,0,S.zoneL);
-            for(c=1;c<wid-2;c++){ var bv=(aoa[r]||[])[c]; put(r,c, (bv===''||bv==null) ? S.none : S.num); }
-            put(r,wid-2,S.rtot); put(r,wid-1,S.rcnt); h=19;
+            put(r,1,S.rtot); put(r,2,S.rcnt);          // ★합계·품목수는 앞(B·C)으로 옮겼다
+            for(c=3;c<wid;c++){ var bv=(aoa[r]||[])[c]; put(r,c, (bv===''||bv==null) ? S.none : S.num); }
+            h=19;
           }
           else if(ty==='grp'){
             put(r,0,S.grpL);
@@ -987,6 +1112,14 @@
           }
           else if(ty==='sum'){ put(r,0,S.sumL); for(c=1;c<wid;c++) put(r,c,S.sumN); h=20; }
           else if(ty==='zcnt'){ put(r,0,S.zcntL); for(c=1;c<wid;c++) put(r,c,S.zcntN); h=20; }
+          else if(ty==='cond'){ for(c=0;c<wid;c++) put(r,c,S.cond); h=22; }
+          else if(ty==='stk'){
+            put(r,0,S.stkL);
+            /* B·C(합계·품목수 자리)는 현재고에 쓰지 않는다 — 회색(S.none)으로 두면 「값 없음」으로 읽혀 헷갈린다 */
+            put(r,1,S.stkN); put(r,2,S.stkN);
+            for(c=3;c<wid;c++){ var sv=(aoa[r]||[])[c]; put(r,c, (sv==='' || sv==null) ? S.none : ((+sv<0) ? S.stkNeg : S.stkN)); }
+            h=20;
+          }
           rowsH.push(h?{hpx:h}:{});
         });
         ws['!rows']=rowsH;
@@ -1464,7 +1597,8 @@
     var e2=document.getElementById('d2ItemFind'); if(e2) e2.value='';
     d2Render();
   }
-  function d2ApplyZoom(){ var ts=document.querySelectorAll('table.d2-tb'); for(var i=0;i<ts.length;i++) ts[i].style.zoom=(D2_ZOOM/100); d2Set('d2ZoomLbl', D2_ZOOM+'%'); }
+  /* 가로표(.d2-mx)도 같이 확대/축소 — 안 넣으면 가로표에서 🔍＋가 먹통이다(2026-08-28) */
+  function d2ApplyZoom(){ var ts=document.querySelectorAll('table.d2-tb, table.d2-mx'); for(var i=0;i<ts.length;i++) ts[i].style.zoom=(D2_ZOOM/100); d2Set('d2ZoomLbl', D2_ZOOM+'%'); }
   function d2ZoomIn(){ if(D2_ZOOM<200) D2_ZOOM+=10; d2ApplyZoom(); }
   function d2ZoomOut(){ if(D2_ZOOM>40) D2_ZOOM-=10; d2ApplyZoom(); }
   function d2FullExpand(){ document.getElementById('d2Card').classList.add('d2-full'); }
@@ -1526,7 +1660,16 @@
     fetch(CTX+'/shipout/selectBiziMst.do', { method:'POST', credentials:'same-origin' })
     .then(function(res){ return res.text(); })
     .then(function(txt){
-      try{ var j=JSON.parse(txt); var m={}; (j.data||[]).forEach(function(o){ var c=(''+(o.bizCd||'')).trim(); if(c) m[c]=(''+(o.bizNm||'')).trim(); }); D2_BIZI=m; }
+      try{ var j=JSON.parse(txt); var m={}, mt={};
+        (j.data||[]).forEach(function(o){
+          var c=(''+(o.bizCd||'')).trim(); if(!c) return;
+          m[c]=(''+(o.bizNm||'')).trim();
+          /* 공통 매칭 (2026-08-28) — 이름이 비면 코드라도 쓴다. 둘 다 비면 담지 않는다
+             = 그 사업장은 <매칭 없음> 이고, 가로표에서 원래 사업장 이름 그대로 나온다. */
+          var mn=(''+(o.matchNm||'')).trim() || (''+(o.matchCd||'')).trim();
+          if(mn) mt[c]=mn;
+        });
+        D2_BIZI=m; D2_BIZMT=mt; }
       catch(e){}
       if(cb) cb();
     })
@@ -1756,7 +1899,7 @@
     var findLc=D2_FIND.toLowerCase();
     var ifindTk=D2_IFIND.toLowerCase().split(/\s+/).filter(function(s){ return s; });
     var dcAny=Object.keys(D2_DCSEL).length>0;
-    var zones={}, zoneOrder=[], itemSet={}, bizSet={}, bizAll={}, dcAll={}, zoneAll={}, totQty=0, curDttm='';
+    var zones={}, zoneOrder=[], itemSet={}, bizSet={}, bizAll={}, matchAll={}, dcAll={}, zoneAll={}, totQty=0, curDttm='';
     (rowsIn||D2_DATA).forEach(function(r){
       var d=r.date||D2_TODAY;
       if(from && d<from) return;
@@ -1768,11 +1911,17 @@
          ★반드시 '필터 앞'에서 모아야 한다. 걸러진 뒤에 모으면 한 곳을 고른 순간 나머지가 목록에서 사라져 되돌릴 수 없다. */
       if(r.zone){ (zoneAll[dcg]||(zoneAll[dcg]={}))[r.zone]=1; }
       if(r.biz) bizAll[r.biz]=1;                               // 필터 무관 전체 사업장(옵션용)
+      /* 매칭명칭도 찾기 후보에 넣는다 — 가로표에 그 이름이 보이는데 자동완성에 없으면 못 찾는다.
+         ★사업장 보기 콤보(정확일치)에는 넣지 않는다 — 거기는 원래 사업장 하나를 고르는 자리다. */
+      { var _mn=d2MtNm(r); if(_mn && _mn!==r.biz) matchAll[_mn]=1; }
       if(dcAny && !(D2_DCSEL[dcg] || (r.zone && D2_DCSEL[r.zone]))) return;   // 대표출고장/개별 출고장 다중선택(선택 없으면 전체)
       if(bizSel!=='__ALL__' && r.biz!==bizSel) return;         // 사업장 보기(정확일치)
-      if(findLc && (r.biz||'').toLowerCase().indexOf(findLc)<0) return;   // 사업장 찾기(부분일치)
-      if(ifindTk.length){                                      // 품목 찾기 — 행 전체 LIKE(사업장명+품목명+품목코드), 공백 구분 다중 키워드 AND
-        var hay=((r.biz||'')+' '+(r.item||'')+' '+(r.code||'')).toLowerCase();
+      /* ★찾기는 <매칭명칭으로도> 걸려야 한다 (2026-08-28) —
+           가로표 머리줄은 매칭명칭(예: 배고픈덮밥)인데 찾기는 원래 사업장명(파스타입니다…)만 봤다.
+           그래서 「화면에 보이는 이름으로 검색하면 안 나오는」 상태였다. 둘 다 훑는다. */
+      if(findLc && ((r.biz||'')+' '+d2MtNm(r)).toLowerCase().indexOf(findLc)<0) return;   // 사업장 찾기(부분일치)
+      if(ifindTk.length){                                      // 품목 찾기 — 행 전체 LIKE(사업장명+매칭명+품목명+품목코드), 공백 구분 다중 키워드 AND
+        var hay=((r.biz||'')+' '+d2MtNm(r)+' '+(r.item||'')+' '+(r.code||'')).toLowerCase();
         for(var ti=0; ti<ifindTk.length; ti++){ if(hay.indexOf(ifindTk[ti])<0) return; }
       }
       var q=+r.qty||0;
@@ -1790,7 +1939,8 @@
       itemSet[ik]=1;
       var rk=(r.biz||'')+'|'+ik;
       var row=z.rows[rk];
-      if(!row) row=z.rows[rk]={biz:(r.biz||''), name:r.item, code:r.code, qty:0, uploadDttm:(r.uploadDttm||''), firstDttm:(r.firstDttm||''), ozones:{}};
+      /* bizCode 를 남긴다 — 가로표가 <사업장 공통 매칭>을 찾을 때 쓴다(2026-08-28). 다른 보기는 안 쓴다. */
+      if(!row) row=z.rows[rk]={biz:(r.biz||''), bizCode:(r.bizCode||''), name:r.item, code:r.code, qty:0, uploadDttm:(r.uploadDttm||''), firstDttm:(r.firstDttm||''), ozones:{}};
       row.qty+=q;
       // 원래 출고장 분포 누적(사업장별 뷰에서 품목명 옆 출고장 콤보용, 2026-07-24). origZone 없으면(=출고장별 뷰) 무시
       if(r.origZone){ if(!row.ozones) row.ozones={}; row.ozones[r.origZone]=(row.ozones[r.origZone]||0)+q; }
@@ -1842,6 +1992,7 @@
 
     return {zones:zones, zoneOrder:zoneOrder, histOn:histOn, itemCnt:Object.keys(itemSet).length,
             bizCnt:Object.keys(bizSet).length, bizAll:Object.keys(bizAll).sort(function(a,b){ return a.localeCompare(b,'ko'); }),
+            matchAll:Object.keys(matchAll).sort(function(a,b){ return a.localeCompare(b,'ko'); }),
             dcAll:Object.keys(dcAll).sort(function(a,b){
               var ia=D2_GORD.indexOf(a), ib=D2_GORD.indexOf(b);   // 그룹순서 설정 반영, 미지정은 ㄱㄴㄷ순 뒤에
               if(ia>=0 && ib>=0) return ia-ib;
@@ -1855,12 +2006,18 @@
 
   // ── 보기 모드 전환 (출고장별/사업장별/품목별) — 메뉴 또는 툴바에서 호출
   function d2SetView(v){
-    D2_VIEW=(v==='biz'||v==='item'||v==='zoneitem')?v:'zone';
+    D2_VIEW=(v==='biz'||v==='item'||v==='zoneitem'||v==='matrix')?v:'zone';
     // 상단 보기 콤보박스 선택 동기화 — 메뉴/외부 호출로 바뀔 때도 콤보가 따라오게(2026-07-24)
     var sel=document.getElementById('d2ViewSel'); if(sel && sel.value!==D2_VIEW) sel.value=D2_VIEW;
     /* 콤보는 출고세부조회에서만 보인다 — 대시보드(zone)는 좌측 메뉴가 보기를 정해줘 필요 없다(2026-07-25 요청) */
-    var box=document.getElementById('d2ViewSelBox'); if(box) box.style.display=(D2_VIEW==='zone')?'none':'inline-flex';
-    var t=document.getElementById('d2ViewTag'); if(t) t.textContent=(D2_VIEW==='biz'?'사업장별 보기':(D2_VIEW==='item'?'품목별 보기':(D2_VIEW==='zoneitem'?'출고장별 품목보기':'출고장별 보기')));
+    /* ★가로표도 숨긴다 — 탭이 그 역할을 하고, 콤보 글자가 길어 제목줄이 접히면서
+       「발주현황표 엑셀 보기/출력」 단추들이 아랫줄로 내려가 버린다(2026-08-28 지적). */
+    var box=document.getElementById('d2ViewSelBox'); if(box) box.style.display=(D2_VIEW==='zone'||D2_VIEW==='matrix')?'none':'inline-flex';
+    /* 보기 탭 선택표시 — 목록/가로표 둘 중 어디에 있는지 늘 보이게 (2026-08-28) */
+    var _vl=document.getElementById('d2VtList'), _vm=document.getElementById('d2VtMx');
+    if(_vl) _vl.className='vt'+((D2_VIEW==='matrix')?'':' on');
+    if(_vm) _vm.className='vt'+((D2_VIEW==='matrix')?' on':'');
+    var t=document.getElementById('d2ViewTag'); if(t) t.textContent=(D2_VIEW==='matrix'?'가로표 보기':(D2_VIEW==='biz'?'사업장별 보기':(D2_VIEW==='item'?'품목별 보기':(D2_VIEW==='zoneitem'?'출고장별 품목보기':'출고장별 보기'))));
     // 출력 형식 셀렉터를 현재 보기와 동기화 → 상단 '일자별/합계 출력'이 현재 보기 형식으로 나감
     var pf=document.getElementById('d2PrintFmt'); if(pf){ var want=(D2_VIEW==='zone')?'zone':D2_VIEW; for(var i=0;i<pf.options.length;i++){ if(pf.options[i].value===want){ pf.value=want; break; } } }
     d2Render();
@@ -2000,6 +2157,163 @@
   // 사업장별/품목별 렌더 — 단일일자=1개 / 기간=출고일자별 섹션
   //  · 사업장별(biz): 사업장을 '출고장'처럼 취급해 기존 출고장별 렌더(현재/직전·소계) 재사용
   //  · 품목별(item): 플랫 목록
+  /* ══ 화면 가로표 보기 (2026-08-28 요청 「기존 조회 화면 말고 엑셀 내용을 여기에」) ═══════
+       엑셀 [출고장 × 품목 (가로표)] 과 <같은 내용·같은 규칙>을 화면에 그대로 그린다.
+         · 행 = 출고장(물류센터 묶음 아래), 열 = 품목(사업장별 병합 머리줄)
+         · 아무 데도 안 나가는 품목 열 · 아무것도 안 나가는 출고장 행은 뺀다(가로 줄이기)
+         · 값 없는 칸은 회색, 오른쪽 합계·품목수 / 아래 합계·출고장수·현재고
+       ★엑셀과 계산을 <한 곳에서> 하지 않는다 — 둘 다 d2Aggregate 결과만 쓰므로 값이 어긋날 일은 없다.
+         모양을 고칠 때는 엑셀(d2DownloadByMatrix)도 같이 볼 것. */
+  /* 사업장 접기 상태 — 사업장명 → 1(접힘).
+     ★행(출고장) 접기와 다르다: 이건 <세로줄>을 줄인다. 열이 많아 옆으로 끝까지 못 볼 때
+       사업장 하나를 「합계」 한 칸으로 줄여 화면 안에 넣는다. 값은 그대로 다 더해진다. */
+  /* 사업장 숨김 상태 — 사업장명 → 1(숨김). D2_MXBIZALL 은 이번에 그린 <전체> 사업장(숨긴 것 포함).
+     ★행(출고장) 접기와 다르다: 이건 <세로줄>을 통째로 감춘다. 열이 많아 옆으로 끝까지 못 볼 때 쓴다.
+     ★숨긴 사업장은 합계·품목수에서도 빠진다 — 화면에 보이는 칸과 합계가 어긋나면 그게 더 위험하다.
+       그래서 숨김이 하나라도 있으면 표 위에 안내줄을 띄운다. */
+  var D2_MXFOLD = {}, D2_MXBIZALL = [];
+  function d2MxFold(b){ if(!b) return; if(D2_MXFOLD[b]) delete D2_MXFOLD[b]; else D2_MXFOLD[b]=1; d2Render(); }
+  function d2MxFoldAll(){
+    /* 하나라도 보이면 전부 숨기고, 다 숨겨져 있으면 전부 편다 */
+    var any=false, i;
+    for(i=0;i<D2_MXBIZALL.length;i++){ if(!D2_MXFOLD[D2_MXBIZALL[i]]){ any=true; break; } }
+    for(i=0;i<D2_MXBIZALL.length;i++){ var b=D2_MXBIZALL[i]; if(any) D2_MXFOLD[b]=1; else delete D2_MXFOLD[b]; }
+    d2Render();
+  }
+  function d2MxShowAll(){ D2_MXFOLD={}; d2Render(); }
+  function d2RenderMatrixView(ag, from, to){
+    var sc=document.querySelector('.d2-scroll'); if(!sc) return;
+    sc.style.overflowX='auto';                    // 가로표는 옆으로 밀어 본다(기본 보기는 hidden)
+    var zones=d2ZonesSorted(ag).filter(function(zn){
+      var rs=ag.zones[zn].rows;
+      return Object.keys(rs).some(function(k){ return (+rs[k].qty||0)>0; });
+    });
+    if(!zones.length){ sc.innerHTML='<div style="padding:26px;text-align:center;color:#9aa7b3">출고량이 있는 자료가 없습니다.</div>'; return; }
+    /* 열 = <매칭명칭 × 품목>. 매칭이 없는 사업장은 <원래 사업장 이름>이 그대로 한 덩어리다(2026-08-28).
+       ★같은 매칭·같은 품목이면 여러 사업장의 수량을 <한 칸으로 더한다> — 그게 묶는 목적이다.
+         그래서 칸마다 「합칠 원본 행키(keys)」를 들고 다닌다. */
+    var colMap={}, allCols=[];
+    zones.forEach(function(zn){
+      var rs=ag.zones[zn].rows;
+      Object.keys(rs).forEach(function(rk){
+        var r=rs[rk]; if((+r.qty||0)<=0) return;
+        var ik=(r.code ? r.code : ('NM:'+(r.name||'')));
+        var ck=d2MtNm(r)+'\u0001'+ik;
+        var c=colMap[ck];
+        if(!c){ c=colMap[ck]={ ck:ck, biz:d2MtNm(r), code:(r.code||''), name:(r.name||''), keys:[], kset:{} }; allCols.push(c); }
+        if(!c.kset[rk]){ c.kset[rk]=1; c.keys.push(rk); }
+      });
+    });
+    allCols.sort(function(a,b){ return a.biz.localeCompare(b.biz,'ko') || a.name.localeCompare(b.name,'ko'); });
+    function colQty(rs, c){ var t=0; for(var i=0;i<c.keys.length;i++){ var x=rs[c.keys[i]]; if(x) t+=(+x.qty||0); } return t; }
+
+    /* 사업장 묶음 → 숨긴 사업장은 열을 통째로 뺀다 */
+    var bgsAll=[], bgs=[], cols=[], hidden=[];
+    allCols.forEach(function(c){
+      var g=bgsAll[bgsAll.length-1];
+      if(!g || g.biz!==c.biz){ g={ biz:c.biz, cols:[] }; bgsAll.push(g); }
+      g.cols.push(c);
+    });
+    D2_MXBIZALL = bgsAll.map(function(g){ return g.biz; });
+    bgsAll.forEach(function(g){
+      if(D2_MXFOLD[g.biz]){ hidden.push(g); return; }
+      bgs.push(g); g.cols.forEach(function(c){ cols.push(c); });
+    });
+    var FCLK=' onclick="d2MxFold(this.getAttribute(\'data-b\'))"';
+
+    /* 숨긴 사업장 되살리기 줄 — 칩을 누르면 그 사업장만 다시 나온다 */
+    var bar='';
+    if(hidden.length){
+      bar = '<div class="d2-mxhide">🙈 숨긴 사업장 <b>'+hidden.length+'</b>곳 — 눌러서 다시 보기'
+          + ' <span class="wn">(합계·품목수는 <b>보이는 사업장만</b> 셉니다)</span>'
+          + hidden.map(function(g){
+              return '<button type="button" class="hc" data-b="'+d2Esc(g.biz)+'"'+FCLK
+                   + ' title="'+d2Esc(g.biz)+' 다시 보기 (품목 '+g.cols.length+'종)">'+d2Esc(g.biz)+' ↩</button>';
+            }).join('')
+          + '<button type="button" class="hall" onclick="d2MxShowAll()">모두 펼치기</button></div>';
+    }
+    if(!cols.length){
+      sc.innerHTML = bar + '<div style="padding:26px;text-align:center;color:#9aa7b3">사업장을 모두 숨겼습니다 — 위에서 다시 펼쳐 주세요.</div>';
+      var bf0=document.getElementById('d2BtnBizFold'); if(bf0) bf0.innerHTML='＋ 사업장 펼치기';
+      return;
+    }
+
+    /* ① 사업장 병합 머리줄 — 누르면 그 사업장이 숨는다 */
+    var h='<table class="d2-mx"><thead><tr><th class="cn" rowspan="2">출고장 / 품목</th>'
+        + '<th class="rtot" rowspan="2">합계</th><th class="rcnt" rowspan="2">품목수</th>';
+    bgs.forEach(function(g){
+      h += '<th class="bz" colspan="'+g.cols.length+'" data-b="'+d2Esc(g.biz)+'"'+FCLK
+         + ' title="'+d2Esc(g.biz)+' — 누르면 이 사업장 '+g.cols.length+'칸을 숨깁니다">'
+         + '▾ '+d2Esc(g.biz)+'</th>';
+    });
+    h+='</tr><tr>';
+    cols.forEach(function(c){
+      var lab=c.code ? (c.code+'<br><span class="nm">'+d2Esc(c.name)+'</span>') : d2Esc(c.name);
+      h+='<th class="it" title="'+d2Esc((c.code?c.code+' ':'')+c.name)+'">'+lab+'</th>';
+    });
+    h+='</tr></thead><tbody>';
+
+    /* ② 물류센터 묶음 → 출고장 행 */
+    var sums=cols.map(function(){ return 0; }), zcnt=cols.map(function(){ return 0; });
+    var grand=0, itemAll={}, zoneVis=0;   // zoneVis = 보이는 사업장 물량이 <실제로 있는> 출고장 수
+    var groups={}, gOrder=[];
+    zones.forEach(function(zn){ var g=(ag.zones[zn].dc||zn); if(!groups[g]){ groups[g]=[]; gOrder.push(g); } groups[g].push(zn); });
+    gOrder.sort(function(a,b){
+      var ia=D2_GORD.indexOf(a), ib=D2_GORD.indexOf(b);
+      if(ia>=0&&ib>=0) return ia-ib;
+      if(ia>=0) return -1; if(ib>=0) return 1;
+      return a.localeCompare(b,'ko');
+    });
+    gOrder.forEach(function(g){
+      var gz=groups[g].slice().sort(function(a,b){ return a.localeCompare(b,'ko'); });
+      var gs=cols.map(function(){ return 0; }), gItems={}, lines='';
+      gz.forEach(function(zn){
+        var rs=ag.zones[zn].rows, rt=0, rc=0, tds='';
+        cols.forEach(function(c,ix){
+          var q=colQty(rs,c);
+          if(q>0){ sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; rt+=q; rc++; itemAll[c.ck]=1; gItems[c.ck]=1; }
+          tds += q>0 ? ('<td>'+d2Num(q)+'</td>') : '<td class="none"></td>';
+        });
+        grand+=rt; if(rt>0) zoneVis++;
+        /* ★사업장을 숨기면 그 출고장 줄이 통째로 빌 수 있다 — 그때 0 이 아니라 빈칸이어야 한다
+             (0 은 「0개 나갔다」로 읽혀 없는 실적을 있는 것처럼 만든다) */
+        lines += '<tr><td class="cn zn">'+d2Esc(zn)+'</td>'
+               + '<td class="rtot">'+(rt>0?d2Num(rt):'')+'</td><td class="rcnt">'+(rc>0?rc:'')+'</td>'+tds+'</tr>';
+      });
+      var gTot=0; gs.forEach(function(v){ gTot+=v; });
+      h += '<tr class="grp"><td class="cn">▼ '+d2Esc(g)+' <span class="sub">('+gz.length+'개 출고장)</span></td>'
+         + '<td class="rtot">'+d2Num(gTot)+'</td><td class="rcnt">'+Object.keys(gItems).length+'</td>'
+         + gs.map(function(v){ return v>0 ? ('<td>'+d2Num(v)+'</td>') : '<td class="none"></td>'; }).join('')
+         + '</tr>' + lines;
+    });
+
+    /* ③ 아래 집계 — 합계 · 출고장수 · 현재고(품목별) */
+    h += '<tr class="sum"><td class="cn">합계</td>'
+       + '<td class="rtot">'+d2Num(grand)+'</td><td class="rcnt">'+Object.keys(itemAll).length+'</td>'
+       + sums.map(function(v){ return v>0 ? ('<td>'+d2Num(v)+'</td>') : '<td class="none"></td>'; }).join('')
+       + '</tr>';
+    h += '<tr class="zc"><td class="cn">출고장수</td>'
+       + '<td class="rtot">'+zoneVis+'</td><td class="rcnt"></td>'
+       + zcnt.map(function(v){ return v>0 ? ('<td>'+v+'</td>') : '<td class="none"></td>'; }).join('')
+       + '</tr>';
+    /* 현재고 — 화면 '현재고' 칸과 같은 근거. 못 찾으면 0 이 아니라 빈칸(0 은 '재고 없음'으로 잘못 읽힌다) */
+    /* ★이미 받아 뒀으면 다시 부르지 않는다 — 부르면 콜백이 곧바로 돌아 d2Render → 무한루프가 된다 */
+    if(!D2_STOCK) d2StockLoad(function(){ var t=document.querySelector('.d2-mx'); if(t) d2Render(); });
+    var stkTd='', anyStk=false;
+    cols.forEach(function(c){
+      var q=d2StockQty(c.code);
+      if(q==null){ stkTd+='<td class="none"></td>'; return; }
+      anyStk=true;
+      stkTd += '<td'+(q<0?' class="neg"':'')+'>'+d2Num(q)+'</td>';
+    });
+    if(anyStk) h += '<tr class="stk"><td class="cn">현재고</td><td class="rtot"></td><td class="rcnt"></td>'+stkTd+'</tr>';
+    h += '</tbody></table>';
+    sc.innerHTML = bar + h;
+    /* 툴바 단추 글씨를 현재 상태에 맞춘다 */
+    var bf=document.getElementById('d2BtnBizFold');
+    if(bf) bf.innerHTML=(hidden.length>=bgsAll.length && bgsAll.length) ? '＋ 사업장 펼치기' : '－ 사업장 접기';
+  }
+
   function d2RenderGroupView(ag, from, to, mode){
     var scroll=document.querySelector('.d2-scroll'); if(!scroll) return;
     var dset={}; (D2_DATA||[]).forEach(function(r){ var d=r.date||D2_TODAY; if(from && d<from) return; if(to && d>to) return; dset[d]=1; });
@@ -2056,8 +2370,19 @@
     if(window.self!==window.top){ try{ window.parent.postMessage({type:'konetAsq', hide:true, html:''}, '*'); }catch(e){} }  // 변경알림바 숨김
   }
 
+  /* 탭 선택표시. ★첫 화면은 d2SetView 를 거치지 않아 아무 탭도 안 켜져 있었다 → 그릴 때마다 맞춘다 */
+  function d2VtSync(){
+    var mx=(D2_VIEW==='matrix');
+    var l=document.getElementById('d2VtList'), m=document.getElementById('d2VtMx');
+    if(l) l.className='vt'+(mx?'':' on');
+    if(m) m.className='vt'+(mx?' on':'');
+    /* 가로표엔 접을 행이 없고, 목록엔 접을 열이 없다 → 쓸모 있는 단추만 자리에 둔다(폭도 그대로) */
+    var zb=document.getElementById('d2BtnZoneToggle'); if(zb) zb.style.display=mx?'none':'';
+    var bb=document.getElementById('d2BtnBizFold');    if(bb) bb.style.display=mx?'':'none';
+  }
   function d2Render(){
     d2LoadingOff();   // 조회 중 안내 해제 (모든 조회 경로가 이 함수로 수렴)
+    d2VtSync();
     /* 현재고는 목록을 기다리게 하지 않는다 — 없으면 그 칸만 '·' 로 두고, 도착하면 한 번 더 그린다.
        ★재귀 조심 : D2_STOCK 이 채워진 뒤에만 다시 부르므로 두 번째에는 이 가지로 안 들어온다. */
     if(!D2_STOCK) d2StockLoad(function(){ d2Render(); });
@@ -2127,7 +2452,9 @@
         }).join(''));
 
     // 사업장 찾기 datalist + 사업장 보기 select (전체 사업장 기준, 선택 유지)
-    d2Set('d2BizFindList', ag.bizAll.map(function(bz){ return '<option value="'+d2Esc(bz)+'"></option>'; }).join(''));
+    /* 매칭명칭을 <맨 위>에 둔다 — 여러 사업장을 한 번에 잡는 이름이라 먼저 보이는 게 쓸모 있다 */
+    d2Set('d2BizFindList', (ag.matchAll||[]).concat(ag.bizAll)
+            .map(function(bz){ return '<option value="'+d2Esc(bz)+'"></option>'; }).join(''));
     var sel=document.getElementById('d2BizSel');
     if(sel){
       var keep=sel.value||'__ALL__';
@@ -2137,6 +2464,10 @@
     }
 
     // 보기 모드가 사업장별/품목별이면 별도 그리드 렌더 후 종료 (출고장별은 아래 기존 로직)
+    /* 가로표 보기 — 엑셀 [출고장 × 품목] 과 같은 모양을 화면에 그린다 (2026-08-28 요청) */
+    if(D2_VIEW==='matrix'){ d2RenderMatrixView(ag, from, to); return; }
+    /* 가로표에서 켠 가로 스크롤을 목록으로 돌아올 때 되돌린다 — 안 되돌리면 목록에도 가로 스크롤이 남는다 */
+    var _sc0=document.querySelector('.d2-scroll'); if(_sc0) _sc0.style.overflowX='';
     if(D2_VIEW!=='zone'){ d2RenderGroupView(ag, from, to, D2_VIEW); return; }
     D2_UNIT='출고장';   // 출고장별 렌더
 

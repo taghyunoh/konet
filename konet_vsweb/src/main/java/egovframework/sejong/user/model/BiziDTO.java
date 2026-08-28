@@ -39,6 +39,11 @@ public class BiziDTO {
 	private String  parcelHp;   // 택배 휴대폰
 	private String  parcelNm;   // 택배 수령자(SRM 비상연락망의 수령자)
 	private Integer parcelFee;  // 기본 택배운임(원) — 비면 화면에서 4500
+	/* 공통 매칭코드 (2026-08-28) — 여러 사업장을 하나로 묶는 코드/이름. DDL: docs/sql/20260828_bizi_match_cd.sql
+	   ★지금은 거래처관리 화면의 등록·조회·엑셀에만 쓴다(출고현황표 묶음에는 아직 적용 안 함). */
+	private String  matchCd;    // 매칭코드 (MATCH_CD)
+	private String  matchNm;    // 매칭명칭 (MATCH_NM)
+	private java.util.List<String> bizCds;   // 여러 사업장에 한 번에 지정할 때 쓰는 코드 목록(비영속)
 	private String  regDttm;   // 등록일시(조회)
 	private String  updDttm;   // 수정일시(조회)
 	private String  findData;  // 검색어(코드/명/약칭/사업자번호/대표자) — 비영속
@@ -114,4 +119,10 @@ public class BiziDTO {
 	public void setParcelNm(String parcelNm) { this.parcelNm = parcelNm; }
 	public Integer getParcelFee() { return parcelFee; }
 	public void setParcelFee(Integer parcelFee) { this.parcelFee = parcelFee; }
+	public String getMatchCd() { return matchCd; }
+	public void setMatchCd(String matchCd) { this.matchCd = matchCd; }
+	public String getMatchNm() { return matchNm; }
+	public void setMatchNm(String matchNm) { this.matchNm = matchNm; }
+	public java.util.List<String> getBizCds() { return bizCds; }
+	public void setBizCds(java.util.List<String> bizCds) { this.bizCds = bizCds; }
 }

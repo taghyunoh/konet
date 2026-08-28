@@ -100,6 +100,8 @@ public class UserServiceImpl implements UserService {
 	@Override public int insertBiziIfAbsent(egovframework.sejong.user.model.BiziDTO dto) throws Exception { return mapper.insertBiziIfAbsent(dto); }
 	@Override public int updateBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception { return mapper.updateBiziMst(dto); }
 	@Override public int updateBiziParcel(egovframework.sejong.user.model.BiziDTO dto) throws Exception { return mapper.updateBiziParcel(dto); }
+	@Override public int updateBiziMatch(egovframework.sejong.user.model.BiziDTO dto) throws Exception { return mapper.updateBiziMatch(dto); }
+	@Override public int biziMatchNextNo(egovframework.sejong.user.model.BiziDTO dto) throws Exception { return mapper.biziMatchNextNo(dto); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectParcelOutList(java.util.Map<String,Object> p) throws Exception { return mapper.selectParcelOutList(p); }
 	@Override public int deleteBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception { return mapper.deleteBiziMst(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.BiziDTO> selectBiziList(egovframework.sejong.user.model.BiziDTO dto) throws Exception { return mapper.selectBiziList(dto); }
