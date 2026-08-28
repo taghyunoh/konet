@@ -2,7 +2,7 @@
 <%-- ★날짜 칸에 달력 아이콘·[◀][▶][오늘] 을 자동으로 붙인다 (2026-08-17 요청) — 화면 수정 0.
      기본 달력의 ↑↓ 는 앞/뒤가 안 읽혀, 월 이동을 ‹ › 로 둔 우리 달력을 띄운다.
      빼려면 그 칸에 data-nonav="1" --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <%--
   출고현황표(데시보드2) — 사이드바 iframe 패널로 로드되는 단독 화면 (logistics_demo.jsp 의 logiFrame 패턴)
   · 상단: 데시보드1과 공통 — 제목 + 액션버튼(엑셀업로드/매출·매입 업로드/출고데이타저장/출고장별 출력, 클릭 시 데시보드1로 전환하여 실행)
@@ -31,7 +31,10 @@
   
 
   /* 화면(iframe) 높이를 세로로 꽉 채움 — 그리드가 남는 공간을 모두 차지(해상도 커져도 하단 빈공간 없음) */
-  .d2-wrap { padding:14px 11px 10px; height:100vh; display:flex; flex-direction:column; }
+  /* 아래 여백을 줄여 표를 하단까지 내린다 (2026-08-28 요청 「하단공간 조금 넓혀서」).
+     이 화면은 iframe 이고 높이가 100vh 로 고정이라, 표가 쓸 수 있는 세로는
+     <바깥 여백 + 카드 안쪽 여백>을 줄인 만큼만 늘어난다. 좌우·위 여백은 그대로. */
+  .d2-wrap { padding:14px 11px 3px; height:100vh; display:flex; flex-direction:column; }
   .d2-head, .d2-topbar { flex:0 0 auto; }
   .d2-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
   .d2-head h2 { margin:0; font-size:20px; color:#1f2a37; }
@@ -47,11 +50,27 @@
   /* 상단 조회바 + KPI (데시보드1 동일 스타일) */
   .d2-topbar { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
                background:#fff; border:1px solid var(--bd); border-left:4px solid var(--teal); border-radius:10px; padding:10px 16px; margin-bottom:14px; }
-  .d2-topbar .tb-left { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .d2-topbar label { font-size:13px; color:#37475a; }
-  .d2-topbar input[type=date] { height:34px; border:1px solid #cfd9e2; border-radius:8px; padding:0 10px; font-size:13px; cursor:pointer; background:#fff; font-weight:400; }
-  .d2-topbar input[type=date]:hover { border-color:var(--teal); }
-  .d2-topbar .btn-teal, .d2-topbar .btn-line { padding:5px 14px; }
+  /* ★조회조건 묶음(.tb-left)은 2026-08-28 요청으로 <제목줄(.d2-head)>로 올렸다 —
+     그래서 규칙을 .d2-topbar 밑이 아니라 .tb-left 자체에 건다(어디에 놓이든 같은 모양). */
+  .tb-left { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  /* 제목 · 조회조건 · 요약숫자는 왼쪽으로 모으고, 남는 자리는 <요약숫자 오른쪽>에 준다
+     → 액션단추만 오른쪽 끝. (2026-08-28 「표시부분은 조금 좌측으로」 — 종전에는 남는 자리가
+        조회조건 오른쪽에 몰려 요약숫자가 액션단추에 붙어 있었다) */
+  /* margin-left 가 요약숫자의 좌우 위치를 정한다 — 값을 키우면 오른쪽으로 간다.
+     (2026-08-28: 18px → 35px 「우측을 살짝 이동」. 남는 자리가 1870px 기준 73px 뿐이라
+      더 키우면 액션단추에 붙는다 — 조회조건쪽 45px / 액션쪽 28px 로 나눠 둔 값이다) */
+  .d2-head .tb-stats { margin-right:auto; margin-left:35px; }
+  .tb-left label { font-size:13px; color:#37475a; }
+  .tb-left input[type=date] { height:34px; border:1px solid #cfd9e2; border-radius:8px; padding:0 10px; font-size:13px; cursor:pointer; background:#fff; font-weight:400; }
+  .tb-left input[type=date]:hover { border-color:var(--teal); }
+  .tb-left .btn-teal, .tb-left .btn-line { padding:5px 14px; }
+  /* ★날짜칸은 자동조회하지 않는다 (2026-08-28 요청 「날짜 선택하면 자동검색인데 조회버튼 실행해야 되게」).
+     자동조회를 끄면 <바꾼 날짜와 화면의 표가 다른> 시간이 생긴다 — 그 사실이 보여야 한다.
+     그래서 날짜가 바뀌면 [조회]가 주황으로 깜박이고 옆에 안내가 뜬다. 조회하면 원래대로. */
+  #d2BtnSearch.need { background:#e67e22; animation:d2NeedPulse 1.2s ease-out infinite; }
+  #d2BtnSearch.need:hover { background:#d3701b; }
+  @keyframes d2NeedPulse { 0%{ box-shadow:0 0 0 0 rgba(230,126,34,.55); } 70%{ box-shadow:0 0 0 9px rgba(230,126,34,0); } 100%{ box-shadow:0 0 0 0 rgba(230,126,34,0); } }
+  #d2NeedMsg { display:none; font-size:12px; font-weight:700; color:#c0651a; white-space:nowrap; }
   .d2-info { font-size:12px; color:#6b7a89; flex:1 1 200px; min-width:160px; line-height:1.4; }
   .d2-srcbadge { display:inline-block; background:#eef3f2; color:#37475a; border:1px solid var(--bd); border-radius:11px; padding:1px 10px; font-size:11.5px; margin-right:6px; }
   .d2-srcbadge.up { background:#e3f4ef; color:#137a6c; border-color:#b9e6dd; }
@@ -73,10 +92,28 @@
         그보다 더 좁으면 종전대로 줄바꿈 — 110%↑ 배율에서는 어쩔 수 없다.)
        ⚠overflow-x:auto 로 풀면 안 된다 — 대표출고장·그룹순서 드롭다운(.dc-pop)이 잘린다. */
   #d2Card{ container-type:inline-size; }
-  /* 도구줄 접기(2026-08-21 요청) — 세 덩어리만 감춘다. 단추는 남아 다시 펼 수 있다. */
-  #d2Card.tb-fold .d2-toolbar .tl, #d2Card.tb-fold .d2-toolbar .tm, #d2Card.tb-fold .d2-toolbar .tr{ display:none; }
-  #d2Card.tb-fold .d2-toolbar{ margin-bottom:6px; }
-  #d2TbFoldBtn{ padding:3px 9px; font-size:11.5px; color:#6b7a89; }
+  /* 상단 접기 — 2026-08-21 도구줄만 → 2026-08-28 요청으로 '조회바 + 도구줄 통째로'.
+     조회바(.d2-topbar: 출고일자·조회·당일/당월/전체·요약숫자) 와 도구줄(.d2-toolbar: 찾기·줌·대표출고장…) 을 함께 감춘다.
+     ★단추는 이 화면 안에 없다 — 셸(logistics_demo2.jsp) 맨 위 <자주 쓰는 메뉴> 줄의 [조회조건 접기].
+       2026-08-28: 제목줄 오른쪽 끝에 두었더니 폭이 좁은 창에서 화면 밖으로 잘려 못 눌렀다.
+       접기 자체는 여기 d2TbFold 가 하고, 셸 단추가 iframe 의 그 함수를 부른다.
+     ⚠.d2-topbar 는 #d2Card 의 형제(.d2-wrap 직속)라 카드 클래스로는 못 잡는다 → body 에도 같은 클래스를 건다. */
+  #d2Card.tb-fold .d2-toolbar{ display:none; }
+  body.tb-fold .d2-topbar{ display:none !important; }
+  /* ★조회조건이 제목줄로 올라갔으므로(2026-08-28) 접기 대상도 여기까지 —
+     안 그러면 [조회조건 접기]를 눌러도 출고일자·조회 단추가 그대로 남는다. */
+  /* ★접으면 제목줄을 통째로 감춘다 (2026-08-28 「접기하면 표시부분 남아 있음」) —
+     조회조건·요약숫자가 제목줄로 올라온 뒤로는, 줄 안쪽만 감춰서는 제목·액션단추가 그대로 남아
+     화면이 별로 넓어지지 않았다. 펼치는 단추는 셸 맨 위 줄에 있으니 이 줄을 통째로 감춰도 안전하다.
+     ⚠보기전환 콤보(#d2ViewSel)가 이 안에 있다 — 지우지 않고 <감추기만> 해야 d2SetView 가 안 깨진다. */
+  body.tb-fold .d2-head{ display:none !important; }
+  /* 제목줄에 얹힌 요약숫자는 조금 좁게 — 제목+조회조건+요약+액션단추가 한 줄에 들어가야 한다.
+     (1870px 실측: 제목 202 + 조회조건 647 + 요약 412 + 액션 567 = 여유가 거의 없다) */
+  .d2-head .tb-stats .st { min-width:64px; padding:4px 12px; }
+  .d2-head .tb-stats .st-v { font-size:17px; }
+  /* [이력] 2026-08-28 「해당 라벨 삭제」로 라벨을 감췄다가 「내용표시 없어짐」으로 <되살렸다> —
+     숫자만 남으니 90/219/12/79 가 무엇인지 알 수 없었다. 대신 글자를 조금 줄여 한 줄을 지킨다. */
+  .d2-head .tb-stats .st-l { font-size:10.5px; }
   @container (max-width:1660px){
     .d2-toolbar input[type=text]{ width:100px; }
   }
@@ -112,7 +149,7 @@
   
 
   /* 본문: 출고장 + 내용 한 그리드 — 남는 세로 공간을 모두 차지(flex 채움) */
-  .card { background:#fff; border:1px solid var(--bd); border-radius:10px; padding:12px 10px; flex:1 1 auto; display:flex; flex-direction:column; min-height:0; }
+  .card { background:#fff; border:1px solid var(--bd); border-radius:10px; padding:12px 10px 5px; flex:1 1 auto; display:flex; flex-direction:column; min-height:0; }
   .card .d2-toolbar { flex:0 0 auto; }
   .card.d2-full { position:fixed; inset:0; z-index:999; border-radius:0; overflow:auto; }
   .card.d2-full .d2-scroll { flex:1 1 auto; }
@@ -310,7 +347,36 @@
           </select>
         </span>
       </h2>
+      <%-- [제외 2026-08-28 요청] 제목 밑 설명줄 — 화면을 위로 끌어올리려고 뺐다. 재노출 시 주석 해제
       <div class="sub">발주현황표(엑셀)를 업로드하면 <b>사업장·품목별 출고량</b> 과 <b>출고장별 수량</b> 이 자동 작성됩니다.</div>
+      --%>
+    </div>
+    <%-- ★조회조건(출고일자·조회·당일/당월/전체)을 이 제목줄로 올렸다 (2026-08-28 요청 「표시 내용 출고현황표 옆으로」)
+         — 종전에는 아래 .d2-topbar 안에 있었다. 제목 오른쪽 빈자리를 쓰고 화면을 그만큼 위로 끌어올린다.
+         ⚠[조회조건 접기]를 누르면 이 제목줄이 통째로 감춰진다 — CSS 의 body.tb-fold .d2-head 참고. --%>
+    <div class="tb-left">
+      <span style="font-size:20px">📅</span>
+      <label>출고일자</label>
+      <%-- ★날짜를 고르는 것만으로는 조회하지 않는다 (2026-08-28 요청) — d2DateDirty 는 [조회]를 눌러 달라고 표시만 한다.
+           종전에는 onchange="d2Load()" 라 날짜를 만질 때마다 DB 조회가 돌았다.
+           ※[당일][당월][전체]는 그 자체가 실행 단추라 종전대로 바로 조회한다. --%>
+      <input type="date" id="d2DateFrom" onchange="d2DateDirty()" onclick="d2OpenCal(this)" onfocus="d2OpenCal(this)" title="클릭하여 달력 선택 — 고른 뒤 [조회]를 누르세요">
+      <span style="color:#9aa7b3">~</span>
+      <input type="date" id="d2DateTo" onchange="d2DateDirty()" onclick="d2OpenCal(this)" onfocus="d2OpenCal(this)" title="클릭하여 달력 선택 — 고른 뒤 [조회]를 누르세요">
+      <button class="btn-teal" id="d2BtnSearch" onclick="d2Load()" title="선택한 출고일자의 데이터를 DB에서 다시 조회합니다">🔍 조회</button>
+      <span id="d2NeedMsg">← 날짜가 바뀌었습니다. [조회]를 누르세요</span>
+      <button class="btn-line" id="d2BtnToday" onclick="d2Today()">당일</button>
+      <button class="btn-line" id="d2BtnMonth" onclick="d2Month()">당월</button>
+      <button class="btn-line" id="d2BtnAll" onclick="d2All()" title="출고일자와 상관없이 DB 전체 자료를 출고일자별 블록으로 표시">전체</button>
+    </div>
+    <%-- 요약숫자(KPI)도 이 제목줄로 올렸다 (2026-08-28 요청 「표시부분을 위로 이동」) —
+         조회조건 다음, 액션단추 앞. 아래 줄에는 안내(#d2Info)만 남고 할 말이 없으면 줄째로 감춰진다. --%>
+    <%-- 라벨(.st-l)은 CSS 로 감춰 둔다(2026-08-28 요청) — 무슨 숫자인지는 title 로 뜬다. --%>
+    <div class="tb-stats">
+      <div class="st" title="조회한 기간의 출고품목 수"><span class="st-l"><span id="d2KpiPrefix">당일</span> 출고품목</span><span class="st-v" id="d2KpiItem">0</span></div>
+      <div class="st" title="출고수량 합계 (BOX)"><span class="st-l">출고수량(BOX)</span><span class="st-v" id="d2KpiQty">0</span></div>
+      <div class="st" title="출고장 수"><span class="st-l">출고장 수</span><span class="st-v" id="d2KpiZone">0</span></div>
+      <div class="st" title="사업장 수"><span class="st-l">사업장</span><span class="st-v" id="d2KpiBiz">0</span></div>
     </div>
     <div class="actions">
       <%-- 2026-07-26 사용자: 누르자마자 탐색기(파일 선택창)가 뜨지 않게 — 지정 폴더의 자료를 최신순으로 보여주는
@@ -322,6 +388,10 @@
         <option value="zoneitem">출고장별 품목</option>
         <option value="item">품목별</option>
         <option value="biz">사업장별 품목</option>
+        <%-- 가로표 : 행=출고장(물류센터 묶음), 열=품목(사업장별 병합 머리줄). 한 장에 쭉 펴고,
+             아무 데도 안 나가는 품목 열·아무것도 안 나가는 출고장 행은 빼서 가로를 줄인다.
+             오른쪽 합계·품목수 / 아래 합계·출고장수 로 횡·종 대사가 가능하다. --%>
+        <option value="matrix">출고장 × 품목 (가로표)</option>
       </select>
       <button class="btn-line" onclick="d2Download('daily')" title="선택한 형식(출고장별/품목별)으로 출고일자별 출력">🏷️ 일자별 출력</button>
       <button class="btn-line" onclick="d2Download('sum')" title="선택한 형식(출고장별/품목별)으로 기간 합계 출력">🧮 합계 출력</button>
@@ -329,33 +399,16 @@
   </div>
 
   <!-- 조회바 + KPI (데시보드1 유지) -->
-  <div class="d2-topbar">
-    <div class="tb-left">
-      <span style="font-size:20px">📅</span>
-      <label>출고일자</label>
-      <input type="date" id="d2DateFrom" onchange="d2Load()" onclick="d2OpenCal(this)" onfocus="d2OpenCal(this)" title="클릭하여 달력 선택">
-      <span style="color:#9aa7b3">~</span>
-      <input type="date" id="d2DateTo" onchange="d2Load()" onclick="d2OpenCal(this)" onfocus="d2OpenCal(this)" title="클릭하여 달력 선택">
-      <button class="btn-teal" onclick="d2Load()" title="선택한 출고일자의 데이터를 DB에서 다시 조회합니다">🔍 조회</button>
-      <button class="btn-line" id="d2BtnToday" onclick="d2Today()">당일</button>
-      <button class="btn-line" id="d2BtnMonth" onclick="d2Month()">당월</button>
-      <button class="btn-line" id="d2BtnAll" onclick="d2All()" title="출고일자와 상관없이 DB 전체 자료를 출고일자별 블록으로 표시">전체</button>
-    </div>
+  <%-- 안내 전용 줄 — 조회조건·요약숫자가 제목줄로 올라가(2026-08-28) 여기엔 #d2Info 만 남았다.
+       할 말(데이터 없음·대표출고장·찾기)이 없으면 d2Render 가 줄째로 감춘다. 그래서 처음엔 숨겨 둔다. --%>
+  <div class="d2-topbar" style="display:none">
     <span id="d2Info" class="d2-info"></span>
-    <div class="tb-stats">
-      <div class="st"><span class="st-l"><span id="d2KpiPrefix">당일</span> 출고품목</span><span class="st-v" id="d2KpiItem">0</span></div>
-      <div class="st"><span class="st-l">출고수량(BOX)</span><span class="st-v" id="d2KpiQty">0</span></div>
-      <div class="st"><span class="st-l">출고장 수</span><span class="st-v" id="d2KpiZone">0</span></div>
-      <div class="st"><span class="st-l">사업장</span><span class="st-v" id="d2KpiBiz">0</span></div>
-    </div>
   </div>
 
   <!-- 출고장 + 내용 한 그리드 (맨 위 전체 합계, 출고장별 소계 상단) -->
   <div class="card" id="d2Card">
     <!-- 툴바 (데시보드1 공통 — 합계맨앞 없음) -->
     <div class="d2-toolbar">
-      <%-- 도구줄 접기/펼치기 (2026-08-21 요청, 대시보드와 같은 규칙) --%>
-      <button class="btn-line" id="d2TbFoldBtn" onclick="d2TbFold()" title="이 도구줄을 접습니다 (표가 그만큼 넓게 보입니다)">▴</button>
       <div class="tl">
         <label>🔎 사업장 찾기</label>
         <input id="d2BizFind" type="text" list="d2BizFindList" placeholder="사업장명 입력"
@@ -655,6 +708,7 @@
     if(fmt==='item') d2DownloadByItem(mode);
     else if(fmt==='biz') d2DownloadByBiz(mode);
     else if(fmt==='zoneitem') d2DownloadByZoneItem(mode);
+    else if(fmt==='matrix') d2DownloadByMatrix(mode);   // 출고장(행) × 품목(열) 가로표 — 2026-08-28
     else d2DownloadByZone(mode);
   }
 
@@ -745,6 +799,205 @@
     }
   });
 
+  /* == 출고장 × 품목 가로표 엑셀 (2026-08-28 요청) ==============================
+       모양 : 행 = 출고장, 열 = 품목. 열은 <사업장 단위>로 묶여 머리줄에 사업장명이 병합되어 얹힌다.
+              한 장에 쭉 — 블록으로 자르지 않는다(2026-08-28 「한 장으로 나오되 가로를 줄이는 방법」).
+       ★가로를 줄이는 규칙 : <아무 출고장도 내보내지 않는 품목 열>과 <아무것도 안 나가는 출고장 행>은 아예 뺀다.
+         빈칸이 남는 것은 그 조합만 없는 것이라 정상 — 대신 아래 두 집계로 무엇이 몇 개인지 알 수 있게 한다.
+       ★횡·종 집계 (2026-08-28 「출고장 몇 개, 품목 몇 개 나가는지 횡과 종으로」)
+         · 오른쪽 : 합계(수량) · 품목수  → 이 출고장이 <몇 품목> 나가는가
+         · 아래   : 합계(수량) · 출고장수 → 이 품목이 <몇 출고장> 나가는가 */
+  function d2DownloadByMatrix(mode){
+    mode = (mode==='daily') ? 'daily' : 'sum';
+    var p=null;
+    try{ if(window.parent && window.parent!==window && window.parent.ssLoadStyleXlsx) p=window.parent; }catch(e){}
+    if(!p){ d2Toast('⚠️ 물류관리 메인(사이드바) 안에서 열었을 때만 동작합니다.'); return; }
+    p.ssLoadStyleXlsx(function(XLSXS){
+      var LIB = XLSXS || p.XLSX, styled = !!XLSXS;
+      if(!LIB){ d2Toast('⚠️ 엑셀 모듈을 불러오지 못했습니다(인터넷 필요).'); return; }
+      var from=(document.getElementById('d2DateFrom')||{}).value||'';
+      var to=(document.getElementById('d2DateTo')||{}).value||'';
+      var dlab=(from&&from===to)?from:(from+' ~ '+to);
+      var aoa=[], merges=[], meta=[], maxW=1, made=0;
+      function push(row,ty){ aoa.push(row); meta.push(ty||''); }
+      function buildSection(ag, dateHdr){
+        var zones=d2ZonesSorted(ag).filter(function(zn){
+          var rs=ag.zones[zn].rows;
+          return Object.keys(rs).some(function(k){ return (+rs[k].qty||0)>0; });
+        });
+        if(!zones.length) return;
+        var colMap={}, cols=[];
+        zones.forEach(function(zn){
+          var rs=ag.zones[zn].rows;
+          Object.keys(rs).forEach(function(rk){
+            if((+rs[rk].qty||0)<=0 || colMap[rk]) return;
+            var r=rs[rk];
+            colMap[rk]={ rk:rk, biz:(r.biz||'(사업장없음)'), code:(r.code||''), name:(r.name||'') };
+            cols.push(colMap[rk]);
+          });
+        });
+        if(!cols.length) return;
+        cols.sort(function(a,b){ return a.biz.localeCompare(b.biz,'ko') || a.name.localeCompare(b.name,'ko'); });
+        /* 맨 위 '출고장일자' 줄은 뺐다 (2026-08-28 요청) — 이 날짜 배너가 같은 내용을 이미 담고 있다 */
+        push(['📅 '+(dateHdr||dlab)+' 출고     ※ 회색 칸 = 그 출고장에 그 품목이 없음'], 'datehdr');
+        var W=cols.length+3;
+        if(W>maxW) maxW=W;
+        var cTot=cols.length+1, cCnt=cols.length+2;
+        var r1=new Array(W); for(var i=0;i<W;i++) r1[i]='';
+        r1[0]='구분';
+        var start=1, bz=cols[0].biz;
+        for(var i2=0;i2<cols.length;i2++){
+          if(cols[i2].biz!==bz){
+            r1[start]=bz;
+            if(i2-start>=1) merges.push({s:{r:aoa.length,c:start}, e:{r:aoa.length,c:i2}});
+            start=i2+1; bz=cols[i2].biz;
+          }
+        }
+        r1[start]=bz;
+        if(cols.length-start>=1) merges.push({s:{r:aoa.length,c:start}, e:{r:aoa.length,c:cols.length}});
+        r1[cTot]='합계'; r1[cCnt]='품목수';
+        merges.push({s:{r:aoa.length,c:cTot}, e:{r:aoa.length+1,c:cTot}});
+        merges.push({s:{r:aoa.length,c:cCnt}, e:{r:aoa.length+1,c:cCnt}});
+        push(r1,'bizhdr');
+        var r2=['출고장/품목'];
+        cols.forEach(function(c){ r2.push(c.code ? (c.code+'('+c.name+')') : c.name); });
+        r2.push(''); r2.push('');
+        push(r2,'colhdr');
+        var sums=cols.map(function(){ return 0; });
+        var zcnt=cols.map(function(){ return 0; });
+        var grand=0, itemAll={};
+        /* ★출고장을 대시보드처럼 <물류센터 묶음> 아래에 넣는다 (2026-08-28 요청).
+             묶음 줄에는 그 묶음의 소계(열별 수량 · 합계 · 품목수)를 함께 적는다 — 화면의 ▼ 그룹 줄과 같은 뜻.
+             묶음 순서는 화면의 [그룹순서] 설정(D2_GORD)을 그대로 따른다. */
+        var groups={}, gOrder=[];
+        zones.forEach(function(zn){ var g=(ag.zones[zn].dc||zn); if(!groups[g]){ groups[g]=[]; gOrder.push(g); } groups[g].push(zn); });
+        gOrder.sort(function(a,b){
+          var ia=D2_GORD.indexOf(a), ib=D2_GORD.indexOf(b);
+          if(ia>=0&&ib>=0) return ia-ib;
+          if(ia>=0) return -1; if(ib>=0) return 1;
+          return a.localeCompare(b,'ko');
+        });
+        gOrder.forEach(function(g){
+          var gz=groups[g].slice().sort(function(a,b){ return a.localeCompare(b,'ko'); });
+          var gs=cols.map(function(){ return 0; }), gItems={}, lines=[];
+          gz.forEach(function(zn){
+            var rs=ag.zones[zn].rows, row=['    '+zn], rt=0, rc=0;
+            cols.forEach(function(c,ix){
+              var q=(rs[c.rk] ? (+rs[c.rk].qty||0) : 0);
+              if(q>0){ sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; rt+=q; rc++; itemAll[c.rk]=1; gItems[c.rk]=1; }
+              row.push(q>0 ? q : '');
+            });
+            row.push(rt||''); row.push(rc||'');
+            grand+=rt;
+            lines.push(row);
+          });
+          var gTot=0; gs.forEach(function(v){ gTot+=v; });
+          push(['▼ '+g+'   ('+gz.length+'개 출고장)']
+                 .concat(gs.map(function(v){ return v||''; }))
+                 .concat([gTot||'', Object.keys(gItems).length||'']), 'grp');
+          lines.forEach(function(r){ push(r,'body'); });
+        });
+        var rowSum=['합계'].concat(sums.map(function(v){ return v||''; }));
+        rowSum.push(grand||''); rowSum.push(Object.keys(itemAll).length||'');
+        push(rowSum,'sum');
+        var rowCnt=['출고장수'].concat(zcnt.map(function(v){ return v||''; }));
+        rowCnt.push(zones.length); rowCnt.push('');
+        push(rowCnt,'zcnt');
+        push([], 'blank');
+        push([], 'blank');
+        made++;
+      }
+      if(mode==='daily'){
+        var dset={}; (D2_DATA||[]).forEach(function(r){ var d=r.date||D2_TODAY; if(from&&d<from)return; if(to&&d>to)return; dset[d]=1; });
+        Object.keys(dset).sort().forEach(function(d){
+          buildSection(d2Aggregate(D2_DATA.filter(function(r){ return (r.date||D2_TODAY)===d; }), d, d), d);
+        });
+      } else {
+        buildSection(d2Aggregate(), null);
+      }
+      if(!made){ d2Toast('⚠️ 출고량이 있는 자료가 없습니다.'); return; }
+      var ws=LIB.utils.aoa_to_sheet(aoa);
+      /* 품목 칸 폭 18 (2026-08-28 「품목 칸 폭도 조금 넓게」) — 14 에서는 품목명이 너무 잘게 접혔다.
+         ⚠아래 머리줄 높이 계산의 '한 줄에 몇 자'(9자)도 이 폭에 맞춘 값이다 — 폭을 바꾸면 같이 바꿀 것. */
+      var cw=[{wch:24}]; for(var i3=1;i3<maxW-2;i3++) cw.push({wch:18});
+      cw.push({wch:10}); cw.push({wch:9});
+      ws['!cols']=cw;
+      ws['!merges']=merges;
+      /* ★틀 고정 — 출고장명 열(A)과 머리줄 3행을 얼려, 오른쪽으로 밀어도 <무엇의 값인지> 보이게 한다
+           (2026-08-28 요청 「표시는 고정으로 우측으로 스크롤해도」).
+         ⚠xlsx-js-style 1.2.0 원본에는 이 기능이 <없다> — assets/vendor/xlsx-js-style/xlsx.bundle.js 를
+           우리가 고쳐 넣었다(파일 머리 주석 참고). 그 파일을 새 버전으로 갈아 끼우면 고정이 조용히 사라진다.
+           인터넷 CDN 폴백본에도 이 수정이 없다(로컬 파일이 먼저 시도되므로 평소엔 문제 없다). */
+      ws['!freeze']={xSplit:1, ySplit:3, topLeftCell:'B4', activePane:'bottomRight', state:'frozen'};
+      if(styled){
+        var enc=LIB.utils.encode_cell;
+        var LINE={style:'thin', color:{rgb:'9BA7B4'}};
+        var box={top:LINE,bottom:LINE,left:LINE,right:LINE};
+        var S={
+          dateL:{ font:{bold:true,sz:12,color:{rgb:'1F2A37'}}, alignment:{horizontal:'left',vertical:'center'} },
+          datehdr:{ fill:{fgColor:{rgb:'11161D'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:13}, alignment:{horizontal:'left',vertical:'center'} },
+          /* 사업장명도 품목명처럼 줄바꿈해서 넣는다 (2026-08-28 요청) — 이름이 길면 한 줄로는 잘린다.
+             ⚠병합된 칸은 엑셀이 높이를 자동으로 안 늘린다 → 아래에서 행 높이를 직접 준다. */
+          bizhdr:{ fill:{fgColor:{rgb:'BDD7EE'}}, font:{bold:true,color:{rgb:'1F2A37'},sz:10}, alignment:{horizontal:'center',vertical:'center',wrapText:true}, border:box },
+          colhdr:{ fill:{fgColor:{rgb:'DEEAF6'}}, font:{bold:true,color:{rgb:'1F2A37'},sz:10}, alignment:{horizontal:'center',vertical:'center',wrapText:true}, border:box },
+          zoneL:{ font:{color:{rgb:'10161D'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          /* ★값이 있는 칸은 <흰 바탕 + 굵은 숫자>, 없는 칸은 <옅은 회색 바탕> (2026-08-28 요청).
+             ⚠빈칸에 글자(-, · 등)를 넣지 않는다 — 넣으면 엑셀에서 합계·개수·필터가 그 글자를 세어 버린다. */
+          num:{ font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          none:{ fill:{fgColor:{rgb:'F1F3F5'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          grpNone:{ fill:{fgColor:{rgb:'0E6659'}}, border:box },
+          rtot:{ fill:{fgColor:{rgb:'FFF2CC'}}, font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          rcnt:{ fill:{fgColor:{rgb:'E2EFDA'}}, font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          grpL:{ fill:{fgColor:{rgb:'137A6C'}}, font:{bold:true,color:{rgb:'FFFFFF'},sz:11}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          grpN:{ fill:{fgColor:{rgb:'137A6C'}}, font:{bold:true,color:{rgb:'FFFFFF'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          sumL:{ fill:{fgColor:{rgb:'F2F2F2'}}, font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          sumN:{ fill:{fgColor:{rgb:'F2F2F2'}}, font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          zcntL:{ fill:{fgColor:{rgb:'E2EFDA'}}, font:{bold:true,color:{rgb:'375623'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          zcntN:{ fill:{fgColor:{rgb:'E2EFDA'}}, font:{bold:true,color:{rgb:'375623'}}, alignment:{horizontal:'right',vertical:'center'}, border:box }
+        };
+        function put(r,c,st){ var ref=enc({r:r,c:c}); if(!ws[ref]) ws[ref]={t:'s',v:''}; ws[ref].s=st; }
+        var rowsH=[];
+        meta.forEach(function(ty,r){
+          var wid=(aoa[r]||[]).length, h=null, c;
+          if(ty==='date'){ put(r,0,S.dateL); put(r,1,S.dateL); h=20; }
+          else if(ty==='datehdr'){ put(r,0,S.datehdr); h=22; }
+          else if(ty==='bizhdr'){
+            for(c=0;c<wid;c++) put(r,c,S.bizhdr);
+            /* 사업장명이 길면 두세 줄이 되므로 그만큼 높이를 준다 — 칸 폭 14 기준 대략 7자에 한 줄 */
+            var _ln=1; (aoa[r]||[]).forEach(function(v){ var t=(''+(v==null?'':v)); if(t) _ln=Math.max(_ln, Math.min(3, Math.ceil(t.length/9))); });
+            h=Math.max(20, 15*_ln+6);
+          }
+          else if(ty==='colhdr'){
+            for(c=0;c<wid;c++) put(r,c,S.colhdr);
+            /* 품목명 줄은 <가장 긴 이름에 맞춰> 높이를 준다 (2026-08-28 「품목명 아래를 조금 넓게」).
+               품목코드(품목명,규격…)이 60자를 넘는 것이 흔해 42px 고정으로는 뒷부분이 잘렸다.
+               칸 폭 14 기준 대략 7자에 한 줄, 최대 8줄까지. */
+            var _cl=3; (aoa[r]||[]).forEach(function(v){ var t=(''+(v==null?'':v)); if(t) _cl=Math.max(_cl, Math.min(8, Math.ceil(t.length/9))); });
+            h=Math.max(48, 13*_cl+8);
+          }
+          else if(ty==='body'){
+            put(r,0,S.zoneL);
+            for(c=1;c<wid-2;c++){ var bv=(aoa[r]||[])[c]; put(r,c, (bv===''||bv==null) ? S.none : S.num); }
+            put(r,wid-2,S.rtot); put(r,wid-1,S.rcnt); h=19;
+          }
+          else if(ty==='grp'){
+            put(r,0,S.grpL);
+            for(c=1;c<wid;c++){ var gv=(aoa[r]||[])[c]; put(r,c, (gv===''||gv==null) ? S.grpNone : S.grpN); }
+            h=20;
+          }
+          else if(ty==='sum'){ put(r,0,S.sumL); for(c=1;c<wid;c++) put(r,c,S.sumN); h=20; }
+          else if(ty==='zcnt'){ put(r,0,S.zcntL); for(c=1;c<wid;c++) put(r,c,S.zcntN); h=20; }
+          rowsH.push(h?{hpx:h}:{});
+        });
+        ws['!rows']=rowsH;
+      }
+      var wb=LIB.utils.book_new();
+      LIB.utils.book_append_sheet(wb, ws, '출고장x품목');
+      var fn='출고장x품목_'+(mode==='daily'?'일자별_':'')+((dlab.replace(/[^0-9]/g,'')).slice(0,8)||'출력')+'.xlsx';
+      LIB.writeFile(wb, fn);
+      d2Toast('📥 <b>'+fn+'</b> 로 내려받았습니다');
+    });
+  }
   // ── 출고장별 엑셀 출력 — 데시보드2 그리드 그대로 출력 (TBL_BIZI_MST 무시, 사업장명[코드] 표시, 현재 필터 반영)
   //    엑셀 라이브러리는 부모(데시보드1)의 ssLoadStyleXlsx/XLSX 재사용. 레이아웃·색상은 데시보드1 출고장별 출력과 동일
   function d2DownloadByZone(mode){   // mode: 'daily'(일자별) | 'sum'(기간 합계, 기본)
@@ -1220,18 +1473,22 @@
   // ── 출고장 접기/펼치기 (개별 + 물류센터 그룹 + 전체)
   function d2ToggleZone(zn){ if(D2_COLL[zn]) delete D2_COLL[zn]; else D2_COLL[zn]=1; d2Render(); }
   function d2ToggleGroup(g){ if(D2_GCOLL[g]) delete D2_GCOLL[g]; else D2_GCOLL[g]=1; d2Render(); }
-  // 도구줄(찾기·줌·대표출고장·출고장 접기…) 접기/펼치기 — 2026-08-21 요청, 대시보드(ssTbFold)와 같은 규칙
+  // 상단 접기/펼치기 — 조회바(.d2-topbar) + 도구줄(.d2-toolbar) 을 통째로 접는다. 대시보드(ssTbFold)와 같은 규칙.
+  //  · ★단추는 이 화면 안에 없다 — 셸 맨 위 줄의 [조회조건 접기](konetTbFold)가 여기 d2TbFold 를 부른다.
+  //    (2026-08-28: 제목줄에 두었더니 좁은 창에서 잘려 못 눌렀다. 이 화면은 iframe 이라 제 폭을 못 넓힌다)
+  //  · 조회바는 #d2Card 밖(형제)이라 body 클래스로 감춘다.
+  //  · 저장키는 종전 그대로 konetD2TbFold — 이미 접어 둔 사용자는 다음 접속에 접힌 상태로 열린다.
   function d2TbFoldSet(on){
-    var c=document.getElementById('d2Card'), b=document.getElementById('d2TbFoldBtn');
-    if(!c||!b) return;
+    var c=document.getElementById('d2Card'); if(!c) return;
     c.classList.toggle('tb-fold', !!on);
-    b.innerHTML = on ? '▾ 도구모음 펼치기' : '▴';
-    b.title = on ? '접어 둔 도구줄(찾기·줌·출고장 접기…)을 다시 폅니다'
-                 : '이 도구줄을 접습니다 (표가 그만큼 넓게 보입니다)';
+    document.body.classList.toggle('tb-fold', !!on);
     try{ localStorage.setItem('konetD2TbFold', on?'1':''); }catch(e){}
+    // 셸 단추의 글자(접기 ↔ 펼치기)를 맞춰 준다. 셸 밖에서 단독으로 열려도 조용히 넘어간다.
+    try{ if(window.parent && window.parent!==window && window.parent.konetTbFoldSync) window.parent.konetTbFoldSync(!!on); }catch(e){}
   }
   function d2TbFold(){ var c=document.getElementById('d2Card'); d2TbFoldSet(!(c&&c.classList.contains('tb-fold'))); }
-  window.addEventListener('load', function(){ try{ if(localStorage.getItem('konetD2TbFold')==='1') d2TbFoldSet(true); }catch(e){} });
+  // 접힘·펼침 어느 쪽이든 부른다 — 셸 단추 글자까지 이때 맞춰지므로 '펼침'도 그냥 지나가면 안 된다.
+  window.addEventListener('load', function(){ var on=false; try{ on = localStorage.getItem('konetD2TbFold')==='1'; }catch(e){} d2TbFoldSet(on); });
 
   function d2ToggleAllZones(){
     var ag=d2Aggregate();
@@ -1298,7 +1555,44 @@
       _d2DateSyncing=true; f.value=d.from||''; t.value=d.to||''; d2Load(); _d2DateSyncing=false;
     }catch(_){}
   });
-  function d2Load(){ d2LoadingOn(); if(!_d2DateSyncing) d2SaveSharedDate(); _d2LoadInner(); }   // 조회 시작(분류표는 안에서 병렬 조회) + 날짜 공유 저장
+  /* ── 날짜칸 자동조회 끄기 (2026-08-28 요청 「날짜 선택하면 자동검색인데 조회버튼 실행해야 되게」) ──
+       날짜칸의 onchange 는 이제 조회를 부르지 않고 <조회를 눌러 달라는 표시>만 켠다.
+       ⚠표시를 반드시 두는 이유 : 자동조회를 끄면 「바꾼 날짜」와 「화면의 표」가 다른 시간이 생긴다.
+         표시가 없으면 옛 자료를 새 날짜의 자료로 잘못 읽는다.
+       ※값을 코드로 넣는 곳(당일·당월·전체·공유날짜 복원)은 change 가 안 도므로 표시도 안 켜진다 — 그대로 두면 된다. */
+  function d2DateDirty(){
+    var b=document.getElementById('d2BtnSearch'); if(b) b.classList.add('need');
+    var m=document.getElementById('d2NeedMsg');   if(m) m.style.display='inline';
+  }
+  function d2DateClean(){
+    var b=document.getElementById('d2BtnSearch'); if(b) b.classList.remove('need');
+    var m=document.getElementById('d2NeedMsg');   if(m) m.style.display='none';
+  }
+  /* ── 조회 기간 제한 : 최대 3개월 (2026-08-28 요청 「3달 이상은 조회 안되게」) ──────────
+       왜 : 기간 조회는 날짜별 블록을 전부 그린다. 몇 달치를 한 번에 부르면 DB·화면이 함께 느려지고,
+            실제로 그렇게 넓게 보는 일도 없다(월 단위로 본다).
+       기준 : 시작 + 3개월 <보다 뒤>면 막는다 — 딱 3개월(1/16 ~ 4/16)까지는 된다.
+       ⚠[전체]는 날짜를 <비우고> 부르는 별도 경로다 — 여기 걸리지 않는다(f·t 가 비면 통과).
+       막을 때 [조회]의 강조는 그대로 둔다 — 아직 조회가 안 됐다는 표시라서. */
+  var D2_MAX_MONTHS = 3;
+  function d2RangeTooLong(){
+    var f=(document.getElementById('d2DateFrom')||{}).value||'';
+    var t=(document.getElementById('d2DateTo')||{}).value||'';
+    if(!f || !t || f > t) return null;                       // 전체·빈값·뒤집힌 값은 여기서 다루지 않는다
+    var a=new Date(f+'T00:00:00'), b=new Date(t+'T00:00:00');
+    var lim=new Date(a.getFullYear(), a.getMonth()+D2_MAX_MONTHS, a.getDate());
+    if(b<=lim) return null;
+    return { from:f, to:t, days:Math.round((b-a)/86400000)+1 };
+  }
+  function d2Load(){
+    var over=d2RangeTooLong();
+    if(over){
+      d2Toast('⚠️ 조회 기간은 <b>최대 '+D2_MAX_MONTHS+'개월</b>입니다.<br>지금 고른 기간 '+over.from+' ~ '+over.to+' ('+over.days+'일) 은 너무 깁니다 — 출고일자를 줄여 주세요.');
+      d2LoadingOff();
+      return;
+    }
+    d2DateClean(); d2LoadingOn(); if(!_d2DateSyncing) d2SaveSharedDate(); _d2LoadInner();
+  }   // 조회 시작(분류표는 안에서 병렬 조회) + 날짜 공유 저장
   // ★속도 개선(2026-07-31): 종전엔 분류표→출고→직전배치→차수이력 4건을 순차 호출해 최초 진입이
   //   합산 지연(운영 실측 약 0.5+0.7+2.2+1.3 ≈ 4.8초)이었다 → 4건을 병렬로 던지고 전부 도착하면 1회 렌더.
   //   체감 대기 = 가장 느린 1건(직전배치 ≈ 2.2초) 수준. 쿼리·서버는 무변경(JSP만).
@@ -1786,13 +2080,24 @@
     var bt=document.getElementById('d2BtnToday'); if(bt) bt.className=(single && from===D2_TODAY)?'btn-teal':'btn-line';
     var bm=document.getElementById('d2BtnMonth'); if(bm) bm.className=(from===ym+'-01' && to===monLast)?'btn-teal':'btn-line';
 
-    // 조회 정보
-    var range=single ? (from+(from===D2_TODAY?' <b>(금일)</b>':'')) : ((from||'~')+' ~ '+(to||'~'));
-    d2Set('d2Info', '<span class="d2-srcbadge'+(D2_UP?' up':'')+'">'+(D2_SRC||'조회 전')+'</span> 📅 '+range
-      + (ag.totQty>0 ? '' : ' &nbsp;|&nbsp; <span style="color:#c0392b">해당 기간 데이터 없음</span>')
-      + (Object.keys(D2_DCSEL).length>0 ? ' &nbsp;|&nbsp; <span style="color:#178074">대표출고장 '+Object.keys(D2_DCSEL).length+'곳 선택</span>' : '')
-      + (D2_FIND ? ' &nbsp;|&nbsp; <span style="color:#178074">사업장 찾기: '+d2Esc(D2_FIND)+'</span>' : '')
-      + (D2_IFIND ? ' &nbsp;|&nbsp; <span style="color:#178074">품목 찾기: '+d2Esc(D2_IFIND)+'</span>' : ''));
+    /* 조회 정보
+       ★[제외 2026-08-28 요청] <🗄️ DB 조회 …건> 배지와 <📅 2026-08-28 (금일)> 은 빼 두었다 —
+         바로 위 출고일자 칸에 같은 내용이 있어 겹쳤다. 되살리려면 아래 _inf 맨 앞에 이 두 줄을 다시 넣으면 된다:
+           var range=single ? (from+(from===D2_TODAY?' <b>(금일)</b>':'')) : ((from||'~')+' ~ '+(to||'~'));
+           _inf.push('<span class="d2-srcbadge'+(D2_UP?' up':'')+'">'+(D2_SRC||'조회 전')+'</span> 📅 '+range);
+         ⚠줄(#d2Info) 자체는 남긴다 — 데이터 없음·대표출고장·찾기 안내가 여기 뜬다.
+         ⚠조회 실패(HTTP·통신오류)는 D2_SRC 말고 d2Toast 로도 뜬다 — 배지를 빼도 오류는 보인다(확인함).
+       남는 안내는 있는 것만 ' | ' 로 잇는다 — 그냥 이어 붙이면 줄이 ' | ' 로 시작한다. */
+    var _inf=[];
+    if(ag.totQty<=0) _inf.push('<span style="color:#c0392b">해당 기간 데이터 없음</span>');
+    if(Object.keys(D2_DCSEL).length>0) _inf.push('<span style="color:#178074">대표출고장 '+Object.keys(D2_DCSEL).length+'곳 선택</span>');
+    if(D2_FIND)  _inf.push('<span style="color:#178074">사업장 찾기: '+d2Esc(D2_FIND)+'</span>');
+    if(D2_IFIND) _inf.push('<span style="color:#178074">품목 찾기: '+d2Esc(D2_IFIND)+'</span>');
+    var _infoHtml=_inf.join(' &nbsp;|&nbsp; ');
+    d2Set('d2Info', _infoHtml);
+    /* 조회조건·요약숫자가 제목줄로 올라가(2026-08-28) 이 줄엔 안내만 남았다 —
+       할 말이 없으면 줄째로 감춘다(빈 흰 줄이 자리만 차지하지 않게). 접기(body.tb-fold)는 CSS 가 따로 감춘다. */
+    var _tbBar=document.querySelector('.d2-topbar'); if(_tbBar) _tbBar.style.display=_infoHtml?'':'none';
 
     // 대표출고장(물류센터) 다중선택 콤보 — 버튼 라벨 + 드롭다운 체크박스 (열림 상태 유지)
     var dcSelCnt=Object.keys(D2_DCSEL).length;

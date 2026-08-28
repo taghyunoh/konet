@@ -7,7 +7,7 @@
 <%-- ★날짜 칸에 [◀][▶][오늘] 을 자동으로 붙인다 (2026-08-17 요청) — 화면 수정 0.
      브라우저 기본 달력의 ↑↓ 는 앞/뒤가 안 읽혀 엉뚱한 달로 넘어가는 일이 잦았다.
      빼려면 그 칸에 data-nonav="1" --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <title>출금 / 미지급 (TBL_PAYMENT_MST)</title>

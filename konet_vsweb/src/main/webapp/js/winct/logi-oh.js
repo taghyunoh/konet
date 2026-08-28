@@ -544,19 +544,58 @@ var KONET_CTX = window.KONET_CTX || '';
       var c=document.getElementById('zc_'+L); if(c) c.textContent = collapse?'▶':'▼';
     });
   }
-  // 도구줄(찾기·줌·출고장 접기…) 접기/펼치기 — 2026-08-21 요청. 상태는 localStorage 로 다음 접속에도 유지.
+  // 상단 접기/펼치기 — 조회바(.ss-topbar) + 도구줄을 통째로 접는다. 상태는 localStorage 로 다음 접속에도 유지.
+  //  · ★단추는 맨 위 <자주 쓰는 메뉴> 줄의 [조회조건 접기](#konetTbFoldBtn) 하나뿐이다 — 2026-08-28 요청.
+  //  · 조회바는 #ssCard 밖(형제)이라 body 클래스로 감춘다.
   function ssTbFoldSet(on){
-    var c=document.getElementById('ssCard'), b=document.getElementById('ssTbFoldBtn');
-    if(!c||!b) return;
+    var c=document.getElementById('ssCard'); if(!c) return;
     c.classList.toggle('tb-fold', !!on);
-    b.innerHTML = on ? '▾ 도구모음 펼치기' : '▴';
-    b.title = on ? '접어 둔 도구줄(찾기·줌·출고장 접기…)을 다시 폅니다'
-                 : '이 도구줄을 접습니다 (표가 그만큼 넓게 보입니다)';
+    document.body.classList.toggle('tb-fold', !!on);
     try{ localStorage.setItem('konetSsTbFold', on?'1':''); }catch(e){}
+    if(typeof konetTbFoldSync==='function') konetTbFoldSync(!!on);
   }
   function ssTbFold(){ var c=document.getElementById('ssCard'); ssTbFoldSet(!(c&&c.classList.contains('tb-fold'))); }
   // 이 스크립트는 ssCard 마크업보다 먼저 실린다 — 복원은 load 뒤에
   window.addEventListener('load', function(){ try{ if(localStorage.getItem('konetSsTbFold')==='1') ssTbFoldSet(true); }catch(e){} });
+
+  /* ── 맨 위 줄의 [조회조건 접기] 단추 (2026-08-28 요청 「우측접기 상단으로」) ────────────
+       접기 자체는 화면마다 따로다 — 출고현황표·출고세부조회는 iframe 안 d2TbFold,
+       데시보드1(이 문서)은 위 ssTbFold. 이 단추는 <지금 보이는 화면> 것을 골라 부르기만 한다.
+       화면 안에 단추를 두지 않는 이유 : iframe 은 제 폭을 못 넓혀 제목줄 오른쪽 끝이 잘렸다. */
+  function konetTbFoldTarget(){
+    if(document.querySelector('#panel-shipstatus2.show')){            // 출고현황표·출고세부조회(iframe)
+      var f=document.getElementById('if-shipstatus2');
+      try{ if(f && f.contentWindow && typeof f.contentWindow.d2TbFold==='function') return {kind:'iframe', win:f.contentWindow}; }catch(e){}
+      return null;              // 아직 로딩 전 — 로드되면 iframe 이 konetTbFoldSync 로 알려 준다
+    }
+    if(document.querySelector('#panel-shipstatus.show')) return {kind:'ss'};   // 데시보드1(이 문서)
+    return null;
+  }
+  function konetTbFold(){
+    var t=konetTbFoldTarget(); if(!t) return;
+    if(t.kind==='iframe') t.win.d2TbFold(); else ssTbFold();
+  }
+  // 단추 글자만 맞춘다 — 각 화면이 접힘상태를 바꿀 때(그 화면의 로드 복원 포함) 불러 준다.
+  function konetTbFoldSync(on){
+    var b=document.getElementById('konetTbFoldBtn'); if(!b) return;
+    // iframe 이 뒤늦게(다른 화면을 보는 중에) 알려 올 수 있다 — 보임 여부는 그때도 화면 기준으로 다시 판단
+    b.style.display = document.querySelector('#panel-shipstatus2.show, #panel-shipstatus.show') ? '' : 'none';
+    b.innerHTML = on ? '▾ 조회조건 펼치기' : '▴ 조회조건 접기';
+    b.title = on ? '접어 둔 상단 조회조건·검색 도구줄을 다시 폅니다'
+                 : '상단 조회조건(출고일자·조회·요약숫자)과 검색 도구줄을 접습니다 (표가 그만큼 넓게 보입니다)';
+  }
+  // 화면 전환 때(logiGo) : 접을 것이 있는 화면에서만 보이게 + 그 화면의 현재 상태로 글자 맞춤
+  function konetTbFoldBtnUpd(){
+    var b=document.getElementById('konetTbFoldBtn'); if(!b) return;
+    var onShip=!!document.querySelector('#panel-shipstatus2.show, #panel-shipstatus.show');
+    b.style.display = onShip ? '' : 'none';
+    var t=konetTbFoldTarget(); if(!t) return;
+    var on=false;
+    if(t.kind==='iframe'){ try{ on=!!(t.win.document.body && t.win.document.body.classList.contains('tb-fold')); }catch(e){} }
+    else on=document.body.classList.contains('tb-fold');
+    konetTbFoldSync(on);
+  }
+  window.addEventListener('load', function(){ konetTbFoldBtnUpd(); });
 
   // 출고장 전체 펼치기/접기 — 단일 토글 버튼
   var ssAllCollapsed=false;   // 기본 펼침 상태와 동기화
@@ -615,6 +654,16 @@ var KONET_CTX = window.KONET_CTX || '';
 
   // ── 발주현황표 업로드: 파일선택 → 미리보기 모달(시트선택) → 작성
   var ssPvWb=null, ssPvName='';
+  /* ── 담은 파일 목록 (2026-08-28 요청 「파일 여러 개 올릴 수 있게 · 출고일자는 하나로」) ────────
+       쓰임 : 발주현황표가 <김해·제주 뺀 것> 과 <김해·제주> 로 나뉘어 오는 날이 있다.
+              두 파일을 따로 두 번 올리면 출고일자를 두 번 넣어야 하고 중간에 화면이 한 번 갈린다.
+       방식 : 정산 엑셀 저장(slsUp*)과 같게 — 고른 파일을 목록에 쌓아 두고 [작성] 때 <한 번에> 반영한다.
+              미리보기 표는 종전 그대로 <목록에서 고른 한 파일>을 보여 준다(ssPvWb/ssPvName/ssPvCur = 그 파일).
+       안전 : 서버 저장의 배치키가 (납품일자 + 출고장)이라(UserController.saveShipoutMst) 출고장이 다른
+              파일끼리는 서로 덮어쓰지 않는다. 같은 출고장이 두 파일에 겹치면 목록 위에 빨간 경고를 띄운다
+              — 그대로 두면 뒤에 담은 파일이 앞 파일을 대체한다.
+       출고일자 : 칸은 하나뿐이고 전 파일·전 출고장에 같은 값이 들어간다(종전 규칙 그대로). */
+  var ssPvList=[], ssPvIdx=-1;
 
   // 엑셀 읽기 — 일부 ERP(코네트 등)가 생성한 비표준 xlsx 보정
   //   · sharedStrings.xml 의 <si > (꼬리 공백) → <si> 로 교정해야 SheetJS 가 문자열 셀(품목코드·품목명·헤더)을 읽음
@@ -1081,39 +1130,77 @@ var KONET_CTX = window.KONET_CTX || '';
   }
 
   // ArrayBuffer(엑셀) → 미리보기 모달에 로드 (수동선택·폴더선택 공용). 이후 작성/저장은 기존 ssPvApply 재사용
-  function ssLoadWorkbookBuf(buf, fileName, skipHist){
-    if(typeof XLSX==='undefined'){ ssBusy(false); ssToast('⚠️ 엑셀 파서를 불러오지 못했습니다(인터넷 필요).'); return; }
+  /* quiet=true : <미리보기 표를 그리지 않고> 목록에만 담는다 (2026-08-28 속도 개선).
+       여러 개를 한꺼번에 고르면 파일마다 ssPvRender 가 도는데, 그 함수는 최대 2000행×40열 표를
+       통째로 다시 그린다 — 27개면 그 무거운 렌더가 27번 돌아 수십 초가 걸렸다.
+       ⇒ 담는 동안은 시트를 읽어 <칸 매핑만> 하고, 표는 마지막에 한 번만 그린다(ssUpload). */
+  /* ★done 은 <엑셀 파싱까지 끝난 뒤> 부른다 (2026-08-28 「27개 올렸는데 23개 표시됨」의 원인).
+       이 함수는 setTimeout + ssReadXlsx 로 <비동기>다. 종전에는 부르는 쪽(ssUpload)이 파일을 읽자마자
+       다음으로 넘어가, 마지막 몇 개가 <아직 파싱 중인 상태>에서 목록을 그려 그만큼 빠져 보였다.
+       ⇒ 부르는 쪽은 done 을 받고 나서 다음 파일로 간다. ok=false 면 그 파일은 담기지 못한 것이다. */
+  function ssLoadWorkbookBuf(buf, fileName, skipHist, quiet, done){
+    function _fin(ok){ ssBusy(false); if(typeof done==='function') done(!!ok, fileName); }
+    if(typeof XLSX==='undefined'){ ssToast('⚠️ 엑셀 파서를 불러오지 못했습니다(인터넷 필요).'); _fin(false); return; }
     ssPvName=fileName;
     ssBusy(true,'엑셀 불러오는 중… ('+fileName+')');
     // 스피너를 먼저 화면에 그린 뒤 무거운 동기 파싱 실행(대용량도 멈춘 듯 안 보이게)
     setTimeout(function(){
     ssReadXlsx(buf, function(wb){
+    var _ok=true;
     try{
-      ssPvWb=wb;
-      var names=ssPvWb.SheetNames||[];
-      document.getElementById('ssPvFile').textContent=fileName;
-      var sel=document.getElementById('ssPvSheet');
-      sel.innerHTML=names.map(function(n,i){ return '<option value="'+i+'">'+n+'</option>'; }).join('');
-      sel.value='0';
-      document.getElementById('ssPvSheetWrap').style.display = names.length>1 ? '' : 'none';
-      ssPvRender();
+      ssPvListAdd(wb, fileName, quiet);   // 목록에 담기(quiet 면 표는 안 그린다)
       ssPvOpen(true);
-      ssHistRenderList();   // 현재 파일 강조 갱신(폴더 목록)
-      ssUpHistRender();     // 현재 파일 강조 갱신(업로드 이력 — 이미 올린 파일인지 바로 보이게)
-    }catch(err){ ssToast('⚠️ 엑셀 처리 오류: '+err.message); }
-    ssBusy(false);
-    }, function(err){ ssBusy(false); ssToast('⚠️ 엑셀 처리 오류: '+err.message); });
-    }, 30);
+      if(!quiet){
+        ssHistRenderList();   // 현재 파일 강조 갱신(폴더 목록)
+        ssUpHistRender();     // 현재 파일 강조 갱신(업로드 이력 — 이미 올린 파일인지 바로 보이게)
+      }
+    }catch(err){ _ok=false; ssToast('⚠️ 엑셀 처리 오류: '+ssEscHtml(fileName)+' — '+err.message); }
+    _fin(_ok);
+    }, function(err){ ssToast('⚠️ 엑셀 처리 오류: '+ssEscHtml(fileName)+' — '+err.message); _fin(false); });
+    }, quiet ? 0 : 30);
   }
 
   // 수동 파일 선택(<input type=file>) — 폴더 접근이 안 되는 환경용 fallback
   function ssUpload(input){
-    var f=input.files && input.files[0]; if(!f) return;
-    ssBusy(true,'파일 읽는 중… ('+f.name+')');
-    var rd=new FileReader();
-    rd.onload=function(e){ ssLoadWorkbookBuf(e.target.result, f.name); input.value=''; };
-    rd.onerror=function(){ ssBusy(false); ssToast('⚠️ 파일 읽기 실패'); input.value=''; };
-    rd.readAsArrayBuffer(f);
+    /* 여러 개 고를 수 있다 (2026-08-28) — 하나씩 <순서대로> 읽어 목록에 담는다.
+       ⚠동시에 읽으면 안 된다 : ssLoadWorkbookBuf 가 시트 select·미리보기 같은 공용 화면을 건드리고
+         ssPvCur 로 스캔하므로, 겹치면 뒤 파일의 값이 앞 파일 것으로 섞인다. */
+    var fs=input.files; if(!fs || !fs.length) return;
+    var list=[].slice.call(fs), k=0, n=list.length, before=ssPvList.length, fail=[];
+    (function next(){
+      if(k>=n){
+        input.value='';
+        /* ★미리보기 표는 <맨 마지막에 한 번만> 그린다 (2026-08-28 속도 개선) —
+             담는 동안은 quiet 로 값만 읽었으므로, 여기서 마지막 파일을 펼쳐 화면을 맞춘다.
+             ssPvSelect 안에서 자동배정·출고일자·목록 다시 그리기가 함께 돈다.
+           ★여기까지 오면 <모든 파일의 파싱이 끝나 있다> — done 을 받고 넘어왔기 때문(아래 onload).
+             종전에는 파일을 읽자마자 넘어가 마지막 몇 개가 목록에서 빠져 보였다(27개 중 23개). */
+        if(ssPvList.length) ssPvSelect(ssPvList.length-1);
+        ssBusy(false);
+        /* 몇 개가 담겼는지 반드시 알린다 — 조용히 빠지면 그대로 반영해 버린다 */
+        var added=ssPvList.length-before;
+        if(fail.length){
+          ssToast('⚠️ <b>'+n+'개 중 '+added+'개</b>만 담겼습니다 — 실패 '+fail.length+'개<br>'
+                + '<span style="font-size:12px">'+fail.slice(0,5).map(ssEscHtml).join(', ')
+                + (fail.length>5?(' 외 '+(fail.length-5)+'개'):'')+'</span>');
+        } else if(n>1){
+          ssToast('📄 <b>'+added+'개</b> 담았습니다.');
+        }
+        return;
+      }
+      var f=list[k++];
+      ssBusy(true,'파일 읽는 중… ('+f.name+(n>1?(' · '+k+'/'+n):'')+')');
+      var rd=new FileReader();
+      // ★파싱이 끝난 뒤(done) 다음 파일로 — 겹쳐 돌리면 마지막 몇 개가 목록에 안 들어간다
+      rd.onload=function(e){
+        ssLoadWorkbookBuf(e.target.result, f.name, false, true, function(ok, nm){
+          if(!ok) fail.push(nm);
+          next();
+        });
+      };
+      rd.onerror=function(){ fail.push(f.name); ssToast('⚠️ 파일 읽기 실패 — '+ssEscHtml(f.name)); next(); };
+      rd.readAsArrayBuffer(f);
+    })();
   }
 
   // ── 매출금액 업로드 (발주현황표 업로드와 동일 UX: 파일선택 → 미리보기 모달 → 작성/반영)
@@ -1582,7 +1669,313 @@ var KONET_CTX = window.KONET_CTX || '';
        이미 처리한 자료인데 화면만 보면 '아직 안 올린 것' 과 구별이 안 돼, 같은 파일을 또
        [작성] 하기 쉬웠다. 반영이 끝나면 처음 상태(파일 고르라는 안내)로 돌아간다.
        ※취소·✕ 로 나갈 때는 지우지 않는다 — 잠깐 닫았다 다시 보는 경우다. */
+  /* 목록에 담기 — 같은 이름을 다시 고르면 교체(정산 엑셀 저장과 같은 규칙) */
+  function ssPvListAdd(wb, name, quiet){
+    for(var i=0;i<ssPvList.length;i++){ if(ssPvList[i].name===name){ ssPvList.splice(i,1); break; } }
+    ssPvList.push({ name:name, wb:wb, sheetIdx:0, cur:null, allRows:[], rows:[], zones:[], dates:[], bad:'', filter:null });
+    if(quiet) ssPvScanQuiet(ssPvList[ssPvList.length-1]);   // 표를 안 그리고 값만 읽는다(여러 개 담을 때)
+    else ssPvSelect(ssPvList.length-1);
+  }
+  /* 미리보기 표를 그리지 않고 그 파일의 칸 매핑·행만 읽는다 — ssPvRender 의 가벼운 판.
+     ⚠ssPvCur 를 잠깐 이 파일 것으로 바꿔 쓰므로, 끝나면 화면에 보이는 파일 것으로 되돌린다. */
+  function ssPvScanQuiet(f){
+    var _keepCur=ssPvCur, _keepWb=ssPvWb, _keepNm=ssPvName;
+    try{
+      var ws=f.wb && f.wb.Sheets[f.wb.SheetNames[f.sheetIdx||0]];
+      var aoa=ws ? XLSX.utils.sheet_to_json(ws,{header:1,defval:''}) : [];
+      ssPvCur={aoa:aoa, map:ssMapCols(aoa)};
+      ssPvScan(f);
+    }catch(e){ f.allRows=[]; f.rows=[]; f.zones=[]; f.dates=[]; f.bad='읽기 오류'; }
+    ssPvCur=_keepCur; ssPvWb=_keepWb; ssPvName=_keepNm;
+  }
+  /* 목록의 i 번째를 미리보기로 — 시트 select 까지 그 파일 것으로 갈아 끼우고 다시 그린다 */
+  function ssPvSelect(i){
+    var f=ssPvList[i]; if(!f) return;
+    ssPvIdx=i; ssPvWb=f.wb; ssPvName=f.name;
+    var names=f.wb.SheetNames||[], sel=document.getElementById('ssPvSheet');
+    if(sel){
+      sel.innerHTML=names.map(function(n,k){ return '<option value="'+k+'">'+ssEscHtml(n)+'</option>'; }).join('');
+      sel.value=String(f.sheetIdx||0);
+    }
+    var wrap=document.getElementById('ssPvSheetWrap'); if(wrap) wrap.style.display = names.length>1 ? '' : 'none';
+    var fe=document.getElementById('ssPvFile'); if(fe) fe.textContent=f.name;
+    ssPvRender();      // 여기서 ssPvCur 가 이 파일 것으로 채워진다
+    ssPvScan(f);       // 목록 표에 쓸 값(출고장·납품일자·행수) + 걸러내기 적용
+    ssPvAutoFilters(); // 날짜 기준 [가져올 범위] 자동배정 (이른 날짜=제외 / 늦은 날짜=김해·제주만)
+    ssPvShpDtAuto();   // 담은 파일 전체 기준으로 출고일자 자동값 다시 계산('김해·제주만' 파일은 제외)
+    ssPvListRender();
+  }
+  /* 시트를 바꾸면 그 파일의 시트번호를 기억한다 — 파일을 오가도 고른 시트가 유지되게 */
+  function ssPvSheetChg(){
+    var f=ssPvList[ssPvIdx];
+    if(f) f.sheetIdx=+((document.getElementById('ssPvSheet')||{}).value||0);
+    ssPvRender();
+    if(f){ ssPvScan(f); ssPvListRender(); }
+  }
+  /* ── 파일별 <김해·제주> 걸러내기 (2026-08-28 요청) ──────────────────────────────
+       왜 : 김해·제주는 앞당겨 출고한다. 그래서 자료가 이렇게 나뉘어 온다 —
+              · 01-01 자료에서 <김해·제주 제외>
+              · 01-02 자료에서 <김해·제주만>      → 둘 다 출고일자는 01-01 하나로 저장
+       판정 : 출고장 이름(코네트 양식 = 물류센터명 + 입고장)에 '김해' 또는 '제주' 가 들어가는가.
+       ★서버로 보내는 원본행도 같은 기준으로 거른다(ssSaveShipoutToDB) — 화면만 걸러지면
+         DB 에는 뺀 자료가 그대로 들어간다. */
+  function ssPvIsKJ(z){ return /김해|제주/.test(''+(z||'')); }
+  var SS_PV_FILT={ '':'전체', 'ex':'김해·제주 제외', 'only':'김해·제주만' };
+  function ssPvApplyFilter(f){
+    var all=f.allRows||[];
+    f.rows = !f.filter ? all.slice()
+           : all.filter(function(r){ var kj=ssPvIsKJ(r.zone); return f.filter==='only' ? kj : !kj; });
+    var zs={}, ds={};
+    f.rows.forEach(function(r){ if(r.zone) zs[r.zone]=1; if(r.date) ds[r.date]=1; });
+    f.zones=Object.keys(zs); f.dates=Object.keys(ds).sort();
+    f.bad = (f.cur && f.cur.map)
+          ? (f.rows.length ? '' : (f.filter ? '걸러낸 결과 0행' : '데이터 행 없음'))
+          : '형식이 맞지 않음';
+  }
+  /* ── 체크 선택 (2026-08-28 요청 「하단에 체크기능」) ── 체크한 파일만 골라 일괄 처리 */
+  function ssPvChk(i, el){ if(ssPvList[i]) ssPvList[i].chk=!!el.checked; ssPvListRender(); }
+  function ssPvChkAll(el){ var on=!!el.checked; ssPvList.forEach(function(f){ f.chk=on; }); ssPvListRender(); }
+  function ssPvFilterSel(v){
+    if(v==='__') return;                                   // 콤보의 안내 항목
+    var n=0;
+    ssPvList.forEach(function(f){ if(f.chk){ f.filter=v||''; f.filterAuto=false; ssPvApplyFilter(f); n++; } });
+    if(!n){ ssToast('⚠️ 먼저 왼쪽 <b>체크칸</b>으로 파일을 고르세요.'); ssPvListRender(); return; }
+    ssPvShpDtAuto(); ssPvListRender();
+    if(typeof ssBackMsgUpd==='function') ssBackMsgUpd();
+  }
+  function ssPvDropSel(){
+    var keep=ssPvList.filter(function(f){ return !f.chk; });
+    if(keep.length===ssPvList.length){ ssToast('⚠️ 먼저 왼쪽 <b>체크칸</b>으로 파일을 고르세요.'); return; }
+    ssPvList=keep;
+    if(!ssPvList.length){ ssPvSkipAutoPick=true; ssPvReset(); return; }
+    ssPvIdx=Math.max(0, Math.min(ssPvIdx, ssPvList.length-1));
+    ssPvAutoFilters(); ssPvShpDtAuto();
+    ssPvSelect(ssPvIdx);
+  }
+  /* 담은 파일 <전부>의 [가져올 범위]를 한 번에 바꾼다 (2026-08-28 요청) —
+     파일이 많을 때 하나씩 콤보를 고치는 것은 현실적이지 않다. */
+  function ssPvFilterAll(v){
+    ssPvList.forEach(function(f){ f.filter=v||''; f.filterAuto=false; ssPvApplyFilter(f); });
+    ssPvShpDtAuto(); ssPvListRender();
+    if(typeof ssBackMsgUpd==='function') ssBackMsgUpd();
+  }
+  /* 손으로 고친 것을 버리고 자동배정 규칙(이른 날짜=제외 / 늦은 날짜=김해·제주만)을 다시 적용 */
+  function ssPvFilterAuto(){
+    ssPvList.forEach(function(f){ f.filterAuto=true; });
+    ssPvAutoFilters(); ssPvShpDtAuto(); ssPvListRender();
+    if(typeof ssBackMsgUpd==='function') ssBackMsgUpd();
+  }
+  function ssPvSetFilter(i, v){
+    var f=ssPvList[i]; if(!f) return;
+    f.filter=v||'';
+    f.filterAuto=false;          // 손으로 고른 뒤에는 자동배정이 덮지 않는다
+    ssPvApplyFilter(f);
+    ssPvShpDtAuto();      // 걸러내면 날짜 구성이 바뀐다 — 손대지 않은 출고일자는 다시 잡는다
+    ssPvListRender();
+    if(typeof ssBackMsgUpd==='function') ssBackMsgUpd();
+  }
+  /* ── 파일별 납품일자 모드 (2026-08-28 요청 「출고일자 하나인데 엑셀 각각 납품일자로 하는 기능」) ──
+       끄면(기본) : 담은 파일 전부가 아래 출고일자 <하나>로 저장된다 — 김해·제주 조기출고 짝맞춤용.
+       켜면       : 출고일자 칸을 쓰지 않고 <행마다 그 엑셀의 납품일자>가 출고일자가 된다 —
+                    한 달치처럼 날짜가 여러 개인 파일을 한꺼번에 올릴 때. */
+  function ssPvPerFileOn(){ var e=document.getElementById('ssPvPerFile'); return !!(e && e.checked); }
+  /* ★납품일자가 <3개 이상>이면 「파일별 납품일자로」를 써야 할 상황이다 (2026-08-28 요청).
+       한 날짜로 통일해 버리면 여러 날 자료가 전부 같은 날 출고로 들어간다 — 되돌리기 번거롭다.
+       그래서 그 체크박스를 노랗게 깜박여(.ss-blink) 먼저 눈에 띄게 한다. 체크하면 바로 멈춘다.
+       ※2개까지는 「그날 자료 + 김해·제주 조기출고분」 짝일 수 있어 알리지 않는다. */
+  function ssPvDateCnt(){
+    var s={}; ssPvList.forEach(function(f){ (f.allDates||[]).forEach(function(d){ if(d) s[d]=1; }); });
+    return Object.keys(s).length;
+  }
+  /* ★납품일자가 3개 이상이면 <자동으로 켠다> (2026-08-28 「3일 이상 틀릴 경우만 파일별 납품일자 체크로」).
+       한 날짜로 통일하면 여러 날 자료가 전부 같은 날 출고로 들어가는데, 되돌리려면 다시 올려야 한다.
+       ⚠사용자가 그 칸을 한 번이라도 직접 만지면(ssPvPerFileAuto=false) 그 뒤로는 자동으로 건드리지 않는다.
+         3개 이상인데 사용자가 일부러 껐다면 노랗게 깜박여 알리기만 한다. */
+  var ssPvPerFileAuto=true;
+  function ssPvPerFileAutoSet(){
+    if(!ssPvPerFileAuto) return;
+    var c=document.getElementById('ssPvPerFile'); if(!c) return;
+    var need=(ssPvDateCnt()>=3);
+    if(c.checked!==need){ c.checked=need; ssPvPerFileSync(); }
+  }
+  function ssPvPerFileHint(){
+    var wrap=document.getElementById('ssPvPerFileWrap'); if(!wrap) return;
+    var n=ssPvDateCnt(), on=ssPvPerFileOn();
+    var warn = (n>=3 && !on);      // 3개 이상인데 꺼져 있다 = 사용자가 일부러 끈 것 → 깜박여 알린다
+    var info = (n>=3 && on);       // 켜져 있다 = 정상 → 조용히 알려만 준다
+    wrap.classList.toggle('ss-blink', warn);
+    wrap.style.background   = warn ? '#fff4d6' : (info ? '#eaf5f3' : '');
+    wrap.style.border       = warn ? '1px solid #e8c56a' : (info ? '1px solid #b9e6dd' : '');
+    wrap.style.borderRadius = (warn||info) ? '6px' : '';
+    wrap.style.padding      = (warn||info) ? '3px 8px' : '';
+    wrap.style.color        = warn ? '#8a6414' : (info ? '#137a6c' : '');
+    var t=document.getElementById('ssPvPerFileTip');
+    if(t){
+      t.style.display = (warn||info) ? '' : 'none';
+      t.style.color   = warn ? '#8a6414' : '#137a6c';
+      t.innerHTML = warn ? ('납품일자 <b>'+n+'개</b> — 켜세요')
+                         : ('납품일자 <b>'+n+'개</b> — 자동으로 켰습니다');
+    }
+  }
+  /* 칸의 <겉모습·연동>만 맞춘다 — 사용자가 직접 만졌는지 여부는 건드리지 않는다 */
+  function ssPvPerFileSync(){
+    var on=ssPvPerFileOn(), d=document.getElementById('ssPvShpoutDt');
+    if(d){ d.disabled=on; d.style.opacity = on ? '.4' : ''; d.title = on
+      ? '「파일별 납품일자로」 를 켜 두어 이 칸은 쓰지 않습니다 — 행마다 그 엑셀의 납품일자로 저장됩니다.'
+      : '엑셀의 납기일자가 그대로 들어옵니다 — 수정 가능.\n출고장(김해·제주 포함) 구분 없이 이 날짜로 전체 행이 저장되고 조회됩니다'; }
+    ssPvPerFileHint();      // 켜면 깜박임이 바로 멈춘다
+    if(typeof ssBackMsgUpd==='function') ssBackMsgUpd();
+  }
+  /* 체크칸을 <사용자가> 눌렀을 때만 여기로 온다 — 그 뒤로는 자동 켜기/끄기를 하지 않는다.
+     (코드로 c.checked 를 바꿔도 change 는 안 뜨므로 자동 설정은 여기 안 걸린다) */
+  function ssPvPerFileChg(){ ssPvPerFileAuto=false; ssPvPerFileSync(); }
+  /* 출고일자 자동값 = 담은 파일 <전체>의 납품일자 중 <가장 이른 날> (2026-08-28 지시 「작은 납입일자 기준으로」).
+       왜 : 김해·제주는 앞당겨 출고한다 — 늦은 날짜(다음날) 자료가 섞여 있어도 실제 출고일은 그 이른 날이다.
+            늦은 날을 쓰면 출고일자가 하루 밀린다(실제 사례: 01-01 자료 + 01-02 김해자료 → 01-02 로 잡혔다).
+       ★걸러내기 <전> 날짜(allDates)로 본다 — [가져올 범위]를 바꿔도 출고일자가 흔들리지 않게.
+       ★사용자가 한 번 고치면(data-touched) 그 뒤로는 건드리지 않는다(해제는 [비우기]에서만). */
+  function ssPvShpDtAuto(extraRows){
+    var el=document.getElementById('ssPvShpoutDt'); if(!el) return;
+    if(el.getAttribute('data-touched')==='1') return;
+    var ds=[];
+    ssPvList.forEach(function(f){ (f.allDates||[]).forEach(function(d){ if(d) ds.push(d); }); });
+    if(!ds.length && extraRows) extraRows.forEach(function(r){ if(r.date) ds.push(r.date); });
+    ds.sort();
+    el.value = ds.length ? ds[0] : SS_TODAY;
+  }
+  /* 파일 하나의 요약 — ssPvRender 바로 뒤에 부른다(그때 ssPvCur 가 이 파일 것) */
+  function ssPvScan(f){
+    f.cur=ssPvCur;
+    f.allRows = (ssPvCur && ssPvCur.map) ? ssExtractRows(ssPvCur.aoa, ssPvCur.map) : [];
+    var _ds={}; f.allRows.forEach(function(r){ if(r.date) _ds[r.date]=1; });
+    f.allDates = Object.keys(_ds).sort();     // 걸러내기 <전> 날짜 — 아래 자동배정의 기준
+    if(f.filter==null) f.filter='';
+    ssPvApplyFilter(f);
+  }
+  /* ── [가져올 범위] 자동 배정 (2026-08-28 요청 「작은 일자 = 김해·제주 제외 / 큰 일자 = 김해·제주만」) ──
+       왜 : 김해·제주는 앞당겨 출고한다. 그래서 자료가 늘 이렇게 짝을 이룬다 —
+              · 납품일자가 <이른> 파일 = 그날 출고분      → 김해·제주 제외
+              · 납품일자가 <늦은> 파일 = 조기출고분(김해·제주) → 김해·제주만
+       ★손으로 고른 파일(filterAuto=false)은 건드리지 않는다.
+       ★<걸러낼 것이 없는 파일은 무조건 '전체'> (2026-08-28 추가지시) —
+           · 파일 안에 김해·제주가 <하나도 없다>  → 뺄 게 없다
+           · 파일 안이 <김해·제주뿐이다>          → 그 파일이 곧 조기출고분이라 그대로 다 쓴다
+         섞여 있는 파일에서만 날짜로 어느 쪽을 뽑을지 정한다. 이렇게 두면
+         「01-01 섞임 + 01-02 김해만」 인 흔한 조합에서 01-02 파일은 손대지 않아 안전하다.
+       ★날짜가 모두 같거나 파일이 하나면 배정하지 않는다 — 전부 '제외' 로 잡으면 김해·제주가 통째로 빠진다. */
+  function ssPvAutoFilters(){
+    if(!ssPvList.length) return;
+    var ds=ssPvList.map(function(f){ return (f.allDates&&f.allDates[0])||''; }).filter(Boolean).sort();
+    var minD=ds.length?ds[0]:'', maxD=ds.length?ds[ds.length-1]:'';
+    /* ★자동배정은 <파일 2개>일 때만 한다 (2026-08-28 — 27개를 한 번에 담았더니 사고가 났다).
+         이 규칙은 「그날 자료 + 김해·제주 조기출고분」 이라는 <두 장 한 쌍>을 전제로 만든 것이다.
+         한 달치를 통째로 담으면 가장 이른 날짜 하나만 '제외', 나머지 26개가 전부 '김해·제주만' 이 되어
+         수백 행이 조용히 빠진다. 3개 이상이면 손대지 않고 전부 '전체' 로 둔다. */
+    var mixed = ssPvList.length===2 && minD && maxD && minD!==maxD;   // 두 장이고 날짜가 서로 다르다
+    ssPvList.forEach(function(f){
+      if(f.filterAuto===false) return;                              // 사용자가 직접 고른 것은 유지
+      var zs=(f.allRows||[]).map(function(r){ return r.zone; }).filter(Boolean);
+      var nKJ=zs.filter(ssPvIsKJ).length;
+      var isMix = zs.length>0 && nKJ>0 && nKJ<zs.length;             // 김해·제주 + 그 밖이 함께 있는 파일
+      var d=(f.allDates&&f.allDates[0])||'';
+      f.filter = (isMix && mixed && d) ? ((d===minD) ? 'ex' : 'only') : '';
+      f.filterAuto=true;
+      ssPvApplyFilter(f);
+    });
+  }
+  function ssPvDrop(i){
+    if(i<0 || i>=ssPvList.length) return;
+    ssPvList.splice(i,1);
+    if(!ssPvList.length){ ssPvSkipAutoPick=true; ssPvReset(); return; }
+    /* 한 개가 빠지면 날짜 구성이 달라진다 — 자동배정을 다시 돌린다(손으로 고른 파일은 그대로) */
+    ssPvAutoFilters(); ssPvShpDtAuto();
+    ssPvSelect(Math.min(i, ssPvList.length-1));
+  }
+  /* 담은 파일 목록 표 — 정산 엑셀 저장(slsRender)과 같은 모양 */
+  function ssPvListRender(){
+    var box=document.getElementById('ssPvFiles'); if(!box) return;
+    if(!ssPvList.length){ box.style.display='none'; box.innerHTML=''; return; }
+    box.style.display='';
+    /* 같은 출고장이 두 파일에 있으면 뒤 파일이 앞 파일을 <대체>한다(배치키 = 납품일자+출고장) → 미리 알린다 */
+    var seen={}, dup={}, tR=0, zAll={};
+    ssPvList.forEach(function(f){
+      tR+=f.rows.length;
+      f.zones.forEach(function(z){ if(seen[z]) dup[z]=1; seen[z]=1; zAll[z]=1; });
+    });
+    var dupList=Object.keys(dup);
+    var h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:12.5px;color:#37475a">'
+        + '<b>📄 담은 파일 '+ssPvList.length+'개</b> · 행 <b>'+tR.toLocaleString()+'</b> · 출고장 <b>'+Object.keys(zAll).length+'</b>곳'
+        + '<span style="flex:1"></span>'
+        + '<button class="btn-line" style="padding:2px 9px;font-size:11.5px" onclick="ssPvFilterAll(\'\')" title="담은 파일 전부의 [가져올 범위]를 <전체>로 되돌립니다 — 아무것도 걸러내지 않습니다">↺ 범위 모두 전체</button>'
+        + '<button class="btn-line" style="padding:2px 9px;font-size:11.5px" onclick="ssPvFilterAuto()" title="날짜 기준 자동배정을 다시 적용합니다 (파일이 정확히 2개일 때만 동작 — 이른 날짜=김해·제주 제외 / 늦은 날짜=김해·제주만)">⚙ 자동 다시</button>'
+        + '<button class="btn-line" style="padding:2px 9px;font-size:11.5px" onclick="document.getElementById(\'ssFile\').click()" title="엑셀을 더 담습니다(여러 개 한꺼번에 고를 수 있습니다)">📁 파일 추가</button>'
+        + '<button class="btn-line" style="padding:2px 9px;font-size:11.5px" onclick="ssPvResetAsk()">🧹 비우기</button>'
+        + '</div>';
+    if(dupList.length){
+      h+='<div style="margin-bottom:5px;padding:6px 9px;border:1px solid #f0c9c2;background:#fdf3f1;border-radius:6px;font-size:12px;color:#c0392b">'
+       /* 겹친 출고장이 스물 곳씩 나오면 경고만 세 줄이 되어 정작 목록이 밀린다 — 여섯 곳까지만 적는다 */
+       + '⚠️ 같은 출고장이 여러 파일에 있습니다 — <b>'
+       + dupList.slice(0,6).map(ssEscHtml).join(', ') + (dupList.length>6 ? (' 외 '+(dupList.length-6)+'곳') : '')
+       + '</b>. 그대로 작성하면 <b>뒤에 담은 파일</b>이 앞 파일을 대체합니다.'
+       + '<br><span style="color:#8a6414">김해·제주가 겹친 것이라면 한쪽을 <b>김해·제주 제외</b>, 다른 쪽을 <b>김해·제주만</b> 으로 지정하세요.</span></div>';
+    }
+    /* ★목록은 <다섯 줄까지만> 보이고 나머지는 스크롤 (2026-08-28 요청) —
+         한 달치(27개)를 담으면 목록이 모달을 통째로 차지해 <아래 엑셀 미리보기가 안 보였다>.
+         머리줄은 sticky 로 붙여 스크롤해도 어떤 칸인지 알 수 있게 한다. */
+    /* 195px = 머리줄 30 + 한 줄 33 × 5 — 다섯 줄이 보이고 여섯째 줄이 살짝 걸쳐 '더 있다'가 읽힌다 */
+    h+='<div style="max-height:195px;overflow-y:auto;border:1px solid #e2ebe8;border-radius:7px;margin-bottom:8px">'
+     + '<table class="logi-tb" style="width:100%;font-size:12px;margin:0"><thead style="position:sticky;top:0;z-index:2"><tr>'
+     + '<th style="width:30px" onclick="event.stopPropagation()"><input type="checkbox" onclick="ssPvChkAll(this)"'
+     + (ssPvList.length && ssPvList.every(function(f){ return f.chk; }) ? ' checked' : '')
+     + ' title="담은 파일 전부 선택/해제"></th>'
+     + '<th style="text-align:left">파일명</th><th>가져올 범위</th><th style="text-align:left">출고장</th><th>납품일자</th>'
+     + '<th style="text-align:right">행</th><th>상태</th><th></th></tr></thead><tbody>';
+    ssPvList.forEach(function(f,i){
+      var zl=f.zones.length ? (f.zones.slice(0,3).map(ssEscHtml).join(', ')+(f.zones.length>3?(' 외 '+(f.zones.length-3)+'곳'):''))
+                            : '<span style="color:#c0392b">없음</span>';
+      var dl=f.dates.length ? (f.dates[0]+(f.dates.length>1?(' 외 '+(f.dates.length-1)+'일'):''))
+                            : '<span style="color:#c0392b">없음</span>';
+      var st=f.bad ? '<span style="color:#c0392b">⚠ '+ssEscHtml(f.bad)+'</span>' : '<span style="color:#137a6c">정상</span>';
+      var nCut=(f.allRows||[]).length - f.rows.length;
+      /* 가져올 범위 — 김해·제주는 앞당겨 출고해 <다음날 자료에서 김해·제주만> 가져오는 날이 있다 */
+      var sel='<select onchange="ssPvSetFilter('+i+',this.value)" style="height:24px;font-size:11.5px;border:1px solid #cfd9e2;border-radius:5px;padding:0 4px"'
+            + ' title="이 파일에서 어느 출고장을 가져올지 고릅니다.&#10;김해·제주는 앞당겨 출고하는 경우가 있어, 다음날 자료에서 김해·제주만 따로 가져올 때 씁니다.">'
+            + ['','ex','only'].map(function(v){ return '<option value="'+v+'"'+((f.filter||'')===v?' selected':'')+'>'+SS_PV_FILT[v]+'</option>'; }).join('')
+            + '</select>' + (nCut>0 ? ('<div style="font-size:10.5px;color:#9aa7b3;margin-top:1px">'+nCut.toLocaleString()+'행 뺌</div>') : '');
+      /* 줄 아무 데나 눌러도 그 파일이 미리보기에 뜬다 (2026-08-28 요청) — 단 [가져올 범위]·[제거] 칸은 제외 */
+      h+='<tr'+(i===ssPvIdx?' style="background:#eaf5f3"':'')+' style="cursor:pointer" onclick="ssPvSelect('+i+')" title="이 줄을 누르면 아래 미리보기에 이 파일이 표시됩니다">'
+       + '<td onclick="event.stopPropagation()"><input type="checkbox" onclick="ssPvChk('+i+',this)"'+(f.chk?' checked':'')+'></td>'
+       + '<td style="text-align:left"><span style="color:#137a6c;font-weight:700">'+(i===ssPvIdx?'▶ ':'')+ssEscHtml(f.name)+'</span></td>'
+       + '<td onclick="event.stopPropagation()">'+sel+'</td>'
+       + '<td style="text-align:left">'+zl+'</td><td>'+dl+'</td>'
+       + '<td style="text-align:right">'+f.rows.length.toLocaleString()+'</td><td>'+st+'</td>'
+       + '<td onclick="event.stopPropagation()"><button class="btn-line" style="padding:1px 8px;font-size:11px" onclick="ssPvDrop('+i+')" title="이 파일만 목록에서 뺍니다">제거</button></td></tr>';
+    });
+    /* 아래 조작줄 — 체크한 파일만 골라 한꺼번에 처리한다 (2026-08-28 요청 「하단에 체크기능」).
+       파일이 스무 개 넘어가면 콤보를 하나씩 고치는 것은 사실상 불가능하다. */
+    var _nSel=ssPvList.filter(function(f){ return f.chk; }).length;
+    h+='</tbody></table></div>'
+     + '<div style="display:flex;align-items:center;gap:6px;margin:-4px 0 8px;padding:6px 8px;background:#f4f8f7;border:1px solid #e2ebe8;border-radius:7px;font-size:12px;color:#37475a">'
+     + '<b>선택 '+_nSel+'개</b>'
+     + '<span style="color:#9aa7b3">— 체크한 파일만</span>'
+     + '<select onchange="ssPvFilterSel(this.value); this.selectedIndex=0" style="height:24px;font-size:11.5px;border:1px solid #cfd9e2;border-radius:5px;padding:0 4px" title="체크한 파일의 [가져올 범위]를 한꺼번에 바꿉니다">'
+     + '<option value="__">가져올 범위 일괄…</option><option value="">전체</option><option value="ex">김해·제주 제외</option><option value="only">김해·제주만</option></select>'
+     + '<button class="btn-line" style="padding:2px 9px;font-size:11.5px;color:#c0392b;border-color:#e6c3bd" onclick="ssPvDropSel()" title="체크한 파일을 목록에서 뺍니다">선택 제거</button>'
+     + '</div>';
+    box.innerHTML=h;
+    ssPvPerFileAutoSet();   // 납품일자 3개 이상이면 「파일별 납품일자로」를 자동으로 켠다
+    ssPvPerFileHint();      // 파일이 늘거나 줄면 납품일자 개수도 바뀐다 — 알림을 함께 갱신
+  }
   function ssPvReset(){
+    ssPvList=[]; ssPvIdx=-1;
+    /* 골라 둔 파일 이름도 비운다 — 안 비우면 <방금 그 파일>을 다시 골라도 change 가 안 떠서
+       「초기화 뒤 첫 선택이 안 먹는다」가 된다(2026-08-28). 입력칸의 onclick 과 이중으로 막는다. */
+    var _fi=document.getElementById('ssFile'); if(_fi) _fi.value='';
+    /* 「파일별 납품일자로」도 처음 상태로 — 다음에 담는 파일 기준으로 다시 자동판정한다 */
+    ssPvPerFileAuto=true;
+    var _pf=document.getElementById('ssPvPerFile'); if(_pf) _pf.checked=false;
+    if(typeof ssPvPerFileSync==='function') ssPvPerFileSync();
+    var _fl=document.getElementById('ssPvFiles'); if(_fl){ _fl.innerHTML=''; _fl.style.display='none'; }
     ssPvWb=null; ssPvName=''; ssPvCur=null; ssPvBadFile=null;
     ssXrefUnmap=[]; ssXrefLinked=[]; ssXrefSeen=0; ssXrefBadSet={}; ssXrefPendClear();
     _sxLastNew=-1;
@@ -1601,16 +1994,19 @@ var KONET_CTX = window.KONET_CTX || '';
   function ssPvHintInfo(){
     var _i=document.getElementById('ssPvInfo'); if(!_i) return;
     _i.className='ss-pvinfo';
-    _i.innerHTML='📂 왼쪽 <b>업로드 파일</b> 목록에서 파일을 누르면 내용이 여기 표시됩니다. '
-      +'<span style="color:#6b7a89">폴더를 아직 지정하지 않았다면 위쪽 <b>📂 폴더 지정</b>, 폴더 밖 파일이면 <b>📄 파일 선택</b>. 자세한 설명은 <b>ℹ️ 도움말</b>.</span>';
+    _i.innerHTML='📄 위쪽 <b>파일 선택</b> 으로 발주현황표 엑셀을 여세요 — <b>여러 개를 한꺼번에</b> 고를 수 있습니다. '
+      +'<span style="color:#6b7a89">고른 파일은 <b>담은 파일</b> 목록에 쌓이고, 줄을 누르면 그 파일 내용이 여기 표시됩니다. '
+      +'김해·제주를 따로 올리는 날은 목록의 <b>가져올 범위</b> 에서 지정하세요. 자세한 설명은 <b>ℹ️ 도움말</b>.</span>';
   }
   /* ★[초기화] — 사용자가 직접 내린다 (2026-08-01 요청).
        [작성] 하지 않고 닫으면 그 파일은 일부러 남겨 둔다(이어서 보려던 경우). 그래서 지우는 길이
        따로 있어야 한다. 연결 '예정' 이 있으면 그것도 함께 사라지므로 먼저 묻는다. */
   function ssPvResetAsk(){
-    if(!ssPvWb) return;
+    if(!ssPvWb && !ssPvList.length) return;
     var nP=Object.keys(ssXrefPend).length;
-    ssConfirm('올려 둔 <b>'+ssEscHtml(ssPvName)+'</b> 를 화면에서 내릴까요?'
+    var _what = ssPvList.length>1 ? ('담은 파일 <b>'+ssPvList.length+'개</b>')
+                                  : ('<b>'+ssEscHtml(ssPvName)+'</b>');
+    ssConfirm('올려 둔 '+_what+' 를 화면에서 내릴까요?'
       + '<div style="margin-top:6px;font-size:12.5px;color:#5a6b7a">서버에 저장된 자료는 그대로입니다 — 이 미리보기 화면만 비웁니다.'
       + (nP ? '<br><b style="color:#c0392b">아직 저장하지 않은 연결 '+nP+'건도 함께 사라집니다.</b>' : '')
       + '</div>',
@@ -1624,8 +2020,16 @@ var KONET_CTX = window.KONET_CTX || '';
     var ov=document.getElementById('ssPvOverlay'); if(!ov) return;
     var wasOpen=ov.classList.contains('on');
     ov.classList.toggle('on', !!show);
-    /* 닫으면(취소·✕) 연결 '예정' 은 버린다 — 저장하지 않고 나갔으니 아무것도 남으면 안 된다 */
-    if(!show){ ssXrefPendClear(); ssXrefPopClose(); }
+    /* 닫으면(취소·✕) 연결 '예정' 은 버린다 — 저장하지 않고 나갔으니 아무것도 남으면 안 된다.
+       ★2026-08-28 요청 「생성 안 하고 나가도 초기화 되게」 — 담은 파일 목록도 함께 비운다.
+         [작성] 을 누르지 않고 닫은 것은 <그만두겠다>는 뜻이다. 남겨 두면 다음에 열 때
+         지난 파일이 그대로 있어, 새로 담은 것과 섞인 채로 반영될 위험이 있다.
+         ⚠[작성] 경로(ssDoApply)도 이 함수로 닫는다 — 그래서 저장에 쓸 값은 <닫기 전에> 챙겨 둔다.
+         ※[이력] 종전(2026-08-01)에는 '이어서 보려던 경우'를 위해 일부러 남겼다. 이번 지시로 뒤집는다. */
+    if(!show){
+      ssXrefPendClear(); ssXrefPopClose();
+      if(ssPvList.length){ ssPvSkipAutoPick=true; ssPvReset(); }
+    }
     if(show && !wasOpen){
       // 아직 아무 파일도 안 읽은 상태로 열릴 수 있다(버튼이 곧바로 이 모달을 연다) → 우측 빈칸 대신 안내
       if(!ssPvWb){
@@ -1640,9 +2044,16 @@ var KONET_CTX = window.KONET_CTX || '';
       try{ ssPvHelp(localStorage.getItem('ssPvHelpOpen')==='1'); }catch(e){ ssPvHelp(false); }   // 도움말은 기본 접힘(지난번 펼쳐 뒀으면 그대로)
       /* ★[작성] 직후·[초기화] 직후 한 번은 자동선택을 건너뛴다 — 안 그러면 방금 내린 그 파일이
            폴더에서 '최신' 이라 다시 열자마자 그대로 불려 와, 비워 둔 뜻이 없어진다(2026-08-01 요청). */
-      ssAutoPick = !ssPvSkipAutoPick; ssPvSkipAutoPick=false;
-      ssHistRefresh();                    // 열 때만 폴더 목록 로드(파일 클릭마다 재스캔 방지)
-      ssUpHistLoad();                     // 좌측 하단 업로드 이력(오늘·3일)도 열 때 1회 갱신
+      /* 좌측 패널(폴더의 엑셀·오늘 올린 이력)은 2026-08-28 요청으로 감췄다 —
+         감춰 둔 동안은 폴더 스캔·이력 조회를 하지 않는다(보이지도 않는 것을 위해 서버를 부르지 않는다).
+         되살리려면 JSP 의 #ssPvSide 에서 display:none 만 빼면 이 아래도 다시 돈다. */
+      var _sideEl=document.getElementById('ssPvSide');
+      var _sideOn=!!_sideEl && _sideEl.style.display!=='none';
+      ssAutoPick = _sideOn && !ssPvSkipAutoPick; ssPvSkipAutoPick=false;
+      if(_sideOn){
+        ssHistRefresh();                  // 열 때만 폴더 목록 로드(파일 클릭마다 재스캔 방지)
+        ssUpHistLoad();                   // 좌측 하단 업로드 이력(오늘·3일)도 열 때 1회 갱신
+      }
       /* 해석 가능한 코드 집합(XREF ∪ 우리 품목코드) — 모달 열 때 1회.
          늦게 도착해도 되도록 도착 시 미리보기를 한 번 다시 그린다(파일이 이미 골라져 있으면). */
       ssXrefLoad(function(){ ssXrefRefresh(); });
@@ -2441,11 +2852,12 @@ var KONET_CTX = window.KONET_CTX || '';
       //  ★출고장(김해·제주 포함) 구분 없이 같은 값. 여러 날짜가 섞여 있으면 가장 늦은 날짜.
       var shpEl=document.getElementById('ssPvShpoutDt');
       if(shpEl){
-        if(shpEl.getAttribute('data-file')!==ssPvName){ shpEl.removeAttribute('data-touched'); shpEl.setAttribute('data-file', ssPvName||''); }
-        if(shpEl.getAttribute('data-touched')!=='1'){
-          var _ds=_exRows.map(function(r){ return r.date; }).filter(Boolean).sort();
-          shpEl.value = _ds.length ? _ds[_ds.length-1] : SS_TODAY;
-        }
+        /* ★출고일자는 <담은 파일 전체에 하나>다 (2026-08-28 요청 「출고일자는 하나로」).
+             · 파일을 바꿔 보거나 더 담아도 값이 흔들리지 않게, 담은 파일 <전부>의 납기일자 중 가장 늦은 날로 잡는다.
+             · 사용자가 한 번 고치면(data-touched) 그 뒤로는 건드리지 않는다 — 해제는 [비우기](ssPvReset)에서만.
+           ※종전에는 파일이 바뀔 때마다 data-touched 를 풀고 그 파일 날짜로 덮었다 —
+             파일 두 개를 담으면 고쳐 둔 출고일자가 조용히 되돌아간다. */
+        ssPvShpDtAuto(_exRows);
       }
       info.className='ss-pvinfo';
       if(m.fmt==='konet'){
@@ -2687,11 +3099,29 @@ var KONET_CTX = window.KONET_CTX || '';
   // 작성(반영): 확인 메시지 후 실행
   function ssPvApply(){
     // 파일을 아직 안 고른 채로 열릴 수 있다(버튼이 곧바로 모달을 연다) → '형식 오류'와 구분해서 안내
-    if(!ssPvWb){ ssToast('⚠️ 먼저 왼쪽 목록에서 파일을 고르거나 <b>📄 파일 선택</b>으로 엑셀을 여세요.'); return; }
-    if(!ssPvCur || !ssPvCur.map){ ssToast('⚠️ 형식이 맞지 않는 자료입니다 — 발주현황표(출고) 양식이 아니라 서버(TBL_SHIPOUT_MST)에 반영할 수 없습니다.'); return; }
-    var rows=ssExtractRows(ssPvCur.aoa, ssPvCur.map);
+    if(!ssPvList.length){ ssToast('⚠️ 먼저 <b>📄 파일 선택</b> 으로 발주현황표 엑셀을 여세요(여러 개 가능).'); return; }
+    /* 담은 파일 중 하나라도 양식이 안 맞거나 비었으면 막는다 — 반쪽만 반영되면 더 헷갈린다.
+       그 파일만 [제거]하고 나머지로 진행할 수 있다. */
+    var _badF=ssPvList.filter(function(f){ return !!f.bad; });
+    if(_badF.length){
+      ssToast('⚠️ 담은 파일 중 반영할 수 없는 것이 있습니다 — <b>'
+        + _badF.map(function(f){ return ssEscHtml(f.name)+'('+f.bad+')'; }).join(', ')
+        + '</b><br>그 파일을 [제거]하거나 시트를 바꿔 주세요.');
+      return;
+    }
+    /* 담은 파일 전부의 행을 합쳐 한 번에 반영한다(출고일자는 아래 한 칸으로 공통) */
+    var rows=[]; ssPvList.forEach(function(f){ rows=rows.concat(f.rows); });
     if(!rows.length){ ssToast('⚠️ 데이터 행이 없습니다.'); return; }
     var sheetNm=ssPvWb.SheetNames[+(document.getElementById('ssPvSheet').value||0)];
+    /* 파일이 많으면(한 달치 27개) 이름만으로 확인창이 꽉 차 정작 <반영 단추>가 안 보인다
+       → 다섯 줄까지만 보이고 나머지는 스크롤 (2026-08-28 요청) */
+    var _fLab = ssPvList.length>1
+        ? ('파일 <b>'+ssPvList.length+'개</b>'
+           /* 107px = 위아래 안쪽여백 12 + 한 줄 19 × 5 — 딱 다섯 줄이 보인다 */
+           + '<div style="font-size:12.5px;color:#5a6b7a;margin-top:4px;max-height:107px;overflow-y:auto;'
+           + 'border:1px solid #e6ecf0;border-radius:6px;padding:6px 9px;text-align:left;line-height:1.55">'
+           + ssPvList.map(function(f){ return ssEscHtml(f.name)+' <span style="color:#9aa7b3">('+f.rows.length.toLocaleString()+'행)</span>'; }).join('<br>')+'</div>')
+        : ('파일 <b>'+ssEscHtml(ssPvName)+'</b> · 시트 "<b>'+ssEscHtml(sheetNm)+'</b>"');
     var _upZ={}; rows.forEach(function(r){ if(r.zone) _upZ[r.zone]=1; }); var _zc=Object.keys(_upZ).length;
     // 출고일자 — 비어있으면 막는다(반영 확인창 하단에 이 값을 함께 표시)
     //  ★출고장 구분 없이 이 날짜 하나로 전 행이 저장된다(기본값 = 엑셀 납기일자, 여기서 수정 가능).
@@ -2704,16 +3134,39 @@ var KONET_CTX = window.KONET_CTX || '';
     // 반영 확인(단일) — 예전 1단계 '출고일자' 별도 창은 제거하고, 이 창 하단에 출고일자를 명시(2026-07-24 요청)
     //  ※ 종전의 "기존 화면 자료를 초기화한 뒤 … 이력으로 남고 새 버전이 활성화" 안내문은 사용자 요청으로 제거(2026-07-31)
     //     — 같은 내용이 도움말 「🔗 데이터 연계」 카드·업무설명서에 있다. 그 자리에 김해·제주 알림을 넣는다.
-    ssConfirm('파일 <b>'+ssPvName+'</b> · 시트 "<b>'+sheetNm+'</b>"<br>발주 <b style="color:#137a6c">'+rows.length+'</b>건 · 출고장 <b style="color:#137a6c">'+_zc+'</b>곳을 반영하시겠습니까?'
+    ssConfirm(_fLab+'<br>발주 <b style="color:#137a6c">'+rows.length+'</b>건 · 출고장 <b style="color:#137a6c">'+_zc+'</b>곳을 반영하시겠습니까?'
       +(_kj ? '<div class="ss-blink" style="margin-top:12px;padding:9px 11px;border:1px solid #f0d9a8;background:#fff9ec;border-radius:6px;'
         /* 글자를 키운다 (2026-08-07 요청, 두 번째로 더) — 놓치면 출고일자가 틀린 채로 반영되는
            안내라 확인창에서 가장 먼저 읽혀야 한다. 12.5 → 17px, 아랫줄 15px. */
         +'font-size:17px;color:#8a6414;font-weight:800;line-height:1.6;text-align:left">⚠️ <b>김해·제주</b> 출고장이 포함되어 있습니다 — <b>출고일자 변경 여부</b>를 확인하세요.'
         +'<br><span style="font-weight:400;font-size:15px">김해·제주는 앞당겨 출고하는 경우가 있습니다. 변경이 필요하면 아래 <b>출고일자</b>를 수정한 뒤 [반영]을 누르세요.</span></div>' : '')
-      +'<div style="text-align:center;margin-top:14px;padding-top:12px;border-top:1px solid #e6ecf0">출고일자 '
-      +'<input type="date" id="ssConfirmShpDt" value="'+_shp+'" oninput="ssConfirmBackUpd()" style="font-size:18px;font-weight:700;color:#137a6c;text-align:center;border:1px solid #cdd7dd;border-radius:6px;padding:4px 8px">'
-      +'<div style="font-size:11.5px;color:#9aa7b3;margin-top:5px">이 날짜로 <b>전 출고장</b>이 저장됩니다(기본값 = 엑셀 납기일자) — 필요하면 여기서 바로 수정하세요</div>'
-      +'<div id="ssConfirmBack"></div></div>',   // 마지막에 올린 자료보다 이전이면 여기 경고가 채워진다(ssConfirmBackUpd)
+      /* ★칸과 안내문이 겹치던 것을 고침 (2026-08-28) —
+           종전에는 <출고일자 + input> 이 한 줄의 <인라인>이었다. input 은 글자 18px+여백이라 약 35px 인데
+           그 줄의 line-height 는 본문(13px) 기준 21px 뿐이라, input 이 줄 밖으로 삐져나와 <아래 안내문 위를 덮었다>.
+           ⇒ 줄을 flex 로 만들어 칸 높이만큼 자리를 차지하게 한다(글자 크기를 줄이지 않아도 안 겹친다). */
+      /* 「파일별 납품일자로」 를 켜 두면 출고일자 칸을 아예 보여 주지 않는다 — 쓰지 않는 값이라 헷갈린다.
+         두 갈래 모두 자기 <div> 를 열고 닫으며 #ssConfirmBack 을 하나만 둔다(ssConfirmBackUpd 가 찾는 자리). */
+      +(ssPvPerFileOn()
+        ? ('<div style="margin-top:14px;padding-top:12px;border-top:1px solid #e6ecf0;text-align:center">'
+           +'<b style="color:#137a6c;font-size:15px">📅 파일별 납품일자로 저장</b>'
+           +'<div style="font-size:11.5px;color:#9aa7b3;margin-top:6px;line-height:1.6">출고일자를 하나로 통일하지 않고, <b>행마다 그 엑셀의 납품일자</b>가 출고일자가 됩니다.'
+           +'<br>담은 파일 날짜 범위 '
+           + (function(){ var d=[]; ssPvList.forEach(function(f){ (f.allDates||[]).forEach(function(x){ if(x) d.push(x); }); }); d.sort();
+                var s={}; d.forEach(function(x){ s[x]=1; });
+                return d.length ? ('<b>'+d[0]+'</b> ~ <b>'+d[d.length-1]+'</b> ('+Object.keys(s).length+'일)') : '-'; })()
+           +'</div><div id="ssConfirmBack"></div></div>')
+        : ('<div style="margin-top:14px;padding-top:12px;border-top:1px solid #e6ecf0">'
+           +'<div style="display:flex;align-items:center;justify-content:center;gap:8px;line-height:1;margin-bottom:14px">'
+           +'<span style="font-weight:700;color:#37475a;line-height:1">출고일자</span>'
+           +'<input type="date" id="ssConfirmShpDt" value="'+_shp+'" oninput="ssConfirmBackUpd()"'
+           +' title="담은 파일 전체가 이 날짜 하나로 저장됩니다. 기본값은 담은 파일 중 가장 이른 납기일자입니다."'
+           /* ★오른쪽 여백 30px 은 <달력 아이콘 자리>다 — 공통 달력(ui-datenav.js)이 아이콘을 배경으로 그린다.
+                인라인 padding 이 그 자리를 없애면 아이콘이 날짜 글자 위에 겹친다.
+              ★칸 줄은 line-height:1 + margin-bottom 14px — 칸이 줄 밖으로 삐져나와 아래 안내문을 덮지 않게. */
+           +' style="display:block;height:38px;box-sizing:border-box;font-size:18px;font-weight:700;color:#137a6c;text-align:center;border:1px solid #cdd7dd;border-radius:6px;padding:4px 30px 4px 12px;line-height:1">'
+           +'</div>'
+           +'<div style="font-size:11.5px;color:#9aa7b3;line-height:1.6;text-align:center">이 날짜로 <b>전 출고장</b>이 저장됩니다 — 필요하면 여기서 바로 수정하세요</div>'
+           +'<div id="ssConfirmBack"></div></div>')),   // 마지막에 올린 자료보다 이전이면 여기 경고가 채워진다(ssConfirmBackUpd)
       function(){
         var _ce=document.getElementById('ssConfirmShpDt');
         var _nv=(_ce&&_ce.value)||_shp;                                   // 확인창에서 수정한 값 우선, 비었으면 원래 값
@@ -2738,20 +3191,36 @@ var KONET_CTX = window.KONET_CTX || '';
     var upD=rows.map(function(r){ return r.date; }).filter(Boolean).sort();
     var _shpEl=document.getElementById('ssPvShpoutDt');
     var theDay = (_shpEl && _shpEl.value) ? _shpEl.value : (upD.length ? upD[upD.length-1] : SS_TODAY);
-    // 화면 표시·날짜필터 기준을 출고일자로 통일 (엑셀엔 납기일자만 있어 r.date=납기일자로 채워지므로 덮어씀)
-    //  ★출고장 구분 없이 전 행이 theDay(= 엑셀 납기일자, 프리뷰에서 수정 가능) 하나로 통일된다.
-    SHIP_DATA.forEach(function(r){ r.date = theDay; });
-    ssSetVal('ssDateFrom', theDay); ssSetVal('ssDateTo', theDay);
+    /* 화면 표시·날짜필터 기준 (엑셀엔 납기일자만 있어 r.date=납기일자로 채워진다)
+         · 기본        : 전 행을 theDay 하나로 통일 — 출고장 구분 없이 같은 날 출고.
+         · 파일별 모드 : r.date(=그 엑셀의 납품일자)를 그대로 두고, 조회 날짜는 <가장 이른 날 ~ 가장 늦은 날>. */
+    var _perFile = ssPvPerFileOn();
+    if(_perFile){
+      var _pd=SHIP_DATA.map(function(r){ return r.date; }).filter(Boolean).sort();
+      ssSetVal('ssDateFrom', _pd.length?_pd[0]:theDay);
+      ssSetVal('ssDateTo',   _pd.length?_pd[_pd.length-1]:theDay);
+    } else {
+      SHIP_DATA.forEach(function(r){ r.date = theDay; });
+      ssSetVal('ssDateFrom', theDay); ssSetVal('ssDateTo', theDay);
+    }
     window.ssSrcUp=true;
-    window.ssSrcInfo='✅ 업로드(초기화 후 생성): '+ssPvName+' · 출고장 '+zoneList.length+'곳 · '+rows.length+'건';
+    window.ssSrcInfo='✅ 업로드(초기화 후 생성): '
+      + (ssPvList.length>1 ? ('파일 '+ssPvList.length+'개 ('+ssPvList.map(function(f){ return f.name; }).join(', ')+')') : ssPvName)
+      + ' · 출고장 '+zoneList.length+'곳 · '+rows.length+'건';
     ssRender();
     ssFlash();
+    /* ★저장에 쓸 값은 <닫기 전에> 챙긴다 — 2026-08-28 부터 모달을 닫으면 담은 목록이 비워진다.
+         닫은 뒤에 ssPvList 를 읽으면 빈 배열이라 <아무것도 저장되지 않는다>. */
+    var _saveList=ssPvList.map(function(f){ return { aoa:(f.cur&&f.cur.aoa)||[], name:f.name }; });
+    var _fileLab = ssPvList.length>1 ? ('파일 '+ssPvList.length+'개') : ssPvName;
     ssPvOpen(false);
-    // ★ 서버 저장(TBL_SHIPOUT_MST) — 원본 전체컬럼, 기존 활성배치 이력마감 후 신규배치 INSERT
-    ssSaveShipoutToDB(ssPvCur.aoa, theDay);
+    /* ★ 서버 저장(TBL_SHIPOUT_MST) — 원본 전체컬럼, 기존 활성배치 이력마감 후 신규배치 INSERT.
+         담은 파일 전부를 <한 번의 요청>으로 보낸다 — 서버가 (납품일자+출고장)으로 나눠 배치를 만든다.
+         나눠 보내면 그 사이에 실패할 경우 반쪽만 반영된다. */
+    ssSaveShipoutToDB(_saveList, theDay, _perFile);
     // ★ 품목명 앞 () 없는 행의 사업장(코드→명)을 TBL_BIZI_MST 에 자동등록(없을때만) 후 분류 갱신
     ssSaveBiziFromRows(rows);
-    ssToast('✅ <b>'+ssPvName+'</b> — 초기화 후 <b>'+rows.length+'</b>건 생성 (출고장 '+zoneList.length+'곳)');
+    ssToast('✅ <b>'+_fileLab+'</b> — 초기화 후 <b>'+rows.length+'</b>건 생성 (출고장 '+zoneList.length+'곳)');
     /* ★반영이 끝났으니 미리보기를 비운다 — 다시 열면 '파일을 고르세요' 상태다 (2026-08-01 요청).
          ssPvName 을 쓰는 위 두 줄(저장·토스트) 뒤에 두어야 한다. */
     ssPvSkipAutoPick=true; ssPvReset();
@@ -2878,13 +3347,35 @@ var KONET_CTX = window.KONET_CTX || '';
   function _shpProgStop(){ if(_shpProgTimer){ clearInterval(_shpProgTimer); _shpProgTimer=null; } }
   function shpProgDone(){ _shpProgStop(); _shpProgWidth(100,false); _shpProgLab('완료'); }
   function shpProgHide(){ _shpProgStop(); var ov=document.getElementById('shpProgOv'); if(ov) ov.style.display='none'; var f=document.getElementById('shpProgFill'); if(f){ f.classList.remove('shp-prog-indet'); f.style.width='0%'; } }
-  function ssSaveShipoutToDB(aoa, baseDt){
-    var rows=ssBuildShipoutRows(aoa);
+  /* 인자는 [{aoa, name}, …] — 담은 파일 전부를 한 번에 보낸다(2026-08-28).
+     예전처럼 aoa 하나만 넘겨도 동작하도록 받아 준다(다른 곳에서 부를 때 대비). */
+  function ssSaveShipoutToDB(fileList, baseDt, perFile){
+    var list = (fileList && fileList.length && fileList[0] && fileList[0].aoa)
+             ? fileList : [{ aoa:fileList, name:ssPvName }];
+    var rows=[];
+    list.forEach(function(it){
+      var rs=ssBuildShipoutRows(it.aoa||[]);
+      /* ★파일별 <가져올 범위>를 여기서도 적용한다 (2026-08-28) — 화면(ssPvApplyFilter)만 거르면
+           DB 에는 뺀 자료가 그대로 들어간다. 판정 기준은 화면과 같게 출고장 이름(물류센터명+입고장). */
+      if(it.filter){
+        rs=rs.filter(function(o){
+          var kj=ssPvIsKJ((''+(o.dcNm||''))+(o.inwh||'')+(o.zone||''));
+          return it.filter==='only' ? kj : !kj;
+        });
+      }
+      // 원본파일명은 <행마다> 그 행이 나온 파일로 — 나중에 어느 파일에서 온 자료인지 추적한다
+      rs.forEach(function(o){ o.srcFile=it.name||''; });
+      rows=rows.concat(rs);
+    });
     if(!rows.length) return;
-    var srcFile=ssPvName;
     // 복합키=(납품일자 DLV_DT 행별) + (물류센터 DC_CD 행별). 출고일자·사업장은 키 아님(출고일자는 값으로만 저장).
-    //  ★출고일자 = baseDt(프리뷰 확정값 = 엑셀 납기일자) — 출고장 구분 없이 전 행 동일(2026-07-29 확정).
-    rows.forEach(function(o){ if(!o.dlvDt) o.dlvDt=baseDt; o.shpoutDt=baseDt; o.srcFile=srcFile; });
+    //  ★출고일자 = baseDt(프리뷰 확정값 = 엑셀 납기일자) — 출고장·파일 구분 없이 전 행 동일(2026-07-29 확정).
+    /* 출고일자(SHPOUT_DT) — perFile 이면 <행마다 그 엑셀의 납품일자>, 아니면 baseDt 하나로 통일.
+       ⚠납품일자(DLV_DT)는 배치키라 절대 덮지 않는다 — 비어 있을 때만 baseDt 로 채운다. */
+    rows.forEach(function(o){
+      if(!o.dlvDt) o.dlvDt=baseDt;
+      o.shpoutDt = perFile ? (o.dlvDt||baseDt) : baseDt;
+    });
     var body=JSON.stringify(rows), nRows=rows.length;
     shpProgShow('업로드 중… (0 / '+nRows.toLocaleString()+'건)');
     var xhr=new XMLHttpRequest();
@@ -2904,7 +3395,7 @@ var KONET_CTX = window.KONET_CTX || '';
       setTimeout(shpProgHide, 500);
       var ok=(xhr.status>=200 && xhr.status<300), t=xhr.responseText;
       if(ok){
-        ssToast('💾 서버 저장 완료 — 출고일자 '+baseDt+' · <b>'+t+'</b>건 (기존 자료 초기화 후 생성)');
+        ssToast('💾 서버 저장 완료 — 출고일자 '+(perFile?'<b>파일별 납품일자</b>':baseDt)+' · <b>'+t+'</b>건 (기존 자료 초기화 후 생성)');
         if(window.ssLoadShipoutFromDB) ssLoadShipoutFromDB();   // 저장 끝나면 출고일자로 DB 조회 1회 자동 실행
         if(window.ssUpHistLoad) ssUpHistLoad();                 // 방금 올린 배치가 좌측 '올린 이력' 맨 위로 올라오게
         if(window.ssArchiveApplied) ssArchiveApplied(srcFile);  // 반영 끝난 엑셀은 상단 목록에서 「_반영됨」으로 치운다
@@ -3004,7 +3495,10 @@ var KONET_CTX = window.KONET_CTX || '';
   //   · 읽기용 원본 XLSX 는 건드리지 않도록, 로드 후 window.XLSX 를 즉시 원복하고 스타일본만 캐시
   var _XLSXStyle=null;
   var _XLSXStyleSrcs=[
-    KONET_CTX+'/assets/vendor/xlsx-js-style/xlsx.bundle.js',
+    /* ★?v= 를 반드시 붙인다 (2026-08-28) — 이 파일은 우리가 고쳐 쓴다(틀 고정 기능 추가분).
+         버전이 없으면 브라우저가 <예전 파일을 캐시>해 고친 내용이 반영되지 않는다.
+         실제로 A열 고정이 안 걸린다는 신고가 이것 때문이었다. 파일을 또 고치면 이 숫자도 올릴 것. */
+    KONET_CTX+'/assets/vendor/xlsx-js-style/xlsx.bundle.js?v=20260828a',
     'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js'
   ];
   function ssLoadStyleXlsx(cb){

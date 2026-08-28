@@ -61,6 +61,7 @@ public class UserServiceImpl implements UserService {
 	@Override public int deleteShipoutZone(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.deleteShipoutZone(dto); }
 	@Override public int getShipoutNextJobSeq(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.getShipoutNextJobSeq(dto); }
 	@Override public int insertShipoutMst(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.insertShipoutMst(dto); }
+	@Override public int insertShipoutMstBulk(java.util.List<egovframework.sejong.user.model.ShipoutDTO> list) throws Exception { return mapper.insertShipoutMstBulk(list); }
 	@Override public java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutMst(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutMst(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutPrev(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutPrev(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutHistory(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutHistory(dto); }

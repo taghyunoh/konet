@@ -488,6 +488,36 @@
 	  )
 	]]></insert>
 
+	<!-- ③-2 대량 INSERT (2026-08-28) — 여러 행을 <한 문장>으로 넣는다.
+	     왜 : 종전에는 행마다 insertShipoutMst 를 던졌다. 4,564행 업로드면 INSERT 왕복이 4,564번이라
+	          「서버 반영 중…」에서 오래 멈췄다(사용자 신고 2026-08-28).
+	     ★한 번에 40행까지만 부를 것 — SQL Server 는 <한 문장의 파라미터가 2,100개>를 넘을 수 없다.
+	       이 INSERT 는 행당 41개를 쓰므로 40행이면 1,640개로 안전하다(호출 쪽 UserController 가 끊는다).
+	     ※단일행 insertShipoutMst 는 그대로 둔다 — 다른 곳에서 쓸 수 있고, 되돌릴 자리가 있어야 한다. -->
+	<insert id="insertShipoutMstBulk" parameterType="java.util.List">
+	  INSERT INTO TBL_SHIPOUT_MST (
+	      COMP_CD, SHPOUT_DT, DLV_DT, JOB_SEQ, ACTION_YN, ROW_NO, SRC_FILE, UPLOAD_DTTM,
+	      INRSV_YN, LABEL_PRT_GB, DC_CD, DC_NM, VENDOR_CD, VENDOR_NM, ITEM_CD, ITEM_NM,
+	      FSFD_GB, STAT_YN, PROD_KIND, TEMP_GB, ORD_GB, BIZ_CD, BIZ_NM,
+	      BOX_QTY, LABEL_QTY, UNPAID_LABEL_QTY,
+	      INWH, ZONE, BUS_NO, RT_SEQ, CUR_QTY, DLV_GB, REMARK,
+	      UNIT, INDIV_ID, ORD_NO, ORD_ITEM_NO, JUMUN_NO, JUMUN_ITEM_NO, SORTER,
+	      REG_DTTM, REG_USER, REG_IP
+	  ) VALUES
+	  <foreach collection="list" item="r" separator=",">
+	  (
+	      ISNULL(#{r.compCd,jdbcType=VARCHAR},'W1234567'),
+	      REPLACE(ISNULL(#{r.shpoutDt},''),'-',''), REPLACE(ISNULL(#{r.dlvDt},''),'-',''), #{r.jobSeq}, 'Y', #{r.rowNo}, #{r.srcFile}, GETDATE(),
+	      #{r.inrsvYn}, #{r.labelPrtGb}, #{r.dcCd}, #{r.dcNm}, #{r.vendorCd}, #{r.vendorNm}, #{r.itemCd}, #{r.itemNm},
+	      #{r.fsfdGb}, #{r.statYn}, #{r.prodKind}, #{r.tempGb}, #{r.ordGb}, #{r.bizCd}, #{r.bizNm},
+	      #{r.boxQty}, #{r.labelQty}, #{r.unpaidLabelQty},
+	      #{r.inwh}, #{r.zone}, #{r.busNo}, #{r.rtSeq}, #{r.curQty}, #{r.dlvGb}, #{r.remark},
+	      #{r.unit}, #{r.indivId}, #{r.ordNo}, #{r.ordItemNo}, #{r.jumunNo}, #{r.jumunItemNo}, #{r.sorter},
+	      GETDATE(), #{r.regUser}, #{r.regIp}
+	  )
+	  </foreach>
+	</insert>
+
 	<!-- ④ 해당 출고일자 활성배치 조회 — 출고현황표 화면 로딩용 (SHPOUT_DT 기준, ACTION_YN='Y') -->
 	<select id="selectShipoutMst" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
 	  SELECT

@@ -31,6 +31,9 @@ public interface UserService {
 	int deleteShipoutZone(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;   // 출고장+출고일자 활성분 소프트 삭제
 	int getShipoutNextJobSeq(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 	int insertShipoutMst(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	/* 대량 INSERT (2026-08-28) — 여러 행을 한 문장으로. 행마다 던지던 것이 업로드 병목이었다.
+	   ★한 번에 40행까지만 — SQL Server 는 한 문장의 파라미터가 2,100개를 넘을 수 없다(행당 41개). */
+	int insertShipoutMstBulk(java.util.List<egovframework.sejong.user.model.ShipoutDTO> list) throws Exception;
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutMst(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutPrev(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutHistory(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;

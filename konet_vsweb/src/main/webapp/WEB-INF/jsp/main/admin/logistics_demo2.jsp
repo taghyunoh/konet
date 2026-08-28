@@ -10,7 +10,7 @@
 <%-- ★날짜 칸에 [◀][▶][오늘] 을 자동으로 붙인다 (2026-08-17 요청) — 화면 수정 0.
      브라우저 기본 달력의 ↑↓ 는 앞/뒤가 안 읽혀 엉뚱한 달로 넘어가는 일이 잦았다.
      빼려면 그 칸에 data-nonav="1" --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <style>
   /* SWAL 확인/알림 모달 축소 (토스트 제외) */
   .swal2-popup:not(.swal2-toast){ width:440px!important; padding:1.1em 1em 1.2em!important; font-size:14px; }
@@ -158,6 +158,15 @@
                          font-family:inherit; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap; }
   #favBar #sideFoldBtn:hover { background:#e7eef2; border-color:#9fb0bd; color:#1f2a37; }
   #favBar #sideFoldBtn .fi { font-size:13px; }
+  /* ── 상단 조회조건 접기 (2026-08-28 요청 「우측접기 상단으로」) ─────────────────────
+       왜 여기냐 : 화면(제목줄) 안에 두었더니 폭이 좁은 창에서 오른쪽으로 잘려 못 눌렀다.
+                   출고현황표는 iframe 이라 제 폭을 못 넓힌다 → 늘 자리가 남는 이 줄로 올렸다.
+       언제 보이나 : 접을 것이 있는 화면(출고현황표·출고세부조회·데시보드1)에서만 — konetTbFoldBtnUpd.
+       모양은 [메뉴 접기]와 한 벌, 색만 초록 계열로 구분한다. */
+  #favBar #konetTbFoldBtn { display:inline-flex; align-items:center; gap:5px; margin-left:10px; padding:5px 10px;
+                            border:1px solid #b9e6dd; border-radius:8px; background:#eaf5f3; color:#137a6c;
+                            font-family:inherit; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap; }
+  #favBar #konetTbFoldBtn:hover { background:#d7ede8; border-color:#7fcabb; }
   @media screen and (min-width:1101px){
     /* 폭만 줄인다 — 메뉴는 DOM 에 그대로 있어야 한다(자주 쓰는 메뉴 칩이 원래 메뉴의 onclick 을 부른다) */
     .logi-wrap .logi-side { transition:width .16s ease-out, flex-basis .16s ease-out; }
@@ -401,11 +410,13 @@
     #ssCard > div:first-child .btn-line, #ssCard > div:first-child .btn-teal{ padding:5px 8px !important; }
     #ssCard #ssBtnZoneToggle{ min-width:0 !important; }
   }
-  /* 도구줄 접기(2026-08-21 요청) — 줄의 두 덩어리만 감춘다. 단추는 남아 다시 펼 수 있다.
-     ⚠줄의 margin-bottom 은 inline(12px)이라 !important 로만 줄어든다. */
-  #ssCard.tb-fold > div:first-child > div{ display:none !important; }
-  #ssCard.tb-fold > div:first-child{ margin-bottom:6px !important; }
-  #ssTbFoldBtn{ padding:3px 9px !important; font-size:11.5px; color:#6b7a89; }
+  /* 상단 접기 — 2026-08-21 도구줄만 → 2026-08-28 요청으로 '조회바 + 도구줄 통째로'(출고현황표와 같은 규칙).
+     조회바(.ss-topbar: 출고일자·조회·당일/당월·요약숫자) 와 도구줄(#ssCard 첫 줄) 을 함께 감춘다.
+     ★단추는 이 화면 안에 없다 — 맨 위 <자주 쓰는 메뉴> 줄의 [조회조건 접기](#konetTbFoldBtn).
+       2026-08-28: 제목줄에 두었더니 폭이 좁은 창에서 화면 밖으로 잘려 못 눌렀다.
+     ⚠.ss-topbar 는 #ssCard 의 형제라 카드 클래스로는 못 잡는다 → body 에도 같은 클래스를 건다. */
+  #ssCard.tb-fold > div:first-child{ display:none !important; }
+  body.tb-fold .ss-topbar{ display:none !important; }
   /* 현재 선택(활성) 버튼 표시 */
   .btn-line.seg-on { background:#178074 !important; color:#fff !important; border-color:#178074 !important; font-weight:700; }
   /* 확대 — 출고현황표 카드가 전체 화면을 덮음 */
@@ -722,6 +733,8 @@
     var m = document.querySelector('.logi-main'); if (m) m.scrollTop = 0;
     // 출고장 변경 알림 바: 활성 화면(대시보드1/2)에 맞춰 갱신 (그 외 화면은 자동 숨김)
     if (typeof konetAsqRender === 'function') konetAsqRender();
+    // 상단 [조회조건 접기] 단추: 이 화면에 접을 것이 있으면 보이고, 없으면 숨는다 (2026-08-28)
+    if (typeof konetTbFoldBtnUpd === 'function') konetTbFoldBtnUpd();
     if (typeof closePeriodInit === 'function') closePeriodInit();   // 마감 패널 진입 시 마감월 기본값
   }
   /* ══ 자주 쓰는 메뉴 (최대 5개 · 한 번 담기면 고정) — 2026-08-04 요청 ═══════════════
@@ -3168,6 +3181,11 @@
       <div id="favList"></div>
       <span id="favHint">메뉴를 쓰시면 여기에 <b>쓴 순서대로</b> 쌓입니다 — 최대 7개 (한 번 담기면 <b>✕ 로 내리기 전까지 고정</b>)</span>
       <span id="favClearBtn" title="전부 비웁니다" onclick="favClear()">✕ 비우기</span>
+      <%-- 상단 조회조건 접기 (2026-08-28 요청) — 출고현황표·출고세부조회(iframe)와 데시보드1의
+           조회바+검색 도구줄을 접는다. 대상이 아닌 화면에서는 konetTbFoldBtnUpd 가 숨긴다.
+           실제 접기는 각 화면의 d2TbFold/ssTbFold 가 하고, 여기서는 그것을 부르기만 한다. --%>
+      <button id="konetTbFoldBtn" type="button" style="display:none" onclick="konetTbFold()"
+              title="상단 조회조건(출고일자·조회·요약숫자)과 검색 도구줄을 접습니다 (표가 그만큼 넓게 보입니다)">▴ 조회조건 접기</button>
     </div>
 
 
@@ -3904,7 +3922,13 @@
           --%>
         </div>
       </div>
-      <input type="file" id="ssFile" class="ss-file" accept=".xlsx,.xls" onchange="ssUpload(this)">
+      <%-- multiple : 발주현황표가 <김해·제주 뺀 것>과 <김해·제주>로 나뉘어 오는 날이 있어
+           한꺼번에 고를 수 있게 했다 (2026-08-28 요청). 담은 파일은 모달의 '담은 파일' 표에 쌓인다. --%>
+      <%-- ★onclick 에서 value 를 비운다 (2026-08-28 「초기화하고 파일선택 한번은 안 됨, 두번째 됨」).
+           <input type=file> 은 <같은 파일을 다시 고르면 change 가 안 뜬다> — value 가 그대로라서.
+           [비우기]로 목록만 비우고 방금 그 파일을 다시 고르면 아무 일도 안 일어나던 것이 이 때문이다.
+           고르기 <직전에> 비워 두면 같은 파일이라도 늘 change 가 뜬다. --%>
+      <input type="file" id="ssFile" class="ss-file" accept=".xlsx,.xls" multiple onclick="this.value=''" onchange="ssUpload(this)">
       <input type="file" id="ssSalesFile" class="ss-file" accept=".xlsx,.xls" onchange="ssSalesUpload(this)">
       <input type="file" id="ssCostFile" class="ss-file" accept=".xlsx,.xls" onchange="ssCostUpload(this)">
 
@@ -3918,15 +3942,19 @@
           <%-- 2026-07-26 사용자: [폴더 지정]·[파일 선택]·[도움말]을 좌측 목록 머리에서 <b>모달 상단</b>으로 올림.
                자료를 여는 두 가지 방법이 화면 맨 위에 나란히 보이게 하고, 긴 설명은 도움말 카드로 접어 둔다. --%>
           <div class="mbar">
-            <button class="btn-teal" style="padding:4px 12px; font-size:12.5px" onclick="ssPickDir()"
+            <%-- [제외 2026-08-28 요청] 📂 폴더 지정 · ↻ 새로고침 · 좌측 패널(폴더의 엑셀 / 오늘 올린 이력)
+                 — 파일을 [파일 선택]으로 여러 개 담고 '담은 파일' 표에서 다루게 되면서 자리만 차지했다.
+                 ★요소는 지우지 않고 감추기만 한다 — ssDirList·ssHistRenderList·ssUpHistRender 가
+                   이 안의 id 로 값을 쓰기 때문에 지우면 그 함수들이 깨진다. 되살리려면 display:none 만 빼면 된다. --%>
+            <button class="btn-teal" style="display:none; padding:4px 12px; font-size:12.5px" onclick="ssPickDir()"
                     title="자료가 있는 폴더를 지정하면 그 안의 발주현황표가 좌측에 최신순으로 나열됩니다(다음부터 기억).&#10;※ 다운로드 폴더 자체는 브라우저가 막습니다 — 그 안에 전용 하위폴더를 만들어 지정하세요.">📂 폴더 지정</button>
             <button class="btn-line" style="padding:4px 12px; font-size:12.5px" onclick="document.getElementById('ssFile').click()"
-                    title="탐색기에서 엑셀 파일을 직접 하나 엽니다(폴더 밖 파일용)">📄 파일 선택</button>
-            <button class="btn-line" style="padding:4px 10px; font-size:12.5px" onclick="ssDirList()" title="지정한 폴더의 목록을 다시 읽습니다">↻ 새로고침</button>
+                    title="탐색기에서 엑셀 파일을 엽니다(폴더 밖 파일용).&#10;여러 개를 한꺼번에 고를 수 있습니다 — Ctrl 또는 Shift 로 다중선택.&#10;고른 파일은 아래 '담은 파일' 목록에 쌓이고 [작성] 때 한 번에 반영됩니다.">📄 파일 선택 <span style="font-weight:400;color:#9aa7b3">(여러 개 가능)</span></button>
+            <button class="btn-line" style="display:none; padding:4px 10px; font-size:12.5px" onclick="ssDirList()" title="지정한 폴더의 목록을 다시 읽습니다">↻ 새로고침</button>
             <span style="flex:0 0 1px; width:1px; height:20px; background:var(--logi-border)"></span>
             <span>파일 <b id="ssPvFile">-</b></span>
             <span id="ssPvSheetWrap" style="display:none">시트
-              <select id="ssPvSheet" onchange="ssPvRender()"></select>
+              <select id="ssPvSheet" onchange="ssPvSheetChg()"></select>
             </span>
             <button class="btn-line" id="ssPvHelpBtn" style="margin-left:auto; padding:4px 12px; font-size:12.5px" onclick="ssPvHelp()"
                     title="이 화면 사용법 — 데이터 연계(출고장+납품일자가 같으면 대체) / 폴더 지정 / 파일 선택 / 출고일자">ℹ️ 도움말</button>
@@ -3982,7 +4010,7 @@
                  파일을 고를 때마다 화면이 출렁였다. 이제 파일 선택 전·후 높이가 같고,
                  연결 표가 생기면 아래 미리보기 표 영역만 그만큼 줄어든다.
                  기본 높이도 60vh → 72vh 로 키웠다(처음부터 넓게 보이게). --%>
-            <div style="width:400px; flex:0 0 400px; border:1px solid var(--logi-border); border-radius:7px; display:flex; flex-direction:column; height:72vh">
+            <div id="ssPvSide" style="display:none; width:400px; flex:0 0 400px; border:1px solid var(--logi-border); border-radius:7px; flex-direction:column; height:72vh">
               <%-- 폴더 지정·파일 선택·새로고침 버튼은 모달 상단(mbar)으로 이동(2026-07-26). 여기는 제목만. --%>
               <div style="padding:7px 9px; border-bottom:1px solid var(--logi-border); background:#f4f8f7; flex:0 0 auto">
                 <div style="display:flex; align-items:center; gap:6px">
@@ -4010,6 +4038,9 @@
             <!-- 우측: 기존 미리보기 표. 좌측과 같은 고정 높이(72vh)의 세로 flex —
                  위쪽(인식결과·오류·연결표)이 늘어나면 아래 표가 그만큼 줄고, 바깥 높이는 안 변한다. -->
             <div style="flex:1; min-width:0; height:72vh; display:flex; flex-direction:column">
+              <%-- 담은 파일 목록 (2026-08-28 요청) — 파일을 여러 개 담아 [작성] 한 번으로 반영한다.
+                   줄을 누르면 그 파일이 아래 미리보기에 뜨고, [제거]로 뺄 수 있다. 내용은 logi-oh.js ssPvListRender. --%>
+              <div id="ssPvFiles" style="flex:0 0 auto; display:none"></div>
               <div id="ssPvInfo" style="flex:0 0 auto"></div>
               <%-- 오류내역 — 양식이 다르거나 값이 빠진 행이 있을 때만 채워진다(ssPvRender) --%>
               <div id="ssPvErr" style="flex:0 0 auto"></div>
@@ -4031,6 +4062,14 @@
               <%-- 이전 자료 알림 — 빨강 + 살짝 깜박(.ss-blink, ssBackMsgUpd 가 붙였다 뗀다) --%>
               <span id="ssPvBackMsg" style="font-size:12.5px;font-weight:700;color:#c0392b;display:none"></span>
             </span>
+            <%-- 파일별 납품일자 모드 (2026-08-28 요청) — 한 달치를 한꺼번에 올릴 때 쓴다.
+                 체크하면 아래 출고일자 칸을 쓰지 않고, <행마다 그 엑셀의 납품일자>를 출고일자로 저장한다. --%>
+            <label id="ssPvPerFileWrap" style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:13px;font-weight:700;color:#37475a;cursor:pointer"
+                   title="체크하면 출고일자를 하나로 통일하지 않고, <행마다 그 엑셀의 납품일자>를 출고일자로 저장합니다.&#10;한 달치처럼 날짜가 여러 개인 파일을 한꺼번에 올릴 때 쓰세요.">
+              <input type="checkbox" id="ssPvPerFile" onchange="ssPvPerFileChg()" style="width:16px;height:16px;cursor:pointer"> 파일별 납품일자로
+              <%-- 납품일자가 3개 이상일 때만 뜬다(ssPvPerFileHint) — 그때는 이 체크가 사실상 필수다 --%>
+              <span id="ssPvPerFileTip" style="display:none;font-size:11.5px;font-weight:700;color:#8a6414;white-space:nowrap"></span>
+            </label>
             <span style="font-size:16px;font-weight:700;color:#37475a;margin-right:10px">출고일자
               <input type="date" id="ssPvShpoutDt" oninput="this.setAttribute('data-touched','1');ssBackMsgUpd()"
                      style="height:38px;border:1px solid var(--logi-border);border-radius:6px;padding:0 10px;font-size:16px;font-weight:700;margin:0 4px"
@@ -4121,8 +4160,6 @@
       <!-- 메인 출고현황표 (상단: 사업장·품목명 / 좌측: 출고장 행 / 하단: 출고내역·재고) -->
       <div class="card" id="ssCard">
         <div style="display:flex; align-items:center; justify-content:flex-start; margin-bottom:12px; flex-wrap:wrap; gap:8px">
-          <%-- 도구줄 접기/펼치기 (2026-08-21 요청) — 동작은 logi-oh.js ssTbFold. 접힌 상태는 localStorage. --%>
-          <button class="btn-line" id="ssTbFoldBtn" onclick="ssTbFold()" title="이 도구줄을 접습니다 (표가 그만큼 넓게 보입니다)">▴</button>
           <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap">
             <label style="font-size:12px; color:#37475a; font-weight:700">🔎 사업장 찾기</label>
             <input id="ssBizFind" type="text" list="ssBizFindList" placeholder="사업장명 입력" oninput="ssBizFind(this.value, true)" onkeydown="if(event.keyCode===13){ssBizFind(this.value, false);}" style="height:32px; border:1px solid var(--logi-border); border-radius:6px; padding:0 8px; font-size:12.5px; width:160px">

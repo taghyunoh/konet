@@ -8,7 +8,7 @@
 <%-- ★날짜 칸에 [◀][▶][오늘] 을 자동으로 붙인다 (2026-08-17 요청) — 화면 수정 0.
      브라우저 기본 달력의 ↑↓ 는 앞/뒤가 안 읽혀 엉뚱한 달로 넘어가는 일이 잦았다.
      빼려면 그 칸에 data-nonav="1" --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
 <%-- ★[2026-08-20 요청 「글자체도」] 요즘 한국 업무화면에서 쓰는 **Pretendard**.
      맑은 고딕보다 획이 고르고 숫자 폭이 일정해 표에서 자릿수가 맞는다.

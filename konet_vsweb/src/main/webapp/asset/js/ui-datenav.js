@@ -19,8 +19,11 @@
    ⚠`.value` 를 코드로 바꿔도 onchange 는 안 돈다 ⇒ change 를 직접 쏜다.
      안 쏘면 딸린 조회(전표번호 재조회 등)가 안 돈다.
 
+   ★기간칸(시작 ~ 종료)은 **달력 하나**로 고른다 (2026-08-28 요청 「달력이 두 개 떠서 — from to 를 한 번에」).
+     짝은 이름 규칙(xxFrom/xxTo)으로 저절로 찾는다 — 자세한 것은 아래 pairOf 주석.
+
    쓰는 법 : 이 파일만 넣으면 그 화면의 모든 날짜 칸에 저절로 붙는다(화면 수정 0).
-             빼려면 그 칸에  data-nonav="1"
+             빼려면 그 칸에  data-nonav="1" · 기간으로 안 묶으려면  data-norange="1"
    ============================================================================= */
 (function () {
   'use strict';
@@ -34,7 +37,10 @@
        화면에 따라 옆에 달력 그림이 따로 있는 곳도, 없는 곳도 있어 사용자가 "이 화면엔 달력이 없다"고 읽었다.
        ⇒ 감춘 자리에 **우리 달력 아이콘**을 그려 넣는다. 모든 날짜 칸이 같은 모습이 된다(화면 수정 0). */
     'input[type=date].udn-on{ cursor:pointer; background-repeat:no-repeat;' +
-    '  background-position:right 7px center; background-size:15px 15px; padding-right:26px;' +
+    /* ★padding-right 는 !important (2026-08-28) — 아이콘이 <날짜 글자 위에 겹치는> 것을 막는 자리다.
+         화면들이 날짜칸에 style="padding:0 8px" 처럼 인라인으로 padding 을 주는데(8곳 실측),
+         인라인이 이겨 이 자리가 사라지면 아이콘이 '2026-01-01' 마지막 글자를 덮는다. */
+    '  background-position:right 7px center; background-size:15px 15px; padding-right:26px !important;' +
     '  background-image:url("data:image/svg+xml;charset=utf-8,' +
     "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2348606f' stroke-width='2' stroke-linecap='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18'/%3E%3C/svg%3E" +
     '"); }' +
@@ -85,7 +91,31 @@
     '.udnCal td button.on{ background:#137a6c; color:#fff; font-weight:800; }' +
     '.udnCal .ft{ margin-top:6px; text-align:center; }' +
     '.udnCal .ft button{ height:26px; padding:0 14px; border:1px solid #a9d5cd; background:#fff; color:#137a6c;' +
-    '  border-radius:6px; cursor:pointer; font-size:12px; font-weight:700; }';
+    '  border-radius:6px; cursor:pointer; font-size:12px; font-weight:700; }' +
+    /* ── 기간(from ~ to) 모드 — 2026-08-28 ──
+       머리에 [① 시작][② 종료] 를 두어 <지금 무엇을 고르는 중인지> 보이게 한다(눌러서 되돌아갈 수도 있다).
+       사이 날짜는 옅게 칠해 고른 기간이 한눈에 보이게. */
+    /* ★두 달을 나란히 (2026-08-28 「기간이 달이 다를 경우·년이 다를 경우 두 개 달력이 떠야 함」)
+       한 달만 보이면 8월→9월 기간을 고를 때 ‹ › 로 달을 넘겨야 해서 오히려 불편했다. */
+    '.udnCal.rg{ width:auto; }' +
+    '.udnCal .ms{ display:flex; gap:12px; align-items:flex-start; }' +
+    /* ★좌우 달력은 <각자> 년·월을 옮긴다 (2026-08-28 요청) — 한 벌로 묶어 두면
+       「8월 ~ 11월」처럼 떨어진 기간을 고를 때 오른쪽을 못 맞춘다. 그래서 머리줄을 판마다 둔다. */
+    '.udnCal .mo{ width:240px; }' +
+    '.udnCal.rg .hd{ gap:2px; }' +
+    '.udnCal.rg .hd button{ width:22px; height:22px; font-size:12px; }' +
+    /* 달 이름은 단추다 — 누르면 그 달 통째로(1일~말일). 평소엔 제목처럼 보이게 테두리를 감춘다. */
+    '.udnCal button.mtt{ flex:1; height:22px; padding:0 2px; border:1px solid transparent !important;' +
+    '  background:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:800; color:#1f2a37;' +
+    '  white-space:nowrap; width:auto; }' +
+    '.udnCal button.mtt:hover{ background:#eaf5f3; border-color:#a9d5cd !important; color:#137a6c; }' +
+    '.udnCal .rgh{ display:flex; align-items:center; gap:5px; margin:0 0 6px; }' +
+    '.udnCal .rgh button.stp{ flex:1; height:26px; padding:0 6px; border:1px solid #d7e3e0 !important; background:#fff;' +
+    '  border-radius:6px; cursor:pointer; font-size:11.5px; font-weight:700; color:#5a6b76; white-space:nowrap; }' +
+    '.udnCal .rgh button.stp.on{ background:#137a6c; border-color:#137a6c !important; color:#fff; }' +
+    '.udnCal .rgh .tl{ color:#9aa7b3; font-size:12px; }' +
+    '.udnCal td button.in{ background:#e3f2ef; border-radius:0; }' +
+    '.udnCal .ft button + button{ margin-left:6px; }';
 
   /* ★★`showPicker()` 를 무력화한다 (2026-08-17 사고).
      일부 화면이 칸을 누르면 **기본 달력을 직접 연다**(logistics_demo1 의 d2OpenCal ·
@@ -129,30 +159,119 @@
     catch (e) { var ev = document.createEvent('HTMLEvents'); ev.initEvent('change', true, false); el.dispatchEvent(ev); }
   }
 
+  /* 값만 넣고 change 는 나중에 — 기간모드에서 <두 칸을 다 채운 뒤> 한꺼번에 알리려고 나눠 두었다.
+     이렇게 안 하면 시작일을 고른 순간 (새 시작 > 옛 종료) 인 뒤집힌 기간으로 조회가 한 번 돈다. */
+  function fireChange(el) {
+    try { el.dispatchEvent(new Event('change', { bubbles: true })); }
+    catch (e) { var ev = document.createEvent('HTMLEvents'); ev.initEvent('change', true, false); el.dispatchEvent(ev); }
+  }
+
+  /* ── 기간(from ~ to) 을 달력 하나에서 — 2026-08-28 요청 「달력이 두 개 떠서, from to 를 한 번에」 ──
+       종전 : 시작칸·종료칸이 각자 달력을 띄웠다. 기간 하나 고르려고 달력을 두 번 열고,
+              중간에 뒤집힌 기간(새 시작 > 옛 종료)으로 조회가 한 번 돌았다.
+       지금 : 짝이 있는 칸이면 달력 하나가 ① 시작 → ② 종료 를 이어서 받고, 닫힐 때 두 값이 함께 들어간다.
+       ★짝 찾기는 <이름 규칙> — 이 파일의 원칙이 '화면 수정 0' 이라 마크업에 손대지 않는다.
+         이 앱은 예외 없이 xxFrom / xxTo 로 쓴다(d2DateFrom·ssDateTo·svFrom·outFr·hTo …).
+         규칙 밖이면 칸에 data-range-to="상대칸id"(또는 data-range-from) 를 주면 된다.
+         짝으로 묶지 않으려면 data-norange="1". 짝을 못 찾으면 종전대로 한 칸짜리 달력. */
+  var FROM_SUF = ['From', 'from', 'FROM', 'Fr', 'fr', '_from', '_fr', 'Start', 'start'];
+  var TO_SUF   = ['To', 'to', 'TO', 'End', 'end', '_to', '_end'];
+  /** 짝으로 쓸 수 있는 칸인가 — 숨은 칸·읽기전용 칸은 묶지 않는다(값만 몰래 바뀌면 안 된다) */
+  function usable(el) {
+    return !!el && el.tagName === 'INPUT' && el.type === 'date' && !el.readOnly && !el.disabled
+        && el.getAttribute('data-nonav') !== '1' && el.getClientRects().length > 0;
+  }
+  function byId(id) { try { return id ? document.getElementById(id) : null; } catch (e) { return null; } }
+  function mate(id, sufs, others) {
+    for (var i = 0; i < sufs.length; i++) {
+      var s = sufs[i];
+      if (id.length > s.length && id.slice(-s.length) === s) {
+        var pre = id.slice(0, id.length - s.length);
+        for (var j = 0; j < others.length; j++) { var m = byId(pre + others[j]); if (usable(m)) return m; }
+      }
+    }
+    return null;
+  }
+  function pairOf(el) {
+    if (!el || el.getAttribute('data-norange') === '1') return null;
+    var t = byId(el.getAttribute('data-range-to'));   if (usable(t)) return { from: el, to: t, role: 'from' };
+    var f = byId(el.getAttribute('data-range-from')); if (usable(f)) return { from: f, to: el, role: 'to' };
+    var id = el.id || ''; if (!id) return null;
+    var m = mate(id, FROM_SUF, TO_SUF); if (m) return { from: el, to: m, role: 'from' };
+    m = mate(id, TO_SUF, FROM_SUF);     if (m) return { from: m, to: el, role: 'to' };
+    return null;
+  }
+
   /* ── 우리 달력 ──────────────────────────────────────────────────────────── */
   var cal = null, calFor = null, calYm = null;   // calYm = 보고 있는 달(그 달 1일)
+  var calYm2 = null;   // 기간모드 오른쪽 판이 보고 있는 달 — 왼쪽(calYm)과 <따로> 움직인다(2026-08-28 요청)
+  var rg = null;   // 기간모드 상태 {from, to, f, t, step(0=시작 고르는 중, 1=종료)} · null 이면 한 칸짜리
   /* ★[2026-08-20] 연 시각 — 여는 **그 순간의 스크롤로 스스로 닫히는 것**을 막는다(아래 scroll 처리 참고) */
   var calAt = 0;
   var nativeShowPicker = null;                   // 브라우저 기본 달력(우리 것이 못 뜰 때의 대비)
 
+  /* 기간모드 : 고른 값을 실제 칸에 넣고, 화면의 <조회를 한 번> 돌린다
+     (2026-08-28 요청 「대시보드 조회 버튼 실행해 조회되게」).
+     ★두 값을 다 넣은 뒤에 change 를 쏜다 — 화면의 조회는 두 칸을 함께 읽으므로,
+       중간에 쏘면 뒤집힌 기간(새 시작 > 옛 종료)으로 한 번 더 돈다.
+     ★change 는 <반드시 한 번> 쏜다. 두 가지를 여기서 잡는다 —
+       ① 바뀐 칸마다 쏘면 두 칸 다 바뀐 보통의 경우 조회가 2번 돈다(DB 왕복 2회).
+       ② 반대로 <같은 기간을 다시 골랐을 때>는 바뀐 게 없어 조회가 아예 안 돌았다
+          — 사용자에겐 "달력에서 골랐는데 아무 일도 안 일어난다"로 보인다.
+     쏘는 칸 : 인라인 onchange 가 걸린 칸(이 앱은 시작·종료가 같은 조회 함수를 부른다) 중 종료칸 우선.
+              양쪽 다 없으면(조회를 [조회] 단추로만 하는 화면) 양쪽에 알린다 — 어차피 자동조회가 없다. */
+  function rgApply(r) {
+    if (!r) return;
+    if (r.f) r.from.value = r.f;
+    if (r.t) r.to.value = r.t;
+    var tgt = (r.t && r.to.getAttribute('onchange')) ? r.to
+            : (r.f && r.from.getAttribute('onchange')) ? r.from : null;
+    if (tgt) { fireChange(tgt); return; }
+    if (r.f) fireChange(r.from);
+    if (r.t && r.to !== r.from) fireChange(r.to);
+  }
   function calClose() {
+    /* ★먼저 rg 를 비우고 적용한다 — change 로 화면이 다시 그려지며 이 함수가 또 불려도 두 번 들어가지 않게 */
+    var r = rg; rg = null;
+    rgApply(r);
     if (cal && cal.parentNode) cal.parentNode.removeChild(cal);
     cal = null; calFor = null;
   }
-  function calDraw() {
-    if (!cal) return;
-    var y = calYm.getFullYear(), m = calYm.getMonth();
-    var sel = parse(calFor.value), tod = new Date();
+  /* 기간모드에서 날짜 하나를 골랐을 때 */
+  /* ★시작을 새로 고르면 <두 판을 그 달로> 맞춘다 (2026-08-28 요청 「from to 같은달로」).
+     열 때는 왼쪽=시작의 달, 오른쪽=종료의 달이지만, 시작을 다시 고르면 옛 종료의 달은 대개 쓸모가 없다.
+     기간이 여러 달이면 오른쪽 판을 ‹ › 로 옮기면 된다(좌우는 따로 움직인다). */
+  function rgSameMonth(v) {
+    var d = parse(v); if (!d) return;
+    calYm  = new Date(d.getFullYear(), d.getMonth(), 1);
+    calYm2 = new Date(d.getFullYear(), d.getMonth(), 1);
+  }
+  function rgPick(v) {
+    if (rg.step === 0) {                       // ① 시작 — 창을 닫지 않고 ② 종료로 넘어간다
+      rg.f = v;
+      if (rg.t && rg.t < v) rg.t = v;          // 시작이 종료보다 뒤면 종료를 끌어 올린다
+      rgSameMonth(v);
+      rg.step = 1; calDraw(); return;
+    }
+    if (v < rg.f) { rg.f = v; rgSameMonth(v); calDraw(); return; }   // 종료를 시작보다 앞으로 고르면 '새 시작'으로 읽는다
+    rg.t = v; calClose();                      // 닫으면서 두 값이 함께 들어간다
+  }
+  /* 한 달치 표 하나 — 기간모드는 이것을 <두 개 나란히> 놓는다(2026-08-28 요청).
+     제목(2026년 8월)은 단추다 — 누르면 그 달 통째로(1일~말일)가 기간이 된다. */
+  function monthPane(y, m, sel, tod, pane) {
     var first = new Date(y, m, 1), cur = new Date(y, m, 1 - first.getDay());
-    /* ★월 이동은 `‹ ›`(좌우) — 월별로 고르는 일이 많아 이것이 가장 자주 눌린다.
-       `« »` 는 1년. 위/아래 화살표를 쓰지 않는 이유가 여기 있다(앞/뒤가 안 읽힌다). */
-    var h = '<div class="hd">'
-          + '<button type="button" data-mv="-12" title="1년 앞으로">&laquo;</button>'
-          + '<button type="button" data-mv="-1"  title="한 달 앞으로">&lsaquo;</button>'
-          + '<span class="t">' + y + '년 ' + (m + 1) + '월</span>'
-          + '<button type="button" data-mv="1"   title="한 달 뒤로">&rsaquo;</button>'
-          + '<button type="button" data-mv="12"  title="1년 뒤로">&raquo;</button>'
-          + '</div><table><thead><tr>';
+    var mk = y + '-' + ('0' + (m + 1)).slice(-2);
+    var h = '<div class="mo">';
+    if (rg) {   /* 판마다 제 머리줄 — «‹ [달이름] ›» . 좌우가 서로 상관없이 움직인다. */
+      h += '<div class="hd">'
+         + '<button type="button" data-mv="-12" data-pane="' + pane + '" title="1년 앞으로">&laquo;</button>'
+         + '<button type="button" data-mv="-1"  data-pane="' + pane + '" title="한 달 앞으로">&lsaquo;</button>'
+         + '<button type="button" class="mtt" data-mon="' + mk + '" title="이 달 전체(1일~말일)를 기간으로">' + y + '년 ' + (m + 1) + '월</button>'
+         + '<button type="button" data-mv="1"   data-pane="' + pane + '" title="한 달 뒤로">&rsaquo;</button>'
+         + '<button type="button" data-mv="12"  data-pane="' + pane + '" title="1년 뒤로">&raquo;</button>'
+         + '</div>';
+    }
+    h += '<table><thead><tr>';
     var W = ['일','월','화','수','목','금','토'];
     for (var w = 0; w < 7; w++) {
       h += '<th' + (w === 0 ? ' style="color:#c0392b"' : w === 6 ? ' style="color:#1f6fb2"' : '') + '>' + W[w] + '</th>';
@@ -161,29 +280,81 @@
     for (var r = 0; r < 6; r++) {
       h += '<tr>';
       for (var c = 0; c < 7; c++) {
-        var cls = [];
+        var cls = [], v = ymd(cur);
         if (cur.getMonth() !== m) cls.push('out');
         else if (c === 0) cls.push('sun'); else if (c === 6) cls.push('sat');
-        if (ymd(cur) === ymd(tod)) cls.push('today');
-        if (sel && ymd(cur) === ymd(sel)) cls.push('on');
-        h += '<td><button type="button" class="' + cls.join(' ') + '" data-d="' + ymd(cur) + '">' + cur.getDate() + '</button></td>';
+        if (v === ymd(tod)) cls.push('today');
+        if (rg) {                                   // 기간모드 — 양끝은 진하게, 사이는 옅게
+          if ((rg.f && v === rg.f) || (rg.t && v === rg.t)) cls.push('on');
+          else if (rg.f && rg.t && v > rg.f && v < rg.t) cls.push('in');
+        }
+        else if (sel && v === ymd(sel)) cls.push('on');
+        h += '<td><button type="button" class="' + cls.join(' ') + '" data-d="' + v + '">' + cur.getDate() + '</button></td>';
         cur.setDate(cur.getDate() + 1);
       }
       h += '</tr>';
       if (cur.getMonth() !== m && r >= 4) break;      // 다 그렸으면 빈 줄을 더 만들지 않는다
     }
+    return h + '</tbody></table></div>';
+  }
+  function calDraw() {
+    if (!cal) return;
+    var y = calYm.getFullYear(), m = calYm.getMonth();
+    var sel = parse(calFor.value), tod = new Date();
+    var h = '';
+    if (rg) {   /* ① 시작 / ② 종료 — 지금 무엇을 고르는 중인지 보이고, 눌러서 되돌아갈 수도 있다 */
+      h += '<div class="rgh">'
+         + '<button type="button" class="stp' + (rg.step === 0 ? ' on' : '') + '" data-step="0">① 시작 ' + (rg.f || '—') + '</button>'
+         + '<span class="tl">~</span>'
+         + '<button type="button" class="stp' + (rg.step === 1 ? ' on' : '') + '" data-step="1">② 종료 ' + (rg.t || '—') + '</button>'
+         + '</div>';
+    }
+    /* ★월 이동은 `‹ ›`(좌우) — 월별로 고르는 일이 많아 이것이 가장 자주 눌린다.
+       `« »` 는 1년. 위/아래 화살표를 쓰지 않는 이유가 여기 있다(앞/뒤가 안 읽힌다).
+       ★기간모드에서는 머리줄이 <판마다> 있다(2026-08-28 요청 「좌우 달력 년월 조절 따로」) —
+         한 벌로 묶여 있으면 8월 ~ 11월 처럼 떨어진 기간에서 오른쪽 달을 맞출 수가 없었다. */
+    if (rg) {
+      h += '<div class="ms">' + monthPane(y, m, sel, tod, 0)
+         + monthPane(calYm2.getFullYear(), calYm2.getMonth(), sel, tod, 1) + '</div>';
+    } else {
+      h += '<div class="hd">'
+          + '<button type="button" data-mv="-12" title="1년 앞으로">&laquo;</button>'
+          + '<button type="button" data-mv="-1"  title="한 달 앞으로">&lsaquo;</button>'
+          + '<span class="t">' + y + '년 ' + (m + 1) + '월</span>'
+          + '<button type="button" data-mv="1"   title="한 달 뒤로">&rsaquo;</button>'
+          + '<button type="button" data-mv="12"  title="1년 뒤로">&raquo;</button>'
+          + '</div>'
+          + monthPane(y, m, sel, tod, 0);
+    }
     /* ⚠[지우기] 는 두지 않는다(사용자 지시) — 날짜를 비우는 것은 대개 실수다 */
-    h += '</tbody></table><div class="ft"><button type="button" data-today="1">오늘</button></div>';
+    h += '<div class="ft"><button type="button" data-today="1">오늘</button></div>';
     cal.innerHTML = h;
   }
   function calOpen(el) {
     if (calFor === el && cal) return;               // 같은 칸이면 그대로 둔다
     calClose();
     calFor = el;
+    /* 짝(from~to)이 있으면 기간모드로 연다. 시작칸을 눌렀으면 ① 부터, 종료칸을 눌렀으면 ② 부터. */
+    var _p = pairOf(el);
+    rg = _p ? { from: _p.from, to: _p.to, f: _p.from.value || '', t: _p.to.value || '',
+                step: (_p.role === 'from' ? 0 : 1) } : null;
     var base = parse(el.value) || new Date();
     calYm = new Date(base.getFullYear(), base.getMonth(), 1);
+    calYm2 = null;
+    if (rg) {
+      /* 왼쪽 = 시작의 달, 오른쪽 = 종료의 달. 두 값이 같은 달이면 오른쪽은 그 다음 달.
+         (좌우는 열린 뒤 각자 옮길 수 있다 — 2026-08-28 요청) */
+      var _bf = parse(rg.f) || parse(rg.t) || new Date();
+      calYm = new Date(_bf.getFullYear(), _bf.getMonth(), 1);
+      var _bt = parse(rg.t);
+      calYm2 = (_bt && (_bt.getFullYear() !== calYm.getFullYear() || _bt.getMonth() !== calYm.getMonth()))
+             ? new Date(_bt.getFullYear(), _bt.getMonth(), 1)
+             : new Date(calYm.getFullYear(), calYm.getMonth() + 1, 1);
+      /* 종료가 시작보다 앞이면(뒤집힌 값) 오른쪽은 그냥 다음 달 */
+      if (calYm2 < calYm) calYm2 = new Date(calYm.getFullYear(), calYm.getMonth() + 1, 1);
+    }
     cal = document.createElement('div');
-    cal.className = 'udnCal';
+    cal.className = 'udnCal' + (rg ? ' rg' : '');
     document.body.appendChild(cal);
     calDraw();
     /* 칸 아래에 놓고, 아래가 좁으면 위로 올린다 */
@@ -213,12 +384,28 @@
       if (!b || b.tagName !== 'BUTTON') return;
       var mv = b.getAttribute('data-mv');
       if (mv) {   // ★달을 옮길 때는 창을 닫지 않는다 — 훑어 보다가 고른다
-        calYm = new Date(calYm.getFullYear(), calYm.getMonth() + Number(mv), 1);
+        if (rg && b.getAttribute('data-pane') === '1') {          // 오른쪽 판만 움직인다
+          calYm2 = new Date(calYm2.getFullYear(), calYm2.getMonth() + Number(mv), 1);
+        } else {                                                  // 왼쪽 판(또는 한 칸짜리 달력)
+          calYm = new Date(calYm.getFullYear(), calYm.getMonth() + Number(mv), 1);
+        }
         calDraw(); return;
       }
-      if (b.getAttribute('data-today')) { setVal(calFor, ymd(new Date())); calClose(); return; }
+      var st = b.getAttribute('data-step');
+      if (rg && st) { rg.step = Number(st); calDraw(); return; }        // ①/② 를 눌러 되돌아가기
+      var mo = b.getAttribute('data-mon');                              // 달 제목을 누르면 그 달 통째로(1일~말일)
+      if (rg && mo) {
+        var _y = Number(mo.slice(0, 4)), _m = Number(mo.slice(5, 7)) - 1;
+        rg.f = ymd(new Date(_y, _m, 1));
+        rg.t = ymd(new Date(_y, _m + 1, 0));
+        calClose(); return;
+      }
+      if (b.getAttribute('data-today')) {
+        if (rg) { rgPick(ymd(new Date())); return; }
+        setVal(calFor, ymd(new Date())); calClose(); return;
+      }
       var v = b.getAttribute('data-d');
-      if (v) { setVal(calFor, v); calClose(); }
+      if (v) { if (rg) rgPick(v); else { setVal(calFor, v); calClose(); } }
     });
   }
   /* 바깥을 누르면 닫는다 — 칸 자신과 달력 안은 뺀다 */

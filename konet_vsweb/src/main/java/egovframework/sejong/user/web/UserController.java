@@ -539,15 +539,25 @@ public class UserController {
 
 					int jobSeq = svc.getShipoutNextJobSeq(head);
 					int seq = 0;
+					/* ★행마다 INSERT 를 던지지 않고 <40행씩 묶어> 한 문장으로 넣는다 (2026-08-28 속도 개선).
+					     종전 : 4,564행 업로드 = INSERT 왕복 4,564번 → 「서버 반영 중…」에서 오래 멈췄다.
+					     지금 : 약 115문장. 값 채우는 순서·내용은 종전과 같다(JOB_SEQ·ROW_NO·등록자).
+					   ⚠40행 상한은 지킬 것 — SQL Server 는 한 문장의 파라미터가 2,100개를 넘을 수 없고
+					     이 INSERT 는 행당 41개를 쓴다(40행 = 1,640개). 늘리면 런타임에 터진다. */
+					final int BULK = 40;
+					java.util.List<egovframework.sejong.user.model.ShipoutDTO> buf
+					    = new java.util.ArrayList<egovframework.sejong.user.model.ShipoutDTO>(BULK);
 					for (egovframework.sejong.user.model.ShipoutDTO r : grp) {
 						r.setJobSeq(jobSeq);
 						r.setActionYn("Y");
 						if (r.getRowNo() == null) r.setRowNo(seq + 1);
 						r.setRegUser(regUser);
 						r.setRegIp(regIp);
-						svc.insertShipoutMst(r);
+						buf.add(r);
 						seq++; total++;
+						if (buf.size() >= BULK) { svc.insertShipoutMstBulk(buf); buf.clear(); }
 					}
+					if (!buf.isEmpty()) { svc.insertShipoutMstBulk(buf); buf.clear(); }
 					/* ★거래처 코드 → 우리 품목 해석 (2026-08-01). 반드시 INSERT 뒤·재고연동(A) 앞.
 					   · 원본 ITEM_CD/ITEM_NM 은 건드리지 않는다. PROD_SEQ 칸만 채운다.
 					   · 행마다 조회하지 않는다 — 배치 단위 UPDATE 한 문장(resolveShipoutProd).

@@ -2,7 +2,7 @@
 <%-- ★날짜 칸에 달력 아이콘·[◀][▶][오늘] 을 자동으로 붙인다 (2026-08-17 요청) — 화면 수정 0.
      기본 달력의 ↑↓ 는 앞/뒤가 안 읽혀, 월 이동을 ‹ › 로 둔 우리 달력을 띄운다.
      빼려면 그 칸에 data-nonav="1" --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <html>
 <head>
 <style>
