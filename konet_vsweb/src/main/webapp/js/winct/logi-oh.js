@@ -544,9 +544,11 @@ var KONET_CTX = window.KONET_CTX || '';
       var c=document.getElementById('zc_'+L); if(c) c.textContent = collapse?'▶':'▼';
     });
   }
-  // 상단 접기/펼치기 — 조회바(.ss-topbar) + 도구줄을 통째로 접는다. 상태는 localStorage 로 다음 접속에도 유지.
+  // 상단 접기/펼치기 — 도구줄(#ssCard 첫 줄)만 접는다. 상태는 localStorage 로 다음 접속에도 유지.
+  //  · ★조회바(.ss-topbar: 출고일자·조회·요약숫자)는 접지 않는다 (2026-08-28 「해당라인의 제외」 —
+  //    한때 조회바까지 접었다가 조회·엑셀 업로드 단추가 사라져 되돌림. JSP 의 상단 접기 CSS 주석 참고).
   //  · ★단추는 맨 위 <자주 쓰는 메뉴> 줄의 [조회조건 접기](#konetTbFoldBtn) 하나뿐이다 — 2026-08-28 요청.
-  //  · 조회바는 #ssCard 밖(형제)이라 body 클래스로 감춘다.
+  //  · body 클래스는 상태 표시용으로 계속 건다(konetTbFoldBtnUpd 가 이걸 읽는다).
   function ssTbFoldSet(on){
     var c=document.getElementById('ssCard'); if(!c) return;
     c.classList.toggle('tb-fold', !!on);
@@ -581,8 +583,8 @@ var KONET_CTX = window.KONET_CTX || '';
     // iframe 이 뒤늦게(다른 화면을 보는 중에) 알려 올 수 있다 — 보임 여부는 그때도 화면 기준으로 다시 판단
     b.style.display = document.querySelector('#panel-shipstatus2.show, #panel-shipstatus.show') ? '' : 'none';
     b.innerHTML = on ? '▾ 조회조건 펼치기' : '▴ 조회조건 접기';
-    b.title = on ? '접어 둔 상단 조회조건·검색 도구줄을 다시 폅니다'
-                 : '상단 조회조건(출고일자·조회·요약숫자)과 검색 도구줄을 접습니다 (표가 그만큼 넓게 보입니다)';
+    b.title = on ? '접어 둔 검색 도구줄을 다시 폅니다'
+                 : '검색 도구줄을 접습니다 — 출고일자·조회·요약숫자 줄은 그대로 남습니다 (표가 그만큼 넓게 보입니다)';
   }
   // 화면 전환 때(logiGo) : 접을 것이 있는 화면에서만 보이게 + 그 화면의 현재 상태로 글자 맞춤
   function konetTbFoldBtnUpd(){
@@ -5541,9 +5543,13 @@ var KONET_CTX = window.KONET_CTX || '';
     for(var g=0; wrap._lz.from<list.length && wrap.scrollHeight<=wrap.clientHeight+2 && g<200; g++) lzFill(wrap);
     lzInfo(wrap);
   }
+  /* 글자 축소·확대(ui-fontsize.js)가 인라인 패널에 건 zoom 배율 — 화면 px ↔ 패널 CSS px 환산용.
+     (2026-08-28 「재고현황도 글자 축소시 하단 빈공간」 — innerHeight 로 잰 값을 CSS px 로 박는 곳은
+      전부 이 배율로 나눠야 축소 시 표가 화면 바닥까지 온다) */
+  function kzF(){ var v=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kz')); return (v>0)?v:1; }
   function lzFit(wrap){
     var z=wrap._lz; if(!z) return;
-    var cap=Math.max(240, window.innerHeight-z.capTop);   // 창을 벗어나면 안 됨
+    var cap=Math.max(240, window.innerHeight/kzF()-z.capTop);   // 창을 벗어나면 안 됨 (/kzF = 배율 역보정)
     /* ★fill 표(매출내역 탭들)는 <화면 바닥까지> 쓴다 (2026-08-04 "빈공간").
          N행 높이로 상한을 걸면 큰 화면에서 표 아래가 텅 비었다. 표 시작 위치를 실측해
          (창높이 − 시작위치 − 하단안내줄) 로 상한을 잡는다 — 행이 모자라면 표는 짧게 끝나고,
@@ -5551,7 +5557,7 @@ var KONET_CTX = window.KONET_CTX || '';
        재고현황처럼 표 두 개를 한 화면에 두는 곳은 fill 없이 종전(N행 상한) 그대로다. */
     if (z.fill && wrap.offsetParent){
       var top=wrap.getBoundingClientRect().top + (window.scrollY||window.pageYOffset||0);
-      cap=Math.max(240, window.innerHeight - top - 46);
+      cap=Math.max(240, (window.innerHeight - top)/kzF() - 46);   // /kzF = 배율 역보정 (innerHeight·top 은 실화면 px)
       wrap.style.maxHeight=cap+'px';
       return;
     }

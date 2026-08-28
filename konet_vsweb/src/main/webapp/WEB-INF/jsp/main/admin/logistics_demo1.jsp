@@ -36,10 +36,17 @@
      <바깥 여백 + 카드 안쪽 여백>을 줄인 만큼만 늘어난다. 좌우·위 여백은 그대로. */
   .d2-wrap { padding:14px 11px 3px; height:100vh; display:flex; flex-direction:column; }
   .d2-head, .d2-topbar { flex:0 0 auto; }
-  .d2-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  /* gap 10 → 8 (2026-08-28 「출고세부조회가 두줄로」 — 한 줄에 담기게 조금씩 줄임)
+     ★justify-content : space-between → flex-start (2026-08-28 연속 지적의 결론) —
+       남는 공간을 요소 <사이>에 두는 한 어딘가는 늘 구멍으로 보였다(①[전체]↔요약 ②요약↔업로드
+       ③제목 옆 — 세 번 다 동그라미로 지적됨). 전부 왼쪽으로 붙이고 남는 공간은 줄 맨 오른쪽
+       끝에만 둔다. 줄이 접혀도(출고세부조회) 각 줄이 왼쪽부터 차므로 가운데 구멍이 안 생긴다. */
+  .d2-head { display:flex; align-items:center; justify-content:flex-start; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
   .d2-head h2 { margin:0; font-size:20px; color:#1f2a37; }
   .d2-head .sub { font-size:13px; color:#37475a; margin-top:4px; }
-  .d2-head .actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .d2-head .actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  /* 단추 좌우 여백 14 → 10 (2026-08-28 「출고세부조회가 두줄로」 — 한 줄 확보용, 이 줄만) */
+  .d2-head .actions .btn-teal, .d2-head .actions .btn-line { padding:8px 10px; }
   .badge { display:inline-block; background:#e3f4ef; color:#137a6c; border:1px solid #b9e6dd; border-radius:11px; padding:1px 10px; font-size:11.5px; vertical-align:middle; }
 
   .btn-teal { background:var(--teal); color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; font-weight:500; }
@@ -56,14 +63,16 @@
   /* 제목 · 조회조건 · 요약숫자는 왼쪽으로 모으고, 남는 자리는 <요약숫자 오른쪽>에 준다
      → 액션단추만 오른쪽 끝. (2026-08-28 「표시부분은 조금 좌측으로」 — 종전에는 남는 자리가
         조회조건 오른쪽에 몰려 요약숫자가 액션단추에 붙어 있었다) */
-  /* margin-left 가 요약숫자의 좌우 위치를 정한다 — 값을 키우면 오른쪽으로 간다.
-     (2026-08-28: 18px → 35px 「우측을 살짝 이동」. 남는 자리가 1870px 기준 73px 뿐이라
-      더 키우면 액션단추에 붙는다 — 조회조건쪽 45px / 액션쪽 28px 로 나눠 둔 값이다) */
-  .d2-head .tb-stats { margin-right:auto; margin-left:35px; }
+  /* ★요약숫자 좌우 틈은 <작게 고정> (2026-08-28 「1번,2번 공간 조금만 좁혀줘」) —
+     남는 공간은 위 .d2-head 의 flex-start 가 줄 맨 오른쪽 끝으로 보낸다(요소 사이 구멍 금지).
+     [이력] margin 18px → 35px 「우측을 살짝」 → auto/auto 「빈공간 축소」 → 제목 뒤 auto
+     (「제목 옆 구멍」 지적으로 폐기) → 14px 고정 + flex-start(지금). 되살리기 전에 이 이력 확인. */
+  .d2-head .tb-stats { margin-left:14px; margin-right:14px; gap:6px; }
   .tb-left label { font-size:13px; color:#37475a; }
-  .tb-left input[type=date] { height:34px; border:1px solid #cfd9e2; border-radius:8px; padding:0 10px; font-size:13px; cursor:pointer; background:#fff; font-weight:400; }
+  /* width 132px 명시 (2026-08-28 머리줄 한 줄 확보 — 기본폭이 화면마다 150px 안팎으로 넉넉했다) */
+  .tb-left input[type=date] { height:34px; width:132px; border:1px solid #cfd9e2; border-radius:8px; padding:0 8px; font-size:13px; cursor:pointer; background:#fff; font-weight:400; }
   .tb-left input[type=date]:hover { border-color:var(--teal); }
-  .tb-left .btn-teal, .tb-left .btn-line { padding:5px 14px; }
+  .tb-left .btn-teal, .tb-left .btn-line { padding:5px 10px; }  /* 14 → 10 (2026-08-28 한 줄 확보) */
   /* ★날짜칸은 자동조회하지 않는다 (2026-08-28 요청 「날짜 선택하면 자동검색인데 조회버튼 실행해야 되게」).
      자동조회를 끄면 <바꾼 날짜와 화면의 표가 다른> 시간이 생긴다 — 그 사실이 보여야 한다.
      그래서 날짜가 바뀌면 [조회]가 주황으로 깜박이고 옆에 안내가 뜬다. 조회하면 원래대로. */
@@ -160,24 +169,21 @@
         그보다 더 좁으면 종전대로 줄바꿈 — 110%↑ 배율에서는 어쩔 수 없다.)
        ⚠overflow-x:auto 로 풀면 안 된다 — 대표출고장·그룹순서 드롭다운(.dc-pop)이 잘린다. */
   #d2Card{ container-type:inline-size; }
-  /* 상단 접기 — 2026-08-21 도구줄만 → 2026-08-28 요청으로 '조회바 + 도구줄 통째로'.
-     조회바(.d2-topbar: 출고일자·조회·당일/당월/전체·요약숫자) 와 도구줄(.d2-toolbar: 찾기·줌·대표출고장…) 을 함께 감춘다.
+  /* 상단 접기 — 2026-08-21 도구줄만 → 2026-08-28 '조회바+도구줄 통째로'(제목줄 .d2-head 까지)
+       → ★같은 날 최종 「조회조건접기에서 해당라인의 제외」(제목줄에 밑줄+동그라미 스크린샷) :
+         제목줄(.d2-head = 출고일자·조회·당일/당월/전체·요약숫자·엑셀 업로드/출력 단추)은 <접지 않는다>.
+         접으면 조회·엑셀 업로드까지 사라져 매번 펼쳤다 접어야 했다 — 접는 것은 도구줄(.d2-toolbar)
+         + 안내줄(.d2-topbar)만. (한때 body.tb-fold .d2-head{display:none} 이 여기 있었다 — 되살리자는
+         얘기가 나오면 이 이력부터 확인할 것.)
      ★단추는 이 화면 안에 없다 — 셸(logistics_demo2.jsp) 맨 위 <자주 쓰는 메뉴> 줄의 [조회조건 접기].
        2026-08-28: 제목줄 오른쪽 끝에 두었더니 폭이 좁은 창에서 화면 밖으로 잘려 못 눌렀다.
        접기 자체는 여기 d2TbFold 가 하고, 셸 단추가 iframe 의 그 함수를 부른다.
      ⚠.d2-topbar 는 #d2Card 의 형제(.d2-wrap 직속)라 카드 클래스로는 못 잡는다 → body 에도 같은 클래스를 건다. */
   #d2Card.tb-fold .d2-toolbar{ display:none; }
   body.tb-fold .d2-topbar{ display:none !important; }
-  /* ★조회조건이 제목줄로 올라갔으므로(2026-08-28) 접기 대상도 여기까지 —
-     안 그러면 [조회조건 접기]를 눌러도 출고일자·조회 단추가 그대로 남는다. */
-  /* ★접으면 제목줄을 통째로 감춘다 (2026-08-28 「접기하면 표시부분 남아 있음」) —
-     조회조건·요약숫자가 제목줄로 올라온 뒤로는, 줄 안쪽만 감춰서는 제목·액션단추가 그대로 남아
-     화면이 별로 넓어지지 않았다. 펼치는 단추는 셸 맨 위 줄에 있으니 이 줄을 통째로 감춰도 안전하다.
-     ⚠보기전환 콤보(#d2ViewSel)가 이 안에 있다 — 지우지 않고 <감추기만> 해야 d2SetView 가 안 깨진다. */
-  body.tb-fold .d2-head{ display:none !important; }
   /* 제목줄에 얹힌 요약숫자는 조금 좁게 — 제목+조회조건+요약+액션단추가 한 줄에 들어가야 한다.
      (1870px 실측: 제목 202 + 조회조건 647 + 요약 412 + 액션 567 = 여유가 거의 없다) */
-  .d2-head .tb-stats .st { min-width:64px; padding:4px 12px; }
+  .d2-head .tb-stats .st { min-width:56px; padding:4px 9px; }  /* 64/12 → 56/9 (2026-08-28 「두줄로 생겨서」 한 줄 확보) */
   .d2-head .tb-stats .st-v { font-size:17px; }
   /* [이력] 2026-08-28 「해당 라벨 삭제」로 라벨을 감췄다가 「내용표시 없어짐」으로 <되살렸다> —
      숫자만 남으니 90/219/12/79 가 무엇인지 알 수 없었다. 대신 글자를 조금 줄여 한 줄을 지킨다. */
@@ -231,10 +237,15 @@
   .col-rz { position:absolute; top:0; right:0; width:8px; height:100%; cursor:col-resize; z-index:4; }
   .col-rz:hover { background:rgba(255,255,255,.5); }
   table.d2-tb th:first-child, table.d2-tb td:first-child { border-left:none; }
-  <%-- ★[2026-08-20] 화면 콘셉에 맞춘 머리글 — 다른 화면(공통 CSS)과 같은 **연한 청록 + 진한 청록 글자**.
-       종전에는 **진한 청록을 꽉 채우고 흰 글자(800)** 라 머리글이 자료보다 먼저 눈에 들어왔다.
-       표에서 읽어야 할 것은 값이다. 세로 구분선·가운데 정렬은 이미 콘셉과 같아 그대로 둔다. --%>
-  table.d2-tb thead th { position:sticky; top:0; z-index:3; background:#eaf2f0; color:#125a4e; font-weight:600; font-size:12.5px; letter-spacing:.02em; border-bottom:1px solid #cfe0da; }
+  <%-- ★[2026-08-28 요청 「스크롤시 글자 보이고 헤더 진하게」] 머리글을 다시 **진한 청록 + 흰 글자** 로.
+       (2026-08-20 에 연한 청록으로 바꿨던 것을 이 화면만 사용자 요청으로 되돌림 — 이력 확인 후 손댈 것.)
+       ★height:30px 로 못박는다 — 아래 tr.tot(전체 합계)가 top:30px 에 고정인데, 공통 밀도 CSS
+       (konet-ui-fix §3)가 머리글 padding 을 줄여 실제 높이가 30px 미만이 되면서 **그 틈으로
+       스크롤되는 자료 글자가 비쳐 보였다**(「스크롤시 글자 보이고」의 원인). 높이를 30 으로 맞추고
+       tot 를 29px(1px 겹침)에 붙여 배율(zoom) 반올림 실틈까지 막는다 — 그래서 z-index 는 tot(3)보다
+       높은 4 (겹친 1px 을 머리글이 덮는다). --%>
+  <%-- 글자 12.5 → 14px (2026-08-28 요청 「헤더 글자 조금더 크게」) — 고정 높이 30px 안에 여유 있다. --%>
+  table.d2-tb thead th { position:sticky; top:0; z-index:4; height:30px; background:#137a6c; color:#fff; font-weight:800; font-size:14px; letter-spacing:.02em; border-bottom:1px solid #0e6657; }
   table.d2-tb td.txt-l { text-align:left; }
   table.d2-tb td.num { text-align:right; font-variant-numeric:tabular-nums; }  /* [2026-08-20] 콘셉 : 세로로 자릿수가 맞아 눈으로 검산된다 */
   /* 출고장 셀(좌측 rowspan) — 데시보드1의 td.stick 속성(#f4f8f7 / teal / weight 600) + 클릭으로 접기/펼치기 */
@@ -264,7 +275,7 @@
   table.d2-tb td.hc-dn   { color:#c0392b; background:#fdeeec; }
   table.d2-tb td.hc-del  { color:#9aa7b3; background:#f2f4f6; text-decoration:line-through; }
   /* 변동사항 그룹 헤더 — 2차전~N차전을 하나로 묶어 표시(세부 차수는 소계행에서 확인) */
-  table.d2-tb th.bcol-chg { background:#20415a; color:#eaf1f6; font-size:12px; letter-spacing:2px; }
+  table.d2-tb th.bcol-chg { background:#20415a; color:#eaf1f6; font-size:14px; letter-spacing:2px; }  <%-- 12→14px — 머리글 글자 키움(2026-08-28)과 보조 맞춤 --%>
   /* 소계행: 각 출고장 '자기 차수' 라벨+시각+소계수량 (출고장마다 다른 차수를 자기 열에 표기) */
   table.d2-tb td.bcell-h { line-height:1.2; padding:2px 4px; background:#f4f8f7; text-align:right; }
   table.d2-tb td.bcell-h .bh-lab { display:block; font-size:10px; font-weight:800; color:#137a6c; }
@@ -272,9 +283,12 @@
   table.d2-tb td.bcell-h .bh-sum { display:block; font-size:15px; font-weight:900; color:#1f2a37; }
 
   
-  /* 전체 합계(맨 위) — 데시보드1 tr.ztot 속성 */
+  /* 전체 합계(맨 위) — 데시보드1 tr.ztot 속성.
+     ★top:29px = 머리글(높이 30 고정, 위 thead th 주석)과 1px 겹침 — 배율 반올림 실틈으로
+       자료 글자가 비치지 않게. 겹친 1px 은 z-index 4 인 머리글이 덮는다. */
   table.d2-tb tr.tot td { background:#11161d; color:#fff; font-weight:700; border-bottom:2px solid #0e1620;
-                          position:sticky; top:30px; z-index:3; }   /* 헤더(30px) 바로 아래에 고정 — 스크롤해도 전체합계 유지 */
+                          height:34px;   /* 줄을 조금 크게 (2026-08-28 요청 「검은 전체출고장 합계폭 조금 확대」 — 표 셀에선 최소높이로 동작) */
+                          position:sticky; top:29px; z-index:3; }   /* 헤더 바로 아래에 고정 — 스크롤해도 전체합계 유지 */
   /* 물류센터 대표그룹 행 — 데시보드1 tr.lgrp 속성 (▼ 그룹 헤더): 11.5px / weight 700 / teal */
   table.d2-tb tr.grp { cursor:pointer; }
   /* 대표출고장(물류센터) 그룹 헤더 — 크게 + 구분색(진한 청록 밴드/흰 글자) */
@@ -399,7 +413,10 @@
   <!-- 상단 공통 (데시보드1과 동일 구성 — 버튼은 데시보드1로 전환하여 실행) -->
   <div class="d2-head">
     <div>
-      <h2>출고현황표 <span class="badge" id="d2ViewTag">출고장별 보기</span>
+      <%-- [제외 2026-08-28 요청 「표시부분 제거」] 제목 옆 보기방식 배지(출고장별 보기 등) —
+           d2SetView 의 d2ViewTag 갱신은 if(t) 가드라 요소가 없어도 조용히 지나간다. 재노출 시 주석 해제
+      <h2>출고현황표 <span class="badge" id="d2ViewTag">출고장별 보기</span> --%>
+      <h2>출고현황표
         <%-- 보기전환 콤보 — 대시보드(출고장별)에서는 감추고, 출고세부조회에서는 보인다(2026-07-25 요청).
              대시보드는 좌측 메뉴가 이미 그 보기를 정해줘 콤보가 자리만 차지했다. 반면 출고세부조회는
              출고장별품목 ↔ 사업장별 ↔ 품목별 을 오가는 화면이라 콤보가 있어야 한다.
@@ -423,7 +440,8 @@
     </div>
     <%-- ★조회조건(출고일자·조회·당일/당월/전체)을 이 제목줄로 올렸다 (2026-08-28 요청 「표시 내용 출고현황표 옆으로」)
          — 종전에는 아래 .d2-topbar 안에 있었다. 제목 오른쪽 빈자리를 쓰고 화면을 그만큼 위로 끌어올린다.
-         ⚠[조회조건 접기]를 누르면 이 제목줄이 통째로 감춰진다 — CSS 의 body.tb-fold .d2-head 참고. --%>
+         ★[조회조건 접기]를 눌러도 이 제목줄은 <남는다> (2026-08-28 「해당라인의 제외」) — 접히는 건 도구줄뿐.
+           CSS 상단 접기 주석 참고. --%>
     <div class="tb-left">
       <span style="font-size:20px">📅</span>
       <label>출고일자</label>
@@ -451,7 +469,9 @@
     <div class="actions">
       <%-- 2026-07-26 사용자: 누르자마자 탐색기(파일 선택창)가 뜨지 않게 — 지정 폴더의 자료를 최신순으로 보여주는
            미리보기 모달을 먼저 연다. 탐색기가 필요하면 모달 안 [📄 파일 선택]. --%>
-      <button class="btn-teal" onclick="d2Go('upload')" title="지정한 자료 폴더의 발주현황표를 최신순으로 보여줍니다 (탐색기는 모달 안 [📄 파일 선택])">📤 발주현황표 엑셀 보기 / 업로드</button>
+      <%-- 표시는 「발주현황표 업로드」 (2026-08-28 요청 — 종전 「발주현황표 엑셀 보기 / 업로드」에서 줄임.
+           동작은 그대로 = 보기 모달 먼저) --%>
+      <button class="btn-teal" onclick="d2Go('upload')" title="지정한 자료 폴더의 발주현황표를 최신순으로 보여줍니다 (탐색기는 모달 안 [📄 파일 선택])">📤 발주현황표 업로드</button>
       <%-- [삭제 2026-07-05] 매출금액/매입금액 업로드·출고데이타저장 버튼 제거 (마감관리 메뉴로 일원화) --%>
       <select id="d2PrintFmt" title="출력 형식 선택 (출고장별 / 품목별)" style="height:35px;border:1px solid var(--bd);border-radius:6px;padding:0 8px;font-size:13px;font-weight:700;cursor:pointer;color:#37475a;background:#fff">
         <option value="zone">출고장별</option>
@@ -612,6 +632,8 @@
   // 드래그는 엑셀처럼 그 열만 px로 조절(옆 열 안 건드림). 넘치면 가로 스크롤, 값은 px로 저장
   // 고정(기준) 컬럼 — 품목코드를 품목명 앞으로. 최초일시·변경일시 제거. 오른쪽엔 차수(배치)별 수량 컬럼이 동적으로 붙음
   var D2_BASECOLS=[
+    /* [원복 2026-08-28] 「전체 출고장 폭 조금넓게」를 열 폭으로 잘못 읽어 0.16 으로 키웠다가
+       「무엇을했는지 그것은 원복」 지시로 0.14 복귀 — 실제 요청은 검은 <전체 출고장 합계 줄> 높이(tr.tot). */
     {k:'zone', nm:'출고장', f:0.14},
     {k:'no',   nm:'No',    f:0.035},
     /* 현재고 (2026-08-07 요청 "No 뒤에") — 근거는 재고현황(①)과 같다: 수불원장 입고−출고.
@@ -1607,7 +1629,8 @@
   // ── 출고장 접기/펼치기 (개별 + 물류센터 그룹 + 전체)
   function d2ToggleZone(zn){ if(D2_COLL[zn]) delete D2_COLL[zn]; else D2_COLL[zn]=1; d2Render(); }
   function d2ToggleGroup(g){ if(D2_GCOLL[g]) delete D2_GCOLL[g]; else D2_GCOLL[g]=1; d2Render(); }
-  // 상단 접기/펼치기 — 조회바(.d2-topbar) + 도구줄(.d2-toolbar) 을 통째로 접는다. 대시보드(ssTbFold)와 같은 규칙.
+  // 상단 접기/펼치기 — 도구줄(.d2-toolbar) + 안내줄(.d2-topbar)만 접는다. 대시보드(ssTbFold)와 같은 규칙.
+  //  · ★제목줄(.d2-head = 출고일자·조회·요약숫자·엑셀 업로드)은 접지 않는다 (2026-08-28 「해당라인의 제외」 — CSS 주석 참고).
   //  · ★단추는 이 화면 안에 없다 — 셸 맨 위 줄의 [조회조건 접기](konetTbFold)가 여기 d2TbFold 를 부른다.
   //    (2026-08-28: 제목줄에 두었더니 좁은 창에서 잘려 못 눌렀다. 이 화면은 iframe 이라 제 폭을 못 넓힌다)
   //  · 조회바는 #d2Card 밖(형제)이라 body 클래스로 감춘다.
@@ -2020,6 +2043,11 @@
     var t=document.getElementById('d2ViewTag'); if(t) t.textContent=(D2_VIEW==='matrix'?'가로표 보기':(D2_VIEW==='biz'?'사업장별 보기':(D2_VIEW==='item'?'품목별 보기':(D2_VIEW==='zoneitem'?'출고장별 품목보기':'출고장별 보기'))));
     // 출력 형식 셀렉터를 현재 보기와 동기화 → 상단 '일자별/합계 출력'이 현재 보기 형식으로 나감
     var pf=document.getElementById('d2PrintFmt'); if(pf){ var want=(D2_VIEW==='zone')?'zone':D2_VIEW; for(var i=0;i<pf.options.length;i++){ if(pf.options[i].value===want){ pf.value=want; break; } } }
+    /* ★보기 콤보가 떠 있는 화면(출고세부조회)에서는 출력형식 콤보를 숨긴다 (2026-08-28 머리줄 두 줄 지적) —
+       바로 위에서 현재 보기로 동기화되므로 두 콤보가 같은 값으로 나란히 떠 자리만 먹었다.
+       출력은 지금 보는 형식 그대로 나간다. 대시보드(zone·matrix)는 보기 콤보가 없어 종전대로 보인다.
+       ⚠요소를 지우지 않는다 — d2Download 가 pf.value 를 읽는다(숨겨도 값은 산다). */
+    if(pf) pf.style.display=(D2_VIEW==='zone'||D2_VIEW==='matrix')?'':'none';
     d2Render();
   }
   // 부모(사이드바 메뉴)에서 보기 전환 요청 수신

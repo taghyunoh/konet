@@ -93,6 +93,11 @@
     for (var k=0;k<all.length;k++) all[k].style.zoom = '';
     var t = zoomTargets();
     for (var i=0;i<t.length;i++) t[i].style.zoom = (f === 1) ? '' : f;
+    /* ★--kz = 지금 패널에 걸린 배율 (2026-08-28 「재고현황도 글자 축소시 하단 빈공간」) —
+       인라인 패널의 vh 높이는 zoom 과 무관하게 실제 화면 기준으로 계산된 뒤 zoom 배로 <줄어들어>
+       축소 시 표가 짧아지고 아래가 빈다(iframe 화면과 같은 뿌리, 그쪽은 상자 역보정으로 해결).
+       인라인 쪽은 CSS 가 `calc(74vh / var(--kz,1))` 처럼 나눠서 되살린다 — demo2 의 --kz 주석 참고. */
+    document.documentElement.style.setProperty('--kz', String(f));
     /* 종전 판이 `<html>`·`.logi-wrap`·`.logi-side` 에 남겨 둔 값을 지운다 —
        한 번이라도 옛 스크립트가 돈 창에서는 이게 남아 있으면 두 배로 걸린다. */
     document.documentElement.style.zoom = '';
@@ -106,8 +111,22 @@
        내 몫(mine)을 나눠 보정했는데, **Chrome 은 안쪽 zoom 이 innerWidth 를 안 바꾼다** —
        그래서 부를 때마다 need 가 f 배씩 불어나는 **폭주**가 된다(1.2→1.44→1.73→… 실측).
        지금까지 티가 안 났던 것은 패널 zoom 이 전파돼 need=1 로만 떨어졌기 때문이다(잠복).
-       ⇒ **재기 전에 내 zoom 을 걷어내고 잰다** — 그러면 innerWidth 를 바꾸는 엔진이든
-       안 바꾸는 엔진이든 같은 값이 나온다(멱등 · 폭주 불가). */
+       ⇒ **재기 전에 내 몫을 걷어내고 잰다** — 그러면 innerWidth 를 바꾸는 엔진이든
+       안 바꾸는 엔진이든 같은 값이 나온다(멱등 · 폭주 불가).
+     ★★[2026-08-28 네 번째 판] <문서 안> zoom → <iframe 상자> zoom + 상자 역보정 —
+       「글자 축소하면 하단 빈공간 생김」(80% 스크린샷, 출고현황표).
+       ⚠원인 : 업무화면(demo1 등)은 `.d2-wrap{height:100vh}` 처럼 **화면 높이에 딱 맞춘** 레이아웃인데,
+         zoom 을 <문서 안(html)>에 걸면 100vh 는 상자 높이 그대로 계산되고 렌더만 0.768배로 줄어
+         **상자 아래 (1−배율)만큼 흰 빈공간**이 남는다(축소). 확대(1.2) 때 안쪽 스크롤이 생기던 것도 같은 뿌리.
+       ⇒ zoom 을 **iframe 상자에** 걸고 상자 CSS 크기를 역수로 키운다(잰값/need, 폭·높이 모두 px)
+         — 렌더 크기 = 원래 상자 그대로, 대신 **안쪽 뷰포트가 실제로 커져** 100vh 가 상자를 정확히 채운다
+         (브라우저 Ctrl± 와 같은 원리). 재현 페이지 실측(2026-08-28) : 80%·100%·120% 모두 빈공간 0 ·
+         5회 재호출 안정 · 안쪽 innerWidth = 상자CSS폭(=원래폭/need) 정확.
+       ⚠원래 inline 크기(width:100%·height:calc(100vh - 70px))는 style 속성에 있어 그냥 지우면 없어진다
+         → 처음 만질 때 __kzOrig 에 담아 두고, 잴 때마다 그 값으로 되돌린 뒤 잰다(멱등).
+       ⚠★폭도 %가 아니라 **px** — zoom 이 걸린 상자의 %폭은 부모 폭을 <자기 zoom 좌표계>로 다시 재서
+         (100/need)% 로 주면 **이중 보정**되어 상자가 가로로 넘친다(재현 실측 : 0.768 에서 30% 초과).
+         px 은 그 좌표계 그대로라 정확하다. 창 크기가 바뀌면 resize/클릭 재기가 다시 재서 다시 박는다. */
   function fixFrames(f){
     var frames = document.getElementsByTagName('iframe');
     for (var i=0;i<frames.length;i++){
@@ -115,15 +134,29 @@
       try{
         w = fr.contentWindow; d = fr.contentDocument;
         if (!w || !d || !d.documentElement) continue;          // 아직 안 뜬 iframe
-        var prev = d.documentElement.style.zoom || '';
-        d.documentElement.style.zoom = '';                     // 잰다 — 내 몫을 걷어낸 맨눈으로
-        var box = fr.getBoundingClientRect().width;            // 화면에 보이는 실제 폭
+        d.documentElement.style.zoom = '';                     // 옛 판(문서 안 zoom) 잔재는 늘 걷어낸다
+        if (fr.__kzOrig === undefined)
+          fr.__kzOrig = { z: fr.style.zoom || '', w: fr.style.width || '', h: fr.style.height || '' };
+        fr.style.removeProperty('zoom');                        // 잰다 — 내 몫(!important 포함)을 걷어낸 맨눈으로
+        fr.style.removeProperty('width');
+        fr.style.removeProperty('height');
+        fr.style.zoom = fr.__kzOrig.z;                          // 원래 inline 값 복원
+        fr.style.width = fr.__kzOrig.w;
+        fr.style.height = fr.__kzOrig.h;
+        var box = fr.getBoundingClientRect();                   // 화면에 보이는 실제 크기
         var inn = w.innerWidth;                                 // 그 문서가 생각하는 폭(스크롤바 포함 = box 와 같은 기준)
-        if (!box || !inn) { d.documentElement.style.zoom = prev; continue; }
-        var fromUp = box / inn;                                 // 부모(패널 zoom 등)에서 전해져 온 몫
+        if (!box.width || !inn) continue;                       // 숨은 화면(폭 0) — 나타날 때 클릭 재기가 다시 잰다
+        var fromUp = box.width / inn;                           // 부모(패널 zoom 등)에서 전해져 온 몫
         var need   = f / (fromUp || 1);
-        if (Math.abs(need - 1) < 0.02) need = 1;                // 재는 값 오차 흡수
-        d.documentElement.style.zoom = (need === 1) ? '' : need;
+        if (Math.abs(need - 1) < 0.02) continue;                // 재는 값 오차 흡수 — 원래 크기 그대로 둔다
+        /* ★역보정은 **inline !important** 로 건다(2026-08-28 「글자 축소시 아래 빈공간」 재신고) —
+           셸 CSS 에 `body.konet-asqbar-on #if-shipstatus2{height:… !important}`(알림바 가림 방지)가 있어
+           보통 inline 은 진다 → 높이 역보정이 무시돼 안쪽 뷰포트가 안 커지고 빈공간이 그대로 남았다.
+           inline !important 는 스타일시트 !important 를 이긴다. 알림바가 뜨고 내릴 때는 아래
+           body class 감시가 다시 재서 다시 박는다(원래 CSS 값으로 잰 뒤 거는 것이라 가림도 안 생긴다). */
+        fr.style.setProperty('zoom',   String(need), 'important');
+        fr.style.setProperty('width',  (box.width  / need) + 'px', 'important');   // %금지 — 위 주석
+        fr.style.setProperty('height', (box.height / need) + 'px', 'important');
       }catch(e){}                                              // 다른 출처 iframe 등 — 조용히 지나간다
     }
   }
@@ -135,6 +168,10 @@
     fixFrames(f);
     paint();
     if (remember) save(p);
+    /* 배율이 바뀌면 JS 가 화면 px 로 재서 박아 둔 표 높이(lzFit·_stkLedFit 등)도 다시 잡혀야 한다 —
+       그 함수들은 전부 resize 에 물려 있으므로 resize 를 한 번 쏜다(2026-08-28). fixFrames 도
+       resize 를 받지만 멱등이라 무해하다. */
+    try{ window.dispatchEvent(new Event('resize')); }catch(e){}
   }
 
   /* ── 단추 그리기 ──────────────────────────────────────────────────────── */
@@ -198,6 +235,22 @@
   /* 창 크기가 바뀌면 iframe 폭이 달라지므로 배율 전달 여부를 다시 잰다
      (셸 뼈대는 이제 손대지 않으니 높이 보정은 필요 없다) */
   window.addEventListener('resize', function(){ fixFrames(zoomOf(cur)); });
+
+  /* ★body 클래스가 바뀌면 iframe 의 <자연> 크기가 클릭 없이 변할 수 있다 —
+       예: 하단 알림바(konet-asqbar-on)가 저절로 떠서 #if-shipstatus2 높이를 CSS 로 줄이는 경우.
+       역보정을 inline !important 로 걸기 때문에, 다시 재 주지 않으면 옛 크기가 그대로 남는다.
+       ⇒ body class 변화를 감시해 잠깐 뒤 다시 잰다(재기 자체가 원래 CSS 값으로 되돌린 뒤 재는 구조라 안전). */
+  if (window.MutationObserver){
+    var _kzMoT = null;
+    var _kzMo = new MutationObserver(function(){
+      clearTimeout(_kzMoT);
+      _kzMoT = setTimeout(function(){ fixFrames(zoomOf(cur)); }, 120);
+    });
+    if (document.body) _kzMo.observe(document.body, { attributes:true, attributeFilter:['class'] });
+    else document.addEventListener('DOMContentLoaded', function(){
+      _kzMo.observe(document.body, { attributes:true, attributeFilter:['class'] });
+    });
+  }
 
   /* ★숨어 있던 화면(panel)이 나타나는 순간을 잡는다.
        숨은 iframe 은 폭이 0 이라 위 재기(fixFrames)를 건너뛴다 — 그대로 두면

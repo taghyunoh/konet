@@ -160,6 +160,32 @@ $(document).on('init.dt', function(e, settings) {
      이 두 줄만 빼면 이 화면만 예전 모습으로 돌아간다. 규칙 설명은 CSS 파일 머리말. --%>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/ui-concept.css?v=20260820">
+<%-- ★스크롤 시 상단 고정 (2026-08-28 요청 「스크롤시 해당부분 고정」) —
+       제목·설명(.konet-phead)과 검색/버튼줄(.konet-tbar)이 스크롤해도 위에 남는다.
+     · 버튼줄의 top = 제목 묶음의 실제 높이 — JS(kPhMeasure)가 재서 --kPhH 로 넣는다.
+       px 을 어림잡아 박으면 배율·줄바꿈에서 틈이 생겨 자료 글자가 비친다(출고현황표에서 겪은 함정).
+     · ⚠부트스트랩 .card 에 overflow 가 걸리면 sticky 가 카드 안에 갇혀 안 붙는다 → visible 강제.
+     · 버튼줄은 제 카드(위 그리드) 안에서만 붙는다 — 카드가 화면을 다 지나가면 같이 올라간다(정상).
+     · z-index 는 부트스트랩 모달(1050)·백드롭(1040)보다 낮게. --%>
+<style>
+  .konet-phead{ position:sticky; top:0; z-index:40; background:#fff;
+                margin:-14px -11px 8px; padding:14px 11px 6px; }
+  .konet-tbar{ position:sticky; top:var(--kPhH, 64px); z-index:39; background:#fff;
+               margin-bottom:0 !important; padding-bottom:8px; }
+  .dashboard-content .card, .dashboard-content .card-body{ overflow:visible !important; }
+</style>
+<script>
+(function(){
+  function kPhMeasure(){
+    var h = document.querySelector('.konet-phead'); if (!h) return;
+    document.documentElement.style.setProperty('--kPhH', h.getBoundingClientRect().height + 'px');
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', kPhMeasure);
+  else kPhMeasure();
+  window.addEventListener('resize', kPhMeasure);
+  window.addEventListener('load', function(){ setTimeout(kPhMeasure, 200); });  /* 글꼴 로드 후 높이 재확정 */
+})();
+</script>
 </head>
 <body>
 <div class="dashboard-wrapper">

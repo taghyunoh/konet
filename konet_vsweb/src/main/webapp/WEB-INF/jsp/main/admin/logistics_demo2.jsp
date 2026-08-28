@@ -392,7 +392,12 @@
   table.ss-tb tr.subtot td { background:#fbfdfc; font-weight:600; color:#37475a; }
   table.ss-tb tr.gtot td { background:#1f2a37; color:#fff; font-weight:700; }
   table.ss-tb tr.gtot td.zero { color:#8a98a8; }
-  .ss-scroll { max-height:74vh; overflow:auto; border:1px solid var(--logi-border); border-radius:8px; }
+  /* ★인라인 패널의 vh 높이는 전부 `/ var(--kz,1)` 로 나눈다 (2026-08-28 「글자 축소시 하단 빈공간」) —
+       --kz = 글자 축소·확대(ui-fontsize.js)가 패널에 건 zoom 배율. vh 는 실제 화면 기준으로 계산된 뒤
+       zoom 배로 <줄어들기> 때문에, 축소하면 표가 짧아지고 아래가 통째로 빈다. 배율로 나눠 주면
+       렌더 높이가 원래대로 화면을 채운다(빼기 px 값은 배율을 함께 받으므로 나누지 말 것 — vh 항만).
+       ⚠새 인라인 패널에 vh 높이를 쓰면 같은 나눗셈을 함께 걸 것. iframe 화면은 해당 없음(상자 역보정). */
+  .ss-scroll { max-height:calc(74vh / var(--kz,1)); overflow:auto; border:1px solid var(--logi-border); border-radius:8px; }
   /* ★[2026-08-21] 대시보드 툴바 — 화면 배율(가－/가＋)로 유효 폭이 줄면 우측 덩어리(출고장 접기~사업장 보기)가
      아랫줄로 밀렸다(90% 실측 신고 「표시부분 밑으로 밀림」, 출고세부조회(logistics_demo1)와 같은 원인).
      ⚠flex-shrink 로는 못 막는다 — flex-wrap 컨테이너는 줄이기 전에 줄바꿈부터 한다(실측).
@@ -410,18 +415,19 @@
     #ssCard > div:first-child .btn-line, #ssCard > div:first-child .btn-teal{ padding:5px 8px !important; }
     #ssCard #ssBtnZoneToggle{ min-width:0 !important; }
   }
-  /* 상단 접기 — 2026-08-21 도구줄만 → 2026-08-28 요청으로 '조회바 + 도구줄 통째로'(출고현황표와 같은 규칙).
-     조회바(.ss-topbar: 출고일자·조회·당일/당월·요약숫자) 와 도구줄(#ssCard 첫 줄) 을 함께 감춘다.
+  /* 상단 접기 — 2026-08-21 도구줄만 → 2026-08-28 '조회바+도구줄 통째로'
+       → ★같은 날 최종 「조회조건접기에서 해당라인의 제외」(출고현황표 iframe 과 같은 규칙) :
+         조회바(.ss-topbar: 출고일자·조회·당일/당월·요약숫자)는 <접지 않는다> — 접으면 조회 단추까지
+         사라져 매번 펼쳤다 접어야 했다. 접는 것은 도구줄(#ssCard 첫 줄)만 = 2026-08-21 동작으로 복귀.
+         (한때 body.tb-fold .ss-topbar{display:none} 이 여기 있었다 — 되살리자는 얘기가 나오면 이 이력 확인.)
      ★단추는 이 화면 안에 없다 — 맨 위 <자주 쓰는 메뉴> 줄의 [조회조건 접기](#konetTbFoldBtn).
-       2026-08-28: 제목줄에 두었더니 폭이 좁은 창에서 화면 밖으로 잘려 못 눌렀다.
-     ⚠.ss-topbar 는 #ssCard 의 형제라 카드 클래스로는 못 잡는다 → body 에도 같은 클래스를 건다. */
+       2026-08-28: 제목줄에 두었더니 폭이 좁은 창에서 화면 밖으로 잘려 못 눌렀다. */
   #ssCard.tb-fold > div:first-child{ display:none !important; }
-  body.tb-fold .ss-topbar{ display:none !important; }
   /* 현재 선택(활성) 버튼 표시 */
   .btn-line.seg-on { background:#178074 !important; color:#fff !important; border-color:#178074 !important; font-weight:700; }
   /* 확대 — 출고현황표 카드가 전체 화면을 덮음 */
   #ssCard.ss-fullscreen { position:fixed; inset:0; z-index:9999; margin:0; border-radius:0; background:#fff; padding:14px 18px; overflow:auto; box-shadow:none; }
-  #ssCard.ss-fullscreen .ss-scroll { max-height:calc(100vh - 130px); }
+  #ssCard.ss-fullscreen .ss-scroll { max-height:calc(100vh / var(--kz,1) - 130px); }
 
   /* 전치형(품목=열, 출고장=행) 와이드 표 */
   table.sswide { width:auto; min-width:100%; }
@@ -1824,7 +1830,11 @@
     var b=document.getElementById('stkLedgerBody'); if(!b) return;
     var top=b.getBoundingClientRect().top;
     if(!top) return;                       // 아직 안 그려졌으면 건너뛴다
-    b.style.maxHeight=Math.max(180, Math.floor(window.innerHeight - top - 20))+'px';
+    /* ★/kz = 글자 축소·확대 역보정 (2026-08-28 「재고현황도 글자 축소시 하단 빈공간」) —
+       innerHeight·top 은 실제 화면 px, maxHeight 는 패널 zoom 을 받는 CSS px 라서
+       나누지 않으면 축소 배율만큼 짧게 그려져 아래가 빈다. (.ss-scroll 의 --kz 주석 참고) */
+    var kz=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kz'))||1;
+    b.style.maxHeight=Math.max(180, Math.floor((window.innerHeight - top)/kz - 20))+'px';
   }
   window.addEventListener('resize', function(){ _stkLedFit(); });
 
@@ -2944,7 +2954,7 @@
 <%-- ★글자 축소·확대 (2026-08-21 요청) — 상단 <자주 쓰는 메뉴> 줄 맨 오른쪽에 [가－][100%][가＋].
      셸에만 걸면 된다 — iframe 업무화면은 이 스크립트가 알아서 같은 배율로 맞춘다.
      빼려면 이 한 줄만 지우면 종전 크기로 돌아간다. --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-fontsize.js?v=20260821m"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-fontsize.js?v=20260828c"></script>
 </head>
 <body>
 <%-- 좌측 메뉴 접힘 상태를 <그리기 전에> 입힌다 (2026-08-05) —
@@ -3182,10 +3192,12 @@
       <span id="favHint">메뉴를 쓰시면 여기에 <b>쓴 순서대로</b> 쌓입니다 — 최대 7개 (한 번 담기면 <b>✕ 로 내리기 전까지 고정</b>)</span>
       <span id="favClearBtn" title="전부 비웁니다" onclick="favClear()">✕ 비우기</span>
       <%-- 상단 조회조건 접기 (2026-08-28 요청) — 출고현황표·출고세부조회(iframe)와 데시보드1의
-           조회바+검색 도구줄을 접는다. 대상이 아닌 화면에서는 konetTbFoldBtnUpd 가 숨긴다.
-           실제 접기는 각 화면의 d2TbFold/ssTbFold 가 하고, 여기서는 그것을 부르기만 한다. --%>
+           검색 도구줄을 접는다. ★조회조건 줄(출고일자·조회·요약숫자·엑셀 업로드)은 접지 않는다
+           (2026-08-28 「해당라인의 제외」). 대상이 아닌 화면에서는 konetTbFoldBtnUpd 가 숨긴다.
+           실제 접기는 각 화면의 d2TbFold/ssTbFold 가 하고, 여기서는 그것을 부르기만 한다.
+           단추 글자·툴팁은 konetTbFoldSync(logi-oh.js)가 다시 쓴다 — 고칠 때 거기도 같이. --%>
       <button id="konetTbFoldBtn" type="button" style="display:none" onclick="konetTbFold()"
-              title="상단 조회조건(출고일자·조회·요약숫자)과 검색 도구줄을 접습니다 (표가 그만큼 넓게 보입니다)">▴ 조회조건 접기</button>
+              title="검색 도구줄을 접습니다 — 출고일자·조회·요약숫자 줄은 그대로 남습니다 (표가 그만큼 넓게 보입니다)">▴ 조회조건 접기</button>
     </div>
 
 
@@ -3199,7 +3211,7 @@
       .tipx:hover{ border-color:#137a6c; color:#137a6c; background:#eaf5f3; }
       /* 목록 그리드 — 헤더 고정 + 화면 높이에 맞춰 스크롤(위쪽 카드가 커져도 그리드가 안 밀림).
          실제 높이는 렌더 때 _ohFit 이 인라인으로 다시 잡는다(18행 ↔ 뷰포트 중 작은 쪽). 여기 값은 그 전/빈 표일 때의 기본. */
-      #ohWrap{ max-height:calc(100vh - 214px); min-height:240px; overflow:auto; }
+      #ohWrap{ max-height:calc(100vh / var(--kz,1) - 214px); min-height:240px; overflow:auto; }  /* /--kz = 글자축소 역보정(.ss-scroll 주석) */
       /* 표를 위로 끌어올리려고 탭·요약줄을 최소 높이로(2026-07-22 요청) — 이 화면에만 적용.
          단 탭 바의 2px 경계선에 요약줄 글자가 붙어 겹쳐 보이므로, 여백은 '탭 아래쪽'에 준다
          (요약줄 위 여백으로 주면 칩 배경이 경계선에 닿아 여전히 붙어 보인다) */
@@ -3401,7 +3413,7 @@
              lzMount 는 wrap 에 scroll 이벤트를 걸고 wrap.scrollTop 으로 판단하는데,
              overflow 가 없으면 스크롤이 아예 안 생겨 안내만 뜨고 다음 행이 영영 안 붙는다(2026-08-02 지적).
              값은 매출내역 #ohWrap 과 같게 맞춘다. */
-        #spWrap{ max-height:calc(100vh - 214px); min-height:240px; overflow:auto; }
+        #spWrap{ max-height:calc(100vh / var(--kz,1) - 214px); min-height:240px; overflow:auto; }  /* /--kz = 글자축소 역보정(.ss-scroll 주석) */
         /* 스크롤해도 머리글은 남아야 한다 — 매출내역 #ohWrap 과 같은 규칙 */
         #spWrap table.logi-tb thead th{ white-space:nowrap; position:sticky; top:0; z-index:2;
                                         box-shadow:inset 0 -1px 0 var(--logi-border); }
@@ -3763,7 +3775,7 @@
         <%-- 표와 '더 보기' 줄을 한 상자로 묶는다(2026-08-01 요청) — 상자 밖에 떠 있으면
              표와 별개인 것처럼 보이고, 그 사이 여백만큼 화면도 낭비된다. --%>
         <div style="border:1px solid var(--logi-border); border-radius:7px; overflow:hidden">
-          <div id="xaWrap" style="height:calc(100vh - 246px); min-height:300px; overflow:auto">
+          <div id="xaWrap" style="height:calc(100vh / var(--kz,1) - 246px); min-height:300px; overflow:auto">
             <table class="tbl" style="width:100%;border-collapse:collapse;font-size:12.5px;white-space:nowrap">
               <%-- 머리글 색·크기는 위 CSS(#xaWrap table thead th)가 준다 — 여기 인라인으로 또 칠하면 안 먹는다 --%>
               <thead><tr style="position:sticky;top:0;z-index:1">
@@ -3847,7 +3859,7 @@
         <%-- ★높이를 두 줄만큼 줄였다 (2026-08-06 요청) — 그만큼 아래 ②수불내역이 올라온다.
                한 줄 ≈ 34px 라 68px 를 미리 뺀다. 줄 수가 아니라 높이만 줄이므로
                목록 자체는 그대로고 스크롤로 이어서 본다. 되돌리려면 calc 를 빼고 46vh 로. --%>
-        <div id="stkStatusWrap" tabindex="0" style="max-height:calc(46vh - 68px); overflow:auto; outline:none"></div>
+        <div id="stkStatusWrap" tabindex="0" style="max-height:calc(46vh / var(--kz,1) - 68px); overflow:auto; outline:none"></div>
         <div class="close-pager" id="stkStatusPager"></div>
       </div>
       <%-- ★머리를 한 줄로 (2026-08-06 요청) — 종전에는 [제목] / [품목명] / [요약] 이
@@ -3911,7 +3923,8 @@
         <div class="actions">
           <%-- 2026-07-26 사용자: 탐색기(파일 선택창)를 먼저 띄우지 않는다 → 미리보기 모달을 열어
                지정 폴더의 자료를 최신순으로 보여주고, 최신 파일 내용을 바로 펼친다. --%>
-          <button class="btn-teal" id="ssBtnUpload" onclick="ssPvOpen(true)" title="지정한 자료 폴더의 발주현황표를 최신순으로 보여줍니다 (탐색기는 모달 안 [📄 파일 선택])">📤 발주현황표 엑셀 보기 / 업로드</button>
+          <%-- 표시는 「발주현황표 업로드」 (2026-08-28 요청, 출고현황표 iframe 과 동일) --%>
+          <button class="btn-teal" id="ssBtnUpload" onclick="ssPvOpen(true)" title="지정한 자료 폴더의 발주현황표를 최신순으로 보여줍니다 (탐색기는 모달 안 [📄 파일 선택])">📤 발주현황표 업로드</button>
           <%-- [삭제 2026-07-05] 매출금액/매입금액 업로드·출고데이타저장 버튼 제거 → 좌측 '마감관리' 전용 메뉴(매출마감/매입마감/마감현황)로 대체 --%>
           <%-- [제외 2026-07-02] 출고현황표 다운로드 버튼 — 재노출 시 주석 해제 (ssDownload 함수는 유지)
           <button class="btn-line" id="ssBtnDownload" onclick="ssDownload()">📥 출고현황표 다운로드</button>
@@ -4584,13 +4597,13 @@
       <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:stretch">
         <div class="card" id="sgDcCard" style="flex:1 1 480px; min-width:420px; display:none">
           <div style="font-weight:800; font-size:13.5px; color:#1f2a37; margin-bottom:4px">📊 출고장별 매입원가·마진 <span style="font-weight:400; color:#9aa7b3">(합=매출) · 선택 기간 합계</span></div>
-          <div style="position:relative; height:34vh; min-height:260px"><canvas id="sgDcCanvas"></canvas></div>
-          <div id="sgDcTbl" style="margin-top:10px; max-height:30vh; overflow:auto"></div>
+          <div style="position:relative; height:calc(34vh / var(--kz,1)); min-height:260px"><canvas id="sgDcCanvas"></canvas></div>
+          <div id="sgDcTbl" style="margin-top:10px; max-height:calc(30vh / var(--kz,1)); overflow:auto"></div>
         </div>
         <div class="card" style="flex:1 1 480px; min-width:420px">
           <div id="sgMainTit" style="font-weight:800; font-size:13.5px; color:#1f2a37; margin-bottom:4px">🗓️ 일자별 매입원가·마진 <span style="font-weight:400; color:#9aa7b3">(합=매출)</span></div>
-          <div style="position:relative; height:34vh; min-height:260px"><canvas id="sgCanvas"></canvas></div>
-          <div id="sgTbl" style="margin-top:10px; max-height:30vh; overflow:auto"></div>
+          <div style="position:relative; height:calc(34vh / var(--kz,1)); min-height:260px"><canvas id="sgCanvas"></canvas></div>
+          <div id="sgTbl" style="margin-top:10px; max-height:calc(30vh / var(--kz,1)); overflow:auto"></div>
         </div>
       </div>
     </section>
