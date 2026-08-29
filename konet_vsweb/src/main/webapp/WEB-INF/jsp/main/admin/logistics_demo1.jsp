@@ -117,8 +117,25 @@
   /* ★출고장 줄 높이를 못박는다 — 접었다 폈다 해도 위아래 간격이 그대로여야 눈이 줄을 안 놓친다(2026-08-28) */
   table.d2-mx tbody td { height:29px; box-sizing:border-box; }
   /* 사업장 머리칸 = 접기 손잡이 */
-  table.d2-mx thead th.bz { cursor:pointer; user-select:none; font-size:16px; font-weight:800; letter-spacing:-0.2px; padding:6px 9px; }
-  table.d2-mx thead th.bz:hover { background:#cfe0f0; }
+  /* ★사업장 병합 머리칸 진하게 + 사업장 경계 구분선 (2026-08-28 요청 「사업장 구분선 및 진하게」) —
+       연한 파랑에 경계선이 옅어 어느 품목이 어느 사업장 것인지 줄을 세로로 따라가기 어려웠다.
+       .gs = 각 사업장의 첫 칸(머리줄·품목줄·본문·합계·현재고까지) — 굵은 세로선으로 경계를 내려 긋는다. */
+  table.d2-mx thead th.bz { cursor:pointer; user-select:none; font-size:16px; font-weight:900; letter-spacing:-0.2px; padding:6px 9px;
+                            background:#5a7a9a; color:#fff; }
+  table.d2-mx thead th.bz:hover { background:#49688a; }
+  table.d2-mx th.gs, table.d2-mx td.gs { border-left:2px solid #5a7a9a; }
+  /* ★접힌 사업장 (2026-08-28 「엑셀처럼 헤더 축소/확대」) — 접혀 있다는 것이 색으로 바로 보이게.
+     .fd = 머리칸·합계 머리줄 / .fdv = 그 아래 값 칸(호박색 = 여러 품목을 더한 값이라는 표시) */
+  table.d2-mx thead th.bz.fd { background:#7a6a3f; }
+  table.d2-mx thead th.bz.fd:hover { background:#655736; }
+  table.d2-mx thead th.bz .fn { font-size:12.5px; font-weight:700; color:#e8dfc4; }
+  table.d2-mx thead th.it.fd { background:#f6efd9; color:#6b5a20; font-weight:800; cursor:pointer; }
+  table.d2-mx thead th.it.fd:hover { background:#efe4c4; }
+  table.d2-mx td.fdv { background:#fdf8ec; font-weight:800; }
+  table.d2-mx tr.grp td.fdv { background:#0f6c60; }
+  table.d2-mx tr.sum td.fdv { background:#efe9dc; }
+  table.d2-mx tr.zc  td.fdv { background:#dde9d2; }
+  table.d2-mx tr.stk td.fdv { background:#fbeedd; }
   /* 숨긴 사업장 되살리기 줄 — 가로로 밀어도 따라오게 sticky left:0 (2026-08-28 「숨김/펼치기」) */
   .d2-mxhide { position:sticky; left:0; width:max-content; max-width:100%; margin:0 0 8px; padding:7px 10px;
                background:#fff7e6; border:1px solid #f0d9a8; border-radius:8px; font-size:13px; color:#7a5a12;
@@ -128,6 +145,11 @@
   .d2-mxhide .hc:hover { background:#fdf1d8; }
   .d2-mxhide .hall { border:1px solid var(--bd); background:#fff; color:#137a6c; border-radius:8px; padding:3px 11px; font-size:12.5px; font-weight:700; cursor:pointer; }
   .d2-mxhide .hall:hover { background:#eef3f2; }
+  /* 눌러서 접는 줄(2026-08-28) — 고정칸(cn·합계·품목수)은 제 배경을 따로 갖고 있어 함께 지정해야
+     줄 전체가 같이 어두워진다(안 그러면 가운데 칸만 색이 바뀌어 줄이 갈라져 보인다). */
+  table.d2-mx tr.grp { cursor:pointer; }
+  table.d2-mx tr.grp:hover td,
+  table.d2-mx tr.grp:hover td.cn, table.d2-mx tr.grp:hover td.rtot, table.d2-mx tr.grp:hover td.rcnt { background:#0e6659; }
   table.d2-mx tr.grp td { background:#137a6c; color:#fff; font-weight:700; }
   table.d2-mx tr.grp td.none { background:#0e6659; }
   table.d2-mx tr.grp td.cn { background:#137a6c; }
@@ -151,9 +173,14 @@
   /* ★합계·품목수를 「출고장」 바로 뒤로 옮기고 같이 얼린다(2026-08-28 요청) — 옆으로 끝까지 밀어도 총량이 보인다.
      ★sticky 의 left 값은 앞칸 폭의 <합>이라 폭을 못박아야 한다. .cn 212 → 합계 212 → 품목수 212+86=298.
        폭을 바꾸면 left 도 같이 고쳐야 한다(안 그러면 칸이 겹치거나 틈이 생긴다). */
+  /* 폭 확대 (2026-08-28 요청 「합계·품목수 확대」) : 합계 86 → 108 · 품목수 78 → 96.
+     ⚠left 값은 앞칸 폭의 <합>이다 — 합계 left=212(.cn), 품목수 left=212+108=320. 폭을 또 바꾸면 여기도. */
   table.d2-mx .cn   { width:212px; min-width:212px; max-width:212px; box-sizing:border-box; }
-  table.d2-mx .rtot { position:sticky; left:212px; z-index:2; width:86px;  min-width:86px;  max-width:86px;  box-sizing:border-box; }
-  table.d2-mx .rcnt { position:sticky; left:298px; z-index:2; width:78px;  min-width:78px;  max-width:78px;  box-sizing:border-box; }
+  table.d2-mx .rtot { position:sticky; left:212px; z-index:2; width:108px; min-width:108px; max-width:108px; box-sizing:border-box; }
+  table.d2-mx .rcnt { position:sticky; left:320px; z-index:2; width:96px;  min-width:96px;  max-width:96px;  box-sizing:border-box; }
+  /* 글자도 한 단계 크게 — 이 두 칸이 표에서 가장 먼저 읽는 숫자다 */
+  table.d2-mx td.rtot, table.d2-mx td.rcnt { font-size:16.5px; font-weight:800; }
+  table.d2-mx thead th.rtot, table.d2-mx thead th.rcnt { font-size:15px; font-weight:800; }
   table.d2-mx thead th.rtot, table.d2-mx thead th.rcnt { z-index:4; }
   /* 줄 종류별 바탕색을 되살린다 — 안 넣으면 노랑/연두가 묶음줄·합계줄을 덮어쓴다 */
   table.d2-mx tr.grp td.rtot, table.d2-mx tr.grp td.rcnt { background:#137a6c; color:#fff; }
@@ -2192,13 +2219,12 @@
          · 값 없는 칸은 회색, 오른쪽 합계·품목수 / 아래 합계·출고장수·현재고
        ★엑셀과 계산을 <한 곳에서> 하지 않는다 — 둘 다 d2Aggregate 결과만 쓰므로 값이 어긋날 일은 없다.
          모양을 고칠 때는 엑셀(d2DownloadByMatrix)도 같이 볼 것. */
-  /* 사업장 접기 상태 — 사업장명 → 1(접힘).
-     ★행(출고장) 접기와 다르다: 이건 <세로줄>을 줄인다. 열이 많아 옆으로 끝까지 못 볼 때
-       사업장 하나를 「합계」 한 칸으로 줄여 화면 안에 넣는다. 값은 그대로 다 더해진다. */
-  /* 사업장 숨김 상태 — 사업장명 → 1(숨김). D2_MXBIZALL 은 이번에 그린 <전체> 사업장(숨긴 것 포함).
-     ★행(출고장) 접기와 다르다: 이건 <세로줄>을 통째로 감춘다. 열이 많아 옆으로 끝까지 못 볼 때 쓴다.
-     ★숨긴 사업장은 합계·품목수에서도 빠진다 — 화면에 보이는 칸과 합계가 어긋나면 그게 더 위험하다.
-       그래서 숨김이 하나라도 있으면 표 위에 안내줄을 띄운다. */
+  /* 사업장 접기 상태 — 사업장명 → 1(접힘). D2_MXBIZALL 은 이번에 그린 전체 사업장.
+     ★[2026-08-28 요청 「엑셀처럼 헤더 축소/확대」] 머리칸을 누르면 그 사업장이 <합계 한 칸>으로
+       줄어들고(▸), 다시 누르면 품목 칸들로 펼쳐진다(▾) — 엑셀의 열 그룹 접기와 같다.
+       값은 전부 그대로 더해지므로 합계·품목수가 화면과 어긋나지 않는다.
+     [이력] 종전에는 누르면 사업장이 통째로 <숨어> 합계에서도 빠졌고(그래서 d2-mxhide 안내줄이
+       필요했다) — 이 판에서 숨김·안내줄을 접기(축소)로 대체했다. 되살리려면 이 이력부터 확인. */
   var D2_MXFOLD = {}, D2_MXBIZALL = [];
   function d2MxFold(b){ if(!b) return; if(D2_MXFOLD[b]) delete D2_MXFOLD[b]; else D2_MXFOLD[b]=1; d2Render(); }
   function d2MxFoldAll(){
@@ -2235,8 +2261,10 @@
     allCols.sort(function(a,b){ return a.biz.localeCompare(b.biz,'ko') || a.name.localeCompare(b.name,'ko'); });
     function colQty(rs, c){ var t=0; for(var i=0;i<c.keys.length;i++){ var x=rs[c.keys[i]]; if(x) t+=(+x.qty||0); } return t; }
 
-    /* 사업장 묶음 → 숨긴 사업장은 열을 통째로 뺀다 */
-    var bgsAll=[], bgs=[], cols=[], hidden=[];
+    /* 사업장 묶음 → ★접힌 사업장은 <합계 한 칸>으로 줄인다 (엑셀 열 그룹 접기와 같다).
+       cols = 실제로 그릴 칸 목록. 접힌 묶음은 그 사업장 품목 전부를 더하는 가상 칸 하나(fold:true)로
+       들어가므로, 아래 집계·본문 코드는 <칸 하나>만 보고 그리면 되어 손댈 곳이 없다. */
+    var bgsAll=[], bgs=[], cols=[], nFold=0;
     allCols.forEach(function(c){
       var g=bgsAll[bgsAll.length-1];
       if(!g || g.biz!==c.biz){ g={ biz:c.biz, cols:[] }; bgsAll.push(g); }
@@ -2244,40 +2272,43 @@
     });
     D2_MXBIZALL = bgsAll.map(function(g){ return g.biz; });
     bgsAll.forEach(function(g){
-      if(D2_MXFOLD[g.biz]){ hidden.push(g); return; }
-      bgs.push(g); g.cols.forEach(function(c){ cols.push(c); });
+      if(D2_MXFOLD[g.biz]){
+        nFold++;
+        var keys=[], kset={};
+        g.cols.forEach(function(c){ c.keys.forEach(function(k){ if(!kset[k]){ kset[k]=1; keys.push(k); } }); });
+        var fc={ ck:'FOLD'+g.biz, biz:g.biz, code:'', name:'합계 (품목 '+g.cols.length+'종)',
+                 keys:keys, kset:kset, fold:true, nItem:g.cols.length, subs:g.cols };
+        g.view=[fc]; cols.push(fc);   /* subs = 접기 전 원본 칸들 — 품목수를 <원래 품목 수>로 세는 데 쓴다 */
+      } else { g.view=g.cols; g.cols.forEach(function(c){ cols.push(c); }); }
+      bgs.push(g);
     });
     var FCLK=' onclick="d2MxFold(this.getAttribute(\'data-b\'))"';
-
-    /* 숨긴 사업장 되살리기 줄 — 칩을 누르면 그 사업장만 다시 나온다 */
-    var bar='';
-    if(hidden.length){
-      bar = '<div class="d2-mxhide">🙈 숨긴 사업장 <b>'+hidden.length+'</b>곳 — 눌러서 다시 보기'
-          + ' <span class="wn">(합계·품목수는 <b>보이는 사업장만</b> 셉니다)</span>'
-          + hidden.map(function(g){
-              return '<button type="button" class="hc" data-b="'+d2Esc(g.biz)+'"'+FCLK
-                   + ' title="'+d2Esc(g.biz)+' 다시 보기 (품목 '+g.cols.length+'종)">'+d2Esc(g.biz)+' ↩</button>';
-            }).join('')
-          + '<button type="button" class="hall" onclick="d2MxShowAll()">모두 펼치기</button></div>';
-    }
-    if(!cols.length){
-      sc.innerHTML = bar + '<div style="padding:26px;text-align:center;color:#9aa7b3">사업장을 모두 숨겼습니다 — 위에서 다시 펼쳐 주세요.</div>';
-      var bf0=document.getElementById('d2BtnBizFold'); if(bf0) bf0.innerHTML='＋ 사업장 펼치기';
-      return;
-    }
+    var GCLK=' onclick="d2ToggleGroup(this.getAttribute(\'data-g\'))"';   // 좌측 물류센터 묶음 접기(목록 보기와 공유)
+    var bar='';   /* (숨김 안내줄은 접기 방식으로 바뀌며 없어졌다 — 위 D2_MXFOLD 주석의 [이력]) */
 
     /* ① 사업장 병합 머리줄 — 누르면 그 사업장이 숨는다 */
+    /* ★GSIX = 각 사업장의 <첫 품목 칸> 열번호 (첫 사업장 제외 — 왼쪽은 고정칸 경계라 필요 없다).
+         머리줄·품목줄·본문·합계·현재고 줄이 전부 이 표로 .gs 를 붙여 경계선이 세로로 이어진다(2026-08-28). */
+    var GSIX={}; (function(){ var ix=0; bgs.forEach(function(g,bi){ if(bi>0) GSIX[ix]=1; ix+=g.view.length; }); })();
+    var GC=function(ix,extra){ var cls=((GSIX[ix]?'gs ':'')+(extra||'')).trim(); return cls?' class="'+cls+'"':''; };
     var h='<table class="d2-mx"><thead><tr><th class="cn" rowspan="2">출고장 / 품목</th>'
         + '<th class="rtot" rowspan="2">합계</th><th class="rcnt" rowspan="2">품목수</th>';
-    bgs.forEach(function(g){
-      h += '<th class="bz" colspan="'+g.cols.length+'" data-b="'+d2Esc(g.biz)+'"'+FCLK
-         + ' title="'+d2Esc(g.biz)+' — 누르면 이 사업장 '+g.cols.length+'칸을 숨깁니다">'
-         + '▾ '+d2Esc(g.biz)+'</th>';
+    bgs.forEach(function(g,bi){
+      var fold=!!D2_MXFOLD[g.biz];
+      h += '<th class="bz'+(bi>0?' gs':'')+(fold?' fd':'')+'" colspan="'+g.view.length+'" data-b="'+d2Esc(g.biz)+'"'+FCLK
+         + ' title="'+d2Esc(g.biz)+' — 누르면 '+(fold?('품목 '+g.cols.length+'칸으로 펼칩니다'):'합계 한 칸으로 접습니다')+'">'
+         + (fold?'▸ ':'▾ ')+d2Esc(g.biz)+(fold?(' <span class="fn">('+g.cols.length+')</span>'):'')+'</th>';
     });
     h+='</tr><tr>';
-    cols.forEach(function(c){
+    cols.forEach(function(c,ix){
+      /* 접힌 사업장의 칸 — 품목코드 대신 '합계' 라고 적고, 눌러서 펼칠 수 있게 같은 클릭을 건다 */
+      if(c.fold){
+        h+='<th class="it fd'+(GSIX[ix]?' gs':'')+'" data-b="'+d2Esc(c.biz)+'"'+FCLK
+          +' title="'+d2Esc(c.biz)+' — 품목 '+c.nItem+'종 합계. 누르면 펼칩니다">Σ 합계<br><span class="nm">품목 '+c.nItem+'종</span></th>';
+        return;
+      }
       var lab=c.code ? (c.code+'<br><span class="nm">'+d2Esc(c.name)+'</span>') : d2Esc(c.name);
-      h+='<th class="it" title="'+d2Esc((c.code?c.code+' ':'')+c.name)+'">'+lab+'</th>';
+      h+='<th class="it'+(GSIX[ix]?' gs':'')+'" title="'+d2Esc((c.code?c.code+' ':'')+c.name)+'">'+lab+'</th>';
     });
     h+='</tr></thead><tbody>';
 
@@ -2299,8 +2330,14 @@
         var rs=ag.zones[zn].rows, rt=0, rc=0, tds='';
         cols.forEach(function(c,ix){
           var q=colQty(rs,c);
-          if(q>0){ sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; rt+=q; rc++; itemAll[c.ck]=1; gItems[c.ck]=1; }
-          tds += q>0 ? ('<td>'+d2Num(q)+'</td>') : '<td class="none"></td>';
+          if(q>0){
+            sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; rt+=q;
+            /* ★품목수는 <접기와 무관하게> 원래 품목으로 센다 — 접었다고 1종으로 줄면
+                 화면 숫자가 접기 상태에 따라 달라져 믿을 수 없게 된다(2026-08-28). */
+            if(c.fold){ c.subs.forEach(function(s){ if(colQty(rs,s)>0){ rc++; itemAll[s.ck]=1; gItems[s.ck]=1; } }); }
+            else { rc++; itemAll[c.ck]=1; gItems[c.ck]=1; }
+          }
+          tds += q>0 ? ('<td'+GC(ix,c.fold?'fdv':'')+'>'+d2Num(q)+'</td>') : '<td'+GC(ix,'none')+'></td>';
         });
         grand+=rt; if(rt>0) zoneVis++;
         /* ★사업장을 숨기면 그 출고장 줄이 통째로 빌 수 있다 — 그때 0 이 아니라 빈칸이어야 한다
@@ -2309,37 +2346,42 @@
                + '<td class="rtot">'+(rt>0?d2Num(rt):'')+'</td><td class="rcnt">'+(rc>0?rc:'')+'</td>'+tds+'</tr>';
       });
       var gTot=0; gs.forEach(function(v){ gTot+=v; });
-      h += '<tr class="grp"><td class="cn">▼ '+d2Esc(g)+' <span class="sub">('+gz.length+'개 출고장)</span></td>'
+      /* ★물류센터 묶음 접기 (2026-08-28 「화살표 접기 작동 안 함」) — ▼ 를 그려 놓고 클릭이 없어
+           눌러도 아무 일이 없었다. 목록 보기와 <같은 상태>(D2_GCOLL·d2ToggleGroup)를 쓰므로
+           한쪽에서 접으면 다른 보기에서도 접혀 있다. 접어도 묶음 줄의 합계·품목수는 그대로다. */
+      var gCol=!!D2_GCOLL[g];
+      h += '<tr class="grp" data-g="'+d2Esc(g)+'"'+GCLK+' title="'+d2Esc(g)+' — 누르면 출고장 줄을 '+(gCol?'폅니다':'접습니다')+'">'
+         + '<td class="cn">'+(gCol?'▶':'▼')+' '+d2Esc(g)+' <span class="sub">('+gz.length+'개 출고장)</span></td>'
          + '<td class="rtot">'+d2Num(gTot)+'</td><td class="rcnt">'+Object.keys(gItems).length+'</td>'
-         + gs.map(function(v){ return v>0 ? ('<td>'+d2Num(v)+'</td>') : '<td class="none"></td>'; }).join('')
-         + '</tr>' + lines;
+         + gs.map(function(v,ix){ return v>0 ? ('<td'+GC(ix)+'>'+d2Num(v)+'</td>') : '<td'+GC(ix,'none')+'></td>'; }).join('')
+         + '</tr>' + (gCol ? '' : lines);
     });
 
     /* ③ 아래 집계 — 합계 · 출고장수 · 현재고(품목별) */
     h += '<tr class="sum"><td class="cn">합계</td>'
        + '<td class="rtot">'+d2Num(grand)+'</td><td class="rcnt">'+Object.keys(itemAll).length+'</td>'
-       + sums.map(function(v){ return v>0 ? ('<td>'+d2Num(v)+'</td>') : '<td class="none"></td>'; }).join('')
+       + sums.map(function(v,ix){ return v>0 ? ('<td'+GC(ix)+'>'+d2Num(v)+'</td>') : '<td'+GC(ix,'none')+'></td>'; }).join('')
        + '</tr>';
     h += '<tr class="zc"><td class="cn">출고장수</td>'
        + '<td class="rtot">'+zoneVis+'</td><td class="rcnt"></td>'
-       + zcnt.map(function(v){ return v>0 ? ('<td>'+v+'</td>') : '<td class="none"></td>'; }).join('')
+       + zcnt.map(function(v,ix){ return v>0 ? ('<td'+GC(ix)+'>'+v+'</td>') : '<td'+GC(ix,'none')+'></td>'; }).join('')
        + '</tr>';
     /* 현재고 — 화면 '현재고' 칸과 같은 근거. 못 찾으면 0 이 아니라 빈칸(0 은 '재고 없음'으로 잘못 읽힌다) */
     /* ★이미 받아 뒀으면 다시 부르지 않는다 — 부르면 콜백이 곧바로 돌아 d2Render → 무한루프가 된다 */
     if(!D2_STOCK) d2StockLoad(function(){ var t=document.querySelector('.d2-mx'); if(t) d2Render(); });
     var stkTd='', anyStk=false;
-    cols.forEach(function(c){
+    cols.forEach(function(c,ix){
       var q=d2StockQty(c.code);
-      if(q==null){ stkTd+='<td class="none"></td>'; return; }
+      if(q==null){ stkTd+='<td'+GC(ix,'none')+'></td>'; return; }
       anyStk=true;
-      stkTd += '<td'+(q<0?' class="neg"':'')+'>'+d2Num(q)+'</td>';
+      stkTd += '<td'+GC(ix, q<0?'neg':'')+'>'+d2Num(q)+'</td>';
     });
     if(anyStk) h += '<tr class="stk"><td class="cn">현재고</td><td class="rtot"></td><td class="rcnt"></td>'+stkTd+'</tr>';
     h += '</tbody></table>';
     sc.innerHTML = bar + h;
     /* 툴바 단추 글씨를 현재 상태에 맞춘다 */
     var bf=document.getElementById('d2BtnBizFold');
-    if(bf) bf.innerHTML=(hidden.length>=bgsAll.length && bgsAll.length) ? '＋ 사업장 펼치기' : '－ 사업장 접기';
+    if(bf) bf.innerHTML=(nFold>=bgsAll.length && bgsAll.length) ? '＋ 사업장 펼치기' : '－ 사업장 접기';
   }
 
   function d2RenderGroupView(ag, from, to, mode){

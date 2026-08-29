@@ -109,13 +109,59 @@ $(document).on('init.dt', function(e, settings) {
      이 두 줄만 빼면 이 화면만 예전 모습으로 돌아간다. 규칙 설명은 CSS 파일 머리말. --%>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/ui-concept.css?v=20260820">
+<%-- ★제목 줄 고정 (2026-08-28 요청 「표시부분은 스크롤 안 되게」) — 스크롤해도 화면 이름이 남는다.
+     ⚠여기까지만 한다. 같은 날 이 화면에 <조작줄 합치기 + 창높이 배분>까지 넣었다가 표 두 개의
+       초기화 방식이 서로 달라 화면이 깨져 전량 되돌렸다(git checkout). 다시 시도한다면
+       ①창높이 배분 → 확인 → ②조작줄 합치기(좌측 표부터) 순으로 <나눠서> 넣을 것.
+     ⚠DataTables 표(머리글·조작줄)에는 손대지 않는다 — 그 표들은 제 안에서 스크롤되고,
+       바깥에서 sticky 를 걸면 머리·본문 폭 동기화와 부딪혀 표가 사라진다(compcd 에서 겪음). --%>
+<style>
+  .konet-phead{ position:sticky; top:0; z-index:40; background:#fff; flex:0 0 auto;
+                margin:-14px -11px 6px; padding:14px 11px 4px; }
+
+  /* ★★[2026-08-28 요청 「전체 스크롤 안 되게」] 페이지는 스크롤하지 않고 **표 안에서만** 스크롤.
+     ⚠CSS flex 사슬만으로는 안 잡혔다(부트스트랩 카드 겹이 많아 한 칸만 min-height:auto 여도 밀린다) —
+       그래서 **표 높이를 JS(kFit)가 픽셀로 직접 계산해 박는다.** 아래 두 줄은 바깥 스크롤만 잠근다. */
+  html, body{ height:100%; overflow:hidden; }
+  .dashboard-wrapper{ height:100%; overflow:hidden; }
+</style>
+<script>
+(function(){
+  /* 표 높이를 창에 맞춘다 : 표 몸통 높이 = 창높이 − 몸통의 시작 y − 아래(행수·페이지 단추) − 여백.
+     ⚠DataTables 가 scrollY(600px)를 인라인으로 박으므로 setProperty(...,'important') 로 덮는다.
+     ⚠화면이 <안 보이는 동안>에는 재지 않는다 — 폭·높이가 0 인 채로 재면 표가 찌그러진다(compcd 교훈).
+     ⚠DataTables 내부(머리글·조작줄)에는 손대지 않는다 — 건드렸다가 표가 사라져 되돌린 적이 있다. */
+  var IDS=['tableName','cd_tableName'];
+  function kFit(){
+    var vh=document.documentElement.clientHeight;
+    IDS.forEach(function(id){
+      var w=document.getElementById(id+'_wrapper');
+      if(!w || w.offsetParent===null || !w.getBoundingClientRect().width) return;   // 안 보이면 건너뜀
+      var body=w.querySelector('.dataTables_scrollBody'); if(!body) return;
+      var foot=w.querySelector(':scope > .row');                                    // 현재 N-M / 총 X건 + 페이지 단추
+      var top=body.getBoundingClientRect().top;
+      var h=Math.max(140, Math.floor(vh - top - (foot?foot.offsetHeight:0) - 26));
+      body.style.setProperty('height', h+'px', 'important');
+      body.style.setProperty('max-height', h+'px', 'important');
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', kFit); else kFit();
+  window.addEventListener('load', function(){ kFit(); setTimeout(kFit,300); setTimeout(kFit,1200); });
+  window.addEventListener('resize', kFit);
+  /* 표를 다시 그릴 때(조회·상세 선택 등)도 다시 맞춘다 */
+  try{ if(window.jQuery) jQuery(document).on('draw.dt init.dt', function(){ setTimeout(kFit,0); }); }catch(e){}
+})();
+</script>
 </head>
 <body>
 <div class="dashboard-wrapper">
 	<%-- ★화면 제목 (2026-08-03 추가) — 다른 화면은 모두 맨 위에 제목이 있는데 이 화면만 없어
 	     좌측 메뉴를 옮길 때 시작 위치가 달라 보였다. 위치·글자는 공통 규격(.konet-ptit). --%>
-	<h2 class="konet-ptit">🧩 공통코드 관리</h2>
-	<div class="konet-psub">화면·업무에서 공통으로 쓰는 코드(대분류 · 상세)를 등록·수정합니다.</div>
+	<%-- .konet-phead = 스크롤해도 남는 제목 묶음 (2026-08-28) --%>
+	<div class="konet-phead">
+		<h2 class="konet-ptit">🧩 공통코드 관리</h2>
+		<div class="konet-psub">화면·업무에서 공통으로 쓰는 코드(대분류 · 상세)를 등록·수정합니다.</div>
+	</div>
 	<div class="container-fluid dashboard-content">
 		<div class="row">
 			<!-- 좌측 카드 : 상단 내용 (너비를 줄여서 50% 배정) -->

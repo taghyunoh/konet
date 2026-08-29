@@ -160,30 +160,109 @@ $(document).on('init.dt', function(e, settings) {
      이 두 줄만 빼면 이 화면만 예전 모습으로 돌아간다. 규칙 설명은 CSS 파일 머리말. --%>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/ui-concept.css?v=20260820">
-<%-- ★스크롤 시 상단 고정 (2026-08-28 요청 「스크롤시 해당부분 고정」) —
-       제목·설명(.konet-phead)과 검색/버튼줄(.konet-tbar)이 스크롤해도 위에 남는다.
-     · 버튼줄의 top = 제목 묶음의 실제 높이 — JS(kPhMeasure)가 재서 --kPhH 로 넣는다.
+<%-- ★상단 고정 + 조작줄 한 줄로 합치기 (2026-08-28 요청 「스크롤시 상단 고정」·「①을 ②쪽으로」)
+     ① 검색칸+[조회·재조회·입력·수정·삭제·체크삭제·화면확장축소] (.konet-tbar)
+     ② [15▾][복사][엑셀][출력] 자료검색 (DataTables 의 .datatable-controls)
+     ⇒ ①을 ②줄 <오른쪽>에 옮겨 붙여 한 줄로 만든다(세로 한 줄을 번다). **자리만 옮긴다 —
+        단추·검색칸의 id·onclick 은 그대로라 동작은 종전과 똑같다.**
+     ⇒ 그 줄과 제목·안내문·표 머리글이 스크롤해도 위에 남는다(sticky 사슬).
+     ★sticky 의 top 은 앞 요소들의 <실제 높이 합>이라 JS(kStick)가 재서 넣는다 —
        px 을 어림잡아 박으면 배율·줄바꿈에서 틈이 생겨 자료 글자가 비친다(출고현황표에서 겪은 함정).
-     · ⚠부트스트랩 .card 에 overflow 가 걸리면 sticky 가 카드 안에 갇혀 안 붙는다 → visible 강제.
-     · 버튼줄은 제 카드(위 그리드) 안에서만 붙는다 — 카드가 화면을 다 지나가면 같이 올라간다(정상).
-     · z-index 는 부트스트랩 모달(1050)·백드롭(1040)보다 낮게. --%>
+     ⚠부트스트랩 .card 에 overflow 가 걸리면 sticky 가 카드 안에 갇혀 안 붙는다 → visible 강제.
+     ⚠DataTables 가 조작줄을 다시 그리면 옮겨 둔 ①이 제자리로 돌아가므로 MutationObserver 로 다시 붙인다.
+     ⚠z-index 는 부트스트랩 모달(1050)·백드롭(1040)보다 낮게. --%>
 <style>
-  .konet-phead{ position:sticky; top:0; z-index:40; background:#fff;
-                margin:-14px -11px 8px; padding:14px 11px 6px; }
-  .konet-tbar{ position:sticky; top:var(--kPhH, 64px); z-index:39; background:#fff;
-               margin-bottom:0 !important; padding-bottom:8px; }
+  .konet-phead{ position:sticky; top:0; z-index:43; background:#fff;
+                margin:-14px -11px 6px; padding:14px 11px 4px; }
+  #hospContractMsg{ position:sticky; z-index:42; background:#fff; display:block !important;
+                    margin-left:0 !important; padding:2px 0 4px; }
+  #tableName_wrapper .datatable-controls{ position:sticky; z-index:41; background:#fff; padding:4px 0; }
+  /* ⚠그리드 머리글에는 sticky 를 걸지 않는다 (2026-08-28) —
+       이 그리드는 `scrollY:300px`(위 page_Hight)로 **자체 내부 스크롤**을 쓴다. 그래서
+       ①`#tableName thead` 는 폭 계산용 <숨은 사본>이라 sticky 가 걸리지 않고
+       ②실제 머리글 표(.dataTables_scrollHead)에 걸었더니 DataTables 의 머리·본문 폭 동기화와
+         부딪혀 표가 통째로 사라지는 일이 있었다(「스크롤 표시부분 없어짐」).
+       그리드는 제 안에서 스크롤되므로 머리글은 그 안에서 이미 고정이다 — 손대지 않는 편이 안전하다. */
   .dashboard-content .card, .dashboard-content .card-body{ overflow:visible !important; }
+
+  /* ★★[2026-08-28 요청 「전체 스크롤 안 되게, 그리드 안에 것만 스크롤되게」]
+       화면을 <창 높이에 맞춰> 세로로 나눈다 : 위 조작줄(고정) → ①회사 그리드(남는 높이 전부)
+       → 아래 계약정보·사용자정보(제 높이). 페이지 자체는 스크롤되지 않고 **그리드 안에서만** 스크롤된다.
+     ⚠DataTables 가 `scrollY:300px`(page_Hight)를 **인라인 style 로** 박으므로 `!important` 로 풀어야
+       그리드가 남는 높이를 채운다 — 이게 없으면 표는 300px 에 머물고 아래가 빈다(그 빈칸이 이번 지적).
+     ⚠flex 로 줄이려면 사슬의 <모든> 칸에 min-height:0 이 있어야 한다. 하나라도 빠지면
+       그 칸이 내용 높이만큼 버텨 창 밖으로 밀린다(flex 기본값이 min-height:auto 라서).
+     ⚠창이 아주 낮아 다 못 담으면 wrapper 가 스크롤된다(잘려서 안 보이는 것보다 낫다). */
+  html, body{ height:100%; overflow:hidden; }
+  .dashboard-wrapper{ height:100%; display:flex; flex-direction:column; min-height:0; overflow:auto; }
+  .dashboard-content{ flex:1 1 auto; min-height:0; display:flex; }
+  .dashboard-content > .row{ flex:1 1 auto; min-height:0; width:100%; margin:0; }
+  .dashboard-content > .row > [class*="col-"]{ display:flex; min-height:0; padding:0; }
+  .dashboard-content .card{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+  .dashboard-content .card-body{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+  .konet-phead, #hospContractMsg{ flex:0 0 auto; }
+  #tableName_wrapper{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+  /* 조작줄·아래 안내(현재 1-2 / 총 2건)·페이지 단추는 제 높이 그대로, 가운데 표만 늘어난다 */
+  #tableName_wrapper .datatable-controls, #tableName_wrapper > .row{ flex:0 0 auto; }
+  #tableName_wrapper .dataTables_scroll{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+  #tableName_wrapper .dataTables_scrollHead{ flex:0 0 auto; }
+  #tableName_wrapper .dataTables_scrollBody{
+      flex:1 1 auto; min-height:140px;                  /* 아주 낮은 창에서도 몇 줄은 보이게 */
+      height:auto !important; max-height:none !important; overflow:auto !important; }
+  .bottom-section{ flex:0 0 auto; }                     /* 아래 두 그리드는 제 높이(각자 내부 스크롤) */
+  /* ②줄로 옮겨진 ① — 부트스트랩 .form-row 의 음수 여백·칼럼 폭을 풀어 한 줄에 눕힌다 */
+  #tableName_wrapper .datatable-controls .konet-tbar{ display:flex; align-items:center; gap:6px;
+        margin:0 0 0 auto !important; width:auto; flex:0 0 auto; }
+  #tableName_wrapper .datatable-controls .konet-tbar > div{ padding:0; margin:0; width:auto; max-width:none; flex:0 0 auto; }
+  /* 검색칸을 넓힌다 (2026-08-28 「2번 좌측으로 조금 확대」) — 오른쪽 끝에 붙어 있으므로
+     폭을 키우면 그만큼 <왼쪽으로> 자란다. 단추 자리는 그대로. */
+  #tableName_wrapper .datatable-controls .konet-tbar #findData{ width:300px; }
 </style>
 <script>
 (function(){
-  function kPhMeasure(){
-    var h = document.querySelector('.konet-phead'); if (!h) return;
-    document.documentElement.style.setProperty('--kPhH', h.getBoundingClientRect().height + 'px');
+  var TB='.konet-tbar', CT='#tableName_wrapper .datatable-controls';
+  /* ① 을 ② 줄 오른쪽으로 옮긴다 (이미 옮겨져 있으면 아무 일도 하지 않는다) */
+  function kDock(){
+    var tb=document.querySelector(TB), ct=document.querySelector(CT);
+    if(!tb || !ct || tb.parentNode===ct) return false;
+    ct.appendChild(tb);
+    return true;
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', kPhMeasure);
-  else kPhMeasure();
-  window.addEventListener('resize', kPhMeasure);
-  window.addEventListener('load', function(){ setTimeout(kPhMeasure, 200); });  /* 글꼴 로드 후 높이 재확정 */
+  /* sticky 사슬 — 앞 요소 높이의 합을 각자의 top 으로 */
+  function kStick(){
+    var els=[document.querySelector('.konet-phead'),
+             document.getElementById('hospContractMsg'),
+             document.querySelector(CT)].filter(Boolean);
+    var top=0;
+    els.forEach(function(el){ el.style.top=top+'px'; top+=el.getBoundingClientRect().height; });
+  }
+  /* ★조작줄을 옮기면 그리드의 <쓸 수 있는 폭>이 달라진다 — DataTables 는 열 폭을 px 로 박아 두므로
+       다시 재라고 알려 주지 않으면 머리글과 자료 칸이 어긋난다(2026-08-28 「1번 현상」).
+       실패해도 화면은 살아 있어야 하니 조용히 넘어간다. */
+  /* ⚠★화면이 <안 보이는 동안>에는 절대 부르지 않는다 — 폭이 0 인 상태에서 재면 DataTables 가
+       열 폭을 0 으로 박아 **표가 통째로 사라진다**(2026-08-28 「스크롤 표시부분 없어짐」의 원인).
+       셸에서 다른 메뉴를 보는 동안 이 iframe 은 숨어 있으므로 실제로 일어난다. */
+  function kVisible(){
+    var w=document.getElementById('tableName_wrapper');
+    return !!(w && w.offsetParent!==null && w.getBoundingClientRect().width>0);
+  }
+  function kAdjust(){
+    if(!kVisible()) return;
+    try{ if(window.jQuery && jQuery.fn.DataTable && jQuery.fn.DataTable.isDataTable('#tableName'))
+           jQuery('#tableName').DataTable().columns.adjust(); }catch(e){}
+  }
+  function sync(){ var moved=kDock(); if(moved && kVisible()) kAdjust(); if(kVisible()) kStick(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', sync); else sync();
+  window.addEventListener('load', function(){ sync(); setTimeout(sync,300); setTimeout(function(){ sync(); kAdjust(); },1200); });
+  window.addEventListener('resize', function(){ kStick(); kAdjust(); });
+  /* 그리드를 다시 그릴 때마다(조회·페이지 이동) 머리글 고정 위치를 다시 잡는다 */
+  try{ if(window.jQuery) jQuery(document).on('draw.dt', function(){ setTimeout(kStick,0); }); }catch(e){}
+  /* DataTables 가 조작줄을 다시 그릴 때(재조회·페이지 이동 등) 옮겨 둔 ①을 되붙인다 */
+  if(window.MutationObserver){
+    var t=null;
+    new MutationObserver(function(){ clearTimeout(t); t=setTimeout(sync,80); })
+      .observe(document.documentElement, {childList:true, subtree:true});
+  }
 })();
 </script>
 </head>
@@ -191,8 +270,11 @@ $(document).on('init.dt', function(e, settings) {
 <div class="dashboard-wrapper">
 	<%-- ★화면 제목 (2026-08-03 추가) — 다른 화면은 모두 맨 위에 제목이 있는데 이 화면만 없어
 	     좌측 메뉴를 옮길 때 시작 위치가 달라 보였다. 위치·글자는 공통 규격(.konet-ptit). --%>
-	<h2 class="konet-ptit">🏢 회사 / 사용자 관리</h2>
-	<div class="konet-psub">회사(사업자) · 계약 · 사용자 계정을 등록·수정합니다. 관리자 회사만 보입니다.</div>
+	<%-- .konet-phead = 스크롤해도 남는 제목 묶음 (2026-08-28 — 위 sticky 사슬 주석 참고) --%>
+	<div class="konet-phead">
+		<h2 class="konet-ptit">🏢 회사 / 사용자 관리</h2>
+		<div class="konet-psub">회사(사업자) · 계약 · 사용자 계정을 등록·수정합니다. 관리자 회사만 보입니다.</div>
+	</div>
 	<div class="container-fluid  dashboard-content">
 		<div class="row">
 			<!-- ============================================================== -->
@@ -201,7 +283,9 @@ $(document).on('init.dt', function(e, settings) {
 			<div class="col-xl-12 col-lg-12 col-md-12 col-sm-12 col-12">
 				<div class="card">
 					<div class="card-body">
-						<div class="form-row mb-2">
+						<%-- konet-tbar : 로드 후 JS(kDock)가 이 줄을 아래 [15▾ 복사·엑셀·출력 자료검색] 줄
+						     오른쪽으로 옮겨 한 줄로 만든다 (2026-08-28 「①을 ②쪽으로」). 자리만 옮길 뿐 동작 동일. --%>
+						<div class="form-row mb-2 konet-tbar">
 							<div class="col-sm-4">
 								<div class="input-group">
 									<input id="findData" type="text" class="form-control"
