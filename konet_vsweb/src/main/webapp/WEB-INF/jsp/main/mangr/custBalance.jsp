@@ -372,7 +372,8 @@
       <span id="cbDtlTit">📄 건별 내역 <small id="cbDtlSub">거래처를 고르면 그 날짜의 거래가 나옵니다</small></span>
       <span id="cbDtlTabs" class="cb-tabs"></span>
     </div>
-    <div class="cb-tbwrap" style="max-height:340px; min-height:120px"><table class="cb-tb" id="cbDtl"></table></div>
+    <%-- max(340px, 38vh) — 글자 축소 시 340px 고정이라 커진 화면을 못 썼다(2026-08-28, iframe 이라 vh 로 충분) --%>
+    <div class="cb-tbwrap" style="max-height:max(340px, 38vh); min-height:120px"><table class="cb-tb" id="cbDtl"></table></div>
     <div class="cb-dtlnote" id="cbDtlNote">
       위 잔액(이월·당월·남은금액)은 <b>기준월 말까지 쌓인 누계</b>이고, 이 표는 조회줄의 <b>특정일자 하루</b>에 벌어진 거래입니다 —
       <b>서로 다른 것을 보는 표</b>라 숫자가 맞지 않는 것이 정상입니다.

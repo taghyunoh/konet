@@ -149,17 +149,18 @@
     <%-- 체크 관리 (2026-08-28 요청 「두 내용 앞으로」) — 왼쪽 체크칸을 다루는 단추라 <검색 옆>이 자리다.
          오른쪽 덩어리(추가·수정·삭제·매칭)는 <고른 뒤에> 하는 일이라 성격이 다르다.
          ★[전체 해제]는 검색으로 지금 안 보이는 체크까지 푼다 — 그게 「전체」의 뜻이다. --%>
-    <button class="btn" id="btnChkAllOn" onclick="cliChkAll(true)" title="지금 목록(검색 결과)에 보이는 사업장을 모두 체크합니다">☑ 해당목록 체크</button>
+    <button class="btn" id="btnChkAllOn" onclick="cliChkAll(true)" title="지금 목록(검색 결과)에 보이는 사업장을 모두 체크합니다 (매칭코드가 이미 있는 곳은 제외 — 한 줄씩은 체크 가능)">☑ 해당목록 체크</button>
     <%-- ★「해당목록」 = 지금 <검색 결과로 보이는> 줄만 뜻한다. 검색으로 안 보이는 체크는 그대로 남는다
          (그건 매칭 창의 빨간 경고에서 [✕ 체크 모두 풀기]로 푼다). 둘을 헷갈리지 않게 이름을 나눠 뒀다. --%>
-    <button class="btn" id="btnChkAllOff" onclick="cliChkAll(false)" title="지금 목록(검색 결과)에 보이는 사업장의 체크만 풉니다">☐ 해당목록 해제</button>
+    <button class="btn" id="btnChkAllOff" onclick="cliChkAll(false)" title="지금 목록(검색 결과)에 보이는 사업장의 체크만 풉니다">☐ 해당목록 체크 해제</button>
     <button class="btn" id="btnOnlySel" onclick="cliOnlySel()" title="체크한 사업장만 모아 봅니다 (다시 누르면 전체)">☑ 선택만 보기</button>
     <%-- 공통 매칭코드 (2026-08-28) — 체크로 고른 사업장들을 하나의 코드/이름으로 묶는다.
          차례 = 「고른다(전체체크·선택만보기) → 묶는다(지정·해제) → 치운다(전체해제)」 로 묶어 둔다. --%>
     <button class="btn" id="btnMatch" onclick="cliMatchOpen()" title="체크한 사업장들을 하나의 공통 매칭코드로 묶습니다">🔗 매칭코드 지정</button>
     <%-- 「선택목록 매칭해제」 = <체크한 사업장>의 매칭만 지운다(2026-08-28 확정).
          ★한때 「보이는 목록 전체」로 만들었다가 되돌렸다 — 검색 결과를 통째로 지우는 건 되돌리기 어렵다. --%>
-    <button class="btn" id="btnMatchClr" onclick="cliMatchClear()" title="체크한 사업장의 매칭코드만 지웁니다">↩ 선택목록 매칭해제</button>
+    <%-- 빨간 글씨 (2026-08-28 요청) — 매칭을 지우는 단추라 위험색(화면 규칙 3: 위험한 것만 빨강 글자) --%>
+    <button class="btn" id="btnMatchClr" onclick="cliMatchClear()" style="color:#c0392b; border-color:#e3b4ae" title="체크한 사업장의 매칭코드만 지웁니다">↩ 선택목록 매칭해제</button>
     <%-- ✕ 전체 해제 단추는 2026-08-28 요청으로 툴바에서 뺐다.
          지정·해제 뒤 체크가 저절로 풀리므로 평소엔 쓸 일이 없다.
          ★기능 자체는 남겨 둔다(cliChkClearAll) — 안 보이는 체크가 남았을 때
@@ -177,7 +178,7 @@
            약칭·거래구분·사업자번호·대표자·업태·종목은 사업장 자료에 거의 비어 있어 자리만 차지했다.
            대신 배송·택배에 필요한 주소·수령자·연락처·운임을 보여 준다. 상세는 더블클릭(수정창). --%>
       <thead><tr>
-        <th style="width:34px;text-align:center"><input type="checkbox" id="ckAll" onclick="cliChkAll(this.checked)" title="보이는 줄 모두 선택/해제"></th>
+        <th style="width:34px;text-align:center"><input type="checkbox" id="ckAll" onclick="cliChkAll(this.checked)" title="보이는 줄 모두 선택/해제 (매칭코드가 이미 있는 곳은 제외)"></th>
         <th style="width:96px">매칭코드</th><th style="width:150px">매칭명칭</th>
         <th>코드</th><th>사업장명</th><th>배송처 주소</th><th>택배주소</th>
         <th>수령자</th><th>전화</th><th>휴대폰</th><th>운임</th><th>담당자</th>
@@ -513,7 +514,17 @@ var _mchk={};
 function cliChkCnt(){ var n=0; for(var k in _mchk) if(_mchk[k]) n++; return n; }
 function cliChk(cd, on){ if(on) _mchk[cd]=1; else delete _mchk[cd]; cliChkInfo(); }
 function cliChkAll(on){
-  _view.forEach(function(o){ if(on) _mchk[o.bizCd]=1; else delete _mchk[o.bizCd]; });
+  /* ★일괄 체크(맨 위 체크박스·[해당목록 체크])는 매칭코드가 <이미 있는> 줄을 건너뛴다
+     (2026-08-28 요청 「1,2번은 매칭코드 있으면 체크 안되게」) — 일괄 지정이 기존 매칭을
+     덮어쓰는 사고 방지. 줄 하나씩 손으로 체크하는 것은 종전대로 된다(재지정 용도). */
+  var skip=0;
+  _view.forEach(function(o){
+    if(on){
+      if((''+(o.matchCd||'')).trim()){ skip++; return; }
+      _mchk[o.bizCd]=1;
+    } else delete _mchk[o.bizCd];
+  });
+  if(on && skip) toast('🔗 매칭코드가 이미 있는 '+skip.toLocaleString()+'곳은 체크에서 제외했습니다.');
   cliRender();
 }
 function cliChkInfo(){
@@ -521,7 +532,10 @@ function cliChkInfo(){
   var lab = n ? ('🔗 매칭코드 지정 ('+n+')') : '🔗 매칭코드 지정';
   if(b) b.innerHTML=lab;
   if(c) c.style.opacity = n ? '1' : '.55';    // 체크가 없으면 흐리게 — 이 단추는 체크가 있어야 쓴다
-  var a=document.getElementById('ckAll'); if(a) a.checked = (n>0 && n>=_view.length);
+  /* 맨 위 체크박스 상태 = <매칭코드 없는> 보이는 줄이 다 체크됐는가 — 일괄 체크가 매칭 있는 줄을
+     건너뛰므로(위 cliChkAll) 전체 줄 수와 비교하면 늘 꺼진 것처럼 보인다(2026-08-28). */
+  var eligible=_view.filter(function(o){ return !(''+(o.matchCd||'')).trim(); }).length;
+  var a=document.getElementById('ckAll'); if(a) a.checked = (n>0 && eligible>0 && n>=eligible);
   var cc=document.getElementById('btnChkClr'); if(cc) cc.style.opacity = n ? '1' : '.55';
   cliOnlySelUpd();
 }

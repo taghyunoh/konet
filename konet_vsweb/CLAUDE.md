@@ -106,6 +106,21 @@
     ③배율 변경 직후 `resize` 이벤트를 쏴 재계산. ⚠빼기 px 항은 나누지 말 것(px 는 배율을 함께 받는다).
     ⚠**새 인라인 패널에 vh 높이·innerHeight 계산을 쓰면 같은 나눗셈을 걸 것.** 모달(.ss-modal 등)은
     제 안에서 일관되게 줄어들므로 손대지 않았다. iframe 화면은 해당 없음(상자 역보정이 뷰포트를 키움).
+    - 후속 ①: **lz 표(N행 상한)도 별개 경로** — 행수 상한을 `z.rows/kzF()` 로 늘리고, mount·resize 때
+      높이가 커진 만큼 행을 이어 붙인다(lzFit/lzMount·lzBind). 마감현황·매출마감 등 lz 표 전체 적용.
+      이어서 「100% 인데 빈공간」 지적으로 **마감 4화면(재고·매출·매입 마감, 마감현황)의 lz 표는
+      전부 `fill:true, pad:84`**(화면 바닥까지, pad=아래 행수 안내줄+※ 설명줄 예약 — 기본 46이면
+      설명줄이 밀린다)로 전환(2026-08-28). N행 상한으로 남은 곳 = 재고현황 ①(동적 배분이 담당).
+    - 후속 ③: **iframe 화면의 <고정 px> 목록·그래프 높이는 `max(종전px, Xvh)`** — 100% 는 종전
+      그대로, 축소 시 vh 쪽이 커져 채운다(iframe 은 상자 역보정이 뷰포트를 키워 vh 만으로 정확 —
+      --kz 불필요). 적용: shipoutHist(.sh-list/.sh-dtl) · salesChart(.sc-canvas) ·
+      salesChartDay(.sd-canvas/.sd-tbwrap) · custBalance(건별 내역) · **등록 4화면**(salesReg/
+      purchaseReg/rcvReg/payReg — 본문 전표목록 #xxListWrap·원장 #lgWrap·매출품목/명세 카드.
+      팝업 안 목록은 제 안에서 일관되게 줄므로 안 건드림). ⚠새 iframe 화면도 본문 목록에 px 고정을
+      쓰면 같은 max() 를 걸 것.
+    - 후속 ②: **재고현황 ①·② 는 _stkLedFit 이 세로를 동적 배분** — ②수불내역이 실제 쓰는 만큼
+      (상한 380 CSS px)만 예약하고 나머지를 ①현재고 그리드에 준다(① lzMount `noFit` — lzFit 은
+      높이 불간섭). 나누어보기 확대(_savedMax 보관 중)엔 ① 을 건드리지 않는다.
   - ⚠★**역보정 inline 은 `!important` 로 걸어야 한다**(같은 날 60% 재신고 「아래 빈공간 글자만 작아지게」) —
     셸에 `body.konet-asqbar-on #if-shipstatus2{height:… !important}`(알림바 가림 방지)가 있어 보통 inline 은
     져서 높이 역보정이 무시됐다(대시보드+알림바 조합에서만 빈공간 재발). inline !important 가 스타일시트

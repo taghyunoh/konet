@@ -5536,11 +5536,14 @@ var KONET_CTX = window.KONET_CTX || '';
     var n=Math.min(rows, list.length), body='';
     for(var i=0;i<n;i++) body+=rowFn(list[i]);
     wrap.innerHTML=o.head+body+'</tbody></table>';
-    wrap._lz={ list:list, from:n, rowFn:rowFn, rows:rows, pager:o.pager||'', capTop:o.capTop||214, fill:!!o.fill };
+    wrap._lz={ list:list, from:n, rowFn:rowFn, rows:rows, pager:o.pager||'', capTop:o.capTop||214, fill:!!o.fill,
+               pad:o.pad||46,       // fill 표가 표 아래(행수 안내·설명줄)에 남겨 두는 CSS px (2026-08-28)
+               noFit:!!o.noFit };   // noFit = 높이는 화면 쪽 코드가 잡는다(재고현황 ① — _stkLedFit). lzFit 은 손대지 않는다.
     lzFit(wrap); lzBind(wrap);
     // N행이 표 높이보다 짧으면(행이 얇거나 창이 큰 경우) 스크롤이 안 생겨 영영 안 채워지고,
     // fill 표는 화면을 채울 만큼 행이 필요하다 — 어느 쪽이든 찰 때까지 미리 붙인다
-    for(var g=0; wrap._lz.from<list.length && wrap.scrollHeight<=wrap.clientHeight+2 && g<200; g++) lzFill(wrap);
+    // ★붙일 때마다 lzFit 도 다시 — 행수 상한(lim=z.rows/배율)은 행이 실제로 붙어야 높이에 반영된다(2026-08-28)
+    for(var g=0; wrap._lz.from<list.length && wrap.scrollHeight<=wrap.clientHeight+2 && g<200; g++){ lzFill(wrap); lzFit(wrap); }
     lzInfo(wrap);
   }
   /* 글자 축소·확대(ui-fontsize.js)가 인라인 패널에 건 zoom 배율 — 화면 px ↔ 패널 CSS px 환산용.
@@ -5549,6 +5552,7 @@ var KONET_CTX = window.KONET_CTX || '';
   function kzF(){ var v=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kz')); return (v>0)?v:1; }
   function lzFit(wrap){
     var z=wrap._lz; if(!z) return;
+    if(z.noFit) return;                                          // 높이는 화면 쪽(_stkLedFit 등)이 잡는다
     var cap=Math.max(240, window.innerHeight/kzF()-z.capTop);   // 창을 벗어나면 안 됨 (/kzF = 배율 역보정)
     /* ★fill 표(매출내역 탭들)는 <화면 바닥까지> 쓴다 (2026-08-04 "빈공간").
          N행 높이로 상한을 걸면 큰 화면에서 표 아래가 텅 비었다. 표 시작 위치를 실측해
@@ -5557,15 +5561,19 @@ var KONET_CTX = window.KONET_CTX || '';
        재고현황처럼 표 두 개를 한 화면에 두는 곳은 fill 없이 종전(N행 상한) 그대로다. */
     if (z.fill && wrap.offsetParent){
       var top=wrap.getBoundingClientRect().top + (window.scrollY||window.pageYOffset||0);
-      cap=Math.max(240, (window.innerHeight - top)/kzF() - 46);   // /kzF = 배율 역보정 (innerHeight·top 은 실화면 px)
+      cap=Math.max(240, (window.innerHeight - top)/kzF() - (z.pad||46));   // /kzF = 배율 역보정 (innerHeight·top 은 실화면 px)
       wrap.style.maxHeight=cap+'px';
       return;
     }
     var tb=wrap.querySelector('table');
     if(!tb){ wrap.style.maxHeight=cap+'px'; return; }
     // 행 높이가 종류마다 달라(그룹 머리행·설명행) 계산하지 않고 실측한다. +1 = 맨 위 '■ 총합계' 줄
+    /* ★행수 상한을 배율로 나눈다 (2026-08-28 「마감현황도 글자 폰트 축소시 빈공간」) —
+       N행 상한은 100% 기준의 <화면에 맞는 높이>다. 축소하면 줄이 낮아져 N행이 화면의 일부만 쓰고
+       아래가 빈다 → 80% 면 N/0.8 행까지 재서 렌더 높이를 100% 때와 같게 유지한다(cap 이 최종 안전망). */
+    var lim=Math.ceil(z.rows / kzF());
     var px=(tb.tHead?tb.tHead.offsetHeight:0), rs=(tb.tBodies[0]?tb.tBodies[0].rows:[]);
-    for(var i=0;i<rs.length && i<=z.rows;i++) px+=rs[i].offsetHeight;
+    for(var i=0;i<rs.length && i<=lim;i++) px+=rs[i].offsetHeight;
     wrap.style.maxHeight=Math.min(px+2, cap)+'px';
   }
   function lzFill(wrap){
@@ -5588,7 +5596,12 @@ var KONET_CTX = window.KONET_CTX || '';
       var z=wrap._lz; if(!z || z.from>=z.list.length) return;
       if(wrap.scrollTop+wrap.clientHeight >= wrap.scrollHeight-60) lzFill(wrap);   // 바닥 60px 전에 미리 채운다
     });
-    window.addEventListener('resize', function(){ if(wrap._lz && wrap.querySelector('table')) lzFit(wrap); });
+    window.addEventListener('resize', function(){
+      if(!(wrap._lz && wrap.querySelector('table'))) return;
+      lzFit(wrap);
+      /* 배율 축소(가－)도 resize 로 들어온다 — 높이가 커졌으면 모자란 행을 이어 붙여야 빈칸이 없다(2026-08-28) */
+      for(var g=0; wrap._lz.from<wrap._lz.list.length && wrap.scrollHeight<=wrap.clientHeight+2 && g<200; g++){ lzFill(wrap); lzFit(wrap); }
+    });
   }
   function lzInfo(wrap){
     var z=wrap._lz; if(!z || !z.pager) return;

@@ -38,6 +38,8 @@
   .sv-bal{ font-weight:800; font-size:15px; color:#c0392b; }
   /* 목록 — 5행 고정 + 자동 스크롤(매출내역과 같은 방식) */
   .sv-list{ max-height:196px; overflow:auto; border:1px solid var(--sv-bd); border-radius:8px; }
+  /* ★본문 목록만 max(…, vh) — 판매등록(salesReg #saListWrap)과 같은 이유·같은 날(2026-08-28) */
+  #svListWrap{ max-height:max(196px, 30vh); }
   .sv-list table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .sv-list th{ background:#f4dcbc; color:#6f4200; font-weight:800; box-shadow:inset 0 -2px 0 #b06a00; border:1px solid var(--sv-bd); padding:7px 8px; position:sticky; top:0; z-index:2; }
   .sv-list td{ border:1px solid var(--sv-bd); padding:6px 8px; text-align:center; }
@@ -197,7 +199,7 @@
       </div>
       <%-- 원장 스크롤 : 머리글은 위에 고정(sticky), 합계는 스크롤 영역 밖에 두어 항상 보이게 한다.
            두 표의 열 너비는 같은 colgroup 으로 맞춘다(2026-07-25 요청). --%>
-      <div class="sv-list" id="lgWrap" style="max-height:440px; border-radius:8px 8px 0 0">
+      <div class="sv-list" id="lgWrap" style="max-height:max(440px, 52vh); border-radius:8px 8px 0 0">
         <table>
           <%-- 열 너비 = 비율(2026-08-01 요청). 종전에는 '매출'만 너비가 없어 남는 폭을 전부 먹어
                  혼자 두 배 넓고 나머지가 눌렸다. 짝을 이루는 열끼리 같은 폭 —
@@ -227,7 +229,7 @@
         <span style="margin-left:auto; font-size:12.5px">합계 <b id="svDaySum" style="color:#c0392b">0</b></span>
         <span class="sv-btn" style="cursor:pointer" onclick="svDayClose()">✕ 닫기</span>
       </div>
-      <div class="sv-list" style="max-height:300px">
+      <div class="sv-list" style="max-height:max(300px, 34vh)">
         <table>
           <colgroup><col style="width:90px"><col style="width:130px"><col style="width:110px"><col><col style="width:80px"><col style="width:90px"><col style="width:100px"></colgroup>
           <thead><tr><th>구분</th><th>전표·발주</th><th>품목코드</th><th>품목명</th><th>수량</th><th>단가</th><th>금액</th></tr></thead>

@@ -47,7 +47,10 @@
   .sc-tit{ display:flex; align-items:center; gap:8px; margin-bottom:8px; font-weight:800; }
   .sc-tit small{ font-weight:600; color:#2b3a48; font-size:12px; }
   /* 캔버스는 부모 폭에 맞춰 늘어난다. 높이는 고정해야 그래프가 세로로 무한정 늘어나지 않는다 */
-  .sc-canvas{ position:relative; height:320px; }
+  /* ★높이 = max(320px, 38vh) (2026-08-28 글자 축소 시 하단 빈공간 — 320px 고정이라 축소해 화면이
+       커져도 그래프가 안 늘어났다. 100% 는 종전 그대로, 축소할수록 vh 쪽이 커진다.
+       iframe 화면이라 vh 만으로 정확(상자 역보정이 뷰포트를 키움 — CLAUDE.md 배율 항목). */
+  .sc-canvas{ position:relative; height:max(320px, 38vh); }
   .sc-two{ display:flex; gap:12px; flex-wrap:wrap; }
   .sc-two > div{ flex:1 1 460px; min-width:0; }
   .sc-msg{ padding:26px; text-align:center; color:#2b3a48; font-size:13.5px; font-weight:600; }

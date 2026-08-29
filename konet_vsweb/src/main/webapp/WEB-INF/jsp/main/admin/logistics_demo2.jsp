@@ -1156,7 +1156,9 @@
     var head='<table class="logi-tb">'+thead+'<tbody>'+totalRow;
     if(_stockTab==='item'){
       sum.innerHTML='총 <b>'+_stockRows.length.toLocaleString()+'</b>품목 · 기말 <b>'+_cnum(g.e)+'</b> · 재고금액 <b>'+_cnum(g.amt)+'</b>';
-      lzMount({ wrap:wrap, pager:'closeStockPager', head:head, list:_stockRows, rowFn:_iRow, rows:STOCK_ROWS, capTop:320 });
+      /* fill — 화면 바닥까지 채운다 (2026-08-28 「100% 인데 빈공간이 있어서 조금 확대」).
+         pad 84 = 아래 행수 안내줄 + ※ 설명줄 자리 — 46(기본)이면 설명줄이 화면 밖으로 밀린다. */
+      lzMount({ wrap:wrap, pager:'closeStockPager', head:head, list:_stockRows, rowFn:_iRow, rows:STOCK_ROWS, capTop:320, fill:true, pad:84 });
       return;
     }
     // 매입처별
@@ -1167,7 +1169,7 @@
       return '<tr class="close-grp" onclick="stockToggleKey(\'k#'+gi+'\')"><td colspan="2" style="text-align:left"><span class="ccar">'+car+'</span><b>'+_cesc(gg.label)+'</b> <span style="color:#5b6b7a;font-weight:600">(품목 '+gg.items.length+'종)</span></td>'+_stkCells(gg.b,gg.i,gg.o,gg.a,gg.e,0,gg.amt,false)+'</tr>'; };
     var rowsD=[];
     groups.forEach(function(gg,gi){ rowsD.push({t:'g',gi:gi}); if(!_stockCollapsed['k#'+gi]) gg.items.forEach(function(o){ rowsD.push({t:'i',gi:gi,o:o}); }); });
-    lzMount({ wrap:wrap, pager:'closeStockPager', head:head, list:rowsD, rows:STOCK_ROWS, capTop:320,
+    lzMount({ wrap:wrap, pager:'closeStockPager', head:head, list:rowsD, rows:STOCK_ROWS, capTop:320, fill:true, pad:84,
               rowFn:function(r){ return (r.t==='g')?_gRow(r.gi):_iRow(r.o); } });
   }
   // ── 매출마감: 3탭(출고장별/사업장별/품목) + 총합계·소계·접기펼치기·페이징 ──
@@ -1292,7 +1294,8 @@
       // 품목 탭 = 평면 (총합계 상단) + 18행씩 자동 스크롤
       var agg=_closeAgg(rows, function(r){ return r.itemCd; });
       sum.innerHTML='총 <b>'+agg.length.toLocaleString()+'</b>품목 · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 순마진 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>'+_salesNote();
-      lzMount({ wrap:wrap, pager:'closeSalesPager', head:head, list:agg, rows:SALES_PAGE, capTop:320,
+      /* fill·pad — 재고마감과 동일(화면 바닥까지, 2026-08-28 「매출마감 매입마감 마감현황도 동일하게」) */
+      lzMount({ wrap:wrap, pager:'closeSalesPager', head:head, list:agg, rows:SALES_PAGE, capTop:320, fill:true, pad:84,
                 rowFn:function(o){ return _salesItemRow(o,0); } });
       return;
     }
@@ -1324,7 +1327,7 @@
         return '<tr class="close-grp" onclick="salesToggleKey(\'z1#'+i1+'\')"><td colspan="'+lead0+'"><span class="ccar">'+car+'</span><b>'+_cesc(g1.label)+'</b> <span style="color:#5b6b7a;font-weight:600">('+g1.l2.length+'개 출고장)</span></td>'+_salesNumCells(g1.q,0,0,g1.s,g1.c,g1.m,false)+'</tr>'; };
       var _l2Row=function(i1,i2){ var g2=L1[i1].l2[i2], c2=!!_salesCollapsed['z2#'+i1+'.'+i2], car=c2?'▶':'▼';
         return '<tr class="close-sub" onclick="salesToggleKey(\'z2#'+i1+'.'+i2+'\')" style="cursor:pointer"><td colspan="'+lead0+'" style="padding-left:24px"><span class="ccar">'+car+'</span>'+_cesc(g2.label)+' <span style="color:#5b6b7a;font-weight:600">(품목 '+g2.items.length+'종)</span></td>'+_salesNumCells(g2.q,0,0,g2.s,g2.c,g2.m,false)+'</tr>'; };
-      lzMount({ wrap:wrap, pager:'closeSalesPager', head:head, list:rowsZ, rows:SALES_PAGE, capTop:320,
+      lzMount({ wrap:wrap, pager:'closeSalesPager', head:head, list:rowsZ, rows:SALES_PAGE, capTop:320, fill:true, pad:84,
                 rowFn:function(r){ return (r.t==='l1') ? _l1Row(r.i1)
                                         : (r.t==='l2') ? _l2Row(r.i1,r.i2)
                                         : _salesItemRow(r.o,1); } });
@@ -1349,7 +1352,7 @@
     };
     var rowsB=[];
     groups.forEach(function(g,gi){ rowsB.push({t:'g',gi:gi}); if(!_salesCollapsed[tab+'#'+gi]) g.items.forEach(function(o){ rowsB.push({t:'it',o:o}); }); });
-    lzMount({ wrap:wrap, pager:'closeSalesPager', head:head, list:rowsB, rows:SALES_PAGE, capTop:320,
+    lzMount({ wrap:wrap, pager:'closeSalesPager', head:head, list:rowsB, rows:SALES_PAGE, capTop:320, fill:true, pad:84,
               rowFn:function(r){ return (r.t==='g') ? _gRowB(r.gi) : _salesItemRow(r.o,1); } });
   }
   // ── 매입(입고)마감: 매입처 그룹 + 소계·접기펼치기 + 행 페이징 ──
@@ -1386,7 +1389,7 @@
     var rowsD=[];
     groups.forEach(function(g,gi){ rowsD.push({t:'g',gi:gi}); if(!_costCollapsed['c#'+gi]) g.items.forEach(function(o){ rowsD.push({t:'i',gi:gi,o:o}); }); });
     lzMount({ wrap:wrap, pager:'closeCostPager', head:'<table class="logi-tb">'+thead+'<tbody>'+totalRow,
-              list:rowsD, rows:COST_ROWS, capTop:320,
+              list:rowsD, rows:COST_ROWS, capTop:320, fill:true, pad:84,
               rowFn:function(r){ return (r.t==='g') ? _gRow(r.gi) : _iRow(r.o); } });
   }
   // ── 마감현황(월계표): 3탭(출고장별 2단트리/사업장별/품목별) + 접기·페이징 ──
@@ -1443,7 +1446,7 @@
     if(tab==='item'){
       var agg=_closeAgg(_statRows, function(r){ return r.itemCd; });
       sum.innerHTML='총 <b>'+agg.length.toLocaleString()+'</b>품목 · 매출 <b>'+_cnum(gS)+'</b> · 순마진 <b>'+_cnum(gM)+'</b>';
-      lzMount({ wrap:wrap, pager:'closeStatusPager', head:head, list:agg, rows:STAT_ROWS, capTop:320,
+      lzMount({ wrap:wrap, pager:'closeStatusPager', head:head, list:agg, rows:STAT_ROWS, capTop:320, fill:true, pad:84,
                 rowFn:function(o){ return _statItemRow(o,0); } });
       return;
     }
@@ -1466,7 +1469,7 @@
       groups.forEach(function(g,gi){ rowsD.push({t:'g',g:g,gi:gi}); if(!_statCollapsed['b#'+gi]) g.items.forEach(function(o){ rowsD.push({t:'it',o:o}); }); });
       _hdr=function(r){ var c=!!_statCollapsed['b#'+r.gi]; return '<tr class="close-grp" onclick="statToggleKey(\'b#'+r.gi+'\')"><td colspan="'+lead0+'" style="text-align:left"><span class="ccar">'+(c?'▶':'▼')+'</span><b>'+_cesc(r.g.label)+'</b> <span style="color:#5b6b7a;font-weight:600">(품목 '+r.g.items.length+'종)</span></td>'+_statCells(r.g.q,r.g.s,r.g.c,r.g.m)+'</tr>'; };
     }
-    lzMount({ wrap:wrap, pager:'closeStatusPager', head:head, list:rowsD, rows:STAT_ROWS, capTop:320,
+    lzMount({ wrap:wrap, pager:'closeStatusPager', head:head, list:rowsD, rows:STAT_ROWS, capTop:320, fill:true, pad:84,
               rowFn:function(r){ return (r.t==='it') ? _statItemRow(r.o,1) : _hdr(r); } });
   }
   // ── SWAL 공용 → ★[2026-08-21] ui-message 위임으로 교체 ──
@@ -1827,13 +1830,28 @@
      · 상단 그리드 행수(STK_PAGE)가 바뀌어도 알아서 따라온다.
      · 창 크기가 바뀔 때도 다시 잡는다(아래 resize). 최소 180px 는 지켜 너무 납작해지지 않게. */
   function _stkLedFit(){
-    var b=document.getElementById('stkLedgerBody'); if(!b) return;
+    /* ★①현재고 그리드 + ②수불 내역의 세로 배분을 <한 곳에서> 잡는다 (2026-08-28 재작성 —
+         「글자 축소시 빈공간」 3차 신고가 이 화면. 종전엔 ①이 46vh 고정이라 ② 자료가 적으면
+         그 아래가 통째로 비었다). ② 가 실제로 쓰는 만큼(상한 380 CSS px)만 남기고 나머지를 ① 에 준다.
+       ★/kz = 글자 축소·확대 역보정 — innerHeight·rect 는 실제 화면 px, maxHeight 는 패널 zoom 을
+         받는 CSS px 라 나눠야 한다(.ss-scroll 의 --kz 주석 참고).
+       ①은 lzMount noFit 이라 여기가 유일한 높이 결정자다 — 높이를 키운 뒤 모자란 행을 이어 붙인다. */
+    var kz=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kz'))||1;
+    var w=document.getElementById('stkStatusWrap'), b=document.getElementById('stkLedgerBody');
+    /* ⚠나누어보기 확대(_stkTopFitSel)가 ①을 선택줄만 남게 줄여 둔 동안(_savedMax 보관 중)은
+       ① 높이를 건드리면 안 된다 — 되돌리기(2026-08-07 「원위치 하면 원복」)가 깨진다. */
+    if(w && w._savedMax!=null) w=null;
+    if(w && w.getBoundingClientRect().top){
+      var t1=w.getBoundingClientRect().top;
+      var need=(b && b.scrollHeight>40) ? Math.min(b.scrollHeight, 380)+130 : 310;   // ②내용+제목·머리줄 (미선택 시 예약 310)
+      w.style.maxHeight=Math.max(240, Math.floor((window.innerHeight - t1)/kz - need))+'px';
+      if(window.lzFill && w._lz){   // 커진 높이만큼 행을 이어 붙인다(안 붙이면 표 안이 빈다)
+        for(var g=0; w._lz.from<w._lz.list.length && w.scrollHeight<=w.clientHeight+2 && g<200; g++) lzFill(w);
+      }
+    }
+    if(!b) return;
     var top=b.getBoundingClientRect().top;
     if(!top) return;                       // 아직 안 그려졌으면 건너뛴다
-    /* ★/kz = 글자 축소·확대 역보정 (2026-08-28 「재고현황도 글자 축소시 하단 빈공간」) —
-       innerHeight·top 은 실제 화면 px, maxHeight 는 패널 zoom 을 받는 CSS px 라서
-       나누지 않으면 축소 배율만큼 짧게 그려져 아래가 빈다. (.ss-scroll 의 --kz 주석 참고) */
-    var kz=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kz'))||1;
     b.style.maxHeight=Math.max(180, Math.floor((window.innerHeight - top)/kz - 20))+'px';
   }
   window.addEventListener('resize', function(){ _stkLedFit(); });
@@ -2723,9 +2741,11 @@
            lzMount 는 rowFn 이 돌려준 문자열을 그대로 이어 붙이므로 <tr> 을 여러 개 줘도 된다. */
         + sub;
     };
-    lzMount({ wrap:wrap, pager:'stkStatusPager', rows:STK_PAGE, capTop:300,
+    /* noFit — ① 높이는 lzFit 이 아니라 _stkLedFit(아래 ②와 함께 잡는 오케스트레이터)가 정한다 (2026-08-28) */
+    lzMount({ wrap:wrap, pager:'stkStatusPager', rows:STK_PAGE, capTop:300, noFit:true,
               head:'<table class="logi-tb">'+thead+'<tbody>'+totalRow,
               list:view, rowFn:stkRow });
+    /* (①·② 높이는 아래쪽 _stkLedFit() 호출 한 번이 함께 잡는다) */
     /* ★다시 그려도 고른 줄을 그대로 둔다 (2026-08-07).
          lzMount 는 innerHTML 을 통째로 갈아 끼운다 — 그래서 매칭 접기/펼치기나 조회를 하면
          선택 표시(.stk-on)가 사라지고 스크롤도 맨 위로 튀었다. 같은 줄을 찾아 도로 표시하고
@@ -3856,9 +3876,10 @@
             집계 <b id="stkStamp" style="color:#178074">—</b> · 행 클릭 → ② 수불내역
           </span>
         </div>
-        <%-- ★높이를 두 줄만큼 줄였다 (2026-08-06 요청) — 그만큼 아래 ②수불내역이 올라온다.
-               한 줄 ≈ 34px 라 68px 를 미리 뺀다. 줄 수가 아니라 높이만 줄이므로
-               목록 자체는 그대로고 스크롤로 이어서 본다. 되돌리려면 calc 를 빼고 46vh 로. --%>
+        <%-- ★여기 inline 값은 <첫 그리기 전> 임시값일 뿐이다 (2026-08-28) — 조회 후에는
+               _stkLedFit 이 ②수불내역이 실제로 쓰는 만큼만 남기고 나머지를 ① 에 주도록
+               style.maxHeight 를 덮어쓴다(「글자 축소시 하단 빈공간」의 이 화면 해법).
+               [이력] 2026-08-06 「두 줄만큼 축소」= 46vh−68px → 2026-08-28 동적 배분으로 대체. --%>
         <div id="stkStatusWrap" tabindex="0" style="max-height:calc(46vh / var(--kz,1) - 68px); overflow:auto; outline:none"></div>
         <div class="close-pager" id="stkStatusPager"></div>
       </div>

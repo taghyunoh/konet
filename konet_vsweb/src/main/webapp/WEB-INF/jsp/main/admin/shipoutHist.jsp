@@ -30,8 +30,12 @@
   .sh-btn{ height:32px; border:1px solid var(--sh-bd); background:#fff; border-radius:7px; padding:0 12px; cursor:pointer; font-size:13px; font-weight:700; color:#37475a; }
   .sh-btn:hover{ border-color:var(--sh-teal); }
   .sh-btn.teal{ background:var(--sh-teal); color:#fff; border-color:var(--sh-teal); }
-  /* 목록 — 고정 높이 + 자동 스크롤(매출내역과 같은 방식) */
-  .sh-list{ max-height:340px; overflow:auto; border:1px solid var(--sh-bd); border-radius:8px; }
+  /* 목록 — 자동 스크롤(매출내역과 같은 방식).
+     ★높이 = max(340px, 44vh) (2026-08-28 「글자 축소시 하단 빈공간」) — 340px 고정이라
+       글자를 축소해 화면(안쪽 뷰포트)이 커져도 표가 안 늘어나 아래가 통째로 비었다.
+       100% 에서는 종전 340px 그대로, 축소할수록 vh 쪽이 커져 화면을 채운다.
+       이 화면은 iframe 이라 vh 에 --kz 나눗셈이 필요 없다(상자 역보정이 뷰포트를 키움 — CLAUDE.md). */
+  .sh-list{ max-height:max(340px, 44vh); overflow:auto; border:1px solid var(--sh-bd); border-radius:8px; }
   .sh-list table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .sh-list th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--sh-bd); padding:7px 8px; position:sticky; top:0; z-index:2; }
   .sh-list td{ border:1px solid var(--sh-bd); padding:6px 8px; text-align:center; }
@@ -49,7 +53,7 @@
   .sh-list tr.ugrp:hover td{ background:#e7f0ec; }
   .sh-list tr.ugrp .car{ display:inline-block; width:13px; color:#1f9b8e; }
   .sh-list tr.ukid td:first-child{ padding-left:22px; }
-  .sh-dtl{ max-height:300px; overflow:auto; border:1px solid var(--sh-bd); border-radius:8px; }
+  .sh-dtl{ max-height:max(300px, 36vh); overflow:auto; border:1px solid var(--sh-bd); border-radius:8px; }  /* 위 .sh-list 주석 참고 */
   .sh-dtl table{ width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap; }
   .sh-dtl th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--sh-bd); padding:6px 8px; position:sticky; top:0; z-index:2; }
   .sh-dtl td{ border:1px solid var(--sh-bd); padding:5px 8px; text-align:center; }

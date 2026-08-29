@@ -38,6 +38,8 @@
   .sv-bal{ font-weight:800; font-size:15px; color:#c0392b; }
   /* 목록 — 5행 고정 + 자동 스크롤(매출내역과 같은 방식) */
   .sv-list{ max-height:196px; overflow:auto; border:1px solid var(--sv-bd); border-radius:8px; }
+  /* ★본문 목록만 max(…, vh) — 판매등록(salesReg #saListWrap)과 같은 이유·같은 날(2026-08-28) */
+  #svListWrap{ max-height:max(196px, 30vh); }
   .sv-list table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .sv-list th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--sv-bd); padding:7px 8px; position:sticky; top:0; z-index:2; }
   .sv-list td{ border:1px solid var(--sv-bd); padding:6px 8px; text-align:center; }
@@ -190,7 +192,7 @@
       </div>
       <%-- 원장 스크롤 : 머리글은 위에 고정(sticky), 합계는 스크롤 영역 밖에 두어 항상 보이게 한다.
            두 표의 열 너비는 같은 colgroup 으로 맞춘다(2026-07-25 요청). --%>
-      <div class="sv-list" id="lgWrap" style="max-height:440px; border-radius:8px 8px 0 0">
+      <div class="sv-list" id="lgWrap" style="max-height:max(440px, 52vh); border-radius:8px 8px 0 0">
         <table>
           <%-- 열 너비 = 비율(2026-08-01 요청, 수금등록과 동일). 종전에는 '매출'만 너비가 없어
                  남는 폭을 전부 먹어 혼자 두 배 넓고 나머지가 눌렸다. 짝을 이루는 열끼리 같은 폭 —
@@ -219,7 +221,7 @@
         <span id="pdSub" style="font-size:12px; color:#5a6b7a">원장에서 일자 줄을 누르세요.</span>
         <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a">* 전표 헤더 할인이 있으면 명세 합계와 원장 매입액이 다를 수 있습니다.</span>
       </div>
-      <div class="sv-list" id="pdWrap" style="max-height:300px">
+      <div class="sv-list" id="pdWrap" style="max-height:max(300px, 34vh)">
         <table>
           <colgroup><col style="width:16%"><col style="width:14%"><col style="width:28%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col></colgroup>
           <thead><tr><th>전표번호</th><th>품목코드</th><th>품목명</th><th>수량</th><th>단가</th><th>금액</th><th>비고</th></tr></thead>

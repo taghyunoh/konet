@@ -93,6 +93,8 @@
   /* 하단 목록 */
   /* 하단 목록 — 5행 고정 + 자동 스크롤(매출내역과 같은 방식) */
   .pu-list{ max-height:196px; overflow:auto; border:1px solid var(--pu-bd); border-radius:8px; }
+  /* ★본문 목록만 max(…, vh) — 판매등록(salesReg #saListWrap)과 같은 이유·같은 날(2026-08-28) */
+  #puListWrap{ max-height:max(196px, 30vh); }
   .pu-list table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .pu-list th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--pu-bd); padding:7px 8px; position:sticky; top:0; z-index:2; }
   .pu-list td{ border:1px solid var(--pu-bd); padding:6px 8px; text-align:center; }
@@ -257,7 +259,7 @@
       <b>거래처명</b> <span id="lgVen" style="margin-left:8px">—</span>
     </div>
     <%-- 원장 스크롤 : 머리글 고정 + 합계는 스크롤 영역 밖(항상 보임). 지급등록 화면과 같은 규격 --%>
-    <div class="pu-list" id="lgWrap" style="max-height:300px; border-radius:8px 8px 0 0">
+    <div class="pu-list" id="lgWrap" style="max-height:max(300px, 38vh); border-radius:8px 8px 0 0">
       <table>
         <%-- 균형 배분(2026-08-04 — 판매등록과 동일) --%>
         <colgroup><col style="width:96px"><col><col style="width:88px"><col style="width:112px"><col style="width:88px"><col style="width:122px"></colgroup>

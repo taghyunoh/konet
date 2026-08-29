@@ -41,7 +41,8 @@
   .kpi span{ font-size:12px; color:#1f2a37; font-weight:700; }
   .sd-tit{ display:flex; align-items:center; gap:8px; margin-bottom:8px; font-weight:800; }
   .sd-tit small{ font-weight:600; color:#2b3a48; font-size:12px; }
-  .sd-canvas{ position:relative; height:330px; }
+  /* ★max(…, vh) — 월별(salesChart.jsp .sc-canvas)과 같은 이유·같은 날(2026-08-28). */
+  .sd-canvas{ position:relative; height:max(330px, 38vh); }
   .sd-msg{ padding:26px; text-align:center; color:#2b3a48; font-size:13.5px; font-weight:600; }
   table.sd-tb{ width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
   table.sd-tb th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--sd-bd); padding:6px 8px; position:sticky; top:0; }
@@ -49,7 +50,7 @@
   table.sd-tb td.txt{ text-align:left; }
   table.sd-tb tr.tot td{ background:#137a6c; color:#fff; font-weight:800; }
   table.sd-tb tr.wk td{ background:#fdf3e8; }        /* 주말 */
-  .sd-tbwrap{ max-height:300px; overflow:auto; border:1px solid var(--sd-bd); border-radius:8px; margin-top:10px; }
+  .sd-tbwrap{ max-height:max(300px, 34vh); overflow:auto; border:1px solid var(--sd-bd); border-radius:8px; margin-top:10px; }  /* max(…, vh) — 위 .sd-canvas 참고 */
   .sd-tbwrap table{ margin-top:0; }
   .sd-note{ font-size:12.5px; color:#1f2a37; line-height:1.7; font-weight:600; }
   .sd-note b{ color:#37475a; }

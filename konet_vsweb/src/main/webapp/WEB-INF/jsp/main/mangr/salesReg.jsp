@@ -98,6 +98,10 @@
   /* 하단 목록 */
   /* 하단 목록 — 5행 고정 + 자동 스크롤(매출내역과 같은 방식) */
   .sa-list{ max-height:196px; overflow:auto; border:1px solid var(--sa-bd); border-radius:8px; }
+  /* ★본문 목록만 max(…, vh) (2026-08-28 글자 축소 시 하단 빈공간) — 고정 px 라 축소해 화면이 커져도
+     안 늘어났다. 100% 는 종전 그대로, 축소할수록 vh 쪽이 커진다. 팝업 안 목록은 그대로(제 안에서 일관).
+     iframe 화면이라 vh 만으로 정확(상자 역보정 — CLAUDE.md 배율 항목). */
+  #saListWrap{ max-height:max(196px, 30vh); }
   .sa-list table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .sa-list th{ background:#f4dcbc; color:#6f4200; font-weight:800; box-shadow:inset 0 -2px 0 #b06a00; border:1px solid var(--sa-bd); padding:7px 8px; position:sticky; top:0; z-index:2; }
   .sa-list td{ border:1px solid var(--sa-bd); padding:6px 8px; text-align:center; }
@@ -285,7 +289,7 @@
       <b>거래처명</b> <span id="lgVen" style="margin-left:8px">—</span>
     </div>
     <%-- 원장 스크롤 : 머리글 고정 + 합계는 스크롤 영역 밖(항상 보임). 지급등록 화면과 같은 규격 --%>
-    <div class="sa-list" id="lgWrap" style="max-height:300px; border-radius:8px 8px 0 0">
+    <div class="sa-list" id="lgWrap" style="max-height:max(300px, 38vh); border-radius:8px 8px 0 0">
       <table>
         <%-- 균형 배분(2026-08-04) — 매출만 넓고 나머지가 좁아 한쪽으로 쏠려 보였다.
              금액 4칸(매출·수금·잔고 + DC·할인)을 고르게 나눈다. --%>
