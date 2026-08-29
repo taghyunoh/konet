@@ -964,7 +964,12 @@
       var to=(document.getElementById('d2DateTo')||{}).value||'';
       var dlab=(from&&from===to)?from:(from+' ~ '+to);
       var aoa=[], merges=[], meta=[], maxW=1, made=0;
-      function push(row,ty){ aoa.push(row); meta.push(ty||''); }
+      /* ★gsMeta[행] = { 그 행에서 <사업장이 새로 시작되는> 열번호들 } (2026-08-28 요청
+           「엑셀도 사업장별 선 구분 명확하게」) — 그 열의 왼쪽에 굵은 세로선을 그어
+           어디부터 어디까지가 한 사업장인지 눈으로 끊기게 한다(화면 가로표와 같은 규칙).
+         날짜별(daily) 모드는 구간마다 품목 구성이 달라 <행마다> 따로 들고 다녀야 한다. */
+      var gsMeta=[], gsCur={};
+      function push(row,ty){ aoa.push(row); meta.push(ty||''); gsMeta.push(gsCur); }
       /* ★맨 위에 <화면 상단 조회조건>을 그대로 얹는다 (2026-08-28 요청 「상단 조건은 동일하게」).
            나중에 이 파일만 보고도 <무슨 조건으로 뽑은 것인지> 알 수 있어야 한다.
            값은 화면 KPI 칸에서 그대로 읽는다 — 따로 계산하면 화면과 어긋난다. */
@@ -1013,6 +1018,9 @@
         r1[cTot]='합계'; r1[cCnt]='품목수';
         merges.push({s:{r:aoa.length,c:cTot}, e:{r:aoa.length+1,c:cTot}});
         merges.push({s:{r:aoa.length,c:cCnt}, e:{r:aoa.length+1,c:cCnt}});
+        /* 이 구간의 사업장 경계 열 — 첫 사업장은 뺀다(왼쪽이 이미 합계·품목수 칸 경계라 선이 겹친다) */
+        gsCur={};
+        for(var g0=1;g0<cols.length;g0++) if(cols[g0].biz!==cols[g0-1].biz) gsCur[g0+cOff]=1;
         var start=0, bz=cols[0].biz;
         for(var i2=0;i2<cols.length;i2++){
           if(cols[i2].biz!==bz){
@@ -1170,6 +1178,23 @@
             h=20;
           }
           rowsH.push(h?{hpx:h}:{});
+        });
+        /* ★사업장 경계에 굵은 세로선 (2026-08-28 요청 「엑셀도 사업장별 선 구분 명확하게」) —
+             머리줄(사업장·품목명)부터 본문·묶음·합계·출고장수·현재고 줄까지 <같은 열>에 그어
+             한 사업장 덩어리가 세로로 끊겨 보이게 한다. 화면 가로표의 구분선과 같은 규칙.
+           ⚠S.* 서식 객체는 여러 칸이 <같은 것을 공유>한다 — 그대로 고치면 표 전체가 굵어진다.
+             그래서 그 칸만 복사본을 만들어 왼쪽 선을 얹는다.
+           ⚠날짜 배너·조회조건 줄은 제외(한 칸짜리 줄이라 선이 뜬금없이 뜬다). */
+        var GSB={style:'medium', color:{rgb:'2F5597'}};
+        function gsMark(r,c){
+          var ref=enc({r:r,c:c}), cell=ws[ref]; if(!cell) return;
+          var s=cell.s ? JSON.parse(JSON.stringify(cell.s)) : {};
+          s.border=s.border||{}; s.border.left=GSB; cell.s=s;
+        }
+        meta.forEach(function(ty,r){
+          if(ty==='cond' || ty==='datehdr' || ty==='date' || ty==='blank') return;
+          var set=gsMeta[r]; if(!set) return;
+          for(var k in set) gsMark(r, +k);
         });
         ws['!rows']=rowsH;
       }
