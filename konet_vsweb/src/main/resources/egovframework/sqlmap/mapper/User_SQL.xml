@@ -1413,6 +1413,9 @@
 	      t.ROW_NO AS rowNo,
 	      CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm,
 	      t.DC_CD AS dcCd, t.DC_NM AS dcNm, t.INWH AS inwh,
+	      -- ★ZONE·DLV_GB (2026-08-30) — 배송/직송 구분 낱알(d2MapRow)이 이력 행에서도 같은 이름이 되게.
+	      --   빠지면 「○○물류센터 직송」 줄의 차수별 개수가 전부 빈칸이 된다(이력이 배송 낱알로 붙어버림).
+	      t.ZONE AS zone, t.DLV_GB AS dlvGb,
 	      t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
 	      t.CUR_QTY AS curQty
 	    FROM TBL_SHIPOUT_MST t

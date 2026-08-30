@@ -106,7 +106,7 @@
      ★키우면 칸도 같이 넓혀야 한다 — 안 그러면 품목명이 더 잘게 접혀 머리줄만 높아진다. */
   table.d2-mx { border-collapse:separate; border-spacing:0; font-size:15px; }
   table.d2-mx th, table.d2-mx td { border:1px solid var(--bd); padding:5px 9px; white-space:nowrap; text-align:right; background:#fff; }
-  table.d2-mx .cn { text-align:left; position:sticky; left:0; z-index:2; min-width:212px; font-weight:600; }
+  table.d2-mx .cn { text-align:left; position:sticky; left:0; z-index:2; min-width:300px; font-weight:600; }
   table.d2-mx thead th { position:sticky; top:0; z-index:3; background:#dfeaf5; color:#1f2a37; height:34px; }
   /* 「출고장 / 품목」 모서리칸 · 사업장 머리줄은 표에서 길잡이라 본문보다 크게(2026-08-28) */
   table.d2-mx thead th.cn { z-index:4; background:#dfeaf5; font-size:17px; font-weight:800; }
@@ -155,12 +155,30 @@
   table.d2-mx tr.grp td.cn { background:#137a6c; }
   table.d2-mx tr.grp .sub { font-weight:400; color:#cdeee8; font-size:13px; }
   table.d2-mx td.cn.zn { padding-left:20px; font-weight:400; }
+  table.d2-mx td.cn.zn.zpick { cursor:pointer; }               /* 체크가 켜져 있을 때만 누를 수 있음을 커서로 */
+  table.d2-mx td.cn.zn.zpick:hover { background:#eef7f4; }
+  .mxfull { color:#9aa7b3; font-weight:400; font-size:.86em; } /* 병기(전체값) — 옅게 */
+  th.cn .mxzchk { display:block; margin-top:6px; font-size:12px; font-weight:600; color:#37475a; cursor:pointer; user-select:none; }
+  th.cn .mxzchk input { vertical-align:-2px; margin-right:3px; }
+  /* 출고장 선택 필터 중인 줄 강조 (2026-08-30) */
+  table.d2-mx tr.zsel td { background:#fff8e1; }
+  table.d2-mx tr.zsel td.cn { background:#fdf3cd; font-weight:800; }
+  table.d2-mx tr.zsel td.rtot { background:#fbeebb; }
   table.d2-mx td.rtot { background:#fff2cc; font-weight:700; }
   table.d2-mx td.rcnt { background:#e2efda; font-weight:700; }
   table.d2-mx th.rtot { background:#fbe9bd; }
   table.d2-mx th.rcnt { background:#d5e8c6; }
   table.d2-mx tr.sum td { background:#f2f2f2; font-weight:700; }
   table.d2-mx tr.zc td { background:#e2efda; font-weight:700; color:#375623; }
+  /* 센터 소계(csub) — 가로표 판. ★색·글자 = 목록의 묶음 합계(gsub)와 동일 톤(2026-08-30 요청) · 고정칸 배경 불투명 필수 */
+  table.d2-mx tr.csub td { background:#eaf5f2; color:#137a6c; font-weight:700; }
+  table.d2-mx tr.csub td.cn { background:#dcefe9; padding-left:22px; }
+  table.d2-mx tr.csub td.rtot { background:#eaf5f2; }
+  table.d2-mx tr.csub td.none { background:#eaf5f2; }
+  /* 「직송」 단어만 빨간 글씨 (2026-08-30 최종 — 라벨 전체 빨강에서 축소) */
+  table.d2-tb .jkw, table.d2-mx .jkw { color:#c0392b; font-weight:800; }
+  /* 진청록 묶음 머리줄(tr.grp) 위에서는 진빨강이 안 보인다(2026-08-30 지적) → 밝은 살구빛 빨강 */
+  table.d2-mx tr.grp .jkw, table.d2-tb tr.grp .jkw { color:#ffb4a2; }
   table.d2-mx tr.stk td { background:#fff4e6; font-weight:700; color:#137a6c; }
   table.d2-mx tr.stk td.neg { color:#c0392b; }
   /* ★고정칸(출고장·합계·품목수)의 바탕은 반드시 <불투명한 색>이어야 한다.
@@ -171,13 +189,13 @@
   table.d2-mx tr.stk td.cn { background:#fff4e6; }
 
   /* ★합계·품목수를 「출고장」 바로 뒤로 옮기고 같이 얼린다(2026-08-28 요청) — 옆으로 끝까지 밀어도 총량이 보인다.
-     ★sticky 의 left 값은 앞칸 폭의 <합>이라 폭을 못박아야 한다. .cn 212 → 합계 212 → 품목수 212+86=298.
+     ★sticky 의 left 값은 앞칸 폭의 <합>이라 폭을 못박아야 한다. .cn 300(2026-08-30 「출고장 늘려줘」 — 배송·직송 나눔 라벨이 길어졌다) → 합계 300.
        폭을 바꾸면 left 도 같이 고쳐야 한다(안 그러면 칸이 겹치거나 틈이 생긴다). */
   /* 폭 확대 (2026-08-28 요청 「합계·품목수 확대」) : 합계 86 → 108 · 품목수 78 → 96.
-     ⚠left 값은 앞칸 폭의 <합>이다 — 합계 left=212(.cn), 품목수 left=212+108=320. 폭을 또 바꾸면 여기도. */
-  table.d2-mx .cn   { width:212px; min-width:212px; max-width:212px; box-sizing:border-box; }
-  table.d2-mx .rtot { position:sticky; left:212px; z-index:2; width:108px; min-width:108px; max-width:108px; box-sizing:border-box; }
-  table.d2-mx .rcnt { position:sticky; left:320px; z-index:2; width:96px;  min-width:96px;  max-width:96px;  box-sizing:border-box; }
+     ⚠left 값은 앞칸 폭의 <합>이다 — 합계 left=300(.cn), 품목수 left=300+108=408. 폭을 또 바꾸면 여기도. */
+  table.d2-mx .cn   { width:300px; min-width:300px; max-width:300px; box-sizing:border-box; }
+  table.d2-mx .rtot { position:sticky; left:300px; z-index:2; width:108px; min-width:108px; max-width:108px; box-sizing:border-box; }
+  table.d2-mx .rcnt { position:sticky; left:408px; z-index:2; width:96px;  min-width:96px;  max-width:96px;  box-sizing:border-box; }
   /* 글자도 한 단계 크게 — 이 두 칸이 표에서 가장 먼저 읽는 숫자다 */
   table.d2-mx td.rtot, table.d2-mx td.rcnt { font-size:16.5px; font-weight:800; }
   table.d2-mx thead th.rtot, table.d2-mx thead th.rcnt { font-size:15px; font-weight:800; }
@@ -329,6 +347,10 @@
   table.d2-tb tr.gsub td { background:#eaf5f2; color:#137a6c; font-weight:700; text-align:left; }
   table.d2-tb tr.gsub td:first-child { background:#dcefe9; position:sticky; left:0; z-index:2; }
   table.d2-tb tr.gsub td.num { text-align:right; }
+  /* 센터 소계(csub) — 오산센터 묶음 안 물류센터 단위 합계. ★색·글자 = 묶음 합계(gsub)와 동일(2026-08-30 요청) */
+  table.d2-tb tr.csub td { background:#eaf5f2; color:#137a6c; font-weight:700; text-align:left; }
+  table.d2-tb tr.csub td:first-child { background:#dcefe9; position:sticky; left:0; z-index:2; padding-left:16px; }
+  table.d2-tb tr.csub td.num { text-align:right; }
   /* 출고장 소계(블록 상단) */
   table.d2-tb tr.sub td { background:#eef3f2; font-weight:700; color:#0e6657; }
   table.d2-tb tbody tr.item:nth-child(even) td { background:#fbfdfc; }
@@ -873,7 +895,9 @@
     d2DelCancelConfirm();   // 선택 바뀌면 확인 메시지 닫기
     var dt=(document.getElementById('d2DelDate')||{}).value||'';
     var zmap={};
-    D2_DATA.forEach(function(r){ if((r.date||D2_TODAY)!==dt) return; if(!r.zone) return; if(!zmap[r.zone]) zmap[r.zone]={dcCd:(r.dcCd||''), inwh:(r.inwh||'')}; });
+    /* ⚠직송 낱알(… 직송)은 목록에서 버린다(2026-08-30) — 서버 삭제키가 (dcCd+inwh)라 직송 행만 골라 지울 수 없고,
+       inwh 가 겹치는 배송 입고장을 지우면 그 입고장의 직송 행도 함께 내려간다(종전과 같은 동작). */
+    D2_DATA.forEach(function(r){ if((r.date||D2_TODAY)!==dt) return; if(!r.zone) return; if(/\s직송$/.test(r.zone)) return; if(!zmap[r.zone]) zmap[r.zone]={dcCd:(r.dcCd||''), inwh:(r.inwh||'')}; });
     window._d2DelZmap=zmap;
     var zsel=document.getElementById('d2DelZone');
     var names=Object.keys(zmap).sort(function(a,b){ return a.localeCompare(b,'ko'); });
@@ -1050,22 +1074,39 @@
           return a.localeCompare(b,'ko');
         });
         gOrder.forEach(function(g){
-          var gz=groups[g].slice().sort(function(a,b){ return a.localeCompare(b,'ko'); });
+          /* 정렬 = 화면 가로표와 동일: 센터명으로 묶고 그 안에서 직송 맨 아래 (2026-08-30) */
+          var gz=groups[g].slice().sort(function(a,b){
+            var c=d2CenterNm(a).localeCompare(d2CenterNm(b),'ko'); if(c!==0) return c;
+            var ja=/\s직송$/.test(a)?1:0, jb=/\s직송$/.test(b)?1:0; if(ja!==jb) return ja-jb;
+            return a.localeCompare(b,'ko');
+          });
           var gs=cols.map(function(){ return 0; }), gItems={}, lines=[];
+          /* 센터 소계 — 화면 csub 와 같은 규칙(묶음 안 센터 여럿 + 그 센터 2줄 이상일 때만) (2026-08-30) */
+          var _cCnt={}; gz.forEach(function(zn){ var c=d2CenterNm(zn); _cCnt[c]=(_cCnt[c]||0)+1; });
+          var _cMulti=Object.keys(_cCnt).length>1;
+          var _cCur=null, _cs=cols.map(function(){ return 0; }), _cItems={}, _cTot=0;
+          function _cFlushX(){
+            if(_cCur!==null && _cMulti && _cCnt[_cCur]>1){
+              lines.push({ ty:'csub', row:['  '+_cCur+' 합계', _cTot||'', Object.keys(_cItems).length||''].concat(_cs.map(function(v){ return v||''; })) });
+            }
+            _cs=cols.map(function(){ return 0; }); _cItems={}; _cTot=0;
+          }
           gz.forEach(function(zn){
+            var _zc=d2CenterNm(zn); if(_cCur!==null && _zc!==_cCur) _cFlushX(); _cCur=_zc;
             var rs=ag.zones[zn].rows, cells=[], rt=0, rc=0;
             cols.forEach(function(c,ix){
               var q=colQty(rs,c);
-              if(q>0){ sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; rt+=q; rc++; itemAll[c.ck]=1; gItems[c.ck]=1; }
+              if(q>0){ sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; _cs[ix]+=q; rt+=q; rc++; itemAll[c.ck]=1; gItems[c.ck]=1; _cItems[c.ck]=1; }
               cells.push(q>0 ? q : '');
             });
-            grand+=rt;
-            lines.push(['    '+zn, rt||'', rc||''].concat(cells));
+            grand+=rt; _cTot+=rt;
+            lines.push({ ty:'body', row:['    '+zn, rt||'', rc||''].concat(cells) });
           });
+          _cFlushX();   // 마지막 센터 소계
           var gTot=0; gs.forEach(function(v){ gTot+=v; });
           push(['▼ '+g+'   ('+gz.length+'개 출고장)', gTot||'', Object.keys(gItems).length||'']
                  .concat(gs.map(function(v){ return v||''; })), 'grp');
-          lines.forEach(function(r){ push(r,'body'); });
+          lines.forEach(function(r){ push(r.row, r.ty); });
         });
         push(['합계', grand||'', Object.keys(itemAll).length||'']
                .concat(sums.map(function(v){ return v||''; })), 'sum');
@@ -1167,6 +1208,7 @@
             for(c=1;c<wid;c++){ var gv=(aoa[r]||[])[c]; put(r,c, (gv===''||gv==null) ? S.grpNone : S.grpN); }
             h=20;
           }
+          else if(ty==='csub'){ put(r,0,S.csubL); for(c=1;c<wid;c++) put(r,c,S.csubN); h=19; }
           else if(ty==='sum'){ put(r,0,S.sumL); for(c=1;c<wid;c++) put(r,c,S.sumN); h=20; }
           else if(ty==='zcnt'){ put(r,0,S.zcntL); for(c=1;c<wid;c++) put(r,c,S.zcntN); h=20; }
           else if(ty==='cond'){ for(c=0;c<wid;c++) put(r,c,S.cond); h=22; }
@@ -1235,6 +1277,7 @@
         if(!zonesWithItems.length) return;
         if(dateHdr) push(['📅 '+dateHdr+' 출고'],'datehdr',COLS-1);
         // 물류센터(대표그룹) 단위로 묶기 — 화면과 동일 (오산센터 등)
+        function d2CenterOfX(zn){ return (''+zn).replace(/\s*직송$/,'').replace(/\s*\d+\s*$/,'').trim(); }
         var groups={}, gOrder=[];
         zonesWithItems.forEach(function(zn){ var g=ag.zones[zn].dc || zn; if(!groups[g]){ groups[g]=[]; gOrder.push(g); } groups[g].push(zn); });
         gOrder.sort(function(a,b){ var ia=D2_GORD.indexOf(a), ib=D2_GORD.indexOf(b); if(ia>=0&&ib>=0)return ia-ib; if(ia>=0)return -1; if(ib>=0)return 1; return a.localeCompare(b,'ko'); });
@@ -1242,7 +1285,16 @@
         gOrder.forEach(function(g){
           var gz=groups[g], gsum=0; gz.forEach(function(zn){ gsum+=ag.zones[zn].tot; });
           push(['▼ '+g+'   ('+gz.length+'개 출고장 · 출고 '+d2Num(gsum)+')'],'grp',COLS-1);
+          /* 센터 소계 — 화면 csub 와 같은 규칙(2026-08-30 「엑셀도」) */
+          var _cCnt={}; gz.forEach(function(zn){ var c=d2CenterOfX(zn); _cCnt[c]=(_cCnt[c]||0)+1; });
+          var _cMulti=Object.keys(_cCnt).length>1;
+          var _cCur=null, _cTot=0;
+          function _cFlush(){
+            if(_cCur!==null && _cMulti && _cCnt[_cCur]>1){ push(['▣ '+_cCur+' 합계','','','',_cTot],'sub',COLS-2); push([],'blank'); }
+            _cTot=0;
+          }
           gz.forEach(function(zn){
+            var _zc=d2CenterOfX(zn); if(_cCur!==null && _zc!==_cCur) _cFlush(); _cCur=_zc;
             var z=ag.zones[zn];
             var keys=Object.keys(z.rows).sort(function(a,b){
               var A=z.rows[a],B=z.rows[b];
@@ -1250,13 +1302,14 @@
             });
             var dla=Object.keys(z.dlv).sort();   // 납기일자 — 출고일자와 무관하게 항상 표시
             var dl=dla.length?('납기일자 '+dla.join(', ')):'';
-            push(['▣ '+zn+' 출고장   (품목 '+keys.length+'종 · 출고 '+d2Num(z.tot)+(dl?(' · '+dl):'')+')'],'zone',COLS-1);
+            push(['▣ '+zn+' 출고장   (품목 '+keys.length+'종 · 출고 '+d2Num(z.tot)+(dl?(' · '+dl):'')+')'],(/\s직송$/.test(zn)?'zonej':'zone'),COLS-1);   // 직송 블록 제목=빨간 글씨(2026-08-30)
             push(['No','사업장','품목명','품목코드','출고수량'],'head');
             keys.forEach(function(k,ix){ var r=z.rows[k]; push([ix+1, r.biz, r.name, r.code, r.qty],'item'); });
             push(['소계','','','',z.tot],'sub',COLS-2);
             push([],'blank');
-            sub+=z.tot; madeAll++;
+            sub+=z.tot; _cTot+=z.tot; madeAll++;
           });
+          _cFlush();
         });
         if(dateHdr){ push([dateHdr+' 합계','','','',sub],'dtot',COLS-2); push([],'blank'); }
         grandAll+=sub;
@@ -1288,7 +1341,10 @@
           date:{ font:{color:{rgb:'1F2A37'},bold:true,sz:15}, alignment:{horizontal:'left',vertical:'center'} },
           datehdr:{ fill:{fgColor:{rgb:'11161D'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:13}, alignment:{horizontal:'left',vertical:'center'} },
           grp:{ fill:{fgColor:{rgb:'137A6C'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:13}, alignment:{horizontal:'left',vertical:'center'} },
+          csubL:{ fill:{fgColor:{rgb:'EAF5F2'}}, font:{color:{rgb:'137A6C'},bold:true}, alignment:{horizontal:'left',vertical:'center'}, border:{top:{style:'thin',color:{rgb:'C9DCD6'}},bottom:{style:'thin',color:{rgb:'C9DCD6'}},left:{style:'thin',color:{rgb:'C9DCD6'}},right:{style:'thin',color:{rgb:'C9DCD6'}}} },   // 센터 소계(2026-08-30)
+          csubN:{ fill:{fgColor:{rgb:'EAF5F2'}}, font:{color:{rgb:'137A6C'},bold:true}, alignment:{horizontal:'right',vertical:'center'}, border:{top:{style:'thin',color:{rgb:'C9DCD6'}},bottom:{style:'thin',color:{rgb:'C9DCD6'}},left:{style:'thin',color:{rgb:'C9DCD6'}},right:{style:'thin',color:{rgb:'C9DCD6'}}} },
           zone:{ fill:{fgColor:{rgb:'1F9B8E'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:12}, alignment:{horizontal:'left',vertical:'center'} },
+          zonej:{ fill:{fgColor:{rgb:'FDECEA'}}, font:{color:{rgb:'C0392B'},bold:true,sz:12}, alignment:{horizontal:'left',vertical:'center'} },   // 직송 블록 제목(빨간 글씨, 2026-08-30)
           head:{ fill:{fgColor:{rgb:'E3F4EF'}}, font:{color:{rgb:'137A6C'},bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:box },
           itemL:{ font:{color:{rgb:'10161D'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
           itemCB:{ font:{color:{rgb:'000000'}}, alignment:{horizontal:'center',vertical:'center'}, border:box },
@@ -1309,6 +1365,7 @@
           else if(ty==='datehdr'){ put(r,0,S.datehdr); h=22; }
           else if(ty==='grp'){ put(r,0,S.grp); h=22; }
           else if(ty==='zone'){ put(r,0,S.zone); h=22; }
+          else if(ty==='zonej'){ put(r,0,S.zonej); h=22; }
           else if(ty==='head'){ for(var c=0;c<COLS;c++) put(r,c,S.head); h=20; }
           else if(ty==='item'){ put(r,0,S.itemCB); put(r,1,S.itemL); put(r,2,S.itemL); put(r,3,S.itemCB); put(r,4,S.itemN); }
           else if(ty==='sub'){ for(var c2=0;c2<COLS-1;c2++) put(r,c2,S.subL); put(r,COLS-1,S.subN); h=19; }
@@ -1945,12 +2002,27 @@
     return ag.zoneOrder.slice().sort(function(a,b){
       var ra=d2ZoneRank(ag,a), rb=d2ZoneRank(ag,b);
       if(ra!==rb) return ra-rb;
+      var c=d2CenterNm(a).localeCompare(d2CenterNm(b),'ko'); if(c!==0) return c;   // rank 동률이면 센터끼리 묶어야 소계가 안 갈라진다
+      var ja=/\s직송$/.test(a)?1:0, jb=/\s직송$/.test(b)?1:0;
+      if(ja!==jb) return ja-jb;   // 직송 줄은 센터 블록 맨 아래(2026-08-30)
       return a.localeCompare(b,'ko');
     });
   }
+  /* 낱알 → 물류센터명 (끝 ' 직송'·숫자 떼기) — 가로표 센터 소계용 전역판.
+     ⚠같은 식이 d2BuildTableInner(d2CenterOf)·엑셀(d2CenterOfX)에도 지역함수로 있다 — 규칙 바꾸면 셋 다. */
+  function d2CenterNm(zn){ return (''+zn).replace(/\s*직송$/,'').replace(/\s*\d+\s*$/,'').trim(); }
+  /* 배송/직송 나눔 라벨 — 합계 줄 이름 뒤에 「(배송 X · 직송 Y)」 (2026-08-30 「배송직송 합계표시 출고장별」).
+     직송이 없는 센터는 빈 문자열(표시 없음 — 전부 배송이라 나눌 것이 없다). */
+  function d2BdxLabel(delSum, jikSum){
+    if(!(jikSum>0)) return '';
+    return ' <span style="font-weight:600;font-size:.92em">(배송 '+d2Num(delSum)+' · <span class="jkw">직송</span> '+d2Num(jikSum)+')</span>';
+  }
   function d2MapRow(o, f){
     var dcNm=(''+(o.dcNm||'')).trim(), inwh=(''+(o.inwh||'')).trim();
-    var zone = dcNm ? (dcNm+inwh) : (''+(o.zone||'')).trim();
+    /* ★배송/직송 구분 (2026-08-30) — 데시보드2(logi-oh.js SHIP_DATA 매핑)와 같은 규칙.
+       직송 행(ZONE 또는 배송구분='직송')은 '물류센터명 직송' 낱알로 따로. */
+    var _rz=(''+(o.zone||'')).trim(), _jk=(_rz==='직송'||(''+(o.dlvGb||'')).trim()==='직송');
+    var zone = dcNm ? (dcNm+(_jk?' 직송':inwh)) : _rz;
     var bizNm=(''+(o.bizNm||'')).trim(), bizCd=(''+(o.bizCd||'')).trim();
     var bizLbl = bizCd ? (bizNm ? (bizNm+' ['+bizCd+']') : ('['+bizCd+']')) : bizNm;
     var _dlv=(''+(o.dlvDt||'')).trim(); if(/^\d{8}$/.test(_dlv)) _dlv=_dlv.slice(0,4)+'-'+_dlv.slice(4,6)+'-'+_dlv.slice(6,8);
@@ -2260,6 +2332,22 @@
     d2Render();
   }
   function d2MxShowAll(){ D2_MXFOLD={}; d2Render(); }
+  /* ★출고장 줄 클릭 = 그 출고장의 품목 칸만 표시 (2026-08-30 「출고장/품목 누르면 우측 해당 품목만」).
+     ★다중선택 지원(사용자 확인) — 누를 때마다 켜고 끄고, 여러 개면 <합집합> 품목이 보인다.
+     행은 다 남긴다(다른 출고장과 비교용) — 칸만 걸러지므로 합계·품목수도 보이는 칸 기준으로
+     다시 계산된다(사업장 접기와 같은 원리). 해제 = 같은 줄 다시 클릭 or 안내줄 [전체 품목 보기]. */
+  var D2_MXZSEL={};
+  /* ★무조건 필터는 헷갈린다(2026-08-30 사용자) → 머리칸 ☑「선택 출고장 품목만」이 켜져 있을 때만
+     출고장 클릭이 필터로 동작한다. 끄면 선택도 비운다. localStorage 로 기억. */
+  /* ★기본 = 꺼짐(출고장 선택 모드 아님) — 진입할 때마다 항상 전체 보기로 시작한다(2026-08-30 확정).
+     localStorage 기억을 뒀다가 뺐다 — 지난번 켜 둔 것이 남아 있으면 「기본이 선택 모드」가 되어 버린다. */
+  var D2_MXZONLY=false;
+  function d2MxZoneChk(v){ D2_MXZONLY=!!v; if(!D2_MXZONLY) D2_MXZSEL={}; d2Render(); }
+  /* ★단일선택 (2026-08-30 확정 — 「선택은 하나만, 이전 것은 없어져야」): 새 출고장을 누르면
+     이전 선택이 지워지고 그것만 남는다. 같은 줄을 다시 누르면 해제. 다중선택은 폐기 —
+     되살리자는 얘기가 나오면 이 이력부터 확인(합집합 표시가 헷갈린다는 피드백이 발단). */
+  function d2MxZoneSel(zn){ if(!zn || !D2_MXZONLY) return; var on=!!D2_MXZSEL[zn]; D2_MXZSEL={}; if(!on) D2_MXZSEL[zn]=1; d2Render(); }
+  function d2MxZoneClear(){ D2_MXZSEL={}; d2Render(); }
   function d2RenderMatrixView(ag, from, to){
     var sc=document.querySelector('.d2-scroll'); if(!sc) return;
     sc.style.overflowX='auto';                    // 가로표는 옆으로 밀어 본다(기본 보기는 hidden)
@@ -2285,6 +2373,17 @@
     });
     allCols.sort(function(a,b){ return a.biz.localeCompare(b.biz,'ko') || a.name.localeCompare(b.name,'ko'); });
     function colQty(rs, c){ var t=0; for(var i=0;i<c.keys.length;i++){ var x=rs[c.keys[i]]; if(x) t+=(+x.qty||0); } return t; }
+    /* 출고장 선택 필터 — ☑가 켜져 있을 때만. 재조회로 사라진 출고장은 선택에서 뺀다 */
+    Object.keys(D2_MXZSEL).forEach(function(zn){ if(!ag.zones[zn]) delete D2_MXZSEL[zn]; });
+    var _selZs=D2_MXZONLY?Object.keys(D2_MXZSEL):[];
+    var allColsFull=allCols.slice();   // 필터 전 전체 칸 — 병기(전체값)·직송 나눔은 이걸로 센다
+    var MXF=_selZs.length>0;           // 필터 가동 중
+    if(MXF){ allCols=allCols.filter(function(c){ return _selZs.some(function(zn){ return colQty(ag.zones[zn].rows,c)>0; }); }); }
+    /* 전체 기준 값 — 합계=ag.zones tot 합 / 품목수=allColsFull 중 수량 있는 칸 수 */
+    function fullTot(zList){ var t=0; zList.forEach(function(zn){ t+=(ag.zones[zn]&&ag.zones[zn].tot||0); }); return t; }
+    function fullCnt(zList){ var n=0; allColsFull.forEach(function(c){ for(var i=0;i<zList.length;i++){ if(colQty(ag.zones[zList[i]].rows,c)>0){ n++; return; } } }); return n; }
+    /* 병기 — 필터 중에만 「보이는값 (전체값)」, 같으면 그냥 값 (2026-08-30 ②번 확정) */
+    function bng(vis, full){ vis=+vis||0; full=+full||0; if(!MXF || vis===full) return (vis>0?d2Num(vis):(MXF&&full>0?'0':'')); return d2Num(vis)+' <span class="mxfull">('+d2Num(full)+')</span>'; }
 
     /* 사업장 묶음 → ★접힌 사업장은 <합계 한 칸>으로 줄인다 (엑셀 열 그룹 접기와 같다).
        cols = 실제로 그릴 칸 목록. 접힌 묶음은 그 사업장 품목 전부를 더하는 가상 칸 하나(fold:true)로
@@ -2310,13 +2409,18 @@
     var FCLK=' onclick="d2MxFold(this.getAttribute(\'data-b\'))"';
     var GCLK=' onclick="d2ToggleGroup(this.getAttribute(\'data-g\'))"';   // 좌측 물류센터 묶음 접기(목록 보기와 공유)
     var bar='';   /* (숨김 안내줄은 접기 방식으로 바뀌며 없어졌다 — 위 D2_MXFOLD 주석의 [이력]) */
+    if(_selZs.length){
+      bar='<div class="d2-mxhide">📌 <b>'+_selZs.map(d2Esc).join(' · ')+'</b> 품목만 보는 중 ('+allCols.length+'칸 · 줄을 다시 누르면 해제 · <span class="mxfull" style="font-size:12px">괄호 = 전체 기준 값</span>) '
+         +'<a style="margin-left:8px;color:#137a6c;font-weight:700;cursor:pointer;text-decoration:underline" onclick="d2MxZoneClear()">✕ 전체 품목 보기</a></div>';
+    }
 
     /* ① 사업장 병합 머리줄 — 누르면 그 사업장이 숨는다 */
     /* ★GSIX = 각 사업장의 <첫 품목 칸> 열번호 (첫 사업장 제외 — 왼쪽은 고정칸 경계라 필요 없다).
          머리줄·품목줄·본문·합계·현재고 줄이 전부 이 표로 .gs 를 붙여 경계선이 세로로 이어진다(2026-08-28). */
     var GSIX={}; (function(){ var ix=0; bgs.forEach(function(g,bi){ if(bi>0) GSIX[ix]=1; ix+=g.view.length; }); })();
     var GC=function(ix,extra){ var cls=((GSIX[ix]?'gs ':'')+(extra||'')).trim(); return cls?' class="'+cls+'"':''; };
-    var h='<table class="d2-mx"><thead><tr><th class="cn" rowspan="2">출고장 / 품목</th>'
+    var h='<table class="d2-mx"><thead><tr><th class="cn" rowspan="2">출고장 / 품목'
+        + '<label class="mxzchk" title="켜면 출고장 줄을 눌러 그 출고장의 품목만 남길 수 있습니다(하나만 선택 · 다시 누르면 해제)"><input type="checkbox" onchange="d2MxZoneChk(this.checked)"'+(D2_MXZONLY?' checked':'')+'> 선택 출고장 품목만</label></th>'
         + '<th class="rtot" rowspan="2">합계</th><th class="rcnt" rowspan="2">품목수</th>';
     bgs.forEach(function(g,bi){
       var fold=!!D2_MXFOLD[g.biz];
@@ -2349,46 +2453,74 @@
       return a.localeCompare(b,'ko');
     });
     gOrder.forEach(function(g){
-      var gz=groups[g].slice().sort(function(a,b){ return a.localeCompare(b,'ko'); });
+      /* ★센터명으로 먼저 묶고 → 그 안에서 직송을 맨 아래로. 직송 플래그를 먼저 비교하면
+           직송 줄들이 그룹 끝에 모여 센터 소계가 두 번씩 생긴다(2026-08-30 실화면으로 확인된 버그). */
+      var gz=groups[g].slice().sort(function(a,b){
+        var c=d2CenterNm(a).localeCompare(d2CenterNm(b),'ko'); if(c!==0) return c;
+        var ja=/\s직송$/.test(a)?1:0, jb=/\s직송$/.test(b)?1:0; if(ja!==jb) return ja-jb;
+        return a.localeCompare(b,'ko');
+      });
       var gs=cols.map(function(){ return 0; }), gItems={}, lines='';
+      /* ★센터 소계(csub) — 「오산물류센터도 평택처럼 SUM」(2026-08-30). 목록 보기와 같은 규칙:
+           묶음 안 센터가 여럿이고 그 센터가 2줄 이상일 때만. 묶음=센터 하나면 grp 줄이 이미 그 센터 합계. */
+      var _cCnt={}; gz.forEach(function(zn){ var c=d2CenterNm(zn); _cCnt[c]=(_cCnt[c]||0)+1; });
+      var _cMulti=Object.keys(_cCnt).length>1;
+      var _cCur=null, _cs=cols.map(function(){ return 0; }), _cItems={}, _cTot=0, _cZl=[];
+      function _cFlushM(){
+        if(_cCur!==null && _cMulti && _cCnt[_cCur]>1){
+          /* ★배송/직송 나눔은 <전체 기준> — 필터 중 화면 누계로 세면 직송 표시가 사라진다(2026-08-30 재지적) */
+          var _fj=0; _cZl.forEach(function(zn){ if(/\s직송$/.test(zn)) _fj+=(ag.zones[zn].tot||0); });
+          var _ft=fullTot(_cZl);
+          lines += '<tr class="csub"><td class="cn">'+d2Esc(_cCur)+' 합계'+d2BdxLabel(_ft-_fj,_fj)+'</td>'
+                 + '<td class="rtot">'+bng(_cTot,_ft)+'</td><td class="rcnt">'+bng(Object.keys(_cItems).length, MXF?fullCnt(_cZl):Object.keys(_cItems).length)+'</td>'
+                 + _cs.map(function(v,ix){ return v>0?('<td'+GC(ix)+'>'+d2Num(v)+'</td>'):'<td'+GC(ix,'none')+'></td>'; }).join('')
+                 + '</tr>';
+        }
+        _cs=cols.map(function(){ return 0; }); _cItems={}; _cTot=0; _cZl=[];
+      }
       gz.forEach(function(zn){
+        var _zc=d2CenterNm(zn); if(_cCur!==null && _zc!==_cCur) _cFlushM(); _cCur=_zc; _cZl.push(zn);
         var rs=ag.zones[zn].rows, rt=0, rc=0, tds='';
         cols.forEach(function(c,ix){
           var q=colQty(rs,c);
           if(q>0){
-            sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; rt+=q;
+            sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; _cs[ix]+=q; rt+=q;
             /* ★품목수는 <접기와 무관하게> 원래 품목으로 센다 — 접었다고 1종으로 줄면
                  화면 숫자가 접기 상태에 따라 달라져 믿을 수 없게 된다(2026-08-28). */
-            if(c.fold){ c.subs.forEach(function(s){ if(colQty(rs,s)>0){ rc++; itemAll[s.ck]=1; gItems[s.ck]=1; } }); }
-            else { rc++; itemAll[c.ck]=1; gItems[c.ck]=1; }
+            if(c.fold){ c.subs.forEach(function(s){ if(colQty(rs,s)>0){ rc++; itemAll[s.ck]=1; gItems[s.ck]=1; _cItems[s.ck]=1; } }); }
+            else { rc++; itemAll[c.ck]=1; gItems[c.ck]=1; _cItems[c.ck]=1; }
           }
           tds += q>0 ? ('<td'+GC(ix,c.fold?'fdv':'')+'>'+d2Num(q)+'</td>') : '<td'+GC(ix,'none')+'></td>';
         });
-        grand+=rt; if(rt>0) zoneVis++;
+        grand+=rt; _cTot+=rt; if(rt>0) zoneVis++;
         /* ★사업장을 숨기면 그 출고장 줄이 통째로 빌 수 있다 — 그때 0 이 아니라 빈칸이어야 한다
              (0 은 「0개 나갔다」로 읽혀 없는 실적을 있는 것처럼 만든다) */
-        lines += '<tr><td class="cn zn">'+d2Esc(zn)+'</td>'
-               + '<td class="rtot">'+(rt>0?d2Num(rt):'')+'</td><td class="rcnt">'+(rc>0?rc:'')+'</td>'+tds+'</tr>';
+        var _zTitle=D2_MXZONLY?'누르면 이 출고장의 품목만 남습니다 (다른 줄을 누르면 그쪽으로 바뀌고, 다시 누르면 해제)':'품목만 보려면 머리칸의 [선택 출고장 품목만] 체크를 먼저 켜세요';
+        lines += '<tr'+((D2_MXZONLY&&D2_MXZSEL[zn])?' class="zsel"':'')+'><td class="cn zn'+(D2_MXZONLY?' zpick':'')+'" data-z="'+d2Esc(zn)+'" onclick="d2MxZoneSel(this.getAttribute(\'data-z\'))" title="'+_zTitle+'">'+d2Esc(zn).replace(/\s직송$/,' <span class="jkw">직송</span>')+'</td>'
+               + '<td class="rtot">'+bng(rt, MXF?fullTot([zn]):rt)+'</td><td class="rcnt">'+bng(rc, MXF?fullCnt([zn]):rc)+'</td>'+tds+'</tr>';
       });
+      _cFlushM(); _cCur=null;   // 마지막 센터 소계
       var gTot=0; gs.forEach(function(v){ gTot+=v; });
       /* ★물류센터 묶음 접기 (2026-08-28 「화살표 접기 작동 안 함」) — ▼ 를 그려 놓고 클릭이 없어
            눌러도 아무 일이 없었다. 목록 보기와 <같은 상태>(D2_GCOLL·d2ToggleGroup)를 쓰므로
            한쪽에서 접으면 다른 보기에서도 접혀 있다. 접어도 묶음 줄의 합계·품목수는 그대로다. */
       var gCol=!!D2_GCOLL[g];
+      var _gfj=0; gz.forEach(function(zn){ if(/\s직송$/.test(zn)) _gfj+=(ag.zones[zn].tot||0); });   // 직송 나눔 = 전체 기준(필터와 무관)
+      var _gft=fullTot(gz);
       h += '<tr class="grp" data-g="'+d2Esc(g)+'"'+GCLK+' title="'+d2Esc(g)+' — 누르면 출고장 줄을 '+(gCol?'폅니다':'접습니다')+'">'
-         + '<td class="cn">'+(gCol?'▶':'▼')+' '+d2Esc(g)+' <span class="sub">('+gz.length+'개 출고장)</span></td>'
-         + '<td class="rtot">'+d2Num(gTot)+'</td><td class="rcnt">'+Object.keys(gItems).length+'</td>'
+         + '<td class="cn">'+(gCol?'▶':'▼')+' '+d2Esc(g)+' <span class="sub">('+gz.length+'개 출고장)</span>'+d2BdxLabel(_gft-_gfj,_gfj)+'</td>'
+         + '<td class="rtot">'+bng(gTot,_gft)+'</td><td class="rcnt">'+bng(Object.keys(gItems).length, MXF?fullCnt(gz):Object.keys(gItems).length)+'</td>'
          + gs.map(function(v,ix){ return v>0 ? ('<td'+GC(ix)+'>'+d2Num(v)+'</td>') : '<td'+GC(ix,'none')+'></td>'; }).join('')
          + '</tr>' + (gCol ? '' : lines);
     });
 
     /* ③ 아래 집계 — 합계 · 출고장수 · 현재고(품목별) */
     h += '<tr class="sum"><td class="cn">합계</td>'
-       + '<td class="rtot">'+d2Num(grand)+'</td><td class="rcnt">'+Object.keys(itemAll).length+'</td>'
+       + '<td class="rtot">'+bng(grand, MXF?fullTot(zones):grand)+'</td><td class="rcnt">'+bng(Object.keys(itemAll).length, MXF?allColsFull.length:Object.keys(itemAll).length)+'</td>'
        + sums.map(function(v,ix){ return v>0 ? ('<td'+GC(ix)+'>'+d2Num(v)+'</td>') : '<td'+GC(ix,'none')+'></td>'; }).join('')
        + '</tr>';
     h += '<tr class="zc"><td class="cn">출고장수</td>'
-       + '<td class="rtot">'+zoneVis+'</td><td class="rcnt"></td>'
+       + '<td class="rtot">'+bng(zoneVis, MXF?zones.length:zoneVis)+'</td><td class="rcnt"></td>'
        + zcnt.map(function(v,ix){ return v>0 ? ('<td'+GC(ix)+'>'+v+'</td>') : '<td'+GC(ix,'none')+'></td>'; }).join('')
        + '</tr>';
     /* 현재고 — 화면 '현재고' 칸과 같은 근거. 못 찾으면 0 이 아니라 빈칸(0 은 '재고 없음'으로 잘못 읽힌다) */
@@ -2743,6 +2875,10 @@
       if(ib>=0) return 1;
       return a.localeCompare(b,'ko');
     });
+    /* ★센터 소계(csub) — 「오산물류센터도 평택처럼 SUM」(2026-08-30 요구).
+       묶음 안 센터가 여럿(오산센터)이고 그 센터 출고장이 2줄 이상일 때만 끼워 넣는다
+       (묶음=센터 하나면 아래 gsub 이 이미 그 센터 합계). */
+    function d2CenterOf(zn){ return (''+zn).replace(/\s*직송$/,'').replace(/\s*\d+\s*$/,'').trim(); }
     gOrder.forEach(function(g){
       var zs=groups[g];
       var gColl=!!D2_GCOLL[g];
@@ -2752,8 +2888,19 @@
         +'<td colspan="5">'+zs.length+'개 '+D2_UNIT+(gColl?' <span style="color:#9aa7b3">— 접힘(클릭하여 펼치기)</span>':'')+'</td>'
         + slotTotalCells(zs)+'</tr>';
 
+      var _cCnt={}; zs.forEach(function(zn){ var c=d2CenterOf(zn); _cCnt[c]=(_cCnt[c]||0)+1; });
+      var _cMulti=Object.keys(_cCnt).length>1;
+      var _cCur=null, _cZs=[];
+      function _cFlush(){
+        if(_cCur!==null && _cMulti && _cCnt[_cCur]>1){
+          var _dS=0,_jS=0; _cZs.forEach(function(zn){ var t=ag.zones[zn].tot||0; if(/\s직송$/.test(zn)) _jS+=t; else _dS+=t; });
+          h+='<tr class="csub"><td>'+d2Esc(_cCur)+' 합계'+d2BdxLabel(_dS,_jS)+'</td><td colspan="5"></td>'+slotTotalCells(_cZs)+'</tr>';
+        }
+        _cZs=[];
+      }
       if(!gColl){
         zs.forEach(function(zn){
+          var _zc=d2CenterOf(zn); if(_cCur!==null && _zc!==_cCur) _cFlush(); _cCur=_zc; _cZs.push(zn);
           var z=ag.zones[zn];
           var keys=Object.keys(z.rows).sort(function(a,b){
             var A=z.rows[a],B=z.rows[b];
@@ -2763,11 +2910,12 @@
           var coll=!!D2_COLL[zn];
           var dl=dlvLabel(z);
           var bodyRows=coll?0:(keys.length+dels.length);   // 소계 아래 표시 행 수
-          var zoneCell='<td class="zone" rowspan="'+(1+bodyRows)+'" data-z="'+d2Esc(zn)+'" '
+          var _jkC=/\s직송$/.test(zn)?' jikz':'';   // 직송 낱알 = 빨간 글씨(2026-08-30)
+          var zoneCell='<td class="zone'+_jkC+'" rowspan="'+(1+bodyRows)+'" data-z="'+d2Esc(zn)+'" '
             +'onclick="d2ToggleZone(this.getAttribute(\'data-z\'))" title="클릭하여 접기/펼치기">'
-            +'<span class="zcaret">'+(coll?'▶':'▼')+'</span>'+d2Esc(zn)+' '+D2_UNIT
+            +'<span class="zcaret">'+(coll?'▶':'▼')+'</span>'+d2Esc(zn).replace(/\s직송$/,' <span class="jkw">직송</span>')+' '+D2_UNIT
             +(z.dcCd?'<span class="z-dc">('+d2Esc(z.dcCd)+')</span>':'')
-            +((D2_VIEW==='zone' && z.dcCd)?'<span class="z-del" title="이 출고장의 해당 출고일자 출고분을 삭제(이력 보존)" data-dt="'+d2Esc(blockDate||from||'')+'" data-cd="'+d2Esc(z.dcCd||'')+'" data-iw="'+d2Esc(z.inwh||'')+'" data-zn="'+d2Esc(zn)+'" onclick="event.stopPropagation(); d2DelZoneFromGrid(this)">🗑️</span>':'')
+            +((D2_VIEW==='zone' && z.dcCd && !/\s직송$/.test(zn))?'<span class="z-del" title="이 출고장의 해당 출고일자 출고분을 삭제(이력 보존)" data-dt="'+d2Esc(blockDate||from||'')+'" data-cd="'+d2Esc(z.dcCd||'')+'" data-iw="'+d2Esc(z.inwh||'')+'" data-zn="'+d2Esc(zn)+'" onclick="event.stopPropagation(); d2DelZoneFromGrid(this)">🗑️</span>':'')
             +(dl?'<span class="z-dlv">('+d2Esc(dl)+')</span>':'')+'</td>';
           // 출고장 소계(블록 상단) + 차수별 소계
           h+='<tr class="sub">'+zoneCell+'<td></td><td></td><td class="txt-l" colspan="3" data-z="'+d2Esc(zn)+'" '
@@ -2801,8 +2949,10 @@
           }
         });
       }
+      _cFlush(); _cCur=null;   // 마지막 센터 소계(그룹이 안 접혔을 때만 의미 있음)
       // 물류센터 합계 행 (데시보드1 lsub 형태: "광주물류센터 합계") — 상대 슬롯별 합계
-      h+='<tr class="gsub"><td>'+d2Esc(g)+' 합계</td><td colspan="5"></td>'
+      var _gdS=0,_gjS=0; zs.forEach(function(zn){ var t=ag.zones[zn].tot||0; if(/\s직송$/.test(zn)) _gjS+=t; else _gdS+=t; });
+      h+='<tr class="gsub"><td>'+d2Esc(g)+' 합계'+d2BdxLabel(_gdS,_gjS)+'</td><td colspan="5"></td>'
         + slotTotalCells(zs)+'</tr>';
     });
     h+='</tbody>';
