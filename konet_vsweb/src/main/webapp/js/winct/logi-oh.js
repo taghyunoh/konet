@@ -5650,7 +5650,26 @@ var KONET_CTX = window.KONET_CTX || '';
     // ★붙일 때마다 lzFit 도 다시 — 행수 상한(lim=z.rows/배율)은 행이 실제로 붙어야 높이에 반영된다(2026-08-28)
     for(var g=0; wrap._lz.from<list.length && wrap.scrollHeight<=wrap.clientHeight+2 && g<200; g++){ lzFill(wrap); lzFit(wrap); }
     lzInfo(wrap);
+    lzStickyFit(wrap);
   }
+  /* ★얼린 머리줄(thead) 높이를 재서 CSS 변수 --thh 로 넣는다 (2026-08-31).
+       머리줄 밑에 붙는 <총합계> 줄이 top:var(--thh) 로 그 자리를 잡는다.
+     ⚠종전엔 CSS 에 top:34px 로 박아 뒀다 — 화면 배율(가+/가-)이나 글꼴이 달라지면 머리줄 높이가
+       34 와 어긋나서, 크면 총합계가 머리줄을 덮고 작으면 그 틈으로 <자료 줄이 지나가 보였다>.
+       (마감현황에서 머리줄과 총합계 사이에 딴 줄이 끼어 보이던 것이 이것)
+     ★lzMount 를 거치는 표 전부에 한 번에 걸린다 — 화면마다 따로 부를 필요가 없다. */
+  function lzStickyFit(wrap){
+    try{
+      if(!wrap || !wrap.querySelector('tbody tr.close-total')) return;
+      var th=wrap.querySelector('table thead');
+      if(th && th.offsetHeight>0) wrap.style.setProperty('--thh', th.offsetHeight+'px');
+    }catch(e){}
+  }
+  /* 창 크기가 바뀌면 머리줄 높이도 달라진다 — 열려 있는 표를 모두 다시 맞춘다 */
+  window.addEventListener('resize', function(){
+    var ws=document.querySelectorAll('[id$="Wrap"]');
+    for(var i=0;i<ws.length;i++) lzStickyFit(ws[i]);
+  });
   /* 글자 축소·확대(ui-fontsize.js)가 인라인 패널에 건 zoom 배율 — 화면 px ↔ 패널 CSS px 환산용.
      (2026-08-28 「재고현황도 글자 축소시 하단 빈공간」 — innerHeight 로 잰 값을 CSS px 로 박는 곳은
       전부 이 배율로 나눠야 축소 시 표가 화면 바닥까지 온다) */

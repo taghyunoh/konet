@@ -3351,9 +3351,13 @@
       #closeSalesWrap table.logi-tb thead th, #closeCostWrap table.logi-tb thead th,
       #closeStockWrap table.logi-tb thead th, #closeStatusWrap table.logi-tb thead th{
         position:sticky; top:0; z-index:4; box-shadow:inset 0 -1px 0 var(--logi-border); }
+      /* ★머리줄 바로 밑에 <틈 없이> 붙인다 — top 을 34px 로 박아 두면 배율에 따라 어긋나
+           그 틈으로 자료 줄이 지나가 보인다(2026-08-31 마감현황 지적). 높이는 lzStickyFit 이 --thh 로 넣는다.
+         ★총합계 줄은 조금 두껍게 — 머리줄과 자료 줄 사이에서 경계 노릇을 하는 줄이라 얇으면 묻힌다. */
       #closeSalesWrap table.logi-tb tbody tr.close-total td, #closeCostWrap table.logi-tb tbody tr.close-total td,
       #closeStockWrap table.logi-tb tbody tr.close-total td, #closeStatusWrap table.logi-tb tbody tr.close-total td{
-        position:sticky; top:34px; z-index:3; box-shadow:inset 0 -1px 0 rgba(255,255,255,.3); }
+        position:sticky; top:var(--thh, 34px); z-index:3; padding-top:9px; padding-bottom:9px; font-size:13.5px;
+        box-shadow:inset 0 -1px 0 rgba(255,255,255,.3); }
     </style>
     <!-- ===== 출고내역 (출고장 정산 엑셀 TBL_SALES_MST + 발주현황표 출고 TBL_SHIPOUT_MST 통합) ===== -->
     <section id="panel-outHist" class="panel">
