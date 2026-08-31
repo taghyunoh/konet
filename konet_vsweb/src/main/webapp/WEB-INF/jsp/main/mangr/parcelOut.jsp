@@ -36,7 +36,12 @@
   .btn:hover{ border-color:var(--teal); }
   .btn-teal{ background:var(--teal); color:#fff; border-color:var(--teal); }
   .btn-teal:hover{ filter:brightness(1.06); }
-  .cnt{ margin-left:auto; color:#6b7a89; font-size:13px; font-weight:700; }
+  /* 요약은 <단추 바로 옆>에 둔다 (2026-08-31 요청) — margin-left:auto 로 오른쪽 끝에 붙여 두면
+     화면이 넓을수록 단추와 멀어져, 조회하고도 숫자를 못 보고 지나친다. */
+  .cnt{ margin-left:14px; color:#37475a; font-size:13.5px; font-weight:700;
+        background:#eef4f2; border:1px solid #cfe0da; border-radius:14px; padding:5px 13px; white-space:nowrap; }
+  .cnt b{ color:#137a6c; font-weight:800; }
+  .cnt .sep{ color:#b9c3cd; margin:0 2px; }
   /* 목록 = 한 화면에 18줄 + 그 아래는 스크롤 (2026-08-06 요청).
      줄 높이는 두 줄짜리 품목명이 있어 들쭉날쭉 — 실측(poFit)으로 18줄 높이를 잡는다. */
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; }
@@ -338,9 +343,32 @@ function poOffNoAddr(){
 function poCnt(){
   var use  = ROWS.filter(function(o){ return !o.off; }).length;
   var done = ROWS.filter(function(o){ return o.done; }).length;
-  document.getElementById('cnt').textContent = ROWS.length + '건'
-    + (done ? ' · 출력됨 '+done : '')
-    + (use !== ROWS.length ? ' · 엑셀 '+use+'건' : '');
+  /* 곳수·총수량 표시 (2026-08-31 요청) —
+     · 곳수  = 받는 곳(사업장코드) 유니크. 한 사업장이 품목마다 여러 줄이라 <건수 ≠ 곳수>다.
+     · 총수량 = 그리드 [총수량] 칸의 합 = 발주현황표 '수량' 원값. 박스 합계도 같이 적는다.
+     ★엑셀에서 뺀 줄(off)은 빼고 센다 — 실제로 나갈 양을 보는 숫자라야 쓸모가 있다.
+       그래서 [주소없음 제외]·체크 해제를 하면 이 숫자도 함께 줄어든다. */
+  var _b=0, _t=0, _biz={}, _dc={};
+  ROWS.forEach(function(o){
+    if(o.off) return;
+    var q=Number(String(o.totQty==null?0:o.totQty).replace(/,/g,''))||0;
+    var bx=Number(String(o.boxQty==null?0:o.boxQty).replace(/,/g,''))||0;
+    _t+=q; _b+=bx;
+    var c=(''+(o.bizCd||'')).trim(); if(c) _biz[c]=1;
+    /* 출고장(물류센터) — 코드가 있으면 코드로, 없으면 이름으로 센다. 둘 다 비면 세지 않는다
+       (옛 자료엔 DC 가 비어 있을 수 있다 — 그때는 '출고장' 항목이 아예 안 나온다) */
+    var d=(''+(o.dcCd||'')).trim() || (''+(o.dcNm||'')).trim(); if(d) _dc[d]=1;
+  });
+  var _n=function(v){ return (v||0).toLocaleString(); };
+  var _s='<span class="sep">·</span>';
+  document.getElementById('cnt').innerHTML =
+      '<b>' + _n(ROWS.length) + '</b>건'
+    + (Object.keys(_dc).length ? (_s + '출고장 <b>' + _n(Object.keys(_dc).length) + '</b>곳') : '')
+    + _s + '사업장 <b>' + _n(Object.keys(_biz).length) + '</b>곳'
+    + _s + '박스 <b>' + _n(_b) + '</b>'
+    + _s + '총수량 <b>' + _n(_t) + '</b>'
+    + (done ? (_s+'출력됨 '+_n(done)) : '')
+    + (use !== ROWS.length ? (_s+'엑셀 <b>'+_n(use)+'</b>건') : '');
   var a=document.getElementById('poAll');
   if(a){ a.checked = (use===ROWS.length && use>0); a.indeterminate = (use>0 && use<ROWS.length); }
 }

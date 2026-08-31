@@ -182,6 +182,8 @@
   table.d2-tb .jkw, table.d2-mx .jkw { color:#c0392b; font-weight:800; }
   /* 진청록 묶음 머리줄(tr.grp) 위에서는 진빨강이 안 보인다(2026-08-30 지적) → 밝은 살구빛 빨강 */
   table.d2-mx tr.grp .jkw, table.d2-tb tr.grp .jkw { color:#ffb4a2; }
+  /* 검정 바탕(전체 합계 줄)에서도 마찬가지 — 진빨강은 안 읽힌다(2026-08-31) */
+  table.d2-tb tr.tot .jkw { color:#ff9e8a; }
   table.d2-mx tr.stk td { background:#fff4e6; font-weight:700; color:#137a6c; }
   table.d2-mx tr.stk td.neg { color:#c0392b; }
   /* ★고정칸(출고장·합계·품목수)의 바탕은 반드시 <불투명한 색>이어야 한다.
@@ -2532,7 +2534,18 @@
     });
 
     /* ③ 아래 집계 — 합계 · 출고장수 · 현재고(품목별) */
-    h += '<tr class="sum"><td class="cn">합계</td>'
+    /* 맨 아래 「합계」 줄에도 배송/직송을 나눠 적는다 (2026-08-31 요청 「가로표에도 직송 표시」).
+       ★묶음 줄·목록 보기와 <같은 근거>여야 한다 — 나눔은 필터와 무관한 <전체 기준>(ag.zones[].tot).
+         화면에 걸린 누계로 세면 사업장을 숨긴 순간 직송 표시가 사라진다(2026-08-30 에 겪은 것). */
+    var _aJk=0, _aDl=0, _aJkZ=0;
+    zones.forEach(function(zn){
+      var t=ag.zones[zn].tot||0;
+      if(/\s직송$/.test(zn)){ _aJk+=t; _aJkZ++; } else _aDl+=t;
+    });
+    h += '<tr class="sum"><td class="cn">합계'
+       + (_aJkZ ? ('<span class="sub" style="font-weight:600"> · <span class="jkw">직송</span> '+d2Num(_aJkZ)+'곳 '+d2Num(_aJk)
+                   +' <span style="opacity:.8">(배송 '+d2Num(_aDl)+')</span></span>') : '')
+       + '</td>'
        + '<td class="rtot">'+bng(grand, MXF?fullTot(zones):grand)+'</td><td class="rcnt">'+bng(Object.keys(itemAll).length, MXF?allColsFull.length:Object.keys(itemAll).length)+'</td>'
        + sums.map(function(v,ix){ return v>0 ? ('<td'+GC(ix)+'>'+d2Num(v)+'</td>') : '<td'+GC(ix,'none')+'></td>'; }).join('')
        + '</tr>';
@@ -2873,8 +2886,20 @@
        ⚠기준칸은 zone·no·**stock**·biz·code·item **6칸**이다 — 아래 그룹행(colspan 5+1)·
          출고장행(1+1+1+colspan 3)·소계행(1+colspan 5) 은 모두 6칸으로 맞아 있었다.
        ⚠칸을 더하거나 뺄 때는 **이 네 줄을 함께** 고쳐야 한다. */
+    /* 직송 요약 (2026-08-31 요청 「직송 총 몇 건 표시」) —
+       출고장 이름이 '… 직송' 인 곳이 직송이다(d2MapRow 가 그렇게 붙인다).
+       물류센터 합계 줄의 (배송 N · 직송 M) 과 <같은 근거·같은 말>로 맞춘다 — 수량 기준.
+       ★직송이 하나도 없으면 아무것도 안 붙인다(늘 '직송 0' 이 붙으면 눈에 안 들어온다). */
+    var _tJk=0, _tDl=0, _tJkZ=0;
+    zonesWithItems.forEach(function(zn){
+      var t=ag.zones[zn].tot||0;
+      if(/\s직송$/.test(zn)){ _tJk+=t; _tJkZ++; } else _tDl+=t;
+    });
     h+='<tr class="tot"><td class="txt-l">전체 '+D2_UNIT+' 합계</td><td></td><td></td><td></td>'
-      +'<td class="txt-l" colspan="3">'+D2_UNIT+' '+d2Num(zonesWithItems.length)+'곳 · 품목 '+d2Num(ag.itemCnt)+'종 · 사업장 '+d2Num(ag.bizCnt)+'곳</td>'
+      +'<td class="txt-l" colspan="3">'+D2_UNIT+' '+d2Num(zonesWithItems.length)+'곳 · 품목 '+d2Num(ag.itemCnt)+'종 · 사업장 '+d2Num(ag.bizCnt)+'곳'
+      + (_tJkZ ? (' · <span class="jkw">직송</span> '+d2Num(_tJkZ)+'곳 <b>'+d2Num(_tJk)+'</b>'
+                 +' <span style="font-weight:600;font-size:.92em;opacity:.85">(배송 '+d2Num(_tDl)+')</span>') : '')
+      +'</td>'
       + slotTotalCells(zonesWithItems)+'</tr>';
 
     // 물류센터(대표그룹) 단위로 묶기 — 데시보드1의 ▼ 그룹과 동일 개념 (그룹 = DC_NM, 없으면 출고장명)

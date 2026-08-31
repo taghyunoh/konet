@@ -1572,6 +1572,9 @@
 	     주소·전화 = 택배값 우선, 없으면 기본값(사용자 확정). fee 0 = 미설정(화면에서 4500 기본). -->
 	<select id="selectParcelOutList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
 	  SELECT s.SEQ AS seq, s.SHPOUT_DT AS outDt, s.BIZ_CD AS bizCd, s.BIZ_NM AS bizNm, s.ITEM_NM AS itemNm,
+	         -- 출고장(물류센터) — 화면 상단 요약의 '출고장 N곳' 에 쓴다 (2026-08-31).
+	         --   이 화면은 전부 ZONE='직송' 이라 출고장 = 물류센터다. 그리드에는 안 보이고 셀 때만 쓴다.
+	         ISNULL(s.DC_CD,'') AS dcCd, ISNULL(s.DC_NM,'') AS dcNm,
 	         CASE WHEN ISNULL(s.BOX_QTY,0) < 1 THEN 1 ELSE s.BOX_QTY END AS boxQty,
 	         -- 총수량 = 발주현황표(엑셀)의 '수량'(CUR_QTY) 원값 그대로 (2026-08-13 확정).
 	         --   대시보드1 이 쓰는 칸과 같다 — 두 화면 숫자가 어긋나지 않는다.
