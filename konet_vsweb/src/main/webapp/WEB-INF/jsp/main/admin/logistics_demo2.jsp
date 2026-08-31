@@ -1686,6 +1686,7 @@
     lzMount({ wrap:wrap, pager:'inbPager', head:'<table class="logi-tb">'+thead+'<tbody>'+totalRow,
               list:list, rows:INB_PAGE, capTop:214, fill:true,
               rowFn:function(x){ return (x.t==='1') ? g1Row(x.i1) : (x.t==='2') ? g2Row(x.i1,x.i2) : dRow(x.r); } });
+    _stkStickyFit('inbWrap');   // 총합계 줄이 머리줄과 겹치지 않게 실제 높이로 맞춘다(2026-08-31)
     wrap.scrollTop=0;
   }
   // ── 재고현황 (전체 품목 현재고) ──
@@ -1939,11 +1940,26 @@
      2) 바깥(.logi-main) 스크롤 : ②가 화면 아래로 잘려 있으면 그만큼 끌어올린다.
      3) _stkLedFit : 남은 높이를 ②가 다 쓰게 한다.
      ※ 줄이 스크롤에 따라 이어 붙는 목록(lzMount)이라, 다음 프레임에 한 번 더 잡는다. */
+  /* ★얼어 있는 머리줄(thead) 높이를 <재서> CSS 변수 --thh 로 넣는다 (2026-08-31).
+       총합계 줄은 top:var(--thh) 로 그 바로 밑에 붙는다.
+     ⚠종전엔 CSS 에 34px/37px 로 박아 뒀다 — 화면 배율(가+/가-)을 올리면 머리줄이 더 높아져
+       총합계 줄이 머리줄 위로 겹쳐 보였다("1번 선택하고 2번 하면 상단 구분이 겹침").
+     ★배율·창크기·표 다시그리기 어느 쪽이든 값이 달라지므로 그때마다 다시 잰다. */
+  function _stkStickyFit(id){
+    var ids = id ? [id] : ['stkStatusWrap','inbWrap'];
+    ids.forEach(function(k){
+      var w=document.getElementById(k); if(!w) return;
+      var th=w.querySelector('table thead');
+      if(th && th.offsetHeight>0) w.style.setProperty('--thh', th.offsetHeight+'px');
+    });
+  }
+  window.addEventListener('resize', function(){ _stkStickyFit(); });
   function _stkScrollTop(wrap, el){
     var run=function(){
       var top=el;
       while(top && !top.getAttribute('data-main')) top=top.previousElementSibling;
       if(!top) top=el;
+      _stkStickyFit(wrap.id);        // 총합계 줄이 붙을 자리를 먼저 실제 높이로 맞춘다
       var frozen=0;
       var _th=wrap.querySelector('table thead');          if(_th) frozen+=_th.offsetHeight;
       var _tt=wrap.querySelector('tbody tr.close-total'); if(_tt) frozen+=_tt.offsetHeight;
@@ -2077,6 +2093,7 @@
       w._savedTop=w.scrollTop;
       if(main) w._savedMainTop=main.scrollTop;
     }
+    _stkStickyFit('stkStatusWrap');  // 높이를 잡기 전에 고정 자리부터 맞춘다
     var h=0;
     var th=w.querySelector('table thead');          if(th) h+=th.offsetHeight;
     var tt=w.querySelector('tbody tr.close-total'); if(tt) h+=tt.offsetHeight;
@@ -2750,6 +2767,9 @@
     lzMount({ wrap:wrap, pager:'stkStatusPager', rows:STK_PAGE, capTop:300, noFit:true,
               head:'<table class="logi-tb">'+thead+'<tbody>'+totalRow,
               list:view, rowFn:stkRow });
+    /* ★표를 새로 그린 직후 머리줄 높이를 다시 잰다 — 배율·글꼴이 달라지면 높이가 바뀌고,
+         그 값이 총합계 줄이 붙을 자리(top)다. 안 재면 둘이 겹친다(2026-08-31). */
+    _stkStickyFit('stkStatusWrap');
     /* (①·② 높이는 아래쪽 _stkLedFit() 호출 한 번이 함께 잡는다) */
     /* ★다시 그려도 고른 줄을 그대로 둔다 (2026-08-07).
          lzMount 는 innerHTML 을 통째로 갈아 끼운다 — 그래서 매칭 접기/펼치기나 조회를 하면
@@ -3302,14 +3322,20 @@
              실제 높이는 lzFit(fill)이 인라인 maxHeight 로 화면 바닥까지 잡는다. */
       #inbWrap{ overflow:auto; min-height:240px; }
       #inbWrap table.logi-tb thead th{ position:sticky; top:0; z-index:4; box-shadow:inset 0 -1px 0 var(--logi-border); }
-      #inbWrap table.logi-tb tr.close-total td{ position:sticky; top:37px; z-index:3; }
+      /* ★머리줄 높이를 <재서> 넣는다 — 종전엔 37px 로 박아 뒀다.
+           화면 배율(가+/가-)이나 글꼴이 바뀌면 실제 머리줄이 더 높아져 총합계 줄이 그 위로 겹쳤다.
+           값은 _stkStickyFit() 이 --thh 로 넣어 준다(못 넣었을 때만 37px). */
+      #inbWrap table.logi-tb tr.close-total td{ position:sticky; top:var(--thh, 37px); z-index:3; }
       /* 묶음 토글 — 매출내역(출고장별 합계)과 같은 색. 조회줄을 가리지 않게 작게 */
       #inbSum button{ flex:0 0 auto; border:1px solid var(--logi-border); background:#fff; border-radius:14px;
                       padding:3px 11px; font-size:12px; font-weight:700; color:#37475a; cursor:pointer; white-space:nowrap; }
       #inbSum button:hover{ border-color:#137a6c; color:#137a6c; }
       #inbSum button.on{ background:#137a6c; color:#fff; border-color:#137a6c; }
       #inbSum button.on:hover{ background:#0f6b5c; color:#fff; }
-      #stkStatusWrap table.logi-tb tbody tr.close-total td{ position:sticky; top:34px; z-index:3; box-shadow:inset 0 -1px 0 rgba(255,255,255,.3); }
+      /* ★재고현황 ①의 총합계 줄 — 머리줄 바로 밑에 붙어야 한다.
+           종전 top:34px 고정이 화면 배율 110% 에서 어긋나 <머리줄과 겹쳤다>(2026-08-31 지적).
+           실제 thead 높이를 재서 --thh 로 넣는다(_stkStickyFit). */
+      #stkStatusWrap table.logi-tb tbody tr.close-total td{ position:sticky; top:var(--thh, 34px); z-index:3; box-shadow:inset 0 -1px 0 rgba(255,255,255,.3); }
       /* 조회 진행바 — 정산서 대사가 붙으면서 마감·매출내역 조회가 무거워졌다(2026-07-25).
          응답이 올 때까지 표 자리에 띄운다. 진행률을 알 수 없는 조회라 좌우로 흐르는 무한 바. */
       .qprog{ height:3px; background:#e8efed; border-radius:2px; overflow:hidden; margin:2px 0 8px; }
