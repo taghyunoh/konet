@@ -48,6 +48,9 @@
   /* 단추 좌우 여백 14 → 10 (2026-08-28 「출고세부조회가 두줄로」 — 한 줄 확보용, 이 줄만) */
   .d2-head .actions .btn-teal, .d2-head .actions .btn-line { padding:8px 10px; }
   .badge { display:inline-block; background:#e3f4ef; color:#137a6c; border:1px solid #b9e6dd; border-radius:11px; padding:1px 10px; font-size:11.5px; vertical-align:middle; }
+  /* 목록의 매칭 사업장 알약 — 지정된 줄이 한눈에 보이게 */
+  .d2-mtag { display:inline-block; background:#e3f4ef; color:#137a6c; border:1px solid #b9e6dd; border-radius:10px;
+             padding:0 8px; font-size:11.5px; font-weight:700; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
 
   .btn-teal { background:var(--teal); color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; font-weight:500; }
   .btn-teal:hover { background:var(--teal-dk); }
@@ -378,10 +381,10 @@
   table.d2-tb tr.r-new td { background:#f2fbf8 !important; }
   table.d2-tb tr.r-new td.txt-l { color:#0e6657; }
   table.d2-tb tr.r-chg td { background:#fffdf6 !important; }
-  /* 현재≠직전(수량 차이) 행 — 사업장·품목코드·품목명·현재·직전 칸만 노란색 강조
+  /* 현재≠직전(수량 차이) 행 — 매칭·사업장·품목코드·품목명·현재·직전 칸만 노란색 강조
      (No·현재고·변동사항 제외)
-     ★칸 번호가 한 칸씩 밀렸다 (2026-08-07 현재고 열이 No 뒤에 들어왔다) —
-       1=No 2=현재고 3=사업장 4=품목코드 5=품목명 6=현재 7=직전.
+     ★칸 번호가 <또> 한 칸 밀렸다 (2026-08-28 「매칭 사업장」 열이 현재고 뒤에 들어왔다) —
+       1=No 2=현재고 3=매칭 4=사업장 5=품목코드 6=품목명 7=현재 8=직전.
      ★현재고는 일부러 뺀다 (2026-08-07 요청 "노란색에 겹쳐도 기존 색깔 유지") —
        노랑은 <출고 수량이 직전과 다르다> 는 뜻이라 재고와는 상관이 없고,
        덮어 칠하면 음수 빨강·양수 초록이 지워져 재고를 못 읽는다. */
@@ -389,9 +392,10 @@
   table.d2-tb tr.item.r-diff td:nth-child(4),
   table.d2-tb tr.item.r-diff td:nth-child(5),
   table.d2-tb tr.item.r-diff td:nth-child(6),
-  table.d2-tb tr.item.r-diff td:nth-child(7) { background:#ffe680 !important; color:#1f2a37 !important; }
-  table.d2-tb tr.item.r-diff td:nth-child(6) b,
-  table.d2-tb tr.item.r-diff td:nth-child(7) b { color:#8a5a00 !important; }
+  table.d2-tb tr.item.r-diff td:nth-child(7),
+  table.d2-tb tr.item.r-diff td:nth-child(8) { background:#ffe680 !important; color:#1f2a37 !important; }
+  table.d2-tb tr.item.r-diff td:nth-child(7) b,
+  table.d2-tb tr.item.r-diff td:nth-child(8) b { color:#8a5a00 !important; }
   table.d2-tb tr.r-del td { background:#fbf4f4 !important; color:#b06a66; text-decoration:line-through; text-decoration-color:#d99; }
   /* 삭제 줄이라도 재고는 지워진 게 아니다 — 취소선·회색을 걷어 원래 색을 지킨다(2026-08-07) */
   table.d2-tb tr.item.r-del td:nth-child(2) { text-decoration:none; color:inherit; }
@@ -657,6 +661,13 @@
      ★쓰는 곳은 <가로표 화면 + 가로표 엑셀> 뿐이다. 목록 보기·KPI·다른 출력은 그대로 둔다.
      ★매칭이 없는 사업장은 원래 사업장 이름을 그대로 쓴다(사용자 확정). */
   var D2_BIZMT={};
+  /* 목록의 <매칭 사업장> 칸 (2026-08-28) — 거래처관리에서 지정한 공통 매칭명칭.
+     ★매칭이 없으면 '—'. 사업장명을 되풀이하지 않는다(두 칸이 같은 말이면 읽는 데 방해만 된다). */
+  function d2MatchCell(r){
+    var c=(''+((r&&r.bizCode)||'')).trim(), m=c && D2_BIZMT[c];
+    return m ? ('<td class="txt-l"><span class="d2-mtag">'+d2Esc(m)+'</span></td>')
+             : '<td style="color:#c9d2da">—</td>';
+  }
   function d2MtNm(r){
     var c=(''+((r&&r.bizCode)||'')).trim();
     return (c && D2_BIZMT[c]) || (r&&r.biz) || '(사업장없음)';
@@ -688,9 +699,13 @@
     /* 현재고 (2026-08-07 요청 "No 뒤에") — 근거는 재고현황(①)과 같다: 수불원장 입고−출고.
        여기서 바로 보이면 "이만큼 나가는데 재고는 있나" 를 화면을 옮기지 않고 안다. */
         {k:'stock',nm:'현재고', f:0.038},
-    {k:'biz',  nm:'사업장', f:0.16},
+    /* 매칭 사업장 (2026-08-28 요청 「현재고와 사업장 사이」) — 거래처관리에서 지정한 공통 매칭명칭.
+       ★없으면 '—' 로 둔다. 사업장명을 그대로 되풀이하면 두 칸이 같은 말이 되어 읽는 데 방해만 된다.
+       ⚠기준칸이 6 → 7칸이 됐다. 아래 네 줄(전체합계·그룹·출고장·소계)의 colspan 도 함께 늘렸다. */
+    {k:'match',nm:'매칭 사업장', f:0.10},
+    {k:'biz',  nm:'사업장', f:0.15},
     {k:'code', nm:'품목코드', f:0.075},
-    {k:'item', nm:'품목명', f:0.33}
+    {k:'item', nm:'품목명', f:0.24}
   ];
   var D2_COLS=D2_BASECOLS.slice();   // d2Render에서 매 렌더 시 [기준 + 차수컬럼]으로 재구성
   var D2_COLW={};   // {k: fraction(0~1)} — 사용자 조절값(localStorage). 합계 1 유지 → 항상 우측까지 채움
@@ -2856,7 +2871,7 @@
        ⚠기준칸은 zone·no·**stock**·biz·code·item **6칸**이다 — 아래 그룹행(colspan 5+1)·
          출고장행(1+1+1+colspan 3)·소계행(1+colspan 5) 은 모두 6칸으로 맞아 있었다.
        ⚠칸을 더하거나 뺄 때는 **이 네 줄을 함께** 고쳐야 한다. */
-    h+='<tr class="tot"><td class="txt-l">전체 '+D2_UNIT+' 합계</td><td></td><td></td>'
+    h+='<tr class="tot"><td class="txt-l">전체 '+D2_UNIT+' 합계</td><td></td><td></td><td></td>'
       +'<td class="txt-l" colspan="3">'+D2_UNIT+' '+d2Num(zonesWithItems.length)+'곳 · 품목 '+d2Num(ag.itemCnt)+'종 · 사업장 '+d2Num(ag.bizCnt)+'곳</td>'
       + slotTotalCells(zonesWithItems)+'</tr>';
 
@@ -2885,7 +2900,7 @@
       // ▼ 대표그룹 헤더 (데시보드1 lgrp 형태: "▼ 광주물류센터" + "1개 출고장") — 클릭 시 그룹 접기/펼치기
       h+='<tr class="grp" data-g="'+d2Esc(g)+'" onclick="d2ToggleGroup(this.getAttribute(\'data-g\'))" title="클릭하여 그룹 접기/펼치기">'
         +'<td><span class="zcaret">'+(gColl?'▶':'▼')+'</span> '+d2Esc(g)+'</td>'
-        +'<td colspan="5">'+zs.length+'개 '+D2_UNIT+(gColl?' <span style="color:#9aa7b3">— 접힘(클릭하여 펼치기)</span>':'')+'</td>'
+        +'<td colspan="6">'+zs.length+'개 '+D2_UNIT+(gColl?' <span style="color:#9aa7b3">— 접힘(클릭하여 펼치기)</span>':'')+'</td>'
         + slotTotalCells(zs)+'</tr>';
 
       var _cCnt={}; zs.forEach(function(zn){ var c=d2CenterOf(zn); _cCnt[c]=(_cCnt[c]||0)+1; });
@@ -2894,7 +2909,7 @@
       function _cFlush(){
         if(_cCur!==null && _cMulti && _cCnt[_cCur]>1){
           var _dS=0,_jS=0; _cZs.forEach(function(zn){ var t=ag.zones[zn].tot||0; if(/\s직송$/.test(zn)) _jS+=t; else _dS+=t; });
-          h+='<tr class="csub"><td>'+d2Esc(_cCur)+' 합계'+d2BdxLabel(_dS,_jS)+'</td><td colspan="5"></td>'+slotTotalCells(_cZs)+'</tr>';
+          h+='<tr class="csub"><td>'+d2Esc(_cCur)+' 합계'+d2BdxLabel(_dS,_jS)+'</td><td colspan="6"></td>'+slotTotalCells(_cZs)+'</tr>';
         }
         _cZs=[];
       }
@@ -2918,7 +2933,7 @@
             +((D2_VIEW==='zone' && z.dcCd && !/\s직송$/.test(zn))?'<span class="z-del" title="이 출고장의 해당 출고일자 출고분을 삭제(이력 보존)" data-dt="'+d2Esc(blockDate||from||'')+'" data-cd="'+d2Esc(z.dcCd||'')+'" data-iw="'+d2Esc(z.inwh||'')+'" data-zn="'+d2Esc(zn)+'" onclick="event.stopPropagation(); d2DelZoneFromGrid(this)">🗑️</span>':'')
             +(dl?'<span class="z-dlv">('+d2Esc(dl)+')</span>':'')+'</td>';
           // 출고장 소계(블록 상단) + 차수별 소계
-          h+='<tr class="sub">'+zoneCell+'<td></td><td></td><td class="txt-l" colspan="3" data-z="'+d2Esc(zn)+'" '
+          h+='<tr class="sub">'+zoneCell+'<td></td><td></td><td></td><td class="txt-l" colspan="3" data-z="'+d2Esc(zn)+'" '
             +'onclick="d2ToggleZone(this.getAttribute(\'data-z\'))" style="cursor:pointer" title="클릭하여 접기/펼치기">소계 '
             +'<span style="color:#9aa7b3">(품목 '+keys.length+'종'+(coll?' — 접힘':'')+')</span>'
             +'</td>'+zoneHeadCells(zn)+'</tr>';
@@ -2929,6 +2944,7 @@
               var bizCell=(D2_VIEW==='biz')?d2DistCell(r.ozones,'출고장'):d2Esc(r.biz);
               h+='<tr class="item'+(r.isNew?' r-new':'')+(itemRowChanged(zn,k)?' r-diff':'')+'"><td>'+(ix+1)+'</td>'
                 + d2StockCell(r.code,'q')
+                + d2MatchCell(r)
                 +'<td class="txt-l">'+bizCell+'</td>'
                 +'<td>'+d2Esc(r.code)+'</td>'
                 +'<td class="txt-l">'+d2Esc(r.name)+'</td>'
@@ -2940,6 +2956,7 @@
               var rk=delRk(r);
               h+='<tr class="item r-del"><td>–</td>'
                 + d2StockCell(r.code,'q')
+                + d2MatchCell(r)
                 +'<td class="txt-l">'+((D2_VIEW==='biz')?d2DistCell(r.ozones,'출고장'):d2Esc(r.biz))+'</td>'
                 +'<td>'+d2Esc(r.code)+'</td>'
                 +'<td class="txt-l">'+d2Esc(r.name)+' <span class="hist-badge del">삭제</span></td>'
@@ -2952,7 +2969,7 @@
       _cFlush(); _cCur=null;   // 마지막 센터 소계(그룹이 안 접혔을 때만 의미 있음)
       // 물류센터 합계 행 (데시보드1 lsub 형태: "광주물류센터 합계") — 상대 슬롯별 합계
       var _gdS=0,_gjS=0; zs.forEach(function(zn){ var t=ag.zones[zn].tot||0; if(/\s직송$/.test(zn)) _gjS+=t; else _gdS+=t; });
-      h+='<tr class="gsub"><td>'+d2Esc(g)+' 합계'+d2BdxLabel(_gdS,_gjS)+'</td><td colspan="5"></td>'
+      h+='<tr class="gsub"><td>'+d2Esc(g)+' 합계'+d2BdxLabel(_gdS,_gjS)+'</td><td colspan="6"></td>'
         + slotTotalCells(zs)+'</tr>';
     });
     h+='</tbody>';
