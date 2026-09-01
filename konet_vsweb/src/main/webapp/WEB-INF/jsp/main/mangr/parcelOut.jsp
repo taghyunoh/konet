@@ -42,8 +42,9 @@
         background:#eef4f2; border:1px solid #cfe0da; border-radius:14px; padding:5px 13px; white-space:nowrap; }
   .cnt b{ color:#137a6c; font-weight:800; }
   .cnt .sep{ color:#b9c3cd; margin:0 2px; }
-  /* 목록 = 한 화면에 18줄 + 그 아래는 스크롤 (2026-08-06 요청).
-     줄 높이는 두 줄짜리 품목명이 있어 들쭉날쭉 — 실측(poFit)으로 18줄 높이를 잡는다. */
+  /* 목록 = 화면 바닥까지 채우고 그 아래는 스크롤.
+     높이는 poFit 이 남은 자리를 재서 잡는다(2026-09-01 — 종전 '18줄 상한'은 글자 축소 시
+     아래에 빈공간을 남겨 폐지. 그 파일 poFit 주석 참고). */
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; }
   /* 글자 한 단계 키움 (2026-08-06 요청) — 13 → 14px, 행 여백도 함께 */
   table{ width:100%; min-width:1280px; border-collapse:collapse; font-size:14px; }
@@ -173,24 +174,24 @@ function poLoad(){
     .catch(function(e){ document.getElementById('tb').innerHTML='<tr><td colspan="14" class="empty">조회 오류: '+esc(e.message)+'</td></tr>'; });
 }
 
-/* 한 화면에 18줄까지 보이고 그 아래는 스크롤 (2026-08-06 요청).
-   ★고정 px 로 잡지 않는다 — 품목명이 두 줄인 행이 섞여 줄 높이가 제각각이라 어긋난다.
-     그려 놓은 뒤 앞 18줄의 **실제 높이 합**(+머리글)으로 목록 높이를 정한다. */
-var PO_ROWS = 18;
+/* 목록 높이 = <화면 바닥까지> (2026-09-01 「하단 빈공간」 지적으로 변경).
+   ★종전에는 <앞 18줄의 실제 높이 합>으로 상한을 잡았다(2026-08-06 요청). 그런데 이 화면은
+     iframe 이라 [글자 축소]를 하면 ui-fontsize 의 <상자 역보정>이 안쪽 뷰포트를 키운다
+     — 자리는 넓어졌는데 상한은 18줄 그대로라 목록 아래에 흰 빈공간이 남았다(90% 스크린샷).
+     ⇒ 마감 4화면 lz 표를 `fill:true` 로 바꾼 것과 같은 처방 : 남은 높이를 그대로 상한으로 쓴다.
+   ★max-height 라서 줄이 적으면 상자가 알아서 짧아진다 — 빈 상자가 생기지 않는다
+     (그래서 종전의 '18줄 이하면 자연 높이' 분기가 필요 없어졌다).
+   ⚠--kz 로 나누지 않는다 — iframe 은 상자 역보정이 뷰포트를 키워 innerHeight 가 이미 맞다
+     (셸 문서 안 인라인 패널만 나눗셈이 필요하다). */
+var PO_PAD = 52;   // 목록 아래 예약분 = 안내줄(padding 8 + 최소높이 26) + .wrap 아래 여백 16
 function poFit(){
-  var card=document.getElementById('listCard'), tb=document.getElementById('tb');
-  if(!card||!tb) return;
-  var trs=tb.querySelectorAll('tr');
-  /* ★18줄 이하로 돌아올 때도 안내줄을 갱신해야 한다 —
-     여기서 그냥 return 하면 poPager 가 안 불려 이전 조회의 '17 / 54건' 이 남는다(2026-08-06 수정) */
-  if(trs.length <= PO_ROWS){ card.style.maxHeight=''; poPager(); return; }   // 18줄 이하면 자연 높이
-  var head=card.querySelector('thead');
-  var h=(head?head.offsetHeight:0) + 2;
-  for(var i=0;i<PO_ROWS;i++) h += trs[i].offsetHeight;
-  /* 화면이 작으면 18줄이 창을 넘는다 — 목록 위(제목·버튼)와 아래 안내줄을 뺀 남은 높이를 넘지 않게 */
+  var card=document.getElementById('listCard');
+  if(!card) return;
   var top = card.getBoundingClientRect().top;
-  var room = Math.max(240, window.innerHeight - top - 40);
-  card.style.maxHeight = Math.min(h, room) + 'px';
+  var room = Math.max(240, window.innerHeight - top - PO_PAD);
+  card.style.maxHeight = room + 'px';
+  /* ★poPager 는 어느 갈래로 와도 반드시 부른다 —
+     안 부르면 이전 조회의 '17 / 54건' 이 그대로 남는다(2026-08-06 수정) */
   poPager();
 }
 /* 목록 아래 안내줄 — 지금 몇 줄까지 보이는지 / 전체 몇 줄인지. 스크롤하면 따라 갱신된다 */
@@ -315,7 +316,7 @@ function poRender(){
       + '<td class="c act"><button class="btn" onclick="poSaveBiz('+i+')" title="이 행의 주소·전화·운임을 사업장에 저장">택배정보저장</button></td>'
       + '</tr>';
   }).join('');
-  poFit();                       /* 그린 뒤 18줄 높이로 맞춘다 */
+  poFit();                       /* 그린 뒤 화면 바닥까지 높이를 맞춘다 */
 }
 /* 엑셀 제외 체크 — 화면 건수 표시도 '전체 N건 · 엑셀 M건' 으로 갱신 */
 function poChk(inp){
