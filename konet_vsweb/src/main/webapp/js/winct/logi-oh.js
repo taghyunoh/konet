@@ -17,6 +17,17 @@
    ========================================================================== */
 var KONET_CTX = window.KONET_CTX || '';
 
+/* ★출고장 낱알 → 입고장 번호 (2026-09-01 「직송도 배송조건과 똑같이 입고장별로」)
+     낱알 = 물류센터명 + 입고장 [+ ' 직송']  (예: 평택물류센터1 · 평택물류센터1 직송)
+     ⇒ 끝의 ' 직송' 을 떼고 남은 <끝 숫자> 가 입고장 번호다.
+   왜 필요한가 : 정렬을 <센터 → 직송여부 → 이름> 으로 두면 배송 1~4 가 먼저 다 나오고
+     직송 1·2·3 이 그 뒤에 몰린다. 배송과 같은 조건으로 보려면 <센터 → 입고장 → 직송여부>
+     여야 「평택물류센터1 · 평택물류센터1 직송 · 평택물류센터2 …」 로 나란히 선다.
+   ⚠입고장이 빈 낱알(물류센터명만)은 -1 → 그 센터의 맨 앞. 종전 이름순('평택물류센터'<'평택물류센터1')
+     과 같은 자리라 배치가 안 흔들린다.
+   ⚠demo1 에도 같은 식이 d2InwhNo 로 있다 — 규칙을 바꾸면 둘 다 고칠 것. */
+function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); return m ? +m[1] : -1; }
+
   /* ===================================================================
      출고현황표 — 발주현황표(엑셀) 업로드 → 출고량/재고량 자동작성
      · 원천: 발주현황표 노란칸 [품목명 · 사업장명 · 존(출고장) · 수량]
@@ -251,7 +262,9 @@ var KONET_CTX = window.KONET_CTX || '';
     var byL={}, letters=[];
     zones.forEach(function(z){ var L=ssGrpKey(z); if(!byL[L]){ byL[L]=[]; letters.push(L); } byL[L].push(z); });
     // 그룹 내 정렬: 오산센터는 지정순서(E200·E400·E300·제주·E700), 그 외는 이름순
-    Object.keys(byL).forEach(function(L){ byL[L].sort(function(a,b){ var ra=ssZoneRank(a), rb=ssZoneRank(b); if(ra!==rb) return ra-rb; var c=ssCenterOf(a).localeCompare(ssCenterOf(b),'ko'); if(c!==0) return c; var ja=/\s직송$/.test(a)?1:0, jb=/\s직송$/.test(b)?1:0; if(ja!==jb) return ja-jb; return a.localeCompare(b,'ko'); }); });   // 센터끼리 묶고 그 안에서 직송 맨 아래(안 묶으면 소계가 갈라진다)
+    /* 센터끼리 묶고(안 묶으면 소계가 갈라진다) → ★그 안에서 <입고장 번호> 순 → 같은 입고장이면 직송이 아래.
+       (2026-09-01 「배송조건과 똑같이」 — 종전엔 입고장보다 직송여부를 먼저 봐서 직송이 센터 맨 아래로 몰렸다) */
+    Object.keys(byL).forEach(function(L){ byL[L].sort(function(a,b){ var ra=ssZoneRank(a), rb=ssZoneRank(b); if(ra!==rb) return ra-rb; var c=ssCenterOf(a).localeCompare(ssCenterOf(b),'ko'); if(c!==0) return c; var na=ssInwhNo(a), nb=ssInwhNo(b); if(na!==nb) return na-nb; var ja=/\s직송$/.test(a)?1:0, jb=/\s직송$/.test(b)?1:0; if(ja!==jb) return ja-jb; return a.localeCompare(b,'ko'); }); });
     // 그룹키(L) → 표시라벨(물류센터명) 매핑 — 데시보드2와 공유하는 순서 기준(라벨)
     window.ssGroupLabels={};
     letters.forEach(function(L){ if(L==='OSAN'){ window.ssGroupLabels[L]='오산센터'; return; } var _n=ssCenterOf(byL[L][0]||''); window.ssGroupLabels[L]=(_n.length>1)?_n:(L+'출고장'); });
@@ -1563,7 +1576,10 @@ var KONET_CTX = window.KONET_CTX || '';
         // 출고장(행) = 물류센터명 + 입고장 (예: 평택물류센터1~4) — 묶음(그룹)은 물류센터명으로 표시
         var ctr=(''+(m.cCenter>=0?row[m.cCenter]:'')).trim();
         var _zr=(''+ssDupVal(row,m.cZn,m.cZn2)).trim(), _dg=(''+ssDupVal(row,m.cDgb,m.cDgb2)).trim();
-        if(_zr==='직송'||_dg==='직송') zoneVal=(ctr+' 직송').trim();   // 배송/직송 구분(2026-08-30) — DB 조회 매핑과 같은 규칙
+        /* ★직송도 <물류센터명+입고장> 까지 붙인다 (2026-09-01 「배송조건과 똑같이」) —
+             종전엔 입고장을 버려 '평택물류센터 직송' 한 줄로 뭉쳤다. 실측(2026.09.01 파일)에서
+             직송 13행의 입고장이 1(6행)·2(2행)·3(5행) 으로 갈려 있어 합치면 안 되는 자료였다. */
+        if(_zr==='직송'||_dg==='직송') zoneVal=(ctr+inbVal+' 직송').trim();   // 배송/직송 구분(2026-08-30) — DB 조회 매핑과 같은 규칙
         else zoneVal=(ctr+inbVal).trim();
       } else {
         zoneVal=(''+ssDupVal(row, m.cZone, m.cZone2)).trim();
@@ -3650,7 +3666,8 @@ var KONET_CTX = window.KONET_CTX || '';
       var _ctr0=function(z){ return (''+z).replace(/\s*직송$/,'').replace(/\s*\d+\s*$/,'').trim(); };
       var zones=Object.keys(ag.zoneSet).sort(function(a,b){ var d=_gidx(a)-_gidx(b); if(d!==0) return d;
         var c=_ctr0(a).localeCompare(_ctr0(b),'ko'); if(c!==0) return c;
-        var ja=/\s직송$/.test(a)?1:0, jb=/\s직송$/.test(b)?1:0; if(ja!==jb) return ja-jb;   // 센터끼리 묶고 직송 맨 아래(2026-08-30)
+        var na=ssInwhNo(a), nb=ssInwhNo(b); if(na!==nb) return na-nb;                        // ★입고장 번호 먼저(2026-09-01)
+        var ja=/\s직송$/.test(a)?1:0, jb=/\s직송$/.test(b)?1:0; if(ja!==jb) return ja-jb;   // 같은 입고장 안에서만 직송이 아래
         return a.localeCompare(b,'ko'); });
       var made=0, skipped=0, grand=0;
       /* ★센터 합계 줄 (2026-08-30 「오산물류센터도 평택처럼 SUM — 엑셀도」) —
@@ -3870,7 +3887,7 @@ var KONET_CTX = window.KONET_CTX || '';
            섞지 않고 '물류센터명 직송' 낱알로 따로 묶는다(센터 블록 맨 아래 줄). */
         var _rz=(''+(o.zone||'')).trim(), _dg=(''+(o.dlvGb||'')).trim();
         var _jik=(_rz==='직송'||_dg==='직송');
-        var zone = dcNm ? (dcNm+(_jik?' 직송':inwh)) : _rz;
+        var zone = dcNm ? (dcNm+inwh+(_jik?' 직송':'')) : _rz;   // ★직송도 입고장까지(2026-09-01 「배송조건과 똑같이」)
         var bizNm=(''+(o.bizNm||'')).trim(), bizCd=(''+(o.bizCd||'')).trim();
         var bizLbl = bizCd ? (bizNm ? (bizNm+' ['+bizCd+']') : ('['+bizCd+']')) : bizNm;
         var _dlv=(''+(o.dlvDt||'')).trim(); if(/^\d{8}$/.test(_dlv)) _dlv=_dlv.slice(0,4)+'-'+_dlv.slice(4,6)+'-'+_dlv.slice(6,8);
@@ -3898,7 +3915,7 @@ var KONET_CTX = window.KONET_CTX || '';
   function _ssAsqNormPrev(o){   // 직전 배치 DB행 정규화(현재와 동일 키 규칙: 사업장코드+품목)
     var dc=(''+(o.dcNm||'')).trim(), iw=(''+(o.inwh||'')).trim();
     var _rz=(''+(o.zone||'')).trim(), _jk=(_rz==='직송'||(''+(o.dlvGb||'')).trim()==='직송');
-    var zn=dc?(dc+(_jk?' 직송':iw)):_rz;   // ★SHIP_DATA 매핑과 같은 직송 규칙 — 한쪽만 고치면 허위 차이 알림
+    var zn=dc?(dc+iw+(_jk?' 직송':'')):_rz;   // ★SHIP_DATA 매핑과 같은 직송 규칙 — 한쪽만 고치면 허위 차이 알림
     var c=(''+(o.itemCd||'')).trim();
     return { zone:zn, biz:(''+(o.bizCd||'')).trim(), key:(c||('NM:'+(''+(o.itemNm||'')).trim())), qty:+o.curQty||0 };
   }

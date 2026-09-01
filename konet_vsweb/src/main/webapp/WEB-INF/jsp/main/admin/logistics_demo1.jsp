@@ -1121,9 +1121,10 @@
           return a.localeCompare(b,'ko');
         });
         gOrder.forEach(function(g){
-          /* 정렬 = 화면 가로표와 동일: 센터명으로 묶고 그 안에서 직송 맨 아래 (2026-08-30) */
+          /* 정렬 = 화면 가로표와 동일: 센터명으로 묶고 → 입고장 번호 → 같은 입고장이면 직송이 아래 (2026-09-01) */
           var gz=groups[g].slice().sort(function(a,b){
             var c=d2CenterNm(a).localeCompare(d2CenterNm(b),'ko'); if(c!==0) return c;
+            var na=d2InwhNo(a), nb=d2InwhNo(b); if(na!==nb) return na-nb;   // ★입고장 번호 먼저(2026-09-01)
             var ja=/\s직송$/.test(a)?1:0, jb=/\s직송$/.test(b)?1:0; if(ja!==jb) return ja-jb;
             return a.localeCompare(b,'ko');
           });
@@ -2050,14 +2051,21 @@
       var ra=d2ZoneRank(ag,a), rb=d2ZoneRank(ag,b);
       if(ra!==rb) return ra-rb;
       var c=d2CenterNm(a).localeCompare(d2CenterNm(b),'ko'); if(c!==0) return c;   // rank 동률이면 센터끼리 묶어야 소계가 안 갈라진다
+      var na=d2InwhNo(a), nb=d2InwhNo(b); if(na!==nb) return na-nb;   // ★입고장 번호 먼저(2026-09-01 「배송조건과 똑같이」)
       var ja=/\s직송$/.test(a)?1:0, jb=/\s직송$/.test(b)?1:0;
-      if(ja!==jb) return ja-jb;   // 직송 줄은 센터 블록 맨 아래(2026-08-30)
+      if(ja!==jb) return ja-jb;   // 같은 입고장 안에서만 직송이 아래(2026-08-30 → 2026-09-01 범위 축소)
       return a.localeCompare(b,'ko');
     });
   }
   /* 낱알 → 물류센터명 (끝 ' 직송'·숫자 떼기) — 가로표 센터 소계용 전역판.
      ⚠같은 식이 d2BuildTableInner(d2CenterOf)·엑셀(d2CenterOfX)에도 지역함수로 있다 — 규칙 바꾸면 셋 다. */
   function d2CenterNm(zn){ return (''+zn).replace(/\s*직송$/,'').replace(/\s*\d+\s*$/,'').trim(); }
+  /* ★낱알 → 입고장 번호 (2026-09-01 「직송도 배송조건과 똑같이 입고장별로」).
+     낱알 = 물류센터명 + 입고장 [+ ' 직송'] 이므로 ' 직송' 을 뗀 뒤 끝 숫자가 입고장이다.
+     정렬을 <센터 → 입고장 → 직송여부> 로 만들어 「평택물류센터1 · 평택물류센터1 직송 · 평택물류센터2」 순이 되게 한다.
+     입고장이 없으면 -1(센터 맨 앞) — 종전 이름순과 같은 자리.
+     ⚠logi-oh.js 에 같은 식이 ssInwhNo 로 있다 — 규칙을 바꾸면 둘 다. */
+  function d2InwhNo(zn){ var m=(''+zn).replace(/\s*직송$/,'').match(/(\d+)\s*$/); return m ? +m[1] : -1; }
   /* 배송/직송 나눔 라벨 — 합계 줄 이름 뒤에 「(배송 X · 직송 Y)」 (2026-08-30 「배송직송 합계표시 출고장별」).
      직송이 없는 센터는 빈 문자열(표시 없음 — 전부 배송이라 나눌 것이 없다). */
   function d2BdxLabel(delSum, jikSum){
@@ -2069,7 +2077,7 @@
     /* ★배송/직송 구분 (2026-08-30) — 데시보드2(logi-oh.js SHIP_DATA 매핑)와 같은 규칙.
        직송 행(ZONE 또는 배송구분='직송')은 '물류센터명 직송' 낱알로 따로. */
     var _rz=(''+(o.zone||'')).trim(), _jk=(_rz==='직송'||(''+(o.dlvGb||'')).trim()==='직송');
-    var zone = dcNm ? (dcNm+(_jk?' 직송':inwh)) : _rz;
+    var zone = dcNm ? (dcNm+inwh+(_jk?' 직송':'')) : _rz;   // ★직송도 입고장까지(2026-09-01 「배송조건과 똑같이」)
     var bizNm=(''+(o.bizNm||'')).trim(), bizCd=(''+(o.bizCd||'')).trim();
     var bizLbl = bizCd ? (bizNm ? (bizNm+' ['+bizCd+']') : ('['+bizCd+']')) : bizNm;
     var _dlv=(''+(o.dlvDt||'')).trim(); if(/^\d{8}$/.test(_dlv)) _dlv=_dlv.slice(0,4)+'-'+_dlv.slice(4,6)+'-'+_dlv.slice(6,8);
@@ -2508,6 +2516,7 @@
            직송 줄들이 그룹 끝에 모여 센터 소계가 두 번씩 생긴다(2026-08-30 실화면으로 확인된 버그). */
       var gz=groups[g].slice().sort(function(a,b){
         var c=d2CenterNm(a).localeCompare(d2CenterNm(b),'ko'); if(c!==0) return c;
+        var na=d2InwhNo(a), nb=d2InwhNo(b); if(na!==nb) return na-nb;   // ★입고장 번호 먼저(2026-09-01)
         var ja=/\s직송$/.test(a)?1:0, jb=/\s직송$/.test(b)?1:0; if(ja!==jb) return ja-jb;
         return a.localeCompare(b,'ko');
       });
