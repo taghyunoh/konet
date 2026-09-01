@@ -656,6 +656,34 @@
 
 <script type="text/javascript">
   var CTX='${pageContext.request.contextPath}';
+  /* ★가로표 열 차례 (2026-09-01 요청 「출고장마다 사업장 많은 순으로」) —
+       ①사업장은 한 덩어리로 유지한다(묶음이 갈라지면 머리칸·소계·접기가 전부 깨진다)
+       ②사업장 묶음끼리는 <나가는 출고장이 많은 쪽>이 앞 — 여러 출고장에 걸친 사업장을
+         왼쪽에 모아 빈 칸이 오른쪽으로 밀린다(표가 듬성해 보이던 것을 없애는 게 목적)
+       ③출고장 수가 같으면 출고수량(BOX) 많은 순 → 사업장명 ㄱㄴㄷ
+       ④묶음 안 품목도 같은 규칙(출고장 수 → 수량 → 품목명)
+     화면 가로표와 가로표 엑셀이 같은 함수를 쓴다 — 차례가 갈라지면 안 된다.
+     zones = 셀 수 있는 출고장 이름 목록, rowsOf(zn) = 그 출고장의 행맵. */
+  function d2MxColSort(list, ag, zones){
+    var zc={}, qt={}, bzs={}, bcell={}, bq={};
+    list.forEach(function(c){
+      var n=0, q=0;
+      for(var i=0;i<zones.length;i++){
+        var zn=zones[i], rs=(ag.zones[zn]||{}).rows||{}, t=0;
+        for(var k=0;k<c.keys.length;k++){ var x=rs[c.keys[k]]; if(x) t+=(+x.qty||0); }
+        if(t>0){ n++; q+=t; (bzs[c.biz]||(bzs[c.biz]={}))[zn]=1; }   /* ★출고장은 <중복 없이> 센다 */
+      }
+      zc[c.ck]=n; qt[c.ck]=q;
+      bcell[c.biz]=(bcell[c.biz]||0)+n; bq[c.biz]=(bq[c.biz]||0)+q;
+    });
+    function bzn(b){ return Object.keys(bzs[b]||{}).length; }   /* 그 사업장이 나가는 출고장 수 */
+    list.sort(function(a,b){
+      if(a.biz!==b.biz) return (bzn(b.biz)-bzn(a.biz)) || (bcell[b.biz]-bcell[a.biz])
+                            || (bq[b.biz]-bq[a.biz]) || a.biz.localeCompare(b.biz,'ko');
+      return (zc[b.ck]-zc[a.ck]) || (qt[b.ck]-qt[a.ck]) || a.name.localeCompare(b.name,'ko');
+    });
+    return list;
+  }
   var D2_DATA=[];            // {code,item,biz,bizCode,dc,zone,qty,dlvDt,date}
   var D2_PREV=[];            // 직전 배치(이력 비교용) — 같은 매핑
   var D2_HISTALL=[];         // 전 배치(모든 출고장) — 차수별 수량 매트릭스용(활성+이력)
@@ -1047,7 +1075,7 @@
           });
         });
         if(!cols.length) return;
-        cols.sort(function(a,b){ return a.biz.localeCompare(b.biz,'ko') || a.name.localeCompare(b.name,'ko'); });
+        d2MxColSort(cols, ag, zones);   // 화면 가로표와 같은 차례(출고장 많은 사업장부터)
         function colQty(rs, c){ var t=0; for(var i=0;i<c.keys.length;i++){ var x=rs[c.keys[i]]; if(x) t+=(+x.qty||0); } return t; }
         /* 맨 위 '출고장일자' 줄은 뺐다 (2026-08-28 요청) — 이 날짜 배너가 같은 내용을 이미 담고 있다 */
         push(['📅 '+(dateHdr||dlab)+' 출고     ※ 회색 칸 = 그 출고장에 그 품목이 없음'], 'datehdr');
@@ -2391,14 +2419,15 @@
         if(!c.kset[rk]){ c.kset[rk]=1; c.keys.push(rk); }
       });
     });
-    allCols.sort(function(a,b){ return a.biz.localeCompare(b.biz,'ko') || a.name.localeCompare(b.name,'ko'); });
+    d2MxColSort(allCols, ag, zones);
     function colQty(rs, c){ var t=0; for(var i=0;i<c.keys.length;i++){ var x=rs[c.keys[i]]; if(x) t+=(+x.qty||0); } return t; }
     /* 출고장 선택 필터 — ☑가 켜져 있을 때만. 재조회로 사라진 출고장은 선택에서 뺀다 */
     Object.keys(D2_MXZSEL).forEach(function(zn){ if(!ag.zones[zn]) delete D2_MXZSEL[zn]; });
     var _selZs=D2_MXZONLY?Object.keys(D2_MXZSEL):[];
     var allColsFull=allCols.slice();   // 필터 전 전체 칸 — 병기(전체값)·직송 나눔은 이걸로 센다
     var MXF=_selZs.length>0;           // 필터 가동 중
-    if(MXF){ allCols=allCols.filter(function(c){ return _selZs.some(function(zn){ return colQty(ag.zones[zn].rows,c)>0; }); }); }
+    /* ★거르고 나면 사업장별 품목 수가 달라진다 — 보이는 것 기준으로 차례를 다시 잡는다 */
+    if(MXF){ allCols=d2MxColSort(allCols.filter(function(c){ return _selZs.some(function(zn){ return colQty(ag.zones[zn].rows,c)>0; }); }), ag, _selZs); }
     /* 전체 기준 값 — 합계=ag.zones tot 합 / 품목수=allColsFull 중 수량 있는 칸 수 */
     function fullTot(zList){ var t=0; zList.forEach(function(zn){ t+=(ag.zones[zn]&&ag.zones[zn].tot||0); }); return t; }
     function fullCnt(zList){ var n=0; allColsFull.forEach(function(c){ for(var i=0;i<zList.length;i++){ if(colQty(ag.zones[zList[i]].rows,c)>0){ n++; return; } } }); return n; }
