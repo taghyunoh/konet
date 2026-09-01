@@ -2085,7 +2085,10 @@
     var _dcCd=(''+(o.dcCd||'')).trim();
     var _grp=D2_DCGROUP[_dcCd] || (/제주/.test(dcNm) ? '오산센터' : dcNm);   // E200/E400/E300/E700 + 제주(이름) → '오산센터' 그룹
     return { code:(''+(o.itemCd||'')).trim(), item:(''+(o.itemNm||'')).trim(),
-             biz:bizLbl, bizCode:bizCd, dc:_grp, dcCd:_dcCd, inwh:inwh, zone:zone, qty:(+o.curQty||0), dlvDt:_dlv, date:(_sd||f),
+             /* ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정 「수량은 라벨수량을 출고수량으로」) —
+                  LABEL_QTY 가 없는 옛 행만 CUR_QTY(수량) 폴백. logi-oh.js ssOutQty 와 같은 규칙(한쪽만 고치면 두 대시보드가 어긋난다). */
+             biz:bizLbl, bizCode:bizCd, dc:_grp, dcCd:_dcCd, inwh:inwh, zone:zone,
+             qty:((o.labelQty!=null&&o.labelQty!=='')?(+o.labelQty||0):(+o.curQty||0)), dlvDt:_dlv, date:(_sd||f),
              uploadDttm:(''+(o.uploadDttm||'')).trim().slice(0,19),   // 변경일시(현재 배치)
              firstDttm:(''+(o.firstDttm||'')).trim().slice(0,19),     // 최초일시(같은 품목 MIN)
              jobSeq:(+o.jobSeq||0) };   // 배치 버전(1=최초, 2↑=재생성)

@@ -109,7 +109,7 @@
         <th title="체크를 풀면 엑셀에서 빠집니다"><input type="checkbox" id="poAll" checked onchange="poAllChk(this.checked)"></th>
         <th>#</th><th>구분</th><th>출고일자</th><th>사업장코드</th><th>사업장명(받는분)</th><th>택배주소</th>
         <th>전화</th><th>휴대폰</th><th>운임</th><th>품목명</th><th>박스</th>
-        <th title="발주현황표에 올라온 수량 그대로입니다(계산하지 않습니다). 대시보드의 수량과 같은 값입니다. 엑셀 F칸으로 나갑니다.">총수량</th>
+        <th title="발주현황표에 올라온 라벨수량 그대로입니다(계산하지 않습니다). 대시보드의 수량과 같은 값입니다. 엑셀 F칸으로 나갑니다.">총수량</th>
         <th>택배정보</th>
       </tr></thead>
       <tbody id="tb"><tr><td colspan="14" class="empty">출고일자를 고르고 [조회]를 누르세요.</td></tr></tbody>
@@ -279,10 +279,11 @@ function poMerge(list){
   return out;
 }
 
-/* 총수량 = 발주현황표(엑셀)의 '수량' 원값 그대로 (2026-08-13 확정 "발주한 대로 그대로").
+/* ★총수량 = 발주현황표(엑셀)의 '라벨수량'(LABEL_QTY) 원값 (2026-09-01 「수량은 라벨수량을
+     출고수량으로 변경」 — 종전 2026-08-13 의 '수량'(CUR_QTY) 확정을 대체. 서버 selectParcelOutList 가 붙여 준다).
    ★계산하지 않는다. 한때 '박스 × 입수' 로 냈다가 폐기했다 — 상품마스터 입수가 미등록(1)이거나
      품목명 표기와 달라(마스터 48 vs 품목명 100EA/BOX) 줄마다 1·48·100·2000 이 뒤섞여 나왔다.
-   대시보드1 이 쓰는 칸(CUR_QTY)과 같아 두 화면 숫자가 어긋나지 않는다. */
+   대시보드1 이 쓰는 기준(라벨수량)과 같아 두 화면 숫자가 어긋나지 않는다. */
 function poRender(){
   var tb=document.getElementById('tb');
   poCnt();
@@ -290,7 +291,7 @@ function poRender(){
   tb.innerHTML = ROWS.map(function(o,i){
     var fee = n(o.fee) || 4500;                      /* 미설정(0) = 기본 4500 */
     var missA = !(o.addr && (''+o.addr).trim());
-    var box = n(o.boxQty), tot = n(o.totQty);   /* 총수량 = 발주현황표 '수량' 원값 */
+    var box = n(o.boxQty), tot = n(o.totQty);   /* 총수량 = 발주현황표 '라벨수량' 원값(2026-09-01) */
     /* 엑셀 제외 (2026-08-06 요청) — 체크를 풀면 그 줄은 엑셀에서 빠진다(화면 목록에는 남는다).
        o.off 가 true 면 제외. 조회하면 전부 포함(체크) 상태로 시작한다. */
     return '<tr'+(o.off?' style="opacity:.45"':'')+'>'
@@ -346,7 +347,7 @@ function poCnt(){
   var done = ROWS.filter(function(o){ return o.done; }).length;
   /* 곳수·총수량 표시 (2026-08-31 요청) —
      · 곳수  = 받는 곳(사업장코드) 유니크. 한 사업장이 품목마다 여러 줄이라 <건수 ≠ 곳수>다.
-     · 총수량 = 그리드 [총수량] 칸의 합 = 발주현황표 '수량' 원값. 박스 합계도 같이 적는다.
+     · 총수량 = 그리드 [총수량] 칸의 합 = 발주현황표 '라벨수량' 원값(2026-09-01). 박스 합계도 같이 적는다.
      ★엑셀에서 뺀 줄(off)은 빼고 센다 — 실제로 나갈 양을 보는 숫자라야 쓸모가 있다.
        그래서 [주소없음 제외]·체크 해제를 하면 이 숫자도 함께 줄어든다. */
   var _b=0, _t=0, _biz={}, _dc={};
@@ -424,7 +425,7 @@ function poExcelMake(){
      ★체크를 푼 줄(o.off)은 빼고 만든다 (2026-08-06 요청) */
   ROWS.filter(function(o){ return !o.off; }).forEach(function(o){
     var fee = n(o.fee) || 4500;
-    /* ★F칸 = 총수량 (2026-08-14 요청). 화면 '총수량' 칸과 같은 값(발주현황표 '수량' 원값)을
+    /* ★F칸 = 총수량 (2026-08-14 요청). 화면 '총수량' 칸과 같은 값(발주현황표 '라벨수량' 원값, 2026-09-01)을
        손대지 않고 그대로 넣는다 — 빈값 대체·계산 없음(사용자 확정 "수량이 없을 수는 없음"). */
     aoa.push([ o.bizNm||'', '', o.addr||'', o.tel||'', o.hp||'', n(o.totQty), fee, '', o.itemNm||'' ]);
     cnt++;

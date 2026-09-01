@@ -28,6 +28,19 @@ var KONET_CTX = window.KONET_CTX || '';
    ⚠demo1 에도 같은 식이 d2InwhNo 로 있다 — 규칙을 바꾸면 둘 다 고칠 것. */
 function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); return m ? +m[1] : -1; }
 
+/* ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정 「수량은 라벨수량을 출고수량으로 변경」)
+     종전에는 '수량'(현 발주, CUR_QTY) 을 출고수량으로 썼다 — 실측(2026.09.01 파일)에서 라벨수량 230 vs
+     수량 231 로 어긋나는 행이 있었고(라벨이 실제 출고 기준), 사용자가 라벨수량을 기준으로 확정했다.
+   ⚠DB 는 두 칸(CUR_QTY·LABEL_QTY)을 종전대로 <둘 다> 저장한다 — 바뀐 것은 읽는 쪽(집계·표시)뿐이다.
+   ⚠LABEL_QTY 가 없는 옛 행(구양식 업로드 등)만 CUR_QTY 폴백 — 0 은 폴백하지 않는다(0 도 값이다).
+   ⚠서버 SQL(매출마감 selectClosing · 매출그래프 · 택배 totQty · 원장 연동 등)도 같은 날 LABEL_QTY 로
+     맞췄다 — 한쪽만 고치면 화면과 마감 숫자가 어긋난다. */
+function ssOutQty(o){
+  if(!o) return 0;
+  var v=(o.labelQty!=null && o.labelQty!=='') ? o.labelQty : o.curQty;
+  return +v||0;
+}
+
   /* ===================================================================
      출고현황표 — 발주현황표(엑셀) 업로드 → 출고량/재고량 자동작성
      · 원천: 발주현황표 노란칸 [품목명 · 사업장명 · 존(출고장) · 수량]
@@ -1521,11 +1534,15 @@ function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); 
       if(findEq(r1,'물류센터명')>=0 && findEq(r1,'품목명')>=0){
         var r2=(aoa[i+1]||[]).map(function(c){return (''+c).trim();});
         function pick(n){ var k=findEq(r2,n); return k>=0?k:findEq(r1,n); }
-        // ★입고장·수량 = 현 발주 칸을 잡고, 가마감 칸은 폴백용으로 함께 든다(cInb2/cQty2)
+        // ★입고장 = 현 발주 칸을 잡고, 가마감 칸은 폴백용으로 함께 든다(cInb2)
         var gInb=ssDupIdx(r1,r2,'입고장'), gQty=ssDupIdx(r1,r2,'수량');
         var gZn=ssDupIdx(r1,r2,'존'), gDgb=ssDupIdx(r1,r2,'배송구분');   // 직송 판정용(2026-08-30)
         var cInb=(gInb.cur>=0)?gInb.cur:pick('입고장');
-        var cQk=gQty.cur;
+        /* ★출고수량 = 라벨수량 (2026-09-01 사용자 확정) — 1행 단독 칸이라 가마감/현발주 폴백이 필요 없다.
+             라벨수량 칸이 없는 파일만 종전 규칙('수량' 현발주 우선·가마감 폴백)으로 내려간다. */
+        var cLbl=findEq(r1,'라벨수량');
+        var cQk=cLbl, cQk2=-1;
+        if(cQk<0){ cQk=gQty.cur; cQk2=gQty.tmp; }
         if(cQk<0) cQk=pick('수량');
         if(cQk<0){ cQk=pick('현 발주'); if(cQk<0) cQk=pick('현발주'); }
         if(cInb>=0){   // 입고장 컬럼이 있어야 코네트 출고장 양식으로 확정
@@ -1533,7 +1550,7 @@ function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); 
                    cItem:findEq(r1,'품목명'), cCode:findEq(r1,'품목코드'),
                    cBiz:findEq(r1,'사업장명'), cBizCode:findEq(r1,'사업장코드'),
                    cCenter:findEq(r1,'물류센터명'), cInb:cInb, cQty:cQk,
-                   cInb2:gInb.tmp, cQty2:gQty.tmp, cZn:gZn.cur, cZn2:gZn.tmp, cDgb:gDgb.cur, cDgb2:gDgb.tmp,          // 가마감 칸(현 발주가 비었을 때만 쓴다)
+                   cInb2:gInb.tmp, cQty2:cQk2, cZn:gZn.cur, cZn2:gZn.tmp, cDgb:gDgb.cur, cDgb2:gDgb.tmp,          // 가마감 칸(현 발주가 비었을 때만 쓴다 — 수량은 라벨수량이라 보통 -1)
                    cZone:findEq(r1,'물류센터명'),
                    cDate:findEq(r1,'납기일자'), cDlv:findEq(r1,'납기일자') };
         }
@@ -1554,6 +1571,8 @@ function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); 
     var cInb=gInb.cur, cZone=gZone.cur, cQty=gQty.cur;
     var cInb2=gInb.tmp, cZone2=gZone.tmp, cQty2=gQty.tmp;
     if(cZone<0){ cInb=findIn(h1,'입고장'); cZone=findIn(h1,'존'); cQty=findIn(h1,'수량'); cInb2=-1; cZone2=-1; cQty2=-1; }
+    // ★출고수량 = 라벨수량 (2026-09-01 사용자 확정) — 구양식에도 라벨수량 칸이 있으면 그쪽이 우선
+    var cLblO=findIn(h1,'라벨수량'); if(cLblO>=0){ cQty=cLblO; cQty2=-1; }
     // 출고일자 = 엑셀의 '18차 가마감 일시'(처리일) 우선, 없으면 '납기일자'
     var cDate=findIn(h1,'18차 가마감 일시'); if(cDate<0) cDate=findIn(h1,'납기일자'); if(cDate<0) cDate=findIn(h2,'18차 가마감 일시');
     var cDlv=findIn(h1,'납기일자'); if(cDlv<0) cDlv=findIn(h2,'납기일자');
@@ -1610,9 +1629,10 @@ function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); 
          ② 행 대조   : 양식은 맞지만 값이 빠져 집계가 어긋날 행(출고장·수량·품목코드·사업장·납기일자)
        ②는 저장을 막지 않는다(경고) — 막으면 정상 자료 대부분이 함께 걸리기 때문. 빨간 행으로 함께 표시.  */
   var SS_FMT_SPEC=[
-    { key:'konet', name:'코네트 발주현황표(출고장)', req:['물류센터명','품목명','입고장'], qty:['수량','현 발주','현발주'],
+    // ★출고수량 = 라벨수량 우선 (2026-09-01 사용자 확정) — qty 목록도 라벨수량을 앞에 둔다(없으면 종전 '수량' 폴백)
+    { key:'konet', name:'코네트 발주현황표(출고장)', req:['물류센터명','품목명','입고장'], qty:['라벨수량','수량','현 발주','현발주'],
       opt:['품목코드','사업장명','사업장코드','납기일자'] },
-    { key:'old',   name:'기존 발주현황표(2행 헤더)', req:['품목명','사업장명','존'],       qty:['수량'],
+    { key:'old',   name:'기존 발주현황표(2행 헤더)', req:['품목명','사업장명','존'],       qty:['라벨수량','수량'],
       opt:['품목코드','사업장코드','납기일자','18차 가마감 일시'] }
   ];
   // 앞쪽 몇 행에서 머리글 후보(짧은 문자열)를 모은다 — 파일에 뭐가 들었는지 보여주려는 것
@@ -3894,7 +3914,7 @@ function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); 
         var _sd=(''+(o.shpoutDt||'')).trim(); if(/^\d{8}$/.test(_sd)) _sd=_sd.slice(0,4)+'-'+_sd.slice(4,6)+'-'+_sd.slice(6,8);
         return { code:(''+(o.itemCd||'')).trim(), item:(''+(o.itemNm||'')).trim(),
                  biz:bizLbl, bizCode:bizCd, inb:inwh, zone:zone, dcCd:(''+(o.dcCd||'')).trim(),
-                 qty:(+o.curQty||0), dlvDt:_dlv, date:(_sd||f) };   // 실제 출고일자(기간 합산 시 범위 필터·집계용) / dcCd=오산센터 그룹 판정용
+                 qty:ssOutQty(o), dlvDt:_dlv, date:(_sd||f) };   // ★출고수량=라벨수량(2026-09-01) / 실제 출고일자(기간 합산 시 범위 필터·집계용) / dcCd=오산센터 그룹 판정용
       });
       window.ssSrcUp   = rows.length>0;
       var _lab=_single?f:(f+'~'+t+' 합산');
@@ -3917,7 +3937,7 @@ function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); 
     var _rz=(''+(o.zone||'')).trim(), _jk=(_rz==='직송'||(''+(o.dlvGb||'')).trim()==='직송');
     var zn=dc?(dc+iw+(_jk?' 직송':'')):_rz;   // ★SHIP_DATA 매핑과 같은 직송 규칙 — 한쪽만 고치면 허위 차이 알림
     var c=(''+(o.itemCd||'')).trim();
-    return { zone:zn, biz:(''+(o.bizCd||'')).trim(), key:(c||('NM:'+(''+(o.itemNm||'')).trim())), qty:+o.curQty||0 };
+    return { zone:zn, biz:(''+(o.bizCd||'')).trim(), key:(c||('NM:'+(''+(o.itemNm||'')).trim())), qty:ssOutQty(o) };   // ★출고수량=라벨수량 — SHIP_DATA 매핑과 같은 기준(한쪽만 고치면 허위 차이)
   }
   function _ssAsqGroup(list){   // zone → { (사업장|품목) : 수량합 }
     var z={};
@@ -4728,9 +4748,9 @@ function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); 
          · 정산서가 온 건은 손대지 않는다 — 그건 실제 '받을 금액'이고 이건 추정이다. 구분은 상태 칸(미정산 뱃지).
        ※ 위 _ohSales 루프가 먼저 돌아 g.sKeys 가 이미 다 차 있으므로 여기서 바로 판정할 수 있다. */
     _ohShip.forEach(function(r){
-      var g=pick(r, r.dcNm); g.oRows++; g.oQty+=(+r.curQty||0);
+      var g=pick(r, r.dcNm); g.oRows++; g.oQty+=ssOutQty(r);
       var kk=_ohKey(r); if(kk) g.oKeys[kk]=1;
-      var it=item(g, r.itemCd, r.itemNm), q=(+r.curQty||0);
+      var it=item(g, r.itemCd, r.itemNm), q=ssOutQty(r);
       it.oQty+=q;
       (function(){ var d=_ohYmd(r.dlvDt)||'', e=it.dts[d]||(it.dts[d]={oQty:0,sQty:0,price:null});
                    e.oQty+=q; if(e.price==null && r.saleUnit) e.price=+r.saleUnit; })();
@@ -4765,8 +4785,8 @@ function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); 
     };
     _ohSales.forEach(function(r){ var g=pick(r, r.dcNm); g.sRows++; g.sQty+=(+r.outQty||0); g.sAmt+=(+r.saleAmt||0);
       if(r.trxYn==='Y') g.trx=true; var kk=_ohKey(r); if(kk) g.sKeys[kk]=1; });
-    _ohShip.forEach(function(r){ var g=pick(r, r.dcNm); g.oRows++; g.oQty+=(+r.curQty||0); var kk=_ohKey(r); if(kk) g.oKeys[kk]=1;
-      if(!kk || !g.sKeys[kk]){ var q=(+r.curQty||0); g.eQty+=q; g.eAmt+=q*(+r.saleUnit||0); }   // 미정산 = 추정매출(위 _ohRoll 과 같은 규칙)
+    _ohShip.forEach(function(r){ var g=pick(r, r.dcNm); g.oRows++; g.oQty+=ssOutQty(r); var kk=_ohKey(r); if(kk) g.oKeys[kk]=1;
+      if(!kk || !g.sKeys[kk]){ var q=ssOutQty(r); g.eQty+=q; g.eAmt+=q*(+r.saleUnit||0); }   // 미정산 = 추정매출(위 _ohRoll 과 같은 규칙)
     });
     var dates=Object.keys(dm).filter(function(d){ return d; }).sort().reverse();   // YYYYMMDD 최근순
     return dates.map(function(d){
@@ -4784,10 +4804,12 @@ function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); 
   }
   // 발주번호+항번 → 상대편 행 (상세 2탭의 대사 열). a=정산금액(정산서 인덱스일 때만 값이 있다)
   function _ohIndex(rows, qtyField){
+    // qtyField = 필드명 문자열 또는 함수(행→수량) — 출고 쪽은 ssOutQty(라벨수량) 함수를 넘긴다(2026-09-01)
+    var get=(typeof qtyField==='function') ? qtyField : function(r){ return +r[qtyField]||0; };
     var m={}; rows.forEach(function(r){
       var k=_ohKey(r); if(!k) return;
       var e=m[k] || (m[k]={n:0,q:0,a:0,r:r});
-      e.n++; e.q+=(+r[qtyField]||0); e.a+=(+r.saleAmt||0);
+      e.n++; e.q+=get(r); e.a+=(+r.saleAmt||0);
     });
     return m;
   }
@@ -4804,7 +4826,7 @@ function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); 
       var g=m[dk]; if(!g){ g=m[dk]={ dc:dk, label:dk, oRows:0, oQty:0, hit:0, noKey:0, unpaid:0, bizOrd:[], biz:{} }; ord.push(dk); }
       var bnm=(''+(r.bizNm||'')).trim()||'(사업장 미지정)', bk=(''+(r.bizCd||''))+'|'+bnm;
       var b=g.biz[bk]; if(!b){ b=g.biz[bk]={ key:bk, bizCd:r.bizCd||'', bizNm:bnm, rows:[], oQty:0, hit:0, noKey:0, unpaid:0 }; g.bizOrd.push(bk); }
-      var k=_ohKey(r), hit=k?!!idx[k]:false, oq=(+r.curQty||0);
+      var k=_ohKey(r), hit=k?!!idx[k]:false, oq=ssOutQty(r);
       b.rows.push({ r:r, hit:hit, k:k });
       b.oQty+=oq; g.oQty+=oq; g.oRows++;
       if(hit){ b.hit++; g.hit++; } else if(!k){ b.noKey++; g.noKey++; } else { b.unpaid++; g.unpaid++; }
@@ -4880,7 +4902,7 @@ function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); 
       sQ+=(+r.outQty||0); sA+=(+r.saleAmt||0);
       if(r.trxYn==='Y'){ tQ+=(+r.outQty||0); tA+=(+r.saleAmt||0); tRows++; }
     });
-    _ohShip.forEach(function(r){ oQ+=(+r.curQty||0); if(!_ohKey(r)) noKey++; });
+    _ohShip.forEach(function(r){ oQ+=ssOutQty(r); if(!_ohKey(r)) noKey++; });
     var gapQ = (sQ - tQ) - oQ;   // 대사용 수량차이 = 정산 − 출고 (2026-08-02 확정). 직접판매는 빼고 잰다
     var G=_ohRoll();
     var eA=0; G.forEach(function(g){ eA+=(+g.eAmt||0); });   // 정산서 안 온 출고의 추정매출 합
@@ -5111,7 +5133,7 @@ function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); 
                  +' style="font-size:11px;font-weight:700;color:#c0392b;border:1px solid #f0c9c2;background:#fff7f6;border-radius:4px;padding:0 5px;cursor:help">중복 합산</span>':'')
         + '</td>'
         + '<td></td>'
-        + '<td style="text-align:right;color:#37475a">'+_ohQ(x.curQty)+'</td>'
+        + '<td style="text-align:right;color:#37475a">'+_ohQ(ssOutQty(x))+'</td>'
         + '<td colspan="3" class="txt-l" style="color:#9aa7b3;font-size:11.5px">'
         +   '발주 '+(ord?_cesc(ord):'<span style="color:#c47f17">없음</span>')
         +   (x.ordItemNo?('-'+_cesc(x.ordItemNo)):'')
@@ -5468,7 +5490,7 @@ function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); 
          정산서 2행이 같은 (납기일자·출고장·품목)이면 두 행 모두 같은 출고합계를 표시하므로
          그대로 더하면 이중계상된다. used 로 키당 1회만 더한다. */
   function _ohRenderSettle(wrap, sQ, sA){
-    var idx=_ohIndex(_ohShip,'curQty');
+    var idx=_ohIndex(_ohShip, ssOutQty);   // ★출고수량 = 라벨수량(2026-09-01)
     var h='<table class="logi-tb"><thead><tr><th>납품일자</th><th>출고장</th><th>발주번호</th><th>항번</th><th>품목코드</th><th>품목명</th>'
         +'<th style="text-align:right">발주량</th><th style="text-align:right">정산수량</th>'
         +'<th style="text-align:right">출고수량</th>'
@@ -5630,7 +5652,7 @@ function ssInwhNo(z){ var m=(''+z).replace(/\s*직송$/,'').match(/(\d+)\s*$/); 
         +'<td>'+_cesc(r.itemCd)+'</td>'
         +'<td>'+(_cesc(r.ordNo)||'<span style="color:#c9d2d0">—</span>')+'</td><td>'+_cesc(r.ordItemNo)+'</td>'
         +'<td>'+_cesc(r.shpoutDt)+(_ohYmd(r.shpoutDt)!==_ohYmd(r.dlvDt)?' <span style="color:#c47f17" title="납기일자 '+_cesc(r.dlvDt)+' — 먼 지역은 하루 당겨 출고합니다">*</span>':'')+'</td>'
-        +'<td style="text-align:right">'+_ohQ(r.curQty)+'</td>'
+        +'<td style="text-align:right">'+_ohQ(ssOutQty(r))+'</td>'
         +'<td>'+st+'</td></tr>';
     };
     _ohMount(wrap, h, list, function(r2){

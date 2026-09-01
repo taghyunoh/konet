@@ -417,7 +417,8 @@ function shPick(i){
       tb.innerHTML = l.map(function(d,k){
         return '<tr><td>'+(k+1)+'</td><td>'+esc(d.bizCd)+'</td><td class="txt">'+esc(d.bizNm)+'</td>'
           + '<td>'+esc(d.itemCd)+'</td><td class="txt">'+esc(d.itemNm)+'</td>'
-          + '<td>'+esc(d.unit)+'</td><td class="num">'+fmt(d.curQty)+'</td><td class="num">'+fmt(d.boxQty)+'</td>'
+          /* ★수량 = 라벨수량(LABEL_QTY) (2026-09-01 「수량은 라벨수량을 출고수량으로」) — 없는 옛 행만 CUR_QTY 폴백 */
+          + '<td>'+esc(d.unit)+'</td><td class="num">'+fmt((d.labelQty!=null&&d.labelQty!=='')?d.labelQty:d.curQty)+'</td><td class="num">'+fmt(d.boxQty)+'</td>'
           + '<td>'+esc(d.ordNo)+'</td><td>'+esc(d.inwh)+'</td></tr>';
       }).join('');
     })

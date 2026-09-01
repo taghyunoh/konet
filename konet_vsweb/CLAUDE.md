@@ -631,6 +631,17 @@
 - ⚠**`selectShipoutHistAll` 에 ZONE·DLV_GB 추가**(User_SQL.xml) — 차수별 개수 원천인 이 쿼리만 두 컬럼이 빠져 있어, 이력 행이 배송 낱알로 매핑되며 「○○ 직송」 줄의 차수 칸이 전부 빈칸이었다. **이 XML 건만 WAR 재빌드+재기동 필요** — 나머지는 전부 JSP/JS.
 - **무영향**: 택배출고관리(DB ZONE 그대로) · 매출내역 대사(_ohDcOf=DC_CD) · 매출마감(서버 SQL) — DB 값 무변경, 표시만.
 
+### ★★[확정 2026-09-01] 출고수량 = **라벨수량(LABEL_QTY)** — 「수량은 라벨수량을 출고수량으로 변경」
+- **규칙**: 발주현황표의 출고수량은 이제 **`라벨수량`(LABEL_QTY)** 이다. 종전엔 '수량'(현 발주, `CUR_QTY`).
+  실측(2026.09.01_18.56.11.xlsx, 158행): 라벨수량 합 230 vs 수량 합 231 — 어긋난 1행(호호솥밥 방배점 라벨1/수량2)은 라벨이 맞다(사용자 확정).
+- ★**DB 는 안 바꿨다** — `CUR_QTY`·`LABEL_QTY` 두 칸 모두 종전대로 저장(업로드 파서 `ssBuildShipoutRows` 무변경). 바뀐 것은 **읽는 쪽 전부**다. LABEL_QTY 가 NULL 인 옛 행(구양식)만 CUR_QTY 폴백 — `ISNULL(LABEL_QTY, ISNULL(CUR_QTY,0))` / JS `ssOutQty()`. **0 은 폴백하지 않는다(0 도 값).**
+- **고친 곳 — 서버 SQL(User_SQL.xml, ★WAR 재빌드+재기동 필요)**: selectClosing(매출마감 outQty·안분분모 keyQty) · selectSalesChart/Daily(추정매출·매입액 3곳씩) · selectParcelOutList(택배 totQty — **2026-08-13 「총수량=CUR_QTY」 확정을 대체**) · selectShipoutUploadHist(qtySum) · selectStockLedgerList/selectStockMstList(사업장표시·대체출고 집계 5곳) · insertShipoutLedger(SUM·HAVING — SHIPOUT_LEDGER_ON=false 라 휴면, 일관성 유지용). 라벨수량 alias 추가만: selectShipoutUploadDtl·selectShipoutHistAll·selectShipoutHistory.
+- **고친 곳 — 클라이언트(JSP/JS, 저장=반영)**: [logi-oh.js](src/main/webapp/js/winct/logi-oh.js) 최상단 `ssOutQty()` 헬퍼 + ①엑셀 파서 `ssMapCols` 두 양식 모두 **cQty = '라벨수량' 우선**(단독 1행 칸이라 가마감/현발주 dup 불필요, 없으면 종전 규칙 폴백. SS_FMT_SPEC qty 목록도) ②DB 매핑 `SHIP_DATA`·`_ssAsqNormPrev`(직전배치 대조 — **한쪽만 고치면 허위 차이**) ③매출내역 대사 oh* 9곳(oQty·추정매출·`_ohIndex(_ohShip, ssOutQty)`) / [logistics_demo1.jsp](src/main/webapp/WEB-INF/jsp/main/admin/logistics_demo1.jsp) `d2MapRow`(현재·직전·차수이력 전부 이 매핑 경유) / shipoutHist.jsp 명세 수량 칸 / parcelOut 주석·툴팁 / demo2 업무설명서 2행.
+- ⚠**`TBL_STOCK_MST.CUR_QTY`(현재고)는 이름만 같은 별개 컬럼** — 손대지 않았다. 재고 원장도 정산서(OUT_QTY) 원천이라 이번 변경과 무관.
+- **node 스텁 실측**: cQty=18('라벨수량') · 미리보기 합 230 · DB저장 230/231(두 칸 보존) · ssOutQty [0유지·null폴백·라벨우선] 전부 정상.
+- [미결] **미납라벨수량**은 안 더한다(사용자 지시가 '라벨수량'뿐) — 라벨+미납을 합치자는 얘기가 나오면 여기서 시작.
+- **이미 쌓인 자료는 재업로드 불필요** — LABEL_QTY 가 처음부터 저장돼 왔으므로 조회·마감이 즉시 새 기준으로 계산된다.
+
 ### ★[확정 2026-09-01] 직송도 **입고장별로** 나눈다 — 「배송조건과 똑같이」
 - **문제**: 위 2026-08-30 판은 직송이면 **입고장을 버리고** `물류센터명 직송` 한 줄로 뭉쳤다.
   실측(`D:\코네트\2026.09.01_18.56.10.xlsx`, 데이터 159행)에서 **직송 13행의 입고장이 1(6행)·2(2행)·3(5행)

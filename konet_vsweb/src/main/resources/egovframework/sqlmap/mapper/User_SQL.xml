@@ -983,7 +983,7 @@
 	      CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm,
 	      t.DC_CD AS dcCd, t.DC_NM AS dcNm,
 	      t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
-	      t.CUR_QTY AS curQty, t.REG_USER AS regUser
+	      t.CUR_QTY AS curQty, t.LABEL_QTY AS labelQty, t.REG_USER AS regUser
 	    FROM TBL_SHIPOUT_MST t
 	   WHERE t.SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
 	     AND ISNULL(t.DC_CD,'') = ISNULL(#{dcCd},'')
@@ -1090,13 +1090,14 @@
 	               · 매출액 = 정산서에 짝이 없을 때만 판매단가로 추정(짝이 있으면 ①의 정산금액이 매출이다)
 	             ★종전 NOT EXISTS 를 '정산서 키' LEFT JOIN 으로 바꿨다 — 한 번 훑어 매출·매입을 함께 계산하기 위함.
 	               (마감에서도 같은 판정을 상관 서브쿼리로 두었다가 3.7초 → LEFT JOIN 으로 바꾼 전례가 있다) */
+	          -- ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정) — 없는 옛 행만 CUR_QTY(수량) 폴백
 	          SELECT LEFT(ISNULL(NULLIF(o.DLV_DT,''), o.SHPOUT_DT),6) AS ym,
 	                 dk.dcKey AS dcCd, ISNULL(o.DC_NM,'(미지정)') AS dcNm,
-	                 CASE WHEN sk.itemCd IS NULL THEN ISNULL(o.CUR_QTY,0) * u.saleUnit ELSE 0 END AS saleAmt,
+	                 CASE WHEN sk.itemCd IS NULL THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.saleUnit ELSE 0 END AS saleAmt,
 	                 0 AS stlAmt,
-	                 CASE WHEN sk.itemCd IS NULL THEN ISNULL(o.CUR_QTY,0) * u.saleUnit ELSE 0 END AS estAmt,
+	                 CASE WHEN sk.itemCd IS NULL THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.saleUnit ELSE 0 END AS estAmt,
 	                 0 AS trxAmt,
-	                 ISNULL(o.CUR_QTY,0) * u.inUnit AS costAmt
+	                 ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.inUnit AS costAmt
 	            FROM TBL_SHIPOUT_MST o
 	            CROSS APPLY (
 	                  SELECT CASE WHEN ISNULL(o.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(o.DC_CD)))
@@ -1254,12 +1255,13 @@
 
 	          UNION ALL
 	          -- ② 출고 — 매입액은 전 건, 매출은 정산서가 없는 건만(월별 쿼리와 같은 규칙)
+	          -- ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정) — 없는 옛 행만 CUR_QTY(수량) 폴백
 	          SELECT ISNULL(NULLIF(o.DLV_DT,''), o.SHPOUT_DT) AS dt,
-	                 CASE WHEN sk.itemCd IS NULL THEN ISNULL(o.CUR_QTY,0) * u.saleUnit ELSE 0 END AS saleAmt,
+	                 CASE WHEN sk.itemCd IS NULL THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.saleUnit ELSE 0 END AS saleAmt,
 	                 0 AS stlAmt,
-	                 CASE WHEN sk.itemCd IS NULL THEN ISNULL(o.CUR_QTY,0) * u.saleUnit ELSE 0 END AS estAmt,
+	                 CASE WHEN sk.itemCd IS NULL THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.saleUnit ELSE 0 END AS estAmt,
 	                 0 AS trxAmt,
-	                 ISNULL(o.CUR_QTY,0) * u.inUnit AS costAmt
+	                 ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.inUnit AS costAmt
 	            FROM TBL_SHIPOUT_MST o
 	            CROSS APPLY (
 	                  SELECT CASE WHEN ISNULL(o.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(o.DC_CD)))
@@ -1372,7 +1374,8 @@
 	         COUNT(*)                                      AS rowCnt,
 	         COUNT(DISTINCT ISNULL(t.BIZ_CD,''))           AS bizCnt,
 	         COUNT(DISTINCT ISNULL(t.ITEM_CD,''))          AS itemCnt,
-	         SUM(ISNULL(t.CUR_QTY,0))                      AS qtySum
+	         -- ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정) — 없는 옛 행만 CUR_QTY(수량) 폴백
+	         SUM(ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0))) AS qtySum
 	    FROM TBL_SHIPOUT_MST t
 	   WHERE ISNULL(t.ACTION_YN,'') <> 'D'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -1393,7 +1396,7 @@
 	<select id="selectShipoutUploadDtl" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT t.ROW_NO AS rowNo, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
 	         t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.UNIT AS unit,
-	         t.CUR_QTY AS curQty, t.BOX_QTY AS boxQty,
+	         t.CUR_QTY AS curQty, t.LABEL_QTY AS labelQty, t.BOX_QTY AS boxQty,
 	         t.ORD_NO AS ordNo, t.ORD_ITEM_NO AS ordItemNo, t.INWH AS inwh, t.REMARK AS remark
 	    FROM TBL_SHIPOUT_MST t
 	   WHERE t.SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt,jdbcType=VARCHAR},''),'-','')
@@ -1417,7 +1420,8 @@
 	      --   빠지면 「○○물류센터 직송」 줄의 차수별 개수가 전부 빈칸이 된다(이력이 배송 낱알로 붙어버림).
 	      t.ZONE AS zone, t.DLV_GB AS dlvGb,
 	      t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
-	      t.CUR_QTY AS curQty
+	      -- ★LABEL_QTY (2026-09-01) — 출고수량=라벨수량 전환. 이 쿼리만 빠지면 차수별 이력 수량이 옛 기준으로 남는다.
+	      t.CUR_QTY AS curQty, t.LABEL_QTY AS labelQty
 	    FROM TBL_SHIPOUT_MST t
 	   WHERE ISNULL(t.ACTION_YN,'') <> 'D'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -1576,11 +1580,12 @@
 	         --   이 화면은 전부 ZONE='직송' 이라 출고장 = 물류센터다. 그리드에는 안 보이고 셀 때만 쓴다.
 	         ISNULL(s.DC_CD,'') AS dcCd, ISNULL(s.DC_NM,'') AS dcNm,
 	         CASE WHEN ISNULL(s.BOX_QTY,0) < 1 THEN 1 ELSE s.BOX_QTY END AS boxQty,
-	         -- 총수량 = 발주현황표(엑셀)의 '수량'(CUR_QTY) 원값 그대로 (2026-08-13 확정).
-	         --   대시보드1 이 쓰는 칸과 같다 — 두 화면 숫자가 어긋나지 않는다.
+	         -- ★총수량 = 발주현황표(엑셀)의 '라벨수량'(LABEL_QTY) 원값 (2026-09-01 「수량은 라벨수량을
+	         --   출고수량으로 변경」 — 종전 2026-08-13 의 '수량'(CUR_QTY) 확정을 대체). 없는 옛 행만 CUR_QTY 폴백.
+	         --   대시보드1 이 쓰는 기준과 같다 — 두 화면 숫자가 어긋나지 않는다.
 	         -- ★박스 × 입수로 계산하지 말 것: 상품마스터 입수가 미등록(1)이거나 품목명 표기와
 	         --   달라(마스터 48 vs 품목명 100EA/BOX) 줄마다 1·48·100·2000 이 뒤섞여 나왔다.
-	         ISNULL(s.CUR_QTY,0) AS totQty,
+	         ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) AS totQty,
 	         ISNULL(NULLIF(b.PARCEL_ADDR,''), ISNULL(b.ADDR,'')) AS addr,
 	         ISNULL(NULLIF(b.PARCEL_TEL,''),  ISNULL(b.TEL,''))  AS tel,
 	         ISNULL(NULLIF(b.PARCEL_HP,''),   ISNULL(b.HP,''))   AS hp,
@@ -2043,10 +2048,12 @@
 	                     ISNULL(s.BIZ_CD,'') AS bizCd, s.BIZ_NM AS bizNm,
 	                     ISNULL(s.DC_CD,'') AS dcCd, s.DC_NM AS dcNm,
 	                     ISNULL(s.VENDOR_CD,'') AS vendorCd, s.VENDOR_NM AS vendorNm,
-	                     ISNULL(s.CUR_QTY,0) AS outQty,
+	                     -- ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정 「수량은 라벨수량을 출고수량으로」)
+	                     --   없는 옛 행만 CUR_QTY(수량) 폴백. 정산서 대사·안분 분모(keyQty)도 같은 기준이어야 한다.
+	                     ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) AS outQty,
 	                     u.saleUnit, u.inUnit, u.saleSrc, u.inSrc, st.stlAmt,
 	                     -- 같은 대사키의 출고수량 합 = 정산금액을 사업장별로 안분할 때의 분모
-	                     SUM(ISNULL(s.CUR_QTY,0)) OVER (PARTITION BY s.COMP_CD, dk.dcKey, s.ITEM_CD, dk.dlvKey) AS keyQty,
+	                     SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) OVER (PARTITION BY s.COMP_CD, dk.dcKey, s.ITEM_CD, dk.dlvKey) AS keyQty,
 	                     COUNT(*)                 OVER (PARTITION BY s.COMP_CD, dk.dcKey, s.ITEM_CD, dk.dlvKey) AS keyRows
 	                FROM TBL_SHIPOUT_MST s
 	                LEFT JOIN (
@@ -2558,7 +2565,7 @@
 	                             WHERE s.ACTION_YN = 'Y' AND s.PROD_CD = l.PROD_CD
 	                               AND s.COMP_CD = l.COMP_CD
 	                               AND s.SHPOUT_DT = l.REF_NO AND ISNULL(s.BIZ_NM,'') <> ''
-	                               AND ISNULL(s.CUR_QTY,0) > 0
+	                               AND ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) > 0   -- ★출고수량=라벨수량(2026-09-01)
 	                               FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 2, ''), l.BIZ_CD)
 	              ELSE l.BIZ_CD END AS bizCd,
 	         /* ★대체출고 내역 (2026-08-07 요청)
@@ -2580,22 +2587,22 @@
 	                   AND EXISTS (SELECT 1 FROM TBL_SHIPOUT_MST s2
 	                                WHERE s2.ACTION_YN = 'Y' AND s2.PROD_CD = l.PROD_CD
 	                                  AND s2.COMP_CD = l.COMP_CD AND s2.SHPOUT_DT = l.REF_NO
-	                                  AND ISNULL(s2.CUR_QTY,0) > 0
+	                                  AND ISNULL(s2.LABEL_QTY, ISNULL(s2.CUR_QTY,0)) > 0   -- ★출고수량=라벨수량(2026-09-01)
 	                                  AND ISNULL(s2.ITEM_CD,'') <> ISNULL(s2.PROD_CD,''))
 	              THEN STUFF((SELECT '|' + x.ITEM_CD + '(' + CAST(CAST(x.q AS INT) AS VARCHAR(12)) + ')~' + ISNULL(x.bizs,'')
-	                            FROM (SELECT s.ITEM_CD, SUM(ISNULL(s.CUR_QTY,0)) AS q,
+	                            FROM (SELECT s.ITEM_CD, SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) AS q,
 	                                         /* 그 코드로 나간 사업장 — 대표 줄 사업장 칸과 같은 규칙(중복 제거·콤마) */
 	                                         STUFF((SELECT DISTINCT ', ' + s3.BIZ_NM
 	                                                  FROM TBL_SHIPOUT_MST s3
 	                                                 WHERE s3.ACTION_YN = 'Y' AND s3.PROD_CD = l.PROD_CD
 	                                                   AND s3.COMP_CD = l.COMP_CD AND s3.SHPOUT_DT = l.REF_NO
 	                                                   AND s3.ITEM_CD = s.ITEM_CD
-	                                                   AND ISNULL(s3.CUR_QTY,0) > 0 AND ISNULL(s3.BIZ_NM,'') <> ''
+	                                                   AND ISNULL(s3.LABEL_QTY, ISNULL(s3.CUR_QTY,0)) > 0 AND ISNULL(s3.BIZ_NM,'') <> ''
 	                                                 FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 2, '') AS bizs
 	                                    FROM TBL_SHIPOUT_MST s
 	                                   WHERE s.ACTION_YN = 'Y' AND s.PROD_CD = l.PROD_CD
 	                                     AND s.COMP_CD = l.COMP_CD AND s.SHPOUT_DT = l.REF_NO
-	                                     AND ISNULL(s.CUR_QTY,0) > 0
+	                                     AND ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) > 0
 	                                   GROUP BY s.ITEM_CD) x
 	                           ORDER BY x.q DESC
 	                           FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 1, '')
@@ -2707,10 +2714,10 @@
 	              GROUP BY 키인 l.PROD_CD 는 그대로 쓸 수 있고, COMP_CD 는 MAX() 로 감싼다.
 	              한 품목이 여러 회사에 걸치지 않으므로 MAX 여도 값은 하나다. */
 	         STUFF((SELECT '|' + x.ITEM_CD + ':' + CAST(CAST(x.q AS INT) AS VARCHAR(12))
-	                  FROM (SELECT s2.ITEM_CD, SUM(ISNULL(s2.CUR_QTY,0)) AS q
+	                  FROM (SELECT s2.ITEM_CD, SUM(ISNULL(s2.LABEL_QTY, ISNULL(s2.CUR_QTY,0))) AS q   -- ★출고수량=라벨수량(2026-09-01)
 	                          FROM TBL_SHIPOUT_MST s2
 	                         WHERE s2.ACTION_YN = 'Y' AND s2.COMP_CD = MAX(l.COMP_CD)
-	                           AND s2.PROD_CD = l.PROD_CD AND ISNULL(s2.CUR_QTY,0) > 0
+	                           AND s2.PROD_CD = l.PROD_CD AND ISNULL(s2.LABEL_QTY, ISNULL(s2.CUR_QTY,0)) > 0
 	                           AND ( ISNULL(#{asOfDt,jdbcType=VARCHAR},'') = ''
 	                                 OR s2.SHPOUT_DT &lt;= REPLACE(#{asOfDt,jdbcType=VARCHAR},'-','') )
 	                         GROUP BY s2.ITEM_CD) x
@@ -2755,7 +2762,8 @@
 	         매핑을 걸면 saveXref 가 소급으로 채우고 이 구문이 다시 돌아 재고가 맞춰진다. -->
 	<insert id="insertShipoutLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
 	  INSERT INTO TBL_STOCK_LEDGER (COMP_CD, PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, UNIT_PRICE, AMT, BIZ_CD, REF_GB, REF_NO, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
-	  SELECT s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, s.SHPOUT_DT, 'O', SUM(ISNULL(s.CUR_QTY,0)) AS QTY,
+	  /* ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정) — 없는 옛 행만 CUR_QTY(수량) 폴백 */
+	  SELECT s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, s.SHPOUT_DT, 'O', SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) AS QTY,
 	         NULL, NULL, NULL, 'SHIPOUT', s.SHPOUT_DT, N'출고 자동연동(SHIPOUT)', 'Y',
 	         CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR}
 	    FROM TBL_SHIPOUT_MST s
@@ -2772,7 +2780,7 @@
 	                         AND v.COMP_CD   = s.COMP_CD
 	                         AND v.DLV_DT    = s.SHPOUT_DT )
 	   GROUP BY s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, s.SHPOUT_DT
-	  HAVING SUM(ISNULL(s.CUR_QTY,0)) > 0
+	  HAVING SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) > 0
 	]]></insert>
 
 	<!-- ==========================================================================================
