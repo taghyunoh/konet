@@ -484,11 +484,18 @@
   table.sswide tr.lgrp td.stick { background:#e3efec; }
   table.sswide tr.lgrp:hover td { background:#dcefe9; }
   table.sswide tr.lgrp .zcaret { display:inline-block; width:12px; color:#1f9b8e; font-size:10px; }
-  table.sswide tr.lsub td { background:#eaf5f2; font-weight:700; color:#137a6c; }
-  table.sswide tr.lsub td.stick { background:#dcefe9; }
+  /* ★낱알(출고장) 수량 — 이름 바로 옆(2026-09-02 「낱개에도 숫자」). demo1 td.zone .z-qty 와 같은 규칙 */
+  table.sswide td.stick .z-qty { margin-left:7px; font-weight:800; font-size:14.5px; }
+  /* ★묶음 합계(lsub) = 합계 3단의 맨 위 — 주황 계열·16px (2026-09-02 「한단계 크게 주황색으로」, demo1 gsub 와 동일) */
+  table.sswide tr.lsub td { background:#fbe3c6; font-weight:800; color:#8a4c0d; font-size:16px; }
+  table.sswide tr.lsub td.stick { background:#f7d0a0; }
   /* 센터 소계(csub) — 오산센터 묶음 안 물류센터 단위 합계 (2026-08-30). ★색·글자 = 묶음 합계(lsub)와 동일(사용자 요청) */
-  table.sswide tr.csub td { background:#eaf5f2; font-weight:700; color:#137a6c; }
-  table.sswide tr.csub td.stick { background:#dcefe9; }
+  /* ★합계 두 줄(센터·입고장) — 같은 자리에서 시작 + 글자 키움 (2026-09-02, 표 기본 13px → 14.5px) */
+  table.sswide tr.csub td { background:#c3e2d8; font-weight:800; color:#0b5246; font-size:14.5px; }
+  table.sswide tr.csub td.stick { background:#aed8ca; }
+  /* 입고장 소계(isub) — 센터 아래 한 단계(2026-09-02 「오산 5 (배송 7 · 직송 1)」). 자리·크기는 csub 와 같고 바탕색만 옅게 */
+  table.sswide tr.isub td { background:#dcefe7; font-weight:800; color:#12695a; font-size:14.5px; }
+  table.sswide tr.isub td.stick { background:#cbe6dc; }
   /* 「직송」 단어만 빨간 글씨 (2026-08-30 최종 「직송 글자만 빨간색으로」 — 줄 전체 빨강에서 축소) */
   table.sswide .jkw { color:#c0392b; font-weight:800; }
   table.sswide tr.ztot td { background:#1f2a37; font-weight:700; color:#fff; }

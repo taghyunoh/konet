@@ -110,7 +110,7 @@
      ★키우면 칸도 같이 넓혀야 한다 — 안 그러면 품목명이 더 잘게 접혀 머리줄만 높아진다. */
   table.d2-mx { border-collapse:separate; border-spacing:0; font-size:15px; }
   table.d2-mx th, table.d2-mx td { border:1px solid var(--bd); padding:5px 9px; white-space:nowrap; text-align:right; background:#fff; }
-  table.d2-mx .cn { text-align:left; position:sticky; left:0; z-index:2; min-width:300px; font-weight:600; }
+  table.d2-mx .cn { text-align:left; position:sticky; left:0; z-index:2; font-weight:600; }   /* ★폭은 아래 --mxcn 규칙이 단독으로 정한다 — 여기에 min-width 를 다시 쓰면 드래그가 안 먹는다(2026-09-02) */
   table.d2-mx thead th { position:sticky; top:0; z-index:3; background:#dfeaf5; color:#1f2a37; height:34px; }
   /* 「출고장 / 품목」 모서리칸 · 사업장 머리줄은 표에서 길잡이라 본문보다 크게(2026-08-28) */
   table.d2-mx thead th.cn { z-index:4; background:#dfeaf5; font-size:17px; font-weight:800; }
@@ -159,6 +159,8 @@
   table.d2-mx tr.grp td.cn { background:#137a6c; }
   table.d2-mx tr.grp .sub { font-weight:400; color:#cdeee8; font-size:13px; }
   table.d2-mx td.cn.zn { padding-left:20px; font-weight:400; }
+  /* ★낱알(출고장) 수량 — 이름 바로 옆(2026-09-02 「개별숫자 표시」). 목록 보기 td.zone .z-qty 와 같은 모양 */
+  table.d2-mx td.cn .z-qty { margin-left:7px; font-weight:800; font-size:14.5px; }
   table.d2-mx td.cn.zn.zpick { cursor:pointer; }               /* 체크가 켜져 있을 때만 누를 수 있음을 커서로 */
   table.d2-mx td.cn.zn.zpick:hover { background:#eef7f4; }
   .mxfull { color:#9aa7b3; font-weight:400; font-size:.86em; } /* 병기(전체값) — 옅게 */
@@ -175,10 +177,15 @@
   table.d2-mx tr.sum td { background:#f2f2f2; font-weight:700; }
   table.d2-mx tr.zc td { background:#e2efda; font-weight:700; color:#375623; }
   /* 센터 소계(csub) — 가로표 판. ★색·글자 = 목록의 묶음 합계(gsub)와 동일 톤(2026-08-30 요청) · 고정칸 배경 불투명 필수 */
-  table.d2-mx tr.csub td { background:#eaf5f2; color:#137a6c; font-weight:700; }
-  table.d2-mx tr.csub td.cn { background:#dcefe9; padding-left:22px; }
-  table.d2-mx tr.csub td.rtot { background:#eaf5f2; }
-  table.d2-mx tr.csub td.none { background:#eaf5f2; }
+  table.d2-mx tr.csub td { background:#c3e2d8; color:#0b5246; font-weight:800; font-size:14.5px; }
+  table.d2-mx tr.csub td.cn { background:#aed8ca; padding-left:22px; }
+  table.d2-mx tr.csub td.rtot { background:#c3e2d8; }
+  table.d2-mx tr.csub td.none { background:#c3e2d8; }
+  /* 입고장 소계(isub) — 가로표 판. ★시작 위치·글자 크기 = csub 와 동일(2026-09-02), 바탕색만 옅게 */
+  table.d2-mx tr.isub td { background:#dcefe7; color:#12695a; font-weight:800; font-size:14.5px; }
+  table.d2-mx tr.isub td.cn { background:#cbe6dc; padding-left:22px; }
+  table.d2-mx tr.isub td.rtot { background:#dcefe7; }
+  table.d2-mx tr.isub td.none { background:#dcefe7; }
   /* 「직송」 단어만 빨간 글씨 (2026-08-30 최종 — 라벨 전체 빨강에서 축소) */
   table.d2-tb .jkw, table.d2-mx .jkw { color:#c0392b; font-weight:800; }
   /* 진청록 묶음 머리줄(tr.grp) 위에서는 진빨강이 안 보인다(2026-08-30 지적) → 밝은 살구빛 빨강 */
@@ -197,11 +204,23 @@
   /* ★합계·품목수를 「출고장」 바로 뒤로 옮기고 같이 얼린다(2026-08-28 요청) — 옆으로 끝까지 밀어도 총량이 보인다.
      ★sticky 의 left 값은 앞칸 폭의 <합>이라 폭을 못박아야 한다. .cn 300(2026-08-30 「출고장 늘려줘」 — 배송·직송 나눔 라벨이 길어졌다) → 합계 300.
        폭을 바꾸면 left 도 같이 고쳐야 한다(안 그러면 칸이 겹치거나 틈이 생긴다). */
-  /* 폭 확대 (2026-08-28 요청 「합계·품목수 확대」) : 합계 86 → 108 · 품목수 78 → 96.
-     ⚠left 값은 앞칸 폭의 <합>이다 — 합계 left=300(.cn), 품목수 left=300+108=408. 폭을 또 바꾸면 여기도. */
-  table.d2-mx .cn   { width:300px; min-width:300px; max-width:300px; box-sizing:border-box; }
-  table.d2-mx .rtot { position:sticky; left:300px; z-index:2; width:108px; min-width:108px; max-width:108px; box-sizing:border-box; }
-  table.d2-mx .rcnt { position:sticky; left:408px; z-index:2; width:96px;  min-width:96px;  max-width:96px;  box-sizing:border-box; }
+  /* 폭 이력 : 합계 86 → 108 → **84** · 품목수 78 → 96 → **72** · 출고장 300 → **360**
+     (2026-09-02 「1번 늘리고 2번 줄이고」 — 합계 3단 라벨 `오산물류센터 합계 (배송 9 · 직송 6)` 이 길어져
+      출고장 칸에서 잘렸고, 반대로 합계·품목수는 세 자리 숫자에 견줘 자리가 남았다).
+     ⚠★left 값은 앞칸 폭의 <합>이다 — 합계 left=360(.cn), 품목수 left=360+84=444. **폭을 또 바꾸면 여기도 함께 고칠 것**
+       (안 그러면 칸이 겹치거나 틈이 생긴다). */
+  /* ★출고장 칸 폭은 <CSS 변수 --mxcn> 하나로 묶는다 (2026-09-02 「조금 줄이고 헤더 조절되게」) —
+       종전엔 폭과 sticky left 를 px 로 따로 적어 한쪽만 고치면 칸이 겹쳤다. 이제 --mxcn 만 바꾸면 left 가 따라온다.
+       드래그로 바꾼 값은 localStorage(konetMxCnW)에 남아 다음에 들어와도 그대로. */
+  /* ⚠기본값은 var() 의 <폴백>으로만 준다 — `table.d2-mx{--mxcn:330px}` 처럼 표에 직접 정의하면
+       JS 가 :root 에 넣는 값보다 표 쪽이 가까워 이겨서 드래그가 안 먹는다(2026-09-02 실수해서 고침). */
+  table.d2-mx .cn   { width:var(--mxcn,330px); min-width:var(--mxcn,330px); max-width:var(--mxcn,330px); box-sizing:border-box; }
+  table.d2-mx .rtot { position:sticky; left:var(--mxcn,330px); z-index:2; width:84px; min-width:84px; max-width:84px; box-sizing:border-box; }
+  table.d2-mx .rcnt { position:sticky; left:calc(var(--mxcn,330px) + 84px); z-index:2; width:72px; min-width:72px; max-width:72px; box-sizing:border-box; }
+  /* 머리칸 오른쪽 경계 손잡이 — 끌어서 출고장 칸 폭 조절 */
+  table.d2-mx thead th.cn { position:sticky; }
+  table.d2-mx thead th.cn .mx-rz { position:absolute; top:0; right:0; width:8px; height:100%; cursor:col-resize; z-index:6; }
+  table.d2-mx thead th.cn .mx-rz:hover { background:rgba(255,255,255,.35); }
   /* 글자도 한 단계 크게 — 이 두 칸이 표에서 가장 먼저 읽는 숫자다 */
   table.d2-mx td.rtot, table.d2-mx td.rcnt { font-size:16.5px; font-weight:800; }
   table.d2-mx thead th.rtot, table.d2-mx thead th.rcnt { font-size:15px; font-weight:800; }
@@ -301,6 +320,8 @@
   table.d2-tb td.num { text-align:right; font-variant-numeric:tabular-nums; }  /* [2026-08-20] 콘셉 : 세로로 자릿수가 맞아 눈으로 검산된다 */
   /* 출고장 셀(좌측 rowspan) — 데시보드1의 td.stick 속성(#f4f8f7 / teal / weight 600) + 클릭으로 접기/펼치기 */
   table.d2-tb td.zone { background:#f4f8f7; color:#178074; font-weight:600; text-align:left; vertical-align:top; position:sticky; left:0; z-index:2; cursor:pointer; }
+  /* ★낱알(출고장) 수량 — 이름 바로 옆(2026-09-02 「낱개에도 숫자」). 합계 줄의 (배송 X · 직송 Y) 와 같은 자리·같은 굵기 */
+  table.d2-tb td.zone .z-qty { margin-left:7px; font-weight:800; font-size:14.5px; }
   table.d2-tb td.zone:hover { background:#eef3f2; }
   table.d2-tb td.zone .zcaret { display:inline-block; width:12px; color:#1f9b8e; font-size:10px; }
   /* 납기일자 — 출고장명 아래 줄에 표시 (한 줄 표기 시 잘리는 문제 방지) */
@@ -350,13 +371,24 @@
   table.d2-tb tr.grp:hover td:first-child { background:#0a5249; }
   table.d2-tb tr.grp td .zcaret { display:inline-block; width:15px; color:#ffffff; font-size:12px; }
   /* 물류센터 합계 행 — 데시보드1 tr.lsub 속성 */
-  table.d2-tb tr.gsub td { background:#eaf5f2; color:#137a6c; font-weight:700; text-align:left; }
-  table.d2-tb tr.gsub td:first-child { background:#dcefe9; position:sticky; left:0; z-index:2; }
+  /* ★묶음 합계(gsub) = 합계 3단의 <맨 위> — 주황 계열로 한 단계 더 크게 (2026-09-02 「한단계 크게 주황색으로」).
+       청록 두 줄(센터 csub · 입고장 isub)과 <색 자체를 달리해> 묶음 합계임이 한눈에 구분되게 한다.
+       크기 = 16px(묶음) > 14.5px(센터·입고장) > 13px(자료). */
+  table.d2-tb tr.gsub td { background:#fbe3c6; color:#8a4c0d; font-weight:800; text-align:left; font-size:16px; }
+  table.d2-tb tr.gsub td:first-child { background:#f7d0a0; position:sticky; left:0; z-index:2; }
   table.d2-tb tr.gsub td.num { text-align:right; }
   /* 센터 소계(csub) — 오산센터 묶음 안 물류센터 단위 합계. ★색·글자 = 묶음 합계(gsub)와 동일(2026-08-30 요청) */
-  table.d2-tb tr.csub td { background:#eaf5f2; color:#137a6c; font-weight:700; text-align:left; }
-  table.d2-tb tr.csub td:first-child { background:#dcefe9; position:sticky; left:0; z-index:2; padding-left:16px; }
+  /* ★합계 두 줄(센터·입고장)은 <같은 자리에서 시작>하고 글자를 키운다 (2026-09-02 「1번처럼 2번 위치 앞으로, 둘다 폰트 크게」).
+       종전엔 입고장 소계를 30px 들여써 계층을 나타냈는데, 왼쪽 끝이 어긋나 오히려 읽기 나빴다.
+       계층 구분은 <색>이 맡는다(csub 진한 톤 / isub 옅은 톤). 표 기본 13px → 14.5px. */
+  table.d2-tb tr.csub td { background:#c3e2d8; color:#0b5246; font-weight:800; text-align:left; font-size:14.5px; }
+  table.d2-tb tr.csub td:first-child { background:#aed8ca; position:sticky; left:0; z-index:2; padding-left:16px; }
   table.d2-tb tr.csub td.num { text-align:right; }
+  /* ★입고장 소계(isub) — 센터 아래 한 단계(2026-09-02 「오산 5 (배송 7 · 직송 1)」 요청).
+       같은 입고장의 배송+직송을 묶는다. 시작 위치·글자 크기는 csub 와 동일, 바탕색만 한 톤 옅게. */
+  table.d2-tb tr.isub td { background:#dcefe7; color:#12695a; font-weight:800; text-align:left; font-size:14.5px; }
+  table.d2-tb tr.isub td:first-child { background:#cbe6dc; position:sticky; left:0; z-index:2; padding-left:16px; }
+  table.d2-tb tr.isub td.num { text-align:right; }
   /* 출고장 소계(블록 상단) */
   table.d2-tb tr.sub td { background:#eef3f2; font-weight:700; color:#0e6657; }
   table.d2-tb tbody tr.item:nth-child(even) td { background:#fbfdfc; }
@@ -724,7 +756,10 @@
   var D2_BASECOLS=[
     /* [원복 2026-08-28] 「전체 출고장 폭 조금넓게」를 열 폭으로 잘못 읽어 0.16 으로 키웠다가
        「무엇을했는지 그것은 원복」 지시로 0.14 복귀 — 실제 요청은 검은 <전체 출고장 합계 줄> 높이(tr.tot). */
-    {k:'zone', nm:'출고장', f:0.14},
+    /* 폭 0.14 → 0.175 → **0.205** (2026-09-02 「출고장 조금 확대」 두 번) — 합계 3단이 생기며 라벨이 길어져
+       `왜관물류센터 합계 (배송 13 · 직송…` 처럼 잘렸다(td 가 nowrap+ellipsis 라 조용히 잘린다).
+       늘린 만큼은 품목명(0.275→0.215)과 변동사항 칸(0.042→0.034)에서 덜어냈다. */
+    {k:'zone', nm:'출고장', f:0.205},
     {k:'no',   nm:'No',    f:0.035},
     /* 현재고 (2026-08-07 요청 "No 뒤에") — 근거는 재고현황(①)과 같다: 수불원장 입고−출고.
        여기서 바로 보이면 "이만큼 나가는데 재고는 있나" 를 화면을 옮기지 않고 안다. */
@@ -737,7 +772,7 @@
     {k:'match',nm:'매칭 사업장', f:0.065},
     {k:'biz',  nm:'사업장', f:0.15},
     {k:'code', nm:'품목코드', f:0.075},
-    {k:'item', nm:'품목명', f:0.275}
+    {k:'item', nm:'품목명', f:0.215}   /* 0.275 → 0.245 → 0.215 (2026-09-02 「품목명 조금 축소」+출고장 재확대) — 출고장 칸에 자리를 넘겼다 */
   ];
   var D2_COLS=D2_BASECOLS.slice();   // d2Render에서 매 렌더 시 [기준 + 차수컬럼]으로 재구성
   var D2_COLW={};   // {k: fraction(0~1)} — 사용자 조절값(localStorage). 합계 1 유지 → 항상 우측까지 채움
@@ -746,6 +781,32 @@
   (function(){ for(var k in D2_COLW){ var v=D2_COLW[k]; if(!(v>0 && v<=1)){ D2_COLW={}; try{ localStorage.removeItem('d2ColWidths8'); }catch(e){} break; } } })();
   function d2ColSave(){ try{ localStorage.setItem('d2ColWidths8', JSON.stringify(D2_COLW)); }catch(e){} }
   function d2ColFrac(k){ if(D2_COLW[k]>0 && D2_COLW[k]<=1) return D2_COLW[k]; for(var i=0;i<D2_COLS.length;i++) if(D2_COLS[i].k===k) return D2_COLS[i].f; return 0.15; }
+  /* ★가로표 「출고장 / 품목」 칸 너비 조절 (2026-09-02 「조금 줄이고 헤더 조절되게」)
+       - 폭은 CSS 변수 `--mxcn` 하나로 묶어 두었다 → 이것만 바꾸면 합계·품목수 칸의 sticky left 가 따라온다.
+       - 값은 <표 요소>가 아니라 그 위 컨테이너(.d2-mxwrap 없으면 table 자신)에 심어도 되지만,
+         표를 다시 그릴 때마다 사라지지 않게 **문서 루트(:root)에 심고** table 규칙이 var() 로 읽게 한다.
+       - 240~900px 로 제한(너무 좁으면 라벨이, 너무 넓으면 품목 칸이 안 보인다). 두 번 누르면 기본 330px. */
+  var MXCN_KEY='konetMxCnW', MXCN_DEF=330;
+  function d2MxCnSet(px, save){
+    px=Math.max(240, Math.min(900, Math.round(px||MXCN_DEF)));
+    document.documentElement.style.setProperty('--mxcn', px+'px');
+    if(save!==false){ try{ localStorage.setItem(MXCN_KEY, px); }catch(e){} }
+    return px;
+  }
+  (function(){ var v=0; try{ v=parseInt(localStorage.getItem(MXCN_KEY)||'',10)||0; }catch(e){} if(v) d2MxCnSet(v,false); })();
+  function d2MxCnDrag(e){
+    e.preventDefault(); e.stopPropagation();
+    var th=e.target.closest('th'); if(!th) return;
+    var startX=e.clientX, startW=th.getBoundingClientRect().width;
+    document.body.style.userSelect='none'; document.body.style.cursor='col-resize';
+    function mv(ev){ d2MxCnSet(startW+(ev.clientX-startX), false); }
+    function up(ev){
+      document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up);
+      document.body.style.userSelect=''; document.body.style.cursor='';
+      d2MxCnSet(startW+(ev.clientX-startX));   // 놓을 때 한 번만 저장
+    }
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+  }
   (function(){   // 헤더 경계 드래그 — 왼쪽 열↔오른쪽(다음) 열이 폭을 주고받음(총폭 고정, 우측 여백/스크롤 없음)
     var dragging=false, startX=0, tblW=1, ck=null, nk=null, sFi=0, sFn=0, MIN=0.005;
     document.addEventListener('mousedown', function(e){
@@ -1132,27 +1193,51 @@
           /* 센터 소계 — 화면 csub 와 같은 규칙(묶음 안 센터 여럿 + 그 센터 2줄 이상일 때만) (2026-08-30) */
           var _cCnt={}; gz.forEach(function(zn){ var c=d2CenterNm(zn); _cCnt[c]=(_cCnt[c]||0)+1; });
           var _cMulti=Object.keys(_cCnt).length>1;
-          var _cCur=null, _cs=cols.map(function(){ return 0; }), _cItems={}, _cTot=0;
+          /* ★입고장 소계(isub)도 엑셀에 (2026-09-02 「연관 엑셀에도 적용」) — 화면과 같은 두 조건:
+               ①그 입고장에 줄이 2개 이상 ②그 센터에 입고장이 2가지 이상. `_cIG` = 센터별 입고장 가짓수. */
+          var _iCnt={}, _cIG={};
+          gz.forEach(function(zn){ var k=d2InwhKey(zn); if(_iCnt[k]==null){ _iCnt[k]=0; var _c0=d2CenterNm(zn); _cIG[_c0]=(_cIG[_c0]||0)+1; } _iCnt[k]++; });
+          function _splitOf(list){ var d=0,j=0; list.forEach(function(zn){ var t=ag.zones[zn].tot||0; if(/\s직송$/.test(zn)) j+=t; else d+=t; }); return d2BdxText(d,j); }
+          var _cCur=null, _cs=cols.map(function(){ return 0; }), _cItems={}, _cTot=0, _cIdx=0, _cN=0, _cZl=[];
+          var _iCur=null, _is=cols.map(function(){ return 0; }), _iItems={}, _iTot=0, _iIdx=0, _iN=0, _iZl=[];
           function _cFlushX(){
             if(_cCur!==null && _cMulti && _cCnt[_cCur]>1){
-              lines.push({ ty:'csub', row:['  '+_cCur+' 합계', _cTot||'', Object.keys(_cItems).length||''].concat(_cs.map(function(v){ return v||''; })) });
+              /* 블록 맨 앞에 끼움(2026-09-02, 화면과 동일) — lines 는 나중에 행번호를 매기므로 splice 가 안전하다 */
+              lines.splice(_cIdx, 0, { ty:'csub', row:['  '+_cCur+' 합계'+_splitOf(_cZl), _cTot||'', Object.keys(_cItems).length||''].concat(_cs.map(function(v){ return v||''; })) });
             }
-            _cs=cols.map(function(){ return 0; }); _cItems={}; _cTot=0;
+            _cs=cols.map(function(){ return 0; }); _cItems={}; _cTot=0; _cN=0; _cZl=[];
+          }
+          /* ⚠_iFlushX 를 _cFlushX 보다 <먼저> 부를 것 — 나중에 부르면 입고장 소계가 다음 센터 영역으로 넘어간다.
+               csub 는 _cIdx(≤_iIdx)에 끼우므로, 먼저 들어간 isub 를 오른쪽으로 밀 뿐 차례는 안 흐트러진다. */
+          function _iFlushX(){
+            if(_iCur!==null && _iCnt[_iCur]>1 && _cIG[d2CenterNm(_iZl[0])]>1){
+              lines.splice(_iIdx, 0, { ty:'isub', row:['   '+d2ZoneBase(_iZl[0])+_splitOf(_iZl), _iTot||'', Object.keys(_iItems).length||''].concat(_is.map(function(v){ return v||''; })) });
+            }
+            _is=cols.map(function(){ return 0; }); _iItems={}; _iTot=0; _iN=0; _iZl=[];
           }
           gz.forEach(function(zn){
-            var _zc=d2CenterNm(zn); if(_cCur!==null && _zc!==_cCur) _cFlushX(); _cCur=_zc;
+            var _zc=d2CenterNm(zn), _zi=d2InwhKey(zn);
+            if(_iCur!==null && _zi!==_iCur) _iFlushX();
+            if(_cCur!==null && _zc!==_cCur) _cFlushX();
+            if(!_cN) _cIdx=lines.length;
+            if(!_iN) _iIdx=lines.length;
+            _cN++; _cCur=_zc; _cZl.push(zn); _iN++; _iCur=_zi; _iZl.push(zn);
             var rs=ag.zones[zn].rows, cells=[], rt=0, rc=0;
             cols.forEach(function(c,ix){
               var q=colQty(rs,c);
-              if(q>0){ sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; _cs[ix]+=q; rt+=q; rc++; itemAll[c.ck]=1; gItems[c.ck]=1; _cItems[c.ck]=1; }
+              if(q>0){ sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; _cs[ix]+=q; _is[ix]+=q; rt+=q; rc++; itemAll[c.ck]=1; gItems[c.ck]=1; _cItems[c.ck]=1; _iItems[c.ck]=1; }
               cells.push(q>0 ? q : '');
             });
-            grand+=rt; _cTot+=rt;
-            lines.push({ ty:'body', row:['    '+zn, rt||'', rc||''].concat(cells) });
+            grand+=rt; _cTot+=rt; _iTot+=rt;
+            /* 낱알 이름도 화면과 같은 표기 「오산 5 직송」 (2026-09-02) — 종전엔 내부 키(오산물류센터5 직송)가 그대로 나갔다.
+               ★이름 옆 수량도 화면(td .z-qty)과 똑같이 붙인다(2026-09-02 「엑셀도 낱개 숫자」).
+               ⚠값은 화면과 같은 <필터 무관 전체합>(ag.zones[zn].tot) — 옆 합계 칸(rt)은 필터가 걸리면 걸린 값이라 다를 수 있다. */
+            lines.push({ ty:'body', row:['    '+d2ZoneLabText(zn)+'  '+d2Num(ag.zones[zn].tot||0), rt||'', rc||''].concat(cells) });
           });
+          _iFlushX();   // 마지막 입고장 소계 — ★센터보다 먼저
           _cFlushX();   // 마지막 센터 소계
           var gTot=0; gs.forEach(function(v){ gTot+=v; });
-          push(['▼ '+g+'   ('+gz.length+'개 출고장)', gTot||'', Object.keys(gItems).length||'']
+          push(['▼ '+g+'   ('+gz.length+'개 출고장)'+_splitOf(gz), gTot||'', Object.keys(gItems).length||'']
                  .concat(gs.map(function(v){ return v||''; })), 'grp');
           lines.forEach(function(r){ push(r.row, r.ty); });
         });
@@ -1218,6 +1303,13 @@
           grpN:{ fill:{fgColor:{rgb:'137A6C'}}, font:{bold:true,color:{rgb:'FFFFFF'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
           sumL:{ fill:{fgColor:{rgb:'F2F2F2'}}, font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
           sumN:{ fill:{fgColor:{rgb:'F2F2F2'}}, font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          /* ★센터 소계(csub)·입고장 소계(isub) — 색은 화면(tr.csub #c3e2d8 / tr.isub #dcefe7)과 같다.
+             ⚠csubL/csubN 은 2026-08-30 에 csub 행을 넣으면서 <서식 정의를 빠뜨려> 이 표에서만 서식 없이 나가고 있었다
+               (S.csubL 이 undefined). 2026-09-02 입고장 소계를 넣으며 함께 채웠다. */
+          csubL:{ fill:{fgColor:{rgb:'C3E2D8'}}, font:{bold:true,color:{rgb:'0B5246'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          csubN:{ fill:{fgColor:{rgb:'C3E2D8'}}, font:{bold:true,color:{rgb:'0B5246'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          isubL:{ fill:{fgColor:{rgb:'DCEFE7'}}, font:{bold:true,color:{rgb:'12695A'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          isubN:{ fill:{fgColor:{rgb:'DCEFE7'}}, font:{bold:true,color:{rgb:'12695A'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
           zcntL:{ fill:{fgColor:{rgb:'E2EFDA'}}, font:{bold:true,color:{rgb:'375623'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
           zcntN:{ fill:{fgColor:{rgb:'E2EFDA'}}, font:{bold:true,color:{rgb:'375623'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
           cond:{ fill:{fgColor:{rgb:'EAF1F8'}}, font:{bold:true,color:{rgb:'20415A'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
@@ -1257,6 +1349,7 @@
             h=20;
           }
           else if(ty==='csub'){ put(r,0,S.csubL); for(c=1;c<wid;c++) put(r,c,S.csubN); h=19; }
+          else if(ty==='isub'){ put(r,0,S.isubL); for(c=1;c<wid;c++) put(r,c,S.isubN); h=19; }   // 입고장 소계(2026-09-02)
           else if(ty==='sum'){ put(r,0,S.sumL); for(c=1;c<wid;c++) put(r,c,S.sumN); h=20; }
           else if(ty==='zcnt'){ put(r,0,S.zcntL); for(c=1;c<wid;c++) put(r,c,S.zcntN); h=20; }
           else if(ty==='cond'){ for(c=0;c<wid;c++) put(r,c,S.cond); h=22; }
@@ -1313,6 +1406,13 @@
       var COLS=5, aoa=[], merges=[], meta=[];
       function mergeRow(ri,e){ merges.push({s:{r:ri,c:0}, e:{r:ri,c:(e==null?COLS-1:e)}}); }
       function push(row,ty,mEnd){ aoa.push(row); meta.push(ty); if(mEnd!=null) mergeRow(aoa.length-1,mEnd); }
+      /* 중간 끼워넣기 (2026-09-02 센터 합계 줄을 블록 맨 앞으로) — aoa·meta 를 같이 벌리고,
+           ★이미 기록된 병합(merges)은 절대 행번호라 idx 이후 것을 한 줄씩 밀어야 한다(안 밀면 병합이 엉뚱한 줄에 걸린다). */
+      function insertAt(idx,row,ty,mEnd){
+        aoa.splice(idx,0,row); meta.splice(idx,0,ty);
+        merges.forEach(function(m){ if(m.s.r>=idx){ m.s.r++; m.e.r++; } });
+        if(mEnd!=null) merges.push({s:{r:idx,c:0}, e:{r:idx,c:mEnd}});
+      }
       push(['출고장별 출고현황'+(mode==='daily'?' (일자별)':' (기간 합계)')],'title',COLS-1);
       push(['출고일자  '+dlab],'date',COLS-1);
       push([],'blank');
@@ -1332,17 +1432,33 @@
         var sub=0;
         gOrder.forEach(function(g){
           var gz=groups[g], gsum=0; gz.forEach(function(zn){ gsum+=ag.zones[zn].tot; });
-          push(['▼ '+g+'   ('+gz.length+'개 출고장 · 출고 '+d2Num(gsum)+')'],'grp',COLS-1);
+          function _splitOf(list){ var d=0,j=0; list.forEach(function(zn){ var t=ag.zones[zn].tot||0; if(/\s직송$/.test(zn)) j+=t; else d+=t; }); return d2BdxText(d,j); }
+          push(['▼ '+g+'   ('+gz.length+'개 출고장 · 출고 '+d2Num(gsum)+')'+_splitOf(gz)],'grp',COLS-1);
           /* 센터 소계 — 화면 csub 와 같은 규칙(2026-08-30 「엑셀도」) */
           var _cCnt={}; gz.forEach(function(zn){ var c=d2CenterOfX(zn); _cCnt[c]=(_cCnt[c]||0)+1; });
           var _cMulti=Object.keys(_cCnt).length>1;
-          var _cCur=null, _cTot=0;
+          /* ★입고장 소계(isub)도 엑셀에 (2026-09-02 「연관 엑셀에도 적용」) — 화면과 같은 두 조건 */
+          var _iCnt={}, _cIG={};
+          gz.forEach(function(zn){ var k=d2InwhKey(zn); if(_iCnt[k]==null){ _iCnt[k]=0; var _c0=d2CenterOfX(zn); _cIG[_c0]=(_cIG[_c0]||0)+1; } _iCnt[k]++; });
+          var _cCur=null, _cTot=0, _cIdx=0, _cN=0, _cZl=[];
+          var _iCur=null, _iTot=0, _iIdx=0, _iN=0, _iZl=[];
+          /* 센터 합계 = 블록 맨 앞(2026-09-02, 화면과 동일) — 첫 출고장 ▣ 줄 바로 위에 insertAt. 뒤 빈 줄은 출고장 블록마다 이미 있어 안 넣는다. */
           function _cFlush(){
-            if(_cCur!==null && _cMulti && _cCnt[_cCur]>1){ push(['▣ '+_cCur+' 합계','','','',_cTot],'sub',COLS-2); push([],'blank'); }
-            _cTot=0;
+            if(_cCur!==null && _cMulti && _cCnt[_cCur]>1){ insertAt(_cIdx, ['▣ '+_cCur+' 합계'+_splitOf(_cZl),'','','',_cTot],'sub',COLS-2); }
+            _cTot=0; _cN=0; _cZl=[];
+          }
+          /* ⚠_iFlush 를 _cFlush 보다 먼저 — 나중에 부르면 입고장 소계가 다음 센터 영역으로 넘어간다 */
+          function _iFlush(){
+            if(_iCur!==null && _iCnt[_iCur]>1 && _cIG[d2CenterOfX(_iZl[0])]>1){ insertAt(_iIdx, ['▷ '+d2ZoneBase(_iZl[0])+_splitOf(_iZl),'','','',_iTot],'isub',COLS-2); }
+            _iTot=0; _iN=0; _iZl=[];
           }
           gz.forEach(function(zn){
-            var _zc=d2CenterOfX(zn); if(_cCur!==null && _zc!==_cCur) _cFlush(); _cCur=_zc;
+            var _zc=d2CenterOfX(zn), _zi=d2InwhKey(zn);
+            if(_iCur!==null && _zi!==_iCur) _iFlush();
+            if(_cCur!==null && _zc!==_cCur) _cFlush();
+            if(!_cN) _cIdx=aoa.length;
+            if(!_iN) _iIdx=aoa.length;
+            _cN++; _cCur=_zc; _cZl.push(zn); _iN++; _iCur=_zi; _iZl.push(zn);
             var z=ag.zones[zn];
             var keys=Object.keys(z.rows).sort(function(a,b){
               var A=z.rows[a],B=z.rows[b];
@@ -1350,13 +1466,14 @@
             });
             var dla=Object.keys(z.dlv).sort();   // 납기일자 — 출고일자와 무관하게 항상 표시
             var dl=dla.length?('납기일자 '+dla.join(', ')):'';
-            push(['▣ '+zn+' 출고장   (품목 '+keys.length+'종 · 출고 '+d2Num(z.tot)+(dl?(' · '+dl):'')+')'],(/\s직송$/.test(zn)?'zonej':'zone'),COLS-1);   // 직송 블록 제목=빨간 글씨(2026-08-30)
+            push(['▣ '+d2ZoneLabText(zn)+'   (품목 '+keys.length+'종 · 출고 '+d2Num(z.tot)+(dl?(' · '+dl):'')+')'],(/\s직송$/.test(zn)?'zonej':'zone'),COLS-1);   // 직송 블록 제목=빨간 글씨(2026-08-30) · 라벨 「평택 1 배송」(2026-09-02, 화면과 동일)
             push(['No','사업장','품목명','품목코드','출고수량'],'head');
             keys.forEach(function(k,ix){ var r=z.rows[k]; push([ix+1, r.biz, r.name, r.code, r.qty],'item'); });
             push(['소계','','','',z.tot],'sub',COLS-2);
             push([],'blank');
-            sub+=z.tot; _cTot+=z.tot; madeAll++;
+            sub+=z.tot; _cTot+=z.tot; _iTot+=z.tot; madeAll++;
           });
+          _iFlush();   // 마지막 입고장 소계 — ★센터보다 먼저
           _cFlush();
         });
         if(dateHdr){ push([dateHdr+' 합계','','','',sub],'dtot',COLS-2); push([],'blank'); }
@@ -1389,8 +1506,12 @@
           date:{ font:{color:{rgb:'1F2A37'},bold:true,sz:15}, alignment:{horizontal:'left',vertical:'center'} },
           datehdr:{ fill:{fgColor:{rgb:'11161D'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:13}, alignment:{horizontal:'left',vertical:'center'} },
           grp:{ fill:{fgColor:{rgb:'137A6C'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:13}, alignment:{horizontal:'left',vertical:'center'} },
-          csubL:{ fill:{fgColor:{rgb:'EAF5F2'}}, font:{color:{rgb:'137A6C'},bold:true}, alignment:{horizontal:'left',vertical:'center'}, border:{top:{style:'thin',color:{rgb:'C9DCD6'}},bottom:{style:'thin',color:{rgb:'C9DCD6'}},left:{style:'thin',color:{rgb:'C9DCD6'}},right:{style:'thin',color:{rgb:'C9DCD6'}}} },   // 센터 소계(2026-08-30)
-          csubN:{ fill:{fgColor:{rgb:'EAF5F2'}}, font:{color:{rgb:'137A6C'},bold:true}, alignment:{horizontal:'right',vertical:'center'}, border:{top:{style:'thin',color:{rgb:'C9DCD6'}},bottom:{style:'thin',color:{rgb:'C9DCD6'}},left:{style:'thin',color:{rgb:'C9DCD6'}},right:{style:'thin',color:{rgb:'C9DCD6'}}} },
+          /* 센터 소계 — 색은 화면 tr.csub(#c3e2d8 / 글자 #0b5246)와 맞춘다(2026-09-02 진하게 조정) */
+          csubL:{ fill:{fgColor:{rgb:'C3E2D8'}}, font:{color:{rgb:'0B5246'},bold:true}, alignment:{horizontal:'left',vertical:'center'}, border:{top:{style:'thin',color:{rgb:'C9DCD6'}},bottom:{style:'thin',color:{rgb:'C9DCD6'}},left:{style:'thin',color:{rgb:'C9DCD6'}},right:{style:'thin',color:{rgb:'C9DCD6'}}} },   // 센터 소계(2026-08-30)
+          csubN:{ fill:{fgColor:{rgb:'C3E2D8'}}, font:{color:{rgb:'0B5246'},bold:true}, alignment:{horizontal:'right',vertical:'center'}, border:{top:{style:'thin',color:{rgb:'C9DCD6'}},bottom:{style:'thin',color:{rgb:'C9DCD6'}},left:{style:'thin',color:{rgb:'C9DCD6'}},right:{style:'thin',color:{rgb:'C9DCD6'}}} },
+          /* ★입고장 소계 — 화면 tr.isub(#dcefe7 / 글자 #12695a). 센터 소계보다 한 톤 옅다(2026-09-02) */
+          isubL:{ fill:{fgColor:{rgb:'DCEFE7'}}, font:{color:{rgb:'12695A'},bold:true}, alignment:{horizontal:'left',vertical:'center'}, border:{top:{style:'thin',color:{rgb:'C9DCD6'}},bottom:{style:'thin',color:{rgb:'C9DCD6'}},left:{style:'thin',color:{rgb:'C9DCD6'}},right:{style:'thin',color:{rgb:'C9DCD6'}}} },
+          isubN:{ fill:{fgColor:{rgb:'DCEFE7'}}, font:{color:{rgb:'12695A'},bold:true}, alignment:{horizontal:'right',vertical:'center'}, border:{top:{style:'thin',color:{rgb:'C9DCD6'}},bottom:{style:'thin',color:{rgb:'C9DCD6'}},left:{style:'thin',color:{rgb:'C9DCD6'}},right:{style:'thin',color:{rgb:'C9DCD6'}}} },
           zone:{ fill:{fgColor:{rgb:'1F9B8E'}}, font:{color:{rgb:'FFFFFF'},bold:true,sz:12}, alignment:{horizontal:'left',vertical:'center'} },
           zonej:{ fill:{fgColor:{rgb:'FDECEA'}}, font:{color:{rgb:'C0392B'},bold:true,sz:12}, alignment:{horizontal:'left',vertical:'center'} },   // 직송 블록 제목(빨간 글씨, 2026-08-30)
           head:{ fill:{fgColor:{rgb:'E3F4EF'}}, font:{color:{rgb:'137A6C'},bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:box },
@@ -1417,6 +1538,7 @@
           else if(ty==='head'){ for(var c=0;c<COLS;c++) put(r,c,S.head); h=20; }
           else if(ty==='item'){ put(r,0,S.itemCB); put(r,1,S.itemL); put(r,2,S.itemL); put(r,3,S.itemCB); put(r,4,S.itemN); }
           else if(ty==='sub'){ for(var c2=0;c2<COLS-1;c2++) put(r,c2,S.subL); put(r,COLS-1,S.subN); h=19; }
+          else if(ty==='isub'){ for(var c9=0;c9<COLS-1;c9++) put(r,c9,S.isubL); put(r,COLS-1,S.isubN); h=19; }   // 입고장 소계(2026-09-02)
           else if(ty==='dtot'){ for(var c4=0;c4<COLS-1;c4++) put(r,c4,S.dtotL); put(r,COLS-1,S.dtotN); h=21; }
           else if(ty==='grand'){ for(var c3=0;c3<COLS-1;c3++) put(r,c3,S.grandL); put(r,COLS-1,S.grandN); h=22; }
           rows.push(h!=null?{hpt:h}:{});
@@ -2066,11 +2188,58 @@
      입고장이 없으면 -1(센터 맨 앞) — 종전 이름순과 같은 자리.
      ⚠logi-oh.js 에 같은 식이 ssInwhNo 로 있다 — 규칙을 바꾸면 둘 다. */
   function d2InwhNo(zn){ var m=(''+zn).replace(/\s*직송$/,'').match(/(\d+)\s*$/); return m ? +m[1] : -1; }
+  /* ★낱알 <표시 라벨> (2026-09-02 요청 「평택물류센터1 출고장 → 평택 1 배송 / 평택 1 직송」).
+       데이터 키(zn = '평택물류센터1' / '평택물류센터1 직송')는 **그대로** 둔다 — 정렬·센터 소계·🗑 삭제키·
+       가로표 선택(D2_MXZSEL)·저장된 출고장 순서(물류센터명)가 전부 이 키를 본다. 바꾸는 것은 **글자뿐**.
+     표기 = 센터 축약(물류센터/센터 꼬리 뗌) + [입고장 번호] + 배송|직송.
+       입고장이 없으면 「평택 배송 / 평택 직송」(사용자 예시 그대로).
+     ⚠물류센터 낱알이 아니면(옛 양식 존값 'A8' 등 — dcNm 없이 들어온 것) null → 호출부가 종전 표기를 쓴다.
+       판정 = 센터명이 '센터' 로 끝나는가. 이름 규칙이 바뀌면 여기부터 볼 것.
+     ⚠logi-oh.js(데시보드2)에 같은 식이 ssZoneLab* 로 있다 — 표기를 바꾸면 둘 다. */
+  function d2ZoneLab(zn){
+    var c=d2CenterNm(zn);
+    if(!c || !/센터$/.test(c)) return null;
+    var no=d2InwhNo(zn);
+    return { ctr:c.replace(/\s*(물류)?센터$/,'').trim()||c, no:(no>=0?no:null), jik:/\s직송$/.test(zn) };
+  }
+  function d2ZoneLabText(zn){            // 엑셀·title 용 순수 글자
+    var L=d2ZoneLab(zn); if(!L) return ''+zn;
+    return L.ctr+(L.no!==null?(' '+L.no):'')+' '+(L.jik?'직송':'배송');
+  }
+  /* ★입고장 소계(isub)용 — 배송/직송을 뗀 이름과 묶음키 (2026-09-02 「오산 5 (배송 7 · 직송 1)」).
+       이름 = '오산 5'(센터축약+입고장) / 키 = 센터명|입고장번호. 같은 입고장의 배송·직송이 한 키로 묶인다.
+     ⚠물류센터 낱알이 아니면(옛 양식 존값) 낱알 자체를 키로 써 <혼자 있는 묶음>이 되어 소계가 안 생긴다. */
+  function d2ZoneBase(zn){ var L=d2ZoneLab(zn); if(!L) return ''+zn; return L.ctr+(L.no!==null?(' '+L.no):''); }
+  function d2InwhKey(zn){ var L=d2ZoneLab(zn); if(!L) return 'Z:'+zn; return d2CenterNm(zn)+'|'+(L.no===null?'-':L.no); }
+  function d2ZoneLabHtml(zn, unit){      // 화면용 — 「직송」 낱말만 빨강(.jkw). 라벨을 못 만들면 종전 표기(+단위)
+    var L=d2ZoneLab(zn);
+    if(!L) return d2Esc(zn).replace(/\s직송$/,' <span class="jkw">직송</span>')+(unit?(' '+unit):'');
+    return d2Esc(L.ctr)+(L.no!==null?(' '+L.no):'')+' '+(L.jik?'<span class="jkw">직송</span>':'배송');
+  }
+  /* ★센터별 바탕색 (2026-09-02 요청 「센터별로 구별하기 쉽게 바탕색」) — 출고장 칸(목록 td.zone · 가로표 td.cn)에 건다.
+       색은 센터명 해시로 고른다 → 조회할 때마다·화면(목록/가로표/엑셀)마다 **같은 센터 = 같은 색**.
+       (그리는 순서로 매기면 필터·접기 상태에 따라 색이 바뀐다.) 옅은 톤 8색 — 글자색(직송 빨강)은 그대로 읽힌다. */
+  /* ⚠배수 97 · 9색은 실제 센터 7곳(용인·왜관·김해·광주·평택·제주·오산)이 전부 다른 칸에 떨어지도록 골라 낸 값
+       (31·8색은 평택·왜관·김해·오산 4곳이 같은 색으로 겹쳤다 — 2026-09-02 실측). 센터가 늘면 겹칠 수 있으니 다시 확인할 것.
+       logi-oh.js SS_CTRPAL/ssCtrBg 와 반드시 같은 값 — 두 대시보드가 같은 센터 = 같은 색. */
+  var D2_CTRPAL=['#e8f4f0','#eef0fb','#fdf1e6','#e8f1fb','#fbeef2','#f0f6e6','#fbf5e4','#eef3f6','#f3ecf7'];
+  function d2CtrBg(zn){
+    var c=d2CenterNm(zn); if(!c) return '';
+    var h=0; for(var i=0;i<c.length;i++) h=((h*97)+c.charCodeAt(i))>>>0;
+    return D2_CTRPAL[h%D2_CTRPAL.length];
+  }
   /* 배송/직송 나눔 라벨 — 합계 줄 이름 뒤에 「(배송 X · 직송 Y)」 (2026-08-30 「배송직송 합계표시 출고장별」).
      직송이 없는 센터는 빈 문자열(표시 없음 — 전부 배송이라 나눌 것이 없다). */
   function d2BdxLabel(delSum, jikSum){
     if(!(jikSum>0)) return '';
-    return ' <span style="font-weight:600;font-size:.92em">(배송 '+d2Num(delSum)+' · <span class="jkw">직송</span> '+d2Num(jikSum)+')</span>';
+    /* ★(배송 X · 직송 Y)도 합계 줄과 <같은 굵기·같은 크기> (2026-09-02 「합계쪽은 전체가 진하게 표시」) —
+         종전엔 600·0.92em 이라 정작 나눔 숫자가 흐리게 보였다. 크기 지정을 없애 줄 글자를 그대로 따른다. */
+    return ' <span style="font-weight:800">(배송 '+d2Num(delSum)+' · <span class="jkw">직송</span> '+d2Num(jikSum)+')</span>';
+  }
+  /* 엑셀용 — 위와 같은 문구의 <순수 글자> 판(엑셀 셀에는 HTML 을 넣을 수 없다). 규칙을 바꾸면 둘 다(2026-09-02) */
+  function d2BdxText(delSum, jikSum){
+    if(!(jikSum>0)) return '';
+    return ' (배송 '+d2Num(delSum)+' · 직송 '+d2Num(jikSum)+')';
   }
   function d2MapRow(o, f){
     var dcNm=(''+(o.dcNm||'')).trim(), inwh=(''+(o.inwh||'')).trim();
@@ -2482,7 +2651,8 @@
     var GSIX={}; (function(){ var ix=0; bgs.forEach(function(g,bi){ if(bi>0) GSIX[ix]=1; ix+=g.view.length; }); })();
     var GC=function(ix,extra){ var cls=((GSIX[ix]?'gs ':'')+(extra||'')).trim(); return cls?' class="'+cls+'"':''; };
     var h='<table class="d2-mx"><thead><tr><th class="cn" rowspan="2">출고장 / 품목'
-        + '<label class="mxzchk" title="켜면 출고장 줄을 눌러 그 출고장의 품목만 남길 수 있습니다(하나만 선택 · 다시 누르면 해제)"><input type="checkbox" onchange="d2MxZoneChk(this.checked)"'+(D2_MXZONLY?' checked':'')+'> 선택 출고장 품목만</label></th>'
+        + '<label class="mxzchk" title="켜면 출고장 줄을 눌러 그 출고장의 품목만 남길 수 있습니다(하나만 선택 · 다시 누르면 해제)"><input type="checkbox" onchange="d2MxZoneChk(this.checked)"'+(D2_MXZONLY?' checked':'')+'> 선택 출고장 품목만</label>'
+        + '<span class="mx-rz" title="끌어서 출고장 칸 너비를 조절합니다 (두 번 누르면 기본값)" onmousedown="d2MxCnDrag(event)" ondblclick="d2MxCnSet(330)"></span></th>'
         + '<th class="rtot" rowspan="2">합계</th><th class="rcnt" rowspan="2">품목수</th>';
     bgs.forEach(function(g,bi){
       var fold=!!D2_MXFOLD[g.biz];
@@ -2528,40 +2698,71 @@
            묶음 안 센터가 여럿이고 그 센터가 2줄 이상일 때만. 묶음=센터 하나면 grp 줄이 이미 그 센터 합계. */
       var _cCnt={}; gz.forEach(function(zn){ var c=d2CenterNm(zn); _cCnt[c]=(_cCnt[c]||0)+1; });
       var _cMulti=Object.keys(_cCnt).length>1;
-      var _cCur=null, _cs=cols.map(function(){ return 0; }), _cItems={}, _cTot=0, _cZl=[];
+      var _cCur=null, _cs=cols.map(function(){ return 0; }), _cItems={}, _cTot=0, _cZl=[], _cMarkM=0;
+      /* 센터 합계 줄 = 블록 맨 앞 (2026-09-02 「가로표 마찬가지로」) — 목록 _cFlush 와 같은 요령(시작 위치 기억 → flush 때 끼움) */
       function _cFlushM(){
         if(_cCur!==null && _cMulti && _cCnt[_cCur]>1){
           /* ★배송/직송 나눔은 <전체 기준> — 필터 중 화면 누계로 세면 직송 표시가 사라진다(2026-08-30 재지적) */
           var _fj=0; _cZl.forEach(function(zn){ if(/\s직송$/.test(zn)) _fj+=(ag.zones[zn].tot||0); });
           var _ft=fullTot(_cZl);
-          lines += '<tr class="csub"><td class="cn">'+d2Esc(_cCur)+' 합계'+d2BdxLabel(_ft-_fj,_fj)+'</td>'
+          var _row = '<tr class="csub"><td class="cn">'+d2Esc(_cCur)+' 합계'+d2BdxLabel(_ft-_fj,_fj)+'</td>'
                  + '<td class="rtot">'+bng(_cTot,_ft)+'</td><td class="rcnt">'+bng(Object.keys(_cItems).length, MXF?fullCnt(_cZl):Object.keys(_cItems).length)+'</td>'
                  + _cs.map(function(v,ix){ return v>0?('<td'+GC(ix)+'>'+d2Num(v)+'</td>'):'<td'+GC(ix,'none')+'></td>'; }).join('')
                  + '</tr>';
+          lines=lines.slice(0,_cMarkM)+_row+lines.slice(_cMarkM);
         }
         _cs=cols.map(function(){ return 0; }); _cItems={}; _cTot=0; _cZl=[];
       }
+      /* 입고장 소계(isub) — 목록과 같은 규칙·같은 자리(2026-09-02 「오산 5 (배송 7 · 직송 1)」). 줄이 하나뿐인 입고장은 안 만든다. */
+      /* ★센터 안에 입고장이 2가지 이상일 때만 (2026-09-02 「하나만 있을 시 하나는 제외」 — 목록과 같은 규칙) */
+      var _iCnt={}, _cIG={};
+      gz.forEach(function(zn){ var k=d2InwhKey(zn); if(_iCnt[k]==null){ _iCnt[k]=0; var _c0=d2CenterNm(zn); _cIG[_c0]=(_cIG[_c0]||0)+1; } _iCnt[k]++; });
+      var _iCur=null, _is=cols.map(function(){ return 0; }), _iItems={}, _iTot=0, _iZl=[], _iMarkM=0;
+      function _iFlushM(){
+        if(_iCur!==null && _iCnt[_iCur]>1 && _cIG[d2CenterNm(_iZl[0])]>1){
+          var _fj=0; _iZl.forEach(function(zn){ if(/\s직송$/.test(zn)) _fj+=(ag.zones[zn].tot||0); });
+          var _ft=fullTot(_iZl);
+          var _row = '<tr class="isub"><td class="cn">'+d2Esc(d2ZoneBase(_iZl[0]))+d2BdxLabel(_ft-_fj,_fj)+'</td>'
+                 + '<td class="rtot">'+bng(_iTot,_ft)+'</td><td class="rcnt">'+bng(Object.keys(_iItems).length, MXF?fullCnt(_iZl):Object.keys(_iItems).length)+'</td>'
+                 + _is.map(function(v,ix){ return v>0?('<td'+GC(ix)+'>'+d2Num(v)+'</td>'):'<td'+GC(ix,'none')+'></td>'; }).join('')
+                 + '</tr>';
+          lines=lines.slice(0,_iMarkM)+_row+lines.slice(_iMarkM);
+        }
+        _is=cols.map(function(){ return 0; }); _iItems={}; _iTot=0; _iZl=[];
+      }
       gz.forEach(function(zn){
-        var _zc=d2CenterNm(zn); if(_cCur!==null && _zc!==_cCur) _cFlushM(); _cCur=_zc; _cZl.push(zn);
+        var _zc=d2CenterNm(zn), _zi=d2InwhKey(zn);
+        if(_iCur!==null && _zi!==_iCur) _iFlushM();          // ★센터보다 먼저
+        if(_cCur!==null && _zc!==_cCur) _cFlushM();
+        if(!_cZl.length) _cMarkM=lines.length;
+        if(!_iZl.length) _iMarkM=lines.length;
+        _cCur=_zc; _cZl.push(zn); _iCur=_zi; _iZl.push(zn);
         var rs=ag.zones[zn].rows, rt=0, rc=0, tds='';
         cols.forEach(function(c,ix){
           var q=colQty(rs,c);
           if(q>0){
-            sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; _cs[ix]+=q; rt+=q;
+            sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; _cs[ix]+=q; _is[ix]+=q; rt+=q;
             /* ★품목수는 <접기와 무관하게> 원래 품목으로 센다 — 접었다고 1종으로 줄면
                  화면 숫자가 접기 상태에 따라 달라져 믿을 수 없게 된다(2026-08-28). */
-            if(c.fold){ c.subs.forEach(function(s){ if(colQty(rs,s)>0){ rc++; itemAll[s.ck]=1; gItems[s.ck]=1; _cItems[s.ck]=1; } }); }
-            else { rc++; itemAll[c.ck]=1; gItems[c.ck]=1; _cItems[c.ck]=1; }
+            if(c.fold){ c.subs.forEach(function(s){ if(colQty(rs,s)>0){ rc++; itemAll[s.ck]=1; gItems[s.ck]=1; _cItems[s.ck]=1; _iItems[s.ck]=1; } }); }
+            else { rc++; itemAll[c.ck]=1; gItems[c.ck]=1; _cItems[c.ck]=1; _iItems[c.ck]=1; }
           }
           tds += q>0 ? ('<td'+GC(ix,c.fold?'fdv':'')+'>'+d2Num(q)+'</td>') : '<td'+GC(ix,'none')+'></td>';
         });
-        grand+=rt; _cTot+=rt; if(rt>0) zoneVis++;
+        grand+=rt; _cTot+=rt; _iTot+=rt; if(rt>0) zoneVis++;
         /* ★사업장을 숨기면 그 출고장 줄이 통째로 빌 수 있다 — 그때 0 이 아니라 빈칸이어야 한다
              (0 은 「0개 나갔다」로 읽혀 없는 실적을 있는 것처럼 만든다) */
         var _zTitle=D2_MXZONLY?'누르면 이 출고장의 품목만 남습니다 (다른 줄을 누르면 그쪽으로 바뀌고, 다시 누르면 해제)':'품목만 보려면 머리칸의 [선택 출고장 품목만] 체크를 먼저 켜세요';
-        lines += '<tr'+((D2_MXZONLY&&D2_MXZSEL[zn])?' class="zsel"':'')+'><td class="cn zn'+(D2_MXZONLY?' zpick':'')+'" data-z="'+d2Esc(zn)+'" onclick="d2MxZoneSel(this.getAttribute(\'data-z\'))" title="'+_zTitle+'">'+d2Esc(zn).replace(/\s직송$/,' <span class="jkw">직송</span>')+'</td>'
+        var _zBgM=d2CtrBg(zn);   // 센터별 바탕색 — 목록과 같은 색(2026-09-02)
+        lines += '<tr'+((D2_MXZONLY&&D2_MXZSEL[zn])?' class="zsel"':'')+'><td class="cn zn'+(D2_MXZONLY?' zpick':'')+'" data-z="'+d2Esc(zn)+'"'+(_zBgM?(' style="background:'+_zBgM+'"'):'')+' onclick="d2MxZoneSel(this.getAttribute(\'data-z\'))" title="'+d2Esc(zn)+' — '+_zTitle+'">'+d2ZoneLabHtml(zn,'')
+               /* ★낱알에도 수량 (2026-09-02 「개별숫자 표시」) — 목록 보기 td.zone .z-qty 와 같은 규칙.
+                    합계 줄이 이름 옆에 (배송 X · 직송 Y) 를 달고 있는 것과 짝을 맞춘다.
+                  ⚠값은 <필터와 무관한> 그 출고장 전체합(ag.zones[zn].tot) — 목록 보기가 쓰는 z.tot 과 같은 값이라
+                    두 화면 숫자가 어긋나지 않는다(옆 합계 칸은 필터가 걸리면 걸린 값을 보여 준다). */
+               +'<span class="z-qty">'+d2Num(ag.zones[zn].tot||0)+'</span>'+'</td>'
                + '<td class="rtot">'+bng(rt, MXF?fullTot([zn]):rt)+'</td><td class="rcnt">'+bng(rc, MXF?fullCnt([zn]):rc)+'</td>'+tds+'</tr>';
       });
+      _iFlushM(); _iCur=null;   // 마지막 입고장 소계 — ★센터보다 먼저
       _cFlushM(); _cCur=null;   // 마지막 센터 소계
       var gTot=0; gs.forEach(function(v){ gTot+=v; });
       /* ★물류센터 묶음 접기 (2026-08-28 「화살표 접기 작동 안 함」) — ▼ 를 그려 놓고 클릭이 없어
@@ -2859,7 +3060,9 @@
     var maxN=1; Object.keys(zBatch).forEach(function(zn){ maxN=Math.max(maxN, zBatch[zn].list.length); });
     function slotBk(zn, s){ var zb=zBatch[zn]; if(!zb) return null; var idx=zb.list.length-1-s; return idx>=0?zb.list[idx]:null; }
     // 동적 컬럼 = 기준 + 상대 차수 슬롯(현재/직전/N차 전)
-    var slotCols=[]; for(var s0=0;s0<maxN;s0++){ slotCols.push({ k:'bcol'+s0, slot:s0, chg:(s0>=2), nm:(s0===0?'현재':s0===1?'직전':(s0+'차 전')), batch:true, f:(s0<2?0.045:0.042) }); }
+    /* 변동사항(2차 전 이후) 폭 0.042 → 0.034 (2026-09-02 「변동사항 조금 축소」) — 들어가는 값이 한두 자리 숫자라
+       넓을 이유가 없다. 덜어낸 자리는 출고장 칸으로 간다. 현재·직전(0.045)은 가장 먼저 읽는 칸이라 그대로. */
+    var slotCols=[]; for(var s0=0;s0<maxN;s0++){ slotCols.push({ k:'bcol'+s0, slot:s0, chg:(s0>=2), nm:(s0===0?'현재':s0===1?'직전':(s0+'차 전')), batch:true, f:(s0<2?0.045:0.034) }); }
     D2_COLS = D2_BASECOLS.concat(slotCols);
     function delRk(r){ return (r.biz||'')+'|'+(r.code?r.code:('NM:'+r.name)); }
     // 품목 셀 — 각 출고장 '자기 배치' 시간순으로 증감/신규/삭제 판정 후 상대 슬롯에 배치
@@ -2973,20 +3176,51 @@
         +'<td><span class="zcaret">'+(gColl?'▶':'▼')+'</span> '+d2Esc(g)+'</td>'
         +'<td colspan="6">'+zs.length+'개 '+D2_UNIT+(gColl?' <span style="color:#9aa7b3">— 접힘(클릭하여 펼치기)</span>':'')+'</td>'
         + slotTotalCells(zs)+'</tr>';
+      /* ★묶음 합계(gsub)를 넣을 자리 = 그룹 머리줄 <바로 밑> (2026-09-02 「센터 합계를 각 그룹 밑으로 이동,
+           그룹핑 맨 아래가 아니고」). 값은 블록을 다 그려야 나오므로 여기 위치만 기억해 두고 끝에서 끼워 넣는다
+           — 센터(csub)·입고장(isub) 소계와 같은 요령. 세 소계가 모두 <제 블록 맨 앞>에 서게 된다. */
+      var _gMark=h.length;
 
       var _cCnt={}; zs.forEach(function(zn){ var c=d2CenterOf(zn); _cCnt[c]=(_cCnt[c]||0)+1; });
       var _cMulti=Object.keys(_cCnt).length>1;
-      var _cCur=null, _cZs=[];
+      var _cCur=null, _cZs=[], _cMark=0;
+      /* ★센터 합계 줄은 블록 <맨 앞> (2026-09-02 「표시를 센터별에 앞으로」) — 출고장 소계가 블록 위에 있는 것과 같은 자리.
+           합계는 블록을 다 그려야 나오므로 블록 시작 위치(_cMark = 그때의 h 길이)를 기억해 뒀다가 flush 때 그 자리에 끼워 넣는다.
+           줄을 그리는 h+= 는 손대지 않는다. 가로표(_cFlushM)·엑셀 2곳·데시보드2 도 같은 요령 — 한쪽만 고치면 화면끼리 어긋난다. */
       function _cFlush(){
         if(_cCur!==null && _cMulti && _cCnt[_cCur]>1){
           var _dS=0,_jS=0; _cZs.forEach(function(zn){ var t=ag.zones[zn].tot||0; if(/\s직송$/.test(zn)) _jS+=t; else _dS+=t; });
-          h+='<tr class="csub"><td>'+d2Esc(_cCur)+' 합계'+d2BdxLabel(_dS,_jS)+'</td><td colspan="6"></td>'+slotTotalCells(_cZs)+'</tr>';
+          var _row='<tr class="csub"><td>'+d2Esc(_cCur)+' 합계'+d2BdxLabel(_dS,_jS)+'</td><td colspan="6"></td>'+slotTotalCells(_cZs)+'</tr>';
+          h=h.slice(0,_cMark)+_row+h.slice(_cMark);
         }
         _cZs=[];
       }
+      /* ★입고장 소계(isub) — 센터 아래 한 단계 (2026-09-02 「예처럼 오산 5 (배송 7 직송 1)」).
+           같은 입고장의 배송+직송을 묶어 그 입고장 블록 <맨 앞>에 넣는다(센터 합계와 같은 요령).
+           ⚠줄이 하나뿐인 입고장(김해 1 직송처럼 직송만·배송만)은 만들지 않는다 — 그 줄이 곧 소계라 중복이다.
+           ⚠_cFlush 보다 _iFlush 를 <먼저> 불러야 한다 — 나중에 부르면 입고장 소계가 다음 센터 영역으로 넘어간다. */
+      /* ★센터 안에 입고장이 <2가지 이상>일 때만 만든다 (2026-09-02 「하나만 있을 시 하나는 제외」) —
+           왜관·광주처럼 입고장이 하나뿐인 센터는 입고장 소계 = 센터 합계라 같은 줄이 두 번 나온다.
+           _cIG[센터] = 그 센터의 입고장 가짓수. */
+      var _iCnt={}, _cIG={};
+      zs.forEach(function(zn){ var k=d2InwhKey(zn); if(_iCnt[k]==null){ _iCnt[k]=0; var _c0=d2CenterOf(zn); _cIG[_c0]=(_cIG[_c0]||0)+1; } _iCnt[k]++; });
+      var _iCur=null, _iZs=[], _iMark=0;
+      function _iFlush(){
+        if(_iCur!==null && _iCnt[_iCur]>1 && _cIG[d2CenterOf(_iZs[0])]>1){
+          var _dS=0,_jS=0; _iZs.forEach(function(zn){ var t=ag.zones[zn].tot||0; if(/\s직송$/.test(zn)) _jS+=t; else _dS+=t; });
+          var _row='<tr class="isub"><td>'+d2Esc(d2ZoneBase(_iZs[0]))+d2BdxLabel(_dS,_jS)+'</td><td colspan="6"></td>'+slotTotalCells(_iZs)+'</tr>';
+          h=h.slice(0,_iMark)+_row+h.slice(_iMark);
+        }
+        _iZs=[];
+      }
       if(!gColl){
         zs.forEach(function(zn){
-          var _zc=d2CenterOf(zn); if(_cCur!==null && _zc!==_cCur) _cFlush(); _cCur=_zc; _cZs.push(zn);
+          var _zc=d2CenterOf(zn), _zi=d2InwhKey(zn);
+          if(_iCur!==null && _zi!==_iCur) _iFlush();
+          if(_cCur!==null && _zc!==_cCur) _cFlush();
+          if(!_cZs.length) _cMark=h.length;
+          if(!_iZs.length) _iMark=h.length;
+          _cCur=_zc; _cZs.push(zn); _iCur=_zi; _iZs.push(zn);
           var z=ag.zones[zn];
           var keys=Object.keys(z.rows).sort(function(a,b){
             var A=z.rows[a],B=z.rows[b];
@@ -2997,9 +3231,16 @@
           var dl=dlvLabel(z);
           var bodyRows=coll?0:(keys.length+dels.length);   // 소계 아래 표시 행 수
           var _jkC=/\s직송$/.test(zn)?' jikz':'';   // 직송 낱알 = 빨간 글씨(2026-08-30)
+          /* 표시 = 「평택 1 배송 / 평택 1 직송」 + 센터별 바탕색 (2026-09-02) — data-z(키)·🗑 data-* 는 종전 그대로.
+               사업장 보기(D2_UNIT='사업장')처럼 물류센터 낱알이 아니면 d2ZoneLabHtml 이 종전 표기+단위로 돌아간다. */
+          var _zBg=d2CtrBg(zn);
           var zoneCell='<td class="zone'+_jkC+'" rowspan="'+(1+bodyRows)+'" data-z="'+d2Esc(zn)+'" '
-            +'onclick="d2ToggleZone(this.getAttribute(\'data-z\'))" title="클릭하여 접기/펼치기">'
-            +'<span class="zcaret">'+(coll?'▶':'▼')+'</span>'+d2Esc(zn).replace(/\s직송$/,' <span class="jkw">직송</span>')+' '+D2_UNIT
+            +(_zBg?('style="background:'+_zBg+'" '):'')
+            +'onclick="d2ToggleZone(this.getAttribute(\'data-z\'))" title="'+d2Esc(zn)+' — 클릭하여 접기/펼치기">'
+            +'<span class="zcaret">'+(coll?'▶':'▼')+'</span>'+d2ZoneLabHtml(zn, D2_UNIT)
+            /* ★낱알에도 수량 (2026-09-02 「낱개에도 숫자」) — 합계 줄이 이름 옆에 (배송 X · 직송 Y) 를
+                 보여 주는 것과 같은 자리. 값은 그 출고장 합계(z.tot)로, 오른쪽 차수 칸을 안 훑어도 읽힌다. */
+            +'<span class="z-qty">'+d2Num(z.tot||0)+'</span>'
             +(z.dcCd?'<span class="z-dc">('+d2Esc(z.dcCd)+')</span>':'')
             +((D2_VIEW==='zone' && z.dcCd && !/\s직송$/.test(zn))?'<span class="z-del" title="이 출고장의 해당 출고일자 출고분을 삭제(이력 보존)" data-dt="'+d2Esc(blockDate||from||'')+'" data-cd="'+d2Esc(z.dcCd||'')+'" data-iw="'+d2Esc(z.inwh||'')+'" data-zn="'+d2Esc(zn)+'" onclick="event.stopPropagation(); d2DelZoneFromGrid(this)">🗑️</span>':'')
             +(dl?'<span class="z-dlv">('+d2Esc(dl)+')</span>':'')+'</td>';
@@ -3037,11 +3278,15 @@
           }
         });
       }
+      _iFlush(); _iCur=null;   // 마지막 입고장 소계 — ★센터보다 먼저
       _cFlush(); _cCur=null;   // 마지막 센터 소계(그룹이 안 접혔을 때만 의미 있음)
       // 물류센터 합계 행 (데시보드1 lsub 형태: "광주물류센터 합계") — 상대 슬롯별 합계
       var _gdS=0,_gjS=0; zs.forEach(function(zn){ var t=ag.zones[zn].tot||0; if(/\s직송$/.test(zn)) _gjS+=t; else _gdS+=t; });
-      h+='<tr class="gsub"><td>'+d2Esc(g)+' 합계'+d2BdxLabel(_gdS,_gjS)+'</td><td colspan="6"></td>'
+      /* ★맨 아래가 아니라 <그룹 머리줄 바로 밑>(_gMark)에 끼운다 (2026-09-02) —
+           csub/isub 는 이미 각자 블록 앞에 들어가 있고, 그 삽입은 전부 _gMark 뒤에서 일어나므로 자리가 안 어긋난다. */
+      var _gRow='<tr class="gsub"><td>'+d2Esc(g)+' 합계'+d2BdxLabel(_gdS,_gjS)+'</td><td colspan="6"></td>'
         + slotTotalCells(zs)+'</tr>';
+      h=h.slice(0,_gMark)+_gRow+h.slice(_gMark);
     });
     h+='</tbody>';
     if(!zonesWithItems.length){
