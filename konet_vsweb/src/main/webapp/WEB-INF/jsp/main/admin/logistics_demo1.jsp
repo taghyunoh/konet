@@ -2098,6 +2098,8 @@
       D2_DATA = rows.map(function(o){ return d2MapRow(o, f); });
       D2_UP = rows.length>0;
       D2_SRC = rows.length>0 ? ('🗄️ DB 조회 '+f+' · '+rows.length+'건') : ('🗄️ DB '+f+' — 데이터 없음');
+      /* 정산서로 읽은 행 수 — 납기일자에 정산서가 있는 행(2026-09-03 규칙) */
+      var _ns=0; D2_DATA.forEach(function(r){ if(r.settle) _ns++; }); if(_ns) D2_SRC+=' · 📄 정산서 반영 '+_ns+'건';
       D2_COLL={};
     })
     .catch(function(e){ D2_SRC='⚠️ DB 통신오류'; D2_UP=false; D2_DATA=[]; d2Toast('⚠️ 출고 조회 통신오류: '+e.message); });
@@ -2294,7 +2296,10 @@
              /* ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정 「수량은 라벨수량을 출고수량으로」) —
                   LABEL_QTY 가 없는 옛 행만 CUR_QTY(수량) 폴백. logi-oh.js ssOutQty 와 같은 규칙(한쪽만 고치면 두 대시보드가 어긋난다). */
              biz:bizLbl, bizCode:bizCd, dc:_grp, dcCd:_dcCd, inwh:inwh, zone:zone,
-             qty:((o.labelQty!=null&&o.labelQty!=='')?(+o.labelQty||0):(+o.curQty||0)), dlvDt:_dlv, date:(_sd||f),
+             /* ★정산서 반영 (2026-09-03 규칙): 납기일자에 정산서가 있으면(settleYn=Y) 발주수량 대신 정산수량(settleQty, 발주라인 비율 배분).
+                  원장·출고재고현황과 같은 규칙. 이력(selectShipoutHistAll·Prev)엔 settleYn 이 없어 발주수량 그대로. */
+             qty:(((''+(o.settleYn||''))==='Y') ? (Math.round((+o.settleQty||0)*10)/10) : ((o.labelQty!=null&&o.labelQty!=='')?(+o.labelQty||0):(+o.curQty||0))),
+             settle:((''+(o.settleYn||''))==='Y'), dlvDt:_dlv, date:(_sd||f),
              uploadDttm:(''+(o.uploadDttm||'')).trim().slice(0,19),   // 변경일시(현재 배치)
              firstDttm:(''+(o.firstDttm||'')).trim().slice(0,19),     // 최초일시(같은 품목 MIN)
              jobSeq:(+o.jobSeq||0) };   // 배치 버전(1=최초, 2↑=재생성)

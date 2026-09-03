@@ -3146,10 +3146,10 @@
     <div class="grp">재고 관리</div>
     <a class="mi has-sub" data-sub="stockmng" onclick="logiToggleSub('stockmng', this)"><span class="ic">📦</span>재고 관리<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-stockmng">
-      <a class="mi" data-key="stockStatus" onclick="logiGo('stockStatus', this); stkStatusLoad();"><span class="ic">📊</span>재고현황</a>
+      <a class="mi" data-key="stockStatus" onclick="logiGo('stockStatus', this); stkStatusLoad();"><span class="ic">📊</span>품목별재고현황</a>
       <%-- 출고재고현황 (2026-09-03 신설) — 년월×품목 출고량 + 현재고. iframe 화면(stockOutMonth.jsp).
            ★메뉴와 아래 panel-stockOutMonth 는 짝이다 — 하나만 넣으면 눌러도 아무 일이 없다. --%>
-      <a class="mi" data-key="stockOutMonth" onclick="logiFrame('stockOutMonth','${pageContext.request.contextPath}/prod/stockOutMonth.do', this)"><span class="ic">📦</span>출고재고현황</a>
+      <a class="mi" data-key="stockOutMonth" onclick="logiFrame('stockOutMonth','${pageContext.request.contextPath}/prod/stockOutMonth.do', this)"><span class="ic">📦</span>월별 출고현황</a>
       <a class="mi" data-key="closeStock" onclick="logiGo('closeStock', this)"><span class="ic">📒</span>재고마감</a>
       <%-- 재고 일괄조정 — 2026-08-20 잠깐 내렸다가 사용자 요청으로 되살림(입구는 여기 하나) --%>
       <a class="mi" data-key="stockAdj" onclick="logiFrame('stockAdj','${pageContext.request.contextPath}/prod/stockAdj.do', this)"><span class="ic">🧮</span>재고 일괄조정</a>
@@ -3865,7 +3865,7 @@
     <section id="panel-stockStatus" class="panel">
       <!-- 상단은 제목줄 + 조회줄 2줄만. 설명·경고는 전부 hover(title)로 뺐다 -->
       <div class="logi-head" style="margin-bottom:8px">
-        <div><h2 style="margin:0">재고현황 <span class="badge b-done">현재고</span>
+        <div><h2 style="margin:0">품목별재고현황 <span class="badge b-done">현재고</span>
           <span style="font-size:12px;font-weight:400;color:#9aa7b3;margin-left:6px">입고(수불원장) − 출고(SHIPOUT) · 실시간 자동갱신</span></h2></div>
         <div class="actions">
           <button class="btn-line" onclick="stkRebuild()" title="※ 평소에는 누를 필요가 없습니다.&#10;수불/출고 등록 시 실시간으로 자동집계되기 때문입니다.&#10;&#10;과거 SHIPOUT 최초 반영·보정 등 부득이한 경우에만 실행하세요.&#10;(마감 확정된 달은 제외됩니다)">🔄 출고반영 재집계</button>
@@ -4601,7 +4601,7 @@
            (if-<key> iframe 이 없어 src 를 넣을 곳이 없다). 새 iframe 화면은 메뉴+패널을 짝으로 넣을 것. --%>
     <%-- ===== 출고재고현황 (2026-09-03) — 년월×품목 출고량 + 현재고 (메뉴 logiFrame('stockOutMonth',…) 의 짝) ===== --%>
     <section id="panel-stockOutMonth" class="panel" style="padding:0;">
-      <iframe id="if-stockOutMonth" src="" title="출고재고현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+      <iframe id="if-stockOutMonth" src="" title="월별 출고현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <section id="panel-parcelout" class="panel" style="padding:0;">
       <iframe id="if-parcelout" src="" title="택배납기관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>

@@ -420,6 +420,8 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockMstList(egovframework.sejong.user.model.StockMstDTO dto) throws Exception { return mapper.selectStockMstList(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockQtyMap(egovframework.sejong.user.model.StockMstDTO dto) throws Exception { return mapper.selectStockQtyMap(dto); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectStockOutByMonth(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockOutByMonth(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectStockOutSrcDays(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockOutSrcDays(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectStockOutDetail(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockOutDetail(p); }
 	@Override public java.util.List<egovframework.sejong.user.model.StockLedgerDTO> selectInboundList(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception { return mapper.selectInboundList(dto); }
 	/* ══════════════════════════════════════════════════════════════════════════
 	 *  발주현황표(SHIPOUT) → 재고원장 연동 종료                        2026-08-19
@@ -488,6 +490,9 @@ public class UserServiceImpl implements UserService {
 
 			/* 발주현황표 연동 종료(2026-08-19) — 기존 원장행은 그대로 두고 새로 만들지 않는다.
 			   되살리려면 SHIPOUT_LEDGER_ON 만 true 로. */
+			/* ★[2026-09-03] 원장 키가 출고일자→납기일자로 바뀌었다. 옛 키로 남은 SHIPOUT 행은 아래 날짜 루프로는 안 지워질 수 있어
+			   먼저 통째로 걷는다(마감 확정월 제외). 그 다음 납기일자별로 다시 만든다. */
+			if (SHIPOUT_LEDGER_ON) mapper.deleteShipoutLedgerAll(new egovframework.sejong.user.model.StockLedgerDTO());
 			java.util.List<String> ds = SHIPOUT_LEDGER_ON ? mapper.selectShipoutDates()
 			                                              : new java.util.ArrayList<String>();
 			int total = ds.size();

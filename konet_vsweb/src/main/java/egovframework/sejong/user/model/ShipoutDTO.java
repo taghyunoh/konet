@@ -65,6 +65,8 @@ public class ShipoutDTO {
 	   쓰는 곳: 매출내역 — 정산서가 아직 안 온 출고행의 매출금액을 이 단가로 채운다(2026-07-25 요청). */
 	private java.math.BigDecimal saleUnit;   // 판매단가
 	private String  saleSrc;                 // 단가 근거 '이력' | '마스터'
+	private String  settleYn;                // 정산서 반영 여부 Y/N — 납기일자에 정산서가 있으면 Y (2026-09-03)
+	private java.math.BigDecimal settleQty; // 정산서 반영 수량(발주라인 비율 배분) — settleYn=Y 일 때만, 화면은 이걸 출고수량으로 쓴다
 
 	// ----- 감사 -----
 	private String  regUser;
@@ -145,6 +147,10 @@ public class ShipoutDTO {
 	public void setSaleUnit(java.math.BigDecimal saleUnit) { this.saleUnit = saleUnit; }
 	public String getSaleSrc() { return saleSrc; }
 	public void setSaleSrc(String saleSrc) { this.saleSrc = saleSrc; }
+	public String getSettleYn() { return settleYn; }
+	public void setSettleYn(String settleYn) { this.settleYn = settleYn; }
+	public java.math.BigDecimal getSettleQty() { return settleQty; }
+	public void setSettleQty(java.math.BigDecimal settleQty) { this.settleQty = settleQty; }
 	public String getDlvGb() { return dlvGb; }
 	public void setDlvGb(String dlvGb) { this.dlvGb = dlvGb; }
 	public String getRemark() { return remark; }

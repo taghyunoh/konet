@@ -536,7 +536,11 @@
 	      t.UNIT AS unit, t.ORD_NO AS ordNo, t.ORD_ITEM_NO AS ordItemNo, t.JUMUN_NO AS jumunNo, t.JUMUN_ITEM_NO AS jumunItemNo,
 	      -- ★판매단가 — 마감관리(selectClosing)와 똑같은 규칙(2026-07-25). 매출내역에서 정산서가 아직 안 온
 	      --   출고행의 매출금액을 이 단가로 채운다. 기준일은 마감과 같이 납품일자(DLV_DT).
-	      u.saleUnit, u.saleSrc
+	      u.saleUnit, u.saleSrc,
+	      -- ★정산서 반영 수량 (2026-09-03) — 아래 sd/lt/vq 조인 참조
+	      CASE WHEN sd.DLV_DT IS NULL OR lt.ORD_NO IS NULL THEN 'N' ELSE 'Y' END AS settleYn,
+	      CASE WHEN sd.DLV_DT IS NULL OR lt.ORD_NO IS NULL THEN NULL
+	           ELSE CAST(ISNULL(vq.VQ,0) * ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) / NULLIF(lt.LT,0) AS DECIMAL(18,3)) END AS settleQty
 	    FROM ( SELECT s0.*,
 	                  CONVERT(varchar(19),
 	                    MIN(s0.UPLOAD_DTTM) OVER (PARTITION BY s0.COMP_CD, s0.SHPOUT_DT, ISNULL(s0.DC_CD,''), ISNULL(s0.BIZ_CD,''), ISNULL(s0.ITEM_CD,'')),
@@ -576,6 +580,25 @@
 	          SELECT ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) AS saleUnit,
 	                 CASE WHEN sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc
 	    ) u
+	    -- ★정산서 반영 (2026-09-03 규칙: 납기일자에 정산서가 있으면 발주수량 대신 정산수량 — 원장·출고재고현황과 같은 규칙)
+	    --   정산서엔 사업장이 없어, 같은 발주라인(납기일자+발주번호+품목 — 출고재고현황 selectStockOutByMonth 와 같은 키)의 정산수량을 이 행의 발주수량 비율로 나눈 값(settleQty).
+	    --   ★키에서 납기일자를 빼면 단일일자 조회가 0.2초→8초(집계를 행마다 되도는 계획). 납기일자를 넣어도 연결되는 라인은 같다(실측 2026-09-03).
+	    --   발주번호가 빈 행은 라인을 못 찾으므로 정산서가 있는 날이라도 발주수량 그대로(settleYn=N).
+	    --   정산서 없는 날은 settleYn='N'·settleQty NULL → 화면은 발주수량 그대로. 집계 조인이라 행마다 되묻지 않는다(속도).
+	    LEFT JOIN ( SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST WHERE ACTION_YN = 'Y' ) sd
+	      ON sd.COMP_CD = t.COMP_CD AND sd.DLV_DT = t.DLV_DT
+	    LEFT JOIN ( SELECT COMP_CD, DLV_DT, ORD_NO, ISNULL(PROD_CD,'') AS PROD_CD,
+	                       SUM(ISNULL(LABEL_QTY, ISNULL(CUR_QTY,0))) AS LT
+	                  FROM TBL_SHIPOUT_MST WHERE ACTION_YN = 'Y' AND ISNULL(ORD_NO,'') <> ''
+	                 GROUP BY COMP_CD, DLV_DT, ORD_NO, ISNULL(PROD_CD,'') ) lt
+	      ON sd.DLV_DT IS NOT NULL AND lt.COMP_CD = t.COMP_CD AND lt.DLV_DT = t.DLV_DT
+	     AND lt.ORD_NO = t.ORD_NO AND lt.PROD_CD = ISNULL(t.PROD_CD,'')
+	    LEFT JOIN ( SELECT COMP_CD, DLV_DT, ORD_NO, ISNULL(PROD_CD,'') AS PROD_CD,
+	                       SUM(CASE WHEN ISNULL(DLV_TYPE,'')='X' THEN ISNULL(ORD_QTY,0) ELSE ISNULL(OUT_QTY,0) END) AS VQ
+	                  FROM TBL_SALES_MST WHERE ACTION_YN = 'Y' AND ISNULL(ORD_NO,'') <> ''
+	                 GROUP BY COMP_CD, DLV_DT, ORD_NO, ISNULL(PROD_CD,'') ) vq
+	      ON sd.DLV_DT IS NOT NULL AND vq.COMP_CD = t.COMP_CD AND vq.DLV_DT = t.DLV_DT
+	     AND vq.ORD_NO = t.ORD_NO AND vq.PROD_CD = ISNULL(t.PROD_CD,'')
 	   WHERE t.ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND (
@@ -2564,7 +2587,7 @@
 	                              FROM TBL_SHIPOUT_MST s
 	                             WHERE s.ACTION_YN = 'Y' AND s.PROD_CD = l.PROD_CD
 	                               AND s.COMP_CD = l.COMP_CD
-	                               AND s.SHPOUT_DT = l.REF_NO AND ISNULL(s.BIZ_NM,'') <> ''
+	                               AND ISNULL(NULLIF(s.DLV_DT,''),s.SHPOUT_DT) = l.REF_NO AND ISNULL(s.BIZ_NM,'') <> ''
 	                               AND ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) > 0   -- ★출고수량=라벨수량(2026-09-01)
 	                               FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 2, ''), l.BIZ_CD)
 	              ELSE l.BIZ_CD END AS bizCd,
@@ -2586,7 +2609,7 @@
 	         CASE WHEN l.REF_GB = 'SHIPOUT'
 	                   AND EXISTS (SELECT 1 FROM TBL_SHIPOUT_MST s2
 	                                WHERE s2.ACTION_YN = 'Y' AND s2.PROD_CD = l.PROD_CD
-	                                  AND s2.COMP_CD = l.COMP_CD AND s2.SHPOUT_DT = l.REF_NO
+	                                  AND s2.COMP_CD = l.COMP_CD AND ISNULL(NULLIF(s2.DLV_DT,''),s2.SHPOUT_DT) = l.REF_NO
 	                                  AND ISNULL(s2.LABEL_QTY, ISNULL(s2.CUR_QTY,0)) > 0   -- ★출고수량=라벨수량(2026-09-01)
 	                                  AND ISNULL(s2.ITEM_CD,'') <> ISNULL(s2.PROD_CD,''))
 	              THEN STUFF((SELECT '|' + x.ITEM_CD + '(' + CAST(CAST(x.q AS INT) AS VARCHAR(12)) + ')~' + ISNULL(x.bizs,'')
@@ -2595,13 +2618,13 @@
 	                                         STUFF((SELECT DISTINCT ', ' + s3.BIZ_NM
 	                                                  FROM TBL_SHIPOUT_MST s3
 	                                                 WHERE s3.ACTION_YN = 'Y' AND s3.PROD_CD = l.PROD_CD
-	                                                   AND s3.COMP_CD = l.COMP_CD AND s3.SHPOUT_DT = l.REF_NO
+	                                                   AND s3.COMP_CD = l.COMP_CD AND ISNULL(NULLIF(s3.DLV_DT,''),s3.SHPOUT_DT) = l.REF_NO
 	                                                   AND s3.ITEM_CD = s.ITEM_CD
 	                                                   AND ISNULL(s3.LABEL_QTY, ISNULL(s3.CUR_QTY,0)) > 0 AND ISNULL(s3.BIZ_NM,'') <> ''
 	                                                 FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 2, '') AS bizs
 	                                    FROM TBL_SHIPOUT_MST s
 	                                   WHERE s.ACTION_YN = 'Y' AND s.PROD_CD = l.PROD_CD
-	                                     AND s.COMP_CD = l.COMP_CD AND s.SHPOUT_DT = l.REF_NO
+	                                     AND s.COMP_CD = l.COMP_CD AND ISNULL(NULLIF(s.DLV_DT,''),s.SHPOUT_DT) = l.REF_NO
 	                                     AND ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) > 0
 	                                   GROUP BY s.ITEM_CD) x
 	                           ORDER BY x.q DESC
@@ -2686,17 +2709,134 @@
 	       TBL_SHIPOUT_MST 를 바로 세면 정산서로 대체된 날이 두 번 들어간다.
 	     ★현재고 줄은 selectStockQtyMap(원장 누계)로 따로 받는다 — 같은 원장이라 두 숫자가 어긋나지 않는다. -->
 	<select id="selectStockOutByMonth" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
-	  SELECT LEFT(l.TRX_DT,6) AS ym, l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd,
-	         ISNULL(MAX(p.PROD_NM),'') AS prodNm, SUM(ISNULL(l.QTY,0)) AS outQty
-	    FROM TBL_STOCK_LEDGER l
-	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = l.PROD_SEQ
-	   WHERE l.ACTION_YN = 'Y' AND l.IO_GB = 'O'
-	     AND LEFT(l.TRX_DT,6) >= REPLACE(ISNULL(#{frYm},''),'-','')
-	     AND LEFT(l.TRX_DT,6) <= REPLACE(ISNULL(#{toYm},''),'-','')
-	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	   GROUP BY LEFT(l.TRX_DT,6), l.PROD_SEQ, l.PROD_CD
-	   ORDER BY ym DESC, l.PROD_CD
+	  /* 출고재고현황 — 년월 × 사업장 × 품목 출고량 (2026-09-03)
+	     ★기간은 <일자> 로 받는다(frDt·toDt yyyymmdd, 2026-09-03 「일자까지 보여주는 형식으로」) — 행은 여전히 년월이라 양 끝 달은 그 범위만 합산된다.
+	     ★규칙(사용자 확정 2026-09-03): <납기일자> 기준으로, 그 날 정산서가 있으면 발주현황표를 읽지 않고 정산서를 읽는다.
+	       · 정산서 없는 납기일자 → 발주현황표(라벨수량) 행 그대로 (사업장 있음)
+	       · 정산서 있는 납기일자 → 정산서 출고수량(반품행은 나갔던 발주량 — insertSalesLedger 와 같은 셈).
+	         정산서엔 사업장이 없어 같은 발주라인(납기일자+발주번호+품목 — 납기현황표 selectShipoutMst 와 같은 키)의 발주행 사업장에 발주수량 비율로 나눈다.
+	         발주라인이 없으면 '(정산서·발주없음)'. 원장(품목별재고현황)과 같은 규칙이라 월 합계가 원장 O행과 맞는다.
+	     사업장 묶음 = 거래처관리 매칭코드(MATCH_CD) 있으면 그것, 없으면 원래 사업장코드 (납기현황표 가로표와 같은 규칙) */
+	  WITH SL AS (   /* 정산서 라인별 출고수량 */
+	    SELECT v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,'') AS ORD_NO, v.PROD_CD,
+	           SUM(CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END) AS VQ
+	      FROM TBL_SALES_MST v
+	     WHERE v.ACTION_YN='Y' AND ISNULL(v.PROD_CD,'')<>''
+	       AND v.DLV_DT >= REPLACE(ISNULL(#{frDt},''),'-','') AND v.DLV_DT <= REPLACE(ISNULL(#{toDt},''),'-','')
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     GROUP BY v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,''), v.PROD_CD
+	  ), SD AS (     /* 정산서가 있는 납기일자 */
+	    SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST WHERE ACTION_YN='Y'
+	  ), OL AS (     /* 발주현황표 라인별·사업장별 수량 */
+	    SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS DLV_DT, ISNULL(s.ORD_NO,'') AS ORD_NO, s.PROD_CD,
+	           ISNULL(s.BIZ_CD,'') AS BIZ_CD, MAX(ISNULL(s.BIZ_NM,'')) AS BIZ_NM,
+	           SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) AS SQ
+	      FROM TBL_SHIPOUT_MST s
+	     WHERE s.ACTION_YN='Y' AND ISNULL(s.PROD_CD,'')<>''
+	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= REPLACE(ISNULL(#{frDt},''),'-','')
+	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= REPLACE(ISNULL(#{toDt},''),'-','')
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD, ISNULL(s.BIZ_CD,'')
+	  ), U AS (
+	    /* ① 정산서 없는 날 : 발주현황표 */
+	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.PROD_CD, CAST(o.SQ AS DECIMAL(18,3)) AS QTY
+	      FROM OL o
+	     WHERE NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = o.COMP_CD AND SD.DLV_DT = o.DLV_DT )
+	    UNION ALL
+	    /* ② 정산서 있는 날 : 정산수량을 같은 발주라인의 사업장에 발주수량 비율로 */
+	    SELECT l.COMP_CD, l.DLV_DT, ISNULL(o.BIZ_CD,''), ISNULL(o.BIZ_NM, N'(정산서·발주없음)'), l.PROD_CD,
+	           CAST(CASE WHEN o.BIZ_CD IS NULL THEN l.VQ ELSE l.VQ * o.SQ / o.LT END AS DECIMAL(18,3))
+	      FROM SL l
+	      LEFT JOIN ( SELECT x.*, SUM(x.SQ) OVER (PARTITION BY x.COMP_CD, x.DLV_DT, x.ORD_NO, x.PROD_CD) AS LT FROM OL x WHERE x.ORD_NO <> '' ) o
+	        ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.ORD_NO = l.ORD_NO AND o.PROD_CD = l.PROD_CD AND o.LT > 0
+	  )
+	  SELECT LEFT(u.DLV_DT,6) AS ym,
+	         ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD) AS bizKey,
+	         MAX(ISNULL(NULLIF(b.MATCH_NM,''), u.BIZ_NM)) AS bizNm,
+	         u.PROD_CD AS prodCd, ISNULL(MAX(p.PROD_NM),'') AS prodNm, MAX(pm.PROD_SEQ) AS prodSeq,
+	         SUM(u.QTY) AS outQty
+	    FROM U u
+	    LEFT JOIN ( SELECT COMP_CD, BIZ_CD, MAX(MATCH_CD) AS MATCH_CD, MAX(MATCH_NM) AS MATCH_NM
+	                  FROM TBL_BIZI_MST WHERE ACTION_YN = 'Y' GROUP BY COMP_CD, BIZ_CD ) b
+	      ON b.BIZ_CD = u.BIZ_CD AND b.COMP_CD = u.COMP_CD
+	    LEFT JOIN ( SELECT COMP_CD, PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ FROM TBL_PROD_MST WHERE ACTION_YN='Y' GROUP BY COMP_CD, PROD_CD ) pm
+	      ON pm.PROD_CD = u.PROD_CD AND pm.COMP_CD = u.COMP_CD
+	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = pm.PROD_SEQ
+	   GROUP BY LEFT(u.DLV_DT,6), ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD), u.PROD_CD
+	   ORDER BY ym DESC, bizNm, u.PROD_CD
 	]]></select>
+
+	<select id="selectStockOutDetail" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  /* 출고재고현황 하단 — 고른 (년월 · 사업장 · 품목)의 납기일자별 출고내역 (2026-09-03).
+	     원천 규칙·사업장 비율 배분은 selectStockOutByMonth 와 같다(한쪽만 고치면 표와 내역이 어긋난다). 컨트롤러가 ym 을 frYm=toYm 으로 편다. */
+	  WITH SL AS (
+	    SELECT v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,'') AS ORD_NO, v.PROD_CD, MAX(ISNULL(v.DC_NM,'')) AS DC_NM,
+	           MAX(ISNULL(v.ITEM_CD,'')) AS ITEM_CD, MAX(ISNULL(v.ITEM_NM,'')) AS ITEM_NM,
+	           SUM(CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END) AS VQ
+	      FROM TBL_SALES_MST v
+	     WHERE v.ACTION_YN='Y' AND v.PROD_CD = #{prodCd}
+	       AND v.DLV_DT >= REPLACE(ISNULL(#{frDt},''),'-','') AND v.DLV_DT <= REPLACE(ISNULL(#{toDt},''),'-','')
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     GROUP BY v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,''), v.PROD_CD
+	  ), SD AS ( SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST WHERE ACTION_YN='Y'
+	  ), OL AS (
+	    SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS DLV_DT, ISNULL(s.ORD_NO,'') AS ORD_NO, s.PROD_CD,
+	           ISNULL(s.BIZ_CD,'') AS BIZ_CD, MAX(ISNULL(s.BIZ_NM,'')) AS BIZ_NM, MAX(ISNULL(s.DC_NM,'')) AS DC_NM,
+	           ISNULL(s.ITEM_CD,'') AS ITEM_CD, MAX(ISNULL(s.ITEM_NM,'')) AS ITEM_NM,   /* 출고 때 쓴 거래처 코드(매칭코드) — 재고현황 ↳ 줄과 같은 것 */
+	           SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) AS SQ
+	      FROM TBL_SHIPOUT_MST s
+	     WHERE s.ACTION_YN='Y' AND s.PROD_CD = #{prodCd}
+	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= REPLACE(ISNULL(#{frDt},''),'-','')
+	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= REPLACE(ISNULL(#{toDt},''),'-','')
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD, ISNULL(s.BIZ_CD,''), ISNULL(s.ITEM_CD,'')
+	  ), U AS (
+	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.DC_NM, o.ORD_NO, o.ITEM_CD, o.ITEM_NM, CAST(o.SQ AS DECIMAL(18,3)) AS QTY, N'발주현황표' AS SRC
+	      FROM OL o WHERE NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = o.COMP_CD AND SD.DLV_DT = o.DLV_DT )
+	    UNION ALL
+	    SELECT l.COMP_CD, l.DLV_DT, ISNULL(o.BIZ_CD,''), ISNULL(o.BIZ_NM, N'(정산서·발주없음)'), ISNULL(o.DC_NM, l.DC_NM), l.ORD_NO, ISNULL(o.ITEM_CD, l.ITEM_CD), ISNULL(o.ITEM_NM, l.ITEM_NM),
+	           CAST(CASE WHEN o.BIZ_CD IS NULL THEN l.VQ ELSE l.VQ * o.SQ / o.LT END AS DECIMAL(18,3)), N'정산서'
+	      FROM SL l
+	      LEFT JOIN ( SELECT x.*, SUM(x.SQ) OVER (PARTITION BY x.COMP_CD, x.DLV_DT, x.ORD_NO, x.PROD_CD) AS LT FROM OL x WHERE x.ORD_NO <> '' ) o
+	        ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.ORD_NO = l.ORD_NO AND o.PROD_CD = l.PROD_CD AND o.LT > 0
+	  )
+	  SELECT u.DLV_DT AS dlvDt, ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD) AS bizKey, ISNULL(NULLIF(b.MATCH_NM,''), u.BIZ_NM) AS mtNm,
+	         u.BIZ_CD AS bizCd, u.BIZ_NM AS bizNm, u.DC_NM AS dcNm, u.ORD_NO AS ordNo, u.ITEM_CD AS itemCd, u.ITEM_NM AS itemNm, u.SRC AS src, u.QTY AS qty
+	    FROM U u
+	    LEFT JOIN ( SELECT COMP_CD, BIZ_CD, MAX(MATCH_CD) AS MATCH_CD, MAX(MATCH_NM) AS MATCH_NM
+	                  FROM TBL_BIZI_MST WHERE ACTION_YN = 'Y' GROUP BY COMP_CD, BIZ_CD ) b
+	      ON b.BIZ_CD = u.BIZ_CD AND b.COMP_CD = u.COMP_CD
+	   WHERE ( ISNULL(#{bizKey,jdbcType=VARCHAR},'') = '' OR ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD) = #{bizKey,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{bizNm,jdbcType=NVARCHAR},'')  = '' OR ISNULL(NULLIF(b.MATCH_NM,''), u.BIZ_NM) = #{bizNm,jdbcType=NVARCHAR} )
+	   ORDER BY u.DLV_DT DESC, mtNm, u.BIZ_NM, u.ITEM_CD
+	]]></select>
+
+	<select id="selectStockOutSrcDays" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  /* 출고재고현황 월별 원천 일수 (2026-09-03) — 그 달 납기일자 중 정산서로 읽은 날(sDays) / 전체(days).
+	     화면이 년월 칸에 「정산 20일 · 발주 3일」로 보여 준다. (SUM 안에 EXISTS 는 못 쓰므로 표식을 먼저 만든다) */
+	  SELECT LEFT(d.DLV_DT,6) AS ym, COUNT(*) AS days, SUM(d.S) AS sDays
+	    FROM ( SELECT u.COMP_CD, u.DLV_DT, MAX(u.S) AS S
+	             FROM ( SELECT COMP_CD, ISNULL(NULLIF(DLV_DT,''), SHPOUT_DT) AS DLV_DT, 0 AS S FROM TBL_SHIPOUT_MST
+	                     WHERE ACTION_YN='Y' AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                    UNION ALL
+	                    SELECT COMP_CD, DLV_DT, 1 FROM TBL_SALES_MST
+	                     WHERE ACTION_YN='Y' AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} ) ) u
+	            WHERE ISNULL(u.DLV_DT,'') <> ''
+	              AND u.DLV_DT >= REPLACE(ISNULL(#{frDt},''),'-','') AND u.DLV_DT <= REPLACE(ISNULL(#{toDt},''),'-','')
+	            GROUP BY u.COMP_CD, u.DLV_DT ) d
+	   GROUP BY LEFT(d.DLV_DT,6)
+	   ORDER BY ym DESC
+	]]></select>
+
+	<delete id="deleteShipoutLedgerAll" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	  /* 재집계 시작 때 발주현황표 파생행을 통째로 걷는다 (2026-09-03) — 원장 키가 출고일자→납기일자로 바뀌어,
+	     옛 키(출고일자)로 남은 행은 납기일자 루프(deleteShipoutLedger)로는 안 지워질 수 있다. 마감 확정월은 원장 불변이라 뺀다. */
+	  DELETE FROM TBL_STOCK_LEDGER
+	   WHERE REF_GB = 'SHIPOUT'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND LEFT(TRX_DT,6) NOT IN ( SELECT CLOSE_YM FROM TBL_CLOSING_MST WHERE STATUS = 'C' AND ACTION_YN = 'Y'
+	                                    AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} ) )
+	]]></delete>
 
 	<select id="selectStockQtyMap" parameterType="egovframework.sejong.user.model.StockMstDTO" resultType="egovframework.sejong.user.model.StockMstDTO">
 		SELECT l.PROD_CD AS prodCd,
@@ -2757,10 +2897,11 @@
 
 	<!-- (A) 전체 재집계용 : 활성 SHIPOUT의 서로 다른 출고일자 목록 -->
 	<select id="selectShipoutDates" resultType="string"><![CDATA[
-	  SELECT DISTINCT SHPOUT_DT FROM TBL_SHIPOUT_MST
+	  -- ★[2026-09-03] 원장 키 = 납기일자. 재집계가 도는 날짜 목록도 납기일자다(빈 옛 행만 출고일자)
+	  SELECT DISTINCT ISNULL(NULLIF(DLV_DT,''), SHPOUT_DT) AS D FROM TBL_SHIPOUT_MST
 	   WHERE ACTION_YN='Y' AND ISNULL(SHPOUT_DT,'') <> ''
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	   ORDER BY SHPOUT_DT
+	   ORDER BY D
 	]]></select>
 
 	<!-- (A) 출고→원장 자동연동 : 특정 출고일자의 SHIPOUT 파생 O행 삭제(재동기화용) -->
@@ -2779,27 +2920,27 @@
 	         매핑을 걸면 saveXref 가 소급으로 채우고 이 구문이 다시 돌아 재고가 맞춰진다. -->
 	<insert id="insertShipoutLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
 	  INSERT INTO TBL_STOCK_LEDGER (COMP_CD, PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, UNIT_PRICE, AMT, BIZ_CD, REF_GB, REF_NO, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
-	  /* ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정) — 없는 옛 행만 CUR_QTY(수량) 폴백 */
-	  SELECT s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, s.SHPOUT_DT, 'O', SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) AS QTY,
-	         NULL, NULL, NULL, 'SHIPOUT', s.SHPOUT_DT, N'출고 자동연동(SHIPOUT)', 'Y',
+	  /* ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정) — 없는 옛 행만 CUR_QTY(수량) 폴백
+	     ★[2026-09-03] 원장 날짜(TRX_DT·REF_NO)를 <출고일자 SHPOUT_DT> → <납기일자 DLV_DT> 로 바꿨다. #{trxDt} 도 납기일자다.
+	       규칙(사용자 확정): "납기일자 기준으로, 그 날 정산서가 있으면 발주현황표를 읽지 않고 정산서를 읽는다."
+	       정산서 원장행(insertSalesLedger)도 납기일자 키라 두 원천이 같은 날짜 칸을 쓴다 → 정산서가 오면 그 날 발주행을
+	       걷고(deleteShipoutLedger) 정산서로 갈아끼우는 일이 1:1 이 됐다. 김해처럼 하루 먼저 나가(출고 D-1·납품 D)
+	       원장이 D-1 에 붙어 이중 차감되던 어긋남이 사라진다. 납기일자가 빈 옛 행만 출고일자로 대신한다. */
+	  SELECT s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), 'O', SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) AS QTY,
+	         NULL, NULL, NULL, 'SHIPOUT', ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), N'출고 자동연동(SHIPOUT)', 'Y',
 	         CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR}
 	    FROM TBL_SHIPOUT_MST s
 	    JOIN ( SELECT COMP_CD, PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ FROM TBL_PROD_MST WHERE ACTION_YN='Y' GROUP BY COMP_CD, PROD_CD ) pm
 	      ON pm.PROD_CD = s.PROD_CD AND pm.COMP_CD = s.COMP_CD
 	   WHERE s.ACTION_YN = 'Y' AND ISNULL(s.PROD_CD,'') <> ''
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	     AND s.SHPOUT_DT = REPLACE(ISNULL(#{trxDt},''),'-','')
-	     /* ★정산서가 있는 날은 발주현황표로 출고를 만들지 않는다 (2026-08-19).
-	        출고 원천을 정산서로 옮기는 중이라, 두 원천이 같은 날을 덮으면 이중 차감된다.
-	        정산서를 소급 업로드하는 대로 그 날짜부터 자동으로 정산서 기준이 된다.
-	        ★[2026-09-03] 비교 기준을 <출고일자 SHPOUT_DT> → <납품일자 DLV_DT> 로 바꿨다.
-	          정산서의 키는 납품일자다. 김해는 매일 하루 먼저 나가(출고 09-01 · 납품 09-02) 출고일자로 비교하면
-	          09-02 정산서가 와도 09-01 행이 안 걷혀 <김해 몫이 두 번 빠졌다>(실측 42행). */
+	     AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) = REPLACE(ISNULL(#{trxDt},''),'-','')
+	     /* 그 납기일자에 정산서가 있으면 발주현황표는 읽지 않는다 — 정산서가 출고의 주인이다 */
 	     AND NOT EXISTS ( SELECT 1 FROM TBL_SALES_MST v
 	                       WHERE v.ACTION_YN = 'Y'
 	                         AND v.COMP_CD   = s.COMP_CD
-	                         AND v.DLV_DT    = s.DLV_DT )
-	   GROUP BY s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, s.SHPOUT_DT
+	                         AND v.DLV_DT    = ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) )
+	   GROUP BY s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT)
 	  HAVING SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) > 0
 	]]></insert>
 
@@ -2807,11 +2948,9 @@
 	     정산서 D 를 올리면 이 출고일자들의 SHIPOUT 원장을 다시 만들어 D 몫을 걷어낸다 —
 	     김해처럼 하루 먼저 나간 행은 출고일자(D-1) 밑에 합산돼 있어, D 만 지워서는 안 걷힌다. -->
 	<select id="selectShipoutDtsByDlvDt" parameterType="egovframework.sejong.user.model.StockLedgerDTO" resultType="string"><![CDATA[
-	  SELECT DISTINCT SHPOUT_DT
-	    FROM TBL_SHIPOUT_MST
-	   WHERE ACTION_YN = 'Y' AND ISNULL(SHPOUT_DT,'') <> ''
-	     AND DLV_DT = REPLACE(ISNULL(#{trxDt},''),'-','')
-	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	  /* [2026-09-03] 옛 보정용 — 원장 키가 출고일자일 때 납품일자 D 의 발주행이 붙은 <다른 출고일자>를 찾아 다시 만들던 것.
+	     이제 원장 키가 납기일자라 D 자신만 돌아온다(호출부는 D 와 같은 값을 건너뛰므로 사실상 no-op). */
+	  SELECT REPLACE(ISNULL(#{trxDt},''),'-','') AS D
 	]]></select>
 
 	<!-- ==========================================================================================
@@ -4336,12 +4475,13 @@
 	]]></update>
 
 	<select id="selectShipoutDatesByProd" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="string"><![CDATA[
-	  SELECT DISTINCT s.SHPOUT_DT
+	  -- ★[2026-09-03] 원장 키 = 납기일자
+	  SELECT DISTINCT ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS D
 	    FROM TBL_SHIPOUT_MST s
 	   WHERE s.ACTION_YN='Y' AND s.PROD_SEQ = #{prodSeq}
 	     AND ISNULL(s.SHPOUT_DT,'') <> ''
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	   ORDER BY s.SHPOUT_DT
+	   ORDER BY D
 	]]></select>
 
 	<!-- ==========================================================================================

@@ -530,11 +530,11 @@ public class UserController {
 					egovframework.sejong.user.model.ShipoutDTO head = grp.get(0);
 					head.setUpdUser(regUser);
 					head.setUpdIp(regIp);
-					// ★출고일자가 키에서 빠지면서 '옛 배치의 출고일자 ≠ 새 배치의 출고일자' 가 가능해졌다.
-					//   그 경우 옛 출고일자의 재고원장 O행이 그대로 남으므로, 마감 전에 미리 받아 함께 재동기화한다.
-					java.util.List<String> oldDts = svc.selectShipoutActiveShpoutDts(head);
+					// ★[2026-09-03] 재고원장 키 = 납기일자(DLV_DT). 배치 키가 (납품일자,물류센터)라 옛 배치도 같은 납기일자 → 그 날 하나만 재동기화하면 된다.
+					//   (종전엔 옛 배치의 출고일자들(selectShipoutActiveShpoutDts)을 모았다 — 출고일자 키였을 때 얘기)
+					String _dlv = (head.getDlvDt() == null) ? "" : head.getDlvDt().trim().replace("-", "");
 					//   ※ DB 값은 'yyyymmdd', 화면에서 온 값은 'yyyy-mm-dd' — 같은 날이 두 번 돌지 않게 '-' 를 떼어 담는다.
-					if (oldDts != null) for (String d : oldDts) if (d != null && !d.trim().isEmpty()) syncDates.add(d.trim().replace("-", ""));
+					if (!_dlv.isEmpty()) syncDates.add(_dlv);
 					svc.markShipoutHistory(head);
 
 					int jobSeq = svc.getShipoutNextJobSeq(head);
@@ -569,9 +569,10 @@ public class UserController {
 					rx.setDcCd(head.getDcCd());
 					svc.resolveShipoutProd(rx);
 
-					// 새 배치의 출고일자 — 그룹키에 출고일자가 없으므로 한 그룹 안에 두 날짜가 섞일 여지가 있다(행 단위로 모은다)
+					// 새 배치의 납기일자(행 단위로 모은다 — 원장 키가 납기일자, 2026-09-03). 납기일자가 빈 행만 출고일자로 대신한다.
 					for (egovframework.sejong.user.model.ShipoutDTO r : grp) {
-						if (r.getShpoutDt() != null && !r.getShpoutDt().trim().isEmpty()) syncDates.add(r.getShpoutDt().trim().replace("-", ""));
+						String _rd = (r.getDlvDt() != null && !r.getDlvDt().trim().isEmpty()) ? r.getDlvDt() : r.getShpoutDt();
+						if (_rd != null && !_rd.trim().isEmpty()) syncDates.add(_rd.trim().replace("-", ""));
 					}
 				}
 				// (A) 출고→재고 자동연동 : 저장된 출고일자별로 원장 O행 재동기화 후 전체 현재고 재집계
@@ -1186,14 +1187,54 @@ public class UserController {
 		}
 		@RequestMapping(value="/prod/stockOutMonthList.do", method = RequestMethod.POST)
 		@ResponseBody
-		public Map<String,Object> stockOutMonthList(@RequestParam(value="frYm", required=false) String frYm,
+		public Map<String,Object> stockOutMonthList(@RequestParam(value="frDt", required=false) String frDt,
+		                                            @RequestParam(value="toDt", required=false) String toDt,
+		                                            @RequestParam(value="frYm", required=false) String frYm,
 		                                            @RequestParam(value="toYm", required=false) String toYm,
 		                                            HttpSession session) throws Exception {
 			Map<String,Object> p = new HashMap<String,Object>();
-			p.put("frYm", frYm); p.put("toYm", toYm);
+			/* 기간은 일자(frDt·toDt, 2026-09-03 「일자까지 보여주는 형식으로」). 옛 호출(frYm·toYm)만 오면 그 달 1일~31일로 편다 */
+			String fd = _d8(frDt), td = _d8(toDt);
+			if (fd.isEmpty() && frYm != null) fd = _d8(frYm) + "01";
+			if (td.isEmpty() && toYm != null) td = _d8(toYm) + "31";
+			p.put("frDt", fd); p.put("toDt", td);
 			Map<String,Object> res = new HashMap<String,Object>();
 			res.put("months", svc.selectStockOutByMonth(p));
 			res.put("stock",  svc.selectStockQtyMap(new egovframework.sejong.user.model.StockMstDTO()));
+			res.put("srcDays", svc.selectStockOutSrcDays(p));   // 월별 정산서/발주 원천 일수 (2026-09-03) — 화면 표시는 뺐지만 자료는 내려 준다
+			return res;
+		}
+		private static String _d8(String s) { return (s == null) ? "" : s.trim().replace("-", ""); }   // yyyy-mm-dd → yyyymmdd
+		/* 월별 출고현황 하단 — 고른 (년월·사업장·품목)의 출고내역(통합 원천, 납기일자별) + 입고내역(수불원장 I·R·A 행) (2026-09-03) */
+		@RequestMapping(value="/prod/stockOutDetail.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockOutDetail(@RequestParam(value="ym",      required=false) String ym,
+		                                         @RequestParam(value="frDt",    required=false) String frDt,
+		                                         @RequestParam(value="toDt",    required=false) String toDt,
+		                                         @RequestParam(value="prodCd",  required=false) String prodCd,
+		                                         @RequestParam(value="prodSeq", required=false) Long prodSeq,
+		                                         @RequestParam(value="bizKey",  required=false) String bizKey,
+		                                         @RequestParam(value="bizNm",   required=false) String bizNm,
+		                                         HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>();
+			/* 기간은 일자. 년월(ym) 셀을 눌렀으면 그 달 안에서 조회 일자 범위와 겹치는 부분만 */
+			String fd = _d8(frDt), td = _d8(toDt);
+			if (ym != null && !ym.trim().isEmpty()) {
+				String y = _d8(ym), a = y + "01", b = y + "31";
+				if (fd.isEmpty() || fd.compareTo(a) < 0) fd = a;
+				if (td.isEmpty() || td.compareTo(b) > 0) td = b;
+			}
+			p.put("frDt", fd); p.put("toDt", td);
+			p.put("prodCd", prodCd); p.put("bizKey", bizKey); p.put("bizNm", bizNm);
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("out", svc.selectStockOutDetail(p));
+			java.util.List<egovframework.sejong.user.model.StockLedgerDTO> led = new java.util.ArrayList<egovframework.sejong.user.model.StockLedgerDTO>();
+			if (prodSeq != null) {
+				egovframework.sejong.user.model.StockLedgerDTO d = new egovframework.sejong.user.model.StockLedgerDTO();
+				d.setProdSeq(prodSeq);
+				led = svc.selectStockLedgerList(d);   // 전 기간 원장 — 화면이 일자·구분(입고)으로 거른다
+			}
+			res.put("ledger", led);
 			return res;
 		}
 		@RequestMapping(value="/shipout/parcelOut.do")

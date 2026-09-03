@@ -157,6 +157,8 @@ public interface UserService {
 	java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockMstList(egovframework.sejong.user.model.StockMstDTO dto) throws Exception; // 재고현황(전체 현재고)
 	java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockQtyMap(egovframework.sejong.user.model.StockMstDTO dto) throws Exception; // 코드별 재고만(대시보드용)
 	java.util.List<java.util.Map<String,Object>> selectStockOutByMonth(java.util.Map<String,Object> p) throws Exception;   // 출고재고현황 — 년월×품목 출고량 (2026-09-03)
+	java.util.List<java.util.Map<String,Object>> selectStockOutSrcDays(java.util.Map<String,Object> p) throws Exception;   // 출고재고현황 — 월별 정산서/발주 원천 일수 (2026-09-03)
+	java.util.List<java.util.Map<String,Object>> selectStockOutDetail(java.util.Map<String,Object> p) throws Exception;    // 출고재고현황 하단 — 납기일자별 출고내역 (2026-09-03)
 	java.util.List<egovframework.sejong.user.model.StockLedgerDTO> selectInboundList(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception; // 입고내역
 	// (A) 출고(SHIPOUT)→원장 자동연동
 	int syncShipoutLedgerDate(String shpoutDt, String regUser, String regIp) throws Exception; // 출고일자별 O행 재동기화(마감월이면 skip)

@@ -62,6 +62,8 @@ function ssCtrBg(z){
    ⚠서버 SQL(매출마감 selectClosing · 매출그래프 · 택배 totQty · 원장 연동 등)도 같은 날 LABEL_QTY 로
      맞췄다 — 한쪽만 고치면 화면과 마감 숫자가 어긋난다. */
 function ssOutQty(o){
+  /* ★정산서 반영 (2026-09-03 규칙): 납기일자에 정산서가 있으면(settleYn=Y) 발주수량 대신 정산수량(settleQty) — 대시보드2 d2MapRow 와 같은 규칙 */
+  if(o && (''+(o.settleYn||''))==='Y') return Math.round((+o.settleQty||0)*10)/10;
   if(!o) return 0;
   var v=(o.labelQty!=null && o.labelQty!=='') ? o.labelQty : o.curQty;
   return +v||0;
