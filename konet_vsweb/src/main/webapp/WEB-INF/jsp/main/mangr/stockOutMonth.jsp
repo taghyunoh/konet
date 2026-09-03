@@ -34,6 +34,8 @@
   .btn-teal{ background:var(--teal); color:#fff; border-color:var(--teal); }
   .cnt{ margin-left:10px; color:#37475a; font-size:13.5px; font-weight:700; background:#eef4f2; border:1px solid #cfe0da; border-radius:14px; padding:5px 13px; white-space:nowrap; }
   .cnt b{ color:var(--teal); font-weight:800; }
+  /* 재집계는 툴바 맨 오른쪽 (2026-09-03 「재집계 위치 이동」) — 조회·거르기·엑셀과 떨어뜨려 실수로 누르지 않게 */
+  .bar .rb-btn{ margin-left:auto; border-color:#cfe0da; color:#137a6c; }
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; }
   /* 가로표(납기현황표)와 같은 감각 — 첫 두 칸·머리 2줄 고정, 값 없는 칸 회색, 사업장 경계는 굵은 세로선 */
   table.mx{ border-collapse:separate; border-spacing:0; font-size:14px; --h1:40px; }
@@ -45,12 +47,12 @@
   table.mx thead th{ position:sticky; top:0; z-index:3; background:#dfeaf5; color:#1f2a37; font-size:14px; }
   table.mx thead th.cn, table.mx thead th.rt{ z-index:4; }
   /* 1단 = 사업장(매칭명) · 2단 = 품목. 2단은 1단 높이(--h1, 그릴 때 잰다)만큼 내려 붙인다 */
-  table.mx thead th.gh{ background:#cfe0f3; font-size:14px; font-weight:800; color:#123c63; white-space:nowrap; line-height:1.3; min-width:118px; text-align:left; }
+  table.mx thead th.gh{ background:#cfe0f3; font-size:14px; font-weight:800; color:#123c63; white-space:nowrap; line-height:1.3; min-width:96px; text-align:left; }
   /* 사업장 이름은 칸 안에서 sticky — 40품목짜리 사업장은 칸이 수천 px 라 가운데 두면 이름이 화면 밖에 간다. 고정칸(150+90) 바로 뒤에 붙인다 */
   table.mx thead th.gh .gl{ position:sticky; left:250px; display:inline-block; }
   table.mx thead th.gh small{ display:block; font-size:11.5px; font-weight:600; color:#4c6a8a; }
   table.mx thead tr.r2 th{ top:var(--h1); }
-  table.mx thead th.it{ background:#eef4fa; white-space:normal; min-width:118px; max-width:170px; line-height:1.4; font-size:12.5px; font-weight:600; }
+  table.mx thead th.it{ background:#eef4fa; white-space:normal; min-width:96px; max-width:128px; line-height:1.35; font-size:12px; font-weight:600; padding:6px 6px; word-break:break-all; }   /* 2026-09-03 「품목명 조금 좁게」 118→96px */
   table.mx thead th.it .cd{ display:block; font-weight:800; color:#1f2a37; }
   table.mx thead th.it .nm{ color:#5a6b7a; font-weight:400; }
   table.mx td.none{ background:#f1f3f5; }
@@ -62,6 +64,15 @@
   table.mx tr.sum td.cn, table.mx tr.sum td.rt{ background:#d5e8c6; }
   table.mx tbody td{ height:30px; }
   .empty{ padding:30px; text-align:center; color:#9aa7b3; }
+  /* 재집계 진행 창 — 서버(RebuildProgress)가 알려주는 실제 진행률. 총량을 모르는 단계는 흐르는 바(qprog) */
+  .rb{ position:fixed; inset:0; background:rgba(15,23,32,.35); z-index:9998; display:none; align-items:center; justify-content:center; }
+  .rb.on{ display:flex; }
+  .rb .bx{ background:#fff; width:min(440px,92vw); border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); padding:18px 22px 16px; }
+  .rb .tt{ font-weight:800; font-size:15px; color:#137a6c; margin-bottom:12px; }
+  .rb .bar{ height:10px; background:#e8efed; border-radius:6px; overflow:hidden; }
+  .rb .bar > i{ display:block; height:100%; width:0; background:linear-gradient(90deg,#0f6b5f,#3fbfae); border-radius:6px; transition:width .3s; }
+  .rb .bar.ind > i{ width:34%; animation:qslide 1.05s infinite ease-in-out; }
+  .rb .lb{ margin-top:10px; font-size:13px; color:#5a6b7a; min-height:18px; }
   /* 조회 진행바 — 물류관리 다른 화면(마감·매출내역·재고현황)의 .qprog 와 같은 것 (2026-09-03 「불러오는 중을 진행바로」).
      진행률을 알 수 없는 조회라 좌우로 흐르는 무한 바 + 한 줄 안내 */
   .qprog{ height:3px; background:#e8efed; border-radius:2px; overflow:hidden; margin:2px 0 8px; }
@@ -104,6 +115,7 @@
     <input type="text" id="q" placeholder="사업장/품목코드/품목명 거르기" oninput="somRender()" style="width:220px">
     <button class="btn" onclick="somExcel()">📥 엑셀 출력</button>
     <span class="cnt" id="cnt">-</span>
+    <button class="btn rb-btn" onclick="somRebuild()" title="전체 출고를 재고 원장에 다시 반영하고 현재고를 다시 계산합니다 (품목별재고현황의 재집계와 같은 것).&#10;정산서가 있는 납기일자는 정산서, 없는 날은 발주현황표 기준. 마감 확정월은 제외.">🔄 출고반영 재집계</button>
   </div>
   <div class="card" id="card"><div class="empty">기간을 고르고 [조회]를 누르세요.</div></div>
   <div class="dtl" id="dtl">
@@ -113,6 +125,7 @@
       <div class="col"><div class="ct">📥 입고내역 <span id="dtlInSum"></span></div><div class="tb" id="dtlIn"></div></div>
     </div>
   </div>
+  <div class="rb" id="rb"><div class="bx"><div class="tt">🔄 출고반영 재집계</div><div class="bar ind" id="rbBar"><i></i></div><div class="lb" id="rbLb">시작하는 중…</div></div></div>
 </div>
 <script>
 var CTX='${pageContext.request.contextPath}';
@@ -267,6 +280,42 @@ function somDetailRender(sel, j, fr, to){
       h2+='<tr><td>'+dt8(r.trxDt)+'</td><td>'+esc(gb[r.ioGb]||r.ioGb)+'</td><td class="r">'+num(q)+'</td><td class="l">'+esc(r.vendorNm||r.bizCd||'')+'</td><td>'+esc(r.refGb||'')+(r.refNo?(' '+esc(r.refNo)):'')+'</td><td class="l">'+esc(r.remark||'')+'</td></tr>'; });
     h2+='</tbody></table>'; }
   document.getElementById('dtlIn').innerHTML=h2; document.getElementById('dtlInSum').textContent=led.length?(led.length+'건 · '+num(is)):'';
+}
+/* ── 🔄 출고반영 재집계 — 품목별재고현황의 stkRebuild 와 같은 동작(같은 서버 API) (2026-09-03 요청) ──
+   확인창(공통 _confirmBox) → /prod/stockRebuild.do POST, 그동안 /prod/stockRebuildProgress.do 를 0.5초마다 물어 실제 진행률을 그린다.
+   끝나면 표를 다시 조회한다. 규칙: 정산서 있는 납기일자는 정산서, 없는 날은 발주현황표 · 마감 확정월 제외 */
+function somRebuild(){
+  fetch(CTX+'/prod/closedMonths.do', { method:'POST', credentials:'same-origin' })
+    .then(function(r){ return r.json(); }).catch(function(){ return {months:[]}; })
+    .then(function(j){
+      var ms=(j&&j.months)||[], excl = ms.length ? ('<br>제외 : <b style="color:#c0392b">마감 확정월 '+ms.map(function(m){ m=''+m; return m.length===6?(m.slice(0,4)+'-'+m.slice(4)):m; }).join(', ')+'</b>') : '';
+      var msg='<div style="font-weight:800;color:#137a6c;margin-bottom:6px">🔄 출고반영 재집계</div>전체 출고를 재고 원장에 반영하고 <b>현재고를 다시 계산</b>합니다.'+excl+'<br>진행할까요?';
+      if(!window._confirmBox){ if(!confirm(msg.replace(/<[^>]*>/g,''))) return; return somRebuildRun(); }
+      _confirmBox({ msg:msg, icon:'❓', okText:'확인', okColor:'blue', onOk:somRebuildRun });
+    });
+}
+function somRebuildRun(){
+  var rb=document.getElementById('rb'), bar=document.getElementById('rbBar'), lb=document.getElementById('rbLb');
+  function ind(t){ bar.classList.add('ind'); bar.firstChild.style.width=''; lb.textContent=t; }
+  function det(p,t){ bar.classList.remove('ind'); bar.firstChild.style.width=p+'%'; lb.textContent=t; }
+  rb.classList.add('on'); ind('시작하는 중…');
+  var t0=Date.now();
+  function tick(){
+    fetch(CTX+'/prod/stockRebuildProgress.do', { method:'POST', credentials:'same-origin' })
+      .then(function(r){ return r.json(); })
+      .then(function(p){ var el=Math.round((Date.now()-t0)/1000)+'초';
+        if(!p || !p.running){ ind('진행 중… (경과 '+el+')'); return; }
+        if(p.total>0) det(Math.min(95, p.done*95/p.total), p.phase+'  ('+p.done+' / '+p.total+' · 경과 '+el+')');   /* 마지막 현재고 집계가 남아 95% 에서 멈춘다 */
+        else ind((p.phase||'준비 중…')+'  (경과 '+el+')'); })
+      .catch(function(){ ind('진행 중… (경과 '+Math.round((Date.now()-t0)/1000)+'초)'); });
+  }
+  tick(); var poll=setInterval(tick, 500);
+  fetch(CTX+'/prod/stockRebuild.do', { method:'POST', credentials:'same-origin' })
+    .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, t:t}; }); })
+    .then(function(r){ clearInterval(poll);
+      if(!r.ok){ rb.classList.remove('on'); toast('재집계 실패: '+esc((r.t||'').trim()), '⚠️'); return; }
+      det(100, '완료'); setTimeout(function(){ rb.classList.remove('on'); toast('출고반영 재집계 완료 · 납기일자 <b>'+esc(r.t||'0')+'</b>건 반영', '✅'); somLoad(); }, 400); })
+    .catch(function(e){ clearInterval(poll); rb.classList.remove('on'); toast('통신오류: '+esc(e.message), '⚠️'); });
 }
 function somFit(){ var c=document.getElementById('card'); if(!c) return;
   /* 하단 내역 패널이 열려 있으면 표는 화면 절반만 쓴다 */

@@ -2921,7 +2921,8 @@
 	<insert id="insertShipoutLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
 	  INSERT INTO TBL_STOCK_LEDGER (COMP_CD, PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, UNIT_PRICE, AMT, BIZ_CD, REF_GB, REF_NO, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  /* ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정) — 없는 옛 행만 CUR_QTY(수량) 폴백
-	     ★[2026-09-03] 원장 날짜(TRX_DT·REF_NO)를 <출고일자 SHPOUT_DT> → <납기일자 DLV_DT> 로 바꿨다. #{trxDt} 도 납기일자다.
+	     ★[2026-09-03] 원장 날짜(TRX_DT·REF_NO)를 <출고일자 SHPOUT_DT> → <납기일자 DLV_DT> 로 바꿨다. 파라미터 trxDt 도 납기일자다.
+	       ⚠주석 안에 #'{' 를 쓰면 MyBatis 가 물음표로 바꿔 "인덱스 6이(가) 범위를 벗어났습니다"(2026-09-03 실제 발생) — 주석엔 절대 파라미터 표기 금지.
 	       규칙(사용자 확정): "납기일자 기준으로, 그 날 정산서가 있으면 발주현황표를 읽지 않고 정산서를 읽는다."
 	       정산서 원장행(insertSalesLedger)도 납기일자 키라 두 원천이 같은 날짜 칸을 쓴다 → 정산서가 오면 그 날 발주행을
 	       걷고(deleteShipoutLedger) 정산서로 갈아끼우는 일이 1:1 이 됐다. 김해처럼 하루 먼저 나가(출고 D-1·납품 D)

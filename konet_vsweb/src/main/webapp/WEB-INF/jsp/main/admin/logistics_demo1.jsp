@@ -115,7 +115,7 @@
   /* 「출고장 / 품목」 모서리칸 · 사업장 머리줄은 표에서 길잡이라 본문보다 크게(2026-08-28) */
   table.d2-mx thead th.cn { z-index:4; background:#dfeaf5; font-size:17px; font-weight:800; }
   table.d2-mx thead th.it { top:34px; background:#eef4fa; font-weight:600; white-space:normal;
-                            min-width:132px; max-width:186px; line-height:1.4; font-size:13px; }
+                            min-width:104px; max-width:140px; line-height:1.35; font-size:12px; padding:6px 6px; word-break:break-all; }   /* 2026-09-03 「여기도 동일하게 좁게」 132→104px (월별 출고현황과 같은 비율) */
   table.d2-mx thead th.it .nm { color:#5a6b7a; font-weight:400; }
   table.d2-mx td.none { background:#f1f3f5; }
   /* ★출고장 줄 높이를 못박는다 — 접었다 폈다 해도 위아래 간격이 그대로여야 눈이 줄을 안 놓친다(2026-08-28) */
