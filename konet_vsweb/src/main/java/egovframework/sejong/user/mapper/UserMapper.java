@@ -321,4 +321,17 @@ public interface UserMapper {
 	int deleteSalesLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
 	int insertSalesLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
 	int updateProdPackQty(egovframework.sejong.user.model.StockMstDTO dto) throws Exception;
+	/* ── 발주서 관리 (2026-09-03) — HashMap 기반 */
+	java.util.List<java.util.Map<String,Object>> selectPoList(java.util.Map<String,Object> p) throws Exception;
+	String selectPoNextNo(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectPoMst(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPoDtl(java.util.Map<String,Object> p) throws Exception;
+	int insertPoMst(java.util.Map<String,Object> p) throws Exception;
+	int updatePoMst(java.util.Map<String,Object> p) throws Exception;
+	int deletePoMst(java.util.Map<String,Object> p) throws Exception;
+	int deletePoDtlAll(java.util.Map<String,Object> p) throws Exception;
+	int insertPoDtl(java.util.Map<String,Object> p) throws Exception;
+	int updatePoShared(java.util.Map<String,Object> p) throws Exception;
+	int updatePoPurchSeq(java.util.Map<String,Object> p) throws Exception;   // 매입전환 결과 기억
+	java.util.Map<String,Object> selectCompInfo(java.util.Map<String,Object> p) throws Exception;
 }

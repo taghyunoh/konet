@@ -1237,6 +1237,193 @@ public class UserController {
 			res.put("ledger", led);
 			return res;
 		}
+		/* ================= 발주서 관리 (2026-09-03 신설) — 매입 관리 ▸ 발주서 관리 =================
+		   거래처에 보낼 발주서를 등록·인쇄·엑셀·카톡 공유. 매입전표와 별개 표(TBL_PO_MST/DTL).
+		   카톡 공유 = 공개 페이지(/pub/po.do?t=토큰)를 카카오 「공유하기」 카드로 보낸다 — 받는 쪽은 로그인 없이 발주서만 본다.
+		   설정 = src/main/resources/kakao.properties (kakao.js.key · share.base.url). */
+		private static String poProp(String key) {
+			try { String v = System.getProperty(key); if (v != null && !v.trim().isEmpty()) return v.trim(); } catch (Exception e) {}
+			try { return java.util.ResourceBundle.getBundle("kakao").getString(key).trim(); } catch (Exception e) { return ""; }
+		}
+		private static String poShareBase(HttpServletRequest request) {
+			String b = poProp("share.base.url");
+			if (b.length() > 0) return b.replaceAll("/+$", "");
+			int port = request.getServerPort();
+			boolean std = ("http".equals(request.getScheme()) && port == 80) || ("https".equals(request.getScheme()) && port == 443);
+			return request.getScheme() + "://" + request.getServerName() + (std ? "" : ":" + port) + request.getContextPath();
+		}
+		@RequestMapping(value="/mangr/poReg.do")
+		public String poReg(HttpServletRequest request, HttpSession session, Model model) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			model.addAttribute("kakaoJsKey", poProp("kakao.js.key"));
+			model.addAttribute("shareBase", poShareBase(request));
+			return ".raw/main/mangr/poReg";
+		}
+		@RequestMapping(value="/mangr/poList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poList(@RequestParam(value="fromDt", required=false) String fromDt,
+		                                 @RequestParam(value="toDt", required=false) String toDt,
+		                                 @RequestParam(value="vendorCd", required=false) String vendorCd,
+		                                 @RequestParam(value="findData", required=false) String findData, HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("fromDt", fromDt); p.put("toDt", toDt); p.put("vendorCd", vendorCd); p.put("findData", findData); p.put("compCd", session.getAttribute("s_comp_cd"));
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", svc.selectPoList(p));
+			return res;
+		}
+		@RequestMapping(value="/mangr/poDetail.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poDetail(@RequestParam("poSeq") long poSeq, HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>(); p.put("poSeq", poSeq);
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("mst", svc.selectPoMst(p));
+			res.put("items", svc.selectPoDtl(p));
+			return res;
+		}
+		@RequestMapping(value="/mangr/poNextNo.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poNextNo(@RequestParam("poDt") String poDt, HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>(); p.put("poDt", poDt); p.put("compCd", session.getAttribute("s_comp_cd"));
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", svc.selectPoNextNo(p));
+			return res;
+		}
+		/** 발주서 저장 — 머리 + 품목 줄을 JSON 하나로. 신규/수정 모두. 돌려주는 값 = poSeq */
+		@RequestMapping(value="/mangr/poSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> poSave(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String poDt = String.valueOf(body.get("poDt") == null ? "" : body.get("poDt")).trim();
+				String venCd = String.valueOf(body.get("vendorCd") == null ? "" : body.get("vendorCd")).trim();
+				Object items = body.get("items");
+				if (poDt.isEmpty()) return ResponseEntity.status(400).body("발주일자를 선택하세요.");
+				if (venCd.isEmpty()) return ResponseEntity.status(400).body("거래처를 선택하세요.");
+				if (!(items instanceof java.util.List) || ((java.util.List<?>) items).isEmpty()) return ResponseEntity.status(400).body("상품을 한 줄 이상 입력하세요.");
+				String u = (session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "");
+				body.put("compCd", String.valueOf(session.getAttribute("s_comp_cd")));
+				long seq = svc.savePo(body, u, request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(seq));
+			} catch (Exception e) {
+				log.error(" poSave ERROR ! : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+		@RequestMapping(value="/mangr/poDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> poDelete(@RequestParam("poSeq") long poSeq, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				Map<String,Object> p = new HashMap<String,Object>();
+				p.put("poSeq", poSeq); p.put("compCd", session.getAttribute("s_comp_cd"));
+				p.put("regUser", session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "");
+				p.put("regIp", request.getRemoteAddr());
+				svc.deletePo(p);
+				return ResponseEntity.ok("1");
+			} catch (Exception e) { log.error(" poDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		/** 카톡 공유 뒤 화면이 알려 준다 — 공유 횟수·마지막 공유 시각만 남긴다 */
+		@RequestMapping(value="/mangr/poShared.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poShared(@RequestParam("poSeq") long poSeq, HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>(); p.put("poSeq", poSeq);
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", session.getAttribute("s_comp_cd") == null ? 0 : svc.updatePoShared(p));
+			return res;
+		}
+		/** 발주서 인쇄(로그인) — 새 창 */
+		@RequestMapping(value="/mangr/poPrint.do")
+		public String poPrint(@RequestParam("poSeq") long poSeq, HttpSession session, Model model) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			Map<String,Object> p = new HashMap<String,Object>(); p.put("poSeq", poSeq);
+			return poFillPrint(p, model, false);
+		}
+		/** ★공개 발주서 — 카톡 카드가 여는 주소. 로그인 없이 토큰만으로 읽기. 토큰이 틀리면 빈 안내만 보인다 */
+		@RequestMapping(value="/pub/po.do")
+		public String poPublic(@RequestParam(value="t", required=false) String token, Model model) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("token", token == null ? "" : token.trim());
+			return poFillPrint(p, model, true);
+		}
+		private String poFillPrint(Map<String,Object> p, Model model, boolean pub) throws Exception {
+			Map<String,Object> mst = (p.get("token") != null && String.valueOf(p.get("token")).length() > 0)
+			        ? svc.selectPoMstByToken(String.valueOf(p.get("token"))) : svc.selectPoMst(p);
+			if (mst == null) { model.addAttribute("pub", pub); model.addAttribute("notFound", true); return ".raw/main/mangr/poPrint"; }
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("poSeq", mst.get("poSeq"));
+			Map<String,Object> c = new HashMap<String,Object>(); c.put("compCd", mst.get("compCd"));
+			model.addAttribute("mst", mst);
+			model.addAttribute("items", svc.selectPoDtl(q));
+			model.addAttribute("comp", svc.selectCompInfo(c));
+			model.addAttribute("pub", pub);
+			return ".raw/main/mangr/poPrint";
+		}
+		/** ★매입전환 (2026-09-03 「언제 들어왔는지 매입일자를 지정해서 매입자료 들어가게」) — 발주서 → 매입전표.
+		 *  매입 등록(purchaseSave)과 **같은 저장 경로**(svc.savePurchase)를 타서 재고 입고(원장 I행)·단가 이력이 함께 생긴다.
+		 *  매입일자 = 화면에서 고른 실제 입고일. 서브코드·거래중지 관문도 매입 등록과 똑같이 건다.
+		 *  한 번 전환한 발주서는 PURCH_SEQ 로 기억하고, 다시 전환하려면 force=Y(화면이 한 번 더 묻는다). */
+		@RequestMapping(value="/mangr/poToPurchase.do", method = RequestMethod.POST)
+		public ResponseEntity<String> poToPurchase(@RequestParam("poSeq") long poSeq, @RequestParam("purchDt") String purchDt,
+		                                           @RequestParam(value="whNm", required=false) String whNm,
+		                                           @RequestParam(value="payGb", required=false) String payGb,
+		                                           @RequestParam(value="force", required=false) String force,
+		                                           HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				if (purchDt == null || purchDt.trim().isEmpty()) return ResponseEntity.status(400).body("매입일자를 고르세요.");
+				Map<String,Object> p = new HashMap<String,Object>(); p.put("poSeq", poSeq); p.put("compCd", session.getAttribute("s_comp_cd"));
+				Map<String,Object> mst = svc.selectPoMst(p);
+				if (mst == null) return ResponseEntity.status(404).body("발주서를 찾을 수 없습니다.");
+				if (mst.get("purchNo") != null && !"Y".equalsIgnoreCase(force))
+					return ResponseEntity.status(409).body("이미 매입전표 " + mst.get("purchDt") + "-" + mst.get("purchNo") + " 로 전환된 발주서입니다.");
+				java.util.List<Map<String,Object>> items = svc.selectPoDtl(p);
+				if (items == null || items.isEmpty()) return ResponseEntity.status(400).body("발주 품목이 없습니다.");
+
+				egovframework.sejong.user.model.PurchaseDTO dto = new egovframework.sejong.user.model.PurchaseDTO();
+				dto.setCompCd(String.valueOf(session.getAttribute("s_comp_cd")));
+				dto.setPurchDt(purchDt.trim());
+				dto.setVendorCd(poStr(mst.get("vendorCd"))); dto.setVendorNm(poStr(mst.get("vendorNm")));
+				dto.setMgrCd(poStr(mst.get("mgrCd")));       dto.setMgrNm(poStr(mst.get("mgrNm")));
+				dto.setWhCd(""); dto.setWhNm(whNm == null || whNm.trim().isEmpty() ? "물류창고" : whNm.trim());
+				dto.setPayGb(payGb == null || payGb.trim().isEmpty() ? "외상" : payGb.trim()); dto.setPayAmt(0d);
+				dto.setTotBoxQty(poNum(mst.get("totBoxQty"))); dto.setTotEaQty(poNum(mst.get("totEaQty"))); dto.setTotQty(poNum(mst.get("totQty")));
+				dto.setSupplyAmt(poNum(mst.get("supplyAmt"))); dto.setVatAmt(poNum(mst.get("vatAmt"))); dto.setTotAmt(poNum(mst.get("totAmt"))); dto.setDcAmt(poNum(mst.get("dcAmt")));
+				String poNo = poStr(mst.get("poDt")) + "-" + poStr(mst.get("poNo"));
+				String rm = poStr(mst.get("remark"));
+				dto.setRemark(("발주서 " + poNo + " 전환" + (rm.isEmpty() ? "" : " · " + rm)));
+				java.util.List<egovframework.sejong.user.model.PurchaseDtlDTO> dl = new java.util.ArrayList<egovframework.sejong.user.model.PurchaseDtlDTO>();
+				java.util.List<String> codes = new java.util.ArrayList<String>();
+				for (Map<String,Object> it : items) {
+					egovframework.sejong.user.model.PurchaseDtlDTO d = new egovframework.sejong.user.model.PurchaseDtlDTO();
+					d.setCompCd(dto.getCompCd());
+					Object ps = it.get("prodSeq"); d.setProdSeq(ps == null ? null : Long.valueOf(String.valueOf(ps).split("[.]")[0]));
+					d.setProdCd(poStr(it.get("prodCd"))); d.setProdNm(poStr(it.get("prodNm"))); d.setSpec(poStr(it.get("spec")));
+					d.setPackQty(poNum(it.get("packQty"))); d.setBoxQty(poNum(it.get("boxQty"))); d.setEaQty(poNum(it.get("eaQty"))); d.setQty(poNum(it.get("qty")));
+					d.setUnitPrice(poNum(it.get("unitPrice"))); d.setAmt(poNum(it.get("amt"))); d.setDcAmt(poNum(it.get("dcAmt")));
+					d.setSupplyAmt(poNum(it.get("supplyAmt"))); d.setVatAmt(poNum(it.get("vatAmt"))); d.setTotAmt(poNum(it.get("totAmt")));
+					d.setServiceQty(poNum(it.get("serviceQty"))); d.setRemark(poStr(it.get("remark")));
+					d.setTrxGb("매입"); d.setEventYn("N");
+					dl.add(d); codes.add(d.getProdCd());
+				}
+				dto.setItems(dl);
+				String subMsg = subCodeBlockMsg(dto, session);
+				if (subMsg != null) return ResponseEntity.status(409).body(subMsg);
+				String stopMsg = stopBlockMsg(codes, dto.getPurchDt(), session);
+				if (stopMsg != null) return ResponseEntity.status(409).body(stopMsg);
+				String u = (session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "");
+				dto.setRegUser(u); dto.setUpdUser(u); dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());
+				int n = svc.savePurchase(dto);
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("poSeq", poSeq); q.put("purchSeq", dto.getPurchSeq()); q.put("regUser", u);
+				svc.updatePoPurchSeq(q);
+				return ResponseEntity.ok("{\"rows\":" + n + ",\"purchSeq\":" + dto.getPurchSeq() + ",\"purchNo\":\"" + dto.getPurchNo() + "\"}");
+			} catch (Exception e) {
+				log.error(" poToPurchase ERROR : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+		private static String poStr(Object o) { return o == null ? "" : String.valueOf(o).trim(); }
+		private static Double poNum(Object o) {
+			if (o == null) return 0d;
+			try { return Double.parseDouble(String.valueOf(o).replace(",", "").trim()); } catch (Exception e) { return 0d; }
+		}
 		@RequestMapping(value="/shipout/parcelOut.do")
 		public String parcelOut(HttpSession session) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";

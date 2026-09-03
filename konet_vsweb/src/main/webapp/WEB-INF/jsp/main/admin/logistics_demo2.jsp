@@ -3135,6 +3135,8 @@
     <a class="mi has-sub" data-sub="purchmng" onclick="logiToggleSub('purchmng', this)"><span class="ic">🛒</span>매입 관리<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-purchmng">
       <a class="mi" data-key="purchase" onclick="logiFrame('purchase','${pageContext.request.contextPath}/mangr/purchaseReg.do', this)"><span class="ic">🧾</span>매입 등록</a>
+      <%-- 발주서 관리 (2026-09-03 신설) — 거래처에 보낼 발주서: 등록·인쇄·엑셀·카톡 공유. iframe 화면(poReg.jsp) --%>
+      <a class="mi" data-key="poReg" onclick="logiFrame('poReg','${pageContext.request.contextPath}/mangr/poReg.do', this)"><span class="ic">📋</span>발주서 관리</a>
       <a class="mi" data-key="payreg" onclick="logiFrame('payreg','${pageContext.request.contextPath}/mangr/payReg.do', this)"><span class="ic">💸</span>지급 등록</a>
       <%-- 출금 / 미지급(월 단위, TBL_PAYMENT_MST) 메뉴 내림 : 2026-07-25. 위 '수금 / 미수금' 과 같은 이유.
            '지급 등록'(건별 전표)이 대신하고, 월 합계는 원장의 [월 계] 로 나온다. 실사용 0건.
@@ -4602,6 +4604,10 @@
     <%-- ===== 출고재고현황 (2026-09-03) — 년월×품목 출고량 + 현재고 (메뉴 logiFrame('stockOutMonth',…) 의 짝) ===== --%>
     <section id="panel-stockOutMonth" class="panel" style="padding:0;">
       <iframe id="if-stockOutMonth" src="" title="월별 출고현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <%-- 발주서 관리 (2026-09-03) — 메뉴 logiFrame('poReg',…) 의 짝 --%>
+    <section id="panel-poReg" class="panel" style="padding:0;">
+      <iframe id="if-poReg" src="" title="발주서 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <section id="panel-parcelout" class="panel" style="padding:0;">
       <iframe id="if-parcelout" src="" title="택배납기관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>

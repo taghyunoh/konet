@@ -5128,4 +5128,121 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
+
+	<!-- ============================================================
+	     발주서 관리 (2026-09-03 신설) — 매입 관리 ▸ 발주서 관리 (poReg.jsp)
+	     · TBL_PO_MST / TBL_PO_DTL (docs/sql/20260903_po_mst_dtl.sql)
+	     · 매개변수·결과는 HashMap — 화면 JSON 을 그대로 받는다
+	     · 카톡 공유 = SHARE_TOKEN 으로 여는 공개 페이지(/pub/po.do?t=) — 로그인 없이 읽기만
+	     ============================================================ -->
+	<select id="selectPoList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT M.PO_SEQ AS poSeq, M.PO_DT AS poDt, M.PO_NO AS poNo, M.VENDOR_CD AS vendorCd, M.VENDOR_NM AS vendorNm,
+	         M.MGR_CD AS mgrCd, M.MGR_NM AS mgrNm, M.TOT_BOX_QTY AS totBoxQty, M.TOT_EA_QTY AS totEaQty, M.TOT_QTY AS totQty,
+	         M.SUPPLY_AMT AS supplyAmt, M.VAT_AMT AS vatAmt, M.TOT_AMT AS totAmt, M.DC_AMT AS dcAmt, M.REMARK AS remark,
+	         M.SHARE_TOKEN AS shareToken, ISNULL(M.SHARE_CNT,0) AS shareCnt, M.LAST_SHARE_DTTM AS lastShareDttm, M.PURCH_SEQ AS purchSeq,
+	         M.REG_USER AS regUser, M.REG_DTTM AS regDttm, P.PURCH_DT AS purchDt, P.PURCH_NO AS purchNo,
+	         (SELECT COUNT(*) FROM TBL_PO_DTL D WHERE D.PO_SEQ = M.PO_SEQ AND D.ACTION_YN = 'Y') AS prodCnt
+	    FROM TBL_PO_MST M
+	    LEFT JOIN TBL_PURCHASE_MST P ON P.PURCH_SEQ = M.PURCH_SEQ AND P.ACTION_YN = 'Y'
+	   WHERE M.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR M.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND M.PO_DT >= REPLACE(ISNULL(NULLIF(#{fromDt,jdbcType=VARCHAR},''),'00000000'),'-','')
+	     AND M.PO_DT <= REPLACE(ISNULL(NULLIF(#{toDt,jdbcType=VARCHAR},''),'99999999'),'-','')
+	     AND ( ISNULL(#{vendorCd,jdbcType=VARCHAR},'') = '' OR M.VENDOR_CD = #{vendorCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = '' OR ISNULL(M.VENDOR_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	   ORDER BY M.PO_DT DESC, M.PO_NO DESC
+	]]></select>
+	<select id="selectPoNextNo" parameterType="java.util.HashMap" resultType="string"><![CDATA[
+	  SELECT RIGHT('000' + CAST(ISNULL(MAX(CAST(PO_NO AS INT)),0) + 1 AS VARCHAR(4)), 4)
+	    FROM TBL_PO_MST
+	   WHERE ACTION_YN = 'Y' AND PO_DT = REPLACE(ISNULL(#{poDt,jdbcType=VARCHAR},''),'-','')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></select>
+	<select id="selectPoMst" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  /* poSeq 로도, 공유 토큰으로도 찾는다(공개 페이지는 토큰만 안다) */
+	  SELECT M.PO_SEQ AS poSeq, M.COMP_CD AS compCd, M.PO_DT AS poDt, M.PO_NO AS poNo, M.VENDOR_CD AS vendorCd, M.VENDOR_NM AS vendorNm,
+	         M.MGR_CD AS mgrCd, M.MGR_NM AS mgrNm, M.TOT_BOX_QTY AS totBoxQty, M.TOT_EA_QTY AS totEaQty, M.TOT_QTY AS totQty,
+	         M.SUPPLY_AMT AS supplyAmt, M.VAT_AMT AS vatAmt, M.TOT_AMT AS totAmt, M.DC_AMT AS dcAmt, M.REMARK AS remark,
+	         M.SHARE_TOKEN AS shareToken, ISNULL(M.SHARE_CNT,0) AS shareCnt, M.LAST_SHARE_DTTM AS lastShareDttm, M.PURCH_SEQ AS purchSeq,
+	         M.REG_USER AS regUser, M.REG_DTTM AS regDttm, M.UPD_DTTM AS updDttm,
+	         V.TEL AS vendorTel, V.HP AS vendorHp, V.CEO_NM AS vendorCeo, V.ADDR AS vendorAddr, V.BIZNO AS vendorBizno, V.MGR_NM AS vendorMgr,
+	         P.PURCH_DT AS purchDt, P.PURCH_NO AS purchNo
+	    FROM TBL_PO_MST M
+	    LEFT JOIN TBL_VENDOR_MST V ON V.VENDOR_CD = M.VENDOR_CD AND V.COMP_CD = M.COMP_CD AND V.ACTION_YN = 'Y'
+	    LEFT JOIN TBL_PURCHASE_MST P ON P.PURCH_SEQ = M.PURCH_SEQ AND P.ACTION_YN = 'Y'
+	   WHERE M.ACTION_YN = 'Y'
+	     AND ( ( ISNULL(#{poSeq,jdbcType=BIGINT},0) > 0 AND M.PO_SEQ = #{poSeq,jdbcType=BIGINT} )
+	        OR ( ISNULL(#{token,jdbcType=VARCHAR},'') <> '' AND M.SHARE_TOKEN = #{token,jdbcType=VARCHAR} ) )
+	]]></select>
+	<select id="selectPoDtl" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT D.PO_DTL_SEQ AS poDtlSeq, D.ROW_NO AS rowNo, D.PROD_SEQ AS prodSeq, D.PROD_CD AS prodCd, D.PROD_NM AS prodNm, D.SPEC AS spec,
+	         D.PACK_QTY AS packQty, D.BOX_QTY AS boxQty, D.EA_QTY AS eaQty, D.QTY AS qty, D.UNIT_PRICE AS unitPrice, D.AMT AS amt,
+	         D.DC_AMT AS dcAmt, D.SUPPLY_AMT AS supplyAmt, D.VAT_AMT AS vatAmt, D.TOT_AMT AS totAmt, D.SERVICE_QTY AS serviceQty,
+	         D.TAX_GB AS taxGb, D.REMARK AS remark
+	    FROM TBL_PO_DTL D
+	   WHERE D.PO_SEQ = #{poSeq,jdbcType=BIGINT} AND D.ACTION_YN = 'Y'
+	   ORDER BY D.ROW_NO, D.PO_DTL_SEQ
+	]]></select>
+	<insert id="insertPoMst" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="poSeq" keyColumn="PO_SEQ"><![CDATA[
+	  INSERT INTO TBL_PO_MST
+	    (COMP_CD, PO_DT, PO_NO, VENDOR_CD, VENDOR_NM, MGR_CD, MGR_NM, TOT_BOX_QTY, TOT_EA_QTY, TOT_QTY,
+	     SUPPLY_AMT, VAT_AMT, TOT_AMT, DC_AMT, REMARK, SHARE_TOKEN, SHARE_CNT, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), REPLACE(ISNULL(#{poDt,jdbcType=VARCHAR},''),'-',''), #{poNo,jdbcType=VARCHAR},
+	     #{vendorCd,jdbcType=VARCHAR}, #{vendorNm,jdbcType=NVARCHAR}, #{mgrCd,jdbcType=VARCHAR}, #{mgrNm,jdbcType=NVARCHAR},
+	     #{totBoxQty,jdbcType=DECIMAL}, #{totEaQty,jdbcType=DECIMAL}, #{totQty,jdbcType=DECIMAL},
+	     #{supplyAmt,jdbcType=DECIMAL}, #{vatAmt,jdbcType=DECIMAL}, #{totAmt,jdbcType=DECIMAL}, #{dcAmt,jdbcType=DECIMAL},
+	     #{remark,jdbcType=NVARCHAR}, #{shareToken,jdbcType=VARCHAR}, 0, 'Y',
+	     CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=VARCHAR}, #{regIp,jdbcType=VARCHAR})
+	]]></insert>
+	<update id="updatePoMst" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_PO_MST
+	     SET PO_DT = REPLACE(ISNULL(#{poDt,jdbcType=VARCHAR},''),'-',''), PO_NO = #{poNo,jdbcType=VARCHAR},
+	         VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}, VENDOR_NM = #{vendorNm,jdbcType=NVARCHAR},
+	         MGR_CD = #{mgrCd,jdbcType=VARCHAR}, MGR_NM = #{mgrNm,jdbcType=NVARCHAR},
+	         TOT_BOX_QTY = #{totBoxQty,jdbcType=DECIMAL}, TOT_EA_QTY = #{totEaQty,jdbcType=DECIMAL}, TOT_QTY = #{totQty,jdbcType=DECIMAL},
+	         SUPPLY_AMT = #{supplyAmt,jdbcType=DECIMAL}, VAT_AMT = #{vatAmt,jdbcType=DECIMAL}, TOT_AMT = #{totAmt,jdbcType=DECIMAL}, DC_AMT = #{dcAmt,jdbcType=DECIMAL},
+	         REMARK = #{remark,jdbcType=NVARCHAR},
+	         SHARE_TOKEN = ISNULL(SHARE_TOKEN, #{shareToken,jdbcType=VARCHAR}),
+	         UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE PO_SEQ = #{poSeq,jdbcType=BIGINT} AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<update id="deletePoMst" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_PO_MST SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE PO_SEQ = #{poSeq,jdbcType=BIGINT}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<update id="deletePoDtlAll" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_PO_DTL SET ACTION_YN = 'N' WHERE PO_SEQ = #{poSeq,jdbcType=BIGINT} AND ACTION_YN = 'Y'
+	]]></update>
+	<insert id="insertPoDtl" parameterType="java.util.HashMap"><![CDATA[
+	  INSERT INTO TBL_PO_DTL
+	    (COMP_CD, PO_SEQ, ROW_NO, PROD_SEQ, PROD_CD, PROD_NM, SPEC, PACK_QTY, BOX_QTY, EA_QTY, QTY, UNIT_PRICE, AMT,
+	     DC_AMT, SUPPLY_AMT, VAT_AMT, TOT_AMT, SERVICE_QTY, TAX_GB, REMARK, ACTION_YN, REG_DTTM, REG_USER)
+	  VALUES
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{poSeq,jdbcType=BIGINT}, #{rowNo,jdbcType=INTEGER}, #{prodSeq,jdbcType=INTEGER},
+	     #{prodCd,jdbcType=VARCHAR}, #{prodNm,jdbcType=NVARCHAR}, #{spec,jdbcType=NVARCHAR}, #{packQty,jdbcType=DECIMAL},
+	     #{boxQty,jdbcType=DECIMAL}, #{eaQty,jdbcType=DECIMAL}, #{qty,jdbcType=DECIMAL}, #{unitPrice,jdbcType=DECIMAL}, #{amt,jdbcType=DECIMAL},
+	     #{dcAmt,jdbcType=DECIMAL}, #{supplyAmt,jdbcType=DECIMAL}, #{vatAmt,jdbcType=DECIMAL}, #{totAmt,jdbcType=DECIMAL}, #{serviceQty,jdbcType=DECIMAL},
+	     #{taxGb,jdbcType=VARCHAR}, #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=VARCHAR})
+	]]></insert>
+	<update id="updatePoPurchSeq" parameterType="java.util.HashMap"><![CDATA[
+	  /* 매입전환 (2026-09-03) — 이 발주서로 만든 매입전표를 기억한다. 전표를 지우면 다시 전환할 수 있게 목록 조인은 ACTION_YN=Y 만 본다 */
+	  UPDATE TBL_PO_MST SET PURCH_SEQ = #{purchSeq,jdbcType=BIGINT}, UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{regUser,jdbcType=VARCHAR}
+	   WHERE PO_SEQ = #{poSeq,jdbcType=BIGINT} AND ACTION_YN = 'Y'
+	]]></update>
+	<update id="updatePoShared" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_PO_MST SET SHARE_CNT = ISNULL(SHARE_CNT,0) + 1, LAST_SHARE_DTTM = CONVERT(VARCHAR(19),GETDATE(),120)
+	   WHERE PO_SEQ = #{poSeq,jdbcType=BIGINT} AND ACTION_YN = 'Y'
+	]]></update>
+	<select id="selectCompInfo" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  /* 발주서 인쇄의 공급받는자(우리 회사) 칸 */
+	  SELECT TOP 1 CM.COMP_CD AS compCd, RTRIM(CM.COMP_NM) AS compNm, CM.COMP_CEO AS compCeo, CM.BUSI_NUM AS busiNum,
+	         RTRIM(ISNULL(CM.COMP_ADDR,'') + ' ' + ISNULL(CM.COMP_EXTRADR,'')) AS compAddr, CM.COMP_TEL AS compTel, CM.COMP_FAX AS compFax
+	    FROM TBL_COMP_MST CM
+	   WHERE CM.COMP_CD = #{compCd,jdbcType=VARCHAR} AND CM.ACTION_YN = 'Y'
+	   ORDER BY CM.JOB_SEQ DESC
+	]]></select>
+
 </mapper>

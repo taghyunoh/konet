@@ -290,4 +290,15 @@ public interface UserService {
 
 	/** 정산서 → 재고원장 재동기화 : 그 납품일자의 SALES 파생행을 지우고 다시 만든다 */
 	int syncSalesLedger(String dlvDt, String compCd, String regUser, String regIp) throws Exception;
+	/* ── 발주서 관리 (2026-09-03) */
+	java.util.List<java.util.Map<String,Object>> selectPoList(java.util.Map<String,Object> p) throws Exception;
+	String selectPoNextNo(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectPoMst(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectPoMstByToken(String token) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPoDtl(java.util.Map<String,Object> p) throws Exception;
+	long savePo(java.util.Map<String,Object> body, String user, String ip) throws Exception;   // 머리+줄 저장, poSeq 반환
+	int deletePo(java.util.Map<String,Object> p) throws Exception;
+	int updatePoShared(java.util.Map<String,Object> p) throws Exception;
+	int updatePoPurchSeq(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectCompInfo(java.util.Map<String,Object> p) throws Exception;
 }

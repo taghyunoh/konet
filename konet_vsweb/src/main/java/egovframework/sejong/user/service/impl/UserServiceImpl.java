@@ -1071,4 +1071,52 @@ public class UserServiceImpl implements UserService {
 		}
 		return n;
 	}
+	/* ══════════ 발주서 관리 (2026-09-03) ══════════ */
+	@Override public java.util.List<java.util.Map<String,Object>> selectPoList(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoList(p); }
+	@Override public String selectPoNextNo(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoNextNo(p); }
+	@Override public java.util.Map<String,Object> selectPoMst(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoMst(p); }
+	@Override public java.util.Map<String,Object> selectPoMstByToken(String token) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("token", token); p.put("poSeq", 0);
+		return mapper.selectPoMst(p);
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectPoDtl(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoDtl(p); }
+	@Override public int updatePoShared(java.util.Map<String,Object> p) throws Exception { return mapper.updatePoShared(p); }
+	@Override public int updatePoPurchSeq(java.util.Map<String,Object> p) throws Exception { return mapper.updatePoPurchSeq(p); }
+	@Override public java.util.Map<String,Object> selectCompInfo(java.util.Map<String,Object> p) throws Exception { return mapper.selectCompInfo(p); }
+	@Override public int deletePo(java.util.Map<String,Object> p) throws Exception {
+		int n = mapper.deletePoMst(p);
+		if (n > 0) mapper.deletePoDtlAll(p);
+		return n;
+	}
+	/** 발주서 저장 — 신규면 번호 채번(그 날 0001~) + 공유 토큰 발급, 수정이면 머리 갱신 + 줄 전부 지우고 다시 넣는다. */
+	@SuppressWarnings("unchecked")
+	@Override public long savePo(java.util.Map<String,Object> b, String user, String ip) throws Exception {
+		java.util.Map<String,Object> m = new java.util.HashMap<String,Object>(b);
+		m.put("regUser", user); m.put("regIp", ip);
+		long seq = 0;
+		try { Object s = b.get("poSeq"); if (s != null && String.valueOf(s).trim().length() > 0) seq = Long.parseLong(String.valueOf(s).trim()); } catch (Exception e) { seq = 0; }
+		String no = b.get("poNo") == null ? "" : String.valueOf(b.get("poNo")).trim();
+		m.put("shareToken", java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 24));   // 수정 때는 기존 토큰이 있으면 그대로(ISNULL)
+		if (seq <= 0) {
+			no = mapper.selectPoNextNo(m);   // ★화면이 보낸 번호는 믿지 않는다 — 두 번 저장하면 같은 번호가 두 장 생겼다(2026-09-03 실제)
+			m.put("poNo", no);
+			mapper.insertPoMst(m);
+			Object k = m.get("poSeq");
+			seq = (k == null) ? 0 : Long.parseLong(String.valueOf(k).split("[.]")[0]);
+		} else {
+			m.put("poSeq", seq);
+			mapper.updatePoMst(m);
+			mapper.deletePoDtlAll(m);
+		}
+		Object items = b.get("items");
+		int row = 0;
+		if (items instanceof java.util.List) for (Object o : (java.util.List<?>) items) {
+			if (!(o instanceof java.util.Map)) continue;
+			java.util.Map<String,Object> d = new java.util.HashMap<String,Object>((java.util.Map<String,Object>) o);
+			if (d.get("prodCd") == null || String.valueOf(d.get("prodCd")).trim().isEmpty()) continue;
+			d.put("poSeq", seq); d.put("rowNo", ++row); d.put("regUser", user); d.put("compCd", b.get("compCd"));
+			mapper.insertPoDtl(d);
+		}
+		return seq;
+	}
 }
