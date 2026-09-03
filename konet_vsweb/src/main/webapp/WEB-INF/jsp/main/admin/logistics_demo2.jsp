@@ -3147,6 +3147,9 @@
     <a class="mi has-sub" data-sub="stockmng" onclick="logiToggleSub('stockmng', this)"><span class="ic">📦</span>재고 관리<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-stockmng">
       <a class="mi" data-key="stockStatus" onclick="logiGo('stockStatus', this); stkStatusLoad();"><span class="ic">📊</span>재고현황</a>
+      <%-- 출고재고현황 (2026-09-03 신설) — 년월×품목 출고량 + 현재고. iframe 화면(stockOutMonth.jsp).
+           ★메뉴와 아래 panel-stockOutMonth 는 짝이다 — 하나만 넣으면 눌러도 아무 일이 없다. --%>
+      <a class="mi" data-key="stockOutMonth" onclick="logiFrame('stockOutMonth','${pageContext.request.contextPath}/prod/stockOutMonth.do', this)"><span class="ic">📦</span>출고재고현황</a>
       <a class="mi" data-key="closeStock" onclick="logiGo('closeStock', this)"><span class="ic">📒</span>재고마감</a>
       <%-- 재고 일괄조정 — 2026-08-20 잠깐 내렸다가 사용자 요청으로 되살림(입구는 여기 하나) --%>
       <a class="mi" data-key="stockAdj" onclick="logiFrame('stockAdj','${pageContext.request.contextPath}/prod/stockAdj.do', this)"><span class="ic">🧮</span>재고 일괄조정</a>
@@ -4596,6 +4599,10 @@
     <%-- ===== 택배출고관리 (2026-08-06) — 출고일자의 직송(ZONE='직송')을 택배 발송 엑셀로.
          ★메뉴(logiFrame('parcelout',…))만 넣고 이 패널을 빠뜨리면 눌러도 아무 일이 없다
            (if-<key> iframe 이 없어 src 를 넣을 곳이 없다). 새 iframe 화면은 메뉴+패널을 짝으로 넣을 것. --%>
+    <%-- ===== 출고재고현황 (2026-09-03) — 년월×품목 출고량 + 현재고 (메뉴 logiFrame('stockOutMonth',…) 의 짝) ===== --%>
+    <section id="panel-stockOutMonth" class="panel" style="padding:0;">
+      <iframe id="if-stockOutMonth" src="" title="출고재고현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
     <section id="panel-parcelout" class="panel" style="padding:0;">
       <iframe id="if-parcelout" src="" title="택배납기관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>

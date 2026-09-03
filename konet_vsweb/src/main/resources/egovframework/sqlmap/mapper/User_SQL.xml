@@ -2681,6 +2681,23 @@
 	       화면에 쓰지도 않는 extQtys(매칭코드별 출고를 FOR XML 로 이어붙이는 부분)까지 만든다.
 	     실측 : selectStockMstList 664ms / 이 조회 29ms — 같은 값에 23배 (667행, 3회 최소값)
 	       ※ 재고현황(①표)은 extQtys 가 있어야 하므로 그쪽은 그대로 둔다. 두 화면의 쓰임이 다르다. -->
+	<!-- 출고재고현황 (2026-09-03 신설) — 행=년월(최근월부터) · 열=품목 · 값=그 달 출고량.
+	     ★원천은 수불원장 O행이다(발주현황표 파생 + 정산서, 이중 차감 걸러진 값) —
+	       TBL_SHIPOUT_MST 를 바로 세면 정산서로 대체된 날이 두 번 들어간다.
+	     ★현재고 줄은 selectStockQtyMap(원장 누계)로 따로 받는다 — 같은 원장이라 두 숫자가 어긋나지 않는다. -->
+	<select id="selectStockOutByMonth" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT LEFT(l.TRX_DT,6) AS ym, l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd,
+	         ISNULL(MAX(p.PROD_NM),'') AS prodNm, SUM(ISNULL(l.QTY,0)) AS outQty
+	    FROM TBL_STOCK_LEDGER l
+	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = l.PROD_SEQ
+	   WHERE l.ACTION_YN = 'Y' AND l.IO_GB = 'O'
+	     AND LEFT(l.TRX_DT,6) >= REPLACE(ISNULL(#{frYm},''),'-','')
+	     AND LEFT(l.TRX_DT,6) <= REPLACE(ISNULL(#{toYm},''),'-','')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   GROUP BY LEFT(l.TRX_DT,6), l.PROD_SEQ, l.PROD_CD
+	   ORDER BY ym DESC, l.PROD_CD
+	]]></select>
+
 	<select id="selectStockQtyMap" parameterType="egovframework.sejong.user.model.StockMstDTO" resultType="egovframework.sejong.user.model.StockMstDTO">
 		SELECT l.PROD_CD AS prodCd,
 		       SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY ELSE 0 END)     AS inQty,

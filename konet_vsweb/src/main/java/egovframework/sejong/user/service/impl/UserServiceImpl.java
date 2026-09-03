@@ -419,6 +419,7 @@ public class UserServiceImpl implements UserService {
 	}
 	@Override public java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockMstList(egovframework.sejong.user.model.StockMstDTO dto) throws Exception { return mapper.selectStockMstList(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockQtyMap(egovframework.sejong.user.model.StockMstDTO dto) throws Exception { return mapper.selectStockQtyMap(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectStockOutByMonth(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockOutByMonth(p); }
 	@Override public java.util.List<egovframework.sejong.user.model.StockLedgerDTO> selectInboundList(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception { return mapper.selectInboundList(dto); }
 	/* ══════════════════════════════════════════════════════════════════════════
 	 *  발주현황표(SHIPOUT) → 재고원장 연동 종료                        2026-08-19

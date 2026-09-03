@@ -1176,6 +1176,26 @@ public class UserController {
 
 		/* ===== 택배출고관리 (2026-08-06 신설) — 출고일자의 직송(ZONE='직송') 줄을 택배 발송 양식으로 =====
 		   화면: parcelOut.jsp. 주소·전화는 택배값 우선(없으면 기본값), 운임은 PARCEL_FEE(없으면 4500). */
+		/* ── 출고재고현황 (2026-09-03 신설) — 재고 관리 > 재고현황 아래 메뉴.
+		     행=년월(최근월부터) · 열=품목 · 값=월 출고량, 맨 위 줄=현재고. 화면: stockOutMonth.jsp
+		     자료는 두 조회를 한 응답에 담는다 — months(년월×품목 출고) + stock(품목별 현재고). */
+		@RequestMapping(value="/prod/stockOutMonth.do")
+		public String stockOutMonth(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/stockOutMonth";
+		}
+		@RequestMapping(value="/prod/stockOutMonthList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockOutMonthList(@RequestParam(value="frYm", required=false) String frYm,
+		                                            @RequestParam(value="toYm", required=false) String toYm,
+		                                            HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("frYm", frYm); p.put("toYm", toYm);
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("months", svc.selectStockOutByMonth(p));
+			res.put("stock",  svc.selectStockQtyMap(new egovframework.sejong.user.model.StockMstDTO()));
+			return res;
+		}
 		@RequestMapping(value="/shipout/parcelOut.do")
 		public String parcelOut(HttpSession session) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";

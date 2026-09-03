@@ -186,6 +186,7 @@ public interface UserMapper {
 	int recalcStockMst(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;      // 원장 누계로 현재고 재집계(MERGE)
 	java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockMstList(egovframework.sejong.user.model.StockMstDTO dto) throws Exception; // 전체 현재고 목록(재고현황)
 	java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockQtyMap(egovframework.sejong.user.model.StockMstDTO dto) throws Exception; // 코드별 재고만(출고현황표 대시보드용 — extQtys 없이 가볍게)
+	java.util.List<java.util.Map<String,Object>> selectStockOutByMonth(java.util.Map<String,Object> p) throws Exception;   // 출고재고현황 — 년월×품목 출고량 (2026-09-03)
 	// (A) 출고(SHIPOUT)→원장 자동연동
 	java.util.List<String> selectShipoutDtsByDlvDt(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;  // 납품일자 D 의 발주행이 나간 출고일자들 (2026-09-03)
 	int deleteShipoutLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;  // 특정 출고일자 SHIPOUT 파생 O행 삭제
