@@ -561,7 +561,7 @@
            동작은 그대로 = 보기 모달 먼저) --%>
       <button class="btn-teal" onclick="d2Go('upload')" title="지정한 자료 폴더의 발주현황표를 최신순으로 보여줍니다 (탐색기는 모달 안 [📄 파일 선택])">📤 발주현황표 업로드</button>
       <%-- [삭제 2026-07-05] 매출금액/매입금액 업로드·출고데이타저장 버튼 제거 (마감관리 메뉴로 일원화) --%>
-      <select id="d2PrintFmt" title="출력 형식 선택 (출고장별 / 품목별)" style="height:35px;border:1px solid var(--bd);border-radius:6px;padding:0 8px;font-size:13px;font-weight:700;cursor:pointer;color:#37475a;background:#fff">
+      <select id="d2PrintFmt" onchange="d2PrintFmtPick(this)" title="출력 형식 선택 — 기본값은 지금 보고 있는 화면(목록/가로표)입니다. 직접 고르면 그 선택이 유지됩니다." style="height:35px;border:1px solid var(--bd);border-radius:6px;padding:0 8px;font-size:13px;font-weight:700;cursor:pointer;color:#37475a;background:#fff">
         <option value="zone">출고장별</option>
         <option value="zoneitem">출고장별 품목</option>
         <option value="item">품목별</option>
@@ -569,7 +569,7 @@
         <%-- 가로표 : 행=출고장(물류센터 묶음), 열=품목(사업장별 병합 머리줄). 한 장에 쭉 펴고,
              아무 데도 안 나가는 품목 열·아무것도 안 나가는 출고장 행은 빼서 가로를 줄인다.
              오른쪽 합계·품목수 / 아래 합계·출고장수 로 횡·종 대사가 가능하다. --%>
-        <option value="matrix">출고장 × 품목 (가로표)</option>
+        <option value="matrix" selected>출고장 × 품목 (가로표)</option>
       </select>
       <button class="btn-line" onclick="d2Download('daily')" title="선택한 형식(출고장별/품목별)으로 출고일자별 출력">🏷️ 일자별 출력</button>
       <button class="btn-line" onclick="d2Download('sum')" title="선택한 형식(출고장별/품목별)으로 기간 합계 출력">🧮 합계 출력</button>
@@ -1102,18 +1102,10 @@
          날짜별(daily) 모드는 구간마다 품목 구성이 달라 <행마다> 따로 들고 다녀야 한다. */
       var gsMeta=[], gsCur={};
       function push(row,ty){ aoa.push(row); meta.push(ty||''); gsMeta.push(gsCur); }
-      /* ★맨 위에 <화면 상단 조회조건>을 그대로 얹는다 (2026-08-28 요청 「상단 조건은 동일하게」).
-           나중에 이 파일만 보고도 <무슨 조건으로 뽑은 것인지> 알 수 있어야 한다.
-           값은 화면 KPI 칸에서 그대로 읽는다 — 따로 계산하면 화면과 어긋난다. */
-      function _txt(id){ var e=document.getElementById(id); return e ? (''+(e.textContent||'')).trim() : ''; }
-      push(['조회조건',
-            '출고일자  '+dlab,
-            (_txt('d2KpiPrefix')||'당일')+' 출고품목  '+(_txt('d2KpiItem')||'0'),
-            '출고수량(BOX)  '+(_txt('d2KpiQty')||'0'),
-            '출고장 수  '+(_txt('d2KpiZone')||'0'),
-            '사업장  '+(_txt('d2KpiBiz')||'0')], 'cond');
-      push([], 'blank');
-      d2StockLoad();   // 하단 '현재고' 줄에 쓸 값 — 아직 안 왔으면 그 줄은 비워 둔다
+      /* ★[2026-09-03] 맨 위 <조회조건> 줄을 뺐다(요청) — 날짜는 바로 아래 날짜 배너에 이미 있고,
+           KPI 숫자는 표 안의 합계·품목수·출고장수와 겹쳐 읽을 것만 늘렸다.
+         ★같이 뺀 것 : 맨 아래 <현재고> 줄. 되살리려면 이 주석 자리와 rowStk 쪽을 함께 되돌릴 것.
+           (2026-08-28 에 넣었던 것을 2026-09-03 에 뺀 것이라, 다시 넣어 달라는 요청이 오면 이 두 곳이다) */
       function buildSection(ag, dateHdr){
         var zones=d2ZonesSorted(ag).filter(function(zn){
           var rs=ag.zones[zn].rows;
@@ -1164,8 +1156,25 @@
         r1[start+cOff]=bz;
         if(cols.length-start>=2) merges.push({s:{r:aoa.length,c:start+cOff}, e:{r:aoa.length,c:cols.length-1+cOff}});
         push(r1,'bizhdr');
+        /* ★품목명 앞의 (브랜드)를 뺀다 (2026-09-03 요청 「사업장명 밑에 품목명 중복된 내용은 빼고」) —
+             바로 위 병합 머리줄이 이미 그 사업장(또는 매칭명)이라 같은 말이 두 번 적힌다.
+           ★사업장 이름과 <상관없는> 괄호는 남긴다 — (휴폐업)·(신) 같은 표시까지 지우면 뜻이 달라진다.
+             그래서 괄호 안 글자가 사업장 이름에 들어 있을 때만 뗀다. */
+        function _shortNm(c){
+          var nm=(''+(c.name||'')), bz=(''+(c.biz||'')).trim();
+          var m=/^\(([^)]*)\)\s*/.exec(nm);
+          if(!m || !m[1] || !bz) return nm;
+          /* ★어느 쪽이 더 긴지 모른다 (2026-09-03 재지적) —
+               매칭명 「배고픈덮밥」 · 품목 브랜드 「(배고픈덮밥이)」 처럼 <브랜드가 더 긴> 경우가 있어
+               「사업장명이 브랜드를 포함」만 보면 안 걸린다. 양쪽 어느 방향이든 겹치면 뗀다.
+             ★띄어쓰기는 무시한다 — 「배고픈 덮밥이」와 「배고픈덮밥이」가 섞여 있다.
+             ★두 글자 미만은 보지 않는다 — 우연히 겹쳐 엉뚱한 괄호를 떼는 것을 막는다. */
+          var a=m[1].replace(/\s+/g,''), b=bz.replace(/\s+/g,'');
+          if(a.length>=2 && b.length>=2 && (b.indexOf(a)>=0 || a.indexOf(b)>=0)) nm=nm.slice(m[0].length);
+          return nm;
+        }
         var r2=['출고장/품목','',''];
-        cols.forEach(function(c){ r2.push(c.code ? (c.code+'('+c.name+')') : c.name); });
+        cols.forEach(function(c){ var nm=_shortNm(c); r2.push(c.code ? (c.code+'('+nm+')') : nm); });
         push(r2,'colhdr');
         var sums=cols.map(function(){ return 0; });
         var zcnt=cols.map(function(){ return 0; });
@@ -1245,14 +1254,7 @@
                .concat(sums.map(function(v){ return v||''; })), 'sum');
         push(['출고장수', zones.length, '']
                .concat(zcnt.map(function(v){ return v||''; })), 'zcnt');
-        /* ★품목별 현재고 (2026-08-28 요청 「하단에 현재고 품목별 표시」) —
-             화면 '현재고' 칸과 같은 근거(수불원장). 값을 못 찾으면 0 이 아니라 빈칸으로 둔다
-             — 0 으로 적으면 '재고 없음'으로 잘못 읽힌다. */
-        var anyStk=false;
-        var rowStk=['현재고','',''].concat(cols.map(function(c){
-          var q=d2StockQty(c.code); if(q!=null) anyStk=true; return (q==null?'':q);
-        }));
-        if(anyStk) push(rowStk,'stk');
+        /* 현재고 줄은 2026-09-03 요청으로 뺐다 — 화면 가로표에는 그대로 있다(엑셀에서만 뺀 것). */
         push([], 'blank');
         push([], 'blank');
         made++;
@@ -1269,7 +1271,9 @@
       var ws=LIB.utils.aoa_to_sheet(aoa);
       /* 품목 칸 폭 18 (2026-08-28 「품목 칸 폭도 조금 넓게」) — 14 에서는 품목명이 너무 잘게 접혔다.
          ⚠아래 머리줄 높이 계산의 '한 줄에 몇 자'(9자)도 이 폭에 맞춘 값이다 — 폭을 바꾸면 같이 바꿀 것. */
-      var cw=[{wch:24},{wch:10},{wch:9}]; for(var i3=3;i3<maxW;i3++) cw.push({wch:18});
+      /* 품목 칸 너비 6.5 (2026-09-03 요청, 5 → 7 → 6.5) — 열이 많아 한 화면에 담으려고 좁힌 값이다.
+         ⚠아래 머리줄 높이 계산의 '한 줄에 몇 자'(4자)도 이 너비에 맞춘 값이다 — 너비를 바꾸면 같이 바꿀 것. */
+      var cw=[{wch:24},{wch:10},{wch:9}]; for(var i3=3;i3<maxW;i3++) cw.push({wch:6.5});
       ws['!cols']=cw;
       ws['!merges']=merges;
       /* ★틀 고정 — 출고장명 열(A)과 머리줄 3행을 얼려, 오른쪽으로 밀어도 <무엇의 값인지> 보이게 한다
@@ -1279,7 +1283,18 @@
            인터넷 CDN 폴백본에도 이 수정이 없다(로컬 파일이 먼저 시도되므로 평소엔 문제 없다). */
       /* 조회조건 2줄이 앞에 붙었으므로 고정할 머리줄도 2줄 늘어난다(날짜배너·사업장·품목명 = 3+2=5) */
       /* 출고장·합계·품목수 3열(A~C)과 머리줄 5행을 얼린다 — 앞으로 옮긴 두 칸도 같이 고정(2026-08-28) */
-      ws['!freeze']={xSplit:3, ySplit:5, topLeftCell:'D6', activePane:'bottomRight', state:'frozen'};
+      /* 얼릴 머리줄 : 날짜배너 + 사업장 + 품목명 = 3줄.
+         ⚠2026-09-03 에 위 <조회조건 2줄>을 빼면서 5 → 3 으로 줄였다. 줄을 더하거나 빼면 여기도 같이. */
+      ws['!freeze']={xSplit:3, ySplit:3, topLeftCell:'D4', activePane:'bottomRight', state:'frozen'};
+      /* ★인쇄 설정을 파일에 박아 둔다 (2026-09-03 요청) — 받는 사람이 매번 [가로]·[배율]·[여백]을
+           손으로 맞추지 않게. 열이 수십 개라 세로·100% 로는 종이 여러 장으로 찢어진다.
+         · 여백 단위는 <인치>다. 엑셀 대화상자는 cm 로 보여 준다 — 0.5cm = 0.197in.
+         · scale 은 '확대/축소 배율'. 자동 맞춤(fitToPage)을 쓰면 이 값이 무시되므로 같이 켜지 않는다.
+         · paperSize 9 = A4.
+         ⚠<pageSetup> 은 xlsx-js-style 원본이 안 써 준다 — assets/vendor/xlsx-js-style/xlsx.bundle.js 를
+           우리가 고쳐 넣었다(파일 머리 주석). 그 파일을 갈아 끼우면 이 설정이 조용히 사라진다. */
+      ws['!margins'] = { left:0.197, right:0.197, top:0.748, bottom:0.748, header:0.315, footer:0.315 };
+      ws['!pageSetup'] = { orientation:'landscape', scale:50, paperSize:9 };
       if(styled){
         var enc=LIB.utils.encode_cell;
         var LINE={style:'thin', color:{rgb:'9BA7B4'}};
@@ -1331,10 +1346,10 @@
           }
           else if(ty==='colhdr'){
             for(c=0;c<wid;c++) put(r,c,S.colhdr);
-            /* 품목명 줄은 <가장 긴 이름에 맞춰> 높이를 준다 (2026-08-28 「품목명 아래를 조금 넓게」).
-               품목코드(품목명,규격…)이 60자를 넘는 것이 흔해 42px 고정으로는 뒷부분이 잘렸다.
-               칸 폭 14 기준 대략 7자에 한 줄, 최대 8줄까지. */
-            var _cl=3; (aoa[r]||[]).forEach(function(v){ var t=(''+(v==null?'':v)); if(t) _cl=Math.max(_cl, Math.min(8, Math.ceil(t.length/9))); });
+            /* 품목명 줄은 <가장 긴 이름에 맞춰> 높이를 준다. 안 그러면 뒷부분이 잘린다.
+               ⚠칸 너비를 18 → 7 로 좁혔으므로(2026-09-03) 한 줄에 들어가는 글자도 9 → 4 자다.
+                 이름이 길면 줄 수가 늘어나 머리줄이 높아진다 — 상한을 20줄로 둔다. */
+            var _cl=3; (aoa[r]||[]).forEach(function(v){ var t=(''+(v==null?'':v)); if(t) _cl=Math.max(_cl, Math.min(20, Math.ceil(t.length/4))); });
             h=Math.max(48, 13*_cl+8);
           }
           else if(ty==='body'){
@@ -2392,8 +2407,10 @@
     if(_vl) _vl.className='vt'+((D2_VIEW==='matrix')?'':' on');
     if(_vm) _vm.className='vt'+((D2_VIEW==='matrix')?' on':'');
     var t=document.getElementById('d2ViewTag'); if(t) t.textContent=(D2_VIEW==='matrix'?'가로표 보기':(D2_VIEW==='biz'?'사업장별 보기':(D2_VIEW==='item'?'품목별 보기':(D2_VIEW==='zoneitem'?'출고장별 품목보기':'출고장별 보기'))));
-    // 출력 형식 셀렉터를 현재 보기와 동기화 → 상단 '일자별/합계 출력'이 현재 보기 형식으로 나감
-    var pf=document.getElementById('d2PrintFmt'); if(pf){ var want=(D2_VIEW==='zone')?'zone':D2_VIEW; for(var i=0;i<pf.options.length;i++){ if(pf.options[i].value===want){ pf.value=want; break; } } }
+    /* 출력 형식 콤보는 <값을> 건드리지 않는다 (2026-09-03) — 기본 <가로표>를 그대로 두고 사용자가 정한다.
+       ★탭을 옮길 때 형식을 따라 바꾸면, 목록을 보다가 가로표로 뽑으려 할 때마다 다시 골라야 한다.
+       (아래에서 보이기/숨기기만 한다 — 그래서 pf 는 여기서 잡아 둔다) */
+    var pf=document.getElementById('d2PrintFmt');
     /* ★보기 콤보가 떠 있는 화면(출고세부조회)에서는 출력형식 콤보를 숨긴다 (2026-08-28 머리줄 두 줄 지적) —
        바로 위에서 현재 보기로 동기화되므로 두 콤보가 같은 값으로 나란히 떠 자리만 먹었다.
        출력은 지금 보는 형식 그대로 나간다. 대시보드(zone·matrix)는 보기 콤보가 없어 종전대로 보인다.
@@ -2882,6 +2899,11 @@
     var zb=document.getElementById('d2BtnZoneToggle'); if(zb) zb.style.display=mx?'none':'';
     var bb=document.getElementById('d2BtnBizFold');    if(bb) bb.style.display=mx?'':'none';
   }
+  /* 출력 형식은 <가로표>가 기본이다 (2026-09-03 확정).
+     ★화면(목록/가로표)을 따라 바꾸지 않는다 — 목록을 보면서 가로표로 뽑는 일이 대부분이라,
+       탭을 옮길 때마다 형식이 따라 바뀌면 뽑을 때마다 다시 골라야 한다.
+       한 번 고르면 그대로 둔다(기본값은 markup 의 selected). */
+  function d2PrintFmtPick(el){ /* 지금은 하는 일 없음 — onchange 자리를 남겨 둔다 */ }
   function d2Render(){
     d2LoadingOff();   // 조회 중 안내 해제 (모든 조회 경로가 이 함수로 수렴)
     d2VtSync();

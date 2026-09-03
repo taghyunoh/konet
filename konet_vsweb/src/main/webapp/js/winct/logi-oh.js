@@ -3713,7 +3713,7 @@ function ssOutQty(o){
     /* ★?v= 를 반드시 붙인다 (2026-08-28) — 이 파일은 우리가 고쳐 쓴다(틀 고정 기능 추가분).
          버전이 없으면 브라우저가 <예전 파일을 캐시>해 고친 내용이 반영되지 않는다.
          실제로 A열 고정이 안 걸린다는 신고가 이것 때문이었다. 파일을 또 고치면 이 숫자도 올릴 것. */
-    KONET_CTX+'/assets/vendor/xlsx-js-style/xlsx.bundle.js?v=20260828a',
+    KONET_CTX+'/assets/vendor/xlsx-js-style/xlsx.bundle.js?v=20260903a',
     'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js'
   ];
   function ssLoadStyleXlsx(cb){
