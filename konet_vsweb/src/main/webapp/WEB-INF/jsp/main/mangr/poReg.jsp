@@ -275,9 +275,10 @@ function poKakao(){ var u=shareUrl(); if(!u){ toast('먼저 저장하세요.','�
   try{ if(!Kakao.isInitialized()) Kakao.init(KAKAO_KEY); }catch(e){ toast('카카오 초기화 실패: '+esc(e.message),'⚠️'); poCopyLink(); return; }
   var t=calcAll(), dt=d8(_cur.poDt);
   try{
-    Kakao.Share.sendDefault({ objectType:'feed',
-      content:{ title:'발주서 — '+(_cur.vendorNm||''), description:dt+' · 품목 '+t.cnt+'종 · 합계 '+fmt(t.tot)+'원 · '+(document.getElementById('mgrNm').value||''),
-                imageUrl: SHARE_BASE+'/asset/img/kakao_po_card.png', imageWidth:800, imageHeight:400, link:{ mobileWebUrl:u, webUrl:u } },
+    /* 텍스트형 카드 — 그림(썸네일) 없이 글만 (2026-09-03 「앞에 표시는 제거」). feed 형은 이미지가 필수라 text 형으로 */
+    Kakao.Share.sendDefault({ objectType:'text',
+      text:'📋 발주서 — '+(_cur.vendorNm||'')+'\n'+dt+' · 품목 '+t.cnt+'종 · 합계 '+fmt(t.tot)+'원 · '+(document.getElementById('mgrNm').value||''),
+      link:{ mobileWebUrl:u, webUrl:u },
       buttons:[ { title:'웹페이지로 보기', link:{ mobileWebUrl:u, webUrl:u } } ] });
     post('/mangr/poShared.do','poSeq='+_cur.poSeq).then(function(){ if(_cur){ _cur.shareCnt=n(_cur.shareCnt)+1; document.getElementById('stat').textContent='발주서 '+dt+' - '+_cur.poNo+' · 공유 '+_cur.shareCnt+'회'; } poLoad(_cur.poSeq); }).catch(function(){});
   }catch(e){ toast('카카오 공유 실패: '+esc(e.message)+'<br><span style="font-size:12px">링크 복사로 보내세요.</span>','⚠️'); }
