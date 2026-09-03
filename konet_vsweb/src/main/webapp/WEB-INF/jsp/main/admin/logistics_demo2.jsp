@@ -3092,16 +3092,16 @@
     </div><%-- /side-fix --%>
 
     <div class="grp">조회·대시보드관리 ★</div>
-    <a class="mi core on" data-key="shipstatus2" onclick="logiShipView('zone', this)"><span class="ic">🗂️</span>출고현황표(대시보드)</a>
+    <a class="mi core on" data-key="shipstatus2" onclick="logiShipView('zone', this)"><span class="ic">🗂️</span>납기현황표(대시보드)</a>
      <%-- 출고세부조회: 출고장별 품목·사업장별·품목별을 한 화면 3탭으로 통합(2026-07-24).
           서브메뉴 3개 → 단일 메뉴. 탭 전환은 iframe(logistics_demo1) 상단 뷰버튼(zoneitem/biz/item). --%>
-     <a class="mi" data-key="shipstatus2" onclick="logiShipView('zoneitem', this)"><span class="ic">🚚</span>출고세부조회</a>
+     <a class="mi" data-key="shipstatus2" onclick="logiShipView('zoneitem', this)"><span class="ic">🚚</span>납기세부조회</a>
      <%-- 출고현황이력조회(2026-07-25 요청) — 발주현황표 엑셀을 언제·누가·몇 차로 올렸는지와 그 발생내역.
           업로드가 배치(출고일자+출고장+차수)로 남으므로 그 흐름을 일자별로 보여준다. --%>
-     <a class="mi" data-key="shipouthist" onclick="logiFrame('shipouthist','${pageContext.request.contextPath}/shipout/shipoutHist.do', this)"><span class="ic">🗂️</span>출고현황이력조회</a>
+     <a class="mi" data-key="shipouthist" onclick="logiFrame('shipouthist','${pageContext.request.contextPath}/shipout/shipoutHist.do', this)"><span class="ic">🗂️</span>납기현황이력조회</a>
      <%-- 택배출고관리(2026-08-06 신설) — 출고일자의 직송(ZONE='직송')을 택배 발송 엑셀로.
           주소·운임은 사업장(TBL_BIZI_MST)의 택배 정보를 쓰고, 그 화면에서 바로 채워 저장할 수 있다. --%>
-     <a class="mi" data-key="parcelout" onclick="logiFrame('parcelout','${pageContext.request.contextPath}/shipout/parcelOut.do', this)"><span class="ic">🚛</span>택배출고관리</a>
+     <a class="mi" data-key="parcelout" onclick="logiFrame('parcelout','${pageContext.request.contextPath}/shipout/parcelOut.do', this)"><span class="ic">🚛</span>택배납기관리</a>
 
     <%-- 메뉴 배열 = 홀세일닥터 구조에 맞춤(2026-07-25 요청).
          업무 단위(매출/매입/재고)로 묶고 그 안에 등록·정산·마감을 함께 둔다.
@@ -4590,14 +4590,14 @@
 
     <!-- ===== 출고현황이력조회 (2026-07-25) ===== -->
     <section id="panel-shipouthist" class="panel" style="padding:0;">
-      <iframe id="if-shipouthist" src="" title="출고현황이력조회" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+      <iframe id="if-shipouthist" src="" title="납기현황이력조회" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
 
     <%-- ===== 택배출고관리 (2026-08-06) — 출고일자의 직송(ZONE='직송')을 택배 발송 엑셀로.
          ★메뉴(logiFrame('parcelout',…))만 넣고 이 패널을 빠뜨리면 눌러도 아무 일이 없다
            (if-<key> iframe 이 없어 src 를 넣을 곳이 없다). 새 iframe 화면은 메뉴+패널을 짝으로 넣을 것. --%>
     <section id="panel-parcelout" class="panel" style="padding:0;">
-      <iframe id="if-parcelout" src="" title="택배출고관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+      <iframe id="if-parcelout" src="" title="택배납기관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
 
     <%-- ===== 정산 그래프 (2026-08-02) — 정산서 금액을 일자별/월별로. JS=logi-oh.js sg* ===== --%>

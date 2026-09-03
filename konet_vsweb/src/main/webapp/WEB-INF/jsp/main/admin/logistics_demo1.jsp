@@ -20,7 +20,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>출고현황표(데시보드2)</title>
+<title>납기현황표(데시보드2)</title>
 <style>
   :root { --teal:#1f9b8e; --teal-dk:#178074; --bd:#dfe6e3; --bg:#f4f8f7; }
   * { box-sizing:border-box; }
@@ -504,7 +504,7 @@
       <%-- [제외 2026-08-28 요청 「표시부분 제거」] 제목 옆 보기방식 배지(출고장별 보기 등) —
            d2SetView 의 d2ViewTag 갱신은 if(t) 가드라 요소가 없어도 조용히 지나간다. 재노출 시 주석 해제
       <h2>출고현황표 <span class="badge" id="d2ViewTag">출고장별 보기</span> --%>
-      <h2>출고현황표
+      <h2>납기현황표
         <%-- 보기전환 콤보 — 대시보드(출고장별)에서는 감추고, 출고세부조회에서는 보인다(2026-07-25 요청).
              대시보드는 좌측 메뉴가 이미 그 보기를 정해줘 콤보가 자리만 차지했다. 반면 출고세부조회는
              출고장별품목 ↔ 사업장별 ↔ 품목별 을 오가는 화면이라 콤보가 있어야 한다.
@@ -532,25 +532,25 @@
            CSS 상단 접기 주석 참고. --%>
     <div class="tb-left">
       <span style="font-size:20px">📅</span>
-      <label>출고일자</label>
+      <label>납기일자</label>
       <%-- ★날짜를 고르는 것만으로는 조회하지 않는다 (2026-08-28 요청) — d2DateDirty 는 [조회]를 눌러 달라고 표시만 한다.
            종전에는 onchange="d2Load()" 라 날짜를 만질 때마다 DB 조회가 돌았다.
            ※[당일][당월][전체]는 그 자체가 실행 단추라 종전대로 바로 조회한다. --%>
       <input type="date" id="d2DateFrom" onchange="d2DateDirty()" onclick="d2OpenCal(this)" onfocus="d2OpenCal(this)" title="클릭하여 달력 선택 — 고른 뒤 [조회]를 누르세요">
       <span style="color:#9aa7b3">~</span>
       <input type="date" id="d2DateTo" onchange="d2DateDirty()" onclick="d2OpenCal(this)" onfocus="d2OpenCal(this)" title="클릭하여 달력 선택 — 고른 뒤 [조회]를 누르세요">
-      <button class="btn-teal" id="d2BtnSearch" onclick="d2Load()" title="선택한 출고일자의 데이터를 DB에서 다시 조회합니다">🔍 조회</button>
+      <button class="btn-teal" id="d2BtnSearch" onclick="d2Load()" title="선택한 납기일자의 데이터를 DB에서 다시 조회합니다">🔍 조회</button>
       <span id="d2NeedMsg">← 날짜가 바뀌었습니다. [조회]를 누르세요</span>
       <button class="btn-line" id="d2BtnToday" onclick="d2Today()">당일</button>
       <button class="btn-line" id="d2BtnMonth" onclick="d2Month()">당월</button>
-      <button class="btn-line" id="d2BtnAll" onclick="d2All()" title="출고일자와 상관없이 DB 전체 자료를 출고일자별 블록으로 표시">전체</button>
+      <button class="btn-line" id="d2BtnAll" onclick="d2All()" title="납기일자와 상관없이 DB 전체 자료를 납기일자별 블록으로 표시">전체</button>
     </div>
     <%-- 요약숫자(KPI)도 이 제목줄로 올렸다 (2026-08-28 요청 「표시부분을 위로 이동」) —
          조회조건 다음, 액션단추 앞. 아래 줄에는 안내(#d2Info)만 남고 할 말이 없으면 줄째로 감춰진다. --%>
     <%-- 라벨(.st-l)은 CSS 로 감춰 둔다(2026-08-28 요청) — 무슨 숫자인지는 title 로 뜬다. --%>
     <div class="tb-stats">
-      <div class="st" title="조회한 기간의 출고품목 수"><span class="st-l"><span id="d2KpiPrefix">당일</span> 출고품목</span><span class="st-v" id="d2KpiItem">0</span></div>
-      <div class="st" title="출고수량 합계 (BOX)"><span class="st-l">출고수량(BOX)</span><span class="st-v" id="d2KpiQty">0</span></div>
+      <div class="st" title="조회한 기간의 납기품목 수"><span class="st-l"><span id="d2KpiPrefix">당일</span> 납기품목</span><span class="st-v" id="d2KpiItem">0</span></div>
+      <div class="st" title="출고수량 합계 (BOX)"><span class="st-l">납기수량(BOX)</span><span class="st-v" id="d2KpiQty">0</span></div>
       <div class="st" title="출고장 수"><span class="st-l">출고장 수</span><span class="st-v" id="d2KpiZone">0</span></div>
       <div class="st" title="사업장 수"><span class="st-l">사업장</span><span class="st-v" id="d2KpiBiz">0</span></div>
     </div>
@@ -1137,7 +1137,7 @@
         d2MxColSort(cols, ag, zones);   // 화면 가로표와 같은 차례(출고수량 많은 사업장부터)
         function colQty(rs, c){ var t=0; for(var i=0;i<c.keys.length;i++){ var x=rs[c.keys[i]]; if(x) t+=(+x.qty||0); } return t; }
         /* 맨 위 '출고장일자' 줄은 뺐다 (2026-08-28 요청) — 이 날짜 배너가 같은 내용을 이미 담고 있다 */
-        push(['📅 '+(dateHdr||dlab)+' 출고     ※ 회색 칸 = 그 출고장에 그 품목이 없음'], 'datehdr');
+        push(['📅 '+(dateHdr||dlab)+' 납기     ※ 회색 칸 = 그 출고장에 그 품목이 없음'], 'datehdr');
         /* ★열 차례 : [0]출고장  [1]합계  [2]품목수  [3~]사업장·품목  (2026-08-28 「엑셀도 합계·품목수가 앞으로」)
              화면 가로표와 같은 차례다. 세 칸을 틀 고정하므로 옆으로 끝까지 밀어도 총량이 보인다.
            ⚠아래 서식 루프의 자리번호(1·2)와 !cols·!freeze(xSplit:3) 가 이 차례에 묶여 있다 — 바꾸면 같이 고칠 것. */
@@ -1460,7 +1460,7 @@
         var zonesSorted=d2ZonesSorted(ag);
         var zonesWithItems=zonesSorted.filter(function(zn){ return Object.keys(ag.zones[zn].rows).length>0; });
         if(!zonesWithItems.length) return;
-        if(dateHdr) push(['📅 '+dateHdr+' 출고'],'datehdr',COLS-1);
+        if(dateHdr) push(['📅 '+dateHdr+' 납기'],'datehdr',COLS-1);
         // 물류센터(대표그룹) 단위로 묶기 — 화면과 동일 (오산센터 등)
         function d2CenterOfX(zn){ return (''+zn).replace(/\s*직송$/,'').replace(/\s*\d+\s*$/,'').trim(); }
         var groups={}, gOrder=[];
@@ -1624,7 +1624,7 @@
       push([],'blank');
       function buildItemSection(list, dateHdr){
         if(!list.length) return;
-        if(dateHdr) push(['📅 '+dateHdr+' 출고'],'datehdr',COLS-1);
+        if(dateHdr) push(['📅 '+dateHdr+' 납기'],'datehdr',COLS-1);
         push(['No','품목코드','품목명','출고수량'],'head');
         var sub=0;
         list.forEach(function(r,ix){ push([ix+1, r.code, r.name, r.qty],'item'); sub+=r.qty; madeAll++; });
@@ -1719,7 +1719,7 @@
       function buildBizSection(bm, dateHdr){
         var names=Object.keys(bm).sort(function(a,b){ return a.localeCompare(b,'ko'); });
         if(!names.length) return;
-        if(dateHdr) push(['📅 '+dateHdr+' 출고'],'datehdr',COLS-1);
+        if(dateHdr) push(['📅 '+dateHdr+' 납기'],'datehdr',COLS-1);
         push(['사업장','No','품목코드','품목명','출고수량'],'head');
         var sub=0;
         names.forEach(function(b){
@@ -1814,7 +1814,7 @@
       push([],'blank');
       function buildZoneSection(zones, dateHdr){
         if(!zones.length) return;
-        if(dateHdr) push(['📅 '+dateHdr+' 출고'],'datehdr',COLS-1);
+        if(dateHdr) push(['📅 '+dateHdr+' 납기'],'datehdr',COLS-1);
         push(['출고장','No','품목코드','품목명','출고수량'],'head');
         var gp=d2GroupZones(zones), sub=0;
         gp.order.forEach(function(g){

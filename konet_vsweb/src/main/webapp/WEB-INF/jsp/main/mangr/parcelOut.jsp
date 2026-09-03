@@ -5,7 +5,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>택배출고관리</title>
+<title>택배납기관리</title>
 <!--
   택배출고관리 (2026-08-06 신설) — 출고일자의 직송(TBL_SHIPOUT_MST ZONE='직송') 줄을
   택배 발송 엑셀(원양식: D:\코네트\택배관련\테스트 자료.xlsx)로 만든다.
@@ -79,13 +79,13 @@
 <body>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <div class="wrap">
-  <h2>🚛 택배출고관리</h2>
-  <div class="sub">출고일자의 <b>직송(ZONE='직송')</b> 출고를 택배 발송 양식으로 만듭니다.
+  <h2>🚛 택배납기관리</h2>
+  <div class="sub">납기일자의 <b>직송(ZONE='직송')</b> 출고를 택배 발송 양식으로 만듭니다.
     주소·전화는 사업장의 <b>택배주소 우선(없으면 기본주소)</b>, 운임은 사업장 기본운임(없으면 4,500)이며 행에서 고칠 수 있습니다.</div>
 
   <div class="bar">
     <%-- 출고일자 기간 조회 (2026-08-06 요청) — 하루만 볼 때는 두 칸을 같은 날로 두면 된다 --%>
-    <label style="font-weight:700">출고일자</label>
+    <label style="font-weight:700">납기일자</label>
     <input type="date" id="outFr" onchange="poDtSync('fr')">
     <span style="color:#8a98a8">~</span>
     <input type="date" id="outTo" onchange="poDtSync('to')">
@@ -107,12 +107,12 @@
       </colgroup>
       <thead><tr>
         <th title="체크를 풀면 엑셀에서 빠집니다"><input type="checkbox" id="poAll" checked onchange="poAllChk(this.checked)"></th>
-        <th>#</th><th>구분</th><th>출고일자</th><th>사업장코드</th><th>사업장명(받는분)</th><th>택배주소</th>
+        <th>#</th><th>구분</th><th>납기일자</th><th>사업장코드</th><th>사업장명(받는분)</th><th>택배주소</th>
         <th>전화</th><th>휴대폰</th><th>운임</th><th>품목명</th><th>박스</th>
         <th title="발주현황표에 올라온 라벨수량 그대로입니다(계산하지 않습니다). 대시보드의 수량과 같은 값입니다. 엑셀 F칸으로 나갑니다.">총수량</th>
         <th>택배정보</th>
       </tr></thead>
-      <tbody id="tb"><tr><td colspan="14" class="empty">출고일자를 고르고 [조회]를 누르세요.</td></tr></tbody>
+      <tbody id="tb"><tr><td colspan="14" class="empty">납기일자를 고르고 [조회]를 누르세요.</td></tr></tbody>
     </table>
   </div>
   <%-- 목록 아래 진행 표시 (2026-08-06 요청) — 몇 줄까지 보고 있는지·더 있는지 알려 준다
@@ -164,7 +164,7 @@ document.getElementById('listCard').addEventListener('scroll', function(){ clear
 
 function poLoad(){
   var fr = document.getElementById('outFr').value, to = document.getElementById('outTo').value;
-  if(!fr || !to){ swErr('출고일자(시작·종료)를 선택하세요.'); return; }
+  if(!fr || !to){ swErr('납기일자(시작·종료)를 선택하세요.'); return; }
   document.getElementById('tb').innerHTML = '<tr><td colspan="14" class="empty">조회 중…</td></tr>';
   fetch(CTX+'/shipout/parcelList.do', { method:'POST', credentials:'same-origin',
       headers:{'Content-Type':'application/x-www-form-urlencoded'},

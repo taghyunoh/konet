@@ -430,8 +430,15 @@ public class UserServiceImpl implements UserService {
 	 *    정산서를 아직 안 올린 과거 기간의 재고가 그대로 유지된다.
 	 *    그 날짜에 정산서를 올리면 syncSalesLedger 가 걷어내고 정산서로 바꾼다.
 	 *  ★되돌리려면 이 값만 true 로 바꾸면 된다. 호출부는 그대로 두었다.
+	 *
+	 *  [2026-09-03 되돌림] 다시 true — 정산서가 열흘쯤 늦게 와서 그 사이 재고현황을 볼 수 없었다.
+	 *    · 발주현황표 업로드 → 그 출고일자의 O행을 먼저 만든다(예상 출고)
+	 *    · 정산서 업로드    → 같은 날의 SHIPOUT 파생행을 걷어내고 정산서로 바꾼다(확정 출고)
+	 *    이중 차감 방지 두 겹(syncSalesLedgerCore 의 deleteShipoutLedger + insertShipoutLedger 의
+	 *    NOT EXISTS)은 그대로 살아 있어, 켜기만 하면 된다.
+	 *  ⚠켠 뒤 <과거 날짜>는 저절로 채워지지 않는다 — 재고현황 [출고반영 재집계] 를 한 번 눌러야 한다.
 	 * ════════════════════════════════════════════════════════════════════════ */
-	private static final boolean SHIPOUT_LEDGER_ON = false;
+	private static final boolean SHIPOUT_LEDGER_ON = true;
 
 	/* (A) 출고(SHIPOUT)→원장 자동연동 : 해당 출고일자 O행을 지우고 활성 SHIPOUT으로 다시 생성. 마감 확정월이면 원장 불변이므로 skip */
 	@Override public int syncShipoutLedgerDate(String shpoutDt, String regUser, String regIp) throws Exception {
@@ -1045,6 +1052,17 @@ public class UserServiceImpl implements UserService {
 		mapper.deleteShipoutLedger(sh);
 
 		mapper.deleteSalesLedger(led);
-		return mapper.insertSalesLedger(led);
+		int n = mapper.insertSalesLedger(led);
+
+		/* ★[2026-09-03] 납품일자 D 의 발주행이 <다른 출고일자> 밑에 합산돼 있으면 그 날짜들도 다시 만든다.
+		     김해는 매일 하루 먼저 나가(출고 D-1 · 납품 D) SHIPOUT 원장이 D-1 에 붙어 있다.
+		     위 deleteShipoutLedger(D) 는 D 만 지우므로 D-1 의 김해 몫이 남아 정산서와 <두 번> 빠졌다.
+		     다시 만들면 insertShipoutLedger 의 NOT EXISTS(납품일자 기준)가 D 몫을 알아서 뺀다.
+		   ★스위치가 꺼져 있으면 syncShipoutLedgerDate 가 0 을 돌려주므로 여기서 따로 가릴 것 없다. */
+		java.util.List<String> sds = mapper.selectShipoutDtsByDlvDt(sh);
+		if (sds != null) for (String sd : sds) {
+			if (sd != null && !sd.equals(dt)) syncShipoutLedgerDate(sd, regUser, regIp);
+		}
+		return n;
 	}
 }
