@@ -151,6 +151,7 @@ public interface UserService {
 
 	// ===== 재고 수불 / 현황 =====
 	java.util.List<egovframework.sejong.user.model.StockLedgerDTO> selectStockLedgerList(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectStockLedgerInList(java.util.Map<String,Object> p) throws Exception;   // 월별 출고현황 하단 입고내역 (2026-09-03 속도점검)
 	egovframework.sejong.user.model.StockMstDTO selectStockMst(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
 	int insertStockLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception; // 원장 INSERT + 현재고 재집계
 	int deleteStockLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception; // 원장 삭제 + 현재고 재집계

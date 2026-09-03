@@ -179,6 +179,7 @@ public interface UserMapper {
 
 	// ===== 재고 수불원장 / 현황 (TBL_STOCK_LEDGER / TBL_STOCK_MST) =====
 	java.util.List<egovframework.sejong.user.model.StockLedgerDTO> selectStockLedgerList(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectStockLedgerInList(java.util.Map<String,Object> p) throws Exception;   // 월별 출고현황 하단 입고내역 — 출고(O)행 뺀 가벼운 원장 (2026-09-03 속도점검)
 	java.util.List<egovframework.sejong.user.model.StockLedgerDTO> selectInboundList(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception; // 입고내역(전체 입고 거래)
 	int insertStockLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
 	int deleteStockLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;

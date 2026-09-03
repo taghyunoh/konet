@@ -404,6 +404,7 @@ public class UserServiceImpl implements UserService {
 
 	/* ===== 재고 수불 : 원장 입출력 후 현재고(TBL_STOCK_MST) 재집계 ===== */
 	@Override public java.util.List<egovframework.sejong.user.model.StockLedgerDTO> selectStockLedgerList(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception { return mapper.selectStockLedgerList(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectStockLedgerInList(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockLedgerInList(p); }
 	@Override public egovframework.sejong.user.model.StockMstDTO selectStockMst(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception { return mapper.selectStockMst(dto); }
 	@Override public int insertStockLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception {
 		guardClosed(dto.getTrxDt());   // 마감 확정월 잠금

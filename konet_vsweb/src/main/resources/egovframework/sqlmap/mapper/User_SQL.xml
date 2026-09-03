@@ -2638,6 +2638,28 @@
 	   ORDER BY l.TRX_DT DESC, l.LEDGER_SEQ DESC
 	]]></select>
 
+	<!-- ★월별 출고현황 하단 [입고내역] 전용 — 출고(O)행을 뺀 가벼운 원장 (2026-09-03 속도점검)
+	       위 selectStockLedgerList 는 출고(O)행마다 사업장명·대체출고를 FOR XML 상관 서브쿼리로 만든다.
+	       그런데 월별 출고현황의 입고내역 칸은 그 O행을 화면에서 전부 버린다(ioGb==='O' 제외) —
+	       즉 2.6초를 들여 만든 값을 통째로 내다 버리고 있었다.
+	     실측(prodSeq=1982, 원장 222행 중 출고 198행) : selectStockLedgerList 2,599ms → 이 구문 7ms (370배).
+	     ★품목별재고현황 ②수불내역은 O행이 있어야 하므로 위 구문은 그대로 둔다 — 쓰임이 다른 두 화면이다.
+	     · I·R·A 행은 REF_GB 가 'SHIPOUT' 이 아니라 BIZ_CD 를 그대로 쓰면 된다(위 CASE 도 결국 같은 값).
+	     · 기간(frDt·toDt)을 주면 서버에서 걸러 준다 — 화면이 어차피 같은 범위로 거르고 있었다. -->
+	<select id="selectStockLedgerInList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT l.LEDGER_SEQ AS ledgerSeq, l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, l.TRX_DT AS trxDt, l.IO_GB AS ioGb,
+	         l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt, l.VENDOR_CD AS vendorCd,
+	         (SELECT MAX(v.VENDOR_NM) FROM TBL_VENDOR_MST v
+	           WHERE v.VENDOR_CD = l.VENDOR_CD AND v.ACTION_YN='Y' AND v.COMP_CD = l.COMP_CD) AS vendorNm,
+	         l.BIZ_CD AS bizCd, l.REF_GB AS refGb, l.REF_NO AS refNo, l.REMARK AS remark
+	    FROM TBL_STOCK_LEDGER l
+	   WHERE l.PROD_SEQ = #{prodSeq} AND l.ACTION_YN = 'Y' AND l.IO_GB <> 'O'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{frDt,jdbcType=VARCHAR},'') = '' OR REPLACE(l.TRX_DT,'-','') >= REPLACE(#{frDt,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'') = '' OR REPLACE(l.TRX_DT,'-','') <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
+	   ORDER BY l.TRX_DT DESC, l.LEDGER_SEQ DESC
+	]]></select>
+
 	<!-- ★useGeneratedKeys : 재고 일괄조정 이력이 이 번호로 원장행과 짝을 맞춘다(2026-08-19) -->
 	<insert id="insertStockLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"
 	        useGeneratedKeys="true" keyProperty="ledgerSeq" keyColumn="LEDGER_SEQ"><![CDATA[

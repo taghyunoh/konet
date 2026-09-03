@@ -1201,7 +1201,10 @@ public class UserController {
 			Map<String,Object> res = new HashMap<String,Object>();
 			res.put("months", svc.selectStockOutByMonth(p));
 			res.put("stock",  svc.selectStockQtyMap(new egovframework.sejong.user.model.StockMstDTO()));
-			res.put("srcDays", svc.selectStockOutSrcDays(p));   // 월별 정산서/발주 원천 일수 (2026-09-03) — 화면 표시는 뺐지만 자료는 내려 준다
+			/* ★srcDays(월별 정산서/발주 원천 일수) 호출은 뺐다 (2026-09-03 속도점검) —
+			     화면이 년월 칸 표시를 뺀 뒤로 쓰는 데가 없는데 조회마다 실측 120ms 를 썼다.
+			     화면의 srcBadge() 함수는 그대로 남아 있으니, 다시 보여 주려면 이 줄만 되살리면 된다.
+			     res.put("srcDays", svc.selectStockOutSrcDays(p)); */
 			return res;
 		}
 		private static String _d8(String s) { return (s == null) ? "" : s.trim().replace("-", ""); }   // yyyy-mm-dd → yyyymmdd
@@ -1228,11 +1231,14 @@ public class UserController {
 			p.put("prodCd", prodCd); p.put("bizKey", bizKey); p.put("bizNm", bizNm);
 			Map<String,Object> res = new HashMap<String,Object>();
 			res.put("out", svc.selectStockOutDetail(p));
-			java.util.List<egovframework.sejong.user.model.StockLedgerDTO> led = new java.util.ArrayList<egovframework.sejong.user.model.StockLedgerDTO>();
+			/* ★입고내역은 selectStockLedgerInList — 출고(O)행을 서버에서 빼고 기간까지 걸러 받는다 (2026-09-03 속도점검).
+			     종전 selectStockLedgerList 는 O행마다 사업장·대체출고를 FOR XML 로 만드는데 화면은 그 행을 전부 버렸다
+			     (실측 2,599ms → 7ms). ⚠품목별재고현황 ②수불내역은 O행이 필요하므로 그쪽은 종전 구문 그대로다. */
+			java.util.List<java.util.Map<String,Object>> led = new java.util.ArrayList<java.util.Map<String,Object>>();
 			if (prodSeq != null) {
-				egovframework.sejong.user.model.StockLedgerDTO d = new egovframework.sejong.user.model.StockLedgerDTO();
-				d.setProdSeq(prodSeq);
-				led = svc.selectStockLedgerList(d);   // 전 기간 원장 — 화면이 일자·구분(입고)으로 거른다
+				Map<String,Object> lp = new HashMap<String,Object>();
+				lp.put("prodSeq", prodSeq); lp.put("frDt", fd); lp.put("toDt", td);
+				led = svc.selectStockLedgerInList(lp);
 			}
 			res.put("ledger", led);
 			return res;

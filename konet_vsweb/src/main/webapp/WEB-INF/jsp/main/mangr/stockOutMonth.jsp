@@ -112,7 +112,7 @@
     <label style="font-weight:700">기간</label>
     <input type="date" id="frDt" data-range-to="toDt" onchange="somLoad()" title="클릭하여 달력 선택 — 시작·종료를 한 번에 고릅니다"> <span style="color:#8a98a8">~</span> <input type="date" id="toDt" onchange="somLoad()" title="클릭하여 달력 선택 — 시작·종료를 한 번에 고릅니다">
     <button class="btn btn-teal" onclick="somLoad()">🔍 조회</button>
-    <input type="text" id="q" placeholder="사업장/품목코드/품목명 거르기" oninput="somRender()" style="width:220px">
+    <input type="text" id="q" placeholder="사업장/품목코드/품목명 거르기" oninput="somFindLater()" onkeydown="if(event.key==='Enter'){ somFindNow(); }" title="치는 동안 기다렸다가 멈추면 거릅니다 — Enter 를 누르면 바로" style="width:220px">
     <button class="btn" onclick="somExcel()">📥 엑셀 출력</button>
     <span class="cnt" id="cnt">-</span>
     <button class="btn rb-btn" onclick="somRebuild()" title="전체 출고를 재고 원장에 다시 반영하고 현재고를 다시 계산합니다 (품목별재고현황의 재집계와 같은 것).&#10;정산서가 있는 납기일자는 정산서, 없는 날은 발주현황표 기준. 마감 확정월은 제외.">🔄 출고반영 재집계</button>
@@ -137,12 +137,14 @@ function qprog(msg){ return '<div class="qwrap"><div class="qprog"><i></i></div>
 function ymLabel(ym){ ym=''+ym; return ym.length===6 ? (ym.slice(0,4)+'-'+ym.slice(4,6)) : ym; }
 /* 알림 = 프로젝트 공통 _alertBox(ui-message.js, 재집계 확인창과 같은 모양). 없으면 브라우저 alert 폴백 (2026-09-03 요청) */
 function toast(s, icon){ if(window._alertBox) return _alertBox(s, {icon:icon||'ℹ️'}); alert(s.replace(/<[^>]*>/g,'')); }
-/* 기본 기간 = 12개월 전 1일 ~ 오늘 (일자 단위, 2026-09-03 「일자까지 보여주는 형식으로」) */
+/* 기본 기간 = <해당년도 1월 1일> ~ 오늘 (2026-09-03 사용자 확정. 종전 「12개월 전 1일」)
+   ★기간이 곧 표의 열 수다 — 지금은 자료가 2026-01 부터라 12개월 기본과 결과가 같지만
+     (열 2,415 · DOM 셀 29,811 · 렌더 실측 1.5초), 해가 바뀌면 12개월 기본은 지난해까지 끌어와
+     열이 배로 늘어난다. 올해분으로 끊으면 그 일이 없다. 더 보려면 시작일만 내리면 된다. */
 (function(){
   function d10(x){ return x.getFullYear()+'-'+('0'+(x.getMonth()+1)).slice(-2)+'-'+('0'+x.getDate()).slice(-2); }
   var d=new Date(), to=d10(d);
-  d.setMonth(d.getMonth()-12); d.setDate(1);
-  var fr=d10(d);
+  var fr=d.getFullYear()+'-01-01';
   document.getElementById('frDt').value=fr; document.getElementById('toDt').value=to;
 
 })();
@@ -195,9 +197,20 @@ function srcBadge(ym){
   if(!d) return ''; var s=Number(d.sDays)||0, o=(Number(d.days)||0)-s;
   return '<small class="src">'+(s?('📄 정산 '+s+'일'+(o?' · ':'')):'')+(o?('발주 '+o+'일'):'')+'</small>';
 }
+/* ★거르기 칸은 <치는 동안> 다시 그리지 않는다 (2026-09-03 속도점검)
+     종전 oninput="somRender()" 는 글자 하나마다 표를 통째로 다시 만들었다 —
+     12개월(열 2,415 · DOM 셀 29,811) 기준 실측 1,496ms(레이아웃만 884ms)라
+     한 글자에 1.5초씩 멈췄고, 한글은 조합 중에도 event 가 떠서 더 잦았다.
+     ⇒ 마지막 입력 뒤 300ms 조용할 때 한 번만 그린다. Enter 는 즉시. */
+var _somFindT=null;
+function somFindLater(){ if(_somFindT) clearTimeout(_somFindT); _somFindT=setTimeout(function(){ _somFindT=null; somRender(); }, 300); }
+function somFindNow(){ if(_somFindT){ clearTimeout(_somFindT); _somFindT=null; } somRender(); }
+/* 화면에 그려진 격자 — 셀 클릭·엑셀이 다시 만들지 않고 이걸 쓴다(실측 somBuild 84ms).
+   지금 표에 보이는 것과 같은 격자라 오히려 어긋날 일이 없다. */
+var _somM=null;
 function somRender(){
   if(!RAW) return;
-  var m=somBuild(), card=document.getElementById('card');
+  var m=_somM=somBuild(), card=document.getElementById('card');
   if(!m.cols.length){ card.innerHTML='<div class="empty">해당 기간에 출고가 없습니다.</div>'; document.getElementById('cnt').textContent='-'; return; }
   /* 머리 1단 = 사업장(품목수 · 기간출고), 2단 = 품목 — 납기현황표 가로표와 같은 꼴 */
   var h='<table class="mx"><thead><tr class="r1"><th class="cn">년월 / 사업장</th><th class="rt">합계</th>';
@@ -239,7 +252,7 @@ function somRender(){
 var DTL_LAST=null;
 document.getElementById('card').addEventListener('click', function(ev){
   var td=ev.target.closest ? ev.target.closest('td[data-cd]') : null; if(!td || !RAW) return;
-  var m=somBuild(), g=m.grp[td.getAttribute('data-g')]; if(!g) return;
+  var m=_somM||somBuild(), g=m.grp[td.getAttribute('data-g')]; if(!g) return;
   var it=g.items[td.getAttribute('data-cd')]; if(!it) return;
   var prev=document.querySelector('table.mx td.pick'); if(prev) prev.classList.remove('pick'); td.classList.add('pick');
   somDetail({ ym:td.getAttribute('data-ym')||'', g:g, it:it });
@@ -326,7 +339,7 @@ window.addEventListener('resize', somFit);
 /* 엑셀 — 화면 표 그대로(머리 2줄: 사업장 병합 + 품목, 현재고 줄 포함). 부모의 xlsx 라이브러리를 빌려 쓴다(택배납기관리와 같은 방식) */
 function somExcel(){
   if(!RAW){ toast('먼저 조회하세요.'); return; }
-  var m=somBuild(); if(!m.cols.length){ toast('출력할 자료가 없습니다.'); return; }
+  var m=_somM||somBuild(); if(!m.cols.length){ toast('출력할 자료가 없습니다.'); return; }
   var aoa=[], h1=['년월 / 사업장 ▸ 품목','합계'], h2=['',''];
   var merges=[{s:{r:0,c:0},e:{r:1,c:0}},{s:{r:0,c:1},e:{r:1,c:1}}], ci=2;
   m.gord.forEach(function(gk){ var g=m.grp[gk], n=g.iord.length;
