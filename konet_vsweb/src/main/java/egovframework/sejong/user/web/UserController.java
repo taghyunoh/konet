@@ -1243,7 +1243,17 @@ public class UserController {
 		   설정 = src/main/resources/kakao.properties (kakao.js.key · share.base.url). */
 		private static String poProp(String key) {
 			try { String v = System.getProperty(key); if (v != null && !v.trim().isEmpty()) return v.trim(); } catch (Exception e) {}
-			try { return java.util.ResourceBundle.getBundle("kakao").getString(key).trim(); } catch (Exception e) { return ""; }
+			return poPropOf("kakao", key);
+		}
+		/** .properties 를 UTF-8 로 읽는다 — ResourceBundle 은 Java 8 에서 ISO-8859-1 로 읽어 한글이 깨졌다(「(주)코네트」→ 「(ì£¼)ì½ë„¤íŠ¸」, 2026-09-03 실제). */
+		private static String poPropOf(String bundle, String key) {
+			try (java.io.InputStream in = UserController.class.getClassLoader().getResourceAsStream(bundle + ".properties")) {
+				if (in == null) return "";
+				java.util.Properties p = new java.util.Properties();
+				p.load(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+				String v = p.getProperty(key);
+				return v == null ? "" : v.trim();
+			} catch (Exception e) { return ""; }
 		}
 		private static String poShareBase(HttpServletRequest request) {
 			String b = poProp("share.base.url");
@@ -1351,7 +1361,11 @@ public class UserController {
 			Map<String,Object> c = new HashMap<String,Object>(); c.put("compCd", mst.get("compCd"));
 			model.addAttribute("mst", mst);
 			model.addAttribute("items", svc.selectPoDtl(q));
-			model.addAttribute("comp", svc.selectCompInfo(c));
+			/* company.properties 에 값이 있으면 그것을 쓰고, 없으면 회사 마스터 값 (2026-09-03 「129-86-67271 사업자번호 추가 · (주)코네트」) */
+			Map<String,Object> comp = svc.selectCompInfo(c); if (comp == null) comp = new HashMap<String,Object>();
+			poFillDefault(comp, "compNm", "company.name"); poFillDefault(comp, "busiNum", "company.busi.num"); poFillDefault(comp, "compCeo", "company.ceo");
+			poFillDefault(comp, "compAddr", "company.addr"); poFillDefault(comp, "compTel", "company.tel");
+			model.addAttribute("comp", comp);
 			model.addAttribute("pub", pub);
 			return ".raw/main/mangr/poPrint";
 		}
@@ -1418,6 +1432,9 @@ public class UserController {
 				log.error(" poToPurchase ERROR : " + e.getMessage());
 				return ResponseEntity.status(500).body(e.getMessage());
 			}
+		}
+		private static void poFillDefault(Map<String,Object> m, String key, String prop) {
+			String d = poPropOf("company", prop); if (d.length() > 0) m.put(key, d);   // 설정값이 있으면 우선
 		}
 		private static String poStr(Object o) { return o == null ? "" : String.valueOf(o).trim(); }
 		private static Double poNum(Object o) {

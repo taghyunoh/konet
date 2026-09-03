@@ -28,7 +28,9 @@
   .bar button.p{ background:#137a6c; color:#fff; border-color:#137a6c; }
   .sheet{ width:210mm; min-height:297mm; margin:14px auto; background:#fff; padding:12mm 10mm; box-shadow:0 4px 20px rgba(0,0,0,.12); }
   table{ border-collapse:collapse; width:100%; table-layout:fixed; }
-  td,th{ border:1px solid #222; padding:4px 6px; font-size:12.5px; height:26px; }
+  td,th{ border:1px solid #222; padding:4px 5px; font-size:12.5px; height:26px; }
+  .items thead td{ white-space:nowrap; font-size:12px; padding:4px 2px; }
+  .items td.r{ font-size:12px; letter-spacing:-0.2px; }
   h1{ text-align:center; font-size:30px; letter-spacing:12px; margin:0 0 10px; }
   .hd td{ height:28px; }
   .k{ background:#f6f7f9; text-align:center; font-weight:700; }
@@ -55,7 +57,8 @@
   <h1>발 주 서</h1>
   <table class="hd">
     <colgroup><col style="width:16%"><col style="width:16%"><col style="width:4%"><col style="width:12%"><col style="width:22%"><col style="width:9%"><col style="width:21%"></colgroup>
-    <tr><td colspan="2" class="c">${fn:substring(mst.poDt,0,4)}년 ${fn:substring(mst.poDt,4,6)}월 ${fn:substring(mst.poDt,6,8)}일</td>
+    <fmt:parseNumber var="pm" value="${fn:substring(mst.poDt,4,6)}" integerOnly="true"/><fmt:parseNumber var="pd" value="${fn:substring(mst.poDt,6,8)}" integerOnly="true"/>
+    <tr><td colspan="2" class="c">${fn:substring(mst.poDt,0,4)}년 ${pm}월 ${pd}일</td>
         <td rowspan="4" class="c" style="font-weight:700; line-height:1.15">공<br>급<br>받<br>는<br>자</td>
         <td class="k">등록번호</td><td colspan="3" class="c">${comp.busiNum}</td></tr>
     <tr><td colspan="2" class="c">아래와 같이 발주합니다.</td>
@@ -63,10 +66,10 @@
     <tr><td colspan="2" class="r"><b>${mst.vendorNm}</b> 귀하</td>
         <td class="k">사업장</td><td colspan="3" class="l">${comp.compAddr}</td></tr>
     <tr><td class="k">합계액</td><td class="r"><b><fmt:formatNumber value="${mst.totAmt}" pattern="#,##0"/></b> 원정</td>
-        <td class="k">전화번호</td><td colspan="3" class="c">${comp.compTel}</td></tr>
+        <td class="k">전화번호</td><td colspan="3" class="c">${comp.compTel}</td></tr>   <%-- 전화번호 칸 · 선 표시 (2026-09-03 「전화번호 추가 선표시」) --%>
   </table>
   <table class="items" style="margin-top:6px">
-    <colgroup><col style="width:6%"><col style="width:36%"><col style="width:14%"><col style="width:11%"><col style="width:9%"><col style="width:12%"><col style="width:12%"></colgroup>
+    <colgroup><col style="width:6%"><col style="width:31%"><col style="width:12%"><col style="width:13%"><col style="width:8%"><col style="width:16%"><col style="width:14%"></colgroup>
     <thead><tr><td>번호</td><td>품명</td><td>규격</td><td>BOX/EA수량</td><td>총수량</td><td>BOX/EA단가</td><td>공급가액</td></tr></thead>
     <tbody>
     <c:forEach var="it" items="${items}" varStatus="s">
@@ -84,7 +87,7 @@
       <tr><td style="border-right:0"></td><td colspan="3" class="c">합 계 금 액</td><td class="r"><fmt:formatNumber value="${mst.totAmt}" pattern="#,##0"/></td></tr>
     </tfoot>
   </table>
-  <div style="margin-top:8px; font-size:11.5px; color:#555">담당 ${mst.mgrNm} · 발주번호 ${mst.poDt}-${mst.poNo}<c:if test="${!pub}"> · 공유 ${mst.shareCnt}회</c:if></div>
+  <div style="margin-top:8px; font-size:11.5px; color:#555">담당 ${mst.mgrNm} · 발주번호 ${mst.poDt}-${mst.poNo}</div>
 </c:otherwise>
 </c:choose>
 </div>
