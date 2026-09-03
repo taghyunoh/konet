@@ -571,6 +571,13 @@
              오른쪽 합계·품목수 / 아래 합계·출고장수 로 횡·종 대사가 가능하다. --%>
         <option value="matrix" selected>출고장 × 품목 (가로표)</option>
       </select>
+      <%-- 품목코드 출력 여부 (2026-09-03 요청) — 가로표는 칸 너비가 7 이라 코드 10자리가 들어가면
+           품목명이 밀린다. 기본은 끔. 켜면 「코드(품목명)」으로 나간다. 선택은 브라우저에 기억한다. --%>
+      <label id="d2PrintCodeBox" title="가로표 엑셀의 품목 머리줄에 품목코드를 함께 넣습니다"
+             style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:700;color:#37475a;
+                    border:1px solid var(--bd);border-radius:6px;height:35px;padding:0 10px;cursor:pointer;background:#fff;white-space:nowrap">
+        <input type="checkbox" id="d2PrintCode" onchange="d2PrintCodeSave()" style="margin:0;cursor:pointer">품목코드
+      </label>
       <button class="btn-line" onclick="d2Download('daily')" title="선택한 형식(출고장별/품목별)으로 출고일자별 출력">🏷️ 일자별 출력</button>
       <button class="btn-line" onclick="d2Download('sum')" title="선택한 형식(출고장별/품목별)으로 기간 합계 출력">🧮 합계 출력</button>
     </div>
@@ -1173,8 +1180,15 @@
           if(a.length>=2 && b.length>=2 && (b.indexOf(a)>=0 || a.indexOf(b)>=0)) nm=nm.slice(m[0].length);
           return nm;
         }
+        /* ★품목코드는 상단 [품목코드] 체크에 따라 넣거나 뺀다 (2026-09-03 요청 「출력여부 조건으로」).
+             칸 너비가 7 이라 코드 10자리가 들어가면 이름이 밀려 읽기 어렵다 — 그래서 기본은 뺀다.
+           ★이름이 아예 없는 품목은 코드라도 적는다 — 빈 칸이면 무슨 열인지 알 길이 없다. */
+        var _wc=d2PrintCodeOn();
         var r2=['출고장/품목','',''];
-        cols.forEach(function(c){ var nm=_shortNm(c); r2.push(c.code ? (c.code+'('+nm+')') : nm); });
+        cols.forEach(function(c){
+          var nm=_shortNm(c);
+          r2.push( (_wc && c.code) ? (nm ? (c.code+'('+nm+')') : c.code) : (nm || c.code || '') );
+        });
         push(r2,'colhdr');
         var sums=cols.map(function(){ return 0; });
         var zcnt=cols.map(function(){ return 0; });
@@ -1271,9 +1285,9 @@
       var ws=LIB.utils.aoa_to_sheet(aoa);
       /* 품목 칸 폭 18 (2026-08-28 「품목 칸 폭도 조금 넓게」) — 14 에서는 품목명이 너무 잘게 접혔다.
          ⚠아래 머리줄 높이 계산의 '한 줄에 몇 자'(9자)도 이 폭에 맞춘 값이다 — 폭을 바꾸면 같이 바꿀 것. */
-      /* 품목 칸 너비 6.5 (2026-09-03 요청, 5 → 7 → 6.5) — 열이 많아 한 화면에 담으려고 좁힌 값이다.
+      /* 품목 칸 너비 7.5 (2026-09-03 — 5 → 7 → 6.5 → 7 → 7.5). 열이 많아 한 화면에 담으려고 좁힌 값이다.
          ⚠아래 머리줄 높이 계산의 '한 줄에 몇 자'(4자)도 이 너비에 맞춘 값이다 — 너비를 바꾸면 같이 바꿀 것. */
-      var cw=[{wch:24},{wch:10},{wch:9}]; for(var i3=3;i3<maxW;i3++) cw.push({wch:6.5});
+      var cw=[{wch:24},{wch:10},{wch:9}]; for(var i3=3;i3<maxW;i3++) cw.push({wch:7.5});
       ws['!cols']=cw;
       ws['!merges']=merges;
       /* ★틀 고정 — 출고장명 열(A)과 머리줄 3행을 얼려, 오른쪽으로 밀어도 <무엇의 값인지> 보이게 한다
@@ -1289,12 +1303,20 @@
       /* ★인쇄 설정을 파일에 박아 둔다 (2026-09-03 요청) — 받는 사람이 매번 [가로]·[배율]·[여백]을
            손으로 맞추지 않게. 열이 수십 개라 세로·100% 로는 종이 여러 장으로 찢어진다.
          · 여백 단위는 <인치>다. 엑셀 대화상자는 cm 로 보여 준다 — 0.5cm = 0.197in.
-         · scale 은 '확대/축소 배율'. 자동 맞춤(fitToPage)을 쓰면 이 값이 무시되므로 같이 켜지 않는다.
+         · 배율(scale)은 쓰지 않는다 — 아래 fitToPage(자동 맞춤)가 대신 정한다.
          · paperSize 9 = A4.
          ⚠<pageSetup> 은 xlsx-js-style 원본이 안 써 준다 — assets/vendor/xlsx-js-style/xlsx.bundle.js 를
            우리가 고쳐 넣었다(파일 머리 주석). 그 파일을 갈아 끼우면 이 설정이 조용히 사라진다. */
       ws['!margins'] = { left:0.197, right:0.197, top:0.748, bottom:0.748, header:0.315, footer:0.315 };
-      ws['!pageSetup'] = { orientation:'landscape', scale:50, paperSize:9 };
+      /* ★배율을 손으로 정하지 않고 <가로 4장에 맞춘다> (2026-09-03 요청 「최대 넓게, 4장 범위에서」).
+           엑셀이 4장에 딱 들어가는 <가장 큰 배율>을 스스로 고른다 — 품목 수가 날마다 달라
+           50%·55% 같은 고정값은 어떤 날은 넘치고 어떤 날은 쓸데없이 작았다.
+         ★세로도 1장으로 묶는다 — <총 장수 = 가로 × 세로> 다.
+           fitToHeight:0(무제한)으로 두었더니 가로 4 × 세로 2 = <8장>이 나왔다(2026-09-03 지적).
+           4×1 로 묶어야 「4장 안에서 최대한 크게」가 된다.
+         · fitToPage 를 켜면 scale 은 무시되므로 아예 주지 않는다.
+         ⚠fitToPage 스위치(<pageSetUpPr>)도 원본이 안 써 준다 — 벤더 파일을 고쳐 넣었다(파일 머리 주석). */
+      ws['!pageSetup'] = { orientation:'landscape', paperSize:9, fitToPage:true, fitToWidth:4, fitToHeight:1 };
       if(styled){
         var enc=LIB.utils.encode_cell;
         var LINE={style:'thin', color:{rgb:'9BA7B4'}};
@@ -1309,28 +1331,28 @@
           zoneL:{ font:{color:{rgb:'10161D'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
           /* ★값이 있는 칸은 <흰 바탕 + 굵은 숫자>, 없는 칸은 <옅은 회색 바탕> (2026-08-28 요청).
              ⚠빈칸에 글자(-, · 등)를 넣지 않는다 — 넣으면 엑셀에서 합계·개수·필터가 그 글자를 세어 버린다. */
-          num:{ font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
-          none:{ fill:{fgColor:{rgb:'F1F3F5'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          num:{ font:{bold:true,color:{rgb:'1F2A37'},sz:14}, alignment:{horizontal:'center',vertical:'center'}, border:box },
+          none:{ fill:{fgColor:{rgb:'F1F3F5'}}, alignment:{horizontal:'center',vertical:'center'}, border:box },
           grpNone:{ fill:{fgColor:{rgb:'0E6659'}}, border:box },
-          rtot:{ fill:{fgColor:{rgb:'FFF2CC'}}, font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
-          rcnt:{ fill:{fgColor:{rgb:'E2EFDA'}}, font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          rtot:{ fill:{fgColor:{rgb:'FFF2CC'}}, font:{bold:true,color:{rgb:'1F2A37'},sz:14}, alignment:{horizontal:'center',vertical:'center'}, border:box },
+          rcnt:{ fill:{fgColor:{rgb:'E2EFDA'}}, font:{bold:true,color:{rgb:'1F2A37'},sz:14}, alignment:{horizontal:'center',vertical:'center'}, border:box },
           grpL:{ fill:{fgColor:{rgb:'137A6C'}}, font:{bold:true,color:{rgb:'FFFFFF'},sz:11}, alignment:{horizontal:'left',vertical:'center'}, border:box },
-          grpN:{ fill:{fgColor:{rgb:'137A6C'}}, font:{bold:true,color:{rgb:'FFFFFF'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          grpN:{ fill:{fgColor:{rgb:'137A6C'}}, font:{bold:true,color:{rgb:'FFFFFF'},sz:14}, alignment:{horizontal:'center',vertical:'center'}, border:box },
           sumL:{ fill:{fgColor:{rgb:'F2F2F2'}}, font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
-          sumN:{ fill:{fgColor:{rgb:'F2F2F2'}}, font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          sumN:{ fill:{fgColor:{rgb:'F2F2F2'}}, font:{bold:true,color:{rgb:'1F2A37'},sz:14}, alignment:{horizontal:'center',vertical:'center'}, border:box },
           /* ★센터 소계(csub)·입고장 소계(isub) — 색은 화면(tr.csub #c3e2d8 / tr.isub #dcefe7)과 같다.
              ⚠csubL/csubN 은 2026-08-30 에 csub 행을 넣으면서 <서식 정의를 빠뜨려> 이 표에서만 서식 없이 나가고 있었다
                (S.csubL 이 undefined). 2026-09-02 입고장 소계를 넣으며 함께 채웠다. */
           csubL:{ fill:{fgColor:{rgb:'C3E2D8'}}, font:{bold:true,color:{rgb:'0B5246'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
-          csubN:{ fill:{fgColor:{rgb:'C3E2D8'}}, font:{bold:true,color:{rgb:'0B5246'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          csubN:{ fill:{fgColor:{rgb:'C3E2D8'}}, font:{bold:true,color:{rgb:'0B5246'},sz:14}, alignment:{horizontal:'center',vertical:'center'}, border:box },
           isubL:{ fill:{fgColor:{rgb:'DCEFE7'}}, font:{bold:true,color:{rgb:'12695A'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
-          isubN:{ fill:{fgColor:{rgb:'DCEFE7'}}, font:{bold:true,color:{rgb:'12695A'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          isubN:{ fill:{fgColor:{rgb:'DCEFE7'}}, font:{bold:true,color:{rgb:'12695A'},sz:14}, alignment:{horizontal:'center',vertical:'center'}, border:box },
           zcntL:{ fill:{fgColor:{rgb:'E2EFDA'}}, font:{bold:true,color:{rgb:'375623'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
-          zcntN:{ fill:{fgColor:{rgb:'E2EFDA'}}, font:{bold:true,color:{rgb:'375623'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
+          zcntN:{ fill:{fgColor:{rgb:'E2EFDA'}}, font:{bold:true,color:{rgb:'375623'},sz:14}, alignment:{horizontal:'center',vertical:'center'}, border:box },
           cond:{ fill:{fgColor:{rgb:'EAF1F8'}}, font:{bold:true,color:{rgb:'20415A'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
           stkL:{ fill:{fgColor:{rgb:'FFF4E6'}}, font:{bold:true,color:{rgb:'8A5B14'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
-          stkN:{ fill:{fgColor:{rgb:'FFF4E6'}}, font:{bold:true,color:{rgb:'137A6C'}}, alignment:{horizontal:'right',vertical:'center'}, border:box },
-          stkNeg:{ fill:{fgColor:{rgb:'FFF4E6'}}, font:{bold:true,color:{rgb:'C0392B'}}, alignment:{horizontal:'right',vertical:'center'}, border:box }
+          stkN:{ fill:{fgColor:{rgb:'FFF4E6'}}, font:{bold:true,color:{rgb:'137A6C'},sz:14}, alignment:{horizontal:'center',vertical:'center'}, border:box },
+          stkNeg:{ fill:{fgColor:{rgb:'FFF4E6'}}, font:{bold:true,color:{rgb:'C0392B'},sz:14}, alignment:{horizontal:'center',vertical:'center'}, border:box }
         };
         function put(r,c,st){ var ref=enc({r:r,c:c}); if(!ws[ref]) ws[ref]={t:'s',v:''}; ws[ref].s=st; }
         var rowsH=[];
@@ -1356,24 +1378,24 @@
             put(r,0,S.zoneL);
             put(r,1,S.rtot); put(r,2,S.rcnt);          // ★합계·품목수는 앞(B·C)으로 옮겼다
             for(c=3;c<wid;c++){ var bv=(aoa[r]||[])[c]; put(r,c, (bv===''||bv==null) ? S.none : S.num); }
-            h=19;
+            h=26;
           }
           else if(ty==='grp'){
             put(r,0,S.grpL);
             for(c=1;c<wid;c++){ var gv=(aoa[r]||[])[c]; put(r,c, (gv===''||gv==null) ? S.grpNone : S.grpN); }
-            h=20;
+            h=26;
           }
-          else if(ty==='csub'){ put(r,0,S.csubL); for(c=1;c<wid;c++) put(r,c,S.csubN); h=19; }
-          else if(ty==='isub'){ put(r,0,S.isubL); for(c=1;c<wid;c++) put(r,c,S.isubN); h=19; }   // 입고장 소계(2026-09-02)
-          else if(ty==='sum'){ put(r,0,S.sumL); for(c=1;c<wid;c++) put(r,c,S.sumN); h=20; }
-          else if(ty==='zcnt'){ put(r,0,S.zcntL); for(c=1;c<wid;c++) put(r,c,S.zcntN); h=20; }
-          else if(ty==='cond'){ for(c=0;c<wid;c++) put(r,c,S.cond); h=22; }
+          else if(ty==='csub'){ put(r,0,S.csubL); for(c=1;c<wid;c++) put(r,c,S.csubN); h=26; }
+          else if(ty==='isub'){ put(r,0,S.isubL); for(c=1;c<wid;c++) put(r,c,S.isubN); h=26; }   // 입고장 소계(2026-09-02)
+          else if(ty==='sum'){ put(r,0,S.sumL); for(c=1;c<wid;c++) put(r,c,S.sumN); h=26; }
+          else if(ty==='zcnt'){ put(r,0,S.zcntL); for(c=1;c<wid;c++) put(r,c,S.zcntN); h=26; }
+          else if(ty==='cond'){ for(c=0;c<wid;c++) put(r,c,S.cond); h=26; }
           else if(ty==='stk'){
             put(r,0,S.stkL);
             /* B·C(합계·품목수 자리)는 현재고에 쓰지 않는다 — 회색(S.none)으로 두면 「값 없음」으로 읽혀 헷갈린다 */
             put(r,1,S.stkN); put(r,2,S.stkN);
             for(c=3;c<wid;c++){ var sv=(aoa[r]||[])[c]; put(r,c, (sv==='' || sv==null) ? S.none : ((+sv<0) ? S.stkNeg : S.stkN)); }
-            h=20;
+            h=26;
           }
           rowsH.push(h?{hpx:h}:{});
         });
@@ -2904,6 +2926,16 @@
        탭을 옮길 때마다 형식이 따라 바뀌면 뽑을 때마다 다시 골라야 한다.
        한 번 고르면 그대로 둔다(기본값은 markup 의 selected). */
   function d2PrintFmtPick(el){ /* 지금은 하는 일 없음 — onchange 자리를 남겨 둔다 */ }
+  /* 품목코드 출력 여부 (2026-09-03) — 가로표 엑셀 전용. 선택을 브라우저에 기억해 매번 다시 켜지 않게. */
+  function d2PrintCodeOn(){ var e=document.getElementById('d2PrintCode'); return !!(e && e.checked); }
+  function d2PrintCodeSave(){ try{ localStorage.setItem('d2PrintCode', d2PrintCodeOn()?'1':'0'); }catch(e){} }
+  (function(){
+    function _restore(){
+      var e=document.getElementById('d2PrintCode'); if(!e) return;
+      try{ e.checked = (localStorage.getItem('d2PrintCode')==='1'); }catch(x){}
+    }
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', _restore); else _restore();
+  })();
   function d2Render(){
     d2LoadingOff();   // 조회 중 안내 해제 (모든 조회 경로가 이 함수로 수렴)
     d2VtSync();
