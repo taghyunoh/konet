@@ -134,6 +134,18 @@
       try{
         w = fr.contentWindow; d = fr.contentDocument;
         if (!w || !d || !d.documentElement) continue;          // 아직 안 뜬 iframe
+        /* ★★[2026-09-04 속도] 손대기 전에 <먼저 본다> — 숨은 화면·크기 안 바뀐 화면은 건드리지 않는다.
+             종전엔 매 클릭(150ms·700ms 두 번)마다 모든 iframe 의 zoom·width·height 를 떼었다 도로 걸었다.
+             iframe 의 zoom 이 바뀌면 그 안 문서 전체가 스타일을 다시 계산한다 — 월별 출고현황(셀 3만)이
+             display:none 으로 숨어 있어도 그 문서는 살아 있어 클릭마다 몇 번씩 통째로 다시 계산했고,
+             보이는 동안은 크기까지 바뀌어 3만 셀 레이아웃이 클릭마다 여러 번 돌았다(「다른 메뉴 이동 시 잔상·엄청 느림」).
+             ① 상자(panel)가 안 보이면(폭 0) 아무 것도 안 쓴다 — 나타날 때 클릭 재기가 다시 잰다.
+             ② 배율(f)·상자 크기·창 크기가 지난번과 같으면 이미 맞는 값이라 건너뛴다(강제 레이아웃 0). */
+        var pb = (fr.parentElement || fr).getBoundingClientRect();
+        if (!pb.width || !pb.height) continue;
+        var key = f + '|' + Math.round(pb.width) + 'x' + Math.round(pb.height) + '|' + window.innerWidth + 'x' + window.innerHeight;
+        if (fr.__kzKey === key) continue;
+        fr.__kzKey = key;
         d.documentElement.style.zoom = '';                     // 옛 판(문서 안 zoom) 잔재는 늘 걷어낸다
         if (fr.__kzOrig === undefined)
           fr.__kzOrig = { z: fr.style.zoom || '', w: fr.style.width || '', h: fr.style.height || '' };
@@ -226,7 +238,7 @@
       (function(fr){
         if (fr.__kzHooked) return;
         fr.__kzHooked = 1;
-        fr.addEventListener('load', function(){ setTimeout(function(){ fixFrames(zoomOf(cur)); }, 60); });
+        fr.addEventListener('load', function(){ fr.__kzKey = null; setTimeout(function(){ fixFrames(zoomOf(cur)); }, 60); });   // 새 문서 = 건너뛰기 캐시 무효
       })(frames[i]);
     }
   }
@@ -244,7 +256,10 @@
     var _kzMoT = null;
     var _kzMo = new MutationObserver(function(){
       clearTimeout(_kzMoT);
-      _kzMoT = setTimeout(function(){ fixFrames(zoomOf(cur)); }, 120);
+      /* body class 로 iframe 의 CSS 높이만 바뀌는 경우는 상자(panel) 크기가 그대로라 위 건너뛰기 캐시에 걸린다 → 캐시를 비우고 잰다 */
+      _kzMoT = setTimeout(function(){
+        var fs = document.getElementsByTagName('iframe'); for (var i=0;i<fs.length;i++) fs[i].__kzKey = null;
+        fixFrames(zoomOf(cur)); }, 120);
     });
     if (document.body) _kzMo.observe(document.body, { attributes:true, attributeFilter:['class'] });
     else document.addEventListener('DOMContentLoaded', function(){

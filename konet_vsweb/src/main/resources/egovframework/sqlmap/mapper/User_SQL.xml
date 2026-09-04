@@ -2738,13 +2738,15 @@
 	       · 정산서 있는 납기일자 → 정산서 출고수량(반품행은 나갔던 발주량 — insertSalesLedger 와 같은 셈).
 	         정산서엔 사업장이 없어 같은 발주라인(납기일자+발주번호+품목 — 납기현황표 selectShipoutMst 와 같은 키)의 발주행 사업장에 발주수량 비율로 나눈다.
 	         발주라인이 없으면 '(정산서·발주없음)'. 원장(품목별재고현황)과 같은 규칙이라 월 합계가 원장 O행과 맞는다.
-	     사업장 묶음 = 거래처관리 매칭코드(MATCH_CD) 있으면 그것, 없으면 원래 사업장코드 (납기현황표 가로표와 같은 규칙) */
+	     사업장 묶음 = 거래처관리 매칭코드(MATCH_CD) 있으면 그것, 없으면 원래 사업장코드 (납기현황표 가로표와 같은 규칙)
+	     ★[2026-09-04 속도] 기간 파라미터(frDt·toDt)를 REPLACE(ISNULL(…),'-','') 로 감싸지 않는다 — 함수로 감싸면 최적화기가 값을 못 보고
+	       일반 추정 계획을 짜서 2.3초, 그대로 비교하면 0.84초(운영 DB 실측). 하이픈 제거는 컨트롤러(_d8)가 이미 한다. */
 	  WITH SL AS (   /* 정산서 라인별 출고수량 */
 	    SELECT v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,'') AS ORD_NO, v.PROD_CD,
 	           SUM(CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END) AS VQ
 	      FROM TBL_SALES_MST v
 	     WHERE v.ACTION_YN='Y' AND ISNULL(v.PROD_CD,'')<>''
-	       AND v.DLV_DT >= REPLACE(ISNULL(#{frDt},''),'-','') AND v.DLV_DT <= REPLACE(ISNULL(#{toDt},''),'-','')
+	       AND v.DLV_DT >= #{frDt} AND v.DLV_DT <= #{toDt}
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     GROUP BY v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,''), v.PROD_CD
 	  ), SD AS (     /* 정산서가 있는 납기일자 */
@@ -2755,8 +2757,8 @@
 	           SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) AS SQ
 	      FROM TBL_SHIPOUT_MST s
 	     WHERE s.ACTION_YN='Y' AND ISNULL(s.PROD_CD,'')<>''
-	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= REPLACE(ISNULL(#{frDt},''),'-','')
-	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= REPLACE(ISNULL(#{toDt},''),'-','')
+	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= #{frDt}
+	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= #{toDt}
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD, ISNULL(s.BIZ_CD,'')
 	  ), U AS (
@@ -2797,7 +2799,7 @@
 	           SUM(CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END) AS VQ
 	      FROM TBL_SALES_MST v
 	     WHERE v.ACTION_YN='Y' AND v.PROD_CD = #{prodCd}
-	       AND v.DLV_DT >= REPLACE(ISNULL(#{frDt},''),'-','') AND v.DLV_DT <= REPLACE(ISNULL(#{toDt},''),'-','')
+	       AND v.DLV_DT >= #{frDt} AND v.DLV_DT <= #{toDt}
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     GROUP BY v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,''), v.PROD_CD
 	  ), SD AS ( SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST WHERE ACTION_YN='Y'
@@ -2808,8 +2810,8 @@
 	           SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) AS SQ
 	      FROM TBL_SHIPOUT_MST s
 	     WHERE s.ACTION_YN='Y' AND s.PROD_CD = #{prodCd}
-	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= REPLACE(ISNULL(#{frDt},''),'-','')
-	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= REPLACE(ISNULL(#{toDt},''),'-','')
+	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= #{frDt}
+	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= #{toDt}
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD, ISNULL(s.BIZ_CD,''), ISNULL(s.ITEM_CD,'')
 	  ), U AS (

@@ -3006,7 +3006,7 @@
 <%-- ★글자 축소·확대 (2026-08-21 요청) — 상단 <자주 쓰는 메뉴> 줄 맨 오른쪽에 [가－][100%][가＋].
      셸에만 걸면 된다 — iframe 업무화면은 이 스크립트가 알아서 같은 배율로 맞춘다.
      빼려면 이 한 줄만 지우면 종전 크기로 돌아간다. --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-fontsize.js?v=20260828c"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-fontsize.js?v=20260904a"></script>
 </head>
 <body>
 <%-- 좌측 메뉴 접힘 상태를 <그리기 전에> 입힌다 (2026-08-05) —

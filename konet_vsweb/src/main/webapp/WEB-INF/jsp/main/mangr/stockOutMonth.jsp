@@ -38,24 +38,30 @@
   .bar .rb-btn{ margin-left:auto; border-color:#cfe0da; color:#137a6c; }
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; }
   /* 가로표(납기현황표)와 같은 감각 — 첫 두 칸·머리 2줄 고정, 값 없는 칸 회색, 사업장 경계는 굵은 세로선 */
-  table.mx{ border-collapse:separate; border-spacing:0; font-size:14px; --h1:40px; }
+  /* ★table-layout:fixed (2026-09-04 속도) — 자동 레이아웃은 2,415열×3만 셀의 내용 폭을 여러 번 재서
+       레이아웃만 884ms 걸렸다. 열 폭을 colgroup 으로 못 박으면 한 번에 계산한다(품목 열은 112px 균일). */
+  table.mx{ border-collapse:separate; border-spacing:0; font-size:14px; --h1:40px; table-layout:fixed; }
   table.mx th, table.mx td{ border:1px solid var(--bd); padding:6px 9px; white-space:nowrap; text-align:center; background:#fff; }
   table.mx .gs{ border-left:2px solid #9fb6cc; }
   table.mx .cn{ position:sticky; left:0; z-index:2; text-align:left; font-weight:700; width:150px; min-width:150px; max-width:150px; background:#fff; }
   table.mx td.cn small.src{ display:block; font-size:11px; font-weight:400; color:#6b7a89; line-height:1.2; }
   table.mx .rt{ position:sticky; left:150px; z-index:2; width:90px; min-width:90px; max-width:90px; background:#fff2cc; font-weight:800; }
-  table.mx thead th{ position:sticky; top:0; z-index:3; background:#dfeaf5; color:#1f2a37; font-size:14px; }
+  /* ★머리 고정은 <thead 한 덩어리>로 (2026-09-04 속도) — 종전 `thead th{position:sticky}` 는 머리 칸 2,415개가 저마다 sticky 라
+       브라우저가 칸마다 합성 레이어를 만들어(스크롤 상자 안 sticky 는 레이어로 승격) 그리기·스크롤·화면 전환이 통째로 무거웠다.
+       thead 하나를 sticky 로 두면 두 줄이 함께 붙고 레이어는 1개다. 2단 머리의 top(--h1) 계산도 필요 없다. */
+  table.mx thead{ position:sticky; top:0; z-index:3; }
+  table.mx thead th{ background:#dfeaf5; color:#1f2a37; font-size:14px; }
   table.mx thead th.cn, table.mx thead th.rt{ z-index:4; }
   /* 1단 = 사업장(매칭명) · 2단 = 품목. 2단은 1단 높이(--h1, 그릴 때 잰다)만큼 내려 붙인다 */
   table.mx thead th.gh{ background:#cfe0f3; font-size:14px; font-weight:800; color:#123c63; white-space:nowrap; line-height:1.3; min-width:96px; text-align:left; }
   /* 사업장 이름은 칸 안에서 sticky — 40품목짜리 사업장은 칸이 수천 px 라 가운데 두면 이름이 화면 밖에 간다. 고정칸(150+90) 바로 뒤에 붙인다 */
   table.mx thead th.gh .gl{ position:sticky; left:250px; display:inline-block; }
   table.mx thead th.gh small{ display:block; font-size:11.5px; font-weight:600; color:#4c6a8a; }
-  table.mx thead tr.r2 th{ top:var(--h1); }
   table.mx thead th.it{ background:#eef4fa; white-space:normal; min-width:96px; max-width:128px; line-height:1.35; font-size:12px; font-weight:600; padding:6px 6px; word-break:break-all; }   /* 2026-09-03 「품목명 조금 좁게」 118→96px */
   table.mx thead th.it .cd{ display:block; font-weight:800; color:#1f2a37; }
   table.mx thead th.it .nm{ color:#5a6b7a; font-weight:400; }
   table.mx td.none{ background:#f1f3f5; }
+  table.mx th.sp, table.mx td.sp{ background:#f1f3f5; border-left:0; border-right:0; padding:0; }   /* 가상화 빈 칸(안 그린 열들의 자리) */
   table.mx td.n{ font-weight:700; }
   table.mx tr.stk td{ background:#fff4e6; font-weight:800; color:#137a6c; }
   table.mx tr.stk td.cn, table.mx tr.stk td.rt{ background:#fde9cc; }
@@ -153,11 +159,15 @@ function somLoad(){
   if(!fr||!to){ toast('기간을 고르세요.'); return; }
   if(fr>to){ var t=fr; fr=to; to=t; document.getElementById('frDt').value=fr; document.getElementById('toDt').value=to; }
   document.getElementById('card').innerHTML=qprog('월별 출고량을 조회하는 중… (기간 '+fr+' ~ '+to+')');
+  /* 걸린 시간을 조회 결과 줄에 같이 적는다(2026-09-04 「조회 자체 느림」 — 서버·그리기 어느 쪽인지 사용자가 바로 보게) */
+  var t0=performance.now(), tFetch=0;
   fetch(CTX+'/prod/stockOutMonthList.do', { method:'POST', credentials:'same-origin',
          headers:{'Content-Type':'application/x-www-form-urlencoded'},
          body:'frDt='+encodeURIComponent(fr.replace(/-/g,''))+'&toDt='+encodeURIComponent(to.replace(/-/g,'')) })
     .then(function(r){ return r.json(); })
-    .then(function(j){ RAW=j||{months:[],stock:[]}; somRender(); })
+    .then(function(j){ tFetch=performance.now()-t0; RAW=j||{months:[],stock:[]}; var t1=performance.now(); somRender(); void document.body.offsetHeight;
+      _somTiming='  ⏱ 서버 '+(tFetch/1000).toFixed(1)+'초 · 그리기 '+((performance.now()-t1)/1000).toFixed(1)+'초';
+      var c=document.getElementById('cnt'); if(c && c.innerHTML.indexOf('⏱')<0) c.innerHTML+='<span style="color:#8a98a8;font-weight:600">'+_somTiming+'</span>'; })
     .catch(function(e){ document.getElementById('card').innerHTML='<div class="empty">조회 실패: '+esc(e.message)+'</div>'; });
 }
 /* 품목명 앞의 (브랜드) 가 사업장 이름과 겹치면 뺀다 — 납기현황표 엑셀과 같은 규칙(공백 무시 · 2자 이상 · 서로 포함) */
@@ -207,44 +217,76 @@ function somFindLater(){ if(_somFindT) clearTimeout(_somFindT); _somFindT=setTim
 function somFindNow(){ if(_somFindT){ clearTimeout(_somFindT); _somFindT=null; } somRender(); }
 /* 화면에 그려진 격자 — 셀 클릭·엑셀이 다시 만들지 않고 이걸 쓴다(실측 somBuild 84ms).
    지금 표에 보이는 것과 같은 격자라 오히려 어긋날 일이 없다. */
-var _somM=null;
+var _somM=null, _somTiming='', _somPick='';
+/* ★★열 가상화 (2026-09-04 「그린 다음에도 한참 있다가 클릭됨」) —
+     열 2,415 × 줄 11 = 셀 26,000 을 한꺼번에 DOM 에 두면 그리기(1.2초)보다 <그 뒤>가 문제였다 : 브라우저가 접근성 트리·
+     확장 프로그램 스캔·합성 레이어를 3만 셀에 대해 마저 처리하는 동안 화면이 몇 초씩 안 눌렸다(사용자 크롬 실측 — 내장 브라우저엔 없음).
+     ⇒ DOM 에는 <보이는 열 + 좌우 여유 BUF 열>만 두고, 나머지 폭은 빈 칸(spacer) 하나로 채운다. 표 전체 폭·스크롤바는 종전과 같고
+       옆으로 밀면 scroll 이벤트에서 창을 옮겨 다시 그린다(셀 ~700개라 수 ms). 고정칸(년월·합계)·2단 머리·클릭·엑셀 동작은 그대로. */
+var COLW=112, BUF=20, _somRS=-1, _somRE=-1;
 function somRender(){
   if(!RAW) return;
   var m=_somM=somBuild(), card=document.getElementById('card');
+  _somRS=-1; _somRE=-1;
   if(!m.cols.length){ card.innerHTML='<div class="empty">해당 기간에 출고가 없습니다.</div>'; document.getElementById('cnt').textContent='-'; return; }
-  /* 머리 1단 = 사업장(품목수 · 기간출고), 2단 = 품목 — 납기현황표 가로표와 같은 꼴 */
-  var h='<table class="mx"><thead><tr class="r1"><th class="cn">년월 / 사업장</th><th class="rt">합계</th>';
-  m.gord.forEach(function(gk){ var g=m.grp[gk];
-    h+='<th class="gh gs" colspan="'+g.iord.length+'" title="'+esc(g.nm)+'"><span class="gl">'+esc(g.nm)+'<small>'+num(g.iord.length)+'품목 · '+num(g.tot)+'</small></span></th>'; });
-  h+='</tr><tr class="r2"><th class="cn">품목</th><th class="rt"></th>';
-  m.cols.forEach(function(c){ var it=m.grp[c.g].items[c.cd];
-    h+='<th class="it'+(c.first?' gs':'')+'" title="'+esc(c.cd+' '+it.nm)+'"><span class="cd">'+esc(c.cd)+'</span><span class="nm">'+esc(shortNm(it.nm, m.grp[c.g].nm))+'</span></th>'; });
-  h+='</tr></thead><tbody>';
-  /* ① 맨 위 현재고 — 품목 잔량(사업장 무관). 같은 품목은 같은 값이 되풀이되고 합계는 품목당 한 번만. 값이 없으면 빈칸 */
-  var stkTot=0, stkAny=false, stkCells='', seen={};
-  m.cols.forEach(function(c){ var v=m.stock[c.cd], gs=c.first?' gs':'';
-    if(v==null){ stkCells+='<td class="none'+gs+'"></td>'; return; }
-    stkAny=true; if(!seen[c.cd]){ seen[c.cd]=1; stkTot+=v; }
-    stkCells+='<td class="'+(v<0?'neg':'')+gs+'" data-ym="" data-g="'+esc(c.g)+'" data-cd="'+esc(c.cd)+'">'+num(v)+'</td>'; });
-  h+='<tr class="stk"><td class="cn">현재고 <small style="font-weight:400;color:#6b7a89">(품목)</small></td><td class="rt">'+(stkAny?num(stkTot):'')+'</td>'+stkCells+'</tr>';
-  /* ② 년월 줄 — 최근월부터 */
-  var grand=0;
-  m.yord.forEach(function(ym){
-    h+='<tr><td class="cn">'+ymLabel(ym)+'</td><td class="rt">'+num(m.yms[ym])+'</td>'; grand+=m.yms[ym];
-    m.cols.forEach(function(c){ var v=m.cell[ym+'|'+c.g+'|'+c.cd], gs=c.first?' gs':'';
-      h+= (v>0) ? ('<td class="n'+gs+'" data-ym="'+esc(ym)+'" data-g="'+esc(c.g)+'" data-cd="'+esc(c.cd)+'">'+num(v)+'</td>') : ('<td class="none'+gs+'"></td>'); });
-    h+='</tr>';
-  });
-  /* ③ 기간 합계 */
-  h+='<tr class="sum"><td class="cn">기간 합계</td><td class="rt">'+num(grand)+'</td>';
-  m.cols.forEach(function(c){ h+='<td class="'+(c.first?'gs':'')+'" data-ym="" data-g="'+esc(c.g)+'" data-cd="'+esc(c.cd)+'">'+num(m.grp[c.g].items[c.cd].tot)+'</td>'; });
-  card.innerHTML=h+'</tr></tbody></table>';
+  var grand=0; m.yord.forEach(function(ym){ grand+=m.yms[ym]; }); m.grand=grand;
+  var stkTot=0, seen={}; m.cols.forEach(function(c){ var v=m.stock[c.cd]; if(v!=null && !seen[c.cd]){ seen[c.cd]=1; stkTot+=v; } }); m.stkTot=stkTot; m.stkAny=Object.keys(seen).length>0;
+  somPaint(true);
   document.getElementById('cnt').innerHTML='사업장 <b>'+num(m.gord.length)+'</b>곳 · 품목 <b>'+num(m.nprod)+'</b>종 · <b>'+num(m.yord.length)+'</b>개월 · 기간 출고 <b>'+num(grand)+'</b>';
   somFit();
-  /* 2단 머리의 고정 위치 = 1단 실제 높이 */
-  var r1=card.querySelector('thead tr.r1'), tb=card.querySelector('table.mx');
-  if(r1 && tb) tb.style.setProperty('--h1', Math.round(r1.getBoundingClientRect().height)+'px');
 }
+/* 지금 보이는 열 범위 [vs,ve) — 고정칸 240px 뒤부터 */
+function somVis(){
+  var card=document.getElementById('card'), n=_somM.cols.length;
+  var sl=card.scrollLeft, w=card.clientWidth||1200;
+  var vs=Math.max(0, Math.floor((sl-240)/COLW)), ve=Math.min(n, Math.ceil((sl+w-240)/COLW)+1);
+  return {vs:vs, ve:Math.max(ve, Math.min(n, vs+1))};
+}
+/* 창 [rs,re) 를 그린다 — force 가 아니면 보이는 범위가 그려진 창 안에 있을 때 건너뛴다 */
+function somPaint(force){
+  var m=_somM; if(!m || !m.cols.length) return;
+  var card=document.getElementById('card'), n=m.cols.length, v=somVis();
+  if(!force && v.vs>=_somRS && v.ve<=_somRE) return;
+  var rs=Math.max(0, v.vs-BUF), re=Math.min(n, v.ve+BUF);
+  _somRS=rs; _somRE=re;
+  var cols=m.cols.slice(rs, re), lw=rs*COLW, rw=(n-re)*COLW;
+  var spL = lw>0, spR = rw>0;
+  /* ★표 폭을 명시해야 table-layout:fixed 가 살아 colgroup 폭(빈 칸 포함)이 그대로 먹는다 — width:auto 면 자동 레이아웃으로 돌아가 빈 칸이 0 이 된다 */
+  var h='<table class="mx" style="width:'+(240+n*COLW)+'px"><colgroup><col style="width:150px"><col style="width:90px">'+(spL?'<col style="width:'+lw+'px">':'')
+       +new Array(cols.length+1).join('<col style="width:'+COLW+'px">')+(spR?'<col style="width:'+rw+'px">':'')+'</colgroup>';
+  /* 머리 1단 = 사업장(창 안에 든 열 수만큼 colspan) */
+  h+='<thead><tr class="r1"><th class="cn">년월 / 사업장</th><th class="rt">합계</th>'+(spL?'<th class="sp"></th>':'');
+  var i=0; while(i<cols.length){ var gk=cols[i].g, j=i; while(j<cols.length && cols[j].g===gk) j++; var g=m.grp[gk];
+    h+='<th class="gh'+(cols[i].first?' gs':'')+'" colspan="'+(j-i)+'" title="'+esc(g.nm)+'"><span class="gl">'+esc(g.nm)+'<small>'+num(g.iord.length)+'품목 · '+num(g.tot)+'</small></span></th>'; i=j; }
+  h+=(spR?'<th class="sp"></th>':'')+'</tr><tr class="r2"><th class="cn">품목</th><th class="rt"></th>'+(spL?'<th class="sp"></th>':'');
+  cols.forEach(function(c){ var it=m.grp[c.g].items[c.cd];
+    h+='<th class="it'+(c.first?' gs':'')+'" title="'+esc(c.cd+' '+it.nm)+'"><span class="cd">'+esc(c.cd)+'</span><span class="nm">'+esc(shortNm(it.nm, m.grp[c.g].nm))+'</span></th>'; });
+  h+=(spR?'<th class="sp"></th>':'')+'</tr></thead><tbody>';
+  var L=spL?'<td class="sp"></td>':'', R=spR?'<td class="sp"></td>':'';
+  function cell(cls, ym, c, txt){ var k=ym+'|'+c.g+'|'+c.cd; return '<td class="'+cls+(c.first?' gs':'')+(_somPick===k?' pick':'')+'" data-ym="'+esc(ym)+'" data-g="'+esc(c.g)+'" data-cd="'+esc(c.cd)+'">'+txt+'</td>'; }
+  /* ① 현재고 */
+  h+='<tr class="stk"><td class="cn">현재고 <small style="font-weight:400;color:#6b7a89">(품목)</small></td><td class="rt">'+(m.stkAny?num(m.stkTot):'')+'</td>'+L;
+  cols.forEach(function(c){ var v=m.stock[c.cd]; h+= (v==null) ? '<td class="none'+(c.first?' gs':'')+'"></td>' : cell(v<0?'neg':'', '', c, num(v)); });
+  h+=R+'</tr>';
+  /* ② 년월 줄 */
+  m.yord.forEach(function(ym){
+    h+='<tr><td class="cn">'+ymLabel(ym)+'</td><td class="rt">'+num(m.yms[ym])+'</td>'+L;
+    cols.forEach(function(c){ var v=m.cell[ym+'|'+c.g+'|'+c.cd]; h+= (v>0) ? cell('n', ym, c, num(v)) : '<td class="none'+(c.first?' gs':'')+'"></td>'; });
+    h+=R+'</tr>';
+  });
+  /* ③ 기간 합계 */
+  h+='<tr class="sum"><td class="cn">기간 합계</td><td class="rt">'+num(m.grand)+'</td>'+L;
+  cols.forEach(function(c){ h+=cell('', '', c, num(m.grp[c.g].items[c.cd].tot)); });
+  h+=R+'</tr></tbody></table>';
+  var sl=card.scrollLeft, st=card.scrollTop;
+  card.innerHTML=h;
+  if(card.scrollLeft!==sl) card.scrollLeft=sl; if(card.scrollTop!==st) card.scrollTop=st;   /* innerHTML 교체로 스크롤이 튀지 않게 */
+}
+/* 옆으로 밀면 창을 옮긴다 — 한 프레임에 한 번 */
+(function(){ var card=document.getElementById('card'), t=null;
+  card.addEventListener('scroll', function(){ if(t) return; t=requestAnimationFrame(function(){ t=null; somPaint(false); }); });
+  window.addEventListener('resize', function(){ if(_somM) somPaint(false); });
+})();
 /* ── 셀 클릭 → 하단 출고내역·입고내역 (2026-09-03 요청) ──
    · 월 셀 = 그 달, 현재고·기간합계 셀 = 조회 기간 전체. 사업장은 그 열의 사업장(매칭명) 하나.
    · 출고내역 = /prod/stockOutDetail.do (통합 원천: 정산서 있는 날은 정산서, 없으면 발주현황표 — 표와 같은 규칙)
@@ -255,6 +297,7 @@ document.getElementById('card').addEventListener('click', function(ev){
   var m=_somM||somBuild(), g=m.grp[td.getAttribute('data-g')]; if(!g) return;
   var it=g.items[td.getAttribute('data-cd')]; if(!it) return;
   var prev=document.querySelector('table.mx td.pick'); if(prev) prev.classList.remove('pick'); td.classList.add('pick');
+  _somPick=(td.getAttribute('data-ym')||'')+'|'+td.getAttribute('data-g')+'|'+td.getAttribute('data-cd');
   somDetail({ ym:td.getAttribute('data-ym')||'', g:g, it:it });
 });
 function somDetail(sel){
@@ -272,7 +315,7 @@ function somDetail(sel){
     .then(function(j){ if(DTL_LAST!==sel) return; somDetailRender(sel, j||{}, fr, to); somFit(); box.scrollIntoView({behavior:'smooth', block:'nearest'}); })
     .catch(function(e){ document.getElementById('dtlOut').innerHTML='<div class="none">조회 실패: '+esc(e.message)+'</div>'; });
 }
-function somDetailClose(){ DTL_LAST=null; document.getElementById('dtl').style.display='none'; var p=document.querySelector('table.mx td.pick'); if(p) p.classList.remove('pick'); somFit(); }
+function somDetailClose(){ DTL_LAST=null; _somPick=''; document.getElementById('dtl').style.display='none'; var p=document.querySelector('table.mx td.pick'); if(p) p.classList.remove('pick'); somFit(); }
 function dt8(d){ d=''+(d||''); return /^\d{8}$/.test(d) ? (d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8)) : d; }
 function somDetailRender(sel, j, fr, to){
   /* 출고내역 — 납기일자별·원래 사업장별. 거래처 매칭코드 칸은 주코드와 다를 때만(재고현황 ↳ 줄과 같은 규칙, 2026-09-03 「주코드이면 보여주지 마세요」) */
@@ -330,6 +373,35 @@ function somRebuildRun(){
       det(100, '완료'); setTimeout(function(){ rb.classList.remove('on'); toast('출고반영 재집계 완료 · 납기일자 <b>'+esc(r.t||'0')+'</b>건 반영', '✅'); somLoad(); }, 400); })
     .catch(function(e){ clearInterval(poll); rb.classList.remove('on'); toast('통신오류: '+esc(e.message), '⚠️'); });
 }
+/* ★★다른 메뉴로 가면 표를 <비운다> — 돌아오면 다시 그린다 (2026-09-04 「월별 출고현황 이후 다른 메뉴 이동 시 엄청 느림·잔상」)
+     셸(logistics_demo2)은 메뉴를 바꿔도 이 iframe 을 display:none 으로 <살려 둔다>(상태 유지 설계). 그래서 3만 셀짜리 표가
+     숨은 채로 문서에 남아 셸의 스타일 계산·GC 를 매번 끌었고, 메뉴를 누르면 옛 화면이 잔상으로 남았다.
+     · 판정 = 부모의 <iframe> 요소 크기(window.frameElement.getBoundingClientRect) 가 0 — 아래 hidden() 참고.
+       ⚠IntersectionObserver·requestAnimationFrame 은 못 쓴다 — display:none 문서는 「그려지지 않는 문서」라 그 콜백이 아예 안 온다
+         (처음 IO 로 만들었다가 안 깨어나 1초 타이머로 바꿈). setTimeout 은 숨어도 돈다.
+     · 숨은 지 2초(0.5초 간격 네 번 연속 0)가 되면 표 DOM 만 지운다(RAW·조건·스크롤 위치는 남긴다). 그 안에 돌아오면 아무 일도 없다.
+     · 다시 보이면 RAW 로 그대로 다시 그린다(서버 조회 없음, fixed 레이아웃이라 예전보다 빠르다). 스크롤 자리도 되돌린다. */
+var _somSleptScroll=null, _somHidN=0;
+(function(){
+  var card=document.getElementById('card');
+  function sleep(){
+    if(!RAW || !card.querySelector('table.mx')) return;
+    _somSleptScroll={ l:card.scrollLeft, t:card.scrollTop };
+    card.innerHTML='<div class="empty">다른 화면을 보는 동안 표를 접어 두었습니다 — 돌아오면 다시 그립니다.</div>'; }
+  function wake(){
+    if(!_somSleptScroll || !RAW) return;
+    var sc=_somSleptScroll; _somSleptScroll=null;
+    somRender();
+    card.scrollLeft=sc.l; card.scrollTop=sc.t; }
+  /* ⚠innerWidth 는 못 쓴다 — display:none 이 되어도 Chrome 은 마지막 폭(1177 등)을 그대로 돌려준다(2026-09-04 하네스 실측).
+       같은 출처라 부모의 <iframe> 요소를 직접 본다 : 숨은 상자는 폭·높이 0. */
+  function hidden(){ try{ var fe=window.frameElement; if(!fe) return false; var r=fe.getBoundingClientRect(); return !(r.width>0 && r.height>0); }catch(e){ return false; } }
+  setInterval(function(){
+    var hid = hidden();
+    if(hid){ _somHidN++; if(_somHidN===4) sleep(); }      /* 0.5초 × 4 = 숨은 지 2초 */
+    else { _somHidN=0; if(_somSleptScroll) wake(); }        /* 돌아오면 0.5초 안에 다시 그린다 */
+  }, 500);
+})();
 function somFit(){ var c=document.getElementById('card'); if(!c) return;
   /* 하단 내역 패널이 열려 있으면 표는 화면 절반만 쓴다 */
   var d=document.getElementById('dtl'), open=!!(d && d.style.display==='block');
