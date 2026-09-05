@@ -163,6 +163,10 @@
         출고장이 보내준 <b>정산서(받을 금액)</b> 엑셀을 가져옵니다.<br>
         가져온 내용은 <b>매출내역</b> 화면에서 출고와 대사됩니다.
       </span>
+      <%-- 💬 카톡 주문 (2026-09-04 신설) — 삼성 외 업체는 카톡으로 주문한다. 글을 붙여넣으면 거래처·품목·수량으로 갈라 그리드로 보여 주고
+           사람이 고쳐서 명세에 담거나 거래처별 전표로 바로 저장한다. 아래 saKtPop / kt* 참고 --%>
+      <button class="sa-btn" onclick="ktOpen()"
+              title="카톡으로 받은 주문 글을 그대로 붙여넣으면&#10;거래처 ▸ 품목 ▸ 수량으로 분류해 보여 줍니다.&#10;고쳐서 명세에 담거나 거래처별 전표로 바로 저장할 수 있습니다.">💬 카톡 주문 가져오기</button>
       <button class="sa-btn teal" onclick="saSlsExcel()"
               title="출고장이 준 정산 엑셀을 고릅니다(여러 개 가능).&#10;고르면 확인·저장 창이 열립니다.&#10;출고장은 파일명에서 인식합니다 — 2026.07.11_평택.xlsx → 평택">📥 정산서 가져오기</button>
     </div>
@@ -407,6 +411,82 @@
       <span style="font-size:12.5px; color:#137a6c; font-weight:700" id="btCnt"></span>
       <span style="margin-left:auto"></span>
       <button class="sa-btn" style="min-width:112px" onclick="saBatchClose()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<%-- ═══ 💬 카톡 주문 가져오기 (2026-09-04 신설) ═══
+     왼쪽에 카톡 글을 붙여넣고 [🔍 분류] → 오른쪽 그리드에 거래처 ▸ 품목 ▸ 수량으로 갈라 보여 준다.
+     사람이 고친 뒤 거래처 묶음마다 [→ 담기](위 명세 그리드로 — 더 검토 후 저장) 또는 [💾 저장](전표 바로 저장).
+     ★거래처·상품 고르기는 기존 팝업(saVenPop·saProdPop)을 그대로 쓴다 — 그래서 이 창의 z-index(190)는 그 팝업(200)보다 낮다. --%>
+<style>
+  #saKtPop{ z-index:190; }
+  #saKtPop .box{ max-height:92vh; }
+  .kt-left{ flex:0 0 34%; min-width:280px; display:flex; flex-direction:column; gap:6px; }
+  .kt-left textarea{ flex:1 1 auto; min-height:52vh; border:1px solid var(--sa-bd); border-radius:6px; padding:8px; font-size:13px; line-height:1.45; resize:vertical; font-family:inherit; }
+  .kt-right{ flex:1 1 66%; min-width:0; }
+  .kt-tbwrap{ height:60vh; overflow:auto; border:1px solid var(--sa-bd); border-radius:6px; }
+  table.kt{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  table.kt th{ position:sticky; top:0; background:#eaf2f0; color:#125a4e; font-weight:600; padding:5px 6px; border-bottom:1px solid var(--sa-bd); white-space:nowrap; z-index:1; }
+  table.kt td{ padding:3px 6px; border-bottom:1px solid #eef1f4; vertical-align:middle; white-space:nowrap; }
+  table.kt tr.kg td{ background:#dff0ee; padding:6px; border-top:2px solid #9fc9c0; }
+  table.kt tr.kg .kgbar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  table.kt tr.kn td{ background:#fff8e6; color:#7a5a12; white-space:normal; }
+  table.kt tr.ke td{ background:#f7f8fa; color:#6b7a89; white-space:normal; }
+  table.kt tr.kx td{ background:#f4f4f4; color:#8a97a4; }
+  table.kt input[type=text], table.kt input[type=number]{ height:24px; border:1px solid var(--sa-bd); border-radius:4px; padding:0 5px; font-size:12.5px; }
+  table.kt .raw{ color:#5a6b7a; max-width:230px; overflow:hidden; text-overflow:ellipsis; }
+  .kt-st{ display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px; font-weight:700; white-space:nowrap; }
+  .kt-st.ok{ background:#d5efe9; color:#0b5349; } .kt-st.gs{ background:#fdf0cf; color:#7a5a12; } .kt-st.no{ background:#fde1de; color:#a6241c; } .kt-st.pk{ background:#dbe7f7; color:#274b8f; }
+  .kt-prod{ cursor:pointer; border-bottom:1px dashed #9fb6cc; }
+  .kt-prod:hover{ color:#137a6c; }
+  .kt-help{ font-size:11.5px; color:#5a6b7a; line-height:1.5; }
+  .kt-done{ font-size:11.5px; font-weight:700; color:#0b5349; background:#c3e2d8; border-radius:10px; padding:1px 8px; }
+</style>
+<div class="sa-pop" id="saKtPop">
+  <div class="box" style="width:min(1600px,97vw)">
+    <div class="hd" style="align-items:center">💬 카톡 주문 가져오기
+      <span id="ktCnt" style="font-size:12.5px; font-weight:600; color:#137a6c"></span>
+      <span style="margin-left:auto; display:flex; align-items:center; gap:8px">
+        <button class="sa-btn" style="height:30px; line-height:1" onclick="ktExcel()" title="분류 결과(전 줄)를 엑셀로 내려받습니다">📥 엑셀 출력</button>
+        <button class="sa-btn teal" style="height:30px; line-height:1; min-width:120px; margin-right:112px" onclick="ktSaveAll()" title="체크된 품목을 거래처마다 전표 한 장씩 바로 저장합니다 (확인창이 먼저 뜹니다)">💾 전체 저장</button>
+        <span class="sa-btn" style="border:0;background:transparent;font-size:18px" onclick="ktClose()">✕</span>
+      </span>
+    </div>
+    <div class="bd">
+      <div style="display:flex; gap:12px; align-items:stretch; margin-top:10px">
+        <div class="kt-left">
+          <div style="font-size:12.5px; font-weight:800; color:#37475a">① 카톡 글 붙여넣기 <span style="font-weight:600; color:#8a97a4">— 여러 날·여러 업체를 한 번에 붙여도 됩니다</span></div>
+          <textarea id="ktText" placeholder="카톡 대화를 그대로 복사해 붙여넣으세요.&#10;&#10;*우리푸드&#10;105파이  18박스 세트&#10;210  9박스 세트&#10;수저  45박스&#10;&#10;• 샐러드&#10;샌드위치 2박스 세트&#10;080  2박스 세트"></textarea>
+          <div style="display:flex; gap:6px">
+            <button class="sa-btn teal" style="flex:1" onclick="ktParseGo()">🔍 분류</button>
+            <button class="sa-btn" onclick="ktReset()">비우기</button>
+          </div>
+          <div class="kt-help">
+            · <b>*우리푸드</b>·<b>• 샐러드</b> 같은 줄은 <b>거래처</b>로 봅니다(거래처 마스터 이름·별칭과 맞으면 자동 연결).<br>
+            · <b>숫자+박스/개/세트</b>가 있는 줄은 <b>품목</b>. 「(용기4박스, 뚜껑2박스)」는 두 줄로 나눕니다.<br>
+            · 「~보다 ~ 많게」 같은 <b>문장</b>은 수량으로 넣지 않고 노란 줄로만 보여 줍니다. 「예)」 뒤 숫자는 <b>체크 해제된 후보</b>로.<br>
+            · 우리 상품은 그 거래처 매칭코드 → 전체 매칭코드 → 상품명 순으로 <b>추정</b>만 합니다 — 초록(매칭)·노랑(추정)·빨강(미연결)을 보고 상품 칸을 눌러 바꾸세요.
+          </div>
+        </div>
+        <div class="kt-right">
+          <div style="font-size:12.5px; font-weight:800; color:#37475a; margin:0 0 4px">② 분류 결과 <span style="font-weight:600; color:#8a97a4">— 고쳐서 거래처 줄의 [→ 담기](명세로 가져가 검토) 또는 [💾 저장](바로 전표)</span></div>
+          <div class="kt-tbwrap"><table class="kt"><thead><tr>
+            <th style="width:28px"><input type="checkbox" id="ktChkAll" onchange="ktChkAll(this.checked)" title="품목 줄 전체 선택/해제"></th>
+            <th style="width:30px">#</th><th style="width:84px">날짜</th><th>카톡 원문</th><th style="width:130px">읽은 품목</th>
+            <th style="width:230px">우리 상품 <span style="font-weight:400">(눌러서 바꾸기)</span></th><th style="width:64px">상태</th>
+            <%-- 판매등록 명세와 같은 칸 (2026-09-05 요청 「그리드 각 컬럼」) — 여기 보이는 값이 그대로 전표에 저장된다 --%>
+            <th style="width:92px" title="상품마스터의 [입수량]규격">규격</th><th style="width:56px" title="박스 수 — 판매등록 규칙대로 BOX n → EA n">BOX</th><th style="width:56px">EA</th>
+            <th style="width:78px" title="그 거래처 최근 판매단가(없으면 상품마스터 판매가). 고치면 고친 값으로 저장">단가</th><th style="width:88px" title="EA × 단가 (부가세 별도)">금액</th>
+            <th style="width:34px">세트</th><th>비고</th><th style="width:26px"></th>
+          </tr></thead><tbody id="ktBody"><tr><td colspan="15" class="sa-msg">왼쪽에 카톡 글을 붙여넣고 [🔍 분류]를 누르세요.</td></tr></tbody></table></div>
+        </div>
+      </div>
+    </div>
+    <div class="ft" style="display:flex; align-items:center; gap:8px">
+      <span class="kt-help">거래처 줄의 <b>[거래처]</b>로 거래처를 고치고, <b>[→ 담기]</b>는 위 명세 그리드에 넣어 검토 후 저장, <b>[💾 저장]</b>은 그 거래처 전표를 바로 저장합니다. 노란 문장 줄·회색 기타 줄은 저장되지 않습니다.</span>
+      <span style="margin-left:auto"></span>
+      <button class="sa-btn" style="min-width:112px" onclick="ktClose()">닫기</button>
     </div>
   </div>
 </div>
@@ -1242,6 +1322,8 @@ function saVenRender(){
 }
 function saVenPick(cd){
   var o = _vendors.filter(function(x){ return String(x.vendorCd)===String(cd); })[0]; if(!o) return;
+  /* 💬 카톡 주문 창에서 [거래처]로 열었으면 그 묶음에 넣고 끝 — 본 화면 거래처는 건드리지 않는다 (2026-09-04) */
+  if (_kt.venTarget != null) { var gi=_kt.venTarget; _kt.venTarget=null; saVenClose(); ktSetGroupVen(gi, o); return; }
   var v = document.getElementById('saVenNm'); v.value = o.vendorNm||''; v.dataset.cd = o.vendorCd||'';
   var m = document.getElementById('saMgrNm'); m.value = o.mgrNm||''; m.dataset.cd = o.mgrCd||'';
   saVenVat(o);
@@ -1586,6 +1668,9 @@ function saExtPick(seq){
       + '<span style="color:#5a6b7a;font-size:12.5px">연결 전에는 아래 목록에서 상품을 직접 고르셔도 됩니다.</span>');
     return;
   }
+  /* 💬 카톡 주문 창에서 열었으면 그 줄에 매칭으로 넣고 끝 (2026-09-04) */
+  if (_kt.prodTarget != null) { var kr=ktRowById(_kt.prodTarget); _kt.prodTarget=null; saProdClose();
+    if(kr){ ktSetProd(kr, o.prodCd, '매칭'); kr.extCd=o.extItemCd; kr.extNm=o.extItemNm||''; ktRender(); } return; }
   saProdPick(o.prodCd);
   /* 매칭으로 고른 것 — 코드·품명을 그 표기로 바꿔 두고, 어느 매칭으로 넣었는지 행에 남긴다.
      (saProdPick 이 extCd 를 지우므로 반드시 그 뒤에) */
@@ -1594,6 +1679,9 @@ function saExtPick(seq){
 }
 function saProdPick(cd){
   var p = _prods.filter(function(x){ return String(x.prodCd)===String(cd); })[0]; if(!p) return;
+  /* 💬 카톡 주문 창의 상품 칸에서 열었으면 그 줄에 넣고 끝 — 명세 그리드(_rows)는 건드리지 않는다 (2026-09-04) */
+  if (_kt.prodTarget != null) { var kr=ktRowById(_kt.prodTarget); _kt.prodTarget=null; saProdClose();
+    if(kr){ ktSetProd(kr, p.prodCd, '선택'); kr.extCd=null; kr.extNm=null; ktRender(); } return; }
   var o = _rows[_prodTargetRow]; if(!o) return;
   /* 품명 = 그 거래처가 요청한 이름(있으면). 없으면 우리 품명 그대로 */
   o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=saNmFor(p.prodCd, p.prodNm); o.spec=p.spec||'';
@@ -2424,6 +2512,445 @@ function saPinPick(k){
 function saPinClose(){ if (_pinDrop) _pinDrop.style.display = 'none'; _pinList = []; _pinIdx = -1; }
 function saPinBlur(){ setTimeout(saPinClose, 150); }
 
+/* ══════════════ 💬 카톡 주문 가져오기 (2026-09-04 신설) ══════════════
+   삼성웰스토리는 엑셀(정산서·발주현황표)로 오지만 그 외 업체는 카톡으로 주문한다(사용자 2026-09-03).
+   카톡 글을 그대로 붙여넣으면 거래처 ▸ 품목 ▸ 수량으로 <어느 정도> 갈라 그리드로 보여 주고(「분류해서 주고 판단하게」),
+   사람이 고친 뒤 거래처 묶음마다 [→ 담기](명세 그리드로 — 더 검토 후 [저장]) 또는 [💾 저장](전표 바로 저장) 한다.
+   ★사용자 확인(2026-09-03~04)으로 정해진 규칙 :
+     · 「*우리푸드」「• 샐러드」는 거래처다. 한 글에 여러 업체가 같이 온다 → 업체 덩이로 갈라 전표를 거래처별로 따로.
+     · 약칭은 업체마다 다르다 → 상품 추정은 그 거래처의 매칭코드(TBL_EXT_ITEM_MST) 먼저, 없으면 전체 매칭코드·상품명.
+     · 이 채널로 오는 것은 전부 판매등록(매입 아님).
+     · 「~보다 ~ 많게」 문장은 수량으로 넣지 않는다(노란 줄로만). 「예)」 뒤 숫자는 체크 해제된 후보로.
+   ★아직 확인 안 된 것(질문지 1·2·11·23번) — 「N박스 세트」의 뜻 · 1박스=몇 개 · 업체별 약칭표 · 업체 이름 목록.
+     그래서 박스는 판매등록 규칙대로 BOX n → EA n (입수 환산 안 함, 2026-08-01 확정) 으로만 담고 세트는 ✔ 표시만 남긴다.
+     확정되면 ktToRow 의 수량 분기 · ktSuggest · KT_VEN_HINT 만 고치면 된다.
+   ★거래처·상품 고르기는 기존 팝업(saVenPop·saProdPop)을 그대로 쓴다 — saVenPick/saProdPick/saExtPick 첫 줄의 _kt 분기가
+     이 창으로 돌려보낸다(고르는 화면을 두 벌 만들지 않는다). 그래서 이 창(#saKtPop)의 z-index 는 그 팝업보다 낮다.
+   ★상품·거래처 마스터는 이 화면이 이미 갖고 있는 _prods·_vendors·_extItems 를 그대로 본다 — 서버 호출은 저장(salesTrxSave) ·
+     최근단가(salesLastPrice) · 전표번호(salesTrxNextNo) 셋뿐, 전부 기존 엔드포인트라 서버 무변경(JSP만). */
+var _kt = { rows:[], groups:[], venTarget:null, prodTarget:null, seq:0 };
+var KT_UNIT_SRC = '(\\d[\\d,]*(?:\\.\\d+)?)\\s*(박스|BOX|Box|box|개|EA|Ea|ea|세트|병|팩|장|롤|봉|매|묶음|캔)(?![가-힣A-Za-z])';
+var KT_QTY_RE   = new RegExp(KT_UNIT_SRC);
+var KT_QTY_ALL  = new RegExp(KT_UNIT_SRC, 'g');
+var KT_SENT_RE  = /(보다|정도|많게|적게|덜|더\s|맞춰|맞추)/;                 // 문장형 지시(수량으로 넣지 않는다)
+var KT_VERB_RE  = /(합니다|습니다|해주세요|해 주세요|하세요|주세요|드립니다|입니다|부탁|발주|주문)/;  // 문장(거래처 이름이 아니다)
+var KT_NAME_RE  = /(님|팀장|과장|부장|대표|사장|이사|주임|대리|차장)$/;     // 사람 이름(발신자 줄 등)
+var KT_DATE_RE  = /(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/;
+var KT_TIME_RE  = /^(오전|오후)\s*\d{1,2}:\d{2}$/;
+var KT_PC_RE    = /^\[(.+?)\]\s*\[(오전|오후)\s*\d{1,2}:\d{2}\]\s*(.*)$/;                                   // PC 카톡 복사 : [이름] [오후 1:53] 내용
+var KT_MOB_RE   = /^(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.\s*(오전|오후)\s*\d{1,2}:\d{2},\s*(.+?)\s*:\s*(.*)$/; // 모바일 내보내기 : 2026. 9. 3. 오후 1:53, 이름 : 내용
+var KT_PHONE_RE = /01[016789]-?\d{3,4}-?\d{4}/;
+/* 주소 — 시도명이나 「○○시 ○○동/로」 꼴이 있어야 한다. 「내일 2시30분」의 '시3' 에 걸리지 않게(실측) */
+var KT_ADDR_RE  = /(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)\s|[가-힣]+(시|군|구)\s+[가-힣]+(읍|면|동|로|길)|\d+번길/;
+var KT_SKIP_RE  = /^(네|넵|예|ㅇㅇ|응|알겠습니다|알겠어요|감사합니다|감사해요|고마워|고맙습니다|ok|OK|확인|확인했습니다|수고하세요|수고|넹|ㄳ|ㄱㅅ)[.!~ ]*$/;
+
+function ktOpen(){
+  document.getElementById('saKtPop').classList.add('on');
+  saLoadMasters();                                        // 상품·거래처·매칭코드를 새로 읽는다(다른 화면에서 등록한 것 반영)
+  setTimeout(function(){ document.getElementById('ktText').focus(); }, 0);
+}
+function ktClose(){ document.getElementById('saKtPop').classList.remove('on'); _kt.venTarget=null; _kt.prodTarget=null; }
+function ktReset(){ _kt.rows=[]; _kt.seq=0; document.getElementById('ktText').value=''; ktRender(); }
+function ktRowById(id){ for(var i=0;i<_kt.rows.length;i++){ if(_kt.rows[i].id===id) return _kt.rows[i]; } return null; }
+/* 비교용 정규화 — 공백·(주)·기호를 떼고 소문자로. '105 파이'와 '105파이', '(주)에그탑'과 '에그탑'이 같아진다 */
+function ktNorm(s){ return String(s==null?'':s).toLowerCase().replace(/\(주\)|㈜|주식회사/g,'').replace(/[\s\-_·.,()\[\]\/]/g,''); }
+function ktYmd(y,m,d){ return y+'-'+('0'+m).slice(-2)+'-'+('0'+d).slice(-2); }
+function ktUnit(u){ u=String(u||''); if(/^(box)$/i.test(u)) return '박스'; if(/^ea$/i.test(u)) return '개'; return u||'개'; }
+
+/* 거래처 마스터에서 이름·별칭·전체명으로 찾는다 — 정확히 같으면 3, 한쪽이 다른 쪽을 품으면 2. 짧은 말(2자 이하)은 정확일치만 */
+function ktFindVen(nm){
+  var k = ktNorm(nm); if(!k) return null;
+  var best = null;
+  _vendors.forEach(function(v){
+    [v.vendorNm, v.alias, v.fullNm].forEach(function(c){
+      c = ktNorm(c); if(!c) return;
+      var sc = (c===k) ? 3 : ((k.length>2 && (c.indexOf(k)>=0 || k.indexOf(c)>=0)) ? 2 : 0);
+      if(sc && (!best || sc>best.sc)) best = { v:v, sc:sc };
+    });
+  });
+  return best ? best.v : null;
+}
+
+/* ── 분류 ── 줄 하나하나를 거래처 / 품목 / 문장 / 기타 로 가른다. 무엇이든 버리지 않는다(기타로라도 남긴다 — 사람이 본다) */
+function ktParseGo(){
+  _kt.rows = ktParse(document.getElementById('ktText').value);
+  ktRender();
+  if(!_kt.rows.length) swAlert('읽을 내용이 없습니다. 카톡 글을 붙여넣고 다시 눌러 주세요.');
+}
+function ktParse(text){
+  var lines = String(text||'').replace(/\r/g,'').split('\n');
+  var rows = [], cur = { biz:'', venCd:'', venNm:'' }, dt = '', inEx = false;
+  _kt.seq = 0;
+  function push(r){ r.id = ++_kt.seq; rows.push(r); return r; }
+  function backfill(){   // 롤지 주문처럼 <품목 → 주소 → 업체 이름> 순으로 오면, 업체 이름이 나올 때 앞의 주인 없는 줄에 붙인다
+    for(var i=rows.length-1;i>=0;i--){ var r=rows[i]; if(r.t==='biz') break; if(r.biz) break; r.biz=cur.biz; r.venCd=cur.venCd; r.venNm=cur.venNm; if(r.t==='item' && !r.prodCd) ktSuggest(r); }
+  }
+  function item(raw, name, qtyS, unit, tail, ex){
+    var set = /세트/.test(tail||'') || /세트$/.test(name||'');
+    name = String(name||'').replace(/세트$/,'').replace(/[\-:：x×*]+$/,'').trim();
+    var note = String(tail||'').replace(/세트/g,'').replace(/^[\s\-,·]+/,'').trim();
+    var r = push({ t:'item', dt:dt, biz:cur.biz, venCd:cur.venCd, venNm:cur.venNm, raw:raw, name:name, qty:n(qtyS), unit:ktUnit(unit),
+                   set:set, note:(ex?'「예)」 문장에서 읽은 후보 — 수량 확인 필요'+(note?' · '+note:''):note), chk:!ex, ex:!!ex,
+                   prodCd:'', prodNm:'', prodSeq:null, st:'none', box:0, ea:0, unitPrice:0, priceEdited:false, priceSrc:'' });
+    /* 판매등록 규칙 : 박스 n → BOX n · EA n (입수 환산 안 함, 2026-08-01 확정). 개 단위는 EA 만 */
+    r.box = (r.unit==='박스') ? r.qty : 0; r.ea = r.qty;
+    ktSuggest(r);
+  }
+  lines.forEach(function(rawLine){
+    var s = rawLine.replace(/ /g,' ').trim(), m;
+    if(!s){ inEx=false; return; }
+    if((m=KT_MOB_RE.exec(s))){ dt=ktYmd(m[1],m[2],m[3]); s=m[6].trim(); if(!s) return; }
+    else if((m=KT_PC_RE.exec(s))){ s=m[3].trim(); if(!s) return; }
+    if((m=KT_DATE_RE.exec(s))){ dt=ktYmd(m[1],m[2],m[3]); cur={biz:'',venCd:'',venNm:''}; inEx=false;   // 날짜 구분줄 = 다른 날 주문
+      if(!s.replace(KT_DATE_RE,'').replace(/[요일월화수목금토\s()]/g,'')) return; }
+    if(KT_TIME_RE.test(s) || KT_SKIP_RE.test(s)) return;
+    var bare = s.replace(/^[\s*•·\-▪■●◆○◇※#>]+/,'').trim();
+    if(!bare) return;
+    /* 「예) 750d 2000개 / 303 4000개」 — 예시는 주문이 아니다. 후보(체크 해제)로만 */
+    if((m=/예\)\s*(.*)$/.exec(bare))){ inEx=true;
+      m[1].split(/[\/,，]/).forEach(function(p){ p=p.trim(); var q=KT_QTY_RE.exec(p); if(!q) return;
+        item(s, p.slice(0,p.lastIndexOf(q[0])).trim(), q[1], q[2], p.slice(p.lastIndexOf(q[0])+q[0].length), true); });
+      return; }
+    var hasQty = KT_QTY_RE.test(bare);
+    if(KT_SENT_RE.test(bare) && !/^\S+\s+\d[\d,]*\s*(개|박스|세트)$/.test(bare)){          // 문장형 지시 (숫자가 있어도 수량으로 안 본다)
+      push({ t:'note', dt:dt, biz:cur.biz, venCd:cur.venCd, venNm:cur.venNm, raw:s, chk:false }); return; }
+    if(hasQty){
+      /* 「210 (용기4박스, 뚜껑2박스)」 — 괄호 안에 수량이 둘 이상이면 각각 한 줄로 (품목이 다르다) */
+      var pm=/^(.*?)\(([^)]*\d+\s*(?:박스|BOX|개|EA|세트)[^)]*)\)\s*(.*)$/i.exec(bare);
+      if(pm && /[,，]/.test(pm[2])){
+        pm[2].split(/[,，]/).forEach(function(p){ var q=KT_QTY_RE.exec(p); if(!q) return;
+          item(s, (pm[1].trim()+' ('+p.replace(KT_QTY_RE,'').trim()+')'), q[1], q[2], pm[3], inEx); });
+        return; }
+      var all=bare.match(KT_QTY_ALL), last=all[all.length-1], at=bare.lastIndexOf(last), q=KT_QTY_RE.exec(last);
+      item(s, bare.slice(0,at), q[1], q[2], bare.slice(at+last.length), inEx); return; }
+    /* 수량이 없는 줄 — 거래처 이름인지 본다 : 짧고, 숫자 두 자리 이상 없고, 문장·연락처·주소·사람 이름이 아니어야 */
+    var v = ktFindVen(bare);
+    var bizLike = bare.length<=22 && !/\d{2,}/.test(bare) && !KT_VERB_RE.test(bare) && !KT_PHONE_RE.test(bare) && !KT_ADDR_RE.test(bare);
+    if(v || (bizLike && !KT_NAME_RE.test(bare))){
+      inEx=false;
+      /* 바로 앞 줄도 거래처(품목 없이)였으면 그 줄은 발신자 이름 같은 것 — 새 거래처로 대체한다 */
+      if(rows.length && rows[rows.length-1].t==='biz' && !rows[rows.length-1].venCd) rows.pop();
+      cur = { biz:(v?v.vendorNm:bare), venCd:(v?v.vendorCd:''), venNm:(v?v.vendorNm:'') };
+      backfill();   // ★거래처 줄을 넣기 <전에> — 넣은 뒤 부르면 첫 줄이 곧 거래처 줄이라 바로 멈춘다(실측으로 잡은 순서 버그)
+      push({ t:'biz', dt:dt, biz:cur.biz, venCd:cur.venCd, venNm:cur.venNm, raw:s, hint:(v?'':'거래처 마스터에 없는 이름 — [거래처]로 골라 주세요') });
+      return; }
+    push({ t:'etc', dt:dt, biz:cur.biz, venCd:cur.venCd, venNm:cur.venNm, raw:s, chk:false,
+           kind: KT_PHONE_RE.test(bare)?'연락처':(KT_ADDR_RE.test(bare)?'주소':(KT_NAME_RE.test(bare)?'이름':'')) });
+  });
+  return rows;
+}
+
+/* ── 우리 상품 추정 ── ① 그 거래처의 매칭코드 ② 아무 거래처 매칭코드 ③ 상품명·규격·코드. 확정이 아니라 <추정>이다 — 상태색으로 알린다 */
+function ktSuggest(r){
+  var k = ktNorm(r.name); if(!k) return;
+  var mine=null, any=null;
+  _extItems.forEach(function(e){
+    if(!e.prodCd) return;
+    var c1=ktNorm(e.extItemNm), c2=ktNorm(e.extItemCd);
+    var h = (c1===k||c2===k) ? 2 : ((k.length>1 && ((c1&&c1.indexOf(k)>=0)||(c2&&c2.indexOf(k)>=0)||(c1&&c1.length>1&&k.indexOf(c1)>=0))) ? 1 : 0);
+    if(!h) return;
+    if(r.venCd && e.vendorCd===r.venCd){ if(!mine||h>mine.h) mine={e:e,h:h}; }
+    else if(!any||h>any.h) any={e:e,h:h};
+  });
+  var pk = mine||any;
+  if(pk){ ktSetProd(r, pk.e.prodCd, (mine && pk.h===2) ? '매칭' : '추정'); r.extCd=pk.e.extItemCd; r.extNm=pk.e.extItemNm||''; r.alt=0; return; }
+  var byProd = function(key){ return _prods.filter(function(p){ return p.stopYn!=='Y' && (ktNorm(p.prodCd)===key || (key.length>1 && (ktNorm(p.prodNm).indexOf(key)>=0 || ktNorm(p.spec).indexOf(key)>=0))); }); };
+  var hits = byProd(k);
+  /* 「210 (용기)」처럼 괄호로 나눈 줄은 괄호 앞 말(210)로 한 번 더 — 괄호 안은 우리 품명에 없는 말일 수 있다 */
+  if(!hits.length && /\(/.test(r.name||'')){ var head=ktNorm(String(r.name).split('(')[0]); if(head && head!==k) hits = byProd(head); }
+  if(hits.length){ ktSetProd(r, hits[0].prodCd, '추정'); r.extCd=null; r.extNm=null; r.alt=hits.length-1; }
+}
+function ktSetProd(r, cd, st){
+  var p=_prods.filter(function(x){ return String(x.prodCd)===String(cd); })[0]; if(!p) return;
+  r.prodCd=p.prodCd; r.prodNm=p.prodNm||''; r.prodSeq=p.prodSeq; r.spec=p.spec||''; r.packQty=n(p.packQty)||1; r.taxGb=p.taxGb||'과세';
+  r.st=st||'선택'; r.alt=0;
+  /* 단가 = 상품마스터 판매가로 먼저 채우고, 그 거래처 최근 판매단가가 있으면 그것으로 덮는다(saProdPick 과 같은 규칙).
+     사람이 단가 칸을 고쳤으면(priceEdited) 어느 쪽도 덮지 않는다 — 그리드에 보이는 값이 그대로 저장된다 */
+  if(!r.priceEdited){ r.unitPrice=n(p.salePrice); r.priceSrc='마스터'; ktPriceLookup(r); }
+}
+function ktAmt(r){ return Math.round(n(r.ea)*n(r.unitPrice)); }
+function ktPriceLookup(r){
+  if(!r.prodCd || !r.venCd) return;
+  var cd=r.prodCd, ven=r.venCd;
+  post('/mangr/salesLastPrice.do','prodCd='+encodeURIComponent(cd)+'&remark='+encodeURIComponent(ven))
+    .then(function(x){ return x.json(); }).then(function(j){
+      if(!(j&&j.data) || r.priceEdited || r.prodCd!==cd || r.venCd!==ven) return;
+      r.unitPrice=n(j.data); r.priceSrc='최근'; ktPaintRow(r); })
+    .catch(function(){});
+}
+/* 한 줄의 단가·금액·묶음 합계만 다시 칠한다 — 전체를 다시 그리면 치고 있던 칸의 커서가 날아간다 */
+function ktPaintRow(r){
+  var pi=document.getElementById('ktP'+r.id); if(pi && document.activeElement!==pi){ pi.value=fmtP(r.unitPrice); pi.title=(r.priceSrc==='최근'?'그 거래처 최근 판매단가':(r.priceSrc==='마스터'?'상품마스터 판매가':'직접 입력')); }
+  var ai=document.getElementById('ktA'+r.id); if(ai) ai.textContent=fmt(ktAmt(r));
+  var ei=document.getElementById('ktE'+r.id); if(ei && document.activeElement!==ei) ei.value=n(r.ea);
+  ktSums();
+}
+function ktSums(){
+  _kt.groups.forEach(function(g, gi){
+    var el=document.getElementById('ktG'+gi); if(!el) return;
+    var v=_vendors.filter(function(x){ return String(x.vendorCd)===String(g.venCd); })[0]||{}, vg=v.vatGb||'별도', sup=0, vat=0, tot=0;
+    g.rows.forEach(function(r){ if(r.t!=='item'||!r.chk||!r.prodCd) return; var o=ktToRow(r); ktCalcRow(o, vg); sup+=o.supplyAmt; vat+=o.vatAmt; tot+=o.totAmt; });
+    el.innerHTML = '공급가 <b>'+fmt(sup)+'</b> · 부가세 '+fmt(vat)+' · <b>합계 '+fmt(tot)+'</b> <span style="color:#8a97a4">('+esc(vg)+')</span>';
+  });
+}
+function ktProdOpen(id){
+  var r=ktRowById(id); if(!r) return;
+  _kt.prodTarget=id; _prodTargetRow=-1; _ppPick=[];
+  document.getElementById('saProdPop').classList.add('on');
+  var q=document.getElementById('saProdQ'); q.value=r.name||'';       // 읽은 품목명을 검색어로 미리 넣는다
+  saProdRender(); saLoadMasters();
+  setTimeout(function(){ q.focus(); q.select(); }, 0);
+}
+function ktVenOpen(gi){
+  var g=_kt.groups[gi]; if(!g) return;
+  _kt.venTarget=gi; saVenOpen();
+  var q=document.getElementById('saVenQ'); q.value=(g.venCd?'':(g.biz||'')); saVenRender();
+  setTimeout(function(){ q.focus(); }, 0);
+}
+function ktSetGroupVen(gi, v){
+  var g=_kt.groups[gi]; if(!g||!v) return;
+  g.rows.forEach(function(r){ r.venCd=v.vendorCd; r.venNm=v.vendorNm||''; r.biz=v.vendorNm||r.biz;
+    if(r.t!=='item') return;
+    if(r.st!=='선택' && r.st!=='매칭') ktSuggest(r);          // 거래처가 정해졌으니 그 거래처 매칭코드로 다시 추정
+    else ktPriceLookup(r); });                                 // 상품은 그대로, 단가만 그 거래처 최근값으로
+  ktRender();
+}
+function ktEdit(id, k, v){
+  var r=ktRowById(id); if(!r) return;
+  if(k==='chk'){ r.chk=!!v; ktCnt(); ktSums(); return; }
+  if(k==='box'){ r.box=n(v); r.ea=r.box; r.qty=r.ea; ktPaintRow(r); return; }        // BOX 를 치면 EA 가 따라온다(판매등록 saSet 과 동일)
+  if(k==='ea'){ r.ea=n(v); r.qty=r.ea; ktPaintRow(r); return; }
+  if(k==='unitPrice'){ r.unitPrice=n(v); r.priceEdited=true; r.priceSrc='직접'; ktPaintRow(r); return; }
+  r[k]=v;
+}
+function ktDel(id){ _kt.rows=_kt.rows.filter(function(r){ return r.id!==id; }); ktRender(); }
+function ktChkAll(on){ _kt.rows.forEach(function(r){ if(r.t==='item') r.chk=!!on; }); ktRender(); }
+
+/* 거래처 묶음 — 같은 거래처(코드, 없으면 이름)가 이어져 나오면 한 묶음. 첫 줄의 날짜를 묶음 날짜로 */
+function ktGroups(){
+  var gs=[], map={};
+  _kt.rows.forEach(function(r){
+    var key = r.venCd ? ('c:'+r.venCd) : ('n:'+(r.biz||''));
+    var g = map[key]; if(!g){ g=map[key]={ key:key, biz:r.biz||'', venCd:r.venCd||'', venNm:r.venNm||'', dt:r.dt||'', rows:[], done:'' }; gs.push(g); }
+    if(!g.dt && r.dt) g.dt=r.dt;
+    g.rows.push(r);
+  });
+  /* 저장·담기 표시는 묶음이 다시 만들어져도 남아야 한다 — 이전 묶음에서 옮겨 온다 */
+  (_kt.groups||[]).forEach(function(o){ gs.forEach(function(g){ if(g.key===o.key && o.done) g.done=o.done; }); });
+  return gs;
+}
+function ktStBadge(r){
+  if(!r.prodCd) return '<span class="kt-st no">미연결</span>';
+  if(r.st==='매칭') return '<span class="kt-st ok" title="그 거래처 매칭코드와 정확히 같음">매칭</span>';
+  if(r.st==='선택') return '<span class="kt-st pk" title="사람이 골랐음">선택</span>';
+  return '<span class="kt-st gs" title="이름이 비슷해 추정만 했습니다 — 맞는지 확인'+(r.alt?(' (다른 후보 '+r.alt+')'):'')+'">추정'+(r.alt?('+'+r.alt):'')+'</span>';
+}
+function ktRender(){
+  _kt.groups = ktGroups();
+  var b=document.getElementById('ktBody'), h='';
+  if(!_kt.rows.length){ b.innerHTML='<tr><td colspan="15" class="sa-msg">왼쪽에 카톡 글을 붙여넣고 [🔍 분류]를 누르세요.</td></tr>'; ktCnt(); return; }
+  _kt.groups.forEach(function(g, gi){
+    var items=g.rows.filter(function(r){ return r.t==='item'; }), chk=items.filter(function(r){ return r.chk; }), miss=chk.filter(function(r){ return !r.prodCd; });
+    /* 품목이 한 줄도 없는 묶음(발신자 이름·인사말 같은 참고 줄만) — 담기·저장 단추 없이 얇은 머리줄만 */
+    if(!items.length){
+      h += '<tr class="kg"><td colspan="15" style="background:#f1f5f4;border-top-color:#d5e2de"><div class="kgbar"><span style="color:#6b7a89;font-weight:600">📎 참고 줄'+(g.venNm||g.biz?(' — '+esc(g.venNm||g.biz)):' (거래처 없음)')+'</span></div></td></tr>';
+    } else
+    h += '<tr class="kg"><td colspan="15"><div class="kgbar">'
+      +  '<span>🏢 <b>'+(g.venNm ? esc(g.venNm) : (g.biz ? esc(g.biz) : '<span style="color:#a6241c">(거래처 미지정)</span>'))+'</b>'
+      +   (g.venCd ? ' <span style="color:#5a6b7a;font-weight:400">['+esc(g.venCd)+']</span>' : ' <span class="kt-st no">거래처 마스터 연결 필요</span>')+'</span>'
+      +  '<button class="sa-btn" style="height:24px;line-height:1;padding:0 8px;font-size:12px" onclick="ktVenOpen('+gi+')" title="이 묶음의 거래처를 마스터에서 고릅니다">거래처</button>'
+      +  (g.dt ? '<span style="font-weight:400;color:#37475a">📅 '+esc(g.dt)+'</span>' : '')
+      +  '<span style="font-weight:400;color:#37475a">품목 '+items.length+'줄 · 체크 '+chk.length+(miss.length?(' · <b style="color:#a6241c">미연결 '+miss.length+'</b>'):'')+'</span>'
+      +  '<span id="ktG'+gi+'" style="font-weight:400;color:#37475a" title="체크된 줄의 금액 — 이 거래처 부가세 설정으로 계산. 이대로 전표에 저장됩니다"></span>'
+      +  (g.done ? '<span class="kt-done">'+esc(g.done)+'</span>' : '')
+      +  '<span style="margin-left:auto;display:flex;gap:6px">'
+      +    '<button class="sa-btn" style="height:24px;line-height:1;padding:0 10px;font-size:12px" onclick="ktApply('+gi+')" title="체크된 품목을 위 명세 그리드에 넣습니다 — 거기서 더 고친 뒤 [저장]">→ 담기</button>'
+      +    '<button class="sa-btn teal" style="height:24px;line-height:1;padding:0 10px;font-size:12px" onclick="ktSaveGroup('+gi+')" title="이 거래처 전표를 바로 저장합니다 (확인창이 먼저 뜹니다)">💾 저장</button>'
+      +  '</span></div></td></tr>';
+    var no=0;   // # = 이 거래처 묶음 안의 품목 순번(전표 명세 줄 순서와 같다). 참고·문장 줄은 번호 없음 (2026-09-05 「# 숫자 표시는」)
+    g.rows.forEach(function(r){
+      if(r.t==='biz'){ if(r.hint) h+='<tr class="ke"><td></td><td></td><td>'+esc(r.dt)+'</td><td colspan="12" style="white-space:normal">'+esc(r.raw)+' <span style="color:#a6241c">— '+esc(r.hint)+'</span></td></tr>'; return; }
+      if(r.t==='note'){ h+='<tr class="kn"><td></td><td></td><td>'+esc(r.dt)+'</td><td colspan="11" style="white-space:normal">📝 <b>문장형 지시</b> — 수량으로 넣지 않았습니다. 필요하면 아래 후보를 체크하거나 명세에서 직접 고치세요.<br><span style="color:#37475a">'+esc(r.raw)+'</span></td><td><span style="cursor:pointer;color:#c0392b" onclick="ktDel('+r.id+')">✖</span></td></tr>'; return; }
+      if(r.t==='etc'){ h+='<tr class="ke"><td></td><td></td><td>'+esc(r.dt)+'</td><td colspan="11" style="white-space:normal">'+(r.kind?('<b>'+esc(r.kind)+'</b> · '):'')+esc(r.raw)+'</td><td><span style="cursor:pointer;color:#c0392b" onclick="ktDel('+r.id+')">✖</span></td></tr>'; return; }
+      h += '<tr'+(r.ex?' class="kx"':'')+'>'
+        + '<td><input type="checkbox" '+(r.chk?'checked':'')+' onchange="ktEdit('+r.id+',\'chk\',this.checked)"></td>'
+        + '<td style="color:#8a97a4">'+(++no)+'</td><td>'+esc(r.dt)+'</td>'
+        + '<td class="raw" title="'+esc(r.raw)+'">'+esc(r.raw)+'</td>'
+        + '<td title="'+esc(r.name)+'">'+esc(r.name)+'</td>'
+        + '<td><span class="kt-prod" onclick="ktProdOpen('+r.id+')" title="눌러서 상품 선택 팝업 — 읽은 품목명이 검색어로 들어갑니다">'
+        +   (r.prodCd ? ('<b>'+esc(r.prodCd)+'</b> '+esc(r.prodNm)) : '<span style="color:#a6241c">상품 고르기…</span>')+'</span>'
+        +   (r.extCd ? ' <span style="font-size:11px;color:#274b8f" title="거래처 매칭코드">🔖'+esc(r.extCd)+'</span>' : '')+'</td>'
+        + '<td>'+ktStBadge(r)+'</td>'
+        /* 판매등록 명세와 같은 칸 — 규격 · BOX · EA · 단가 · 금액. 여기 값이 그대로 전표에 들어간다 */
+        + '<td style="color:#5a6b7a;font-size:11.5px" title="'+esc(r.spec||'')+'">'+(r.prodCd?('['+n(r.packQty||1)+'] '+esc(r.spec||'')):'')+'</td>'
+        + '<td><input type="number" style="width:50px;text-align:right" value="'+n(r.box)+'" oninput="ktEdit('+r.id+',\'box\',this.value)" title="원문 : '+n(r.qty)+' '+esc(r.unit)+'"></td>'
+        + '<td><input type="number" id="ktE'+r.id+'" style="width:50px;text-align:right" value="'+n(r.ea)+'" oninput="ktEdit('+r.id+',\'ea\',this.value)"></td>'
+        + '<td><input type="text" id="ktP'+r.id+'" style="width:72px;text-align:right" value="'+fmtP(r.unitPrice)+'" oninput="ktEdit('+r.id+',\'unitPrice\',this.value)" title="'+(r.priceSrc==='최근'?'그 거래처 최근 판매단가':(r.priceSrc==='마스터'?'상품마스터 판매가':'직접 입력'))+'"></td>'
+        + '<td id="ktA'+r.id+'" style="text-align:right;font-weight:700">'+fmt(ktAmt(r))+'</td>'
+        + '<td style="text-align:center">'+(r.set?'✔':'')+'</td>'
+        + '<td><input type="text" style="width:100%;min-width:140px" value="'+esc(r.note||'')+'" oninput="ktEdit('+r.id+',\'note\',this.value)"></td>'
+        + '<td><span style="cursor:pointer;color:#c0392b" onclick="ktDel('+r.id+')">✖</span></td></tr>';
+    });
+  });
+  b.innerHTML=h; ktCnt(); ktSums();
+}
+function ktCnt(){
+  var it=_kt.rows.filter(function(r){ return r.t==='item'; }), chk=it.filter(function(r){ return r.chk; }), ok=chk.filter(function(r){ return r.prodCd; });
+  var notes=_kt.rows.filter(function(r){ return r.t==='note'; }).length;
+  document.getElementById('ktCnt').textContent = _kt.rows.length ? ('거래처 '+_kt.groups.length+' · 품목 '+it.length+'줄 · 체크 '+chk.length+' (연결 '+ok.length+' / 미연결 '+(chk.length-ok.length)+')'+(notes?(' · 문장 '+notes):'')) : '';
+  var all=document.getElementById('ktChkAll'); if(all) all.checked = it.length>0 && chk.length===it.length;
+}
+
+/* ── 카톡 줄 → 명세 행 ── 판매등록 규칙 그대로 : BOX n → EA n(입수 환산 안 함, 2026-08-01 확정). 개 단위는 EA 만. 원문은 비고에 남긴다 */
+function ktToRow(r){
+  var o=emptyRow();
+  o.prodSeq=r.prodSeq; o.prodCd=r.prodCd; o.prodNm=saNmFor(r.prodCd, r.prodNm); o.spec=r.spec||''; o.packQty=r.packQty||1; o.taxGb=r.taxGb||'과세';
+  o.unitPrice=n(r.unitPrice);                                  // 그리드에 보이는 단가 그대로(최근단가·마스터·직접입력)
+  if(r.extCd){ o.extCd=r.extCd; o.extNm=r.extNm||''; if(r.extNm) o.prodNm=r.extNm; }
+  o.boxQty=n(r.box); o.eaQty=n(r.ea)||1;                      // 그리드의 BOX·EA 그대로 (EA 0 이면 1)
+  o.remark=('카톡 '+(r.raw||'')+(r.set?' [세트]':'')+(r.note&&!r.ex?(' · '+r.note):'')).slice(0,200);
+  return o;
+}
+/* 거래처 부가세 설정으로 줄 금액 계산 — saCalcRow 는 화면의 거래처(_venVat)를 보므로, 다른 거래처 전표를 바로 저장할 때는 이걸 쓴다 */
+function ktCalcRow(o, vg){
+  o.qty=n(o.eaQty); o.amt=Math.round(o.qty*n(o.unitPrice))-n(o.dcAmt);
+  var tax=(o.taxGb!=='면세')&&((vg||'별도')!=='면세');
+  if(!tax){ o.supplyAmt=o.amt; o.vatAmt=0; }
+  else if(vg==='포함'){ o.supplyAmt=Math.round(o.amt/1.1); o.vatAmt=o.amt-o.supplyAmt; }
+  else { o.supplyAmt=o.amt; o.vatAmt=Math.round(o.amt*0.1); }
+  o.totAmt=o.supplyAmt+o.vatAmt;
+}
+function ktReady(g){   // 담기·저장 전 점검 — 거래처·체크·연결. 문제면 메시지, 아니면 줄 배열
+  if(!g.venCd){ swErr('<b>'+esc(g.biz||'이 묶음')+'</b>의 <b>거래처</b>가 마스터에 연결되지 않았습니다.<br>거래처 줄의 [거래처]로 골라 주세요.'); return null; }
+  var items=g.rows.filter(function(r){ return r.t==='item' && r.chk; });
+  if(!items.length){ swErr('담을 줄을 체크하세요.'); return null; }
+  var miss=items.filter(function(r){ return !r.prodCd; });
+  if(miss.length){ swErr('<b>상품이 연결되지 않은 줄 '+miss.length+'개</b>가 있습니다.<br>상품 칸을 눌러 고르거나 체크를 해제하세요.'); return null; }
+  return items;
+}
+/* [→ 담기] — 위 명세 그리드로. 거래처를 그 묶음 거래처로 바꾸고, 채워진 줄 뒤에 이어 붙인다. 저장은 사람이 [저장]으로 */
+function ktApply(gi){
+  var g=_kt.groups[gi]; if(!g) return; var items=ktReady(g); if(!items) return;
+  var filled=_rows.filter(function(o){ return o.prodCd; }), curVen=document.getElementById('saVenNm').dataset.cd||'';
+  var go=function(){
+    if(_cur) saNew();                                                        // 수정 중인 전표에 섞지 않는다
+    if(curVen!==g.venCd) saVenPick(g.venCd);
+    if(g.dt){ document.getElementById('saDt').value=g.dt; saNextNo(); }
+    /* 카톡 원문을 판매메모에 넣어 둔다 — 저장하면 전표 REMARK 에 남는다(한 줄 입력칸이라 줄바꿈은 ' / ' 로) */
+    var rm=document.getElementById('saRemark'); rm.value=((rm.value?rm.value+' | ':'')+ktRawOf(g, g.dt).replace(/\n/g,' / ')).slice(0,500);
+    _rows=_rows.filter(function(o){ return o.prodCd; });
+    var added=[];
+    items.forEach(function(r){ var o=ktToRow(r); saCalcRow(o); _rows.push(o); added.push(o); });
+    saTail(); _pShown=_rows.length; saRender(); saCalc();
+    /* 단가는 그리드에 보이던 값 그대로 — 여기서 다시 최근단가를 덮지 않는다(사람이 고친 값이 날아간다) */
+    g.done='담김 '+items.length+'줄'; ktClose();
+    swOk('<b>'+esc(g.venNm||g.biz)+'</b> 품목 '+items.length+'줄을 명세에 담았습니다.<br><span style="font-size:12.5px;color:#3d4d5c">수량·단가를 확인한 뒤 [💾 저장]을 누르세요.</span>');
+  };
+  if(filled.length && !_cur && curVen && curVen!==g.venCd){
+    swConfirm('명세에 <b>'+curVen+'</b> 거래처 줄 '+filled.length+'개가 있습니다.<br>거래처가 <b>'+esc(g.venNm)+'</b>로 바뀌고 그 뒤에 이어 담습니다. 계속할까요?', null, '담기').then(function(ok){ if(ok) go(); });
+  } else go();
+}
+/* [💾 저장] — 그 거래처 전표를 바로 저장(일괄등록 saBatchApply 와 같은 순서 : 최근단가 → 전표번호 → salesTrxSave). 명세 그리드는 건드리지 않는다 */
+function ktSaveGroup(gi){
+  var g=_kt.groups[gi]; if(!g) return; var items=ktReady(g); if(!items) return;
+  var v=_vendors.filter(function(x){ return String(x.vendorCd)===String(g.venCd); })[0]||{};
+  var dt=g.dt||document.getElementById('saDt').value||today();
+  var pv=ktPreview(g, items, v);
+  swConfirm('<b>'+esc(g.venNm||g.biz)+'</b> 전표 1장 — 품목 '+items.length+'줄을 <b>'+esc(dt)+'</b> 로 바로 저장할까요?'
+    + '<br><span style="font-size:12.5px;color:#3d4d5c">'+pv+'<br>그리드에 보이는 BOX·EA·단가 그대로 들어갑니다. 저장 뒤 하단 목록에서 고칠 수 있습니다.</span>', null, '저장')
+  .then(function(ok){ if(!ok) return; return ktSaveOne(g, items, dt, v).then(function(made){
+      swOk(made+'<br><span style="font-size:12.5px;color:#3d4d5c">하단 전표 목록에서 확인·수정할 수 있습니다.</span>'); ktRender(); saLoad();
+      if((document.getElementById('saVenNm').dataset.cd||'')===g.venCd) saVenBal(g.venCd);
+    }).catch(function(e){ swErr('저장에 실패했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); saLoad(); }); });
+}
+/* 그 거래처 묶음의 카톡 원문 — 전표 메모(REMARK, 500자)에 그대로 남긴다. 머리 한 줄 + 읽은 줄 전부 */
+function ktRawOf(g, dt){
+  var head='[카톡 주문'+(dt?(' '+dt):'')+(g.venNm?(' · '+g.venNm):'')+']';
+  return (head+'\n'+g.rows.map(function(r){ return r.raw||''; }).filter(Boolean).join('\n')).slice(0,500);
+}
+/* 확인창에 보여 줄 금액 요약 — 그리드와 같은 계산(ktToRow → ktCalcRow) */
+function ktPreview(g, items, v){
+  var vg=(v&&v.vatGb)||'별도', sup=0, vat=0, tot=0;
+  items.forEach(function(r){ var o=ktToRow(r); ktCalcRow(o, vg); sup+=o.supplyAmt; vat+=o.vatAmt; tot+=o.totAmt; });
+  return '공급가 '+fmt(sup)+' · 부가세 '+fmt(vat)+' ('+esc(vg)+') · <b>합계 '+fmt(tot)+'</b>';
+}
+function ktSaveOne(g, items, dt, v){
+  /* 단가는 그리드에 보이는 값 그대로(최근단가는 분류 때 이미 받아 뒀다) — 여기서 다시 조회해 덮지 않는다 */
+  var rows=items.map(ktToRow), vg=v.vatGb||'별도';
+  rows.forEach(function(o){ ktCalcRow(o, vg); });
+  return post('/mangr/salesTrxNextNo.do','saleDt='+encodeURIComponent(dt)).then(function(r){ return r.json(); }).then(function(j){ return (j&&j.data)||'0001'; }).catch(function(){ return '0001'; })
+  .then(function(no){
+    var t={box:0,ea:0,qty:0,sup:0,vat:0,tot:0};
+    rows.forEach(function(o){ t.box+=n(o.boxQty); t.ea+=n(o.eaQty); t.qty+=n(o.qty); t.sup+=n(o.supplyAmt); t.vat+=n(o.vatAmt); t.tot+=n(o.totAmt); });
+    var dto={ saleSeq:null, saleDt:dt, dlvDt:dt, saleNo:no, custCd:g.venCd, custNm:g.venNm||g.biz,
+              mgrCd:v.mgrCd||'', mgrNm:v.mgrNm||'', whCd:'', whNm:document.getElementById('saWhNm').value||'물류창고',
+              totBoxQty:t.box, totEaQty:t.ea, totQty:t.qty, supplyAmt:t.sup, vatAmt:t.vat, totAmt:t.tot, dcAmt:0,
+              payGb:document.getElementById('saPayGb').value||'외상', payAmt:0, taxGb:'과세',
+              /* ★카톡 원문을 전표 메모(REMARK nvarchar(500))에 그대로 남긴다 (2026-09-05 「카톡원본도 저장가능하게」) —
+                   그 거래처 묶음의 줄 전부(거래처 줄·품목·문장·참고). 500자를 넘으면 뒤가 잘린다(명세 줄 비고에도 줄마다 원문이 있다) */
+              remark:ktRawOf(g, dt), items:rows };
+    return post('/mangr/salesTrxSave.do', dto, true).then(function(r){ return r.text().then(function(t2){ if(!r.ok) throw new Error(t2);
+      g.done='저장됨 · '+dt+' 전표 '+no; return '<b>'+esc(g.venNm||g.biz)+'</b> '+dt+' · 전표 '+no+' ('+rows.length+'줄) 저장했습니다.'; }); });
+  });
+}
+/* [💾 전체 저장] — 거래처 묶음마다 전표 한 장씩. 거래처 미연결·미연결 상품이 있는 묶음은 건너뛰고 알린다 */
+function ktSaveAll(){
+  var todo=[], skip=[];
+  _kt.groups.forEach(function(g){
+    var items=g.rows.filter(function(r){ return r.t==='item' && r.chk; }); if(!items.length) return;
+    if(/^저장됨/.test(g.done||'')){ skip.push(esc(g.venNm||g.biz)+' — 이미 저장됨'); return; }
+    if(!g.venCd){ skip.push(esc(g.biz||'(거래처 미지정)')+' — 거래처 미연결'); return; }
+    var miss=items.filter(function(r){ return !r.prodCd; }).length; if(miss){ skip.push(esc(g.venNm)+' — 상품 미연결 '+miss+'줄'); return; }
+    todo.push({ g:g, items:items, v:(_vendors.filter(function(x){ return String(x.vendorCd)===String(g.venCd); })[0]||{}), dt:(g.dt||document.getElementById('saDt').value||today()) });
+  });
+  if(!todo.length){ swErr('저장할 묶음이 없습니다.'+(skip.length?('<br><span style="font-size:12.5px;color:#3d4d5c">'+skip.join('<br>')+'</span>'):'')); return; }
+  var brk=todo.map(function(x){ return esc(x.g.venNm)+' '+x.dt+' '+x.items.length+'줄 — '+ktPreview(x.g, x.items, x.v); }).join('<br>');
+  swConfirm('<b>거래처별 전표 '+todo.length+'장</b>을 바로 저장할까요?<br><span style="font-size:12.5px;color:#3d4d5c">'+brk+'<br>그리드에 보이는 BOX·EA·단가 그대로 들어갑니다.</span>'
+    + (skip.length?('<br><span style="font-size:12.5px;color:#c0392b">건너뜀 : '+skip.join(' · ')+'</span>'):''), null, '전체 저장')
+  .then(function(ok){ if(!ok) return; var made=[];
+    function one(k){ if(k>=todo.length) return Promise.resolve(); var x=todo[k];
+      return ktSaveOne(x.g, x.items, x.dt, x.v).then(function(m){ made.push(m); return one(k+1); }); }
+    return one(0).then(function(){ ktRender(); saLoad(); swOk('전표 '+made.length+'장을 저장했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+made.join('<br>')+'</span>'); })
+      .catch(function(e){ ktRender(); saLoad(); swErr('저장 중 오류가 났습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'<br>이미 저장된 전표 : '+(made.length?made.join(', '):'없음')+'</span>'); }); });
+}
+/* [📥 엑셀 출력] — 분류 결과 전 줄(문장·기타 포함). 택배출고관리(poLoadStyleXlsx)와 같은 방식으로 스타일 지원 xlsx 를 그때 읽는다 */
+var _ktXlsx=null;
+function ktLoadXlsx(cb){
+  if(_ktXlsx){ cb(_ktXlsx); return; }
+  var srcs=[ CTX+'/assets/vendor/xlsx-js-style/xlsx.bundle.js', 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js' ], prev=window.XLSX, i=0;
+  (function next(){ if(i>=srcs.length){ window.XLSX=prev; cb(null); return; }
+    var s=document.createElement('script'); s.src=srcs[i++];
+    s.onload=function(){ _ktXlsx=window.XLSX; window.XLSX=prev; cb(_ktXlsx); }; s.onerror=function(){ window.XLSX=prev; next(); };
+    document.head.appendChild(s); })();
+}
+function ktExcel(){
+  if(!_kt.rows.length){ swAlert('먼저 카톡 글을 붙여넣고 [🔍 분류]를 누르세요.'); return; }
+  ktLoadXlsx(function(X){
+    if(!X){ swErr('엑셀 모듈을 불러오지 못했습니다.'); return; }
+    var head=['날짜','거래처','거래처코드','구분','카톡 원문','읽은 품목','원문 수량','단위','우리 상품코드','우리 품명','규격','입수','상태','BOX','EA','단가','금액','세트','비고','담기'];
+    var aoa=[head], kinds={item:'품목',note:'문장형 지시',etc:'기타',biz:'거래처'};
+    _kt.rows.forEach(function(r){
+      if(r.t==='biz') return;
+      var it = r.t==='item';
+      aoa.push([ r.dt||'', r.venNm||r.biz||'', r.venCd||'', (it&&r.ex)?'예시 후보':(kinds[r.t]||r.t), r.raw||'',
+                 it?(r.name||''):'', it?n(r.qty):'', it?(r.unit||''):'', it?(r.prodCd||''):'', it?(r.prodNm||''):'', it?(r.spec||''):'', (it&&r.prodCd)?n(r.packQty||1):'',
+                 it?(r.prodCd?(r.st==='매칭'?'매칭':(r.st==='선택'?'선택':'추정')):'미연결'):'',
+                 it?n(r.box):'', it?n(r.ea):'', it?n(r.unitPrice):'', it?ktAmt(r):'', (it&&r.set)?'✔':'', r.note||(r.kind||''), (it&&r.chk)?'✔':'' ]);
+    });
+    var ws=X.utils.aoa_to_sheet(aoa);
+    ws['!cols']=[{wch:11},{wch:16},{wch:10},{wch:10},{wch:38},{wch:18},{wch:8},{wch:6},{wch:14},{wch:30},{wch:14},{wch:6},{wch:8},{wch:7},{wch:7},{wch:10},{wch:12},{wch:5},{wch:32},{wch:6}];
+    ws['!freeze']={ xSplit:0, ySplit:1, topLeftCell:'A2', activePane:'bottomLeft', state:'frozen' };
+    var hs={ font:{bold:true,color:{rgb:'FFFFFF'},sz:11}, fill:{fgColor:{rgb:'137A6C'}}, alignment:{horizontal:'center',vertical:'center'} };
+    head.forEach(function(_,c){ var a=X.utils.encode_cell({r:0,c:c}); if(ws[a]) ws[a].s=hs; });
+    for(var r=1;r<aoa.length;r++){ var kind=aoa[r][3], bg=(kind==='문장형 지시')?'FFF8E6':(kind==='기타'?'F7F8FA':(kind==='예시 후보'?'F4F4F4':null));
+      if(bg) for(var c=0;c<head.length;c++){ var a2=X.utils.encode_cell({r:r,c:c}); if(ws[a2]) ws[a2].s={ fill:{fgColor:{rgb:bg}} }; }
+      [6,13,14,15,16].forEach(function(c){ var qa=X.utils.encode_cell({r:r,c:c}); if(ws[qa] && typeof ws[qa].v==='number') ws[qa].z='#,##0'; }); }
+    var wb=X.utils.book_new(); X.utils.book_append_sheet(wb, ws, '카톡주문 분류');
+    var fn='카톡주문_분류_'+today().replace(/-/g,'')+'.xlsx'; X.writeFile(wb, fn);
+    swOk('<b>'+esc(fn)+'</b><br>엑셀 파일을 내려받았습니다.');
+  });
+}
+
 /* 전역 리스너 — 그리드 키 위임, 스크롤 시 드롭다운 닫기, 저장/신규 단축키.
    (함수 선언은 hoisting 되므로 init 보다 뒤에 있어도 안전하다) */
 (function saKbdBind(){
@@ -2441,6 +2968,9 @@ function saPinBlur(){ setTimeout(saPinClose, 150); }
       if (p && p.classList.contains('on')) { e.preventDefault(); saProdClose(); }
       var b = document.getElementById('saBatchPop');
       if (b && b.classList.contains('on')) { e.preventDefault(); saBatchClose(); }
+      /* 💬 카톡 주문 창 — 위에 거래처·상품 팝업이 떠 있으면 그것만 닫고, 아니면 이 창을 닫는다 */
+      var k = document.getElementById('saKtPop'), vp = document.getElementById('saVenPop');
+      if (k && k.classList.contains('on') && !(p && p.classList.contains('on')) && !(vp && vp.classList.contains('on'))) { e.preventDefault(); ktClose(); }
     }
   });
 })();
