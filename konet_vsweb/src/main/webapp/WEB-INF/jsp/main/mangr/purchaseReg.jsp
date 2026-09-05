@@ -758,6 +758,7 @@ function puRender(){
   _rows.slice(0, _pShown).forEach(function(o,i){
     /* 반품 줄은 **줄 전체를 빨간색**으로 (2026-08-03 요청) — 거래구분 칸만 봐서는
          여러 줄 중 어느 것이 반품인지 눈에 안 들어온다. 글자색은 CSS(tr.ret)에서 준다. */
+    var sg = (o.trxGb==='반품') ? -1 : 1;   // 표시 부호 — 반품 줄은 −로 보인다(값은 양수)
     h += '<tr'+(o.trxGb==='반품' ? ' class="ret"' : '')+'>'
       /* 맨 앞 순번 — 화면에 보이는 줄 번호(1부터). 저장 자료가 아니라 표시용이라
          줄을 지우거나 순서를 바꾸면 자동으로 다시 매겨진다. */
@@ -786,19 +787,21 @@ function puRender(){
             + ' <span class="hist" onclick="puHistOpen('+i+')" title="매입단가 이력 보기">📈</span>'
           : '') +'</td>'
       + '<td class="txt">'+ (o.packQty?('['+fmt(o.packQty)+']'):'') + esc(o.spec) +'</td>'
-      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="boxQty" value="'+n(o.boxQty)+'" onchange="puSet('+i+',\'boxQty\',this.value)"></td>'
-      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="eaQty" value="'+n(o.eaQty)+'" onchange="puSet('+i+',\'eaQty\',this.value)"></td>'
-      + '<td class="num">'+fmt(o.qty)+'</td>'
+      /* ★반품 줄은 수량·금액을 「−」로 **보여 준다** (2026-09-05 「상단은 − 그대로」) — 저장값은 양수(규칙), 표시만 부호를 붙인다.
+           BOX·EA 칸에 −32 가 보이는 상태에서 다시 −20 을 쳐도 puSet 이 「반품 + 20」으로 받으므로 어긋나지 않는다. */
+      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="boxQty" value="'+(n(o.boxQty)*sg)+'" onchange="puSet('+i+',\'boxQty\',this.value)"></td>'
+      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="eaQty" value="'+(n(o.eaQty)*sg)+'" onchange="puSet('+i+',\'eaQty\',this.value)"></td>'
+      + '<td class="num">'+fmt(n(o.qty)*sg)+'</td>'
       /* 단가·DC 는 천단위 콤마로 보여 준다(2026-08-04 — 판매등록과 동일). n() 이 콤마를 지우므로 계산은 그대로다.
          단가는 소수점 입력 가능(fmtP — 2026-08-05 요청) */
       + '<td><input inputmode="decimal" data-r="'+i+'" data-f="unitPrice" value="'+fmtP(o.unitPrice)+'" onchange="puSet('+i+',\'unitPrice\',this.value)"></td>'
-      + '<td class="num">'+fmt(o.amt)+'</td>'
+      + '<td class="num">'+fmt(n(o.amt)*sg)+'</td>'
       /* ★DC 는 소수점 입력 가능 (2026-08-17 요청) — 단가와 같은 방식(decimal·fmtP).
          종전 numeric+fmt 는 ***찍어도 정수로 잘렸다*** — 화면에도 저장에도 소수가 안 남았다. */
       + '<td><input inputmode="decimal" data-r="'+i+'" data-f="dcAmt" value="'+fmtP(o.dcAmt)+'" onchange="puSet('+i+',\'dcAmt\',this.value)"></td>'
-      + '<td class="num">'+fmt(o.supplyAmt)+'</td>'
-      + '<td class="num">'+fmt(o.vatAmt)+'</td>'
-      + '<td class="num">'+fmt(o.totAmt)+'</td>'
+      + '<td class="num">'+fmt(n(o.supplyAmt)*sg)+'</td>'
+      + '<td class="num">'+fmt(n(o.vatAmt)*sg)+'</td>'
+      + '<td class="num">'+fmt(n(o.totAmt)*sg)+'</td>'
       + '<td><input inputmode="numeric" data-r="'+i+'" data-f="serviceQty" value="'+n(o.serviceQty)+'" onchange="puSet('+i+',\'serviceQty\',this.value)"></td>'
       + '<td><input class="txt" data-r="'+i+'" data-f="remark" value="'+esc(o.remark)+'" onchange="puSet('+i+',\'remark\',this.value)"></td>'
       + '<td><input type="checkbox" '+(o.eventYn==='Y'?'checked':'')+' onchange="puSet('+i+',\'eventYn\',this.checked?\'Y\':\'N\')"></td>'
@@ -815,11 +818,16 @@ function puRender(){
 function puSet(i, k, v){
   var o = _rows[i]; if(!o) return;
   o[k] = (k==='remark'||k==='eventYn'||k==='trxGb') ? v : n(v);
+  /* ★수량에 음수를 치면 「반품 + 양수」로 바꾼다 (2026-09-05 — 2026-07-29/0005 부호 이중반전 사고)
+       규칙 : 줄의 수량·금액은 늘 양수, 반품은 거래구분으로만. 합계(puCalc)·저장 머리·SQL·재고원장이 모두
+       「반품이면 −」를 각자 붙이므로, 줄 자체가 음수면 두 번 뒤집혀 반품이 +매입·+재고로 들어간다. */
+  if ((k==='boxQty'||k==='eaQty') && o[k] < 0) { o[k] = Math.abs(o[k]); o.trxGb = '반품'; }
   puCalcRow(o);
   if (i === _rows.length-1 && o.prodCd) puEnsureTail();   // 마지막 줄을 쓰면 새 줄 자동 추가(그 줄이 보이게)
   puRender();
 }
 function puCalcRow(o){
+  o.boxQty = Math.abs(n(o.boxQty)); o.eaQty = Math.abs(n(o.eaQty));   // 어느 길로 들어와도 수량은 양수 — 반품은 trxGb 로만 (2026-09-05)
   o.qty = n(o.boxQty) * (n(o.packQty)||1) + n(o.eaQty);
   /* ★DC 를 **빼고 나서** 반올림한다 (2026-08-17) — 먼저 반올림하면 DC 소수점이 버려진다.
      예) 49,990.5 − 10.5 = 49,980 / 종전 : 49,991 − 10 = 49,981 (DC 소수가 사라졌다) */
@@ -1115,7 +1123,14 @@ function puApply(d){
   document.getElementById('puPayGb').value = d.payGb||'외상';
   document.getElementById('puPayAmt').value = n(d.payAmt);
   document.getElementById('puDcAmt').value = n(d.dcAmt);
-  _rows = (d.items||[]).map(function(x){ x.taxGb='과세'; return x; });
+  _rows = (d.items||[]).map(function(x){ x.taxGb='과세';
+    /* 옛 전표 보정 (2026-09-05) : 음수 수량으로 저장된 줄은 「반품 + 양수」로 바꿔 보여 준다.
+       그대로 [저장]하면 머리 합계·재고원장이 바른 부호로 다시 만들어진다(2026-07-29/0005 가 이 경우). */
+    if (n(x.qty) < 0 || n(x.boxQty) < 0 || n(x.eaQty) < 0) {
+      x.trxGb = '반품';
+      ['boxQty','eaQty','qty','amt','supplyAmt','vatAmt','totAmt'].forEach(function(k){ x[k] = Math.abs(n(x[k])); });
+    }
+    return x; });
   _rows.push(emptyRow());
   document.getElementById('puState').textContent = '수정 중 — '+fmtDt(d.purchDt)+' / '+d.purchNo;
   puRender(); puVenBal(d.vendorCd);

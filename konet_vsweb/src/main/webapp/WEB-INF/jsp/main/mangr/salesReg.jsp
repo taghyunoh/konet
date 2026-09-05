@@ -876,6 +876,7 @@ function saRender(){
   _rows.slice(0, _pShown).forEach(function(o,i){
     /* 반품 줄은 **줄 전체를 빨간색**으로 (2026-08-03 요청) — 거래구분 칸만 봐서는
          여러 줄 중 어느 것이 반품인지 눈에 안 들어온다. 글자색은 CSS(tr.ret)에서 준다. */
+    var sg = (o.trxGb==='반품') ? -1 : 1;   // 표시 부호 — 반품 줄은 −로 보인다(값은 양수, 매입등록과 동일 2026-09-05)
     h += '<tr'+(o.trxGb==='반품' ? ' class="ret"' : '')+'>'
       /* 맨 앞 순번 — 화면에 보이는 줄 번호(1부터). 저장 자료가 아니라 표시용이라
          줄을 지우거나 순서를 바꾸면 자동으로 다시 매겨진다. */
@@ -916,16 +917,17 @@ function saRender(){
               + ' <span class="hist" onclick="saHistOpen('+i+')" title="판매단가 이력 보기">📈</span>';
           })() +'</td>'
       + '<td class="txt">'+ (o.packQty?('['+fmt(o.packQty)+']'):'') + esc(o.spec) +'</td>'
-      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="boxQty" value="'+n(o.boxQty)+'" onchange="saSet('+i+',\'boxQty\',this.value)"></td>'
-      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="eaQty" value="'+n(o.eaQty)+'" onchange="saSet('+i+',\'eaQty\',this.value)"></td>'
-      + '<td class="num">'+fmt(o.qty)+'</td>'
+      /* 반품 줄은 수량·금액을 「−」로 보여 준다 — 저장값은 양수(규칙), 표시만 부호를 붙인다(매입등록과 동일, 2026-09-05) */
+      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="boxQty" value="'+(n(o.boxQty)*sg)+'" onchange="saSet('+i+',\'boxQty\',this.value)"></td>'
+      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="eaQty" value="'+(n(o.eaQty)*sg)+'" onchange="saSet('+i+',\'eaQty\',this.value)"></td>'
+      + '<td class="num">'+fmt(n(o.qty)*sg)+'</td>'
       /* 단가·DC 는 천단위 콤마로 보여 준다(2026-08-04 "단가 단위구분") — n() 이 콤마를 지우므로 계산은 그대로다 */
       + '<td><input inputmode="decimal" data-r="'+i+'" data-f="unitPrice" value="'+fmtP(o.unitPrice)+'" onchange="saSet('+i+',\'unitPrice\',this.value)"></td>'
-      + '<td class="num">'+fmt(o.amt)+'</td>'
+      + '<td class="num">'+fmt(n(o.amt)*sg)+'</td>'
       + '<td><input inputmode="numeric" data-r="'+i+'" data-f="dcAmt" value="'+fmt(o.dcAmt)+'" onchange="saSet('+i+',\'dcAmt\',this.value)"></td>'
-      + '<td class="num">'+fmt(o.supplyAmt)+'</td>'
-      + '<td class="num">'+fmt(o.vatAmt)+'</td>'
-      + '<td class="num">'+fmt(o.totAmt)+'</td>'
+      + '<td class="num">'+fmt(n(o.supplyAmt)*sg)+'</td>'
+      + '<td class="num">'+fmt(n(o.vatAmt)*sg)+'</td>'
+      + '<td class="num">'+fmt(n(o.totAmt)*sg)+'</td>'
       + '<td><input inputmode="numeric" data-r="'+i+'" data-f="serviceQty" value="'+n(o.serviceQty)+'" onchange="saSet('+i+',\'serviceQty\',this.value)"></td>'
       + '<td><input class="txt" data-r="'+i+'" data-f="remark" value="'+esc(o.remark)+'" onchange="saSet('+i+',\'remark\',this.value)"></td>'
       + '<td><input type="checkbox" '+(o.eventYn==='Y'?'checked':'')+' onchange="saSet('+i+',\'eventYn\',this.checked?\'Y\':\'N\')"></td>'
@@ -942,6 +944,9 @@ function saRender(){
 function saSet(i, k, v){
   var o = _rows[i]; if(!o) return;
   o[k] = (k==='remark'||k==='eventYn'||k==='trxGb') ? v : n(v);
+  /* ★수량에 음수를 치면 「반품 + 양수」로 (2026-09-05, 매입등록과 같은 규칙) — 줄이 음수면 합계·저장 머리·SQL 에서
+       「반품이면 −」가 한 번 더 붙어 부호가 두 번 뒤집힌다(매입등록 2026-07-29/0005 실사고) */
+  if ((k==='boxQty'||k==='eaQty') && o[k] < 0) { o[k] = Math.abs(o[k]); o.trxGb = '반품'; }
   /* ★BOX수량을 치면 EA수량이 '친 대로' 따라온다 (2026-08-01 확정 — 입수로 환산하지 않는다).
        입수 48짜리에 BOX 1 → EA 1 · 합계 1. 합계수량은 EA 를 따라가고 화면에서 고칠 수 없다(계산 전용). */
   if (k==='boxQty') o.eaQty = n(o.boxQty);
@@ -950,6 +955,7 @@ function saSet(i, k, v){
   saRender();
 }
 function saCalcRow(o){
+  o.boxQty = Math.abs(n(o.boxQty)); o.eaQty = Math.abs(n(o.eaQty));   // 어느 길로 들어와도 수량은 양수 — 반품은 trxGb 로만 (2026-09-05)
   /* 합계수량 = EA수량 그대로 (2026-08-01 확정 — 입수로 환산하지 않는다).
      BOX 1 치면 EA 1 · 합계 1. 입수([48])는 규격 칸에 참고로 보일 뿐 수량 계산에 쓰지 않는다. */
   o.qty = n(o.eaQty);
@@ -1191,7 +1197,13 @@ function saApply(d){
   document.getElementById('saDcAmt').value = n(d.dcAmt);
   /* 매칭판매 표기(extCd)는 이제 DB(TBL_SALES_TRX_DTL.EXT_CD)에서 그대로 온다 (2026-08-06 신설) —
      품명 추정 방식은 통보명=마스터명인 상품에서 오판해 폐기. EXT_CD 칼럼 추가 이전의 옛 전표는 표시가 없다(정확). */
-  _rows = (d.items||[]).map(function(x){ x.taxGb='과세'; return x; });
+  _rows = (d.items||[]).map(function(x){ x.taxGb='과세';
+    /* 옛 전표 보정 (2026-09-05) : 음수 수량으로 저장된 줄은 「반품 + 양수」로 — 매입등록과 같은 규칙 */
+    if (n(x.qty) < 0 || n(x.boxQty) < 0 || n(x.eaQty) < 0) {
+      x.trxGb = '반품';
+      ['boxQty','eaQty','qty','amt','supplyAmt','vatAmt','totAmt'].forEach(function(k){ x[k] = Math.abs(n(x[k])); });
+    }
+    return x; });
   _rows.push(emptyRow());
   /* 저장된 품명은 그대로 둔다(그 전표의 사실). 표기표는 이후 '품목 추가' 에만 쓴다. */
   saXrefLoad(d.custCd||'', false);

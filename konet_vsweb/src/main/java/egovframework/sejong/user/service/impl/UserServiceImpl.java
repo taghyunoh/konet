@@ -718,6 +718,15 @@ public class UserServiceImpl implements UserService {
 			d.setRowNo(rowNo);
 			d.setRegUser(dto.getRegUser()); d.setRegIp(dto.getRegIp());
 			if (d.getTrxGb()==null || d.getTrxGb().trim().isEmpty()) d.setTrxGb("매입");
+			/* ★부호 정규화 (2026-09-05) — 규칙 : 명세의 수량·금액은 늘 양수, 반품은 TRX_GB 로만 표시.
+			     화면에서 「음수 수량 + 반품」이 함께 들어오면 머리 합계(화면)·재고원장(아래 -q)·조회 SQL(CASE 반품 → −)이
+			     각자 한 번씩 더 뒤집어, 반품인데 매입액이 더해지고 재고가 늘었다(2026-07-29/0005 실사고). 여기서 한 번 더 막는다. */
+			boolean negQ = d.getQty()!=null && d.getQty() < 0;
+			if (negQ) d.setTrxGb("반품");
+			if (negQ || "반품".equals(d.getTrxGb())) {
+				d.setBoxQty(absD(d.getBoxQty())); d.setEaQty(absD(d.getEaQty())); d.setQty(absD(d.getQty()));
+				d.setAmt(absD(d.getAmt())); d.setSupplyAmt(absD(d.getSupplyAmt())); d.setVatAmt(absD(d.getVatAmt())); d.setTotAmt(absD(d.getTotAmt()));
+			}
 
 			// ① 파생 재고원장 — 반품이면 R(+), 매입이면 I(+). 원장 QTY 는 int 라 반올림한다
 			egovframework.sejong.user.model.StockLedgerDTO led = new egovframework.sejong.user.model.StockLedgerDTO();
@@ -760,6 +769,8 @@ public class UserServiceImpl implements UserService {
 
 	/** 'yyyy-mm-dd' | 'yyyymmdd' → 'yyyymmdd' */
 	private String ym8(String s) { return s==null ? "" : s.replace("-", "").trim(); }
+	/** null 은 그대로, 값은 절대값 — 전표 명세 부호 정규화용 (2026-09-05) */
+	private static Double absD(Double v) { return v==null ? null : Math.abs(v); }
 	/* ===== 수금/지급 등록 — 2026-07-25 ===== */
 	@Override public java.util.List<egovframework.sejong.user.model.SettleTrxDTO> selectSettleList(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectSettleList(dto); }
 	@Override public String selectSettleNextNo(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectSettleNextNo(dto); }
@@ -839,6 +850,13 @@ public class UserServiceImpl implements UserService {
 			d.setRowNo(rowNo);
 			d.setRegUser(dto.getRegUser()); d.setRegIp(dto.getRegIp());
 			if (d.getTrxGb()==null || d.getTrxGb().trim().isEmpty()) d.setTrxGb("판매");
+			/* ★부호 정규화 (2026-09-05) — 매입등록과 같은 규칙 : 수량·금액은 양수, 반품은 TRX_GB 로만 (조회 SQL 이 CASE 반품 → − 를 붙인다) */
+			boolean negQ = d.getQty()!=null && d.getQty() < 0;
+			if (negQ) d.setTrxGb("반품");
+			if (negQ || "반품".equals(d.getTrxGb())) {
+				d.setBoxQty(absD(d.getBoxQty())); d.setEaQty(absD(d.getEaQty())); d.setQty(absD(d.getQty()));
+				d.setAmt(absD(d.getAmt())); d.setSupplyAmt(absD(d.getSupplyAmt())); d.setVatAmt(absD(d.getVatAmt())); d.setTotAmt(absD(d.getTotAmt()));
+			}
 
 			// 파생 재고원장 — 판매는 출고 'O', 판매반품(고객이 되돌려줌)은 'R'.
 			// ★ 부호 주의 : 집계(recalcStockMst·재고현황)가
