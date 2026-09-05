@@ -487,6 +487,9 @@
   .kt-prod:hover{ color:#137a6c; }
   .kt-help{ font-size:11.5px; color:#5a6b7a; line-height:1.5; }
   .kt-done{ font-size:11.5px; font-weight:700; color:#0b5349; background:#c3e2d8; border-radius:10px; padding:1px 8px; }
+  .kt-guide{ font-size:12.5px; font-weight:800; color:#a6241c; background:#fff1ef; border:1px solid #f3c1bb; border-radius:10px; padding:1px 10px; }
+  .kt-guide.blink{ animation:ktBlink 1s steps(2,jump-none) 10; }   /* 1초 × 10회 뒤 멈춤 */
+  @keyframes ktBlink{ 0%,100%{ opacity:1; } 50%{ opacity:.15; } }
 </style>
 <div id="saKtPop">
     <div class="hd" id="ktHd" title="잡아서 끌면 창이 옮겨집니다">💬 카톡 주문
@@ -508,7 +511,10 @@
           </div>
         </div>
         <div class="kt-right">
-          <div style="font-size:12.5px; font-weight:800; color:#37475a; margin:0 0 4px">② 분류 결과 <span style="font-weight:600; color:#8a97a4">— 원문 선택 → [분류] → 체크 → [→ 판매등록으로]</span></div>
+          <div style="font-size:12.5px; font-weight:800; color:#37475a; margin:0 0 4px; display:flex; align-items:center; gap:10px">② 분류 결과 <span style="font-weight:600; color:#8a97a4">— 원문 선택 → [분류] → 체크 → [→ 판매등록으로]</span>
+            <%-- 분류 뒤 안내 (2026-09-05 요청) — 10번 깜박이고 멈춘다(프로젝트 공통 규칙, 계속 깜박이면 거슬린다) --%>
+            <span id="ktGuide" class="kt-guide" style="display:none">👉 우측 끝에 금액 확인하고 판매등록 하세요</span>
+          </div>
           <div class="kt-tbwrap"><table class="kt"><thead><tr>
             <th style="width:28px"><input type="checkbox" id="ktChkAll" onchange="ktChkAll(this.checked)" title="품목 줄 전체 선택/해제"></th>
             <th style="width:30px">#</th><th style="width:84px">날짜</th><th style="width:124px" title="이 줄의 거래처 — 잘못 붙었으면 여기서 옮깁니다">거래처</th><th style="width:170px">카톡 원문</th><th style="width:130px">읽은 품목</th>
@@ -2638,7 +2644,7 @@ function ktKeep(){ try{ localStorage.setItem('konetKtText', document.getElementB
   var t=localStorage.getItem('konetKtText'); if(t) document.getElementById('ktText').value=t;
   if(localStorage.getItem('konetKtOpen')==='1') ktOpen();
 }catch(e){} })();
-function ktReset(){ _kt.rows=[]; _kt.seq=0; document.getElementById('ktText').value=''; ktKeep(); ktRender(); }
+function ktReset(){ _kt.rows=[]; _kt.seq=0; document.getElementById('ktText').value=''; ktKeep(); ktRender(); var gd=document.getElementById('ktGuide'); if(gd) gd.style.display='none'; }
 function ktRowById(id){ for(var i=0;i<_kt.rows.length;i++){ if(_kt.rows[i].id===id) return _kt.rows[i]; } return null; }
 /* 비교용 정규화 — 공백·(주)·기호를 떼고 소문자로. '105 파이'와 '105파이', '(주)에그탑'과 '에그탑'이 같아진다 */
 function ktNorm(s){ return String(s==null?'':s).toLowerCase().replace(/\(주\)|㈜|주식회사/g,'').replace(/[\s\-_·.,()\[\]\/]/g,''); }
@@ -2700,6 +2706,8 @@ function ktParseGo(){
   _kt.part = part;
   ktRender();
   if(!add.length && _kt.rows.length) swAlert('선택한 부분은 이미 분류되어 있습니다.');
+  /* 분류가 되면 안내를 다시 깜박인다 — 클래스를 뗐다 붙여 애니메이션을 처음부터(reflow 강제) */
+  var gd=document.getElementById('ktGuide'); if(gd && _kt.rows.length){ gd.style.display=''; gd.classList.remove('blink'); void gd.offsetWidth; gd.classList.add('blink'); }
   if(!_kt.rows.length) swAlert('읽을 내용이 없습니다. 카톡 글을 붙여넣고 다시 눌러 주세요.');
   /* 원문 칸은 분류 뒤에도 접지 않는다 (2026-09-05 「카톡 내용을 좀 더 크게, 닫지 않게」) — 접기는 머리줄 단추로만 */
 }
