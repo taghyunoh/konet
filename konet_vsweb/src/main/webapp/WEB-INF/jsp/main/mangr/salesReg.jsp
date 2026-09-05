@@ -159,14 +159,15 @@
     </div>
     <%-- 설명은 버튼 '앞(왼쪽)' — 버튼 아래에 두면 아래 입력카드와 붙어 읽기 나빴다(2026-08-01 요청) --%>
     <div style="flex:0 0 auto; display:flex; align-items:center; gap:10px">
+      <%-- 💬 카톡 주문 (2026-09-04 신설) — 삼성 외 업체는 카톡으로 주문한다. 글을 붙여넣으면 거래처·품목·수량으로 갈라 그리드로 보여 주고
+           사람이 고쳐서 [→ 판매등록으로] 명세에 담고, 이 화면의 [저장]으로 저장한다(2026-09-05 떠 있는 창). 아래 saKtPop / kt* 참고.
+           자리 = 정산서 설명글 <앞> (2026-09-05 「표시 앞으로」) — 정산서 묶음(설명+단추)과 떨어져 보이게 --%>
+      <button class="sa-btn" onclick="ktOpen()" style="margin-right:14px"
+              title="카톡 주문 창이 열립니다.&#10;주문 글을 붙여넣고 부분을 선택해 분류하면 거래처 ▸ 품목 ▸ 수량으로 보여 주고,&#10;체크한 줄을 [→ 판매등록으로] 넘겨 이 화면에서 확인 후 [저장]합니다.">💬 카톡 주문 가져오기</button>
       <span style="font-size:11.5px; color:#5a6b7a; line-height:1.5; text-align:right">
         출고장이 보내준 <b>정산서(받을 금액)</b> 엑셀을 가져옵니다.<br>
         가져온 내용은 <b>매출내역</b> 화면에서 출고와 대사됩니다.
       </span>
-      <%-- 💬 카톡 주문 (2026-09-04 신설) — 삼성 외 업체는 카톡으로 주문한다. 글을 붙여넣으면 거래처·품목·수량으로 갈라 그리드로 보여 주고
-           사람이 고쳐서 명세에 담거나 거래처별 전표로 바로 저장한다. 아래 saKtPop / kt* 참고 --%>
-      <button class="sa-btn" onclick="ktOpen()"
-              title="카톡으로 받은 주문 글을 그대로 붙여넣으면&#10;거래처 ▸ 품목 ▸ 수량으로 분류해 보여 줍니다.&#10;고쳐서 명세에 담거나 거래처별 전표로 바로 저장할 수 있습니다.">💬 카톡 주문 가져오기</button>
       <button class="sa-btn teal" onclick="saSlsExcel()"
               title="출고장이 준 정산 엑셀을 고릅니다(여러 개 가능).&#10;고르면 확인·저장 창이 열립니다.&#10;출고장은 파일명에서 인식합니다 — 2026.07.11_평택.xlsx → 평택">📥 정산서 가져오기</button>
     </div>
@@ -415,27 +416,71 @@
   </div>
 </div>
 
-<%-- ═══ 💬 카톡 주문 가져오기 (2026-09-04 신설) ═══
-     왼쪽에 카톡 글을 붙여넣고 [🔍 분류] → 오른쪽 그리드에 거래처 ▸ 품목 ▸ 수량으로 갈라 보여 준다.
-     사람이 고친 뒤 거래처 묶음마다 [→ 담기](위 명세 그리드로 — 더 검토 후 저장) 또는 [💾 저장](전표 바로 저장).
-     ★거래처·상품 고르기는 기존 팝업(saVenPop·saProdPop)을 그대로 쓴다 — 그래서 이 창의 z-index(190)는 그 팝업(200)보다 낮다. --%>
+<%-- ═══ 💬 카톡 주문 가져오기 (2026-09-04 신설 · 2026-09-05 오른쪽 서랍으로 재설계) ═══
+     화면 오른쪽 서랍에 카톡 글을 붙여넣고 [🔍 분류] → 거래처 ▸ 품목 ▸ 수량 그리드(판매등록 명세와 같은 칸).
+     줄을 체크하고 거래처 묶음의 [→ 판매등록으로] → 왼쪽 명세 그리드에 들어간다 → 사람이 확인·수정 → 판매등록 [💾 저장](기존 방식).
+     ★직접 저장 단추는 없다(2026-09-05 사용자 결정 「확인 후 판매등록에서 기존처럼 저장」). ktSaveGroup/ktSaveAll 은 남아 있지만 화면에서 부르지 않는다.
+     ★거래처·상품 고르기는 기존 팝업(saVenPop·saProdPop)을 그대로 쓴다 — 그래서 이 서랍의 z-index(190)는 그 팝업(200)보다 낮다. --%>
 <style>
-  #saKtPop{ z-index:190; }
-  #saKtPop .box{ max-height:92vh; }
-  .kt-left{ flex:0 0 34%; min-width:280px; display:flex; flex-direction:column; gap:6px; }
-  .kt-left textarea{ flex:1 1 auto; min-height:52vh; border:1px solid var(--sa-bd); border-radius:6px; padding:8px; font-size:13px; line-height:1.45; resize:vertical; font-family:inherit; }
-  .kt-right{ flex:1 1 66%; min-width:0; }
-  .kt-tbwrap{ height:60vh; overflow:auto; border:1px solid var(--sa-bd); border-radius:6px; }
+  /* ★[2026-09-05 재설계] 모달 → 오른쪽 <서랍>. 「카카오 주문을 오른쪽에 보여주고 판매등록을 보면서 선택해서 보내고,
+       확인 후 판매등록에서 기존처럼 저장」— 그래서 화면을 덮는 배경(backdrop)이 없고, 열리면 본문(.sa-wrap)이
+       서랍 폭만큼 왼쪽으로 좁아져 명세 그리드가 그대로 보인다. 직접 저장 단추([전체 저장]·[💾 저장])는 뺐다 —
+       저장은 늘 판매등록의 [💾 저장] 한 곳. 함수(ktSaveGroup/ktSaveAll)는 남겨 두되 화면에서 부르지 않는다. */
+  /* ★[2026-09-05 3판] 오른쪽 서랍 → <판매등록 아래 전폭 패널> — 「1번(카톡)을 2번(원장) 밑으로 넓게」.
+       서랍은 본문을 좁혀 명세·원장이 답답했다. 이제 화면 맨 아래(전표 목록·원장 밑)에 가로로 넓게 펼치고,
+       왼쪽 원문 ↔ 오른쪽 분류 그리드를 나란히 둔다. 열면 그 자리로 스크롤, [→ 판매등록으로]는 위 명세로 스크롤. */
+  /* ★[2026-09-05 4판] <떠 있는 창>(팝업) — 「팝업으로 뜨게, 닫기를 눌러야 닫히게」. 배경을 덮지 않아 판매등록을 그대로 만지며 쓰고,
+       머리줄을 잡아 끌어 옮기고(위치 기억), 오른쪽 아래를 끌어 크기를 바꾼다. ESC·바깥 클릭으로는 안 닫힌다 — [닫기]/✕ 만. */
+  /* 기본 자리 = 화면 <오른쪽 절반> (2026-09-05 「우측에, 판매등록까지 다 보이게」) — 왼쪽에 판매등록 입력·명세가 그대로 보인다. 끌어서 옮기고 크기도 바꿀 수 있다 */
+  #saKtPop{ display:none; position:fixed; left:44vw; top:3vh; width:55vw; height:94vh; min-width:520px; min-height:380px;   /* 「팝업 좌측 확장」 43→55vw · 「하단 아래로 조금 확대」 88→94vh. 끌어서 옮기거나 모서리로 크기 조절 가능 */
+            resize:both; overflow:hidden; z-index:190; background:#fff; border:1px solid #9fc9c0; border-radius:8px; box-shadow:0 14px 40px rgba(15,23,32,.28);
+            font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:14px; color:#1f2a37; }
+  #saKtPop.on{ display:flex; flex-direction:column; }
+  #saKtPop > .hd{ display:flex; align-items:center; gap:8px; padding:9px 14px; border-bottom:1px solid var(--sa-bd); background:#e6f1ee; font-weight:800; font-size:15px; color:#125a4e; border-radius:8px 8px 0 0; cursor:move; user-select:none; flex:0 0 auto; }
+  #saKtPop > .bd{ flex:1 1 auto; min-height:0; }
+  #saKtPop > .ft{ flex:0 0 auto; }
+  #saKtPop > .bd{ display:flex; flex-direction:column; gap:8px; padding:10px 12px 6px; align-items:stretch; }   /* 오른쪽 반쪽 창이라 원문(위) → 그리드(아래)로 쌓는다 */
+  #saKtPop > .ft{ padding:6px 12px; border-top:1px solid var(--sa-bd); background:#fafcfb; display:flex; align-items:center; gap:8px; border-radius:0 0 8px 8px; }
+  .kt-left{ flex:0 0 auto; display:flex; flex-direction:column; gap:6px; }
+  .kt-left textarea{ height:280px; border:1px solid var(--sa-bd); border-radius:6px; padding:9px; font-size:13.5px; line-height:1.5; resize:vertical; font-family:inherit; }   /* 「카톡 영역 아래로 조금 확장」 200→280. 끌어서 더 키울 수 있다 */
+  .kt-left.fold textarea{ display:none; }
+  .kt-right{ flex:1 1 auto; min-width:0; min-height:0; display:flex; flex-direction:column; }
+  .kt-tbwrap{ flex:1 1 auto; min-height:120px; overflow:auto; border:1px solid var(--sa-bd); border-radius:6px; }
   table.kt{ width:100%; border-collapse:collapse; font-size:12.5px; }
   table.kt th{ position:sticky; top:0; background:#eaf2f0; color:#125a4e; font-weight:600; padding:5px 6px; border-bottom:1px solid var(--sa-bd); white-space:nowrap; z-index:1; }
   table.kt td{ padding:3px 6px; border-bottom:1px solid #eef1f4; vertical-align:middle; white-space:nowrap; }
   table.kt tr.kg td{ background:#dff0ee; padding:6px; border-top:2px solid #9fc9c0; }
-  table.kt tr.kg .kgbar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  /* 거래처 묶음 줄·참고 줄의 내용은 가로 스크롤해도 제자리에 (2026-09-05 「표시 고정」) — 칸은 표 전체 폭이라 그 안에서 sticky 로 붙인다(대시보드 .gl 과 같은 요령) */
+  table.kt tr.kg .kgbar{ display:inline-flex; align-items:center; gap:6px 8px; flex-wrap:wrap; white-space:nowrap; position:sticky; left:6px; z-index:3; background:inherit; }   /* 폭(max-width)은 ktRender 가 표 보이는 폭으로 맞춰 준다 — 길면 두 줄로 접혀 금액까지 다 보인다 */
   table.kt tr.kn td{ background:#fff8e6; color:#7a5a12; white-space:normal; }
   table.kt tr.ke td{ background:#f7f8fa; color:#6b7a89; white-space:normal; }
   table.kt tr.kx td{ background:#f4f4f4; color:#8a97a4; }
   table.kt input[type=text], table.kt input[type=number]{ height:24px; border:1px solid var(--sa-bd); border-radius:4px; padding:0 5px; font-size:12.5px; }
-  table.kt .raw{ color:#5a6b7a; max-width:230px; overflow:hidden; text-overflow:ellipsis; }
+  table.kt .raw{ color:#5a6b7a; width:170px; max-width:170px; overflow:hidden; text-overflow:ellipsis; }
+  /* ★앞 7칸(☑·#·날짜·거래처·카톡 원문·읽은 품목·우리 상품) 좌측 고정, 뒷칸(상태~비고)만 가로 스크롤 (2026-09-05 「우리상품까지 고정」).
+       칸 폭이 정해져 있어야 붙는 자리(left)가 맞는다 — 28·30·84·124·170·130·230 = 796px. 머리글은 위·왼쪽 둘 다 고정. */
+  /* (2026-09-05 「우리상품까지 스크롤되게」) 고정은 앞 6칸(☑~읽은 품목)까지, 우리 상품부터 스크롤 */
+  table.kt thead th:nth-child(-n+6), table.kt tr.ki td:nth-child(-n+6){ position:sticky; z-index:2; background:#fff; }
+  table.kt thead th:nth-child(-n+6){ z-index:4; background:#eaf2f0; }
+  table.kt tr.kx td:nth-child(-n+6){ background:#f4f4f4; }
+  table.kt th:nth-child(1), table.kt tr.ki td:nth-child(1){ left:0; }
+  table.kt th:nth-child(2), table.kt tr.ki td:nth-child(2){ left:28px; }
+  table.kt th:nth-child(3), table.kt tr.ki td:nth-child(3){ left:58px; }
+  table.kt th:nth-child(4), table.kt tr.ki td:nth-child(4){ left:142px; }
+  table.kt th:nth-child(5), table.kt tr.ki td:nth-child(5){ left:266px; }
+  table.kt th:nth-child(6), table.kt tr.ki td:nth-child(6){ left:436px; border-right:2px solid #9fc9c0; }
+  table.kt th:nth-child(1), table.kt tr.ki td:nth-child(1){ min-width:28px; max-width:28px; }
+  table.kt th:nth-child(2), table.kt tr.ki td:nth-child(2){ min-width:30px; max-width:30px; }
+  table.kt th:nth-child(3), table.kt tr.ki td:nth-child(3){ min-width:84px; max-width:84px; }
+  table.kt th:nth-child(4), table.kt tr.ki td:nth-child(4){ min-width:124px; max-width:124px; }
+  table.kt th:nth-child(5), table.kt tr.ki td:nth-child(5){ min-width:170px; max-width:170px; }   /* 폭이 정해져야 sticky 자리가 어긋나지 않는다(빈 표에서 머리글이 밀리던 것) */
+  table.kt th:nth-child(6), table.kt tr.ki td:nth-child(6){ min-width:130px; max-width:130px; overflow:hidden; text-overflow:ellipsis; }
+  table.kt th:nth-child(7), table.kt tr.ki td:nth-child(7){ min-width:230px; max-width:230px; overflow:hidden; text-overflow:ellipsis; }
+  /* 날짜가 하나도 없는 글이면 날짜 칸을 숨긴다 (2026-09-05 「공간 축소」) — 고정칸 붙는 자리(left)도 84px 씩 앞으로 */
+  table.kt.nodt th:nth-child(3), table.kt.nodt tr.ki td:nth-child(3), table.kt.nodt tr.kn td:nth-child(3), table.kt.nodt tr.ke td:nth-child(3){ display:none; }
+  table.kt.nodt th:nth-child(4), table.kt.nodt tr.ki td:nth-child(4){ left:58px; }
+  table.kt.nodt th:nth-child(5), table.kt.nodt tr.ki td:nth-child(5){ left:182px; }
+  table.kt.nodt th:nth-child(6), table.kt.nodt tr.ki td:nth-child(6){ left:352px; }
   .kt-st{ display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px; font-weight:700; white-space:nowrap; }
   .kt-st.ok{ background:#d5efe9; color:#0b5349; } .kt-st.gs{ background:#fdf0cf; color:#7a5a12; } .kt-st.no{ background:#fde1de; color:#a6241c; } .kt-st.pk{ background:#dbe7f7; color:#274b8f; }
   .kt-prod{ cursor:pointer; border-bottom:1px dashed #9fb6cc; }
@@ -443,52 +488,43 @@
   .kt-help{ font-size:11.5px; color:#5a6b7a; line-height:1.5; }
   .kt-done{ font-size:11.5px; font-weight:700; color:#0b5349; background:#c3e2d8; border-radius:10px; padding:1px 8px; }
 </style>
-<div class="sa-pop" id="saKtPop">
-  <div class="box" style="width:min(1600px,97vw)">
-    <div class="hd" style="align-items:center">💬 카톡 주문 가져오기
+<div id="saKtPop">
+    <div class="hd" id="ktHd" title="잡아서 끌면 창이 옮겨집니다">💬 카톡 주문
       <span id="ktCnt" style="font-size:12.5px; font-weight:600; color:#137a6c"></span>
-      <span style="margin-left:auto; display:flex; align-items:center; gap:8px">
-        <button class="sa-btn" style="height:30px; line-height:1" onclick="ktExcel()" title="분류 결과(전 줄)를 엑셀로 내려받습니다">📥 엑셀 출력</button>
-        <button class="sa-btn teal" style="height:30px; line-height:1; min-width:120px; margin-right:112px" onclick="ktSaveAll()" title="체크된 품목을 거래처마다 전표 한 장씩 바로 저장합니다 (확인창이 먼저 뜹니다)">💾 전체 저장</button>
-        <span class="sa-btn" style="border:0;background:transparent;font-size:18px" onclick="ktClose()">✕</span>
+      <span style="margin-left:auto; display:flex; align-items:center; gap:6px">
+        <span class="sa-btn" style="border:0;background:transparent;font-size:18px;height:28px;line-height:1" onclick="ktClose()" title="닫기 (ESC)">✕</span>
       </span>
     </div>
     <div class="bd">
-      <div style="display:flex; gap:12px; align-items:stretch; margin-top:10px">
-        <div class="kt-left">
-          <div style="font-size:12.5px; font-weight:800; color:#37475a">① 카톡 글 붙여넣기 <span style="font-weight:600; color:#8a97a4">— 여러 날·여러 업체를 한 번에 붙여도 됩니다</span></div>
-          <textarea id="ktText" placeholder="카톡 대화를 그대로 복사해 붙여넣으세요.&#10;&#10;*우리푸드&#10;105파이  18박스 세트&#10;210  9박스 세트&#10;수저  45박스&#10;&#10;• 샐러드&#10;샌드위치 2박스 세트&#10;080  2박스 세트"></textarea>
-          <div style="display:flex; gap:6px">
-            <button class="sa-btn teal" style="flex:1" onclick="ktParseGo()">🔍 분류</button>
-            <button class="sa-btn" onclick="ktReset()">비우기</button>
+        <div class="kt-left" id="ktLeft">
+          <%-- 설명글은 최소로 (2026-09-05 「사용자는 안 읽는다 — 반드시 필요한 것만」). 세부 규칙은 단추·칸의 title(hover)에만 --%>
+          <div style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:800; color:#37475a">① 카톡 글 붙여넣기
+            <span style="margin-left:auto; cursor:pointer; color:#137a6c; font-weight:600" id="ktFoldBtn" onclick="ktFold()" title="원문 칸 접기/펼치기"></span>
           </div>
-          <div class="kt-help">
-            · <b>*우리푸드</b>·<b>• 샐러드</b> 같은 줄은 <b>거래처</b>로 봅니다(거래처 마스터 이름·별칭과 맞으면 자동 연결).<br>
-            · <b>숫자+박스/개/세트</b>가 있는 줄은 <b>품목</b>. 「(용기4박스, 뚜껑2박스)」는 두 줄로 나눕니다.<br>
-            · 「~보다 ~ 많게」 같은 <b>문장</b>은 수량으로 넣지 않고 노란 줄로만 보여 줍니다. 「예)」 뒤 숫자는 <b>체크 해제된 후보</b>로.<br>
-            · 우리 상품은 그 거래처 매칭코드 → 전체 매칭코드 → 상품명 순으로 <b>추정</b>만 합니다 — 초록(매칭)·노랑(추정)·빨강(미연결)을 보고 상품 칸을 눌러 바꾸세요.
+          <textarea id="ktText" oninput="ktKeep()" onpaste="setTimeout(ktTidy,0)" placeholder="카톡 대화를 그대로 복사해 붙여넣으세요."></textarea>
+          <div style="display:flex; gap:6px">
+            <button class="sa-btn teal" style="flex:1" onclick="ktParseGo()" title="원문에서 분류할 부분을 마우스로 선택한 뒤 누르세요 — 선택한 부분만 분류합니다">🔍 선택 부분 분류</button>
+            <button class="sa-btn" onclick="ktReset()">비우기</button>
           </div>
         </div>
         <div class="kt-right">
-          <div style="font-size:12.5px; font-weight:800; color:#37475a; margin:0 0 4px">② 분류 결과 <span style="font-weight:600; color:#8a97a4">— 고쳐서 거래처 줄의 [→ 담기](명세로 가져가 검토) 또는 [💾 저장](바로 전표)</span></div>
+          <div style="font-size:12.5px; font-weight:800; color:#37475a; margin:0 0 4px">② 분류 결과 <span style="font-weight:600; color:#8a97a4">— 원문 선택 → [분류] → 체크 → [→ 판매등록으로]</span></div>
           <div class="kt-tbwrap"><table class="kt"><thead><tr>
             <th style="width:28px"><input type="checkbox" id="ktChkAll" onchange="ktChkAll(this.checked)" title="품목 줄 전체 선택/해제"></th>
-            <th style="width:30px">#</th><th style="width:84px">날짜</th><th>카톡 원문</th><th style="width:130px">읽은 품목</th>
+            <th style="width:30px">#</th><th style="width:84px">날짜</th><th style="width:124px" title="이 줄의 거래처 — 잘못 붙었으면 여기서 옮깁니다">거래처</th><th style="width:170px">카톡 원문</th><th style="width:130px">읽은 품목</th>
             <th style="width:230px">우리 상품 <span style="font-weight:400">(눌러서 바꾸기)</span></th><th style="width:64px">상태</th>
             <%-- 판매등록 명세와 같은 칸 (2026-09-05 요청 「그리드 각 컬럼」) — 여기 보이는 값이 그대로 전표에 저장된다 --%>
             <th style="width:92px" title="상품마스터의 [입수량]규격">규격</th><th style="width:56px" title="박스 수 — 판매등록 규칙대로 BOX n → EA n">BOX</th><th style="width:56px">EA</th>
             <th style="width:78px" title="그 거래처 최근 판매단가(없으면 상품마스터 판매가). 고치면 고친 값으로 저장">단가</th><th style="width:88px" title="EA × 단가 (부가세 별도)">금액</th>
             <th style="width:34px">세트</th><th>비고</th><th style="width:26px"></th>
-          </tr></thead><tbody id="ktBody"><tr><td colspan="15" class="sa-msg">왼쪽에 카톡 글을 붙여넣고 [🔍 분류]를 누르세요.</td></tr></tbody></table></div>
+          </tr></thead><tbody id="ktBody"><tr><td colspan="16" class="sa-msg">위에 카톡 글을 붙여넣고 [🔍 분류]를 누르세요.</td></tr></tbody></table></div>
         </div>
-      </div>
     </div>
-    <div class="ft" style="display:flex; align-items:center; gap:8px">
-      <span class="kt-help">거래처 줄의 <b>[거래처]</b>로 거래처를 고치고, <b>[→ 담기]</b>는 위 명세 그리드에 넣어 검토 후 저장, <b>[💾 저장]</b>은 그 거래처 전표를 바로 저장합니다. 노란 문장 줄·회색 기타 줄은 저장되지 않습니다.</span>
+    <div class="ft">
+      <span class="kt-help">저장은 왼쪽 판매등록 [💾 저장]에서.</span>
       <span style="margin-left:auto"></span>
-      <button class="sa-btn" style="min-width:112px" onclick="ktClose()">닫기</button>
+      <button class="sa-btn" style="min-width:90px" onclick="ktClose()">닫기</button>
     </div>
-  </div>
 </div>
 
 <!-- 납품분 검색 팝업 (2026-07-31) —————————————————————————————
@@ -1335,6 +1371,7 @@ function saVenRender(){
 function saVenPick(cd){
   var o = _vendors.filter(function(x){ return String(x.vendorCd)===String(cd); })[0]; if(!o) return;
   /* 💬 카톡 주문 창에서 [거래처]로 열었으면 그 묶음에 넣고 끝 — 본 화면 거래처는 건드리지 않는다 (2026-09-04) */
+  if (_kt.venRowTarget != null) { var rid=_kt.venRowTarget; _kt.venRowTarget=null; saVenClose(); ktSetRowVen(rid, o); return; }   // 💬 줄 하나만 (2026-09-05)
   if (_kt.venTarget != null) { var gi=_kt.venTarget; _kt.venTarget=null; saVenClose(); ktSetGroupVen(gi, o); return; }
   var v = document.getElementById('saVenNm'); v.value = o.vendorNm||''; v.dataset.cd = o.vendorCd||'';
   var m = document.getElementById('saMgrNm'); m.value = o.mgrNm||''; m.dataset.cd = o.mgrCd||'';
@@ -2557,18 +2594,72 @@ var KT_ADDR_RE  = /(서울|부산|대구|인천|광주|대전|울산|세종|경�
 var KT_SKIP_RE  = /^(네|넵|예|ㅇㅇ|응|알겠습니다|알겠어요|감사합니다|감사해요|고마워|고맙습니다|ok|OK|확인|확인했습니다|수고하세요|수고|넹|ㄳ|ㄱㅅ)[.!~ ]*$/;
 
 function ktOpen(){
-  document.getElementById('saKtPop').classList.add('on');
+  var pop=document.getElementById('saKtPop'); pop.classList.add('on');
+  try{ localStorage.setItem('konetKtOpen','1'); }catch(e){}
+  /* 화면 밖에 남아 있던 위치(창 크기가 달라진 경우)는 안으로 끌어온다 */
+  setTimeout(function(){ var r=pop.getBoundingClientRect(); if(r.left>window.innerWidth-200 || r.top>window.innerHeight-100){ pop.style.left='44vw'; pop.style.top='3vh'; } }, 0);
   saLoadMasters();                                        // 상품·거래처·매칭코드를 새로 읽는다(다른 화면에서 등록한 것 반영)
+  ktFold(false);
   setTimeout(function(){ document.getElementById('ktText').focus(); }, 0);
 }
-function ktClose(){ document.getElementById('saKtPop').classList.remove('on'); _kt.venTarget=null; _kt.prodTarget=null; }
-function ktReset(){ _kt.rows=[]; _kt.seq=0; document.getElementById('ktText').value=''; ktRender(); }
+function ktClose(){ document.getElementById('saKtPop').classList.remove('on'); _kt.venTarget=null; _kt.venRowTarget=null; _kt.prodTarget=null; try{ localStorage.setItem('konetKtOpen','0'); }catch(e){} }
+/* 원문 칸 접기 — 분류 뒤에는 자동으로 접어 그리드에 자리를 준다. 다시 붙여넣을 땐 펼친다 */
+function ktFold(on){
+  var l=document.getElementById('ktLeft'); if(on===undefined) on=!l.classList.contains('fold');
+  l.classList.toggle('fold', !!on);
+  document.getElementById('ktFoldBtn').textContent = on ? '▾ 원문 펼치기' : '▴ 원문 접기';
+}
+/* 서랍 폭 : 보통 700px ↔ 넓게 55vw (localStorage 기억) */
+function ktWide(){
+  var w = (localStorage.getItem('konetKtWide')==='1') ? '' : '1';
+  localStorage.setItem('konetKtWide', w); ktWideApply();
+}
+function ktWideApply(){ document.documentElement.style.setProperty('--ktw', localStorage.getItem('konetKtWide')==='1' ? '55vw' : '700px'); }
+ktWideApply();
+/* 서랍 상태 기억 (2026-09-05 「사용자가 닫지 않는 한」) — 새로고침·다른 메뉴 갔다 와도 사용자가 ✕ 를 누르기 전엔
+   열린 채로, 붙여넣은 글도 그대로 남는다(localStorage). 분류는 자동으로 다시 돌리지 않는다 — [🔍 분류] 한 번. */
+function ktKeep(){ try{ localStorage.setItem('konetKtText', document.getElementById('ktText').value); }catch(e){} }
+/* 떠 있는 창 끌어 옮기기 (2026-09-05) — 머리줄(ktHd)을 잡고 끌면 위치가 바뀌고 localStorage 에 남는다. 단추 위에서는 끌지 않는다 */
+(function ktDrag(){
+  var hd=document.getElementById('ktHd'), pop=document.getElementById('saKtPop'); if(!hd||!pop||!hd.addEventListener) return;
+  var sx=0, sy=0, ox=0, oy=0, on=false;
+  hd.addEventListener('mousedown', function(e){
+    if(e.button!==0 || e.target.closest('button,.sa-btn,input,select')) return;
+    var r=pop.getBoundingClientRect(); sx=e.clientX; sy=e.clientY; ox=r.left; oy=r.top; on=true; e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e){ if(!on) return;
+    var x=Math.max(0, Math.min(window.innerWidth-120, ox+e.clientX-sx)), y=Math.max(0, Math.min(window.innerHeight-60, oy+e.clientY-sy));
+    pop.style.left=x+'px'; pop.style.top=y+'px'; });
+  document.addEventListener('mouseup', function(){ if(!on) return; on=false;
+    try{ localStorage.setItem('konetKtPos', JSON.stringify({l:pop.style.left, t:pop.style.top})); }catch(e){} });
+  try{ var p=JSON.parse(localStorage.getItem('konetKtPos')||'null'); if(p&&p.l){ pop.style.left=p.l; pop.style.top=p.t; } }catch(e){}
+})();
+(function(){ try{
+  var t=localStorage.getItem('konetKtText'); if(t) document.getElementById('ktText').value=t;
+  if(localStorage.getItem('konetKtOpen')==='1') ktOpen();
+}catch(e){} })();
+function ktReset(){ _kt.rows=[]; _kt.seq=0; document.getElementById('ktText').value=''; ktKeep(); ktRender(); }
 function ktRowById(id){ for(var i=0;i<_kt.rows.length;i++){ if(_kt.rows[i].id===id) return _kt.rows[i]; } return null; }
 /* 비교용 정규화 — 공백·(주)·기호를 떼고 소문자로. '105 파이'와 '105파이', '(주)에그탑'과 '에그탑'이 같아진다 */
 function ktNorm(s){ return String(s==null?'':s).toLowerCase().replace(/\(주\)|㈜|주식회사/g,'').replace(/[\s\-_·.,()\[\]\/]/g,''); }
 function ktYmd(y,m,d){ return y+'-'+('0'+m).slice(-2)+'-'+('0'+d).slice(-2); }
 function ktUnit(u){ u=String(u||''); if(/^(box)$/i.test(u)) return '박스'; if(/^ea$/i.test(u)) return '개'; return u||'개'; }
 
+/* 비슷한 거래처 후보 (2026-09-05 「있는 것은 선택하게 — 비슷한 것」) — 이름의 낱말(2자 이상)이 마스터 이름·별칭·전체명에
+   들어 있으면 후보. 「샐러드」→ 샐러드 플러스, 「우리푸드 / 샐러드…」한 덩이로 온 줄도 낱말별로 찾는다. 최대 6개 */
+function ktVenLike(nm){
+  var words = String(nm||'').split(/[\s\/|,·•*()\[\]]+/).map(ktNorm).filter(function(w){ return w.length>=2; });
+  if(!words.length) return [];
+  var out=[], seen={};
+  _vendors.forEach(function(v){
+    var cs=[v.vendorNm, v.alias, v.fullNm].map(ktNorm).filter(Boolean), hit=0;
+    words.forEach(function(w){ cs.forEach(function(c){ if(c.indexOf(w)>=0 || (c.length>=2 && w.indexOf(c)>=0)) hit=Math.max(hit, c===w?2:1); }); });
+    if(hit && !seen[v.vendorCd]){ seen[v.vendorCd]=1; out.push({v:v, h:hit}); }
+  });
+  out.sort(function(a,b){ return b.h-a.h || String(a.v.vendorNm).localeCompare(String(b.v.vendorNm)); });
+  return out.slice(0,6).map(function(o){ return o.v; });
+}
+function ktVenByCd(cd){ return _vendors.filter(function(v){ return String(v.vendorCd)===String(cd); })[0]||null; }
 /* 거래처 마스터에서 이름·별칭·전체명으로 찾는다 — 정확히 같으면 3, 한쪽이 다른 쪽을 품으면 2. 짧은 말(2자 이하)은 정확일치만 */
 function ktFindVen(nm){
   var k = ktNorm(nm); if(!k) return null;
@@ -2584,15 +2675,47 @@ function ktFindVen(nm){
 }
 
 /* ── 분류 ── 줄 하나하나를 거래처 / 품목 / 문장 / 기타 로 가른다. 무엇이든 버리지 않는다(기타로라도 남긴다 — 사람이 본다) */
+/* 붙여넣은 글 정돈 (2026-09-05 「복사해 넣으면 같은 내용으로 정렬」) — 「 / 」「 | 」로 이어진 한 줄을 줄바꿈으로 갈라
+   카톡 원문 모양으로 되돌린다. 붙여넣기 직후와 [분류] 직전에 한 번씩 */
+function ktTidy(){
+  var t=document.getElementById('ktText'), v=t.value;
+  var nv=v.replace(/\s\/\s|\s\|\s/g,'\n').split('\n').map(function(s){ return s.replace(/\s+$/,''); }).join('\n').replace(/\n{3,}/g,'\n\n');
+  if(nv!==v){ t.value=nv; ktKeep(); }
+}
 function ktParseGo(){
-  _kt.rows = ktParse(document.getElementById('ktText').value);
+  ktTidy();
+  var t=document.getElementById('ktText'), all=t.value, s=t.selectionStart, e=t.selectionEnd, txt, part=true;
+  /* ★반드시 <선택한 부분만> 분류한다 (2026-09-05 「반드시 선택으로」) — 선택이 없으면 분류하지 않고 알린다.
+     선택 위쪽의 가장 가까운 거래처 머리줄(*·• 로 시작, 수량 없음)을 함께 넣어 거래처가 비지 않게 */
+  if(!(e>s && all.slice(s,e).trim())){ swAlert('원문에서 분류할 부분을 마우스로 선택한 뒤 [분류]를 누르세요.'); t.focus(); return; }
+  txt=all.slice(s,e);
+  var above=all.slice(0,s).split('\n'), i;
+  for(i=above.length-1;i>=0;i--){ var L=above[i].trim(); if(/^[*•·▪■●◆○◇※#>]/.test(L) && !KT_QTY_RE.test(L)){ txt=L+'\n'+txt; break; } }
+  /* ★이어 붙인다 (2026-09-05 「한 거래처만 하는 게 아니어서」) — 거래처별로 골라 [분류]를 여러 번 눌러도 앞 결과가 남는다.
+       같은 원문 줄이 이미 있으면 다시 넣지 않는다. 전부 지우는 건 [비우기] */
+  var add = ktParse(txt), have = {};
+  _kt.rows.forEach(function(r){ have[(r.dt||'')+'|'+(r.biz||'')+'|'+(r.raw||'')] = 1; });
+  add = add.filter(function(r){ var k=(r.dt||'')+'|'+(r.biz||'')+'|'+(r.raw||''); if(have[k]) return false; have[k]=1; return true; });
+  _kt.rows = _kt.rows.concat(add);
+  _kt.part = part;
   ktRender();
+  if(!add.length && _kt.rows.length) swAlert('선택한 부분은 이미 분류되어 있습니다.');
   if(!_kt.rows.length) swAlert('읽을 내용이 없습니다. 카톡 글을 붙여넣고 다시 눌러 주세요.');
+  /* 원문 칸은 분류 뒤에도 접지 않는다 (2026-09-05 「카톡 내용을 좀 더 크게, 닫지 않게」) — 접기는 머리줄 단추로만 */
 }
 function ktParse(text){
-  var lines = String(text||'').replace(/\r/g,'').split('\n');
+  /* 줄 나누기 — 줄바꿈 외에 「 / 」「 | 」도 줄 경계로 본다 (2026-09-05 : 판매메모에 남긴 원문(' / '로 이어 붙인 것)을
+     다시 붙여넣으면 한 줄로 들어와 거래처·품목이 한 덩이로 읽혔다) */
+  var lines = String(text||'').replace(/\r/g,'').split(/\n|\s\/\s|\s\|\s/);
   var rows = [], cur = { biz:'', venCd:'', venNm:'' }, dt = '', inEx = false;
-  _kt.seq = 0;
+  /* ★기호로 거래처 묶기 (2026-09-05 「우리푸드로 거래처 되어야 하지 않나」) —
+       「*우리푸드」「• 샐러드」처럼 거래처 머리줄의 기호가 서로 다르면, 「* 105파이(대짜흰색) 1박스 세트」같이
+       같은 기호로 시작하는 품목 줄은 <바로 위 거래처>가 아니라 <그 기호의 거래처>에 붙인다.
+       기호가 하나뿐이거나(둘 다 *) 품목 줄에 기호가 없으면 종전대로 바로 위 거래처. */
+  var markVen = {}, lineMk = '';
+  function mkDistinct(){ return Object.keys(markVen).length >= 2; }
+  function owner(){ return (lineMk && mkDistinct() && markVen[lineMk]) ? markVen[lineMk] : cur; }
+  /* 줄 번호(id)는 이어서 매긴다 — 선택 분류를 여러 번 이어 붙이므로 0 으로 되돌리면 번호가 겹친다(2026-09-05). 초기화는 ktReset 에서 */
   function push(r){ r.id = ++_kt.seq; rows.push(r); return r; }
   function backfill(){   // 롤지 주문처럼 <품목 → 주소 → 업체 이름> 순으로 오면, 업체 이름이 나올 때 앞의 주인 없는 줄에 붙인다
     for(var i=rows.length-1;i>=0;i--){ var r=rows[i]; if(r.t==='biz') break; if(r.biz) break; r.biz=cur.biz; r.venCd=cur.venCd; r.venNm=cur.venNm; if(r.t==='item' && !r.prodCd) ktSuggest(r); }
@@ -2601,7 +2724,8 @@ function ktParse(text){
     var set = /세트/.test(tail||'') || /세트$/.test(name||'');
     name = String(name||'').replace(/세트$/,'').replace(/[\-:：x×*]+$/,'').trim();
     var note = String(tail||'').replace(/세트/g,'').replace(/^[\s\-,·]+/,'').trim();
-    var r = push({ t:'item', dt:dt, biz:cur.biz, venCd:cur.venCd, venNm:cur.venNm, raw:raw, name:name, qty:n(qtyS), unit:ktUnit(unit),
+    var ow = owner();
+    var r = push({ t:'item', dt:dt, biz:ow.biz, venCd:ow.venCd, venNm:ow.venNm, raw:raw, name:name, qty:n(qtyS), unit:ktUnit(unit),
                    set:set, note:(ex?'「예)」 문장에서 읽은 후보 — 수량 확인 필요'+(note?' · '+note:''):note), chk:!ex, ex:!!ex,
                    prodCd:'', prodNm:'', prodSeq:null, st:'none', box:0, ea:0, unitPrice:0, priceEdited:false, priceSrc:'' });
     /* 판매등록 규칙 : 박스 n → BOX n · EA n (입수 환산 안 함, 2026-08-01 확정). 개 단위는 EA 만 */
@@ -2611,11 +2735,14 @@ function ktParse(text){
   lines.forEach(function(rawLine){
     var s = rawLine.replace(/ /g,' ').trim(), m;
     if(!s){ inEx=false; return; }
+    /* 판매메모에서 다시 붙여넣은 머리줄 「[카톡 주문 2026-09-03 · 우리푸드]」 — 날짜만 취하고 줄은 버린다 (2026-09-05) */
+    if((m=/^\[카톡 주문(?:\s+(\d{4})-(\d{1,2})-(\d{1,2}))?[^\]]*\]$/.exec(s))){ if(m[1]) dt=ktYmd(m[1],m[2],m[3]); cur={biz:'',venCd:'',venNm:''}; return; }
     if((m=KT_MOB_RE.exec(s))){ dt=ktYmd(m[1],m[2],m[3]); s=m[6].trim(); if(!s) return; }
     else if((m=KT_PC_RE.exec(s))){ s=m[3].trim(); if(!s) return; }
     if((m=KT_DATE_RE.exec(s))){ dt=ktYmd(m[1],m[2],m[3]); cur={biz:'',venCd:'',venNm:''}; inEx=false;   // 날짜 구분줄 = 다른 날 주문
       if(!s.replace(KT_DATE_RE,'').replace(/[요일월화수목금토\s()]/g,'')) return; }
     if(KT_TIME_RE.test(s) || KT_SKIP_RE.test(s)) return;
+    lineMk = (/^[*•·\-▪■●◆○◇※#>]/.exec(s)||[''])[0];          // 이 줄의 머리 기호(없으면 '')
     var bare = s.replace(/^[\s*•·\-▪■●◆○◇※#>]+/,'').trim();
     if(!bare) return;
     /* 「예) 750d 2000개 / 303 4000개」 — 예시는 주문이 아니다. 후보(체크 해제)로만 */
@@ -2640,11 +2767,13 @@ function ktParse(text){
     var bizLike = bare.length<=22 && !/\d{2,}/.test(bare) && !KT_VERB_RE.test(bare) && !KT_PHONE_RE.test(bare) && !KT_ADDR_RE.test(bare);
     if(v || (bizLike && !KT_NAME_RE.test(bare))){
       inEx=false;
-      /* 바로 앞 줄도 거래처(품목 없이)였으면 그 줄은 발신자 이름 같은 것 — 새 거래처로 대체한다 */
-      if(rows.length && rows[rows.length-1].t==='biz' && !rows[rows.length-1].venCd) rows.pop();
+      /* 바로 앞 줄도 거래처(품목 없이)였으면 그 줄은 발신자 이름 같은 것 — 새 거래처로 대체한다.
+         ★단 기호(*·•)가 붙은 줄은 사람이 쓴 거래처 머리줄이 분명하므로 지우지 않는다(「*우리푸드」 바로 밑에 「• 샐러드」가 와도 둘 다 남는다) */
+      if(rows.length && rows[rows.length-1].t==='biz' && !rows[rows.length-1].venCd && !rows[rows.length-1].mk) rows.pop();
       cur = { biz:(v?v.vendorNm:bare), venCd:(v?v.vendorCd:''), venNm:(v?v.vendorNm:'') };
+      if(lineMk) markVen[lineMk] = cur;                       // 이 기호 = 이 거래처
       backfill();   // ★거래처 줄을 넣기 <전에> — 넣은 뒤 부르면 첫 줄이 곧 거래처 줄이라 바로 멈춘다(실측으로 잡은 순서 버그)
-      push({ t:'biz', dt:dt, biz:cur.biz, venCd:cur.venCd, venNm:cur.venNm, raw:s, hint:(v?'':'거래처 마스터에 없는 이름 — [거래처]로 골라 주세요') });
+      push({ t:'biz', dt:dt, biz:cur.biz, venCd:cur.venCd, venNm:cur.venNm, raw:s, mk:lineMk, hint:(v?'':'거래처 마스터에 없는 이름 — [거래처]로 골라 주세요') });
       return; }
     push({ t:'etc', dt:dt, biz:cur.biz, venCd:cur.venCd, venNm:cur.venNm, raw:s, chk:false,
            kind: KT_PHONE_RE.test(bare)?'연락처':(KT_ADDR_RE.test(bare)?'주소':(KT_NAME_RE.test(bare)?'이름':'')) });
@@ -2727,6 +2856,35 @@ function ktSetGroupVen(gi, v){
     else ktPriceLookup(r); });                                 // 상품은 그대로, 단가만 그 거래처 최근값으로
   ktRender();
 }
+/* ── 줄 단위 거래처 바꾸기 (2026-09-05 「어디가 거래처인지 선택 기능」) ──
+     품목 줄마다 [거래처 ▾] — 이 글에서 읽은 거래처 묶음 중 하나를 고르면 그 줄이 그 묶음으로 옮겨 간다.
+     규칙(기호·바로 위 줄)이 틀리게 붙였을 때 사람이 바로잡는 길. 「다른 거래처 고르기…」는 거래처 팝업(saVenOpen)으로. */
+function ktMoveRow(id, key){
+  var r=ktRowById(id); if(!r) return;
+  if(key==='__pick'){ _kt.venRowTarget=id; saVenOpen(); var q=document.getElementById('saVenQ'); q.value=''; saVenRender(); setTimeout(function(){ q.focus(); },0); ktRender(); return; }
+  if(key.indexOf('v:')===0){ ktSetRowVen(id, ktVenByCd(key.slice(2))); return; }     // 「비슷한 거래처」에서 고른 것
+  var g=(_kt.groups||[]).filter(function(x){ return x.key===key; })[0]; if(!g) return;
+  r.biz=g.biz; r.venCd=g.venCd; r.venNm=g.venNm; if(g.dt && !r.dt) r.dt=g.dt;
+  if(r.st!=='선택' && r.st!=='매칭') ktSuggest(r); else ktPriceLookup(r);   // 거래처가 바뀌었으니 매칭·단가를 그 거래처 기준으로
+  ktRender();
+}
+function ktSetRowVen(id, v){   // 거래처 팝업에서 골라 온 것을 이 줄에만
+  var r=ktRowById(id); if(!r||!v) return;
+  r.venCd=v.vendorCd; r.venNm=v.vendorNm||''; r.biz=v.vendorNm||r.biz;
+  if(r.st!=='선택' && r.st!=='매칭') ktSuggest(r); else ktPriceLookup(r);
+  ktRender();
+}
+function ktVenSel(r){   // 줄의 [거래처 ▾] — 이 글의 거래처 묶음 + 직접 고르기
+  var cur = r.venCd ? ('c:'+r.venCd) : ('n:'+(r.biz||''));
+  var h='<select style="height:24px;border:1px solid var(--sa-bd);border-radius:4px;font-size:12px;max-width:118px;background:#fff'+(r.venCd?'':';border-color:#e0871a')+'" onchange="ktMoveRow('+r.id+',this.value)" title="이 줄의 거래처 — 잘못 붙었으면 여기서 옮기세요">';
+  (_kt.groups||[]).forEach(function(g){ h+='<option value="'+esc(g.key)+'"'+(g.key===cur?' selected':'')+'>'+esc(g.venNm||g.biz||'(거래처 없음)')+(g.venCd?'':' (미연결)')+'</option>'; });
+  /* 마스터에 연결이 안 된 줄이면 비슷한 거래처를 바로 고를 수 있게 (2026-09-05) — 거래처 이름·원문 낱말로 찾는다 */
+  if(!r.venCd){
+    var like = ktVenLike((r.biz||'')+' '+(r.raw||''));
+    if(like.length){ h+='<optgroup label="비슷한 거래처">'; like.forEach(function(v){ h+='<option value="v:'+esc(v.vendorCd)+'">→ '+esc(v.vendorNm)+'</option>'; }); h+='</optgroup>'; }
+  }
+  return h+'<option value="__pick">다른 거래처 고르기…</option></select>';
+}
 function ktEdit(id, k, v){
   var r=ktRowById(id); if(!r) return;
   if(k==='chk'){ r.chk=!!v; ktCnt(); ktSums(); return; }
@@ -2760,33 +2918,39 @@ function ktStBadge(r){
 function ktRender(){
   _kt.groups = ktGroups();
   var b=document.getElementById('ktBody'), h='';
-  if(!_kt.rows.length){ b.innerHTML='<tr><td colspan="15" class="sa-msg">왼쪽에 카톡 글을 붙여넣고 [🔍 분류]를 누르세요.</td></tr>'; ktCnt(); return; }
+  /* 스크롤 원위치 (2026-09-05) — 다시 그릴 때(거래처 바꾸기·상품 바꾸기·단가 도착) 표가 맨 위·맨 왼쪽으로 튀지 않게, 그리기 전 위치를 기억해 되돌린다 */
+  var wrap=b.parentNode && b.parentNode.parentNode, sTop=wrap?wrap.scrollTop:0, sLeft=wrap?wrap.scrollLeft:0;
+  if(!_kt.rows.length){ b.innerHTML='<tr><td colspan="16" class="sa-msg">위에 카톡 글을 붙여넣고 [🔍 분류]를 누르세요.</td></tr>'; ktCnt(); return; }
   _kt.groups.forEach(function(g, gi){
     var items=g.rows.filter(function(r){ return r.t==='item'; }), chk=items.filter(function(r){ return r.chk; }), miss=chk.filter(function(r){ return !r.prodCd; });
     /* 품목이 한 줄도 없는 묶음(발신자 이름·인사말 같은 참고 줄만) — 담기·저장 단추 없이 얇은 머리줄만 */
     if(!items.length){
-      h += '<tr class="kg"><td colspan="15" style="background:#f1f5f4;border-top-color:#d5e2de"><div class="kgbar"><span style="color:#6b7a89;font-weight:600">📎 참고 줄'+(g.venNm||g.biz?(' — '+esc(g.venNm||g.biz)):' (거래처 없음)')+'</span></div></td></tr>';
+      h += '<tr class="kg"><td colspan="16" style="background:#f1f5f4;border-top-color:#d5e2de"><div class="kgbar"><span style="color:#6b7a89;font-weight:600">📎 참고 줄'+(g.venNm||g.biz?(' — '+esc(g.venNm||g.biz)):' (거래처 없음)')+'</span></div></td></tr>';
     } else
-    h += '<tr class="kg"><td colspan="15"><div class="kgbar">'
+    h += '<tr class="kg"><td colspan="16"><div class="kgbar">'
       +  '<span>🏢 <b>'+(g.venNm ? esc(g.venNm) : (g.biz ? esc(g.biz) : '<span style="color:#a6241c">(거래처 미지정)</span>'))+'</b>'
       +   (g.venCd ? ' <span style="color:#5a6b7a;font-weight:400">['+esc(g.venCd)+']</span>' : ' <span class="kt-st no">거래처 마스터 연결 필요</span>')+'</span>'
+      /* 미연결 묶음 — 마스터에 비슷한 이름이 있으면 바로 누를 수 있게 (2026-09-05 「있는 것은 선택하게」) */
+      +  (g.venCd ? '' : ktVenLike(g.biz).map(function(v){ return '<button class="sa-btn" style="height:24px;line-height:1;padding:0 8px;font-size:12px;border-color:#e0871a;color:#8a4c0d" onclick="ktSetGroupVen('+gi+', ktVenByCd(\''+esc(v.vendorCd)+'\'))" title="이 거래처로 연결">→ '+esc(v.vendorNm)+'</button>'; }).join(''))
       +  '<button class="sa-btn" style="height:24px;line-height:1;padding:0 8px;font-size:12px" onclick="ktVenOpen('+gi+')" title="이 묶음의 거래처를 마스터에서 고릅니다">거래처</button>'
       +  (g.dt ? '<span style="font-weight:400;color:#37475a">📅 '+esc(g.dt)+'</span>' : '')
       +  '<span style="font-weight:400;color:#37475a">품목 '+items.length+'줄 · 체크 '+chk.length+(miss.length?(' · <b style="color:#a6241c">미연결 '+miss.length+'</b>'):'')+'</span>'
       +  '<span id="ktG'+gi+'" style="font-weight:400;color:#37475a" title="체크된 줄의 금액 — 이 거래처 부가세 설정으로 계산. 이대로 전표에 저장됩니다"></span>'
       +  (g.done ? '<span class="kt-done">'+esc(g.done)+'</span>' : '')
+      /* [→ 판매등록으로] = 줄 오른쪽 끝 (2026-09-05 「원위치(우측 끝)」). 줄(kgbar)의 폭을 ktRender 가 표의 <보이는 폭>으로 고정해 두므로
+         스크롤 없이도 늘 오른쪽 끝에 보인다. 직접 저장 단추는 뺐다 — 저장은 판매등록 [💾 저장] 한 곳 */
       +  '<span style="margin-left:auto;display:flex;gap:6px">'
-      +    '<button class="sa-btn" style="height:24px;line-height:1;padding:0 10px;font-size:12px" onclick="ktApply('+gi+')" title="체크된 품목을 위 명세 그리드에 넣습니다 — 거기서 더 고친 뒤 [저장]">→ 담기</button>'
-      +    '<button class="sa-btn teal" style="height:24px;line-height:1;padding:0 10px;font-size:12px" onclick="ktSaveGroup('+gi+')" title="이 거래처 전표를 바로 저장합니다 (확인창이 먼저 뜹니다)">💾 저장</button>'
+      +    '<button class="sa-btn teal" style="height:24px;line-height:1;padding:0 10px;font-size:12px" onclick="ktApply('+gi+')" title="체크된 품목을 왼쪽 판매등록 명세에 넣습니다 — 거기서 확인·수정한 뒤 판매등록 [저장]">→ 판매등록으로</button>'
       +  '</span></div></td></tr>';
     var no=0;   // # = 이 거래처 묶음 안의 품목 순번(전표 명세 줄 순서와 같다). 참고·문장 줄은 번호 없음 (2026-09-05 「# 숫자 표시는」)
     g.rows.forEach(function(r){
-      if(r.t==='biz'){ if(r.hint) h+='<tr class="ke"><td></td><td></td><td>'+esc(r.dt)+'</td><td colspan="12" style="white-space:normal">'+esc(r.raw)+' <span style="color:#a6241c">— '+esc(r.hint)+'</span></td></tr>'; return; }
-      if(r.t==='note'){ h+='<tr class="kn"><td></td><td></td><td>'+esc(r.dt)+'</td><td colspan="11" style="white-space:normal">📝 <b>문장형 지시</b> — 수량으로 넣지 않았습니다. 필요하면 아래 후보를 체크하거나 명세에서 직접 고치세요.<br><span style="color:#37475a">'+esc(r.raw)+'</span></td><td><span style="cursor:pointer;color:#c0392b" onclick="ktDel('+r.id+')">✖</span></td></tr>'; return; }
-      if(r.t==='etc'){ h+='<tr class="ke"><td></td><td></td><td>'+esc(r.dt)+'</td><td colspan="11" style="white-space:normal">'+(r.kind?('<b>'+esc(r.kind)+'</b> · '):'')+esc(r.raw)+'</td><td><span style="cursor:pointer;color:#c0392b" onclick="ktDel('+r.id+')">✖</span></td></tr>'; return; }
-      h += '<tr'+(r.ex?' class="kx"':'')+'>'
+      if(r.t==='biz'){ if(r.hint) h+='<tr class="ke"><td></td><td></td><td>'+esc(r.dt)+'</td><td colspan="13" style="white-space:normal">'+esc(r.raw)+' <span style="color:#a6241c">— '+esc(r.hint)+'</span></td></tr>'; return; }
+      if(r.t==='note'){ h+='<tr class="kn"><td></td><td></td><td>'+esc(r.dt)+'</td><td colspan="12" style="white-space:normal">📝 <b>문장형 지시</b> — 수량으로 넣지 않았습니다. 필요하면 아래 후보를 체크하거나 명세에서 직접 고치세요.<br><span style="color:#37475a">'+esc(r.raw)+'</span></td><td><span style="cursor:pointer;color:#c0392b" onclick="ktDel('+r.id+')">✖</span></td></tr>'; return; }
+      if(r.t==='etc'){ h+='<tr class="ke"><td></td><td></td><td>'+esc(r.dt)+'</td><td colspan="12" style="white-space:normal">'+(r.kind?('<b>'+esc(r.kind)+'</b> · '):'')+esc(r.raw)+'</td><td><span style="cursor:pointer;color:#c0392b" onclick="ktDel('+r.id+')">✖</span></td></tr>'; return; }
+      h += '<tr class="ki'+(r.ex?' kx':'')+'">'      /* ki = 품목 줄(앞 7칸 고정 스크롤 대상) */
         + '<td><input type="checkbox" '+(r.chk?'checked':'')+' onchange="ktEdit('+r.id+',\'chk\',this.checked)"></td>'
         + '<td style="color:#8a97a4">'+(++no)+'</td><td>'+esc(r.dt)+'</td>'
+        + '<td>'+ktVenSel(r)+'</td>'
         + '<td class="raw" title="'+esc(r.raw)+'">'+esc(r.raw)+'</td>'
         + '<td title="'+esc(r.name)+'">'+esc(r.name)+'</td>'
         + '<td><span class="kt-prod" onclick="ktProdOpen('+r.id+')" title="눌러서 상품 선택 팝업 — 읽은 품목명이 검색어로 들어갑니다">'
@@ -2805,11 +2969,17 @@ function ktRender(){
     });
   });
   b.innerHTML=h; ktCnt(); ktSums();
+  /* 날짜가 하나도 없으면 날짜 칸 숨김 (「공간 축소」). 참고·문장 줄의 colspan 도 한 칸 줄여 폭을 맞춘다 */
+  var tb=b.parentNode; if(tb && tb.classList){ var hasDt=_kt.rows.some(function(r){ return !!r.dt; }); tb.classList.toggle('nodt', !hasDt);
+    if(!hasDt) Array.prototype.forEach.call(b.querySelectorAll('td[colspan]'), function(td){ var c=parseInt(td.getAttribute('colspan'),10); if(c>1 && !td.parentNode.classList.contains('kg')) td.setAttribute('colspan', c-1); }); }
+  /* 거래처 줄(sticky)의 폭을 표의 보이는 폭에 맞춘다 — 길면 두 줄로 접혀 [→ 판매등록으로]·금액이 스크롤 없이 다 보인다 (2026-09-05) */
+  if(wrap && wrap.clientWidth){ var mw=(wrap.clientWidth-28)+'px'; Array.prototype.forEach.call(b.querySelectorAll('.kgbar'), function(el){ el.style.width=mw; el.style.maxWidth=mw; }); }   // 폭 = 보이는 폭 → margin-left:auto 인 단추가 오른쪽 끝에
+  if(wrap){ wrap.scrollTop=sTop; wrap.scrollLeft=sLeft; }
 }
 function ktCnt(){
   var it=_kt.rows.filter(function(r){ return r.t==='item'; }), chk=it.filter(function(r){ return r.chk; }), ok=chk.filter(function(r){ return r.prodCd; });
   var notes=_kt.rows.filter(function(r){ return r.t==='note'; }).length;
-  document.getElementById('ktCnt').textContent = _kt.rows.length ? ('거래처 '+_kt.groups.length+' · 품목 '+it.length+'줄 · 체크 '+chk.length+' (연결 '+ok.length+' / 미연결 '+(chk.length-ok.length)+')'+(notes?(' · 문장 '+notes):'')) : '';
+  document.getElementById('ktCnt').textContent = _kt.rows.length ? ((_kt.part?'[선택 부분만] ':'')+'거래처 '+_kt.groups.length+' · 품목 '+it.length+'줄 · 체크 '+chk.length+' (연결 '+ok.length+' / 미연결 '+(chk.length-ok.length)+')'+(notes?(' · 문장 '+notes):'')) : '';
   var all=document.getElementById('ktChkAll'); if(all) all.checked = it.length>0 && chk.length===it.length;
 }
 
@@ -2855,7 +3025,8 @@ function ktApply(gi){
     items.forEach(function(r){ var o=ktToRow(r); saCalcRow(o); _rows.push(o); added.push(o); });
     saTail(); _pShown=_rows.length; saRender(); saCalc();
     /* 단가는 그리드에 보이던 값 그대로 — 여기서 다시 최근단가를 덮지 않는다(사람이 고친 값이 날아간다) */
-    g.done='담김 '+items.length+'줄'; ktClose();
+    g.done='판매등록에 담김 '+items.length+'줄'; ktRender();
+    /* 창은 닫지 않는다 (2026-09-05 「닫기를 눌러야 닫히게」) — 판매등록 명세를 확인해 저장하고, 다음 거래처를 이어서 넘긴다 */
     swOk('<b>'+esc(g.venNm||g.biz)+'</b> 품목 '+items.length+'줄을 명세에 담았습니다.<br><span style="font-size:12.5px;color:#3d4d5c">수량·단가를 확인한 뒤 [💾 저장]을 누르세요.</span>');
   };
   if(filled.length && !_cur && curVen && curVen!==g.venCd){
@@ -2980,9 +3151,7 @@ function ktExcel(){
       if (p && p.classList.contains('on')) { e.preventDefault(); saProdClose(); }
       var b = document.getElementById('saBatchPop');
       if (b && b.classList.contains('on')) { e.preventDefault(); saBatchClose(); }
-      /* 💬 카톡 주문 창 — 위에 거래처·상품 팝업이 떠 있으면 그것만 닫고, 아니면 이 창을 닫는다 */
-      var k = document.getElementById('saKtPop'), vp = document.getElementById('saVenPop');
-      if (k && k.classList.contains('on') && !(p && p.classList.contains('on')) && !(vp && vp.classList.contains('on'))) { e.preventDefault(); ktClose(); }
+      /* 💬 카톡 주문 창은 ESC 로 닫지 않는다 (2026-09-05 「닫기를 눌러야 닫히게」) — 위에 뜬 거래처·상품 팝업만 ESC 로 닫힌다 */
     }
   });
 })();
