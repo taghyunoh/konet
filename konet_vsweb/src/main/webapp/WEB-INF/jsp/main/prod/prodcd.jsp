@@ -10,6 +10,9 @@
      빼려면 그 칸에 data-nonav="1" --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
+<%-- 칸 폭 조절 — 머리글 오른쪽 경계를 끌면 그 칸이 늘고 준다(더블클릭 = 처음 폭으로).
+     표에 data-colrz="이름" 만 주면 걸린다. 폭은 localStorage 에 남아 다음에도 그대로. --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-colresize.js?v=20260907"></script>
 <%-- ★[2026-08-20 요청 「글자체도」] 요즘 한국 업무화면에서 쓰는 **Pretendard**.
      맑은 고딕보다 획이 고르고 숫자 폭이 일정해 표에서 자릿수가 맞는다.
      ⚠외부 CDN 이라 못 받으면 **아래 font-family 의 맑은 고딕으로 조용히 내려간다**(화면이 깨지지 않는다).
@@ -389,7 +392,9 @@
   </div>
 
   <div class="card">
-    <table>
+    <%-- data-colrz : 머리글 오른쪽 경계를 끌어 칸 폭을 조절한다(ui-colresize.js).
+         ⚠칸을 더하거나 뺄 때 저장된 폭(칸 수)이 어긋나면 스스로 버리고 종전 폭으로 돌아간다. --%>
+    <table data-colrz="prodcd-list">
       <thead><tr>
         <%-- ★[2026-08-17 요청] 적정재고를 **과세 앞으로** 옮겼다 — 오른쪽 끝에 있어 가로 스크롤을
              해야 보였다. 제조사·유형은 요청대로 **그대로** 둔다.

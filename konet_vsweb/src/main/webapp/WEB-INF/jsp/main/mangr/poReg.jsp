@@ -18,6 +18,9 @@
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260805"></script>
+<%-- 칸 폭 조절 — 머리글 오른쪽 경계를 끌면 그 칸이 늘고 준다(더블클릭 = 처음 폭으로).
+     표에 data-colrz="이름" 만 주면 걸린다. 폭은 localStorage 에 남아 다음에도 그대로. --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-colresize.js?v=20260907"></script>
 <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous"></script>
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; }
@@ -94,7 +97,7 @@
       <span id="stat" style="margin-left:auto; color:#6b7a89; font-size:12.5px"></span>
     </div>
     <div class="gridwrap" style="margin-top:10px">
-      <table class="g" id="grid">
+      <table class="g" id="grid" data-colrz="poReg-grid">
         <thead><tr>
           <th style="width:36px">#</th><th style="width:96px">코드</th><th style="min-width:230px">상품명</th><th style="width:130px">규격</th>
           <th style="width:56px">입수</th><th style="width:70px">BOX</th><th style="width:70px">EA</th><th style="width:78px">합계수량</th>
@@ -129,7 +132,7 @@
       <span class="cnt" id="cnt">-</span>
     </div>
     <div class="listwrap" style="margin-top:8px">
-      <table class="lst"><thead><tr><th>발주일자</th><th>번호</th><th>거래처명</th><th>담당</th><th>품목</th><th>수량</th><th>공급가액</th><th>부가세</th><th>합계</th><th>공유</th><th>매입전환</th><th>등록자</th></tr></thead>
+      <table class="lst" data-colrz="poReg-list"><thead><tr><th>발주일자</th><th>번호</th><th>거래처명</th><th>담당</th><th>품목</th><th>수량</th><th>공급가액</th><th>부가세</th><th>합계</th><th>공유</th><th>매입전환</th><th>등록자</th></tr></thead>
       <tbody id="lbody"><tr><td colspan="12" class="empty">기간을 고르고 [리스트 조회]를 누르세요.</td></tr></tbody></table>
     </div>
   </div>
