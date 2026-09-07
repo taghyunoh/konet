@@ -1055,6 +1055,17 @@ function pcSave(){
     unitBarcode:gv('f_ubc')||null, boxBarcode:gv('f_bbc')||null,
     /* ★거래처 (2026-08-17) — 코드와 그때 그 이름을 함께 보낸다(목록에서 조인 없이 보여 주려고) */
     vendorCd:gv('f_ven')||null, vendorNm:(gv('f_ven')?(mcVenNm(gv('f_ven'))||null):null) };
+  /* 상품코드 중복 막기 (2026-09-07) — 같은 코드가 두 줄이 되면 재고가 갈린다(실측 15개 코드,
+     1000783958 은 한쪽에 입고·다른 쪽에 출고가 붙어 −140 까지 갔다). 복사등록에서 코드를 안 고치고
+     저장하는 일이 잦아 여기서 먼저 걸러 준다. 저장 직전 서버(prodInsert.do)에서 한 번 더 막는다. */
+  if(!seq){
+    var dupx = LIST.filter(function(o){ return String(o.prodCd||'').trim()===cd; });
+    if(dupx.length){
+      toast('이미 있는 상품코드입니다 : '+cd+' — 코드를 바꾸세요.','warn');
+      var fc=document.getElementById('f_cd'); if(fc){ fc.focus(); if(fc.select) fc.select(); }
+      return;
+    }
+  }
   var url, okmsg;
   if(seq){ dto.prodSeq=Number(seq); url='/prod/prodUpdate.do'; okmsg='💾 수정 완료'; }
   else   { url='/prod/prodInsert.do'; okmsg='＋ 등록 완료'; }

@@ -1863,6 +1863,20 @@
 	   ORDER BY PROD_CD, PROD_SEQ
 	</select>
 
+	<!-- 상품코드 중복 확인 (2026-09-07) — 같은 코드가 이미 있으면 등록을 막는다.
+	     ★활성만 보지 않고 **삭제된 것까지** 센다 : 삭제는 ACTION_YN='N' 으로 남고 [♻ 삭제 목록]에서
+	       되살릴 수 있어, 같은 코드로 새로 등록해 두면 되살릴 때 또 두 줄이 된다.
+	     ★실제로 15개 코드가 두 줄(하나는 세 줄)로 들어가 있었다 — 1000783958 은 한쪽에 입고,
+	       다른 쪽에 출고가 붙어 재고가 −140 까지 갔다(2026-09-07 실측). 그래서 막는다.
+	     되돌아오는 값 : 0 = 없음 / 1 이상 = 이미 있음. 활성·삭제를 가려 알리려고 두 수를 따로 센다. -->
+	<select id="countProdCd" parameterType="egovframework.sejong.user.model.ProdDTO" resultType="java.util.HashMap"><![CDATA[
+	  SELECT SUM(CASE WHEN ACTION_YN = 'Y' THEN 1 ELSE 0 END) AS ALIVE,
+	         SUM(CASE WHEN ACTION_YN = 'Y' THEN 0 ELSE 1 END) AS DELETED
+	    FROM TBL_PROD_MST
+	   WHERE PROD_CD = #{prodCd}
+	     AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')
+	]]></select>
+
 	<insert id="insertProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
 	  INSERT INTO TBL_PROD_MST
 	    (COMP_CD, PROD_CD, PROD_NM, SPEC, MAKER_NM, TYPE_NM, SORT_ORD, TAX_GB, PACK_QTY,

@@ -199,6 +199,7 @@ public class UserServiceImpl implements UserService {
 	@Override public int carryForwardPayment(egovframework.sejong.user.model.PaymentDTO dto) throws Exception { guardSettleClosed("PAY", dto.getPayYm()); return mapper.carryForwardPayment(dto); }
 
 	@Override public java.util.List<egovframework.sejong.user.model.ProdDTO> selectProdList(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.selectProdList(dto); }
+	@Override public java.util.Map<String,Object> countProdCd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.countProdCd(dto); }
 	@Override public int insertProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.insertProd(dto); }
 	@Override public int updateProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.updateProd(dto); }
 	@Override public int deleteProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception { return mapper.deleteProd(dto); }

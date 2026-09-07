@@ -648,6 +648,16 @@ function prodSave(){
     inPrice:gnum('f_in'), salePrice:gnum('f_sale'), wholePrice:gnum('f_whole'),
     safeStock:gnum('f_safe'), saleBaseQty:gnum('f_base'),
     unitBarcode:gv('f_ubc')||null, boxBarcode:gv('f_bbc')||null };
+  /* 상품코드 중복 막기 (2026-09-07) — 같은 코드가 두 줄이 되면 재고가 갈린다(실측 15개 코드).
+     여기서 먼저 걸러 바로 알려 주고, 저장 직전 서버(prodInsert.do)에서 한 번 더 막는다. */
+  if(!seq){
+    var dupx = PROD.filter(function(o){ return String(o.prodCd||'').trim()===cd; });
+    if(dupx.length){
+      toast('⚠️ 이미 있는 상품코드입니다 : '+cd+' — 코드를 바꾸세요.');
+      var fc=document.getElementById('f_cd'); if(fc){ fc.focus(); if(fc.select) fc.select(); }
+      return;
+    }
+  }
   var url, okmsg;
   if(seq){ dto.prodSeq=Number(seq); url='/prod/prodUpdate.do'; okmsg='💾 수정 완료'; }
   else   { url='/prod/prodInsert.do'; okmsg='＋ 등록 완료'; }

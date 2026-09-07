@@ -2176,6 +2176,15 @@ public class UserController {
 		                                         HttpServletRequest request, HttpSession session) {
 			try {
 				if (dto.getProdCd()==null || dto.getProdCd().trim().isEmpty()) return ResponseEntity.status(400).body("코드 필요");
+				/* ★상품코드 중복 막기 (2026-09-07) — 같은 코드가 마스터에 두 줄이 되면 재고가 갈린다.
+				     실측 : 15개 코드가 두 줄(하나는 세 줄)이었고, 1000783958 은 한쪽에 입고·다른 쪽에 출고가
+				     붙어 재고가 −140 까지 갔다. 화면에서도 막지만 저장 직전에 여기서 한 번 더 본다
+				     (두 사람이 같은 코드를 동시에 넣는 경우는 화면 검사로 못 막는다). */
+				java.util.Map<String,Object> dup = svc.countProdCd(dto);
+				int alive = dup==null || dup.get("ALIVE")==null ? 0 : Integer.parseInt(String.valueOf(dup.get("ALIVE")));
+				int dead  = dup==null || dup.get("DELETED")==null ? 0 : Integer.parseInt(String.valueOf(dup.get("DELETED")));
+				if (alive > 0) return ResponseEntity.status(409).body("이미 있는 상품코드입니다 : " + dto.getProdCd().trim() + " — 그 상품을 고쳐 쓰세요.");
+				if (dead  > 0) return ResponseEntity.status(409).body("삭제된 상품코드입니다 : " + dto.getProdCd().trim() + " — [♻ 삭제 목록]에서 되살리세요.");
 				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
 				return ResponseEntity.ok(String.valueOf(svc.insertProd(dto)));
 			} catch (Exception e) { log.error(" prodInsert ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }

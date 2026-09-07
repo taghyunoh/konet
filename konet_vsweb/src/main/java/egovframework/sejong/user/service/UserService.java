@@ -103,6 +103,7 @@ public interface UserService {
 
 	// ===== 상품마스터 (TBL_PROD_MST) =====
 	java.util.List<egovframework.sejong.user.model.ProdDTO> selectProdList(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	java.util.Map<String,Object> countProdCd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;   // 상품코드 중복 확인(2026-09-07) — ALIVE/DELETED
 	int insertProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
 	int updateProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
 	int deleteProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
