@@ -73,6 +73,9 @@
   .pop td{ border:1px solid var(--bd); padding:6px 8px; text-align:center; }
   .pop td.l{ text-align:left; } .pop td.r{ text-align:right; }
   .pop tr.pick{ cursor:pointer; } .pop tr.pick:hover td{ background:#f3f8f6; }
+  .pop tr.sel td{ background:#eaf5f1; }
+  .pop td.ck, .pop th.ck{ padding:4px; }
+  .pop td.ck input, .pop th.ck input{ width:16px; height:16px; cursor:pointer; vertical-align:middle; }
   .pop .pf{ padding:10px 16px; border-top:1px solid var(--bd); text-align:right; }
 </style>
 </head>
@@ -137,10 +140,15 @@
   <div class="ph">거래처 선택 <input type="text" id="venQ" placeholder="거래처명·코드·사업자번호" oninput="venRender()"><button class="btn" onclick="venClose()">닫기</button></div>
   <div class="pb"><table><thead><tr><th style="width:90px">코드</th><th>거래처명</th><th style="width:110px">대표</th><th style="width:120px">전화</th><th style="width:130px">사업자번호</th></tr></thead><tbody id="venBody"></tbody></table></div>
 </div></div>
-<!-- 상품 선택 팝업 -->
+<!-- 상품 선택 팝업 — ☑ 로 여러 개를 한 번에 담는다(2026-09-07). 줄을 그냥 누르면 종전대로 한 개만 담고 닫힌다. -->
 <div class="pop" id="prodPop"><div class="box">
   <div class="ph">상품 선택 <input type="text" id="prodQ" placeholder="코드·상품명·규격" oninput="prodRender()"><button class="btn" onclick="prodClose()">닫기</button></div>
-  <div class="pb"><table><thead><tr><th style="width:100px">코드</th><th>상품명</th><th style="width:150px">규격</th><th style="width:56px">입수</th><th style="width:90px">매입단가</th><th style="width:60px">과세</th></tr></thead><tbody id="prodBody"></tbody></table></div>
+  <div class="pb"><table><thead><tr><th class="ck" style="width:38px"><input type="checkbox" id="prodAll" onclick="prodAllToggle(this.checked)" title="이 목록 전체 선택"></th><th style="width:100px">코드</th><th>상품명</th><th style="width:150px">규격</th><th style="width:56px">입수</th><th style="width:90px">매입단가</th><th style="width:60px">과세</th></tr></thead><tbody id="prodBody"></tbody></table></div>
+  <div class="pf" style="display:flex; align-items:center; gap:8px; text-align:left">
+    <span id="prodSelInfo" style="margin-right:auto; color:#6b7a89; font-size:12.5px">여러 개는 왼쪽 <b>☑</b> 로 고른 뒤 [담기] — 줄을 누르면 한 개만 담고 닫힙니다.</span>
+    <button class="btn" id="prodSelClr" onclick="prodSelClear()" disabled>선택 해제</button>
+    <button class="btn teal" id="prodSelAdd" onclick="prodAddSel()" disabled>선택한 0개 담기</button>
+  </div>
 </div></div>
 
 <!-- 매입전환 (2026-09-03) — 발주서를 그대로 매입전표로 넣는다. 매입일자 = 실제 들어온 날. 매입 등록과 같은 저장 경로(재고·단가이력 함께) -->
@@ -159,6 +167,7 @@
 var CTX='${pageContext.request.contextPath}';
 var KAKAO_KEY='${kakaoJsKey}', SHARE_BASE='${shareBase}';
 var _vendors=[], _prods=[], _rows=[], _cur=null, _list=[], _prodRow=-1;
+var _prodSel=[], _prodShown=[];   /* 상품팝업 ☑ 선택(_prods 첨자, 고른 차례) / 지금 목록에 보이는 첨자 */
 function esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function n(v){ var x=Number(String(v==null?'':v).replace(/,/g,'')); return isFinite(x)?x:0; }
 function fmt(v){ return Math.round(n(v)).toLocaleString(); }
@@ -214,16 +223,45 @@ function render(){
 function setv(i,k,v){ var o=_rows[i]; if(!o) return; o[k]=(k==='prodNm'||k==='spec'||k==='remark')?v:n(v); render(); }
 function delRow(i){ _rows.splice(i,1); render(); }
 function calcAll(){ var t={cnt:0,box:0,ea:0,qty:0,amt:0,dc:0,sup:0,vat:0,tot:0,svc:0}; _rows.forEach(function(o){ if(!o.prodCd) return; calcRow(o); t.cnt++; t.box+=n(o.boxQty); t.ea+=n(o.eaQty); t.qty+=o.qty; t.amt+=o.amt; t.dc+=n(o.dcAmt); t.sup+=o.supplyAmt; t.vat+=o.vatAmt; t.tot+=o.totAmt; t.svc+=n(o.serviceQty); }); return t; }
-function prodOpen(i){ _prodRow=i; document.getElementById('prodPop').classList.add('on'); document.getElementById('prodQ').value=''; prodRender(); setTimeout(function(){ document.getElementById('prodQ').focus(); },50); }
+function prodOpen(i){ _prodRow=i; _prodSel=[]; document.getElementById('prodPop').classList.add('on'); document.getElementById('prodQ').value=''; prodRender(); setTimeout(function(){ document.getElementById('prodQ').focus(); },50); }
 function prodClose(){ document.getElementById('prodPop').classList.remove('on'); }
-function prodRender(){ var q=(document.getElementById('prodQ').value||'').trim().toLowerCase(), h='', k=0;
-  for(var i=0;i<_prods.length && k<300;i++){ var p=_prods[i]; var hay=(p.prodCd+' '+(p.prodNm||'')+' '+(p.spec||'')).toLowerCase(); if(q && hay.indexOf(q)<0) continue; k++;
-    h+='<tr class="pick" onclick="prodPick('+i+')"><td>'+esc(p.prodCd)+'</td><td class="l">'+esc(p.prodNm)+'</td><td class="l">'+esc(p.spec)+'</td><td>'+fmtQ(p.packQty||1)+'</td><td class="r">'+fmt(p.inPrice)+'</td><td>'+esc(p.taxGb)+'</td></tr>'; }
-  document.getElementById('prodBody').innerHTML=h||'<tr><td colspan="6" class="empty">상품이 없습니다.</td></tr>'; }
+function prodRender(){ var q=(document.getElementById('prodQ').value||'').trim().toLowerCase(), h='', k=0; _prodShown=[];
+  for(var i=0;i<_prods.length && k<300;i++){ var p=_prods[i]; var hay=(p.prodCd+' '+(p.prodNm||'')+' '+(p.spec||'')).toLowerCase(); if(q && hay.indexOf(q)<0) continue; k++; _prodShown.push(i);
+    var on=_prodSel.indexOf(i)>=0;
+    h+='<tr class="pick'+(on?' sel':'')+'" onclick="prodPick('+i+')">'
+      +'<td class="ck" onclick="event.stopPropagation()"><input type="checkbox"'+(on?' checked':'')+' onclick="prodToggle('+i+',event)"></td>'
+      +'<td>'+esc(p.prodCd)+'</td><td class="l">'+esc(p.prodNm)+'</td><td class="l">'+esc(p.spec)+'</td><td>'+fmtQ(p.packQty||1)+'</td><td class="r">'+fmt(p.inPrice)+'</td><td>'+esc(p.taxGb)+'</td></tr>'; }
+  document.getElementById('prodBody').innerHTML=h||'<tr><td colspan="7" class="empty">상품이 없습니다.</td></tr>';
+  prodSelUpd(); }
+/* ☑ 여러 개 담기 — _prodSel 은 <고른 차례>대로 담는다(그 순서로 줄이 생긴다). 검색어를 바꿔도 선택은 남는다. */
+function prodToggle(pi, ev){ if(ev&&ev.stopPropagation) ev.stopPropagation();
+  var k=_prodSel.indexOf(pi); if(k<0) _prodSel.push(pi); else _prodSel.splice(k,1);
+  var tr=ev&&ev.target?ev.target.parentNode.parentNode:null; if(tr&&tr.classList) tr.classList[k<0?'add':'remove']('sel');
+  prodSelUpd(); }
+function prodAllToggle(on){ _prodShown.forEach(function(i){ var k=_prodSel.indexOf(i); if(on&&k<0) _prodSel.push(i); else if(!on&&k>=0) _prodSel.splice(k,1); }); prodRender(); }
+function prodSelClear(){ _prodSel=[]; prodRender(); }
+function prodSelUpd(){ var c=_prodSel.length;
+  var b=document.getElementById('prodSelAdd'); if(b){ b.textContent='선택한 '+c+'개 담기'; b.disabled=!c; }
+  var x=document.getElementById('prodSelClr'); if(x) x.disabled=!c;
+  var a=document.getElementById('prodAll'); if(a) a.checked=!!(_prodShown.length && _prodShown.every(function(i){ return _prodSel.indexOf(i)>=0; }));
+  var s=document.getElementById('prodSelInfo');
+  if(s) s.innerHTML = c ? ('<b style="color:#137a6c">'+c+'개</b> 선택 — [담기]를 누르면 줄이 '+c+'개 생깁니다.')
+                       : '여러 개는 왼쪽 <b>☑</b> 로 고른 뒤 [담기] — 줄을 누르면 한 개만 담고 닫힙니다.'; }
+function prodFill(o,p){ o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=p.prodNm||''; o.spec=p.spec||''; o.packQty=n(p.packQty)||1; o.unitPrice=n(p.inPrice); o.taxGb=p.taxGb||''; if(!n(o.boxQty)&&!n(o.eaQty)) o.boxQty=1; }
+function prodFocusRow(i){ var tr=document.getElementById('gbody').rows[i]; if(tr){ var inp=tr.querySelectorAll('input')[3]; if(inp){ inp.focus(); inp.select(); } } }
 function prodPick(pi){ var p=_prods[pi], o=_rows[_prodRow]; if(!p||!o) return;
-  o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=p.prodNm||''; o.spec=p.spec||''; o.packQty=n(p.packQty)||1; o.unitPrice=n(p.inPrice); o.taxGb=p.taxGb||''; if(!n(o.boxQty)&&!n(o.eaQty)) o.boxQty=1;
-  prodClose(); render();
-  var tr=document.getElementById('gbody').rows[_prodRow]; if(tr){ var inp=tr.querySelectorAll('input')[3]; if(inp){ inp.focus(); inp.select(); } } }
+  prodFill(o,p);
+  prodClose(); render(); prodFocusRow(_prodRow); }
+/* 고른 것 중 첫 줄은 팝업을 연 그 줄에 넣고, 나머지는 바로 밑에 줄을 만들어 이어 넣는다. */
+function prodAddSel(){
+  if(!_prodSel.length) return;
+  var base=_prodRow; if(!_rows[base]){ ensureTail(); base=_rows.length-1; }
+  var at=base, cnt=0;
+  _prodSel.forEach(function(pi){ var p=_prods[pi]; if(!p) return;
+    var o; if(!cnt){ o=_rows[base]; } else { o=emptyRow(); _rows.splice(++at,0,o); }
+    prodFill(o,p); cnt++; });
+  _prodSel=[]; prodClose(); render(); prodFocusRow(base);
+  if(window._toast) _toast(cnt+'개 상품을 담았습니다. 수량을 입력하세요.','ok'); }
 
 /* ── 머리 ── */
 function poNew(){ _cur=null; _rows=[]; document.getElementById('poDt').value=today(); venPick('',''); document.getElementById('remark').value=''; document.getElementById('poNo').value=''; poDtChanged(); render(); setButtons(); document.getElementById('stat').textContent='새 발주서'; }
