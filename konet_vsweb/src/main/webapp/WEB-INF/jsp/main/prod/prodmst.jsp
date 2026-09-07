@@ -215,6 +215,7 @@
     <input type="text" class="search" id="q" placeholder="코드·상품명·규격·제조사·유형 검색" oninput="prodFilter()">
     <button class="btn" onclick="prodLoad()">↻ 새로고침</button>
     <button class="btn btn-teal" onclick="prodOpen()">＋ 상품 추가</button>
+    <button class="btn btn-teal" onclick="prodCopySel()" title="목록에서 고른 상품의 값을 그대로 담아 새 코드로 등록합니다 — 규격·색만 다른 상품을 만들 때. 원본은 그대로 있습니다.">⧉ 복사등록</button>
     <button class="btn" onclick="prodExcel()">📥 엑셀 출력</button>
     <span class="cnt" id="cnt">0건</span>
   </div>
@@ -259,6 +260,7 @@
       <div class="fld"><label>박스바코드</label><input id="f_bbc"></div>
     </div>
     <div class="mf">
+      <button class="btn" id="btnCopy" style="display:none" onclick="prodCopyCur()" title="이 상품의 값을 그대로 담아 새 코드로 등록합니다 — 규격·색만 다른 상품을 만들 때. 원본은 그대로 있습니다.">⧉ 복사등록</button>
       <button class="btn" onclick="prodClose()">취소</button>
       <button class="btn btn-teal" onclick="prodSave()">💾 저장</button>
     </div>
@@ -590,12 +592,16 @@ function prodUseNext(){
   el.value=_nextCd; el.focus();
 }
 
-function prodOpen(seq){
+/* seq = 고칠 상품(없으면 추가) · copy = **복사등록**(사용자 2026-09-07)
+     — 고른 상품의 값을 그대로 담되 새 코드로 저장한다(f_seq 를 비우므로 저장은 등록). 원본은 그대로 둔다.
+       이력(매입가·판매가)과 재고는 따라오지 않는다 — 새 상품이라 처음부터 쌓인다. */
+function prodOpen(seq, copy){
   var o = seq!=null ? _byseq[seq] : null;
-  document.getElementById('ovTit').textContent = o ? '상품 수정' : '상품 추가';
-  document.getElementById('f_seq').value = o ? o.prodSeq : '';
-  document.getElementById('f_cd').value = o ? (o.prodCd||'') : '';
-  document.getElementById('f_cd').readOnly = !!o;   // 수정 시 코드는 잠금(원하면 해제 가능)
+  var isNew = (!o || !!copy);
+  document.getElementById('ovTit').textContent = o ? (copy ? ('상품 복사등록 — 원본 '+(o.prodCd||'')) : '상품 수정') : '상품 추가';
+  document.getElementById('f_seq').value = (o&&!copy) ? o.prodSeq : '';
+  document.getElementById('f_cd').value = (o&&!copy) ? (o.prodCd||'') : '';
+  document.getElementById('f_cd').readOnly = (!!o&&!copy);   // 수정 시 코드는 잠금(원하면 해제 가능)
   document.getElementById('f_nm').value = o ? (o.prodNm||'') : '';
   document.getElementById('f_spec').value = o ? (o.spec||'') : '';
   document.getElementById('f_maker').value = o ? (o.makerNm||'') : '';
@@ -610,13 +616,26 @@ function prodOpen(seq){
   document.getElementById('f_base').value = o ? (o.saleBaseQty!=null?o.saleBaseQty:0) : 0;
   document.getElementById('f_ubc').value = o ? (o.unitBarcode||'') : '';
   document.getElementById('f_bbc').value = o ? (o.boxBarcode||'') : '';
-  prodLastCdShow(!o);        // 추가일 때만 「최근 등록 코드·상품명」 줄을 낸다 (수정은 코드가 잠겨 있어 쓸모없다)
+  prodLastCdShow(isNew);     // 추가·복사등록일 때만 「최근 등록 코드·상품명」 줄을 낸다 (수정은 코드가 잠겨 있어 쓸모없다)
   // 추가는 9번대 새 코드를 미리 넣고 골라 둔다 — 그대로 쓰거나 그냥 쳐서 바꾸면 된다
-  if(!o && _nextCd){
+  if(isNew && _nextCd){
     var fc=document.getElementById('f_cd'); fc.value=_nextCd;
     setTimeout(function(){ fc.focus(); fc.select(); }, 0);
   }
+  /* [⧉ 복사등록] 단추는 **수정 창에서만** 보인다 — 보고 있는 상품을 그대로 복사할 때 쓴다 */
+  var cb=document.getElementById('btnCopy'); if(cb) cb.style.display=(o&&!copy)?'':'none';
   document.getElementById('ov').classList.add('on');
+}
+/* 지금 열어 둔 상품을 복사해 새 상품으로 (사용자 2026-09-07) */
+function prodCopyCur(){
+  var s=document.getElementById('f_seq').value;
+  if(!s){ toast('⚠️ 복사할 상품을 먼저 여세요.'); return; }
+  prodOpen(s, true);
+}
+/* 목록에서 고른 상품을 복사 — 위 [⧉ 복사등록] 단추. 고른 상품은 아래 이력/재고가 보고 있는 그것(HVP). */
+function prodCopySel(){
+  if(!HVP){ toast('⚠️ 복사할 상품을 목록에서 먼저 고르세요.'); return; }
+  prodOpen(HVP.prodSeq, true);
 }
 function prodClose(){ document.getElementById('ov').classList.remove('on'); }
 

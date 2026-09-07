@@ -186,15 +186,17 @@ function post(url, body){
 }
 function swErr(msg){ if(window._alertBox) return _alertBox(msg,{icon:'❌',okColor:'red'}); alert(msg); }
 
+/* 진입 기본 조회일 — 시작·종료 모두 **내일(현재일+1)**. 다른 납기 화면 셋과 같게 맞춘다(사용자 2026-09-07).
+   지난 자료는 [최근 N일] 단추나 날짜칸으로 넓혀서 본다. */
 (function init(){
-  document.getElementById('shFrom').value = shift(-30);
-  document.getElementById('shTo').value = today();
+  document.getElementById('shFrom').value = shift(1);
+  document.getElementById('shTo').value = shift(1);
   shLoad();
 })();
 
 function shQuick(days){
   document.getElementById('shFrom').value = days ? shift(-days) : '';
-  document.getElementById('shTo').value   = days ? today() : '';
+  document.getElementById('shTo').value   = days ? shift(1) : '';
   shLoad();
 }
 

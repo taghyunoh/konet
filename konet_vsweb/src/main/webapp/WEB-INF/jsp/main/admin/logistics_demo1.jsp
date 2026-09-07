@@ -852,6 +852,9 @@
 
   function d2Pad(n){ return (n<10?'0':'')+n; }
   var D2_TODAY=(function(){ var d=new Date(); return d.getFullYear()+'-'+d2Pad(d.getMonth()+1)+'-'+d2Pad(d.getDate()); })();
+  /* 진입 기본 조회일 — 내일(현재일+1). 납기 화면은 다음 날 나갈 것을 미리 보는 곳이다(사용자 2026-09-07).
+     ★D2_TODAY 는 그대로 둔다 — 날짜가 빈 자료의 대체값(r.date||D2_TODAY)과 [당일] 단추가 쓴다. */
+  var D2_TOMORROW=(function(){ var d=new Date(); d.setDate(d.getDate()+1); return d.getFullYear()+'-'+d2Pad(d.getMonth()+1)+'-'+d2Pad(d.getDate()); })();
   /* ── 현재고 (2026-08-07 요청) ─────────────────────────────
        근거를 재고현황(②번째 화면)과 <같은 것>으로 둔다 — 같은 서버 조회를 그대로 부른다.
        여기서 따로 계산하면 두 화면이 어긋나고, 어느 쪽이 맞는지 아무도 모르게 된다.
@@ -3504,10 +3507,11 @@
     });
   })();
 
-  // 초기(로그인/진입): 항상 당일로 시작 — 이전 날짜 기억 안 함. (두 대시보드 동시 사용 중엔 storage 이벤트로 실시간 동기화)
+  // 초기(로그인/진입): 항상 **내일(현재일+1)** 로 시작 — 납기는 다음 날 나갈 것을 보는 화면이다(사용자 2026-09-07).
+  //   이전 날짜는 기억하지 않는다. [당일] 단추는 그대로 오늘이다. (두 대시보드 동시 사용 중엔 storage 이벤트로 실시간 동기화)
   (function(){
-    document.getElementById('d2DateFrom').value=D2_TODAY;
-    document.getElementById('d2DateTo').value=D2_TODAY;
+    document.getElementById('d2DateFrom').value=D2_TOMORROW;
+    document.getElementById('d2DateTo').value=D2_TOMORROW;
     d2Load();
   })();
 </script>

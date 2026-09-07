@@ -370,6 +370,7 @@
       <option value="N">중지 안 된 것만</option>
     </select>
     <button class="btn btn-teal" style="margin-left:auto" onclick="pcOpen()">＋ 상품코드 추가</button>
+    <button class="btn btn-teal" onclick="pcCopySel()" title="고른 상품의 값을 그대로 담아 새 코드로 등록합니다 — 규격·색만 다른 상품을 만들 때. 원본은 그대로 있습니다.">⧉ 복사등록</button>
     <button class="btn" onclick="pcEditSel()">✎ 수정</button>
     <button class="btn btn-danger" onclick="pcDelSel()">🗑 삭제</button>
     <%-- ★거래중지 (2026-08-17) — 거래가 붙어 **지울 수 없는** 잘못된 코드를 「앞으로 안 쓰는 코드」로.
@@ -751,6 +752,8 @@ function pcStopBtnSync(){
   }
 }
 function pcEditSel(){ if(_sel==null){ toast('수정할 행을 먼저 선택하세요.','warn'); return; } pcOpen(_sel); }
+/* 복사등록 (사용자 2026-09-07) — 고른 상품의 값을 담은 채 새 코드로 등록 창을 연다. 원본은 건드리지 않는다. */
+function pcCopySel(){ if(_sel==null){ toast('복사할 행을 먼저 선택하세요.','warn'); return; } pcOpen(_sel, true); }
 function pcDelSel(){ if(_sel==null){ toast('삭제할 행을 먼저 선택하세요.','warn'); return; } pcDel(_sel); }
 /* 하단 줄 = [보고 있는 범위 · 전체 건수] + [페이지 버튼] + [펼치기/접기] (2026-08-01 요청)
    펼치기 = 조회된 전 건을 한 화면에 붙여 스크롤로 훑는다(Ctrl+F 검색·전체 복사에도 쓴다). */
@@ -873,12 +876,17 @@ function pcUseNext(){
   el.value=_nextCd; el.focus();
 }
 
-function pcOpen(seq){
+/* seq = 고칠 상품(없으면 추가) · copy = **복사등록**(사용자 2026-09-07)
+     — 고른 상품의 값을 그대로 담되 **새 상품으로 저장**한다. 비슷한 상품(규격·색만 다른 것)을
+       매번 처음부터 치지 않게. 코드는 9번대 새 코드가 들어가고 고칠 수 있다(f_seq 를 비워 두므로 저장은 등록).
+     ★재고 칸은 안 띄운다(새 상품이라 현재고가 없다) · 유사 이름 확인은 다시 돈다(같은 이름으로 또 만들 수 있으므로). */
+function pcOpen(seq, copy){
   var o=(seq!=null)?_byseq[seq]:null;
-  _pcSimLast = o ? String(o.prodNm||'') : '';   // ★새로 열면 유사 확인을 다시 한다(수정은 원래 이름은 넘긴다)
-  document.getElementById('ovTit').textContent=o?('상품코드 수정 — '+o.prodCd):'상품코드 추가';
-  _set('f_seq', o?o.prodSeq:'');
-  _set('f_cd', o?o.prodCd:''); document.getElementById('f_cd').readOnly=!!o;   // 수정 시 코드는 잠금
+  var isNew=(!o || !!copy);                     // 복사등록도 '새로 만드는 것'
+  _pcSimLast = (o && !copy) ? String(o.prodNm||'') : '';   // ★새로 열면 유사 확인을 다시 한다(수정은 원래 이름은 넘긴다)
+  document.getElementById('ovTit').textContent = o ? (copy ? ('상품코드 복사등록 — 원본 '+o.prodCd) : ('상품코드 수정 — '+o.prodCd)) : '상품코드 추가';
+  _set('f_seq', (o&&!copy)?o.prodSeq:'');
+  _set('f_cd', (o&&!copy)?o.prodCd:''); document.getElementById('f_cd').readOnly=(!!o&&!copy);   // 수정 시 코드는 잠금
   _set('f_nm', o?o.prodNm:''); _set('f_spec', o?o.spec:'');
   _set('f_maker', o?o.makerNm:''); _set('f_type', o?o.typeNm:'');
   _set('f_tax', o?(o.taxGb||'과세'):'과세');
@@ -898,16 +906,16 @@ function pcOpen(seq){
   pcVenFill();                                         // 거래처 목록 = 아래 패널과 같은 자료(VEN)
   _set('f_ven', o?(o.vendorCd||''):'');
   _set('f_venQ', o&&o.vendorCd ? ((mcVenNm(o.vendorCd)||o.vendorNm||'')+' ['+o.vendorCd+']') : '');
-  pcLastCdShow(!o);                   // 추가일 때만 「최근 등록 코드·상품명」 줄을 낸다 (수정은 코드가 잠겨 있어 쓸모없다)
-  pcStkOpen(o);                       // 재고수량 칸 — 수정이면 이 상품의 현재고를 읽어 채운다(추가면 숨김)
+  pcLastCdShow(isNew);                // 추가·복사등록일 때만 「최근 등록 코드·상품명」 줄을 낸다 (수정은 코드가 잠겨 있어 쓸모없다)
+  pcStkOpen(copy?null:o);             // 재고수량 칸 — 수정이면 이 상품의 현재고를 읽어 채운다(추가·복사등록이면 숨김)
   // 추가는 9번대 새 코드를 미리 넣어 둔다 — 아래에서 코드 칸을 select 하므로 그냥 쳐서 바꿀 수 있다
-  if(!o && _nextCd) _set('f_cd', _nextCd);
+  if(isNew && _nextCd) _set('f_cd', _nextCd);
   document.getElementById('ov').classList.add('on');
   pcAcClose();                        // 이전에 열려 있던 규격·제조사 후보창은 닫고 시작한다
   // 창을 열면 곧바로 칠 수 있게(2026-08-04) — 추가는 상품코드에 포커스.
   // ★수정 창은 아무것도 선택하지 않는다 (2026-08-20 요청 「기본선택이 상품명인데 선택없게」) —
   //   상품명이 통째로 선택된 채 열려 키를 잘못 누르면 이름이 날아갔다.
-  if(!o){
+  if(isNew){
     var first=document.getElementById('f_cd');
     setTimeout(function(){ if(first){ first.focus(); if(first.select) first.select(); } }, 0);
   }

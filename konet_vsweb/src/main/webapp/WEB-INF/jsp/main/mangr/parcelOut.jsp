@@ -149,9 +149,12 @@ function esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'
 function n(v){ var x=Number((''+(v==null?'':v)).replace(/,/g,'')); return isFinite(x)?x:0; }
 function fmtDt(s){ s=''+(s==null?'':s); return s.length===8 ? s.slice(4,6)+'-'+s.slice(6,8) : s; }
 function today(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+/* 진입 기본 조회일 — 내일(현재일+1). 택배도 납기 기준이라 다음 날 나갈 것을 본다(사용자 2026-09-07) */
+function shift(days){ var d=new Date(); d.setDate(d.getDate()+days);
+  return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
 
-document.getElementById('outFr').value = today();
-document.getElementById('outTo').value = today();
+document.getElementById('outFr').value = shift(1);
+document.getElementById('outTo').value = shift(1);
 /* 시작이 종료보다 뒤면 자동으로 맞춘다 — 거꾸로 넣어 0건 나오는 일을 막는다 */
 function poDtSync(which){
   var fr=document.getElementById('outFr'), to=document.getElementById('outTo');
