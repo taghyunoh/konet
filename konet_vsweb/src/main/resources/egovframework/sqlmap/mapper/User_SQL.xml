@@ -86,6 +86,11 @@
 	         CM.USE_YN         AS useYn,
 	         CM.COMMST_YN      AS commstYn,
 	         CM.STHPNM         AS sthpnm,
+	         /* 거래명세표·발주서 <공급자> 칸 (2026-09-09) — DDL: sql/comp_mst_bizinfo_alter.sql */
+	         CM.BIZ_COND       AS bizCond,
+	         CM.BIZ_ITEM       AS bizItem,
+	         CM.BANK_ACCT      AS bankAcct,
+	         CM.STMT_NOTICE    AS stmtNotice,
 	         CM.ACTION_YN      AS actionYn,
 	         CM.REG_DTTM       AS regDttm,
 	         CM.UPD_DTTM       AS updDttm,
@@ -114,6 +119,7 @@
 	      COMP_CD, JOB_SEQ, COMP_NM, COMP_ADDR, COMP_EXTRADR, COMP_CEO, BUSI_NUM, INACCD,
 	      ZIP_CD, COMP_TEL, COMP_FAX, START_DT, END_DT, JOIN_DT, ACCEPT_DT, CLOSE_DT,
 	      USE_YN, ACTION_YN, STHPNM, COMMST_YN,
+	      BIZ_COND, BIZ_ITEM, BANK_ACCT, STMT_NOTICE,
 	      REG_DTTM, REG_USER, REG_IP, UPD_DTTM, UPD_USER, UPD_IP
 	  ) VALUES (
 	      #{compCd},
@@ -121,9 +127,31 @@
 	      #{compNm}, #{compAddr}, #{compExtradr}, #{compCeo}, #{busiNum}, #{inaccd},
 	      #{zipCd}, #{compTel}, #{compFax}, #{startDt}, #{endDt}, #{joinDt}, #{acceptDt}, #{closeDt},
 	      #{useYn}, 'Y', #{sthpnm}, #{commstYn},
+	      /* ★업태·종목·계좌 (2026-09-09) — 수정은 <옛 행 N + 새 행 INSERT> 라 여기 빠지면
+	         회사를 한 번 고칠 때마다 거래명세표의 종목·계좌가 사라진다.
+	         화면이 안 보낸 경우(구버전 호출)에는 직전 활성행 값을 그대로 물려받는다. */
+	      ISNULL(#{bizCond,jdbcType=NVARCHAR},  (SELECT TOP 1 B.BIZ_COND  FROM TBL_COMP_MST B WHERE B.COMP_CD = #{compCd} ORDER BY B.JOB_SEQ DESC)),
+	      ISNULL(#{bizItem,jdbcType=NVARCHAR},  (SELECT TOP 1 B.BIZ_ITEM  FROM TBL_COMP_MST B WHERE B.COMP_CD = #{compCd} ORDER BY B.JOB_SEQ DESC)),
+	      ISNULL(#{bankAcct,jdbcType=NVARCHAR}, (SELECT TOP 1 B.BANK_ACCT FROM TBL_COMP_MST B WHERE B.COMP_CD = #{compCd} ORDER BY B.JOB_SEQ DESC)),
+	      ISNULL(#{stmtNotice,jdbcType=NVARCHAR},(SELECT TOP 1 B.STMT_NOTICE FROM TBL_COMP_MST B WHERE B.COMP_CD = #{compCd} ORDER BY B.JOB_SEQ DESC)),
 	      GETDATE(), #{regUser}, #{regIp}, GETDATE(), #{updUser}, #{updIp}
 	  )
 	]]></insert>
+
+	<!-- 거래명세표 <공급자(우리 회사)> 칸 세 개만 고친다 (2026-09-09)
+	     · 판매등록 ▸ [🖨 거래명세표] ▸ 공급자 칸의 [💾 회사 정보로 저장] 이 부른다.
+	     · ★이력을 만들지 않고 <활성행을 그 자리에서> 고친다 — 인쇄 양식 칸이라 회사 계약·사용여부처럼
+	       언제 무엇이 바뀌었는지 남길 거리가 아니고, 이력을 쌓으면 JOB_SEQ 가 인쇄 설정 손볼 때마다 늘어난다.
+	     · 회사코드는 화면이 아니라 <세션>에서 온다(컨트롤러) — 남의 회사를 고칠 길이 없다. -->
+	<update id="updateCompBizInfo" parameterType="CompMdDTO"><![CDATA[
+	  UPDATE TBL_COMP_MST
+	     SET BIZ_COND    = #{bizCond,jdbcType=NVARCHAR},
+	         BIZ_ITEM    = #{bizItem,jdbcType=NVARCHAR},
+	         BANK_ACCT   = #{bankAcct,jdbcType=NVARCHAR},
+	         STMT_NOTICE = #{stmtNotice,jdbcType=NVARCHAR},
+	         UPD_DTTM  = GETDATE(), UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE COMP_CD = #{compCd} AND ACTION_YN = 'Y'
+	]]></update>
 
 	<!-- 회사 이력처리(수정/삭제 공용) -->
 	<update id="updateCompCdMst" parameterType="CompMdDTO"><![CDATA[
@@ -875,6 +903,17 @@
 	         DC_CD = #{dcCd,jdbcType=VARCHAR}, SORT_ORD = #{sortOrd,jdbcType=INTEGER}, REMARK = #{remark,jdbcType=VARCHAR},
 	         UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
+	<!-- 거래처 이메일만 저장 (2026-09-09) — 거래명세서 [이메일발송] 창의 「저장」 체크가 부른다.
+	     ★EMAIL 한 칸만 고친다 — 발송 창에서 거래처 마스터를 통째로 덮어쓰면 다른 칸이 빈 값으로 날아간다.
+	     ★주소를 여럿 담을 수 있다(세미콜론으로 이어 붙임) — 발송 창 드롭다운이 그것을 갈라 보여 준다. -->
+	<update id="updateVendorEmail" parameterType="egovframework.sejong.user.model.VendorDTO"><![CDATA[
+	  UPDATE TBL_VENDOR_MST
+	     SET EMAIL = #{email,jdbcType=VARCHAR},
+	         UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE VENDOR_CD = #{vendorCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
@@ -3807,10 +3846,18 @@
 	         m.SUPPLY_AMT AS supplyAmt, m.VAT_AMT AS vatAmt, m.TOT_AMT AS totAmt,
 	         m.DC_AMT AS dcAmt, m.PAY_GB AS payGb, m.PAY_AMT AS payAmt, m.TAX_GB AS taxGb, m.REMARK AS remark,
 	         m.REG_DTTM AS regDttm, m.REG_USER AS regUser,
+	         /* 거래명세서 공유(2026-09-09) — DDL: sql/sales_trx_share_alter.sql */
+	         m.SHARE_TOKEN AS shareToken, ISNULL(m.SHARE_CNT,0) AS shareCnt, m.LAST_SHARE_DTTM AS lastShareDttm,
 	         (SELECT COUNT(*) FROM TBL_SALES_TRX_DTL d WHERE d.SALE_SEQ = m.SALE_SEQ AND d.ACTION_YN='Y' AND d.COMP_CD = m.COMP_CD) AS prodCnt
 	    FROM TBL_SALES_TRX_MST m
 	   WHERE m.ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     /* ★전표 하나만 집는 두 길 (2026-09-09 신설) —
+	          saleSeq    : 목록에서 고른 전표(종전에는 목록을 다 읽어 자바에서 골랐다)
+	          shareToken : 공개 링크 /pub/stmt.do?t=토큰 — **로그인이 없어 compCd 가 빈 값**이라
+	                       위 fail-open 을 타고 토큰만으로 찾는다. 토큰은 전 회사를 통틀어 유일하다(UX_SALES_TRX_SHARE). */
+	     AND ( #{saleSeq,jdbcType=BIGINT} IS NULL OR m.SALE_SEQ = #{saleSeq,jdbcType=BIGINT} )
+	     AND ( ISNULL(#{shareToken,jdbcType=VARCHAR},'') = '' OR m.SHARE_TOKEN = #{shareToken,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = '' OR m.SALE_DT >= REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') )
 	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'')   = '' OR m.SALE_DT <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
 	     AND ( ISNULL(#{custCd,jdbcType=VARCHAR},'') = '' OR m.CUST_CD = #{custCd,jdbcType=VARCHAR} )
@@ -3832,6 +3879,20 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY d.ROW_NO
 	]]></select>
+
+	<!-- 거래명세서 공유 (2026-09-09) — 카톡·이메일로 보낼 <공개 주소>의 토큰을 발급하고 보낸 횟수를 센다.
+	     ★토큰은 `ISNULL` 이라 **한 번 발급되면 바뀌지 않는다** — 이미 보낸 링크가 살아 있어야 하기 때문.
+	       (다시 보내도 같은 주소다. 링크를 죽이려면 SHARE_TOKEN 을 NULL 로 지운다.)
+	     ★발급은 <처음 보낼 때>다. 저장할 때가 아니라서 예전에 쌓인 전표도 그대로 보낼 수 있다. -->
+	<update id="updateSalesTrxShare" parameterType="egovframework.sejong.user.model.SalesTrxDTO"><![CDATA[
+	  UPDATE TBL_SALES_TRX_MST
+	     SET SHARE_TOKEN     = ISNULL(SHARE_TOKEN, #{shareToken,jdbcType=VARCHAR}),
+	         SHARE_CNT       = ISNULL(SHARE_CNT,0) + 1,
+	         LAST_SHARE_DTTM = CONVERT(NVARCHAR(19), GETDATE(), 120),
+	         UPD_DTTM = GETDATE(), UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE SALE_SEQ = #{saleSeq} AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
 
 	<select id="selectSalesTrxNextNo" parameterType="egovframework.sejong.user.model.SalesTrxDTO" resultType="string"><![CDATA[
 	  SELECT RIGHT('000' + CAST(ISNULL(MAX(CAST(SALE_NO AS INT)),0) + 1 AS VARCHAR(4)), 4)
@@ -5277,7 +5338,9 @@
 	<select id="selectCompInfo" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
 	  /* 발주서 인쇄의 공급받는자(우리 회사) 칸 */
 	  SELECT TOP 1 CM.COMP_CD AS compCd, RTRIM(CM.COMP_NM) AS compNm, CM.COMP_CEO AS compCeo, CM.BUSI_NUM AS busiNum,
-	         RTRIM(ISNULL(CM.COMP_ADDR,'') + ' ' + ISNULL(CM.COMP_EXTRADR,'')) AS compAddr, CM.COMP_TEL AS compTel, CM.COMP_FAX AS compFax
+	         RTRIM(ISNULL(CM.COMP_ADDR,'') + ' ' + ISNULL(CM.COMP_EXTRADR,'')) AS compAddr, CM.COMP_TEL AS compTel, CM.COMP_FAX AS compFax,
+	         /* 업태·종목·계좌 (2026-09-09) — 거래명세표가 쓰는 칸. 발주서 인쇄도 필요해지면 여기서 바로 쓴다 */
+	         CM.BIZ_COND AS bizCond, CM.BIZ_ITEM AS bizItem, CM.BANK_ACCT AS bankAcct, CM.STMT_NOTICE AS stmtNotice
 	    FROM TBL_COMP_MST CM
 	   WHERE CM.COMP_CD = #{compCd,jdbcType=VARCHAR} AND CM.ACTION_YN = 'Y'
 	   ORDER BY CM.JOB_SEQ DESC

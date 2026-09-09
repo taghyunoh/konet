@@ -21,6 +21,8 @@ public interface UserMapper {
 	String CompCdMstDupChk(CompMdDTO dto) throws Exception;
 	int insertCompCdMst(CompMdDTO dto) throws Exception;
 	int updateCompCdMst(CompMdDTO dto) throws Exception;
+	/** 거래명세표 <공급자> 칸(업태·종목·계좌)만 고친다 — 이력 안 만든다 (2026-09-09) */
+	int updateCompBizInfo(CompMdDTO dto) throws Exception;
 
 	List<CompConDTO> selectCompContList(CompConDTO dto) throws Exception;
 	List<CompConDTO> getCompContList(CompConDTO dto) throws Exception;
@@ -68,6 +70,8 @@ public interface UserMapper {
 	int vendorDupChk(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
 	int insertVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
 	int updateVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	/** 거래처 이메일만 저장 — 거래명세서 [이메일발송] 창의 「저장」 (2026-09-09) */
+	int updateVendorEmail(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
 	int deleteVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;   // 소프트 삭제(ACTION_YN='N')
 	int mergeVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;    // 거래처리스트.xls 재업로드 upsert
 
@@ -296,6 +300,8 @@ public interface UserMapper {
 	int deleteSalesTrxDtlAll(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
 	int insertSalesTrxDtl(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;
 	int deleteSalesTrxLedger(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	/** 거래명세서 공유 — 공개 주소 토큰 발급(처음 한 번) + 보낸 횟수 (2026-09-09) */
+	int updateSalesTrxShare(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
 	Double selectCustLastPrice(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.SalesTrxDtlDTO> selectSalesPriceHist(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;
 	/** 매출내역 화면에 얹을 판매전표 명세 — 정산서 행과 같은 모양으로 돌아온다 */

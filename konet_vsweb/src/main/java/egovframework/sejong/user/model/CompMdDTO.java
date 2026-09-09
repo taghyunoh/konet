@@ -28,6 +28,13 @@ public class CompMdDTO {
 	private String actionYn;
 	private String sthpnm;
 	private String commstYn;   // 관리자여부 (구 WINNER_YN)
+	/* 거래명세표·발주서의 <공급자(우리 회사)> 칸 — 2026-09-09 신설. DDL: sql/comp_mst_bizinfo_alter.sql
+	   ★회사 수정은 '옛 행 ACTION_YN=N + 새 행 INSERT' 라 insertCompCdMst 에도 반드시 함께 들어가야 한다
+	     (빠지면 회사를 한 번 수정할 때마다 이 세 칸이 사라진다). */
+	private String bizCond;    // 업태
+	private String bizItem;    // 종목
+	private String bankAcct;   // 계좌 (은행 + 예금주 + 계좌번호 한 줄)
+	private String stmtNotice; // 거래명세서 맨 아래 공지사항 (2026-09-09 — 종전에는 브라우저에만 남았다)
 	private String regDttm;
 	private String regUser;
 	private String regIp;
@@ -80,6 +87,14 @@ public class CompMdDTO {
 	public void setSthpnm(String sthpnm) { this.sthpnm = sthpnm; }
 	public String getCommstYn() { return commstYn; }
 	public void setCommstYn(String commstYn) { this.commstYn = commstYn; }
+	public String getBizCond() { return bizCond; }
+	public void setBizCond(String bizCond) { this.bizCond = bizCond; }
+	public String getBizItem() { return bizItem; }
+	public void setBizItem(String bizItem) { this.bizItem = bizItem; }
+	public String getBankAcct() { return bankAcct; }
+	public void setBankAcct(String bankAcct) { this.bankAcct = bankAcct; }
+	public String getStmtNotice() { return stmtNotice; }
+	public void setStmtNotice(String stmtNotice) { this.stmtNotice = stmtNotice; }
 	public String getRegDttm() { return regDttm; }
 	public void setRegDttm(String regDttm) { this.regDttm = regDttm; }
 	public String getRegUser() { return regUser; }

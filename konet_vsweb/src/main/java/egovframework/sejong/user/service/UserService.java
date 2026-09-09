@@ -16,6 +16,8 @@ public interface UserService {
 	String CompCdMstDupChk(CompMdDTO dto) throws Exception;
 	int insertCompCdMst(CompMdDTO dto) throws Exception;
 	int updateCompCdMst(CompMdDTO dto) throws Exception;
+	/** 거래명세표 <공급자> 칸(업태·종목·계좌)만 고친다 — 이력 안 만든다 (2026-09-09) */
+	int updateCompBizInfo(CompMdDTO dto) throws Exception;
 
 	List<CompConDTO> selectCompContList(CompConDTO dto) throws Exception;
 	List<CompConDTO> getCompContList(CompConDTO dto) throws Exception;
@@ -62,6 +64,8 @@ public interface UserService {
 	int vendorDupChk(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
 	int insertVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
 	int updateVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	/** 거래처 이메일만 저장 — 거래명세서 [이메일발송] 창의 「저장」 (2026-09-09) */
+	int updateVendorEmail(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
 	int deleteVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
 	int mergeVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
 
@@ -253,6 +257,10 @@ public interface UserService {
 	/* ===== 판매등록 — 2026-07-25 ===== */
 	java.util.List<egovframework.sejong.user.model.SalesTrxDTO> selectSalesTrxList(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
 	egovframework.sejong.user.model.SalesTrxDTO selectSalesTrxOne(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	/** 거래명세서 공유 — 토큰을 발급(처음 한 번)하고 그 토큰을 돌려준다. 카톡·이메일 보내기가 부른다 (2026-09-09) */
+	String shareSalesTrx(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	/** 공개 링크 — 토큰 하나로 전표+명세를 읽는다. 로그인 없음(/pub/stmt.do) (2026-09-09) */
+	egovframework.sejong.user.model.SalesTrxDTO selectSalesTrxByToken(String token) throws Exception;
 	String selectSalesTrxNextNo(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
 	int saveSalesTrx(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
 	int deleteSalesTrx(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;

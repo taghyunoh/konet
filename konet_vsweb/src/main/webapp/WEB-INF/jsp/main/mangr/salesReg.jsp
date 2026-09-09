@@ -10,6 +10,12 @@
 <%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260805"></script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-quick.js"></script>
+<%-- 거래명세서 양식 — 이 화면과 공개 링크(/pub/stmt.do)가 같이 쓰는 렌더러 (2026-09-09).
+     양식을 고칠 때는 이 파일 하나만 고치면 두 곳이 함께 바뀐다. --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/stmt-sheet.js?v=20260909"></script>
+<%-- 카톡 공유 — 발주서(poReg)와 **같은 방식**(2026-09-09 확정 「발주서에서 했으니 그대로」).
+     키가 없거나 SDK 를 못 불러오면 [🔗 링크 복사]로 넘어간다(카드 미리보기는 og: 태그로 뜬다). --%>
+<script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous"></script>
 <!--
   판매등록 (2026-07-25 신설) — 매입등록 화면과 대칭. 같은 조작감으로 쓰도록 구조를 그대로 맞췄다.
     · 상단 = 전표 입력(헤더 + 명세 그리드) / 하단 좌 = 기간 전표 목록 / 하단 우 = 거래처 원장
@@ -147,6 +153,39 @@
   .sa-lgfoot table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .sa-lgfoot td{ border:1px solid var(--sa-bd); padding:7px 8px; text-align:right; background:#d9f0e0; font-weight:800; }
   .sa-lgfoot td:first-child{ text-align:center; }
+  /* ── 거래명세표 출력 조건 팝업 (2026-09-09) ──────────────────────────
+     조건은 '이름표 + 라디오' 한 줄짜리라 표를 만들지 않고 격자 두 칸으로 세운다.
+     ⚠라디오 줄은 flex 라 글자가 두 줄로 접히기 쉽다 — nowrap 을 직접 건다(konet-ui-fix 규칙과 같은 이유). */
+  .prt-2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .prt-box{ border:1px solid var(--sa-bd); border-radius:8px; padding:10px 12px; }
+  .prt-tit{ font-weight:800; color:var(--sa-teal); font-size:13px; margin-bottom:8px;
+            display:flex; align-items:center; gap:6px; }
+  .prt-r{ display:flex; align-items:center; gap:8px; padding:3px 0; white-space:nowrap; }
+  .prt-r > span.lb{ flex:0 0 62px; font-weight:700; font-size:12.5px; color:#37475a; }
+  /* 제목 옆 ⓘ — 길게 적던 설명을 여기로 내렸다(2026-09-09 「간결하게」) */
+  .prt-tit .tipx{ font-weight:700; color:#8a97a4; cursor:help; font-size:13px; }
+  .prt-tit .tipx:hover{ color:var(--sa-teal); }
+  .prt-r label{ display:inline-flex; align-items:center; gap:3px; font-size:12.5px; cursor:pointer; }
+  .prt-r label input{ margin:0; }
+  .prt-r input[type=number], .prt-r select, .prt-r input[type=text]{
+            height:28px; border:1px solid var(--sa-bd); border-radius:6px; padding:0 7px; font-size:12.5px; }
+  .prt-hint{ color:#8a97a4; font-size:11.5px; margin-top:6px; line-height:1.5; white-space:normal; }
+  .prt-sup{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:6px 10px; }
+  .prt-sup .f{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .prt-sup .f label{ font-size:11.5px; font-weight:700; color:#5a6b7a; }
+  .prt-sup .f input{ height:28px; border:1px solid var(--sa-bd); border-radius:6px; padding:0 7px; font-size:12.5px; width:100%; }
+  /* 카톡 단추 — 발주서(poReg)와 같은 노란 카카오 색 */
+  .sa-btn.kakao{ background:#fee500; color:#191919; border-color:#f2d900; }
+  .sa-btn.kakao:hover{ border-color:#d9c200; }
+  .sa-btn[disabled]{ opacity:.45; cursor:not-allowed; }
+  /* ✉ 이메일 발송 창 — 요구 화면 그대로(수신자 + 저장된 주소 고르기 + [저장]).
+     ⚠출력 조건 창 <위에> 떠야 한다 — 마크업이 그보다 앞에 있어 z-index 를 올려 주지 않으면 뒤에 깔린다 */
+  #saMailPop{ z-index:210; }
+  .mail-row{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .mail-row > label.lb{ flex:0 0 128px; font-weight:700; font-size:12.5px; color:#37475a; }
+  .mail-row input[type=text], .mail-row select{ height:32px; border:1px solid var(--sa-bd); border-radius:6px; padding:0 8px; font-size:13px; }
+  .mail-row input.grow{ flex:1 1 auto; min-width:0; }
+  .mail-row textarea{ flex:1 1 auto; min-height:64px; border:1px solid var(--sa-bd); border-radius:6px; padding:6px 8px; font-size:13px; font-family:inherit; }
 </style>
 
 <div class="sa-wrap">
@@ -242,9 +281,12 @@
 
     <div class="sa-row" style="margin-top:4px">
       <button class="sa-btn teal" onclick="saNew()">＋ 신규등록</button>
-      <button class="sa-btn" onclick="saSave()">💾 저장</button>
+      <button class="sa-btn" id="saBtnSave" onclick="saSave()">💾 저장</button>
       <button class="sa-btn" onclick="saReload()">🔄 새로고침</button>
-      <button class="sa-btn red" onclick="saDelete()">✖ 삭제하기</button>
+      <%-- 거래명세표 = 지금 화면에 올라와 있는 전표를 A4 로 (2026-09-09 요청).
+           저장 전 전표도 그대로 찍힌다 — 조건은 팝업에서 고르고 브라우저 인쇄로 나간다. --%>
+      <button class="sa-btn" id="saBtnPrt" onclick="saPrtOpen()" title="지금 화면의 명세를 거래명세표(A4)로 출력합니다 — 출력 조건을 먼저 고릅니다">🖨 거래명세표</button>
+      <button class="sa-btn red" id="saBtnDel" onclick="saDelete()">✖ 삭제하기</button>
       <span id="saState" style="margin-left:8px; color:#3d4d5c; font-size:12.5px"></span>
       <span style="margin-left:auto; color:#8a97a4; font-size:11.5px"
             title="상품칸에 바로 입력해 ↑↓·Enter 로 고르고, Enter 로 다음 칸/다음 줄, ↑↓ 로 줄을 오갑니다">⌨ 상품칸 입력검색 · Enter 다음칸 · ↑↓ 줄이동 · Ctrl+S 저장 · Alt+N 신규</span>
@@ -667,6 +709,180 @@
   </div>
 </div>
 
+<%-- ================= ✉ 매출 거래명세서 이메일 발송 (2026-09-09) =================
+     요구 화면 그대로 : 수신자(거래처) 이메일 한 줄 + [직접입력/저장된 주소] 고르기 + [저장] 체크.
+     ★[이메일발송] 이 하는 일은 `saMailSend()` **한 곳**에 모아 두었다 —
+       · 메일 계정(mail.properties)이 채워져 있으면 **서버가 직접 보낸다**(위너넷 방식).
+       · 아직 비어 있으면 **메일 프로그램(mailto)** 으로 넘긴다. 계정이 없어도 기능이 죽지 않는다.
+     ★「저장」 = 그 주소를 **거래처 마스터 EMAIL** 에 남긴다(주소 여럿은 세미콜론으로 이어 붙는다). --%>
+<div class="sa-pop" id="saMailPop">
+  <div class="box" style="width:min(660px,96vw)">
+    <div class="hd">✉ 매출 거래명세서 이메일 발송
+      <span id="saMailWho" style="font-weight:600; font-size:12.5px; color:#5a6b7a"></span>
+      <span style="margin-left:auto"><button class="sa-btn" onclick="saMailClose()">✕</button></span>
+    </div>
+    <div class="bd" style="padding-top:14px">
+      <div style="text-align:center; font-weight:800; color:#37475a; margin-bottom:10px">수신자(거래처) 이메일</div>
+      <div class="mail-row">
+        <input type="text" class="grow" id="mailTo" placeholder="name@company.co.kr" autocomplete="off">
+        <select id="mailPick" style="flex:0 0 150px" onchange="saMailPick()">
+          <option value="">직접입력</option>
+        </select>
+        <label style="flex:0 0 auto; font-size:12.5px; cursor:pointer; white-space:nowrap"
+               title="이 주소를 거래처 정보에 남깁니다 — 다음에 이 거래처를 고르면 자동으로 채워집니다">
+          <input type="checkbox" id="mailSave"> 저장</label>
+      </div>
+      <div class="mail-row"><label class="lb">제목</label>
+        <input type="text" class="grow" id="mailSubj"></div>
+      <div class="mail-row" style="align-items:flex-start"><label class="lb" style="padding-top:6px">하고 싶은 말</label>
+        <textarea id="mailMemo" placeholder="비워도 됩니다 — 명세서 안내문과 [명세서 보기] 단추는 자동으로 들어갑니다"></textarea></div>
+      <div class="prt-hint" id="mailHint" style="margin-top:2px"></div>
+    </div>
+    <div class="ft" style="display:flex; align-items:center; gap:6px">
+      <span style="display:flex; gap:6px">
+        <button class="sa-btn" onclick="saMailGmail()" title="Gmail 쓰기 창을 새 탭으로 엽니다 — 받는사람·제목·본문이 채워집니다">Gmail 로 열기</button>
+        <button class="sa-btn" onclick="saMailCopy()" title="받는사람·제목·본문을 복사합니다 — 네이버·다음 등 아무 메일에나 붙여 넣으세요">📋 내용 복사</button>
+      </span>
+      <span style="margin-left:auto; display:flex; gap:6px">
+        <button class="sa-btn teal" onclick="saMailSend()">이메일발송</button>
+        <button class="sa-btn" onclick="saMailClose()">닫기</button>
+      </span>
+    </div>
+  </div>
+</div>
+
+<%-- ================= 거래명세표 출력 조건 (2026-09-09 신설) =================
+     ① = 무엇을 찍을지(정렬·금액·단가·잔고·반전·박스단가·단가변동·부가세)
+     ② = 어떻게 나눠 찍을지(한 장에 품목 몇 줄 · 공급자용/공급받는자용을 한 장에 모두인지 두 장인지)
+     ★바코드는 찍지 않는다(2026-09-09 확정) — 그래서 바코드 칸 자체가 없다.
+     고른 조건은 localStorage(konetSalesPrt1)에 남아 다음에 들어와도 그대로다. --%>
+<div class="sa-pop" id="saPrtPop">
+  <div class="box" style="width:min(900px,96vw)">
+    <div class="hd">🖨 거래명세표 출력
+      <span id="saPrtWho" style="font-weight:600; font-size:12.5px; color:#5a6b7a"></span>
+      <span style="margin-left:auto"><button class="sa-btn" onclick="saPrtClose()">✕</button></span>
+    </div>
+    <div class="bd" style="padding-top:12px">
+      <div class="prt-2">
+
+        <div class="prt-box">
+          <%-- ★설명은 제목 옆 ⓘ 와 각 줄 툴팁으로 내렸다 (2026-09-09 「너무 복잡, 간결하게」) —
+               긴 ※ 문단이 창 절반을 먹어 정작 조건이 눈에 안 들어왔다. --%>
+          <div class="prt-tit">① 출력 조건
+            <span class="tipx" title="※ 바코드는 찍지 않습니다 — 바코드 칸이 없는 양식입니다.&#10;※ 금액 칸의 뜻은 [부가세 출력]이 정합니다 — 예면 「공급가액 + 세액」 두 칸, 아니면 부가세를 더한 「금액」 한 칸이라 품목 합과 하단 합계가 같습니다.">ⓘ</span>
+          </div>
+          <div class="prt-r"><span class="lb">정렬</span>
+            <label><input type="radio" name="po_ord" value="in" checked> 입력순서</label>
+            <label title="상품마스터의 조회순서 → 없으면 상품코드 순"><input type="radio" name="po_ord" value="sort"> 조회번호</label>
+          </div>
+          <div class="prt-r"><span class="lb">금액</span>
+            <label><input type="radio" name="po_amt" value="Y" checked> 출력</label>
+            <label title="품목 금액칸과 하단 금액칸을 모두 비웁니다 — 납품 확인용"><input type="radio" name="po_amt" value="N"> 미출력</label>
+          </div>
+          <div class="prt-r"><span class="lb">단가</span>
+            <label><input type="radio" name="po_price" value="Y" checked> 출력</label>
+            <label><input type="radio" name="po_price" value="N"> 미출력</label>
+          </div>
+          <div class="prt-r"><span class="lb">잔고</span>
+            <label title="하단 전잔고·잔고 칸에 금액을 찍습니다"><input type="radio" name="po_bal" value="Y"> 출력</label>
+            <label><input type="radio" name="po_bal" value="N" checked> 미출력</label>
+          </div>
+          <div class="prt-r"><span class="lb">반전</span>
+            <label title="표 머리글·이름칸을 진한 바탕 + 흰 글자로"><input type="radio" name="po_inv" value="Y"> 예</label>
+            <label><input type="radio" name="po_inv" value="N" checked> 아니오</label>
+          </div>
+          <div class="prt-r"><span class="lb">박스단가</span>
+            <label title="단가 칸에 [BOX 단가 = 단가 × 입수량] 을 한 줄 더"><input type="radio" name="po_boxp" value="Y"> 예</label>
+            <label><input type="radio" name="po_boxp" value="N" checked> 아니오</label>
+          </div>
+          <div class="prt-r"><span class="lb">단가변동</span>
+            <label title="이 거래처의 직전 판매단가와 다르면 ▲▼ 와 직전단가를 함께 찍습니다(전표를 읽어 옵니다)"><input type="radio" name="po_chg" value="Y"> 예</label>
+            <label><input type="radio" name="po_chg" value="N" checked> 아니오</label>
+          </div>
+          <div class="prt-r"><span class="lb">부가세</span>
+            <label title="품목에 [공급가액 + 세액] 두 칸이 서고 하단에도 세액이 찍힙니다"><input type="radio" name="po_vat" value="Y"> 예</label>
+            <label title="부가세를 더한 「금액」 한 칸 — 품목 합과 하단 합계가 같아집니다"><input type="radio" name="po_vat" value="N" checked> 아니오</label>
+          </div>
+        </div>
+
+        <div class="prt-box">
+          <div class="prt-tit">② 용지 · 매수 (A4 세로)</div>
+          <div class="prt-r"><span class="lb">한 장에 품목</span>
+            <input type="number" id="po_rows" min="3" max="40" step="1" value="10" style="width:74px" onchange="saPrtRowsSync()"> 줄
+            <span style="color:#8a97a4; font-size:11.5px">(빠른선택</span>
+            <button type="button" class="sa-btn" style="height:24px; padding:0 8px; font-size:11.5px" onclick="saPrtRows(10)">10</button>
+            <button type="button" class="sa-btn" style="height:24px; padding:0 8px; font-size:11.5px" onclick="saPrtRows(15)">15</button>
+            <button type="button" class="sa-btn" style="height:24px; padding:0 8px; font-size:11.5px" onclick="saPrtRows(20)">20</button>
+            <span style="color:#8a97a4; font-size:11.5px">)</span>
+          </div>
+          <div class="prt-r" style="align-items:flex-start"><span class="lb" style="padding-top:4px">인쇄 방식</span>
+            <span style="display:flex; flex-direction:column; gap:4px">
+              <label title="한 장(A4)에 공급받는자용 + 공급자 보관용을 위아래로 — 잘라서 한 부씩 씁니다">
+                <input type="radio" name="po_mode" value="both" checked onchange="saPrtModeHint()"> 공급자용 · 공급받는자용 <b>한 장에 모두</b></label>
+              <label title="공급받는자용 한 장, 공급자 보관용 한 장 — 모두 두 장">
+                <input type="radio" name="po_mode" value="two" onchange="saPrtModeHint()"> 공급자용 · 공급받는자용 <b>두 장으로</b></label>
+              <label title="공급받는자용만 한 부"><input type="radio" name="po_mode" value="b1" onchange="saPrtModeHint()"> 공급받는자용만</label>
+              <label title="공급자 보관용만 한 부"><input type="radio" name="po_mode" value="r1" onchange="saPrtModeHint()"> 공급자 보관용만</label>
+            </span>
+          </div>
+          <div class="prt-hint" id="po_modeHint"
+               title="품목이 [한 장에 품목] 줄 수보다 많으면 장이 늘어나고(1/2 · 2/2), 합계·이하여백은 마지막 장에만 찍힙니다.&#10;A4 실측 — 「한 장에 모두」는 한 부가 종이의 절반이라 12줄까지, 한 장에 한 부로 찍으면 38줄까지."></div>
+        </div>
+      </div>
+
+      <%-- 공급자(우리 회사) 칸 — 값은 모두 회사 마스터(TBL_COMP_MST)에서 온다.
+           ★업태·종목·계좌는 2026-09-09 에 마스터 칸을 새로 만들었다(sql/comp_mst_bizinfo_alter.sql) —
+             여기서 고치고 [💾 회사 정보로 저장]을 누르면 서버에 남아 <다른 PC에서도> 같게 찍힌다.
+           나머지 칸은 기준정보관리 ▸ 회사/사용자 관리에서 고친다(여기서 고치면 이 브라우저에만 남는다). --%>
+      <%-- ★기본은 접어 둔다 (2026-09-09 「간결하게」) — 한 번 채우면 거의 안 바꾸는 칸인데
+           펼쳐 두면 창의 절반을 먹어 정작 조건이 눈에 안 들어왔다. 요약 한 줄만 보인다. --%>
+      <div class="prt-box" style="margin-top:10px">
+        <div class="prt-tit" style="margin-bottom:0">
+          <button type="button" class="sa-btn" id="psToggle" style="height:24px; padding:0 9px; font-size:11.5px"
+                  onclick="saPrtSupToggle()" title="공급자(우리 회사) 칸을 펼쳐 고칩니다">▸ 공급자 칸</button>
+          <span id="psSum" style="font-weight:600; font-size:12px; color:#5a6b7a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap"></span>
+          <span style="margin-left:auto; display:flex; gap:6px">
+            <button type="button" class="sa-btn" style="height:24px; padding:0 9px; font-size:11.5px" onclick="saPrtSupReset()" title="화면에서 고친 것을 버리고 서버에 저장된 회사 정보를 다시 불러옵니다">↺ 다시 읽기</button>
+            <button type="button" class="sa-btn teal" style="height:24px; padding:0 9px; font-size:11.5px" onclick="saPrtSupSave()" title="업태·종목·계좌를 회사 정보에 저장합니다 — 다른 PC에서도 같게 찍힙니다">💾 저장</button>
+          </span>
+        </div>
+        <div id="psBox" hidden style="margin-top:10px">
+        <div class="prt-sup">
+          <div class="f"><label>상호</label><input type="text" id="ps_nm"></div>
+          <div class="f"><label>사업자번호</label><input type="text" id="ps_biz"></div>
+          <div class="f"><label>성명(대표)</label><input type="text" id="ps_ceo"></div>
+          <div class="f"><label style="color:#137a6c">업태 <span style="font-weight:600">· 서버</span></label><input type="text" id="ps_cond"></div>
+          <div class="f" style="grid-column:span 2"><label>주소</label><input type="text" id="ps_addr"></div>
+          <div class="f" style="grid-column:span 2"><label style="color:#137a6c">종목 <span style="font-weight:600">· 서버</span></label><input type="text" id="ps_item"></div>
+          <div class="f" style="grid-column:span 2"><label style="color:#137a6c">계좌 <span style="font-weight:600">· 서버</span></label><input type="text" id="ps_bank" placeholder="국민은행 (주)코네트 000000-00-000000"></div>
+          <div class="f" style="grid-column:span 2"><label>연락처</label><input type="text" id="ps_tel"></div>
+          <div class="f" style="grid-column:span 4"><label style="color:#137a6c">공지사항 <span style="font-weight:600">· 서버</span> <span style="font-weight:600;color:#8a97a4">(맨 아래 칸에 늘 찍히는 글)</span></label><input type="text" id="ps_notice" placeholder="비워 두면 빈 칸으로 나갑니다"></div>
+        </div>
+        <div class="prt-hint">
+          <b style="color:#137a6c">· 서버</b> 칸(업태 · 종목 · 계좌 · 공지사항)은 <b>[💾 저장]</b>으로 회사 정보에 남아 어느 PC에서도 같게 찍힙니다.
+          나머지는 <b>기준정보관리 ▸ 회사/사용자 관리</b>에서 고칩니다. 공급받는자 칸은 <b>거래처 정보</b>에서 그대로 옵니다.
+        </div>
+        </div>
+      </div>
+    </div>
+    <div class="ft" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
+      <%-- 보내기 3종 — 저장된 전표만 (링크가 그 전표를 가리키므로). 발주서와 같은 방식이다. --%>
+      <span style="display:flex; gap:6px">
+        <%-- 보내기는 저장된 전표만 — 받는 쪽은 로그인 없이 그 전표 하나만 보고 인쇄·PDF 저장도 된다(툴팁으로 안내) --%>
+        <button class="sa-btn kakao" id="saPrtKakao" onclick="saShareKakao()" title="거래처에 카톡으로 보냅니다 — 로그인 없이 열리는 명세서 주소를 카드로 보냅니다.&#10;받는 쪽은 그 화면에서 인쇄·PDF 저장도 할 수 있습니다. 저장된 전표만 보낼 수 있습니다.">💬 카톡</button>
+        <button class="sa-btn" id="saPrtMail" onclick="saMailOpen()" title="거래처 이메일로 보냅니다 — 수신자 주소를 고르거나 넣고 [저장]을 체크하면 거래처 정보에 남습니다.">✉ 이메일</button>
+        <button class="sa-btn" id="saPrtLink" onclick="saShareLink()" title="명세서 주소를 복사합니다 — 문자·메신저 어디에나 붙여 넣어 보낼 수 있습니다.">🔗 링크</button>
+        <span id="saShareInfo" style="font-size:11.5px; color:#8a97a4; align-self:center"></span>
+      </span>
+      <span style="margin-left:auto; display:flex; gap:6px">
+        <button class="sa-btn" onclick="saPrtGo(false)" title="새 창에 A4 모양으로 그려만 봅니다(인쇄 대화상자는 안 뜹니다)">👁 미리보기</button>
+        <button class="sa-btn teal" onclick="saPrtGo(true)">🖨 인쇄</button>
+        <button class="sa-btn" onclick="saPrtClose()">닫기</button>
+      </span>
+    </div>
+  </div>
+</div>
+
 <script>
 var CTX = '${pageContext.request.contextPath}';
 /* 명세 그리드 페이징 상태 — ★선언이 init() 아래에 있으면 첫 렌더 때 undefined 가 된다.
@@ -862,6 +1078,7 @@ function saProdRefreshed(){
 /* ── 전표 입력 ────────────────────────────────────────── */
 function saNew(){
   _cur = null; _curNet = 0; _rows = [];
+  _shareUrl = '';                 /* 전표가 바뀌면 공개 주소도 다시 받는다 (2026-09-09) */
   _xrefNm = {};                       // 거래처가 비워지므로 그 거래처 표기표도 비운다
   document.getElementById('saVenNm').value=''; document.getElementById('saVenNm').dataset.cd='';
   document.getElementById('saMgrNm').value=''; document.getElementById('saMgrNm').dataset.cd='';
@@ -909,6 +1126,34 @@ function saGridPager(){
   el.innerHTML = '<span style="color:#5a6b7a; font-size:12.5px">'+_pShown+' / <b>'+_rows.length+'</b>행'
     + ' <span style="color:#5a6b7a">— 아래로 스크롤하면 이어서 나옵니다</span></span>'
     + ' <button class="sa-btn" style="height:22px;margin-left:8px;font-size:12px" onclick="saGridMore('+_rows.length+')">모두 표시</button>';
+}
+/* ★내용이 없으면 [저장]·[거래명세표]·[삭제하기]를 잠근다 (2026-09-09 요청, 삭제는 같은 날 추가) —
+     종전에는 눌러야 「상품을 한 줄 이상 입력하세요」가 떴다. 못 누르는 것이 먼저 보이는 편이 낫다.
+   · 저장      = 거래처 + 품목 한 줄 이상   (saSave 의 관문과 같은 조건)
+   · 거래명세표 = 품목 한 줄 이상            (saPrtOpen 의 관문과 같은 조건)
+   · 삭제하기   = **저장된 전표를 고른 상태** (saDelete 의 관문과 같은 조건 — 화면에 친 것은 지울 게 없다)
+     ⇒ 지우고 나면 saNew() 로 신규 전표가 되므로 <삭제 직후 저절로 잠긴다>(2026-09-09 「삭제해서 하나도 없을때」).
+   ⚠각 함수의 관문 검사는 그대로 둔다 — 단축키(Ctrl+S)나 다른 길로 들어올 수 있다. */
+function saBtnState(){
+  var items = _rows.filter(function(o){ return o.prodCd; }).length;
+  var ven   = !!(document.getElementById('saVenNm').dataset.cd || '');
+  var saved = !!(_cur && _cur.saleSeq);
+  var b1 = document.getElementById('saBtnSave'), b2 = document.getElementById('saBtnPrt'),
+      b3 = document.getElementById('saBtnDel');
+  if (b1){
+    b1.disabled = !(ven && items);
+    b1.title = b1.disabled ? (!ven ? '거래처를 먼저 고르세요.' : '상품을 한 줄 이상 입력하세요.') : '';
+  }
+  if (b2){
+    b2.disabled = !items;
+    b2.title = b2.disabled ? '출력할 명세가 없습니다 — 품목을 입력하거나 아래 목록에서 전표를 고르세요.'
+                           : '지금 화면의 명세를 거래명세표(A4)로 출력합니다 — 출력 조건을 먼저 고릅니다';
+  }
+  if (b3){
+    b3.disabled = !saved;
+    b3.title = b3.disabled ? '지울 전표가 없습니다 — 아래 목록에서 저장된 전표를 먼저 고르세요.'
+                           : '이 전표를 지웁니다 — 재고(수불원장)에서 빠졌던 출고도 함께 되돌아옵니다.';
+  }
 }
 function saRender(){
   var _keep = saCaptureFocus();          // 다시 그려도 커서가 있던 칸을 유지(2026-08-04 키보드 입력)
@@ -981,6 +1226,7 @@ function saRender(){
   document.getElementById('saBody').innerHTML = h;
   saGridBind(); saGridPager();
   saCalc();
+  saBtnState();                          // 내용이 없으면 [저장]·[거래명세표] 잠금 (2026-09-09)
   saRestoreFocus(_keep);                 // _focusNext 가 있으면 그 칸으로, 없으면 있던 칸 그대로
 }
 function saSet(i, k, v){
@@ -1223,6 +1469,7 @@ function saPick(i){
 /* 서버에서 읽은 전표 1건을 상단 입력 영역에 그대로 얹는다 (선택·새로고침 공용) */
 function saApply(d){
   _cur = d;
+  _shareUrl = '';                 /* 다른 전표를 열었으니 공개 주소도 그 전표 것으로 다시 받는다 (2026-09-09) */
   _curNet = n(d.totAmt) - n(d.payAmt) - n(d.dcAmt);   // 이 전표가 현잔고에 이미 반영해 둔 금액
   document.getElementById('saDt').value = fmtDt(d.saleDt);
   document.getElementById('saNo').value = d.saleNo;
@@ -3142,6 +3389,446 @@ function ktExcel(){
   });
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   🖨 거래명세표 출력  (2026-09-09 요청)  — 함수 접두사 saPrt* / 공급자칸 saPrtSup*
+
+   요구 그대로 두 덩어리다 :
+     ① 출력 조건 — 정렬 · 금액 · 단가 · 잔고 · 반전 · 박스단가 · 단가변동 · 부가세
+     ② 용지·매수 — 한 장에 품목 몇 줄 · 공급자용/공급받는자용을 <한 장에 모두> 인지 <두 장> 인지
+     ★바코드는 제외(확정) — 그래서 바코드 칸을 아예 만들지 않는다.
+
+   ★그리는 곳은 <새 창>이다. 이 화면은 물류관리 셸 안 iframe 이라 여기서 window.print() 를
+     부르면 판매등록 화면 전체(또는 셸)가 찍힌다 — 일계장(dayBook)에서 겪은 그 함정이다.
+     새 창에 명세표만 그려 그 창이 제 print() 를 부른다(발주서 인쇄 poPrint.jsp 와 같은 꼴).
+   ★서버는 건드리지 않았다 — 화면에 이미 있는 값(_rows·거래처마스터·회사마스터)만 쓴다.
+     단가변동(예)일 때만 기존 엔드포인트 salesPriceHist.do 를 품목별로 읽는다. */
+var SA_COMP_CD  = '${sessionScope.s_comp_cd}';
+var SAPRT_KEY   = 'konetSalesPrt1';    /* 출력 조건 */
+var SASUP_KEY   = 'konetSalesSup1';    /* 공급자 칸 — 회사 마스터에 없는 항목(업태·종목·계좌…) */
+var SAPRT_DEF   = { ord:'in', amt:'Y', price:'Y', bal:'N', inv:'N', boxp:'N', chg:'N', vat:'N', rows:10, mode:'both' };
+var _supMst     = null;                /* 회사 마스터에서 한 번 읽은 값 */
+
+function saLs(k){ try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch(e){ return null; } }
+function saLsSet(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function saRadio(nm){ var el=document.querySelector('input[name="'+nm+'"]:checked'); return el?el.value:''; }
+function saRadioSet(nm,v){
+  var l=document.getElementsByName(nm);
+  for(var i=0;i<l.length;i++) l[i].checked = (l[i].value===String(v));
+}
+
+function saPrtOpen(){
+  var rows = _rows.filter(function(o){ return o.prodCd; });
+  if (!rows.length){ swErr('출력할 명세가 없습니다.<br><span style="font-size:12.5px;color:#3d4d5c">품목을 입력하거나 아래 목록에서 전표를 고르세요.</span>'); return; }
+  var who = document.getElementById('saVenNm').value || '(거래처 미지정)';
+  document.getElementById('saPrtWho').textContent =
+      '— ' + who + ' · ' + document.getElementById('saDt').value
+      + (document.getElementById('saNo').value ? ' / '+document.getElementById('saNo').value : '')
+      + ' · 품목 ' + rows.length + '줄' + (_cur ? '' : ' (저장 전)');
+  var o = saLs(SAPRT_KEY) || {};
+  ['ord','amt','price','bal','inv','boxp','chg','vat'].forEach(function(k){ saRadioSet('po_'+k, o[k]!=null?o[k]:SAPRT_DEF[k]); });
+  saRadioSet('po_mode', o.mode||SAPRT_DEF.mode);
+  document.getElementById('po_rows').value = n(o.rows)||SAPRT_DEF.rows;
+  saPrtModeHint();
+  saPrtSupLoad();
+  /* 공급자 칸은 접은 채로 연다 — 채워져 있으면 요약 한 줄이면 충분하다 */
+  var psb = document.getElementById('psBox');
+  psb.hidden = true; document.getElementById('psToggle').textContent = '▸ 공급자 칸';
+  saShareOn();                            /* 보내기 3종은 저장된 전표만 */
+  document.getElementById('saPrtPop').classList.add('on');
+}
+function saPrtClose(){ document.getElementById('saPrtPop').classList.remove('on'); }
+function saPrtRows(v){ document.getElementById('po_rows').value = v; saPrtModeHint(); }
+function saPrtRowsSync(){ saPrtModeHint(); }
+function saPrtModeHint(){
+  var m = saRadio('po_mode'), r = n(document.getElementById('po_rows').value)||10;
+  var rows = _rows.filter(function(o){ return o.prodCd; });
+  /* ★★장수는 <렌더러가 세는 그대로> 쓴다 (2026-09-09 「인쇄시 조금 모순이 있어서」) —
+       여기서 `Math.ceil(품목수 / 줄수)` 로 따로 세다가 실제와 어긋났다 :
+       렌더러는 **마지막 장에 [수량합계]·이하여백 두 줄이 들어갈 자리가 없으면 한 장을 더** 만드는데
+       그 규칙이 여기엔 없어서, 9줄/10줄씩 = 조건 창 「1장」 · 실제 2장 이었다.
+     ⚠장수를 세는 곳은 `konetStmt.pages()` 하나뿐이어야 한다 — 두 군데서 세면 반드시 갈라진다. */
+  var per  = konetStmt.pages(rows, Math.max(3, r)).length;
+  var cnt  = (m==='two') ? per*2 : per;          /* 두 장으로 = 부마다 그만큼 */
+  var txt  = (m==='both') ? '한 장에 두 부(위=공급받는자용 · 아래=공급자 보관용) — 잘라서 한 부씩'
+           : (m==='two')  ? '공급받는자용 · 공급자 보관용을 각각 따로'
+           : (m==='b1')   ? '공급받는자용 한 부만' : '공급자 보관용 한 부만';
+  /* ★A4 실측(2026-09-09, 머리표 4줄 기준) — 쓸 수 있는 높이 279mm · 품목 한 줄 5.3mm ·
+       한 장에 두 부 10줄 = 246mm(12줄 267 · 13줄 278=한계) / 한 부 40줄 = 278mm(=한계).
+       한계에 딱 붙으면 조금만 밀려도 다음 장으로 넘어가므로 <한 칸 아래>를 안전선으로 삼는다. */
+  var lim  = (m==='both') ? 12 : 38;
+  var over = (r>lim)
+     ? '<br><b style="color:#c0392b">⚠ 이 방식은 '+lim+'줄까지 들어갑니다 — '+r+'줄이면 아래가 다음 장으로 밀릴 수 있습니다.</b>' : '';
+  document.getElementById('po_modeHint').innerHTML =
+      esc(txt) + ' — <b>모두 ' + cnt + '장</b> (품목 ' + rows + '줄 기준)' + over;
+}
+/* 조건 읽기 = 그 자리에서 저장까지 (다음에 열어도 그대로) */
+function saPrtOpts(){
+  var o = { rows: Math.max(3, Math.min(40, n(document.getElementById('po_rows').value)||10)), mode: saRadio('po_mode') };
+  ['ord','amt','price','bal','inv','boxp','chg','vat'].forEach(function(k){ o[k] = saRadio('po_'+k); });
+  saLsSet(SAPRT_KEY, o);
+  return o;
+}
+
+/* ── 공급자(우리 회사) 칸 ────────────────────────────────────────────
+     상호·사업자번호·성명·주소는 회사 마스터(TBL_COMP_MST)에서 온다.
+     업태·종목·계좌·연락처·공지사항은 마스터에 칸이 없어 여기서 적어 두면 이 브라우저에 남는다. */
+/* 접었을 때 보이는 요약 한 줄 — 무엇이 찍힐지 펼치지 않고도 알 수 있게 (2026-09-09 「간결하게」) */
+function saPrtSupSum(){
+  var s = { nm:document.getElementById('ps_nm').value, biz:document.getElementById('ps_biz').value,
+            ceo:document.getElementById('ps_ceo').value, item:document.getElementById('ps_item').value };
+  var l = [s.nm, s.biz, s.ceo, s.item].filter(function(x){ return x && x.trim(); });
+  var el = document.getElementById('psSum');
+  if (el) el.textContent = l.length ? '— ' + l.join(' · ') : '— 아직 비어 있습니다 (펼쳐서 채우세요)';
+}
+function saPrtSupToggle(){
+  var b = document.getElementById('psBox'), t = document.getElementById('psToggle');
+  b.hidden = !b.hidden;
+  t.textContent = (b.hidden ? '▸' : '▾') + ' 공급자 칸';
+}
+function saPrtSupFill(s){
+  document.getElementById('ps_nm').value   = s.nm||'';
+  document.getElementById('ps_biz').value  = s.biz||'';
+  document.getElementById('ps_ceo').value  = s.ceo||'';
+  document.getElementById('ps_cond').value = s.cond||'';
+  document.getElementById('ps_item').value = s.item||'';
+  document.getElementById('ps_addr').value = s.addr||'';
+  document.getElementById('ps_bank').value = s.bank||'';
+  document.getElementById('ps_tel').value  = s.tel||'';
+  document.getElementById('ps_notice').value = s.notice||'';
+  saPrtSupSum();
+}
+function saPrtSupGet(){
+  var s = { nm:document.getElementById('ps_nm').value.trim(),   biz:document.getElementById('ps_biz').value.trim(),
+            ceo:document.getElementById('ps_ceo').value.trim(), cond:document.getElementById('ps_cond').value.trim(),
+            item:document.getElementById('ps_item').value.trim(), addr:document.getElementById('ps_addr').value.trim(),
+            bank:document.getElementById('ps_bank').value.trim(), tel:document.getElementById('ps_tel').value.trim(),
+            notice:document.getElementById('ps_notice').value.trim() };
+  saLsSet(SASUP_KEY, s);
+  return s;
+}
+/* 회사 마스터(TBL_COMP_MST) → 공급자 칸 모양으로.
+   ★업태·종목·계좌도 이제 마스터 칸이다 (2026-09-09, DDL: sql/comp_mst_bizinfo_alter.sql) —
+     종전에는 마스터에 자리가 없어 이 브라우저에만 남았고, PC 를 바꾸면 빈 칸으로 찍혔다. */
+function saPrtSupMst(){
+  var c = _supMst || {};
+  return { nm:c.compNm||'', biz:c.busiNum||'', ceo:c.compCeo||'',
+           cond:c.bizCond||'', item:c.bizItem||'', bank:c.bankAcct||'', notice:c.stmtNotice||'',
+           addr:((c.compAddr||'')+' '+(c.compExtradr||'')).trim(), tel:c.compTel||'' };
+}
+function saPrtSupLoad(){
+  var saved = saLs(SASUP_KEY);
+  if (saved) saPrtSupFill(saved);        /* 서버 응답 전에도 지난 값으로 바로 보인다 */
+  if (_supMst){ saPrtSupMerge(); return; }
+  /* ★회사코드를 반드시 실어 보낸다 — 관리자 회사가 빈 값으로 부르면 <전 회사> 목록이 온다 */
+  post('/user/compCdList.do','compCd='+encodeURIComponent(SA_COMP_CD))
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      var l = (j&&j.data)||[];
+      _supMst = l.filter(function(x){ return String(x.compCd)===String(SA_COMP_CD); })[0] || l[0] || {};
+      saPrtSupMerge();
+    }).catch(function(){});
+}
+/* 서버가 들고 있는 칸 — 이 넷은 [💾 저장] 으로 회사 정보에 올라간다.
+   ★공지사항도 2026-09-09 에 서버로 옮겼다(「공지내용 서버적용」) — 종전에는 이 브라우저에만 남아
+     PC 를 바꾸면 빈 칸으로 찍혔고, 공개 링크(/pub/stmt.do)에는 아예 안 나갔다. */
+var SASUP_SRV = ['cond','item','bank','notice'];
+/* 서버 값 ↔ 화면 값 맞추기 —
+     · 위 네 칸 : **서버가 이긴다**(어느 PC 에서 열어도 같은 값이 찍혀야 한다).
+       단 서버가 비어 있으면 적어 둔 값을 지우지 않는다 — 그대로 두고 [💾 저장]으로 올리면 된다.
+     · 상호·사업자·성명·주소·연락처 : 비어 있을 때만 마스터로 채운다(화면에서 고친 값을 존중). */
+function saPrtSupMerge(){
+  var m = saPrtSupMst(), s = saLs(SASUP_KEY) || {};
+  SASUP_SRV.forEach(function(k){ if (m[k]) s[k] = m[k]; });
+  ['nm','biz','ceo','addr','tel'].forEach(function(k){ if (!s[k] && m[k]) s[k] = m[k]; });
+  saPrtSupFill(s); saLsSet(SASUP_KEY, s);
+}
+function saPrtSupReset(){
+  if (!_supMst){ swAlert('회사 정보를 아직 읽지 못했습니다. 잠시 뒤 다시 눌러 주세요.'); return; }
+  var m = saPrtSupMst();
+  saPrtSupFill(m); saLsSet(SASUP_KEY, m);
+}
+/* [💾 저장] — 업태·종목·계좌·공지사항을 회사 정보에 올린다 (2026-09-09).
+   회사코드는 서버가 세션에서 꺼낸다(화면이 안 보낸다). 나머지 칸은 회사/사용자 관리 화면에서 고친다. */
+function saPrtSupSave(){
+  var s = saPrtSupGet();
+  post('/user/compBizInfoSave.do',
+       'bizCond='+encodeURIComponent(s.cond)+'&bizItem='+encodeURIComponent(s.item)
+       +'&bankAcct='+encodeURIComponent(s.bank)+'&stmtNotice='+encodeURIComponent(s.notice))
+    .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
+    .then(function(){
+      if (_supMst){ _supMst.bizCond=s.cond; _supMst.bizItem=s.item; _supMst.bankAcct=s.bank; _supMst.stmtNotice=s.notice; }
+      swOk('회사 정보에 저장했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">업태·종목·계좌·공지사항은 이제 <b>다른 PC·다른 브라우저</b>에서도, <b>거래처에 보낸 명세서</b>에도 같게 찍힙니다.</span>');
+    })
+    .catch(function(e){ swErr('저장에 실패했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
+}
+
+/* ── 인쇄 ──────────────────────────────────────────────────────────── */
+function saPrtGo(doPrint){
+  var O = saPrtOpts(), S = saPrtSupGet(), D = saPrtData();
+  if (!D.rows.length){ swErr('출력할 명세가 없습니다.'); return; }
+  var go = function(prev){
+    var w = window.open('', '_blank', 'width=1040,height=860,scrollbars=yes');
+    if (!w){ swErr('새 창이 막혀 있습니다.<br><span style="font-size:12.5px;color:#3d4d5c">브라우저 주소창 오른쪽의 <b>팝업 차단</b>을 허용으로 바꿔 주세요.</span>'); return; }
+    w.document.open(); w.document.write(saPrtHtml(D,O,S,prev,doPrint)); w.document.close();
+    try{ w.focus(); }catch(e){}
+    /* ★★조건 창은 스스로 닫히지 않는다 — [닫기]·✕·ESC 로만 (2026-09-09, 두 번에 걸쳐 확정
+         「미리보기 닫기 하면 설정에서 나감」 → 「인쇄도 닫기하면 나갑니다」).
+       인쇄창을 닫으면 조건 창까지 사라져, 조건을 조금 바꿔 다시 뽑으려면 [🖨 거래명세표]부터
+       다시 눌러야 했다. 한 전표를 여러 조건으로 뽑는 일이 흔하다.
+       ⚠「다 찍었으면 알아서 닫자」는 얘기가 나오면 이 이력부터 확인할 것. */
+  };
+  if (O.chg !== 'Y' || !D.venCd) { go(null); return; }
+  /* 단가변동(예) — 이 거래처의 직전 판매단가를 품목마다 읽는다(기존 엔드포인트, 한꺼번에) */
+  saPrtPrev(D).then(go).catch(function(){ go(null); });
+}
+/* 직전 판매단가 map {prodCd: 단가} — 지금 전표(같은 판매일자)는 건너뛴다 */
+function saPrtPrev(D){
+  var ymd = String(D.dt||'').replace(/-/g,''), seen = {}, cds = [];
+  D.rows.forEach(function(o){ if(!seen[o.prodCd]){ seen[o.prodCd]=1; cds.push(o.prodCd); } });
+  return Promise.all(cds.map(function(cd){
+    return post('/mangr/salesPriceHist.do','prodCd='+encodeURIComponent(cd)+'&remark='+encodeURIComponent(D.venCd))
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        var l = (j&&j.data)||[];
+        for (var i=0;i<l.length;i++){ if (String(l[i].spec||'') !== ymd) return {cd:cd, p:n(l[i].unitPrice)}; }
+        return {cd:cd, p:null};
+      }).catch(function(){ return {cd:cd, p:null}; });
+  })).then(function(a){ var m={}; a.forEach(function(x){ if(x.p!=null) m[x.cd]=x.p; }); return m; });
+}
+/* 지금 화면의 전표 한 장 — 저장 여부와 무관하게 <보이는 그대로> 찍는다 */
+function saPrtData(){
+  var t     = saCalc();
+  var venCd = document.getElementById('saVenNm').dataset.cd || '';
+  var ven   = _vendors.filter(function(x){ return String(x.vendorCd)===String(venCd); })[0] || {};
+  var pay   = n(document.getElementById('saPayAmt').value);
+  var dc    = n(document.getElementById('saDcAmt').value);
+  /* 전잔고 = 현잔고 − (이 전표가 이미 반영해 둔 금액). 신규 전표는 _curNet=0 이라 현잔고 그대로 */
+  var before = n(document.getElementById('saBalNow').textContent) - _curNet;
+  return { dt: document.getElementById('saDt').value,
+           no: document.getElementById('saNo').value,
+           dlvDt: document.getElementById('saDlvDt').value,
+           venCd: venCd, ven: ven,
+           venNm: document.getElementById('saVenNm').value,
+           mgrNm: document.getElementById('saMgrNm').value,
+           whNm : document.getElementById('saWhNm').value,
+           remark: document.getElementById('saRemark').value,
+           payGb: document.getElementById('saPayGb').value,
+           pay: pay, dc: dc, t: t,
+           rows: _rows.filter(function(o){ return o.prodCd; }),
+           balBefore: before, balAfter: before + t.tot - pay - dc };
+}
+/* ★명세서를 그리는 코드는 [asset/js/stmt-sheet.js] 한 곳에 있다 (2026-09-09) —
+     공개 링크(/pub/stmt.do?t=토큰)가 <같은 파일>로 그린다. 여기서는 화면 값을 그 모양으로 넘기기만 한다.
+   ⚠양식(칸·머리표·하단)을 고칠 일이 있으면 이 파일이 아니라 stmt-sheet.js 를 고칠 것 —
+     두 벌로 두면 <거래처에 보낸 명세서>와 <내가 찍은 명세서>가 조용히 달라진다. */
+function saPrtHtml(D,O,S,prev,doPrint){
+  /* 정렬 '조회번호' = 상품마스터의 조회순서(SORT_ORD) — 그 표만 만들어 넘긴다(렌더러는 상품마스터를 모른다) */
+  if (!D.sortMap){
+    D.sortMap = {};
+    _prods.forEach(function(p){ if (D.sortMap[p.prodCd]==null) D.sortMap[p.prodCd] = p.sortOrd; });
+  }
+  return konetStmt.doc(D, O, S, prev, { autoPrint: !!doPrint });
+}
+/* ══════════════════════════════════════════════════════════════════════════
+   거래명세서 보내기 — 💬 카톡 · ✉ 이메일 · 🔗 링크  (2026-09-09 요청)
+
+   ★발주서(poReg)와 **똑같은 방식**이다(사용자 확정 「발주서에서 했으니 그대로」) —
+     카카오는 파일을 붙일 수 없어 «로그인 없이 그 전표 하나만 보는 공개 주소»를 만들어 링크로 보낸다.
+     주소 = /pub/stmt.do?t=토큰 · 토큰은 **처음 보낼 때** 발급되고 이후 바뀌지 않는다
+     (이미 보낸 링크가 살아 있어야 하므로). 링크를 죽이려면 그 전표의 SHARE_TOKEN 을 지운다.
+   ★저장된 전표만 보낼 수 있다 — 링크가 그 전표를 가리키기 때문. 저장 전이면 단추를 잠근다.
+   ★이메일은 `saMailSend()` **한 곳**이 갈래를 정한다 :
+       메일 계정(mail.properties)이 채워져 있으면 → 서버가 직접 발송(위너넷 방식)
+       비어 있으면                                 → 메일 프로그램(mailto)
+     계정이 생기면 이 함수 하나만 보면 된다 — 화면은 안 건드린다. */
+var KAKAO_KEY = '${kakaoJsKey}', SHARE_BASE = '${shareBase}';
+var _shareUrl = '';          // 지금 전표의 공개 주소(발급받아 두면 다시 안 부른다)
+var _mailReady = null;       // 서버 발송이 되는가 — /mangr/mailReady.do 로 한 번 묻는다
+
+function saShareOn(){        // 보내기 단추 켜고 끄기 — 저장된 전표만
+  var ok = !!(_cur && _cur.saleSeq);
+  ['saPrtKakao','saPrtMail','saPrtLink'].forEach(function(id){
+    var b=document.getElementById(id); if(b) b.disabled = !ok;
+  });
+  var el = document.getElementById('saShareInfo');
+  if (el) el.innerHTML = ok
+    ? (n(_cur.shareCnt) > 0
+        ? '이미 <b>'+fmt(_cur.shareCnt)+'번</b> 보냈습니다'+(_cur.lastShareDttm ? ' · '+esc(String(_cur.lastShareDttm).slice(0,16)) : '')
+        : '')
+    : '<b style="color:#c0392b">저장한 뒤에 보낼 수 있습니다</b>';
+}
+/* 공개 주소 받기 — 없으면 서버가 그 자리에서 발급한다 */
+function saShareUrl(){
+  if (!(_cur && _cur.saleSeq)) { swErr('먼저 전표를 저장하세요.'); return Promise.reject(); }
+  if (_shareUrl) return Promise.resolve(_shareUrl);
+  return post('/mangr/salesTrxShare.do','saleSeq='+encodeURIComponent(_cur.saleSeq))
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j || j.error || !j.url) throw new Error((j&&j.error)||'주소를 만들지 못했습니다.');
+      _shareUrl = j.url;
+      _cur.shareCnt = n(_cur.shareCnt)+1; saShareOn();
+      return _shareUrl;
+    });
+}
+function saShareTitle(){
+  return '거래명세서 — '+(document.getElementById('saVenNm').value||'')
+       + ' '+document.getElementById('saDt').value
+       + (document.getElementById('saNo').value ? ' / '+document.getElementById('saNo').value : '');
+}
+/* 🔗 링크 복사 — 카톡·문자 어디에나 붙여 넣을 수 있다(카드 미리보기는 og: 태그로 뜬다) */
+function saShareLink(){
+  saShareUrl().then(function(u){
+    var done=function(){ swOk('명세서 주소를 복사했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">붙여 넣으면 거래처가 <b>로그인 없이</b> 봅니다.</span><br><span style="font-size:11.5px;color:#6b7a89;word-break:break-all">'+esc(u)+'</span>'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(done, function(){ saCopyFallback(u); done(); });
+    else { saCopyFallback(u); done(); }
+  }).catch(function(e){ if(e&&e.message) swErr(esc(e.message)); });
+}
+function saCopyFallback(txt){
+  var t=document.createElement('textarea'); t.value=txt;
+  t.style.position='fixed'; t.style.left='-9999px'; document.body.appendChild(t);
+  t.select(); try{ document.execCommand('copy'); }catch(e){} document.body.removeChild(t);
+}
+/* 💬 카톡 — 발주서와 같은 카카오 「공유하기」 카드. 키가 없으면 링크 복사로 넘긴다 */
+function saShareKakao(){
+  saShareUrl().then(function(u){
+    if (!window.Kakao || !KAKAO_KEY){
+      swAlert('카카오 공유 설정이 없어 <b>링크 복사</b>로 보냅니다.<br><span style="font-size:12px;color:#6b7a89">kakao.properties 의 kakao.js.key 를 채우고 Kakao Developers 에 이 사이트 도메인을 등록하면 카드로 보내집니다.</span>');
+      saShareLink(); return;
+    }
+    try{ if(!Kakao.isInitialized()) Kakao.init(KAKAO_KEY); }
+    catch(e){ swErr('카카오 초기화 실패 — 링크 복사로 보내세요.'); saShareLink(); return; }
+    try{
+      Kakao.Share.sendDefault({
+        objectType:'text',
+        text: saShareTitle()+'\n합계 '+document.getElementById('tTot').textContent+'원',
+        link: { webUrl:u, mobileWebUrl:u },
+        buttonTitle:'명세서 보기'
+      });
+    }catch(e){ swErr('카카오 공유 실패 — 링크 복사로 보내세요.<br><span style="font-size:12px">'+esc(e.message)+'</span>'); }
+  }).catch(function(e){ if(e&&e.message) swErr(esc(e.message)); });
+}
+
+/* ── ✉ 이메일 발송 창 ─────────────────────────────────────────────── */
+function saMailOpen(){
+  if (!(_cur && _cur.saleSeq)) { swErr('먼저 전표를 저장하세요.'); return; }
+  var venCd = document.getElementById('saVenNm').dataset.cd || '';
+  var ven   = _vendors.filter(function(x){ return String(x.vendorCd)===String(venCd); })[0] || {};
+  document.getElementById('saMailWho').textContent =
+      '— ' + (document.getElementById('saVenNm').value||'') + ' · ' + document.getElementById('saDt').value
+      + (document.getElementById('saNo').value ? ' / '+document.getElementById('saNo').value : '');
+  /* 저장된 주소 = 거래처 마스터 EMAIL(여럿이면 세미콜론·쉼표로 갈라 담겨 있다) */
+  var list = String(ven.email||'').split(/[;,]/).map(function(x){ return x.trim(); }).filter(function(x){ return x; });
+  var sel = document.getElementById('mailPick');
+  sel.innerHTML = '<option value="">직접입력</option>'
+                + list.map(function(x){ return '<option value="'+esc(x)+'">'+esc(x)+'</option>'; }).join('');
+  document.getElementById('mailTo').value = list[0] || '';
+  if (list.length) sel.value = list[0];
+  document.getElementById('mailSave').checked = false;
+  document.getElementById('mailSubj').value = saShareTitle();
+  document.getElementById('mailMemo').value = '';
+  document.getElementById('saMailPop').classList.add('on');
+  saMailHint();
+  setTimeout(function(){ document.getElementById('mailTo').focus(); }, 30);
+}
+function saMailClose(){ document.getElementById('saMailPop').classList.remove('on'); }
+function saMailPick(){
+  var v = document.getElementById('mailPick').value;
+  if (v) document.getElementById('mailTo').value = v;
+}
+/* 서버 발송이 되는지 한 번만 물어 안내문을 정한다 */
+function saMailHint(){
+  var el = document.getElementById('mailHint');
+  var draw = function(){
+    el.innerHTML = _mailReady
+      ? '[이메일발송] 을 누르면 <b>서버가 바로 보냅니다.</b> 본문에는 안내와 <b>[명세서 보기]</b> 단추(로그인 없이 열리는 주소)가 들어갑니다.'
+      : '메일 계정이 아직 설정되지 않아 [이메일발송] 은 <b>이 PC 의 메일 프로그램</b>(Outlook 등)을 엽니다 — 열린 창에서 [보내기]를 누르세요.'
+        + '<br>네이버·지메일 같은 웹메일만 쓰시면 창이 안 열릴 수 있습니다. 그때는 <b>[Gmail 로 열기]</b> 나 <b>[📋 내용 복사]</b> 를 쓰세요.';
+  };
+  if (_mailReady !== null) { draw(); return; }
+  el.textContent = '메일 설정을 확인하는 중…';
+  post('/mangr/mailReady.do','').then(function(r){ return r.json(); })
+    .then(function(j){ _mailReady = !!(j&&j.ready); draw(); })
+    .catch(function(){ _mailReady = false; draw(); });
+}
+/* 「저장」 체크 — 그 주소를 거래처 마스터 EMAIL 에 남긴다(이미 있으면 그대로 둔다) */
+function saMailKeep(to){
+  if (!document.getElementById('mailSave').checked) return Promise.resolve();
+  var venCd = document.getElementById('saVenNm').dataset.cd || '';
+  if (!venCd) return Promise.resolve();
+  var ven  = _vendors.filter(function(x){ return String(x.vendorCd)===String(venCd); })[0];
+  var list = String((ven&&ven.email)||'').split(/[;,]/).map(function(x){ return x.trim(); }).filter(function(x){ return x; });
+  to.split(/[;,]/).map(function(x){ return x.trim(); }).filter(function(x){ return x; })
+    .forEach(function(x){ if (list.indexOf(x) < 0) list.push(x); });
+  var val = list.join(';');
+  return post('/vendor/vendorEmailSave.do','vendorCd='+encodeURIComponent(venCd)+'&email='+encodeURIComponent(val))
+    .then(function(r){ if(r.ok && ven) ven.email = val; })   // 화면의 거래처 목록도 같이 맞춘다
+    .catch(function(){});
+}
+function saMailArgs(){
+  var to = (document.getElementById('mailTo').value||'').trim();
+  if (!to) { swErr('받는 사람 이메일을 넣으세요.'); return null; }
+  if (to.indexOf('@') < 0) { swErr('이메일 주소가 아닌 것 같습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(to)+'</span>'); return null; }
+  return { to:to, subj:(document.getElementById('mailSubj').value||saShareTitle()),
+           memo:(document.getElementById('mailMemo').value||'') };
+}
+/* 메일 본문(메일 프로그램·복사용) — 서버 발송일 때는 서버가 같은 내용을 HTML 로 만든다 */
+function saMailBody(a, url){
+  return (document.getElementById('saVenNm').value||'') + ' 귀하\n\n'
+       + '거래명세서를 보내 드립니다.\n'
+       + (a.memo ? '\n'+a.memo+'\n' : '')
+       + '\n· 일자 : ' + document.getElementById('saDt').value
+       +   ' (' + (document.getElementById('saNo').value||'') + ')'
+       + '\n· 합계금액 : ' + document.getElementById('tTot').textContent + ' 원'
+       + '\n\n아래 주소를 누르면 로그인 없이 명세서를 보실 수 있습니다.\n' + url + '\n';
+}
+/* ★[이메일발송] — 갈래를 정하는 단 한 곳.
+     · 메일 계정이 있으면 서버가 직접 보낸다(위너넷 방식)
+     · 없으면 이 PC 의 메일 프로그램을 연다 */
+function saMailSend(){
+  var a = saMailArgs(); if (!a) return;
+  saShareUrl().then(function(url){
+    return saMailKeep(a.to).then(function(){
+      if (_mailReady){
+        return post('/mangr/stmtMailSend.do',
+                    'saleSeq='+encodeURIComponent(_cur.saleSeq)+'&to='+encodeURIComponent(a.to)
+                    +'&subject='+encodeURIComponent(a.subj)+'&memo='+encodeURIComponent(a.memo))
+          .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
+          .then(function(){ saMailClose(); swOk('<b>'+esc(a.to)+'</b><br>이메일을 보냈습니다.'); });
+      }
+      /* 계정이 없을 때 — 메일 프로그램으로 */
+      var href = 'mailto:'+encodeURIComponent(a.to)
+               + '?subject='+encodeURIComponent(a.subj)
+               + '&body='+encodeURIComponent(saMailBody(a, url));
+      location.href = href;
+      saMailClose();
+      swAlert('메일 프로그램을 열었습니다 — 열린 창에서 <b>[보내기]</b>를 누르세요.<br><span style="font-size:12.5px;color:#3d4d5c">아무 창도 안 열리면 <b>[Gmail 로 열기]</b> 나 <b>[📋 내용 복사]</b> 를 쓰세요.</span>');
+    });
+  }).catch(function(e){ if(e&&e.message) swErr('보내지 못했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
+}
+/* Gmail 쓰기 창 — 웹메일만 쓰는 경우의 길 */
+function saMailGmail(){
+  var a = saMailArgs(); if (!a) return;
+  saShareUrl().then(function(url){
+    return saMailKeep(a.to).then(function(){
+      window.open('https://mail.google.com/mail/?view=cm&fs=1'
+        + '&to='+encodeURIComponent(a.to)
+        + '&su='+encodeURIComponent(a.subj)
+        + '&body='+encodeURIComponent(saMailBody(a, url)), '_blank');
+      saMailClose();
+    });
+  }).catch(function(e){ if(e&&e.message) swErr(esc(e.message)); });
+}
+/* 📋 내용 복사 — 네이버·다음 등 어떤 메일에도 붙여 넣을 수 있게 */
+function saMailCopy(){
+  var a = saMailArgs(); if (!a) return;
+  saShareUrl().then(function(url){
+    var txt = '받는사람: '+a.to+'\n제목: '+a.subj+'\n\n'+saMailBody(a, url);
+    var done = function(){ swOk('메일 내용을 복사했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">쓰던 메일(네이버·다음 등)에 붙여 넣으세요.</span>'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function(){ saCopyFallback(txt); done(); });
+    else { saCopyFallback(txt); done(); }
+  }).catch(function(e){ if(e&&e.message) swErr(esc(e.message)); });
+}
+
 /* 전역 리스너 — 그리드 키 위임, 스크롤 시 드롭다운 닫기, 저장/신규 단축키.
    (함수 선언은 hoisting 되므로 init 보다 뒤에 있어도 안전하다) */
 (function saKbdBind(){
@@ -3159,6 +3846,11 @@ function ktExcel(){
       if (p && p.classList.contains('on')) { e.preventDefault(); saProdClose(); }
       var b = document.getElementById('saBatchPop');
       if (b && b.classList.contains('on')) { e.preventDefault(); saBatchClose(); }
+      /* ✉ 이메일 창이 조건 창 위에 뜨므로 먼저 닫는다 */
+      var mp = document.getElementById('saMailPop');
+      if (mp && mp.classList.contains('on')) { e.preventDefault(); saMailClose(); return; }
+      var pr = document.getElementById('saPrtPop');
+      if (pr && pr.classList.contains('on')) { e.preventDefault(); saPrtClose(); }
       /* 💬 카톡 주문 창은 ESC 로 닫지 않는다 (2026-09-05 「닫기를 눌러야 닫히게」) — 위에 뜬 거래처·상품 팝업만 ESC 로 닫힌다 */
     }
   });

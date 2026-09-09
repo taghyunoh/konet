@@ -467,6 +467,35 @@ public class UserController {
 			return response;
 		}
 
+		/** 거래명세표 <공급자(우리 회사)> 칸 — 업태·종목·계좌·공지사항만 저장 (2026-09-09)
+		 *  판매등록 ▸ [🖨 거래명세표] ▸ 공급자 칸의 [💾 회사 정보로 저장] 이 부른다.
+		 *  ★회사코드는 화면 값을 받지 않고 <세션>에서 꺼낸다 — 남의 회사 마스터를 고칠 길을 만들지 않는다.
+		 *  ★인쇄 양식 칸이라 이력(JOB_SEQ)을 만들지 않고 활성행을 그 자리에서 고친다(updateCompBizInfo). */
+		@RequestMapping(value="/user/compBizInfoSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compBizInfoSave(@RequestParam(value="bizCond",  required=false) String bizCond,
+		                                              @RequestParam(value="bizItem",  required=false) String bizItem,
+		                                              @RequestParam(value="bankAcct", required=false) String bankAcct,
+		                                              @RequestParam(value="stmtNotice", required=false) String stmtNotice,
+		                                              HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				CompMdDTO dto = new CompMdDTO();
+				dto.setCompCd(String.valueOf(session.getAttribute("s_comp_cd")));
+				dto.setBizCond(bizCond == null ? "" : bizCond.trim());
+				dto.setBizItem(bizItem == null ? "" : bizItem.trim());
+				dto.setBankAcct(bankAcct == null ? "" : bankAcct.trim());
+				dto.setStmtNotice(stmtNotice == null ? "" : stmtNotice.trim());
+				dto.setUpdUser(session.getAttribute("s_user_id") == null ? "" : String.valueOf(session.getAttribute("s_user_id")));
+				dto.setUpdIp(request.getRemoteAddr());
+				int cnt = svc.updateCompBizInfo(dto);
+				if (cnt == 0) return ResponseEntity.status(404).body("회사 정보를 찾을 수 없습니다.");
+				return ResponseEntity.ok(String.valueOf(cnt));
+			} catch (Exception e) {
+				log.error(" compBizInfoSave ERROR : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+
 		@RequestMapping(value="/user/compCdInsert.do", method = RequestMethod.POST)
 		public ResponseEntity<String> compCdInsert(@RequestBody List<CompMdDTO> data) {
 			try {
@@ -1720,8 +1749,11 @@ public class UserController {
 		   매입등록과 대칭. 정산서(TBL_SALES_MST)와는 별개 표다 — 그쪽은 출고장 엑셀 적재표라
 		   재업로드하면 기존 행이 죽으므로 손으로 친 판매를 섞을 수 없다. */
 		@RequestMapping(value="/mangr/salesReg.do")
-		public String salesReg(HttpSession session) {
+		public String salesReg(HttpServletRequest request, HttpSession session, Model model) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			/* 거래명세서 카톡 공유 — 발주서(poReg)와 같은 설정(kakao.properties) 을 그대로 쓴다 (2026-09-09) */
+			model.addAttribute("kakaoJsKey", poProp("kakao.js.key"));
+			model.addAttribute("shareBase", poShareBase(request));
 			return ".raw/main/mangr/salesReg";
 		}
 		@RequestMapping(value="/mangr/salesTrxList.do", method = RequestMethod.POST)
@@ -1738,6 +1770,198 @@ public class UserController {
 			response.put("data", svc.selectSalesTrxOne(dto));
 			return response;
 		}
+		/* ================= 거래명세서 보내기 (2026-09-09 신설) =================
+		   판매등록 ▸ [🖨 거래명세표] ▸ [💬 카톡] / [✉ 이메일] / [🔗 링크].
+		   ★발주서(poReg)와 **똑같은 방식**이다 — 카카오는 파일을 못 붙이므로 «로그인 없이 그 전표 하나만 보는
+		     공개 주소»(/pub/stmt.do?t=토큰)를 만들어 그 링크를 보낸다. 설정도 발주서와 같은 kakao.properties.
+		   ★명세서를 그리는 코드는 화면과 공개 페이지가 **한 파일**을 쓴다(asset/js/stmt-sheet.js) —
+		     두 벌로 두면 <보낸 명세서>와 <내가 찍은 명세서>가 조용히 달라진다. */
+		@RequestMapping(value="/mangr/salesTrxShare.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesTrxShare(@RequestParam("saleSeq") long saleSeq,
+		                                        HttpServletRequest request, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 필요합니다."); return res; }
+			egovframework.sejong.user.model.SalesTrxDTO dto = new egovframework.sejong.user.model.SalesTrxDTO();
+			dto.setSaleSeq(saleSeq);
+			dto.setUpdUser(session.getAttribute("s_user_id") == null ? "" : String.valueOf(session.getAttribute("s_user_id")));
+			dto.setUpdIp(request.getRemoteAddr());
+			String token = svc.shareSalesTrx(dto);
+			if (token == null || token.isEmpty()) { res.put("error", "전표를 찾을 수 없습니다. 먼저 저장하세요."); return res; }
+			res.put("token", token);
+			res.put("url", poShareBase(request) + "/pub/stmt.do?t=" + token);
+			return res;
+		}
+		/** ★공개 거래명세서 — 카톡 카드·이메일이 여는 주소. 로그인 없이 <토큰만으로> 그 전표 하나를 읽는다.
+		 *  토큰이 없거나 틀리면 빈 안내만 보인다(전표 목록이 새어 나갈 길이 없다 — 서비스가 빈 토큰을 거절한다). */
+		@RequestMapping(value="/pub/stmt.do")
+		public String stmtPublic(@RequestParam(value="t", required=false) String token, Model model) throws Exception {
+			egovframework.sejong.user.model.SalesTrxDTO mst = svc.selectSalesTrxByToken(token);
+			if (mst == null) { model.addAttribute("notFound", true); return ".raw/main/mangr/stmtPrint"; }
+			model.addAttribute("dataJson", stmtJson(mst));
+			/* 카톡 카드 미리보기(og:) — 링크만 붙여 넣어도 제목·설명이 보인다. 발주서 공개 페이지와 같은 방식 */
+			model.addAttribute("ogTitle", "거래명세서 — " + poStr(mst.getCustNm()) + " (" + poDash(mst.getSaleDt()) + ")");
+			model.addAttribute("ogDesc", "합계 " + new java.text.DecimalFormat("#,##0").format(mst.getTotAmt()==null?0d:mst.getTotAmt())
+			                            + "원 · 품목 " + (mst.getItems()==null?0:mst.getItems().size()) + "건");
+			return ".raw/main/mangr/stmtPrint";
+		}
+		/** 공개 페이지가 그대로 쓰는 자료 한 덩어리 — 화면(salesReg)이 만드는 D·O·S 와 같은 모양이다. */
+		private String stmtJson(egovframework.sejong.user.model.SalesTrxDTO m) throws Exception {
+			Map<String,Object> D = new HashMap<String,Object>();
+			D.put("dt", poDash(m.getSaleDt())); D.put("no", m.getSaleNo()); D.put("dlvDt", poDash(m.getDlvDt()));
+			D.put("venNm", m.getCustNm()); D.put("remark", m.getRemark());
+			D.put("pay", m.getPayAmt()); D.put("dc", m.getDcAmt());
+			Map<String,Object> t = new HashMap<String,Object>();
+			t.put("box", m.getTotBoxQty()); t.put("ea", m.getTotEaQty()); t.put("qty", m.getTotQty());
+			t.put("sup", m.getSupplyAmt()); t.put("vat", m.getVatAmt()); t.put("tot", m.getTotAmt());
+			D.put("t", t);
+			D.put("rows", m.getItems() == null ? new java.util.ArrayList<Object>() : m.getItems());
+			/* 공급받는자 — 거래처 마스터 그대로(사업자번호·주소·이메일·연락처) */
+			Map<String,Object> ven = new HashMap<String,Object>();
+			egovframework.sejong.user.model.VendorDTO vq = new egovframework.sejong.user.model.VendorDTO();
+			vq.setVendorCd(m.getCustCd()); vq.setCompCd(m.getCompCd());
+			java.util.List<egovframework.sejong.user.model.VendorDTO> vl = svc.selectVendorMst(vq);
+			if (vl != null && !vl.isEmpty()) {
+				egovframework.sejong.user.model.VendorDTO v = vl.get(0);
+				ven.put("bizno", v.getBizno()); ven.put("addr", v.getAddr()); ven.put("addr2", v.getAddr2());
+				ven.put("email", v.getEmail()); ven.put("hp", v.getHp()); ven.put("tel", v.getTel());
+			}
+			D.put("ven", ven);
+			/* 공급자 — 회사 마스터(업태·종목·계좌 포함, 2026-09-09 신설 칸) */
+			Map<String,Object> c = new HashMap<String,Object>(); c.put("compCd", m.getCompCd());
+			Map<String,Object> comp = svc.selectCompInfo(c); if (comp == null) comp = new HashMap<String,Object>();
+			poFillDefault(comp, "compNm", "company.name"); poFillDefault(comp, "busiNum", "company.busi.num");
+			poFillDefault(comp, "compCeo", "company.ceo"); poFillDefault(comp, "compAddr", "company.addr");
+			poFillDefault(comp, "compTel", "company.tel");
+			Map<String,Object> S = new HashMap<String,Object>();
+			S.put("nm", poStr(comp.get("compNm")));   S.put("biz", poStr(comp.get("busiNum")));
+			S.put("ceo", poStr(comp.get("compCeo"))); S.put("cond", poStr(comp.get("bizCond")));
+			S.put("item", poStr(comp.get("bizItem"))); S.put("addr", poStr(comp.get("compAddr")));
+			S.put("bank", poStr(comp.get("bankAcct"))); S.put("tel", poStr(comp.get("compTel")));
+			/* 공지사항도 회사 정보에서 온다 (2026-09-09) — 종전에는 브라우저에만 있어 공개 링크에는 빈 칸으로 나갔다 */
+			S.put("notice", poStr(comp.get("stmtNotice")));
+			/* ★공개 링크의 조건은 <고정>이다 — 보낸 사람의 화면 설정을 따라다니게 만들면 링크마다 모양이 달라진다.
+			   금액·단가는 찍고, 부가세는 그 전표에 세액이 있을 때만, 잔고는 안 찍는다(원장을 공개하지 않는다),
+			   단가변동도 안 찍는다(직전 단가는 우리 자료다). 한 부(공급받는자용) · 종이 아래까지. */
+			Map<String,Object> O = new HashMap<String,Object>();
+			O.put("ord","in"); O.put("amt","Y"); O.put("price","Y"); O.put("bal","N"); O.put("inv","N");
+			O.put("boxp","N"); O.put("chg","N");
+			O.put("vat", (m.getVatAmt()!=null && m.getVatAmt().doubleValue()!=0d) ? "Y" : "N");
+			O.put("rows", 38); O.put("mode","b1");
+			Map<String,Object> all = new HashMap<String,Object>();
+			all.put("D", D); all.put("O", O); all.put("S", S);
+			/* ★'<' 를 < 로 바꿔 둔다 — 이 JSON 은 페이지의 <script> 안에 그대로 박히는데,
+			     품명·비고에 「</script」 같은 글자가 있으면 거기서 스크립트가 끊겨 페이지가 깨진다.
+			     JSON 문자열 안에서는 < 가 '<' 와 같은 뜻이라 값은 그대로다. */
+			return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(all).replace("<", "\\u003C");
+		}
+		private static String poDash(String ymd) {
+			String s = ymd == null ? "" : ymd.trim();
+			return s.length()==8 ? s.substring(0,4)+"-"+s.substring(4,6)+"-"+s.substring(6,8) : s;
+		}
+		/** 메일 계정이 설정돼 있는지 — 화면이 [이메일발송] 단추 모양을 정할 때 묻는다 (2026-09-09) */
+		@RequestMapping(value="/mangr/mailReady.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> mailReady(HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("ready", session.getAttribute("s_comp_cd") != null && egovframework.sejong.cmmn.MailSender.ready());
+			res.put("from", egovframework.sejong.cmmn.MailSender.prop("mail.from"));
+			return res;
+		}
+		/** ★거래명세서 이메일 발송 (2026-09-09) — 서버가 직접 보낸다(위너넷 방식).
+		 *  계정(mail.properties)이 비어 있으면 <보내지 않고> 그 사실을 돌려준다 —
+		 *  화면은 그때 [메일 프로그램 열기]로 넘긴다. 그래서 계정이 없어도 기능이 죽지 않는다.
+		 *  본문 = 인사말 + 요약(일자·전표번호·합계) + <명세서 보기> 링크(공개 주소). */
+		@RequestMapping(value="/mangr/stmtMailSend.do", method = RequestMethod.POST)
+		public ResponseEntity<String> stmtMailSend(@RequestParam("saleSeq") long saleSeq,
+		                                           @RequestParam("to") String to,
+		                                           @RequestParam(value="subject", required=false) String subject,
+		                                           @RequestParam(value="memo", required=false) String memo,
+		                                           HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				if (!egovframework.sejong.cmmn.MailSender.ready())
+					return ResponseEntity.status(503).body("메일 계정이 아직 설정되지 않았습니다 (mail.properties).");
+				egovframework.sejong.user.model.SalesTrxDTO q = new egovframework.sejong.user.model.SalesTrxDTO();
+				q.setSaleSeq(saleSeq);
+				q.setUpdUser(session.getAttribute("s_user_id") == null ? "" : String.valueOf(session.getAttribute("s_user_id")));
+				q.setUpdIp(request.getRemoteAddr());
+				String token = svc.shareSalesTrx(q);            // 토큰 발급(처음 한 번) — 링크가 본문에 들어간다
+				if (token == null) return ResponseEntity.status(404).body("전표를 찾을 수 없습니다.");
+				egovframework.sejong.user.model.SalesTrxDTO m = svc.selectSalesTrxByToken(token);
+				if (m == null) return ResponseEntity.status(404).body("전표를 찾을 수 없습니다.");
+				String url = poShareBase(request) + "/pub/stmt.do?t=" + token;
+				Map<String,Object> c = new HashMap<String,Object>(); c.put("compCd", m.getCompCd());
+				Map<String,Object> comp = svc.selectCompInfo(c); if (comp == null) comp = new HashMap<String,Object>();
+				poFillDefault(comp, "compNm", "company.name"); poFillDefault(comp, "compTel", "company.tel");
+				String sender = poStr(comp.get("compNm"));
+				String subj = (subject == null || subject.trim().isEmpty())
+				            ? "[" + sender + "] 거래명세서 " + poDash(m.getSaleDt()) + " (" + poStr(m.getSaleNo()) + ")"
+				            : subject.trim();
+				egovframework.sejong.cmmn.MailSender.sendHtml(to, subj, stmtMailHtml(m, url, sender, poStr(comp.get("compTel")), memo));
+				return ResponseEntity.ok("1");
+			} catch (Exception e) {
+				log.error(" stmtMailSend ERROR : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage() == null ? "발송에 실패했습니다." : e.getMessage());
+			}
+		}
+		/** 메일 본문 — 명세서 자체는 링크로 본다(양식을 두 벌로 만들지 않는다). 여기는 안내와 요약만. */
+		private String stmtMailHtml(egovframework.sejong.user.model.SalesTrxDTO m, String url,
+		                            String sender, String tel, String memo) {
+			java.text.DecimalFormat df = new java.text.DecimalFormat("#,##0");
+			StringBuilder b = new StringBuilder();
+			b.append("<div style=\"font-family:'맑은 고딕',Malgun Gothic,sans-serif;font-size:14px;color:#1f2a37;line-height:1.7\">");
+			b.append("<p><b>").append(poEsc(m.getCustNm())).append("</b> 귀하</p>");
+			b.append("<p>거래명세서를 보내 드립니다. 아래 단추를 누르면 명세서를 보실 수 있습니다(로그인 없이 열립니다).</p>");
+			if (memo != null && !memo.trim().isEmpty())
+				b.append("<p style=\"white-space:pre-line;background:#f5f7f9;border-left:3px solid #137a6c;padding:8px 12px\">")
+				 .append(poEsc(memo.trim())).append("</p>");
+			b.append("<table style=\"border-collapse:collapse;margin:14px 0;font-size:13.5px\">");
+			b.append("<tr><td style=\"padding:4px 14px 4px 0;color:#5a6b7a\">일자</td><td><b>")
+			 .append(poDash(m.getSaleDt())).append("</b> (").append(poEsc(m.getSaleNo())).append(")</td></tr>");
+			b.append("<tr><td style=\"padding:4px 14px 4px 0;color:#5a6b7a\">품목</td><td>")
+			 .append(m.getItems()==null?0:m.getItems().size()).append("건</td></tr>");
+			b.append("<tr><td style=\"padding:4px 14px 4px 0;color:#5a6b7a\">합계금액</td><td><b style=\"font-size:16px;color:#137a6c\">")
+			 .append(df.format(m.getTotAmt()==null?0d:m.getTotAmt())).append(" 원</b></td></tr>");
+			b.append("</table>");
+			b.append("<p><a href=\"").append(poEsc(url)).append("\" ")
+			 .append("style=\"display:inline-block;background:#137a6c;color:#fff;text-decoration:none;")
+			 .append("padding:11px 22px;border-radius:7px;font-weight:700\">📄 거래명세서 보기</a></p>");
+			b.append("<p style=\"font-size:12px;color:#8a97a4;word-break:break-all\">단추가 눌리지 않으면 이 주소를 붙여 넣으세요<br>")
+			 .append(poEsc(url)).append("</p>");
+			b.append("<hr style=\"border:0;border-top:1px solid #dbe2ea;margin:18px 0\">");
+			b.append("<p style=\"font-size:12.5px;color:#5a6b7a\">").append(poEsc(sender));
+			if (tel != null && !tel.isEmpty()) b.append(" · ").append(poEsc(tel));
+			b.append("</p></div>");
+			return b.toString();
+		}
+		private static String poEsc(String s) {
+			return s == null ? "" : s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;");
+		}
+
+		/** 거래처 이메일만 저장 — 거래명세서 [이메일발송] 창의 「저장」 (2026-09-09).
+		 *  ★EMAIL 한 칸만 고친다. 발송 창에서 거래처를 통째로 저장하면 다른 칸이 빈 값으로 날아간다. */
+		@RequestMapping(value="/vendor/vendorEmailSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> vendorEmailSave(@RequestParam("vendorCd") String vendorCd,
+		                                              @RequestParam(value="email", required=false) String email,
+		                                              HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				if (vendorCd == null || vendorCd.trim().isEmpty()) return ResponseEntity.status(400).body("거래처를 고르세요.");
+				egovframework.sejong.user.model.VendorDTO dto = new egovframework.sejong.user.model.VendorDTO();
+				dto.setVendorCd(vendorCd.trim());
+				dto.setEmail(email == null ? "" : email.trim());
+				dto.setUpdUser(session.getAttribute("s_user_id") == null ? "" : String.valueOf(session.getAttribute("s_user_id")));
+				dto.setUpdIp(request.getRemoteAddr());
+				int cnt = svc.updateVendorEmail(dto);
+				if (cnt == 0) return ResponseEntity.status(404).body("거래처를 찾을 수 없습니다.");
+				return ResponseEntity.ok(String.valueOf(cnt));
+			} catch (Exception e) {
+				log.error(" vendorEmailSave ERROR : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+
 		@RequestMapping(value="/mangr/salesTrxNextNo.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,Object> salesTrxNextNo(@ModelAttribute("DTO") egovframework.sejong.user.model.SalesTrxDTO dto, HttpSession session) throws Exception {

@@ -52,6 +52,12 @@ public class SalesTrxDTO {
 
     private List<SalesTrxDtlDTO> items;   // 명세
 
+    /* 거래명세서 공유 (2026-09-09) — 카톡·이메일로 보내는 공개 주소 /pub/stmt.do?t=토큰.
+       DDL: sql/sales_trx_share_alter.sql · 토큰은 <처음 보낼 때> 발급하고 이후 바뀌지 않는다. */
+    private String  shareToken;
+    private Integer shareCnt;      // 보낸 횟수
+    private String  lastShareDttm; // 마지막으로 보낸 일시
+
     // ── 조회 파라미터 (비영속) ──
     private String  fromDt;
     private String  toDt;
@@ -124,4 +130,10 @@ public class SalesTrxDTO {
     public void setFindData(String findData) { this.findData = findData; }
     public Integer getProdCnt() { return prodCnt; }
     public void setProdCnt(Integer prodCnt) { this.prodCnt = prodCnt; }
+    public String  getShareToken() { return shareToken; }
+    public void    setShareToken(String shareToken) { this.shareToken = shareToken; }
+    public Integer getShareCnt() { return shareCnt; }
+    public void    setShareCnt(Integer shareCnt) { this.shareCnt = shareCnt; }
+    public String  getLastShareDttm() { return lastShareDttm; }
+    public void    setLastShareDttm(String lastShareDttm) { this.lastShareDttm = lastShareDttm; }
 }

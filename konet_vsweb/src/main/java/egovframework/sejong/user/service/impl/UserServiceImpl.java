@@ -54,6 +54,7 @@ public class UserServiceImpl implements UserService {
 	@Override public String CompCdMstDupChk(CompMdDTO dto) throws Exception { return mapper.CompCdMstDupChk(dto); }
 	@Override public int insertCompCdMst(CompMdDTO dto) throws Exception { return mapper.insertCompCdMst(dto); }
 	@Override public int updateCompCdMst(CompMdDTO dto) throws Exception { return mapper.updateCompCdMst(dto); }
+	@Override public int updateCompBizInfo(CompMdDTO dto) throws Exception { return mapper.updateCompBizInfo(dto); }
 
 	// ===== 출고장(발주현황표) 업로드 저장 (TBL_SHIPOUT_MST) =====
 	@Override public java.util.List<String> selectShipoutActiveShpoutDts(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutActiveShpoutDts(dto); }
@@ -94,6 +95,7 @@ public class UserServiceImpl implements UserService {
 	@Override public int vendorDupChk(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.vendorDupChk(dto); }
 	@Override public int insertVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.insertVendorMst(dto); }
 	@Override public int updateVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.updateVendorMst(dto); }
+	@Override public int updateVendorEmail(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.updateVendorEmail(dto); }
 	@Override public int deleteVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.deleteVendorMst(dto); }
 	@Override public int mergeVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception { return mapper.mergeVendorMst(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.BiziDTO> selectBiziMst() throws Exception { return mapper.selectBiziMst(); }
@@ -826,6 +828,38 @@ public class UserServiceImpl implements UserService {
 		}
 		if (head == null) return null;
 		head.setItems(mapper.selectSalesTrxDtl(dto));
+		return head;
+	}
+
+	/* 거래명세서 공유 (2026-09-09) — 카톡·이메일로 보낼 공개 주소의 토큰.
+	   ★토큰은 <처음 보낼 때> 발급한다(저장할 때가 아니다) — 예전에 쌓인 전표도 그대로 보낼 수 있어야 한다.
+	   ★UPDATE 가 `ISNULL(SHARE_TOKEN, 새토큰)` 이라 이미 발급된 전표는 <옛 토큰이 그대로>다.
+	     그래서 새로 만든 후보 토큰을 그냥 돌려주면 안 되고, 쓴 뒤 다시 읽어 확인한다. */
+	@Override public String shareSalesTrx(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception {
+		dto.setShareToken(java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 24));
+		if (mapper.updateSalesTrxShare(dto) == 0) return null;          // 없는 전표거나 다른 회사
+		/* ★다시 읽기 전에 후보 토큰을 <반드시 비운다> — 안 비우면 selectSalesTrxList 의 shareToken 필터가
+		     그 후보 토큰으로 걸린다. 이미 한 번 보낸 전표는 옛 토큰이 그대로 남아 있으므로 <한 건도 안 잡혀>
+		     「전표를 찾을 수 없습니다」가 뜬다 = 두 번째 보내기가 늘 실패한다. 찾는 열쇠는 saleSeq 다. */
+		dto.setShareToken(null);
+		java.util.List<egovframework.sejong.user.model.SalesTrxDTO> l = mapper.selectSalesTrxList(dto);
+		for (egovframework.sejong.user.model.SalesTrxDTO r : l) {
+			if (r.getSaleSeq()!=null && r.getSaleSeq().equals(dto.getSaleSeq())) return r.getShareToken();
+		}
+		return null;
+	}
+	/* 공개 링크 — 토큰 하나로 찾는다. 로그인이 없어 compCd 가 빈 값이므로 <토큰이 곧 열쇠>다.
+	   ★토큰이 비면 절대 조회하지 않는다 — 빈 토큰은 SQL 의 fail-open 을 타 전표가 통째로 나온다. */
+	@Override public egovframework.sejong.user.model.SalesTrxDTO selectSalesTrxByToken(String token) throws Exception {
+		if (token == null || token.trim().isEmpty()) return null;
+		egovframework.sejong.user.model.SalesTrxDTO q = new egovframework.sejong.user.model.SalesTrxDTO();
+		q.setShareToken(token.trim());
+		java.util.List<egovframework.sejong.user.model.SalesTrxDTO> l = mapper.selectSalesTrxList(q);
+		if (l == null || l.isEmpty()) return null;
+		egovframework.sejong.user.model.SalesTrxDTO head = l.get(0);
+		egovframework.sejong.user.model.SalesTrxDTO d = new egovframework.sejong.user.model.SalesTrxDTO();
+		d.setSaleSeq(head.getSaleSeq()); d.setCompCd(head.getCompCd());
+		head.setItems(mapper.selectSalesTrxDtl(d));
 		return head;
 	}
 

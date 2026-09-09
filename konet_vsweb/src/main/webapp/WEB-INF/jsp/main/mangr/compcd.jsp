@@ -552,6 +552,23 @@ $(document).on('init.dt', function(e, settings) {
 							<label for="inaccd" class="col-2 col-form-label text-left">기관구분</label>
 							<div class="col-2"><input id="inaccd" name="inaccd" type="text" class="form-control" placeholder=""></div>
 						</div>
+						<!-- ★거래명세표·세금계산서의 <공급자(우리 회사)> 칸 (2026-09-09 신설)
+						     판매등록 [🖨 거래명세표] 가 이 값을 그대로 찍는다. DDL : sql/comp_mst_bizinfo_alter.sql
+						     같은 값을 그 조건 창에서도 고칠 수 있다([💾 회사 정보로 저장]) — 어느 쪽으로 고쳐도 같은 자리다. -->
+						<div class="form-group row">
+							<label for="bizCond" class="col-2 col-form-label text-left" style="color:#137a6c;">업태</label>
+							<div class="col-2"><input id="bizCond" name="bizCond" type="text" class="form-control text-left" placeholder="예: 제조"></div>
+							<label for="bizItem" class="col-2 col-form-label text-left" style="color:#137a6c;">종목</label>
+							<div class="col-6"><input id="bizItem" name="bizItem" type="text" class="form-control text-left" placeholder="예: 사출성형용기"></div>
+						</div>
+						<div class="form-group row">
+							<label for="bankAcct" class="col-2 col-form-label text-left" style="color:#137a6c;">계좌</label>
+							<div class="col-10"><input id="bankAcct" name="bankAcct" type="text" class="form-control text-left" placeholder="은행 · 예금주 · 계좌번호 (거래명세표에 한 줄로 찍힙니다)"></div>
+						</div>
+						<div class="form-group row">
+							<label for="stmtNotice" class="col-2 col-form-label text-left" style="color:#137a6c;">공지사항</label>
+							<div class="col-10"><input id="stmtNotice" name="stmtNotice" type="text" class="form-control text-left" placeholder="거래명세표 맨 아래 칸에 늘 찍히는 글 (비우면 빈 칸)"></div>
+						</div>
 						<!-- 파일업로드 미사용(COMP) — 기존 JS(modal_Open/uploadForm/drag-area 등) 호환용 hidden 스텁 -->
 						<form id="uploadForm" style="display:none;" onsubmit="return false;">
 							<div class="btn-box"></div>
@@ -1511,7 +1528,13 @@ $(document).on('init.dt', function(e, settings) {
 		    	compAddr:    { kname: "주소" },
 		    	compExtradr: { kname: "상세주소"},
 		    	compTel:     { kname: "연락처" },
-		    	compFax:     { kname: "Fax"   }
+		    	compFax:     { kname: "Fax"   },
+		    	/* ★거래명세표 <공급자> 칸 (2026-09-09) — 여기 없으면 fn_Insert/fn_Update 의 전송 데이터에
+		    	   안 담겨, 회사를 한 번 수정할 때마다 종목·계좌가 빈 값으로 덮인다. */
+		    	bizCond:     { kname: "업태" },
+		    	bizItem:     { kname: "종목" },
+		    	bankAcct:    { kname: "계좌" },
+		    	stmtNotice:  { kname: "공지사항" }
 		    });
 		    return results;
 		}
