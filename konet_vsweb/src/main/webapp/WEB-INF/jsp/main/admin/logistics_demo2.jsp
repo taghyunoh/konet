@@ -3215,12 +3215,8 @@
       <a class="mi" onclick="swAlert('견적서 목록/조회는 향후 추진 예정입니다.','info')"><span class="ic">📋</span>견적서 목록/조회</a>
       <a class="mi" onclick="swAlert('견적서 출력(PDF/엑셀)은 향후 추진 예정입니다.','info')"><span class="ic">🖨️</span>견적서 출력</a>
     </div>
-    <a class="mi has-sub" data-sub="kakao" onclick="logiToggleSub('kakao', this)"><span class="ic">💬</span>카카오톡관리 <span style="font-size:10px;color:#9aa7b3">(협의후 예정)</span><span class="caret">▶</span></a>
-    <div class="sub-menu" id="sub-kakao">
-      <a class="mi" onclick="swAlert('카카오톡/문자 발송은 협의 후 추진 예정입니다.','info')"><span class="ic">📨</span>메시지 발송</a>
-      <a class="mi" onclick="swAlert('발송 이력 조회는 협의 후 추진 예정입니다.','info')"><span class="ic">📜</span>발송 이력</a>
-      <a class="mi" onclick="swAlert('문자 템플릿 관리는 협의 후 추진 예정입니다.','info')"><span class="ic">🧩</span>문자 템플릿 관리</a>
-    </div>
+    <%-- ★[2026-09-09 사용자 요청] 「💬 카카오톡관리」(메시지 발송·발송 이력·문자 템플릿 관리) 메뉴 삭제.
+         메뉴만 뺀 것 — 업무설명서(panel-guide)의 '예정 기능' 문구는 그대로 둔다. --%>
 
     <div class="grp">도움말</div>
     <a class="mi" data-key="guide" onclick="logiGo('guide', this)"><span class="ic">📖</span>업무 설명서</a>
