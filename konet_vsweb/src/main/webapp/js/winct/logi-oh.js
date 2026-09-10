@@ -3580,8 +3580,26 @@ function ssOutQty(o){
       shpProgDone();                 // 실제 응답 → 100% 스냅
       setTimeout(shpProgHide, 500);
       var ok=(xhr.status>=200 && xhr.status<300), t=xhr.responseText;
+      /* ★★재고 반영 실패를 «조용히» 넘기지 않는다 (2026-09-10 신설) —
+           종전에는 서버가 재고연동 실패를 로그에만 남기고 저장은 성공으로 끝냈다.
+           그러면 자료는 들어갔는데 재고만 안 맞고, 아무도 모른 채 나중에
+           「재고조정도 안 했는데 재고가 틀어졌다」로 나타난다.
+         응답 모양 : "<건수>|STOCKFAIL:<사유>" — 앞의 건수는 종전 그대로다. */
+      var stkFail='';
+      if(ok && t && t.indexOf('|STOCKFAIL:')>=0){
+        var _p=t.split('|STOCKFAIL:'); t=_p[0]; stkFail=_p[1]||'알 수 없는 오류';
+      }
       if(ok){
         ssToast('💾 서버 저장 완료 — 출고일자 '+(perFile?'<b>파일별 납품일자</b>':baseDt)+' · <b>'+t+'</b>건 (기존 자료 초기화 후 생성)');
+        if(stkFail){
+          /* 자료는 들어갔다 — 재고만 안 붙었다. 사람이 [출고반영 재집계] 한 번 눌러야 맞는다. */
+          var _m='<div style="text-align:left;line-height:1.7">자료는 <b>저장됐습니다</b>. 그런데 <b style="color:#c0392b">재고 반영에 실패</b>했습니다.'
+               + '<div style="margin:8px 0;font-size:12.5px;color:#5b6b7a">지금은 <b>올린 수량이 재고에서 빠지지 않은 상태</b>입니다 —'
+               + ' 재고현황의 <b>[🔄 출고반영 재집계]</b> 를 한 번 눌러 주세요.</div>'
+               + '<div style="font-size:12px;color:#8a97a3">사유 : '+String(stkFail).replace(/</g,'&lt;')+'</div></div>';
+          if(window._alertBox) window._alertBox(_m, { icon:'⚠️' });
+          else ssToast('⚠️ 재고 반영 실패 — [출고반영 재집계]를 눌러 주세요. ('+stkFail+')');
+        }
         if(window.ssLoadShipoutFromDB) ssLoadShipoutFromDB();   // 저장 끝나면 출고일자로 DB 조회 1회 자동 실행
         if(window.ssUpHistLoad) ssUpHistLoad();                 // 방금 올린 배치가 좌측 '올린 이력' 맨 위로 올라오게
         if(window.ssArchiveApplied) ssArchiveApplied(srcFile);  // 반영 끝난 엑셀은 상단 목록에서 「_반영됨」으로 치운다
@@ -4666,6 +4684,18 @@ function ssOutQty(o){
           if(+j.skip)  msg+=' · <span style="color:#a85700">단가충돌 '+j.skip+'종 제외</span>';
           msg+=_leftMsg(_slsAfterSave(savedNames));
           ssToast(msg);
+          /* ★★재고원장 동기화 실패를 «조용히» 넘기지 않는다 (2026-09-10 신설) —
+               서버는 예전부터 `ledgerErr` 를 실어 보냈는데 화면이 안 봤다(주석에 「화면은 몰라도 무해」로 남아 있다).
+               정산서가 재고에 안 붙으면 그 날 출고는 <발주현황표 몫 그대로>거나 아예 안 빠진 채로 남는다.
+             ⇒ 자료 저장은 이미 끝난 것이라 되돌리지 않고, [출고반영 재집계]를 권한다. */
+          if(j.ledgerErr){
+            var _m2='<div style="text-align:left;line-height:1.7">정산서는 <b>저장됐습니다</b>. 그런데 <b style="color:#c0392b">재고 반영에 실패</b>했습니다.'
+                  + '<div style="margin:8px 0;font-size:12.5px;color:#5b6b7a">그 날 출고가 <b>정산서 수량으로 대체되지 않은 상태</b>입니다 —'
+                  + ' 재고현황의 <b>[🔄 출고반영 재집계]</b> 를 한 번 눌러 주세요.</div>'
+                  + '<div style="font-size:12px;color:#8a97a3">사유 : '+String(j.ledgerErr).replace(/</g,'&lt;')+'</div></div>';
+            if(window._alertBox) window._alertBox(_m2, { icon:'⚠️' });
+            else ssToast('⚠️ 재고 반영 실패 — [출고반영 재집계]를 눌러 주세요. ('+j.ledgerErr+')');
+          }
         };
         xhr.onerror=function(){ slsProgHide(); slsSaveBtnBusy(false); ssToast('⚠️ 통신오류 — 네트워크를 확인하세요.'); };
         xhr.ontimeout=function(){ slsProgHide(); slsSaveBtnBusy(false); ssToast('⚠️ 저장 시간 초과 — 잠시 후 다시 시도하세요.'); };

@@ -621,6 +621,44 @@ function save(){
     });
   };
 
+  /* ★★서브코드 줄은 저장하지 않는다 (2026-09-10 신설) ─────────────────────────────
+       서브코드(거래처 매칭코드)는 «남의 코드»라 **재고의 주인이 아니다.** 그 줄로 조정하면
+       같은 물건의 재고가 주코드와 서브코드로 갈라진다 :
+         실측 2026-09-10 14:15 — 조정 +157 이 서브코드 1000791735 로 들어가고
+         주코드 9904013072 는 −145 그대로였다. 고친 사람은 고쳤다고 믿는다.
+       ⚠**[출고반영 재집계]로도 안 고쳐진다** — 그 버튼은 출고 원천(발주현황표·정산서)만 다시 만든다.
+     ★막는 곳은 서버(stockAdjSave)다 — 여기는 «저장 전에 먼저 알려 주는» 편의다(매입과 같은 꼴).
+     ★바꿔 주지 않는다 — 조정은 <앞수량·뒷수량>이 짝이라 코드만 옮기면 주코드 현재고와 어긋난다.
+       대신 주코드를 알려 주고, 그 줄을 화면에서 찾아 준다(검색칸에 넣어 준다). */
+  var subBad = [];
+  rows.forEach(function(r){
+    var sb = _subOf[String(r.prodCd)];
+    if (sb && sb.prodCd && String(sb.prodCd) !== String(r.prodCd)) subBad.push({ sub:r.prodCd, main:sb.prodCd, nm:(sb.prodNm||sb.extItemNm||'') });
+  });
+  if (subBad.length){
+    var h = subBad.map(function(s){
+      return '<div style="margin:4px 0"><b style="color:#c0392b">' + esc(s.sub) + '</b> (서브)'
+           + ' &nbsp;→&nbsp; 주코드 <b style="color:#1f7a4d">' + esc(s.main) + '</b>'
+           + (s.nm ? ' <span style="color:#5b6b7a;font-size:12.5px">' + esc(s.nm) + '</span>' : '') + '</div>';
+    }).join('');
+    var one = subBad[0];
+    if (window._confirmBox){
+      window._confirmBox({
+        icon: '⚠️',
+        msg: '<div style="text-align:left; line-height:1.6">서브코드 줄은 <b>재고조정을 할 수 없습니다.</b>'
+           + '<div style="margin:8px 0;font-size:12.5px;color:#5b6b7a">서브코드로 조정하면 같은 물건의 재고가 <b>두 코드로 갈라집니다</b>'
+           + ' — 조정한 수량이 주코드 재고에는 안 잡힙니다.</div>' + h
+           + '<div style="margin-top:8px;font-size:12.5px;color:#5b6b7a">주코드 줄에서 다시 조정해 주세요.</div></div>',
+        okText: '주코드 찾기',
+        /* [주코드 찾기] — 검색칸에 주코드를 넣고 그 줄만 불러 준다(목록을 다시 뒤지지 않게) */
+        onOk: function(){ var s=gel('findData'); if(s){ s.value=one.main; load(); s.focus(); } }
+      });
+    } else {
+      alertBox('서브코드 줄은 재고조정을 할 수 없습니다 — 주코드 ' + esc(one.main) + ' 줄에서 조정하세요.', '⚠️');
+    }
+    return;                                   /* 저장하지 않는다 */
+  }
+
   var lines = [];
   if (packs.length) lines.push('입수수량 <b>' + packs.length + '건</b> — 환산 기준만 바뀝니다(재고 그대로).');
   if (rows.length)  lines.push('재고 <b>' + rows.length + '건</b> 을 <b>'

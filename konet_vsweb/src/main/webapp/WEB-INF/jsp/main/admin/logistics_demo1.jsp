@@ -861,12 +861,33 @@
      · 원장(TBL_STOCK_LEDGER) 기준이라 <출고반영된 분>까지 빠져 있는 값이다.
        아직 재집계하지 않은 업로드분은 안 빠져 있다 — 그때는 재고현황의 [출고반영 재집계] 한 번.
      · 목록을 기다리게 하지 않는다. 도착하면 표만 다시 그린다(안 왔으면 칸은 비어 있다). */
-  var D2_STOCK=null, D2_MAINCD=null, _d2StkBusy=false;
+  /* ★[조회]할 때마다 다시 읽는다 (2026-09-10 「재조회시 현재고 다시 가져오게」).
+       종전에는 <화면이 살아 있는 동안 한 번만> 읽어 두고 계속 그 값을 썼다. 그래서 두 가지가 났다 :
+       ① [출고반영 재집계]·정산서 반영으로 원장이 바뀌어도 옛 숫자가 그대로 남았다
+          (2026-09-10 실측 : 화면 −622 · 같은 시각 원장 −145).
+       ② ★처음 읽기가 한 번이라도 실패하면 «빈 표»가 캐시로 굳었다 —
+          빈 객체 {} 도 참이라 `if(!D2_STOCK)` 를 지나가 버려 다시 읽을 길이 없었다.
+          ⇒ 그 화면이 살아 있는 내내 현재고가 '·' 로만 나온다(「최초 조회는 되는데 재조회하면 안 나옴」의 정체).
+     ⇒ 조회(_d2LoadInner)마다 캐시를 버리고, <실패하면 굳히지 않는다>(다음 조회에서 다시 시도).
+     ⚠실패했을 때 대기 콜백을 부르지 않는 것도 일부러다 — d2Render 가 다시 부르면 «실패 → 재조회» 가 무한히 돈다. */
+  var D2_STOCK=null, D2_MAINCD=null, _d2StkBusy=false, _d2StkWait=[];
+  function d2StockInvalidate(){ D2_STOCK=null; D2_MAINCD=null; }
   function d2StockLoad(cb){
-    if(D2_STOCK || _d2StkBusy) { if(cb&&D2_STOCK) cb(); return; }
+    if(D2_STOCK) { if(cb) cb(); return; }
+    if(cb) _d2StkWait.push(cb);      /* 부르는 중이면 줄을 세운다 — 종전에는 <버려서> 표를 다시 안 그렸다 */
+    if(_d2StkBusy) return;
     _d2StkBusy=true;
-    var left=3, m={}, mc={};
-    function done(){ if(--left) return; D2_STOCK=m; D2_MAINCD=mc; _d2StkBusy=false; if(cb) cb(); }
+    var left=3, m={}, mc={}, ok=true;
+    function done(bad){
+      if(bad) ok=false;
+      if(--left) return;
+      _d2StkBusy=false;
+      var w=_d2StkWait; _d2StkWait=[];
+      if(!ok){ D2_STOCK=null; D2_MAINCD=null; return; }   /* 실패 — 캐시하지 않는다(다음 조회에서 재시도) */
+      D2_STOCK=m; D2_MAINCD=mc;
+      w.forEach(function(f){ try{ f(); }catch(e){} });
+    }
+    function fail(){ done(true); }
     /* ★재고현황(stockStatusList)이 아니라 <가벼운 전용 조회>를 부른다 (2026-08-07 속도개선).
          근거(수불원장 입고−출고)는 똑같고, 화면에 안 쓰는 extQtys 만 안 만든다.
          실측 664ms → 29ms. 값이 어긋날 일은 없다 — 같은 원장을 같은 규칙으로 더한다. */
@@ -876,7 +897,7 @@
       .then(function(j){ ((j&&j.data)||[]).forEach(function(o){
               var c=(''+(o.prodCd||'')).trim();
               if(c) m[c]={ q:(+o.curQty||0), i:(+o.inQty||0) }; }); done(); })
-      .catch(done);
+      .catch(fail);
     /* 매칭코드 → 주코드. 재고는 주코드로만 쌓이므로(원장 PROD_CD) 이 표가 없으면
        매칭코드 줄은 영영 빈칸이다. '매칭'과 '연결' 둘 다 같은 구실을 하므로 함께 읽는다. */
     ['/prod/extItemList.do','/prod/xrefList.do'].forEach(function(u){
@@ -886,7 +907,7 @@
         .then(function(j){ ((j&&j.data)||[]).forEach(function(o){
                 var e=(''+(o.extItemCd||'')).trim(), p=(''+(o.prodCd||'')).trim();
                 if(e && p && !mc[e]) mc[e]=p; }); done(); })
-        .catch(done);
+        .catch(fail);
     });
   }
   /* 현재고 칸.
@@ -2082,6 +2103,10 @@
   //   합산 지연(운영 실측 약 0.5+0.7+2.2+1.3 ≈ 4.8초)이었다 → 4건을 병렬로 던지고 전부 도착하면 1회 렌더.
   //   체감 대기 = 가장 느린 1건(직전배치 ≈ 2.2초) 수준. 쿼리·서버는 무변경(JSP만).
   function _d2LoadInner(){
+    /* ★조회할 때마다 현재고를 다시 읽는다 (2026-09-10 요청) — 여기서 캐시를 버리면
+         d2Render 의 「없으면 불러온다」 가지가 알아서 새로 읽어 온다. 조회 경로가 모두 이 함수로 모이므로
+         [조회]·[당일]·[당월]·[전체] 어느 쪽으로 들어와도 같다. (뷰 전환·다시 그리기만으로는 안 읽는다) */
+    d2StockInvalidate();
     var f=(document.getElementById('d2DateFrom')||{}).value||'';
     var t=(document.getElementById('d2DateTo')||{}).value||'';
     // 단일일자(시작=종료)=기존 배치 매트릭스 경로. 그 외(기간·전체)=날짜별 독립 블록 경로.

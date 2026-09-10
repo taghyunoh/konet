@@ -1062,6 +1062,7 @@ function puListRender(){
   tb.innerHTML = _list.slice(0,_lShown).map(function(o,i){ return puRowHtml(o,i); }).join('');
   puListBind();
   puPagerRender(); puSumRender();
+  puListFill();
 }
 function puListMore(cnt){
   if (_lShown >= _list.length) return;
@@ -1069,6 +1070,18 @@ function puListMore(cnt){
   for (var i=_lShown; i<to; i++) h += puRowHtml(_list[i], i);
   document.getElementById('puListBody').insertAdjacentHTML('beforeend', h);
   _lShown = to; puPagerRender();
+}
+/* ★★스크롤이 «생길 때까지» 먼저 채운다 (2026-09-10 — [모두 표시]를 걷으면서 같이 넣었다).
+     한 묶음이 5줄인데 목록 상자는 그보다 높을 수 있다. 그러면 내용이 상자를 못 채워
+     **스크롤바가 아예 안 생기고**, 스크롤로만 다음 묶음을 부르는 지금 구조에서는
+     <나머지 44건을 볼 길이 없어진다>. (종전에는 [모두 표시] 단추가 그 탈출구였다.)
+   ⇒ 상자보다 내용이 길어질 때까지 묶음을 더 붙인다. 그 뒤부터는 스크롤이 이어서 부른다.
+   ⚠guard 는 무한루프 방지 — 줄 높이가 0 으로 잡히는 순간(숨겨진 탭 등)에도 멈춘다. */
+function puListFill(){
+  var w = document.getElementById('puListWrap');
+  if (!w) return;
+  var guard = 0;
+  while (_lShown < _list.length && w.scrollHeight <= w.clientHeight + 4 && guard++ < 200) puListMore();
 }
 function puListBind(){
   var w = document.getElementById('puListWrap');
@@ -1078,16 +1091,16 @@ function puListBind(){
     if (w.scrollTop + w.clientHeight >= w.scrollHeight - 30) puListMore();   // 바닥 30px 전에 미리
   });
 }
+/* ★목록 아래 안내 줄을 없앴다 (2026-09-10 요청 「해당 표시 없애고 스크롤」) —
+     「n / m건 — 아래로 스크롤하면 이어서 나옵니다」 와 [모두 표시] 단추를 걷고 <스크롤만> 남긴다.
+   ⚠걷은 것은 «표시»뿐이다 — 바닥에 닿으면 다음 묶음을 붙이는 규칙(puListBind → puListMore)은 그대로다.
+     총 건수는 목록 위 [Total : n] 에 이미 있어 여기서 또 말할 필요가 없다.
+   ⚠부르는 자리는 그대로 두었다(세 곳) — 함수만 비워야 「어디선가 다시 그려서 되살아나는」 일이 없다. */
 function puPagerRender(){
   var el = document.getElementById('puPager');
-  if (_lShown >= _list.length) {
-    el.innerHTML = _list.length > LIST_ROWS
-      ? '<span style="color:#5a6b7a; font-size:12.5px">총 '+_list.length+'건 — 모두 표시됨</span>' : '';
-    return;
-  }
-  el.innerHTML = '<span style="color:#5a6b7a; font-size:12.5px">'+_lShown+' / <b>'+_list.length+'</b>건'
-    + ' <span style="color:#5a6b7a">— 아래로 스크롤하면 이어서 나옵니다</span></span>'
-    + ' <button class="pu-btn" style="height:24px;margin-left:8px;font-size:12px" onclick="puListMore('+_list.length+')">모두 표시</button>';
+  if (!el) return;
+  el.innerHTML = '';
+  el.style.display = 'none';          // 빈 칸(min-height 26px)이 남지 않게 자리째 접는다
 }
 function fmtDt(s){ s=String(s||''); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : s; }
 function puSumRender(){

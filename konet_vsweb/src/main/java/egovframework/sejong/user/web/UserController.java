@@ -606,13 +606,24 @@ public class UserController {
 				}
 				// (A) 출고→재고 자동연동 : 저장된 출고일자별로 원장 O행 재동기화 후 전체 현재고 재집계
 				//     (재고 동기화 실패가 출고 저장 자체를 롤백하지 않도록 별도 try — 실패 시 로그만)
+				/* ★★실패를 <조용히> 넘기지 않는다 (2026-09-10 신설) —
+				   종전에는 로그만 남기고 업로드는 «성공»으로 끝났다. 그러면 자료는 들어갔는데 재고만 안 맞고,
+				   그 사실을 아무도 모른 채 나중에 「재고조정도 안 했는데 재고가 틀어졌다」로 나타난다
+				   (사용자가 [출고반영 재집계]를 습관적으로 누르게 된 이유이기도 하다).
+				   ⇒ 저장 자체는 그대로 성공시키되(롤백하면 올린 자료를 잃는다), <재고 반영이 안 됐다>는 사실을
+				     응답에 실어 화면이 곧바로 알리게 한다. 화면은 그때 [출고반영 재집계]를 권한다.
+				   ★글자 모양 : "<건수>|STOCKFAIL:<사유>" — 앞의 건수는 종전 그대로라 옛 화면도 안 깨진다. */
+				String stockWarn = null;
 				try {
 					for (String d : syncDates) svc.syncShipoutLedgerDate(d, regUser, regIp);
 					if (!syncDates.isEmpty()) svc.recalcStockMstAll(regUser, regIp);
 				} catch (Exception se) {
 					log.error(" saveShipoutMst 재고연동 WARN : " + se.getMessage());
+					stockWarn = (se.getMessage() == null || se.getMessage().trim().isEmpty())
+					          ? se.getClass().getSimpleName() : se.getMessage().trim();
 				}
-				return ResponseEntity.ok(String.valueOf(total));
+				return ResponseEntity.ok(String.valueOf(total)
+				        + (stockWarn == null ? "" : "|STOCKFAIL:" + stockWarn));
 			} catch (Exception e) {
 				log.error(" saveShipoutMst ERROR ! : " + e.getMessage());
 				return ResponseEntity.status(500).body(e.getMessage());
@@ -3268,6 +3279,37 @@ public class UserController {
 						r.setAftBox(intg(m.get("aftBox")));
 						r.setAftEa(intg(m.get("aftEa")));
 						rows.add(r);
+					}
+				}
+
+				/* ★★서브코드로는 재고조정을 할 수 없다 (2026-09-10) — 매입(purchaseSave)과 <같은 관문>이다.
+				   서브코드(거래처 매칭코드)는 «남의 코드»일 뿐 **재고의 주인이 아니다.**
+				   그 코드로 조정하면 같은 물건의 재고가 주코드와 서브코드로 갈라진다 :
+				     실측 2026-09-10 14:15 — 조정 +157 이 서브코드 1000791735 로 들어가고
+				     주코드 9904013072 는 −145 그대로였다(조정한 사람은 고쳤다고 믿는다).
+				   ⚠**[출고반영 재집계]로도 안 고쳐진다** — 그 버튼은 출고 원천(발주현황표·정산서)만 다시 만든다.
+				   ★막는 곳이 여기(서버)여야 한다 — 담기는 길이 늘 때마다 화면 가드는 새기 때문.
+				   ★바꿔 주지는 않는다(매입과 다른 점) — 조정은 «그 줄의 앞수량/뒷수량»이 짝이라
+				     코드만 옮기면 주코드의 현재고와 어긋난다. 주코드 줄에서 다시 입력하는 것이 옳다. */
+				java.util.LinkedHashSet<String> adjCds = new java.util.LinkedHashSet<String>();
+				for (egovframework.sejong.user.model.StockAdjHisDTO r : rows)
+					if (r.getProdCd() != null && !r.getProdCd().trim().isEmpty()) adjCds.add(r.getProdCd().trim());
+				if (!adjCds.isEmpty()) {
+					Map<String,Object> sp = new HashMap<String,Object>();
+					sp.put("codes", new java.util.ArrayList<String>(adjCds));
+					sp.put("compCd", session.getAttribute("s_comp_cd"));
+					java.util.List<egovframework.sejong.user.model.ExtItemDTO> subs = svc.selectSubCodesAmong(sp);
+					if (subs != null && !subs.isEmpty()) {
+						StringBuilder sb = new StringBuilder();
+						for (egovframework.sejong.user.model.ExtItemDTO s : subs) {
+							if (sb.length() > 0) sb.append(" / ");
+							sb.append(poStr(s.getExtItemCd())).append("(서브) → 주코드 ").append(poStr(s.getProdCd()));
+						}
+						response.put("result", "SUBCODE");
+						response.put("subs", subs);
+						response.put("message", "서브코드로는 재고조정을 할 수 없습니다 — " + sb
+						        + " . 주코드 줄에서 조정하세요(서브코드로 넣으면 재고가 두 코드로 갈라집니다).");
+						return response;
 					}
 				}
 
