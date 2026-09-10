@@ -311,4 +311,9 @@ public interface UserService {
 	int updatePoShared(java.util.Map<String,Object> p) throws Exception;
 	int updatePoPurchSeq(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectCompInfo(java.util.Map<String,Object> p) throws Exception;
+	/* ── 문서 전송이력 (2026-09-10) — 거래명세표·발주서가 한 표를 쓴다(DOC_GB 로만 가른다) */
+	int insertSendHist(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectSendHistList(java.util.Map<String,Object> p) throws Exception;
+	int updateSendHistMailOpen(java.util.Map<String,Object> p) throws Exception;   // 메일 열림(1×1 그림)
+	int updateSendHistView(java.util.Map<String,Object> p) throws Exception;       // 링크 열람(공개 페이지)
 }

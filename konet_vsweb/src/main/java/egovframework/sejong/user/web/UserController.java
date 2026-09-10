@@ -1383,9 +1383,11 @@ public class UserController {
 		}
 		/** ★공개 발주서 — 카톡 카드가 여는 주소. 로그인 없이 토큰만으로 읽기. 토큰이 틀리면 빈 안내만 보인다 */
 		@RequestMapping(value="/pub/po.do")
-		public String poPublic(@RequestParam(value="t", required=false) String token, Model model) throws Exception {
+		public String poPublic(@RequestParam(value="t", required=false) String token,
+		                       @RequestParam(value="s", required=false) String trackKey, Model model) throws Exception {
 			Map<String,Object> p = new HashMap<String,Object>();
 			p.put("token", token == null ? "" : token.trim());
+			if (token != null && !token.trim().isEmpty()) sendHistView(trackKey, "PO");   /* 읽음·열람 (2026-09-10) */
 			return poFillPrint(p, model, true);
 		}
 		private String poFillPrint(Map<String,Object> p, Model model, boolean pub) throws Exception {
@@ -1795,9 +1797,11 @@ public class UserController {
 		/** ★공개 거래명세서 — 카톡 카드·이메일이 여는 주소. 로그인 없이 <토큰만으로> 그 전표 하나를 읽는다.
 		 *  토큰이 없거나 틀리면 빈 안내만 보인다(전표 목록이 새어 나갈 길이 없다 — 서비스가 빈 토큰을 거절한다). */
 		@RequestMapping(value="/pub/stmt.do")
-		public String stmtPublic(@RequestParam(value="t", required=false) String token, Model model) throws Exception {
+		public String stmtPublic(@RequestParam(value="t", required=false) String token,
+		                         @RequestParam(value="s", required=false) String trackKey, Model model) throws Exception {
 			egovframework.sejong.user.model.SalesTrxDTO mst = svc.selectSalesTrxByToken(token);
 			if (mst == null) { model.addAttribute("notFound", true); return ".raw/main/mangr/stmtPrint"; }
+			sendHistView(trackKey, "STMT");     /* 읽음·열람 (2026-09-10) — 전표를 찾았을 때만 센다 */
 			model.addAttribute("dataJson", stmtJson(mst));
 			/* 카톡 카드 미리보기(og:) — 링크만 붙여 넣어도 제목·설명이 보인다. 발주서 공개 페이지와 같은 방식 */
 			model.addAttribute("ogTitle", "거래명세서 — " + poStr(mst.getCustNm()) + " (" + poDash(mst.getSaleDt()) + ")");
@@ -1890,7 +1894,11 @@ public class UserController {
 				if (token == null) return ResponseEntity.status(404).body("전표를 찾을 수 없습니다.");
 				egovframework.sejong.user.model.SalesTrxDTO m = svc.selectSalesTrxByToken(token);
 				if (m == null) return ResponseEntity.status(404).body("전표를 찾을 수 없습니다.");
-				String url = poShareBase(request) + "/pub/stmt.do?t=" + token;
+				/* 읽음·열람 열쇠 (2026-09-10) — 이 전송 한 건의 무작위 열쇠. 링크 뒤 &s= 와 1×1 그림 ?k= 에 붙어 나가
+				   받는 쪽이 열면 «이 줄»로 돌아온다(토큰은 전표당 하나라 전송을 못 가른다). */
+				String key = sendHistKey();
+				String url = poShareBase(request) + "/pub/stmt.do?t=" + token + "&s=" + key;
+				String pixel = poShareBase(request) + "/pub/mailOpen.do?k=" + key;
 				Map<String,Object> c = new HashMap<String,Object>(); c.put("compCd", m.getCompCd());
 				Map<String,Object> comp = svc.selectCompInfo(c); if (comp == null) comp = new HashMap<String,Object>();
 				poFillDefault(comp, "compNm", "company.name"); poFillDefault(comp, "compTel", "company.tel");
@@ -1898,16 +1906,136 @@ public class UserController {
 				String subj = (subject == null || subject.trim().isEmpty())
 				            ? "[" + sender + "] 거래명세서 " + poDash(m.getSaleDt()) + " (" + poStr(m.getSaleNo()) + ")"
 				            : subject.trim();
-				egovframework.sejong.cmmn.MailSender.sendHtml(to, subj, stmtMailHtml(m, url, sender, poStr(comp.get("compTel")), memo));
+				try {
+					egovframework.sejong.cmmn.MailSender.sendHtml(to, subj, stmtMailHtml(m, url, sender, poStr(comp.get("compTel")), memo, pixel));
+				} catch (Exception se) {
+					/* ★실패도 이력에 남긴다 — 「보냈는데 안 왔다」를 가릴 수 있는 유일한 기록이다 */
+					sendHistLog(request, session, "STMT", saleSeq, m.getSaleDt(), m.getSaleNo(),
+					            m.getCustCd(), m.getCustNm(), "EMAIL", to, subj, memo, url,
+					            m.getTotAmt(), "FAIL", se.getMessage(), key);
+					throw se;
+				}
+				sendHistLog(request, session, "STMT", saleSeq, m.getSaleDt(), m.getSaleNo(),
+				            m.getCustCd(), m.getCustNm(), "EMAIL", to, subj, memo, url,
+				            m.getTotAmt(), "OK", null, key);
 				return ResponseEntity.ok("1");
 			} catch (Exception e) {
 				log.error(" stmtMailSend ERROR : " + e.getMessage());
 				return ResponseEntity.status(500).body(e.getMessage() == null ? "발송에 실패했습니다." : e.getMessage());
 			}
 		}
+		/* ═══════════ 문서 전송이력 (2026-09-10 신설) ═══════════
+		   판매등록 [거래명세표] 와 발주서(poReg) 를 카톡·이메일·링크로 보낸 <사실>을 남긴다.
+		   ★두 화면이 같은 표(TBL_SEND_HIST)를 쓰고 DOC_GB('STMT'/'PO') 로만 갈린다 —
+		     표를 두 벌로 두면 조회 규칙도 두 벌이 되어 조용히 달라진다.
+		   ★기록은 «보낸 사실» 이라 고치거나 지우는 길을 두지 않는다(넣기·읽기 두 개뿐).
+		   ★서버가 직접 보내는 이메일은 <서버가> 남기고(성공·실패 둘 다),
+		     카톡·링크·메일프로그램처럼 <브라우저에서 나가는 것>은 화면이 sendHistSave.do 로 알린다.
+		     브라우저가 보낸 것을 서버가 알 길이 없기 때문이다. */
+		private void sendHistLog(HttpServletRequest request, HttpSession session,
+		                         String docGb, long docSeq, String docDt, String docNo,
+		                         String vendorCd, String vendorNm, String sendGb, String sendTo,
+		                         String subject, String memo, String shareUrl,
+		                         Double totAmt, String resultGb, String errMsg, String trackKey) {
+			try {
+				Map<String,Object> p = new HashMap<String,Object>();
+				p.put("docGb", docGb); p.put("docSeq", docSeq); p.put("docDt", docDt); p.put("docNo", docNo);
+				p.put("vendorCd", vendorCd); p.put("vendorNm", vendorNm);
+				p.put("sendGb", sendGb); p.put("sendTo", sendTo);
+				p.put("subject", poCut(subject, 300)); p.put("memo", poCut(memo, 500));
+				p.put("shareUrl", poCut(shareUrl, 300)); p.put("totAmt", totAmt);
+				p.put("resultGb", resultGb == null ? "OK" : resultGb); p.put("errMsg", poCut(errMsg, 500));
+				p.put("trackKey", poCut(trackKey, 32));
+				p.put("regUser", session.getAttribute("s_user_id") == null ? "" : String.valueOf(session.getAttribute("s_user_id")));
+				p.put("regIp", request.getRemoteAddr());
+				svc.insertSendHist(p);
+			} catch (Exception e) {
+				/* ★이력이 안 남았다고 이미 나간 메일·카톡을 되돌릴 수는 없다 — 로그만 남기고 넘어간다 */
+				log.error(" sendHistLog ERROR : " + e.getMessage());
+			}
+		}
+		private static String poCut(String s, int n) {
+			if (s == null) return null;
+			String t = s.trim();
+			return t.length() > n ? t.substring(0, n) : t;
+		}
+		/** 화면에서 나간 전송(카톡·링크·메일프로그램·Gmail·내용복사)을 기록한다. */
+		@RequestMapping(value="/mangr/sendHistSave.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> sendHistSave(@RequestParam("docGb") String docGb,
+		                                       @RequestParam("docSeq") long docSeq,
+		                                       @RequestParam(value="docDt", required=false) String docDt,
+		                                       @RequestParam(value="docNo", required=false) String docNo,
+		                                       @RequestParam(value="vendorCd", required=false) String vendorCd,
+		                                       @RequestParam(value="vendorNm", required=false) String vendorNm,
+		                                       @RequestParam("sendGb") String sendGb,
+		                                       @RequestParam(value="sendTo", required=false) String sendTo,
+		                                       @RequestParam(value="subject", required=false) String subject,
+		                                       @RequestParam(value="memo", required=false) String memo,
+		                                       @RequestParam(value="shareUrl", required=false) String shareUrl,
+		                                       @RequestParam(value="totAmt", required=false) Double totAmt,
+		                                       @RequestParam(value="resultGb", required=false) String resultGb,
+		                                       @RequestParam(value="errMsg", required=false) String errMsg,
+		                                       @RequestParam(value="trackKey", required=false) String trackKey,
+		                                       HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 필요합니다."); return res; }
+			sendHistLog(request, session, docGb, docSeq, docDt, docNo, vendorCd, vendorNm,
+			            sendGb, sendTo, subject, memo, shareUrl, totAmt, resultGb, errMsg, trackKey);
+			res.put("data", 1);
+			return res;
+		}
+		/** 전송 한 건의 열쇠 — 무작위 20자(맞혀 낼 수 없고, 맞혀도 횟수만 올릴 수 있다). 화면 쪽은 send-hist.js 의 key() 가 같은 꼴로 만든다. */
+		private static String sendHistKey() {
+			return java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 20);
+		}
+		/** ★메일 열림 — 메일 본문의 1×1 그림이 부르는 주소 (2026-09-10). 로그인 없이 열쇠만으로 그 전송 한 줄의 MAIL_OPEN 을 올린다.
+		 *  어떤 경우에도 그림(1×1 GIF)은 돌려준다 — 실패해도 메일 본문에 깨진 그림이 보이면 안 된다.
+		 *  ⚠메일 프로그램이 그림을 막으면 안 불린다 — 「못 잡았다」≠「안 읽었다」. 명세서 열람(VIEW)이 더 확실하다. */
+		@RequestMapping(value="/pub/mailOpen.do")
+		public ResponseEntity<byte[]> mailOpen(@RequestParam(value="k", required=false) String key) {
+			try {
+				if (key != null && key.matches("[0-9a-fA-F]{8,32}")) {
+					Map<String,Object> p = new HashMap<String,Object>(); p.put("trackKey", key);
+					svc.updateSendHistMailOpen(p);
+				}
+			} catch (Exception e) { log.error(" mailOpen ERROR : " + e.getMessage()); }
+			byte[] gif = new byte[]{ 0x47,0x49,0x46,0x38,0x39,0x61, 1,0,1,0, (byte)0x80,0,0, 0,0,0, 0,0,0,
+			                         0x21,(byte)0xF9,4,1,0,0,0,0, 0x2C,0,0,0,0,1,0,1,0,0, 2,2,0x44,1,0,0x3B };
+			return ResponseEntity.ok()
+				.header("Content-Type", "image/gif")
+				.header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+				.header("Pragma", "no-cache").header("Expires", "0")
+				.body(gif);
+		}
+		/** 링크 열람 — 공개 페이지(/pub/stmt.do · /pub/po.do)가 열릴 때 &s=열쇠 가 있으면 그 전송 줄의 VIEW 를 올린다. 실패해도 페이지는 그대로 보인다. */
+		private void sendHistView(String key, String docGb) {
+			try {
+				if (key == null || !key.matches("[0-9a-fA-F]{8,32}")) return;
+				Map<String,Object> p = new HashMap<String,Object>(); p.put("trackKey", key); p.put("docGb", docGb);
+				svc.updateSendHistView(p);
+			} catch (Exception e) { log.error(" sendHistView ERROR : " + e.getMessage()); }
+		}
+		/** 전송이력 조회 — docSeq 를 주면 그 전표 하나, 안 주면 기간 전체(최근 500건). */
+		@RequestMapping(value="/mangr/sendHistList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> sendHistList(@RequestParam(value="docGb", required=false) String docGb,
+		                                       @RequestParam(value="docSeq", required=false, defaultValue="0") long docSeq,
+		                                       @RequestParam(value="fromDt", required=false) String fromDt,
+		                                       @RequestParam(value="toDt", required=false) String toDt,
+		                                       @RequestParam(value="findData", required=false) String findData,
+		                                       HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 필요합니다."); return res; }
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("docGb", docGb); p.put("docSeq", docSeq);
+			p.put("fromDt", fromDt); p.put("toDt", toDt); p.put("findData", findData);
+			res.put("data", svc.selectSendHistList(p));
+			return res;
+		}
 		/** 메일 본문 — 명세서 자체는 링크로 본다(양식을 두 벌로 만들지 않는다). 여기는 안내와 요약만. */
 		private String stmtMailHtml(egovframework.sejong.user.model.SalesTrxDTO m, String url,
-		                            String sender, String tel, String memo) {
+		                            String sender, String tel, String memo, String pixel) {
 			java.text.DecimalFormat df = new java.text.DecimalFormat("#,##0");
 			StringBuilder b = new StringBuilder();
 			b.append("<div style=\"font-family:'맑은 고딕',Malgun Gothic,sans-serif;font-size:14px;color:#1f2a37;line-height:1.7\">");
@@ -1932,7 +2060,12 @@ public class UserController {
 			b.append("<hr style=\"border:0;border-top:1px solid #dbe2ea;margin:18px 0\">");
 			b.append("<p style=\"font-size:12.5px;color:#5a6b7a\">").append(poEsc(sender));
 			if (tel != null && !tel.isEmpty()) b.append(" · ").append(poEsc(tel));
-			b.append("</p></div>");
+			b.append("</p>");
+			/* 읽음 표시용 1×1 그림 (2026-09-10) — 메일을 열면 /pub/mailOpen.do?k=열쇠 가 불린다 */
+			if (pixel != null && !pixel.isEmpty())
+				b.append("<img src=\"").append(poEsc(pixel)).append("\" width=\"1\" height=\"1\" alt=\"\" ")
+				 .append("style=\"display:block;width:1px;height:1px;border:0;opacity:0\">");
+			b.append("</div>");
 			return b.toString();
 		}
 		private static String poEsc(String s) {

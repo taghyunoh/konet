@@ -1137,6 +1137,14 @@ public class UserServiceImpl implements UserService {
 	@Override public int updatePoShared(java.util.Map<String,Object> p) throws Exception { return mapper.updatePoShared(p); }
 	@Override public int updatePoPurchSeq(java.util.Map<String,Object> p) throws Exception { return mapper.updatePoPurchSeq(p); }
 	@Override public java.util.Map<String,Object> selectCompInfo(java.util.Map<String,Object> p) throws Exception { return mapper.selectCompInfo(p); }
+	/* ══════════ 문서 전송이력 (2026-09-10) ══════════
+	   ★이력 남기기가 실패해도 «보내기 자체»는 성공으로 둔다 — 부르는 쪽에서 예외를 삼킨다.
+	     기록이 못 남았다고 이미 나간 카톡·메일을 되돌릴 수는 없다. */
+	@Override public int insertSendHist(java.util.Map<String,Object> p) throws Exception { return mapper.insertSendHist(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectSendHistList(java.util.Map<String,Object> p) throws Exception { return mapper.selectSendHistList(p); }
+	/* 읽음·열람 (2026-09-10) — 로그인 없는 공개 요청이 부른다. 열쇠(TRACK_KEY)가 맞는 줄의 횟수만 올린다 */
+	@Override public int updateSendHistMailOpen(java.util.Map<String,Object> p) throws Exception { return mapper.updateSendHistMailOpen(p); }
+	@Override public int updateSendHistView(java.util.Map<String,Object> p) throws Exception { return mapper.updateSendHistView(p); }
 	@Override public int deletePo(java.util.Map<String,Object> p) throws Exception {
 		int n = mapper.deletePoMst(p);
 		if (n > 0) mapper.deletePoDtlAll(p);

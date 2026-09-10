@@ -12,10 +12,13 @@
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-quick.js"></script>
 <%-- 거래명세서 양식 — 이 화면과 공개 링크(/pub/stmt.do)가 같이 쓰는 렌더러 (2026-09-09).
      양식을 고칠 때는 이 파일 하나만 고치면 두 곳이 함께 바뀐다. --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/stmt-sheet.js?v=20260909"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/stmt-sheet.js?v=20260910"></script>
 <%-- 카톡 공유 — 발주서(poReg)와 **같은 방식**(2026-09-09 확정 「발주서에서 했으니 그대로」).
      키가 없거나 SDK 를 못 불러오면 [🔗 링크 복사]로 넘어간다(카드 미리보기는 og: 태그로 뜬다). --%>
 <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous"></script>
+<%-- 전송이력 — 거래명세표를 <누구에게 · 어떤 방법으로> 보냈는지 남기고 보여 준다 (2026-09-10).
+     발주서(poReg)와 **같은 파일·같은 표**를 쓴다(docGb 로만 갈린다). --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/send-hist.js?v=20260910e"></script>
 <!--
   판매등록 (2026-07-25 신설) — 매입등록 화면과 대칭. 같은 조작감으로 쓰도록 구조를 그대로 맞췄다.
     · 상단 = 전표 입력(헤더 + 명세 그리드) / 하단 좌 = 기간 전표 목록 / 하단 우 = 거래처 원장
@@ -287,6 +290,9 @@
            저장 전 전표도 그대로 찍힌다 — 조건은 팝업에서 고르고 브라우저 인쇄로 나간다. --%>
       <button class="sa-btn" id="saBtnPrt" onclick="saPrtOpen()" title="지금 화면의 명세를 거래명세표(A4)로 출력합니다 — 출력 조건을 먼저 고릅니다">🖨 거래명세표</button>
       <button class="sa-btn red" id="saBtnDel" onclick="saDelete()">✖ 삭제하기</button>
+      <%-- 전송이력 (2026-09-10) — 처음엔 거래명세표 조건 창 안 → 「전송이력 밖으로」로 작업 단추 줄 → 「전송이력을 뒤로」로 삭제하기 뒤(줄 맨 끝).
+           저장 전에도 열린다(그때는 「전체 이력」 탭만). 줄마다 [↻ 재전송] · 읽음·열람 표시. --%>
+      <button class="sa-btn" id="saBtnHist" onclick="saSendHist()" title="이 명세서를 언제·누구에게·어떤 방법으로 보냈는지, 받는 쪽이 읽었는지 봅니다.&#10;[전체 이력] 탭에서는 기간으로 모든 명세서의 전송을 훑어보고, 줄마다 [↻ 재전송]할 수 있습니다.">📨 전송이력</button>
       <span id="saState" style="margin-left:8px; color:#3d4d5c; font-size:12.5px"></span>
       <span style="margin-left:auto; color:#8a97a4; font-size:11.5px"
             title="상품칸에 바로 입력해 ↑↓·Enter 로 고르고, Enter 로 다음 칸/다음 줄, ↑↓ 로 줄을 오갑니다">⌨ 상품칸 입력검색 · Enter 다음칸 · ↑↓ 줄이동 · Ctrl+S 저장 · Alt+N 신규</span>
@@ -872,6 +878,7 @@
         <button class="sa-btn kakao" id="saPrtKakao" onclick="saShareKakao()" title="거래처에 카톡으로 보냅니다 — 로그인 없이 열리는 명세서 주소를 카드로 보냅니다.&#10;받는 쪽은 그 화면에서 인쇄·PDF 저장도 할 수 있습니다. 저장된 전표만 보낼 수 있습니다.">💬 카톡</button>
         <button class="sa-btn" id="saPrtMail" onclick="saMailOpen()" title="거래처 이메일로 보냅니다 — 수신자 주소를 고르거나 넣고 [저장]을 체크하면 거래처 정보에 남습니다.">✉ 이메일</button>
         <button class="sa-btn" id="saPrtLink" onclick="saShareLink()" title="명세서 주소를 복사합니다 — 문자·메신저 어디에나 붙여 넣어 보낼 수 있습니다.">🔗 링크</button>
+        <%-- 📨 전송이력 단추는 작업 단추 줄(🖨 거래명세표 옆)에 있다 — 2026-09-10 「전송이력 밖으로」 --%>
         <span id="saShareInfo" style="font-size:11.5px; color:#8a97a4; align-self:center"></span>
       </span>
       <span style="margin-left:auto; display:flex; gap:6px">
@@ -3675,10 +3682,63 @@ function saShareTitle(){
        + ' '+document.getElementById('saDt').value
        + (document.getElementById('saNo').value ? ' / '+document.getElementById('saNo').value : '');
 }
+/* ── 📨 전송이력 (2026-09-10) — 공용 [asset/js/send-hist.js] · 발주서와 같은 표(TBL_SEND_HIST) ──
+   ★기록과 조회가 **같은 함수**(saHistDoc)로 «지금 전표»를 만든다 — 두 곳이 어긋나면
+     보낸 줄을 그 전표 이력에서 못 찾는다.
+   ★서버가 직접 보내는 이메일은 <서버가> 남긴다(stmtMailSend.do, 성공·실패 둘 다) —
+     여기서 또 부르면 한 번 보낸 것이 두 줄이 된다. 화면은 카톡·링크·메일프로그램만 남긴다. */
+function saHistDoc(){
+  return { docGb   : 'STMT',
+           docSeq  : (_cur && _cur.saleSeq) || 0,
+           docDt   : document.getElementById('saDt').value,
+           docNo   : document.getElementById('saNo').value,
+           vendorCd: document.getElementById('saVenNm').dataset.cd || '',
+           vendorNm: document.getElementById('saVenNm').value || '',
+           totAmt  : n(String(document.getElementById('tTot').textContent||'').replace(/,/g,'')) };
+}
+/* 보낸 사실 남기기 — 실패해도 흐름을 막지 않는다(공용 스크립트가 늘 resolve 한다) */
+function saHistLog(gb, extra){
+  if (!window.konetSendHist) return;
+  var o = saHistDoc(); o.sendGb = gb;
+  if (extra) for (var k in extra) o[k] = extra[k];
+  konetSendHist.log(o);
+}
+/* 읽음·열람 열쇠 (2026-09-10) — 보낼 때마다 새 열쇠를 만들어 주소 뒤에 &s= 로 붙인다.
+   받는 쪽이 그 주소를 열면 공개 페이지가 «이 전송 한 줄»의 열람을 올린다. 공개 주소(토큰)는 그대로다. */
+function saHistTag(u){
+  var k = window.konetSendHist ? konetSendHist.key() : '';
+  return { k:k, u:(k ? konetSendHist.tag(u, k) : u) };
+}
+/* 📨 전송이력 창 — 재전송·다른 전표 열기는 이 화면의 함수로 돌아온다 (2026-09-10 「재전송 가능하게」) */
+function saSendHist(){
+  if (!window.konetSendHist){ swErr('전송이력을 불러오지 못했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">새로고침 뒤 다시 눌러 보세요.</span>'); return; }
+  var o = saHistDoc();
+  o.onResend = function(row){
+    /* 같은 수단으로 다시 — 서버 발송·메일프로그램·Gmail·복사는 모두 «메일 창»에 받는 곳·제목·메모를 채워 연다
+       (실제 보내기는 사람이 [이메일발송]을 눌러야 나간다 — 조용히 한 번 더 나가지 않게) */
+    var gb = String(row.sendGb||'');
+    if (gb === 'KAKAO')      saShareKakao();
+    else if (gb === 'LINK')  saShareLink();
+    else saMailOpen({ to:row.sendTo||'', subj:row.subject||'', memo:row.memo||'' });
+  };
+  o.onOpenDoc = function(seq){
+    /* 그 전표를 화면에 올린 뒤 이력 창을 다시 연다 — 목록에 있으면 목록 줄 강조까지 같이 */
+    var i = -1; _list.forEach(function(x, k){ if (String(x.saleSeq) === String(seq)) i = k; });
+    var after = function(){ saSendHist(); };
+    if (i >= 0){ saPick(i); setTimeout(after, 400); return; }
+    post('/mangr/salesTrxDetail.do','saleSeq='+encodeURIComponent(seq)).then(function(r){ return r.json(); })
+      .then(function(j){ var d=j&&j.data; if(!d){ swErr('그 전표를 찾을 수 없습니다(삭제됐을 수 있습니다).'); return; } saApply(d); after(); })
+      .catch(function(){ swErr('전표를 여는 중 오류가 났습니다.'); });
+  };
+  konetSendHist.open(o);
+}
 /* 🔗 링크 복사 — 카톡·문자 어디에나 붙여 넣을 수 있다(카드 미리보기는 og: 태그로 뜬다) */
+/* ★링크 복사는 <전송>이 아니라 전송이력에 남기지 않는다 (2026-09-10 「링크복사는 전송내역이 아니지 않나요」) —
+   주소를 손에 쥔 것뿐, 누구에게 보냈는지 우리 쪽에서 알 길이 없다. 그래서 읽음·열람 꼬리표도 안 붙인다(토큰 주소 그대로). */
 function saShareLink(){
   saShareUrl().then(function(u){
-    var done=function(){ swOk('명세서 주소를 복사했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">붙여 넣으면 거래처가 <b>로그인 없이</b> 봅니다.</span><br><span style="font-size:11.5px;color:#6b7a89;word-break:break-all">'+esc(u)+'</span>'); };
+    var done=function(){
+      swOk('명세서 주소를 복사했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">붙여 넣으면 거래처가 <b>로그인 없이</b> 봅니다.</span><br><span style="font-size:11.5px;color:#6b7a89;word-break:break-all">'+esc(u)+'</span>'); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(done, function(){ saCopyFallback(u); done(); });
     else { saCopyFallback(u); done(); }
   }).catch(function(e){ if(e&&e.message) swErr(esc(e.message)); });
@@ -3690,7 +3750,8 @@ function saCopyFallback(txt){
 }
 /* 💬 카톡 — 발주서와 같은 카카오 「공유하기」 카드. 키가 없으면 링크 복사로 넘긴다 */
 function saShareKakao(){
-  saShareUrl().then(function(u){
+  saShareUrl().then(function(u0){
+    var t = saHistTag(u0), u = t.u;      /* 읽음·열람 열쇠가 붙은 주소로 카드를 만든다 */
     if (!window.Kakao || !KAKAO_KEY){
       swAlert('카카오 공유 설정이 없어 <b>링크 복사</b>로 보냅니다.<br><span style="font-size:12px;color:#6b7a89">kakao.properties 의 kakao.js.key 를 채우고 Kakao Developers 에 이 사이트 도메인을 등록하면 카드로 보내집니다.</span>');
       saShareLink(); return;
@@ -3704,12 +3765,15 @@ function saShareKakao(){
         link: { webUrl:u, mobileWebUrl:u },
         buttonTitle:'명세서 보기'
       });
-    }catch(e){ swErr('카카오 공유 실패 — 링크 복사로 보내세요.<br><span style="font-size:12px">'+esc(e.message)+'</span>'); }
+      saHistLog('KAKAO', { shareUrl:u, trackKey:t.k });
+    }catch(e){ saHistLog('KAKAO', { shareUrl:u, trackKey:t.k, resultGb:'FAIL', errMsg:e.message });
+      swErr('카카오 공유 실패 — 링크 복사로 보내세요.<br><span style="font-size:12px">'+esc(e.message)+'</span>'); }
   }).catch(function(e){ if(e&&e.message) swErr(esc(e.message)); });
 }
 
 /* ── ✉ 이메일 발송 창 ─────────────────────────────────────────────── */
-function saMailOpen(){
+/* pre = {to, subj, memo} — 전송이력 [↻ 재전송] 이 같은 받는 곳·제목·메모를 채워 연다 (2026-09-10). 없으면 종전대로 */
+function saMailOpen(pre){
   if (!(_cur && _cur.saleSeq)) { swErr('먼저 전표를 저장하세요.'); return; }
   var venCd = document.getElementById('saVenNm').dataset.cd || '';
   var ven   = _vendors.filter(function(x){ return String(x.vendorCd)===String(venCd); })[0] || {};
@@ -3726,6 +3790,11 @@ function saMailOpen(){
   document.getElementById('mailSave').checked = false;
   document.getElementById('mailSubj').value = saShareTitle();
   document.getElementById('mailMemo').value = '';
+  if (pre && typeof pre === 'object'){          /* 재전송 — 지난번 그대로 채운다(보내기는 사람이 누른다) */
+    if (pre.to)   { document.getElementById('mailTo').value = pre.to; sel.value = (list.indexOf(pre.to) >= 0) ? pre.to : ''; }
+    if (pre.subj)   document.getElementById('mailSubj').value = pre.subj;
+    if (pre.memo)   document.getElementById('mailMemo').value = pre.memo;
+  }
   document.getElementById('saMailPop').classList.add('on');
   saMailHint();
   setTimeout(function(){ document.getElementById('mailTo').focus(); }, 30);
@@ -3795,7 +3864,9 @@ function saMailSend(){
           .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
           .then(function(){ saMailClose(); swOk('<b>'+esc(a.to)+'</b><br>이메일을 보냈습니다.'); });
       }
-      /* 계정이 없을 때 — 메일 프로그램으로 */
+      /* 계정이 없을 때 — 메일 프로그램으로.
+         ★전송이력에 남기지 않는다 (2026-09-10 「이것도 실제 받은 게 이메일이 아닌데」) — 창을 열어 준 것뿐,
+           실제 발송은 그 창에서 사람이 하고 우리 서버는 그 사실을 모른다. 이력 = <실제로 나간 것>만(카톡·서버 발송). */
       var href = 'mailto:'+encodeURIComponent(a.to)
                + '?subject='+encodeURIComponent(a.subj)
                + '&body='+encodeURIComponent(saMailBody(a, url));
@@ -3810,6 +3881,7 @@ function saMailGmail(){
   var a = saMailArgs(); if (!a) return;
   saShareUrl().then(function(url){
     return saMailKeep(a.to).then(function(){
+      /* Gmail 창도 메일 프로그램과 같다 — 열어 준 것뿐이라 이력에 남기지 않는다 (2026-09-10) */
       window.open('https://mail.google.com/mail/?view=cm&fs=1'
         + '&to='+encodeURIComponent(a.to)
         + '&su='+encodeURIComponent(a.subj)
@@ -3822,8 +3894,10 @@ function saMailGmail(){
 function saMailCopy(){
   var a = saMailArgs(); if (!a) return;
   saShareUrl().then(function(url){
+    /* 내용 복사도 링크 복사와 같은 성격(붙여 넣기 전까지는 보낸 것이 아니다) — 이력에 남기지 않는다 (2026-09-10) */
     var txt = '받는사람: '+a.to+'\n제목: '+a.subj+'\n\n'+saMailBody(a, url);
-    var done = function(){ swOk('메일 내용을 복사했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">쓰던 메일(네이버·다음 등)에 붙여 넣으세요.</span>'); };
+    var done = function(){
+      swOk('메일 내용을 복사했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">쓰던 메일(네이버·다음 등)에 붙여 넣으세요.</span>'); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function(){ saCopyFallback(txt); done(); });
     else { saCopyFallback(txt); done(); }
   }).catch(function(e){ if(e&&e.message) swErr(esc(e.message)); });

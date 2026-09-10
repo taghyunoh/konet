@@ -102,7 +102,8 @@
       if (o.trxGb==='반품') h += ' <span class="ret">[반품]</span>';
       /* 단가·박스단가를 둘 다 안 찍으면 단가 칸이 없다 — 그때는 변동 표시를 품명 뒤에 */
       if (O.price!=='Y' && O.boxp!=='Y') h += chgTag(o,O,prev);
-      return h;
+      /* 넘치면 두 줄 (2026-09-10) — 안쪽 .tx 를 fit() 이 재서 .w2 를 붙인다 */
+      return '<div class="tx">'+h+'</div>';
     }
     if (k==='box') return fmt(n(o.boxQty)*sg);
     if (k==='ea')  return fmt(n(o.eaQty)*sg);
@@ -157,13 +158,13 @@
        +     '<td class="k vt" rowspan="4">공<br>급<br>자</td>'
        +     '<td class="k">사업자</td><td class="c">'+esc(bizNo(S.biz))+'</td>'
        +     '<td class="k">성명</td><td class="c">'+esc(S.ceo)+'</td></tr>'
-       + '<tr><td class="k">주소</td><td class="l">'+esc(vAddr)+'</td>'
+       + '<tr><td class="k">주소</td><td class="l wrap"><div class="tx">'+esc(vAddr)+'</div></td>'
        +     '<td class="k">상호</td><td class="c">'+esc(S.nm)+'</td>'
        +     '<td class="k">업태</td><td class="c">'+esc(S.cond)+'</td></tr>'
        + '<tr><td class="k">이메일</td><td class="l">'+esc(vMail)+'</td>'
        +     '<td class="k">종목</td><td colspan="3" class="l">'+esc(S.item)+'</td></tr>'
        + '<tr><td class="k">합계금액</td><td class="r"><b>'+(money?fmt(D.t.tot):'')+'</b></td>'
-       +     '<td class="k">주소</td><td colspan="3" class="l">'+esc(S.addr)+'</td></tr>'
+       +     '<td class="k">주소</td><td colspan="3" class="l wrap"><div class="tx">'+esc(S.addr)+'</div></td></tr>'
        + '</table>';
     h += '<table class="it"><colgroup>'
        + cs.map(function(c){ return '<col style="width:'+c.w+'%">'; }).join('')
@@ -238,6 +239,14 @@
   + '.cp .c{text-align:center}.cp .r{text-align:right}.cp .l{text-align:left}'
   + '.cp .big{font-size:12.5px}'
   + '.cp .sp{color:#5a6b7a;font-size:10px}'
+  /* ★넘치면 두 줄 (2026-09-10 「주소·품명·규격 넘어가면 두 줄로」) — 줄 높이(19px = 5.3mm)는 그대로 두고
+       그 안에서 글자를 한 단계 줄여(9px·1.05) 두 줄로 접는다 → 장수 계산(12줄/38줄)이 안 흔들린다.
+       세 번째 줄부터는 자른다. 어느 칸이 넘치는지는 fit() 이 그린 뒤 재서 .w2 를 붙인다(안 넘치면 종전 그대로). */
+  + '.cp td .tx{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+  + '.cp td.w2{padding-top:0;padding-bottom:0}'
+  + '.cp td.w2 .tx{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal;'
+  +        'word-break:break-all;line-height:1.05;font-size:9px;text-overflow:clip;max-height:19px}'
+  + '.cp td.w2 .sp{font-size:8.5px}'
   + '.cp .ret{color:#c0392b;font-weight:700}'
   + '.cp tr.retrow td{color:#c0392b}'
   + '.cp .it thead td{background:#f4f6f8;font-weight:800;font-size:10.5px}'
@@ -300,6 +309,8 @@
        ⚠[👁 미리보기]로 연 창은 이 script 를 안 넣는다 — 보라고 연 창이라 저절로 닫히면 안 된다.
          (그 창 안 [🖨 인쇄] 단추로 찍어도 창은 남는다.)
        ⚠`afterprint` 를 안 쏘는 브라우저에서는 그냥 창이 남는다 — 종전과 같을 뿐 나빠지지 않는다. */
+    /* 넘치는 칸 두 줄 접기 — 새 창에서도 그린 뒤·인쇄 직전에 잰다 */
+    var fitJs = '<scr'+'ipt>'+FIT_JS+'</scr'+'ipt>';
     var auto = opt.autoPrint
       ? '<scr'+'ipt>(function(){var done=false;'
         + 'function bye(){ if(done) return; done=true; setTimeout(function(){ try{ window.close(); }catch(e){} }, 200); }'
@@ -322,9 +333,28 @@
          + (opt.note ? ' · '+esc(opt.note) : '')+'</span>'
          + '<button class="p" onclick="window.print()">🖨 인쇄</button>'
          + (opt.close===false ? '' : '<button onclick="window.close()">닫기</button>')
-         + '</div>' + b.html + auto + '</body></html>';
+         + '</div>' + b.html + fitJs + auto + '</body></html>';
+  }
+
+  /* ★넘치는 칸만 두 줄로 (2026-09-10) — 그려진 뒤 .tx 의 내용 폭이 칸 폭보다 크면 그 칸에 .w2.
+       td 는 nowrap+overflow:hidden 이라 .tx 의 scrollWidth 가 글 전체 폭, clientWidth 가 칸 폭이다.
+       같은 코드를 <새 창 문서 안 script> 로도 넣고(doc), 공개 페이지(stmtPrint)는 konetStmt.fit() 으로 부른다.
+       인쇄 직전(beforeprint)에도 다시 잰다 — 인쇄 폭이 화면 폭과 다를 수 있다. */
+  var FIT_JS =
+      '(function(){function fit(){var a=document.querySelectorAll(".cp td .tx");'
+    + 'for(var i=0;i<a.length;i++){var tx=a[i],td=tx.parentNode;td.classList.remove("w2");'
+    + 'if(tx.scrollWidth>tx.clientWidth+1)td.classList.add("w2");}}'
+    + 'fit();window.addEventListener("load",fit);window.addEventListener("beforeprint",fit);'
+    + 'window.konetStmtFit=fit;})();';
+  function fit(){
+    var a = document.querySelectorAll('.cp td .tx');
+    for (var i = 0; i < a.length; i++){
+      var tx = a[i], td = tx.parentNode;
+      td.classList.remove('w2');
+      if (tx.scrollWidth > tx.clientWidth + 1) td.classList.add('w2');
+    }
   }
 
   g.konetStmt = { DEF:DEF, FILL_ONE:FILL_ONE, FILL_BOTH:FILL_BOTH,
-                  doc:doc, body:body, cols:cols, pages:pages, sortRows:sortRows, css:CSS };
+                  doc:doc, body:body, cols:cols, pages:pages, sortRows:sortRows, css:CSS, fit:fit };
 })(window);

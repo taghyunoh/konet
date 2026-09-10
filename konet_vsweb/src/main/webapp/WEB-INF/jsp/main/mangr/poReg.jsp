@@ -21,6 +21,9 @@
 <%-- 칸 폭 조절 — 머리글 오른쪽 경계를 끌면 그 칸이 늘고 준다(더블클릭 = 처음 폭으로).
      표에 data-colrz="이름" 만 주면 걸린다. 폭은 localStorage 에 남아 다음에도 그대로. --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-colresize.js?v=20260907"></script>
+<%-- 전송이력 — 발주서를 <누구에게 · 어떤 방법으로> 보냈는지 남기고 보여 준다 (2026-09-10).
+     판매등록 거래명세표와 **같은 파일·같은 표**를 쓴다(docGb 로만 갈린다). --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/send-hist.js?v=20260910e"></script>
 <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous"></script>
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; }
@@ -120,6 +123,8 @@
       <button class="btn" id="btnXls" onclick="poExcel()" disabled>📥 엑셀</button>
       <button class="btn kakao" id="btnKakao" onclick="poKakao()" disabled>💬 카톡 공유</button>
       <button class="btn" id="btnLink" onclick="poCopyLink()" disabled>🔗 링크 복사</button>
+      <%-- 전송이력 (2026-09-10) — 저장 전에도 열린다(그때는 「전체 이력」 탭만) --%>
+      <button class="btn" id="btnHist" onclick="poSendHist()" title="이 발주서를 언제·누구에게·어떤 방법으로 보냈는지 봅니다.&#10;[전체 이력] 탭에서는 기간으로 모든 발주서의 전송을 훑어볼 수 있습니다.">📨 전송이력</button>
       <button class="btn blue" id="btnCv" style="margin-left:auto" onclick="cvOpen()" disabled>📦 매입전환</button>
     </div>
   </div>
@@ -286,12 +291,13 @@ function poSave(){
 }
 function poDelete(){ if(!_cur) return; confirmBox('이 발주서를 삭제할까요?<br><span style="font-size:13px;color:#3d4d5c">'+esc(d8(_cur.poDt))+' - '+esc(_cur.poNo)+' '+esc(_cur.vendorNm)+'</span>', function(){
   post('/mangr/poDelete.do','poSeq='+_cur.poSeq).then(function(r){ if(!r.ok) return r.text().then(function(x){ throw new Error(x); }); toast('삭제했습니다.','✅'); poNew(); poLoad(); }).catch(function(e){ toast('삭제 실패: '+esc(e.message),'⚠️'); }); }); }
-function poOpen(seq){ post('/mangr/poDetail.do','poSeq='+seq).then(function(r){return r.json();}).then(function(j){ var m=j&&j.mst; if(!m){ toast('발주서를 찾을 수 없습니다.','⚠️'); return; }
+/* cb = 다 올린 뒤 부를 함수(선택) — 전송이력 [📂 전표 열기]가 연 뒤 이력 창을 다시 띄우는 데 쓴다 (2026-09-10) */
+function poOpen(seq, cb){ post('/mangr/poDetail.do','poSeq='+seq).then(function(r){return r.json();}).then(function(j){ var m=j&&j.mst; if(!m){ toast('발주서를 찾을 수 없습니다.','⚠️'); return; }
   _cur=m; document.getElementById('poDt').value=d8(m.poDt); document.getElementById('poNo').value=m.poNo||''; venPick(m.vendorCd||'', m.vendorNm||''); document.getElementById('remark').value=m.remark||'';
   if(m.mgrNm) document.getElementById('mgrNm').value=m.mgrNm;
   _rows=(j.items||[]).map(function(d){ var o=emptyRow(); for(var k in o) if(d[k]!=null) o[k]=d[k]; return o; }); render(); setButtons();
   document.getElementById('stat').textContent='발주서 '+d8(m.poDt)+' - '+m.poNo+' · 공유 '+(m.shareCnt||0)+'회'+(m.lastShareDttm?(' (마지막 '+m.lastShareDttm+')'):'')+(m.purchNo?(' · 📦 매입전표 '+d8(m.purchDt)+'-'+m.purchNo):'');
-  markList(); }).catch(function(e){ toast('불러오기 실패: '+esc(e.message),'⚠️'); }); }
+  markList(); if(typeof cb==='function') cb(); }).catch(function(e){ toast('불러오기 실패: '+esc(e.message),'⚠️'); }); }
 
 /* ── 목록 ── */
 function poLoad(selSeq){ var b='fromDt='+encodeURIComponent(document.getElementById('frDt').value)+'&toDt='+encodeURIComponent(document.getElementById('toDt').value)+'&findData='+encodeURIComponent(document.getElementById('findNm').value);
@@ -307,11 +313,34 @@ function markList(seq){ var s=seq||(_cur&&_cur.poSeq); document.querySelectorAll
 /* ── 인쇄 · 엑셀 · 공유 ── */
 function poPrint(){ if(!_cur) return; window.open(CTX+'/mangr/poPrint.do?poSeq='+_cur.poSeq, 'poPrint', 'width=900,height=1000'); }
 function shareUrl(){ return _cur&&_cur.shareToken ? (SHARE_BASE+'/pub/po.do?t='+encodeURIComponent(_cur.shareToken)) : ''; }
+/* ── 📨 전송이력 (2026-09-10) — 공용 [asset/js/send-hist.js] · 판매등록 거래명세표와 같은 표(TBL_SEND_HIST) ──
+   ★기록과 조회가 **같은 함수**(poHistDoc)로 «지금 발주서»를 만든다 — 두 곳이 어긋나면
+     보낸 줄을 그 발주서 이력에서 못 찾는다.
+   ★poShared.do(공유 횟수 +1)는 그대로 둔다 — 그건 «몇 번」, 이력은 «언제·어떻게». */
+function poHistDoc(){ var t=calcAll();
+  return { docGb:'PO', docSeq:(_cur&&_cur.poSeq)||0,
+           docDt:document.getElementById('poDt').value, docNo:document.getElementById('poNo').value,
+           vendorCd:document.getElementById('venNm').dataset.cd||'', vendorNm:document.getElementById('venNm').value||'',
+           totAmt:t.tot }; }
+function poHistLog(gb, extra){ if(!window.konetSendHist) return;
+  var o=poHistDoc(); o.sendGb=gb; if(extra) for(var k in extra) o[k]=extra[k];
+  konetSendHist.log(o); }
+/* 읽음·열람 열쇠 — 보낼 때마다 새 열쇠를 주소 뒤 &s= 로 붙인다(공개 주소·토큰은 그대로). 받는 쪽이 열면 그 전송 줄의 열람이 올라간다 */
+function poHistTag(u){ var k=window.konetSendHist?konetSendHist.key():''; return { k:k, u:(k?konetSendHist.tag(u,k):u) }; }
+/* 📨 전송이력 창 — [↻ 재전송]은 같은 수단으로 이 화면 함수를 다시 부르고, 다른 발주서 줄은 그 발주서를 먼저 연다 (2026-09-10) */
+function poSendHist(){ if(!window.konetSendHist){ toast('전송이력을 불러오지 못했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">새로고침 뒤 다시 눌러 보세요.</span>','⚠️'); return; }
+  var o=poHistDoc();
+  o.onResend=function(row){ if(String(row.sendGb)==='KAKAO') poKakao(); else poCopyLink(); };
+  o.onOpenDoc=function(seq){ poOpen(seq, function(){ poSendHist(); }); };
+  konetSendHist.open(o); }
+/* ★링크 복사는 <전송>이 아니라 전송이력에 남기지 않는다 (2026-09-10 「링크복사는 전송내역이 아니지 않나요」) — 꼬리표도 안 붙인다 */
 function poCopyLink(){ var u=shareUrl(); if(!u){ toast('먼저 저장하세요.','⚠️'); return; }
-  var done=function(){ toast('발주서 링크를 복사했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">카톡 대화창에 붙여 넣으면 거래처가 로그인 없이 봅니다.</span><br><span style="font-size:11.5px;color:#6b7a89;word-break:break-all">'+esc(u)+'</span>','🔗'); };
+  var done=function(){
+    toast('발주서 링크를 복사했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">카톡 대화창에 붙여 넣으면 거래처가 로그인 없이 봅니다.</span><br><span style="font-size:11.5px;color:#6b7a89;word-break:break-all">'+esc(u)+'</span>','🔗'); };
   if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(done, function(){ prompt('아래 주소를 복사하세요', u); });
   else prompt('아래 주소를 복사하세요', u); }
-function poKakao(){ var u=shareUrl(); if(!u){ toast('먼저 저장하세요.','⚠️'); return; }
+function poKakao(){ var u0=shareUrl(); if(!u0){ toast('먼저 저장하세요.','⚠️'); return; }
+  var tg=poHistTag(u0), u=tg.u;      /* 읽음·열람 열쇠가 붙은 주소로 카드를 만든다 */
   if(!window.Kakao || !KAKAO_KEY){ toast('카카오 공유 설정이 없어 <b>링크 복사</b>로 보냅니다.<br><span style="font-size:12px;color:#6b7a89">kakao.properties 의 kakao.js.key 를 채우고 Kakao Developers 에 이 사이트 도메인을 등록하면 카드로 보내집니다.</span>','💬'); poCopyLink(); return; }
   try{ if(!Kakao.isInitialized()) Kakao.init(KAKAO_KEY); }catch(e){ toast('카카오 초기화 실패: '+esc(e.message),'⚠️'); poCopyLink(); return; }
   var t=calcAll(), dt=d8(_cur.poDt);
@@ -321,8 +350,10 @@ function poKakao(){ var u=shareUrl(); if(!u){ toast('먼저 저장하세요.','�
       text:'📋 발주서 — '+(_cur.vendorNm||'')+'\n'+dt+' · 품목 '+t.cnt+'종 · 합계 '+fmt(t.tot)+'원 · '+(document.getElementById('mgrNm').value||''),
       link:{ mobileWebUrl:u, webUrl:u },
       buttons:[ { title:'웹페이지로 보기', link:{ mobileWebUrl:u, webUrl:u } } ] });
+    poHistLog('KAKAO',{shareUrl:u,trackKey:tg.k});
     post('/mangr/poShared.do','poSeq='+_cur.poSeq).then(function(){ if(_cur){ _cur.shareCnt=n(_cur.shareCnt)+1; document.getElementById('stat').textContent='발주서 '+dt+' - '+_cur.poNo+' · 공유 '+_cur.shareCnt+'회'; } poLoad(_cur.poSeq); }).catch(function(){});
-  }catch(e){ toast('카카오 공유 실패: '+esc(e.message)+'<br><span style="font-size:12px">링크 복사로 보내세요.</span>','⚠️'); }
+  }catch(e){ poHistLog('KAKAO',{shareUrl:u,trackKey:tg.k,resultGb:'FAIL',errMsg:e.message});
+    toast('카카오 공유 실패: '+esc(e.message)+'<br><span style="font-size:12px">링크 복사로 보내세요.</span>','⚠️'); }
 }
 function poExcel(){ if(!_cur) return; var t=calcAll(), aoa=[];
   aoa.push(['발주서']); aoa.push(['발주일자', d8(_cur.poDt), '번호', _cur.poNo, '거래처', _cur.vendorNm||'', '담당', document.getElementById('mgrNm').value||'']); aoa.push([]);

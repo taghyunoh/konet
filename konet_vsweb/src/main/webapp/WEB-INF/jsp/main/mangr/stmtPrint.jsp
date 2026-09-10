@@ -21,7 +21,7 @@
 <meta property="og:title" content="${ogTitle}">
 <meta property="og:description" content="${ogDesc}">
 </c:if>
-<script src="${pageContext.request.contextPath}/asset/js/stmt-sheet.js?v=20260909"></script>
+<script src="${pageContext.request.contextPath}/asset/js/stmt-sheet.js?v=20260910"></script>
 <style id="stmtCss"></style>
 <style>
   .none{ text-align:center; padding:70px 20px; color:#8a97a4; font-size:16px;
@@ -50,6 +50,10 @@
     document.getElementById('stmtSheet').innerHTML = r.html;
     document.getElementById('stmtTit').textContent =
         '🧾 거래명세서 — ' + (DATA.D.venNm||'') + ' ' + (DATA.D.dt||'') + (DATA.D.no ? ' / '+DATA.D.no : '');
+    /* 넘치는 주소·품명·규격 칸을 두 줄로 (2026-09-10) — 그린 뒤 재고, 인쇄 직전에 한 번 더 */
+    konetStmt.fit();
+    window.addEventListener('load', konetStmt.fit);
+    window.addEventListener('beforeprint', konetStmt.fit);
   })();
   </script>
 </c:otherwise>

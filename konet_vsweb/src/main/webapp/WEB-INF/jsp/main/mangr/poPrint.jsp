@@ -36,6 +36,13 @@
   .k{ background:#f6f7f9; text-align:center; font-weight:700; }
   .r{ text-align:right; } .c{ text-align:center; } .l{ text-align:left; }
   .items td{ height:26px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* ★넘치면 두 줄 (2026-09-10 「주소·품명·규격 넘어가면 두 줄로」) — 줄 높이(26px)는 그대로 두고
+     그 안에서 글자를 한 단계 줄여 두 줄로 접는다. 세 번째 줄부터는 자른다(줄 높이가 커지면 장이 밀린다).
+     어느 칸이 넘치는지는 아래 script 가 그린 뒤 재서 .w2 를 붙인다(안 넘치면 종전 그대로). */
+  td.wrap .tx{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  td.w2 .tx{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; white-space:normal; word-break:break-all;
+             line-height:1.1; font-size:10px; text-overflow:clip; }
+  td.w2{ padding-top:1px; padding-bottom:1px; }
   .items thead td{ background:#f6f7f9; font-weight:700; text-align:center; }
   .foot td{ font-weight:700; }
   .none{ text-align:center; padding:60px 20px; color:#8a97a4; font-size:16px; }
@@ -64,7 +71,7 @@
     <tr><td colspan="2" class="c">아래와 같이 발주합니다.</td>
         <td class="k">상호</td><td class="c">${comp.compNm}</td><td class="k">성명</td><td class="c">${comp.compCeo}</td></tr>
     <tr><td colspan="2" class="r"><b>${mst.vendorNm}</b> 귀하</td>
-        <td class="k">사업장</td><td colspan="3" class="l">${comp.compAddr}</td></tr>
+        <td class="k">사업장</td><td colspan="3" class="l wrap"><div class="tx">${comp.compAddr}</div></td></tr>
     <tr><td class="k">합계액</td><td class="r"><b><fmt:formatNumber value="${mst.totAmt}" pattern="#,##0"/></b> 원정</td>
         <td class="k">전화번호</td><td colspan="3" class="c">${comp.compTel}</td></tr>   <%-- 전화번호 칸 · 선 표시 (2026-09-03 「전화번호 추가 선표시」) --%>
   </table>
@@ -73,7 +80,7 @@
     <thead><tr><td>번호</td><td>품명</td><td>규격</td><td>BOX/EA수량</td><td>총수량</td><td>BOX/EA단가</td><td>공급가액</td></tr></thead>
     <tbody>
     <c:forEach var="it" items="${items}" varStatus="s">
-      <tr><td class="c">${s.index + 1}</td><td class="l" title="${it.prodNm}">${it.prodNm}</td><td class="l" title="${it.spec}">${it.spec}</td>
+      <tr><td class="c">${s.index + 1}</td><td class="l wrap" title="${it.prodNm}"><div class="tx">${it.prodNm}</div></td><td class="l wrap" title="${it.spec}"><div class="tx">${it.spec}</div></td>
           <td class="r"><fmt:formatNumber value="${it.boxQty}" pattern="#,##0.##"/>/<fmt:formatNumber value="${it.eaQty}" pattern="#,##0.##"/></td>
           <td class="r"><fmt:formatNumber value="${it.qty}" pattern="#,##0.##"/></td>
           <td class="r"><fmt:formatNumber value="${it.unitPrice * (empty it.packQty or it.packQty == 0 ? 1 : it.packQty)}" pattern="#,##0"/>/<fmt:formatNumber value="${it.unitPrice}" pattern="#,##0"/></td>
@@ -88,6 +95,22 @@
     </tfoot>
   </table>
   <div style="margin-top:8px; font-size:11.5px; color:#555">담당 ${mst.mgrNm} · 발주번호 ${mst.poDt}-${mst.poNo}</div>
+  <script>
+  /* 넘치는 칸만 두 줄로 — 그린 뒤 재서 .w2 를 붙인다. 인쇄 직전(beforeprint)에도 한 번 더(인쇄 폭이 화면과 다를 수 있다) */
+  (function(){
+    function fit(){
+      var a = document.querySelectorAll('td.wrap');
+      for (var i = 0; i < a.length; i++){
+        var td = a[i], tx = td.querySelector('.tx'); if (!tx) continue;
+        td.classList.remove('w2');
+        if (tx.scrollWidth > tx.clientWidth + 1) td.classList.add('w2');
+      }
+    }
+    fit();
+    window.addEventListener('load', fit);
+    window.addEventListener('beforeprint', fit);
+  })();
+  </script>
 </c:otherwise>
 </c:choose>
 </div>

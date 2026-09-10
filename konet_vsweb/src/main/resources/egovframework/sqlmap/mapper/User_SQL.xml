@@ -5346,4 +5346,77 @@
 	   ORDER BY CM.JOB_SEQ DESC
 	]]></select>
 
+
+	<!-- ══════════════════════════════════════════════════════════════════════
+	     문서 전송이력 (2026-09-10 신설) — TBL_SEND_HIST
+	     ★거래명세표(DOC_GB='STMT')·매입발주서(DOC_GB='PO')가 <같은 표>를 쓴다.
+	       표를 두 벌로 두면 조회 규칙도 두 벌이 되어 조용히 달라진다.
+	     ★기록은 «보낸 사실» 이라 고치거나 지우지 않는다 — 넣기와 읽기 두 구문뿐.
+	     ★전표 정보(일자·번호·거래처·합계)를 <그때 값 그대로> 담아 둔다 —
+	       전표를 나중에 고쳐도 «그때 무엇을 보냈나» 가 남아야 하기 때문에 조인하지 않는다.
+	     ══════════════════════════════════════════════════════════════════════ -->
+	<insert id="insertSendHist" parameterType="java.util.HashMap"><![CDATA[
+	  INSERT INTO TBL_SEND_HIST
+	    (COMP_CD, DOC_GB, DOC_SEQ, DOC_DT, DOC_NO, VENDOR_CD, VENDOR_NM,
+	     SEND_GB, SEND_TO, SUBJECT, MEMO, SHARE_URL, TOT_AMT, RESULT_GB, ERR_MSG, TRACK_KEY,
+	     ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{docGb,jdbcType=NVARCHAR}, #{docSeq,jdbcType=BIGINT},
+	     REPLACE(ISNULL(#{docDt,jdbcType=NVARCHAR},''),'-',''), #{docNo,jdbcType=NVARCHAR},
+	     #{vendorCd,jdbcType=NVARCHAR}, #{vendorNm,jdbcType=NVARCHAR},
+	     #{sendGb,jdbcType=NVARCHAR}, #{sendTo,jdbcType=NVARCHAR}, #{subject,jdbcType=NVARCHAR},
+	     #{memo,jdbcType=NVARCHAR}, #{shareUrl,jdbcType=NVARCHAR}, #{totAmt,jdbcType=DECIMAL},
+	     ISNULL(#{resultGb,jdbcType=NVARCHAR},'OK'), #{errMsg,jdbcType=NVARCHAR}, #{trackKey,jdbcType=VARCHAR},
+	     'Y', CONVERT(NVARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	]]></insert>
+
+	<!-- 읽음·열람 (2026-09-10) — 받는 쪽이 <메일을 열었는지>·<명세서 링크를 열어 봤는지>.
+	     ★열쇠(TRACK_KEY)는 보낼 때마다 새로 만든 무작위 값이라, 열쇠가 맞는 <그 전송 한 줄>만 올라간다.
+	       로그인 없는 요청이 부르므로 compCd 필터를 걸지 않는다(열쇠가 곧 권한 — 횟수만 올릴 수 있다).
+	     ★MAIL_OPEN 은 메일 프로그램이 그림을 막으면 안 잡힌다 — 「못 잡았다」≠「안 읽었다」. VIEW 가 더 확실하다. -->
+	<update id="updateSendHistMailOpen" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_SEND_HIST
+	     SET MAIL_OPEN_DTTM = ISNULL(MAIL_OPEN_DTTM, CONVERT(NVARCHAR(19),GETDATE(),120)),
+	         MAIL_OPEN_CNT  = ISNULL(MAIL_OPEN_CNT,0) + 1
+	   WHERE ISNULL(#{trackKey,jdbcType=VARCHAR},'') <> '' AND TRACK_KEY = #{trackKey,jdbcType=VARCHAR}
+	     AND ACTION_YN = 'Y'
+	]]></update>
+	<update id="updateSendHistView" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_SEND_HIST
+	     SET VIEW_DTTM = ISNULL(VIEW_DTTM, CONVERT(NVARCHAR(19),GETDATE(),120)),
+	         VIEW_CNT  = ISNULL(VIEW_CNT,0) + 1
+	   WHERE ISNULL(#{trackKey,jdbcType=VARCHAR},'') <> '' AND TRACK_KEY = #{trackKey,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{docGb,jdbcType=NVARCHAR},'') = '' OR DOC_GB = #{docGb,jdbcType=NVARCHAR} )
+	     AND ACTION_YN = 'Y'
+	]]></update>
+
+	<select id="selectSendHistList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  /* docSeq 를 주면 «그 전표 하나»의 이력, 안 주면 기간 전체.
+	     REG_DTTM 이 'YYYY-MM-DD HH:MM:SS' 문자열이라 fromDt/toDt 도 'YYYY-MM-DD' 로 받아 그대로 견준다
+	     (LEFT() 로 자르면 인덱스를 못 탄다). */
+	  SELECT TOP 500
+	         H.SEND_SEQ AS sendSeq, H.DOC_GB AS docGb, H.DOC_SEQ AS docSeq,
+	         H.DOC_DT AS docDt, H.DOC_NO AS docNo,
+	         H.VENDOR_CD AS vendorCd, H.VENDOR_NM AS vendorNm,
+	         H.SEND_GB AS sendGb, H.SEND_TO AS sendTo, H.SUBJECT AS subject, H.MEMO AS memo,
+	         H.SHARE_URL AS shareUrl, H.TOT_AMT AS totAmt,
+	         H.RESULT_GB AS resultGb, H.ERR_MSG AS errMsg,
+	         H.REG_DTTM AS regDttm, H.REG_USER AS regUser,
+	         /* 읽음·열람 (2026-09-10) */
+	         H.TRACK_KEY AS trackKey,
+	         H.MAIL_OPEN_DTTM AS mailOpenDttm, ISNULL(H.MAIL_OPEN_CNT,0) AS mailOpenCnt,
+	         H.VIEW_DTTM AS viewDttm, ISNULL(H.VIEW_CNT,0) AS viewCnt
+	    FROM TBL_SEND_HIST H
+	   WHERE H.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{docGb,jdbcType=NVARCHAR},'') = '' OR H.DOC_GB = #{docGb,jdbcType=NVARCHAR} )
+	     AND ( ISNULL(#{docSeq,jdbcType=BIGINT}, 0) = 0 OR H.DOC_SEQ = #{docSeq,jdbcType=BIGINT} )
+	     AND ( ISNULL(#{fromDt,jdbcType=NVARCHAR},'') = '' OR H.REG_DTTM >= #{fromDt,jdbcType=NVARCHAR} + ' 00:00:00' )
+	     AND ( ISNULL(#{toDt,jdbcType=NVARCHAR},'')   = '' OR H.REG_DTTM <= #{toDt,jdbcType=NVARCHAR}   + ' 23:59:59' )
+	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = ''
+	           OR H.VENDOR_NM LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR H.SEND_TO   LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR H.DOC_NO    LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR H.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   ORDER BY H.SEND_SEQ DESC
+	]]></select>
 </mapper>
