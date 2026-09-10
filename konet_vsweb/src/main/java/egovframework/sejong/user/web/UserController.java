@@ -1948,6 +1948,11 @@ public class UserController {
 			Map<String,Object> res = new HashMap<String,Object>();
 			res.put("ready", session.getAttribute("s_comp_cd") != null && egovframework.sejong.cmmn.MailSender.ready());
 			res.put("from", egovframework.sejong.cmmn.MailSender.prop("mail.from"));
+			/* 인증 실패(535) 안내에 쓴다 (2026-09-10) — <어느 계정>을 <어디서> 고쳐야 하는지.
+			   ★비밀번호 값은 안 보낸다. 온 곳(실행옵션/파일)과 아이디만. */
+			res.put("user",   egovframework.sejong.cmmn.MailSender.prop("mail.smtp.user"));
+			res.put("host",   egovframework.sejong.cmmn.MailSender.prop("mail.smtp.host"));
+			res.put("pwFrom", egovframework.sejong.cmmn.MailSender.pwSource());
 			return res;
 		}
 		/** ★거래명세서 이메일 발송 (2026-09-09) — 서버가 직접 보낸다(위너넷 방식).

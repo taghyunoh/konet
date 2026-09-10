@@ -3687,6 +3687,7 @@ var KAKAO_KEY = '${kakaoJsKey}', SHARE_BASE = '${shareBase}';
 var _shareUrl = '';          // 지금 전표의 공개 주소(발급받아 두면 다시 안 부른다)
 var _mailReady = null;       // 서버 발송이 되는가 — /mangr/mailReady.do 로 한 번 묻는다
 var _mailFrom  = '';         // 보내는 계정 — 인증 실패(535) 안내에서 «어느 계정을 고쳐야 하는지» 알려 준다
+var _mailPwFrom = '';        // 그 비밀번호가 «어디서» 오는가 — 실행옵션 / 파일 (값은 서버가 안 보낸다)
 
 function saShareOn(){        // 보내기 단추 켜고 끄기 — 저장된 전표만
   var ok = !!(_cur && _cur.saleSeq);
@@ -3856,7 +3857,7 @@ function saMailHint(){
   if (_mailReady !== null) { draw(); return; }
   el.textContent = '메일 설정을 확인하는 중…';
   post('/mangr/mailReady.do','').then(function(r){ return r.json(); })
-    .then(function(j){ _mailReady = !!(j&&j.ready); _mailFrom = (j&&j.from)||''; draw(); })
+    .then(function(j){ _mailReady = !!(j&&j.ready); _mailFrom = (j&&j.from)||''; _mailPwFrom = (j&&j.pwFrom)||''; draw(); })
     .catch(function(){ _mailReady = false; draw(); });
 }
 /* 「저장」 체크 — 그 주소를 거래처 마스터 EMAIL 에 남긴다(이미 있으면 그대로 둔다) */
@@ -3934,7 +3935,48 @@ function saMailSend(){
       saMailClose();
       swAlert('메일 프로그램을 열었습니다 — 열린 창에서 <b>[보내기]</b>를 누르세요.<br><span style="font-size:12.5px;color:#3d4d5c">아무 창도 안 열리면 <b>[Gmail 로 열기]</b> 나 <b>[📋 내용 복사]</b> 를 쓰세요.</span>');
     });
-  }).catch(function(e){ saMailBusy(false); swErr(saMailErrMsg(e)); });
+  }).catch(function(e){
+    saMailBusy(false);
+    var m = (e && e.message) ? String(e.message) : '';
+    /* ★답이 안 왔으면 «서버는 어떻게 됐나»를 되물어 본다 (2026-09-10 실측) —
+         서버는 보낸 결과를 성공·실패 <모두> 전송이력에 남기는데, 그 사이 응답만 끊기면
+         화면은 이유를 모른 채 「답이 오지 않았습니다」만 말한다. 실제로 그렇게 떠서
+         «네이버가 계정을 거부(535)» 라는 사실을 서버 로그·DB 까지 뒤져서야 알았다.
+       ⇒ 이력 한 줄만 읽으면 화면이 그 자리에서 진짜 사유를 말할 수 있다(나갔는지 아닌지까지). */
+    if (/failed to fetch|networkerror|load failed|aborted/i.test(m)){
+      saMailWhy().then(function(x){
+        if (!x) { swErr(saMailErrMsg(e)); return; }
+        if (String(x.resultGb||'') === 'FAIL'){ swErr(saMailErrMsg({ message: x.errMsg || '' })); return; }
+        /* 서버는 보냈다 — 응답만 못 온 것이다. 또 누르면 같은 명세서가 한 번 더 나간다 */
+        saMailClose();
+        swOk('<b>'+esc(String(x.sendTo||''))+'</b><br>이메일은 <b>나갔습니다</b>.<br><span style="font-size:12.5px;color:#3d4d5c">응답만 늦게 끊겼을 뿐입니다 — 다시 누르지 마세요(<b>[📨 전송이력]</b>에 남아 있습니다).</span>');
+      });
+      return;
+    }
+    swErr(saMailErrMsg(e));
+  });
+}
+/* 방금 이 전표로 나간 «이메일 한 줄» — 전송이력에서 5분 안쪽의 가장 최근 것 (2026-09-10).
+   못 읽어도 흐름을 막지 않는다(그때는 종전대로 「답이 오지 않았습니다」). */
+function saMailWhy(){
+  if (!(_cur && _cur.saleSeq)) return Promise.resolve(null);
+  return post('/mangr/sendHistList.do','docGb=STMT&docSeq='+encodeURIComponent(_cur.saleSeq))
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      var l = (j && j.data) || [];                    /* SEND_SEQ 내림차순 — 앞이 가장 최근 */
+      /* ★때를 «글자»로 견준다 — REG_DTTM 이 'YYYY-MM-DD HH:MM:SS' 문자열이라 그대로 크기 비교가 된다
+           (매퍼도 fromDt/toDt 를 이렇게 견준다). Date.parse 는 브라우저마다 이 꼴을 다르게 읽어
+           **못 읽으면 지난번 줄을 이번 것으로 오해**한다 — 그러면 안 나간 메일을 「나갔습니다」로 말하게 된다. */
+      var d = new Date(Date.now() - 5*60*1000), p2 = function(v){ return ('0'+v).slice(-2); };
+      var cut = d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())
+              + ' '+p2(d.getHours())+':'+p2(d.getMinutes())+':'+p2(d.getSeconds());
+      for (var i = 0; i < l.length; i++){
+        if (String(l[i].sendGb||'') !== 'EMAIL') continue;
+        var w = String(l[i].regDttm||'');
+        return (w.length === 19 && w >= cut) ? l[i] : null;   /* 모르겠으면 아무 말도 안 한다(안전한 쪽) */
+      }
+      return null;
+    }).catch(function(){ return null; });
 }
 /* 실패 안내 (2026-09-10) — 메일 오류 글자는 험해서 그대로 보여 주면 무슨 일인지 알 수 없다.
    실제로 「Failed to fetch」 한 줄만 떠서 **원인을 서버 로그·전송이력까지 뒤져야** 했다.
@@ -3947,8 +3989,16 @@ function saMailErrMsg(e){
   var m = (e && e.message) ? String(e.message) : '';
   if (/failed to fetch|networkerror|load failed|aborted/i.test(m))
     return '서버에서 답이 오지 않았습니다.<br><span style="font-size:12.5px;color:#3d4d5c">메일이 <b>이미 나갔을 수도</b> 있습니다 — <b>[📨 전송이력]</b>에서 확인한 뒤 다시 보내세요.</span>';
-  if (/\b535\b|username and password not accepted|authentication failed/i.test(m))
-    return '메일 계정이 거부됐습니다 <b>(535 인증 실패)</b>.<br><span style="font-size:12.5px;color:#3d4d5c">보내는 계정(<b>'+esc(String(_mailFrom||'메일 계정'))+'</b>)의 <b>앱 비밀번호</b>를 다시 발급해 넣어야 합니다 — 받는 주소와는 상관없습니다.<br>그때까지는 <b>[Gmail 로 열기]</b>·<b>[📋 내용 복사]</b>로 보내세요.</span>';
+  if (/\b535\b|username and password not accepted|authentication failed/i.test(m)){
+    /* ★「지금 쓰는 비밀번호가 어디서 오는가」를 같이 적는다 (2026-09-10) — 실행옵션이 파일보다 우선이라
+         새 WAR 를 올려도 <옛 실행옵션>이 걸려 있으면 조용히 그쪽이 쓰인다. 고칠 자리를 못 찾는 이유가 이것이다. */
+    var wh = (_mailPwFrom === '실행옵션') ? '지금 비밀번호는 <b>톰캣 실행옵션</b>(-Dmail.smtp.password)에서 옵니다 — <b>파일을 고쳐도 안 바뀝니다.</b>'
+           : (_mailPwFrom === '파일')     ? '지금 비밀번호는 <b>mail.properties 파일</b>에서 옵니다.'
+           : '';
+    return '메일 계정이 거부됐습니다 <b>(535 인증 실패)</b>.<br><span style="font-size:12.5px;color:#3d4d5c">보내는 계정(<b>'+esc(String(_mailFrom||'메일 계정'))+'</b>)의 <b>앱 비밀번호</b>를 다시 발급해 넣어야 합니다 — <b>받는 주소와는 상관없습니다.</b>'
+         + (wh ? '<br>'+wh : '')
+         + '<br>그때까지는 <b>[Gmail 로 열기]</b>·<b>[📋 내용 복사]</b>·<b>[💬 카톡]</b>으로 보내세요.</span>';
+  }
   return '보내지 못했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(m||'알 수 없는 오류')+'</span>';
 }
 /* Gmail 쓰기 창 — 웹메일만 쓰는 경우의 길 */

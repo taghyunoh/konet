@@ -46,6 +46,20 @@ public class MailSender {
 		} catch (Exception e) { return ""; }
 	}
 
+	/**
+	 * 지금 쓰는 비밀번호가 <b>어디서 온 것인가</b> — {@code "실행옵션"} / {@code "파일"} / {@code "없음"}.
+	 *
+	 * <p>★비밀번호 <b>값은 절대 내보내지 않는다</b> — 「어디서 왔나」만 말한다.
+	 *
+	 * <p>2026-09-10 에 이것 때문에 한나절을 썼다 : <b>같은 WAR</b> 인데 로컬은 메일이 나가고 운영은 535 로 거부됐다.
+	 *   실행옵션(-Dmail.smtp.password=)이 <b>파일보다 먼저</b> 쓰이므로, 운영에 옛 실행옵션이 걸려 있으면
+	 *   새 WAR 의 올바른 비밀번호가 <b>조용히 무시된다</b> — 어느 쪽이 쓰이는지 볼 길이 없어 원인을 못 가렸다.
+	 */
+	public static String pwSource() {
+		try { String v = System.getProperty("mail.smtp.password"); if (v != null && !v.trim().isEmpty()) return "실행옵션"; } catch (Exception e) {}
+		return prop("mail.smtp.password").length() > 0 ? "파일" : "없음";
+	}
+
 	/** 보낼 수 있는 상태인가 — 서버·계정·보내는사람이 모두 채워져 있어야 한다. */
 	public static boolean ready() {
 		return prop("mail.smtp.host").length() > 0
