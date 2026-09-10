@@ -175,6 +175,10 @@
   table.d2-mx th.rtot { background:#fbe9bd; }
   table.d2-mx th.rcnt { background:#d5e8c6; }
   table.d2-mx tr.sum td { background:#f2f2f2; font-weight:700; }
+  /* 배송·직송 합계 두 줄(2026-09-10 「화면 가로표에도 배송·직송 두 줄로」) — 엑셀(sumD/sumJ)과 같은 색. 고정칸(cn)도 불투명하게 */
+  table.d2-mx tr.sumd td, table.d2-mx tr.sumd td.cn { background:#e8f1fb; font-weight:700; color:#20415a; }
+  table.d2-mx tr.sumj td, table.d2-mx tr.sumj td.cn { background:#fdebd3; font-weight:700; color:#a04a00; }
+  table.d2-mx tr.sumd td.fdv { background:#dbe7f5; }  table.d2-mx tr.sumj td.fdv { background:#f6dfc0; }
   table.d2-mx tr.zc td { background:#e2efda; font-weight:700; color:#375623; }
   /* 센터 소계(csub) — 가로표 판. ★색·글자 = 목록의 묶음 합계(gsub)와 동일 톤(2026-08-30 요청) · 고정칸 배경 불투명 필수 */
   table.d2-mx tr.csub td { background:#c3e2d8; color:#0b5246; font-weight:800; font-size:14.5px; }
@@ -952,7 +956,7 @@
     var col = isQ ? (v<0?'#c0392b':'#137a6c') : '#137a6c';
     return '<td class="num" style="font-weight:700;color:'+col+'" title="'+d2Esc(tip)+'">'
          + (v===0 && !isQ ? '<span style="color:#c3ccd4;font-weight:400">0</span>' : d2Num(v))
-         + (main ? ' <span style="font-size:10px;font-weight:400;color:#8a97a3">주</span>' : '')
+         + (main ? ' <span style="font-size:12.5px;font-weight:600;color:#7d8a96;padding:0 2px;cursor:help">주</span>' : '')   /* ★「주」 글자 키움 (2026-09-10 「주 글자 조금 크게, 팁이 잘 선택 안 돼서」 — 10px 은 마우스가 안 걸렸다) */
          + '</td>';
   }
   function d2Num(n){ return (Math.round(n||0)).toLocaleString(); }
@@ -1225,6 +1229,9 @@
         });
         push(r2,'colhdr');
         var sums=cols.map(function(){ return 0; });
+        /* ★배송·직송 나눔 누계 (2026-09-10 「하단 합계 위에 직송, 배송 합계 표시」) — 열별로 따로 더해 합계 줄 바로 위에 두 줄로 적는다.
+             나눔 기준은 화면 합계 줄과 같다 : 출고장 이름이 「… 직송」이면 직송, 나머지는 배송. */
+        var dSums=cols.map(function(){ return 0; }), jSums=cols.map(function(){ return 0; }), dTot=0, jTot=0, dItems={}, jItems={}, dZn=0, jZn=0;
         var zcnt=cols.map(function(){ return 0; });
         var grand=0, itemAll={};
         /* ★출고장을 대시보드처럼 <물류센터 묶음> 아래에 넣는다 (2026-08-28 요청).
@@ -1280,12 +1287,13 @@
             if(!_iN) _iIdx=lines.length;
             _cN++; _cCur=_zc; _cZl.push(zn); _iN++; _iCur=_zi; _iZl.push(zn);
             var rs=ag.zones[zn].rows, cells=[], rt=0, rc=0;
+            var _jk=/\s직송$/.test(zn); if(_jk) jZn++; else dZn++;   // 배송·직송 나눔 + 곳수(2026-09-10)
             cols.forEach(function(c,ix){
               var q=colQty(rs,c);
-              if(q>0){ sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; _cs[ix]+=q; _is[ix]+=q; rt+=q; rc++; itemAll[c.ck]=1; gItems[c.ck]=1; _cItems[c.ck]=1; _iItems[c.ck]=1; }
+              if(q>0){ sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; _cs[ix]+=q; _is[ix]+=q; rt+=q; rc++; itemAll[c.ck]=1; gItems[c.ck]=1; _cItems[c.ck]=1; _iItems[c.ck]=1; if(_jk){ jSums[ix]+=q; jItems[c.ck]=1; } else { dSums[ix]+=q; dItems[c.ck]=1; } }
               cells.push(q>0 ? q : '');
             });
-            grand+=rt; _cTot+=rt; _iTot+=rt;
+            grand+=rt; _cTot+=rt; _iTot+=rt; if(_jk) jTot+=rt; else dTot+=rt;
             /* 낱알 이름도 화면과 같은 표기 「오산 5 직송」 (2026-09-02) — 종전엔 내부 키(오산물류센터5 직송)가 그대로 나갔다.
                ★이름 옆 수량도 화면(td .z-qty)과 똑같이 붙인다(2026-09-02 「엑셀도 낱개 숫자」).
                ⚠값은 화면과 같은 <필터 무관 전체합>(ag.zones[zn].tot) — 옆 합계 칸(rt)은 필터가 걸리면 걸린 값이라 다를 수 있다. */
@@ -1298,6 +1306,11 @@
                  .concat(gs.map(function(v){ return v||''; })), 'grp');
           lines.forEach(function(r){ push(r.row, r.ty); });
         });
+        /* ★합계 줄 바로 위 : 배송 합계 · 직송 합계 (2026-09-10 요청). 직송이 하나도 없으면 직송 줄은 빈 값으로 나간다(줄은 그대로 — 자리 고정). */
+        push(['배송 합계 ('+dZn+'곳)', dTot||'', Object.keys(dItems).length||'']
+               .concat(dSums.map(function(v){ return v||''; })), 'sumD');
+        push(['직송 합계 ('+jZn+'곳)', jTot||'', Object.keys(jItems).length||'']
+               .concat(jSums.map(function(v){ return v||''; })), 'sumJ');
         push(['합계', grand||'', Object.keys(itemAll).length||'']
                .concat(sums.map(function(v){ return v||''; })), 'sum');
         push(['출고장수', zones.length, '']
@@ -1374,6 +1387,11 @@
           grpN:{ fill:{fgColor:{rgb:'137A6C'}}, font:{bold:true,color:{rgb:'FFFFFF'},sz:14}, alignment:{horizontal:'center',vertical:'center'}, border:box },
           sumL:{ fill:{fgColor:{rgb:'F2F2F2'}}, font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
           sumN:{ fill:{fgColor:{rgb:'F2F2F2'}}, font:{bold:true,color:{rgb:'1F2A37'},sz:14}, alignment:{horizontal:'center',vertical:'center'}, border:box },
+          /* 배송·직송 합계 줄(2026-09-10) — 배송 = 옅은 파랑, 직송 = 옅은 주황(화면의 직송 표시와 같은 계열) */
+          sumDL:{ fill:{fgColor:{rgb:'E8F1FB'}}, font:{bold:true,color:{rgb:'20415A'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          sumDN:{ fill:{fgColor:{rgb:'E8F1FB'}}, font:{bold:true,color:{rgb:'20415A'},sz:14}, alignment:{horizontal:'center',vertical:'center'}, border:box },
+          sumJL:{ fill:{fgColor:{rgb:'FDEBD3'}}, font:{bold:true,color:{rgb:'A04A00'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+          sumJN:{ fill:{fgColor:{rgb:'FDEBD3'}}, font:{bold:true,color:{rgb:'A04A00'},sz:14}, alignment:{horizontal:'center',vertical:'center'}, border:box },
           /* ★센터 소계(csub)·입고장 소계(isub) — 색은 화면(tr.csub #c3e2d8 / tr.isub #dcefe7)과 같다.
              ⚠csubL/csubN 은 2026-08-30 에 csub 행을 넣으면서 <서식 정의를 빠뜨려> 이 표에서만 서식 없이 나가고 있었다
                (S.csubL 이 undefined). 2026-09-02 입고장 소계를 넣으며 함께 채웠다. */
@@ -1422,6 +1440,8 @@
           else if(ty==='csub'){ put(r,0,S.csubL); for(c=1;c<wid;c++) put(r,c,S.csubN); h=26; }
           else if(ty==='isub'){ put(r,0,S.isubL); for(c=1;c<wid;c++) put(r,c,S.isubN); h=26; }   // 입고장 소계(2026-09-02)
           else if(ty==='sum'){ put(r,0,S.sumL); for(c=1;c<wid;c++) put(r,c,S.sumN); h=26; }
+          else if(ty==='sumD'){ put(r,0,S.sumDL); for(c=1;c<wid;c++) put(r,c,S.sumDN); h=26; }   // 배송 합계(2026-09-10)
+          else if(ty==='sumJ'){ put(r,0,S.sumJL); for(c=1;c<wid;c++) put(r,c,S.sumJN); h=26; }   // 직송 합계(2026-09-10)
           else if(ty==='zcnt'){ put(r,0,S.zcntL); for(c=1;c<wid;c++) put(r,c,S.zcntN); h=26; }
           else if(ty==='cond'){ for(c=0;c<wid;c++) put(r,c,S.cond); h=26; }
           else if(ty==='stk'){
@@ -2757,6 +2777,8 @@
 
     /* ② 물류센터 묶음 → 출고장 행 */
     var sums=cols.map(function(){ return 0; }), zcnt=cols.map(function(){ return 0; });
+    /* ★배송·직송 열별 누계(2026-09-10) — 합계 줄 위에 두 줄로. 나눔 = 출고장 이름 「… 직송」 여부(합계 줄 글표시와 같은 기준) */
+    var dSums=cols.map(function(){ return 0; }), jSums=cols.map(function(){ return 0; }), dTot=0, jTot=0, dItems={}, jItems={}, dZl=[], jZl=[];
     var grand=0, itemAll={}, zoneVis=0;   // zoneVis = 보이는 사업장 물량이 <실제로 있는> 출고장 수
     var groups={}, gOrder=[];
     zones.forEach(function(zn){ var g=(ag.zones[zn].dc||zn); if(!groups[g]){ groups[g]=[]; gOrder.push(g); } groups[g].push(zn); });
@@ -2820,18 +2842,19 @@
         if(!_iZl.length) _iMarkM=lines.length;
         _cCur=_zc; _cZl.push(zn); _iCur=_zi; _iZl.push(zn);
         var rs=ag.zones[zn].rows, rt=0, rc=0, tds='';
+        var _jk=/\s직송$/.test(zn), _sS=_jk?jSums:dSums, _sI=_jk?jItems:dItems; (_jk?jZl:dZl).push(zn);   // 배송·직송 나눔(2026-09-10)
         cols.forEach(function(c,ix){
           var q=colQty(rs,c);
           if(q>0){
-            sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; _cs[ix]+=q; _is[ix]+=q; rt+=q;
+            sums[ix]+=q; zcnt[ix]++; gs[ix]+=q; _cs[ix]+=q; _is[ix]+=q; rt+=q; _sS[ix]+=q;
             /* ★품목수는 <접기와 무관하게> 원래 품목으로 센다 — 접었다고 1종으로 줄면
                  화면 숫자가 접기 상태에 따라 달라져 믿을 수 없게 된다(2026-08-28). */
-            if(c.fold){ c.subs.forEach(function(s){ if(colQty(rs,s)>0){ rc++; itemAll[s.ck]=1; gItems[s.ck]=1; _cItems[s.ck]=1; _iItems[s.ck]=1; } }); }
-            else { rc++; itemAll[c.ck]=1; gItems[c.ck]=1; _cItems[c.ck]=1; _iItems[c.ck]=1; }
+            if(c.fold){ c.subs.forEach(function(s){ if(colQty(rs,s)>0){ rc++; itemAll[s.ck]=1; gItems[s.ck]=1; _cItems[s.ck]=1; _iItems[s.ck]=1; _sI[s.ck]=1; } }); }
+            else { rc++; itemAll[c.ck]=1; gItems[c.ck]=1; _cItems[c.ck]=1; _iItems[c.ck]=1; _sI[c.ck]=1; }
           }
           tds += q>0 ? ('<td'+GC(ix,c.fold?'fdv':'')+'>'+d2Num(q)+'</td>') : '<td'+GC(ix,'none')+'></td>';
         });
-        grand+=rt; _cTot+=rt; _iTot+=rt; if(rt>0) zoneVis++;
+        grand+=rt; _cTot+=rt; _iTot+=rt; if(rt>0) zoneVis++; if(_jk) jTot+=rt; else dTot+=rt;
         /* ★사업장을 숨기면 그 출고장 줄이 통째로 빌 수 있다 — 그때 0 이 아니라 빈칸이어야 한다
              (0 은 「0개 나갔다」로 읽혀 없는 실적을 있는 것처럼 만든다) */
         var _zTitle=D2_MXZONLY?'누르면 이 출고장의 품목만 남습니다 (다른 줄을 누르면 그쪽으로 바뀌고, 다시 누르면 해제)':'품목만 보려면 머리칸의 [선택 출고장 품목만] 체크를 먼저 켜세요';
@@ -2869,6 +2892,16 @@
       var t=ag.zones[zn].tot||0;
       if(/\s직송$/.test(zn)){ _aJk+=t; _aJkZ++; } else _aDl+=t;
     });
+    /* ★합계 줄 위 배송·직송 두 줄(2026-09-10 요청) — 값 규칙은 합계 줄과 같다(필터 중이면 bng 로 「보이는 값 (전체)」).
+         전체값은 합계 줄의 _aDl/_aJk(필터 무관, ag.zones[].tot) 를 그대로 쓴다. 직송 출고장이 하나도 없으면 직송 줄은 안 그린다. */
+    function _splitRow(cls, lab, arr, tot, items, zl, full){
+      return '<tr class="'+cls+'"><td class="cn">'+lab+'</td>'
+        + '<td class="rtot">'+bng(tot, MXF?full:tot)+'</td><td class="rcnt">'+bng(Object.keys(items).length, MXF?fullCnt(zl):Object.keys(items).length)+'</td>'
+        + arr.map(function(v,ix){ return v>0 ? ('<td'+GC(ix)+'>'+d2Num(v)+'</td>') : '<td'+GC(ix,'none')+'></td>'; }).join('')
+        + '</tr>';
+    }
+    h += _splitRow('sumd', '배송 합계 <span class="sub">('+d2Num(dZl.length)+'곳)</span>', dSums, dTot, dItems, dZl, _aDl);
+    if(_aJkZ) h += _splitRow('sumj', '<span class="jkw">직송</span> 합계 <span class="sub">('+d2Num(_aJkZ)+'곳)</span>', jSums, jTot, jItems, jZl, _aJk);
     h += '<tr class="sum"><td class="cn">합계'
        + (_aJkZ ? ('<span class="sub" style="font-weight:600"> · <span class="jkw">직송</span> '+d2Num(_aJkZ)+'곳 '+d2Num(_aJk)
                    +' <span style="opacity:.8">(배송 '+d2Num(_aDl)+')</span></span>') : '')

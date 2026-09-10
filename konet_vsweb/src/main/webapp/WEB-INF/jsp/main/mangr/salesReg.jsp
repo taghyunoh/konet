@@ -1136,15 +1136,9 @@ function saGridBind(){
   });
 }
 function saGridPager(){
+  /* 안내 줄·[모두 표시] 없음 (2026-09-10) — 명세를 전부 그리므로 알릴 것이 없다. 자리(div)는 남겨 두되 숨긴다 */
   var el = document.getElementById('saGridPager');
-  if (_pShown >= _rows.length) {
-    el.innerHTML = _rows.length > PU_ROWS
-      ? '<span style="color:#5a6b7a; font-size:12.5px">총 '+_rows.length+'행 — 모두 표시됨</span>' : '';
-    return;
-  }
-  el.innerHTML = '<span style="color:#5a6b7a; font-size:12.5px">'+_pShown+' / <b>'+_rows.length+'</b>행'
-    + ' <span style="color:#5a6b7a">— 아래로 스크롤하면 이어서 나옵니다</span></span>'
-    + ' <button class="sa-btn" style="height:22px;margin-left:8px;font-size:12px" onclick="saGridMore('+_rows.length+')">모두 표시</button>';
+  if (el) { el.innerHTML = ''; el.style.display = 'none'; }
 }
 /* ★내용이 없으면 [저장]·[거래명세표]·[삭제하기]를 잠근다 (2026-09-09 요청, 삭제는 같은 날 추가) —
      종전에는 눌러야 「상품을 한 줄 이상 입력하세요」가 떴다. 못 누르는 것이 먼저 보이는 편이 낫다.
@@ -1177,8 +1171,9 @@ function saBtnState(){
 function saRender(){
   var _keep = saCaptureFocus();          // 다시 그려도 커서가 있던 칸을 유지(2026-08-04 키보드 입력)
   var h = '';
-  if (_pShown < PU_ROWS) _pShown = PU_ROWS;
-  if (_pShown > _rows.length) _pShown = _rows.length;
+  /* ★명세는 <전부> 그린다 (2026-09-10 요청 「판매등록도 동일하게」) — 8행씩 이어붙이던 규칙과 [모두 표시] 단추를 걷고 표 안 스크롤만 남긴다.
+       _pShown 은 다른 코드(줄 끼우기 등)가 아직 보므로 늘 전체로 맞춰 둔다. */
+  _pShown = _rows.length;
   _rows.slice(0, _pShown).forEach(function(o,i){
     /* 반품 줄은 **줄 전체를 빨간색**으로 (2026-08-03 요청) — 거래구분 칸만 봐서는
          여러 줄 중 어느 것이 반품인지 눈에 안 들어온다. 글자색은 CSS(tr.ret)에서 준다. */
@@ -1440,6 +1435,7 @@ function saListRender(){
   tb.innerHTML = _list.slice(0,_lShown).map(function(o,i){ return saRowHtml(o,i); }).join('');
   saListBind();
   saPagerRender(); saSumRender();
+  saListFill();
 }
 function saListMore(cnt){
   if (_lShown >= _list.length) return;
@@ -1447,6 +1443,15 @@ function saListMore(cnt){
   for (var i=_lShown; i<to; i++) h += saRowHtml(_list[i], i);
   document.getElementById('saListBody').insertAdjacentHTML('beforeend', h);
   _lShown = to; saPagerRender();
+}
+/* ★스크롤이 «생길 때까지» 먼저 채운다 (2026-09-10, 매입등록 puListFill 과 동일) — 한 묶음(5줄)이 상자보다 낮으면
+     스크롤바가 안 생겨 나머지를 볼 길이 없다([모두 표시]가 그 탈출구였다). 상자보다 길어질 때까지 묶음을 더 붙인다.
+   ⚠guard 는 무한루프 방지 — 줄 높이가 0 으로 잡히는 순간(숨겨진 탭 등)에도 멈춘다. */
+function saListFill(){
+  var w = document.getElementById('saListWrap');
+  if (!w) return;
+  var guard = 0;
+  while (_lShown < _list.length && w.scrollHeight <= w.clientHeight + 4 && guard++ < 200) saListMore();
 }
 function saListBind(){
   var w = document.getElementById('saListWrap');
@@ -1456,16 +1461,15 @@ function saListBind(){
     if (w.scrollTop + w.clientHeight >= w.scrollHeight - 30) saListMore();   // 바닥 30px 전에 미리
   });
 }
+/* ★목록 아래 안내 줄을 없앴다 (2026-09-10 「모두표시 제거 스크롤 되게 판매등록도 동일하게」 — 매입등록과 같은 처리) —
+     「n / m건 — 아래로 스크롤하면 이어서 나옵니다」 와 [모두 표시] 단추를 걷고 <스크롤만> 남긴다.
+   ⚠걷은 것은 «표시»뿐이다 — 바닥에 닿으면 다음 묶음을 붙이는 규칙(saListBind → saListMore)은 그대로다.
+   ⚠부르는 자리는 그대로 두었다 — 함수만 비워야 「어디선가 다시 그려서 되살아나는」 일이 없다. */
 function saPagerRender(){
   var el = document.getElementById('saPager');
-  if (_lShown >= _list.length) {
-    el.innerHTML = _list.length > LIST_ROWS
-      ? '<span style="color:#5a6b7a; font-size:12.5px">총 '+_list.length+'건 — 모두 표시됨</span>' : '';
-    return;
-  }
-  el.innerHTML = '<span style="color:#5a6b7a; font-size:12.5px">'+_lShown+' / <b>'+_list.length+'</b>건'
-    + ' <span style="color:#5a6b7a">— 아래로 스크롤하면 이어서 나옵니다</span></span>'
-    + ' <button class="sa-btn" style="height:24px;margin-left:8px;font-size:12px" onclick="saListMore('+_list.length+')">모두 표시</button>';
+  if (!el) return;
+  el.innerHTML = '';
+  el.style.display = 'none';          // 빈 칸(min-height 26px)이 남지 않게 자리째 접는다
 }
 function fmtDt(s){ s=String(s||''); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : s; }
 function saSumRender(){

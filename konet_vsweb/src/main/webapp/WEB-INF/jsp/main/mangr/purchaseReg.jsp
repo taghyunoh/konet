@@ -750,21 +750,16 @@ function puGridBind(){
   });
 }
 function puGridPager(){
+  /* 안내 줄·[모두 표시] 없음 (2026-09-10) — 명세를 전부 그리므로 알릴 것이 없다. 자리(div)는 남겨 두되 숨긴다 */
   var el = document.getElementById('puGridPager');
-  if (_pShown >= _rows.length) {
-    el.innerHTML = _rows.length > PU_ROWS
-      ? '<span style="color:#5a6b7a; font-size:12.5px">총 '+_rows.length+'행 — 모두 표시됨</span>' : '';
-    return;
-  }
-  el.innerHTML = '<span style="color:#5a6b7a; font-size:12.5px">'+_pShown+' / <b>'+_rows.length+'</b>행'
-    + ' <span style="color:#5a6b7a">— 아래로 스크롤하면 이어서 나옵니다</span></span>'
-    + ' <button class="pu-btn" style="height:22px;margin-left:8px;font-size:12px" onclick="puGridMore('+_rows.length+')">모두 표시</button>';
+  if (el) { el.innerHTML = ''; el.style.display = 'none'; }
 }
 function puRender(){
   var _keep = puCaptureFocus();          // 다시 그려도 커서가 있던 칸을 유지(2026-08-04 키보드 입력)
   var h = '';
-  if (_pShown < PU_ROWS) _pShown = PU_ROWS;
-  if (_pShown > _rows.length) _pShown = _rows.length;
+  /* ★명세는 <전부> 그린다 (2026-09-10 요청 「모두표시 제거, 스크롤 되게」) — 8행씩 이어붙이던 규칙과 [모두 표시] 단추를 걷고 표 안 스크롤만 남긴다.
+       _pShown 은 다른 코드(줄 끼우기 등)가 아직 보므로 늘 전체로 맞춰 둔다. */
+  _pShown = _rows.length;
   _rows.slice(0, _pShown).forEach(function(o,i){
     /* 반품 줄은 **줄 전체를 빨간색**으로 (2026-08-03 요청) — 거래구분 칸만 봐서는
          여러 줄 중 어느 것이 반품인지 눈에 안 들어온다. 글자색은 CSS(tr.ret)에서 준다. */
