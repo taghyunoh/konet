@@ -6,7 +6,7 @@
    *누구에게 · 어떤 방법으로* 보냈는지는 아무 데도 남지 않았다.
 
    ▸ 쓰는 법 — 화면에 이 한 줄만 걸면 된다(CSS 는 스스로 넣는다).
-       <script src="…/asset/js/send-hist.js?v=20260910e"></script>
+       <script src="…/asset/js/send-hist.js?v=20260910f"></script>
 
      ① 보낼 때                                    ② 이력 보기(모달)
        var k = konetSendHist.key();                 konetSendHist.open({
@@ -173,8 +173,9 @@
       +   '<b>[↻ 재전송]</b> 은 같은 수단·같은 받는 곳으로 다시 보냅니다(다른 전표 줄은 그 전표를 먼저 엽니다). 최근 500건.'
       + '</div></div>';
     document.body.appendChild(d);
-    /* 바깥(어두운 바탕)을 누르면 닫는다 — 상자 안 클릭은 그대로 */
-    d.addEventListener('mousedown', function(e){ if (e.target === d) api.close(); });
+    /* ★[닫기]로만 닫힌다 (2026-09-10 「전송이력 닫기해야 닫히게 — 바깥 클릭하면 닫힘」) —
+       처음엔 어두운 바탕을 누르면 닫혔는데, 목록을 보다가 화면 다른 곳을 짚으면 창이 사라져 다시 열어야 했다.
+       카톡 주문 창(#saKtPop)과 같은 규칙 : 바깥 클릭·ESC 로는 안 닫히고 [닫기] 단추뿐. */
     /* ★머리줄을 끌어 옮긴다 (2026-09-10 「마우스로 더 움직이게」) — 위치는 localStorage 에 남아 다음에도 그 자리.
        끌기 시작하면 가운데 정렬(transform)을 버리고 left/top 으로 바꾼다. 화면 밖으로는 못 나가게 잡는다.
        단추 위에서 누른 것은 끌기가 아니다. */
@@ -203,12 +204,7 @@
       box.classList.remove('mv'); box.style.left = ''; box.style.top = ''; box.style.width = ''; box.style.height = '';
       try { localStorage.removeItem('konetSendHistPos'); } catch(e){}
     });
-    document.addEventListener('keydown', function(e){
-      if (e.key === 'Escape' && !e.isComposing){
-        var p = document.getElementById('kshPop');
-        if (p && p.classList.contains('on')) { e.preventDefault(); api.close(); }
-      }
-    });
+    /* ESC 닫기도 두지 않는다 — [닫기] 단추뿐 (위 규칙과 같다) */
   }
 
   function readCell(r){

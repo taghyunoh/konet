@@ -18,7 +18,7 @@
 <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous"></script>
 <%-- 전송이력 — 거래명세표를 <누구에게 · 어떤 방법으로> 보냈는지 남기고 보여 준다 (2026-09-10).
      발주서(poReg)와 **같은 파일·같은 표**를 쓴다(docGb 로만 갈린다). --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/send-hist.js?v=20260910e"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/send-hist.js?v=20260910f"></script>
 <!--
   판매등록 (2026-07-25 신설) — 매입등록 화면과 대칭. 같은 조작감으로 쓰도록 구조를 그대로 맞췄다.
     · 상단 = 전표 입력(헤더 + 명세 그리드) / 하단 좌 = 기간 전표 목록 / 하단 우 = 거래처 원장

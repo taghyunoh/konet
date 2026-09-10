@@ -23,7 +23,7 @@
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-colresize.js?v=20260907"></script>
 <%-- 전송이력 — 발주서를 <누구에게 · 어떤 방법으로> 보냈는지 남기고 보여 준다 (2026-09-10).
      판매등록 거래명세표와 **같은 파일·같은 표**를 쓴다(docGb 로만 갈린다). --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/send-hist.js?v=20260910e"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/send-hist.js?v=20260910f"></script>
 <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous"></script>
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; }
