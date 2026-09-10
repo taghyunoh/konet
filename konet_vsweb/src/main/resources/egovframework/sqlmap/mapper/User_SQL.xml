@@ -3873,7 +3873,13 @@
 	         d.UNIT_PRICE AS unitPrice, d.AMT AS amt, d.DC_AMT AS dcAmt,
 	         d.SUPPLY_AMT AS supplyAmt, d.VAT_AMT AS vatAmt, d.TOT_AMT AS totAmt,
 	         d.SERVICE_QTY AS serviceQty, d.REMARK AS remark, d.EVENT_YN AS eventYn,
-	         d.TRX_GB AS trxGb, d.LEDGER_SEQ AS ledgerSeq, d.EXT_CD AS extCd
+	         d.TRX_GB AS trxGb, d.LEDGER_SEQ AS ledgerSeq, d.EXT_CD AS extCd,
+	         /* 조회순서 (2026-09-10) — 공개 거래명세서(/pub/stmt.do)가 「정렬 = 조회번호」로 찍을 때 쓴다.
+	            ★로그인이 없는 화면이라 상품마스터를 통째로 읽을 수 없어 <줄마다> 붙여 온다
+	              (판매등록 화면은 _prods 를 이미 들고 있어 이 칸을 안 본다).
+	            ★짝은 전표 줄의 COMP_CD 다 — 조회 조건으로 들어온 compCd 가 아니다(토큰이면 빈 값). */
+	         (SELECT TOP 1 p.SORT_ORD FROM TBL_PROD_MST p
+	           WHERE p.PROD_CD = d.PROD_CD AND p.COMP_CD = d.COMP_CD AND p.ACTION_YN = 'Y') AS sortOrd
 	    FROM TBL_SALES_TRX_DTL d
 	   WHERE d.ACTION_YN = 'Y' AND d.SALE_SEQ = #{saleSeq}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )

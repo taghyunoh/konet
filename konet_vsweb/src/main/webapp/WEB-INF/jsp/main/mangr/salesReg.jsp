@@ -876,9 +876,11 @@
       <%-- 보내기 3종 — 저장된 전표만 (링크가 그 전표를 가리키므로). 발주서와 같은 방식이다. --%>
       <span style="display:flex; gap:6px">
         <%-- 보내기는 저장된 전표만 — 받는 쪽은 로그인 없이 그 전표 하나만 보고 인쇄·PDF 저장도 된다(툴팁으로 안내) --%>
-        <button class="sa-btn kakao" id="saPrtKakao" onclick="saShareKakao()" title="거래처에 카톡으로 보냅니다 — 로그인 없이 열리는 명세서 주소를 카드로 보냅니다.&#10;받는 쪽은 그 화면에서 인쇄·PDF 저장도 할 수 있습니다. 저장된 전표만 보낼 수 있습니다.">💬 카톡</button>
-        <button class="sa-btn" id="saPrtMail" onclick="saMailOpen()" title="거래처 이메일로 보냅니다 — 수신자 주소를 고르거나 넣고 [저장]을 체크하면 거래처 정보에 남습니다.">✉ 이메일</button>
-        <button class="sa-btn" id="saPrtLink" onclick="saShareLink()" title="명세서 주소를 복사합니다 — 문자·메신저 어디에나 붙여 넣어 보낼 수 있습니다.">🔗 링크</button>
+        <%-- ★보내는 명세서도 <위에서 고른 조건 그대로> 나간다 (2026-09-10) — 조건은 주소 뒤에 붙어 간다.
+             종전에는 공개 페이지가 조건을 고정으로 갖고 있어 미리보기와 받는 쪽 화면이 달랐다. --%>
+        <button class="sa-btn kakao" id="saPrtKakao" onclick="saShareKakao()" title="거래처에 카톡으로 보냅니다 — 로그인 없이 열리는 명세서 주소를 카드로 보냅니다.&#10;위에서 고른 출력 조건 그대로 보입니다(미리보기와 같은 모양).&#10;받는 쪽은 그 화면에서 인쇄·PDF 저장도 할 수 있습니다. 저장된 전표만 보낼 수 있습니다.">💬 카톡</button>
+        <button class="sa-btn" id="saPrtMail" onclick="saMailOpen()" title="거래처 이메일로 보냅니다 — 수신자 주소를 고르거나 넣고 [저장]을 체크하면 거래처 정보에 남습니다.&#10;위에서 고른 출력 조건 그대로 보입니다(미리보기와 같은 모양).">✉ 이메일</button>
+        <button class="sa-btn" id="saPrtLink" onclick="saShareLink()" title="명세서 주소를 복사합니다 — 문자·메신저 어디에나 붙여 넣어 보낼 수 있습니다.&#10;위에서 고른 출력 조건 그대로 보입니다(미리보기와 같은 모양).">🔗 링크</button>
         <%-- 📨 전송이력 단추는 작업 단추 줄(🖨 거래명세표 옆)에 있다 — 2026-09-10 「전송이력 밖으로」 --%>
         <span id="saShareInfo" style="font-size:11.5px; color:#8a97a4; align-self:center"></span>
       </span>
@@ -3477,6 +3479,38 @@ function saPrtOpts(){
   return o;
 }
 
+/* ── 보낼 주소에 붙일 <출력 조건> (2026-09-10) ──────────────────────────────
+   ★[💬 카톡]·[✉ 이메일]·[🔗 링크]로 나가는 명세서는 [👁 미리보기]·[🖨 인쇄]와 <같은 조건>이어야 한다
+     (2026-09-10 「카톡·이메일 조건으로 안 나옴, 미리보기·인쇄는 잘됨」) — 종전에는 공개 페이지가
+     조건을 고정으로 갖고 있어(컨트롤러 stmtJson) 인쇄방식·줄수를 바꿔도 늘 「공급받는자용 한 부 · 38줄」이었다.
+   ★조건은 <주소 뒤>로 보낸다 — 전표에 저장하지 않는다. 토큰은 전표당 하나뿐이라 저장해 버리면
+     조건만 바꿔 다시 보낼 때 «이미 보낸 링크»의 모양까지 같이 바뀐다.
+   ★잔고는 <보낼 때의 숫자>를 함께 싣는다 — 공개 페이지에서 원장을 다시 세면 나중에 열 때마다
+     잔고가 달라져 「내가 보낸 명세서」와 어긋난다.
+   ⚠글자 순서는 서버(UserController.stmtOpt)와 짝이다 — 한쪽만 고치면 조건이 조용히 무시된다. */
+function saShareOpt(){
+  /* ★조건 창이 열려 있으면 <지금 화면의 라디오>, 아니면 <지난번에 고른 값>을 쓴다 —
+       전송이력의 [↻ 재전송]은 조건 창을 거치지 않고 바로 메일 창을 여는데(2026-09-10),
+       그때 라디오는 아직 HTML 처음값이라 사람이 고른 조건과 다르다. */
+  var O;
+  if (document.getElementById('saPrtPop').classList.contains('on')) O = saPrtOpts();
+  else { var s = saLs(SAPRT_KEY) || {}; O = {}; for (var k in SAPRT_DEF) O[k] = (s[k]!=null ? s[k] : SAPRT_DEF[k]); }
+  var f = function(v){ return v==='Y' ? '1' : '0'; };
+  var o = { o: (O.ord==='sort' ? 's' : 'i')
+             + f(O.amt) + f(O.price) + f(O.bal) + f(O.inv) + f(O.boxp) + f(O.chg) + f(O.vat)
+             + '-' + O.rows + '-' + O.mode, b: '' };
+  if (O.bal === 'Y'){
+    var D = saPrtData();
+    o.b = Math.round(n(D.balBefore)) + ',' + Math.round(n(D.balAfter));
+  }
+  return o;
+}
+/* 주소에 붙일 꼬리 — 카톡·링크·메일프로그램은 화면이 붙이고, 서버 발송 이메일은 서버가 붙인다(같은 글자) */
+function saShareOptQs(){
+  var o = saShareOpt();
+  return '&o=' + encodeURIComponent(o.o) + (o.b ? '&b=' + encodeURIComponent(o.b) : '');
+}
+
 /* ── 공급자(우리 회사) 칸 ────────────────────────────────────────────
      상호·사업자번호·성명·주소는 회사 마스터(TBL_COMP_MST)에서 온다.
      업태·종목·계좌·연락처·공지사항은 마스터에 칸이 없어 여기서 적어 두면 이 브라우저에 남는다. */
@@ -3659,10 +3693,12 @@ function saShareOn(){        // 보내기 단추 켜고 끄기 — 저장된 전
     var b=document.getElementById(id); if(b) b.disabled = !ok;
   });
   var el = document.getElementById('saShareInfo');
+  /* 「위에서 고른 조건 그대로 나간다」를 한 줄로 알린다 (2026-09-10) — 종전에는 고정이라 미리보기와 달랐다 */
   if (el) el.innerHTML = ok
-    ? (n(_cur.shareCnt) > 0
-        ? '이미 <b>'+fmt(_cur.shareCnt)+'번</b> 보냈습니다'+(_cur.lastShareDttm ? ' · '+esc(String(_cur.lastShareDttm).slice(0,16)) : '')
-        : '')
+    ? ('위 조건 그대로 보냅니다'
+       + (n(_cur.shareCnt) > 0
+            ? ' · 이미 <b>'+fmt(_cur.shareCnt)+'번</b> 보냈습니다'+(_cur.lastShareDttm ? ' · '+esc(String(_cur.lastShareDttm).slice(0,16)) : '')
+            : ''))
     : '<b style="color:#c0392b">저장한 뒤에 보낼 수 있습니다</b>';
 }
 /* 공개 주소 받기 — 없으면 서버가 그 자리에서 발급한다 */
@@ -3737,7 +3773,8 @@ function saSendHist(){
 /* ★링크 복사는 <전송>이 아니라 전송이력에 남기지 않는다 (2026-09-10 「링크복사는 전송내역이 아니지 않나요」) —
    주소를 손에 쥔 것뿐, 누구에게 보냈는지 우리 쪽에서 알 길이 없다. 그래서 읽음·열람 꼬리표도 안 붙인다(토큰 주소 그대로). */
 function saShareLink(){
-  saShareUrl().then(function(u){
+  saShareUrl().then(function(u0){
+    var u = u0 + saShareOptQs();          /* 지금 고른 출력 조건 그대로 (2026-09-10) */
     var done=function(){
       swOk('명세서 주소를 복사했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">붙여 넣으면 거래처가 <b>로그인 없이</b> 봅니다.</span><br><span style="font-size:11.5px;color:#6b7a89;word-break:break-all">'+esc(u)+'</span>'); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(done, function(){ saCopyFallback(u); done(); });
@@ -3752,7 +3789,8 @@ function saCopyFallback(txt){
 /* 💬 카톡 — 발주서와 같은 카카오 「공유하기」 카드. 키가 없으면 링크 복사로 넘긴다 */
 function saShareKakao(){
   saShareUrl().then(function(u0){
-    var t = saHistTag(u0), u = t.u;      /* 읽음·열람 열쇠가 붙은 주소로 카드를 만든다 */
+    /* 출력 조건(&o=) 을 먼저 붙이고 그 위에 읽음·열람 열쇠(&s=) — 카드가 여는 주소가 곧 보낸 명세서다 */
+    var t = saHistTag(u0 + saShareOptQs()), u = t.u;
     if (!window.Kakao || !KAKAO_KEY){
       swAlert('카카오 공유 설정이 없어 <b>링크 복사</b>로 보냅니다.<br><span style="font-size:12px;color:#6b7a89">kakao.properties 의 kakao.js.key 를 채우고 Kakao Developers 에 이 사이트 도메인을 등록하면 카드로 보내집니다.</span>');
       saShareLink(); return;
@@ -3871,12 +3909,16 @@ function saMailSend(){
   if (_mailBusy) return;                       /* 이미 보내는 중 — 두 번째 클릭은 버린다 */
   var a = saMailArgs(); if (!a) return;
   saMailBusy(true);
-  saShareUrl().then(function(url){
+  saShareUrl().then(function(u0){
+    /* 출력 조건 (2026-09-10) — 서버 발송은 <서버가> 주소를 만들므로 조건을 넘겨서 붙이게 하고,
+       메일 프로그램·Gmail·복사는 여기서 만든 주소에 그대로 붙인다. 글자는 한 곳(saShareOpt)에서 나온다. */
+    var so = saShareOpt(), url = u0 + '&o=' + encodeURIComponent(so.o) + (so.b ? '&b='+encodeURIComponent(so.b) : '');
     return saMailKeep(a.to).then(function(){
       if (_mailReady){
         return post('/mangr/stmtMailSend.do',
                     'saleSeq='+encodeURIComponent(_cur.saleSeq)+'&to='+encodeURIComponent(a.to)
-                    +'&subject='+encodeURIComponent(a.subj)+'&memo='+encodeURIComponent(a.memo))
+                    +'&subject='+encodeURIComponent(a.subj)+'&memo='+encodeURIComponent(a.memo)
+                    +'&opt='+encodeURIComponent(so.o)+'&bal='+encodeURIComponent(so.b))
           .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
           .then(function(){ saMailBusy(false); saMailClose(); swOk('<b>'+esc(a.to)+'</b><br>이메일을 보냈습니다.'); });
       }
@@ -3896,7 +3938,8 @@ function saMailSend(){
 /* Gmail 쓰기 창 — 웹메일만 쓰는 경우의 길 */
 function saMailGmail(){
   var a = saMailArgs(); if (!a) return;
-  saShareUrl().then(function(url){
+  saShareUrl().then(function(u0){
+    var url = u0 + saShareOptQs();        /* 지금 고른 출력 조건 그대로 (2026-09-10) */
     return saMailKeep(a.to).then(function(){
       /* Gmail 창도 메일 프로그램과 같다 — 열어 준 것뿐이라 이력에 남기지 않는다 (2026-09-10) */
       window.open('https://mail.google.com/mail/?view=cm&fs=1'
@@ -3910,7 +3953,8 @@ function saMailGmail(){
 /* 📋 내용 복사 — 네이버·다음 등 어떤 메일에도 붙여 넣을 수 있게 */
 function saMailCopy(){
   var a = saMailArgs(); if (!a) return;
-  saShareUrl().then(function(url){
+  saShareUrl().then(function(u0){
+    var url = u0 + saShareOptQs();        /* 지금 고른 출력 조건 그대로 (2026-09-10) */
     /* 내용 복사도 링크 복사와 같은 성격(붙여 넣기 전까지는 보낸 것이 아니다) — 이력에 남기지 않는다 (2026-09-10) */
     var txt = '받는사람: '+a.to+'\n제목: '+a.subj+'\n\n'+saMailBody(a, url);
     var done = function(){

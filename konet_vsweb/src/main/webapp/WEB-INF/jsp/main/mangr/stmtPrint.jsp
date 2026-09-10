@@ -13,8 +13,9 @@
       전표 목록이 새어 나갈 길이 없다.
     · ★명세서를 그리는 코드는 판매등록 화면과 **같은 파일**을 쓴다 : asset/js/stmt-sheet.js
       양식을 두 벌로 만들면 <보낸 명세서>와 <내가 찍은 명세서>가 조용히 달라진다.
-    · 조건은 고정이다(컨트롤러 stmtJson 참고) — 금액·단가는 찍고, 부가세는 세액이 있을 때만,
-      잔고·단가변동은 안 찍는다(우리 원장을 거래처에 보여 줄 이유가 없다). 공급받는자용 한 부.
+    · ★조건은 <보낸 사람이 고른 그대로>다 (2026-09-10) — 주소 뒤 &o= 로 온다(잔고를 고르면 &b= 로 그때의 잔고까지).
+      [👁 미리보기]로 본 것과 받는 쪽이 보는 것이 같아야 한다. 조건이 없는 <옛 링크>는 종전 고정 조건
+      (공급받는자용 한 부 · 38줄 · 잔고·단가변동 없음)으로 나온다 — 컨트롤러 stmtJson 참고.
     · 발주서 공개 페이지(poPrint.jsp / /pub/po.do)와 같은 꼴이다.
 -->
 <c:if test="${not empty ogTitle}">
@@ -43,10 +44,12 @@
   <div id="stmtSheet"></div>
   <script>
   (function(){
-    /* 컨트롤러(stmtJson)가 만들어 준 자료 한 덩어리 — 화면(salesReg)이 넘기는 D·O·S 와 같은 모양이다 */
+    /* 컨트롤러(stmtJson)가 만들어 준 자료 한 덩어리 — 화면(salesReg)이 넘기는 D·O·S·직전단가 와 같은 모양이다.
+       P = 직전 판매단가 {상품코드:단가} — 「단가변동 = 예」로 보냈을 때만 채워져 온다(아니면 빈 객체). */
     var DATA = ${dataJson};
     document.getElementById('stmtCss').textContent = konetStmt.css;
-    var r = konetStmt.body(DATA.D, DATA.O, DATA.S, null);
+    var P = DATA.P || null;
+    var r = konetStmt.body(DATA.D, DATA.O, DATA.S, (P && Object.keys(P).length) ? P : null);
     document.getElementById('stmtSheet').innerHTML = r.html;
     document.getElementById('stmtTit').textContent =
         '🧾 거래명세서 — ' + (DATA.D.venNm||'') + ' ' + (DATA.D.dt||'') + (DATA.D.no ? ' / '+DATA.D.no : '');

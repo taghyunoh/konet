@@ -1798,19 +1798,23 @@ public class UserController {
 		 *  토큰이 없거나 틀리면 빈 안내만 보인다(전표 목록이 새어 나갈 길이 없다 — 서비스가 빈 토큰을 거절한다). */
 		@RequestMapping(value="/pub/stmt.do")
 		public String stmtPublic(@RequestParam(value="t", required=false) String token,
-		                         @RequestParam(value="s", required=false) String trackKey, Model model) throws Exception {
+		                         @RequestParam(value="s", required=false) String trackKey,
+		                         @RequestParam(value="o", required=false) String opt,
+		                         @RequestParam(value="b", required=false) String bal, Model model) throws Exception {
 			egovframework.sejong.user.model.SalesTrxDTO mst = svc.selectSalesTrxByToken(token);
 			if (mst == null) { model.addAttribute("notFound", true); return ".raw/main/mangr/stmtPrint"; }
 			sendHistView(trackKey, "STMT");     /* 읽음·열람 (2026-09-10) — 전표를 찾았을 때만 센다 */
-			model.addAttribute("dataJson", stmtJson(mst));
+			model.addAttribute("dataJson", stmtJson(mst, opt, bal));
 			/* 카톡 카드 미리보기(og:) — 링크만 붙여 넣어도 제목·설명이 보인다. 발주서 공개 페이지와 같은 방식 */
 			model.addAttribute("ogTitle", "거래명세서 — " + poStr(mst.getCustNm()) + " (" + poDash(mst.getSaleDt()) + ")");
 			model.addAttribute("ogDesc", "합계 " + new java.text.DecimalFormat("#,##0").format(mst.getTotAmt()==null?0d:mst.getTotAmt())
 			                            + "원 · 품목 " + (mst.getItems()==null?0:mst.getItems().size()) + "건");
 			return ".raw/main/mangr/stmtPrint";
 		}
-		/** 공개 페이지가 그대로 쓰는 자료 한 덩어리 — 화면(salesReg)이 만드는 D·O·S 와 같은 모양이다. */
-		private String stmtJson(egovframework.sejong.user.model.SalesTrxDTO m) throws Exception {
+		/** 공개 페이지가 그대로 쓰는 자료 한 덩어리 — 화면(salesReg)이 만드는 D·O·S·P 와 같은 모양이다.
+		 *  @param opt 보낸 사람이 고른 출력 조건(주소 뒤 &o=) — 없으면(옛 링크) 종전 고정 조건 그대로.
+		 *  @param bal 보낼 때의 전잔고·잔고(주소 뒤 &b=) — 「잔고 출력」을 골랐을 때만 실려 온다. */
+		private String stmtJson(egovframework.sejong.user.model.SalesTrxDTO m, String opt, String bal) throws Exception {
 			Map<String,Object> D = new HashMap<String,Object>();
 			D.put("dt", poDash(m.getSaleDt())); D.put("no", m.getSaleNo()); D.put("dlvDt", poDash(m.getDlvDt()));
 			D.put("venNm", m.getCustNm()); D.put("remark", m.getRemark());
@@ -1844,20 +1848,94 @@ public class UserController {
 			S.put("bank", poStr(comp.get("bankAcct"))); S.put("tel", poStr(comp.get("compTel")));
 			/* 공지사항도 회사 정보에서 온다 (2026-09-09) — 종전에는 브라우저에만 있어 공개 링크에는 빈 칸으로 나갔다 */
 			S.put("notice", poStr(comp.get("stmtNotice")));
-			/* ★공개 링크의 조건은 <고정>이다 — 보낸 사람의 화면 설정을 따라다니게 만들면 링크마다 모양이 달라진다.
-			   금액·단가는 찍고, 부가세는 그 전표에 세액이 있을 때만, 잔고는 안 찍는다(원장을 공개하지 않는다),
-			   단가변동도 안 찍는다(직전 단가는 우리 자료다). 한 부(공급받는자용) · 종이 아래까지. */
+			/* ★조건 = <보낸 사람이 고른 그대로> (2026-09-10 「카톡·이메일이 조건대로 안 나옴, 미리보기·인쇄는 잘됨」)
+			     종전에는 여기서 고정이라 인쇄방식·줄수를 아무리 바꿔도 보낸 명세서는 늘
+			     「공급받는자용 한 부 · 38줄」이었다 — [👁 미리보기]로 본 것과 받는 쪽이 보는 것이 달랐다.
+			   ★조건은 주소 뒤(&o=)로 온다 — 전표에 저장하지 않는다. 토큰은 전표당 하나뿐이라
+			     저장해 버리면 조건만 바꿔 다시 보낼 때 <이미 보낸 링크의 모양까지> 같이 바뀐다.
+			   ★조건이 없거나(옛 링크) 모양이 틀리면 <종전 고정 조건>으로 되돌아간다 — 이미 나간 링크가 살아 있어야 한다. */
 			Map<String,Object> O = new HashMap<String,Object>();
 			O.put("ord","in"); O.put("amt","Y"); O.put("price","Y"); O.put("bal","N"); O.put("inv","N");
 			O.put("boxp","N"); O.put("chg","N");
 			O.put("vat", (m.getVatAmt()!=null && m.getVatAmt().doubleValue()!=0d) ? "Y" : "N");
 			O.put("rows", 38); O.put("mode","b1");
+			stmtOpt(O, opt);
+			/* 잔고 — <보낼 때의 숫자>를 그대로 싣는다(&b=전잔고,잔고).
+			   여기서 원장을 다시 세면 나중에 열 때마다 잔고가 달라져 「보낸 명세서」와 어긋난다. */
+			if ("Y".equals(O.get("bal")) && bal != null && bal.trim().matches("^-?\\d{1,15},-?\\d{1,15}$")) {
+				String[] bb = bal.trim().split(",");
+				D.put("balBefore", Double.valueOf(bb[0]));
+				D.put("balAfter",  Double.valueOf(bb[1]));
+			}
+			/* 정렬 = 조회번호 — 상품마스터의 SORT_ORD 를 전표 줄마다 붙여 왔다(selectSalesTrxDtl) */
+			if ("sort".equals(O.get("ord")) && m.getItems() != null) {
+				Map<String,Object> sm = new HashMap<String,Object>();
+				for (egovframework.sejong.user.model.SalesTrxDtlDTO d : m.getItems())
+					if (d.getSortOrd() != null && d.getProdCd() != null) sm.put(d.getProdCd(), d.getSortOrd());
+				D.put("sortMap", sm);
+			}
 			Map<String,Object> all = new HashMap<String,Object>();
 			all.put("D", D); all.put("O", O); all.put("S", S);
+			/* 단가변동 — 이 거래처의 직전 판매단가. 화면(saPrtPrev)과 <같은 규칙>이다 :
+			   같은 판매일자 줄은 건너뛰고 그 앞의 첫 줄을 직전 단가로 본다. 지난 자료라 나중에 열어도 안 변한다. */
+			all.put("P", stmtPrevPrice(m, O));
 			/* ★'<' 를 < 로 바꿔 둔다 — 이 JSON 은 페이지의 <script> 안에 그대로 박히는데,
 			     품명·비고에 「</script」 같은 글자가 있으면 거기서 스크립트가 끊겨 페이지가 깨진다.
 			     JSON 문자열 안에서는 < 가 '<' 와 같은 뜻이라 값은 그대로다. */
 			return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(all).replace("<", "\\u003C");
+		}
+		/** 보낸 사람이 고른 출력 조건 한 줄 — 주소 뒤 &o= 에 실려 온다 (2026-09-10).
+		 *  모양 : 「정렬 + 예/아니오 7개 - 한 장에 품목 줄수 - 인쇄방식」  예) i1100001-10-both
+		 *    정렬 i=입력순서 · s=조회번호 / 1·0 = 금액·단가·잔고·반전·박스단가·단가변동·부가세
+		 *    인쇄방식 both=한 장에 모두 · two=두 장으로 · b1=공급받는자용만 · r1=공급자 보관용만
+		 *  ★만드는 곳은 화면의 saShareOptQs() 하나뿐이다 — 글자 순서를 바꾸면 두 곳을 같이 고칠 것.
+		 *  ★틀린 글자는 <통째로 무시>한다(고정 조건 유지) — 주소를 손으로 고쳐도 엉뚱한 명세서가 나오지 않는다. */
+		private static void stmtOpt(Map<String,Object> O, String opt) {
+			if (opt == null) return;
+			java.util.regex.Matcher mo =
+				java.util.regex.Pattern.compile("^([is])([01]{7})-(\\d{1,2})-(both|two|b1|r1)$").matcher(opt.trim());
+			if (!mo.matches()) return;
+			String f = mo.group(2);
+			String[] k = { "amt", "price", "bal", "inv", "boxp", "chg", "vat" };
+			O.put("ord", "i".equals(mo.group(1)) ? "in" : "sort");
+			for (int i = 0; i < k.length; i++) O.put(k[i], f.charAt(i) == '1' ? "Y" : "N");
+			int rows = Integer.parseInt(mo.group(3));
+			O.put("rows", Math.max(3, Math.min(40, rows)));       /* 조건 창과 같은 한계(3~40) */
+			O.put("mode", mo.group(4));
+		}
+		/** 이메일 본문에 넣을 주소 뒤 「&o=…&b=…」 — 화면이 보내 준 조건을 <검사해서> 붙인다.
+		 *  틀린 글자면 아무것도 안 붙여 종전 고정 조건으로 나간다(공개 페이지 stmtOpt 와 같은 규칙). */
+		private static String stmtOptQs(String opt, String bal) {
+			String s = "";
+			if (opt != null && opt.trim().matches("^[is][01]{7}-\\d{1,2}-(both|two|b1|r1)$")) {
+				s = "&o=" + opt.trim();
+				if (bal != null && bal.trim().matches("^-?\\d{1,15},-?\\d{1,15}$")) s += "&b=" + bal.trim();
+			}
+			return s;
+		}
+		/** 단가변동(예)일 때만 — 품목마다 이 거래처의 직전 판매단가 {상품코드:단가}. 화면 saPrtPrev() 와 같은 규칙.
+		 *  조회가 실패하면 그 품목만 빠진다(▲▼ 가 안 붙을 뿐 명세서는 그대로 나온다). */
+		private Map<String,Object> stmtPrevPrice(egovframework.sejong.user.model.SalesTrxDTO m, Map<String,Object> O) {
+			Map<String,Object> P = new HashMap<String,Object>();
+			if (!"Y".equals(O.get("chg")) || m.getItems() == null) return P;
+			String ymd = m.getSaleDt() == null ? "" : m.getSaleDt().replace("-", "");
+			for (egovframework.sejong.user.model.SalesTrxDtlDTO d : m.getItems()) {
+				String cd = d.getProdCd();
+				if (cd == null || cd.isEmpty() || P.containsKey(cd)) continue;
+				try {
+					egovframework.sejong.user.model.SalesTrxDtlDTO q = new egovframework.sejong.user.model.SalesTrxDtlDTO();
+					q.setProdCd(cd);
+					q.setRemark(m.getCustCd());      /* ★이 조회는 remark 칸에 거래처코드를 담는다(매입과 같은 방식) */
+					java.util.List<egovframework.sejong.user.model.SalesTrxDtlDTO> l = svc.selectSalesPriceHist(q);
+					if (l == null) continue;
+					for (egovframework.sejong.user.model.SalesTrxDtlDTO x : l) {
+						if (ymd.equals(poStr(x.getSpec()))) continue;    /* 같은 날 전표(=지금 이 전표)는 건너뛴다 */
+						if (x.getUnitPrice() != null) P.put(cd, x.getUnitPrice());
+						break;
+					}
+				} catch (Exception e) { log.error(" stmtPrevPrice ERROR : " + cd + " / " + e.getMessage()); }
+			}
+			return P;
 		}
 		private static String poDash(String ymd) {
 			String s = ymd == null ? "" : ymd.trim();
@@ -1881,6 +1959,10 @@ public class UserController {
 		                                           @RequestParam("to") String to,
 		                                           @RequestParam(value="subject", required=false) String subject,
 		                                           @RequestParam(value="memo", required=false) String memo,
+		                                           /* 출력 조건 (2026-09-10) — 카톡·링크는 화면이 주소에 붙이지만
+		                                              이메일은 <서버가> 주소를 만들므로 그대로 받아서 붙인다. */
+		                                           @RequestParam(value="opt", required=false) String opt,
+		                                           @RequestParam(value="bal", required=false) String bal,
 		                                           HttpServletRequest request, HttpSession session) {
 			try {
 				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
@@ -1897,7 +1979,7 @@ public class UserController {
 				/* 읽음·열람 열쇠 (2026-09-10) — 이 전송 한 건의 무작위 열쇠. 링크 뒤 &s= 와 1×1 그림 ?k= 에 붙어 나가
 				   받는 쪽이 열면 «이 줄»로 돌아온다(토큰은 전표당 하나라 전송을 못 가른다). */
 				String key = sendHistKey();
-				String url = poShareBase(request) + "/pub/stmt.do?t=" + token + "&s=" + key;
+				String url = poShareBase(request) + "/pub/stmt.do?t=" + token + stmtOptQs(opt, bal) + "&s=" + key;
 				String pixel = poShareBase(request) + "/pub/mailOpen.do?k=" + key;
 				Map<String,Object> c = new HashMap<String,Object>(); c.put("compCd", m.getCompCd());
 				Map<String,Object> comp = svc.selectCompInfo(c); if (comp == null) comp = new HashMap<String,Object>();

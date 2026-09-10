@@ -39,6 +39,10 @@ public class SalesTrxDtlDTO {
     private String  trxGb;         // 판매 | 반품
     private Long    ledgerSeq;     // 파생 재고원장 행
     private String  extCd;         // 거래처 매칭코드 — 매칭코드로 판매한 줄만 값이 있다(EXT_CD, 2026-08-06 신설)
+    /* 상품마스터의 조회순서(TBL_PROD_MST.SORT_ORD) — 전표에 저장되는 값이 아니라 <조회할 때 붙여 온다>.
+       공개 거래명세서(/pub/stmt.do)가 「정렬 = 조회번호」로 찍을 때만 쓴다 (2026-09-10).
+       판매등록 화면은 상품마스터를 이미 들고 있어(_prods) 이 칸을 안 본다. */
+    private Integer sortOrd;
 
     private String  actionYn;
     private String  regDttm;
@@ -50,6 +54,8 @@ public class SalesTrxDtlDTO {
 
     public String getExtCd() { return extCd; }
     public void setExtCd(String extCd) { this.extCd = extCd; }
+    public Integer getSortOrd() { return sortOrd; }
+    public void setSortOrd(Integer sortOrd) { this.sortOrd = sortOrd; }
     public Long getDtlSeq() { return dtlSeq; }
     public void setDtlSeq(Long dtlSeq) { this.dtlSeq = dtlSeq; }
     public Long getSaleSeq() { return saleSeq; }
