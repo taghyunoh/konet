@@ -160,6 +160,7 @@ function somLoad(){
   if(fr>to){ var t=fr; fr=to; to=t; document.getElementById('frDt').value=fr; document.getElementById('toDt').value=to; }
   document.getElementById('card').innerHTML=qprog('월별 출고량을 조회하는 중… (기간 '+fr+' ~ '+to+')');
   /* 걸린 시간을 조회 결과 줄에 같이 적는다(2026-09-04 「조회 자체 느림」 — 서버·그리기 어느 쪽인지 사용자가 바로 보게) */
+  somAliasLoad();          /* 매칭코드 → 주코드 표 (한 번만 · 조회를 기다리게 하지 않는다) */
   var t0=performance.now(), tFetch=0;
   fetch(CTX+'/prod/stockOutMonthList.do', { method:'POST', credentials:'same-origin',
          headers:{'Content-Type':'application/x-www-form-urlencoded'},
@@ -177,9 +178,44 @@ function shortNm(nm, biz){
   if(a.length>=2 && b.length>=2 && (a.indexOf(b)>=0 || b.indexOf(a)>=0)) return m[2]||nm;
   return nm||'';
 }
+/* ★★서브코드(매칭코드)로 쳐도 «주코드»로 찾는다 (2026-09-10 요청 「대시보드처럼 1000791735 → 9904013072 로만 검색」)
+     출고·재고는 **주코드로만** 쌓인다. 서브코드는 거래처가 쓰는 «남의 코드»라 그대로 거르면
+     열이 하나도 안 걸려 「검색이 안 된다」가 된다(재고현황에서 2026-08-07 에 똑같이 겪었고, 거기서는 이미 이렇게 고쳤다).
+   ★친 글자는 그대로 둔다 — 내가 친 것이 임의로 바뀌면 「내가 친 게 아닌데?」가 된다.
+     대신 아래 요약줄에 「…의 주코드로 찾았습니다」를 적는다.
+   ★표는 한 번만 읽어 둔다(_somAlias). 늦게 도착해도 그때 한 번 다시 그린다. */
+var _somAlias=null, _somAliasBusy=false, _somVia='';
+function somAliasLoad(){
+  if(_somAlias || _somAliasBusy) return;
+  _somAliasBusy=true;
+  var m={}, left=2, ok=true;
+  var done=function(bad){ if(bad) ok=false; if(--left) return; _somAliasBusy=false;
+    if(!ok){ _somAlias=null; return; }            /* 실패하면 굳히지 않는다 — 다음 조회에서 다시 */
+    _somAlias=m;
+    if((document.getElementById('q').value||'').trim()) somRender();   /* 이미 친 글자가 있으면 다시 걸러 준다 */
+  };
+  ['/prod/extItemList.do','/prod/xrefList.do'].forEach(function(u){
+    fetch(CTX+u, { method:'POST', credentials:'same-origin',
+            headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ ((j&&j.data)||[]).forEach(function(o){
+              var e=(''+(o.extItemCd||'')).trim(), p=(''+(o.prodCd||'')).trim();
+              if(e && p && e!==p && !m[e]) m[e]=p; }); done(); })
+      .catch(function(){ done(true); });
+  });
+}
+/* 친 글자가 «서브코드 그 자체»면 주코드로 바꾼다. 이름·부분검색은 건드리지 않는다(코드 한 개일 때만). */
+function somQuery(){
+  var raw=(document.getElementById('q').value||'').trim();
+  _somVia='';
+  if(!raw || !_somAlias) return raw.toLowerCase();
+  var main=_somAlias[raw];
+  if(main){ _somVia=raw+' → 주코드 '+main; return main.toLowerCase(); }
+  return raw.toLowerCase();
+}
 /* 자료를 년월 × (사업장 ▸ 품목) 격자로 편다 */
 function somBuild(){
-  var q=(document.getElementById('q').value||'').trim().toLowerCase();
+  var q=somQuery();
   var stock={}; (RAW.stock||[]).forEach(function(s){ stock[''+s.prodCd]=Number(s.curQty)||0; });
   var grp={}, gord=[], yms={}, yord=[], cell={}, pset={};
   (RAW.months||[]).forEach(function(r){
@@ -232,7 +268,9 @@ function somRender(){
   var grand=0; m.yord.forEach(function(ym){ grand+=m.yms[ym]; }); m.grand=grand;
   var stkTot=0, seen={}; m.cols.forEach(function(c){ var v=m.stock[c.cd]; if(v!=null && !seen[c.cd]){ seen[c.cd]=1; stkTot+=v; } }); m.stkTot=stkTot; m.stkAny=Object.keys(seen).length>0;
   somPaint(true);
-  document.getElementById('cnt').innerHTML='사업장 <b>'+num(m.gord.length)+'</b>곳 · 품목 <b>'+num(m.nprod)+'</b>종 · <b>'+num(m.yord.length)+'</b>개월 · 기간 출고 <b>'+num(grand)+'</b>';
+  document.getElementById('cnt').innerHTML='사업장 <b>'+num(m.gord.length)+'</b>곳 · 품목 <b>'+num(m.nprod)+'</b>종 · <b>'+num(m.yord.length)+'</b>개월 · 기간 출고 <b>'+num(grand)+'</b>'
+    /* 서브코드로 쳤을 때 «무엇으로 찾았는지» 밝힌다 — 친 글자는 그대로 두므로 이 줄이 없으면 사람이 알 길이 없다 */
+    + (_somVia ? ' · <span style="color:#0e6657;font-weight:700">'+esc(_somVia)+'</span> <span style="color:#8a98a8">로 찾았습니다(매칭코드)</span>' : '');
   somFit();
 }
 /* 지금 보이는 열 범위 [vs,ve) — 고정칸 240px 뒤부터 */

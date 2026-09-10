@@ -921,19 +921,29 @@
      매칭코드 줄에서 입고를 보려면 주코드 쪽을 볼 수밖에 없다. */
   /* 숫자만 필요할 때(엑셀 출력) — 화면 칸(d2StockCell)과 <같은 규칙>으로 값을 고른다.
      매칭코드면 주코드 재고를 대신 본다. 어느 쪽도 없으면 null(빈칸). */
+  /* ★★[2026-09-10] 매칭코드면 «언제나» 주코드 재고를 본다 — 종전에는 <그 코드 자체에 재고가 잡혀 있으면>
+       그걸 먼저 썼다. 평소에는 서브코드에 재고가 없어 티가 안 났지만, 서브코드로 매입·재고조정이
+       잘못 들어가면 그 코드에 재고가 생겨 **같은 품목인데 화면마다 다른 숫자**가 나온다 :
+         실측 2026-09-10 — 서브 1000791735 조정 +157 · 주코드 9904013072 −145
+         → 납기현황표 157 / 품목별재고현황 −145 (사용자 지적 「대시보드 157로 나오네요」).
+     ⇒ **재고의 주인은 주코드다.** 품목별재고현황(대표코드로 바꿔 조회)과 규칙을 맞춘다.
+     ⚠주코드 쪽에 아무 것도 없을 때만 제 코드 값으로 물러선다(있는 자료를 감추지 않으려고).
+     ⚠서브코드에 남은 재고는 «갈라진 자국»이다 — 화면을 맞춘다고 사라지지 않는다. 조정을 되돌려 주코드로 다시 넣어야 한다. */
+  function d2StockMain(c){ return (D2_MAINCD && D2_MAINCD[c]) ? D2_MAINCD[c] : ''; }
   function d2StockQty(code){
     var c=(''+(code||'')).trim();
     if(!D2_STOCK || !c) return null;
-    var o=D2_STOCK[c];
-    if(o==null && D2_MAINCD && D2_MAINCD[c]) o=D2_STOCK[D2_MAINCD[c]];
+    var main=d2StockMain(c);
+    var o = main ? D2_STOCK[main] : null;
+    if(o==null) o=D2_STOCK[c];
     return (o==null) ? null : (+o.q||0);
   }
   function d2StockCell(code, fld){
     fld = fld || 'q';
     var c=(''+(code||'')).trim();
     if(!D2_STOCK || !c) return '<td class="num" style="color:#c3ccd4">·</td>';
-    var o=D2_STOCK[c], main='';
-    if(o==null && D2_MAINCD && D2_MAINCD[c]){ main=D2_MAINCD[c]; o=D2_STOCK[main]; }
+    var main=d2StockMain(c), o = main ? D2_STOCK[main] : null;
+    if(o==null){ if(main) main=''; o=D2_STOCK[c]; }   /* 주코드에 아무 것도 없으면 제 코드라도(그때는 「주」 표시 없음) */
     if(o==null) return '<td class="num" style="color:#c3ccd4" title="이 코드로도, 주코드로도 재고가 잡혀 있지 않습니다.">·</td>';
     var v=(+o[fld]||0), isQ=(fld==='q');
     var what = isQ ? '재고' : '입고';
