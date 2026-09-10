@@ -3840,6 +3840,13 @@
 
 	<select id="selectSalesTrxList" parameterType="egovframework.sejong.user.model.SalesTrxDTO" resultType="egovframework.sejong.user.model.SalesTrxDTO"><![CDATA[
 	  SELECT m.SALE_SEQ AS saleSeq, m.SALE_DT AS saleDt, m.SALE_NO AS saleNo, m.DLV_DT AS dlvDt,
+	         /* ★회사코드 (2026-09-10 추가) — 종전에는 이 칸을 안 실어 줬다.
+	            로그인이 있는 화면은 세션 compCd 로 조회하니 티가 안 났지만,
+	            **공개 거래명세서(/pub/stmt.do)** 는 세션이 없어 «전표가 실어 온 이 값»이 유일한 회사 열쇠다.
+	            없으면 `WHERE COMP_CD = NULL` 이 되어 회사 정보를 한 건도 못 찾고 —
+	            성명·업태·종목·주소·계좌·공지사항이 **빈 칸으로 나갔다**(2026-09-10 「메일로 하면 안 나옴」).
+	            거래처(공급받는자) 조회도 이 값으로 회사를 가른다. */
+	         m.COMP_CD AS compCd,
 	         m.CUST_CD AS custCd, m.CUST_NM AS custNm,
 	         m.MGR_CD AS mgrCd, m.MGR_NM AS mgrNm, m.WH_CD AS whCd, m.WH_NM AS whNm,
 	         m.TOT_BOX_QTY AS totBoxQty, m.TOT_EA_QTY AS totEaQty, m.TOT_QTY AS totQty,
