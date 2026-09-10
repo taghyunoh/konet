@@ -554,12 +554,12 @@
           </div>
           <textarea id="ktText" oninput="ktKeep()" onpaste="setTimeout(ktTidy,0)" placeholder="카톡 대화를 그대로 복사해 붙여넣으세요."></textarea>
           <div style="display:flex; gap:6px">
-            <button class="sa-btn teal" style="flex:1" onclick="ktParseGo()" title="원문에서 분류할 부분을 마우스로 선택한 뒤 누르세요 — 선택한 부분만 분류합니다">🔍 선택 부분 분류</button>
+            <button class="sa-btn teal" style="flex:1" onclick="ktParseGo()" title="붙여넣은 글 전체를 분류합니다 (일부만 하려면 그 부분을 마우스로 선택한 뒤 누르세요)">🔍 분류</button>
             <button class="sa-btn" onclick="ktReset()">비우기</button>
           </div>
         </div>
         <div class="kt-right">
-          <div style="font-size:12.5px; font-weight:800; color:#37475a; margin:0 0 4px; display:flex; align-items:center; gap:10px">② 분류 결과 <span style="font-weight:600; color:#8a97a4">— 원문 선택 → [분류] → 체크 → [→ 판매등록으로]</span>
+          <div style="font-size:12.5px; font-weight:800; color:#37475a; margin:0 0 4px; display:flex; align-items:center; gap:10px">② 분류 결과 <span style="font-weight:600; color:#8a97a4">— 붙여넣기 → [분류] → 체크 → [→ 판매등록으로]</span>
             <%-- 분류 뒤 안내 (2026-09-05 요청) — 10번 깜박이고 멈춘다(프로젝트 공통 규칙, 계속 깜박이면 거슬린다) --%>
             <span id="ktGuide" class="kt-guide" style="display:none">👉 우측 끝에 금액 확인하고 판매등록 하세요</span>
           </div>
@@ -2855,6 +2855,29 @@ var KT_PHONE_RE = /01[016789]-?\d{3,4}-?\d{4}/;
 /* 주소 — 시도명이나 「○○시 ○○동/로」 꼴이 있어야 한다. 「내일 2시30분」의 '시3' 에 걸리지 않게(실측) */
 var KT_ADDR_RE  = /(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)\s|[가-힣]+(시|군|구)\s+[가-힣]+(읍|면|동|로|길)|\d+번길/;
 var KT_SKIP_RE  = /^(네|넵|예|ㅇㅇ|응|알겠습니다|알겠어요|감사합니다|감사해요|고마워|고맙습니다|ok|OK|확인|확인했습니다|수고하세요|수고|넹|ㄳ|ㄱㅅ)[.!~ ]*$/;
+/* ★「이름--수량」 꼴 (2026-09-10 「*세진유퉁 복숭아자두--2 레드자몽--1 … 이런 식으로 와도 박스로」) —
+     단위가 없으면 <박스>로 읽는다. 한 줄에 여러 개가 이어 와도 품목마다 갈라 준다.
+     기호가 두 글자 이상(--, ~~, ==)이면 그대로 받고, 한 글자(-, ~, :, =)는 <한글·닫는 괄호 바로 뒤 + 3자리 이하>일 때만 —
+     날짜(2026-09-10)·전화(010-…)·시각(1:53)·코드(A-12)를 수량으로 읽지 않게. 단위가 붙어 오면(--2개) 그 단위를 쓴다 */
+var KT_DASH_ALL = /([-‐‑–—―~〜=:：]+)\s*(\d+(?:\.\d+)?)\s*(박스|BOX|Box|box|개|EA|Ea|ea|세트|병|팩|장|롤|봉|매|묶음|캔)?(?![\d가-힣A-Za-z])/g;
+function ktDashHits(bare){
+  var out=[], m; KT_DASH_ALL.lastIndex=0;
+  while((m=KT_DASH_ALL.exec(bare))){
+    if(m[1].length<2){
+      var prev = bare.slice(0, m.index).replace(/\s+$/,'').slice(-1);
+      if(!/[가-힣)\]]/.test(prev) || m[2].length>3) continue;
+    }
+    out.push({ at:m.index, end:m.index+m[0].length, q:m[2], u:(m[3]||'박스'), tok:m[0].trim() });
+  }
+  /* 「레몬 2」 — 기호 없이 띄어쓰기 + 숫자로 끝나는 줄도 (같은 날 「품명 뒤에 숫자를 박스로」).
+     ★<줄 끝>의 숫자 하나만 본다 — 가운데 숫자는 품명의 일부일 수 있다(「PET 500 용기 2」→ 품명 「PET 500 용기」 · 2박스).
+     3자리 이하 · 앞말에 글자가 있어야 · 연락처·주소·문장 줄은 제외 */
+  if(!out.length && !KT_PHONE_RE.test(bare) && !KT_ADDR_RE.test(bare) && !KT_VERB_RE.test(bare)){
+    var t=/\s(\d{1,3}(?:\.\d+)?)\s*$/.exec(bare);
+    if(t && /[가-힣A-Za-z)\]]/.test(bare.slice(0, t.index))) out.push({ at:t.index, end:bare.length, q:t[1], u:'박스', tok:' '+t[1] });
+  }
+  return out;
+}
 
 function ktOpen(){
   var pop=document.getElementById('saKtPop'); pop.classList.add('on');
@@ -2947,22 +2970,28 @@ function ktTidy(){
 }
 function ktParseGo(){
   ktTidy();
-  var t=document.getElementById('ktText'), all=t.value, s=t.selectionStart, e=t.selectionEnd, txt, part=true;
-  /* ★반드시 <선택한 부분만> 분류한다 (2026-09-05 「반드시 선택으로」) — 선택이 없으면 분류하지 않고 알린다.
-     선택 위쪽의 가장 가까운 거래처 머리줄(*·• 로 시작, 수량 없음)을 함께 넣어 거래처가 비지 않게 */
-  if(!(e>s && all.slice(s,e).trim())){ swAlert('원문에서 분류할 부분을 마우스로 선택한 뒤 [분류]를 누르세요.'); t.focus(); return; }
-  txt=all.slice(s,e);
-  var above=all.slice(0,s).split('\n'), i;
-  for(i=above.length-1;i>=0;i--){ var L=above[i].trim(); if(/^[*•·▪■●◆○◇※#>]/.test(L) && !KT_QTY_RE.test(L)){ txt=L+'\n'+txt; break; } }
+  var t=document.getElementById('ktText'), all=t.value, s=t.selectionStart, e=t.selectionEnd, txt, part=(e>s && !!all.slice(s,e).trim());
+  /* ★선택하지 않아도 된다 (2026-09-10 「상단 선택하고 하는 것 무시」 — 2026-09-05 「반드시 선택으로」를 뒤집음) —
+       선택이 없으면 <붙여넣은 글 전체>를 분류한다. 선택이 있으면 종전대로 그 부분만 +
+       선택 위쪽의 가장 가까운 거래처 머리줄(*·• 로 시작, 수량 없음)을 함께 넣어 거래처가 비지 않게 */
+  if(!all.trim()){ swAlert('카톡 글을 붙여넣고 [분류]를 누르세요.'); t.focus(); return; }
+  if(part){
+    txt=all.slice(s,e);
+    var above=all.slice(0,s).split('\n'), i;
+    for(i=above.length-1;i>=0;i--){ var L=above[i].trim(); if(/^[*•·▪■●◆○◇※#>]/.test(L) && !KT_QTY_RE.test(L)){ txt=L+'\n'+txt; break; } }
+  } else txt=all;
   /* ★이어 붙인다 (2026-09-05 「한 거래처만 하는 게 아니어서」) — 거래처별로 골라 [분류]를 여러 번 눌러도 앞 결과가 남는다.
        같은 원문 줄이 이미 있으면 다시 넣지 않는다. 전부 지우는 건 [비우기] */
+  /* 겹침 판정에 품목 이름까지 넣는다 (2026-09-10) — 한 원문 줄에서 여러 품목이 나오면(「(용기4박스, 뚜껑2박스)」)
+       원문이 같아 두 번째 품목이 「이미 있음」으로 빠졌다 */
   var add = ktParse(txt), have = {};
-  _kt.rows.forEach(function(r){ have[(r.dt||'')+'|'+(r.biz||'')+'|'+(r.raw||'')] = 1; });
-  add = add.filter(function(r){ var k=(r.dt||'')+'|'+(r.biz||'')+'|'+(r.raw||''); if(have[k]) return false; have[k]=1; return true; });
+  var ktKey = function(r){ return (r.dt||'')+'|'+(r.biz||'')+'|'+(r.raw||'')+'|'+(r.name||''); };
+  _kt.rows.forEach(function(r){ have[ktKey(r)] = 1; });
+  add = add.filter(function(r){ var k=ktKey(r); if(have[k]) return false; have[k]=1; return true; });
   _kt.rows = _kt.rows.concat(add);
   _kt.part = part;
   ktRender();
-  if(!add.length && _kt.rows.length) swAlert('선택한 부분은 이미 분류되어 있습니다.');
+  if(!add.length && _kt.rows.length) swAlert((part?'선택한 부분은':'이 글은')+' 이미 분류되어 있습니다.');
   /* 분류가 되면 안내를 다시 깜박인다 — 클래스를 뗐다 붙여 애니메이션을 처음부터(reflow 강제) */
   var gd=document.getElementById('ktGuide'); if(gd && _kt.rows.length){ gd.style.display=''; gd.classList.remove('blink'); void gd.offsetWidth; gd.classList.add('blink'); }
   if(!_kt.rows.length) swAlert('읽을 내용이 없습니다. 카톡 글을 붙여넣고 다시 눌러 주세요.');
@@ -2997,6 +3026,17 @@ function ktParse(text){
     r.box = (r.unit==='박스') ? r.qty : 0; r.ea = r.qty;
     ktSuggest(r);
   }
+  /* 거래처 머리줄 — 수량 없는 줄과 「*세진유퉁  복숭아자두--2 …」 앞머리가 같이 쓴다 */
+  function bizPush(raw, nm, v){
+    inEx=false;
+    /* 바로 앞 줄도 거래처(품목 없이)였으면 그 줄은 발신자 이름 같은 것 — 새 거래처로 대체한다.
+       ★단 기호(*·•)가 붙은 줄은 사람이 쓴 거래처 머리줄이 분명하므로 지우지 않는다(「*우리푸드」 바로 밑에 「• 샐러드」가 와도 둘 다 남는다) */
+    if(rows.length && rows[rows.length-1].t==='biz' && !rows[rows.length-1].venCd && !rows[rows.length-1].mk) rows.pop();
+    cur = { biz:(v?v.vendorNm:nm), venCd:(v?v.vendorCd:''), venNm:(v?v.vendorNm:'') };
+    if(lineMk) markVen[lineMk] = cur;                       // 이 기호 = 이 거래처
+    backfill();   // ★거래처 줄을 넣기 <전에> — 넣은 뒤 부르면 첫 줄이 곧 거래처 줄이라 바로 멈춘다(실측으로 잡은 순서 버그)
+    push({ t:'biz', dt:dt, biz:cur.biz, venCd:cur.venCd, venNm:cur.venNm, raw:raw, mk:lineMk, hint:(v?'':'거래처 마스터에 없는 이름 — [거래처]로 골라 주세요') });
+  }
   lines.forEach(function(rawLine){
     var s = rawLine.replace(/ /g,' ').trim(), m;
     if(!s){ inEx=false; return; }
@@ -3018,6 +3058,29 @@ function ktParse(text){
     var hasQty = KT_QTY_RE.test(bare);
     if(KT_SENT_RE.test(bare) && !/^\S+\s+\d[\d,]*\s*(개|박스|세트)$/.test(bare)){          // 문장형 지시 (숫자가 있어도 수량으로 안 본다)
       push({ t:'note', dt:dt, biz:cur.biz, venCd:cur.venCd, venNm:cur.venNm, raw:s, chk:false }); return; }
+    /* 「복숭아자두--2」·「*세진유퉁  복숭아자두--2 레드자몽--1 …」 — 단위 없는 수량은 박스 (2026-09-10).
+         한 줄에 둘 이상이면 품목마다 가른다. 하나뿐이면서 단위 달린 수량(2박스)도 있으면 종전 길로 보낸다 */
+    var dh = ktDashHits(bare);
+    if(dh.length>=2 || (dh.length===1 && !hasQty)){
+      var pos=0;
+      dh.forEach(function(h, i){
+        var nm = bare.slice(pos, h.at).replace(/[,，·\s]+$/,'').replace(/^[,，·\s]+/,''); pos = h.end;
+        if(i===0){
+          /* 첫 품목 앞에 거래처 이름이 붙어 올 수 있다(「*세진유퉁  복숭아자두--2」). 가르는 근거는 셋 중 하나 —
+             ①두 칸 이상 띄움 ②앞말이 거래처 마스터에 있음 ③한 줄에 품목 여럿 + 줄머리 기호(*·•).
+             근거가 없으면 통째로 품목 이름이다(「오렌지 한라봉--2」) */
+          var head='', gap=/^(\S.*?)\s{2,}(\S.*)$/.exec(nm);
+          if(gap){ head=gap[1]; nm=gap[2]; }
+          else if(/\s/.test(nm)){
+            var sp=nm.lastIndexOf(' '), h1=nm.slice(0,sp).trim();
+            if(ktFindVen(h1) || (dh.length>=2 && lineMk)){ head=h1; nm=nm.slice(sp+1); }
+          }
+          if(head) bizPush((lineMk||'')+head, head, ktFindVen(head));
+        }
+        if(nm) item(nm+h.tok, nm, h.q, h.u, '', inEx);
+      });
+      return;
+    }
     if(hasQty){
       /* 「210 (용기4박스, 뚜껑2박스)」 — 괄호 안에 수량이 둘 이상이면 각각 한 줄로 (품목이 다르다) */
       var pm=/^(.*?)\(([^)]*\d+\s*(?:박스|BOX|개|EA|세트)[^)]*)\)\s*(.*)$/i.exec(bare);
@@ -3030,16 +3093,7 @@ function ktParse(text){
     /* 수량이 없는 줄 — 거래처 이름인지 본다 : 짧고, 숫자 두 자리 이상 없고, 문장·연락처·주소·사람 이름이 아니어야 */
     var v = ktFindVen(bare);
     var bizLike = bare.length<=22 && !/\d{2,}/.test(bare) && !KT_VERB_RE.test(bare) && !KT_PHONE_RE.test(bare) && !KT_ADDR_RE.test(bare);
-    if(v || (bizLike && !KT_NAME_RE.test(bare))){
-      inEx=false;
-      /* 바로 앞 줄도 거래처(품목 없이)였으면 그 줄은 발신자 이름 같은 것 — 새 거래처로 대체한다.
-         ★단 기호(*·•)가 붙은 줄은 사람이 쓴 거래처 머리줄이 분명하므로 지우지 않는다(「*우리푸드」 바로 밑에 「• 샐러드」가 와도 둘 다 남는다) */
-      if(rows.length && rows[rows.length-1].t==='biz' && !rows[rows.length-1].venCd && !rows[rows.length-1].mk) rows.pop();
-      cur = { biz:(v?v.vendorNm:bare), venCd:(v?v.vendorCd:''), venNm:(v?v.vendorNm:'') };
-      if(lineMk) markVen[lineMk] = cur;                       // 이 기호 = 이 거래처
-      backfill();   // ★거래처 줄을 넣기 <전에> — 넣은 뒤 부르면 첫 줄이 곧 거래처 줄이라 바로 멈춘다(실측으로 잡은 순서 버그)
-      push({ t:'biz', dt:dt, biz:cur.biz, venCd:cur.venCd, venNm:cur.venNm, raw:s, mk:lineMk, hint:(v?'':'거래처 마스터에 없는 이름 — [거래처]로 골라 주세요') });
-      return; }
+    if(v || (bizLike && !KT_NAME_RE.test(bare))){ bizPush(s, bare, v); return; }
     push({ t:'etc', dt:dt, biz:cur.biz, venCd:cur.venCd, venNm:cur.venNm, raw:s, chk:false,
            kind: KT_PHONE_RE.test(bare)?'연락처':(KT_ADDR_RE.test(bare)?'주소':(KT_NAME_RE.test(bare)?'이름':'')) });
   });
