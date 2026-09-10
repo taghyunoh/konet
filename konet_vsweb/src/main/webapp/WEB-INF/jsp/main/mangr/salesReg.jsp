@@ -177,6 +177,12 @@
   /* 제목 옆 ⓘ — 길게 적던 설명을 여기로 내렸다(2026-09-09 「간결하게」) */
   .prt-tit .tipx{ font-weight:700; color:#8a97a4; cursor:help; font-size:13px; }
   .prt-tit .tipx:hover{ color:var(--sa-teal); }
+  /* ▸ 공급자 칸 단추 — 색을 준다 (2026-09-11 「색깔표시」) : 흰 단추라 누르면 펼쳐지는 칸인지 눈에 안 띄었다.
+     ①·② 제목과 같은 청록 계열의 <옅은 칠>. 화면 규칙 3(채운 색은 주된 작업 하나 = [🖨 인쇄])을 지켜 꽉 채우지는 않는다.
+     펼치면(.on) 한 톤 진하게 — 지금 열려 있다는 표시. */
+  .sa-btn.ps-tog{ background:#e3f2ee; color:#0f6b5e; border-color:#9fd0c4; font-weight:800; }
+  .sa-btn.ps-tog:hover{ background:#d2e9e2; border-color:var(--sa-teal); }
+  .sa-btn.ps-tog.on{ background:#c3e2d8; border-color:var(--sa-teal); color:#0b5246; }
   .prt-r label{ display:inline-flex; align-items:center; gap:3px; font-size:12.5px; cursor:pointer; }
   .prt-r label input{ margin:0; }
   .prt-r input[type=number], .prt-r select, .prt-r input[type=text]{
@@ -754,13 +760,15 @@
       <div class="prt-hint" id="mailHint" style="margin-top:2px"></div>
     </div>
     <div class="ft" style="display:flex; align-items:center; gap:6px">
+      <%-- ★[이메일발송]을 맨 앞으로 (2026-09-11 「이메일발송 gmail 뒤로」) — 서버 발송이 되면서 이것이 주 단추가 됐다.
+           Gmail·내용 복사는 서버 발송이 안 될 때의 보조 길이라 그 뒤에 둔다. [닫기]만 오른쪽 끝. --%>
       <span style="display:flex; gap:6px">
+        <%-- 보내는 동안 잠긴다 (2026-09-10 「보내고 있다 메시지가 없어서 계속 누름」 — 누른 만큼 다 나갔다) --%>
+        <button class="sa-btn teal" id="mailSendBtn" onclick="saMailSend()">이메일발송</button>
         <button class="sa-btn" onclick="saMailGmail()" title="Gmail 쓰기 창을 새 탭으로 엽니다 — 받는사람·제목·본문이 채워집니다">Gmail 로 열기</button>
         <button class="sa-btn" onclick="saMailCopy()" title="받는사람·제목·본문을 복사합니다 — 네이버·다음 등 아무 메일에나 붙여 넣으세요">📋 내용 복사</button>
       </span>
       <span style="margin-left:auto; display:flex; gap:6px">
-        <%-- 보내는 동안 잠긴다 (2026-09-10 「보내고 있다 메시지가 없어서 계속 누름」 — 누른 만큼 다 나갔다) --%>
-        <button class="sa-btn teal" id="mailSendBtn" onclick="saMailSend()">이메일발송</button>
         <button class="sa-btn" onclick="saMailClose()">닫기</button>
       </span>
     </div>
@@ -854,7 +862,7 @@
            펼쳐 두면 창의 절반을 먹어 정작 조건이 눈에 안 들어왔다. 요약 한 줄만 보인다. --%>
       <div class="prt-box" style="margin-top:10px">
         <div class="prt-tit" style="margin-bottom:0">
-          <button type="button" class="sa-btn" id="psToggle" style="height:24px; padding:0 9px; font-size:11.5px"
+          <button type="button" class="sa-btn ps-tog" id="psToggle" style="height:24px; padding:0 9px; font-size:11.5px"
                   onclick="saPrtSupToggle()" title="공급자(우리 회사) 칸을 펼쳐 고칩니다">▸ 공급자 칸</button>
           <span id="psSum" style="font-weight:600; font-size:12px; color:#5a6b7a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap"></span>
           <span style="margin-left:auto; display:flex; gap:6px">
@@ -3517,7 +3525,7 @@ function saPrtOpen(){
   saPrtSupLoad();
   /* 공급자 칸은 접은 채로 연다 — 채워져 있으면 요약 한 줄이면 충분하다 */
   var psb = document.getElementById('psBox');
-  psb.hidden = true; document.getElementById('psToggle').textContent = '▸ 공급자 칸';
+  psb.hidden = true; document.getElementById('psToggle').textContent = '▸ 공급자 칸'; document.getElementById('psToggle').classList.remove('on');
   saShareOn();                            /* 보내기 3종은 저장된 전표만 */
   document.getElementById('saPrtPop').classList.add('on');
 }
@@ -3544,7 +3552,9 @@ function saPrtModeHint(){
   var over = (r>lim)
      ? '<br><b style="color:#c0392b">⚠ 이 방식은 '+lim+'줄까지 들어갑니다 — '+r+'줄이면 아래가 다음 장으로 밀릴 수 있습니다.</b>' : '';
   document.getElementById('po_modeHint').innerHTML =
-      esc(txt) + ' — <b>모두 ' + cnt + '장</b> (품목 ' + rows + '줄 기준)' + over;
+      /* ⚠`rows` 는 배열이다(장수를 konetStmt.pages 로 세려고 2026-09-09 에 숫자→배열로 바꿨다) —
+           그대로 이어 붙이면 「품목 [object Object],[object Object]…줄」이 찍힌다(2026-09-11 실화면). 건수는 .length */
+      esc(txt) + ' — <b>모두 ' + cnt + '장</b> (품목 ' + rows.length + '줄 기준)' + over;
 }
 /* 조건 읽기 = 그 자리에서 저장까지 (다음에 열어도 그대로) */
 function saPrtOpts(){
@@ -3601,6 +3611,7 @@ function saPrtSupToggle(){
   var b = document.getElementById('psBox'), t = document.getElementById('psToggle');
   b.hidden = !b.hidden;
   t.textContent = (b.hidden ? '▸' : '▾') + ' 공급자 칸';
+  t.classList.toggle('on', !b.hidden);      /* 열려 있으면 한 톤 진하게 (2026-09-11 「색깔표시」) */
 }
 function saPrtSupFill(s){
   document.getElementById('ps_nm').value   = s.nm||'';
