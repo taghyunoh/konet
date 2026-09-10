@@ -3686,6 +3686,7 @@ function saPrtHtml(D,O,S,prev,doPrint){
 var KAKAO_KEY = '${kakaoJsKey}', SHARE_BASE = '${shareBase}';
 var _shareUrl = '';          // 지금 전표의 공개 주소(발급받아 두면 다시 안 부른다)
 var _mailReady = null;       // 서버 발송이 되는가 — /mangr/mailReady.do 로 한 번 묻는다
+var _mailFrom  = '';         // 보내는 계정 — 인증 실패(535) 안내에서 «어느 계정을 고쳐야 하는지» 알려 준다
 
 function saShareOn(){        // 보내기 단추 켜고 끄기 — 저장된 전표만
   var ok = !!(_cur && _cur.saleSeq);
@@ -3855,7 +3856,7 @@ function saMailHint(){
   if (_mailReady !== null) { draw(); return; }
   el.textContent = '메일 설정을 확인하는 중…';
   post('/mangr/mailReady.do','').then(function(r){ return r.json(); })
-    .then(function(j){ _mailReady = !!(j&&j.ready); draw(); })
+    .then(function(j){ _mailReady = !!(j&&j.ready); _mailFrom = (j&&j.from)||''; draw(); })
     .catch(function(){ _mailReady = false; draw(); });
 }
 /* 「저장」 체크 — 그 주소를 거래처 마스터 EMAIL 에 남긴다(이미 있으면 그대로 둔다) */
@@ -3933,7 +3934,22 @@ function saMailSend(){
       saMailClose();
       swAlert('메일 프로그램을 열었습니다 — 열린 창에서 <b>[보내기]</b>를 누르세요.<br><span style="font-size:12.5px;color:#3d4d5c">아무 창도 안 열리면 <b>[Gmail 로 열기]</b> 나 <b>[📋 내용 복사]</b> 를 쓰세요.</span>');
     });
-  }).catch(function(e){ saMailBusy(false); if(e&&e.message) swErr('보내지 못했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
+  }).catch(function(e){ saMailBusy(false); swErr(saMailErrMsg(e)); });
+}
+/* 실패 안내 (2026-09-10) — 메일 오류 글자는 험해서 그대로 보여 주면 무슨 일인지 알 수 없다.
+   실제로 「Failed to fetch」 한 줄만 떠서 **원인을 서버 로그·전송이력까지 뒤져야** 했다.
+   ★이 둘은 뜻이 아주 다르다 :
+     · fetch 가 깨짐(Failed to fetch) = 서버 응답이 <끊긴> 것 — 메일은 **이미 나갔을 수도 있다**(서버는 계속 보내는 중일 수 있다).
+       ⇒ 다시 누르기 전에 [📨 전송이력]을 봐야 한다(같은 명세서를 두 번 보내지 않게).
+     · 535 = 메일 서버가 <계정·비밀번호를 거부> 한 것 — 받는 주소와 상관없이 아무것도 못 나간다.
+       ⇒ 보내는 계정의 **앱 비밀번호**를 다시 넣어야 한다. 그전까지는 [Gmail 로 열기]·[📋 내용 복사] 가 길이다. */
+function saMailErrMsg(e){
+  var m = (e && e.message) ? String(e.message) : '';
+  if (/failed to fetch|networkerror|load failed|aborted/i.test(m))
+    return '서버에서 답이 오지 않았습니다.<br><span style="font-size:12.5px;color:#3d4d5c">메일이 <b>이미 나갔을 수도</b> 있습니다 — <b>[📨 전송이력]</b>에서 확인한 뒤 다시 보내세요.</span>';
+  if (/\b535\b|username and password not accepted|authentication failed/i.test(m))
+    return '메일 계정이 거부됐습니다 <b>(535 인증 실패)</b>.<br><span style="font-size:12.5px;color:#3d4d5c">보내는 계정(<b>'+esc(String(_mailFrom||'메일 계정'))+'</b>)의 <b>앱 비밀번호</b>를 다시 발급해 넣어야 합니다 — 받는 주소와는 상관없습니다.<br>그때까지는 <b>[Gmail 로 열기]</b>·<b>[📋 내용 복사]</b>로 보내세요.</span>';
+  return '보내지 못했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(m||'알 수 없는 오류')+'</span>';
 }
 /* Gmail 쓰기 창 — 웹메일만 쓰는 경우의 길 */
 function saMailGmail(){
