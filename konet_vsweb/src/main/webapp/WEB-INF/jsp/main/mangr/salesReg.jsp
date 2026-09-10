@@ -750,7 +750,8 @@
         <button class="sa-btn" onclick="saMailCopy()" title="받는사람·제목·본문을 복사합니다 — 네이버·다음 등 아무 메일에나 붙여 넣으세요">📋 내용 복사</button>
       </span>
       <span style="margin-left:auto; display:flex; gap:6px">
-        <button class="sa-btn teal" onclick="saMailSend()">이메일발송</button>
+        <%-- 보내는 동안 잠긴다 (2026-09-10 「보내고 있다 메시지가 없어서 계속 누름」 — 누른 만큼 다 나갔다) --%>
+        <button class="sa-btn teal" id="mailSendBtn" onclick="saMailSend()">이메일발송</button>
         <button class="sa-btn" onclick="saMailClose()">닫기</button>
       </span>
     </div>
@@ -3853,8 +3854,23 @@ function saMailBody(a, url){
 /* ★[이메일발송] — 갈래를 정하는 단 한 곳.
      · 메일 계정이 있으면 서버가 직접 보낸다(위너넷 방식)
      · 없으면 이 PC 의 메일 프로그램을 연다 */
+/* ★보내는 동안 잠근다 (2026-09-10 「보내고 있다 메시지가 없어서 계속 누름」) — 서버 발송은 SMTP 왕복으로 몇 초 걸리는데
+     아무 표시가 없어 사람이 또 눌렀고, 누른 횟수만큼 메일이 다 나갔다(같은 명세서 7통).
+     ⇒ 누르는 순간 `_mailBusy` 를 세우고 단추를 「⏳ 보내는 중…」으로 잠근다. 끝나면(성공·실패 모두) 되돌린다. */
+var _mailBusy = false;
+function saMailBusy(on){
+  _mailBusy = !!on;
+  var b = document.getElementById('mailSendBtn');
+  if (b){ b.disabled = _mailBusy; b.textContent = _mailBusy ? '⏳ 보내는 중…' : '이메일발송'; }
+  ['saMailPop'].forEach(function(id){ var p=document.getElementById(id); if(p) p.style.cursor = _mailBusy ? 'progress' : ''; });
+  var h = document.getElementById('mailHint');
+  if (h && _mailBusy) h.innerHTML = '<b style="color:#137a6c">⏳ 서버가 메일을 보내는 중입니다 — 잠시만 기다리세요.</b> (다시 누르지 않아도 됩니다)';
+  if (h && !_mailBusy) saMailHint();
+}
 function saMailSend(){
+  if (_mailBusy) return;                       /* 이미 보내는 중 — 두 번째 클릭은 버린다 */
   var a = saMailArgs(); if (!a) return;
+  saMailBusy(true);
   saShareUrl().then(function(url){
     return saMailKeep(a.to).then(function(){
       if (_mailReady){
@@ -3862,8 +3878,9 @@ function saMailSend(){
                     'saleSeq='+encodeURIComponent(_cur.saleSeq)+'&to='+encodeURIComponent(a.to)
                     +'&subject='+encodeURIComponent(a.subj)+'&memo='+encodeURIComponent(a.memo))
           .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
-          .then(function(){ saMailClose(); swOk('<b>'+esc(a.to)+'</b><br>이메일을 보냈습니다.'); });
+          .then(function(){ saMailBusy(false); saMailClose(); swOk('<b>'+esc(a.to)+'</b><br>이메일을 보냈습니다.'); });
       }
+      saMailBusy(false);
       /* 계정이 없을 때 — 메일 프로그램으로.
          ★전송이력에 남기지 않는다 (2026-09-10 「이것도 실제 받은 게 이메일이 아닌데」) — 창을 열어 준 것뿐,
            실제 발송은 그 창에서 사람이 하고 우리 서버는 그 사실을 모른다. 이력 = <실제로 나간 것>만(카톡·서버 발송). */
@@ -3874,7 +3891,7 @@ function saMailSend(){
       saMailClose();
       swAlert('메일 프로그램을 열었습니다 — 열린 창에서 <b>[보내기]</b>를 누르세요.<br><span style="font-size:12.5px;color:#3d4d5c">아무 창도 안 열리면 <b>[Gmail 로 열기]</b> 나 <b>[📋 내용 복사]</b> 를 쓰세요.</span>');
     });
-  }).catch(function(e){ if(e&&e.message) swErr('보내지 못했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
+  }).catch(function(e){ saMailBusy(false); if(e&&e.message) swErr('보내지 못했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
 }
 /* Gmail 쓰기 창 — 웹메일만 쓰는 경우의 길 */
 function saMailGmail(){

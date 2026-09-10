@@ -586,6 +586,9 @@
     **비어 있으면 메일 프로그램(mailto)**. 계정이 없어도 기능이 죽지 않는다. 화면은 `/mangr/mailReady.do` 로 한 번 물어 안내문만 바꾼다.
     ⇒ **계정이 생기면 화면은 손대지 않는다** — properties 만 채우면 그 자리에서 서버 발송으로 바뀐다.
   · 웹메일(네이버·지메일)만 쓰면 mailto 가 안 열릴 수 있어 **[Gmail 로 열기]·[📋 내용 복사]** 를 같이 뒀다.
+  · ★**[2026-09-10] 보내는 동안 단추를 잠근다**(`_mailBusy`/`saMailBusy`, 단추 `#mailSendBtn` 「⏳ 보내는 중…」 + 안내줄) — 서버 발송이 몇 초 걸리는데
+    표시가 없어 사용자가 계속 눌렀고 **같은 명세서가 7통** 나갔다(「보내고 있다 메시지가 없어서 계속 누름」). 성공·실패·mailto 갈래 모두 끝에서 풀어 준다.
+    ⚠서버 쪽은 중복을 안 막는다(같은 주소로 두 번 보내는 것이 정상 업무일 수 있다) — 막는 것은 <한 번의 클릭 중 재클릭>뿐.
 - **메일 뼈대**(2026-09-09, 계정은 다음날 받기로 함) : `pom.xml` 에 `com.sun.mail:javax.mail:1.5.0`(로컬 .m2 에 있어 오프라인 빌드 가능) ·
   [MailSender.java](src/main/java/egovframework/sejong/cmmn/MailSender.java) · [mail.properties](src/main/resources/mail.properties)(키 이름은 위너넷과 동일).
   ⚠**네이버는 465 SSL + 애플리케이션 비밀번호**(로그인 비밀번호가 아니다). ★**[2026-09-10 계정 설정·실측] `mail.smtp.user` 는 네이버 <아이디>(= `mail.from` 의 @ 앞)여야 한다** —
