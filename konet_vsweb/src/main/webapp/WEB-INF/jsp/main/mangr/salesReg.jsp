@@ -9,6 +9,11 @@
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260805"></script>
+<%-- 팝업 창 끌어 옮기기 (2026-09-10) — 제목줄을 잡고 끈다 · 더블클릭 = 처음 자리 (asset/js/ui-popdrag.js 머리말) --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>
+<%-- 상단 명세 표 높이 막대 (2026-09-10) — 합계줄 밑 막대를 아래로 끌면 늘고 위로 끌면 준다 (asset/js/ui-gridgrip.js 머리말) --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>
+<script type="text/javascript">konetPopDrag('.sa-pop'); konetGridGrip('saGridWrap', 'saFootWrap', 'salesReg');</script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-quick.js"></script>
 <%-- 거래명세서 양식 — 이 화면과 공개 링크(/pub/stmt.do)가 같이 쓰는 렌더러 (2026-09-09).
      양식을 고칠 때는 이 파일 하나만 고치면 두 곳이 함께 바뀐다. --%>
@@ -50,21 +55,22 @@
   .sa-bal{ margin-left:auto; display:flex; gap:14px; align-items:center; font-size:12.5px; }
   .sa-bal b{ font-size:15px; color:#c0392b; }
   /* 명세 그리드 */
-  /* 상단 명세 그리드 — 기본 높이 210px, ★아래 모서리를 끌어 늘리고 줄일 수 있다(2026-08-04 요청).
-     resize 는 overflow 있는 요소에서만 동작한다. 합계줄은 별도 표라 그리드만 늘어난다. */
+  /* 상단 명세 그리드 — 기본 높이 210px. 종전엔 아래 모서리(resize)로 늘리고 줄였다(2026-08-04).
+     ★[2026-09-10] 합계줄 밑 <높이 막대>로 바꿨다(ui-gridgrip.js — 모서리는 거기서 끈다) : 아래로 끌면 늘고 위로 끌면 준다 ·
+       [▲ 줄이기][▼ 늘리기] · 더블클릭 = 이 210px · 고른 높이는 기억. 아래 max-height 도 막대가 풀어 창의 92% 까지. */
   .sa-grid{ height:210px; min-height:112px; max-height:70vh; resize:vertical;
             overflow:auto; scrollbar-gutter:stable; border:1px solid var(--sa-bd); border-radius:8px 8px 0 0; }
   /* 합계 — 그리드 바로 밑 고정. 가로 스크롤은 JS 가 그리드와 맞춘다 */
   .sa-foot{ overflow:hidden; scrollbar-gutter:stable; border:1px solid var(--sa-bd); border-top:0; border-radius:0 0 8px 8px; }
   /* ★그리드 표와 합계 표의 칸 맞춤(2026-08-04) :
-       · 두 표 모두 table-layout:fixed + 같은 colgroup + 같은 min-width(colgroup 합 1740px).
+       · 두 표 모두 table-layout:fixed + 같은 colgroup + 같은 min-width(colgroup 합 1764px — 2026-09-10 행 조작 칸 82→106, ✖ 삭제가 들어오며).
        · 화면이 그보다 넓으면 width:100% 로 <우측 끝까지> 늘어난다 — 남는 폭은 두 표가
          같은 비율로 나눠 갖고, scrollbar-gutter 로 세로 스크롤바 자리도 똑같이 예약하므로
          어느 쪽도 밀리지 않는다(종전엔 그리드만 스크롤바만큼 좁아져 칸이 어긋났다). */
-  .sa-foot table{ width:100%; min-width:1740px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
+  .sa-foot table{ width:100%; min-width:1764px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .sa-foot td{ border:1px solid var(--sa-bd); padding:6px 4px; text-align:center; background:#137a6c; color:#fff; font-weight:800; }
   .sa-foot td.num{ text-align:right; }
-  .sa-grid table{ width:100%; min-width:1740px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
+  .sa-grid table{ width:100%; min-width:1764px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .sa-grid th{ background:#f4dcbc; color:#6f4200; font-weight:800; box-shadow:inset 0 -2px 0 #b06a00; border:1px solid var(--sa-bd); padding:7px 6px; position:sticky; top:0; z-index:2; }
   /* 컬럼 폭 조절 손잡이 — 머리글 오른쪽 경계를 끌면 그 칼럼이 늘고 줄어든다(2026-08-04 요청).
      합계줄 colgroup 도 같이 움직여 칸 맞춤이 유지된다(saColResize). */
@@ -102,6 +108,9 @@
   .sa-grid td.ops span{ display:inline-block; width:20px; height:20px; line-height:19px; margin:0 1px;
                         border:1px solid var(--sa-bd); border-radius:4px; cursor:pointer; font-size:11px; color:#37475a; background:#fff; }
   .sa-grid td.ops span:hover{ border-color:var(--sa-teal); color:var(--sa-teal); }
+  /* 줄 삭제 ✖ — 맨 앞 번호 바로 뒤로 옮겼다(2026-09-10 요청, 종전엔 맨 끝 거래구분 칸). 빨강 + 옆 ＋ 와 조금 띄움 */
+  .sa-grid td.ops span.del{ color:#c0392b; border-color:#e3b4ae; margin-right:5px; }
+  .sa-grid td.ops span.del:hover{ color:#c0392b; border-color:#c0392b; background:#fdecea; }
   .sa-grid .hist{ cursor:pointer; font-size:13px; }
   .sa-grid .hist:hover{ filter:brightness(1.3); }
   /* 하단 목록 */
@@ -245,9 +254,9 @@
          가로 스크롤은 JS 로 동기화한다. --%>
     <div class="sa-grid" id="saGridWrap">
       <table>
-        <colgroup><col style="width:38px"><col style="width:82px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
+        <colgroup><col style="width:38px"><col style="width:106px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
         <thead><tr>
-          <th>No</th><th>행(＋삽입/▲▼)</th><th>상품코드</th><th>품명(단가이력조회)</th>
+          <th>No</th><th title="✖ 이 줄 삭제 · ＋ 이 줄 위에 삽입 · ▲▼ 순서 바꾸기">행(✖/＋/▲▼)</th><th>상품코드</th><th>품명(단가이력조회)</th>
           <th>[입수량]규격</th><th>BOX수량</th><th>EA수량</th>
           <th>합계수량</th><th>단가</th><th>금액</th>
           <th>DC</th><th>공급가</th><th>부가세</th>
@@ -260,7 +269,7 @@
     <div id="saGridPager" style="padding:5px 2px 0; text-align:center; min-height:22px"></div>
     <div class="sa-foot" id="saFootWrap">
       <table>
-        <colgroup><col style="width:38px"><col style="width:82px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
+        <colgroup><col style="width:38px"><col style="width:106px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
         <tbody><tr class="tot">
           <td colspan="5">■ 합계</td>
           <td class="num" id="tBox">0</td><td class="num" id="tEa">0</td><td class="num" id="tQty">0</td>
@@ -1182,6 +1191,7 @@ function saRender(){
            ＋ = 이 줄 '위'에 빈 줄 삽입 / ▲▼ = 순서 바꾸기.
          (예전 ＋ 는 상품선택이었다. 상품선택은 아래 상품코드 칸을 눌러 그대로 쓴다) */
       + '<td class="ops">'
+      +   '<span class="del" title="이 줄 삭제" onclick="saDelRow('+i+')">✖</span>'   // 번호 바로 뒤 (2026-09-10 — 종전 맨 끝)
       +   '<span title="이 줄 위에 새 줄 삽입" onclick="saInsRow('+i+')">＋</span>'
       +   '<span title="한 줄 위로" onclick="saMoveRow('+i+',-1)">▲</span>'
       +   '<span title="한 줄 아래로" onclick="saMoveRow('+i+',1)">▼</span>'
@@ -1189,7 +1199,7 @@ function saRender(){
       /* 상품코드 = 우리 코드. 그 아래 작게 '거래처가 부르는 코드'(매칭코드)를 함께 보여 준다(2026-08-01).
          수동 판매는 주문서에 적힌 대로 넣고 확인해야 해서, 우리 코드만 보이면 대조가 안 된다.
          ★빈 줄은 '상품코드 칸에 직접 입력검색'(2026-08-04) — 칸에 쳐서 ↑↓·Enter 로 고른다(saPin*).
-           고르면 그 행에 담기고 커서가 EA수량 칸으로 넘어간다. [🔍]는 종전 상품 선택 팝업. */
+           고르면 그 행에 담기고 커서가 BOX수량 칸으로 넘어간다(2026-09-10, 종전 EA수량). [🔍]는 종전 상품 선택 팝업. */
       + (o.prodCd
           ? '<td><span class="lnk" title="클릭 → 다른 상품으로 바꾸기" onclick="saProdOpen('+i+')">'+esc(o.prodCd)+'</span>'
               /* 매칭으로 골라 넣은 행만 그 코드를 보여 준다 — 원코드로 넣었으면 표시가 없다(구별) */
@@ -1229,8 +1239,7 @@ function saRender(){
       + '<td><input class="txt" data-r="'+i+'" data-f="remark" value="'+esc(o.remark)+'" onchange="saSet('+i+',\'remark\',this.value)"></td>'
       + '<td><input type="checkbox" '+(o.eventYn==='Y'?'checked':'')+' onchange="saSet('+i+',\'eventYn\',this.checked?\'Y\':\'N\')"></td>'
       + '<td><select onchange="saSet('+i+',\'trxGb\',this.value)" style="border:0;background:transparent;font-size:12.5px">'
-      +   '<option '+(o.trxGb==='판매'?'selected':'')+'>판매</option><option '+(o.trxGb==='반품'?'selected':'')+'>반품</option></select>'
-      +   ' <span class="del" onclick="saDelRow('+i+')">✖</span></td>'
+      +   '<option '+(o.trxGb==='판매'?'selected':'')+'>판매</option><option '+(o.trxGb==='반품'?'selected':'')+'>반품</option></select></td>'
       + '</tr>';
   });
   document.getElementById('saBody').innerHTML = h;
@@ -1245,18 +1254,18 @@ function saSet(i, k, v){
   /* ★수량에 음수를 치면 「반품 + 양수」로 (2026-09-05, 매입등록과 같은 규칙) — 줄이 음수면 합계·저장 머리·SQL 에서
        「반품이면 −」가 한 번 더 붙어 부호가 두 번 뒤집힌다(매입등록 2026-07-29/0005 실사고) */
   if ((k==='boxQty'||k==='eaQty') && o[k] < 0) { o[k] = Math.abs(o[k]); o.trxGb = '반품'; }
-  /* ★BOX수량을 치면 EA수량이 '친 대로' 따라온다 (2026-08-01 확정 — 입수로 환산하지 않는다).
-       입수 48짜리에 BOX 1 → EA 1 · 합계 1. 합계수량은 EA 를 따라가고 화면에서 고칠 수 없다(계산 전용). */
-  if (k==='boxQty') o.eaQty = n(o.boxQty);
+  /* ★[2026-09-10 변경] BOX 를 쳐도 EA 는 따라오지 않는다 — 합계수량 = BOX × 입수 + EA (매입등록과 같은 규칙).
+       종전(2026-08-01 확정)은 「BOX 1 → EA 1 · 합계 1, 입수로 환산 안 함」이었다 — 사용자 요청
+       「box 수량 치면 상품코드에 입수수량 곱해서 합계수량해서 단가계산」으로 뒤집었다. 옛 전표는 saApply 가 보정한다. */
   saCalcRow(o);
   if (i === _rows.length-1 && o.prodCd) saEnsureTail();   // 마지막 줄을 쓰면 새 줄 자동 추가(그 줄이 보이게)
   saRender();
 }
 function saCalcRow(o){
   o.boxQty = Math.abs(n(o.boxQty)); o.eaQty = Math.abs(n(o.eaQty));   // 어느 길로 들어와도 수량은 양수 — 반품은 trxGb 로만 (2026-09-05)
-  /* 합계수량 = EA수량 그대로 (2026-08-01 확정 — 입수로 환산하지 않는다).
-     BOX 1 치면 EA 1 · 합계 1. 입수([48])는 규격 칸에 참고로 보일 뿐 수량 계산에 쓰지 않는다. */
-  o.qty = n(o.eaQty);
+  /* ★합계수량 = BOX × 입수 + EA (2026-09-10 — 매입등록 puCalcRow 와 같은 식). 입수가 0·빈값이면 1.
+     예) [9]1.5kg 에 BOX 2 → 합계 18 → 금액 = 18 × 단가. (종전 2026-08-01 「합계 = EA, 입수 환산 안 함」은 폐기) */
+  o.qty = n(o.boxQty) * (n(o.packQty)||1) + n(o.eaQty);
   o.amt = Math.round(o.qty * n(o.unitPrice)) - n(o.dcAmt);
   /* 부가세 = ① 거래처 설정(TBL_VENDOR_MST.VAT_GB) × ② 품목 과세여부 (2026-08-03 요청)
        · 별도(기본) : 공급가 = 금액,        부가세 = 금액의 10%   → 합계 = 금액 + 부가세
@@ -1502,6 +1511,10 @@ function saApply(d){
       x.trxGb = '반품';
       ['boxQty','eaQty','qty','amt','supplyAmt','vatAmt','totAmt'].forEach(function(k){ x[k] = Math.abs(n(x[k])); });
     }
+    /* ★옛 규칙 전표 보정 (2026-09-10) : 합계 = BOX × 입수 + EA 로 바뀌기 전 줄은 BOX = EA = 합계로 저장돼 있다.
+         그대로 두면 단가 한 칸만 고쳐도 saCalcRow 가 합계를 새 식으로 다시 세어 **수량·금액이 몰래 바뀐다**.
+         ⇒ 저장된 합계가 새 식과 안 맞는 줄은 「BOX 0 · EA = 저장된 합계」로 — 합계·금액은 저장값 그대로 남는다. */
+    if (n(x.qty) !== n(x.boxQty) * (n(x.packQty)||1) + n(x.eaQty)) { x.boxQty = 0; x.eaQty = n(x.qty); }
     return x; });
   _rows.push(emptyRow());
   /* 저장된 품명은 그대로 둔다(그 전표의 사실). 표기표는 이후 '품목 추가' 에만 쓴다. */
@@ -1905,7 +1918,7 @@ function saProdMultiApply(){
     if (ext){ o.extCd=ext.extItemCd; o.extNm=ext.extItemNm||''; if(ext.extItemNm) o.prodNm=ext.extItemNm; }
     o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
     o.unitPrice=n(p.salePrice);
-    o.boxQty=1; o.eaQty=1;                        // BOX수량 기본 1 → EA 1 (2026-08-06 요청)
+    o.boxQty=1; o.eaQty=0;                        // BOX수량 기본 1 (2026-08-06 요청) — 합계 = 1 × 입수 (2026-09-10)
     saCalcRow(o);
     rows.push(o); added.push(o);
   });
@@ -2003,9 +2016,9 @@ function saProdPick(cd){
   o.extCd=null; o.extNm=null;
   o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
   o.unitPrice=n(p.salePrice);   // 기본값 = 상품마스터 판매가 (매입 화면은 inPrice 를 쓴다)
-  /* 수량이 빈 줄이면 BOX수량 기본 1 → EA 1 (2026-08-06 요청 — 🔖 매칭코드·인라인 검색 담기 포함).
+  /* 수량이 빈 줄이면 BOX수량 기본 1 (2026-08-06 요청 — 🔖 매칭코드·인라인 검색 담기 포함) — 합계 = 1 × 입수 (2026-09-10).
      이미 수량이 있는 줄(다른 상품으로 바꾸기)은 건드리지 않는다. */
-  if (!n(o.boxQty) && !n(o.eaQty)) { o.boxQty = 1; o.eaQty = 1; }
+  if (!n(o.boxQty) && !n(o.eaQty)) { o.boxQty = 1; o.eaQty = 0; }
   saProdClose();
   // 그 거래처의 최근 판매단가가 있으면 그 값으로 덮는다
   var ven = document.getElementById('saVenNm').dataset.cd||'';
@@ -2229,7 +2242,7 @@ function saBatchRowFor(s){
     }
     o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
     o.unitPrice=n(p.salePrice);
-    o.boxQty=1; o.eaQty=1;                            /* BOX 1 → EA 1 (판매 합계=EA 규칙) */
+    o.boxQty=1; o.eaQty=0;                            /* BOX 1 — 합계 = 1 × 입수 (2026-09-10, 매입과 같은 규칙) */
     saCalcRow(o);
     return btSelOverride(s, o);
   }
@@ -2241,17 +2254,18 @@ function saBatchRowFor(s){
   r.unitPrice = n(it.price);
   /* 매칭판매였던 줄은 저장된 EXT_CD 를 그대로 잇는다 — 미리보기·재저장에 🔖 유지 (2026-08-06) */
   if (it.extCd){ r.extCd = it.extCd; r.extNm = it.itemNm || ''; }
-  /* 저장된 수량 그대로 — 입수로 쪼개지 않는다(원장 [불러오기]와 동일, 합계=EA 규칙) */
-  var qv = n(it.qty), aq = Math.abs(qv);
-  r.boxQty = aq; r.eaQty = aq;
+  /* 저장된 합계수량을 입수로 BOX·EA 로 나눠 되돌린다 (2026-09-10 — 합계 = BOX × 입수 + EA, 매입 일괄등록과 같은 식).
+     나눈 뒤 다시 계산해도 합계가 저장값과 같다(BOX×입수 + 나머지). */
+  var qv = n(it.qty), aq = Math.abs(qv), pk = n(r.packQty)||1;
+  if (pk > 1) { r.boxQty = Math.floor(aq/pk); r.eaQty = aq - r.boxQty*pk; } else { r.boxQty = 0; r.eaQty = aq; }
   if (qv < 0) r.trxGb = '반품';
   saCalcRow(r);
   return btSelOverride(s, r);
 }
 /* 미리보기에서 고친 값(BOX·EA·단가)은 체크 항목(s)에 남겨 두었다가 매번 덮어씌운다.
-   판매 규칙대로 BOX 를 고치면 EA 가 친 대로 따라온다(saSet 과 동일) — EA 를 따로 고치면 그 값 우선. */
+   BOX 와 EA 는 따로 논다 — 합계 = BOX × 입수 + EA (2026-09-10, saSet 과 동일. 종전엔 BOX 를 고치면 EA 가 따라왔다). */
 function btSelOverride(s, o){
-  if (s.boxQty != null) { o.boxQty = n(s.boxQty); o.eaQty = n(s.boxQty); }
+  if (s.boxQty != null) o.boxQty = n(s.boxQty);
   if (s.eaQty  != null) o.eaQty = n(s.eaQty);
   if (s.unitPrice != null) o.unitPrice = n(s.unitPrice);
   if (s.boxQty != null || s.eaQty != null || s.unitPrice != null) saCalcRow(o);
@@ -2654,9 +2668,9 @@ function saDayApply(){
       r.prodSeq = p.prodSeq; r.prodCd = o.itemCd; r.prodNm = o.itemNm || p.prodNm || '';
       r.spec = p.spec || ''; r.packQty = n(p.packQty)||1; r.taxGb = p.taxGb || '과세';
       r.unitPrice = n(o.price);
-      /* 저장된 수량을 그대로 되돌린다 — 입수로 쪼개지 않는다(합계 = EA 규칙과 같은 모양). */
-      var q = n(o.qty), aq = Math.abs(q);
-      r.boxQty = aq; r.eaQty = aq;
+      /* 저장된 합계수량을 입수로 BOX·EA 로 나눠 되돌린다 (2026-09-10 — 합계 = BOX × 입수 + EA, 매입 원장 불러오기와 같은 식). */
+      var q = n(o.qty), aq = Math.abs(q), pk = n(r.packQty)||1;
+      if (pk > 1) { r.boxQty = Math.floor(aq/pk); r.eaQty = aq - r.boxQty*pk; } else { r.boxQty = 0; r.eaQty = aq; }
       if (q < 0) r.trxGb = '반품';
       saCalcRow(r);
       rows.push(r);
@@ -2712,13 +2726,14 @@ function saFocusFirstProd(){
   }, 0);
 }
 
-/* 칸 사이 이동 — Enter 는 '상품 → EA수량 → 단가 → (다음 줄)'. 그 밖의 칸은 다음 줄로 넘어간다.
-   중간 줄이면 다음 줄이 이미 차 있으니 그 줄 EA수량으로, 맨 끝 줄이면 새 빈 줄의 상품칸으로 간다. */
+/* 칸 사이 이동 — Enter 는 '상품 → BOX수량 → 단가 → (다음 줄)'. 그 밖의 칸은 다음 줄로 넘어간다.
+   중간 줄이면 다음 줄이 이미 차 있으니 그 줄 BOX수량으로, 맨 끝 줄이면 새 빈 줄의 상품칸으로 간다.
+   ★[2026-09-10] EA수량 → BOX수량 — 합계 = BOX × 입수 + EA 가 되어 매입등록과 같이 BOX 부터 친다. */
 function saNextEnter(r, f){
-  if (f === 'prod') return { r:r, f:'eaQty' };
+  if (f === 'prod') return { r:r, f:'boxQty' };
   if (f === 'boxQty' || f === 'eaQty') return { r:r, f:'unitPrice' };
   var nr = r + 1;
-  if (_rows[nr] && _rows[nr].prodCd) return { r:nr, f:'eaQty' };
+  if (_rows[nr] && _rows[nr].prodCd) return { r:nr, f:'boxQty' };
   return { r:nr, f:'prod' };
 }
 /* #saBody 에 위임 — 숫자·비고 칸의 Enter/↑/↓. 상품 입력칸(saPin)은 자체 처리하므로 건너뛴다. */
@@ -2751,7 +2766,7 @@ function saStepRow(t, dr){
 /* 상품코드 칸 입력검색 — vendor-pick 과 같은 조작감(↑↓·Enter·Esc)을 상품에 준다.
      이미 화면에 들고 있는 상품마스터(_prods)·매칭코드(_extItems)만 훑어 서버를 부르지 않는다.
      · 우리 코드/품명/규격 + 거래처 매칭코드(🔖, 연결된 것만)로 찾는다.
-     · 고르면 그 행에 담기고(saProdPick / saExtPick 재사용) 커서가 EA수량으로 넘어간다.
+     · 고르면 그 행에 담기고(saProdPick / saExtPick 재사용) 커서가 BOX수량으로 넘어간다(2026-09-10, 종전 EA수량).
    드롭다운은 그리드가 overflow 라 잘리므로 body 에 position:fixed 로 띄운다. */
 var _pinInp = null, _pinRow = -1, _pinList = [], _pinIdx = -1, _pinDrop = null;
 function _pinHit(q){ return function(x){ return String(x==null?'':x).toLowerCase().indexOf(q) >= 0; }; }
@@ -2818,7 +2833,7 @@ function saPinPick(k){
   var row = _pinRow;
   saPinClose();
   _prodTargetRow = row;
-  _focusNext = { r:row, f:'eaQty', sel:'all' };   // 담긴 뒤 커서는 EA수량으로
+  _focusNext = { r:row, f:'boxQty', sel:'all' };  // 담긴 뒤 커서는 BOX수량으로 (2026-09-10 — 합계 = BOX × 입수 + EA)
   if (it.k === 'ext') saExtPick(it.seq); else saProdPick(it.prodCd);   // 기존 담기 로직 재사용
 }
 function saPinClose(){ if (_pinDrop) _pinDrop.style.display = 'none'; _pinList = []; _pinIdx = -1; }
@@ -3022,8 +3037,9 @@ function ktParse(text){
     var r = push({ t:'item', dt:dt, biz:ow.biz, venCd:ow.venCd, venNm:ow.venNm, raw:raw, name:name, qty:n(qtyS), unit:ktUnit(unit),
                    set:set, note:(ex?'「예)」 문장에서 읽은 후보 — 수량 확인 필요'+(note?' · '+note:''):note), chk:!ex, ex:!!ex,
                    prodCd:'', prodNm:'', prodSeq:null, st:'none', box:0, ea:0, unitPrice:0, priceEdited:false, priceSrc:'' });
-    /* 판매등록 규칙 : 박스 n → BOX n · EA n (입수 환산 안 함, 2026-08-01 확정). 개 단위는 EA 만 */
-    r.box = (r.unit==='박스') ? r.qty : 0; r.ea = r.qty;
+    /* 판매등록 규칙 : 박스 n → BOX n (EA 0, 합계 = BOX × 입수 — 2026-09-10). 개 단위는 EA 만.
+       (종전 2026-08-01 「박스 n → BOX n · EA n, 입수 환산 안 함」은 폐기) */
+    r.box = (r.unit==='박스') ? r.qty : 0; r.ea = (r.unit==='박스') ? 0 : r.qty;
     ktSuggest(r);
   }
   /* 거래처 머리줄 — 수량 없는 줄과 「*세진유퉁  복숭아자두--2 …」 앞머리가 같이 쓴다 */
@@ -3128,7 +3144,7 @@ function ktSetProd(r, cd, st){
      사람이 단가 칸을 고쳤으면(priceEdited) 어느 쪽도 덮지 않는다 — 그리드에 보이는 값이 그대로 저장된다 */
   if(!r.priceEdited){ r.unitPrice=n(p.salePrice); r.priceSrc='마스터'; ktPriceLookup(r); }
 }
-function ktAmt(r){ return Math.round(n(r.ea)*n(r.unitPrice)); }
+function ktAmt(r){ return Math.round((n(r.box)*(n(r.packQty)||1) + n(r.ea))*n(r.unitPrice)); }   // 합계 = BOX × 입수 + EA (2026-09-10)
 function ktPriceLookup(r){
   if(!r.prodCd || !r.venCd) return;
   var cd=r.prodCd, ven=r.venCd;
@@ -3207,8 +3223,8 @@ function ktVenSel(r){   // 줄의 [거래처 ▾] — 이 글의 거래처 묶�
 function ktEdit(id, k, v){
   var r=ktRowById(id); if(!r) return;
   if(k==='chk'){ r.chk=!!v; ktCnt(); ktSums(); return; }
-  if(k==='box'){ r.box=n(v); r.ea=r.box; r.qty=r.ea; ktPaintRow(r); return; }        // BOX 를 치면 EA 가 따라온다(판매등록 saSet 과 동일)
-  if(k==='ea'){ r.ea=n(v); r.qty=r.ea; ktPaintRow(r); return; }
+  if(k==='box'){ r.box=n(v); ktPaintRow(r); return; }        // BOX·EA 는 따로 논다 — 합계 = BOX × 입수 + EA (2026-09-10, saSet 과 동일). r.qty 는 원문 수량 그대로
+  if(k==='ea'){ r.ea=n(v); ktPaintRow(r); return; }
   if(k==='unitPrice'){ r.unitPrice=n(v); r.priceEdited=true; r.priceSrc='직접'; ktPaintRow(r); return; }
   r[k]=v;
 }
@@ -3302,19 +3318,20 @@ function ktCnt(){
   var all=document.getElementById('ktChkAll'); if(all) all.checked = it.length>0 && chk.length===it.length;
 }
 
-/* ── 카톡 줄 → 명세 행 ── 판매등록 규칙 그대로 : BOX n → EA n(입수 환산 안 함, 2026-08-01 확정). 개 단위는 EA 만. 원문은 비고에 남긴다 */
+/* ── 카톡 줄 → 명세 행 ── 판매등록 규칙 그대로 : 합계 = BOX × 입수 + EA (2026-09-10 — 종전 「BOX n → EA n, 입수 환산 안 함」 폐기). 원문은 비고에 남긴다 */
 function ktToRow(r){
   var o=emptyRow();
   o.prodSeq=r.prodSeq; o.prodCd=r.prodCd; o.prodNm=saNmFor(r.prodCd, r.prodNm); o.spec=r.spec||''; o.packQty=r.packQty||1; o.taxGb=r.taxGb||'과세';
   o.unitPrice=n(r.unitPrice);                                  // 그리드에 보이는 단가 그대로(최근단가·마스터·직접입력)
   if(r.extCd){ o.extCd=r.extCd; o.extNm=r.extNm||''; if(r.extNm) o.prodNm=r.extNm; }
-  o.boxQty=n(r.box); o.eaQty=n(r.ea)||1;                      // 그리드의 BOX·EA 그대로 (EA 0 이면 1)
+  o.boxQty=n(r.box); o.eaQty=n(r.ea);                         // 그리드의 BOX·EA 그대로
+  if(!o.boxQty && !o.eaQty) o.eaQty=1;                        // 둘 다 비었을 때만 EA 1 (종전 「EA 0 이면 1」은 BOX 줄에 1개를 더 얹게 된다)
   o.remark=('카톡 '+(r.raw||'')+(r.set?' [세트]':'')+(r.note&&!r.ex?(' · '+r.note):'')).slice(0,200);
   return o;
 }
 /* 거래처 부가세 설정으로 줄 금액 계산 — saCalcRow 는 화면의 거래처(_venVat)를 보므로, 다른 거래처 전표를 바로 저장할 때는 이걸 쓴다 */
 function ktCalcRow(o, vg){
-  o.qty=n(o.eaQty); o.amt=Math.round(o.qty*n(o.unitPrice))-n(o.dcAmt);
+  o.qty=n(o.boxQty)*(n(o.packQty)||1)+n(o.eaQty); o.amt=Math.round(o.qty*n(o.unitPrice))-n(o.dcAmt);   // 합계 = BOX × 입수 + EA (saCalcRow 와 같은 식)
   var tax=(o.taxGb!=='면세')&&((vg||'별도')!=='면세');
   if(!tax){ o.supplyAmt=o.amt; o.vatAmt=0; }
   else if(vg==='포함'){ o.supplyAmt=Math.round(o.amt/1.1); o.vatAmt=o.amt-o.supplyAmt; }

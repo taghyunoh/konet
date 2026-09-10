@@ -8,6 +8,15 @@
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260805"></script>
+<%-- 표 높이 막대 (2026-09-10 「수금등록 지급등록도 높이 막대」) — 판매·매입·발주서와 같은 공용 파일(asset/js/ui-gridgrip.js).
+     전표 목록(수금계 줄 밑) · 원장(합계 줄 밑) · 그 날 매출품목 — 세 표에 하나씩, 높이는 표마다 따로 기억한다.
+     아래로 끌면 늘고 위로 끌면 준다 · [▲ 줄이기][▼ 늘리기] · 더블클릭 = 원래 모양(원장의 inline max-height 도 되살린다). --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>
+<%-- 팝업 창 끌어 옮기기 (2026-09-10 「수금등록 지급등록 팝업도 움직이게」) — 판매·매입·발주서와 같은 공용 파일(asset/js/ui-popdrag.js).
+     거래처 선택 창 : 제목줄을 잡고 끈다(검색칸 위는 제외) · 자리 기억 · 더블클릭 = 처음 자리 --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>
+<script type="text/javascript">konetPopDrag('.sv-pop');</script>
+<script type="text/javascript">konetGridGrip('svListWrap', 'svSumBox', 'rcvRegList'); konetGridGrip('lgWrap', 'lgFootWrap', 'rcvRegLedger'); konetGridGrip('svDayWrap', 'svDayWrap', 'rcvRegDay');</script>
 <!--
   수금등록 — 홀세일닥터 '수금 등록' 이관 (2026-07-25 신설)
     · 원천 : TBL_SETTLE_TRX (TRX_GB='RCV'). 지급등록과 같은 테이블·같은 쿼리를 쓴다
@@ -40,6 +49,7 @@
   .sv-list{ max-height:196px; overflow:auto; border:1px solid var(--sv-bd); border-radius:8px; }
   /* ★본문 목록만 max(…, vh) — 판매등록(salesReg #saListWrap)과 같은 이유·같은 날(2026-08-28) */
   #svListWrap{ max-height:max(196px, 30vh); }
+  /* ↑ 전표 목록·원장·매출품목 세 표 모두 높이 막대(ui-gridgrip.js, 2026-09-10) — 고르면 그 높이로 고정되고 max-height 가 풀린다 · 더블클릭 = 원래 모양 */
   .sv-list table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .sv-list th{ background:#f4dcbc; color:#6f4200; font-weight:800; box-shadow:inset 0 -2px 0 #b06a00; border:1px solid var(--sv-bd); padding:7px 8px; position:sticky; top:0; z-index:2; }
   .sv-list td{ border:1px solid var(--sv-bd); padding:6px 8px; text-align:center; }
@@ -179,7 +189,7 @@
         </table>
       </div>
       <div id="svPager" style="padding:6px 2px; text-align:center; min-height:26px"></div>
-      <div class="sv-sum">
+      <div class="sv-sum" id="svSumBox">
         <div class="k">수금계</div><div class="v" id="sPay">0</div>
         <div class="k">할인계</div><div class="v" id="sDc">0</div>
       </div>
@@ -229,7 +239,7 @@
         <span style="margin-left:auto; font-size:12.5px">합계 <b id="svDaySum" style="color:#c0392b">0</b></span>
         <span class="sv-btn" style="cursor:pointer" onclick="svDayClose()">✕ 닫기</span>
       </div>
-      <div class="sv-list" style="max-height:max(300px, 34vh)">
+      <div class="sv-list" id="svDayWrap" style="max-height:max(300px, 34vh)">
         <table>
           <colgroup><col style="width:90px"><col style="width:130px"><col style="width:110px"><col><col style="width:80px"><col style="width:90px"><col style="width:100px"></colgroup>
           <thead><tr><th>구분</th><th>전표·발주</th><th>품목코드</th><th>품목명</th><th>수량</th><th>단가</th><th>금액</th></tr></thead>

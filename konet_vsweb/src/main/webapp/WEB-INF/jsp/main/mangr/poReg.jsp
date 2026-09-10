@@ -21,6 +21,15 @@
 <%-- 칸 폭 조절 — 머리글 오른쪽 경계를 끌면 그 칸이 늘고 준다(더블클릭 = 처음 폭으로).
      표에 data-colrz="이름" 만 주면 걸린다. 폭은 localStorage 에 남아 다음에도 그대로. --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-colresize.js?v=20260907"></script>
+<%-- 팝업 창 끌어 옮기기 (2026-09-10 「발주서 팝업도 움직이게」) — 판매·매입등록과 같은 공용 파일.
+     이 화면 팝업은 제목줄 이름이 .ph 라 둘째 인자로 알려 준다. 제목줄을 잡고 끈다 · 더블클릭 = 처음 자리 --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>
+<%-- 명세 표 높이 막대 (2026-09-10 「발주서 표도 높이 조절 막대」) — 판매·매입등록과 같은 공용 파일.
+     표 바로 밑 막대를 아래로 끌면 늘고 위로 끌면 준다 · [▲ 줄이기][▼ 늘리기] · 더블클릭 = 처음(38vh 까지 저절로) · 높이 기억.
+     이 화면은 합계줄이 표 안(tfoot)이라 막대를 표 상자 바로 뒤에 붙인다(둘째 인자 = 표 상자 자신). --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>
+<%-- 아래 발주서 목록 표에도 같은 막대 (2026-09-10 「발주서 목록 표에도 높이 막대」) — 높이는 표마다 따로 기억한다(poReg / poRegList) --%>
+<script type="text/javascript">konetPopDrag('.pop', '.ph'); konetGridGrip('poGridWrap', 'poGridWrap', 'poReg'); konetGridGrip('poListWrap', 'poListWrap', 'poRegList');</script>
 <%-- 전송이력 — 발주서를 <누구에게 · 어떤 방법으로> 보냈는지 남기고 보여 준다 (2026-09-10).
      판매등록 거래명세표와 **같은 파일·같은 표**를 쓴다(docGb 로만 갈린다). --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/send-hist.js?v=20260910f"></script>
@@ -46,6 +55,8 @@
   .btn.kakao{ background:#fee500; color:#191919; border-color:#f2d900; }
   .btn:disabled{ opacity:.45; cursor:default; }
   .gridwrap{ overflow:auto; border:1px solid var(--bd); border-radius:8px; max-height:38vh; }
+  /* ↑ 기본은 줄 수만큼 자라다 38vh 에서 멈춘다. 높이 막대(ui-gridgrip.js, 2026-09-10)로 고르면 그 높이로 고정되고
+       이 max-height 도 풀린다(창의 92% 까지) · 막대 더블클릭 = 이 기본 모양으로 */
   table.g{ border-collapse:collapse; width:100%; font-size:13.5px; white-space:nowrap; }
   table.g th{ background:#dfeaf5; color:#1f2a37; border:1px solid var(--bd); padding:6px 6px; position:sticky; top:0; z-index:2; font-weight:800; }
   table.g td{ border:1px solid var(--bd); padding:2px 4px; text-align:right; height:30px; }
@@ -57,10 +68,12 @@
   table.g tr.tot td{ background:#e2efda; font-weight:800; color:#375623; }
   table.g .lnk{ color:var(--teal); text-decoration:underline; cursor:pointer; }
   table.g .del{ color:#c0392b; cursor:pointer; font-weight:800; }
+  table.g input.pin::placeholder{ color:#9aa7b3; font-weight:400; }   /* 빈 줄 코드 칸 입력검색 (2026-09-10) */
   .bar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
   .bar .cnt{ color:#37475a; font-size:13.5px; font-weight:700; background:#eef4f2; border:1px solid #cfe0da; border-radius:14px; padding:5px 13px; }
   .bar .cnt b{ color:var(--teal); }
   .listwrap{ overflow:auto; border:1px solid var(--bd); border-radius:8px; max-height:max(200px,30vh); }
+  /* ↑ 발주서 목록도 높이 막대(ui-gridgrip.js, 2026-09-10) — 고르면 그 높이로 고정되고 이 max-height 가 풀린다 · 더블클릭 = 이 기본 모양 */
   table.lst{ border-collapse:collapse; width:100%; font-size:13.5px; white-space:nowrap; }
   table.lst th{ background:#b9ded4; color:#0b4f43; border:1px solid var(--bd); padding:7px 8px; position:sticky; top:0; font-weight:800; }
   table.lst td{ border:1px solid var(--bd); padding:6px 8px; text-align:center; }
@@ -99,13 +112,15 @@
       <label>담당자</label><input type="text" id="mgrNm" value="${sessionScope.s_user_nm}" readonly style="width:110px">
       <span id="stat" style="margin-left:auto; color:#6b7a89; font-size:12.5px"></span>
     </div>
-    <div class="gridwrap" style="margin-top:10px">
-      <table class="g" id="grid" data-colrz="poReg-grid">
+    <div class="gridwrap" id="poGridWrap" style="margin-top:10px">
+      <%-- ★[2026-09-10] 삭제 칸을 맨 끝 → # 바로 뒤로 옮기면서 칸 폭 보관 이름을 poReg-grid → poReg-grid2 로 바꿨다.
+           칸 수(17)는 그대로라 옛 이름을 두면 저장된 폭이 한 칸씩 밀려 엉뚱한 칸에 걸린다(ui-colresize 는 칸 수만 본다). --%>
+      <table class="g" id="grid" data-colrz="poReg-grid2">
         <thead><tr>
-          <th style="width:36px">#</th><th style="width:96px">코드</th><th style="min-width:230px">상품명</th><th style="width:130px">규격</th>
+          <th style="width:36px">#</th><th style="width:40px" title="이 줄 삭제">삭제</th><th style="width:112px" title="빈 줄은 코드·상품명을 직접 쳐서 고릅니다 (↑↓·Enter) — 🔍 = 상품 선택 팝업">코드</th><th style="min-width:230px">상품명</th><th style="width:130px">규격</th>
           <th style="width:56px">입수</th><th style="width:70px">BOX</th><th style="width:70px">EA</th><th style="width:78px">합계수량</th>
           <th style="width:90px">단가</th><th style="width:100px">금액</th><th style="width:76px">DC</th><th style="width:100px">공급가</th>
-          <th style="width:86px">부가세</th><th style="width:104px">매입금액</th><th style="width:60px">서비스</th><th style="width:140px">비고</th><th style="width:40px">삭제</th>
+          <th style="width:86px">부가세</th><th style="width:104px">매입금액</th><th style="width:60px">서비스</th><th style="width:140px">비고</th>
         </tr></thead>
         <tbody id="gbody"></tbody>
         <tfoot><tr class="tot" id="trow"></tr></tfoot>
@@ -136,7 +151,7 @@
       <button class="btn teal" onclick="poLoad()">🔍 리스트 조회</button>
       <span class="cnt" id="cnt">-</span>
     </div>
-    <div class="listwrap" style="margin-top:8px">
+    <div class="listwrap" id="poListWrap" style="margin-top:8px">
       <table class="lst" data-colrz="poReg-list"><thead><tr><th>발주일자</th><th>번호</th><th>거래처명</th><th>담당</th><th>품목</th><th>수량</th><th>공급가액</th><th>부가세</th><th>합계</th><th>공유</th><th>매입전환</th><th>등록자</th></tr></thead>
       <tbody id="lbody"><tr><td colspan="12" class="empty">기간을 고르고 [리스트 조회]를 누르세요.</td></tr></tbody></table>
     </div>
@@ -190,6 +205,8 @@ function post(url, body, isJson){ return fetch(CTX+url,{ method:'POST', credenti
 function loadMasters(){
   post('/vendor/selectVendorMst.do','').then(function(r){return r.json();}).then(function(j){ _vendors=(j&&j.data)||[]; }).catch(function(){});
   post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){ _prods=((j&&j.data)||[]).filter(function(p){ return (''+(p.stopYn||'')).toUpperCase()!=='Y'; }); }).catch(function(){});
+  /* 서브코드(거래처 통보 코드) — 코드 칸 입력검색이 서브코드로 쳐도 주코드를 찾게 (2026-09-10, 매입등록과 같은 목록) */
+  post('/prod/extItemList.do','').then(function(r){return r.json();}).then(function(j){ _extItems=(j&&j.data)||[]; }).catch(function(){});
 }
 /* 거래처 칸에 직접 쳐서 고른다(공통 vendor-pick) — 못 불러오면 팝업만 */
 try{ if(window._vendorPick) _vendorPick(document.getElementById('venNm'), { list:function(){ return _vendors; }, onPick:function(o){ venPick(o.vendorCd, o.vendorNm); }, onClear:function(){ venPick('',''); } }); }catch(e){}
@@ -210,11 +227,18 @@ function render(){
   ensureTail(); var h='';
   _rows.forEach(function(o,i){ calcRow(o);
     h+='<tr><td class="c ro">'+(i+1)+'</td>'
-      +'<td class="c"><span class="lnk" onclick="prodOpen('+i+')">'+(o.prodCd?esc(o.prodCd):'선택')+'</span></td>'
+      /* 줄 삭제 ✕ — 맨 앞 번호 바로 뒤 (2026-09-10 요청 — 판매·매입등록과 같은 자리. 종전엔 맨 끝 칸) */
+      +'<td class="c"><span class="del" title="이 줄 삭제" onclick="delRow('+i+')">✕</span></td>'
+      /* 코드 칸 — 빈 줄은 직접 쳐서 고른다(pin*, 2026-09-10 「매입등록하는 것처럼」). 담긴 줄은 코드를 눌러 다른 상품으로 바꾼다 */
+      +(o.prodCd
+        ? '<td class="c"><span class="lnk" title="클릭 → 다른 상품으로 바꾸기" onclick="prodOpen('+i+')">'+esc(o.prodCd)+'</span></td>'
+        : '<td class="l" style="padding:2px 3px"><div style="display:flex;align-items:center;gap:2px">'
+          +'<input class="l pin" data-r="'+i+'" placeholder="코드·상품명" autocomplete="off" oninput="pinInput(this)" onkeydown="pinKey(this,event)" onblur="pinBlur()">'
+          +'<span class="lnk" title="상품 선택 팝업으로 찾기" style="font-size:12px;text-decoration:none" onclick="prodOpen('+i+')">🔍</span></div></td>')
       +'<td class="l"><input class="l" value="'+esc(o.prodNm)+'" onchange="setv('+i+',\'prodNm\',this.value)" onclick="if(!_rows['+i+'].prodCd) prodOpen('+i+')"></td>'
       +'<td class="l"><input class="l" value="'+esc(o.spec)+'" onchange="setv('+i+',\'spec\',this.value)"></td>'
       +'<td><input value="'+fmtQ(o.packQty)+'" onchange="setv('+i+',\'packQty\',this.value)"></td>'
-      +'<td><input value="'+fmtQ(o.boxQty)+'" onchange="setv('+i+',\'boxQty\',this.value)"></td>'
+      +'<td><input data-f="boxQty" value="'+fmtQ(o.boxQty)+'" onchange="setv('+i+',\'boxQty\',this.value)"></td>'
       +'<td><input value="'+fmtQ(o.eaQty)+'" onchange="setv('+i+',\'eaQty\',this.value)"></td>'
       +'<td class="ro">'+fmtQ(o.qty)+'</td>'
       +'<td><input value="'+fmtQ(o.unitPrice)+'" onchange="setv('+i+',\'unitPrice\',this.value)"></td>'
@@ -223,10 +247,10 @@ function render(){
       +'<td class="ro">'+fmt(o.supplyAmt)+'</td><td class="ro">'+fmt(o.vatAmt)+'</td><td class="ro">'+fmt(o.totAmt)+'</td>'
       +'<td><input value="'+fmtQ(o.serviceQty)+'" onchange="setv('+i+',\'serviceQty\',this.value)"></td>'
       +'<td class="l"><input class="l" value="'+esc(o.remark)+'" onchange="setv('+i+',\'remark\',this.value)"></td>'
-      +'<td class="c"><span class="del" onclick="delRow('+i+')">✕</span></td></tr>'; });
+      +'</tr>'; });
   document.getElementById('gbody').innerHTML=h;
   var t=calcAll();
-  document.getElementById('trow').innerHTML='<td colspan="5" class="c">합계 · 품목 '+t.cnt+'</td><td>'+fmtQ(t.box)+'</td><td>'+fmtQ(t.ea)+'</td><td>'+fmtQ(t.qty)+'</td><td></td><td>'+fmt(t.amt)+'</td><td>'+fmt(t.dc)+'</td><td>'+fmt(t.sup)+'</td><td>'+fmt(t.vat)+'</td><td>'+fmt(t.tot)+'</td><td>'+fmtQ(t.svc)+'</td><td colspan="2"></td>';
+  document.getElementById('trow').innerHTML='<td colspan="6" class="c">합계 · 품목 '+t.cnt+'</td><td>'+fmtQ(t.box)+'</td><td>'+fmtQ(t.ea)+'</td><td>'+fmtQ(t.qty)+'</td><td></td><td>'+fmt(t.amt)+'</td><td>'+fmt(t.dc)+'</td><td>'+fmt(t.sup)+'</td><td>'+fmt(t.vat)+'</td><td>'+fmt(t.tot)+'</td><td>'+fmtQ(t.svc)+'</td><td></td>';   // 합계줄 = 6(#·삭제·코드·상품명·규격·입수) + … + 비고 1 = 17칸 (2026-09-10 삭제 칸 이동)
 }
 function setv(i,k,v){ var o=_rows[i]; if(!o) return; o[k]=(k==='prodNm'||k==='spec'||k==='remark')?v:n(v); render(); }
 function delRow(i){ _rows.splice(i,1); render(); }
@@ -256,7 +280,7 @@ function prodSelUpd(){ var c=_prodSel.length;
   if(s) s.innerHTML = c ? ('<b style="color:#137a6c">'+c+'개</b> 선택 — [담기]를 누르면 줄이 '+c+'개 생깁니다.')
                        : '여러 개는 왼쪽 <b>☑</b> 로 고른 뒤 [담기] — 줄을 누르면 한 개만 담고 닫힙니다.'; }
 function prodFill(o,p){ o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=p.prodNm||''; o.spec=p.spec||''; o.packQty=n(p.packQty)||1; o.unitPrice=n(p.inPrice); o.taxGb=p.taxGb||''; if(!n(o.boxQty)&&!n(o.eaQty)) o.boxQty=1; }
-function prodFocusRow(i){ var tr=document.getElementById('gbody').rows[i]; if(tr){ var inp=tr.querySelectorAll('input')[3]; if(inp){ inp.focus(); inp.select(); } } }
+function prodFocusRow(i){ var tr=document.getElementById('gbody').rows[i]; if(tr){ var inp=tr.querySelector('input[data-f="boxQty"]');   /* 몇 번째 input 으로 찾지 않는다 — 빈 줄은 코드 칸에도 input 이 있다(2026-09-10) */ if(inp){ inp.focus(); inp.select(); } } }
 function prodPick(pi){ var p=_prods[pi], o=_rows[_prodRow]; if(!p||!o) return;
   prodFill(o,p);
   prodClose(); render(); prodFocusRow(_prodRow); }
@@ -270,6 +294,66 @@ function prodAddSel(){
     prodFill(o,p); cnt++; });
   _prodSel=[]; prodClose(); render(); prodFocusRow(base);
   if(window._toast) _toast(cnt+'개 상품을 담았습니다. 수량을 입력하세요.','ok'); }
+
+/* ── 코드 칸 입력검색 (2026-09-10 「코드 직접입력 가능하게 — 매입등록하는 것처럼」) ──
+   매입등록 puPin* 과 같은 동작 : 빈 줄의 코드 칸에 치면 후보가 뜨고 ↑↓·Enter(또는 마우스)로 고른다 → 커서는 BOX 로.
+   · 찾는 곳 = 이미 들고 있는 상품마스터(_prods)의 코드·상품명·규격 + 서브코드(_extItems) — 서버를 부르지 않는다.
+     서브코드가 걸리면 **주코드로** 담고 알려 준다(매입등록과 같다 — 서브코드로 발주하면 매입전환 때 재고가 갈라진다).
+   · 후보가 없는데 Enter = 상품 선택 팝업(친 글자가 검색어로 들어간다).
+   · 드롭다운은 표 상자(.gridwrap)가 overflow 라 잘리므로 body 에 position:fixed 로 띄운다. */
+var _extItems=[], _pinRow=-1, _pinList=[], _pinIdx=-1, _pinDrop=null;
+function _pinHit(q){ return function(x){ return String(x==null?'':x).toLowerCase().indexOf(q)>=0; }; }
+function pinCands(q){
+  var out=[], seen={}, idx={};
+  for(var a=0;a<_prods.length;a++){ if(_prods[a].prodCd!=null) idx[String(_prods[a].prodCd)]=a; }
+  /* ⓐ 서브코드 — 사용자가 친 그 코드가 정확히 걸린 줄이라 맨 위에 둔다 */
+  for(var j=0;j<_extItems.length && out.length<12;j++){ var e=_extItems[j];
+    if(!e || !e.prodCd || !e.extItemCd || String(e.extItemCd)===String(e.prodCd)) continue;
+    if(![e.extItemCd, e.extItemNm].some(_pinHit(q))) continue;
+    var pi=idx[String(e.prodCd)]; if(pi==null) continue;                  // 주코드가 마스터에 없으면 담을 수 없다
+    var key='S'+e.extItemCd+'>'+e.prodCd; if(seen[key]) continue; seen[key]=1;
+    out.push({ pi:pi, viaSub:String(e.extItemCd) }); }
+  /* ⓑ 상품마스터 */
+  for(var i=0;i<_prods.length && out.length<12;i++){ var p=_prods[i]; if(!p.prodCd) continue;
+    if(![p.prodCd, p.prodNm, p.spec].some(_pinHit(q))) continue;
+    if(seen['M'+p.prodCd]) continue; seen['M'+p.prodCd]=1;
+    out.push({ pi:i }); }
+  return out; }
+function pinInput(inp){ _pinRow=+inp.dataset.r; var q=String(inp.value||'').trim().toLowerCase();
+  if(!q){ pinClose(); return; }
+  _pinList=pinCands(q); _pinIdx=_pinList.length?0:-1; pinDraw(inp); }
+function pinDraw(inp){
+  if(!_pinDrop){ _pinDrop=document.createElement('div');
+    _pinDrop.style.cssText='position:fixed;z-index:400;background:#fff;border:1px solid #cfd8e3;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.18);font-size:12.5px;max-height:260px;overflow:auto';
+    document.body.appendChild(_pinDrop); }
+  if(!_pinList.length){ pinClose(); return; }
+  var rc=inp.getBoundingClientRect();
+  _pinDrop.style.left=rc.left+'px'; _pinDrop.style.top=(rc.bottom+2)+'px'; _pinDrop.style.minWidth=Math.max(420, rc.width)+'px';
+  _pinDrop.innerHTML=_pinList.map(function(it,k){ var p=_prods[it.pi]||{}, on=(k===_pinIdx);
+    var badge=it.viaSub ? '<span style="flex:0 0 auto;padding:0 5px;border-radius:8px;background:#fdecea;color:#c0392b;font-size:11px;font-weight:800">서브 '+esc(it.viaSub)+' →</span>' : '';
+    return '<div onmousedown="pinPickMd(event,'+k+')" style="display:flex;gap:8px;padding:6px 10px;cursor:pointer;white-space:nowrap;'+(on?'background:#e9f4f1;':(it.viaSub?'background:#fffaf9;':''))+'">'
+      + badge
+      + '<b style="min-width:100px;color:#137a6c">'+esc(p.prodCd)+'</b>'
+      + '<span style="flex:1;text-align:left;color:#1f2a37">'+esc(p.prodNm)+'</span>'
+      + '<span style="min-width:96px;color:#8a97a4">'+esc(p.spec||'')+'</span>'
+      + '<span style="min-width:40px;text-align:right;color:#8a97a4">['+fmtQ(p.packQty||1)+']</span>'
+      + '<span style="min-width:66px;text-align:right;color:#37475a">'+(p.inPrice!=null&&p.inPrice!==''?fmt(p.inPrice):'')+'</span>'
+      + '</div>'; }).join('');
+  _pinDrop.style.display='block'; }
+function pinKey(inp, e){
+  if(e.key==='ArrowDown'){ e.preventDefault(); if(_pinList.length){ _pinIdx=Math.min(_pinList.length-1,_pinIdx+1); pinDraw(inp); } }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); if(_pinList.length){ _pinIdx=Math.max(0,_pinIdx-1); pinDraw(inp); } }
+  else if(e.key==='Enter'){ e.preventDefault();
+    if(_pinList.length && _pinIdx>=0) pinPick(_pinIdx);
+    else { var q=inp.value||''; pinClose(); prodOpen(+inp.dataset.r); if(q){ document.getElementById('prodQ').value=q; prodRender(); } } }   // 후보가 없으면 팝업으로
+  else if(e.key==='Escape'){ pinClose(); } }
+function pinPickMd(e, k){ e.preventDefault(); pinPick(k); }
+function pinPick(k){ var it=_pinList[k], row=_pinRow; pinClose(); if(!it) return;
+  var o=_rows[row], p=_prods[it.pi]; if(!o || !p) return;
+  prodFill(o,p); render(); prodFocusRow(row);                              // 담은 뒤 커서는 BOX
+  if(it.viaSub && window._toast) _toast('서브코드 '+it.viaSub+' → 주코드 '+p.prodCd+' 로 담았습니다.','ok'); }
+function pinClose(){ if(_pinDrop) _pinDrop.style.display='none'; _pinList=[]; _pinIdx=-1; }
+function pinBlur(){ setTimeout(pinClose, 150); }
 
 /* ── 머리 ── */
 function poNew(){ _cur=null; _rows=[]; document.getElementById('poDt').value=today(); venPick('',''); document.getElementById('remark').value=''; document.getElementById('poNo').value=''; poDtChanged(); render(); setButtons(); document.getElementById('stat').textContent='새 발주서'; }
@@ -383,6 +467,8 @@ function cvGo(){ if(!_cur) return; var dt=document.getElementById('cvDt').value;
 /* ── 시작 ── */
 (function(){ var d=new Date(); document.getElementById('toDt').value=today(); d.setDate(1); document.getElementById('frDt').value=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-01'; })();
 loadMasters(); poNew(); poLoad();
+/* 코드 칸 후보 목록은 fixed 로 떠 있으므로 표를 굴리거나 창 크기가 바뀌면 닫는다 (2026-09-10) */
+(function(){ var g=document.querySelector('.gridwrap'); if(g) g.addEventListener('scroll', pinClose); window.addEventListener('resize', pinClose); })();
 </script>
 </body>
 </html>

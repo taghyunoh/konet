@@ -9,6 +9,11 @@
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260805"></script>
+<%-- 팝업 창 끌어 옮기기 (2026-09-10) — 제목줄을 잡고 끈다 · 더블클릭 = 처음 자리 (asset/js/ui-popdrag.js 머리말) --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>
+<%-- 상단 명세 표 높이 막대 (2026-09-10) — 합계줄 밑 막대를 아래로 끌면 늘고 위로 끌면 준다 (asset/js/ui-gridgrip.js 머리말) --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>
+<script type="text/javascript">konetPopDrag('.pu-pop'); konetGridGrip('puGridWrap', 'puFootWrap', 'purchaseReg');</script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-quick.js"></script>
 <!--
   매입등록 — 홀세일닥터 매입등록 이관 (2026-07-25 신설)
@@ -39,19 +44,21 @@
   .pu-bal b{ font-size:15px; color:#c0392b; }
   /* 명세 그리드 */
   /* 상단 명세 그리드 — 행수가 늘어도 화면이 안 흔들리게 높이 고정(2026-07-25 요청) */
-  /* 기본 210px, ★아래 모서리를 끌어 늘리고 줄일 수 있다(2026-08-04 — 판매등록과 동일) */
+  /* 기본 210px. 종전엔 아래 모서리(resize)로 늘리고 줄였다(2026-08-04 — 판매등록과 동일).
+     ★[2026-09-10] 합계줄 밑 <높이 막대>로 바꿨다(ui-gridgrip.js — 모서리는 거기서 끈다) : 아래로 끌면 늘고 위로 끌면 준다 ·
+       [▲ 줄이기][▼ 늘리기] · 더블클릭 = 이 210px · 고른 높이는 기억. 아래 max-height 도 막대가 풀어 창의 92% 까지. */
   .pu-grid{ height:210px; min-height:112px; max-height:70vh; resize:vertical;
             overflow:auto; scrollbar-gutter:stable; border:1px solid var(--pu-bd); border-radius:8px 8px 0 0; }
   /* 합계 — 그리드 바로 밑 고정. 가로 스크롤은 JS 가 그리드와 맞춘다 */
   .pu-foot{ overflow:hidden; scrollbar-gutter:stable; border:1px solid var(--pu-bd); border-top:0; border-radius:0 0 8px 8px; }
   /* ★그리드 표와 합계 표의 칸 맞춤(2026-08-04 — 판매등록과 동일한 방식):
-       두 표 모두 table-layout:fixed + 같은 colgroup + 같은 min-width(colgroup 합 1740px).
+       두 표 모두 table-layout:fixed + 같은 colgroup + 같은 min-width(colgroup 합 1764px — 2026-09-10 행 조작 칸 82→106, ✖ 삭제가 들어오며).
        화면이 그보다 넓으면 width:100% 로 우측 끝까지 늘어난다 — 남는 폭은 두 표가 같은 비율로
        나눠 갖고, scrollbar-gutter 로 세로 스크롤바 자리도 똑같이 예약해 어느 쪽도 밀리지 않는다. */
-  .pu-foot table{ width:100%; min-width:1740px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
+  .pu-foot table{ width:100%; min-width:1764px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .pu-foot td{ border:1px solid var(--pu-bd); padding:6px 4px; text-align:center; background:#137a6c; color:#fff; font-weight:800; }
   .pu-foot td.num{ text-align:right; }
-  .pu-grid table{ width:100%; min-width:1740px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
+  .pu-grid table{ width:100%; min-width:1764px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .pu-grid th{ background:#b9ded4; color:#0b4f43; font-weight:800; box-shadow:inset 0 -2px 0 #0e6657; border:1px solid var(--pu-bd); padding:7px 6px; position:sticky; top:0; z-index:2; }
   /* 컬럼 폭 조절 손잡이 — 머리글 오른쪽 경계를 끌면 그 칼럼이 늘고 줄어든다(bindColResize) */
   .pu-colrz{ position:absolute; top:0; right:-4px; width:8px; height:100%; cursor:col-resize; z-index:4; }
@@ -88,6 +95,9 @@
   .pu-grid td.ops span{ display:inline-block; width:20px; height:20px; line-height:19px; margin:0 1px;
                         border:1px solid var(--pu-bd); border-radius:4px; cursor:pointer; font-size:11px; color:#37475a; background:#fff; }
   .pu-grid td.ops span:hover{ border-color:var(--pu-teal); color:var(--pu-teal); }
+  /* 줄 삭제 ✖ — 맨 앞 번호 바로 뒤로 옮겼다(2026-09-10 요청, 종전엔 맨 끝 거래구분 칸). 빨강 + 옆 ＋ 와 조금 띄움 */
+  .pu-grid td.ops span.del{ color:#c0392b; border-color:#e3b4ae; margin-right:5px; }
+  .pu-grid td.ops span.del:hover{ color:#c0392b; border-color:#c0392b; background:#fdecea; }
   .pu-grid .hist{ cursor:pointer; font-size:13px; }
   .pu-grid .hist:hover{ filter:brightness(1.3); }
   /* 하단 목록 */
@@ -169,9 +179,9 @@
          가로 스크롤은 JS 로 동기화한다. --%>
     <div class="pu-grid" id="puGridWrap">
       <table>
-        <colgroup><col style="width:38px"><col style="width:82px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
+        <colgroup><col style="width:38px"><col style="width:106px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
         <thead><tr>
-          <th>No</th><th>행(＋삽입/▲▼)</th><th>상품코드</th><th>품명(단가이력조회)</th>
+          <th>No</th><th title="✖ 이 줄 삭제 · ＋ 이 줄 위에 삽입 · ▲▼ 순서 바꾸기">행(✖/＋/▲▼)</th><th>상품코드</th><th>품명(단가이력조회)</th>
           <th>[입수량]규격</th><th>BOX수량</th><th>EA수량</th>
           <th>합계수량</th><th>단가</th><th>금액</th>
           <th>DC</th><th>공급가</th><th>부가세</th>
@@ -184,7 +194,7 @@
     <div id="puGridPager" style="padding:5px 2px 0; text-align:center; min-height:22px"></div>
     <div class="pu-foot" id="puFootWrap">
       <table>
-        <colgroup><col style="width:38px"><col style="width:82px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
+        <colgroup><col style="width:38px"><col style="width:106px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
         <tbody><tr class="tot">
           <td colspan="5">■ 합계</td>
           <td class="num" id="tBox">0</td><td class="num" id="tEa">0</td><td class="num" id="tQty">0</td>
@@ -767,6 +777,7 @@ function puRender(){
            ＋ = 이 줄 '위'에 빈 줄 삽입 / ▲▼ = 순서 바꾸기.
          (예전 ＋ 는 상품선택이었다. 상품선택은 아래 상품코드 칸을 눌러 그대로 쓴다) */
       + '<td class="ops">'
+      +   '<span class="del" title="이 줄 삭제" onclick="puDelRow('+i+')">✖</span>'   // 번호 바로 뒤 (2026-09-10 — 종전 맨 끝)
       +   '<span title="이 줄 위에 새 줄 삽입" onclick="puInsRow('+i+')">＋</span>'
       +   '<span title="한 줄 위로" onclick="puMoveRow('+i+',-1)">▲</span>'
       +   '<span title="한 줄 아래로" onclick="puMoveRow('+i+',1)">▼</span>'
@@ -806,8 +817,7 @@ function puRender(){
       + '<td><input class="txt" data-r="'+i+'" data-f="remark" value="'+esc(o.remark)+'" onchange="puSet('+i+',\'remark\',this.value)"></td>'
       + '<td><input type="checkbox" '+(o.eventYn==='Y'?'checked':'')+' onchange="puSet('+i+',\'eventYn\',this.checked?\'Y\':\'N\')"></td>'
       + '<td><select onchange="puSet('+i+',\'trxGb\',this.value)" style="border:0;background:transparent;font-size:12.5px">'
-      +   '<option '+(o.trxGb==='매입'?'selected':'')+'>매입</option><option '+(o.trxGb==='반품'?'selected':'')+'>반품</option></select>'
-      +   ' <span class="del" onclick="puDelRow('+i+')">✖</span></td>'
+      +   '<option '+(o.trxGb==='매입'?'selected':'')+'>매입</option><option '+(o.trxGb==='반품'?'selected':'')+'>반품</option></select></td>'
       + '</tr>';
   });
   document.getElementById('puBody').innerHTML = h;
