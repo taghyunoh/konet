@@ -43,6 +43,36 @@
 - 검증 : 컴파일 OK · 로컬 9072 실측(로그인 화면·세션 false·정적 파일 200·로그아웃 302) · 실데이터를 목(fetch)으로 넣어 390px 화면 렌더 확인.
   ⚠헤드리스 Chrome/Edge 는 창을 500px 밑으로 못 줄여 390 폭 캡처가 **잘려 보인다** — iframe(390px) 안에 넣어 찍을 것.
 
+## ★[완료 2026-09-11] 모바일 실업무 3화면 — 판매등록 · 수금·지급 · 재고·상품 (+ PC 링크 제거)
+사용자 요청 *「기존내용에 실업무도 적용해서 (pc 연결은 제거)」* → 고른 기능 = **판매등록 · 수금·지급 등록 · 재고·상품 조회**, PC 연결 = **「PC 화면으로 열기」 링크만 삭제**(login·index 두 곳).
+- **화면 4장 + 아래 탭**(요약 | 판매등록 | 수금·지급 | 재고·상품) : `/m/index.do` · `/m/sales.do` · `/m/settle.do?gb=RCV|PAY` · `/m/stock.do`
+  (JSP = `WEB-INF/jsp/m/{index,sales,settle,stock}.jsp`, 로그인 전이면 `/m/login.do` 로 302).
+- **공통 = [m/m.css](src/main/webapp/m/m.css) · [m/m.js](src/main/webapp/m/m.js)** — 도우미·요청(`M.form`/`M.json`)·아래 탭·선택 창(`M.sheet`/`M.sheetHtml`)·거래처 선택(`M.pickVendor`)·잔고(`M.balance`).
+  고치면 각 JSP 의 `?v=` 를 올릴 것. ★`[hidden]{display:none!important}` 가 m.css 맨 위에 있다 — 빼면 display 를 준 칸(.tiles·.btnrow·.btn)이 숨김을 무시한다(캡처로 실제 확인).
+- ★★**저장·조회는 PC 와 같은 엔드포인트·같은 모양** — 새 SQL·새 저장 로직 없음 :
+  판매 = `/mangr/salesTrxSave.do`(JSON, PC `saSave` DTO 그대로) · 목록 `salesTrxList` · 불러오기 `salesTrxDetail` · 삭제 `salesTrxDelete` · 최근단가 `salesLastPrice`(vendorCd 는 remark 칸) · 거래처 품명 `xrefNames`
+  / 수금·지급 = `/mangr/settleSave.do`(JSON) · `settleList` · `settleDelete` / 잔고 = `custLedger` 누계 / 재고 = `/prod/stockAdjList.do`(규격·입수·BOX·EA) + `prodList`(가격) + `stockList`(최근 입출고) + `extItemList`(서브코드→주코드).
+  ⚠**PC 쪽 계산 규칙이 바뀌면 sales.jsp 의 `calcRow`/`calc`(= PC `saCalcRow`/`saCalc`)·옛 전표 보정(= PC `saApply`)도 같이.**
+- **판매 규칙(PC 와 동일)** : 합계 = BOX×입수+EA · 부가세 = 거래처 VAT_GB × 품목 과세 · 반품은 양수 + 「반품」(합계에서 −) · 새 전표는 `saleNo:''`(서버가 번호) ·
+  ★저장된 전표를 고칠 때 **판매일자 잠금**(서버가 옛 재고 원장을 «새 일자+번호»로 지워 일자를 바꾸면 옛 행이 남는다). PC 와 다른 점 하나 — 불러온 줄의 과세여부를 PC 는 `과세` 로 박지만 모바일은 **상품마스터 taxGb** 를 쓴다.
+  모바일에서 **안 넣은 것** : 거래처 매칭코드(extCd 는 null) · 줄 할인 입력 · 납품일자 · 거래명세표 보내기 · 카톡 주문.
+- ★★**서버 가드 [MobileGuardFilter](src/main/java/egovframework/sejong/mobile/web/MobileGuardFilter.java)**(web.xml `*.do`) — 요청에 헤더 `X-Konet-M` 가 있는데 세션이 없으면 **401 `{"ok":false,"login":true}`**.
+  m.js 가 모든 요청에 이 헤더를 단다 → 세션이 끊긴 채 저장해 **기본 회사(W1234567)로 들어가는 사고**와 전 회사 자료 조회를 막는다. `/user/loginChk.do`·`/m/*` 는 예외.
+  **헤더 없는 요청(PC 화면)은 그대로 통과** — PC 쪽 엔드포인트 무방비는 여전히 별건.
+- ★응답 풀기 = `M.body` — `ResponseEntity<String>` 저장 응답이 **한 번 더 JSON 문자열로 싸여** 올 수 있어(변환기가 Jackson 하나) 두 겹까지 벗긴다.
+- manifest `shortcuts`(판매등록·수금·재고 — 앱 아이콘 길게 누르기) · 서비스워커 `VER = konet-m-20260911b`.
+- **입수수량 표시**(같은 날 요청) : 판매 품목 카드 = `BOX | 입수 | EA | 단가` 네 칸 — 입수는 **상품마스터 값, 읽기 전용**(PC 판매등록도 `[48]` 표시만 한다) ·
+  합계 옆에 식 `(2×48+0)`(`fx()`) · 품목 추가 창·재고 목록에도 굵게 `입수 N`.
+- ★**태블릿 반응형**(같은 날 「태블릿에서도 쓸 예정」) — m.css 맨 아래 `@media (min-width:768px)` : 폭 상한 `--wmax` 560 → **1120px** ·
+  판매등록 = 왼쪽(전표·결제·합계) | 오른쪽(품목) · 수금·지급 = 왼쪽(입력) | 오른쪽(목록) · 요약 = 카드 두 단(`.lay2`) · 재고·판매 목록 = 두 단(`.list.cols2`).
+  ★HTML 은 한 벌 — `.cols > .colL/.colR` 가 폰에서는 `display:contents` 로 사라지고 카드가 `.o1~.o4` 순서로 쌓인다(판매 = 전표→품목→결제→합계).
+  카드를 더하면 **순서 클래스(o1~)** 도 같이 줄 것. 날짜·탭·검색줄은 560px 로 두고 제목 왼쪽 끝에 맞춘다.
+  검증 : 390 · 820(세로) · 1180(가로) 캡처 + 저장 DTO 재실측 동일.
+- 검증 : `mvn -o compile` OK · 로컬 9072 실측(새 화면 3개 무세션 302 · 헤더 달린 조회·저장 무세션 **401** · 헤더 없는 PC 요청 200 · m.js/m.css/manifest 200) ·
+  **모의 fetch 시나리오(헤드리스 Chrome)** — 판매 DTO 가 PC 식과 일치(용기 BOX2×48=96×250=26,400 + 뚜껑 반품 −9,680 = 16,720 · 머리 합계 부호) · 최근단가·거래처 품명 반영 ·
+  옛 전표 보정·일자 잠금 · 수금 DTO · 서브코드 → 주코드 · 390px 캡처(iframe). ⚠**실제 로그인 상태의 저장은 아직 실측 안 함**(계정 없음) — 첫 저장은 PC 화면에서 결과를 대조할 것.
+- **배포 : 자바(필터·컨트롤러) + web.xml 변경 → WAR 재빌드 + 재기동.** (로컬 9072 는 reloadable 이라 compile 이면 다시 올라온다)
+
 - 아래 내용은 **web 에서 가져온 이력**(2026-09-11 시점)이다. 이후 app 쪽 변경은 이 절 아래에 새로 적는다.
 
 ---

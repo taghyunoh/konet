@@ -13,8 +13,9 @@ import org.springframework.web.bind.annotation.ResponseBody;
 /**
  * 모바일(PWA) 화면 — /m/*.do  (konet_vsapp 전용, 2026-09-11 신설)
  *
- * 화면은 JSP 두 장뿐이다 : /WEB-INF/jsp/m/login.jsp · /WEB-INF/jsp/m/index.jsp (tiles .raw 패턴 — tiles 수정 없음).
- * 자료는 PC 화면이 쓰는 기존 조회(*.do)를 그대로 부른다 — 금액 규칙을 두 벌로 만들지 않기 위함.
+ * 화면 = /WEB-INF/jsp/m/ 의 login · index(요약) · sales(판매등록) · settle(수금·지급) · stock(재고·상품) (tiles .raw 패턴 — tiles 수정 없음).
+ * 자료·저장은 PC 화면이 쓰는 기존 엔드포인트(*.do)를 그대로 부른다 — 금액·재고 규칙을 두 벌로 만들지 않기 위함.
+ * 모바일 화면이 보내는 요청은 MobileGuardFilter 가 세션을 확인한다(헤더 X-Konet-M).
  *
  * ★/m/session.do 가 필요한 이유 : 기존 조회 엔드포인트는 세션을 보지 않는다.
  *   세션이 끊긴 채 부르면 compCd 가 빈 값이 되어 SQL 의 fail-open 조건을 타고 «전 회사» 자료가 온다.
@@ -31,6 +32,24 @@ public class MobileController {
 	@RequestMapping(value = "/m/index.do")
 	public String index(HttpSession session) {
 		return loggedIn(session) ? ".raw/m/index" : ".raw/m/login";
+	}
+
+	/** 판매등록 — 저장은 PC 와 같은 /mangr/salesTrxSave.do */
+	@RequestMapping(value = "/m/sales.do")
+	public String sales(HttpSession session) {
+		return loggedIn(session) ? ".raw/m/sales" : "redirect:/m/login.do";
+	}
+
+	/** 수금·지급 등록(?gb=RCV|PAY) — 저장은 PC 와 같은 /mangr/settleSave.do */
+	@RequestMapping(value = "/m/settle.do")
+	public String settle(HttpSession session) {
+		return loggedIn(session) ? ".raw/m/settle" : "redirect:/m/login.do";
+	}
+
+	/** 재고·상품 조회 */
+	@RequestMapping(value = "/m/stock.do")
+	public String stock(HttpSession session) {
+		return loggedIn(session) ? ".raw/m/stock" : "redirect:/m/login.do";
 	}
 
 	/** 모바일 로그인 화면 — 실제 로그인은 PC 와 같은 /user/loginChk.do 를 쓴다 */

@@ -14,6 +14,17 @@
     <filter-name>encodingFilter</filter-name>
     <url-pattern>*.do</url-pattern>
   </filter-mapping>
+  <!-- konet_vsapp : 모바일(PWA) 요청 가드 — 헤더 X-Konet-M 가 달린 요청인데 로그인 세션이 없으면 401.
+       기존 엔드포인트는 세션을 안 봐서 끊긴 세션으로 저장하면 기본 회사로 들어간다(MobileGuardFilter 주석).
+       헤더가 없는 요청(PC 화면)은 그대로 통과한다. -->
+  <filter>
+    <filter-name>mobileGuardFilter</filter-name>
+    <filter-class>egovframework.sejong.mobile.web.MobileGuardFilter</filter-class>
+  </filter>
+  <filter-mapping>
+    <filter-name>mobileGuardFilter</filter-name>
+    <url-pattern>*.do</url-pattern>
+  </filter-mapping>
   <!-- 다중회사(멀티테넌트) — 로그인 세션(s_comp_cd)의 회사코드를 요청 스레드에 실어
        MyBatis 인터셉터(CompCdMybatisInterceptor)가 모든 SQL 에 compCd 를 자동 주입하게 한다 -->
   <filter>

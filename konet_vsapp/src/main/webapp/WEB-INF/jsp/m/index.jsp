@@ -16,70 +16,17 @@
 <link rel="manifest" href="<%=request.getContextPath()%>/m/manifest.json">
 <link rel="apple-touch-icon" href="<%=request.getContextPath()%>/m/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20260911b">
 <script src="<%=request.getContextPath()%>/asset/js/ui-message.js"></script>
+<script src="<%=request.getContextPath()%>/m/m.js?v=20260911b"></script>
 <style>
-  :root{ --teal:#137a6c; --teal-d:#0e6657; --teal-l:#eaf2f0; --bd:#dbe4e1; --ink:#1f2a37; --mute:#6b7785;
-         --bg:#f4f7f6; --card:#fff; --red:#c62828; --blue:#1f5fbf; --amber:#a15c00; }
-  *{ box-sizing:border-box; }
-  html,body{ margin:0; background:var(--bg); color:var(--ink);
-    font-family:"Pretendard Variable",Pretendard,"Malgun Gothic",sans-serif; -webkit-text-size-adjust:100%; }
-  .num,.tile b,.row .v{ font-variant-numeric:tabular-nums; }
-
-  header{ position:sticky; top:0; z-index:10; background:var(--teal); color:#fff;
-    padding:calc(10px + env(safe-area-inset-top)) 14px 10px; }
-  .hd1{ display:flex; align-items:center; gap:10px; max-width:560px; margin:0 auto; }
-  .hd1 h1{ margin:0; font-size:18px; font-weight:800; }
-  .hd1 .who{ flex:1; font-size:12px; opacity:.85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .hd1 button{ background:rgba(255,255,255,.16); color:#fff; border:0; border-radius:8px; height:32px; padding:0 10px;
-    font:inherit; font-size:13px; }
-  .datebar{ display:flex; align-items:center; gap:6px; max-width:560px; margin:10px auto 0; }
-  .datebar button{ height:38px; min-width:38px; border:0; border-radius:8px; background:rgba(255,255,255,.16); color:#fff;
-    font:inherit; font-size:15px; }
-  .datebar input{ flex:1; height:38px; border:0; border-radius:8px; padding:0 10px; font:inherit; font-size:16px;
-    color:var(--ink); background:#fff; min-width:0; }
-  .datebar .today{ padding:0 12px; font-size:14px; }
-
-  main{ max-width:560px; margin:0 auto; padding:12px 12px calc(24px + env(safe-area-inset-bottom)); }
-  .card{ background:var(--card); border:1px solid var(--bd); border-radius:14px; padding:14px; margin-bottom:12px; }
-  .card h2{ display:flex; align-items:baseline; gap:8px; margin:0 0 10px; font-size:16px; font-weight:800; color:var(--teal-d); }
-  .card h2 small{ font-size:12px; font-weight:500; color:var(--mute); }
-  .card h2 .badge{ margin-left:auto; font-size:12px; font-weight:700; padding:3px 8px; border-radius:20px;
-    background:#fff4e0; color:var(--amber); }
-  .card h2 .badge.ok{ background:var(--teal-l); color:var(--teal-d); }
-
-  .tiles{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  .tile{ background:#f8fbfa; border:1px solid #e6eeeb; border-radius:10px; padding:9px 11px; min-width:0; }
-  .tile span{ display:block; font-size:12px; font-weight:600; color:var(--mute); }
-  .tile b{ display:block; font-size:19px; font-weight:800; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .tile b.long{ font-size:16px; letter-spacing:-.2px; }
-  .tile b.red{ color:var(--red); } .tile b.blue{ color:var(--blue); } .tile b.teal{ color:var(--teal-d); }
-  .tile em{ display:block; font-style:normal; font-size:11.5px; color:var(--mute); margin-top:1px; }
-
-  .note{ font-size:12px; color:var(--mute); margin:8px 0 0; line-height:1.45; }
-  .list{ margin-top:10px; border-top:1px solid #edf2f0; }
-  .row{ display:flex; align-items:center; gap:8px; padding:8px 2px; border-bottom:1px solid #edf2f0; font-size:14px; }
-  .row .k{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .row .k small{ display:block; font-size:11.5px; color:var(--mute); white-space:normal; }
-  .row .v{ font-weight:700; white-space:nowrap; text-align:right; }
-  .row .v small{ display:block; font-weight:500; font-size:11.5px; color:var(--mute); }
-  .bar{ height:5px; border-radius:3px; background:#e6eeeb; margin-top:4px; overflow:hidden; }
-  .bar i{ display:block; height:100%; background:var(--teal); border-radius:3px; }
-  .jk{ color:var(--red); }
-
-  details{ margin-top:10px; }
-  details summary{ cursor:pointer; font-size:13.5px; font-weight:700; color:var(--teal-d); padding:6px 0; list-style:none; }
-  details summary::-webkit-details-marker{ display:none; }
-  details summary::before{ content:'▸ '; }
-  details[open] summary::before{ content:'▾ '; }
-  .h3{ margin:10px 0 0; font-size:13px; color:var(--mute); }
-
   .btn2{ display:inline-block; margin-top:10px; height:34px; padding:0 14px; border:1px solid var(--teal); border-radius:8px;
     background:#fff; color:var(--teal-d); font:inherit; font-size:14px; font-weight:700; }
-  .loading{ color:var(--mute); font-size:13px; padding:10px 0; }
-  .err{ color:var(--red); font-size:13px; padding:8px 0; }
-  .err button{ margin-left:6px; border:1px solid var(--red); background:#fff; color:var(--red); border-radius:6px; height:28px; font:inherit; font-size:12.5px; }
-  footer{ text-align:center; font-size:12px; color:var(--mute); padding:4px 0 10px; }
-  footer a{ color:var(--mute); }
+  .quick{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:12px; }
+  .quick a{ display:flex; flex-direction:column; align-items:center; gap:4px; padding:12px 4px; border-radius:12px; background:#fff;
+    border:1px solid var(--bd); text-decoration:none; color:var(--teal-d); font-size:13px; font-weight:800; }
+  .quick a i{ font-style:normal; font-size:22px; }
+  @media (min-width:768px){ .quick a{ flex-direction:row; justify-content:center; gap:8px; font-size:15px; padding:14px 4px; } }
 </style>
 </head>
 <body>
@@ -88,7 +35,7 @@
     <h1>코네트</h1>
     <div class="who" id="who"></div>
     <button type="button" onclick="loadAll()" title="다시 불러오기">↻</button>
-    <button type="button" onclick="mLogout()">로그아웃</button>
+    <button type="button" onclick="M.logout()">로그아웃</button>
   </div>
   <div class="datebar">
     <button type="button" onclick="shiftDay(-1)" aria-label="전날">◀</button>
@@ -98,37 +45,23 @@
   </div>
 </header>
 
-<main>
+<main class="lay2"><%-- 태블릿 = 카드 두 단(m.css .lay2) --%>
+  <nav class="quick span" aria-label="바로 가기">
+    <a href="<%=request.getContextPath()%>/m/sales.do"><i>🧾</i>판매등록</a>
+    <a href="<%=request.getContextPath()%>/m/settle.do?gb=RCV"><i>💰</i>수금</a>
+    <a href="<%=request.getContextPath()%>/m/settle.do?gb=PAY"><i>💸</i>지급</a>
+  </nav>
   <section class="card"><h2>📒 그날 장부 <small id="dayLbl"></small></h2><div id="cDay" class="loading">불러오는 중…</div></section>
   <section class="card"><h2>💰 이번 달 매출 <small id="monLbl"></small><span class="badge" id="closeBadge" hidden></span></h2><div id="cMon" class="loading">불러오는 중…</div></section>
   <section class="card"><h2>🚚 출고 <small id="shipLbl"></small></h2><div id="cShip" class="loading">불러오는 중…</div></section>
   <section class="card"><h2>📊 받을금액 · 지급할금액 <small id="balLbl"></small></h2><div id="cBal" class="loading">불러오는 중…</div></section>
   <section class="card"><h2>📦 재고</h2><div id="cStk" class="loading">불러오는 중…</div></section>
-  <footer><a href="<%=request.getContextPath()%>/konet.do">PC 화면으로 열기</a></footer>
 </main>
 
 <script>
-var CTX = '<%=request.getContextPath()%>';
-if (typeof window._alertBox !== 'function') { window._alertBox = function(m){ alert(String(m).replace(/<[^>]*>/g,'')); }; }
-if (typeof window._confirmBox !== 'function') { window._confirmBox = function(o){ if(confirm(String(o.msg).replace(/<[^>]*>/g,''))&&o.onOk) o.onOk(); }; }
-
-/* ---------- 도우미 ---------- */
-function $(id){ return document.getElementById(id); }
-function n(v){ v=+v; return isFinite(v) ? v : 0; }
-function fmt(v){ v=Math.round(n(v)); return v===0 ? '—' : v.toLocaleString('ko-KR'); }          // 화면 규칙 6 : 빈 값은 —
-function fmtQ(v){ v=Math.round(n(v)*10)/10; return v===0 ? '—' : v.toLocaleString('ko-KR'); }
-function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-function pad(x){ return (x<10?'0':'')+x; }
-function ymd(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
-function ym6(s){ return String(s||'').replace(/-/g,'').slice(0,6); }
-function lblDay(s){ var d=new Date(s+'T00:00:00'); return (d.getMonth()+1)+'월 '+d.getDate()+'일 ('+'일월화수목금토'.charAt(d.getDay())+')'; }
-function lblMon(s){ return s.slice(0,4)+'년 '+(+s.slice(5,7))+'월'; }
-function post(url, params){
-  var b=Object.keys(params||{}).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(params[k]); }).join('&');
-  return fetch(CTX+url,{ method:'POST', credentials:'same-origin',
-      headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:b })
-    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
-}
+/* ---------- 도우미 (m/m.js 공용) ---------- */
+var $=M.$, n=M.n, fmt=M.fmt, fmtQ=M.fmtQ, esc=M.esc, ymd=M.ymd, ym6=M.ym6, lblDay=M.lblDay, lblMon=M.lblMon;
+var post=M.form;   // ★모바일 헤더(X-Konet-M)를 달아 보낸다 — 세션이 끊겼으면 서버가 401 로 막는다
 function errHtml(fnName){ return '<div class="err">불러오지 못했습니다.<button type="button" onclick="'+fnName+'()">다시</button></div>'; }
 function tile(lbl, v, cls, em){   // 12자 넘는 값(10억 단위 금액)은 한 단계 작게 — 반칸 폭에서 잘리지 않게
   var c=(cls||'')+(String(v).length>11?' long':'');
@@ -144,15 +77,12 @@ var _lastLoad = 0;
 function loadAll(){
   _lastLoad = Date.now();
   post('/m/session.do',{}).then(function(s){
-    if(!s.ok){ location.replace(CTX+'/m/login.do'); return; }
+    if(!s.ok){ location.replace(M.CTX+'/m/login.do'); return; }
     $('who').textContent = (s.compNm||'') + (s.userNm ? ' · '+s.userNm : '');
     loadDay(); loadMon(); loadShip(); loadBal(); loadStk();
   }).catch(function(){
     ['cDay','cMon','cShip','cBal','cStk'].forEach(function(id){ $(id).innerHTML='<div class="err">서버에 연결하지 못했습니다.<button type="button" onclick="loadAll()">다시</button></div>'; });
   });
-}
-function mLogout(){
-  _confirmBox({ msg:'로그아웃할까요?', icon:'🚪', okText:'로그아웃', onOk:function(){ location.href=CTX+'/m/logout.do'; } });
 }
 
 /* ① 그날 장부 = 일계장(selectDayBook). dt='00000000'(전일 누계) 줄은 버린다.
@@ -309,11 +239,11 @@ function loadNeg(btn){
 }
 
 /* ---------- 시작 ---------- */
+M.tabbar('index');
 $('dt').value=D;
 loadAll();
 // 앱으로 돌아왔을 때 5분 넘게 지났으면 새로 부른다(세션 확인 포함)
 document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible' && Date.now()-_lastLoad>300000) loadAll(); });
-if('serviceWorker' in navigator){ navigator.serviceWorker.register(CTX+'/m/sw.js',{scope:CTX+'/m/'}).catch(function(){}); }
 </script>
 </body>
 </html>
