@@ -3192,6 +3192,9 @@
     <div class="sub-menu" id="sub-baseinfo">
       <a class="mi" data-key="vendor"  onclick="logiFrame('vendor','${pageContext.request.contextPath}/mangr/vendorMng.do', this)"><span class="ic">🧾</span>매입/매출 거래처</a>
       <a class="mi" data-key="client"  onclick="logiFrame('client','${pageContext.request.contextPath}/mangr/clientMng.do', this)"><span class="ic">🤝</span>거래처관리(사업장)</a>
+      <%-- 회사 정보 수정 (2026-09-11) = <모든 회사>가 자기 회사 정보·도장·기능·거래명세서 인쇄 옵션을 고친다.
+           관리자 전용 「회사/사용자 관리」와 별개 — 서버는 세션 회사코드로만 읽고 쓴다. --%>
+      <a class="mi" data-key="compinfo" onclick="logiFrame('compinfo','${pageContext.request.contextPath}/mangr/compInfo.do', this)"><span class="ic">🏷</span>회사 정보 수정</a>
       <%-- 회사/사용자 관리 + 공통코드 관리 = 관리자 회사(TBL_COMP_MST.COMMST_YN='Y')만 노출 (2026-07-31).
            서버측도 /mangr/compcd.do · /base/commcd.do 에서 s_admin_yn 가드로 직접 URL 접근 차단. --%>
       <% if ("Y".equals(session.getAttribute("s_admin_yn"))) { %>
@@ -3771,7 +3774,9 @@
           <tr><td class="m">상품코드등록 · <br>상품(품목)관리</td><td><b>상품코드등록</b>=목록+등록 전용(하단 거래처 매칭코드) · <b>상품(품목)관리</b>=행 클릭 → 아래 <b>이력/재고</b> 4탭에서 <b>매입가·판매가 이력</b>과 <b>재고 수불(입·출고·조정·반품)</b> 등록. 둘 다 같은 마스터(TBL_PROD_MST).
             <span style="color:#5a6b7a">두 화면의 <b>추가</b> 창에는 코드 칸 아래에 <b>최근 등록 상품코드·상품명</b>과 <b>9번대 마지막 코드 → 새 코드</b>가 나옵니다. ★<b>새로 만드는 상품코드는 9로 시작</b>합니다(원천 코드 <b>1000…</b> 번대와 부딪히지 않게) — 창을 열면 새 코드가 <b>미리 들어가 있고</b>, 그대로 저장하거나 직접 쳐서 바꿀 수 있습니다(원천 코드 직접 등록도 막지 않습니다).</span>
             <div style="margin-top:4px;color:#5a6b7a"><b>· 칸 폭 조절</b>(2026-09-07) 상품코드등록 목록은 <b>머리글 오른쪽 경계를 끌면</b> 그 칸이 넓어지고 좁아집니다(<b>더블클릭</b> = 처음 폭으로). 상품명·규격을 넓혀 보고, 안 보는 칸은 줄이면 됩니다. 조절한 폭은 <b>이 컴퓨터에 남습니다</b>.</div></td></tr>
-          <tr><td class="m">기준정보관리</td><td><b>매입/매출 거래처</b>(회계 거래처 · 거래처리스트.xls 재업로드) · <b>거래처관리(사업장)</b>(배송 점포, 발주 업로드 시 자동등록) · 회사/사용자 · 공통코드. <span style="color:#5a6b7a">회사/사용자·공통코드 관리는 <b>관리자 회사</b>(코네트)에만 보입니다. 매입/매출 거래처의 [＋ 거래처 추가] 창에도 <b>최근 등록 거래처코드·거래처명</b>과 다음 코드가 나옵니다.</span>
+          <tr><td class="m">기준정보관리</td><td><b>매입/매출 거래처</b>(회계 거래처 · 거래처리스트.xls 재업로드 · <b>DC 사용·DC율·여신한도</b>) · <b>거래처관리(사업장)</b>(배송 점포, 발주 업로드 시 자동등록) · 회사/사용자 · 공통코드.
+            <br><b>회사 정보 수정</b>(2026-09-11, <b>모든 회사</b>) — 탭 <b>① 회사정보</b>(필수·기본 정보 · 결제계좌 · 공지사항1·2) · <b>② 도장·기능</b> · <b>③ 거래명세서 인쇄 옵션</b> · 전체. 위 [🏦 은행계좌 관리]·[💳 카드 관리](카드는 번호 뒤 4자리만).
+            <span style="color:#5a6b7a">도장은 거래명세서 공급자 「성명」 칸에 찍힙니다. <b>기능</b>은 새 거래처·새 상품의 첫 값(부가세·DC율·과세), 판매·매입 명세의 단가·수량 소수점·서비스·비고 칸·불량반품, 판매 저장 때 재고 부족·여신 초과 제한, 수금 기본 유형, 매입 저장 때 상품 매입단가 자동 갱신(평균단가·0원 포함 여부)을 정합니다 — 기본값은 모두 종전 동작. <b>인쇄 옵션</b>은 판매등록 [🖨 거래명세표] 조건 창의 첫 값이며 어느 PC에서나 같습니다(조건 창의 [⚙ 회사 기본값으로]로도 저장).</span> <span style="color:#5a6b7a">회사/사용자·공통코드 관리는 <b>관리자 회사</b>(코네트)에만 보입니다. 매입/매출 거래처의 [＋ 거래처 추가] 창에도 <b>최근 등록 거래처코드·거래처명</b>과 다음 코드가 나옵니다.</span>
             <br>회사 수정 창에 <b>업태 · 종목 · 계좌 · 공지사항</b> 칸이 있습니다(2026-09-09 신설) — <b>거래명세표의 공급자 칸</b>에 그대로 찍히는 값이고, 판매등록 [🖨 거래명세표] 조건 창에서도 같은 자리를 고칩니다.</td></tr>
           <tr><td class="m">예정 기능 <span style="color:#9aa7b3;font-size:11px">(데모)</span></td><td>물품동선관리(창고·위치·피킹) · 견적서관리 · 카카오톡관리 — 향후 추진.</td></tr>
         </tbody></table>
@@ -4751,6 +4756,9 @@
 
     <section id="panel-compcd" class="panel" style="padding:0;">
       <iframe id="if-compcd" src="" title="회사/사용자 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <section id="panel-compinfo" class="panel" style="padding:0;">
+      <iframe id="if-compinfo" src="" title="회사 정보 수정" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <section id="panel-codecd" class="panel" style="padding:0;">
       <iframe id="if-codecd" src="" title="공통코드 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>

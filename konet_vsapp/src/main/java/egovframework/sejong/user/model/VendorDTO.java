@@ -48,6 +48,18 @@ public class VendorDTO {
 	private Integer sortOrd;     // 정렬순서
 	private String  remark;      // 비고
 	private String  actionYn;    // 'Y'=사용 / 'N'=미사용
+	/* 회사 정보 수정 「기능」(2026-09-11) — 문자열로 받고 SQL 이 DECIMAL 로 바꾼다(빈 값 = 없음).
+	   ★null = 이 칸을 안 보낸 호출 → updateVendorMst 가 종전 값을 그대로 둔다. */
+	private String  dcYn;        // DC 사용 'Y'/'N'
+	private String  dcRate;      // DC율 %
+	private String  creditLimit; // 여신한도(원)
+
+	public String getDcYn() { return dcYn; }
+	public void setDcYn(String dcYn) { this.dcYn = dcYn; }
+	public String getDcRate() { return dcRate; }
+	public void setDcRate(String dcRate) { this.dcRate = dcRate; }
+	public String getCreditLimit() { return creditLimit; }
+	public void setCreditLimit(String creditLimit) { this.creditLimit = creditLimit; }
 
 	// ----- 조회 전용(비영속) -----
 	private String  findData;    // 검색어(코드/명/정식명칭/별칭/사업자번호/대표자)

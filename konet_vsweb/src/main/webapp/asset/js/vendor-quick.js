@@ -153,7 +153,8 @@
     el('vqCd').value = nextCd(list);
     el('vqNm').value = opt.name || '';
     el('vqGb').value = opt.gb || '매입';
-    el('vqVat').value = '별도';
+    // 새 거래처의 부가세 첫 값 = 회사 설정(회사 정보 수정 「기능」, 2026-09-11) — comp-set.js 가 없는 화면은 종전대로 별도
+    el('vqVat').value = (window.konetSet && konetSet.f('venVat')) || '별도';
     ['vqBizno', 'vqCeo', 'vqTel', 'vqMgr'].forEach(function (id) { el(id).value = ''; });
     el('vqMsg').textContent = '';
     delete el('vqSave').dataset.warned;

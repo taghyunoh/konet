@@ -43,6 +43,8 @@
   #xrPickOv .xrp-tb tbody tr:hover td{ background:#eefaf6; }
 </style>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<%-- 회사 설정(회사 정보 수정 「기능」 ▸ 상품 기본 과세 유형, 2026-09-11) — window.konetSet --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260911"></script>
 <title>상품(품목) 관리 (TBL_PROD_MST)</title>
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; }
@@ -606,7 +608,8 @@ function prodOpen(seq, copy){
   document.getElementById('f_spec').value = o ? (o.spec||'') : '';
   document.getElementById('f_maker').value = o ? (o.makerNm||'') : '';
   document.getElementById('f_type').value = o ? (o.typeNm||'') : '';
-  document.getElementById('f_tax').value = o ? (o.taxGb||'과세') : '과세';
+  // 새 상품의 과세 첫 값 = 회사 설정 「상품 기본 과세 유형」(회사 정보 수정 「기능」, 2026-09-11)
+  document.getElementById('f_tax').value = o ? (o.taxGb||'과세') : ((window.konetSet && konetSet.f('prodTax')) || '과세');
   document.getElementById('f_pack').value = o ? (o.packQty!=null?o.packQty:1) : 1;
   document.getElementById('f_sort').value = o ? (o.sortOrd!=null?o.sortOrd:999999) : 999999;
   document.getElementById('f_in').value = o ? (o.inPrice!=null?o.inPrice:0) : 0;

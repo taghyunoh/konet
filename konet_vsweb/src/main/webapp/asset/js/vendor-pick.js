@@ -218,7 +218,8 @@
           /* 거래유형·부가세도 같이 보여 준다 (2026-08-03 요청) — 고르기 전에 성격을 알 수 있게.
              부가세가 비어 있는 예전 거래처는 '별도*' — 계산도 별도로 하고 있음을 별표로 알린다.
              (같은 표기를 거래처 팝업 목록에서도 쓴다) */
-          var gb = String(o.vendorGb||''), vt = String(o.vatGb||'') || '별도';
+          // 비어 있으면 회사 기본값(회사 정보 수정 「기능」 ▸ 거래처 기본 과세 유형, 2026-09-11)
+          var gb = String(o.vendorGb||''), vt = String(o.vatGb||'') || ((window.konetSet && konetSet.f('venVat')) || '별도');
           return '<div class="vp-it' + (i===0?' on':'') + '" data-i="' + i + '">'
                +   '<span class="vp-cd">' + hi(o[CD], ql, qk) + '</span>'
                +   '<span class="vp-nm">' + hi(o[NM], ql, qk) + '</span>'

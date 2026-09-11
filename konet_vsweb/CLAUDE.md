@@ -6,6 +6,7 @@
   재집계 확인창 「두번째 스타일로」 지시 + Swal 버튼이 세로로 쌓이던 문제. 호출부는 그대로 두고
   **정의만 위임으로** 바꿨다(swConfirm = Promise<boolean> 규약 유지 · title 은 굵은 첫 줄로).
   node 스텁 실측 : success=✅/blue · error=❌/red · confirm 제목·onOk→true 정상.
+- ⛔**`beforeunload`(「사이트에서 나가시겠습니까?」) 금지** — 브라우저 기본 창이라 모양을 못 바꾼다. 2026-09-11 회사 정보 수정 화면에 넣었다가 즉시 지적받고 뺐다(「이 내용 기본 alert 로 매번 이야기했는데」). 저장 안 한 변경은 화면 안 표시로만 알린다. `alert()`·`confirm()`·`prompt()` 도 같은 이유로 금지.
 - **Swal(SweetAlert) 기본값 금지** — demo2 의 `swAlert` 는 기존 잔존분(신규 사용 금지). jQuery 불필요, `<script src=".../asset/js/ui-message.js">` 한 줄로 어느 화면에서나 동작(CSS 자동 주입). demo2 도 로드해 둠(2026-07-31).
 - **입력검색 후보 정렬 = 거래금액 많은 순 + 영타 자동인식** (2026-08-05 요청): vendor-pick.js 에 `rank` 옵션(매입등록=총매입 `_venSum.p`, 판매등록=총판매 `_venSum.s` — [거래처] 팝업과 같은 기준) + **영타→한글 변환 매칭**(`engToKor`, "eodudwjstks"→"대영전산" — 한/영 키를 안 눌러도 걸림. 브라우저는 Windows IME 한/영 모드를 못 바꾸므로 '한글모드 전환' 요청은 이 방식으로 해결). 코드·별칭 등 진짜 영문은 원검색어로 그대로 걸리므로 손실 없음. 수금·지급은 rank 미지정(종전 순서). 공용 JS 수정이라 4화면 include 에 `?v=20260805` 캐시버스터 부여 — **다음에 vendor-pick.js 고칠 때도 버전을 올릴 것.**
 - **매입·판매등록 UI 확정 3건(2026-08-05, 두 화면 동일)**: ①상품 선택 팝업 = 열리면 검색칸 자동 포커스 + **ESC 로 닫기**(한글 조합 중 ESC 는 IME 취소라 제외) ②상품검색 결과 = **코드 매치(굵은 초록, 코드순) 먼저 + 그 뒤에 찾은 코드 '다음' 코드의 상품들을 이어붙임**(장부 넘겨 보기 — "걸린 것만 나오면 이웃 상품을 못 고른다" 2026-08-05 재지적으로 확장, 판매는 매칭코드 걸린 상품도 코드 그룹, 이름·규격 매치는 맨 뒤) ③**단가만 소수점 표시 `fmtP()`**(소수 2자리·콤마) — 값은 원래 소수 저장이 됐는데 `fmt()` 반올림 때문에 231 로 보였던 것. 금액·합계는 종전대로 정수 `fmt()`.
@@ -49,6 +50,42 @@
 - **거래처 칸은 「입력검색」 = [vendor-pick.js](src/main/webapp/asset/js/vendor-pick.js)** (2026-08-01 요청) — 판매·매입·수금·지급 등록 4화면 공용. 칸에 직접 쳐서 고른다(거래처명·코드·별칭·대표·담당 부분일치, ↑↓·Enter·Esc). **[거래처] 팝업은 그대로 둔다**(이름 모를 때 훑는 용도) — 둘 다 같은 `_vendors` 를 본다. 고르는 동작은 **페이지의 기존 pick 함수**(`saVenPick`/`puVenPick`/`svCustPick`)를 그대로 부른다: 잔고·원장·담당자 갱신이 거기 붙어 있어 값만 넣으면 화면이 반쪽만 바뀐다. 이름·코드가 어긋난 채 남지 않게 blur 시 되돌린다(후보 1건이면 확정). 실제 값은 `input.dataset.cd`.
 - **작업 버튼(신규등록·저장·새로고침·삭제하기)은 입력 칸 '아래'** — 4화면 통일(2026-08-01). 종전 수금·지급만 카드 맨 위에 있었다.
 - **`ssConfirm`(teal 「반영 확인」 모달)은 발주현황표 업로드 반영류 확인 전용** — 일반 확인에 쓰면 제목('반영 확인')·버튼('반영')이 어긋난다. 실제 사고: 로그아웃 확인을 ssConfirm 으로 냈다가 지적받고 `_confirmBox` 로 교체(2026-07-31).
+
+## ★[완료 2026-09-11] 기준정보관리 ▸ 회사 정보 수정 (`mangr/compInfo.jsp`) — 고객 요청 「회사정보를 이렇게」
+고객이 다른 프로그램의 「설정 ▸ 회사정보 수정」 화면 3장을 보내 옴 → **전부 만들고 없는 칸은 채움**(사용자 지시 「1,2,3번 화면 전부, 없는 것 채우면 됨」).
+- **모든 회사가 쓴다**(관리자 전용 「회사/사용자 관리」와 별개). 서버는 **세션 회사코드로만** 읽고 쓴다(`sessComp`) — 화면 값을 안 받는다. 쓰기는 세션이 비면 401.
+- **탭 3개 + 전체**(사용자 확정) : **① 회사정보**(필수·기본 정보) · **② 도장·기능** · **③ 거래명세서 인쇄 옵션** · **전체**(세 영역을 이어 스크롤). 고른 탭 = 청록 칠 + ✓ · `localStorage(konetCompInfoTab)` 기억. 라벨·영역 제목은 진하게(사용자 요청).
+- **DDL [sql/comp_info_setting_ddl.sql](sql/comp_info_setting_ddl.sql)**(운영DB 적용 확인 2026-09-11) :
+  ①`TBL_COMP_MST` + `COMP_EMAIL·COMP_HP·FOUND_DT·CORP_NO·CEO_BIRTH·STMT_NOTICE2` ②`TBL_COMP_SET`(회사당 1줄 : `SET_JSON`·`STAMP_IMG`(data URL)·`AVG_ZERO_YN`)
+  ③`TBL_COMP_BANK`(은행계좌 여러 개) ④`TBL_COMP_CARD`(★카드번호는 **뒤 4자리만**) ⑤`TBL_VENDOR_MST` + `DC_YN·DC_RATE·CREDIT_LIMIT`.
+  ⚠`insertCompCdMst`(관리자 화면 회사 수정 = 이력형 INSERT)에 새 6칸을 **직전 행 값 물려받기**로 넣었다 — 빠지면 관리자가 회사를 고칠 때마다 사라진다.
+  ⚠자기 화면 저장(`updateCompInfoSelf`)은 **활성행을 그 자리에서** 고친다 — 이력 행을 만들면 관리자 전용 칸을 이 화면이 다 실어야 한다.
+- ★**설정은 JSON 한 칸**(`SET_JSON` = `{func, prt, prtApp}`) — 항목이 자주 늘어 칸마다 컬럼을 만들면 DDL·DTO·이력 INSERT 가 하나씩 빠진다.
+  ★**기본값은 [asset/js/comp-set.js](src/main/webapp/asset/js/comp-set.js) `DEF` 한 곳**(= 종전 동작 — 아무도 안 건드리면 아무것도 안 바뀐다). 화면은 `<script src=".../comp-set.js">` 한 줄로 `window.konetSet`(동기 조회 `/user/compSetGet.do`).
+  ⚠DB 가 **SQL Server 2012(호환 110)라 JSON_VALUE 가 없다** — SQL 이 직접 봐야 하는 설정(평균단가 0원 포함)만 `AVG_ZERO_YN` 칸으로 따로 둔다(저장 때 컨트롤러가 JSON 과 함께 맞춘다 `avgZeroOf`).
+- **기능 → 걸리는 곳**(기본값 = 종전) :
+  | 설정 | 걸리는 곳 |
+  |---|---|
+  | 거래처 기본 과세유형 | 새 거래처 `f_vat`·`vqVat` 첫 값 + **VAT_GB 가 빈 거래처**의 계산(판매·매입 `VAT_DEF`, vendor-pick 표시) |
+  | DC 사용·기본 DC율 | **새 거래처의 첫 값**. 실제 DC 는 거래처 `DC_YN/DC_RATE` → 판매·매입 명세에 상품을 담으면 `DC = 금액×율` 자동(`_dcAuto`) · 손으로 고친 줄·불러온 전표 줄은 안 건드림 |
+  | 상품 기본 과세유형 | prodcd·prodmst [추가] 창 첫 값 |
+  | 단가/수량 소수점 | `fmtP`/`fmtQ`·입력 반올림 (판매·매입) — ⚠재고 원장 QTY 는 INT 라 소수 수량은 재고에 반올림 |
+  | 서비스·비고 칸 | 판매·매입 그리드 칸 **폭 0**(`saFldApply`/`puFldApply` — 칸을 지우지 않아 두 colgroup 짝이 안 깨짐), 값은 저장 유지 |
+  | 불량 반품 | 거래구분 「불량반품」 — 판매 : 금액은 반품처럼 −, **재고원장 안 만듦** / 매입 : 반품과 동일. SQL 의 `TRX_GB IN (N'반품',N'불량반품')` 14곳 |
+  | 재고 부족·여신 초과 제한 | **서버** `salesLimitMsg`(salesTrxSave 409) — 원장 누계+이 전표 몫 / 원장 잔고−이 전표 몫+이번 전표 vs `CREDIT_LIMIT` |
+  | 수금 기본 유형 | rcvReg `svNew` |
+  | 매입단가 자동 갱신·평균단가·0원 포함 | `savePurchase` : 이력은 늘 · `syncProdInPrice` 는 설정대로(평균이면 `selectAvgInPrice`) · 0원 포함은 `recalcStockMst(All)`·`selectStockClosing` 의 IN_QTY |
+  | 세금계산서 2칸 | **저장만**(발행 기능 없음 — 화면에 「발행 기능과 함께 적용」 표시) |
+- **③ 인쇄 옵션** : 판매등록 조건 창의 첫 값 = 회사 설정(**localStorage `konetSalesPrt1` 폐기** — PC 마다 달랐다). 조건 창에서 바꾼 건 그 화면 동안만(`_prtLast`), **[⚙ 회사 기본값으로]** = `/user/compSetPatch.do {key:'prt'}`.
+  새 옵션 4개 = **바코드**(품명 뒤 칸 · `D.bcMap` · 공개 링크는 `selectSalesTrxDtl.bcNo`) · **반품액·실매출액**(메모 줄을 나눠 씀 — 줄 수 불변, 매출액 칸은 반품 전 금액) · **음영** · **인쇄일시**(기본 Y = 종전).
+  ⚠2026-09-09 「바코드 제외」 확정을 **뒤집었다**(고객 화면 ③에 있음 — 기본 아니오).
+  ⚠보내는 링크 조건 글자 `&o=` 가 **7자리 → 11자리**(뒤에 bc·rtn·shade·ptime). 서버 `stmtOpt`·`stmtOptQs` 는 **둘 다** 받는다(옛 링크 유지).
+  ⚠모바일(앱) 인쇄 옵션은 **저장만** — 앱에 거래명세서 인쇄가 생기면 `konetSet.prtApp` 을 읽을 것.
+- **② 도장** : 올리면 화면이 300px 안쪽 PNG 로 줄여 `/user/compStampSave.do`(data URL, `^data:image/…;base64,` 만 허용) → stmt-sheet 가 **공급자 성명 칸에 겹쳐** 찍는다(칸 높이 불변 — A4 장수 안 흔들림). 공지사항2 는 공지 칸 안 두 줄(`.w2k`).
+- **판매등록 공급자 칸 조회**를 `compCdList` → **`compInfoGet`**(세션 회사 1건 + 도장·공지2)으로 바꿨다.
+- 은행 칸·카드사 칸 = 눌러서 고르는 **스크롤 목록**(`data-ddl`, 사용자 요청) — 목록에 없는 이름도 그대로 저장.
+- 「저장 안 한 변경」 = **불러온 값과 지금 값이 다를 때만**(`_snap` 비교 — 입력 이벤트만으로 켜면 자동완성·되돌리기에도 떴다).
+- **배포 : 자바 + User_SQL.xml → WAR 재빌드 + 재기동.** konet_vsapp 에도 같은 파일을 복사했다(두 앱 동일 유지).
 
 ## 스택/구조
 - **MSSQL** + egovframework + MyBatis, 패키지 `egovframework.sejong`

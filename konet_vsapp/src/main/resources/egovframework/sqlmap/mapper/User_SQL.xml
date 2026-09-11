@@ -120,6 +120,7 @@
 	      ZIP_CD, COMP_TEL, COMP_FAX, START_DT, END_DT, JOIN_DT, ACCEPT_DT, CLOSE_DT,
 	      USE_YN, ACTION_YN, STHPNM, COMMST_YN,
 	      BIZ_COND, BIZ_ITEM, BANK_ACCT, STMT_NOTICE,
+	      COMP_EMAIL, COMP_HP, FOUND_DT, CORP_NO, CEO_BIRTH, STMT_NOTICE2,
 	      REG_DTTM, REG_USER, REG_IP, UPD_DTTM, UPD_USER, UPD_IP
 	  ) VALUES (
 	      #{compCd},
@@ -134,6 +135,14 @@
 	      ISNULL(#{bizItem,jdbcType=NVARCHAR},  (SELECT TOP 1 B.BIZ_ITEM  FROM TBL_COMP_MST B WHERE B.COMP_CD = #{compCd} ORDER BY B.JOB_SEQ DESC)),
 	      ISNULL(#{bankAcct,jdbcType=NVARCHAR}, (SELECT TOP 1 B.BANK_ACCT FROM TBL_COMP_MST B WHERE B.COMP_CD = #{compCd} ORDER BY B.JOB_SEQ DESC)),
 	      ISNULL(#{stmtNotice,jdbcType=NVARCHAR},(SELECT TOP 1 B.STMT_NOTICE FROM TBL_COMP_MST B WHERE B.COMP_CD = #{compCd} ORDER BY B.JOB_SEQ DESC)),
+	      /* ★회사 정보 수정 화면 칸 (2026-09-11) — 관리자 화면은 이 칸을 모르므로 <직전 행 값을 그대로 물려받는다>.
+	         빠지면 관리자가 회사를 한 번 고칠 때마다 이메일·법인번호 등이 사라진다. */
+	      (SELECT TOP 1 B.COMP_EMAIL   FROM TBL_COMP_MST B WHERE B.COMP_CD = #{compCd} ORDER BY B.JOB_SEQ DESC),
+	      (SELECT TOP 1 B.COMP_HP      FROM TBL_COMP_MST B WHERE B.COMP_CD = #{compCd} ORDER BY B.JOB_SEQ DESC),
+	      (SELECT TOP 1 B.FOUND_DT     FROM TBL_COMP_MST B WHERE B.COMP_CD = #{compCd} ORDER BY B.JOB_SEQ DESC),
+	      (SELECT TOP 1 B.CORP_NO      FROM TBL_COMP_MST B WHERE B.COMP_CD = #{compCd} ORDER BY B.JOB_SEQ DESC),
+	      (SELECT TOP 1 B.CEO_BIRTH    FROM TBL_COMP_MST B WHERE B.COMP_CD = #{compCd} ORDER BY B.JOB_SEQ DESC),
+	      (SELECT TOP 1 B.STMT_NOTICE2 FROM TBL_COMP_MST B WHERE B.COMP_CD = #{compCd} ORDER BY B.JOB_SEQ DESC),
 	      GETDATE(), #{regUser}, #{regIp}, GETDATE(), #{updUser}, #{updIp}
 	  )
 	]]></insert>
@@ -807,6 +816,8 @@
 	         EMAIL AS email, HP AS hp, TEL AS tel, FAX AS fax, BIZNO AS bizno,
 	         BANK_ACCT AS bankAcct, TAXBILL_GB AS taxbillGb, VAT_GB AS vatGb, REG_DT AS regDt,
 	         DC_CD AS dcCd, SORT_ORD AS sortOrd, REMARK AS remark, ACTION_YN AS actionYn,
+	         /* DC 사용·DC율·여신한도 (2026-09-11 회사 정보 수정 「기능」) */
+	         DC_YN AS dcYn, CONVERT(VARCHAR(20), DC_RATE) AS dcRate, CONVERT(VARCHAR(30), CREDIT_LIMIT) AS creditLimit,
 	         REG_DTTM AS regDttm, UPD_DTTM AS updDttm
 	    FROM TBL_VENDOR_MST
 	   WHERE ACTION_YN = 'Y'
@@ -873,6 +884,7 @@
 	      COMP_CD, VENDOR_CD, VENDOR_NM, FULL_NM, ALIAS, CEO_NM, VENDOR_GB, BIZ_COND, BIZ_ITEM,
 	      MGR_CD, MGR_NM, TYPE_CD, TYPE_NM, AREA_CD, AREA_NM, ZIPCD, ADDR, ADDR2,
 	      EMAIL, HP, TEL, FAX, BIZNO, BANK_ACCT, TAXBILL_GB, VAT_GB, REG_DT, DC_CD, SORT_ORD, REMARK,
+	      DC_YN, DC_RATE, CREDIT_LIMIT,
 	      ACTION_YN, REG_DTTM, REG_USER, REG_IP
 	  ) VALUES (
 	      ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'),
@@ -883,6 +895,9 @@
 	      #{email,jdbcType=VARCHAR}, #{hp,jdbcType=VARCHAR}, #{tel,jdbcType=VARCHAR}, #{fax,jdbcType=VARCHAR},
 	      #{bizno,jdbcType=VARCHAR}, #{bankAcct,jdbcType=VARCHAR}, #{taxbillGb,jdbcType=VARCHAR}, #{vatGb,jdbcType=VARCHAR},
 	      REPLACE(ISNULL(#{regDt,jdbcType=VARCHAR},''),'-',''), #{dcCd,jdbcType=VARCHAR}, #{sortOrd,jdbcType=INTEGER}, #{remark,jdbcType=VARCHAR},
+	      NULLIF(#{dcYn,jdbcType=VARCHAR},''),
+	      CAST(NULLIF(REPLACE(ISNULL(#{dcRate,jdbcType=VARCHAR},''),',',''),'') AS DECIMAL(5,2)),
+	      CAST(NULLIF(REPLACE(ISNULL(#{creditLimit,jdbcType=VARCHAR},''),',',''),'') AS DECIMAL(18,2)),
 	      'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=VARCHAR}, #{regIp,jdbcType=VARCHAR}
 	  )
 	]]></insert>
@@ -901,6 +916,12 @@
 	         BIZNO = #{bizno,jdbcType=VARCHAR}, BANK_ACCT = #{bankAcct,jdbcType=VARCHAR},
 	         TAXBILL_GB = #{taxbillGb,jdbcType=VARCHAR}, VAT_GB = #{vatGb,jdbcType=VARCHAR},
 	         DC_CD = #{dcCd,jdbcType=VARCHAR}, SORT_ORD = #{sortOrd,jdbcType=INTEGER}, REMARK = #{remark,jdbcType=VARCHAR},
+	         /* DC 사용·DC율·여신한도 (2026-09-11) — ★안 보낸(null) 호출은 종전 값을 그대로 둔다(빈 문자열 = 지우기) */
+	         DC_YN        = CASE WHEN #{dcYn,jdbcType=VARCHAR} IS NULL THEN DC_YN ELSE NULLIF(#{dcYn,jdbcType=VARCHAR},'') END,
+	         DC_RATE      = CASE WHEN #{dcRate,jdbcType=VARCHAR} IS NULL THEN DC_RATE
+	                             ELSE CAST(NULLIF(REPLACE(#{dcRate,jdbcType=VARCHAR},',',''),'') AS DECIMAL(5,2)) END,
+	         CREDIT_LIMIT = CASE WHEN #{creditLimit,jdbcType=VARCHAR} IS NULL THEN CREDIT_LIMIT
+	                             ELSE CAST(NULLIF(REPLACE(#{creditLimit,jdbcType=VARCHAR},',',''),'') AS DECIMAL(18,2)) END,
 	         UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -1218,10 +1239,10 @@
 	               dcCd 는 'TRX' — 출고장이 없는 건이라 빈 코드로 두면 출고장 미상 정산서와 한 줄로 뭉친다. */
 	          SELECT LEFT(ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT),6) AS ym,
 	                 'TRX' AS dcCd, N'직접판매(전표)' AS dcNm,
-	                 CASE WHEN d.TRX_GB = N'반품' THEN -ISNULL(d.TOT_AMT,0) ELSE ISNULL(d.TOT_AMT,0) END AS saleAmt,
+	                 CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.TOT_AMT,0) ELSE ISNULL(d.TOT_AMT,0) END AS saleAmt,
 	                 0 AS stlAmt, 0 AS estAmt,
-	                 CASE WHEN d.TRX_GB = N'반품' THEN -ISNULL(d.TOT_AMT,0) ELSE ISNULL(d.TOT_AMT,0) END AS trxAmt,
-	                 CASE WHEN d.TRX_GB = N'반품' THEN -ISNULL(d.QTY,0) ELSE ISNULL(d.QTY,0) END
+	                 CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.TOT_AMT,0) ELSE ISNULL(d.TOT_AMT,0) END AS trxAmt,
+	                 CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.QTY,0) ELSE ISNULL(d.QTY,0) END
 	                   * ISNULL(ih3.IN_PRICE, ISNULL(pm3.IN_PRICE,0)) AS costAmt
 	            FROM TBL_SALES_TRX_DTL d
 	            JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
@@ -1379,10 +1400,10 @@
 	          UNION ALL
 	          -- ③ 판매전표(직접판매) — 매입액 = 판매수량 × 매입단가
 	          SELECT ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT) AS dt,
-	                 CASE WHEN d.TRX_GB = N'반품' THEN -ISNULL(d.TOT_AMT,0) ELSE ISNULL(d.TOT_AMT,0) END AS saleAmt,
+	                 CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.TOT_AMT,0) ELSE ISNULL(d.TOT_AMT,0) END AS saleAmt,
 	                 0 AS stlAmt, 0 AS estAmt,
-	                 CASE WHEN d.TRX_GB = N'반품' THEN -ISNULL(d.TOT_AMT,0) ELSE ISNULL(d.TOT_AMT,0) END AS trxAmt,
-	                 CASE WHEN d.TRX_GB = N'반품' THEN -ISNULL(d.QTY,0) ELSE ISNULL(d.QTY,0) END
+	                 CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.TOT_AMT,0) ELSE ISNULL(d.TOT_AMT,0) END AS trxAmt,
+	                 CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.QTY,0) ELSE ISNULL(d.QTY,0) END
 	                   * ISNULL(ih3.IN_PRICE, ISNULL(pm3.IN_PRICE,0)) AS costAmt
 	            FROM TBL_SALES_TRX_DTL d
 	            JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
@@ -2261,12 +2282,12 @@
 	             '' AS bizCd, N'(사업장 미상)' AS bizNm,
 	             '' AS dcCd, N'직접판매(전표)' AS dcNm,
 	             MAX(m.CUST_CD) AS vendorCd, MAX(m.CUST_NM) AS vendorNm,
-	             SUM(CASE WHEN d.TRX_GB = N'반품' THEN -ISNULL(d.QTY,0)     ELSE ISNULL(d.QTY,0)     END) AS outQty,
-	             SUM(CASE WHEN d.TRX_GB = N'반품' THEN -ISNULL(d.TOT_AMT,0) ELSE ISNULL(d.TOT_AMT,0) END) AS salesAmt,
-	             SUM(CASE WHEN d.TRX_GB = N'반품' THEN -ISNULL(d.QTY,0)     ELSE ISNULL(d.QTY,0)     END)
+	             SUM(CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.QTY,0)     ELSE ISNULL(d.QTY,0)     END) AS outQty,
+	             SUM(CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.TOT_AMT,0) ELSE ISNULL(d.TOT_AMT,0) END) AS salesAmt,
+	             SUM(CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.QTY,0)     ELSE ISNULL(d.QTY,0)     END)
 	               * ISNULL(ih3.IN_PRICE, ISNULL(pm3.IN_PRICE,0)) AS costAmt,
-	             SUM(CASE WHEN d.TRX_GB = N'반품' THEN -ISNULL(d.TOT_AMT,0) ELSE ISNULL(d.TOT_AMT,0) END)
-	               - SUM(CASE WHEN d.TRX_GB = N'반품' THEN -ISNULL(d.QTY,0) ELSE ISNULL(d.QTY,0) END)
+	             SUM(CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.TOT_AMT,0) ELSE ISNULL(d.TOT_AMT,0) END)
+	               - SUM(CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.QTY,0) ELSE ISNULL(d.QTY,0) END)
 	                 * ISNULL(ih3.IN_PRICE, ISNULL(pm3.IN_PRICE,0)) AS marginAmt,
 	             N'전표' AS saleSrc,
              CASE WHEN ISNULL(ih3.IN_PRICE, ISNULL(pm3.IN_PRICE,0)) > 0 THEN N'이력' ELSE N'매입가없음' END AS inSrc
@@ -2385,8 +2406,11 @@
 	             SUM(CASE WHEN l.TRX_DT BETWEEN B.fromB AND B.toB AND l.IO_GB = 'O' THEN l.QTY ELSE 0 END) AS outQty,
 	             SUM(CASE WHEN l.TRX_DT BETWEEN B.fromB AND B.toB AND l.IO_GB = 'A' THEN l.QTY ELSE 0 END) AS adjQty,
 	             SUM(CASE WHEN l.IO_GB = 'I' THEN l.QTY * ISNULL(l.UNIT_PRICE,0) ELSE 0 END) AS inAmtCum,
-	             SUM(CASE WHEN l.IO_GB = 'I' THEN l.QTY ELSE 0 END) AS inQtyCum
+	             /* 회사 설정 「평균 매입단가 산출 시 금액 0 거래 포함」(2026-09-11) — 'N' 이면 단가 0 입고를 분모에서 뺀다 */
+	             SUM(CASE WHEN l.IO_GB = 'I' AND (ISNULL(l.UNIT_PRICE,0) <> 0 OR z.ZY = 'Y') THEN l.QTY ELSE 0 END) AS inQtyCum
 	        FROM TBL_STOCK_LEDGER l CROSS JOIN B
+	        CROSS JOIN (SELECT ISNULL((SELECT TOP 1 AVG_ZERO_YN FROM TBL_COMP_SET
+	                                    WHERE COMP_CD = ISNULL(NULLIF(#{compCd,jdbcType=VARCHAR},''),'W1234567')),'Y') AS ZY) z
 	       WHERE l.ACTION_YN = 'Y' AND l.TRX_DT <= B.toB
 	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	       GROUP BY l.PROD_SEQ, l.PROD_CD
@@ -2570,6 +2594,28 @@
 	   WHERE PROD_SEQ = #{prodSeq}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
+	<!-- 평균 매입단가 (2026-09-11 회사 설정 「입고 : 평균 매입단가 사용」) — 그 품목의 입고(I) 원장 가중평균.
+	     「금액 0 거래 포함 = N」이면 단가 0 입고를 분모에서 뺀다(recalcStockMst 와 같은 규칙). 입고가 없으면 NULL. -->
+	<select id="selectAvgInPrice" parameterType="egovframework.sejong.user.model.ProdInpriceDTO" resultType="java.lang.Double"><![CDATA[
+	  SELECT CASE WHEN SUM(CASE WHEN ISNULL(l.UNIT_PRICE,0) <> 0 OR z.ZY = 'Y' THEN l.QTY ELSE 0 END) > 0
+	              THEN SUM(l.QTY * ISNULL(l.UNIT_PRICE,0))
+	                   / SUM(CASE WHEN ISNULL(l.UNIT_PRICE,0) <> 0 OR z.ZY = 'Y' THEN l.QTY ELSE 0 END) END
+	    FROM TBL_STOCK_LEDGER l
+	   CROSS JOIN (SELECT ISNULL((SELECT TOP 1 AVG_ZERO_YN FROM TBL_COMP_SET WHERE COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')),'Y') AS ZY) z
+	   WHERE l.PROD_SEQ = #{prodSeq} AND l.IO_GB = 'I' AND l.ACTION_YN = 'Y'
+	     AND l.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')
+	]]></select>
+
+	<!-- 판매 가능 재고 (2026-09-11 회사 설정 「매출 : 재고 부족 제한」) — 품목코드 기준 원장 누계.
+	     mine = 지금 고치는 전표(refNo)가 이미 잡아 둔 출고(O−R) — 저장하면 지우고 다시 넣으므로 되돌려 놓고 센다. -->
+	<select id="selectStockAvailForSale" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT ISNULL(SUM(CASE WHEN l.IO_GB IN ('I','R') THEN l.QTY WHEN l.IO_GB = 'O' THEN -l.QTY WHEN l.IO_GB = 'A' THEN l.QTY ELSE 0 END),0) AS cur,
+	         ISNULL(SUM(CASE WHEN l.REF_GB = 'SALE' AND l.REF_NO = #{refNo,jdbcType=VARCHAR}
+	                         THEN (CASE WHEN l.IO_GB = 'O' THEN l.QTY WHEN l.IO_GB = 'R' THEN -l.QTY ELSE 0 END) ELSE 0 END),0) AS mine
+	    FROM TBL_STOCK_LEDGER l
+	   WHERE l.PROD_CD = #{prodCd,jdbcType=VARCHAR} AND l.ACTION_YN = 'Y'
+	     AND l.COMP_CD = ISNULL(NULLIF(#{compCd,jdbcType=VARCHAR},''),'W1234567')
+	]]></select>
 
 	<!-- ============================================================
 	     판매가 이력 — TBL_PROD_SALEPRICE_HST
@@ -3119,10 +3165,12 @@
 	    SELECT PROD_SEQ, MAX(PROD_CD) AS PROD_CD,
 	        SUM(CASE WHEN IO_GB IN ('I','R') THEN QTY WHEN IO_GB='O' THEN -QTY WHEN IO_GB='A' THEN QTY ELSE 0 END) AS CUR_QTY,
 	        SUM(CASE WHEN IO_GB='I' THEN QTY*ISNULL(UNIT_PRICE,0) ELSE 0 END) AS IN_AMT,
-	        SUM(CASE WHEN IO_GB='I' THEN QTY ELSE 0 END) AS IN_QTY,
+	        /* 회사 설정 「평균 매입단가 산출 시 금액 0 거래 포함」(2026-09-11) — 'N' 이면 단가 0 입고 수량을 분모에서 뺀다 */
+	        SUM(CASE WHEN IO_GB='I' AND (ISNULL(UNIT_PRICE,0) <> 0 OR z.ZY = 'Y') THEN QTY ELSE 0 END) AS IN_QTY,
 	        MAX(CASE WHEN IO_GB='I' THEN TRX_DT END) AS LAST_IN_DT,
 	        MAX(CASE WHEN IO_GB='O' THEN TRX_DT END) AS LAST_OUT_DT
 	      FROM TBL_STOCK_LEDGER
+	     CROSS JOIN (SELECT ISNULL((SELECT TOP 1 AVG_ZERO_YN FROM TBL_COMP_SET WHERE COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')),'Y') AS ZY) z
 	     WHERE ACTION_YN='Y'
 	       AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')
 	     GROUP BY PROD_SEQ
@@ -3169,10 +3217,12 @@
 	        #{prodSeq} AS PROD_SEQ,
 	        SUM(CASE WHEN IO_GB IN ('I','R') THEN QTY WHEN IO_GB='O' THEN -QTY WHEN IO_GB='A' THEN QTY ELSE 0 END) AS CUR_QTY,
 	        SUM(CASE WHEN IO_GB='I' THEN QTY*ISNULL(UNIT_PRICE,0) ELSE 0 END) AS IN_AMT,
-	        SUM(CASE WHEN IO_GB='I' THEN QTY ELSE 0 END) AS IN_QTY,
+	        /* 회사 설정 「평균 매입단가 산출 시 금액 0 거래 포함」(2026-09-11) — recalcStockMstAll 과 같은 규칙 */
+	        SUM(CASE WHEN IO_GB='I' AND (ISNULL(UNIT_PRICE,0) <> 0 OR z.ZY = 'Y') THEN QTY ELSE 0 END) AS IN_QTY,
 	        MAX(CASE WHEN IO_GB='I' THEN TRX_DT END) AS LAST_IN_DT,
 	        MAX(CASE WHEN IO_GB='O' THEN TRX_DT END) AS LAST_OUT_DT
 	      FROM TBL_STOCK_LEDGER
+	     CROSS JOIN (SELECT ISNULL((SELECT TOP 1 AVG_ZERO_YN FROM TBL_COMP_SET WHERE COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')),'Y') AS ZY) z
 	     WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
 	       AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')
 	  ) AS s
@@ -3886,7 +3936,11 @@
 	              (판매등록 화면은 _prods 를 이미 들고 있어 이 칸을 안 본다).
 	            ★짝은 전표 줄의 COMP_CD 다 — 조회 조건으로 들어온 compCd 가 아니다(토큰이면 빈 값). */
 	         (SELECT TOP 1 p.SORT_ORD FROM TBL_PROD_MST p
-	           WHERE p.PROD_CD = d.PROD_CD AND p.COMP_CD = d.COMP_CD AND p.ACTION_YN = 'Y') AS sortOrd
+	           WHERE p.PROD_CD = d.PROD_CD AND p.COMP_CD = d.COMP_CD AND p.ACTION_YN = 'Y') AS sortOrd,
+	         /* 바코드 (2026-09-11 회사 정보 수정 ③ 「바코드」) — 공개 거래명세서도 같은 칸을 찍는다. 낱개 → 없으면 박스 */
+	         (SELECT TOP 1 COALESCE(NULLIF(p.UNIT_BARCODE,''), NULLIF(p.BOX_BARCODE,'')) FROM TBL_PROD_MST p
+	           WHERE p.PROD_CD = d.PROD_CD AND p.COMP_CD = d.COMP_CD AND p.ACTION_YN = 'Y'
+	           ORDER BY p.PROD_SEQ DESC) AS bcNo
 	    FROM TBL_SALES_TRX_DTL d
 	   WHERE d.ACTION_YN = 'Y' AND d.SALE_SEQ = #{saleSeq}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -4017,9 +4071,9 @@
 	         m.CUST_CD AS custCd, m.CUST_NM AS custNm,
 	         m.SALE_NO AS ordNo, CAST(d.ROW_NO AS VARCHAR(10)) AS ordItemNo,
 	         d.PROD_CD AS itemCd, d.PROD_NM AS itemNm, d.SPEC AS spec,
-	         CASE WHEN d.TRX_GB = '반품' THEN -ISNULL(d.QTY,0)     ELSE ISNULL(d.QTY,0)     END AS outQty,
-	         CASE WHEN d.TRX_GB = '반품' THEN -ISNULL(d.QTY,0)     ELSE ISNULL(d.QTY,0)     END AS settleQty,
-	         CASE WHEN d.TRX_GB = '반품' THEN -ISNULL(d.TOT_AMT,0) ELSE ISNULL(d.TOT_AMT,0) END AS saleAmt,
+	         CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.QTY,0)     ELSE ISNULL(d.QTY,0)     END AS outQty,
+	         CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.QTY,0)     ELSE ISNULL(d.QTY,0)     END AS settleQty,
+	         CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.TOT_AMT,0) ELSE ISNULL(d.TOT_AMT,0) END AS saleAmt,
 	         ISNULL(d.UNIT_PRICE,0) AS salePrice,
 	         'Y' AS trxYn, d.TRX_GB AS trxGb
 	    FROM TBL_SALES_TRX_DTL d
@@ -5353,11 +5407,132 @@
 	  SELECT TOP 1 CM.COMP_CD AS compCd, RTRIM(CM.COMP_NM) AS compNm, CM.COMP_CEO AS compCeo, CM.BUSI_NUM AS busiNum,
 	         RTRIM(ISNULL(CM.COMP_ADDR,'') + ' ' + ISNULL(CM.COMP_EXTRADR,'')) AS compAddr, CM.COMP_TEL AS compTel, CM.COMP_FAX AS compFax,
 	         /* 업태·종목·계좌 (2026-09-09) — 거래명세표가 쓰는 칸. 발주서 인쇄도 필요해지면 여기서 바로 쓴다 */
-	         CM.BIZ_COND AS bizCond, CM.BIZ_ITEM AS bizItem, CM.BANK_ACCT AS bankAcct, CM.STMT_NOTICE AS stmtNotice
+	         CM.BIZ_COND AS bizCond, CM.BIZ_ITEM AS bizItem, CM.BANK_ACCT AS bankAcct, CM.STMT_NOTICE AS stmtNotice,
+	         /* 회사 정보 수정 화면 칸 (2026-09-11) — 거래명세서 공지사항2 · 도장 */
+	         CM.COMP_EMAIL AS compEmail, CM.COMP_HP AS compHp, CM.STMT_NOTICE2 AS stmtNotice2,
+	         CS.STAMP_IMG AS stampImg
 	    FROM TBL_COMP_MST CM
+	    LEFT JOIN TBL_COMP_SET CS ON CS.COMP_CD = CM.COMP_CD
 	   WHERE CM.COMP_CD = #{compCd,jdbcType=VARCHAR} AND CM.ACTION_YN = 'Y'
 	   ORDER BY CM.JOB_SEQ DESC
 	]]></select>
+
+	<!-- ══════════════════════════════════════════════════════════════════════
+	     회사 정보 수정 (기준정보관리 ▸ 회사 정보 수정, 2026-09-11) — compInfo.jsp
+	     ★모든 구문의 회사코드는 컨트롤러가 <세션>에서 꺼내 넣는다 — 화면 값을 받지 않는다(남의 회사를 고칠 길을 안 만든다).
+	     ★쓰기 구문은 회사코드가 비면 컨트롤러가 먼저 막는다(fail-open 이 쓰기에 걸리면 전 회사가 바뀐다).
+	     ★TBL_COMP_MST 는 <활성행을 그 자리에서> 고친다 — 이력 행을 새로 만들면 관리자 전용 칸(계약일·관리자여부 등)을
+	       이 화면이 모두 알고 실어 보내야 하고, 하나라도 빠지면 조용히 사라진다.
+	     ══════════════════════════════════════════════════════════════════════ -->
+	<select id="selectCompInfoFull" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 1 CM.COMP_CD AS compCd, RTRIM(CM.COMP_NM) AS compNm, CM.COMP_CEO AS compCeo, CM.BUSI_NUM AS busiNum,
+	         CM.BIZ_COND AS bizCond, CM.BIZ_ITEM AS bizItem,
+	         CM.ZIP_CD AS zipCd, CM.COMP_ADDR AS compAddr, CM.COMP_EXTRADR AS compExtradr,
+	         CM.COMP_HP AS compHp, CM.COMP_TEL AS compTel, CM.COMP_FAX AS compFax, CM.COMP_EMAIL AS compEmail,
+	         CM.FOUND_DT AS foundDt, CM.CORP_NO AS corpNo, CM.CEO_BIRTH AS ceoBirth,
+	         CM.BANK_ACCT AS bankAcct, CM.STMT_NOTICE AS stmtNotice, CM.STMT_NOTICE2 AS stmtNotice2,
+	         CS.SET_JSON AS setJson, CS.STAMP_IMG AS stampImg, CS.UPD_DTTM AS setUpdDttm
+	    FROM TBL_COMP_MST CM
+	    LEFT JOIN TBL_COMP_SET CS ON CS.COMP_CD = CM.COMP_CD
+	   WHERE CM.COMP_CD = #{compCd,jdbcType=VARCHAR} AND CM.ACTION_YN = 'Y'
+	   ORDER BY CM.JOB_SEQ DESC
+	]]></select>
+	<update id="updateCompInfoSelf" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_COMP_MST
+	     SET COMP_NM      = #{compNm,jdbcType=NVARCHAR},
+	         COMP_CEO     = #{compCeo,jdbcType=NVARCHAR},
+	         BUSI_NUM     = #{busiNum,jdbcType=NVARCHAR},
+	         BIZ_COND     = #{bizCond,jdbcType=NVARCHAR},
+	         BIZ_ITEM     = #{bizItem,jdbcType=NVARCHAR},
+	         ZIP_CD       = #{zipCd,jdbcType=NVARCHAR},
+	         COMP_ADDR    = #{compAddr,jdbcType=NVARCHAR},
+	         COMP_EXTRADR = #{compExtradr,jdbcType=NVARCHAR},
+	         COMP_HP      = #{compHp,jdbcType=NVARCHAR},
+	         COMP_TEL     = #{compTel,jdbcType=NVARCHAR},
+	         COMP_FAX     = #{compFax,jdbcType=NVARCHAR},
+	         COMP_EMAIL   = #{compEmail,jdbcType=NVARCHAR},
+	         FOUND_DT     = REPLACE(ISNULL(#{foundDt,jdbcType=NVARCHAR},''),'-',''),
+	         CORP_NO      = #{corpNo,jdbcType=NVARCHAR},
+	         CEO_BIRTH    = REPLACE(ISNULL(#{ceoBirth,jdbcType=NVARCHAR},''),'-',''),
+	         BANK_ACCT    = #{bankAcct,jdbcType=NVARCHAR},
+	         STMT_NOTICE  = #{stmtNotice,jdbcType=NVARCHAR},
+	         STMT_NOTICE2 = #{stmtNotice2,jdbcType=NVARCHAR},
+	         UPD_DTTM = GETDATE(), UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
+	]]></update>
+	<select id="selectCompSetJson" parameterType="java.util.HashMap" resultType="java.lang.String"><![CDATA[
+	  SELECT SET_JSON FROM TBL_COMP_SET WHERE COMP_CD = #{compCd,jdbcType=VARCHAR}
+	]]></select>
+	<update id="mergeCompSetJson" parameterType="java.util.HashMap"><![CDATA[
+	  MERGE TBL_COMP_SET AS T
+	  USING (SELECT #{compCd,jdbcType=VARCHAR} AS COMP_CD) AS S ON T.COMP_CD = S.COMP_CD
+	  WHEN MATCHED THEN UPDATE SET SET_JSON = #{setJson,jdbcType=NVARCHAR}, AVG_ZERO_YN = #{avgZeroYn,jdbcType=CHAR},
+	       UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	  WHEN NOT MATCHED THEN INSERT (COMP_CD, SET_JSON, AVG_ZERO_YN, REG_DTTM, REG_USER, UPD_DTTM, UPD_USER, UPD_IP)
+	       VALUES (S.COMP_CD, #{setJson,jdbcType=NVARCHAR}, #{avgZeroYn,jdbcType=CHAR}, CONVERT(VARCHAR(19),GETDATE(),120), #{updUser,jdbcType=VARCHAR},
+	               CONVERT(VARCHAR(19),GETDATE(),120), #{updUser,jdbcType=VARCHAR}, #{updIp,jdbcType=VARCHAR});
+	]]></update>
+	<update id="mergeCompStamp" parameterType="java.util.HashMap"><![CDATA[
+	  MERGE TBL_COMP_SET AS T
+	  USING (SELECT #{compCd,jdbcType=VARCHAR} AS COMP_CD) AS S ON T.COMP_CD = S.COMP_CD
+	  WHEN MATCHED THEN UPDATE SET STAMP_IMG = #{stampImg,jdbcType=NVARCHAR},
+	       UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	  WHEN NOT MATCHED THEN INSERT (COMP_CD, STAMP_IMG, REG_DTTM, REG_USER, UPD_DTTM, UPD_USER, UPD_IP)
+	       VALUES (S.COMP_CD, #{stampImg,jdbcType=NVARCHAR}, CONVERT(VARCHAR(19),GETDATE(),120), #{updUser,jdbcType=VARCHAR},
+	               CONVERT(VARCHAR(19),GETDATE(),120), #{updUser,jdbcType=VARCHAR}, #{updIp,jdbcType=VARCHAR});
+	]]></update>
+
+	<!-- 은행계좌 관리 — 거래명세서 계좌 칸(BANK_ACCT)은 여기서 <결제계좌>로 고른 한 줄이 들어간다 -->
+	<select id="selectCompBankList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT BANK_SEQ AS bankSeq, BANK_NM AS bankNm, ACCT_NO AS acctNo, ACCT_HOLDER AS acctHolder, ALIAS_NM AS aliasNm, SORT_ORD AS sortOrd
+	    FROM TBL_COMP_BANK
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
+	   ORDER BY ISNULL(SORT_ORD, 999999), BANK_SEQ
+	]]></select>
+	<insert id="insertCompBank" parameterType="java.util.HashMap"><![CDATA[
+	  INSERT INTO TBL_COMP_BANK (COMP_CD, BANK_NM, ACCT_NO, ACCT_HOLDER, ALIAS_NM, SORT_ORD, ACTION_YN, REG_DTTM, REG_USER, UPD_DTTM, UPD_USER)
+	  VALUES (#{compCd,jdbcType=VARCHAR}, #{bankNm,jdbcType=NVARCHAR}, #{acctNo,jdbcType=NVARCHAR}, #{acctHolder,jdbcType=NVARCHAR},
+	          #{aliasNm,jdbcType=NVARCHAR}, #{sortOrd,jdbcType=INTEGER}, 'Y',
+	          CONVERT(VARCHAR(19),GETDATE(),120), #{updUser,jdbcType=VARCHAR}, CONVERT(VARCHAR(19),GETDATE(),120), #{updUser,jdbcType=VARCHAR})
+	]]></insert>
+	<update id="updateCompBank" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_COMP_BANK
+	     SET BANK_NM = #{bankNm,jdbcType=NVARCHAR}, ACCT_NO = #{acctNo,jdbcType=NVARCHAR}, ACCT_HOLDER = #{acctHolder,jdbcType=NVARCHAR},
+	         ALIAS_NM = #{aliasNm,jdbcType=NVARCHAR}, SORT_ORD = #{sortOrd,jdbcType=INTEGER},
+	         UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{updUser,jdbcType=VARCHAR}
+	   WHERE BANK_SEQ = #{bankSeq,jdbcType=BIGINT} AND COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
+	]]></update>
+	<update id="deleteCompBank" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_COMP_BANK SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{updUser,jdbcType=VARCHAR}
+	   WHERE BANK_SEQ = #{bankSeq,jdbcType=BIGINT} AND COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
+	]]></update>
+
+	<!-- 카드 관리 — ★카드번호는 뒤 4자리만 (전체 번호를 저장하지 않는다) -->
+	<select id="selectCompCardList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT CARD_SEQ AS cardSeq, CARD_CO AS cardCo, CARD_NM AS cardNm, CARD_LAST4 AS cardLast4, CARD_USER AS cardUser,
+	         CARD_GB AS cardGb, REMARK AS remark, SORT_ORD AS sortOrd
+	    FROM TBL_COMP_CARD
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
+	   ORDER BY ISNULL(SORT_ORD, 999999), CARD_SEQ
+	]]></select>
+	<insert id="insertCompCard" parameterType="java.util.HashMap"><![CDATA[
+	  INSERT INTO TBL_COMP_CARD (COMP_CD, CARD_CO, CARD_NM, CARD_LAST4, CARD_USER, CARD_GB, REMARK, SORT_ORD, ACTION_YN, REG_DTTM, REG_USER, UPD_DTTM, UPD_USER)
+	  VALUES (#{compCd,jdbcType=VARCHAR}, #{cardCo,jdbcType=NVARCHAR}, #{cardNm,jdbcType=NVARCHAR}, #{cardLast4,jdbcType=VARCHAR},
+	          #{cardUser,jdbcType=NVARCHAR}, #{cardGb,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, #{sortOrd,jdbcType=INTEGER}, 'Y',
+	          CONVERT(VARCHAR(19),GETDATE(),120), #{updUser,jdbcType=VARCHAR}, CONVERT(VARCHAR(19),GETDATE(),120), #{updUser,jdbcType=VARCHAR})
+	]]></insert>
+	<update id="updateCompCard" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_COMP_CARD
+	     SET CARD_CO = #{cardCo,jdbcType=NVARCHAR}, CARD_NM = #{cardNm,jdbcType=NVARCHAR}, CARD_LAST4 = #{cardLast4,jdbcType=VARCHAR},
+	         CARD_USER = #{cardUser,jdbcType=NVARCHAR}, CARD_GB = #{cardGb,jdbcType=NVARCHAR}, REMARK = #{remark,jdbcType=NVARCHAR},
+	         SORT_ORD = #{sortOrd,jdbcType=INTEGER},
+	         UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{updUser,jdbcType=VARCHAR}
+	   WHERE CARD_SEQ = #{cardSeq,jdbcType=BIGINT} AND COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
+	]]></update>
+	<update id="deleteCompCard" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_COMP_CARD SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{updUser,jdbcType=VARCHAR}
+	   WHERE CARD_SEQ = #{cardSeq,jdbcType=BIGINT} AND COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
+	]]></update>
 
 
 	<!-- ══════════════════════════════════════════════════════════════════════

@@ -56,6 +56,10 @@ public class SalesTrxDtlDTO {
     public void setExtCd(String extCd) { this.extCd = extCd; }
     public Integer getSortOrd() { return sortOrd; }
     public void setSortOrd(Integer sortOrd) { this.sortOrd = sortOrd; }
+    /* 바코드 (2026-09-11) — 조회 전용. 공개 거래명세서의 「바코드」 칸 (낱개바코드 → 없으면 박스바코드) */
+    private String bcNo;
+    public String getBcNo() { return bcNo; }
+    public void setBcNo(String bcNo) { this.bcNo = bcNo; }
     public Long getDtlSeq() { return dtlSeq; }
     public void setDtlSeq(Long dtlSeq) { this.dtlSeq = dtlSeq; }
     public Long getSaleSeq() { return saleSeq; }

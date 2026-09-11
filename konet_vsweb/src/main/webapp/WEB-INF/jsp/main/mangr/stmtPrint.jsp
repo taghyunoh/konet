@@ -22,7 +22,7 @@
 <meta property="og:title" content="${ogTitle}">
 <meta property="og:description" content="${ogDesc}">
 </c:if>
-<script src="${pageContext.request.contextPath}/asset/js/stmt-sheet.js?v=20260910"></script>
+<script src="${pageContext.request.contextPath}/asset/js/stmt-sheet.js?v=20260911"></script>
 <style id="stmtCss"></style>
 <style>
   .none{ text-align:center; padding:70px 20px; color:#8a97a4; font-size:16px;

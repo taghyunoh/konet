@@ -17,7 +17,8 @@
 -->
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260805"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260911"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260911"></script>
 <%-- 칸 폭 조절 — 머리글 오른쪽 경계를 끌면 그 칸이 늘고 준다(더블클릭 = 처음 폭으로).
      표에 data-colrz="이름" 만 주면 걸린다. 폭은 localStorage 에 남아 다음에도 그대로. --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-colresize.js?v=20260907"></script>

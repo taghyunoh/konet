@@ -311,6 +311,20 @@ public interface UserService {
 	int updatePoShared(java.util.Map<String,Object> p) throws Exception;
 	int updatePoPurchSeq(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectCompInfo(java.util.Map<String,Object> p) throws Exception;
+	/* 회사 정보 수정 (2026-09-11) — compInfo.jsp */
+	/** 판매 저장 전 회사 설정 관문(재고 부족·여신 초과) — 막을 이유가 있으면 그 글, 없으면 null */
+	String salesLimitMsg(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	java.util.Map<String,Object> selectCompInfoFull(java.util.Map<String,Object> p) throws Exception;
+	int updateCompInfoSelf(java.util.Map<String,Object> p) throws Exception;
+	String selectCompSetJson(java.util.Map<String,Object> p) throws Exception;
+	int mergeCompSetJson(java.util.Map<String,Object> p) throws Exception;
+	int mergeCompStamp(java.util.Map<String,Object> p) throws Exception;
+	List<java.util.Map<String,Object>> selectCompBankList(java.util.Map<String,Object> p) throws Exception;
+	int saveCompBank(java.util.Map<String,Object> p) throws Exception;
+	int deleteCompBank(java.util.Map<String,Object> p) throws Exception;
+	List<java.util.Map<String,Object>> selectCompCardList(java.util.Map<String,Object> p) throws Exception;
+	int saveCompCard(java.util.Map<String,Object> p) throws Exception;
+	int deleteCompCard(java.util.Map<String,Object> p) throws Exception;
 	/* ── 문서 전송이력 (2026-09-10) — 거래명세표·발주서가 한 표를 쓴다(DOC_GB 로만 가른다) */
 	int insertSendHist(java.util.Map<String,Object> p) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectSendHistList(java.util.Map<String,Object> p) throws Exception;

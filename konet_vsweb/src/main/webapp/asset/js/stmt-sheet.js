@@ -12,7 +12,8 @@
        D  전표   {dt,no,dlvDt,venNm,ven{bizno,addr,addr2,email,hp,tel},remark,pay,dc,
                   t{box,ea,qty,sup,vat,tot}, rows[...], balBefore,balAfter, sortMap{prodCd:조회순서}}
        O  조건   konetStmt.DEF 참고
-       S  공급자 {nm,biz,ceo,cond,item,addr,bank,tel,notice}
+       S  공급자 {nm,biz,ceo,cond,item,addr,bank,tel,notice,notice2,stamp}
+            ★notice2·stamp(도장 data URL) = 회사 정보 수정 화면 (2026-09-11)
        prev 직전단가 {prodCd:단가} — 없으면 null(단가변동 표시 안 함)
        opt  {autoPrint:true|false, close:true|false, note:'머리줄에 덧붙일 글'}
    ══════════════════════════════════════════════════════════════════════════════ */
@@ -24,6 +25,10 @@
   /* 단가만 소수점을 살린다(소수 2자리) — 금액·합계는 정수. 판매등록 화면과 같은 규칙 */
   function fmtP(v){ v = Math.round(n(v)*100)/100; return v.toLocaleString('en-US', {maximumFractionDigits:2}); }
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  /* 반품 줄인가 — 「불량반품」(2026-09-11 회사 설정 「불량 반품 사용」)도 금액 부호는 반품과 같다 */
+  function isRtn(g){ return g === '반품' || g === '불량반품'; }
+  /* 도장 그림 — data:image/…;base64 만 받는다(다른 주소가 끼어들 틈을 안 준다) */
+  function stampOk(s){ return /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+\/=]+$/.test(String(s||'')); }
 
   /* ★번호에 「-」를 넣어 찍는다 (2026-09-09 실제 출력물에서 발견) —
        회사 마스터·거래처 마스터에는 「1298667271」·「07082225194」 처럼 숫자만 들어 있는 경우가 많은데,
@@ -42,8 +47,12 @@
     return s.slice(0,3)+'-'+s.slice(3,s.length-4)+'-'+s.slice(-4);                     // 그 밖 지역
   }
 
-  /* 기본 조건 — 판매등록 조건 창의 처음 상태와 같다 */
-  var DEF = { ord:'in', amt:'Y', price:'Y', bal:'N', inv:'N', boxp:'N', chg:'N', vat:'N', rows:10, mode:'both' };
+  /* 기본 조건 — 판매등록 조건 창의 처음 상태와 같다.
+     ★2026-09-11 회사 정보 수정 ③ 인쇄 옵션으로 넷이 늘었다(기본은 전부 N = 종전 모양 그대로) :
+       bc 바코드(품명 밑 줄에 낱개바코드, 없으면 박스바코드) · rtn 반품액·실매출액(하단) ·
+       shade 음영(품목 줄 한 줄씩 건너 옅게) · ptime 인쇄일시(맨 윗줄 오른쪽 — 종전에는 늘 찍었으므로 기본 Y) */
+  var DEF = { ord:'in', amt:'Y', price:'Y', bal:'N', inv:'N', boxp:'N', chg:'N', vat:'N', rows:10, mode:'both',
+              bc:'N', rtn:'N', shade:'N', ptime:'Y' };
 
   /* ★A4 실측(2026-09-09, 머리표 4줄) — 쓸 수 있는 높이 279mm · 품목 한 줄 5.3mm.
        한 부만 찍으면 38줄이 종이를 꽉 채운다. 「한 장일 때는 아래까지」(2026-09-09 요청)로
@@ -77,8 +86,10 @@
   /* 칸 구성 — 조건에 따라 칸 자체가 생기고 사라진다(빈 칸을 남기지 않는다).
      ⚠머리글·자료·[수량합계]·이하여백·빈 줄이 <한 조건 안에서 모두 같은 칸 수>여야 한다 */
   function cols(O){
-    var c = [{k:'no',t:'순번',w:7,a:'c'}, {k:'nm',t:'품목 / 규격',w:0,a:'l'},
-             {k:'box',t:'BOX수',w:8,a:'r'}, {k:'ea',t:'EA수',w:9,a:'r'}, {k:'qty',t:'총수량',w:9,a:'r'}];
+    var c = [{k:'no',t:'순번',w:7,a:'c'}, {k:'nm',t:'품목 / 규격',w:0,a:'l'}];
+    /* 바코드 (2026-09-11 회사 정보 수정 ③) — 품명 바로 뒤 칸. 값은 D.bcMap{상품코드:바코드}(낱개 → 없으면 박스) */
+    if (O.bc==='Y') c.push({k:'bc', t:'바코드', w:13, a:'c'});
+    c.push({k:'box',t:'BOX수',w:8,a:'r'}, {k:'ea',t:'EA수',w:9,a:'r'}, {k:'qty',t:'총수량',w:9,a:'r'});
     if (O.price==='Y' || O.boxp==='Y') c.push({k:'up', t:(O.price==='Y'?'단가':'BOX단가'), w:12, a:'r'});
     if (O.amt==='Y')  c.push({k:'amt', t:(O.vat==='Y'?'공급가액':'금액'), w:12, a:'r'});
     if (O.amt==='Y' && O.vat==='Y') c.push({k:'vat', t:'세액', w:10, a:'r'});
@@ -93,13 +104,14 @@
     if (Math.round(pv*100) === Math.round(cur*100)) return '';
     return ' <span class="chg '+(cur>pv?'up':'dn')+'">'+(cur>pv?'▲':'▼')+fmtP(pv)+'</span>';
   }
-  function cell(k, o, O, prev, no){
-    var sg = (o.trxGb==='반품') ? -1 : 1;          /* 값은 양수로 저장된다 — 반품 줄만 −로 보인다 */
+  function cell(k, o, O, prev, no, D){
+    var sg = isRtn(o.trxGb) ? -1 : 1;              /* 값은 양수로 저장된다 — 반품 줄만 −로 보인다 */
     if (k==='no')  return no;
+    if (k==='bc')  return '<span class="bcn">'+esc(((D && D.bcMap) || {})[o.prodCd] || '')+'</span>';
     if (k==='nm'){
       var h = esc(o.prodNm||'');
       if (o.spec) h += ' <span class="sp">'+esc(o.spec)+'</span>';
-      if (o.trxGb==='반품') h += ' <span class="ret">[반품]</span>';
+      if (isRtn(o.trxGb)) h += ' <span class="ret">['+esc(o.trxGb)+']</span>';
       /* 단가·박스단가를 둘 다 안 찍으면 단가 칸이 없다 — 그때는 변동 표시를 품명 뒤에 */
       if (O.price!=='Y' && O.boxp!=='Y') h += chgTag(o,O,prev);
       /* 넘치면 두 줄 (2026-09-10) — 안쪽 .tx 를 fit() 이 재서 .w2 를 붙인다 */
@@ -141,7 +153,8 @@
     var vMail = ven.email || '';
     var h = '<div class="cp cp-'+kind+(O.inv==='Y'?' inv':'')+'">';
     h += '<div class="top"><span>공급받는자연락처 : '+esc(telNo(ven.hp||ven.tel||''))+'</span>'
-       + '<span>인쇄일시 : '+nowStr()+'</span></div>';
+       /* 인쇄일시 — 회사 설정 ③ 「인쇄일시」(2026-09-11). 종전에는 늘 찍었다 → 옛 조건(ptime 없음)은 찍는다 */
+       + (O.ptime==='N' ? '<span></span>' : '<span>인쇄일시 : '+nowStr()+'</span>') + '</div>';
     h += '<h1>거 래 명 세 서 <small>('+lab+')</small></h1>';
     h += '<table class="hd">'
        + '<colgroup><col style="width:4%"><col style="width:9%"><col style="width:29%"><col style="width:4%">'
@@ -157,7 +170,9 @@
        +     '<td colspan="2" class="l big">'+(ven.bizno?'('+esc(bizNo(ven.bizno))+') ':'')+'<b>'+esc(D.venNm||'')+'</b> 귀하</td>'
        +     '<td class="k vt" rowspan="4">공<br>급<br>자</td>'
        +     '<td class="k">사업자</td><td class="c">'+esc(bizNo(S.biz))+'</td>'
-       +     '<td class="k">성명</td><td class="c">'+esc(S.ceo)+'</td></tr>'
+       /* 도장 (2026-09-11 회사 정보 수정 ②) — 성명 칸 오른쪽에 겹쳐 찍는다. 칸 높이는 그대로(장수 계산이 안 흔들린다) */
+       +     '<td class="k">성명</td><td class="c'+(stampOk(S.stamp)?' stc':'')+'">'+esc(S.ceo)
+       +       (stampOk(S.stamp) ? '<img class="stamp" alt="" src="'+S.stamp+'">' : '')+'</td></tr>'
        + '<tr><td class="k">주소</td><td class="l wrap"><div class="tx">'+esc(vAddr)+'</div></td>'
        +     '<td class="k">상호</td><td class="c">'+esc(S.nm)+'</td>'
        +     '<td class="k">업태</td><td class="c">'+esc(S.cond)+'</td></tr>'
@@ -173,9 +188,11 @@
        + '</tr></thead><tbody>';
     var base = pi*O.rows, lines = rs.length;
     rs.forEach(function(o,i){
-      h += '<tr'+(o.trxGb==='반품'?' class="retrow"':'')+'>'
+      /* 음영 (2026-09-11) — 한 줄씩 건너 옅게. 줄 번호 기준이라 장이 바뀌어도 줄무늬가 이어진다 */
+      var cls = (isRtn(o.trxGb) ? 'retrow' : '') + ((O.shade==='Y' && (base+i)%2===1) ? ' sh' : '');
+      h += '<tr'+(cls.trim() ? ' class="'+cls.trim()+'"' : '')+'>'
          + cs.map(function(c){
-             return '<td class="'+c.a+'">'+cell(c.k,o,O,prev,('00'+(base+i+1)).slice(-3))+'</td>';
+             return '<td class="'+c.a+'">'+cell(c.k,o,O,prev,('00'+(base+i+1)).slice(-3),D)+'</td>';
            }).join('') + '</tr>';
     });
     if (last){
@@ -196,21 +213,36 @@
       h += '<tr class="blank">'+cs.map(function(){ return '<td>&nbsp;</td>'; }).join('')+'</tr>';
     h += '</tbody></table>';
     var memo = esc(D.remark||'') + ((money && n(D.dc)>0) ? ' <span class="sp">(할인 '+fmt(D.dc)+')</span>' : '');
+    /* 반품액·실매출액 (2026-09-11 회사 정보 수정 ③) — 메모 줄을 나눠 쓴다(줄 수를 늘리면 A4 장수가 흔들린다).
+       반품액 = 반품·불량반품 줄 합(금액 칸과 같은 기준 : 부가세 출력이면 공급가, 아니면 판매금액) · 실매출액 = 판매 − 반품 */
+    var rtn = (money && O.rtn==='Y'), rtnAmt = 0;
+    if (rtn) (D.rows||[]).forEach(function(o){ if (isRtn(o.trxGb)) rtnAmt += (O.vat==='Y' ? n(o.supplyAmt) : n(o.totAmt)); });
+    var netAmt = money ? (O.vat==='Y' ? n(D.t.sup) : n(D.t.tot)) : 0;
+    /* 공지사항 2줄 (2026-09-11) — 둘째 줄이 있으면 같은 칸 안에서 두 줄로 접는다(.w2k = fit() 이 떼지 않는 두 줄) */
+    var n2 = String(S.notice2||'').trim();
+    var noticeTd = n2
+      ? '<td colspan="7" class="l w2 w2k"><div class="tx">'+esc(S.notice||'')+'<br>'+esc(n2)+'</div></td>'
+      : '<td colspan="7" class="l">'+esc(S.notice||'')+'</td>';
     h += '<table class="ft">'
        /* 계좌·연락처 칸을 넓게 — 은행명+예금주+계좌번호가 한 줄에 들어가야 한다 */
        + '<colgroup><col style="width:8%"><col style="width:12%"><col style="width:8%"><col style="width:12%">'
        +   '<col style="width:8%"><col style="width:12%"><col style="width:9%"><col style="width:31%"></colgroup>'
        + '<tr><td class="k">전잔고</td><td class="r">'+(bal?fmt(D.balBefore):'')+'</td>'
-       +     '<td class="k">매출액</td><td class="r">'+(money?fmt(O.vat==='Y'?D.t.sup:D.t.tot):'')+'</td>'
+       /* 반품액·실매출액을 찍으면 이 칸은 <반품 전 매출액> — 매출액 − 반품액 = 실매출액 이 한 줄에 맞아떨어진다 */
+       +     '<td class="k">매출액</td><td class="r">'+(money?fmt(netAmt + (rtn ? rtnAmt : 0)):'')+'</td>'
        +     '<td class="k">세액</td><td class="r">'+((money&&O.vat==='Y')?fmt(D.t.vat):'')+'</td>'
        +     '<td class="k">계좌</td><td class="l">'+esc(S.bank)+'</td></tr>'
        + '<tr><td class="k">합계</td><td class="r"><b>'+(money?fmt(D.t.tot):'')+'</b></td>'
        +     '<td class="k">수금</td><td class="r">'+(money?fmt(D.pay):'')+'</td>'
        +     '<td class="k">잔고</td><td class="r">'+(bal?fmt(D.balAfter):'')+'</td>'
        +     '<td class="k">연락처</td><td class="l">'+esc(telNo(S.tel))+'</td></tr>'
-       + '<tr><td class="k">메모</td><td colspan="5" class="l">'+memo+'</td>'
+       + (rtn
+          ? '<tr><td class="k">메모</td><td class="l wrap"><div class="tx">'+memo+'</div></td>'
+            + '<td class="k">반품액</td><td class="r ret">'+(rtnAmt ? '−'+fmt(rtnAmt) : '0')+'</td>'
+            + '<td class="k">실매출액</td><td class="r"><b>'+fmt(netAmt)+'</b></td>'
+          : '<tr><td class="k">메모</td><td colspan="5" class="l">'+memo+'</td>')
        +     '<td class="k">인수자</td><td class="r sig">(인)</td></tr>'
-       + '<tr><td class="k">공지사항</td><td colspan="7" class="l">'+esc(S.notice||'')+'</td></tr>'
+       + '<tr><td class="k">공지사항</td>'+noticeTd+'</tr>'
        + '</table>';
     return h + '</div>';
   }
@@ -249,6 +281,13 @@
   + '.cp td.w2 .sp{font-size:8.5px}'
   + '.cp .ret{color:#c0392b;font-weight:700}'
   + '.cp tr.retrow td{color:#c0392b}'
+  /* 음영·바코드·도장 (2026-09-11 회사 정보 수정 ②③) */
+  + '.cp .it tr.sh td{background:#eef1f4;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+  + '.cp .bcn{font-family:Consolas,monospace;font-size:10px;letter-spacing:.5px}'
+  /* 도장 — 성명 칸 오른쪽에 겹친다. 칸 높이(19px)를 안 늘리려고 그림을 칸 밖으로 비어져 나오게 둔다 */
+  + '.cp td.stc{position:relative;overflow:visible}'
+  + '.cp img.stamp{position:absolute;right:2px;top:50%;transform:translateY(-50%);height:32px;max-width:60%;'
+  +        'object-fit:contain;opacity:.92;pointer-events:none;z-index:2;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
   + '.cp .it thead td{background:#f4f6f8;font-weight:800;font-size:10.5px}'
   + '.cp .it tr.sub td{background:#f7f9fa;font-weight:800}'
   + '.cp .it tr.end td{color:#5a6b7a;letter-spacing:2px;font-size:10.5px}'
@@ -342,7 +381,7 @@
        인쇄 직전(beforeprint)에도 다시 잰다 — 인쇄 폭이 화면 폭과 다를 수 있다. */
   var FIT_JS =
       '(function(){function fit(){var a=document.querySelectorAll(".cp td .tx");'
-    + 'for(var i=0;i<a.length;i++){var tx=a[i],td=tx.parentNode;td.classList.remove("w2");'
+    + 'for(var i=0;i<a.length;i++){var tx=a[i],td=tx.parentNode;if(td.classList.contains("w2k"))continue;td.classList.remove("w2");'
     + 'if(tx.scrollWidth>tx.clientWidth+1)td.classList.add("w2");}}'
     + 'fit();window.addEventListener("load",fit);window.addEventListener("beforeprint",fit);'
     + 'window.konetStmtFit=fit;})();';
@@ -350,6 +389,7 @@
     var a = document.querySelectorAll('.cp td .tx');
     for (var i = 0; i < a.length; i++){
       var tx = a[i], td = tx.parentNode;
+      if (td.classList.contains('w2k')) continue;     // 처음부터 두 줄로 그린 칸(공지사항 2줄)은 그대로
       td.classList.remove('w2');
       if (tx.scrollWidth > tx.clientWidth + 1) td.classList.add('w2');
     }

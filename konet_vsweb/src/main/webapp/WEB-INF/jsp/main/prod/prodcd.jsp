@@ -18,6 +18,8 @@
      ⚠외부 CDN 이라 못 받으면 **아래 font-family 의 맑은 고딕으로 조용히 내려간다**(화면이 깨지지 않는다).
        사내망에서 막히면 이 <link> 한 줄만 빼면 종전 글자체로 돌아간다. --%>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<%-- 회사 설정(회사 정보 수정 「기능」 ▸ 상품 기본 과세 유형, 2026-09-11) — window.konetSet --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260911"></script>
 <title>상품코드 등록 (TBL_PROD_MST)</title>
 <%-- 상품코드 등록 (2026-08-01 신설)
      ★같은 마스터(TBL_PROD_MST)를 보는 '등록 전용' 화면이다 — 상품(품목)관리와 데이터·엔드포인트가 같다.
@@ -894,7 +896,8 @@ function pcOpen(seq, copy){
   _set('f_cd', (o&&!copy)?o.prodCd:''); document.getElementById('f_cd').readOnly=(!!o&&!copy);   // 수정 시 코드는 잠금
   _set('f_nm', o?o.prodNm:''); _set('f_spec', o?o.spec:'');
   _set('f_maker', o?o.makerNm:''); _set('f_type', o?o.typeNm:'');
-  _set('f_tax', o?(o.taxGb||'과세'):'과세');
+  // 새 상품의 과세 첫 값 = 회사 설정 「상품 기본 과세 유형」(회사 정보 수정 「기능」, 2026-09-11)
+  _set('f_tax', o?(o.taxGb||'과세'):((window.konetSet && konetSet.f('prodTax')) || '과세'));
   _set('f_pack', o?(o.packQty!=null?o.packQty:1):1);
   _set('f_sort', o?(o.sortOrd!=null?o.sortOrd:999999):999999);
   _set('f_in', o?(o.inPrice!=null?o.inPrice:0):0);

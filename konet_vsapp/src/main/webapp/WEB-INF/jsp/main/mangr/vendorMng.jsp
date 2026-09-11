@@ -5,6 +5,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<%-- 회사 설정(회사 정보 수정 「기능」 ▸ 거래처 — 새 거래처의 부가세·DC 첫 값, 2026-09-11) --%>
+<script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260911"></script>
 <title>매입/매출 거래처 관리 (TBL_VENDOR_MST)</title>
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; }
@@ -146,7 +148,7 @@
       <div class="sep">기본</div>
       <div class="fld"><label>거래처코드 *</label><input id="f_cd" placeholder="예: 0089"></div>
       <div class="fld"><label>거래유형 *</label><select id="f_gb"><option value="매입">매입</option><option value="매출">매출</option><option value="매입&매출">매입&매출</option></select></div>
-      <div class="fld"><label>부가세</label><select id="f_vat" title="이 거래처의 매입·판매 등록에서 부가세를 어떻게 계산할지 정합니다. 비워 두면 별도로 봅니다."><option value="">- (별도와 같음)</option><option value="별도">별도 (단가 + 10%)</option><option value="포함">포함 (단가 안에 10% 들어 있음)</option><option value="면세">면세 (부가세 없음)</option></select></div>
+      <div class="fld"><label>부가세</label><select id="f_vat" title="이 거래처의 매입·판매 등록에서 부가세를 어떻게 계산할지 정합니다. 비워 두면 회사 기본값(회사 정보 수정 ▸ 기능 ▸ 거래처 기본 과세 유형)으로 봅니다."><option value="">- (회사 기본값)</option><option value="별도">별도 (단가 + 10%)</option><option value="포함">포함 (단가 안에 10% 들어 있음)</option><option value="면세">면세 (부가세 없음)</option></select></div>
       <%-- 코드 칸 바로 아래 줄 = 마지막으로 등록한 거래처코드 (2026-08-12). 추가할 때만 나온다. --%>
       <div class="fld full lastcd" id="lastCd" style="display:none"></div>
       <div class="fld two"><label>거래처명 *</label><input id="f_nm"></div>
@@ -170,6 +172,10 @@
       <div class="fld two"><label>주소</label><input id="f_addr"></div>
       <div class="fld two"><label>상세주소</label><input id="f_addr2"></div>
       <div class="fld"><label>계좌</label><input id="f_acct" placeholder="예: 우리은행/1005-…((주)코네트)"></div>
+      <div class="sep">거래 조건 <span style="font-weight:400;color:#6b7a89">(2026-09-11 · 새 거래처의 첫 값 = 기준정보관리 ▸ 회사 정보 수정 「기능」)</span></div>
+      <div class="fld"><label>DC 사용</label><select id="f_dcyn" title="예 이고 DC율이 있으면 판매·매입등록에 상품을 담을 때 DC 금액(= 금액 × DC율)이 저절로 들어갑니다."><option value="N">아니오</option><option value="Y">예</option></select></div>
+      <div class="fld"><label>DC율(%)</label><input id="f_dcrate" inputmode="decimal" placeholder="예: 3"></div>
+      <div class="fld"><label>여신한도(원)</label><input id="f_credit" inputmode="numeric" placeholder="비우면 한도 없음" title="회사 정보 수정 「여신 초과 제한」이 예이면, 판매 저장 때 거래후잔고가 이 금액을 넘으면 저장을 막습니다."></div>
       <div class="sep">기타</div>
       <div class="fld full"><label>비고</label><textarea id="f_remark" rows="2"></textarea></div>
     </div>
@@ -375,7 +381,12 @@ function vmOpen(cd){
   _set('f_mgrcd',o?o.mgrCd:''); _set('f_mgrnm',o?o.mgrNm:''); _set('f_zip',o?o.zipcd:''); _set('f_dc',o?o.dcCd:'');
   _set('f_addr',o?o.addr:''); _set('f_addr2',o?o.addr2:'');
   _set('f_hp',o?o.hp:''); _set('f_tel',o?o.tel:''); _set('f_fax',o?o.fax:''); _set('f_email',o?o.email:'');
-  _set('f_taxbill',o?(o.taxbillGb||''):''); _set('f_vat',o?(o.vatGb||''):''); _set('f_acct',o?o.bankAcct:''); _set('f_remark',o?o.remark:'');
+  /* 새 거래처의 부가세·DC 첫 값 = 회사 설정(회사 정보 수정 「기능」 ▸ 거래처, 2026-09-11 — asset/js/comp-set.js) */
+  var KS=window.konetSet;
+  _set('f_taxbill',o?(o.taxbillGb||''):''); _set('f_vat',o?(o.vatGb||''):(KS?KS.f('venVat'):'')); _set('f_acct',o?o.bankAcct:''); _set('f_remark',o?o.remark:'');
+  _set('f_dcyn', o?(o.dcYn||'N'):(KS?KS.f('venDcYn'):'N'));
+  _set('f_dcrate', o?(o.dcRate!=null&&o.dcRate!==''?String(Number(o.dcRate)):''):(KS&&Number(KS.f('venDcRate'))?String(KS.f('venDcRate')):''));
+  _set('f_credit', o&&o.creditLimit!=null&&o.creditLimit!==''?Math.round(Number(o.creditLimit)).toLocaleString():'');
   vmLastCdShow(!o);          // 추가일 때만 「최근 등록 코드·거래처명」 줄을 낸다 (수정은 코드가 잠겨 있어 쓸모없다)
   document.getElementById('ov').classList.add('on');
   // 창을 열면 곧바로 칠 수 있게(2026-08-04) — 추가는 거래처코드부터, 수정은 코드가 잠겨 있으니 거래처명부터
@@ -389,7 +400,10 @@ function vmDto(){
     bizCond:gv('f_cond')||null, bizItem:gv('f_item')||null, mgrCd:gv('f_mgrcd')||null, mgrNm:gv('f_mgrnm')||null,
     zipcd:gv('f_zip')||null, dcCd:gv('f_dc')||null, addr:gv('f_addr')||null, addr2:gv('f_addr2')||null,
     hp:gv('f_hp')||null, tel:gv('f_tel')||null, fax:gv('f_fax')||null, email:gv('f_email')||null,
-    taxbillGb:gv('f_taxbill')||null, vatGb:gv('f_vat')||null, bankAcct:gv('f_acct')||null, remark:gv('f_remark')||null };
+    taxbillGb:gv('f_taxbill')||null, vatGb:gv('f_vat')||null, bankAcct:gv('f_acct')||null, remark:gv('f_remark')||null,
+    /* ★빈 문자열로 보낸다(null 이 아니라) — updateVendorMst 는 null 이면 종전 값을 두고 '' 이면 지운다 */
+    dcYn:gv('f_dcyn')||'N', dcRate:String(gv('f_dcrate')||'').replace(/[^0-9.]/g,''),
+    creditLimit:String(gv('f_credit')||'').replace(/[^0-9.]/g,'') };
 }
 function vmSave(){
   var dto=vmDto();
@@ -498,7 +512,7 @@ function vmOvOpen(){ return document.getElementById('ov').classList.contains('on
 /* 창 안 이동 순서 = 화면에 보이는 순서(격자라 DOM 순서와 같다). 비고(textarea)는 줄바꿈이 필요해 뺀다 */
 var VM_FLOW=['f_cd','f_gb','f_vat','f_nm','f_taxbill','f_full','f_alias','f_bizno',
              'f_ceo','f_cond','f_item','f_mgrcd','f_mgrnm','f_dc',
-             'f_hp','f_tel','f_fax','f_email','f_zip','f_addr','f_addr2','f_acct'];
+             'f_hp','f_tel','f_fax','f_email','f_zip','f_addr','f_addr2','f_acct','f_dcyn','f_dcrate','f_credit'];
 function vmNext(id){
   var i=VM_FLOW.indexOf(id); if(i<0) return null;
   for(var k=i+1;k<VM_FLOW.length;k++){

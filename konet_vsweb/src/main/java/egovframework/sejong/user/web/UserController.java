@@ -496,6 +496,228 @@ public class UserController {
 			}
 		}
 
+		// ============================================================
+		// 회사 정보 수정 (기준정보관리 ▸ 회사 정보 수정, 2026-09-11) — compInfo.jsp
+		//   ★모든 회사가 쓴다(관리자 전용 아님). 회사코드는 늘 <세션>에서 — 화면 값을 받지 않는다.
+		//   ★쓰기는 세션 회사코드가 비면 거절한다(fail-open 이 쓰기에 걸리면 전 회사가 바뀐다).
+		//   화면 3장(① 필수·기본 정보 ② 도장 ③ 거래명세서 인쇄 옵션 + 「기능」) 을 한 화면에 담는다.
+		// ============================================================
+		private static final com.fasterxml.jackson.databind.ObjectMapper COMP_JSON = new com.fasterxml.jackson.databind.ObjectMapper();
+
+		private String sessComp(HttpSession session) {
+			Object c = session.getAttribute("s_comp_cd");
+			return c == null ? "" : String.valueOf(c).trim();
+		}
+		private Map<String,Object> compParam(HttpSession session, HttpServletRequest request) {
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("compCd", sessComp(session));
+			p.put("updUser", session.getAttribute("s_user_id") == null ? "" : String.valueOf(session.getAttribute("s_user_id")));
+			if (request != null) p.put("updIp", request.getRemoteAddr());
+			return p;
+		}
+		/** SQL 이 직접 봐야 하는 설정(평균 매입단가 0원 포함)만 칸으로 따로 둔다 — DB 가 2012 라 JSON_VALUE 가 없다 */
+		@SuppressWarnings("unchecked")
+		private static String avgZeroOf(Object set) {
+			if (set instanceof Map) {
+				Object f = ((Map<String,Object>) set).get("func");
+				if (f instanceof Map && "N".equals(String.valueOf(((Map<String,Object>) f).get("avgZero")))) return "N";
+			}
+			return "Y";
+		}
+		private static String trimStr(Object o, int max) {
+			if (o == null) return "";
+			String s = String.valueOf(o).trim();
+			return s.length() > max ? s.substring(0, max) : s;
+		}
+
+		@RequestMapping(value="/mangr/compInfo.do")
+		public String compInfo(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/compInfo";
+		}
+
+		/** 화면이 여는 순간 한 번 — 회사 정보 + 설정 + 계좌·카드 목록 */
+		@RequestMapping(value="/user/compInfoGet.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> compInfoGet(HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (sessComp(session).isEmpty()) { res.put("error", "로그인이 필요합니다."); return res; }
+			Map<String,Object> p = compParam(session, null);
+			Map<String,Object> info = svc.selectCompInfoFull(p);
+			res.put("info", info == null ? new HashMap<String,Object>() : info);
+			res.put("bank", svc.selectCompBankList(p));
+			res.put("card", svc.selectCompCardList(p));
+			return res;
+		}
+
+		/** 다른 화면(판매·매입·수금·상품·거래처 등록)이 「기능」·인쇄 옵션을 읽는 곳 — 설정 JSON 만 돌려준다 */
+		@RequestMapping(value="/user/compSetGet.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> compSetGet(HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (sessComp(session).isEmpty()) return res;
+			String js = svc.selectCompSetJson(compParam(session, null));
+			res.put("setJson", js == null ? "" : js);
+			return res;
+		}
+
+		/** ① 필수·기본 정보 + 설정(JSON) 저장 — body = {info:{...}, set:{...}} */
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/user/compInfoSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compInfoSave(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			try {
+				if (sessComp(session).isEmpty()) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				Map<String,Object> info = body.get("info") instanceof Map ? (Map<String,Object>) body.get("info") : null;
+				Object set = body.get("set");
+				int cnt = 0;
+				if (info != null) {
+					Map<String,Object> p = compParam(session, request);
+					String[][] cols = {
+						{"compNm","100"},{"compCeo","50"},{"busiNum","20"},{"bizCond","100"},{"bizItem","200"},
+						{"zipCd","10"},{"compAddr","200"},{"compExtradr","200"},{"compHp","30"},{"compTel","30"},
+						{"compFax","30"},{"compEmail","100"},{"foundDt","10"},{"corpNo","20"},{"ceoBirth","10"},
+						{"bankAcct","200"},{"stmtNotice","500"},{"stmtNotice2","500"} };
+					for (String[] c : cols) p.put(c[0], trimStr(info.get(c[0]), Integer.parseInt(c[1])));
+					if (String.valueOf(p.get("compNm")).isEmpty() || String.valueOf(p.get("compCeo")).isEmpty()
+					 || String.valueOf(p.get("busiNum")).isEmpty())
+						return ResponseEntity.status(400).body("회사명·대표자명·사업자번호는 꼭 넣어야 합니다.");
+					cnt = svc.updateCompInfoSelf(p);
+					if (cnt == 0) return ResponseEntity.status(404).body("회사 정보를 찾을 수 없습니다.");
+					// 거래명세표 화면이 세션 회사명을 쓰는 곳이 있어 함께 맞춘다
+					session.setAttribute("s_comp_nm", p.get("compNm"));
+				}
+				if (set instanceof Map) {
+					Map<String,Object> p = compParam(session, request);
+					p.put("setJson", COMP_JSON.writeValueAsString(set));
+					p.put("avgZeroYn", avgZeroOf(set));
+					svc.mergeCompSetJson(p);
+				}
+				return ResponseEntity.ok(String.valueOf(cnt));
+			} catch (Exception e) {
+				log.error(" compInfoSave ERROR : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+
+		/** 설정 한 덩어리만 고친다 — body = {key:"prt", val:{...}}
+		 *  판매등록 거래명세표 조건 창의 [회사 기본값으로 저장] 이 부른다(설정 전체를 들고 있지 않으므로 그 덩어리만). */
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/user/compSetPatch.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compSetPatch(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			try {
+				if (sessComp(session).isEmpty()) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String key = trimStr(body.get("key"), 20);
+				if (!key.matches("func|prt|prtApp")) return ResponseEntity.status(400).body("알 수 없는 설정입니다.");
+				Map<String,Object> p = compParam(session, request);
+				String js = svc.selectCompSetJson(p);
+				Map<String,Object> all = (js == null || js.trim().isEmpty())
+					? new java.util.LinkedHashMap<String,Object>() : COMP_JSON.readValue(js, java.util.LinkedHashMap.class);
+				all.put(key, body.get("val"));
+				p.put("setJson", COMP_JSON.writeValueAsString(all));
+				p.put("avgZeroYn", avgZeroOf(all));
+				svc.mergeCompSetJson(p);
+				return ResponseEntity.ok("1");
+			} catch (Exception e) {
+				log.error(" compSetPatch ERROR : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+
+		/** ② 도장 — data URL 한 줄(화면이 300px 안쪽 PNG 로 줄여 보낸다). 빈 값 = 지우기 */
+		@RequestMapping(value="/user/compStampSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compStampSave(@RequestParam(value="stampImg", required=false) String stampImg,
+		                                            HttpServletRequest request, HttpSession session) {
+			try {
+				if (sessComp(session).isEmpty()) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String v = stampImg == null ? "" : stampImg.trim();
+				if (!v.isEmpty()) {
+					if (!v.matches("^data:image/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$"))
+						return ResponseEntity.status(400).body("그림 파일(png·jpg·gif·webp)만 올릴 수 있습니다.");
+					if (v.length() > 900000) return ResponseEntity.status(400).body("그림이 너무 큽니다.");
+				}
+				Map<String,Object> p = compParam(session, request);
+				p.put("stampImg", v.isEmpty() ? null : v);
+				svc.mergeCompStamp(p);
+				return ResponseEntity.ok("1");
+			} catch (Exception e) {
+				log.error(" compStampSave ERROR : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+
+		/** 은행계좌 관리 — body = {bankSeq?, bankNm, acctNo, acctHolder, aliasNm, sortOrd} */
+		@RequestMapping(value="/user/compBankSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compBankSave(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			try {
+				if (sessComp(session).isEmpty()) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				Map<String,Object> p = compParam(session, request);
+				p.put("bankSeq", body.get("bankSeq") == null || String.valueOf(body.get("bankSeq")).isEmpty() ? null : Long.valueOf(String.valueOf(body.get("bankSeq"))));
+				p.put("bankNm", trimStr(body.get("bankNm"), 50));
+				p.put("acctNo", trimStr(body.get("acctNo"), 50));
+				p.put("acctHolder", trimStr(body.get("acctHolder"), 100));
+				p.put("aliasNm", trimStr(body.get("aliasNm"), 100));
+				p.put("sortOrd", body.get("sortOrd") == null || String.valueOf(body.get("sortOrd")).isEmpty() ? null : Integer.valueOf(String.valueOf(body.get("sortOrd"))));
+				if (String.valueOf(p.get("bankNm")).isEmpty() || String.valueOf(p.get("acctNo")).isEmpty())
+					return ResponseEntity.status(400).body("은행명과 계좌번호를 넣어 주세요.");
+				int cnt = svc.saveCompBank(p);
+				if (cnt == 0) return ResponseEntity.status(404).body("계좌를 찾을 수 없습니다.");
+				return ResponseEntity.ok(String.valueOf(cnt));
+			} catch (Exception e) {
+				log.error(" compBankSave ERROR : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+		@RequestMapping(value="/user/compBankDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compBankDelete(@RequestParam("bankSeq") Long bankSeq, HttpServletRequest request, HttpSession session) {
+			try {
+				if (sessComp(session).isEmpty()) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				Map<String,Object> p = compParam(session, request);
+				p.put("bankSeq", bankSeq);
+				return ResponseEntity.ok(String.valueOf(svc.deleteCompBank(p)));
+			} catch (Exception e) {
+				log.error(" compBankDelete ERROR : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+
+		/** 카드 관리 — ★카드번호는 뒤 4자리만 받는다(숫자 4개가 아니면 버린다) */
+		@RequestMapping(value="/user/compCardSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compCardSave(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			try {
+				if (sessComp(session).isEmpty()) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				Map<String,Object> p = compParam(session, request);
+				p.put("cardSeq", body.get("cardSeq") == null || String.valueOf(body.get("cardSeq")).isEmpty() ? null : Long.valueOf(String.valueOf(body.get("cardSeq"))));
+				p.put("cardCo", trimStr(body.get("cardCo"), 50));
+				p.put("cardNm", trimStr(body.get("cardNm"), 100));
+				String l4 = trimStr(body.get("cardLast4"), 40).replaceAll("[^0-9]", "");
+				p.put("cardLast4", l4.length() >= 4 ? l4.substring(l4.length() - 4) : "");
+				p.put("cardUser", trimStr(body.get("cardUser"), 50));
+				p.put("cardGb", trimStr(body.get("cardGb"), 10));
+				p.put("remark", trimStr(body.get("remark"), 200));
+				p.put("sortOrd", body.get("sortOrd") == null || String.valueOf(body.get("sortOrd")).isEmpty() ? null : Integer.valueOf(String.valueOf(body.get("sortOrd"))));
+				if (String.valueOf(p.get("cardCo")).isEmpty() && String.valueOf(p.get("cardNm")).isEmpty())
+					return ResponseEntity.status(400).body("카드사나 카드 이름을 넣어 주세요.");
+				int cnt = svc.saveCompCard(p);
+				if (cnt == 0) return ResponseEntity.status(404).body("카드를 찾을 수 없습니다.");
+				return ResponseEntity.ok(String.valueOf(cnt));
+			} catch (Exception e) {
+				log.error(" compCardSave ERROR : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+		@RequestMapping(value="/user/compCardDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> compCardDelete(@RequestParam("cardSeq") Long cardSeq, HttpServletRequest request, HttpSession session) {
+			try {
+				if (sessComp(session).isEmpty()) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				Map<String,Object> p = compParam(session, request);
+				p.put("cardSeq", cardSeq);
+				return ResponseEntity.ok(String.valueOf(svc.deleteCompCard(p)));
+			} catch (Exception e) {
+				log.error(" compCardDelete ERROR : " + e.getMessage());
+				return ResponseEntity.status(500).body(e.getMessage());
+			}
+		}
+
 		@RequestMapping(value="/user/compCdInsert.do", method = RequestMethod.POST)
 		public ResponseEntity<String> compCdInsert(@RequestBody List<CompMdDTO> data) {
 			try {
@@ -1859,6 +2081,9 @@ public class UserController {
 			S.put("bank", poStr(comp.get("bankAcct"))); S.put("tel", poStr(comp.get("compTel")));
 			/* 공지사항도 회사 정보에서 온다 (2026-09-09) — 종전에는 브라우저에만 있어 공개 링크에는 빈 칸으로 나갔다 */
 			S.put("notice", poStr(comp.get("stmtNotice")));
+			/* 공지사항2·도장 (2026-09-11 회사 정보 수정 ①②) — 보낸 명세서에도 인쇄와 똑같이 찍힌다 */
+			S.put("notice2", poStr(comp.get("stmtNotice2")));
+			S.put("stamp", poStr(comp.get("stampImg")));
 			/* ★조건 = <보낸 사람이 고른 그대로> (2026-09-10 「카톡·이메일이 조건대로 안 나옴, 미리보기·인쇄는 잘됨」)
 			     종전에는 여기서 고정이라 인쇄방식·줄수를 아무리 바꿔도 보낸 명세서는 늘
 			     「공급받는자용 한 부 · 38줄」이었다 — [👁 미리보기]로 본 것과 받는 쪽이 보는 것이 달랐다.
@@ -1870,7 +2095,16 @@ public class UserController {
 			O.put("boxp","N"); O.put("chg","N");
 			O.put("vat", (m.getVatAmt()!=null && m.getVatAmt().doubleValue()!=0d) ? "Y" : "N");
 			O.put("rows", 38); O.put("mode","b1");
+			/* 2026-09-11 늘어난 넷 — 옛 링크(7자리·조건 없음)는 종전 모양 그대로(바코드·반품실매출·음영 없음, 인쇄일시 있음) */
+			O.put("bc","N"); O.put("rtn","N"); O.put("shade","N"); O.put("ptime","Y");
 			stmtOpt(O, opt);
+			/* 바코드 — 전표 줄마다 상품마스터 바코드를 붙여 왔다(selectSalesTrxDtl.bcNo) */
+			if ("Y".equals(O.get("bc")) && m.getItems() != null) {
+				Map<String,Object> bm = new HashMap<String,Object>();
+				for (egovframework.sejong.user.model.SalesTrxDtlDTO d : m.getItems())
+					if (d.getBcNo() != null && d.getProdCd() != null) bm.put(d.getProdCd(), d.getBcNo());
+				D.put("bcMap", bm);
+			}
 			/* 잔고 — <보낼 때의 숫자>를 그대로 싣는다(&b=전잔고,잔고).
 			   여기서 원장을 다시 세면 나중에 열 때마다 잔고가 달라져 「보낸 명세서」와 어긋난다. */
 			if ("Y".equals(O.get("bal")) && bal != null && bal.trim().matches("^-?\\d{1,15},-?\\d{1,15}$")) {
@@ -1903,11 +2137,13 @@ public class UserController {
 		 *  ★틀린 글자는 <통째로 무시>한다(고정 조건 유지) — 주소를 손으로 고쳐도 엉뚱한 명세서가 나오지 않는다. */
 		private static void stmtOpt(Map<String,Object> O, String opt) {
 			if (opt == null) return;
+			/* ★7자리(2026-09-10 옛 링크) · 11자리(2026-09-11 — 바코드·반품실매출·음영·인쇄일시 넷을 뒤에 더함) 둘 다 받는다 */
 			java.util.regex.Matcher mo =
-				java.util.regex.Pattern.compile("^([is])([01]{7})-(\\d{1,2})-(both|two|b1|r1)$").matcher(opt.trim());
+				java.util.regex.Pattern.compile("^([is])([01]{7}|[01]{11})-(\\d{1,2})-(both|two|b1|r1)$").matcher(opt.trim());
 			if (!mo.matches()) return;
 			String f = mo.group(2);
-			String[] k = { "amt", "price", "bal", "inv", "boxp", "chg", "vat" };
+			String[] k = { "amt", "price", "bal", "inv", "boxp", "chg", "vat", "bc", "rtn", "shade", "ptime" };
+			if (f.length() < k.length) k = java.util.Arrays.copyOf(k, f.length());
 			O.put("ord", "i".equals(mo.group(1)) ? "in" : "sort");
 			for (int i = 0; i < k.length; i++) O.put(k[i], f.charAt(i) == '1' ? "Y" : "N");
 			int rows = Integer.parseInt(mo.group(3));
@@ -1918,7 +2154,7 @@ public class UserController {
 		 *  틀린 글자면 아무것도 안 붙여 종전 고정 조건으로 나간다(공개 페이지 stmtOpt 와 같은 규칙). */
 		private static String stmtOptQs(String opt, String bal) {
 			String s = "";
-			if (opt != null && opt.trim().matches("^[is][01]{7}-\\d{1,2}-(both|two|b1|r1)$")) {
+			if (opt != null && opt.trim().matches("^[is]([01]{7}|[01]{11})-\\d{1,2}-(both|two|b1|r1)$")) {
 				s = "&o=" + opt.trim();
 				if (bal != null && bal.trim().matches("^-?\\d{1,15},-?\\d{1,15}$")) s += "&b=" + bal.trim();
 			}
@@ -2215,6 +2451,10 @@ public class UserController {
 				for (egovframework.sejong.user.model.SalesTrxDtlDTO it : dto.getItems()) sCodes.add(it.getProdCd());
 				String sStopMsg = stopBlockMsg(sCodes, dto.getSaleDt(), session);
 				if (sStopMsg != null) return ResponseEntity.status(409).body(sStopMsg);
+				/* ★회사 설정 관문 (2026-09-11 회사 정보 수정 「기능 ▸ 매출」) — 재고 부족 제한 · 여신 초과 제한.
+				     서버에서 막는다(판매 저장 길이 여럿 — 명세·일괄등록·카톡 주문 — 이 한 엔드포인트로 모인다). 둘 다 기본은 꺼짐. */
+				String sLimitMsg = svc.salesLimitMsg(dto);
+				if (sLimitMsg != null) return ResponseEntity.status(409).body(sLimitMsg);
 				String u = (session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"");
 				dto.setRegUser(u); dto.setUpdUser(u);
 				dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());

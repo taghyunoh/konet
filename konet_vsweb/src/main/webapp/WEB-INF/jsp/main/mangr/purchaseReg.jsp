@@ -8,13 +8,15 @@
      빼려면 그 칸에 data-nonav="1" --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260805"></script>
+<%-- 회사 설정(기준정보관리 ▸ 회사 정보 수정의 「기능」) — window.konetSet (2026-09-11) --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260911"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260911"></script>
 <%-- 팝업 창 끌어 옮기기 (2026-09-10) — 제목줄을 잡고 끈다 · 더블클릭 = 처음 자리 (asset/js/ui-popdrag.js 머리말) --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>
 <%-- 상단 명세 표 높이 막대 (2026-09-10) — 합계줄 밑 막대를 아래로 끌면 늘고 위로 끌면 준다 (asset/js/ui-gridgrip.js 머리말) --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>
 <script type="text/javascript">konetPopDrag('.pu-pop'); konetGridGrip('puGridWrap', 'puFootWrap', 'purchaseReg');</script>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-quick.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-quick.js?v=20260911"></script>
 <!--
   매입등록 — 홀세일닥터 매입등록 이관 (2026-07-25 신설)
     · 상단 = 전표 입력(헤더 + 명세 그리드) / 하단 = 기간 전표 목록
@@ -63,6 +65,9 @@
   /* 컬럼 폭 조절 손잡이 — 머리글 오른쪽 경계를 끌면 그 칼럼이 늘고 줄어든다(bindColResize) */
   .pu-colrz{ position:absolute; top:0; right:-4px; width:8px; height:100%; cursor:col-resize; z-index:4; }
   .pu-colrz:hover{ background:rgba(19,122,108,.25); }
+  /* 회사 설정으로 숨긴 칸(서비스·비고, 2026-09-11) — 폭 0 인 칸의 여백·선·글자를 걷는다(puFldApply) */
+  .pu-grid .fh, .pu-foot .fh{ padding:0 !important; border-left:0 !important; border-right:0 !important; font-size:0 !important; overflow:hidden; }
+  .pu-grid th.fh .pu-colrz{ display:none; }
   .pu-grid td{ border:1px solid var(--pu-bd); padding:2px 4px; text-align:center;
                overflow:hidden; text-overflow:ellipsis; }   /* 고정 폭이라 긴 품명은 …로 줄인다 */
   .pu-grid td.num{ text-align:right; }
@@ -535,9 +540,20 @@ var _rows = [];        // 명세 행
 var _list = [];        // 전표 목록
 var _vendors = [];     // 거래처 마스터
 var _venSum = {};      // 거래처별 총판매·총매입 {s,p} — 팝업에 표시하고 총매입 순으로 정렬(2026-08-04)
+/* ── 회사 설정 (기준정보관리 ▸ 회사 정보 수정 「기능」, 2026-09-11 — asset/js/comp-set.js) ──
+     기본값 = 종전 동작 그대로 · 판매등록과 같은 규칙이다(한쪽만 고치면 두 화면이 달라진다). */
+var KS = window.konetSet || { f:function(){ return null; } };
+var VAT_DEF   = KS.f('venVat') || '별도';
+var PRICE_DEC = KS.f('priceDec') !== 'N';
+var QTY_DEC   = KS.f('qtyDec') === 'Y';
+var SVC_FLD   = KS.f('svcFld') !== 'N';
+var RMK_FLD   = KS.f('rmkFld') !== 'N';
+var BAD_RTN   = KS.f('badRtn') === 'Y';   // 매입 「불량반품」 = 반품과 같이 재고에서 빠지고 매입액이 준다
+function isRtn(g){ return g === '반품' || g === '불량반품'; }
 /* 고른 거래처의 부가세 설정 '별도'|'포함'|'면세' (TBL_VENDOR_MST.VAT_GB).
-   비어 있으면 '별도' 로 본다 — 예전 자료는 이 칸이 비어 있는데, 지금까지의 동작이 별도였다. */
-var _venVat = '별도';
+   비어 있으면 회사 기본값(VAT_DEF)으로 본다 — 예전 자료는 이 칸이 비어 있는데, 지금까지의 동작이 별도였다. */
+var _venVat = VAT_DEF;
+var _venDc = 0;        // 고른 거래처의 DC율(%) — DC 사용 = 예 인 거래처만 (2026-09-11)
 var _prods = [];       // 상품 마스터
 /* ★거래처 통보품목(TBL_EXT_ITEM_MST) = ***서브코드*** (2026-08-17)
    판매등록 상품검색이 🔖 줄로 보여 주는 바로 그 자료다. 매입등록도 **같은 화면**으로 맞춘다
@@ -559,7 +575,10 @@ function n(v){ var x = Number(String(v==null?'':v).replace(/,/g,'')); return isF
 function fmt(v){ return Math.round(n(v)).toLocaleString(); }
 /* 단가 표시용 — 소수점을 살린다(소수 2자리, 2026-08-05 요청). fmt 는 반올림이라 230.5 가 231 로 보였다.
    금액(합계)은 종전대로 정수 반올림(fmt) — DB 도 DECIMAL(18,2)라 소수 2자리까지 저장된다. */
-function fmtP(v){ v = Math.round(n(v)*100)/100; return v.toLocaleString(undefined, {maximumFractionDigits:2}); }
+function fmtP(v){ if (!PRICE_DEC) return fmt(v);   // 회사 설정 「단가 소수점 = 아니오」 (2026-09-11)
+  v = Math.round(n(v)*100)/100; return v.toLocaleString(undefined, {maximumFractionDigits:2}); }
+function fmtQ(v){ if (!QTY_DEC) return fmt(v);      // 회사 설정 「수량 소수점 = 예」면 소수 3자리까지
+  v = Math.round(n(v)*1000)/1000; return v.toLocaleString(undefined, {maximumFractionDigits:3}); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function today(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
 /* 메시지 — 프로젝트 공통 컴포넌트(asset/js/ui-message.js). 로그인 화면이 쓰는 그것과 같다.
@@ -664,6 +683,24 @@ function post(url, body, isJson){
   });
 })();
 
+/* 회사 설정 「서비스 칸·비고 칸 = 아니오」 (2026-09-11) — 판매등록 saFldApply 와 같다. 칸을 지우지 않고 폭만 0 */
+(function puFldApply(){
+  var hide = [];
+  if (!SVC_FLD) hide.push(14);     // 14:서비스 15:비고 (0:No 부터 센다 — 그리드 머리글 순서)
+  if (!RMK_FLD) hide.push(15);
+  if (!hide.length) return;
+  ['puGridWrap','puFootWrap'].forEach(function(id){
+    var w = document.getElementById(id); if (!w) return;
+    var cs = w.querySelectorAll('colgroup col'), sum = 0;
+    hide.forEach(function(i){ if (cs[i]) cs[i].style.width = '0px'; });
+    for (var k = 0; k < cs.length; k++) sum += parseInt(cs[k].style.width, 10) || 0;
+    var t = w.querySelector('table'); if (t) t.style.minWidth = sum + 'px';
+  });
+  var ths = document.querySelectorAll('#puGridWrap thead th');
+  hide.forEach(function(i){ if (ths[i]) ths[i].classList.add('fh'); });
+  if (!SVC_FLD) { var ts = document.getElementById('tSvc'); if (ts) ts.classList.add('fh'); }
+})();
+
 /* 등록내용 새로고침 — 지금 보고 있는 전표를 서버에서 다시 읽는다.
    목록·원장·잔고도 같이 갱신한다. 신규 작성 중이면 목록만 새로 읽는다(입력분은 보존). */
 function puReload(){
@@ -763,8 +800,8 @@ function puRender(){
   _rows.slice(0, _pShown).forEach(function(o,i){
     /* 반품 줄은 **줄 전체를 빨간색**으로 (2026-08-03 요청) — 거래구분 칸만 봐서는
          여러 줄 중 어느 것이 반품인지 눈에 안 들어온다. 글자색은 CSS(tr.ret)에서 준다. */
-    var sg = (o.trxGb==='반품') ? -1 : 1;   // 표시 부호 — 반품 줄은 −로 보인다(값은 양수)
-    h += '<tr'+(o.trxGb==='반품' ? ' class="ret"' : '')+'>'
+    var sg = isRtn(o.trxGb) ? -1 : 1;   // 표시 부호 — 반품(불량반품 포함) 줄은 −로 보인다(값은 양수)
+    h += '<tr'+(isRtn(o.trxGb) ? ' class="ret"' : '')+'>'
       /* 맨 앞 순번 — 화면에 보이는 줄 번호(1부터). 저장 자료가 아니라 표시용이라
          줄을 지우거나 순서를 바꾸면 자동으로 다시 매겨진다. */
       + '<td class="no">'+(i+1)+'</td>'
@@ -795,24 +832,30 @@ function puRender(){
       + '<td class="txt">'+ (o.packQty?('['+fmt(o.packQty)+']'):'') + esc(o.spec) +'</td>'
       /* ★반품 줄은 수량·금액을 「−」로 **보여 준다** (2026-09-05 「상단은 − 그대로」) — 저장값은 양수(규칙), 표시만 부호를 붙인다.
            BOX·EA 칸에 −32 가 보이는 상태에서 다시 −20 을 쳐도 puSet 이 「반품 + 20」으로 받으므로 어긋나지 않는다. */
-      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="boxQty" value="'+(n(o.boxQty)*sg)+'" onchange="puSet('+i+',\'boxQty\',this.value)"></td>'
-      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="eaQty" value="'+(n(o.eaQty)*sg)+'" onchange="puSet('+i+',\'eaQty\',this.value)"></td>'
-      + '<td class="num">'+fmt(n(o.qty)*sg)+'</td>'
+      + '<td><input inputmode="'+(QTY_DEC?'decimal':'numeric')+'" data-r="'+i+'" data-f="boxQty" value="'+(n(o.boxQty)*sg)+'" onchange="puSet('+i+',\'boxQty\',this.value)"></td>'
+      + '<td><input inputmode="'+(QTY_DEC?'decimal':'numeric')+'" data-r="'+i+'" data-f="eaQty" value="'+(n(o.eaQty)*sg)+'" onchange="puSet('+i+',\'eaQty\',this.value)"></td>'
+      + '<td class="num">'+fmtQ(n(o.qty)*sg)+'</td>'
       /* 단가·DC 는 천단위 콤마로 보여 준다(2026-08-04 — 판매등록과 동일). n() 이 콤마를 지우므로 계산은 그대로다.
          단가는 소수점 입력 가능(fmtP — 2026-08-05 요청) */
-      + '<td><input inputmode="decimal" data-r="'+i+'" data-f="unitPrice" value="'+fmtP(o.unitPrice)+'" onchange="puSet('+i+',\'unitPrice\',this.value)"></td>'
+      + '<td><input inputmode="'+(PRICE_DEC?'decimal':'numeric')+'" data-r="'+i+'" data-f="unitPrice" value="'+fmtP(o.unitPrice)+'" onchange="puSet('+i+',\'unitPrice\',this.value)"></td>'
       + '<td class="num">'+fmt(n(o.amt)*sg)+'</td>'
       /* ★DC 는 소수점 입력 가능 (2026-08-17 요청) — 단가와 같은 방식(decimal·fmtP).
-         종전 numeric+fmt 는 ***찍어도 정수로 잘렸다*** — 화면에도 저장에도 소수가 안 남았다. */
-      + '<td><input inputmode="decimal" data-r="'+i+'" data-f="dcAmt" value="'+fmtP(o.dcAmt)+'" onchange="puSet('+i+',\'dcAmt\',this.value)"></td>'
+         종전 numeric+fmt 는 ***찍어도 정수로 잘렸다*** — 화면에도 저장에도 소수가 안 남았다.
+         거래처 DC율로 자동 계산된 값이면 파랑 + 툴팁 (2026-09-11) */
+      + '<td><input inputmode="decimal" data-r="'+i+'" data-f="dcAmt" value="'+fmtP(o.dcAmt)+'"'
+      +   (o._dcByAuto ? ' style="color:#1d4ed8" title="거래처 DC율 '+_venDc+'% 로 자동 계산 — 손으로 고치면 이 줄은 자동 계산을 멈춥니다"' : '')
+      +   ' onchange="puSet('+i+',\'dcAmt\',this.value)"></td>'
       + '<td class="num">'+fmt(n(o.supplyAmt)*sg)+'</td>'
       + '<td class="num">'+fmt(n(o.vatAmt)*sg)+'</td>'
       + '<td class="num">'+fmt(n(o.totAmt)*sg)+'</td>'
-      + '<td><input inputmode="numeric" data-r="'+i+'" data-f="serviceQty" value="'+n(o.serviceQty)+'" onchange="puSet('+i+',\'serviceQty\',this.value)"></td>'
-      + '<td><input class="txt" data-r="'+i+'" data-f="remark" value="'+esc(o.remark)+'" onchange="puSet('+i+',\'remark\',this.value)"></td>'
+      /* 서비스·비고 칸 — 회사 설정으로 숨기면 빈 칸(폭 0)만 남긴다. 값은 _rows 에 그대로 있어 저장된다 (2026-09-11) */
+      + (SVC_FLD ? '<td><input inputmode="numeric" data-r="'+i+'" data-f="serviceQty" value="'+n(o.serviceQty)+'" onchange="puSet('+i+',\'serviceQty\',this.value)"></td>' : '<td class="fh"></td>')
+      + (RMK_FLD ? '<td><input class="txt" data-r="'+i+'" data-f="remark" value="'+esc(o.remark)+'" onchange="puSet('+i+',\'remark\',this.value)"></td>' : '<td class="fh"></td>')
       + '<td><input type="checkbox" '+(o.eventYn==='Y'?'checked':'')+' onchange="puSet('+i+',\'eventYn\',this.checked?\'Y\':\'N\')"></td>'
       + '<td><select onchange="puSet('+i+',\'trxGb\',this.value)" style="border:0;background:transparent;font-size:12.5px">'
-      +   '<option '+(o.trxGb==='매입'?'selected':'')+'>매입</option><option '+(o.trxGb==='반품'?'selected':'')+'>반품</option></select></td>'
+      +   '<option '+(o.trxGb==='매입'?'selected':'')+'>매입</option><option '+(o.trxGb==='반품'?'selected':'')+'>반품</option>'
+      +   ((BAD_RTN || o.trxGb==='불량반품') ? '<option '+(o.trxGb==='불량반품'?'selected':'')+' title="반품과 같이 재고에서 빠지고 매입액이 줄어듭니다">불량반품</option>' : '')
+      +   '</select></td>'
       + '</tr>';
   });
   document.getElementById('puBody').innerHTML = h;
@@ -823,10 +866,14 @@ function puRender(){
 function puSet(i, k, v){
   var o = _rows[i]; if(!o) return;
   o[k] = (k==='remark'||k==='eventYn'||k==='trxGb') ? v : n(v);
+  /* 회사 설정(2026-09-11) — 단가·수량 소수점을 안 쓰면 친 값을 반올림 · DC 를 손으로 고치면 그 줄은 자동 DC 를 멈춘다 */
+  if (k==='unitPrice' && !PRICE_DEC) o[k] = Math.round(o[k]);
+  if ((k==='boxQty'||k==='eaQty') && !QTY_DEC) o[k] = Math.round(o[k]);
+  if (k==='dcAmt') { o._dcAuto = false; o._dcByAuto = false; }
   /* ★수량에 음수를 치면 「반품 + 양수」로 바꾼다 (2026-09-05 — 2026-07-29/0005 부호 이중반전 사고)
        규칙 : 줄의 수량·금액은 늘 양수, 반품은 거래구분으로만. 합계(puCalc)·저장 머리·SQL·재고원장이 모두
        「반품이면 −」를 각자 붙이므로, 줄 자체가 음수면 두 번 뒤집혀 반품이 +매입·+재고로 들어간다. */
-  if ((k==='boxQty'||k==='eaQty') && o[k] < 0) { o[k] = Math.abs(o[k]); o.trxGb = '반품'; }
+  if ((k==='boxQty'||k==='eaQty') && o[k] < 0) { o[k] = Math.abs(o[k]); if (!isRtn(o.trxGb)) o.trxGb = '반품'; }
   puCalcRow(o);
   if (i === _rows.length-1 && o.prodCd) puEnsureTail();   // 마지막 줄을 쓰면 새 줄 자동 추가(그 줄이 보이게)
   puRender();
@@ -834,6 +881,13 @@ function puSet(i, k, v){
 function puCalcRow(o){
   o.boxQty = Math.abs(n(o.boxQty)); o.eaQty = Math.abs(n(o.eaQty));   // 어느 길로 들어와도 수량은 양수 — 반품은 trxGb 로만 (2026-09-05)
   o.qty = n(o.boxQty) * (n(o.packQty)||1) + n(o.eaQty);
+  if (QTY_DEC) o.qty = Math.round(o.qty * 1000) / 1000;
+  /* 거래처 DC율 자동 (2026-09-11) — 판매등록 saCalcRow 와 같은 규칙.
+       저장된 전표를 불러온 줄(_dcAuto=false)·손으로 DC 를 고친 줄은 건드리지 않는다. */
+  if (o._dcAuto !== false && o.prodCd) {
+    if (_venDc > 0) { o.dcAmt = Math.round(o.qty * n(o.unitPrice) * _venDc / 100); o._dcByAuto = true; }
+    else if (o._dcByAuto) { o.dcAmt = 0; o._dcByAuto = false; }
+  }
   /* ★DC 를 **빼고 나서** 반올림한다 (2026-08-17) — 먼저 반올림하면 DC 소수점이 버려진다.
      예) 49,990.5 − 10.5 = 49,980 / 종전 : 49,991 − 10 = 49,981 (DC 소수가 사라졌다) */
   o.amt = Math.round(o.qty * n(o.unitPrice) - n(o.dcAmt));
@@ -843,7 +897,7 @@ function puCalcRow(o){
        · 면세       : 부가세 0
      ★품목이 면세면 거래처가 무엇이든 면세다(면세 품목에 세금을 붙일 수는 없다).
      ★거래처를 바꾸면 담긴 줄을 전부 다시 계산한다(puVenVat 참고). */
-  var vg = _venVat || '별도';
+  var vg = _venVat || VAT_DEF;
   var tax = (o.taxGb !== '면세') && (vg !== '면세');
   if (!tax)                 { o.supplyAmt = o.amt;                        o.vatAmt = 0; }
   else if (vg === '포함')   { o.supplyAmt = Math.round(o.amt / 1.1);      o.vatAmt = o.amt - o.supplyAmt; }
@@ -852,7 +906,8 @@ function puCalcRow(o){
 }
 /* 거래처의 부가세 설정을 화면에 반영 — 담긴 줄 전부 재계산 + 거래처 칸 옆 표시 */
 function puVenVat(o){
-  _venVat = (o && o.vatGb) || '별도';
+  _venVat = (o && o.vatGb) || VAT_DEF;
+  _venDc  = (o && o.dcYn === 'Y') ? Math.max(0, n(o.dcRate)) : 0;   // 거래처 DC율 (2026-09-11)
   var b = document.getElementById('puVatTag');
   if (b) {
     b.textContent = '부가세 ' + _venVat;
@@ -913,13 +968,13 @@ function puCalc(){
   var t = {box:0, ea:0, qty:0, amt:0, dc:0, sup:0, vat:0, tot:0, svc:0};
   _rows.forEach(function(o){
     if(!o.prodCd) return;
-    var sign = (o.trxGb==='반품') ? -1 : 1;
+    var sign = isRtn(o.trxGb) ? -1 : 1;
     t.box += n(o.boxQty)*sign; t.ea += n(o.eaQty)*sign; t.qty += n(o.qty)*sign;
     t.amt += n(o.amt)*sign; t.dc += n(o.dcAmt); t.sup += n(o.supplyAmt)*sign;
     t.vat += n(o.vatAmt)*sign; t.tot += n(o.totAmt)*sign; t.svc += n(o.serviceQty);
   });
-  document.getElementById('tBox').textContent=fmt(t.box); document.getElementById('tEa').textContent=fmt(t.ea);
-  document.getElementById('tQty').textContent=fmt(t.qty); document.getElementById('tAmt').textContent=fmt(t.amt);
+  document.getElementById('tBox').textContent=fmtQ(t.box); document.getElementById('tEa').textContent=fmtQ(t.ea);
+  document.getElementById('tQty').textContent=fmtQ(t.qty); document.getElementById('tAmt').textContent=fmt(t.amt);
   /* ★DC 합계도 소수로 (2026-08-17) — 행은 10.5 인데 합계가 11 로 보이면 어긋난 것처럼 읽힌다 */
   document.getElementById('tDc').textContent=fmtP(t.dc);   document.getElementById('tSup').textContent=fmt(t.sup);
   document.getElementById('tVat').textContent=fmt(t.vat); document.getElementById('tTot').textContent=fmt(t.tot);
@@ -1142,10 +1197,11 @@ function puApply(d){
   document.getElementById('puPayAmt').value = n(d.payAmt);
   document.getElementById('puDcAmt').value = n(d.dcAmt);
   _rows = (d.items||[]).map(function(x){ x.taxGb='과세';
+    x._dcAuto = false;   /* 저장된 전표의 DC 는 그 전표의 사실 — 거래처 DC율로 다시 계산하지 않는다 (2026-09-11) */
     /* 옛 전표 보정 (2026-09-05) : 음수 수량으로 저장된 줄은 「반품 + 양수」로 바꿔 보여 준다.
        그대로 [저장]하면 머리 합계·재고원장이 바른 부호로 다시 만들어진다(2026-07-29/0005 가 이 경우). */
     if (n(x.qty) < 0 || n(x.boxQty) < 0 || n(x.eaQty) < 0) {
-      x.trxGb = '반품';
+      if (!isRtn(x.trxGb)) x.trxGb = '반품';
       ['boxQty','eaQty','qty','amt','supplyAmt','vatAmt','totAmt'].forEach(function(k){ x[k] = Math.abs(n(x[k])); });
     }
     return x; });
@@ -1257,7 +1313,7 @@ function puVenRender(){
   });
   l = l.slice(0,200);
   document.getElementById('puVenBody').innerHTML = l.length ? l.map(function(o){
-    var gb = String(o.vendorGb||''), vt = String(o.vatGb||'') || '별도';
+    var gb = String(o.vendorGb||''), vt = String(o.vatGb||'') || VAT_DEF;
     var sum = _venSum[o.vendorCd] || {};
     return '<tr class="pick" onclick="puVenPick(\''+esc(o.vendorCd)+'\')"><td>'+esc(o.vendorCd)+'</td><td class="txt" style="text-align:left">'+esc(o.vendorNm)+'</td>'
          /* 거래유형·부가세도 같이 보여 준다 (2026-08-03 요청) — 고르기 전에 성격을 알 수 있게.
@@ -1797,8 +1853,8 @@ function puBatchSelRender(){
       h += '<tr style="background:#e8f6ec"><td colspan="10" class="txt" style="text-align:left"><b>📅 '+esc(s.dt)+'</b> 전표 — '+perDt[s.dt]+'건 <span style="color:#5a6b7a">— 이 일자로 저장됩니다</span></td>'
         + '<td><span style="color:#c0392b;cursor:pointer;font-weight:700;white-space:nowrap" title="'+esc(s.dt)+' 전표로 담은 줄 모두 빼기" onclick="puBatchDelDtOf(\''+esc(s.dt)+'\')">✖</span></td></tr>';
     }
-    num++; cnt++; tot += n(o.totAmt) * (o.trxGb==='반품' ? -1 : 1);
-    h += '<tr'+(o.trxGb==='반품' ? ' style="color:#c0392b"' : '')+'><td>'+num+'</td>'
+    num++; cnt++; tot += n(o.totAmt) * (isRtn(o.trxGb) ? -1 : 1);
+    h += '<tr'+(isRtn(o.trxGb) ? ' style="color:#c0392b"' : '')+'><td>'+num+'</td>'
       /* ▲▼ 순서 조정 — 코드 앞 (2026-08-06 요청). 같은 일자(전표) 안에서만 움직인다 */
       + '<td style="white-space:nowrap">'
       +   '<span style="cursor:pointer;color:#37475a" title="한 줄 위로" onclick="puBatchSelMove('+i+',-1)">▲</span>'
@@ -1903,7 +1959,7 @@ function puBatchApply(){
           .then(function(no){
             var t = {box:0, ea:0, qty:0, sup:0, vat:0, tot:0, svc:0};
             grp.forEach(function(o){
-              var sg = (o.trxGb==='반품') ? -1 : 1;
+              var sg = isRtn(o.trxGb) ? -1 : 1;
               t.box+=n(o.boxQty)*sg; t.ea+=n(o.eaQty)*sg; t.qty+=n(o.qty)*sg;
               t.sup+=n(o.supplyAmt)*sg; t.vat+=n(o.vatAmt)*sg; t.tot+=n(o.totAmt)*sg; t.svc+=n(o.serviceQty);
             });
@@ -1968,7 +2024,7 @@ function puHistRender(){
     return '<tr><td>'+(k+1)+'</td><td>'+esc(fmtDt(x.spec))+'</td><td class="txt" style="text-align:left">'+esc(x.prodNm)+'</td>'
          + '<td class="num">'+fmtP(x.unitPrice)+'</td><td class="num">'+n(x.boxQty)+'</td><td class="num">'+n(x.eaQty)+'</td>'
          + '<td class="num">'+n(x.qty)+'</td><td class="num">'+fmt(x.amt)+'</td>'
-         + '<td>'+(x.eventYn==='Y'?'●':'')+'</td><td>'+(x.trxGb==='반품'?'●':'')+'</td></tr>';
+         + '<td>'+(x.eventYn==='Y'?'●':'')+'</td><td>'+(isRtn(x.trxGb)?'●':'')+'</td></tr>';
   }).join('') : '<tr><td colspan="10" class="pu-msg">'+(only?'행사 매입 이력이 없습니다.':'이 상품의 매입 이력이 아직 없습니다.')+'</td></tr>';
 }
 function puHistClose(){ document.getElementById('puHistPop').classList.remove('on'); }

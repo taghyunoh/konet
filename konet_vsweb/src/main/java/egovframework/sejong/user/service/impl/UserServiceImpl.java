@@ -712,6 +712,7 @@ public class UserServiceImpl implements UserService {
 		}
 		java.util.List<egovframework.sejong.user.model.PurchaseDtlDTO> items = dto.getItems();
 		if (items == null) return 0;
+		java.util.Map<String,Object> fn = compFunc();      // 회사 설정 「기능」 (2026-09-11) — 입고 매입단가 갱신 규칙
 		String refNo = ym8(dto.getPurchDt()) + "-" + (dto.getPurchNo()==null?"":dto.getPurchNo());
 		int rowNo = 0;
 		for (egovframework.sejong.user.model.PurchaseDtlDTO d : items) {
@@ -725,19 +726,20 @@ public class UserServiceImpl implements UserService {
 			     화면에서 「음수 수량 + 반품」이 함께 들어오면 머리 합계(화면)·재고원장(아래 -q)·조회 SQL(CASE 반품 → −)이
 			     각자 한 번씩 더 뒤집어, 반품인데 매입액이 더해지고 재고가 늘었다(2026-07-29/0005 실사고). 여기서 한 번 더 막는다. */
 			boolean negQ = d.getQty()!=null && d.getQty() < 0;
-			if (negQ) d.setTrxGb("반품");
-			if (negQ || "반품".equals(d.getTrxGb())) {
+			if (negQ && !isRtnS(d.getTrxGb())) d.setTrxGb("반품");
+			if (negQ || isRtnS(d.getTrxGb())) {
 				d.setBoxQty(absD(d.getBoxQty())); d.setEaQty(absD(d.getEaQty())); d.setQty(absD(d.getQty()));
 				d.setAmt(absD(d.getAmt())); d.setSupplyAmt(absD(d.getSupplyAmt())); d.setVatAmt(absD(d.getVatAmt())); d.setTotAmt(absD(d.getTotAmt()));
 			}
 
 			// ① 파생 재고원장 — 반품이면 R(+), 매입이면 I(+). 원장 QTY 는 int 라 반올림한다
+			//    ★매입 「불량반품」(2026-09-11 회사 설정)은 반품과 같다 — 불량품을 거래처로 되돌려 보내므로 재고에서 빠진다
 			egovframework.sejong.user.model.StockLedgerDTO led = new egovframework.sejong.user.model.StockLedgerDTO();
 			led.setProdSeq(d.getProdSeq()); led.setProdCd(d.getProdCd());
 			led.setTrxDt(dto.getPurchDt());
-			led.setIoGb("반품".equals(d.getTrxGb()) ? "R" : "I");
+			led.setIoGb(isRtnS(d.getTrxGb()) ? "R" : "I");
 			double q = d.getQty()==null ? 0d : d.getQty();
-			led.setQty((int) Math.round("반품".equals(d.getTrxGb()) ? -q : q));
+			led.setQty((int) Math.round(isRtnS(d.getTrxGb()) ? -q : q));
 			led.setUnitPrice(d.getUnitPrice());
 			led.setAmt(d.getAmt());
 			led.setVendorCd(dto.getVendorCd());
@@ -750,14 +752,24 @@ public class UserServiceImpl implements UserService {
 			mapper.insertPurchaseDtl(d);
 
 			// ② 매입단가 이력 — 판매단가가 정산엑셀에서 쌓이는 것과 같은 방식(적용일자 = 매입일자)
-			if (d.getUnitPrice()!=null && d.getUnitPrice() > 0 && !"반품".equals(d.getTrxGb())) {
+			if (d.getUnitPrice()!=null && d.getUnitPrice() > 0 && !isRtnS(d.getTrxGb())) {
 				egovframework.sejong.user.model.ProdInpriceDTO ip = new egovframework.sejong.user.model.ProdInpriceDTO();
 				ip.setProdSeq(d.getProdSeq()); ip.setProdCd(d.getProdCd());
 				ip.setVendorCd(dto.getVendorCd()); ip.setVendorNm(dto.getVendorNm());
 				ip.setApplyDt(dto.getPurchDt()); ip.setInPrice(d.getUnitPrice());
 				ip.setRemark("매입등록 " + refNo);
 				ip.setRegUser(dto.getRegUser()); ip.setRegIp(dto.getRegIp());
-				try { mapper.insertInprice(ip); mapper.syncProdInPrice(ip); }
+				try {
+					mapper.insertInprice(ip);                    // 이력은 설정과 무관하게 늘 남긴다
+					/* 회사 설정 「입고」(2026-09-11) — 매입단가 자동 갱신(기본 예 = 종전) · 평균 매입단가 사용(기본 아니오) */
+					if ("Y".equals(funcStr(fn, "inPriceAuto", "Y"))) {
+						if ("Y".equals(funcStr(fn, "inPriceAvg", "N"))) {
+							Double avg = mapper.selectAvgInPrice(ip);   // 방금 넣은 입고(원장)까지 포함된 평균
+							if (avg != null && avg > 0) ip.setInPrice(Math.round(avg * 100d) / 100d);
+						}
+						mapper.syncProdInPrice(ip);
+					}
+				}
 				catch (Exception ignore) { LOGGER.warn("매입단가 이력 적재 건너뜀 : " + d.getProdCd() + " / " + ignore.getMessage()); }
 			}
 		}
@@ -772,6 +784,114 @@ public class UserServiceImpl implements UserService {
 
 	/** 'yyyy-mm-dd' | 'yyyymmdd' → 'yyyymmdd' */
 	private String ym8(String s) { return s==null ? "" : s.replace("-", "").trim(); }
+	/** 반품 줄인가 — 「불량반품」(2026-09-11 회사 설정 「불량 반품 사용」)도 금액 부호는 반품과 같다 */
+	private static boolean isRtnS(String g) { return "반품".equals(g) || "불량반품".equals(g); }
+	/** 회사 설정 「기능」 한 덩어리 (기준정보관리 ▸ 회사 정보 수정, 2026-09-11) — TBL_COMP_SET.SET_JSON 의 func.
+	 *  ★못 읽으면 빈 맵 = 종전 동작(기본값은 화면 comp-set.js 의 DEF 와 같게 호출부에서 준다). */
+	@SuppressWarnings("unchecked")
+	private java.util.Map<String,Object> compFunc() {
+		try {
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", egovframework.sejong.cmmn.CompCdContext.get());
+			String js = mapper.selectCompSetJson(p);
+			if (js == null || js.trim().isEmpty()) return new java.util.HashMap<String,Object>();
+			java.util.Map<String,Object> all = new com.fasterxml.jackson.databind.ObjectMapper().readValue(js, java.util.Map.class);
+			Object f = all.get("func");
+			return f instanceof java.util.Map ? (java.util.Map<String,Object>) f : new java.util.HashMap<String,Object>();
+		} catch (Exception e) {
+			LOGGER.warn("회사 설정 읽기 실패 — 종전 동작으로 : " + e.getMessage());
+			return new java.util.HashMap<String,Object>();
+		}
+	}
+	private static String funcStr(java.util.Map<String,Object> f, String k, String def) {
+		Object v = f.get(k); return (v == null || String.valueOf(v).trim().isEmpty()) ? def : String.valueOf(v);
+	}
+
+	/** 판매 저장 전 «회사 설정» 관문 (2026-09-11 회사 정보 수정 「기능 ▸ 매출」) — 막을 이유가 있으면 그 글을, 없으면 null.
+	 *  · 재고 부족 제한 : 품목마다 (판매 − 반품) 수량이 판매 가능 재고(원장 누계 + 이 전표가 이미 잡아 둔 출고)를 넘으면 막는다.
+	 *    불량반품은 재고로 안 돌아가므로 빼지 않는다. 늘리지 않은 품목(고친 뒤 수량이 줄었거나 같은)은 막지 않는다.
+	 *  · 여신 초과 제한 : 거래후잔고(원장 잔고 − 이 전표가 이미 반영한 몫 + 이번 전표)가 거래처 여신한도를 넘으면 막는다.
+	 *    잔고를 줄이는 저장(금액을 낮춤)은 막지 않는다. 한도가 비었거나 0 이면 한도 없음. */
+	@Override public String salesLimitMsg(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception {
+		java.util.Map<String,Object> f = compFunc();
+		boolean stockOn  = "Y".equals(funcStr(f, "stockLimit", "N"));
+		boolean creditOn = "Y".equals(funcStr(f, "creditLimit", "N"));
+		if (!stockOn && !creditOn) return null;
+		egovframework.sejong.user.model.SalesTrxDTO old = null;
+		if (dto.getSaleSeq() != null && dto.getSaleSeq() > 0) {
+			egovframework.sejong.user.model.SalesTrxDTO q = new egovframework.sejong.user.model.SalesTrxDTO();
+			q.setSaleSeq(dto.getSaleSeq());
+			java.util.List<egovframework.sejong.user.model.SalesTrxDTO> l = mapper.selectSalesTrxList(q);
+			for (egovframework.sejong.user.model.SalesTrxDTO r : l) if (dto.getSaleSeq().equals(r.getSaleSeq())) { old = r; break; }
+		}
+		if (stockOn && dto.getItems() != null) {
+			String oldRef = old == null ? "" : ym8(old.getSaleDt()) + "-" + (old.getSaleNo()==null?"":old.getSaleNo());
+			java.util.Map<String,Double> need = new java.util.LinkedHashMap<String,Double>();
+			java.util.Map<String,String> nm = new java.util.HashMap<String,String>();
+			for (egovframework.sejong.user.model.SalesTrxDtlDTO d : dto.getItems()) {
+				if (d.getProdCd()==null || d.getProdCd().trim().isEmpty()) continue;
+				double q = Math.abs(d.getQty()==null ? 0d : d.getQty());
+				String g = d.getTrxGb();
+				double sgn = "반품".equals(g) ? -1 : ("불량반품".equals(g) ? 0 : 1);
+				if (d.getQty()!=null && d.getQty() < 0 && !"불량반품".equals(g)) sgn = -1;   // 음수 수량 = 반품(saveSalesTrx 와 같은 해석)
+				String cd = d.getProdCd().trim();
+				need.put(cd, (need.containsKey(cd) ? need.get(cd) : 0d) + sgn * q);
+				if (!nm.containsKey(cd)) nm.put(cd, d.getProdNm()==null ? "" : d.getProdNm());
+			}
+			StringBuilder sb = new StringBuilder(); int cnt = 0;
+			for (java.util.Map.Entry<String,Double> e : need.entrySet()) {
+				if (e.getValue() <= 0) continue;
+				java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+				p.put("prodCd", e.getKey()); p.put("refNo", oldRef);
+				java.util.Map<String,Object> r = mapper.selectStockAvailForSale(p);
+				double cur  = r == null || r.get("cur")  == null ? 0d : ((Number) r.get("cur")).doubleValue();
+				double mine = r == null || r.get("mine") == null ? 0d : ((Number) r.get("mine")).doubleValue();
+				double avail = cur + mine;
+				if (e.getValue() > avail + 0.0001 && e.getValue() > mine + 0.0001) {
+					/* ★글만 돌려준다(HTML 없이) — 화면이 이 글을 escape 해서 찍는다 */
+					if (cnt < 8) sb.append(" · ").append(e.getKey()).append(' ').append(nm.get(e.getKey()))
+					              .append(" (판매 ").append(fmtN(e.getValue())).append(" / 재고 ").append(fmtN(avail)).append(')');
+					cnt++;
+				}
+			}
+			if (cnt > 0) return "재고가 모자라 저장하지 않았습니다 [회사 설정 「재고 부족 제한」]" + sb
+			                  + (cnt > 8 ? " … 외 " + (cnt - 8) + "품목" : "")
+			                  + " — 수량을 줄이거나 기준정보관리 ▸ 회사 정보 수정 ▸ 기능에서 제한을 끌 수 있습니다.";
+		}
+		if (creditOn) {
+			egovframework.sejong.user.model.VendorDTO vq = new egovframework.sejong.user.model.VendorDTO();
+			vq.setVendorCd(dto.getCustCd());
+			java.util.List<egovframework.sejong.user.model.VendorDTO> vl = mapper.selectVendorMst(vq);
+			double limit = 0d;
+			if (vl != null && !vl.isEmpty() && vl.get(0).getCreditLimit() != null && !vl.get(0).getCreditLimit().trim().isEmpty())
+				try { limit = Double.parseDouble(vl.get(0).getCreditLimit().trim()); } catch (NumberFormatException ignore) {}
+			if (limit > 0) {
+				egovframework.sejong.user.model.SettleTrxDTO sq = new egovframework.sejong.user.model.SettleTrxDTO();
+				sq.setCustCd(dto.getCustCd());
+				double bal = 0d;
+				for (java.util.Map<String,Object> r : mapper.selectCustLedger(sq)) {
+					bal += numOf(r.get("saleAmt")) - numOf(r.get("dcAmt")) - numOf(r.get("rcvAmt")) - numOf(r.get("discAmt"));
+				}
+				double oldNet = old == null ? 0d : dbl(old.getTotAmt()) - dbl(old.getPayAmt()) - dbl(old.getDcAmt());
+				double newNet = dbl(dto.getTotAmt()) - dbl(dto.getPayAmt()) - dbl(dto.getDcAmt());
+				double after = bal - oldNet + newNet;
+				if (after > limit + 0.5 && newNet > oldNet + 0.5)
+					return "여신한도를 넘어 저장하지 않았습니다 [회사 설정 「여신 초과 제한」]"
+					     + " · 여신한도 " + fmtN(limit) + " / 거래후잔고 " + fmtN(after) + " (초과 " + fmtN(after - limit) + ")"
+					     + " — 수금을 함께 넣거나, 거래처의 여신한도를 올리거나, 회사 정보 수정 ▸ 기능에서 제한을 끌 수 있습니다.";
+			}
+		}
+		return null;
+	}
+	private static double numOf(Object o) {
+		if (o == null) return 0d;
+		if (o instanceof Number) return ((Number) o).doubleValue();
+		try { return Double.parseDouble(String.valueOf(o).replace(",", "")); } catch (NumberFormatException e) { return 0d; }
+	}
+	private static double dbl(Object o) { return numOf(o); }
+	private static String fmtN(double v) {
+		return (Math.abs(v - Math.rint(v)) < 0.0005) ? String.format("%,d", (long) Math.rint(v)) : String.format("%,.3f", v);
+	}
 	/** null 은 그대로, 값은 절대값 — 전표 명세 부호 정규화용 (2026-09-05) */
 	private static Double absD(Double v) { return v==null ? null : Math.abs(v); }
 	/* ===== 수금/지급 등록 — 2026-07-25 ===== */
@@ -887,11 +1007,14 @@ public class UserServiceImpl implements UserService {
 			if (d.getTrxGb()==null || d.getTrxGb().trim().isEmpty()) d.setTrxGb("판매");
 			/* ★부호 정규화 (2026-09-05) — 매입등록과 같은 규칙 : 수량·금액은 양수, 반품은 TRX_GB 로만 (조회 SQL 이 CASE 반품 → − 를 붙인다) */
 			boolean negQ = d.getQty()!=null && d.getQty() < 0;
-			if (negQ) d.setTrxGb("반품");
-			if (negQ || "반품".equals(d.getTrxGb())) {
+			if (negQ && !isRtnS(d.getTrxGb())) d.setTrxGb("반품");
+			if (negQ || isRtnS(d.getTrxGb())) {
 				d.setBoxQty(absD(d.getBoxQty())); d.setEaQty(absD(d.getEaQty())); d.setQty(absD(d.getQty()));
 				d.setAmt(absD(d.getAmt())); d.setSupplyAmt(absD(d.getSupplyAmt())); d.setVatAmt(absD(d.getVatAmt())); d.setTotAmt(absD(d.getTotAmt()));
 			}
+			/* ★「불량반품」(2026-09-11 회사 설정 「불량 반품 사용」) — 금액은 반품처럼 빠지지만(조회 SQL 이 반품과 같이 − 를 붙인다)
+			     <재고로는 돌아가지 않는다>(팔 수 없는 물건). 그래서 재고원장을 만들지 않는다. */
+			if ("불량반품".equals(d.getTrxGb())) { mapper.insertSalesTrxDtl(d); continue; }
 
 			// 파생 재고원장 — 판매는 출고 'O', 판매반품(고객이 되돌려줌)은 'R'.
 			// ★ 부호 주의 : 집계(recalcStockMst·재고현황)가
@@ -923,7 +1046,7 @@ public class UserServiceImpl implements UserService {
 			//    ★ vendorCd 를 함께 넣는다 = '그 거래처 전용가'로 쌓인다.
 			//      insertSaleprice 는 거래처가 비었을 때만 마스터 SALE_PRICE 를 덮으므로,
 			//      한 거래처에 싸게 판 값이 전 품목 기본 판매가를 덮어쓰는 사고가 나지 않는다.
-			if (d.getUnitPrice()!=null && d.getUnitPrice() > 0 && !"반품".equals(d.getTrxGb())) {
+			if (d.getUnitPrice()!=null && d.getUnitPrice() > 0 && !isRtnS(d.getTrxGb())) {
 				egovframework.sejong.user.model.ProdSalepriceDTO sp = new egovframework.sejong.user.model.ProdSalepriceDTO();
 				sp.setProdSeq(d.getProdSeq()); sp.setProdCd(d.getProdCd());
 				sp.setVendorCd(dto.getCustCd()); sp.setVendorNm(dto.getCustNm());
@@ -1137,6 +1260,24 @@ public class UserServiceImpl implements UserService {
 	@Override public int updatePoShared(java.util.Map<String,Object> p) throws Exception { return mapper.updatePoShared(p); }
 	@Override public int updatePoPurchSeq(java.util.Map<String,Object> p) throws Exception { return mapper.updatePoPurchSeq(p); }
 	@Override public java.util.Map<String,Object> selectCompInfo(java.util.Map<String,Object> p) throws Exception { return mapper.selectCompInfo(p); }
+	/* 회사 정보 수정 (2026-09-11) — compInfo.jsp. 회사코드는 컨트롤러가 세션에서 넣는다. */
+	@Override public java.util.Map<String,Object> selectCompInfoFull(java.util.Map<String,Object> p) throws Exception { return mapper.selectCompInfoFull(p); }
+	@Override public int updateCompInfoSelf(java.util.Map<String,Object> p) throws Exception { return mapper.updateCompInfoSelf(p); }
+	@Override public String selectCompSetJson(java.util.Map<String,Object> p) throws Exception { return mapper.selectCompSetJson(p); }
+	@Override public int mergeCompSetJson(java.util.Map<String,Object> p) throws Exception { return mapper.mergeCompSetJson(p); }
+	@Override public int mergeCompStamp(java.util.Map<String,Object> p) throws Exception { return mapper.mergeCompStamp(p); }
+	@Override public List<java.util.Map<String,Object>> selectCompBankList(java.util.Map<String,Object> p) throws Exception { return mapper.selectCompBankList(p); }
+	@Override public int saveCompBank(java.util.Map<String,Object> p) throws Exception {
+		Object seq = p.get("bankSeq");
+		return (seq == null || String.valueOf(seq).trim().isEmpty()) ? mapper.insertCompBank(p) : mapper.updateCompBank(p);
+	}
+	@Override public int deleteCompBank(java.util.Map<String,Object> p) throws Exception { return mapper.deleteCompBank(p); }
+	@Override public List<java.util.Map<String,Object>> selectCompCardList(java.util.Map<String,Object> p) throws Exception { return mapper.selectCompCardList(p); }
+	@Override public int saveCompCard(java.util.Map<String,Object> p) throws Exception {
+		Object seq = p.get("cardSeq");
+		return (seq == null || String.valueOf(seq).trim().isEmpty()) ? mapper.insertCompCard(p) : mapper.updateCompCard(p);
+	}
+	@Override public int deleteCompCard(java.util.Map<String,Object> p) throws Exception { return mapper.deleteCompCard(p); }
 	/* ══════════ 문서 전송이력 (2026-09-10) ══════════
 	   ★이력 남기기가 실패해도 «보내기 자체»는 성공으로 둔다 — 부르는 쪽에서 예외를 삼킨다.
 	     기록이 못 남았다고 이미 나간 카톡·메일을 되돌릴 수는 없다. */

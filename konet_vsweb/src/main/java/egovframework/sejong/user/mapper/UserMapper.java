@@ -342,6 +342,22 @@ public interface UserMapper {
 	int updatePoShared(java.util.Map<String,Object> p) throws Exception;
 	int updatePoPurchSeq(java.util.Map<String,Object> p) throws Exception;   // 매입전환 결과 기억
 	java.util.Map<String,Object> selectCompInfo(java.util.Map<String,Object> p) throws Exception;
+	/* 회사 정보 수정 (2026-09-11) — compInfo.jsp */
+	Double selectAvgInPrice(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;
+	java.util.Map<String,Object> selectStockAvailForSale(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectCompInfoFull(java.util.Map<String,Object> p) throws Exception;
+	int updateCompInfoSelf(java.util.Map<String,Object> p) throws Exception;
+	String selectCompSetJson(java.util.Map<String,Object> p) throws Exception;
+	int mergeCompSetJson(java.util.Map<String,Object> p) throws Exception;
+	int mergeCompStamp(java.util.Map<String,Object> p) throws Exception;
+	List<java.util.Map<String,Object>> selectCompBankList(java.util.Map<String,Object> p) throws Exception;
+	int insertCompBank(java.util.Map<String,Object> p) throws Exception;
+	int updateCompBank(java.util.Map<String,Object> p) throws Exception;
+	int deleteCompBank(java.util.Map<String,Object> p) throws Exception;
+	List<java.util.Map<String,Object>> selectCompCardList(java.util.Map<String,Object> p) throws Exception;
+	int insertCompCard(java.util.Map<String,Object> p) throws Exception;
+	int updateCompCard(java.util.Map<String,Object> p) throws Exception;
+	int deleteCompCard(java.util.Map<String,Object> p) throws Exception;
 	/* ── 문서 전송이력 (2026-09-10) — 거래명세표(STMT)·매입발주서(PO) 공용 표 TBL_SEND_HIST */
 	int insertSendHist(java.util.Map<String,Object> p) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectSendHistList(java.util.Map<String,Object> p) throws Exception;

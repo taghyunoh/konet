@@ -7,7 +7,8 @@
      빼려면 그 칸에 data-nonav="1" --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260805"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260911"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260911"></script>
 <%-- 표 높이 막대 (2026-09-10 「수금등록 지급등록도 높이 막대」) — 판매·매입·발주서와 같은 공용 파일(asset/js/ui-gridgrip.js).
      전표 목록(지급계 줄 밑) · 원장(합계 줄 밑) · 매입등록 내역 — 세 표에 하나씩, 높이는 표마다 따로 기억한다.
      아래로 끌면 늘고 위로 끌면 준다 · [▲ 줄이기][▼ 늘리기] · 더블클릭 = 원래 모양(원장의 inline max-height 도 되살린다). --%>

@@ -18,6 +18,8 @@
 - ⚠**세션 쿠키 이름을 바꾼 이유** : localhost 쿠키는 **포트를 가리지 않는다** — 같은 이름이면 9071·9072 를 한 브라우저로 열 때 서로 덮어써 한쪽 로그인이 끊긴다.
 - **두 프로젝트를 함께 여는 법** : `konet/konet.code-workspace` (VS Code ▸ 파일 ▸ 작업 영역 열기). 톰캣 시작·중지·WAR 빌드 태스크는 폴더마다 따로 뜬다.
 - ⚠복사 당시(2026-09-11) 첫 복사본에서 **342개 파일(web.xml·주요 JSP·jar·이미지)이 빠져 있었다** — robocopy 로 채웠다. 다시 복제할 일이 있으면 파일 수부터 맞춰 볼 것.
+- **[2026-09-11] 기준정보관리 ▸ 회사 정보 수정(compInfo.jsp + comp-set.js + 기능 연결) 을 web 에서 만들고 같은 파일 23개를 그대로 복사했다** —
+  설명은 konet_vsweb/CLAUDE.md 「회사 정보 수정」 절. 모바일(앱) 인쇄 옵션(`konetSet.prtApp`)은 **저장만** 되어 있다 — 앱에 거래명세서 인쇄를 붙일 때 읽을 것.
 - **톰캣 띄우는 길 2가지(둘 다 같은 톰캣)** : ①VS Code **Servers 뷰(Community Server Connector) ▸ `konet_vsapp`**
   (등록 파일 `~/.rsp/redhat-community-server-connector/servers/konet_vsapp` — `konet_vsweb` 을 본떠 경로·포트만 바꿈)
   ②태스크 「톰캣 시작 (konet_vsapp :9072)」(JPDA 9172 디버그). ⚠**둘을 동시에 띄우지 말 것** — 같은 9072 라 뒤에 뜬 쪽이 죽는다.
