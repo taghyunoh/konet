@@ -831,6 +831,7 @@
       sFi=d2ColFrac(ck); sFn=d2ColFrac(nk); startX=e.clientX; dragging=true;
       document.body.style.userSelect='none'; document.body.style.cursor='col-resize';
     });
+    
     document.addEventListener('mousemove', function(e){
       if(!dragging) return;
       var dF=(e.clientX-startX)/tblW;             // 이동량을 비율로
