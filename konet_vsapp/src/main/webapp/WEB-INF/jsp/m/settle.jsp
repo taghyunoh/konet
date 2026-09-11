@@ -17,11 +17,11 @@
 <link rel="manifest" href="<%=request.getContextPath()%>/m/manifest.json">
 <link rel="apple-touch-icon" href="<%=request.getContextPath()%>/m/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20260911b">
+<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20260911d">
 <script src="<%=request.getContextPath()%>/asset/js/ui-message.js"></script>
-<script src="<%=request.getContextPath()%>/m/m.js?v=20260911b"></script>
+<script src="<%=request.getContextPath()%>/m/m.js?v=20260911d"></script>
 <style>
-  .state{ font-size:12.5px; font-weight:700; color:var(--amber); margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+  .state{ font-size:14px; font-weight:700; color:var(--amber); margin:0 0 10px; display:flex; align-items:center; gap:8px; }
   .state.new{ color:var(--teal-d); }
   .filt{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
   .filt .btn{ grid-column:1 / -1; }
@@ -207,7 +207,7 @@ function saveSlip(){
       newSlip(); loadList();
     }).catch(function(e){
       if(e && e.message==='login') return;
-      _alertBox('저장하지 못했습니다.<br><span style="font-size:13px">'+esc(M.errMsg(e))+'</span>',{icon:'❌',okColor:'red'});
+      _alertBox('저장하지 못했습니다.<br><span style="font-size:14.5px">'+esc(M.errMsg(e))+'</span>',{icon:'❌',okColor:'red'});
     }).then(function(){ _busy=false; b.textContent='저장'; calc(); });
   };
   _confirmBox({ msg:'<b>'+esc(_ven.vendorNm)+'</b><br>'+NM[GB]+' <b>'+M.fmt0(a)+'</b>원'+((d||s)?' (할인 '+M.fmt0(d+s)+')':'')+'<br>'+esc($('payGb').value)+' · '+esc($('trxDt').value)+'<br>'+(_cur?'이 전표를 고쳐 저장할까요?':'저장할까요?'),

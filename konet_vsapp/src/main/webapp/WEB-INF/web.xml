@@ -75,6 +75,8 @@
     <cookie-config>
       <name>KONETAPP_SID</name>
     </cookie-config>
+    <!-- 세션은 쿠키로만 잇는다 — 없으면 첫 요청의 넘김 주소에 ;KONETAPP_SID=… 가 붙는다(운영 2026-09-11 실측) -->
+    <tracking-mode>COOKIE</tracking-mode>
   </session-config>
   <login-config>
     <auth-method>BASIC</auth-method>

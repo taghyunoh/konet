@@ -22,16 +22,16 @@
     padding:24px 20px calc(24px + env(safe-area-inset-bottom)); max-width:440px; margin:0 auto; }
   .brand{ display:flex; align-items:center; gap:12px; margin-bottom:28px; }
   .brand img{ width:48px; height:48px; border-radius:12px; }
-  .brand h1{ margin:0; font-size:24px; color:var(--teal-d); }
-  .brand p{ margin:2px 0 0; font-size:13px; color:var(--mute); }
-  label{ display:block; font-size:13px; font-weight:600; color:var(--mute); margin:14px 0 6px; }
+  .brand h1{ margin:0; font-size:26px; color:var(--teal-d); }
+  .brand p{ margin:2px 0 0; font-size:14.5px; color:var(--mute); }
+  label{ display:block; font-size:14.5px; font-weight:600; color:var(--mute); margin:14px 0 6px; }
   input[type=text],input[type=password]{ width:100%; height:48px; border:1px solid var(--bd); border-radius:10px;
-    padding:0 14px; font-size:16px; font-family:inherit; background:#fff; color:var(--ink); }
+    padding:0 14px; font-size:17.5px; font-family:inherit; background:#fff; color:var(--ink); }
   input:focus{ outline:none; border-color:var(--teal); box-shadow:0 0 0 3px rgba(19,122,108,.18); }
-  .save{ display:flex; align-items:center; gap:8px; margin:14px 0 0; font-size:14px; color:var(--ink); }
+  .save{ display:flex; align-items:center; gap:8px; margin:14px 0 0; font-size:15.5px; color:var(--ink); }
   .save input{ width:18px; height:18px; accent-color:var(--teal); }
   button{ width:100%; height:50px; margin-top:22px; border:0; border-radius:10px; background:var(--teal);
-    color:#fff; font-size:17px; font-weight:700; font-family:inherit; }
+    color:#fff; font-size:18.5px; font-weight:700; font-family:inherit; }
   button:disabled{ opacity:.6; }
 </style>
 </head>
@@ -82,7 +82,9 @@ function mLogin(){
       if(document.getElementById('saveId').checked){ localStorage.setItem(K_COMP,comp); localStorage.setItem(K_ID,id); }
       else { localStorage.removeItem(K_COMP); localStorage.removeItem(K_ID); }
     }catch(e){}
-    location.replace(CTX+'/m/index.do');
+    /* 판매·수금·재고 주소에서 로그인 화면이 떴으면(서버가 넘기지 않고 그 자리에서 보여 준다) 그 화면으로 되돌아간다 */
+    var here=location.pathname.replace(/^.*\/m\//,'');
+    location.replace(/^(sales|settle|stock)\.do$/.test(here) ? location.pathname+location.search : CTX+'/m/index.do');
   })
   .catch(function(e){
     btn.disabled=false; btn.textContent='로그인';

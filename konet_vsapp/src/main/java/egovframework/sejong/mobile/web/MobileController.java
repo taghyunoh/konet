@@ -34,22 +34,26 @@ public class MobileController {
 		return loggedIn(session) ? ".raw/m/index" : ".raw/m/login";
 	}
 
+	/* ★로그인 전이면 **넘기지 않고 그 자리에서** 로그인 화면을 보여 준다 (2026-09-11 운영 실측).
+	     운영은 nginx(https) 뒤의 톰캣(http)이라 redirect: 를 쓰면 넘김 주소가 http:// 로 바뀌어
+	     PWA(https 전용)가 끊긴다. 로그인 화면(login.jsp)은 로그인 뒤 원래 보던 화면으로 되돌아간다. */
+
 	/** 판매등록 — 저장은 PC 와 같은 /mangr/salesTrxSave.do */
 	@RequestMapping(value = "/m/sales.do")
 	public String sales(HttpSession session) {
-		return loggedIn(session) ? ".raw/m/sales" : "redirect:/m/login.do";
+		return loggedIn(session) ? ".raw/m/sales" : ".raw/m/login";
 	}
 
 	/** 수금·지급 등록(?gb=RCV|PAY) — 저장은 PC 와 같은 /mangr/settleSave.do */
 	@RequestMapping(value = "/m/settle.do")
 	public String settle(HttpSession session) {
-		return loggedIn(session) ? ".raw/m/settle" : "redirect:/m/login.do";
+		return loggedIn(session) ? ".raw/m/settle" : ".raw/m/login";
 	}
 
 	/** 재고·상품 조회 */
 	@RequestMapping(value = "/m/stock.do")
 	public String stock(HttpSession session) {
-		return loggedIn(session) ? ".raw/m/stock" : "redirect:/m/login.do";
+		return loggedIn(session) ? ".raw/m/stock" : ".raw/m/login";
 	}
 
 	/** 모바일 로그인 화면 — 실제 로그인은 PC 와 같은 /user/loginChk.do 를 쓴다 */
@@ -72,10 +76,10 @@ public class MobileController {
 		return res;
 	}
 
-	/** 로그아웃 → 모바일 로그인 화면 */
+	/** 로그아웃 → 그 자리에서 모바일 로그인 화면(넘기지 않는다 — 위 주석) */
 	@RequestMapping(value = "/m/logout.do")
 	public String logout(HttpSession session) {
 		session.invalidate();
-		return "redirect:/m/login.do";
+		return ".raw/m/login";
 	}
 }

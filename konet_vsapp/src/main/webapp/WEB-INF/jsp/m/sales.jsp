@@ -20,36 +20,36 @@
 <link rel="manifest" href="<%=request.getContextPath()%>/m/manifest.json">
 <link rel="apple-touch-icon" href="<%=request.getContextPath()%>/m/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20260911b">
+<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20260911d">
 <script src="<%=request.getContextPath()%>/asset/js/ui-message.js"></script>
-<script src="<%=request.getContextPath()%>/m/m.js?v=20260911b"></script>
+<script src="<%=request.getContextPath()%>/m/m.js?v=20260911d"></script>
 <style>
   .it{ border:1px solid #e3ebe8; border-radius:12px; padding:10px 11px; margin-bottom:8px; background:#fbfdfc; }
   .it.ret{ background:#fff7f7; border-color:#f0d3d3; }
   .it .t1{ display:flex; align-items:flex-start; gap:8px; }
-  .it .nm{ flex:1; min-width:0; font-size:15px; font-weight:700; line-height:1.3; word-break:break-all; }
-  .it .nm small{ display:block; font-size:12px; font-weight:500; color:var(--mute); margin-top:2px; }
-  .it .del{ border:0; background:#f1f3f5; color:#666; border-radius:8px; width:32px; height:32px; font-size:14px; flex:none; }
+  .it .nm{ flex:1; min-width:0; font-size:16.5px; font-weight:700; line-height:1.3; word-break:break-all; }
+  .it .nm small{ display:block; font-size:13.5px; font-weight:500; color:var(--mute); margin-top:2px; }
+  .it .del{ border:0; background:#f1f3f5; color:#666; border-radius:8px; width:32px; height:32px; font-size:15.5px; flex:none; }
   .it .g{ display:grid; grid-template-columns:1fr .8fr 1fr 1.3fr; gap:6px; margin-top:8px; }
-  .it .g label{ display:block; font-size:11.5px; font-weight:700; color:var(--mute); margin-bottom:3px; }
+  .it .g label{ display:block; font-size:13px; font-weight:700; color:var(--mute); margin-bottom:3px; }
   .it .g .inp{ height:42px; padding:0 10px; }
   /* 입수 = 상품마스터 값(PC 판매등록과 같이 읽기 전용) — 합계 = BOX × 입수 + EA */
   .it .g .pk{ height:42px; display:flex; align-items:center; justify-content:center; border-radius:10px;
-    background:var(--teal-l); color:var(--teal-d); font-size:16px; font-weight:800; font-variant-numeric:tabular-nums; }
-  .it .fx{ font-size:12px; color:var(--mute); font-variant-numeric:tabular-nums; }
-  .it .t3{ display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px; color:var(--mute); }
-  .it .t3 .amt{ margin-left:auto; font-size:16px; font-weight:800; color:var(--ink); font-variant-numeric:tabular-nums; }
+    background:var(--teal-l); color:var(--teal-d); font-size:17.5px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .it .fx{ font-size:13.5px; color:var(--mute); font-variant-numeric:tabular-nums; }
+  .it .t3{ display:flex; align-items:center; gap:8px; margin-top:8px; font-size:14.5px; color:var(--mute); }
+  .it .t3 .amt{ margin-left:auto; font-size:17.5px; font-weight:800; color:var(--ink); font-variant-numeric:tabular-nums; }
   .it.ret .t3 .amt{ color:var(--red); }
   .gb{ display:inline-flex; border:1px solid var(--bd); border-radius:8px; overflow:hidden; }
-  .gb button{ border:0; background:#fff; height:30px; padding:0 11px; font-size:13px; font-weight:700; color:var(--mute); }
+  .gb button{ border:0; background:#fff; height:30px; padding:0 11px; font-size:14.5px; font-weight:700; color:var(--mute); }
   .gb button.on{ background:var(--teal-l); color:var(--teal-d); }
   .gb button.on.r{ background:#fdecec; color:var(--red); }
-  .vat{ font-size:11.5px; font-weight:700; padding:2px 7px; border-radius:10px; background:#eef1f3; color:#546e7a; white-space:nowrap; }
-  .sumtb{ width:100%; border-collapse:collapse; font-size:14px; }
+  .vat{ font-size:13px; font-weight:700; padding:2px 7px; border-radius:10px; background:#eef1f3; color:#546e7a; white-space:nowrap; }
+  .sumtb{ width:100%; border-collapse:collapse; font-size:15.5px; }
   .sumtb td{ padding:6px 2px; border-bottom:1px solid #edf2f0; }
   .sumtb td:last-child{ text-align:right; font-weight:700; font-variant-numeric:tabular-nums; }
-  .sumtb tr.big td{ font-size:16px; font-weight:800; }
-  .state{ font-size:12.5px; font-weight:700; color:var(--amber); margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+  .sumtb tr.big td{ font-size:17.5px; font-weight:800; }
+  .state{ font-size:14px; font-weight:700; color:var(--amber); margin:0 0 10px; display:flex; align-items:center; gap:8px; }
   .state.new{ color:var(--teal-d); }
   .filt{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
   .filt .full{ grid-column:1 / -1; }
@@ -383,7 +383,7 @@ function saveSlip(){
       _listLoaded=false; newSlip(false);
     }).catch(function(e){
       if(e && e.message==='login') return;             // 로그인 화면으로 가는 중
-      _alertBox('저장하지 못했습니다.<br><span style="font-size:13px">'+esc(M.errMsg(e))+'</span>',{icon:'❌',okColor:'red'});
+      _alertBox('저장하지 못했습니다.<br><span style="font-size:14.5px">'+esc(M.errMsg(e))+'</span>',{icon:'❌',okColor:'red'});
     }).then(function(){ _busy=false; b.textContent='저장'; calc(); });
   };
   _confirmBox({ msg:'<b>'+esc(_ven.vendorNm)+'</b><br>'+_rows.length+'줄 · 합계 <b>'+M.fmt0(t.tot)+'</b>원<br>'+(_cur?'이 전표를 고쳐 저장할까요?':'저장할까요?'),
@@ -391,7 +391,7 @@ function saveSlip(){
 }
 function delSlip(){
   if(!_cur) return;
-  _confirmBox({ msg:'이 전표를 삭제할까요?<br><span style="font-size:13px;color:#3d4d5c">재고에서 빠졌던 출고도 함께 되돌아옵니다.</span>', icon:'🗑', okText:'삭제',
+  _confirmBox({ msg:'이 전표를 삭제할까요?<br><span style="font-size:14.5px;color:#3d4d5c">재고에서 빠졌던 출고도 함께 되돌아옵니다.</span>', icon:'🗑', okText:'삭제',
     onOk:function(){
       M.session().then(function(){ return M.json('/mangr/salesTrxDelete.do',{ saleSeq:_cur.saleSeq, saleDt:_cur.saleDt, saleNo:_cur.saleNo }); })
         .then(function(){ _toast('삭제했습니다.','ok'); _listLoaded=false; newSlip(false); showTab('list'); })
