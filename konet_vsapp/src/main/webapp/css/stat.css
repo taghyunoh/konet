@@ -1,0 +1,63 @@
+@charset "UTF-8";
+
+.check-group-area {
+  display: flex;
+  flex-flow: row nowrap;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 22px;
+  max-width: 60%;
+  min-width: 600px;
+  flex: 1;
+}
+.title-check {
+  display: flex;
+  flex-flow: row nowrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 12px;
+}
+.check-group {
+  display: flex;
+  flex-flow: wrap;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 8px 8px;
+  max-width: 80%;
+}
+.check-group span {
+  padding-right: 12px;
+}
+.check-all {
+  display: flex;
+  flex-flow: row nowrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 4px;
+}
+.check-all input[type="checkbox"] {
+  min-width: 16px;
+  min-height: 16px;
+}
+.check-all span {
+  text-wrap: nowrap;
+}
+.search-box .date {
+  display: inline-flex;
+  flex-flow: row nowrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 12px;
+}
+.search-box .date select {
+  width: 120px;
+}
+.search-box .date .form-control {
+  width: 140px;
+}
+.btn-box .unit {
+  font-size: 14px;
+}
+table .tr-head {
+  vertical-align: middle;
+}

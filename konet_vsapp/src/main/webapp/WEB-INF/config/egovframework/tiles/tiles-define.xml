@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tiles-definitions PUBLIC
+       "-//Apache Software Foundation//DTD Tiles Configuration 3.0//EN"
+       "http://tiles.apache.org/dtds/tiles-config_3_0.dtd">
+<!--
+  Tiles 정의. 2026-05-27 미사용 popup/content/footer 항목 정리.
+  남은 레이아웃:
+    login : tiles/login/login.jsp + header.jsp
+    main  : tiles/main/main.jsp + header.jsp + top.jsp
+  본문(content)은 .login/* 또는 .main/* 매칭 시 항상 override 되므로 부모에 선언 불필요.
+-->
+<tiles-definitions>
+
+	<!-- 로그인 화면용 레이아웃 -->
+	<definition name="login" template="/WEB-INF/tiles/login/login.jsp">
+		<put-attribute name="header" value="/WEB-INF/tiles/login/header.jsp" />
+	</definition>
+
+	<!-- 메인 화면용 레이아웃 -->
+	<definition name="main" template="/WEB-INF/tiles/main/main.jsp">
+		<put-attribute name="header" value="/WEB-INF/tiles/main/header.jsp" />
+		<put-attribute name="top"    value="/WEB-INF/tiles/main/top.jsp" />
+	</definition>
+
+	<!-- 컨트롤러가 ".login/X" 리턴 → /WEB-INF/jsp/login/X.jsp -->
+	<definition name=".login/*" extends="login">
+		<put-attribute name="content" value="/WEB-INF/jsp/login/{1}.jsp" />
+	</definition>
+
+	<!-- 컨트롤러가 ".main/X" 리턴 → /WEB-INF/jsp/main/X.jsp -->
+	<definition name=".main/*" extends="main">
+		<put-attribute name="content" value="/WEB-INF/jsp/main/{1}.jsp" />
+	</definition>
+
+	<!-- 컨트롤러가 ".main/X/Y" 리턴 → /WEB-INF/jsp/main/X/Y.jsp -->
+	<definition name=".main/*/*" extends="main">
+		<put-attribute name="content" value="/WEB-INF/jsp/main/{1}/{2}.jsp" />
+	</definition>
+
+	<!-- 컨트롤러가 ".main/X/Y/Z" 리턴 → /WEB-INF/jsp/main/X/Y/Z.jsp -->
+	<definition name=".main/*/*/*" extends="main">
+		<put-attribute name="content" value="/WEB-INF/jsp/main/{1}/{2}/{3}.jsp" />
+	</definition>
+
+	<!-- ─────────────────────────────────────────────────────────────────
+	  자체완결 페이지 (tiles wrap 없음, 환자용 페이지 등)
+	  template 자체가 JSP를 직접 가리키므로 header/footer 등 wrap 없음.
+	  컨트롤러: ".raw/login/X" → /WEB-INF/jsp/login/X.jsp 단독 출력
+	         : ".raw/main/X/Y" → /WEB-INF/jsp/main/X/Y.jsp 단독 출력
+	 ───────────────────────────────────────────────────────────────── -->
+	<definition name=".raw/*/*"   template="/WEB-INF/jsp/{1}/{2}.jsp" />
+	<definition name=".raw/*/*/*" template="/WEB-INF/jsp/{1}/{2}/{3}.jsp" />
+
+</tiles-definitions>

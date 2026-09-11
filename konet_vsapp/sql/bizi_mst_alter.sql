@@ -1,0 +1,49 @@
+/* =====================================================================================
+   TBL_BIZI_MST (사업장/거래처 마스터) 컬럼 확장 — 거래처관리 CRUD·조회·엑셀용
+   · 기존 컬럼: BIZ_CD(PK) · JOB_SEQ · ACTION_YN · BIZ_NM · REG_/UPD_ 감사
+   · 아래는 거래처 표준 필드 추가. 각 컬럼 IF 가드로 재실행 안전(이미 있으면 스킵).
+   · MSSQL. 기존 데이터 보존(ADD only, 삭제 없음).
+   ===================================================================================== */
+USE [KOLGSDB]
+GO
+
+IF COL_LENGTH('dbo.TBL_BIZI_MST','BIZ_GB')   IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD BIZ_GB   NVARCHAR(10)  NULL;   -- 거래구분: '매입'/'매출'/'both'
+GO
+IF COL_LENGTH('dbo.TBL_BIZI_MST','BIZNO')    IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD BIZNO    NVARCHAR(20)  NULL;   -- 사업자등록번호
+GO
+IF COL_LENGTH('dbo.TBL_BIZI_MST','CEO_NM')   IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD CEO_NM   NVARCHAR(50)  NULL;   -- 대표자명
+GO
+IF COL_LENGTH('dbo.TBL_BIZI_MST','BIZ_COND') IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD BIZ_COND NVARCHAR(100) NULL;   -- 업태
+GO
+IF COL_LENGTH('dbo.TBL_BIZI_MST','BIZ_ITEM') IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD BIZ_ITEM NVARCHAR(100) NULL;   -- 종목
+GO
+IF COL_LENGTH('dbo.TBL_BIZI_MST','ZIPCD')    IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD ZIPCD    NVARCHAR(10)  NULL;   -- 우편번호
+GO
+IF COL_LENGTH('dbo.TBL_BIZI_MST','ADDR')     IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD ADDR     NVARCHAR(200) NULL;   -- 주소
+GO
+IF COL_LENGTH('dbo.TBL_BIZI_MST','ADDR2')    IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD ADDR2    NVARCHAR(200) NULL;   -- 상세주소
+GO
+IF COL_LENGTH('dbo.TBL_BIZI_MST','TEL')      IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD TEL      NVARCHAR(30)  NULL;   -- 전화
+GO
+IF COL_LENGTH('dbo.TBL_BIZI_MST','FAX')      IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD FAX      NVARCHAR(30)  NULL;   -- 팩스
+GO
+IF COL_LENGTH('dbo.TBL_BIZI_MST','HP')       IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD HP       NVARCHAR(30)  NULL;   -- 휴대폰
+GO
+IF COL_LENGTH('dbo.TBL_BIZI_MST','EMAIL')    IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD EMAIL    NVARCHAR(100) NULL;   -- 이메일
+GO
+IF COL_LENGTH('dbo.TBL_BIZI_MST','MANAGER')  IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD MANAGER  NVARCHAR(50)  NULL;   -- 담당자
+GO
+IF COL_LENGTH('dbo.TBL_BIZI_MST','SORT_ORD') IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD SORT_ORD INT           NULL;   -- 정렬순서
+GO
+IF COL_LENGTH('dbo.TBL_BIZI_MST','REMARK')   IS NULL ALTER TABLE dbo.TBL_BIZI_MST ADD REMARK   NVARCHAR(500) NULL;   -- 비고
+GO
+
+/* (선택) 사업장명 검색 성능용 인덱스 — 이미 있으면 스킵 */
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_TBL_BIZI_MST_NM' AND object_id = OBJECT_ID('dbo.TBL_BIZI_MST'))
+    CREATE INDEX IX_TBL_BIZI_MST_NM ON dbo.TBL_BIZI_MST (BIZ_NM);
+GO
+
+/* (선택) 신규 행 기본값 — 앱에서 넣으므로 필수 아님. 필요 시 기존 NULL 보정
+UPDATE dbo.TBL_BIZI_MST SET ACTION_YN = 'Y' WHERE ACTION_YN IS NULL;
+GO
+*/

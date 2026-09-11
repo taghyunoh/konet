@@ -1,0 +1,319 @@
+package egovframework.sejong.user.service;
+
+import java.util.List;
+import java.util.Map;
+
+import egovframework.sejong.user.model.CompConDTO;
+import egovframework.sejong.user.model.CompMdDTO;
+import egovframework.sejong.user.model.PersignDTO;
+import egovframework.sejong.user.model.SjgnDTO;
+import egovframework.sejong.user.model.UserDTO;
+
+public interface UserService {
+
+	// ===== 회사/계약/사용자 관리 (compcd.jsp) =====
+	List<CompMdDTO> selCompCdList(CompMdDTO dto) throws Exception;
+	String CompCdMstDupChk(CompMdDTO dto) throws Exception;
+	int insertCompCdMst(CompMdDTO dto) throws Exception;
+	int updateCompCdMst(CompMdDTO dto) throws Exception;
+	/** 거래명세표 <공급자> 칸(업태·종목·계좌)만 고친다 — 이력 안 만든다 (2026-09-09) */
+	int updateCompBizInfo(CompMdDTO dto) throws Exception;
+
+	List<CompConDTO> selectCompContList(CompConDTO dto) throws Exception;
+	List<CompConDTO> getCompContList(CompConDTO dto) throws Exception;
+	String CompContDupChk(CompConDTO dto) throws Exception;
+	int insertCompCont(CompConDTO dto) throws Exception;
+	int updateCompCont(CompConDTO dto) throws Exception;
+
+	List<java.util.Map<String,Object>> selectCommCodeList(java.util.Map<String,Object> param) throws Exception;
+
+	// ===== 출고장(발주현황표) 업로드 저장 (TBL_SHIPOUT_MST) =====
+	java.util.List<String> selectShipoutActiveShpoutDts(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;  // 이력마감 전 (납품일자+물류센터) 활성배치의 출고일자 — 재고연동용
+	int markShipoutHistory(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	int deleteShipoutZone(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;   // 출고장+출고일자 활성분 소프트 삭제
+	int getShipoutNextJobSeq(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	int insertShipoutMst(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	/* 대량 INSERT (2026-08-28) — 여러 행을 한 문장으로. 행마다 던지던 것이 업로드 병목이었다.
+	   ★한 번에 40행까지만 — SQL Server 는 한 문장의 파라미터가 2,100개를 넘을 수 없다(행당 41개). */
+	int insertShipoutMstBulk(java.util.List<egovframework.sejong.user.model.ShipoutDTO> list) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutMst(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutPrev(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutHistory(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutHistAll(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	/* 발주현황표 업로드 이력 — 출고현황이력조회 (2026-07-25) */
+	java.util.List<java.util.Map<String,Object>> selectSalesChart(egovframework.sejong.user.model.ClosingDTO dto) throws Exception;        /* 매출 그래프 — 월별·출고장별 (2026-07-25) */
+	java.util.List<java.util.Map<String,Object>> selectSalesChartDaily(egovframework.sejong.user.model.ClosingDTO dto) throws Exception;   /* 매출 그래프 — 일자별. 월별과 따로 둔다 */
+	java.util.List<java.util.Map<String,Object>> selectShipoutUploadHist(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectShipoutUploadDtl(egovframework.sejong.user.model.ShipoutDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ShipoutDTO> selectShipoutSrcFiles() throws Exception;   // 이미 업로드(반영)된 원본 파일명 목록
+
+	// ===== 매출(판매) 확정내역 — 출고장 제공 엑셀 업로드 저장 (TBL_SALES_MST) =====
+	int markSalesHistory(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
+	int getSalesNextJobSeq(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
+	int insertSalesMst(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.SalesDTO> selectSalesMst(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.SalesDTO> selectSalesSrcFiles() throws Exception;
+
+	// 출고장 정정(2026-07-27) — 반환: 바뀐 행수. 키가 겹치면 -1(정정 불가, 화면에서 안내)
+	int renameSalesDc(egovframework.sejong.user.model.SalesDTO dto) throws Exception;
+	int mergeSalepriceFromSales(egovframework.sejong.user.model.SalesDTO dto) throws Exception;   // 매출 엑셀 판매단가 → 판매가 이력 upsert
+
+	// ===== 거래처 마스터 (TBL_VENDOR_MST) =====
+	java.util.List<egovframework.sejong.user.model.VendorDTO> selectVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectVendorTrxSum(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	int vendorDupChk(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	int insertVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	int updateVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	/** 거래처 이메일만 저장 — 거래명세서 [이메일발송] 창의 「저장」 (2026-09-09) */
+	int updateVendorEmail(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	int deleteVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+	int mergeVendorMst(egovframework.sejong.user.model.VendorDTO dto) throws Exception;
+
+	// ===== 사업장 분류 마스터 (TBL_BIZI_MST) =====
+	java.util.List<egovframework.sejong.user.model.BiziDTO> selectBiziMst() throws Exception;
+	int insertBiziIfAbsent(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	int updateBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	int updateBiziParcel(egovframework.sejong.user.model.BiziDTO dto) throws Exception; /* 택배 정보(주소·전화·운임)만 저장 (2026-08-06) */
+	int updateBiziMatch(egovframework.sejong.user.model.BiziDTO dto) throws Exception;  /* 공통 매칭코드 일괄 지정/해제 (2026-08-28) */
+	int biziMatchNextNo(egovframework.sejong.user.model.BiziDTO dto) throws Exception;  /* 매칭코드 자동채번용 다음 번호 */
+	java.util.List<java.util.Map<String,Object>> selectParcelOutList(java.util.Map<String,Object> p) throws Exception; /* 택배출고관리 — 출고일자 직송 목록 (2026-08-06) */
+	int deleteBiziMst(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	// ===== 거래처관리(사업장) CRUD =====
+	java.util.List<egovframework.sejong.user.model.BiziDTO> selectBiziList(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	int biziDupChk(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	int insertBizi(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	int updateBizi(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	int deleteBizi(egovframework.sejong.user.model.BiziDTO dto) throws Exception;
+	// ===== 수금/미수금 =====
+	java.util.List<egovframework.sejong.user.model.ReceiveDTO> selectReceiveList(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception;
+	int insertReceive(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception;
+	int updateReceive(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception;
+	int deleteReceive(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception;
+	int upsertReceiveList(java.util.List<egovframework.sejong.user.model.ReceiveDTO> rows, String regUser, String regIp) throws Exception; // 엑셀업로드 일괄
+	int carryForwardReceive(egovframework.sejong.user.model.ReceiveDTO dto) throws Exception; // 전월 미수잔액 → 당월 전월이월
+
+	// ===== 출금/미지급 (TBL_PAYMENT_MST) =====
+	java.util.List<egovframework.sejong.user.model.PaymentDTO> selectPaymentList(egovframework.sejong.user.model.PaymentDTO dto) throws Exception;
+	int insertPayment(egovframework.sejong.user.model.PaymentDTO dto) throws Exception;
+	int updatePayment(egovframework.sejong.user.model.PaymentDTO dto) throws Exception;
+	int deletePayment(egovframework.sejong.user.model.PaymentDTO dto) throws Exception;
+	int upsertPaymentList(java.util.List<egovframework.sejong.user.model.PaymentDTO> rows, String regUser, String regIp) throws Exception; // 엑셀업로드 일괄
+	int carryForwardPayment(egovframework.sejong.user.model.PaymentDTO dto) throws Exception; // 전월 미지급잔액 → 당월 전월이월
+
+	// ===== 정산 마감(수금/출금 월 확정·잠금·자동이월) =====
+	egovframework.sejong.user.model.SettleCloseDTO selectSettleClose(String settleGb, String ym) throws Exception;
+	int confirmSettleClose(String settleGb, String ym, String user) throws Exception; // 확정: 다음달 전월이월 자동반영 + 잠금
+	int cancelSettleClose(String settleGb, String ym, String user) throws Exception;  // 해제: 잠금 풀기
+
+	// ===== 상품마스터 (TBL_PROD_MST) =====
+	java.util.List<egovframework.sejong.user.model.ProdDTO> selectProdList(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	java.util.Map<String,Object> countProdCd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;   // 상품코드 중복 확인(2026-09-07) — ALIVE/DELETED
+	int insertProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	int updateProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	int deleteProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ProdDTO> selectProdDeletedList(egovframework.sejong.user.model.ProdDTO dto) throws Exception;   // 삭제한 상품(ACTION_YN='N') 목록
+	int restoreProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	/* ★거래중지 (2026-08-17) — 지울 수 없는 코드를 「앞으로 안 쓰는 코드」로 표시한다. */
+	int stopProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	int unstopProd(egovframework.sejong.user.model.ProdDTO dto) throws Exception;
+	/** 전표일자 기준으로 **중지된 코드만** 골라 준다(매입·판매 저장 관문). */
+	java.util.List<egovframework.sejong.user.model.ProdDTO> selectStoppedAmong(java.util.Map<String,Object> p) throws Exception;
+	egovframework.sejong.user.model.ProdDTO selectProdStopById(java.util.Map<String,Object> p) throws Exception;   // 매칭코드 등록 관문(2026-08-19)
+	int countProdRelated(egovframework.sejong.user.model.ProdDTO dto) throws Exception;   // 연관(매입가/판매가/재고) 활성건수
+
+	// ===== 매입가 이력 =====
+	java.util.List<egovframework.sejong.user.model.ProdInpriceDTO> selectInpriceList(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;
+	int insertInprice(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;   // 이력 INSERT + 마스터 IN_PRICE 동기화
+	int deleteInprice(egovframework.sejong.user.model.ProdInpriceDTO dto) throws Exception;
+
+	/* ===== 거래처별 품목 표기(교차참조) — TBL_PROD_XREF (2026-08-01) ===== */
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefList(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectUnmappedItems(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefCandidates(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefAudit(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 매핑 점검 리포트
+	java.util.List<egovframework.sejong.user.model.ProdXrefDTO> selectXrefNames(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 그 거래처로 나갈 때 쓸 품명(품목당 1건)
+	/** ★넘긴 코드 중 <b>서브코드인 것</b>만 마스터코드와 함께 (2026-08-17 · 원천=TBL_EXT_ITEM_MST) — 매입을 서브코드로 잡는 것을 막는다. */
+	java.util.List<egovframework.sejong.user.model.ExtItemDTO> selectSubCodesAmong(java.util.Map<String,Object> param) throws Exception;
+	int saveXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;    // 등록/수정 + 대표표기 정리 + 소급 반영
+	int confirmXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int deleteXref(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int resolveShipoutProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int resolveSalesProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+
+	/* ===== 거래처 통보품목 — TBL_EXT_ITEM_MST (2026-08-01) =====
+	   거래처가 미리 통보한 코드·품명 접수대장. ★매핑 표가 아니다(우리 품목과 잇는 방식은 추후 결정). */
+	java.util.List<egovframework.sejong.user.model.ExtItemDTO> selectExtItemList(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	int countExtItemCd(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	int insertExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	int updateExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	int deleteExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	int mergeExtItems(java.util.List<egovframework.sejong.user.model.ExtItemDTO> list) throws Exception;   // 통보서 붙여넣기 일괄
+
+	// ===== 판매가 이력 =====
+	java.util.List<egovframework.sejong.user.model.ProdSalepriceDTO> selectSalepriceList(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception;
+	int insertSaleprice(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception; // 이력 INSERT + 마스터 SALE/WHOLE 동기화
+	int deleteSaleprice(egovframework.sejong.user.model.ProdSalepriceDTO dto) throws Exception;
+
+	// ===== 재고 수불 / 현황 =====
+	java.util.List<egovframework.sejong.user.model.StockLedgerDTO> selectStockLedgerList(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectStockLedgerInList(java.util.Map<String,Object> p) throws Exception;   // 월별 출고현황 하단 입고내역 (2026-09-03 속도점검)
+	egovframework.sejong.user.model.StockMstDTO selectStockMst(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception;
+	int insertStockLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception; // 원장 INSERT + 현재고 재집계
+	int deleteStockLedger(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception; // 원장 삭제 + 현재고 재집계
+	java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockMstList(egovframework.sejong.user.model.StockMstDTO dto) throws Exception; // 재고현황(전체 현재고)
+	java.util.List<egovframework.sejong.user.model.StockMstDTO> selectStockQtyMap(egovframework.sejong.user.model.StockMstDTO dto) throws Exception; // 코드별 재고만(대시보드용)
+	java.util.List<java.util.Map<String,Object>> selectStockOutByMonth(java.util.Map<String,Object> p) throws Exception;   // 출고재고현황 — 년월×품목 출고량 (2026-09-03)
+	java.util.List<java.util.Map<String,Object>> selectStockOutSrcDays(java.util.Map<String,Object> p) throws Exception;   // 출고재고현황 — 월별 정산서/발주 원천 일수 (2026-09-03)
+	java.util.List<java.util.Map<String,Object>> selectStockOutDetail(java.util.Map<String,Object> p) throws Exception;    // 출고재고현황 하단 — 납기일자별 출고내역 (2026-09-03)
+	java.util.List<egovframework.sejong.user.model.StockLedgerDTO> selectInboundList(egovframework.sejong.user.model.StockLedgerDTO dto) throws Exception; // 입고내역
+	// (A) 출고(SHIPOUT)→원장 자동연동
+	int syncShipoutLedgerDate(String shpoutDt, String regUser, String regIp) throws Exception; // 출고일자별 O행 재동기화(마감월이면 skip)
+	int recalcStockMstAll(String regUser, String regIp) throws Exception;                       // 전체 현재고 재집계
+	int rebuildShipoutLedgerAll(String regUser, String regIp) throws Exception;                 // 전체 출고→원장 재동기화+재집계(화면 버튼)
+	java.util.List<String> selectClosedYmList() throws Exception;                                // 마감 확정월 목록(재집계 팝업 표시용)
+
+	// ===== 마감 집계 =====
+	java.util.List<egovframework.sejong.user.model.ClosingDTO> selectClosing(egovframework.sejong.user.model.ClosingDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ClosingDTO> selectClosingUnmatched(egovframework.sejong.user.model.ClosingDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.StockClosingDTO> selectStockClosing(egovframework.sejong.user.model.StockClosingDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.StockClosingDTO> selectInboundClosing(egovframework.sejong.user.model.StockClosingDTO dto) throws Exception;
+
+	// ===== 마감 확정/해제/조회 =====
+	egovframework.sejong.user.model.ClosingMstDTO selectClosingMst(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.ClosingMstDTO> selectClosingMstList(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception;
+	int confirmClosing(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception; // 집계+헤더+재고스냅샷 저장(확정)
+	int cancelClosing(egovframework.sejong.user.model.ClosingMstDTO dto) throws Exception;  // 확정 해제
+
+	// ===== 공통코드 관리 (codecd.jsp) =====
+	List<egovframework.sejong.user.model.CodeMdDTO> codeMstList(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+	String codeMstDupChk(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+	int insertCodeMst(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+	int updateCodeMst(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+	List<egovframework.sejong.user.model.CodeMdDTO> codeDtlList(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+	String codeDtlDupChk(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+	int insertCodeDtl(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+	int updateCodeDtl(egovframework.sejong.user.model.CodeMdDTO dto) throws Exception;
+
+	List<UserDTO> compUserList(UserDTO dto) throws Exception;
+	int insertCompUser(UserDTO dto) throws Exception;
+	int updateCompUser(UserDTO dto) throws Exception;
+	String CompUserDupChk(UserDTO dto) throws Exception;
+	String CompUseridDupChk(UserDTO dto) throws Exception;
+	UserDTO userLoginCheck(UserDTO dto) throws Exception;
+
+	/** KOLGSDB 로그인: COMP_CD + USER_ID 로 최신 활성 사용자 1건 조회 */
+	UserDTO compLoginCheck(UserDTO dto) throws Exception;
+
+	/** KOLGSDB 비밀번호 변경/초기화용 현재 정보 조회 */
+	UserDTO compUserInfo(UserDTO dto) throws Exception;
+
+	/** KOLGSDB 비밀번호 갱신 (변경/초기화 공용) */
+	int compPwdUpdate(UserDTO dto) throws Exception;
+
+	UserDTO userInfo(UserDTO dto) throws Exception;
+
+	boolean userPwdReset(UserDTO dto) throws Exception;
+
+	boolean userPwdChange(UserDTO dto) throws Exception;
+
+	/** 약관 본문 조회 (T_SIGN_MST) */
+	List<SjgnDTO> getSignList(Map<String, Object> map) throws Exception;
+
+	/** termsGb 의 가장 최신 USE_YN='Y' termsSeq */
+	String selectLatestTermsSeq(String termsGb) throws Exception;
+
+	/** 동의이력 1건 저장 (T_PERSIGN_TRAN) */
+	int insertPersign(PersignDTO dto) throws Exception;
+
+	/**
+	 * 가입 시 termsGb 1/2/3 에 대해 각각 최신 termsSeq 를 lookup 하여 T_PERSIGN_TRAN 에 INSERT.
+	 * @param userUuid 가입 직후 생성된 사용자 UUID
+	 * @param regId    감사 ID (보통 userUuid 또는 시스템)
+	 * @return 실제 INSERT 된 row 수 (정상이면 3)
+	 */
+	int saveAllPatientAgreements(String userUuid, String regId) throws Exception;
+
+	/* ===== 매입등록 — 2026-07-25 ===== */
+	java.util.List<egovframework.sejong.user.model.PurchaseDTO> selectPurchaseList(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	egovframework.sejong.user.model.PurchaseDTO selectPurchaseOne(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	String selectPurchaseNextNo(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	/** 전표 저장(신규/수정) — 헤더·명세 + 파생 재고원장 + 매입단가 이력을 한 번에 */
+	int savePurchase(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	int deletePurchase(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	Double selectVendorLastPrice(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.PurchaseDtlDTO> selectPurchasePriceHist(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPurchaseLedger(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	/* ===== 수금/지급 등록 (TBL_SETTLE_TRX) — 2026-07-25 ===== */
+	java.util.List<egovframework.sejong.user.model.SettleTrxDTO> selectSettleList(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	String selectSettleNextNo(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	int insertSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	int updateSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	int deleteSettleTrx(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectCustLedger(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectCustBalance(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;   /* 거래처별 받을금액/지급할금액 — 전 거래처 × 월 (2026-07-26) */
+	java.util.List<java.util.Map<String,Object>> selectCustDayDetail(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception; /* 위 화면 하단 — 한 거래처의 특정일자 하루 건별 내역(출고·매입·입금·출금) (2026-07-27) */
+	java.util.List<java.util.Map<String,Object>> selectDayBook(egovframework.sejong.user.model.SettleTrxDTO dto) throws Exception;       /* 일계장 — 하루치 거래처별 매출·매입·수금·지급 (2026-07-26) */
+
+	/* ===== 판매등록 — 2026-07-25 ===== */
+	java.util.List<egovframework.sejong.user.model.SalesTrxDTO> selectSalesTrxList(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	egovframework.sejong.user.model.SalesTrxDTO selectSalesTrxOne(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	/** 거래명세서 공유 — 토큰을 발급(처음 한 번)하고 그 토큰을 돌려준다. 카톡·이메일 보내기가 부른다 (2026-09-09) */
+	String shareSalesTrx(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	/** 공개 링크 — 토큰 하나로 전표+명세를 읽는다. 로그인 없음(/pub/stmt.do) (2026-09-09) */
+	egovframework.sejong.user.model.SalesTrxDTO selectSalesTrxByToken(String token) throws Exception;
+	String selectSalesTrxNextNo(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	int saveSalesTrx(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	int deleteSalesTrx(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+	Double selectCustLastPrice(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.SalesTrxDtlDTO> selectSalesPriceHist(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;
+	/** 매출내역 화면에 얹을 판매전표 명세 — 정산서 행과 같은 모양 */
+	java.util.List<java.util.Map<String,Object>> selectSalesTrxHist(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
+
+	/* ===== 납품분(그 거래처에 나간 품목) / 납품분 제외 — 2026-07-31 ===== */
+	java.util.List<egovframework.sejong.user.model.SalesDlvDTO> selectSalesDlvList(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.SalesDlvDTO> selectPurchDlvList(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
+	java.util.List<egovframework.sejong.user.model.SalesDlvDTO> selectSalesDlvExclList(egovframework.sejong.user.model.SalesDlvDTO dto) throws Exception;
+	/** 납품분 제외 켜기/끄기 — dto.actionYn 'Y' 제외 / 'N' 해제. 처리한 품목 수를 돌려준다 */
+	int saveSalesDlvExcl(egovframework.sejong.user.model.SalesDlvDTO dto, java.util.List<String> prodCds) throws Exception;
+
+	/* ── 재고 일괄조정 (2026-08-19) ─────────────────────────────────────
+	   기존화면(거래처 시스템)의 [리스트조회] + [수정저장].
+	   재고의 주인은 수불원장이다. 덮어쓰지 않고 **차이만큼 조정행(A)** 을 더한다. */
+
+	/** 목록 : 기준일자까지의 누계 현재고 + BOX/EA 환산 */
+	java.util.List<egovframework.sejong.user.model.StockMstDTO>
+	    selectStockAdjList(egovframework.sejong.user.model.StockMstDTO dto) throws Exception;
+
+	/** 일괄저장 : 차이만큼 조정행 생성 + 이력 기록. 처리한 품목 수를 돌려준다 */
+	int saveStockAdjBatch(egovframework.sejong.user.model.StockAdjHisDTO head,
+	                      java.util.List<egovframework.sejong.user.model.StockAdjHisDTO> rows) throws Exception;
+
+	/** 조정 이력 조회 */
+	java.util.List<egovframework.sejong.user.model.StockAdjHisDTO>
+	    selectStockAdjHisList(egovframework.sejong.user.model.StockAdjHisDTO dto) throws Exception;
+
+	/** 묶음 되돌리기 : 이력 + 짝인 원장 조정행을 함께 내린다 */
+	int cancelStockAdjBatch(egovframework.sejong.user.model.StockAdjHisDTO dto) throws Exception;
+
+	/** 입수수량만 고친다 — BOX/EA 환산 기준. 재고(원장)는 안 건드린다 */
+	int saveProdPackQty(java.util.List<egovframework.sejong.user.model.StockMstDTO> rows) throws Exception;
+
+	/** 정산서 → 재고원장 재동기화 : 그 납품일자의 SALES 파생행을 지우고 다시 만든다 */
+	int syncSalesLedger(String dlvDt, String compCd, String regUser, String regIp) throws Exception;
+	/* ── 발주서 관리 (2026-09-03) */
+	java.util.List<java.util.Map<String,Object>> selectPoList(java.util.Map<String,Object> p) throws Exception;
+	String selectPoNextNo(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectPoMst(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectPoMstByToken(String token) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPoDtl(java.util.Map<String,Object> p) throws Exception;
+	long savePo(java.util.Map<String,Object> body, String user, String ip) throws Exception;   // 머리+줄 저장, poSeq 반환
+	int deletePo(java.util.Map<String,Object> p) throws Exception;
+	int updatePoShared(java.util.Map<String,Object> p) throws Exception;
+	int updatePoPurchSeq(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectCompInfo(java.util.Map<String,Object> p) throws Exception;
+	/* ── 문서 전송이력 (2026-09-10) — 거래명세표·발주서가 한 표를 쓴다(DOC_GB 로만 가른다) */
+	int insertSendHist(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectSendHistList(java.util.Map<String,Object> p) throws Exception;
+	int updateSendHistMailOpen(java.util.Map<String,Object> p) throws Exception;   // 메일 열림(1×1 그림)
+	int updateSendHistView(java.util.Map<String,Object> p) throws Exception;       // 링크 열람(공개 페이지)
+}

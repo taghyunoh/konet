@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- 부트스트랩 css -->
+  <link href="/bootstrap/css/bootstrap.css" rel="stylesheet">
+
+  <link href="/asset/css/common.css" rel="stylesheet">
+  <link href="/asset/component/sub_teb_menu.css" rel="stylesheet" />
+
+  <title>GNB + Tab Menu</title>
+</head>
+
+<body>
+  <!-- 부트스트랩 js -->
+  <script src="/bootstrap/js/bootstrap.bundle.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+
+  <div class="content-body">
+
+    <!-- 서브 탭메뉴 영역 start -->
+    <ul class="stab-menu">
+      <li class="stab-item">
+        <a class="active" id="tab1" data-bs-toggle="tab" href="#sub-tab1">개 요</a>
+      </li>
+      <li class="stab-item">
+        <a class="" id="tab2" data-bs-toggle="tab" href="#sub-tab2">AGP 보고서</a>
+      </li>
+      <li class="stab-item">
+        <a class="" id="tab3" data-bs-toggle="tab" href="#sub-tab3">혈당 그래프</a>
+      </li>
+      <li class="stab-item">
+        <a class="" id="tab4" data-bs-toggle="tab" href="#sub-tab4">통 계</a>
+      </li>
+    </ul>
+    <!-- 서브 탭메뉴 컨텐츠 영역 -->
+    <div class="stab-content active" id="sub-tab1">서브 탭 컨텐츠 개요</div>
+    <div class="stab-content" id="sub-tab2">서브 탭 컨텐츠 AGP 보고서</div>
+    <div class="stab-content" id="sub-tab3">서브 탭 컨텐츠 혈당 그래프</div>
+    <div class="stab-content" id="sub-tab4">서브 탭 컨텐츠 통 계</div>
+
+    <script>
+      $(document).ready(function () {
+        // 서브 탭메뉴 인터렉션
+        $('.stab-item a').click(function () {
+          $('.stab-item a').removeClass('active');
+          $('.stab-content').removeClass('active');
+          $(this).addClass('active');
+          $($(this).attr('href')).addClass('active');
+        });
+      });
+    </script>
+    <!-- //서브 탭메뉴 영역 end -->
+
+  </div>
+
+</body>
+
+</html>

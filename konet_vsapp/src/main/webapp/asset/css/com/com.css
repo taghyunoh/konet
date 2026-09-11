@@ -1,0 +1,27 @@
+.leftGrid__container{
+	width: 35%;
+}
+
+.rightGrid__container{
+	width: 65%;
+}
+
+.twoGrid__box {
+  padding: 10px;
+  height: calc(100% - 49px);
+  border: 1px solid #DBDBDB;
+  border-top: 0;
+}
+
+.insert2__btn::before {
+    background-image: url("/images/icons/insert.png");
+}
+
+.filter__options {
+    margin-right: 10px;
+    padding: 2px;
+    width: 200px;
+    height: 30px;
+    font-size: 12px;
+    border-radius: 3px;
+}

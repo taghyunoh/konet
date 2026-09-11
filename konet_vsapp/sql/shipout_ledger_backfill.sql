@@ -1,0 +1,56 @@
+/* =====================================================================================
+   (A) 출고(TBL_SHIPOUT_MST) → 수불원장(TBL_STOCK_LEDGER) O행 일괄 백필   MSSQL
+   · 1회성. 재실행 안전(먼저 SHIPOUT 파생 O행을 전부 지우고 다시 생성).
+   · 이후 신규 출고는 앱(saveShipoutMst)에서 자동 동기화되므로 이 스크립트는 최초 1회만.
+   · 매칭기준: SHIPOUT.ITEM_CD = PROD_MST.PROD_CD (매출마감과 동일). 상품마스터에 있는 품목만.
+   · 주의: 이미 확정된 재고마감(TBL_CLOSING_STOCK) 스냅샷은 과거 값(출고 미반영) 그대로 남습니다.
+           초기 도입이라 확정월이 없다면 무시 가능. 확정월 재계산이 필요하면 해당월 마감 해제 후 재확정.
+   ===================================================================================== */
+USE [KOLGSDB]
+GO
+
+-- 1) 기존 SHIPOUT 파생 O행 제거 (재실행 안전)
+DELETE FROM TBL_STOCK_LEDGER WHERE REF_GB = 'SHIPOUT';
+GO
+
+-- 2) 활성 SHIPOUT을 (출고일자 × 품목)별 합산해 O행 생성
+INSERT INTO TBL_STOCK_LEDGER (PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, REF_GB, REF_NO, REMARK, ACTION_YN, REG_DTTM, REG_USER)
+SELECT pm.PROD_SEQ, s.ITEM_CD, s.SHPOUT_DT, 'O', SUM(ISNULL(s.CUR_QTY,0)),
+       'SHIPOUT', s.SHPOUT_DT, N'출고 자동연동(SHIPOUT) 백필', 'Y', CONVERT(VARCHAR(19),GETDATE(),120), 'BATCH'
+  FROM TBL_SHIPOUT_MST s
+  JOIN ( SELECT PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ FROM TBL_PROD_MST WHERE ACTION_YN='Y' GROUP BY PROD_CD ) pm
+    ON pm.PROD_CD = s.ITEM_CD
+ WHERE s.ACTION_YN = 'Y' AND ISNULL(s.ITEM_CD,'') <> ''
+ GROUP BY pm.PROD_SEQ, s.ITEM_CD, s.SHPOUT_DT
+HAVING SUM(ISNULL(s.CUR_QTY,0)) > 0;
+GO
+
+-- 3) 전체 품목 현재고(TBL_STOCK_MST) 재집계
+MERGE TBL_STOCK_MST AS t
+USING (
+    SELECT PROD_SEQ, MAX(PROD_CD) AS PROD_CD,
+        SUM(CASE WHEN IO_GB IN ('I','R') THEN QTY WHEN IO_GB='O' THEN -QTY WHEN IO_GB='A' THEN QTY ELSE 0 END) AS CUR_QTY,
+        SUM(CASE WHEN IO_GB='I' THEN QTY*ISNULL(UNIT_PRICE,0) ELSE 0 END) AS IN_AMT,
+        SUM(CASE WHEN IO_GB='I' THEN QTY ELSE 0 END) AS IN_QTY,
+        MAX(CASE WHEN IO_GB='I' THEN TRX_DT END) AS LAST_IN_DT,
+        MAX(CASE WHEN IO_GB='O' THEN TRX_DT END) AS LAST_OUT_DT
+      FROM TBL_STOCK_LEDGER
+     WHERE ACTION_YN='Y'
+     GROUP BY PROD_SEQ
+) AS s
+ON (t.PROD_SEQ = s.PROD_SEQ)
+WHEN MATCHED THEN UPDATE SET
+      t.CUR_QTY      = ISNULL(s.CUR_QTY,0),
+      t.AVG_IN_PRICE = CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN t.AVG_IN_PRICE ELSE s.IN_AMT/s.IN_QTY END,
+      t.STOCK_AMT    = ISNULL(s.CUR_QTY,0) * CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN ISNULL(t.AVG_IN_PRICE,0) ELSE s.IN_AMT/s.IN_QTY END,
+      t.LAST_IN_DT   = s.LAST_IN_DT,
+      t.LAST_OUT_DT  = s.LAST_OUT_DT,
+      t.UPD_DTTM     = CONVERT(VARCHAR(19), GETDATE(), 120), t.UPD_USER='BATCH'
+WHEN NOT MATCHED THEN INSERT
+      (PROD_SEQ, PROD_CD, CUR_QTY, AVG_IN_PRICE, STOCK_AMT, LAST_IN_DT, LAST_OUT_DT, ACTION_YN, REG_DTTM, REG_USER)
+    VALUES
+      (s.PROD_SEQ, s.PROD_CD, ISNULL(s.CUR_QTY,0),
+       CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN NULL ELSE s.IN_AMT/s.IN_QTY END,
+       ISNULL(s.CUR_QTY,0) * CASE WHEN ISNULL(s.IN_QTY,0)=0 THEN 0 ELSE s.IN_AMT/s.IN_QTY END,
+       s.LAST_IN_DT, s.LAST_OUT_DT, 'Y', CONVERT(VARCHAR(19), GETDATE(), 120), 'BATCH');
+GO

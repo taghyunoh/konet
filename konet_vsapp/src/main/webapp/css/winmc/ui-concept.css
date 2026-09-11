@@ -1,0 +1,140 @@
+/* ==========================================================================
+   화면 콘셉 공통 (2026-08-20)  —  코네트 물류관리
+
+   사용자가 화면 두 장으로 지정한 콘셉을 한 곳에 모은 것.
+     ① 입력 = **표 형식** : 라벨은 왼쪽 회색 칸, 값은 오른쪽 칸(격자)
+     ② 그리드 = **세로선 있는 격자** : 머리글 가운데, 숫자 오른쪽 + 자릿수 고정
+     ③ 글자체 = Pretendard (못 받으면 맑은 고딕으로 자동 폴백)
+
+   ★쓰는 법 : 그 화면의 <style> 블록 **뒤에** 이 파일을 건다.
+       <link rel="stylesheet" href="/css/winmc/ui-concept.css?v=20260820">
+     뒤에 걸어야 화면마다 박혀 있는 옛 규칙(알약 라벨 등)을 덮는다.
+
+   ★적용 범위는 **`#ov`(추가·수정 창)와 `.card` 안의 목록 표**로 좁혀 두었다 —
+     화면 곳곳의 다른 표·패널까지 건드리면 어디가 깨졌는지 찾기 어렵다.
+     새 화면에 적용할 때도 이 범위를 지킬 것.
+
+   ⚠되돌리기 : 이 <link> 한 줄만 빼면 그 화면은 예전 모습으로 돌아간다.
+   ========================================================================== */
+
+/* ── ③ 글자체 ───────────────────────────────────────────────────────────── */
+body{
+  font-family:'Pretendard Variable',Pretendard,'맑은 고딕','Malgun Gothic',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+input, select, textarea, button, table{ font-family:inherit; }
+
+/* ── ① 입력 = 표 형식 (추가·수정 창) ────────────────────────────────────── */
+/* 라벨+입력 한 덩이(.fld)를 두 칸짜리 격자로 바꿔 표처럼 보이게 한다.
+   ★HTML 은 고치지 않는다 — 화면마다 .fld 안의 내용이 조금씩 달라도 그대로 선다. */
+#ov .mb{
+  padding:14px 16px;
+  display:grid; grid-template-columns:1fr 1fr; gap:0;
+  border-top:none;
+}
+#ov .fld{
+  display:grid; grid-template-columns:132px minmax(0,1fr); align-items:center;
+  border:1px solid #dbe2ea;
+  margin:0 0 -1px -1px;          /* 이웃한 칸과 선을 1px 겹쳐 두 겹으로 보이지 않게 */
+  min-height:44px; min-width:0;
+  gap:0;
+}
+#ov .fld.full{ grid-column:1 / -1; }
+
+/* ⚠예외 — 「최근 등록 코드」 안내줄(.lastcd)은 라벨이 없는 **한 줄 띠**다.
+   여기까지 표 칸으로 만들면 안내 글이 132px 칸에 눌린다. 원래대로 가로 배치를 유지한다.
+   (추가 창에서만 보인다. 화면마다 배경·테두리는 그 화면 CSS 가 그대로 그린다.) */
+#ov .fld.lastcd{ display:flex; flex-direction:row; align-items:center; flex-wrap:wrap;
+                 border:none; margin:0; min-height:0; }
+
+/* 라벨 = 왼쪽 회색 칸(표의 머리칸) */
+#ov .fld > label{
+  font-size:13px; font-weight:500; color:#37475a; background:#f6f8fa;
+  border-right:1px solid #dbe2ea; align-self:stretch;
+  display:flex; align-items:center; padding:0 12px;
+  white-space:nowrap; margin:0; border-radius:0; min-width:0; min-height:0;
+  text-align:left; justify-content:flex-start; letter-spacing:0;
+}
+
+/* 값 칸 — 입력칸이 셀 선에 닿지 않게 안쪽 여백을 준다 */
+#ov .fld > input,
+#ov .fld > select,
+#ov .fld > textarea,
+#ov .fld > div{ margin:4px 8px; min-width:0; }
+
+#ov .fld > input,
+#ov .fld > select,
+#ov .fld > textarea{
+  height:38px; border:1px solid #cfd9e2; border-radius:8px; padding:0 11px;
+  font-size:14px; color:#1f2a37; background:#fff;
+  transition:border-color .12s, box-shadow .12s;
+}
+#ov .fld > input:focus,
+#ov .fld > select:focus,
+#ov .fld > textarea:focus{
+  outline:none; border-color:#137a6c; box-shadow:0 0 0 3px rgba(19,122,108,.14);
+}
+#ov .fld > input[readonly]{ background:#f2f5f7; color:#5f7381; }
+
+/* ⚠표 칸 안에서는 폭을 주지 않는다 — width:100% 를 주면 좌우 여백만큼 셀 밖으로 삐져나온다
+     (2026-08-20 「과세 칸이 창 테두리에 걸린다」 지적). 격자 칸은 저절로 채워진다. */
+#ov .fld > select{ width:auto; }
+
+/* ── ①-2 입력 = 표 형식 : **Bootstrap 서식** (공통코드·회사코드 계열) ──────
+   위 `#ov .fld` 와 서식이 다른 화면들. 여기는 부트스트랩 격자로 짜여 있다 :
+       .form-group.row > label.col-form-label + div.col-N > input.form-control
+   ⇒ 이미 「라벨 칸 + 값 칸」 구조라, **선과 배경만 입히면** 같은 표가 된다(HTML 무변경).
+   ★적용 대상은 입력 묶음(#inputZone·#cd_inputZone…)으로 좁힌다 — 화면의 다른 .row 까지 건드리지 않게.
+   ⚠부트스트랩 .row 는 좌우 **음수 여백(-15px)** 이라 그대로 두면 테두리가 창 밖으로 나간다 → 0 으로 되돌린다. */
+[id$="inputZone"] .form-group.row{
+  margin:0 0 -1px 0;                     /* 이웃한 줄과 선을 1px 겹친다 */
+  border:1px solid #dbe2ea;
+  align-items:stretch;                   /* 라벨 칸이 줄 높이를 꽉 채우게 */
+  min-height:44px;
+}
+[id$="inputZone"] .form-group.row > label{
+  background:#f6f8fa; border-right:1px solid #dbe2ea;
+  display:flex; align-items:center; justify-content:flex-start;
+  padding:0 12px; margin:0; height:auto;
+  font-size:13px; font-weight:500; color:#37475a; white-space:nowrap;
+}
+[id$="inputZone"] .form-group.row > div{
+  display:flex; align-items:center; padding:4px 8px;
+  border-right:1px solid #dbe2ea;        /* 한 줄에 [라벨|값][라벨|값] 이 오는 줄의 가운데 선 */
+}
+[id$="inputZone"] .form-group.row > div:last-child{ border-right:none; }
+[id$="inputZone"] .form-control,
+[id$="inputZone"] select.custom-select{
+  height:38px; border:1px solid #cfd9e2; border-radius:8px; padding:0 11px;
+  font-size:14px; color:#1f2a37; background:#fff; box-shadow:none;
+}
+[id$="inputZone"] .form-control:focus,
+[id$="inputZone"] select.custom-select:focus{
+  border-color:#137a6c; box-shadow:0 0 0 3px rgba(19,122,108,.14);
+}
+/* 부트스트랩이 잘못 입력 표시로 붉게 칠하는 것(is-invalid)은 이 화면에서 뜻이 없다 */
+[id$="inputZone"] .form-control.is-invalid{ background-image:none; border-color:#cfd9e2; }
+
+/* ── ② 그리드 = 세로선 있는 격자 (목록 표) ──────────────────────────────── */
+.card table{ border-collapse:collapse; }
+.card thead th{
+  background:#eaf2f0; color:#125a4e; font-weight:600; font-size:12.5px; letter-spacing:.02em;
+  border-bottom:1px solid #cfe0da; border-right:1px solid #d8e6e1;
+  padding:9px 10px; text-align:center; box-shadow:none;
+}
+.card thead th:last-child{ border-right:none; }
+.card thead th.r{ text-align:right; }
+.card tbody td{
+  border-bottom:1px solid #eef1f5; border-right:1px solid #eef1f5;
+  padding:7px 10px; vertical-align:middle; text-align:center; font-weight:400;
+}
+.card tbody td:last-child{ border-right:none; }
+/* 숫자는 자릿수 고정 — 세로로 자릿수가 맞아 눈으로 검산된다.
+   ★칸에 붙는 정렬 클래스는 화면마다 이름이 다르다 — 이 프로젝트에서 쓰는 것을 모두 받는다
+     (`.num`·`.r` = 숫자/오른쪽, `.c` = 가운데, `.nm`·`.l` = 긴 글자/왼쪽). */
+.card tbody td.num, .card tbody td.r,
+.card thead th.r{ text-align:right; font-variant-numeric:tabular-nums; }
+.card thead th.c, .card tbody td.c{ text-align:center; }
+/* 긴 글자는 왼쪽 — 가운데 정렬은 짧은 값(코드·수량·상태)에만 어울린다 */
+.card tbody td.nm, .card tbody td.l{ text-align:left; }
+.card tbody td.code{ font-weight:500; }

@@ -1,0 +1,53 @@
+@charset "UTF-8";
+/* 관리자 목록/모달 공통 스타일 — admin_ptList 컨셉(청록)으로 통일 */
+:root {
+  --reg-teal:        #1f9b8e;
+  --reg-teal-dark:   #178074;
+  --reg-teal-border: #bfe0db;
+  --reg-teal-bg:     #eaf6f4;
+}
+
+/* 콘텐츠 래퍼 좌우 폭 확대
+   공통 .content-body 가 display:flex + align-items:flex-start 라서 자식 래퍼가
+   내용 폭만큼만 줄어들어 우측 여백이 크게 남는다. stretch + width:100% 로 꽉 채움. */
+.tab-pane .content-body { align-items: stretch; }
+.tab-pane .content-body .tab-content,
+.tab-pane .content-body .content-wrap { width: 100%; }
+
+/* 그리드 폭/헤더 통일 */
+.table-responsive { overflow-x: auto; }
+#infoTable, #infoTable2 { width: 100%; }
+#infoTable thead th, #infoTable2 thead th {
+  position: sticky; top: 0; z-index: 2; white-space: nowrap;
+  background-color: #d9edf7 !important; color: #000000 !important;
+}
+#infoTable tbody tr, #infoTable2 tbody tr { cursor: pointer; }
+#infoTable tbody tr:hover, #infoTable2 tbody tr:hover { background-color: #f2f2f2; }
+#infoTable tbody tr:nth-child(even), #infoTable2 tbody tr:nth-child(even) { background-color: #f2f2f2; }
+
+/* 하단 페이징 */
+.paging { display: flex; justify-content: center; align-items: center; gap: 4px; margin: 14px 0 4px; flex-wrap: wrap; }
+.paging .pg-btn { min-width: 32px; height: 32px; padding: 0 8px; border: 1px solid var(--reg-teal-border); background: #fff; color: #333; border-radius: 4px; cursor: pointer; font-size: 13px; line-height: 1; }
+.paging .pg-btn:hover:not(:disabled) { background: var(--reg-teal-bg); }
+.paging .pg-btn.active { background: var(--reg-teal); border-color: var(--reg-teal); color: #fff; font-weight: 700; }
+.paging .pg-btn:disabled { opacity: .4; cursor: default; }
+
+/* 모달 입력폼 청록 테마 (admin_ptList 모달과 통일) */
+.modal-content { border-top: 3px solid var(--reg-teal); }
+.modal-header.reg-head { border-bottom: 2px solid var(--reg-teal); }
+.reg-modal-title { color: var(--reg-teal); font-weight: 700; font-size: 18px; margin: 0; }
+.modal-body .form-container .form-wrap label { color: var(--reg-teal); font-weight: 600; }
+.modal-body .form-control:focus, .modal-body .form-select:focus { border-color: var(--reg-teal); box-shadow: 0 0 0 .15rem rgba(31,155,142,.15); }
+.modal-footer .btn-primary { background: var(--reg-teal); border-color: var(--reg-teal); }
+.modal-footer .btn-primary:hover { background: var(--reg-teal-dark); border-color: var(--reg-teal-dark); }
+
+/* reg-table (테이블형 모달 본문 — admin_ptList 와 동일 컨셉) */
+.reg-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.reg-table th, .reg-table td { border: 1px solid var(--reg-teal-border); padding: 9px 12px; vertical-align: middle; font-size: 14px; }
+.reg-table th { background: var(--reg-teal-bg); color: var(--reg-teal); font-weight: 600; text-align: left; white-space: nowrap; }
+.reg-table td { background: #fff; }
+.reg-table .req { color: #dc3545; margin-right: 3px; font-weight: 700; }
+/* 입력칸 — admin_ptList 모달과 동일한 크기/높이 */
+.reg-table input.form-control, .reg-table select.form-select { height: 34px; font-size: 14px; }
+.reg-table textarea.form-control { font-size: 14px; }
+.reg-table input.form-control.full, .reg-table select.form-select.full { width: 100%; }

@@ -1,0 +1,10 @@
+/* 회사 마스터 보완 (2026-09-03) — 발주서 인쇄의 등록번호·상호. 사용자가 운영 DB 에서 실행.
+   (회사 관리 화면에서 고쳐도 같다. 실행 전 현재 값 확인 → 갱신 → 확인) */
+SELECT COMP_CD, COMP_NM, BUSI_NUM, COMP_CEO, COMP_TEL, JOB_SEQ, ACTION_YN FROM dbo.TBL_COMP_MST WHERE COMP_CD = 'W1234567';
+
+UPDATE dbo.TBL_COMP_MST
+   SET BUSI_NUM = '129-86-67271',
+       COMP_NM  = N'(주)코네트'
+ WHERE COMP_CD = 'W1234567' AND ACTION_YN = 'Y';
+
+SELECT COMP_CD, COMP_NM, BUSI_NUM, COMP_CEO, COMP_TEL FROM dbo.TBL_COMP_MST WHERE COMP_CD = 'W1234567' AND ACTION_YN = 'Y';
