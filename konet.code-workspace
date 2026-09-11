@@ -1,0 +1,25 @@
+{
+    // 코네트 두 프로젝트를 한 창에서 연다 — VS Code ▸ 파일 ▸ 파일에서 작업 영역 열기
+    //   konet_vsweb = PC 웹  (톰캣 9071)
+    //   konet_vsapp = 모바일 PWA (톰캣 9072)
+    // 폴더별 설정·태스크(톰캣 시작/중지, WAR 빌드)는 각 폴더의 .vscode 에서 온다.
+    "folders": [
+        { "name": "konet_vsweb (PC 웹 :9071)", "path": "konet_vsweb" },
+        { "name": "konet_vsapp (모바일 :9072)", "path": "konet_vsapp" }
+    ],
+    "settings": {
+        "files.encoding": "utf8",
+        "java.configuration.updateBuildConfiguration": "automatic",
+        "java.import.maven.enabled": true,
+        "java.dependency.enableDependencyCheckup": false,
+        "files.exclude": {
+            "**/bin": true,
+            "**/target": true
+        },
+        "search.exclude": {
+            "**/bin": true,
+            "**/target": true,
+            "**/.settings": true
+        }
+    }
+}

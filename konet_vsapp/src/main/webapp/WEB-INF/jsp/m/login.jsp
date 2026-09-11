@@ -33,15 +33,13 @@
   button{ width:100%; height:50px; margin-top:22px; border:0; border-radius:10px; background:var(--teal);
     color:#fff; font-size:17px; font-weight:700; font-family:inherit; }
   button:disabled{ opacity:.6; }
-  .pc{ margin-top:18px; text-align:center; font-size:13px; }
-  .pc a{ color:var(--mute); }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="brand">
     <img src="<%=request.getContextPath()%>/m/icons/icon-192.png" alt="">
-    <div><h1>코네트</h1><p>물류·매출 요약 (모바일)</p></div>
+    <div><h1>코네트</h1><p>물류·매출 (모바일)</p></div>
   </div>
   <form id="f" autocomplete="on" onsubmit="mLogin(); return false;">
     <label for="compCd">회사코드</label>
@@ -53,7 +51,6 @@
     <div class="save"><input type="checkbox" id="saveId"><label for="saveId" style="margin:0;font-weight:500;color:var(--ink)">회사코드·아이디 저장</label></div>
     <button type="submit" id="btn">로그인</button>
   </form>
-  <div class="pc"><a href="<%=request.getContextPath()%>/konet.do">PC 화면으로 열기</a></div>
 </div>
 <script>
 var CTX = '<%=request.getContextPath()%>';
