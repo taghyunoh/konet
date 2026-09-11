@@ -11,7 +11,7 @@
   | Eclipse/VS Code 프로젝트 이름(`.project`) | konet_vsweb | **konet_vsapp** |
   | pom artifactId → WAR | konet_web → konet_web-1.0.0.war | **konet_app → konet_app-1.0.0.war** |
   | 로컬 톰캣 | D:\egv\Servers\konet_vsweb-tomcat | **D:\egv\Servers\konet_vsapp-tomcat** |
-  | HTTP / shutdown / JPDA | 9071 / 9013 / 9171 | **9072 / 9014 / 9172** |
+  | HTTP / shutdown / JPDA | 9071 / 9091 / 9171 | **9072 / 9092 / 9172** |
   | WEB-INF/lib 매핑 | D:\egv\Servers\konet_vsweb-vscode\lib | **D:\egv\Servers\konet_vsapp-vscode\lib** |
   | 세션 쿠키 이름 | JSESSIONID | **KONETAPP_SID** (web.xml `session-config`) |
 
@@ -23,6 +23,14 @@
 - **톰캣 띄우는 길 2가지(둘 다 같은 톰캣)** : ①VS Code **Servers 뷰(Community Server Connector) ▸ `konet_vsapp`**
   (등록 파일 `~/.rsp/redhat-community-server-connector/servers/konet_vsapp` — `konet_vsweb` 을 본떠 경로·포트만 바꿈)
   ②태스크 「톰캣 시작 (konet_vsapp :9072)」(JPDA 9172 디버그). ⚠**둘을 동시에 띄우지 말 것** — 같은 9072 라 뒤에 뜬 쪽이 죽는다.
+- **[2026-09-11 밤] 이 PC(D:\egv)에 app 톰캣을 새로 만들었다** — 그 전에는 표의 톰캣 폴더·RSP 등록·`.vscode/tasks.json` 이 이 PC에 없었다(다른 PC에서 만든 기록).
+  · `konet_vsweb-tomcat` 을 robocopy(webapps·logs·work·temp 제외) → `conf/server.xml` 만 고침 : Connector 9071→**9072** · redirectPort 9471→9472 · Server(shutdown) 9091→**9092**.
+    ⚠표의 옛 값 9013/9014 는 틀렸다 — 실제 web shutdown 은 **9091** 이다(server.xml 확인).
+  · 배포 = `konet_app-1.0.0.war` 를 **`webapps\ROOT` 폴더로 풀기만** 했다 — web 과 달리 `ROOT.war` 는 **두지 않았다**
+    (WAR 가 바뀌면 톰캣이 ROOT 를 지우고 다시 푸는데, 그때 junction 을 따라 들어가 소스를 지울 위험을 없앤 것).
+    ⇒ web.xml·WEB-INF\lib 이 바뀌면 WAR 를 다시 만들어 ROOT 에 풀고 relink 를 다시 돌린다.
+  · `D:\egv\Servers\konet_vsapp-tomcat\relink-local.bat` — web 것과 같고 경로만 konet_vsapp, **`m`(모바일 정적 폴더)을 더했다**. 톰캣을 멈춘 뒤 돌릴 것.
+  · 실측 : 기동 12.7초 · `/konet.do`·`/m/login.do`·`/m/manifest.json` 200 · 쿠키 `KONETAPP_SID` · `/m/session.do` → `{"ok":false}`.
 
 ## ★[완료 2026-09-11] 모바일 요약 화면 — /m/*.do (PWA)
 사용자 요청 *「모바일에 맞게 몇가지 취합 볼수있게 정리」*.
