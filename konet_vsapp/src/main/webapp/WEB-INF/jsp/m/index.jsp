@@ -31,6 +31,7 @@
 </head>
 <body>
 <header>
+  
   <div class="hd1">
     <h1>코네트</h1>
     <div class="who" id="who"></div>
