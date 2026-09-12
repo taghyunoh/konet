@@ -18,20 +18,27 @@
   *{ box-sizing:border-box; }
   html,body{ margin:0; background:var(--bg); color:var(--ink);
     font-family:"Pretendard Variable",Pretendard,"Malgun Gothic",sans-serif; -webkit-text-size-adjust:100%; }
+  /* 뒤배경 — 옅은 청록 번짐 두 곳(오른쪽 위·왼쪽 아래) + 잔 점무늬. 이미지 없이 CSS 만 */
+  body{ min-height:100vh; min-height:100dvh;
+    background:
+      radial-gradient(rgba(19,122,108,.07) 1px, transparent 1.6px) 0 0/18px 18px,
+      radial-gradient(460px 460px at 108% -8%, rgba(19,122,108,.24), transparent 70%),
+      radial-gradient(420px 420px at -12% 108%, rgba(19,122,108,.18), transparent 70%),
+      linear-gradient(180deg,#f4f7f6 0%,#e6efec 100%); }
   .wrap{ min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; justify-content:center;
     padding:24px 20px calc(24px + env(safe-area-inset-bottom)); max-width:440px; margin:0 auto; }
   .brand{ display:flex; align-items:center; gap:12px; margin-bottom:28px; }
-  .brand img{ width:48px; height:48px; border-radius:12px; }
-  .brand h1{ margin:0; font-size:26px; color:var(--teal-d); }
-  .brand p{ margin:2px 0 0; font-size:14.5px; color:var(--mute); }
-  label{ display:block; font-size:14.5px; font-weight:600; color:var(--mute); margin:14px 0 6px; }
-  input[type=text],input[type=password]{ width:100%; height:48px; border:1px solid var(--bd); border-radius:10px;
-    padding:0 14px; font-size:17.5px; font-family:inherit; background:#fff; color:var(--ink); }
+  .brand img{ width:52px; height:52px; border-radius:13px; }
+  .brand h1{ margin:0; font-size:28px; color:var(--teal-d); }
+  .brand p{ margin:2px 0 0; font-size:16px; color:var(--mute); }
+  label{ display:block; font-size:16px; font-weight:600; color:var(--mute); margin:14px 0 6px; }
+  input[type=text],input[type=password]{ width:100%; height:50px; border:1px solid var(--bd); border-radius:10px;
+    padding:0 14px; font-size:19px; font-family:inherit; background:#fff; color:var(--ink); }
   input:focus{ outline:none; border-color:var(--teal); box-shadow:0 0 0 3px rgba(19,122,108,.18); }
-  .save{ display:flex; align-items:center; gap:8px; margin:14px 0 0; font-size:15.5px; color:var(--ink); }
-  .save input{ width:18px; height:18px; accent-color:var(--teal); }
-  button{ width:100%; height:50px; margin-top:22px; border:0; border-radius:10px; background:var(--teal);
-    color:#fff; font-size:18.5px; font-weight:700; font-family:inherit; }
+  .save{ display:flex; align-items:center; gap:8px; margin:14px 0 0; font-size:17px; color:var(--ink); }
+  .save input{ width:20px; height:20px; accent-color:var(--teal); }
+  button{ width:100%; height:52px; margin-top:22px; border:0; border-radius:10px; background:var(--teal);
+    color:#fff; font-size:20px; font-weight:700; font-family:inherit; }
   button:disabled{ opacity:.6; }
 </style>
 </head>
@@ -56,13 +63,35 @@
 var CTX = '<%=request.getContextPath()%>';
 if (typeof window._alertBox !== 'function') { window._alertBox = function(m){ alert(String(m).replace(/<[^>]*>/g,'')); }; }
 var K_COMP='konetM.compCd', K_ID='konetM.userId';
+/* 커서 = «비어 있는 첫 칸» — 회사코드·아이디가 차 있으면 비밀번호로 간다.
+   저장값(localStorage)만 보던 것을 칸의 실제 값·브라우저 자동완성까지 보게 했다(2026-09-12 「회사코드 아이디가 있으면 비밀번호로」). */
+var _mFocusDone=false;
+function mFilled(el){
+  if(el.value) return true;
+  try{ if(el.matches(':autofill')) return true; }catch(e){}
+  try{ if(el.matches(':-webkit-autofill')) return true; }catch(e){}
+  return false;
+}
+function mFocusFirst(){
+  if(_mFocusDone) return;
+  var ids=['compCd','userId','passWd'], el=null;
+  for(var i=0;i<ids.length;i++){ var x=document.getElementById(ids[i]); if(!mFilled(x)){ el=x; break; } }
+  el=el||document.getElementById('passWd');   // 셋 다 차 있으면(자동완성) 비밀번호 — 그대로 Enter 면 로그인
+  if(document.activeElement!==el){ try{ el.focus({preventScroll:true}); }catch(e){ el.focus(); } }
+}
 (function(){
   try{
     var c=localStorage.getItem(K_COMP), u=localStorage.getItem(K_ID);
     if(c){ document.getElementById('compCd').value=c; }
     if(u){ document.getElementById('userId').value=u; document.getElementById('saveId').checked=true; }
-    document.getElementById(c&&u?'passWd':'compCd').focus();
   }catch(e){}
+  mFocusFirst();
+  /* 브라우저 자동완성은 화면을 그린 «뒤에» 칸을 채우고, 뒤로가기(bfcache)로 돌아오면 이 스크립트가 다시 돌지 않는다 → 몇 번 더 맞춘다.
+     단 사람이 한 번이라도 누르거나 치면 그 뒤로는 커서를 옮기지 않는다(치는 도중에 칸이 바뀌면 안 된다). */
+  ['pointerdown','touchstart','keydown'].forEach(function(t){ document.addEventListener(t,function(){ _mFocusDone=true; },true); });
+  window.addEventListener('load',function(){ mFocusFirst(); setTimeout(mFocusFirst,300); setTimeout(mFocusFirst,900); });
+  window.addEventListener('pageshow',function(e){ if(e.persisted){ _mFocusDone=false; mFocusFirst(); } });
+  window.addEventListener('focus',mFocusFirst);
 })();
 function mLogin(){
   var comp=document.getElementById('compCd').value.trim(),

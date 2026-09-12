@@ -18,29 +18,29 @@
 <link rel="manifest" href="<%=request.getContextPath()%>/m/manifest.json">
 <link rel="apple-touch-icon" href="<%=request.getContextPath()%>/m/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20260911d">
+<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20260912a">
 <script src="<%=request.getContextPath()%>/asset/js/ui-message.js"></script>
 <script src="<%=request.getContextPath()%>/m/m.js?v=20260911d"></script>
 <style>
   .sbar{ display:flex; gap:6px; max-width:560px; margin:10px auto 0; }
   .sbar input{ flex:1; height:42px; border:0; border-radius:10px; padding:0 12px; font-size:17.5px; min-width:0; color:var(--ink); }
   .sbar button{ height:42px; padding:0 16px; border:0; border-radius:10px; background:rgba(255,255,255,.18); color:#fff; font-size:16.5px; font-weight:700; }
-  .opts{ display:flex; align-items:center; gap:14px; max-width:560px; margin:8px auto 0; font-size:14.5px; }
+  .opts{ display:flex; align-items:center; gap:14px; max-width:560px; margin:8px auto 0; font-size:16px; }
   .opts label{ display:flex; align-items:center; gap:6px; }
   .opts input{ width:17px; height:17px; accent-color:#fff; }
-  .opts select{ height:30px; border:0; border-radius:8px; padding:0 8px; font-size:14.5px; }
+  .opts select{ height:32px; border:0; border-radius:8px; padding:0 8px; font-size:16px; }
   @media (min-width:768px){   /* 태블릿 — 검색줄을 제목 왼쪽 끝에 맞춘다(m.css 의 .datebar 와 같은 규칙) */
     .sbar,.opts{ margin-left:max(0px, calc((100% - var(--wmax)) / 2)); margin-right:auto; }
   }
-  .pq{ font-size:13.5px; color:var(--mute); font-weight:500; }
+  .pq{ font-size:15px; color:var(--mute); font-weight:500; }
   .neg{ color:var(--red) !important; }
-  .dt{ display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-size:15.5px; }
-  .dt dt{ color:var(--mute); font-weight:600; font-size:14.5px; }
+  .dt{ display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-size:17px; }
+  .dt dt{ color:var(--mute); font-weight:600; font-size:16px; }
   .dt dd{ margin:0; text-align:right; font-weight:700; font-variant-numeric:tabular-nums; word-break:break-all; }
-  .io{ font-size:13px; font-weight:800; padding:1px 6px; border-radius:6px; margin-right:4px; }
+  .io{ font-size:14.5px; font-weight:800; padding:1px 6px; border-radius:6px; margin-right:4px; }
   .io.I{ background:#e3f2ee; color:#0f6b5e; } .io.O{ background:#fdecec; color:var(--red); }
   .io.R{ background:#fff4e0; color:var(--amber); } .io.A{ background:#e8eefc; color:var(--blue); }
-  .sub-hint{ font-size:14px; color:var(--teal-d); background:var(--teal-l); border-radius:8px; padding:7px 10px; margin-bottom:8px; }
+  .sub-hint{ font-size:15.5px; color:var(--teal-d); background:var(--teal-l); border-radius:8px; padding:7px 10px; margin-bottom:8px; }
 </style>
 </head>
 <body>
@@ -63,7 +63,7 @@
 </header>
 
 <main>
-  <section class="card"><h2>상품 <small id="cnt"></small></h2><div id="body"><div class="empty">상품코드나 품명을 넣고 [조회] 하세요.<br><span style="font-size:13.5px">서브코드(매칭코드)로 쳐도 주코드로 찾아 줍니다.</span></div></div></section>
+  <section class="card"><h2>상품 <small id="cnt"></small></h2><div id="body"><div class="empty">상품코드나 품명을 넣고 [조회] 하세요.<br><span style="font-size:15px">서브코드(매칭코드)로 쳐도 주코드로 찾아 줍니다.</span></div></div></section>
 </main>
 
 <script>
@@ -105,7 +105,7 @@ function search(){
     el.innerHTML=h+'<div class="list cols2" style="margin-top:0">'+shown.map(function(o,i){
       var p=_prodBy[String(o.prodCd)]||{}, neg=n(o.curQty)<0, stop=p.stopYn==='Y';
       return '<div class="row tap" onclick="detail('+i+')"><div class="k">'+esc(o.prodNm)
-        +(stop?' <span class="badge gray" style="font-size:12px;padding:1px 6px">중지</span>':'')
+        +(stop?' <span class="badge gray" style="font-size:13.5px;padding:1px 6px">중지</span>':'')
         +'<small>'+esc(o.prodCd)+(o.spec?' · '+esc(o.spec):'')+' · <b style="color:#0e6657">입수 '+n(o.packQty)+'</b></small></div>'
         +'<div class="v'+(neg?' neg':'')+'">'+M.fmtQ(o.curQty)+'<small>'+boxEa(o)+'</small></div></div>';
     }).join('')+'</div>'+(_list.length>200?'<p class="note">앞 200품목만 보입니다(전체 '+_list.length.toLocaleString()+'). 검색어를 더 좁혀 주세요.</p>':'');

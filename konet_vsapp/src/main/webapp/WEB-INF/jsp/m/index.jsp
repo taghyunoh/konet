@@ -16,7 +16,7 @@
 <link rel="manifest" href="<%=request.getContextPath()%>/m/manifest.json">
 <link rel="apple-touch-icon" href="<%=request.getContextPath()%>/m/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20260911d">
+<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20260912a">
 <script src="<%=request.getContextPath()%>/asset/js/ui-message.js"></script>
 <script src="<%=request.getContextPath()%>/m/m.js?v=20260911d"></script>
 <style>
@@ -24,9 +24,9 @@
     background:#fff; color:var(--teal-d); font:inherit; font-size:15.5px; font-weight:700; }
   .quick{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:12px; }
   .quick a{ display:flex; flex-direction:column; align-items:center; gap:4px; padding:12px 4px; border-radius:12px; background:#fff;
-    border:1px solid var(--bd); text-decoration:none; color:var(--teal-d); font-size:14.5px; font-weight:800; }
+    border:1px solid var(--bd); text-decoration:none; color:var(--teal-d); font-size:16px; font-weight:800; }
   .quick a i{ font-style:normal; font-size:24px; }
-  @media (min-width:768px){ .quick a{ flex-direction:row; justify-content:center; gap:8px; font-size:16.5px; padding:14px 4px; } }
+  @media (min-width:768px){ .quick a{ flex-direction:row; justify-content:center; gap:8px; font-size:18px; padding:14px 4px; } }
 </style>
 </head>
 <body>
