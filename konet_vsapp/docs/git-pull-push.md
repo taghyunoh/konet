@@ -3,6 +3,9 @@
 > 대상 저장소: `https://github.com/taghyunoh/konet.git` (Private)
 > 로컬 경로: `C:\Users\HYUN\git\konet`
 > 작업 폴더: `C:\Users\HYUN\git\konet\konet_web`
+>
+> ⚠ 여러 PC 규칙(브랜치 `main` 확인 · pull 받은 뒤 반영법 · 줄바꿈)은 저장소 맨 위 [여러PC_작업규칙.md](../../여러PC_작업규칙.md) 참고.
+> 아래 경로의 `HYUN`·`konet_web` 은 2호기 기준 예시다.
 
 konet 은 CLI(명령어)로 동기화를 관리합니다.
 **받기(pull)** 와 **올리기(push)** 는 목적이 다릅니다.

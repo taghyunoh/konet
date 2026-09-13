@@ -325,6 +325,10 @@ Get-NetTCPConnection -State Listen -LocalPort 9014,9072 | Select-Object LocalPor
 
 ## 7. 새 PC에서 처음 세팅하는 순서
 
+> 세팅한 뒤 **여러 PC 를 오가며 작업할 때의 규칙**(브랜치 main · pull/push · 줄바꿈 · PC마다 따로인 것)은
+> 저장소 맨 위 [여러PC_작업규칙.md](../../여러PC_작업규칙.md) 참고.
+> server.xml 에 `reloadable="true"` 를 함께 넣어 두면 Java 를 컴파일만 해도 톰캣이 스스로 다시 올라온다(같은 문서 §4).
+
 1. GitHub 에서 clone — `git clone https://github.com/taghyunoh/konet.git` (PAT 인증)
 2. VS Code 설치 → 프로젝트 폴더 열기 → 권장 확장 설치 → **`migrate-java-to-azure` 비활성화**(§6-5)
 3. 자바 확인 — 톰캣 구동용 **8**(`C:\Program Files\Java\jre-1.8`, JRE 라도 됨) + 빌드용 javac(JDK 8 또는 11)

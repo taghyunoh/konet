@@ -318,13 +318,16 @@ Get-NetTCPConnection -State Listen -LocalPort 9013,9071 | Select-Object LocalPor
 
 ## 7. 새 PC에서 처음 세팅하는 순서
 
+> 세팅한 뒤 **여러 PC 를 오가며 작업할 때의 규칙**(브랜치 main · pull/push · 줄바꿈 · PC마다 따로인 것)은
+> 저장소 맨 위 [여러PC_작업규칙.md](../../여러PC_작업규칙.md) 참고.
+
 1. GitHub 에서 clone — `git clone https://github.com/taghyunoh/konet.git` (PAT 인증)
 2. VS Code 설치 → 프로젝트 폴더 열기 → 권장 확장 설치 → **`migrate-java-to-azure` 비활성화**(§6-5)
 3. 자바 확인 — 톰캣 구동용 **8**(`C:\Program Files\Java\jre-1.8`, JRE 라도 됨) + 빌드용 javac(JDK 8 또는 11)
 4. Maven 준비 — **`C:\egv\apache-maven-3.8.4`** 에 정식 설치하거나 §4-3 방식으로 조립.
    가장 쉬운 방법은 **기존 PC의 `C:\egv\apache-maven-3.8.4` + `C:\egv\Servers` 를 통째로 복사**하는 것(조립 생략).
    도구를 D: 등 다른 드라이브에 두고 싶으면 그 위치에 두고 `mklink /J C:\egv D:\egv` 정션만 추가(§0)
-5. 톰캣 복사본 만들기 — `apache-tomcat-8.5.66` → **`C:\egv\Servers\konet_vsweb-tomcat`** 복사 → `conf\server.xml` 에 포트(9071/9013)와 프로젝트 Context 지정(docBase=자기 PC의 `...\konet_vsweb\src\main\webapp`), `conf\logging.properties`(EUC-KR)·`logging-utf8.properties`(UTF-8) 준비
+5. 톰캣 복사본 만들기 — `apache-tomcat-8.5.66` → **`C:\egv\Servers\konet_vsweb-tomcat`** 복사 → `conf\server.xml` 에 포트(9071/9013)와 프로젝트 Context 지정(docBase=자기 PC의 `...\konet_vsweb\src\main\webapp`, `reloadable="true"`, PostResources = `...\konet_vsweb\target\classes` · `C:\egv\Servers\konet_vsweb-vscode\lib` — 그대로 옮겨 쓸 수 있는 예시는 [여러PC_작업규칙.md](../../여러PC_작업규칙.md) §4. 이렇게 해 두면 Java 를 컴파일만 해도 톰캣이 스스로 다시 올라온다), `conf\logging.properties`(EUC-KR)·`logging-utf8.properties`(UTF-8) 준비
 6. 웹앱 JAR 채우기 — WAR 1회 빌드 후 `WEB-INF\lib` → `C:\egv\Servers\konet_vsweb-vscode\lib` 복사, §6-1 의 3개 제외
 7. SERVERS 패널에 등록(§3-1) → Start → http://localhost:9071/ 로그인까지 확인
 8. WAR 빌드 1회 검증(§4)
