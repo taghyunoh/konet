@@ -33,6 +33,7 @@ public class PurchaseDtlDTO {
     private Double  totAmt;        // 매입금액 = 공급가 + 부가세
     private Double  serviceQty;    // 서비스(무상수량)
     private String  remark;        // 비고
+    private String  purchDt;       // (조회 전용) 지난 매입일자 — selectVendorLastPrice 가 채운다 · 이전단가 ▲▼ 알림 (2026-09-13)
     private String  eventYn;       // 행사 Y/N
     private String  trxGb;         // 거래구분 '매입' / '반품'
     private Long    ledgerSeq;     // 이 행이 만든 TBL_STOCK_LEDGER PK
@@ -83,6 +84,8 @@ public class PurchaseDtlDTO {
     public void setServiceQty(Double serviceQty) { this.serviceQty = serviceQty; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
+    public String getPurchDt() { return purchDt; }
+    public void setPurchDt(String purchDt) { this.purchDt = purchDt; }
     public String getEventYn() { return eventYn; }
     public void setEventYn(String eventYn) { this.eventYn = eventYn; }
     public String getTrxGb() { return trxGb; }

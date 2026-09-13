@@ -3382,11 +3382,12 @@
 	     ★파라미터 remark 는 «거래처코드»다(옛 호출 규약 그대로) — 돌려주는 remark 는 명세 줄 비고다.
 	     ★단가 = 종전대로 마지막 전표 값 / 비고 = «비어 있지 않은» 마지막 것 — 비고가 따라오지 않던 동안
 	       빈 채 저장된 전표가 있어, 마지막 전표만 보면 적어 둔 비고를 영영 못 가져온다.
-	     둘 다 없으면 0행(= null) — 화면은 종전처럼 아무것도 안 덮는다. -->
+	     둘 다 없으면 0행(= null) — 화면은 종전처럼 아무것도 안 덮는다.
+	     ★purchDt = 그 단가를 산 날 (2026-09-13) — 화면이 들고 있다가 단가를 고치면 「이전 매입단가 24,900 (2026-09-18) → 25,900 ▲」 로 알린다. -->
 	<select id="selectVendorLastPrice" parameterType="egovframework.sejong.user.model.PurchaseDtlDTO" resultType="egovframework.sejong.user.model.PurchaseDtlDTO"><![CDATA[
-	  SELECT lp.UNIT_PRICE AS unitPrice, lr.REMARK AS remark
+	  SELECT lp.UNIT_PRICE AS unitPrice, lp.PURCH_DT AS purchDt, lr.REMARK AS remark
 	    FROM ( SELECT 1 AS k ) z
-	    OUTER APPLY ( SELECT TOP 1 d.UNIT_PRICE
+	    OUTER APPLY ( SELECT TOP 1 d.UNIT_PRICE, m.PURCH_DT
 	                    FROM TBL_PURCHASE_DTL d
 	                    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN='Y' AND m.COMP_CD = d.COMP_CD
 	                   WHERE d.ACTION_YN='Y' AND d.PROD_CD = #{prodCd,jdbcType=VARCHAR}

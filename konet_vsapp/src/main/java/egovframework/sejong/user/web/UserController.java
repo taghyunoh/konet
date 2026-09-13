@@ -1962,6 +1962,7 @@ public class UserController {
 			egovframework.sejong.user.model.PurchaseDtlDTO last = svc.selectVendorLastPrice(dto);
 			response.put("data",   last == null ? null : last.getUnitPrice());   // 종전 그대로 — 화면은 data 를 단가로 읽는다
 			response.put("remark", last == null ? null : last.getRemark());      // 이전 비고(2026-09-13) — 비어 있지 않은 마지막 것
+			response.put("purchDt", last == null ? null : last.getPurchDt());    // 그 단가를 산 날(2026-09-13) — 이전단가 ▲▼ 알림에 표시
 			return response;
 		}
 		/** 품명 클릭 → 거래처 × 상품 매입단가 이력(최대 3년) */

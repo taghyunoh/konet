@@ -998,6 +998,19 @@
   발주서 = `loadMasters`(거래처·상품 창 열 때·konetShown, 도착하면 열린 창 다시 그림 `poPopRefreshed`. 발주서엔 새로고침 단추가 없다).
   ⇒ `konetShown` 을 두는 화면 = 판매·매입·수금·지급·발주서. 새 등록 화면을 만들면 같은 함수를 둘 것.
 
+## ★[완료 2026-09-13] 매입등록 — **이전 단가와 다르면 ▲▼ 알림** (09-12 작업 → 같은 날 원복 → 09-13 되살림)
+- 사용자 요청(2026-09-12) *「매입등록 시 이전 단가와 다를 경우 메세지나 이전 단가를 표시해주는 기능」*. 09-12 에 만들었다가
+  사용자 지시 「협의 후 진행」으로 **원복**(패치 `C:\Users\HYUN\konet_backup\purchaseReg_lastinfo_20260912.patch`) →
+  09-13 「금액변경시 메세지가 없어짐」 신고로 **알림만 되살렸다**(사용자 선택). ⚠**그 패치는 이제 그대로 적용하지 말 것** —
+  09-13 「이전 비고」 작업과 같은 곳을 고쳐 `git apply` 가 깨진다(User_SQL.xml·puProdMultiApply). 신설 엔드포인트 `purchaseLastInfo.do` 는 되살리지 않았다.
+- **서버** : 종전 `purchaseLastPrice.do`/`selectVendorLastPrice` 에 **`purchDt`(그 단가를 산 날)** 한 칸만 더했다(PurchaseDtlDTO.purchDt 신설 — 조회 전용).
+- **화면(purchaseReg.jsp)** : 담을 때 `puKeepLast(o, j)` 가 `o._lastPrice/_lastDt` 를 든다 → 단가를 고쳐 다르면
+  ⓐ토스트(`puSet`, warn) ⓑ단가 칸 ▲빨강/▼파랑 배지(`td.prc`, 툴팁 = 이전 단가·날짜) ⓒ그리드 밑 `#puPrcWarn` 안내줄(`puPrcWarnRender`, 누르면 `puPrcGo`).
+  ★**값은 안 바꾸고 저장도 막지 않는다.**
+- ⚠**담는 길마다 `puKeepLast`** — 한 건 담기(`puProdPick`, 다른 상품으로 바꾸면 먼저 비움) · ✔다중담기(`puProdMultiApply`) · **매입분**(`puDlvApply` — 단가는 **안 덮고** 비교값만).
+  일괄등록은 그리드를 거치지 않고 바로 저장되므로 해당 없음 · 불러온 전표(`puApply`)는 비교 안 함(제 자신이 「지난 매입」).
+- 판매등록에는 없다(요청이 매입뿐). **배포 : 자바 + User_SQL.xml → WAR 재빌드 + 재기동.** konet_vsapp 에도 같은 파일 복사.
+
 ## [완료 2026-09-13] 매입·판매등록 — 상품을 담으면 «이전 비고»도 따라온다
 - ★**판매등록도 같게**(같은 날 「판매등록도 같게 해주세요」) — `selectCustLastPrice` 가 Double → **SalesTrxDtlDTO(unitPrice, remark)**,
   `salesLastPrice.do` 응답에 `remark`, 화면 3곳(한 건·다중 담기·일괄저장)이 매입과 같은 규칙.
