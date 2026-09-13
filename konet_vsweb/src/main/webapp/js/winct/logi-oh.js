@@ -5829,6 +5829,7 @@ function ssOutQty(o){
     if(b){ b.innerHTML=_stkVen?'🏷 매입처별 ✓':'🏷 매입처별'; b.style.color='#0f6b5e'; b.style.fontWeight='800';
            b.style.background=_stkVen?'#c3e2d8':'#e3f2ee'; b.style.borderColor=_stkVen?'#7fbfae':'#b9dccf'; }
     if(f){ f.style.display=_stkVen?'':'none'; f.innerHTML=_stkVenFoldAll?'⊞ 매입처 펼치기':'⊟ 매입처 접기'; }
+    var qi=document.getElementById('stkVenQ'); if(qi) qi.style.display=_stkVen?'':'none';
   }
   /* 표시 목록 = [매입처 머리줄, 그 품목들…] 을 이어 붙인 것. 꺼져 있으면 받은 목록 그대로 */
   function stkVenList(view){
@@ -5847,7 +5848,9 @@ function ssOutQty(o){
   }
   function stkVenHead(g){
     var bg='background:#dcefe7;', k=String(g.k).replace(/['"\\<>]/g,'');
-    return '<tr class="stk-vgrp">'
+    /* data-main="g" : 옆 줄을 「다음 품목 줄(data-main)까지」 따라가는 코드(_stkTopFitSel·_stkScrollTop)가 여기서 멈추게 —
+         없으면 매입처 머리줄을 앞 품목의 ↳ 줄로 세어 ②펼치기 때 ① 높이가 한 줄 커졌다(2026-09-13) */
+    return '<tr class="stk-vgrp" data-main="g">'
       +'<td colspan="2" style="'+bg+'text-align:left;cursor:pointer;font-weight:800;color:#0b5246" onclick="stkVenFold(\''+k+'\')" title="눌러서 이 매입처 품목 접기/펼치기">'
       +(g.open?'▼':'▶')+' 🏷 '+_cesc(g.nm)+(g.k?' <span style="font-weight:500;color:#4c6a8a">('+_cesc(g.k)+')</span>':'')
       +' <span style="font-size:11.5px;font-weight:600;color:#4c6a8a">· '+g.rows.length.toLocaleString()+'품목</span></td>'
@@ -5861,10 +5864,34 @@ function ssOutQty(o){
   function stkVenSumTxt(view){
     if(!_stkVen) return '';
     var s={}; view.forEach(function(r){ s[_stkVenKey(r)]=1; });
-    return ' · <b style="color:#0f6b5e">매입처별</b> <b>'+Object.keys(s).length.toLocaleString()+'</b>곳';
+    return ' · <b style="color:#0f6b5e">매입처별</b> <b>'+Object.keys(s).length.toLocaleString()+'</b>곳'
+      +(_stkVenQ ? ' <span style="color:#b06a00">(매입처 「'+_cesc(_stkVenQ)+'」 검색'+(view.length?'':' — 없음')+')</span>' : '');
+  }
+  /* ── 매입처 검색 (2026-09-13 「매입처별로 했을 때 매입처 검색도」) ──
+       매입처별이 켜져 있을 때만 걸린다. 이름·코드 부분일치(띄어쓰기·대소문자 무시), 「없음」 = 매입처 없는 품목.
+       ★JSP(stkStatusRender)의 view 에 걸리므로 총합계·요약줄·건수도 걸러진 것만 센다.
+       영타로 쳐도 한글로 바꿔 한 번 더 본다(engToKor 가 화면에 있을 때 — vendor-pick.js 와 같은 요령). */
+  var _stkVenQ = '', _stkVenQT = null;
+  function _stkVenNorm(s){ return String(s||'').replace(/\s+/g,'').toLowerCase(); }
+  function stkVenFilter(v){
+    if(!_stkVen || !_stkVenQ) return v;
+    var qs=[_stkVenNorm(_stkVenQ)];
+    if(typeof engToKor==='function'){ try{ var k=_stkVenNorm(engToKor(_stkVenQ)); if(k && k!==qs[0]) qs.push(k); }catch(e){} }
+    return v.filter(function(r){
+      var t=_stkVenNorm((r.vendorCd ? (r.vendorNm||'')+' '+r.vendorCd : '(매입처 없음) 없음'));
+      for(var i=0;i<qs.length;i++) if(t.indexOf(qs[i])>=0) return true;
+      return false;
+    });
+  }
+  function stkVenQIn(el, ev){
+    if(ev && ev.key==='Escape'){ el.value=''; ev.stopPropagation(); }   // 화면 전체 Esc(②펼치기 접기)까지 번지지 않게
+    else if(ev && ev.type==='keydown') return;          // Esc 말고 키 누름은 input 이벤트가 받는다
+    clearTimeout(_stkVenQT);
+    _stkVenQT=setTimeout(function(){ _stkVenQ=String(el.value||'').trim(); _stkVenFold={}; stkStatusRender(); }, 180);
   }
   function stkVenToggle(){
     _stkVen=!_stkVen; _stkVenFold={}; _stkVenFoldAll=false;
+    _stkVenQ=''; var qi=document.getElementById('stkVenQ'); if(qi) qi.value='';   // 끄면 검색도 비운다 — 숨은 칸이 목록을 몰래 거르지 않게
     try{ localStorage.setItem('konetStkVen', _stkVen?'1':'0'); }catch(e){}
     stkStatusRender();
   }
@@ -5977,8 +6004,10 @@ function ssOutQty(o){
   function lzInfo(wrap){
     var z=wrap._lz; if(!z || !z.pager) return;
     var pg=document.getElementById(z.pager); if(!pg) return;
-    var tot=z.list.length, shown=Math.min(z.from, tot);
-    if(z.from>=tot){ pg.innerHTML = tot>z.rows
+    /* 행 수는 <자료 줄>만 센다 — 재고현황 [🏷 매입처별]의 매입처 머리줄(__vg)은 뺀다(2026-09-13). 다른 표는 __vg 가 없어 종전과 같다 */
+    var _cnt=function(n){ var c=0; for(var i=0;i<n;i++){ var x=z.list[i]; if(!(x && x.__vg)) c++; } return c; };
+    var tot=_cnt(z.list.length), shown=_cnt(Math.min(z.from, z.list.length));
+    if(z.from>=z.list.length){ pg.innerHTML = tot>z.rows
         ? '<span style="color:#9aa7b3;font-size:12px">총 '+tot.toLocaleString()+'행 — 모두 표시됨</span>' : '';
       return; }
     pg.innerHTML='<span style="color:#5a6b7a;font-size:12px">'+shown.toLocaleString()+' / <b>'+tot.toLocaleString()+'</b>행'

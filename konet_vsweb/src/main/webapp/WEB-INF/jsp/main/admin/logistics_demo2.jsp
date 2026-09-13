@@ -2728,7 +2728,7 @@
          안 그러면 화면이 잠깐 텅 비어 '자료가 없다'로 오해하게 된다. */
     var _onlyA = (function(){ var c=document.getElementById('stkOnlyAlias'); return !!(c && c.checked); })();
     var _aliasReady = !!_stkAlias;
-    var view = (_onlyA && _aliasReady) ? _stkRows.filter(function(r){ return _stkHasAlias(r.prodCd); }) : _stkRows;
+    var view = (window.stkVenFilter ? stkVenFilter : function(v){ return v; })((_onlyA && _aliasReady) ? _stkRows.filter(function(r){ return _stkHasAlias(r.prodCd); }) : _stkRows);   /* 매입처 검색(2026-09-13) — logi-oh.js */
     var tI=0,tO=0,tQ=0,tA=0; view.forEach(function(r){ tI+=(+r.inQty||0); tO+=(+r.outQty||0); tQ+=(+r.curQty||0); tA+=(+r.stockAmt||0); });
     if(_onlyA && _aliasReady && !view.length){
       sum.innerHTML='<b style="color:#b06a00">매칭코드가 등록된 품목이 없습니다.</b> (체크를 풀면 전체가 보입니다)';
@@ -3779,7 +3779,7 @@
         <table><tbody>
           <tr><td class="m">상품코드등록 · <br>상품(품목)관리</td><td><b>상품코드등록</b>=목록+등록 전용(하단 거래처 매칭코드) · <b>상품(품목)관리</b>=행 클릭 → 아래 <b>이력/재고</b> 4탭에서 <b>매입가·판매가 이력</b>과 <b>재고 수불(입·출고·조정·반품)</b> 등록. 둘 다 같은 마스터(TBL_PROD_MST).
             <span style="color:#5a6b7a">두 화면의 <b>추가</b> 창에는 코드 칸 아래에 <b>최근 등록 상품코드·상품명</b>과 <b>9번대 마지막 코드 → 새 코드</b>가 나옵니다. ★<b>새로 만드는 상품코드는 9로 시작</b>합니다(원천 코드 <b>1000…</b> 번대와 부딪히지 않게) — 창을 열면 새 코드가 <b>미리 들어가 있고</b>, 그대로 저장하거나 직접 쳐서 바꿀 수 있습니다(원천 코드 직접 등록도 막지 않습니다).</span>
-            <div style="margin-top:4px;color:#5a6b7a"><b>· 추가 매칭코드</b>(2026-09-13) 하단 매칭코드 줄마다 <b>추가 매칭코드</b> 칸이 있습니다. 싸게 대체 구매한 품목을 매칭코드로 붙였는데 삼성이 새 코드를 몰라 <b>옛 코드로 발주</b>할 때, 그 옛 코드를 적고 <b>Enter</b> 하면 그 코드로 들어온 발주·정산(과거분 포함)도 <b>주코드로</b> 잡힙니다 — 재고는 주코드 하나로. 기존 매칭이 먼저 걸리고, 한 코드는 표 전체에서 한 곳에만 쓸 수 있습니다. 매입·재고조정에 그 코드를 넣으면 주코드로 바꾸라고 막습니다.</div>
+            <div style="margin-top:4px;color:#5a6b7a"><b>· 추가 매칭코드</b>(2026-09-13) 하단 매칭코드 줄마다 <b>추가 매칭코드</b> 칸이 있습니다. 싸게 대체 구매한 품목을 매칭코드로 붙였는데 삼성이 새 코드를 몰라 <b>옛 코드로 발주</b>할 때, 그 옛 코드를 적고 <b>Enter</b> 하면 그 코드로 들어온 발주·정산(과거분 포함)도 <b>주코드로</b> 잡힙니다 — 재고는 주코드 하나로. 기존 매칭이 먼저 걸립니다(이미 매칭코드로 등록된 코드도 적을 수 있고, 그때는 기존 매칭이 이깁니다 — 추가 매칭코드끼리만 겹칠 수 없습니다). 매입·재고조정에 그 코드를 넣으면 주코드로 바꾸라고 막습니다.</div>
             <div style="margin-top:4px;color:#5a6b7a"><b>· 칸 폭 조절</b>(2026-09-07) 상품코드등록 목록은 <b>머리글 오른쪽 경계를 끌면</b> 그 칸이 넓어지고 좁아집니다(<b>더블클릭</b> = 처음 폭으로). 상품명·규격을 넓혀 보고, 안 보는 칸은 줄이면 됩니다. 조절한 폭은 <b>이 컴퓨터에 남습니다</b>.</div></td></tr>
           <tr><td class="m">기준정보관리</td><td><b>매입/매출 거래처</b>(회계 거래처 · 거래처리스트.xls 재업로드 · <b>DC 사용·DC율·여신한도</b>) · <b>거래처관리(사업장)</b>(배송 점포, 발주 업로드 시 자동등록) · 회사/사용자 · 공통코드.
             <br><b>회사 정보 수정</b>(2026-09-11, <b>모든 회사</b>) — 탭 <b>① 회사정보</b>(필수·기본 정보 · 결제계좌 · 공지사항1·2) · <b>② 도장·기능</b> · <b>③ 거래명세서 인쇄 옵션</b> · 전체. 위 [🏦 은행계좌 관리]·[💳 카드 관리](카드는 번호 뒤 4자리만).
@@ -3966,7 +3966,7 @@
           <%-- 매칭코드 하위 행 일괄 접기/펼치기 (2026-08-07 요청) — 매칭이 여럿인 품목은
                한 줄이 다섯 줄까지 늘어나 목록을 훑기 어렵다. 줄마다 ▼ 로도 접을 수 있다. --%>
           <button class="btn-line" id="stkExpBtn" onclick="stkExpToggleAll()" style="height:24px;padding:0 9px;font-size:12px;white-space:nowrap"
-                  title="매칭코드 하위 줄을 한꺼번에 접거나 펼칩니다. 줄마다 있는 ▼ 로 하나씩도 됩니다.">▼ 매칭 접기</button><button class="btn-line" id="stkVenBtn" onclick="stkVenToggle()" style="height:24px;padding:0 9px;font-size:12px;white-space:nowrap;background:#e3f2ee;color:#0f6b5e;font-weight:800" title="품목을 대표 매입처(가장 최근에 입고한 매입처 → 없으면 상품마스터 거래처)로 묶어 소계와 함께 봅니다. 매입처 줄을 누르면 접힙니다.">🏷 매입처별</button><button class="btn-line" id="stkVenFoldBtn" onclick="stkVenFoldAll()" style="height:24px;padding:0 9px;font-size:12px;white-space:nowrap;display:none" title="매입처 묶음을 한꺼번에 접거나 펼칩니다.">⊟ 매입처 접기</button>
+                  title="매칭코드 하위 줄을 한꺼번에 접거나 펼칩니다. 줄마다 있는 ▼ 로 하나씩도 됩니다.">▼ 매칭 접기</button><button class="btn-line" id="stkVenBtn" onclick="stkVenToggle()" style="height:24px;padding:0 9px;font-size:12px;white-space:nowrap;background:#e3f2ee;color:#0f6b5e;font-weight:800" title="품목을 대표 매입처(가장 최근에 입고한 매입처 → 없으면 상품마스터 거래처)로 묶어 소계와 함께 봅니다. 매입처 줄을 누르면 접힙니다.">🏷 매입처별</button><button class="btn-line" id="stkVenFoldBtn" onclick="stkVenFoldAll()" style="height:24px;padding:0 9px;font-size:12px;white-space:nowrap;display:none" title="매입처 묶음을 한꺼번에 접거나 펼칩니다.">⊟ 매입처 접기</button><input type="text" id="stkVenQ" placeholder="🔍 매입처 검색" oninput="stkVenQIn(this)" onkeydown="stkVenQIn(this, event)" autocomplete="off" style="display:none;height:24px;width:150px;font-size:12px;padding:0 8px;border:1px solid #b9dccf;border-radius:6px" title="매입처 이름·코드 일부로 거릅니다(한/영 안 바꿔도 됨). 「없음」 = 매입처 없는 품목. Esc = 지우기">
           <span style="margin-left:auto;font-size:11.5px;color:#9aa7b3;white-space:nowrap">
             집계 <b id="stkStamp" style="color:#178074">—</b> · 행 클릭 → ② 수불내역
           </span>

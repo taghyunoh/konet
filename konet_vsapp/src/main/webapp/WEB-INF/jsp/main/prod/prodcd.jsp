@@ -1872,15 +1872,18 @@ function mcAddCheck(cd, add, cur, selfSeq){
   var k=String(cd||'').trim().toLowerCase(), a=String(add||'').trim().toLowerCase();
   if(a && a===k) return '추가 매칭코드가 품목코드와 같습니다 — <b>'+esc(add)+'</b><br>같은 코드면 적을 필요가 없습니다.';
   if(a && cur && a===String(cur.prodCd||'').toLowerCase()) return '추가 매칭코드가 주코드 자신입니다 — <b>'+esc(add)+'</b>';
+  /* ★[2026-09-13 「추가 매칭코드는 이미 등록된 경우라는 메세지 무시하고 등록되게」]
+       «이미 매칭코드(품목코드)로 등록된 코드»와 겹치는 것은 막지 않는다 — 해석 순서가 매칭코드 → 추가 매칭코드라
+       겹쳐도 매칭코드가 이기고(그 코드에 한해 추가 쪽은 쉬는 셈), 소급 반영(repoint*ProdAdd)도 매칭코드로 잡힌 행은 안 건드린다.
+       ★추가 매칭코드끼리 겹치는 것만 막는다 — 어느 주코드로 갈지 못 정하고, DB 유일 인덱스(UX_EXT_ITEM_ADD)도 막는다.
+       서버(selectExtCodeConflict)도 같은 규칙. */
   for(var i=0;i<MC.length;i++){
     var o=MC[i]; if(!mcReal(o)) continue;
     if(selfSeq!=null && String(o.extSeq)===String(selfSeq)) continue;
-    var oe=String(o.extItemCd||'').trim().toLowerCase(), oa=String(o.addItemCd||'').trim().toLowerCase();
+    var oa=String(o.addItemCd||'').trim().toLowerCase();
     var at='주코드 <b>'+esc(o.prodCd||'')+'</b> '+esc((_byseq[o.prodSeq]||{}).prodNm||o.prodNm||'');
-    if(a && oe===a) return '추가 매칭코드 <b>'+esc(add)+'</b> 는 이미 매칭코드(품목코드)로 등록돼 있습니다 — '+at
-      + '<br><span style="color:#5a6b7a;font-size:12.5px">기존 매칭이 먼저 걸리므로 추가 매칭코드로 둘 수 없습니다. 옮기려면 그 줄을 먼저 지우세요.</span>';
-    if(a && oa===a) return '추가 매칭코드 <b>'+esc(add)+'</b> 는 이미 다른 줄의 추가 매칭코드입니다 — '+at+' (품목코드 '+esc(o.extItemCd)+')';
-    if(k && oa && oa===k) return '품목코드 <b>'+esc(cd)+'</b> 는 이미 추가 매칭코드로 등록돼 있습니다 — '+at+' (품목코드 '+esc(o.extItemCd)+')';
+    if(a && oa===a) return '추가 매칭코드 <b>'+esc(add)+'</b> 는 이미 다른 줄의 추가 매칭코드입니다 — '+at+' (품목코드 '+esc(o.extItemCd)+')'
+      + '<br><span style="color:#5a6b7a;font-size:12.5px">추가 매칭코드끼리는 겹칠 수 없습니다(어느 주코드로 갈지 정할 수 없습니다). 옮기려면 그 줄에서 먼저 지우세요.</span>';
   }
   return null;
 }

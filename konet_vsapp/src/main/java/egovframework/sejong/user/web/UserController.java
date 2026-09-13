@@ -3050,12 +3050,9 @@ public class UserController {
 			String cExt = c.getExtItemCd() == null ? "" : c.getExtItemCd().trim();
 			String cAdd = c.getAddItemCd() == null ? "" : c.getAddItemCd().trim();
 			String at   = "주코드 " + (c.getProdCd() == null ? "" : c.getProdCd()) + (c.getProdNm() == null ? "" : " " + c.getProdNm());
-			if (!add.isEmpty() && add.equalsIgnoreCase(cExt))
-				return "추가 매칭코드 " + add + " 는 이미 매칭코드(품목코드)로 등록돼 있습니다 — " + at
-				     + "\n기존 매칭이 먼저 걸리므로 추가 매칭코드로 둘 수 없습니다. 옮기려면 그 줄을 먼저 지우세요.";
-			if (!add.isEmpty() && add.equalsIgnoreCase(cAdd))
-				return "추가 매칭코드 " + add + " 는 이미 다른 줄의 추가 매칭코드입니다 — " + at + " (품목코드 " + cExt + ")";
-			return "품목코드 " + d.getExtItemCd() + " 는 이미 추가 매칭코드로 등록돼 있습니다 — " + at + " (품목코드 " + cExt + ")";
+			/* ★[2026-09-13] selectExtCodeConflict 는 이제 «추가 코드끼리» 겹침만 돌려준다 — 품목코드(매칭코드)와의 겹침은 허용 */
+			return "추가 매칭코드 " + (add.isEmpty() ? cAdd : add) + " 는 이미 다른 줄의 추가 매칭코드입니다 — " + at + " (품목코드 " + cExt + ")"
+			     + "\n추가 매칭코드끼리는 겹칠 수 없습니다(어느 주코드로 갈지 정할 수 없습니다). 옮기려면 그 줄에서 먼저 지우세요.";
 		}
 		@RequestMapping(value="/prod/extItemSave.do", method = RequestMethod.POST)
 		public ResponseEntity<String> extItemSave(@RequestBody egovframework.sejong.user.model.ExtItemDTO dto,
