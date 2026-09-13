@@ -44,6 +44,15 @@ public class ExtItemDTO {
 	private String  prodNm;       // 조회 시 조인해서 채운다(저장 컬럼 아님)
 	private Long    xrefSeq;
 
+	/* ★추가 매칭코드 (2026-09-13 · DDL sql/ext_item_add_cd_alter.sql)
+	   대체 구매한 품목을 매칭코드로 붙였는데 삼성이 «옛 코드»로 발주할 때, 그 옛 코드를 여기 적는다.
+	   그 코드로 들어온 발주·정산도 이 줄의 주코드(prodCd)로 잡힌다 — 기존 매칭에 안 걸릴 때만(해석 순서 2.5차). */
+	private String  addItemCd;
+	/* 조회 전용 — 'Y' = 추가 매칭코드를 «한 줄로 펼친» 가상 줄(extItemCd 칸에 추가 코드가 들어 있다).
+	   selectExtItemList 가 만들어 준다. 매칭코드 → 주코드 지도를 만드는 화면은 손대지 않아도 추가 코드를 알게 된다.
+	   목록·건수·삭제처럼 «실제 줄»을 다루는 곳은 이 줄을 빼야 한다. */
+	private String  addYn;
+
 	private String  remark;
 	private String  actionYn;
 	private String  regDttm;
@@ -94,6 +103,10 @@ public class ExtItemDTO {
 	public void setProdNm(String prodNm) { this.prodNm = prodNm; }
 	public Long getXrefSeq() { return xrefSeq; }
 	public void setXrefSeq(Long xrefSeq) { this.xrefSeq = xrefSeq; }
+	public String getAddItemCd() { return addItemCd; }
+	public void setAddItemCd(String addItemCd) { this.addItemCd = addItemCd; }
+	public String getAddYn() { return addYn; }
+	public void setAddYn(String addYn) { this.addYn = addYn; }
 	public String getRemark() { return remark; }
 	public void setRemark(String remark) { this.remark = remark; }
 	public String getActionYn() { return actionYn; }

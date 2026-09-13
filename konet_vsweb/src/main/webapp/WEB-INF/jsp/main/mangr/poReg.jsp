@@ -204,15 +204,30 @@ function post(url, body, isJson){ return fetch(CTX+url,{ method:'POST', credenti
 
 /* ── 마스터 ── */
 function loadMasters(){
-  post('/vendor/selectVendorMst.do','').then(function(r){return r.json();}).then(function(j){ _vendors=(j&&j.data)||[]; }).catch(function(){});
-  post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){ _prods=((j&&j.data)||[]).filter(function(p){ return (''+(p.stopYn||'')).toUpperCase()!=='Y'; }); }).catch(function(){});
+  post('/vendor/selectVendorMst.do','').then(function(r){return r.json();}).then(function(j){ _vendors=(j&&j.data)||[]; poPopRefreshed(); }).catch(function(){});
+  post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){ _prods=((j&&j.data)||[]).filter(function(p){ return (''+(p.stopYn||'')).toUpperCase()!=='Y'; }); poPopRefreshed(); }).catch(function(){});
   /* 서브코드(거래처 통보 코드) — 코드 칸 입력검색이 서브코드로 쳐도 주코드를 찾게 (2026-09-10, 매입등록과 같은 목록) */
-  post('/prod/extItemList.do','').then(function(r){return r.json();}).then(function(j){ _extItems=(j&&j.data)||[]; }).catch(function(){});
+  post('/prod/extItemList.do','').then(function(r){return r.json();}).then(function(j){ _extItems=(j&&j.data)||[]; poPopRefreshed(); }).catch(function(){});
 }
 /* 거래처 칸에 직접 쳐서 고른다(공통 vendor-pick) — 못 불러오면 팝업만 */
 try{ if(window._vendorPick) _vendorPick(document.getElementById('venNm'), { list:function(){ return _vendors; }, onPick:function(o){ venPick(o.vendorCd, o.vendorNm); }, onClear:function(){ venPick('',''); } }); }catch(e){}
 function venPick(cd, nm){ var el=document.getElementById('venNm'); el.dataset.cd=cd||''; if(nm!=null) el.value=nm; }
-function venOpen(){ document.getElementById('venPop').classList.add('on'); document.getElementById('venQ').value=''; venRender(); setTimeout(function(){ document.getElementById('venQ').focus(); },50); }
+/* ★기준자료를 «다시 보일 때»·창을 열 때 새로 읽는다 (2026-09-13 「수금·지급·발주서 등록도 같게」 — 매입·판매등록과 같은 규칙)
+     셸 iframe 은 로그아웃 전까지 그대로라, 화면을 열 때 한 번만 읽으면 다른 화면에서 고친 상품·거래처가 안 보였다.
+     셸(logiFrame)이 이 화면을 다시 보여 줄 때 konetShown 을 부른다(3초 안 중복은 한 번만).
+     도착하면 열려 있는 거래처·상품 창을 그 자리에서 다시 그린다. 이미 담은 명세 줄은 건드리지 않는다. */
+function poPopRefreshed(){
+  var v=document.getElementById('venPop'), p=document.getElementById('prodPop');
+  if(v && v.classList.contains('on')) venRender();
+  if(p && p.classList.contains('on')) prodRender();
+}
+var _poMastersAt=0;
+window.konetShown=function(){
+  if(Date.now()-_poMastersAt<3000) return;
+  _poMastersAt=Date.now();
+  loadMasters();
+};
+function venOpen(){ document.getElementById('venPop').classList.add('on'); document.getElementById('venQ').value=''; venRender(); loadMasters();setTimeout(function(){ document.getElementById('venQ').focus(); },50); }
 function venClose(){ document.getElementById('venPop').classList.remove('on'); }
 function venRender(){ var q=(document.getElementById('venQ').value||'').trim().toLowerCase(), h='';
   _vendors.forEach(function(v){ var hay=(v.vendorCd+' '+(v.vendorNm||'')+' '+(v.fullNm||'')+' '+(v.bizno||'')+' '+(v.ceoNm||'')).toLowerCase(); if(q && hay.indexOf(q)<0) return;
@@ -256,7 +271,7 @@ function render(){
 function setv(i,k,v){ var o=_rows[i]; if(!o) return; o[k]=(k==='prodNm'||k==='spec'||k==='remark')?v:n(v); render(); }
 function delRow(i){ _rows.splice(i,1); render(); }
 function calcAll(){ var t={cnt:0,box:0,ea:0,qty:0,amt:0,dc:0,sup:0,vat:0,tot:0,svc:0}; _rows.forEach(function(o){ if(!o.prodCd) return; calcRow(o); t.cnt++; t.box+=n(o.boxQty); t.ea+=n(o.eaQty); t.qty+=o.qty; t.amt+=o.amt; t.dc+=n(o.dcAmt); t.sup+=o.supplyAmt; t.vat+=o.vatAmt; t.tot+=o.totAmt; t.svc+=n(o.serviceQty); }); return t; }
-function prodOpen(i){ _prodRow=i; _prodSel=[]; document.getElementById('prodPop').classList.add('on'); document.getElementById('prodQ').value=''; prodRender(); setTimeout(function(){ document.getElementById('prodQ').focus(); },50); }
+function prodOpen(i){ _prodRow=i; _prodSel=[]; document.getElementById('prodPop').classList.add('on'); document.getElementById('prodQ').value=''; prodRender(); loadMasters();setTimeout(function(){ document.getElementById('prodQ').focus(); },50); }
 function prodClose(){ document.getElementById('prodPop').classList.remove('on'); }
 function prodRender(){ var q=(document.getElementById('prodQ').value||'').trim().toLowerCase(), h='', k=0; _prodShown=[];
   for(var i=0;i<_prods.length && k<300;i++){ var p=_prods[i]; var hay=(p.prodCd+' '+(p.prodNm||'')+' '+(p.spec||'')).toLowerCase(); if(q && hay.indexOf(q)<0) continue; k++; _prodShown.push(i);

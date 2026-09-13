@@ -1120,6 +1120,7 @@ function post(url, body, isJson){
    목록·원장·잔고도 같이 갱신한다. 신규 작성 중이면 목록만 새로 읽는다(입력분은 보존). */
 function saReload(){
   var seq = _cur ? _cur.saleSeq : null;
+  saLoadMasters();   // ★기준자료도 새로 (2026-09-13) — 다른 화면·다른 PC 에서 고친 상품·거래처·매칭코드를 반영
   saLoad();
   if (seq) {
     post('/mangr/salesTrxDetail.do','saleSeq='+seq).then(function(r){return r.json();}).then(function(j){
@@ -1164,6 +1165,18 @@ function saProdRefreshed(){
   var p=document.getElementById('saProdPop');
   if(p && p.classList.contains('on')) saProdRender();
 }
+/* ★다시 보일 때 기준자료를 새로 읽는다 (2026-09-13 「기존 정보 바꿔도 적용 안 돼 로그아웃했다 들어가야」)
+     종전에는 상품 선택 팝업·카톡 창을 열 때만 다시 읽어, 명세 칸에 코드를 바로 치거나(입력검색)
+     거래처를 입력검색으로 고르면 옛 목록(옛 품명·입수·판매가·거래처 DC율…)을 그대로 썼다.
+     셸(logiFrame)이 이 화면을 다시 보여 줄 때 부른다 — 다른 메뉴에서 고치고 돌아오면 바로 새것이다.
+   ★이미 담은 명세 줄은 건드리지 않는다 — 새로 담는 줄부터 새 정보(저장된 전표를 몰래 바꾸지 않는다).
+   ★연달아 불려도 3초 안에는 한 번만 읽는다. */
+var _saMastersAt=0;
+window.konetShown=function(){
+  if(Date.now()-_saMastersAt<3000) return;
+  _saMastersAt=Date.now();
+  saLoadMasters();
+};
 
 /* ── 전표 입력 ────────────────────────────────────────── */
 function saNew(){
@@ -2021,10 +2034,17 @@ function saProdMultiApply(){
   rows.push(emptyRow());
   _rows = rows; _pShown = _rows.length;
   saRender(); saProdClose();
-  /* 그 거래처의 최근 판매단가가 있으면 그 값으로 덮는다 — 한 건 담기(saProdPick)와 같은 규칙 */
+  /* 그 거래처의 최근 판매단가가 있으면 그 값으로 덮는다 — 한 건 담기(saProdPick)와 같은 규칙.
+     ★이전 비고도 따라온다(2026-09-13 「판매등록도 같게」 — 매입등록과 같은 규칙) — 줄 비고가 비어 있을 때만 채운다. */
   added.forEach(function(o){
     post('/mangr/salesLastPrice.do','prodCd='+encodeURIComponent(o.prodCd)+'&remark='+encodeURIComponent(ven))
-      .then(function(r){return r.json();}).then(function(j){ if(j&&j.data){ o.unitPrice=n(j.data); saCalcRow(o); saRender(); } })
+      .then(function(r){return r.json();}).then(function(j){
+        if(!j) return;
+        var ch=false;
+        if(j.data){ o.unitPrice=n(j.data); ch=true; }
+        if(j.remark && !o.remark){ o.remark=j.remark; ch=true; }
+        if(ch){ saCalcRow(o); saRender(); }
+      })
       .catch(function(){});
   });
   if (dup.length) swAlert(added.length+'건을 담았습니다.<br><span style="font-size:12.5px;color:#3d4d5c">이미 명세에 있는 '+dup.length+'건은 건너뛰었습니다 — '+esc(dup.join(', '))+'</span>');
@@ -2116,10 +2136,13 @@ function saProdPick(cd){
      이미 수량이 있는 줄(다른 상품으로 바꾸기)은 건드리지 않는다. */
   if (!n(o.boxQty) && !n(o.eaQty)) { o.boxQty = 1; o.eaQty = 0; }
   saProdClose();
-  // 그 거래처의 최근 판매단가가 있으면 그 값으로 덮는다
+  // 그 거래처의 최근 판매단가가 있으면 그 값으로 덮는다 · 이전 비고는 줄 비고가 비었을 때만 (2026-09-13)
   var ven = document.getElementById('saVenNm').dataset.cd||'';
   post('/mangr/salesLastPrice.do','prodCd='+encodeURIComponent(p.prodCd)+'&remark='+encodeURIComponent(ven))
-    .then(function(r){return r.json();}).then(function(j){ if(j&&j.data) o.unitPrice=n(j.data); })
+    .then(function(r){return r.json();}).then(function(j){
+      if(j&&j.data) o.unitPrice=n(j.data);
+      if(j&&j.remark&&!o.remark) o.remark=j.remark;
+    })
     .catch(function(){}).then(function(){
       saCalcRow(o);
       if (_prodTargetRow === _rows.length-1) saEnsureTail();
@@ -2470,9 +2493,12 @@ function saBatchApply(){
     var jobs = [];
     entries.forEach(function(e){
       if (e.s.t !== 1) return;
-      if (e.s.unitPrice != null) return;   /* 단가를 직접 고친 줄은 그 값 그대로 */
+      var keepP = (e.s.unitPrice != null);   /* 단가를 직접 고친 줄은 그 값 그대로 — 비고는 받는다(2026-09-13) */
       jobs.push(post('/mangr/salesLastPrice.do','prodCd='+encodeURIComponent(e.row.prodCd)+'&remark='+encodeURIComponent(venCd))
-        .then(function(r){return r.json();}).then(function(j){ if(j&&j.data){ e.row.unitPrice=n(j.data); saCalcRow(e.row); } })
+        .then(function(r){return r.json();}).then(function(j){
+          if(j&&j.data&&!keepP){ e.row.unitPrice=n(j.data); saCalcRow(e.row); }
+          if(j&&j.remark&&!e.row.remark) e.row.remark=j.remark;
+        })
         .catch(function(){}));
     });
     var made = [];                       /* 저장된 전표 [일자 · 번호] — 완료 알림에 보여 준다 */

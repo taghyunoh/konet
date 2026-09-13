@@ -305,11 +305,15 @@ public class UserServiceImpl implements UserService {
 	   ★셋 다 못 찾으면 PROD_CD 가 NULL 로 남는다 = 미매핑 → 재고에서 빠진다(보류).
 	     즉 **통보대장에 골라 둔 것이 없으면 종전과 완전히 같은 결과**이고,
 	     품목코드(매핑)·[연결] 흐름이 그대로 필요하다(2026-08-01 사용자 확정). */
+	/* ★[2026-09-13] 2차와 3차 사이에 «추가 매칭코드»(ADD_ITEM_CD) 패스 — 삼성이 옛 코드로 발주해도 주코드로 잡는다.
+	     매칭코드(2차)가 먼저라 기존 매칭이 이기고, 코드 직결(3차)보다는 먼저라 옛 코드가 상품마스터에 있어도 주코드로 간다. */
 	@Override public int resolveShipoutProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception {
-		return mapper.resolveShipoutProd(dto) + mapper.resolveShipoutProdExt(dto) + mapper.resolveShipoutProdDirect(dto);
+		return mapper.resolveShipoutProd(dto) + mapper.resolveShipoutProdExt(dto) + mapper.resolveShipoutProdAdd(dto)
+		     + mapper.resolveShipoutProdDirect(dto);
 	}
 	@Override public int resolveSalesProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception {
-		return mapper.resolveSalesProd(dto) + mapper.resolveSalesProdExt(dto) + mapper.resolveSalesProdDirect(dto);
+		return mapper.resolveSalesProd(dto) + mapper.resolveSalesProdExt(dto) + mapper.resolveSalesProdAdd(dto)
+		     + mapper.resolveSalesProdDirect(dto);
 	}
 
 	/* ===== 거래처 통보품목 — TBL_EXT_ITEM_MST (2026-08-01) =====
@@ -318,11 +322,21 @@ public class UserServiceImpl implements UserService {
 	     (부르면 안 된다. 이 표는 업로드 해석 경로에 아직 끼어 있지 않다). */
 	@Override public java.util.List<egovframework.sejong.user.model.ExtItemDTO> selectExtItemList(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception { return mapper.selectExtItemList(dto); }
 	@Override public int countExtItemCd(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception { return mapper.countExtItemCd(dto); }
+	@Override public egovframework.sejong.user.model.ExtItemDTO selectExtCodeConflict(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception { return mapper.selectExtCodeConflict(dto); }
 	@Override public int insertExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception {
 		int n = mapper.insertExtItem(dto); extItemRetro(dto); return n;
 	}
 	@Override public int updateExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception {
-		int n = mapper.updateExtItem(dto); extItemRetro(dto); return n;
+		/* ★추가 매칭코드를 바꾸거나 지우면 옛 코드로 잡혀 있던 행부터 되돌린다 (2026-09-13)
+		     — 안 하면 옛 코드가 이 주코드에 붙은 채 굳는다(추가 칸을 비워도 재고가 안 돌아온다). */
+		egovframework.sejong.user.model.ExtItemDTO cur = mapper.selectExtItemById(dto);
+		String oldAdd = (cur == null || cur.getAddItemCd() == null) ? "" : cur.getAddItemCd().trim();
+		String newAdd = dto.getAddItemCd() == null ? "" : dto.getAddItemCd().trim();
+		int n = mapper.updateExtItem(dto);
+		if (!oldAdd.isEmpty() && !oldAdd.equalsIgnoreCase(newAdd))
+			extCodeUndo(dto.getCompCd(), java.util.Collections.singletonList(oldAdd), dto.getUpdUser(), dto.getUpdIp());
+		extItemRetro(dto);
+		return n;
 	}
 	/* ★매칭코드를 지우면 붙여 놨던 것도 되돌린다 (2026-08-06 — deleteXref 와 같은 구조·같은 이유)
 	     종전에는 지우기만 해서, 잘못 붙인 코드를 지워도 과거 출고·정산은 그 주코드에 붙은 채 남았다.
@@ -335,26 +349,11 @@ public class UserServiceImpl implements UserService {
 		egovframework.sejong.user.model.ExtItemDTO cur = mapper.selectExtItemById(dto);   // 무엇을 지우는지 먼저 확보
 		int n = mapper.deleteExtItem(dto);
 		if (cur == null || cur.getProdSeq() == null) return n;
-		if (cur.getExtItemCd() == null || cur.getExtItemCd().trim().isEmpty()) return n;
-
-		egovframework.sejong.user.model.ProdXrefDTO f = new egovframework.sejong.user.model.ProdXrefDTO();
-		f.setCompCd(dto.getCompCd());
-		f.setExtItemCd(cur.getExtItemCd());
-		java.util.List<String> ds = mapper.selectShipoutDatesByExtCd(f);   // ★비우기 전에 날짜 확보
-		mapper.clearShipoutProdByExtCd(f);
-		mapper.clearSalesProdByExtCd(f);
-
-		egovframework.sejong.user.model.ProdXrefDTO all = new egovframework.sejong.user.model.ProdXrefDTO();
-		all.setCompCd(dto.getCompCd());
-		resolveShipoutProd(all);   // 남은 매핑·코드 직결로 다시 해석 (없으면 미매핑으로 남는다)
-		resolveSalesProd(all);
-
-		try {
-			if (ds != null) for (String d : ds) syncShipoutLedgerDate(d, dto.getUpdUser(), dto.getUpdIp());
-			if (ds != null && !ds.isEmpty()) recalcStockMstAll(dto.getUpdUser(), dto.getUpdIp());
-		} catch (Exception se) {
-			LOGGER.error(" deleteExtItem 재고 되돌리기 WARN : " + se.getMessage());
-		}
+		java.util.List<String> codes = new java.util.ArrayList<String>();
+		if (cur.getExtItemCd() != null && !cur.getExtItemCd().trim().isEmpty()) codes.add(cur.getExtItemCd().trim());
+		/* 추가 매칭코드도 함께 푼다 (2026-09-13) — 그 코드로 잡혀 있던 행도 이 주코드에서 떼어야 한다 */
+		if (cur.getAddItemCd() != null && !cur.getAddItemCd().trim().isEmpty()) codes.add(cur.getAddItemCd().trim());
+		extCodeUndo(dto.getCompCd(), codes, dto.getUpdUser(), dto.getUpdIp());
 		return n;
 	}
 
@@ -373,14 +372,52 @@ public class UserServiceImpl implements UserService {
 		f.setCompCd(dto.getCompCd());
 		f.setProdSeq(dto.getProdSeq());
 		int back = mapper.resolveShipoutProdExt(f) + mapper.resolveSalesProdExt(f)
-		         + mapper.repointShipoutProdExt(f) + mapper.repointSalesProdExt(f);
+		         + mapper.repointShipoutProdExt(f) + mapper.repointSalesProdExt(f)
+		         /* ★추가 매칭코드 (2026-09-13) — 매칭코드 다음 · 코드 직결 전. 같은 상품으로 좁혀서 */
+		         + mapper.resolveShipoutProdAdd(f) + mapper.resolveSalesProdAdd(f)
+		         + mapper.repointShipoutProdAdd(f) + mapper.repointSalesProdAdd(f);
 		if (back <= 0) return;
+		String user = dto.getRegUser() != null ? dto.getRegUser() : dto.getUpdUser();   // 수정 경로는 upd* 만 채워져 온다
+		String ip   = dto.getRegIp()   != null ? dto.getRegIp()   : dto.getUpdIp();
+		/* 정산서 날짜는 이 상품의 매칭코드·추가 매칭코드가 들어 있는 날만 — 위 패스가 옮기는 행은 그 코드들뿐이다 */
+		extLedgerResync(mapper.selectShipoutDatesByProd(f), mapper.selectSalesDatesByExtProd(f), user, ip);
+	}
+	/* ★코드를 «풀었을 때» 되돌리기 — deleteExtItem(품목코드·추가 매칭코드)·updateExtItem(추가 매칭코드를 바꾸거나 지웠을 때)이 같이 쓴다.
+	     그 코드로 채워진 출고·정산 행을 비우고 → 다시 해석(XREF → 남은 매칭 → 추가 매칭 → 코드 직결) → 원장 재생성.
+	   ★날짜는 **비우기 전에** 받아 둔다 — PROD_SEQ 를 지운 뒤에는 찾을 수 없다. */
+	private void extCodeUndo(String compCd, java.util.List<String> codes, String user, String ip) throws Exception {
+		if (codes == null || codes.isEmpty()) return;
+		java.util.TreeSet<String> ship = new java.util.TreeSet<String>(), sales = new java.util.TreeSet<String>();
+		for (String c : codes) {
+			egovframework.sejong.user.model.ProdXrefDTO f = new egovframework.sejong.user.model.ProdXrefDTO();
+			f.setCompCd(compCd);
+			f.setExtItemCd(c);
+			java.util.List<String> a = mapper.selectShipoutDatesByExtCd(f);   // ★비우기 전에 날짜 확보
+			java.util.List<String> b = mapper.selectSalesDatesByExtCd(f);
+			if (a != null) ship.addAll(a);
+			if (b != null) sales.addAll(b);
+			mapper.clearShipoutProdByExtCd(f);
+			mapper.clearSalesProdByExtCd(f);
+		}
+		egovframework.sejong.user.model.ProdXrefDTO all = new egovframework.sejong.user.model.ProdXrefDTO();
+		all.setCompCd(compCd);
+		resolveShipoutProd(all);   // 남은 매핑으로 다시 해석 (없으면 미매핑으로 남는다)
+		resolveSalesProd(all);
+		extLedgerResync(ship, sales, user, ip);
+	}
+	/* ★매칭코드를 붙이거나 풀면 «정산서 원장»까지 다시 만든다 (2026-09-13)
+	     재고의 원천은 정산서(REF_GB='SALES')다 — SHIPOUT_LEDGER_ON=false 라 syncShipoutLedgerDate 는 아무 일도 안 한다.
+	     종전에는 발주현황표 날짜만 다시 만들어, 매칭코드를 붙여도 정산서 원장이 옛 코드에 남아
+	     [출고반영 재집계]를 눌러야 주코드로 옮겨졌다. 날짜 단위 삭제+재생성이라 옛 코드 몫도 함께 걷힌다.
+	   ★실패해도 저장·삭제는 롤백하지 않는다(로그만) — [재고 재집계]로 복구된다. */
+	private void extLedgerResync(java.util.Collection<String> shipDts, java.util.Collection<String> salesDts, String user, String ip) {
 		try {
-			java.util.List<String> ds = mapper.selectShipoutDatesByProd(f);
-			if (ds != null) for (String d : ds) syncShipoutLedgerDate(d, dto.getRegUser(), dto.getRegIp());
-			recalcStockMstAll(dto.getRegUser(), dto.getRegIp());
+			int k = 0;
+			if (shipDts  != null) for (String d : shipDts)  { syncShipoutLedgerDate(d, user, ip); k++; }
+			if (salesDts != null) for (String d : salesDts) { syncSalesLedgerCore(d, null, user, ip); k++; }
+			if (k > 0) recalcStockMstAll(user, ip);
 		} catch (Exception se) {
-			LOGGER.error(" extItemRetro 재고 소급반영 WARN : " + se.getMessage());
+			LOGGER.error(" 매칭코드 재고 재동기화 WARN : " + se.getMessage());
 		}
 	}
 	/* 통보서 붙여넣기 — 한 줄씩 MERGE(있으면 갱신·없으면 신규). 한 트랜잭션이라 중간에 실패하면 전부 취소된다. */
@@ -491,6 +528,8 @@ public class UserServiceImpl implements UserService {
 			   제 코드에 붙어 버린 과거분은 이 버튼으로만 주코드로 옮겨진다. */
 			mapper.repointShipoutProdExt(all);
 			mapper.repointSalesProdExt(all);
+			mapper.repointShipoutProdAdd(all);   // 추가 매칭코드(2026-09-13) — 매칭코드 되돌려 붙이기 뒤에
+			mapper.repointSalesProdAdd(all);
 
 			/* 발주현황표 연동 종료(2026-08-19) — 기존 원장행은 그대로 두고 새로 만들지 않는다.
 			   되살리려면 SHIPOUT_LEDGER_ON 만 true 로. */
@@ -684,7 +723,7 @@ public class UserServiceImpl implements UserService {
 	   수정은 '지우고 다시 넣기' — 명세 행이 늘거나 줄 수 있어 부분 갱신보다 안전하다. */
 	@Override public java.util.List<egovframework.sejong.user.model.PurchaseDTO> selectPurchaseList(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception { return mapper.selectPurchaseList(dto); }
 	@Override public String selectPurchaseNextNo(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception { return mapper.selectPurchaseNextNo(dto); }
-	@Override public Double selectVendorLastPrice(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception { return mapper.selectVendorLastPrice(dto); }
+	@Override public egovframework.sejong.user.model.PurchaseDtlDTO selectVendorLastPrice(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception { return mapper.selectVendorLastPrice(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.PurchaseDtlDTO> selectPurchasePriceHist(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception { return mapper.selectPurchasePriceHist(dto); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectPurchaseLedger(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception { return mapper.selectPurchaseLedger(dto); }
 
@@ -915,7 +954,7 @@ public class UserServiceImpl implements UserService {
 	   손으로 등록할 수 있게 열어둔 칸이라 전표가 덮어쓰면 안 된다. */
 	@Override public java.util.List<egovframework.sejong.user.model.SalesTrxDTO> selectSalesTrxList(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception { return mapper.selectSalesTrxList(dto); }
 	@Override public String selectSalesTrxNextNo(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception { return mapper.selectSalesTrxNextNo(dto); }
-	@Override public Double selectCustLastPrice(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception { return mapper.selectCustLastPrice(dto); }
+	@Override public egovframework.sejong.user.model.SalesTrxDtlDTO selectCustLastPrice(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception { return mapper.selectCustLastPrice(dto); }
 	@Override public java.util.List<egovframework.sejong.user.model.SalesTrxDtlDTO> selectSalesPriceHist(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception { return mapper.selectSalesPriceHist(dto); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectSalesTrxHist(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception { return mapper.selectSalesTrxHist(dto); }
 

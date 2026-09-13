@@ -151,17 +151,23 @@ public interface UserMapper {
 	/* 잘못 연결한 매핑을 지우거나 고칠 때 — 그 코드로 이미 채워진 행을 되돌리기 위한 것들 */
 	egovframework.sejong.user.model.ProdXrefDTO selectXrefById(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	java.util.List<String> selectShipoutDatesByExtCd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	java.util.List<String> selectSalesDatesByExtCd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;    // 정산서 납품일자 — 그 코드(2026-09-13)
+	java.util.List<String> selectSalesDatesByExtProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 정산서 납품일자 — 그 상품의 매칭·추가 코드
 	int clearShipoutProdByExtCd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	int clearSalesProdByExtCd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	int resolveShipoutProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;        // 1차 : XREF 매핑
 	int resolveSalesProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	int resolveShipoutProdExt(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;     // 2차 : 통보품목 대장에 골라 둔 우리 상품코드
 	int resolveSalesProdExt(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int resolveShipoutProdAdd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;     // 2.5차 : 추가 매칭코드(ADD_ITEM_CD, 2026-09-13)
+	int resolveSalesProdAdd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	int resolveShipoutProdDirect(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 3차 : 코드 직결(거래처 코드 = 우리 코드)
 	int resolveSalesProdDirect(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	// 되돌려 붙이기 : 직결로 이미 붙은 행을 매칭코드의 주코드로 (2026-08-06 — 매칭코드를 늦게 등록한 과거분)
 	int repointShipoutProdExt(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	int repointSalesProdExt(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
+	int repointShipoutProdAdd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;    // 추가 매칭코드판 (2026-09-13)
+	int repointSalesProdAdd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;
 	java.util.List<String> selectShipoutDatesByProd(egovframework.sejong.user.model.ProdXrefDTO dto) throws Exception;  // 소급 재고반영 대상 출고일자
 
 	/* ===== 거래처 통보품목 — TBL_EXT_ITEM_MST (2026-08-01) =====
@@ -169,6 +175,7 @@ public interface UserMapper {
 	   ★매핑 표가 아니다(우리 품목과 잇는 방식은 추후 결정) — TBL_PROD_XREF 와 섞지 말 것. */
 	java.util.List<egovframework.sejong.user.model.ExtItemDTO> selectExtItemList(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
 	int countExtItemCd(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;   // (거래처+코드) 중복 확인
+	egovframework.sejong.user.model.ExtItemDTO selectExtCodeConflict(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;  // 추가 매칭코드 겹침(2026-09-13)
 	int insertExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
 	int updateExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
 	egovframework.sejong.user.model.ExtItemDTO selectExtItemById(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;  // 삭제 전 원본 확보(되돌리기용)
@@ -276,7 +283,7 @@ public interface UserMapper {
 	int deletePurchaseDtlAll(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
 	int insertPurchaseDtl(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;
 	int deletePurchaseLedger(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
-	Double selectVendorLastPrice(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;
+	egovframework.sejong.user.model.PurchaseDtlDTO selectVendorLastPrice(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;   // 단가 + 이전 비고(2026-09-13)
 	java.util.List<egovframework.sejong.user.model.PurchaseDtlDTO> selectPurchasePriceHist(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectPurchaseLedger(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
 	/* ===== 수금/지급 등록 (TBL_SETTLE_TRX) — 2026-07-25 ===== */
@@ -302,7 +309,7 @@ public interface UserMapper {
 	int deleteSalesTrxLedger(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
 	/** 거래명세서 공유 — 공개 주소 토큰 발급(처음 한 번) + 보낸 횟수 (2026-09-09) */
 	int updateSalesTrxShare(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
-	Double selectCustLastPrice(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;
+	egovframework.sejong.user.model.SalesTrxDtlDTO selectCustLastPrice(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;   // 단가 + 이전 비고(2026-09-13)
 	java.util.List<egovframework.sejong.user.model.SalesTrxDtlDTO> selectSalesPriceHist(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;
 	/** 매출내역 화면에 얹을 판매전표 명세 — 정산서 행과 같은 모양으로 돌아온다 */
 	java.util.List<java.util.Map<String,Object>> selectSalesTrxHist(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;

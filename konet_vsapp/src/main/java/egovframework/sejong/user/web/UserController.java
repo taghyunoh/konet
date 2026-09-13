@@ -1959,7 +1959,9 @@ public class UserController {
 		@ResponseBody
 		public Map<String,Object> purchaseLastPrice(@ModelAttribute("DTO") egovframework.sejong.user.model.PurchaseDtlDTO dto, HttpSession session) throws Exception {
 			Map<String,Object> response = new HashMap<String,Object>();
-			response.put("data", svc.selectVendorLastPrice(dto));
+			egovframework.sejong.user.model.PurchaseDtlDTO last = svc.selectVendorLastPrice(dto);
+			response.put("data",   last == null ? null : last.getUnitPrice());   // 종전 그대로 — 화면은 data 를 단가로 읽는다
+			response.put("remark", last == null ? null : last.getRemark());      // 이전 비고(2026-09-13) — 비어 있지 않은 마지막 것
 			return response;
 		}
 		/** 품명 클릭 → 거래처 × 상품 매입단가 이력(최대 3년) */
@@ -2477,7 +2479,9 @@ public class UserController {
 		@ResponseBody
 		public Map<String,Object> salesLastPrice(@ModelAttribute("DTO") egovframework.sejong.user.model.SalesTrxDtlDTO dto, HttpSession session) throws Exception {
 			Map<String,Object> response = new HashMap<String,Object>();
-			response.put("data", svc.selectCustLastPrice(dto));
+			egovframework.sejong.user.model.SalesTrxDtlDTO last = svc.selectCustLastPrice(dto);
+			response.put("data",   last == null ? null : last.getUnitPrice());   // 종전 그대로 — 화면은 data 를 단가로 읽는다
+			response.put("remark", last == null ? null : last.getRemark());      // 이전 비고(2026-09-13) — 비어 있지 않은 마지막 것, 카톡 원문 제외
 			return response;
 		}
 		/** 매출내역·마감현황에 얹을 판매전표 명세 — 정산서 행과 같은 모양으로 돌려준다 */
@@ -3036,6 +3040,22 @@ public class UserController {
 			sb.append("\n\n붙여야 한다면 상품코드등록에서 [▶ 거래해제] 를 먼저 누르세요.");
 			return sb.toString();
 		}
+		/**
+		 * ★추가 매칭코드 겹침 안내 (2026-09-13) — selectExtCodeConflict 가 돌려준 줄로 문구를 만든다.
+		 * <p>⚠문구에 「추가 매칭코드」 가 반드시 들어가야 한다 — 화면(prodcd)이 그 말로 409 를 갈라 그대로 보여 준다.
+		 */
+		private static String extConflictMsg(egovframework.sejong.user.model.ExtItemDTO d, egovframework.sejong.user.model.ExtItemDTO c) {
+			String add  = d.getAddItemCd() == null ? "" : d.getAddItemCd().trim();
+			String cExt = c.getExtItemCd() == null ? "" : c.getExtItemCd().trim();
+			String cAdd = c.getAddItemCd() == null ? "" : c.getAddItemCd().trim();
+			String at   = "주코드 " + (c.getProdCd() == null ? "" : c.getProdCd()) + (c.getProdNm() == null ? "" : " " + c.getProdNm());
+			if (!add.isEmpty() && add.equalsIgnoreCase(cExt))
+				return "추가 매칭코드 " + add + " 는 이미 매칭코드(품목코드)로 등록돼 있습니다 — " + at
+				     + "\n기존 매칭이 먼저 걸리므로 추가 매칭코드로 둘 수 없습니다. 옮기려면 그 줄을 먼저 지우세요.";
+			if (!add.isEmpty() && add.equalsIgnoreCase(cAdd))
+				return "추가 매칭코드 " + add + " 는 이미 다른 줄의 추가 매칭코드입니다 — " + at + " (품목코드 " + cExt + ")";
+			return "품목코드 " + d.getExtItemCd() + " 는 이미 추가 매칭코드로 등록돼 있습니다 — " + at + " (품목코드 " + cExt + ")";
+		}
 		@RequestMapping(value="/prod/extItemSave.do", method = RequestMethod.POST)
 		public ResponseEntity<String> extItemSave(@RequestBody egovframework.sejong.user.model.ExtItemDTO dto,
 		                                          HttpServletRequest request, HttpSession session) {
@@ -3049,6 +3069,16 @@ public class UserController {
 				// (거래처 + 코드)는 한 건만 — UX_EXT_ITEM_CD 위반을 500 대신 안내로 돌려준다
 				if (svc.countExtItemCd(dto) > 0)
 					return ResponseEntity.status(409).body("이미 등록된 품목코드입니다 — " + dto.getExtItemCd());
+				/* ★추가 매칭코드(2026-09-13) — 비우면 NULL. 품목코드·주코드 자신과 같으면 뜻이 없다.
+				   한 코드는 표 전체에서 한 곳에만(겹치면 어느 주코드로 갈지 정할 수 없다) — 화면도 막지만 마지막 문은 여기다. */
+				String add = dto.getAddItemCd() == null ? "" : dto.getAddItemCd().trim();
+				dto.setAddItemCd(add.isEmpty() ? null : add);
+				if (!add.isEmpty() && add.equalsIgnoreCase(dto.getExtItemCd().trim()))
+					return ResponseEntity.status(409).body("추가 매칭코드가 품목코드와 같습니다 — " + add);
+				if (!add.isEmpty() && dto.getProdCd() != null && add.equalsIgnoreCase(dto.getProdCd().trim()))
+					return ResponseEntity.status(409).body("추가 매칭코드가 주코드 자신입니다 — " + add);
+				egovframework.sejong.user.model.ExtItemDTO cf = svc.selectExtCodeConflict(dto);
+				if (cf != null) return ResponseEntity.status(409).body(extConflictMsg(dto, cf));
 				if (dto.getExtSeq() == null) {
 					dto.setRegUser(u); dto.setRegIp(request.getRemoteAddr());
 					return ResponseEntity.ok(String.valueOf(svc.insertExtItem(dto)));

@@ -294,6 +294,12 @@
   #mc tbody td{ border:1px solid var(--bd); padding:6px 10px; color:#10161d; }
   #mc tbody td.num{ text-align:right; }
   #mc tbody td.code{ font-family:Consolas,monospace; font-weight:700; }
+  /* 추가 매칭코드 칸 (2026-09-13) — 칸 안에서 바로 고친다(Enter 저장 · Esc 되돌림). 고치고 저장 안 한 칸은 노랗게 */
+  #mc tbody td.addcd{ padding:3px 6px; }
+  #mc tbody td.addcd input{ box-sizing:border-box; width:100%; height:28px; border:1px solid var(--bd); border-radius:6px;
+                            padding:0 7px; font-family:Consolas,monospace; font-weight:700; font-size:13px; background:#fff; }
+  #mc tbody td.addcd input.dirty{ background:#fff7d6; border-color:#e0b84a; }
+  #mc tbody td.addcd input::placeholder{ color:#b8c2cc; font-weight:400; }
   #mc .empty{ padding:18px; text-align:center; color:#9aa7b3; }
   /* 등록 줄 — 구두·문서로 받은 내용을 그대로 받아 적는 자리 */
   #mc .addbar{ flex:0 0 auto; border-top:1px solid var(--bd); background:#fafbfc; padding:9px 12px;
@@ -448,7 +454,7 @@
       <div class="tbwrap">
         <table>
           <thead id="mth"></thead>
-          <tbody id="mtb"><tr><td colspan="9" class="empty">위 목록에서 상품 줄을 고르세요.</td></tr></tbody>
+          <tbody id="mtb"><tr><td colspan="10" class="empty">위 목록에서 상품 줄을 고르세요.</td></tr></tbody>
         </table>
       </div>
       <div class="addbar">
@@ -464,6 +470,13 @@
                  onclick="mcAcOpen()" onfocus="mcAcOpen()" oninput="mcAcTyped()" onkeydown="mcAcKey(event)">
           <div id="a_ac" class="ac" style="display:none"></div>
         </div>
+        <%-- ★추가 매칭코드 (2026-09-13) — 대체 구매한 품목을 매칭코드로 붙였는데 삼성은 새 코드를 몰라 «옛 코드»로
+             발주할 때, 그 옛 코드를 적는다. 그 코드로 들어온 발주·정산도 이 줄의 주코드로 잡힌다(재고는 주코드 하나로).
+             기존 매칭에 먼저 걸리는 코드·다른 줄에 이미 쓴 코드는 넣을 수 없다. 비워 두면 종전과 같다. --%>
+        <div class="f"><label title="삼성이 옛 코드로 발주할 때 그 코드 — 기존 매칭에 안 걸리면 이 줄의 주코드로 잡힙니다">추가 매칭코드</label>
+          <input id="a_add" style="width:130px" autocomplete="off" placeholder="(없으면 비움)"
+                 title="삼성이 옛 코드로 발주할 때 그 코드를 적습니다 — 그 코드로 온 발주·정산도 이 줄의 주코드로 잡힙니다"
+                 onkeydown="if(event.keyCode===13){ mcAdd(); }"></div>
         <%-- 품목명 + [유사 품명] — 치고 나서 **누를 때** 찾아 본다(2026-08-17 요청).
              코드가 달라도 같은 물건을 또 등록하는 것을 막을 사람은 사용자뿐이라, 판단 재료를 여기서 준다. --%>
         <div class="f grow"><label>품목명</label>
@@ -1182,14 +1195,7 @@ function mcLoad(keepList){
   fetch(CTX+'/prod/extItemList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
     .then(function(r){ return r.json(); })
     .then(function(j){
-      MC=(j&&j.data)||[]; _mcCnt={}; _subOf={};
-      MC.forEach(function(o){
-        if(o.prodSeq!=null) _mcCnt[o.prodSeq]=(_mcCnt[o.prodSeq]||0)+1;
-        /* ★서브코드 지도 (2026-08-17 요청) — 상품마스터에 **서브코드로도 등록된** 코드가 있다.
-           그 줄에 「이건 어느 주코드의 서브다」를 매입등록 검색과 **같은 모양**으로 적어 준다.
-           자기 자신(서브=주)은 뺀다 — 알려 줄 것이 없다. */
-        if(o.prodCd && o.extItemCd && String(o.extItemCd)!==String(o.prodCd)) _subOf[String(o.extItemCd)]=o;
-      });
+      MC=(j&&j.data)||[]; mcIndex();
       if(!keepList){
         // 매칭 필터가 걸려 있으면 목록 자체가 바뀌므로 다시 거른다(그 외에는 보던 페이지 유지)
         if((document.getElementById('fMc')||{}).value) pcFilter(); else pcRender();
@@ -1225,12 +1231,17 @@ function mcRender(){
      ⇒ 남는 폭은 품목명(400→560)이 먹어 실제로 봐야 할 칸이 넓어진다.
    ⚠**전체 보기 모드(HEAD_ALL)는 그대로 둔다** — 여러 상품이 섞여 나오므로
      「이 줄이 어느 상품 것인지」를 지우면 읽을 수 없다. */
+  /* ★추가 매칭코드 칸 (2026-09-13) — 품목코드 바로 뒤. 이 상품만 모드에서는 칸 안에서 바로 고친다(mcAddSave),
+     전체 보기에서는 줄을 누르면 그 상품으로 가므로 글자만 보여 준다. 폭은 품목명에서 떼어 왔다. */
+  var ADD_TIP='삼성이 옛 코드로 발주할 때 그 코드 — 기존 매칭에 안 걸리면 이 줄의 주코드로 잡힙니다';
   var HEAD_ONE='<tr>'
-    +'<th style="width:150px">거래처</th><th style="width:130px">품목코드</th><th style="width:560px">품목명</th>'
+    +'<th style="width:150px">거래처</th><th style="width:130px">품목코드</th>'
+    +'<th style="width:150px" title="'+ADD_TIP+'. 칸에서 바로 고치고 Enter 로 저장합니다.">추가 매칭코드</th><th style="width:470px">품목명</th>'
     +'<th style="width:175px">규격</th><th class="r" style="width:90px">단가</th>'
     +'<th style="width:100px">받은날</th><th style="width:150px">비고</th><th style="width:64px">관리</th><th class="sp"></th></tr>';
   var HEAD_ALL='<tr><th style="width:120px">상품코드</th><th style="width:230px">상품명</th>'
-    +'<th style="width:150px">거래처</th><th style="width:130px">품목코드</th><th style="width:500px">품목명</th>'
+    +'<th style="width:150px">거래처</th><th style="width:130px">품목코드</th>'
+    +'<th style="width:130px" title="'+ADD_TIP+'">추가 매칭코드</th><th style="width:420px">품목명</th>'
     +'<th style="width:175px">규격</th><th class="r" style="width:90px">단가</th>'
     +'<th style="width:100px">받은날</th><th style="width:64px">관리</th><th class="sp"></th></tr>';
   function row(o, all){
@@ -1246,7 +1257,12 @@ function mcRender(){
         +'<td>'+esc(pm.prodNm||'')+'</td>';
     }
     h+='<td>'+(vn ? esc(vn) : '<span style="color:#9aa7b3">신규코드</span>')+'</td>'
-      +'<td class="code">'+esc(o.extItemCd)+'</td><td>'+esc(o.extItemNm)+'</td>'
+      +'<td class="code">'+esc(o.extItemCd)+'</td>'
+      + (all ? ('<td class="code">'+(o.addItemCd ? esc(o.addItemCd) : '<span style="color:#b8c2cc;font-weight:400">—</span>')+'</td>')
+             : ('<td class="addcd"><input value="'+esc(o.addItemCd||'')+'" data-seq="'+o.extSeq+'" data-v="'+esc(o.addItemCd||'')+'"'
+                +' placeholder="—" autocomplete="off" title="'+ADD_TIP+' · Enter = 저장 · Esc = 되돌림"'
+                +' oninput="mcAddInput(this)" onkeydown="mcAddKey(event,this)"></td>'))
+      +'<td>'+esc(o.extItemNm)+'</td>'
       +'<td>'+esc(o.extSpec)+'</td><td class="num">'+num(o.extPrice)+'</td>'
       +'<td>'+esc(mcFmtDt(o.notiDt))+'</td>';
     if(!all) h+='<td>'+esc(o.remark)+'</td>';
@@ -1256,15 +1272,16 @@ function mcRender(){
   }
   if(_mcAll){
     th.innerHTML=HEAD_ALL;
-    tb.innerHTML = MC.length ? MC.map(function(o){ return row(o,true); }).join('')
-                             : '<tr><td colspan="10" class="empty">등록된 매칭코드가 없습니다.</td></tr>';
+    var RL=MC.filter(mcReal);            // 추가 코드를 펼친 가상 줄은 뺀다 — 그 값은 원래 줄의 칸에 있다
+    tb.innerHTML = RL.length ? RL.map(function(o){ return row(o,true); }).join('')
+                             : '<tr><td colspan="11" class="empty">등록된 매칭코드가 없습니다.</td></tr>';
     return;
   }
   th.innerHTML=HEAD_ONE;
-  if(!_mcCur){ tb.innerHTML='<tr><td colspan="9" class="empty">위 목록에서 상품 줄을 고르세요.'
+  if(!_mcCur){ tb.innerHTML='<tr><td colspan="10" class="empty">위 목록에서 상품 줄을 고르세요.'
     +' <span style="color:#5a6b7a">— 등록된 것을 다 보려면 [📋 전체 보기]</span></td></tr>'; return; }
-  var l=MC.filter(function(o){ return String(o.prodSeq)===String(_mcCur.prodSeq); });
-  if(!l.length){ tb.innerHTML='<tr><td colspan="9" class="empty">이 상품에 붙여 둔 거래처 코드가 없습니다 — 아래에서 등록하세요.'
+  var l=MC.filter(function(o){ return mcReal(o) && String(o.prodSeq)===String(_mcCur.prodSeq); });
+  if(!l.length){ tb.innerHTML='<tr><td colspan="10" class="empty">이 상품에 붙여 둔 거래처 코드가 없습니다 — 아래에서 등록하세요.'
     +' <span style="color:#c0392b">(없으면 그 코드로 오는 자료는 미매핑이 됩니다)</span></td></tr>'; return; }
   tb.innerHTML=l.map(function(o){ return row(o,false); }).join('');
 }
@@ -1274,7 +1291,7 @@ function mcAllToggle(){
   var b=document.getElementById('mcAllBtn');
   b.textContent=_mcAll?'📌 이 상품만':'📋 전체 보기';
   document.getElementById('mcPick').innerHTML=_mcAll
-    ? '전체 <b>'+MC.length.toLocaleString()+'</b>건 — 줄을 누르면 그 상품으로 갑니다'
+    ? '전체 <b>'+MC.filter(mcReal).length.toLocaleString()+'</b>건 — 줄을 누르면 그 상품으로 갑니다'
     : (_mcCur ? ('<b>'+esc(_mcCur.prodCd)+'</b> '+esc(_mcCur.prodNm||'')) : '위 목록에서 상품을 고르세요.');
   if(_mcAll && document.getElementById('mc').classList.contains('min')) mcToggle();
   mcRender();
@@ -1460,10 +1477,11 @@ function mcAcBody(){
     for(i=0;i<MC.length;i++){
       if(String(MC[i].extItemCd||'').toLowerCase()!==code) continue;
       var m=MC[i], mp=_byseq[m.prodSeq]||{}, mine=(_mcCur && String(m.prodSeq)===String(_mcCur.prodSeq));
+      var kind=(m.addYn==='Y')?'추가 매칭코드':'매칭코드';     // 추가 코드를 펼친 줄이면 그렇게 알린다(2026-09-13)
       h+='<div class="ac-w dup nohit">'
-        + (mine ? '⚠ 이 상품에 이미 등록된 매칭코드입니다 (중복 등록 안 됨)'
-                : ('⚠ 이미 매칭코드로 등록됨 — 주코드 '+esc(m.prodCd||mp.prodCd||'')+' '+esc(mp.prodNm||'')
-                   + ' <span style="color:#9aa7b3">(옮기려면 그 주코드에서 삭제한 뒤 여기에 등록)</span>'))
+        + (mine ? ('⚠ 이 상품에 이미 등록된 '+kind+'입니다 (중복 등록 안 됨)')
+                : ('⚠ 이미 '+kind+'로 등록됨 — 주코드 '+esc(m.prodCd||mp.prodCd||'')+' '+esc(mp.prodNm||'')
+                   + ' <span style="color:#9aa7b3">(옮기려면 그 주코드에서 '+(m.addYn==='Y'?'추가 매칭코드를 지운':'삭제한')+' 뒤 여기에 등록)</span>'))
         + '</div>';
     }
     for(i=0;i<LIST.length;i++){
@@ -1592,6 +1610,7 @@ function _mcBusy(on){
 function mcFindDup(cd, ven){
   var k=String(cd||'').trim().toLowerCase(), v=String(ven||'');
   for(var i=0;i<MC.length;i++){
+    if(!mcReal(MC[i])) continue;                      // 추가 코드 겹침은 mcAddCheck 가 본다
     if(String(MC[i].extItemCd||'').trim().toLowerCase()!==k) continue;
     if(String(MC[i].vendorCd||'')!==v) continue;      // 거래처가 다르면 별개 코드다
     return MC[i];
@@ -1640,6 +1659,7 @@ function mcSimilar(nm){
     if(w) push(LIST[i].prodCd, LIST[i].prodNm, '상품마스터 · '+w, LIST[i].prodSeq);
   }
   for(var j=0;j<MC.length && out.length<6;j++){
+    if(!mcReal(MC[j])) continue;                       // 같은 이름이 두 번 나오지 않게
     var w2=hit(mcNorm(MC[j].extItemNm));
     if(w2){ var p=_byseq[MC[j].prodSeq]||{};
             push(MC[j].extItemCd, MC[j].extItemNm, '이미 등록된 코드 · 주코드 '+(MC[j].prodCd||p.prodCd||'?'), MC[j].prodSeq); }
@@ -1760,6 +1780,11 @@ function mcAdd(){
   /* 보내기 전에 전 건에서 찾아 본다 — 있으면 어느 주코드인지까지 적어 돌려준다(서버 호출 없음) */
   var dup=mcFindDup(cd, ven);
   if(dup){ toast(mcDupMsg(cd, dup),'warn'); return; }
+  /* ★추가 매칭코드 (2026-09-13) — 서버와 같은 규칙으로 먼저 본다(서버 호출 없음) */
+  var add=gv('a_add');
+  dto.addItemCd=add||null;
+  var bad=mcAddCheck(cd, add, _mcCur, null);
+  if(bad){ alertBox('<div style="text-align:left">'+bad+'</div>','⚠️'); return; }
   /* ⚠유사 품명 확인은 **저장 때 하지 않는다**(2026-08-17 사용자 지시) —
      품목명을 치고 칸을 벗어날 때(mcSimBlur) 이미 확인했다. 저장 순간에 또 묻으면 걸림돌만 된다. */
   mcSend(dto);
@@ -1774,7 +1799,13 @@ function mcSend(dto){
       if(!r.ok){
         /* 409 = 서버가 막은 중복. 화면이 들고 있던 MC 가 낡아 미리 못 잡은 경우다
            (다른 사람이 방금 등록했거나, 목록을 읽은 뒤 바뀐 경우) — 다시 읽어 주코드까지 알려 준다. */
-        if(r.status===409){ mcRecheckDup(dto); return; }
+        if(r.status===409){
+          /* 추가 매칭코드 겹침은 서버 문구가 곧 안내다 — 그대로 보여 주고 목록을 새로 읽는다(2026-09-13) */
+          if((r.t||'').indexOf('추가 매칭코드')>=0){
+            alertBox('<div style="text-align:left;white-space:pre-wrap">'+esc(r.t.trim())+'</div>','⚠️'); mcLoad(); return;
+          }
+          mcRecheckDup(dto); return;
+        }
         /* ★403 = 서버가 막은 **거래중지** (2026-08-19). 화면이 미리 막지만, 창을 열어 둔 사이에
            다른 사람이 중지했으면 여기로 온다 — 목록을 다시 읽어 화면 잠금도 같이 맞춘다. */
         if(r.status===403){
@@ -1784,7 +1815,7 @@ function mcSend(dto){
         toast((r.t||'').trim()||('등록 실패 (HTTP '+r.status+')'),'err'); return;
       }
       // 연달아 받아 적는 흐름 — 코드·품명·규격·단가만 비우고 거래처·받은날은 남긴다
-      _set('a_cd',''); _set('a_nm',''); _set('a_spec',''); _set('a_price',''); mcCdInfo();
+      _set('a_cd',''); _set('a_nm',''); _set('a_spec',''); _set('a_price',''); _set('a_add',''); mcCdInfo();
       toast('＋ 매칭코드 등록 — '+esc(cd),'ok');
       mcAcHide(); mcAcFocusCd();          // 등록 직후에 후보창이 도로 열리지 않게
       mcLoad();
@@ -1796,11 +1827,7 @@ function mcRecheckDup(dto){
   fetch(CTX+'/prod/extItemList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
     .then(function(r){ return r.json(); })
     .then(function(j){
-      MC=(j&&j.data)||[]; _mcCnt={}; _subOf={};
-      MC.forEach(function(o){
-        if(o.prodSeq!=null) _mcCnt[o.prodSeq]=(_mcCnt[o.prodSeq]||0)+1;
-        if(o.prodCd && o.extItemCd && String(o.extItemCd)!==String(o.prodCd)) _subOf[String(o.extItemCd)]=o;
-      });
+      MC=(j&&j.data)||[]; mcIndex();
       mcRender();
       pcRender();   // ★그리드의 「서브 → 주코드」 표시도 새로 등록한 코드까지 반영한다
       toast(mcDupMsg(dto.extItemCd, mcFindDup(dto.extItemCd, dto.vendorCd||'')),'warn');
@@ -1808,9 +1835,10 @@ function mcRecheckDup(dto){
     .catch(function(){ toast('이미 등록된 품목코드입니다 — '+esc(dto.extItemCd),'err'); });
 }
 function mcDel(seq){
-  var o=null; for(var i=0;i<MC.length;i++){ if(String(MC[i].extSeq)===String(seq)){ o=MC[i]; break; } }
+  var o=null; for(var i=0;i<MC.length;i++){ if(mcReal(MC[i]) && String(MC[i].extSeq)===String(seq)){ o=MC[i]; break; } }
   if(!o) return;
   confirmBox('['+esc(o.extItemCd)+'] '+esc(o.extItemNm||'')+'<br>이 매칭코드를 지우시겠습니까?'
+    +(o.addItemCd ? ('<br><span style="color:#b06a00;font-size:12.5px">추가 매칭코드 <b>'+esc(o.addItemCd)+'</b> 도 함께 풀립니다.</span>') : '')
     +'<br><span style="color:#9aa7b3;font-size:12px">지우면 이 코드로 오는 자료는 다시 미매핑이 되고,'
     +'<br><b>이미 이 상품에 붙어 있던 과거 출고·정산도 되돌아갑니다</b>(재고 다시 계산 — 몇 초 걸릴 수 있음).</span>', function(){
     fetch(CTX+'/prod/extItemDelete.do', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body:JSON.stringify({extSeq:Number(seq)}) })
@@ -1818,6 +1846,91 @@ function mcDel(seq){
       .then(function(r){ if(!r.ok){ toast((r.t||'').trim()||'삭제 실패','err'); return; } toast('🗑️ 삭제 완료','ok'); mcLoad(); })
       .catch(function(e){ toast('통신오류: '+e.message,'err'); });
   });
+}
+/* ★추가 매칭코드 (2026-09-13) ════════════════════════════════════════════════
+   대체 구매한 품목을 매칭코드로 붙였는데 삼성은 새 코드를 몰라 «옛 코드»로 발주한다.
+   그 옛 코드를 그 줄의 「추가 매칭코드」에 적으면 그 코드로 들어온 발주·정산(과거분 포함)도 주코드로 잡힌다.
+   ★해석 순서 XREF → 매칭코드 → 추가 매칭코드 → 코드 직결 — 기존 매칭이 이기고, 코드 직결보다는 먼저다.
+   ★한 코드는 표 전체에서 한 곳에만 — 서버(selectExtCodeConflict)와 같은 규칙을 화면이 먼저 본다(mcAddCheck).
+   ★서버는 추가 코드를 «한 줄 더»(addYn='Y') 펼쳐 준다. 이 패널의 목록·건수·삭제는 그 줄을 뺀다(mcReal).
+     다른 화면(매입·판매·재고조정·대시보드…)은 그 줄 덕분에 손대지 않아도 추가 코드를 주코드로 안다. */
+function mcReal(o){ return o.addYn!=='Y'; }
+/* 상품별 건수 · 서브코드 지도 — 목록을 읽을 때마다 다시 만든다 */
+function mcIndex(){
+  _mcCnt={}; _subOf={};
+  MC.forEach(function(o){
+    if(o.prodSeq!=null && mcReal(o)) _mcCnt[o.prodSeq]=(_mcCnt[o.prodSeq]||0)+1;
+    /* ★서브코드 지도 (2026-08-17 요청) — 상품마스터에 **서브코드로도 등록된** 코드가 있다.
+       그 줄에 「이건 어느 주코드의 서브다」를 매입등록 검색과 **같은 모양**으로 적어 준다.
+       추가 매칭코드(가상 줄)도 넣는다 — 그 코드도 주코드로 가는 코드다. 자기 자신(서브=주)은 뺀다. */
+    if(o.prodCd && o.extItemCd && String(o.extItemCd)!==String(o.prodCd)) _subOf[String(o.extItemCd)]=o;
+  });
+}
+/* 겹침 확인 — 막아야 하면 안내 문구(html), 괜찮으면 null.
+   cd = 이 줄의 품목코드(바로 고치기에서는 '' — 품목코드는 안 바뀐다) · add = 추가 매칭코드 · cur = 붙을 상품 · selfSeq = 수정 중인 줄 */
+function mcAddCheck(cd, add, cur, selfSeq){
+  var k=String(cd||'').trim().toLowerCase(), a=String(add||'').trim().toLowerCase();
+  if(a && a===k) return '추가 매칭코드가 품목코드와 같습니다 — <b>'+esc(add)+'</b><br>같은 코드면 적을 필요가 없습니다.';
+  if(a && cur && a===String(cur.prodCd||'').toLowerCase()) return '추가 매칭코드가 주코드 자신입니다 — <b>'+esc(add)+'</b>';
+  for(var i=0;i<MC.length;i++){
+    var o=MC[i]; if(!mcReal(o)) continue;
+    if(selfSeq!=null && String(o.extSeq)===String(selfSeq)) continue;
+    var oe=String(o.extItemCd||'').trim().toLowerCase(), oa=String(o.addItemCd||'').trim().toLowerCase();
+    var at='주코드 <b>'+esc(o.prodCd||'')+'</b> '+esc((_byseq[o.prodSeq]||{}).prodNm||o.prodNm||'');
+    if(a && oe===a) return '추가 매칭코드 <b>'+esc(add)+'</b> 는 이미 매칭코드(품목코드)로 등록돼 있습니다 — '+at
+      + '<br><span style="color:#5a6b7a;font-size:12.5px">기존 매칭이 먼저 걸리므로 추가 매칭코드로 둘 수 없습니다. 옮기려면 그 줄을 먼저 지우세요.</span>';
+    if(a && oa===a) return '추가 매칭코드 <b>'+esc(add)+'</b> 는 이미 다른 줄의 추가 매칭코드입니다 — '+at+' (품목코드 '+esc(o.extItemCd)+')';
+    if(k && oa && oa===k) return '품목코드 <b>'+esc(cd)+'</b> 는 이미 추가 매칭코드로 등록돼 있습니다 — '+at+' (품목코드 '+esc(o.extItemCd)+')';
+  }
+  return null;
+}
+/* 칸 안에서 바로 고치기 — Enter = 저장 · Esc = 되돌림. 고치고 저장 안 한 칸은 노랗게(dirty) 남는다.
+   ⚠칸을 벗어날 때 저장·되돌림을 하지 않는다 — 확인창이 뜨는 순간 칸을 벗어나므로 그 길을 쓰면 엉킨다. */
+function mcAddInput(el){ el.classList.toggle('dirty', (el.value||'').trim()!==(el.getAttribute('data-v')||'')); }
+function mcAddKey(e, el){
+  if(e.key==='Escape'){ e.preventDefault(); el.value=el.getAttribute('data-v')||''; mcAddInput(el); return; }
+  if(e.key!=='Enter') return;
+  e.preventDefault(); mcAddSave(el);
+}
+/* 저장은 그 줄을 **통째로** 다시 보낸다 — updateExtItem 이 모든 칸을 덮으므로 한 칸만 보내면 나머지가 지워진다.
+   서버가 옛 추가 코드 되돌리기 + 새 코드 소급 반영 + 재고 재계산까지 한다. */
+function mcAddSave(el){
+  if(_mcSaving) return;
+  var seq=el.getAttribute('data-seq'), o=null;
+  for(var i=0;i<MC.length;i++){ if(mcReal(MC[i]) && String(MC[i].extSeq)===String(seq)){ o=MC[i]; break; } }
+  if(!o) return;
+  var v=(el.value||'').trim(), old=el.getAttribute('data-v')||'';
+  if(v===old){ mcAddInput(el); return; }
+  var bad=(v && v.toLowerCase()===String(o.extItemCd||'').trim().toLowerCase())
+          ? ('추가 매칭코드가 품목코드와 같습니다 — <b>'+esc(v)+'</b>')
+          : mcAddCheck('', v, _byseq[o.prodSeq]||{prodCd:o.prodCd}, o.extSeq);
+  if(bad){ alertBox('<div style="text-align:left">'+bad+'</div>','⚠️'); return; }
+  var msg = v
+    ? ('추가 매칭코드를 <b>'+esc(v)+'</b> 로 저장합니다'+(old?(' <span style="color:#9aa7b3">(종전 '+esc(old)+')</span>'):'')+'.'
+       + '<br><span style="color:#5a6b7a;font-size:12.5px">이 코드로 들어온 발주·정산(과거분 포함)이 주코드 <b>'+esc(o.prodCd||'')+'</b> 로 잡히고'
+       + ' 재고를 다시 계산합니다(몇 초 걸릴 수 있음).</span>')
+    : ('추가 매칭코드 <b>'+esc(old)+'</b> 를 지웁니다.'
+       + '<br><span style="color:#5a6b7a;font-size:12.5px">그 코드로 잡혀 있던 과거 발주·정산은 되돌아가고 재고를 다시 계산합니다(몇 초 걸릴 수 있음).</span>');
+  confirmBox(msg, function(){
+    var dto={ extSeq:o.extSeq, vendorCd:o.vendorCd||null, vendorNm:o.vendorNm||null, dcCd:o.dcCd||null, dcNm:o.dcNm||null,
+      extItemCd:o.extItemCd, extItemNm:o.extItemNm, extSpec:o.extSpec, extUnit:o.extUnit, extPrice:o.extPrice, taxGb:o.taxGb,
+      notiDt:o.notiDt, useFrDt:o.useFrDt, statGb:o.statGb, prodSeq:o.prodSeq, prodCd:o.prodCd, remark:o.remark,
+      addItemCd:v||null };
+    _mcBusy(true);
+    fetch(CTX+'/prod/extItemSave.do', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body:JSON.stringify(dto) })
+      .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, status:res.status, t:t}; }); })
+      .then(function(r){
+        _mcBusy(false); mcStopSync();
+        if(!r.ok){
+          alertBox('<div style="text-align:left;white-space:pre-wrap">'+esc(((r.t||'').trim())||('저장 실패 (HTTP '+r.status+')'))+'</div>',
+                   r.status===403?'⛔':'⚠️');
+          return;
+        }
+        toast(v ? ('🔖 추가 매칭코드 저장 — '+esc(v)) : '추가 매칭코드를 지웠습니다','ok');
+        mcLoad();
+      })
+      .catch(function(e){ _mcBusy(false); mcStopSync(); toast('통신오류: '+e.message,'err'); });
+  }, v?'저장':'지우기', '🔖');
 }
 /* 접기/펼치기 — 목록을 넓게 보고 싶을 때. 접으면 그만큼 위 목록이 늘어난다 */
 function mcToggle(){

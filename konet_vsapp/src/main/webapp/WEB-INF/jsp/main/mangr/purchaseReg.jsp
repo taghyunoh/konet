@@ -705,6 +705,7 @@ function post(url, body, isJson){
    목록·원장·잔고도 같이 갱신한다. 신규 작성 중이면 목록만 새로 읽는다(입력분은 보존). */
 function puReload(){
   var seq = _cur ? _cur.purchSeq : null;
+  puLoadMasters();   // ★기준자료도 새로 (2026-09-13) — 다른 화면·다른 PC 에서 고친 상품·거래처·매칭코드를 반영
   puLoad();
   if (seq) {
     post('/mangr/purchaseDetail.do','purchSeq='+seq).then(function(r){return r.json();}).then(function(j){
@@ -734,6 +735,7 @@ function puLoadMasters(){
        ⇒ 보여 주고 「중지」와 중지일을 적어 **고를 수 없게** 만든다(줄 클릭도 막는다).
        실제 차단은 언제나 서버(저장 관문)가 전표일자로 판정한다. */
     _prods=(j&&j.data)||[];
+    puProdRefreshed();
   }).catch(function(){});
   /* ★거래처 통보품목(=서브코드) — 판매등록과 **같은 원천**을 쓴다(2026-08-17).
      이걸 받아야 상품검색에 🔖 줄이 나오고, 서브코드를 골랐을 때 마스터를 알려 줄 수 있다. */
@@ -745,8 +747,22 @@ function puLoadMasters(){
          자기 자신(서브코드=마스터코드)도 뺀다. 막을 것이 없다. */
       if (e.prodCd && String(e.extItemCd) !== String(e.prodCd)) _subMap[String(e.extItemCd)] = e;
     });
+    puProdRefreshed();
   }).catch(function(){});
 }
+
+/* ★다시 보일 때 기준자료를 새로 읽는다 (2026-09-13 「기존 정보 바꿔도 적용 안 돼 로그아웃했다 들어가야」)
+     매입등록은 기준자료(상품·거래처·매칭코드)를 **화면을 처음 열 때 한 번만** 읽었다. 셸 안 iframe 이라
+     로그아웃 전까지 다시 안 떠서, 다른 화면에서 상품·거래처를 고쳐도 옛 목록 그대로였다.
+     셸(logiFrame)이 이 화면을 다시 보여 줄 때 부른다 — 판매등록과 같은 규칙.
+   ★이미 담은 명세 줄은 건드리지 않는다 — 새로 담는 줄부터 새 정보.
+   ★연달아 불려도 3초 안에는 한 번만 읽는다. */
+var _puMastersAt=0;
+window.konetShown=function(){
+  if(Date.now()-_puMastersAt<3000) return;
+  _puMastersAt=Date.now();
+  puLoadMasters();
+};
 
 /* ── 전표 입력 ────────────────────────────────────────── */
 function puNew(){
@@ -1404,10 +1420,16 @@ function puProdOpen(i){
   var q=document.getElementById('puProdQ'); q.value='';
   _ppPick = [];                          // 다중선택은 열 때마다 새로 시작
   puProdRender();
+  puLoadMasters();                       // ★열 때마다 새로 읽는다(2026-09-13 · 판매등록과 같게) — 도착하면 puProdRefreshed 가 다시 그린다
   /* 열리면 바로 검색칸에 커서 — 마우스로 칸을 다시 누를 필요 없이 즉시 친다(2026-08-05 요청) */
   setTimeout(function(){ q.focus(); }, 0);
 }
 function puProdClose(){ document.getElementById('puProdPop').classList.remove('on'); }
+/* 새로 읽은 목록이 도착했을 때 — 팝업이 열려 있으면 그 자리에서 다시 그린다(닫혀 있으면 아무 일 없음) */
+function puProdRefreshed(){
+  var p=document.getElementById('puProdPop');
+  if(p && p.classList.contains('on')) puProdRender();
+}
 function puProdRender(){
   var q = (document.getElementById('puProdQ').value||'').toLowerCase();
   /* 코드로 검색하면 장부 넘겨 보듯 — 걸린 상품(코드순)을 앞에 두고, 그 뒤에 **찾은 코드 다음
@@ -1544,10 +1566,17 @@ function puProdMultiApply(){
   rows.push(emptyRow());
   _rows = rows; _pShown = _rows.length;
   puRender(); puProdClose();
-  /* 그 거래처의 최근 매입단가가 있으면 그 값으로 덮는다 — 한 건 담기(puProdPick)와 같은 규칙 */
+  /* 그 거래처의 최근 매입단가가 있으면 그 값으로 덮는다 — 한 건 담기(puProdPick)와 같은 규칙.
+     ★이전 비고도 따라온다(2026-09-13 「이전 비고란 안 따라옴」) — 줄 비고가 비어 있을 때만 채운다. */
   added.forEach(function(o){
     post('/mangr/purchaseLastPrice.do','prodCd='+encodeURIComponent(o.prodCd)+'&remark='+encodeURIComponent(ven))
-      .then(function(r){return r.json();}).then(function(j){ if(j&&j.data){ o.unitPrice=n(j.data); puCalcRow(o); puRender(); } })
+      .then(function(r){return r.json();}).then(function(j){
+        if(!j) return;
+        var ch=false;
+        if(j.data){ o.unitPrice=n(j.data); ch=true; }
+        if(j.remark && !o.remark){ o.remark=j.remark; ch=true; }
+        if(ch){ puCalcRow(o); puRender(); }
+      })
       .catch(function(){});
   });
   /* 서브코드를 바꿔 담았으면 **반드시 알려 준다** — 말없이 바꾸면 잘못 담은 줄 안다(2026-08-17) */
@@ -1600,10 +1629,13 @@ function puProdPick(cd, viaSub){
      이미 수량이 있는 줄(다른 상품으로 바꾸기)은 건드리지 않는다. */
   if (!n(o.boxQty) && !n(o.eaQty)) o.boxQty = 1;
   puProdClose();
-  // 그 거래처의 최근 매입단가가 있으면 그 값으로 덮는다
+  // 그 거래처의 최근 매입단가가 있으면 그 값으로 덮는다 · 이전 비고는 줄 비고가 비었을 때만 (2026-09-13)
   var ven = document.getElementById('puVenNm').dataset.cd||'';
   post('/mangr/purchaseLastPrice.do','prodCd='+encodeURIComponent(p.prodCd)+'&remark='+encodeURIComponent(ven))
-    .then(function(r){return r.json();}).then(function(j){ if(j&&j.data) o.unitPrice=n(j.data); })
+    .then(function(r){return r.json();}).then(function(j){
+      if(j&&j.data) o.unitPrice=n(j.data);
+      if(j&&j.remark&&!o.remark) o.remark=j.remark;
+    })
     .catch(function(){}).then(function(){
       puCalcRow(o);
       if (_prodTargetRow === _rows.length-1) puEnsureTail();
@@ -1944,9 +1976,12 @@ function puBatchApply(){
       var jobs = [];
       entries.forEach(function(e){
         if (e.s.t !== 1) return;
-        if (e.s.unitPrice != null) return;   /* 미리보기에서 단가를 직접 고친 줄은 그 값 그대로(최근단가로 안 덮음) */
+        var keepP = (e.s.unitPrice != null);   /* 미리보기에서 단가를 직접 고친 줄은 그 값 그대로(최근단가로 안 덮음) — 비고는 받는다(2026-09-13) */
         jobs.push(post('/mangr/purchaseLastPrice.do','prodCd='+encodeURIComponent(e.row.prodCd)+'&remark='+encodeURIComponent(venCd))
-          .then(function(r){return r.json();}).then(function(j){ if(j&&j.data){ e.row.unitPrice=n(j.data); puCalcRow(e.row); } })
+          .then(function(r){return r.json();}).then(function(j){
+            if(j&&j.data&&!keepP){ e.row.unitPrice=n(j.data); puCalcRow(e.row); }
+            if(j&&j.remark&&!e.row.remark) e.row.remark=j.remark;
+          })
           .catch(function(){}));
       });
       var made = [];                       /* 저장된 전표 [일자 · 번호] — 완료 알림에 보여 준다 */

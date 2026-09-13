@@ -144,6 +144,7 @@ public interface UserService {
 	   거래처가 미리 통보한 코드·품명 접수대장. ★매핑 표가 아니다(우리 품목과 잇는 방식은 추후 결정). */
 	java.util.List<egovframework.sejong.user.model.ExtItemDTO> selectExtItemList(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
 	int countExtItemCd(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
+	egovframework.sejong.user.model.ExtItemDTO selectExtCodeConflict(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;  // 추가 매칭코드 겹침(2026-09-13)
 	int insertExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
 	int updateExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
 	int deleteExtItem(egovframework.sejong.user.model.ExtItemDTO dto) throws Exception;
@@ -240,7 +241,7 @@ public interface UserService {
 	/** 전표 저장(신규/수정) — 헤더·명세 + 파생 재고원장 + 매입단가 이력을 한 번에 */
 	int savePurchase(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
 	int deletePurchase(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
-	Double selectVendorLastPrice(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;
+	egovframework.sejong.user.model.PurchaseDtlDTO selectVendorLastPrice(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;   // 단가 + 이전 비고(2026-09-13)
 	java.util.List<egovframework.sejong.user.model.PurchaseDtlDTO> selectPurchasePriceHist(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectPurchaseLedger(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
 	/* ===== 수금/지급 등록 (TBL_SETTLE_TRX) — 2026-07-25 ===== */
@@ -264,7 +265,7 @@ public interface UserService {
 	String selectSalesTrxNextNo(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
 	int saveSalesTrx(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
 	int deleteSalesTrx(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;
-	Double selectCustLastPrice(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;
+	egovframework.sejong.user.model.SalesTrxDtlDTO selectCustLastPrice(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;   // 단가 + 이전 비고(2026-09-13)
 	java.util.List<egovframework.sejong.user.model.SalesTrxDtlDTO> selectSalesPriceHist(egovframework.sejong.user.model.SalesTrxDtlDTO dto) throws Exception;
 	/** 매출내역 화면에 얹을 판매전표 명세 — 정산서 행과 같은 모양 */
 	java.util.List<java.util.Map<String,Object>> selectSalesTrxHist(egovframework.sejong.user.model.SalesTrxDTO dto) throws Exception;

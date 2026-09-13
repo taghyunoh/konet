@@ -295,7 +295,7 @@ function swConfirm(m, okText){
   var d = new Date(); d.setMonth(d.getMonth()-2);
   document.getElementById('svFrom').value = d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-01';
   document.getElementById('svTo').value = today();
-  post('/vendor/selectVendorMst.do','').then(function(r){return r.json();}).then(function(j){ _vendors=(j&&j.data)||[]; }).catch(function(){});
+  svLoadMasters();
   svNew(); svLoad();
   /* 거래처 칸 입력검색 — 고르는 동작은 팝업과 같은 svCustPick() 을 그대로 탄다(잔고·원장·담당자 갱신 포함).
      _vendors 는 위 조회가 나중에 채우므로 배열이 아니라 '함수'로 넘긴다. */
@@ -405,7 +405,20 @@ function svDelete(){
       .catch(function(e){ swErr('삭제에 실패했습니다.<br><span style="font-size:13px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
   });
 }
-function svReload(){ svLoad(); var cd=document.getElementById('svCustNm').dataset.cd||''; if(cd){ svBal(cd); } }
+function svReload(){ svLoadMasters(); svLoad(); var cd=document.getElementById('svCustNm').dataset.cd||''; if(cd){ svBal(cd); } }   // 거래처 목록도 새로(2026-09-13)
+/* ★거래처 목록을 «다시 보일 때»·창을 열 때 새로 읽는다 (2026-09-13 「수금·지급·발주서 등록도 같게」 — 매입·판매등록과 같은 규칙)
+     셸 iframe 은 로그아웃 전까지 그대로라, 화면을 열 때 한 번만 읽으면 다른 화면에서 고친 거래처(이름·담당자…)가 안 보였다.
+     읽는 때 = 화면을 열 때 · 🔄 새로고침 · 거래처 창을 열 때 · 셸이 이 화면을 다시 보여 줄 때(konetShown, 3초 안 중복은 한 번만).
+     도착하면 열려 있는 거래처 창을 그 자리에서 다시 그린다. 이미 고른 거래처·입력 중인 전표는 건드리지 않는다. */
+function svLoadMasters(){
+  post('/vendor/selectVendorMst.do','').then(function(r){return r.json();}).then(function(j){ _vendors=(j&&j.data)||[]; svCustRefreshed(); }).catch(function(){});
+}
+var _svMastersAt=0;
+window.konetShown=function(){
+  if(Date.now()-_svMastersAt<3000) return;
+  _svMastersAt=Date.now();
+  svLoadMasters();
+};
 
 /* ── 목록 (5행 고정 + 자동 스크롤) ── */
 var LIST_ROWS = 5, _lShown = 0, _lBound = false;
@@ -503,8 +516,10 @@ function svEdit(i){
 }
 
 /* ── 거래처 ── */
-function svCustOpen(){ document.getElementById('svCustPop').classList.add('on'); document.getElementById('svCustQ').value=''; svCustRender(); }
+function svCustOpen(){ document.getElementById('svCustPop').classList.add('on'); document.getElementById('svCustQ').value=''; svCustRender(); svLoadMasters(); }
 function svCustClose(){ document.getElementById('svCustPop').classList.remove('on'); }
+/* 새로 읽은 거래처 목록이 도착했을 때 — 창이 열려 있으면 그 자리에서 다시 그린다(닫혀 있으면 아무 일 없음) */
+function svCustRefreshed(){ var p=document.getElementById('svCustPop'); if(p && p.classList.contains('on')) svCustRender(); }
 function svCustRender(){
   var q=(document.getElementById('svCustQ').value||'').toLowerCase();
   var l=_vendors.filter(function(o){ if(!q) return true;

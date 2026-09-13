@@ -20,6 +20,14 @@
 - ⚠복사 당시(2026-09-11) 첫 복사본에서 **342개 파일(web.xml·주요 JSP·jar·이미지)이 빠져 있었다** — robocopy 로 채웠다. 다시 복제할 일이 있으면 파일 수부터 맞춰 볼 것.
 - **[2026-09-11] 기준정보관리 ▸ 회사 정보 수정(compInfo.jsp + comp-set.js + 기능 연결) 을 web 에서 만들고 같은 파일 23개를 그대로 복사했다** —
   설명은 konet_vsweb/CLAUDE.md 「회사 정보 수정」 절. 모바일(앱) 인쇄 옵션(`konetSet.prtApp`)은 **저장만** 되어 있다 — 앱에 거래명세서 인쇄를 붙일 때 읽을 것.
+- **[2026-09-13] web 에서 한 작업 3가지를 같은 파일 14개로 그대로 복사했다(해시 동일 확인)** — 설명은 konet_vsweb/CLAUDE.md 같은 날짜 절 :
+  ①**추가 매칭코드**(`TBL_EXT_ITEM_MST.ADD_ITEM_CD` · 해석 순서 XREF → 매칭코드 → 추가 매칭코드 → 코드 직결) ②매입·판매등록 **이전 비고** 따라오기
+  ③매입·판매·수금·지급·발주서 등록 **기준자료 다시 읽기**(셸 `logiFrame` → `konetShown`).
+  · 복사 전 두 앱의 해당 파일은 web 마지막 커밋과 **diff 0** 이었다 → 오늘 바뀐 것만 넘어왔다. javac 통과.
+  · DDL `sql/ext_item_add_cd_alter.sql` 은 **같은 DB 라 다시 안 돌린다**(운영 적용 완료 2026-09-13).
+  · 모바일 영향 : `m/stock.jsp` 는 extItemList 로 「매칭코드 → 주코드」 표를 만들므로 **추가 매칭코드로 쳐도 주코드 재고가 나온다**(손대지 않음) ·
+    `m/sales.jsp` 는 salesLastPrice 의 `data`(단가)만 읽어 그대로 — 모바일은 **줄 비고 칸이 없어** 이전 비고는 붙이지 않았다(전표 비고만 있다).
+  · **배포 : konet_app WAR 재빌드 + 재기동.**
 - **톰캣 띄우는 길 2가지(둘 다 같은 톰캣)** : ①VS Code **Servers 뷰(Community Server Connector) ▸ `konet_vsapp`**
   (등록 파일 `~/.rsp/redhat-community-server-connector/servers/konet_vsapp` — `konet_vsweb` 을 본떠 경로·포트만 바꿈)
   ②태스크 「톰캣 시작 (konet_vsapp :9072)」(JPDA 9172 디버그). ⚠**둘을 동시에 띄우지 말 것** — 같은 9072 라 뒤에 뜬 쪽이 죽는다.
