@@ -240,6 +240,10 @@ public interface UserService {
 	String selectPurchaseNextNo(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
 	/** 전표 저장(신규/수정) — 헤더·명세 + 파생 재고원장 + 매입단가 이력을 한 번에 */
 	int savePurchase(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	/** 서브코드 재고 정리 (2026-09-13) — {subs: 재고가 남은 서브코드, purch: 서브코드로 잡힌 매입 줄} */
+	java.util.Map<String,Object> selectSubStock(java.util.Map<String,Object> p) throws Exception;
+	/** 서브코드 재고 정리 — 고른 서브코드 재고를 0 으로(merge = 같은 수량을 주코드에 더함). 재고 일괄조정과 같은 조정행·이력 */
+	java.util.Map<String,Object> saveSubStockZero(java.util.List<String> subCds, boolean merge, String compCd, String user, String ip) throws Exception;
 	int deletePurchase(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
 	egovframework.sejong.user.model.PurchaseDtlDTO selectVendorLastPrice(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;   // 단가 + 이전 비고(2026-09-13)
 	java.util.List<egovframework.sejong.user.model.PurchaseDtlDTO> selectPurchasePriceHist(egovframework.sejong.user.model.PurchaseDtlDTO dto) throws Exception;

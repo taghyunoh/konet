@@ -5524,6 +5524,82 @@
 	  </choose>
 	</select>
 
+	<!-- ══ 서브코드 재고 정리 (2026-09-13 「주코드에 매칭된 서브코드 제품 모두 재고 0으로 조정」) ══════════════
+	     서브코드 = 매칭코드(EXT_ITEM_CD)·추가 매칭코드(ADD_ITEM_CD) 이면서 상품마스터에도 있는 코드(주코드 자신은 뺀다).
+	     그 코드로 매입·재고조정이 잡히면 같은 물건의 재고가 주코드와 서브코드로 갈라진다(출고는 이미 주코드로 빠진다).
+	     화면 prod/subStockFix.jsp — ①재고가 남은 서브코드 ②서브코드로 잡힌 매입 줄(→ 매입등록에서 주코드로 바꾸도록 보낸다 — 여기서 고치지 않는다)
+	     ③남은 재고 0 으로 조정(서비스 saveSubStockZero → saveStockAdjBatch, 재고 일괄조정과 같은 조정행·이력 — 묶음 되돌리기 가능).
+	     · mainCnt  : 이 서브코드가 걸린 주코드 수 — 2 이상이면 합칠 곳을 못 정한다(조정 거부)
+	     · alsoMain : 이 코드가 다른 매칭 줄의 «주코드»이기도 한가 — 그러면 서브가 아니라 진짜 품목일 수 있다(조정 거부) -->
+	<select id="selectSubStockList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  WITH SUB AS (
+	    SELECT e.COMP_CD, x.cd AS SUB_CD, MIN(e.PROD_CD) AS MAIN_CD, COUNT(DISTINCT e.PROD_CD) AS MAIN_CNT
+	      FROM TBL_EXT_ITEM_MST e
+	      CROSS APPLY ( SELECT e.EXT_ITEM_CD UNION ALL SELECT e.ADD_ITEM_CD ) x(cd)
+	     WHERE e.ACTION_YN = 'Y' AND e.PROD_SEQ IS NOT NULL
+	       AND ISNULL(x.cd,'') <> '' AND x.cd <> e.PROD_CD
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR e.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	       AND ( ISNULL(#{subCd,jdbcType=VARCHAR},'') = '' OR x.cd = #{subCd,jdbcType=VARCHAR} )
+	       AND EXISTS ( SELECT 1 FROM TBL_PROD_MST p WHERE p.COMP_CD = e.COMP_CD AND p.ACTION_YN = 'Y' AND p.PROD_CD = x.cd )
+	     GROUP BY e.COMP_CD, x.cd
+	  ), L AS (
+	    SELECT l.COMP_CD, l.PROD_CD,
+	           SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY ELSE -l.QTY END) AS CUR,
+	           SUM(CASE WHEN l.REF_GB = 'PURCH' THEN (CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY ELSE -l.QTY END) ELSE 0 END) AS PURCH,
+	           SUM(CASE WHEN l.IO_GB = 'A' THEN l.QTY ELSE 0 END) AS ADJ
+	      FROM TBL_STOCK_LEDGER l
+	     WHERE l.ACTION_YN = 'Y'
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	       AND l.PROD_CD IN ( SELECT SUB_CD FROM SUB UNION SELECT MAIN_CD FROM SUB )
+	     GROUP BY l.COMP_CD, l.PROD_CD
+	  ), PM AS (
+	    SELECT COMP_CD, PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ FROM TBL_PROD_MST WHERE ACTION_YN = 'Y' GROUP BY COMP_CD, PROD_CD
+	  )
+	  SELECT s.SUB_CD AS subCd, ps.PROD_SEQ AS subSeq, ISNULL(p1.PROD_NM,'') AS subNm, ISNULL(p1.SPEC,'') AS subSpec,
+	         s.MAIN_CD AS mainCd, pmm.PROD_SEQ AS mainSeq, ISNULL(p2.PROD_NM,'') AS mainNm, ISNULL(p2.SPEC,'') AS mainSpec,
+	         s.MAIN_CNT AS mainCnt,
+	         ( SELECT COUNT(*) FROM TBL_EXT_ITEM_MST e3 WHERE e3.COMP_CD = s.COMP_CD AND e3.ACTION_YN = 'Y' AND e3.PROD_CD = s.SUB_CD ) AS alsoMain,
+	         ls.CUR AS subCur, ls.PURCH AS subPurch, ls.ADJ AS subAdj, ls.CUR - ls.PURCH - ls.ADJ AS subEtc,
+	         ISNULL(lm.CUR,0) AS mainCur,
+	         ( SELECT COUNT(*) FROM TBL_PURCHASE_DTL d JOIN TBL_PURCHASE_MST h ON h.PURCH_SEQ = d.PURCH_SEQ AND h.ACTION_YN = 'Y'
+	            WHERE d.COMP_CD = s.COMP_CD AND d.ACTION_YN = 'Y' AND d.PROD_CD = s.SUB_CD ) AS purchLines
+	    FROM SUB s
+	    JOIN L ls ON ls.COMP_CD = s.COMP_CD AND ls.PROD_CD = s.SUB_CD
+	    LEFT JOIN L lm ON lm.COMP_CD = s.COMP_CD AND lm.PROD_CD = s.MAIN_CD
+	    LEFT JOIN PM ps  ON ps.COMP_CD = s.COMP_CD AND ps.PROD_CD = s.SUB_CD
+	    LEFT JOIN TBL_PROD_MST p1 ON p1.PROD_SEQ = ps.PROD_SEQ
+	    LEFT JOIN PM pmm ON pmm.COMP_CD = s.COMP_CD AND pmm.PROD_CD = s.MAIN_CD
+	    LEFT JOIN TBL_PROD_MST p2 ON p2.PROD_SEQ = pmm.PROD_SEQ
+	   WHERE ls.CUR <> 0
+	   ORDER BY ABS(ls.CUR) DESC, s.SUB_CD
+	]]></select>
+
+	<!-- 서브코드 재고 정리 ② — 서브코드로 잡힌 매입 줄. 화면은 줄마다 [매입등록에서 열기]로 그 전표를 띄워 주코드로 바꾸게 한다 -->
+	<select id="selectSubPurchList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  WITH SUB AS (
+	    SELECT e.COMP_CD, x.cd AS SUB_CD, MIN(e.PROD_CD) AS MAIN_CD
+	      FROM TBL_EXT_ITEM_MST e
+	      CROSS APPLY ( SELECT e.EXT_ITEM_CD UNION ALL SELECT e.ADD_ITEM_CD ) x(cd)
+	     WHERE e.ACTION_YN = 'Y' AND e.PROD_SEQ IS NOT NULL
+	       AND ISNULL(x.cd,'') <> '' AND x.cd <> e.PROD_CD
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR e.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	       AND ( ISNULL(#{subCd,jdbcType=VARCHAR},'') = '' OR x.cd = #{subCd,jdbcType=VARCHAR} )
+	       AND EXISTS ( SELECT 1 FROM TBL_PROD_MST p WHERE p.COMP_CD = e.COMP_CD AND p.ACTION_YN = 'Y' AND p.PROD_CD = x.cd )
+	     GROUP BY e.COMP_CD, x.cd
+	  )
+	  SELECT h.PURCH_SEQ AS purchSeq, h.PURCH_DT AS purchDt, h.PURCH_NO AS purchNo, h.VENDOR_CD AS vendorCd, h.VENDOR_NM AS vendorNm,
+	         d.DTL_SEQ AS dtlSeq, d.ROW_NO AS rowNo, d.PROD_CD AS subCd, d.PROD_NM AS prodNm, ISNULL(d.SPEC,'') AS spec,
+	         d.QTY AS qty, d.UNIT_PRICE AS unitPrice, d.TOT_AMT AS totAmt, ISNULL(d.TRX_GB,'') AS trxGb, ISNULL(d.REMARK,'') AS remark,
+	         s.MAIN_CD AS mainCd,
+	         ( SELECT COUNT(*) FROM TBL_PURCHASE_DTL d2 WHERE d2.PURCH_SEQ = h.PURCH_SEQ AND d2.ACTION_YN = 'Y' ) AS lineCnt
+	    FROM TBL_PURCHASE_DTL d
+	    JOIN TBL_PURCHASE_MST h ON h.PURCH_SEQ = d.PURCH_SEQ AND h.ACTION_YN = 'Y'
+	    JOIN SUB s ON s.COMP_CD = d.COMP_CD AND s.SUB_CD = d.PROD_CD
+	   WHERE d.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   ORDER BY d.PROD_CD, h.PURCH_DT, h.PURCH_NO, d.ROW_NO
+	]]></select>
+
 	<!-- 조정 이력 기록 (원장행과 짝을 이룬다) -->
 	<insert id="insertStockAdjHis" parameterType="egovframework.sejong.user.model.StockAdjHisDTO"><![CDATA[
 	  INSERT INTO TBL_STOCK_ADJ_HIS

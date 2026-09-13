@@ -3159,7 +3159,7 @@
       <a class="mi" data-key="stockOutMonth" onclick="logiFrame('stockOutMonth','${pageContext.request.contextPath}/prod/stockOutMonth.do', this)"><span class="ic">📦</span>월별 출고현황</a>
       <a class="mi" data-key="closeStock" onclick="logiGo('closeStock', this)"><span class="ic">📒</span>재고마감</a>
       <%-- 재고 일괄조정 — 2026-08-20 잠깐 내렸다가 사용자 요청으로 되살림(입구는 여기 하나) --%>
-      <a class="mi" data-key="stockAdj" onclick="logiFrame('stockAdj','${pageContext.request.contextPath}/prod/stockAdj.do', this)"><span class="ic">🧮</span>재고 일괄조정</a>
+      <a class="mi" data-key="stockAdj" onclick="logiFrame('stockAdj','${pageContext.request.contextPath}/prod/stockAdj.do', this)"><span class="ic">🧮</span>재고 일괄조정</a><a class="mi" data-key="subStockFix" onclick="logiFrame('subStockFix','${pageContext.request.contextPath}/prod/subStockFix.do', this)" title="주코드에 매칭된 서브코드에 남은 재고 정리 — 서브코드로 잡힌 매입은 매입등록으로, 남은 재고는 0으로(2026-09-13)"><span class="ic">🧹</span>서브코드 재고 정리</a>
       <%-- 품목코드(매핑) — 기준정보에 있다가 재고 관리 맨 아래로 옮김(2026-08-01 요청).
            매핑이 안 되면 그 품목이 재고에서 빠지므로, 재고를 보다가 바로 갈 수 있는 자리가 맞다. --%>
       <a class="mi" data-key="xrefAudit" onclick="logiGo('xrefAudit', this); xaLoad();"><span class="ic">🔗</span>품목코드(매핑)</a>
@@ -3757,7 +3757,7 @@
             <div style="margin-top:4px;color:#5a6b7a"><b>· 📨 전송이력</b>(2026-09-10) <b>언제 · 누구에게 · 어떤 방법으로</b> 보냈는지 봅니다 — 거래명세표와 <b>같은 목록·같은 규칙</b>입니다. <b>[이 전표]</b> = 지금 발주서, <b>[전체 이력]</b> = 기간·거래처로 훑어보기. <span style="color:#b45309">💬 카톡 공유만 남고, 🔗 링크 복사는 보낸 것이 아니라 남기지 않습니다.</span> <b>👁 열람</b> = 받는 쪽이 그 주소로 발주서를 열어 봤음 · 줄마다 <b>[↻ 재전송]</b>(같은 수단으로 다시) · 다른 발주서 줄은 <b>[📂 전표 열기]</b>.</div></td></tr>
           <tr><td class="m">입고내역</td><td>전체 품목 <b>입고 거래 목록</b> — 기간·검색·페이징·합계.</td></tr>
           <tr><td class="m">매입마감</td><td><b>입고 기준</b> 당월 매입을 매입처·품목별로 집계(매입단가 = 가중평균).</td></tr>
-          <tr><td class="m">재고현황</td><td>실시간 현재고 = <b>입고 − 출고</b>(수불원장 하나만 봄). <b>기준일</b> 비움=현재고 / 날짜=그날까지 기말 → 마감월 말일로 맞추면 재고마감과 대사. <b>음수</b>면 입고 누락 신호. 품목 행 클릭 → 아래 <b>수불내역</b>(근거). <b>🏷 매입처별</b> = 품목을 대표 매입처(가장 최근 입고 매입처 → 없으면 상품마스터 거래처)로 묶어 소계와 함께(매입처 줄 클릭 = 접기). <b>🔄 출고반영 재집계</b>는 과거 보정용으로만.</td></tr>
+          <tr><td class="m">재고현황</td><td>실시간 현재고 = <b>입고 − 출고</b>(수불원장 하나만 봄). <b>기준일</b> 비움=현재고 / 날짜=그날까지 기말 → 마감월 말일로 맞추면 재고마감과 대사. <b>음수</b>면 입고 누락 신호. 품목 행 클릭 → 아래 <b>수불내역</b>(근거). <b>🏷 매입처별</b> = 품목을 대표 매입처(가장 최근 입고 매입처 → 없으면 상품마스터 거래처)로 묶어 소계와 함께(매입처 줄 클릭 = 접기). <b>🔄 출고반영 재집계</b>는 과거 보정용으로만. <b>🧹 서브코드 재고 정리</b>(재고 관리 메뉴) = 주코드에 매칭된 서브코드에 남은 재고를 찾아, 서브코드로 잡힌 매입은 [매입등록에서 열기]로 주코드로 바꾸고 남은 재고는 0으로 조정(기본 주코드에 합침 · 재고 일괄조정 [조정 이력]에서 되돌리기).</td></tr>
           <tr><td class="m">월별 출고현황</td><td><b>사업장 ▸ 품목</b>별 월 출고량 + 맨 윗줄 현재고. 출고량은 <b>납기일자</b> 기준으로 그 날 <b>정산서가 있으면 정산서</b>, 없으면 발주현황표(라벨수량) — 품목별재고현황과 같은 규칙. 셀을 누르면 아래 <b>출고내역·입고내역</b>. <b>기본 기간 = 올해 1월 1일 ~ 오늘</b>(기간이 곧 표의 열 수라 넓히면 그만큼 느려집니다). 거르기 칸은 <b>치던 손을 멈추면</b> 걸립니다(Enter 는 바로).</td></tr>
           <tr><td class="m">재고마감</td><td>기초+입고−출고±조정=<b>기말</b>, 재고금액=기말×이동평균. 기초는 <b>직전 확정월 기말에서 이월</b>.</td></tr>
         </tbody></table>
@@ -4786,7 +4786,7 @@
          id 규칙 : if-<메뉴키>. 이게 없으면 메뉴만 켜지고 화면이 비어 보인다. --%>
     <section id="panel-stockAdj" class="panel" style="padding:0;">
       <iframe id="if-stockAdj" src="" title="재고 일괄조정" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
-    </section>
+    </section><section id="panel-subStockFix" class="panel" style="padding:0;"><iframe id="if-subStockFix" src="" title="서브코드 재고 정리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
 
 
   </main>

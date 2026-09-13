@@ -276,6 +276,8 @@ public interface UserMapper {
 	/* ===== 매입등록 (TBL_PURCHASE_MST / DTL) — 2026-07-25 ===== */
 	java.util.List<egovframework.sejong.user.model.PurchaseDTO> selectPurchaseList(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
 	java.util.List<egovframework.sejong.user.model.PurchaseDtlDTO> selectPurchaseDtl(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectSubStockList(java.util.Map<String,Object> p) throws Exception;   // 서브코드 재고 정리 ① 재고가 남은 서브코드 (2026-09-13)
+	java.util.List<java.util.Map<String,Object>> selectSubPurchList(java.util.Map<String,Object> p) throws Exception;   // 서브코드 재고 정리 ② 서브코드로 잡힌 매입 줄 (2026-09-13)
 	String selectPurchaseNextNo(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
 	int insertPurchaseMst(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;
 	int updatePurchaseMst(egovframework.sejong.user.model.PurchaseDTO dto) throws Exception;

@@ -3592,6 +3592,49 @@ public class UserController {
 			return response;
 		}
 
+		/* ══ 서브코드 재고 정리 (2026-09-13) — 화면 prod/subStockFix.jsp ══════════════════════════════
+		   ①재고가 남은 서브코드 ②서브코드로 잡힌 매입 줄(→ 매입등록으로 보냄) ③남은 재고 0 으로 조정.
+		   ★③은 stockAdjSave 의 「서브코드로는 조정 불가」 관문의 <예외 길>이다 — 서브코드를 0 으로 비우는 것이 목적이라서.
+		     주코드·수량은 서버가 원장으로 다시 센다(화면 값 무시). */
+		@RequestMapping(value="/prod/subStockFix.do")
+		public String subStockFix(HttpSession session, ModelMap model) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/prod/subStockFix";   // 아이프레임 전용
+		}
+		@RequestMapping(value="/prod/subStockList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> subStockList(HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("compCd", session.getAttribute("s_comp_cd"));   // Map 이라 직접 넣는다
+			p.put("subCd", null);
+			return svc.selectSubStock(p);
+		}
+		@RequestMapping(value="/prod/subStockZero.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> subStockZero(@RequestBody Map<String,Object> body,
+		                                       HttpSession session, HttpServletRequest request) {
+			Map<String,Object> response = new HashMap<String,Object>();
+			try {
+				String comp = (String) session.getAttribute("s_comp_cd");
+				if (comp == null) { response.put("result", "FAIL"); response.put("message", "로그인이 필요합니다."); return response; }
+				java.util.List<String> cds = new java.util.ArrayList<String>();
+				Object raw = body.get("subCds");
+				if (raw instanceof java.util.List)
+					for (Object o : (java.util.List<?>) raw) { String s = str(o); if (s != null && !s.isEmpty()) cds.add(s); }
+				if (cds.isEmpty()) { response.put("result", "FAIL"); response.put("message", "고른 서브코드가 없습니다."); return response; }
+				String m = str(body.get("merge"));
+				boolean merge = !("false".equalsIgnoreCase(m) || "N".equalsIgnoreCase(m));   // 기본 = 합침
+				Map<String,Object> r = svc.saveSubStockZero(cds, merge, comp,
+				        (String) session.getAttribute("s_user_id"), request.getRemoteAddr());
+				response.putAll(r);
+				response.put("result", "OK");
+			} catch (Exception e) {
+				response.put("result", "FAIL");
+				response.put("message", e.getMessage());
+			}
+			return response;
+		}
+
 		/* 조정 이력 */
 		@RequestMapping(value="/prod/stockAdjHisList.do", method = RequestMethod.POST)
 		@ResponseBody

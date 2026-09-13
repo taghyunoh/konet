@@ -1190,6 +1190,84 @@ public class UserServiceImpl implements UserService {
 		return n;
 	}
 
+	/* ══ 서브코드 재고 정리 (2026-09-13 「주코드에 매칭된 서브코드 제품 모두 재고 0으로 조정」) ══════════════
+	   화면 prod/subStockFix.jsp — ①재고가 남은 서브코드 ②서브코드로 잡힌 매입 줄 ③남은 재고 0 으로 조정.
+	   ★매입 전표는 여기서 고치지 않는다 — 화면이 매입등록으로 보내 그 전표에서 주코드로 바꾸게 한다(사용자 결정 「중복업무라서」).
+	   ★조정은 saveStockAdjBatch 를 그대로 쓴다 — 조정행(A)·이력(TBL_STOCK_ADJ_HIS)·묶음번호가 재고 일괄조정과 같아
+	     그 화면 [조정 이력]에서 보이고 묶음째 되돌릴 수 있다. (서브코드 조정을 막는 관문은 컨트롤러 stockAdjSave 에만 있다 — 여기는 그 예외 길)
+	   ★조정 전 수량은 화면 값을 믿지 않고 여기서 원장으로 다시 센다. */
+	@Override
+	public java.util.Map<String,Object> selectSubStock(java.util.Map<String,Object> p) throws Exception {
+		java.util.Map<String,Object> r = new java.util.HashMap<String,Object>();
+		r.put("subs",  mapper.selectSubStockList(p));
+		r.put("purch", mapper.selectSubPurchList(p));
+		return r;
+	}
+
+	@Override
+	@org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
+	public java.util.Map<String,Object> saveSubStockZero(java.util.List<String> subCds, boolean merge,
+	                                                    String compCd, String user, String ip) throws Exception {
+		java.util.List<egovframework.sejong.user.model.StockAdjHisDTO> rows =
+		        new java.util.ArrayList<egovframework.sejong.user.model.StockAdjHisDTO>();
+		/* 주코드마다 더할 수량 — 서브코드 여럿이 한 주코드에 걸릴 수 있다. {주코드 PROD_SEQ, 주코드 현재고, 더할 수량} */
+		java.util.LinkedHashMap<String, long[]> mainAdd = new java.util.LinkedHashMap<String, long[]>();
+		int subs = 0;
+		for (String raw : subCds) {
+			String cd = raw == null ? "" : raw.trim();
+			if (cd.isEmpty()) continue;
+			java.util.Map<String,Object> q = new java.util.HashMap<String,Object>();
+			q.put("compCd", compCd); q.put("subCd", cd);
+			java.util.List<java.util.Map<String,Object>> l = mapper.selectSubStockList(q);
+			if (l == null || l.isEmpty()) continue;                    // 그새 0 이 됐다 — 건너뜀
+			java.util.Map<String,Object> s = l.get(0);
+			if (subNum(s.get("mainCnt")) > 1)
+				throw new Exception("서브코드 " + cd + " 가 주코드 여러 개에 매칭돼 있어 합칠 곳을 정할 수 없습니다 — 상품코드등록에서 먼저 정리하세요.");
+			if (subNum(s.get("alsoMain")) > 0)
+				throw new Exception("코드 " + cd + " 는 다른 매칭코드의 주코드이기도 합니다 — 서브코드가 아닐 수 있어 조정하지 않습니다(상품코드등록에서 확인).");
+			long subSeq = subNum(s.get("subSeq"));
+			if (subSeq <= 0) throw new Exception("서브코드 " + cd + " 가 상품마스터에 없습니다.");
+			int cur = (int) subNum(s.get("subCur"));
+			if (cur == 0) continue;
+			rows.add(subAdjRow(subSeq, cd, cur, 0));
+			subs++;
+			if (merge) {
+				String mc = String.valueOf(s.get("mainCd"));
+				long[] a = mainAdd.get(mc);
+				if (a == null) { a = new long[]{ subNum(s.get("mainSeq")), subNum(s.get("mainCur")), 0L }; mainAdd.put(mc, a); }
+				a[2] += cur;
+			}
+		}
+		for (java.util.Map.Entry<String, long[]> e : mainAdd.entrySet()) {
+			long[] a = e.getValue();
+			if (a[0] <= 0) throw new Exception("주코드 " + e.getKey() + " 가 상품마스터에 없습니다.");
+			rows.add(subAdjRow(a[0], e.getKey(), (int) a[1], (int) (a[1] + a[2])));
+		}
+		egovframework.sejong.user.model.StockAdjHisDTO head = new egovframework.sejong.user.model.StockAdjHisDTO();
+		head.setCompCd(compCd);
+		head.setBaseDt(new java.text.SimpleDateFormat("yyyyMMdd").format(new java.util.Date()));
+		head.setRemark(merge ? "서브코드 정리 — 주코드로 합침" : "서브코드 정리 — 0으로");
+		head.setRegUser(user); head.setRegIp(ip);
+		int n = rows.isEmpty() ? 0 : saveStockAdjBatch(head, rows);
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		res.put("cnt", n); res.put("subs", subs); res.put("mains", mainAdd.size()); res.put("batchNo", head.getBatchNo());
+		return res;
+	}
+	/** 조회 결과(HashMap)의 숫자 — SQL Server 는 칸에 따라 Integer·Long·BigDecimal 로 준다 */
+	private static long subNum(Object o) {
+		if (o == null) return 0L;
+		if (o instanceof Number) return Math.round(((Number) o).doubleValue());
+		try { return Math.round(Double.parseDouble(String.valueOf(o))); } catch (Exception e) { return 0L; }
+	}
+	/** 조정 한 줄 — EA 로만(입수 1) : 조정 전 bef → 조정 후 aft */
+	private static egovframework.sejong.user.model.StockAdjHisDTO subAdjRow(long seq, String cd, int bef, int aft) {
+		egovframework.sejong.user.model.StockAdjHisDTO r = new egovframework.sejong.user.model.StockAdjHisDTO();
+		r.setProdSeq(Long.valueOf(seq)); r.setProdCd(cd); r.setPackQty(Integer.valueOf(1));
+		r.setBefQty(Integer.valueOf(bef)); r.setBefBox(Integer.valueOf(bef)); r.setBefEa(Integer.valueOf(0));
+		r.setAftBox(Integer.valueOf(aft)); r.setAftEa(Integer.valueOf(0));
+		return r;
+	}
+
 	@Override
 	public java.util.List<egovframework.sejong.user.model.StockAdjHisDTO>
 	    selectStockAdjHisList(egovframework.sejong.user.model.StockAdjHisDTO dto) throws Exception {
