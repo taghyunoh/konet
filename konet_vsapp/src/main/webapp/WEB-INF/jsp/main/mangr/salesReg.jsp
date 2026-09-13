@@ -4221,6 +4221,7 @@ function saMailErrMsg(e){
     /* ★「지금 쓰는 비밀번호가 어디서 오는가」를 같이 적는다 (2026-09-10) — 실행옵션이 파일보다 우선이라
          새 WAR 를 올려도 <옛 실행옵션>이 걸려 있으면 조용히 그쪽이 쓰인다. 고칠 자리를 못 찾는 이유가 이것이다. */
     var wh = (_mailPwFrom === '실행옵션') ? '지금 비밀번호는 <b>톰캣 실행옵션</b>(-Dmail.smtp.password)에서 옵니다 — <b>파일을 고쳐도 안 바뀝니다.</b>'
+           : (_mailPwFrom === '톰캣설정파일') ? '지금 비밀번호는 <b>톰캣 conf\\konet-mail.properties</b> 에서 옵니다 — 거기 한 줄을 고치면 됩니다.'
            : (_mailPwFrom === '파일')     ? '지금 비밀번호는 <b>mail.properties 파일</b>에서 옵니다.'
            : '';
     return '메일 계정이 거부됐습니다 <b>(535 인증 실패)</b>.<br><span style="font-size:12.5px;color:#3d4d5c">보내는 계정(<b>'+esc(String(_mailFrom||'메일 계정'))+'</b>)의 <b>앱 비밀번호</b>를 다시 발급해 넣어야 합니다 — <b>받는 주소와는 상관없습니다.</b>'

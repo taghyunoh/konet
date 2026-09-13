@@ -23,8 +23,13 @@ import javax.mail.internet.MimeMessage;
  * <p>★<b>계정이 비어 있으면 보내지 않고 {@link #ready()} 가 false 를 돌려준다.</b>
  *   화면은 그때 [메일 프로그램 열기] 로 넘긴다 — 계정이 없어도 기능이 죽지 않게 하려는 것이다.
  *
- * <p>★비밀번호는 톰캣 실행옵션(-Dmail.smtp.password=…)이 properties 파일보다 <b>먼저</b> 쓰인다.
- *   운영 서버에서는 그쪽에 넣어 두면 소스에 비밀번호가 남지 않는다.
+ * <p>★<b>설정을 찾는 차례</b> (2026-09-14 — 비밀번호를 저장소에서 뺐다) :
+ *   <ol>
+ *   <li>톰캣 실행옵션 {@code -Dmail.smtp.password=…}</li>
+ *   <li><b>{@code <톰캣>/conf/konet-mail.properties}</b> — git 밖 파일. WAR 를 새로 올려도 지워지지 않는다.
+ *       <b>비밀번호는 여기에 둔다</b>(PC·운영 서버마다 한 번 만든다).</li>
+ *   <li>{@code src/main/resources/mail.properties} — 저장소 파일. 서버·아이디·보내는사람만 담고 비밀번호는 빈 칸.</li>
+ *   </ol>
  *
  * <p>⚠네이버·구글은 로그인 비밀번호가 아니라 <b>애플리케이션 비밀번호</b>를 요구한다.
  *   네이버는 465(SSL), 구글은 465(SSL) 또는 587(STARTTLS).
@@ -33,21 +38,42 @@ public class MailSender {
 
 	private MailSender() {}
 
-	/** 실행옵션(-D…) → mail.properties 차례로 찾는다. 발주서 카톡 설정(poProp)과 같은 규칙. */
+	/** git 밖에 두는 설정 파일 이름 — {@code <톰캣>/conf/} 아래 (2026-09-14) */
+	public static final String EXT_FILE = "konet-mail.properties";
+
+	/** 실행옵션(-D…) → 톰캣 conf/konet-mail.properties → mail.properties 차례로 찾는다. */
 	public static String prop(String key) {
 		try { String v = System.getProperty(key); if (v != null && !v.trim().isEmpty()) return v.trim(); } catch (Exception e) {}
+		String v = extProp(key);
+		if (!v.isEmpty()) return v;
 		/* ResourceBundle 은 Java 8 에서 ISO-8859-1 로 읽어 한글(보내는사람 이름)이 깨진다 — UTF-8 로 직접 읽는다 */
 		try (InputStream in = MailSender.class.getClassLoader().getResourceAsStream("mail.properties")) {
 			if (in == null) return "";
 			Properties p = new Properties();
 			p.load(new InputStreamReader(in, StandardCharsets.UTF_8));
-			String v = p.getProperty(key);
-			return v == null ? "" : v.trim();
+			String s = p.getProperty(key);
+			return s == null ? "" : s.trim();
+		} catch (Exception e) { return ""; }
+	}
+
+	/** {@code <톰캣>/conf/konet-mail.properties} 의 값 — 파일이 없거나 톰캣 밖(catalina.base 없음)이면 빈 값 */
+	private static String extProp(String key) {
+		try {
+			String base = System.getProperty("catalina.base");
+			if (base == null || base.trim().isEmpty()) return "";
+			java.io.File f = new java.io.File(new java.io.File(base.trim(), "conf"), EXT_FILE);
+			if (!f.isFile()) return "";
+			try (InputStream in = new java.io.FileInputStream(f)) {
+				Properties p = new Properties();
+				p.load(new InputStreamReader(in, StandardCharsets.UTF_8));
+				String s = p.getProperty(key);
+				return s == null ? "" : s.trim();
+			}
 		} catch (Exception e) { return ""; }
 	}
 
 	/**
-	 * 지금 쓰는 비밀번호가 <b>어디서 온 것인가</b> — {@code "실행옵션"} / {@code "파일"} / {@code "없음"}.
+	 * 지금 쓰는 비밀번호가 <b>어디서 온 것인가</b> — {@code "실행옵션"} / {@code "톰캣설정파일"} / {@code "파일"} / {@code "없음"}.
 	 *
 	 * <p>★비밀번호 <b>값은 절대 내보내지 않는다</b> — 「어디서 왔나」만 말한다.
 	 *
@@ -57,6 +83,7 @@ public class MailSender {
 	 */
 	public static String pwSource() {
 		try { String v = System.getProperty("mail.smtp.password"); if (v != null && !v.trim().isEmpty()) return "실행옵션"; } catch (Exception e) {}
+		if (!extProp("mail.smtp.password").isEmpty()) return "톰캣설정파일";
 		return prop("mail.smtp.password").length() > 0 ? "파일" : "없음";
 	}
 
@@ -77,7 +104,7 @@ public class MailSender {
 	 * @throws IllegalStateException 계정이 설정되지 않았을 때
 	 */
 	public static void sendHtml(String to, String subject, String html) throws Exception {
-		if (!ready()) throw new IllegalStateException("메일 계정이 설정되지 않았습니다 (mail.properties).");
+		if (!ready()) throw new IllegalStateException("메일 계정이 설정되지 않았습니다 (비밀번호 = 톰캣 conf/" + EXT_FILE + ").");
 		if (to == null || to.trim().isEmpty()) throw new IllegalArgumentException("받는사람이 비어 있습니다.");
 
 		final String host = prop("mail.smtp.host");

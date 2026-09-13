@@ -109,10 +109,27 @@ konet_vsapp 은 같은 꼴에서 `konet_vsweb` → `konet_vsapp` 로 바꾼다.
 
 ---
 
-## 6. 주의 — 비밀번호 파일
+## 6. 메일 비밀번호 — 저장소가 아니라 **톰캣 conf 폴더**에 둔다 (2026-09-14)
 
-`src/main/resources/mail.properties` 에 메일 계정 비밀번호가 들어간 채로 저장소에 올라가 있다(파일 주석은 「저장소에는 빈 채로」).
-PC 가 늘수록 그 파일도 같이 퍼진다. 운영 서버는 톰캣 실행옵션 `-Dmail.smtp.password=` 가 파일보다 우선이다.
+저장소의 `src/main/resources/mail.properties` 는 서버·아이디·보내는사람만 담고 **비밀번호 칸은 비어 있다.**
+비밀번호는 PC(와 운영 서버)마다 **톰캣 `conf` 폴더에 파일 하나**로 둔다 — git 밖이라 WAR 를 새로 올려도 지워지지 않는다.
+
+```
+C:\egv\Servers\konet_vsweb-tomcat\conf\konet-mail.properties
+C:\egv\Servers\konet_vsapp-tomcat\conf\konet-mail.properties
+```
+
+내용은 한 줄 (UTF-8) :
+
+```
+mail.smtp.password=네이버_애플리케이션_비밀번호
+```
+
+- 읽는 차례 : 톰캣 실행옵션 `-Dmail.smtp.password=` → **이 파일** → 저장소 `mail.properties`
+- 이 파일이 없는 PC 는 서버 메일 발송이 꺼지고 [이메일발송]이 메일 프로그램 열기로 넘어간다(기능은 안 죽는다).
+- 비밀번호를 바꾸면 이 줄만 고친다 — 톰캣 재기동 없이 다음 발송부터 쓰인다.
+- ⚠ 2026-09-09 ~ 09-14 사이 커밋에는 옛 비밀번호가 남아 있다(git 이력) — **네이버에서 애플리케이션 비밀번호를 새로 발급**해
+  이 파일들에만 넣으면 옛 값은 쓸모가 없어진다.
 
 ---
 
