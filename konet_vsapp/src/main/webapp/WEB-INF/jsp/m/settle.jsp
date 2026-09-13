@@ -17,7 +17,7 @@
 <link rel="manifest" href="<%=request.getContextPath()%>/m/manifest.json">
 <link rel="apple-touch-icon" href="<%=request.getContextPath()%>/m/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20260912a">
+<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20260913a">
 <script src="<%=request.getContextPath()%>/asset/js/ui-message.js"></script>
 <script src="<%=request.getContextPath()%>/m/m.js?v=20260911d"></script>
 <style>
