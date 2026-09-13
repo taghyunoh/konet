@@ -2742,7 +2742,7 @@
     sum.innerHTML=(_onlyA ? (_aliasReady ? '<b style="color:#b06a00">매칭코드 있는 것만</b> · '
                                         : '<span style="color:#9aa7b3">매칭코드 불러오는 중…</span> · ') : '')
       +(_stkSrchVia ? ('<b style="color:#b06a00">'+_cesc(_stkSrchVia)+'</b><span style="color:#9aa7b3">는 매칭코드 — 대표코드로 찾았습니다</span> · ') : '')
-      +'총 <b>'+view.length.toLocaleString()+'</b>품목 · 입고합 <b>'+_cnum(tI)+'</b> · 출고합 <b>'+_cnum(tO)+'</b> · 현재고합 <b>'+_cnum(tQ)+'</b> · 재고금액합 <b>'+_cnum(tA)+'</b>';
+      +'총 <b>'+view.length.toLocaleString()+'</b>품목 · 입고합 <b>'+_cnum(tI)+'</b> · 출고합 <b>'+_cnum(tO)+'</b> · 현재고합 <b>'+_cnum(tQ)+'</b> · 재고금액합 <b>'+_cnum(tA)+'</b>'+(window.stkVenSumTxt?stkVenSumTxt(view):'');
     var totalRow='<tr class="close-total"><td colspan="2" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tI)+'</td><td style="text-align:right">'+_cnum(tO)+'</td><td style="text-align:right">'+_cnum(tQ)+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td><td></td></tr>';
     var stkRow=function(r){ var neg=(+r.curQty||0)<0;
       /* 하위 행이 붙는 줄은 대표 줄 위에도 선을 그어 '한 덩어리' 로 보이게 한다(2026-08-07 요청).
@@ -2778,7 +2778,7 @@
     /* noFit — ① 높이는 lzFit 이 아니라 _stkLedFit(아래 ②와 함께 잡는 오케스트레이터)가 정한다 (2026-08-28) */
     lzMount({ wrap:wrap, pager:'stkStatusPager', rows:STK_PAGE, capTop:300, noFit:true,
               head:'<table class="logi-tb">'+thead+'<tbody>'+totalRow,
-              list:view, rowFn:stkRow });
+              list:(window.stkVenList?stkVenList(view):view), rowFn:function(x){ return (x&&x.__vg) ? stkVenHead(x) : stkRow(x); } });   /* [🏷 매입처별] 묶음(2026-09-13) — 함수는 logi-oh.js */
     /* ★표를 새로 그린 직후 머리줄 높이를 다시 잰다 — 배율·글꼴이 달라지면 높이가 바뀌고,
          그 값이 총합계 줄이 붙을 자리(top)다. 안 재면 둘이 겹친다(2026-08-31). */
     _stkStickyFit('stkStatusWrap');
@@ -3757,7 +3757,7 @@
             <div style="margin-top:4px;color:#5a6b7a"><b>· 📨 전송이력</b>(2026-09-10) <b>언제 · 누구에게 · 어떤 방법으로</b> 보냈는지 봅니다 — 거래명세표와 <b>같은 목록·같은 규칙</b>입니다. <b>[이 전표]</b> = 지금 발주서, <b>[전체 이력]</b> = 기간·거래처로 훑어보기. <span style="color:#b45309">💬 카톡 공유만 남고, 🔗 링크 복사는 보낸 것이 아니라 남기지 않습니다.</span> <b>👁 열람</b> = 받는 쪽이 그 주소로 발주서를 열어 봤음 · 줄마다 <b>[↻ 재전송]</b>(같은 수단으로 다시) · 다른 발주서 줄은 <b>[📂 전표 열기]</b>.</div></td></tr>
           <tr><td class="m">입고내역</td><td>전체 품목 <b>입고 거래 목록</b> — 기간·검색·페이징·합계.</td></tr>
           <tr><td class="m">매입마감</td><td><b>입고 기준</b> 당월 매입을 매입처·품목별로 집계(매입단가 = 가중평균).</td></tr>
-          <tr><td class="m">재고현황</td><td>실시간 현재고 = <b>입고 − 출고</b>(수불원장 하나만 봄). <b>기준일</b> 비움=현재고 / 날짜=그날까지 기말 → 마감월 말일로 맞추면 재고마감과 대사. <b>음수</b>면 입고 누락 신호. 품목 행 클릭 → 아래 <b>수불내역</b>(근거). <b>🔄 출고반영 재집계</b>는 과거 보정용으로만.</td></tr>
+          <tr><td class="m">재고현황</td><td>실시간 현재고 = <b>입고 − 출고</b>(수불원장 하나만 봄). <b>기준일</b> 비움=현재고 / 날짜=그날까지 기말 → 마감월 말일로 맞추면 재고마감과 대사. <b>음수</b>면 입고 누락 신호. 품목 행 클릭 → 아래 <b>수불내역</b>(근거). <b>🏷 매입처별</b> = 품목을 대표 매입처(가장 최근 입고 매입처 → 없으면 상품마스터 거래처)로 묶어 소계와 함께(매입처 줄 클릭 = 접기). <b>🔄 출고반영 재집계</b>는 과거 보정용으로만.</td></tr>
           <tr><td class="m">월별 출고현황</td><td><b>사업장 ▸ 품목</b>별 월 출고량 + 맨 윗줄 현재고. 출고량은 <b>납기일자</b> 기준으로 그 날 <b>정산서가 있으면 정산서</b>, 없으면 발주현황표(라벨수량) — 품목별재고현황과 같은 규칙. 셀을 누르면 아래 <b>출고내역·입고내역</b>. <b>기본 기간 = 올해 1월 1일 ~ 오늘</b>(기간이 곧 표의 열 수라 넓히면 그만큼 느려집니다). 거르기 칸은 <b>치던 손을 멈추면</b> 걸립니다(Enter 는 바로).</td></tr>
           <tr><td class="m">재고마감</td><td>기초+입고−출고±조정=<b>기말</b>, 재고금액=기말×이동평균. 기초는 <b>직전 확정월 기말에서 이월</b>.</td></tr>
         </tbody></table>
@@ -3966,7 +3966,7 @@
           <%-- 매칭코드 하위 행 일괄 접기/펼치기 (2026-08-07 요청) — 매칭이 여럿인 품목은
                한 줄이 다섯 줄까지 늘어나 목록을 훑기 어렵다. 줄마다 ▼ 로도 접을 수 있다. --%>
           <button class="btn-line" id="stkExpBtn" onclick="stkExpToggleAll()" style="height:24px;padding:0 9px;font-size:12px;white-space:nowrap"
-                  title="매칭코드 하위 줄을 한꺼번에 접거나 펼칩니다. 줄마다 있는 ▼ 로 하나씩도 됩니다.">▼ 매칭 접기</button>
+                  title="매칭코드 하위 줄을 한꺼번에 접거나 펼칩니다. 줄마다 있는 ▼ 로 하나씩도 됩니다.">▼ 매칭 접기</button><button class="btn-line" id="stkVenBtn" onclick="stkVenToggle()" style="height:24px;padding:0 9px;font-size:12px;white-space:nowrap;background:#e3f2ee;color:#0f6b5e;font-weight:800" title="품목을 대표 매입처(가장 최근에 입고한 매입처 → 없으면 상품마스터 거래처)로 묶어 소계와 함께 봅니다. 매입처 줄을 누르면 접힙니다.">🏷 매입처별</button><button class="btn-line" id="stkVenFoldBtn" onclick="stkVenFoldAll()" style="height:24px;padding:0 9px;font-size:12px;white-space:nowrap;display:none" title="매입처 묶음을 한꺼번에 접거나 펼칩니다.">⊟ 매입처 접기</button>
           <span style="margin-left:auto;font-size:11.5px;color:#9aa7b3;white-space:nowrap">
             집계 <b id="stkStamp" style="color:#178074">—</b> · 행 클릭 → ② 수불내역
           </span>

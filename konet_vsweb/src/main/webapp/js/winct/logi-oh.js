@@ -5812,6 +5812,65 @@ function ssOutQty(o){
     });
   }
 
+  /* ══ 재고현황 ① [🏷 매입처별] 묶어 보기 (2026-09-13 「거래처별 재고 현황」) ══════════
+       ★여기(logi-oh.js)에 둔 이유 : demo2 JSP 는 _jspService 65,535 바이트 한계에 붙어 있어 JS 를 늘리면 안 된다(이 파일 머리말).
+         JSP(stkStatusRender)에는 기존 줄만 고쳐 걸었다 — list/rowFn · 요약줄 · 단추(줄 수 불변).
+       · 대표 매입처 = 서버 selectStockMstList 의 vendorCd·vendorNm : 가장 최근 입고 매입처 → 없으면 상품마스터 거래처.
+       · 묶음 순서 = 매입처 이름순, 「매입처 없음」은 맨 아래. 묶음 안은 종전 순서(품목코드).
+       · 머리줄 = 품목수·입고·출고·현재고·재고금액 소계, 누르면 그 묶음만 접힌다. 켜기/끄기는 localStorage(konetStkVen) 에 기억.
+       · ⚠머리줄 tr 에는 onclick 을 달지 않는다 — ① 키보드 이동(_stkKeyBind)이 tr[onclick] 을 품목 줄로 본다(첫 칸 td 에 단다).
+       · ⚠칸 수 9 = ①표 머리글(품목코드·품목명·입고·출고·현재고·이동평균단가·재고금액·최근입고·최근출고)과 같아야 한다. */
+  var _stkVen = (function(){ try{ return localStorage.getItem('konetStkVen')==='1'; }catch(e){ return false; } })();
+  var _stkVenFold = {}, _stkVenFoldAll = false;          // _stkVenFold[매입처코드] = true 면 접힘
+  function _stkVenOpen(k){ var v=_stkVenFold[k]; return (v===undefined) ? !_stkVenFoldAll : !v; }
+  function _stkVenKey(r){ return String((r&&r.vendorCd)||'').trim(); }
+  function _stkVenPaint(){
+    var b=document.getElementById('stkVenBtn'), f=document.getElementById('stkVenFoldBtn');
+    if(b){ b.innerHTML=_stkVen?'🏷 매입처별 ✓':'🏷 매입처별'; b.style.color='#0f6b5e'; b.style.fontWeight='800';
+           b.style.background=_stkVen?'#c3e2d8':'#e3f2ee'; b.style.borderColor=_stkVen?'#7fbfae':'#b9dccf'; }
+    if(f){ f.style.display=_stkVen?'':'none'; f.innerHTML=_stkVenFoldAll?'⊞ 매입처 펼치기':'⊟ 매입처 접기'; }
+  }
+  /* 표시 목록 = [매입처 머리줄, 그 품목들…] 을 이어 붙인 것. 꺼져 있으면 받은 목록 그대로 */
+  function stkVenList(view){
+    _stkVenPaint();
+    if(!_stkVen) return view;
+    var g={}, order=[];
+    view.forEach(function(r){
+      var k=_stkVenKey(r), o=g[k];
+      if(!o){ o=g[k]={ __vg:1, k:k, nm:(k ? (String(r.vendorNm||'').trim()||k) : '(매입처 없음)'), rows:[], inQ:0, outQ:0, curQ:0, amt:0 }; order.push(o); }
+      o.rows.push(r); o.inQ+=(+r.inQty||0); o.outQ+=(+r.outQty||0); o.curQ+=(+r.curQty||0); o.amt+=(+r.stockAmt||0);
+    });
+    order.sort(function(a,b){ if(!a.k !== !b.k) return a.k ? -1 : 1; return a.nm.localeCompare(b.nm,'ko'); });
+    var out=[];
+    order.forEach(function(o){ o.open=_stkVenOpen(o.k); out.push(o); if(o.open) Array.prototype.push.apply(out, o.rows); });
+    return out;
+  }
+  function stkVenHead(g){
+    var bg='background:#dcefe7;', k=String(g.k).replace(/['"\\<>]/g,'');
+    return '<tr class="stk-vgrp">'
+      +'<td colspan="2" style="'+bg+'text-align:left;cursor:pointer;font-weight:800;color:#0b5246" onclick="stkVenFold(\''+k+'\')" title="눌러서 이 매입처 품목 접기/펼치기">'
+      +(g.open?'▼':'▶')+' 🏷 '+_cesc(g.nm)+(g.k?' <span style="font-weight:500;color:#4c6a8a">('+_cesc(g.k)+')</span>':'')
+      +' <span style="font-size:11.5px;font-weight:600;color:#4c6a8a">· '+g.rows.length.toLocaleString()+'품목</span></td>'
+      +'<td style="'+bg+'text-align:right;font-weight:700;color:#137a6c">'+_cnum(g.inQ)+'</td>'
+      +'<td style="'+bg+'text-align:right;font-weight:700;color:#b06a00">'+_cnum(g.outQ)+'</td>'
+      +'<td style="'+bg+'text-align:right;font-weight:800;color:'+(g.curQ<0?'#c0392b':'#0b5246')+'">'+_cnum(g.curQ)+'</td>'
+      +'<td style="'+bg+'"></td><td style="'+bg+'text-align:right;font-weight:700">'+_cnum(g.amt)+'</td>'
+      +'<td style="'+bg+'"></td><td style="'+bg+'"></td></tr>';
+  }
+  /* 요약줄 꼬리 — 켜져 있을 때만 「· 매입처 N곳」 */
+  function stkVenSumTxt(view){
+    if(!_stkVen) return '';
+    var s={}; view.forEach(function(r){ s[_stkVenKey(r)]=1; });
+    return ' · <b style="color:#0f6b5e">매입처별</b> <b>'+Object.keys(s).length.toLocaleString()+'</b>곳';
+  }
+  function stkVenToggle(){
+    _stkVen=!_stkVen; _stkVenFold={}; _stkVenFoldAll=false;
+    try{ localStorage.setItem('konetStkVen', _stkVen?'1':'0'); }catch(e){}
+    stkStatusRender();
+  }
+  function stkVenFold(k){ _stkVenFold[k]=_stkVenOpen(k); stkStatusRender(); }
+  function stkVenFoldAll(){ _stkVenFoldAll=!_stkVenFoldAll; _stkVenFold={}; stkStatusRender(); }
+
   /* ══ 표 공통 — N행씩 보여주고 나머지는 스크롤로 자동 이어붙이기(무한 스크롤) ══════════
        쓰는 곳 : 매출내역 4탭(18행) · 재고현황 ①품목별 현재고(10행)
        화면 쪽에서는 '표시행 목록(list)'과 '행 하나를 HTML 로 만드는 함수(rowFn)'만 넘긴다.

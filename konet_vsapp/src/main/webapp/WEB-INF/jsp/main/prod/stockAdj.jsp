@@ -139,7 +139,7 @@
     <label><input type="checkbox" id="zeroExc"> 재고 0 제외</label>
 
     <label>기준일자</label>
-    <input type="date" id="baseDt">
+    <input type="date" id="baseDt" title="오늘(또는 그 뒤) = 지금 현재고 전체(품목별재고현황과 같은 숫자 — 내일 납기로 이미 나간 출고까지 뺀 값)&#10;지난 날짜 = 그날까지의 누계 재고. 조정행도 이 날짜로 남습니다.">
 
     <%-- ★한 번 읽었으면 화면에서 거른다 — 누를 때마다 현재고 집계(느린 조회)가 돌지 않게(2026-08-20).
          서버를 다시 읽는 길 = 기준일자 변경 · 저장 직후 자동 재조회. --%>
@@ -370,7 +370,13 @@ function load(){
      검색·필터·정렬은 applyFilter 가 화면에서 건다 — 글자 칠 때마다
      원장 집계 쿼리가 도는 것이 느린 원인이었다. */
   var p = new URLSearchParams();
-  p.append('asOfDt',    gel('baseDt').value || '');
+  /* ★[2026-09-13 「두 화면 맞추기」] 기준일자가 <오늘 이후>면 날짜로 자르지 않는다 = 품목별재고현황과 같은 «전체 현재고».
+       원장 출고의 날짜는 <납기일자>라, 내일 납기분(이미 창고에서 나간 것)이 오늘 기준으로는 빠져 두 화면이 달랐다
+       (9904013376 : 재고 일괄조정 983 / 품목별재고현황 977 — 9/14 납기 6개 차이). 조정 저장은 화면의 이 숫자를 조정 전 수량으로 쓴다.
+       지난 날짜를 고르면 종전대로 그날까지의 누계. */
+  var _bd = gel('baseDt').value || '', _nw = new Date(),
+      _td = _nw.getFullYear() + '-' + ('0'+(_nw.getMonth()+1)).slice(-2) + '-' + ('0'+_nw.getDate()).slice(-2);
+  p.append('asOfDt',    (_bd && _bd < _td) ? _bd : '');
 
   gel('body').innerHTML = '<tr><td colspan="12" class="c dim" style="padding:26px">불러오는 중…</td></tr>';
 

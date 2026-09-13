@@ -53,10 +53,16 @@
   table.mx thead th{ background:#dfeaf5; color:#1f2a37; font-size:14px; }
   table.mx thead th.cn, table.mx thead th.rt{ z-index:4; }
   /* 1단 = 사업장(매칭명) · 2단 = 품목. 2단은 1단 높이(--h1, 그릴 때 잰다)만큼 내려 붙인다 */
-  table.mx thead th.gh{ background:#cfe0f3; font-size:14px; font-weight:800; color:#123c63; white-space:nowrap; line-height:1.3; min-width:96px; text-align:left; }
-  /* 사업장 이름은 칸 안에서 sticky — 40품목짜리 사업장은 칸이 수천 px 라 가운데 두면 이름이 화면 밖에 간다. 고정칸(150+90) 바로 뒤에 붙인다 */
-  table.mx thead th.gh .gl{ position:sticky; left:250px; display:inline-block; }
-  table.mx thead th.gh small{ display:block; font-size:11.5px; font-weight:600; color:#4c6a8a; }
+  table.mx thead th.gh{ background:#cfe0f3; font-size:14px; font-weight:800; color:#123c63; white-space:nowrap; line-height:1.3; min-width:96px; text-align:left; overflow:clip; }
+  /* 사업장 이름은 칸 안에서 sticky — 40품목짜리 사업장은 칸이 수천 px 라 가운데 두면 이름이 화면 밖에 간다. 고정칸(150+90) 바로 뒤에 붙인다
+     ★[2026-09-13 「겹쳐나옴」] 1~2품목 사업장은 칸이 좁아 긴 이름이 옆 칸 위로 넘쳤다 → 칸 폭에서 끊고 「…」(전체 이름은 th 의 title 툴팁).
+     ⚠th 에 overflow:hidden 을 쓰면 th 가 스크롤 상자가 되어 이름 sticky 가 풀린다 — 그래서 th 는 clip, 끊기는 .gl 이 한다. */
+  table.mx thead th.gh .gl{ position:sticky; left:250px; display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; vertical-align:top; }
+  table.mx thead th.gh small{ display:block; font-size:11.5px; font-weight:600; color:#4c6a8a; overflow:hidden; text-overflow:ellipsis; }
+  /* ★[2026-09-13 「헤더 확장 가능하게」] [↕ 머리글 펼치기] = #card.hx — 사업장 이름을 칸 안에서 여러 줄로 다 보인다(「…」로 안 끊음).
+       표를 다시 그리지 않고 #card 의 class 만 바꾼다(표는 #card 안에서 innerHTML 로 갈아 끼워지므로 class 는 그대로 남는다). 기억 = localStorage konetSomHx */
+  #card.hx table.mx thead th.gh{ white-space:normal; vertical-align:top; }
+  #card.hx table.mx thead th.gh .gl, #card.hx table.mx thead th.gh small{ white-space:normal; overflow:visible; text-overflow:clip; word-break:keep-all; overflow-wrap:anywhere; }
   table.mx thead th.it{ background:#eef4fa; white-space:normal; min-width:96px; max-width:128px; line-height:1.35; font-size:12px; font-weight:600; padding:6px 6px; word-break:break-all; }   /* 2026-09-03 「품목명 조금 좁게」 118→96px */
   table.mx thead th.it .cd{ display:block; font-weight:800; color:#1f2a37; }
   table.mx thead th.it .nm{ color:#5a6b7a; font-weight:400; }
@@ -120,6 +126,7 @@
     <button class="btn btn-teal" onclick="somLoad()">🔍 조회</button>
     <input type="text" id="q" placeholder="사업장/품목코드/품목명 거르기" oninput="somFindLater()" onkeydown="if(event.key==='Enter'){ somFindNow(); }" title="치는 동안 기다렸다가 멈추면 거릅니다 — Enter 를 누르면 바로" style="width:220px">
     <button class="btn" onclick="somExcel()">📥 엑셀 출력</button>
+    <button class="btn" id="hxBtn" onclick="somHx()" title="사업장 이름이 길어 「…」로 잘릴 때 — 누르면 머리글을 여러 줄로 펼쳐 전체 이름을 봅니다. 다시 누르면 한 줄로 줄입니다(다음에 들어와도 기억).">↕ 머리글 펼치기</button>
     <span class="cnt" id="cnt">-</span>
     <button class="btn rb-btn" onclick="somRebuild()" title="전체 출고를 재고 원장에 다시 반영하고 현재고를 다시 계산합니다 (품목별재고현황의 재집계와 같은 것).&#10;정산서가 있는 납기일자는 정산서, 없는 날은 발주현황표 기준. 마감 확정월은 제외.">🔄 출고반영 재집계</button>
   </div>
@@ -137,6 +144,22 @@
 var CTX='${pageContext.request.contextPath}';
 var RAW=null;   // {months:[{ym,bizKey,bizNm,prodCd,prodNm,outQty}], stock:[{prodCd,curQty}], srcDays:[{ym,days,sDays}]}
 function esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+/* [↕ 머리글 펼치기] (2026-09-13 「헤더 확장 가능하게」) — 1~2품목 사업장은 칸이 좁아 이름이 「…」로 잘린다. 켜면 여러 줄로 다 보인다.
+   #card 의 class(hx) 만 바꾼다 — 표를 다시 그리지 않으므로 즉시 바뀌고, 다시 조회해도 그대로다. */
+var _somHx=(function(){ try{ return localStorage.getItem('konetSomHx')==='1'; }catch(e){ return false; } })();
+function somHxPaint(){
+  var c=document.getElementById('card'), b=document.getElementById('hxBtn');
+  if(c) c.classList.toggle('hx', _somHx);
+  if(b){ b.innerHTML=_somHx?'↕ 머리글 줄이기':'↕ 머리글 펼치기';
+         b.style.background=_somHx?'#c3e2d8':''; b.style.color=_somHx?'#0b5246':''; b.style.fontWeight=_somHx?'800':''; }
+}
+function somHx(){
+  _somHx=!_somHx;
+  try{ localStorage.setItem('konetSomHx', _somHx?'1':'0'); }catch(e){}
+  somHxPaint();
+  if(typeof somFit==='function' && typeof _somM!=='undefined' && _somM) somFit();   // 머리글 높이가 바뀌므로 표 높이를 다시 맞춘다
+}
+somHxPaint();
 function num(v){ return Math.round(Number(v)||0).toLocaleString(); }   // 정산서 비율 배분은 소수가 나온다 → 표시는 반올림
 /* 조회 진행바(다른 화면 .qprog 와 같은 모양) */
 function qprog(msg){ return '<div class="qwrap"><div class="qprog"><i></i></div><div class="qmsg">'+esc(msg||'조회 중…')+'</div></div>'; }

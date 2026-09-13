@@ -574,10 +574,10 @@
 	      -- ★판매단가 — 마감관리(selectClosing)와 똑같은 규칙(2026-07-25). 매출내역에서 정산서가 아직 안 온
 	      --   출고행의 매출금액을 이 단가로 채운다. 기준일은 마감과 같이 납품일자(DLV_DT).
 	      u.saleUnit, u.saleSrc,
-	      -- ★정산서 반영 수량 (2026-09-03) — 아래 sd/lt/vq 조인 참조
-	      CASE WHEN sd.DLV_DT IS NULL OR lt.ORD_NO IS NULL THEN 'N' ELSE 'Y' END AS settleYn,
-	      CASE WHEN sd.DLV_DT IS NULL OR lt.ORD_NO IS NULL THEN NULL
-	           ELSE CAST(ISNULL(vq.VQ,0) * ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) / NULLIF(lt.LT,0) AS DECIMAL(18,3)) END AS settleQty
+	      -- ★정산서 반영 수량 (2026-09-03 · 2026-09-13 발주번호 빈 행도) — 아래 sd/sa 조인 참조
+	      CASE WHEN sd.DLV_DT IS NULL OR ( ISNULL(t.ORD_NO,'') = '' AND ISNULL(t.PROD_CD,'') = '' ) THEN 'N' ELSE 'Y' END AS settleYn,
+	      CASE WHEN sd.DLV_DT IS NULL OR ( ISNULL(t.ORD_NO,'') = '' AND ISNULL(t.PROD_CD,'') = '' ) THEN NULL
+	           ELSE ISNULL(CAST(sa.SQTY * ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) / NULLIF(sa.GQ,0) AS DECIMAL(18,3)), 0) END AS settleQty
 	    FROM ( SELECT s0.*,
 	                  CONVERT(varchar(19),
 	                    MIN(s0.UPLOAD_DTTM) OVER (PARTITION BY s0.COMP_CD, s0.SHPOUT_DT, ISNULL(s0.DC_CD,''), ISNULL(s0.BIZ_CD,''), ISNULL(s0.ITEM_CD,'')),
@@ -618,24 +618,43 @@
 	                 CASE WHEN sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc
 	    ) u
 	    -- ★정산서 반영 (2026-09-03 규칙: 납기일자에 정산서가 있으면 발주수량 대신 정산수량 — 원장·출고재고현황과 같은 규칙)
-	    --   정산서엔 사업장이 없어, 같은 발주라인(납기일자+발주번호+품목 — 출고재고현황 selectStockOutByMonth 와 같은 키)의 정산수량을 이 행의 발주수량 비율로 나눈 값(settleQty).
+	    --   정산서엔 사업장이 없어, 정산서 줄마다 나눠 줄 발주행을 골라(sa) 그 안에서 발주수량 비율로 나눈 값(settleQty).
+	    --   ★[2026-09-13] 고르는 순서 = 출고재고현황 selectStockOutByMonth 와 같다 : ①같은 발주번호 ②같은 출고장의 발주번호 빈 행 ③같은 출고장 전체.
+	    --     종전엔 ①뿐이라 발주번호가 빈 행은 발주수량 그대로(settleYn=N)였다 — 마감 전(전날 17시대)에 받은 발주현황표는 발주번호가 비어 있다(9월 52%).
+	    --     어느 정산서 줄도 고르지 않은 발주행은 0 (출고재고현황이 정산서 있는 날엔 발주행을 세지 않는 것과 같다).
+	    --     품목코드가 빈(미매핑) 행은 ①만 — 출고장으로 대면 다른 품목끼리 섞인다.
 	    --   ★키에서 납기일자를 빼면 단일일자 조회가 0.2초→8초(집계를 행마다 되도는 계획). 납기일자를 넣어도 연결되는 라인은 같다(실측 2026-09-03).
-	    --   발주번호가 빈 행은 라인을 못 찾으므로 정산서가 있는 날이라도 발주수량 그대로(settleYn=N).
 	    --   정산서 없는 날은 settleYn='N'·settleQty NULL → 화면은 발주수량 그대로. 집계 조인이라 행마다 되묻지 않는다(속도).
 	    LEFT JOIN ( SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST WHERE ACTION_YN = 'Y' ) sd
 	      ON sd.COMP_CD = t.COMP_CD AND sd.DLV_DT = t.DLV_DT
-	    LEFT JOIN ( SELECT COMP_CD, DLV_DT, ORD_NO, ISNULL(PROD_CD,'') AS PROD_CD,
-	                       SUM(ISNULL(LABEL_QTY, ISNULL(CUR_QTY,0))) AS LT
-	                  FROM TBL_SHIPOUT_MST WHERE ACTION_YN = 'Y' AND ISNULL(ORD_NO,'') <> ''
-	                 GROUP BY COMP_CD, DLV_DT, ORD_NO, ISNULL(PROD_CD,'') ) lt
-	      ON sd.DLV_DT IS NOT NULL AND lt.COMP_CD = t.COMP_CD AND lt.DLV_DT = t.DLV_DT
-	     AND lt.ORD_NO = t.ORD_NO AND lt.PROD_CD = ISNULL(t.PROD_CD,'')
-	    LEFT JOIN ( SELECT COMP_CD, DLV_DT, ORD_NO, ISNULL(PROD_CD,'') AS PROD_CD,
-	                       SUM(CASE WHEN ISNULL(DLV_TYPE,'')='X' THEN ISNULL(ORD_QTY,0) ELSE ISNULL(OUT_QTY,0) END) AS VQ
-	                  FROM TBL_SALES_MST WHERE ACTION_YN = 'Y' AND ISNULL(ORD_NO,'') <> ''
-	                 GROUP BY COMP_CD, DLV_DT, ORD_NO, ISNULL(PROD_CD,'') ) vq
-	      ON sd.DLV_DT IS NOT NULL AND vq.COMP_CD = t.COMP_CD AND vq.DLV_DT = t.DLV_DT
-	     AND vq.ORD_NO = t.ORD_NO AND vq.PROD_CD = ISNULL(t.PROD_CD,'')
+	    LEFT JOIN (
+	          /* 발주행 묶음(납기일자·발주번호·출고장·품목)마다 받은 정산수량 SQTY 와 그 묶음의 발주수량 GQ */
+	          SELECT g.COMP_CD, g.DLV_DT, g.ORD_NO, g.DC_CD, g.PROD_CD, MAX(g.GQ) AS GQ, SUM(g.VQ * g.GQ / g.LT) AS SQTY
+	            FROM ( SELECT k.*, SUM(k.GQ) OVER (PARTITION BY k.COMP_CD, k.DLV_DT, k.LORD, k.PROD_CD) AS LT
+	                     FROM ( SELECT j.*, MIN(j.MK) OVER (PARTITION BY j.COMP_CD, j.DLV_DT, j.LORD, j.PROD_CD) AS BM
+	                              FROM ( SELECT l.COMP_CD, l.DLV_DT, l.ORD_NO AS LORD, l.PROD_CD, l.VQ, o.ORD_NO, o.DC_CD, o.GQ,
+	                                            CASE WHEN o.ORD_NO <> '' AND o.ORD_NO = l.ORD_NO THEN 1
+	                                                 WHEN l.PROD_CD <> '' AND l.DC_CD <> '' AND o.DC_CD = l.DC_CD AND o.ORD_NO = '' THEN 2
+	                                                 WHEN l.PROD_CD <> '' AND l.DC_CD <> '' AND o.DC_CD = l.DC_CD THEN 3 ELSE 9 END AS MK
+	                                       FROM ( SELECT COMP_CD, DLV_DT, ISNULL(ORD_NO,'') AS ORD_NO, ISNULL(PROD_CD,'') AS PROD_CD,
+	                                                     MAX(CASE WHEN ISNULL(DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(DC_CD)))
+	                                                              WHEN ISNULL(DC_NM,'') LIKE N'%용인%' THEN 'E100' WHEN ISNULL(DC_NM,'') LIKE N'%왜관%' THEN 'E200'
+	                                                              WHEN ISNULL(DC_NM,'') LIKE N'%김해%' THEN 'E300' WHEN ISNULL(DC_NM,'') LIKE N'%광주%' THEN 'E400'
+	                                                              WHEN ISNULL(DC_NM,'') LIKE N'%평택%' THEN 'E500' WHEN ISNULL(DC_NM,'') LIKE N'%제주%' THEN 'E600'
+	                                                              WHEN ISNULL(DC_NM,'') LIKE N'%오산%' THEN 'E700' ELSE '' END) AS DC_CD,
+	                                                     SUM(CASE WHEN ISNULL(DLV_TYPE,'')='X' THEN ISNULL(ORD_QTY,0) ELSE ISNULL(OUT_QTY,0) END) AS VQ
+	                                                FROM TBL_SALES_MST WHERE ACTION_YN = 'Y'
+	                                               GROUP BY COMP_CD, DLV_DT, ISNULL(ORD_NO,''), ISNULL(PROD_CD,'') ) l
+	                                       JOIN ( SELECT COMP_CD, DLV_DT, ISNULL(ORD_NO,'') AS ORD_NO, UPPER(LTRIM(RTRIM(ISNULL(DC_CD,'')))) AS DC_CD,
+	                                                     ISNULL(PROD_CD,'') AS PROD_CD, SUM(ISNULL(LABEL_QTY, ISNULL(CUR_QTY,0))) AS GQ
+	                                                FROM TBL_SHIPOUT_MST WHERE ACTION_YN = 'Y'
+	                                               GROUP BY COMP_CD, DLV_DT, ISNULL(ORD_NO,''), UPPER(LTRIM(RTRIM(ISNULL(DC_CD,'')))), ISNULL(PROD_CD,'') ) o
+	                                         ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.PROD_CD = l.PROD_CD AND o.GQ > 0 ) j ) k
+	                    WHERE k.MK = k.BM AND k.MK < 9 ) g
+	           GROUP BY g.COMP_CD, g.DLV_DT, g.ORD_NO, g.DC_CD, g.PROD_CD
+	    ) sa
+	      ON sd.DLV_DT IS NOT NULL AND sa.COMP_CD = t.COMP_CD AND sa.DLV_DT = t.DLV_DT AND sa.ORD_NO = ISNULL(t.ORD_NO,'')
+	     AND sa.DC_CD = UPPER(LTRIM(RTRIM(ISNULL(t.DC_CD,'')))) AND sa.PROD_CD = ISNULL(t.PROD_CD,'')
 	   WHERE t.ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND (
@@ -2837,11 +2856,19 @@
 	       · 정산서 있는 납기일자 → 정산서 출고수량(반품행은 나갔던 발주량 — insertSalesLedger 와 같은 셈).
 	         정산서엔 사업장이 없어 같은 발주라인(납기일자+발주번호+품목 — 납기현황표 selectShipoutMst 와 같은 키)의 발주행 사업장에 발주수량 비율로 나눈다.
 	         발주라인이 없으면 '(정산서·발주없음)'. 원장(품목별재고현황)과 같은 규칙이라 월 합계가 원장 O행과 맞는다.
+	     ★[2026-09-13] 발주라인 찾는 순서 = ①같은 발주번호 → ②같은 출고장의 발주번호 빈 행 → ③같은 출고장 전체 (앞에서 찾으면 뒤는 안 본다).
+	       마감 전(전날 17시대)에 받은 발주현황표는 발주번호가 비어 있어(2026-09 실측 52%) ①만으로는 '(정산서·발주없음)' 이 쌓였다.
+	       ⚠같은 규칙이 selectStockOutDetail(하단 내역)·selectShipoutMst(납기현황표 정산수량)에 있다 — 셋을 함께 고칠 것.
 	     사업장 묶음 = 거래처관리 매칭코드(MATCH_CD) 있으면 그것, 없으면 원래 사업장코드 (납기현황표 가로표와 같은 규칙)
 	     ★[2026-09-04 속도] 기간 파라미터(frDt·toDt)를 REPLACE(ISNULL(…),'-','') 로 감싸지 않는다 — 함수로 감싸면 최적화기가 값을 못 보고
 	       일반 추정 계획을 짜서 2.3초, 그대로 비교하면 0.84초(운영 DB 실측). 하이픈 제거는 컨트롤러(_d8)가 이미 한다. */
-	  WITH SL AS (   /* 정산서 라인별 출고수량 */
+	  WITH SL AS (   /* 정산서 라인별 출고수량 (+출고장코드 — 코드가 빈 옛 정산서는 출고장 이름으로) */
 	    SELECT v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,'') AS ORD_NO, v.PROD_CD,
+	           MAX(CASE WHEN ISNULL(v.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(v.DC_CD)))
+	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%용인%' THEN 'E100' WHEN ISNULL(v.DC_NM,'') LIKE N'%왜관%' THEN 'E200'
+	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%김해%' THEN 'E300' WHEN ISNULL(v.DC_NM,'') LIKE N'%광주%' THEN 'E400'
+	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%평택%' THEN 'E500' WHEN ISNULL(v.DC_NM,'') LIKE N'%제주%' THEN 'E600'
+	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%오산%' THEN 'E700' ELSE '' END) AS DC_CD,
 	           SUM(CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END) AS VQ
 	      FROM TBL_SALES_MST v
 	     WHERE v.ACTION_YN='Y' AND ISNULL(v.PROD_CD,'')<>''
@@ -2850,8 +2877,9 @@
 	     GROUP BY v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,''), v.PROD_CD
 	  ), SD AS (     /* 정산서가 있는 납기일자 */
 	    SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST WHERE ACTION_YN='Y'
-	  ), OL AS (     /* 발주현황표 라인별·사업장별 수량 */
+	  ), OL AS (     /* 발주현황표 라인별·출고장별·사업장별 수량 */
 	    SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS DLV_DT, ISNULL(s.ORD_NO,'') AS ORD_NO, s.PROD_CD,
+	           UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))) AS DC_CD,
 	           ISNULL(s.BIZ_CD,'') AS BIZ_CD, MAX(ISNULL(s.BIZ_NM,'')) AS BIZ_NM,
 	           SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) AS SQ
 	      FROM TBL_SHIPOUT_MST s
@@ -2859,19 +2887,30 @@
 	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= #{frDt}
 	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= #{toDt}
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD, ISNULL(s.BIZ_CD,'')
+	     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD,
+	              UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))), ISNULL(s.BIZ_CD,'')
+	  ), SJ AS (     /* 정산서 줄 × 같은 날·같은 품목 발주행 — MK = 찾은 순서(①발주번호 ②출고장+발주번호 빈 행 ③출고장 전체, 9=해당 없음) */
+	    SELECT l.COMP_CD, l.DLV_DT, l.ORD_NO, l.PROD_CD, l.VQ, o.BIZ_CD, o.BIZ_NM, o.SQ,
+	           CASE WHEN o.ORD_NO <> '' AND o.ORD_NO = l.ORD_NO THEN 1
+	                WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD AND o.ORD_NO = '' THEN 2
+	                WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD THEN 3 ELSE 9 END AS MK
+	      FROM SL l
+	      JOIN OL o ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.PROD_CD = l.PROD_CD AND o.SQ > 0
+	  ), SM AS (     /* 정산서 줄마다 가장 앞 순서(BM)의 발주행만 남기고, 그 안의 발주수량 합(LT)으로 비율 */
+	    SELECT k.*, SUM(k.SQ) OVER (PARTITION BY k.COMP_CD, k.DLV_DT, k.ORD_NO, k.PROD_CD) AS LT
+	      FROM ( SELECT j.*, MIN(j.MK) OVER (PARTITION BY j.COMP_CD, j.DLV_DT, j.ORD_NO, j.PROD_CD) AS BM FROM SJ j ) k
+	     WHERE k.MK = k.BM AND k.MK < 9
 	  ), U AS (
 	    /* ① 정산서 없는 날 : 발주현황표 */
 	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.PROD_CD, CAST(o.SQ AS DECIMAL(18,3)) AS QTY
 	      FROM OL o
 	     WHERE NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = o.COMP_CD AND SD.DLV_DT = o.DLV_DT )
 	    UNION ALL
-	    /* ② 정산서 있는 날 : 정산수량을 같은 발주라인의 사업장에 발주수량 비율로 */
-	    SELECT l.COMP_CD, l.DLV_DT, ISNULL(o.BIZ_CD,''), ISNULL(o.BIZ_NM, N'(정산서·발주없음)'), l.PROD_CD,
-	           CAST(CASE WHEN o.BIZ_CD IS NULL THEN l.VQ ELSE l.VQ * o.SQ / o.LT END AS DECIMAL(18,3))
+	    /* ② 정산서 있는 날 : 정산수량을 SM 이 고른 발주행의 사업장에 발주수량 비율로 (못 고르면 '(정산서·발주없음)') */
+	    SELECT l.COMP_CD, l.DLV_DT, ISNULL(m.BIZ_CD,''), ISNULL(m.BIZ_NM, N'(정산서·발주없음)'), l.PROD_CD,
+	           CAST(CASE WHEN m.BIZ_CD IS NULL THEN l.VQ ELSE l.VQ * m.SQ / m.LT END AS DECIMAL(18,3))
 	      FROM SL l
-	      LEFT JOIN ( SELECT x.*, SUM(x.SQ) OVER (PARTITION BY x.COMP_CD, x.DLV_DT, x.ORD_NO, x.PROD_CD) AS LT FROM OL x WHERE x.ORD_NO <> '' ) o
-	        ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.ORD_NO = l.ORD_NO AND o.PROD_CD = l.PROD_CD AND o.LT > 0
+	      LEFT JOIN SM m ON m.COMP_CD = l.COMP_CD AND m.DLV_DT = l.DLV_DT AND m.ORD_NO = l.ORD_NO AND m.PROD_CD = l.PROD_CD
 	  )
 	  SELECT LEFT(u.DLV_DT,6) AS ym,
 	         ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD) AS bizKey,
@@ -2894,6 +2933,11 @@
 	     원천 규칙·사업장 비율 배분은 selectStockOutByMonth 와 같다(한쪽만 고치면 표와 내역이 어긋난다). 컨트롤러가 ym 을 frYm=toYm 으로 편다. */
 	  WITH SL AS (
 	    SELECT v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,'') AS ORD_NO, v.PROD_CD, MAX(ISNULL(v.DC_NM,'')) AS DC_NM,
+	           MAX(CASE WHEN ISNULL(v.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(v.DC_CD)))
+	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%용인%' THEN 'E100' WHEN ISNULL(v.DC_NM,'') LIKE N'%왜관%' THEN 'E200'
+	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%김해%' THEN 'E300' WHEN ISNULL(v.DC_NM,'') LIKE N'%광주%' THEN 'E400'
+	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%평택%' THEN 'E500' WHEN ISNULL(v.DC_NM,'') LIKE N'%제주%' THEN 'E600'
+	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%오산%' THEN 'E700' ELSE '' END) AS DC_CD,
 	           MAX(ISNULL(v.ITEM_CD,'')) AS ITEM_CD, MAX(ISNULL(v.ITEM_NM,'')) AS ITEM_NM,
 	           SUM(CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END) AS VQ
 	      FROM TBL_SALES_MST v
@@ -2904,6 +2948,7 @@
 	  ), SD AS ( SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST WHERE ACTION_YN='Y'
 	  ), OL AS (
 	    SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS DLV_DT, ISNULL(s.ORD_NO,'') AS ORD_NO, s.PROD_CD,
+	           UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))) AS DC_CD,
 	           ISNULL(s.BIZ_CD,'') AS BIZ_CD, MAX(ISNULL(s.BIZ_NM,'')) AS BIZ_NM, MAX(ISNULL(s.DC_NM,'')) AS DC_NM,
 	           ISNULL(s.ITEM_CD,'') AS ITEM_CD, MAX(ISNULL(s.ITEM_NM,'')) AS ITEM_NM,   /* 출고 때 쓴 거래처 코드(매칭코드) — 재고현황 ↳ 줄과 같은 것 */
 	           SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) AS SQ
@@ -2912,16 +2957,27 @@
 	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= #{frDt}
 	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= #{toDt}
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD, ISNULL(s.BIZ_CD,''), ISNULL(s.ITEM_CD,'')
+	     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD,
+	              UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))), ISNULL(s.BIZ_CD,''), ISNULL(s.ITEM_CD,'')
+	  ), SJ AS (   /* 찾는 순서 = selectStockOutByMonth 와 같다 (①발주번호 ②출고장+발주번호 빈 행 ③출고장 전체) */
+	    SELECT l.COMP_CD, l.DLV_DT, l.ORD_NO, l.PROD_CD, l.VQ, o.BIZ_CD, o.BIZ_NM, o.DC_NM, o.ITEM_CD, o.ITEM_NM, o.SQ,
+	           CASE WHEN o.ORD_NO <> '' AND o.ORD_NO = l.ORD_NO THEN 1
+	                WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD AND o.ORD_NO = '' THEN 2
+	                WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD THEN 3 ELSE 9 END AS MK
+	      FROM SL l
+	      JOIN OL o ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.PROD_CD = l.PROD_CD AND o.SQ > 0
+	  ), SM AS (
+	    SELECT k.*, SUM(k.SQ) OVER (PARTITION BY k.COMP_CD, k.DLV_DT, k.ORD_NO, k.PROD_CD) AS LT
+	      FROM ( SELECT j.*, MIN(j.MK) OVER (PARTITION BY j.COMP_CD, j.DLV_DT, j.ORD_NO, j.PROD_CD) AS BM FROM SJ j ) k
+	     WHERE k.MK = k.BM AND k.MK < 9
 	  ), U AS (
 	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.DC_NM, o.ORD_NO, o.ITEM_CD, o.ITEM_NM, CAST(o.SQ AS DECIMAL(18,3)) AS QTY, N'발주현황표' AS SRC
 	      FROM OL o WHERE NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = o.COMP_CD AND SD.DLV_DT = o.DLV_DT )
 	    UNION ALL
-	    SELECT l.COMP_CD, l.DLV_DT, ISNULL(o.BIZ_CD,''), ISNULL(o.BIZ_NM, N'(정산서·발주없음)'), ISNULL(o.DC_NM, l.DC_NM), l.ORD_NO, ISNULL(o.ITEM_CD, l.ITEM_CD), ISNULL(o.ITEM_NM, l.ITEM_NM),
-	           CAST(CASE WHEN o.BIZ_CD IS NULL THEN l.VQ ELSE l.VQ * o.SQ / o.LT END AS DECIMAL(18,3)), N'정산서'
+	    SELECT l.COMP_CD, l.DLV_DT, ISNULL(m.BIZ_CD,''), ISNULL(m.BIZ_NM, N'(정산서·발주없음)'), ISNULL(m.DC_NM, l.DC_NM), l.ORD_NO, ISNULL(m.ITEM_CD, l.ITEM_CD), ISNULL(m.ITEM_NM, l.ITEM_NM),
+	           CAST(CASE WHEN m.BIZ_CD IS NULL THEN l.VQ ELSE l.VQ * m.SQ / m.LT END AS DECIMAL(18,3)), N'정산서'
 	      FROM SL l
-	      LEFT JOIN ( SELECT x.*, SUM(x.SQ) OVER (PARTITION BY x.COMP_CD, x.DLV_DT, x.ORD_NO, x.PROD_CD) AS LT FROM OL x WHERE x.ORD_NO <> '' ) o
-	        ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.ORD_NO = l.ORD_NO AND o.PROD_CD = l.PROD_CD AND o.LT > 0
+	      LEFT JOIN SM m ON m.COMP_CD = l.COMP_CD AND m.DLV_DT = l.DLV_DT AND m.ORD_NO = l.ORD_NO AND m.PROD_CD = l.PROD_CD
 	  )
 	  SELECT u.DLV_DT AS dlvDt, ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD) AS bizKey, ISNULL(NULLIF(b.MATCH_NM,''), u.BIZ_NM) AS mtNm,
 	         u.BIZ_CD AS bizCd, u.BIZ_NM AS bizNm, u.DC_NM AS dcNm, u.ORD_NO AS ordNo, u.ITEM_CD AS itemCd, u.ITEM_NM AS itemNm, u.SRC AS src, u.QTY AS qty
@@ -2973,36 +3029,59 @@
 	</select>
 
 	<select id="selectStockMstList" parameterType="egovframework.sejong.user.model.StockMstDTO" resultType="egovframework.sejong.user.model.StockMstDTO">
-	  SELECT l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, ISNULL(p.PROD_NM,'') AS prodNm,
+	  /* ★[2026-09-13 「거래처별 재고현황」] 품목마다 「대표 매입처」(vendorCd·vendorNm)를 붙인다 — 화면 [🏷 매입처별]이 이걸로 묶는다.
+	       대표 매입처 = 그 품목을 가장 최근에 입고(IO_GB='I')한 매입처(재고마감 selectStockClosing 과 같은 규칙) → 입고 기록이 없으면 상품마스터 거래처.
+	       기준일(asOfDt)을 주면 그날까지의 입고만 본다. 집계 뒤에 붙이려고 원래 조회를 z 로 한 번 감쌌다(값·순서는 종전 그대로). */
+	  WITH SD AS (   /* 정산서가 있는 납기일자 — 원장 출고(정산서 있는 날 = 정산서, 없는 날 = 발주현황표)와 같은 갈림 */
+	    SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST
+	     WHERE ACTION_YN = 'Y' AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	  ), EQ AS (
+	    /* ★매칭코드(거래처 품목코드 ITEM_CD)별 출고수량 — ①표 품목 줄 밑 ↳ 줄에 붙는다(형식 코드:수량|코드:수량, 화면이 쪼갠다).
+	         ★[2026-09-13 「매칭코드 줄도 정산서 우선」] 종전엔 발주현황표 라벨수량만 셌다 → 정산서가 있는 날에도 발주 수량이라
+	           대표 줄 출고(원장)와 달랐다(9904013376 : ↳ 1,671 / 대표 1,609 — 발주현황표 이중 업로드·김해 직송 줄 62개).
+	           이제 원장과 같은 규칙 : 정산서 있는 납기일자 = 정산서(반품행 'X' 는 나갔던 발주량 — insertSalesLedger 와 같은 셈),
+	           없는 날 = 발주현황표 라벨수량. 그래서 ↳ 줄들의 합 = 대표 줄 출고(소수점 반올림 차이만 날 수 있다).
+	         · 기준일(asOfDt)은 「납기일자」로 자른다 — 원장 TRX_DT 가 납기일자다(종전엔 출고일자로 잘라 어긋났다).
+	         · 품목마다 되묻지 않고 한 번에 모은다(종전 = 품목 줄마다 발주현황표 서브쿼리). 입고는 코드별로 나뉘지 않는다(매입은 주코드). */
+	    SELECT u.COMP_CD, u.PROD_CD, u.ITEM_CD, SUM(u.q) AS q
+	      FROM ( SELECT v.COMP_CD, v.PROD_CD, ISNULL(v.ITEM_CD,'') AS ITEM_CD,
+	                    CASE WHEN ISNULL(v.DLV_TYPE,'') = 'X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END AS q
+	               FROM TBL_SALES_MST v
+	              WHERE v.ACTION_YN = 'Y' AND ISNULL(v.PROD_CD,'') != ''
+	                AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	  <if test="asOfDt != null and asOfDt != ''">
+	                <![CDATA[ AND v.DLV_DT <= REPLACE(#{asOfDt},'-','') ]]>
+	  </if>
+	             UNION ALL
+	             SELECT s.COMP_CD, s.PROD_CD, ISNULL(s.ITEM_CD,''), ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))
+	               FROM TBL_SHIPOUT_MST s
+	              WHERE s.ACTION_YN = 'Y' AND ISNULL(s.PROD_CD,'') != ''
+	                AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	  <if test="asOfDt != null and asOfDt != ''">
+	                <![CDATA[ AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= REPLACE(#{asOfDt},'-','') ]]>
+	  </if>
+	                AND NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = s.COMP_CD AND SD.DLV_DT = ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) ) ) u
+	     GROUP BY u.COMP_CD, u.PROD_CD, u.ITEM_CD
+	    HAVING SUM(u.q) > 0
+	  )
+	  SELECT z.*,
+	         STUFF((SELECT '|' + e.ITEM_CD + ':' + CAST(CAST(ROUND(e.q,0) AS INT) AS VARCHAR(12))
+	                  FROM EQ e WHERE e.COMP_CD = z.compCd AND e.PROD_CD = z.prodCd AND e.ITEM_CD != ''
+	                 ORDER BY e.q DESC
+	                 FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 1, '') AS extQtys,
+	         ISNULL(lv.VENDOR_CD, z.mstVendorCd) AS vendorCd,
+	         ISNULL(vm.VENDOR_NM, CASE WHEN lv.VENDOR_CD IS NULL THEN z.mstVendorNm ELSE '' END) AS vendorNm
+	    FROM (
+	  SELECT MAX(l.COMP_CD) AS compCd, l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, ISNULL(p.PROD_NM,'') AS prodNm,
+	         ISNULL(MAX(p.VENDOR_CD),'') AS mstVendorCd, ISNULL(MAX(p.VENDOR_NM),'') AS mstVendorNm,
 	         SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY ELSE 0 END) AS inQty,
 	         SUM(CASE WHEN l.IO_GB = 'O' THEN l.QTY ELSE 0 END) AS outQty,
 	         SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY WHEN l.IO_GB='O' THEN -l.QTY ELSE 0 END) AS curQty,
 	         MAX(m.AVG_IN_PRICE) AS avgInPrice, MAX(m.LAST_INPRICE) AS lastInprice, MAX(m.LAST_SALEPRICE) AS lastSaleprice,
 	         SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY WHEN l.IO_GB='O' THEN -l.QTY ELSE 0 END) * ISNULL(MAX(m.AVG_IN_PRICE),0) AS stockAmt,
 	         MAX(CASE WHEN l.IO_GB='I' THEN l.TRX_DT END) AS lastInDt,
-	         MAX(CASE WHEN l.IO_GB='O' THEN l.TRX_DT END) AS lastOutDt,
-	         /* ★매칭코드별 출고수량 (2026-08-07 요청)
-	              ①표가 품목코드 밑에 매칭코드를 ↳ 로 보여주는데, ②수불 내역은 그 줄에
-	              수량까지 달려 있어 두 표가 달라 보였다. 여기서도 코드마다 출고수량을 준다.
-	            · 형식 : 코드:수량|코드:수량   (화면이 쪼개 ↳ 줄에 붙인다)
-	            · ★출고만 나뉜다. 입고는 매입전표가 '주코드'로 들어오므로 코드별로 가를 수 없다.
-	              그래서 ↳ 줄에는 출고수량만 붙고, 입고·현재고는 대표 줄의 합산만 있다.
-	            · 기준일(asOfDt)을 주면 그날까지만 — 위 원장 집계와 같은 기간이어야 합이 맞는다.
-	              (실측 9904013222 : 2,999 + 39 = 3,038 = 대표 줄 출고합 — 2026-08-07 확인) */
-	         /* ★이 SELECT 는 GROUP BY 아래에 있다 — 서브쿼리 안에서 l.COMP_CD 를 그냥 쓰면
-	              "집계 함수나 GROUP BY 절에 없다" 로 깨진다(2026-08-07 실제로 겪음).
-	              GROUP BY 키인 l.PROD_CD 는 그대로 쓸 수 있고, COMP_CD 는 MAX() 로 감싼다.
-	              한 품목이 여러 회사에 걸치지 않으므로 MAX 여도 값은 하나다. */
-	         STUFF((SELECT '|' + x.ITEM_CD + ':' + CAST(CAST(x.q AS INT) AS VARCHAR(12))
-	                  FROM (SELECT s2.ITEM_CD, SUM(ISNULL(s2.LABEL_QTY, ISNULL(s2.CUR_QTY,0))) AS q   -- ★출고수량=라벨수량(2026-09-01)
-	                          FROM TBL_SHIPOUT_MST s2
-	                         WHERE s2.ACTION_YN = 'Y' AND s2.COMP_CD = MAX(l.COMP_CD)
-	                           AND s2.PROD_CD = l.PROD_CD AND ISNULL(s2.LABEL_QTY, ISNULL(s2.CUR_QTY,0)) > 0
-	                           AND ( ISNULL(#{asOfDt,jdbcType=VARCHAR},'') = ''
-	                                 OR s2.SHPOUT_DT &lt;= REPLACE(#{asOfDt,jdbcType=VARCHAR},'-','') )
-	                         GROUP BY s2.ITEM_CD) x
-	                 ORDER BY x.q DESC
-	                 FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 1, '') AS extQtys
+	         MAX(CASE WHEN l.IO_GB='O' THEN l.TRX_DT END) AS lastOutDt
+	         /* (매칭코드별 출고수량 extQtys 는 아래 바깥 SELECT 에서 EQ 로 붙인다 — 2026-09-13 정산서 우선으로 옮김) */
 	    FROM TBL_STOCK_LEDGER l
 	    LEFT JOIN TBL_STOCK_MST m ON m.PROD_SEQ = l.PROD_SEQ AND m.COMP_CD = l.COMP_CD
 	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = l.PROD_CD AND p2.ACTION_YN='Y' AND p2.COMP_CD = l.COMP_CD)
@@ -3015,7 +3094,20 @@
 	     AND ( l.PROD_CD LIKE '%' + #{findData} + '%' OR ISNULL(p.PROD_NM,'') LIKE '%' + #{findData} + '%' )
 	  </if>
 	   GROUP BY l.PROD_SEQ, l.PROD_CD, p.PROD_NM
-	   ORDER BY l.PROD_CD
+	    ) z
+	    LEFT JOIN ( SELECT COMP_CD, PROD_CD, VENDOR_CD,
+	                       ROW_NUMBER() OVER (PARTITION BY COMP_CD, PROD_CD ORDER BY TRX_DT DESC, LEDGER_SEQ DESC) AS rn
+	                  FROM TBL_STOCK_LEDGER
+	                 WHERE ACTION_YN = 'Y' AND IO_GB = 'I' AND ISNULL(VENDOR_CD,'') != ''
+	                   AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	  <if test="asOfDt != null and asOfDt != ''">
+	                   <![CDATA[ AND TRX_DT <= REPLACE(#{asOfDt},'-','') ]]>
+	  </if>
+	              ) lv ON lv.COMP_CD = z.compCd AND lv.PROD_CD = z.prodCd AND lv.rn = 1
+	    LEFT JOIN ( SELECT COMP_CD, VENDOR_CD, MAX(VENDOR_NM) AS VENDOR_NM
+	                  FROM TBL_VENDOR_MST WHERE ACTION_YN = 'Y' GROUP BY COMP_CD, VENDOR_CD ) vm
+	      ON vm.COMP_CD = z.compCd AND vm.VENDOR_CD = ISNULL(lv.VENDOR_CD, z.mstVendorCd)
+	   ORDER BY z.prodCd
 	</select>
 
 	<!-- (A) 전체 재집계용 : 활성 SHIPOUT의 서로 다른 출고일자 목록 -->
