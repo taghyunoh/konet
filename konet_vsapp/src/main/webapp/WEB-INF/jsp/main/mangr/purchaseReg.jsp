@@ -808,30 +808,43 @@ function emptyRow(){ return { prodCd:'', prodNm:'', spec:'', packQty:1, boxQty:0
 function puKeepLast(o, j){
   if (!o) return;
   var lp = n(j && j.data);
-  o._lastPrice = lp ? lp : null;
-  o._lastDt    = lp ? String((j && j.purchDt) || '') : '';
+  if (lp) { o._lastPrice = lp; o._lastDt = String((j && j.purchDt) || ''); o._lastSrc = ''; return; }
+  /* ★지난 매입이 없으면 상품 매입가와 비교한다 (2026-09-13 「단가변경해도 메세지 안뜸」) —
+       처음 사는 상품은 비교할 것이 없어 단가를 고쳐도 아무 표시가 없었다. 상품 매입가도 없으면 비교하지 않는다. */
+  var p = o.prodCd ? _prods.filter(function(x){ return String(x.prodCd)===String(o.prodCd); })[0] : null;
+  var mp = p ? n(p.inPrice) : 0;
+  o._lastPrice = mp ? mp : null;
+  o._lastDt    = '';
+  o._lastSrc   = mp ? 'mst' : '';
 }
-/* 이 줄이 이전 단가와 다른가 — 다르면 {diff, last, dt}. 소수 오차는 다르다고 하지 않는다 */
+/* 이 줄이 이전 단가와 다른가 — 다르면 {diff, last, dt, src}. 소수 오차는 다르다고 하지 않는다 */
 function puPrcDiff(o){
   if (!o || !o.prodCd || o._lastPrice == null) return null;
   var d = Math.round((n(o.unitPrice) - n(o._lastPrice)) * 100) / 100;
-  return d ? { diff:d, last:n(o._lastPrice), dt:o._lastDt || '' } : null;
+  return d ? { diff:d, last:n(o._lastPrice), dt:o._lastDt || '', src:o._lastSrc || '' } : null;
 }
-/* 그리드 밑 안내줄 — 이전 단가와 다른 줄을 모아 준다(누르면 그 줄 단가 칸으로 간다) */
+/* 비교 기준 글자 — 「이전 매입단가 35,000 (2026-06-01)」 / 지난 매입이 없으면 「상품 매입가 67,500」 */
+function puPrcLab(c){
+  return c.src === 'mst' ? ('상품 매입가 ' + fmtP(c.last))
+                         : ('이전 매입단가 ' + fmtP(c.last) + (c.dt ? (' (' + fmtDt(c.dt) + ')') : ''));
+}
+/* ★지금 작업 중인 줄 — 안내줄은 이 줄 하나만 보여 준다 (2026-09-13 「누적이 아니고 작업하는 내용만 메세지」).
+     줄을 고치면(puSet)·상품을 담으면(puProdPick) 그 줄로 바뀐다. 그 줄이 지워지거나 단가가 같아지면 안내줄이 숨는다.
+     다른 줄의 차이는 각 단가 칸 ▲▼ 배지로만 남는다. */
+var _prcRow = null;
+/* 그리드 밑 안내줄 — 지금 작업한 줄이 이전 단가와 다르면 보여 준다(누르면 그 줄 단가 칸으로 간다) */
 function puPrcWarnRender(){
   var box = document.getElementById('puPrcWarn'); if (!box) return;
-  var l = [];
-  _rows.forEach(function(o,i){ var c = puPrcDiff(o); if (c) l.push({ i:i, o:o, c:c }); });
-  if (!l.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  var i = _prcRow ? _rows.indexOf(_prcRow) : -1;
+  var c = i >= 0 ? puPrcDiff(_prcRow) : null;
+  if (!c) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  var o = _prcRow, up = c.diff > 0;
   box.style.display = '';
-  box.innerHTML = '⚠ 이전 단가와 다른 줄 ' + l.length + '건 — '
-    + l.map(function(x){
-        var up = x.c.diff > 0;
-        return '<span class="one" title="누르면 그 줄 단가 칸으로 갑니다" onclick="puPrcGo('+x.i+')">'
-             + (x.i+1) + '. ' + esc(x.o.prodNm || x.o.prodCd) + ' '
-             + fmtP(x.c.last) + (x.c.dt ? (' (' + esc(fmtDt(x.c.dt)) + ')') : '')
-             + ' → ' + fmtP(x.o.unitPrice) + ' ' + (up ? '▲' : '▼') + fmtP(Math.abs(x.c.diff)) + '</span>';
-      }).join('')
+  box.innerHTML = '⚠ 이전 단가와 다릅니다 — '
+    + '<span class="one" title="누르면 그 줄 단가 칸으로 갑니다" onclick="puPrcGo('+i+')">'
+    +   (i+1) + '. ' + esc(o.prodNm || o.prodCd) + ' '
+    +   fmtP(c.last) + (c.src === 'mst' ? ' (상품 매입가)' : (c.dt ? (' (' + esc(fmtDt(c.dt)) + ')') : ''))
+    +   ' → ' + fmtP(o.unitPrice) + ' ' + (up ? '▲' : '▼') + fmtP(Math.abs(c.diff)) + '</span>'
     + '<span style="font-weight:600;color:#8a97a4">※ 알리기만 합니다 — 친 값 그대로 저장됩니다.</span>';
 }
 function puPrcGo(i){
@@ -917,8 +930,7 @@ function puRender(){
       /* ★이전 단가와 다르면 칸 앞에 화살표 배지 — ▲오름(빨강)·▼내림(파랑). 툴팁에 이전 단가·그 날짜 (2026-09-12 요청).
            배지는 <알림>일 뿐이라 값·계산에는 전혀 손대지 않는다. */
       + '<td class="prc"><div class="pwrap">'
-      +   (pc ? '<span class="pchg '+(pc.diff>0?'up':'dn')+'" title="이전 매입단가 '+fmtP(pc.last)
-                + (pc.dt ? (' ('+esc(fmtDt(pc.dt))+')') : '') + ' → 지금 '+fmtP(o.unitPrice)
+      +   (pc ? '<span class="pchg '+(pc.diff>0?'up':'dn')+'" title="'+esc(puPrcLab(pc)) + ' → 지금 '+fmtP(o.unitPrice)
                 + ' ('+(pc.diff>0?'▲':'▼')+fmtP(Math.abs(pc.diff))+')&#10;친 값 그대로 저장됩니다.">'
                 + (pc.diff>0?'▲':'▼') + '</span>' : '')
       +   '<input inputmode="'+(PRICE_DEC?'decimal':'numeric')+'" data-r="'+i+'" data-f="unitPrice" value="'+fmtP(o.unitPrice)+'" onchange="puSet('+i+',\'unitPrice\',this.value)">'
@@ -951,6 +963,7 @@ function puRender(){
 }
 function puSet(i, k, v){
   var o = _rows[i]; if(!o) return;
+  if (o.prodCd) _prcRow = o;             // 안내줄 = 지금 고치는 줄 (2026-09-13 「작업하는 내용만」)
   o[k] = (k==='remark'||k==='eventYn'||k==='trxGb') ? v : n(v);
   /* 회사 설정(2026-09-11) — 단가·수량 소수점을 안 쓰면 친 값을 반올림 · DC 를 손으로 고치면 그 줄은 자동 DC 를 멈춘다 */
   if (k==='unitPrice' && !PRICE_DEC) o[k] = Math.round(o[k]);
@@ -962,8 +975,7 @@ function puSet(i, k, v){
   if (k==='unitPrice') {
     var _pc = puPrcDiff(o);
     if (_pc && window._toast)
-      _toast('이전 매입단가 ' + fmtP(_pc.last) + (_pc.dt ? (' (' + fmtDt(_pc.dt) + ')') : '')
-           + ' → 지금 ' + fmtP(o.unitPrice) + ' ' + (_pc.diff > 0 ? '▲' : '▼') + fmtP(Math.abs(_pc.diff)), 'warn');
+      _toast(puPrcLab(_pc) + ' → 지금 ' + fmtP(o.unitPrice) + ' ' + (_pc.diff > 0 ? '▲' : '▼') + fmtP(Math.abs(_pc.diff)), 'warn');
   }
   /* ★수량에 음수를 치면 「반품 + 양수」로 바꾼다 (2026-09-05 — 2026-07-29/0005 부호 이중반전 사고)
        규칙 : 줄의 수량·금액은 늘 양수, 반품은 거래구분으로만. 합계(puCalc)·저장 머리·SQL·재고원장이 모두
@@ -1638,7 +1650,7 @@ function puProdMultiApply(){
     o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=p.prodNm; o.spec=p.spec||'';
     o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
     o.unitPrice=n(p.inPrice);
-    o.boxQty=1;                                   // BOX수량 기본 1 (2026-08-06 요청)
+    o.boxQty=1; puKeepLast(o, null);              // BOX수량 기본 1 (2026-08-06 요청) · 비교 기준은 우선 상품 매입가 — 지난 매입이 오면 그걸로 바뀐다
     puCalcRow(o);
     rows.push(o); added.push(o);
   });
@@ -1652,7 +1664,7 @@ function puProdMultiApply(){
       .then(function(r){return r.json();}).then(function(j){
         if(!j) return;
         var ch=false;
-        if(j.data){ o.unitPrice=n(j.data); puKeepLast(o, j); ch=true; }   // 이전단가 ▲▼ 비교값도 든다 (2026-09-13)
+        puKeepLast(o, j); if(j.data){ o.unitPrice=n(j.data); ch=true; }   // 이전단가 ▲▼ 비교값 — 지난 매입이 없으면 상품 매입가 (2026-09-13)
         if(j.remark && !o.remark){ o.remark=j.remark; ch=true; }
         if(ch){ puCalcRow(o); puRender(); }
       })
@@ -1710,7 +1722,7 @@ function puProdPick(cd, viaSub){
   puProdClose();
   // 그 거래처의 최근 매입단가가 있으면 그 값으로 덮는다 · 이전 비고는 줄 비고가 비었을 때만 (2026-09-13)
   var ven = document.getElementById('puVenNm').dataset.cd||'';
-  puKeepLast(o, null);   // 다른 상품으로 바꾸는 줄이면 앞 상품의 비교값을 버린다 (2026-09-13)
+  puKeepLast(o, null); _prcRow = o;   // 다른 상품으로 바꾸는 줄이면 앞 상품의 비교값을 버린다 · 안내줄은 이 줄로 (2026-09-13)
   post('/mangr/purchaseLastPrice.do','prodCd='+encodeURIComponent(p.prodCd)+'&remark='+encodeURIComponent(ven))
     .then(function(r){return r.json();}).then(function(j){
       if(j&&j.data) o.unitPrice=n(j.data);
@@ -2256,13 +2268,20 @@ function puDlvApply(){
   _rows = rows; _pShown = _rows.length;
   puRender();
   puDlvClose();
-  /* ★이전 매입단가를 들고 있는다 (2026-09-13 되살림) — ⚠단가는 **덮지 않는다**.
-       이 목록에서 눈으로 보고 고른 값이라 말없이 바꾸면 안 된다. 다르면 그 자리에서 ▲▼ 로 알린다. */
+  /* ★이전 매입단가를 들고 있고 이전 비고를 물려받는다 (2026-09-13) — ⚠단가는 **덮지 않는다**.
+       이 목록에서 눈으로 보고 고른 값이라 말없이 바꾸면 안 된다. 다르면 그 자리에서 ▲▼ 로 알린다.
+       ★비고는 한 건·다중 담기와 같이 **빈 칸일 때만** 채운다 — 「단가 바뀔 때 이전 비고란 적용 안 됨」(2026-09-13 신고) :
+         단가가 달라 ▲▼ 가 바로 뜨는 길이 바로 이 매입분인데, 여기만 비고가 안 따라왔다. */
   var _dvVen = document.getElementById('puVenNm').dataset.cd || '';
   addedRows.forEach(function(o){
     post('/mangr/purchaseLastPrice.do','prodCd='+encodeURIComponent(o.prodCd)+'&remark='+encodeURIComponent(_dvVen))
       .then(function(r){ return r.json(); })
-      .then(function(j){ puKeepLast(o, j); if (o._lastPrice != null) puRender(); })
+      .then(function(j){
+        puKeepLast(o, j);
+        var ch = (o._lastPrice != null);
+        if (j && j.remark && !String(o.remark || '').trim()) { o.remark = j.remark; ch = true; }
+        if (ch) puRender();
+      })
       .catch(function(){});
   });
   if (dup.length) swAlert(added+'건을 담았습니다.<br><span style="font-size:12.5px;color:#3d4d5c">이미 명세에 있는 '+dup.length+'건은 건너뛰었습니다 — '+esc(dup.join(', '))+'</span>');

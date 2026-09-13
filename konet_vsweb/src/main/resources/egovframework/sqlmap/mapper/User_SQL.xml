@@ -3383,21 +3383,35 @@
 	     ★단가 = 종전대로 마지막 전표 값 / 비고 = «비어 있지 않은» 마지막 것 — 비고가 따라오지 않던 동안
 	       빈 채 저장된 전표가 있어, 마지막 전표만 보면 적어 둔 비고를 영영 못 가져온다.
 	     둘 다 없으면 0행(= null) — 화면은 종전처럼 아무것도 안 덮는다.
-	     ★purchDt = 그 단가를 산 날 (2026-09-13) — 화면이 들고 있다가 단가를 고치면 「이전 매입단가 24,900 (2026-09-18) → 25,900 ▲」 로 알린다. -->
+	     ★purchDt = 그 단가를 산 날 (2026-09-13) — 화면이 들고 있다가 단가를 고치면 「이전 매입단가 24,900 (2026-09-18) → 25,900 ▲」 로 알린다.
+	     ★그 상품의 매칭코드·추가 매칭코드(TBL_EXT_ITEM_MST)로 잡힌 옛 매입도 «이 상품의 지난 매입»으로 본다 (2026-09-13
+	       「단가변경해도 메세지 안뜸」 — 9904013353 은 제 코드 매입이 0건이고 매칭코드 1000759548 로만 57,500 이 있었다). -->
 	<select id="selectVendorLastPrice" parameterType="egovframework.sejong.user.model.PurchaseDtlDTO" resultType="egovframework.sejong.user.model.PurchaseDtlDTO"><![CDATA[
 	  SELECT lp.UNIT_PRICE AS unitPrice, lp.PURCH_DT AS purchDt, lr.REMARK AS remark
 	    FROM ( SELECT 1 AS k ) z
 	    OUTER APPLY ( SELECT TOP 1 d.UNIT_PRICE, m.PURCH_DT
 	                    FROM TBL_PURCHASE_DTL d
 	                    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN='Y' AND m.COMP_CD = d.COMP_CD
-	                   WHERE d.ACTION_YN='Y' AND d.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	                   WHERE d.ACTION_YN='Y'
+	                     AND ( d.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	                        OR d.PROD_CD IN ( SELECT e.EXT_ITEM_CD FROM TBL_EXT_ITEM_MST e
+	                                           WHERE e.ACTION_YN='Y' AND e.PROD_CD = #{prodCd,jdbcType=VARCHAR} AND e.COMP_CD = d.COMP_CD
+	                                          UNION
+	                                          SELECT e.ADD_ITEM_CD FROM TBL_EXT_ITEM_MST e
+	                                           WHERE e.ACTION_YN='Y' AND e.PROD_CD = #{prodCd,jdbcType=VARCHAR} AND e.ADD_ITEM_CD IS NOT NULL AND e.COMP_CD = d.COMP_CD ) )
 	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                     AND ( ISNULL(#{remark,jdbcType=VARCHAR},'') = '' OR m.VENDOR_CD = #{remark,jdbcType=VARCHAR} )
 	                   ORDER BY m.PURCH_DT DESC, m.PURCH_NO DESC ) lp
 	    OUTER APPLY ( SELECT TOP 1 d.REMARK
 	                    FROM TBL_PURCHASE_DTL d
 	                    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN='Y' AND m.COMP_CD = d.COMP_CD
-	                   WHERE d.ACTION_YN='Y' AND d.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	                   WHERE d.ACTION_YN='Y'
+	                     AND ( d.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	                        OR d.PROD_CD IN ( SELECT e.EXT_ITEM_CD FROM TBL_EXT_ITEM_MST e
+	                                           WHERE e.ACTION_YN='Y' AND e.PROD_CD = #{prodCd,jdbcType=VARCHAR} AND e.COMP_CD = d.COMP_CD
+	                                          UNION
+	                                          SELECT e.ADD_ITEM_CD FROM TBL_EXT_ITEM_MST e
+	                                           WHERE e.ACTION_YN='Y' AND e.PROD_CD = #{prodCd,jdbcType=VARCHAR} AND e.ADD_ITEM_CD IS NOT NULL AND e.COMP_CD = d.COMP_CD ) )
 	                     AND ISNULL(LTRIM(RTRIM(d.REMARK)),'') <> ''
 	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                     AND ( ISNULL(#{remark,jdbcType=VARCHAR},'') = '' OR m.VENDOR_CD = #{remark,jdbcType=VARCHAR} )
@@ -3413,7 +3427,14 @@
 	         d.AMT AS amt, d.EVENT_YN AS eventYn, d.TRX_GB AS trxGb
 	    FROM TBL_PURCHASE_DTL d
 	    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN='Y' AND m.COMP_CD = d.COMP_CD
-	   WHERE d.ACTION_YN='Y' AND d.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	   WHERE d.ACTION_YN='Y'
+	     -- 매칭코드·추가 매칭코드로 잡힌 옛 매입도 이 상품 이력으로 (2026-09-13 — 이전단가 알림 selectVendorLastPrice 와 같은 범위)
+	     AND ( d.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	        OR d.PROD_CD IN ( SELECT e.EXT_ITEM_CD FROM TBL_EXT_ITEM_MST e
+	                           WHERE e.ACTION_YN='Y' AND e.PROD_CD = #{prodCd,jdbcType=VARCHAR} AND e.COMP_CD = d.COMP_CD
+	                          UNION
+	                          SELECT e.ADD_ITEM_CD FROM TBL_EXT_ITEM_MST e
+	                           WHERE e.ACTION_YN='Y' AND e.PROD_CD = #{prodCd,jdbcType=VARCHAR} AND e.ADD_ITEM_CD IS NOT NULL AND e.COMP_CD = d.COMP_CD ) )
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{remark,jdbcType=VARCHAR},'') = '' OR m.VENDOR_CD = #{remark,jdbcType=VARCHAR} )
 	     AND m.PURCH_DT >= CONVERT(VARCHAR(8), DATEADD(YEAR,-3,GETDATE()), 112)   -- 최대 3년
