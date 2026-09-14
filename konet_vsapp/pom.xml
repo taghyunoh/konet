@@ -47,7 +47,7 @@
 
 	<dependencies>
 		<!-- 메일 발송 (2026-09-09) — 거래명세서 이메일 발송. 설정 = src/main/resources/mail.properties
-		     구현 = egovframework.sejong.cmmn.MailSender. 계정이 비어 있으면 보내지 않고 화면이 안내한다. -->
+		     구현 = egovframework.konet.cmmn.MailSender. 계정이 비어 있으면 보내지 않고 화면이 안내한다. -->
 		<dependency>
 			<groupId>com.sun.mail</groupId>
 			<artifactId>javax.mail</artifactId>

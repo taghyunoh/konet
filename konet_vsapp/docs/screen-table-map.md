@@ -1,6 +1,6 @@
 # 물류(도매유통) 화면 ↔ DB 테이블 맵 (개발자 참조)
 
-> konet_web · MSSQL · egovframework(`egovframework.sejong`) · MyBatis · Apache Tiles
+> konet_web · MSSQL · egovframework(`egovframework.konet`) · MyBatis · Apache Tiles
 > 화면에서 `Ctrl+Alt+T` 를 누르면 이 표의 요약이 우측 오버레이로 뜹니다.
 > 최초 작성 2026-07-05.
 

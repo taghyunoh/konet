@@ -48,6 +48,7 @@ pull 중 **충돌(conflict)** 이 나면 짐작으로 고치지 말고 어느 PC
 | `*.java` · `User_SQL.xml` | **두 앱 모두** `mvn -o compile` — 톰캣을 켜 둔 채로 두면 스스로 다시 올라온다(수십 초). §4 의 server.xml 설정이 되어 있어야 한다 |
 | `sql/*.sql` (DDL) | **DB 는 모든 PC 가 같이 쓴다** → 다른 PC 에서 이미 돌렸는지 먼저 확인. 한 번만 돌린다 |
 | `pom.xml` (의존성) | 온라인 빌드(`-DskipTests clean package`) 후 웹앱 JAR 폴더 갱신 — 가이드 §6-1 |
+| **폴더·패키지 이름 변경** (예: 2026-09-14 `egovframework.sejong` → `egovframework.konet`) | 톰캣 **중지** → 두 앱 `mvn -o clean compile` → 톰캣 **시작**. VS Code 에 빨간 오류가 남으면 `Ctrl+Shift+P` → **Java: Clean Java Language Server Workspace** |
 
 ```
 set JAVA_HOME=C:\Program Files\Java\jre-1.8

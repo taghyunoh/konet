@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="egovframework.sejong.user.mapper.UserMapper">
+<mapper namespace="egovframework.konet.user.mapper.UserMapper">
 
 	<!-- ============================================================
 	     KOLGSDB(MSSQL) 로그인 — COMP_CD + USER_ID 최신 활성 1건
@@ -462,7 +462,7 @@
 
 	<!-- ⓪ 이력마감 전, 같은 (납품일자,물류센터) 기존 활성배치의 출고일자 목록
 	       — 출고일자가 바뀐 재업로드에서 옛 출고일자의 재고원장(O행)도 다시 동기화해야 하므로 미리 받아둔다 -->
-	<select id="selectShipoutActiveShpoutDts" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="string"><![CDATA[
+	<select id="selectShipoutActiveShpoutDts" parameterType="egovframework.konet.user.model.ShipoutDTO" resultType="string"><![CDATA[
 	  SELECT DISTINCT SHPOUT_DT
 	    FROM TBL_SHIPOUT_MST
 	   WHERE DLV_DT = REPLACE(ISNULL(#{dlvDt},''),'-','')
@@ -473,7 +473,7 @@
 	]]></select>
 
 	<!-- ① 같은 (납품일자,물류센터) 기존 활성배치 이력마감(삭제이력 남김) — ★출고일자는 보지 않는다 -->
-	<update id="markShipoutHistory" parameterType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
+	<update id="markShipoutHistory" parameterType="egovframework.konet.user.model.ShipoutDTO"><![CDATA[
 	  UPDATE TBL_SHIPOUT_MST
 	     SET ACTION_YN = 'N', UPD_DTTM = GETDATE(), UPD_USER = #{updUser}, UPD_IP = #{updIp}
 	   WHERE DLV_DT    = REPLACE(ISNULL(#{dlvDt},''),'-','')
@@ -483,7 +483,7 @@
 	]]></update>
 
 	<!-- ①-D 출고장 출고 소프트 삭제 — 특정 출고장(DC_CD+INWH)+출고일자의 활성분(ACTION_YN=Y)을 D(삭제)로 표시. 이력 보존(복구 가능) -->
-	<update id="deleteShipoutZone" parameterType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
+	<update id="deleteShipoutZone" parameterType="egovframework.konet.user.model.ShipoutDTO"><![CDATA[
 	  UPDATE TBL_SHIPOUT_MST
 	     SET ACTION_YN = 'D', UPD_DTTM = GETDATE(), UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
@@ -495,7 +495,7 @@
 ]]></update>
 
 	<!-- ② 같은 (납품일자,물류센터)의 다음 배치 JOB_SEQ — ★①과 같은 키(출고일자 제외)여야 버전이 어긋나지 않는다 -->
-	<select id="getShipoutNextJobSeq" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="int"><![CDATA[
+	<select id="getShipoutNextJobSeq" parameterType="egovframework.konet.user.model.ShipoutDTO" resultType="int"><![CDATA[
 	  SELECT ISNULL(MAX(JOB_SEQ),0)+1
 	    FROM TBL_SHIPOUT_MST
 	   WHERE DLV_DT    = REPLACE(ISNULL(#{dlvDt},''),'-','')
@@ -504,7 +504,7 @@
 	]]></select>
 
 	<!-- ③ 신규 배치 행 INSERT (ACTION_YN='Y') -->
-	<insert id="insertShipoutMst" parameterType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
+	<insert id="insertShipoutMst" parameterType="egovframework.konet.user.model.ShipoutDTO"><![CDATA[
 	  INSERT INTO TBL_SHIPOUT_MST (
 	      COMP_CD, SHPOUT_DT, DLV_DT, JOB_SEQ, ACTION_YN, ROW_NO, SRC_FILE, UPLOAD_DTTM,
 	      INRSV_YN, LABEL_PRT_GB, DC_CD, DC_NM, VENDOR_CD, VENDOR_NM, ITEM_CD, ITEM_NM,
@@ -556,7 +556,7 @@
 	</insert>
 
 	<!-- ④ 해당 출고일자 활성배치 조회 — 출고현황표 화면 로딩용 (SHPOUT_DT 기준, ACTION_YN='Y') -->
-	<select id="selectShipoutMst" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
+	<select id="selectShipoutMst" parameterType="egovframework.konet.user.model.ShipoutDTO" resultType="egovframework.konet.user.model.ShipoutDTO"><![CDATA[
 	  SELECT
 	      t.SHPOUT_DT AS shpoutDt, t.DLV_DT AS dlvDt, t.JOB_SEQ AS jobSeq, t.ROW_NO AS rowNo, t.SRC_FILE AS srcFile,
 	      CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm,
@@ -680,7 +680,7 @@
 	     ============================================================ -->
 
 	<!-- ① 같은 (납품일자,출고장) 기존 활성배치 이력마감 -->
-	<update id="markSalesHistory" parameterType="egovframework.sejong.user.model.SalesDTO"><![CDATA[
+	<update id="markSalesHistory" parameterType="egovframework.konet.user.model.SalesDTO"><![CDATA[
 	  UPDATE TBL_SALES_MST
 	     SET ACTION_YN = 'N', UPD_DTTM = CONVERT(varchar(19), GETDATE(), 120),
 	         UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
@@ -691,7 +691,7 @@
 	]]></update>
 
 	<!-- ② 같은 (납품일자,출고장)의 다음 배치 JOB_SEQ -->
-	<select id="getSalesNextJobSeq" parameterType="egovframework.sejong.user.model.SalesDTO" resultType="int"><![CDATA[
+	<select id="getSalesNextJobSeq" parameterType="egovframework.konet.user.model.SalesDTO" resultType="int"><![CDATA[
 	  SELECT ISNULL(MAX(JOB_SEQ),0)+1
 	    FROM TBL_SALES_MST
 	   WHERE DLV_DT = REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-','')
@@ -700,7 +700,7 @@
 	]]></select>
 
 	<!-- ③ 신규 배치 행 INSERT (ACTION_YN='Y') -->
-	<insert id="insertSalesMst" parameterType="egovframework.sejong.user.model.SalesDTO"><![CDATA[
+	<insert id="insertSalesMst" parameterType="egovframework.konet.user.model.SalesDTO"><![CDATA[
 	  INSERT INTO TBL_SALES_MST (
 	      COMP_CD, JOB_SEQ, ACTION_YN, ROW_NO, SRC_FILE, UPLOAD_DTTM,
 	      DC_CD, DC_NM,
@@ -726,7 +726,7 @@
 	       · ★활성(Y)·이력(N) 을 모두 함께 바꾼다 — 한쪽만 바꾸면 다음 재업로드 때 markSalesHistory 가
 	         옛 이름 배치를 못 찾아 이력마감이 어긋나고 활성배치가 둘이 된다.
 	       · 행수·수량·금액은 건드리지 않는다(이름·코드만). -->
-	<update id="updateSalesDcNm" parameterType="egovframework.sejong.user.model.SalesDTO"><![CDATA[
+	<update id="updateSalesDcNm" parameterType="egovframework.konet.user.model.SalesDTO"><![CDATA[
 	  UPDATE TBL_SALES_MST
 	     SET DC_NM = #{newDcNm,jdbcType=VARCHAR}, DC_CD = #{newDcCd,jdbcType=VARCHAR},
 	         UPD_DTTM = CONVERT(varchar(19), GETDATE(), 120),
@@ -740,7 +740,7 @@
 	<!-- ③-3 정정 전 충돌 확인 — 옮겨갈 이름으로 '같은 납품일자에 이미 활성배치가 있는' 일자 수.
 	         0 이 아니면 정정하면 안 된다(같은 키에 활성배치가 둘이 되어 매출이 두 번 잡힌다).
 	         그 경우는 정정이 아니라 잘못 올린 배치를 지우는 게 맞다 → 서비스단에서 막고 알린다. -->
-	<select id="countSalesDcConflict" parameterType="egovframework.sejong.user.model.SalesDTO" resultType="int"><![CDATA[
+	<select id="countSalesDcConflict" parameterType="egovframework.konet.user.model.SalesDTO" resultType="int"><![CDATA[
 	  SELECT COUNT(*)
 	    FROM ( SELECT DISTINCT DLV_DT
 	             FROM TBL_SALES_MST
@@ -757,7 +757,7 @@
 	]]></select>
 
 	<!-- ④ 활성배치 조회 — 기간(dlvDtFrom~dlvDtTo) 우선, 없으면 단일 납품일자, 그것도 없으면 전체 -->
-	<select id="selectSalesMst" parameterType="egovframework.sejong.user.model.SalesDTO" resultType="egovframework.sejong.user.model.SalesDTO"><![CDATA[
+	<select id="selectSalesMst" parameterType="egovframework.konet.user.model.SalesDTO" resultType="egovframework.konet.user.model.SalesDTO"><![CDATA[
 	  SELECT
 	      t.SALES_SEQ AS salesSeq, t.JOB_SEQ AS jobSeq, t.ROW_NO AS rowNo, t.SRC_FILE AS srcFile,
 	      CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm,
@@ -795,7 +795,7 @@
 	     · 품목코드가 TBL_PROD_MST 에 없으면 USING 이 빈 집합 → 아무 일도 안 하고 0 반환(에러 아님)
 	     · PROD_SEQ 는 같은 품목코드의 최신 활성 마스터 1건으로 확정(중복 마스터 대비)
 	     · MERGE 는 반드시 세미콜론으로 끝나야 함 -->
-	<update id="mergeSalepriceFromSales" parameterType="egovframework.sejong.user.model.SalesDTO"><![CDATA[
+	<update id="mergeSalepriceFromSales" parameterType="egovframework.konet.user.model.SalesDTO"><![CDATA[
 	  MERGE TBL_PROD_SALEPRICE_HST AS t
 	  USING (
 	      SELECT pm.PROD_SEQ, pm.PROD_CD, pm.IN_PRICE,
@@ -827,7 +827,7 @@
 	     · ★TBL_BIZI_MST(사업장/점포)와 별개 — 코드·이름 교집합 0. 섞지 말 것
 	     · 매입처 후보(매입가·재고입고 화면) = gbFilter='매입' → VENDOR_GB 에 '매입' 포함분 121종
 	     ============================================================ -->
-	<select id="selectVendorMst" parameterType="egovframework.sejong.user.model.VendorDTO" resultType="egovframework.sejong.user.model.VendorDTO"><![CDATA[
+	<select id="selectVendorMst" parameterType="egovframework.konet.user.model.VendorDTO" resultType="egovframework.konet.user.model.VendorDTO"><![CDATA[
 	  SELECT VENDOR_CD AS vendorCd, VENDOR_NM AS vendorNm, FULL_NM AS fullNm, ALIAS AS alias,
 	         CEO_NM AS ceoNm, VENDOR_GB AS vendorGb, BIZ_COND AS bizCond, BIZ_ITEM AS bizItem,
 	         MGR_CD AS mgrCd, MGR_NM AS mgrNm, TYPE_CD AS typeCd, TYPE_NM AS typeNm,
@@ -861,7 +861,7 @@
 	       매입 = 매입전표(TBL_PURCHASE_MST, VENDOR_CD)  — 원장(selectCustLedger)과 같은 원천이다.
 	     · <전체 누적>이다 — 처음엔 최근 6개월이었으나 화면에 '총액'을 보여 달라는 요청(2026-08-04)으로 전환.
 	     · 거래가 있는 거래처만 돌려준다(없는 거래처는 화면에서 0 취급). -->
-	<select id="selectVendorTrxSum" parameterType="egovframework.sejong.user.model.VendorDTO" resultType="java.util.HashMap"><![CDATA[
+	<select id="selectVendorTrxSum" parameterType="egovframework.konet.user.model.VendorDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT ven.VENDOR_CD AS vendorCd,
 	         ISNULL(sm.amt,0) + ISNULL(st.amt,0) AS saleAmt,     /* 매출 합계 = 정산서 + 판매전표 */
 	         ISNULL(sm.amt,0)                    AS settleAmt,   /* 그 중 정산서(TBL_SALES_MST) 몫 */
@@ -892,13 +892,13 @@
 	]]></select>
 
 	<!-- 거래처 코드 중복 체크 (신규 등록 시) -->
-	<select id="vendorDupChk" parameterType="egovframework.sejong.user.model.VendorDTO" resultType="int"><![CDATA[
+	<select id="vendorDupChk" parameterType="egovframework.konet.user.model.VendorDTO" resultType="int"><![CDATA[
 	  SELECT COUNT(*) FROM TBL_VENDOR_MST WHERE VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
 	<!-- 거래처 신규 등록 (화면 수기 등록) -->
-	<insert id="insertVendorMst" parameterType="egovframework.sejong.user.model.VendorDTO"><![CDATA[
+	<insert id="insertVendorMst" parameterType="egovframework.konet.user.model.VendorDTO"><![CDATA[
 	  INSERT INTO TBL_VENDOR_MST (
 	      COMP_CD, VENDOR_CD, VENDOR_NM, FULL_NM, ALIAS, CEO_NM, VENDOR_GB, BIZ_COND, BIZ_ITEM,
 	      MGR_CD, MGR_NM, TYPE_CD, TYPE_NM, AREA_CD, AREA_NM, ZIPCD, ADDR, ADDR2,
@@ -922,7 +922,7 @@
 	]]></insert>
 
 	<!-- 거래처 수정 (VENDOR_CD 기준 전체 필드 갱신) -->
-	<update id="updateVendorMst" parameterType="egovframework.sejong.user.model.VendorDTO"><![CDATA[
+	<update id="updateVendorMst" parameterType="egovframework.konet.user.model.VendorDTO"><![CDATA[
 	  UPDATE TBL_VENDOR_MST
 	     SET VENDOR_NM = #{vendorNm,jdbcType=VARCHAR}, FULL_NM = #{fullNm,jdbcType=VARCHAR}, ALIAS = #{alias,jdbcType=VARCHAR},
 	         CEO_NM = #{ceoNm,jdbcType=VARCHAR}, VENDOR_GB = #{vendorGb,jdbcType=VARCHAR},
@@ -949,7 +949,7 @@
 	<!-- 거래처 이메일만 저장 (2026-09-09) — 거래명세서 [이메일발송] 창의 「저장」 체크가 부른다.
 	     ★EMAIL 한 칸만 고친다 — 발송 창에서 거래처 마스터를 통째로 덮어쓰면 다른 칸이 빈 값으로 날아간다.
 	     ★주소를 여럿 담을 수 있다(세미콜론으로 이어 붙임) — 발송 창 드롭다운이 그것을 갈라 보여 준다. -->
-	<update id="updateVendorEmail" parameterType="egovframework.sejong.user.model.VendorDTO"><![CDATA[
+	<update id="updateVendorEmail" parameterType="egovframework.konet.user.model.VendorDTO"><![CDATA[
 	  UPDATE TBL_VENDOR_MST
 	     SET EMAIL = #{email,jdbcType=VARCHAR},
 	         UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
@@ -958,7 +958,7 @@
 	]]></update>
 
 	<!-- 거래처 소프트 삭제 (ACTION_YN='N' — 이력·참조 보존) -->
-	<update id="deleteVendorMst" parameterType="egovframework.sejong.user.model.VendorDTO"><![CDATA[
+	<update id="deleteVendorMst" parameterType="egovframework.konet.user.model.VendorDTO"><![CDATA[
 	  UPDATE TBL_VENDOR_MST
 	     SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120),
 	         UPD_USER = #{updUser,jdbcType=VARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
@@ -968,7 +968,7 @@
 
 	<!-- 거래처리스트.xls 재업로드 upsert — VENDOR_CD 있으면 갱신, 없으면 신규 (초기적재 vendor_mst_insert.sql 과 동일 규칙)
 	     · 소프트삭제(ACTION_YN='N')된 코드가 다시 오면 'Y' 로 복구 -->
-	<update id="mergeVendorMst" parameterType="egovframework.sejong.user.model.VendorDTO"><![CDATA[
+	<update id="mergeVendorMst" parameterType="egovframework.konet.user.model.VendorDTO"><![CDATA[
 	  MERGE dbo.TBL_VENDOR_MST AS t
 	  USING (SELECT #{vendorCd,jdbcType=VARCHAR} AS VENDOR_CD) AS s
 	     ON (t.VENDOR_CD = s.VENDOR_CD AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
@@ -1005,7 +1005,7 @@
 	]]></update>
 
 	<!-- ④-1 이미 업로드(반영)된 매출 엑셀 파일 목록 — 업로드 화면 '이미 반영' 배지용 -->
-	<select id="selectSalesSrcFiles" resultType="egovframework.sejong.user.model.SalesDTO"><![CDATA[
+	<select id="selectSalesSrcFiles" resultType="egovframework.konet.user.model.SalesDTO"><![CDATA[
 	  SELECT SRC_FILE AS srcFile,
 	         MAX(DLV_DT) AS dlvDt,
 	         MAX(DC_NM)  AS dcNm,
@@ -1018,7 +1018,7 @@
 
 	<!-- ④-1 이미 업로드(반영)된 원본 파일명 목록 — 폴더 업로드 화면에서 '이미 반영' 배지 표시용
 	     · 파일명(SRC_FILE)별 최종 저장일시(UPLOAD_DTTM)·출고일자(SHPOUT_DT) -->
-	<select id="selectShipoutSrcFiles" resultType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
+	<select id="selectShipoutSrcFiles" resultType="egovframework.konet.user.model.ShipoutDTO"><![CDATA[
 	  SELECT SRC_FILE AS srcFile,
 	         MAX(SHPOUT_DT) AS shpoutDt,
 	         CONVERT(varchar(19), MAX(UPLOAD_DTTM), 120) AS uploadDttm
@@ -1031,7 +1031,7 @@
 	<!-- ④-2 해당 출고일자 '직전 배치' 조회 — 이력 비교(신규/삭제)용
 	     · 그룹(DLV_DT+SHPOUT_DT+DC_CD)별 ACTION_YN='N' 중 MAX(JOB_SEQ) = 직전 업로드본
 	     · 현재 활성배치(④)와 (사업장코드+품목코드)로 대조하여 신규/삭제 판정 -->
-	<select id="selectShipoutPrev" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
+	<select id="selectShipoutPrev" parameterType="egovframework.konet.user.model.ShipoutDTO" resultType="egovframework.konet.user.model.ShipoutDTO"><![CDATA[
 	  -- ★속도(2026-07-31): 행마다 돌던 상관 서브쿼리 2개(firstDttm MIN / 직전차수 MAX(JOB_SEQ))를
 	  --   윈도우 함수로 교체 — selectShipoutMst 의 firstDttm 최적화(944ms→73ms, 2026-07-25)와 같은 수법.
 	  --   운영 실측 이 쿼리 단독 2.2s 가 대시보드 최초 진입의 최장 병목이었다.
@@ -1078,7 +1078,7 @@
 	     · SHPOUT_DT + DC_CD 의 ACTION_YN 무관 전체 행(활성 Y + 이력 N)
 	     · 클라이언트가 (사업장+품목) × 배치(UPLOAD_DTTM) 로 피벗하여 배치별 수량 변화(신규/삭제/증감) 표시
 	     · 배치 순서·라벨은 UPLOAD_DTTM 오름차순(최초→현재), 현재본 = ACTION_YN='Y' -->
-	<select id="selectShipoutHistory" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
+	<select id="selectShipoutHistory" parameterType="egovframework.konet.user.model.ShipoutDTO" resultType="egovframework.konet.user.model.ShipoutDTO"><![CDATA[
 	  SELECT
 	      t.SHPOUT_DT AS shpoutDt, t.DLV_DT AS dlvDt, t.JOB_SEQ AS jobSeq, t.ACTION_YN AS actionYn,
 	      t.ROW_NO AS rowNo, t.SRC_FILE AS srcFile,
@@ -1120,7 +1120,7 @@
 	       순마진 = 매출액 - 매입액. 매입단가가 없는 품목은 매입액 0이라 마진이 부풀어 보인다
 	         (마감 화면의 inSrc='매입가없음' 과 같은 한계 — 그래프에는 배지가 없으니 화면 안내로 대신한다).
 	     ============================================================ -->
-	<select id="selectSalesChart" parameterType="egovframework.sejong.user.model.ClosingDTO" resultType="java.util.HashMap"><![CDATA[
+	<select id="selectSalesChart" parameterType="egovframework.konet.user.model.ClosingDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT x.ym AS ym, x.dcCd AS dcCd, MAX(x.dcNm) AS dcNm,
 	         SUM(x.saleAmt) AS saleAmt,
 	         SUM(x.stlAmt)  AS stlAmt,      -- 그중 정산서 확정분
@@ -1296,7 +1296,7 @@
 	     · 출고장으로 쪼개지 않는다 — 일자별은 '하루에 얼마'가 궁금한 것이라 합계면 된다.
 	       단, 매입액을 잡을 때의 '정산서↔출고 짝 맞추기'는 출고장까지 포함한 대사키로 판정한다
 	       (그래야 월별·마감과 같은 건이 짝으로 잡힌다). -->
-	<select id="selectSalesChartDaily" parameterType="egovframework.sejong.user.model.ClosingDTO" resultType="java.util.HashMap"><![CDATA[
+	<select id="selectSalesChartDaily" parameterType="egovframework.konet.user.model.ClosingDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT x.dt AS dt,
 	         SUM(x.saleAmt) AS saleAmt,
 	         SUM(x.stlAmt)  AS stlAmt,
@@ -1463,7 +1463,7 @@
 	       화면은 그 흐름(몇 차까지 올렸나·언제·몇 건·누가)을 일자별로 보여준다.
 	     · ACTION_YN='D' 는 삭제분이라 제외한다(기존 조회들과 같은 규칙).
 	     ============================================================ -->
-	<select id="selectShipoutUploadHist" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="java.util.HashMap"><![CDATA[
+	<select id="selectShipoutUploadHist" parameterType="egovframework.konet.user.model.ShipoutDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT t.SHPOUT_DT                                   AS shpoutDt,
 	         ISNULL(t.DLV_DT,'')                           AS dlvDt,
 	         ISNULL(t.DC_CD,'')                            AS dcCd,
@@ -1495,7 +1495,7 @@
 	]]></select>
 
 	<!-- 배치 1건의 명세 — 위 목록에서 줄을 누르면 그 배치가 실제로 무엇을 담았는지 펼친다 -->
-	<select id="selectShipoutUploadDtl" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="java.util.HashMap"><![CDATA[
+	<select id="selectShipoutUploadDtl" parameterType="egovframework.konet.user.model.ShipoutDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT t.ROW_NO AS rowNo, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
 	         t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.UNIT AS unit,
 	         t.CUR_QTY AS curQty, t.LABEL_QTY AS labelQty, t.BOX_QTY AS boxQty,
@@ -1512,7 +1512,7 @@
 
 	<!-- ④-4 해당 출고일자 '전체 출고장'의 전 배치(활성+이력) 조회 — 메인 그리드 차수별 수량 매트릭스용
 	     · DC 필터 없음(모든 출고장). 클라이언트가 (출고장+사업장+품목) × 배치(UPLOAD_DTTM) 로 피벗 -->
-	<select id="selectShipoutHistAll" parameterType="egovframework.sejong.user.model.ShipoutDTO" resultType="egovframework.sejong.user.model.ShipoutDTO"><![CDATA[
+	<select id="selectShipoutHistAll" parameterType="egovframework.konet.user.model.ShipoutDTO" resultType="egovframework.konet.user.model.ShipoutDTO"><![CDATA[
 	  SELECT
 	      t.SHPOUT_DT AS shpoutDt, t.DLV_DT AS dlvDt, t.JOB_SEQ AS jobSeq, t.ACTION_YN AS actionYn,
 	      t.ROW_NO AS rowNo,
@@ -1541,7 +1541,7 @@
 	     사업장 분류 마스터 — TBL_BIZI_MST
 	     · 업로드 분류용. 활성(ACTION_YN='Y') 전체 조회 / 사업장코드 단위 upsert
 	     ============================================================ -->
-	<select id="selectBiziMst" resultType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
+	<select id="selectBiziMst" resultType="egovframework.konet.user.model.BiziDTO"><![CDATA[
 	  -- 택배 정보·주소도 함께 (2026-08-06) — 사업장관리 화면이 이 목록으로 그린다
 	  SELECT BIZ_CD AS bizCd, JOB_SEQ AS jobSeq, ACTION_YN AS actionYn, BIZ_NM AS bizNm,
 	         ZIPCD AS zipcd, ADDR AS addr, TEL AS tel, HP AS hp,
@@ -1556,7 +1556,7 @@
 	]]></select>
 
 	<!-- 사업장코드가 없을 때만 신규 등록 (기존 사업장명은 그대로 유지 — insert if absent) -->
-	<insert id="insertBiziIfAbsent" parameterType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
+	<insert id="insertBiziIfAbsent" parameterType="egovframework.konet.user.model.BiziDTO"><![CDATA[
 	  INSERT INTO TBL_BIZI_MST (COMP_CD, BIZ_CD, JOB_SEQ, ACTION_YN, BIZ_NM, REG_DTTM, REG_USER, REG_IP)
 	  SELECT ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{bizCd}, 1, 'Y', #{bizNm}, GETDATE(), #{regUser}, #{regIp}
 	   WHERE NOT EXISTS (SELECT 1 FROM TBL_BIZI_MST t WHERE t.BIZ_CD = #{bizCd}
@@ -1564,7 +1564,7 @@
 	]]></insert>
 
 	<!-- 관리화면: 사업장명 수정 -->
-	<update id="updateBiziMst" parameterType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
+	<update id="updateBiziMst" parameterType="egovframework.konet.user.model.BiziDTO"><![CDATA[
 	  UPDATE TBL_BIZI_MST
 	     SET BIZ_NM = #{bizNm}, ACTION_YN = 'Y',
 	         UPD_DTTM = GETDATE(), UPD_USER = #{updUser}, UPD_IP = #{updIp}
@@ -1573,7 +1573,7 @@
 	]]></update>
 
 	<!-- 관리화면: 사업장 삭제(비활성화 ACTION_YN='N') -->
-	<update id="deleteBiziMst" parameterType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
+	<update id="deleteBiziMst" parameterType="egovframework.konet.user.model.BiziDTO"><![CDATA[
 	  UPDATE TBL_BIZI_MST
 	     SET ACTION_YN = 'N',
 	         UPD_DTTM = GETDATE(), UPD_USER = #{updUser}, UPD_IP = #{updIp}
@@ -1584,7 +1584,7 @@
 	<!-- ============================================================
 	     거래처관리(사업장) CRUD — TBL_BIZI_MST (확장 컬럼)
 	     ============================================================ -->
-	<select id="selectBiziList" parameterType="egovframework.sejong.user.model.BiziDTO" resultType="egovframework.sejong.user.model.BiziDTO">
+	<select id="selectBiziList" parameterType="egovframework.konet.user.model.BiziDTO" resultType="egovframework.konet.user.model.BiziDTO">
 	  SELECT BIZ_CD AS bizCd, BIZ_NM AS bizNm, BIZ_SMALL_NM AS bizSmallNm, BIZ_GB AS bizGb, BIZNO AS bizno,
 	         CEO_NM AS ceoNm, BIZ_COND AS bizCond, BIZ_ITEM AS bizItem, ZIPCD AS zipcd, ADDR AS addr, ADDR2 AS addr2,
 	         TEL AS tel, FAX AS fax, HP AS hp, EMAIL AS email, MANAGER AS manager, SORT_ORD AS sortOrd, REMARK AS remark,
@@ -1603,12 +1603,12 @@
 	   ORDER BY ISNULL(SORT_ORD, 999999), BIZ_NM, BIZ_CD
 	</select>
 
-	<select id="biziDupChk" parameterType="egovframework.sejong.user.model.BiziDTO" resultType="int">
+	<select id="biziDupChk" parameterType="egovframework.konet.user.model.BiziDTO" resultType="int">
 	  SELECT COUNT(*) FROM TBL_BIZI_MST WHERE BIZ_CD = #{bizCd} AND ISNULL(ACTION_YN,'Y') = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	</select>
 
-	<insert id="insertBizi" parameterType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
+	<insert id="insertBizi" parameterType="egovframework.konet.user.model.BiziDTO"><![CDATA[
 	  INSERT INTO TBL_BIZI_MST
 	    (COMP_CD, BIZ_CD, JOB_SEQ, ACTION_YN, BIZ_NM, BIZ_SMALL_NM, BIZ_GB, BIZNO, CEO_NM, BIZ_COND, BIZ_ITEM,
 	     ZIPCD, ADDR, ADDR2, TEL, FAX, HP, EMAIL, MANAGER, SORT_ORD, REMARK, REG_DTTM, REG_USER, REG_IP)
@@ -1619,7 +1619,7 @@
 	     GETDATE(), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
 
-	<update id="updateBizi" parameterType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
+	<update id="updateBizi" parameterType="egovframework.konet.user.model.BiziDTO"><![CDATA[
 	  UPDATE TBL_BIZI_MST
 	     SET BIZ_NM=#{bizNm,jdbcType=NVARCHAR}, BIZ_SMALL_NM=#{bizSmallNm,jdbcType=NVARCHAR}, BIZ_GB=#{bizGb,jdbcType=NVARCHAR}, BIZNO=#{bizno,jdbcType=NVARCHAR},
 	         CEO_NM=#{ceoNm,jdbcType=NVARCHAR}, BIZ_COND=#{bizCond,jdbcType=NVARCHAR}, BIZ_ITEM=#{bizItem,jdbcType=NVARCHAR}, ZIPCD=#{zipcd,jdbcType=NVARCHAR},
@@ -1630,7 +1630,7 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
-	<update id="deleteBizi" parameterType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
+	<update id="deleteBizi" parameterType="egovframework.konet.user.model.BiziDTO"><![CDATA[
 	  UPDATE TBL_BIZI_MST SET ACTION_YN='N', UPD_DTTM=GETDATE(), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE BIZ_CD = #{bizCd}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -1642,7 +1642,7 @@
 	     ★지금은 거래처관리 화면 전용 — 출고현황표 묶음에는 쓰지 않는다.
 	     ============================================================ -->
 	<!-- 선택한 사업장들에 매칭코드·명칭을 한 번에 지정. matchCd 가 비면 해제(NULL) 된다. -->
-	<update id="updateBiziMatch" parameterType="egovframework.sejong.user.model.BiziDTO">
+	<update id="updateBiziMatch" parameterType="egovframework.konet.user.model.BiziDTO">
 	  UPDATE TBL_BIZI_MST
 	     SET MATCH_CD = NULLIF(#{matchCd,jdbcType=NVARCHAR},''),
 	         MATCH_NM = NULLIF(#{matchNm,jdbcType=NVARCHAR},''),
@@ -1655,7 +1655,7 @@
 
 	<!-- 자동채번용 다음 코드 — 이미 쓰는 'M0001' 꼴 중 가장 큰 수 + 1.
 	     ★숫자 4자리 꼴만 센다(직접 입력한 다른 모양의 코드가 채번을 어지럽히지 않게). -->
-	<select id="biziMatchNextNo" parameterType="egovframework.sejong.user.model.BiziDTO" resultType="int"><![CDATA[
+	<select id="biziMatchNextNo" parameterType="egovframework.konet.user.model.BiziDTO" resultType="int"><![CDATA[
 	  SELECT ISNULL(MAX(CONVERT(int, SUBSTRING(MATCH_CD, 2, 4))), 0) + 1
 	    FROM TBL_BIZI_MST
 	   WHERE MATCH_CD LIKE 'M[0-9][0-9][0-9][0-9]' AND LEN(MATCH_CD) = 5
@@ -1664,7 +1664,7 @@
 
 	<!-- 택배 정보만 저장 (2026-08-06 신설) — 사업장관리·택배출고관리 공용.
 	     updateBiziMst(이름만)와 분리해 다른 칼럼을 건드리지 않는다. -->
-	<update id="updateBiziParcel" parameterType="egovframework.sejong.user.model.BiziDTO"><![CDATA[
+	<update id="updateBiziParcel" parameterType="egovframework.konet.user.model.BiziDTO"><![CDATA[
 	  UPDATE TBL_BIZI_MST
 	     SET PARCEL_ADDR = #{parcelAddr,jdbcType=NVARCHAR}, PARCEL_TEL = #{parcelTel,jdbcType=NVARCHAR},
 	         PARCEL_HP = #{parcelHp,jdbcType=NVARCHAR}, PARCEL_NM = #{parcelNm,jdbcType=NVARCHAR},
@@ -1709,7 +1709,7 @@
 	<!-- ============================================================
 	     수금/미수금 — TBL_RECEIVE_MST (거래처 × 귀속월). 미수잔액=전월이월+당월매출-당월수금
 	     ============================================================ -->
-	<select id="selectReceiveList" parameterType="egovframework.sejong.user.model.ReceiveDTO" resultType="egovframework.sejong.user.model.ReceiveDTO">
+	<select id="selectReceiveList" parameterType="egovframework.konet.user.model.ReceiveDTO" resultType="egovframework.konet.user.model.ReceiveDTO">
 	  SELECT RCV_SEQ AS rcvSeq, RCV_YM AS rcvYm, BIZ_CD AS bizCd, BIZ_NM AS bizNm,
 	         PREV_AMT AS prevAmt, SALES_AMT AS salesAmt, COLLECT_AMT AS collectAmt,
 	         COLLECT_DT AS collectDt, PAY_GB AS payGb, REMARK AS remark, UPD_DTTM AS updDttm
@@ -1732,7 +1732,7 @@
 	     그래서 물리 행은 키당 1개를 유지하고 수기 추가가 삭제행을 되살린다:
 	     · 삭제(N)행 있으면 → 입력값으로 되살림  · 살아있는(Y) 중복이면 → 0건(서비스가 "이미 등록" 안내)
 	     · 없으면 → INSERT -->
-	<insert id="insertReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
+	<insert id="insertReceive" parameterType="egovframework.konet.user.model.ReceiveDTO"><![CDATA[
 	  MERGE TBL_RECEIVE_MST AS t
 	  USING (SELECT REPLACE(#{rcvYm},'-','') AS RCV_YM, #{bizCd,jdbcType=NVARCHAR} AS BIZ_CD) AS s
 	  ON (t.RCV_YM = s.RCV_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,'') AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
@@ -1745,7 +1745,7 @@
 	             REPLACE(ISNULL(#{collectDt,jdbcType=NVARCHAR},''),'-',''), #{payGb,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
 	]]></insert>
 
-	<update id="updateReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
+	<update id="updateReceive" parameterType="egovframework.konet.user.model.ReceiveDTO"><![CDATA[
 	  UPDATE TBL_RECEIVE_MST
 	     SET BIZ_NM=#{bizNm,jdbcType=NVARCHAR}, PREV_AMT=#{prevAmt,jdbcType=DECIMAL}, SALES_AMT=#{salesAmt,jdbcType=DECIMAL}, COLLECT_AMT=#{collectAmt,jdbcType=DECIMAL},
 	         COLLECT_DT=REPLACE(ISNULL(#{collectDt,jdbcType=NVARCHAR},''),'-',''), PAY_GB=#{payGb,jdbcType=NVARCHAR}, REMARK=#{remark,jdbcType=NVARCHAR},
@@ -1754,14 +1754,14 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
-	<update id="deleteReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
+	<update id="deleteReceive" parameterType="egovframework.konet.user.model.ReceiveDTO"><![CDATA[
 	  UPDATE TBL_RECEIVE_MST SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE RCV_SEQ = #{rcvSeq}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- 엑셀업로드: (귀속월+거래처) 있으면 UPDATE, 없으면 INSERT -->
-	<update id="upsertReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
+	<update id="upsertReceive" parameterType="egovframework.konet.user.model.ReceiveDTO"><![CDATA[
 	  MERGE TBL_RECEIVE_MST AS t
 	  USING (SELECT REPLACE(#{rcvYm},'-','') AS RCV_YM, #{bizCd} AS BIZ_CD) AS s
 	  ON (t.RCV_YM = s.RCV_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,'') AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
@@ -1773,7 +1773,7 @@
 	]]></update>
 
 	<!-- 전월이월 자동이월: 전월(귀속월-1) 미수잔액(전월이월+당월매출-당월수금)을 당월 전월이월(PREV_AMT)로 이월 -->
-	<update id="carryForwardReceive" parameterType="egovframework.sejong.user.model.ReceiveDTO"><![CDATA[
+	<update id="carryForwardReceive" parameterType="egovframework.konet.user.model.ReceiveDTO"><![CDATA[
 	  ;WITH prev AS (
 	    SELECT BIZ_CD, MAX(BIZ_NM) AS BIZ_NM,
 	           SUM(ISNULL(PREV_AMT,0)+ISNULL(SALES_AMT,0)-ISNULL(COLLECT_AMT,0)) AS DUE
@@ -1796,7 +1796,7 @@
 	<!-- ============================================================
 	     출금/미지급 — TBL_PAYMENT_MST (매입처 × 귀속월). 미지급잔액=전월이월+당월매입-당월출금
 	     ============================================================ -->
-	<select id="selectPaymentList" parameterType="egovframework.sejong.user.model.PaymentDTO" resultType="egovframework.sejong.user.model.PaymentDTO">
+	<select id="selectPaymentList" parameterType="egovframework.konet.user.model.PaymentDTO" resultType="egovframework.konet.user.model.PaymentDTO">
 	  SELECT PAY_SEQ AS paySeq, PAY_YM AS payYm, BIZ_CD AS bizCd, BIZ_NM AS bizNm,
 	         PREV_AMT AS prevAmt, PURCH_AMT AS purchAmt, PAYOUT_AMT AS payoutAmt,
 	         PAYOUT_DT AS payoutDt, PAY_GB AS payGb, REMARK AS remark, UPD_DTTM AS updDttm
@@ -1813,7 +1813,7 @@
 	</select>
 
 	<!-- 수기 추가 — INSERT 가 아니라 MERGE (2026-08-05, insertReceive 와 같은 이유·같은 규칙) -->
-	<insert id="insertPayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
+	<insert id="insertPayment" parameterType="egovframework.konet.user.model.PaymentDTO"><![CDATA[
 	  MERGE TBL_PAYMENT_MST AS t
 	  USING (SELECT REPLACE(#{payYm},'-','') AS PAY_YM, #{bizCd,jdbcType=NVARCHAR} AS BIZ_CD) AS s
 	  ON (t.PAY_YM = s.PAY_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,'') AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
@@ -1826,7 +1826,7 @@
 	             REPLACE(ISNULL(#{payoutDt,jdbcType=NVARCHAR},''),'-',''), #{payGb,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
 	]]></insert>
 
-	<update id="updatePayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
+	<update id="updatePayment" parameterType="egovframework.konet.user.model.PaymentDTO"><![CDATA[
 	  UPDATE TBL_PAYMENT_MST
 	     SET BIZ_NM=#{bizNm,jdbcType=NVARCHAR}, PREV_AMT=#{prevAmt,jdbcType=DECIMAL}, PURCH_AMT=#{purchAmt,jdbcType=DECIMAL}, PAYOUT_AMT=#{payoutAmt,jdbcType=DECIMAL},
 	         PAYOUT_DT=REPLACE(ISNULL(#{payoutDt,jdbcType=NVARCHAR},''),'-',''), PAY_GB=#{payGb,jdbcType=NVARCHAR}, REMARK=#{remark,jdbcType=NVARCHAR},
@@ -1835,14 +1835,14 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
-	<update id="deletePayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
+	<update id="deletePayment" parameterType="egovframework.konet.user.model.PaymentDTO"><![CDATA[
 	  UPDATE TBL_PAYMENT_MST SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE PAY_SEQ = #{paySeq}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
 	<!-- 엑셀업로드: (귀속월+매입처) 있으면 UPDATE, 없으면 INSERT -->
-	<update id="upsertPayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
+	<update id="upsertPayment" parameterType="egovframework.konet.user.model.PaymentDTO"><![CDATA[
 	  MERGE TBL_PAYMENT_MST AS t
 	  USING (SELECT REPLACE(#{payYm},'-','') AS PAY_YM, #{bizCd} AS BIZ_CD) AS s
 	  ON (t.PAY_YM = s.PAY_YM AND ISNULL(t.BIZ_CD,'') = ISNULL(s.BIZ_CD,'') AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
@@ -1854,7 +1854,7 @@
 	]]></update>
 
 	<!-- 전월이월 자동이월: 전월(귀속월-1) 미지급잔액(전월이월+당월매입-당월출금)을 당월 전월이월(PREV_AMT)로 이월 -->
-	<update id="carryForwardPayment" parameterType="egovframework.sejong.user.model.PaymentDTO"><![CDATA[
+	<update id="carryForwardPayment" parameterType="egovframework.konet.user.model.PaymentDTO"><![CDATA[
 	  ;WITH prev AS (
 	    SELECT BIZ_CD, MAX(BIZ_NM) AS BIZ_NM,
 	           SUM(ISNULL(PREV_AMT,0)+ISNULL(PURCH_AMT,0)-ISNULL(PAYOUT_AMT,0)) AS DUE
@@ -1877,13 +1877,13 @@
 	<!-- ============================================================
 	     정산 마감상태 — TBL_SETTLE_CLOSE_MST (수금 RCV / 출금 PAY 공용)
 	     ============================================================ -->
-	<select id="isSettleClosed" parameterType="egovframework.sejong.user.model.SettleCloseDTO" resultType="int">
+	<select id="isSettleClosed" parameterType="egovframework.konet.user.model.SettleCloseDTO" resultType="int">
 	  SELECT COUNT(1) FROM TBL_SETTLE_CLOSE_MST
 	   WHERE SETTLE_GB = #{settleGb} AND CLOSE_YM = REPLACE(#{closeYm},'-','') AND STATUS = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	</select>
 
-	<select id="selectSettleClose" parameterType="egovframework.sejong.user.model.SettleCloseDTO" resultType="egovframework.sejong.user.model.SettleCloseDTO">
+	<select id="selectSettleClose" parameterType="egovframework.konet.user.model.SettleCloseDTO" resultType="egovframework.konet.user.model.SettleCloseDTO">
 	  SELECT SETTLE_GB AS settleGb, CLOSE_YM AS closeYm, STATUS AS status,
 	         CONFIRM_DTTM AS confirmDttm, CONFIRM_USER AS confirmUser
 	    FROM TBL_SETTLE_CLOSE_MST
@@ -1891,7 +1891,7 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 </select>
 
-	<update id="confirmSettleClose" parameterType="egovframework.sejong.user.model.SettleCloseDTO"><![CDATA[
+	<update id="confirmSettleClose" parameterType="egovframework.konet.user.model.SettleCloseDTO"><![CDATA[
 	  MERGE TBL_SETTLE_CLOSE_MST AS t
 	  USING (SELECT #{settleGb} AS SETTLE_GB, REPLACE(#{closeYm},'-','') AS CLOSE_YM) AS s
 	  ON (t.SETTLE_GB = s.SETTLE_GB AND t.CLOSE_YM = s.CLOSE_YM AND t.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'))
@@ -1902,7 +1902,7 @@
 	     VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), s.SETTLE_GB, s.CLOSE_YM, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{confirmUser,jdbcType=NVARCHAR});
 	]]></update>
 
-	<update id="cancelSettleClose" parameterType="egovframework.sejong.user.model.SettleCloseDTO"><![CDATA[
+	<update id="cancelSettleClose" parameterType="egovframework.konet.user.model.SettleCloseDTO"><![CDATA[
 	  UPDATE TBL_SETTLE_CLOSE_MST
 	     SET STATUS='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}
 	   WHERE SETTLE_GB = #{settleGb} AND CLOSE_YM = REPLACE(#{closeYm},'-','')
@@ -1913,7 +1913,7 @@
 	     상품마스터 — TBL_PROD_MST  (상품목록리스트 근거)
 	     · PK=PROD_SEQ(IDENTITY), 수정/삭제는 PROD_SEQ 기준. 날짜는 문자.
 	     ============================================================ -->
-	<select id="selectProdList" parameterType="egovframework.sejong.user.model.ProdDTO" resultType="egovframework.sejong.user.model.ProdDTO">
+	<select id="selectProdList" parameterType="egovframework.konet.user.model.ProdDTO" resultType="egovframework.konet.user.model.ProdDTO">
 	  SELECT PROD_SEQ AS prodSeq, PROD_CD AS prodCd, PROD_NM AS prodNm, SPEC AS spec, MAKER_NM AS makerNm,
 	         TYPE_NM AS typeNm, SORT_ORD AS sortOrd, TAX_GB AS taxGb, PACK_QTY AS packQty,
 	         IN_PRICE AS inPrice, SALE_PRICE AS salePrice, WHOLE_PRICE AS wholePrice,
@@ -1948,7 +1948,7 @@
 	     ★실제로 15개 코드가 두 줄(하나는 세 줄)로 들어가 있었다 — 1000783958 은 한쪽에 입고,
 	       다른 쪽에 출고가 붙어 재고가 −140 까지 갔다(2026-09-07 실측). 그래서 막는다.
 	     되돌아오는 값 : 0 = 없음 / 1 이상 = 이미 있음. 활성·삭제를 가려 알리려고 두 수를 따로 센다. -->
-	<select id="countProdCd" parameterType="egovframework.sejong.user.model.ProdDTO" resultType="java.util.HashMap"><![CDATA[
+	<select id="countProdCd" parameterType="egovframework.konet.user.model.ProdDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT SUM(CASE WHEN ACTION_YN = 'Y' THEN 1 ELSE 0 END) AS ALIVE,
 	         SUM(CASE WHEN ACTION_YN = 'Y' THEN 0 ELSE 1 END) AS DELETED
 	    FROM TBL_PROD_MST
@@ -1956,7 +1956,7 @@
 	     AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')
 	]]></select>
 
-	<insert id="insertProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
+	<insert id="insertProd" parameterType="egovframework.konet.user.model.ProdDTO"><![CDATA[
 	  INSERT INTO TBL_PROD_MST
 	    (COMP_CD, PROD_CD, PROD_NM, SPEC, MAKER_NM, TYPE_NM, SORT_ORD, TAX_GB, PACK_QTY,
 	     IN_PRICE, SALE_PRICE, WHOLE_PRICE, SAFE_STOCK, SALE_BASE_QTY, UNIT_BARCODE, BOX_BARCODE,
@@ -1972,7 +1972,7 @@
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
 
-	<update id="updateProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
+	<update id="updateProd" parameterType="egovframework.konet.user.model.ProdDTO"><![CDATA[
 	  UPDATE TBL_PROD_MST
 	     SET PROD_CD=#{prodCd}, PROD_NM=#{prodNm}, SPEC=#{spec,jdbcType=NVARCHAR}, MAKER_NM=#{makerNm,jdbcType=NVARCHAR},
 	         TYPE_NM=#{typeNm,jdbcType=NVARCHAR}, SORT_ORD=#{sortOrd,jdbcType=INTEGER}, TAX_GB=#{taxGb,jdbcType=NVARCHAR},
@@ -1991,7 +1991,7 @@
 	       옛 전표·재고는 손대지 않는다 — 이력은 그대로 두고 새 거래만 막는 것이 목적이다.
 	       ⚠STOP_FR_DT(중지 시작일)를 안 주면 오늘로 둔다 — 비면 막을 기준이 없다.
 	     ========================================================================================== -->
-	<update id="stopProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
+	<update id="stopProd" parameterType="egovframework.konet.user.model.ProdDTO"><![CDATA[
 	  UPDATE TBL_PROD_MST
 	     SET STOP_YN    = 'Y',
 	         STOP_FR_DT = ISNULL(NULLIF(#{stopFrDt,jdbcType=VARCHAR},''), CONVERT(VARCHAR(8), GETDATE(), 112)),
@@ -2001,7 +2001,7 @@
 	   WHERE PROD_SEQ = #{prodSeq}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
-	<update id="unstopProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
+	<update id="unstopProd" parameterType="egovframework.konet.user.model.ProdDTO"><![CDATA[
 	  UPDATE TBL_PROD_MST
 	     SET STOP_YN='N', STOP_FR_DT=NULL, STOP_MEMO=NULL,
 	         STOP_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), STOP_USER = #{updUser,jdbcType=NVARCHAR}
@@ -2017,7 +2017,7 @@
 	       매칭코드는 「앞으로 이 코드로 들어올 자료를 이 상품로 잎겠다」는 뜻이라
 	       중지된 순간부터 날짜와 무관하게 막는 것이 맞다.
 	     ========================================================================================== -->
-	<select id="selectProdStopById" resultType="egovframework.sejong.user.model.ProdDTO">
+	<select id="selectProdStopById" resultType="egovframework.konet.user.model.ProdDTO">
 	  SELECT PROD_CD AS prodCd, PROD_NM AS prodNm, STOP_FR_DT AS stopFrDt, STOP_MEMO AS stopMemo
 	    FROM TBL_PROD_MST
 	   WHERE ACTION_YN='Y' AND STOP_YN='Y'
@@ -2027,7 +2027,7 @@
 
 	<!-- ★전표일자 기준으로 **중지된 코드**만 골라 돌려준다 (매입·판매 저장 관문에서 쓴다).
 	     ⚠오늘 날짜가 아니라 **전표일자(trxDt)** 와 견준다 — 지난 일자로 넣는 전표가 실제로 있다. -->
-	<select id="selectStoppedAmong" resultType="egovframework.sejong.user.model.ProdDTO">
+	<select id="selectStoppedAmong" resultType="egovframework.konet.user.model.ProdDTO">
 	  SELECT PROD_CD AS prodCd, PROD_NM AS prodNm, STOP_FR_DT AS stopFrDt, STOP_MEMO AS stopMemo
 	    FROM TBL_PROD_MST
 	   WHERE ACTION_YN='Y' AND STOP_YN='Y'
@@ -2039,7 +2039,7 @@
 	   ORDER BY PROD_CD
 	</select>
 
-	<update id="deleteProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
+	<update id="deleteProd" parameterType="egovframework.konet.user.model.ProdDTO"><![CDATA[
 	  UPDATE TBL_PROD_MST
 	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE PROD_SEQ = #{prodSeq}
@@ -2053,7 +2053,7 @@
 	       ★언제 지웠는지·누가 지웠는지를 같이 보여 준다 — 「이게 왜 지워졌더라」를 판단할 재료다.
 	       ⚠되살려도 **매입가·판매가·재고 이력은 그대로**다(그 표들은 삭제 때 건드리지 않는다).
 	     ========================================================================================== -->
-	<select id="selectProdDeletedList" parameterType="egovframework.sejong.user.model.ProdDTO" resultType="egovframework.sejong.user.model.ProdDTO">
+	<select id="selectProdDeletedList" parameterType="egovframework.konet.user.model.ProdDTO" resultType="egovframework.konet.user.model.ProdDTO">
 	  SELECT PROD_SEQ AS prodSeq, PROD_CD AS prodCd, PROD_NM AS prodNm, SPEC AS spec, MAKER_NM AS makerNm,
 	         TYPE_NM AS typeNm, TAX_GB AS taxGb, PACK_QTY AS packQty,
 	         IN_PRICE AS inPrice, SALE_PRICE AS salePrice,
@@ -2071,7 +2071,7 @@
 	   ORDER BY UPD_DTTM DESC, PROD_SEQ DESC   <!-- 최근에 지운 것이 위로 — 실수로 지운 것을 바로 찾는다 -->
 	</select>
 
-	<update id="restoreProd" parameterType="egovframework.sejong.user.model.ProdDTO"><![CDATA[
+	<update id="restoreProd" parameterType="egovframework.konet.user.model.ProdDTO"><![CDATA[
 	  UPDATE TBL_PROD_MST
 	     SET ACTION_YN='Y', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE PROD_SEQ = #{prodSeq}
@@ -2085,7 +2085,7 @@
 	     · 매입단가: TBL_PROD_INPRICE_HST  중 APPLY_DT <= 출고일자 최신 → 없으면 TBL_PROD_MST.IN_PRICE
 	     · 최소단위 그룹(품목+사업장+매입처) — 화면별 재집계는 클라이언트에서 수행
 	     ============================================================ -->
-	<select id="selectClosing" parameterType="egovframework.sejong.user.model.ClosingDTO" resultType="egovframework.sejong.user.model.ClosingDTO"><![CDATA[
+	<select id="selectClosing" parameterType="egovframework.konet.user.model.ClosingDTO" resultType="egovframework.konet.user.model.ClosingDTO"><![CDATA[
 	  /* ★매출액 = 정산서 우선, 없으면 판매단가 계산 (2026-07-25 사용자 확정)
 	       · 정산서(TBL_SALES_MST) = 출고장이 준 실제 청구 금액. 있으면 그게 매출이고,
 	         우리가 매긴 판매단가는 '정산서가 아직 안 온 건'에만 쓰는 추정치다.
@@ -2347,7 +2347,7 @@
 	     · 마감 화면에서 경고로 띄워 마감 확정 전에 놓치지 않게 한다.
 	     · 대사키·기간 기준은 selectClosing 과 동일(납품일자 + 출고장 + 품목코드 / DLV_DT 귀속).
 	     ============================================================ -->
-	<select id="selectClosingUnmatched" parameterType="egovframework.sejong.user.model.ClosingDTO" resultType="egovframework.sejong.user.model.ClosingDTO"><![CDATA[
+	<select id="selectClosingUnmatched" parameterType="egovframework.konet.user.model.ClosingDTO" resultType="egovframework.konet.user.model.ClosingDTO"><![CDATA[
 	  SELECT sl.dlvKey AS dlvDt, sl.dcKey AS dcCd, MAX(sl.dcNm) AS dcNm,
 	         sl.itemCd AS itemCd, MAX(sl.itemNm) AS itemNm,
 	         SUM(sl.outQty) AS settleQty, SUM(sl.saleAmt) AS salesAmt
@@ -2404,7 +2404,7 @@
 	     · 기초 = 마감월 이전 누계, 당월분 = 마감월, 이동평균 = 월말까지 입고 가중평균(없으면 마스터 IN_PRICE)
 	     · IO_GB: I=입고(+) R=반품(+) O=출고(-) A=조정(부호그대로)
 	     ============================================================ -->
-	<select id="selectStockClosing" parameterType="egovframework.sejong.user.model.StockClosingDTO" resultType="egovframework.sejong.user.model.StockClosingDTO"><![CDATA[
+	<select id="selectStockClosing" parameterType="egovframework.konet.user.model.StockClosingDTO" resultType="egovframework.konet.user.model.StockClosingDTO"><![CDATA[
 	  ;WITH B0 AS (
 	    SELECT REPLACE(ISNULL(NULLIF(#{fromDt,jdbcType=VARCHAR},''), REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-','')+'01'),'-','') AS fromB,
 	           REPLACE(ISNULL(NULLIF(#{toDt,jdbcType=VARCHAR},''),   REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-','')+'31'),'-','') AS toB
@@ -2459,7 +2459,7 @@
 	     입고(매입)마감 — TBL_STOCK_LEDGER 당월 입고(IO_GB='I') 품목별 집계
 	     · 입고수량=SUM(QTY), 매입액=SUM(금액), 매입단가=매입액/입고수량(가중평균)
 	     ============================================================ -->
-	<select id="selectInboundClosing" parameterType="egovframework.sejong.user.model.StockClosingDTO" resultType="egovframework.sejong.user.model.StockClosingDTO"><![CDATA[
+	<select id="selectInboundClosing" parameterType="egovframework.konet.user.model.StockClosingDTO" resultType="egovframework.konet.user.model.StockClosingDTO"><![CDATA[
 	  SELECT l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, MAX(pm.PROD_NM) AS prodNm,
 	         ISNULL(l.VENDOR_CD,'') AS vendorCd,
 	         SUM(l.QTY) AS inQty,
@@ -2487,7 +2487,7 @@
 	<!-- ============================================================
 	     마감 확정/잠금/이월 — TBL_CLOSING_MST / TBL_CLOSING_STOCK
 	     ============================================================ -->
-	<select id="selectClosingMst" parameterType="egovframework.sejong.user.model.ClosingMstDTO" resultType="egovframework.sejong.user.model.ClosingMstDTO"><![CDATA[
+	<select id="selectClosingMst" parameterType="egovframework.konet.user.model.ClosingMstDTO" resultType="egovframework.konet.user.model.ClosingMstDTO"><![CDATA[
 	  SELECT CLOSE_SEQ AS closeSeq, CLOSE_YM AS closeYm, STATUS AS status,
 	         SALES_AMT AS salesAmt, COGS_AMT AS cogsAmt, MARGIN_AMT AS marginAmt,
 	         PURCHASE_AMT AS purchaseAmt, STOCK_AMT AS stockAmt,
@@ -2497,7 +2497,7 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
-	<select id="selectClosingMstList" parameterType="egovframework.sejong.user.model.ClosingMstDTO" resultType="egovframework.sejong.user.model.ClosingMstDTO">
+	<select id="selectClosingMstList" parameterType="egovframework.konet.user.model.ClosingMstDTO" resultType="egovframework.konet.user.model.ClosingMstDTO">
 	  SELECT CLOSE_SEQ AS closeSeq, CLOSE_YM AS closeYm, STATUS AS status,
 	         SALES_AMT AS salesAmt, COGS_AMT AS cogsAmt, MARGIN_AMT AS marginAmt,
 	         PURCHASE_AMT AS purchaseAmt, STOCK_AMT AS stockAmt,
@@ -2524,7 +2524,7 @@
 	   ORDER BY CLOSE_YM
 	]]></select>
 
-	<update id="updateClosingMst" parameterType="egovframework.sejong.user.model.ClosingMstDTO"><![CDATA[
+	<update id="updateClosingMst" parameterType="egovframework.konet.user.model.ClosingMstDTO"><![CDATA[
 	  UPDATE TBL_CLOSING_MST
 	     SET STATUS='C', ACTION_YN='Y',
 	         SALES_AMT=#{salesAmt,jdbcType=DECIMAL}, COGS_AMT=#{cogsAmt,jdbcType=DECIMAL}, MARGIN_AMT=#{marginAmt,jdbcType=DECIMAL},
@@ -2535,13 +2535,13 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
-	<insert id="insertClosingMst" parameterType="egovframework.sejong.user.model.ClosingMstDTO"><![CDATA[
+	<insert id="insertClosingMst" parameterType="egovframework.konet.user.model.ClosingMstDTO"><![CDATA[
 	  INSERT INTO TBL_CLOSING_MST (COMP_CD, CLOSE_YM, STATUS, SALES_AMT, COGS_AMT, MARGIN_AMT, PURCHASE_AMT, STOCK_AMT, CONFIRM_DTTM, CONFIRM_USER, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{closeYm}, 'C', #{salesAmt,jdbcType=DECIMAL}, #{cogsAmt,jdbcType=DECIMAL}, #{marginAmt,jdbcType=DECIMAL}, #{purchaseAmt,jdbcType=DECIMAL}, #{stockAmt,jdbcType=DECIMAL},
 	          CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
 
-	<update id="cancelClosingMst" parameterType="egovframework.sejong.user.model.ClosingMstDTO"><![CDATA[
+	<update id="cancelClosingMst" parameterType="egovframework.konet.user.model.ClosingMstDTO"><![CDATA[
 	  UPDATE TBL_CLOSING_MST SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE CLOSE_YM = #{closeYm}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -2552,14 +2552,14 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></delete>
 
-	<insert id="insertClosingStock" parameterType="egovframework.sejong.user.model.StockClosingDTO"><![CDATA[
+	<insert id="insertClosingStock" parameterType="egovframework.konet.user.model.StockClosingDTO"><![CDATA[
 	  INSERT INTO TBL_CLOSING_STOCK (COMP_CD, CLOSE_YM, PROD_SEQ, PROD_CD, END_QTY, AVG_IN_PRICE, STOCK_AMT, REG_DTTM)
 	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-',''), #{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, #{endQty,jdbcType=INTEGER}, #{avgInPrice,jdbcType=DECIMAL},
 	          ISNULL(#{endQty,jdbcType=INTEGER},0) * ISNULL(#{avgInPrice,jdbcType=DECIMAL},0), CONVERT(VARCHAR(19),GETDATE(),120))
 	]]></insert>
 
 	<!-- 연관 정보(매입가/판매가/재고) 활성건수 — 삭제 가드용 -->
-	<select id="countProdRelated" parameterType="egovframework.sejong.user.model.ProdDTO" resultType="int"><![CDATA[
+	<select id="countProdRelated" parameterType="egovframework.konet.user.model.ProdDTO" resultType="int"><![CDATA[
 	  SELECT
 	      (SELECT COUNT(*) FROM TBL_PROD_INPRICE_HST   WHERE PROD_SEQ = #{prodSeq} AND ACTION_YN = 'Y'
 	          AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} ))
@@ -2573,7 +2573,7 @@
 	     매입가 이력 — TBL_PROD_INPRICE_HST
 	     · 품목별 매입단가 이력. 등록 시 PREV_PRICE 에 마스터 현재값 스냅샷
 	     ============================================================ -->
-	<select id="selectInpriceList" parameterType="egovframework.sejong.user.model.ProdInpriceDTO" resultType="egovframework.sejong.user.model.ProdInpriceDTO"><![CDATA[
+	<select id="selectInpriceList" parameterType="egovframework.konet.user.model.ProdInpriceDTO" resultType="egovframework.konet.user.model.ProdInpriceDTO"><![CDATA[
 	  SELECT INPRICE_SEQ AS inpriceSeq, PROD_SEQ AS prodSeq, PROD_CD AS prodCd,
 	         VENDOR_CD AS vendorCd, VENDOR_NM AS vendorNm, APPLY_DT AS applyDt,
 	         IN_PRICE AS inPrice, PREV_PRICE AS prevPrice, TAX_GB AS taxGb, REMARK AS remark,
@@ -2584,7 +2584,7 @@
 	   ORDER BY APPLY_DT DESC, INPRICE_SEQ DESC
 	]]></select>
 
-	<insert id="insertInprice" parameterType="egovframework.sejong.user.model.ProdInpriceDTO"><![CDATA[
+	<insert id="insertInprice" parameterType="egovframework.konet.user.model.ProdInpriceDTO"><![CDATA[
 	  INSERT INTO TBL_PROD_INPRICE_HST
 	    (COMP_CD, PROD_SEQ, PROD_CD, VENDOR_CD, VENDOR_NM, APPLY_DT, IN_PRICE, PREV_PRICE, TAX_GB, REMARK,
 	     ACTION_YN, REG_DTTM, REG_USER, REG_IP)
@@ -2598,7 +2598,7 @@
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
 
-	<update id="deleteInprice" parameterType="egovframework.sejong.user.model.ProdInpriceDTO"><![CDATA[
+	<update id="deleteInprice" parameterType="egovframework.konet.user.model.ProdInpriceDTO"><![CDATA[
 	  UPDATE TBL_PROD_INPRICE_HST
 	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE INPRICE_SEQ = #{inpriceSeq}
@@ -2606,7 +2606,7 @@
 	]]></update>
 
 	<!-- 마스터 현재 매입단가 동기화 -->
-	<update id="syncProdInPrice" parameterType="egovframework.sejong.user.model.ProdInpriceDTO"><![CDATA[
+	<update id="syncProdInPrice" parameterType="egovframework.konet.user.model.ProdInpriceDTO"><![CDATA[
 	  UPDATE TBL_PROD_MST
 	     SET IN_PRICE = #{inPrice,jdbcType=DECIMAL},
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{regUser,jdbcType=NVARCHAR}, UPD_IP=#{regIp,jdbcType=NVARCHAR}
@@ -2615,7 +2615,7 @@
 	]]></update>
 	<!-- 평균 매입단가 (2026-09-11 회사 설정 「입고 : 평균 매입단가 사용」) — 그 품목의 입고(I) 원장 가중평균.
 	     「금액 0 거래 포함 = N」이면 단가 0 입고를 분모에서 뺀다(recalcStockMst 와 같은 규칙). 입고가 없으면 NULL. -->
-	<select id="selectAvgInPrice" parameterType="egovframework.sejong.user.model.ProdInpriceDTO" resultType="java.lang.Double"><![CDATA[
+	<select id="selectAvgInPrice" parameterType="egovframework.konet.user.model.ProdInpriceDTO" resultType="java.lang.Double"><![CDATA[
 	  SELECT CASE WHEN SUM(CASE WHEN ISNULL(l.UNIT_PRICE,0) <> 0 OR z.ZY = 'Y' THEN l.QTY ELSE 0 END) > 0
 	              THEN SUM(l.QTY * ISNULL(l.UNIT_PRICE,0))
 	                   / SUM(CASE WHEN ISNULL(l.UNIT_PRICE,0) <> 0 OR z.ZY = 'Y' THEN l.QTY ELSE 0 END) END
@@ -2639,7 +2639,7 @@
 	<!-- ============================================================
 	     판매가 이력 — TBL_PROD_SALEPRICE_HST
 	     ============================================================ -->
-	<select id="selectSalepriceList" parameterType="egovframework.sejong.user.model.ProdSalepriceDTO" resultType="egovframework.sejong.user.model.ProdSalepriceDTO"><![CDATA[
+	<select id="selectSalepriceList" parameterType="egovframework.konet.user.model.ProdSalepriceDTO" resultType="egovframework.konet.user.model.ProdSalepriceDTO"><![CDATA[
 	  SELECT SALEPRICE_SEQ AS salepriceSeq, PROD_SEQ AS prodSeq, PROD_CD AS prodCd,
 	         VENDOR_CD AS vendorCd, VENDOR_NM AS vendorNm, APPLY_DT AS applyDt,
 	         SALE_PRICE AS salePrice, WHOLE_PRICE AS wholePrice, BASE_INPRICE AS baseInprice,
@@ -2651,7 +2651,7 @@
 	   ORDER BY APPLY_DT DESC, SALEPRICE_SEQ DESC
 	]]></select>
 
-	<insert id="insertSaleprice" parameterType="egovframework.sejong.user.model.ProdSalepriceDTO"><![CDATA[
+	<insert id="insertSaleprice" parameterType="egovframework.konet.user.model.ProdSalepriceDTO"><![CDATA[
 	  INSERT INTO TBL_PROD_SALEPRICE_HST
 	    (COMP_CD, PROD_SEQ, PROD_CD, VENDOR_CD, VENDOR_NM, APPLY_DT, SALE_PRICE, WHOLE_PRICE, BASE_INPRICE, MARGIN_RT, PREV_PRICE, REMARK,
 	     ACTION_YN, REG_DTTM, REG_USER, REG_IP)
@@ -2669,7 +2669,7 @@
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
 
-	<update id="deleteSaleprice" parameterType="egovframework.sejong.user.model.ProdSalepriceDTO"><![CDATA[
+	<update id="deleteSaleprice" parameterType="egovframework.konet.user.model.ProdSalepriceDTO"><![CDATA[
 	  UPDATE TBL_PROD_SALEPRICE_HST
 	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE SALEPRICE_SEQ = #{salepriceSeq}
@@ -2677,7 +2677,7 @@
 	]]></update>
 
 	<!-- 마스터 현재 판매/도매단가 동기화 -->
-	<update id="syncProdSalePrice" parameterType="egovframework.sejong.user.model.ProdSalepriceDTO"><![CDATA[
+	<update id="syncProdSalePrice" parameterType="egovframework.konet.user.model.ProdSalepriceDTO"><![CDATA[
 	  UPDATE TBL_PROD_MST
 	     SET SALE_PRICE  = #{salePrice,jdbcType=DECIMAL},
 	         WHOLE_PRICE = ISNULL(#{wholePrice,jdbcType=DECIMAL}, WHOLE_PRICE),
@@ -2690,7 +2690,7 @@
 	     재고 수불원장 — TBL_STOCK_LEDGER  / 현황 — TBL_STOCK_MST
 	     · IO_GB : I=입고(+) O=출고(-) R=반품(+) A=조정(QTY 부호 그대로)
 	     ============================================================ -->
-	<select id="selectStockLedgerList" parameterType="egovframework.sejong.user.model.StockLedgerDTO" resultType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	<select id="selectStockLedgerList" parameterType="egovframework.konet.user.model.StockLedgerDTO" resultType="egovframework.konet.user.model.StockLedgerDTO"><![CDATA[
 	  SELECT l.LEDGER_SEQ AS ledgerSeq, l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, l.TRX_DT AS trxDt, l.IO_GB AS ioGb,
 	         l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt, l.BAL_QTY AS balQty,
 	         l.VENDOR_CD AS vendorCd,
@@ -2779,7 +2779,7 @@
 	]]></select>
 
 	<!-- ★useGeneratedKeys : 재고 일괄조정 이력이 이 번호로 원장행과 짝을 맞춘다(2026-08-19) -->
-	<insert id="insertStockLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"
+	<insert id="insertStockLedger" parameterType="egovframework.konet.user.model.StockLedgerDTO"
 	        useGeneratedKeys="true" keyProperty="ledgerSeq" keyColumn="LEDGER_SEQ"><![CDATA[
 	  INSERT INTO TBL_STOCK_LEDGER
 	    (COMP_CD, PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, UNIT_PRICE, AMT, VENDOR_CD, BIZ_CD, REF_GB, REF_NO, REMARK,
@@ -2796,7 +2796,7 @@
 	     REF_GB 가 있는 줄(PURCH 매입등록 / SALE 판매등록 / SHIPOUT 발주현황표)은 전표가 만든 파생이라
 	     여기서 지우면 전표는 남고 재고만 틀어진다. 그 줄은 전표 화면에서 고치거나 지워야 한다.
 	     화면에서도 삭제 버튼을 안 주지만, 그 길은 우회가 되므로 조건을 SQL 에 박아 둔다. -->
-	<update id="deleteStockLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	<update id="deleteStockLedger" parameterType="egovframework.konet.user.model.StockLedgerDTO"><![CDATA[
 	  UPDATE TBL_STOCK_LEDGER
 	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE LEDGER_SEQ = #{ledgerSeq}
@@ -2804,7 +2804,7 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
-	<select id="selectStockMst" parameterType="egovframework.sejong.user.model.StockLedgerDTO" resultType="egovframework.sejong.user.model.StockMstDTO"><![CDATA[
+	<select id="selectStockMst" parameterType="egovframework.konet.user.model.StockLedgerDTO" resultType="egovframework.konet.user.model.StockMstDTO"><![CDATA[
 	  SELECT STOCK_SEQ AS stockSeq, PROD_SEQ AS prodSeq, PROD_CD AS prodCd, CUR_QTY AS curQty,
 	         AVG_IN_PRICE AS avgInPrice, LAST_INPRICE AS lastInprice, LAST_SALEPRICE AS lastSaleprice,
 	         STOCK_AMT AS stockAmt, LAST_IN_DT AS lastInDt, LAST_OUT_DT AS lastOutDt
@@ -2814,7 +2814,7 @@
 	]]></select>
 
 	<!-- 입고내역 — 전체 입고(수불 IO_GB='I') 거래 목록 -->
-	<select id="selectInboundList" parameterType="egovframework.sejong.user.model.StockLedgerDTO" resultType="egovframework.sejong.user.model.StockLedgerDTO">
+	<select id="selectInboundList" parameterType="egovframework.konet.user.model.StockLedgerDTO" resultType="egovframework.konet.user.model.StockLedgerDTO">
 	  SELECT l.LEDGER_SEQ AS ledgerSeq, l.PROD_CD AS prodCd, p.PROD_NM AS prodNm, l.TRX_DT AS trxDt,
 	         l.VENDOR_CD AS vendorCd, v.VENDOR_NM AS vendorNm,
 	         l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt, l.REMARK AS remark, l.REG_DTTM AS regDttm
@@ -3007,7 +3007,7 @@
 	   ORDER BY ym DESC
 	]]></select>
 
-	<delete id="deleteShipoutLedgerAll" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	<delete id="deleteShipoutLedgerAll" parameterType="egovframework.konet.user.model.StockLedgerDTO"><![CDATA[
 	  /* 재집계 시작 때 발주현황표 파생행을 통째로 걷는다 (2026-09-03) — 원장 키가 출고일자→납기일자로 바뀌어,
 	     옛 키(출고일자)로 남은 행은 납기일자 루프(deleteShipoutLedger)로는 안 지워질 수 있다. 마감 확정월은 원장 불변이라 뺀다. */
 	  DELETE FROM TBL_STOCK_LEDGER
@@ -3017,7 +3017,7 @@
 	                                    AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} ) )
 	]]></delete>
 
-	<select id="selectStockQtyMap" parameterType="egovframework.sejong.user.model.StockMstDTO" resultType="egovframework.sejong.user.model.StockMstDTO">
+	<select id="selectStockQtyMap" parameterType="egovframework.konet.user.model.StockMstDTO" resultType="egovframework.konet.user.model.StockMstDTO">
 		SELECT l.PROD_CD AS prodCd,
 		       SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY ELSE 0 END)     AS inQty,
 		       SUM(CASE WHEN l.IO_GB = 'O'            THEN l.QTY ELSE 0 END)     AS outQty,
@@ -3028,7 +3028,7 @@
 		 GROUP BY l.PROD_CD
 	</select>
 
-	<select id="selectStockMstList" parameterType="egovframework.sejong.user.model.StockMstDTO" resultType="egovframework.sejong.user.model.StockMstDTO">
+	<select id="selectStockMstList" parameterType="egovframework.konet.user.model.StockMstDTO" resultType="egovframework.konet.user.model.StockMstDTO">
 	  /* ★[2026-09-13 「거래처별 재고현황」] 품목마다 「대표 매입처」(vendorCd·vendorNm)를 붙인다 — 화면 [🏷 매입처별]이 이걸로 묶는다.
 	       대표 매입처 = 그 품목을 가장 최근에 입고(IO_GB='I')한 매입처(재고마감 selectStockClosing 과 같은 규칙) → 입고 기록이 없으면 상품마스터 거래처.
 	       기준일(asOfDt)을 주면 그날까지의 입고만 본다. 집계 뒤에 붙이려고 원래 조회를 z 로 한 번 감쌌다(값·순서는 종전 그대로). */
@@ -3120,7 +3120,7 @@
 	]]></select>
 
 	<!-- (A) 출고→원장 자동연동 : 특정 출고일자의 SHIPOUT 파생 O행 삭제(재동기화용) -->
-	<delete id="deleteShipoutLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	<delete id="deleteShipoutLedger" parameterType="egovframework.konet.user.model.StockLedgerDTO"><![CDATA[
 	  DELETE FROM TBL_STOCK_LEDGER
 	   WHERE REF_GB = 'SHIPOUT' AND REF_NO = REPLACE(ISNULL(#{trxDt},''),'-','')
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -3133,7 +3133,7 @@
 	         종전에는 표기마다 다른 품목(가상코드)으로 갈라져 재고가 나뉘었다.
 	       · PROD_CD 가 NULL(미매핑)이면 조인에서 빠져 재고에 반영되지 않는다 = 보류.
 	         매핑을 걸면 saveXref 가 소급으로 채우고 이 구문이 다시 돌아 재고가 맞춰진다. -->
-	<insert id="insertShipoutLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	<insert id="insertShipoutLedger" parameterType="egovframework.konet.user.model.StockLedgerDTO"><![CDATA[
 	  INSERT INTO TBL_STOCK_LEDGER (COMP_CD, PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, UNIT_PRICE, AMT, BIZ_CD, REF_GB, REF_NO, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  /* ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정) — 없는 옛 행만 CUR_QTY(수량) 폴백
 	     ★[2026-09-03] 원장 날짜(TRX_DT·REF_NO)를 <출고일자 SHPOUT_DT> → <납기일자 DLV_DT> 로 바꿨다. 파라미터 trxDt 도 납기일자다.
@@ -3163,7 +3163,7 @@
 	<!-- 납품일자 D 의 발주행이 실제로 나간 <출고일자> 들 (2026-09-03).
 	     정산서 D 를 올리면 이 출고일자들의 SHIPOUT 원장을 다시 만들어 D 몫을 걷어낸다 —
 	     김해처럼 하루 먼저 나간 행은 출고일자(D-1) 밑에 합산돼 있어, D 만 지워서는 안 걷힌다. -->
-	<select id="selectShipoutDtsByDlvDt" parameterType="egovframework.sejong.user.model.StockLedgerDTO" resultType="string"><![CDATA[
+	<select id="selectShipoutDtsByDlvDt" parameterType="egovframework.konet.user.model.StockLedgerDTO" resultType="string"><![CDATA[
 	  /* [2026-09-03] 옛 보정용 — 원장 키가 출고일자일 때 납품일자 D 의 발주행이 붙은 <다른 출고일자>를 찾아 다시 만들던 것.
 	     이제 원장 키가 납기일자라 D 자신만 돌아온다(호출부는 D 와 같은 값을 건너뛰므로 사실상 no-op). */
 	  SELECT REPLACE(ISNULL(#{trxDt},''),'-','') AS D
@@ -3201,14 +3201,14 @@
 	]]></select>
 
 	<!-- (B) 정산서→원장 : 특정 납품일자의 SALES 파생행 삭제(재동기화용) -->
-	<delete id="deleteSalesLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	<delete id="deleteSalesLedger" parameterType="egovframework.konet.user.model.StockLedgerDTO"><![CDATA[
 	  DELETE FROM TBL_STOCK_LEDGER
 	   WHERE REF_GB = 'SALES' AND REF_NO = REPLACE(ISNULL(#{trxDt},''),'-','')
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></delete>
 
 	<!-- (B) 정산서→원장 : 특정 납품일자의 활성 정산서를 품목별로 합산해 출고(O)·반품(R) 행 생성 -->
-	<insert id="insertSalesLedger" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	<insert id="insertSalesLedger" parameterType="egovframework.konet.user.model.StockLedgerDTO"><![CDATA[
 	  INSERT INTO TBL_STOCK_LEDGER (COMP_CD, PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, UNIT_PRICE, AMT, BIZ_CD, REF_GB, REF_NO, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  SELECT COMP_CD, PROD_SEQ, PROD_CD, DLV_DT, IO_GB, QTY,
 	         NULL, NULL, NULL, 'SALES', DLV_DT, REMARK, 'Y',
@@ -3251,7 +3251,7 @@
 	]]></insert>
 
 	<!-- (A) 전체 품목 현재고 재집계 (원장 누계 기준, set-based MERGE) -->
-	<update id="recalcStockMstAll" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	<update id="recalcStockMstAll" parameterType="egovframework.konet.user.model.StockLedgerDTO"><![CDATA[
 	  MERGE TBL_STOCK_MST AS t
 	  USING (
 	    SELECT PROD_SEQ, MAX(PROD_CD) AS PROD_CD,
@@ -3290,7 +3290,7 @@
 	     매칭코드로 출고를 주코드로 옮기면 옛 코드는 원장에서 통째로 빠지는데, 캐시표에는 옛 수량이
 	     그대로 남아 점검화면 '④ 재고 음수' 에 유령으로 계속 떴다.
 	     ★행을 지우지는 않는다 — 단가(AVG_IN_PRICE)·이력은 남겨 두고 수량·금액만 0으로. -->
-	<update id="zeroOrphanStockMst" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	<update id="zeroOrphanStockMst" parameterType="egovframework.konet.user.model.StockLedgerDTO"><![CDATA[
 	  UPDATE t
 	     SET t.CUR_QTY = 0, t.STOCK_AMT = 0,
 	         t.UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), t.UPD_USER = #{regUser,jdbcType=NVARCHAR}, t.UPD_IP = #{regIp,jdbcType=NVARCHAR}
@@ -3302,7 +3302,7 @@
 	]]></update>
 
 	<!-- 원장 누계로 현재고 재집계 (INSERT/DELETE 후 호출). 없으면 생성(MERGE) -->
-	<update id="recalcStockMst" parameterType="egovframework.sejong.user.model.StockLedgerDTO"><![CDATA[
+	<update id="recalcStockMst" parameterType="egovframework.konet.user.model.StockLedgerDTO"><![CDATA[
 	  MERGE TBL_STOCK_MST AS t
 	  USING (
 	    SELECT
@@ -3353,7 +3353,7 @@
 	     ============================================================ -->
 
 	<!-- 전표 목록 — 기간·거래처 검색. 상품수는 명세 건수 -->
-	<select id="selectPurchaseList" parameterType="egovframework.sejong.user.model.PurchaseDTO" resultType="egovframework.sejong.user.model.PurchaseDTO"><![CDATA[
+	<select id="selectPurchaseList" parameterType="egovframework.konet.user.model.PurchaseDTO" resultType="egovframework.konet.user.model.PurchaseDTO"><![CDATA[
 	  SELECT m.PURCH_SEQ AS purchSeq, m.PURCH_DT AS purchDt, m.PURCH_NO AS purchNo,
 	         m.VENDOR_CD AS vendorCd, m.VENDOR_NM AS vendorNm,
 	         m.MGR_CD AS mgrCd, m.MGR_NM AS mgrNm, m.WH_CD AS whCd, m.WH_NM AS whNm,
@@ -3374,7 +3374,7 @@
 	]]></select>
 
 	<!-- 전표 1건의 명세 -->
-	<select id="selectPurchaseDtl" parameterType="egovframework.sejong.user.model.PurchaseDTO" resultType="egovframework.sejong.user.model.PurchaseDtlDTO"><![CDATA[
+	<select id="selectPurchaseDtl" parameterType="egovframework.konet.user.model.PurchaseDTO" resultType="egovframework.konet.user.model.PurchaseDtlDTO"><![CDATA[
 	  SELECT d.DTL_SEQ AS dtlSeq, d.PURCH_SEQ AS purchSeq, d.ROW_NO AS rowNo,
 	         d.PROD_SEQ AS prodSeq, d.PROD_CD AS prodCd, d.PROD_NM AS prodNm, d.SPEC AS spec,
 	         d.PACK_QTY AS packQty, d.BOX_QTY AS boxQty, d.EA_QTY AS eaQty, d.QTY AS qty,
@@ -3389,14 +3389,14 @@
 	]]></select>
 
 	<!-- 그날의 다음 전표번호 '0001' — UX_PURCH_NO(PURCH_DT,PURCH_NO) 유니크와 짝 -->
-	<select id="selectPurchaseNextNo" parameterType="egovframework.sejong.user.model.PurchaseDTO" resultType="string"><![CDATA[
+	<select id="selectPurchaseNextNo" parameterType="egovframework.konet.user.model.PurchaseDTO" resultType="string"><![CDATA[
 	  SELECT RIGHT('000' + CAST(ISNULL(MAX(CAST(PURCH_NO AS INT)),0) + 1 AS VARCHAR(4)), 4)
 	    FROM TBL_PURCHASE_MST
 	   WHERE ACTION_YN = 'Y' AND PURCH_DT = REPLACE(#{purchDt,jdbcType=VARCHAR},'-','')
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
-	<insert id="insertPurchaseMst" parameterType="egovframework.sejong.user.model.PurchaseDTO"
+	<insert id="insertPurchaseMst" parameterType="egovframework.konet.user.model.PurchaseDTO"
 	        useGeneratedKeys="true" keyProperty="purchSeq" keyColumn="PURCH_SEQ"><![CDATA[
 	  INSERT INTO TBL_PURCHASE_MST
 	    (COMP_CD, PURCH_DT, PURCH_NO, VENDOR_CD, VENDOR_NM, MGR_CD, MGR_NM, WH_CD, WH_NM,
@@ -3414,7 +3414,7 @@
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
 	]]></insert>
 
-	<update id="updatePurchaseMst" parameterType="egovframework.sejong.user.model.PurchaseDTO"><![CDATA[
+	<update id="updatePurchaseMst" parameterType="egovframework.konet.user.model.PurchaseDTO"><![CDATA[
 	  UPDATE TBL_PURCHASE_MST
 	     SET PURCH_DT = REPLACE(ISNULL(#{purchDt,jdbcType=VARCHAR},''),'-',''),
 	         VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}, VENDOR_NM = #{vendorNm,jdbcType=NVARCHAR},
@@ -3430,21 +3430,21 @@
 	]]></update>
 
 	<!-- 논리삭제 : 헤더 + 명세. 파생 원장은 서비스가 LEDGER_SEQ 로 따로 지운다 -->
-	<update id="deletePurchaseMst" parameterType="egovframework.sejong.user.model.PurchaseDTO"><![CDATA[
+	<update id="deletePurchaseMst" parameterType="egovframework.konet.user.model.PurchaseDTO"><![CDATA[
 	  UPDATE TBL_PURCHASE_MST SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE PURCH_SEQ = #{purchSeq}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
-	<update id="deletePurchaseDtlAll" parameterType="egovframework.sejong.user.model.PurchaseDTO"><![CDATA[
+	<update id="deletePurchaseDtlAll" parameterType="egovframework.konet.user.model.PurchaseDTO"><![CDATA[
 	  UPDATE TBL_PURCHASE_DTL SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE PURCH_SEQ = #{purchSeq} AND ACTION_YN='Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
-	<insert id="insertPurchaseDtl" parameterType="egovframework.sejong.user.model.PurchaseDtlDTO"
+	<insert id="insertPurchaseDtl" parameterType="egovframework.konet.user.model.PurchaseDtlDTO"
 	        useGeneratedKeys="true" keyProperty="dtlSeq" keyColumn="DTL_SEQ"><![CDATA[
 	  INSERT INTO TBL_PURCHASE_DTL
 	    (COMP_CD, PURCH_SEQ, ROW_NO, PROD_SEQ, PROD_CD, PROD_NM, SPEC, PACK_QTY, BOX_QTY, EA_QTY, QTY,
@@ -3461,7 +3461,7 @@
 	]]></insert>
 
 	<!-- 전표가 만든 파생 재고원장 논리삭제 (수정/삭제 시) -->
-	<update id="deletePurchaseLedger" parameterType="egovframework.sejong.user.model.PurchaseDTO"><![CDATA[
+	<update id="deletePurchaseLedger" parameterType="egovframework.konet.user.model.PurchaseDTO"><![CDATA[
 	  UPDATE TBL_STOCK_LEDGER SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE ACTION_YN='Y' AND REF_GB='PURCH'
@@ -3478,7 +3478,7 @@
 	     ★purchDt = 그 단가를 산 날 (2026-09-13) — 화면이 들고 있다가 단가를 고치면 「이전 매입단가 24,900 (2026-09-18) → 25,900 ▲」 로 알린다.
 	     ★그 상품의 매칭코드·추가 매칭코드(TBL_EXT_ITEM_MST)로 잡힌 옛 매입도 «이 상품의 지난 매입»으로 본다 (2026-09-13
 	       「단가변경해도 메세지 안뜸」 — 9904013353 은 제 코드 매입이 0건이고 매칭코드 1000759548 로만 57,500 이 있었다). -->
-	<select id="selectVendorLastPrice" parameterType="egovframework.sejong.user.model.PurchaseDtlDTO" resultType="egovframework.sejong.user.model.PurchaseDtlDTO"><![CDATA[
+	<select id="selectVendorLastPrice" parameterType="egovframework.konet.user.model.PurchaseDtlDTO" resultType="egovframework.konet.user.model.PurchaseDtlDTO"><![CDATA[
 	  SELECT lp.UNIT_PRICE AS unitPrice, lp.PURCH_DT AS purchDt, lr.REMARK AS remark
 	    FROM ( SELECT 1 AS k ) z
 	    OUTER APPLY ( SELECT TOP 1 d.UNIT_PRICE, m.PURCH_DT
@@ -3512,7 +3512,7 @@
 	]]></select>
 
 	<!-- 품목 매입단가 이력 (품명 클릭 팝업) — 거래처 × 상품, 최근순 -->
-	<select id="selectPurchasePriceHist" parameterType="egovframework.sejong.user.model.PurchaseDtlDTO" resultType="egovframework.sejong.user.model.PurchaseDtlDTO"><![CDATA[
+	<select id="selectPurchasePriceHist" parameterType="egovframework.konet.user.model.PurchaseDtlDTO" resultType="egovframework.konet.user.model.PurchaseDtlDTO"><![CDATA[
 	  SELECT m.PURCH_DT AS spec,            -- 거래일자 (화면 표시용으로 spec 칸 재사용)
 	         m.VENDOR_NM AS prodNm,         -- 거래처
 	         d.UNIT_PRICE AS unitPrice, d.BOX_QTY AS boxQty, d.EA_QTY AS eaQty, d.QTY AS qty,
@@ -3537,7 +3537,7 @@
 	     잔고 누계와 [월 계]·[합 계] 는 화면에서 계산한다(원본 화면과 같은 형태).
 	     원천 : 매입 전표(TBL_PURCHASE_MST) + 지급 전표(TBL_SETTLE_TRX, TRX_GB='PAY')
 	     ※ 지급등록 화면은 아직 없어 지금은 전표의 지급액만 잡힌다 — 2단계에서 채워진다. -->
-	<select id="selectPurchaseLedger" parameterType="egovframework.sejong.user.model.PurchaseDTO" resultType="java.util.HashMap"><![CDATA[
+	<select id="selectPurchaseLedger" parameterType="egovframework.konet.user.model.PurchaseDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT x.dt AS dt,
 	         SUM(x.purchAmt) AS purchAmt,
 	         SUM(x.dcAmt)    AS dcAmt,
@@ -3568,7 +3568,7 @@
 	     · 원장(거래처별 일자 잔고)은 selectCustLedger 하나로 매출·수금·매입·지급을 모두 모은다.
 	     ============================================================ -->
 
-	<select id="selectSettleList" parameterType="egovframework.sejong.user.model.SettleTrxDTO" resultType="egovframework.sejong.user.model.SettleTrxDTO"><![CDATA[
+	<select id="selectSettleList" parameterType="egovframework.konet.user.model.SettleTrxDTO" resultType="egovframework.konet.user.model.SettleTrxDTO"><![CDATA[
 	  SELECT t.TRX_SEQ AS trxSeq, t.TRX_GB AS trxGb, t.TRX_DT AS trxDt, t.TRX_NO AS trxNo,
 	         t.PAY_GB AS payGb, t.ACCT_CD AS acctCd, t.ACCT_NM AS acctNm,
 	         t.CUST_CD AS custCd, t.CUST_NM AS custNm, t.MGR_CD AS mgrCd, t.MGR_NM AS mgrNm,
@@ -3587,7 +3587,7 @@
 	   ORDER BY t.TRX_DT DESC, t.TRX_NO DESC, t.TRX_SEQ DESC
 	]]></select>
 
-	<select id="selectSettleNextNo" parameterType="egovframework.sejong.user.model.SettleTrxDTO" resultType="string"><![CDATA[
+	<select id="selectSettleNextNo" parameterType="egovframework.konet.user.model.SettleTrxDTO" resultType="string"><![CDATA[
 	  SELECT RIGHT('000' + CAST(ISNULL(MAX(CAST(TRX_NO AS INT)),0) + 1 AS VARCHAR(4)), 4)
 	    FROM TBL_SETTLE_TRX
 	   WHERE ACTION_YN = 'Y' AND TRX_GB = #{trxGb,jdbcType=VARCHAR}
@@ -3595,7 +3595,7 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
-	<insert id="insertSettleTrx" parameterType="egovframework.sejong.user.model.SettleTrxDTO"
+	<insert id="insertSettleTrx" parameterType="egovframework.konet.user.model.SettleTrxDTO"
 	        useGeneratedKeys="true" keyProperty="trxSeq" keyColumn="TRX_SEQ"><![CDATA[
 	  INSERT INTO TBL_SETTLE_TRX
 	    (COMP_CD, TRX_GB, TRX_DT, TRX_NO, PAY_GB, ACCT_CD, ACCT_NM, CUST_CD, CUST_NM, MGR_CD, MGR_NM,
@@ -3608,7 +3608,7 @@
 	     #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
 	]]></insert>
 
-	<update id="updateSettleTrx" parameterType="egovframework.sejong.user.model.SettleTrxDTO"><![CDATA[
+	<update id="updateSettleTrx" parameterType="egovframework.konet.user.model.SettleTrxDTO"><![CDATA[
 	  UPDATE TBL_SETTLE_TRX
 	     SET TRX_DT = REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-',''),
 	         PAY_GB = #{payGb,jdbcType=VARCHAR}, ACCT_CD = #{acctCd,jdbcType=VARCHAR}, ACCT_NM = #{acctNm,jdbcType=NVARCHAR},
@@ -3622,7 +3622,7 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
-	<update id="deleteSettleTrx" parameterType="egovframework.sejong.user.model.SettleTrxDTO"><![CDATA[
+	<update id="deleteSettleTrx" parameterType="egovframework.konet.user.model.SettleTrxDTO"><![CDATA[
 	  UPDATE TBL_SETTLE_TRX SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE TRX_SEQ = #{trxSeq}
@@ -3643,7 +3643,7 @@
 	       ※ 이 연결 방식은 협의 대상. 거래처별 매출을 더 잘게 붙이려면 정산서에
 	          거래처코드를 싣거나 매핑표가 필요하다.
 	     일자는 마감·매출내역과 같게 납품일자(DLV_DT) 기준, 없으면 출고일자로 떨어뜨린다. -->
-	<select id="selectCustLedger" parameterType="egovframework.sejong.user.model.SettleTrxDTO" resultType="java.util.HashMap"><![CDATA[
+	<select id="selectCustLedger" parameterType="egovframework.konet.user.model.SettleTrxDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT x.dt AS dt,
 	         SUM(x.saleAmt)  AS saleAmt,
 	         SUM(x.dcAmt)    AS dcAmt,
@@ -3715,7 +3715,7 @@
 	       정산서에 DC_CD 가 비어 있는 옛 자료도 잡히도록 출고장'이름'→코드 환원을 함께 쓴다(매출 그래프와 같은 규칙).
 	     [함정] 사업장(TBL_BIZI_MST)과는 무관하다 — 코드체계가 달라 절대 섞이지 않는다.
 	     ============================================================ -->
-	<select id="selectCustBalance" parameterType="egovframework.sejong.user.model.SettleTrxDTO" resultType="java.util.HashMap"><![CDATA[
+	<select id="selectCustBalance" parameterType="egovframework.konet.user.model.SettleTrxDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT g.custCd     AS custCd,
 	         ISNULL(v.VENDOR_NM, g.custNm) AS custNm,
 	         ISNULL(v.VENDOR_GB,'')        AS vendorGb,
@@ -3823,7 +3823,7 @@
 	     [주의] 전표(판매·매입)는 **명세행**을 편다 — 헤더 할인(DC_AMT)이 있으면 명세 합계가
 	            잔액에 잡힌 전표 금액(TOT_AMT)과 다를 수 있다. 화면에 그 뜻을 적어 뒀다.
 	     ============================================================ -->
-	<select id="selectCustDayDetail" parameterType="egovframework.sejong.user.model.SettleTrxDTO" resultType="java.util.HashMap"><![CDATA[
+	<select id="selectCustDayDetail" parameterType="egovframework.konet.user.model.SettleTrxDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT z.gb AS gb, z.gbNm AS gbNm, z.dt AS dt, z.docNo AS docNo, z.place AS place,
 	         z.itemCd AS itemCd, z.itemNm AS itemNm,
 	         z.qty AS qty, z.price AS price, z.amt AS amt, z.remark AS remark, z.extCd AS extCd
@@ -3920,7 +3920,7 @@
 	         결과가 거래처 수만큼이라 가볍다(전표 원장 규모).
 	     [기간] fromDt~toDt. 일계장은 보통 하루라 둘이 같은 날이지만 범위도 그대로 동작한다.
 	     ============================================================ -->
-	<select id="selectDayBook" parameterType="egovframework.sejong.user.model.SettleTrxDTO" resultType="java.util.HashMap"><![CDATA[
+	<select id="selectDayBook" parameterType="egovframework.konet.user.model.SettleTrxDTO" resultType="java.util.HashMap"><![CDATA[
 	  ;WITH SRC AS (
 	        -- ① 정산서 매출 → 출고장코드(DC_CD)로 거래처에 붙인다 (selectCustBalance 와 동일 규칙)
 	        SELECT vm.VENDOR_CD AS custCd, vm.VENDOR_NM AS custNm,
@@ -4018,7 +4018,7 @@
 	     · 원본은 항상 전표다. 파생 원장은 사람이 직접 손대지 않는다.
 	     ============================================================ -->
 
-	<select id="selectSalesTrxList" parameterType="egovframework.sejong.user.model.SalesTrxDTO" resultType="egovframework.sejong.user.model.SalesTrxDTO"><![CDATA[
+	<select id="selectSalesTrxList" parameterType="egovframework.konet.user.model.SalesTrxDTO" resultType="egovframework.konet.user.model.SalesTrxDTO"><![CDATA[
 	  SELECT m.SALE_SEQ AS saleSeq, m.SALE_DT AS saleDt, m.SALE_NO AS saleNo, m.DLV_DT AS dlvDt,
 	         /* ★회사코드 (2026-09-10 추가) — 종전에는 이 칸을 안 실어 줬다.
 	            로그인이 있는 화면은 세션 compCd 로 조회하니 티가 안 났지만,
@@ -4053,7 +4053,7 @@
 	   ORDER BY m.SALE_DT DESC, m.SALE_NO DESC, m.SALE_SEQ DESC
 	]]></select>
 
-	<select id="selectSalesTrxDtl" parameterType="egovframework.sejong.user.model.SalesTrxDTO" resultType="egovframework.sejong.user.model.SalesTrxDtlDTO"><![CDATA[
+	<select id="selectSalesTrxDtl" parameterType="egovframework.konet.user.model.SalesTrxDTO" resultType="egovframework.konet.user.model.SalesTrxDtlDTO"><![CDATA[
 	  SELECT d.DTL_SEQ AS dtlSeq, d.SALE_SEQ AS saleSeq, d.ROW_NO AS rowNo,
 	         d.PROD_SEQ AS prodSeq, d.PROD_CD AS prodCd, d.PROD_NM AS prodNm, d.SPEC AS spec,
 	         d.PACK_QTY AS packQty, d.BOX_QTY AS boxQty, d.EA_QTY AS eaQty, d.QTY AS qty,
@@ -4081,7 +4081,7 @@
 	     ★토큰은 `ISNULL` 이라 **한 번 발급되면 바뀌지 않는다** — 이미 보낸 링크가 살아 있어야 하기 때문.
 	       (다시 보내도 같은 주소다. 링크를 죽이려면 SHARE_TOKEN 을 NULL 로 지운다.)
 	     ★발급은 <처음 보낼 때>다. 저장할 때가 아니라서 예전에 쌓인 전표도 그대로 보낼 수 있다. -->
-	<update id="updateSalesTrxShare" parameterType="egovframework.sejong.user.model.SalesTrxDTO"><![CDATA[
+	<update id="updateSalesTrxShare" parameterType="egovframework.konet.user.model.SalesTrxDTO"><![CDATA[
 	  UPDATE TBL_SALES_TRX_MST
 	     SET SHARE_TOKEN     = ISNULL(SHARE_TOKEN, #{shareToken,jdbcType=VARCHAR}),
 	         SHARE_CNT       = ISNULL(SHARE_CNT,0) + 1,
@@ -4091,14 +4091,14 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
-	<select id="selectSalesTrxNextNo" parameterType="egovframework.sejong.user.model.SalesTrxDTO" resultType="string"><![CDATA[
+	<select id="selectSalesTrxNextNo" parameterType="egovframework.konet.user.model.SalesTrxDTO" resultType="string"><![CDATA[
 	  SELECT RIGHT('000' + CAST(ISNULL(MAX(CAST(SALE_NO AS INT)),0) + 1 AS VARCHAR(4)), 4)
 	    FROM TBL_SALES_TRX_MST
 	   WHERE ACTION_YN = 'Y' AND SALE_DT = REPLACE(#{saleDt,jdbcType=VARCHAR},'-','')
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
 
-	<insert id="insertSalesTrxMst" parameterType="egovframework.sejong.user.model.SalesTrxDTO"
+	<insert id="insertSalesTrxMst" parameterType="egovframework.konet.user.model.SalesTrxDTO"
 	        useGeneratedKeys="true" keyProperty="saleSeq" keyColumn="SALE_SEQ"><![CDATA[
 	  INSERT INTO TBL_SALES_TRX_MST
 	    (COMP_CD, SALE_DT, SALE_NO, DLV_DT, CUST_CD, CUST_NM, MGR_CD, MGR_NM, WH_CD, WH_NM,
@@ -4117,7 +4117,7 @@
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
 	]]></insert>
 
-	<update id="updateSalesTrxMst" parameterType="egovframework.sejong.user.model.SalesTrxDTO"><![CDATA[
+	<update id="updateSalesTrxMst" parameterType="egovframework.konet.user.model.SalesTrxDTO"><![CDATA[
 	  UPDATE TBL_SALES_TRX_MST
 	     SET SALE_DT = REPLACE(ISNULL(#{saleDt,jdbcType=VARCHAR},''),'-',''),
 	         DLV_DT = NULLIF(REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-',''),''),
@@ -4134,21 +4134,21 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
-	<update id="deleteSalesTrxMst" parameterType="egovframework.sejong.user.model.SalesTrxDTO"><![CDATA[
+	<update id="deleteSalesTrxMst" parameterType="egovframework.konet.user.model.SalesTrxDTO"><![CDATA[
 	  UPDATE TBL_SALES_TRX_MST SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE SALE_SEQ = #{saleSeq}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
-	<update id="deleteSalesTrxDtlAll" parameterType="egovframework.sejong.user.model.SalesTrxDTO"><![CDATA[
+	<update id="deleteSalesTrxDtlAll" parameterType="egovframework.konet.user.model.SalesTrxDTO"><![CDATA[
 	  UPDATE TBL_SALES_TRX_DTL SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE SALE_SEQ = #{saleSeq} AND ACTION_YN='Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
-	<insert id="insertSalesTrxDtl" parameterType="egovframework.sejong.user.model.SalesTrxDtlDTO"
+	<insert id="insertSalesTrxDtl" parameterType="egovframework.konet.user.model.SalesTrxDtlDTO"
 	        useGeneratedKeys="true" keyProperty="dtlSeq" keyColumn="DTL_SEQ"><![CDATA[
 	  -- EXT_CD (2026-08-06 신설) : 매칭코드로 판매한 줄의 거래처 매칭코드. 원코드 판매는 NULL.
 	  --   ★적용 전 운영DB에 docs/sql/sales_trx_dtl_extcd_alter.sql 을 먼저 실행할 것(칼럼 없으면 저장이 통째로 실패한다)
@@ -4166,7 +4166,7 @@
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
 	]]></insert>
 
-	<update id="deleteSalesTrxLedger" parameterType="egovframework.sejong.user.model.SalesTrxDTO"><![CDATA[
+	<update id="deleteSalesTrxLedger" parameterType="egovframework.konet.user.model.SalesTrxDTO"><![CDATA[
 	  UPDATE TBL_STOCK_LEDGER SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE ACTION_YN='Y' AND REF_GB='SALE'
@@ -4179,7 +4179,7 @@
 	     거래처코드는 매입과 같게 remark 칸에 담아 보낸다(★돌려주는 remark 는 명세 줄 비고 — 뜻이 다르다).
 	     ★단가 = 종전대로 마지막 전표 값 / 비고 = «비어 있지 않은» 마지막 것(매입 selectVendorLastPrice 와 같은 규칙).
 	     ★「카톡 …」 비고는 뺀다 — 카톡 주문을 담을 때 그 줄의 원문을 적어 둔 것이라 다음 줄로 옮기면 틀린다. -->
-	<select id="selectCustLastPrice" parameterType="egovframework.sejong.user.model.SalesTrxDtlDTO" resultType="egovframework.sejong.user.model.SalesTrxDtlDTO"><![CDATA[
+	<select id="selectCustLastPrice" parameterType="egovframework.konet.user.model.SalesTrxDtlDTO" resultType="egovframework.konet.user.model.SalesTrxDtlDTO"><![CDATA[
 	  SELECT lp.UNIT_PRICE AS unitPrice, lr.REMARK AS remark
 	    FROM ( SELECT 1 AS k ) z
 	    OUTER APPLY ( SELECT TOP 1 d.UNIT_PRICE
@@ -4208,7 +4208,7 @@
 	       trxYn='Y' = 이 행이 전표에서 왔다는 표시. 화면은 이 표시를 보고 대사키를 만들지 않는다
 	                   (출고 자료에 짝이 있을 수 없으니 '출고미상'으로 잡히면 안 된다).
 	     기간은 정산서와 같게 납품일자(없으면 판매일자) 기준. -->
-	<select id="selectSalesTrxHist" parameterType="egovframework.sejong.user.model.SalesTrxDTO" resultType="java.util.HashMap"><![CDATA[
+	<select id="selectSalesTrxHist" parameterType="egovframework.konet.user.model.SalesTrxDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT) AS dlvDt,
 	         m.SALE_DT AS outDt,
 	         '직접판매(전표)' AS dcNm, '' AS dcCd,
@@ -4235,7 +4235,7 @@
 	]]></select>
 
 	<!-- 품목 판매단가 이력 (품명 클릭 팝업) — 거래처 × 상품, 최근순. 매입 쪽과 같은 형태 -->
-	<select id="selectSalesPriceHist" parameterType="egovframework.sejong.user.model.SalesTrxDtlDTO" resultType="egovframework.sejong.user.model.SalesTrxDtlDTO"><![CDATA[
+	<select id="selectSalesPriceHist" parameterType="egovframework.konet.user.model.SalesTrxDtlDTO" resultType="egovframework.konet.user.model.SalesTrxDtlDTO"><![CDATA[
 	  SELECT m.SALE_DT AS spec,             -- 거래일자 (화면 표시용으로 spec 칸 재사용)
 	         m.CUST_NM AS prodNm,           -- 거래처
 	         d.UNIT_PRICE AS unitPrice, d.BOX_QTY AS boxQty, d.EA_QTY AS eaQty, d.QTY AS qty,
@@ -4264,7 +4264,7 @@
 	       (원천 UNION 을 두 번 훑지 않는다).
 	     ★ 제외된 품목은 빠진다 — TBL_SALES_DLV_EXCL, 거래처별. DDL: sql/sales_dlv_excl_ddl.sql
 	     ============================================================ -->
-	<select id="selectSalesDlvList" parameterType="egovframework.sejong.user.model.SalesDlvDTO" resultType="egovframework.sejong.user.model.SalesDlvDTO"><![CDATA[
+	<select id="selectSalesDlvList" parameterType="egovframework.konet.user.model.SalesDlvDTO" resultType="egovframework.konet.user.model.SalesDlvDTO"><![CDATA[
 	  SELECT x.prodCd     AS prodCd,
 	         ISNULL(p.PROD_NM, x.prodNm)   AS prodNm,
 	         ISNULL(p.SPEC, '')            AS spec,
@@ -4350,7 +4350,7 @@
 	]]></select>
 
 	<!-- 제외이력 — [납품분제외]로 빼 둔 품목(그 거래처). 여기서 해제하면 다시 납품분에 나온다 -->
-	<select id="selectSalesDlvExclList" parameterType="egovframework.sejong.user.model.SalesDlvDTO" resultType="egovframework.sejong.user.model.SalesDlvDTO"><![CDATA[
+	<select id="selectSalesDlvExclList" parameterType="egovframework.konet.user.model.SalesDlvDTO" resultType="egovframework.konet.user.model.SalesDlvDTO"><![CDATA[
 	  SELECT e.EXCL_SEQ AS exclSeq, e.CUST_CD AS custCd, e.PROD_CD AS prodCd,
 	         ISNULL(p.PROD_NM, e.PROD_NM) AS prodNm,
 	         ISNULL(p.SPEC,'')       AS spec,
@@ -4376,7 +4376,7 @@
 
 	<!-- 제외 켜기/끄기 — (회사+거래처+상품) 한 줄을 ACTION_YN 으로 뒤집는다.
 	     먼저 이 UPDATE 를 돌리고 0건이면 INSERT 한다(서비스에서 판단). 물리삭제는 안 한다. -->
-	<update id="updateSalesDlvExcl" parameterType="egovframework.sejong.user.model.SalesDlvDTO"><![CDATA[
+	<update id="updateSalesDlvExcl" parameterType="egovframework.konet.user.model.SalesDlvDTO"><![CDATA[
 	  UPDATE TBL_SALES_DLV_EXCL
 	     SET ACTION_YN = ISNULL(#{actionYn,jdbcType=VARCHAR},'Y'),   -- 'Y' 제외 / 'N' 해제
 	         PROD_NM  = ISNULL(#{prodNm,jdbcType=NVARCHAR}, PROD_NM),
@@ -4387,7 +4387,7 @@
 	     AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')
 	]]></update>
 
-	<insert id="insertSalesDlvExcl" parameterType="egovframework.sejong.user.model.SalesDlvDTO"><![CDATA[
+	<insert id="insertSalesDlvExcl" parameterType="egovframework.konet.user.model.SalesDlvDTO"><![CDATA[
 	  INSERT INTO TBL_SALES_DLV_EXCL
 	    (COMP_CD, GB, CUST_CD, PROD_CD, PROD_NM, REASON, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
@@ -4406,7 +4406,7 @@
 	          전표가 아직 없는 매입처도 이 이력만 있으면 매입분이 채워진다.
 	     ★ 제외는 같은 표(TBL_SALES_DLV_EXCL)의 GB='P'. DDL: sql/sales_dlv_excl_gb_alter.sql
 	     ============================================================ -->
-	<select id="selectPurchDlvList" parameterType="egovframework.sejong.user.model.SalesDlvDTO" resultType="egovframework.sejong.user.model.SalesDlvDTO"><![CDATA[
+	<select id="selectPurchDlvList" parameterType="egovframework.konet.user.model.SalesDlvDTO" resultType="egovframework.konet.user.model.SalesDlvDTO"><![CDATA[
 	  SELECT x.prodCd     AS prodCd,
 	         ISNULL(p.PROD_NM, x.prodNm)   AS prodNm,
 	         ISNULL(p.SPEC, '')            AS spec,
@@ -4488,7 +4488,7 @@
 	     ========================================================================================== -->
 
 	<!-- 상품관리 [거래처 코드] 탭 — 이 품목의 거래처별 표기 -->
-	<select id="selectXrefList" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<select id="selectXrefList" parameterType="egovframework.konet.user.model.ProdXrefDTO" resultType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  SELECT x.XREF_SEQ AS xrefSeq, x.PROD_SEQ AS prodSeq, x.PROD_CD AS prodCd, p.PROD_NM AS prodNm,
 	         x.VENDOR_CD AS vendorCd, x.VENDOR_NM AS vendorNm, x.DC_CD AS dcCd,
 	         x.EXT_ITEM_CD AS extItemCd, x.EXT_ITEM_NM AS extItemNm, x.EXT_SPEC AS extSpec, x.EXT_UNIT AS extUnit,
@@ -4509,7 +4509,7 @@
 
 	<!-- 등록. ★UX_PROD_XREF_EXT 가 (거래처+출고장+거래처코드) 중복을 막는다 —
 	     같은 코드를 두 품목에 붙이면 여기서 INSERT 가 실패한다(의도된 동작, 화면에서 메시지 처리). -->
-	<insert id="insertXref" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<insert id="insertXref" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  INSERT INTO TBL_PROD_XREF
 	    (COMP_CD, PROD_SEQ, PROD_CD, VENDOR_CD, VENDOR_NM, DC_CD,
 	     EXT_ITEM_CD, EXT_ITEM_NM, EXT_SPEC, EXT_UNIT, CONV_QTY, MAIN_YN,
@@ -4526,7 +4526,7 @@
 	     #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
 
-	<update id="updateXref" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="updateXref" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE TBL_PROD_XREF
 	     SET EXT_ITEM_NM = #{extItemNm,jdbcType=NVARCHAR},
 	         EXT_SPEC    = #{extSpec,jdbcType=NVARCHAR},
@@ -4541,7 +4541,7 @@
 
 	<!-- 확인(대사 확정) — 정산서 업로드에서 단가·규격이 맞았을 때, 또는 상품관리에서 사람이 직접.
 	     ★자동으로 'Y' 를 넣는 경로는 두지 않는다. 잘못 매핑되면 재고와 매출이 동시에 틀어진다. -->
-	<update id="confirmXref" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="confirmXref" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE TBL_PROD_XREF
 	     SET CONFIRM_YN   = 'Y',
 	         CONFIRM_USER = #{confirmUser,jdbcType=NVARCHAR},
@@ -4554,7 +4554,7 @@
 
 	<!-- 삭제/수정 전에 '무엇을 지우는지' 를 알아 둔다 — 되돌릴 대상(EXT_ITEM_CD)을 알아야
 	     이미 그 코드로 반영된 출고·정산 행의 PROD_SEQ 를 되돌릴 수 있다. -->
-	<select id="selectXrefById" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<select id="selectXrefById" parameterType="egovframework.konet.user.model.ProdXrefDTO" resultType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  SELECT XREF_SEQ AS xrefSeq, PROD_SEQ AS prodSeq, PROD_CD AS prodCd,
 	         VENDOR_CD AS vendorCd, VENDOR_NM AS vendorNm, DC_CD AS dcCd,
 	         EXT_ITEM_CD AS extItemCd, EXT_ITEM_NM AS extItemNm, CONFIRM_YN AS confirmYn
@@ -4568,7 +4568,7 @@
 	     **엉뚱한 품목의 재고가 계속 그 상태로 굳는다**. 그래서 그 코드로 채워진 행을 NULL 로
 	     되돌린 뒤 다시 해석(resolve)하고 재고를 다시 만든다.
 	     되돌릴 출고일자는 지우기 '전에' 받아 둬야 한다 — 지운 뒤에는 찾을 수 없다. -->
-	<select id="selectShipoutDatesByExtCd" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="string"><![CDATA[
+	<select id="selectShipoutDatesByExtCd" parameterType="egovframework.konet.user.model.ProdXrefDTO" resultType="string"><![CDATA[
 	  SELECT DISTINCT s.SHPOUT_DT
 	    FROM TBL_SHIPOUT_MST s
 	   WHERE s.ACTION_YN='Y' AND s.ITEM_CD = #{extItemCd} AND ISNULL(s.SHPOUT_DT,'') <> ''
@@ -4578,7 +4578,7 @@
 
 	<!-- 정산서 쪽 날짜 (2026-09-13) — 재고의 원천이 정산서라, 매칭코드를 풀거나 붙이면 이 날짜의 정산서 원장을 다시 만든다.
 	     원장 키 = 납품일자(DLV_DT) — syncSalesLedgerCore 가 받는 값. 비우기 «전에» 불러야 한다. -->
-	<select id="selectSalesDatesByExtCd" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="string"><![CDATA[
+	<select id="selectSalesDatesByExtCd" parameterType="egovframework.konet.user.model.ProdXrefDTO" resultType="string"><![CDATA[
 	  SELECT DISTINCT s.DLV_DT
 	    FROM TBL_SALES_MST s
 	   WHERE s.ACTION_YN='Y' AND s.ITEM_CD = #{extItemCd} AND ISNULL(s.DLV_DT,'') <> ''
@@ -4587,7 +4587,7 @@
 	]]></select>
 
 	<!-- 한 상품의 매칭코드·추가 매칭코드가 들어 있는 정산서 납품일자 — 소급 반영(extItemRetro)이 옮기는 행은 이 코드들뿐이다 -->
-	<select id="selectSalesDatesByExtProd" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="string"><![CDATA[
+	<select id="selectSalesDatesByExtProd" parameterType="egovframework.konet.user.model.ProdXrefDTO" resultType="string"><![CDATA[
 	  SELECT DISTINCT s.DLV_DT
 	    FROM TBL_SALES_MST s
 	   WHERE s.ACTION_YN='Y' AND ISNULL(s.DLV_DT,'') <> ''
@@ -4601,14 +4601,14 @@
 	   ORDER BY s.DLV_DT
 	]]></select>
 
-	<update id="clearShipoutProdByExtCd" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="clearShipoutProdByExtCd" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE TBL_SHIPOUT_MST
 	     SET PROD_SEQ = NULL, PROD_CD = NULL
 	   WHERE ITEM_CD = #{extItemCd}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
-	<update id="clearSalesProdByExtCd" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="clearSalesProdByExtCd" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE TBL_SALES_MST
 	     SET PROD_SEQ = NULL, PROD_CD = NULL
 	   WHERE ITEM_CD = #{extItemCd}
@@ -4616,7 +4616,7 @@
 	]]></update>
 
 	<!-- 소프트삭제. UNIQUE 가 ACTION_YN='Y' 필터라 지운 뒤 같은 코드를 다시 걸 수 있다. -->
-	<update id="deleteXref" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="deleteXref" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE TBL_PROD_XREF
 	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER=#{updUser,jdbcType=NVARCHAR}, UPD_IP=#{updIp,jdbcType=NVARCHAR}
 	   WHERE XREF_SEQ = #{xrefSeq}
@@ -4624,7 +4624,7 @@
 	]]></update>
 
 	<!-- 한 거래처의 대표 표기는 하나 — MAIN_YN='Y' 로 올리기 전에 나머지를 내린다 -->
-	<update id="clearXrefMain" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="clearXrefMain" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE TBL_PROD_XREF SET MAIN_YN='N'
 	   WHERE ACTION_YN='Y' AND PROD_SEQ = #{prodSeq}
 	     AND ISNULL(VENDOR_CD,'') = ISNULL(#{vendorCd,jdbcType=NVARCHAR},'')
@@ -4639,7 +4639,7 @@
 	         ② 나중에 매핑을 걸었을 때 : 파라미터를 비우면 미해석분 전체를 소급으로 채움
 	     ★PROD_SEQ 가 NULL 로 남은 행 = 미매핑 → 재고연동에서 자연히 빠진다(별도 조건 불필요)
 	     ========================================================================================== -->
-	<update id="resolveShipoutProd" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="resolveShipoutProd" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
 	     SET s.PROD_SEQ = x.PROD_SEQ, s.PROD_CD = x.PROD_CD
 	    FROM TBL_SHIPOUT_MST s
@@ -4659,7 +4659,7 @@
 	     AND ( #{prodSeq,jdbcType=BIGINT} IS NULL OR x.PROD_SEQ = #{prodSeq,jdbcType=BIGINT} )
 	]]></update>
 
-	<update id="resolveSalesProd" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="resolveSalesProd" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
 	     SET s.PROD_SEQ = x.PROD_SEQ, s.PROD_CD = x.PROD_CD
 	    FROM TBL_SALES_MST s
@@ -4684,7 +4684,7 @@
 	       XREF 가 먼저인 이유 : 잘못 이어진 통보분을 사람이 XREF 에서 고쳤을 때 그 수정이 이겨야 한다.
 	       코드직결이 마지막인 이유 : 우연히 코드가 같은 경우가 사람이 지정한 연결을 덮으면 안 된다.
 	     ========================================================================================== -->
-	<update id="resolveShipoutProdExt" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="resolveShipoutProdExt" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
 	     SET s.PROD_SEQ = e.PROD_SEQ, s.PROD_CD = e.PROD_CD
 	    FROM TBL_SHIPOUT_MST s
@@ -4703,7 +4703,7 @@
 	     AND ( #{prodSeq,jdbcType=BIGINT} IS NULL OR e.PROD_SEQ = #{prodSeq,jdbcType=BIGINT} )
 	]]></update>
 
-	<update id="resolveSalesProdExt" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="resolveSalesProdExt" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
 	     SET s.PROD_SEQ = e.PROD_SEQ, s.PROD_CD = e.PROD_CD
 	    FROM TBL_SALES_MST s
@@ -4727,7 +4727,7 @@
 	     ★거래처는 안 본다 — 발주하는 쪽이 보내는 코드다.
 	     DDL : sql/ext_item_add_cd_alter.sql
 	     ========================================================================================== -->
-	<update id="resolveShipoutProdAdd" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="resolveShipoutProdAdd" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
 	     SET s.PROD_SEQ = e.PROD_SEQ, s.PROD_CD = e.PROD_CD
 	    FROM TBL_SHIPOUT_MST s
@@ -4744,7 +4744,7 @@
 	     AND ( #{prodSeq,jdbcType=BIGINT} IS NULL OR e.PROD_SEQ = #{prodSeq,jdbcType=BIGINT} )
 	]]></update>
 
-	<update id="resolveSalesProdAdd" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="resolveSalesProdAdd" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
 	     SET s.PROD_SEQ = e.PROD_SEQ, s.PROD_CD = e.PROD_CD
 	    FROM TBL_SALES_MST s
@@ -4768,7 +4768,7 @@
 	     ★반드시 XREF·통보대장 패스 뒤에 돌려야 한다. 먼저 돌면 거래처 코드가 우연히 우리 코드와 같을 때
 	       사람이 지정해 둔 연결을 덮어쓴다(사람이 고친 것이 이겨야 한다).
 	     ========================================================================================== -->
-	<update id="resolveShipoutProdDirect" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="resolveShipoutProdDirect" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
 	     SET s.PROD_SEQ = pm.PROD_SEQ, s.PROD_CD = pm.PROD_CD
 	    FROM TBL_SHIPOUT_MST s
@@ -4781,7 +4781,7 @@
 	     AND ( ISNULL(#{dcCd,jdbcType=NVARCHAR},'')  = '' OR s.DC_CD = #{dcCd,jdbcType=NVARCHAR} )
 	]]></update>
 
-	<update id="resolveSalesProdDirect" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="resolveSalesProdDirect" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
 	     SET s.PROD_SEQ = pm.PROD_SEQ, s.PROD_CD = pm.PROD_CD
 	    FROM TBL_SALES_MST s
@@ -4806,7 +4806,7 @@
 	       · `s.PROD_CD = s.ITEM_CD` : 직결로 붙은 행이라는 표식(XREF·EXT 로 붙었으면 코드가 다르다)
 	       · TBL_PROD_XREF 에 그 코드가 있으면 제외 : XREF(1차) 가 EXT(2차) 보다 우선
 	       · `e.PROD_SEQ <> s.PROD_SEQ` : 실제로 다른 상품을 가리킬 때만 -->
-	<update id="repointShipoutProdExt" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="repointShipoutProdExt" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
 	     SET s.PROD_SEQ = e.PROD_SEQ, s.PROD_CD = e.PROD_CD
 	    FROM TBL_SHIPOUT_MST s
@@ -4831,7 +4831,7 @@
 	     AND ( #{prodSeq,jdbcType=BIGINT} IS NULL OR e.PROD_SEQ = #{prodSeq,jdbcType=BIGINT} )
 	]]></update>
 
-	<update id="repointSalesProdExt" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="repointSalesProdExt" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
 	     SET s.PROD_SEQ = e.PROD_SEQ, s.PROD_CD = e.PROD_CD
 	    FROM TBL_SALES_MST s
@@ -4854,7 +4854,7 @@
 	<!-- 추가 매칭코드판 되돌려 붙이기 (2026-09-13) — repoint*Ext 와 같은 안전장치에 하나를 더한다 :
 	       · 그 코드가 어느 줄의 «품목코드»로도 있으면 건드리지 않는다 = 기존 매칭(2차)이 주인
 	     추가 매칭코드를 뒤늦게 적었을 때, 코드 직결로 옛 코드 자신에게 붙어 버린 과거분을 주코드로 옮긴다. -->
-	<update id="repointShipoutProdAdd" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="repointShipoutProdAdd" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
 	     SET s.PROD_SEQ = e.PROD_SEQ, s.PROD_CD = e.PROD_CD
 	    FROM TBL_SHIPOUT_MST s
@@ -4882,7 +4882,7 @@
 	     AND ( #{prodSeq,jdbcType=BIGINT} IS NULL OR e.PROD_SEQ = #{prodSeq,jdbcType=BIGINT} )
 	]]></update>
 
-	<update id="repointSalesProdAdd" parameterType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<update id="repointSalesProdAdd" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
 	     SET s.PROD_SEQ = e.PROD_SEQ, s.PROD_CD = e.PROD_CD
 	    FROM TBL_SALES_MST s
@@ -4905,7 +4905,7 @@
 	     AND ( #{prodSeq,jdbcType=BIGINT} IS NULL OR e.PROD_SEQ = #{prodSeq,jdbcType=BIGINT} )
 	]]></update>
 
-	<select id="selectShipoutDatesByProd" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="string"><![CDATA[
+	<select id="selectShipoutDatesByProd" parameterType="egovframework.konet.user.model.ProdXrefDTO" resultType="string"><![CDATA[
 	  -- ★[2026-09-03] 원장 키 = 납기일자
 	  SELECT DISTINCT ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS D
 	    FROM TBL_SHIPOUT_MST s
@@ -4925,7 +4925,7 @@
 	       (발주현황표에서 온 것 / 정산서에서 온 것이 따로). 연결은 코드 단위로 하는 일이라 한 줄이 맞다.
 	     ★'거래처' 로 VENDOR_NM 을 보여 주던 것도 잘못이었다 — 발주현황표의 VENDOR_NM 은
 	       협력업체(=우리 코네트)라 거래처가 아니다. 대신 **출고장(DC)** 과 **원천(출고/정산)** 을 준다. -->
-	<select id="selectUnmappedItems" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<select id="selectUnmappedItems" parameterType="egovframework.konet.user.model.ProdXrefDTO" resultType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  SELECT TOP 500
 	         u.extItemCd,
 	         MAX(u.extItemNm) AS extItemNm,
@@ -4973,7 +4973,7 @@
 	       ③ 그래도 같으면 최근 등록분
 	     표기가 없는 품목은 여기 안 나온다 → 화면이 우리 PROD_NM 을 그대로 쓴다.
 	     ========================================================================================== -->
-	<select id="selectXrefNames" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<select id="selectXrefNames" parameterType="egovframework.konet.user.model.ProdXrefDTO" resultType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  SELECT prodCd, extItemCd, extItemNm, extSpec, confirmYn
 	    FROM ( SELECT x.PROD_CD AS prodCd, x.EXT_ITEM_CD AS extItemCd, x.EXT_ITEM_NM AS extItemNm,
 	                  x.EXT_SPEC AS extSpec, x.CONFIRM_YN AS confirmYn,
@@ -5005,7 +5005,7 @@
 	     ⚠서브코드 자체의 등록·수정은 **막지 않는다**(요청 그대로). 막는 것은 '매입자료로 잡는 것' 하나다.
 	     ⚠판매는 막지 않는다 — 거래처로 나갈 때는 그쪽 코드를 쓰는 것이 정상이다.
 	     ========================================================================================== -->
-	<select id="selectSubCodesAmong" resultType="egovframework.sejong.user.model.ExtItemDTO">
+	<select id="selectSubCodesAmong" resultType="egovframework.konet.user.model.ExtItemDTO">
 	  SELECT e.EXT_ITEM_CD AS extItemCd,     <!-- 서브코드(=매입에 쓰면 안 되는 코드) -->
 	         e.EXT_ITEM_NM AS extItemNm,
 	         e.EXT_SPEC    AS extSpec,
@@ -5045,7 +5045,7 @@
 	       ④ 재고 음수     : 매핑 뒤 현재고가 마이너스 — 엉뚱한 품목에서 까고 있을 수 있다
 	     기간은 최근 N일(기본 30). 주 1회만 봐도 사고가 오래 가지 않는다.
 	     ========================================================================================== -->
-	<select id="selectXrefAudit" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<select id="selectXrefAudit" parameterType="egovframework.konet.user.model.ProdXrefDTO" resultType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  /* ★기간 CTE 는 '스칼라 서브쿼리'로 쓴다 (2026-08-01 수정)
 	       종전에는 FROM TBL_XXX x, fr JOIN ... ON ... 처럼 콤마조인과 JOIN 을 섞었는데,
 	       그러면 JOIN 의 ON 절이 콤마 앞 별칭(x·m)을 못 본다 → "multi-part identifier could not be bound" 500.
@@ -5142,7 +5142,7 @@
 	     ★자동 확정은 없다. 여기 결과는 '사람이 고르기 쉽게 줄 세운 것'일 뿐이고,
 	       화면에는 항상 우리 품목을 직접 검색해 고르는 길이 함께 있어야 한다.
 	     ========================================================================================== -->
-	<select id="selectXrefCandidates" parameterType="egovframework.sejong.user.model.ProdXrefDTO" resultType="egovframework.sejong.user.model.ProdXrefDTO"><![CDATA[
+	<select id="selectXrefCandidates" parameterType="egovframework.konet.user.model.ProdXrefDTO" resultType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  /* ★단가·규격을 정산서에서 스스로 찾아 온다 (2026-08-01)
 	       발주현황표에는 규격도 단가도 없어서 화면이 품명밖에 못 보낸다. 그러면 정작 못 믿는
 	       품명으로만 추천하게 된다. 그런데 **같은 코드로 정산서가 이미 들어와 있으면**
@@ -5278,7 +5278,7 @@
 	     ★매핑 표가 아니다 — 우리 품목과 잇는 방식은 다음에 결정한다(PROD_SEQ 칸만 있고 채우는 로직 없음).
 	       TBL_PROD_XREF(확정 연결, 재고·출고서가 보는 표)와 섞지 말 것.
 	     ============================================================ -->
-	<select id="selectExtItemList" parameterType="egovframework.sejong.user.model.ExtItemDTO" resultType="egovframework.sejong.user.model.ExtItemDTO">
+	<select id="selectExtItemList" parameterType="egovframework.konet.user.model.ExtItemDTO" resultType="egovframework.konet.user.model.ExtItemDTO">
 	  <!-- ★추가 매칭코드는 «한 줄 더» 펼쳐 준다 (2026-09-13) — addYn='Y' 줄의 extItemCd 칸이 추가 코드다.
 	       이 목록으로 「매칭코드 → 주코드」 지도를 만드는 화면(매입·판매·발주서·재고조정·대시보드·월별출고·재고현황·업로드 미리보기)이
 	       손대지 않아도 추가 코드를 안다. 목록·건수·삭제처럼 «실제 줄»을 다루는 곳은 addYn='Y' 를 빼야 한다(상품코드등록 패널).
@@ -5331,7 +5331,7 @@
 
 	<!-- 같은 (거래처 + 코드)가 이미 있는지 — UX_EXT_ITEM_CD 위반을 미리 잡아 안내한다.
 	     수정 시 자기 자신은 빼야 하므로 extSeq 를 같이 받는다(신규는 NULL). -->
-	<select id="countExtItemCd" parameterType="egovframework.sejong.user.model.ExtItemDTO" resultType="int"><![CDATA[
+	<select id="countExtItemCd" parameterType="egovframework.konet.user.model.ExtItemDTO" resultType="int"><![CDATA[
 	  SELECT COUNT(*) FROM TBL_EXT_ITEM_MST
 	   WHERE ACTION_YN = 'Y'
 	     AND EXT_ITEM_CD = #{extItemCd,jdbcType=NVARCHAR}
@@ -5345,7 +5345,7 @@
 	       ② 이번 품목코드가 → 다른 줄의 추가 코드
 	     겹치는 줄 하나를 돌려준다(어느 주코드에 있는지 알리려고). 수정이면 자기 줄(extSeq)은 뺀다.
 	     ⚠거래처는 안 가린다 — 추가 코드는 거래처를 가리지 않고 해석되기 때문이다. -->
-	<select id="selectExtCodeConflict" parameterType="egovframework.sejong.user.model.ExtItemDTO" resultType="egovframework.sejong.user.model.ExtItemDTO"><![CDATA[
+	<select id="selectExtCodeConflict" parameterType="egovframework.konet.user.model.ExtItemDTO" resultType="egovframework.konet.user.model.ExtItemDTO"><![CDATA[
 	  SELECT TOP 1 e.EXT_SEQ AS extSeq, e.EXT_ITEM_CD AS extItemCd, e.ADD_ITEM_CD AS addItemCd,
 	         e.PROD_SEQ AS prodSeq, e.PROD_CD AS prodCd, p.PROD_NM AS prodNm, e.VENDOR_NM AS vendorNm
 	    FROM TBL_EXT_ITEM_MST e
@@ -5360,7 +5360,7 @@
 	   ORDER BY e.EXT_SEQ
 	]]></select>
 
-	<insert id="insertExtItem" parameterType="egovframework.sejong.user.model.ExtItemDTO"><![CDATA[
+	<insert id="insertExtItem" parameterType="egovframework.konet.user.model.ExtItemDTO"><![CDATA[
 	  INSERT INTO TBL_EXT_ITEM_MST
 	    (COMP_CD, VENDOR_CD, VENDOR_NM, DC_CD, DC_NM,
 	     EXT_ITEM_CD, EXT_ITEM_NM, EXT_SPEC, EXT_UNIT, EXT_PRICE, TAX_GB,
@@ -5378,7 +5378,7 @@
 	     #{remark,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
 
-	<update id="updateExtItem" parameterType="egovframework.sejong.user.model.ExtItemDTO"><![CDATA[
+	<update id="updateExtItem" parameterType="egovframework.konet.user.model.ExtItemDTO"><![CDATA[
 	  UPDATE TBL_EXT_ITEM_MST
 	     SET VENDOR_CD   = NULLIF(#{vendorCd,jdbcType=NVARCHAR},''),
 	         VENDOR_NM   = #{vendorNm,jdbcType=NVARCHAR},
@@ -5405,7 +5405,7 @@
 	]]></update>
 
 	<!-- 지우기 전에 '무엇을 지우는지' 확보 — 되돌리기(소급 원복)에 EXT_ITEM_CD·PROD_SEQ 가 필요하다 -->
-	<select id="selectExtItemById" parameterType="egovframework.sejong.user.model.ExtItemDTO" resultType="egovframework.sejong.user.model.ExtItemDTO"><![CDATA[
+	<select id="selectExtItemById" parameterType="egovframework.konet.user.model.ExtItemDTO" resultType="egovframework.konet.user.model.ExtItemDTO"><![CDATA[
 	  SELECT EXT_SEQ AS extSeq, VENDOR_CD AS vendorCd, EXT_ITEM_CD AS extItemCd, EXT_ITEM_NM AS extItemNm,
 	         PROD_SEQ AS prodSeq, PROD_CD AS prodCd, ADD_ITEM_CD AS addItemCd, ACTION_YN AS actionYn
 	    FROM TBL_EXT_ITEM_MST
@@ -5414,7 +5414,7 @@
 	]]></select>
 
 	<!-- 소프트삭제 — 통보 이력이라 지운 기록도 남긴다(UX 인덱스는 ACTION_YN='Y' 필터라 같은 코드 재등록 가능) -->
-	<update id="deleteExtItem" parameterType="egovframework.sejong.user.model.ExtItemDTO"><![CDATA[
+	<update id="deleteExtItem" parameterType="egovframework.konet.user.model.ExtItemDTO"><![CDATA[
 	  UPDATE TBL_EXT_ITEM_MST
 	     SET ACTION_YN = 'N',
 	         UPD_DTTM  = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=NVARCHAR}
@@ -5425,7 +5425,7 @@
 	<!-- 통보서 여러 줄 붙여넣기 — 같은 (거래처+코드)면 갱신, 없으면 신규. 지우지는 않는다.
 	     ★통보는 '다시 온다' — 같은 코드로 품명·단가가 바뀐 통보가 오면 그 줄을 고치는 게 맞다.
 	     MERGE ON 의 COMP_CD 는 확정값(NOT NULL 이라 명시 NULL 불가) -->
-	<update id="mergeExtItem" parameterType="egovframework.sejong.user.model.ExtItemDTO"><![CDATA[
+	<update id="mergeExtItem" parameterType="egovframework.konet.user.model.ExtItemDTO"><![CDATA[
 	  MERGE dbo.TBL_EXT_ITEM_MST AS t
 	  USING (SELECT ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567') AS COMP_CD,
 	                NULLIF(#{vendorCd,jdbcType=NVARCHAR},'')      AS VENDOR_CD,
@@ -5469,8 +5469,8 @@
 	     ========================================================================================== -->
 
 	<!-- 목록 : 기준일자까지의 누계로 현재고를 만들고 BOX/EA 로 나눠 보여준다 -->
-	<select id="selectStockAdjList" parameterType="egovframework.sejong.user.model.StockMstDTO"
-	        resultType="egovframework.sejong.user.model.StockMstDTO">
+	<select id="selectStockAdjList" parameterType="egovframework.konet.user.model.StockMstDTO"
+	        resultType="egovframework.konet.user.model.StockMstDTO">
 	  SELECT p.PROD_SEQ                        AS prodSeq,
 	         p.PROD_CD                         AS prodCd,
 	         p.PROD_NM                         AS prodNm,
@@ -5601,7 +5601,7 @@
 	]]></select>
 
 	<!-- 조정 이력 기록 (원장행과 짝을 이룬다) -->
-	<insert id="insertStockAdjHis" parameterType="egovframework.sejong.user.model.StockAdjHisDTO"><![CDATA[
+	<insert id="insertStockAdjHis" parameterType="egovframework.konet.user.model.StockAdjHisDTO"><![CDATA[
 	  INSERT INTO TBL_STOCK_ADJ_HIS
 	    (BATCH_NO, COMP_CD, PROD_SEQ, PROD_CD, BASE_DT,
 	     BEF_QTY, AFT_QTY, DIFF_QTY, BEF_BOX, BEF_EA, AFT_BOX, AFT_EA, PACK_QTY,
@@ -5617,8 +5617,8 @@
 	]]></insert>
 
 	<!-- 이력 조회 : 기간·품목·등록자. 묶음(BATCH_NO)으로 접어 볼 수 있게 함께 내려준다 -->
-	<select id="selectStockAdjHisList" parameterType="egovframework.sejong.user.model.StockAdjHisDTO"
-	        resultType="egovframework.sejong.user.model.StockAdjHisDTO">
+	<select id="selectStockAdjHisList" parameterType="egovframework.konet.user.model.StockAdjHisDTO"
+	        resultType="egovframework.konet.user.model.StockAdjHisDTO">
 	  SELECT h.ADJ_SEQ AS adjSeq, h.BATCH_NO AS batchNo, h.PROD_SEQ AS prodSeq, h.PROD_CD AS prodCd,
 	         ISNULL(p.PROD_NM,'') AS prodNm, ISNULL(p.SPEC,'') AS spec,
 	         h.BASE_DT AS baseDt, h.BEF_QTY AS befQty, h.AFT_QTY AS aftQty, h.DIFF_QTY AS diffQty,
@@ -5649,7 +5649,7 @@
 
 	<!-- 묶음 되돌리기 : 이력을 내리고, 짝인 원장 조정행도 함께 내린다.
 	     ★원장행은 REF_GB 가 비어 있는 것(수기조정)만 내린다 — 전표 파생행은 건드리지 않는다. -->
-	<update id="cancelStockAdjBatchLedger" parameterType="egovframework.sejong.user.model.StockAdjHisDTO"><![CDATA[
+	<update id="cancelStockAdjBatchLedger" parameterType="egovframework.konet.user.model.StockAdjHisDTO"><![CDATA[
 	  UPDATE l
 	     SET l.ACTION_YN='N', l.UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120),
 	         l.UPD_USER=#{regUser,jdbcType=NVARCHAR}, l.UPD_IP=#{regIp,jdbcType=NVARCHAR}
@@ -5661,7 +5661,7 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
-	<update id="cancelStockAdjBatch" parameterType="egovframework.sejong.user.model.StockAdjHisDTO"><![CDATA[
+	<update id="cancelStockAdjBatch" parameterType="egovframework.konet.user.model.StockAdjHisDTO"><![CDATA[
 	  UPDATE TBL_STOCK_ADJ_HIS
 	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120),
 	         UPD_USER=#{regUser,jdbcType=NVARCHAR}, UPD_IP=#{regIp,jdbcType=NVARCHAR}
@@ -5676,7 +5676,7 @@
 	       재고를 맞추다 알게 되는 값이라, 같은 화면에서 바로 채울 수 있게 열었다.
 	     ★재고(원장)는 건드리지 않는다 — 환산 기준만 바뀐다.
 	       이미 남은 조정 이력의 PACK_QTY 는 그때 값이 박혀 있어 과거 기록은 안 흔들린다. -->
-	<update id="updateProdPackQty" parameterType="egovframework.sejong.user.model.StockMstDTO"><![CDATA[
+	<update id="updateProdPackQty" parameterType="egovframework.konet.user.model.StockMstDTO"><![CDATA[
 	  UPDATE TBL_PROD_MST
 	     SET PACK_QTY = CASE WHEN ISNULL(#{packQty,jdbcType=INTEGER},0) < 1 THEN 1
 	                         ELSE #{packQty,jdbcType=INTEGER} END,

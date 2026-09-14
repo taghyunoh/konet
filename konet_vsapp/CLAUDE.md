@@ -42,7 +42,7 @@
 
 ## ★[완료 2026-09-11] 모바일 요약 화면 — /m/*.do (PWA)
 사용자 요청 *「모바일에 맞게 몇가지 취합 볼수있게 정리」*.
-- **파일** : [MobileController.java](src/main/java/egovframework/sejong/mobile/web/MobileController.java) ·
+- **파일** : [MobileController.java](src/main/java/egovframework/konet/mobile/web/MobileController.java) ·
   [jsp/m/index.jsp](src/main/webapp/WEB-INF/jsp/m/index.jsp)(요약) · [jsp/m/login.jsp](src/main/webapp/WEB-INF/jsp/m/login.jsp) ·
   정적 `webapp/m/`(manifest.json · sw.js · icons/). tiles 수정 없음(`.raw/m/*` 패턴).
 - **주소** : `/m/index.do`(로그인 전이면 모바일 로그인) · `/m/login.do` · `/m/logout.do` · `POST /m/session.do`({ok,compNm,userNm}).
@@ -74,7 +74,7 @@
 - **판매 규칙(PC 와 동일)** : 합계 = BOX×입수+EA · 부가세 = 거래처 VAT_GB × 품목 과세 · 반품은 양수 + 「반품」(합계에서 −) · 새 전표는 `saleNo:''`(서버가 번호) ·
   ★저장된 전표를 고칠 때 **판매일자 잠금**(서버가 옛 재고 원장을 «새 일자+번호»로 지워 일자를 바꾸면 옛 행이 남는다). PC 와 다른 점 하나 — 불러온 줄의 과세여부를 PC 는 `과세` 로 박지만 모바일은 **상품마스터 taxGb** 를 쓴다.
   모바일에서 **안 넣은 것** : 거래처 매칭코드(extCd 는 null) · 줄 할인 입력 · 납품일자 · 거래명세표 보내기 · 카톡 주문.
-- ★★**서버 가드 [MobileGuardFilter](src/main/java/egovframework/sejong/mobile/web/MobileGuardFilter.java)**(web.xml `*.do`) — 요청에 헤더 `X-Konet-M` 가 있는데 세션이 없으면 **401 `{"ok":false,"login":true}`**.
+- ★★**서버 가드 [MobileGuardFilter](src/main/java/egovframework/konet/mobile/web/MobileGuardFilter.java)**(web.xml `*.do`) — 요청에 헤더 `X-Konet-M` 가 있는데 세션이 없으면 **401 `{"ok":false,"login":true}`**.
   m.js 가 모든 요청에 이 헤더를 단다 → 세션이 끊긴 채 저장해 **기본 회사(W1234567)로 들어가는 사고**와 전 회사 자료 조회를 막는다. `/user/loginChk.do`·`/m/*` 는 예외.
   **헤더 없는 요청(PC 화면)은 그대로 통과** — PC 쪽 엔드포인트 무방비는 여전히 별건.
 - ★응답 풀기 = `M.body` — `ResponseEntity<String>` 저장 응답이 **한 번 더 JSON 문자열로 싸여** 올 수 있어(변환기가 Jackson 하나) 두 겹까지 벗긴다.
@@ -181,7 +181,7 @@
 - **`ssConfirm`(teal 「반영 확인」 모달)은 발주현황표 업로드 반영류 확인 전용** — 일반 확인에 쓰면 제목('반영 확인')·버튼('반영')이 어긋난다. 실제 사고: 로그아웃 확인을 ssConfirm 으로 냈다가 지적받고 `_confirmBox` 로 교체(2026-07-31).
 
 ## 스택/구조
-- **MSSQL** + egovframework + MyBatis, 패키지 `egovframework.sejong`
+- **MSSQL** + egovframework + MyBatis, 패키지 `egovframework.konet`
 - 뷰: Apache Tiles. `.raw/*` = tiles 래핑 없는 단독 페이지, `.main/*` = 표준 레이아웃(main.jsp+top.jsp, top.jsp는 사실상 비어있음 — 실제 네비 없음)
 - **물류관리 화면은 `.raw/main/admin/logistics_demo2.jsp`(약 3000줄) 단독 셸** — 좌측 사이드바 + 모든 패널 + JS를 한 파일에 내장. 대시보드1(출고현황표)=`logistics_demo1.jsp`(iframe 로드). 사이드바 메뉴 onclick이 demo2 내부 함수/패널에 강결합 → 리팩터링 시 주의.
 - 컨벤션: PK `XXX_SEQ IDENTITY`, 품목연결 `PROD_SEQ`+`PROD_CD`, 금액 `DECIMAL(18,2)`, 일자 `NVARCHAR(8)'YYYYMMDD'`·일시 `NVARCHAR(19)`, 소프트삭제 `ACTION_YN`, 감사컬럼 `REG_/UPD_`. 날짜 저장 시 `REPLACE(...,'-','')`. XML `<=`/`<` 는 CDATA 필수.
@@ -774,7 +774,7 @@
     표시가 없어 사용자가 계속 눌렀고 **같은 명세서가 7통** 나갔다(「보내고 있다 메시지가 없어서 계속 누름」). 성공·실패·mailto 갈래 모두 끝에서 풀어 준다.
     ⚠서버 쪽은 중복을 안 막는다(같은 주소로 두 번 보내는 것이 정상 업무일 수 있다) — 막는 것은 <한 번의 클릭 중 재클릭>뿐.
 - **메일 뼈대**(2026-09-09, 계정은 다음날 받기로 함) : `pom.xml` 에 `com.sun.mail:javax.mail:1.5.0`(로컬 .m2 에 있어 오프라인 빌드 가능) ·
-  [MailSender.java](src/main/java/egovframework/sejong/cmmn/MailSender.java) · [mail.properties](src/main/resources/mail.properties)(키 이름은 위너넷과 동일).
+  [MailSender.java](src/main/java/egovframework/konet/cmmn/MailSender.java) · [mail.properties](src/main/resources/mail.properties)(키 이름은 위너넷과 동일).
   ⚠**네이버는 465 SSL + 애플리케이션 비밀번호**(로그인 비밀번호가 아니다). ★**[2026-09-10 계정 설정·실측] `mail.smtp.user` 는 네이버 <아이디>(= `mail.from` 의 @ 앞)여야 한다** —
   `konet` 으로 넣었더니 `535 Username and Password not accepted`, `konet11` 로 바꾸니 인증 OK(jjs+javax.mail 로 connect 만, 발송 없이 확인). 로그인 되면 화면의 [이메일발송]이 저절로 서버 발송으로 바뀌고 전송이력·읽음이 남는다.
   ★**[2026-09-14] 비밀번호는 저장소에서 뺐다 → `<톰캣>\conf\konet-mail.properties`**(git 밖 · WAR 재배포에도 안 지워짐 · 한 줄 `mail.smtp.password=…`).
@@ -1004,7 +1004,7 @@
 - **[완료 2026-08-01] 조인 17군데 교체** — `= X.ITEM_CD`(거래처 코드) → `= X.PROD_CD`(우리 코드). **`PROD_SEQ` 가 아니라 `PROD_CD` 로 바꾼 것이 핵심** — 기존 `MAX(PROD_SEQ) GROUP BY PROD_CD` 이력 관용구를 그대로 살릴 수 있어 변경이 최소가 된다(PROD_MST 는 이력형이라 XREF 가 특정 PROD_SEQ 를 붙들면 상품 수정 시 매핑이 낡는다). 바뀐 곳 = selectShipoutMst 2 · selectSalesChart 5 · selectSalesChartDaily 5 · selectClosing 3 · selectStockLedgerList 1 · insertShipoutLedger 1(+SELECT·WHERE·GROUP BY 도 PROD_CD 로). **`insertShipoutLedger` 가 이제 거래처 코드가 다른 행들을 한 품목으로 합산한다** = 갈라졌던 재고가 합쳐지는 지점.
 - **★2패스 해석 — 순서가 중요**: `resolveShipoutProd` = ①XREF 매핑 → ②**코드 직결**(`resolveShipoutProdDirect`, 거래처 코드 = 우리 코드). **직결 폴백이 있어야 코드가 같은 품목까지 XREF 에 등록하는 부담이 없다** — 즉 XREF 는 '코드가 다를 때만' 필요. XREF 를 먼저 돌려야 사람이 건 매핑이 이긴다(직결이 먼저면 우연히 코드가 같을 때 덮어쓴다). 둘 다 못 찾으면 미매핑 → 재고 보류인데, **이건 종전과 같은 결과**다(예전에도 상품마스터에 없는 ITEM_CD 는 조인에서 빠졌다).
 - **★배포 직후 [재고 재집계] 1회** — `rebuildShipoutLedgerAll` 이 재집계 전에 `resolve*`(파라미터 비움 = 전체)를 먼저 돌리도록 했다. 이 버튼 하나가 '해석 + 재집계'를 다 한다. 안 누르면 배포 이전 업로드분은 `PROD_CD` 가 비어 재고에 안 잡힌다. **여러 번 눌러도 안전**(날짜별로 지우고 다시 만든다 · 마감월 skip).
-- **[완료 2026-08-01] 재집계 진행바 — 가짜 막대 아님** — 재집계는 출고일자 수만큼 도느라 수십 초가 걸리는데 POST 하나라 멈춘 것처럼 보였다("진행 바가 없어서"). [RebuildProgress.java](src/main/java/egovframework/sejong/cmmn/RebuildProgress.java)(사용자ID 키 · 메모리 · 10분 지난 찌꺼기 자동정리)에 서버가 '몇 개 중 몇 개'를 적고, 화면이 `/prod/stockRebuildProgress.do` 를 0.5초마다 물어 **실제 진행률**을 그린다. DB를 안 건드리는 조회라 재집계 트랜잭션을 방해하지 않는다. `RebuildProgress.end()` 는 **반드시 finally** — 안 그러면 다음에 '진행 중'으로 남는다. 마지막 '현재고 집계' 단계가 남아 있어 막대는 95%에서 멈췄다가 응답 도착 시 100%. 진행바 UI 는 발주현황표 저장의 `shpProg*` 를 재사용하고 제목만 `shpProgShow(lab, title)` 로 받는다(인자 생략 시 종전 제목이라 기존 호출부 무변경).
+- **[완료 2026-08-01] 재집계 진행바 — 가짜 막대 아님** — 재집계는 출고일자 수만큼 도느라 수십 초가 걸리는데 POST 하나라 멈춘 것처럼 보였다("진행 바가 없어서"). [RebuildProgress.java](src/main/java/egovframework/konet/cmmn/RebuildProgress.java)(사용자ID 키 · 메모리 · 10분 지난 찌꺼기 자동정리)에 서버가 '몇 개 중 몇 개'를 적고, 화면이 `/prod/stockRebuildProgress.do` 를 0.5초마다 물어 **실제 진행률**을 그린다. DB를 안 건드리는 조회라 재집계 트랜잭션을 방해하지 않는다. `RebuildProgress.end()` 는 **반드시 finally** — 안 그러면 다음에 '진행 중'으로 남는다. 마지막 '현재고 집계' 단계가 남아 있어 막대는 95%에서 멈췄다가 응답 도착 시 100%. 진행바 UI 는 발주현황표 저장의 `shpProg*` 를 재사용하고 제목만 `shpProgShow(lab, title)` 로 받는다(인자 생략 시 종전 제목이라 기존 호출부 무변경).
 - **[함정·수정 2026-08-01] `compCd` 미주입 시 fail-open 이 아니라 500 이었다** — `CompCdMybatisInterceptor` 가 회사코드가 비면 **아무것도 안 하고 넘어갔다**. 그러면 ⓐ파라미터 없는 구문은 param 이 null 인 채 `#{compCd}` 참조 ⓑ`@Param` 구문(ParamMap)은 없는 키 `get()` → 둘 다 `BindingException: Parameter 'compCd' not found` 로 **터진다**(주석이 말하는 fail-open 이 되려면 '키가 있고 값이 빈 문자열' 이어야 한다). 실제 사고 = 세션이 끊긴 뒤 [출고반영 재집계] → `isClosedYm` 에서 500. **고침**: 인터셉터가 회사코드가 없어도 `compCd=""` 로 **키를 반드시 채운다**. 추가 방어로 `isClosedYm`/`deleteClosingStock` 시그니처에 `@Param("compCd")` 를 넣어 인터셉터와 무관하게 키가 존재하게 했다. **compCd 를 쓰면서 파라미터가 없거나 단일 원시타입인 구문은 앞으로도 이 두 가지를 같이 확인할 것**(현재 해당: selectSalesSrcFiles·selectShipoutSrcFiles·selectBiziMst·isClosedYm·selectClosedYmList·deleteClosingStock·selectShipoutDates).
 - **[함정] `sed -i`·`perl -0pi` 로 소스를 고치지 말 것** — CRLF 가 LF 로 바뀌어 파일 전체가 변경된 것처럼 보인다(2026-08-01 User_SQL.xml 3,794줄 + Java 3개에서 실제 발생, PowerShell 로 복구). 줄 단위 치환이 꼭 필요하면 고친 뒤 CRLF 로 되돌리고 `file -b` 로 확인할 것.
 - **[완료 2026-08-01] demo2 업로드 프리뷰 미매핑 연결** — `#ssPvXref` 박스(`ssXref*`). 모달 열 때 `ssXrefLoad()` 가 **해석 가능한 코드 집합(XREF ∪ 우리 PROD_CD)** 을 1회 받아 두고, `ssXrefScan()` 이 이번 파일의 코드를 **코드별 1건으로 묶어** 보여 준다(행 단위면 수백 줄). ★**저장을 막지 않는다** — 원본은 그대로 들어가고 그 행만 재고 반영이 보류된다. [연결] → 서버 추천(단가·규격 1순위) + 직접 검색 → `xrefSave` → 목록 재조회 후 미리보기 재렌더. **거래처·출고장은 비워 공통 별칭으로 저장**한다(품목코드는 출고장 7곳이 공유 — 출고장별로 걸면 같은 코드를 7번 등록하게 된다).
@@ -1586,3 +1586,7 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
 - **[2026-09-14] 세종 프로젝트 잔재 «혈당(i-Sens)·Gemini» 전부 제거**(사용자 「혈당관련내용 모두 제거」) — `Blood_SQL.xml`(짝 Java 없음) · `blood_qa.js`(부르는 곳 없음) 삭제 ·
   `application.properties` 설정 전부(파일은 두 placeholder 가 읽으므로 주석만 남긴 빈 파일로 유지) · common.css 두 벌의 `.bl_color_*`·`.bl_angle_*`·`.blood-info` · app-common.js 앱 연동 `f200`(isensCallBack — 이름으로 찾으므로 빼도 안전) · 메뉴 견본 html 「혈당 그래프」.
   두 앱 동일. DB 표(T_BLD…)는 손대지 않았다. i-Sens 인증 비밀값은 git 이력(07-23~)에 남아 있다.
+- **[2026-09-14] 자바 패키지 `egovframework.sejong` → `egovframework.konet`**(사용자 「SEJONG 폴더도 KONET 폴더로」) — 폴더는 `git mv`(이력 유지),
+  표기는 Java·XML(매퍼 namespace·resultType·typeAlias·인터셉터·스캔 범위·web.xml 필터)·문서를 **바이트 그대로** 치환(인코딩·CRLF 무변경). 두 앱 동일.
+  ⚠**안 바꾼 것** : 로그인 저장 키 `sejong_saved_comp_cd/user_id`(바꾸면 사용자 브라우저에 저장된 값이 날아간다) · `*.bak_20260819` 백업 · README 옛 GitLab 주소 · `.gitignore`.
+  옛 글·커밋 메시지·다른 문서에 나오는 `egovframework.sejong` 은 지금의 `egovframework.konet` 이다.

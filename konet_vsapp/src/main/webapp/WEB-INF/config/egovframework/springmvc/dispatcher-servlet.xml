@@ -16,7 +16,7 @@
                                       ignore-resource-not-found="true"
                                       ignore-unresolvable="true" />
 
-        <context:component-scan base-package="egovframework.sejong">
+        <context:component-scan base-package="egovframework.konet">
         <context:include-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
         <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Service"/>
         <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Mapper"/>
