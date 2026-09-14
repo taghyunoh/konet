@@ -62,7 +62,9 @@
     return M.form('/m/session.do',{}).then(function(s){
       if(!s || !s.ok){ goLogin(); throw new Error('login'); }
       var w=M.$('who'); if(w) w.textContent=(s.compNm||'')+(s.userNm?' · '+s.userNm:'');
-      M.user=s; return s;
+      M.user=s;
+      if(!M._adjInit){ M._adjInit=1; setTimeout(M.adjBadge, 400); adjWatch(); }   // 새 재고조정 알림(아래)
+      return s;
     });
   };
   M.logout = function(){
@@ -74,15 +76,52 @@
     { k:'index',  href:'/m/index.do',  i:'📊', t:'요약' },
     { k:'sales',  href:'/m/sales.do',  i:'🧾', t:'판매등록' },
     { k:'settle', href:'/m/settle.do', i:'💳', t:'수금·지급' },
-    { k:'stock',  href:'/m/stock.do',  i:'📦', t:'재고·상품' }
+    { k:'stock',  href:'/m/stock.do',  i:'📦', t:'재고·상품' },
+    { k:'adjhis', href:'/m/adjhis.do', i:'📝', t:'조정내역' }    // 2026-09-14 재고조정 내역(대표 확인용)
   ];
   M.tabbar = function(active){
     var nav=document.createElement('nav'); nav.className='tabbar';
     nav.innerHTML='<div class="in">'+M.TABS.map(function(t){
-      return '<a href="'+CTX+t.href+'"'+(t.k===active?' class="on" aria-current="page"':'')+'><i>'+t.i+'</i>'+t.t+'</a>';
+      return '<a href="'+CTX+t.href+'"'+(t.k===active?' class="on" aria-current="page"':'')+'><i>'+t.i+'</i>'+t.t
+        +'<b class="tbn" id="tbn-'+t.k+'" hidden></b></a>';
     }).join('')+'</div>';
     document.body.appendChild(nav);
   };
+
+  /* ---------- 새 재고조정 알림 (앱 안) — 2026-09-14 「모바일에서 알림 효과」 ----------
+     «마지막으로 본 조정 번호(ADJ_SEQ)» 를 이 기기에 적어 두고(localStorage konetAdjSeen), 그보다 새 «저장 묶음» 수를
+     아래 탭 [조정내역] 에 빨간 숫자로 띄운다(설치한 앱은 아이콘 배지도 — 되는 기기만) + 숫자가 늘면 한 번 토스트.
+     · 센다 : 화면을 열 때 · 앱으로 돌아올 때(visibilitychange) · 켜 둔 동안 5분마다. 최근 7일 안에서, **내가 한 조정은 안 센다**.
+     · 조정내역 화면(data-page="adjhis")을 열면 그 화면이 «본 번호»를 올려 0 이 된다.
+     ⚠앱을 닫아 두면 오지 않는다 — 푸시 알림이 아니다(푸시는 별도 준비가 필요 · CLAUDE.md). */
+  var SEEN_KEY='konetAdjSeen', _abT=0;
+  M.adjSeen = function(v){ try{ if(v!=null) localStorage.setItem(SEEN_KEY, String(v)); return +(localStorage.getItem(SEEN_KEY)||0) || 0; }catch(e){ return 0; } };
+  M.adjBadgeSet = function(cnt){
+    var el=document.getElementById('tbn-adjhis');
+    if(el){ el.hidden=!cnt; el.textContent = cnt>99 ? '99+' : String(cnt||''); }
+    try{ var p = cnt ? (navigator.setAppBadge && navigator.setAppBadge(cnt)) : (navigator.clearAppBadge && navigator.clearAppBadge()); if(p && p.catch) p.catch(function(){}); }catch(e){}
+  };
+  M.adjBadge = function(){
+    if(document.body && document.body.getAttribute('data-page')==='adjhis') return Promise.resolve(0);   // 그 화면은 스스로 0 으로
+    var seen=M.adjSeen(), me=String((M.user && M.user.userId) || '');
+    return M.form('/prod/stockAdjHisList.do',{ regFrom:M.addDay(M.ymd(),-6) }).then(function(res){
+      var b={};
+      (res.data||[]).forEach(function(r){ if(M.n(r.adjSeq)>seen && String(r.regUser||'')!==me) b[r.batchNo]=1; });
+      var cnt=Object.keys(b).length;
+      M.adjBadgeSet(cnt);
+      try{
+        var last=+(sessionStorage.getItem('konetAdjToast')||0);
+        if(cnt>last) _toast('📝 새 재고조정 <b>'+cnt+'</b>건 — 아래 [조정내역] 에서 확인하세요', 'info');
+        sessionStorage.setItem('konetAdjToast', String(cnt));
+      }catch(e){}
+      return cnt;
+    }).catch(function(){ return 0; });
+  };
+  function adjWatch(){
+    if(_abT) return;
+    _abT=setInterval(function(){ if(!document.hidden) M.adjBadge(); }, 5*60*1000);
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden) M.adjBadge(); });
+  }
 
   /* ---------- 아래에서 올라오는 선택 창 ----------
      M.sheet({ title, placeholder, opt:{label, checked}, list:function(q, optOn){ return [{html, dis, v}] }, onPick:function(v){} })

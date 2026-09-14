@@ -724,7 +724,9 @@ function hisLoad(){
           + '<td class="r"><span class="diff ' + (diff > 0 ? 'up' : 'dn') + '">'
           +   (diff > 0 ? '+' : '') + diff + '</span></td>'
           + '<td>' + esc(h.remark) + '</td>'
-          + '<td>' + esc(h.regUser) + '</td>'
+          /* 등록자 = 이름(아이디는 툴팁) · 빈 값 = 로그인이 끊긴 채 저장된 옛 조정 (2026-09-14) */
+          + '<td title="' + esc(h.regUser || '로그인이 끊긴 채 저장됨') + '">'
+          +   (h.regUser ? esc(h.regUserNm || h.regUser) : '<span class="dim">(기록 없음)</span>') + '</td>'
           + '<td>' + esc(h.regDttm) + '</td>'
           + '<td class="c">' + (head
               ? '<button type="button" class="undo" onclick="hisCancel(\'' + esc(h.batchNo) + '\')">되돌리기</button>'

@@ -3514,11 +3514,21 @@ public class UserController {
 		}
 
 		/* 일괄저장 — 고친 줄만 조정행 + 이력으로 남긴다 */
+		/* ★재고조정 저장·되돌리기·서브코드 정리는 <로그인이 살아 있을 때만> (2026-09-14) —
+		   화면을 켜 둔 채 서버가 다시 올라오면(세션 소실) 종전엔 «등록자 없음 · 기본 회사(W1234567)» 로 조용히 들어갔다
+		   (실측 : 조정 이력 110건 중 31건 등록자 빈 값 · 2026-09-07·09-14 서버 재기동 시각대). 재고조정은 «누가 고쳤나»가 남아야 한다
+		   (모바일 재고조정 내역 — 대표 확인용). 화면 셋(stockAdj·prodcd·subStockFix)은 result≠OK 면 message 를 그대로 띄운다. */
+		private static final String ADJ_LOGIN_MSG = "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요. (재고는 바뀌지 않았습니다)";
+		private static boolean adjLoggedIn(HttpSession s) {
+			return s.getAttribute("s_user_id") != null && s.getAttribute("s_comp_cd") != null;
+		}
+
 		@RequestMapping(value="/prod/stockAdjSave.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,Object> stockAdjSave(@RequestBody Map<String,Object> body,
 		                                       HttpSession session, HttpServletRequest request) throws Exception {
 			Map<String,Object> response = new HashMap<String,Object>();
+			if (!adjLoggedIn(session)) { response.put("result", "FAIL"); response.put("login", Boolean.TRUE); response.put("message", ADJ_LOGIN_MSG); return response; }
 			try {
 				egovframework.konet.user.model.StockAdjHisDTO head =
 				        new egovframework.konet.user.model.StockAdjHisDTO();
@@ -3616,7 +3626,7 @@ public class UserController {
 			Map<String,Object> response = new HashMap<String,Object>();
 			try {
 				String comp = (String) session.getAttribute("s_comp_cd");
-				if (comp == null) { response.put("result", "FAIL"); response.put("message", "로그인이 필요합니다."); return response; }
+				if (!adjLoggedIn(session)) { response.put("result", "FAIL"); response.put("login", Boolean.TRUE); response.put("message", ADJ_LOGIN_MSG); return response; }
 				java.util.List<String> cds = new java.util.ArrayList<String>();
 				Object raw = body.get("subCds");
 				if (raw instanceof java.util.List)
@@ -3652,6 +3662,7 @@ public class UserController {
 		public Map<String,Object> stockAdjCancel(@ModelAttribute("DTO") egovframework.konet.user.model.StockAdjHisDTO dto,
 		                                         HttpSession session, HttpServletRequest request) throws Exception {
 			Map<String,Object> response = new HashMap<String,Object>();
+			if (!adjLoggedIn(session)) { response.put("result", "FAIL"); response.put("login", Boolean.TRUE); response.put("message", ADJ_LOGIN_MSG); return response; }
 			try {
 				dto.setCompCd((String) session.getAttribute("s_comp_cd"));
 				dto.setRegUser((String) session.getAttribute("s_user_id"));

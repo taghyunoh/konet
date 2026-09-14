@@ -46,9 +46,16 @@ public class StockAdjHisDTO {
     private String  updUser;
     private String  updIp;
 
+    // ----- 조회 결과(조인) — 2026-09-14 모바일 재고조정 내역 -----
+    private String  regUserNm;     // 등록자 이름 (TBL_USER_MST)
+    private String  updUserNm;     // 되돌린 사람 이름
+
     // ----- 조회 조건(비영속) -----
     private String  dtFrom;        // 기준일자 시작
     private String  dtTo;          // 기준일자 종료
+    private String  regFrom;       // 고친 날(REG_DTTM) 시작 'YYYY-MM-DD'
+    private String  regTo;         // 고친 날(REG_DTTM) 끝   'YYYY-MM-DD'
+    private String  inclCancel;    // 'Y' = 되돌린 묶음(ACTION_YN='N')도 함께
 
     public String  getCompCd()    { return compCd; }
     public void    setCompCd(String v)    { this.compCd = v; }
@@ -109,4 +116,15 @@ public class StockAdjHisDTO {
     public void    setDtFrom(String v)    { this.dtFrom = v; }
     public String  getDtTo()      { return dtTo; }
     public void    setDtTo(String v)      { this.dtTo = v; }
+
+    public String  getRegUserNm() { return regUserNm; }
+    public void    setRegUserNm(String v) { this.regUserNm = v; }
+    public String  getUpdUserNm() { return updUserNm; }
+    public void    setUpdUserNm(String v) { this.updUserNm = v; }
+    public String  getRegFrom()   { return regFrom; }
+    public void    setRegFrom(String v)   { this.regFrom = v; }
+    public String  getRegTo()     { return regTo; }
+    public void    setRegTo(String v)     { this.regTo = v; }
+    public String  getInclCancel(){ return inclCancel; }
+    public void    setInclCancel(String v){ this.inclCancel = v; }
 }

@@ -5,7 +5,7 @@
  * - 경로는 모두 이 파일 기준 상대경로 — 컨텍스트 경로가 붙어 배포돼도 그대로 동작한다.
  * - 파일을 고치면 VER 를 올린다(옛 캐시를 지운다).
  */
-var VER = 'konet-m-20260911b';   // b : 판매·수금지급·재고 화면 + manifest 바로가기
+var VER = 'konet-m-20260914a';   // 20260914a : 재고조정 내역 화면 + manifest 바로가기 추가 (b : 판매·수금지급·재고 화면)
 var SHELL = ['manifest.json', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', function (e) {

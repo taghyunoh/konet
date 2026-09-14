@@ -56,6 +56,13 @@ public class MobileController {
 		return loggedIn(session) ? ".raw/m/stock" : ".raw/m/login";
 	}
 
+	/** 재고조정 내역(대표 확인용, 2026-09-14) — 담당자별 · 최근 순 · 누가 무엇을 몇에서 몇으로.
+	 *  자료 = /prod/stockAdjHisList.do (PC 재고 일괄조정 [조정 이력]과 같은 조회) — 조회 전용 */
+	@RequestMapping(value = "/m/adjhis.do")
+	public String adjhis(HttpSession session) {
+		return loggedIn(session) ? ".raw/m/adjhis" : ".raw/m/login";
+	}
+
 	/** 모바일 로그인 화면 — 실제 로그인은 PC 와 같은 /user/loginChk.do 를 쓴다 */
 	@RequestMapping(value = "/m/login.do")
 	public String login(HttpSession session) {
@@ -72,6 +79,7 @@ public class MobileController {
 		if (ok) {
 			res.put("compNm", session.getAttribute("s_comp_nm"));
 			res.put("userNm", session.getAttribute("s_user_nm"));
+			res.put("userId", session.getAttribute("s_user_id"));   // 조정 알림에서 «내가 한 것»은 안 센다(2026-09-14)
 		}
 		return res;
 	}

@@ -20,9 +20,9 @@
 <link rel="manifest" href="<%=request.getContextPath()%>/m/manifest.json">
 <link rel="apple-touch-icon" href="<%=request.getContextPath()%>/m/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20260913a">
+<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20260914a">
 <script src="<%=request.getContextPath()%>/asset/js/ui-message.js"></script>
-<script src="<%=request.getContextPath()%>/m/m.js?v=20260911d"></script>
+<script src="<%=request.getContextPath()%>/m/m.js?v=20260914a"></script>
 <style>
   .it{ border:1px solid #e3ebe8; border-radius:12px; padding:10px 11px; margin-bottom:8px; background:#fbfdfc; }
   .it.ret{ background:#fff7f7; border-color:#f0d3d3; }

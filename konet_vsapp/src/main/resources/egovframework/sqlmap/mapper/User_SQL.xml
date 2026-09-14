@@ -5616,7 +5616,11 @@
 	     CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
 
-	<!-- 이력 조회 : 기간·품목·등록자. 묶음(BATCH_NO)으로 접어 볼 수 있게 함께 내려준다 -->
+	<!-- 이력 조회 : 기간·품목·등록자. 묶음(BATCH_NO)으로 접어 볼 수 있게 함께 내려준다
+	     [2026-09-14] 모바일 「재고조정 내역」(대표 확인용)에 맞춰 선택 조건 셋 + 이름 두 칸을 더했다 — PC 는 안 넘기므로 종전 그대로 :
+	       · inclCancel='Y' : 되돌린 묶음(ACTION_YN='N')도 함께 — 누가 언제 되돌렸나(updUser·updDttm)
+	       · regFrom·regTo  : «고친 날»(REG_DTTM) 기준 기간 — dtFrom·dtTo 는 기준일자(BASE_DT) 기준이다(지난 날짜로 조정할 수 있어 둘이 다르다)
+	       · regUserNm·updUserNm : 아이디 → 사용자 이름(TBL_USER_MST 는 이력형이라 활성·최근 1줄). 등록자 검색도 이름으로 걸린다. -->
 	<select id="selectStockAdjHisList" parameterType="egovframework.konet.user.model.StockAdjHisDTO"
 	        resultType="egovframework.konet.user.model.StockAdjHisDTO">
 	  SELECT h.ADJ_SEQ AS adjSeq, h.BATCH_NO AS batchNo, h.PROD_SEQ AS prodSeq, h.PROD_CD AS prodCd,
@@ -5624,10 +5628,22 @@
 	         h.BASE_DT AS baseDt, h.BEF_QTY AS befQty, h.AFT_QTY AS aftQty, h.DIFF_QTY AS diffQty,
 	         h.BEF_BOX AS befBox, h.BEF_EA AS befEa, h.AFT_BOX AS aftBox, h.AFT_EA AS aftEa,
 	         h.PACK_QTY AS packQty, h.LEDGER_SEQ AS ledgerSeq, h.REMARK AS remark,
-	         h.REG_DTTM AS regDttm, h.REG_USER AS regUser
+	         h.REG_DTTM AS regDttm, h.REG_USER AS regUser,
+	         h.ACTION_YN AS actionYn, h.UPD_DTTM AS updDttm, h.UPD_USER AS updUser,
+	         ISNULL(ur.USER_NM,'') AS regUserNm, ISNULL(uu.USER_NM,'') AS updUserNm
 	    FROM TBL_STOCK_ADJ_HIS h
 	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = h.PROD_SEQ AND p.COMP_CD = h.COMP_CD
-	   WHERE h.ACTION_YN = 'Y'
+	    OUTER APPLY (SELECT TOP 1 u.USER_NM FROM TBL_USER_MST u
+	                  WHERE u.COMP_CD = h.COMP_CD AND LTRIM(RTRIM(u.USER_ID)) = LTRIM(RTRIM(h.REG_USER))
+	                  ORDER BY CASE WHEN u.ACTION_YN = 'Y' THEN 0 ELSE 1 END, u.START_DT DESC, u.JOB_SEQ DESC) ur
+	    OUTER APPLY (SELECT TOP 1 u.USER_NM FROM TBL_USER_MST u
+	                  WHERE u.COMP_CD = h.COMP_CD AND LTRIM(RTRIM(u.USER_ID)) = LTRIM(RTRIM(h.UPD_USER))
+	                  ORDER BY CASE WHEN u.ACTION_YN = 'Y' THEN 0 ELSE 1 END, u.START_DT DESC, u.JOB_SEQ DESC) uu
+	   WHERE ( h.ACTION_YN = 'Y'
+	  <if test='inclCancel != null and inclCancel == "Y"'>
+	           OR h.ACTION_YN = 'N'
+	  </if>
+	         )
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR h.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  <if test='prodSeq != null'>
 	     AND h.PROD_SEQ = #{prodSeq}
@@ -5641,8 +5657,15 @@
 	  <if test='dtTo != null and dtTo != ""'>
 	     AND h.BASE_DT &lt;= REPLACE(#{dtTo,jdbcType=NVARCHAR},'-','')
 	  </if>
+	  <if test='regFrom != null and regFrom != ""'>
+	     AND h.REG_DTTM &gt;= #{regFrom,jdbcType=NVARCHAR}
+	  </if>
+	  <if test='regTo != null and regTo != ""'>
+	     AND h.REG_DTTM &lt;= #{regTo,jdbcType=NVARCHAR} + ' 23:59:59'
+	  </if>
 	  <if test='regUser != null and regUser != ""'>
-	     AND h.REG_USER LIKE '%' + #{regUser,jdbcType=NVARCHAR} + '%'
+	     AND ( h.REG_USER LIKE '%' + #{regUser,jdbcType=NVARCHAR} + '%'
+	        OR ur.USER_NM LIKE '%' + #{regUser,jdbcType=NVARCHAR} + '%' )
 	  </if>
 	   ORDER BY h.REG_DTTM DESC, h.ADJ_SEQ DESC
 	</select>
