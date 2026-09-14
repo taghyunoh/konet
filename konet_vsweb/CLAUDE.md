@@ -1640,6 +1640,10 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
 - **메뉴·기능이 바뀔 때마다 `logistics_demo2.jsp`의 업무설명서 패널(`panel-guide`)도 반드시 함께 수정**한다 (사용자 상시 요청 2026-07-05). 화면 추가/삭제/이동, 성격 변경 시 설명서 표의 해당 행을 갱신.
 
 ## 배포
+- ★**[2026-09-14] 비밀번호는 저장소에 없다 — 톰캣 `conf` 폴더 파일 두 개** (git 밖 · WAR 재배포에도 안 지워짐 · PC·운영 서버마다 한 번) :
+  `konet-db.properties` = `konet.db.password=…`(context-datasource.xml 의 `$db{konet.db.password}` — 전용 표시라 `${…}` 설정과 안 섞임) ·
+  `konet-mail.properties` = `mail.smtp.password=…`(MailSender). ⚠**DB 파일이 없으면 앱이 기동하지 못한다** — 운영에 새 WAR 를 올리기 **전에** 만들 것.
+  실행옵션 `-Dkonet.db.password=` / `-Dmail.smtp.password=` 가 파일보다 먼저 쓰인다. 옛 값은 git 이력에 남아 있다(DB 06-26~ · 메일 09-09~).
 - **.java / User_SQL.xml 변경 → WAR 재빌드 + 톰캣 재배포 필수.** JSP만 변경 시 파일 교체로 반영.
 - DB: 위 6개 테이블(재고4+마감2) 선생성 필요.
 

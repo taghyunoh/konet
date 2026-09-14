@@ -109,27 +109,30 @@ konet_vsapp 은 같은 꼴에서 `konet_vsweb` → `konet_vsapp` 로 바꾼다.
 
 ---
 
-## 6. 메일 비밀번호 — 저장소가 아니라 **톰캣 conf 폴더**에 둔다 (2026-09-14)
+## 6. 비밀번호 — 저장소가 아니라 **톰캣 conf 폴더**에 둔다 (2026-09-14)
 
-저장소의 `src/main/resources/mail.properties` 는 서버·아이디·보내는사람만 담고 **비밀번호 칸은 비어 있다.**
-비밀번호는 PC(와 운영 서버)마다 **톰캣 `conf` 폴더에 파일 하나**로 둔다 — git 밖이라 WAR 를 새로 올려도 지워지지 않는다.
+저장소에는 **DB 비밀번호도, 메일 비밀번호도 없다.** PC(와 운영 서버)마다 **톰캣 `conf` 폴더에 파일 두 개**를 둔다 —
+git 밖이라 WAR 를 새로 올려도 지워지지 않는다. 톰캣이 둘(웹 9071 · 모바일 9072)이면 **두 톰캣 모두**에 둔다.
 
 ```
+C:\egv\Servers\konet_vsweb-tomcat\conf\konet-db.properties
 C:\egv\Servers\konet_vsweb-tomcat\conf\konet-mail.properties
+C:\egv\Servers\konet_vsapp-tomcat\conf\konet-db.properties
 C:\egv\Servers\konet_vsapp-tomcat\conf\konet-mail.properties
 ```
 
-내용은 한 줄 (UTF-8) :
+내용은 각각 한 줄 (UTF-8) :
 
-```
-mail.smtp.password=네이버_애플리케이션_비밀번호
-```
+| 파일 | 내용 | 없으면 |
+|---|---|---|
+| `konet-db.properties` | `konet.db.password=DB_비밀번호` | ⚠ **앱이 기동하지 못한다** — 로그에 `Could not resolve placeholder 'konet.db.password'` |
+| `konet-mail.properties` | `mail.smtp.password=네이버_애플리케이션_비밀번호` | 서버 메일 발송이 꺼지고 [이메일발송]이 메일 프로그램 열기로 넘어간다(기능은 안 죽는다) |
 
-- 읽는 차례 : 톰캣 실행옵션 `-Dmail.smtp.password=` → **이 파일** → 저장소 `mail.properties`
-- 이 파일이 없는 PC 는 서버 메일 발송이 꺼지고 [이메일발송]이 메일 프로그램 열기로 넘어간다(기능은 안 죽는다).
-- 비밀번호를 바꾸면 이 줄만 고친다 — 톰캣 재기동 없이 다음 발송부터 쓰인다.
-- ⚠ 2026-09-09 ~ 09-14 사이 커밋에는 옛 비밀번호가 남아 있다(git 이력) — **네이버에서 애플리케이션 비밀번호를 새로 발급**해
-  이 파일들에만 넣으면 옛 값은 쓸모가 없어진다.
+- 값은 **이미 설정된 PC 의 같은 파일에서 복사**하면 된다(메신저·메일로 보낼 때는 조심).
+- 읽는 차례 : 톰캣 실행옵션(`-Dkonet.db.password=` / `-Dmail.smtp.password=`) → **이 파일** (→ 메일만 저장소 `mail.properties`)
+- DB 비밀번호를 바꾸면 이 줄을 고친 뒤 **톰캣 재기동**. 메일 비밀번호는 재기동 없이 다음 발송부터 쓰인다.
+- ⚠ **운영 서버에 새 WAR 를 올리기 전에 운영 톰캣 `conf` 에 두 파일을 먼저 만들 것** — DB 파일이 없으면 운영이 멈춘다.
+- ⚠ 옛 값은 git 이력에 남아 있다(DB 2026-06-26~ · 메일 09-09~09-14). 비밀번호를 새로 바꾸고 이 파일들에만 넣으면 옛 값은 쓸모가 없어진다.
 
 ---
 

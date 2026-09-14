@@ -9,13 +9,26 @@
          · 서버 : saynice.co.kr  / DB : KOLGSDB
          · sendStringParametersAsUnicode=true → 앱에서 한글 INSERT 시 N 접두어 불필요
          · encrypt=false → 사내망/구버전 호환 (TLS 강제 안 함)
-         · 비밀번호는 운영값으로 교체할 것
+         · 비밀번호 = 아래 $db{konet.db.password} → <톰캣>/conf/konet-db.properties (2026-09-14)
          ============================================================ -->
+    <!-- ★[2026-09-14] DB 비밀번호는 저장소에 두지 않는다 : <톰캣>/conf/konet-db.properties 의 konet.db.password
+         · git 밖 파일이라 WAR 를 새로 올려도 지워지지 않는다. PC·운영 서버마다 한 번 만든다(한 줄).
+         · 읽는 차례 : 톰캣 실행옵션 -Dkonet.db.password=… → 그 파일
+         · 전용 표시 「$db{…}」 를 쓴다 : application.properties 용 설정(context-properties.xml)과 섞이지 않게.
+         · 파일이 없으면 기동 때 「Could not resolve placeholder 'konet.db.password'」 로 멈춘다 (엉뚱한 로그인 실패보다 알아보기 쉽게). -->
+    <bean class="org.springframework.context.support.PropertySourcesPlaceholderConfigurer">
+        <property name="placeholderPrefix" value="$db{"/>
+        <property name="placeholderSuffix" value="}"/>
+        <property name="locations" value="file:${catalina.base}/conf/konet-db.properties"/>
+        <property name="ignoreResourceNotFound" value="true"/>
+        <property name="ignoreUnresolvablePlaceholders" value="false"/>
+        <property name="fileEncoding" value="UTF-8"/>
+    </bean>
     <bean id="dataSource" class="org.apache.commons.dbcp2.BasicDataSource" destroy-method="close">
         <property name="driverClassName" value="com.microsoft.sqlserver.jdbc.SQLServerDriver"/>
         <property name="url" value="jdbc:sqlserver://saynice.co.kr:1433;databaseName=KOLGSDB;encrypt=false;sendStringParametersAsUnicode=true"/>
         <property name="username" value="sa"/>
-        <property name="password" value="@samyook36"/>
+        <property name="password" value="$db{konet.db.password}"/>
         <property name="validationQuery" value="SELECT 1"/>
         <property name="testOnBorrow" value="true"/>
     </bean>
@@ -24,8 +37,8 @@
     <bean id="dataSource" class="org.apache.commons.dbcp2.BasicDataSource" destroy-method="close">
         <property name="driverClassName" value="com.mysql.cj.jdbc.Driver"/>
         <property name="url" value="jdbc:mysql://211.47.75.102:3306/dbhannetit02" />
-        <property name="username" value="hannetit02"/>
-        <property name="password" value="hjko884803!"/>
+        <property name="username" value="(저장소에서 뺌 2026-09-14)"/>
+        <property name="password" value="(저장소에서 뺌 2026-09-14)"/>
     </bean>
     -->
 
