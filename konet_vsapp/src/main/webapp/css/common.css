@@ -123,52 +123,6 @@
 .food_wrap .bmi_high {
   color: #dc3545;
 }
-/* 혈당 수치 컬러 */
-.bl_color_very_high {
-  color: #ff3e09; /* 매우높음 201~ */
-}
-.bl_color_high {
-  color: #fd7e14; /* 높음 181~200 */
-}
-.bl_color_slight_high {
-  color: #1aa179; /* 약간 높음 141~180*/
-}
-.bl_color_stable {
-  color: #198754; /* 안정적 101~140 */
-}
-.bl_color_slight_low {
-  color: #0aa2c0; /* 약간 낮음 71~100 */
-}
-.bl_color_low {
-  color: #bf14fd; /* 낮음 54~70*/
-}
-.bl_color_very_low {
-  color: #dc354e; /* 매우낮음 0~53 */
-}
-
-/* 혈당 변화 각도 */
-.bl_angle_stable {
-  transform: rotate(0deg); /* 안정적 */
-}
-.bl_angle_slowup {
-  transform: rotate(-40deg); /* 서서히 증가 */
-}
-.bl_angle_up {
-  transform: rotate(-70deg); /* 증가 */
-}
-.bl_angle_fastup {
-  transform: rotate(-90deg); /* 빠르게 증가 */
-}
-.bl_angle_slowdown {
-  transform: rotate(40deg); /* 서서히 감소 */
-}
-.bl_angle_down {
-  transform: rotate(70deg); /* 감소 */
-}
-.bl_angle_fastdown {
-  transform: rotate(90deg); /* 빠르게 감소 */
-}
-
 
 /* 화면사이즈 */
 .container {
@@ -1060,24 +1014,6 @@ label.critical::after {
   font-size: 20px;
   font-weight: 500;
   line-height: 100%;
-}
-/* 혈당정보 */
-.blood-info {
-  display: flex;
-  flex-flow: row nowrap;
-  justify-content: flex-end;
-  align-items: flex-end;
-  gap: 10px;
-      font-size: 18px;
-}
-.blood-info .title {
-  font-weight: 500;
-  font-size: 20px;
-}
-.blood-info .blood-num {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--color-success);
 }
 /* 기간 조회 */
 .date-search-wrap {

@@ -7,7 +7,6 @@ var android_interface = [
 	{func: "Function Name", data: {cmd:"command", callback:"callback Function Name", data:""}},
 	{func: "f100", data: {cmd:"100", callback:"appCloseCallBack", data:""}},
 	{func: "f102", data: {cmd:"102", callback:"userInfoCallBack", data:""}},
-	{func: "f200", data: {cmd:"200", callback:"isensCallBack", data:""}},
 	{func: "f201", data: {cmd:"201", callback:"foodlensCallBack", data:""}},
 	{func: "f202", data: {cmd:"202", callback:"foodEditCallBack", data:""}},
 	{func: "f203", data: {cmd:"203", callback:"foodImageCallBack", data:""}},

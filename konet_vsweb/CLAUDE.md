@@ -1661,3 +1661,6 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
 ## 참고 이력 (이 프로젝트에서 겪은 것)
 - Eclipse 빨간X = WTP 검증기 오탐(대용량 인라인 JS). 미사용 JSTL taglib 제거로 일부 해소.
 - 사이드바 메뉴 대거 삭제(창고/입고등록/재고현황/재고위치/주문/발주리스트/출고지시/출고내역) — 데모 패널은 잔존(도달불가·display:none·무해).
+- **[2026-09-14] 세종 프로젝트 잔재 «혈당(i-Sens)·Gemini» 전부 제거**(사용자 「혈당관련내용 모두 제거」) — `Blood_SQL.xml`(짝 Java 없음) · `blood_qa.js`(부르는 곳 없음) 삭제 ·
+  `application.properties` 설정 전부(파일은 두 placeholder 가 읽으므로 주석만 남긴 빈 파일로 유지) · common.css 두 벌의 `.bl_color_*`·`.bl_angle_*`·`.blood-info` · app-common.js 앱 연동 `f200`(isensCallBack — 이름으로 찾으므로 빼도 안전) · 메뉴 견본 html 「혈당 그래프」.
+  두 앱 동일. DB 표(T_BLD…)는 손대지 않았다. i-Sens 인증 비밀값은 git 이력(07-23~)에 남아 있다.
