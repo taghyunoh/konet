@@ -856,10 +856,29 @@
   function d2ColReset(){ D2_COLW={}; try{ localStorage.removeItem('d2ColWidths8'); }catch(e){} d2Render(); d2Toast('↺ 컬럼 너비를 기본값으로 초기화했습니다'); }
 
   function d2Pad(n){ return (n<10?'0':'')+n; }
-  var D2_TODAY=(function(){ var d=new Date(); return d.getFullYear()+'-'+d2Pad(d.getMonth()+1)+'-'+d2Pad(d.getDate()); })();
+  function d2Ymd(d){ return d.getFullYear()+'-'+d2Pad(d.getMonth()+1)+'-'+d2Pad(d.getDate()); }
+  function d2TomorrowYmd(){ var d=new Date(); d.setDate(d.getDate()+1); return d2Ymd(d); }
+  var D2_TODAY=d2Ymd(new Date());
   /* 진입 기본 조회일 — 내일(현재일+1). 납기 화면은 다음 날 나갈 것을 미리 보는 곳이다(사용자 2026-09-07).
      ★D2_TODAY 는 그대로 둔다 — 날짜가 빈 자료의 대체값(r.date||D2_TODAY)과 [당일] 단추가 쓴다. */
-  var D2_TOMORROW=(function(){ var d=new Date(); d.setDate(d.getDate()+1); return d.getFullYear()+'-'+d2Pad(d.getMonth()+1)+'-'+d2Pad(d.getDate()); })();
+  var D2_TOMORROW=d2TomorrowYmd();
+  /* ★자정 넘김 보정 (2026-09-16 「항상 다음날짜인데 오늘날짜로 보일 때 있음」)
+       이 화면은 셸(logistics_demo2)의 iframe 이라 **로그아웃 전까지 다시 안 뜬다**(src 가 있으면 다시 안 넣는다).
+       그런데 위 두 값은 **뜨는 순간 한 번만** 셌다 → 브라우저를 켜 둔 채 날이 바뀌면
+       어제 기준 「내일」 = 오늘이 날짜칸에 그대로 남고, 포커스 복귀 재조회가 그 날짜로 다시 불렀다.
+       게다가 d2Load 가 그 날짜를 localStorage(logiShipDate)에 저장하므로, 켜 둔 **다른 탭의 옛 날짜가
+       storage 이벤트로 새로 연 탭까지 오늘로 끌어내렸다.**
+       ⇒ 조회 직전·포커스 복귀·1분마다 날짜가 바뀌었는지 보고, 바뀌었으면 두 값을 다시 센다.
+          날짜칸은 **기본값(어제 기준 내일)을 그대로 보고 있던 때만** 새 내일로 옮긴다 — 손으로 고른 날짜는 둔다. */
+  function d2DayRollover(){
+    var today=d2Ymd(new Date());
+    if(today===D2_TODAY) return false;
+    var oldTomorrow=D2_TOMORROW;
+    D2_TODAY=today; D2_TOMORROW=d2TomorrowYmd();
+    var f=document.getElementById('d2DateFrom'), t=document.getElementById('d2DateTo');
+    if(f && t && f.value===oldTomorrow && t.value===oldTomorrow){ f.value=D2_TOMORROW; t.value=D2_TOMORROW; }
+    return true;
+  }
   /* ── 현재고 (2026-08-07 요청) ─────────────────────────────
        근거를 재고현황(②번째 화면)과 <같은 것>으로 둔다 — 같은 서버 조회를 그대로 부른다.
        여기서 따로 계산하면 두 화면이 어긋나고, 어느 쪽이 맞는지 아무도 모르게 된다.
@@ -1954,7 +1973,13 @@
     var now=new Date().getTime();
     if(now-_d2FocusTm<3000) return;
     _d2FocusTm=now;
-    if(D2_UP || D2_SRC) d2Load();
+    if(D2_UP || D2_SRC || d2Ymd(new Date())!==D2_TODAY) d2Load();   // 날이 바뀌었으면 자료 유무와 상관없이 다시 부른다
+  });
+  /* 자정 넘김 — 포커스가 안 오는 경우(벽 모니터처럼 켜만 둔 화면)도 1분마다 보고, 날이 바뀌었으면 한 번 다시 부른다.
+     d2Load 첫머리의 d2DayRollover 가 날짜칸을 새 「내일」로 옮긴다(손으로 고른 날짜면 그 날짜로 다시 부른다). */
+  setInterval(function(){ if(d2Ymd(new Date())!==D2_TODAY) d2Load(); }, 60000);
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState==='visible' && d2Ymd(new Date())!==D2_TODAY) d2Load();
   });
 
   // ── 대표출고장(물류센터) 다중선택 콤보 — 체크 토글, 전체 클릭 시 선택 해제
@@ -2028,7 +2053,7 @@
     d2Render();
   }
 
-  function d2Today(){ document.getElementById('d2DateFrom').value=D2_TODAY; document.getElementById('d2DateTo').value=D2_TODAY; d2Load(); }
+  function d2Today(){ d2DayRollover(); document.getElementById('d2DateFrom').value=D2_TODAY; document.getElementById('d2DateTo').value=D2_TODAY; d2Load(); }
   function d2Month(){
     var d=new Date(), y=d.getFullYear(), m=d.getMonth(), last=new Date(y,m+1,0).getDate();
     document.getElementById('d2DateFrom').value=y+'-'+d2Pad(m+1)+'-01';
@@ -2122,6 +2147,7 @@
     return { from:f, to:t, days:Math.round((b-a)/86400000)+1 };
   }
   function d2Load(){
+    d2DayRollover();   // 날이 바뀌었으면 옛 「내일」(=오늘)을 새 내일로 — 저장(logiShipDate) 전에 해야 다른 탭으로 안 번진다
     var over=d2RangeTooLong();
     if(over){
       d2Toast('⚠️ 조회 기간은 <b>최대 '+D2_MAX_MONTHS+'개월</b>입니다.<br>지금 고른 기간 '+over.from+' ~ '+over.to+' ('+over.days+'일) 은 너무 깁니다 — 출고일자를 줄여 주세요.');

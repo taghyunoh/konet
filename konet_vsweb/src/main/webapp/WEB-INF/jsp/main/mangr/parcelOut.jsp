@@ -153,8 +153,25 @@ function today(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth(
 function shift(days){ var d=new Date(); d.setDate(d.getDate()+days);
   return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
 
-document.getElementById('outFr').value = shift(1);
-document.getElementById('outTo').value = shift(1);
+/* ★자정 넘김 보정 (2026-09-16 — 납기현황표와 같은 결함) — 이 화면도 셸 iframe 이라 로그아웃 전까지 다시 안 뜬다.
+     「내일」을 뜰 때 한 번만 넣으면, 브라우저를 켜 둔 채 날이 바뀐 뒤 날짜칸에 어제 기준 내일(= 오늘)이 남는다.
+     ⇒ 조회 직전·화면 복귀·1분마다 날짜를 보고, 날짜칸이 **기본값(뜬 날 기준 내일)을 그대로 보고 있을 때만** 새 내일로 옮긴다.
+        손으로 고른 날짜는 건드리지 않는다. */
+var PO_DAY=today(), PO_DEF=shift(1);   // 기준일 · 그날 기준 「내일」
+function poRollover(){
+  var t=today(); if(t===PO_DAY) return false;
+  var old=PO_DEF; PO_DAY=t; PO_DEF=shift(1);
+  var fr=document.getElementById('outFr'), to=document.getElementById('outTo');
+  if(fr.value===old && to.value===old){ fr.value=PO_DEF; to.value=PO_DEF; return true; }
+  return false;
+}
+function poRolloverLoad(){ if(poRollover()) poLoad(); }   // 날짜칸이 옮겨졌을 때만 다시 부른다 — 표와 날짜칸이 어긋나지 않게
+setInterval(poRolloverLoad, 60000);
+window.addEventListener('focus', poRolloverLoad);
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') poRolloverLoad(); });
+
+document.getElementById('outFr').value = PO_DEF;
+document.getElementById('outTo').value = PO_DEF;
 /* 시작이 종료보다 뒤면 자동으로 맞춘다 — 거꾸로 넣어 0건 나오는 일을 막는다 */
 function poDtSync(which){
   var fr=document.getElementById('outFr'), to=document.getElementById('outTo');
@@ -166,6 +183,7 @@ window.addEventListener('resize', function(){ clearTimeout(window._poFitT); wind
 document.getElementById('listCard').addEventListener('scroll', function(){ clearTimeout(window._poPgT); window._poPgT=setTimeout(poPager, 60); });
 
 function poLoad(){
+  poRollover();   // 날이 바뀌었으면 옛 「내일」(= 오늘)을 새 내일로
   var fr = document.getElementById('outFr').value, to = document.getElementById('outTo').value;
   if(!fr || !to){ swErr('납기일자(시작·종료)를 선택하세요.'); return; }
   document.getElementById('tb').innerHTML = '<tr><td colspan="14" class="empty">조회 중…</td></tr>';

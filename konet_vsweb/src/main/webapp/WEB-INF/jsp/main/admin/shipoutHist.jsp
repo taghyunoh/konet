@@ -188,9 +188,26 @@ function swErr(msg){ if(window._alertBox) return _alertBox(msg,{icon:'❌',okCol
 
 /* 진입 기본 조회일 — 시작·종료 모두 **내일(현재일+1)**. 다른 납기 화면 셋과 같게 맞춘다(사용자 2026-09-07).
    지난 자료는 [최근 N일] 단추나 날짜칸으로 넓혀서 본다. */
+/* ★자정 넘김 보정 (2026-09-16 — 납기현황표와 같은 결함) — 이 화면도 셸 iframe 이라 로그아웃 전까지 다시 안 뜬다.
+     「내일」을 뜰 때 한 번만 넣으면, 브라우저를 켜 둔 채 날이 바뀐 뒤 날짜칸에 어제 기준 내일(= 오늘)이 남는다.
+     ⇒ 조회 직전·화면 복귀·1분마다 날짜를 보고, 날짜칸이 **기본값(뜬 날 기준 내일)을 그대로 보고 있을 때만** 새 내일로 옮긴다.
+        손으로 고른 날짜·[최근 N일]로 넓힌 범위는 건드리지 않는다. */
+var SH_DAY=today(), SH_DEF=shift(1);   // 기준일 · 그날 기준 「내일」
+function shRollover(){
+  var t=today(); if(t===SH_DAY) return false;
+  var old=SH_DEF; SH_DAY=t; SH_DEF=shift(1);
+  var f=document.getElementById('shFrom'), to=document.getElementById('shTo');
+  if(f.value===old && to.value===old){ f.value=SH_DEF; to.value=SH_DEF; return true; }
+  return false;
+}
+function shRolloverLoad(){ if(shRollover()) shLoad(); }   // 날짜칸이 옮겨졌을 때만 다시 부른다 — 표와 날짜칸이 어긋나지 않게
+setInterval(shRolloverLoad, 60000);
+window.addEventListener('focus', shRolloverLoad);
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') shRolloverLoad(); });
+
 (function init(){
-  document.getElementById('shFrom').value = shift(1);
-  document.getElementById('shTo').value = shift(1);
+  document.getElementById('shFrom').value = SH_DEF;
+  document.getElementById('shTo').value = SH_DEF;
   shLoad();
 })();
 
@@ -201,7 +218,8 @@ function shQuick(days){
 }
 
 function shLoad(){
-  var b = 'shpoutDtFrom='+encodeURIComponent(document.getElementById('shFrom').value)
+  shRollover();   // 날이 바뀌었으면 옛 「내일」(= 오늘)을 새 내일로
+  var b ='shpoutDtFrom='+encodeURIComponent(document.getElementById('shFrom').value)
         + '&shpoutDtTo='+encodeURIComponent(document.getElementById('shTo').value)
         // 출고장은 서버로 안 보낸다 — 목록을 조회 결과에서 만들어야 해서 전부 읽고 화면에서 거른다
         + '&findData='+encodeURIComponent(document.getElementById('shFind').value);
