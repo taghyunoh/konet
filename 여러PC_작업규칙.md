@@ -49,6 +49,7 @@ pull 중 **충돌(conflict)** 이 나면 짐작으로 고치지 말고 어느 PC
 | `sql/*.sql` (DDL) | **DB 는 모든 PC 가 같이 쓴다** → 다른 PC 에서 이미 돌렸는지 먼저 확인. 한 번만 돌린다 |
 | `pom.xml` (의존성) | 온라인 빌드(`-DskipTests clean package`) 후 웹앱 JAR 폴더 갱신 — 가이드 §6-1 |
 | **폴더·패키지 이름 변경** (예: 2026-09-14 `egovframework.sejong` → `egovframework.konet`) | 톰캣 **중지** → 두 앱 `mvn -o clean compile` → 톰캣 **시작**. VS Code 에 빨간 오류가 남으면 `Ctrl+Shift+P` → **Java: Clean Java Language Server Workspace** |
+| `WEB-INF/web.xml` · `WEB-INF/lib` — **톰캣 `webapps\ROOT` 에 WAR 를 풀고 `relink-local.bat` 로 이어 둔 PC** (예: D:\egv 의 konet_vsapp) | 이 둘은 소스 링크가 아니라 **복사본**이라 pull·compile 로 안 바뀐다 → 소스 `src/main/webapp/WEB-INF/web.xml` 을 `ROOT\WEB-INF\` 에 다시 복사(톰캣이 스스로 다시 올린다) · lib 는 WAR 재빌드 후 relink. 2026-09-15 : 패키지 이름 변경 뒤 옛 web.xml 이 `egovframework.sejong` 필터를 찾아 9072 전체가 404 |
 
 ```
 set JAVA_HOME=C:\Program Files\Java\jre-1.8
