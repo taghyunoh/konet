@@ -10,3 +10,11 @@ bin
 # PC마다 경로가 달라(C:\egv vs D:\egv) 공유 불가 -> 템플릿은 .vscode-sample/ 참고
 .vscode/settings.json
 .vscode/tasks.json
+
+# 압축·백업 파일 (2026-09-16) — 소스가 아니다. 실제로 resources.zip 166KB 가 커밋에 딸려 올라갔다.
+#   백업은 저장소가 아니라 PC 에 둔다 — 저장소에 들어가면 다른 PC 로도 퍼지고 이력에서 지우기 어렵다.
+*.zip
+*.7z
+*.rar
+*.tar.gz
+*.bak
