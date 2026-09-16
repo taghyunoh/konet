@@ -2977,6 +2977,48 @@ public class UserController {
 			} catch (Exception e) { log.error(" stockMoveCancel ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
+		/* ================= 택배 「출력됨」 서버 저장 · 출고장 표 (2026-09-16 P3) =================
+		   · parcelPrintList/Mark : 택배출고관리가 엑셀에 담은 줄(출고일자×사업장×품목명)을 서버에 남긴다 — PC 를 바꿔도 「출력됨」이 보인다.
+		   · dcList : 출고장(삼성 센터) 표(TBL_DC_MST) — asset/js/dc-map.js 가 읽어 다섯 화면의 상수를 갈아 채운다. */
+		@RequestMapping(value="/shipout/parcelPrintList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> parcelPrintList(@RequestParam(value="frDt", required=false) String frDt, @RequestParam(value="toDt", required=false) String toDt, HttpSession session) throws Exception {
+			String compCd = session.getAttribute("s_comp_cd") == null ? null : String.valueOf(session.getAttribute("s_comp_cd"));
+			Map<String,Object> r = new HashMap<String,Object>(); r.put("data", svc.selectParcelPrintList(compCd, frDt, toDt));
+			return r;
+		}
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/shipout/parcelPrintMark.do", method = RequestMethod.POST)
+		public ResponseEntity<String> parcelPrintMark(@RequestBody Map<String,Object> p, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				List<Map<String,Object>> rows = (List<Map<String,Object>>) p.get("rows");
+				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
+				return ResponseEntity.ok(String.valueOf(svc.markParcelPrint(rows, u, String.valueOf(session.getAttribute("s_comp_cd")))));
+			} catch (Exception e) { log.error(" parcelPrintMark ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/shipout/dcList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> dcList(HttpSession session) throws Exception {
+			String compCd = session.getAttribute("s_comp_cd") == null ? null : String.valueOf(session.getAttribute("s_comp_cd"));
+			Map<String,Object> r = new HashMap<String,Object>(); r.put("data", svc.selectDcList(compCd));
+			return r;
+		}
+
+		/* 출고장 → 창고 매핑 저장 (창고 2단계 2026-09-16) — 창고 관리 화면. 빈 창고 = 기본창고 */
+		@RequestMapping(value="/shipout/dcWhSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> dcWhSave(@RequestBody Map<String,Object> p, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return ResponseEntity.status(401).body(ADJ_LOGIN_MSG);
+				String dc = str(p.get("dcCd")).trim().toUpperCase(), wh = str(p.get("whCd")).trim().toUpperCase();
+				if (dc.isEmpty()) return ResponseEntity.status(400).body("출고장 코드가 필요합니다.");
+				p.put("dcCd", dc); p.put("whCd", wh); p.put("compCd", session.getAttribute("s_comp_cd")); p.put("regUser", String.valueOf(session.getAttribute("s_user_id")));
+				int n = svc.saveDcWh(p);
+				if (n == 0) return ResponseEntity.status(404).body("출고장 " + dc + " 이(가) 표에 없습니다.");
+				return ResponseEntity.ok(String.valueOf(n));
+			} catch (Exception e) { log.error(" dcWhSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
 		/* ================= 상품마스터 (TBL_PROD_MST) ================= */
 		@RequestMapping(value="/prod/prodmst.do")
 		public String prodmst(HttpSession session) {

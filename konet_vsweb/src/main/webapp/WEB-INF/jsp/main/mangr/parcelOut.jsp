@@ -195,6 +195,7 @@ function poLoad(){
       headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:'frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to) })
     .then(function(r){ return r.json(); })
+    .then(function(j){ return poDoneLoad(fr, to).then(function(){ return j; }); })   /* 서버 출력 기록(2026-09-16) — 읽은 뒤 입힌다 */
     .then(function(j){ ROWS=poDoneApply(poMerge((j&&j.data)||[])); poRender(); })
     .catch(function(e){ document.getElementById('tb').innerHTML='<tr><td colspan="14" class="empty">조회 오류: '+esc(e.message)+'</td></tr>'; });
 }
@@ -238,45 +239,58 @@ function poPager(){
      되풀이해(1박스 1송장) 합친 줄이 다시 갈라졌지만, 이제 되풀이하지 않는다.
      즉 합치는 규칙을 고치면 엑셀 줄 수도 함께 바뀐다.
    · 몇 줄을 합쳤는지는 mergeCnt 에 담아 화면에 밝힌다(원자료가 몇 줄이었는지 감춰지지 않게). */
-/* ══ 「이미 뽑은 줄」 기록 (2026-08-21 요청) ═══════════════════════════════════
+/* ══ 「이미 뽑은 줄」 기록 (2026-08-21 요청 · 2026-09-16 서버 저장으로) ═══════════════════════
    「발주현황표를 다시 올리면 엑셀을 또 만들어야 하는데, 이미 다운로드한 줄까지 다시 나온다」
-   ⇒ 엑셀을 만들면 그 줄들을 브라우저(localStorage)에 기록하고, 다음 조회부터
-     **자동으로 체크를 풀어**(엑셀 제외) 새 줄만 나가게 한다.
-   · 키 = 병합키(출고일자|사업장|품목명)와 동일 — ★재업로드로 행이 다시 만들어져도 같은 키라
-     「출력됨」이 유지된다(이 요구의 핵심).
-   · **전부 다시 뽑고 싶으면 [↺ 전체 포함]** — 기존 버튼이 그대로 그 역할을 한다(사용자 임의 전체 출력).
-     낱줄은 체크를 다시 켜면 포함된다.
-   · 브라우저별 기록이다(PC 를 바꾸면 비어 있다) — 지금 운용(한 PC)에는 충분, 공유가 필요해지면 서버로. */
-var PO_DONE_KEY = 'konetParcelDone1';
+   ⇒ 엑셀을 만들면 그 줄들을 기록하고, 다음 조회부터 **자동으로 체크를 풀어**(엑셀 제외) 새 줄만 나가게 한다.
+   · 키 = 병합키(출고일자|사업장|품목명)와 동일 — ★재업로드로 행이 다시 만들어져도 같은 키라 「출력됨」이 유지된다.
+   · **전부 다시 뽑고 싶으면 [↺ 전체 포함]** — 낱줄은 체크를 다시 켜면 포함된다.
+   · ★2026-09-16 : 기록을 **서버(TBL_PARCEL_PRINT)** 에 남긴다 — 종전 브라우저(localStorage) 기록은 PC 를 바꾸면 비어
+     같은 택배를 또 뽑거나 빠뜨릴 수 있었다(목적 ② 직송 오배송). 누가 언제 뽑았는지도 남는다.
+     옛 브라우저 기록은 처음 조회할 때 서버로 옮기고 지운다(poDoneLoad). 서버를 못 부르면(옛 서버) 종전대로 이 PC 기록. */
+var PO_DONE_KEY = 'konetParcelDone1';      // 옛 브라우저 기록 — 이관 뒤 지운다
+var _poDone = {};                          // 서버 기록  키 → '09-16 12:30 admin'
 function poDoneKey(o){ return (o.outDt||'')+'|'+(o.bizCd||'')+'|'+(o.itemNm||''); }
-function poDoneMap(){
-  try { return JSON.parse(localStorage.getItem(PO_DONE_KEY) || '{}') || {}; } catch(e){ return {}; }
+function poDoneMap(){ return _poDone; }
+function _poDoneLegacy(){ try { return JSON.parse(localStorage.getItem(PO_DONE_KEY) || '{}') || {}; } catch(e){ return {}; } }
+function poDonePost(list){
+  return fetch(CTX+'/shipout/parcelPrintMark.do', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ rows: list.map(function(o){ return { outDt:o.outDt||'', bizCd:o.bizCd||'', itemNm:o.itemNm||'' }; }) }) })
+    .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t||('HTTP '+r.status)); return t; }); });
 }
-function poDoneSave(m){
-  /* 60일 지난 출고일자 기록은 버린다 — 키 맨 앞이 yyyymmdd 라 잘라 비교하면 된다 */
-  var lim = new Date(Date.now() - 60*86400000);
-  var cut = lim.getFullYear() + ('0'+(lim.getMonth()+1)).slice(-2) + ('0'+lim.getDate()).slice(-2);
-  var out = {};
-  for (var k in m){ if ((k.slice(0,8)||'') >= cut) out[k] = m[k]; }
-  try { localStorage.setItem(PO_DONE_KEY, JSON.stringify(out)); } catch(e){}
+/* 조회 기간의 서버 기록을 읽고, 이 PC 에만 있던 옛 기록(기간 안·서버에 없는 것)을 올린다. 프라미스 — poLoad 가 기다린다 */
+function poDoneLoad(fr, to){
+  var f8=(fr||'').replace(/-/g,''), t8=(to||'').replace(/-/g,'');
+  return fetch(CTX+'/shipout/parcelPrintList.do', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'frDt='+encodeURIComponent(fr||'')+'&toDt='+encodeURIComponent(to||'') })
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(j){
+      _poDone={};
+      ((j&&j.data)||[]).forEach(function(r){ _poDone[(r.outDt||'')+'|'+(r.bizCd||'')+'|'+(r.itemNm||'')] = String(r.printDttm||'').slice(5,16)+(r.printUser?' '+r.printUser:''); });
+      var lg=_poDoneLegacy(), up=[];
+      Object.keys(lg).forEach(function(k){ var d=k.slice(0,8); if(d>=f8 && d<=t8 && !_poDone[k]){ var p=k.split('|'); up.push({ outDt:p[0], bizCd:p[1]||'', itemNm:p.slice(2).join('|') }); } });
+      if(!up.length) return;
+      return poDonePost(up).then(function(){
+        up.forEach(function(o){ var k=poDoneKey(o); _poDone[k]='(이 PC 옛 기록 '+(lg[k]||'')+')'; delete lg[k]; });
+        try { if(Object.keys(lg).length) localStorage.setItem(PO_DONE_KEY, JSON.stringify(lg)); else localStorage.removeItem(PO_DONE_KEY); } catch(e){}
+      });
+    })
+    .catch(function(){ _poDone=_poDoneLegacy(); });   // 서버 기록을 못 읽으면 이 PC 기록으로(종전 동작)
 }
 /* 조회 결과에 출력 기록을 입힌다 — 출력된 줄은 체크 해제 상태로 시작 */
 function poDoneApply(rows){
   var m = poDoneMap();
-  rows.forEach(function(o){
-    o.done = m[poDoneKey(o)] || '';
-    if (o.done) o.off = true;
-  });
+  rows.forEach(function(o){ o.done = m[poDoneKey(o)] || ''; if (o.done) o.off = true; });
   return rows;
 }
-/* 엑셀에 담긴 줄들을 출력됨으로 기록 */
+/* 엑셀에 담긴 줄들을 출력됨으로 기록 — 화면은 바로, 서버는 뒤따라(못 남기면 이 PC 에라도 남기고 알린다) */
 function poDoneMark(list){
-  var m = poDoneMap();
   var d = new Date();
-  var tm = ('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)
-         + ' ' + ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
-  list.forEach(function(o){ m[poDoneKey(o)] = tm; o.done = tm; o.off = true; });
-  poDoneSave(m);
+  var tm = ('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+  list.forEach(function(o){ _poDone[poDoneKey(o)] = tm; o.done = tm; o.off = true; });
+  poDonePost(list).catch(function(e){
+    var lg=_poDoneLegacy(); list.forEach(function(o){ lg[poDoneKey(o)]=tm; }); try { localStorage.setItem(PO_DONE_KEY, JSON.stringify(lg)); } catch(x){}
+    swAlert('출력 기록을 서버에 남기지 못했습니다 — 이 PC 에만 기록됩니다.<br><span style="font-size:12.5px;color:#c0392b">'+esc(e.message)+'</span>');
+  });
 }
 /* [전체 포함] 되돌리기(2026-08-21 「전체포함으로 했다가 원위치는」) — 출력됨 줄만 다시 뺀다.
    손으로 켠 일반 줄은 건드리지 않는다. [조회] 재실행도 같은 결과(poDoneApply). */

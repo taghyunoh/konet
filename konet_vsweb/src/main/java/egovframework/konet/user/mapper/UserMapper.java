@@ -217,6 +217,13 @@ public interface UserMapper {
 	egovframework.konet.user.model.ClosingMstDTO selectClosingMst(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception; // 헤더 조회(없으면 null)
 	java.util.List<egovframework.konet.user.model.ClosingMstDTO> selectClosingMstList(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception; // 월별 마감 이력 목록
 
+	// ===== 택배 「출력됨」 서버 저장 · 출고장 표 (2026-09-16 P3) =====
+	java.util.List<java.util.Map<String,Object>> selectParcelPrintList(java.util.Map<String,Object> p) throws Exception;   // compCd·frDt·toDt
+	int upsertParcelPrint(java.util.Map<String,Object> p) throws Exception;                                                // 한 줄 MERGE
+	java.util.List<java.util.Map<String,Object>> selectDcList(java.util.Map<String,Object> p) throws Exception;            // TBL_DC_MST
+	int updateDcWh(java.util.Map<String,Object> p) throws Exception;                                                    // 출고장 → 창고(2단계)
+	java.util.List<egovframework.konet.user.model.StockClosingDTO> selectStockClosingByWh(egovframework.konet.user.model.StockClosingDTO dto) throws Exception;   // 마감 스냅샷 품목 × 창고
+
 	// ===== 창고 (2026-09-16 P3 1단계) — TBL_WH_MST · 원장 WH_CD · 창고 이동(REF_GB='MOVE') =====
 	java.util.List<java.util.Map<String,Object>> selectWhList(java.util.Map<String,Object> p) throws Exception;          // compCd·useOnly
 	int upsertWhMst(java.util.Map<String,Object> p) throws Exception;

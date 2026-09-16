@@ -55,6 +55,7 @@
 <div class="wrap">
   <h2>🏬 창고별 재고현황</h2>
   <div class="sub">품목마다 <b>창고별 재고</b>와 합계. 합계는 품목별재고현황과 같은 숫자입니다. 창고 사이 이동은 <b>기준정보관리 ▸ 창고 관리</b>에서.</div>
+  <div class="sub" id="dcNote" style="margin-top:-6px"></div>
   <div class="bar">
     <input type="text" id="q" placeholder="품목코드 · 품목명" style="width:220px" onkeydown="if(event.key==='Enter') load()">
     <input type="date" id="asOf" title="기준일 — 비우면 지금 현재고, 날짜를 넣으면 그날까지의 재고" onchange="load()">
@@ -123,7 +124,18 @@ function excel(){
   var ws=LIB.utils.aoa_to_sheet(aoa), wb=LIB.utils.book_new(); LIB.utils.book_append_sheet(wb, ws, '창고별재고');
   LIB.writeFile(wb, '창고별재고현황_'+((document.getElementById('asOf').value||'현재').replace(/-/g,''))+'.xlsx');
 }
-window.konetShown=function(){ load(); };
+/* 출고장 → 창고 매핑 안내(2단계 2026-09-16) — 어느 센터 출고가 어느 창고에서 빠지는지 한 줄 */
+function dcNote(){
+  post('/shipout/dcList.do','').then(function(r){ return r.json(); }).then(function(j){
+    var rows=(j&&j.data)||[]; if(!rows.length) return;
+    var by={}; rows.forEach(function(r){ var k=r.whCd||''; (by[k]=by[k]||[]).push(r.nm); });
+    var nmOf=function(cd){ var w=_wh.filter(function(x){ return x.whCd===cd; })[0]; return w?w.whNm:cd; };
+    var parts=Object.keys(by).map(function(k){ return by[k].join('·')+' → <b>'+(k?esc(nmOf(k)):'기본창고')+'</b>'; });
+    document.getElementById('dcNote').innerHTML='출고 자동연동(발주현황표·정산서)이 빠지는 창고 : '+parts.join(' &nbsp;·&nbsp; ')+' <span style="color:#8a98a8">(창고 관리 ▸ 출고장 → 창고)</span>';
+  }).catch(function(){});
+}
+window.konetShown=function(){ load(); dcNote(); };
+dcNote();
 load();
 </script>
 </body>

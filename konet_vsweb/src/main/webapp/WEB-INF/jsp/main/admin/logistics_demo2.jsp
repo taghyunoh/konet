@@ -7,6 +7,8 @@
 <script defer src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <%-- 공통 알림/확인 표준(_alertBox/_confirmBox/_toast — 로그인 화면과 동일 스타일). 새 알림·확인은 이걸 쓸 것 --%>
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
+<%-- 출고장(삼성 센터) 표 — 셸·logi-oh·대시보드1 이 같은 객체를 본다(2026-09-16 통합). 상수를 쓰는 스크립트보다 먼저 --%>
+<script src="${pageContext.request.contextPath}/asset/js/dc-map.js?v=20260916"></script>
 <%-- ★날짜 칸에 [◀][▶][오늘] 을 자동으로 붙인다 (2026-08-17 요청) — 화면 수정 0.
      브라우저 기본 달력의 ↑↓ 는 앞/뒤가 안 읽혀 엉뚱한 달로 넘어가는 일이 잦았다.
      빼려면 그 칸에 data-nonav="1" --%>
@@ -1191,7 +1193,7 @@
   }
   // ── 매출마감: 3탭(출고장별/사업장별/품목) + 총합계·소계·접기펼치기·페이징 ──
   var _salesRows=[], _salesTab='zone', SALES_PAGE=KONET_GRID_ROWS, _salesCollapsed={};
-  var CLOSE_DCGROUP={ 'E200':'오산센터','E400':'오산센터','E300':'오산센터','E600':'오산센터','E700':'오산센터' };   // 대시보드1과 동일
+  var CLOSE_DCGROUP=window.konetDc.GROUP;   // ★단일 원천 asset/js/dc-map.js(TBL_DC_MST) — 2026-09-16 통합
   function _zoneGroup(r){   // 출고장(대표) = 물류센터 그룹 (대시보드1 참조)
     var dcCd=(''+(r.dcCd||'')).trim(), dcNm=(''+(r.dcNm||'')).trim();
     return CLOSE_DCGROUP[dcCd] || (/제주/.test(dcNm) ? '오산센터' : (dcNm||'(출고장 미지정)'));
@@ -1828,6 +1830,7 @@
            뺀 세부(전체 기간 반영·여러 번 안전)는 버튼 tooltip·업무설명서에 남아 있다. */
         var excl = ms.length ? ('<br>제외 : <b style="color:#c0392b">마감 확정월 '+ms.map(_fmtYm6).join(', ')+'</b>') : '';
         swConfirm('전체 출고를 재고 원장에 반영하고 <b>현재고를 다시 계산</b>합니다.'+excl
+                 +'<br><span style="font-size:12px;color:#b45309">출고장→창고 매핑이 있으면 <b>과거 출고까지</b> 그 창고로 다시 갈립니다 — 창고 이동으로 맞춰 둔 것과 겹칠 수 있습니다(2026-09-16).</span>'
                  +'<br>진행할까요?','🔄 출고반영 재집계').then(function(ok){ if(!ok) return;
           /* ★진행바 = 서버가 알려주는 '실제' 진행률 (2026-08-01).
                재집계는 출고일자 수만큼 원장을 다시 만들어 자료가 쌓이면 수십 초가 걸리는데,

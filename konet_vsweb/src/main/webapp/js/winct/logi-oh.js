@@ -146,8 +146,8 @@ function ssOutQty(o){
   var SS_MONTHS=['5월','4월','3월','2월','1월'];  // 데모용 과거 월
 
   // 화면 표시용 물류센터 그룹/순서 (데시보드2와 동일 — 특정 코드는 오산센터로 묶고 지정순서로). DB 저장 무관
-  var SS_DCGROUP={ 'E200':'오산센터','E400':'오산센터','E300':'오산센터','E600':'오산센터','E700':'오산센터' };   // E600=제주
-  var SS_ZONEORDER=['E200','E400','E300','E600','E700'];
+  var SS_DCGROUP=window.konetDc.GROUP;      // ★단일 원천 asset/js/dc-map.js(TBL_DC_MST) — 2026-09-16 통합. 같은 객체 참조라 서버 표가 오면 따라온다
+  var SS_ZONEORDER=window.konetDc.ORDER;
   function ssRender(){
     var tbl=document.getElementById('ssWideTbl'); if(!tbl) return;
     var ag=ssAggregate();
@@ -4180,8 +4180,8 @@ function ssOutQty(o){
      ※ 대시보드·매출마감의 '오산센터 묶음'(CLOSE_DCGROUP / SS_DCGROUP)은
        성격이 다른 표(물류 동선용 그룹)이므로 여기와 합치지 않는다.
      ══════════════════════════════════════════════════════════════════════════ */
-  var KONET_DC = { E100:'용인', E200:'왜관', E300:'김해', E400:'광주', E500:'평택', E600:'제주', E700:'오산' };
-  var KONET_DC_R = (function(){ var r={}; for(var c in KONET_DC){ r[KONET_DC[c]]=c; } return r; })();   // 지역명→코드 (자동 생성)
+  var KONET_DC = window.konetDc.NAME;       // ★단일 원천 asset/js/dc-map.js(TBL_DC_MST) — 2026-09-16 통합(종전 이 자리의 표)
+  var KONET_DC_R = window.konetDc.NAME_R;   // 지역명→코드
 
   // 표기 통일 : '평택물류센터'·'평택 1'·'평택출고장' → '평택'
   //   두 표가 서로 다르게 적는다 — 정산서는 파일명 유래 '평택', 발주현황표는 '평택물류센터'

@@ -29,7 +29,7 @@
   .card .hd{ display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid #eef1f5; font-weight:800; color:#125a4e; font-size:14px; }
   .card .hd small{ font-weight:600; color:#6b7a89; font-size:12px; }
   .bar{ display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; padding:10px 12px; border-bottom:1px solid #eef1f5; }
-  .fld{ display:flex; flex-direction:column; gap:3px; }
+  .fld{ display:flex; flex-direction:column; gap:3px; position:relative; }
   .fld label{ font-size:11.5px; font-weight:700; color:#5a6b7a; }
   .fld input, .fld select{ height:32px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13.5px; background:#fff; }
   .btn{ height:32px; border:1px solid var(--bd); background:#fff; border-radius:7px; padding:0 13px; cursor:pointer; font-size:13px; font-weight:700; color:#37475a; white-space:nowrap; }
@@ -51,7 +51,8 @@
   .empty{ padding:30px; text-align:center; color:#8a98a8; }
   .note{ font-size:12.5px; color:#5a6b7a; line-height:1.7; padding:8px 12px; }
   .note b{ color:#37475a; }
-  .pnm{ font-size:12px; color:var(--teal); font-weight:700; min-height:16px; }
+  /* 품목명 표시는 칸 아래 떠 있게(absolute) — 칸 높이에 안 끼어야 품목코드 칸이 옆 칸들과 같은 선상에 선다(2026-09-16 사용자 지적) */
+  .pnm{ position:absolute; top:100%; left:0; margin-top:2px; font-size:12px; color:var(--teal); font-weight:700; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -65,6 +66,15 @@
     <table class="g" id="whGrid">
       <thead><tr><th style="width:120px">코드</th><th style="min-width:200px">이름</th><th style="width:90px">기본창고</th><th style="width:80px">차례</th><th style="width:70px">사용</th><th style="width:110px">현재고 합계</th><th style="width:90px"></th></tr></thead>
       <tbody id="whBody"><tr><td colspan="7" class="empty">조회 중…</td></tr></tbody>
+    </table>
+  </div>
+
+  <%-- 창고 2단계 (2026-09-16) — 출고장(삼성 센터) → 창고. 발주현황표·정산서 출고가 어느 창고에서 빠지는지. 비면 기본창고 --%>
+  <div class="card">
+    <div class="hd">🚚 출고장 → 창고 <small>— 그 센터로 나가는 물건이 어느 창고에서 빠지는지(발주현황표·정산서 출고 자동연동). 비우면 기본창고. 저장 뒤 업로드·재동기화되는 날짜부터 적용</small></div>
+    <table class="g" id="dcGrid">
+      <thead><tr><th style="width:90px">출고장</th><th style="min-width:160px">지역</th><th style="width:120px">묶음</th><th style="width:200px">출고 창고</th><th style="width:90px"></th></tr></thead>
+      <tbody id="dcBody"><tr><td colspan="5" class="empty">조회 중…</td></tr></tbody>
     </table>
   </div>
 
@@ -106,7 +116,7 @@ function whNmOf(cd){ var w=_wh.filter(function(x){ return x.whCd===cd; })[0]; re
 /* ── 창고 목록 ── */
 function whLoad(){
   post('/prod/whList.do','').then(function(r){ return r.json(); })
-    .then(function(j){ _wh=(j&&j.data)||[]; _whQty=(j&&j.qty)||{}; renderWh(); fillMoveSel(); })
+    .then(function(j){ _wh=(j&&j.data)||[]; _whQty=(j&&j.qty)||{}; renderWh(); fillMoveSel(); dcLoad(); })
     .catch(function(e){ document.getElementById('whBody').innerHTML='<tr><td colspan="7" class="empty" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
 }
 function renderWh(){
@@ -139,6 +149,31 @@ function whSave(btn){
   post('/prod/whSave.do', p, true)
     .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
     .then(function(){ ok((isNew?'창고를 추가했습니다 — ':'창고를 저장했습니다 — ')+cd); whLoad(); })
+    .catch(function(e){ btn.disabled=false; err('저장하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); });
+}
+
+/* ── 출고장 → 창고 (2단계) ── */
+function dcLoad(){
+  post('/shipout/dcList.do','').then(function(r){ return r.json(); })
+    .then(function(j){
+      var rows=(j&&j.data)||[], tb=document.getElementById('dcBody');
+      if(!rows.length){ tb.innerHTML='<tr><td colspan="5" class="empty">출고장 표(TBL_DC_MST)가 비어 있습니다 — docs/sql/20260916_parcel_print_dc.sql 씨앗을 확인하세요.</td></tr>'; return; }
+      var use=_wh.filter(function(w){ return w.useYn==='Y'; });
+      var def=(use.filter(function(w){ return w.defaultYn==='Y'; })[0]||{}).whNm||'기본창고';
+      tb.innerHTML=rows.map(function(r){
+        return '<tr data-cd="'+esc(r.cd)+'"><td><b>'+esc(r.cd)+'</b></td><td class="l">'+esc(r.nm)+'</td><td>'+(r.grp?esc(r.grp):'<span class="dim">단독</span>')+'</td>'
+          +'<td><select class="dwh"><option value="">(기본창고 · '+esc(def)+')</option>'+use.map(function(w){ return '<option value="'+esc(w.whCd)+'"'+(w.whCd===r.whCd?' selected':'')+'>'+esc(w.whNm)+'</option>'; }).join('')+'</select></td>'
+          +'<td><button class="btn" style="height:28px;padding:0 10px;font-size:12px" onclick="dcSave(this)">저장</button></td></tr>';
+      }).join('');
+    })
+    .catch(function(e){ document.getElementById('dcBody').innerHTML='<tr><td colspan="5" class="empty" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
+}
+function dcSave(btn){
+  var tr=btn.closest('tr'), cd=tr.getAttribute('data-cd'), wh=(tr.querySelector('.dwh')||{}).value||'';
+  btn.disabled=true;
+  post('/shipout/dcWhSave.do', { dcCd:cd, whCd:wh }, true)
+    .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
+    .then(function(){ ok(cd+' → '+(wh?whNmOf(wh):'기본창고')+' 저장'); btn.disabled=false; })
     .catch(function(e){ btn.disabled=false; err('저장하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); });
 }
 

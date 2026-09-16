@@ -591,9 +591,14 @@ public class UserServiceImpl implements UserService {
 		double exp = expenseSumOf(cym, dto.getCompCd());
 		dto.setExpenseAmt(exp); dto.setNetMarginAmt(sAmt - cogs - exp);
 		if (mapper.updateClosingMst(dto) == 0) mapper.insertClosingMst(dto);
-		// ⑤ 재고 스냅샷 재작성(이월 근거)
+		// ⑤ 재고 스냅샷 재작성(이월 근거) — 창고 2단계(2026-09-16) : 품목 × 창고로 쌓는다. 단가는 품목 평균(위 stock), 마감 화면·이월은 창고 합으로 읽는다
 		mapper.deleteClosingStock(cym, null);
-		for (egovframework.konet.user.model.StockClosingDTO r : stock) { r.setYm(ymDash); mapper.insertClosingStock(r); }
+		java.util.Map<Long,Double> avg = new java.util.HashMap<Long,Double>();
+		for (egovframework.konet.user.model.StockClosingDTO r : stock) if (r.getProdSeq() != null) avg.put(r.getProdSeq(), r.getAvgInPrice() != null ? r.getAvgInPrice() : 0d);
+		for (egovframework.konet.user.model.StockClosingDTO r : mapper.selectStockClosingByWh(sq)) {
+			r.setYm(ymDash); r.setAvgInPrice(avg.containsKey(r.getProdSeq()) ? avg.get(r.getProdSeq()) : 0d);
+			mapper.insertClosingStock(r);
+		}
 		return 1;
 	}
 	@Override public int cancelClosing(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception {
@@ -693,6 +698,30 @@ public class UserServiceImpl implements UserService {
 	}
 	@Override public java.util.List<java.util.Map<String,Object>> selectStockMoveList(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockMoveList(p); }
 	@Override public int cancelStockMove(java.util.Map<String,Object> p) throws Exception { return mapper.cancelStockMove(p); }
+
+	/* ===== 택배 「출력됨」 서버 저장 · 출고장 표 (2026-09-16 P3) ===== */
+	@Override public java.util.List<java.util.Map<String,Object>> selectParcelPrintList(String compCd, String frDt, String toDt) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("frDt", frDt); p.put("toDt", toDt);
+		return mapper.selectParcelPrintList(p);
+	}
+	@Override public int markParcelPrint(java.util.List<java.util.Map<String,Object>> rows, String user, String compCd) throws Exception {
+		if (rows == null) return 0;
+		int n = 0;
+		for (java.util.Map<String,Object> r : rows) {
+			String dt = scStr(r.get("outDt")).replace("-", ""), nm = scStr(r.get("itemNm"));
+			if (dt.length() != 8 || nm.isEmpty()) continue;             // 키가 안 되는 줄은 건너뛴다
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", compCd); p.put("outDt", dt); p.put("bizCd", scStr(r.get("bizCd"))); p.put("itemNm", nm); p.put("printUser", user);
+			n += mapper.upsertParcelPrint(p);
+		}
+		return n;
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectDcList(String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd);
+		return mapper.selectDcList(p);
+	}
+	@Override public int saveDcWh(java.util.Map<String,Object> p) throws Exception { return mapper.updateDcWh(p); }
 
 	/* ===== 마감 집계 ===== */
 	@Override public java.util.List<egovframework.konet.user.model.ClosingDTO> selectClosing(egovframework.konet.user.model.ClosingDTO dto) throws Exception { return mapper.selectClosing(dto); }

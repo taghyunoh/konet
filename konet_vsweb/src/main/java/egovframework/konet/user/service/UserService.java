@@ -171,6 +171,12 @@ public interface UserService {
 	egovframework.konet.user.model.ClosingMstDTO selectClosingMst(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception;
 	java.util.List<egovframework.konet.user.model.ClosingMstDTO> selectClosingMstList(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception;
 
+	// ===== 택배 「출력됨」 서버 저장 · 출고장 표 (2026-09-16 P3) =====
+	java.util.List<java.util.Map<String,Object>> selectParcelPrintList(String compCd, String frDt, String toDt) throws Exception;
+	int markParcelPrint(java.util.List<java.util.Map<String,Object>> rows, String user, String compCd) throws Exception;   // 줄마다 MERGE, 건수
+	java.util.List<java.util.Map<String,Object>> selectDcList(String compCd) throws Exception;
+	int saveDcWh(java.util.Map<String,Object> p) throws Exception;                                                      // 출고장 → 창고(2단계)
+
 	// ===== 창고 (2026-09-16 P3 1단계) =====
 	java.util.List<java.util.Map<String,Object>> selectWhList(String compCd, boolean useOnly) throws Exception;
 	java.util.Map<String,Object> selectWhQtyMap(String compCd) throws Exception;                         // whCd → 현재고 합

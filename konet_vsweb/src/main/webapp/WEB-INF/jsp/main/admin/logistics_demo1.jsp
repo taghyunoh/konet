@@ -3,6 +3,7 @@
      기본 달력의 ↑↓ 는 앞/뒤가 안 읽혀, 월 이동을 ‹ › 로 둔 우리 달력을 띄운다.
      빼려면 그 칸에 data-nonav="1" --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
+<script src="${pageContext.request.contextPath}/asset/js/dc-map.js?v=20260916"></script>
 <%--
   출고현황표(데시보드2) — 사이드바 iframe 패널로 로드되는 단독 화면 (logistics_demo.jsp 의 logiFrame 패턴)
   · 상단: 데시보드1과 공통 — 제목 + 액션버튼(엑셀업로드/매출·매입 업로드/출고데이타저장/출고장별 출력, 클릭 시 데시보드1로 전환하여 실행)
@@ -2283,9 +2284,8 @@
   }
   // DB행 → 화면행 매핑(현재/직전 공용). date = 행의 실제 출고일자(SHPOUT_DT) — 기간조회 시 날짜별 분리에 사용
   // 화면 표시용 물류센터 그룹 치환 — 특정 물류센터코드는 하나의 대표그룹으로 묶어 표시(DB 저장은 무관)
-  var D2_DCGROUP={ 'E200':'오산센터', 'E400':'오산센터', 'E300':'오산센터', 'E600':'오산센터', 'E700':'오산센터' };   // E600=제주
-  // 오산센터 그룹 내 출고장 표시 순서 (E600=제주, E300과 E700 사이)
-  var D2_ZONEORDER=['E200','E400','E300','E600','E700'];
+  var D2_DCGROUP=window.konetDc.GROUP;      // ★단일 원천 asset/js/dc-map.js(TBL_DC_MST) — 2026-09-16 통합
+  var D2_ZONEORDER=window.konetDc.ORDER;    // 묶음 안 표시 차례도 같은 표
   function d2ZoneRank(ag, zn){
     var z=ag.zones[zn]; var cd=(z&&z.dcCd)||'';
     var i=D2_ZONEORDER.indexOf(cd);

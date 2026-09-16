@@ -2,6 +2,17 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="egovframework.konet.user.mapper.UserMapper">
 
+	<!-- ★출고장(삼성 센터) 코드 판정 — 20곳에 같은 CASE 가 박혀 있던 것을 한 조각으로(2026-09-16 P3 통합).
+	     DC_CD 가 있으면 그것, 없으면 DC_NM 의 지역명으로 환원. 쓰는 법 : <include refid="dcKeyOf"><property name="a" value="s."/></include>
+	     (a = 별칭+점, 별칭 없으면 ""). CDATA 안에서 쓸 때는 ]]> 로 닫고 include 뒤에 <![CDATA[ 로 다시 연다.
+	     ⚠화면 쪽 짝 = asset/js/dc-map.js · 씨앗 = TBL_DC_MST(docs/sql/20260916_parcel_print_dc.sql). 센터가 늘면 셋을 같이 고친다. -->
+	<sql id="dcKeyOf"><![CDATA[ CASE WHEN ISNULL(${a}DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(${a}DC_CD)))
+	          WHEN ISNULL(${a}DC_NM,'') LIKE N'%용인%' THEN 'E100' WHEN ISNULL(${a}DC_NM,'') LIKE N'%왜관%' THEN 'E200'
+	          WHEN ISNULL(${a}DC_NM,'') LIKE N'%김해%' THEN 'E300' WHEN ISNULL(${a}DC_NM,'') LIKE N'%광주%' THEN 'E400'
+	          WHEN ISNULL(${a}DC_NM,'') LIKE N'%평택%' THEN 'E500' WHEN ISNULL(${a}DC_NM,'') LIKE N'%제주%' THEN 'E600'
+	          WHEN ISNULL(${a}DC_NM,'') LIKE N'%오산%' THEN 'E700' ELSE '' END ]]></sql>
+
+
 	<!-- ============================================================
 	     KOLGSDB(MSSQL) 로그인 — COMP_CD + USER_ID 최신 활성 1건
 	     · PASS_WD(varbinary) → CONVERT(VARCHAR,..) 로 base64 문자열 복원 (★필수)
@@ -637,11 +648,7 @@
 	                                                 WHEN l.PROD_CD <> '' AND l.DC_CD <> '' AND o.DC_CD = l.DC_CD AND o.ORD_NO = '' THEN 2
 	                                                 WHEN l.PROD_CD <> '' AND l.DC_CD <> '' AND o.DC_CD = l.DC_CD THEN 3 ELSE 9 END AS MK
 	                                       FROM ( SELECT COMP_CD, DLV_DT, ISNULL(ORD_NO,'') AS ORD_NO, ISNULL(PROD_CD,'') AS PROD_CD,
-	                                                     MAX(CASE WHEN ISNULL(DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(DC_CD)))
-	                                                              WHEN ISNULL(DC_NM,'') LIKE N'%용인%' THEN 'E100' WHEN ISNULL(DC_NM,'') LIKE N'%왜관%' THEN 'E200'
-	                                                              WHEN ISNULL(DC_NM,'') LIKE N'%김해%' THEN 'E300' WHEN ISNULL(DC_NM,'') LIKE N'%광주%' THEN 'E400'
-	                                                              WHEN ISNULL(DC_NM,'') LIKE N'%평택%' THEN 'E500' WHEN ISNULL(DC_NM,'') LIKE N'%제주%' THEN 'E600'
-	                                                              WHEN ISNULL(DC_NM,'') LIKE N'%오산%' THEN 'E700' ELSE '' END) AS DC_CD,
+	                                                     MAX(]]><include refid="dcKeyOf"><property name="a" value=""/></include><![CDATA[) AS DC_CD,
 	                                                     SUM(CASE WHEN ISNULL(DLV_TYPE,'')='X' THEN ISNULL(ORD_QTY,0) ELSE ISNULL(OUT_QTY,0) END) AS VQ
 	                                                FROM TBL_SALES_MST WHERE ACTION_YN = 'Y'
 	                                               GROUP BY COMP_CD, DLV_DT, ISNULL(ORD_NO,''), ISNULL(PROD_CD,'') ) l
@@ -1144,28 +1151,12 @@
 	            /* 출고장 키를 ②·마감과 같은 규칙(DC_CD 우선, 없으면 이름→코드)으로 통일한다.
 	               2026-07-22 이전 정산서에는 DC_CD 가 없어, 코드만 보면 여러 출고장이 빈 코드 하나로 뭉쳤다. */
 	            CROSS APPLY (
-	                  SELECT CASE WHEN ISNULL(s.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s.DC_CD)))
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                              ELSE '' END AS dcKey,
+	                  SELECT ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ AS dcKey,
 	                         REPLACE(ISNULL(s.DLV_DT,''),'-','') AS dlvKey
 	            ) dk
 	            LEFT JOIN (
 	                  SELECT DISTINCT REPLACE(ISNULL(o2.DLV_DT,''),'-','') AS dlvKey,
-	                         CASE WHEN ISNULL(o2.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(o2.DC_CD)))
-	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                              ELSE '' END AS dcKey,
+	                         ]]><include refid="dcKeyOf"><property name="a" value="o2."/></include><![CDATA[ AS dcKey,
 	                         ISNULL(o2.ITEM_CD,'') AS itemCd, o2.COMP_CD AS compCd
 	                    FROM TBL_SHIPOUT_MST o2
 	                   WHERE o2.ACTION_YN = 'Y'
@@ -1202,15 +1193,7 @@
 	                 ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.inUnit AS costAmt
 	            FROM TBL_SHIPOUT_MST o
 	            CROSS APPLY (
-	                  SELECT CASE WHEN ISNULL(o.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(o.DC_CD)))
-	                              WHEN ISNULL(o.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                              WHEN ISNULL(o.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                              WHEN ISNULL(o.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                              WHEN ISNULL(o.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                              WHEN ISNULL(o.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                              WHEN ISNULL(o.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                              WHEN ISNULL(o.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                              ELSE '' END AS dcKey,
+	                  SELECT ]]><include refid="dcKeyOf"><property name="a" value="o."/></include><![CDATA[ AS dcKey,
 	                         REPLACE(ISNULL(o.DLV_DT,''),'-','') AS dlvKey
 	            ) dk
 	            LEFT JOIN (
@@ -1236,15 +1219,7 @@
 	                                 ISNULL(ih.IN_PRICE,   ISNULL(pm.IN_PRICE,0))   AS inUnit ) u
 	            LEFT JOIN (
 	                  SELECT DISTINCT REPLACE(ISNULL(s2.DLV_DT,''),'-','') AS dlvKey,
-	                         CASE WHEN ISNULL(s2.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s2.DC_CD)))
-	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                              ELSE '' END AS dcKey,
+	                         ]]><include refid="dcKeyOf"><property name="a" value="s2."/></include><![CDATA[ AS dcKey,
 	                         ISNULL(s2.ITEM_CD,'') AS itemCd, s2.COMP_CD AS compCd
 	                    FROM TBL_SALES_MST s2
 	                   WHERE s2.ACTION_YN = 'Y'
@@ -1324,28 +1299,12 @@
 	                      ELSE 0 END AS costAmt
 	            FROM TBL_SALES_MST s
 	            CROSS APPLY (
-	                  SELECT CASE WHEN ISNULL(s.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s.DC_CD)))
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                              ELSE '' END AS dcKey,
+	                  SELECT ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ AS dcKey,
 	                         REPLACE(ISNULL(s.DLV_DT,''),'-','') AS dlvKey
 	            ) dk
 	            LEFT JOIN (
 	                  SELECT DISTINCT REPLACE(ISNULL(o2.DLV_DT,''),'-','') AS dlvKey,
-	                         CASE WHEN ISNULL(o2.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(o2.DC_CD)))
-	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                              WHEN ISNULL(o2.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                              ELSE '' END AS dcKey,
+	                         ]]><include refid="dcKeyOf"><property name="a" value="o2."/></include><![CDATA[ AS dcKey,
 	                         ISNULL(o2.ITEM_CD,'') AS itemCd, o2.COMP_CD AS compCd
 	                    FROM TBL_SHIPOUT_MST o2
 	                   WHERE o2.ACTION_YN = 'Y'
@@ -1377,15 +1336,7 @@
 	                 ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.inUnit AS costAmt
 	            FROM TBL_SHIPOUT_MST o
 	            CROSS APPLY (
-	                  SELECT CASE WHEN ISNULL(o.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(o.DC_CD)))
-	                              WHEN ISNULL(o.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                              WHEN ISNULL(o.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                              WHEN ISNULL(o.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                              WHEN ISNULL(o.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                              WHEN ISNULL(o.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                              WHEN ISNULL(o.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                              WHEN ISNULL(o.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                              ELSE '' END AS dcKey,
+	                  SELECT ]]><include refid="dcKeyOf"><property name="a" value="o."/></include><![CDATA[ AS dcKey,
 	                         REPLACE(ISNULL(o.DLV_DT,''),'-','') AS dlvKey
 	            ) dk
 	            LEFT JOIN (
@@ -1411,15 +1362,7 @@
 	                                 ISNULL(ih.IN_PRICE,   ISNULL(pm.IN_PRICE,0))   AS inUnit ) u
 	            LEFT JOIN (
 	                  SELECT DISTINCT REPLACE(ISNULL(s2.DLV_DT,''),'-','') AS dlvKey,
-	                         CASE WHEN ISNULL(s2.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s2.DC_CD)))
-	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                              WHEN ISNULL(s2.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                              ELSE '' END AS dcKey,
+	                         ]]><include refid="dcKeyOf"><property name="a" value="s2."/></include><![CDATA[ AS dcKey,
 	                         ISNULL(s2.ITEM_CD,'') AS itemCd, s2.COMP_CD AS compCd
 	                    FROM TBL_SALES_MST s2
 	                   WHERE s2.ACTION_YN = 'Y'
@@ -1975,6 +1918,54 @@
 	]]></update>
 
 	<!-- ============================================================
+	     택배 「출력됨」 서버 저장 (2026-09-16 P3) — TBL_PARCEL_PRINT. 키 = 택배출고관리 병합키(출고일자 × 사업장 × 품목명).
+	     종전 localStorage 기록은 화면이 처음 조회할 때 서버로 옮긴다(poDoneLoad).
+	     ============================================================ -->
+	<select id="selectParcelPrintList" parameterType="java.util.Map" resultType="java.util.HashMap">
+	  SELECT OUT_DT AS outDt, BIZ_CD AS bizCd, ITEM_NM AS itemNm, PRINT_DTTM AS printDttm, ISNULL(PRINT_USER,'') AS printUser
+	    FROM TBL_PARCEL_PRINT
+	   WHERE COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567')
+	     AND OUT_DT &gt;= REPLACE(ISNULL(#{frDt,jdbcType=VARCHAR},''),'-','')
+	     AND OUT_DT &lt;= REPLACE(ISNULL(NULLIF(#{toDt,jdbcType=VARCHAR},''),'99991231'),'-','')
+	</select>
+
+	<update id="upsertParcelPrint" parameterType="java.util.Map"><![CDATA[
+	  MERGE TBL_PARCEL_PRINT AS t
+	  USING (SELECT ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567') AS COMP_CD, REPLACE(#{outDt},'-','') AS OUT_DT,
+	                ISNULL(#{bizCd,jdbcType=NVARCHAR},'') AS BIZ_CD, LEFT(ISNULL(#{itemNm,jdbcType=NVARCHAR},''),200) AS ITEM_NM) AS s
+	  ON (t.COMP_CD = s.COMP_CD AND t.OUT_DT = s.OUT_DT AND t.BIZ_CD = s.BIZ_CD AND t.ITEM_NM = s.ITEM_NM)
+	  WHEN MATCHED THEN UPDATE SET t.PRINT_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), t.PRINT_USER = #{printUser,jdbcType=NVARCHAR}
+	  WHEN NOT MATCHED THEN INSERT (COMP_CD, OUT_DT, BIZ_CD, ITEM_NM, PRINT_DTTM, PRINT_USER)
+	     VALUES (s.COMP_CD, s.OUT_DT, s.BIZ_CD, s.ITEM_NM, CONVERT(VARCHAR(19),GETDATE(),120), #{printUser,jdbcType=NVARCHAR});
+	]]></update>
+
+	<!-- 출고장(삼성 센터) 표 — 화면 dc-map.js 가 읽는다(2026-09-16 P3 통합). 없으면 화면은 기본값 -->
+	<select id="selectDcList" parameterType="java.util.Map" resultType="java.util.HashMap">
+	  SELECT DC_CD AS cd, DC_NM AS nm, ISNULL(GRP_NM,'') AS grp, ISNULL(VENDOR_CD,'') AS ven, SORT_ORD AS ord, ISNULL(WH_CD,'') AS whCd
+	    FROM TBL_DC_MST
+	   WHERE COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567') AND USE_YN = 'Y'
+	   ORDER BY SORT_ORD, DC_CD
+	</select>
+
+	<!-- 창고 2단계 (2026-09-16) — 출고장 → 창고 매핑 저장 · 재고마감 스냅샷용 품목 × 창고 기말수량 -->
+	<update id="updateDcWh" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_DC_MST SET WH_CD = NULLIF(#{whCd,jdbcType=VARCHAR},''), UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{regUser,jdbcType=NVARCHAR}
+	   WHERE COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567') AND DC_CD = #{dcCd}
+	]]></update>
+
+	<!-- 품목 × 창고 기말수량(그 달 말까지의 원장 합) — 단가는 서비스가 품목 평균(selectStockClosing)을 붙인다 -->
+	<select id="selectStockClosingByWh" parameterType="egovframework.konet.user.model.StockClosingDTO" resultType="egovframework.konet.user.model.StockClosingDTO"><![CDATA[
+	  SELECT l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, l.WH_CD AS whCd,
+	         SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY WHEN l.IO_GB = 'O' THEN -l.QTY ELSE 0 END) AS endQty
+	    FROM TBL_STOCK_LEDGER l
+	   WHERE l.ACTION_YN = 'Y'
+	     AND l.TRX_DT <= REPLACE(ISNULL(NULLIF(#{toDt,jdbcType=VARCHAR},''), REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-','')+'31'),'-','')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   GROUP BY l.PROD_SEQ, l.PROD_CD, l.WH_CD
+	  HAVING SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY WHEN l.IO_GB = 'O' THEN -l.QTY ELSE 0 END) <> 0
+	]]></select>
+
+	<!-- ============================================================
 	     상품마스터 — TBL_PROD_MST  (상품목록리스트 근거)
 	     · PK=PROD_SEQ(IDENTITY), 수정/삭제는 PROD_SEQ 기준. 날짜는 문자.
 	     ============================================================ -->
@@ -2178,15 +2169,7 @@
 	    INTO #SLK
 	    FROM (
 	          SELECT REPLACE(ISNULL(m.DLV_DT,''),'-','') AS dlvKey,
-	                 CASE WHEN ISNULL(m.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(m.DC_CD)))
-	                      WHEN ISNULL(m.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                      WHEN ISNULL(m.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                      WHEN ISNULL(m.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                      WHEN ISNULL(m.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                      WHEN ISNULL(m.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                      WHEN ISNULL(m.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                      WHEN ISNULL(m.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                      ELSE '' END AS dcKey,
+	                 ]]><include refid="dcKeyOf"><property name="a" value="m."/></include><![CDATA[ AS dcKey,
 	                 ISNULL(m.ITEM_CD,'') AS itemCd, m.ITEM_NM AS itemNm, m.DC_NM AS dcNm,
 	                 ISNULL(m.OUT_QTY,0) AS outQty, ISNULL(m.SALE_AMT,0) AS saleAmt, m.COMP_CD AS COMP_CD
 	            FROM TBL_SALES_MST m
@@ -2273,15 +2256,7 @@
 	                ) u
 	                -- 대사키 정규화 : 출고장(DC_CD 우선, 없으면 이름→코드) + 납품일자(하이픈 제거)
 	                CROSS APPLY (
-	                      SELECT CASE WHEN ISNULL(s.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s.DC_CD)))
-	                                  WHEN ISNULL(s.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                                  WHEN ISNULL(s.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                                  WHEN ISNULL(s.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                                  WHEN ISNULL(s.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                                  WHEN ISNULL(s.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                                  WHEN ISNULL(s.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                                  WHEN ISNULL(s.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                                  ELSE '' END AS dcKey,
+	                      SELECT ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ AS dcKey,
 	                             REPLACE(ISNULL(s.DLV_DT,''),'-','') AS dlvKey
 	                ) dk
 	                LEFT JOIN #SLK st ON st.dlvKey = dk.dlvKey AND st.dcKey = dk.dcKey AND st.itemCd = s.ITEM_CD
@@ -2317,15 +2292,7 @@
 	        LEFT JOIN (
 	              SELECT DISTINCT
 	                     REPLACE(ISNULL(s2.DLV_DT,''),'-','') AS dlvKey,
-	                     CASE WHEN ISNULL(s2.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s2.DC_CD)))
-	                          WHEN ISNULL(s2.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                          WHEN ISNULL(s2.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                          WHEN ISNULL(s2.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                          WHEN ISNULL(s2.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                          WHEN ISNULL(s2.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                          WHEN ISNULL(s2.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                          WHEN ISNULL(s2.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                          ELSE '' END AS dcKey,
+	                     ]]><include refid="dcKeyOf"><property name="a" value="s2."/></include><![CDATA[ AS dcKey,
 	                     ISNULL(s2.ITEM_CD,'') AS itemCd
 	                FROM TBL_SHIPOUT_MST s2
 	               WHERE s2.ACTION_YN = 'Y'
@@ -2429,15 +2396,7 @@
 	         SUM(sl.outQty) AS settleQty, SUM(sl.saleAmt) AS salesAmt
 	    FROM (
 	          SELECT REPLACE(ISNULL(m.DLV_DT,''),'-','') AS dlvKey,
-	                 CASE WHEN ISNULL(m.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(m.DC_CD)))
-	                      WHEN ISNULL(m.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                      WHEN ISNULL(m.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                      WHEN ISNULL(m.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                      WHEN ISNULL(m.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                      WHEN ISNULL(m.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                      WHEN ISNULL(m.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                      WHEN ISNULL(m.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                      ELSE '' END AS dcKey,
+	                 ]]><include refid="dcKeyOf"><property name="a" value="m."/></include><![CDATA[ AS dcKey,
 	                 ISNULL(m.ITEM_CD,'') AS itemCd, m.ITEM_NM AS itemNm, m.DC_NM AS dcNm,
 	                 ISNULL(m.OUT_QTY,0) AS outQty, ISNULL(m.SALE_AMT,0) AS saleAmt, m.COMP_CD AS COMP_CD
 	            FROM TBL_SALES_MST m
@@ -2447,15 +2406,7 @@
 	    LEFT JOIN (
 	          SELECT DISTINCT
 	                 REPLACE(ISNULL(s.DLV_DT,''),'-','') AS dlvKey,
-	                 CASE WHEN ISNULL(s.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s.DC_CD)))
-	                      WHEN ISNULL(s.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                      WHEN ISNULL(s.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                      WHEN ISNULL(s.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                      WHEN ISNULL(s.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                      WHEN ISNULL(s.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                      WHEN ISNULL(s.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                      WHEN ISNULL(s.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                      ELSE '' END AS dcKey,
+	                 ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ AS dcKey,
 	                 ISNULL(s.ITEM_CD,'') AS itemCd, s.COMP_CD AS compCd
 	            FROM TBL_SHIPOUT_MST s
 	           WHERE s.ACTION_YN = 'Y'
@@ -2517,8 +2468,11 @@
 	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR p.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	         AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
 	    ) pm ON pm.PROD_CD = t.prodCd
-	    LEFT JOIN TBL_CLOSING_STOCK cs ON cs.CLOSE_YM = (SELECT prevYm FROM B) AND cs.PROD_SEQ = t.prodSeq
-	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR cs.COMP_CD = #{compCd,jdbcType=VARCHAR} )   -- 직전 확정월 기말 = 당월 기초 이월
+	    /* 직전 확정월 기말 = 당월 기초 이월. ★스냅샷이 품목 × 창고로 쌓이므로(2단계 2026-09-16) 창고를 합쳐 읽는다 */
+	    LEFT JOIN ( SELECT COMP_CD, CLOSE_YM, PROD_SEQ, SUM(ISNULL(END_QTY,0)) AS END_QTY, MAX(AVG_IN_PRICE) AS AVG_IN_PRICE
+	                  FROM TBL_CLOSING_STOCK GROUP BY COMP_CD, CLOSE_YM, PROD_SEQ ) cs
+	           ON cs.CLOSE_YM = (SELECT prevYm FROM B) AND cs.PROD_SEQ = t.prodSeq
+	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR cs.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	    OUTER APPLY (
 	      SELECT TOP 1 lv.VENDOR_CD AS vendorCd
 	        FROM TBL_STOCK_LEDGER lv CROSS JOIN B
@@ -2632,8 +2586,9 @@
 	]]></delete>
 
 	<insert id="insertClosingStock" parameterType="egovframework.konet.user.model.StockClosingDTO"><![CDATA[
-	  INSERT INTO TBL_CLOSING_STOCK (COMP_CD, CLOSE_YM, PROD_SEQ, PROD_CD, END_QTY, AVG_IN_PRICE, STOCK_AMT, REG_DTTM)
-	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-',''), #{prodSeq}, #{prodCd,jdbcType=NVARCHAR}, #{endQty,jdbcType=INTEGER}, #{avgInPrice,jdbcType=DECIMAL},
+	  INSERT INTO TBL_CLOSING_STOCK (COMP_CD, CLOSE_YM, PROD_SEQ, PROD_CD, WH_CD, END_QTY, AVG_IN_PRICE, STOCK_AMT, REG_DTTM)
+	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), REPLACE(ISNULL(#{ym,jdbcType=VARCHAR},''),'-',''), #{prodSeq}, #{prodCd,jdbcType=NVARCHAR},
+	          ISNULL(NULLIF(#{whCd,jdbcType=VARCHAR},''),'WH1'), #{endQty,jdbcType=INTEGER}, #{avgInPrice,jdbcType=DECIMAL},
 	          ISNULL(#{endQty,jdbcType=INTEGER},0) * ISNULL(#{avgInPrice,jdbcType=DECIMAL},0), CONVERT(VARCHAR(19),GETDATE(),120))
 	]]></insert>
 
@@ -2946,11 +2901,7 @@
 	       일반 추정 계획을 짜서 2.3초, 그대로 비교하면 0.84초(운영 DB 실측). 하이픈 제거는 컨트롤러(_d8)가 이미 한다. */
 	  WITH SL AS (   /* 정산서 라인별 출고수량 (+출고장코드 — 코드가 빈 옛 정산서는 출고장 이름으로) */
 	    SELECT v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,'') AS ORD_NO, v.PROD_CD,
-	           MAX(CASE WHEN ISNULL(v.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(v.DC_CD)))
-	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%용인%' THEN 'E100' WHEN ISNULL(v.DC_NM,'') LIKE N'%왜관%' THEN 'E200'
-	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%김해%' THEN 'E300' WHEN ISNULL(v.DC_NM,'') LIKE N'%광주%' THEN 'E400'
-	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%평택%' THEN 'E500' WHEN ISNULL(v.DC_NM,'') LIKE N'%제주%' THEN 'E600'
-	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%오산%' THEN 'E700' ELSE '' END) AS DC_CD,
+	           MAX(]]><include refid="dcKeyOf"><property name="a" value="v."/></include><![CDATA[) AS DC_CD,
 	           SUM(CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END) AS VQ
 	      FROM TBL_SALES_MST v
 	     WHERE v.ACTION_YN='Y' AND ISNULL(v.PROD_CD,'')<>''
@@ -3015,11 +2966,7 @@
 	     원천 규칙·사업장 비율 배분은 selectStockOutByMonth 와 같다(한쪽만 고치면 표와 내역이 어긋난다). 컨트롤러가 ym 을 frYm=toYm 으로 편다. */
 	  WITH SL AS (
 	    SELECT v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,'') AS ORD_NO, v.PROD_CD, MAX(ISNULL(v.DC_NM,'')) AS DC_NM,
-	           MAX(CASE WHEN ISNULL(v.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(v.DC_CD)))
-	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%용인%' THEN 'E100' WHEN ISNULL(v.DC_NM,'') LIKE N'%왜관%' THEN 'E200'
-	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%김해%' THEN 'E300' WHEN ISNULL(v.DC_NM,'') LIKE N'%광주%' THEN 'E400'
-	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%평택%' THEN 'E500' WHEN ISNULL(v.DC_NM,'') LIKE N'%제주%' THEN 'E600'
-	                    WHEN ISNULL(v.DC_NM,'') LIKE N'%오산%' THEN 'E700' ELSE '' END) AS DC_CD,
+	           MAX(]]><include refid="dcKeyOf"><property name="a" value="v."/></include><![CDATA[) AS DC_CD,
 	           MAX(ISNULL(v.ITEM_CD,'')) AS ITEM_CD, MAX(ISNULL(v.ITEM_NM,'')) AS ITEM_NM,
 	           SUM(CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END) AS VQ
 	      FROM TBL_SALES_MST v
@@ -3240,12 +3187,15 @@
 	       원장이 D-1 에 붙어 이중 차감되던 어긋남이 사라진다. 납기일자가 빈 옛 행만 출고일자로 대신한다. */
 	  SELECT s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), 'O', SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) AS QTY,
 	         NULL, NULL, NULL, 'SHIPOUT', ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), N'출고 자동연동(SHIPOUT)',
-	         /* 창고(2026-09-16 P3 1단계) = 기본창고 — 발주현황표엔 창고가 없다(2단계 = 출고장→창고 매핑) */
-	         ISNULL((SELECT TOP 1 w.WH_CD FROM TBL_WH_MST w WHERE w.COMP_CD = s.COMP_CD AND w.DEFAULT_YN='Y' AND w.USE_YN='Y' ORDER BY w.SORT_ORD),'WH1'), 'Y',
+	         /* 창고 = 출고장 매핑(TBL_DC_MST.WH_CD, 2단계 2026-09-16) → 없으면 기본창고(1단계) */
+	         ISNULL(dcw.WH_CD, ISNULL((SELECT TOP 1 w.WH_CD FROM TBL_WH_MST w WHERE w.COMP_CD = s.COMP_CD AND w.DEFAULT_YN='Y' AND w.USE_YN='Y' ORDER BY w.SORT_ORD),'WH1')), 'Y',
 	         CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR}
 	    FROM TBL_SHIPOUT_MST s
 	    JOIN ( SELECT COMP_CD, PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ FROM TBL_PROD_MST WHERE ACTION_YN='Y' GROUP BY COMP_CD, PROD_CD ) pm
 	      ON pm.PROD_CD = s.PROD_CD AND pm.COMP_CD = s.COMP_CD
+	    /* 창고 2단계(2026-09-16) : 출고장 → 창고 매핑(TBL_DC_MST.WH_CD). 매핑이 비면 아래 ISNULL 이 기본창고로 */
+	    LEFT JOIN TBL_DC_MST dcw ON dcw.COMP_CD = s.COMP_CD AND dcw.USE_YN = 'Y' AND ISNULL(dcw.WH_CD,'') <> ''
+	     AND dcw.DC_CD = ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[
 	   WHERE s.ACTION_YN = 'Y' AND ISNULL(s.PROD_CD,'') <> ''
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) = REPLACE(ISNULL(#{trxDt},''),'-','')
@@ -3254,7 +3204,7 @@
 	                       WHERE v.ACTION_YN = 'Y'
 	                         AND v.COMP_CD   = s.COMP_CD
 	                         AND v.DLV_DT    = ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) )
-	   GROUP BY s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT)
+	   GROUP BY s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), dcw.WH_CD   /* 창고가 다르면 줄이 갈린다(2단계) */
 	  HAVING SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) > 0
 	]]></insert>
 
@@ -3310,8 +3260,8 @@
 	  INSERT INTO TBL_STOCK_LEDGER (COMP_CD, PROD_SEQ, PROD_CD, TRX_DT, IO_GB, QTY, UNIT_PRICE, AMT, BIZ_CD, REF_GB, REF_NO, REMARK, WH_CD, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  SELECT d.COMP_CD, d.PROD_SEQ, d.PROD_CD, d.DLV_DT, d.IO_GB, d.QTY,
 	         NULL, NULL, NULL, 'SALES', d.DLV_DT, d.REMARK,
-	         /* 창고(2026-09-16 P3 1단계) = 기본창고 — 정산서엔 창고가 없다 */
-	         ISNULL((SELECT TOP 1 w.WH_CD FROM TBL_WH_MST w WHERE w.COMP_CD = d.COMP_CD AND w.DEFAULT_YN='Y' AND w.USE_YN='Y' ORDER BY w.SORT_ORD),'WH1'), 'Y',
+	         /* 창고 = 출고장 매핑(TBL_DC_MST.WH_CD, 2단계 2026-09-16) → 없으면 기본창고 */
+	         ISNULL(d.WH_CD, ISNULL((SELECT TOP 1 w.WH_CD FROM TBL_WH_MST w WHERE w.COMP_CD = d.COMP_CD AND w.DEFAULT_YN='Y' AND w.USE_YN='Y' ORDER BY w.SORT_ORD),'WH1')), 'Y',
 	         CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR}
 	    FROM (
 	      /* ── 출고행 : 정상은 정산수량, 반품행은 '나갔던' 발주량 ── */
@@ -3320,12 +3270,15 @@
 	             SUM( CASE WHEN ISNULL(s.DLV_TYPE,'') = 'X'
 	                       THEN ISNULL(s.ORD_QTY,0)
 	                       ELSE ISNULL(s.OUT_QTY,0) END ) AS QTY,
-	             N'출고 자동연동(정산서)' AS REMARK
+	             N'출고 자동연동(정산서)' AS REMARK, dcw.WH_CD AS WH_CD
 	        FROM TBL_SALES_MST s
+	    /* 창고 2단계(2026-09-16) : 출고장 → 창고 매핑(TBL_DC_MST.WH_CD). 매핑이 비면 아래 ISNULL 이 기본창고로 */
+	    LEFT JOIN TBL_DC_MST dcw ON dcw.COMP_CD = s.COMP_CD AND dcw.USE_YN = 'Y' AND ISNULL(dcw.WH_CD,'') <> ''
+	     AND dcw.DC_CD = ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[
 	       WHERE s.ACTION_YN = 'Y' AND s.PROD_SEQ IS NOT NULL
 	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	         AND s.DLV_DT = REPLACE(ISNULL(#{trxDt},''),'-','')
-	       GROUP BY s.COMP_CD, s.PROD_SEQ, s.DLV_DT
+	       GROUP BY s.COMP_CD, s.PROD_SEQ, s.DLV_DT, dcw.WH_CD
 
 	      UNION ALL
 
@@ -3339,13 +3292,16 @@
 	                                       = FLOOR(ISNULL(s.ORD_QTY,0) + ISNULL(s.OUT_QTY,0)) ) )
 	                       THEN ABS(ISNULL(s.OUT_QTY,0))
 	                       ELSE 0 END ) AS QTY,
-	             N'반품 자동연동(정산서)' AS REMARK
+	             N'반품 자동연동(정산서)' AS REMARK, dcw.WH_CD AS WH_CD
 	        FROM TBL_SALES_MST s
+	    /* 창고 2단계(2026-09-16) : 출고장 → 창고 매핑(TBL_DC_MST.WH_CD). 매핑이 비면 아래 ISNULL 이 기본창고로 */
+	    LEFT JOIN TBL_DC_MST dcw ON dcw.COMP_CD = s.COMP_CD AND dcw.USE_YN = 'Y' AND ISNULL(dcw.WH_CD,'') <> ''
+	     AND dcw.DC_CD = ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[
 	       WHERE s.ACTION_YN = 'Y' AND s.PROD_SEQ IS NOT NULL
 	         AND ISNULL(s.DLV_TYPE,'') = 'X'
 	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	         AND s.DLV_DT = REPLACE(ISNULL(#{trxDt},''),'-','')
-	       GROUP BY s.COMP_CD, s.PROD_SEQ, s.DLV_DT
+	       GROUP BY s.COMP_CD, s.PROD_SEQ, s.DLV_DT, dcw.WH_CD
 	    ) d
 	   WHERE d.QTY > 0
 	]]></insert>
@@ -3855,15 +3811,7 @@
 	                         ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) AS saleDt, CAST(NULL AS VARCHAR(8)) AS rcvDt   -- 마지막 매출일·수금일(2026-09-16)
 	                    FROM TBL_SALES_MST s
 	                    CROSS APPLY (
-	                          SELECT CASE WHEN ISNULL(s.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s.DC_CD)))
-	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                                      ELSE '' END AS dcKey
+	                          SELECT ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ AS dcKey
 	                    ) dk
 	                    -- 출고장 1곳에 거래처가 둘 이상 잡히면 매출이 두 배가 된다 → DC_CD 로 미리 1행으로 접는다
 	                    JOIN ( SELECT DC_CD, MIN(VENDOR_CD) AS VENDOR_CD, MIN(VENDOR_NM) AS VENDOR_NM
@@ -3951,15 +3899,7 @@
 	                 ISNULL(s.UNIT,'') AS remark, '' AS extCd
 	            FROM TBL_SALES_MST s
 	            CROSS APPLY (
-	                  SELECT CASE WHEN ISNULL(s.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s.DC_CD)))
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                              WHEN ISNULL(s.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                              ELSE '' END AS dcKey
+	                  SELECT ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ AS dcKey
 	            ) dk
 	           WHERE s.ACTION_YN = 'Y'
 	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -4041,15 +3981,7 @@
 	               0 AS purchAmt, 0 AS purchDcAmt, 0 AS payAmt
 	          FROM TBL_SALES_MST s
 	          CROSS APPLY (
-	                SELECT CASE WHEN ISNULL(s.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s.DC_CD)))
-	                            WHEN ISNULL(s.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                            WHEN ISNULL(s.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                            WHEN ISNULL(s.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                            WHEN ISNULL(s.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                            WHEN ISNULL(s.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                            WHEN ISNULL(s.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                            WHEN ISNULL(s.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                            ELSE '' END AS dcKey
+	                SELECT ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ AS dcKey
 	          ) dk
 	          JOIN ( SELECT DC_CD, MIN(VENDOR_CD) AS VENDOR_CD, MIN(VENDOR_NM) AS VENDOR_NM
 	                   FROM TBL_VENDOR_MST
@@ -4412,15 +4344,7 @@
 	                         ISNULL(s.SALE_PRICE,0), ISNULL(s.OUT_QTY,0), N'정산서'
 	                    FROM TBL_SALES_MST s
 	                    CROSS APPLY (
-	                          SELECT CASE WHEN ISNULL(s.DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(s.DC_CD)))
-	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%용인%' THEN 'E100'
-	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%왜관%' THEN 'E200'
-	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%김해%' THEN 'E300'
-	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%광주%' THEN 'E400'
-	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%평택%' THEN 'E500'
-	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%제주%' THEN 'E600'
-	                                      WHEN ISNULL(s.DC_NM,'') LIKE '%오산%' THEN 'E700'
-	                                      ELSE '' END AS dcKey
+	                          SELECT ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ AS dcKey
 	                    ) dk
 	                   WHERE s.ACTION_YN='Y' AND ISNULL(s.ITEM_CD,'') <> ''
 	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )

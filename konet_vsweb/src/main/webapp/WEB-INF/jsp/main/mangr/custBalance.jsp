@@ -7,6 +7,7 @@
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <%-- 회사 설정(회사 정보 수정 「기능」 ▸ 수금 ▸ 미수 경과 경고·위험 일수, 2026-09-16 P2-g) — window.konetSet --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260916"></script>
+<script src="${pageContext.request.contextPath}/asset/js/dc-map.js?v=20260916"></script>
 <!--
   거래처별 채권·채무 (2026-07-26 요청 신설)
     · 메뉴 이름은 "거래처별 채권·채무"(사용자 유지 요청), 화면 표기는 쉬운 말로 — 받을금액 / 지급할금액 / 이월 / 남은금액.
@@ -460,8 +461,8 @@ function cbIsOcc(){ return _mode!=='cum'; }
      오산센터 = 왜관·김해·광주·제주·오산 / 용인·평택은 단독.
      거래처마스터의 DC_CD 가 출고장코드라 그걸로 묶는다(삼성웰스토리 지점 7곳).
      DC_CD 가 없는 거래처(매입처 등)는 '기타 거래처'로 모은다. */
-var CB_DC       = { E100:'용인', E200:'왜관', E300:'김해', E400:'광주', E500:'평택', E600:'제주', E700:'오산' };
-var CB_DCGROUP  = { E200:'오산센터', E300:'오산센터', E400:'오산센터', E600:'오산센터', E700:'오산센터' };
+var CB_DC       = window.konetDc.NAME;    // ★단일 원천 asset/js/dc-map.js(TBL_DC_MST) — 2026-09-16 통합
+var CB_DCGROUP  = window.konetDc.GROUP;
 var CB_ETC      = '기타 거래처';
 /* 출고장코드 판정 — ①거래처마스터 DC_CD 우선 ②없으면 거래처명으로 환원.
    ★②가 필요한 이유 : DC_CD 는 나중에 추가한 컬럼이라 WAR 재빌드 전에는 응답에 없고,
