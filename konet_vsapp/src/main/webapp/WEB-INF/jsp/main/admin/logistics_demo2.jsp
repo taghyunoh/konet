@@ -1227,7 +1227,7 @@
     return ' · <span style="color:#c0392b;font-weight:800;cursor:pointer;text-decoration:underline" onclick="salesUnmatchedGo()"'
       + ' title="'+_cesc(tip)+'">⚠ 출고미상 '+n.toLocaleString()+'건 · '+_cnum(amt)+'원 포함</span>';
   }
-  function _salesNote(){ return _salesQNote()+_salesUnNote(); }
+  function _salesNote(){ return _salesQNote()+_salesUnNote()+(window.closeNoCostNote?closeNoCostNote(_salesRows,'sales'):''); }   /* 매입가 없는 품목 경고(2026-09-16 P2-f) — 함수는 logi-oh.js */
   // 경고 클릭 → 매출내역 ④ 정산서 원본 탭으로. 기간은 마감 조회기간 그대로 넘긴다
   function salesUnmatchedGo(){
     var f=(document.getElementById('closeSalesFrom')||{}).value||'', t=(document.getElementById('closeSalesTo')||{}).value||'';
@@ -1462,7 +1462,7 @@
     var head='<table class="logi-tb">'+thead+'<tbody>'+totalRow;
     if(tab==='item'){
       var agg=_closeAgg(_statRows, function(r){ return r.itemCd; });
-      sum.innerHTML='총 <b>'+agg.length.toLocaleString()+'</b>품목 · 매출 <b>'+_cnum(gS)+'</b> · 순마진 <b>'+_cnum(gM)+'</b>';
+      sum.innerHTML='총 <b>'+agg.length.toLocaleString()+'</b>품목 · 매출 <b>'+_cnum(gS)+'</b> · 순마진 <b>'+_cnum(gM)+'</b>'+(window.closeNoCostNote?closeNoCostNote(_statRows,'stat'):'');
       lzMount({ wrap:wrap, pager:'closeStatusPager', head:head, list:agg, rows:STAT_ROWS, capTop:320, fill:true, pad:84,
                 rowFn:function(o){ return _statItemRow(o,0); } });
       return;
@@ -1473,7 +1473,7 @@
       var az=_closeAgg(_statRows, function(r){ return _zoneGroup(r)+'~'+(r.dcCd||'')+'~'+r.itemCd; }), L1=[],l1m={};
       az.forEach(function(o){ var k1=_zoneGroup(o.s); var g1=l1m[k1]; if(!g1){g1=l1m[k1]={label:k1,l2:[],l2m:{},q:0,s:0,c:0,m:0};L1.push(g1);} g1.q+=o.outQty;g1.s+=o.salesAmt;g1.c+=o.costAmt;g1.m+=o.marginAmt;
         var k2=(o.s.dcCd||'')+'|'+(o.s.dcNm||''); var g2=g1.l2m[k2]; if(!g2){g2=g1.l2m[k2]={label:(o.s.dcNm||'(미지정)')+(o.s.dcCd?(' ('+o.s.dcCd+')'):''),items:[],q:0,s:0,c:0,m:0};g1.l2.push(g2);} g2.q+=o.outQty;g2.s+=o.salesAmt;g2.c+=o.costAmt;g2.m+=o.marginAmt;g2.items.push(o); });
-      sum.innerHTML='총 <b>'+L1.length+'</b>대표출고장 · 매출 <b>'+_cnum(gS)+'</b> · 순마진 <b>'+_cnum(gM)+'</b>';
+      sum.innerHTML='총 <b>'+L1.length+'</b>대표출고장 · 매출 <b>'+_cnum(gS)+'</b> · 순마진 <b>'+_cnum(gM)+'</b>'+(window.closeNoCostNote?closeNoCostNote(_statRows,'stat'):'');
       L1.forEach(function(g1,i1){ rowsD.push({t:'l1',g:g1,i1:i1}); if(!_statCollapsed['z1#'+i1]) g1.l2.forEach(function(g2,i2){ rowsD.push({t:'l2',g:g2,i1:i1,i2:i2}); if(!_statCollapsed['z2#'+i1+'.'+i2]) g2.items.forEach(function(o){ rowsD.push({t:'it',o:o}); }); }); });
       _hdr=function(r){
         if(r.t==='l1'){ var c1=!!_statCollapsed['z1#'+r.i1]; return '<tr class="close-grp" onclick="statToggleKey(\'z1#'+r.i1+'\')"><td colspan="'+lead0+'" style="text-align:left"><span class="ccar">'+(c1?'▶':'▼')+'</span><b>'+_cesc(r.g.label)+'</b> <span style="color:#5b6b7a;font-weight:600">('+r.g.l2.length+'개 출고장)</span></td>'+_statCells(r.g.q,r.g.s,r.g.c,r.g.m)+'</tr>'; }
@@ -1482,7 +1482,7 @@
     } else {
       var ab=_closeAgg(_statRows, function(r){ return (r.bizNm||'(미지정)')+'~'+r.itemCd; }), groups=[],gm={};
       ab.forEach(function(o){ var gk=o.s.bizNm||'(미지정)'; var g=gm[gk]; if(!g){g=gm[gk]={label:gk,items:[],q:0,s:0,c:0,m:0};groups.push(g);} g.items.push(o);g.q+=o.outQty;g.s+=o.salesAmt;g.c+=o.costAmt;g.m+=o.marginAmt; });
-      sum.innerHTML='총 <b>'+groups.length+'</b>사업장 · 매출 <b>'+_cnum(gS)+'</b> · 순마진 <b>'+_cnum(gM)+'</b>';
+      sum.innerHTML='총 <b>'+groups.length+'</b>사업장 · 매출 <b>'+_cnum(gS)+'</b> · 순마진 <b>'+_cnum(gM)+'</b>'+(window.closeNoCostNote?closeNoCostNote(_statRows,'stat'):'');
       groups.forEach(function(g,gi){ rowsD.push({t:'g',g:g,gi:gi}); if(!_statCollapsed['b#'+gi]) g.items.forEach(function(o){ rowsD.push({t:'it',o:o}); }); });
       _hdr=function(r){ var c=!!_statCollapsed['b#'+r.gi]; return '<tr class="close-grp" onclick="statToggleKey(\'b#'+r.gi+'\')"><td colspan="'+lead0+'" style="text-align:left"><span class="ccar">'+(c?'▶':'▼')+'</span><b>'+_cesc(r.g.label)+'</b> <span style="color:#5b6b7a;font-weight:600">(품목 '+r.g.items.length+'종)</span></td>'+_statCells(r.g.q,r.g.s,r.g.c,r.g.m)+'</tr>'; };
     }

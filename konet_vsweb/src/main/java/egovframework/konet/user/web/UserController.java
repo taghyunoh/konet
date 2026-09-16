@@ -3258,6 +3258,14 @@ public class UserController {
 			response.put("data", svc.selectExtItemList(dto));
 			return response;
 		}
+		/** 정산실적 «납품일자 시점» 매입단가 (2026-09-16 P2-f) — 회사 전체 매입가 이력. 회사코드는 인터셉터가 넣는다. */
+		@RequestMapping(value="/prod/inpriceHstAll.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> inpriceHstAll(@ModelAttribute("DTO") egovframework.konet.user.model.ProdInpriceDTO dto, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectInpriceHstAll(dto));
+			return response;
+		}
 		/**
 		 * ★[2026-08-19 요청] 매칭코드를 붙이려는 상품이 <b>거래중지</b>면 막는 문구를 만든다. 아니면 null.
 		 *

@@ -6125,39 +6125,138 @@ function ssOutQty(o){
     if(f) f.value=r[0]; if(t) t.value=r[1];
     spLoad();
   }
-  /* 매입단가 맵 — 매입금액 칸의 원천 (2026-08-02 요청).
-       ★값은 TBL_PROD_MST.IN_PRICE 를 쓴다. 매입가 이력(TBL_PROD_INPRICE_HST)에 새로 입력하면
-         서버가 syncProdInPrice 로 이 칸을 같이 갱신하므로 = **가장 최근 입력한 매입가** 다.
-       ★한계 : 이력 조회(selectInpriceList)는 PROD_SEQ 1건씩만 되어 그리드에서 쓸 수 없다.
-         그래서 '납품일자 시점의 단가'가 아니라 '최신 단가'다. 과거 기간을 볼 때 단가가 바뀌었으면
-         그만큼 어긋난다 — 일자 기준으로 맞추려면 서버 조회를 새로 만들어야 한다(WAR 재빌드).
-       ★정산서의 품목코드는 거래처 코드일 수 있어, 매칭코드·연결코드에도 같은 단가를 걸어 둔다. */
-  var _spInPrice=null;
+  /* 매입단가 맵 — 매입원가 칸의 원천 (2026-08-02 요청 → ★2026-09-16 P2-f «납품일자 시점 단가»로).
+       ★종전 한계 : 이력 조회(selectInpriceList)가 PROD_SEQ 1건씩이라 그리드에서 못 써 <최신 단가>(TBL_PROD_MST.IN_PRICE)를 썼고,
+         기간 중 단가가 바뀌면 그만큼 어긋났다. ⇒ 새 조회 /prod/inpriceHstAll.do(회사 전체 이력, 품목·적용일·단가 1,250쌍)를
+         한 번 받아 두고 줄마다 **납품일자(dlvDt) 이하의 최신 적용일** 단가를 고른다 — 마감(selectClosing)과 같은 규칙.
+         이력이 그 날짜 앞에 하나도 없으면 종전대로 마스터 IN_PRICE(= 최신 입력값)로 물러선다. 옛 서버(조회 없음)면 전부 마스터 = 종전 동작.
+       ★정산서의 품목코드는 거래처 코드일 수 있어 매칭코드·연결코드 → 주코드 표(alias)를 함께 든다.
+         종전엔 세 조회가 병렬로 와서 매칭코드 줄이 먼저 오면 m[e] 가 null 로 굳는 결함이 있었다 — 이제 읽을 때(_spPrice) 푼다. */
+  var _spInPrice=null, _spInHst=null, _spAlias=null;
   function _spLoadInPrice(cb){
     if(_spInPrice){ cb(); return; }
-    var m={}, left=3, seq={};
-    var done=function(){ if(--left===0){ _spInPrice=m; cb(); } };
+    var m={}, hst={}, alias={}, left=4;
+    var done=function(){ if(--left===0){ _spInPrice=m; _spInHst=hst; _spAlias=alias; cb(); } };
     var post=function(u){ return fetch(KONET_CTX+u, { method:'POST', credentials:'same-origin',
         headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
         .then(function(r){ return r.json(); }).then(function(j){ return (j&&j.data)||[]; }); };
     post('/prod/prodList.do').then(function(a){
       a.forEach(function(o){ var c=String(o.prodCd||'').trim(); if(!c) return;
-        var v=(o.inPrice==null?null:+o.inPrice); m[c]=v; if(o.prodSeq!=null) seq[o.prodSeq]=v; }); done();
+        m[c]=(o.inPrice==null?null:+o.inPrice); }); done();
     }).catch(done);
     post('/prod/extItemList.do').then(function(a){
       a.forEach(function(o){ var e=String(o.extItemCd||'').trim(), p=String(o.prodCd||'').trim();
-        if(e && p && !(e in m)) m[e]=(p in m)?m[p]:null; }); done();
+        if(e && p && !(e in alias)) alias[e]=p; }); done();
     }).catch(done);
     post('/prod/xrefList.do').then(function(a){
       a.forEach(function(o){ var e=String(o.extItemCd||'').trim(), p=String(o.prodCd||'').trim();
-        if(e && p && !(e in m)) m[e]=(p in m)?m[p]:null; }); done();
+        if(e && p && !(e in alias)) alias[e]=p; }); done();
+    }).catch(done);
+    /* 시점 단가 — 서버가 (품목, 적용일) 차례로 준다. 적용일은 8자리(하이픈 없음) */
+    post('/prod/inpriceHstAll.do').then(function(a){
+      a.forEach(function(o){ var c=String(o.prodCd||'').trim(), d=String(o.applyDt||'').replace(/-/g,'');
+        if(!c || d.length!==8 || o.inPrice==null) return;
+        (hst[c]=hst[c]||[]).push({d:d, p:+o.inPrice}); });
+      Object.keys(hst).forEach(function(c){ hst[c].sort(function(x,y){ return x.d<y.d?-1:(x.d>y.d?1:0); }); });
+      done();
     }).catch(done);
   }
-  function _spPrice(r){
+  /* 줄의 매입단가 — {v:단가, src:'이력'|'마스터'} 또는 null. 코드는 주코드로 풀고(alias), 이력은 납품일자 이하 최신. */
+  function _spPriceOf(r){
     if(!_spInPrice) return null;
-    var c=String(r.itemCd||'').trim();
-    var v=_spInPrice[c];
-    return (v==null || isNaN(v)) ? null : +v;
+    var c=String(r.itemCd||'').trim(), main=(_spAlias&&_spAlias[c])||c;
+    var dt=String(r.dlvDt||'').replace(/-/g,'');
+    var L=_spInHst&&_spInHst[main];
+    if(L && L.length && dt.length===8){
+      var hit=null;
+      for(var i=0;i<L.length;i++){ if(L[i].d<=dt) hit=L[i]; else break; }
+      if(hit && !isNaN(hit.p)) return {v:+hit.p, src:'이력', d:hit.d};
+    }
+    var v=_spInPrice[main]; if(v==null) v=_spInPrice[c];
+    return (v==null || isNaN(v)) ? null : {v:+v, src:'마스터'};
+  }
+  function _spPrice(r){ var o=_spPriceOf(r); return o?o.v:null; }
+
+  /* ═══ 매입가 없는 품목 목록 (2026-09-16 P2-f) — 마감현황(월계표)·매출마감의 «원가 0 인 채 계산된 매출» ═══
+       마감 조회(selectClosing)는 줄마다 inSrc 배지를 준다. '매입가없음' = 이력·마스터 어디에도 매입단가가 없어 매입액 0 으로 잡힌 줄
+       (2026-07 실측 306품목 미등록, 45개가 당월 판매). 종전엔 줄의 배지뿐이라 «얼마나 부풀었나»를 볼 수 없었다.
+       ⇒ 요약줄에 빨간 경고(품목 수 · 그 매출 합) + 누르면 목록 창(매출 큰 순) · 줄 클릭 = 상품코드등록에서 그 품목 · [📋 코드 복사].
+       ★서버 무변경 — 이미 온 줄을 화면에서 모은다. 함수는 여기(logi-oh.js) — demo2 는 _jspService 65,535 한계라 기존 줄만 고쳐 걸었다.
+       ★kind 별로 줄을 들고 있는다(sales = 매출마감 · stat = 마감현황) — 두 화면이 각자 다른 기간을 보고 있을 수 있다. */
+  var _ncRows={}, _ncKind='';
+  function closeNoCostAgg(rows){
+    var m={}, L=[], tot=0;
+    (rows||[]).forEach(function(r){
+      if(String(r.inSrc||'')!=='매입가없음') return;
+      var k=String(r.itemCd||'').trim()||'(코드 없음)';
+      var o=m[k]; if(!o){ o=m[k]={itemCd:k, itemNm:'', qty:0, amt:0, n:0}; L.push(o); }
+      if(!o.itemNm && r.itemNm) o.itemNm=r.itemNm;
+      o.qty+=(+r.outQty||0); o.amt+=(+r.salesAmt||0); o.n++; tot+=(+r.salesAmt||0);
+    });
+    L.sort(function(a,b){ return Math.abs(b.amt)-Math.abs(a.amt); });
+    return {list:L, amt:tot};
+  }
+  function closeNoCostNote(rows, kind){
+    kind=kind||'x'; _ncRows[kind]=rows||[];
+    var a=closeNoCostAgg(rows); if(!a.list.length) return '';
+    var tip='매입단가가 상품마스터에도 이력에도 없는 품목입니다.\n매입액이 0 으로 잡혀 이 매출만큼 매출총이익·마진율이 부풀어 있습니다.\n누르면 목록이 뜹니다 — 상품코드등록의 매입가 이력에 넣거나 매입등록을 하면 다음 조회부터 반영됩니다.\n\n매출 큰 순:\n';
+    a.list.slice(0,5).forEach(function(o){ tip+='· '+(o.itemNm||o.itemCd)+' ['+o.itemCd+'] — '+_cnum(o.amt)+'원\n'; });
+    if(a.list.length>5) tip+='… 외 '+(a.list.length-5)+'품목';
+    return ' · <span style="color:#c0392b;font-weight:800;cursor:pointer;text-decoration:underline" onclick="closeNoCostOpen(\''+kind+'\')"'
+      +' title="'+_cesc(tip)+'">⚠ 매입가 없음 '+a.list.length.toLocaleString()+'품목 · 원가 0 인 채 매출 '+_cnum(a.amt)+'원</span>';
+  }
+  function _ncPop(){
+    var p=document.getElementById('closeNoCostPop'); if(p) return p;
+    p=document.createElement('div'); p.className='ss-modal'; p.id='closeNoCostPop';
+    p.innerHTML='<div class="box" style="width:min(980px,96vw);margin-top:3vh;max-height:92vh">'
+      +'<div style="padding:11px 16px;border-bottom:1px solid var(--logi-border);display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">'
+      +'<b style="font-size:15px;white-space:nowrap">⚠ 매입가 없는 품목</b><span id="ncSum" style="color:#37475a"></span>'
+      +'<span style="margin-left:auto;display:flex;gap:6px">'
+      +'<button class="btn-line" onclick="closeNoCostCopy()" style="height:36px" title="품목코드를 한 줄에 하나씩 복사합니다 — 상품코드등록 검색칸이나 엑셀에 붙여 넣기 좋게">📋 코드 복사</button>'
+      +'<button class="btn-line" onclick="closeNoCostClose()" style="padding:0 18px;height:36px;font-size:14.5px;font-weight:800;white-space:nowrap;border-width:2px;border-color:#b06a00;color:#b06a00">닫기 ✕</button></span></div>'
+      +'<div style="padding:8px 16px 0;font-size:12.5px;color:#6b7c86">매입액이 <b>0</b> 으로 잡힌 품목입니다 — 이 매출만큼 매출총이익·마진율이 실제보다 큽니다. '
+      +'줄을 누르면 <b>상품코드등록</b>에서 그 품목을 엽니다(매입가 이력에 넣거나 매입등록을 하면 다음 조회부터 반영).</div>'
+      +'<div id="ncBody" style="padding:10px 16px 14px;overflow:auto;font-size:13.5px"></div></div>';
+    document.body.appendChild(p); return p;
+  }
+  function closeNoCostOpen(kind){
+    _ncKind=kind||'x';
+    var a=closeNoCostAgg(_ncRows[_ncKind]||[]), p=_ncPop();
+    document.getElementById('ncSum').innerHTML='<b>'+a.list.length.toLocaleString()+'</b>품목 · 원가 0 인 채 계산된 매출 <b style="color:#c0392b">'+_cnum(a.amt)+'</b>원';
+    var h='<table class="logi-tb"><thead><tr><th style="width:40px">#</th><th style="width:130px">품목코드</th><th>품목명</th>'
+      +'<th style="text-align:right;width:90px">출고수량</th><th style="text-align:right;width:120px">매출액</th><th style="text-align:right;width:60px">줄수</th></tr></thead><tbody>';
+    if(!a.list.length) h+='<tr><td colspan="6" style="text-align:center;color:#8a99a3;padding:14px">매입가 없는 품목이 없습니다.</td></tr>';
+    a.list.forEach(function(o,i){
+      var cd=String(o.itemCd||'').replace(/[^0-9A-Za-z_\-]/g,'');
+      h+='<tr style="cursor:pointer" title="상품코드등록에서 이 품목 열기" onclick="closeNoCostGo(\''+cd+'\')">'
+        +'<td style="text-align:center">'+(i+1)+'</td><td>'+_cesc(o.itemCd)+'</td><td>'+_cesc(o.itemNm)+'</td>'
+        +'<td style="text-align:right">'+_ohQ(o.qty)+'</td><td style="text-align:right;font-weight:700">'+_cnum(o.amt)+'</td><td style="text-align:right">'+o.n+'</td></tr>';
+    });
+    document.getElementById('ncBody').innerHTML=h+'</tbody></table>';
+    p.classList.add('on');
+  }
+  function closeNoCostClose(){ var p=document.getElementById('closeNoCostPop'); if(p) p.classList.remove('on'); }
+  function closeNoCostCopy(){
+    var a=closeNoCostAgg(_ncRows[_ncKind]||[]), txt=a.list.map(function(o){ return o.itemCd; }).join('\n');
+    var ok=function(){ if(window._toast) _toast(a.list.length+'개 품목코드를 복사했습니다.','ok'); };
+    var fb=function(){ var ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); }catch(e){} document.body.removeChild(ta); ok(); };
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok, fb); else fb();
+  }
+  /* 줄 클릭 → 상품코드등록(iframe, 셸 메뉴 click 그대로)을 열고 검색칸(#q)에 코드를 넣어 거른다.
+     화면이 아직 안 떴으면 12초까지 기다린다. 목록이 나중에 와도 pcLoad 가 끝에서 pcFilter() 를 부르므로 검색어가 먹는다. */
+  function closeNoCostGo(code){
+    closeNoCostClose();
+    var mi=document.querySelector('.mi[data-key="prodcd"]'); if(!mi) return; mi.click();
+    var t0=Date.now();
+    (function poll(){
+      var f=document.getElementById('if-prodcd'), w=f&&f.contentWindow, d=null;
+      try{ d=f&&f.contentDocument; }catch(e){}
+      var q=d&&d.getElementById('q');
+      if(q && w && typeof w.pcFilter==='function' && !d.getElementById('userId')){
+        q.value=code; try{ w.pcFilter(); }catch(e){} try{ q.focus(); }catch(e){} return;
+      }
+      if(Date.now()-t0<12000) setTimeout(poll,250);
+    })();
   }
   function spLoad(){
     var f=(document.getElementById('spFrom')||{}).value||'';
@@ -6290,7 +6389,7 @@ function ssOutQty(o){
       +'<th style="text-align:right">단가</th>'
       +'<th style="text-align:right" title="정산 확정본(SETTLE_AMT)이 오면 그 값, 아직이면 매입금액(SALE_AMT=입고량×단가)으로 대체해 보여 줍니다.&#10;대체된 값은 회색으로 표시됩니다.">정산금액</th>'
       +'<th style="text-align:right" title="정산서 원본의 &quot;매입금액&quot; 칸 = 입고량 × 단가.&#10;거래처가 우리에게 줄 돈입니다(우리 매출).">매입금액</th>'
-      +'<th style="text-align:right" title="입고량 × 매입단가 (매입금액과 같은 수량 기준)&#10;매입단가는 상품코드등록의 매입가 이력에 마지막으로 입력한 값(TBL_PROD_MST.IN_PRICE)입니다 = 코네트가 사 온 값.&#10;※ 납품일자 시점의 단가가 아니라 최신 단가라, 기간 중 단가가 바뀌었다면 그만큼 차이가 납니다.&#10;※ 매입가를 안 넣은 품목은 - 로 둡니다.">매입원가<br><span style="font-weight:400;font-size:10.5px">입고량×매입가</span></th>'
+      +'<th style="text-align:right" title="입고량 × 매입단가 (매입금액과 같은 수량 기준)&#10;매입단가는 상품코드등록의 매입가 이력 중 «납품일자 이하의 최신 적용일» 단가입니다(마감현황과 같은 규칙) = 코네트가 사 온 값.&#10;그 날짜 앞에 이력이 없으면 상품 매입가(마스터 IN_PRICE)로 대신합니다 — 칸을 올려 두면 어느 쪽인지 보입니다.&#10;※ 매입가를 안 넣은 품목은 - 로 둡니다.">매입원가<br><span style="font-weight:400;font-size:10.5px">입고량×매입가</span></th>'
       +'<th>납품유형</th></tr></thead><tbody>';
     /* ★[전체 접기/펼치기] 버튼은 표 안이 아니라 요약줄 오른쪽 끝(#spAllBtn)에 있다 —
          매출내역(#ohAllBtn)과 같은 자리로 맞춘 것(2026-08-02). 여기서는 글자만 갱신한다. */
@@ -6381,10 +6480,12 @@ function ssOutQty(o){
               +'" title="'+(a.est?'정산 확정 전 — 매입금액(입고량×단가)으로 대체':'정산 확정값(SETTLE_AMT)')+'">'+_cnum(a.v)+'</td>'; })()
         +'<td style="text-align:right'+neg(r.saleAmt)+'">'+_cnum(r.saleAmt)+'</td>'
         +(function(){
-            var pc=_spPrice(r);
+            var po=_spPriceOf(r), pc=po?po.v:null;
             if(pc==null) return '<td style="text-align:right;color:#c8ced4" title="이 품목은 매입가가 등록돼 있지 않습니다">-</td>';
             var v=(+r.outQty||0)*pc;      // 매입금액과 같은 기준(입고량) — 미정산이어도 원가가 나온다
-            return '<td style="text-align:right'+neg(v)+'" title="입고량 '+_ohQ(r.outQty)+' × 매입가 '+_cnum(pc)+'&#10;매입금액(입고량×단가)과 같은 수량 기준이라 두 금액을 그대로 비교할 수 있습니다.">'+_cnum(v)+'</td>'; })()
+            /* 단가 출처(2026-09-16 P2-f) — 이력이면 적용일, 마스터면 그 날짜 앞 이력이 없다는 뜻 */
+            var srcTip=(po.src==='이력') ? ('매입가 이력 '+_ohDateFmt(po.d)+' 적용분(납품일자 시점)') : '상품 매입가(마스터) — 납품일자 앞 이력 없음';
+            return '<td style="text-align:right'+neg(v)+'" title="입고량 '+_ohQ(r.outQty)+' × 매입가 '+_cnum(pc)+' ('+srcTip+')&#10;매입금액(입고량×단가)과 같은 수량 기준이라 두 금액을 그대로 비교할 수 있습니다.">'+_cnum(v)+'</td>'; })()
         +'<td title="'+_cesc(_spTypeTip(r))+'">'+(ret?'<span style="color:#c0392b;font-weight:800">반품</span>':_cesc(_spType(r)))+'</td></tr>';
     };
     lzMount({ wrap:wrap, pager:'spPager', head:head+totRow, list:list, rowFn:rowFn,

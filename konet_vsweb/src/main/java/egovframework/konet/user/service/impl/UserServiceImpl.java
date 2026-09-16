@@ -193,6 +193,7 @@ public class UserServiceImpl implements UserService {
 
 	/* ===== 매입가 이력 : 등록 시 마스터(IN_PRICE) 동기화 ===== */
 	@Override public java.util.List<egovframework.konet.user.model.ProdInpriceDTO> selectInpriceList(egovframework.konet.user.model.ProdInpriceDTO dto) throws Exception { return mapper.selectInpriceList(dto); }
+	@Override public java.util.List<egovframework.konet.user.model.ProdInpriceDTO> selectInpriceHstAll(egovframework.konet.user.model.ProdInpriceDTO dto) throws Exception { return mapper.selectInpriceHstAll(dto); }   // 정산실적 시점 단가(2026-09-16)
 	@Override public int insertInprice(egovframework.konet.user.model.ProdInpriceDTO dto) throws Exception {
 		int n = mapper.insertInprice(dto);
 		mapper.syncProdInPrice(dto);   // TBL_PROD_MST.IN_PRICE ← 새 매입단가

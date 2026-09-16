@@ -2584,6 +2584,22 @@
 	   ORDER BY APPLY_DT DESC, INPRICE_SEQ DESC
 	]]></select>
 
+	<!-- ★정산실적 «납품일자 시점» 매입단가 (2026-09-16 P2-f) — 회사 전체 매입가 이력을 (품목, 적용일) 한 줄로 내려준다.
+	     종전 정산실적 화면은 selectInpriceList 가 PROD_SEQ 1건씩이라 <최신 단가>(TBL_PROD_MST.IN_PRICE)를 썼고
+	     기간 중 단가가 바뀌면 매입원가가 어긋났다(logi-oh.js 주석에 한계로 남아 있던 것).
+	     같은 날 여러 줄이면 INPRICE_SEQ 최신 — selectClosing 의 OUTER APPLY(APPLY_DT DESC, INPRICE_SEQ DESC)와 같은 규칙.
+	     운영 실측(2026-09-16) 1,993행 → 1,250쌍. APPLY_DT 는 하이픈 없는 8자리(하이픈 섞여 와도 지운다). -->
+	<select id="selectInpriceHstAll" parameterType="egovframework.konet.user.model.ProdInpriceDTO" resultType="egovframework.konet.user.model.ProdInpriceDTO"><![CDATA[
+	  SELECT h.PROD_CD AS prodCd, REPLACE(h.APPLY_DT,'-','') AS applyDt, h.IN_PRICE AS inPrice
+	    FROM TBL_PROD_INPRICE_HST h
+	   WHERE h.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR h.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND h.INPRICE_SEQ = ( SELECT MAX(h2.INPRICE_SEQ) FROM TBL_PROD_INPRICE_HST h2
+	                            WHERE h2.PROD_CD = h.PROD_CD AND h2.APPLY_DT = h.APPLY_DT
+	                              AND h2.ACTION_YN = 'Y' AND h2.COMP_CD = h.COMP_CD )
+	   ORDER BY h.PROD_CD, h.APPLY_DT
+	]]></select>
+
 	<insert id="insertInprice" parameterType="egovframework.konet.user.model.ProdInpriceDTO"><![CDATA[
 	  INSERT INTO TBL_PROD_INPRICE_HST
 	    (COMP_CD, PROD_SEQ, PROD_CD, VENDOR_CD, VENDOR_NM, APPLY_DT, IN_PRICE, PREV_PRICE, TAX_GB, REMARK,

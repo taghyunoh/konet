@@ -111,6 +111,7 @@ public interface UserService {
 
 	// ===== 매입가 이력 =====
 	java.util.List<egovframework.konet.user.model.ProdInpriceDTO> selectInpriceList(egovframework.konet.user.model.ProdInpriceDTO dto) throws Exception;
+	java.util.List<egovframework.konet.user.model.ProdInpriceDTO> selectInpriceHstAll(egovframework.konet.user.model.ProdInpriceDTO dto) throws Exception;   // 정산실적 시점 단가(2026-09-16)
 	int insertInprice(egovframework.konet.user.model.ProdInpriceDTO dto) throws Exception;   // 이력 INSERT + 마스터 IN_PRICE 동기화
 	int deleteInprice(egovframework.konet.user.model.ProdInpriceDTO dto) throws Exception;
 

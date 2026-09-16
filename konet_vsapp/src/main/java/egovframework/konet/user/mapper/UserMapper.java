@@ -130,6 +130,8 @@ public interface UserMapper {
 
 	// ===== 매입가 이력 (TBL_PROD_INPRICE_HST) =====
 	java.util.List<egovframework.konet.user.model.ProdInpriceDTO> selectInpriceList(egovframework.konet.user.model.ProdInpriceDTO dto) throws Exception;
+	/** 정산실적 시점 단가(2026-09-16 P2-f) — 회사 전체 매입가 이력(품목·적용일·단가) */
+	java.util.List<egovframework.konet.user.model.ProdInpriceDTO> selectInpriceHstAll(egovframework.konet.user.model.ProdInpriceDTO dto) throws Exception;
 	int insertInprice(egovframework.konet.user.model.ProdInpriceDTO dto) throws Exception;
 	int deleteInprice(egovframework.konet.user.model.ProdInpriceDTO dto) throws Exception;
 
