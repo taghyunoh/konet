@@ -20,6 +20,7 @@ public class StockMstDTO {
     private String  vendorNm;      // 대표 매입처 이름 — 조회 전용
     private String  findData;      // 검색어(코드/품목명) — 비영속
     private String  asOfDt;        // 기준일(종료일) — 비우면 전체(현재고), 넣으면 그 날짜까지 누계(재고마감 기말과 대사) — 비영속
+    private String  whCd;          // 창고 필터 — 비면 전 창고 합계 (2026-09-16 P3)
     private Integer curQty;        // 현재고 수량 = 입고누계 − 출고누계
     private Integer inQty;         // 입고누계(수불원장)
     private Integer outQty;        // 출고누계(TBL_SHIPOUT_MST)
@@ -27,6 +28,9 @@ public class StockMstDTO {
     private Double  lastInprice;   // 최근 매입단가
     private Double  lastSaleprice; // 최근 판매단가
     private Double  stockAmt;      // 재고금액
+    private Double  poRemainQty;   // 입고예정 = 마감 안 된 발주 줄의 잔량 합 (2026-09-16 P1-b 2단계, 품목별재고현황 「입고예정」 열) — 조회 전용
+    public Double getPoRemainQty() { return poRemainQty; }
+    public void setPoRemainQty(Double poRemainQty) { this.poRemainQty = poRemainQty; }
     private String  lastInDt;      // 최근 입고일자
     private String  lastOutDt;     // 최근 출고일자
     private String  actionYn;
@@ -55,6 +59,8 @@ public class StockMstDTO {
     public void setFindData(String findData) { this.findData = findData; }
     public String getAsOfDt() { return asOfDt; }
     public void setAsOfDt(String asOfDt) { this.asOfDt = asOfDt; }
+    public String getWhCd() { return whCd; }
+    public void setWhCd(String whCd) { this.whCd = whCd; }
     public Integer getCurQty() { return curQty; }
     public void setCurQty(Integer curQty) { this.curQty = curQty; }
     public Integer getInQty() { return inQty; }

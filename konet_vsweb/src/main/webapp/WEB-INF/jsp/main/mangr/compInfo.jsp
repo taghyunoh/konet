@@ -17,7 +17,7 @@
 <title>회사 정보 수정</title>
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
 <script src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
-<script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260911"></script>
+<script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260916b"></script>
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --teal2:#0f6b5e; --tl:#e3f2ee; --bg:#f5f7f9; --lab:#f6f8fa; --ink:#1f2a37; --mut:#6b7a89; }
@@ -257,12 +257,20 @@
         <div class="v"><span class="yn" data-f="stockLimit"></span></div></div>
       <div class="fld"><label>여신 초과 제한 <span class="tip" title="예 = 판매 저장 때 거래후잔고가 그 거래처의 「여신한도」를 넘으면 저장을 막습니다.&#10;여신한도는 [매입/매출 거래처] 수정 창에서 거래처마다 넣습니다(비우면 한도 없음).">?</span></label>
         <div class="v"><span class="yn" data-f="creditLimit"></span></div></div>
+      <%-- 기본 택배 운임 (2026-09-16 P2-e) — 사업장에 택배 운임이 없을 때 쓰는 값. 택배출고관리 종이와 비용 등록의 직송 운임 자동 집계가 같은 값을 쓴다(종전 4500 하드코딩) --%>
+      <div class="fld"><label>기본 택배 운임 <span class="tip" title="사업장(택배출고관리)에 운임이 없을 때 쓰는 건당 운임(원)입니다.&#10;택배출고관리 종이의 운임 칸과 비용 등록의 「직송 택배 운임」 자동 집계가 같은 값을 씁니다.">?</span></label>
+        <div class="v"><input type="number" data-f="parcelFeeDef" class="w90" min="0" max="999999" step="100"><span class="unit">원</span></div></div>
     </div>
 
     <div class="grp">수금</div>
     <div class="fm">
       <div class="fld"><label>기본 유형 <span class="tip" title="수금등록을 열거나 [신규등록]을 누를 때 입금구분의 첫 값입니다.">?</span></label>
         <div class="v"><select data-f="rcvPayGb"><option>무통장입금</option><option>현금</option><option>카드</option><option>계좌이체</option><option>어음</option></select></div></div>
+      <%-- 미수 경과 기준 (2026-09-16 P2-g) — 거래처별 채권·채무 「미수 경과」 배지·「N일 넘긴 것만」 필터. 잔액 계산과 무관 --%>
+      <div class="fld"><label>미수 경과 경고 <span class="tip" title="거래처별 채권·채무의 「미수 경과」 칸 기준(일)입니다.&#10;마지막 수금일(없으면 마지막 매출일)부터 이 일수가 지나면 ⚠ 로 표시하고, 「N일 넘긴 것만」 필터의 기준이 됩니다.&#10;잔액 계산과는 무관합니다.">?</span></label>
+        <div class="v"><input type="number" data-f="dueWarn" class="w90" min="1" max="999" step="1"><span class="unit">일</span></div></div>
+      <div class="fld"><label>미수 경과 위험 <span class="tip" title="⛔ 표시 기준(일). 경고 일수보다 작게 적으면 저장할 때 경고 일수로 맞춥니다.">?</span></label>
+        <div class="v"><input type="number" data-f="dueBad" class="w90" min="1" max="999" step="1"><span class="unit">일</span></div></div>
     </div>
 
     <div class="grp">입고 <small>(매입등록 저장)</small></div>
@@ -496,6 +504,12 @@ function ciSave(){
   var D = konetSet.DEF;
   var func = setRead('data-f', D.func), prt = setRead('data-p', D.prt), app = setRead('data-a', D.prtApp);
   var r = Number(func.venDcRate); func.venDcRate = isFinite(r) ? Math.max(0, Math.min(100, r)) : 0;
+  // 미수 경과 기준(일) — 1 이상 정수, 위험은 경고보다 뒤(2026-09-16)
+  var dw = Number(func.dueWarn), db = Number(func.dueBad);
+  func.dueWarn = (isFinite(dw) && dw >= 1) ? Math.round(dw) : D.func.dueWarn;
+  func.dueBad  = (isFinite(db) && db >= 1) ? Math.round(db) : D.func.dueBad;
+  if (func.dueBad < func.dueWarn) func.dueBad = func.dueWarn;
+  var pf = Number(func.parcelFeeDef); func.parcelFeeDef = (isFinite(pf) && pf >= 0) ? Math.round(pf) : D.func.parcelFeeDef;   // 기본 택배 운임(2026-09-16)
   var rows = Number(prt.rows); prt.rows = isFinite(rows) ? Math.max(3, Math.min(40, Math.round(rows))) : D.prt.rows;
   var raw = {}; try { raw = _info.setJson ? JSON.parse(_info.setJson) : {}; } catch(e) {}
   raw.func = func; raw.prt = prt; raw.prtApp = app;      // 모르는 덩어리가 있으면 그대로 둔다

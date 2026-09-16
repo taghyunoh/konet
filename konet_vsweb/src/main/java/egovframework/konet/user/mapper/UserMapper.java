@@ -78,6 +78,7 @@ public interface UserMapper {
 	// ===== 사업장 분류 마스터 (TBL_BIZI_MST) =====
 	java.util.List<egovframework.konet.user.model.BiziDTO> selectBiziMst() throws Exception;
 	int insertBiziIfAbsent(egovframework.konet.user.model.BiziDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectBiziNoAddr(java.util.Map<String,Object> p) throws Exception;   // 주소 없는 사업장 — 업로드 결과창 (2026-09-16 P2-c)
 	int updateBiziMst(egovframework.konet.user.model.BiziDTO dto) throws Exception;
 	int updateBiziParcel(egovframework.konet.user.model.BiziDTO dto) throws Exception; /* 택배 정보(주소·전화·운임)만 저장 (2026-08-06) */
 	/* 사업장 공통 매칭코드 (2026-08-28) — 선택한 사업장들에 코드·명칭 일괄 지정 / 다음 자동채번 번호 */
@@ -91,21 +92,12 @@ public interface UserMapper {
 	int insertBizi(egovframework.konet.user.model.BiziDTO dto) throws Exception;
 	int updateBizi(egovframework.konet.user.model.BiziDTO dto) throws Exception;
 	int deleteBizi(egovframework.konet.user.model.BiziDTO dto) throws Exception;
-	// ===== 수금/미수금 — TBL_RECEIVE_MST =====
-	java.util.List<egovframework.konet.user.model.ReceiveDTO> selectReceiveList(egovframework.konet.user.model.ReceiveDTO dto) throws Exception;
-	int insertReceive(egovframework.konet.user.model.ReceiveDTO dto) throws Exception;
-	int updateReceive(egovframework.konet.user.model.ReceiveDTO dto) throws Exception;
-	int deleteReceive(egovframework.konet.user.model.ReceiveDTO dto) throws Exception;      // rcvSeq 기준 소프트삭제
-	int upsertReceive(egovframework.konet.user.model.ReceiveDTO dto) throws Exception;      // 엑셀업로드(귀속월+거래처 MERGE)
-	int carryForwardReceive(egovframework.konet.user.model.ReceiveDTO dto) throws Exception; // 전월 미수잔액 → 당월 전월이월 이월
-	// ===== 출금/미지급 — TBL_PAYMENT_MST =====
-	java.util.List<egovframework.konet.user.model.PaymentDTO> selectPaymentList(egovframework.konet.user.model.PaymentDTO dto) throws Exception;
-	int insertPayment(egovframework.konet.user.model.PaymentDTO dto) throws Exception;
-	int updatePayment(egovframework.konet.user.model.PaymentDTO dto) throws Exception;
-	int deletePayment(egovframework.konet.user.model.PaymentDTO dto) throws Exception;      // paySeq 기준 소프트삭제
-	int upsertPayment(egovframework.konet.user.model.PaymentDTO dto) throws Exception;      // 엑셀업로드(귀속월+매입처 MERGE)
-	int carryForwardPayment(egovframework.konet.user.model.PaymentDTO dto) throws Exception; // 전월 미지급잔액 → 당월 전월이월 이월
+	// ===== 수금 월 마감 스냅샷 — TBL_RECEIVE_MST 재활용 (2026-09-16). 수기 입력 메서드 12개(Receive*/Payment*)는 삭제 =====
+	int deleteRcvSnapshot(java.util.Map<String,Object> p) throws Exception;                                       // 그 달 스냅샷 지우기(다시 확정)
+	int insertRcvSnapshot(java.util.Map<String,Object> p) throws Exception;                                       // 거래처 한 줄(이월·매출·수금)
+	java.util.List<java.util.Map<String,Object>> selectRcvSnapshot(java.util.Map<String,Object> p) throws Exception;   // rcvYm 비면 전체
 	// ===== 정산 마감상태 — TBL_SETTLE_CLOSE_MST (수금/출금 공용) =====
+	java.util.List<java.util.Map<String,Object>> selectSettleCloseList(egovframework.konet.user.model.SettleCloseDTO dto) throws Exception; // 확정된 달 목록
 	int isSettleClosed(egovframework.konet.user.model.SettleCloseDTO dto) throws Exception;   // 확정(STATUS='Y') 여부 count
 	egovframework.konet.user.model.SettleCloseDTO selectSettleClose(egovframework.konet.user.model.SettleCloseDTO dto) throws Exception; // 상태 조회(UI)
 	int confirmSettleClose(egovframework.konet.user.model.SettleCloseDTO dto) throws Exception; // 확정(MERGE)
@@ -224,6 +216,23 @@ public interface UserMapper {
 	// ===== 마감 확정/잠금/이월 — TBL_CLOSING_MST / TBL_CLOSING_STOCK =====
 	egovframework.konet.user.model.ClosingMstDTO selectClosingMst(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception; // 헤더 조회(없으면 null)
 	java.util.List<egovframework.konet.user.model.ClosingMstDTO> selectClosingMstList(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception; // 월별 마감 이력 목록
+
+	// ===== 창고 (2026-09-16 P3 1단계) — TBL_WH_MST · 원장 WH_CD · 창고 이동(REF_GB='MOVE') =====
+	java.util.List<java.util.Map<String,Object>> selectWhList(java.util.Map<String,Object> p) throws Exception;          // compCd·useOnly
+	int upsertWhMst(java.util.Map<String,Object> p) throws Exception;
+	int clearWhDefault(java.util.Map<String,Object> p) throws Exception;                                             // 기본창고는 하나 — 나머지 N
+	java.util.List<java.util.Map<String,Object>> selectWhQtyMap(java.util.Map<String,Object> p) throws Exception;        // 창고별 현재고 합(창고 관리 표시용)
+	java.util.List<java.util.Map<String,Object>> selectStockByWh(egovframework.konet.user.model.StockMstDTO dto) throws Exception;   // 품목 × 창고 현재고
+	int insertStockMoveLedger(java.util.Map<String,Object> p) throws Exception;                                      // 이동 = A 행 한 쌍(2행)
+	java.util.List<java.util.Map<String,Object>> selectStockMoveList(java.util.Map<String,Object> p) throws Exception;
+	int cancelStockMove(java.util.Map<String,Object> p) throws Exception;
+
+	// ===== 비용 (2026-09-16 P2-e) — TBL_EXPENSE_ITEM(항목) · TBL_EXPENSE_TRX(달×항목 수기) · 직송 택배 운임 자동 =====
+	java.util.List<java.util.Map<String,Object>> selectExpenseItem(java.util.Map<String,Object> p) throws Exception;
+	int upsertExpenseItem(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectExpenseTrx(java.util.Map<String,Object> p) throws Exception;     // compCd·expYm
+	int upsertExpenseTrx(java.util.Map<String,Object> p) throws Exception;                                             // 달×항목 MERGE
+	java.util.Map<String,Object> selectParcelFeeAuto(java.util.Map<String,Object> p) throws Exception;                // {cnt, amt} — 직송 출고 × 사업장 운임(없으면 feeDef)
 	int isClosedYm(@Param("closeYm") String closeYm, @Param("compCd") String compCd) throws Exception;   // ★compCd 를 시그니처에 둔다 — 인터셉터가 못 넣어도 ParamMap 에 키가 있어 #{compCd} 가 안 터진다(fail-open)
 	int updateClosingMst(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception; // 확정 UPDATE(있으면)
 	int insertClosingMst(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception; // 확정 INSERT(없으면)
@@ -340,6 +349,14 @@ public interface UserMapper {
 	int updateProdPackQty(egovframework.konet.user.model.StockMstDTO dto) throws Exception;
 	/* ── 발주서 관리 (2026-09-03) — HashMap 기반 */
 	java.util.List<java.util.Map<String,Object>> selectPoList(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPoRecentByProd(java.util.Map<String,Object> p) throws Exception;   // 품목별 최근 발주 한 줄 (2026-09-16)
+	/* 발주 잔량·부분입고 (2026-09-16 P1-b) — 입고는 저장하지 않고 연결된 매입 명세 합으로 센다 */
+	java.util.List<java.util.Map<String,Object>> selectPoRemainByProd(java.util.Map<String,Object> p) throws Exception;   // 품목별 미입고(잔량 합) = 입고예정
+	java.util.List<java.util.Map<String,Object>> selectPoLinkedPurch(java.util.Map<String,Object> p) throws Exception;    // 이 발주서를 보고 있는 매입전표들
+	java.util.List<java.util.Map<String,Object>> selectPoOpenLines(java.util.Map<String,Object> p) throws Exception;      // 잔량 남은 발주 줄 — 매입등록 [발주분] (2단계)
+	java.util.List<java.util.Map<String,Object>> selectVendorPriceCmp(java.util.Map<String,Object> p) throws Exception;   // 거래처별 매입가 비교 (2026-09-16 P2-a)
+	int updatePoLineClose(java.util.Map<String,Object> p) throws Exception;                                               // 발주 줄 마감(더 안 온다)/해제
+	int relinkPurchaseDtlPo(java.util.Map<String,Object> p) throws Exception;                                             // 발주서를 고쳐 저장해 줄 번호가 바뀌면 매입 연결을 새 번호로
 	String selectPoNextNo(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectPoMst(java.util.Map<String,Object> p) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectPoDtl(java.util.Map<String,Object> p) throws Exception;

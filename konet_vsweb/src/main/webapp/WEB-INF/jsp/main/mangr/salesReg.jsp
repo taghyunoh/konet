@@ -248,7 +248,7 @@
            체크한 순서 그대로 명세에 담긴다 — 주문 받은 순서대로 입력하기 위한 장치(2026-07-31). --%>
       <button class="sa-btn teal" onclick="saDlvOpen()" title="이 거래처가 받아 온 품목 목록에서 골라 담기">납품분</button>
       <div class="sa-fld" style="flex:0 0 120px"><label>담당자</label><input type="text" id="saMgrNm" readonly style="background:#f5f7f9"></div>
-      <div class="sa-fld" style="flex:0 0 130px"><label>창고</label><input type="text" id="saWhNm" value="물류창고"></div>
+      <div class="sa-fld" style="flex:0 0 130px"><label>창고</label><select id="saWhNm" title="이 전표의 창고 — 재고가 여기서 빠집니다(2026-09-16)"></select></div>
       <%-- 일괄등록 (2026-08-06 — 매입등록과 동일) — 거래처는 그대로 두고 일자만 바꿔 여러 상품을 일자별 전표로 저장 --%>
       <button class="sa-btn teal" onclick="saBatchOpen()" title="거래처가 선택된 상태에서 일자만 바꿔 여러 상품을 일자별 전표로 저장합니다">일괄등록</button>
       <%-- 납품일자 = 원장에 잡히는 날. 비우면 판매일자를 그대로 쓴다.
@@ -1021,6 +1021,21 @@ function post(url, body, isJson){
     headers:{'Content-Type': isJson?'application/json':'application/x-www-form-urlencoded'},
     body: isJson ? JSON.stringify(body) : body });
 }
+/* ★마감 확정된 달 확인창 (2026-09-16 P2-g) — 거래처별 채권·채무에서 [🔒 이 달 마감 확정]한 달의 전표를 저장·삭제하면
+     막지 않고 한 번 묻는다(사용자 방침 「메시지 처리」). 확정 당시 받을금액(스냅샷)과 달라진다는 것을 알리는 것이 목적.
+     마감 정보를 못 읽으면(옛 서버 등) 조용히 통과 — 저장은 되어야 한다. 수금등록(rcvReg)의 svClosedAsk 와 같은 규칙. */
+function saClosedAsk(dts, what){
+  var yms={}; (dts||[]).forEach(function(d){ d=String(d||'').replace(/-/g,''); if(d.length>=6) yms[d.slice(0,4)+'-'+d.slice(4,6)]=1; });
+  var ks=Object.keys(yms).sort(); if(!ks.length) return Promise.resolve(true);
+  return post('/mangr/settleCloseInfo.do','settleGb=RCV').then(function(r){ return r.json(); })
+    .then(function(j){
+      var closed={}; ((j&&j.closed)||[]).forEach(function(c){ var y=String(c.closeYm||''); closed[y.slice(0,4)+'-'+y.slice(4,6)]=1; });
+      var hit=ks.filter(function(k){ return closed[k]; });
+      if(!hit.length) return true;
+      return swConfirm('<b>'+hit.join(', ')+'</b> 은 <b>마감 확정</b>된 달입니다.<br><span style="font-size:13px;color:#3d4d5c">그대로 '+what+'하면 확정 당시 받을금액과 달라집니다.<br>(거래처별 채권·채무 ▸ 월별 이력에 차이가 표시됩니다)</span>', null, '그래도 '+what);
+    })
+    .catch(function(){ return true; });
+}
 
 /* ── 초기화 ───────────────────────────────────────────── */
 (function init(){
@@ -1138,7 +1153,28 @@ function saReload(){
      이 화면은 물류관리 셸 안의 iframe 이라 한 번 뜨면 다시 로드되지 않는다 —
      다른 화면에서 상품·매칭코드를 등록해도 여기 목록은 옛것 그대로였다.
      그래서 상품 선택 팝업을 열 때마다 다시 읽고, 도착하면 열려 있는 목록을 그 자리에서 다시 그린다. */
+/* ★창고 셀렉트 (2026-09-16 P3) — 값 = 창고코드, 글자 = 이름. 목록은 /prod/whList.do(사용 중인 창고), 처음엔 기본창고.
+     전표를 불러오면 saWhSet(저장된 코드·이름) 으로 맞춘다(옛 전표는 코드가 비어 이름 '물류창고' 만 있다 → 기본창고). */
+var _saWh=[];
+function saWhLoad(){
+  fetch(CTX+'/prod/whList.do',{ method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'useOnly=Y' })
+    .then(function(r){ return r.json(); }).then(function(j){
+      _saWh=(j&&j.data)||[]; var e=document.getElementById('saWhNm'); if(!e) return;
+      var cur=e.value;
+      e.innerHTML=_saWh.map(function(w){ return '<option value="'+w.whCd+'"'+(w.defaultYn==='Y'?' data-def="1"':'')+'>'+w.whNm+'</option>'; }).join('');
+      if(cur && _saWh.some(function(w){ return w.whCd===cur; })) e.value=cur; else saWhSet('','');
+    }).catch(function(){});
+}
+function saWhCd(){ var e=document.getElementById('saWhNm'); return e ? (e.value||'') : ''; }
+function saWhNmTxt(){ var e=document.getElementById('saWhNm'); return (e && e.selectedIndex>=0) ? e.options[e.selectedIndex].text : ''; }
+function saWhSet(cd, nm){
+  var e=document.getElementById('saWhNm'); if(!e) return;
+  var hit=_saWh.filter(function(w){ return cd && w.whCd===cd; })[0] || _saWh.filter(function(w){ return nm && w.whNm===nm; })[0]
+        || _saWh.filter(function(w){ return w.defaultYn==='Y'; })[0] || _saWh[0];
+  if(hit) e.value=hit.whCd;
+}
 function saLoadMasters(){
+  saWhLoad();                                                     // 창고 목록(2026-09-16 P3)
   post('/vendor/selectVendorMst.do','').then(function(r){return r.json();}).then(function(j){ _vendors=(j&&j.data)||[]; }).catch(function(){});
   /* 거래처 팝업용 — 거래처별 총판매·총매입(2026-08-04). 표시 + 총판매 순 정렬에 쓴다.
      못 받아와도 팝업은 이름순·금액 0 으로 그대로 뜬다. */
@@ -1485,7 +1521,7 @@ function saSave(){
     saleNo: document.getElementById('saNo').value,
     custCd: venCd, custNm: document.getElementById('saVenNm').value,
     mgrCd: document.getElementById('saMgrNm').dataset.cd||'', mgrNm: document.getElementById('saMgrNm').value,
-    whCd:'', whNm: document.getElementById('saWhNm').value,
+    whCd: saWhCd(), whNm: saWhNmTxt(),
     totBoxQty:t.box, totEaQty:t.ea, totQty:t.qty,
     supplyAmt:t.sup, vatAmt:t.vat, totAmt:t.tot, dcAmt:n(document.getElementById('saDcAmt').value),
     payGb: document.getElementById('saPayGb').value, payAmt:n(document.getElementById('saPayAmt').value),
@@ -1493,14 +1529,20 @@ function saSave(){
     remark: document.getElementById('saRemark').value,
     items: items
   };
-  post('/mangr/salesTrxSave.do', dto, true).then(function(r){
-    return r.text().then(function(t2){ if(!r.ok) throw new Error(t2); return t2; });
-  }).then(function(){ swOk('저장했습니다.'); saNew(); saLoad(); })
-    .catch(function(e){ swErr('저장에 실패했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
+  /* ★마감 확정된 달이면 먼저 묻는다(2026-09-16 P2-g) — 막지 않는다. 수정이면 옮기기 전 날짜도 본다 */
+  saClosedAsk([dto.saleDt].concat(_cur ? [_cur.saleDt] : []), '저장').then(function(ok0){
+    if(!ok0) return;
+    post('/mangr/salesTrxSave.do', dto, true).then(function(r){
+      return r.text().then(function(t2){ if(!r.ok) throw new Error(t2); return t2; });
+    }).then(function(){ swOk('저장했습니다.'); saNew(); saLoad(); })
+      .catch(function(e){ swErr('저장에 실패했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
+  });
 }
 function saDelete(){
   if (!_cur) { swErr('목록에서 전표를 먼저 선택하세요.'); return; }
-  swConfirm('이 전표를 삭제할까요?<br><span style="font-size:13px;color:#3d4d5c">재고(수불원장)에서 빠졌던 출고도 함께 되돌아옵니다.</span>', null, '삭제')
+  saClosedAsk([_cur.saleDt], '삭제').then(function(ok0){ return ok0
+    ? swConfirm('이 전표를 삭제할까요?<br><span style="font-size:13px;color:#3d4d5c">재고(수불원장)에서 빠졌던 출고도 함께 되돌아옵니다.</span>', null, '삭제')
+    : false; })
     .then(function(ok){
       if(!ok) return;
       post('/mangr/salesTrxDelete.do', { saleSeq:_cur.saleSeq, saleDt:_cur.saleDt, saleNo:_cur.saleNo }, true)
@@ -1605,7 +1647,7 @@ function saApply(d){
   /* 저장된 전표를 열 때도 그 거래처의 부가세 설정을 적용한다 —
      안 하면 직전에 보던 거래처의 설정이 남아 금액이 달리 보인다. */
   saVenVat(_vendors.filter(function(x){ return String(x.vendorCd)===String(d.custCd||''); })[0]);
-  document.getElementById('saWhNm').value = d.whNm||'물류창고';
+  saWhSet(d.whCd, d.whNm);
   document.getElementById('saDlvDt').value = d.dlvDt ? fmtDt(d.dlvDt) : '';
   document.getElementById('saRemark').value = d.remark||'';
   document.getElementById('saPayGb').value = d.payGb||'외상';
@@ -2519,7 +2561,7 @@ function saBatchApply(){
             saleSeq:null, saleDt:d, dlvDt:d, saleNo:no,
             custCd:venCd, custNm:venNm,
             mgrCd: document.getElementById('saMgrNm').dataset.cd||'', mgrNm: document.getElementById('saMgrNm').value||'',
-            whCd:'', whNm: document.getElementById('saWhNm').value||'물류창고',
+            whCd: saWhCd(), whNm: saWhNmTxt(),
             totBoxQty:t.box, totEaQty:t.ea, totQty:t.qty,
             supplyAmt:t.sup, vatAmt:t.vat, totAmt:t.tot, dcAmt:0,
             payGb: document.getElementById('saPayGb').value||'외상', payAmt:0,
@@ -2530,7 +2572,8 @@ function saBatchApply(){
         })
         .then(function(){ return saveOne(k+1); });
     }
-    Promise.all(jobs).then(function(){ return saveOne(0); }).then(function(){
+    /* 일괄 저장도 마감 확정된 달이 섞였으면 한 번 묻는다(2026-09-16) — 취소하면 아무것도 저장하지 않는다 */
+    Promise.all(jobs).then(function(){ return saClosedAsk(dts, '저장'); }).then(function(ok0){ if(!ok0) throw new Error('__CANCEL__'); return saveOne(0); }).then(function(){
       swOk('일자별 전표 '+dts.length+'장, 총 '+entries.length+'건을 저장했습니다.'
         + '<br><span style="font-size:12.5px;color:#3d4d5c">'+made.join('<br>')+'</span>');
       _btSel = []; _btDays = null;
@@ -2538,6 +2581,7 @@ function saBatchApply(){
       saBatchSelRender(); saBatchDtHint();
       saLoad(); saVenBal(venCd);            /* 하단 목록·현잔고·원장 갱신 — 명세 그리드는 건드리지 않는다 */
     }).catch(function(e){
+      if(String(e && e.message)==='__CANCEL__') return;      // 마감 확인창에서 취소 — 저장된 것 없음
       swErr('저장 중 오류가 났습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)
         + '<br>이미 저장된 일자 전표는 하단 목록에서 확인하세요.</span>');
       saLoad();
@@ -3524,7 +3568,7 @@ function ktSaveOne(g, items, dt, v){
     var t={box:0,ea:0,qty:0,sup:0,vat:0,tot:0};
     rows.forEach(function(o){ t.box+=n(o.boxQty); t.ea+=n(o.eaQty); t.qty+=n(o.qty); t.sup+=n(o.supplyAmt); t.vat+=n(o.vatAmt); t.tot+=n(o.totAmt); });
     var dto={ saleSeq:null, saleDt:dt, dlvDt:dt, saleNo:no, custCd:g.venCd, custNm:g.venNm||g.biz,
-              mgrCd:v.mgrCd||'', mgrNm:v.mgrNm||'', whCd:'', whNm:document.getElementById('saWhNm').value||'물류창고',
+              mgrCd:v.mgrCd||'', mgrNm:v.mgrNm||'', whCd:saWhCd(), whNm:saWhNmTxt(),
               totBoxQty:t.box, totEaQty:t.ea, totQty:t.qty, supplyAmt:t.sup, vatAmt:t.vat, totAmt:t.tot, dcAmt:0,
               payGb:document.getElementById('saPayGb').value||'외상', payAmt:0, taxGb:'과세',
               /* ★카톡 원문을 전표 메모(REMARK nvarchar(500))에 그대로 남긴다 (2026-09-05 「카톡원본도 저장가능하게」) —
@@ -3875,7 +3919,7 @@ function saPrtData(){
            venCd: venCd, ven: ven,
            venNm: document.getElementById('saVenNm').value,
            mgrNm: document.getElementById('saMgrNm').value,
-           whNm : document.getElementById('saWhNm').value,
+           whNm : saWhNmTxt(),
            remark: document.getElementById('saRemark').value,
            payGb: document.getElementById('saPayGb').value,
            pay: pay, dc: dc, t: t,

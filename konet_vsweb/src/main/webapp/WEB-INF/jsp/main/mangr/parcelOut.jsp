@@ -128,9 +128,13 @@
 <%-- 날짜 칸 공통(달력·[◀][▶][오늘]) — 2026-08-17 --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <script src="${ctx}/asset/js/ui-message.js"></script>
+<%-- 회사 설정 「기본 택배 운임」(2026-09-16 P2-e) — 종전 4500 하드코딩. 비용 등록의 직송 운임 자동 집계와 같은 값 --%>
+<script src="${ctx}/asset/js/comp-set.js?v=20260916b"></script>
 <script src="${ctx}/assets/vendor/sheetjs/xlsx.full.min.js"></script>
 <script>
 var CTX = '${ctx}';
+/* 기본 택배 운임 — 회사 설정(comp-set parcelFeeDef, 기본 4500). 부를 때마다 읽는다(설정이 늦게 와도 따라오게) */
+function poFeeDef(){ var v=Number(window.konetSet ? konetSet.f('parcelFeeDef') : 0); return (isFinite(v) && v>0) ? v : 4500; }
 var ROWS = [];
 
 function toast(s){ var m=document.getElementById('msg'); m.innerHTML=s; m.classList.add('on'); clearTimeout(m._t); m._t=setTimeout(function(){ m.classList.remove('on'); }, 2600); }
@@ -310,7 +314,7 @@ function poRender(){
   poCnt();
   if(!ROWS.length){ tb.innerHTML='<tr><td colspan="14" class="empty">이 날짜의 직송 출고가 없습니다.</td></tr>'; poFit(); return; }
   tb.innerHTML = ROWS.map(function(o,i){
-    var fee = n(o.fee) || 4500;                      /* 미설정(0) = 기본 4500 */
+    var fee = n(o.fee) || poFeeDef();                      /* 미설정(0) = 기본 4500 */
     var missA = !(o.addr && (''+o.addr).trim());
     var box = n(o.boxQty), tot = n(o.totQty);   /* 총수량 = 발주현황표 '라벨수량' 원값(2026-09-01) */
     /* 엑셀 제외 (2026-08-06 요청) — 체크를 풀면 그 줄은 엑셀에서 빠진다(화면 목록에는 남는다).
@@ -404,7 +408,7 @@ function poSet(inp){
 /* 행의 택배정보를 사업장(TBL_BIZI_MST)에 저장 — 같은 사업장 다른 행에도 즉시 반영 */
 function poSaveBiz(i){
   var o = ROWS[i]; if(!o) return;
-  var fee = n(o.fee) || 4500;
+  var fee = n(o.fee) || poFeeDef();
   fetch(CTX+'/mangr/biziParcelUpdate.do', { method:'POST', credentials:'same-origin',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify([{ bizCd:o.bizCd, bizNm:o.bizNm, parcelAddr:o.addr||'', parcelTel:o.tel||'', parcelHp:o.hp||'', parcelFee:fee }]) })
@@ -445,7 +449,7 @@ function poExcelMake(){
      ★같은 사업장이라도 품목이 다르면 줄은 나뉜다 — 화면 합침 규칙(poMerge)과 똑같이 간다.
      ★체크를 푼 줄(o.off)은 빼고 만든다 (2026-08-06 요청) */
   ROWS.filter(function(o){ return !o.off; }).forEach(function(o){
-    var fee = n(o.fee) || 4500;
+    var fee = n(o.fee) || poFeeDef();
     /* ★F칸 = 총수량 (2026-08-14 요청). 화면 '총수량' 칸과 같은 값(발주현황표 '라벨수량' 원값, 2026-09-01)을
        손대지 않고 그대로 넣는다 — 빈값 대체·계산 없음(사용자 확정 "수량이 없을 수는 없음"). */
     aoa.push([ o.bizNm||'', '', o.addr||'', o.tel||'', o.hp||'', n(o.totQty), fee, '', o.itemNm||'' ]);

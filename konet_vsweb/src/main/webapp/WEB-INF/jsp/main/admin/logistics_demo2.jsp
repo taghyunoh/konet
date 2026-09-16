@@ -721,7 +721,7 @@
   #konetAsqBar .tk-item { display:inline-block; padding:0 6px; }
   #konetAsqBar .tk-item .z { color:#ffd700; font-weight:800; }
   #konetAsqBar .tk-sep { color:#4a7ab5; margin:0 14px; }
-  #konetAsqBar .tk-new{ color:#68d391; } #konetAsqBar .tk-up{ color:#9ae6b4; } #konetAsqBar .tk-dn{ color:#fbd38d; } #konetAsqBar .tk-del{ color:#feb2b2; }
+  #konetAsqBar .tk-new{ color:#68d391; } #konetAsqBar .tk-up{ color:#9ae6b4; } #konetAsqBar .tk-dn{ color:#fbd38d; } #konetAsqBar .tk-del{ color:#feb2b2; } #konetAsqBar .tk-mv{ color:#ff7b7b; font-weight:800; }   /* 이동·전환 = 오배송 위험 (2026-09-16, 대시보드2 티커와 같은 색) */
   #konetAsqBar .ka-toggle { flex-shrink:0; margin:0 8px; padding:3px 10px; border-radius:4px; cursor:pointer; font-size:11px; color:#fff;
     white-space:nowrap; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); transition:background .2s; }
   #konetAsqBar .ka-toggle:hover { background:rgba(255,255,255,.25); }
@@ -1298,7 +1298,7 @@
     var tab=_salesTab;
     var headCols = tab==='zone' ? ['출고장','품목코드','품목명'] : (tab==='biz' ? ['사업장','품목코드','품목명'] : ['품목코드','품목명']);
     var lead0=headCols.length;
-    var priceCols='<th style="text-align:right">출고수량</th><th style="text-align:right">매입단가</th><th style="text-align:right">출고단가</th><th style="text-align:right">매출액</th><th style="text-align:right">매입액</th><th style="text-align:right">순마진액</th>';
+    var priceCols='<th style="text-align:right">출고수량</th><th style="text-align:right">매입단가</th><th style="text-align:right">출고단가</th><th style="text-align:right">매출액</th><th style="text-align:right">매입액</th><th style="text-align:right">매출총이익</th>';
     var thead='<thead><tr>'+headCols.map(function(h){ return '<th>'+h+'</th>'; }).join('')+priceCols+'</tr></thead>';
     var rows=_salesView();   // 검색 적용 행 — 합계·소계·페이징 모두 이 기준
     // 전체 합계 (원천 finest 행 기준)
@@ -1310,7 +1310,7 @@
     if(tab==='item'){
       // 품목 탭 = 평면 (총합계 상단) + 18행씩 자동 스크롤
       var agg=_closeAgg(rows, function(r){ return r.itemCd; });
-      sum.innerHTML='총 <b>'+agg.length.toLocaleString()+'</b>품목 · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 순마진 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>'+_salesNote();
+      sum.innerHTML='총 <b>'+agg.length.toLocaleString()+'</b>품목 · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 매출총이익 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>'+_salesNote();
       /* fill·pad — 재고마감과 동일(화면 바닥까지, 2026-08-28 「매출마감 매입마감 마감현황도 동일하게」) */
       lzMount({ wrap:wrap, pager:'closeSalesPager', head:head, list:agg, rows:SALES_PAGE, capTop:320, fill:true, pad:84,
                 rowFn:function(o){ return _salesItemRow(o,0); } });
@@ -1328,7 +1328,7 @@
         var g2=g1.l2m[k2]; if(!g2){ g2=g1.l2m[k2]={ label:(o.s.dcNm||'(미지정)')+(o.s.dcCd?(' ('+o.s.dcCd+')'):''), items:[], q:0,s:0,c:0,m:0 }; g1.l2.push(g2); }
         g2.q+=o.outQty; g2.s+=o.salesAmt; g2.c+=o.costAmt; g2.m+=o.marginAmt; g2.items.push(o);
       });
-      sum.innerHTML='총 <b>'+L1.length+'</b>대표출고장 · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 순마진 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>'+_salesNote();
+      sum.innerHTML='총 <b>'+L1.length+'</b>대표출고장 · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 매출총이익 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>'+_salesNote();
       // 표시행(rows) = 대표헤더 + 개별출고장헤더 + 품목행 (접힘 반영). 품목행 포함 '행 단위'로 18행씩
       var rowsZ=[];
       L1.forEach(function(g1,i1){
@@ -1361,7 +1361,7 @@
       if(!gmap[gk]){ gmap[gk]={ label:gk, items:[], q:0,s:0,c:0,m:0 }; groups.push(gmap[gk]); }
       var g=gmap[gk]; g.items.push(o); g.q+=o.outQty; g.s+=o.salesAmt; g.c+=o.costAmt; g.m+=o.marginAmt;
     });
-    sum.innerHTML='총 <b>'+groups.length.toLocaleString()+'</b>'+(tab==='zone'?'출고장':'사업장')+' · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 순마진 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>'+_salesNote();
+    sum.innerHTML='총 <b>'+groups.length.toLocaleString()+'</b>'+(tab==='zone'?'출고장':'사업장')+' · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 매출총이익 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>'+_salesNote();
     var _gRowB=function(gi){
       var g=groups[gi], collapsed=!!_salesCollapsed[tab+'#'+gi];
       return '<tr class="close-grp" onclick="salesToggle('+gi+')"><td colspan="'+lead0+'"><span class="ccar">'+(collapsed?'▶':'▼')+'</span>'+_cesc(g.label)+' <span style="color:#5b6b7a;font-weight:600">(품목 '+g.items.length+'종)</span></td>'
@@ -1445,6 +1445,7 @@
     document.getElementById('stKpiCost').innerHTML=_cnum(c)+' <small>원</small>';
     document.getElementById('stKpiMargin').innerHTML=_cnum(m)+' <small>원</small>';
     document.getElementById('stKpiRate').textContent=(s?(m/s*100).toFixed(1):'0.0')+'%';
+    stExpLoad(s, m);                                   // 비용·순마진 카드(2026-09-16 P2-e)
     statRenderTab();
     closeStatusChk();
   }
@@ -1453,7 +1454,7 @@
     var tab=_statTab;
     var headCols = tab==='zone'?['출고장','품목코드','품목명']:(tab==='biz'?['사업장','품목코드','품목명']:['품목코드','품목명']);
     var lead0=headCols.length;
-    var priceCols='<th style="text-align:right">출고수량</th><th style="text-align:right">매출액</th><th style="text-align:right">매입액</th><th style="text-align:right">순마진액</th><th style="text-align:right">마진율</th>';
+    var priceCols='<th style="text-align:right">출고수량</th><th style="text-align:right">매출액</th><th style="text-align:right">매입액</th><th style="text-align:right">매출총이익</th><th style="text-align:right">마진율</th>';
     var thead='<thead><tr>'+headCols.map(function(h){return '<th>'+h+'</th>';}).join('')+priceCols+'</tr></thead>';
     var gQ=0,gS=0,gC=0,gM=0; _statRows.forEach(function(r){ gQ+=+r.outQty||0; gS+=+r.salesAmt||0; gC+=+r.costAmt||0; gM+=+r.marginAmt||0; });
     if(!_statRows.length){ sum.textContent='해당 기간 출고 자료가 없습니다.'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
@@ -1462,7 +1463,7 @@
     var head='<table class="logi-tb">'+thead+'<tbody>'+totalRow;
     if(tab==='item'){
       var agg=_closeAgg(_statRows, function(r){ return r.itemCd; });
-      sum.innerHTML='총 <b>'+agg.length.toLocaleString()+'</b>품목 · 매출 <b>'+_cnum(gS)+'</b> · 순마진 <b>'+_cnum(gM)+'</b>';
+      sum.innerHTML='총 <b>'+agg.length.toLocaleString()+'</b>품목 · 매출 <b>'+_cnum(gS)+'</b> · 매출총이익 <b>'+_cnum(gM)+'</b>';
       lzMount({ wrap:wrap, pager:'closeStatusPager', head:head, list:agg, rows:STAT_ROWS, capTop:320, fill:true, pad:84,
                 rowFn:function(o){ return _statItemRow(o,0); } });
       return;
@@ -1473,7 +1474,7 @@
       var az=_closeAgg(_statRows, function(r){ return _zoneGroup(r)+'~'+(r.dcCd||'')+'~'+r.itemCd; }), L1=[],l1m={};
       az.forEach(function(o){ var k1=_zoneGroup(o.s); var g1=l1m[k1]; if(!g1){g1=l1m[k1]={label:k1,l2:[],l2m:{},q:0,s:0,c:0,m:0};L1.push(g1);} g1.q+=o.outQty;g1.s+=o.salesAmt;g1.c+=o.costAmt;g1.m+=o.marginAmt;
         var k2=(o.s.dcCd||'')+'|'+(o.s.dcNm||''); var g2=g1.l2m[k2]; if(!g2){g2=g1.l2m[k2]={label:(o.s.dcNm||'(미지정)')+(o.s.dcCd?(' ('+o.s.dcCd+')'):''),items:[],q:0,s:0,c:0,m:0};g1.l2.push(g2);} g2.q+=o.outQty;g2.s+=o.salesAmt;g2.c+=o.costAmt;g2.m+=o.marginAmt;g2.items.push(o); });
-      sum.innerHTML='총 <b>'+L1.length+'</b>대표출고장 · 매출 <b>'+_cnum(gS)+'</b> · 순마진 <b>'+_cnum(gM)+'</b>';
+      sum.innerHTML='총 <b>'+L1.length+'</b>대표출고장 · 매출 <b>'+_cnum(gS)+'</b> · 매출총이익 <b>'+_cnum(gM)+'</b>';
       L1.forEach(function(g1,i1){ rowsD.push({t:'l1',g:g1,i1:i1}); if(!_statCollapsed['z1#'+i1]) g1.l2.forEach(function(g2,i2){ rowsD.push({t:'l2',g:g2,i1:i1,i2:i2}); if(!_statCollapsed['z2#'+i1+'.'+i2]) g2.items.forEach(function(o){ rowsD.push({t:'it',o:o}); }); }); });
       _hdr=function(r){
         if(r.t==='l1'){ var c1=!!_statCollapsed['z1#'+r.i1]; return '<tr class="close-grp" onclick="statToggleKey(\'z1#'+r.i1+'\')"><td colspan="'+lead0+'" style="text-align:left"><span class="ccar">'+(c1?'▶':'▼')+'</span><b>'+_cesc(r.g.label)+'</b> <span style="color:#5b6b7a;font-weight:600">('+r.g.l2.length+'개 출고장)</span></td>'+_statCells(r.g.q,r.g.s,r.g.c,r.g.m)+'</tr>'; }
@@ -1482,7 +1483,7 @@
     } else {
       var ab=_closeAgg(_statRows, function(r){ return (r.bizNm||'(미지정)')+'~'+r.itemCd; }), groups=[],gm={};
       ab.forEach(function(o){ var gk=o.s.bizNm||'(미지정)'; var g=gm[gk]; if(!g){g=gm[gk]={label:gk,items:[],q:0,s:0,c:0,m:0};groups.push(g);} g.items.push(o);g.q+=o.outQty;g.s+=o.salesAmt;g.c+=o.costAmt;g.m+=o.marginAmt; });
-      sum.innerHTML='총 <b>'+groups.length+'</b>사업장 · 매출 <b>'+_cnum(gS)+'</b> · 순마진 <b>'+_cnum(gM)+'</b>';
+      sum.innerHTML='총 <b>'+groups.length+'</b>사업장 · 매출 <b>'+_cnum(gS)+'</b> · 매출총이익 <b>'+_cnum(gM)+'</b>';
       groups.forEach(function(g,gi){ rowsD.push({t:'g',g:g,gi:gi}); if(!_statCollapsed['b#'+gi]) g.items.forEach(function(o){ rowsD.push({t:'it',o:o}); }); });
       _hdr=function(r){ var c=!!_statCollapsed['b#'+r.gi]; return '<tr class="close-grp" onclick="statToggleKey(\'b#'+r.gi+'\')"><td colspan="'+lead0+'" style="text-align:left"><span class="ccar">'+(c?'▶':'▼')+'</span><b>'+_cesc(r.g.label)+'</b> <span style="color:#5b6b7a;font-weight:600">(품목 '+r.g.items.length+'종)</span></td>'+_statCells(r.g.q,r.g.s,r.g.c,r.g.m)+'</tr>'; };
     }
@@ -1533,6 +1534,29 @@
         .then(function(r){ if(!r.ok){ swAlert((isC?'확정':'해제')+' 실패: '+((r.t||'').trim()),'error'); return; } swAlert(isC?('🔒 '+ym+' 마감 확정 완료'):('🔓 '+ym+' 확정 해제 완료'),'success'); if(after) after(); });
     });
   }
+  /* ★비용·순마진 KPI (2026-09-16 P2-e) — 비용 등록(직송 택배 운임 자동 + 수기 항목)을 읽어 순마진 = 매출총이익 − 비용.
+       마감 확정 때는 서비스가 같은 합계(expenseSumOf)를 TBL_CLOSING_MST 에 굳힌다 — 화면과 확정값의 규칙이 같다. */
+  function _expTotal(j){
+    var t=0, on={};
+    ((j&&j.items)||[]).forEach(function(i){ if(i.useYn!=='Y') return; if(i.autoSrc==='PARCEL') t+=(+((j.auto||{}).amt)||0); else on[i.itemCd]=1; });
+    ((j&&j.trx)||[]).forEach(function(r){ if(on[r.itemCd]) t+=(+r.amt||0); });
+    return Math.round(t);
+  }
+  function stExpLoad(sales, gross){
+    var ym=(document.getElementById('closeStatusYm')||{}).value||'';
+    var e1=document.getElementById('stKpiExp'), e2=document.getElementById('stKpiNet'); if(!e1||!e2) return;
+    e1.innerHTML='… <small>원</small>'; e2.innerHTML='… <small>원</small>';
+    var ctx='${pageContext.request.contextPath}';
+    fetch(ctx+'/mangr/expenseMonth.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'ym='+encodeURIComponent(ym) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(((document.getElementById('closeStatusYm')||{}).value||'')!==ym) return;
+        var exp=_expTotal(j), net=gross-exp;
+        e1.innerHTML=_cnum(exp)+' <small>원</small>';
+        e2.innerHTML='<span style="color:'+(net<0?'#c0392b':'#137a6c')+'">'+_cnum(net)+'</span> <small>원'+(sales?' · '+(net/sales*100).toFixed(1)+'%':'')+'</small>';
+      })
+      .catch(function(){ e1.innerHTML='- <small>원</small>'; e2.innerHTML='- <small>원</small>'; });   // 옛 서버(엔드포인트 없음)면 비워 둔다
+  }
   function closeStatusChk(){
     var ym=(document.getElementById('closeStatusYm')||{}).value||''; if(!ym) return;
     var ctx='${pageContext.request.contextPath}';
@@ -1581,20 +1605,25 @@
     var wrap=document.getElementById('closeHistWrap'), sum=document.getElementById('closeHistSum');
     var yr=(document.getElementById('closeHistYear')||{}).value||'';
     var rows=yr? _histRows.filter(function(r){ return (''+(r.closeYm||'')).slice(0,4)===yr; }) : _histRows;
-    var thead='<thead><tr><th>마감월</th><th style="text-align:right">매출액</th><th style="text-align:right">매출원가</th><th style="text-align:right">순마진</th><th style="text-align:right">마진율</th><th style="text-align:right">매입액</th><th style="text-align:right">기말재고금액</th><th>확정일시</th></tr></thead>';
-    if(!rows.length){ sum.textContent='확정된 마감 이력이 없습니다.'; wrap.innerHTML='<table class="logi-tb">'+thead+'<tbody><tr><td colspan="8" style="text-align:center;color:#9aa7b3;padding:22px">확정된 달이 없습니다. (마감현황에서 🔒 마감 확정 시 여기에 쌓입니다)</td></tr></tbody></table>'; return; }
-    var tS=0,tG=0,tM=0,tP=0,tK=0;
+    /* 2026-09-16 P2-e : 「순마진」 열은 매출총이익으로 이름을 바로잡고, 비용·순마진(총이익−비용) 열을 더했다(확정 때 굳힌 EXPENSE_AMT·NET_MARGIN_AMT).
+         옛 확정분(칸이 없던 때)은 비용 0·순마진 = 총이익으로 보인다 — 그 달을 다시 확정하면 채워진다. */
+    var thead='<thead><tr><th>마감월</th><th style="text-align:right">매출액</th><th style="text-align:right">매출원가</th><th style="text-align:right">매출총이익</th><th style="text-align:right">마진율</th><th style="text-align:right">비용</th><th style="text-align:right">순마진</th><th style="text-align:right">매입액</th><th style="text-align:right">기말재고금액</th><th>확정일시</th></tr></thead>';
+    if(!rows.length){ sum.textContent='확정된 마감 이력이 없습니다.'; wrap.innerHTML='<table class="logi-tb">'+thead+'<tbody><tr><td colspan="10" style="text-align:center;color:#9aa7b3;padding:22px">확정된 달이 없습니다. (마감현황에서 🔒 마감 확정 시 여기에 쌓입니다)</td></tr></tbody></table>'; return; }
+    var tS=0,tG=0,tM=0,tP=0,tK=0,tE=0,tN=0;
     var body=rows.map(function(r){
       var s=+r.salesAmt||0, g=+r.cogsAmt||0, m=+r.marginAmt||0, p=+r.purchaseAmt||0, k=+r.stockAmt||0, rate=s?(m/s*100):0;
-      tS+=s;tG+=g;tM+=m;tP+=p;tK+=k;
+      var e=+r.expenseAmt||0, nt=(r.netMarginAmt==null ? m-e : (+r.netMarginAmt||0));
+      tS+=s;tG+=g;tM+=m;tP+=p;tK+=k;tE+=e;tN+=nt;
       return '<tr class="prow" style="cursor:pointer" onclick="closeHistGo(\''+_histYm(r.closeYm)+'\')"><td><b>'+_histYm(r.closeYm)+'</b></td>'
         +'<td style="text-align:right">'+_cnum(s)+'</td><td style="text-align:right">'+_cnum(g)+'</td>'
         +'<td style="text-align:right;font-weight:700;color:'+(m<0?'#c0392b':'#137a6c')+'">'+_cnum(m)+'</td>'
-        +'<td style="text-align:right">'+rate.toFixed(1)+'%</td><td style="text-align:right">'+_cnum(p)+'</td>'
+        +'<td style="text-align:right">'+rate.toFixed(1)+'%</td>'
+        +'<td style="text-align:right">'+_cnum(e)+'</td><td style="text-align:right;font-weight:700;color:'+(nt<0?'#c0392b':'#137a6c')+'">'+_cnum(nt)+'</td>'
+        +'<td style="text-align:right">'+_cnum(p)+'</td>'
         +'<td style="text-align:right">'+_cnum(k)+'</td><td>'+_cesc(r.confirmDttm)+'</td></tr>';
     }).join('');
-    var total='<tr class="close-total"><td style="text-align:left">■ 합계('+rows.length+'개월)</td><td style="text-align:right">'+_cnum(tS)+'</td><td style="text-align:right">'+_cnum(tG)+'</td><td style="text-align:right">'+_cnum(tM)+'</td><td style="text-align:right">'+(tS?(tM/tS*100).toFixed(1):'0.0')+'%</td><td style="text-align:right">'+_cnum(tP)+'</td><td style="text-align:right">'+_cnum(tK)+'</td><td></td></tr>';
-    sum.innerHTML='총 <b>'+rows.length+'</b>개월 · 매출 <b>'+_cnum(tS)+'</b> · 순마진 <b>'+_cnum(tM)+'</b>';
+    var total='<tr class="close-total"><td style="text-align:left">■ 합계('+rows.length+'개월)</td><td style="text-align:right">'+_cnum(tS)+'</td><td style="text-align:right">'+_cnum(tG)+'</td><td style="text-align:right">'+_cnum(tM)+'</td><td style="text-align:right">'+(tS?(tM/tS*100).toFixed(1):'0.0')+'%</td><td style="text-align:right">'+_cnum(tE)+'</td><td style="text-align:right">'+_cnum(tN)+'</td><td style="text-align:right">'+_cnum(tP)+'</td><td style="text-align:right">'+_cnum(tK)+'</td><td></td></tr>';
+    sum.innerHTML='총 <b>'+rows.length+'</b>개월 · 매출 <b>'+_cnum(tS)+'</b> · 매출총이익 <b>'+_cnum(tM)+'</b> · 비용 <b>'+_cnum(tE)+'</b> · 순마진 <b>'+_cnum(tN)+'</b>';
     wrap.innerHTML='<table class="logi-tb">'+thead+'<tbody>'+total+body+'</tbody></table>';
   }
   function closeHistGo(ym){   // 행 클릭 → 마감현황 그 달로
@@ -1756,7 +1785,9 @@
     }
     var asOf=(document.getElementById('stkAsOf')||{}).value||'';
     var lbl=document.getElementById('stkAsOfLbl'); if(lbl) lbl.textContent = asOf ? ('기준일 '+asOf+' 까지 (기말)') : '전체 (현재고)';
-    fetch(ctx+'/prod/stockStatusList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'findData='+encodeURIComponent(q)+'&asOfDt='+encodeURIComponent(asOf) })
+    stkWhLoad();                                        // 창고 셀렉트(한 번만) — 2026-09-16 P3
+    var whCd=(document.getElementById('stkWh')||{}).value||'';
+    fetch(ctx+'/prod/stockStatusList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'findData='+encodeURIComponent(q)+'&asOfDt='+encodeURIComponent(asOf)+'&whCd='+encodeURIComponent(whCd) })
       .then(function(r){ return r.text(); }).then(function(t){ var j; try{ j=JSON.parse(t); }catch(e){ swAlert('재고현황 응답 오류','error'); return; } _stkRows=(j&&j.data)||[]; stkStatusRender();
         /* 거래처코드 칸 — 조회할 때마다 다시 읽는다(재고 조회를 기다리게 하지 않고, 도착하면 표만 다시 그린다).
            ★한 번만 읽고 캐시하면 방금 등록한 매칭코드가 재로그인 전까지 안 보인다(2026-08-01 지적). */
@@ -1765,6 +1796,16 @@
       .catch(function(e){ swAlert('통신오류: '+e.message,'error'); });
   }
   function _now2(){ var d=new Date(), p=function(n){return ('0'+n).slice(-2);}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds()); }
+  /* 창고 셀렉트 채우기 (2026-09-16 P3) — 사용 중인 창고. 한 번 채우면 그대로(창고를 새로 만들면 새로고침) */
+  var _stkWhLoaded=false;
+  function stkWhLoad(){
+    if(_stkWhLoaded) return; _stkWhLoaded=true;
+    var ctx='${pageContext.request.contextPath}', e=document.getElementById('stkWh'); if(!e) return;
+    fetch(ctx+'/prod/whList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'useOnly=Y' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ var cur=e.value; e.innerHTML='<option value="">전 창고</option>'+((j&&j.data)||[]).map(function(w){ return '<option value="'+_cesc(w.whCd)+'">'+_cesc(w.whNm)+'</option>'; }).join(''); e.value=cur; })
+      .catch(function(){ _stkWhLoaded=false; });
+  }
   function stkAsOfClear(){ var el=document.getElementById('stkAsOf'); if(el) el.value=''; stkStatusLoad(); }
   /* 기준일 빠른 선택 — 0=오늘, -1=전월 말일(new Date(y,m,0) 이 전달 마지막 날이다) */
   function stkAsOfSet(kind){
@@ -2722,14 +2763,14 @@
        매칭코드(TBL_EXT_ITEM_MST)와 연결(TBL_PROD_XREF)을 우리 코드 기준으로 모아 보여 준다. */
     /* ★칸 이름은 '매칭코드' — '거래처코드' 라고 하면 아래 수불내역의 매입처(00272 같은 거래처 코드)와 헷갈린다(2026-08-01 지적) */
     /* ★칸 폭 160px — '🔖 주코드 9904013265' 가 한 줄에 들어가야 한다(2026-08-02) */
-    var thead='<thead><tr><th>품목코드</th><th>품목명</th><th style="text-align:right">입고</th><th style="text-align:right">출고</th><th style="text-align:right">현재고</th><th style="text-align:right">이동평균단가</th><th style="text-align:right">재고금액</th><th>최근입고</th><th>최근출고</th></tr></thead>';
+    var thead='<thead><tr><th>품목코드</th><th>품목명</th><th style="text-align:right">입고</th><th style="text-align:right">출고</th><th style="text-align:right">현재고</th><th style="text-align:right" title="발주했는데 아직 안 들어온 수량(마감 안 된 발주 줄의 잔량 합) — 곧 들어올 예정. 발주서 관리 [매입전환]으로 들어온 만큼 줄어든다 (2026-09-16)">입고예정</th><th style="text-align:right">이동평균단가</th><th style="text-align:right">재고금액</th><th>최근입고</th><th>최근출고</th></tr></thead>';
     /* [매칭코드 있는 것만] 체크 (2026-08-06 요청) — 합계·건수도 걸러 낸 것만 센다.
        ★매칭코드 자료(_stkAlias)는 목록보다 늦게 도착한다. 아직 없으면 거르지 않는다 —
          안 그러면 화면이 잠깐 텅 비어 '자료가 없다'로 오해하게 된다. */
     var _onlyA = (function(){ var c=document.getElementById('stkOnlyAlias'); return !!(c && c.checked); })();
     var _aliasReady = !!_stkAlias;
     var view = (window.stkVenFilter ? stkVenFilter : function(v){ return v; })((_onlyA && _aliasReady) ? _stkRows.filter(function(r){ return _stkHasAlias(r.prodCd); }) : _stkRows);   /* 매입처 검색(2026-09-13) — logi-oh.js */
-    var tI=0,tO=0,tQ=0,tA=0; view.forEach(function(r){ tI+=(+r.inQty||0); tO+=(+r.outQty||0); tQ+=(+r.curQty||0); tA+=(+r.stockAmt||0); });
+    var tI=0,tO=0,tQ=0,tA=0,tP=0; view.forEach(function(r){ tI+=(+r.inQty||0); tO+=(+r.outQty||0); tQ+=(+r.curQty||0); tA+=(+r.stockAmt||0); tP+=(+r.poRemainQty||0); });   // tP = 입고예정 합 (2026-09-16)
     if(_onlyA && _aliasReady && !view.length){
       sum.innerHTML='<b style="color:#b06a00">매칭코드가 등록된 품목이 없습니다.</b> (체크를 풀면 전체가 보입니다)';
       wrap.innerHTML=''; if(pg) pg.innerHTML=''; return;
@@ -2743,14 +2784,14 @@
                                         : '<span style="color:#9aa7b3">매칭코드 불러오는 중…</span> · ') : '')
       +(_stkSrchVia ? ('<b style="color:#b06a00">'+_cesc(_stkSrchVia)+'</b><span style="color:#9aa7b3">는 매칭코드 — 대표코드로 찾았습니다</span> · ') : '')
       +'총 <b>'+view.length.toLocaleString()+'</b>품목 · 입고합 <b>'+_cnum(tI)+'</b> · 출고합 <b>'+_cnum(tO)+'</b> · 현재고합 <b>'+_cnum(tQ)+'</b> · 재고금액합 <b>'+_cnum(tA)+'</b>'+(window.stkVenSumTxt?stkVenSumTxt(view):'');
-    var totalRow='<tr class="close-total"><td colspan="2" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tI)+'</td><td style="text-align:right">'+_cnum(tO)+'</td><td style="text-align:right">'+_cnum(tQ)+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td><td></td></tr>';
+    var totalRow='<tr class="close-total"><td colspan="2" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tI)+'</td><td style="text-align:right">'+_cnum(tO)+'</td><td style="text-align:right">'+_cnum(tQ)+'</td><td style="text-align:right;color:#b06a00">'+(tP>0?_cnum(tP):'')+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td><td></td></tr>';
     var stkRow=function(r){ var neg=(+r.curQty||0)<0;
       /* 하위 행이 붙는 줄은 대표 줄 위에도 선을 그어 '한 덩어리' 로 보이게 한다(2026-08-07 요청).
          하위가 없으면 선도 없어 평소 표는 그대로다. */
       /* ↳ 매칭 줄도 눌러서 고를 수 있다 — 아래 ②가 그 코드로 나간 날짜만 보여 준다(2026-08-07 요청).
          품목(prodSeq)은 대표와 같고 세 번째 인자로 코드를 넘긴다. */
       var _ps=(r.prodSeq||0);
-      var sub=stkAliasRows(r.prodCd, r.extQtys, 9, 0, 3, function(cd){
+      var sub=stkAliasRows(r.prodCd, r.extQtys, 10, 0, 3, function(cd){   /* 9→10열 : 입고예정 칸 (2026-09-16) */
         return 'stkLedgerDetail('+_ps+", this, '"+String(cd).replace(/'/g,'')+"')";
       /* 지금 ②에서 걸러 보고 있는 코드가 이 품목의 것일 때만 표시한다 —
          다른 품목 줄까지 초록이 되면 어느 줄을 보고 있는지 되레 헷갈린다. */
@@ -2769,6 +2810,8 @@
         +'<td style="text-align:right;color:#137a6c">'+_cnum(r.inQty)+'</td>'
         +'<td style="text-align:right;color:#b06a00">'+_cnum(r.outQty)+'</td>'
         +'<td style="text-align:right;font-weight:700;color:'+(neg?'#c0392b':'#137a6c')+'">'+_cnum(r.curQty)+'</td>'
+        /* 입고예정 (2026-09-16 P1-b 2단계) — 0 이면 비워 둔다(눈에 걸리는 건 「들어올 게 있다」 뿐이라서) */
+        +'<td style="text-align:right;color:#b06a00"'+((+r.poRemainQty||0)>0?' title="발주했는데 아직 안 들어온 수량 — 발주서 관리에서 잔량을 봅니다"':'')+'>'+((+r.poRemainQty||0)>0?_cnum(r.poRemainQty):'')+'</td>'
         +'<td style="text-align:right">'+_cnum(r.avgInPrice)+'</td><td style="text-align:right">'+_cnum(r.stockAmt)+'</td>'
         +'<td>'+_fmtYmd(r.lastInDt)+'</td><td>'+_fmtYmd(r.lastOutDt)+'</td></tr>'
         /* 매칭코드 하위 행 — 9열, 품목코드=0번 칸, 출고=3번 칸.
@@ -3061,6 +3104,7 @@
     <div class="row"><div class="nm">매입마감</div><code>TBL_STOCK_LEDGER</code> 입고(<code>IO_GB='I'</code>) × 매입처(<code>VENDOR_CD</code>).</div>
     <div class="row"><div class="nm">재고마감</div><code>TBL_STOCK_LEDGER</code> 기간집계(기초+입−출±조정=기말) + 이월 스냅샷 <code>TBL_CLOSING_STOCK</code>.</div>
     <div class="row"><div class="nm">마감현황 / 월별 마감이력</div>확정 헤더 <code>TBL_CLOSING_MST</code>(+<code>TBL_CLOSING_STOCK</code>). 잠금=<code>STATUS='C'</code>.</div>
+    <div class="row"><div class="nm">비용 등록</div><code>TBL_EXPENSE_ITEM</code>(항목) · <code>TBL_EXPENSE_TRX</code>(달×항목 수기). 직송 택배 운임은 <code>selectParcelFeeAuto</code>(직송 출고 × 사업장 운임) 자동. 확정 때 <code>TBL_CLOSING_MST.EXPENSE_AMT / NET_MARGIN_AMT</code>(순마진 = 매출총이익 − 비용).</div>
     <div class="row"><div class="nm">매출 그래프(월별/일자별)</div>집계 전용 조회 <code>selectSalesChart</code>/<code>selectSalesChartDaily</code> — 정산서 <code>TBL_SALES_MST</code> + 출고 <code>TBL_SHIPOUT_MST</code> + 전표 <code>TBL_SALES_TRX_MST/DTL</code>. 매입액=출고수량×<code>TBL_PROD_INPRICE_HST</code>(APPLY_DT≤<code>DLV_DT</code> 최신, 없으면 <code>TBL_PROD_MST.IN_PRICE</code>), 순마진=매출−매입. <b>금액 정의는 <code>selectClosing</code>과 동일</b>.</div>
 
     <div class="grp">정산관리</div>
@@ -3123,8 +3167,8 @@
       <%-- 수금 / 미수금(월 단위, TBL_RECEIVE_MST) 메뉴 내림 : 2026-07-25.
            '수금 등록'(건별 전표)이 같은 일을 하고 원장의 [월 계] 로 월 합계까지 나온다.
            두 군데 입력하면 잔고가 갈라져서 뺐다. 실사용 0건이라 잃는 데이터 없음.
-           화면(receiveMng.jsp)·컨트롤러·패널은 그대로 두었다. 되돌리려면
-           logiFrame('receive', <컨텍스트>+'/mangr/receiveMng.do', this) 메뉴 한 줄만 다시 넣으면 된다.
+           ★2026-09-16 (P2-g) 화면·컨트롤러·SQL·DTO·패널까지 **전부 삭제**했다 — 되살릴 수 없다(git 이력에만 남음).
+           수금/미수 관리는 [거래처별 채권·채무]의 「미수 경과」·[🔒 이 달 마감 확정]이 맡는다(docs/설계_수금미수_연동_2026-09-16.md).
            (EL 표기는 JSP 주석 안에서도 파서를 건드릴 수 있어 일부러 풀어 적었다) --%>
       <a class="mi" data-key="closeSales" onclick="logiGo('closeSales', this)"><span class="ic">📒</span>매출마감</a>
       <%-- 매출 그래프 — 월별/일자별 화면 2개를 탭 하나로 통합(2026-08-02 요청).
@@ -3142,10 +3186,12 @@
       <a class="mi" data-key="purchase" onclick="logiFrame('purchase','${pageContext.request.contextPath}/mangr/purchaseReg.do', this)"><span class="ic">🧾</span>매입 등록</a>
       <%-- 발주서 관리 (2026-09-03 신설) — 거래처에 보낼 발주서: 등록·인쇄·엑셀·카톡 공유. iframe 화면(poReg.jsp) --%>
       <a class="mi" data-key="poReg" onclick="logiFrame('poReg','${pageContext.request.contextPath}/mangr/poReg.do', this)"><span class="ic">📋</span>발주서 관리</a>
+      <%-- 거래처별 매입가 비교 (2026-09-16 신설, 프로그램 목적 ③) — 같은 품목을 어느 거래처에서 얼마에 샀는지 나란히. iframe 화면(vendorPriceCmp.jsp) --%>
+      <a class="mi" data-key="vendorPriceCmp" onclick="logiFrame('vendorPriceCmp','${pageContext.request.contextPath}/mangr/vendorPriceCmp.do', this)"><span class="ic">💰</span>거래처별 매입가 비교</a>
       <a class="mi" data-key="payreg" onclick="logiFrame('payreg','${pageContext.request.contextPath}/mangr/payReg.do', this)"><span class="ic">💸</span>지급 등록</a>
       <%-- 출금 / 미지급(월 단위, TBL_PAYMENT_MST) 메뉴 내림 : 2026-07-25. 위 '수금 / 미수금' 과 같은 이유.
            '지급 등록'(건별 전표)이 대신하고, 월 합계는 원장의 [월 계] 로 나온다. 실사용 0건.
-           되돌리려면 logiFrame('payment', <컨텍스트>+'/mangr/paymentMng.do', this) 메뉴 한 줄만 다시 넣는다. --%>
+           ★2026-09-16 (P2-g) 화면·컨트롤러·SQL·DTO·패널까지 전부 삭제(위 수금/미수금과 같이) — 되살릴 수 없다. --%>
       <a class="mi" data-key="inboundList" onclick="logiGo('inboundList', this); inbInit(); inboundListLoad();"><span class="ic">📄</span>입고내역</a>
       <a class="mi" data-key="closeCost" onclick="logiGo('closeCost', this)"><span class="ic">📒</span>매입마감</a>
     </div>
@@ -3154,10 +3200,14 @@
     <a class="mi has-sub" data-sub="stockmng" onclick="logiToggleSub('stockmng', this)"><span class="ic">📦</span>재고 관리<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-stockmng">
       <a class="mi" data-key="stockStatus" onclick="logiGo('stockStatus', this); stkStatusLoad();"><span class="ic">📊</span>품목별재고현황</a>
+      <%-- 창고별 재고현황 (2026-09-16 P3 1단계) — 품목 × 창고 현재고. iframe 화면(prod/whStock.jsp). 창고는 기준정보관리 ▸ 창고 관리 --%>
+      <a class="mi" data-key="whStock" onclick="logiFrame('whStock','${pageContext.request.contextPath}/prod/whStock.do', this)"><span class="ic">🏬</span>창고별 재고현황</a>
       <%-- 출고재고현황 (2026-09-03 신설) — 년월×품목 출고량 + 현재고. iframe 화면(stockOutMonth.jsp).
            ★메뉴와 아래 panel-stockOutMonth 는 짝이다 — 하나만 넣으면 눌러도 아무 일이 없다. --%>
       <a class="mi" data-key="stockOutMonth" onclick="logiFrame('stockOutMonth','${pageContext.request.contextPath}/prod/stockOutMonth.do', this)"><span class="ic">📦</span>월별 출고현황</a>
       <a class="mi" data-key="closeStock" onclick="logiGo('closeStock', this)"><span class="ic">📒</span>재고마감</a>
+      <%-- 비용 등록 (2026-09-16 P2-e) — 달마다 비용(직송 택배 운임 자동 + 수기 항목). 마감현황·이력의 순마진 = 매출총이익 − 비용. iframe 화면(expenseReg.jsp) --%>
+      <a class="mi" data-key="expenseReg" onclick="logiFrame('expenseReg','${pageContext.request.contextPath}/mangr/expenseReg.do', this)"><span class="ic">💸</span>비용 등록</a>
       <%-- 재고 일괄조정 — 2026-08-20 잠깐 내렸다가 사용자 요청으로 되살림(입구는 여기 하나) --%>
       <a class="mi" data-key="stockAdj" onclick="logiFrame('stockAdj','${pageContext.request.contextPath}/prod/stockAdj.do', this)"><span class="ic">🧮</span>재고 일괄조정</a><a class="mi" data-key="subStockFix" onclick="logiFrame('subStockFix','${pageContext.request.contextPath}/prod/subStockFix.do', this)" title="주코드에 매칭된 서브코드에 남은 재고 정리 — 서브코드로 잡힌 매입은 매입등록으로, 남은 재고는 0으로(2026-09-13)"><span class="ic">🧹</span>서브코드 재고 정리</a>
       <%-- 품목코드(매핑) — 기준정보에 있다가 재고 관리 맨 아래로 옮김(2026-08-01 요청).
@@ -3200,6 +3250,8 @@
       <%-- 회사 정보 수정 (2026-09-11) = <모든 회사>가 자기 회사 정보·도장·기능·거래명세서 인쇄 옵션을 고친다.
            관리자 전용 「회사/사용자 관리」와 별개 — 서버는 세션 회사코드로만 읽고 쓴다. --%>
       <a class="mi" data-key="compinfo" onclick="logiFrame('compinfo','${pageContext.request.contextPath}/mangr/compInfo.do', this)"><span class="ic">🏷</span>회사 정보 수정</a>
+      <%-- 창고 관리 (2026-09-16 P3 1단계) — 창고 마스터(TBL_WH_MST: 이름·기본창고·차례·사용) + 창고 이동. iframe 화면(prod/whMng.jsp) --%>
+      <a class="mi" data-key="whMng" onclick="logiFrame('whMng','${pageContext.request.contextPath}/prod/whMng.do', this)"><span class="ic">🏬</span>창고 관리</a>
       <%-- 회사/사용자 관리 + 공통코드 관리 = 관리자 회사(TBL_COMP_MST.COMMST_YN='Y')만 노출 (2026-07-31).
            서버측도 /mangr/compcd.do · /base/commcd.do 에서 s_admin_yn 가드로 직접 URL 접근 차단. --%>
       <% if ("Y".equals(session.getAttribute("s_admin_yn"))) { %>
@@ -3213,7 +3265,8 @@
     <div class="sub-menu" id="sub-goods">
       <a class="mi" data-key="base"     onclick="logiGo('base', this)"><span class="ic">🏬</span>창고 / 로케이션</a>
       <a class="mi" data-key="inbound"  onclick="logiGo('inbound', this)"><span class="ic">📥</span>입고등록 (창고선정)</a>
-      <a class="mi" data-key="stock"    onclick="logiGo('stock', this)"><span class="ic">📊</span>창고별 재고현황</a>
+      <%-- 2026-09-16 : 데모(제1·2·3창고 숫자 박아 둔 panel-stock)가 아니라 진짜 화면(whStock)으로 — 재고 관리 메뉴와 같은 곳 --%>
+      <a class="mi" data-key="whStock"  onclick="logiFrame('whStock','${pageContext.request.contextPath}/prod/whStock.do', this)"><span class="ic">📊</span>창고별 재고현황</a>
       <a class="mi" data-key="locate"   onclick="logiGo('locate', this)"><span class="ic">🔎</span>재고 / 위치 조회</a>
       <a class="mi" data-key="outbound" onclick="logiGo('outbound', this)"><span class="ic">📤</span>출고지시 (위치→출고)</a>
     </div>
@@ -3616,11 +3669,14 @@
           <div class="fld" style="flex:0 0 120px; align-self:flex-end"><button class="btn-teal" style="width:100%" onclick="closeLoad('status')">조회</button></div>
         </div>
         <div id="stStatusBar" style="margin:2px 0 12px;font-size:13px;font-weight:700;color:#6b7a89">마감 상태: 미확정</div>
-        <div class="kpi-row">
+        <div class="kpi-row" style="grid-template-columns:repeat(6,1fr)">
           <div class="kpi"><div class="k-lbl">매출액</div><div class="k-val" id="stKpiSales">- <small>원</small></div></div>
           <div class="kpi"><div class="k-lbl">매입액</div><div class="k-val" id="stKpiCost">- <small>원</small></div></div>
-          <div class="kpi"><div class="k-lbl">순마진(매출-매입)</div><div class="k-val" id="stKpiMargin">- <small>원</small></div></div>
+          <%-- 2026-09-16 P2-e : 「순마진(매출-매입)」은 사실 매출총이익이었다 → 이름을 바로잡고 비용·순마진(총이익−비용) 카드를 더했다(stExpLoad) --%>
+          <div class="kpi"><div class="k-lbl">매출총이익(매출-매입)</div><div class="k-val" id="stKpiMargin">- <small>원</small></div></div>
           <div class="kpi"><div class="k-lbl">마진율</div><div class="k-val" id="stKpiRate" style="font-size:20px">-</div></div>
+          <div class="kpi"><div class="k-lbl">비용(운임+경비)</div><div class="k-val" id="stKpiExp">- <small>원</small></div></div>
+          <div class="kpi"><div class="k-lbl">순마진(총이익-비용)</div><div class="k-val" id="stKpiNet">- <small>원</small></div></div>
         </div>
         <div class="close-tabs" id="statTabs">
           <button type="button" class="ctab on" data-t="zone" onclick="statTab('zone')">🗂️ 출고장별</button>
@@ -3632,7 +3688,7 @@
         <div class="close-summary" id="closeStatusSum">조회월을 선택하고 [조회]를 누르세요.</div>
         <div id="closeStatusWrap"></div>
         <div class="close-pager" id="closeStatusPager"></div>
-        <div class="note">※ 마감현황: 선택 월 출고 자료 기준 매출·매입·순마진·마진율. 출고장별=물류센터 그룹(오산센터 등) 2단, 사업장별=사업장 그룹. 접기/펼치기·페이징 지원.</div>
+        <div class="note">※ 마감현황: 선택 월 출고 자료 기준 매출·매입·매출총이익·마진율 + 비용·순마진(비용 등록에서 넣은 달 비용, 2026-09-16). 출고장별=물류센터 그룹(오산센터 등) 2단, 사업장별=사업장 그룹. 접기/펼치기·페이징 지원.</div>
       </div>
     </section>
 
@@ -3741,7 +3797,7 @@
             <br><b>읽음 · 열람</b> — <b>✉ 읽음</b> = 받는 쪽이 메일을 열었음(메일 프로그램이 그림을 막으면 안 잡힘 — <b>표시 없음 ≠ 안 읽음</b>) ·
             <b>👁 열람</b> = 보낸 주소로 명세서를 실제로 열어 봤음(이쪽이 더 확실). 줄마다 <b>[↻ 재전송]</b> = 같은 수단·같은 받는 곳으로 다시(이메일은 창에 채워 열고 사람이 [발송]).
             다른 전표 줄은 <b>[📂 전표 열기]</b>로 그 전표부터 엽니다. 창의 <b>[🔄 새로고침]</b>으로 읽음 상태를 다시 읽어 옵니다.</td></tr>
-          <tr><td class="m">매출마감</td><td>출고 × <b>납기일자 시점 단가</b> → 매출·매입·순마진. 출고장별(오산센터 등 2단)·사업장별·품목별 3탭, 품목 검색 공통.</td></tr>
+          <tr><td class="m">매출마감</td><td>출고 × <b>납기일자 시점 단가</b> → 매출·매입·매출총이익(순마진은 마감현황에서 비용을 뺀 값). 출고장별(오산센터 등 2단)·사업장별·품목별 3탭, 품목 검색 공통.</td></tr>
           <tr><td class="m">매출 그래프(월별/일자별)</td><td>매출액·매입액·순마진 그래프+표. <b>금액 기준은 마감현황과 동일</b>(매출 = 정산서 + 정산서 없는 출고의 추정 + 직접판매). <b>최근이 왼쪽</b>. <span style="color:#b45309">매입가 미등록 품목은 매입액 0이라 마진이 커 보입니다.</span></td></tr>
         </tbody></table>
       </div>
@@ -3766,7 +3822,7 @@
       <div class="g-sec">
         <h3>4. 정보 현황 · 원장관리</h3>
         <table><tbody>
-          <tr><td class="m">마감현황(월계표)</td><td>선택 월 매출·매입·순마진 요약(KPI) + <b>🔒 확정 / 🔓 해제</b>. 확정 = 3종 통합 저장 + 기말재고 스냅샷 + 그 달 수불 잠금.</td></tr>
+          <tr><td class="m">마감현황(월계표)</td><td>선택 월 매출·매입·매출총이익·비용·순마진 요약(KPI) + <b>🔒 확정 / 🔓 해제</b>. 확정 = 3종 통합 저장 + 기말재고 스냅샷 + 그 달 수불 잠금.</td></tr>
           <tr><td class="m">월별 마감이력</td><td>확정한 달들의 매출·원가·마진·매입·기말재고금액. 행 클릭 → 그 달 마감현황.</td></tr>
           <tr><td class="m">거래처별 채권·채무</td><td>거래처마다 <b>받을금액</b>[(매출−할인)−수금]과 <b>지급할금액</b>[(매입−할인)−지급]. <b>이월 + 당월매출 − 당월수금 = 남은금액</b>, 오른쪽 끝에 <b>특정일자 발생</b> 4칸(그 하루의 매출·수금·매입·지급). 줄 클릭 → 월별 이력 + 아래 <b>건별 내역</b> 4탭.
             <div style="margin-top:4px;color:#5a6b7a">잔액은 <b>전 기간 누계</b>라 기간이 아니라 <b>기준월</b>로 봅니다. <b>특정일자</b>는 발생 4칸과 아래 건별 내역 전용이라 위 잔액을 바꾸지 않습니다 — 누계와 하루를 나란히 두는 것이라 숫자가 다른 게 정상. <b>구분(매입·매출)은 실제 거래로 판정</b>해 등록값과 다르면 별표가 붙습니다(수정은 거래처관리에서). <b>조회 전용.</b></div></td></tr>
@@ -3805,7 +3861,7 @@
     <section id="panel-closeHist" class="panel">
       <div class="logi-head">
         <div><h2>월별 마감이력 <span class="badge b-done">마감관리</span></h2>
-          <div class="sub">확정된 월들의 매출·매출원가·순마진·매입·기말재고금액 목록(TBL_CLOSING_MST). 행 클릭 시 그 달 마감현황으로 이동.</div></div>
+          <div class="sub">확정된 월들의 매출·매출원가·매출총이익·비용·순마진·매입·기말재고금액 목록(TBL_CLOSING_MST). 행 클릭 시 그 달 마감현황으로 이동.</div></div>
         <div class="actions"><button class="btn-teal" onclick="closeHistLoad()">↻ 새로고침</button></div>
       </div>
       <div class="card">
@@ -3932,6 +3988,8 @@
                              background:#fff;color:#8a97a4;cursor:pointer;font-size:13px;font-weight:800">✕</button>
             </div></div>
           <div class="fld" style="flex:0 0 170px"><input type="date" id="stkAsOf" onchange="stkStatusLoad()" title="기준일 — 비우면 지금 현재고, 날짜를 넣으면 그날까지의 기말 재고"></div>
+          <%-- 창고 필터 (2026-09-16 P3) — 비우면 전 창고 합계(종전 숫자). 창고별 나란히 보기는 [창고별 재고현황] --%>
+          <div class="fld" style="flex:0 0 150px"><select id="stkWh" onchange="stkStatusLoad()" title="창고 — 비우면 전 창고 합계"><option value="">전 창고</option></select></div>
           <%-- 날짜를 매번 달력에서 고르는 게 번거로워 빠른 선택을 붙였다(2026-08-01).
                [전체]=비움(지금 현재고) · [오늘]·[전월말]=그 시점 재고 --%>
           <%-- ★버튼 폭을 flex:1 로 나눠 주면 '전월말' 이 세 글자라 칸이 모자라 글자가 세로로 쪼개진다(2026-08-01 지적).
@@ -4604,15 +4662,8 @@
       </div>
     </section>
 
-    <!-- ===== 출금 / 미지급 ===== -->
-    <section id="panel-payment" class="panel" style="padding:0;">
-      <iframe id="if-payment" src="" title="출금/미지급" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
-    </section>
-
-    <!-- ===== 수금 / 미수금 ===== -->
-    <section id="panel-receive" class="panel" style="padding:0;">
-      <iframe id="if-receive" src="" title="수금/미수금" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
-    </section>
+    <%-- 출금/미지급 · 수금/미수금 패널(panel-payment · panel-receive)은 2026-09-16 에 삭제 — 화면·컨트롤러·SQL 까지 걷어냈다(P2-g).
+         월 마감 확정은 이제 거래처별 채권·채무(custBalance) 안의 [🔒 이 달 마감 확정]이 맡는다. --%>
 
     <!-- ===== 매입등록 (2026-07-25) — logiGo 는 #panel-<key>, logiFrame 은 #if-<key> 를 찾는다.
              메뉴만 추가하고 이 두 요소를 안 만들면 화면이 빈 채로 뜬다. ===== -->
@@ -4646,6 +4697,21 @@
     <%-- ===== 출고재고현황 (2026-09-03) — 년월×품목 출고량 + 현재고 (메뉴 logiFrame('stockOutMonth',…) 의 짝) ===== --%>
     <section id="panel-stockOutMonth" class="panel" style="padding:0;">
       <iframe id="if-stockOutMonth" src="" title="월별 출고현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <%-- 거래처별 매입가 비교 (2026-09-16) — 메뉴 logiFrame('vendorPriceCmp',…) 의 짝 --%>
+    <section id="panel-vendorPriceCmp" class="panel" style="padding:0;">
+      <iframe id="if-vendorPriceCmp" src="" title="거래처별 매입가 비교" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <%-- 비용 등록 (2026-09-16 P2-e) — 메뉴 logiFrame('expenseReg',…) 의 짝 --%>
+    <section id="panel-expenseReg" class="panel" style="padding:0;">
+      <iframe id="if-expenseReg" src="" title="비용 등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <%-- 창고 (2026-09-16 P3) — 메뉴 logiFrame('whStock'/'whMng',…) 의 짝 --%>
+    <section id="panel-whStock" class="panel" style="padding:0;">
+      <iframe id="if-whStock" src="" title="창고별 재고현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <section id="panel-whMng" class="panel" style="padding:0;">
+      <iframe id="if-whMng" src="" title="창고 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <%-- 발주서 관리 (2026-09-03) — 메뉴 logiFrame('poReg',…) 의 짝 --%>
     <section id="panel-poReg" class="panel" style="padding:0;">

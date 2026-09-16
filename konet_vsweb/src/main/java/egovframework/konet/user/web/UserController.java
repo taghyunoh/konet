@@ -835,6 +835,45 @@ public class UserController {
 				   ⇒ 저장 자체는 그대로 성공시키되(롤백하면 올린 자료를 잃는다), <재고 반영이 안 됐다>는 사실을
 				     응답에 실어 화면이 곧바로 알리게 한다. 화면은 그때 [출고반영 재집계]를 권한다.
 				   ★글자 모양 : "<건수>|STOCKFAIL:<사유>" — 앞의 건수는 종전 그대로라 옛 화면도 안 깨진다. */
+				/* ★사업장 자동 등록 + 주소 없는 직송 사업장 (2026-09-16 P2-c, 목적 ④「삼성 발주 정확한 배송」)
+				   종전엔 업로드가 사업장 마스터(TBL_BIZI_MST)를 안 만들어, 새 직송 사업장은 택배납기관리에서 「신규」 배지 + 빈 주소로만 드러났다.
+				   ⇒ 올라온 사업장 코드·이름을 마스터에 넣고(있으면 그대로 — insertBiziIfAbsent), 직송 사업장 중 주소가 없는 것을 응답에 실어
+				     화면이 바로 알리고 택배납기관리로 보낸다. 실패해도 업로드는 그대로 성공(try 로 감싼다 — 사업장 등록이 자료 저장을 막으면 안 된다).
+				   ★응답 꼬리 "|BIZ:{json}" — 화면이 lastIndexOf 로 떼어 낸다(옛 화면은 건수 앞부분만 읽으므로 안 깨진다). */
+				String bizInfo = "";
+				try {
+					java.util.LinkedHashMap<String,String> allBiz = new java.util.LinkedHashMap<String,String>();
+					java.util.LinkedHashSet<String> jikBiz = new java.util.LinkedHashSet<String>();
+					for (egovframework.konet.user.model.ShipoutDTO r : rows) {
+						String bc = r.getBizCd() == null ? "" : r.getBizCd().trim();
+						String bn = r.getBizNm() == null ? "" : r.getBizNm().trim();
+						if (bc.isEmpty() || bn.isEmpty()) continue;
+						if (!allBiz.containsKey(bc)) allBiz.put(bc, bn);
+						String zn = r.getZone() == null ? "" : r.getZone().trim(), dg = r.getDlvGb() == null ? "" : r.getDlvGb().trim();
+						if ("직송".equals(zn) || "직송".equals(dg)) jikBiz.add(bc);
+					}
+					int newCnt = 0;
+					for (java.util.Map.Entry<String,String> e : allBiz.entrySet()) {
+						egovframework.konet.user.model.BiziDTO b = new egovframework.konet.user.model.BiziDTO();
+						b.setCompCd(session.getAttribute("s_comp_cd") == null ? null : String.valueOf(session.getAttribute("s_comp_cd")));
+						b.setBizCd(e.getKey()); b.setBizNm(e.getValue()); b.setRegUser(regUser); b.setRegIp(regIp);
+						newCnt += svc.insertBiziIfAbsent(b);
+					}
+					StringBuilder sb = new StringBuilder("{\"newCnt\":" + newCnt + ",\"noAddr\":[");
+					if (!jikBiz.isEmpty()) {
+						java.util.List<String> codes = new java.util.ArrayList<String>(jikBiz);
+						if (codes.size() > 500) codes = codes.subList(0, 500);   // 한 문장 파라미터 상한(2,100) 안
+						Map<String,Object> q = new HashMap<String,Object>();
+						q.put("codes", codes); q.put("compCd", session.getAttribute("s_comp_cd"));
+						java.util.List<Map<String,Object>> na = svc.selectBiziNoAddr(q);
+						int k = 0;
+						for (Map<String,Object> m : na) {
+							if (k++ > 0) sb.append(",");
+							sb.append("{\"bizCd\":\"").append(poJs(m.get("bizCd"))).append("\",\"bizNm\":\"").append(poJs(m.get("bizNm"))).append("\"}");
+						}
+					}
+					bizInfo = "|BIZ:" + sb.append("]}").toString();
+				} catch (Exception be) { log.error(" saveShipoutMst 사업장 등록 WARN : " + be.getMessage()); bizInfo = ""; }
 				String stockWarn = null;
 				try {
 					for (String d : syncDates) svc.syncShipoutLedgerDate(d, regUser, regIp);
@@ -845,7 +884,8 @@ public class UserController {
 					          ? se.getClass().getSimpleName() : se.getMessage().trim();
 				}
 				return ResponseEntity.ok(String.valueOf(total)
-				        + (stockWarn == null ? "" : "|STOCKFAIL:" + stockWarn));
+				        + (stockWarn == null ? "" : "|STOCKFAIL:" + stockWarn)
+				        + bizInfo);
 			} catch (Exception e) {
 				log.error(" saveShipoutMst ERROR ! : " + e.getMessage());
 				return ResponseEntity.status(500).body(e.getMessage());
@@ -1549,6 +1589,16 @@ public class UserController {
 			res.put("data", svc.selectPoList(p));
 			return res;
 		}
+		/* 품목별 최근 발주 (2026-09-16 「①재고 파악이 안 돼 중복 발주」) — 발주서 화면의 「최근발주」 칸. 로그인 회사 것만.
+		   현재고·적정재고는 새 엔드포인트 없이 /prod/stockQtyMap.do 와 상품마스터(safeStock)를 그대로 쓴다. */
+		@RequestMapping(value="/mangr/poRecentByProd.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poRecentByProd(HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>(); p.put("compCd", session.getAttribute("s_comp_cd"));
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", svc.selectPoRecentByProd(p));
+			return res;
+		}
 		@RequestMapping(value="/mangr/poDetail.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,Object> poDetail(@RequestParam("poSeq") long poSeq, HttpSession session) throws Exception {
@@ -1639,53 +1689,96 @@ public class UserController {
 			model.addAttribute("pub", pub);
 			return ".raw/main/mangr/poPrint";
 		}
-		/** ★매입전환 (2026-09-03 「언제 들어왔는지 매입일자를 지정해서 매입자료 들어가게」) — 발주서 → 매입전표.
-		 *  매입 등록(purchaseSave)과 **같은 저장 경로**(svc.savePurchase)를 타서 재고 입고(원장 I행)·단가 이력이 함께 생긴다.
-		 *  매입일자 = 화면에서 고른 실제 입고일. 서브코드·거래중지 관문도 매입 등록과 똑같이 건다.
-		 *  한 번 전환한 발주서는 PURCH_SEQ 로 기억하고, 다시 전환하려면 force=Y(화면이 한 번 더 묻는다). */
+		/** 발주서 → 매입전표 (2026-09-03 신설 · 2026-09-16 P1-b 「부분 입고」로 개편)
+		 *  · 화면(cvGo)이 JSON 으로 보낸다 : { poSeq, purchDt, whNm, payGb, items:[{poDtlSeq, boxQty, eaQty, qty}] }
+		 *    items 가 없으면 줄마다 <잔량> 만큼 — 두 번째 전환은 저절로 나머지만 들어간다.
+		 *  · 0 인 줄은 전표에서 뺀다. 잔량보다 많이 넣어도 막지 않는다(초과 입고 — 화면이 빨갛게 보여 줄 뿐. 사용자 확정 「강제 아님, 메시지 처리」).
+		 *  · 매입 명세마다 PO_SEQ/PO_DTL_SEQ 를 적는다 — 입고·잔량은 이 연결로 센다(저장하지 않는다). 전표 머리에는 대표 발주(PO_SEQ).
+		 *  · 저장 경로는 종전과 같은 svc.savePurchase — 재고 입고(원장 I행)·단가 이력이 함께 생긴다. 서브코드·거래중지 관문도 매입 등록과 같다.
+		 *  · 종전의 「이미 전환 → 409」는 없앴다 — 잔량이 없고 이번 입고도 없으면 400 으로 알려 줄 뿐이다. */
 		@RequestMapping(value="/mangr/poToPurchase.do", method = RequestMethod.POST)
-		public ResponseEntity<String> poToPurchase(@RequestParam("poSeq") long poSeq, @RequestParam("purchDt") String purchDt,
-		                                           @RequestParam(value="whNm", required=false) String whNm,
-		                                           @RequestParam(value="payGb", required=false) String payGb,
-		                                           @RequestParam(value="force", required=false) String force,
-		                                           HttpServletRequest request, HttpSession session) {
+		public ResponseEntity<String> poToPurchase(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
 			try {
 				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
-				if (purchDt == null || purchDt.trim().isEmpty()) return ResponseEntity.status(400).body("매입일자를 고르세요.");
+				long poSeq = poLongOf(body.get("poSeq"));
+				String purchDt = poStr(body.get("purchDt")).trim();
+				String whNm = poStr(body.get("whNm")).trim(), payGb = poStr(body.get("payGb")).trim();
+				String whCd = poStr(body.get("whCd")).trim();   // 창고 코드(2026-09-16 P3) — 비면 기본창고
+				if (poSeq <= 0) return ResponseEntity.status(400).body("발주서 번호가 없습니다.");
+				if (purchDt.isEmpty()) return ResponseEntity.status(400).body("매입일자를 고르세요.");
 				Map<String,Object> p = new HashMap<String,Object>(); p.put("poSeq", poSeq); p.put("compCd", session.getAttribute("s_comp_cd"));
 				Map<String,Object> mst = svc.selectPoMst(p);
 				if (mst == null) return ResponseEntity.status(404).body("발주서를 찾을 수 없습니다.");
-				if (mst.get("purchNo") != null && !"Y".equalsIgnoreCase(force))
-					return ResponseEntity.status(409).body("이미 매입전표 " + mst.get("purchDt") + "-" + mst.get("purchNo") + " 로 전환된 발주서입니다.");
-				java.util.List<Map<String,Object>> items = svc.selectPoDtl(p);
+				java.util.List<Map<String,Object>> items = svc.selectPoDtl(p);   // inQty·remainQty·closeYn 까지 온다
 				if (items == null || items.isEmpty()) return ResponseEntity.status(400).body("발주 품목이 없습니다.");
+
+				// 화면이 보낸 「이번 입고」 — poDtlSeq 로 찾는다. 안 보냈으면 줄마다 잔량
+				Map<Long, Map<String,Object>> want = new HashMap<Long, Map<String,Object>>();
+				boolean explicit = false;
+				Object io = body.get("items");
+				if (io instanceof java.util.List) for (Object o : (java.util.List<?>) io) {
+					if (!(o instanceof Map)) continue;
+					@SuppressWarnings("unchecked") Map<String,Object> w = (Map<String,Object>) o;
+					long k = poLongOf(w.get("poDtlSeq")); if (k > 0) { want.put(k, w); explicit = true; }
+				}
 
 				egovframework.konet.user.model.PurchaseDTO dto = new egovframework.konet.user.model.PurchaseDTO();
 				dto.setCompCd(String.valueOf(session.getAttribute("s_comp_cd")));
-				dto.setPurchDt(purchDt.trim());
+				dto.setPurchDt(purchDt);
 				dto.setVendorCd(poStr(mst.get("vendorCd"))); dto.setVendorNm(poStr(mst.get("vendorNm")));
 				dto.setMgrCd(poStr(mst.get("mgrCd")));       dto.setMgrNm(poStr(mst.get("mgrNm")));
-				dto.setWhCd(""); dto.setWhNm(whNm == null || whNm.trim().isEmpty() ? "물류창고" : whNm.trim());
-				dto.setPayGb(payGb == null || payGb.trim().isEmpty() ? "외상" : payGb.trim()); dto.setPayAmt(0d);
-				dto.setTotBoxQty(poNum(mst.get("totBoxQty"))); dto.setTotEaQty(poNum(mst.get("totEaQty"))); dto.setTotQty(poNum(mst.get("totQty")));
-				dto.setSupplyAmt(poNum(mst.get("supplyAmt"))); dto.setVatAmt(poNum(mst.get("vatAmt"))); dto.setTotAmt(poNum(mst.get("totAmt"))); dto.setDcAmt(poNum(mst.get("dcAmt")));
-				String poNo = poStr(mst.get("poDt")) + "-" + poStr(mst.get("poNo"));
-				String rm = poStr(mst.get("remark"));
-				dto.setRemark(("발주서 " + poNo + " 전환" + (rm.isEmpty() ? "" : " · " + rm)));
+				dto.setWhCd(whCd); dto.setWhNm(whNm.isEmpty() ? "물류창고" : whNm);
+				dto.setPayGb(payGb.isEmpty() ? "외상" : payGb); dto.setPayAmt(0d);
+				dto.setPoSeq(poSeq);
 				java.util.List<egovframework.konet.user.model.PurchaseDtlDTO> dl = new java.util.ArrayList<egovframework.konet.user.model.PurchaseDtlDTO>();
 				java.util.List<String> codes = new java.util.ArrayList<String>();
+				double tBox = 0, tEa = 0, tQty = 0, tSup = 0, tVat = 0, tTot = 0, tDc = 0;
+				boolean partial = false;
 				for (Map<String,Object> it : items) {
+					long dseq = poLongOf(it.get("poDtlSeq"));
+					double pack = poNum(it.get("packQty")); if (pack <= 0) pack = 1;
+					double poQty = poNum(it.get("qty"));
+					double qty, box, ea;
+					if (explicit) {
+						Map<String,Object> w = want.get(dseq); if (w == null) continue;
+						box = poNum(w.get("boxQty")); ea = poNum(w.get("eaQty")); qty = poNum(w.get("qty"));
+						if (qty <= 0 && (box > 0 || ea > 0)) qty = box * pack + ea;
+					} else {
+						qty = poNum(it.get("remainQty")); if (qty <= 0) continue;
+						box = Math.floor(qty / pack); ea = qty - box * pack;
+					}
+					if (qty <= 0) continue;
+					if (qty < poQty) partial = true;
+					double unit = poNum(it.get("unitPrice"));
+					double amt = Math.round(qty * unit);
+					double dc = poQty > 0 ? Math.round(poNum(it.get("dcAmt")) * qty / poQty) : 0;   // 발주 줄 DC 를 수량 비율로
+					double supply = amt - dc;
+					String tg = poStr(it.get("taxGb")).toUpperCase();
+					boolean taxFree = tg.equals("F") || tg.equals("N") || tg.contains("면세") || tg.contains("FREE")
+					               || (poNum(it.get("vatAmt")) <= 0 && poNum(it.get("supplyAmt")) > 0);   // 발주 줄에 부가세가 0 이면 면세 품목
+					double vat = taxFree ? 0 : Math.round(supply * 0.1);
+					double tot = supply + vat;
 					egovframework.konet.user.model.PurchaseDtlDTO d = new egovframework.konet.user.model.PurchaseDtlDTO();
 					d.setCompCd(dto.getCompCd());
 					Object ps = it.get("prodSeq"); d.setProdSeq(ps == null ? null : Long.valueOf(String.valueOf(ps).split("[.]")[0]));
 					d.setProdCd(poStr(it.get("prodCd"))); d.setProdNm(poStr(it.get("prodNm"))); d.setSpec(poStr(it.get("spec")));
-					d.setPackQty(poNum(it.get("packQty"))); d.setBoxQty(poNum(it.get("boxQty"))); d.setEaQty(poNum(it.get("eaQty"))); d.setQty(poNum(it.get("qty")));
-					d.setUnitPrice(poNum(it.get("unitPrice"))); d.setAmt(poNum(it.get("amt"))); d.setDcAmt(poNum(it.get("dcAmt")));
-					d.setSupplyAmt(poNum(it.get("supplyAmt"))); d.setVatAmt(poNum(it.get("vatAmt"))); d.setTotAmt(poNum(it.get("totAmt")));
-					d.setServiceQty(poNum(it.get("serviceQty"))); d.setRemark(poStr(it.get("remark")));
+					d.setPackQty(pack); d.setBoxQty(box); d.setEaQty(ea); d.setQty(qty);
+					d.setUnitPrice(unit); d.setAmt(amt); d.setDcAmt(dc); d.setSupplyAmt(supply); d.setVatAmt(vat); d.setTotAmt(tot);
+					d.setServiceQty(qty >= poQty ? poNum(it.get("serviceQty")) : 0d);   // 서비스 수량은 전량 입고 때만 따라간다
+					d.setRemark(poStr(it.get("remark")));
 					d.setTrxGb("매입"); d.setEventYn("N");
+					d.setPoSeq(poSeq); d.setPoDtlSeq(dseq > 0 ? dseq : null);
 					dl.add(d); codes.add(d.getProdCd());
+					tBox += box; tEa += ea; tQty += qty; tSup += supply; tVat += vat; tTot += tot; tDc += dc;
 				}
+				if (dl.isEmpty()) return ResponseEntity.status(400).body(explicit
+					? "이번에 들어온 수량이 없습니다 — 「이번 입고」에 수량을 넣으세요."
+					: "잔량이 없습니다 — 이미 전부 입고된 발주서입니다. 추가로 들어온 것이 있으면 「이번 입고」에 수량을 넣으세요.");
+				dto.setTotBoxQty(tBox); dto.setTotEaQty(tEa); dto.setTotQty(tQty);
+				dto.setSupplyAmt(tSup); dto.setVatAmt(tVat); dto.setTotAmt(tTot); dto.setDcAmt(tDc);
+				String poNo = poStr(mst.get("poDt")) + "-" + poStr(mst.get("poNo"));
+				String rm = poStr(mst.get("remark"));
+				dto.setRemark("발주서 " + poNo + " 전환" + (partial || dl.size() < items.size() ? "(일부)" : "") + (rm.isEmpty() ? "" : " · " + rm));
 				dto.setItems(dl);
 				String subMsg = subCodeBlockMsg(dto, session);
 				if (subMsg != null) return ResponseEntity.status(409).body(subMsg);
@@ -1696,12 +1789,84 @@ public class UserController {
 				int n = svc.savePurchase(dto);
 				Map<String,Object> q = new HashMap<String,Object>();
 				q.put("poSeq", poSeq); q.put("purchSeq", dto.getPurchSeq()); q.put("regUser", u);
-				svc.updatePoPurchSeq(q);
-				return ResponseEntity.ok("{\"rows\":" + n + ",\"purchSeq\":" + dto.getPurchSeq() + ",\"purchNo\":\"" + dto.getPurchNo() + "\"}");
+				svc.updatePoPurchSeq(q);   // 「마지막으로 만든 전표」 — 목록·상태 띠 표시용(입고·잔량은 명세 연결로 센다)
+				return ResponseEntity.ok("{\"rows\":" + n + ",\"purchSeq\":" + dto.getPurchSeq() + ",\"purchNo\":\"" + dto.getPurchNo() + "\",\"qty\":" + tQty + "}");
 			} catch (Exception e) {
 				log.error(" poToPurchase ERROR : " + e.getMessage());
 				return ResponseEntity.status(500).body(e.getMessage());
 			}
+		}
+		private static long poLongOf(Object o) { if (o == null) return 0; try { return Long.parseLong(String.valueOf(o).trim().split("[.]")[0]); } catch (Exception e) { return 0; } }
+		/** JSON 문자열 값 이스케이프(따옴표·역슬래시·제어문자) — 응답을 손으로 짤 때 */
+		private static String poJs(Object o) {
+			String s = o == null ? "" : String.valueOf(o); StringBuilder b = new StringBuilder(s.length() + 8);
+			for (int i = 0; i < s.length(); i++) { char c = s.charAt(i);
+				if (c == '"' || c == '\\') b.append('\\').append(c);
+				else if (c < 0x20) b.append(String.format("\\u%04x", (int) c));
+				else b.append(c); }
+			return b.toString();
+		}
+		/** 품목별 미입고(잔량 합 = 입고예정) — 발주서 「미입고」 칸·재고현황 「입고예정」 (2026-09-16 P1-b) */
+		@RequestMapping(value="/mangr/poRemainByProd.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poRemainByProd(HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>(); p.put("compCd", session.getAttribute("s_comp_cd"));
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", svc.selectPoRemainByProd(p));
+			return res;
+		}
+		/** 거래처별 매입가 비교 (2026-09-16 P2-a, 프로그램 목적 ③) — 화면 + 자료. months 가 0/없음이면 전체 기간 */
+		@RequestMapping(value="/mangr/vendorPriceCmp.do")
+		public String vendorPriceCmp(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/vendorPriceCmp";
+		}
+		@RequestMapping(value="/mangr/vendorPriceCmpList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> vendorPriceCmpList(@RequestParam(value="findData", required=false) String findData,
+		                                             @RequestParam(value="months", required=false) Integer months,
+		                                             @RequestParam(value="vendorCd", required=false) String vendorCd, HttpSession session) throws Exception {
+			String fromDt = "";
+			if (months != null && months > 0) {
+				java.util.Calendar c = java.util.Calendar.getInstance(); c.add(java.util.Calendar.MONTH, -months);
+				fromDt = new java.text.SimpleDateFormat("yyyyMMdd").format(c.getTime());
+			}
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("findData", findData); p.put("fromDt", fromDt); p.put("vendorCd", vendorCd); p.put("compCd", session.getAttribute("s_comp_cd"));
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", svc.selectVendorPriceCmp(p)); res.put("fromDt", fromDt);
+			return res;
+		}
+		/** 잔량 남은 발주 줄 — 매입등록 [발주분] 팝업 (2026-09-16 P1-b 2단계). vendorCd 가 오면 그 거래처 발주만 */
+		@RequestMapping(value="/mangr/poOpenLines.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poOpenLines(@RequestParam(value="vendorCd", required=false) String vendorCd, HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>(); p.put("vendorCd", vendorCd); p.put("compCd", session.getAttribute("s_comp_cd"));
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", svc.selectPoOpenLines(p));
+			return res;
+		}
+		/** 이 발주서를 보고 있는 매입전표들 — 삭제 확인창이 보여 준다(막지 않는다) */
+		@RequestMapping(value="/mangr/poLinkedPurch.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poLinkedPurch(@RequestParam("poSeq") long poSeq, HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>(); p.put("poSeq", poSeq); p.put("compCd", session.getAttribute("s_comp_cd"));
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", svc.selectPoLinkedPurch(p));
+			return res;
+		}
+		/** 발주 줄 마감(더 안 온다)/해제 — 잔량을 미입고에서 뺀다. 상태 중 사람이 저장하는 유일한 것 */
+		@RequestMapping(value="/mangr/poLineClose.do", method = RequestMethod.POST)
+		public ResponseEntity<String> poLineClose(@RequestParam("poDtlSeq") long poDtlSeq, @RequestParam("closeYn") String closeYn,
+		                                          @RequestParam(value="closeRmk", required=false) String closeRmk, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				Map<String,Object> p = new HashMap<String,Object>();
+				p.put("poDtlSeq", poDtlSeq); p.put("closeYn", "Y".equalsIgnoreCase(closeYn) ? "Y" : "N"); p.put("closeRmk", closeRmk); p.put("compCd", session.getAttribute("s_comp_cd"));
+				int n = svc.updatePoLineClose(p);
+				if (n == 0) return ResponseEntity.status(404).body("발주 줄을 찾을 수 없습니다(다른 회사 것이거나 지워진 줄).");
+				return ResponseEntity.ok(String.valueOf(n));
+			} catch (Exception e) { log.error(" poLineClose ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 		private static void poFillDefault(Map<String,Object> m, String key, String prop) {
 			String d = poPropOf("company", prop); if (d.length() > 0) m.put(key, d);   // 설정값이 있으면 우선
@@ -2644,162 +2809,172 @@ public class UserController {
 			return response;
 		}
 
-		/* ================= 수금/미수금 (TBL_RECEIVE_MST) ================= */
-		@RequestMapping(value="/mangr/receiveMng.do")
-		public String receiveMng(HttpSession session) {
-			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
-			return ".raw/main/mangr/receiveMng";
-		}
-		@RequestMapping(value="/mangr/receiveList.do", method = RequestMethod.POST)
+		/* ================= 정산 월 마감 — TBL_SETTLE_CLOSE_MST (2026-09-16 P2-g 수금/미수 연동) =================
+		   · 수기 장부(receiveMng/paymentMng · TBL_RECEIVE_MST/TBL_PAYMENT_MST 직접 입력) 엔드포인트 14개는 삭제했다 —
+		     메뉴에서 내린 2026-07-25 이후 실사용 0. 남긴 것은 월 마감 «상태·확정·해제» 뿐이고 거래처별 채권·채무(custBalance.jsp)가 쓴다.
+		   · RCV 확정 = 그 달의 거래처별 이월·매출·수금을 TBL_RECEIVE_MST 에 **스냅샷**으로 굳힌다(서비스 confirmSettleClose).
+		   · 확정된 달의 전표 저장·삭제는 **막지 않는다** — 수금·판매 등록 화면이 settleCloseInfo 로 확인창만 띄운다(사용자 방침 「메시지 처리」). */
+		@RequestMapping(value="/mangr/settleCloseInfo.do", method = RequestMethod.POST)
 		@ResponseBody
-		public Map<String,Object> receiveList(@ModelAttribute("DTO") egovframework.konet.user.model.ReceiveDTO dto, HttpSession session) throws Exception {
-			Map<String,Object> response = new HashMap<String,Object>();
-			response.put("data", svc.selectReceiveList(dto));
-			return response;
-		}
-		@RequestMapping(value="/mangr/receiveInsert.do", method = RequestMethod.POST)
-		public ResponseEntity<String> receiveInsert(@RequestBody egovframework.konet.user.model.ReceiveDTO dto, HttpServletRequest request, HttpSession session) {
-			try {
-				if (dto.getRcvYm()==null || dto.getRcvYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
-				if (dto.getBizCd()==null || dto.getBizCd().trim().isEmpty()) return ResponseEntity.status(400).body("거래처 필요");
-				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
-				return ResponseEntity.ok(String.valueOf(svc.insertReceive(dto)));
-			} catch (Exception e) { log.error(" receiveInsert ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
-		}
-		@RequestMapping(value="/mangr/receiveUpdate.do", method = RequestMethod.POST)
-		public ResponseEntity<String> receiveUpdate(@RequestBody egovframework.konet.user.model.ReceiveDTO dto, HttpServletRequest request, HttpSession session) {
-			try {
-				if (dto.getRcvSeq()==null) return ResponseEntity.status(400).body("RCV_SEQ 필요");
-				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
-				return ResponseEntity.ok(String.valueOf(svc.updateReceive(dto)));
-			} catch (Exception e) { log.error(" receiveUpdate ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
-		}
-		@RequestMapping(value="/mangr/receiveDelete.do", method = RequestMethod.POST)
-		public ResponseEntity<String> receiveDelete(@RequestBody egovframework.konet.user.model.ReceiveDTO dto, HttpServletRequest request, HttpSession session) {
-			try {
-				if (dto.getRcvSeq()==null) return ResponseEntity.status(400).body("RCV_SEQ 필요");
-				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
-				return ResponseEntity.ok(String.valueOf(svc.deleteReceive(dto)));
-			} catch (Exception e) { log.error(" receiveDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
-		}
-		@RequestMapping(value="/mangr/receiveUpload.do", method = RequestMethod.POST)
-		public ResponseEntity<String> receiveUpload(@RequestBody List<egovframework.konet.user.model.ReceiveDTO> rows, HttpServletRequest request, HttpSession session) {
-			try {
-				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
-				return ResponseEntity.ok(String.valueOf(svc.upsertReceiveList(rows, u, request.getRemoteAddr())));
-			} catch (Exception e) { log.error(" receiveUpload ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
-		}
-		@RequestMapping(value="/mangr/receiveCarryForward.do", method = RequestMethod.POST)
-		public ResponseEntity<String> receiveCarryForward(@RequestBody egovframework.konet.user.model.ReceiveDTO dto, HttpServletRequest request, HttpSession session) {
-			try {
-				if (dto.getRcvYm()==null || dto.getRcvYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
-				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
-				return ResponseEntity.ok(String.valueOf(svc.carryForwardReceive(dto)));
-			} catch (Exception e) { log.error(" receiveCarryForward ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
-		}
-		@RequestMapping(value="/mangr/receiveCloseStatus.do", method = RequestMethod.POST)
-		@ResponseBody
-		public Map<String,Object> receiveCloseStatus(@RequestBody egovframework.konet.user.model.ReceiveDTO dto, HttpSession session) throws Exception {
+		public Map<String,Object> settleCloseInfo(@RequestParam(value="settleGb", required=false) String settleGb, HttpSession session) throws Exception {
 			Map<String,Object> r = new HashMap<String,Object>();
-			egovframework.konet.user.model.SettleCloseDTO c = svc.selectSettleClose("RCV", dto.getRcvYm());
-			boolean closed = (c != null && "Y".equals(c.getStatus()));
-			r.put("closed", closed); r.put("confirmDttm", c!=null?c.getConfirmDttm():null); r.put("confirmUser", c!=null?c.getConfirmUser():null);
+			String gb = (settleGb == null || settleGb.trim().isEmpty()) ? "RCV" : settleGb.trim().toUpperCase();
+			String compCd = session.getAttribute("s_comp_cd") == null ? null : String.valueOf(session.getAttribute("s_comp_cd"));
+			r.put("closed", svc.selectSettleCloseList(gb, compCd));                                                     // 확정된 달 [{closeYm, confirmDttm, confirmUser}]
+			r.put("snap", "RCV".equals(gb) ? svc.selectRcvSnapshot(null, compCd) : new java.util.ArrayList<Object>()); // 확정 스냅샷(전 달 · 거래처별)
 			return r;
 		}
-		@RequestMapping(value="/mangr/receiveConfirm.do", method = RequestMethod.POST)
-		public ResponseEntity<String> receiveConfirm(@RequestBody egovframework.konet.user.model.ReceiveDTO dto, HttpServletRequest request, HttpSession session) {
+		@RequestMapping(value="/mangr/settleCloseConfirm.do", method = RequestMethod.POST)
+		public ResponseEntity<String> settleCloseConfirm(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
 			try {
-				if (dto.getRcvYm()==null || dto.getRcvYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String ym = p.get("closeYm") == null ? "" : String.valueOf(p.get("closeYm")).trim();
+				String gb = p.get("settleGb") == null ? "RCV" : String.valueOf(p.get("settleGb")).trim().toUpperCase();
+				if (ym.replace("-","").length() != 6) return ResponseEntity.status(400).body("마감할 달(YYYY-MM)이 필요합니다.");
 				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
-				return ResponseEntity.ok(String.valueOf(svc.confirmSettleClose("RCV", dto.getRcvYm(), u)));
-			} catch (Exception e) { log.error(" receiveConfirm ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+				return ResponseEntity.ok(String.valueOf(svc.confirmSettleClose(gb, ym, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")))));
+			} catch (Exception e) { log.error(" settleCloseConfirm ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
-		@RequestMapping(value="/mangr/receiveCancel.do", method = RequestMethod.POST)
-		public ResponseEntity<String> receiveCancel(@RequestBody egovframework.konet.user.model.ReceiveDTO dto, HttpServletRequest request, HttpSession session) {
+		@RequestMapping(value="/mangr/settleCloseCancel.do", method = RequestMethod.POST)
+		public ResponseEntity<String> settleCloseCancel(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
 			try {
-				if (dto.getRcvYm()==null || dto.getRcvYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String ym = p.get("closeYm") == null ? "" : String.valueOf(p.get("closeYm")).trim();
+				String gb = p.get("settleGb") == null ? "RCV" : String.valueOf(p.get("settleGb")).trim().toUpperCase();
+				if (ym.replace("-","").length() != 6) return ResponseEntity.status(400).body("해제할 달(YYYY-MM)이 필요합니다.");
 				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
-				return ResponseEntity.ok(String.valueOf(svc.cancelSettleClose("RCV", dto.getRcvYm(), u)));
-			} catch (Exception e) { log.error(" receiveCancel ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+				return ResponseEntity.ok(String.valueOf(svc.cancelSettleClose(gb, ym, u, String.valueOf(session.getAttribute("s_comp_cd")))));
+			} catch (Exception e) { log.error(" settleCloseCancel ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
-		/* ================= 출금/미지급 (TBL_PAYMENT_MST) ================= */
-		@RequestMapping(value="/mangr/paymentMng.do")
-		public String paymentMng(HttpSession session) {
+		/* ================= 비용 등록 (2026-09-16 P2-e) — TBL_EXPENSE_ITEM / TBL_EXPENSE_TRX. 순마진 = 매출총이익 − 비용.
+		   마감 확정된 달에 저장해도 막지 않는다(확인창은 화면이) — 확정값에 반영하려면 마감현황에서 다시 확정. ================= */
+		@RequestMapping(value="/mangr/expenseReg.do")
+		public String expenseReg(HttpSession session) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
-			return ".raw/main/mangr/paymentMng";
+			return ".raw/main/mangr/expenseReg";
 		}
-		@RequestMapping(value="/mangr/paymentList.do", method = RequestMethod.POST)
+		@RequestMapping(value="/mangr/expenseMonth.do", method = RequestMethod.POST)
 		@ResponseBody
-		public Map<String,Object> paymentList(@ModelAttribute("DTO") egovframework.konet.user.model.PaymentDTO dto, HttpSession session) throws Exception {
-			Map<String,Object> response = new HashMap<String,Object>();
-			response.put("data", svc.selectPaymentList(dto));
-			return response;
+		public Map<String,Object> expenseMonth(@RequestParam(value="ym", required=false) String ym, HttpSession session) throws Exception {
+			String compCd = session.getAttribute("s_comp_cd") == null ? null : String.valueOf(session.getAttribute("s_comp_cd"));
+			return svc.selectExpenseMonth(ym, compCd);
 		}
-		@RequestMapping(value="/mangr/paymentInsert.do", method = RequestMethod.POST)
-		public ResponseEntity<String> paymentInsert(@RequestBody egovframework.konet.user.model.PaymentDTO dto, HttpServletRequest request, HttpSession session) {
+		@RequestMapping(value="/mangr/expenseItemSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> expenseItemSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
 			try {
-				if (dto.getPayYm()==null || dto.getPayYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
-				if (dto.getBizCd()==null || dto.getBizCd().trim().isEmpty()) return ResponseEntity.status(400).body("매입처 필요");
-				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
-				return ResponseEntity.ok(String.valueOf(svc.insertPayment(dto)));
-			} catch (Exception e) { log.error(" paymentInsert ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String cd = p.get("itemCd") == null ? "" : String.valueOf(p.get("itemCd")).trim().toUpperCase();
+				String nm = p.get("itemNm") == null ? "" : String.valueOf(p.get("itemNm")).trim();
+				if (!cd.matches("[A-Z0-9_]{1,20}")) return ResponseEntity.status(400).body("항목코드는 영문 대문자·숫자·_ 1~20자입니다.");
+				if (nm.isEmpty()) return ResponseEntity.status(400).body("항목 이름이 필요합니다.");
+				int so = 0; try { so = (int) Double.parseDouble(String.valueOf(p.get("sortOrd"))); } catch (Exception e) { so = 0; }
+				p.put("itemCd", cd); p.put("itemNm", nm); p.put("sortOrd", so);
+				p.put("itemGb", "VAR".equals(p.get("itemGb")) ? "VAR" : "FIX");
+				p.put("useYn", "N".equals(p.get("useYn")) ? "N" : "Y");
+				p.put("compCd", session.getAttribute("s_comp_cd"));
+				p.put("regUser", session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):""); p.put("regIp", request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.saveExpenseItem(p)));
+			} catch (Exception e) { log.error(" expenseItemSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
-		@RequestMapping(value="/mangr/paymentUpdate.do", method = RequestMethod.POST)
-		public ResponseEntity<String> paymentUpdate(@RequestBody egovframework.konet.user.model.PaymentDTO dto, HttpServletRequest request, HttpSession session) {
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/mangr/expenseSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> expenseSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
 			try {
-				if (dto.getPaySeq()==null) return ResponseEntity.status(400).body("PAY_SEQ 필요");
-				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
-				return ResponseEntity.ok(String.valueOf(svc.updatePayment(dto)));
-			} catch (Exception e) { log.error(" paymentUpdate ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
-		}
-		@RequestMapping(value="/mangr/paymentDelete.do", method = RequestMethod.POST)
-		public ResponseEntity<String> paymentDelete(@RequestBody egovframework.konet.user.model.PaymentDTO dto, HttpServletRequest request, HttpSession session) {
-			try {
-				if (dto.getPaySeq()==null) return ResponseEntity.status(400).body("PAY_SEQ 필요");
-				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
-				return ResponseEntity.ok(String.valueOf(svc.deletePayment(dto)));
-			} catch (Exception e) { log.error(" paymentDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
-		}
-		@RequestMapping(value="/mangr/paymentUpload.do", method = RequestMethod.POST)
-		public ResponseEntity<String> paymentUpload(@RequestBody List<egovframework.konet.user.model.PaymentDTO> rows, HttpServletRequest request, HttpSession session) {
-			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String ym = p.get("ym") == null ? "" : String.valueOf(p.get("ym")).trim();
+				if (ym.replace("-","").length() != 6) return ResponseEntity.status(400).body("귀속월(YYYY-MM)이 필요합니다.");
+				List<Map<String,Object>> rows = (List<Map<String,Object>>) p.get("rows");
 				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
-				return ResponseEntity.ok(String.valueOf(svc.upsertPaymentList(rows, u, request.getRemoteAddr())));
-			} catch (Exception e) { log.error(" paymentUpload ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+				return ResponseEntity.ok(String.valueOf(svc.saveExpenseTrx(rows, ym, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")))));
+			} catch (Exception e) { log.error(" expenseSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
-		@RequestMapping(value="/mangr/paymentCarryForward.do", method = RequestMethod.POST)
-		public ResponseEntity<String> paymentCarryForward(@RequestBody egovframework.konet.user.model.PaymentDTO dto, HttpServletRequest request, HttpSession session) {
-			try {
-				if (dto.getPayYm()==null || dto.getPayYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
-				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
-				return ResponseEntity.ok(String.valueOf(svc.carryForwardPayment(dto)));
-			} catch (Exception e) { log.error(" paymentCarryForward ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+
+		/* ================= 창고 (2026-09-16 P3 1단계) — 창고 관리(whMng) · 창고별 재고현황(whStock) · 창고 이동 ================= */
+		@RequestMapping(value="/prod/whMng.do")
+		public String whMng(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/prod/whMng";
 		}
-		@RequestMapping(value="/mangr/paymentCloseStatus.do", method = RequestMethod.POST)
+		@RequestMapping(value="/prod/whStock.do")
+		public String whStock(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/prod/whStock";
+		}
+		/* 창고 목록 — useOnly=Y 면 사용 중인 창고만(전표 셀렉트용). qty = 창고별 현재고 합(창고 관리 표시·사용 끄기 가드) */
+		@RequestMapping(value="/prod/whList.do", method = RequestMethod.POST)
 		@ResponseBody
-		public Map<String,Object> paymentCloseStatus(@RequestBody egovframework.konet.user.model.PaymentDTO dto, HttpSession session) throws Exception {
+		public Map<String,Object> whList(@RequestParam(value="useOnly", required=false) String useOnly, HttpSession session) throws Exception {
+			String compCd = session.getAttribute("s_comp_cd") == null ? null : String.valueOf(session.getAttribute("s_comp_cd"));
 			Map<String,Object> r = new HashMap<String,Object>();
-			egovframework.konet.user.model.SettleCloseDTO c = svc.selectSettleClose("PAY", dto.getPayYm());
-			boolean closed = (c != null && "Y".equals(c.getStatus()));
-			r.put("closed", closed); r.put("confirmDttm", c!=null?c.getConfirmDttm():null); r.put("confirmUser", c!=null?c.getConfirmUser():null);
+			r.put("data", svc.selectWhList(compCd, "Y".equalsIgnoreCase(useOnly)));
+			r.put("qty", "Y".equalsIgnoreCase(useOnly) ? new HashMap<String,Object>() : svc.selectWhQtyMap(compCd));
 			return r;
 		}
-		@RequestMapping(value="/mangr/paymentConfirm.do", method = RequestMethod.POST)
-		public ResponseEntity<String> paymentConfirm(@RequestBody egovframework.konet.user.model.PaymentDTO dto, HttpServletRequest request, HttpSession session) {
+		@RequestMapping(value="/prod/whSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> whSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
 			try {
-				if (dto.getPayYm()==null || dto.getPayYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
-				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
-				return ResponseEntity.ok(String.valueOf(svc.confirmSettleClose("PAY", dto.getPayYm(), u)));
-			} catch (Exception e) { log.error(" paymentConfirm ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+				if (!adjLoggedIn(session)) return ResponseEntity.status(401).body(ADJ_LOGIN_MSG);
+				String cd = p.get("whCd") == null ? "" : String.valueOf(p.get("whCd")).trim().toUpperCase();
+				String nm = p.get("whNm") == null ? "" : String.valueOf(p.get("whNm")).trim();
+				if (!cd.matches("[A-Z0-9_]{1,20}")) return ResponseEntity.status(400).body("창고코드는 영문 대문자·숫자·_ 1~20자입니다.");
+				if (nm.isEmpty()) return ResponseEntity.status(400).body("창고 이름이 필요합니다.");
+				boolean def = "Y".equals(p.get("defaultYn")), use = !"N".equals(p.get("useYn"));
+				if (def && !use) return ResponseEntity.status(400).body("기본창고는 사용을 끌 수 없습니다 — 먼저 다른 창고를 기본으로 두세요.");
+				int so = 0; try { so = (int) Double.parseDouble(String.valueOf(p.get("sortOrd"))); } catch (Exception e) { so = 0; }
+				p.put("whCd", cd); p.put("whNm", nm); p.put("defaultYn", def ? "Y" : "N"); p.put("useYn", use ? "Y" : "N"); p.put("sortOrd", so);
+				p.put("compCd", session.getAttribute("s_comp_cd"));
+				p.put("regUser", String.valueOf(session.getAttribute("s_user_id"))); p.put("regIp", request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.saveWhMst(p)));
+			} catch (Exception e) { log.error(" whSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
-		@RequestMapping(value="/mangr/paymentCancel.do", method = RequestMethod.POST)
-		public ResponseEntity<String> paymentCancel(@RequestBody egovframework.konet.user.model.PaymentDTO dto, HttpServletRequest request, HttpSession session) {
+		/* 품목 × 창고 현재고 — 창고별 재고현황·창고 이동의 재고 확인. wh 도 함께(열 머리) */
+		@RequestMapping(value="/prod/whStockList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> whStockList(@ModelAttribute("DTO") egovframework.konet.user.model.StockMstDTO dto, HttpSession session) throws Exception {
+			String compCd = session.getAttribute("s_comp_cd") == null ? null : String.valueOf(session.getAttribute("s_comp_cd"));
+			dto.setCompCd(compCd);
+			Map<String,Object> r = new HashMap<String,Object>();
+			r.put("wh", svc.selectWhList(compCd, false));
+			r.put("data", svc.selectStockByWh(dto));
+			return r;
+		}
+		@RequestMapping(value="/prod/stockMoveList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockMoveList(@RequestParam(value="fromDt", required=false) String fromDt, @RequestParam(value="toDt", required=false) String toDt, HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("compCd", session.getAttribute("s_comp_cd")); p.put("fromDt", fromDt); p.put("toDt", toDt);
+			Map<String,Object> r = new HashMap<String,Object>(); r.put("data", svc.selectStockMoveList(p));
+			return r;
+		}
+		@RequestMapping(value="/prod/stockMoveSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> stockMoveSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
 			try {
-				if (dto.getPayYm()==null || dto.getPayYm().trim().isEmpty()) return ResponseEntity.status(400).body("귀속월 필요");
-				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
-				return ResponseEntity.ok(String.valueOf(svc.cancelSettleClose("PAY", dto.getPayYm(), u)));
-			} catch (Exception e) { log.error(" paymentCancel ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+				if (!adjLoggedIn(session)) return ResponseEntity.status(401).body(ADJ_LOGIN_MSG);
+				String fr = str(p.get("fromWh")).trim(), to = str(p.get("toWh")).trim(), cd = str(p.get("prodCd")).trim();
+				long qty = Math.round(Double.parseDouble(String.valueOf(p.get("qty") == null ? "0" : p.get("qty"))));
+				if (str(p.get("trxDt")).trim().isEmpty()) return ResponseEntity.status(400).body("이동일자가 필요합니다.");
+				if (fr.isEmpty() || to.isEmpty() || fr.equals(to)) return ResponseEntity.status(400).body("보내는 창고와 받는 창고를 다르게 고르세요.");
+				if (cd.isEmpty()) return ResponseEntity.status(400).body("품목코드가 필요합니다.");
+				if (qty <= 0) return ResponseEntity.status(400).body("수량은 1 이상이어야 합니다.");
+				p.put("fromWh", fr); p.put("toWh", to); p.put("prodCd", cd); p.put("qty", qty);
+				p.put("compCd", session.getAttribute("s_comp_cd"));
+				p.put("regUser", String.valueOf(session.getAttribute("s_user_id"))); p.put("regIp", request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(svc.saveStockMove(p)));
+			} catch (Exception e) { log.error(" stockMoveSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/prod/stockMoveCancel.do", method = RequestMethod.POST)
+		public ResponseEntity<String> stockMoveCancel(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return ResponseEntity.status(401).body(ADJ_LOGIN_MSG);
+				String refNo = str(p.get("refNo")).trim();
+				if (!refNo.startsWith("MV")) return ResponseEntity.status(400).body("이동 번호가 아닙니다.");
+				p.put("refNo", refNo); p.put("compCd", session.getAttribute("s_comp_cd"));
+				p.put("updUser", String.valueOf(session.getAttribute("s_user_id"))); p.put("updIp", request.getRemoteAddr());
+				int n = svc.cancelStockMove(p);
+				if (n == 0) return ResponseEntity.status(404).body("이미 취소됐거나 없는 이동입니다.");
+				return ResponseEntity.ok(String.valueOf(n));
+			} catch (Exception e) { log.error(" stockMoveCancel ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
 		/* ================= 상품마스터 (TBL_PROD_MST) ================= */
@@ -3535,6 +3710,7 @@ public class UserController {
 				head.setCompCd((String) session.getAttribute("s_comp_cd"));
 				head.setBaseDt(str(body.get("baseDt")));
 				head.setRemark(str(body.get("remark")));
+				head.setWhCd(str(body.get("whCd")));            // 조정 창고(2026-09-16 P3) — 비면 기본창고
 				head.setRegUser((String) session.getAttribute("s_user_id"));
 				head.setRegIp(request.getRemoteAddr());
 

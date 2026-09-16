@@ -37,6 +37,14 @@ public class PurchaseDtlDTO {
     private String  eventYn;       // 행사 Y/N
     private String  trxGb;         // 거래구분 '매입' / '반품'
     private Long    ledgerSeq;     // 이 행이 만든 TBL_STOCK_LEDGER PK
+    /* 발주↔매입 연결 (2026-09-16 P1-b) — 이 매입 줄이 어느 발주서·어느 발주 줄에서 왔는가. 입고수량은 저장하지 않고 이 키로 센다.
+       ★매입등록 화면이 줄에 실어 나른다(전표를 고쳐 저장해도 연결이 안 끊기게) — 저장이 명세를 지우고 다시 넣는 방식이라서. */
+    private Long    poSeq;
+    private Long    poDtlSeq;
+    public Long getPoSeq() { return poSeq; }
+    public void setPoSeq(Long poSeq) { this.poSeq = poSeq; }
+    public Long getPoDtlSeq() { return poDtlSeq; }
+    public void setPoDtlSeq(Long poDtlSeq) { this.poDtlSeq = poDtlSeq; }
 
     private String  actionYn;
     private String  regDttm;

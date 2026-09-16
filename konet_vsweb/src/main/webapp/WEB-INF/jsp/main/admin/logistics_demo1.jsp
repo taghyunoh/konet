@@ -467,7 +467,7 @@
   #d2Ticker .tk-item[data-zone]:hover { text-decoration:underline; text-underline-offset:2px; }
   #d2Ticker .tk-item .z { color:#ffd700; font-weight:800; }   /* 출고장명 = 금색 */
   #d2Ticker .tk-sep { color:#4a7ab5; margin:0 14px; }
-  #d2Ticker .tk-new{ color:#68d391; } #d2Ticker .tk-up{ color:#9ae6b4; } #d2Ticker .tk-dn{ color:#fbd38d; } #d2Ticker .tk-del{ color:#feb2b2; }
+  #d2Ticker .tk-new{ color:#68d391; } #d2Ticker .tk-up{ color:#9ae6b4; } #d2Ticker .tk-dn{ color:#fbd38d; } #d2Ticker .tk-del{ color:#feb2b2; } #d2Ticker .tk-mv{ color:#ff7b7b; font-weight:800; }   /* 이동·전환 = 오배송 위험 (2026-09-16) */
   #d2Ticker .tk-toggle { flex-shrink:0; margin:0 8px; padding:3px 10px; border-radius:4px; cursor:pointer; font-size:11px;
     color:#fff; white-space:nowrap; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); transition:background .2s; }
   #d2Ticker .tk-toggle:hover { background:rgba(255,255,255,.25); }
@@ -3453,33 +3453,87 @@
   }
 
   // 기간(날짜별) 모드용 — 배치이력(D2_HISTALL)에서 출고장별 '현재 vs 직전' 변경 집계 (모든 날짜 합산)
+  /* ★「이동·전환」 탐지 (2026-09-16, 사용자 「기본으로 늘 보이게」) — 종전엔 비교가 **같은 출고장 안**에 갇혀
+       사업장·품목이 평택1 → 김해3 으로 옮겨가면 「평택1 삭제 1 · 김해3 신규 1」로 흩어졌다(오배송이 나는 바로 그 자리).
+       ⇒ 같은 날짜 안에서 <한 출고장에서 사라진 키(사업장|품목)> 와 <다른 출고장에 나타난 같은 키> 를 짝지어 「이동」으로 묶는다.
+          출고장 이름이 「 직송」 꼬리만 다르면(평택1 ↔ 평택1 직송) 「전환」(배송↔직송).
+       · 짝지은 것은 삭제·신규에서 빼고 mvOut/mvIn 으로 센다 — 같은 건을 두 번 세지 않게.
+       · 받는 쪽 출고장이 **처음 올라온 배치**(직전 없음)여도 짝은 맺는다 — 새 출고장으로 옮겨 간 것이 가장 위험한 경우라서.
+         (종전 규칙대로 그런 출고장의 나머지 줄은 「신규」로 세지 않는다 — 전부 신규가 되어 뜻이 없다.)
+       · 반환 꼴이 바뀌었다 : { zones:{출고장:{nw,up,dn,dl,mvOut,mvIn}}, moves:[{date,biz,item,from,to,kind,qty}] }
+         부르는 곳은 d2RenderTicker 두 갈래뿐(d2TickerItems 로 모았다). */
   function d2ChangeFromHist(){
-    var byDate={};
+    var byDate={}, LBL={};   // LBL[rk] = 표시용 사업장·품목 이름
     (D2_HISTALL||[]).forEach(function(r){
       var d=r.date||D2_TODAY, zn=r.zone||'미배정', bk=(''+(r.uploadDttm||'')).slice(0,16); if(!bk) return;
       var dz=byDate[d]||(byDate[d]={});
       var z=dz[zn]||(dz[zn]={set:{}, list:[], HQ:{}});
       if(!z.set[bk]){ z.set[bk]=1; z.list.push(bk); }
       var ik=(r.code?r.code:('NM:'+r.item)); var rk=(r.biz||'')+'|'+ik;
+      if(!LBL[rk]) LBL[rk]={biz:(r.biz||''), item:(r.item||r.code||'')};
       (z.HQ[rk]||(z.HQ[rk]={}))[bk]=(z.HQ[rk][bk]||0)+(+r.qty||0);
     });
-    var zoneAgg={};
+    var zoneAgg={}, moves=[];
+    function agg(zn){ return zoneAgg[zn]||(zoneAgg[zn]={nw:0,up:0,dn:0,dl:0,mvOut:0,mvIn:0}); }
+    function base(zn){ return (''+zn).replace(/\s직송$/,''); }
     Object.keys(byDate).forEach(function(d){
-      var dz=byDate[d];
+      var dz=byDate[d], gone={}, came={};   // gone[rk]=사라진 출고장 · came[rk]=[{zn,qty}] 나타난 출고장들
       Object.keys(dz).forEach(function(zn){
         var z=dz[zn]; z.list.sort();
-        if(z.list.length<2) return;   // 직전 배치 없으면 비교 불가
-        var cur=z.list[z.list.length-1], prv=z.list[z.list.length-2];
-        var agg=zoneAgg[zn]||(zoneAgg[zn]={nw:0,up:0,dn:0,dl:0});
+        var cur=z.list[z.list.length-1], prv=(z.list.length>=2)?z.list[z.list.length-2]:null;
         Object.keys(z.HQ).forEach(function(rk){
+          var c=z.HQ[rk][cur], p=prv?z.HQ[rk][prv]:null;
+          if(c!=null && p==null) (came[rk]||(came[rk]=[])).push({zn:zn, qty:c});
+          else if(c==null && p!=null) gone[rk]=zn;
+        });
+      });
+      var paired={};   // rk|출고장 → 1 : 아래 신규/삭제 집계에서 뺀다
+      Object.keys(gone).forEach(function(rk){
+        var from=gone[rk], cands=(came[rk]||[]).filter(function(x){ return x.zn!==from; });
+        if(!cands.length) return;
+        var to=cands[0], kind=(base(from)===base(to.zn))?'전환':'이동';
+        moves.push({date:d, biz:LBL[rk].biz, item:LBL[rk].item, from:from, to:to.zn, kind:kind, qty:to.qty});
+        agg(from).mvOut++; agg(to.zn).mvIn++;
+        paired[rk+'|'+from]=1; paired[rk+'|'+to.zn]=1;
+      });
+      // 종전 집계(신규/증가/감소/삭제) — 직전 배치가 있는 출고장만, 짝지은 것은 뺀다
+      Object.keys(dz).forEach(function(zn){
+        var z=dz[zn]; if(z.list.length<2) return;   // 직전 배치 없으면 비교 불가
+        var cur=z.list[z.list.length-1], prv=z.list[z.list.length-2], a=agg(zn);
+        Object.keys(z.HQ).forEach(function(rk){
+          if(paired[rk+'|'+zn]) return;
           var c=z.HQ[rk][cur], p=z.HQ[rk][prv];
-          if(c!=null && p==null) agg.nw++;
-          else if(c==null && p!=null) agg.dl++;
-          else if(c!=null && p!=null){ if(c>p) agg.up++; else if(c<p) agg.dn++; }
+          if(c!=null && p==null) a.nw++;
+          else if(c==null && p!=null) a.dl++;
+          else if(c!=null && p!=null){ if(c>p) a.up++; else if(c<p) a.dn++; }
         });
       });
     });
-    return zoneAgg;
+    return { zones:zoneAgg, moves:moves };
+  }
+
+  // 변경 알림 항목 만들기 — 이동·전환이 맨 앞(가장 위험한 것부터), 그 뒤 출고장별 요약. d2RenderTicker 의 두 갈래가 같이 쓴다.
+  //   이동 항목의 data-zone = 옮겨 간 출고장 → 클릭하면 그리로 간다(직전에 있던 곳은 title 에).
+  function d2TickerItems(res){
+    var items=[], _za=(res&&res.zones)||{}, mv=(res&&res.moves)||[], MAXMV=8;
+    mv.slice(0,MAXMV).forEach(function(m){
+      var lab=(m.kind==='전환')?'🔁 전환':'🚚 이동';
+      items.push('<span class="tk-item tk-mv" data-zone="'+d2Esc(m.to)+'" title="'+d2Esc(m.date)+' · 직전 배치에서는 「'+d2Esc(m.from)+'」에 있던 건입니다 — 클릭하면 옮겨 간 출고장으로 이동">'
+        + lab+' '+d2Esc(m.biz)+' · '+d2Esc(m.item)+' : '+d2Esc(m.from)+' → <b>'+d2Esc(m.to)+'</b> ('+d2Num(m.qty)+')</span>');
+    });
+    if(mv.length>MAXMV) items.push('<span class="tk-item tk-mv">… 이동·전환 외 '+(mv.length-MAXMV)+'건</span>');
+    Object.keys(_za).sort(function(a,b){ return a.localeCompare(b,'ko'); }).forEach(function(zn){
+      var c=_za[zn]; if(c.nw+c.up+c.dn+c.dl+c.mvOut+c.mvIn===0) return;
+      var parts=[];
+      if(c.mvIn)  parts.push('<span class="tk-mv">←이동 '+c.mvIn+'</span>');
+      if(c.mvOut) parts.push('<span class="tk-mv">이동→ '+c.mvOut+'</span>');
+      if(c.nw) parts.push('<span class="tk-new">신규 '+c.nw+'</span>');
+      if(c.up) parts.push('<span class="tk-up">▲증가 '+c.up+'</span>');
+      if(c.dn) parts.push('<span class="tk-dn">▼감소 '+c.dn+'</span>');
+      if(c.dl) parts.push('<span class="tk-del">삭제 '+c.dl+'</span>');
+      items.push('<span class="tk-item" data-zone="'+d2Esc(zn)+'" title="클릭하면 해당 출고장으로 이동"><span class="z">'+d2Esc(zn)+'</span> '+parts.join(' · ')+'</span>');
+    });
+    return items;
   }
 
   // 출고장 변경 알림 — iframe(부모 셸) 안이면 부모의 독립 하단 바로 postMessage, 단독 실행이면 자체 바 렌더.
@@ -3492,31 +3546,13 @@
       //   과거엔 D2_PREV(z.rows.prevQty)로 계산 → '직전' 정의가 그리드(selectShipoutHistAll: UPLOAD_DTTM 슬롯, 출고장=DC+INWH)와
       //   달라(selectShipoutPrev: ACTION_YN='N'+MAX(JOB_SEQ) per DC_CD) 재생성 출고장에서 유령 ▲증가가 발생했음.
       //   d2ChangeFromHist()는 그리드 슬롯0(현재) vs 슬롯1(직전)과 완전히 같은 배치·같은 키(사업장|품목코드)로 비교하므로 셀과 항상 일치.
-      var _za = (D2_HISTALL && D2_HISTALL.length) ? d2ChangeFromHist() : {};
-      Object.keys(_za).sort(function(a,b){ return a.localeCompare(b,'ko'); }).forEach(function(zn){
-        var c=_za[zn]; if(c.nw+c.up+c.dn+c.dl===0) return;
-        var parts=[];
-        if(c.nw) parts.push('<span class="tk-new">신규 '+c.nw+'</span>');
-        if(c.up) parts.push('<span class="tk-up">▲증가 '+c.up+'</span>');
-        if(c.dn) parts.push('<span class="tk-dn">▼감소 '+c.dn+'</span>');
-        if(c.dl) parts.push('<span class="tk-del">삭제 '+c.dl+'</span>');
-        items.push('<span class="tk-item" data-zone="'+d2Esc(zn)+'" title="클릭하면 해당 출고장으로 이동"><span class="z">'+d2Esc(zn)+'</span> '+parts.join(' · ')+'</span>');
-      });
+      items = (D2_HISTALL && D2_HISTALL.length) ? d2TickerItems(d2ChangeFromHist()) : [];   // 이동·전환 + 출고장별 요약
       if(!items.length) items.push('<span class="tk-item">✓ 직전 업로드 대비 변경 없음</span>');
     } else if(D2_DATA && D2_DATA.length){
       // 기간(날짜별) 모드 — 데이터만 있으면 무조건 알림 표시. 배치이력 있으면 변경요약, 없으면 기간 요약.
       hide=false;
       if(D2_HISTALL && D2_HISTALL.length){
-        var _za=d2ChangeFromHist();
-        Object.keys(_za).sort(function(a,b){ return a.localeCompare(b,'ko'); }).forEach(function(zn){
-          var c=_za[zn]; if(c.nw+c.up+c.dn+c.dl===0) return;
-          var parts=[];
-          if(c.nw) parts.push('<span class="tk-new">신규 '+c.nw+'</span>');
-          if(c.up) parts.push('<span class="tk-up">▲증가 '+c.up+'</span>');
-          if(c.dn) parts.push('<span class="tk-dn">▼감소 '+c.dn+'</span>');
-          if(c.dl) parts.push('<span class="tk-del">삭제 '+c.dl+'</span>');
-          items.push('<span class="tk-item" data-zone="'+d2Esc(zn)+'" title="클릭하면 해당 출고장으로 이동"><span class="z">'+d2Esc(zn)+'</span> '+parts.join(' · ')+'</span>');
-        });
+        items = d2TickerItems(d2ChangeFromHist());   // 이동·전환 + 출고장별 요약(단일 모드와 같은 함수)
       }
       if(!items.length){   // 변경 없음(또는 이력 없음) → 기간 요약이라도 표시
         var _nd={}, _zs={}, _q=0;

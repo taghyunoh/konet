@@ -5,6 +5,8 @@
      브라우저 기본 달력의 ↑↓ 는 앞/뒤가 안 읽혀 엉뚱한 달로 넘어가는 일이 잦았다.
      빼려면 그 칸에 data-nonav="1" --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
+<%-- 회사 설정(회사 정보 수정 「기능」 ▸ 수금 ▸ 미수 경과 경고·위험 일수, 2026-09-16 P2-g) — window.konetSet --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260916"></script>
 <!--
   거래처별 채권·채무 (2026-07-26 요청 신설)
     · 메뉴 이름은 "거래처별 채권·채무"(사용자 유지 요청), 화면 표기는 쉬운 말로 — 받을금액 / 지급할금액 / 이월 / 남은금액.
@@ -107,11 +109,19 @@
   table.cb-tb tr.tot td.dayc{ background:#0f6a5e; }
   table.cb-tb tr.grow td.dayc{ background:#f3ecdd; }
   .amt-d{ color:#b45309; font-weight:700; }          /* 그날 발생 금액 */
+  /* ★미수 경과 배지 (2026-09-16 P2-g) — 받을금액 > 0 인 줄에만. 기준일수는 회사 설정(dueWarn·dueBad) · 잔액 계산과 무관 */
+  .due{ display:inline-block; min-width:56px; padding:1px 7px; border-radius:9px; font-size:11.5px; font-weight:800; text-align:center;
+        background:#e8f4f1; color:#137a6c; white-space:nowrap; }
+  .due.w{ background:#fdf0d5; color:#9a5b05; }
+  .due.b{ background:#fde2e2; color:#b42318; }
+  .lock{ font-size:11px; font-weight:800; color:#6b4f0a; background:#fdf0d5; border-radius:6px; padding:0 5px; margin-left:4px; white-space:nowrap; }
+  .snapdiff{ display:block; font-size:11px; font-weight:800; color:#b42318; white-space:nowrap; }
+  .snapok{ display:block; font-size:11px; font-weight:700; color:#137a6c; white-space:nowrap; }
   /* ★칸 폭 — 받을금액·지급할금액은 넓게, [특정일자 발생]은 조금 좁게 (2026-07-27 요청).
        발생 칸은 보통 한두 칸에만 금액이 들어 비어 있는 자리가 넓어 보였고,
        정작 매일 보는 누계 칸(당월매출·남은금액)이 좁아 숫자가 답답했다.
      ★[함정] 위치(nth-child) 기준이라 **칸 순서가 바뀌면 여기도 같이 고쳐야 한다**.
-         본문 16칸 = 1 거래처 · 2 구분 · 3~6 받을금액 · 7~10 지급할금액 · 11~14 특정일자 발생 · 15 순액 · 16 최근거래일
+         본문 17칸 = 1 거래처 · 2 구분 · 3~6 받을금액 · 7~10 지급할금액 · 11~14 특정일자 발생 · 15 순액 · 16 최근거래일 · 17 미수 경과(2026-09-16, 맨 뒤에 붙여 위 규칙은 안 흔들림)
          머리글 둘째 줄 12칸 = 1~4 받을금액 · 5~8 지급할금액 · 9~12 특정일자 발생 */
   #cbList thead tr:nth-child(2) th:nth-child(-n+8){ min-width:98px; }
   #cbList tbody td:nth-child(n+3):nth-child(-n+10){ min-width:98px; }
@@ -258,6 +268,12 @@
       <button class="cb-btn" id="cbThisMonBtn" onclick="cbThisMonth()" title="기준월을 이번 달로 (잔액)">이번 달</button>
       <%-- 출고장 묶음(대시보드와 같은 규칙) — 기본 켬. 끄면 거래처만 평평하게 나온다 --%>
       <label class="cb-chk"><input type="checkbox" id="cbGroup" checked onchange="cbRender()"> 출고장 묶음</label>
+      <%-- ★미수 관리 (2026-09-16 P2-g) — 누적 모드 전용. 「미수 있는 거래처만」은 기본 켬(설계 확정) · 끄면 이 PC 에 기억(localStorage).
+           「N일 넘긴 것만」 = 경고 기준(회사 정보 수정 ▸ 기능 ▸ 수금, 기본 30일)을 넘긴 곳만. 둘 다 잔액 계산은 손대지 않는다 — 줄을 거를 뿐. --%>
+      <label class="cb-chk" id="cbDueOnlyL" title="받을금액이 0보다 큰 거래처만 남깁니다 (매입처는 빠집니다)"><input type="checkbox" id="cbDueOnly" onchange="cbDueOnlyChg()"> 미수 있는 거래처만</label>
+      <label class="cb-chk" id="cbDueOverL" title="미수 경과가 경고 기준(회사 설정)을 넘긴 거래처만 — 독촉 목록"><input type="checkbox" id="cbDueOver" onchange="cbRender()"> <span id="cbDueOverTxt">30일 넘긴 것만</span></label>
+      <%-- 월 마감 확정 — 기준월의 거래처별 이월·매출·수금·남은금액을 이 시점 값으로 굳힌다(TBL_SETTLE_CLOSE_MST 'RCV' + TBL_RECEIVE_MST 스냅샷). 막는 장치가 아니다. --%>
+      <button class="cb-btn" id="cbCloseBtn" onclick="cbCloseToggle()" title="기준월의 받을금액을 확정 당시 값으로 굳힙니다">🔒 이 달 마감 확정</button>
       <%-- 글자는 cbAllBtn() 이 지금 상태에 맞춰 [⊟ 접기] ↔ [⊞ 펼치기] 로 바꾼다 --%>
       <button class="cb-btn" id="cbAllBtn" onclick="cbToggleAll()" title="묶음 전체 접기/펼치기">⊟ 접기</button>
       <button class="cb-btn" onclick="cbHelp()" id="cbHelpBtn" style="margin-left:auto">ℹ️ 도움말</button>
@@ -333,6 +349,16 @@
       각 줄도 <b>이월 + 매출 − 수금 = 남은금액</b>이 그대로 맞고, 그 달 남은금액이 다음 달 이월이 됩니다.
       맨 위 <b>누계</b> 줄은 기준월까지의 발생 합계입니다.<br><br>
 
+      <b style="color:#137a6c">■ 미수 경과 · 월 마감 확정</b> <span style="color:#5a6b7a">— 2026-09-16 신설(수금/미수 관리)</span><br>
+      &nbsp;&nbsp;· <b>미수 경과</b> 칸(맨 오른쪽) = 받을금액이 있는 거래처에서 <b>마지막 수금일</b>(수금이 한 번도 없으면 마지막 매출일)부터 며칠 지났나.
+      기준일은 <b>오늘</b>(기준월이 지난 달이면 그 달 말일). <span class="due">정상</span> → <span class="due w">⚠ 30일↑</span> → <span class="due b">⛔ 60일↑</span>,
+      기준일수는 <b>회사 정보 수정 ▸ 기능 ▸ 수금</b>에서 바꿉니다. <b>잔액 계산은 손대지 않습니다</b> — 잔액 옆에 붙는 표시일 뿐입니다.<br>
+      &nbsp;&nbsp;· <b>미수 있는 거래처만</b>(기본 켬) — 받을금액 &gt; 0 인 곳만 남깁니다(매입처가 빠져 열몇 줄이 됩니다). 끄면 이 PC 에 기억합니다.
+      <b>N일 넘긴 것만</b> — 경고 기준을 넘긴 곳만(독촉 목록). 머리글 <b>미수 경과</b>를 누르면 오래된 순으로 정렬됩니다.<br>
+      &nbsp;&nbsp;· <b>🔒 이 달 마감 확정</b> — 기준월의 거래처별 <b>이월·매출·수금·남은금액</b>을 그 시점 값으로 굳혀 둡니다(거래처에 보낸 미수 안내와 어긋나지 않게).
+      확정한 뒤 그 달 전표를 고치면 <b>막지 않고</b> 수금·판매 등록에서 확인창이 뜨고, 여기 <b>월별 이력</b>에 🔒 와 함께 <b>확정 당시 남은금액과 지금 값의 차이</b>가 빨갛게 보입니다.
+      같은 달을 다시 확정하면 새 값으로 굳힙니다. <b>🔓 마감 해제</b>는 잠금만 풉니다(스냅샷은 남습니다).<br><br>
+
       <b style="color:#b45309">■ 읽을 때 주의</b><br>
       &nbsp;&nbsp;· <b>받을금액이 0인 거래처가 대부분인 것은 정상</b>입니다. 정산서에는 거래처코드가 없어
       거래처마스터의 <b>출고장코드(DC_CD)</b>로만 매출이 이어지는데, 그 코드가 있는 곳은 <b>삼성웰스토리 지점 7곳</b>뿐입니다.
@@ -406,6 +432,9 @@ var _day    = {};
 var _dayKey = '';
 var _dayOn  = false;
 var _dayErr = '';      // 발생분 조회 실패 메시지(부제에만 조용히 적는다 — 잔액은 멀쩡하므로 팝업까지는 안 띄운다)
+/* ★미수 관리 · 월 마감 (2026-09-16 P2-g) — 잔액 계산은 하나도 안 건드린다. 경과일은 잔액 옆 표시, 마감은 굳히기(막지 않음).
+     _close.closed[ym6] = { dttm, user }  ·  _close.snap[ym6+'|'+custCd] = { prevAmt, salesAmt, collectAmt, balAmt }  ·  on = 읽었는지 */
+var _close = { closed:{}, snap:{}, on:false };
 
 /* ══════════════════════════════════════════════════════════════════
    ★보기 방식 3가지 (2026-07-29 요청) — 누적 / 월 / 년
@@ -476,6 +505,7 @@ function today(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth(
     '<tbody><tr><td class="cb-msg">[조회]를 누르면 거래처별 잔액이 나옵니다.</td></tr></tbody>';
   document.getElementById('cbHist').innerHTML = '';
   cbModeUI();          // 보기 방식(누적/월/년) 기본 = 누적 — 조회줄·이름표를 그 모드로 세운다
+  cbDueInit(); cbCloseUI();   // 미수 필터 기본값(이 PC 기억)·마감 단추 글자(2026-09-16)
   cbDtlRender();
 })();
 
@@ -528,6 +558,7 @@ function cbModeUI(){
   _show('cbToFld',    occ);
   _show('cbTodayBtn', !occ);
   _show('cbThisMonBtn', !occ);
+  _show('cbDueOnlyL', !occ); _show('cbDueOverL', !occ); _show('cbCloseBtn', !occ);   // 미수 관리·마감은 누적(잔액) 전용(2026-09-16)
   _show('cbHistCard', !occ);                     // 월·년은 위 표가 이미 일자(월)별 — 가운데 이력은 중복이라 숨긴다
   var wrp=document.getElementById('cbWrap');     // 월·년은 위 표 높이를 낮춰 아래 표가 함께 보이게
   if(wrp) wrp.className='cb-wrap'+(occ?' cb-occ':'');
@@ -704,6 +735,105 @@ function cbDayOf(cd){ return _day[cd] || { sale:0, rcv:0, purch:0, pay:0 }; }
 function cbDayAny(cd){ var d=cbDayOf(cd); return Math.round(d.sale)!==0 || Math.round(d.rcv)!==0
                                               || Math.round(d.purch)!==0 || Math.round(d.pay)!==0; }
 
+/* ══════════ 미수 경과 (2026-09-16 P2-g) — 받을금액 > 0 인 거래처에서 마지막 수금일(없으면 마지막 매출일)부터 며칠 지났나.
+     ★잔액 계산과 무관하다. 특정일자와도 무관하다(2026-07-27 확정 규칙 그대로) — 잔액 옆에 붙는 표시일 뿐이다.
+     기준일수 = 회사 설정 dueWarn(⚠, 기본 30) · dueBad(⛔, 기본 60). 코드에 박지 않는다. ══════════ */
+function cbDueWarn(){ var v=Number(window.konetSet ? konetSet.f('dueWarn') : 0); return (isFinite(v) && v>0) ? v : 30; }
+function cbDueBad(){  var v=Number(window.konetSet ? konetSet.f('dueBad')  : 0); return (isFinite(v) && v>0) ? Math.max(v, cbDueWarn()) : Math.max(60, cbDueWarn()); }
+/* 기준일 — 기준월이 이번 달(또는 비어 있음)이면 오늘, 지난 달이면 그 달 말일(그 시점에서 본 경과) */
+function cbDueRef(){
+  var ym=(document.getElementById('cbYm').value||'');
+  if(!ym || ym >= thisMonth()) return new Date();
+  return new Date(Number(ym.slice(0,4)), Number(ym.slice(5,7)), 0);
+}
+function _dtOf(s){ s=String(s||''); if(s.length<8) return null;
+  var d=new Date(Number(s.slice(0,4)), Number(s.slice(4,6))-1, Number(s.slice(6,8))); return isNaN(d.getTime()) ? null : d; }
+/* 경과일 — 받을금액이 0 이하이거나 날짜가 없으면 null(칸을 비운다) */
+function cbDueDays(o){
+  if(!o || Math.round(o.recv) <= 0) return null;
+  var base=_dtOf(o.lastRcvDt) || _dtOf(o.lastSaleDt);
+  if(!base) return null;
+  var r=cbDueRef(), ref=new Date(r.getFullYear(), r.getMonth(), r.getDate());
+  return Math.max(0, Math.round((ref-base)/86400000));
+}
+function cbDueLvl(d){ return d==null ? '' : (d>=cbDueBad() ? 'b' : (d>=cbDueWarn() ? 'w' : 'ok')); }
+function cbDueCell(o){
+  var d=cbDueDays(o);
+  if(d==null) return '<td class="ctr"></td>';
+  var lv=cbDueLvl(d),
+      tip='마지막 수금 '+(o.lastRcvDt?dtLbl(o.lastRcvDt):'없음')+' · 마지막 매출 '+(o.lastSaleDt?dtLbl(o.lastSaleDt):'없음')
+         +' · 기준 '+ymd(cbDueRef());
+  return '<td class="ctr" title="'+esc(tip)+'"><span class="due'+(lv==='ok'?'':' '+lv)+'">'+(lv==='b'?'⛔ ':(lv==='w'?'⚠ ':''))+d+'일</span></td>';
+}
+/* 묶음·합계 줄 = 경고 기준을 넘긴 거래처 수 */
+function cbDueCnt(list){ var c=0; (list||[]).forEach(function(o){ var d=cbDueDays(o); if(d!=null && d>=cbDueWarn()) c++; }); return c; }
+function cbDueCntCell(list){ var c=cbDueCnt(list); return '<td class="ctr">'+(c?'<span class="due w">⚠ '+c+'곳</span>':'')+'</td>'; }
+function _dueOnly(){ var e=document.getElementById('cbDueOnly'); return !!(e && e.checked); }
+function _dueOver(){ var e=document.getElementById('cbDueOver'); return !!(e && e.checked); }
+function cbDueOnlyChg(){ try{ localStorage.setItem('konetCbDueOnly', _dueOnly()?'1':'0'); }catch(e){} cbRender(); }
+function cbDueInit(){
+  var v='1'; try{ v=localStorage.getItem('konetCbDueOnly')||'1'; }catch(e){}
+  var e=document.getElementById('cbDueOnly'); if(e) e.checked = (v!=='0');     // 기본 켬(설계 확정) — 한 번 끄면 이 PC 는 꺼진 채
+  _txt('cbDueOverTxt', cbDueWarn()+'일 넘긴 것만');
+}
+
+/* ══════════ 월 마감 확정 (2026-09-16 P2-g) — TBL_SETTLE_CLOSE_MST('RCV', 기준월) + TBL_RECEIVE_MST 스냅샷(서버가 만든다).
+     ★막는 장치가 아니라 굳히는 장치 — 확정 뒤 전표를 고치면 등록 화면이 확인창만 띄우고, 여기 월별 이력이 차이를 보여 준다. ══════════ */
+function cbCloseLoad(){
+  fetch(CTX+'/mangr/settleCloseInfo.do', { method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'settleGb=RCV' })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      var c={}, s={};
+      ((j&&j.closed)||[]).forEach(function(x){ c[String(x.closeYm||'')]={ dttm:String(x.confirmDttm||''), user:String(x.confirmUser||'') }; });
+      ((j&&j.snap)||[]).forEach(function(x){ s[String(x.rcvYm||'')+'|'+String(x.bizCd||'')]=x; });
+      _close={ closed:c, snap:s, on:true };
+      cbCloseUI();
+      if(_rows.length && !cbIsOcc()) cbRender();
+    })
+    .catch(function(){ _close={ closed:{}, snap:{}, on:false }; cbCloseUI(); });   // 옛 서버(엔드포인트 없음)면 조용히 — 잔액은 멀쩡하다
+}
+function cbYm6(){ return (document.getElementById('cbYm').value||'').replace('-',''); }
+function cbClosedNow(){ return _close.closed[cbYm6()] || null; }
+function cbCloseUI(){
+  var b=document.getElementById('cbCloseBtn'); if(!b) return;
+  var ym=document.getElementById('cbYm').value||'', c=cbClosedNow();
+  b.textContent = c ? '🔓 마감 해제' : '🔒 이 달 마감 확정';
+  b.title = c ? (ym+' 은 '+(c.dttm||'').slice(0,16)+' '+(c.user||'')+' 확정 — 누르면 잠금만 풉니다(스냅샷은 남습니다)')
+              : ((ym||'기준월')+' 의 거래처별 이월·매출·수금·남은금액을 이 시점 값으로 굳힙니다');
+  b.style.background = c ? '#fdf0d5' : '';
+  b.disabled = !ym;
+}
+function cbCloseToggle(){
+  var ym=document.getElementById('cbYm').value||'';
+  if(!ym){ _alertBox('기준월을 먼저 고르세요.', {icon:'⚠️'}); return; }
+  var c=cbClosedNow();
+  if(!c && !_rows.length){ _alertBox('먼저 [조회]로 잔액을 읽은 뒤 확정하세요.', {icon:'⚠️'}); return; }
+  var cnt=0; if(!c) cbFold().forEach(function(o){ if(Math.round(o.recv)!==0) cnt++; });
+  var msg = c
+    ? '<b>'+ym+'</b> 마감을 <b>해제</b>할까요?<br><span style="font-size:13px;color:#3d4d5c">잠금만 풉니다. 확정 당시 스냅샷은 남아 있고, 다시 확정하면 새 값으로 굳힙니다.</span>'
+    : '<b>'+ym+'</b> 을 <b>마감 확정</b>할까요?<br><span style="font-size:13px;color:#3d4d5c">거래처별 이월·매출·수금·남은금액을 <b>지금 값</b>으로 굳힙니다'
+      +(cnt?' (받을금액 있는 거래처 '+cnt+'곳)':'')+'.<br>이후 그 달 전표를 고쳐도 막지는 않고 확인창이 뜨며, 월별 이력에 차이가 표시됩니다.</span>';
+  var opt={ msg:msg, icon:(c?'🔓':'🔒'), okText:(c?'해제':'확정'), onOk:function(){
+    var b=document.getElementById('cbCloseBtn'); if(b) b.disabled=true;
+    fetch(CTX+(c?'/mangr/settleCloseCancel.do':'/mangr/settleCloseConfirm.do'), { method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({ settleGb:'RCV', closeYm:ym }) })
+      .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
+      .then(function(){ if(window._toast) _toast(c ? (ym+' 마감을 해제했습니다') : (ym+' 마감을 확정했습니다'), 'success'); cbCloseLoad(); })
+      .catch(function(e){ if(b) b.disabled=false;
+        _alertBox((c?'해제':'확정')+'하지 못했습니다.<br><span style="font-size:13px;color:#2b3a48">'+esc(e.message)+'</span>', {icon:'❌', okColor:'red'}); });
+  }};
+  if(c) opt.okColor='red';
+  _confirmBox(opt);
+}
+/* 확정 스냅샷과 지금 값 — 월별 이력 남은금액 밑에 붙는다. 스냅샷에 없는 거래처는 확정 당시 0 이었다는 뜻(셋 다 0 인 곳은 안 남긴다) */
+function cbSnapMark(ym, custCd, balNow){
+  if(!_close.closed[ym]) return '';
+  var s=_close.snap[ym+'|'+custCd], snapBal = s ? n(s.balAmt) : 0;
+  if(Math.round(snapBal)===Math.round(balNow)) return '<span class="snapok">🔒 확정 일치</span>';
+  return '<span class="snapdiff" title="확정 당시 남은금액 '+fmt(snapBal)+' → 지금 '+fmt(balNow)+'">🔒 확정 '+fmt(snapBal)+' (차이 '+fmt(balNow-snapBal)+')</span>';
+}
+
 /* ★서버는 '전 기간 × 전 거래처'를 한 번에 준다 — 잔액이 누계라 기간을 걸 수 없기 때문이다.
      한 번 받아두면 기준월·필터·검색을 바꿔도 재조회가 없다(매출 그래프 일자별과 같은 방식).
      ※ 하단 건별 내역만 예외로 그때그때 읽는다(하루치라 가볍고, 이 응답에 없는 낟알이라). */
@@ -711,6 +841,8 @@ function cbLoad(){
   /* 월·년 모드의 [조회] = 발생분 다시 읽기(같은 기간이어도 강제로) — 누적표는 손대지 않는다 */
   if(cbIsOcc()){ _occKey=''; cbOccLoad(); return; }
   document.getElementById('kRange').textContent='조회 중…';
+  cbCloseLoad();                                 // 마감 확정 정보(🔒·스냅샷) — 잔액 응답과 따로 읽는다(2026-09-16)
+  _txt('cbDueOverTxt', cbDueWarn()+'일 넘긴 것만');
   fetch(CTX+'/mangr/selectCustBalance.do', { method:'POST', credentials:'same-origin',
       headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
     .then(function(r){ return r.json(); })
@@ -750,7 +882,7 @@ function cbFold(){
                       mgrNm:r.mgrNm||'', tel:r.tel||'', dcCd:r.dcCd||'',
                       recv:0, pay:0, sale:0, rcv:0, purch:0, payout:0,
                       prevRecv:0, prevPay:0, curSale:0, curRcv:0, curPurch:0, curPay:0,
-                      lastDt:'', months:[] }; ord.push(k); }
+                      lastDt:'', lastSaleDt:'', lastRcvDt:'', months:[] }; ord.push(k); }
     var o=m[k];
     var sale=n(r.saleAmt)-n(r.saleDcAmt), rcv=n(r.rcvAmt),
         purch=n(r.purchAmt)-n(r.purchDcAmt), payout=n(r.payAmt);
@@ -760,6 +892,9 @@ function cbFold(){
     if(ymTo && ym === ymTo){ o.curSale+=sale; o.curRcv+=rcv; o.curPurch+=purch; o.curPay+=payout; }
     else { o.prevRecv += sale-rcv; o.prevPay += purch-payout; }
     if(String(r.lastDt||'') > o.lastDt) o.lastDt=String(r.lastDt||'');
+    /* 미수 경과용(2026-09-16) — 기준월까지의 마지막 매출일·수금일(응답은 달마다 하나라 여기서 최댓값을 다시 접는다) */
+    if(String(r.lastSaleDt||'') > o.lastSaleDt) o.lastSaleDt=String(r.lastSaleDt||'');
+    if(String(r.lastRcvDt||'')  > o.lastRcvDt)  o.lastRcvDt =String(r.lastRcvDt||'');
     o.months.push({ ym:ym, sale:n(r.saleAmt), saleDc:n(r.saleDcAmt), rcv:rcv,
                     purch:n(r.purchAmt), purchDc:n(r.purchDcAmt), pay:payout });
   });
@@ -783,6 +918,7 @@ function cbRender(){
   }
   var f=document.getElementById('cbFilter').value;
   var q=(document.getElementById('cbFind').value||'').trim().toLowerCase();
+  cbCloseUI();                                   // 기준월이 바뀌면 [🔒 확정]↔[🔓 해제] 글자도 따라간다(2026-09-16)
 
   _list = (occ ? cbOccFold() : cbFold()).filter(function(o){
     /* 발생 모드의 '받을/지급만' 은 **움직임이 있었는지**로 본다 — 매출과 수금이 같아 차액이 0인 달도
@@ -798,6 +934,9 @@ function cbRender(){
       if(f==='bal'  && Math.round(o.recv)===0 && Math.round(o.pay)===0) return false;
       /* '특정일자에 거래 있는 곳만' — 발생분을 아직 못 읽었으면 거르지 않는다(빈 화면이 되지 않게) */
       if(f==='day'  && _dayOn && !cbDayAny(o.custCd)) return false;
+      /* ★미수 관리 (2026-09-16) — 받을 돈 있는 곳만 / 경고 기준 넘긴 곳만. 줄을 거를 뿐 잔액엔 손대지 않는다 */
+      if(_dueOnly() && Math.round(o.recv) <= 0) return false;
+      if(_dueOver()){ var dd=cbDueDays(o); if(dd==null || dd < cbDueWarn()) return false; }
     }
     if(q && (o.custNm||'').toLowerCase().indexOf(q)<0 && (o.custCd||'').toLowerCase().indexOf(q)<0) return false;
     return true;
@@ -829,7 +968,7 @@ function cbRender(){
     /* 부제 = 누계 기준 + 그날 움직인 곳 수(발생 칸을 읽었을 때만) */
     var dayCnt=0; if(_dayOn) _list.forEach(function(o){ if(cbDayAny(o.custCd)) dayCnt++; });
     document.getElementById('cbListSub').textContent =
-        (document.getElementById('cbYm').value||'전체') + ' 말 기준 누계 · ' + _list.length.toLocaleString() + '곳'
+        (cbClosedNow() ? '🔒 ' : '') + (document.getElementById('cbYm').value||'전체') + ' 말 기준 누계' + (cbClosedNow() ? '(마감 확정)' : '') + ' · ' + _list.length.toLocaleString() + '곳'
         + (_dayOn ? ' · ' + (document.getElementById('cbDt').value||'') + ' 거래 ' + dayCnt.toLocaleString() + '곳'
                   : (_dayErr ? ' · ' + _dayErr : ''));
   }
@@ -853,6 +992,7 @@ function cbCmpRow(a, b){
   var k=_sort.key, d=_sort.desc?-1:1, x, y;
   if(k==='nm'){ x=(a.custNm||''); y=(b.custNm||''); return x<y?d*-1:(x>y?d:0); }
   if(k==='dt'){ x=a.lastDt||''; y=b.lastDt||''; return x<y?d*-1:(x>y?d:0); }
+  if(k==='due'){ x=cbDueDays(a); y=cbDueDays(b); x=(x==null?-1:x); y=(y==null?-1:y); return x===y?0:(x<y?d*-1:d); }   // 미수 경과(없는 줄은 맨 뒤)
   /* ★[특정일자 발생] 4칸 정렬 (2026-07-28 요청 — "해당일자 한눈에")
        이 값은 거래처 객체가 아니라 _day(일계장 응답)에 있어 따로 꺼내야 한다.
        아직 발생분을 못 읽었으면 cbDayOf 가 0짜리를 주므로 전부 0으로 묶여 순서가 안 바뀐다(안전). */
@@ -921,6 +1061,8 @@ function cbListRender(tR, tP){
       +   '특정일자 발생 <span style="font-weight:600">'+esc(dLb||'-')+'</span></th>'
       + '<th rowspan="2" class="sortable num" onclick="cbSort(\'net\')">순액'+_arrow('net')+'</th>'
       + '<th rowspan="2" class="sortable" onclick="cbSort(\'dt\')">최근거래일'+_arrow('dt')+'</th>'
+      /* ★미수 경과 (2026-09-16) — 맨 뒤에 붙였다(앞 칸 nth-child 폭 규칙을 안 흔들려고). 받을금액 > 0 인 줄에만 배지 */
+      + '<th rowspan="2" class="sortable" onclick="cbSort(\'due\')" title="마지막 수금일(없으면 마지막 매출일)부터 지난 날 — ⚠ '+cbDueWarn()+'일 · ⛔ '+cbDueBad()+'일 (회사 설정)">미수 경과'+_arrow('due')+'</th>'
       + '</tr><tr>'
       + '<th class="num">이월</th><th class="num">당월매출</th><th class="num">당월수금</th>'
       + '<th class="sortable num" onclick="cbSort(\'recv\')">남은금액'+_arrow('recv')+'</th>'
@@ -937,7 +1079,7 @@ function cbListRender(tR, tP){
    + '<td>'+fmt(s.pr)+'</td><td>'+fmt(s.cs)+'</td><td>'+fmt(s.cr)+'</td><td>'+fmt(tR)+'</td>'
    + '<td>'+fmt(s.pp)+'</td><td>'+fmt(s.cp)+'</td><td>'+fmt(s.cy)+'</td><td>'+fmt(tP)+'</td>'
    + cbDayCells(s.ds, s.dr, s.dp, s.dy)
-   + '<td>'+(Math.round(tR-tP)).toLocaleString()+'</td><td></td></tr>';
+   + '<td>'+(Math.round(tR-tP)).toLocaleString()+'</td><td></td>'+cbDueCntCell(_list)+'</tr>';
   return cbListBody(el, h, tR, tP);
 }
 
@@ -990,6 +1132,7 @@ function cbGroupHtml(list, prefix, lvl, bkey){
     if(k==='dt'){ x=ta.lastDt||''; y=tb2.lastDt||''; return x===y?0:(x<y?-d:d); }
     if(CB_DAYG[k]){ x=ta[CB_DAYG[k]]; y=tb2[CB_DAYG[k]]; }
     else if(k==='net'){ x=ta.recv-ta.pay; y=tb2.recv-tb2.pay; }
+    else if(k==='due'){ x=cbDueCnt(ta.rows); y=cbDueCnt(tb2.rows); }
     else if(k==='pay'){ x=ta.pay; y=tb2.pay; }
     else { x=ta.recv; y=tb2.recv; }
     return x===y ? 0 : (x<y?-d:d);
@@ -1012,7 +1155,7 @@ function cbGroupHtml(list, prefix, lvl, bkey){
            + '<td>'+fmt(t.pp)+'</td><td>'+fmt(t.cp)+'</td><td>'+fmt(t.cy)+'</td><td class="amt-p">'+fmt(t.pay)+'</td>'
            + cbDayCells(t.ds, t.dr, t.dp, t.dy))
      + cbNetCell(t.recv, t.pay)
-     + '<td class="ctr">'+dtLbl(t.lastDt)+'</td></tr>';
+     + '<td class="ctr">'+dtLbl(t.lastDt)+'</td>'+(cbIsOcc()?'':cbDueCntCell(t.rows))+'</tr>';
     if(off) return;
     t.rows.forEach(function(o){ html+=cbRowHtml(o, lvl+1, bkey); });
   });
@@ -1143,7 +1286,7 @@ function cbRowHtml(o, lvl, bkey){
          + '<td class="amt-p">'+fmt(o.pay)+'</td>'
          + cbDayCells(d.sale, d.rcv, d.purch, d.pay))
    + cbNetCell(o.recv, o.pay)
-   + '<td class="ctr">'+dtLbl(o.lastDt)+'</td></tr>';
+   + '<td class="ctr">'+dtLbl(o.lastDt)+'</td>'+(cbIsOcc()?'':cbDueCell(o))+'</tr>';
 }
 
 /* 순액 칸 = 받을 남은금액 − 지급 남은금액. **모든 줄에 그대로 찍는다.**
@@ -1327,8 +1470,10 @@ function cbHistRender(){
    + '<td>-</td><td>'+fmt(o.sale)+'</td><td>'+fmt(o.rcv)+'</td><td class="amt-r">'+fmt(o.recv)+'</td>'
    + '<td>-</td><td>'+fmt(o.purch)+'</td><td>'+fmt(o.payout)+'</td><td class="amt-p">'+fmt(o.pay)+'</td></tr>';
   list.forEach(function(r){
-    h+='<tr><td class="ctr">'+ymLbl(r.ym)+'</td>'
-     + '<td>'+fmt(r.prevR)+'</td><td>'+fmt(r.sale)+'</td><td>'+fmt(r.rcv)+'</td><td class="amt-r">'+fmt(r.balR)+'</td>'
+    /* 🔒 = 마감 확정된 달 · 남은금액 밑에 확정 당시 값과의 차이(2026-09-16). 전표를 소급 수정하면 여기서 드러난다 */
+    var lk=_close.closed[r.ym];
+    h+='<tr><td class="ctr">'+ymLbl(r.ym)+(lk?'<span class="lock" title="'+esc((lk.dttm||'').slice(0,16)+' '+(lk.user||''))+' 확정">🔒</span>':'')+'</td>'
+     + '<td>'+fmt(r.prevR)+'</td><td>'+fmt(r.sale)+'</td><td>'+fmt(r.rcv)+'</td><td class="amt-r">'+fmt(r.balR)+cbSnapMark(r.ym, o.custCd, r.balR)+'</td>'
      + '<td>'+fmt(r.prevP)+'</td><td>'+fmt(r.purch)+'</td><td>'+fmt(r.pay)+'</td><td class="amt-p">'+fmt(r.balP)+'</td></tr>';
   });
   el.innerHTML=h+'</tbody>';

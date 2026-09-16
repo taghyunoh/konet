@@ -24,6 +24,7 @@ public class StockAdjHisDTO {
     private String  prodNm;        // 조인
     private String  spec;          // 조인
     private String  baseDt;        // 기준일자(YYYYMMDD) = 조정행 거래일자
+    private String  whCd;          // 조정 창고 — 비영속(원장 조정행에만 실린다, 2026-09-16 P3)
 
     private Integer befQty;        // 변경 전 재고 (EA 환산)
     private Integer aftQty;        // 변경 후 재고 (EA 환산)
@@ -73,6 +74,8 @@ public class StockAdjHisDTO {
     public void    setSpec(String v)      { this.spec = v; }
     public String  getBaseDt()    { return baseDt; }
     public void    setBaseDt(String v)    { this.baseDt = v; }
+    public String  getWhCd()      { return whCd; }
+    public void    setWhCd(String v)      { this.whCd = v; }
 
     public Integer getBefQty()    { return befQty; }
     public void    setBefQty(Integer v)   { this.befQty = v; }
