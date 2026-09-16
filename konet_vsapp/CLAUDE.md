@@ -206,6 +206,13 @@
 - **작업 버튼(신규등록·저장·새로고침·삭제하기)은 입력 칸 '아래'** — 4화면 통일(2026-08-01). 종전 수금·지급만 카드 맨 위에 있었다.
 - **`ssConfirm`(teal 「반영 확인」 모달)은 발주현황표 업로드 반영류 확인 전용** — 일반 확인에 쓰면 제목('반영 확인')·버튼('반영')이 어긋난다. 실제 사고: 로그아웃 확인을 ssConfirm 으로 냈다가 지적받고 `_confirmBox` 로 교체(2026-07-31).
 
+- **[2026-09-16] konet_vsapp 동기화 — 오늘 작업 전부**(사용자 「나머지도 동기화해줘」). 웹이 새 것이라 **웹 → 앱 한 방향 복사**(바이트 그대로 = CRLF·인코딩 보존).
+  옮긴 것 = 자바 11(서버 4 + 오늘 칸이 는 DTO 7) · 매퍼 `User_SQL.xml`(264 → **285문**, 두 파일 해시 동일) · 화면 13 갱신 + **신규 5**(expenseReg · vendorPriceCmp · whMng · whStock · dc-map.js) · JS 3.
+  지운 것 = 웹에서 P2-g 가 지운 **죽은 코드**(수금·지급 수기장부) — `PaymentDTO`·`ReceiveDTO` · `receiveMng.jsp`·`paymentMng.jsp`(+ 매퍼 12문·컨트롤러 20매핑은 파일 복사로 함께 사라짐). ★**모바일 화면·MobileController 가 안 쓰는 것을 먼저 확인**했다(쓰는 엔드포인트 32개에 receive/payment 0).
+  ★**절대 안 건드린 앱 전용** : `java/…/mobile/`(MobileController·MobileGuardFilter) · `jsp/m/`·`webapp/m/` · **`web.xml`**(모바일 가드 필터 + 세션 쿠키 `KONETAPP_SID` — 덮으면 9071·9072 를 한 브라우저로 열 때 로그인이 서로 끊긴다) · `pom.xml`.
+  ⚠**DDL 은 추가로 돌릴 것이 없다** — 두 앱이 **같은 DB**(saynice.co.kr KOLGSDB)를 본다. 웹에서 돌린 오늘 DDL 이 곧 앱의 것이다.
+  검증 = 앱 자바 **68파일 전체 javac 통과** · XML 285문·중복 0 · `node --check` 4 · 새 JSP 4 인라인 문법 · 남은 차이는 **앱 전용 5가지뿐**(diff -rq) · 모바일 파일 git 무변경.
+  ⛔**앱도 재빌드·재기동 필요**(9072). ★앞으로도 자바·매퍼·화면을 고치면 두 곳 다 — 이번에 한 번에 21문이 벌어져 있었다.
 ## 스택/구조
 - **MSSQL** + egovframework + MyBatis, 패키지 `egovframework.konet`
 - 뷰: Apache Tiles. `.raw/*` = tiles 래핑 없는 단독 페이지, `.main/*` = 표준 레이아웃(main.jsp+top.jsp, top.jsp는 사실상 비어있음 — 실제 네비 없음)

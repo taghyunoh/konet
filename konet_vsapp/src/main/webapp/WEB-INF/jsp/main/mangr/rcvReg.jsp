@@ -289,6 +289,21 @@ function swConfirm(m, okText){
     _confirmBox({ msg:m, icon:'❓', okText:okText||'확인', onOk:function(){res(true);}, onCancel:function(){res(false);} });
   });
 }
+/* ★마감 확정된 달 확인창 (2026-09-16 P2-g) — 거래처별 채권·채무에서 [🔒 이 달 마감 확정]한 달의 전표를 저장·삭제하면
+     막지 않고 한 번 묻는다(사용자 방침 「메시지 처리」). 확정 당시 받을금액(스냅샷)과 달라진다는 것을 알리는 것이 목적.
+     마감 정보를 못 읽으면(옛 서버 등) 조용히 통과 — 저장은 되어야 한다. 판매등록(salesReg)의 saClosedAsk 와 같은 규칙. */
+function svClosedAsk(dts, what){
+  var yms={}; (dts||[]).forEach(function(d){ d=String(d||'').replace(/-/g,''); if(d.length>=6) yms[d.slice(0,4)+'-'+d.slice(4,6)]=1; });
+  var ks=Object.keys(yms).sort(); if(!ks.length) return Promise.resolve(true);
+  return post('/mangr/settleCloseInfo.do','settleGb=RCV').then(function(r){ return r.json(); })
+    .then(function(j){
+      var closed={}; ((j&&j.closed)||[]).forEach(function(c){ var y=String(c.closeYm||''); closed[y.slice(0,4)+'-'+y.slice(4,6)]=1; });
+      var hit=ks.filter(function(k){ return closed[k]; });
+      if(!hit.length) return true;
+      return swConfirm('<b>'+hit.join(', ')+'</b> 은 <b>마감 확정</b>된 달입니다.<br><span style="font-size:13px;color:#3d4d5c">그대로 '+what+'하면 확정 당시 받을금액과 달라집니다.<br>(거래처별 채권·채무 ▸ 월별 이력에 차이가 표시됩니다)</span>', '그래도 '+what);
+    })
+    .catch(function(){ return true; });
+}
 
 (function init(){
   document.getElementById('svDt').value = today();
@@ -377,11 +392,12 @@ function svSave(){
   };
   /* ★ 목록에서 지난 전표를 누르면 화면이 '수정 중' 이 된다 — 그 상태로 저장하면
        새 수금이 아니라 그 전표를 덮어쓴다. 눈에 잘 안 띄는 차이라 저장 전에 한 번 묻는다. */
-  var ask = _cur
+  var askEdit = function(){ return _cur
     ? swConfirm('지난 전표를 <b>수정</b>합니다 — '+fmtDt(_cur.trxDt)+' / '+_cur.trxNo
               + '<br><span style="font-size:13px;color:#3d4d5c">새 수금이 아니라 이 전표를 덮어씁니다.</span>', '수정')
-    : Promise.resolve(true);
-  ask.then(function(ok){
+    : Promise.resolve(true); };
+  /* ★마감 확정된 달이면 먼저 묻고(2026-09-16), 그다음 수정 확인 — 창 두 개가 겹치지 않게 차례로(수정 전 날짜도 본다) */
+  svClosedAsk([dto.trxDt].concat(_cur ? [_cur.trxDt] : []), '저장').then(function(ok0){ return ok0 ? askEdit() : false; }).then(function(ok){
     if(!ok) return;
     var edit = !!_cur;
     post('/mangr/settleSave.do', dto, true)
@@ -398,7 +414,7 @@ function svSave(){
 function svDelete(){
   /* 행 클릭은 '거래처 선택'이라 _cur 가 안 잡힌다 — 삭제할 전표는 [수정] 으로 불러와야 한다 */
   if (!_cur) { swErr('삭제할 전표를 먼저 불러오세요.<br><span style="font-size:13px;color:#3d4d5c">아래 목록에서 그 줄의 [수정] 버튼을 누르세요.</span>'); return; }
-  swConfirm('이 수금 전표를 삭제할까요?', '삭제').then(function(ok){
+  svClosedAsk([_cur.trxDt], '삭제').then(function(ok0){ return ok0 ? swConfirm('이 수금 전표를 삭제할까요?', '삭제') : false; }).then(function(ok){
     if(!ok) return;
     post('/mangr/settleDelete.do', { trxSeq:_cur.trxSeq }, true)
       .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t); }); swOk('삭제했습니다.'); svNewKeep(); svLoad(); })

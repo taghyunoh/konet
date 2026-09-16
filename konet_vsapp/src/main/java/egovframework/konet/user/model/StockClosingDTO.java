@@ -21,6 +21,7 @@ public class StockClosingDTO {
     private String  prodCd;
     private String  prodNm;
     private String  vendorCd;    // 매입처(입고마감 집계 기준)
+    private String  whCd;        // 창고 — 스냅샷 품목 × 창고 (2단계 2026-09-16)
     private Integer beginQty;    // 기초수량
     private Integer inQty;       // 당월 입고(+반품)
     private Integer outQty;      // 당월 출고
@@ -43,6 +44,8 @@ public class StockClosingDTO {
     public void setProdNm(String prodNm) { this.prodNm = prodNm; }
     public String getVendorCd() { return vendorCd; }
     public void setVendorCd(String vendorCd) { this.vendorCd = vendorCd; }
+    public String getWhCd() { return whCd; }
+    public void setWhCd(String whCd) { this.whCd = whCd; }
     public Integer getBeginQty() { return beginQty; }
     public void setBeginQty(Integer beginQty) { this.beginQty = beginQty; }
     public Integer getInQty() { return inQty; }

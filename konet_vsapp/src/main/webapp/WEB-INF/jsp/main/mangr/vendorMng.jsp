@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <%-- 회사 설정(회사 정보 수정 「기능」 ▸ 거래처 — 새 거래처의 부가세·DC 첫 값, 2026-09-11) --%>
 <script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260911"></script>
+<script src="${pageContext.request.contextPath}/asset/js/dc-map.js?v=20260916"></script>
 <title>매입/매출 거래처 관리 (TBL_VENDOR_MST)</title>
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; }
@@ -194,7 +195,7 @@ var CTX='${pageContext.request.contextPath}';
      통째로 그리면 첫 표시가 눈에 띄게 느려진다. */
 var LIST=[], _view=[], _shown=0, PAGE=20, CHUNK=40, _bycd={}, _gb='';
 /* 물류센터 ↔ 삼성웰스토리 지점 거래처 (발주현황표 DC_CD 와 1:1 — 재업로드 시 자동 부여) */
-var DC_MAP={ '00273':'E100', '00275':'E200', '00274':'E300', '00276':'E400', '00272':'E500', '00277':'E600', '00278':'E700' };
+var DC_MAP=window.konetDc.VENDOR_TO_DC;   // ★단일 원천 asset/js/dc-map.js(TBL_DC_MST) — 2026-09-16 통합(거래처 → 출고장코드)
 
 function toast(s){ if(window.Swal){ Swal.fire({toast:true,position:'top-end',html:s,showConfirmButton:false,timer:3000,timerProgressBar:true}); } }
 function swConfirm(msg,title){ if(window.Swal) return Swal.fire({title:title||'확인',html:msg,icon:'question',showCancelButton:true,confirmButtonText:'확인',cancelButtonText:'취소',confirmButtonColor:'#137a6c',cancelButtonColor:'#94a3b8'}).then(function(r){return r.isConfirmed;}); return Promise.resolve(confirm((''+msg).replace(/<br\s*\/?>/gi,'\n'))); }

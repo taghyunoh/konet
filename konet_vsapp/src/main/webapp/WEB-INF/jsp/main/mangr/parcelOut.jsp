@@ -128,9 +128,13 @@
 <%-- 날짜 칸 공통(달력·[◀][▶][오늘]) — 2026-08-17 --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <script src="${ctx}/asset/js/ui-message.js"></script>
+<%-- 회사 설정 「기본 택배 운임」(2026-09-16 P2-e) — 종전 4500 하드코딩. 비용 등록의 직송 운임 자동 집계와 같은 값 --%>
+<script src="${ctx}/asset/js/comp-set.js?v=20260916b"></script>
 <script src="${ctx}/assets/vendor/sheetjs/xlsx.full.min.js"></script>
 <script>
 var CTX = '${ctx}';
+/* 기본 택배 운임 — 회사 설정(comp-set parcelFeeDef, 기본 4500). 부를 때마다 읽는다(설정이 늦게 와도 따라오게) */
+function poFeeDef(){ var v=Number(window.konetSet ? konetSet.f('parcelFeeDef') : 0); return (isFinite(v) && v>0) ? v : 4500; }
 var ROWS = [];
 
 function toast(s){ var m=document.getElementById('msg'); m.innerHTML=s; m.classList.add('on'); clearTimeout(m._t); m._t=setTimeout(function(){ m.classList.remove('on'); }, 2600); }
@@ -153,8 +157,25 @@ function today(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth(
 function shift(days){ var d=new Date(); d.setDate(d.getDate()+days);
   return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
 
-document.getElementById('outFr').value = shift(1);
-document.getElementById('outTo').value = shift(1);
+/* ★자정 넘김 보정 (2026-09-16 — 납기현황표와 같은 결함) — 이 화면도 셸 iframe 이라 로그아웃 전까지 다시 안 뜬다.
+     「내일」을 뜰 때 한 번만 넣으면, 브라우저를 켜 둔 채 날이 바뀐 뒤 날짜칸에 어제 기준 내일(= 오늘)이 남는다.
+     ⇒ 조회 직전·화면 복귀·1분마다 날짜를 보고, 날짜칸이 **기본값(뜬 날 기준 내일)을 그대로 보고 있을 때만** 새 내일로 옮긴다.
+        손으로 고른 날짜는 건드리지 않는다. */
+var PO_DAY=today(), PO_DEF=shift(1);   // 기준일 · 그날 기준 「내일」
+function poRollover(){
+  var t=today(); if(t===PO_DAY) return false;
+  var old=PO_DEF; PO_DAY=t; PO_DEF=shift(1);
+  var fr=document.getElementById('outFr'), to=document.getElementById('outTo');
+  if(fr.value===old && to.value===old){ fr.value=PO_DEF; to.value=PO_DEF; return true; }
+  return false;
+}
+function poRolloverLoad(){ if(poRollover()) poLoad(); }   // 날짜칸이 옮겨졌을 때만 다시 부른다 — 표와 날짜칸이 어긋나지 않게
+setInterval(poRolloverLoad, 60000);
+window.addEventListener('focus', poRolloverLoad);
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') poRolloverLoad(); });
+
+document.getElementById('outFr').value = PO_DEF;
+document.getElementById('outTo').value = PO_DEF;
 /* 시작이 종료보다 뒤면 자동으로 맞춘다 — 거꾸로 넣어 0건 나오는 일을 막는다 */
 function poDtSync(which){
   var fr=document.getElementById('outFr'), to=document.getElementById('outTo');
@@ -166,6 +187,7 @@ window.addEventListener('resize', function(){ clearTimeout(window._poFitT); wind
 document.getElementById('listCard').addEventListener('scroll', function(){ clearTimeout(window._poPgT); window._poPgT=setTimeout(poPager, 60); });
 
 function poLoad(){
+  poRollover();   // 날이 바뀌었으면 옛 「내일」(= 오늘)을 새 내일로
   var fr = document.getElementById('outFr').value, to = document.getElementById('outTo').value;
   if(!fr || !to){ swErr('납기일자(시작·종료)를 선택하세요.'); return; }
   document.getElementById('tb').innerHTML = '<tr><td colspan="14" class="empty">조회 중…</td></tr>';
@@ -173,6 +195,7 @@ function poLoad(){
       headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:'frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to) })
     .then(function(r){ return r.json(); })
+    .then(function(j){ return poDoneLoad(fr, to).then(function(){ return j; }); })   /* 서버 출력 기록(2026-09-16) — 읽은 뒤 입힌다 */
     .then(function(j){ ROWS=poDoneApply(poMerge((j&&j.data)||[])); poRender(); })
     .catch(function(e){ document.getElementById('tb').innerHTML='<tr><td colspan="14" class="empty">조회 오류: '+esc(e.message)+'</td></tr>'; });
 }
@@ -216,45 +239,58 @@ function poPager(){
      되풀이해(1박스 1송장) 합친 줄이 다시 갈라졌지만, 이제 되풀이하지 않는다.
      즉 합치는 규칙을 고치면 엑셀 줄 수도 함께 바뀐다.
    · 몇 줄을 합쳤는지는 mergeCnt 에 담아 화면에 밝힌다(원자료가 몇 줄이었는지 감춰지지 않게). */
-/* ══ 「이미 뽑은 줄」 기록 (2026-08-21 요청) ═══════════════════════════════════
+/* ══ 「이미 뽑은 줄」 기록 (2026-08-21 요청 · 2026-09-16 서버 저장으로) ═══════════════════════
    「발주현황표를 다시 올리면 엑셀을 또 만들어야 하는데, 이미 다운로드한 줄까지 다시 나온다」
-   ⇒ 엑셀을 만들면 그 줄들을 브라우저(localStorage)에 기록하고, 다음 조회부터
-     **자동으로 체크를 풀어**(엑셀 제외) 새 줄만 나가게 한다.
-   · 키 = 병합키(출고일자|사업장|품목명)와 동일 — ★재업로드로 행이 다시 만들어져도 같은 키라
-     「출력됨」이 유지된다(이 요구의 핵심).
-   · **전부 다시 뽑고 싶으면 [↺ 전체 포함]** — 기존 버튼이 그대로 그 역할을 한다(사용자 임의 전체 출력).
-     낱줄은 체크를 다시 켜면 포함된다.
-   · 브라우저별 기록이다(PC 를 바꾸면 비어 있다) — 지금 운용(한 PC)에는 충분, 공유가 필요해지면 서버로. */
-var PO_DONE_KEY = 'konetParcelDone1';
+   ⇒ 엑셀을 만들면 그 줄들을 기록하고, 다음 조회부터 **자동으로 체크를 풀어**(엑셀 제외) 새 줄만 나가게 한다.
+   · 키 = 병합키(출고일자|사업장|품목명)와 동일 — ★재업로드로 행이 다시 만들어져도 같은 키라 「출력됨」이 유지된다.
+   · **전부 다시 뽑고 싶으면 [↺ 전체 포함]** — 낱줄은 체크를 다시 켜면 포함된다.
+   · ★2026-09-16 : 기록을 **서버(TBL_PARCEL_PRINT)** 에 남긴다 — 종전 브라우저(localStorage) 기록은 PC 를 바꾸면 비어
+     같은 택배를 또 뽑거나 빠뜨릴 수 있었다(목적 ② 직송 오배송). 누가 언제 뽑았는지도 남는다.
+     옛 브라우저 기록은 처음 조회할 때 서버로 옮기고 지운다(poDoneLoad). 서버를 못 부르면(옛 서버) 종전대로 이 PC 기록. */
+var PO_DONE_KEY = 'konetParcelDone1';      // 옛 브라우저 기록 — 이관 뒤 지운다
+var _poDone = {};                          // 서버 기록  키 → '09-16 12:30 admin'
 function poDoneKey(o){ return (o.outDt||'')+'|'+(o.bizCd||'')+'|'+(o.itemNm||''); }
-function poDoneMap(){
-  try { return JSON.parse(localStorage.getItem(PO_DONE_KEY) || '{}') || {}; } catch(e){ return {}; }
+function poDoneMap(){ return _poDone; }
+function _poDoneLegacy(){ try { return JSON.parse(localStorage.getItem(PO_DONE_KEY) || '{}') || {}; } catch(e){ return {}; } }
+function poDonePost(list){
+  return fetch(CTX+'/shipout/parcelPrintMark.do', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ rows: list.map(function(o){ return { outDt:o.outDt||'', bizCd:o.bizCd||'', itemNm:o.itemNm||'' }; }) }) })
+    .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t||('HTTP '+r.status)); return t; }); });
 }
-function poDoneSave(m){
-  /* 60일 지난 출고일자 기록은 버린다 — 키 맨 앞이 yyyymmdd 라 잘라 비교하면 된다 */
-  var lim = new Date(Date.now() - 60*86400000);
-  var cut = lim.getFullYear() + ('0'+(lim.getMonth()+1)).slice(-2) + ('0'+lim.getDate()).slice(-2);
-  var out = {};
-  for (var k in m){ if ((k.slice(0,8)||'') >= cut) out[k] = m[k]; }
-  try { localStorage.setItem(PO_DONE_KEY, JSON.stringify(out)); } catch(e){}
+/* 조회 기간의 서버 기록을 읽고, 이 PC 에만 있던 옛 기록(기간 안·서버에 없는 것)을 올린다. 프라미스 — poLoad 가 기다린다 */
+function poDoneLoad(fr, to){
+  var f8=(fr||'').replace(/-/g,''), t8=(to||'').replace(/-/g,'');
+  return fetch(CTX+'/shipout/parcelPrintList.do', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'frDt='+encodeURIComponent(fr||'')+'&toDt='+encodeURIComponent(to||'') })
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(j){
+      _poDone={};
+      ((j&&j.data)||[]).forEach(function(r){ _poDone[(r.outDt||'')+'|'+(r.bizCd||'')+'|'+(r.itemNm||'')] = String(r.printDttm||'').slice(5,16)+(r.printUser?' '+r.printUser:''); });
+      var lg=_poDoneLegacy(), up=[];
+      Object.keys(lg).forEach(function(k){ var d=k.slice(0,8); if(d>=f8 && d<=t8 && !_poDone[k]){ var p=k.split('|'); up.push({ outDt:p[0], bizCd:p[1]||'', itemNm:p.slice(2).join('|') }); } });
+      if(!up.length) return;
+      return poDonePost(up).then(function(){
+        up.forEach(function(o){ var k=poDoneKey(o); _poDone[k]='(이 PC 옛 기록 '+(lg[k]||'')+')'; delete lg[k]; });
+        try { if(Object.keys(lg).length) localStorage.setItem(PO_DONE_KEY, JSON.stringify(lg)); else localStorage.removeItem(PO_DONE_KEY); } catch(e){}
+      });
+    })
+    .catch(function(){ _poDone=_poDoneLegacy(); });   // 서버 기록을 못 읽으면 이 PC 기록으로(종전 동작)
 }
 /* 조회 결과에 출력 기록을 입힌다 — 출력된 줄은 체크 해제 상태로 시작 */
 function poDoneApply(rows){
   var m = poDoneMap();
-  rows.forEach(function(o){
-    o.done = m[poDoneKey(o)] || '';
-    if (o.done) o.off = true;
-  });
+  rows.forEach(function(o){ o.done = m[poDoneKey(o)] || ''; if (o.done) o.off = true; });
   return rows;
 }
-/* 엑셀에 담긴 줄들을 출력됨으로 기록 */
+/* 엑셀에 담긴 줄들을 출력됨으로 기록 — 화면은 바로, 서버는 뒤따라(못 남기면 이 PC 에라도 남기고 알린다) */
 function poDoneMark(list){
-  var m = poDoneMap();
   var d = new Date();
-  var tm = ('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)
-         + ' ' + ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
-  list.forEach(function(o){ m[poDoneKey(o)] = tm; o.done = tm; o.off = true; });
-  poDoneSave(m);
+  var tm = ('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+  list.forEach(function(o){ _poDone[poDoneKey(o)] = tm; o.done = tm; o.off = true; });
+  poDonePost(list).catch(function(e){
+    var lg=_poDoneLegacy(); list.forEach(function(o){ lg[poDoneKey(o)]=tm; }); try { localStorage.setItem(PO_DONE_KEY, JSON.stringify(lg)); } catch(x){}
+    swAlert('출력 기록을 서버에 남기지 못했습니다 — 이 PC 에만 기록됩니다.<br><span style="font-size:12.5px;color:#c0392b">'+esc(e.message)+'</span>');
+  });
 }
 /* [전체 포함] 되돌리기(2026-08-21 「전체포함으로 했다가 원위치는」) — 출력됨 줄만 다시 뺀다.
    손으로 켠 일반 줄은 건드리지 않는다. [조회] 재실행도 같은 결과(poDoneApply). */
@@ -292,7 +328,7 @@ function poRender(){
   poCnt();
   if(!ROWS.length){ tb.innerHTML='<tr><td colspan="14" class="empty">이 날짜의 직송 출고가 없습니다.</td></tr>'; poFit(); return; }
   tb.innerHTML = ROWS.map(function(o,i){
-    var fee = n(o.fee) || 4500;                      /* 미설정(0) = 기본 4500 */
+    var fee = n(o.fee) || poFeeDef();                      /* 미설정(0) = 기본 4500 */
     var missA = !(o.addr && (''+o.addr).trim());
     var box = n(o.boxQty), tot = n(o.totQty);   /* 총수량 = 발주현황표 '라벨수량' 원값(2026-09-01) */
     /* 엑셀 제외 (2026-08-06 요청) — 체크를 풀면 그 줄은 엑셀에서 빠진다(화면 목록에는 남는다).
@@ -386,7 +422,7 @@ function poSet(inp){
 /* 행의 택배정보를 사업장(TBL_BIZI_MST)에 저장 — 같은 사업장 다른 행에도 즉시 반영 */
 function poSaveBiz(i){
   var o = ROWS[i]; if(!o) return;
-  var fee = n(o.fee) || 4500;
+  var fee = n(o.fee) || poFeeDef();
   fetch(CTX+'/mangr/biziParcelUpdate.do', { method:'POST', credentials:'same-origin',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify([{ bizCd:o.bizCd, bizNm:o.bizNm, parcelAddr:o.addr||'', parcelTel:o.tel||'', parcelHp:o.hp||'', parcelFee:fee }]) })
@@ -427,7 +463,7 @@ function poExcelMake(){
      ★같은 사업장이라도 품목이 다르면 줄은 나뉜다 — 화면 합침 규칙(poMerge)과 똑같이 간다.
      ★체크를 푼 줄(o.off)은 빼고 만든다 (2026-08-06 요청) */
   ROWS.filter(function(o){ return !o.off; }).forEach(function(o){
-    var fee = n(o.fee) || 4500;
+    var fee = n(o.fee) || poFeeDef();
     /* ★F칸 = 총수량 (2026-08-14 요청). 화면 '총수량' 칸과 같은 값(발주현황표 '라벨수량' 원값, 2026-09-01)을
        손대지 않고 그대로 넣는다 — 빈값 대체·계산 없음(사용자 확정 "수량이 없을 수는 없음"). */
     aoa.push([ o.bizNm||'', '', o.addr||'', o.tel||'', o.hp||'', n(o.totQty), fee, '', o.itemNm||'' ]);

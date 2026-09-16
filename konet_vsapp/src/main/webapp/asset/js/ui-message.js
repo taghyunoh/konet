@@ -14,7 +14,9 @@
 
   /* ── CSS 주입 ── */
   var CSS =
-    '.toast-wrap{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);z-index:10001;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;}'
+    /* 자리 = 화면 한가운데 (2026-09-16) — 이 앱 화면은 대부분 iframe 이라 「아래 34px」이 iframe 바닥이고,
+       바깥 화면을 내려 보고 있으면 그 바닥이 눈에 안 들어온다(창고 관리 저장 메시지가 그랬다). */
+    '.toast-wrap{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10001;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;}'
   + '.toast-item{min-width:180px;max-width:90vw;padding:12px 20px;border-radius:10px;color:#fff;font-size:15px;line-height:1.4;box-shadow:0 6px 22px rgba(0,0,0,.25);opacity:0;transform:translateY(12px);transition:opacity .2s,transform .2s;text-align:center;}'
   + '.toast-item.show{opacity:1;transform:translateY(0);}'
   + '.toast-ok{background:#198754;}.toast-warn{background:#fd7e14;}.toast-err{background:#dc3545;}.toast-info{background:#343a40;}'
@@ -38,11 +40,18 @@
   }
 
   /* ── 토스트 ── */
+  var TOAST_ALIAS = { ok:'ok', success:'ok', done:'ok', save:'ok', saved:'ok',
+                      warn:'warn', warning:'warn', caution:'warn',
+                      err:'err', error:'err', fail:'err', danger:'err',
+                      info:'info' };
+  function _toastKind(t){ return TOAST_ALIAS[String(t||'info').toLowerCase()] || 'info'; }
   window._toast = function(msg, type){
     var wrap = document.getElementById('toastWrap');
     if(!wrap){ wrap=document.createElement('div'); wrap.id='toastWrap'; wrap.className='toast-wrap'; document.body.appendChild(wrap); }
+    /* ★종류 이름이 어긋나면 바탕색이 안 붙어 **흰 글자만 남아 안 보인다**(2026-09-16 실제 사고).
+         화면 8곳이 'success'·'error' 를 보내고 있었다 — 딴이름을 받아 주고, 모르는 것은 info 로. */
     var el = document.createElement('div');
-    el.className = 'toast-item toast-' + (type||'info');
+    el.className = 'toast-item toast-' + _toastKind(type);
     el.innerHTML = msg;
     wrap.appendChild(el);
     requestAnimationFrame(function(){ el.classList.add('show'); });

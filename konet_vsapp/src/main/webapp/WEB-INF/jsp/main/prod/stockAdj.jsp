@@ -138,6 +138,9 @@
 
     <label><input type="checkbox" id="zeroExc"> 재고 0 제외</label>
 
+    <%-- 창고 (2026-09-16 P3) — 조정은 창고마다. 목록의 현재고도 그 창고 것. 비면 전 창고 합계라 저장을 막는다 --%>
+    <label>창고</label>
+    <select id="adjWh" title="조정할 창고 — 목록의 현재고가 그 창고 재고로 바뀝니다" onchange="load()"></select>
     <label>기준일자</label>
     <input type="date" id="baseDt" title="오늘(또는 그 뒤) = 지금 현재고 전체(품목별재고현황과 같은 숫자 — 내일 납기로 이미 나간 출고까지 뺀 값)&#10;지난 날짜 = 그날까지의 누계 재고. 조정행도 이 날짜로 남습니다.">
 
@@ -377,6 +380,7 @@ function load(){
   var _bd = gel('baseDt').value || '', _nw = new Date(),
       _td = _nw.getFullYear() + '-' + ('0'+(_nw.getMonth()+1)).slice(-2) + '-' + ('0'+_nw.getDate()).slice(-2);
   p.append('asOfDt',    (_bd && _bd < _td) ? _bd : '');
+  p.append('whCd',      gel('adjWh').value || '');          /* 창고(2026-09-16 P3) — 비면 전 창고 합계 */
 
   gel('body').innerHTML = '<tr><td colspan="12" class="c dim" style="padding:26px">불러오는 중…</td></tr>';
 
@@ -571,6 +575,7 @@ function fillFilters(){
    ★입수수량을 먼저 저장한다. 나중에 하면 조정 이력에 옛 입수수량이 박힌다. */
 function save(){
   if (!ROWS.length){ alertBox('먼저 목록을 조회해 주세요.', '⚠️'); return; }
+  if (!gel('adjWh').value){ alertBox('조정할 창고를 고르세요 — 전 창고 합계로는 조정할 수 없습니다.', '⚠️'); return; }   /* 2026-09-16 P3 */
 
   var packs = [], rows = [];
   for (var i = 0; i < ROWS.length; i++){
@@ -609,7 +614,7 @@ function save(){
       if (!d1 || d1.result !== 'OK') throw new Error((d1 && d1.message) || '입수수량 저장 실패');
       if (!rows.length) return { result:'OK', cnt:0, _skip:true };
       return post('/prod/stockAdjSave.do',
-                  { baseDt: gel('baseDt').value, remark: gel('remark').value.trim(), rows: rows });
+                  { baseDt: gel('baseDt').value, remark: gel('remark').value.trim(), whCd: gel('adjWh').value || '', rows: rows });
     })
     .then(function(d2){
       gel('btnSave').disabled = false;
@@ -775,7 +780,17 @@ function hisCancel(batchNo){
    두 가지로 가벼워져 자동으로 돌려도 된다.
    ★[리스트조회] 버튼은 그대로 둔다 — 읽은 뒤에는 화면에서 거르는 용도(applyFilter)로 계속 쓴다.
    ★기준일자 기본값(위 IIFE)이 먼저 들어간 뒤라야 그 날짜로 읽는다 — 순서를 바꾸지 말 것. */
-load();
+/* ★창고 목록을 먼저 채우고(기본창고 선택) 목록을 읽는다 (2026-09-16 P3). 못 받아오면 창고 없이(전 창고 합계) — 저장은 위 가드가 막는다 */
+function adjWhInit(){
+  fetch(CTX + '/prod/whList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'useOnly=Y' })
+    .then(function(r){ return r.json(); })
+    .then(function(j){ var e=gel('adjWh'), l=(j&&j.data)||[];
+      e.innerHTML='<option value="">(전 창고 합계 — 조회만)</option>'+l.map(function(w){ return '<option value="'+w.whCd+'">'+w.whNm+'</option>'; }).join('');
+      var d=l.filter(function(w){ return w.defaultYn==='Y'; })[0]||l[0]; if(d) e.value=d.whCd; })
+    .catch(function(){})
+    .then(function(){ load(); });
+}
+adjWhInit();
 </script>
 </body>
 </html>

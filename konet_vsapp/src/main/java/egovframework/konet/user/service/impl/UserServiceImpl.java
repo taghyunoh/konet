@@ -100,6 +100,7 @@ public class UserServiceImpl implements UserService {
 	@Override public int mergeVendorMst(egovframework.konet.user.model.VendorDTO dto) throws Exception { return mapper.mergeVendorMst(dto); }
 	@Override public java.util.List<egovframework.konet.user.model.BiziDTO> selectBiziMst() throws Exception { return mapper.selectBiziMst(); }
 	@Override public int insertBiziIfAbsent(egovframework.konet.user.model.BiziDTO dto) throws Exception { return mapper.insertBiziIfAbsent(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectBiziNoAddr(java.util.Map<String,Object> p) throws Exception { return mapper.selectBiziNoAddr(p); }
 	@Override public int updateBiziMst(egovframework.konet.user.model.BiziDTO dto) throws Exception { return mapper.updateBiziMst(dto); }
 	@Override public int updateBiziParcel(egovframework.konet.user.model.BiziDTO dto) throws Exception { return mapper.updateBiziParcel(dto); }
 	@Override public int updateBiziMatch(egovframework.konet.user.model.BiziDTO dto) throws Exception { return mapper.updateBiziMatch(dto); }
@@ -111,94 +112,70 @@ public class UserServiceImpl implements UserService {
 	@Override public int insertBizi(egovframework.konet.user.model.BiziDTO dto) throws Exception { return mapper.insertBizi(dto); }
 	@Override public int updateBizi(egovframework.konet.user.model.BiziDTO dto) throws Exception { return mapper.updateBizi(dto); }
 	@Override public int deleteBizi(egovframework.konet.user.model.BiziDTO dto) throws Exception { return mapper.deleteBizi(dto); }
-	/* ===== 정산 마감 공통 유틸 ===== */
-	private void guardSettleClosed(String gb, String ym) throws Exception {
-		if (ym==null || ym.trim().isEmpty()) return;
-		egovframework.konet.user.model.SettleCloseDTO d = new egovframework.konet.user.model.SettleCloseDTO();
-		d.setSettleGb(gb); d.setCloseYm(ym);
-		if (mapper.isSettleClosed(d) > 0) throw new RuntimeException("마감(확정)된 월입니다. 먼저 마감을 해제하세요.");
-	}
-	private String nextYm(String ym) {   // 'YYYY-MM'/'YYYYMM' → 다음달 'YYYYMM'
-		String s = ym.replace("-", "");
-		int y = Integer.parseInt(s.substring(0,4)), m = Integer.parseInt(s.substring(4,6));
-		m++; if (m > 12) { m = 1; y++; }
-		return String.format("%04d%02d", y, m);
-	}
+	/* ===== 정산 월 마감 (2026-09-16 P2-g) =====
+	   · 수기 장부 메서드 12개(Receive·Payment)·guardSettleClosed(확정 월 저장 차단)·nextYm(다음달 이월) 은 삭제했다 — 실사용 0.
+	   · 확정은 «막는 장치»가 아니라 «굳히는 장치»다 : RCV 확정 때 그 달의 거래처별 이월·매출·수금을 TBL_RECEIVE_MST 에 스냅샷으로 남기고,
+	     전표는 그대로 고쳐진다(수금·판매 등록 화면이 확인창만 띄운다 — 사용자 방침 「메시지 처리」).
+	   · 스냅샷 원천 = selectCustBalance(채권·채무 화면과 같은 4갈래 UNION)를 **자바에서 접는다** — 같은 계산을 SQL 로 한 벌 더 두면 화면 잔액과 어긋난다.
+	     이월 = 그 달 이전 (매출−매출할인−수금) 누계 · 매출 = 그 달 (매출−매출할인) · 수금 = 그 달 수금. 셋 다 0 인 거래처는 안 남긴다. */
 	@Override public egovframework.konet.user.model.SettleCloseDTO selectSettleClose(String settleGb, String ym) throws Exception {
 		egovframework.konet.user.model.SettleCloseDTO d = new egovframework.konet.user.model.SettleCloseDTO();
 		d.setSettleGb(settleGb); d.setCloseYm(ym);
 		return mapper.selectSettleClose(d);
 	}
-	@Override public int confirmSettleClose(String settleGb, String ym, String user) throws Exception {
-		// 1) 다음 달 전월이월 자동 반영(다음 달이 이미 확정된 경우는 건너뜀)
-		String nym = nextYm(ym);
-		egovframework.konet.user.model.SettleCloseDTO nd = new egovframework.konet.user.model.SettleCloseDTO();
-		nd.setSettleGb(settleGb); nd.setCloseYm(nym);
-		if (mapper.isSettleClosed(nd) == 0) {
-			if ("PAY".equals(settleGb)) {
-				egovframework.konet.user.model.PaymentDTO cf = new egovframework.konet.user.model.PaymentDTO();
-				cf.setPayYm(nym); cf.setRegUser(user); mapper.carryForwardPayment(cf);
-			} else {
-				egovframework.konet.user.model.ReceiveDTO cf = new egovframework.konet.user.model.ReceiveDTO();
-				cf.setRcvYm(nym); cf.setRegUser(user); mapper.carryForwardReceive(cf);
+	@Override public java.util.List<java.util.Map<String,Object>> selectSettleCloseList(String settleGb, String compCd) throws Exception {
+		egovframework.konet.user.model.SettleCloseDTO d = new egovframework.konet.user.model.SettleCloseDTO();
+		d.setSettleGb(settleGb); d.setCompCd(compCd);
+		return mapper.selectSettleCloseList(d);
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectRcvSnapshot(String ym, String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("rcvYm", ym == null ? "" : ym.replace("-", "")); p.put("compCd", compCd);
+		return mapper.selectRcvSnapshot(p);
+	}
+	@Override public int confirmSettleClose(String settleGb, String ym, String user, String ip, String compCd) throws Exception {
+		String y = ym.replace("-", "");
+		if ("RCV".equals(settleGb)) {
+			egovframework.konet.user.model.SettleTrxDTO q = new egovframework.konet.user.model.SettleTrxDTO();
+			q.setCompCd(compCd);
+			java.util.List<java.util.Map<String,Object>> rows = mapper.selectCustBalance(q);
+			java.util.Map<String,double[]> acc = new java.util.LinkedHashMap<String,double[]>();   // custCd → [이월, 매출, 수금]
+			java.util.Map<String,String> nm = new java.util.HashMap<String,String>();
+			for (java.util.Map<String,Object> r : rows) {
+				String cd = scStr(r.get("custCd")), rym = scStr(r.get("ym"));
+				if (cd.isEmpty() || rym.isEmpty() || rym.compareTo(y) > 0) continue;   // 기준월 이후는 아직 안 일어난 일(화면 cbFold 와 같은 규칙)
+				double sale = scNum(r.get("saleAmt")) - scNum(r.get("saleDcAmt")), rcv = scNum(r.get("rcvAmt"));
+				double[] a = acc.get(cd);
+				if (a == null) { a = new double[3]; acc.put(cd, a); nm.put(cd, scStr(r.get("custNm"))); }
+				if (rym.equals(y)) { a[1] += sale; a[2] += rcv; } else { a[0] += sale - rcv; }
+			}
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("rcvYm", y); p.put("compCd", compCd);
+			mapper.deleteRcvSnapshot(p);            // 다시 확정하면 그 달 스냅샷은 통째로 새로 쓴다
+			for (java.util.Map.Entry<String,double[]> e : acc.entrySet()) {
+				double[] a = e.getValue();
+				if (Math.round(a[0]) == 0 && Math.round(a[1]) == 0 && Math.round(a[2]) == 0) continue;
+				java.util.Map<String,Object> s = new java.util.HashMap<String,Object>();
+				s.put("rcvYm", y); s.put("compCd", compCd); s.put("bizCd", e.getKey()); s.put("bizNm", nm.get(e.getKey()));
+				s.put("prevAmt", Math.round(a[0])); s.put("salesAmt", Math.round(a[1])); s.put("collectAmt", Math.round(a[2]));
+				s.put("regUser", user); s.put("regIp", ip);
+				mapper.insertRcvSnapshot(s);
 			}
 		}
-		// 2) 해당 월 확정(잠금)
 		egovframework.konet.user.model.SettleCloseDTO d = new egovframework.konet.user.model.SettleCloseDTO();
-		d.setSettleGb(settleGb); d.setCloseYm(ym); d.setConfirmUser(user);
+		d.setSettleGb(settleGb); d.setCloseYm(y); d.setConfirmUser(user); d.setCompCd(compCd);
 		return mapper.confirmSettleClose(d);
 	}
-	@Override public int cancelSettleClose(String settleGb, String ym, String user) throws Exception {
+	@Override public int cancelSettleClose(String settleGb, String ym, String user, String compCd) throws Exception {
 		egovframework.konet.user.model.SettleCloseDTO d = new egovframework.konet.user.model.SettleCloseDTO();
-		d.setSettleGb(settleGb); d.setCloseYm(ym); d.setUpdUser(user);
+		d.setSettleGb(settleGb); d.setCloseYm(ym); d.setUpdUser(user); d.setCompCd(compCd);
 		return mapper.cancelSettleClose(d);
 	}
-	/* ===== 수금/미수금 ===== */
-	@Override public java.util.List<egovframework.konet.user.model.ReceiveDTO> selectReceiveList(egovframework.konet.user.model.ReceiveDTO dto) throws Exception { return mapper.selectReceiveList(dto); }
-	@Override public int insertReceive(egovframework.konet.user.model.ReceiveDTO dto) throws Exception {
-		guardSettleClosed("RCV", dto.getRcvYm());
-		/* MERGE — 삭제(N)행 되살림/신규 INSERT. 살아있는 중복이면 0건 → 2601 대신 알아듣는 안내(2026-08-05) */
-		int n = mapper.insertReceive(dto);
-		if (n == 0) throw new Exception("이미 등록된 귀속월·거래처입니다. 목록에서 해당 행을 직접 수정하세요.");
-		return n;
+	private static String scStr(Object o) { return o == null ? "" : String.valueOf(o).trim(); }
+	private static double scNum(Object o) {
+		if (o == null) return 0; if (o instanceof Number) return ((Number) o).doubleValue();
+		try { return Double.parseDouble(String.valueOf(o).replace(",", "")); } catch (Exception e) { return 0; }
 	}
-	@Override public int updateReceive(egovframework.konet.user.model.ReceiveDTO dto) throws Exception { guardSettleClosed("RCV", dto.getRcvYm()); return mapper.updateReceive(dto); }
-	@Override public int deleteReceive(egovframework.konet.user.model.ReceiveDTO dto) throws Exception { guardSettleClosed("RCV", dto.getRcvYm()); return mapper.deleteReceive(dto); }
-	@Override public int upsertReceiveList(java.util.List<egovframework.konet.user.model.ReceiveDTO> rows, String regUser, String regIp) throws Exception {
-		if (rows == null) return 0;
-		int n = 0;
-		for (egovframework.konet.user.model.ReceiveDTO r : rows) {
-			if (r.getRcvYm()==null || r.getRcvYm().trim().isEmpty() || r.getBizCd()==null || r.getBizCd().trim().isEmpty()) continue;
-			guardSettleClosed("RCV", r.getRcvYm());
-			r.setRegUser(regUser); r.setRegIp(regIp);
-			n += mapper.upsertReceive(r);
-		}
-		return n;
-	}
-	@Override public int carryForwardReceive(egovframework.konet.user.model.ReceiveDTO dto) throws Exception { guardSettleClosed("RCV", dto.getRcvYm()); return mapper.carryForwardReceive(dto); }
-	/* ===== 출금/미지급 ===== */
-	@Override public java.util.List<egovframework.konet.user.model.PaymentDTO> selectPaymentList(egovframework.konet.user.model.PaymentDTO dto) throws Exception { return mapper.selectPaymentList(dto); }
-	@Override public int insertPayment(egovframework.konet.user.model.PaymentDTO dto) throws Exception {
-		guardSettleClosed("PAY", dto.getPayYm());
-		/* MERGE — 삭제(N)행 되살림/신규 INSERT. 살아있는 중복이면 0건 → 2601 대신 알아듣는 안내(2026-08-05) */
-		int n = mapper.insertPayment(dto);
-		if (n == 0) throw new Exception("이미 등록된 귀속월·매입처입니다. 목록에서 해당 행을 직접 수정하세요.");
-		return n;
-	}
-	@Override public int updatePayment(egovframework.konet.user.model.PaymentDTO dto) throws Exception { guardSettleClosed("PAY", dto.getPayYm()); return mapper.updatePayment(dto); }
-	@Override public int deletePayment(egovframework.konet.user.model.PaymentDTO dto) throws Exception { guardSettleClosed("PAY", dto.getPayYm()); return mapper.deletePayment(dto); }
-	@Override public int upsertPaymentList(java.util.List<egovframework.konet.user.model.PaymentDTO> rows, String regUser, String regIp) throws Exception {
-		if (rows == null) return 0;
-		int n = 0;
-		for (egovframework.konet.user.model.PaymentDTO r : rows) {
-			if (r.getPayYm()==null || r.getPayYm().trim().isEmpty() || r.getBizCd()==null || r.getBizCd().trim().isEmpty()) continue;
-			guardSettleClosed("PAY", r.getPayYm());
-			r.setRegUser(regUser); r.setRegIp(regIp);
-			n += mapper.upsertPayment(r);
-		}
-		return n;
-	}
-	@Override public int carryForwardPayment(egovframework.konet.user.model.PaymentDTO dto) throws Exception { guardSettleClosed("PAY", dto.getPayYm()); return mapper.carryForwardPayment(dto); }
 
 	@Override public java.util.List<egovframework.konet.user.model.ProdDTO> selectProdList(egovframework.konet.user.model.ProdDTO dto) throws Exception { return mapper.selectProdList(dto); }
 	@Override public java.util.Map<String,Object> countProdCd(egovframework.konet.user.model.ProdDTO dto) throws Exception { return mapper.countProdCd(dto); }
@@ -611,10 +588,18 @@ public class UserServiceImpl implements UserService {
 		// ④ 헤더 upsert (UPDATE 먼저 → 0건이면 INSERT)
 		dto.setCloseYm(cym); dto.setStatus("C");
 		dto.setSalesAmt(sAmt); dto.setCogsAmt(cogs); dto.setMarginAmt(sAmt-cogs); dto.setPurchaseAmt(pAmt); dto.setStockAmt(stkAmt);
+		// ⑥ 비용(2026-09-16 P2-e) = 직송 택배 운임 자동 + 수기 항목 → 순마진 = 매출총이익(MARGIN_AMT) − 비용. 확정 시점 값으로 굳힌다
+		double exp = expenseSumOf(cym, dto.getCompCd());
+		dto.setExpenseAmt(exp); dto.setNetMarginAmt(sAmt - cogs - exp);
 		if (mapper.updateClosingMst(dto) == 0) mapper.insertClosingMst(dto);
-		// ⑤ 재고 스냅샷 재작성(이월 근거)
+		// ⑤ 재고 스냅샷 재작성(이월 근거) — 창고 2단계(2026-09-16) : 품목 × 창고로 쌓는다. 단가는 품목 평균(위 stock), 마감 화면·이월은 창고 합으로 읽는다
 		mapper.deleteClosingStock(cym, null);
-		for (egovframework.konet.user.model.StockClosingDTO r : stock) { r.setYm(ymDash); mapper.insertClosingStock(r); }
+		java.util.Map<Long,Double> avg = new java.util.HashMap<Long,Double>();
+		for (egovframework.konet.user.model.StockClosingDTO r : stock) if (r.getProdSeq() != null) avg.put(r.getProdSeq(), r.getAvgInPrice() != null ? r.getAvgInPrice() : 0d);
+		for (egovframework.konet.user.model.StockClosingDTO r : mapper.selectStockClosingByWh(sq)) {
+			r.setYm(ymDash); r.setAvgInPrice(avg.containsKey(r.getProdSeq()) ? avg.get(r.getProdSeq()) : 0d);
+			mapper.insertClosingStock(r);
+		}
 		return 1;
 	}
 	@Override public int cancelClosing(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception {
@@ -623,6 +608,121 @@ public class UserServiceImpl implements UserService {
 		mapper.deleteClosingStock(cym, null);
 		return n;
 	}
+
+	/* ===== 비용 (2026-09-16 P2-e) — TBL_EXPENSE_ITEM(항목) · TBL_EXPENSE_TRX(달×항목 수기 금액) · 직송 택배 운임 자동(selectParcelFeeAuto).
+	   순마진 = 매출총이익(매출−매출원가) − 비용. 자동 운임은 전표를 안 만들고 그때그때 센다 — 근거가 택배출고관리에 있어 거기서 고치면 따라온다. ===== */
+	private int parcelFeeDefOf(String compCd) {   // 회사 설정 SET_JSON 의 func.parcelFeeDef(기본 4500) — JSON 라이브러리 없이 숫자만 뽑는다
+		try {
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", (compCd == null || compCd.trim().isEmpty()) ? "W1234567" : compCd);
+			String js = mapper.selectCompSetJson(p);
+			if (js != null) {
+				java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"parcelFeeDef\"\\s*:\\s*\"?(\\d+)").matcher(js);
+				if (m.find()) { int v = Integer.parseInt(m.group(1)); if (v >= 0) return v; }
+			}
+		} catch (Exception e) { /* 설정을 못 읽으면 기본값 */ }
+		return 4500;
+	}
+	@Override public java.util.Map<String,Object> selectExpenseMonth(String ym, String compCd) throws Exception {
+		String y = ym == null ? "" : ym.replace("-", "").trim();
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("expYm", y); p.put("feeDef", parcelFeeDefOf(compCd));
+		java.util.Map<String,Object> r = new java.util.HashMap<String,Object>();
+		r.put("items", mapper.selectExpenseItem(p));
+		r.put("trx", y.length() == 6 ? mapper.selectExpenseTrx(p) : new java.util.ArrayList<java.util.Map<String,Object>>());
+		r.put("auto", y.length() == 6 ? mapper.selectParcelFeeAuto(p) : null);
+		r.put("feeDef", p.get("feeDef"));
+		return r;
+	}
+	@SuppressWarnings("unchecked")
+	@Override public double expenseSumOf(String ym, String compCd) throws Exception {
+		java.util.Map<String,Object> m = selectExpenseMonth(ym, compCd);
+		java.util.Map<String,Object> auto = (java.util.Map<String,Object>) m.get("auto");
+		java.util.Set<String> on = new java.util.HashSet<String>();
+		double t = 0;
+		for (java.util.Map<String,Object> it : (java.util.List<java.util.Map<String,Object>>) m.get("items")) {
+			if (!"Y".equals(scStr(it.get("useYn")))) continue;                       // 사용 끈 항목은 안 센다
+			if ("PARCEL".equals(scStr(it.get("autoSrc")))) { if (auto != null) t += scNum(auto.get("amt")); }
+			else on.add(scStr(it.get("itemCd")));
+		}
+		for (java.util.Map<String,Object> r : (java.util.List<java.util.Map<String,Object>>) m.get("trx"))
+			if (on.contains(scStr(r.get("itemCd")))) t += scNum(r.get("amt"));
+		return Math.round(t);
+	}
+	@Override public int saveExpenseItem(java.util.Map<String,Object> p) throws Exception { return mapper.upsertExpenseItem(p); }
+	@Override public int saveExpenseTrx(java.util.List<java.util.Map<String,Object>> rows, String ym, String user, String ip, String compCd) throws Exception {
+		String y = ym.replace("-", "").trim(); int n = 0;
+		if (rows == null) return 0;
+		for (java.util.Map<String,Object> r : rows) {
+			String cd = scStr(r.get("itemCd")); if (cd.isEmpty()) continue;
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", compCd); p.put("expYm", y); p.put("itemCd", cd);
+			p.put("amt", Math.round(scNum(r.get("amt")))); p.put("remark", scStr(r.get("remark")));
+			p.put("regUser", user); p.put("regIp", ip);
+			n += mapper.upsertExpenseTrx(p);
+		}
+		return n;
+	}
+
+	/* ===== 창고 (2026-09-16 P3 1단계) — TBL_WH_MST · 원장 WH_CD(비면 기본창고, SQL 이 채운다) · 창고 이동 =====
+	   이동 = 보내는 창고 A(−qty) + 받는 창고 A(+qty), REF_GB='MOVE', 같은 REF_NO — 전체 재고는 안 변하고 창고별만 옮긴다.
+	   품목 재고 캐시(TBL_STOCK_MST)는 품목 합이라 이동으로 안 바뀐다(recalc 불필요). */
+	@Override public java.util.List<java.util.Map<String,Object>> selectWhList(String compCd, boolean useOnly) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("useOnly", useOnly ? "Y" : "N");
+		return mapper.selectWhList(p);
+	}
+	@Override public java.util.Map<String,Object> selectWhQtyMap(String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd);
+		java.util.Map<String,Object> r = new java.util.HashMap<String,Object>();
+		for (java.util.Map<String,Object> m : mapper.selectWhQtyMap(p)) r.put(scStr(m.get("whCd")), m.get("curQty"));
+		return r;
+	}
+	@Override public int saveWhMst(java.util.Map<String,Object> p) throws Exception {
+		int n = mapper.upsertWhMst(p);
+		if ("Y".equals(scStr(p.get("defaultYn")))) mapper.clearWhDefault(p);   // 기본창고는 하나
+		return n;
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectStockByWh(egovframework.konet.user.model.StockMstDTO dto) throws Exception { return mapper.selectStockByWh(dto); }
+	@Override public int saveStockMove(java.util.Map<String,Object> p) throws Exception {
+		String ym = ym6FromTrx(scStr(p.get("trxDt")));
+		if (ym != null) {
+			egovframework.konet.user.model.ClosingMstDTO c = new egovframework.konet.user.model.ClosingMstDTO();
+			c.setCloseYm(ym); c.setCompCd(scStr(p.get("compCd")));
+			egovframework.konet.user.model.ClosingMstDTO cm = mapper.selectClosingMst(c);
+			if (cm != null && "C".equals(cm.getStatus())) throw new Exception("마감 확정된 달(" + ym.substring(0,4) + "-" + ym.substring(4) + ")입니다 — 재고 수불이 잠겨 있어 이동할 수 없습니다.");
+		}
+		if (p.get("refNo") == null) p.put("refNo", "MV" + System.currentTimeMillis());
+		int n = mapper.insertStockMoveLedger(p);
+		if (n != 2) throw new Exception("품목코드 " + scStr(p.get("prodCd")) + " 을(를) 상품마스터에서 찾지 못했습니다.");
+		return n;
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectStockMoveList(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockMoveList(p); }
+	@Override public int cancelStockMove(java.util.Map<String,Object> p) throws Exception { return mapper.cancelStockMove(p); }
+
+	/* ===== 택배 「출력됨」 서버 저장 · 출고장 표 (2026-09-16 P3) ===== */
+	@Override public java.util.List<java.util.Map<String,Object>> selectParcelPrintList(String compCd, String frDt, String toDt) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("frDt", frDt); p.put("toDt", toDt);
+		return mapper.selectParcelPrintList(p);
+	}
+	@Override public int markParcelPrint(java.util.List<java.util.Map<String,Object>> rows, String user, String compCd) throws Exception {
+		if (rows == null) return 0;
+		int n = 0;
+		for (java.util.Map<String,Object> r : rows) {
+			String dt = scStr(r.get("outDt")).replace("-", ""), nm = scStr(r.get("itemNm"));
+			if (dt.length() != 8 || nm.isEmpty()) continue;             // 키가 안 되는 줄은 건너뛴다
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", compCd); p.put("outDt", dt); p.put("bizCd", scStr(r.get("bizCd"))); p.put("itemNm", nm); p.put("printUser", user);
+			n += mapper.upsertParcelPrint(p);
+		}
+		return n;
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectDcList(String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd);
+		return mapper.selectDcList(p);
+	}
+	@Override public int saveDcWh(java.util.Map<String,Object> p) throws Exception { return mapper.updateDcWh(p); }
 
 	/* ===== 마감 집계 ===== */
 	@Override public java.util.List<egovframework.konet.user.model.ClosingDTO> selectClosing(egovframework.konet.user.model.ClosingDTO dto) throws Exception { return mapper.selectClosing(dto); }
@@ -783,6 +883,7 @@ public class UserServiceImpl implements UserService {
 			led.setUnitPrice(d.getUnitPrice());
 			led.setAmt(d.getAmt());
 			led.setVendorCd(dto.getVendorCd());
+			led.setWhCd(dto.getWhCd());            // 전표 창고(비면 기본창고) — 2026-09-16 P3
 			led.setRefGb("PURCH"); led.setRefNo(refNo);
 			led.setRemark(d.getRemark());
 			led.setRegUser(dto.getRegUser()); led.setRegIp(dto.getRegIp());
@@ -883,6 +984,7 @@ public class UserServiceImpl implements UserService {
 				if (e.getValue() <= 0) continue;
 				java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
 				p.put("prodCd", e.getKey()); p.put("refNo", oldRef);
+				p.put("whCd", dto.getWhCd());          // 재고 제한은 전표 창고의 재고로(비면 전 창고) — 2026-09-16 P3
 				java.util.Map<String,Object> r = mapper.selectStockAvailForSale(p);
 				double cur  = r == null || r.get("cur")  == null ? 0d : ((Number) r.get("cur")).doubleValue();
 				double mine = r == null || r.get("mine") == null ? 0d : ((Number) r.get("mine")).doubleValue();
@@ -1073,6 +1175,7 @@ public class UserServiceImpl implements UserService {
 			led.setUnitPrice(d.getUnitPrice());
 			led.setAmt(d.getAmt());
 			led.setVendorCd(dto.getCustCd());
+			led.setWhCd(dto.getWhCd());            // 전표 창고(비면 기본창고) — 2026-09-16 P3
 			led.setRefGb("SALE"); led.setRefNo(refNo);
 			led.setRemark(d.getRemark());
 			led.setRegUser(dto.getRegUser()); led.setRegIp(dto.getRegIp());
@@ -1161,6 +1264,7 @@ public class UserServiceImpl implements UserService {
 			led.setTrxDt(baseDt);
 			led.setIoGb("A");
 			led.setQty(diff);
+			led.setWhCd(head.getWhCd());           // 조정 창고(비면 기본창고) — 2026-09-16 P3
 			led.setRefGb("");                      // 수기조정 표식 — 삭제 가능 대상
 			led.setRemark(head.getRemark() == null || head.getRemark().trim().isEmpty()
 			              ? "재고 일괄조정" : head.getRemark());
@@ -1368,6 +1472,32 @@ public class UserServiceImpl implements UserService {
 	}
 	/* ══════════ 발주서 관리 (2026-09-03) ══════════ */
 	@Override public java.util.List<java.util.Map<String,Object>> selectPoList(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoList(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectPoRecentByProd(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoRecentByProd(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectPoRemainByProd(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoRemainByProd(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectSafeStockShort(java.util.Map<String,Object> p) throws Exception { return mapper.selectSafeStockShort(p); }
+	/* 적정재고 일괄 입력 (2026-09-16) — 줄마다 품목코드·적정재고. 없는 코드는 세어서 돌려준다(막지 않는다 — 사용자 원칙 「메시지 처리」).
+	   ★한 줄이 실패해도 멈추지 않는다 : 코드 하나가 틀렸다고 나머지 수백 줄을 버리면 붙여넣기가 소용없다. */
+	@Override public java.util.Map<String,Object> saveSafeStockBulk(java.util.List<java.util.Map<String,Object>> rows, String compCd, String regUser) throws Exception {
+		int done = 0, miss = 0; java.util.List<String> missCds = new java.util.ArrayList<String>();
+		if (rows != null) for (java.util.Map<String,Object> r : rows) {
+			String cd = r.get("prodCd") == null ? "" : String.valueOf(r.get("prodCd")).trim();
+			if (cd.isEmpty()) continue;
+			int qty; try { qty = (int) Math.round(Double.parseDouble(String.valueOf(r.get("safeStock")).replace(",", "").trim())); }
+			catch (Exception e) { miss++; if (missCds.size() < 20) missCds.add(cd + "(수량 아님)"); continue; }
+			if (qty < 0) qty = 0;
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("prodCd", cd); p.put("safeStock", Integer.valueOf(qty)); p.put("compCd", compCd); p.put("regUser", regUser);
+			int n = 0; try { n = mapper.updateSafeStockByCd(p); } catch (Exception e) { n = 0; }
+			if (n > 0) done += n; else { miss++; if (missCds.size() < 20) missCds.add(cd); }
+		}
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		res.put("done", Integer.valueOf(done)); res.put("miss", Integer.valueOf(miss)); res.put("missCds", missCds);
+		return res;
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectPoLinkedPurch(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoLinkedPurch(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectPoOpenLines(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoOpenLines(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectVendorPriceCmp(java.util.Map<String,Object> p) throws Exception { return mapper.selectVendorPriceCmp(p); }
+	@Override public int updatePoLineClose(java.util.Map<String,Object> p) throws Exception { return mapper.updatePoLineClose(p); }
 	@Override public String selectPoNextNo(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoNextNo(p); }
 	@Override public java.util.Map<String,Object> selectPoMst(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoMst(p); }
 	@Override public java.util.Map<String,Object> selectPoMstByToken(String token) throws Exception {
@@ -1436,7 +1566,21 @@ public class UserServiceImpl implements UserService {
 			java.util.Map<String,Object> d = new java.util.HashMap<String,Object>((java.util.Map<String,Object>) o);
 			if (d.get("prodCd") == null || String.valueOf(d.get("prodCd")).trim().isEmpty()) continue;
 			d.put("poSeq", seq); d.put("rowNo", ++row); d.put("regUser", user); d.put("compCd", b.get("compCd"));
+			/* 발주 연결 보존 (2026-09-16 P1-b) — 고쳐 저장하면 줄이 지워지고 다시 들어가 PO_DTL_SEQ 가 바뀐다.
+			   화면이 줄마다 옛 poDtlSeq 를 실어 보내므로, 새 번호를 받아(useGeneratedKeys → newDtlSeq) 매입 명세의 연결을 옮긴다.
+			   안 옮기면 부분 입고된 발주서를 한 번 고쳐 저장하는 순간 입고·잔량이 0 으로 보인다. */
+			long oldDtl = 0;
+			try { Object od = d.get("poDtlSeq"); if (od != null && String.valueOf(od).trim().length() > 0) oldDtl = Long.parseLong(String.valueOf(od).trim().split("[.]")[0]); } catch (Exception e) { oldDtl = 0; }
+			d.remove("poDtlSeq"); d.remove("newDtlSeq");
 			mapper.insertPoDtl(d);
+			if (oldDtl > 0 && d.get("newDtlSeq") != null) {
+				long newDtl = Long.parseLong(String.valueOf(d.get("newDtlSeq")).split("[.]")[0]);
+				if (newDtl > 0 && newDtl != oldDtl) {
+					java.util.Map<String,Object> rl = new java.util.HashMap<String,Object>();
+					rl.put("oldSeq", oldDtl); rl.put("newSeq", newDtl); rl.put("poSeq", seq);
+					mapper.relinkPurchaseDtlPo(rl);
+				}
+			}
 		}
 		return seq;
 	}

@@ -146,8 +146,8 @@ function ssOutQty(o){
   var SS_MONTHS=['5월','4월','3월','2월','1월'];  // 데모용 과거 월
 
   // 화면 표시용 물류센터 그룹/순서 (데시보드2와 동일 — 특정 코드는 오산센터로 묶고 지정순서로). DB 저장 무관
-  var SS_DCGROUP={ 'E200':'오산센터','E400':'오산센터','E300':'오산센터','E600':'오산센터','E700':'오산센터' };   // E600=제주
-  var SS_ZONEORDER=['E200','E400','E300','E600','E700'];
+  var SS_DCGROUP=window.konetDc.GROUP;      // ★단일 원천 asset/js/dc-map.js(TBL_DC_MST) — 2026-09-16 통합. 같은 객체 참조라 서버 표가 오면 따라온다
+  var SS_ZONEORDER=window.konetDc.ORDER;
   function ssRender(){
     var tbl=document.getElementById('ssWideTbl'); if(!tbl) return;
     var ag=ssAggregate();
@@ -3585,6 +3585,10 @@ function ssOutQty(o){
            그러면 자료는 들어갔는데 재고만 안 맞고, 아무도 모른 채 나중에
            「재고조정도 안 했는데 재고가 틀어졌다」로 나타난다.
          응답 모양 : "<건수>|STOCKFAIL:<사유>" — 앞의 건수는 종전 그대로다. */
+      /* ★사업장 자동 등록 결과 (2026-09-16 P2-c) — 응답 맨 끝 "|BIZ:{json}" 을 먼저 떼어 낸다(STOCKFAIL 보다 뒤에 붙는다).
+           {newCnt: 새로 마스터에 넣은 사업장 수, noAddr:[{bizCd,bizNm}…]} = 주소 없는 직송 사업장 */
+      var bizInfo=null;
+      if(ok && t){ var _bi=t.lastIndexOf('|BIZ:'); if(_bi>=0){ try{ bizInfo=JSON.parse(t.slice(_bi+5)); }catch(e){ bizInfo=null; } t=t.slice(0,_bi); } }
       var stkFail='';
       if(ok && t && t.indexOf('|STOCKFAIL:')>=0){
         var _p=t.split('|STOCKFAIL:'); t=_p[0]; stkFail=_p[1]||'알 수 없는 오류';
@@ -3599,6 +3603,22 @@ function ssOutQty(o){
                + '<div style="font-size:12px;color:#8a97a3">사유 : '+String(stkFail).replace(/</g,'&lt;')+'</div></div>';
           if(window._alertBox) window._alertBox(_m, { icon:'⚠️' });
           else ssToast('⚠️ 재고 반영 실패 — [출고반영 재집계]를 눌러 주세요. ('+stkFail+')');
+        }
+        /* 새 사업장·주소 없는 직송 사업장 (2026-09-16 P2-c) — 종전엔 택배납기관리에서 「신규」 배지를 찾아다녀야 했다.
+             주소가 없으면 택배 엑셀에 주소가 빈 채로 나간다 → 여기서 바로 알리고 [택배납기관리로] 단추로 보낸다(막지 않는다). */
+        if(bizInfo && (Number(bizInfo.newCnt)>0 || (bizInfo.noAddr||[]).length)){
+          var _na=bizInfo.noAddr||[], _esc=function(s){ return String(s==null?'':s).replace(/</g,'&lt;'); };
+          var _bm='<div style="text-align:left;line-height:1.7">';
+          if(Number(bizInfo.newCnt)>0) _bm+='새 사업장 <b>'+Number(bizInfo.newCnt)+'곳</b>을 사업장 마스터에 등록했습니다 <span style="font-size:12px;color:#8a97a3">(코드·이름만)</span>.';
+          if(_na.length){
+            _bm+=(Number(bizInfo.newCnt)>0?'<div style="margin-top:8px">':'<div>')+'<b style="color:#c0392b">주소가 없는 직송 사업장 '+_na.length+'곳</b> — 이대로면 택배 엑셀에 주소가 빈 채로 나갑니다.'
+               +'<div style="margin:6px 0 0;font-size:12.5px;color:#5b6b7a">'+_na.slice(0,10).map(function(b){ return _esc(b.bizNm)+' <span style="color:#8a97a3">['+_esc(b.bizCd)+']</span>'; }).join(' · ')+(_na.length>10?' 외 '+(_na.length-10)+'곳':'')+'</div></div>';
+          }
+          _bm+='</div>';
+          var _opt={ icon: _na.length?'📮':'✅' };
+          if(_na.length && window.logiFrame){ _opt.okText='택배납기관리에서 주소 넣기'; _opt.onOk=function(){ logiFrame('parcelout', KONET_CTX+'/shipout/parcelOut.do', document.querySelector('.mi[data-key="parcelout"]')); }; }
+          if(window._alertBox) window._alertBox(_bm, _opt);
+          else ssToast((Number(bizInfo.newCnt)>0?'새 사업장 '+Number(bizInfo.newCnt)+'곳 등록 · ':'')+(_na.length?'주소 없는 직송 사업장 '+_na.length+'곳 — 택배납기관리에서 주소를 넣어 주세요':''));
         }
         if(window.ssLoadShipoutFromDB) ssLoadShipoutFromDB();   // 저장 끝나면 출고일자로 DB 조회 1회 자동 실행
         if(window.ssUpHistLoad) ssUpHistLoad();                 // 방금 올린 배치가 좌측 '올린 이력' 맨 위로 올라오게
@@ -4160,8 +4180,8 @@ function ssOutQty(o){
      ※ 대시보드·매출마감의 '오산센터 묶음'(CLOSE_DCGROUP / SS_DCGROUP)은
        성격이 다른 표(물류 동선용 그룹)이므로 여기와 합치지 않는다.
      ══════════════════════════════════════════════════════════════════════════ */
-  var KONET_DC = { E100:'용인', E200:'왜관', E300:'김해', E400:'광주', E500:'평택', E600:'제주', E700:'오산' };
-  var KONET_DC_R = (function(){ var r={}; for(var c in KONET_DC){ r[KONET_DC[c]]=c; } return r; })();   // 지역명→코드 (자동 생성)
+  var KONET_DC = window.konetDc.NAME;       // ★단일 원천 asset/js/dc-map.js(TBL_DC_MST) — 2026-09-16 통합(종전 이 자리의 표)
+  var KONET_DC_R = window.konetDc.NAME_R;   // 지역명→코드
 
   // 표기 통일 : '평택물류센터'·'평택 1'·'평택출고장' → '평택'
   //   두 표가 서로 다르게 적는다 — 정산서는 파일명 유래 '평택', 발주현황표는 '평택물류센터'

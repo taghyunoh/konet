@@ -183,8 +183,10 @@
       <%-- 매입분 = 그 매입처에서 이미 사 온 품목(매입전표 + 매입단가이력)을 중복 없이.
            체크한 순서 그대로 명세에 담긴다 — 판매등록의 [납품분]과 같은 장치(2026-07-31). --%>
       <button class="pu-btn teal" onclick="puDlvOpen()" title="이 매입처에서 사 온 품목 목록에서 골라 담기">매입분</button>
+      <%-- 발주분 (2026-09-16 P1-b 2단계) — 잔량이 남은 발주 줄을 골라 담는다. 담긴 줄은 발주 연결(poSeq/poDtlSeq)을 들고 가서 저장하면 발주서에 입고·잔량이 잡힌다 --%>
+      <button class="pu-btn teal" onclick="puPoOpen()" title="발주했는데 아직 안 들어온 줄에서 골라 담기 — 저장하면 발주서에 입고·잔량이 잡힙니다">발주분</button>
       <div class="pu-fld" style="flex:0 0 120px"><label>담당자</label><input type="text" id="puMgrNm" readonly style="background:#f5f7f9"></div>
-      <div class="pu-fld" style="flex:0 0 130px"><label>창고</label><input type="text" id="puWhNm" value="물류창고"></div>
+      <div class="pu-fld" style="flex:0 0 130px"><label>창고</label><select id="puWhNm" title="이 전표의 창고 — 재고가 여기로 들어옵니다(2026-09-16)"></select></div>
       <%-- 일괄등록 (2026-08-06 요청) — 거래처는 그대로 두고 일자만 바꿔 여러 상품을 한 번에 전표로 저장 --%>
       <button class="pu-btn teal" onclick="puBatchOpen()" title="거래처가 선택된 상태에서 일자만 바꿔 여러 상품을 한 번에 전표로 저장합니다">일괄등록</button>
       <div class="pu-bal">
@@ -414,6 +416,40 @@
        · 체크한 '순서'가 곧 명세 줄 순서다. 체크 칸에 1,2,3… 이 찍혀 순서를 눈으로 확인한다.
        · [매입분제외] = 앞으로 이 목록에 안 나오게 한다(거래처별). 매입 이력은 그대로 둔다.
        · 판매등록의 [납품분]과 같은 표를 쓰되 GB='P' 로 갈린다 — 매출에서 뺀 게 매입에 영향 없다. -->
+<!-- 발주분 팝업 (2026-09-16 P1-b 2단계) — 잔량이 남은 발주 줄. 매입분 팝업과 같은 뼈대. 이번 입고 기본값 = 잔량 -->
+<div class="pu-pop" id="puPoPop">
+  <div class="box" style="width:min(1180px,97vw)">
+    <div class="hd">발주분 — 아직 안 들어온 발주 줄에서 골라 담기
+      <label style="font-size:12.5px; font-weight:400; margin-left:12px; cursor:pointer; display:flex; align-items:center; gap:4px"><input type="checkbox" id="poAllVen" onchange="puPoLoad()"> 다른 거래처 발주도 보기</label>
+      <span style="margin-left:auto"><span class="pu-btn" style="border:0;background:transparent;font-size:18px" onclick="puPoClose()">✕</span></span>
+    </div>
+    <div class="bd">
+      <div style="display:flex; gap:6px; margin-bottom:8px">
+        <input type="text" id="poQ" placeholder="발주번호·거래처·상품코드·상품명·규격" style="flex:1; height:32px; border:1px solid var(--pu-bd); border-radius:6px; padding:0 8px; font-size:13.5px" oninput="puPoRender()">
+        <button class="pu-btn" onclick="puPoRender()">🔍</button>
+      </div>
+      <div style="max-height:420px; overflow:auto; border:1px solid var(--pu-bd); border-radius:6px">
+        <table>
+          <thead><tr>
+            <th style="width:46px"><input type="checkbox" id="poAll" onchange="puPoAll(this.checked)"></th>
+            <th style="width:106px; white-space:nowrap">발주</th><th style="width:130px">거래처</th><th style="width:100px">상품코드</th><th>상품명</th><th style="width:100px">규격</th>
+            <th style="width:48px">입수</th><th style="width:84px">단가</th><th style="width:70px">발주</th><th style="width:70px">기입고</th><th style="width:70px">잔량</th>
+            <th style="width:96px" title="이번에 들어온 수량 — 잔량으로 채워 둡니다. 실제 들어온 만큼 고치세요">이번 입고</th>
+          </tr></thead>
+          <tbody id="poBody"><tr><td colspan="12" class="pu-msg">불러오는 중…</td></tr></tbody>
+        </table>
+      </div>
+      <div style="margin-top:8px; font-size:12.5px; color:#3d4d5c">
+        체크한 <b>순서대로</b> 명세에 담깁니다. 이번 입고는 <b>잔량</b>으로 채워 둡니다 — 실제 들어온 만큼 고치세요. 저장하면 발주서에 입고·잔량이 잡힙니다. <span id="poPickInfo" style="color:#137a6c; font-weight:700"></span>
+      </div>
+    </div>
+    <div class="ft" style="display:flex; align-items:center; gap:8px">
+      <span style="font-size:12.5px; color:#5a6b7a" id="poCnt">0줄</span>
+      <span style="margin-left:auto"></span>
+      <button class="pu-btn teal" id="poOk" onclick="puPoApply()">확인 — 순서대로 담기</button>
+    </div>
+  </div>
+</div>
 <div class="pu-pop" id="puDlvPop">
   <%-- 매입횟수 칸이 늘어 980 으로는 최근거래·원천이 두 줄로 접혔다 ⇒ 1120 (2026-08-17) --%>
   <div class="box" style="width:min(1120px,97vw)">
@@ -736,7 +772,28 @@ function puReload(){
   }
 }
 
+/* ★창고 셀렉트 (2026-09-16 P3) — 값 = 창고코드, 글자 = 이름. 목록은 /prod/whList.do(사용 중인 창고), 처음엔 기본창고.
+     전표를 불러오면 puWhSet(저장된 코드·이름) 으로 맞춘다(옛 전표는 코드가 비어 이름 '물류창고' 만 있다 → 기본창고). */
+var _puWh=[];
+function puWhLoad(){
+  fetch(CTX+'/prod/whList.do',{ method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'useOnly=Y' })
+    .then(function(r){ return r.json(); }).then(function(j){
+      _puWh=(j&&j.data)||[]; var e=document.getElementById('puWhNm'); if(!e) return;
+      var cur=e.value;
+      e.innerHTML=_puWh.map(function(w){ return '<option value="'+w.whCd+'"'+(w.defaultYn==='Y'?' data-def="1"':'')+'>'+w.whNm+'</option>'; }).join('');
+      if(cur && _puWh.some(function(w){ return w.whCd===cur; })) e.value=cur; else puWhSet('','');
+    }).catch(function(){});
+}
+function puWhCd(){ var e=document.getElementById('puWhNm'); return e ? (e.value||'') : ''; }
+function puWhNmTxt(){ var e=document.getElementById('puWhNm'); return (e && e.selectedIndex>=0) ? e.options[e.selectedIndex].text : ''; }
+function puWhSet(cd, nm){
+  var e=document.getElementById('puWhNm'); if(!e) return;
+  var hit=_puWh.filter(function(w){ return cd && w.whCd===cd; })[0] || _puWh.filter(function(w){ return nm && w.whNm===nm; })[0]
+        || _puWh.filter(function(w){ return w.defaultYn==='Y'; })[0] || _puWh[0];
+  if(hit) e.value=hit.whCd;
+}
 function puLoadMasters(){
+  puWhLoad();                                                     // 창고 목록(2026-09-16 P3)
   post('/vendor/selectVendorMst.do','').then(function(r){return r.json();}).then(function(j){ _vendors=(j&&j.data)||[]; }).catch(function(){});
   /* 거래처 팝업용 — 거래처별 총판매·총매입(2026-08-04). 표시 + 총매입 순 정렬에 쓴다.
      못 받아와도 팝업은 이름순·금액 0 으로 그대로 뜬다. */
@@ -795,7 +852,8 @@ function puNew(){
   puFocusFirstProd();                    // 진입 즉시 첫 상품칸에 커서(2026-08-04)
 }
 function emptyRow(){ return { prodCd:'', prodNm:'', spec:'', packQty:1, boxQty:0, eaQty:0, qty:0, unitPrice:0, amt:0, dcAmt:0,
-                              supplyAmt:0, vatAmt:0, totAmt:0, serviceQty:0, remark:'', eventYn:'N', trxGb:'매입', taxGb:'과세' }; }
+                              supplyAmt:0, vatAmt:0, totAmt:0, serviceQty:0, remark:'', eventYn:'N', trxGb:'매입', taxGb:'과세',
+                              poSeq:null, poDtlSeq:null }; }   /* 발주 연결(2026-09-16 P1-b) — 전표를 열면 서버 줄에 실려 오고, 저장 때 그대로 되돌려 보낸다. 손으로 담은 줄은 null */
 /* ── 이전 단가와 다르면 알리기 (2026-09-12 요청 · 같은 날 「협의 후 진행」으로 원복 → 2026-09-13 되살림) ──
    「매입등록 시 이전 단가와 다를 경우 메세지나 이전 단가를 표시해주는 기능」
      → 담을 때 그 거래처의 지난 매입단가를 줄에 들고 있다가(o._lastPrice/_lastDt) 사람이 단가를 고치면
@@ -907,7 +965,7 @@ function puRender(){
       /* ★빈 줄은 '상품코드 칸에 직접 입력검색'(2026-08-04) — 칸에 쳐서 ↑↓·Enter 로 고른다(puPin*).
            고르면 그 행에 담기고 커서가 BOX수량 칸으로 넘어간다(매입 합계=BOX×입수+EA). [🔍]는 종전 팝업. */
       + (o.prodCd
-          ? '<td><span class="lnk" title="클릭 → 다른 상품으로 바꾸기" onclick="puProdOpen('+i+')">'+esc(o.prodCd)+'</span></td>'
+          ? '<td><span class="lnk" title="클릭 → 다른 상품으로 바꾸기" onclick="puProdOpen('+i+')">'+esc(o.prodCd)+'</span>'+(o.poDtlSeq?'<span title="발주서에서 온 줄 — 발주 연결이 살아 있습니다(발주서의 입고·잔량을 이 줄로 셉니다)" style="font-size:10px;margin-left:3px">📋</span>':'')+'</td>'
           : '<td class="txt" style="padding:2px 3px"><div style="display:flex;align-items:center;gap:2px">'
               + '<input class="puPin" data-r="'+i+'" data-f="prod" placeholder="상품검색" autocomplete="off"'
               +   ' oninput="puPinInput(this)" onkeydown="puPinKey(this,event)" onblur="puPinBlur()"'
@@ -1171,11 +1229,12 @@ function puSaveGo(){
   var t = puCalc();
   var dto = {
     purchSeq: _cur ? _cur.purchSeq : null,
+    poSeq: (items.filter(function(o){ return o.poSeq; })[0]||{}).poSeq||null,   // 대표 발주(표시용, 2026-09-16) — 없으면 null → 수정 저장 때 기존 값 유지(ISNULL)
     purchDt: document.getElementById('puDt').value,
     purchNo: document.getElementById('puNo').value,
     vendorCd: venCd, vendorNm: document.getElementById('puVenNm').value,
     mgrCd: document.getElementById('puMgrNm').dataset.cd||'', mgrNm: document.getElementById('puMgrNm').value,
-    whCd:'', whNm: document.getElementById('puWhNm').value,
+    whCd: puWhCd(), whNm: puWhNmTxt(),
     totBoxQty:t.box, totEaQty:t.ea, totQty:t.qty,
     supplyAmt:t.sup, vatAmt:t.vat, totAmt:t.tot, dcAmt:n(document.getElementById('puDcAmt').value),
     payGb: document.getElementById('puPayGb').value, payAmt:n(document.getElementById('puPayAmt').value),
@@ -1298,7 +1357,7 @@ function puApply(d){
   /* 저장된 전표를 열 때도 그 거래처의 부가세 설정을 적용한다 —
      안 하면 직전에 보던 거래처의 설정이 남아 금액이 달리 보인다. */
   puVenVat(_vendors.filter(function(x){ return String(x.vendorCd)===String(d.vendorCd||''); })[0]);
-  document.getElementById('puWhNm').value = d.whNm||'물류창고';
+  puWhSet(d.whCd, d.whNm);
   document.getElementById('puRemark').value = d.remark||'';
   document.getElementById('puPayGb').value = d.payGb||'외상';
   document.getElementById('puPayAmt').value = n(d.payAmt);
@@ -2095,7 +2154,7 @@ function puBatchApply(){
               purchSeq:null, purchDt:d, purchNo:no,
               vendorCd:venCd, vendorNm:venNm,
               mgrCd: document.getElementById('puMgrNm').dataset.cd||'', mgrNm: document.getElementById('puMgrNm').value||'',
-              whCd:'', whNm: document.getElementById('puWhNm').value||'물류창고',
+              whCd: puWhCd(), whNm: puWhNmTxt(),
               totBoxQty:t.box, totEaQty:t.ea, totQty:t.qty,
               supplyAmt:t.sup, vatAmt:t.vat, totAmt:t.tot, dcAmt:0,
               payGb: document.getElementById('puPayGb').value||'외상', payAmt:0,
@@ -2167,6 +2226,59 @@ function puHistClose(){ document.getElementById('puHistPop').classList.remove('o
      ★ [매입분제외] 는 판매등록의 [납품분제외]와 같은 표를 쓰되 GB='P' 로 갈린다.
        매출에서 뺀 품목이 매입에서 사라지는 사고가 없다. */
 var _dlv = [], _dvPick = [], _dvExclMode = false;
+
+/* ── 발주분 (2026-09-16 P1-b 2단계) — 잔량이 남은 발주 줄을 골라 담는다(설계 docs/설계_발주잔량_부분입고_2026-09-16.md).
+     담긴 줄은 poSeq/poDtlSeq 를 들고 가서 저장하면 발주서에 입고·잔량이 잡힌다. 한 전표에 발주 여러 장을 섞어도 된다(줄마다 연결이 따로).
+     거래처가 비어 있으면 전 거래처 발주를 보여 주고, 담을 때 첫 줄의 거래처로 맞춘다. 다른 거래처 줄이 섞이면 확인창 한 번(막지 않는다). */
+var _po=[], _poPick=[];   // 열린 발주 줄 · 고른 poDtlSeq(문자열) 차례
+function puPoOpen(){ _poPick=[]; document.getElementById('poQ').value=''; document.getElementById('poAll').checked=false;
+  var cd=document.getElementById('puVenNm').dataset.cd||''; document.getElementById('poAllVen').checked=!cd;
+  document.getElementById('puPoPop').classList.add('on'); puPoLoad(); }
+function puPoClose(){ document.getElementById('puPoPop').classList.remove('on'); }
+function puPoLoad(){ var cd=document.getElementById('puVenNm').dataset.cd||'', all=document.getElementById('poAllVen').checked;
+  document.getElementById('poBody').innerHTML='<tr><td colspan="12" class="pu-msg">불러오는 중…</td></tr>';
+  post('/mangr/poOpenLines.do','vendorCd='+encodeURIComponent(all?'':cd)).then(function(r){return r.json();})
+    .then(function(j){ _po=((j&&j.data)||[]).map(function(o){ o.inThis=Math.max(0,n(o.remainQty)); return o; }); puPoRender(); })
+    .catch(function(e){ document.getElementById('poBody').innerHTML='<tr><td colspan="12" class="pu-msg" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; }); }
+function puPoFiltered(){ var q=(document.getElementById('poQ').value||'').toLowerCase();
+  return _po.filter(function(o){ if(!q) return true; return [fmtDt(o.poDt)+'-'+o.poNo, o.poNo, o.prodCd, o.prodNm, o.spec, o.vendorNm].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; }); }); }
+function puPoInRows(){ return _rows.filter(function(o){ return o.poDtlSeq; }).map(function(o){ return String(o.poDtlSeq); }); }
+function puPoRender(){ var l=puPoFiltered(), inRows=puPoInRows();
+  document.getElementById('poCnt').textContent=l.length+'줄'+(l.length!==_po.length?' (전체 '+_po.length+'줄 중)':'');
+  document.getElementById('poBody').innerHTML = l.length ? l.map(function(o){ var id=String(o.poDtlSeq), k=_poPick.indexOf(id), has=inRows.indexOf(id)>=0;
+    return '<tr class="pick"'+(has?' style="opacity:.5" title="이미 명세에 담긴 줄"':'')+' onclick="puPoPick(\''+id+'\')">'
+      +'<td>'+(has?'<span style="color:#8a98a8">담김</span>':(k>=0?'<b style="color:#137a6c">'+(k+1)+'</b>':'<input type="checkbox" onclick="event.stopPropagation();puPoPick(\''+id+'\')">'))+'</td>'
+      +'<td style="white-space:nowrap">'+esc(fmtDt(o.poDt))+'-'+esc(o.poNo)+'</td><td class="txt" style="text-align:left">'+esc(o.vendorNm)+'</td>'
+      +'<td>'+esc(o.prodCd)+'</td><td class="txt" style="text-align:left">'+esc(o.prodNm)+'</td><td>'+esc(o.spec)+'</td>'
+      +'<td class="num">'+fmt(o.packQty||1)+'</td><td class="num">'+fmtP(o.unitPrice)+'</td><td class="num">'+fmt(o.qty)+'</td><td class="num">'+fmt(o.inQty)+'</td><td class="num" style="color:#c0392b;font-weight:700">'+fmt(o.remainQty)+'</td>'
+      +'<td><input value="'+fmt(o.inThis)+'" style="width:80px;text-align:right" onclick="event.stopPropagation()" onchange="puPoQty(\''+id+'\',this.value)"'+(has?' disabled':'')+'></td></tr>'; }).join('')
+    : '<tr><td colspan="12" class="pu-msg">잔량이 남은 발주 줄이 없습니다.'+(document.getElementById('poAllVen').checked?'':' (다른 거래처 발주도 보려면 위 체크)')+'</td></tr>';
+  puPoInfo(); }
+function puPoQty(id,v){ var o=_po.filter(function(x){ return String(x.poDtlSeq)===id; })[0]; if(!o) return;
+  o.inThis=Math.max(0,n(v)); if(o.inThis>0 && _poPick.indexOf(id)<0 && puPoInRows().indexOf(id)<0) _poPick.push(id);   // 수량을 치면 고른 것으로 본다
+  puPoRender(); }
+function puPoPick(id){ if(puPoInRows().indexOf(id)>=0) return; var k=_poPick.indexOf(id); if(k>=0) _poPick.splice(k,1); else _poPick.push(id); puPoRender(); }
+function puPoAll(on){ var inRows=puPoInRows(); _poPick = on ? puPoFiltered().map(function(o){ return String(o.poDtlSeq); }).filter(function(id){ return inRows.indexOf(id)<0; }) : []; puPoRender(); }
+function puPoInfo(){ var el=document.getElementById('poPickInfo'); el.textContent=_poPick.length?('선택 '+_poPick.length+'줄'):''; }
+function puPoApply(){ if(!_poPick.length){ swErr('담을 발주 줄을 체크하세요.'); return; }
+  var picked=_poPick.map(function(id){ return _po.filter(function(x){ return String(x.poDtlSeq)===id; })[0]; }).filter(Boolean);
+  var zero=picked.filter(function(o){ return !(o.inThis>0); });
+  if(zero.length){ swErr('이번 입고가 0 인 줄이 '+zero.length+'개 있습니다 — 수량을 넣거나 체크를 푸세요.'); return; }
+  var venEl=document.getElementById('puVenNm'), cd=venEl.dataset.cd||'';
+  var run=function(){
+    if(!cd){ venEl.dataset.cd=picked[0].vendorCd||''; venEl.value=picked[0].vendorNm||''; if(window._toast) _toast('거래처를 발주서의 「'+(picked[0].vendorNm||'')+'」 로 맞췄습니다.','ok'); }
+    var rows=_rows.filter(function(o){ return o.prodCd; }), added=0;
+    picked.forEach(function(s){ var o=emptyRow();
+      o.prodSeq=s.prodSeq; o.prodCd=s.prodCd; o.prodNm=s.prodNm; o.spec=s.spec||''; o.packQty=n(s.packQty)||1; o.taxGb=s.taxGb||'과세'; o.unitPrice=n(s.unitPrice);
+      o.poSeq=s.poSeq; o.poDtlSeq=s.poDtlSeq;                                   // ★발주 연결 — 저장이 그대로 되돌려 보낸다
+      var pk=o.packQty, q=n(s.inThis); o.boxQty=Math.floor(q/pk); o.eaQty=q-o.boxQty*pk;
+      if(!String(o.remark||'').trim()) o.remark='발주 '+fmtDt(s.poDt)+'-'+s.poNo;
+      puCalcRow(o); rows.push(o); added++; });
+    rows.push(emptyRow()); _rows=rows; _pShown=_rows.length; puRender(); puPoClose();
+    if(window._toast) _toast(added+'줄을 발주서에서 담았습니다 — 저장하면 발주서에 입고·잔량이 잡힙니다.','ok'); };
+  var other = cd ? picked.filter(function(o){ return String(o.vendorCd||'')!==cd; }).length : 0;
+  if(other && window._confirmBox) _confirmBox({ msg:'지금 거래처와 <b>다른 거래처</b>의 발주 줄이 '+other+'개 있습니다. 그대로 담을까요?<br><span style="font-size:12.5px;color:#3d4d5c">전표 거래처는 그대로 둡니다 — 발주 연결은 그 줄에만 붙습니다.</span>', icon:'❓', okText:'담기', okColor:'blue', onOk:run });
+  else run(); }
 
 function puDlvOpen(){
   var cd = document.getElementById('puVenNm').dataset.cd || '';

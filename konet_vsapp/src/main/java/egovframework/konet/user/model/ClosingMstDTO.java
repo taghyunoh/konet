@@ -20,6 +20,8 @@ public class ClosingMstDTO {
     private Double  marginAmt;    // 순마진(매출-매출원가)
     private Double  purchaseAmt;  // 매입액(입고)
     private Double  stockAmt;     // 기말재고금액
+    private Double  expenseAmt;   // 비용(직송 택배 운임 자동 + 수기 항목) — 2026-09-16 P2-e
+    private Double  netMarginAmt; // 순마진 = marginAmt(매출총이익) − expenseAmt
     private String  confirmDttm;
     private String  confirmUser;
     private String  actionYn;
@@ -46,6 +48,10 @@ public class ClosingMstDTO {
     public void setPurchaseAmt(Double purchaseAmt) { this.purchaseAmt = purchaseAmt; }
     public Double getStockAmt() { return stockAmt; }
     public void setStockAmt(Double stockAmt) { this.stockAmt = stockAmt; }
+    public Double getExpenseAmt() { return expenseAmt; }
+    public void setExpenseAmt(Double expenseAmt) { this.expenseAmt = expenseAmt; }
+    public Double getNetMarginAmt() { return netMarginAmt; }
+    public void setNetMarginAmt(Double netMarginAmt) { this.netMarginAmt = netMarginAmt; }
     public String getConfirmDttm() { return confirmDttm; }
     public void setConfirmDttm(String confirmDttm) { this.confirmDttm = confirmDttm; }
     public String getConfirmUser() { return confirmUser; }

@@ -36,6 +36,9 @@ public class PurchaseDTO {
     private String  payGb;         // 지급구분 현금/카드/외상
     private Double  payAmt;        // 지급액
     private String  remark;        // 매입메모
+    private Long    poSeq;         // 대표 발주서(매입전환으로 만든 전표, 2026-09-16 P1-b) — 표시용. 줄 단위 연결은 PurchaseDtlDTO.poDtlSeq
+    public Long getPoSeq() { return poSeq; }
+    public void setPoSeq(Long poSeq) { this.poSeq = poSeq; }
 
     private String  actionYn;
     private String  regDttm;
