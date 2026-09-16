@@ -1815,6 +1815,31 @@ public class UserController {
 			res.put("data", svc.selectPoRemainByProd(p));
 			return res;
 		}
+		/** 적정재고 미달 = 추천 발주 (2026-09-16 P1-c 후반, 프로그램 목적 ①의 반대쪽 「떨어졌는데 발주를 안 하는」).
+		    마스터 기준이라 원장에 기록이 없는 품목도 나온다. 화면 = 발주서 [⚠ 추천 발주] · 재고현황 요약 줄. */
+		@RequestMapping(value="/prod/safeStockShort.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> safeStockShort(HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>(); p.put("compCd", session.getAttribute("s_comp_cd"));
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", svc.selectSafeStockShort(p));
+			return res;
+		}
+		/** 적정재고 일괄 입력 (2026-09-16 결정 ⑥) — 상품코드관리에서 「품목코드 적정재고」 두 열을 붙여넣는다.
+		    없는 코드는 세어서 알려 주고 나머지는 그대로 넣는다(막지 않는다). */
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/prod/safeStockBulk.do", method = RequestMethod.POST)
+		public ResponseEntity<String> safeStockBulk(@RequestBody Map<String,Object> body, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return ResponseEntity.status(401).body(ADJ_LOGIN_MSG);
+				Object o = body.get("rows");
+				if (!(o instanceof java.util.List)) return ResponseEntity.status(400).body("보낼 줄이 없습니다.");
+				java.util.List<Map<String,Object>> rows = (java.util.List<Map<String,Object>>) o;
+				if (rows.size() > 5000) return ResponseEntity.status(400).body("한 번에 5,000줄까지만 넣을 수 있습니다.");
+				Map<String,Object> r = svc.saveSafeStockBulk(rows, String.valueOf(session.getAttribute("s_comp_cd")), String.valueOf(session.getAttribute("s_user_id")));
+				return ResponseEntity.ok(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(r));
+			} catch (Exception e) { log.error(" safeStockBulk ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
 		/** 거래처별 매입가 비교 (2026-09-16 P2-a, 프로그램 목적 ③) — 화면 + 자료. months 가 0/없음이면 전체 기간 */
 		@RequestMapping(value="/mangr/vendorPriceCmp.do")
 		public String vendorPriceCmp(HttpSession session) {

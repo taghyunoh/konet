@@ -9,7 +9,7 @@
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창 — 브라우저 alert 금지 --%>
 <script src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <!--
-  창고 관리 · 창고 이동 (2026-09-16 신설, P3 창고별 재고 1단계 — 사용자 「창고는 3개 · 설정할 수 있게」) — 기준정보관리 ▸ 창고 관리. 셸 iframe(logiFrame).
+  창고 관리 · 창고 이동 (2026-09-16 신설, P3 창고별 재고 1단계 — 사용자 「창고는 3개 · 설정할 수 있게」) — 물품동선관리 ▸ 창고 관리. 셸 iframe(logiFrame).
   · 위 = 창고 목록(TBL_WH_MST) : 이름·기본창고·차례·사용 을 고치고 새 창고를 더한다. 코드는 한 번 만들면 못 바꾼다(원장 행이 코드에 매달린다).
     기본창고 = 출고 자동연동(발주현황표·정산서)과 창고를 안 고른 전표가 쓰는 창고. 회사마다 하나.
   · 아래 = 창고 이동 : 보내는 창고 −수량 · 받는 창고 +수량 을 원장(TBL_STOCK_LEDGER)에 A 행 한 쌍(REF_GB='MOVE')으로 남긴다.

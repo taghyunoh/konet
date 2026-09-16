@@ -2758,6 +2758,36 @@
       if(p && p.classList.contains('on')) stkSplitClose();
     });
   })();
+  /* ── 적정재고 미달 (2026-09-16 P1-c 후반, 프로그램 목적 ①의 반대쪽 「떨어졌는데 발주를 안 하는」) ──
+       가용 = 현재고 + 입고예정. 미달 = 적정 > 0 이고 가용이 적정에 못 미침. 부족 = 적정 − 가용.
+       ★입고예정을 더하는 까닭 : 이미 발주해 둔 것을 또 「부족」이라 하면 그게 곧 중복 발주다(발주서 [⚠ 추천 발주]와 같은 셈). */
+  function stkShortSumTxt(){
+    var nShort=0, nNoSafe=0;
+    _stkRows.forEach(function(r){ if(stkShortOf(r)) nShort++; if(!(Math.round(Number(r.safeStock)||0)>0)) nNoSafe++; });
+    var t='';
+    if(nShort) t+=' · <b style="color:#c0392b">⚠ 적정재고 미달 '+nShort.toLocaleString()+'품목</b>';
+    if(_stkShortAll && _stkShortAll.length){
+      var seen={}; _stkRows.forEach(function(r){ seen[String(r.prodCd)]=1; });
+      var off=_stkShortAll.filter(function(x){ return !seen[String(x.prodCd)]; }).length;
+      if(off) t+=' <span style="color:#b06a00">(원장에 기록이 없어 이 표에 안 나오는 미달 '+off.toLocaleString()+'품목은 발주서 관리 ▸ [⚠ 추천 발주] 에서)</span>';
+    }
+    if(nNoSafe) t+=' <span style="color:#9aa7b3">· 적정 미설정 '+nNoSafe.toLocaleString()+'품목</span>';
+    return t;
+  }
+  function stkShortOf(r){
+    var safe=Math.round(Number(r.safeStock)||0); if(safe<=0) return null;
+    var avail=Math.round((Number(r.curQty)||0)+(Number(r.poRemainQty)||0));
+    return avail<safe ? { safe:safe, avail:avail, short:safe-avail } : null;
+  }
+  /* 원장에 기록이 없는 미달 품목 — 이 표는 원장 GROUP BY 라 아예 안 나온다. 몇 개인지만 요약줄에 알린다(담기는 발주서에서). */
+  var _stkShortAll=null;
+  function stkShortLoad(){
+    if(_stkShortAll) return;
+    fetch('${pageContext.request.contextPath}/prod/safeStockShort.do',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:''})
+      .then(function(r){ return r.json(); })
+      .then(function(j){ _stkShortAll=(j&&j.data)||[]; stkStatusRender(); })
+      .catch(function(){ _stkShortAll=[]; });
+  }
   function stkStatusRender(){
     _stkKeyBind();   // 표를 그릴 때마다 확인(내부에서 한 번만 건다)
     var wrap=document.getElementById('stkStatusWrap'), sum=document.getElementById('stkStatusSum'), pg=document.getElementById('stkStatusPager');
@@ -2766,13 +2796,17 @@
        매칭코드(TBL_EXT_ITEM_MST)와 연결(TBL_PROD_XREF)을 우리 코드 기준으로 모아 보여 준다. */
     /* ★칸 이름은 '매칭코드' — '거래처코드' 라고 하면 아래 수불내역의 매입처(00272 같은 거래처 코드)와 헷갈린다(2026-08-01 지적) */
     /* ★칸 폭 160px — '🔖 주코드 9904013265' 가 한 줄에 들어가야 한다(2026-08-02) */
-    var thead='<thead><tr><th>품목코드</th><th>품목명</th><th style="text-align:right">입고</th><th style="text-align:right">출고</th><th style="text-align:right">현재고</th><th style="text-align:right" title="발주했는데 아직 안 들어온 수량(마감 안 된 발주 줄의 잔량 합) — 곧 들어올 예정. 발주서 관리 [매입전환]으로 들어온 만큼 줄어든다 (2026-09-16)">입고예정</th><th style="text-align:right">이동평균단가</th><th style="text-align:right">재고금액</th><th>최근입고</th><th>최근출고</th></tr></thead>';
+    var thead='<thead><tr><th>품목코드</th><th>품목명</th><th style="text-align:right">입고</th><th style="text-align:right">출고</th><th style="text-align:right">현재고</th><th style="text-align:right" title="발주했는데 아직 안 들어온 수량(마감 안 된 발주 줄의 잔량 합) — 곧 들어올 예정. 발주서 관리 [매입전환]으로 들어온 만큼 줄어든다 (2026-09-16)">입고예정</th><th style="text-align:right" title="상품마스터의 적정재고. 「현재고 + 입고예정」이 여기에 못 미치면 현재고 칸이 빨강 — 발주서 관리 [⚠ 추천 발주] 에서 한 번에 담을 수 있습니다 (2026-09-16)">적정</th><th style="text-align:right">이동평균단가</th><th style="text-align:right">재고금액</th><th>최근입고</th><th>최근출고</th></tr></thead>';
     /* [매칭코드 있는 것만] 체크 (2026-08-06 요청) — 합계·건수도 걸러 낸 것만 센다.
        ★매칭코드 자료(_stkAlias)는 목록보다 늦게 도착한다. 아직 없으면 거르지 않는다 —
          안 그러면 화면이 잠깐 텅 비어 '자료가 없다'로 오해하게 된다. */
     var _onlyA = (function(){ var c=document.getElementById('stkOnlyAlias'); return !!(c && c.checked); })();
+    var _onlyS = (function(){ var c=document.getElementById('stkOnlyShort'); return !!(c && c.checked); })();   /* [적정재고 미달만] (2026-09-16) — 다시 조회하지 않고 화면에서만 거른다 */
+    stkShortLoad();
     var _aliasReady = !!_stkAlias;
-    var view = (window.stkVenFilter ? stkVenFilter : function(v){ return v; })((_onlyA && _aliasReady) ? _stkRows.filter(function(r){ return _stkHasAlias(r.prodCd); }) : _stkRows);   /* 매입처 검색(2026-09-13) — logi-oh.js */
+    var _base = (_onlyA && _aliasReady) ? _stkRows.filter(function(r){ return _stkHasAlias(r.prodCd); }) : _stkRows;
+    if(_onlyS) _base = _base.filter(function(r){ return !!stkShortOf(r); });   /* 적정재고 미달만 (2026-09-16) */
+    var view = (window.stkVenFilter ? stkVenFilter : function(v){ return v; })(_base);   /* 매입처 검색(2026-09-13) — logi-oh.js */
     var tI=0,tO=0,tQ=0,tA=0,tP=0; view.forEach(function(r){ tI+=(+r.inQty||0); tO+=(+r.outQty||0); tQ+=(+r.curQty||0); tA+=(+r.stockAmt||0); tP+=(+r.poRemainQty||0); });   // tP = 입고예정 합 (2026-09-16)
     if(_onlyA && _aliasReady && !view.length){
       sum.innerHTML='<b style="color:#b06a00">매칭코드가 등록된 품목이 없습니다.</b> (체크를 풀면 전체가 보입니다)';
@@ -2786,15 +2820,15 @@
     sum.innerHTML=(_onlyA ? (_aliasReady ? '<b style="color:#b06a00">매칭코드 있는 것만</b> · '
                                         : '<span style="color:#9aa7b3">매칭코드 불러오는 중…</span> · ') : '')
       +(_stkSrchVia ? ('<b style="color:#b06a00">'+_cesc(_stkSrchVia)+'</b><span style="color:#9aa7b3">는 매칭코드 — 대표코드로 찾았습니다</span> · ') : '')
-      +'총 <b>'+view.length.toLocaleString()+'</b>품목 · 입고합 <b>'+_cnum(tI)+'</b> · 출고합 <b>'+_cnum(tO)+'</b> · 현재고합 <b>'+_cnum(tQ)+'</b> · 재고금액합 <b>'+_cnum(tA)+'</b>'+(window.stkVenSumTxt?stkVenSumTxt(view):'');
-    var totalRow='<tr class="close-total"><td colspan="2" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tI)+'</td><td style="text-align:right">'+_cnum(tO)+'</td><td style="text-align:right">'+_cnum(tQ)+'</td><td style="text-align:right;color:#b06a00">'+(tP>0?_cnum(tP):'')+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td><td></td></tr>';
-    var stkRow=function(r){ var neg=(+r.curQty||0)<0;
+      +'총 <b>'+view.length.toLocaleString()+'</b>품목 · 입고합 <b>'+_cnum(tI)+'</b> · 출고합 <b>'+_cnum(tO)+'</b> · 현재고합 <b>'+_cnum(tQ)+'</b> · 재고금액합 <b>'+_cnum(tA)+'</b>'+(window.stkVenSumTxt?stkVenSumTxt(view):'')+stkShortSumTxt();
+    var totalRow='<tr class="close-total"><td colspan="2" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tI)+'</td><td style="text-align:right">'+_cnum(tO)+'</td><td style="text-align:right">'+_cnum(tQ)+'</td><td style="text-align:right;color:#b06a00">'+(tP>0?_cnum(tP):'')+'</td><td></td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td><td></td></tr>';
+    var stkRow=function(r){ var neg=(+r.curQty||0)<0, sh=stkShortOf(r);   /* sh = 적정재고 미달(2026-09-16) */
       /* 하위 행이 붙는 줄은 대표 줄 위에도 선을 그어 '한 덩어리' 로 보이게 한다(2026-08-07 요청).
          하위가 없으면 선도 없어 평소 표는 그대로다. */
       /* ↳ 매칭 줄도 눌러서 고를 수 있다 — 아래 ②가 그 코드로 나간 날짜만 보여 준다(2026-08-07 요청).
          품목(prodSeq)은 대표와 같고 세 번째 인자로 코드를 넘긴다. */
       var _ps=(r.prodSeq||0);
-      var sub=stkAliasRows(r.prodCd, r.extQtys, 10, 0, 3, function(cd){   /* 9→10열 : 입고예정 칸 (2026-09-16) */
+      var sub=stkAliasRows(r.prodCd, r.extQtys, 11, 0, 3, function(cd){   /* 9→10열 : 입고예정 · 10→11열 : 적정 (2026-09-16) */
         return 'stkLedgerDetail('+_ps+", this, '"+String(cd).replace(/'/g,'')+"')";
       /* 지금 ②에서 걸러 보고 있는 코드가 이 품목의 것일 때만 표시한다 —
          다른 품목 줄까지 초록이 되면 어느 줄을 보고 있는지 되레 헷갈린다. */
@@ -2812,9 +2846,11 @@
       return '<tr class="'+(nSub?'stk-grp':'')+'" data-main="1" data-seq="'+(r.prodSeq||0)+'" style="cursor:pointer" onclick="stkLedgerDetail('+(r.prodSeq||0)+', this)" title="클릭 → 아래 ② 수불 내역(근거) 표시"><td>'+caret+_cesc(r.prodCd)+(nSub&&!open?' <span style="color:#b06a00;font-size:11px;font-weight:700">+'+nSub+'</span>':'')+'</td><td class="txt-l">'+_cesc(r.prodNm)+'</td>'
         +'<td style="text-align:right;color:#137a6c">'+_cnum(r.inQty)+'</td>'
         +'<td style="text-align:right;color:#b06a00">'+_cnum(r.outQty)+'</td>'
-        +'<td style="text-align:right;font-weight:700;color:'+(neg?'#c0392b':'#137a6c')+'">'+_cnum(r.curQty)+'</td>'
+        +'<td style="text-align:right;font-weight:700;color:'+((neg||sh)?'#c0392b':'#137a6c')+'"'+(sh?' title="적정재고 미달 — 적정 '+_cnum(sh.safe)+' · 가용 '+_cnum(sh.avail)+'(현재고+입고예정) · 부족 '+_cnum(sh.short)+'\n발주서 관리 [⚠ 추천 발주] 에서 한 번에 담을 수 있습니다"':'')+' >'+_cnum(r.curQty)+(sh?' <span style="font-size:11px;font-weight:800">▼'+_cnum(sh.short)+'</span>':'')+'</td>'
         /* 입고예정 (2026-09-16 P1-b 2단계) — 0 이면 비워 둔다(눈에 걸리는 건 「들어올 게 있다」 뿐이라서) */
         +'<td style="text-align:right;color:#b06a00"'+((+r.poRemainQty||0)>0?' title="발주했는데 아직 안 들어온 수량 — 발주서 관리에서 잔량을 봅니다"':'')+'>'+((+r.poRemainQty||0)>0?_cnum(r.poRemainQty):'')+'</td>'
+        /* 적정재고 (2026-09-16) — 0(미설정)이면 비운다. 미달이면 현재고 칸이 빨강이 된다(아래 sh) */
+        +'<td style="text-align:right;color:#6b7a89">'+((Math.round(Number(r.safeStock)||0)>0)?_cnum(r.safeStock):'')+'</td>'
         +'<td style="text-align:right">'+_cnum(r.avgInPrice)+'</td><td style="text-align:right">'+_cnum(r.stockAmt)+'</td>'
         +'<td>'+_fmtYmd(r.lastInDt)+'</td><td>'+_fmtYmd(r.lastOutDt)+'</td></tr>'
         /* 매칭코드 하위 행 — 9열, 품목코드=0번 칸, 출고=3번 칸.
@@ -3203,8 +3239,10 @@
     <a class="mi has-sub" data-sub="stockmng" onclick="logiToggleSub('stockmng', this)"><span class="ic">📦</span>재고 관리<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-stockmng">
       <a class="mi" data-key="stockStatus" onclick="logiGo('stockStatus', this); stkStatusLoad();"><span class="ic">📊</span>품목별재고현황</a>
-      <%-- 창고별 재고현황 (2026-09-16 P3 1단계) — 품목 × 창고 현재고. iframe 화면(prod/whStock.jsp). 창고는 기준정보관리 ▸ 창고 관리 --%>
-      <a class="mi" data-key="whStock" onclick="logiFrame('whStock','${pageContext.request.contextPath}/prod/whStock.do', this)"><span class="ic">🏬</span>창고별 재고현황</a>
+      <%-- 창고별 재고현황 — 2026-09-16 사용자 지시로 이 메뉴에서 뺐다(화면·자료·패널은 그대로).
+           입구는 「부가·예정관리 ▸ 물품동선관리 ▸ 창고별 재고현황」 하나만 남는다.
+           되살리려면 아래 한 줄의 주석을 풀면 된다(panel-whStock 은 그대로 있다) :
+           <a class="mi" data-key="whStock" onclick="logiFrame('whStock','${pageContext.request.contextPath}/prod/whStock.do', this)"><span class="ic">🏬</span>창고별 재고현황</a> --%>
       <%-- 출고재고현황 (2026-09-03 신설) — 년월×품목 출고량 + 현재고. iframe 화면(stockOutMonth.jsp).
            ★메뉴와 아래 panel-stockOutMonth 는 짝이다 — 하나만 넣으면 눌러도 아무 일이 없다. --%>
       <a class="mi" data-key="stockOutMonth" onclick="logiFrame('stockOutMonth','${pageContext.request.contextPath}/prod/stockOutMonth.do', this)"><span class="ic">📦</span>월별 출고현황</a>
@@ -3253,8 +3291,8 @@
       <%-- 회사 정보 수정 (2026-09-11) = <모든 회사>가 자기 회사 정보·도장·기능·거래명세서 인쇄 옵션을 고친다.
            관리자 전용 「회사/사용자 관리」와 별개 — 서버는 세션 회사코드로만 읽고 쓴다. --%>
       <a class="mi" data-key="compinfo" onclick="logiFrame('compinfo','${pageContext.request.contextPath}/mangr/compInfo.do', this)"><span class="ic">🏷</span>회사 정보 수정</a>
-      <%-- 창고 관리 (2026-09-16 P3 1단계) — 창고 마스터(TBL_WH_MST: 이름·기본창고·차례·사용) + 창고 이동. iframe 화면(prod/whMng.jsp) --%>
-      <a class="mi" data-key="whMng" onclick="logiFrame('whMng','${pageContext.request.contextPath}/prod/whMng.do', this)"><span class="ic">🏬</span>창고 관리</a>
+      <%-- 창고 관리 — 2026-09-16 사용자 지시로 이 묶음에서 빼 「부가·예정관리 ▸ 물품동선관리」로 옮겼다(창고에 관한 것은 아직 그 묶음에서만).
+           화면(prod/whMng.jsp)·패널(panel-whMng)·자료는 그대로다. 되살리려면 물품동선관리 쪽 줄을 여기로 도로 옮기면 된다. --%>
       <%-- 회사/사용자 관리 + 공통코드 관리 = 관리자 회사(TBL_COMP_MST.COMMST_YN='Y')만 노출 (2026-07-31).
            서버측도 /mangr/compcd.do · /base/commcd.do 에서 s_admin_yn 가드로 직접 URL 접근 차단. --%>
       <% if ("Y".equals(session.getAttribute("s_admin_yn"))) { %>
@@ -3268,6 +3306,9 @@
     <div class="sub-menu" id="sub-goods">
       <a class="mi" data-key="base"     onclick="logiGo('base', this)"><span class="ic">🏬</span>창고 / 로케이션</a>
       <a class="mi" data-key="inbound"  onclick="logiGo('inbound', this)"><span class="ic">📥</span>입고등록 (창고선정)</a>
+      <%-- 창고 관리 (2026-09-16 P3 1단계 · 저녁에 기준정보관리에서 옮겨 옴) — 창고 마스터(TBL_WH_MST: 이름·기본창고·차례·사용) + 창고 이동
+           + 출고장 → 창고 매핑(2단계). ★매핑을 저장하는 자리라 이 줄이 없으면 2단계를 손볼 길이 없다. iframe 화면(prod/whMng.jsp) --%>
+      <a class="mi" data-key="whMng" onclick="logiFrame('whMng','${pageContext.request.contextPath}/prod/whMng.do', this)"><span class="ic">🏬</span>창고 관리</a>
       <%-- 2026-09-16 : 데모(제1·2·3창고 숫자 박아 둔 panel-stock)가 아니라 진짜 화면(whStock)으로 — 재고 관리 메뉴와 같은 곳 --%>
       <a class="mi" data-key="whStock"  onclick="logiFrame('whStock','${pageContext.request.contextPath}/prod/whStock.do', this)"><span class="ic">📊</span>창고별 재고현황</a>
       <a class="mi" data-key="locate"   onclick="logiGo('locate', this)"><span class="ic">🔎</span>재고 / 위치 조회</a>
@@ -4006,6 +4047,12 @@
                      title="매칭코드(또는 주코드)가 등록된 품목만 보여 줍니다. 조회를 다시 하지 않고 화면에서만 거릅니다.">
                 <input type="checkbox" id="stkOnlyAlias" onchange="stkStatusRender()" style="width:15px;height:15px;cursor:pointer">
                 매칭코드 있는 것만
+              </label>
+              <%-- 적정재고 미달만 (2026-09-16 P1-c 후반) — 매칭코드 체크와 같은 규칙(다시 조회하지 않고 화면에서만 거른다) --%>
+              <label style="display:flex;align-items:center;gap:5px;height:34px;margin-right:8px;white-space:nowrap;cursor:pointer;font-size:13px;font-weight:700;color:#c0392b"
+                     title="「현재고 + 입고예정」이 적정재고에 못 미치는 품목만 봅니다. 적정재고를 넣지 않은 품목은 대상이 아닙니다(상품코드관리에서 넣습니다).">
+                <input type="checkbox" id="stkOnlyShort" onchange="stkStatusRender()" style="width:15px;height:15px;cursor:pointer">
+                적정재고 미달만
               </label>
               <button class="btn-line" style="white-space:nowrap; padding:0 12px" onclick="stkAsOfClear()" title="기준일을 비웁니다 — 지금 이 순간의 재고">전체</button>
               <button class="btn-line" style="white-space:nowrap; padding:0 12px" onclick="stkAsOfSet(0)" title="오늘 자정까지 반영된 재고">오늘</button>

@@ -359,6 +359,8 @@ public interface UserMapper {
 	java.util.List<java.util.Map<String,Object>> selectPoRecentByProd(java.util.Map<String,Object> p) throws Exception;   // 품목별 최근 발주 한 줄 (2026-09-16)
 	/* 발주 잔량·부분입고 (2026-09-16 P1-b) — 입고는 저장하지 않고 연결된 매입 명세 합으로 센다 */
 	java.util.List<java.util.Map<String,Object>> selectPoRemainByProd(java.util.Map<String,Object> p) throws Exception;   // 품목별 미입고(잔량 합) = 입고예정
+	java.util.List<java.util.Map<String,Object>> selectSafeStockShort(java.util.Map<String,Object> p) throws Exception;   // 적정재고 미달 목록 = 추천 발주 (2026-09-16 P1-c 후반)
+	int updateSafeStockByCd(java.util.Map<String,Object> p) throws Exception;                                             // 적정재고 일괄 입력 — 품목코드 한 줄
 	java.util.List<java.util.Map<String,Object>> selectPoLinkedPurch(java.util.Map<String,Object> p) throws Exception;    // 이 발주서를 보고 있는 매입전표들
 	java.util.List<java.util.Map<String,Object>> selectPoOpenLines(java.util.Map<String,Object> p) throws Exception;      // 잔량 남은 발주 줄 — 매입등록 [발주분] (2단계)
 	java.util.List<java.util.Map<String,Object>> selectVendorPriceCmp(java.util.Map<String,Object> p) throws Exception;   // 거래처별 매입가 비교 (2026-09-16 P2-a)

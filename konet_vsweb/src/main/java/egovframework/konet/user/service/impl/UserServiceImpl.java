@@ -1473,6 +1473,26 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<java.util.Map<String,Object>> selectPoList(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoList(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectPoRecentByProd(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoRecentByProd(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectPoRemainByProd(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoRemainByProd(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectSafeStockShort(java.util.Map<String,Object> p) throws Exception { return mapper.selectSafeStockShort(p); }
+	/* 적정재고 일괄 입력 (2026-09-16) — 줄마다 품목코드·적정재고. 없는 코드는 세어서 돌려준다(막지 않는다 — 사용자 원칙 「메시지 처리」).
+	   ★한 줄이 실패해도 멈추지 않는다 : 코드 하나가 틀렸다고 나머지 수백 줄을 버리면 붙여넣기가 소용없다. */
+	@Override public java.util.Map<String,Object> saveSafeStockBulk(java.util.List<java.util.Map<String,Object>> rows, String compCd, String regUser) throws Exception {
+		int done = 0, miss = 0; java.util.List<String> missCds = new java.util.ArrayList<String>();
+		if (rows != null) for (java.util.Map<String,Object> r : rows) {
+			String cd = r.get("prodCd") == null ? "" : String.valueOf(r.get("prodCd")).trim();
+			if (cd.isEmpty()) continue;
+			int qty; try { qty = (int) Math.round(Double.parseDouble(String.valueOf(r.get("safeStock")).replace(",", "").trim())); }
+			catch (Exception e) { miss++; if (missCds.size() < 20) missCds.add(cd + "(수량 아님)"); continue; }
+			if (qty < 0) qty = 0;
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("prodCd", cd); p.put("safeStock", Integer.valueOf(qty)); p.put("compCd", compCd); p.put("regUser", regUser);
+			int n = 0; try { n = mapper.updateSafeStockByCd(p); } catch (Exception e) { n = 0; }
+			if (n > 0) done += n; else { miss++; if (missCds.size() < 20) missCds.add(cd); }
+		}
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		res.put("done", Integer.valueOf(done)); res.put("miss", Integer.valueOf(miss)); res.put("missCds", missCds);
+		return res;
+	}
 	@Override public java.util.List<java.util.Map<String,Object>> selectPoLinkedPurch(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoLinkedPurch(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectPoOpenLines(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoOpenLines(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectVendorPriceCmp(java.util.Map<String,Object> p) throws Exception { return mapper.selectVendorPriceCmp(p); }

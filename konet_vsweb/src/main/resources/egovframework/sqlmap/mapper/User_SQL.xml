@@ -1869,7 +1869,8 @@
 	<!-- 품목 × 창고 현재고 — 합계는 selectStockQtyMap 과 같은 식이라 품목별재고현황과 맞는다 -->
 	<select id="selectStockByWh" parameterType="egovframework.konet.user.model.StockMstDTO" resultType="java.util.HashMap">
 	  SELECT l.PROD_CD AS prodCd, MAX(ISNULL(p.PROD_NM,'')) AS prodNm, MAX(ISNULL(p.SPEC,'')) AS spec, l.WH_CD AS whCd,
-	         SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY ELSE -l.QTY END) AS curQty
+	         SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY ELSE -l.QTY END) AS curQty,
+	         MAX(ISNULL(p.SAFE_STOCK,0)) AS safeStock   /* 적정재고 (2026-09-16) — 품목 단위라 창고 줄마다 같은 값. 화면은 합계로 판정 */
 	    FROM TBL_STOCK_LEDGER l
 	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = l.PROD_CD AND p2.ACTION_YN='Y' AND p2.COMP_CD = l.COMP_CD)
 	   WHERE l.ACTION_YN = 'Y'
@@ -3100,6 +3101,7 @@
 	                 ORDER BY e.q DESC
 	                 FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 1, '') AS extQtys,
 	         ISNULL(pr.remainQty,0) AS poRemainQty,   /* 입고예정 = 마감 안 된 발주 줄의 잔량 합 (2026-09-16 P1-b 2단계) */
+	         ISNULL(sf.SAFE_STOCK,0) AS safeStock,    /* 적정재고 (2026-09-16 P1-c 후반) — 미달 = safeStock > 0 이고 (현재고 + 입고예정) safeStock 미만.  화면이 판정한다 */
          ISNULL(lv.VENDOR_CD, z.mstVendorCd) AS vendorCd,
 	         ISNULL(vm.VENDOR_NM, CASE WHEN lv.VENDOR_CD IS NULL THEN z.mstVendorNm ELSE '' END) AS vendorNm
 	    FROM (
@@ -3139,6 +3141,10 @@
 	    LEFT JOIN ( SELECT COMP_CD, VENDOR_CD, MAX(VENDOR_NM) AS VENDOR_NM
 	                  FROM TBL_VENDOR_MST WHERE ACTION_YN = 'Y' GROUP BY COMP_CD, VENDOR_CD ) vm
 	      ON vm.COMP_CD = z.compCd AND vm.VENDOR_CD = ISNULL(lv.VENDOR_CD, z.mstVendorCd)
+	    /* 적정재고 (2026-09-16) — 품목 단위(창고별 적정은 없다). 같은 코드가 여러 줄이면 큰 값 */
+	    LEFT JOIN ( SELECT COMP_CD, PROD_CD, MAX(ISNULL(SAFE_STOCK,0)) AS SAFE_STOCK
+	                  FROM TBL_PROD_MST WHERE ACTION_YN = 'Y' GROUP BY COMP_CD, PROD_CD ) sf
+	      ON sf.COMP_CD = z.compCd AND sf.PROD_CD = z.prodCd
 	    /* 입고예정 (2026-09-16 P1-b 2단계) — selectPoRemainByProd 와 같은 셈 : 마감 안 된 발주 줄의 (발주 − 연결된 매입 명세 합) > 0 */
 	    LEFT JOIN ( SELECT D.COMP_CD, D.PROD_CD, SUM(ISNULL(D.QTY,0) - ISNULL(R.inQty,0)) AS remainQty
 	                  FROM TBL_PO_DTL D
@@ -5825,6 +5831,67 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR D.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   GROUP BY D.PROD_CD
 	]]></select>
+	<!-- 적정재고 미달 목록 = 추천 발주 (2026-09-16 P1-c 후반, 프로그램 목적 ①「재고 파악이 안 돼 중복 발주」의 반대쪽 = 「떨어졌는데 발주를 안 하는」) —
+	     ★마스터 기준이라 원장에 기록이 없는 품목도 나온다(재고현황 두 표는 원장 GROUP BY 라 안 나온다).
+	     가용 = 현재고(원장 합) + 입고예정(마감 안 된 발주 잔량). 미달 = SAFE_STOCK > 0 이고 가용 < SAFE_STOCK. 부족 = SAFE_STOCK − 가용.
+	     ⚠현재고는 selectStockQtyMap 과, 잔량은 selectPoRemainByProd 와 **같은 식**이어야 한다(세 화면 숫자가 달라지면 아무도 안 믿는다).
+	     대표 매입처 = 가장 최근 입고(IO_GB='I')한 매입처 → 없으면 상품마스터 거래처(재고현황·재고마감과 같은 규칙).
+	     거래중지(STOP_YN='Y') 품목은 뺀다 — 발주서 상품 목록도 그렇게 거른다(poReg loadMasters). -->
+	<select id="selectSafeStockShort" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT m.PROD_SEQ AS prodSeq, m.PROD_CD AS prodCd, ISNULL(m.PROD_NM,'') AS prodNm, ISNULL(m.SPEC,'') AS spec,
+	         ISNULL(m.PACK_QTY,1) AS packQty, ISNULL(m.IN_PRICE,0) AS inPrice, ISNULL(m.TAX_GB,'') AS taxGb,
+	         m.SAFE_STOCK AS safeStock, ISNULL(st.curQty,0) AS curQty, ISNULL(pr.remainQty,0) AS poRemainQty,
+	         m.SAFE_STOCK - (ISNULL(st.curQty,0) + ISNULL(pr.remainQty,0)) AS shortQty,
+	         ISNULL(lv.VENDOR_CD, ISNULL(m.VENDOR_CD,'')) AS vendorCd,
+	         ISNULL(vm.VENDOR_NM, CASE WHEN lv.VENDOR_CD IS NULL THEN ISNULL(m.VENDOR_NM,'') ELSE '' END) AS vendorNm
+	    FROM ( SELECT COMP_CD, PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ, MAX(PROD_NM) AS PROD_NM, MAX(SPEC) AS SPEC,
+	                  MAX(PACK_QTY) AS PACK_QTY, MAX(IN_PRICE) AS IN_PRICE, MAX(TAX_GB) AS TAX_GB,
+	                  MAX(ISNULL(SAFE_STOCK,0)) AS SAFE_STOCK, MAX(VENDOR_CD) AS VENDOR_CD, MAX(VENDOR_NM) AS VENDOR_NM
+	             FROM TBL_PROD_MST
+	            WHERE ACTION_YN = 'Y' AND ISNULL(STOP_YN,'N') <> 'Y' AND ISNULL(SAFE_STOCK,0) > 0
+	              AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	            GROUP BY COMP_CD, PROD_CD ) m
+	    LEFT JOIN ( SELECT COMP_CD, PROD_CD,
+	                       SUM(CASE WHEN IO_GB IN ('I','R','A') THEN QTY ELSE -QTY END) AS curQty
+	                  FROM TBL_STOCK_LEDGER WHERE ACTION_YN = 'Y'
+	                   AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                 GROUP BY COMP_CD, PROD_CD ) st
+	      ON st.COMP_CD = m.COMP_CD AND st.PROD_CD = m.PROD_CD
+	    LEFT JOIN ( SELECT D.COMP_CD, D.PROD_CD, SUM(ISNULL(D.QTY,0) - ISNULL(R.inQty,0)) AS remainQty
+	                  FROM TBL_PO_DTL D
+	                  JOIN TBL_PO_MST M ON M.PO_SEQ = D.PO_SEQ AND M.ACTION_YN = 'Y' AND M.COMP_CD = D.COMP_CD
+	                  OUTER APPLY ( SELECT SUM(CASE WHEN P.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(P.QTY,0) ELSE ISNULL(P.QTY,0) END) AS inQty
+	                                  FROM TBL_PURCHASE_DTL P
+	                                  JOIN TBL_PURCHASE_MST PM ON PM.PURCH_SEQ = P.PURCH_SEQ AND PM.ACTION_YN = 'Y'
+	                                 WHERE P.PO_DTL_SEQ = D.PO_DTL_SEQ AND P.ACTION_YN = 'Y' ) R
+	                 WHERE D.ACTION_YN = 'Y' AND ISNULL(D.CLOSE_YN,'N') = 'N' AND ISNULL(D.PROD_CD,'') <> ''
+	                   AND ISNULL(D.QTY,0) - ISNULL(R.inQty,0) > 0
+	                   AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR D.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                 GROUP BY D.COMP_CD, D.PROD_CD ) pr
+	      ON pr.COMP_CD = m.COMP_CD AND pr.PROD_CD = m.PROD_CD
+	    LEFT JOIN ( SELECT COMP_CD, PROD_CD, VENDOR_CD,
+	                       ROW_NUMBER() OVER (PARTITION BY COMP_CD, PROD_CD ORDER BY TRX_DT DESC, LEDGER_SEQ DESC) AS rn
+	                  FROM TBL_STOCK_LEDGER
+	                 WHERE ACTION_YN = 'Y' AND IO_GB = 'I' AND ISNULL(VENDOR_CD,'') <> ''
+	                   AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	              ) lv ON lv.COMP_CD = m.COMP_CD AND lv.PROD_CD = m.PROD_CD AND lv.rn = 1
+	    LEFT JOIN ( SELECT COMP_CD, VENDOR_CD, MAX(VENDOR_NM) AS VENDOR_NM
+	                  FROM TBL_VENDOR_MST WHERE ACTION_YN = 'Y' GROUP BY COMP_CD, VENDOR_CD ) vm
+	      ON vm.COMP_CD = m.COMP_CD AND vm.VENDOR_CD = ISNULL(lv.VENDOR_CD, m.VENDOR_CD)
+	   WHERE m.SAFE_STOCK - (ISNULL(st.curQty,0) + ISNULL(pr.remainQty,0)) > 0
+	   ORDER BY (m.SAFE_STOCK - (ISNULL(st.curQty,0) + ISNULL(pr.remainQty,0))) DESC, m.PROD_CD
+	]]></select>
+
+	<!-- 적정재고 일괄 입력 (2026-09-16, 결정 ⑥) — 품목코드로 한 줄씩. 화면(상품코드관리 ▸ 적정재고 일괄)이 붙여넣은 두 열을 줄마다 보낸다.
+	     ★같은 코드가 여러 줄이면 전부 같은 값으로 맞춘다(마스터가 중복 코드를 허용하므로). 없는 코드면 0행 → 화면이 「없는 코드」로 센다. -->
+	<update id="updateSafeStockByCd" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_PROD_MST
+	     SET SAFE_STOCK = #{safeStock,jdbcType=INTEGER},
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}
+	   WHERE ACTION_YN = 'Y' AND PROD_CD = #{prodCd}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
 	<!-- 거래처별 매입가 비교 (2026-09-16 P2-a, 프로그램 목적 ③「거래처별 매입가 파악 → 효율적인 구매」) — 품목 × 거래처 한 줄.
 	     원천 = TBL_PROD_INPRICE_HST(매입 저장마다 쌓이고 손으로 넣은 단가도 포함) : 최근가·최근일·최저·최고·건수.
 	            가중평균·수량은 매입전표(TBL_PURCHASE_DTL, 반품 제외)에서 — 이력에는 수량이 없다.

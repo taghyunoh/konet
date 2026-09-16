@@ -54,7 +54,7 @@
 <body>
 <div class="wrap">
   <h2>🏬 창고별 재고현황</h2>
-  <div class="sub">품목마다 <b>창고별 재고</b>와 합계. 합계는 품목별재고현황과 같은 숫자입니다. 창고 사이 이동은 <b>기준정보관리 ▸ 창고 관리</b>에서.</div>
+  <div class="sub">품목마다 <b>창고별 재고</b>와 합계. 합계는 품목별재고현황과 같은 숫자입니다. 창고 사이 이동은 <b>물품동선관리 ▸ 창고 관리</b>에서.</div>
   <div class="sub" id="dcNote" style="margin-top:-6px"></div>
   <div class="bar">
     <input type="text" id="q" placeholder="품목코드 · 품목명" style="width:220px" onkeydown="if(event.key==='Enter') load()">
@@ -62,6 +62,8 @@
     <button class="btn btn-teal" onclick="load()">🔍 조회</button>
     <label class="ck"><input type="checkbox" id="hideZero" checked onchange="render()"> 재고 0 품목 숨김</label>
     <label class="ck"><input type="checkbox" id="onlySplit" onchange="render()"> 두 창고 이상에 있는 품목만</label>
+    <%-- 적정재고 미달 (2026-09-16 P1-c 후반) — 적정재고는 품목 단위라 창고별이 아니라 <b>합계</b> 로 본다 --%>
+    <label class="ck" style="color:#c0392b;font-weight:700" title="「합계 + 입고예정」이 적정재고에 못 미치는 품목만. 적정재고는 품목 단위라 창고별로 나뉘지 않습니다."><input type="checkbox" id="onlyShort" onchange="render()"> 적정재고 미달만</label>
     <button class="btn" onclick="excel()">📥 엑셀</button>
     <span class="cnt" id="cnt">—</span>
   </div>
@@ -70,7 +72,7 @@
 </div>
 <script>
 var CTX='${pageContext.request.contextPath}';
-var _wh=[], _rows=[], _grp=[];
+var _wh=[], _rows=[], _grp=[], _pend={};   /* _pend = 품목별 입고예정(발주 잔량) — 발주서·품목별재고현황과 같은 자료 (2026-09-16) */
 function esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function n(v){ var x=Number(String(v==null?'':v).replace(/,/g,'')); return isFinite(x)?x:0; }
 function fmt(v){ return Math.round(n(v)).toLocaleString(); }
@@ -79,7 +81,7 @@ function load(){
   document.getElementById('body').innerHTML='<tr><td class="empty">조회 중…</td></tr>';
   post('/prod/whStockList.do','findData='+encodeURIComponent(document.getElementById('q').value||'')+'&asOfDt='+encodeURIComponent(document.getElementById('asOf').value||''))
     .then(function(r){ return r.json(); })
-    .then(function(j){ _wh=(j&&j.wh)||[]; _rows=(j&&j.data)||[]; group(); render(); })
+    .then(function(j){ _wh=(j&&j.wh)||[]; _rows=(j&&j.data)||[]; group(); render(); pendLoad(); })
     .catch(function(e){ document.getElementById('body').innerHTML='<tr><td class="empty" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
 }
 /* 창고 열 = 사용 중인 창고 + 원장에 실제로 있는 창고(사용을 껐어도 재고가 남아 있으면 보여야 한다) */
@@ -92,15 +94,29 @@ function whCols(){
 function group(){
   var m={};
   _rows.forEach(function(r){ var k=String(r.prodCd||''); if(!k) return;
-    var g=m[k]||(m[k]={ prodCd:k, prodNm:r.prodNm||'', spec:r.spec||'', q:{}, tot:0 });
+    var g=m[k]||(m[k]={ prodCd:k, prodNm:r.prodNm||'', spec:r.spec||'', q:{}, tot:0, safe:0 });
+    g.safe=Math.max(g.safe, n(r.safeStock));   /* 적정재고 — 품목 단위라 창고 줄마다 같은 값 (2026-09-16) */
     g.q[r.whCd]=n(g.q[r.whCd])+n(r.curQty); g.tot+=n(r.curQty); });
   _grp=Object.keys(m).sort().map(function(k){ return m[k]; });
 }
+/* ── 적정재고 미달 (2026-09-16 P1-c 후반) — 가용 = 창고 합계 + 입고예정. 품목별재고현황·발주서와 같은 셈 ── */
+function shortOf(g){
+  var safe=Math.round(n(g.safe)); if(safe<=0) return null;
+  var avail=Math.round(n(g.tot)+n(_pend[g.prodCd]));
+  return avail<safe ? { safe:safe, avail:avail, short:safe-avail } : null;
+}
+function pendLoad(){
+  post('/mangr/poRemainByProd.do','').then(function(r){ return r.json(); })
+    .then(function(j){ var m={}; ((j&&j.data)||[]).forEach(function(x){ if(x.prodCd!=null) m[String(x.prodCd)]=n(x.remainQty); }); _pend=m; if(_grp.length) render(); })
+    .catch(function(){});
+}
 function render(){
   var cols=whCols(), hz=document.getElementById('hideZero').checked, os=document.getElementById('onlySplit').checked;
+  var osh=(document.getElementById('onlyShort')||{}).checked;   /* 적정재고 미달만 (2026-09-16) */
   var l=_grp.filter(function(g){
     if(hz && cols.every(function(w){ return Math.round(n(g.q[w.whCd]))===0; })) return false;
     if(os && cols.filter(function(w){ return Math.round(n(g.q[w.whCd]))!==0; }).length<2) return false;
+    if(osh && !shortOf(g)) return false;
     return true; });
   var sum={}, tot=0; cols.forEach(function(w){ sum[w.whCd]=0; });
   l.forEach(function(g){ cols.forEach(function(w){ sum[w.whCd]+=n(g.q[w.whCd]); }); tot+=g.tot; });
@@ -108,19 +124,20 @@ function render(){
     +'<div class="kpi"><div class="l">합계</div><div class="v">'+fmt(tot)+' <small style="font-size:12px;color:#6b7a89">EA</small></div></div>';
   document.getElementById('cnt').innerHTML='품목 <b>'+l.length+'</b>'+(l.length!==_grp.length?' / '+_grp.length:'')+' · 창고 <b>'+cols.length+'</b>';
   document.getElementById('head').innerHTML='<tr><th style="width:120px">품목코드</th><th style="min-width:220px">품목명</th><th style="width:110px">규격</th>'
-    +cols.map(function(w){ return '<th style="width:110px" title="'+esc(w.whCd)+'">'+esc(w.whNm)+(w.defaultYn==='Y'?' ★':'')+'</th>'; }).join('')+'<th style="width:110px">합계</th></tr>';
-  if(!l.length){ document.getElementById('body').innerHTML='<tr><td colspan="'+(cols.length+4)+'" class="empty">'+(_grp.length?'조건에 맞는 품목이 없습니다 — 체크를 풀어 보세요.':'재고 원장에 자료가 없습니다.')+'</td></tr>'; return; }
+    +cols.map(function(w){ return '<th style="width:110px" title="'+esc(w.whCd)+'">'+esc(w.whNm)+(w.defaultYn==='Y'?' ★':'')+'</th>'; }).join('')+'<th style="width:110px">합계</th><th style="width:90px" title="상품마스터의 적정재고(품목 단위). 「합계 + 입고예정」이 여기에 못 미치면 합계 칸이 빨강 — 발주서 관리 [⚠ 추천 발주] 에서 담습니다 (2026-09-16)">적정</th></tr>';
+  if(!l.length){ document.getElementById('body').innerHTML='<tr><td colspan="'+(cols.length+5)+'" class="empty">'+(_grp.length?'조건에 맞는 품목이 없습니다 — 체크를 풀어 보세요.':'재고 원장에 자료가 없습니다.')+'</td></tr>'; return; }
   var cell=function(v){ v=Math.round(n(v)); return '<td class="r'+(v<0?' neg':(v===0?' zero':''))+'">'+(v===0?'-':v.toLocaleString())+'</td>'; };
-  document.getElementById('body').innerHTML='<tr class="tot"><td class="l" colspan="3">■ 합계 ('+l.length+'품목)</td>'+cols.map(function(w){ return cell(sum[w.whCd]); }).join('')+cell(tot)+'</tr>'
-    +l.map(function(g){ return '<tr><td class="code">'+esc(g.prodCd)+'</td><td class="l">'+esc(g.prodNm)+'</td><td class="l">'+esc(g.spec)+'</td>'+cols.map(function(w){ return cell(g.q[w.whCd]); }).join('')+'<td class="r"><b>'+fmt(g.tot)+'</b></td></tr>'; }).join('');
+  document.getElementById('body').innerHTML='<tr class="tot"><td class="l" colspan="3">■ 합계 ('+l.length+'품목)</td>'+cols.map(function(w){ return cell(sum[w.whCd]); }).join('')+cell(tot)+'<td class="r"></td></tr>'
+    +l.map(function(g){ var sh=shortOf(g); return '<tr><td class="code">'+esc(g.prodCd)+'</td><td class="l">'+esc(g.prodNm)+'</td><td class="l">'+esc(g.spec)+'</td>'+cols.map(function(w){ return cell(g.q[w.whCd]); }).join('')+'<td class="r"'+(sh?' style="color:#c0392b;font-weight:800;background:#fff5f5" title="적정재고 미달 — 적정 '+fmt(sh.safe)+' · 가용 '+fmt(sh.avail)+'(합계+입고예정) · 부족 '+fmt(sh.short)+'\n발주서 관리 [⚠ 추천 발주] 에서 담을 수 있습니다"':'')+'><b>'+fmt(g.tot)+'</b>'+(sh?' <span style="font-size:11px">▼'+fmt(sh.short)+'</span>':'')+'</td>'+'<td class="r" style="color:#6b7a89">'+(Math.round(n(g.safe))>0?fmt(g.safe):'')+'</td></tr>'; }).join('');
 }
 function excel(){
   var LIB=(window.parent&&window.parent.XLSX)||window.XLSX;
   if(!LIB){ _alertBox('엑셀 도구를 아직 못 불러왔습니다. 잠시 뒤 다시 눌러 보세요.',{icon:'⚠️'}); return; }
   var cols=whCols(), hz=document.getElementById('hideZero').checked;
-  var aoa=[['품목코드','품목명','규격'].concat(cols.map(function(w){ return w.whNm; })).concat(['합계'])];
+  var aoa=[['품목코드','품목명','규격'].concat(cols.map(function(w){ return w.whNm; })).concat(['합계','적정재고','부족'])];
   _grp.forEach(function(g){ if(hz && Math.round(g.tot)===0 && cols.every(function(w){ return Math.round(n(g.q[w.whCd]))===0; })) return;
-    aoa.push([g.prodCd,g.prodNm,g.spec].concat(cols.map(function(w){ return Math.round(n(g.q[w.whCd])); })).concat([Math.round(g.tot)])); });
+    var sh=shortOf(g);
+    aoa.push([g.prodCd,g.prodNm,g.spec].concat(cols.map(function(w){ return Math.round(n(g.q[w.whCd])); })).concat([Math.round(g.tot), Math.round(n(g.safe))||'', sh?sh.short:''])); });
   var ws=LIB.utils.aoa_to_sheet(aoa), wb=LIB.utils.book_new(); LIB.utils.book_append_sheet(wb, ws, '창고별재고');
   LIB.writeFile(wb, '창고별재고현황_'+((document.getElementById('asOf').value||'현재').replace(/-/g,''))+'.xlsx');
 }

@@ -152,6 +152,12 @@
   #ov .fld.lastcd{ display:flex; flex-direction:row; align-items:center; flex-wrap:wrap;
                    border:none; margin:0; min-height:0; }
   /* ♻ 삭제 목록 모달 (2026-08-17) — #ov 와 같은 골격, 폭만 넓다(표를 본다) */
+  #ss{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:61; align-items:flex-start; justify-content:center; }
+  #ss.on{ display:flex; }
+  #ss .box{ background:#fff; width:min(680px,94vw); margin-top:5vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); display:flex; flex-direction:column; max-height:90vh; }
+  #ss .mh{ background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:13px 18px; border-radius:12px 12px 0 0; display:flex; gap:10px; align-items:center; }
+  #ss .mh b{ font-size:16px; } #ss .mh .x{ background:none; border:none; color:#fff; font-size:22px; cursor:pointer; }
+  #ss .mb{ padding:14px 16px; overflow:auto; }
   #rc{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:60; align-items:flex-start; justify-content:center; }
   #rc.on{ display:flex; }
   #rc .box{ background:#fff; width:min(1320px,97vw); margin-top:4vh; border-radius:12px;
@@ -388,6 +394,8 @@
          옛 전표·재고는 그대로 두고 매입·판매에서만 막힌다. --%>
     <button class="btn" id="btStop" onclick="pcStopSel()" title="이 코드를 앞으로 쓰지 않게 표시합니다(옛 자료는 그대로)">⛔ 거래중지</button>
     <%-- 삭제는 소프트 삭제라 자료가 남아 있다 — 실수로 지운 것을 여기서 되살린다 (2026-08-17 요청) --%>
+    <%-- 적정재고 일괄 입력 (2026-09-16) — 품목이 많으면 하나씩 폼으로 넣을 수 없다. 엑셀 두 열을 그대로 붙여넣는다 --%>
+    <button class="btn" onclick="ssOpen()" title="엑셀에서 「품목코드 적정재고」 두 열을 복사해 붙여넣으면 한 번에 들어갑니다.&#10;적정재고를 넣어 두면 품목별재고현황·발주서가 미달을 알려 줍니다.">📊 적정재고 일괄</button>
     <button class="btn" onclick="rcOpen()" title="삭제한 상품코드를 보고 되살립니다">♻ 삭제 목록</button>
     <button class="btn" onclick="pcExcel()">📥 엑셀 출력</button>
     <span class="cnt" id="cnt">0건</span>
@@ -2155,6 +2163,58 @@ pcLoad(); mcVendors(); mcLoad(true);
    ★삭제가 소프트 삭제라 **되살리기는 값 하나를 'Y' 로 되돌리는 것**뿐이다.
      그래서 복원 표도 백업도 필요 없다. 서버가 ACTION_YN='N' 인 것만 되돌린다. */
 var RC=[];
+/* ── 적정재고 일괄 입력 (2026-09-16 P1-c 후반) ─────────────────────────────
+     적정재고 칸은 예전부터 있었지만 넣는 길이 「품목마다 폼」뿐이라 실제로는 비어 있었다.
+     그래서 「떨어졌는데 발주를 안 하는」 것을 아무도 못 잡았다. 엑셀 두 열을 그대로 받는다.
+     ★막지 않는다 — 없는 코드는 건너뛰고 몇 개인지 알려 준다(사용자 원칙 「메시지 처리」). */
+function ssOpen(){ document.getElementById('ss').classList.add('on');
+  document.getElementById('ssMsg').textContent='';
+  var t=document.getElementById('ssTxt'); t.value=''; ssPre();
+  t.oninput=ssPre; setTimeout(function(){ t.focus(); },30); }
+function ssClose(){ document.getElementById('ss').classList.remove('on'); }
+function ssParse(){
+  var raw=(document.getElementById('ssTxt').value||'').split(/\r?\n/), rows=[], bad=0;
+  raw.forEach(function(ln){
+    ln=ln.trim(); if(!ln) return;
+    /* ★가르는 차례가 중요하다 : 탭·세미콜론 → 빈칸 → 쉼표.
+         엑셀에서 복사하면 칸 사이가 탭이고 수량은 「1,200」처럼 천 단위 쉼표가 붙어 온다.
+         쉼표부터 가르면 1,200 이 「1」과 「200」으로 쪼개져 **200 이 저장된다**(눈에 안 띄는 사고). */
+    var p=ln.split(/[\t;]/).filter(function(x){ return x.trim()!==''; });
+    if(p.length<2) p=ln.split(/\s+/).filter(function(x){ return x!==''; });
+    if(p.length<2) p=ln.split(/,/).filter(function(x){ return x.trim()!==''; });
+    if(p.length<2){ bad++; return; }
+    var cd=p[0].trim().replace(/^[,\s]+|[,\s]+$/g,''), q=p[p.length-1].replace(/[^0-9.\-]/g,'');
+    if(!cd || q==='' || isNaN(Number(q))){ bad++; return; }        // 머리줄(「품목코드 적정재고」)이 여기서 걸러진다
+    rows.push({ prodCd:cd, safeStock:Math.max(0, Math.round(Number(q))) });
+  });
+  return { rows:rows, bad:bad };
+}
+function ssPre(){
+  var r=ssParse(), el=document.getElementById('ssPre');
+  if(!r.rows.length){ el.innerHTML=r.bad?('<span style="color:#b06a00">읽을 수 있는 줄이 없습니다 — 「코드 수량」 두 값이 한 줄에 있어야 합니다.</span>'):''; return; }
+  var head=r.rows.slice(0,3).map(function(x){ return esc(x.prodCd)+' → '+x.safeStock; }).join(' · ');
+  el.innerHTML='읽은 줄 <b>'+r.rows.length+'</b>'+(r.bad?(' <span style="color:#b06a00">(건너뛴 줄 '+r.bad+' — 머리줄이면 정상입니다)</span>'):'')
+    +'<br><span style="color:#6b7a89">'+head+(r.rows.length>3?' …':'')+'</span>';
+}
+function ssSave(){
+  var r=ssParse();
+  if(!r.rows.length){ toast('넣을 줄이 없습니다.','warn'); return; }
+  var btn=document.getElementById('ssGo'); btn.disabled=true;
+  document.getElementById('ssMsg').textContent='저장 중…';
+  fetch(CTX+'/prod/safeStockBulk.do',{ method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json; charset=UTF-8'}, body:JSON.stringify({ rows:r.rows }) })
+    .then(function(res){ return res.text().then(function(t){ if(!res.ok) throw new Error(t); return t; }); })
+    .then(function(t){
+      var j={}; try{ j=JSON.parse(t); }catch(e){}
+      btn.disabled=false;
+      var done=j.done||0, miss=j.miss||0, cds=(j.missCds||[]).join(', ');
+      document.getElementById('ssMsg').innerHTML='적용 <b>'+done+'</b>건'+(miss?(' · <span style="color:#c0392b">없는 코드 '+miss+'건</span>'):'');
+      toast('적정재고 '+done+'건을 넣었습니다.'+(miss?(' (없는 코드 '+miss+'건: '+cds+(miss>20?' …':'')+')'):''), miss?'warn':'success');
+      pcLoad();   // 목록의 적정재고 칸을 새로 읽는다
+    })
+    .catch(function(e){ btn.disabled=false; document.getElementById('ssMsg').textContent=''; toast('저장 실패: '+e.message,'err'); });
+}
+
 function rcOpen(){
   document.getElementById('rc').classList.add('on');
   document.getElementById('rcTb').innerHTML='<tr><td colspan="9" class="empty">불러오는 중…</td></tr>';
@@ -2248,6 +2308,29 @@ function pcStopSend(url, body, okMsg){
 <%-- ───────── ♻ 삭제 목록 (2026-08-17 요청) ─────────
      삭제는 처음부터 **소프트 삭제**(ACTION_YN='N')였다 — 자료가 남아 있으니 되살리기는 값 하나를
      되돌리는 것뿐이다. 「왜 지웠더라」를 판단하도록 **지운 날짜·지운 사람**을 같이 보여 준다. --%>
+<%-- 적정재고 일괄 입력 (2026-09-16 P1-c 후반) — 적정재고를 넣어야 「미달」을 알려 줄 수 있는데 지금은 품목마다 폼뿐이라 실제로는 아무도 못 채운다 --%>
+<div id="ss">
+  <div class="box">
+    <div class="mh"><b>📊 적정재고 일괄 입력</b>
+      <span style="font-size:12.5px;opacity:.9">엑셀에서 「품목코드 · 적정재고」 두 열을 복사해 붙여넣으세요</span>
+      <button class="x" onclick="ssClose()" style="margin-left:auto">&times;</button>
+    </div>
+    <div class="mb">
+      <div style="font-size:12.5px;color:#4a5a68;line-height:1.7;margin-bottom:8px">
+        한 줄에 <b>품목코드</b> 와 <b>적정재고</b> — 사이는 탭·쉼표·빈칸 어느 것이든 됩니다. 머리줄(「품목코드」 같은 글자)은 저절로 건너뜁니다.<br>
+        <b>0 을 넣으면 그 품목은 미달 판정에서 빠집니다</b>(적정재고를 지우는 것과 같습니다). 없는 코드는 건너뛰고 몇 개인지 알려 드립니다.
+      </div>
+      <textarea id="ssTxt" placeholder="9904013265	30&#10;9904013376	12&#10;..." style="width:100%;height:230px;border:1px solid #d7dfe6;border-radius:8px;padding:9px 11px;font-family:Consolas,monospace;font-size:13px;line-height:1.55"></textarea>
+      <div id="ssPre" style="margin-top:8px;font-size:12.5px;color:#37475a"></div>
+    </div>
+    <div class="mf" style="display:flex;gap:8px;align-items:center;padding:10px 16px;border-top:1px solid #e6ecf1">
+      <span id="ssMsg" style="margin-right:auto;font-size:12.5px;color:#6b7a89"></span>
+      <button class="btn" onclick="ssClose()">닫기</button>
+      <button class="btn btn-teal" id="ssGo" onclick="ssSave()">저장</button>
+    </div>
+  </div>
+</div>
+
 <div id="rc">
   <div class="box">
     <div class="mh"><b>♻ 삭제한 상품코드</b>

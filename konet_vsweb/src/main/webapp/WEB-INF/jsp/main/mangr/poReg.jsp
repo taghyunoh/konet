@@ -145,6 +145,9 @@
       <button class="btn teal" onclick="poSave()">💾 발주서 저장</button>
       <button class="btn red" id="btnDel" onclick="poDelete()" disabled>🗑 삭제</button>
       <button class="btn" onclick="poNew()">＋ 새 발주서</button>
+      <%-- 추천 발주 (2026-09-16 P1-c 후반) — 적정재고에 못 미치는 품목을 한 번에 담는다.
+           ★막지 않는다 : 추천일 뿐이고 수량은 담은 뒤 얼마든 고친다(사용자 원칙 「메시지 처리」). --%>
+      <button class="btn" id="btnShort" onclick="shOpen()" title="「현재고 + 입고예정」이 적정재고에 못 미치는 품목을 보여 줍니다. 골라서 담으면 부족한 만큼 수량이 채워집니다.">⚠ 추천 발주</button>
       <span style="width:8px"></span>
       <button class="btn" id="btnPrint" onclick="poPrint()" disabled>🖨 발주서 인쇄</button>
       <button class="btn" id="btnXls" onclick="poExcel()" disabled>📥 엑셀</button>
@@ -183,6 +186,31 @@
     <span id="prodSelInfo" style="margin-right:auto; color:#6b7a89; font-size:12.5px">여러 개는 왼쪽 <b>☑</b> 로 고른 뒤 [담기] — 줄을 누르면 한 개만 담고 닫힙니다.</span>
     <button class="btn" id="prodSelClr" onclick="prodSelClear()" disabled>선택 해제</button>
     <button class="btn teal" id="prodSelAdd" onclick="prodAddSel()" disabled>선택한 0개 담기</button>
+  </div>
+</div></div>
+
+<!-- 추천 발주 (2026-09-16 P1-c 후반) — 적정재고 미달 품목. 상품 선택 팝업과 같은 틀·같은 담기 경로(prodFill) -->
+<div class="pop" id="shPop"><div class="box" style="width:min(1180px,97vw)">
+  <div class="ph">⚠ 추천 발주 <span id="shSub" style="font-weight:600;font-size:12.5px;color:#6b7a89"></span>
+    <input type="text" id="shQ" placeholder="코드·상품명·규격" oninput="shRender()">
+    <label style="display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:12.5px;font-weight:700;cursor:pointer" title="끄면 이 발주서에 고른 거래처에서 사던 품목만 보여 줍니다(발주서 한 장 = 거래처 한 곳).">
+      <input type="checkbox" id="shAllVen" onchange="shRender()" style="width:14px;height:14px"> 전체 품목
+    </label>
+    <button class="btn" onclick="shClose()">닫기</button>
+  </div>
+  <div class="pb"><table><thead><tr>
+    <th class="ck" style="width:36px"><input type="checkbox" id="shAll" onclick="shAllToggle(this.checked)" title="이 목록 전체 선택"></th>
+    <th style="width:100px">코드</th><th>상품명</th><th style="width:120px">규격</th>
+    <th style="width:64px" title="재고 원장 합">현재고</th><th style="width:64px" title="발주했는데 아직 안 들어온 수량">입고예정</th>
+    <th style="width:56px">적정</th><th style="width:62px" title="적정 − (현재고 + 입고예정)">부족</th>
+    <th style="width:76px" title="부족을 입수 배수로 올린 수량 — 담으면 이 수량이 들어갑니다">추천</th>
+    <th style="width:120px" title="가장 최근 입고한 매입처(없으면 상품마스터 거래처)">대표 매입처</th>
+    <th style="width:150px" title="최근 6개월 최저가 거래처 — 대표 매입처보다 싸면 빨강">최저 거래처</th>
+    <th style="width:78px">단가</th></tr></thead><tbody id="shBody"></tbody></table></div>
+  <div class="pf" style="display:flex; align-items:center; gap:8px; text-align:left">
+    <span id="shInfo" style="margin-right:auto; color:#6b7a89; font-size:12.5px"></span>
+    <button class="btn" id="shClr" onclick="shClear()" disabled>선택 해제</button>
+    <button class="btn teal" id="shAdd" onclick="shAddSel()" disabled>선택한 0개 담기</button>
   </div>
 </div></div>
 
@@ -264,6 +292,7 @@ function loadStockInfo(){
   post('/prod/stockQtyMap.do','').then(function(r){return r.json();}).then(function(j){ var m={}; ((j&&j.data)||[]).forEach(function(s){ if(s.prodCd!=null) m[String(s.prodCd)]=n(s.curQty); }); _stock=m; stkPaint(); }).catch(function(){});
   post('/mangr/poRecentByProd.do','').then(function(r){return r.json();}).then(function(j){ var m={}; ((j&&j.data)||[]).forEach(function(x){ if(x.prodCd!=null) m[String(x.prodCd)]=x; }); _poRecent=m; stkPaint(); }).catch(function(){});
   post('/mangr/poRemainByProd.do','').then(function(r){return r.json();}).then(function(j){ var m={}; ((j&&j.data)||[]).forEach(function(x){ if(x.prodCd!=null) m[String(x.prodCd)]=x; }); _poRemain=m; stkPaint(); }).catch(function(){});
+  shLoad();   // 추천 발주(적정재고 미달) — 단추 배지에 품목 수 (2026-09-16)
   /* 거래처별 매입가 (P2-b 2026-09-16) — 최근 6개월, 품목마다 최근가 싼 차례. 상품 팝업 「최저 거래처」 칸 + 명세 단가 칸 툴팁·노란 바탕 */
   post('/mangr/vendorPriceCmpList.do','months=6').then(function(r){return r.json();}).then(function(j){ var m={};
     ((j&&j.data)||[]).forEach(function(x){ var k=String(x.prodCd||''); if(!k) return; (m[k]||(m[k]=[])).push({ vendorCd:String(x.vendorCd||''), vendorNm:x.vendorNm||'', lastPrice:n(x.lastPrice), lastDt:x.lastDt||'', cnt:n(x.cnt) }); });
@@ -271,6 +300,92 @@ function loadStockInfo(){
     _vpc=m; stkPaint(); }).catch(function(){});
 }
 var _vpc={};   // prodCd → [{vendorCd,vendorNm,lastPrice,lastDt,cnt}] 최근가 싼 차례
+
+/* ── 추천 발주 (2026-09-16 P1-c 후반, 프로그램 목적 ①의 반대쪽 「떨어졌는데 발주를 안 하는」) ───────────
+     서버(/prod/safeStockShort.do)가 **상품마스터 기준**으로 미달 품목을 준다 — 원장에 기록이 없는 품목도 나온다
+     (품목별재고현황은 원장 GROUP BY 라 그런 품목이 아예 안 보인다. 그래서 담는 자리는 여기다).
+     가용 = 현재고 + 입고예정, 부족 = 적정 − 가용, 추천 = 부족을 입수 배수로 올림.
+     ★목록은 이 발주서에 고른 거래처 것 먼저 — 발주서 한 장이 거래처 한 곳이라 전체를 섞으면 「이건 다른 데서 사는 건데」가 된다. */
+var _short=[], _shSel=[], _shShown=[];
+function shLoad(){
+  post('/prod/safeStockShort.do','').then(function(r){return r.json();}).then(function(j){ _short=(j&&j.data)||[]; shBadge(); })
+    .catch(function(){ _short=[]; shBadge(); });
+}
+function shBadge(){
+  var b=document.getElementById('btnShort'); if(!b) return;
+  var k=_short.length;
+  b.innerHTML = k ? ('⚠ 추천 발주 <b>'+k+'</b>') : '⚠ 추천 발주';
+  b.style.color = k ? '#c0392b' : '';
+  b.style.borderColor = k ? '#f0b4b0' : '';
+  b.title = k ? ('적정재고에 못 미치는 품목 '+k+'개 — 눌러서 담습니다(수량은 담은 뒤 고칠 수 있습니다).')
+              : '적정재고에 못 미치는 품목이 없습니다. (적정재고는 상품코드관리에서 넣습니다)';
+}
+function shRecoQty(o){ var pk=n(o.packQty)||1, sh=Math.max(0, Math.round(n(o.shortQty))); if(pk<=1) return sh; return Math.ceil(sh/pk)*pk; }
+function shHasRow(cd){ return _rows.some(function(o){ return o.prodCd && String(o.prodCd)===String(cd); }); }
+function shOpen(){
+  if(!_short.length){ toast('적정재고에 못 미치는 품목이 없습니다.<br><span style="font-size:12.5px;color:#3d4d5c">적정재고는 <b>기준정보관리 ▸ 상품코드관리</b> 에서 품목마다 넣습니다. 넣어 두면 「현재고 + 입고예정」이 그 아래로 내려갈 때 여기에 모입니다.</span>','ℹ️'); return; }
+  _shSel=[]; document.getElementById('shPop').classList.add('on'); document.getElementById('shQ').value=''; shRender();
+  setTimeout(function(){ var q=document.getElementById('shQ'); if(q) q.focus(); },30);
+}
+function shClose(){ document.getElementById('shPop').classList.remove('on'); }
+function shVenCd(){ return (document.getElementById('venNm').dataset.cd||''); }
+function shList(){
+  var q=(document.getElementById('shQ').value||'').trim().toLowerCase();
+  var all=(document.getElementById('shAllVen')||{}).checked, ven=shVenCd();
+  return _short.filter(function(o){
+    if(!all && ven && String(o.vendorCd||'')!==String(ven)) return false;
+    if(q){ var hay=(o.prodCd+' '+(o.prodNm||'')+' '+(o.spec||'')).toLowerCase(); if(hay.indexOf(q)<0) return false; }
+    return true; });
+}
+function shRender(){
+  var l=shList(), h='', ven=shVenCd(), all=(document.getElementById('shAllVen')||{}).checked;
+  _shShown=[];
+  l.forEach(function(o){
+    var i=_short.indexOf(o); _shShown.push(i);
+    var on=_shSel.indexOf(i)>=0, has=shHasRow(o.prodCd), reco=shRecoQty(o);
+    h+='<tr class="pick'+(on?' sel':'')+'"'+(has?' style="opacity:.55"':' onclick="shToggle('+i+',event)"')+'>'
+      +'<td class="ck" onclick="event.stopPropagation()">'+(has?'<span class="dim" title="이미 이 발주서에 담겨 있습니다">담김</span>':'<input type="checkbox"'+(on?' checked':'')+' onclick="shToggle('+i+',event)">')+'</td>'
+      +'<td>'+esc(o.prodCd)+'</td><td class="l">'+esc(o.prodNm)+'</td><td class="l">'+esc(o.spec)+'</td>'
+      +'<td class="r">'+fmtQ(o.curQty)+'</td>'
+      +'<td class="r" style="color:#b06a00">'+(n(o.poRemainQty)>0?fmtQ(o.poRemainQty):'')+'</td>'
+      +'<td class="r">'+fmtQ(o.safeStock)+'</td>'
+      +'<td class="r low">'+fmtQ(o.shortQty)+'</td>'
+      +'<td class="r"><b>'+fmtQ(reco)+'</b>'+((n(o.packQty)||1)>1?'<span class="dim" style="font-size:11px"> ('+fmtQ(n(o.packQty))+'입)</span>':'')+'</td>'
+      +'<td class="l" style="font-size:12px">'+(o.vendorNm?esc(o.vendorNm):'<span class="dim">—</span>')+(!all&&!ven&&o.vendorNm?'':'')+'</td>'
+      +vpcCell(String(o.prodCd), n(o.inPrice))
+      +'<td class="r">'+fmt(o.inPrice)+'</td></tr>';
+  });
+  document.getElementById('shBody').innerHTML = h || '<tr><td colspan="12" class="empty" style="padding:22px;text-align:center;color:#8a98a8">'
+    + (ven && !all ? '이 거래처에서 사던 미달 품목이 없습니다 — 위 <b>[전체 품목]</b> 을 켜면 다른 거래처 것도 보입니다.' : '조건에 맞는 품목이 없습니다.') + '</td></tr>';
+  document.getElementById('shSub').textContent = '적정재고에 못 미치는 품목 ' + _short.length + '개' + ((ven && !all) ? ' · 이 거래처 ' + l.length + '개' : '');
+  shSelUpd();
+}
+function shToggle(i, ev){ if(ev&&ev.stopPropagation) ev.stopPropagation();
+  var o=_short[i]; if(!o || shHasRow(o.prodCd)) return;
+  var k=_shSel.indexOf(i); if(k<0) _shSel.push(i); else _shSel.splice(k,1); shRender(); }
+function shAllToggle(on){ _shShown.forEach(function(i){ var o=_short[i]; if(!o||shHasRow(o.prodCd)) return;
+  var k=_shSel.indexOf(i); if(on&&k<0) _shSel.push(i); else if(!on&&k>=0) _shSel.splice(k,1); }); shRender(); }
+function shClear(){ _shSel=[]; shRender(); }
+function shSelUpd(){ var c=_shSel.length;
+  document.getElementById('shAdd').disabled = !c; document.getElementById('shClr').disabled = !c;
+  document.getElementById('shAdd').textContent = '선택한 '+c+'개 담기';
+  document.getElementById('shInfo').innerHTML = c ? ('고른 '+c+'개를 담으면 <b>추천 수량</b>이 채워집니다 — 담은 뒤 고칠 수 있습니다.')
+    : '왼쪽 <b>☑</b> 로 고른 뒤 [담기]. 추천 수량 = 부족을 <b>입수 배수</b>로 올린 값입니다.'; }
+/* 담기 — 상품 팝업과 같은 길(prodFill)로 줄을 만들고 추천 수량을 채운다.
+   입수 배수면 BOX 로, 아니면 EA 로 넣는다(발주서 수량 칸이 BOX·EA 둘이라). */
+function shAddSel(){
+  if(!_shSel.length) return;
+  var base=_prodRow; if(!_rows[base] || _rows[base].prodCd){ ensureTail(); base=_rows.length-1; }
+  var at=base, cnt=0;
+  _shSel.forEach(function(i){ var o=_short[i]; if(!o || shHasRow(o.prodCd)) return;
+    var row; if(!cnt){ row=_rows[base]; } else { row=emptyRow(); _rows.splice(++at,0,row); }
+    prodFill(row, { prodSeq:o.prodSeq, prodCd:o.prodCd, prodNm:o.prodNm, spec:o.spec, packQty:o.packQty, inPrice:o.inPrice, taxGb:o.taxGb });
+    var pk=n(o.packQty)||1, reco=shRecoQty(o);
+    if(pk>1 && reco%pk===0){ row.boxQty=reco/pk; row.eaQty=0; } else { row.boxQty=0; row.eaQty=reco; }
+    calcRow(row); cnt++; });
+  _shSel=[]; shClose(); render(); prodFocusRow(base);
+  if(window._toast) _toast(cnt+'개 품목을 담았습니다 — 추천 수량이 채워져 있습니다. 필요하면 고치세요.','ok');
+}
 /* 상품 팝업 「최저 거래처」 칸 — 마스터 매입가(inPrice)보다 싸면 빨강 */
 function vpcCell(cd, inPrice){ var l=_vpc[cd]||[]; if(!l.length) return '<td><span class="dim">—</span></td>';
   var b=l[0], cheaper=(inPrice>0 && b.lastPrice<inPrice);
@@ -539,6 +654,7 @@ function poSave(){
     remark:document.getElementById('remark').value, items:items };
   post('/mangr/poSave.do', dto, true).then(function(r){ return r.text().then(function(x){ if(!r.ok) throw new Error(x); return x; }); })
     .then(function(seq){ seq=String(seq||'').replace(/[^0-9]/g,'');   /* 응답이 감싸여 와도 숫자만 */
+      shLoad();   /* 저장하면 잔량(입고예정)이 늘어 미달이 풀린다 — 배지를 다시 센다 (2026-09-16) */
       toast('발주서를 저장했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">번호 '+esc(document.getElementById('poDt').value)+' - '+esc(document.getElementById('poNo').value)+'</span>','✅'); poLoad(seq); poOpen(seq); loadStockInfo(); })   // 저장한 발주가 곧 「최근 발주」가 되므로 다시 읽는다
     .catch(function(e){ toast('저장에 실패했습니다.<br><span style="font-size:12.5px;color:#c0392b">'+esc(e.message)+'</span>','⚠️'); });
 }
