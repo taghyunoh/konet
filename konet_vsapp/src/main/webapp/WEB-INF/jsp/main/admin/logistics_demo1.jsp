@@ -193,6 +193,10 @@
   table.d2-mx tr.isub td.none { background:#dcefe7; }
   /* 「직송」 단어만 빨간 글씨 (2026-08-30 최종 — 라벨 전체 빨강에서 축소) */
   table.d2-tb .jkw, table.d2-mx .jkw { color:#c0392b; font-weight:800; }
+  /* 통상 출고장과 다름 (2026-09-16) — ⚠빨강 = 처음 가는 곳 / △주황 = 드물게 가는 곳. 옆에 <늘 가던 곳>을 적는다 */
+  table.d2-tb .zodd { display:inline-block; margin-left:5px; padding:0 5px; border-radius:9px; font-size:11px; font-weight:800;
+      background:#fdecea; color:#c0392b; border:1px solid #f5c6c0; cursor:help; white-space:nowrap; }
+  table.d2-tb .zodd.rare { background:#fff4e5; color:#8a4b12; border-color:#f1d9b5; }
   /* 진청록 묶음 머리줄(tr.grp) 위에서는 진빨강이 안 보인다(2026-08-30 지적) → 밝은 살구빛 빨강 */
   table.d2-mx tr.grp .jkw, table.d2-tb tr.grp .jkw { color:#ffb4a2; }
   /* 검정 바탕(전체 합계 줄)에서도 마찬가지 — 진빨강은 안 읽힌다(2026-08-31) */
@@ -2165,6 +2169,7 @@
          d2Render 의 「없으면 불러온다」 가지가 알아서 새로 읽어 온다. 조회 경로가 모두 이 함수로 모이므로
          [조회]·[당일]·[당월]·[전체] 어느 쪽으로 들어와도 같다. (뷰 전환·다시 그리기만으로는 안 읽는다) */
     d2StockInvalidate();
+    d2ZhLoad();                 // 통상 출고장 이력(2026-09-16) — 조회 구간이 바뀔 때만 다시 받는다. 늦게 와도 그때 배지를 입힌다
     var f=(document.getElementById('d2DateFrom')||{}).value||'';
     var t=(document.getElementById('d2DateTo')||{}).value||'';
     // 단일일자(시작=종료)=기존 배치 매트릭스 경로. 그 외(기간·전체)=날짜별 독립 블록 경로.
@@ -2334,6 +2339,60 @@
        이름 = '오산 5'(센터축약+입고장) / 키 = 센터명|입고장번호. 같은 입고장의 배송·직송이 한 키로 묶인다.
      ⚠물류센터 낱알이 아니면(옛 양식 존값) 낱알 자체를 키로 써 <혼자 있는 묶음>이 되어 소계가 안 생긴다. */
   function d2ZoneBase(zn){ var L=d2ZoneLab(zn); if(!L) return ''+zn; return L.ctr+(L.no!==null?(' '+L.no):''); }
+
+  /* ═══ 통상 출고장 대비 «이상» 배지 (2026-09-16, 분석 §② 빠진 것 2) ═══
+       「이 사업장은 늘 평택1인데 이번만 김해3」을 아무도 안 보고 있었다 — 직송 오배송의 마지막 구멍.
+       ★판정 단위 = **물류센터명+입고장**(직송 꼬리는 뗀다). 배송↔직송은 정상 짝이고 P1-d 「🔁 전환」이 따로 잡는다.
+       ★운영 실측(90일) : 센터는 **한 번도 안 바뀌었다**(1,381곳 전부 센터 1개) · 입고장까지 보면 188곳이 두 곳 이상.
+         그중 «주력 90%↑» 는 17곳뿐이라, 아래 임계로 거르면 8월 이후 6주에 **처음 가는 곳 23건(사업장마다 한 번씩)** ·
+         드물게 가는 곳 26건만 남는다(날마다 0~2건). 이 숫자를 바꾸려면 그 실측부터 다시 할 것.
+       ★자료는 조회 때 한 번 받는다(1,687줄) — 실패하면 배지만 안 뜬다(화면은 그대로). */
+  var D2_ZH=null, D2_ZH_KEY='';        // { 사업장코드 : {z:{출고장:날짜수}, tot:합, mx:최다} }
+  var D2_ZH_MIN=5;                     // 이력이 이만큼(날짜 수)은 쌓여야 판정한다 — 새 사업장은 안 본다
+  function d2ZoneKeyOf(zn){ return (''+(zn||'')).replace(/\s*직송$/,'').trim(); }   // 서버 낱알과 같은 꼴(직송 뗌)
+  /* 조회 기간 앞 90일을 학습 구간으로 — 보고 있는 날짜 자체는 뺀다(오늘 잘못 온 것이 '통상'이 되면 안 된다) */
+  function d2ZhRange(){
+    var f=(document.getElementById('d2DateFrom')||{}).value||'';
+    var base=/^\d{4}-\d{2}-\d{2}$/.test(f) ? new Date(f+'T00:00:00') : new Date();
+    var to=new Date(base.getTime()-86400000), fr=new Date(to.getTime()-90*86400000);
+    var p=function(d){ return d.getFullYear()+d2Pad(d.getMonth()+1)+d2Pad(d.getDate()); };
+    return [p(fr), p(to)];
+  }
+  function d2ZhLoad(){
+    var r=d2ZhRange(), key=r[0]+'~'+r[1];
+    if(D2_ZH && D2_ZH_KEY===key) return;          // 같은 구간이면 다시 안 받는다
+    D2_ZH_KEY=key;
+    fetch(CTX+'/shipout/bizZoneHist.do', { method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:'dlvDtFrom='+r[0]+'&dlvDtTo='+r[1] })
+      .then(function(res){ return res.json(); })
+      .then(function(j){
+        var m={};
+        ((j&&j.data)||[]).forEach(function(o){
+          var b=(''+(o.bizCd||'')).trim(), z=d2ZoneKeyOf(o.zone), d=(+o.days||0);
+          if(!b || !z || d<=0) return;
+          var e=m[b]||(m[b]={z:{}, tot:0, mx:0});
+          e.z[z]=(e.z[z]||0)+d; e.tot+=d; if(e.z[z]>e.mx) e.mx=e.z[z];
+        });
+        D2_ZH=m; d2Render();                       // 늦게 와도 그때 배지를 입힌다
+      })
+      .catch(function(){ D2_ZH=D2_ZH||{}; });      // 실패 = 배지 없음(조회 전용이라 화면을 막지 않는다)
+  }
+  /* 배지 — 빨강 ⚠ = 이 사업장이 **처음 가는** 출고장 / 주황 = 드물게(10% 이하) 가는 곳. 그 밖에는 아무것도 안 붙인다. */
+  function d2ZoneOddBadge(bizCode, zn){
+    if(!D2_ZH) return '';
+    var b=(''+(bizCode||'')).trim(); if(!b) return '';
+    var e=D2_ZH[b]; if(!e || e.tot<D2_ZH_MIN) return '';
+    if(e.mx/e.tot < 0.9) return '';                                   // 여러 곳을 고루 쓰는 사업장 — 판정하지 않는다
+    var cur=d2ZoneKeyOf(zn), n=e.z[cur]||0;
+    if(n/e.tot > 0.1) return '';                                      // 늘 가던 곳(또는 자주 가는 곳)
+    var usual='', um=0;
+    Object.keys(e.z).forEach(function(k){ if(e.z[k]>um){ um=e.z[k]; usual=k; } });
+    var tip='이 사업장은 최근 '+e.tot+'일 중 '+um+'일을 「'+d2ZoneBase(usual)+'」로 보냈습니다.\n'
+          + '이번 출고장 「'+d2ZoneBase(cur)+'」는 '+(n?('그중 '+n+'일뿐입니다.'):'최근 이력에 없습니다.')+'\n'
+          + '발주현황표가 맞는지 확인해 주세요. (배송↔직송 전환은 위 변경 알림이 따로 알립니다)';
+    return ' <span class="zodd'+(n?' rare':'')+'" title="'+d2Esc(tip)+'">'+(n?'△':'⚠')+' '+d2Esc(d2ZoneBase(usual))+'</span>';
+  }
   function d2InwhKey(zn){ var L=d2ZoneLab(zn); if(!L) return 'Z:'+zn; return d2CenterNm(zn)+'|'+(L.no===null?'-':L.no); }
   function d2ZoneLabHtml(zn, unit){      // 화면용 — 「직송」 낱말만 빨강(.jkw). 라벨을 못 만들면 종전 표기(+단위)
     var L=d2ZoneLab(zn);
@@ -3410,7 +3469,8 @@
             keys.forEach(function(k,ix){
               var r=z.rows[k];
               // 사업장별 뷰: 중복이던 '사업장' 칸을 '출고장' 화살표 콤보박스로 교체(원래 어느 출고장에서 나갔나, 2026-07-24)
-              var bizCell=(D2_VIEW==='biz')?d2DistCell(r.ozones,'출고장'):d2Esc(r.biz);
+              /* 출고장별 뷰에서만 「통상 출고장과 다름」 배지를 붙인다(2026-09-16) — 사업장별 뷰의 그 칸은 출고장 콤보라 뜻이 겹친다 */
+              var bizCell=(D2_VIEW==='biz')?d2DistCell(r.ozones,'출고장'):(d2Esc(r.biz)+d2ZoneOddBadge(r.bizCode, zn));
               h+='<tr class="item'+(r.isNew?' r-new':'')+(itemRowChanged(zn,k)?' r-diff':'')+'"><td>'+(ix+1)+'</td>'
                 + d2StockCell(r.code,'q')
                 + d2MatchCell(r)

@@ -35,6 +35,8 @@ public class ShipoutDTO {
 	private String  shpoutDtFrom;  // 기간조회 시작일 (조회 전용·비영속) — 값 있으면 SHPOUT_DT BETWEEN 조회
 	private String  findData;      // 출고현황이력조회 검색어(출고장명·파일명) — 조회 전용·비영속
 	private String  shpoutDtTo;    // 기간조회 종료일 (조회 전용·비영속)
+	private String  dlvDtFrom;     // 납기일자 기간조회 시작일 (조회 전용·비영속) — selectBizZoneHist(통상 출고장 이력, 2026-09-16)
+	private String  dlvDtTo;       // 납기일자 기간조회 종료일 (조회 전용·비영속)
 	private String  statYn;        // 상황여부
 	private String  prodKind;      // 상품종류
 	private String  tempGb;        // 온도구분
@@ -115,6 +117,10 @@ public class ShipoutDTO {
 	public void setShpoutDtFrom(String shpoutDtFrom) { this.shpoutDtFrom = shpoutDtFrom; }
 	public String getShpoutDtTo() { return shpoutDtTo; }
 	public void setShpoutDtTo(String shpoutDtTo) { this.shpoutDtTo = shpoutDtTo; }
+	public String getDlvDtFrom() { return dlvDtFrom; }
+	public void setDlvDtFrom(String dlvDtFrom) { this.dlvDtFrom = dlvDtFrom; }
+	public String getDlvDtTo() { return dlvDtTo; }
+	public void setDlvDtTo(String dlvDtTo) { this.dlvDtTo = dlvDtTo; }
 	public String getStatYn() { return statYn; }
 	public void setStatYn(String statYn) { this.statYn = statYn; }
 	public String getProdKind() { return prodKind; }

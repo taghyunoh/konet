@@ -71,6 +71,7 @@ public interface UserService {
 
 	// ===== 사업장 분류 마스터 (TBL_BIZI_MST) =====
 	java.util.List<egovframework.konet.user.model.BiziDTO> selectBiziMst() throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectBizZoneHist(egovframework.konet.user.model.ShipoutDTO dto) throws Exception;   // 통상 출고장 이력(2026-09-16)
 	int insertBiziIfAbsent(egovframework.konet.user.model.BiziDTO dto) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectBiziNoAddr(java.util.Map<String,Object> p) throws Exception;   // 주소 없는 사업장 — 업로드 결과창 (2026-09-16 P2-c)
 	int updateBiziMst(egovframework.konet.user.model.BiziDTO dto) throws Exception;

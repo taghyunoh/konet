@@ -43,7 +43,11 @@
   table.g td.r{ text-align:right; font-variant-numeric:tabular-nums; }
   table.g td.code{ font-weight:600; white-space:nowrap; }
   table.g tr:hover td{ background:#f7faf9; }
-  td.diff.pos{ color:var(--red); font-weight:800; }
+  /* ★차액 색 (2026-09-16 「비싸게 산 / 싸게 산」 이름을 붙이며 뒤집었다)
+       ▲ 비싸게 산(마스터보다 더 줌) = 빨강 — 봐야 할 쪽 · ▼ 싸게 산 = 청록 · 0 = 회색.
+     ⚠종전에는 ▼(싸게 산) 이 빨강이었다(「더 싸게 사는 곳이 있다 = 기회」라는 뜻). 이름과 색이 어긋나 바꿨다. */
+  td.diff.high{ color:var(--red); font-weight:800; }
+  td.diff.low{ color:var(--teal); font-weight:700; }
   td.diff.zero{ color:#8a98a8; }
   /* 거래처 칩 — 싼 차례. 최저 = 초록 테두리, 마스터 매입처 = ★ */
   .chips{ display:flex; flex-wrap:wrap; gap:6px; }
@@ -56,12 +60,16 @@
   .chip .nm{ font-weight:700; color:#37475a; }
   .empty{ padding:40px; text-align:center; color:#8a98a8; }
   .dim{ color:#8a98a8; }
+  /* 지금 사는 곳이 최저가보다 비쌀 때 그 차이 (2026-09-16 「비싼곳 검색」) */
+  .over{ display:inline-block; margin-left:5px; padding:0 5px; border-radius:9px; font-size:11.5px; font-weight:800;
+      background:#fdecea; color:#c0392b; border:1px solid #f5c6c0; cursor:help; white-space:nowrap; }
+  .over small{ font-weight:700; opacity:.85; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h2>💰 거래처별 매입가 비교</h2>
-  <div class="sub">같은 품목을 <b>어느 거래처에서 얼마에 샀는지</b> 나란히 봅니다. 칩은 <b>최근 단가가 싼 차례</b>, 초록 = 최저 거래처, ★ = 상품마스터에 적힌 매입처. 차액 = 마스터 매입가 − 최저 최근가(빨강이면 더 싸게 사는 곳이 있습니다).</div>
+  <div class="sub">같은 품목을 <b>어느 거래처에서 얼마에 샀는지</b> 나란히 봅니다. 칩은 <b>최근 단가가 싼 차례</b>, 초록 = 최저 거래처, ★ = 상품마스터에 적힌 매입처. 차액 = 마스터 매입가 − 실제 최근 매입가 — <b style="color:#c0392b">▲ 비싸게 산</b> · <b style="color:#137a6c">▼ 싸게 산</b>. 위 칸에서 한쪽만 골라 볼 수 있습니다.</div>
   <div class="bar">
     <input type="text" id="q" placeholder="품목코드 · 품목명" style="width:220px" onkeydown="if(event.key==='Enter') load()">
     <select id="months" onchange="load()" title="이 기간 안의 매입 단가만 봅니다">
@@ -69,7 +77,14 @@
     </select>
     <button class="btn btn-teal" onclick="load()">🔍 조회</button>
     <label class="ck"><input type="checkbox" id="only2" checked onchange="render()"> 거래처 2곳 이상만</label>
-    <label class="ck"><input type="checkbox" id="onlyDiff" onchange="render()"> 더 싼 곳이 있는 품목만</label>
+    <%-- ★비싸게 산 / 싸게 산 (2026-09-16, 명칭·기준 모두 사용자 확정) — 오른쪽 **차액 칸(▲▼)과 같은 기준**이다.
+           ▲(마스터 매입가보다 더 주고 삼) = 비싸게 산 품목 · ▼ = 싸게 산 품목. 둘은 동시에 참일 수 없어 체크가 아니라 고르는 칸 하나.
+           종전 「더 싼 곳이 있는 품목만」 체크는 ▼ 와 같은 뜻이라 이 칸으로 합쳤다. --%>
+    <select id="buyGb" onchange="render()" title="오른쪽 「차액」 칸과 같은 기준입니다 — 상품마스터 매입가와 실제 최근 매입가를 견줍니다.&#10;· 💸 비싸게 산 품목 (▲) — 마스터 매입가보다 더 주고 샀습니다&#10;· 👍 싸게 산 품목 (▼) — 마스터 매입가보다 덜 주고 샀습니다&#10;※ 마스터 매입가가 없는 품목은 견줄 기준이 없어 둘 다에서 빠집니다.">
+      <option value="">매입가 — 전체</option>
+      <option value="high">💸 비싸게 산 품목 (▲)</option>
+      <option value="low">👍 싸게 산 품목 (▼)</option>
+    </select>
     <select id="sort" onchange="render()">
       <option value="diff">차액 큰 순</option><option value="code">품목코드 순</option><option value="vend">거래처 많은 순</option>
     </select>
@@ -84,7 +99,7 @@
       <th style="width:54px">거래처<br>수</th>
       <th style="width:130px" title="최근 단가가 가장 싼 거래처">최저 거래처</th>
       <th style="width:90px">최저<br>최근가</th>
-      <th style="width:90px" title="마스터 매입가 − 최저 최근가. 양수면 마스터보다 싸게 사는 곳이 있다">차액</th>
+      <th style="width:90px" title="마스터 매입가 − 실제 최근 매입가&#10;▲ 빨강 = 💸 비싸게 산 품목(마스터보다 더 줌) · ▼ 청록 = 👍 싸게 산 품목">차액</th>
       <th style="min-width:420px">거래처별 (최근가 · 최근일 · 평균 · 최저~최고 · 건수 · 수량)</th>
     </tr></thead>
     <tbody id="body"><tr><td colspan="10" class="empty">조회 중…</td></tr></tbody>
@@ -120,34 +135,63 @@ function group(){
     g.mst=g.vendors.filter(function(v){ return v.vendorCd===g.mstVendorCd; })[0]||null;
     g.base = g.mstPrice>0 ? g.mstPrice : (g.mst ? g.mst.lastPrice : (g.best?g.best.lastPrice:0));   // 비교 기준 = 마스터 매입가(없으면 마스터 매입처 최근가)
     g.diff = g.best ? (g.base - g.best.lastPrice) : 0;
+    /* ★★비싸게 산 / 싸게 산 (2026-09-16 요청 「비싼곳 검색」 → 사용자가 **차액 칸(▲▼)을 짚어** 뜻을 확정했다)
+         = **마스터 매입가(우리가 기준으로 삼는 값) ↔ 실제 최근 매입가**.
+           `diff = 마스터 매입가 − 최저 최근가` 이므로  diff < 0 = ▲ = 실제로 <더 주고> 샀다 = **비싸게 산 품목**
+                                                        diff > 0 = ▼ = 실제로 <덜 주고> 샀다 = **싸게 산 품목**
+       ⚠처음엔 「지금 사는 곳 ↔ 더 싼 거래처」로 잡았다가 **틀렸다** — 거래처가 한 곳뿐이면(이 회사 자료의 대부분)
+         비교할 다른 곳이 없어 ▲ 로 뜬 줄들이 통째로 안 걸렸다. 사용자가 그 줄들을 짚어 바로잡았다.
+       ★마스터 매입가가 없으면(0) 견줄 기준이 없다 — 어느 쪽도 아니다. */
+    g.high = (g.mstPrice>0 && g.diff<0) ? -g.diff : 0;   // 비싸게 산 금액(품목 1개당)
+    g.low  = (g.mstPrice>0 && g.diff>0) ? g.diff : 0;    // 싸게 산 금액
+    g.highPct = (g.high>0 && g.mstPrice>0) ? (g.high/g.mstPrice*100) : 0;
+    /* 곁들이 표시 — 지금 사는 곳(마스터 매입처)보다 싼 거래처가 따로 있으면 그 차이(위 판정과는 별개다) */
+    g.over = (g.mst && g.best && g.mst.vendorCd!==g.best.vendorCd && g.mst.lastPrice>g.best.lastPrice)
+             ? (g.mst.lastPrice - g.best.lastPrice) : 0;
     return g; });
 }
 function render(){
-  var only2=document.getElementById('only2').checked, onlyDiff=document.getElementById('onlyDiff').checked, sort=document.getElementById('sort').value;
-  var l=_grp.filter(function(g){ if(only2 && g.vendors.length<2) return false; if(onlyDiff && !(g.diff>0)) return false; return true; });
-  if(sort==='diff') l.sort(function(a,b){ return b.diff-a.diff || a.prodCd.localeCompare(b.prodCd); });
+  var only2=document.getElementById('only2').checked, sort=document.getElementById('sort').value;
+  var buyGb=document.getElementById('buyGb').value;   // 비싸게 산 / 싸게 산 (2026-09-16) — 차액 칸과 같은 기준
+  var l=_grp.filter(function(g){ if(only2 && g.vendors.length<2) return false;
+                                 if(buyGb==='high' && !(g.high>0)) return false;
+                                 if(buyGb==='low'  && !(g.low>0))  return false; return true; });
+  /* 「비싸게 산 품목」일 때는 차액 큰 순 = **더 준 돈이 큰 순**(diff 가 음수라 그대로 정렬하면 거꾸로 나온다) */
+  if(sort==='diff' && buyGb==='high') l.sort(function(a,b){ return b.high-a.high || a.prodCd.localeCompare(b.prodCd); });
+  else if(sort==='diff') l.sort(function(a,b){ return b.diff-a.diff || a.prodCd.localeCompare(b.prodCd); });
   else if(sort==='vend') l.sort(function(a,b){ return b.vendors.length-a.vendors.length || a.prodCd.localeCompare(b.prodCd); });
   else l.sort(function(a,b){ return a.prodCd.localeCompare(b.prodCd); });
-  var saving=l.reduce(function(s,g){ return s+(g.diff>0?g.diff:0); },0);
-  document.getElementById('cnt').innerHTML='품목 <b>'+l.length+'</b>'+(l.length!==_grp.length?' / '+_grp.length:'')+' · 더 싼 곳 있는 품목 <b>'+l.filter(function(g){ return g.diff>0; }).length+'</b>';
+  /* 「더 주고 있는 돈」 = 지금 사는 곳 최근가 − 최저 최근가의 합(품목 1개 기준 단가 차이) — 수량을 곱한 값이 아니다(오해 없게 툴팁에 적는다) */
+  /* 금액은 **품목 1개당 단가 차이**의 합이다 — 매입 수량을 곱한 값이 아니다(툴팁에 적는다) */
+  var hiN=0, hiAmt=0, loN=0, loAmt=0;
+  l.forEach(function(g){ if(g.high>0){ hiN++; hiAmt+=g.high; } else if(g.low>0){ loN++; loAmt+=g.low; } });
+  document.getElementById('cnt').innerHTML='품목 <b>'+l.length+'</b>'+(l.length!==_grp.length?' / '+_grp.length:'')
+    +(hiN?(' · <span style="color:#c0392b" title="상품마스터 매입가보다 더 주고 산 품목입니다(차액 ▲).&#10;금액은 품목 1개당 단가 차이의 합 — 매입 수량을 곱한 값이 아닙니다.">💸 비싸게 산 품목 <b>'+hiN+'</b> · 단가 차이 합 <b>'+fmtP(hiAmt)+'</b></span>'):'')
+    +(loN?(' · <span style="color:#137a6c" title="상품마스터 매입가보다 덜 주고 산 품목입니다(차액 ▼).">👍 싸게 산 품목 <b>'+loN+'</b> · <b>'+fmtP(loAmt)+'</b></span>'):'');
   if(!l.length){ document.getElementById('body').innerHTML='<tr><td colspan="10" class="empty">'+(_grp.length?'조건에 맞는 품목이 없습니다 — 체크를 풀거나 기간을 넓혀 보세요.':'이 기간에 거래처가 적힌 매입 단가 기록이 없습니다.')+'</td></tr>'; return; }
   document.getElementById('body').innerHTML=l.map(function(g){
     var chips=g.vendors.map(function(v,i){ var best=(i===0), mst=(v.vendorCd===g.mstVendorCd);
       return '<span class="chip'+(best?' best':'')+(mst?' mst':'')+'" title="'+esc(v.vendorNm)+(mst?' (상품마스터 매입처)':'')+(best?' — 최저':'')+'">'
         +'<span><span class="nm">'+esc(v.vendorNm)+'</span> <b>'+fmtP(v.lastPrice)+'</b></span>'
         +'<small>'+esc(d8(v.lastDt))+(v.avgPrice!=null?' · 평균 '+fmtP(v.avgPrice):'')+(v.minPrice!==v.maxPrice?' · '+fmtP(v.minPrice)+'~'+fmtP(v.maxPrice):'')+' · '+v.cnt+'건'+(v.qty?' · '+fmt(v.qty):'')+'</small></span>'; }).join('');
-    var mstNm = g.mst ? g.mst.vendorNm : (g.mstVendorCd ? g.mstVendorCd : '<span class="dim">—</span>');
+    var mstNm = g.mst ? esc(g.mst.vendorNm) : (g.mstVendorCd ? esc(g.mstVendorCd) : '<span class="dim">—</span>');
+    /* 지금 사는 곳보다 싼 거래처가 따로 있으면 그 차이를 그 자리에 적는다(2026-09-16) — 위 ▲▼ 판정과는 **별개** 신호다 */
+    if(g.over>0) mstNm += '<span class="over" title="더 싼 거래처가 있습니다 — '+esc(g.mst.vendorNm)+' '+fmtP(g.mst.lastPrice)+' → '+esc(g.best.vendorNm)+' '+fmtP(g.best.lastPrice)
+                 +'&#10;바꾸면 품목 1개당 '+fmtP(g.over)+' 아낍니다(최근가 기준).">더 싼 곳 +'+fmtP(g.over)+'</span>';
     return '<tr><td class="code">'+esc(g.prodCd)+'</td><td class="l">'+esc(g.prodNm)+'</td><td class="l">'+esc(g.spec)+'</td>'
       +'<td class="r">'+(g.mstPrice>0?fmtP(g.mstPrice):'<span class="dim">—</span>')+'</td><td>'+mstNm+'</td><td>'+g.vendors.length+'</td>'
       +'<td>'+(g.best?'<b style="color:#137a6c">'+esc(g.best.vendorNm)+'</b>':'')+'</td><td class="r">'+(g.best?fmtP(g.best.lastPrice):'')+'</td>'
-      +'<td class="r diff '+(g.diff>0?'pos':'zero')+'" title="'+(g.diff>0?'마스터 매입가보다 '+fmtP(g.diff)+' 싸게 사는 곳이 있습니다':(g.diff<0?'최저 거래처가 마스터 매입가보다 비쌉니다(마스터가 옛 값일 수 있음)':'차이 없음'))+'">'+(g.diff>0?'▼ '+fmtP(g.diff):(g.diff<0?'▲ '+fmtP(-g.diff):'0'))+'</td>'
+      +'<td class="r diff '+(g.high>0?'high':(g.low>0?'low':'zero'))+'" title="'+(g.high>0?'💸 비싸게 산 품목 — 마스터 매입가 '+fmtP(g.mstPrice)+' 보다 '+fmtP(g.high)+' 더 주고 샀습니다(품목 1개당).':(g.low>0?'👍 싸게 산 품목 — 마스터 매입가 '+fmtP(g.mstPrice)+' 보다 '+fmtP(g.low)+' 덜 주고 샀습니다.':(g.mstPrice>0?'마스터 매입가와 같습니다':'마스터 매입가가 없어 견줄 수 없습니다')))+'">'+(g.high>0?'▲ '+fmtP(g.high):(g.low>0?'▼ '+fmtP(g.low):'0'))+'</td>'
       +'<td class="l"><div class="chips">'+chips+'</div></td></tr>'; }).join('');
 }
 function excel(){
   var LIB=(window.parent&&window.parent.XLSX)||window.XLSX;
   if(!LIB){ toast('엑셀 도구를 아직 못 불러왔습니다. 잠시 뒤 다시 눌러 보세요.','⚠️'); return; }
-  var only2=document.getElementById('only2').checked, onlyDiff=document.getElementById('onlyDiff').checked;
-  var l=_grp.filter(function(g){ if(only2 && g.vendors.length<2) return false; if(onlyDiff && !(g.diff>0)) return false; return true; });
+  /* ★엑셀은 화면과 <같은 목록>이어야 한다 — 거르는 조건을 render() 와 똑같이 둔다(2026-09-16 비싸게/싸게 산 칸으로 교체) */
+  var only2=document.getElementById('only2').checked, buyGb=document.getElementById('buyGb').value;
+  var l=_grp.filter(function(g){ if(only2 && g.vendors.length<2) return false;
+                                 if(buyGb==='high' && !(g.high>0)) return false;
+                                 if(buyGb==='low'  && !(g.low>0))  return false; return true; });
   var aoa=[['품목코드','품목명','규격','마스터 매입가','마스터 매입처','거래처 수','최저 거래처','최저 최근가','차액','거래처','최근가','최근일','평균','최저','최고','건수','수량']];
   l.forEach(function(g){ g.vendors.forEach(function(v,i){ aoa.push([g.prodCd,g.prodNm,g.spec,g.mstPrice||'',(g.mst?g.mst.vendorNm:g.mstVendorCd)||'',g.vendors.length,(g.best?g.best.vendorNm:''),(g.best?g.best.lastPrice:''),g.diff,
     v.vendorNm+(i===0?' (최저)':'')+(v.vendorCd===g.mstVendorCd?' ★':''),v.lastPrice,d8(v.lastDt),(v.avgPrice==null?'':Math.round(v.avgPrice*100)/100),v.minPrice,v.maxPrice,v.cnt,v.qty]); }); });

@@ -1386,6 +1386,15 @@ public class UserController {
 			response.put("data", svc.selectBiziMst());
 			return response;
 		}
+		/** 사업장별 «통상 출고장» 이력 (2026-09-16) — 대시보드1 이상 배지. 기간(dlvDtFrom~dlvDtTo)은 화면이 「조회일 앞 90일」로 준다.
+		 *  회사코드는 인터셉터가 넣는다. 조회 전용이라 실패해도 화면은 배지만 안 뜬다. */
+		@RequestMapping(value="/shipout/bizZoneHist.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> bizZoneHist(@ModelAttribute("DTO") egovframework.konet.user.model.ShipoutDTO dto) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			response.put("data", svc.selectBizZoneHist(dto));
+			return response;
+		}
 
 		/* 업로드 자동등록 — 사업장코드가 없을 때만 신규저장(insert if absent) */
 		@RequestMapping(value="/shipout/saveBiziAuto.do", method = RequestMethod.POST)

@@ -2619,6 +2619,29 @@
 	   ORDER BY APPLY_DT DESC, INPRICE_SEQ DESC
 	]]></select>
 
+	<!-- ═══ 사업장별 «통상 출고장» 이력 (2026-09-16, 분석 §② 빠진 것 2 「이 사업장은 늘 평택인데 이번만 김해」) ═══
+	     대시보드1 사업장 칸의 **이상 배지**가 쓴다. 한 줄 = (사업장, 출고장 낱알, 그 출고장으로 나간 <날짜 수>).
+	     ★세는 단위 = **납품일자**(행으로 세면 품목 많은 날이 이긴다). 화면이 사업장별로 접어 다수결을 낸다.
+	     ★출고장 낱알 = `물류센터명 + 입고장` — **직송 꼬리를 뺀다**. 배송↔직송은 정상 짝이고(P1-d 「🔁 전환」이 따로 잡는다)
+	       넣으면 같은 입고장의 배송·직송이 다른 곳으로 잡혀 헛경고가 된다(운영 실측 : 직송 포함 257곳 → 빼면 188곳).
+	     ★센터는 90일 동안 **한 번도 안 바뀌었다**(1,381곳 전부 센터 1개) — 그래서 판정은 **입고장까지** 본다.
+	     기간(fromDt~toDt)은 화면이 «조회일 앞 90일»로 준다. 실측 1,687줄 = 한 번에 받아도 가볍다. -->
+	<select id="selectBizZoneHist" parameterType="egovframework.konet.user.model.ShipoutDTO" resultType="java.util.HashMap"><![CDATA[
+	  SELECT v.bizCd AS bizCd, v.zone AS zone, COUNT(DISTINCT v.dlvKey) AS days
+	    FROM (
+	          SELECT LTRIM(RTRIM(s.BIZ_CD)) AS bizCd,
+	                 LTRIM(RTRIM(ISNULL(s.DC_NM,''))) + LTRIM(RTRIM(ISNULL(s.INWH,''))) AS zone,
+	                 REPLACE(ISNULL(s.DLV_DT,''),'-','') AS dlvKey
+	            FROM TBL_SHIPOUT_MST s
+	           WHERE s.ACTION_YN = 'Y'
+	             AND ISNULL(s.BIZ_CD,'') <> '' AND ISNULL(s.DC_NM,'') <> ''
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	             AND REPLACE(ISNULL(s.DLV_DT,''),'-','')
+	                 BETWEEN REPLACE(#{dlvDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{dlvDtTo,jdbcType=VARCHAR},'-','')
+	    ) v
+	   GROUP BY v.bizCd, v.zone
+	]]></select>
+
 	<!-- ★정산실적 «납품일자 시점» 매입단가 (2026-09-16 P2-f) — 회사 전체 매입가 이력을 (품목, 적용일) 한 줄로 내려준다.
 	     종전 정산실적 화면은 selectInpriceList 가 PROD_SEQ 1건씩이라 <최신 단가>(TBL_PROD_MST.IN_PRICE)를 썼고
 	     기간 중 단가가 바뀌면 매입원가가 어긋났다(logi-oh.js 주석에 한계로 남아 있던 것).

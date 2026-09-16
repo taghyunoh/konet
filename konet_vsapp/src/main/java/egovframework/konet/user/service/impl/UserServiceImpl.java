@@ -99,6 +99,7 @@ public class UserServiceImpl implements UserService {
 	@Override public int deleteVendorMst(egovframework.konet.user.model.VendorDTO dto) throws Exception { return mapper.deleteVendorMst(dto); }
 	@Override public int mergeVendorMst(egovframework.konet.user.model.VendorDTO dto) throws Exception { return mapper.mergeVendorMst(dto); }
 	@Override public java.util.List<egovframework.konet.user.model.BiziDTO> selectBiziMst() throws Exception { return mapper.selectBiziMst(); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectBizZoneHist(egovframework.konet.user.model.ShipoutDTO dto) throws Exception { return mapper.selectBizZoneHist(dto); }   // 통상 출고장 이력(2026-09-16)
 	@Override public int insertBiziIfAbsent(egovframework.konet.user.model.BiziDTO dto) throws Exception { return mapper.insertBiziIfAbsent(dto); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectBiziNoAddr(java.util.Map<String,Object> p) throws Exception { return mapper.selectBiziNoAddr(p); }
 	@Override public int updateBiziMst(egovframework.konet.user.model.BiziDTO dto) throws Exception { return mapper.updateBiziMst(dto); }
