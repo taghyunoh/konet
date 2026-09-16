@@ -1639,3 +1639,5 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
   표기는 Java·XML(매퍼 namespace·resultType·typeAlias·인터셉터·스캔 범위·web.xml 필터)·문서를 **바이트 그대로** 치환(인코딩·CRLF 무변경). 두 앱 동일.
   ⚠**안 바꾼 것** : 로그인 저장 키 `sejong_saved_comp_cd/user_id`(바꾸면 사용자 브라우저에 저장된 값이 날아간다) · `*.bak_20260819` 백업 · README 옛 GitLab 주소 · `.gitignore`.
   옛 글·커밋 메시지·다른 문서에 나오는 `egovframework.sejong` 은 지금의 `egovframework.konet` 이다.
+
+- **[2026-09-16 마감] 인수인계 문서** = [docs/인수인계_2026-09-16.md](docs/인수인계_2026-09-16.md) — 지금 상태(커밋 baea7b9 · 두 앱 동기 · ⛔9071·9072 재빌드·재기동 대기) · 배포 절차와 **유령 JVM 포트 확인**(9013·9071) · 배포 뒤 눈으로 볼 3가지 · 다음 할 일 순서 · 되풀이된 함정. **이어서 일할 때 여기부터 읽는다.**
