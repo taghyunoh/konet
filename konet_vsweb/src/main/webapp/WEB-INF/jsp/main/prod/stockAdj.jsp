@@ -146,7 +146,7 @@
 
     <%-- ★한 번 읽었으면 화면에서 거른다 — 누를 때마다 현재고 집계(느린 조회)가 돌지 않게(2026-08-20).
          서버를 다시 읽는 길 = 기준일자 변경 · 저장 직후 자동 재조회. --%>
-    <button type="button" class="btn ghost" onclick="_ALL.length?applyFilter():load();"
+    <button type="button" class="btn ghost" onclick="load();"
             title="이미 읽어 둔 목록에서 검색·필터를 겁니다. 서버에서 다시 읽으려면 기준일자를 바꾸세요.">리스트조회</button>
     <button type="button" class="btn" id="btnSave" onclick="save();">수정저장</button>
     <button type="button" class="btn ghost" onclick="packAuto();"
@@ -158,7 +158,7 @@
     <%-- ★「치면 바로 조회」 폐지 (2026-08-20 요청) — 목록을 아직 안 읽은 상태에서 글자를 치면
          현재고 집계(원장 합계) 조회가 바로 돌아 느렸다. 이제 **Enter 나 [리스트조회]를 눌러야** 검색된다. --%>
     <input type="text" id="findData" placeholder="코드 · 상품명 · 규격 — 입력 후 Enter" style="width:210px"
-           onkeydown="if(event.keyCode===13){ _ALL.length?applyFilter():load(); }">
+           onkeydown="if(event.keyCode===13){ load(); }">
     <label>유형</label>
     <select id="typeNm"><option value="">전체</option></select>
     <label>제조사</label>
@@ -247,6 +247,9 @@
 <script type="text/javascript">
 var CTX  = '${pageContext.request.contextPath}';
 var ROWS = [];        /* 화면에 보이는 목록(= _ALL 을 검색·필터·정렬한 결과) */
+/* ★[2026-09-17 지적 「상품코드에서 수정하고 다시 조회하면 적용이 안 됨 — 로그아웃해야 함」]
+     [조회] 단추와 검색칸 Enter 는 <항상> 서버를 다시 부른다(load). 종전엔 첫 조회 뒤로는 받아 둔 _ALL 만 다시 걸러(applyFilter)
+     상품코드관리에서 고친 이름·입수·중지가 로그아웃(=셸 새로 로드) 전엔 안 보였다. 글자 칠 때·유형/제조사/재고0제외/정렬은 종전대로 화면에서만 거른다. */
 var _ALL = [];        /* ★[2026-08-19 요청 「조회가 느림」] 서버에서 받은 전 품목 —
                           서버는 **기준일자가 바뀔 때만** 부른고(재고 누계가 그 날짜 기준이라),
                           검색어·유형·제조사·재고0제외·정렬은 applyFilter 가 화면에서 바로 건다.

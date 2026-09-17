@@ -1740,6 +1740,7 @@
   /* ── 적정재고 자동 산출 (2026-09-17, 설계 docs/설계_적정재고_자동산출_2026-09-17.md) ──
        서버(/prod/safeStockSuggest.do)가 기간 출고·현재고·입고예정·제안값을 주고, 화면은 거르고 고르기만. 적용 = 기존 /prod/safeStockBulk.do 에 src='A'.
        수기(M) 품목은 [수기 입력값도 덮어쓰기]를 켜야 체크된다. 적용 뒤 재고현황·미달 목록을 다시 읽는다. */
+  function _ssgEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }   /* 이 화면엔 공용 esc 가 없다 — 표를 그리다 멈췄던 원인(2026-09-17) */
   var _ssg=[], _ssgP=null, _ssgS=null;
   function ssgOpen(){ document.getElementById('ssgPop').classList.add('on'); if(!_ssgP) ssgLoad(true); else ssgRender(); }
   function ssgClose(){ document.getElementById('ssgPop').classList.remove('on'); }
@@ -1753,14 +1754,16 @@
         if(j && j.error){ throw new Error(j.error); }
         _ssg=(j&&j.data)||[]; _ssgP=(j&&j.params)||{}; _ssgS=(j&&j.summary)||{};
         ['ssgWin','ssgLead','ssgBuf','ssgMin'].forEach(function(id,i){ var k=['window','lead','buf','minDays'][i]; var el=document.getElementById(id); if(el && _ssgP[k]!=null) el.value=_ssgP[k]; });
-        _ssg.forEach(function(x){ x._on = (x.suggestQty!=null && Number(x.diffQty)!==0 && x.safeStockSrc!=='M'); });
+        /* 처음엔 아무것도 체크하지 않는다 (2026-09-17 「체크는 사람이 하게」) — 줄마다 직접 고르거나 머리글 체크로 보이는 줄을 한꺼번에 */
+        _ssg.forEach(function(x){ x._on = false; });
         ssgRender();
       })
-      .catch(function(e){ document.getElementById('ssgBody').innerHTML='<div style="padding:24px;color:#c0392b">계산하지 못했습니다 — '+_esc(String(e&&e.message||e))+'</div>'; });
+      .catch(function(e){ document.getElementById('ssgBody').innerHTML='<div style="padding:24px;color:#c0392b">계산하지 못했습니다 — '+_ssgEsc(String(e&&e.message||e))+'</div>'; });
   }
   function _ssgRows(){
-    var overM=document.getElementById('ssgOverM').checked, onlyChg=document.getElementById('ssgOnlyChg').checked, incSp=document.getElementById('ssgIncSp').checked;
+    var overM=document.getElementById('ssgOverM').checked, onlyChg=document.getElementById('ssgOnlyChg').checked, incSp=document.getElementById('ssgIncSp').checked, onlyShort=document.getElementById('ssgOnlyShort').checked;
     return _ssg.filter(function(x){
+      if(onlyShort && x.afterShort!=='Y') return false;   /* 미달만(2026-09-17) — 간헐(제안 없음)도 함께 숨긴다 */
       if(x.suggestQty==null && !incSp) return false;
       if(onlyChg && x.suggestQty!=null && Number(x.diffQty)===0) return false;
       return true;
@@ -1783,11 +1786,11 @@
       var src = x.safeStockSrc==='M' ? '<span title="손으로 넣은 값" style="font-size:11px;color:#b45309;font-weight:800"> 수기</span>' : (x.safeStockSrc==='A' ? '<span title="지난 자동 산출값" style="font-size:11px;color:#137a6c;font-weight:800"> 자동</span>' : '');
       h+='<tr style="'+(x._lock?'opacity:.55;':'')+(x.afterShort==='Y'?'background:#fff6f6;':'')+'">'
         +'<td style="text-align:center">'+(sug==null?'':('<input type="checkbox" '+(x._on?'checked':'')+(x._lock?' disabled':'')+' onchange="_ssg['+i+']._on=this.checked; ssgRender()">'))+'</td>'
-        +'<td><b>'+_esc(x.prodCd)+'</b></td><td>'+_esc(x.prodNm)+'</td><td style="color:#6b7a89">'+_esc(x.spec)+'</td>'
+        +'<td><b>'+_ssgEsc(x.prodCd)+'</b></td><td>'+_ssgEsc(x.prodNm)+'</td><td style="color:#6b7a89">'+_ssgEsc(x.spec)+'</td>'
         +'<td style="text-align:right">'+_cnum(x.packQty)+'</td><td style="text-align:right">'+_cnum(x.outDays)+'</td>'
         +'<td style="text-align:right">'+_cnum(x.outQty)+'</td><td style="text-align:right">'+(Number(x.perDay)||0).toLocaleString(undefined,{maximumFractionDigits:2})+'</td>'
         +'<td style="text-align:right">'+(Number(x.safeStock)>0?_cnum(x.safeStock):'<span style="color:#b8c2cc">—</span>')+src+'</td>'
-        +'<td style="text-align:right;font-weight:800;color:#137a6c">'+(sug==null?('<span style="color:#b45309;font-weight:600">'+_esc(x.flag||'')+'</span>'):_cnum(sug))+'</td>'
+        +'<td style="text-align:right;font-weight:800;color:#137a6c">'+(sug==null?('<span style="color:#b45309;font-weight:600">'+_ssgEsc(x.flag||'')+'</span>'):_cnum(sug))+'</td>'
         +'<td style="text-align:right;'+(diff>0?'color:#c0392b':(diff<0?'color:#1f5fbf':''))+'">'+(sug==null?'':((diff>0?'+':'')+_cnum(diff)))+'</td>'
         +'<td style="text-align:right;'+(neg?'color:#c0392b;font-weight:800':'')+'" title="'+(neg?'음수 재고 — 매입 등록 확인. 가용 계산에서는 0 으로 봅니다':'')+'">'+_cnum(x.curQty)+(neg?' ⚠':'')+'</td>'
         +'<td style="text-align:right">'+_cnum(x.poRemainQty)+'</td>'
@@ -1807,7 +1810,7 @@
           swAlert('적정재고 <b>'+_cnum(j.done)+'</b>품목을 자동 산출값으로 적용했습니다'+(j.miss?('<br><span style="color:#c0392b">못 넣은 것 '+j.miss+'</span>'):''),'success');
           _ssgP=null; _stkShortAll=null; ssgClose(); stkStatusLoad();
         })
-        .catch(function(e){ swAlert('적용하지 못했습니다 — '+_esc(String(e&&e.message||e)),'error'); })
+        .catch(function(e){ swAlert('적용하지 못했습니다 — '+_ssgEsc(String(e&&e.message||e)),'error'); })
         .then(function(){ b.disabled=false; });
     };
     if(typeof window._confirmBox==='function') window._confirmBox({ msg:'<b>'+rows.length+'</b>품목의 적정재고를 제안값으로 바꿉니다.<br><span style="font-size:13px;color:#3d4d5c">상품코드관리의 적정재고가 바뀌고, 발주서 [⚠ 추천 발주]가 이 값으로 셉니다.</span>', icon:'❓', okText:'적용', onOk:go });
@@ -3468,6 +3471,8 @@
       #ohTabs .ctab.ctab-red.on{ background:#c0392b; color:#fff; border-color:#c0392b; }
       #ohTabs .btn-line{ height:26px !important; margin-bottom:2px; }
       #ohWrap table.logi-tb thead th{ position:sticky; top:0; z-index:2; box-shadow:inset 0 -1px 0 var(--logi-border); }
+      /* 적정재고 산출 창 — 스크롤해도 머리글 고정(2026-09-17 「스크롤 시 헤더는 고정」). 출고내역 대사 표와 같은 방식 */
+      #ssgBody table.logi-tb thead th{ position:sticky; top:0; z-index:2; box-shadow:inset 0 -1px 0 var(--logi-border); }
       /* ①출고장별 합계 — 출고장 이름이 잘려 보인다는 지적(2026-07-27). 머리글은 그대로, 자료칸만 넓힌다.
          auto layout 이라 자료칸 최소폭이 곧 그 열의 폭이 된다(머리글도 따라 넓어지지만 th 규격은 손대지 않음). */
       table.logi-tb.oh-dc tbody td:first-child{ min-width:320px; }
@@ -4215,11 +4220,12 @@
         <div class="box" style="width:min(1500px,96vw); margin-top:1.5vh; max-height:97vh">
           <div style="padding:10px 16px; border-bottom:1px solid var(--logi-border); display:flex; align-items:center; gap:10px; flex-wrap:wrap">
             <b style="font-size:15px; white-space:nowrap">🧮 적정재고 자동 산출</b>
-            <span style="font-size:12.5px;color:#37475a;white-space:nowrap">최근 <input type="number" id="ssgWin" min="30" max="365" step="30" style="width:62px;height:28px;text-align:right"> 일 출고 ·
+            <span style="font-size:12.5px;color:#37475a;white-space:nowrap">최근 <input type="number" id="ssgWin" min="7" max="365" step="1" title="7~365일. 짧게 잡으면 최근 흐름이 바로 반영되고, 길게 잡으면 완만해집니다" style="width:62px;height:28px;text-align:right"> 일 출고 ·
               리드타임 <input type="number" id="ssgLead" min="0" max="90" style="width:50px;height:28px;text-align:right"> 일 + 안전 <input type="number" id="ssgBuf" min="0" max="90" style="width:50px;height:28px;text-align:right"> 일 ·
               최소 출고일수 <input type="number" id="ssgMin" min="1" max="90" style="width:50px;height:28px;text-align:right"></span>
-            <button class="btn-line" style="height:30px;padding:0 12px;white-space:nowrap" onclick="ssgLoad(false)">↻ 다시 계산</button>
+            <button class="btn-teal" style="height:30px;padding:0 14px;white-space:nowrap;font-weight:800" onclick="ssgLoad(false)">🔍 조회</button>
             <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap" title="상품코드관리에서 손으로 넣은 값(수기)도 제안값으로 바꿉니다. 끄면 수기 품목은 체크할 수 없습니다."><input type="checkbox" id="ssgOverM" onchange="ssgRender()"> 수기 입력값도 덮어쓰기</label>
+            <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;color:#c0392b;font-weight:700" title="적용하면 미달이 되는 품목만(충분한 품목은 숨김). 2026-09-17 「충분은 상관없고」"><input type="checkbox" id="ssgOnlyShort" checked onchange="ssgRender()"> 미달만</label>
             <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="ssgOnlyChg" checked onchange="ssgRender()"> 바뀌는 것만</label>
             <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="ssgIncSp" onchange="ssgRender()"> 간헐 포함</label>
             <span id="ssgSum" style="margin-left:auto;font-size:13px;color:#37475a;white-space:nowrap"></span>

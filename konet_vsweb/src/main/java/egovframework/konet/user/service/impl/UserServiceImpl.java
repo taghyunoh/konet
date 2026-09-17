@@ -1570,11 +1570,12 @@ public class UserServiceImpl implements UserService {
 	   · 출고 일수 < N(최소 출고일수) 이면 「간헐」 — 제안 없음.  · 상한 = W일 출고량.  · 조건이 비면 회사 설정(safeWindow·safeLeadDays·safeBufDays·safeMinDays).
 	   · 가용 = max(현재고,0) + 입고예정 (음수 재고는 0 — 결정 ④). 여기서는 계산만, 적용은 saveSafeStockBulk(src='A'). */
 	@Override public java.util.Map<String,Object> selectSafeStockSuggest(String compCd, Integer window, Integer lead, Integer buf, Integer minDays) throws Exception {
-		int W = (window != null && window >= 30 && window <= 365) ? window : compSetInt(compCd, "safeWindow", 90);
+		int W = (window != null && window >= 7 && window <= 365) ? window : compSetInt(compCd, "safeWindow", 90);   // 기간 7~365 (2026-09-17 「10일로」 — 종전 30 이 최소라 되돌아갔다)
 		int L = (lead != null && lead >= 0 && lead <= 90) ? lead : compSetInt(compCd, "safeLeadDays", 7);
 		int A = (buf != null && buf >= 0 && buf <= 90) ? buf : compSetInt(compCd, "safeBufDays", 7);
 		int N = (minDays != null && minDays >= 1 && minDays <= 90) ? minDays : compSetInt(compCd, "safeMinDays", 5);
 		if (L + A > W) A = Math.max(0, W - L);                                   // 리드+안전이 기간을 넘는 설정은 막는다
+		if (N > W) N = W;                                                        // 최소 출고일수는 기간을 넘을 수 없다(기간 10일에 5일이면 「10일 중 5일 이상 나간 품목」)
 		java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyyMMdd");
 		java.util.Calendar c = java.util.Calendar.getInstance();
 		String toDt = f.format(c.getTime()); c.add(java.util.Calendar.DATE, -(W - 1)); String frDt = f.format(c.getTime());

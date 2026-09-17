@@ -178,6 +178,7 @@ function toast(s, icon){ if(window._alertBox) return _alertBox(s, {icon:icon||'�
 
 })();
 function somLoad(){
+  _somAlias=null;   /* 매칭코드 표도 조회마다 새로(2026-09-17 「다른 화면에서 고친 것이 로그아웃 전엔 안 보임」 점검) — 아래 somAliasLoad 가 다시 받는다 */
   var fr=document.getElementById('frDt').value, to=document.getElementById('toDt').value;
   if(!fr||!to){ toast('기간을 고르세요.'); return; }
   if(fr>to){ var t=fr; fr=to; to=t; document.getElementById('frDt').value=fr; document.getElementById('toDt').value=to; }
@@ -495,6 +496,8 @@ function somExcel(){
   toast('엑셀 모듈은 물류관리 메인 안에서만 씁니다.');
 }
 somLoad();
+/* 셸 메뉴로 다시 들어올 때 — 품목코드(매핑)에서 바꾼 매칭코드를 다음 검색에 쓰게 표만 비운다(목록은 [조회]로) */
+window.konetShown=function(){ _somAlias=null; };
 </script>
 </body>
 </html>
