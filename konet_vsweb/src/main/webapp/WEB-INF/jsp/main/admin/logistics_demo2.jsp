@@ -3413,8 +3413,9 @@
       <a class="mi" data-key="quoteMng" onclick="logiFrame('quoteMng','${pageContext.request.contextPath}/mangr/quoteMng.do', this)"><span class="ic">📄</span>견적서 올리기·목록</a>
       <%-- 견적서 작성 (2026-09-17) — 새로 쓰거나(수정은 목록 [✏]) 저장 · 출력. iframe 화면(mangr/quoteEdit.jsp, panel-quoteEdit) --%>
       <a class="mi" data-key="quoteEdit" onclick="logiFrame('quoteEdit','${pageContext.request.contextPath}/mangr/quoteEdit.do', this)"><span class="ic">🧾</span>견적서 작성</a>
-      <%-- 원가·마진 계산 (2026-09-17 — 표본 오택현.xls) : 구매원가·물류비를 넣고 마진율, 목표 마진 → 필요 판매단가. iframe 화면(mangr/costCalc.jsp, panel-costCalc) --%>
-      <a class="mi" data-key="costCalc" onclick="logiFrame('costCalc','${pageContext.request.contextPath}/mangr/costCalc.do', this)"><span class="ic">🧮</span>원가·마진 계산</a>
+      <%-- 원가·마진 계산 — 메뉴 내림 (2026-09-17 「견적서 작성에서 품명 연관으로 · 메뉴에서는 없애고」). 계산은 견적서 작성 품목 줄의 [🧮] 로.
+           화면(costCalc.jsp)·엔드포인트(costCalc.do)·panel-costCalc 는 그대로 — 되살리려면 아래 주석만 풀 것. 자주쓰는메뉴 칩은 favRun 실패 분기가 스스로 내린다.
+      <a class="mi" data-key="costCalc" onclick="logiFrame('costCalc','${pageContext.request.contextPath}/mangr/costCalc.do', this)"><span class="ic">🧮</span>원가·마진 계산</a> --%>
       <%-- 견적서 출력 메뉴는 뺐다(2026-09-17 「메뉴 중복 정리」) — 목록 화면과 같은 화면이었다. 인쇄·엑셀은 목록 줄의 [🖨]·[📥 엑셀], 작성 화면의 [🖨 출력]·[📥 엑셀] --%>
     </div>
     <%-- ★[2026-09-09 사용자 요청] 「💬 카카오톡관리」(메시지 발송·발송 이력·문자 템플릿 관리) 메뉴 삭제.
@@ -3984,7 +3985,11 @@
             <br><b>회사 정보 수정</b>(2026-09-11, <b>모든 회사</b>) — 탭 <b>① 회사정보</b>(필수·기본 정보 · 결제계좌 · 공지사항1·2) · <b>② 도장·기능</b> · <b>③ 거래명세서 인쇄 옵션</b> · 전체. 위 [🏦 은행계좌 관리]·[💳 카드 관리](카드는 번호 뒤 4자리만).
             <span style="color:#5a6b7a">도장은 거래명세서 공급자 「성명」 칸에 찍힙니다. <b>기능</b>은 새 거래처·새 상품의 첫 값(부가세·DC율·과세), 판매·매입 명세의 단가·수량 소수점·서비스·비고 칸·불량반품, 판매 저장 때 재고 부족·여신 초과 제한, 수금 기본 유형, 매입 저장 때 상품 매입단가 자동 갱신(평균단가·0원 포함 여부)을 정합니다 — 기본값은 모두 종전 동작. <b>인쇄 옵션</b>은 판매등록 [🖨 거래명세표] 조건 창의 첫 값이며 어느 PC에서나 같습니다(조건 창의 [⚙ 회사 기본값으로]로도 저장).</span> <span style="color:#5a6b7a">회사/사용자·공통코드 관리는 <b>관리자 회사</b>(코네트)에만 보입니다. 매입/매출 거래처의 [＋ 거래처 추가] 창에도 <b>최근 등록 거래처코드·거래처명</b>과 다음 코드가 나옵니다.</span>
             <br>회사 수정 창에 <b>업태 · 종목 · 계좌 · 공지사항</b> 칸이 있습니다(2026-09-09 신설) — <b>거래명세표의 공급자 칸</b>에 그대로 찍히는 값이고, 판매등록 [🖨 거래명세표] 조건 창에서도 같은 자리를 고칩니다.</td></tr>
-          <tr><td class="m">예정 기능 <span style="color:#9aa7b3;font-size:11px">(데모)</span></td><td>물품동선관리(창고·위치·피킹) · 견적서관리 · 카카오톡관리 — 향후 추진.</td></tr>
+          <tr><td class="m">견적서관리</td><td>견적서 올리기·목록(엑셀 업로드·조회·비교) · 견적서 작성(문서번호 자동, 단가 묶음 1~2, 인쇄·엑셀은 양식 그대로 — 안 쓴 묶음·하단 합계는 안 나감).
+            품목 줄 [🧮] = 그 품명의 원가·마진 계산(구매원가+운송·보관·소분·박스 → 실 마진율, 목표 마진율 → 필요 판매단가 [→ 적용] = 판매적용단가.
+            계산 줄은 Box 1 · 수량 = 박스 입수량 자동, 품명비 = 품명+동판+목형 세트 — 동판·목형은 적용 여부만 고름(적용 안 함/서브 줄로(별도 청구·마진 0)/원가 포함)). 계산 내용은 견적서마다 근거자료로 저장 —
+            목록 줄의 [🧮]로 저장된 계산(구매계·물류비·실마진·마진율, 저장 때 비율 스냅샷)을 조회.</td></tr>
+          <tr><td class="m">예정 기능 <span style="color:#9aa7b3;font-size:11px">(데모)</span></td><td>물품동선관리(창고·위치·피킹) · 카카오톡관리 — 향후 추진.</td></tr>
         </tbody></table>
       </div>
 

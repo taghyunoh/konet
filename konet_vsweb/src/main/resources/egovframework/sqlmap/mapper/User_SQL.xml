@@ -1098,7 +1098,7 @@
 	<select id="selectQuoteMst" parameterType="java.util.Map" resultType="java.util.HashMap">
 	  SELECT QUOTE_SEQ AS quoteSeq, COMP_CD AS compCd, DOC_NO AS docNo, ISNULL(QUOTE_DT,'') AS quoteDt, ISNULL(RECV_NM,'') AS recvNm, ISNULL(MGR_NM,'') AS mgrNm,
 	         ISNULL(VALID_TXT,'') AS validTxt, ISNULL(TITLE_TXT,'') AS titleTxt, ISNULL(REMARK,'') AS remark, ISNULL(SUPPLY_AMT,0) AS supplyAmt,
-	         ISNULL(PRICE1_NM,'') AS price1Nm, ISNULL(PRICE2_NM,'') AS price2Nm, ISNULL(FILE_NM,'') AS fileNm, ISNULL(REG_USER,'') AS regUser, REG_DTTM AS regDttm
+	         ISNULL(PRICE1_NM,'') AS price1Nm, ISNULL(PRICE2_NM,'') AS price2Nm, ISNULL(CALC_JSON,'') AS calcJson, ISNULL(FILE_NM,'') AS fileNm, ISNULL(REG_USER,'') AS regUser, REG_DTTM AS regDttm
 	    FROM TBL_QUOTE_MST
 	   WHERE QUOTE_SEQ = #{quoteSeq} AND ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -1124,11 +1124,12 @@
 	   WHERE ACTION_YN = 'Y' AND DOC_NO = #{docNo,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	</update>
+	<!-- CALC_JSON = 원가·마진 계산 근거자료 (2026-09-17 「견적서 하나당 기본으로 근거자료로 저장」) — ⚠DDL docs/sql/20260917_quote_calc.sql 을 먼저 -->
 	<insert id="insertQuoteMst" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="quoteSeq" keyColumn="QUOTE_SEQ">
-	  INSERT INTO TBL_QUOTE_MST (COMP_CD, DOC_NO, QUOTE_DT, RECV_NM, MGR_NM, VALID_TXT, TITLE_TXT, REMARK, SUPPLY_AMT, FILE_NM, FILE_B64, PRICE1_NM, PRICE2_NM, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  INSERT INTO TBL_QUOTE_MST (COMP_CD, DOC_NO, QUOTE_DT, RECV_NM, MGR_NM, VALID_TXT, TITLE_TXT, REMARK, SUPPLY_AMT, FILE_NM, FILE_B64, PRICE1_NM, PRICE2_NM, CALC_JSON, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{docNo,jdbcType=NVARCHAR}, #{quoteDt,jdbcType=CHAR}, #{recvNm,jdbcType=NVARCHAR}, #{mgrNm,jdbcType=NVARCHAR},
 	          #{validTxt,jdbcType=NVARCHAR}, #{titleTxt,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, #{supplyAmt,jdbcType=DECIMAL}, #{fileNm,jdbcType=NVARCHAR}, #{fileB64,jdbcType=NVARCHAR},
-	          #{price1Nm,jdbcType=NVARCHAR}, #{price2Nm,jdbcType=NVARCHAR},
+	          #{price1Nm,jdbcType=NVARCHAR}, #{price2Nm,jdbcType=NVARCHAR}, #{calcJson,jdbcType=NVARCHAR},
 	          'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
 	</insert>
 	<insert id="insertQuoteDtl" parameterType="java.util.HashMap">

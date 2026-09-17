@@ -851,6 +851,7 @@ public class UserServiceImpl implements UserService {
 		m.put("price1Nm", p1.isEmpty() ? null : p1); m.put("price2Nm", p2.isEmpty() ? null : p2);
 		String fn = scStr(q.get("fileNm")); m.put("fileNm", fn.length() > 190 ? fn.substring(0, 190) : fn);
 		Object b64 = q.get("fileB64"); m.put("fileB64", (b64 == null || String.valueOf(b64).isEmpty()) ? null : String.valueOf(b64));
+		Object cj = q.get("calcJson"); m.put("calcJson", (cj == null || String.valueOf(cj).isEmpty()) ? null : String.valueOf(cj));   /* 원가·마진 계산 근거자료 (2026-09-17) — 작성 화면만 보낸다(업로드는 null) */
 		java.util.List<?> raw = (q.get("lines") instanceof java.util.List) ? (java.util.List<?>) q.get("lines") : new java.util.ArrayList<Object>();
 		double sum = 0; java.util.List<java.util.Map<String,Object>> rows = new java.util.ArrayList<java.util.Map<String,Object>>();
 		int no = 0;

@@ -6,17 +6,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>견적서 작성</title>
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) — 브라우저 alert 금지 --%>
+<script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917c"></script>   <%-- 회사 설정 — 센터별 물류비율·보관 기본값(konetSet.cost) --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 📥 엑셀 (전역 XLSX) --%>
 <!--
   견적서 작성 (2026-09-17 신설 — 「여기에서 견적서 작성 및 출력 가능하게」) — 견적서관리 ▸ 견적서 작성. 셸 iframe(logiFrame) 화면.
   · 새 견적서 : 문서번호는 'Konet' + 견적일 yyMMdd + '-' + 두 자리 차례로 자동(고칠 수 있음). 수신·담당자·유효기간·제목은 표본 값이 기본.
+  · 머리 칸은 한 줄에 세 칸(라벨+값 세 짝)씩 (2026-09-17 「표시줄을 한 줄에 세 줄로」 — 오른쪽 빈자리 지적).
   · 품목 줄 : 품명·규격·Box·수량·단위·단가·금액(수량×단가 자동)·비고. [🔍 상품] 로 우리 상품 마스터에서 골라 품명·규격·판매가를 채운다.
     「택배출고 단가도」를 켜면 단가 묶음이 둘(센터배송 / 택배출고(D2~3))이 된다 — 표본 260730-1 꼴.
+  ★원가·마진 계산 통합 (2026-09-17 「원가마진계산을 견적서 작성에서 품명 연관으로 · 메뉴에서는 없애고」) — 품목 줄의 [🧮] 를 누르면
+    그 줄 밑에 계산 칸이 펼쳐진다(표본 오택현.xls 식 그대로 : 구매 = 단가+운송+보관+소분+박스+부대비/개 · 실 마진율 = 실판매÷구매계−1).
+    · 판매 단가 이름 = ★「판매적용단가」(종전 원가마진계산 화면의 「평/용센터」 칸 — 2026-09-17 「평/용센터를 판매적용단가로 변경」).
+      계산 칸의 판매적용단가 = 품목 줄의 단가(같은 값, 어느 쪽을 고쳐도 같이 움직인다).
+    · 목표 마진율을 넣으면 「필요 판매단가」가 나오고 [→ 적용] 으로 판매적용단가(=줄 단가)에 넣는다.
+    · ★마진계산이 붙은 줄은 Box = 1 · 수량 = 박스 입수량 으로 자동(2026-09-17 「box 는 1, 수량은 박스입수량」 — 칸이 잠긴다).
+    · ★부대비(동판비·목형비 …)는 품명의 <서브 줄>로 : 줄마다 [서브 줄로(별도 청구)/원가 포함/적용 안 함] 을 고른다
+      (2026-09-17 「품명에 서브로 동판비·목형비가 적용될지 말지」). 서브 줄은 저장 때 진짜 품목 줄(비고 '별도 청구')로 들어간다.
+    · ★계산 내용은 견적서 한 건마다 근거자료로 저장(TBL_QUOTE_MST.CALC_JSON — DDL docs/sql/20260917_quote_calc.sql).
+      calcJson = { v, use2(양식2 여부), set(배송·센터·택배비), calcs(품목 줄 차례대로), genRows(서브 줄의 rowNo — 불러올 때 걷어내고 다시 만든다) }.
+    · 센터별 물류비율·보관 기본값은 회사 설정(konetSet.cost, compSetPatch key=cost) — 종전 원가마진계산 화면과 같은 자리.
+  ★저장 정리 : 양식2 인데 둘째 단가를 한 줄도 안 넣었으면 <단가 묶음 하나>로 저장한다(price2Nm 비움) —
+    인쇄·엑셀(양식 1/2 선택)·목록이 전부 「선택한 내용만」이 된다(2026-09-17 「없으면 출력하지 말고 선택한 내용만」). 양식 라디오는 calcJson.use2 로 되살린다.
   · 저장 = quoteSave.do (파일 없이). 같은 문서번호는 대체되므로 「수정」(?quoteSeq=)도 같은 길 — 그때는 확인 없이 덮는다(confirm=Y).
-  · [🖨 출력] = quotePrint.do (A4 양식). [📥 엑셀] = 화면 표를 시트로.
+  · [🖨 출력] = quotePrint.do (A4 양식 — 합계 줄 없음). [📥 엑셀] = quoteExcel.do (양식 파일 그대로 — 합계 줄이 원래 없다).
 -->
 <style>
-  :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; --red:#c0392b; --amber:#b45309; }
+  :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; --red:#c0392b; --amber:#b45309; --blue:#2f4f9a; }
   *{ box-sizing:border-box; }
   html,body{ margin:0; padding:0; }
   body{ font-family:'맑은 고딕','Malgun Gothic',sans-serif; color:#1f2a37; background:var(--bg); font-size:14px; }
@@ -33,7 +48,8 @@
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; margin-bottom:14px; }
   .card .hd{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 12px; border-bottom:1px solid #eef1f5; font-weight:800; color:#125a4e; font-size:14px; }
   .card .hd small{ font-weight:600; color:#6b7a89; font-size:12px; }
-  .fm{ display:grid; grid-template-columns:110px 1fr 110px 1fr; gap:8px 10px; padding:12px; align-items:center; max-width:1100px; }
+  /* 머리 칸 — 한 줄에 세 짝 (2026-09-17 「표시줄을 한 줄에 세 줄로」) */
+  .fm{ display:grid; grid-template-columns:96px 1fr 96px 1fr 96px 1fr; gap:8px 10px; padding:12px; align-items:center; max-width:1560px; }
   .fm label{ font-weight:700; color:#37475a; font-size:13px; text-align:right; }
   .fm input[type=text], .fm input[type=date], .fm textarea{ width:100%; height:32px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13.5px; background:#fff; }
   .fm textarea{ height:58px; padding:6px 8px; resize:vertical; }
@@ -41,17 +57,43 @@
   .fm .frmOpt:has(input:checked){ border-color:#0f6b5e; background:#e3f2ee; }
   .fm .frmOpt input{ margin:0; }
   .fm select#delivSel{ height:32px; border:1px solid var(--bd); border-radius:7px; padding:0 6px; font-size:13.5px; background:#fff; }
-  .fm .full{ grid-column:2 / span 3; }
+  .fm .full{ grid-column:2 / span 5; }
   .tw{ overflow:auto; }
   table.g{ border-collapse:collapse; width:100%; font-size:13px; }
   table.g th{ position:sticky; top:0; z-index:1; background:#eaf2f0; color:#125a4e; font-weight:600; font-size:12.5px; border-bottom:1px solid #cfe0da; border-right:1px solid #d8e6e1; padding:7px 6px; text-align:center; white-space:nowrap; }
   table.g td{ border-bottom:1px solid #eef1f5; border-right:1px solid #eef1f5; padding:3px 4px; vertical-align:middle; text-align:center; }
   table.g input[type=text]{ width:100%; height:30px; border:1px solid var(--bd); border-radius:6px; padding:0 6px; font-size:13px; }
   table.g input.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  table.g input.lock{ background:#eef1f5; color:#4a5a6a; border:1px dashed #b9c4d0; }
   table.g td.amt{ text-align:right; font-weight:800; color:#137a6c; font-variant-numeric:tabular-nums; padding-right:8px; }
   table.g tr.sum td{ background:#eef4f2; font-weight:800; }
+  /* 부대비 서브 줄 (2026-09-17) — 품명 밑에 들여쓴 표시 전용 줄. 값은 위 계산 칸에서 고친다 */
+  table.g tr.subln td{ background:#fbfcfd; color:#37475a; font-size:12.5px; }
+  table.g tr.subln td.snm{ text-align:left; padding-left:22px; }
+  table.g tr.subln td.samt{ text-align:right; font-weight:700; font-variant-numeric:tabular-nums; padding-right:8px; }
+  /* 줄별 원가·마진 계산 칸 */
+  table.g tr.crow > td{ background:#f4faf8; border-bottom:1px solid #cfe0da; text-align:left; padding:8px 10px; }
+  .cwrap{ display:flex; flex-wrap:wrap; gap:6px 12px; align-items:flex-end; }
+  .cf{ display:flex; flex-direction:column; gap:2px; font-size:11.5px; color:#5b6b7b; font-weight:700; white-space:nowrap; }
+  .cf input{ height:28px !important; font-size:13px !important; }
+  .cf input.ci{ border:1.5px solid #e9b98a; background:#fdebd9; width:76px; text-align:right; border-radius:6px; padding:0 6px; }
+  .cf input.cm{ background:#fff3c4; border:1.5px solid #e2b93b; width:76px; text-align:right; border-radius:6px; padding:0 6px; }
+  .cf input.ca{ background:#eef1f5; border:1px dashed #b9c4d0; width:76px; text-align:right; border-radius:6px; padding:0 6px; color:#4a5a6a; }
+  .cv{ display:inline-block; min-width:76px; text-align:right; background:#eef1f5; border:1px dashed #b9c4d0; border-radius:6px; padding:5px 6px; font-weight:700; font-variant-numeric:tabular-nums; font-size:13px; height:28px; }
+  .cv.s{ background:#e3f7df; font-weight:800; }
+  .cv.p{ background:#d9ecf7; } .cv.q{ background:#fff9d6; }
+  .cv.b{ color:var(--blue); font-weight:800; }
+  .cv.neg{ color:var(--red); }
+  .cex{ display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; margin-top:7px; padding-top:7px; border-top:1px dashed #cfe0da; font-size:12.5px; }
+  .cex select{ height:28px; border:1px solid var(--bd); border-radius:6px; font-size:12px; background:#fff; }
+  .cex input{ height:28px; border:1.5px solid #e9b98a; background:#fdebd9; border-radius:6px; padding:0 6px; font-size:13px; }
   .tot{ font-size:13px; color:#37475a; font-weight:700; } .tot b{ color:var(--teal); }
   .dim{ color:#8a98a8; }
+  .csbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:8px 12px; border-bottom:1px solid #eef1f5; font-size:13px; }
+  .csbar .opt{ display:inline-flex; align-items:center; gap:5px; font-size:13px; border:1px solid var(--bd); border-radius:8px; padding:5px 10px; cursor:pointer; background:#fff; }
+  .csbar .opt:has(input:checked){ border-color:#0f6b5e; background:#e3f2ee; }
+  .csbar select, .csbar input{ height:30px; border:1px solid var(--bd); border-radius:7px; padding:0 6px; font-size:13px; background:#fff; }
+  .csbar input.num{ text-align:right; border:1.5px solid #e9b98a; background:#fdebd9; }
   .pop{ position:fixed; inset:0; background:rgba(15,23,32,.35); display:none; align-items:flex-start; justify-content:center; z-index:1000; padding-top:6vh; }
   .pop.on{ display:flex; }
   .pop .box{ background:#fff; width:min(860px,94vw); max-height:84vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); display:flex; flex-direction:column; overflow:hidden; }
@@ -59,6 +101,7 @@
   .pop .ph input{ flex:1; height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 10px; font-size:14px; }
   .pop .pb{ overflow:auto; }
   .pop table.g tr.pick{ cursor:pointer; } .pop table.g tr.pick:hover td{ background:#e3f2ee; }
+  .pop .pb .in{ border:1.5px solid #e9b98a; background:#fdebd9; height:30px; border-radius:6px; padding:0 6px; font-size:13px; }
 </style>
 </head>
 <body>
@@ -68,7 +111,7 @@
     <div class="hd">머리 <small>— 문서번호는 견적일로 자동 매깁니다(고칠 수 있음). 같은 문서번호를 저장하면 앞의 것을 대체합니다</small>
     </div>
     <div class="fm">
-      <label>양식</label><div style="grid-column:2 / span 3;display:flex;gap:8px;flex-wrap:wrap">
+      <label>양식</label><div class="full" style="display:flex;gap:8px;flex-wrap:wrap">
         <label class="frmOpt"><input type="radio" name="frm" value="2" id="use2" checked onchange="renderLines(); delivOnUse2()"> <b>센터배송 + 택배출고(D2~3)</b> <span class="dim">— 단가·금액 두 묶음 + 비고(MOQ) · 260730-1 꼴</span></label>
         <label class="frmOpt"><input type="radio" name="frm" value="1" id="use1" onchange="renderLines(); delivOnUse2()"> <b>단가 하나</b> <span class="dim">— 센터배송만 · 260729-1 꼴</span></label>
       </div>
@@ -78,8 +121,8 @@
       <label>담당자</label><input type="text" id="mgrNm" placeholder="예: 김정호 프로님" list="mgrList" autocomplete="off" title="지금까지 저장한 담당자 이름이 목록으로 뜹니다(칸을 비우고 ▼ 또는 글자를 치면). 새 이름은 그냥 적으면 됩니다">
       <datalist id="mgrList"></datalist><datalist id="recvList"></datalist>
       <label>유효기간</label><input type="text" id="validTxt" value="견적일로부터 15일">
-      <label>단가 묶음 이름</label><div style="display:flex;gap:6px;align-items:center"><input type="text" id="p1" value="센터배송" style="width:150px" title="첫째 묶음 이름(묶음이 하나면 인쇄에 안 나옵니다)"><span class="dim">/</span><input type="text" id="p2" value="택배출고 (D2~3)" style="width:170px" title="둘째 묶음 이름"></div>
-      <label>배송</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <label>단가 묶음 이름</label><div style="display:flex;gap:6px;align-items:center"><input type="text" id="p1" value="센터배송" style="width:130px" title="첫째 묶음 이름(묶음이 하나면 인쇄에 안 나옵니다)"><span class="dim">/</span><input type="text" id="p2" value="택배출고 (D2~3)" style="width:150px" title="둘째 묶음 이름"></div>
+      <label>배송</label><div class="full" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <select id="delivSel" onchange="delivPick(this.value)" title="배송 조건 — 제목 줄 「(…, 부가세 별도)」와 비고에 같이 들어갑니다">
           <option value="센터배송 / 택배출고 (D2~3)">센터배송 / 택배출고 (D2~3)</option><option value="센터배송">센터배송</option><option value="택배출고 (D2~3)">택배출고 (D2~3)</option><option value="배송비 포함">배송비 포함</option><option value="직송">직송</option><option value="배송비 별도">배송비 별도</option><option value="*">직접 입력…</option>
         </select>
@@ -91,8 +134,22 @@
   </div>
 
   <div class="card">
-    <div class="hd">품목 <small>— 금액 = 수량 × 단가(자동). [🔍 상품]으로 우리 상품에서 품명·규격·판매가를 채울 수 있습니다</small>
-      <span class="bar" style="margin-left:auto"><button class="btn" onclick="addLine()">＋ 줄 추가</button></span>
+    <div class="hd">품목 <small>— 금액 = 수량 × 단가(자동). [🔍 상품]으로 품명·규격·판매가, [🧮]로 그 품명의 원가·마진 계산</small>
+      <span class="bar" style="margin-left:auto">
+        <button class="btn" style="border-color:#0f6b5e;background:#e3f2ee;color:#0f6b5e" onclick="addCalcLine()" title="품명 + 마진계산 + 품명비(동판·목형) 세트를 한 벌 더 — 이어서 계속 작성">➕ 품목 추가 (🧮 세트)</button>
+        <button class="btn" onclick="addLine()" title="계산 없는 품목 줄만 하나 더">＋ 줄만 추가</button>
+      </span>
+    </div>
+    <%-- 원가·마진 계산 공통 조건 (2026-09-17 통합) — 물류비 갈래는 견적서 한 장에 하나. 줄별 계산 칸이 이 값을 쓴다 --%>
+    <div class="csbar" id="csBar">
+      <b style="color:#125a4e">🧮 마진계산 물류비</b>
+      <label class="opt"><input type="radio" name="csmode" value="center" onchange="csModeSet()"> 센터배송</label>
+      <select id="csCenter" onchange="_cs.center=this.value; csPaintAll()" title="센터별 물류비율 — ⚙ 에서 고친다" style="min-width:170px"></select>
+      <label class="opt"><input type="radio" name="csmode" value="direct" onchange="csModeSet()"> 직송 <span class="dim">(물류비 없음)</span></label>
+      <label class="opt"><input type="radio" name="csmode" value="parcel" onchange="csModeSet()"> 택배</label>
+      <span id="csFeeWrap" style="display:none;align-items:center;gap:5px">택배비/박스 <input type="text" class="num" id="csFee" style="width:84px" onfocus="this.select()" oninput="_cs.fee=n(this.value); csPaintAll()"> 원</span>
+      <span class="dim" id="csNote" style="font-size:12px"></span>
+      <button class="btn lnk" style="margin-left:auto" onclick="cenOpen()" title="센터별 물류비율과 보관 기본값 — 회사 설정에 저장(어느 PC 에서나 같다)">⚙ 센터 비율·보관 기본값</button>
     </div>
     <div class="tw"><table class="g"><thead id="lhead"></thead><tbody id="lbody"></tbody></table></div>
     <div class="bar" style="padding:10px 12px">
@@ -111,12 +168,27 @@
     <div class="pb"><table class="g"><thead><tr><th>코드</th><th>품명</th><th>규격</th><th>입수</th><th>판매가</th></tr></thead><tbody id="prodBody"><tr><td colspan="5" class="dim" style="padding:20px">글자를 치면 찾습니다.</td></tr></tbody></table></div>
   </div>
 </div>
+
+<%-- ⚙ 센터별 물류비율·보관 기본값 (2026-09-17 — 종전 원가·마진 계산 화면에서 옮겨 옴. 회사 설정 konetSet.cost) --%>
+<div class="pop" id="cenPop">
+  <div class="box" style="width:min(560px,94vw)">
+    <div class="ph"><b>⚙ 센터 비율·보관 기본값</b><span class="dim" style="flex:1;font-size:12px">회사 설정에 저장 — 어느 PC 에서나 같다</span><button class="btn" onclick="document.getElementById('cenPop').classList.remove('on')">닫기 ✕</button></div>
+    <div class="pb" style="padding:12px">
+      <div class="bar" style="margin-bottom:6px"><b>센터별 물류비율(%)</b> <span class="dim" style="font-size:12px">판매 계(박스)에 곱한다</span></div>
+      <table class="g"><thead><tr><th>센터</th><th style="width:110px">비율(%)</th><th style="width:50px"></th></tr></thead><tbody id="cenBody"></tbody></table>
+      <div class="bar" style="margin-top:8px"><button class="btn lnk" onclick="cenAdd()">➕ 센터</button></div>
+      <div class="bar" style="margin-top:14px"><b>보관/개 기본값</b> <span class="dim" style="font-size:12px">= 보관료 × 팔레트 × 개월 ÷ MOQ 수량</span></div>
+      <div class="bar" style="margin-top:6px">보관료 <input type="text" class="in num" id="storeFee" style="width:90px;text-align:right"> 원 × 팔레트 <input type="text" class="in num" id="storePlt" style="width:56px;text-align:right"> × 개월 <input type="text" class="in num" id="storeMon" style="width:56px;text-align:right"></div>
+      <div class="bar" style="margin-top:14px"><button class="btn btn-teal" onclick="cenSave()">💾 회사 설정에 저장</button></div>
+    </div>
+  </div>
+</div>
 <script>
 var CTX='${pageContext.request.contextPath}';
 var _seq=0, _lines=[], _prodRow=-1, _prodT=null, _savedSeq=0, _savedDocNo='';   /* _savedDocNo = 이 화면에서 방금 저장한 문서번호 — 다시 저장할 땐 중복 확인 없이 덮어쓴다 */
 function esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function n(v){ var x=Number(String(v==null?'':v).replace(/,/g,'')); return isFinite(x)?x:0; }
-function fmt(v){ var x=n(v); return (Math.round(x*100)/100).toLocaleString(); }
+function fmt(v,d){ var x=n(v); return d ? x.toLocaleString('ko-KR',{minimumFractionDigits:d,maximumFractionDigits:d}) : (Math.round(x*100)/100).toLocaleString(); }
 function d10(s){ s=String(s||'').replace(/[^0-9]/g,''); return s.length>=8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : ''; }
 function gv(id){ return (document.getElementById(id).value||'').trim(); }
 function post(url, body, isJson){ return fetch(CTX+url,{ method:'POST', credentials:'same-origin',
@@ -125,38 +197,187 @@ function ok(m){ _alertBox(m,{icon:'✅'}); }
 function err(m){ _alertBox(m,{icon:'❌', okColor:'red'}); }
 function ask(m, okText){ return new Promise(function(res){ _confirmBox({ msg:m, icon:'❓', okText:okText||'확인', onOk:function(){res(true);}, onCancel:function(){res(false);} }); }); }
 function use2(){ return document.getElementById('use2').checked; }
+function cols(){ return use2()?12:10; }
+
+/* ══ 원가·마진 계산 (2026-09-17 통합 — 종전 costCalc.jsp 의 식 그대로) ══ */
+var DEF_COST={ centers:[{nm:'평/용센터',rate:10.5},{nm:'왜관센터',rate:15.1},{nm:'광주센터',rate:14.6},{nm:'김해센터',rate:16.1},{nm:'제주센터',rate:18.1}], storeFee:25000, storePlt:3, storeMon:3 };
+var COST=(function(){ var c=(window.konetSet&&konetSet.cost)||{}; return { centers:(c.centers&&c.centers.length)?c.centers.map(function(x){ return {nm:String(x.nm||''),rate:n(x.rate)}; }):DEF_COST.centers.slice(), storeFee:n(c.storeFee)||DEF_COST.storeFee, storePlt:n(c.storePlt)||DEF_COST.storePlt, storeMon:n(c.storeMon)||DEF_COST.storeMon }; })();
+var _cs={ mode:'center', center:(COST.centers[0]?COST.centers[0].nm:''), fee:0 };   /* 물류비 갈래 — calcJson.set 으로 견적서마다 저장 */
+function csRate(){ for(var i=0;i<COST.centers.length;i++) if(COST.centers[i].nm===_cs.center) return n(COST.centers[i].rate); return COST.centers[0]?n(COST.centers[0].rate):0; }
+function csCenterFill(){ var s=document.getElementById('csCenter'); s.innerHTML=COST.centers.map(function(c){ return '<option value="'+esc(c.nm)+'">'+esc(c.nm)+' — '+fmt(c.rate,1)+'%</option>'; }).join(''); if(_cs.center) s.value=_cs.center; if(!s.value&&COST.centers[0]){ s.value=COST.centers[0].nm; } _cs.center=s.value; }
+function csBarPaint(){ var r=document.querySelector('input[name=csmode][value="'+_cs.mode+'"]'); if(r) r.checked=true; csCenterFill();
+  document.getElementById('csFee').value=n(_cs.fee)?fmt(_cs.fee):'';
+  document.getElementById('csCenter').style.display=_cs.mode==='center'?'':'none';
+  document.getElementById('csFeeWrap').style.display=_cs.mode==='parcel'?'inline-flex':'none';
+  document.getElementById('csNote').textContent=_cs.mode==='center'?'물류비 = 판매 계 × 센터 비율':(_cs.mode==='direct'?'물류비 0 — 판매 계가 그대로 실 판매':'물류비 = 박스마다 택배비'); }
+function csModeSet(){ var r=document.querySelector('input[name=csmode]:checked'); _cs.mode=r?r.value:'center'; csBarPaint(); csPaintAll(); }
+function csPaintAll(){ _lines.forEach(function(l,i){ if(l.calc) calcPaint(i); }); calc(); }
+/* ★품명 세트 = 품명 + 동판 + 목형 (2026-09-17 「품명, 동판, 목형 세 개 세트 — (동판·목형) 적용 여부만」) —
+   자유 추가 「부대비」 목록을 없애고 두 줄 고정. 적용(체크) = 품명 밑 서브 줄(별도 청구·마진 0)로 견적서에 들어간다. */
+function newCalc(){ return { open:true, moqQty:0, buy:0, box:0, trans:0, store:0, storeManual:false, split:0, pack:0, target:0,
+  extras:[{nm:'동판비',qty:0,price:0,use:'off'},{nm:'목형비',qty:0,price:0,use:'off'}] }; }
+function normCalc(c){ var b=newCalc(); if(!c) return null; for(var k in b) if(c[k]!=null) b[k]=c[k];
+  b.extras=(c.extras||[]).map(function(x){ return { nm:String(x.nm||''), qty:n(x.qty), price:n(x.price), use:(x.use==='sub'||x.use==='cost')?x.use:'off' }; });
+  if(!b.extras.length) b.extras=newCalc().extras;   /* 옛 자료가 비어 있어도 동판·목형 두 줄은 늘 있다 */
+  return b; }
+function storeAuto(c){ var q=n(c.moqQty); return q? COST.storeFee*COST.storePlt*COST.storeMon/q : 0; }
+function calcOf(l){
+  var c=l.calc; if(!c) return null;
+  var G=n(c.box), Q0=n(c.moqQty), E=n(c.buy);
+  var exCost=(c.extras||[]).filter(function(x){ return x.use==='cost'; }).reduce(function(a,x){ return a+n(x.qty)*n(x.price); },0);
+  var exPer=Q0? exCost/Q0 : 0;
+  var store=c.storeManual? n(c.store) : storeAuto(c);
+  var H=E+n(c.trans)+store+n(c.split)+n(c.pack)+exPer;
+  var I=H*G, N=n(l.unitPrice), O=N*G, rate=csRate();
+  var P=_cs.mode==='center'? O*rate/100 : (_cs.mode==='parcel'? n(_cs.fee) : 0);
+  var Q=O-P, R=Q-I, S=I?(Q/I-1):0;
+  var t=n(c.target)/100;
+  var need=_cs.mode==='center'? (G&&rate<100? I*(1+t)/(G*(1-rate/100)) : 0) : (G? (I*(1+t)+(_cs.mode==='parcel'?n(_cs.fee):0))/G : 0);
+  return { store:store, H:H, I:I, O:O, P:P, Q:Q, R:R, S:S, need:need, buyTotal:E*Q0 };
+}
+function subsOf(l){ return (l.calc&&l.calc.extras||[]).filter(function(x){ return x.use==='sub' && (x.nm||'').trim(); }); }
+/* ★마진계산이 붙은 줄은 Box 1 · 수량 = 박스 입수량 (2026-09-17 확정) */
+function calcLineSync(l){ if(l.calc && n(l.calc.box)>0){ l.boxQty=1; l.qty=n(l.calc.box); return true; } return false; }
+function calcToggle(i){ var l=_lines[i]; if(!l) return; if(!l.calc){ l.calc=newCalc(); } else l.calc.open=!l.calc.open; calcLineSync(l); renderLines(); }
+function calcDrop(i){ var l=_lines[i]; if(!l) return; _confirmBox({ msg:'이 줄의 원가·마진 계산을 뺄까요?<br><span style="font-size:12.5px;color:#3d4d5c">서브 줄(부대비)도 함께 빠집니다. 단가·수량은 지금 값 그대로 남습니다.</span>', icon:'🧮', okText:'빼기', onOk:function(){ l.calc=null; renderLines(); }, onCancel:function(){} }); }
+function cset(i,k,v){ var l=_lines[i]; if(!l||!l.calc) return; l.calc[k]=v; if(k==='box'){ if(calcLineSync(l)){ var b=document.getElementById('bv'+i), q=document.getElementById('qv'+i); if(b) b.value='1'; if(q) q.value=fmt(l.qty); } } calcPaint(i); calc(); }
+function cxset(i,j,k,v){ var l=_lines[i]; if(!l||!l.calc||!l.calc.extras[j]) return; l.calc.extras[j][k]=v; if(k==='use'){ renderLines(); return; } calcPaint(i); subPaint(i); calc(); }
+function subPaint(i){ var l=_lines[i]; if(!l) return; subsOf(l).forEach(function(x,k){
+  var q=document.getElementById('sq'+i+'_'+k), p=document.getElementById('sp'+i+'_'+k), a=document.getElementById('sa'+i+'_'+k), amt=Math.round(n(x.qty)*n(x.price));
+  if(q) q.textContent=n(x.qty)?fmt(x.qty):''; if(p) p.textContent=n(x.price)?fmt(x.price):''; if(a) a.textContent=amt?fmt(amt):''; }); }
+function calcPaint(i){
+  var l=_lines[i]; if(!l||!l.calc) return; var r=calcOf(l), c=l.calc;
+  var set=function(id,txt,neg){ var e=document.getElementById(id); if(!e) return; e.textContent=txt; e.classList.toggle('neg', !!neg); };
+  set('cF'+i, r.buyTotal?fmt(r.buyTotal):'');
+  set('cH'+i, r.H?fmt(r.H,2):''); set('cI'+i, r.I?fmt(r.I):'');
+  var ke=document.getElementById('cSt'+i); if(ke && !c.storeManual) ke.value=r.store?fmt(r.store,2):'';
+  set('cO'+i, r.O?fmt(r.O):''); set('cP'+i, (r.O||r.P)?fmt(r.P):''); set('cQ'+i, r.O?fmt(r.Q):'');
+  set('cR'+i, (r.O||r.I)?fmt(r.R):'', r.R<0); set('cS'+i, (r.I&&r.O)?(fmt(r.S*100,2)+'%'):'', r.S<0);
+  set('cNeed'+i, (r.I&&n(c.target))?fmt(r.need,2):'');
+  (c.extras||[]).forEach(function(x,j){ var amt=n(x.qty)*n(x.price); set('cxa'+i+'_'+j, amt?fmt(amt):''); });
+}
+function applyNeed(i){ var l=_lines[i]; if(!l||!l.calc) return; var r=calcOf(l); if(!r||!r.need){ _alertBox('목표 마진율과 구매·입수량을 먼저 넣으세요.',{icon:'⚠️'}); return; }
+  l.unitPrice=Math.round(r.need*100)/100;
+  var p=document.getElementById('pv'+i); if(p) p.value=fmt(l.unitPrice,2); var s=document.getElementById('cSell'+i); if(s) s.value=fmt(l.unitPrice,2);
+  calcPaint(i); calc(); _toast('필요 판매단가를 판매적용단가(줄 단가)에 넣었습니다.'); }
+function sellSet(i,v,from){ var l=_lines[i]; if(!l) return; l.unitPrice=n(v);
+  var p=document.getElementById('pv'+i), s=document.getElementById('cSell'+i);
+  if(from!=='grid'&&p) p.value=n(v)?fmt(l.unitPrice,2):''; if(from!=='calc'&&s) s.value=n(v)?fmt(l.unitPrice,2):'';
+  if(l.calc) calcPaint(i); calc(); }
+/* ⚙ 센터 비율·보관 설정 */
+function cenOpen(){ cenRender(); document.getElementById('cenPop').classList.add('on'); }
+function cenRender(){
+  document.getElementById('cenBody').innerHTML=COST.centers.map(function(c,i){ return '<tr><td style="text-align:left"><input type="text" class="in" value="'+esc(c.nm)+'" style="width:180px" oninput="COST.centers['+i+'].nm=this.value"></td><td><input type="text" class="in num" style="width:80px;text-align:right" value="'+fmt(c.rate,1)+'" onfocus="this.select()" oninput="COST.centers['+i+'].rate=n(this.value)"></td><td><button class="btn lnk" onclick="COST.centers.splice('+i+',1); cenRender()">✕</button></td></tr>'; }).join('');
+  document.getElementById('storeFee').value=fmt(COST.storeFee); document.getElementById('storePlt').value=fmt(COST.storePlt); document.getElementById('storeMon').value=fmt(COST.storeMon);
+}
+function cenAdd(){ COST.centers.push({nm:'',rate:0}); cenRender(); }
+function cenSave(){
+  COST.storeFee=n(gv('storeFee')); COST.storePlt=n(gv('storePlt')); COST.storeMon=n(gv('storeMon'));
+  COST.centers=COST.centers.filter(function(c){ return (c.nm||'').trim(); });
+  post('/user/compSetPatch.do',{ key:'cost', val:{ centers:COST.centers, storeFee:COST.storeFee, storePlt:COST.storePlt, storeMon:COST.storeMon } },true)
+    .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); }); })
+    .then(function(){ if(window.konetSet) konetSet.cost={ centers:COST.centers, storeFee:COST.storeFee, storePlt:COST.storePlt, storeMon:COST.storeMon }; csBarPaint(); csPaintAll(); document.getElementById('cenPop').classList.remove('on'); ok('센터 비율·보관 기본값을 회사 설정에 저장했습니다.'); })
+    .catch(function(e){ err('저장 실패 — '+esc(e.message)); });
+}
 
 /* ── 줄 ── */
-function blank(){ return { prodNm:'', spec:'', boxQty:1, qty:0, unit:'ea', unitPrice:0, unitPrice2:0, remark:'' }; }
-function addLine(){ _lines.push(blank()); renderLines(); var tb=document.getElementById('lbody'); var last=tb.querySelectorAll('tr'); var el=last[last.length-1]&&last[last.length-1].querySelector('.nm'); if(el) el.focus(); }
+function blank(){ return { prodNm:'', spec:'', boxQty:1, qty:0, unit:'ea', unitPrice:0, unitPrice2:0, remark:'', calc:null }; }
+function addLine(){ _lines.push(blank()); renderLines(); focusLast(); }
+/* ➕ 품목 추가 = 품명 + 마진계산 + 품명비 세트 한 벌 (2026-09-17 「이 내용을 품목 추가 버튼으로 계속 작성」).
+   비어 있는 계산 없는 줄이 하나뿐이면(첫 화면) 새 줄을 만들지 않고 그 줄에 세트를 붙인다 — 빈 줄이 위에 남지 않게 */
+function addCalcLine(){
+  var l=_lines.length===1 && !_lines[0].calc && !(_lines[0].prodNm||'').trim() && !n(_lines[0].qty) ? _lines[0] : null;
+  if(!l){ l=blank(); _lines.push(l); }
+  l.calc=newCalc(); renderLines(); focusLast();
+}
+function focusLast(){ var tb=document.getElementById('lbody'); var last=tb.querySelectorAll('tr.mainln'); var el=last[last.length-1]&&last[last.length-1].querySelector('.nm'); if(el) el.focus(); }
 function renderLines(){
   var h2=use2();
-  document.getElementById('lhead').innerHTML='<tr><th style="width:36px">No</th><th style="min-width:220px">품명</th><th style="min-width:220px">규격</th><th style="width:64px">Box</th><th style="width:84px">수량</th><th style="width:56px">단위</th>'
+  document.getElementById('lhead').innerHTML='<tr><th style="width:36px">No</th><th style="min-width:220px">품명</th><th style="min-width:200px">규격</th><th style="width:60px">Box</th><th style="width:84px">수량</th><th style="width:52px">단위</th>'
     +(h2?'<th style="width:90px">'+esc(gv('p1')||'단가1')+' 단가</th><th style="width:100px">금액</th><th style="width:90px">'+esc(gv('p2')||'단가2')+' 단가</th><th style="width:100px">금액</th>':'<th style="width:90px">단가</th><th style="width:100px">금액</th>')
-    +'<th style="min-width:120px">'+(h2?'비고 (MOQ)':'비고')+'</th><th style="width:40px"></th></tr>';
+    +'<th style="min-width:110px">'+(h2?'비고 (MOQ)':'비고')+'</th><th style="width:74px" title="🧮 원가·마진 계산 / ✕ 줄 빼기"></th></tr>';
   if(!_lines.length) _lines.push(blank());
-  var tb=document.getElementById('lbody'), sum=0;
+  var tb=document.getElementById('lbody'), NC=cols();
   tb.innerHTML=_lines.map(function(l,i){
-    var amt=Math.round(n(l.qty)*n(l.unitPrice)), amt2=Math.round(n(l.qty)*n(l.unitPrice2)); sum+=amt;
-    return '<tr><td>'+(i+1)+'</td>'
+    calcLineSync(l);
+    var amt=Math.round(n(l.qty)*n(l.unitPrice)), amt2=Math.round(n(l.qty)*n(l.unitPrice2));
+    var lock=!!(l.calc&&n(l.calc.box)>0), lockTip=' title="마진계산 연결 줄 — Box 1 · 수량 = 박스 입수량(자동)" readonly';
+    var h='<tr class="mainln"><td>'+(i+1)+'</td>'
       +'<td><div style="display:flex;gap:4px"><input type="text" class="nm" value="'+esc(l.prodNm)+'" placeholder="품명" oninput="_lines['+i+'].prodNm=this.value"><button class="btn lnk" style="height:30px" onclick="prodOpen('+i+')" title="우리 상품에서 고르기">🔍</button></div></td>'
       +'<td><input type="text" value="'+esc(l.spec)+'" placeholder="규격 및 재질" oninput="_lines['+i+'].spec=this.value"></td>'
-      +'<td><input type="text" class="num" value="'+(n(l.boxQty)?fmt(l.boxQty):'')+'" oninput="_lines['+i+'].boxQty=n(this.value)"></td>'
-      +'<td><input type="text" class="num" value="'+(n(l.qty)?fmt(l.qty):'')+'" placeholder="0" onfocus="this.select()" oninput="_lines['+i+'].qty=n(this.value); calc()"></td>'
+      +'<td><input type="text" class="num'+(lock?' lock':'')+'" id="bv'+i+'" value="'+(n(l.boxQty)?fmt(l.boxQty):'')+'"'+(lock?lockTip:' oninput="_lines['+i+'].boxQty=n(this.value)"')+'></td>'
+      +'<td><input type="text" class="num'+(lock?' lock':'')+'" id="qv'+i+'" value="'+(n(l.qty)?fmt(l.qty):'')+'" placeholder="0"'+(lock?lockTip:' onfocus="this.select()" oninput="_lines['+i+'].qty=n(this.value); calc()"')+'></td>'
       +'<td><input type="text" value="'+esc(l.unit)+'" style="text-align:center" oninput="_lines['+i+'].unit=this.value"></td>'
-      +'<td><input type="text" class="num" value="'+(n(l.unitPrice)?fmt(l.unitPrice):'')+'" placeholder="0" onfocus="this.select()" oninput="_lines['+i+'].unitPrice=n(this.value); calc()"></td>'
+      +'<td><input type="text" class="num" id="pv'+i+'" value="'+(n(l.unitPrice)?fmt(l.unitPrice,2):'')+'" placeholder="0" onfocus="this.select()" oninput="sellSet('+i+', this.value, \'grid\')" title="'+(l.calc?'판매적용단가 — 아래 계산 칸과 같은 값':'')+'"></td>'
       +'<td class="amt" id="amt'+i+'">'+(amt?fmt(amt):'')+'</td>'
-      +(h2?'<td><input type="text" class="num" value="'+(n(l.unitPrice2)?fmt(l.unitPrice2):'')+'" placeholder="0" onfocus="this.select()" oninput="_lines['+i+'].unitPrice2=n(this.value); calc()"></td><td class="amt" id="amt2_'+i+'">'+(amt2?fmt(amt2):'')+'</td>':'')
+      +(h2?'<td><input type="text" class="num" value="'+(n(l.unitPrice2)?fmt(l.unitPrice2,2):'')+'" placeholder="0" onfocus="this.select()" oninput="_lines['+i+'].unitPrice2=n(this.value); calc()"></td><td class="amt" id="amt2_'+i+'">'+(amt2?fmt(amt2):'')+'</td>':'')
       +'<td><input type="text" value="'+esc(l.remark)+'" placeholder="예: MOQ 50,000개" oninput="_lines['+i+'].remark=this.value"></td>'
-      +'<td><button class="btn lnk" title="이 줄 빼기" onclick="_lines.splice('+i+',1); renderLines()">✕</button></td></tr>';
+      +'<td><button class="btn lnk" title="원가·마진 계산 '+(l.calc?'접기/펼치기':'붙이기')+'"'+(l.calc?' style="background:#e3f2ee;border-color:#0f6b5e"':'')+' onclick="calcToggle('+i+')">🧮</button> <button class="btn lnk" title="이 줄 빼기" onclick="_lines.splice('+i+',1); renderLines()">✕</button></td></tr>';
+    if(l.calc&&l.calc.open) h+=calcRowHtml(l,i,NC);
+    subsOf(l).forEach(function(x,k){
+      var samt=Math.round(n(x.qty)*n(x.price));
+      h+='<tr class="subln"><td>↳</td><td class="snm">'+esc(x.nm)+'</td><td></td><td></td>'
+        +'<td class="samt" id="sq'+i+'_'+k+'">'+(n(x.qty)?fmt(x.qty):'')+'</td><td>ea</td>'
+        +'<td class="samt" id="sp'+i+'_'+k+'">'+(n(x.price)?fmt(x.price):'')+'</td><td class="samt" id="sa'+i+'_'+k+'">'+(samt?fmt(samt):'')+'</td>'
+        +(h2?'<td></td><td></td>':'')
+        +'<td style="color:#8a98a8">별도 청구 (마진 0)</td><td></td></tr>';
+    });
+    return h;
   }).join('');
   calc();
 }
+/* 줄별 원가·마진 계산 칸 — 표본 오택현.xls 식. 판매 단가 이름 = 판매적용단가(종전 「평/용센터」) */
+function calcRowHtml(l,i,NC){
+  var c=l.calc;
+  var ci=function(k,val,d,ph,w){ return '<input type="text" class="ci" style="width:'+(w||84)+'px" value="'+(n(val)?fmt(val,d||0):'')+'" placeholder="'+(ph||'')+'" onfocus="this.select()" oninput="cset('+i+',\''+k+'\', n(this.value))">'; };   /* 폭은 inline 로 못박는다 — table.g input 100% 규칙에 안 밀리게 */
+  /* 칸 차례·이름 = 종전 원가마진계산 표 그대로 (2026-09-17 「용어도 동일하게 · /개 제거 · 박스입수량 뒤 구매(계산)」) :
+       MOQ수량 · 단가 · 금액 | 박스 입수량 | 구매(계산) · 계 · 운송 · 보관 · 소분 · 박스 | 판매적용단가 · 계 | 물류비 · 실 판매금액 · 실 마진금액 · 실 마진율 */
+  var h='<tr class="crow"><td colspan="'+NC+'"><div class="cwrap">'
+    +'<span class="cf">MOQ수량'+ci('moqQty',c.moqQty,0,'MOQ')+'</span>'
+    +'<span class="cf">단가'+ci('buy',c.buy,2,'구매단가')+'</span>'
+    +'<span class="cf">금액<span class="cv" id="cF'+i+'" title="단가 × MOQ수량"></span></span>'
+    +'<span class="cf">박스 입수량'+ci('box',c.box,0,'입수')+'</span>'
+    +'<span class="cf">구매<span style="font-weight:400;color:#8a98a8">(계산)</span><span class="cv" id="cH'+i+'" title="개당 구매 = 단가 + 운송 + 보관 + 소분 + 박스 + 원가 포함 품명비/개"></span></span>'
+    +'<span class="cf">계<span class="cv" id="cI'+i+'" title="구매 계 = 구매(계산) × 입수"></span></span>'
+    +'<span class="cf">운송'+ci('trans',c.trans,2)+'</span>'
+    +'<span class="cf">보관<span style="display:inline-flex;gap:3px;align-items:center"><input type="text" class="'+(c.storeManual?'cm':'ca')+'" style="width:84px" id="cSt'+i+'" value="'+(c.storeManual&&n(c.store)?fmt(c.store,2):'')+'" onfocus="this.select()" oninput="cset('+i+',\'store\', n(this.value)); _lines['+i+'].calc.storeManual=true" title="기본 = 보관료 × 팔레트 × 개월 ÷ MOQ 수량. 직접 고치면 노란 칸"><button class="btn lnk" style="height:26px;padding:0 5px" onclick="_lines['+i+'].calc.storeManual=false; renderLines()" title="기본식으로 되돌리기">↻</button></span></span>'
+    +'<span class="cf">소분'+ci('split',c.split,2)+'</span>'
+    +'<span class="cf">박스'+ci('pack',c.pack,2)+'</span>'
+    +'<span class="cf" style="color:#0f6b5e">판매적용단가<input type="text" class="ci" style="width:90px;border-color:#0f6b5e;background:#e3f2ee" id="cSell'+i+'" value="'+(n(l.unitPrice)?fmt(l.unitPrice,2):'')+'" onfocus="this.select()" oninput="sellSet('+i+', this.value, \'calc\')" title="= 품목 줄의 단가(같은 값)"></span>'
+    +'<span class="cf">계<span class="cv" id="cO'+i+'" title="판매 계 = 판매적용단가 × 입수"></span></span>'
+    +'<span class="cf">물류비<span class="cv p" id="cP'+i+'"></span></span>'
+    +'<span class="cf">실 판매금액<span class="cv q" id="cQ'+i+'"></span></span>'
+    +'<span class="cf">실 마진금액<span class="cv q" id="cR'+i+'"></span></span>'
+    +'<span class="cf">실 마진율<span class="cv s" id="cS'+i+'"></span></span>'
+    +'<span class="cf">목표 마진율(%)'+ci('target',c.target,1,'%',
+      64)+'</span>'
+    +'<span class="cf">필요 판매단가<span class="cv b" id="cNeed'+i+'"></span></span>'
+    +'<span class="cf">&nbsp;<button class="btn lnk" style="height:28px" onclick="applyNeed('+i+')" title="필요 판매단가를 판매적용단가(줄 단가)로">→ 적용</button></span>'
+    +'<span class="cf">&nbsp;<button class="btn lnk btn-red" style="height:28px" onclick="calcDrop('+i+')" title="이 줄의 마진계산을 뺀다">계산 빼기</button></span>'
+    +'</div><div class="cex"><b style="color:#125a4e">품명비</b><span class="dim">— 품명 + 동판 + 목형 세트. 서브 줄로 = 품명 밑 별도 청구 줄(마진 0) · 원가 포함 = 금액 ÷ MOQ 수량을 개당 구매에</span>';
+  /* ★동판·목형 두 줄 고정 세트 (2026-09-17 「부대비 아니고 품명비 · 세 개 세트」) — 자유 추가·이름 입력·✕ 는 뺐다.
+     적용 여부는 기존 옵션 그대로(사용자 2026-09-17 「기존 옵션 유지」) : 적용 안 함 / 서브 줄로(별도 청구) / 원가 포함 */
+  (c.extras||[]).forEach(function(x,j){
+    h+='<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid #dbe2ea;border-radius:8px;padding:4px 8px;background:#fff">'
+      +'<b>'+esc(x.nm||('품명비'+(j+1)))+'</b>'
+      +'수량 <input type="text" class="num ci" style="width:64px" value="'+(n(x.qty)?fmt(x.qty):'')+'" onfocus="this.select()" oninput="cxset('+i+','+j+',\'qty\', n(this.value))">'
+      +'× 단가 <input type="text" class="num ci" style="width:84px" value="'+(n(x.price)?fmt(x.price):'')+'" onfocus="this.select()" oninput="cxset('+i+','+j+',\'price\', n(this.value))">'
+      +'= <span class="cv" style="min-width:76px" id="cxa'+i+'_'+j+'"></span>'
+      +'<select onchange="cxset('+i+','+j+',\'use\', this.value)" title="적용 여부 — 서브 줄로 = 품명 밑 별도 청구 줄(마진 0) / 원가 포함 = 금액 ÷ MOQ 수량을 개당 구매에 더함"><option value="off"'+(x.use==='off'?' selected':'')+'>적용 안 함</option><option value="sub"'+(x.use==='sub'?' selected':'')+'>서브 줄로(별도 청구)</option><option value="cost"'+(x.use==='cost'?' selected':'')+'>원가 포함</option></select></span>';
+  });
+  h+='</div></td></tr>';
+  setTimeout(function(){ calcPaint(i); },0);
+  return h;
+}
 function calc(){
-  var sum=0, sum2=0, h2=use2();
+  var sum=0, sum2=0, subSum=0, subCnt=0, h2=use2();
   _lines.forEach(function(l,i){ var a=Math.round(n(l.qty)*n(l.unitPrice)), a2=Math.round(n(l.qty)*n(l.unitPrice2)); sum+=a; sum2+=a2;
-    var e=document.getElementById('amt'+i); if(e) e.textContent=a?fmt(a):''; var e2=document.getElementById('amt2_'+i); if(e2) e2.textContent=a2?fmt(a2):''; });
-  document.getElementById('tot').innerHTML='품목 <b>'+_lines.filter(function(l){ return (l.prodNm||'').trim()||n(l.qty); }).length+'</b>줄 · 합계 <b>'+fmt(sum)+'</b>원'+(h2?' · '+esc(gv('p2')||'둘째')+' 합계 <b>'+fmt(sum2)+'</b>원':'')+' (부가세 별도)';
+    var e=document.getElementById('amt'+i); if(e) e.textContent=a?fmt(a):''; var e2=document.getElementById('amt2_'+i); if(e2) e2.textContent=a2?fmt(a2):'';
+    subsOf(l).forEach(function(x){ var sa=Math.round(n(x.qty)*n(x.price)); if(sa){ subSum+=sa; subCnt++; } });
+  });
+  document.getElementById('tot').innerHTML='품목 <b>'+_lines.filter(function(l){ return (l.prodNm||'').trim()||n(l.qty); }).length+'</b>줄'
+    +(subCnt?' + 부대비 <b>'+subCnt+'</b>줄':'')+' · 합계 <b>'+fmt(sum+subSum)+'</b>원'
+    +(h2?' · '+esc(gv('p2')||'둘째')+' 합계 <b>'+fmt(sum2)+'</b>원':'')+' (부가세 별도)';
 }
 
 /* ── 상품 찾기 (우리 상품 마스터) ── */
@@ -177,6 +398,7 @@ function prodSearch(){
 function prodPick(k){
   var p=(window._prodRows||[])[k], l=_lines[_prodRow]; if(!p||!l) return;
   l.prodNm=p.prodNm||''; l.spec=p.spec||''; l.prodCd=p.prodCd||''; if(!n(l.unitPrice)) l.unitPrice=n(p.salePrice); if(!n(l.qty) && n(p.packQty)>1) l.qty=n(p.packQty);
+  if(l.calc && !n(l.calc.box) && n(p.packQty)>1){ l.calc.box=n(p.packQty); calcLineSync(l); }   /* 마진계산 줄이면 입수량도 채움 */
   document.getElementById('prodPop').classList.remove('on'); renderLines();
 }
 
@@ -222,7 +444,8 @@ function newDoc(){
   document.getElementById('recvNm').value='삼성웰스토리'; document.getElementById('validTxt').value='견적일로부터 15일'; document.getElementById('titleTxt').value='아래와 같이 견적을 드립니다.(부가세 별도)';
   document.getElementById('use2').checked=true; document.getElementById('p1').value='센터배송'; document.getElementById('p2').value='택배출고 (D2~3)';   /* 기본 = 양식 2 (2026-09-17 「직접 작성 시 이런 내용 포함이 안 됨」) */
   document.getElementById('deliv').value=DELIV_DEF2; _delivPrev=''; _delivRmk=''; delivApply();   /* 배송 기본 → 제목 줄·비고 */
-  renderLines(); nextNo(true);
+  _cs={ mode:'center', center:(COST.centers[0]?COST.centers[0].nm:''), fee:(window.konetSet?n(konetSet.f('parcelFeeDef')):0) };
+  csBarPaint(); renderLines(); nextNo(true);
   loadNames(function(){ var m=document.getElementById('mgrNm'); if(!m.value && _names.mgr.length) m.value=_names.mgr[0]; });   /* 최근 담당자를 기본으로 */
 }
 function loadDoc(seq){
@@ -231,19 +454,39 @@ function loadDoc(seq){
     _seq=seq; _savedSeq=seq; document.getElementById('mode').textContent='수정 — '+m.docNo;
     document.getElementById('docNo').value=m.docNo; document.getElementById('quoteDt').value=d10(m.quoteDt); document.getElementById('recvNm').value=m.recvNm; document.getElementById('mgrNm').value=m.mgrNm;
     document.getElementById('validTxt').value=m.validTxt; document.getElementById('titleTxt').value=m.titleTxt; document.getElementById('remark').value=m.remark;
-    var h2=!!m.price2Nm; document.getElementById('use2').checked=h2; document.getElementById('use1').checked=!h2; if(m.price1Nm) document.getElementById('p1').value=m.price1Nm; if(m.price2Nm) document.getElementById('p2').value=m.price2Nm;
+    /* 근거자료(원가·마진 계산) — CALC_JSON. genRows(서브 줄)는 걷어내고 계산에서 다시 만든다 */
+    var cj=null; try{ cj=JSON.parse(m.calcJson||'null'); }catch(e){}
+    var h2=(cj&&cj.use2!=null)?!!cj.use2:!!m.price2Nm;   /* 양식 라디오 — 묶음이 정리돼 저장됐어도 근거자료가 기억한다 */
+    document.getElementById('use2').checked=h2; document.getElementById('use1').checked=!h2; if(m.price1Nm) document.getElementById('p1').value=m.price1Nm; if(m.price2Nm) document.getElementById('p2').value=m.price2Nm;
     _delivPrev=delivFromTitle(m.titleTxt); _delivRmk=''; document.getElementById('deliv').value=_delivPrev; delivSync();   /* 저장된 제목 줄의 「(…, 부가세 별도)」에서 배송을 읽는다 */
-    _lines=((j&&j.lines)||[]).map(function(l){ return { prodNm:l.prodNm, spec:l.spec, boxQty:l.boxQty==null?'':n(l.boxQty), qty:n(l.qty), unit:l.unit||'ea', unitPrice:n(l.unitPrice), unitPrice2:n(l.unitPrice2), remark:l.remark, prodCd:l.prodCd||'' }; });
-    renderLines();
+    var gen={}; if(cj&&cj.genRows) cj.genRows.forEach(function(r){ gen[r]=true; });
+    _lines=((j&&j.lines)||[]).filter(function(l){ return !gen[l.rowNo]; }).map(function(l){ return { prodNm:l.prodNm, spec:l.spec, boxQty:l.boxQty==null?'':n(l.boxQty), qty:n(l.qty), unit:l.unit||'ea', unitPrice:n(l.unitPrice), unitPrice2:n(l.unitPrice2), remark:l.remark, prodCd:l.prodCd||'', calc:null }; });
+    if(cj&&cj.calcs) cj.calcs.forEach(function(c,idx){ if(c&&_lines[idx]){ _lines[idx].calc=normCalc(c); if(_lines[idx].calc) _lines[idx].calc.open=false; } });   /* 접힌 채로 — 🧮 로 펼친다 */
+    if(cj&&cj.set){ _cs.mode=cj.set.mode||'center'; if(cj.set.center) _cs.center=cj.set.center; _cs.fee=n(cj.set.fee); }
+    csBarPaint(); renderLines();
   }).catch(function(e){ err('불러오지 못했습니다 — '+esc(e.message)); });
 }
 
 /* ── 저장 · 출력 · 엑셀 ── */
 function payload(){
   var h2=use2();
+  var mains=_lines.filter(function(l){ return (l.prodNm||'').trim()||n(l.qty); });
+  var lines=[], calcs=[], genRows=[], no=0;
+  mains.forEach(function(l){
+    lines.push({ rowNo:++no, prodNm:l.prodNm, spec:l.spec, boxQty:(l.boxQty===''||l.boxQty==null)?null:n(l.boxQty), unit:l.unit, qty:n(l.qty), unitPrice:n(l.unitPrice), amt:Math.round(n(l.qty)*n(l.unitPrice)), unitPrice2:h2?n(l.unitPrice2):null, amt2:h2?Math.round(n(l.qty)*n(l.unitPrice2)):null, remark:l.remark, prodCd:l.prodCd||'' });
+    calcs.push(l.calc? { moqQty:n(l.calc.moqQty), buy:n(l.calc.buy), box:n(l.calc.box), trans:n(l.calc.trans), store:n(l.calc.store), storeManual:!!l.calc.storeManual,
+      storeVal:(l.calc.storeManual? n(l.calc.store) : storeAuto(l.calc)),   /* 조회용 스냅샷 — 보관 기본값 설정이 나중에 바뀌어도 「그때 계산」이 남게 */
+      split:n(l.calc.split), pack:n(l.calc.pack), target:n(l.calc.target), extras:(l.calc.extras||[]).map(function(x){ return { nm:x.nm, qty:n(x.qty), price:n(x.price), use:x.use }; }) } : null);
+    subsOf(l).forEach(function(x){ var amt=Math.round(n(x.qty)*n(x.price)); if(!amt) return;
+      lines.push({ rowNo:++no, prodNm:x.nm, spec:'', boxQty:null, unit:'ea', qty:n(x.qty), unitPrice:n(x.price), amt:amt, unitPrice2:null, amt2:null, remark:'별도 청구', prodCd:'' });
+      genRows.push(no); });
+  });
+  /* ★양식2 인데 둘째 단가를 한 줄도 안 넣었으면 묶음 하나로 저장 (2026-09-17 「없으면 출력하지 말고 선택한 내용만」 — 인쇄·엑셀·목록이 전부 따라온다) */
+  var real2 = h2 && lines.some(function(l){ return n(l.unitPrice2)>0; });
+  if(h2 && !real2) lines.forEach(function(l){ l.unitPrice2=null; l.amt2=null; });
+  var calcJson=JSON.stringify({ v:1, use2:h2, set:{ mode:_cs.mode, center:_cs.center, fee:n(_cs.fee), rate:csRate() }, calcs:calcs, genRows:genRows });   /* rate 도 스냅샷 — 목록 조회가 그때 비율로 다시 그린다 */
   return { confirm: _seq?'Y':'N', docs:[{ docNo:gv('docNo'), quoteDt:gv('quoteDt'), recvNm:gv('recvNm'), mgrNm:gv('mgrNm'), validTxt:gv('validTxt'), titleTxt:gv('titleTxt'), remark:gv('remark'),
-    price1Nm: h2?gv('p1'):'', price2Nm: h2?gv('p2'):'', fileNm:'', fileB64:'',
-    lines:_lines.filter(function(l){ return (l.prodNm||'').trim()||n(l.qty); }).map(function(l,i){ return { rowNo:i+1, prodNm:l.prodNm, spec:l.spec, boxQty:(l.boxQty===''||l.boxQty==null)?null:n(l.boxQty), unit:l.unit, qty:n(l.qty), unitPrice:n(l.unitPrice), amt:Math.round(n(l.qty)*n(l.unitPrice)), unitPrice2:h2?n(l.unitPrice2):null, amt2:h2?Math.round(n(l.qty)*n(l.unitPrice2)):null, remark:l.remark, prodCd:l.prodCd||'' }; }) }] };
+    price1Nm: h2?gv('p1'):'', price2Nm: real2?gv('p2'):'', fileNm:'', fileB64:'', calcJson:calcJson, lines:lines }] };
 }
 function save(){
   var p=payload(), d=p.docs[0];
@@ -252,7 +495,7 @@ function save(){
   if(!d.lines.length){ _alertBox('품목을 한 줄 이상 적으세요.',{icon:'⚠️'}); return; }
   var noP=d.lines.filter(function(l){ return !l.qty || !l.unitPrice; });
   var sum=0; d.lines.forEach(function(l){ sum+=l.amt; });
-  ask('견적서 <b>'+esc(d.docNo)+'</b>를 저장합니다.<br><span style="font-size:13px;color:#3d4d5c">'+d10(d.quoteDt)+' · '+esc(d.recvNm)+' · '+esc(d.mgrNm)+' · 품목 '+d.lines.length+'줄 · 합계 <b>'+fmt(sum)+'</b>원'+(noP.length?'<br><span style="color:#b45309">⚠ 수량이나 단가가 빈 줄 '+noP.length+'개</span>':'')+'</span>', _seq?'덮어쓰기':'저장')
+  ask('견적서 <b>'+esc(d.docNo)+'</b>를 저장합니다.<br><span style="font-size:13px;color:#3d4d5c">'+d10(d.quoteDt)+' · '+esc(d.recvNm)+' · '+esc(d.mgrNm)+' · 품목 '+d.lines.length+'줄 · 합계 <b>'+fmt(sum)+'</b>원'+(noP.length?'<br><span style="color:#b45309">⚠ 수량이나 단가가 빈 줄 '+noP.length+'개</span>':'')+'<br><span style="color:#6b7a89">원가·마진 계산 내용은 이 견적서의 근거자료로 함께 저장됩니다.</span></span>', _seq?'덮어쓰기':'저장')
   .then(function(y){ if(!y) return;
     var b=document.getElementById('saveBtn'); b.disabled=true;
     var send=function(conf){ p.confirm=conf?'Y':'N'; return post('/mangr/quoteSave.do', p, true).then(function(r){ return r.text().then(function(t){ return { st:r.status, ok:r.ok, t:t }; }); }); };
@@ -278,28 +521,19 @@ function save(){
   });
 }
 function printIt(){ if(!_savedSeq){ _alertBox('먼저 [💾 저장]을 하세요 — 저장된 견적서를 인쇄합니다.',{icon:'ℹ️'}); return; } window.open(CTX+'/mangr/quotePrint.do?quoteSeq='+_savedSeq, '_blank'); }
-/* 엑셀 = 서버가 우리 양식 파일(quote_tpl1/2.xls)에 값을 채워 준다 (2026-09-17 「양식 그대로」). 저장된 견적서만 — 화면 표를 시트로 만들던 옛 길은 아래(excelSheet)에 남겨 둔다(안 쓴다) */
+/* 엑셀 = 서버가 우리 양식 파일(quote_tpl1/2.xls)에 값을 채워 준다 (2026-09-17 「양식 그대로」). 저장된 견적서만.
+   ★둘째 묶음을 안 쓴 견적서는 저장 때 price2Nm 이 비므로 양식 1 로 나간다(「엑셀출력도 동일하게」 — 선택한 내용만). 양식엔 합계 줄이 원래 없다. */
 function excel(){ if(!_savedSeq){ _alertBox('먼저 [💾 저장]을 하세요 — 저장된 견적서를 양식 그대로 엑셀로 냅니다.',{icon:'ℹ️'}); return; } window.open(CTX+'/mangr/quoteExcel.do?quoteSeq='+_savedSeq, '_blank'); }
-function excelSheet(){
-  if(typeof XLSX==='undefined'){ _alertBox('엑셀 모듈이 없습니다.',{icon:'⚠️'}); return; }
-  var h2=use2(), d=payload().docs[0];
-  var aoa=[['견 적 서'],[],['문서번호',d.docNo,'','수신',d.recvNm],['견적일',d10(d.quoteDt),'','담당자',d.mgrNm],['유효기간',d.validTxt],[],[d.titleTxt],[]];
-  var head=['No','품명','규격','Box','수량','단위']; if(h2){ head.push(d.price1Nm+' 단가', d.price1Nm+' 금액', d.price2Nm+' 단가', d.price2Nm+' 금액'); } else head.push('단가','금액'); head.push('비고'); aoa.push(head);
-  d.lines.forEach(function(l){ var row=[l.rowNo,l.prodNm,l.spec,l.boxQty==null?'':l.boxQty,l.qty,l.unit,l.unitPrice,l.amt]; if(h2) row.push(l.unitPrice2,l.amt2); row.push(l.remark); aoa.push(row); });
-  var sum=0; d.lines.forEach(function(l){ sum+=l.amt; }); aoa.push([],['합계(부가세 별도)','','','','','','',sum]); if(d.remark) aoa.push([],['비고',d.remark]);
-  var ws=XLSX.utils.aoa_to_sheet(aoa), wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '견적서');
-  XLSX.writeFile(wb, (d.docNo||'견적서')+'.xlsx');
-}
 
 /* 시작 — ?quoteSeq= 이면 수정, 아니면 새 견적서 */
 (function(){
   var m=/[?&]quoteSeq=(\d+)/.exec(location.search);
-  if(m){ loadNames(); loadDoc(+m[1]); } else newDoc();
+  if(m){ csBarPaint(); loadNames(); loadDoc(+m[1]); } else newDoc();
 })();
 document.getElementById('p1').addEventListener('input', renderLines); document.getElementById('p2').addEventListener('input', renderLines);
-window.konetShown=function(){ var m=/[?&]quoteSeq=(\d+)/.exec(location.search); if(m && +m[1]!==_seq) loadDoc(+m[1]); loadNames(); takeHandoff(); };   /* 담당자·수신 목록도 다시 (2026-09-17) */
-/* 원가·마진 계산 화면이 넘긴 품목 받기 (2026-09-17) — localStorage konet.costToQuote {ts, lines:[{prodNm,spec,boxQty,qty,unitPrice,remark}], deliv}.
-   10분 안의 것만. 이 화면에 적어 둔 줄이 있으면 물어보고 바꾼다. 받으면 지운다(두 번 안 들어가게). */
+window.konetShown=function(){ var m=/[?&]quoteSeq=(\d+)/.exec(location.search); if(m && +m[1]!==_seq) loadDoc(+m[1]); loadNames(); takeHandoff();
+  try{ var c=window.konetSet&&konetSet.cost; if(c&&c.centers&&c.centers.length){ COST.centers=c.centers.map(function(x){ return {nm:String(x.nm||''),rate:n(x.rate)}; }); COST.storeFee=n(c.storeFee)||COST.storeFee; COST.storePlt=n(c.storePlt)||COST.storePlt; COST.storeMon=n(c.storeMon)||COST.storeMon; csBarPaint(); csPaintAll(); } }catch(e){} };
+/* 원가·마진 계산 화면(옛 costCalc — 메뉴에서 내림)이 넘긴 품목 받기 — localStorage konet.costToQuote {ts, lines, deliv}. 10분 안의 것만. */
 function takeHandoff(){
   var h=null; try{ h=JSON.parse(localStorage.getItem('konet.costToQuote')||'null'); }catch(e){}
   if(!h || !h.lines || !h.lines.length) return;
@@ -307,7 +541,7 @@ function takeHandoff(){
   var apply=function(){
     try{ localStorage.removeItem('konet.costToQuote'); }catch(e){}
     if(_seq){ newDoc(); }
-    _lines=h.lines.map(function(l){ return { prodNm:l.prodNm||'', spec:l.spec||'', boxQty:n(l.boxQty)||1, qty:n(l.qty), unit:'ea', unitPrice:n(l.unitPrice), unitPrice2:0, remark:l.remark||'', prodCd:'' }; });
+    _lines=h.lines.map(function(l){ return { prodNm:l.prodNm||'', spec:l.spec||'', boxQty:1, qty:n(l.qty), unit:'ea', unitPrice:n(l.unitPrice), unitPrice2:0, remark:l.remark||'', prodCd:'', calc:null }; });
     if(h.deliv){ var d=document.getElementById('deliv'); if(d){ d.value=h.deliv; delivApply(); } }
     renderLines(); _toast('원가·마진 계산에서 품목 '+_lines.length+'줄을 받았습니다.');
   };

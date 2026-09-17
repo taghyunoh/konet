@@ -266,7 +266,7 @@ function setTd(id,txt,cls){ var e=document.getElementById(id); if(!e) return; e.
 function calcAll(){
   var st=setup();
   document.getElementById('thP').textContent= st.mode==='center'?centerNm()+' '+fmt(st.rate,1)+'%':(st.mode==='parcel'?'택배비':'직송 0');
-  document.getElementById('thN').textContent= st.mode==='center'?(centerNm()||'단가'):'단가';
+  document.getElementById('thN').textContent='판매적용단가';   /* 2026-09-17 「평/용센터를 판매적용단가로 변경」 — 센터 이름 대신 고정 이름 */
   _items.forEach(function(it,i){
     var r=calc(it,st), cls=r.S<0?'neg':(r.S<0.1?'amber':'');
     setTd('f'+i, r.buyTotal?fmt(r.buyTotal):'');
@@ -287,7 +287,7 @@ function clearAll(){ _confirmBox({ msg:'입력한 품목을 모두 비울까요?
 function toQuote(){
   var st=setup(), lines=[];
   _items.filter(function(it){ return (it.nm||'').trim(); }).forEach(function(it){
-    var r=calc(it,st); lines.push({ prodNm:it.nm, spec:it.spec, boxQty:n(it.box), qty:n(it.moqQty), unitPrice:n(it.sell), remark:'MOQ '+fmt(it.moqQty)+'개', margin:r.S });
+    var r=calc(it,st); lines.push({ prodNm:it.nm, spec:it.spec, boxQty:1, qty:n(it.box), unitPrice:n(it.sell), remark:'MOQ '+fmt(it.moqQty)+'개', margin:r.S });   /* 2026-09-17 「견적서 적용 시 Box 1 · 수량 = 박스 입수량」 */
     (it.extras||[]).filter(function(x){ return x.sep && (x.nm||'').trim() && n(x.qty)*n(x.price); }).forEach(function(x){ lines.push({ prodNm:x.nm, spec:'', boxQty:'', qty:n(x.qty), unitPrice:n(x.price), remark:'별도 청구', margin:0 }); });   /* 별도 청구 부대비 — 받은 금액 그대로(마진 0). 규격은 비운다 (2026-09-17 「따라오는 규격 제거」) */
   });
   if(!lines.length){ err('품명을 넣은 품목이 없습니다.'); return; }
