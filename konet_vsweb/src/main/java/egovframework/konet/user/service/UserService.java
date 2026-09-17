@@ -194,6 +194,13 @@ public interface UserService {
 	int saveExpenseItem(java.util.Map<String,Object> p) throws Exception;
 	int saveExpenseTrx(java.util.List<java.util.Map<String,Object>> rows, String ym, String user, String ip, String compCd) throws Exception;
 	// DC 발주 (2026-09-17) — 저장(같은 납기일자·품목은 대체) · 삭제 · 목록. 저장·삭제 뒤 재고 원장은 호출 쪽이 납기일자별로 다시 맞춘다
+	// 견적서 관리 (2026-09-17) — 엑셀 해석 · 저장(같은 문서번호 대체) · 목록 · 줄 · 원본 · 삭제
+	java.util.Map<String,Object> parseQuoteXls(byte[] data, String fileNm) throws Exception;
+	long saveQuote(java.util.Map<String,Object> q, String user, String ip, String compCd) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectQuoteList(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectQuoteDtl(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectQuoteFile(java.util.Map<String,Object> p) throws Exception;
+	int deleteQuote(java.util.Map<String,Object> p) throws Exception;
 	int saveDcPo(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String user, String ip, String compCd) throws Exception;
 	int deleteDcPo(java.util.List<java.util.Map<String,Object>> keys, String user, String ip, String compCd) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectDcPoList(java.util.Map<String,Object> p) throws Exception;

@@ -3403,11 +3403,12 @@
       <a class="mi" data-key="locate"   onclick="logiGo('locate', this)"><span class="ic">🔎</span>재고 / 위치 조회</a>
       <a class="mi" data-key="outbound" onclick="logiGo('outbound', this)"><span class="ic">📤</span>출고지시 (위치→출고)</a>
     </div>
-    <a class="mi has-sub" data-sub="quote" onclick="logiToggleSub('quote', this)"><span class="ic">📝</span>견적서관리 <span style="font-size:10px;color:#9aa7b3">(예정)</span><span class="caret">▶</span></a>
+    <%-- 견적서관리 (2026-09-17 — 사용자 「메뉴 원래 견적서관리로 이동」) : 「견적서 올리기·목록」이 실제 화면(mangr/quoteMng.jsp, panel-quoteMng). 작성·출력은 아직 예정. --%>
+    <a class="mi has-sub" data-sub="quote" onclick="logiToggleSub('quote', this)"><span class="ic">📝</span>견적서관리<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-quote">
-      <a class="mi" onclick="swAlert('견적서 작성은 향후 추진 예정입니다.','info')"><span class="ic">🧾</span>견적서 작성</a>
-      <a class="mi" onclick="swAlert('견적서 목록/조회는 향후 추진 예정입니다.','info')"><span class="ic">📋</span>견적서 목록/조회</a>
-      <a class="mi" onclick="swAlert('견적서 출력(PDF/엑셀)은 향후 추진 예정입니다.','info')"><span class="ic">🖨️</span>견적서 출력</a>
+      <a class="mi" data-key="quoteMng" onclick="logiFrame('quoteMng','${pageContext.request.contextPath}/mangr/quoteMng.do', this)"><span class="ic">📄</span>견적서 올리기·목록</a>
+      <a class="mi" onclick="swAlert('견적서 작성은 향후 추진 예정입니다.','info')"><span class="ic">🧾</span>견적서 작성 <span style="font-size:10px;color:#9aa7b3">(예정)</span></a>
+      <a class="mi" onclick="swAlert('견적서 출력(PDF/엑셀)은 향후 추진 예정입니다.','info')"><span class="ic">🖨️</span>견적서 출력 <span style="font-size:10px;color:#9aa7b3">(예정)</span></a>
     </div>
     <%-- ★[2026-09-09 사용자 요청] 「💬 카카오톡관리」(메시지 발송·발송 이력·문자 템플릿 관리) 메뉴 삭제.
          메뉴만 뺀 것 — 업무설명서(panel-guide)의 '예정 기능' 문구는 그대로 둔다. --%>
@@ -4880,6 +4881,10 @@
     </section>
     <%-- 발주서 관리 (2026-09-03) — 메뉴 logiFrame('poReg',…) 의 짝 --%>
     <%-- DC 발주 등록 (2026-09-17) — 메뉴 logiFrame('dcPo',…) 의 짝 --%>
+    <%-- 견적서 관리 (2026-09-17) — 메뉴 logiFrame('quoteMng',…) 의 짝 --%>
+    <section id="panel-quoteMng" class="panel" style="padding:0;">
+      <iframe id="if-quoteMng" src="" title="견적서 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
     <section id="panel-dcPo" class="panel" style="padding:0;">
       <iframe id="if-dcPo" src="" title="DC 발주 등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>

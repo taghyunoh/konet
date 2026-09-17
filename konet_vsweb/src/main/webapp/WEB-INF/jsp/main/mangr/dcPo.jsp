@@ -78,8 +78,8 @@
   table.x td.h{ background:#f1f5f8; color:#6b7a89; text-align:center; font-weight:600; }
   /* 엑셀 원본 = 병합(colspan/rowspan)을 살려 원본 모양대로 (2026-09-17 「엑셀은 흐트러져 나옴」) */
   .xh{ padding:8px 10px; }
-  .xh table{ border-collapse:collapse; font-size:12px; table-layout:auto; }
-  .xh td{ border:1px solid #d9e0e7; padding:2px 5px; white-space:pre-wrap; vertical-align:middle; min-width:14px; max-width:520px; line-height:1.35; }
+  .xh table{ border-collapse:collapse; font-size:14px; table-layout:auto; }
+  .xh td{ border:1px solid #d9e0e7; padding:3px 7px; white-space:pre-wrap; vertical-align:middle; min-width:14px; max-width:520px; line-height:1.35; }
 </style>
 </head>
 <body>

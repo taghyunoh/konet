@@ -1167,6 +1167,107 @@ public class UserController {
 			return res;
 		}
 
+		/* ================= 견적서 관리 (2026-09-17) — 화면 mangr/quoteMng.jsp =================
+		   우리가 낸 견적서 엑셀(xls/xlsx)을 올려 문서번호·견적일·수신·담당자·품목을 저장하고 목록으로 관리. 원본 파일도 같이 보관(내려받기).
+		   멀티파트 설정이 없어 파일은 base64 JSON 으로 받는다(DC 발주 등록과 같은 길). */
+		@RequestMapping(value="/mangr/quoteMng.do")
+		public String quoteMng(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/quoteMng";
+		}
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/mangr/quoteParse.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> quoteParse(@RequestBody Map<String,Object> p, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			List<Map<String,Object>> docs = new java.util.ArrayList<Map<String,Object>>();
+			List<String> errs = new java.util.ArrayList<String>();
+			if (session.getAttribute("s_comp_cd") == null) { errs.add("로그인이 필요합니다."); res.put("docs", docs); res.put("errors", errs); return res; }
+			List<Map<String,Object>> files = (List<Map<String,Object>>) p.get("files");
+			if (files != null) for (Map<String,Object> fl : files) {
+				String nm = poStr(fl.get("name"));
+				try {
+					String b64 = poStr(fl.get("b64")); int cm = b64.indexOf(','); if (b64.startsWith("data:") && cm > 0) b64 = b64.substring(cm + 1);
+					byte[] b = Base64.getDecoder().decode(b64);
+					if (b.length > 5 * 1024 * 1024) { errs.add(nm + " : 5MB 가 넘습니다."); continue; }
+					Map<String,Object> q = svc.parseQuoteXls(b, nm);
+					q.put("fileB64", b64);
+					if (((List<?>) q.get("lines")).isEmpty() && poStr(q.get("docNo")).isEmpty()) errs.add(nm + " : 견적서 양식을 찾지 못했습니다(문서 번호·품명·수량·단가 머리글이 있어야 합니다).");
+					docs.add(q);
+				} catch (Exception e) {
+					log.error(" quoteParse " + nm + " : " + e.getMessage());
+					errs.add(nm + " : 읽지 못했습니다 — " + e.getClass().getSimpleName() + (e.getMessage() == null ? "" : " " + e.getMessage()));
+				}
+			}
+			res.put("docs", docs); res.put("errors", errs);
+			return res;
+		}
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/mangr/quoteSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> quoteSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+				List<Map<String,Object>> docs = (List<Map<String,Object>>) p.get("docs");
+				if (docs == null || docs.isEmpty()) return ResponseEntity.status(400).body("저장할 견적서가 없습니다.");
+				int n = 0; StringBuilder seqs = new StringBuilder();
+				for (Map<String,Object> q : docs) { long s = svc.saveQuote(q, u, request.getRemoteAddr(), compCd); if (seqs.length() > 0) seqs.append(','); seqs.append(s); n++; }
+				return ResponseEntity.ok(n + "|" + seqs);
+			} catch (Exception e) { log.error(" quoteSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/mangr/quoteList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> quoteList(@RequestParam(value="frDt", required=false) String frDt, @RequestParam(value="toDt", required=false) String toDt,
+		                                    @RequestParam(value="mgrNm", required=false) String mgrNm, @RequestParam(value="findData", required=false) String findData,
+		                                    HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); return res; }
+			Map<String,Object> q = new HashMap<String,Object>();
+			q.put("compCd", session.getAttribute("s_comp_cd")); q.put("frDt", frDt); q.put("toDt", toDt); q.put("mgrNm", mgrNm); q.put("findData", findData);
+			res.put("data", svc.selectQuoteList(q));
+			return res;
+		}
+		@RequestMapping(value="/mangr/quoteDetail.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> quoteDetail(@RequestParam("quoteSeq") long quoteSeq, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); return res; }
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("quoteSeq", Long.valueOf(quoteSeq));
+			res.put("data", svc.selectQuoteDtl(q));
+			return res;
+		}
+		/* 원본 내려받기 — base64 를 풀어 그대로 준다. 파일 이름은 올린 이름(없으면 문서번호.xls) */
+		@RequestMapping(value="/mangr/quoteFile.do")
+		public void quoteFile(@RequestParam("quoteSeq") long quoteSeq, HttpSession session, javax.servlet.http.HttpServletResponse response) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) { response.sendError(401); return; }
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("quoteSeq", Long.valueOf(quoteSeq));
+			Map<String,Object> f = svc.selectQuoteFile(q);
+			if (f == null || f.get("fileB64") == null) { response.sendError(404); return; }
+			byte[] b = Base64.getDecoder().decode(String.valueOf(f.get("fileB64")));
+			String nm = poStr(f.get("fileNm")); if (nm.isEmpty()) nm = poStr(f.get("docNo")) + ".xls";
+			String enc = java.net.URLEncoder.encode(nm, "UTF-8").replace("+", "%20");
+			response.setContentType(nm.toLowerCase().endsWith(".xlsx") ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/vnd.ms-excel");
+			response.setHeader("Content-Disposition", "attachment; filename=\"" + enc + "\"; filename*=UTF-8''" + enc);
+			response.setContentLength(b.length);
+			response.getOutputStream().write(b); response.getOutputStream().flush();
+		}
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/mangr/quoteDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> quoteDelete(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				List<Object> seqs = (List<Object>) p.get("seqs"); int n = 0;
+				if (seqs != null) for (Object o : seqs) {
+					Map<String,Object> q = new HashMap<String,Object>();
+					q.put("compCd", session.getAttribute("s_comp_cd")); q.put("quoteSeq", Long.valueOf(Math.round(poNum(o))));
+					q.put("regUser", session.getAttribute("s_user_id")); q.put("regIp", request.getRemoteAddr());
+					n += svc.deleteQuote(q);
+				}
+				return ResponseEntity.ok(String.valueOf(n));
+			} catch (Exception e) { log.error(" quoteDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+
 		/* ================= DC 발주 등록 (2026-09-17) =================
 		   삼성웰스토리 SRM 「발주현황조회」에서 상품종류 DC 인 발주 — 발주현황표(통합가마감/라벨발행)에는 안 실린다.
 		   그래서 정산서가 올 때까지 재고가 안 빠지고, 출고내역 대사에서는 「정산서만」으로 떴다.

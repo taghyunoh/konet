@@ -673,6 +673,157 @@ public class UserServiceImpl implements UserService {
 	}
 	/* 비용 내역 저장(2026-09-17) — rows = [{dtlSeq, del, expDt, title, amt, remark, chkYn}] : dtlSeq 없으면 새 줄, del=Y 면 지움(ACTION_YN='N').
 	   끝에 그 달·항목의 TRX 금액을 내역 합계로 굳힌다. 마감 확정된 달도 막지 않는다(수기 금액과 같은 방침 — 화면이 확인창을 띄운다). */
+	/* ===== 견적서 관리 (2026-09-17 「견적서 엑셀을 입고예약서처럼 올리고 저장, 일자·담당자·문서번호로 관리」) =====
+	   엑셀(xls/xlsx) 해석 규칙 — 표본 260729-1(900cc, 500cc).xls :
+	   · 머리 : 「문서 번호」「수 신」「견 적 일」「담 당 자」「유효기간」 이름표 칸의 <오른쪽 첫 값>. 이름표는 띄어쓰기·줄바꿈을 지우고 맞춘다.
+	   · 제목 : 「견적을 드립니다」가 든 칸.   · 품목 머리줄 : 품명·수량·단가 가 함께 있는 줄 → 칸 번호. 바로 아랫줄이 Box/ea 같은 보조 머리면 건너뛴다.
+	   · 품목 줄 : 품명이나 수량이 있는 줄. 「비고」 이름표 줄에서 끝. 단위 칸이 숫자면 Box 수, 글이면 단위. 금액은 수식이면 계산값, 비면 수량×단가.
+	   · 비고 : 「비고」 이름표 줄부터 끝까지 이름표 오른쪽 글을 줄로 모은다. */
+	private static String qzCell(org.apache.poi.ss.usermodel.Cell c, org.apache.poi.ss.usermodel.DataFormatter df, org.apache.poi.ss.usermodel.FormulaEvaluator ev) {
+		if (c == null) return "";
+		try {
+			org.apache.poi.ss.usermodel.CellType t = c.getCellTypeEnum();
+			if (t == org.apache.poi.ss.usermodel.CellType.FORMULA) {
+				org.apache.poi.ss.usermodel.CellValue v = ev.evaluate(c);
+				if (v == null) return "";
+				if (v.getCellTypeEnum() == org.apache.poi.ss.usermodel.CellType.NUMERIC) return qzNum(v.getNumberValue());
+				return String.valueOf(v.formatAsString()).replace("\"", "").trim();
+			}
+			if (t == org.apache.poi.ss.usermodel.CellType.NUMERIC) {
+				if (org.apache.poi.ss.usermodel.DateUtil.isCellDateFormatted(c)) return new java.text.SimpleDateFormat("yyyyMMdd").format(c.getDateCellValue());
+				return qzNum(c.getNumericCellValue());
+			}
+			return df.formatCellValue(c).trim();
+		} catch (Exception e) { return ""; }
+	}
+	private static String qzNum(double d) { return (d == Math.rint(d)) ? String.valueOf((long) d) : String.valueOf(d); }
+	private static String qzKey(String s) { return s == null ? "" : s.replaceAll("[\\s\u00A0:：]", ""); }
+	private static double qzD(String s) { try { String t = (s == null ? "" : s).replace(",", "").replaceAll("[^0-9.\\-]", ""); return t.isEmpty() ? 0 : Double.parseDouble(t); } catch (Exception e) { return 0; } }
+	/* 엑셀 날짜 : 숫자(엑셀 일련번호)·yyyy-mm-dd·yyyy.mm.dd·yyyymmdd 모두 'yyyyMMdd' 로 */
+	private static String qzDate(String v) {
+		String s = v == null ? "" : v.trim(); if (s.isEmpty()) return "";
+		String d = s.replaceAll("[^0-9]", "");
+		if (d.length() == 8) return d;
+		try { double n = Double.parseDouble(s); if (n > 20000 && n < 80000) return new java.text.SimpleDateFormat("yyyyMMdd").format(org.apache.poi.ss.usermodel.DateUtil.getJavaDate(n)); } catch (Exception e) { }
+		return "";
+	}
+	@Override public java.util.Map<String,Object> parseQuoteXls(byte[] data, String fileNm) throws Exception {
+		java.util.Map<String,Object> q = new java.util.LinkedHashMap<String,Object>();
+		java.util.List<java.util.Map<String,Object>> lines = new java.util.ArrayList<java.util.Map<String,Object>>();
+		q.put("fileNm", fileNm); q.put("docNo", ""); q.put("quoteDt", ""); q.put("recvNm", ""); q.put("mgrNm", ""); q.put("validTxt", ""); q.put("titleTxt", ""); q.put("remark", "");
+		org.apache.poi.ss.usermodel.Workbook wb = org.apache.poi.ss.usermodel.WorkbookFactory.create(new java.io.ByteArrayInputStream(data));
+		try {
+			org.apache.poi.ss.usermodel.DataFormatter df = new org.apache.poi.ss.usermodel.DataFormatter();
+			org.apache.poi.ss.usermodel.FormulaEvaluator ev = wb.getCreationHelper().createFormulaEvaluator();
+			org.apache.poi.ss.usermodel.Sheet sh = wb.getSheetAt(0);
+			int cName = -1, cSpec = -1, cUnit = -1, cQty = -1, cPrice = -1, cAmt = -1, cRmk = -1, hdrRow = -1;
+			StringBuilder rmk = new StringBuilder(); boolean inRmk = false; int rowNo = 0;
+			for (int r = 0; r <= sh.getLastRowNum(); r++) {
+				org.apache.poi.ss.usermodel.Row row = sh.getRow(r); if (row == null) continue;
+				java.util.TreeMap<Integer,String> cells = new java.util.TreeMap<Integer,String>();
+				for (int c = 0; c < row.getLastCellNum(); c++) { String v = qzCell(row.getCell(c), df, ev); if (!v.isEmpty()) cells.put(c, v); }
+				if (cells.isEmpty()) continue;
+				if (hdrRow < 0) {
+					/* 머리표 — 이름표 오른쪽 첫 값 */
+					for (java.util.Map.Entry<Integer,String> e : cells.entrySet()) {
+						String k = qzKey(e.getValue()); java.util.Map.Entry<Integer,String> nv = cells.higherEntry(e.getKey());
+						String val = nv == null ? "" : nv.getValue().trim();
+						if ("문서번호".equals(k) && !val.isEmpty()) q.put("docNo", val);
+						else if ("수신".equals(k) && !val.isEmpty()) q.put("recvNm", val);
+						else if ("견적일".equals(k) || "견적일자".equals(k) || "일자".equals(k)) { if (!val.isEmpty()) q.put("quoteDt", qzDate(val)); }
+						else if ("담당자".equals(k) && !val.isEmpty()) q.put("mgrNm", val);
+						else if ("유효기간".equals(k) && !val.isEmpty()) q.put("validTxt", val);
+						else if (e.getValue().indexOf("견적을") >= 0 && e.getValue().indexOf("드립니다") >= 0) q.put("titleTxt", e.getValue().trim());
+					}
+					boolean hn = false, hq = false, hp = false;
+					for (String v : cells.values()) { String k = qzKey(v); if ("품명".equals(k) || "품목명".equals(k) || "품목".equals(k)) hn = true; if ("수량".equals(k)) hq = true; if ("단가".equals(k)) hp = true; }
+					if (hn && hq && hp) {
+						hdrRow = r;
+						for (java.util.Map.Entry<Integer,String> e : cells.entrySet()) {
+							String k = qzKey(e.getValue());
+							if ("품명".equals(k) || "품목명".equals(k) || "품목".equals(k)) cName = e.getKey(); else if ("규격".equals(k)) cSpec = e.getKey();
+							else if ("단위".equals(k)) cUnit = e.getKey(); else if ("수량".equals(k)) cQty = e.getKey(); else if ("단가".equals(k)) cPrice = e.getKey();
+							else if ("금액".equals(k) || "공급가액".equals(k)) cAmt = e.getKey(); else if ("비고".equals(k)) cRmk = e.getKey();
+						}
+					}
+					continue;
+				}
+				String first = cells.firstEntry().getValue();
+				if (!inRmk && "비고".equals(qzKey(first)) && cells.firstKey() <= Math.max(0, cName)) { inRmk = true; }
+				if (inRmk) {
+					for (java.util.Map.Entry<Integer,String> e : cells.entrySet()) { if ("비고".equals(qzKey(e.getValue())) && e.getKey() == cells.firstKey()) continue; if (rmk.length() > 0) rmk.append("\n"); rmk.append(e.getValue().trim()); }
+					continue;
+				}
+				String nm = cName >= 0 && cells.containsKey(cName) ? cells.get(cName) : "";
+				String qs = cQty >= 0 && cells.containsKey(cQty) ? cells.get(cQty) : "";
+				String ps = cPrice >= 0 && cells.containsKey(cPrice) ? cells.get(cPrice) : "";
+				/* 보조 머리줄(Box / ea) — 품명 없고 수량 칸이 글자면 건너뛴다. 단위 이름은 기억한다 */
+				if (nm.isEmpty() && !qs.isEmpty() && qzD(qs) == 0 && qzD(ps) == 0) { q.put("unitDef", qs); continue; }
+				if (nm.isEmpty() && qzD(qs) == 0 && qzD(ps) == 0) continue;
+				/* 합계 줄 */
+				if ("합계".equals(qzKey(nm)) || "총계".equals(qzKey(nm)) || "소계".equals(qzKey(nm))) continue;
+				java.util.Map<String,Object> l = new java.util.LinkedHashMap<String,Object>();
+				String us = cUnit >= 0 && cells.containsKey(cUnit) ? cells.get(cUnit) : "";
+				double qty = qzD(qs), price = qzD(ps);
+				String as = cAmt >= 0 && cells.containsKey(cAmt) ? cells.get(cAmt) : "";
+				double amt = qzD(as); if (amt == 0 && qty != 0 && price != 0) amt = Math.round(qty * price);
+				l.put("rowNo", ++rowNo); l.put("prodNm", nm.replace("\n", " ").trim()); l.put("spec", (cSpec >= 0 && cells.containsKey(cSpec) ? cells.get(cSpec) : "").replace("\n", " ").trim());
+				boolean unitNum = !us.isEmpty() && us.replaceAll("[0-9.,]", "").isEmpty();
+				l.put("boxQty", unitNum ? Double.valueOf(qzD(us)) : null);
+				l.put("unit", unitNum ? String.valueOf(q.get("unitDef") == null ? "ea" : q.get("unitDef")) : us);
+				l.put("qty", Double.valueOf(qty)); l.put("unitPrice", Double.valueOf(price)); l.put("amt", Double.valueOf(amt));
+				l.put("remark", (cRmk >= 0 && cells.containsKey(cRmk) ? cells.get(cRmk) : "").trim());
+				lines.add(l);
+			}
+			q.remove("unitDef");
+			q.put("remark", rmk.toString());
+		} finally { wb.close(); }
+		double sum = 0; for (java.util.Map<String,Object> l : lines) sum += scNum(l.get("amt"));
+		q.put("supplyAmt", Double.valueOf(Math.round(sum)));
+		q.put("lines", lines);
+		return q;
+	}
+	@Override
+	@org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
+	public long saveQuote(java.util.Map<String,Object> q, String user, String ip, String compCd) throws Exception {
+		String docNo = scStr(q.get("docNo"));
+		if (docNo.isEmpty()) throw new Exception("문서번호가 없습니다.");
+		java.util.Map<String,Object> m = new java.util.HashMap<String,Object>();
+		m.put("compCd", compCd); m.put("docNo", docNo); m.put("regUser", user); m.put("regIp", ip);
+		mapper.markQuoteReplace(m);                                                   // 같은 문서번호는 대체
+		String dt = scStr(q.get("quoteDt")).replace("-", "").replace("/", "").replace(".", "");
+		m.put("quoteDt", dt.length() == 8 ? dt : null);
+		m.put("recvNm", scStr(q.get("recvNm"))); m.put("mgrNm", scStr(q.get("mgrNm"))); m.put("validTxt", scStr(q.get("validTxt")));
+		m.put("titleTxt", scStr(q.get("titleTxt"))); String rm = scStr(q.get("remark")); m.put("remark", rm.length() > 990 ? rm.substring(0, 990) : rm);
+		String fn = scStr(q.get("fileNm")); m.put("fileNm", fn.length() > 190 ? fn.substring(0, 190) : fn);
+		Object b64 = q.get("fileB64"); m.put("fileB64", (b64 == null || String.valueOf(b64).isEmpty()) ? null : String.valueOf(b64));
+		java.util.List<?> raw = (q.get("lines") instanceof java.util.List) ? (java.util.List<?>) q.get("lines") : new java.util.ArrayList<Object>();
+		double sum = 0; java.util.List<java.util.Map<String,Object>> rows = new java.util.ArrayList<java.util.Map<String,Object>>();
+		int no = 0;
+		for (Object o : raw) {
+			if (!(o instanceof java.util.Map)) continue;
+			@SuppressWarnings("unchecked") java.util.Map<String,Object> l = (java.util.Map<String,Object>) o;
+			String nm = scStr(l.get("prodNm")); double qty = scNum(l.get("qty")), price = scNum(l.get("unitPrice")), amt = scNum(l.get("amt"));
+			if (nm.isEmpty() && qty == 0 && amt == 0) continue;
+			if (amt == 0 && qty != 0 && price != 0) amt = Math.round(qty * price);
+			java.util.Map<String,Object> d = new java.util.HashMap<String,Object>();
+			d.put("rowNo", ++no); d.put("prodNm", nm); d.put("spec", scStr(l.get("spec")));
+			d.put("boxQty", l.get("boxQty") == null || scStr(l.get("boxQty")).isEmpty() ? null : Double.valueOf(scNum(l.get("boxQty"))));
+			d.put("unit", scStr(l.get("unit"))); d.put("qty", Double.valueOf(qty)); d.put("unitPrice", Double.valueOf(price)); d.put("amt", Double.valueOf(Math.round(amt)));
+			d.put("remark", scStr(l.get("remark"))); d.put("prodCd", scStr(l.get("prodCd")).isEmpty() ? null : scStr(l.get("prodCd")));
+			rows.add(d); sum += Math.round(amt);
+		}
+		m.put("supplyAmt", Double.valueOf(sum));
+		mapper.insertQuoteMst(m);
+		long seq = Math.round(scNum(m.get("quoteSeq")));
+		for (java.util.Map<String,Object> d : rows) { d.put("quoteSeq", Long.valueOf(seq)); mapper.insertQuoteDtl(d); }
+		return seq;
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteList(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteList(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteDtl(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteDtl(p); }
+	@Override public java.util.Map<String,Object> selectQuoteFile(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteFile(p); }
+	@Override public int deleteQuote(java.util.Map<String,Object> p) throws Exception { return mapper.deleteQuote(p); }
+
 	/* ===== DC 발주 (2026-09-17) — 입고예약서·발주서에서 읽은 줄을 TBL_SHIPOUT_MST 에 PROD_KIND='DC' 로.
 	   납기일자별로 한 배치(JOB_SEQ = 그 날·출고장의 다음 번호). 같은 (납기일자, 품목코드) 활성 DC 줄은 먼저 이력(N)으로 닫는다.
 	   품목 해석(매칭코드 → 우리 품목)은 발주현황표 업로드와 같은 resolveShipoutProd. 재고 원장 재동기화는 컨트롤러가 한다. ===== */
