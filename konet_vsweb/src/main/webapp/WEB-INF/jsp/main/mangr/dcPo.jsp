@@ -85,9 +85,6 @@
 <body>
 <div class="wrap">
   <h2>🏷 DC 발주 등록</h2>
-  <div class="sub">삼성웰스토리 SRM <b>발주현황조회</b>에서 상품종류가 <b>DC</b> 인 발주는 발주현황표(통합가마감/라벨발행)에 안 실려, 정산서가 올 때까지 재고가 안 빠집니다.
-    받은 <b>입고예약서(PDF)</b>나 <b>발주서(엑셀)</b>를 올리면 출고로 넣습니다.
-    <b>재고·정산서 대사·월별 출고현황·마감</b>에는 들어가고, <b>납기현황관리(대시보드·납기세부·이력)</b>에서만 빠집니다.</div>
 
   <div class="card">
     <div class="hd">📥 파일 올리기 <small>— 여러 개를 한 번에 올릴 수 있습니다. 미리보기를 확인하고 [💾 저장]</small>
@@ -141,8 +138,6 @@
         <tbody id="lsBody"><tr><td colspan="12" class="empty">조회 중…</td></tr></tbody>
       </table>
     </div>
-    <div class="note">· <b>우리 품목</b>이 비어(미매핑) 있으면 재고에서 안 빠집니다 — 품목코드(매핑)에서 코드를 이어 주세요. 이으면 소급해서 빠집니다.<br>
-      · <b>정산서</b> : <span class="bd ok">반영 n</span> = 그 날 정산서에 이 품목이 있음 · <span class="bd day">그 날 정산서 있음</span> = 원장은 정산서가 주인(이 줄은 안 셈) · <span class="bd wait">대기</span> = 정산서 오기 전이라 이 줄로 재고가 빠져 있음.</div>
   </div>
 </div>
 <script>
