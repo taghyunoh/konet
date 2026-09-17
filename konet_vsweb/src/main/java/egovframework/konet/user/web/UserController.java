@@ -2147,6 +2147,15 @@ public class UserController {
 			res.put("data", svc.selectSafeStockShort(p));
 			return res;
 		}
+		/** 적정재고 자동 산출 제안 (2026-09-17, 설계 docs/설계_적정재고_자동산출_2026-09-17.md) — 조건이 비면 회사 설정값. 적용은 safeStockBulk(src='A') */
+		@RequestMapping(value="/prod/safeStockSuggest.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> safeStockSuggest(@RequestParam(value="window", required=false) Integer window, @RequestParam(value="lead", required=false) Integer lead,
+		                                           @RequestParam(value="buf", required=false) Integer buf, @RequestParam(value="minDays", required=false) Integer minDays,
+		                                           HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) { Map<String,Object> e = new HashMap<String,Object>(); e.put("data", new java.util.ArrayList<Object>()); e.put("error", "로그인이 필요합니다."); return e; }
+			return svc.selectSafeStockSuggest(String.valueOf(session.getAttribute("s_comp_cd")), window, lead, buf, minDays);
+		}
 		/** 적정재고 일괄 입력 (2026-09-16 결정 ⑥) — 상품코드관리에서 「품목코드 적정재고」 두 열을 붙여넣는다.
 		    없는 코드는 세어서 알려 주고 나머지는 그대로 넣는다(막지 않는다). */
 		@SuppressWarnings("unchecked")

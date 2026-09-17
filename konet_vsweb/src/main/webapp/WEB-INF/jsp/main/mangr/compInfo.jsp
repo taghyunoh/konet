@@ -260,6 +260,15 @@
       <%-- 기본 택배 운임 (2026-09-16 P2-e) — 사업장에 택배 운임이 없을 때 쓰는 값. 택배출고관리 종이와 비용 등록의 직송 운임 자동 집계가 같은 값을 쓴다(종전 4500 하드코딩) --%>
       <div class="fld"><label>기본 택배 운임 <span class="tip" title="사업장(택배출고관리)에 운임이 없을 때 쓰는 건당 운임(원)입니다.&#10;택배출고관리 종이의 운임 칸과 비용 등록의 「직송 택배 운임」 자동 집계가 같은 값을 씁니다.">?</span></label>
         <div class="v"><input type="number" data-f="parcelFeeDef" class="w90" min="0" max="999999" step="100"><span class="unit">원</span></div></div>
+      <%-- 적정재고 자동 산출 기준 (2026-09-17) — 품목별재고현황 [🧮 적정재고 산출]이 이 값으로 제안한다. 적정 = 일평균 출고 × (리드타임 + 안전일수), 입수 배수 올림 --%>
+      <div class="fld"><label>적정재고 산출 기간 <span class="tip" title="최근 며칠의 출고로 일평균을 낼지(일). 기본 90. 품목별재고현황 [🧮 적정재고 산출] 창에서 그때그때 바꿔 볼 수도 있습니다.">?</span></label>
+        <div class="v"><input type="number" data-f="safeWindow" class="w90" min="30" max="365" step="30"><span class="unit">일</span></div></div>
+      <div class="fld"><label>적정재고 리드타임 <span class="tip" title="발주해서 들어올 때까지 걸리는 날수. 기본 7. 적정재고 = 일평균 출고 × (리드타임 + 안전일수)">?</span></label>
+        <div class="v"><input type="number" data-f="safeLeadDays" class="w90" min="0" max="90"><span class="unit">일</span></div></div>
+      <div class="fld"><label>적정재고 안전일수 <span class="tip" title="리드타임 위에 더 두는 여유 날수. 기본 7.">?</span></label>
+        <div class="v"><input type="number" data-f="safeBufDays" class="w90" min="0" max="90"><span class="unit">일</span></div></div>
+      <div class="fld"><label>적정재고 최소 출고일수 <span class="tip" title="기간 안에 출고된 날이 이보다 적은 품목은 「간헐」로 보고 적정재고를 제안하지 않습니다. 기본 5.">?</span></label>
+        <div class="v"><input type="number" data-f="safeMinDays" class="w90" min="1" max="90"><span class="unit">일</span></div></div>
     </div>
 
     <div class="grp">수금</div>
@@ -510,6 +519,11 @@ function ciSave(){
   func.dueBad  = (isFinite(db) && db >= 1) ? Math.round(db) : D.func.dueBad;
   if (func.dueBad < func.dueWarn) func.dueBad = func.dueWarn;
   var pf = Number(func.parcelFeeDef); func.parcelFeeDef = (isFinite(pf) && pf >= 0) ? Math.round(pf) : D.func.parcelFeeDef;   // 기본 택배 운임(2026-09-16)
+  // 적정재고 자동 산출 기준(2026-09-17) — 정수, 기간 30~365 · 리드/안전 0~90 · 최소 출고일수 1~90. 리드+안전이 기간을 넘으면 안전을 줄인다
+  ['safeWindow','safeLeadDays','safeBufDays','safeMinDays'].forEach(function(k){ var v = Number(func[k]); func[k] = isFinite(v) ? Math.round(v) : D.func[k]; });
+  func.safeWindow = Math.max(30, Math.min(365, func.safeWindow)); func.safeLeadDays = Math.max(0, Math.min(90, func.safeLeadDays));
+  func.safeBufDays = Math.max(0, Math.min(90, func.safeBufDays)); func.safeMinDays = Math.max(1, Math.min(90, func.safeMinDays));
+  if (func.safeLeadDays + func.safeBufDays > func.safeWindow) func.safeBufDays = Math.max(0, func.safeWindow - func.safeLeadDays);
   var rows = Number(prt.rows); prt.rows = isFinite(rows) ? Math.max(3, Math.min(40, Math.round(rows))) : D.prt.rows;
   var raw = {}; try { raw = _info.setJson ? JSON.parse(_info.setJson) : {}; } catch(e) {}
   raw.func = func; raw.prt = prt; raw.prtApp = app;      // 모르는 덩어리가 있으면 그대로 둔다

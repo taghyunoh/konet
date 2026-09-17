@@ -1552,6 +1552,69 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<java.util.Map<String,Object>> selectPoRecentByProd(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoRecentByProd(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectPoRemainByProd(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoRemainByProd(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectSafeStockShort(java.util.Map<String,Object> p) throws Exception { return mapper.selectSafeStockShort(p); }
+	/* 회사 설정(SET_JSON func.*) 정수 하나 — parcelFeeDefOf 와 같은 정규식 방식(JSON 라이브러리 없이) */
+	private int compSetInt(String compCd, String key, int def) {
+		try {
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", (compCd == null || compCd.trim().isEmpty()) ? "W1234567" : compCd);
+			String js = mapper.selectCompSetJson(p);
+			if (js != null) {
+				java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"" + key + "\"\\s*:\\s*\"?(\\d+)").matcher(js);
+				if (m.find()) return Integer.parseInt(m.group(1));
+			}
+		} catch (Exception e) { /* 설정을 못 읽으면 기본값 */ }
+		return def;
+	}
+	/* ===== 적정재고 자동 산출 (2026-09-17, 설계 docs/설계_적정재고_자동산출_2026-09-17.md) =====
+	   적정 S = ceil( 일평균 d × (리드타임 L + 안전일수 A) ÷ 입수 ) × 입수,  d = 기간 W일 원장 출고 ÷ W.
+	   · 출고 일수 < N(최소 출고일수) 이면 「간헐」 — 제안 없음.  · 상한 = W일 출고량.  · 조건이 비면 회사 설정(safeWindow·safeLeadDays·safeBufDays·safeMinDays).
+	   · 가용 = max(현재고,0) + 입고예정 (음수 재고는 0 — 결정 ④). 여기서는 계산만, 적용은 saveSafeStockBulk(src='A'). */
+	@Override public java.util.Map<String,Object> selectSafeStockSuggest(String compCd, Integer window, Integer lead, Integer buf, Integer minDays) throws Exception {
+		int W = (window != null && window >= 30 && window <= 365) ? window : compSetInt(compCd, "safeWindow", 90);
+		int L = (lead != null && lead >= 0 && lead <= 90) ? lead : compSetInt(compCd, "safeLeadDays", 7);
+		int A = (buf != null && buf >= 0 && buf <= 90) ? buf : compSetInt(compCd, "safeBufDays", 7);
+		int N = (minDays != null && minDays >= 1 && minDays <= 90) ? minDays : compSetInt(compCd, "safeMinDays", 5);
+		if (L + A > W) A = Math.max(0, W - L);                                   // 리드+안전이 기간을 넘는 설정은 막는다
+		java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyyMMdd");
+		java.util.Calendar c = java.util.Calendar.getInstance();
+		String toDt = f.format(c.getTime()); c.add(java.util.Calendar.DATE, -(W - 1)); String frDt = f.format(c.getTime());
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("frDt", frDt); p.put("toDt", toDt);
+		java.util.List<java.util.Map<String,Object>> rows = mapper.selectSafeStockSuggest(p);
+		int cand = 0, chg = 0, newShort = 0, protectM = 0, sporadic = 0, neg = 0;
+		for (java.util.Map<String,Object> r : rows) {
+			double out = scNum(r.get("outQty")); int days = (int) Math.round(scNum(r.get("outDays")));
+			int pack = Math.max(1, (int) Math.round(scNum(r.get("packQty"))));
+			long cur = Math.round(scNum(r.get("curQty"))), rem = Math.round(scNum(r.get("poRemainQty")));
+			long avail = Math.max(cur, 0) + rem;
+			long safeNow = Math.round(scNum(r.get("safeStock"))); String src = scStr(r.get("safeStockSrc"));
+			double d = out / W;
+			Long sug = null; String flag = "";
+			if (out <= 0) flag = "출고 0";
+			else if (days < N) { flag = "간헐"; sporadic++; }
+			else {
+				double raw = d * (L + A); if (raw > out) raw = out;                  // 상한 = 기간 출고량
+				long s = (long) Math.ceil(raw / pack) * pack; if (s < pack) s = pack;
+				sug = Long.valueOf(s); cand++;
+			}
+			r.put("perDay", Double.valueOf(Math.round(d * 100) / 100.0));
+			r.put("suggestQty", sug); r.put("flag", flag);
+			r.put("diffQty", sug == null ? null : Long.valueOf(sug.longValue() - safeNow));
+			r.put("availQty", Long.valueOf(avail));
+			boolean sh = sug != null && avail < sug.longValue();
+			r.put("afterShort", sh ? "Y" : "N");
+			if (sug != null && sug.longValue() != safeNow) { chg++; if ("M".equals(src)) protectM++; }
+			if (sh) newShort++;
+			if (cur < 0) neg++;
+		}
+		java.util.Map<String,Object> params = new java.util.HashMap<String,Object>();
+		params.put("window", W); params.put("lead", L); params.put("buf", A); params.put("minDays", N); params.put("frDt", frDt); params.put("toDt", toDt);
+		java.util.Map<String,Object> sum = new java.util.HashMap<String,Object>();
+		sum.put("rows", rows.size()); sum.put("cand", cand); sum.put("chg", chg); sum.put("newShort", newShort); sum.put("protectM", protectM); sum.put("sporadic", sporadic); sum.put("neg", neg);
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		res.put("data", rows); res.put("params", params); res.put("summary", sum);
+		return res;
+	}
 	/* 적정재고 일괄 입력 (2026-09-16) — 줄마다 품목코드·적정재고. 없는 코드는 세어서 돌려준다(막지 않는다 — 사용자 원칙 「메시지 처리」).
 	   ★한 줄이 실패해도 멈추지 않는다 : 코드 하나가 틀렸다고 나머지 수백 줄을 버리면 붙여넣기가 소용없다. */
 	@Override public java.util.Map<String,Object> saveSafeStockBulk(java.util.List<java.util.Map<String,Object>> rows, String compCd, String regUser) throws Exception {
@@ -1564,6 +1627,7 @@ public class UserServiceImpl implements UserService {
 			if (qty < 0) qty = 0;
 			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
 			p.put("prodCd", cd); p.put("safeStock", Integer.valueOf(qty)); p.put("compCd", compCd); p.put("regUser", regUser);
+			p.put("src", "A".equals(String.valueOf(r.get("src"))) ? "A" : "M");   // 출처(2026-09-17) — 자동 산출 적용은 A, 붙여넣기는 M
 			int n = 0; try { n = mapper.updateSafeStockByCd(p); } catch (Exception e) { n = 0; }
 			if (n > 0) done += n; else { miss++; if (missCds.size() < 20) missCds.add(cd); }
 		}

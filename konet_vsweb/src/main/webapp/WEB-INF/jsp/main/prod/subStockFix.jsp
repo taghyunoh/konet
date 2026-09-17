@@ -229,14 +229,20 @@ function zeroBtnSync(){
 /* 0 으로 조정 — 서버가 원장으로 수량을 다시 세서 조정행을 만든다(화면 숫자는 안내용) */
 function zeroGo(){
   var sel = picked(); if (!sel.length) return;
-  var merge = gel('merge').checked, tot = 0, withPur = [], mains = {};
-  sel.forEach(function(s){ tot += num(s.subCur); mains[s.mainCd] = 1; var pl = (BYSUB[s.subCd] || []).length; if (pl > 0) withPur.push(s.subCd + '(' + pl + '줄)'); });
+  var merge = gel('merge').checked, tot = 0, withPur = [], mains = {}, adjOnly = [], adjOnlyQty = 0;
+  sel.forEach(function(s){ tot += num(s.subCur); mains[s.mainCd] = 1; var pl = (BYSUB[s.subCd] || []).length; if (pl > 0) withPur.push(s.subCd + '(' + pl + '줄)');
+    /* ★매입 없이 조정으로만 생긴 재고 (2026-09-17 지적 「매입없음 내용을 주코드에 더해 합쳤는데 상관없나요」) —
+         그 수량이 실제 센 물건이면 합치는 게 맞고, 코드를 잘못 골라 넣은 착오면 합치면 주코드가 부풀어 오른다. 사람이 정해야 한다. */
+    if (num(s.subCur) > 0 && num(s.subPurch) <= 0) { adjOnly.push(s.subCd + '(' + fmt(num(s.subCur)) + ')'); adjOnlyQty += num(s.subCur); } });
   var msg = '서브코드 <b>' + sel.length + '</b>개의 재고(합 <b>' + fmt(tot) + '</b>)를 <b>0</b>으로 조정합니다.'
     + (merge ? '<br>같은 수량을 주코드 <b>' + Object.keys(mains).length + '</b>개에 <b>더해 합칩니다</b>.' : '<br><b style="color:#b23b3b">주코드에는 더하지 않습니다</b>(서브코드만 0).')
+    + (adjOnly.length ? '<br><br><span style="color:#b23b3b"><b>⚠ 매입 없이 조정으로만 생긴 재고 ' + adjOnly.length + '개(합 ' + fmt(adjOnlyQty) + ')</b> — ' + esc(adjOnly.join(', ')) + '</span>'
+        + '<br><span style="font-size:12.5px;color:#3d4d5c">이 수량이 창고에서 <b>실제로 센 물건</b>이면 ' + (merge ? '이대로 합치는 것이 맞고' : '[주코드에 더해 합치기]를 켜야 장부에서 사라지지 않고')
+        + ', 코드를 잘못 골라 넣은 <b>착오</b>라면 ' + (merge ? '[주코드에 더해 합치기]를 끄고 진행하세요(주코드가 부풀어 오릅니다).' : '이대로 0으로만 조정하면 됩니다.') + '</span>' : '')
     + (withPur.length ? '<br><br><span style="color:#b06a00">⚠ 아직 매입이 서브코드로 잡혀 있는 코드가 있습니다 — ' + esc(withPur.join(', ')) + '<br>'
         + '매입등록에서 먼저 주코드로 바꾸면 매입 이력(단가·거래처)도 주코드로 갑니다. 그래도 조정으로 맞출까요?</span>' : '')
     + '<br><br><span style="font-size:12.5px;color:#5a6b7a">조정 이력은 재고 일괄조정 ▸ [조정 이력]에서 보고 묶음째 되돌릴 수 있습니다.</span>';
-  _confirmBox({ msg: msg, icon:'🧹', okText:'조정', onOk: function(){
+  _confirmBox({ msg: msg, icon: adjOnly.length ? '⚠️' : '🧹', okText: merge ? (adjOnly.length ? '합쳐서 조정' : '조정') : '0으로만 조정', onOk: function(){
     busy(true, '조정하는 중…');
     fetch(CTX + '/prod/subStockZero.do', { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ subCds: sel.map(function(s){ return s.subCd; }), merge: merge }) })

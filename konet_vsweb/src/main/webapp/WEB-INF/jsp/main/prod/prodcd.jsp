@@ -738,7 +738,7 @@ function pcRender(){
          ★거래처명 칸은 뺐다(2026-08-20 요청) — 값(VENDOR_CD/NM)은 마스터에 그대로, 수정 창에서 본다. */
       +'<td title="'+esc(o.spec)+'">'+esc(o.spec)+'</td>'   /* 잘려도 마우스로 전체를 본다 */
       +'<td>'+esc(o.makerNm)+'</td><td>'+esc(o.typeNm)+'</td>'
-      +'<td class="num">'+num(o.safeStock)+'</td>'
+      +'<td class="num">'+num(o.safeStock)+(o.safeStockSrc==='A'?' <sup style="color:#137a6c;font-weight:800" title="자동 산출값(품목별재고현황 ▸ 적정재고 산출). 여기서 고쳐 저장하면 수기가 됩니다">A</sup>':'')+'</td>'   /* 출처 배지(2026-09-17) */
       +'<td><span class="tx" style="background:'+c+'">'+esc(o.taxGb||'-')+'</span></td>'
       +'<td class="num">'+num(o.packQty)+'</td><td class="num">'+num(o.inPrice)+'</td>'
       +'<td class="num">'+num(o.salePrice)+'</td><td class="num">'+num(o.wholePrice)+'</td>'

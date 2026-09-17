@@ -1737,6 +1737,82 @@
   /* 상단 재고 그리드 행수 — 10 → 7 (2026-08-07 요청).
      10 → 7 로 줄였다가, 조회줄 라벨을 빼 자리가 남아 11 로 늘렸다(2026-08-07 요청).
      하단 ②는 남은 화면 높이를 자동으로 채우므로(_stkLedFit) 이 값만 바꾸면 된다. */
+  /* ── 적정재고 자동 산출 (2026-09-17, 설계 docs/설계_적정재고_자동산출_2026-09-17.md) ──
+       서버(/prod/safeStockSuggest.do)가 기간 출고·현재고·입고예정·제안값을 주고, 화면은 거르고 고르기만. 적용 = 기존 /prod/safeStockBulk.do 에 src='A'.
+       수기(M) 품목은 [수기 입력값도 덮어쓰기]를 켜야 체크된다. 적용 뒤 재고현황·미달 목록을 다시 읽는다. */
+  var _ssg=[], _ssgP=null, _ssgS=null;
+  function ssgOpen(){ document.getElementById('ssgPop').classList.add('on'); if(!_ssgP) ssgLoad(true); else ssgRender(); }
+  function ssgClose(){ document.getElementById('ssgPop').classList.remove('on'); }
+  function _ssgV(id){ var v=Number((document.getElementById(id)||{}).value); return isFinite(v)?Math.round(v):''; }
+  function ssgLoad(first){
+    var body = first ? '' : ('window='+_ssgV('ssgWin')+'&lead='+_ssgV('ssgLead')+'&buf='+_ssgV('ssgBuf')+'&minDays='+_ssgV('ssgMin'));
+    document.getElementById('ssgBody').innerHTML='<div style="padding:36px;text-align:center;color:#8a98a8">최근 출고를 모아 계산하는 중…</div>';
+    fetch('${pageContext.request.contextPath}/prod/safeStockSuggest.do',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body})
+      .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t||('HTTP '+r.status)); return JSON.parse(t); }); })
+      .then(function(j){
+        if(j && j.error){ throw new Error(j.error); }
+        _ssg=(j&&j.data)||[]; _ssgP=(j&&j.params)||{}; _ssgS=(j&&j.summary)||{};
+        ['ssgWin','ssgLead','ssgBuf','ssgMin'].forEach(function(id,i){ var k=['window','lead','buf','minDays'][i]; var el=document.getElementById(id); if(el && _ssgP[k]!=null) el.value=_ssgP[k]; });
+        _ssg.forEach(function(x){ x._on = (x.suggestQty!=null && Number(x.diffQty)!==0 && x.safeStockSrc!=='M'); });
+        ssgRender();
+      })
+      .catch(function(e){ document.getElementById('ssgBody').innerHTML='<div style="padding:24px;color:#c0392b">계산하지 못했습니다 — '+_esc(String(e&&e.message||e))+'</div>'; });
+  }
+  function _ssgRows(){
+    var overM=document.getElementById('ssgOverM').checked, onlyChg=document.getElementById('ssgOnlyChg').checked, incSp=document.getElementById('ssgIncSp').checked;
+    return _ssg.filter(function(x){
+      if(x.suggestQty==null && !incSp) return false;
+      if(onlyChg && x.suggestQty!=null && Number(x.diffQty)===0) return false;
+      return true;
+    }).map(function(x){ x._lock = (x.safeStockSrc==='M' && !overM); if(x._lock) x._on=false; return x; });
+  }
+  function ssgRender(){
+    var rows=_ssgRows(), P=_ssgP||{}, S=_ssgS||{};
+    var sel=0, selShort=0; _ssg.forEach(function(x){ if(x._on && x.suggestQty!=null){ sel++; if(x.afterShort==='Y') selShort++; } });
+    document.getElementById('ssgSum').innerHTML='후보 <b>'+_cnum(S.cand)+'</b> · 바뀜 <b>'+_cnum(S.chg)+'</b> · 적용 후 미달 <b style="color:#c0392b">'+_cnum(S.newShort)+'</b> · 수기 보호 '+_cnum(S.protectM)+' · 간헐 '+_cnum(S.sporadic)+' · 음수 재고 '+_cnum(S.neg)
+      +' &nbsp;|&nbsp; 선택 <b style="color:#137a6c">'+sel+'</b>'+(selShort?(' (미달 '+selShort+')'):'');
+    var allOn = rows.length && rows.every(function(x){ return x._lock || x._on; });
+    var h='<table class="logi-tb" style="width:100%"><thead><tr>'
+      +'<th style="width:34px"><input type="checkbox" '+(allOn?'checked':'')+' onchange="ssgAll(this.checked)" title="보이는 줄 모두"></th>'
+      +'<th>품목코드</th><th>품목명</th><th>규격</th><th style="text-align:right">입수</th><th style="text-align:right" title="기간 안 출고가 있었던 날수">출고일수</th>'
+      +'<th style="text-align:right">'+_cnum(P.window)+'일 출고</th><th style="text-align:right">일평균</th><th style="text-align:right">현재 적정</th><th style="text-align:right">제안 적정</th><th style="text-align:right">차이</th>'
+      +'<th style="text-align:right">현재고</th><th style="text-align:right">입고예정</th><th>적용 후</th></tr></thead><tbody>';
+    if(!rows.length) h+='<tr><td colspan="14" style="padding:26px;text-align:center;color:#8a98a8">조건에 맞는 품목이 없습니다.</td></tr>';
+    rows.forEach(function(x){
+      var i=_ssg.indexOf(x), neg=Number(x.curQty)<0, sug=x.suggestQty, diff=Number(x.diffQty||0);
+      var src = x.safeStockSrc==='M' ? '<span title="손으로 넣은 값" style="font-size:11px;color:#b45309;font-weight:800"> 수기</span>' : (x.safeStockSrc==='A' ? '<span title="지난 자동 산출값" style="font-size:11px;color:#137a6c;font-weight:800"> 자동</span>' : '');
+      h+='<tr style="'+(x._lock?'opacity:.55;':'')+(x.afterShort==='Y'?'background:#fff6f6;':'')+'">'
+        +'<td style="text-align:center">'+(sug==null?'':('<input type="checkbox" '+(x._on?'checked':'')+(x._lock?' disabled':'')+' onchange="_ssg['+i+']._on=this.checked; ssgRender()">'))+'</td>'
+        +'<td><b>'+_esc(x.prodCd)+'</b></td><td>'+_esc(x.prodNm)+'</td><td style="color:#6b7a89">'+_esc(x.spec)+'</td>'
+        +'<td style="text-align:right">'+_cnum(x.packQty)+'</td><td style="text-align:right">'+_cnum(x.outDays)+'</td>'
+        +'<td style="text-align:right">'+_cnum(x.outQty)+'</td><td style="text-align:right">'+(Number(x.perDay)||0).toLocaleString(undefined,{maximumFractionDigits:2})+'</td>'
+        +'<td style="text-align:right">'+(Number(x.safeStock)>0?_cnum(x.safeStock):'<span style="color:#b8c2cc">—</span>')+src+'</td>'
+        +'<td style="text-align:right;font-weight:800;color:#137a6c">'+(sug==null?('<span style="color:#b45309;font-weight:600">'+_esc(x.flag||'')+'</span>'):_cnum(sug))+'</td>'
+        +'<td style="text-align:right;'+(diff>0?'color:#c0392b':(diff<0?'color:#1f5fbf':''))+'">'+(sug==null?'':((diff>0?'+':'')+_cnum(diff)))+'</td>'
+        +'<td style="text-align:right;'+(neg?'color:#c0392b;font-weight:800':'')+'" title="'+(neg?'음수 재고 — 매입 등록 확인. 가용 계산에서는 0 으로 봅니다':'')+'">'+_cnum(x.curQty)+(neg?' ⚠':'')+'</td>'
+        +'<td style="text-align:right">'+_cnum(x.poRemainQty)+'</td>'
+        +'<td style="text-align:center">'+(sug==null?'':(x.afterShort==='Y'?'<span style="color:#c0392b;font-weight:800">미달</span>':'<span style="color:#137a6c">충분</span>'))+'</td></tr>';
+    });
+    document.getElementById('ssgBody').innerHTML=h+'</tbody></table>';
+  }
+  function ssgAll(on){ _ssgRows().forEach(function(x){ if(!x._lock && x.suggestQty!=null) x._on=on; }); ssgRender(); }
+  function ssgApply(){
+    var rows=_ssg.filter(function(x){ return x._on && !x._lock && x.suggestQty!=null; }).map(function(x){ return { prodCd:x.prodCd, safeStock:Number(x.suggestQty), src:'A' }; });
+    if(!rows.length){ swAlert('적용할 줄을 체크하세요.','info'); return; }
+    var go=function(){
+      var b=document.getElementById('ssgApplyBtn'); b.disabled=true;
+      fetch('${pageContext.request.contextPath}/prod/safeStockBulk.do',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
+        .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t||('HTTP '+r.status)); return JSON.parse(t); }); })
+        .then(function(j){
+          swAlert('적정재고 <b>'+_cnum(j.done)+'</b>품목을 자동 산출값으로 적용했습니다'+(j.miss?('<br><span style="color:#c0392b">못 넣은 것 '+j.miss+'</span>'):''),'success');
+          _ssgP=null; _stkShortAll=null; ssgClose(); stkStatusLoad();
+        })
+        .catch(function(e){ swAlert('적용하지 못했습니다 — '+_esc(String(e&&e.message||e)),'error'); })
+        .then(function(){ b.disabled=false; });
+    };
+    if(typeof window._confirmBox==='function') window._confirmBox({ msg:'<b>'+rows.length+'</b>품목의 적정재고를 제안값으로 바꿉니다.<br><span style="font-size:13px;color:#3d4d5c">상품코드관리의 적정재고가 바뀌고, 발주서 [⚠ 추천 발주]가 이 값으로 셉니다.</span>', icon:'❓', okText:'적용', onOk:go });
+    else go();
+  }
   var _stkRows=[], STK_PAGE=11;
   /* 매칭코드 하위 행 접기 상태 (2026-08-07 요청)
        _stkExpAll = 전체 기본값(true=펼침) · _stkExp[코드] = 그 줄만 뒤집기
@@ -4064,6 +4140,9 @@
                 <input type="checkbox" id="stkOnlyShort" onchange="stkStatusRender()" style="width:15px;height:15px;cursor:pointer">
                 적정재고 미달만
               </label>
+              <%-- 적정재고 자동 산출 (2026-09-17, 설계 docs/설계_적정재고_자동산출_2026-09-17.md) — 최근 출고로 제안값을 만들어 확인 후 일괄 적용 --%>
+              <button class="btn-line" style="white-space:nowrap; padding:0 12px; margin-right:8px; border-color:#137a6c; color:#137a6c; font-weight:800" onclick="ssgOpen()"
+                      title="최근 출고(기본 90일)로 품목마다 적정재고를 제안합니다 — 적정 = 일평균 출고 × (리드타임 + 안전일수), 입수 배수 올림. 확인하고 체크한 것만 적용합니다.">🧮 적정재고 산출</button>
               <button class="btn-line" style="white-space:nowrap; padding:0 12px" onclick="stkAsOfClear()" title="기준일을 비웁니다 — 지금 이 순간의 재고">전체</button>
               <button class="btn-line" style="white-space:nowrap; padding:0 12px" onclick="stkAsOfSet(0)" title="오늘 자정까지 반영된 재고">오늘</button>
               <button class="btn-line" style="white-space:nowrap; padding:0 12px" onclick="stkAsOfSet(-1)" title="지난달 말일 기준 재고 — 월말 재고 확인용">전월말</button>
@@ -4131,6 +4210,26 @@
 
       <%-- 입·출고 나눠보기 창 — 서버를 다시 부르지 않는다. ② 가 이미 받아 둔
            _stkLedRaw 를 그대로 갈라 그리므로 즉시 열린다. --%>
+      <%-- 적정재고 자동 산출 창 (2026-09-17) — 조건을 바꿔 다시 계산 · 제안 표 · 체크한 것만 [선택 적용](safeStockBulk src='A') --%>
+      <div class="ss-modal" id="ssgPop">
+        <div class="box" style="width:min(1500px,96vw); margin-top:1.5vh; max-height:97vh">
+          <div style="padding:10px 16px; border-bottom:1px solid var(--logi-border); display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+            <b style="font-size:15px; white-space:nowrap">🧮 적정재고 자동 산출</b>
+            <span style="font-size:12.5px;color:#37475a;white-space:nowrap">최근 <input type="number" id="ssgWin" min="30" max="365" step="30" style="width:62px;height:28px;text-align:right"> 일 출고 ·
+              리드타임 <input type="number" id="ssgLead" min="0" max="90" style="width:50px;height:28px;text-align:right"> 일 + 안전 <input type="number" id="ssgBuf" min="0" max="90" style="width:50px;height:28px;text-align:right"> 일 ·
+              최소 출고일수 <input type="number" id="ssgMin" min="1" max="90" style="width:50px;height:28px;text-align:right"></span>
+            <button class="btn-line" style="height:30px;padding:0 12px;white-space:nowrap" onclick="ssgLoad(false)">↻ 다시 계산</button>
+            <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap" title="상품코드관리에서 손으로 넣은 값(수기)도 제안값으로 바꿉니다. 끄면 수기 품목은 체크할 수 없습니다."><input type="checkbox" id="ssgOverM" onchange="ssgRender()"> 수기 입력값도 덮어쓰기</label>
+            <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="ssgOnlyChg" checked onchange="ssgRender()"> 바뀌는 것만</label>
+            <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="ssgIncSp" onchange="ssgRender()"> 간헐 포함</label>
+            <span id="ssgSum" style="margin-left:auto;font-size:13px;color:#37475a;white-space:nowrap"></span>
+            <button class="btn-teal" id="ssgApplyBtn" style="height:34px;padding:0 14px;font-weight:800;white-space:nowrap" onclick="ssgApply()">💾 선택 적용</button>
+            <button class="btn-line" onclick="ssgClose()" style="padding:0 18px;height:34px;font-size:14px;font-weight:800;white-space:nowrap;border-width:2px;border-color:#b06a00;color:#b06a00">닫기 ✕</button>
+          </div>
+          <div style="padding:6px 16px 0;font-size:12.5px;color:#5a6b7a">적정 = 일평균 출고 × (리드타임 + 안전일수) → 입수 배수로 올림 · 상한 = 기간 출고량 · 출고 일수가 최소 출고일수보다 적으면 「간헐」(제안 없음) · 음수 재고는 0 으로 보고 가용을 셉니다.</div>
+          <div id="ssgBody" style="padding:8px 16px 12px; overflow:auto; font-size:13px; max-height:calc(97vh - 110px)"></div>
+        </div>
+      </div>
       <div class="ss-modal" id="stkSplitPop">
         <div class="box" style="width:min(1500px,96vw); margin-top:1.5vh; max-height:97vh">
           <div style="padding:11px 16px; border-bottom:1px solid var(--logi-border); display:flex; align-items:baseline; gap:12px; flex-wrap:wrap">

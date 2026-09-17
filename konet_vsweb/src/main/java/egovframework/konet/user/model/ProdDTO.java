@@ -80,6 +80,9 @@ public class ProdDTO {
     public void setWholePrice(Double wholePrice) { this.wholePrice = wholePrice; }
     public Integer getSafeStock() { return safeStock; }
     public void setSafeStock(Integer safeStock) { this.safeStock = safeStock; }
+    private String safeStockSrc;   // 적정재고 출처 M 수기 · A 자동 산출 (2026-09-17, 조회 전용 — 저장은 SQL 이 정한다)
+    public String getSafeStockSrc() { return safeStockSrc; }
+    public void setSafeStockSrc(String safeStockSrc) { this.safeStockSrc = safeStockSrc; }
     public Integer getSaleBaseQty() { return saleBaseQty; }
     public void setSaleBaseQty(Integer saleBaseQty) { this.saleBaseQty = saleBaseQty; }
     public String getUnitBarcode() { return unitBarcode; }

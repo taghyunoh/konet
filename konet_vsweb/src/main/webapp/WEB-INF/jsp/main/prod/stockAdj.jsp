@@ -277,21 +277,29 @@ function busy(on, msg){
    ★늘게 도착해도 맞는다 — 보조자료가 오면 목록이 이미 떠 있을 때만 다시 그린다. */
 var _pm = {}, _subOf = {}, _auxOk = false;   /* _pm = prodSeq→상품줄(중지·이름) / _subOf = 서브코드→통보줄 */
 function fmtDt8(v){ v=String(v||'').replace(/-/g,''); return v.length===8 ? v.slice(0,4)+'-'+v.slice(4,6)+'-'+v.slice(6,8) : v; }
-(function(){
+/* ★보조자료(상품 마스터 · 매칭코드)는 <조회할 때마다> 다시 받는다 (2026-09-17 지적 「상품코드에서 수정하고 다시 조회하면 적용이 안 됨, 로그아웃해야 함」).
+     종전엔 화면이 처음 뜰 때 한 번만 받았고, 셸이 iframe 을 살려 두므로 상품코드관리에서 고친 중지·매칭·마스터명이
+     로그아웃(=셸 새로 로드) 전엔 여기 안 보였다. 목록(stockAdjList)은 원래 조회마다 새로 받는다. */
+function loadAux(){
   function post(u){ return fetch(CTX+u, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
                                           credentials:'same-origin', body:'' }).then(function(r){ return r.json(); }); }
-  Promise.all([ post('/prod/prodList.do'), post('/prod/extItemList.do') ])
+  return Promise.all([ post('/prod/prodList.do'), post('/prod/extItemList.do') ])
     .then(function(a){
-      ((a[0]&&a[0].data)||[]).forEach(function(o){ _pm[o.prodSeq]=o; });
+      var pm={}, sub={};
+      ((a[0]&&a[0].data)||[]).forEach(function(o){ pm[o.prodSeq]=o; });
       /* 서브 판정은 prodcd.jsp 와 같은 규칙 — 통보 코드와 주코드가 다를 때만 서브다 */
       ((a[1]&&a[1].data)||[]).forEach(function(o){
-        if(o.prodCd && o.extItemCd && String(o.extItemCd)!==String(o.prodCd)) _subOf[String(o.extItemCd)]=o;
+        if(o.prodCd && o.extItemCd && String(o.extItemCd)!==String(o.prodCd)) sub[String(o.extItemCd)]=o;
       });
+      _pm=pm; _subOf=sub;                /* 통째로 바꿔 끼운다 — 지운 매칭·풀린 중지도 사라지게 */
       _auxOk=true;
       if(ROWS.length) render();          /* 목록이 먼저 떠 있으면 표시만 덧그린다 */
     })
     .catch(function(){ /* 보조표시만 빠질 뿐 조정 자체는 동작한다 — 조용히 넘어간다 */ });
-})();
+}
+loadAux();
+/* 셸 메뉴로 다시 들어올 때 — 다른 화면(상품코드관리)에서 고친 것을 반영. 적다 만 조정 수량이 있을 수 있어 목록은 안 건드리고 보조자료만 새로 받아 덧그린다(목록은 [조회]로) */
+window.konetShown=function(){ loadAux(); };
 
 /* 오늘 날짜를 기본값으로 */
 (function(){
@@ -385,6 +393,7 @@ function load(){
   gel('body').innerHTML = '<tr><td colspan="12" class="c dim" style="padding:26px">불러오는 중…</td></tr>';
 
   busy(true, '목록을 조회하는 중입니다…');           /* ★모래시계 — 문구는 '조회'(2026-08-19 지적: 재고집계 아님) */
+  loadAux();                                         /* 보조자료(중지·매칭·마스터명)도 새로 — 2026-09-17 */
   fetch(CTX + '/prod/stockAdjList.do', {
       method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
       credentials:'same-origin', body: p.toString() })
