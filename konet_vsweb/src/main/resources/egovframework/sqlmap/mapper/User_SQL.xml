@@ -1810,6 +1810,44 @@
 	             CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
 	]]></update>
 
+	<!-- ★비용 내역 TBL_EXPENSE_DTL (2026-09-17 「기타경비 여기에서 등록 · 추가 발생 시 해당 월 목록에 추가 · 체크」) —
+	     한 항목(주로 ETC) 아래 여러 줄(일자·내용·금액·비고·확인 체크). 내역이 한 줄이라도 있으면 그 달·항목의 TBL_EXPENSE_TRX.AMT 는
+	     내역 합계로 굳힌다(syncExpenseTrxFromDtl) — 마감 확정(expenseSumOf)은 TRX 만 읽으므로 순마진까지 저절로 맞는다.
+	     DDL = docs/sql/20260917_expense_dtl.sql (사용자 실행). 표가 없으면 서비스가 잡아 내역만 비운다. -->
+	<select id="selectExpenseDtl" parameterType="java.util.Map" resultType="java.util.HashMap">
+	  SELECT DTL_SEQ AS dtlSeq, ITEM_CD AS itemCd, ISNULL(EXP_DT,'') AS expDt, ISNULL(TITLE,'') AS title, ISNULL(AMT,0) AS amt,
+	         ISNULL(REMARK,'') AS remark, ISNULL(CHK_YN,'N') AS chkYn, REG_DTTM AS regDttm, UPD_DTTM AS updDttm
+	    FROM TBL_EXPENSE_DTL
+	   WHERE ACTION_YN = 'Y' AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567') AND EXP_YM = #{expYm}
+	   ORDER BY ITEM_CD, EXP_DT, DTL_SEQ
+	</select>
+	<insert id="insertExpenseDtl" parameterType="java.util.Map">
+	  INSERT INTO TBL_EXPENSE_DTL (COMP_CD, EXP_YM, ITEM_CD, EXP_DT, TITLE, AMT, REMARK, CHK_YN, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{expYm}, #{itemCd}, #{expDt,jdbcType=VARCHAR}, #{title,jdbcType=NVARCHAR},
+	          #{amt,jdbcType=DECIMAL}, #{remark,jdbcType=NVARCHAR}, #{chkYn}, 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	</insert>
+	<update id="updateExpenseDtl" parameterType="java.util.Map">
+	  UPDATE TBL_EXPENSE_DTL SET EXP_DT=#{expDt,jdbcType=VARCHAR}, TITLE=#{title,jdbcType=NVARCHAR}, AMT=#{amt,jdbcType=DECIMAL}, REMARK=#{remark,jdbcType=NVARCHAR}, CHK_YN=#{chkYn},
+	         UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{regUser,jdbcType=NVARCHAR}, UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	   WHERE DTL_SEQ = #{dtlSeq} AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567') AND EXP_YM = #{expYm} AND ITEM_CD = #{itemCd}
+	</update>
+	<update id="deleteExpenseDtl" parameterType="java.util.Map">
+	  UPDATE TBL_EXPENSE_DTL SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER=#{regUser,jdbcType=NVARCHAR}, UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	   WHERE DTL_SEQ = #{dtlSeq} AND COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567') AND EXP_YM = #{expYm} AND ITEM_CD = #{itemCd}
+	</update>
+	<!-- 내역 합계를 달×항목 금액으로 — 내역이 0줄이 되면 금액도 0 (비고는 그대로) -->
+	<update id="syncExpenseTrxFromDtl" parameterType="java.util.Map"><![CDATA[
+	  MERGE TBL_EXPENSE_TRX AS t
+	  USING (SELECT ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567') AS COMP_CD, #{expYm} AS EXP_YM, #{itemCd} AS ITEM_CD,
+	                ISNULL((SELECT SUM(d.AMT) FROM TBL_EXPENSE_DTL d
+	                         WHERE d.ACTION_YN = 'Y' AND d.COMP_CD = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567') AND d.EXP_YM = #{expYm} AND d.ITEM_CD = #{itemCd}), 0) AS AMT) AS s
+	  ON (t.COMP_CD = s.COMP_CD AND t.EXP_YM = s.EXP_YM AND t.ITEM_CD = s.ITEM_CD)
+	  WHEN MATCHED THEN UPDATE SET t.AMT = s.AMT, t.ACTION_YN = 'Y',
+	     t.UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), t.UPD_USER = #{regUser,jdbcType=NVARCHAR}, t.UPD_IP = #{regIp,jdbcType=NVARCHAR}
+	  WHEN NOT MATCHED THEN INSERT (COMP_CD, EXP_YM, ITEM_CD, AMT, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	     VALUES (s.COMP_CD, s.EXP_YM, s.ITEM_CD, s.AMT, N'내역 합계', 'Y', CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR});
+	]]></update>
+
 	<!-- 직송 택배 운임 자동 집계 — 건 = 택배출고관리 엑셀 줄과 같은 단위(출고일자 × 사업장 × 품목명, 화면 poMerge 규칙)
 	     × 사업장 운임(PARCEL_FEE, 0/미등록이면 회사 설정 기본 운임 feeDef). 그 달 직송 출고 전체
 	     (택배 화면의 「제외」 체크·「출력됨」은 화면 메모리라 여기서는 못 본다). 직송 판정은 selectParcelOutList 와 같은 OR 규칙 -->

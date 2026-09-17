@@ -633,6 +633,10 @@ public class UserServiceImpl implements UserService {
 		r.put("trx", y.length() == 6 ? mapper.selectExpenseTrx(p) : new java.util.ArrayList<java.util.Map<String,Object>>());
 		r.put("auto", y.length() == 6 ? mapper.selectParcelFeeAuto(p) : null);
 		r.put("feeDef", p.get("feeDef"));
+		/* 비용 내역(2026-09-17) — 표(TBL_EXPENSE_DTL)가 아직 없으면(DDL 미실행) 화면 전체를 죽이지 않고 내역만 비우고 dtlReady=false 로 알린다 */
+		java.util.List<java.util.Map<String,Object>> dtl = new java.util.ArrayList<java.util.Map<String,Object>>(); boolean ready = true;
+		if (y.length() == 6) { try { dtl = mapper.selectExpenseDtl(p); } catch (Exception e) { ready = false; LOGGER.warn(" selectExpenseDtl 표 없음? : " + e.getMessage()); } }
+		r.put("dtl", dtl); r.put("dtlReady", ready);
 		return r;
 	}
 	@SuppressWarnings("unchecked")
@@ -661,7 +665,30 @@ public class UserServiceImpl implements UserService {
 			p.put("amt", Math.round(scNum(r.get("amt")))); p.put("remark", scStr(r.get("remark")));
 			p.put("regUser", user); p.put("regIp", ip);
 			n += mapper.upsertExpenseTrx(p);
+			/* 내역이 있는 항목은 금액을 손으로 못 바꾼다 — 비고만 받고 금액은 내역 합계로 되돌린다(화면도 읽기 전용이지만 서버가 최종) */
+			try { boolean has = false; for (java.util.Map<String,Object> d : mapper.selectExpenseDtl(p)) { if (cd.equals(scStr(d.get("itemCd")))) { has = true; break; } }
+			      if (has) mapper.syncExpenseTrxFromDtl(p); } catch (Exception e) { /* 내역 표가 아직 없으면 종전대로 */ }
 		}
+		return n;
+	}
+	/* 비용 내역 저장(2026-09-17) — rows = [{dtlSeq, del, expDt, title, amt, remark, chkYn}] : dtlSeq 없으면 새 줄, del=Y 면 지움(ACTION_YN='N').
+	   끝에 그 달·항목의 TRX 금액을 내역 합계로 굳힌다. 마감 확정된 달도 막지 않는다(수기 금액과 같은 방침 — 화면이 확인창을 띄운다). */
+	@Override public int saveExpenseDtl(java.util.List<java.util.Map<String,Object>> rows, String ym, String itemCd, String user, String ip, String compCd) throws Exception {
+		String y = ym.replace("-", "").trim(); int n = 0;
+		if (rows != null) for (java.util.Map<String,Object> r : rows) {
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", compCd); p.put("expYm", y); p.put("itemCd", itemCd); p.put("regUser", user); p.put("regIp", ip);
+			long seq = Math.round(scNum(r.get("dtlSeq"))); p.put("dtlSeq", seq);
+			if ("Y".equals(scStr(r.get("del")))) { if (seq > 0) n += mapper.deleteExpenseDtl(p); continue; }
+			String dt = scStr(r.get("expDt")).replace("-", "");
+			p.put("expDt", dt.length() == 8 ? dt : null);
+			p.put("title", scStr(r.get("title"))); p.put("amt", Math.round(scNum(r.get("amt")))); p.put("remark", scStr(r.get("remark")));
+			p.put("chkYn", "Y".equals(scStr(r.get("chkYn"))) ? "Y" : "N");
+			n += (seq > 0) ? mapper.updateExpenseDtl(p) : mapper.insertExpenseDtl(p);
+		}
+		java.util.Map<String,Object> s = new java.util.HashMap<String,Object>();
+		s.put("compCd", compCd); s.put("expYm", y); s.put("itemCd", itemCd); s.put("regUser", user); s.put("regIp", ip);
+		mapper.syncExpenseTrxFromDtl(s);
 		return n;
 	}
 

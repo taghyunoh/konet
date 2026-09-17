@@ -447,6 +447,7 @@ public class UserController {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
 			// ★ 회사/사용자 관리 = 관리자 회사(TBL_COMP_MST.COMMST_YN='Y')만 — 메뉴 숨김 + 직접 URL 접근도 차단
 			if (!"Y".equals(session.getAttribute("s_admin_yn"))) return "redirect:/main.do";
+			if (!isChief(session)) return "redirect:/main.do";   // ★관리자 회사여도 총괄관리자(MAIN_GU='1')만 (2026-09-17)
 			return ".raw/main/mangr/compcd";
 		}
 
@@ -2881,11 +2882,18 @@ public class UserController {
 			} catch (Exception e) { log.error(" settleCloseCancel ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
+		/* 총괄관리자 판정(2026-09-17) — 로그인 때 세션 s_main_gu = TBL_USER_MST.MAIN_GU ('1' 총괄관리자 · '2' 부관리자 · '3' 담당자, 공통코드 Z/MAIN_GU).
+		   비용 등록·회사/사용자 관리는 총괄만 — 셸 메뉴(logistics_demo2.jsp)가 같은 조건으로 숨기고 여기서 직접 URL 을 막는다. */
+		private static boolean isChief(HttpSession session) {
+			Object g = session.getAttribute("s_main_gu");
+			return g != null && "1".equals(String.valueOf(g).trim());
+		}
 		/* ================= 비용 등록 (2026-09-16 P2-e) — TBL_EXPENSE_ITEM / TBL_EXPENSE_TRX. 순마진 = 매출총이익 − 비용.
 		   마감 확정된 달에 저장해도 막지 않는다(확인창은 화면이) — 확정값에 반영하려면 마감현황에서 다시 확정. ================= */
 		@RequestMapping(value="/mangr/expenseReg.do")
 		public String expenseReg(HttpSession session) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			if (!isChief(session)) return "redirect:/main.do";   // ★총괄관리자만(2026-09-17) — 메뉴 숨김 + 직접 URL 차단
 			return ".raw/main/mangr/expenseReg";
 		}
 		@RequestMapping(value="/mangr/expenseMonth.do", method = RequestMethod.POST)
@@ -2898,6 +2906,7 @@ public class UserController {
 		public ResponseEntity<String> expenseItemSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
 			try {
 				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				if (!isChief(session)) return ResponseEntity.status(403).body("총괄관리자만 비용을 등록할 수 있습니다.");
 				String cd = p.get("itemCd") == null ? "" : String.valueOf(p.get("itemCd")).trim().toUpperCase();
 				String nm = p.get("itemNm") == null ? "" : String.valueOf(p.get("itemNm")).trim();
 				if (!cd.matches("[A-Z0-9_]{1,20}")) return ResponseEntity.status(400).body("항목코드는 영문 대문자·숫자·_ 1~20자입니다.");
@@ -2916,12 +2925,29 @@ public class UserController {
 		public ResponseEntity<String> expenseSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
 			try {
 				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				if (!isChief(session)) return ResponseEntity.status(403).body("총괄관리자만 비용을 등록할 수 있습니다.");
 				String ym = p.get("ym") == null ? "" : String.valueOf(p.get("ym")).trim();
 				if (ym.replace("-","").length() != 6) return ResponseEntity.status(400).body("귀속월(YYYY-MM)이 필요합니다.");
 				List<Map<String,Object>> rows = (List<Map<String,Object>>) p.get("rows");
 				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
 				return ResponseEntity.ok(String.valueOf(svc.saveExpenseTrx(rows, ym, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")))));
 			} catch (Exception e) { log.error(" expenseSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		/* 비용 내역 저장(2026-09-17) — {ym, itemCd, rows:[{dtlSeq, del, expDt, title, amt, remark, chkYn}]}. 한 항목의 그 달 목록을 통째로 받는다 */
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/mangr/expenseDtlSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> expenseDtlSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				if (!isChief(session)) return ResponseEntity.status(403).body("총괄관리자만 비용을 등록할 수 있습니다.");
+				String ym = p.get("ym") == null ? "" : String.valueOf(p.get("ym")).trim();
+				if (ym.replace("-","").length() != 6) return ResponseEntity.status(400).body("귀속월(YYYY-MM)이 필요합니다.");
+				String cd = p.get("itemCd") == null ? "" : String.valueOf(p.get("itemCd")).trim().toUpperCase();
+				if (!cd.matches("[A-Z0-9_]{1,20}")) return ResponseEntity.status(400).body("비용 항목 코드가 필요합니다.");
+				List<Map<String,Object>> rows = (List<Map<String,Object>>) p.get("rows");
+				String u = session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"";
+				return ResponseEntity.ok(String.valueOf(svc.saveExpenseDtl(rows, ym, cd, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")))));
+			} catch (Exception e) { log.error(" expenseDtlSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
 		/* ================= 창고 (2026-09-16 P3 1단계) — 창고 관리(whMng) · 창고별 재고현황(whStock) · 창고 이동 ================= */

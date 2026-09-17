@@ -3248,7 +3248,11 @@
       <a class="mi" data-key="stockOutMonth" onclick="logiFrame('stockOutMonth','${pageContext.request.contextPath}/prod/stockOutMonth.do', this)"><span class="ic">📦</span>월별 출고현황</a>
       <a class="mi" data-key="closeStock" onclick="logiGo('closeStock', this)"><span class="ic">📒</span>재고마감</a>
       <%-- 비용 등록 (2026-09-16 P2-e) — 달마다 비용(직송 택배 운임 자동 + 수기 항목). 마감현황·이력의 순마진 = 매출총이익 − 비용. iframe 화면(expenseReg.jsp) --%>
+      <%-- ★총괄관리자(TBL_USER_MST.MAIN_GU='1', 세션 s_main_gu)만 (2026-09-17 「로그인 정보 총괄 아니면 비용등록·회사/사용자관리 안 보이게」).
+           서버도 /mangr/expenseReg.do·expenseSave·expenseDtlSave·expenseItemSave 에서 같은 조건으로 막는다(직접 URL 차단). --%>
+      <% if ("1".equals(String.valueOf(session.getAttribute("s_main_gu")).trim())) { %>
       <a class="mi" data-key="expenseReg" onclick="logiFrame('expenseReg','${pageContext.request.contextPath}/mangr/expenseReg.do', this)"><span class="ic">💸</span>비용 등록</a>
+      <% } %>
       <%-- 재고 일괄조정 — 2026-08-20 잠깐 내렸다가 사용자 요청으로 되살림(입구는 여기 하나) --%>
       <a class="mi" data-key="stockAdj" onclick="logiFrame('stockAdj','${pageContext.request.contextPath}/prod/stockAdj.do', this)"><span class="ic">🧮</span>재고 일괄조정</a><a class="mi" data-key="subStockFix" onclick="logiFrame('subStockFix','${pageContext.request.contextPath}/prod/subStockFix.do', this)" title="주코드에 매칭된 서브코드에 남은 재고 정리 — 서브코드로 잡힌 매입은 매입등록으로, 남은 재고는 0으로(2026-09-13)"><span class="ic">🧹</span>서브코드 재고 정리</a>
       <%-- 품목코드(매핑) — 기준정보에 있다가 재고 관리 맨 아래로 옮김(2026-08-01 요청).
@@ -3295,8 +3299,11 @@
            화면(prod/whMng.jsp)·패널(panel-whMng)·자료는 그대로다. 되살리려면 물품동선관리 쪽 줄을 여기로 도로 옮기면 된다. --%>
       <%-- 회사/사용자 관리 + 공통코드 관리 = 관리자 회사(TBL_COMP_MST.COMMST_YN='Y')만 노출 (2026-07-31).
            서버측도 /mangr/compcd.do · /base/commcd.do 에서 s_admin_yn 가드로 직접 URL 접근 차단. --%>
-      <% if ("Y".equals(session.getAttribute("s_admin_yn"))) { %>
+      <%-- ★회사/사용자 관리는 관리자 회사 + 총괄관리자(s_main_gu='1') 둘 다여야 (2026-09-17). 공통코드 관리는 종전대로 관리자 회사 --%>
+      <% if ("Y".equals(session.getAttribute("s_admin_yn")) && "1".equals(String.valueOf(session.getAttribute("s_main_gu")).trim())) { %>
       <a class="mi" data-key="compcd" onclick="logiFrame('compcd','${pageContext.request.contextPath}/mangr/compcd.do', this)"><span class="ic">🏢</span>회사/사용자 관리</a>
+      <% } %>
+      <% if ("Y".equals(session.getAttribute("s_admin_yn"))) { %>
       <a class="mi" data-key="codecd" onclick="logiFrame('codecd','${pageContext.request.contextPath}/base/commcd.do', this)"><span class="ic">🧩</span>공통코드 관리</a>
       <% } %>
     </div>

@@ -243,6 +243,12 @@ public interface UserMapper {
 	int upsertExpenseItem(java.util.Map<String,Object> p) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectExpenseTrx(java.util.Map<String,Object> p) throws Exception;     // compCd·expYm
 	int upsertExpenseTrx(java.util.Map<String,Object> p) throws Exception;                                             // 달×항목 MERGE
+	// 비용 내역 (2026-09-17) — TBL_EXPENSE_DTL. 내역 저장 뒤 syncExpenseTrxFromDtl 로 달×항목 금액을 내역 합계로 굳힌다
+	java.util.List<java.util.Map<String,Object>> selectExpenseDtl(java.util.Map<String,Object> p) throws Exception;
+	int insertExpenseDtl(java.util.Map<String,Object> p) throws Exception;
+	int updateExpenseDtl(java.util.Map<String,Object> p) throws Exception;
+	int deleteExpenseDtl(java.util.Map<String,Object> p) throws Exception;
+	int syncExpenseTrxFromDtl(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectParcelFeeAuto(java.util.Map<String,Object> p) throws Exception;                // {cnt, amt} — 직송 출고 × 사업장 운임(없으면 feeDef)
 	int isClosedYm(@Param("closeYm") String closeYm, @Param("compCd") String compCd) throws Exception;   // ★compCd 를 시그니처에 둔다 — 인터셉터가 못 넣어도 ParamMap 에 키가 있어 #{compCd} 가 안 터진다(fail-open)
 	int updateClosingMst(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception; // 확정 UPDATE(있으면)

@@ -193,6 +193,7 @@ public interface UserService {
 	double expenseSumOf(String ym, String compCd) throws Exception;                                       // 자동 운임 + 사용 중인 수기 항목 합
 	int saveExpenseItem(java.util.Map<String,Object> p) throws Exception;
 	int saveExpenseTrx(java.util.List<java.util.Map<String,Object>> rows, String ym, String user, String ip, String compCd) throws Exception;
+	int saveExpenseDtl(java.util.List<java.util.Map<String,Object>> rows, String ym, String itemCd, String user, String ip, String compCd) throws Exception;   // 비용 내역(2026-09-17) — 줄 추가·수정·삭제 뒤 달×항목 금액을 내역 합계로
 	int confirmClosing(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception; // 집계+헤더+재고스냅샷 저장(확정)
 	int cancelClosing(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception;  // 확정 해제
 
