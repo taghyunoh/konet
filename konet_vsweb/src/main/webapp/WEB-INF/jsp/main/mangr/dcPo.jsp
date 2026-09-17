@@ -76,6 +76,10 @@
   table.x{ border-collapse:collapse; font-size:12px; }
   table.x td{ border:1px solid #e3e8ee; padding:2px 6px; white-space:nowrap; max-width:420px; overflow:hidden; text-overflow:ellipsis; }
   table.x td.h{ background:#f1f5f8; color:#6b7a89; text-align:center; font-weight:600; }
+  /* 엑셀 원본 = 병합(colspan/rowspan)을 살려 원본 모양대로 (2026-09-17 「엑셀은 흐트러져 나옴」) */
+  .xh{ padding:8px 10px; }
+  .xh table{ border-collapse:collapse; font-size:12px; table-layout:auto; }
+  .xh td{ border:1px solid #d9e0e7; padding:2px 5px; white-space:pre-wrap; vertical-align:middle; min-width:14px; max-width:520px; line-height:1.35; }
 </style>
 </head>
 <body>
@@ -263,9 +267,10 @@ function docKeep(f){
   r.onload=function(){
     try{
       var wb=XLSX.read(new Uint8Array(r.result), { type:'array' }), ws=wb.Sheets[wb.SheetNames[0]];
-      var aoa=XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:'' });
-      var grid=[]; for(var i=0;i<aoa.length && grid.length<300;i++){ var row=aoa[i]; var any=row.some(function(c){ return String(c==null?'':c).trim()!==''; }); if(any) grid.push({ r:i+1, c:row.slice(0,40) }); }
-      _docs[nm]={ kind:'grid', grid:grid, sheet:wb.SheetNames[0] };
+      /* 병합 칸을 살려 원본 모양대로 — sheet_to_html 이 colspan/rowspan 을 만들어 준다(칸 단위 표는 자리가 흐트러졌다) */
+      var html=XLSX.utils.sheet_to_html(ws, { editable:false, header:'', footer:'' });
+      var mt=/<table[\s\S]*<\/table>/i.exec(html);
+      _docs[nm]={ kind:'html', html: mt ? mt[0] : html, sheet:wb.SheetNames[0], sheets:wb.SheetNames.length };
     }catch(e){ _docs[nm]={ kind:'err', msg:String(e&&e.message||e) }; }
     if(_pv.length) pvRender();
   };
@@ -278,11 +283,8 @@ function docShow(nm){
   _docOpen=nm; v.hidden=false;
   var closeBtn='<button class="btn docx" onclick="docShow(\''+esc(nm).replace(/'/g,'&#39;')+'\')" title="원본 보기를 닫습니다">✕ 원본 닫기</button>';
   if(d.kind==='pdf') v.innerHTML=closeBtn+'<embed src="'+d.url+'#toolbar=1&navpanes=0" type="application/pdf">';
-  else if(d.kind==='grid'){
-    var w=0; d.grid.forEach(function(g){ var last=g.c.length; while(last>0 && String(g.c[last-1]||'').trim()==='') last--; if(last>w) w=last; });
-    var h='<div class="dim" style="padding:6px 10px;font-size:12px">시트 「'+esc(d.sheet)+'」 — 값 있는 줄만 (엑셀 줄번호 표시)</div><table class="x"><tbody>';
-    d.grid.forEach(function(g){ h+='<tr><td class="h">'+g.r+'</td>'; for(var i=0;i<w;i++) h+='<td title="'+esc(g.c[i]||'')+'">'+esc(g.c[i]||'')+'</td>'; h+='</tr>'; });
-    v.innerHTML=closeBtn+h+'</tbody></table>';
+  else if(d.kind==='html'){
+    v.innerHTML=closeBtn+'<div class="dim" style="padding:6px 10px 0;font-size:12px">시트 「'+esc(d.sheet)+'」'+(d.sheets>1?(' (시트 '+d.sheets+'개 중 첫 시트)'):'')+'</div><div class="xh">'+d.html+'</div>';
   } else v.innerHTML=closeBtn+'<div class="err" style="margin:10px">원본을 펼치지 못했습니다 — '+esc(d.msg||'')+'</div>';
   pvRender();
   try{ v.scrollIntoView({block:'nearest'}); }catch(e){}
