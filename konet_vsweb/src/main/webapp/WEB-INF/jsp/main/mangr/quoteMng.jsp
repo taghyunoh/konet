@@ -47,6 +47,7 @@
   table.g tr:hover td{ background:#f7faf9; }
   table.g tr.sel td{ background:#e3f2ee; }
   table.g tr.tap{ cursor:pointer; }
+  table.g td, .cmp td, .dtl td{ user-select:text; -webkit-user-select:text; }   /* 글자 드래그 → Ctrl+C (2026-09-17 「Ctrl+C 가 안 됨」). 드래그로 고른 채 놓으면 상세가 안 열려 선택이 남는다 */
   table.g input[type=date], table.g input[type=text]{ height:28px; border:1px solid var(--bd); border-radius:6px; padding:0 6px; font-size:13px; background:#fff; }
   table.g input[type=checkbox]{ width:16px; height:16px; accent-color:var(--teal); cursor:pointer; }
   .doc{ margin:0 12px 12px; border:1px solid var(--bd); border-radius:8px; overflow:hidden; }
@@ -268,6 +269,9 @@ function load(){
   var fr=document.getElementById('fr').value, to=document.getElementById('to').value, mgr=document.getElementById('mgr').value.trim(), q=document.getElementById('q').value.trim();
   var tb=document.getElementById('lsBody'); tb.innerHTML='<tr><td colspan="11" class="empty">조회 중…</td></tr>';
   _sel=null; document.getElementById('dtlWrap').hidden=true;
+  /* 다시 조회(저장·삭제 뒤 포함)하면 아래 비교 표·원본 보기·상세도 접는다 (2026-09-17 「선택 삭제하면 아래도 없어지게」) — 지운 견적서가 비교 표에 남지 않게 */
+  _cmp=null; var _cw=document.getElementById('cmpWrap'); if(_cw){ _cw.hidden=true; _cw.innerHTML=''; }
+  _lsDocSeq=null; var _ld=document.getElementById('lsDoc'); if(_ld){ _ld.hidden=true; _ld.innerHTML=''; }
   post('/mangr/quoteList.do','frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)+'&mgrNm='+encodeURIComponent(mgr)+'&findData='+encodeURIComponent(q))
     .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return JSON.parse(t); }); })
     .then(function(j){ _ls=(j&&j.data)||[]; lsRender(); if(_pv.length) pvRender(); })
@@ -280,7 +284,7 @@ function lsRender(){
   var amt=0;
   tb.innerHTML=_ls.map(function(x,i){
     amt+=n(x.supplyAmt);
-    return '<tr class="tap'+(_sel===x.quoteSeq?' sel':'')+'" onclick="if(event.target.tagName!==\'INPUT\' && event.target.tagName!==\'BUTTON\') detail('+i+')">'
+    return '<tr class="tap'+(_sel===x.quoteSeq?' sel':'')+'" onclick="if(event.target.tagName!==\'INPUT\' && event.target.tagName!==\'BUTTON\' && !(window.getSelection&&String(window.getSelection()).length)) detail('+i+')">'
       +'<td><input type="checkbox" class="lchk" data-i="'+i+'"></td>'
       +'<td>'+d10(x.quoteDt)+'</td><td><b>'+esc(x.docNo)+'</b></td><td>'+esc(x.recvNm)+'</td><td>'+esc(x.mgrNm)+'</td>'
       +'<td class="l" style="max-width:320px">'+esc(x.firstNm)+(n(x.lineCnt)>1?' <span class="dim">외 '+(n(x.lineCnt)-1)+'</span>':'')+'</td>'
