@@ -249,6 +249,10 @@ public interface UserMapper {
 	int updateExpenseDtl(java.util.Map<String,Object> p) throws Exception;
 	int deleteExpenseDtl(java.util.Map<String,Object> p) throws Exception;
 	int syncExpenseTrxFromDtl(java.util.Map<String,Object> p) throws Exception;
+	// DC 발주 (2026-09-17) — TBL_SHIPOUT_MST PROD_KIND='DC'. 납기현황관리에서만 빠지고 재고·정산서 대사에는 들어간다
+	int markDcPoReplace(java.util.Map<String,Object> p) throws Exception;
+	int deleteDcPo(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDcPoList(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectParcelFeeAuto(java.util.Map<String,Object> p) throws Exception;                // {cnt, amt} — 직송 출고 × 사업장 운임(없으면 feeDef)
 	int isClosedYm(@Param("closeYm") String closeYm, @Param("compCd") String compCd) throws Exception;   // ★compCd 를 시그니처에 둔다 — 인터셉터가 못 넣어도 ParamMap 에 키가 있어 #{compCd} 가 안 터진다(fail-open)
 	int updateClosingMst(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception; // 확정 UPDATE(있으면)

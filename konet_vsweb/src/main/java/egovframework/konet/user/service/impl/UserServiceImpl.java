@@ -673,6 +673,55 @@ public class UserServiceImpl implements UserService {
 	}
 	/* 비용 내역 저장(2026-09-17) — rows = [{dtlSeq, del, expDt, title, amt, remark, chkYn}] : dtlSeq 없으면 새 줄, del=Y 면 지움(ACTION_YN='N').
 	   끝에 그 달·항목의 TRX 금액을 내역 합계로 굳힌다. 마감 확정된 달도 막지 않는다(수기 금액과 같은 방침 — 화면이 확인창을 띄운다). */
+	/* ===== DC 발주 (2026-09-17) — 입고예약서·발주서에서 읽은 줄을 TBL_SHIPOUT_MST 에 PROD_KIND='DC' 로.
+	   납기일자별로 한 배치(JOB_SEQ = 그 날·출고장의 다음 번호). 같은 (납기일자, 품목코드) 활성 DC 줄은 먼저 이력(N)으로 닫는다.
+	   품목 해석(매칭코드 → 우리 품목)은 발주현황표 업로드와 같은 resolveShipoutProd. 재고 원장 재동기화는 컨트롤러가 한다. ===== */
+	@Override public int saveDcPo(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String user, String ip, String compCd) throws Exception {
+		if (rows == null || rows.isEmpty()) return 0;
+		java.util.LinkedHashMap<String, java.util.List<egovframework.konet.user.model.ShipoutDTO>> g = new java.util.LinkedHashMap<String, java.util.List<egovframework.konet.user.model.ShipoutDTO>>();
+		for (egovframework.konet.user.model.ShipoutDTO r : rows) {
+			String k = scStr(r.getDlvDt()).replace("-", "") + "|" + scStr(r.getDcCd());
+			java.util.List<egovframework.konet.user.model.ShipoutDTO> l = g.get(k);
+			if (l == null) { l = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>(); g.put(k, l); }
+			l.add(r);
+		}
+		int n = 0;
+		for (java.util.List<egovframework.konet.user.model.ShipoutDTO> grp : g.values()) {
+			egovframework.konet.user.model.ShipoutDTO head = grp.get(0);
+			for (egovframework.konet.user.model.ShipoutDTO r : grp) {
+				java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+				p.put("compCd", compCd); p.put("dlvDt", r.getDlvDt()); p.put("itemCd", r.getItemCd()); p.put("regUser", user); p.put("regIp", ip);
+				mapper.markDcPoReplace(p);
+			}
+			head.setCompCd(compCd);
+			int jobSeq = mapper.getShipoutNextJobSeq(head);
+			int seq = 0;
+			java.util.List<egovframework.konet.user.model.ShipoutDTO> buf = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>();
+			for (egovframework.konet.user.model.ShipoutDTO r : grp) {
+				r.setCompCd(compCd); r.setJobSeq(jobSeq); r.setActionYn("Y"); r.setRowNo(++seq);
+				r.setProdKind("DC"); r.setRegUser(user); r.setRegIp(ip);
+				buf.add(r); n++;
+				if (buf.size() >= 40) { mapper.insertShipoutMstBulk(buf); buf.clear(); }   // 한 문장 파라미터 상한(2,100) — 발주현황표 업로드와 같은 40행
+			}
+			if (!buf.isEmpty()) mapper.insertShipoutMstBulk(buf);
+			egovframework.konet.user.model.ProdXrefDTO rx = new egovframework.konet.user.model.ProdXrefDTO();
+			rx.setJobSeq(Long.valueOf(jobSeq)); rx.setDlvDt(head.getDlvDt()); rx.setDcCd(head.getDcCd()); rx.setCompCd(compCd);
+			resolveShipoutProd(rx);
+		}
+		return n;
+	}
+	@Override public int deleteDcPo(java.util.List<java.util.Map<String,Object>> keys, String user, String ip, String compCd) throws Exception {
+		int n = 0;
+		if (keys == null) return 0;
+		for (java.util.Map<String,Object> k : keys) {
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", compCd); p.put("dlvDt", scStr(k.get("dlvDt"))); p.put("itemCd", scStr(k.get("itemCd"))); p.put("regUser", user); p.put("regIp", ip);
+			if (scStr(k.get("itemCd")).isEmpty() || scStr(k.get("dlvDt")).isEmpty()) continue;
+			n += mapper.deleteDcPo(p);
+		}
+		return n;
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectDcPoList(java.util.Map<String,Object> p) throws Exception { return mapper.selectDcPoList(p); }
 	@Override public int saveExpenseDtl(java.util.List<java.util.Map<String,Object>> rows, String ym, String itemCd, String user, String ip, String compCd) throws Exception {
 		String y = ym.replace("-", "").trim(); int n = 0;
 		if (rows != null) for (java.util.Map<String,Object> r : rows) {

@@ -4856,8 +4856,9 @@ function ssOutQty(o){
        (자료가 몇 년치 쌓여 응답이 무거워지면 서버에서 DLV_DT 로 거르도록 바꿔야 한다 — WAR 재빌드) */
     var OH_WIN=31;
     var pShip = (f && t)
-      ? post('/shipout/selectShipoutMst.do', 'shpoutDtFrom='+encodeURIComponent(_ohShift(f,-OH_WIN))+'&shpoutDtTo='+encodeURIComponent(_ohShift(t,OH_WIN)))
-      : post('/shipout/selectShipoutMst.do', '');
+      ? post('/shipout/selectShipoutMst.do', 'dcYn=Y&shpoutDtFrom='+encodeURIComponent(_ohShift(f,-OH_WIN))+'&shpoutDtTo='+encodeURIComponent(_ohShift(t,OH_WIN)))
+      : post('/shipout/selectShipoutMst.do', 'dcYn=Y');
+    /* ★dcYn=Y (2026-09-17) — DC 발주(입고예약서·발주서로 넣은 PROD_KIND='DC')도 대사에 넣는다. 대시보드·납기현황은 이 값을 안 보내 뺀다. */
     /* 판매전표(직접판매) — 정산서 밖에서 직접 판 건. 서버가 정산서 행과 같은 모양으로 준다(2026-07-25 요청).
        출고장이 아니라 '직접판매(전표)' 라는 별도 묶음으로 서고, trxYn='Y' 표시가 붙어 온다.
        그 표시가 있으면 _ohKey 가 대사키를 만들지 않는다 — 출고 자료에 짝이 있을 수 없어서

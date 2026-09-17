@@ -193,6 +193,10 @@ public interface UserService {
 	double expenseSumOf(String ym, String compCd) throws Exception;                                       // 자동 운임 + 사용 중인 수기 항목 합
 	int saveExpenseItem(java.util.Map<String,Object> p) throws Exception;
 	int saveExpenseTrx(java.util.List<java.util.Map<String,Object>> rows, String ym, String user, String ip, String compCd) throws Exception;
+	// DC 발주 (2026-09-17) — 저장(같은 납기일자·품목은 대체) · 삭제 · 목록. 저장·삭제 뒤 재고 원장은 호출 쪽이 납기일자별로 다시 맞춘다
+	int saveDcPo(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String user, String ip, String compCd) throws Exception;
+	int deleteDcPo(java.util.List<java.util.Map<String,Object>> keys, String user, String ip, String compCd) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDcPoList(java.util.Map<String,Object> p) throws Exception;
 	int saveExpenseDtl(java.util.List<java.util.Map<String,Object>> rows, String ym, String itemCd, String user, String ip, String compCd) throws Exception;   // 비용 내역(2026-09-17) — 줄 추가·수정·삭제 뒤 달×항목 금액을 내역 합계로
 	int confirmClosing(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception; // 집계+헤더+재고스냅샷 저장(확정)
 	int cancelClosing(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception;  // 확정 해제

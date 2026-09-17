@@ -490,6 +490,7 @@
 	   WHERE DLV_DT    = REPLACE(ISNULL(#{dlvDt},''),'-','')
 	     AND ISNULL(DC_CD,'') = ISNULL(#{dcCd},'')
 	     AND ACTION_YN = 'Y'
+	     AND ISNULL(PROD_KIND,'') <> 'DC'   /* DC 발주(입고예약서·발주서 업로드, 2026-09-17)는 발주현황표 재업로드로 닫지 않는다 */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
@@ -502,6 +503,7 @@
 	     AND ISNULL(INWH,'') = ISNULL(#{inwh,jdbcType=VARCHAR},'')
 	     AND ISNULL(#{dcCd,jdbcType=VARCHAR},'') <> ''
 	     AND ACTION_YN = 'Y'
+	     AND ISNULL(PROD_KIND,'') <> 'DC'   /* DC 발주는 출고장 삭제로 지우지 않는다(2026-09-17) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 ]]></update>
 
@@ -664,6 +666,9 @@
 	     AND sa.DC_CD = UPPER(LTRIM(RTRIM(ISNULL(t.DC_CD,'')))) AND sa.PROD_CD = ISNULL(t.PROD_CD,'')
 	   WHERE t.ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     /* ★DC 발주(PROD_KIND='DC', 2026-09-17)는 납기현황관리(대시보드·납기세부·이력)에서 뺀다 — 재고·정산서 대사에는 들어간다.
+	          출고내역 대사(logi-oh.js)만 dcYn=Y 로 불러 포함시킨다. */
+	     AND ( ISNULL(#{dcYn,jdbcType=VARCHAR},'') = 'Y' OR ISNULL(t.PROD_KIND,'') <> 'DC' )
 	     AND (
 	           ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') <> ''
 	             AND t.SHPOUT_DT BETWEEN REPLACE(#{shpoutDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{shpoutDtTo,jdbcType=VARCHAR},'-','') )
@@ -1025,12 +1030,59 @@
 
 	<!-- ④-1 이미 업로드(반영)된 원본 파일명 목록 — 폴더 업로드 화면에서 '이미 반영' 배지 표시용
 	     · 파일명(SRC_FILE)별 최종 저장일시(UPLOAD_DTTM)·출고일자(SHPOUT_DT) -->
+	<!-- ============================================================
+	     DC 발주 (2026-09-17) — 삼성웰스토리 SRM 「발주현황조회」에서 상품종류가 DC 인 발주.
+	     발주현황표(통합가마감/라벨발행)에는 안 실려 재고가 정산서 올 때까지 안 빠졌다.
+	     입고예약서(PDF)·발주서(엑셀)를 올려 TBL_SHIPOUT_MST 에 PROD_KIND='DC' 로 넣는다.
+	     · 재고 원장(insertShipoutLedger)·정산서 교체·월별 출고현황·마감·출고내역 대사 = 그대로 포함
+	     · 납기현황관리(대시보드·납기세부·이력·업로드 이력) = 뺀다 (위 각 조회의 PROD_KIND 조건)
+	     · 같은 (납기일자, 품목코드) DC 발주를 다시 올리면 앞의 것을 이력(N)으로 닫고 새로 넣는다
+	     ============================================================ -->
+	<update id="markDcPoReplace" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET ACTION_YN = 'N', UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE PROD_KIND = 'DC' AND ACTION_YN = 'Y'
+	     AND DLV_DT  = REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-','')
+	     AND ITEM_CD = #{itemCd,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<update id="deleteDcPo" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET ACTION_YN = 'D', UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE PROD_KIND = 'DC' AND ACTION_YN = 'Y'
+	     AND DLV_DT  = REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-','')
+	     AND ITEM_CD = #{itemCd,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<!-- 목록 — 정산서 반영 = 같은 납기일자·품목코드의 정산서 줄(출고수량 합). 원장 반영 = 그 날 정산서가 하나라도 있으면 정산서가 주인 -->
+	<select id="selectDcPoList" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT t.DLV_DT AS dlvDt, t.SHPOUT_DT AS shpoutDt, t.JOB_SEQ AS jobSeq, t.DC_CD AS dcCd, t.DC_NM AS dcNm,
+	         ISNULL(t.ORD_NO,'') AS ordNo, t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm,
+	         ISNULL(t.UNIT,'') AS unit, ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) AS qty,
+	         ISNULL(t.PROD_CD,'') AS prodCd, ISNULL(t.SRC_FILE,'') AS srcFile, ISNULL(t.REMARK,'') AS remark,
+	         CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm, ISNULL(t.REG_USER,'') AS regUser,
+	         ISNULL(v.SQ, NULL) AS settleQty, CASE WHEN v.SQ IS NULL THEN 'N' ELSE 'Y' END AS settleYn,
+	         CASE WHEN d.DLV_DT IS NULL THEN 'N' ELSE 'Y' END AS settleDayYn
+	    FROM TBL_SHIPOUT_MST t
+	    LEFT JOIN ( SELECT COMP_CD, DLV_DT, ITEM_CD, SUM(ISNULL(OUT_QTY,0)) AS SQ
+	                  FROM TBL_SALES_MST WHERE ACTION_YN = 'Y' GROUP BY COMP_CD, DLV_DT, ITEM_CD ) v
+	      ON v.COMP_CD = t.COMP_CD AND v.DLV_DT = t.DLV_DT AND v.ITEM_CD = t.ITEM_CD
+	    LEFT JOIN ( SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST WHERE ACTION_YN = 'Y' ) d
+	      ON d.COMP_CD = t.COMP_CD AND d.DLV_DT = t.DLV_DT
+	   WHERE t.PROD_KIND = 'DC' AND t.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') = '' OR t.DLV_DT >= REPLACE(#{dlvDtFrom,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'')   = '' OR t.DLV_DT <= REPLACE(#{dlvDtTo,jdbcType=VARCHAR},'-','') )
+	   ORDER BY t.DLV_DT DESC, t.ITEM_CD
+	]]></select>
+
 	<select id="selectShipoutSrcFiles" resultType="egovframework.konet.user.model.ShipoutDTO"><![CDATA[
 	  SELECT SRC_FILE AS srcFile,
 	         MAX(SHPOUT_DT) AS shpoutDt,
 	         CONVERT(varchar(19), MAX(UPLOAD_DTTM), 120) AS uploadDttm
 	    FROM TBL_SHIPOUT_MST
 	   WHERE ISNULL(SRC_FILE,'') <> ''
+	     AND ISNULL(PROD_KIND,'') <> 'DC'   /* DC 발주 파일 제외(2026-09-17) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   GROUP BY SRC_FILE
 	]]></select>
@@ -1071,6 +1123,7 @@
 	      --   ★ACTION_YN 은 절대 안쪽으로 옮기지 말 것 — 파티션 키가 아니고,
 	      --     firstDttm 은 '이력 포함 전체 최소값' 이어야 한다(바깥 WHERE 에 그대로 둔다).
 	                WHERE s0.SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
+	                  AND ISNULL(s0.PROD_KIND,'') <> 'DC'   /* DC 발주 제외(2026-09-17) */
 	                  AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s0.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	              ) s
 	       WHERE s.SHPOUT_DT = REPLACE(ISNULL(#{shpoutDt},''),'-','')
@@ -1098,6 +1151,7 @@
 	     AND ISNULL(t.DC_CD,'') = ISNULL(#{dcCd},'')
 	     AND ISNULL(t.INWH,'')  = ISNULL(#{inwh},'')
 	     AND ISNULL(t.ACTION_YN,'') <> 'D'
+	     AND ISNULL(t.PROD_KIND,'') <> 'DC'   /* DC 발주 제외(2026-09-17) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY t.UPLOAD_DTTM, t.BIZ_NM, t.ITEM_NM, t.ROW_NO
 	]]></select>
@@ -1445,6 +1499,7 @@
 	         SUM(ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0))) AS qtySum
 	    FROM TBL_SHIPOUT_MST t
 	   WHERE ISNULL(t.ACTION_YN,'') <> 'D'
+	     AND ISNULL(t.PROD_KIND,'') <> 'DC'   /* DC 발주는 DC 발주 등록 화면의 목록에서 본다(2026-09-17) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND (
 	           ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') <> ''
@@ -1471,6 +1526,7 @@
 	     AND ISNULL(t.DLV_DT,'') = ISNULL(#{dlvDt,jdbcType=VARCHAR},'')
 	     AND t.JOB_SEQ = #{jobSeq}
 	     AND ISNULL(t.ACTION_YN,'') <> 'D'
+	     AND ISNULL(t.PROD_KIND,'') <> 'DC'   /* DC 발주 제외(2026-09-17) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY t.BIZ_NM, t.ITEM_NM, t.ROW_NO
 	]]></select>
@@ -1491,6 +1547,7 @@
 	      t.CUR_QTY AS curQty, t.LABEL_QTY AS labelQty
 	    FROM TBL_SHIPOUT_MST t
 	   WHERE ISNULL(t.ACTION_YN,'') <> 'D'
+	     AND ISNULL(t.PROD_KIND,'') <> 'DC'   /* DC 발주 제외(2026-09-17) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND (
 	           ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') <> ''
@@ -2672,6 +2729,7 @@
 	                 REPLACE(ISNULL(s.DLV_DT,''),'-','') AS dlvKey
 	            FROM TBL_SHIPOUT_MST s
 	           WHERE s.ACTION_YN = 'Y'
+	             AND ISNULL(s.PROD_KIND,'') <> 'DC'   /* DC 발주 제외(2026-09-17) */
 	             AND ISNULL(s.BIZ_CD,'') <> '' AND ISNULL(s.DC_NM,'') <> ''
 	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	             AND REPLACE(ISNULL(s.DLV_DT,''),'-','')

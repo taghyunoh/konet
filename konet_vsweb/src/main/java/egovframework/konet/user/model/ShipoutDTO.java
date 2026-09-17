@@ -39,6 +39,7 @@ public class ShipoutDTO {
 	private String  dlvDtTo;       // 납기일자 기간조회 종료일 (조회 전용·비영속)
 	private String  statYn;        // 상황여부
 	private String  prodKind;      // 상품종류
+	private String  dcYn;          // 조회 전용 — 'Y' 면 selectShipoutMst 가 DC 발주(PROD_KIND='DC')도 준다(출고내역 대사). 기본은 뺀다(2026-09-17)
 	private String  tempGb;        // 온도구분
 	private String  ordGb;         // 발주구분
 	private String  bizCd;         // 사업장코드
@@ -123,6 +124,8 @@ public class ShipoutDTO {
 	public void setDlvDtTo(String dlvDtTo) { this.dlvDtTo = dlvDtTo; }
 	public String getStatYn() { return statYn; }
 	public void setStatYn(String statYn) { this.statYn = statYn; }
+	public String getDcYn() { return dcYn; }
+	public void setDcYn(String dcYn) { this.dcYn = dcYn; }
 	public String getProdKind() { return prodKind; }
 	public void setProdKind(String prodKind) { this.prodKind = prodKind; }
 	public String getTempGb() { return tempGb; }

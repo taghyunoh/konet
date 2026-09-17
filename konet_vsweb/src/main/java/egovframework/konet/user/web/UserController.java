@@ -1167,6 +1167,318 @@ public class UserController {
 			return res;
 		}
 
+		/* ================= DC 발주 등록 (2026-09-17) =================
+		   삼성웰스토리 SRM 「발주현황조회」에서 상품종류 DC 인 발주 — 발주현황표(통합가마감/라벨발행)에는 안 실린다.
+		   그래서 정산서가 올 때까지 재고가 안 빠지고, 출고내역 대사에서는 「정산서만」으로 떴다.
+		   · 원본 두 가지 : 입고예약서(PDF, 입고예약서번호·업체출고일·발주번호·납품장소) / 발주서(엑셀 ZMMA_XI_13_PO_QUERY, 발주일자·납기일자, 발주번호 없음)
+		   · 저장 = TBL_SHIPOUT_MST, PROD_KIND='DC'. 출고장은 납품장소 이름으로(없으면 평택 E500 — 사용자 확정 2026-09-17)
+		   · 납기현황관리(대시보드·납기세부·이력)에서만 빠지고 재고 원장·정산서 교체·월별 출고현황·마감·출고내역 대사에는 들어간다
+		   · 멀티파트 설정이 없어 파일은 base64 JSON 으로 받는다. 해석은 서버(POI · itext)가 하고 화면은 미리보기 후 저장한다 */
+		@RequestMapping(value="/shipout/dcPo.do")
+		public String dcPo(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/dcPo";
+		}
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/shipout/dcPoParse.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> dcPoParse(@RequestBody Map<String,Object> p, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			java.util.List<Map<String,Object>> rows = new java.util.ArrayList<Map<String,Object>>();
+			java.util.List<String> errs = new java.util.ArrayList<String>();
+			if (session.getAttribute("s_comp_cd") == null) { errs.add("로그인이 필요합니다."); res.put("rows", rows); res.put("errors", errs); return res; }
+			java.util.List<Map<String,Object>> files = (java.util.List<Map<String,Object>>) p.get("files");
+			if (files != null) for (Map<String,Object> fl : files) {
+				String nm = poStr(fl.get("name"));
+				try {
+					String b64 = poStr(fl.get("b64")); int cm = b64.indexOf(','); if (b64.startsWith("data:") && cm > 0) b64 = b64.substring(cm + 1);
+					byte[] b = Base64.getDecoder().decode(b64);
+					if (b.length > 15 * 1024 * 1024) { errs.add(nm + " : 15MB 가 넘습니다."); continue; }
+					java.util.List<Map<String,Object>> got = (b.length > 4 && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F')
+					        ? dcParsePdf(b, nm) : dcParseXlsx(b, nm);
+					if (got.isEmpty()) errs.add(nm + " : 품목 줄을 찾지 못했습니다(입고예약서 PDF 또는 발주서 엑셀인지 확인).");
+					rows.addAll(got);
+				} catch (Exception e) {
+					log.error(" dcPoParse " + nm + " : " + e.getMessage());
+					errs.add(nm + " : 읽지 못했습니다 — " + e.getClass().getSimpleName() + (e.getMessage() == null ? "" : " " + e.getMessage()));
+				}
+			}
+			res.put("rows", rows); res.put("errors", errs);
+			return res;
+		}
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/shipout/dcPoSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> dcPoSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				String ip = request.getRemoteAddr();
+				java.util.List<Map<String,Object>> in = (java.util.List<Map<String,Object>>) p.get("rows");
+				java.util.List<egovframework.konet.user.model.ShipoutDTO> rows = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>();
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
+				if (in != null) for (Map<String,Object> m : in) {
+					String dlv = poStr(m.get("dlvDt")).replace("-", "").replace("/", "");
+					String cd = poStr(m.get("itemCd"));
+					long q = Math.round(poNum(m.get("qty")));
+					if (!dlv.matches("\\d{8}") || cd.isEmpty() || q == 0) continue;
+					String dcCd = poStr(m.get("dcCd")).toUpperCase(); if (dcCd.isEmpty()) dcCd = "E500";
+					egovframework.konet.user.model.ShipoutDTO d = new egovframework.konet.user.model.ShipoutDTO();
+					d.setDlvDt(dlv);
+					String sh = poStr(m.get("shpoutDt")).replace("-", "").replace("/", ""); d.setShpoutDt(sh.matches("\\d{8}") ? sh : dlv);
+					d.setDcCd(dcCd); d.setDcNm(dcNmOf(dcCd, poStr(m.get("place"))));
+					d.setItemCd(cd); d.setItemNm(poStr(m.get("itemNm")));
+					d.setUnit(poStr(m.get("unit"))); d.setCurQty((int) q); d.setLabelQty((int) q);
+					d.setOrdNo(poStr(m.get("ordNo")));
+					d.setZone("DC"); d.setDlvGb("DC"); d.setBizNm("DC 입고(" + d.getDcNm() + ")");
+					String rsv = poStr(m.get("rsvNo")), ordDt = poStr(m.get("ordDt"));
+					String rmk = (rsv.isEmpty() ? "" : "입고예약서 " + rsv) + (ordDt.isEmpty() ? "" : (rsv.isEmpty() ? "" : " · ") + "발주일 " + ordDt);
+					if (!poStr(m.get("price")).isEmpty()) rmk += (rmk.isEmpty() ? "" : " · ") + "단가 " + poStr(m.get("price"));
+					d.setRemark(rmk.length() > 190 ? rmk.substring(0, 190) : rmk);
+					String src = poStr(m.get("fileNm")); d.setSrcFile(src.length() > 190 ? src.substring(0, 190) : src);
+					rows.add(d); dates.add(dlv);
+				}
+				if (rows.isEmpty()) return ResponseEntity.status(400).body("저장할 줄이 없습니다(납기일자·품목코드·수량을 확인하세요).");
+				int n = svc.saveDcPo(rows, u, ip, compCd);
+				String warn = dcResync(dates, u, ip);
+				return ResponseEntity.ok(n + (warn == null ? "" : "|STOCKFAIL:" + warn));
+			} catch (Exception e) { log.error(" dcPoSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/shipout/dcPoList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> dcPoList(@RequestParam(value="dlvDtFrom", required=false) String fr, @RequestParam(value="dlvDtTo", required=false) String to,
+		                                   HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); return res; }
+			Map<String,Object> q = new HashMap<String,Object>();
+			q.put("compCd", session.getAttribute("s_comp_cd")); q.put("dlvDtFrom", fr); q.put("dlvDtTo", to);
+			res.put("data", svc.selectDcPoList(q));
+			return res;
+		}
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/shipout/dcPoDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> dcPoDelete(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				java.util.List<Map<String,Object>> keys = (java.util.List<Map<String,Object>>) p.get("keys");
+				int n = svc.deleteDcPo(keys, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")));
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
+				if (keys != null) for (Map<String,Object> k : keys) { String d = poStr(k.get("dlvDt")).replace("-", ""); if (d.matches("\\d{8}")) dates.add(d); }
+				String warn = dcResync(dates, u, request.getRemoteAddr());
+				return ResponseEntity.ok(n + (warn == null ? "" : "|STOCKFAIL:" + warn));
+			} catch (Exception e) { log.error(" dcPoDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		/* 재고 원장 재동기화 — 발주현황표 저장과 같은 길(납기일자별 syncShipoutLedgerDate → 전체 현재고). 실패는 조용히 넘기지 않고 사유를 돌려준다 */
+		private String dcResync(java.util.Set<String> dates, String u, String ip) {
+			try {
+				for (String d : dates) svc.syncShipoutLedgerDate(d, u, ip);
+				if (!dates.isEmpty()) svc.recalcStockMstAll(u, ip);
+				return null;
+			} catch (Exception se) {
+				log.error(" DC 발주 재고연동 WARN : " + se.getMessage());
+				return (se.getMessage() == null || se.getMessage().trim().isEmpty()) ? se.getClass().getSimpleName() : se.getMessage().trim();
+			}
+		}
+		/* 납품장소·코드 → 출고장 코드. 매퍼 dcKeyOf 와 같은 지역명 규칙. 못 찾으면 평택(E500) */
+		private static String dcCdOf(String place) {
+			String s = place == null ? "" : place;
+			if (s.contains("용인")) return "E100"; if (s.contains("왜관")) return "E200"; if (s.contains("김해")) return "E300";
+			if (s.contains("광주")) return "E400"; if (s.contains("평택")) return "E500"; if (s.contains("제주")) return "E600";
+			if (s.contains("오산")) return "E700";
+			return "E500";
+		}
+		private static String dcNmOf(String dcCd, String place) {
+			String[][] t = { {"E100","용인"},{"E200","왜관"},{"E300","김해"},{"E400","광주"},{"E500","평택"},{"E600","제주"},{"E700","오산"} };
+			for (String[] r : t) if (r[0].equals(dcCd)) return r[1] + "물류센터";
+			return place == null || place.isEmpty() ? "평택물류센터" : place;
+		}
+		private static String dcDt8(String s) {
+			String d = s == null ? "" : s.replaceAll("[^0-9]", "");
+			return d.length() >= 8 ? d.substring(0, 8) : "";
+		}
+		private static double dcNum(String s) {
+			try { String t = (s == null ? "" : s).replace(",", "").trim(); return t.isEmpty() ? 0 : Double.parseDouble(t); } catch (Exception e) { return 0; }
+		}
+		private static Map<String,Object> dcRow(String src, String fileNm) {
+			Map<String,Object> m = new java.util.LinkedHashMap<String,Object>();
+			m.put("src", src); m.put("fileNm", fileNm);
+			return m;
+		}
+
+		/* 발주서 엑셀(ZMMA_XI_13_PO_QUERY) — 칸 번호는 머리글(품목코드·품명 줄 / 규격·단위 줄)로 찾는다. 품목은 두 줄이 한 벌.
+		   윗줄 = No·품목코드·품명·금액·납기일자·납품장소 / 아랫줄 = 규격·단위·수량·단가·부가세·적요. 발주일자·납기일자(머리)는 위쪽 표에서.
+		   한 시트에 발주서가 여러 장 이어 붙어 있어도 머리글을 다시 만나면 칸을 새로 잡는다. */
+		private static java.util.List<Map<String,Object>> dcParseXlsx(byte[] b, String fileNm) throws Exception {
+			java.util.List<Map<String,Object>> out = new java.util.ArrayList<Map<String,Object>>();
+			org.apache.poi.ss.usermodel.Workbook wb = org.apache.poi.ss.usermodel.WorkbookFactory.create(new java.io.ByteArrayInputStream(b));
+			try {
+				org.apache.poi.ss.usermodel.DataFormatter df = new org.apache.poi.ss.usermodel.DataFormatter();
+				for (int si = 0; si < wb.getNumberOfSheets(); si++) {
+					org.apache.poi.ss.usermodel.Sheet sh = wb.getSheetAt(si);
+					String ordDt = "", headDlv = "";
+					int cCode = -1, cName = -1, cAmt = -1, cDlv = -1, cPlace = -1, cSpec = -1, cUnit = -1, cQty = -1, cPrice = -1, cRmk = -1;
+					for (int r = 0; r <= sh.getLastRowNum(); r++) {
+						org.apache.poi.ss.usermodel.Row row = sh.getRow(r); if (row == null) continue;
+						java.util.TreeMap<Integer,String> cells = new java.util.TreeMap<Integer,String>();
+						for (int c = 0; c < row.getLastCellNum(); c++) {
+							org.apache.poi.ss.usermodel.Cell cl = row.getCell(c); if (cl == null) continue;
+							String v = df.formatCellValue(cl).trim(); if (!v.isEmpty()) cells.put(c, v);
+						}
+						if (cells.isEmpty()) continue;
+						if (cells.containsValue("품목코드") && cells.containsValue("품명")) {
+							for (java.util.Map.Entry<Integer,String> e : cells.entrySet()) {
+								String v = e.getValue().replace(" ", "");
+								if ("품목코드".equals(v)) cCode = e.getKey(); else if ("품명".equals(v)) cName = e.getKey();
+								else if ("금액".equals(v)) cAmt = e.getKey(); else if ("납기일자".equals(v)) cDlv = e.getKey();
+								else if ("납품장소".equals(v)) cPlace = e.getKey();
+							}
+							org.apache.poi.ss.usermodel.Row nx = sh.getRow(r + 1);
+							if (nx != null) for (int c = 0; c < nx.getLastCellNum(); c++) {
+								org.apache.poi.ss.usermodel.Cell cl = nx.getCell(c); if (cl == null) continue;
+								String v = df.formatCellValue(cl).trim().replace(" ", "");
+								if ("규격".equals(v)) cSpec = c; else if ("단위".equals(v)) cUnit = c; else if ("수량".equals(v)) cQty = c;
+								else if ("단가".equals(v)) cPrice = c; else if ("적요".equals(v)) cRmk = c;
+							}
+							r++; continue;
+						}
+						// 머리 표 : 「발주일자 … 20260629」 「납기일자 … 20260701」 — 이름표 오른쪽 첫 값
+						for (java.util.Map.Entry<Integer,String> e : cells.entrySet()) {
+							String v = e.getValue().replace(" ", "");
+							if ("발주일자".equals(v) || "납기일자".equals(v)) {
+								java.util.Map.Entry<Integer,String> nv = cells.higherEntry(e.getKey());
+								if (nv != null && dcDt8(nv.getValue()).length() == 8) { if ("발주일자".equals(v)) ordDt = dcDt8(nv.getValue()); else headDlv = dcDt8(nv.getValue()); }
+							}
+						}
+						if (cCode < 0) continue;
+						String code = cells.containsKey(cCode) ? cells.get(cCode).replace(" ", "") : "";
+						if (!code.matches("\\d{6,14}")) continue;
+						org.apache.poi.ss.usermodel.Row lo = sh.getRow(r + 1);
+						java.util.function.IntFunction<String> low = (c) -> {
+							if (lo == null || c < 0) return "";
+							org.apache.poi.ss.usermodel.Cell cl = lo.getCell(c); return cl == null ? "" : df.formatCellValue(cl).trim();
+						};
+						Map<String,Object> m = dcRow("발주서", fileNm);
+						String dlv = cDlv >= 0 && cells.containsKey(cDlv) ? dcDt8(cells.get(cDlv)) : "";
+						if (dlv.isEmpty()) dlv = headDlv;
+						String place = cPlace >= 0 && cells.containsKey(cPlace) ? cells.get(cPlace) : "";
+						m.put("dlvDt", dlv); m.put("shpoutDt", dlv); m.put("ordDt", ordDt); m.put("ordNo", ""); m.put("rsvNo", "");
+						m.put("itemCd", code); m.put("itemNm", cName >= 0 && cells.containsKey(cName) ? cells.get(cName) : "");
+						m.put("spec", low.apply(cSpec)); m.put("unit", low.apply(cUnit));
+						m.put("qty", dcNum(low.apply(cQty))); m.put("price", low.apply(cPrice).replace(",", ""));
+						m.put("amt", cAmt >= 0 && cells.containsKey(cAmt) ? dcNum(cells.get(cAmt)) : 0);
+						m.put("place", place); m.put("dcCd", dcCdOf(place)); m.put("remark", low.apply(cRmk));
+						out.add(m);
+						r++;   // 아랫줄은 이미 읽었다
+					}
+				}
+			} finally { wb.close(); }
+			return out;
+		}
+
+		/* 입고예약서 PDF — 글자를 좌표(x,y)째로 모아 줄(y)로 묶고, 칸은 머리글 글자 위치로 가른다(텍스트 추출 순서는 칸이 섞여 못 쓴다).
+		   윗줄 = 품목번호·품명·금액·납품장소·발주번호 / 아랫줄 = 규격·단위·판매가·수량·단가·청구자(납품장소 (FD)). 쪽마다 머리(입고예약서번호·업체출고일)가 따로 있다. */
+		private static final class DcCh { final float x, xe, y; final String t; DcCh(float x, float xe, float y, String t) { this.x = x; this.xe = xe; this.y = y; this.t = t; } }
+		private static final class DcTok { float x; StringBuilder t = new StringBuilder(); }
+		private static java.util.List<DcTok> dcTokens(java.util.List<DcCh> line) {
+			java.util.List<DcCh> l = new java.util.ArrayList<DcCh>(line);
+			java.util.Collections.sort(l, (a, c) -> Float.compare(a.x, c.x));
+			java.util.List<DcTok> out = new java.util.ArrayList<DcTok>(); DcTok cur = null; float pe = -999;
+			for (DcCh ch : l) {
+				if (ch.t.trim().isEmpty()) { pe = -999; cur = null; continue; }
+				if (cur == null || ch.x - pe > 3.5f) { cur = new DcTok(); cur.x = ch.x; out.add(cur); }
+				cur.t.append(ch.t); pe = ch.xe;
+			}
+			return out;
+		}
+		private static java.util.List<Map<String,Object>> dcParsePdf(byte[] b, String fileNm) throws Exception {
+			java.util.List<Map<String,Object>> out = new java.util.ArrayList<Map<String,Object>>();
+			com.itextpdf.text.pdf.PdfReader rd = new com.itextpdf.text.pdf.PdfReader(b);
+			try {
+				com.itextpdf.text.pdf.parser.PdfReaderContentParser pr = new com.itextpdf.text.pdf.parser.PdfReaderContentParser(rd);
+				for (int pg = 1; pg <= rd.getNumberOfPages(); pg++) {
+					final java.util.List<DcCh> chars = new java.util.ArrayList<DcCh>();
+					pr.processContent(pg, new com.itextpdf.text.pdf.parser.RenderListener() {
+						public void beginTextBlock() {}
+						public void endTextBlock() {}
+						public void renderImage(com.itextpdf.text.pdf.parser.ImageRenderInfo ri) {}
+						public void renderText(com.itextpdf.text.pdf.parser.TextRenderInfo ri) {
+							for (com.itextpdf.text.pdf.parser.TextRenderInfo c : ri.getCharacterRenderInfos()) {
+								com.itextpdf.text.pdf.parser.LineSegment bl = c.getBaseline();
+								chars.add(new DcCh(bl.getStartPoint().get(0), bl.getEndPoint().get(0), bl.getStartPoint().get(1), c.getText()));
+							}
+						}
+					});
+					// 줄로 묶기 (위에서 아래로, y 차이 2.5 이내 = 같은 줄)
+					java.util.Collections.sort(chars, (a, c) -> Float.compare(c.y, a.y));
+					java.util.List<java.util.List<DcCh>> lines = new java.util.ArrayList<java.util.List<DcCh>>();
+					java.util.List<Float> ys = new java.util.ArrayList<Float>();
+					for (DcCh ch : chars) {
+						if (lines.isEmpty() || Math.abs(ys.get(ys.size() - 1) - ch.y) > 2.5f) { lines.add(new java.util.ArrayList<DcCh>()); ys.add(ch.y); }
+						lines.get(lines.size() - 1).add(ch);
+					}
+					java.util.List<java.util.List<DcTok>> toks = new java.util.ArrayList<java.util.List<DcTok>>();
+					StringBuilder all = new StringBuilder();
+					for (java.util.List<DcCh> l : lines) { java.util.List<DcTok> t = dcTokens(l); toks.add(t); for (DcTok k : t) all.append(k.t).append(' '); all.append('\n'); }
+					String txt = all.toString();
+					java.util.regex.Matcher mm;
+					String rsvNo = (mm = java.util.regex.Pattern.compile("입고예약서번호\\s*(\\d{6,14})").matcher(txt)).find() ? mm.group(1) : "";
+					String outDt = (mm = java.util.regex.Pattern.compile("업체출고일\\s*(\\d{4}[/.-]\\d{2}[/.-]\\d{2})").matcher(txt)).find() ? dcDt8(mm.group(1)) : "";
+					String genDt = (mm = java.util.regex.Pattern.compile("생성일\\s*(\\d{4}[/.-]\\d{2}[/.-]\\d{2})").matcher(txt)).find() ? dcDt8(mm.group(1)) : "";
+					// 칸 경계 — 머리글 글자 위치. 못 찾으면 표본(2026-08-03 호호솥밥) 값
+					float xAmt = 412, xPlace = 468, xOrd = 531, xUnit = 258, xSale = 286, xQty = 325, xPrice = 363;
+					for (java.util.List<DcTok> t : toks) for (DcTok k : t) {
+						String v = k.t.toString();
+						if ("금액".equals(v)) xAmt = k.x; else if ("납품장소".equals(v)) xPlace = k.x; else if ("발주번호".equals(v)) xOrd = k.x;
+						else if ("단위".equals(v)) xUnit = k.x; else if ("판매가".equals(v)) xSale = k.x; else if ("수량".equals(v)) xQty = k.x;
+						else if ("단가".equals(v)) xPrice = k.x;
+					}
+					for (int li = 0; li < toks.size(); li++) {
+						java.util.List<DcTok> t = toks.get(li);
+						if (t.isEmpty()) continue;
+						DcTok first = null; for (DcTok k : t) { if (k.x < xUnit - 60) { first = k; break; } }
+						if (first == null || !first.t.toString().matches("\\d{8,14}") || first.x < 40) continue;   // x<40 = No 칸
+						String code = first.t.toString(), amt = "", ordNo = ""; StringBuilder name = new StringBuilder(), place = new StringBuilder();
+						for (DcTok k : t) {
+							if (k == first) continue;
+							String v = k.t.toString();
+							if (k.x >= xOrd - 12) { if (v.matches("\\d{6,14}")) ordNo = v; }
+							else if (k.x >= xPlace - 20) place.append(place.length() > 0 ? " " : "").append(v);
+							else if (k.x >= xAmt - 30 && v.matches("[\\d,.-]+")) amt = v;
+							else name.append(name.length() > 0 ? " " : "").append(v);
+						}
+						// 아랫줄 : 22pt 안에서 수량 칸에 숫자가 있는 첫 줄
+						String spec = "", unit = "", qty = "", price = "", place2 = "";
+						for (int lj = li + 1; lj < toks.size() && ys.get(li) - ys.get(lj) <= 24f; lj++) {
+							String q0 = "";
+							for (DcTok k : toks.get(lj)) if (k.x >= xQty - 6 && k.x < xPrice - 4 && k.t.toString().matches("[\\d,.]+")) q0 = k.t.toString();
+							if (q0.isEmpty()) continue;
+							StringBuilder sp = new StringBuilder();
+							for (DcTok k : toks.get(lj)) {
+								String v = k.t.toString();
+								if (k.x >= xPlace - 20) place2 = v;
+								else if (k.x >= xPrice - 4) price = v;
+								else if (k.x >= xQty - 6) qty = v;
+								else if (k.x >= xSale - 4) { /* 판매가 — 비어 있다 */ }
+								else if (k.x >= xUnit - 10) unit = v;
+								else if (k.x > first.x + 20) sp.append(sp.length() > 0 ? " " : "").append(v);
+							}
+							spec = sp.toString();
+							break;
+						}
+						Map<String,Object> m = dcRow("입고예약서", fileNm);
+						String pl = place.length() > 0 ? place.toString() : place2;
+						m.put("dlvDt", outDt); m.put("shpoutDt", outDt); m.put("ordDt", genDt); m.put("ordNo", ordNo); m.put("rsvNo", rsvNo);
+						m.put("itemCd", code); m.put("itemNm", name.toString()); m.put("spec", spec); m.put("unit", unit);
+						m.put("qty", dcNum(qty)); m.put("price", price.replace(",", "")); m.put("amt", dcNum(amt));
+						m.put("place", pl); m.put("dcCd", dcCdOf(pl)); m.put("remark", "");
+						out.add(m);
+					}
+				}
+			} finally { rd.close(); }
+			return out;
+		}
+
 		/* 출고현황표 화면 — 선택한 납기일자(단일)의 활성배치 조회 (JSON: {data:[...]}) */
 		@RequestMapping(value="/shipout/selectShipoutMst.do", method = RequestMethod.POST)
 		@ResponseBody

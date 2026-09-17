@@ -3201,6 +3201,9 @@
       <a class="mi" data-key="outHist" onclick="logiGo('outHist', this); ohEnter();"><span class="ic">📤</span>매출내역</a>
       <%-- 정산실적 (2026-08-02 요청) — 매출내역 바로 아래. 정산서 원본을 일자별·품목별로 편다. --%>
       <a class="mi" data-key="settlePerf" onclick="logiGo('settlePerf', this); spEnter();"><span class="ic">🧾</span>정산실적</a>
+      <%-- DC 발주 등록 (2026-09-17) — SRM 발주현황조회의 상품종류 DC(입고예약서 PDF·발주서 엑셀). 재고·정산서 대사에는 들어가고 납기현황관리에서만 빠진다.
+           ★메뉴와 아래 panel-dcPo 는 짝이다. iframe 화면(mangr/dcPo.jsp) --%>
+      <a class="mi" data-key="dcPo" onclick="logiFrame('dcPo','${pageContext.request.contextPath}/shipout/dcPo.do', this)"><span class="ic">🏷</span>DC 발주 등록</a>
       <a class="mi" data-key="salesreg" onclick="logiFrame('salesreg','${pageContext.request.contextPath}/mangr/salesReg.do', this)"><span class="ic">🧾</span>판매 등록</a>
       <a class="mi" data-key="rcvreg" onclick="logiFrame('rcvreg','${pageContext.request.contextPath}/mangr/rcvReg.do', this)"><span class="ic">🧾</span>수금 등록</a>
       <%-- 수금 / 미수금(월 단위, TBL_RECEIVE_MST) 메뉴 내림 : 2026-07-25.
@@ -4771,6 +4774,10 @@
       <iframe id="if-whMng" src="" title="창고 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <%-- 발주서 관리 (2026-09-03) — 메뉴 logiFrame('poReg',…) 의 짝 --%>
+    <%-- DC 발주 등록 (2026-09-17) — 메뉴 logiFrame('dcPo',…) 의 짝 --%>
+    <section id="panel-dcPo" class="panel" style="padding:0;">
+      <iframe id="if-dcPo" src="" title="DC 발주 등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
     <section id="panel-poReg" class="panel" style="padding:0;">
       <iframe id="if-poReg" src="" title="발주서 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
