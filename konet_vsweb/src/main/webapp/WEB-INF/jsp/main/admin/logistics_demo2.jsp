@@ -3413,6 +3413,8 @@
       <a class="mi" data-key="quoteMng" onclick="logiFrame('quoteMng','${pageContext.request.contextPath}/mangr/quoteMng.do', this)"><span class="ic">📄</span>견적서 올리기·목록</a>
       <%-- 견적서 작성 (2026-09-17) — 새로 쓰거나(수정은 목록 [✏]) 저장 · 출력. iframe 화면(mangr/quoteEdit.jsp, panel-quoteEdit) --%>
       <a class="mi" data-key="quoteEdit" onclick="logiFrame('quoteEdit','${pageContext.request.contextPath}/mangr/quoteEdit.do', this)"><span class="ic">🧾</span>견적서 작성</a>
+      <%-- 원가·마진 계산 (2026-09-17 — 표본 오택현.xls) : 구매원가·물류비를 넣고 마진율, 목표 마진 → 필요 판매단가. iframe 화면(mangr/costCalc.jsp, panel-costCalc) --%>
+      <a class="mi" data-key="costCalc" onclick="logiFrame('costCalc','${pageContext.request.contextPath}/mangr/costCalc.do', this)"><span class="ic">🧮</span>원가·마진 계산</a>
       <%-- 견적서 출력 메뉴는 뺐다(2026-09-17 「메뉴 중복 정리」) — 목록 화면과 같은 화면이었다. 인쇄·엑셀은 목록 줄의 [🖨]·[📥 엑셀], 작성 화면의 [🖨 출력]·[📥 엑셀] --%>
     </div>
     <%-- ★[2026-09-09 사용자 요청] 「💬 카카오톡관리」(메시지 발송·발송 이력·문자 템플릿 관리) 메뉴 삭제.
@@ -4890,6 +4892,10 @@
     <%-- 견적서 작성 (2026-09-17) — 메뉴 logiFrame('quoteEdit',…) 의 짝 --%>
     <section id="panel-quoteEdit" class="panel" style="padding:0;">
       <iframe id="if-quoteEdit" src="" title="견적서 작성" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <%-- 원가·마진 계산 (2026-09-17) — 메뉴 logiFrame('costCalc',…) 의 짝 --%>
+    <section id="panel-costCalc" class="panel" style="padding:0;">
+      <iframe id="if-costCalc" src="" title="원가·마진 계산" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <section id="panel-quoteMng" class="panel" style="padding:0;">
       <iframe id="if-quoteMng" src="" title="견적서 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>

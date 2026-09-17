@@ -39,7 +39,10 @@
     prt: { ord: 'in', amt: 'Y', price: 'Y', bal: 'N', inv: 'N', boxp: 'N', chg: 'N', vat: 'N', rows: 10, mode: 'both',
            bc: 'N', rtn: 'N', shade: 'N', ptime: 'Y' },   // 인쇄일시는 종전에 늘 찍었다 → 기본 Y
     // 거래명세서 인쇄 옵션 (모바일 앱)
-    prtApp: { bc: 'N', bcType: '문자', price: 'Y', vat: 'N', bal: 'N', sign: 'N' }
+    prtApp: { bc: 'N', bcType: '문자', price: 'Y', vat: 'N', bal: 'N', sign: 'N' },
+    // 원가·마진 계산 (2026-09-17, 견적서관리 ▸ 원가·마진 계산) — 센터별 물류비율(%)·보관/개 기본식(보관료 × 팔레트 × 개월 ÷ MOQ 수량). 표본 오택현.xls
+    cost: { centers: [ { nm: '평/용센터', rate: 10.5 }, { nm: '왜관센터', rate: 15.1 }, { nm: '광주센터', rate: 14.6 }, { nm: '김해센터', rate: 16.1 }, { nm: '제주센터', rate: 18.1 } ],
+            storeFee: 25000, storePlt: 3, storeMon: 3, moqBoxDef: 100 }   // moqBoxDef = MOQ 수량 기본 박스 수 (표본 D11 = 100 × 입수)
   };
 
   function merge(def, v) {
@@ -58,7 +61,7 @@
   }
   function build(raw) {
     var s = raw || {};
-    return { func: merge(DEF.func, s.func), prt: merge(DEF.prt, s.prt), prtApp: merge(DEF.prtApp, s.prtApp), _raw: s };
+    return { func: merge(DEF.func, s.func), prt: merge(DEF.prt, s.prt), prtApp: merge(DEF.prtApp, s.prtApp), cost: merge(DEF.cost, s.cost), _raw: s };
   }
 
   var CTX = ctx();
@@ -88,7 +91,7 @@
      못 읽으면(세션 끊김 등) 갖고 있던 값을 지킨다. */
   S.reload = function () {
     var r = fetchRaw(); if (r.raw === null) return S;
-    var B = build(r.raw); S.func = B.func; S.prt = B.prt; S.prtApp = B.prtApp; S._raw = B._raw; S.loaded = r.loaded; return S;
+    var B = build(r.raw); S.func = B.func; S.prt = B.prt; S.prtApp = B.prtApp; S.cost = B.cost; S._raw = B._raw; S.loaded = r.loaded; return S;
   };
   w.konetSetReload = function () { return S.reload(); };
   S.build = build;

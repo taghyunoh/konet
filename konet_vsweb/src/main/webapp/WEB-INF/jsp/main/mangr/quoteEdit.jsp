@@ -297,7 +297,25 @@ function excelSheet(){
   if(m){ loadNames(); loadDoc(+m[1]); } else newDoc();
 })();
 document.getElementById('p1').addEventListener('input', renderLines); document.getElementById('p2').addEventListener('input', renderLines);
-window.konetShown=function(){ var m=/[?&]quoteSeq=(\d+)/.exec(location.search); if(m && +m[1]!==_seq) loadDoc(+m[1]); loadNames(); };   /* 담당자·수신 목록도 다시 (2026-09-17) */
+window.konetShown=function(){ var m=/[?&]quoteSeq=(\d+)/.exec(location.search); if(m && +m[1]!==_seq) loadDoc(+m[1]); loadNames(); takeHandoff(); };   /* 담당자·수신 목록도 다시 (2026-09-17) */
+/* 원가·마진 계산 화면이 넘긴 품목 받기 (2026-09-17) — localStorage konet.costToQuote {ts, lines:[{prodNm,spec,boxQty,qty,unitPrice,remark}], deliv}.
+   10분 안의 것만. 이 화면에 적어 둔 줄이 있으면 물어보고 바꾼다. 받으면 지운다(두 번 안 들어가게). */
+function takeHandoff(){
+  var h=null; try{ h=JSON.parse(localStorage.getItem('konet.costToQuote')||'null'); }catch(e){}
+  if(!h || !h.lines || !h.lines.length) return;
+  if(Date.now()-n(h.ts)>10*60*1000){ try{ localStorage.removeItem('konet.costToQuote'); }catch(e){} return; }
+  var apply=function(){
+    try{ localStorage.removeItem('konet.costToQuote'); }catch(e){}
+    if(_seq){ newDoc(); }
+    _lines=h.lines.map(function(l){ return { prodNm:l.prodNm||'', spec:l.spec||'', boxQty:n(l.boxQty)||1, qty:n(l.qty), unit:'ea', unitPrice:n(l.unitPrice), unitPrice2:0, remark:l.remark||'', prodCd:'' }; });
+    if(h.deliv){ var d=document.getElementById('deliv'); if(d){ d.value=h.deliv; delivApply(); } }
+    renderLines(); _toast('원가·마진 계산에서 품목 '+_lines.length+'줄을 받았습니다.');
+  };
+  var typed=_lines.filter(function(l){ return (l.prodNm||'').trim()||n(l.qty); }).length;
+  if(typed) _confirmBox({ msg:'원가·마진 계산에서 넘긴 품목 <b>'+h.lines.length+'</b>줄이 있습니다.<br>지금 적힌 줄을 지우고 그것으로 바꿀까요?', icon:'🧮', okText:'바꾸기', onOk:apply, onCancel:function(){} });
+  else apply();
+}
+takeHandoff();
 </script>
 </body>
 </html>
