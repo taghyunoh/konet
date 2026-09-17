@@ -19,7 +19,7 @@
        사내망에서 막히면 이 <link> 한 줄만 빼면 종전 글자체로 돌아간다. --%>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <%-- 회사 설정(회사 정보 수정 「기능」 ▸ 상품 기본 과세 유형, 2026-09-11) — window.konetSet --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260911"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917"></script>
 <title>상품코드 등록 (TBL_PROD_MST)</title>
 <%-- 상품코드 등록 (2026-08-01 신설)
      ★같은 마스터(TBL_PROD_MST)를 보는 '등록 전용' 화면이다 — 상품(품목)관리와 데이터·엔드포인트가 같다.
@@ -2156,6 +2156,13 @@ function pcRowEdge(first){
 })();
 
 pcLoad(); mcVendors(); mcLoad(true);
+/* 다시 보일 때 기준자료 다시 읽기 (2026-09-17 「데이터 수정 후 연관 조회 바로 안 됨」) — 셸 iframe 은 로그아웃 전까지 그대로라 다른 화면에서 고친 것을 몰랐다. 3초 안 중복 호출은 한 번만. 수정 창(#ov)이 열려 있으면 건너뛴다(입력 중인 것을 지키려고). */
+var _shownAt=0;
+window.konetShown=function(){
+  if(Date.now()-_shownAt<3000) return; _shownAt=Date.now();
+  var ov=document.getElementById('ov'); if(ov && ov.classList.contains('on')) return;
+  pcLoad(); mcVendors(); mcLoad(true);
+};
 /* 진입하면 검색칸에 커서 — 코드를 쳐서 찾는 것이 이 화면의 첫 동작이다(2026-08-04) */
 (function(){ var q=document.getElementById('q'); if(q) q.focus(); })();
 

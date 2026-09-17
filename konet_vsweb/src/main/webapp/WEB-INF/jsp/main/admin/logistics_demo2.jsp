@@ -979,7 +979,11 @@
                iframe 은 한 번 뜨면 로그아웃 전까지 그대로라, 기준자료(상품·거래처·매칭코드)를 처음 한 번 읽은 화면은
                다른 화면에서 고친 내용을 모른다. 화면이 window.konetShown() 을 두면 다시 보일 때마다 부른다(없으면 아무 일 없음).
              ★자주 쓰는 메뉴 칩도 메뉴의 click 을 그대로 부르므로 이 길을 탄다. */
-          else if (f.contentWindow && typeof f.contentWindow.konetShown === 'function') f.contentWindow.konetShown();
+          else if (f.contentWindow) {
+            /* 회사 설정을 먼저 다시 읽는다 (2026-09-17 「데이터 수정 후 연관 조회 바로 안 됨」) — comp-set.js 를 쓰는 화면만 이 함수가 있다 */
+            try { if (typeof f.contentWindow.konetSetReload === 'function') f.contentWindow.konetSetReload(); } catch(e2) {}
+            if (typeof f.contentWindow.konetShown === 'function') f.contentWindow.konetShown();
+          }
         } catch(e) {}
       }
       f.setAttribute('data-loaded','1');

@@ -17,7 +17,7 @@
 <title>회사 정보 수정</title>
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
 <script src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
-<script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260916b"></script>
+<script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917"></script>
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --teal2:#0f6b5e; --tl:#e3f2ee; --bg:#f5f7f9; --lab:#f6f8fa; --ink:#1f2a37; --mut:#6b7a89; }
@@ -770,6 +770,9 @@ document.addEventListener('keydown', function(e){
      (알림·확인은 ui-message.js 만 — 2026-09-11 지적). 저장 안 한 변경은 위 「● 저장 안 한 변경」 표시로만 알린다. */
 if (window.konetPopDrag) konetPopDrag('.ci-pop');
 ciLoad(false);
+/* 다시 보일 때 기준자료 다시 읽기 (2026-09-17 「데이터 수정 후 연관 조회 바로 안 됨」) — 셸 iframe 은 로그아웃 전까지 그대로라 다른 화면에서 고친 것을 몰랐다. 3초 안 중복 호출은 한 번만. 저장 안 한 변경(_dirty)이 있으면 건너뛴다. */
+var _shownAt=0;
+window.konetShown=function(){ if(Date.now()-_shownAt<3000) return; _shownAt=Date.now(); if(_dirty) return; ciLoad(false); };
 </script>
 </body>
 </html>

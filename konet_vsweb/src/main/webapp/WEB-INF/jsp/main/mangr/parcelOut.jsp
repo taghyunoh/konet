@@ -129,7 +129,7 @@
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <script src="${ctx}/asset/js/ui-message.js"></script>
 <%-- 회사 설정 「기본 택배 운임」(2026-09-16 P2-e) — 종전 4500 하드코딩. 비용 등록의 직송 운임 자동 집계와 같은 값 --%>
-<script src="${ctx}/asset/js/comp-set.js?v=20260916b"></script>
+<script src="${ctx}/asset/js/comp-set.js?v=20260917"></script>
 <script src="${ctx}/assets/vendor/sheetjs/xlsx.full.min.js"></script>
 <script>
 var CTX = '${ctx}';
@@ -522,6 +522,9 @@ function poLoadStyleXlsx(cb){
 }
 
 poLoad();
+/* 다시 보일 때 기준자료 다시 읽기 (2026-09-17 「데이터 수정 후 연관 조회 바로 안 됨」) — 셸 iframe 은 로그아웃 전까지 그대로라 다른 화면에서 고친 것을 몰랐다. 3초 안 중복 호출은 한 번만 (같은 납기 구간을 다시 읽는다) */
+var _shownAt=0;
+window.konetShown=function(){ if(Date.now()-_shownAt<3000) return; _shownAt=Date.now(); poLoad(); };
 </script>
 </body>
 </html>

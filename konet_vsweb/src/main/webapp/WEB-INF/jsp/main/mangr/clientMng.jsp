@@ -792,6 +792,14 @@ function cliRowMove(d){
 }
 
 cliLoad();
+/* 다시 보일 때 기준자료 다시 읽기 (2026-09-17 「데이터 수정 후 연관 조회 바로 안 됨」) — 셸 iframe 은 로그아웃 전까지 그대로라 다른 화면에서 고친 것을 몰랐다. 3초 안 중복 호출은 한 번만. 수정 창(#ov)·매칭 창(#mov)이 열려 있으면 건너뛴다. */
+var _shownAt=0;
+window.konetShown=function(){
+  if(Date.now()-_shownAt<3000) return; _shownAt=Date.now();
+  var ov=document.getElementById('ov'), mv=document.getElementById('mov');
+  if((ov && ov.classList.contains('on')) || (mv && mv.classList.contains('on'))) return;
+  cliLoad();
+};
 /* 진입하면 검색칸에 커서 — 이름을 쳐서 찾는 것이 이 화면의 첫 동작이다 */
 (function(){ var q=document.getElementById('q'); if(q) q.focus(); })();
 </script>

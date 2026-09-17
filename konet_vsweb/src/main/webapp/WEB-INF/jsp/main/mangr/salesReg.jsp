@@ -8,7 +8,7 @@
      빼려면 그 칸에 data-nonav="1" --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <%-- 회사 설정(기준정보관리 ▸ 회사 정보 수정의 「기능」·「인쇄 옵션」) — window.konetSet (2026-09-11) --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260911"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917"></script>
 <%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260911"></script>
 <%-- 팝업 창 끌어 옮기기 (2026-09-10) — 제목줄을 잡고 끈다 · 더블클릭 = 처음 자리 (asset/js/ui-popdrag.js 머리말) --%>
@@ -955,6 +955,9 @@ var QTY_DEC   = KS.f('qtyDec') === 'Y';     // 수량 소수점 (종전 = 정수
 var SVC_FLD   = KS.f('svcFld') !== 'N';     // 서비스 칸 보이기
 var RMK_FLD   = KS.f('rmkFld') !== 'N';     // 비고 칸 보이기
 var BAD_RTN   = KS.f('badRtn') === 'Y';     // 거래구분 「불량반품」 — 금액은 반품처럼 빠지고 재고로는 안 돌아간다
+/* 설정 다시 반영 (2026-09-17 「데이터 수정 후 연관 조회 바로 안 됨」) — 셸이 이 화면을 다시 보여 줄 때 konetSetReload() 로
+   회사 설정을 새로 읽은 뒤 konetShown 에서 부른다. 이미 담은 줄·고른 거래처는 그대로(새로 담는 줄부터 새 설정). */
+function saApplySet(){ VAT_DEF=KS.f('venVat')||'별도'; PRICE_DEC=KS.f('priceDec')!=='N'; QTY_DEC=KS.f('qtyDec')==='Y'; SVC_FLD=KS.f('svcFld')!=='N'; RMK_FLD=KS.f('rmkFld')!=='N'; BAD_RTN=KS.f('badRtn')==='Y'; }
 /* 반품 줄인가 — 「불량반품」도 금액·표시 부호는 반품과 같다(재고만 다르다, 서버 saveSalesTrx) */
 function isRtn(g){ return g === '반품' || g === '불량반품'; }
 /* 고른 거래처의 부가세 설정 '별도'|'포함'|'면세' (TBL_VENDOR_MST.VAT_GB).
@@ -1211,6 +1214,7 @@ var _saMastersAt=0;
 window.konetShown=function(){
   if(Date.now()-_saMastersAt<3000) return;
   _saMastersAt=Date.now();
+  saApplySet();      // 회사 설정(셸이 바로 앞에서 konetSetReload 로 새로 읽어 둔 것) — 2026-09-17
   saLoadMasters();
 };
 

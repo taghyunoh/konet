@@ -9,7 +9,7 @@
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
 <%-- 회사 설정(기준정보관리 ▸ 회사 정보 수정의 「기능」) — window.konetSet (2026-09-11) --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260911"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917"></script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260911"></script>
 <%-- 팝업 창 끌어 옮기기 (2026-09-10) — 제목줄을 잡고 끈다 · 더블클릭 = 처음 자리 (asset/js/ui-popdrag.js 머리말) --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>
@@ -603,6 +603,8 @@ var QTY_DEC   = KS.f('qtyDec') === 'Y';
 var SVC_FLD   = KS.f('svcFld') !== 'N';
 var RMK_FLD   = KS.f('rmkFld') !== 'N';
 var BAD_RTN   = KS.f('badRtn') === 'Y';   // 매입 「불량반품」 = 반품과 같이 재고에서 빠지고 매입액이 준다
+/* 설정 다시 반영 (2026-09-17) — 판매등록 saApplySet 과 같은 규칙. 셸이 다시 보여 줄 때 konetShown 에서 부른다 */
+function puApplySet(){ VAT_DEF=KS.f('venVat')||'별도'; PRICE_DEC=KS.f('priceDec')!=='N'; QTY_DEC=KS.f('qtyDec')==='Y'; SVC_FLD=KS.f('svcFld')!=='N'; RMK_FLD=KS.f('rmkFld')!=='N'; BAD_RTN=KS.f('badRtn')==='Y'; }
 function isRtn(g){ return g === '반품' || g === '불량반품'; }
 /* 고른 거래처의 부가세 설정 '별도'|'포함'|'면세' (TBL_VENDOR_MST.VAT_GB).
    비어 있으면 회사 기본값(VAT_DEF)으로 본다 — 예전 자료는 이 칸이 비어 있는데, 지금까지의 동작이 별도였다. */
@@ -836,6 +838,7 @@ var _puMastersAt=0;
 window.konetShown=function(){
   if(Date.now()-_puMastersAt<3000) return;
   _puMastersAt=Date.now();
+  puApplySet();      // 회사 설정 — 2026-09-17
   puLoadMasters();
 };
 

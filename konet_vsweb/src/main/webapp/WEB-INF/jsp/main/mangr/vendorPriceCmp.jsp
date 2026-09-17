@@ -200,6 +200,9 @@ function excel(){
   LIB.writeFile(wb, '거래처별매입가비교_'+(mo==='0'?'전체':'최근'+mo+'개월')+'_'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'.xlsx');
 }
 load();
+/* 다시 보일 때 기준자료 다시 읽기 (2026-09-17 「데이터 수정 후 연관 조회 바로 안 됨」) — 셸 iframe 은 로그아웃 전까지 그대로라 다른 화면에서 고친 것을 몰랐다. 3초 안 중복 호출은 한 번만 (같은 조건으로 다시 읽는다) */
+var _shownAt=0;
+window.konetShown=function(){ if(Date.now()-_shownAt<3000) return; _shownAt=Date.now(); load(); };
 </script>
 </body>
 </html>

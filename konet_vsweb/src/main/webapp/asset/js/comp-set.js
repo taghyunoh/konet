@@ -61,22 +61,36 @@
     return { func: merge(DEF.func, s.func), prt: merge(DEF.prt, s.prt), prtApp: merge(DEF.prtApp, s.prtApp), _raw: s };
   }
 
-  var CTX = ctx(), raw = null, loaded = false;
-  try {
-    var x = new XMLHttpRequest();
-    x.open('POST', CTX + '/user/compSetGet.do', false);   // 동기 — 아래 설명
-    x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    x.send('');
-    if (x.status === 200 && x.responseText) {
-      var r = JSON.parse(x.responseText);
-      raw = r && r.setJson ? JSON.parse(r.setJson) : {};
-      loaded = !!(r && 'setJson' in r);
-    }
-  } catch (e) { raw = null; }
-
-  var S = build(raw);
+  var CTX = ctx();
+  /* 회사 설정 읽기 — 동기 XHR (아래 설명). 처음 로드 때 한 번, 그 뒤엔 셸(logiFrame)이 화면을 다시 보여 줄 때
+     konetSetReload() 로 다시 읽는다 (2026-09-17 「데이터 수정 후 연관 조회 바로 안 됨」 — 회사 정보 수정에서 바꾼 설정이
+     이미 떠 있는 판매·매입등록 등에 로그아웃 전까지 안 먹던 것). */
+  function fetchRaw() {
+    var out = { raw: null, loaded: false };
+    try {
+      var x = new XMLHttpRequest();
+      x.open('POST', CTX + '/user/compSetGet.do', false);   // 동기 — 아래 설명
+      x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+      x.send('');
+      if (x.status === 200 && x.responseText) {
+        var r = JSON.parse(x.responseText);
+        out.raw = r && r.setJson ? JSON.parse(r.setJson) : {};
+        out.loaded = !!(r && 'setJson' in r);
+      }
+    } catch (e) { out.raw = null; }
+    return out;
+  }
+  var first = fetchRaw();
+  var S = build(first.raw);
   S.DEF = DEF;
-  S.loaded = loaded;
+  S.loaded = first.loaded;
+  /* 다시 읽기 — 같은 객체 S 를 제자리에서 갱신한다. 화면들이 「var KS = window.konetSet」으로 잡아 둔 참조가 그대로 새 값을 본다.
+     못 읽으면(세션 끊김 등) 갖고 있던 값을 지킨다. */
+  S.reload = function () {
+    var r = fetchRaw(); if (r.raw === null) return S;
+    var B = build(r.raw); S.func = B.func; S.prt = B.prt; S.prtApp = B.prtApp; S._raw = B._raw; S.loaded = r.loaded; return S;
+  };
+  w.konetSetReload = function () { return S.reload(); };
   S.build = build;
   S.f = function (k) { return S.func[k]; };
   S.on = function (k) { return String(S.func[k]) === 'Y'; };

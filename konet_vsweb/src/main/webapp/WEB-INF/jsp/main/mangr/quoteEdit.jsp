@@ -297,7 +297,7 @@ function excelSheet(){
   if(m){ loadNames(); loadDoc(+m[1]); } else newDoc();
 })();
 document.getElementById('p1').addEventListener('input', renderLines); document.getElementById('p2').addEventListener('input', renderLines);
-window.konetShown=function(){ var m=/[?&]quoteSeq=(\d+)/.exec(location.search); if(m && +m[1]!==_seq) loadDoc(+m[1]); };
+window.konetShown=function(){ var m=/[?&]quoteSeq=(\d+)/.exec(location.search); if(m && +m[1]!==_seq) loadDoc(+m[1]); loadNames(); };   /* 담당자·수신 목록도 다시 (2026-09-17) */
 </script>
 </body>
 </html>

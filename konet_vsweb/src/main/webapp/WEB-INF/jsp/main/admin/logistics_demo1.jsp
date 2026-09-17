@@ -2590,6 +2590,12 @@
   }
   // 부모(사이드바 메뉴)에서 보기 전환 요청 수신
   window.addEventListener('message', function(e){ var d=e.data; if(d && d.type==='d2view'){ d2SetView(d.view); } });
+  /* 다시 보일 때 기준자료 다시 읽기 (2026-09-17 「데이터 수정 후 연관 조회 바로 안 됨」) — 셸 iframe 은 로그아웃 전까지 그대로라 다른 화면에서 고친 것을 몰랐다. 3초 안 중복 호출은 한 번만. 여기서는 사업장 이름·매칭 맵(d2LoadBizi)만 다시 읽고 다시 그린다 — 출고 자료는 [조회] 때. */
+  var _d2ShownAt=0;
+  window.konetShown=function(){
+    if(Date.now()-_d2ShownAt<3000) return; _d2ShownAt=Date.now();
+    try{ d2LoadBizi(function(){ try{ d2Render(); }catch(e){} }); }catch(e){}
+  };
 
   // ag → 품목별 합산 목록 [{code,name,qty,zones:{출고장:수량},bizs:{사업장:수량}}]
   //   zones/bizs = 이 품목이 어느 출고장·사업장에 얼마나 나갔는지(연계자료, 2026-07-24). 순수 화면단 집계.

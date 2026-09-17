@@ -6,7 +6,7 @@
      빼려면 그 칸에 data-nonav="1" --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <%-- 회사 설정(회사 정보 수정 「기능」 ▸ 수금 ▸ 미수 경과 경고·위험 일수, 2026-09-16 P2-g) — window.konetSet --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260916"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917"></script>
 <script src="${pageContext.request.contextPath}/asset/js/dc-map.js?v=20260916"></script>
 <!--
   거래처별 채권·채무 (2026-07-26 요청 신설)

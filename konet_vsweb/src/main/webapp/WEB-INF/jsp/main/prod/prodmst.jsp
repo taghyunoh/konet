@@ -44,7 +44,7 @@
 </style>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <%-- 회사 설정(회사 정보 수정 「기능」 ▸ 상품 기본 과세 유형, 2026-09-11) — window.konetSet --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260911"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917"></script>
 <title>상품(품목) 관리 (TBL_PROD_MST)</title>
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; }
@@ -1492,6 +1492,13 @@ prodLoad();
 vendorLoad();   // 매입처 선택 목록 채우기 (거래처 마스터 '매입' 거래처 — 위 찾기 입력으로 좁히기)
 // 진입 시 날짜 기본값 = 오늘 (품목 클릭 전에도 비어있지 않게. 품목 클릭 시 hvOpen 이 다시 오늘로 셋팅)
 ['st_dt'].forEach(function(id){ var e=document.getElementById(id); if(e && !e.value) e.value=today(); });
+/* 다시 보일 때 기준자료 다시 읽기 (2026-09-17 「데이터 수정 후 연관 조회 바로 안 됨」) — 셸 iframe 은 로그아웃 전까지 그대로라 다른 화면에서 고친 것을 몰랐다. 3초 안 중복 호출은 한 번만. 수정 창(#ov)이 열려 있으면 건너뛴다. */
+var _shownAt=0;
+window.konetShown=function(){
+  if(Date.now()-_shownAt<3000) return; _shownAt=Date.now();
+  var ov=document.getElementById('ov'); if(ov && ov.classList.contains('on')) return;
+  prodLoad(); vendorLoad();
+};
 </script>
 </body>
 </html>

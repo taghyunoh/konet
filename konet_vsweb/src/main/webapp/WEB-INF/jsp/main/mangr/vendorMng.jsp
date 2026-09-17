@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <%-- 회사 설정(회사 정보 수정 「기능」 ▸ 거래처 — 새 거래처의 부가세·DC 첫 값, 2026-09-11) --%>
-<script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260911"></script>
+<script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917"></script>
 <script src="${pageContext.request.contextPath}/asset/js/dc-map.js?v=20260916"></script>
 <title>매입/매출 거래처 관리 (TBL_VENDOR_MST)</title>
 <style>
@@ -572,6 +572,13 @@ function vmRowMove(d){
 }
 
 vmLoad();
+/* 다시 보일 때 기준자료 다시 읽기 (2026-09-17 「데이터 수정 후 연관 조회 바로 안 됨」) — 셸 iframe 은 로그아웃 전까지 그대로라 다른 화면에서 고친 것을 몰랐다. 3초 안 중복 호출은 한 번만. 거래처 수정 창(#ov)이 열려 있으면 건너뛴다. */
+var _shownAt=0;
+window.konetShown=function(){
+  if(Date.now()-_shownAt<3000) return; _shownAt=Date.now();
+  var ov=document.getElementById('ov'); if(ov && ov.classList.contains('on')) return;
+  vmLoad();
+};
 /* 진입하면 검색칸에 커서 — 이름을 쳐서 찾는 것이 이 화면의 첫 동작이다 */
 (function(){ var q=document.getElementById('q'); if(q) q.focus(); })();
 </script>
