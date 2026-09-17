@@ -201,6 +201,8 @@ public interface UserService {
 	java.util.List<java.util.Map<String,Object>> selectQuoteDtl(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectQuoteFile(java.util.Map<String,Object> p) throws Exception;
 	int deleteQuote(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectQuoteByDoc(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectQuoteCompare(java.util.Map<String,Object> p) throws Exception;
 	int saveDcPo(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String user, String ip, String compCd) throws Exception;
 	int deleteDcPo(java.util.List<java.util.Map<String,Object>> keys, String user, String ip, String compCd) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectDcPoList(java.util.Map<String,Object> p) throws Exception;

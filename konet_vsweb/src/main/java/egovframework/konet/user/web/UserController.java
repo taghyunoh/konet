@@ -1192,6 +1192,8 @@ public class UserController {
 					if (b.length > 5 * 1024 * 1024) { errs.add(nm + " : 5MB 가 넘습니다."); continue; }
 					Map<String,Object> q = svc.parseQuoteXls(b, nm);
 					q.put("fileB64", b64);
+					/* 기존에 올린 게 있는지 (2026-09-17) — 미리보기에 「이미 올린 견적서」 배지 */
+					if (!poStr(q.get("docNo")).isEmpty()) { Map<String,Object> k = new HashMap<String,Object>(); k.put("compCd", session.getAttribute("s_comp_cd")); k.put("docNo", poStr(q.get("docNo"))); q.put("exists", svc.selectQuoteByDoc(k)); }
 					if (((List<?>) q.get("lines")).isEmpty() && poStr(q.get("docNo")).isEmpty()) errs.add(nm + " : 견적서 양식을 찾지 못했습니다(문서 번호·품명·수량·단가 머리글이 있어야 합니다).");
 					docs.add(q);
 				} catch (Exception e) {
@@ -1211,6 +1213,18 @@ public class UserController {
 				String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
 				List<Map<String,Object>> docs = (List<Map<String,Object>>) p.get("docs");
 				if (docs == null || docs.isEmpty()) return ResponseEntity.status(400).body("저장할 견적서가 없습니다.");
+				/* ★기존에 올린 게 있으면 먼저 묻는다 (2026-09-17) — confirm=Y 가 아니면 409 + 「문서번호(등록일시·담당자)」 목록. 화면이 확인창을 띄우고 confirm=Y 로 다시 보낸다.
+				   화면 목록(기간 필터)이 아니라 서버가 문서번호로 찾으므로 기간 밖에 있는 것도 잡는다. */
+				if (!"Y".equals(poStr(p.get("confirm")))) {
+					StringBuilder dup = new StringBuilder();
+					for (Map<String,Object> q : docs) {
+						String dn = poStr(q.get("docNo")); if (dn.isEmpty()) continue;
+						Map<String,Object> k = new HashMap<String,Object>(); k.put("compCd", compCd); k.put("docNo", dn);
+						Map<String,Object> ex = svc.selectQuoteByDoc(k);
+						if (ex != null) { if (dup.length() > 0) dup.append("\n"); dup.append(dn).append(" (").append(poStr(ex.get("regDttm")).length() >= 16 ? poStr(ex.get("regDttm")).substring(0, 16) : poStr(ex.get("regDttm"))).append(poStr(ex.get("regUser")).isEmpty() ? "" : " · " + poStr(ex.get("regUser"))).append(")"); }
+					}
+					if (dup.length() > 0) return ResponseEntity.status(409).body(dup.toString());
+				}
 				int n = 0; StringBuilder seqs = new StringBuilder();
 				for (Map<String,Object> q : docs) { long s = svc.saveQuote(q, u, request.getRemoteAddr(), compCd); if (seqs.length() > 0) seqs.append(','); seqs.append(s); n++; }
 				return ResponseEntity.ok(n + "|" + seqs);
@@ -1235,6 +1249,21 @@ public class UserController {
 			if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); return res; }
 			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("quoteSeq", Long.valueOf(quoteSeq));
 			res.put("data", svc.selectQuoteDtl(q));
+			return res;
+		}
+		/* 견적서별 비교분석 (2026-09-17) — {seqs:[…]} 최대 30건. 고른 견적서들의 품목 줄 전부를 주고 화면이 품명 × 견적서 행렬로 짠다 */
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/mangr/quoteCompare.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> quoteCompare(@RequestBody Map<String,Object> p, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); return res; }
+			List<Long> seqs = new java.util.ArrayList<Long>();
+			Object raw = p.get("seqs");
+			if (raw instanceof List) for (Object o : (List<Object>) raw) { long v = Math.round(poNum(o)); if (v > 0 && seqs.size() < 30) seqs.add(Long.valueOf(v)); }
+			if (seqs.isEmpty()) { res.put("data", new java.util.ArrayList<Object>()); return res; }
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("seqs", seqs);
+			res.put("data", svc.selectQuoteCompare(q));
 			return res;
 		}
 		/* 원본 내려받기 — base64 를 풀어 그대로 준다. 파일 이름은 올린 이름(없으면 문서번호.xls) */

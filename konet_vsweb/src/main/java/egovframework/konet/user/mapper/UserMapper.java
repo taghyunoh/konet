@@ -256,6 +256,8 @@ public interface UserMapper {
 	java.util.List<java.util.Map<String,Object>> selectQuoteDtl(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectQuoteFile(java.util.Map<String,Object> p) throws Exception;
 	int markQuoteReplace(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectQuoteByDoc(java.util.Map<String,Object> p) throws Exception;   // 같은 문서번호 활성 건(없으면 null)
+	java.util.List<java.util.Map<String,Object>> selectQuoteCompare(java.util.Map<String,Object> p) throws Exception;   // 비교분석 — compCd · seqs(List)
 	int insertQuoteMst(java.util.Map<String,Object> p) throws Exception;
 	int insertQuoteDtl(java.util.Map<String,Object> p) throws Exception;
 	int deleteQuote(java.util.Map<String,Object> p) throws Exception;

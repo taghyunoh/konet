@@ -1039,6 +1039,7 @@
 	  SELECT m.QUOTE_SEQ AS quoteSeq, m.DOC_NO AS docNo, ISNULL(m.QUOTE_DT,'') AS quoteDt, ISNULL(m.RECV_NM,'') AS recvNm, ISNULL(m.MGR_NM,'') AS mgrNm,
 	         ISNULL(m.VALID_TXT,'') AS validTxt, ISNULL(m.TITLE_TXT,'') AS titleTxt, ISNULL(m.REMARK,'') AS remark, ISNULL(m.SUPPLY_AMT,0) AS supplyAmt,
 	         ISNULL(m.FILE_NM,'') AS fileNm, CASE WHEN m.FILE_B64 IS NULL THEN 'N' ELSE 'Y' END AS hasFile,
+	         ISNULL(m.PRICE1_NM,'') AS price1Nm, ISNULL(m.PRICE2_NM,'') AS price2Nm,   /* 단가 묶음 이름(2026-09-17 둘째 표본) */
 	         ISNULL(d.cnt,0) AS lineCnt, ISNULL(d.firstNm,'') AS firstNm,
 	         m.REG_DTTM AS regDttm, ISNULL(m.REG_USER,'') AS regUser
 	    FROM TBL_QUOTE_MST m
@@ -1058,7 +1059,7 @@
 	]]></select>
 	<select id="selectQuoteDtl" parameterType="java.util.Map" resultType="java.util.HashMap">
 	  SELECT d.ROW_NO AS rowNo, ISNULL(d.PROD_NM,'') AS prodNm, ISNULL(d.SPEC,'') AS spec, d.BOX_QTY AS boxQty, ISNULL(d.UNIT,'') AS unit,
-	         d.QTY AS qty, d.UNIT_PRICE AS unitPrice, d.AMT AS amt, ISNULL(d.REMARK,'') AS remark, ISNULL(d.PROD_CD,'') AS prodCd
+	         d.QTY AS qty, d.UNIT_PRICE AS unitPrice, d.AMT AS amt, d.UNIT_PRICE2 AS unitPrice2, d.AMT2 AS amt2, ISNULL(d.REMARK,'') AS remark, ISNULL(d.PROD_CD,'') AS prodCd
 	    FROM TBL_QUOTE_DTL d
 	    JOIN TBL_QUOTE_MST m ON m.QUOTE_SEQ = d.QUOTE_SEQ
 	   WHERE d.QUOTE_SEQ = #{quoteSeq}
@@ -1071,21 +1072,44 @@
 	   WHERE QUOTE_SEQ = #{quoteSeq}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	</select>
+	<!-- 같은 문서번호의 활성 견적서 (2026-09-17 「기존에 올린 게 있는지 확인 메세지」) — 미리보기 표시 · 저장 전 확인 -->
+	<select id="selectQuoteByDoc" parameterType="java.util.Map" resultType="java.util.HashMap">
+	  SELECT TOP 1 QUOTE_SEQ AS quoteSeq, DOC_NO AS docNo, ISNULL(QUOTE_DT,'') AS quoteDt, ISNULL(MGR_NM,'') AS mgrNm, ISNULL(SUPPLY_AMT,0) AS supplyAmt,
+	         ISNULL(REG_DTTM,'') AS regDttm, ISNULL(REG_USER,'') AS regUser
+	    FROM TBL_QUOTE_MST
+	   WHERE ACTION_YN = 'Y' AND DOC_NO = #{docNo,jdbcType=NVARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   ORDER BY QUOTE_SEQ DESC
+	</select>
+	<!-- 견적서별 비교분석 (2026-09-17) — 고른 견적서들의 품목 줄 전부(머리와 함께). 화면이 품명 × 견적서 행렬로 짠다 -->
+	<select id="selectQuoteCompare" parameterType="java.util.Map" resultType="java.util.HashMap">
+	  SELECT m.QUOTE_SEQ AS quoteSeq, m.DOC_NO AS docNo, ISNULL(m.QUOTE_DT,'') AS quoteDt, ISNULL(m.RECV_NM,'') AS recvNm, ISNULL(m.MGR_NM,'') AS mgrNm,
+	         ISNULL(m.PRICE1_NM,'') AS price1Nm, ISNULL(m.PRICE2_NM,'') AS price2Nm, ISNULL(m.SUPPLY_AMT,0) AS supplyAmt,
+	         d.ROW_NO AS rowNo, ISNULL(d.PROD_NM,'') AS prodNm, ISNULL(d.SPEC,'') AS spec, d.BOX_QTY AS boxQty, ISNULL(d.UNIT,'') AS unit,
+	         d.QTY AS qty, d.UNIT_PRICE AS unitPrice, d.AMT AS amt, d.UNIT_PRICE2 AS unitPrice2, d.AMT2 AS amt2, ISNULL(d.REMARK,'') AS remark
+	    FROM TBL_QUOTE_MST m
+	    JOIN TBL_QUOTE_DTL d ON d.QUOTE_SEQ = m.QUOTE_SEQ
+	   WHERE m.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND m.QUOTE_SEQ IN <foreach collection="seqs" item="s" open="(" separator="," close=")">#{s}</foreach>
+	   ORDER BY ISNULL(m.QUOTE_DT,''), m.QUOTE_SEQ, d.ROW_NO
+	</select>
 	<update id="markQuoteReplace" parameterType="java.util.Map">
 	  UPDATE TBL_QUOTE_MST SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
 	   WHERE ACTION_YN = 'Y' AND DOC_NO = #{docNo,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	</update>
 	<insert id="insertQuoteMst" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="quoteSeq" keyColumn="QUOTE_SEQ">
-	  INSERT INTO TBL_QUOTE_MST (COMP_CD, DOC_NO, QUOTE_DT, RECV_NM, MGR_NM, VALID_TXT, TITLE_TXT, REMARK, SUPPLY_AMT, FILE_NM, FILE_B64, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  INSERT INTO TBL_QUOTE_MST (COMP_CD, DOC_NO, QUOTE_DT, RECV_NM, MGR_NM, VALID_TXT, TITLE_TXT, REMARK, SUPPLY_AMT, FILE_NM, FILE_B64, PRICE1_NM, PRICE2_NM, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{docNo,jdbcType=NVARCHAR}, #{quoteDt,jdbcType=CHAR}, #{recvNm,jdbcType=NVARCHAR}, #{mgrNm,jdbcType=NVARCHAR},
 	          #{validTxt,jdbcType=NVARCHAR}, #{titleTxt,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, #{supplyAmt,jdbcType=DECIMAL}, #{fileNm,jdbcType=NVARCHAR}, #{fileB64,jdbcType=NVARCHAR},
+	          #{price1Nm,jdbcType=NVARCHAR}, #{price2Nm,jdbcType=NVARCHAR},
 	          'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
 	</insert>
 	<insert id="insertQuoteDtl" parameterType="java.util.HashMap">
-	  INSERT INTO TBL_QUOTE_DTL (QUOTE_SEQ, ROW_NO, PROD_NM, SPEC, BOX_QTY, UNIT, QTY, UNIT_PRICE, AMT, REMARK, PROD_CD)
+	  INSERT INTO TBL_QUOTE_DTL (QUOTE_SEQ, ROW_NO, PROD_NM, SPEC, BOX_QTY, UNIT, QTY, UNIT_PRICE, AMT, UNIT_PRICE2, AMT2, REMARK, PROD_CD)
 	  VALUES (#{quoteSeq}, #{rowNo}, #{prodNm,jdbcType=NVARCHAR}, #{spec,jdbcType=NVARCHAR}, #{boxQty,jdbcType=DECIMAL}, #{unit,jdbcType=NVARCHAR},
-	          #{qty,jdbcType=DECIMAL}, #{unitPrice,jdbcType=DECIMAL}, #{amt,jdbcType=DECIMAL}, #{remark,jdbcType=NVARCHAR}, #{prodCd,jdbcType=NVARCHAR})
+	          #{qty,jdbcType=DECIMAL}, #{unitPrice,jdbcType=DECIMAL}, #{amt,jdbcType=DECIMAL}, #{unitPrice2,jdbcType=DECIMAL}, #{amt2,jdbcType=DECIMAL}, #{remark,jdbcType=NVARCHAR}, #{prodCd,jdbcType=NVARCHAR})
 	</insert>
 	<update id="deleteQuote" parameterType="java.util.Map">
 	  UPDATE TBL_QUOTE_MST SET ACTION_YN = 'D', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}

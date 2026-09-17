@@ -70,6 +70,15 @@
   .dtl{ margin:0 12px 12px; border:1px solid var(--bd); border-radius:8px; overflow:hidden; }
   .dtl .dh{ display:flex; gap:8px 14px; align-items:center; flex-wrap:wrap; padding:8px 12px; background:#f6fbfa; border-bottom:1px solid #eef1f5; font-size:13px; }
   .dtl .dh b{ color:var(--teal); }
+  /* 견적서별 비교분석(2026-09-17) — 품명 × 견적서 행렬 */
+  .cmp{ margin:0 12px 12px; border:1px solid var(--bd); border-radius:8px; overflow:hidden; }
+  .cmp .dh{ display:flex; gap:8px 14px; align-items:center; flex-wrap:wrap; padding:8px 12px; background:#f6fbfa; border-bottom:1px solid #eef1f5; font-size:13px; }
+  .cmp table.g th{ white-space:normal; min-width:96px; }
+  .cmp td.nm{ text-align:left; white-space:normal; min-width:200px; position:sticky; left:0; background:#fff; z-index:1; }
+  .cmp th.nm{ position:sticky; left:0; z-index:3; }
+  .cmp .up{ color:var(--red); font-weight:700; } .cmp .dn{ color:#1f5fbf; font-weight:700; } .cmp .same{ color:#8a98a8; }
+  .cmp .sub{ font-size:11.5px; color:#6b7a89; }
+  .cmp tr.tot td{ background:#eef4f2; font-weight:800; }
 </style>
 </head>
 <body>
@@ -103,6 +112,7 @@
         <input type="text" id="mgr" placeholder="담당자" style="width:110px">
         <input type="text" id="q" placeholder="문서번호 · 수신 · 품명" style="width:200px" onkeydown="if(event.keyCode===13) load()">
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
+        <button class="btn" style="border-color:#137a6c;color:#137a6c" onclick="cmpOpen()" title="체크한 견적서(없으면 목록 전체)를 품명 × 견적서 행렬로 비교합니다 — 단가 변동·최저·최고">📊 견적 비교</button>
         <button class="btn btn-red" onclick="del()">🗑 선택 삭제</button>
       </span>
       <span class="sp tot" id="lsTot"></span>
@@ -116,6 +126,7 @@
         <tbody id="lsBody"><tr><td colspan="11" class="empty">조회 중…</td></tr></tbody>
       </table>
     </div>
+    <div id="cmpWrap" hidden></div>
     <div id="lsDoc" class="docview" hidden></div>
     <div id="dtlWrap" hidden></div>
   </div>
@@ -130,6 +141,9 @@ function d10(s){ s=String(s||'').replace(/[^0-9]/g,''); return s.length>=8 ? s.s
 function post(url, body, isJson){ return fetch(CTX+url,{ method:'POST', credentials:'same-origin',
   headers:{'Content-Type': isJson?'application/json':'application/x-www-form-urlencoded; charset=UTF-8'}, body: isJson?JSON.stringify(body):body }); }
 function ok(m){ _alertBox(m,{icon:'✅'}); }
+/* 단가 묶음이 둘(센터배송 · 택배출고)이면 열을 넷으로 — 머리글에 묶음 이름 (2026-09-17 둘째 표본) */
+function priceHead(q){ var p1=(q&&q.price1Nm)||'', p2=(q&&q.price2Nm)||''; if(!p2) return '<th>단가</th><th>금액</th>'; return '<th>'+esc(p1||'단가1')+' 단가</th><th>'+esc(p1||'단가1')+' 금액</th><th>'+esc(p2)+' 단가</th><th>'+esc(p2)+' 금액</th>'; }
+function priceCells(l, has2){ var h='<td class="r">'+fmt(l.unitPrice)+'</td><td class="r"><b>'+fmt(l.amt)+'</b></td>'; if(has2) h+='<td class="r">'+(n(l.unitPrice2)?fmt(l.unitPrice2):'')+'</td><td class="r"><b>'+(n(l.amt2)?fmt(l.amt2):'')+'</b></td>'; return h; }
 function err(m){ _alertBox(m,{icon:'❌', okColor:'red'}); }
 function ask(m, okText){ return new Promise(function(res){ _confirmBox({ msg:m, icon:'❓', okText:okText||'확인', onOk:function(){res(true);}, onCancel:function(){res(false);} }); }); }
 
@@ -177,15 +191,15 @@ function pvRender(){
       +'<label>수신 <input type="text" value="'+esc(q.recvNm)+'" style="width:130px" oninput="_pv['+i+'].recvNm=this.value"></label>'
       +'<label>담당자 <input type="text" value="'+esc(q.mgrNm)+'" style="width:120px" oninput="_pv['+i+'].mgrNm=this.value"></label>'
       +'<label>유효기간 <input type="text" value="'+esc(q.validTxt)+'" style="width:140px" oninput="_pv['+i+'].validTxt=this.value"></label>'
-      +(dup?'<span class="bd dup" title="같은 문서번호가 이미 저장돼 있습니다 — 저장하면 새로 올린 것으로 대체됩니다">대체</span>':'')
+      +((q.exists||dup)?'<span class="bd dup" title="같은 문서번호가 이미 저장돼 있습니다 — 저장하면 새로 올린 것으로 대체되고 앞의 것은 이력으로 남습니다">⚠ 이미 올린 견적서'+(q.exists?' · '+esc(String(q.exists.regDttm||'').slice(0,16))+(q.exists.regUser?' '+esc(q.exists.regUser):''):'')+'</span>':'')
       +(!q.docNo?'<span class="bd warn">문서번호 없음</span>':'')
       +'<span style="margin-left:auto" class="tot">품목 <b>'+lines.length+'</b>줄 · 합계 <b>'+fmt(sum)+'</b>원</span>'
       +(_docs[q.fileNm]?'<button class="btn lnk'+(_docOpen===q.fileNm?' on':'')+'" onclick="docShow(this.getAttribute(\'data-n\'))" data-n="'+esc(q.fileNm)+'" title="올린 엑셀을 그대로 봅니다">📄 원본 보기</button>':'')
       +'</div>'
       +(q.titleTxt?'<div class="df" style="border-top:0;color:#37475a">'+esc(q.titleTxt)+'</div>':'')
-      +'<div class="tw" style="max-height:none"><table class="g"><thead><tr><th>No</th><th>품명</th><th>규격</th><th>Box</th><th>수량</th><th>단위</th><th>단가</th><th>금액</th><th>비고</th></tr></thead><tbody>'
-      +(lines.length?lines.map(function(l){ return '<tr><td>'+esc(l.rowNo)+'</td><td class="l">'+esc(l.prodNm)+'</td><td class="l">'+esc(l.spec)+'</td><td class="r">'+(l.boxQty!=null?fmt(l.boxQty):'')+'</td><td class="r"><b>'+fmt(l.qty)+'</b></td><td>'+esc(l.unit)+'</td><td class="r">'+fmt(l.unitPrice)+'</td><td class="r"><b>'+fmt(l.amt)+'</b></td><td class="l">'+esc(l.remark)+'</td></tr>'; }).join('')
-        :'<tr><td colspan="9" class="empty">품목 줄을 읽지 못했습니다 — 품명·수량·단가 머리글이 있는지 원본을 확인하세요.</td></tr>')
+      +'<div class="tw" style="max-height:none"><table class="g"><thead><tr><th>No</th><th>품명</th><th>규격</th><th>Box</th><th>수량</th><th>단위</th>'+priceHead(q)+'<th>비고</th></tr></thead><tbody>'
+      +(lines.length?lines.map(function(l){ return '<tr><td>'+esc(l.rowNo)+'</td><td class="l">'+esc(l.prodNm)+'</td><td class="l">'+esc(l.spec)+'</td><td class="r">'+(l.boxQty!=null?fmt(l.boxQty):'')+'</td><td class="r"><b>'+fmt(l.qty)+'</b></td><td>'+esc(l.unit)+'</td>'+priceCells(l, !!q.price2Nm)+'<td class="l">'+esc(l.remark)+'</td></tr>'; }).join('')
+        :'<tr><td colspan="11" class="empty">품목 줄을 읽지 못했습니다 — 품명·수량·단가 머리글이 있는지 원본을 확인하세요.</td></tr>')
       +'</tbody></table></div>'
       +(q.remark?'<div class="df">비고 : '+esc(q.remark)+'</div>':'')
       +'</div>';
@@ -199,19 +213,28 @@ function save(){
   if(!docs.length){ _alertBox('저장할 견적서를 체크하세요.',{icon:'ℹ️'}); return; }
   var noDoc=docs.filter(function(q){ return !String(q.docNo||'').trim(); });
   if(noDoc.length){ _alertBox('문서번호가 빈 견적서가 '+noDoc.length+'건 있습니다 — 미리보기에서 적어 주세요.',{icon:'⚠️'}); return; }
-  var dups={}; _ls.forEach(function(x){ dups[String(x.docNo||'').trim()]=1; });
-  var rep=docs.filter(function(q){ return dups[String(q.docNo).trim()]; }).map(function(q){ return q.docNo; });
-  var go = rep.length ? ask('같은 문서번호가 이미 있습니다 — <b>'+esc(rep.join(', '))+'</b><br><span style="font-size:13px;color:#3d4d5c">저장하면 앞의 것을 새로 올린 것으로 <b>대체</b>합니다(앞의 것은 이력으로 남습니다).</span>','대체 저장') : Promise.resolve(true);
-  go.then(function(y){ if(!y) return;
-    var b=document.getElementById('saveBtn'); b.disabled=true;
-    post('/mangr/quoteSave.do', { docs: docs.map(function(q){ return { docNo:q.docNo, quoteDt:q.quoteDt, recvNm:q.recvNm, mgrNm:q.mgrNm, validTxt:q.validTxt, titleTxt:q.titleTxt, remark:q.remark, fileNm:q.fileNm, fileB64:q.fileB64, lines:q.lines }; }) }, true)
-      .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
+  /* 기존에 올린 게 있는지는 서버가 문서번호로 확인한다(2026-09-17) — 없으면 바로 저장, 있으면 409 로 목록을 주고 여기서 묻는다. 화면 목록의 기간 필터와 무관 */
+  var body=function(confirm){ return { confirm: confirm?'Y':'N', docs: docs.map(function(q){ return { docNo:q.docNo, quoteDt:q.quoteDt, recvNm:q.recvNm, mgrNm:q.mgrNm, validTxt:q.validTxt, titleTxt:q.titleTxt, remark:q.remark, price1Nm:q.price1Nm, price2Nm:q.price2Nm, fileNm:q.fileNm, fileB64:q.fileB64, lines:q.lines }; }) }; };
+  /* 저장 전 확인 (2026-09-17 「아무 오류 없어도 저장할 거냐 메세지」) — 문서번호·견적일·담당자·품목 수를 보여 주고 [저장]을 눌러야 진행 */
+  var sum=0; docs.forEach(function(q){ (q.lines||[]).forEach(function(l){ sum+=n(l.amt); }); });
+  ask('견적서 <b>'+docs.length+'</b>건을 저장합니다.<br><span style="font-size:13px;color:#3d4d5c;text-align:left;display:inline-block">'
+      +docs.map(function(q){ return '· <b>'+esc(q.docNo)+'</b> '+d10(q.quoteDt)+' · '+esc(q.mgrNm||'')+' · 품목 '+(q.lines||[]).length+'줄'; }).join('<br>')
+      +'</span><br><span style="font-size:13px;color:#3d4d5c">합계 <b>'+fmt(sum)+'</b>원 · 원본 파일도 함께 보관합니다.</span>', '저장')
+  .then(function(y){ if(!y) return;
+  var b=document.getElementById('saveBtn'); b.disabled=true;
+  post('/mangr/quoteSave.do', body(false), true)
+    .then(function(r){ return r.text().then(function(t){
+        if(r.status===409){
+          return ask('<b>이미 올린 견적서</b>가 있습니다.<br><span style="font-size:13px;color:#3d4d5c;white-space:pre-line">'+esc(t)+'</span><br><span style="font-size:13px;color:#3d4d5c">저장하면 앞의 것을 새로 올린 것으로 <b>대체</b>합니다(앞의 것은 이력으로 남습니다).</span>','대체 저장')
+            .then(function(y){ if(!y) throw new Error('__cancel'); return post('/mangr/quoteSave.do', body(true), true).then(function(r2){ return r2.text().then(function(t2){ if(!r2.ok) throw new Error(t2); return t2; }); }); });
+        }
+        if(!r.ok) throw new Error(t); return t; }); })
       .then(function(t){
         ok('견적서 <b>'+esc(String(t).split('|')[0])+'</b>건을 저장했습니다.');
         docs.forEach(function(q){ var d=d10(q.quoteDt), fr=document.getElementById('fr'), to=document.getElementById('to'); if(d && (!fr.value || d<fr.value)) fr.value=d; if(d && (!to.value || d>to.value)) to.value=d; });
         pvClear(); load();
       })
-      .catch(function(e){ err('저장하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); })
+      .catch(function(e){ if(String(e&&e.message)!=='__cancel') err('저장하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); })
       .then(function(){ b.disabled=false; });
   });
 }
@@ -300,8 +323,8 @@ function detail(i){
       w.innerHTML='<div class="dtl"><div class="dh"><b>'+esc(x.docNo)+'</b> · '+d10(x.quoteDt)+' · '+esc(x.recvNm)+' · 담당 '+esc(x.mgrNm)+(x.validTxt?' · '+esc(x.validTxt):'')
         +'<span style="margin-left:auto" class="tot">품목 <b>'+ls.length+'</b>줄 · 합계 <b>'+fmt(sum)+'</b>원</span></div>'
         +(x.titleTxt?'<div class="df" style="border-top:0;color:#37475a">'+esc(x.titleTxt)+'</div>':'')
-        +'<div class="tw" style="max-height:none"><table class="g"><thead><tr><th>No</th><th>품명</th><th>규격</th><th>Box</th><th>수량</th><th>단위</th><th>단가</th><th>금액</th><th>비고</th></tr></thead><tbody>'
-        +(ls.length?ls.map(function(l){ return '<tr><td>'+esc(l.rowNo)+'</td><td class="l">'+esc(l.prodNm)+'</td><td class="l">'+esc(l.spec)+'</td><td class="r">'+(l.boxQty!=null?fmt(l.boxQty):'')+'</td><td class="r"><b>'+fmt(l.qty)+'</b></td><td>'+esc(l.unit)+'</td><td class="r">'+fmt(l.unitPrice)+'</td><td class="r"><b>'+fmt(l.amt)+'</b></td><td class="l">'+esc(l.remark)+'</td></tr>'; }).join(''):'<tr><td colspan="9" class="empty">품목 줄이 없습니다.</td></tr>')
+        +'<div class="tw" style="max-height:none"><table class="g"><thead><tr><th>No</th><th>품명</th><th>규격</th><th>Box</th><th>수량</th><th>단위</th>'+priceHead(x)+'<th>비고</th></tr></thead><tbody>'
+        +(ls.length?ls.map(function(l){ return '<tr><td>'+esc(l.rowNo)+'</td><td class="l">'+esc(l.prodNm)+'</td><td class="l">'+esc(l.spec)+'</td><td class="r">'+(l.boxQty!=null?fmt(l.boxQty):'')+'</td><td class="r"><b>'+fmt(l.qty)+'</b></td><td>'+esc(l.unit)+'</td>'+priceCells(l, !!x.price2Nm)+'<td class="l">'+esc(l.remark)+'</td></tr>'; }).join(''):'<tr><td colspan="11" class="empty">품목 줄이 없습니다.</td></tr>')
         +'</tbody></table></div>'+(x.remark?'<div class="df">비고 : '+esc(x.remark)+'</div>':'')+'</div>';
     })
     .catch(function(e){ w.innerHTML='<div class="err">품목을 불러오지 못했습니다 — '+esc(e.message)+'</div>'; });
@@ -315,6 +338,73 @@ function del(){
       .then(function(t){ ok(t+'건을 지웠습니다.'); load(); })
       .catch(function(e){ err('지우지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); });
   });
+}
+
+/* ── 견적서별 비교분석 (2026-09-17) ── 체크한 견적서(없으면 목록 전체, 최대 30) → 서버에서 품목 줄을 받아 품명 × 견적서 행렬.
+     같은 품명(띄어쓰기·대소문자 무시)이 같은 줄. 칸 = 단가1(센터배송) · 아래 작은 글씨로 수량·단가2. 앞 견적 대비 단가 변동은 빨강(↑)/파랑(↓).
+     맨 오른쪽 = 최저·최고·최근 변동. 맨 아래 = 견적서 합계·품목 수. [📥 엑셀] 은 같은 표를 시트로. */
+var _cmp=null;
+function cmpKey(s){ return String(s||'').replace(/\s+/g,'').toLowerCase(); }
+function cmpOpen(){
+  var seqs=Array.prototype.filter.call(document.querySelectorAll('.lchk'), function(c){ return c.checked; }).map(function(c){ return _ls[+c.getAttribute('data-i')].quoteSeq; });
+  if(!seqs.length) seqs=_ls.map(function(x){ return x.quoteSeq; });
+  if(seqs.length<1){ _alertBox('비교할 견적서가 없습니다 — 목록을 먼저 조회하세요.',{icon:'ℹ️'}); return; }
+  if(seqs.length>30){ seqs=seqs.slice(0,30); _toast&&_toast('최근 30건까지만 비교합니다','warning'); }
+  var w=document.getElementById('cmpWrap'); w.hidden=false; w.innerHTML='<div class="cmp"><div class="dh">📊 견적 비교 <span class="dim">불러오는 중…</span></div></div>';
+  post('/mangr/quoteCompare.do', { seqs:seqs }, true)
+    .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return JSON.parse(t); }); })
+    .then(function(j){ _cmp=cmpBuild((j&&j.data)||[]); cmpRender(); try{ w.scrollIntoView({block:'nearest'}); }catch(e){} })
+    .catch(function(e){ w.innerHTML='<div class="err">비교 자료를 불러오지 못했습니다 — '+esc(e.message)+'</div>'; });
+}
+function cmpBuild(rows){
+  var qs=[], qi={}, ps=[], pi={};
+  rows.forEach(function(r){
+    var k=String(r.quoteSeq); if(qi[k]==null){ qi[k]=qs.length; qs.push({ seq:r.quoteSeq, docNo:r.docNo, quoteDt:r.quoteDt, recvNm:r.recvNm, mgrNm:r.mgrNm, price1Nm:r.price1Nm, price2Nm:r.price2Nm, supplyAmt:n(r.supplyAmt), cnt:0 }); }
+    var pk=cmpKey(r.prodNm); if(pi[pk]==null){ pi[pk]=ps.length; ps.push({ key:pk, prodNm:r.prodNm, spec:r.spec, cells:{} }); }
+    var p=ps[pi[pk]]; p.cells[k]={ price:n(r.unitPrice), price2:(r.unitPrice2==null?null:n(r.unitPrice2)), qty:n(r.qty), amt:n(r.amt) }; if(!p.spec && r.spec) p.spec=r.spec;
+    qs[qi[k]].cnt++;
+  });
+  qs.sort(function(a,b){ return (a.quoteDt||'')<(b.quoteDt||'')?-1:((a.quoteDt||'')>(b.quoteDt||'')?1:(a.seq-b.seq)); });
+  return { qs:qs, ps:ps };
+}
+function cmpRender(){
+  var w=document.getElementById('cmpWrap'), c=_cmp; if(!c) return;
+  var has2=c.qs.some(function(q){ return !!q.price2Nm; });
+  var h='<div class="cmp"><div class="dh"><b>📊 견적 비교</b> <span class="dim">견적서 '+c.qs.length+'건 · 품목 '+c.ps.length+'종 · 단가 = '+esc(c.qs[0]&&c.qs[0].price1Nm||'첫째 묶음')+(has2?' (아래 작은 글씨 = 둘째 묶음 단가)':'')+' · 앞 견적 대비 <span class="up">▲빨강</span>/<span class="dn">▼파랑</span></span>'
+    +'<button class="btn lnk" style="margin-left:auto" onclick="cmpExcel()">📥 엑셀</button><button class="btn lnk" onclick="document.getElementById(\'cmpWrap\').hidden=true">✕ 닫기</button></div>'
+    +'<div class="tw" style="max-height:60vh"><table class="g"><thead><tr><th class="nm">품명 / 규격</th>';
+  c.qs.forEach(function(q){ h+='<th title="'+esc(q.recvNm)+' · '+esc(q.mgrNm)+'">'+esc(q.docNo)+'<div class="sub">'+d10(q.quoteDt)+'</div></th>'; });
+  h+='<th>최저</th><th>최고</th><th>최근 변동</th></tr></thead><tbody>';
+  c.ps.forEach(function(p){
+    h+='<tr><td class="nm"><b>'+esc(p.prodNm)+'</b>'+(p.spec?'<div class="sub">'+esc(p.spec)+'</div>':'')+'</td>';
+    var prev=null, vals=[], last=null, lastPrev=null;
+    c.qs.forEach(function(q){
+      var cell=p.cells[String(q.seq)];
+      if(!cell){ h+='<td class="same">—</td>'; return; }
+      var pr=cell.price, dif='';
+      if(prev!=null && prev>0 && pr!==prev){ var pct=Math.round((pr-prev)/prev*1000)/10; dif='<div class="'+(pr>prev?'up':'dn')+'">'+(pr>prev?'▲':'▼')+fmt(Math.abs(pr-prev))+' ('+(pct>0?'+':'')+pct+'%)</div>'; }
+      else if(prev!=null && pr===prev) dif='<div class="same">＝</div>';
+      h+='<td class="r"><b>'+fmt(pr)+'</b>'+dif+'<div class="sub">수량 '+fmt(cell.qty)+(has2&&cell.price2!=null&&cell.price2>0?' · '+fmt(cell.price2):'')+'</div></td>';
+      if(pr>0){ vals.push(pr); lastPrev=last; last=pr; } prev=pr;
+    });
+    var mn=vals.length?Math.min.apply(null,vals):0, mx=vals.length?Math.max.apply(null,vals):0;
+    var chg = (last!=null && lastPrev!=null && lastPrev>0) ? (last-lastPrev) : null;
+    h+='<td class="r">'+(vals.length?fmt(mn):'')+'</td><td class="r">'+(vals.length?fmt(mx):'')+'</td>'
+      +'<td class="r">'+(chg==null?'<span class="same">—</span>':(chg===0?'<span class="same">＝</span>':'<span class="'+(chg>0?'up':'dn')+'">'+(chg>0?'▲':'▼')+fmt(Math.abs(chg))+' ('+(chg>0?'+':'')+(Math.round(chg/lastPrev*1000)/10)+'%)</span>'))+'</td></tr>';
+  });
+  h+='<tr class="tot"><td class="nm">합계(첫째 묶음) · 품목 수</td>';
+  c.qs.forEach(function(q){ h+='<td class="r">'+fmt(q.supplyAmt)+'<div class="sub">'+q.cnt+'종</div></td>'; });
+  h+='<td></td><td></td><td></td></tr></tbody></table></div></div>';
+  w.hidden=false; w.innerHTML=h;
+}
+function cmpExcel(){
+  var c=_cmp; if(!c || typeof XLSX==='undefined'){ _alertBox('엑셀 모듈이 없습니다.',{icon:'⚠️'}); return; }
+  var head=['품명','규격']; c.qs.forEach(function(q){ head.push(q.docNo+' ('+d10(q.quoteDt)+') 단가'); head.push('수량'); }); head.push('최저','최고');
+  var aoa=[head];
+  c.ps.forEach(function(p){ var row=[p.prodNm, p.spec], vals=[]; c.qs.forEach(function(q){ var cell=p.cells[String(q.seq)]; row.push(cell?cell.price:''); row.push(cell?cell.qty:''); if(cell&&cell.price>0) vals.push(cell.price); }); row.push(vals.length?Math.min.apply(null,vals):''); row.push(vals.length?Math.max.apply(null,vals):''); aoa.push(row); });
+  var tot=['합계','']; c.qs.forEach(function(q){ tot.push(q.supplyAmt); tot.push(q.cnt+'종'); }); aoa.push(tot);
+  var ws=XLSX.utils.aoa_to_sheet(aoa), wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '견적비교');
+  XLSX.writeFile(wb, '견적비교_'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'.xlsx');
 }
 
 /* 시작 — 올해 1월 1일 ~ 오늘 */
