@@ -58,6 +58,8 @@
   .doc .df{ padding:6px 12px; font-size:12.5px; color:#5a6b7a; border-top:1px solid #eef1f5; white-space:pre-wrap; }
   .bd{ display:inline-block; font-size:11px; font-weight:800; border-radius:6px; padding:1px 6px; }
   .bd.xls{ background:#e3f2ee; color:#0f6b5e; } .bd.warn{ background:#fdecec; color:var(--red); } .bd.dup{ background:#fdf0d5; color:#9a5b05; }
+  .bd.hand{ background:#e8eefb; color:#2f4f9a; margin-left:6px; vertical-align:1px; }   /* 직접 작성 표시 (2026-09-17) */
+  .bd.up{ background:#eef2f5; color:#556; margin-left:6px; vertical-align:1px; }
   .dim{ color:#8a98a8; }
   .empty{ padding:28px; text-align:center; color:#8a98a8; }
   .err{ margin:0 12px 12px; padding:8px 12px; border-radius:8px; background:#fdecec; color:#8a2a22; font-size:12.5px; line-height:1.7; }
@@ -110,7 +112,7 @@
     <div class="hd">📋 견적서 목록 <small>— 견적일 기준</small>
       <span class="bar" style="margin-left:8px">
         <input type="date" id="fr"> ~ <input type="date" id="to">
-        <input type="text" id="mgr" placeholder="담당자" style="width:110px">
+        <input type="text" id="mgr" placeholder="담당자" style="width:110px" list="mgrList" autocomplete="off"><datalist id="mgrList"></datalist>
         <input type="text" id="q" placeholder="문서번호 · 수신 · 품명" style="width:200px" onkeydown="if(event.keyCode===13) load()">
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
         <button class="btn" style="border-color:#137a6c;color:#137a6c" onclick="cmpOpen()" title="체크한 견적서(없으면 목록 전체)를 품명 × 견적서 행렬로 비교합니다 — 단가 변동·최저·최고">📊 견적 비교</button>
@@ -122,9 +124,9 @@
       <table class="g">
         <thead><tr>
           <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th>
-          <th>견적일</th><th>문서번호</th><th>수신</th><th>담당자</th><th>품목</th><th>줄</th><th>금액(부가세 별도)</th><th>유효기간</th><th>원본</th><th>등록</th>
+          <th>견적일</th><th>문서번호</th><th>수신</th><th>담당자</th><th>품목</th><th>줄</th><th>금액(부가세 별도)</th><th>유효기간</th><th>원본</th><th title="A4 양식 인쇄 · 작성 화면에서 수정">출력·수정</th><th>등록</th>
         </tr></thead>
-        <tbody id="lsBody"><tr><td colspan="11" class="empty">조회 중…</td></tr></tbody>
+        <tbody id="lsBody"><tr><td colspan="12" class="empty">조회 중…</td></tr></tbody>
       </table>
     </div>
     <div id="cmpWrap" hidden></div>
@@ -231,7 +233,8 @@ function save(){
         }
         if(!r.ok) throw new Error(t); return t; }); })
       .then(function(t){
-        ok('견적서 <b>'+esc(String(t).split('|')[0])+'</b>건을 저장했습니다.');
+        var jr={}; try{ jr=JSON.parse(t); }catch(e){}
+        ok('견적서 <b>'+esc(jr.cnt!=null?jr.cnt:docs.length)+'</b>건을 저장했습니다.');
         docs.forEach(function(q){ var d=d10(q.quoteDt), fr=document.getElementById('fr'), to=document.getElementById('to'); if(d && (!fr.value || d<fr.value)) fr.value=d; if(d && (!to.value || d>to.value)) to.value=d; });
         pvClear(); load();
       })
@@ -267,7 +270,7 @@ function docShow(nm){
 /* ── 목록 ── */
 function load(){
   var fr=document.getElementById('fr').value, to=document.getElementById('to').value, mgr=document.getElementById('mgr').value.trim(), q=document.getElementById('q').value.trim();
-  var tb=document.getElementById('lsBody'); tb.innerHTML='<tr><td colspan="11" class="empty">조회 중…</td></tr>';
+  var tb=document.getElementById('lsBody'); tb.innerHTML='<tr><td colspan="12" class="empty">조회 중…</td></tr>';
   _sel=null; document.getElementById('dtlWrap').hidden=true;
   /* 다시 조회(저장·삭제 뒤 포함)하면 아래 비교 표·원본 보기·상세도 접는다 (2026-09-17 「선택 삭제하면 아래도 없어지게」) — 지운 견적서가 비교 표에 남지 않게 */
   _cmp=null; var _cw=document.getElementById('cmpWrap'); if(_cw){ _cw.hidden=true; _cw.innerHTML=''; }
@@ -275,27 +278,40 @@ function load(){
   post('/mangr/quoteList.do','frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)+'&mgrNm='+encodeURIComponent(mgr)+'&findData='+encodeURIComponent(q))
     .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return JSON.parse(t); }); })
     .then(function(j){ _ls=(j&&j.data)||[]; lsRender(); if(_pv.length) pvRender(); })
-    .catch(function(e){ tb.innerHTML='<tr><td colspan="11" class="empty" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
+    .catch(function(e){ tb.innerHTML='<tr><td colspan="12" class="empty" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
 }
 function lsRender(){
   var tb=document.getElementById('lsBody');
   document.getElementById('lsAll').checked=false;
-  if(!_ls.length){ tb.innerHTML='<tr><td colspan="11" class="empty">조건에 맞는 견적서가 없습니다.</td></tr>'; document.getElementById('lsTot').innerHTML=''; return; }
+  if(!_ls.length){ tb.innerHTML='<tr><td colspan="12" class="empty">조건에 맞는 견적서가 없습니다.</td></tr>'; document.getElementById('lsTot').innerHTML=''; return; }
   var amt=0;
   tb.innerHTML=_ls.map(function(x,i){
     amt+=n(x.supplyAmt);
     return '<tr class="tap'+(_sel===x.quoteSeq?' sel':'')+'" onclick="if(event.target.tagName!==\'INPUT\' && event.target.tagName!==\'BUTTON\' && !(window.getSelection&&String(window.getSelection()).length)) detail('+i+')">'
       +'<td><input type="checkbox" class="lchk" data-i="'+i+'"></td>'
-      +'<td>'+d10(x.quoteDt)+'</td><td><b>'+esc(x.docNo)+'</b></td><td>'+esc(x.recvNm)+'</td><td>'+esc(x.mgrNm)+'</td>'
+      +'<td>'+d10(x.quoteDt)+'</td><td><b>'+esc(x.docNo)+'</b>'+(x.hasFile==='Y'?'<span class="bd up" title="엑셀 파일을 올려 저장한 견적서 ('+esc(x.fileNm)+')">올림</span>':'<span class="bd hand" title="견적서 작성 화면에서 직접 작성한 견적서(올린 파일 없음)">✍ 직접 작성</span>')+'</td><td>'+esc(x.recvNm)+'</td><td>'+esc(x.mgrNm)+'</td>'
       +'<td class="l" style="max-width:320px">'+esc(x.firstNm)+(n(x.lineCnt)>1?' <span class="dim">외 '+(n(x.lineCnt)-1)+'</span>':'')+'</td>'
       +'<td class="r">'+fmt(x.lineCnt)+'</td><td class="r"><b>'+fmt(x.supplyAmt)+'</b></td><td class="dim">'+esc(x.validTxt)+'</td>'
-      +'<td>'+(x.hasFile==='Y'?'<button class="btn lnk" onclick="viewFile('+x.quoteSeq+', this.getAttribute(\x27data-n\x27))" data-n="'+esc(x.fileNm)+'" title="올린 엑셀 양식을 화면에서 봅니다 ('+esc(x.fileNm)+')">📄 원본</button>':'<span class="dim">—</span>')+'</td>'
+      +'<td>'+(x.hasFile==='Y'?'<button class="btn lnk" onclick="viewFile('+x.quoteSeq+', this.getAttribute(\x27data-n\x27))" data-n="'+esc(x.fileNm)+'" title="올린 엑셀 양식을 화면에서 봅니다 ('+esc(x.fileNm)+')">📄 원본</button>':'<button class="btn lnk" onclick="window.open(CTX+\'/mangr/quoteExcel.do?quoteSeq='+x.quoteSeq+'\',\'_blank\')" title="우리 견적서 양식 그대로 엑셀로 내려받기">📥 엑셀</button>')+'</td>'
+      +'<td><button class="btn lnk" onclick="printQuote('+x.quoteSeq+')" title="A4 견적서 양식으로 인쇄">🖨</button> <button class="btn lnk" onclick="editQuote('+x.quoteSeq+')" title="견적서 작성 화면에서 수정">✏</button></td>'
       +'<td class="dim">'+esc(String(x.regDttm||'').slice(0,16))+(x.regUser?'<br>'+esc(x.regUser):'')+'</td></tr>';
   }).join('');
   document.getElementById('lsTot').innerHTML='<b>'+_ls.length+'</b>건 · 금액 <b>'+fmt(amt)+'</b>원';
 }
 function lsAllChk(el){ Array.prototype.forEach.call(document.querySelectorAll('.lchk'), function(c){ c.checked=el.checked; }); }
 function dl(seq){ window.open(CTX+'/mangr/quoteFile.do?quoteSeq='+seq, '_blank'); }
+/* 출력 · 수정 (2026-09-17 「여기에서 견적서 작성 및 출력 가능하게」) — 인쇄는 새 창(A4), 수정은 셸의 견적서 작성 화면을 그 번호로 연다 */
+function printQuote(seq){ window.open(CTX+'/mangr/quotePrint.do?quoteSeq='+seq, '_blank'); }
+function editQuote(seq){
+  var url=CTX+'/mangr/quoteEdit.do?quoteSeq='+seq;
+  try{
+    var P=window.parent; if(P && P!==window && typeof P.logiFrame==='function'){
+      var f=P.document.getElementById('if-quoteEdit'); if(f){ f.src=url; }   /* 먼저 그 번호로 로드 — logiFrame 은 src 가 있으면 유지한다 */
+      var m=P.document.querySelector('a.mi[data-key="quoteEdit"]'); if(m){ m.click(); return; }
+    }
+  }catch(e){}
+  window.open(url, '_blank');
+}
 /* 원본을 화면에서 — 보관한 엑셀을 받아 첫 시트를 병합 살려 표로(전역 XLSX). 창 안에 [내려받기]. (2026-09-17 「원본 누르면 엑셀 양식이 뜨나요」) */
 var _lsDocSeq=null;
 function viewFile(seq, nm){
@@ -411,6 +427,8 @@ function cmpExcel(){
   XLSX.writeFile(wb, '견적비교_'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'.xlsx');
 }
 
+/* 담당자 목록(datalist) — 쌓인 이름 (2026-09-17) */
+post('/mangr/quoteNames.do','').then(function(r){ return r.json(); }).then(function(j){ document.getElementById('mgrList').innerHTML=((j&&j.mgr)||[]).map(function(v){ return '<option value="'+esc(v)+'">'; }).join(''); }).catch(function(){});
 /* 시작 — 올해 1월 1일 ~ 오늘 */
 (function(){
   var t=new Date();

@@ -1225,9 +1225,10 @@ public class UserController {
 					}
 					if (dup.length() > 0) return ResponseEntity.status(409).body(dup.toString());
 				}
-				int n = 0; StringBuilder seqs = new StringBuilder();
-				for (Map<String,Object> q : docs) { long s = svc.saveQuote(q, u, request.getRemoteAddr(), compCd); if (seqs.length() > 0) seqs.append(','); seqs.append(s); n++; }
-				return ResponseEntity.ok(n + "|" + seqs);
+				int n = 0; StringBuilder seqs = new StringBuilder(); long lastSeq = 0;
+				for (Map<String,Object> q : docs) { long s = svc.saveQuote(q, u, request.getRemoteAddr(), compCd); if (seqs.length() > 0) seqs.append(','); seqs.append(s); lastSeq = s; n++; }
+				/* JSON 으로 (2026-09-17 「저장 출력 오류」) — 종전 「n|번호」 글자를 화면이 번호로 못 읽어 출력·재저장이 「저장 전」으로 취급됐다 */
+				return ResponseEntity.ok().header("Content-Type", "application/json;charset=UTF-8").body("{\"cnt\":" + n + ",\"seqs\":[" + seqs + "],\"seq\":" + lastSeq + "}");
 			} catch (Exception e) { log.error(" quoteSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 		@RequestMapping(value="/mangr/quoteList.do", method = RequestMethod.POST)
@@ -1250,6 +1251,86 @@ public class UserController {
 			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("quoteSeq", Long.valueOf(quoteSeq));
 			res.put("data", svc.selectQuoteDtl(q));
 			return res;
+		}
+		/* 견적서 작성·출력 (2026-09-17 「여기에서 견적서 작성 및 출력 가능하게」) — 작성 화면 mangr/quoteEdit.jsp (새로/수정), 인쇄 mangr/quotePrint.jsp
+		   저장은 quoteSave.do 그대로(파일 없이) — 같은 문서번호는 대체되므로 「수정」도 같은 길이다. */
+		@RequestMapping(value="/mangr/quoteEdit.do")
+		public String quoteEdit(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/quoteEdit";
+		}
+		@RequestMapping(value="/mangr/quoteMst.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> quoteMst(@RequestParam("quoteSeq") long quoteSeq, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) return res;
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("quoteSeq", Long.valueOf(quoteSeq));
+			res.put("mst", svc.selectQuoteMst(q)); res.put("lines", svc.selectQuoteDtl(q));
+			return res;
+		}
+		/* 쌓인 담당자·수신 이름 (2026-09-17) — 작성 화면의 목록(datalist). {mgr:[…], recv:[…]} 최근 차례 */
+		@RequestMapping(value="/mangr/quoteNames.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> quoteNames(HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			List<String> mgr = new java.util.ArrayList<String>(), recv = new java.util.ArrayList<String>();
+			if (session.getAttribute("s_comp_cd") != null) {
+				Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd"));
+				for (Map<String,Object> r : svc.selectQuoteNames(q)) { if ("mgr".equals(poStr(r.get("kind")))) mgr.add(poStr(r.get("nm"))); else recv.add(poStr(r.get("nm"))); }
+			}
+			res.put("mgr", mgr); res.put("recv", recv);
+			return res;
+		}
+		/* 문서번호 → 지금 활성 번호 (2026-09-17 「저장 후 출력 시 오류」) — 저장 직후 화면이 응답 번호 대신 이것으로 확정한다(대체 저장 뒤 옛 번호로 인쇄하던 것) */
+		@RequestMapping(value="/mangr/quoteByDoc.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> quoteByDoc(@RequestParam("docNo") String docNo, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("quoteSeq", 0);
+			if (session.getAttribute("s_comp_cd") == null || docNo == null || docNo.trim().isEmpty()) return res;
+			Map<String,Object> k = new HashMap<String,Object>(); k.put("compCd", session.getAttribute("s_comp_cd")); k.put("docNo", docNo.trim());
+			Map<String,Object> ex = svc.selectQuoteByDoc(k);
+			if (ex != null) { res.put("quoteSeq", ex.get("quoteSeq")); res.put("docNo", ex.get("docNo")); }
+			return res;
+		}
+		@RequestMapping(value="/mangr/quoteNextNo.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> quoteNextNo(@RequestParam(value="quoteDt", required=false) String quoteDt, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("docNo", ""); return res; }
+			res.put("docNo", svc.nextQuoteNo(String.valueOf(session.getAttribute("s_comp_cd")), quoteDt));
+			return res;
+		}
+		@RequestMapping(value="/mangr/quotePrint.do")
+		public String quotePrint(@RequestParam("quoteSeq") long quoteSeq, Model model, HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("quoteSeq", Long.valueOf(quoteSeq));
+			Map<String,Object> mst = svc.selectQuoteMst(q);
+			model.addAttribute("mst", mst);
+			if (mst != null) {
+				model.addAttribute("items", svc.selectQuoteDtl(q));
+				Map<String,Object> c = new HashMap<String,Object>(); c.put("compCd", session.getAttribute("s_comp_cd"));
+				Map<String,Object> comp = svc.selectCompInfo(c); if (comp == null) comp = new HashMap<String,Object>();
+				poFillDefault(comp, "compNm", "company.name"); poFillDefault(comp, "busiNum", "company.busi.num"); poFillDefault(comp, "compCeo", "company.ceo");
+				poFillDefault(comp, "compAddr", "company.addr"); poFillDefault(comp, "compTel", "company.tel"); poFillDefault(comp, "compType", "company.type");
+				poFillDefault(comp, "compFax", "company.fax");
+				model.addAttribute("comp", comp);
+			}
+			return ".raw/main/mangr/quotePrint";
+		}
+		/* 견적서 엑셀 (2026-09-17 「엑셀로 출력은 양식 그대로」) — 우리 양식 파일(quote_tpl1/2.xls)에 값만 채워 내려준다. 파일 이름 = 문서번호.xls */
+		@RequestMapping(value="/mangr/quoteExcel.do")
+		public void quoteExcel(@RequestParam("quoteSeq") long quoteSeq, HttpSession session, javax.servlet.http.HttpServletResponse response) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) { response.sendError(401); return; }
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("quoteSeq", Long.valueOf(quoteSeq));
+			Map<String,Object> mst = svc.selectQuoteMst(q);
+			if (mst == null) { response.sendError(404); return; }
+			byte[] b = svc.buildQuoteXls(mst, svc.selectQuoteDtl(q));
+			String nm = poStr(mst.get("docNo")); if (nm.isEmpty()) nm = "견적서"; nm += ".xls";
+			String enc = java.net.URLEncoder.encode(nm, "UTF-8").replace("+", "%20");
+			response.setContentType("application/vnd.ms-excel");
+			response.setHeader("Content-Disposition", "attachment; filename=\"" + enc + "\"; filename*=UTF-8''" + enc);
+			response.setContentLength(b.length);
+			response.getOutputStream().write(b); response.getOutputStream().flush();
 		}
 		/* 견적서별 비교분석 (2026-09-17) — {seqs:[…]} 최대 30건. 고른 견적서들의 품목 줄 전부를 주고 화면이 품명 × 견적서 행렬로 짠다 */
 		@SuppressWarnings("unchecked")

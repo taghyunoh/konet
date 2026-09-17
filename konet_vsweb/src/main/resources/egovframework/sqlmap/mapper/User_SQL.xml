@@ -1094,6 +1094,31 @@
 	     AND m.QUOTE_SEQ IN <foreach collection="seqs" item="s" open="(" separator="," close=")">#{s}</foreach>
 	   ORDER BY ISNULL(m.QUOTE_DT,''), m.QUOTE_SEQ, d.ROW_NO
 	</select>
+	<!-- 견적서 한 건(머리) — 작성 화면(수정)·인쇄 (2026-09-17) -->
+	<select id="selectQuoteMst" parameterType="java.util.Map" resultType="java.util.HashMap">
+	  SELECT QUOTE_SEQ AS quoteSeq, COMP_CD AS compCd, DOC_NO AS docNo, ISNULL(QUOTE_DT,'') AS quoteDt, ISNULL(RECV_NM,'') AS recvNm, ISNULL(MGR_NM,'') AS mgrNm,
+	         ISNULL(VALID_TXT,'') AS validTxt, ISNULL(TITLE_TXT,'') AS titleTxt, ISNULL(REMARK,'') AS remark, ISNULL(SUPPLY_AMT,0) AS supplyAmt,
+	         ISNULL(PRICE1_NM,'') AS price1Nm, ISNULL(PRICE2_NM,'') AS price2Nm, ISNULL(FILE_NM,'') AS fileNm, ISNULL(REG_USER,'') AS regUser, REG_DTTM AS regDttm
+	    FROM TBL_QUOTE_MST
+	   WHERE QUOTE_SEQ = #{quoteSeq} AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	</select>
+	<!-- 다음 문서번호 — 같은 머리(예 Konet260917-)로 시작하는 번호 수 + 1. 이력(N)·삭제(D)도 센다(번호가 겹치지 않게) -->
+	<select id="selectQuoteNoCnt" parameterType="java.util.Map" resultType="int">
+	  SELECT COUNT(DISTINCT DOC_NO) FROM TBL_QUOTE_MST
+	   WHERE DOC_NO LIKE #{prefix,jdbcType=NVARCHAR} + '%'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	</select>
+	<!-- 쌓인 담당자·수신 이름 (2026-09-17 「담당자는 쌓여 있는 것 보여 주세요」) — 최근 쓴 차례. 작성 화면 datalist -->
+	<select id="selectQuoteNames" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT kind, nm FROM (
+	    SELECT 'mgr' AS kind, MGR_NM AS nm, MAX(QUOTE_SEQ) AS lastSeq FROM TBL_QUOTE_MST
+	     WHERE ACTION_YN <> 'D' AND ISNULL(MGR_NM,'') <> '' AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} ) GROUP BY MGR_NM
+	    UNION ALL
+	    SELECT 'recv', RECV_NM, MAX(QUOTE_SEQ) FROM TBL_QUOTE_MST
+	     WHERE ACTION_YN <> 'D' AND ISNULL(RECV_NM,'') <> '' AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} ) GROUP BY RECV_NM
+	  ) x ORDER BY kind, lastSeq DESC
+	]]></select>
 	<update id="markQuoteReplace" parameterType="java.util.Map">
 	  UPDATE TBL_QUOTE_MST SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
 	   WHERE ACTION_YN = 'Y' AND DOC_NO = #{docNo,jdbcType=NVARCHAR}

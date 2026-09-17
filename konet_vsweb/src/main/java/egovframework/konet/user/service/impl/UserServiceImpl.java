@@ -881,6 +881,220 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.Map<String,Object> selectQuoteFile(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteFile(p); }
 	@Override public int deleteQuote(java.util.Map<String,Object> p) throws Exception { return mapper.deleteQuote(p); }
 	@Override public java.util.Map<String,Object> selectQuoteByDoc(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteByDoc(p); }
+	@Override public java.util.Map<String,Object> selectQuoteMst(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteMst(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteNames(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteNames(p); }
+	/* ===== 견적서 엑셀 = 우리 양식 파일에 값만 채운다 (2026-09-17 「엑셀로 출력은 양식 그대로」) =====
+	   양식 = resources/quote_tpl1.xls(단가 묶음 1, 표본 260729-1) · quote_tpl2.xls(묶음 2, 표본 260730-1). 서식·병합·공급자 칸은 양식 그대로.
+	   · 머리 : 「문서 번호」「수 신」「견 적 일」「담 당 자」「유효기간」 이름표의 오른쪽 칸, 제목 줄은 「견적을 드립니다」가 든 칸
+	   · 품목 : 머리줄(품명/품목 + 수량) 아래 줄들. 양식 줄보다 많으면 비고 줄부터 아래로 밀고 마지막 품목 줄의 서식·병합을 복사, 적으면 남는 줄은 비운다
+	   · 금액은 수식 대신 값으로 넣는다(줄을 끼워 넣어도 안 어긋나게). 비고 줄은 「비고」 이름표 오른쪽(또는 「비고 : …」 한 칸). */
+	private static java.util.TreeMap<Integer,String> qzRowText(org.apache.poi.ss.usermodel.Row row, org.apache.poi.ss.usermodel.DataFormatter df) {
+		java.util.TreeMap<Integer,String> m = new java.util.TreeMap<Integer,String>();
+		if (row == null) return m;
+		for (int c = 0; c < row.getLastCellNum(); c++) {
+			org.apache.poi.ss.usermodel.Cell cl = row.getCell(c); if (cl == null) continue;
+			String v = "";
+			try { if (cl.getCellTypeEnum() == org.apache.poi.ss.usermodel.CellType.STRING) v = cl.getStringCellValue().trim(); else if (cl.getCellTypeEnum() != org.apache.poi.ss.usermodel.CellType.FORMULA) v = df.formatCellValue(cl).trim(); } catch (Exception e) { v = ""; }
+			if (!v.isEmpty()) m.put(c, v);
+		}
+		return m;
+	}
+	private static org.apache.poi.ss.usermodel.Cell qzCellOf(org.apache.poi.ss.usermodel.Row row, int c) {
+		if (c < 0) return null;
+		org.apache.poi.ss.usermodel.Cell cl = row.getCell(c); if (cl == null) cl = row.createCell(c);
+		return cl;
+	}
+	/* 빈 값은 <빈 칸>(BLANK)으로 — "" 글자를 넣으면 양식의 금액 수식(E13*F13)이 빈 글자끼리 곱해 #VALUE! 가 났다(2026-09-17 실제 발생).
+	   수식 칸은 먼저 숫자 칸으로 바꿔 수식을 지운다 — POI 는 수식 칸에 값을 넣으면 수식을 남기고 계산값만 바꾼다. */
+	private static void qzSet(org.apache.poi.ss.usermodel.Row row, int c, String v) {
+		org.apache.poi.ss.usermodel.Cell cl = qzCellOf(row, c); if (cl == null) return;
+		if (cl.getCellTypeEnum() == org.apache.poi.ss.usermodel.CellType.FORMULA) cl.setCellType(org.apache.poi.ss.usermodel.CellType.STRING);
+		if (v == null || v.isEmpty()) cl.setCellType(org.apache.poi.ss.usermodel.CellType.BLANK); else cl.setCellValue(v);
+	}
+	private static void qzNumSet(org.apache.poi.ss.usermodel.Row row, int c, Object v) {
+		org.apache.poi.ss.usermodel.Cell cl = qzCellOf(row, c); if (cl == null) return;
+		if (cl.getCellTypeEnum() == org.apache.poi.ss.usermodel.CellType.FORMULA) cl.setCellType(org.apache.poi.ss.usermodel.CellType.NUMERIC);
+		if (v == null || scStr(v).isEmpty()) { cl.setCellType(org.apache.poi.ss.usermodel.CellType.BLANK); return; }
+		cl.setCellValue(scNum(v));
+	}
+	/* 강조 색 (2026-09-17 「엑셀에 빨간 표시 안 나옴」) — 양식 1(묶음 하나)엔 원본부터 색이 없어 어느 양식이든 같은 규칙으로 넣는다 :
+	   빨간 굵게 = 둘째 묶음(택배출고) 머리·단가·금액, 비고(MOQ) 값, 아래 비고 줄 / 파란 굵게 = 첫째 묶음(센터배송) 머리(묶음이 둘일 때).
+	   셀 서식은 복제해 글꼴만 바꾼다(테두리·정렬 유지). 같은 (원서식, 색) 짝은 캐시해 서식 수가 늘지 않게. */
+	private static void qzColor(org.apache.poi.ss.usermodel.Workbook wb, org.apache.poi.ss.usermodel.Row row, int c, short color, java.util.Map<String,org.apache.poi.ss.usermodel.CellStyle> cache) {
+		if (row == null || c < 0) return;
+		org.apache.poi.ss.usermodel.Cell cl = row.getCell(c); if (cl == null) cl = row.createCell(c);
+		org.apache.poi.ss.usermodel.CellStyle old = cl.getCellStyle();
+		String key = old.getIndex() + ":" + color;
+		org.apache.poi.ss.usermodel.CellStyle ns = cache.get(key);
+		if (ns == null) {
+			ns = wb.createCellStyle(); ns.cloneStyleFrom(old);
+			org.apache.poi.ss.usermodel.Font of = wb.getFontAt(old.getFontIndex());
+			org.apache.poi.ss.usermodel.Font nf = wb.createFont();
+			nf.setFontName(of.getFontName()); nf.setFontHeight(of.getFontHeight()); nf.setItalic(of.getItalic()); nf.setUnderline(of.getUnderline());
+			nf.setBold(true); nf.setColor(color);
+			ns.setFont(nf); cache.put(key, ns);
+		}
+		cl.setCellStyle(ns);
+	}
+	@Override public byte[] buildQuoteXls(java.util.Map<String,Object> mst, java.util.List<java.util.Map<String,Object>> lines) throws Exception {
+		boolean two = !scStr(mst.get("price2Nm")).isEmpty();
+		java.io.InputStream in = UserServiceImpl.class.getClassLoader().getResourceAsStream(two ? "quote_tpl2.xls" : "quote_tpl1.xls");
+		if (in == null) throw new Exception("견적서 양식 파일(quote_tpl" + (two ? 2 : 1) + ".xls)이 없습니다.");
+		org.apache.poi.hssf.usermodel.HSSFWorkbook wb = new org.apache.poi.hssf.usermodel.HSSFWorkbook(in);
+		try {
+			org.apache.poi.ss.usermodel.Sheet sh = wb.getSheetAt(0);
+			org.apache.poi.ss.usermodel.DataFormatter df = new org.apache.poi.ss.usermodel.DataFormatter();
+			int hdr = -1, cName = -1, cSpec = -1, cUnit = -1, cQty = -1, cP1 = -1, cA1 = -1, cP2 = -1, cA2 = -1, cRmk = -1; boolean twoRow = false;
+			java.util.Set<String> known = new java.util.HashSet<String>(java.util.Arrays.asList("품명","품목","규격","단위","수량","단가","금액","비고","공급가액","box","ea"));
+			for (int r = 0; r <= sh.getLastRowNum(); r++) {
+				org.apache.poi.ss.usermodel.Row row = sh.getRow(r); if (row == null) continue;
+				java.util.TreeMap<Integer,String> cells = qzRowText(row, df);
+				if (cells.isEmpty()) continue;
+				for (java.util.Map.Entry<Integer,String> e : cells.entrySet()) {
+					String k = qzKey(e.getValue()); java.util.Map.Entry<Integer,String> nv = cells.higherEntry(e.getKey());
+					int vc = (nv == null || nv.getKey() > e.getKey() + 2) ? e.getKey() + 1 : nv.getKey();
+					if ("문서번호".equals(k)) qzSet(row, vc, scStr(mst.get("docNo")));
+					else if ("수신".equals(k)) qzSet(row, vc, scStr(mst.get("recvNm")));
+					else if ("견적일".equals(k) || "견적일자".equals(k)) {
+						String d = scStr(mst.get("quoteDt")); org.apache.poi.ss.usermodel.Cell c = qzCellOf(row, vc);
+						if (d.length() == 8) c.setCellValue(new java.text.SimpleDateFormat("yyyyMMdd").parse(d)); else c.setCellValue("");
+					}
+					else if ("담당자".equals(k)) qzSet(row, vc, scStr(mst.get("mgrNm")));
+					else if ("유효기간".equals(k)) qzSet(row, vc, scStr(mst.get("validTxt")));
+					else if (e.getValue().indexOf("견적을") >= 0 && e.getValue().indexOf("드립니다") >= 0 && !scStr(mst.get("titleTxt")).isEmpty()) qzSet(row, e.getKey(), scStr(mst.get("titleTxt")));
+				}
+				boolean hn = false, hq = false;
+				for (String v : cells.values()) { String k = qzKey(v); if (k.startsWith("품명") || k.startsWith("품목")) hn = true; if ("수량".equals(k)) hq = true; }
+				if (hn && hq && hdr < 0) {
+					hdr = r;
+					for (java.util.Map.Entry<Integer,String> e : cells.entrySet()) {
+						String k = qzKey(e.getValue());
+						if (k.startsWith("품명") || k.startsWith("품목")) cName = e.getKey(); else if (k.startsWith("규격")) cSpec = e.getKey();
+						else if ("단위".equals(k)) cUnit = e.getKey(); else if ("수량".equals(k)) cQty = e.getKey(); else if (k.startsWith("비고")) cRmk = e.getKey();
+					}
+					java.util.TreeMap<Integer,String> sub = qzRowText(sh.getRow(r + 1), df);
+					for (String v : sub.values()) { String k = qzKey(v).toLowerCase(); if ("단가".equals(k) || "금액".equals(k) || "box".equals(k) || "ea".equals(k)) twoRow = true; }
+					java.util.List<int[]> pcs = new java.util.ArrayList<int[]>();
+					java.util.TreeMap<Integer,String> pr = twoRow ? sub : cells;
+					for (int pass = 0; pass < 2 && pcs.isEmpty(); pass++) {
+						java.util.TreeMap<Integer,String> src = (pass == 0) ? pr : cells;
+						for (java.util.Map.Entry<Integer,String> e : src.entrySet()) {
+							String k = qzKey(e.getValue());
+							if ("단가".equals(k)) pcs.add(new int[]{ e.getKey(), -1 });
+							else if (("금액".equals(k) || "공급가액".equals(k)) && !pcs.isEmpty() && pcs.get(pcs.size() - 1)[1] < 0) pcs.get(pcs.size() - 1)[1] = e.getKey();
+						}
+					}
+					if (!pcs.isEmpty()) { cP1 = pcs.get(0)[0]; cA1 = pcs.get(0)[1]; }
+					if (pcs.size() > 1) { cP2 = pcs.get(1)[0]; cA2 = pcs.get(1)[1]; }
+					/* 두 줄 머리의 묶음 이름(센터배송·택배출고) → 견적서에 적힌 이름으로 */
+					if (two && twoRow) {
+						int g = 0;
+						for (java.util.Map.Entry<Integer,String> e : cells.entrySet()) {
+							String k = qzKey(e.getValue()).toLowerCase(); boolean kn = false; for (String s : known) if (k.startsWith(s)) kn = true;
+							if (kn) continue;
+							String nm = scStr(mst.get(g == 0 ? "price1Nm" : "price2Nm")); if (!nm.isEmpty()) qzSet(row, e.getKey(), nm);
+							if (++g >= 2) break;
+						}
+					}
+				}
+			}
+			if (hdr < 0 || cName < 0 || cQty < 0) throw new Exception("양식에서 품목 머리줄(품명·수량)을 찾지 못했습니다.");
+			int start = hdr + (twoRow ? 2 : 1);
+			int rmkRow = -1;
+			for (int r = start; r <= sh.getLastRowNum(); r++) {
+				java.util.TreeMap<Integer,String> cells = qzRowText(sh.getRow(r), df);
+				if (!cells.isEmpty() && qzKey(cells.firstEntry().getValue()).startsWith("비고") && cells.firstKey() <= Math.max(0, cName)) { rmkRow = r; break; }
+			}
+			int tplRows = rmkRow < 0 ? 2 : rmkRow - start;
+			int need = Math.max(1, lines.size());
+			if (need > tplRows) {
+				int add = need - tplRows, last = sh.getLastRowNum();
+				org.apache.poi.ss.usermodel.Row src = sh.getRow(start + tplRows - 1);
+				java.util.List<int[]> srcMerges = new java.util.ArrayList<int[]>();
+				for (int i = 0; i < sh.getNumMergedRegions(); i++) {
+					org.apache.poi.ss.util.CellRangeAddress m = sh.getMergedRegion(i);
+					if (src != null && m.getFirstRow() == src.getRowNum() && m.getLastRow() == src.getRowNum()) srcMerges.add(new int[]{ m.getFirstColumn(), m.getLastColumn() });
+				}
+				if (start + tplRows <= last) sh.shiftRows(start + tplRows, last, add, true, false);
+				for (int k = 0; k < add; k++) {
+					int rn = start + tplRows + k;
+					org.apache.poi.ss.usermodel.Row nr = sh.getRow(rn); if (nr == null) nr = sh.createRow(rn);
+					if (src != null) {
+						nr.setHeight(src.getHeight());
+						for (int c = 0; c < src.getLastCellNum(); c++) {
+							org.apache.poi.ss.usermodel.Cell sc = src.getCell(c); if (sc == null) continue;
+							org.apache.poi.ss.usermodel.Cell nc = nr.getCell(c); if (nc == null) nc = nr.createCell(c);
+							nc.setCellStyle(sc.getCellStyle());
+						}
+					}
+					for (int[] m : srcMerges) sh.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(rn, rn, m[0], m[1]));
+				}
+			}
+			for (int i = 0; i < Math.max(need, tplRows); i++) {
+				org.apache.poi.ss.usermodel.Row row = sh.getRow(start + i); if (row == null) row = sh.createRow(start + i);
+				java.util.Map<String,Object> l = i < lines.size() ? lines.get(i) : null;
+				qzSet(row, cName, l == null ? "" : scStr(l.get("prodNm")));
+				if (cSpec >= 0) qzSet(row, cSpec, l == null ? "" : scStr(l.get("spec")));
+				qzNumSet(row, cUnit, l == null ? null : l.get("boxQty"));
+				qzNumSet(row, cQty, l == null ? null : l.get("qty"));
+				qzNumSet(row, cP1, l == null ? null : l.get("unitPrice"));
+				qzNumSet(row, cA1, l == null ? null : l.get("amt"));
+				if (two) {   /* 둘째 묶음 단가가 없는 줄(0)은 원본처럼 빈칸 */
+					Object p2 = l == null ? null : l.get("unitPrice2"), a2 = l == null ? null : l.get("amt2");
+					qzNumSet(row, cP2, (p2 == null || scNum(p2) == 0) ? null : p2); qzNumSet(row, cA2, (a2 == null || scNum(a2) == 0) ? null : a2);
+				}
+				if (cRmk >= 0) qzSet(row, cRmk, l == null ? "" : scStr(l.get("remark")));
+			}
+			int rr = start + Math.max(need, tplRows);
+			org.apache.poi.ss.usermodel.Row rrow = sh.getRow(rr);
+			if (rrow != null) {
+				java.util.TreeMap<Integer,String> cells = qzRowText(rrow, df);
+				String rem = scStr(mst.get("remark")).replace("\r", "").replace("\n", " / ");
+				if (!cells.isEmpty()) {
+					int fc = cells.firstKey(); String first = cells.firstEntry().getValue();
+					if (qzKey(first).replaceAll("[:：]", "").equals("비고")) { java.util.Map.Entry<Integer,String> nv = cells.higherEntry(fc); qzSet(rrow, nv == null ? fc + 2 : nv.getKey(), rem); }
+					else if (qzKey(first).startsWith("비고")) qzSet(rrow, fc, "비고 : " + rem);
+				}
+			}
+			/* 강조 색 적용 */
+			{
+				java.util.Map<String,org.apache.poi.ss.usermodel.CellStyle> cache = new java.util.HashMap<String,org.apache.poi.ss.usermodel.CellStyle>();
+				short RED = org.apache.poi.hssf.util.HSSFColor.HSSFColorPredefined.RED.getIndex(), BLUE = org.apache.poi.hssf.util.HSSFColor.HSSFColorPredefined.BLUE.getIndex();
+				int rowsAll = Math.max(need, tplRows);
+				for (int i = 0; i < rowsAll; i++) {
+					org.apache.poi.ss.usermodel.Row row = sh.getRow(start + i); if (row == null) continue;
+					if (cRmk >= 0) qzColor(wb, row, cRmk, RED, cache);
+					if (two) { qzColor(wb, row, cP2, RED, cache); qzColor(wb, row, cA2, RED, cache); }
+				}
+				org.apache.poi.ss.usermodel.Row h1 = sh.getRow(hdr), h2 = twoRow ? sh.getRow(hdr + 1) : null;
+				if (two) {
+					if (h2 != null) { qzColor(wb, h2, cP2, RED, cache); qzColor(wb, h2, cA2, RED, cache); qzColor(wb, h1, cP2, RED, cache); qzColor(wb, h1, cP1, BLUE, cache); }
+					else { qzColor(wb, h1, cP2, RED, cache); qzColor(wb, h1, cA2, RED, cache); }
+				}
+				if (rrow != null) { java.util.TreeMap<Integer,String> rc = qzRowText(rrow, df); for (Integer c : rc.keySet()) qzColor(wb, rrow, c, RED, cache); }
+			}
+			try { wb.getCreationHelper().createFormulaEvaluator().evaluateAll(); } catch (Exception e) { /* 수식이 있어도 값은 넣어 뒀다 */ }
+			java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+			wb.write(bo);
+			return bo.toByteArray();
+		} finally { wb.close(); in.close(); }
+	}
+	/* 문서번호 = 'Konet' + 견적일 yyMMdd + '-' + 두 자리 차례 (표본 Konet260729-01 과 같은 꼴). 그날 번호가 이미 있으면 다음 번호 */
+	@Override public String nextQuoteNo(String compCd, String quoteDt) throws Exception {
+		String d = quoteDt == null ? "" : quoteDt.replaceAll("[^0-9]", "");
+		if (d.length() != 8) d = new java.text.SimpleDateFormat("yyyyMMdd").format(new java.util.Date());
+		String prefix = "Konet" + d.substring(2) + "-";
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("prefix", prefix);
+		int n = mapper.selectQuoteNoCnt(p) + 1;
+		for (int guard = 0; guard < 50; guard++) {                                  // 번호가 비어 있는 자리가 있어도 겹치지 않게
+			String cand = prefix + (n < 10 ? "0" + n : String.valueOf(n));
+			java.util.Map<String,Object> k = new java.util.HashMap<String,Object>(); k.put("compCd", compCd); k.put("docNo", cand);
+			if (mapper.selectQuoteByDoc(k) == null) return cand;
+			n++;
+		}
+		return prefix + n;
+	}
 	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteCompare(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteCompare(p); }
 
 	/* ===== DC 발주 (2026-09-17) — 입고예약서·발주서에서 읽은 줄을 TBL_SHIPOUT_MST 에 PROD_KIND='DC' 로.
