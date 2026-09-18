@@ -38,6 +38,8 @@
   /* 넘치면 두 줄 (2026-09-17) — 줄 높이 26px 은 그대로, 안쪽 글자만 줄여 두 줄로 접고 셋째 줄부터 자른다(장수·빈 줄 계산이 안 흔들린다) */
   .items td.wrap{ white-space:normal; line-height:1.15; font-size:10.5px; padding-top:1px; padding-bottom:1px; }
   .items td.wrap .tx{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-height:25px; word-break:break-all; }
+  /* 숫자 칸(수량·단가·금액)도 넘치면 말줄임(…) 대신 아랫줄로 (2026-09-18 「글자 오버되는 아래로 내려쓰기」 — 칸을 넓혀 보통은 한 줄, 넘칠 때만 두 줄로 접힘) */
+  .items tbody td.r{ white-space:normal; word-break:break-all; line-height:1.1; font-size:11.5px; }
   .foot td{ font-weight:700; }
   .rmk{ margin-top:8px; font-size:12.5px; white-space:pre-wrap; min-height:40px; border:1px solid #222; padding:6px 8px; }
   .comp{ margin-top:14px; text-align:right; font-size:13px; font-weight:700; }
@@ -75,7 +77,8 @@
   <table class="items">
     <c:choose>
       <c:when test="${has2}">
-        <colgroup><col style="width:24%"><col style="width:26%"><col style="width:6%"><col style="width:8%"><col style="width:8%"><col style="width:9%"><col style="width:8%"><col style="width:9%"><col style="width:10%"></colgroup>
+        <%-- 칸 폭 (2026-09-18 「단가가 잘림 — 품명·규격은 조금 축소」) : 품명 24→21 · 규격 26→22 로 줄이고 단가 8→10 · 금액 9→11 로 넓힘 --%>
+        <colgroup><col style="width:21%"><col style="width:22%"><col style="width:6%"><col style="width:8%"><col style="width:10%"><col style="width:11%"><col style="width:10%"><col style="width:11%"><col style="width:9%"></colgroup>
         <thead>
           <tr><td rowspan="2">품목</td><td rowspan="2">규격 및 재질</td><td>단위</td><td>수량</td><td colspan="2">${mst.price1Nm}</td><td colspan="2">${mst.price2Nm}</td><td rowspan="2">비고<br>(MOQ)</td></tr>
           <tr><td>box</td><td>ea</td><td>단가</td><td>금액</td><td>단가</td><td>금액</td></tr>
@@ -94,8 +97,9 @@
       <tr><td class="l wrap"><div class="tx">${it.prodNm}</div></td><td class="l wrap"><div class="tx">${it.spec}</div></td>
           <td class="c"><c:if test="${not empty it.boxQty}"><fmt:formatNumber value="${it.boxQty}" pattern="#,##0.##"/></c:if></td>
           <td class="r"><fmt:formatNumber value="${it.qty}" pattern="#,##0.##"/></td>
-          <td class="r"><fmt:formatNumber value="${it.unitPrice}" pattern="#,##0.##"/></td>
-          <td class="r"><fmt:formatNumber value="${it.amt}" pattern="#,##0"/></td>
+          <%-- 단가·금액 0 은 빈칸 (2026-09-18) — 원가 포함 품명비 줄(단가에 이미 반영·비고에 근거)이 0 으로 찍히지 않게 --%>
+          <td class="r"><c:if test="${not empty it.unitPrice and it.unitPrice > 0}"><fmt:formatNumber value="${it.unitPrice}" pattern="#,##0.##"/></c:if></td>
+          <td class="r"><c:if test="${not empty it.amt and it.amt > 0}"><fmt:formatNumber value="${it.amt}" pattern="#,##0"/></c:if></td>
           <c:if test="${has2}">
           <td class="r"><c:if test="${not empty it.unitPrice2 and it.unitPrice2 > 0}"><fmt:formatNumber value="${it.unitPrice2}" pattern="#,##0.##"/></c:if></td>
           <td class="r"><c:if test="${not empty it.amt2 and it.amt2 > 0}"><fmt:formatNumber value="${it.amt2}" pattern="#,##0"/></c:if></td>

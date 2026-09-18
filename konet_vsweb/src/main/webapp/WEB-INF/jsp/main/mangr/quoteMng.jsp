@@ -151,7 +151,7 @@ function post(url, body, isJson){ return fetch(CTX+url,{ method:'POST', credenti
 function ok(m){ _alertBox(m,{icon:'✅'}); }
 /* 단가 묶음이 둘(센터배송 · 택배출고)이면 열을 넷으로 — 머리글에 묶음 이름 (2026-09-17 둘째 표본) */
 function priceHead(q){ var p1=(q&&q.price1Nm)||'', p2=(q&&q.price2Nm)||''; if(!p2) return '<th>단가</th><th>금액</th>'; return '<th>'+esc(p1||'단가1')+' 단가</th><th>'+esc(p1||'단가1')+' 금액</th><th>'+esc(p2)+' 단가</th><th>'+esc(p2)+' 금액</th>'; }
-function priceCells(l, has2){ var h='<td class="r">'+fmt(l.unitPrice)+'</td><td class="r"><b>'+fmt(l.amt)+'</b></td>'; if(has2) h+='<td class="r">'+(n(l.unitPrice2)?fmt(l.unitPrice2):'')+'</td><td class="r"><b>'+(n(l.amt2)?fmt(l.amt2):'')+'</b></td>'; return h; }
+function priceCells(l, has2){ var h='<td class="r">'+(n(l.unitPrice)?fmt(l.unitPrice):'')+'</td><td class="r"><b>'+(n(l.amt)?fmt(l.amt):'')+'</b></td>'; if(has2) h+='<td class="r">'+(n(l.unitPrice2)?fmt(l.unitPrice2):'')+'</td><td class="r"><b>'+(n(l.amt2)?fmt(l.amt2):'')+'</b></td>'; return h; }   /* 0 은 빈칸 — 원가 포함 품명비 표시 줄(단가·금액 0·비고에 근거) */
 function err(m){ _alertBox(m,{icon:'❌', okColor:'red'}); }
 function ask(m, okText){ return new Promise(function(res){ _confirmBox({ msg:m, icon:'❓', okText:okText||'확인', onOk:function(){res(true);}, onCancel:function(){res(false);} }); }); }
 

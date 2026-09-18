@@ -1038,8 +1038,9 @@ public class UserServiceImpl implements UserService {
 				if (cSpec >= 0) qzSet(row, cSpec, l == null ? "" : scStr(l.get("spec")));
 				qzNumSet(row, cUnit, l == null ? null : l.get("boxQty"));
 				qzNumSet(row, cQty, l == null ? null : l.get("qty"));
-				qzNumSet(row, cP1, l == null ? null : l.get("unitPrice"));
-				qzNumSet(row, cA1, l == null ? null : l.get("amt"));
+				boolean zero1 = l != null && scNum(l.get("unitPrice")) == 0 && scNum(l.get("amt")) == 0;   /* 원가 포함 품명비 표시 줄(2026-09-18) — 0 대신 빈칸, 근거는 비고에 */
+				qzNumSet(row, cP1, (l == null || zero1) ? null : l.get("unitPrice"));
+				qzNumSet(row, cA1, (l == null || zero1) ? null : l.get("amt"));
 				if (two) {   /* 둘째 묶음 단가가 없는 줄(0)은 원본처럼 빈칸 */
 					Object p2 = l == null ? null : l.get("unitPrice2"), a2 = l == null ? null : l.get("amt2");
 					qzNumSet(row, cP2, (p2 == null || scNum(p2) == 0) ? null : p2); qzNumSet(row, cA2, (a2 == null || scNum(a2) == 0) ? null : a2);
