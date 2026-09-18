@@ -98,6 +98,11 @@
   table.csh td.au.b{ color:var(--blue); font-weight:800; background:#eef2f8; }
   table.csh td.neg{ color:var(--red); }
   table.csh td.c{ text-align:center; }
+  /* 도움말 카드 (2026-09-18) — 탭 단추 .qht + 본문 .qhp */
+  .qht{ font-weight:800; color:#37475a; }
+  .qht.on{ background:#e3f2ee; border-color:#0f6b5e; color:#0f6b5e; }
+  .qhp{ padding:10px 14px 12px; font-size:12.5px; line-height:1.8; color:#37475a; }
+  .qhp b{ color:#125a4e; }
   .tot{ font-size:13px; color:#37475a; font-weight:700; } .tot b{ color:var(--teal); }
   .dim{ color:#8a98a8; }
   .csbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:8px 12px; border-bottom:1px solid #eef1f5; font-size:13px; }
@@ -117,7 +122,35 @@
 </head>
 <body>
 <div class="wrap">
-  <h2>🧾 견적서 작성 <small id="mode">새 견적서</small></h2>
+  <h2>🧾 견적서 작성 <small id="mode">새 견적서</small>
+    <button class="btn lnk" style="margin-left:auto" onclick="helpToggle()" title="이 화면 사용법 — 1) 견적서 작성 · 2) 원가·마진 계산">ℹ️ 도움말</button></h2>
+  <%-- 도움말 카드 (2026-09-18 「도움말 버튼으로 1) 견적서작성 2) 원가마진계산」) — 기본 접힘, 매출 그래프 도움말 카드와 같은 방식 --%>
+  <div class="card" id="qHelp" hidden>
+    <div class="hd" style="gap:6px">
+      <button class="btn lnk qht on" id="qhB1" onclick="helpTab(1)">1) 견적서 작성</button>
+      <button class="btn lnk qht" id="qhB2" onclick="helpTab(2)">2) 원가·마진 계산</button>
+      <button class="btn lnk" style="margin-left:auto" onclick="helpToggle()">닫기 ✕</button>
+    </div>
+    <div id="qhP1" class="qhp">
+      <b>흐름</b> : 머리 칸 채우기 → 품목 줄에 [🔍 상품]으로 담기(금액 = 수량 × 단가 자동) → [💾 저장] → [🖨 출력]·[📥 엑셀]<br>
+      · <b>양식</b> — 「센터배송 + 택배출고」 = 단가·금액 <b>두 묶음</b> + 비고(MOQ) / 「단가 하나」 = 묶음 하나.
+        두 묶음 양식이라도 <b>둘째 단가를 한 줄도 안 넣으면 묶음 하나로 저장·출력</b>됩니다(선택한 내용만 나감).<br>
+      · <b>문서번호</b> — 견적일로 자동(고칠 수 있음). <b>같은 문서번호를 저장하면 앞의 것을 대체</b>합니다.<br>
+      · <b>배송</b> — 고르면 제목 줄 「(…, 부가세 별도)」와 비고에 같이 들어갑니다. 다르게 쓰려면 옆 칸에 직접 적으세요.<br>
+      · <b>출력</b> — A4 양식(하단 합계 줄 없음), 품명·규격·비고가 길면 두 줄로 접힙니다. 엑셀은 견적서 양식 파일 그대로.<br>
+      · 저장한 견적서는 <b>견적서관리 목록</b>에서 다시 열기(✏)·출력(🖨)·계산 조회(🧮)를 할 수 있습니다.
+    </div>
+    <div id="qhP2" class="qhp" hidden>
+      <b>여는 법</b> : 품목 줄 맨 앞 <b>[🧮]</b> — 그 품명 밑에 계산 칸이 펼쳐집니다. [➕ 품목 추가 (🧮 세트)] = 품명 + 계산 + 품명비 세트 한 벌씩 이어 붙임.<br>
+      · <b>계산 붙은 줄은 Box 1 · 수량 = 박스 입수량 자동</b>(잠김) — 한 박스 기준으로 계산합니다.<br>
+      · <b>구매(계산)</b> = 단가 + 운송 + 보관 + 소분 + 박스 (+ 원가 포함 품명비/개). 보관은 「보관료 × 팔레트 × 개월 ÷ MOQ」 자동 — 손대면 노란 칸(직접 값).<br>
+      · <b>물류비</b> = 판매 계 × 센터 비율(센터배송) / 택배비(택배) / 없음(직송) — 표 위 「🧮 마진계산 물류비」에서 고릅니다. 비율·보관 기본값은 [⚙]에서(회사 설정).<br>
+      · <b>판매적용단가 = 품목 줄의 단가</b>(같은 값·양방향). 목표 마진율을 넣으면 필요 판매단가가 나오고 [→ 적용]으로 단가에 넣습니다.<br>
+      · <b>품명비(동판·목형)</b> — 「적용 안 함 / 서브 줄로(별도 청구·마진 0) / 원가 포함」. 원가 포함이면 개당(금액÷MOQ)으로 구매(계산)에 들어가고,
+        견적서에는 <b>단가·금액 없는 표시 줄</b> + 비고에 근거(수량 × 단가 = 금액)가 자동 기재됩니다.<br>
+      · 계산 내용은 <b>저장할 때 견적서에 근거자료로 함께 저장</b>됩니다 — 견적서관리 목록의 [🧮]로 그때 값(비율·보관 포함) 그대로 다시 봅니다.
+    </div>
+  </div>
   <div class="card">
     <div class="hd">머리 <small>— 문서번호는 견적일로 자동 매깁니다(고칠 수 있음). 같은 문서번호를 저장하면 앞의 것을 대체합니다</small>
     </div>
@@ -485,6 +518,12 @@ function delivFromTitle(t){ var m=/\((.*?),\s*부가세 별도\)\s*$/.exec(t||''
 function nextNo(force){
   if(!force && gv('docNo')) return;
   post('/mangr/quoteNextNo.do','quoteDt='+encodeURIComponent(gv('quoteDt'))).then(function(r){ return r.json(); }).then(function(j){ if(j&&j.docNo) document.getElementById('docNo').value=j.docNo; }).catch(function(){});
+}
+/* 도움말 (2026-09-18 「도움말 버튼으로 1) 견적서작성 2) 원가마진계산」) — 기본 접힘, 탭 둘 */
+function helpToggle(){ var b=document.getElementById('qHelp'); b.hidden=!b.hidden; }
+function helpTab(k){
+  document.getElementById('qhP1').hidden=(k!==1); document.getElementById('qhP2').hidden=(k!==2);
+  document.getElementById('qhB1').classList.toggle('on',k===1); document.getElementById('qhB2').classList.toggle('on',k===2);
 }
 function newDoc(){
   _seq=0; _savedSeq=0; _savedDocNo=''; _lines=[blank()]; document.getElementById('mode').textContent='새 견적서';
