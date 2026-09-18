@@ -128,9 +128,9 @@
       <table class="g">
         <thead><tr>
           <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th>
-          <th>견적일</th><th>문서번호</th><th>수신</th><th>담당자</th><th>품목</th><th>줄</th><th>금액(부가세 별도)</th><th>유효기간</th><th>원본</th><th title="A4 양식 인쇄 · 작성 화면에서 수정">출력·수정</th><th>등록</th>
+          <th>견적일</th><th>문서번호</th><th>수신</th><th>담당자</th><th>품목</th><th>줄</th><th>금액(부가세 별도)</th><th>유효기간</th><th>원본</th><th title="A4 견적서 양식 인쇄 · 저장된 원가·마진 계산 조회">출력</th><th title="견적서 작성 화면에서 수정">수정</th><th>등록</th>
         </tr></thead>
-        <tbody id="lsBody"><tr><td colspan="12" class="empty">조회 중…</td></tr></tbody>
+        <tbody id="lsBody"><tr><td colspan="13" class="empty">조회 중…</td></tr></tbody>
       </table>
     </div>
     <div id="cmpWrap" hidden></div>
@@ -275,7 +275,7 @@ function docShow(nm){
 /* ── 목록 ── */
 function load(){
   var fr=document.getElementById('fr').value, to=document.getElementById('to').value, mgr=document.getElementById('mgr').value.trim(), q=document.getElementById('q').value.trim();
-  var tb=document.getElementById('lsBody'); tb.innerHTML='<tr><td colspan="12" class="empty">조회 중…</td></tr>';
+  var tb=document.getElementById('lsBody'); tb.innerHTML='<tr><td colspan="13" class="empty">조회 중…</td></tr>';
   _sel=null; document.getElementById('dtlWrap').hidden=true;
   /* 다시 조회(저장·삭제 뒤 포함)하면 아래 비교 표·원본 보기·상세도 접는다 (2026-09-17 「선택 삭제하면 아래도 없어지게」) — 지운 견적서가 비교 표에 남지 않게 */
   _cmp=null; var _cw=document.getElementById('cmpWrap'); if(_cw){ _cw.hidden=true; _cw.innerHTML=''; }
@@ -284,12 +284,12 @@ function load(){
   post('/mangr/quoteList.do','frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)+'&mgrNm='+encodeURIComponent(mgr)+'&findData='+encodeURIComponent(q))
     .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return JSON.parse(t); }); })
     .then(function(j){ _ls=(j&&j.data)||[]; lsRender(); if(_pv.length) pvRender(); })
-    .catch(function(e){ tb.innerHTML='<tr><td colspan="12" class="empty" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
+    .catch(function(e){ tb.innerHTML='<tr><td colspan="13" class="empty" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
 }
 function lsRender(){
   var tb=document.getElementById('lsBody');
   document.getElementById('lsAll').checked=false;
-  if(!_ls.length){ tb.innerHTML='<tr><td colspan="12" class="empty">조건에 맞는 견적서가 없습니다.</td></tr>'; document.getElementById('lsTot').innerHTML=''; return; }
+  if(!_ls.length){ tb.innerHTML='<tr><td colspan="13" class="empty">조건에 맞는 견적서가 없습니다.</td></tr>'; document.getElementById('lsTot').innerHTML=''; return; }
   var amt=0;
   tb.innerHTML=_ls.map(function(x,i){
     amt+=n(x.supplyAmt);
@@ -299,7 +299,10 @@ function lsRender(){
       +'<td class="l" style="max-width:320px">'+esc(x.firstNm)+(n(x.lineCnt)>1?' <span class="dim">외 '+(n(x.lineCnt)-1)+'</span>':'')+'</td>'
       +'<td class="r">'+fmt(x.lineCnt)+'</td><td class="r"><b>'+fmt(x.supplyAmt)+'</b></td><td class="dim">'+esc(x.validTxt)+'</td>'
       +'<td>'+(x.hasFile==='Y'?'<button class="btn lnk" onclick="viewFile('+x.quoteSeq+', this.getAttribute(\x27data-n\x27))" data-n="'+esc(x.fileNm)+'" title="올린 엑셀 양식을 화면에서 봅니다 ('+esc(x.fileNm)+')">📄 원본</button>':'<button class="btn lnk" onclick="window.open(CTX+\'/mangr/quoteExcel.do?quoteSeq='+x.quoteSeq+'\',\'_blank\')" title="우리 견적서 양식 그대로 엑셀로 내려받기">📥 엑셀</button>')+'</td>'
-      +'<td><button class="btn lnk" onclick="printQuote('+x.quoteSeq+')" title="A4 견적서 양식으로 인쇄">🖨</button> <button class="btn lnk" onclick="editQuote('+x.quoteSeq+')" title="견적서 작성 화면에서 수정">✏</button> <button class="btn lnk" onclick="marginView('+i+')" title="저장된 원가·마진 계산(근거자료) 조회">🧮</button></td>'
+      +'<td style="white-space:nowrap"><button class="btn lnk" onclick="printQuote('+x.quoteSeq+')" title="A4 견적서 양식으로 인쇄">🖨 인쇄</button>'
+      /* 마진계산 없는 견적서(hasCalc='N')는 [🧮 계산조회] 를 아예 안 그린다 (2026-09-18 「없으면 아이콘 제외」). ⚠옛 서버(hasCalc 미제공)면 종전대로 그린다 — 눌러도 안내창뿐이라 무해 */
+      +(x.hasCalc==='N' ? '' : ' <button class="btn lnk" onclick="marginView('+i+')" title="저장된 원가·마진 계산(근거자료) 조회">🧮 계산조회</button>')+'</td>'
+      +'<td><button class="btn lnk" style="border-color:#0f6b5e;background:#e3f2ee;color:#0f6b5e;font-weight:800" onclick="editQuote('+x.quoteSeq+')" title="견적서 작성 화면에서 이 견적서를 수정">📝 수정</button></td>'
       +'<td class="dim">'+esc(String(x.regDttm||'').slice(0,16))+(x.regUser?'<br>'+esc(x.regUser):'')+'</td></tr>';
   }).join('');
   document.getElementById('lsTot').innerHTML='<b>'+_ls.length+'</b>건 · 금액 <b>'+fmt(amt)+'</b>원';
@@ -362,12 +365,13 @@ function marginView(i){
     var gen={}; (cj.genRows||[]).forEach(function(r){ gen[r]=true; });
     var mains=lines.filter(function(l){ return !gen[l.rowNo]; });
     var set=cj.set||{}, rate=mgRate(set);
-    var modeTxt= set.mode==='center' ? ('센터배송 — '+esc(set.center||'')+' '+rate+'%') : (set.mode==='parcel' ? ('택배 — 택배비/박스 '+fmt(set.fee)+'원') : '직송 — 물류비 없음');
+    var dcRate=n(set.dcRate);   /* DC 비율 스냅샷(2026-09-18 「DC 비는 11.5%」) — 없는 옛 저장분은 그때 규칙(물류비 0) 그대로 */
+    var modeTxt= set.mode==='center' ? ('센터배송 — '+esc(set.center||'')+' '+rate+'%') : (set.mode==='parcel' ? ('직송 — 직송비/박스 '+fmt(set.fee)+'원') : ('DC — '+(dcRate? dcRate+'%' : '물류비 없음')));   /* 이름 변경 2026-09-18 「직송→DC · 택배→직송」 (값 direct/parcel 은 그대로) */
     var h='<div class="cmp"><div class="dh"><b>🧮 원가·마진 근거</b> <b style="color:#137a6c">'+esc(x.docNo)+'</b> · '+d10(x.quoteDt)
       +' <span class="dim">저장 때 스냅샷 그대로 · 물류비 = '+modeTxt+' · 고치려면 [✏ 수정]</span>'
       +'<button class="btn lnk" style="margin-left:auto" onclick="editQuote('+x.quoteSeq+')">✏ 수정</button>'
       +'<button class="btn lnk" onclick="marginView('+i+')">✕ 닫기</button></div>'
-      +'<div class="tw" style="max-height:56vh"><table class="g"><thead><tr><th class="nm">품명 / 규격</th><th>MOQ수량</th><th>단가</th><th>박스<br>입수량</th><th>구매<br>(계산)</th><th>구매 계</th><th>판매<br>적용단가</th><th>판매 계</th><th>물류비</th><th>실 판매금액</th><th>실 마진금액</th><th>실 마진율</th><th>품명비 (동판·목형)</th></tr></thead><tbody>';
+      +'<div class="tw" style="max-height:56vh"><table class="g"><thead><tr><th class="nm">품명 / 규격</th><th>MOQ수량</th><th>단가</th><th>박스<br>입수량</th><th>구매<br>(계산)</th><th>구매 계</th><th title="확인용 메모 칸(2026-09-18) — 계산과 무관, 작성 화면에서 적은 값 그대로">타겟금액</th><th>판매<br>적용단가</th><th>판매 계</th><th>물류비</th><th>실 판매금액</th><th>실 마진금액</th><th>실 마진율</th><th>품명비 (동판·목형)</th></tr></thead><tbody>';
     var tI=0, tO=0, tP=0, tQ=0, tR=0, rows=0;
     mains.forEach(function(l,idx){
       var c=cj.calcs[idx]; if(!c) return; rows++;
@@ -377,7 +381,7 @@ function marginView(i){
       var store=(c.storeVal!=null)? n(c.storeVal) : n(c.store);
       var H=E+n(c.trans)+store+n(c.split)+n(c.pack)+exPer;
       var I=H*G, N=n(l.unitPrice), O=N*G;
-      var P= set.mode==='center' ? O*rate/100 : (set.mode==='parcel' ? n(set.fee) : 0);
+      var P= set.mode==='center' ? O*rate/100 : (set.mode==='parcel' ? n(set.fee) : O*dcRate/100);
       var Q=O-P, R=Q-I, S=I?(Q/I-1):0;
       tI+=I; tO+=O; tP+=P; tQ+=Q; tR+=R;
       var pb=(c.extras||[]).filter(function(e){ return (e.nm||'').trim()&&(n(e.qty)*n(e.price)||e.use!=='off'); }).map(function(e){
@@ -386,13 +390,14 @@ function marginView(i){
       h+='<tr><td class="nm"><b>'+esc(l.prodNm)+'</b>'+(l.spec?'<div class="sub">'+esc(l.spec)+'</div>':'')+'</td>'
         +'<td class="r">'+fmt(Q0)+'</td><td class="r">'+fmt(E)+'</td><td class="r">'+fmt(G)+'</td>'
         +'<td class="r">'+fmt(H)+'</td><td class="r">'+fmt(I)+'</td>'
+        +'<td class="r">'+(n(c.tgtAmt)?fmt(c.tgtAmt):'<span class="same">—</span>')+'</td>'
         +'<td class="r"><b>'+fmt(N)+'</b></td><td class="r">'+fmt(O)+'</td><td class="r">'+fmt(P)+'</td>'
         +'<td class="r">'+fmt(Q)+'</td><td class="r'+(R<0?' up':'')+'"><b>'+fmt(R)+'</b></td>'
         +'<td class="r"><b'+(S<0?' class="up"':'')+'>'+(I&&O?(Math.round(S*10000)/100)+'%':'')+'</b></td>'
         +'<td class="l" style="white-space:normal;min-width:160px">'+(pb||'<span class="same">—</span>')+'</td></tr>';
     });
     var tS=tI?(tQ/tI-1):0;
-    h+='<tr class="tot"><td class="nm">합계 ('+rows+'품목)</td><td></td><td></td><td></td><td></td><td class="r">'+fmt(tI)+'</td><td></td><td class="r">'+fmt(tO)+'</td><td class="r">'+fmt(tP)+'</td><td class="r">'+fmt(tQ)+'</td><td class="r"><b>'+fmt(tR)+'</b></td><td class="r"><b>'+(tI?(Math.round(tS*10000)/100)+'%':'')+'</b></td><td></td></tr>';
+    h+='<tr class="tot"><td class="nm">합계 ('+rows+'품목)</td><td></td><td></td><td></td><td></td><td class="r">'+fmt(tI)+'</td><td></td><td></td><td class="r">'+fmt(tO)+'</td><td class="r">'+fmt(tP)+'</td><td class="r">'+fmt(tQ)+'</td><td class="r"><b>'+fmt(tR)+'</b></td><td class="r"><b>'+(tI?(Math.round(tS*10000)/100)+'%':'')+'</b></td><td></td></tr>';
     h+='</tbody></table></div></div>';
     w.innerHTML=h;
     try{ w.scrollIntoView({block:'nearest'}); }catch(e){}

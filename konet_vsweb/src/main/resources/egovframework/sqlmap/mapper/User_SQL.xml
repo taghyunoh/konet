@@ -1039,6 +1039,7 @@
 	  SELECT m.QUOTE_SEQ AS quoteSeq, m.DOC_NO AS docNo, ISNULL(m.QUOTE_DT,'') AS quoteDt, ISNULL(m.RECV_NM,'') AS recvNm, ISNULL(m.MGR_NM,'') AS mgrNm,
 	         ISNULL(m.VALID_TXT,'') AS validTxt, ISNULL(m.TITLE_TXT,'') AS titleTxt, ISNULL(m.REMARK,'') AS remark, ISNULL(m.SUPPLY_AMT,0) AS supplyAmt,
 	         ISNULL(m.FILE_NM,'') AS fileNm, CASE WHEN m.FILE_B64 IS NULL THEN 'N' ELSE 'Y' END AS hasFile,
+	         CASE WHEN m.CALC_JSON LIKE '%"moqQty"%' THEN 'Y' ELSE 'N' END AS hasCalc,   /* 마진계산 유무(2026-09-18 「없으면 아이콘 제외」) — calcs 에 실제 객체가 있으면 "moqQty" 가 반드시 들어 있다(marginView 의 안내 조건과 같은 판정) */
 	         ISNULL(m.PRICE1_NM,'') AS price1Nm, ISNULL(m.PRICE2_NM,'') AS price2Nm,   /* 단가 묶음 이름(2026-09-17 둘째 표본) */
 	         ISNULL(d.cnt,0) AS lineCnt, ISNULL(d.firstNm,'') AS firstNm,
 	         m.REG_DTTM AS regDttm, ISNULL(m.REG_USER,'') AS regUser

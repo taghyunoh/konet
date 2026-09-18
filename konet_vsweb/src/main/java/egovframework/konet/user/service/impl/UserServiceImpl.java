@@ -944,6 +944,10 @@ public class UserServiceImpl implements UserService {
 		org.apache.poi.hssf.usermodel.HSSFWorkbook wb = new org.apache.poi.hssf.usermodel.HSSFWorkbook(in);
 		try {
 			org.apache.poi.ss.usermodel.Sheet sh = wb.getSheetAt(0);
+			/* 시트 이름 = 문서번호 (2026-09-18 「상단 문서번호 시트에」 — 종전엔 양식 파일의 시트 이름(0729)이 그대로 나갔다). 엑셀 시트 이름 금지 글자·31자 제한만 걸러 준다 */
+			String shNm = scStr(mst.get("docNo")).replaceAll("[\\\\/:?*\\[\\]]", "-").trim();
+			if (shNm.length() > 31) shNm = shNm.substring(0, 31);
+			if (!shNm.isEmpty()) wb.setSheetName(0, shNm);
 			org.apache.poi.ss.usermodel.DataFormatter df = new org.apache.poi.ss.usermodel.DataFormatter();
 			int hdr = -1, cName = -1, cSpec = -1, cUnit = -1, cQty = -1, cP1 = -1, cA1 = -1, cP2 = -1, cA2 = -1, cRmk = -1; boolean twoRow = false;
 			java.util.Set<String> known = new java.util.HashSet<String>(java.util.Arrays.asList("품명","품목","규격","단위","수량","단가","금액","비고","공급가액","box","ea"));

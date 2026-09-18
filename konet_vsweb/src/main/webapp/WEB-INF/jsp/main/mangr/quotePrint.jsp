@@ -35,9 +35,10 @@
   .items thead td{ background:#f6f7f9; font-weight:700; text-align:center; white-space:nowrap; font-size:12px; padding:4px 2px; }
   /* 품목 표가 종이 아래까지 (2026-09-17 「양식은 하단까지」) — 빈 줄을 22~24줄 채운다 */
   .items td{ height:26px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  /* 넘치면 두 줄 (2026-09-17) — 줄 높이 26px 은 그대로, 안쪽 글자만 줄여 두 줄로 접고 셋째 줄부터 자른다(장수·빈 줄 계산이 안 흔들린다) */
-  .items td.wrap{ white-space:normal; line-height:1.15; font-size:10.5px; padding-top:1px; padding-bottom:1px; }
-  .items td.wrap .tx{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-height:25px; word-break:break-all; }
+  /* ★품명·규격·비고 = 글자 원래 크기 그대로 두고 <여러 줄 내려쓰기> (2026-09-18 「글자 커지고 내려쓰기로」 — 종전 「10.5px 로 줄여 두 줄 클램프」(09-17)를 대체.
+     줄이 길면 그 행 높이가 자란다(26px 은 최소) — 긴 품명이 많으면 종이가 길어질 수 있다 */
+  .items td.wrap{ white-space:normal; line-height:1.25; font-size:12.5px; padding-top:2px; padding-bottom:2px; }
+  .items td.wrap .tx{ word-break:break-all; }
   /* 숫자 칸(수량·단가·금액)도 넘치면 말줄임(…) 대신 아랫줄로 (2026-09-18 「글자 오버되는 아래로 내려쓰기」 — 칸을 넓혀 보통은 한 줄, 넘칠 때만 두 줄로 접힘) */
   .items tbody td.r{ white-space:normal; word-break:break-all; line-height:1.1; font-size:11.5px; }
   .foot td{ font-weight:700; }
@@ -78,14 +79,16 @@
     <c:choose>
       <c:when test="${has2}">
         <%-- 칸 폭 (2026-09-18 「단가가 잘림 — 품명·규격은 조금 축소」) : 품명 24→21 · 규격 26→22 로 줄이고 단가 8→10 · 금액 9→11 로 넓힘 --%>
-        <colgroup><col style="width:21%"><col style="width:22%"><col style="width:6%"><col style="width:8%"><col style="width:10%"><col style="width:11%"><col style="width:10%"><col style="width:11%"><col style="width:9%"></colgroup>
+        <%-- 비고(MOQ) 9→11% (2026-09-18 「비고 칸 늘려주세요」) + 품명 21→19 · 규격 22→18 (「규격·품명 줄이고」 — 내려쓰기로 받는다. 단가·금액 폭은 ⑨ 확정 그대로) --%>
+        <colgroup><col style="width:19%"><col style="width:18%"><col style="width:6%"><col style="width:8%"><col style="width:10%"><col style="width:11%"><col style="width:10%"><col style="width:11%"><col style="width:11%"></colgroup>
         <thead>
           <tr><td rowspan="2">품목</td><td rowspan="2">규격 및 재질</td><td>단위</td><td>수량</td><td colspan="2">${mst.price1Nm}</td><td colspan="2">${mst.price2Nm}</td><td rowspan="2">비고<br>(MOQ)</td></tr>
           <tr><td>box</td><td>ea</td><td>단가</td><td>금액</td><td>단가</td><td>금액</td></tr>
         </thead>
       </c:when>
       <c:otherwise>
-        <colgroup><col style="width:27%"><col style="width:31%"><col style="width:7%"><col style="width:9%"><col style="width:10%"><col style="width:12%"><col style="width:12%"></colgroup>
+        <%-- 비고 12→16% (2026-09-18 「비고 칸 늘려주세요」) + 품명 27→22 · 규격 31→25 (「규격·품명 줄이고」 — 긴 글자는 내려쓰기로 받는다) --%>
+        <colgroup><col style="width:22%"><col style="width:25%"><col style="width:7%"><col style="width:9%"><col style="width:10%"><col style="width:12%"><col style="width:16%"></colgroup>
         <thead>
           <tr><td rowspan="2">품명</td><td rowspan="2">규격</td><td>단위</td><td>수량</td><td rowspan="2">단가</td><td rowspan="2">금액</td><td rowspan="2">비고</td></tr>
           <tr><td>Box</td><td>ea</td></tr>
