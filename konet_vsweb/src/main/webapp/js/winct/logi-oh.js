@@ -6906,3 +6906,66 @@ function logiSideFoldInit(){
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', logiSideFoldInit);
 else logiSideFoldInit();
+
+/* ============================================================================
+   자동 로그아웃 · 재배포 감지 (2026-09-19 「프로그램 사용 안 하면 로그아웃 · 재배포했는데 세션이 안 끊겨 오작동」)
+   ① 미사용 30분 = 자동 로그아웃 — 마지막 손놀림(마우스·키·휠·터치, iframe 안까지)에서 30분이 지나면
+      /user/loginOutAct.do 로 보낸다(세션 무효화 → 로그인 화면). 29분에 빨간 예고줄 — 아무거나 움직이면 유지.
+      ★서버 세션(톰캣 기본 30분)은 아래 ②의 확인 호출이 계속 살려 두므로, 미사용 판정은 <화면의 손놀림>으로만 한다.
+   ② 재배포·재기동 감지 — /user/sessionChk.do 의 boot(서버가 뜰 때마다 새로 만드는 식별자)가 처음 본 값과
+      달라지거나 login=N(세션이 서버에서 사라짐)이면 그 자리에서 로그아웃 → 로그인 화면.
+      «죽은 세션·옛 화면으로 계속 두드리다 생기는 오작동»(재고조정 REG_USER NULL 사고 등)을 끊는 장치다.
+      확인 시점 = 5분마다 + 창에 다시 포커스가 올 때(자리 비웠다 돌아온 그 순간이 가장 위험하다).
+      ⚠fetch 실패(재기동 중 네트워크 오류·옛 서버 404)는 로그아웃하지 않는다 — 다음 확인에서 새 boot 로 잡힌다.
+   ★셸(logistics_demo2)에서만 돈다(.logi-wrap 판정) — demo1 등 iframe 문서가 이 파일을 실어도 감시는 셸 하나뿐.
+   ========================================================================== */
+var KONET_IDLE_MIN = 30;   /* 미사용 자동 로그아웃(분) — 바꾸려면 이 값 하나 */
+var _kIdleLast = Date.now(), _kBoot = '', _kSesBusy = false, _kIdleWarned = false;
+function _kAct(){
+  _kIdleLast = Date.now();
+  if(_kIdleWarned){ _kIdleWarned = false; var w = document.getElementById('kIdleWarn'); if(w && w.parentNode) w.parentNode.removeChild(w); }
+}
+function _kBindDoc(doc){
+  try{
+    if(!doc || doc.__kIdleBound) return; doc.__kIdleBound = true;
+    ['mousedown','keydown','wheel','touchstart'].forEach(function(ev){ doc.addEventListener(ev, _kAct, true); });
+  }catch(e){}
+}
+function _kOut(){ try{ location.replace(KONET_CTX + '/user/loginOutAct.do'); }catch(e){ location.href = KONET_CTX + '/user/loginOutAct.do'; } }
+function _kIdleWarnShow(){
+  if(_kIdleWarned) return; _kIdleWarned = true;
+  var d = document.createElement('div'); d.id = 'kIdleWarn';
+  d.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:2147483000;background:#c0392b;color:#fff;font-weight:800;font-size:14px;padding:10px 18px;border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.3)';
+  d.textContent = '⏰ 1분 뒤 자동 로그아웃됩니다 — 계속 쓰시려면 마우스나 키보드를 움직여 주세요';
+  document.body.appendChild(d);
+}
+function konetSesChk(){
+  if(_kSesBusy) return; _kSesBusy = true;
+  fetch(KONET_CTX + '/user/sessionChk.do', { method:'POST', credentials:'same-origin', cache:'no-store' })
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(j){
+      _kSesBusy = false; if(!j) return;
+      if(j.login !== 'Y'){ _kOut(); return; }                 /* 세션이 서버에서 사라짐(재기동·타임아웃) — 죽은 화면으로 못 두드리게 */
+      if(!_kBoot){ _kBoot = j.boot || ''; return; }           /* 처음 본 boot 를 기억 */
+      if(j.boot && j.boot !== _kBoot) _kOut();                /* 재배포·재기동됨 — 새 화면·새 로그인으로 */
+    })
+    .catch(function(){ _kSesBusy = false; });                 /* 판단 보류 — 재기동 중일 수 있다 */
+}
+(function(){
+  var init = function(){
+    if(!document.querySelector('.logi-wrap')) return;         /* 셸에서만 */
+    _kBindDoc(document);
+    setInterval(function(){                                   /* 30초마다 : 새로 뜬 iframe 에 손놀림 감지 걸기 + 미사용 판정 */
+      var fs2 = document.querySelectorAll('iframe');
+      for(var i = 0; i < fs2.length; i++){ try{ _kBindDoc(fs2[i].contentDocument); }catch(e){} }
+      var idle = Date.now() - _kIdleLast;
+      if(idle >= KONET_IDLE_MIN * 60000) _kOut();
+      else if(idle >= (KONET_IDLE_MIN - 1) * 60000) _kIdleWarnShow();
+    }, 30000);
+    setInterval(konetSesChk, 5 * 60000);
+    window.addEventListener('focus', konetSesChk);
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden) konetSesChk(); });
+    setTimeout(konetSesChk, 4000);                            /* 뜬 직후 boot 값 확보 */
+  };
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();

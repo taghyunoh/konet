@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 세션을 재기동 너머로 살리지 않는다 (2026-09-19 「재배포했는데 세션이 안 끊겨 오작동」).
+     톰캣 기본값은 정지할 때 세션을 SESSIONS.ser 로 저장했다가 재기동 때 복원한다 — 그래서 옛 브라우저 화면이
+     «복원된 세션»으로 새 서버를 계속 두드려 화면과 서버가 어긋났다. Manager pathname="" = 저장 안 함.
+     ⚠server.xml 에 <Context> 를 직접 적어 둔 곳(로컬 9071 개발 톰캣)은 이 파일이 무시된다 —
+       거기는 화면의 재배포 감지(logi-oh.js konetSesChk 의 boot 대조)가 같은 구실을 한다. -->
+<Context>
+  <Manager pathname="" />
+</Context>

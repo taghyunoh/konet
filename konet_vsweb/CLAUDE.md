@@ -1658,6 +1658,25 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
 - 식별은 `data-key` 가 아니라 **메뉴 이름**(`favLabel` = 글자 노드만 — 아이콘·☆ 제외). 실행은 원래 메뉴의 `a.click()` 을 그대로 부른다(화면 여는 방법을 두 벌로 만들지 않는다).
 - 설명서 `panel-guide` **`0-1. 화면 맨 위 공통 줄`** 에 같은 내용이 있다 — **규칙을 고치면 거기도 같이.**
 
+## ★[완료 2026-09-19] 자동 로그아웃 · 재배포 감지 — 「사용 안 하면 로그아웃 · 재배포했는데 세션이 안 끊겨 오작동」
+사용자 신고 = ①장시간 안 쓰다 쓰면 이상 동작 ②재배포 뒤에도 세션이 안 끊겨 오작동. **둘 다 실제 원인이 맞다** :
+서버 세션(톰캣 기본 30분)은 끊기는데 셸 iframe 화면은 로그아웃 전까지 살아 있어 **죽은 세션으로 조회·저장**
+(compCd 빈 값 fail-open 조회 · 재고조정 REG_USER NULL 31줄 사고가 바로 이것 — 09-14 adjLoggedIn 관문의 배경) +
+톰캣은 재기동 때 **세션을 SESSIONS.ser 로 살려 복원**하는 것이 기본이라 옛 화면(옛 JS)이 복원된 세션으로 새 서버를 계속 두드렸다.
+- **①미사용 30분 자동 로그아웃** = [logi-oh.js](src/main/webapp/js/winct/logi-oh.js) 맨 끝 블록(`KONET_IDLE_MIN=30` — 바꾸려면 이 값 하나).
+  손놀림(마우스·키·휠·터치)을 **셸 + 모든 iframe 문서**에 걸어 재고(30초마다 새 iframe 재바인딩 — iframe 은 src 가 바뀌면 문서가 새로 생긴다),
+  29분에 빨간 예고줄(움직이면 해제) · 30분에 `/user/loginOutAct.do`(세션 무효화 → 로그인 화면).
+  ★**서버 세션은 아래 ②의 확인 호출이 계속 살려 두므로**(요청이 있으면 lastAccessedTime 갱신) **미사용 판정은 화면 손놀림으로만** 한다 — 서버 timeout 에 기대지 말 것.
+- **②재배포·재기동 감지** = 신설 `/user/sessionChk.do`(UserController — `BOOT_ID` static UUID = 클래스가 다시 실릴 때마다 새 값 ·
+  `getSession(false)` 라 **세션을 새로 만들지 않는다**) → `{boot, login}`. 화면(`konetSesChk`)이 **5분마다 + 포커스 복귀·탭 다시 보일 때**
+  물어 boot 가 처음 본 값과 다르거나 login=N 이면 즉시 로그아웃. ⚠**fetch 실패(재기동 중·옛 서버 404)는 판단 보류** — 로그아웃 안 함, 다음 확인이 잡는다.
+- **③세션 재기동 생존 차단** = 신규 [META-INF/context.xml](src/main/webapp/META-INF/context.xml) `<Manager pathname=""/>` —
+  ⚠server.xml 에 Context 를 직접 적은 곳(로컬 9071)은 이 파일이 무시된다(거긴 ② boot 감지가 막는다).
+- 감시는 **셸(logistics_demo2)에서만** 돈다(`.logi-wrap` 판정 — demo1 도 logi-oh.js 를 싣지만 초기화가 건너뛴다). web.xml session-timeout 은 안 건드렸다(기본 30분).
+- ⚠**konet_vsapp 미반영** — UserController 가 09-17 이후 견적 기능(웹 전용)을 품어 통째 복사가 불가(컴파일 깨짐). 앱에도 넣을지는 결정 사안(모바일은 세션 쿠키 KONETAPP_SID 별도).
+- 검증 = 스텁 11검사(타이머 2개 · 29분 예고/움직이면 해제 · 30분 로그아웃 · 첫 boot 기억 · 같은 boot 유지 · boot 변경/세션 소멸 로그아웃 · 404/네트워크 오류 보류 · 셸 아니면 무시) ·
+  `node --check` · context.xml 정형성·CRLF · `mvn -o compile`. **배포 : 자바 + context.xml → WAR 재빌드 + 재기동**(logi-oh.js·JSP 는 파일 교체 — 단 sessionChk.do 가 없는 서버에서는 404 = 판단 보류라 무해).
+
 ## 업무 설명서 동기화 (필수 방침)
 - **메뉴·기능이 바뀔 때마다 `logistics_demo2.jsp`의 업무설명서 패널(`panel-guide`)도 반드시 함께 수정**한다 (사용자 상시 요청 2026-07-05). 화면 추가/삭제/이동, 성격 변경 시 설명서 표의 해당 행을 갱신.
 

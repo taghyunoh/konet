@@ -247,6 +247,21 @@ public class UserController {
 			return "redirect:/konet.do";
 		}
 
+		/* ★서버 기동 식별자 (2026-09-19 「재배포했는데 세션이 안 끊겨 오작동」) — 클래스가 다시 실릴 때(재배포·재기동)마다 새 값.
+		   화면(logi-oh.js konetSesChk)이 5분마다·포커스 복귀 때 물어, 값이 달라졌으면 강제 로그아웃해 새 화면·새 세션으로 다시 들어오게 한다. */
+		private static final String BOOT_ID = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+
+		/* 세션·재배포 확인 — ⚠세션을 새로 만들지 않는다(getSession(false)). login=N(세션 소멸) 또는 boot 변경이면 화면이 스스로 로그아웃한다. */
+		@RequestMapping(value = "/user/sessionChk.do")
+		public ResponseEntity<String> sessionChk(HttpServletRequest request) {
+			HttpSession s = request.getSession(false);
+			boolean in = s != null && s.getAttribute("s_comp_cd") != null;
+			return ResponseEntity.ok()
+				.header("Content-Type", "application/json; charset=UTF-8")
+				.header("Cache-Control", "no-store")
+				.body("{\"boot\":\"" + BOOT_ID + "\",\"login\":\"" + (in ? "Y" : "N") + "\"}");
+		}
+
 		// =====================================================================
 		// 환자(T_USER_TRAN, USER_GB='P') 로그인 / 회원가입
 		// =====================================================================
