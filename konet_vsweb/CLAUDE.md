@@ -1682,6 +1682,19 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
   ★**이 프로젝트에서 `ResponseEntity<String>` 로 JSON 을 돌려주는 새 엔드포인트를 만들면 화면은 늘 이 두 겹을 의심할 것.**
 - ✅재기동 실측(2026-09-19 09:12) : 한 JVM 이 9071·9013 둘 다(유령 없음) · Server startup 35s·BindException 0 · sessionChk 200(boot=82c1…·login=N·no-store) · quoteList(hasCalc 매퍼) 200.
 
+## ★[완료 2026-09-19] 회사 도장 — 발주서 · 견적서 · 거래명세표 전부
+사용자 요청 「회사에서 발주서나 견적서·거래명세표 나갈 때 회사 도장 적용되게」. 도장 원천 = 회사 정보 수정 ② (`TBL_COMP_SET.STAMP_IMG`, data URL) — `selectCompInfo` 가 이미 `stampImg` 로 돌려준다(DDL·매퍼 무변경).
+- **거래명세표** = 원래 됨(2026-09-11 — stmt-sheet.js 성명 칸, 인쇄·공개 링크 `stmtJson` S.stamp 모두). 손대지 않음.
+- **발주서** [poPrint.jsp](src/main/webapp/WEB-INF/jsp/main/mangr/poPrint.jsp) — 공급받는자(우리 회사) 「성명」 칸. 로그인 인쇄(`/mangr/poPrint.do`)·카톡 공개 링크(`/pub/po.do`) **둘 다 같은 JSP** 라 한 번에 적용(공개 링크는 전표의 compCd 로 회사 정보를 읽는다 — 세션 없이도 됨).
+- **견적서 인쇄** [quotePrint.jsp](src/main/webapp/WEB-INF/jsp/main/mangr/quotePrint.jsp) — 공급자 「대표이사」 칸.
+- **견적서 엑셀**(`buildQuoteXls` → 신설 `quoteXlsStamp`) — 컨트롤러 `quoteExcel` 이 회사 도장을 `mst.stampImg` 로 실어 넘기고, 양식 헤더 스캔에서 「대표이사」(·대표자·성명) 값 칸을 기억해 그 칸 오른쪽에 **HSSF 그림(높이≈44px, 칸 폭 60% 상한)**.
+  ⚠**`getDrawingPatriarch()` 먼저** — `createDrawingPatriarch()` 는 양식에 있던 그림·도형을 지운다(HSSF). PNG·JPEG 만(HSSF 가 받는 형식 — 저장 화면이 PNG 로 줄여 올린다), 그 밖·실패는 도장만 빠지고 엑셀은 나간다.
+  ★**[같은 날] 「엑셀은 너무 작게 찍힘」** — `pic.resize()` 가 그림 DPI·기본 글꼴 폭으로 다시 셈해 아주 작게 찍혔다 ⇒ resize 폐기, **시작·끝 칸 + 칸 안 오프셋을 직접 셈한 앵커**(높이 56px · 병합 값 영역 안 · 이름 끝 글자를 반쯤 덮는 자리 · 칸 세로 가운데라 위아래 줄로 살짝 넘침). 하네스 11검사 재통과. ⚠자바 — 재빌드+재기동부터.
+- 모양 = **stmt-sheet 와 같은 수법**(`td.stc{position:relative;overflow:visible}` + `img.stamp` 절대배치·칸 높이 불변·인쇄 색 유지 `print-color-adjust:exact`). JSP 는 `fn:startsWith(stampImg,'data:image/')` 일 때만 그린다(저장 때 서버 관문과 이중).
+- 검증 = `mvn -o compile` · **실제 buildQuoteXls 를 양식 두 벌(tpl1·tpl2)로 돌린 하네스 11검사**(scratch `StampXlsTest.java` — 도장 1장 추가 · 양식 원래 도형 보존 · 대표이사(6행) 오른쪽 값 칸에 앵커 · 시트 이름 = 문서번호 · SVG 등 불가 형식은 그림 없음) · CRLF.
+  ⚠화면(JSP) 렌더 실측은 못 했다 — 확인 시점에 9071 톰캣이 내려가 있었다(자바 프로세스 없음). 재기동 뒤 발주서·견적서 [🖨 출력]으로 눈 확인 필요.
+- **배포** : JSP 2개는 새로고침 · **견적서 엑셀 도장은 자바 → WAR 재빌드 + 재기동**. konet_vsapp 미반영(견적 기능 없음 · 발주서 poPrint 는 앱에도 있으니 필요하면 JSP 한 장 복사).
+
 ## 업무 설명서 동기화 (필수 방침)
 - **메뉴·기능이 바뀔 때마다 `logistics_demo2.jsp`의 업무설명서 패널(`panel-guide`)도 반드시 함께 수정**한다 (사용자 상시 요청 2026-07-05). 화면 추가/삭제/이동, 성격 변경 시 설명서 표의 해당 행을 갱신.
 

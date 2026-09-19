@@ -298,7 +298,7 @@ function lsRender(){
       +'<td>'+d10(x.quoteDt)+'</td><td><b>'+esc(x.docNo)+'</b>'+(x.hasFile==='Y'?'<span class="bd up" title="엑셀 파일을 올려 저장한 견적서 ('+esc(x.fileNm)+')">올림</span>':'<span class="bd hand" title="견적서 작성 화면에서 직접 작성한 견적서(올린 파일 없음)">✍ 직접 작성</span>')+'</td><td>'+esc(x.recvNm)+'</td><td>'+esc(x.mgrNm)+'</td>'
       +'<td class="l" style="max-width:320px">'+esc(x.firstNm)+(n(x.lineCnt)>1?' <span class="dim">외 '+(n(x.lineCnt)-1)+'</span>':'')+'</td>'
       +'<td class="r">'+fmt(x.lineCnt)+'</td><td class="r"><b>'+fmt(x.supplyAmt)+'</b></td><td class="dim">'+esc(x.validTxt)+'</td>'
-      +'<td>'+(x.hasFile==='Y'?'<button class="btn lnk" onclick="viewFile('+x.quoteSeq+', this.getAttribute(\x27data-n\x27))" data-n="'+esc(x.fileNm)+'" title="올린 엑셀 양식을 화면에서 봅니다 ('+esc(x.fileNm)+')">📄 원본</button>':'<button class="btn lnk" onclick="window.open(CTX+\'/mangr/quoteExcel.do?quoteSeq='+x.quoteSeq+'\',\'_blank\')" title="우리 견적서 양식 그대로 엑셀로 내려받기">📥 엑셀</button>')+'</td>'
+      +'<td>'+(x.hasFile==='Y'?'<button class="btn lnk" onclick="viewFile('+x.quoteSeq+', this.getAttribute(\x27data-n\x27))" data-n="'+esc(x.fileNm)+'" title="올린 엑셀 양식을 화면에서 봅니다 ('+esc(x.fileNm)+')">📄 원본</button>':'<button class="btn lnk" onclick="fileDown(CTX+\'/mangr/quoteExcel.do?quoteSeq='+x.quoteSeq+'\', \'견적서.xls\')" title="우리 견적서 양식 그대로 엑셀로 내려받기">📥 엑셀</button>')+'</td>'
       +'<td style="white-space:nowrap"><button class="btn lnk" onclick="printQuote('+x.quoteSeq+')" title="A4 견적서 양식으로 인쇄">🖨 인쇄</button>'
       /* 마진계산 없는 견적서(hasCalc='N')는 [🧮 계산조회] 를 아예 안 그린다 (2026-09-18 「없으면 아이콘 제외」). ⚠옛 서버(hasCalc 미제공)면 종전대로 그린다 — 눌러도 안내창뿐이라 무해 */
       +(x.hasCalc==='N' ? '' : ' <button class="btn lnk" onclick="marginView('+i+')" title="저장된 원가·마진 계산(근거자료) 조회">🧮 계산조회</button>')+'</td>'
@@ -308,7 +308,21 @@ function lsRender(){
   document.getElementById('lsTot').innerHTML='<b>'+_ls.length+'</b>건 · 금액 <b>'+fmt(amt)+'</b>원';
 }
 function lsAllChk(el){ Array.prototype.forEach.call(document.querySelectorAll('.lchk'), function(c){ c.checked=el.checked; }); }
-function dl(seq){ window.open(CTX+'/mangr/quoteFile.do?quoteSeq='+seq, '_blank'); }
+function dl(seq){ fileDown(CTX+'/mangr/quoteFile.do?quoteSeq='+seq, '견적서.xls'); }
+/* 파일 받기 — 새 창(window.open) 대신 이 화면에서 받는다 (2026-09-19 「엑셀 출력 시 화면이 다른 데로 갔다 온다」 — 새 탭이 떴다 닫히며 화면이 튀었다) */
+function fileDown(url, fallbackNm){
+  fetch(url, {credentials:'same-origin'}).then(function(r){
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var cd=r.headers.get('Content-Disposition')||'', nm=fallbackNm||'download';
+    var m=/filename\*=UTF-8''([^;]+)/i.exec(cd) || /filename="?([^";]+)"?/i.exec(cd);
+    if(m){ try{ nm=decodeURIComponent(m[1]); }catch(e){ nm=m[1]; } }
+    return r.blob().then(function(b){
+      var a=document.createElement('a'), u=URL.createObjectURL(b);
+      a.href=u; a.download=nm; a.style.display='none'; document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(u); a.remove(); }, 1500);
+    });
+  }).catch(function(e){ _alertBox('파일을 받지 못했습니다 — '+(e&&e.message||e),{icon:'⚠️'}); });
+}
 /* 출력 · 수정 (2026-09-17 「여기에서 견적서 작성 및 출력 가능하게」) — 인쇄는 새 창(A4), 수정은 셸의 견적서 작성 화면을 그 번호로 연다 */
 function printQuote(seq){ window.open(CTX+'/mangr/quotePrint.do?quoteSeq='+seq, '_blank'); }
 function editQuote(seq){

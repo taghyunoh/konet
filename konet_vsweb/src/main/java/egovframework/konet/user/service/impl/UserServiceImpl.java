@@ -950,6 +950,7 @@ public class UserServiceImpl implements UserService {
 			if (!shNm.isEmpty()) wb.setSheetName(0, shNm);
 			org.apache.poi.ss.usermodel.DataFormatter df = new org.apache.poi.ss.usermodel.DataFormatter();
 			int hdr = -1, cName = -1, cSpec = -1, cUnit = -1, cQty = -1, cP1 = -1, cA1 = -1, cP2 = -1, cA2 = -1, cRmk = -1; boolean twoRow = false;
+			int ceoRow = -1, ceoCol = -1;   /* 「대표이사」 값 칸 — 회사 도장을 겹쳐 찍는 자리 (2026-09-19) */
 			java.util.Set<String> known = new java.util.HashSet<String>(java.util.Arrays.asList("품명","품목","규격","단위","수량","단가","금액","비고","공급가액","box","ea"));
 			for (int r = 0; r <= sh.getLastRowNum(); r++) {
 				org.apache.poi.ss.usermodel.Row row = sh.getRow(r); if (row == null) continue;
@@ -965,6 +966,7 @@ public class UserServiceImpl implements UserService {
 						if (d.length() == 8) c.setCellValue(new java.text.SimpleDateFormat("yyyyMMdd").parse(d)); else c.setCellValue("");
 					}
 					else if ("담당자".equals(k)) qzSet(row, vc, scStr(mst.get("mgrNm")));
+					else if (("대표이사".equals(k) || "대표자".equals(k) || "성명".equals(k)) && ceoRow < 0) { ceoRow = r; ceoCol = vc; }   /* 값은 양식 그대로 — 자리만 기억 */
 					else if ("유효기간".equals(k)) qzSet(row, vc, scStr(mst.get("validTxt")));
 					else if (e.getValue().indexOf("견적을") >= 0 && e.getValue().indexOf("드립니다") >= 0 && !scStr(mst.get("titleTxt")).isEmpty()) qzSet(row, e.getKey(), scStr(mst.get("titleTxt")));
 				}
@@ -1080,10 +1082,65 @@ public class UserServiceImpl implements UserService {
 				if (rrow != null) { java.util.TreeMap<Integer,String> rc = qzRowText(rrow, df); for (Integer c : rc.keySet()) qzColor(wb, rrow, c, RED, cache); }
 			}
 			try { wb.getCreationHelper().createFormulaEvaluator().evaluateAll(); } catch (Exception e) { /* 수식이 있어도 값은 넣어 뒀다 */ }
+			quoteXlsStamp(wb, sh, scStr(mst.get("stampImg")), ceoRow, ceoCol);
 			java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
 			wb.write(bo);
 			return bo.toByteArray();
 		} finally { wb.close(); in.close(); }
+	}
+	/* 견적서 엑셀에 회사 도장 (2026-09-19 「발주서·견적서·거래명세표 나갈 때 회사 도장」) — 「대표이사」 값(이름) 끝에 겹쳐 찍는다.
+	   ・도장 = 회사 정보 수정 ② 에서 올린 data URL(PNG·JPEG 만 — HSSF 가 받는 그림 형식). 없거나 형식이 다르면 아무것도 안 한다.
+	   ・⚠getDrawingPatriarch() 를 먼저 — createDrawingPatriarch() 는 양식에 이미 있는 그림·도형을 지운다(HSSF).
+	   ・⚠pic.resize() 를 쓰지 않는다 — 그림의 DPI·기본 글꼴 폭으로 크기를 다시 셈해 엑셀에서 <아주 작게> 찍혔다(2026-09-19 「엑셀은 너무 작게」).
+	     ⇒ 시작·끝 칸과 칸 안 오프셋(dx 1/1024 · dy 1/256)을 직접 셈해 <정한 픽셀 크기>로 박는다.
+	   ・크기 = 높이 약 56px(칸보다 조금 크게, 위아래 줄로 살짝 넘침 — 실제 도장 찍은 모양), 가로 = 이름 글자 끝을 반쯤 덮는 자리. 실패해도 엑셀은 그대로 나간다. */
+	private static final double STAMP_XLS_H = 46;
+	private static double xlsColPx(org.apache.poi.ss.usermodel.Sheet sh, int c) { return Math.max(4, sh.getColumnWidth(c) / 256.0 * 7 + 5); }
+	private static double xlsRowPx(org.apache.poi.ss.usermodel.Sheet sh, int r) { org.apache.poi.ss.usermodel.Row rw = sh.getRow(r); return Math.max(4, (rw == null ? sh.getDefaultRowHeightInPoints() : rw.getHeightInPoints()) * 96 / 72.0); }
+	private static void quoteXlsStamp(org.apache.poi.hssf.usermodel.HSSFWorkbook wb, org.apache.poi.ss.usermodel.Sheet sh0, String dataUrl, int row, int col) {
+		try {
+			if (row < 0 || col < 0 || dataUrl == null) return;
+			java.util.regex.Matcher m = java.util.regex.Pattern.compile("^data:image/(png|jpeg|jpg);base64,(.+)$", java.util.regex.Pattern.DOTALL).matcher(dataUrl.trim());
+			if (!m.find()) return;
+			byte[] img = java.util.Base64.getMimeDecoder().decode(m.group(2));
+			java.awt.image.BufferedImage bi = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(img));
+			if (bi == null || bi.getHeight() <= 0 || bi.getWidth() <= 0) return;
+			int type = "png".equals(m.group(1)) ? org.apache.poi.ss.usermodel.Workbook.PICTURE_TYPE_PNG : org.apache.poi.ss.usermodel.Workbook.PICTURE_TYPE_JPEG;
+			org.apache.poi.hssf.usermodel.HSSFSheet sh = (org.apache.poi.hssf.usermodel.HSSFSheet) sh0;
+			/* 값 칸이 병합(E~H)이면 그 영역 전체 폭을 쓴다 */
+			int c0 = col, c1 = col;
+			for (int i = 0; i < sh.getNumMergedRegions(); i++) {
+				org.apache.poi.ss.util.CellRangeAddress ra = sh.getMergedRegion(i);
+				if (ra.isInRange(row, col)) { c0 = ra.getFirstColumn(); c1 = ra.getLastColumn(); break; }
+			}
+			double regW = 0; for (int c = c0; c <= c1; c++) regW += xlsColPx(sh, c);
+			/* 이름 글자 폭 근사(맑은 고딕 11pt : 한글 15px · 빈칸 4px · 그 밖 8px) + 왼쪽 여백 3px */
+			String nm = ""; org.apache.poi.ss.usermodel.Row r0 = sh.getRow(row);
+			if (r0 != null && r0.getCell(c0) != null) nm = new org.apache.poi.ss.usermodel.DataFormatter().formatCellValue(r0.getCell(c0)).trim();
+			double txtW = 3; for (char ch : nm.toCharArray()) txtW += ch == ' ' ? 4 : (ch >= 0xAC00 && ch <= 0xD7A3 ? 15 : 8);
+			double hPx = STAMP_XLS_H, wPx = hPx * bi.getWidth() / (double) bi.getHeight();
+			double x = nm.isEmpty() ? regW / 2 - wPx / 2 : txtW - wPx * 0.15;     /* 이름 바로 뒤 — 끝 글자에 살짝만 걸친다 (2026-09-19 「위치 조정」) */
+			if (x + wPx > regW - 2) x = regW - 2 - wPx;
+			if (x < 0) x = 0;
+			if (wPx > regW) { wPx = regW; hPx = wPx * bi.getHeight() / (double) bi.getWidth(); x = 0; }
+			double y = xlsRowPx(sh, row) / 2 - hPx / 2;                              /* 칸 세로 가운데 — 음수면 윗줄로 */
+			/* 픽셀 → (칸, 칸 안 오프셋) */
+			int ca = c0; double xa = x; while (ca < c1 && xa >= xlsColPx(sh, ca)) { xa -= xlsColPx(sh, ca); ca++; }
+			int cb = ca; double xb = xa + wPx; while (xb > xlsColPx(sh, cb) && cb < c1 + 20) { xb -= xlsColPx(sh, cb); cb++; }
+			int ra = row; double ya = y; while (ya < 0 && ra > 0) { ra--; ya += xlsRowPx(sh, ra); } if (ya < 0) ya = 0;
+			while (ya >= xlsRowPx(sh, ra)) { ya -= xlsRowPx(sh, ra); ra++; }
+			int rb = ra; double yb = ya + hPx; while (yb > xlsRowPx(sh, rb)) { yb -= xlsRowPx(sh, rb); rb++; }
+			int dx1 = (int) Math.min(1023, Math.round(xa / xlsColPx(sh, ca) * 1023)), dx2 = (int) Math.min(1023, Math.round(xb / xlsColPx(sh, cb) * 1023));
+			int dy1 = (int) Math.min(255, Math.round(ya / xlsRowPx(sh, ra) * 255)), dy2 = (int) Math.min(255, Math.round(yb / xlsRowPx(sh, rb) * 255));
+			int idx = wb.addPicture(img, type);
+			org.apache.poi.hssf.usermodel.HSSFPatriarch pa = sh.getDrawingPatriarch();
+			if (pa == null) pa = sh.createDrawingPatriarch();
+			org.apache.poi.hssf.usermodel.HSSFClientAnchor an = new org.apache.poi.hssf.usermodel.HSSFClientAnchor(dx1, dy1, dx2, dy2, (short) ca, ra, (short) cb, rb);
+			an.setAnchorType(org.apache.poi.ss.usermodel.ClientAnchor.AnchorType.MOVE_DONT_RESIZE);
+			org.apache.poi.hssf.usermodel.HSSFPicture pic = pa.createPicture(an, idx);
+			pic.setLineStyle(org.apache.poi.hssf.usermodel.HSSFShape.LINESTYLE_NONE);   /* 그림 테두리(회색 네모) 없앰 */
+			pic.setNoFill(true);
+		} catch (Throwable e) { /* 도장만 빠지고 엑셀은 나간다 */ }
 	}
 	/* 문서번호 = 'Konet' + 견적일 yyMMdd + '-' + 두 자리 차례 (표본 Konet260729-01 과 같은 꼴). 그날 번호가 이미 있으면 다음 번호 */
 	@Override public String nextQuoteNo(String compCd, String quoteDt) throws Exception {

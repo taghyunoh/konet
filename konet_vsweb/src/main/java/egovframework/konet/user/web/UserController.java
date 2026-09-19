@@ -1345,6 +1345,12 @@ public class UserController {
 			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("quoteSeq", Long.valueOf(quoteSeq));
 			Map<String,Object> mst = svc.selectQuoteMst(q);
 			if (mst == null) { response.sendError(404); return; }
+			/* 회사 도장 (2026-09-19) — 인쇄(quotePrint)와 같은 회사 정보에서. 엑셀 「대표이사」 칸에 겹쳐 찍힌다 */
+			try {
+				Map<String,Object> c = new HashMap<String,Object>(); c.put("compCd", session.getAttribute("s_comp_cd"));
+				Map<String,Object> comp = svc.selectCompInfo(c);
+				if (comp != null && comp.get("stampImg") != null) mst.put("stampImg", comp.get("stampImg"));
+			} catch (Exception e) { /* 도장 없이 나간다 */ }
 			byte[] b = svc.buildQuoteXls(mst, svc.selectQuoteDtl(q));
 			String nm = poStr(mst.get("docNo")); if (nm.isEmpty()) nm = "견적서"; nm += ".xls";
 			String enc = java.net.URLEncoder.encode(nm, "UTF-8").replace("+", "%20");

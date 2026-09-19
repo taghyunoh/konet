@@ -685,7 +685,21 @@ function save(){
 function printIt(){ if(!_savedSeq){ _alertBox('먼저 [💾 저장]을 하세요 — 저장된 견적서를 인쇄합니다.',{icon:'ℹ️'}); return; } window.open(CTX+'/mangr/quotePrint.do?quoteSeq='+_savedSeq, '_blank'); }
 /* 엑셀 = 서버가 우리 양식 파일(quote_tpl1/2.xls)에 값을 채워 준다 (2026-09-17 「양식 그대로」). 저장된 견적서만.
    ★둘째 묶음을 안 쓴 견적서는 저장 때 price2Nm 이 비므로 양식 1 로 나간다(「엑셀출력도 동일하게」 — 선택한 내용만). 양식엔 합계 줄이 원래 없다. */
-function excel(){ if(!_savedSeq){ _alertBox('먼저 [💾 저장]을 하세요 — 저장된 견적서를 양식 그대로 엑셀로 냅니다.',{icon:'ℹ️'}); return; } window.open(CTX+'/mangr/quoteExcel.do?quoteSeq='+_savedSeq, '_blank'); }
+function excel(){ if(!_savedSeq){ _alertBox('먼저 [💾 저장]을 하세요 — 저장된 견적서를 양식 그대로 엑셀로 냅니다.',{icon:'ℹ️'}); return; } fileDown(CTX+'/mangr/quoteExcel.do?quoteSeq='+_savedSeq, '견적서.xls'); }
+/* 파일 받기 — 새 창(window.open) 대신 이 화면에서 받는다 (2026-09-19 「엑셀 출력 시 화면이 다른 데로 갔다 온다」 — 새 탭이 떴다 닫히며 화면이 튀었다) */
+function fileDown(url, fallbackNm){
+  fetch(url, {credentials:'same-origin'}).then(function(r){
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var cd=r.headers.get('Content-Disposition')||'', nm=fallbackNm||'download';
+    var m=/filename\*=UTF-8''([^;]+)/i.exec(cd) || /filename="?([^";]+)"?/i.exec(cd);
+    if(m){ try{ nm=decodeURIComponent(m[1]); }catch(e){ nm=m[1]; } }
+    return r.blob().then(function(b){
+      var a=document.createElement('a'), u=URL.createObjectURL(b);
+      a.href=u; a.download=nm; a.style.display='none'; document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(u); a.remove(); }, 1500);
+    });
+  }).catch(function(e){ _alertBox('파일을 받지 못했습니다 — '+(e&&e.message||e),{icon:'⚠️'}); });
+}
 
 /* 시작 — ?quoteSeq= 이면 수정, 아니면 새 견적서.
    ★URL 의 quoteSeq 는 <한 번만> 쓴다 (2026-09-18 「견적서 작성 선택하면 찾을 수 없습니다 발생」) — iframe 은 로그아웃 전까지 그대로라

@@ -46,6 +46,11 @@
   .items thead td{ background:#f6f7f9; font-weight:700; text-align:center; }
   .foot td{ font-weight:700; }
   .none{ text-align:center; padding:60px 20px; color:#8a97a4; font-size:16px; }
+  /* 회사 도장 (2026-09-19 「발주서·견적서·거래명세표 나갈 때 회사 도장」) — 거래명세표(stmt-sheet)와 같은 수법 :
+     성명 칸 오른쪽에 겹쳐 찍고 칸 높이는 안 늘린다(그림이 칸 밖으로 비어져 나온다). 도장 = 회사 정보 수정 ② 에서 올린 것 */
+  td.stc{ position:relative; overflow:visible; }
+  img.stamp{ position:absolute; right:4px; top:50%; transform:translateY(-50%); height:40px; max-width:60%; object-fit:contain; opacity:.92;
+             pointer-events:none; z-index:2; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   @media print { body{ background:#fff; } .bar{ display:none; } .sheet{ width:auto; min-height:auto; margin:0; padding:0; box-shadow:none; } @page{ size:A4 portrait; margin:12mm 10mm; } }
 </style>
 </head>
@@ -69,7 +74,9 @@
         <td rowspan="4" class="c" style="font-weight:700; line-height:1.15">공<br>급<br>받<br>는<br>자</td>
         <td class="k">등록번호</td><td colspan="3" class="c">${comp.busiNum}</td></tr>
     <tr><td colspan="2" class="c">아래와 같이 발주합니다.</td>
-        <td class="k">상호</td><td class="c">${comp.compNm}</td><td class="k">성명</td><td class="c">${comp.compCeo}</td></tr>
+        <%-- 도장은 data:image/ 로 시작할 때만(저장 때 서버가 이 꼴만 받는다 — 두 번째 문지기) --%>
+        <c:set var="stampOk" value="${not empty comp.stampImg and fn:startsWith(comp.stampImg, 'data:image/')}"/>
+        <td class="k">상호</td><td class="c">${comp.compNm}</td><td class="k">성명</td><td class="c${stampOk ? ' stc' : ''}">${comp.compCeo}<c:if test="${stampOk}"><img class="stamp" alt="" src="${comp.stampImg}"></c:if></td></tr>
     <tr><td colspan="2" class="r"><b>${mst.vendorNm}</b> 귀하</td>
         <td class="k">사업장</td><td colspan="3" class="l wrap"><div class="tx">${comp.compAddr}</div></td></tr>
     <tr><td class="k">합계액</td><td class="r"><b><fmt:formatNumber value="${mst.totAmt}" pattern="#,##0"/></b> 원정</td>

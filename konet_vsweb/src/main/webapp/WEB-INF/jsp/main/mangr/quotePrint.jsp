@@ -45,6 +45,10 @@
   .rmk{ margin-top:8px; font-size:12.5px; white-space:pre-wrap; min-height:40px; border:1px solid #222; padding:6px 8px; }
   .comp{ margin-top:14px; text-align:right; font-size:13px; font-weight:700; }
   .none{ text-align:center; padding:60px 20px; color:#8a97a4; font-size:16px; }
+  /* 회사 도장 (2026-09-19 「발주서·견적서·거래명세표 나갈 때 회사 도장」) — 거래명세표(stmt-sheet)·발주서와 같은 수법 */
+  td.stc{ position:relative; overflow:visible; }
+  img.stamp{ position:absolute; right:6px; top:50%; transform:translateY(-50%); height:44px; max-width:60%; object-fit:contain; opacity:.92;
+             pointer-events:none; z-index:2; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   @media print { body{ background:#fff; } .bar{ display:none; } .sheet{ width:auto; min-height:auto; margin:0; padding:0; box-shadow:none; } @page{ size:A4 portrait; margin:12mm 10mm; } }
 </style>
 </head>
@@ -70,7 +74,9 @@
     <tr><td class="side" rowspan="5">수급자</td><td class="k">문서 번호</td><td class="l"><b>${mst.docNo}</b></td>
         <td class="side" rowspan="5">공급자</td><td class="k">사업 번호</td><td class="c">${comp.busiNum}</td></tr>
     <tr><td class="k">수 신</td><td class="l">${mst.recvNm}</td><td class="k">상 호</td><td class="c">${comp.compNm}</td></tr>
-    <tr><td class="k">견적일</td><td class="l">${fn:substring(mst.quoteDt,0,4)}-${fn:substring(mst.quoteDt,4,6)}-${fn:substring(mst.quoteDt,6,8)}</td><td class="k">대표이사</td><td class="c">${comp.compCeo}</td></tr>
+    <%-- 회사 도장 (2026-09-19) — 대표이사 칸 오른쪽에 겹쳐 찍는다(칸 높이 불변). data:image/ 로 시작할 때만 --%>
+    <c:set var="stampOk" value="${not empty comp.stampImg and fn:startsWith(comp.stampImg, 'data:image/')}"/>
+    <tr><td class="k">견적일</td><td class="l">${fn:substring(mst.quoteDt,0,4)}-${fn:substring(mst.quoteDt,4,6)}-${fn:substring(mst.quoteDt,6,8)}</td><td class="k">대표이사</td><td class="c${stampOk ? ' stc' : ''}">${comp.compCeo}<c:if test="${stampOk}"><img class="stamp" alt="" src="${comp.stampImg}"></c:if></td></tr>
     <tr><td class="k">담당자</td><td class="l">${mst.mgrNm}</td><td class="k">주 소</td><td class="l wrap" style="white-space:normal;font-size:11.5px">${comp.compAddr}</td></tr>
     <tr><td class="k">유효기간</td><td class="l">${mst.validTxt}</td><td class="k">업 태</td><td class="c">${comp.compType}<c:if test="${not empty comp.compFax}"> · 팩스 ${comp.compFax}</c:if></td></tr>
   </table>
