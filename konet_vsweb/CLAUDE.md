@@ -1676,6 +1676,11 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
 - ⚠**konet_vsapp 미반영** — UserController 가 09-17 이후 견적 기능(웹 전용)을 품어 통째 복사가 불가(컴파일 깨짐). 앱에도 넣을지는 결정 사안(모바일은 세션 쿠키 KONETAPP_SID 별도).
 - 검증 = 스텁 11검사(타이머 2개 · 29분 예고/움직이면 해제 · 30분 로그아웃 · 첫 boot 기억 · 같은 boot 유지 · boot 변경/세션 소멸 로그아웃 · 404/네트워크 오류 보류 · 셸 아니면 무시) ·
   `node --check` · context.xml 정형성·CRLF · `mvn -o compile`. **배포 : 자바 + context.xml → WAR 재빌드 + 재기동**(logi-oh.js·JSP 는 파일 교체 — 단 sessionChk.do 가 없는 서버에서는 404 = 판단 보류라 무해).
+- ⚠★**[재기동 뒤 실측으로 잡은 사고] Jackson 이 String 응답을 한 번 더 JSON 문자열로 감싼다** — sessionChk 실측 원문이 `"{\"boot\":…}"`(첫 글자 = 따옴표).
+  화면 `r.json()` 이 **문자열**을 돌려줘 `j.login` 이 undefined → **로그인 4초 뒤 무조건 로그아웃**되는 상태였다. ⇒ `konetSesChk` 가 문자열이면 `JSON.parse` 로 한 겹 더 풀고,
+  객체가 아니면 판단 보류(로그아웃 안 함 — 한 겹·두 겹·깨진 응답 모두 안전). 스텁 4검사(실측 원문 그대로·boot 변경·한 겹 호환·못 푸는 문자열 보류) 통과.
+  ★**이 프로젝트에서 `ResponseEntity<String>` 로 JSON 을 돌려주는 새 엔드포인트를 만들면 화면은 늘 이 두 겹을 의심할 것.**
+- ✅재기동 실측(2026-09-19 09:12) : 한 JVM 이 9071·9013 둘 다(유령 없음) · Server startup 35s·BindException 0 · sessionChk 200(boot=82c1…·login=N·no-store) · quoteList(hasCalc 매퍼) 200.
 
 ## 업무 설명서 동기화 (필수 방침)
 - **메뉴·기능이 바뀔 때마다 `logistics_demo2.jsp`의 업무설명서 패널(`panel-guide`)도 반드시 함께 수정**한다 (사용자 상시 요청 2026-07-05). 화면 추가/삭제/이동, 성격 변경 시 설명서 표의 해당 행을 갱신.

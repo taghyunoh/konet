@@ -6944,7 +6944,11 @@ function konetSesChk(){
   fetch(KONET_CTX + '/user/sessionChk.do', { method:'POST', credentials:'same-origin', cache:'no-store' })
     .then(function(r){ if(!r.ok) throw 0; return r.json(); })
     .then(function(j){
-      _kSesBusy = false; if(!j) return;
+      _kSesBusy = false;
+      /* ⚠서버(Jackson)가 String 응답을 한 번 더 JSON 문자열로 감싼다(2026-09-19 재기동 뒤 실측 — "{\"boot\"…}") — 문자열이면 한 겹 더 푼다.
+         안 풀면 j.login 이 undefined 라 로그인 4초 뒤 무조건 로그아웃되는 사고가 난다. 못 푸는 응답은 판단 보류. */
+      if(typeof j === 'string'){ try{ j = JSON.parse(j); }catch(e){ j = null; } }
+      if(!j || typeof j !== 'object') return;
       if(j.login !== 'Y'){ _kOut(); return; }                 /* 세션이 서버에서 사라짐(재기동·타임아웃) — 죽은 화면으로 못 두드리게 */
       if(!_kBoot){ _kBoot = j.boot || ''; return; }           /* 처음 본 boot 를 기억 */
       if(j.boot && j.boot !== _kBoot) _kOut();                /* 재배포·재기동됨 — 새 화면·새 로그인으로 */
