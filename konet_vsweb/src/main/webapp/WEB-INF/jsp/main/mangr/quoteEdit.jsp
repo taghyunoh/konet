@@ -60,6 +60,10 @@
   .fm select#delivSel{ height:32px; border:1px solid var(--bd); border-radius:7px; padding:0 6px; font-size:13.5px; background:#fff; }
   .fm .full{ grid-column:2 / span 5; }
   .tw{ overflow:auto; }
+  /* 크게 보기 — 머리 카드를 접고 품목 표를 화면 높이까지 (2026-09-20) */
+  body.big #headCard{ display:none; }
+  body.big #itemWrap{ max-height:calc(100vh - 210px); }
+  body.big #bigBtn{ border-color:#0f6b5e; background:#e3f2ee; color:#0f6b5e; font-weight:800; }
   table.g{ border-collapse:collapse; width:100%; font-size:13px; }
   table.g th{ position:sticky; top:0; z-index:1; background:#eaf2f0; color:#125a4e; font-weight:600; font-size:12.5px; border-bottom:1px solid #cfe0da; border-right:1px solid #d8e6e1; padding:7px 6px; text-align:center; white-space:nowrap; }
   table.g td{ border-bottom:1px solid #eef1f5; border-right:1px solid #eef1f5; padding:3px 4px; vertical-align:middle; text-align:center; }
@@ -143,17 +147,19 @@
       · 저장한 견적서는 <b>견적서관리 목록</b>에서 다시 열기(✏)·출력(🖨)·계산 조회(🧮)를 할 수 있습니다.
     </div>
     <div id="qhP2" class="qhp" hidden>
-      <b>여는 법</b> : 품목 줄 맨 앞 <b>[🧮]</b> — 그 품명 밑에 계산 칸이 펼쳐집니다. [➕ 품목 추가 (🧮 세트)] = 품명 + 계산 + 품명비 세트 한 벌씩 이어 붙임.<br>
+      <b>여는 법</b> : 품목 줄 맨 앞 <b>[🧮]</b> — 품명비 줄 밑에 계산 표가 펼쳐집니다. 줄은 물류비 줄 오른쪽 [＋ 품목 추가]로 늘립니다.<br>
       · <b>계산 붙은 줄은 Box 1 · 수량 = 박스 입수량 자동</b>(잠김) — 한 박스 기준으로 계산합니다.<br>
       · <b>구매(계산)</b> = 단가 + 운송 + 보관 + 소분 + 박스 (+ 원가 포함 품명비/개). 보관은 「보관료 × 팔레트 × 개월 ÷ MOQ」 자동 — 손대면 노란 칸(직접 값).<br>
       · <b>물류비</b> = 판매 계 × 센터 비율(센터배송) / 판매 계 × DC 비율(DC — 기본 11.5%) / 박스당 직송비(직송) — 표 위 「🧮 마진계산 물류비」에서 고릅니다. 비율·보관 기본값은 [⚙]에서(회사 설정).<br>
       · <b>판매적용단가 = 품목 줄의 단가</b>(같은 값·양방향). 목표 마진율을 넣으면 필요 판매단가가 나오고 [→ 적용]으로 단가에 넣습니다.<br>
-      · <b>품명비(동판·목형)</b> — 「적용 안 함 / 서브 줄로(별도 청구·마진 0) / 원가 포함」. 원가 포함이면 개당(금액÷MOQ)으로 구매(계산)에 들어가고,
-        견적서에는 <b>단가·금액 없는 표시 줄</b> + 비고에 근거(수량 × 단가 = 금액)가 자동 기재됩니다.<br>
+      · <b>품명비(동판·목형)</b> — <b>품목 줄 바로 밑에 늘 보입니다</b>(원가계산과 별개라 [🧮]를 안 열어도 적을 수 있습니다 · 새로 추가한 품목 줄에도). <b>기본은 「적용 안 함」</b> — 쓸 때만 골라 씁니다.<br>
+      　<b>값을 적으면</b> 견적서(인쇄·엑셀)·견적서 목록에 품목처럼 나갑니다(작성 화면에는 이 줄에 그대로 보이므로 따로 줄을 만들지 않습니다). 금액은 고른 갈래대로 :<br>
+      　· <b>별도 청구</b> = 단가·금액이 찍히고 <b>합계에 더해집니다</b> · <b>원가 포함</b> = 단가·금액 없이 줄만(단가에 녹아 있어 이중 청구 방지 · 근거는 비고에 자동 기재) · <b>적용 안 함</b> = 줄만(합계·원가 모두 제외).<br>
+      · <b>[⛶ 크게 보기]</b>(물류비 줄 오른쪽) — 품목이 많을 때 머리(문서번호·수신·견적일…) 칸을 접고 <b>품목 표를 화면 위까지</b> 넓힙니다. 다시 누르면 원래대로이고, 다음에 들어와도 그 상태로 열립니다.<br>
       · 계산 내용은 <b>저장할 때 견적서에 근거자료로 함께 저장</b>됩니다 — 견적서관리 목록의 [🧮]로 그때 값(비율·보관 포함) 그대로 다시 봅니다.
     </div>
   </div>
-  <div class="card">
+  <div class="card" id="headCard">
     <div class="hd">머리 <small>— 문서번호는 견적일로 자동 매깁니다(고칠 수 있음). 같은 문서번호를 저장하면 앞의 것을 대체합니다</small>
     </div>
     <div class="fm">
@@ -181,10 +187,9 @@
 
   <div class="card">
     <div class="hd">품목 <small>— 금액 = 수량 × 단가(자동). [🔍 상품]으로 품명·규격·판매가, [🧮]로 그 품명의 원가·마진 계산</small>
-      <span class="bar" style="margin-left:auto">
-        <button class="btn" style="border-color:#0f6b5e;background:#e3f2ee;color:#0f6b5e" onclick="addCalcLine()" title="품명 + 마진계산 + 품명비(동판·목형) 세트를 한 벌 더 — 이어서 계속 작성">➕ 품목 추가 (🧮 세트)</button>
-        <button class="btn" onclick="addLine()" title="계산 없는 품목 줄만 하나 더">＋ 줄만 추가</button>
-      </span>
+      <%-- [삭제 2026-09-20 사용자 「품목추가세트는 제거 — 버튼」] ➕ 품목 추가 (🧮 세트) 단추를 뺐다.
+           함수 addCalcLine() 은 그대로 둔다(다시 넣으려면 여기 단추 한 줄만) — 줄마다 [🧮] 로 계산을 여는 길이 있다.
+           [＋ 품목 추가] 는 같은 날 «물류비 줄 오른쪽»으로 옮겼다(사용자 화면 표시) — 아래 #csBar 참고. --%>
     </div>
     <%-- 원가·마진 계산 공통 조건 (2026-09-17 통합) — 물류비 갈래는 견적서 한 장에 하나. 줄별 계산 칸이 이 값을 쓴다 --%>
     <div class="csbar" id="csBar">
@@ -196,9 +201,13 @@
       <label class="opt"><input type="radio" name="csmode" value="parcel" onchange="csModeSet()"> 직송</label>
       <span id="csFeeWrap" style="display:none;align-items:center;gap:5px">직송비/박스 <input type="text" class="num" id="csFee" style="width:84px" onfocus="this.select()" oninput="_cs.fee=n(this.value); csPaintAll()"> 원</span>
       <span class="dim" id="csNote" style="font-size:12px"></span>
-      <button class="btn lnk" style="margin-left:auto" onclick="cenOpen()" title="센터별 물류비율과 보관 기본값 — 회사 설정에 저장(어느 PC 에서나 같다)">⚙ 센터 비율·보관 기본값</button>
+      <%-- ★[＋ 품목 추가] = 이 줄 오른쪽 (2026-09-20 「1번 줄추가는 표시 위치로 이동 · 품목추가로 이름 변경 · 글자 한 단계 크게 진하게」) — 종전 자리는 품목 카드 제목 줄 오른쪽 끝 --%>
+      <%-- ★품목이 많을 때 화면을 위로 넓혀 본다 (2026-09-20 「품목이 많을 경우 화면 위로 확대 기능」) — 머리 카드를 접고 표를 화면 높이까지 --%>
+      <button class="btn" id="bigBtn" style="margin-left:auto" onclick="bigToggle()" title="머리(문서번호·수신…) 칸을 접고 품목 표를 화면 위까지 넓힙니다 — 다시 누르면 원래대로">⛶ 크게 보기</button>
+      <button class="btn" style="font-size:15px;font-weight:800;border-color:#0f6b5e;background:#e3f2ee;color:#0f6b5e" onclick="addLine()" title="품목 줄 하나 더 — 계산은 그 줄의 [🧮] 로">＋ 품목 추가</button>
+      <button class="btn lnk" onclick="cenOpen()" title="센터별 물류비율과 보관 기본값 — 회사 설정에 저장(어느 PC 에서나 같다)">⚙ 센터 비율·보관 기본값</button>
     </div>
-    <div class="tw"><table class="g"><thead id="lhead"></thead><tbody id="lbody"></tbody></table></div>
+    <div class="tw" id="itemWrap"><table class="g"><thead id="lhead"></thead><tbody id="lbody"></tbody></table></div>
     <div class="bar" style="padding:10px 12px">
       <button class="btn btn-teal" id="saveBtn" onclick="save()">💾 저장</button>
       <button class="btn" id="printBtn" onclick="printIt()" title="저장한 견적서를 A4 양식으로">🖨 출력</button>
@@ -264,17 +273,24 @@ function csPaintAll(){ _lines.forEach(function(l,i){ if(l.calc) calcPaint(i); })
 /* ★품명 세트 = 품명 + 동판 + 목형 (2026-09-17 「품명, 동판, 목형 세 개 세트 — (동판·목형) 적용 여부만」) —
    자유 추가 「부대비」 목록을 없애고 두 줄 고정. 적용(체크) = 품명 밑 서브 줄(별도 청구·마진 0)로 견적서에 들어간다. */
 function newCalc(){ return { open:true, moqQty:0, buy:0, box:0, trans:0, store:0, storeManual:false, split:0, pack:0, target:0, tgtAmt:0,
-  extras:[{nm:'동판비',qty:0,price:0,use:'off'},{nm:'목형비',qty:0,price:0,use:'off'}] }; }
+  /* ★기본 = 적용 안 함 (2026-09-20 최종 — 같은 날 「원가마진계산 시 적용되게」로 '원가 포함'을 기본으로 했다가 「기본 적용 안 함으로」 되돌렸다.
+     쓸 때 골라 쓴다 : 원가 포함 = 개당(금액÷MOQ)으로 구매(계산)에 · 서브 줄로 = 견적서 ↳ 별도 청구 줄) ·
+     hide 는 옛 자료 호환으로만 남아 있다(같은 날 「표시 제거」로 체크 자체를 뺐다) */
+  extras:[{nm:'동판비',qty:0,price:0,use:'off',hide:false},{nm:'목형비',qty:0,price:0,use:'off',hide:false}] }; }
 function normCalc(c){ var b=newCalc(); if(!c) return null; for(var k in b) if(c[k]!=null) b[k]=c[k];
-  b.extras=(c.extras||[]).map(function(x){ return { nm:String(x.nm||''), qty:n(x.qty), price:n(x.price), use:(x.use==='sub'||x.use==='cost')?x.use:'off' }; });
-  if(!b.extras.length) b.extras=newCalc().extras;   /* 옛 자료가 비어 있어도 동판·목형 두 줄은 늘 있다 */
+  b.extras=(c.extras||[]).map(function(x){ return { nm:String(x.nm||''), qty:n(x.qty), price:n(x.price), use:(x.use==='sub'||x.use==='cost')?x.use:'off', hide:!!x.hide }; });
+  if(!c.extras) b.extras=newCalc().extras;   /* 칸 자체가 없는 옛 자료만 동판·목형 두 줄을 넣는다 — 사람이 ✕ 로 뺀 것(빈 배열)은 뺀 그대로 (2026-09-20) */
   return b; }
 function storeAuto(c){ var q=n(c.moqQty); return q? COST.storeFee*COST.storePlt*COST.storeMon/q : 0; }
-/* 계산에 값이 하나라도 들었나 — 불러올 때 「값이 있을 때만」 펼치는 판정 (2026-09-18) */
+/* 계산에 값이 하나라도 들었나 — 불러올 때 「값이 있을 때만」 펼치는 판정(2026-09-18) · [🧮] 단추 색도 이 값으로 정한다.
+   ★품명비(동판·목형)만 적은 것은 «원가 계산»이 아니다 (2026-09-20 「동판·목형만 했을 시 원가계산 아님」) — extras 는 안 본다. */
 function calcHasVal(c){ if(!c) return false;
-  if(['moqQty','buy','box','trans','store','split','pack','target','tgtAmt'].some(function(k){ return n(c[k])>0; })) return true;
-  return (c.extras||[]).some(function(x){ return n(x.qty)>0 || n(x.price)>0 || (x.use&&x.use!=='off'); });
+  return ['moqQty','buy','box','trans','store','split','pack','target','tgtAmt'].some(function(k){ return n(c[k])>0; });
 }
+/* 품명비(동판·목형)에 뭔가 적었나 — 계산은 아니지만 «수정 화면에서는 보이게» 하는 판정 (2026-09-20 「수정 시에는 입력했으면 보이게」) */
+/* ↳ 줄 오른쪽 안내 — 갈래별 (2026-09-20) */
+function feeNote(u){ return u==='sub' ? '별도 청구 — 단가·금액이 합계에 더해집니다' : (u==='cost' ? '원가 포함 — 단가에 반영(합계에 안 더함)' : '적용 안 함 — 합계·원가에 안 들어갑니다'); }   /* 말은 고르는 항목과 같게 (2026-09-20 「같은 용어로」) */
+function calcHasFee(c){ return !!c && (c.extras||[]).some(function(x){ return n(x.qty)>0 || n(x.price)>0 || (x.use&&x.use!=='off'); }); }
 function calcOf(l){
   var c=l.calc; if(!c) return null;
   var G=n(c.box), Q0=n(c.moqQty), E=n(c.buy);
@@ -293,7 +309,11 @@ function calcOf(l){
 }
 /* 견적서에 서브 줄로 붙는 품명비 = 별도 청구 + ★원가 포함도 (2026-09-18 「원가 포함이어서 견적서에는 표시되게 — 별도 청구처럼」).
    단, 원가 포함은 금액이 이미 판매적용단가에 녹아 있으므로 저장 줄의 단가·금액은 0(이중 청구 방지) — 근거 숫자는 비고에 적는다. */
-function subsOf(l){ return (l.calc&&l.calc.extras||[]).filter(function(x){ return (x.use==='sub'||x.use==='cost') && (x.nm||'').trim(); }); }
+/* ★★[확정 2026-09-20 「수정 시 동판비·목형비 있으면 원가계산에 있지만 품목처럼 보이게 — 견적서 목록에서도」]
+   값이 들어 있는 품명비는 **갈래와 상관없이** 그 품목 밑 ↳ 줄로 보이고 저장 명세에도 들어간다(= 견적서 목록·인쇄에서도 품목처럼 보인다).
+   금액은 갈래대로 : 별도 청구 = 단가·금액 그대로(합계에 더함) · 원가 포함 = 단가·금액 0(단가에 녹아 있어 이중 청구 방지) · 적용 안 함 = 단가·금액 0(표시만).
+   ⚠2026-09-18 「원가 포함도 표시되게」 → 09-20 「표시 제거」 → 09-20 이 규칙. 다시 바꾸자는 얘기가 나오면 이 왕복부터 확인할 것. */
+function subsOf(l){ return (l.calc&&l.calc.extras||[]).filter(function(x){ return (x.nm||'').trim() && (x.use==='sub' || n(x.qty)>0 || n(x.price)>0); }); }   /* ⚠[원복 2026-09-20 「별도가 아니고 원가계산 시 보이는 내용 보이면 됨」] — 값이 있는 것만 ↳ 줄로(빈 두 줄을 늘 달던 판 폐기) */
 /* ★마진계산이 붙은 줄은 Box 1 · 수량 = 박스 입수량 (2026-09-17 확정) */
 function calcLineSync(l){ if(l.calc && n(l.calc.box)>0){ l.boxQty=1; l.qty=n(l.calc.box); return true; } return false; }
 function calcToggle(i){ var l=_lines[i]; if(!l) return; if(!l.calc){ l.calc=newCalc(); } else l.calc.open=!l.calc.open; calcLineSync(l); renderLines(); }
@@ -309,7 +329,7 @@ function moqRmkSync(i){ var l=_lines[i]; if(!l) return;
   if(cur===auto) return;
   l.remark=auto; var e=document.getElementById('rv'+i); if(e) e.value=auto;
 }
-function cxset(i,j,k,v){ var l=_lines[i]; if(!l||!l.calc||!l.calc.extras[j]) return; l.calc.extras[j][k]=v; if(k==='use'){ renderLines(); return; } calcPaint(i); subPaint(i); calc(); }
+function cxset(i,j,k,v){ var l=_lines[i]; if(!l||!l.calc||!l.calc.extras[j]) return; l.calc.extras[j][k]=v; if(k==='use'){ renderLines(); return; }   /* 견적서 줄(↳)이 생겼다 사라지므로 다시 그린다 */ calcPaint(i); subPaint(i); calc(); }
 function subPaint(i){ var l=_lines[i]; if(!l) return; subsOf(l).forEach(function(x,k){
   var q=document.getElementById('sq'+i+'_'+k), p=document.getElementById('sp'+i+'_'+k), a=document.getElementById('sa'+i+'_'+k), amt=Math.round(n(x.qty)*n(x.price));
   if(q) q.textContent=n(x.qty)?fmt(x.qty):''; if(p) p.textContent=n(x.price)?fmt(x.price):''; if(a) a.textContent=amt?fmt(amt):''; }); }
@@ -350,7 +370,9 @@ function cenSave(){
 }
 
 /* ── 줄 ── */
-function blank(){ return { prodNm:'', spec:'', boxQty:1, qty:0, unit:'ea', unitPrice:0, unitPrice2:0, remark:'', calc:null }; }
+function blank(){ return { prodNm:'', spec:'', boxQty:1, qty:0, unit:'ea', unitPrice:0, unitPrice2:0, remark:'', calc:feeCalc() }; }
+function feeCalc(){ var c=newCalc(); c.open=false; return c; }   /* 품명비 칸만 있는 자료 — 계산 표는 안 펼친다 */
+function ensureFee(l){ if(l && !l.calc) l.calc=feeCalc(); return l; }   /* 옛 견적서에서 불러온 줄에도 품명비 칸을 달아 준다 */
 function addLine(){ _lines.push(blank()); renderLines(); focusLast(); }
 /* [원복 2026-09-18] 품목 추가 단추를 품명비 줄 맨 앞으로 옮겼다가(「1번 두 개를 2번 앞으로」) 곧바로 「지금 작업 원복」 — 카드 머리(오른쪽 위)가 자리다. 다시 옮기자는 얘기가 나오면 이 이력 확인 */
 /* ➕ 품목 추가 = 품명 + 마진계산 + 품명비 세트 한 벌 (2026-09-17 「이 내용을 품목 추가 버튼으로 계속 작성」).
@@ -370,14 +392,15 @@ function renderLines(){
   if(!_lines.length) _lines.push(blank());
   var tb=document.getElementById('lbody'), NC=cols();
   tb.innerHTML=_lines.map(function(l,i){
-    calcLineSync(l);
+    ensureFee(l); calcLineSync(l);
     var amt=Math.round(n(l.qty)*n(l.unitPrice)), amt2=Math.round(n(l.qty)*n(l.unitPrice2));
     var lock=!!(l.calc&&n(l.calc.box)>0), lockTip=' title="마진계산 연결 줄 — Box 1 · 수량 = 박스 입수량(자동)" readonly';
     var h='<tr class="mainln"><td>'+(i+1)+'</td>'
       +(function(){   /* 🧮 단추 = 계산 유무 표시 (2026-09-18 「펼치지 말고 있다고 표시만 — 사용자가 펼치게」) : 값 든 계산 = 진한 청록 칠 · 빈 계산 = 옅은 칠 · 없음 = 흰 단추 */
-        var hasC=l.calc&&calcHasVal(l.calc);
-        return '<td><button class="btn lnk" title="'+(l.calc?(hasC?'저장된 원가·마진 계산 있음 — 누르면 펼침/접힘':'원가·마진 계산(빈 칸) 펼침/접힘'):'원가·마진 계산 붙이기')+'"'
-          +(l.calc?(hasC?' style="background:#137a6c;border-color:#137a6c;color:#fff"':' style="background:#e3f2ee;border-color:#0f6b5e"'):'')
+        /* ★품명비(동판·목형)만 적어 둔 줄도 «있다»고 보이게 — 옅은 칠 + 굵게 (2026-09-20 「수정 시에는 입력했으면 보이게」) */
+        var hasC=l.calc&&calcHasVal(l.calc), hasF=l.calc&&calcHasFee(l.calc);
+        return '<td><button class="btn lnk" title="'+(l.calc?(hasC?'저장된 원가·마진 계산 있음 — 누르면 펼침/접힘':(hasF?'품명비(동판·목형)를 적어 둔 줄 — 누르면 펼침/접힘':'원가·마진 계산(빈 칸) 펼침/접힘')):'원가·마진 계산 붙이기')+'"'
+          +(l.calc?(hasC?' style="background:#137a6c;border-color:#137a6c;color:#fff"':(hasF?' style="background:#e3f2ee;border-color:#0f6b5e;font-weight:800"':' style="background:#e3f2ee;border-color:#0f6b5e"')):'')
           +' onclick="calcToggle('+i+')">🧮</button> <button class="btn lnk" title="이 줄 빼기" onclick="_lines.splice('+i+',1); renderLines()">✕</button></td>'; })()
       +'<td><div style="display:flex;gap:4px"><input type="text" class="nm" value="'+esc(l.prodNm)+'" placeholder="품명" oninput="_lines['+i+'].prodNm=this.value"><button class="btn lnk" style="height:30px" onclick="prodOpen('+i+')" title="우리 상품에서 고르기">🔍</button></div></td>'
       +'<td><input type="text" value="'+esc(l.spec)+'" placeholder="규격 및 재질" oninput="_lines['+i+'].spec=this.value"></td>'
@@ -388,15 +411,15 @@ function renderLines(){
       +'<td class="amt" id="amt'+i+'">'+(amt?fmt(amt):'')+'</td>'
       +(h2?'<td><input type="text" class="num" value="'+(n(l.unitPrice2)?fmt(l.unitPrice2,2):'')+'" placeholder="0" onfocus="this.select()" oninput="_lines['+i+'].unitPrice2=n(this.value); calc()"></td><td class="amt" id="amt2_'+i+'">'+(amt2?fmt(amt2):'')+'</td>':'')
       +'<td><input type="text" id="rv'+i+'" value="'+esc(l.remark)+'" placeholder="예: MOQ 50,000개" oninput="_lines['+i+'].remark=this.value" title="비워 두면 「MOQ n개」가 자동 기재됩니다 — 🧮 계산이 있으면 MOQ수량, 없으면 줄 수량(직접 적으면 그대로)"></td></tr>';
-    if(l.calc&&l.calc.open) h+=calcRowHtml(l,i,NC);
-    subsOf(l).forEach(function(x,k){
-      var samt=Math.round(n(x.qty)*n(x.price));
-      h+='<tr class="subln"><td>↳</td><td></td><td class="snm">'+esc(x.nm)+'</td><td></td><td></td>'
-        +'<td class="samt" id="sq'+i+'_'+k+'">'+(n(x.qty)?fmt(x.qty):'')+'</td><td>ea</td>'
-        +'<td class="samt" id="sp'+i+'_'+k+'">'+(n(x.price)?fmt(x.price):'')+'</td><td class="samt" id="sa'+i+'_'+k+'">'+(samt?fmt(samt):'')+'</td>'
-        +(h2?'<td></td><td></td>':'')
-        +'<td style="color:#8a98a8">'+(x.use==='cost'?'원가 포함 (단가에 반영 — 합계에 안 더함)':'별도 청구 (마진 0)')+'</td></tr>';
-    });
+    /* ⚠[원위치 2026-09-20 「기존 원가 계산에서 동판비·목형비 유지하게 원위치」] — 같은 날 «품목 줄 밑 규격 칸부터» 별도 줄로 냈다가 되돌렸다(견적서 품목에는 ↳ 줄로 이미 따라 붙는다).
+       ⇒ 품명비는 원가·마진 계산 칸 안(계산 표 밑)에 있고, 옮기려면 feeHtml 을 tr 로 감싸 이 자리에 넣으면 된다. */
+    /* ★품명비(동판·목형)는 «원가계산이 아니다» — 품목이 보이면 늘 함께 보인다 (2026-09-20 「원가계산 아니어서 품목 보일 때 동판·목형은 보이게」).
+       계산 칸([🧮])은 표만 펼친다. 품명비 값은 계산에도 쓰이므로 자료는 l.calc.extras 에 그대로 둔다. */
+    /* ★시작 자리 = 「규격」 칸 (2026-09-20 「규격 있는 위치부터 시작하게」) — 앞 세 칸(No·단추·품명)은 비운다. 품목 줄 칸이 늘면 이 3 도 함께 고칠 것 */
+    h+='<tr class="crow fee"><td></td><td></td><td></td><td colspan="'+(NC-3)+'">'+feeHtml(l,i)+'</td></tr>';
+    if(l.calc&&l.calc.open) h+=calcRowHtml(l,i,NC);   /* 계산 표 + 품명비 한 줄 — 품명 바로 밑(종전 자리) */
+    /* [삭제 2026-09-20 「목형·동판 보이니 2번은 제거」] 품목 밑 ↳ 표시 줄 — 바로 위 품명비 줄에 같은 내용(이름·수량·단가·갈래)이 이미 보여 겹쳤다.
+       ⚠저장(견적서·엑셀·목록)에는 그대로 나간다(`payload` 가 `subsOf` 로 만든다) — 화면에서만 뺀 것이다. */
     return h;
   }).join('');
   calc();
@@ -407,7 +430,9 @@ function calcRowHtml(l,i,NC){
   var ci=function(k,val,d,ph,w){ return '<input type="text" class="ci" style="width:'+(w||84)+'px" value="'+(n(val)?fmt(val,d||0):'')+'" placeholder="'+(ph||'')+'" onfocus="this.select()" oninput="cset('+i+',\''+k+'\', n(this.value))">'; };   /* 폭은 inline 로 못박는다 — table.g input 100% 규칙에 안 밀리게 */
   /* 칸 차례·이름·그룹 = 종전 원가마진계산 표(표본 엑셀) 그대로 — 그룹 머리글 색으로 구분 (2026-09-18 「엑셀처럼 헤더 컬럼 구분 명확하게」) :
        [배송] MOQ수량·단가·금액 | [박스 입수량] | [구매] 구매(계산)·계·운송·보관·소분·박스 | [판매] 판매적용단가·계 | 물류비 | 실 판매금액 | 실 마진금액 | 실 마진율 | 목표·필요 */
-  var h='<tr class="crow"><td colspan="'+NC+'"><div style="overflow:auto"><table class="csh">'
+  /* ⚠품명비(동판·목형) 자리 = 계산 표 <위> — **최종**(2026-09-20 「원가계산 없이 목형비·동판비 작성할 수 있으니 위로 이동」).
+     같은 날 위→아래→위로 왕복했다. 뜻 = 계산을 안 해도 품명비만 적는 일이 잦다 → 먼저 보이는 자리에 둔다. 다시 옮기자는 얘기가 나오면 이 왕복부터 확인할 것. */
+  var h='<tr class="crow"><td colspan="'+NC+'"><div style="overflow:auto"><table class="csh" id="csh'+i+'">'
     +'<thead><tr>'
     +'<th class="g1" colspan="3">배송</th>'
     +'<th class="g2" rowspan="2">박스<br>입수량</th>'
@@ -446,23 +471,59 @@ function calcRowHtml(l,i,NC){
     +'<td>'+ci('target',c.target,1,'',64)+'</td>'
     +'<td class="au b" id="cNeed'+i+'"></td>'
     +'<td class="c"><button class="btn lnk" style="height:28px" onclick="applyNeed('+i+')" title="필요 판매단가를 판매적용단가(줄 단가)로">→ 적용</button> <button class="btn lnk btn-red" style="height:28px" onclick="calcDrop('+i+')" title="이 줄의 마진계산을 뺀다">계산 빼기</button></td>'
-    +'</tr></tbody></table></div>'
-    /* 품명비 — 설명 문구는 화면에서 빼고 툴팁으로 (2026-09-18 「표시 제거」). 내용 = 품명+동판+목형 세트 · 서브 줄로 = 품명 밑 별도 청구 줄(마진 0) · 원가 포함 = 금액 ÷ MOQ 수량을 개당 구매에 */
-    +'<div class="cex"><b style="color:#125a4e" title="품명 + 동판 + 목형 세트 — 서브 줄로 = 품명 밑 별도 청구 줄(마진 0) · 원가 포함 = 금액 ÷ MOQ 수량을 개당 구매에 더함">품명비</b>';
-  /* ★동판·목형 두 줄 고정 세트 (2026-09-17 「부대비 아니고 품명비 · 세 개 세트」) — 자유 추가·이름 입력·✕ 는 뺐다.
-     적용 여부는 기존 옵션 그대로(사용자 2026-09-17 「기존 옵션 유지」) : 적용 안 함 / 서브 줄로(별도 청구) / 원가 포함 */
-  (c.extras||[]).forEach(function(x,j){
+    +'</tr></tbody></table></div></td></tr>';
+  setTimeout(function(){ calcPaint(i); feeAlign(i); },0);
+  return h;
+}
+/* ⚠[폐지 2026-09-20 「동판·목형 위치 이 위치로 · 품목 추가 시에도 변동 없게」] 품명비 줄을 계산 표의 「구매(계산)」 칸에 맞춰 들여쓰던 것(feeAlign) —
+   줄마다·화면마다 시작 자리가 달라져 품목을 더하면 들쭉날쭉했다. ⇒ **늘 맨 왼쪽에서 시작**(들여쓰기 없음). 자리를 다시 맞추자는 얘기가 나오면 이 이력부터 확인할 것. */
+function feeAlign(){}
+function feeAlignAll(){}
+/* ★[⛶ 크게 보기] — 품목이 많을 때 머리 카드를 접고 품목 표를 화면 위까지 넓힌다 (2026-09-20 「품목이 많을 경우 화면 위로 확대 기능」).
+   표 자체는 그대로다 — 가리는 것은 머리(문서번호·수신·견적일…) 칸뿐이고, 저장·인쇄에는 아무 영향이 없다.
+   상태는 localStorage('konetQuoteBig') 에 남아 다음에 들어와도 그대로. 다시 누르면 원래대로. */
+function bigToggle(on){
+  var b=document.body, v=(on==null? !b.classList.contains('big') : !!on);
+  b.classList.toggle('big', v);
+  var t=document.getElementById('bigBtn'); if(t) t.textContent=v?'⛶ 원래대로':'⛶ 크게 보기';
+  try{ localStorage.setItem('konetQuoteBig', v?'1':'0'); }catch(e){}
+  feeAlignAll();
+}
+try{ if(localStorage.getItem('konetQuoteBig')==='1') document.addEventListener('DOMContentLoaded', function(){ bigToggle(true); }); }catch(e){}
+/* ★품명비(동판·목형) — 계산 표 <위>, 같은 줄(crow) 안 (2026-09-20 「원가마진에서 동판·목형이 위로 위치하게」)
+   ⚠[원위치 2026-09-20 「동판비·목형비 기존 위치로 원위치」] : 같은 날 잠깐 «품명 바로 밑 별도 줄 + 계산 표는 맨 밑」로 옮겼다가 되돌렸다.
+     다시 옮기자는 얘기가 나오면 이 이력부터 확인할 것 — `feeHtml` 을 별도 `tr` 로 감싸 renderLines 에서 품목 줄 뒤에 넣으면 그 모양이 된다.
+   설명 문구는 화면에서 빼고 툴팁으로 (2026-09-18 「표시 제거」) · 적용 여부 3옵션은 그대로(2026-09-17 「기존 옵션 유지」).
+   ✕ = 그 품명비 한 칸 빼기 · 전부 빼면 [＋ 품명비 넣기] 로 되돌린다(저장·불러오기도 뺀 그대로 — normCalc 는 칸 자체가 없을 때만 채운다). */
+function feeHtml(l,i){
+  var c=l.calc, ex=c.extras||[];
+  var h='<div class="cex" id="cex'+i+'"><b style="color:#125a4e" title="동판비·목형비 — 값을 적으면 그 품목 밑에 줄로 보입니다 · 원가 포함 = 금액 ÷ MOQ 수량을 개당 구매에 더함 · 적용 안 함 = 줄만 보임">품명비</b>';
+  ex.forEach(function(x,j){
     h+='<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid #dbe2ea;border-radius:8px;padding:4px 8px;background:#fff">'
       +'<b>'+esc(x.nm||('품명비'+(j+1)))+'</b>'
       +'수량 <input type="text" class="num ci" style="width:64px" value="'+(n(x.qty)?fmt(x.qty):'')+'" onfocus="this.select()" oninput="cxset('+i+','+j+',\'qty\', n(this.value))">'
       +'× 단가 <input type="text" class="num ci" style="width:84px" value="'+(n(x.price)?fmt(x.price):'')+'" onfocus="this.select()" oninput="cxset('+i+','+j+',\'price\', n(this.value))">'
       +'= <span class="cv" style="min-width:76px" id="cxa'+i+'_'+j+'"></span>'
-      +'<select onchange="cxset('+i+','+j+',\'use\', this.value)" title="적용 여부 — 서브 줄로 = 품명 밑 별도 청구 줄(마진 0) / 원가 포함 = 금액 ÷ MOQ 수량을 개당 구매에 더함"><option value="off"'+(x.use==='off'?' selected':'')+'>적용 안 함</option><option value="sub"'+(x.use==='sub'?' selected':'')+'>서브 줄로(별도 청구)</option><option value="cost"'+(x.use==='cost'?' selected':'')+'>원가 포함</option></select></span>';
+      /* ★갈래 이름 (2026-09-20 「서브 줄로만 제거 · 별도 청구로만 표시」) — 「서브 줄로(별도 청구)」에서 <서브 줄로> 라는 말만 빼고 **「별도 청구」**로 적는다.
+         값('sub')은 그대로 — 저장된 근거자료(CALC_JSON)·금액 규칙과 호환. */
+      +'<select onchange="cxset('+i+','+j+',\'use\', this.value)" title="적용 여부 — 원가 포함 = 금액 ÷ MOQ 수량을 개당 구매에 더함 / 별도 청구 = 단가·금액을 찍고 합계에 더함 / 적용 안 함 = 줄만 보임"><option value="cost"'+(x.use==='cost'?' selected':'')+'>원가 포함</option><option value="sub"'+(x.use==='sub'?' selected':'')+'>별도 청구</option><option value="off"'+(x.use==='off'?' selected':'')+'>적용 안 함</option></select>'
+      /* [삭제 2026-09-20 「표시 제거」] ①[견적서에서 빼기] 체크(원가 포함이 견적서에 안 나오게 되어 뺄 것이 없다) ②칩의 ✕ — 동판·목형은 늘 있는 세트라 「적용 안 함」으로 두면 된다.
+         `cxDrop`·`cxReset`·[＋ 품명비 넣기] 는 남겨 뒀다(옛 자료가 빈 배열이면 되살리는 길) · hide 값은 옛 자료 호환으로 읽고 저장만 한다 */
+      +'</span>';
   });
-  h+='</div></td></tr>';
-  setTimeout(function(){ calcPaint(i); },0);
+  if(!ex.length) h+='<button class="btn lnk" style="height:28px" onclick="cxReset('+i+')" title="동판비·목형비 두 칸을 다시 넣는다">＋ 품명비 넣기</button>';
+  h+='</div>';
   return h;
 }
+/* 품명비 한 칸 빼기 / 세트 되돌리기 */
+/* ⚠값이 든 칸은 묻고 뺀다 — 원가 포함이면 구매(계산)에서도 함께 빠지기 때문 (2026-09-20 「원가계산 시 목형비·동판비 유지」) */
+function cxDrop(i,j){ var l=_lines[i]; if(!l||!l.calc||!l.calc.extras) return; var x=l.calc.extras[j]; if(!x) return;
+  var used=n(x.qty)>0||n(x.price)>0||(x.use&&x.use!=='off');
+  var go=function(){ l.calc.extras.splice(j,1); renderLines(); calc(); };
+  if(!used){ go(); return; }
+  _confirmBox({ msg:(x.nm||'품명비')+' 를 뺍니다 — '+(x.use==='cost'?'원가 포함이라 구매(계산)에서도 빠집니다.':x.use==='sub'?'견적서의 별도 청구 줄도 사라집니다.':'적어 둔 값이 지워집니다.'), icon:'⚠️', okText:'빼기', okColor:'#d23', onOk:go });
+}
+function cxReset(i){ var l=_lines[i]; if(!l||!l.calc) return; l.calc.extras=newCalc().extras; renderLines(); calc(); }
 /* ★원가 포함 품명비의 근거는 견적서 비고 칸에 자동 기재 (2026-09-18 「견적서 비고 칸에 비고」) —
    「동판비 2 × 100,000 = 200,000 — 원가 포함(단가에 반영)」 줄을 우리가 만든 블록(_costRmk)으로 들고 있다가
    값이 바뀌면 그 블록만 갈아 끼운다(사람이 적은 비고는 안 건드림 — deliv 의 _delivRmk 와 같은 요령). calc() 가 부른다 */
@@ -604,10 +665,13 @@ function newDoc(){
   csBarPaint(); renderLines(); nextNo(true);
   loadNames(function(){ var m=document.getElementById('mgrNm'); if(!m.value && _names.mgr.length) m.value=_names.mgr[0]; });   /* 최근 담당자를 기본으로 */
 }
-function loadDoc(seq){
+/* copy=true 면 «복사 작성» — 내용만 베끼고 새 견적서로 (2026-09-20 「견적서 목록에서 견적서 복사 작성 추가」) :
+   문서번호·견적일은 오늘 것으로 새로 매기고, 저장해야 새 견적서가 생긴다(원본은 그대로 남는다). */
+function loadDoc(seq, copy){
   post('/mangr/quoteMst.do','quoteSeq='+encodeURIComponent(seq)).then(function(r){ return r.json(); }).then(function(j){
     var m=j&&j.mst; if(!m){ err('견적서를 찾을 수 없습니다.'); newDoc(); return; }
-    _seq=seq; _savedSeq=seq; document.getElementById('mode').textContent='수정 — '+m.docNo;
+    _seq=copy?0:seq; _savedSeq=copy?0:seq; _savedDocNo='';
+    document.getElementById('mode').textContent=copy?('복사 작성 — 원본 '+m.docNo):('수정 — '+m.docNo);
     document.getElementById('docNo').value=m.docNo; document.getElementById('quoteDt').value=d10(m.quoteDt); document.getElementById('recvNm').value=m.recvNm; document.getElementById('mgrNm').value=m.mgrNm;
     document.getElementById('validTxt').value=m.validTxt; document.getElementById('titleTxt').value=m.titleTxt; document.getElementById('remark').value=m.remark;
     /* 근거자료(원가·마진 계산) — CALC_JSON. genRows(서브 줄)는 걷어내고 계산에서 다시 만든다 */
@@ -622,6 +686,12 @@ function loadDoc(seq){
     _costRmk='';   /* 저장된 비고에 이미 든 원가 포함 블록은 costRmkSync 가 그대로 알아본다(중복 안 붙음) */
     _lines.forEach(function(l,i){ moqRmkSync(i); });   /* 옛 저장분(비고 빈 채 저장)도 열면 MOQ 가 채워진다 — 다시 저장하면 인쇄·엑셀에도 나간다 (2026-09-18) */
     csBarPaint(); renderLines();
+    if(copy){   /* 견적일 = 오늘 · 문서번호 = 그 날짜로 새로 (저장 전이라 [출력]·[엑셀]은 저장한 뒤에 쓴다) */
+      var t=new Date();
+      document.getElementById('quoteDt').value=t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2);
+      document.getElementById('docNo').value=''; nextNo(true);
+      if(window._toast) _toast('견적서를 복사했습니다 — 내용을 고친 뒤 [저장]하면 새 견적서가 됩니다.','success');
+    }
   }).catch(function(e){ err('불러오지 못했습니다 — '+esc(e.message)); });
 }
 
@@ -635,12 +705,12 @@ function payload(){
     lines.push({ rowNo:++no, prodNm:l.prodNm, spec:l.spec, boxQty:(l.boxQty===''||l.boxQty==null)?null:n(l.boxQty), unit:l.unit, qty:n(l.qty), unitPrice:n(l.unitPrice), amt:Math.round(n(l.qty)*n(l.unitPrice)), unitPrice2:h2?n(l.unitPrice2):null, amt2:h2?Math.round(n(l.qty)*n(l.unitPrice2)):null, remark:l.remark, prodCd:l.prodCd||'' });
     calcs.push(l.calc? { moqQty:n(l.calc.moqQty), buy:n(l.calc.buy), box:n(l.calc.box), trans:n(l.calc.trans), store:n(l.calc.store), storeManual:!!l.calc.storeManual,
       storeVal:(l.calc.storeManual? n(l.calc.store) : storeAuto(l.calc)),   /* 조회용 스냅샷 — 보관 기본값 설정이 나중에 바뀌어도 「그때 계산」이 남게 */
-      split:n(l.calc.split), pack:n(l.calc.pack), target:n(l.calc.target), tgtAmt:n(l.calc.tgtAmt), extras:(l.calc.extras||[]).map(function(x){ return { nm:x.nm, qty:n(x.qty), price:n(x.price), use:x.use }; }) } : null);
+      split:n(l.calc.split), pack:n(l.calc.pack), target:n(l.calc.target), tgtAmt:n(l.calc.tgtAmt), extras:(l.calc.extras||[]).map(function(x){ return { nm:x.nm, qty:n(x.qty), price:n(x.price), use:x.use, hide:!!x.hide }; }) } : null);
     subsOf(l).forEach(function(x){ var amt=Math.round(n(x.qty)*n(x.price)); if(!amt) return;
       if(x.use==='sub')
         lines.push({ rowNo:++no, prodNm:x.nm, spec:'', boxQty:null, unit:'ea', qty:n(x.qty), unitPrice:n(x.price), amt:amt, unitPrice2:null, amt2:null, remark:'별도 청구', prodCd:'' });
       else   /* 원가 포함 — 표시용 줄. 단가·금액 0(서버 supplyAmt·인쇄 합산에 안 잡힘 — 0이면 서버가 qty×단가 재계산도 안 한다). 근거 숫자는 견적서 비고 칸에(costRmkSync — 2026-09-18 「견적서 비고 칸에 비고」) */
-        lines.push({ rowNo:++no, prodNm:x.nm, spec:'', boxQty:null, unit:'ea', qty:n(x.qty), unitPrice:0, amt:0, unitPrice2:null, amt2:null, remark:'원가 포함 (단가에 반영)', prodCd:'' });
+        lines.push({ rowNo:++no, prodNm:x.nm, spec:'', boxQty:null, unit:'ea', qty:n(x.qty), unitPrice:0, amt:0, unitPrice2:null, amt2:null, remark:(x.use==='cost'?'원가 포함 (단가에 반영)':'적용 안 함 (합계·원가 제외)'), prodCd:'' });
       genRows.push(no); });
   });
   /* ★양식2 인데 둘째 단가를 한 줄도 안 넣었으면 묶음 하나로 저장 (2026-09-17 「없으면 출력하지 말고 선택한 내용만」 — 인쇄·엑셀·목록이 전부 따라온다) */
@@ -708,11 +778,11 @@ function fileDown(url, fallbackNm){
 var _urlSeqDone=false;
 (function(){
   var m=/[?&]quoteSeq=(\d+)/.exec(location.search);
-  if(m){ _urlSeqDone=true; csBarPaint(); loadNames(); loadDoc(+m[1]); } else newDoc();
+  if(m){ _urlSeqDone=true; csBarPaint(); loadNames(); loadDoc(+m[1], /[?&]copy=Y/.test(location.search)); } else newDoc();
 })();
 document.getElementById('p1').addEventListener('input', renderLines); document.getElementById('p2').addEventListener('input', renderLines);
 if(window.konetPopDrag) konetPopDrag('.pop', '.ph');   /* 팝업(상품 찾기·⚙ 센터 비율) 제목줄을 끌어 옮긴다 (2026-09-18) — 발주서와 같은 뼈대·같은 호출 */
-window.konetShown=function(){ var m=/[?&]quoteSeq=(\d+)/.exec(location.search); if(m && !_urlSeqDone){ _urlSeqDone=true; loadDoc(+m[1]); } loadNames(); takeHandoff();
+window.konetShown=function(){ var m=/[?&]quoteSeq=(\d+)/.exec(location.search); if(m && !_urlSeqDone){ _urlSeqDone=true; loadDoc(+m[1], /[?&]copy=Y/.test(location.search)); } loadNames(); takeHandoff();
   try{ var c=window.konetSet&&konetSet.cost; if(c&&c.centers&&c.centers.length){ COST.centers=c.centers.map(function(x){ return {nm:String(x.nm||''),rate:n(x.rate)}; }); COST.storeFee=n(c.storeFee)||COST.storeFee; COST.storePlt=n(c.storePlt)||COST.storePlt; COST.storeMon=n(c.storeMon)||COST.storeMon; if(c.dcRate!=null) COST.dcRate=n(c.dcRate); csBarPaint(); csPaintAll(); } }catch(e){} };
 /* 원가·마진 계산 화면(옛 costCalc — 메뉴에서 내림)이 넘긴 품목 받기 — localStorage konet.costToQuote {ts, lines, deliv}. 10분 안의 것만. */
 function takeHandoff(){

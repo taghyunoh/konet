@@ -296,13 +296,17 @@ function lsRender(){
     return '<tr class="tap'+(_sel===x.quoteSeq?' sel':'')+'" onclick="if(event.target.tagName!==\'INPUT\' && event.target.tagName!==\'BUTTON\' && !(window.getSelection&&String(window.getSelection()).length)) detail('+i+')">'
       +'<td><input type="checkbox" class="lchk" data-i="'+i+'"></td>'
       +'<td>'+d10(x.quoteDt)+'</td><td><b>'+esc(x.docNo)+'</b>'+(x.hasFile==='Y'?'<span class="bd up" title="엑셀 파일을 올려 저장한 견적서 ('+esc(x.fileNm)+')">올림</span>':'<span class="bd hand" title="견적서 작성 화면에서 직접 작성한 견적서(올린 파일 없음)">✍ 직접 작성</span>')+'</td><td>'+esc(x.recvNm)+'</td><td>'+esc(x.mgrNm)+'</td>'
-      +'<td class="l" style="max-width:320px">'+esc(x.firstNm)+(n(x.lineCnt)>1?' <span class="dim">외 '+(n(x.lineCnt)-1)+'</span>':'')+'</td>'
+      /* ★품명비(동판비·목형비)는 이름 + 갈래를 함께 보여 준다 (2026-09-20 「여기에도 동판·목형 보이게」·「적용 안 함·원가 포함·별도 청구 표시」) — 서버 feeNms(옛 서버면 빈 값) */
+      +'<td class="l" style="max-width:320px">'+esc(x.firstNm)+(n(x.lineCnt)>1?' <span class="dim">외 '+(n(x.lineCnt)-1)+'</span>':'')
+        +(x.feeNms?'<div class="dim" style="font-size:11.5px;margin-top:2px">🧷 '+esc(x.feeNms)+'</div>':'')+'</td>'
       +'<td class="r">'+fmt(x.lineCnt)+'</td><td class="r"><b>'+fmt(x.supplyAmt)+'</b></td><td class="dim">'+esc(x.validTxt)+'</td>'
       +'<td>'+(x.hasFile==='Y'?'<button class="btn lnk" onclick="viewFile('+x.quoteSeq+', this.getAttribute(\x27data-n\x27))" data-n="'+esc(x.fileNm)+'" title="올린 엑셀 양식을 화면에서 봅니다 ('+esc(x.fileNm)+')">📄 원본</button>':'<button class="btn lnk" onclick="fileDown(CTX+\'/mangr/quoteExcel.do?quoteSeq='+x.quoteSeq+'\', \'견적서.xls\')" title="우리 견적서 양식 그대로 엑셀로 내려받기">📥 엑셀</button>')+'</td>'
       +'<td style="white-space:nowrap"><button class="btn lnk" onclick="printQuote('+x.quoteSeq+')" title="A4 견적서 양식으로 인쇄">🖨 인쇄</button>'
       /* 마진계산 없는 견적서(hasCalc='N')는 [🧮 계산조회] 를 아예 안 그린다 (2026-09-18 「없으면 아이콘 제외」). ⚠옛 서버(hasCalc 미제공)면 종전대로 그린다 — 눌러도 안내창뿐이라 무해 */
       +(x.hasCalc==='N' ? '' : ' <button class="btn lnk" onclick="marginView('+i+')" title="저장된 원가·마진 계산(근거자료) 조회">🧮 계산조회</button>')+'</td>'
-      +'<td><button class="btn lnk" style="border-color:#0f6b5e;background:#e3f2ee;color:#0f6b5e;font-weight:800" onclick="editQuote('+x.quoteSeq+')" title="견적서 작성 화면에서 이 견적서를 수정">📝 수정</button></td>'
+      /* 수정 · ★복사 작성 (2026-09-20 「견적서 목록에서 견적서 복사 작성 추가」) — 복사는 내용만 베껴 새 견적서로(번호·견적일은 오늘 것으로 새로) */
+      +'<td><button class="btn lnk" style="border-color:#0f6b5e;background:#e3f2ee;color:#0f6b5e;font-weight:800" onclick="editQuote('+x.quoteSeq+')" title="견적서 작성 화면에서 이 견적서를 수정">📝 수정</button>'
+        +' <button class="btn lnk" onclick="copyQuote('+x.quoteSeq+')" title="이 견적서를 베껴 새 견적서로 — 문서번호·견적일은 오늘 것으로 새로 매깁니다(원본은 그대로)">📋 복사 작성</button></td>'
       +'<td class="dim">'+esc(String(x.regDttm||'').slice(0,16))+(x.regUser?'<br>'+esc(x.regUser):'')+'</td></tr>';
   }).join('');
   document.getElementById('lsTot').innerHTML='<b>'+_ls.length+'</b>건 · 금액 <b>'+fmt(amt)+'</b>원';
@@ -325,8 +329,10 @@ function fileDown(url, fallbackNm){
 }
 /* 출력 · 수정 (2026-09-17 「여기에서 견적서 작성 및 출력 가능하게」) — 인쇄는 새 창(A4), 수정은 셸의 견적서 작성 화면을 그 번호로 연다 */
 function printQuote(seq){ window.open(CTX+'/mangr/quotePrint.do?quoteSeq='+seq, '_blank'); }
-function editQuote(seq){
-  var url=CTX+'/mangr/quoteEdit.do?quoteSeq='+seq;
+/* ★복사 작성 (2026-09-20) — 같은 길로 열되 copy=Y : 작성 화면이 내용만 베끼고 번호·견적일을 오늘 것으로 새로 매긴다(저장해야 새 견적서가 생긴다) */
+function copyQuote(seq){ editQuote(seq, true); }
+function editQuote(seq, copy){
+  var url=CTX+'/mangr/quoteEdit.do?quoteSeq='+seq+(copy?'&copy=Y':'');
   try{
     var P=window.parent; if(P && P!==window && typeof P.logiFrame==='function'){
       var f=P.document.getElementById('if-quoteEdit'); if(f){ f.src=url; }   /* 먼저 그 번호로 로드 — logiFrame 은 src 가 있으면 유지한다 */
@@ -371,7 +377,11 @@ function marginView(i){
     if(_mgSeq!==x.quoteSeq) return;
     var mst=(a[0]&&a[0].mst)||{}, lines=(a[1]&&a[1].data)||[];
     var cj=null; try{ cj=JSON.parse(mst.calcJson||'null'); }catch(e){}
-    if(!cj || !cj.calcs || !cj.calcs.some(function(c){ return !!c; })){
+    /* ★「계산 있음」 = 입력 아홉 칸 중 0 이 아닌 값이 하나라도 (2026-09-20 「원가계산에서 목형·동판만 이 역시 계산조회 없게」) —
+       품명비(동판·목형)만 적은 것은 계산이 아니다. 목록 아이콘(selectQuoteList.hasCalc)·작성 화면 calcHasVal 과 같은 규칙. */
+    var mgKeys=['moqQty','buy','box','trans','store','split','pack','target','tgtAmt'];
+    var hasReal=!!cj && !!cj.calcs && cj.calcs.some(function(c){ return c && mgKeys.some(function(k){ return n(c[k])>0; }); });
+    if(!hasReal){
       _mgSeq=null; w.hidden=true; w.innerHTML='';
       _alertBox('이 견적서에는 저장된 원가·마진 계산이 없습니다.<br><span style="font-size:13px;color:#3d4d5c">견적서 작성 화면에서 품목 줄의 [🧮]로 계산해 저장하면 여기서 조회됩니다.</span>',{icon:'ℹ️'});
       return;
@@ -382,9 +392,9 @@ function marginView(i){
     var dcRate=n(set.dcRate);   /* DC 비율 스냅샷(2026-09-18 「DC 비는 11.5%」) — 없는 옛 저장분은 그때 규칙(물류비 0) 그대로 */
     var modeTxt= set.mode==='center' ? ('센터배송 — '+esc(set.center||'')+' '+rate+'%') : (set.mode==='parcel' ? ('직송 — 직송비/박스 '+fmt(set.fee)+'원') : ('DC — '+(dcRate? dcRate+'%' : '물류비 없음')));   /* 이름 변경 2026-09-18 「직송→DC · 택배→직송」 (값 direct/parcel 은 그대로) */
     var h='<div class="cmp"><div class="dh"><b>🧮 원가·마진 근거</b> <b style="color:#137a6c">'+esc(x.docNo)+'</b> · '+d10(x.quoteDt)
-      +' <span class="dim">저장 때 스냅샷 그대로 · 물류비 = '+modeTxt+' · 고치려면 [✏ 수정]</span>'
-      +'<button class="btn lnk" style="margin-left:auto" onclick="editQuote('+x.quoteSeq+')">✏ 수정</button>'
-      +'<button class="btn lnk" onclick="marginView('+i+')">✕ 닫기</button></div>'
+      /* [삭제 2026-09-20 「표시 제거 — 중복임」] 이 줄의 [✏ 수정] 단추 — 바로 위 목록 줄에 [📝 수정]이 있어 겹쳤다(안내 문구도 그 단추를 가리키게) */
+      +' <span class="dim">저장 때 스냅샷 그대로 · 물류비 = '+modeTxt+' · 고치려면 목록 줄의 [📝 수정]</span>'
+      +'<button class="btn lnk" style="margin-left:auto" onclick="marginView('+i+')">✕ 닫기</button></div>'
       +'<div class="tw" style="max-height:56vh"><table class="g"><thead><tr><th class="nm">품명 / 규격</th><th>MOQ수량</th><th>단가</th><th>박스<br>입수량</th><th>구매<br>(계산)</th><th>구매 계</th><th title="확인용 메모 칸(2026-09-18) — 계산과 무관, 작성 화면에서 적은 값 그대로">타겟금액</th><th>판매<br>적용단가</th><th>판매 계</th><th>물류비</th><th>실 판매금액</th><th>실 마진금액</th><th>실 마진율</th><th>품명비 (동판·목형)</th></tr></thead><tbody>';
     var tI=0, tO=0, tP=0, tQ=0, tR=0, rows=0;
     mains.forEach(function(l,idx){
@@ -399,7 +409,7 @@ function marginView(i){
       var Q=O-P, R=Q-I, S=I?(Q/I-1):0;
       tI+=I; tO+=O; tP+=P; tQ+=Q; tR+=R;
       var pb=(c.extras||[]).filter(function(e){ return (e.nm||'').trim()&&(n(e.qty)*n(e.price)||e.use!=='off'); }).map(function(e){
-        var lab= e.use==='sub'?'서브 줄':(e.use==='cost'?'원가 포함':'안 함');
+        var lab= e.use==='sub'?'서브 줄':(e.use==='cost'?('원가 포함'+(e.hide?' · 견적서 제외':'')):'안 함');   /* hide = 견적서에서만 뺀 것 (2026-09-20) */
         return esc(e.nm)+' '+fmt(n(e.qty)*n(e.price))+' <span class="sub">('+lab+')</span>'; }).join(' · ');
       h+='<tr><td class="nm"><b>'+esc(l.prodNm)+'</b>'+(l.spec?'<div class="sub">'+esc(l.spec)+'</div>':'')+'</td>'
         +'<td class="r">'+fmt(Q0)+'</td><td class="r">'+fmt(E)+'</td><td class="r">'+fmt(G)+'</td>'

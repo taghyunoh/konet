@@ -1039,9 +1039,29 @@
 	  SELECT m.QUOTE_SEQ AS quoteSeq, m.DOC_NO AS docNo, ISNULL(m.QUOTE_DT,'') AS quoteDt, ISNULL(m.RECV_NM,'') AS recvNm, ISNULL(m.MGR_NM,'') AS mgrNm,
 	         ISNULL(m.VALID_TXT,'') AS validTxt, ISNULL(m.TITLE_TXT,'') AS titleTxt, ISNULL(m.REMARK,'') AS remark, ISNULL(m.SUPPLY_AMT,0) AS supplyAmt,
 	         ISNULL(m.FILE_NM,'') AS fileNm, CASE WHEN m.FILE_B64 IS NULL THEN 'N' ELSE 'Y' END AS hasFile,
-	         CASE WHEN m.CALC_JSON LIKE '%"moqQty"%' THEN 'Y' ELSE 'N' END AS hasCalc,   /* 마진계산 유무(2026-09-18 「없으면 아이콘 제외」) — calcs 에 실제 객체가 있으면 "moqQty" 가 반드시 들어 있다(marginView 의 안내 조건과 같은 판정) */
+	         /* 마진계산 유무 — 목록 [🧮 계산조회] 아이콘 (2026-09-18 「없으면 아이콘 제외」)
+	            ★2026-09-20 「계산조회에는 표시 없고」 : **품명비(동판·목형)만 적은 것은 계산이 아니다** — 입력 아홉 칸 중 <0 이 아닌 값>이 하나라도 있어야 'Y'.
+	            (화면 calcHasVal 과 같은 규칙 · JSON 글자로 보므로 `"키":1~9…` 또는 `"키":0.…`(소수) 를 찾는다 — `"키":0` 은 안 걸린다) */
+	         CASE WHEN m.CALC_JSON LIKE '%"moqQty":[1-9]%' OR m.CALC_JSON LIKE '%"moqQty":0.[0-9]%'
+	                   OR m.CALC_JSON LIKE '%"buy":[1-9]%' OR m.CALC_JSON LIKE '%"buy":0.[0-9]%'
+	                   OR m.CALC_JSON LIKE '%"box":[1-9]%' OR m.CALC_JSON LIKE '%"box":0.[0-9]%'
+	                   OR m.CALC_JSON LIKE '%"trans":[1-9]%' OR m.CALC_JSON LIKE '%"trans":0.[0-9]%'
+	                   OR m.CALC_JSON LIKE '%"store":[1-9]%' OR m.CALC_JSON LIKE '%"store":0.[0-9]%'
+	                   OR m.CALC_JSON LIKE '%"split":[1-9]%' OR m.CALC_JSON LIKE '%"split":0.[0-9]%'
+	                   OR m.CALC_JSON LIKE '%"pack":[1-9]%' OR m.CALC_JSON LIKE '%"pack":0.[0-9]%'
+	                   OR m.CALC_JSON LIKE '%"target":[1-9]%' OR m.CALC_JSON LIKE '%"target":0.[0-9]%'
+	                   OR m.CALC_JSON LIKE '%"tgtAmt":[1-9]%' OR m.CALC_JSON LIKE '%"tgtAmt":0.[0-9]%' THEN 'Y' ELSE 'N' END AS hasCalc,
 	         ISNULL(m.PRICE1_NM,'') AS price1Nm, ISNULL(m.PRICE2_NM,'') AS price2Nm,   /* 단가 묶음 이름(2026-09-17 둘째 표본) */
 	         ISNULL(d.cnt,0) AS lineCnt, ISNULL(d.firstNm,'') AS firstNm,
+	         /* ★품명비(동판비·목형비) — 목록 품목 칸에 이름 + 갈래를 함께 (2026-09-20 「여기에도 동판·목형 보이게」·「적용 안 함·원가 포함·별도 청구 표시」).
+	            저장 명세에 품목 줄로 들어가 있으므로 여기서 모은다 — 갈래는 그 줄 비고로 가른다(payload 가 적는 말과 같다). */
+	         ISNULL(STUFF(( SELECT DISTINCT ', ' + f.PROD_NM + N'(' +
+	                               CASE WHEN ISNULL(f.REMARK,'') LIKE N'별도 청구%' THEN N'별도 청구'
+	                                    WHEN ISNULL(f.REMARK,'') LIKE N'원가 포함%' THEN N'원가 포함'
+	                                    ELSE N'적용 안 함' END + N')'
+	                          FROM TBL_QUOTE_DTL f
+	                         WHERE f.QUOTE_SEQ = m.QUOTE_SEQ AND f.PROD_NM IN (N'동판비', N'목형비')
+	                         FOR XML PATH(''), TYPE ).value('.','NVARCHAR(400)'), 1, 2, ''), '') AS feeNms,
 	         m.REG_DTTM AS regDttm, ISNULL(m.REG_USER,'') AS regUser
 	    FROM TBL_QUOTE_MST m
 	    LEFT JOIN ( SELECT QUOTE_SEQ, COUNT(*) AS cnt, MIN(CASE WHEN ROW_NO = 1 THEN PROD_NM END) AS firstNm FROM TBL_QUOTE_DTL GROUP BY QUOTE_SEQ ) d
