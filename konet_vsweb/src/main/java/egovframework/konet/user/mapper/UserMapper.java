@@ -110,6 +110,8 @@ public interface UserMapper {
 	java.util.Map<String,Object> countProdCd(egovframework.konet.user.model.ProdDTO dto) throws Exception;   // 상품코드 중복 확인(2026-09-07) — ALIVE/DELETED
 	int insertProd(egovframework.konet.user.model.ProdDTO dto) throws Exception;
 	int updateProd(egovframework.konet.user.model.ProdDTO dto) throws Exception;
+	java.util.Map<String,Object> selectProdInPriceBySeq(egovframework.konet.user.model.ProdDTO dto) throws Exception;   // 고치기 전 입고단가(2026-09-21)
+	int updateSubProdInPrice(java.util.Map<String,Object> p) throws Exception;                                           // 매칭 코드 중 상품으로 등록된 것의 입고단가 맞추기
 	int deleteProd(egovframework.konet.user.model.ProdDTO dto) throws Exception;
 	java.util.List<egovframework.konet.user.model.ProdDTO> selectProdDeletedList(egovframework.konet.user.model.ProdDTO dto) throws Exception;   // 삭제한 상품(ACTION_YN='N') 목록
 	int restoreProd(egovframework.konet.user.model.ProdDTO dto) throws Exception;

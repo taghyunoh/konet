@@ -99,6 +99,7 @@
     <button class="btn" onclick="ymMove(1)" title="다음 달">▶</button>
     <button class="btn btn-teal" onclick="load()">🔍 조회</button>
     <button class="btn" onclick="copyPrev()" title="지난 달 수기 금액을 이 달 칸에 채웁니다(저장은 따로)">📋 전월 복사</button>
+    <button class="btn" onclick="copyTo()" title="지금 보는 달의 비용(금액·내역 줄)을 다른 달로 복사합니다 — 지난 달로도(역순), 다음 달로도. 바로 저장됩니다">📤 이 달을 다른 달로 복사</button>
     <button class="btn btn-teal" id="saveBtn" onclick="save()">💾 저장</button>
     <span class="chip" id="stChip">—</span>
     <span class="chip tot" id="totChip">비용 합계 <b>—</b></span>
@@ -253,6 +254,39 @@ function copyPrev(){
       if(window._toast) _toast(cnt ? (pym+' 금액 '+cnt+'줄을 채웠습니다 — [저장]을 누르세요') : (pym+' 에 저장된 비용이 없습니다'), cnt?'success':'warning');
     })
     .catch(function(e){ err('지난 달을 읽지 못했습니다.<br>'+esc(e.message)); });
+}
+/* 이 달을 다른 달로 복사 (2026-09-21 「전월 복사 말고 금월 복사도, 역순으로 복사 가능하게」) — 서버가 금액과 내역 줄을 받는 달에 바로 넣는다.
+   내역 줄의 일자는 같은 날짜를 받는 달로 옮기고(말일 넘으면 말일) 확인 표시는 지운다. 자동(직송 택배 운임)은 달마다 따로 세므로 복사하지 않는다.
+   받는 달에 이미 있는 항목은 먼저 건너뛰고, 있으면 덮어쓸지 다시 묻는다. 기본 받는 달 = 지난 달. */
+function ymAdd(v, k){ var d=new Date(Number(v.slice(0,4)), Number(v.slice(5,7))-1+k, 1); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); }
+function copyTo(){
+  var from=_ym||ymVal(); if(!from){ err('먼저 달을 고르세요.'); return; }
+  if(document.querySelector('input.chg') || dtlDirtyCds().length){ err('저장 안 한 변경이 있습니다 — 먼저 [💾 저장] 하거나 [🔍 조회]로 되돌린 뒤 복사하세요.'); return; }
+  _confirmBox({ icon:'📤', okText:'복사',
+    msg:'<b>'+esc(from)+'</b> 의 비용을 다른 달로 복사합니다.<br><span style="font-size:13px;color:#3d4d5c">금액과 내역 줄이 받는 달에 <b>바로 저장</b>됩니다(직송 택배 운임은 자동이라 제외).</span>'
+       +'<div style="margin-top:12px;display:flex;gap:8px;align-items:center;justify-content:center">받는 달 <input type="month" id="cpTo" value="'+ymAdd(from,-1)+'" style="height:34px;border:1px solid #dbe2ea;border-radius:7px;padding:0 8px;font-size:14px">'
+       +'<button type="button" class="btn" style="height:32px" onclick="var e=document.getElementById(\'cpTo\'); e.value=ymAdd(e.value||\''+from+'\',-1)">◀ 앞 달</button><button type="button" class="btn" style="height:32px" onclick="var e=document.getElementById(\'cpTo\'); e.value=ymAdd(e.value||\''+from+'\',1)">뒷 달 ▶</button></div>',
+    onOk:function(){ var to=(document.getElementById('cpTo')||{}).value||''; if(!to){ err('받는 달을 고르세요.'); return; } if(to===from){ err('같은 달로는 복사할 수 없습니다.'); return; } copyRun(from, to, false); },
+    onCancel:function(){} });
+}
+function copyRun(from, to, over){
+  post('/mangr/expenseCopy.do', { fromYm:from, toYm:to, overwrite: over?'Y':'N' }, true)
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error((j&&j.error)||('HTTP '+r.status)); return j; }); })
+    .then(function(j){
+      var cp=n(j.copied), sk=n(j.skipped);
+      if(sk && !over){
+        _confirmBox({ icon:'⚠️', okText:'덮어쓰기', msg:esc(to)+' 에 <b>'+cp+'</b>개 항목(내역 '+n(j.lines)+'줄)을 복사했습니다.<br>이미 비용이 있는 항목 <b>'+sk+'</b>개는 건너뛰었습니다 — '+esc((j.skippedNm||[]).join(', '))+'<br><span style="font-size:13px;color:#c0392b">덮어쓰면 그 항목의 받는 달 금액·내역이 '+esc(from)+' 것으로 바뀝니다.</span>',
+          onOk:function(){ copyRun(from, to, true); }, onCancel:function(){ copyDone(to, cp); } });
+        return;
+      }
+      if(!cp){ err(esc(from)+' 에 복사할 비용이 없습니다.'); return; }
+      copyDone(to, cp);
+    })
+    .catch(function(e){ err('복사하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); });
+}
+function copyDone(to, cp){
+  _confirmBox({ icon:'✅', okText:esc(to)+' 로 이동', msg:esc(to)+' 에 <b>'+cp+'</b>개 항목을 복사했습니다.<br>받는 달을 열어 확인할까요?',
+    onOk:function(){ document.getElementById('ym').value=to; load(); }, onCancel:function(){} });
 }
 /* 택배출고관리로 — 셸 메뉴를 그대로 누른다(자주 쓰는 메뉴 칩과 같은 길) */
 function goParcel(){

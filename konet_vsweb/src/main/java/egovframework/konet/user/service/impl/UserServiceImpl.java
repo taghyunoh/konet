@@ -182,6 +182,8 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.Map<String,Object> countProdCd(egovframework.konet.user.model.ProdDTO dto) throws Exception { return mapper.countProdCd(dto); }
 	@Override public int insertProd(egovframework.konet.user.model.ProdDTO dto) throws Exception { return mapper.insertProd(dto); }
 	@Override public int updateProd(egovframework.konet.user.model.ProdDTO dto) throws Exception { return mapper.updateProd(dto); }
+	@Override public java.util.Map<String,Object> selectProdInPriceBySeq(egovframework.konet.user.model.ProdDTO dto) throws Exception { return mapper.selectProdInPriceBySeq(dto); }
+	@Override public int updateSubProdInPrice(java.util.Map<String,Object> p) throws Exception { return mapper.updateSubProdInPrice(p); }
 	@Override public int deleteProd(egovframework.konet.user.model.ProdDTO dto) throws Exception { return mapper.deleteProd(dto); }
 	@Override public java.util.List<egovframework.konet.user.model.ProdDTO> selectProdDeletedList(egovframework.konet.user.model.ProdDTO dto) throws Exception { return mapper.selectProdDeletedList(dto); }
 	@Override public int restoreProd(egovframework.konet.user.model.ProdDTO dto) throws Exception { return mapper.restoreProd(dto); }
@@ -1215,6 +1217,60 @@ public class UserServiceImpl implements UserService {
 		return n;
 	}
 	@Override public java.util.List<java.util.Map<String,Object>> selectDcPoList(java.util.Map<String,Object> p) throws Exception { return mapper.selectDcPoList(p); }
+	/* 비용 등록 — 한 달을 다른 달로 복사 (2026-09-21 「전월 복사 말고 금월 복사도, 역순으로 복사 가능하게」)
+	   fromYm 의 수기 항목(자동 택배 제외, 사용 끈 항목 제외)을 toYm 으로 : 내역 줄이 있는 항목은 줄째로(일자는 같은 날짜를 그 달로 옮기고 말일을 넘으면 말일,
+	   확인 표시는 지운다) 넣고 합계를 맞춘다. 내역이 없는 항목은 금액·비고를 넣는다.
+	   받는 달에 이미 금액이나 내역이 있는 항목은 overwrite=false 면 건너뛰고(skipped), true 면 그 항목의 내역을 닫고 바꿔 넣는다. */
+	@SuppressWarnings("unchecked")
+	@Override public java.util.Map<String,Object> saveExpenseCopy(String fromYm, String toYm, boolean overwrite, String user, String ip, String compCd) throws Exception {
+		String fy = fromYm.replace("-", "").trim(), ty = toYm.replace("-", "").trim();
+		java.util.Map<String,Object> src = selectExpenseMonth(fy, compCd), dst = selectExpenseMonth(ty, compCd);
+		java.util.Map<String,java.util.Map<String,Object>> sTrx = new java.util.HashMap<String,java.util.Map<String,Object>>(), dTrx = new java.util.HashMap<String,java.util.Map<String,Object>>();
+		for (java.util.Map<String,Object> t : (java.util.List<java.util.Map<String,Object>>) src.get("trx")) sTrx.put(scStr(t.get("itemCd")), t);
+		for (java.util.Map<String,Object> t : (java.util.List<java.util.Map<String,Object>>) dst.get("trx")) dTrx.put(scStr(t.get("itemCd")), t);
+		java.util.List<java.util.Map<String,Object>> sDtl = (java.util.List<java.util.Map<String,Object>>) src.get("dtl"), dDtl = (java.util.List<java.util.Map<String,Object>>) dst.get("dtl");
+		int last = java.time.YearMonth.of(Integer.parseInt(ty.substring(0, 4)), Integer.parseInt(ty.substring(4, 6))).lengthOfMonth();
+		int copied = 0, skipped = 0, lines = 0; java.util.List<String> skippedNm = new java.util.ArrayList<String>();
+		for (java.util.Map<String,Object> it : (java.util.List<java.util.Map<String,Object>>) src.get("items")) {
+			if (!"Y".equals(scStr(it.get("useYn"))) || "PARCEL".equals(scStr(it.get("autoSrc")))) continue;
+			String cd = scStr(it.get("itemCd"));
+			java.util.List<java.util.Map<String,Object>> sl = new java.util.ArrayList<java.util.Map<String,Object>>(), dl = new java.util.ArrayList<java.util.Map<String,Object>>();
+			for (java.util.Map<String,Object> d : sDtl) if (cd.equals(scStr(d.get("itemCd")))) sl.add(d);
+			for (java.util.Map<String,Object> d : dDtl) if (cd.equals(scStr(d.get("itemCd")))) dl.add(d);
+			double sAmt = sTrx.get(cd) == null ? 0 : scNum(sTrx.get(cd).get("amt")), dAmt = dTrx.get(cd) == null ? 0 : scNum(dTrx.get(cd).get("amt"));
+			if (sl.isEmpty() && Math.round(sAmt) == 0) continue;                       // 보낼 것이 없다
+			if (!dl.isEmpty() || Math.round(dAmt) != 0) {                              // 받는 달에 이미 있다
+				if (!overwrite) { skipped++; skippedNm.add(scStr(it.get("itemNm"))); continue; }
+				for (java.util.Map<String,Object> d : dl) {
+					java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+					p.put("compCd", compCd); p.put("expYm", ty); p.put("itemCd", cd); p.put("dtlSeq", Math.round(scNum(d.get("dtlSeq")))); p.put("regUser", user); p.put("regIp", ip);
+					mapper.deleteExpenseDtl(p);
+				}
+			}
+			if (!sl.isEmpty()) {
+				for (java.util.Map<String,Object> d : sl) {
+					java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+					p.put("compCd", compCd); p.put("expYm", ty); p.put("itemCd", cd); p.put("regUser", user); p.put("regIp", ip);
+					String dt = scStr(d.get("expDt")).replace("-", ""); String nd = null;
+					if (dt.length() == 8) { int day = 1; try { day = Integer.parseInt(dt.substring(6, 8)); } catch (Exception e) { day = 1; } nd = ty + String.format("%02d", Math.max(1, Math.min(last, day))); }
+					p.put("expDt", nd); p.put("title", scStr(d.get("title"))); p.put("amt", Math.round(scNum(d.get("amt")))); p.put("remark", scStr(d.get("remark"))); p.put("chkYn", "N");
+					mapper.insertExpenseDtl(p); lines++;
+				}
+				java.util.Map<String,Object> s = new java.util.HashMap<String,Object>();
+				s.put("compCd", compCd); s.put("expYm", ty); s.put("itemCd", cd); s.put("regUser", user); s.put("regIp", ip);
+				mapper.syncExpenseTrxFromDtl(s);
+			} else {
+				java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+				p.put("compCd", compCd); p.put("expYm", ty); p.put("itemCd", cd);
+				p.put("amt", Math.round(sAmt)); p.put("remark", scStr(sTrx.get(cd).get("remark"))); p.put("regUser", user); p.put("regIp", ip);
+				mapper.upsertExpenseTrx(p);
+			}
+			copied++;
+		}
+		java.util.Map<String,Object> r = new java.util.HashMap<String,Object>();
+		r.put("copied", copied); r.put("skipped", skipped); r.put("lines", lines); r.put("skippedNm", skippedNm);
+		return r;
+	}
 	@Override public int saveExpenseDtl(java.util.List<java.util.Map<String,Object>> rows, String ym, String itemCd, String user, String ip, String compCd) throws Exception {
 		String y = ym.replace("-", "").trim(); int n = 0;
 		if (rows != null) for (java.util.Map<String,Object> r : rows) {

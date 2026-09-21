@@ -462,7 +462,7 @@
       <div class="tbwrap">
         <table>
           <thead id="mth"></thead>
-          <tbody id="mtb"><tr><td colspan="10" class="empty">위 목록에서 상품 줄을 고르세요.</td></tr></tbody>
+          <tbody id="mtb"><tr><td colspan="12" class="empty">위 목록에서 상품 줄을 고르세요.</td></tr></tbody>
         </table>
       </div>
       <div class="addbar">
@@ -1108,6 +1108,8 @@ function pcSave(){
   fetch(CTX+url, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body:JSON.stringify(dto) })
     .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, status:res.status, t:t}; }); })
     .then(function(r){ if(!r.ok){ toast('실패 (HTTP '+r.status+'): '+(r.t||'').slice(0,120),'err'); return; }
+      /* 주코드 입고단가를 고치면 매칭 코드 중 상품으로 등록된 것도 같이 바뀐다 (2026-09-21) — 응답 "건수|같이 고친 상품 수" */
+      var sm=/\|(\d+)/.exec(r.t||''); if(sm) okmsg+=' · 매칭 상품 '+sm[1]+'개 입고단가도 같이 변경';
       if(!stkDiff){ pcClose(); toast(okmsg,'ok'); pcLoad(); return; }
       /* 재고 조정 — 재고 일괄조정의 저장 엔드포인트 그대로. 차이만큼 조정행(A)+이력이 남는다. */
       fetch(CTX+'/prod/stockAdjSave.do', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
@@ -1229,7 +1231,9 @@ function mcPickProd(seq){
      ① 이 상품만(기본) : 위에서 고른 상품에 붙여 둔 코드
      ② 전체 보기       : 등록된 매칭코드 전부 + 어느 상품인지(상품코드·상품명). 줄을 누르면 그 상품으로 간다.
    ★머리글이 모드마다 달라 thead(#mth)도 여기서 그린다 — 정적 thead 를 두면 칸 수가 어긋난다. */
+var _byCdP={};   /* 상품코드 → 상품 줄 (매칭코드 표의 입고가·판매가용, mcRender 때마다 새로) */
 function mcRender(){
+  _byCdP={}; LIST.forEach(function(p){ if(p.prodCd) _byCdP[String(p.prodCd)]=p; });
   var th=document.getElementById('mth'), tb=document.getElementById('mtb');
   /* 품목명 칸을 줄이고, 남는 폭은 맨 끝 빈 칸(sp)이 먹는다 (2026-08-02 요청).
      ★품목명에 폭만 주면 소용없다 — table{width:100%} 이라 남는 폭이 제일 긴 칸(품목명)으로 다시 몰린다. */
@@ -1245,12 +1249,12 @@ function mcRender(){
   var HEAD_ONE='<tr>'
     +'<th style="width:150px">거래처</th><th style="width:130px">품목코드</th>'
     +'<th style="width:150px" title="'+ADD_TIP+'. 칸에서 바로 고치고 Enter 로 저장합니다.">추가 매칭코드</th><th style="width:470px">품목명</th>'
-    +'<th style="width:175px">규격</th><th class="r" style="width:90px">단가</th>'
+    +'<th style="width:175px">규격</th><th class="r" style="width:90px">단가</th><th class="r" style="width:96px" title="매칭 코드가 상품코드로도 등록돼 있으면 그 상품의 입고가(굵게), 아니면 주코드 상품의 입고가(옅게). 주코드와 다르면 주황">입고가</th><th class="r" style="width:96px" title="매칭 코드가 상품코드로도 등록돼 있으면 그 상품의 판매가(굵게), 아니면 주코드 상품의 판매가(옅게)">판매가</th>'
     +'<th style="width:100px">받은날</th><th style="width:150px">비고</th><th style="width:64px">관리</th><th class="sp"></th></tr>';
   var HEAD_ALL='<tr><th style="width:120px">상품코드</th><th style="width:230px">상품명</th>'
     +'<th style="width:150px">거래처</th><th style="width:130px">품목코드</th>'
     +'<th style="width:130px" title="'+ADD_TIP+'">추가 매칭코드</th><th style="width:420px">품목명</th>'
-    +'<th style="width:175px">규격</th><th class="r" style="width:90px">단가</th>'
+    +'<th style="width:175px">규격</th><th class="r" style="width:90px">단가</th><th class="r" style="width:96px" title="매칭 코드가 상품코드로도 등록돼 있으면 그 상품의 입고가(굵게), 아니면 주코드 상품의 입고가(옅게). 주코드와 다르면 주황">입고가</th><th class="r" style="width:96px" title="매칭 코드가 상품코드로도 등록돼 있으면 그 상품의 판매가(굵게), 아니면 주코드 상품의 판매가(옅게)">판매가</th>'
     +'<th style="width:100px">받은날</th><th style="width:64px">관리</th><th class="sp"></th></tr>';
   function row(o, all){
     // 거래처를 안 고른 줄 = 어느 거래처에도 매이지 않은 코드 → '신규코드'로 표시(값은 빈 값으로 저장)
@@ -1272,6 +1276,14 @@ function mcRender(){
                 +' oninput="mcAddInput(this)" onkeydown="mcAddKey(event,this)"></td>'))
       +'<td>'+esc(o.extItemNm)+'</td>'
       +'<td>'+esc(o.extSpec)+'</td><td class="num">'+num(o.extPrice)+'</td>'
+      +(function(){   /* 입고가·판매가 — 매칭 코드가 상품으로 등록돼 있으면 그 상품 값, 아니면 주코드 값(옅게) */
+        var main=_byseq[o.prodSeq]||{}, sub=_byCdP[String(o.extItemCd||'')]||_byCdP[String(o.addItemCd||'')]||null;
+        if(sub && String(sub.prodSeq)===String(main.prodSeq)) sub=null;
+        var src=sub||main, own=!!sub, diff=own && Number(sub.inPrice||0)!==Number(main.inPrice||0);
+        var st=own?('font-weight:700;'+(diff?'color:#b45309':'')):'color:#9aa7b3';
+        var tip=own?('상품코드 '+esc(sub.prodCd)+' 로 등록된 값'+(diff?' — 주코드 입고가 '+num(main.inPrice)+' 와 다릅니다(주코드 입고가를 고쳐 저장하면 같이 맞춰집니다)':'')):'상품으로 등록 안 된 코드 — 주코드 상품의 값';
+        return '<td class="num" style="'+st+'" title="'+tip+'">'+num(src.inPrice)+'</td><td class="num" style="'+(own?'font-weight:700':'color:#9aa7b3')+'" title="'+tip+'">'+num(src.salePrice)+'</td>';
+      })()
       +'<td>'+esc(mcFmtDt(o.notiDt))+'</td>';
     if(!all) h+='<td>'+esc(o.remark)+'</td>';
     h+='<td><button class="btn btn-danger" style="height:26px;padding:0 9px;font-size:11.5px"'
@@ -1282,14 +1294,14 @@ function mcRender(){
     th.innerHTML=HEAD_ALL;
     var RL=MC.filter(mcReal);            // 추가 코드를 펼친 가상 줄은 뺀다 — 그 값은 원래 줄의 칸에 있다
     tb.innerHTML = RL.length ? RL.map(function(o){ return row(o,true); }).join('')
-                             : '<tr><td colspan="11" class="empty">등록된 매칭코드가 없습니다.</td></tr>';
+                             : '<tr><td colspan="13" class="empty">등록된 매칭코드가 없습니다.</td></tr>';
     return;
   }
   th.innerHTML=HEAD_ONE;
-  if(!_mcCur){ tb.innerHTML='<tr><td colspan="10" class="empty">위 목록에서 상품 줄을 고르세요.'
+  if(!_mcCur){ tb.innerHTML='<tr><td colspan="12" class="empty">위 목록에서 상품 줄을 고르세요.'
     +' <span style="color:#5a6b7a">— 등록된 것을 다 보려면 [📋 전체 보기]</span></td></tr>'; return; }
   var l=MC.filter(function(o){ return mcReal(o) && String(o.prodSeq)===String(_mcCur.prodSeq); });
-  if(!l.length){ tb.innerHTML='<tr><td colspan="10" class="empty">이 상품에 붙여 둔 거래처 코드가 없습니다 — 아래에서 등록하세요.'
+  if(!l.length){ tb.innerHTML='<tr><td colspan="12" class="empty">이 상품에 붙여 둔 거래처 코드가 없습니다 — 아래에서 등록하세요.'
     +' <span style="color:#c0392b">(없으면 그 코드로 오는 자료는 미매핑이 됩니다)</span></td></tr>'; return; }
   tb.innerHTML=l.map(function(o){ return row(o,false); }).join('');
 }

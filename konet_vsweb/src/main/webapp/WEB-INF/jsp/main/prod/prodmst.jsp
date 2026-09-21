@@ -666,7 +666,7 @@ function prodSave(){
   else   { url='/prod/prodInsert.do'; okmsg='＋ 등록 완료'; }
   fetch(CTX+url, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body:JSON.stringify(dto) })
     .then(function(res){ return res.text().then(function(t){ return {ok:res.ok, status:res.status, t:t}; }); })
-    .then(function(r){ if(!r.ok){ toast('⚠️ 실패 (HTTP '+r.status+'): '+(r.t||'').slice(0,120)); return; } prodClose(); toast(okmsg); prodLoad(); })
+    .then(function(r){ if(!r.ok){ toast('⚠️ 실패 (HTTP '+r.status+'): '+(r.t||'').slice(0,120)); return; } var sm=/\|(\d+)/.exec(r.t||''); if(sm) okmsg+=' · 매칭 상품 '+sm[1]+'개 입고단가도 같이 변경'; prodClose(); toast(okmsg); prodLoad(); })
     .catch(function(e){ toast('⚠️ 통신오류: '+e.message); });
 }
 function prodDel(seq){

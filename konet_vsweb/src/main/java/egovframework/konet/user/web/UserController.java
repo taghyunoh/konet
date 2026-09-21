@@ -3559,6 +3559,22 @@ public class UserController {
 		}
 		/* 비용 내역 저장(2026-09-17) — {ym, itemCd, rows:[{dtlSeq, del, expDt, title, amt, remark, chkYn}]}. 한 항목의 그 달 목록을 통째로 받는다 */
 		@SuppressWarnings("unchecked")
+		/* 비용 등록 — 한 달을 다른 달로 복사 (2026-09-21) — body {fromYm, toYm, overwrite:'Y'|'N'}. 총괄관리자만 */
+		@RequestMapping(value="/mangr/expenseCopy.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> expenseCopy(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session, javax.servlet.http.HttpServletResponse response) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { response.setStatus(401); res.put("error", "로그인이 필요합니다."); return res; }
+				if (!isChief(session)) { response.setStatus(403); res.put("error", "총괄관리자만 비용을 등록할 수 있습니다."); return res; }
+				String f = p.get("fromYm") == null ? "" : String.valueOf(p.get("fromYm")).replace("-", "").trim();
+				String t = p.get("toYm") == null ? "" : String.valueOf(p.get("toYm")).replace("-", "").trim();
+				if (!f.matches("[0-9]{6}") || !t.matches("[0-9]{6}")) { response.setStatus(400); res.put("error", "보내는 달·받는 달(YYYY-MM)이 필요합니다."); return res; }
+				if (f.equals(t)) { response.setStatus(400); res.put("error", "같은 달로는 복사할 수 없습니다."); return res; }
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				return svc.saveExpenseCopy(f, t, "Y".equals(String.valueOf(p.get("overwrite"))), u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")));
+			} catch (Exception e) { log.error(" expenseCopy ERROR : " + e.getMessage()); response.setStatus(500); res.put("error", e.getMessage()); return res; }
+		}
 		@RequestMapping(value="/mangr/expenseDtlSave.do", method = RequestMethod.POST)
 		public ResponseEntity<String> expenseDtlSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
 			try {
@@ -3796,7 +3812,19 @@ public class UserController {
 			try {
 				if (dto.getProdSeq()==null) return ResponseEntity.status(400).body("PROD_SEQ 필요");
 				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setUpdIp(request.getRemoteAddr());
-				return ResponseEntity.ok(String.valueOf(svc.updateProd(dto)));
+				/* 주코드 입고단가가 바뀌면 매칭 코드 중 상품으로 등록된 것의 입고단가도 같이 (2026-09-21). 응답 = "건수" 또는 "건수|같이 고친 상품 수" */
+				Map<String,Object> old = svc.selectProdInPriceBySeq(dto);
+				int n = svc.updateProd(dto); int subs = 0;
+				if (n > 0 && old != null && dto.getInPrice() != null) {
+					double before = 0; try { before = Double.parseDouble(String.valueOf(old.get("inPrice"))); } catch (Exception ig) { before = 0; }
+					if (Math.abs(before - dto.getInPrice().doubleValue()) > 0.0001) {
+						Map<String,Object> sp = new HashMap<String,Object>();
+						sp.put("compCd", old.get("compCd")); sp.put("prodCd", dto.getProdCd() == null || dto.getProdCd().isEmpty() ? old.get("prodCd") : dto.getProdCd());
+						sp.put("inPrice", dto.getInPrice()); sp.put("updUser", dto.getUpdUser()); sp.put("updIp", dto.getUpdIp());
+						subs = svc.updateSubProdInPrice(sp);
+					}
+				}
+				return ResponseEntity.ok(subs > 0 ? n + "|" + subs : String.valueOf(n));
 			} catch (Exception e) { log.error(" prodUpdate ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 		@RequestMapping(value="/prod/prodDelete.do", method = RequestMethod.POST)

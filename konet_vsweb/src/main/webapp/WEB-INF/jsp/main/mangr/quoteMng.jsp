@@ -205,8 +205,8 @@ function pvRender(){
       +(_docs[q.fileNm]?'<button class="btn lnk'+(_docOpen===q.fileNm?' on':'')+'" onclick="docShow(this.getAttribute(\'data-n\'))" data-n="'+esc(q.fileNm)+'" title="올린 엑셀을 그대로 봅니다">📄 원본 보기</button>':'')
       +'</div>'
       +(q.titleTxt?'<div class="df" style="border-top:0;color:#37475a">'+esc(q.titleTxt)+'</div>':'')
-      +'<div class="tw" style="max-height:none"><table class="g"><thead><tr><th>No</th><th>품명</th><th>규격</th><th>Box</th><th>수량</th><th>단위</th>'+priceHead(q)+'<th>비고</th></tr></thead><tbody>'
-      +(lines.length?lines.map(function(l){ return '<tr><td>'+esc(l.rowNo)+'</td><td class="l">'+esc(l.prodNm)+'</td><td class="l">'+esc(l.spec)+'</td><td class="r">'+(l.boxQty!=null?fmt(l.boxQty):'')+'</td><td class="r"><b>'+fmt(l.qty)+'</b></td><td>'+esc(l.unit)+'</td>'+priceCells(l, !!q.price2Nm)+'<td class="l">'+esc(l.remark)+'</td></tr>'; }).join('')
+      +'<div class="tw" style="max-height:none"><table class="g"><thead><tr><th>No</th><th>상품코드</th><th>품명</th><th>규격</th><th>Box</th><th>수량</th><th>단위</th>'+priceHead(q)+'<th>비고</th></tr></thead><tbody>'
+      +(lines.length?lines.map(function(l){ return '<tr><td>'+esc(l.rowNo)+'</td><td style="color:#0f6b5e;font-weight:700">'+esc(l.prodCd||'')+'</td><td class="l">'+esc(l.prodNm)+'</td><td class="l">'+esc(l.spec)+'</td><td class="r">'+(l.boxQty!=null?fmt(l.boxQty):'')+'</td><td class="r"><b>'+fmt(l.qty)+'</b></td><td>'+esc(l.unit)+'</td>'+priceCells(l, !!q.price2Nm)+'<td class="l">'+esc(l.remark)+'</td></tr>'; }).join('')
         :'<tr><td colspan="11" class="empty">품목 줄을 읽지 못했습니다 — 품명·수량·단가 머리글이 있는지 원본을 확인하세요.</td></tr>')
       +'</tbody></table></div>'
       +(q.remark?'<div class="df">비고 : '+esc(q.remark)+'</div>':'')
@@ -297,7 +297,7 @@ function lsRender(){
       +'<td><input type="checkbox" class="lchk" data-i="'+i+'"></td>'
       +'<td>'+d10(x.quoteDt)+'</td><td><b>'+esc(x.docNo)+'</b>'+(x.hasFile==='Y'?'<span class="bd up" title="엑셀 파일을 올려 저장한 견적서 ('+esc(x.fileNm)+')">올림</span>':'<span class="bd hand" title="견적서 작성 화면에서 직접 작성한 견적서(올린 파일 없음)">✍ 직접 작성</span>')+'</td><td>'+esc(x.recvNm)+'</td><td>'+esc(x.mgrNm)+'</td>'
       /* ★품명비(동판비·목형비)는 이름 + 갈래를 함께 보여 준다 (2026-09-20 「여기에도 동판·목형 보이게」·「적용 안 함·원가 포함·별도 청구 표시」) — 서버 feeNms(옛 서버면 빈 값) */
-      +'<td class="l" style="max-width:320px">'+esc(x.firstNm)+(n(x.lineCnt)>1?' <span class="dim">외 '+(n(x.lineCnt)-1)+'</span>':'')
+      +'<td class="l" style="max-width:320px">'+(x.firstCd?'<span style="color:#0f6b5e;font-weight:700;font-size:12px;margin-right:6px" title="첫 줄의 우리 상품코드'+(n(x.cdCnt)>1?' · 상품코드가 든 줄 '+n(x.cdCnt)+'개':'')+'">'+esc(x.firstCd)+'</span>':(n(x.cdCnt)?'<span style="color:#0f6b5e;font-weight:700;font-size:12px;margin-right:6px" title="상품코드가 든 줄 '+n(x.cdCnt)+'개(첫 줄에는 없음)">코드 '+n(x.cdCnt)+'줄</span>':''))+esc(x.firstNm)+(n(x.lineCnt)>1?' <span class="dim">외 '+(n(x.lineCnt)-1)+'</span>':'')
         +(x.feeNms?'<div class="dim" style="font-size:11.5px;margin-top:2px">🧷 '+esc(x.feeNms)+'</div>':'')+'</td>'
       +'<td class="r">'+fmt(x.lineCnt)+'</td><td class="r"><b>'+fmt(x.supplyAmt)+'</b></td><td class="dim">'+esc(x.validTxt)+'</td>'
       +'<td>'+(x.hasFile==='Y'?'<button class="btn lnk" onclick="viewFile('+x.quoteSeq+', this.getAttribute(\x27data-n\x27))" data-n="'+esc(x.fileNm)+'" title="올린 엑셀 양식을 화면에서 봅니다 ('+esc(x.fileNm)+')">📄 원본</button>':'<button class="btn lnk" onclick="fileDown(CTX+\'/mangr/quoteExcel.do?quoteSeq='+x.quoteSeq+'\', \'견적서.xls\')" title="우리 견적서 양식 그대로 엑셀로 내려받기">📥 엑셀</button>')+'</td>'
@@ -439,8 +439,8 @@ function detail(i){
       w.innerHTML='<div class="dtl"><div class="dh"><b>'+esc(x.docNo)+'</b> · '+d10(x.quoteDt)+' · '+esc(x.recvNm)+' · 담당 '+esc(x.mgrNm)+(x.validTxt?' · '+esc(x.validTxt):'')
         +'<span style="margin-left:auto" class="tot">품목 <b>'+ls.length+'</b>줄 · 합계 <b>'+fmt(sum)+'</b>원</span></div>'
         +(x.titleTxt?'<div class="df" style="border-top:0;color:#37475a">'+esc(x.titleTxt)+'</div>':'')
-        +'<div class="tw" style="max-height:none"><table class="g"><thead><tr><th>No</th><th>품명</th><th>규격</th><th>Box</th><th>수량</th><th>단위</th>'+priceHead(x)+'<th>비고</th></tr></thead><tbody>'
-        +(ls.length?ls.map(function(l){ return '<tr><td>'+esc(l.rowNo)+'</td><td class="l">'+esc(l.prodNm)+'</td><td class="l">'+esc(l.spec)+'</td><td class="r">'+(l.boxQty!=null?fmt(l.boxQty):'')+'</td><td class="r"><b>'+fmt(l.qty)+'</b></td><td>'+esc(l.unit)+'</td>'+priceCells(l, !!x.price2Nm)+'<td class="l">'+esc(l.remark)+'</td></tr>'; }).join(''):'<tr><td colspan="11" class="empty">품목 줄이 없습니다.</td></tr>')
+        +'<div class="tw" style="max-height:none"><table class="g"><thead><tr><th>No</th><th>상품코드</th><th>품명</th><th>규격</th><th>Box</th><th>수량</th><th>단위</th>'+priceHead(x)+'<th>비고</th></tr></thead><tbody>'
+        +(ls.length?ls.map(function(l){ return '<tr><td>'+esc(l.rowNo)+'</td><td style="color:#0f6b5e;font-weight:700">'+esc(l.prodCd||'')+'</td><td class="l">'+esc(l.prodNm)+'</td><td class="l">'+esc(l.spec)+'</td><td class="r">'+(l.boxQty!=null?fmt(l.boxQty):'')+'</td><td class="r"><b>'+fmt(l.qty)+'</b></td><td>'+esc(l.unit)+'</td>'+priceCells(l, !!x.price2Nm)+'<td class="l">'+esc(l.remark)+'</td></tr>'; }).join(''):'<tr><td colspan="11" class="empty">품목 줄이 없습니다.</td></tr>')
         +'</tbody></table></div>'+(x.remark?'<div class="df">비고 : '+esc(x.remark)+'</div>':'')+'</div>';
     })
     .catch(function(e){ w.innerHTML='<div class="err">품목을 불러오지 못했습니다 — '+esc(e.message)+'</div>'; });

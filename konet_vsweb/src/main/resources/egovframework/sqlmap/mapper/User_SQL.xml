@@ -1068,6 +1068,7 @@
 	                   OR m.CALC_JSON LIKE '%"tgtAmt":[1-9]%' OR m.CALC_JSON LIKE '%"tgtAmt":0.[0-9]%' THEN 'Y' ELSE 'N' END AS hasCalc,
 	         ISNULL(m.PRICE1_NM,'') AS price1Nm, ISNULL(m.PRICE2_NM,'') AS price2Nm,   /* 단가 묶음 이름(2026-09-17 둘째 표본) */
 	         ISNULL(d.cnt,0) AS lineCnt, ISNULL(d.firstNm,'') AS firstNm,
+	         ISNULL(d.firstCd,'') AS firstCd, ISNULL(d.cdCnt,0) AS cdCnt,   /* 첫 줄의 상품코드 · 상품코드가 든 줄 수 (2026-09-21 목록에도 상품코드) */
 	         /* ★품명비(동판비·목형비) — 목록 품목 칸에 이름 + 갈래를 함께 (2026-09-20 「여기에도 동판·목형 보이게」·「적용 안 함·원가 포함·별도 청구 표시」).
 	            저장 명세에 품목 줄로 들어가 있으므로 여기서 모은다 — 갈래는 그 줄 비고로 가른다(payload 가 적는 말과 같다). */
 	         ISNULL(STUFF(( SELECT DISTINCT ', ' + f.PROD_NM + N'(' +
@@ -1079,7 +1080,10 @@
 	                         FOR XML PATH(''), TYPE ).value('.','NVARCHAR(400)'), 1, 2, ''), '') AS feeNms,
 	         m.REG_DTTM AS regDttm, ISNULL(m.REG_USER,'') AS regUser
 	    FROM TBL_QUOTE_MST m
-	    LEFT JOIN ( SELECT QUOTE_SEQ, COUNT(*) AS cnt, MIN(CASE WHEN ROW_NO = 1 THEN PROD_NM END) AS firstNm FROM TBL_QUOTE_DTL GROUP BY QUOTE_SEQ ) d
+	    LEFT JOIN ( SELECT QUOTE_SEQ, COUNT(*) AS cnt, MIN(CASE WHEN ROW_NO = 1 THEN PROD_NM END) AS firstNm,
+	                       MIN(CASE WHEN ROW_NO = 1 THEN NULLIF(PROD_CD,'') END) AS firstCd,
+	                       SUM(CASE WHEN ISNULL(PROD_CD,'') = '' THEN 0 ELSE 1 END) AS cdCnt
+	                  FROM TBL_QUOTE_DTL GROUP BY QUOTE_SEQ ) d
 	      ON d.QUOTE_SEQ = m.QUOTE_SEQ
 	   WHERE m.ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -2286,6 +2290,25 @@
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
 	]]></insert>
 
+	<!-- 주코드 입고단가를 고치면 매칭된 코드 중 «상품코드로도 등록된 것»만 입고단가를 같이 맞춘다 (2026-09-21 사용자 요청)
+	     · selectProdInPriceBySeq = 고치기 전 값(바뀌었는지 판정) · updateSubProdInPrice = 주코드의 통보 코드·추가 코드(TBL_EXT_ITEM_MST)가
+	       TBL_PROD_MST 에도 PROD_CD 로 있는 상품만, 값이 다를 때만 고친다. 매칭만 있고 상품으로 등록 안 된 코드는 대상이 아니다. -->
+	<select id="selectProdInPriceBySeq" parameterType="egovframework.konet.user.model.ProdDTO" resultType="java.util.HashMap">
+	  SELECT PROD_CD AS prodCd, COMP_CD AS compCd, ISNULL(IN_PRICE,0) AS inPrice FROM TBL_PROD_MST WHERE PROD_SEQ = #{prodSeq}
+	</select>
+	<update id="updateSubProdInPrice" parameterType="java.util.Map"><![CDATA[
+	  UPDATE s
+	     SET s.IN_PRICE = #{inPrice,jdbcType=DECIMAL},
+	         s.UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), s.UPD_USER = #{updUser,jdbcType=NVARCHAR}, s.UPD_IP = #{updIp,jdbcType=NVARCHAR}
+	    FROM TBL_PROD_MST s
+	   WHERE s.ACTION_YN = 'Y' AND s.COMP_CD = #{compCd,jdbcType=VARCHAR} AND s.PROD_CD <> #{prodCd,jdbcType=VARCHAR}
+	     AND ISNULL(s.IN_PRICE,0) <> ISNULL(#{inPrice,jdbcType=DECIMAL},0)
+	     AND s.PROD_CD IN ( SELECT e.EXT_ITEM_CD FROM TBL_EXT_ITEM_MST e
+	                         WHERE e.ACTION_YN = 'Y' AND e.COMP_CD = #{compCd,jdbcType=VARCHAR} AND e.PROD_CD = #{prodCd,jdbcType=VARCHAR} AND ISNULL(e.EXT_ITEM_CD,'') <> ''
+	                        UNION
+	                        SELECT e.ADD_ITEM_CD FROM TBL_EXT_ITEM_MST e
+	                         WHERE e.ACTION_YN = 'Y' AND e.COMP_CD = #{compCd,jdbcType=VARCHAR} AND e.PROD_CD = #{prodCd,jdbcType=VARCHAR} AND ISNULL(e.ADD_ITEM_CD,'') <> '' )
+	]]></update>
 	<update id="updateProd" parameterType="egovframework.konet.user.model.ProdDTO"><![CDATA[
 	  UPDATE TBL_PROD_MST
 	     SET PROD_CD=#{prodCd}, PROD_NM=#{prodNm}, SPEC=#{spec,jdbcType=NVARCHAR}, MAKER_NM=#{makerNm,jdbcType=NVARCHAR},
