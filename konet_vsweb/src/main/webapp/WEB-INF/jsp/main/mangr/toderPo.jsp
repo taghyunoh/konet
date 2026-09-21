@@ -78,9 +78,8 @@
     <input type="file" id="fi" accept=".xlsx,.xls" multiple style="display:none" onchange="onFiles(this.files); this.value=''">
     <div class="tw" id="pvWrap" style="display:none;max-height:56vh">
       <table class="g"><thead><tr>
-        <th><input type="checkbox" id="pvAll" checked onchange="pvAllChk(this)"></th><th title="엑셀의 no 그대로">No</th><th>발주일자</th><th>발주번호</th><th>배송지명</th>
-        <th title="우리 사업장코드 — 한 번 넣으면 같은 배송지명의 빈 칸에 같이 들어가고, 저장하면 다음부터 자동">사업장코드</th>
-        <th>상품명</th><th title="우리 품목코드(상품코드) — 한 번 넣으면 같은 상품명의 빈 칸에 같이 들어가고, 저장하면 다음부터 자동">품목코드</th>
+        <th><input type="checkbox" id="pvAll" checked onchange="pvAllChk(this)"></th><th title="엑셀의 no 그대로">No</th><th>발주일자</th><th>발주번호</th><th title="우리 사업장코드 — 한 번 넣으면 같은 배송지명의 빈 칸에 같이 들어가고, 저장하면 다음부터 자동">사업장코드</th><th>배송지명</th>
+        <th title="우리 품목코드(상품코드) — 한 번 넣으면 같은 상품명의 빈 칸에 같이 들어가고, 저장하면 다음부터 자동">품목코드</th><th>상품명</th>
         <th>단위</th><th>수량</th><th>단가</th><th>상태</th></tr></thead>
         <tbody id="pvBody"></tbody></table>
     </div>
@@ -175,10 +174,10 @@ function pvRender(){
     if(_onlyNo && x.bizCd && x.itemCd) return '';
     var bn=_biz[x.bizCd], pn=_prod[x.itemCd];
     return '<tr class="'+(x.chk?'':'off')+'"><td><input type="checkbox" '+(x.chk?'checked':'')+' onchange="_pv['+i+'].chk=this.checked; pvRender()"></td><td>'+esc(x.no!==''&&x.no!=null?x.no:(i+1))+'</td><td>'+esc(x.dlvDt)+'</td><td>'+esc(x.ordNo)+'</td>'
-      +'<td class="l">'+esc(x.bizNm)+'</td>'
       +'<td class="l">'+(x.bizCd?'<span class="sub nmf'+(bn==null?' warn':'')+'">'+(x.bizAuto?'<span class="bd auto" title="'+(x.bizGuess?'사업장 마스터의 이름과 맞춰 본 추정 — 맞는지 확인하세요':'지난 저장에서 가져온 값')+'">'+(x.bizGuess?'추정':'자동')+'</span> ':'')+esc(bn!=null?bn:'사업장 마스터에 없는 코드')+'</span>':'')+'<input type="text" list="bizList" class="'+cdCls(x.bizCd,_biz,x.bizAuto)+'" value="'+esc(x.bizCd)+'" placeholder="명칭 또는 코드" onchange="setCd('+i+',\'biz\',this.value)"></td>'
-      +'<td class="l">'+esc(x.itemNm)+'</td>'
+      +'<td class="l">'+esc(x.bizNm)+'</td>'
       +'<td class="l">'+(x.itemCd?'<span class="sub nmf'+(pn==null?' warn':'')+'">'+(x.itemAuto?'<span class="bd auto">자동</span> ':'')+esc(pn!=null?pn:'상품 마스터에 없는 코드')+'</span>':'')+'<input type="text" list="prodList" class="'+cdCls(x.itemCd,_prod,x.itemAuto)+'" value="'+esc(x.itemCd)+'" placeholder="명칭 또는 코드" onchange="setCd('+i+',\'item\',this.value)"></td>'
+      +'<td class="l">'+esc(x.itemNm)+'</td>'
       +'<td>'+esc(x.unit)+'</td><td class="r"><b>'+fmt(x.qty)+'</b></td><td class="r">'+(x.price?fmt(x.price):'')+'</td><td><span class="bd '+(/취소|반품/.test(x.status)?'cx':'st')+'">'+esc(x.status)+'</span></td></tr>';
   }).join('');
   var sel=_pv.filter(function(x){ return x.chk; }), rdy=sel.filter(function(x){ return x.bizCd&&x.itemCd&&x.dlvDt&&x.qty; });
