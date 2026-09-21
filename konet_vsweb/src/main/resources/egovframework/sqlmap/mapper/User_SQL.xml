@@ -1242,19 +1242,77 @@
 	   ORDER BY t.DLV_DT DESC, t.ORD_NO DESC, t.BIZ_NM, t.ITEM_NM
 	]]></select>
 	<!-- 자동 매칭 자료 — 지금까지 저장한 토더 발주에서 이름 → 코드 (가장 최근 것). kind = 'biz'(배송지명 → 사업장코드) / 'item'(상품명 → 품목코드). 닫힌 이력(N)도 본다 -->
+	<!-- ★[2026-09-22] 살아 있는 줄(Y)을 먼저 본다 — 저장 뒤 코드를 고치면(updateTdPoBizByName/ItemByName) 살아 있는 줄이 새 코드가 되고,
+	     대체돼 닫힌 옛 줄(N)에 남은 옛 코드가 자동 매칭을 이기지 않게. 그다음이 올린 시각 최신. -->
 	<select id="selectTdPoMap" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
 	  SELECT kind, nm, cd FROM (
-	    SELECT 'biz' AS kind, t.BIZ_NM AS nm, t.BIZ_CD AS cd, ROW_NUMBER() OVER (PARTITION BY t.BIZ_NM ORDER BY t.UPLOAD_DTTM DESC) AS rn
+	    SELECT 'biz' AS kind, t.BIZ_NM AS nm, t.BIZ_CD AS cd, ROW_NUMBER() OVER (PARTITION BY t.BIZ_NM ORDER BY CASE WHEN t.ACTION_YN = 'Y' THEN 0 ELSE 1 END, t.UPLOAD_DTTM DESC) AS rn
 	      FROM TBL_SHIPOUT_MST t
 	     WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.BIZ_NM,'') <> '' AND ISNULL(t.BIZ_CD,'') <> ''
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	    UNION ALL
-	    SELECT 'item', t.ITEM_NM, t.ITEM_CD, ROW_NUMBER() OVER (PARTITION BY t.ITEM_NM ORDER BY t.UPLOAD_DTTM DESC)
+	    SELECT 'item', t.ITEM_NM, t.ITEM_CD, ROW_NUMBER() OVER (PARTITION BY t.ITEM_NM ORDER BY CASE WHEN t.ACTION_YN = 'Y' THEN 0 ELSE 1 END, t.UPLOAD_DTTM DESC)
 	      FROM TBL_SHIPOUT_MST t
 	     WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.ITEM_NM,'') <> '' AND ISNULL(t.ITEM_CD,'') <> ''
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  ) x WHERE x.rn = 1
 	]]></select>
+	<!-- ★[2026-09-22 「사업장코드·품목코드 선택한 것에 대하여 없으면 등록 안 되게」] 마스터에 있는 코드만 돌려준다.
+	     사업장 = TBL_BIZI_MST(살아 있는 줄) / 품목 = 상품마스터 코드 · 우리 상품에 연결된 매칭코드 · 추가 매칭코드(화면 목록과 같은 범위).
+	     컨트롤러가 보낸 코드 중 여기 안 나온 것이 있으면 저장·수정을 거절한다. bizCds·itemCds 는 비어 있지 않게 넘긴다(foreach). -->
+	<select id="selectTdCodeExist" parameterType="java.util.Map" resultType="java.util.HashMap">
+	  SELECT 'biz' AS kind, b.BIZ_CD AS cd
+	    FROM TBL_BIZI_MST b
+	   WHERE b.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR b.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND b.BIZ_CD IN <foreach collection="bizCds" item="c" open="(" separator="," close=")">#{c}</foreach>
+	  UNION
+	  SELECT 'item', p.PROD_CD
+	    FROM TBL_PROD_MST p
+	   WHERE p.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR p.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND p.PROD_CD IN <foreach collection="itemCds" item="c" open="(" separator="," close=")">#{c}</foreach>
+	  UNION
+	  SELECT 'item', e.EXT_ITEM_CD
+	    FROM TBL_EXT_ITEM_MST e
+	   WHERE e.ACTION_YN = 'Y' AND ISNULL(e.PROD_CD,'') &lt;&gt; ''
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR e.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND e.EXT_ITEM_CD IN <foreach collection="itemCds" item="c" open="(" separator="," close=")">#{c}</foreach>
+	  UNION
+	  SELECT 'item', e.ADD_ITEM_CD
+	    FROM TBL_EXT_ITEM_MST e
+	   WHERE e.ACTION_YN = 'Y' AND ISNULL(e.PROD_CD,'') &lt;&gt; '' AND e.ADD_ITEM_CD IS NOT NULL
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR e.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND e.ADD_ITEM_CD IN <foreach collection="itemCds" item="c" open="(" separator="," close=")">#{c}</foreach>
+	</select>
+	<!-- ★[2026-09-22 「저장 후 품목코드·사업장코드 수정 가능하게」] 이름(토더 배송지명 / 토더 상품명) 단위로 고친다 —
+	     코드는 이름에 붙는 값이라(다음 업로드의 자동 매칭도 이름 → 코드) 한 줄만 고치면 같은 이름의 다른 줄·자동 매칭이 옛 코드로 남는다.
+	     살아 있는 토더 줄(Y)만 고친다. 닫힌 옛 줄(N)은 이력이라 두고, 자동 매칭은 selectTdPoMap 이 Y 를 먼저 보게 바꿨다.
+	     품목을 고치면 우리 상품(PROD_SEQ·PROD_CD)을 비운다 — 서비스가 resolveShipoutProd 로 다시 풀고 그 날짜들의 재고 원장을 다시 만든다. -->
+	<select id="selectTdPoDatesByName" parameterType="java.util.Map" resultType="string"><![CDATA[
+	  SELECT DISTINCT t.DLV_DT
+	    FROM TBL_SHIPOUT_MST t
+	   WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( ( #{kind,jdbcType=VARCHAR} = 'biz'  AND ISNULL(t.BIZ_NM,'')  = #{nm,jdbcType=NVARCHAR} )
+	        OR ( #{kind,jdbcType=VARCHAR} = 'item' AND ISNULL(t.ITEM_NM,'') = #{nm,jdbcType=NVARCHAR} ) )
+	]]></select>
+	<update id="updateTdPoBizByName" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET BIZ_CD = #{cd,jdbcType=VARCHAR}, UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y'
+	     AND ISNULL(BIZ_NM,'') = #{nm,jdbcType=NVARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<update id="updateTdPoItemByName" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET ITEM_CD = #{cd,jdbcType=VARCHAR}, PROD_SEQ = NULL, PROD_CD = NULL,
+	         VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}, VENDOR_NM = #{vendorNm,jdbcType=NVARCHAR},
+	         UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y'
+	     AND ISNULL(ITEM_NM,'') = #{nm,jdbcType=NVARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
 	<update id="markDcPoReplace" parameterType="java.util.Map"><![CDATA[
 	  UPDATE TBL_SHIPOUT_MST
 	     SET ACTION_YN = 'N', UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}

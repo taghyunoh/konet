@@ -15,7 +15,8 @@
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>
 <%-- 상단 명세 표 높이 막대 (2026-09-10) — 합계줄 밑 막대를 아래로 끌면 늘고 위로 끌면 준다 (asset/js/ui-gridgrip.js 머리말) --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>
-<script type="text/javascript">konetPopDrag('.sa-pop'); konetGridGrip('saGridWrap', 'saFootWrap', 'salesReg');</script>
+<%-- [2026-09-22] 아래 두 표(전표 목록·원장)에도 높이 막대 — 「두개 그리드를 늘렸다 줄였다」. 수금·지급등록과 같은 자리(합계 줄 밑)·같은 규칙 --%>
+<script type="text/javascript">konetPopDrag('.sa-pop'); konetGridGrip('saGridWrap', 'saFootWrap', 'salesReg'); konetGridGrip('saListWrap', 'saSumBox', 'salesRegList'); konetGridGrip('lgWrap', 'lgFootWrap', 'salesRegLedger');</script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-quick.js?v=20260911"></script>
 <%-- 거래명세서 양식 — 이 화면과 공개 링크(/pub/stmt.do)가 같이 쓰는 렌더러 (2026-09-09).
      양식을 고칠 때는 이 파일 하나만 고치면 두 곳이 함께 바뀐다. --%>
@@ -341,7 +342,7 @@
       </table>
     </div>
     <div id="saPager" style="padding:6px 2px; text-align:center; min-height:26px"></div>
-    <div class="sa-sum">
+    <div class="sa-sum" id="saSumBox">
       <div class="k">판매계</div><div class="v" id="sPurch">0</div>
       <div class="k">반품계</div><div class="v" id="sRet">0</div>
       <div class="k">수금계</div><div class="v" id="sPay">0</div>
@@ -371,7 +372,7 @@
         <tbody id="lgBody"><tr><td colspan="6" class="sa-msg">거래처를 선택하세요.</td></tr></tbody>
       </table>
     </div>
-    <div class="sa-lgfoot">
+    <div class="sa-lgfoot" id="lgFootWrap">
       <table>
         <%-- 균형 배분(2026-08-04) — 매출만 넓고 나머지가 좁아 한쪽으로 쏠려 보였다.
              금액 4칸(매출·수금·잔고 + DC·할인)을 고르게 나눈다. --%>

@@ -1542,6 +1542,12 @@ public class UserController {
 					rows.add(d); dates.add(dlv);
 				}
 				if (rows.isEmpty()) return ResponseEntity.status(400).body("저장할 줄이 없습니다(발주일자·사업장코드·품목코드·수량을 확인하세요).");
+				/* ★[2026-09-22 「사업장코드·품목코드 선택한 것에 대하여 없으면 등록 안 되게」] 마스터에 없는 코드가 한 줄이라도 있으면 통째로 거절한다.
+				     종전(09-21)엔 「노랑 = 마스터에 없는 코드(그래도 저장은 된다)」였다 — 그런 줄은 재고에서 조용히 빠지고(우리 상품을 못 찾음) 매출도 못 붙는다. */
+				java.util.LinkedHashSet<String> bc = new java.util.LinkedHashSet<String>(), ic = new java.util.LinkedHashSet<String>();
+				for (egovframework.konet.user.model.ShipoutDTO r : rows) { bc.add(r.getBizCd()); ic.add(r.getItemCd()); }
+				String miss = tdMissingCodes(bc, ic, compCd);
+				if (miss != null) return ResponseEntity.status(400).body(miss);
 				/* 재고 연동 (2026-09-21 저녁 「토더도 재고 맞추어 주고 정산서는 사용자 협의 후」) — 낮의 「TBL_SHIPOUT_MST 에만」을 바꿨다. 그 날짜들의 출고 원장을 다시 만든다 */
 				int n = svc.saveTdPo(rows, u, ip, compCd);
 				String warn = dcResync(dates, u, ip);
@@ -1561,6 +1567,45 @@ public class UserController {
 				String warn = dcResync(dates, u, request.getRemoteAddr());   // 지운 날짜들의 재고도 다시 맞춘다
 				return ResponseEntity.ok(n + (warn == null ? "" : "|STOCKFAIL:" + warn));
 			} catch (Exception e) { log.error(" toderPoDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		/* ★[2026-09-22 「저장 후 품목코드·사업장코드 수정 가능하게」] {kind:'biz'|'item', nm:토더 이름, cd:새 코드}
+		   이름 단위로 살아 있는 토더 줄을 모두 고친다(서비스 updateTdPoCode 머리말). 새 코드도 마스터에 있어야 한다 — 저장과 같은 관문.
+		   품목을 고치면 그 이름이 든 날짜들의 재고 원장을 다시 만든다. 응답 = "고친 줄 수" (+ "|STOCKFAIL:사유") */
+		@RequestMapping(value="/shipout/toderPoCode.do", method = RequestMethod.POST)
+		public ResponseEntity<String> toderPoCode(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				String kind = poStr(p.get("kind")), nm = poStr(p.get("nm")), cd = poStr(p.get("cd"));
+				if (!("biz".equals(kind) || "item".equals(kind)) || nm.isEmpty() || cd.isEmpty()) return ResponseEntity.status(400).body("고칠 이름과 새 코드를 확인하세요.");
+				if (cd.length() > ("biz".equals(kind) ? 20 : 30)) return ResponseEntity.status(400).body("코드가 너무 깁니다.");
+				java.util.LinkedHashSet<String> bc = new java.util.LinkedHashSet<String>(), ic = new java.util.LinkedHashSet<String>();
+				if ("biz".equals(kind)) bc.add(cd); else ic.add(cd);
+				String miss = tdMissingCodes(bc, ic, compCd);
+				if (miss != null) return ResponseEntity.status(400).body(miss);
+				Map<String,Object> r = svc.updateTdPoCode(kind, nm, cd, u, request.getRemoteAddr(), compCd);
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
+				Object ds = r.get("dates"); if (ds instanceof java.util.List) for (Object d : (java.util.List<?>) ds) { String s = poStr(d); if (s.matches("[0-9]{8}")) dates.add(s); }
+				String warn = dcResync(dates, u, request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(r.get("n")) + (warn == null ? "" : "|STOCKFAIL:" + warn));
+			} catch (Exception e) { log.error(" toderPoCode ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		/* 마스터에 없는 코드 → 거절 문구(없으면 null). 빈 집합은 조회에서 뺀다(foreach 는 빈 목록을 못 받는다) */
+		private String tdMissingCodes(java.util.Set<String> bizCds, java.util.Set<String> itemCds, String compCd) throws Exception {
+			java.util.Set<String> hb = new java.util.HashSet<String>(), hi = new java.util.HashSet<String>();
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", compCd);
+			q.put("bizCds", new java.util.ArrayList<String>(bizCds.isEmpty() ? java.util.Collections.singleton("") : bizCds));   // 빈 칸 하나 = 걸릴 것 없는 자리 채움
+			q.put("itemCds", new java.util.ArrayList<String>(itemCds.isEmpty() ? java.util.Collections.singleton("") : itemCds));
+			for (Map<String,Object> r : svc.selectTdCodeExist(q)) { if ("biz".equals(poStr(r.get("kind")))) hb.add(poStr(r.get("cd"))); else hi.add(poStr(r.get("cd"))); }
+			java.util.List<String> mb = new java.util.ArrayList<String>(), mi = new java.util.ArrayList<String>();
+			for (String c : bizCds) if (!hb.contains(c)) mb.add(c);
+			for (String c : itemCds) if (!hi.contains(c)) mi.add(c);
+			if (mb.isEmpty() && mi.isEmpty()) return null;
+			StringBuilder sb = new StringBuilder("마스터에 없는 코드가 있어 저장하지 않았습니다.");
+			if (!mb.isEmpty()) sb.append(" 사업장코드 : ").append(String.join(", ", mb.subList(0, Math.min(10, mb.size())))).append(mb.size() > 10 ? " 외 " + (mb.size() - 10) + "개" : "").append(" (거래처관리(사업장)에 먼저 등록).");
+			if (!mi.isEmpty()) sb.append(" 품목코드 : ").append(String.join(", ", mi.subList(0, Math.min(10, mi.size())))).append(mi.size() > 10 ? " 외 " + (mi.size() - 10) + "개" : "").append(" (상품코드등록 또는 매칭코드에 먼저 등록).");
+			return sb.toString();
 		}
 		@RequestMapping(value="/shipout/dcPo.do")
 		public String dcPo(HttpSession session) {

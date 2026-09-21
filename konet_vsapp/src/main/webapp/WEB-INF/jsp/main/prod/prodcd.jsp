@@ -41,7 +41,18 @@
   html,body{ height:100%; overflow:hidden; }
   /* 위 여백을 줄여 목록을 조금 올렸다(2026-08-04 요청) — 설명줄을 뺀 만큼 표가 더 보인다 */
   .wrap{ padding:8px 11px 10px; height:100%; display:flex; flex-direction:column; min-height:0; }
-  .wrap > h2, .wrap > .sub, .wrap > .bar, .wrap > .tabs, .wrap > .pager{ flex:0 0 auto; }
+  .wrap > h2, .wrap > .sub, .wrap > .bar, .wrap > .tabs, .wrap > .pager, .wrap > .pgrip{ flex:0 0 auto; }
+  /* ★[2026-09-22] 목록 아래 높이 막대(#pager.pgrip) — 옛 「전체 N건 펼침 · ▲ 접기」 줄 자리. 판매등록 막대(ui-gridgrip.js)와 같은 모양.
+       끌면 위 목록 ↔ 아래 매칭코드 창의 경계(--mc-h)가 움직인다 : 아래로 = 목록 늘고 매칭코드 창 줄고 / 위로 = 반대. */
+  #pager.pgrip{ position:relative; height:16px; margin-top:4px; display:flex; align-items:center; justify-content:center;
+                cursor:ns-resize; user-select:none; border-radius:6px; background:#f3f6f8; }
+  #pager.pgrip:hover, #pager.pgrip.on{ background:#dff0eb; }
+  #pager.pgrip i{ display:block; width:64px; height:4px; border-radius:2px; background:#b9c6d2; pointer-events:none; }
+  #pager.pgrip:hover i, #pager.pgrip.on i{ background:#137a6c; }
+  #pager.pgrip .pg-bt{ position:absolute; right:4px; top:0; display:flex; gap:4px; }
+  #pager.pgrip .pg-bt b{ height:16px; line-height:14px; padding:0 7px; font-size:11px; font-weight:700; color:#37475a;
+                         background:#fff; border:1px solid #cfd8e3; border-radius:4px; cursor:pointer; white-space:nowrap; }
+  #pager.pgrip .pg-bt b:hover{ border-color:#137a6c; color:#137a6c; }
   h2{ margin:0 0 2px; font-size:20px; }
   .sub{ color:#9aa7b3; font-size:12px; margin-bottom:8px; }
   /* ★[2026-08-18 요청] 검색·단추 줄과 아래 탭 줄 사이 **간격을 준다**(12 → 18 → 24px) —
@@ -277,7 +288,8 @@
      ★2026-08-17 : 매칭코드가 여러 건인 상품이 늘어 34vh 로는 두세 줄밖에 안 보였다 ⇒ **46vh** 로 넓혔다.
        (입력 방식은 그대로다 — 보이는 공간만 늘렸다. 접기(▾)를 누르면 종전처럼 44px 로 접힌다.) */
   :root{ --mc-h:46vh; }
-  #mc{ position:fixed; left:0; right:0; bottom:0; height:var(--mc-h); min-height:330px; z-index:45; }
+  /* min-height 330 → 150px (2026-09-22) — 막대로 매칭코드 창을 줄여 목록을 넓힐 수 있게. 막대 JS 도 150px 밑으로는 안 줄인다(PC_MC_MIN) */
+  #mc{ position:fixed; left:0; right:0; bottom:0; height:var(--mc-h); min-height:150px; z-index:45; }
   #mc.min{ height:44px; min-height:0; }
   #mc .box{ background:#fff; width:100%; height:100%; border-radius:12px 12px 0 0; box-shadow:0 -10px 34px rgba(0,0,0,.18);
             border-top:2px solid #8fc7bc; display:flex; flex-direction:column; }
@@ -437,7 +449,9 @@
       <tbody id="tb"><tr><td colspan="16" class="empty">불러오는 중…</td></tr></tbody>
     </table>
   </div>
-  <div id="pager" class="pager"></div>
+  <%-- ★[2026-09-22 고객 요청 「이 부분(①)을 자유롭게 늘였다 줄였다 · 아래 서브코드(②)도 따라서」] 페이지 줄 → 높이 막대.
+       목록은 늘 전체를 스크롤로 본다(페이지 나눔 없음 — 건수는 위 조회줄 오른쪽에 있다). --%>
+  <div id="pager" class="pgrip" title="끌어서 높이 조절 — 아래로 = 목록 늘리기(매칭코드 줄이기) · 위로 = 매칭코드 늘리기 · 더블클릭 = 처음 높이"><i></i><span class="pg-bt"><b data-d="-1" title="목록 줄이기 — 매칭코드 창이 120px 커집니다">▲ 줄이기</b><b data-d="1" title="목록 늘리기 — 매칭코드 창이 120px 작아집니다">▼ 늘리기</b></span></div>
 </div>
 
 <%-- ───────── 거래처 매칭코드 — 하단 도킹 패널 (2026-08-01 요청) ─────────
@@ -715,8 +729,12 @@ function pcRender(){
       var mp=_byseq[sb.prodSeq]||{};
       /* ★[2026-08-18 요청] 「서브 → 주코드」 줄만 **두 단계 크게** — 배지 11→12→13px, 코드 11.5→12.5→13.5px.
            누르는 자리인데 너무 작아 눈에 안 들어왔다. 아래 「마스터 : …」 는 읽기만 하는 줄이라 그대로 둔다. */
-      cdCell += '<div style="margin-top:2px"><span style="display:inline-block;padding:0 5px;border-radius:8px;'
-             +  'background:#fdecea;color:#c0392b;font-size:13px;font-weight:700">서브</span>'
+      /* ★[2026-09-22 요청 「주코드를 위에, 해당코드를 밑에」] 순서를 뒤집었다 —
+           위 = [주] 주코드(누르면 그 상품으로) · 아래 = [서브] 이 줄 자신의 코드(중지 배지 포함).
+           종전엔 제 코드가 위, 「서브 → 주코드」가 아래였다. 정렬·검색은 여전히 이 줄 자신의 코드(o.prodCd)로 한다. */
+      var ownCd = cdCell;
+      cdCell = '<div><span style="display:inline-block;padding:0 5px;border-radius:8px;'
+             +  'background:#e3f2ee;color:#0f6b5e;font-size:13px;font-weight:700">주</span>'
              /* ★[2026-08-18] **인라인 onclick 을 없앴다** — 「주코드를 눌러도 다른 데로 간다 / 선택이 없어진다」가
                   이어졌다. 원인 후보 1순위는 ***문자열로 조립한 onclick 속성***이었다(코드를 따옴표로 감싸며
                   이스케이프가 어긋나면 핸들러가 통째로 죽고, ***누른 티도 안 난다*** — 화면은 직전 선택을
@@ -725,8 +743,10 @@ function pcRender(){
                   조립할 JS 문자열이 없어져 이 부류의 오류가 원천 차단된다. */
              +  ' <a href="javascript:;" class="subgo" data-cd="'+esc(sb.prodCd)+'" data-seq="'+sb.prodSeq+'"'
              +  ' style="font-size:13.5px;color:#1f7a4d;font-weight:700;text-decoration:underline"'
-             +  ' title="주코드 '+esc(sb.prodCd)+' 를 선택합니다 — 화면은 그대로 있고 하단 매칭코드만 바뀝니다">→ '
-             +  esc(sb.prodCd)+'</a></div>';
+             +  ' title="주코드 '+esc(sb.prodCd)+' 를 선택합니다 — 화면은 그대로 있고 하단 매칭코드만 바뀝니다">'
+             +  esc(sb.prodCd)+'</a></div>'
+             +  '<div style="margin-top:2px"><span style="display:inline-block;padding:0 5px;border-radius:8px;'
+             +  'background:#fdecea;color:#c0392b;font-size:13px;font-weight:700">서브</span> '+ownCd+'</div>';
       if(mp.prodNm) mstNm='<div style="font-size:11.5px;color:#8a97a3;margin-top:2px">마스터 : '+esc(mp.prodNm)+'</div>';
     }
     /* ★중지된 줄은 class="stopped" — 색칠하기는 CSS 가 한다(2026-08-19 요청) */
@@ -785,7 +805,10 @@ function pcCopySel(){ if(_sel==null){ toast('복사할 행을 먼저 선택하�
 function pcDelSel(){ if(_sel==null){ toast('삭제할 행을 먼저 선택하세요.','warn'); return; } pcDel(_sel); }
 /* 하단 줄 = [보고 있는 범위 · 전체 건수] + [페이지 버튼] + [펼치기/접기] (2026-08-01 요청)
    펼치기 = 조회된 전 건을 한 화면에 붙여 스크롤로 훑는다(Ctrl+F 검색·전체 복사에도 쓴다). */
+/* ★[2026-09-22] 이 줄은 이제 그리지 않는다 — #pager 자리가 높이 막대(pcMcGrip)가 됐다. 목록은 늘 전체(_all).
+     부르는 자리(pcRender 두 곳)는 그대로 두고 여기서 바로 돌아간다 — 막대 모양을 덮어쓰지 않게. */
 function _pager(pages,cur,tot,from,to){
+  _all=true; return;
   var el=document.getElementById('pager');
   if(!tot){ el.innerHTML=''; return; }
   var info = _all
@@ -806,7 +829,7 @@ function _pager(pages,cur,tot,from,to){
   el.innerHTML = info + h + btn;
 }
 function pcExpand(){ _all=true; pcRender(); var c=document.querySelector('.card'); if(c) c.scrollTop=0; }
-function pcCollapse(){ _all=false; _page=1; pcRender(); var c=document.querySelector('.card'); if(c) c.scrollTop=0; }
+function pcCollapse(){ /* 2026-09-22 페이지 나눔 없앰 — 늘 전체 펼침. 부르는 곳이 남아 있어도 아무 일 안 한다 */ }
 function _set(id,v){ document.getElementById(id).value=(v==null?'':v); }
 
 /* ── 신규등록 창 「최종 코드」 안내 (2026-08-12 요청) ─────────────────────────────
@@ -1946,9 +1969,67 @@ function mcAddSave(el){
 /* 접기/펼치기 — 목록을 넓게 보고 싶을 때. 접으면 그만큼 위 목록이 늘어난다 */
 function mcToggle(){
   var el=document.getElementById('mc'), min=el.classList.toggle('min');
-  document.documentElement.style.setProperty('--mc-h', min ? '44px' : '46vh');   // 펼침 높이는 CSS 의 --mc-h 와 같아야 한다
+  /* 펼칠 때는 막대로 골라 둔 높이가 있으면 그 높이로(2026-09-22), 없으면 CSS 기본 46vh */
+  var s=pcMcGet();
+  if(!min && s) pcMcSet(s,false);
+  else document.documentElement.style.setProperty('--mc-h', min ? '44px' : '46vh');
   document.getElementById('mcToggleBtn').innerHTML = min ? '&#9652;' : '&#9662;';
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   목록 ↔ 매칭코드 창 높이 막대 (2026-09-22 고객 요청 「①을 자유롭게 늘였다 줄였다 · 아래 서브코드 ②도 따라서」)
+   ─────────────────────────────────────────────────────────────────────────
+   · 두 표는 화면을 나눠 쓴다 — 경계는 CSS 변수 --mc-h 하나(.wrap 높이 = 100% − --mc-h, #mc 높이 = --mc-h).
+     그래서 막대 하나가 둘을 함께 움직인다 : 아래로 끌면 목록이 늘고 매칭코드 창이 준다(판매등록 막대와 같은 방향).
+   · [▲ 줄이기]·[▼ 늘리기] = 목록 기준 120px · 더블클릭 = 처음(46vh) · 높이는 localStorage(konetPcMcH, px) 에 남는다.
+   · 범위 : 매칭코드 창 150px ~ 목록이 120px 남는 데까지. 창 크기가 바뀌면 넘친 만큼만 줄여 보여 준다(저장값은 그대로).
+   · 매칭코드 창이 접혀(▴) 있으면 막대를 건드리는 순간 펼친다. */
+var PC_MC_KEY='konetPcMcH', PC_MC_MIN=150, PC_MC_STEP=120;
+function pcMcGet(){ try{ var v=parseFloat(localStorage.getItem(PC_MC_KEY)); return v>0?v:null; }catch(e){ return null; } }
+function pcMcMax(){
+  var c=document.querySelector('.card'), g=document.getElementById('pager');
+  var top=c?c.getBoundingClientRect().top:200, gh=g?g.offsetHeight+14:30;
+  return Math.max(PC_MC_MIN, Math.round(window.innerHeight - top - 120 - gh));
+}
+function pcMcCur(){ var el=document.getElementById('mc'); return el?el.getBoundingClientRect().height:0; }
+function pcMcSet(h, save){
+  var el=document.getElementById('mc');
+  if(el && el.classList.contains('min')){
+    el.classList.remove('min'); var b=document.getElementById('mcToggleBtn'); if(b) b.innerHTML='&#9662;';
+  }
+  h=Math.max(PC_MC_MIN, Math.min(pcMcMax(), Math.round(h)));
+  document.documentElement.style.setProperty('--mc-h', h+'px');
+  if(save){ try{ localStorage.setItem(PC_MC_KEY, String(h)); }catch(e){} }
+  return h;
+}
+function pcMcReset(){
+  try{ localStorage.removeItem(PC_MC_KEY); }catch(e){}
+  var el=document.getElementById('mc');
+  if(el && el.classList.contains('min')){ el.classList.remove('min'); var b=document.getElementById('mcToggleBtn'); if(b) b.innerHTML='&#9662;'; }
+  document.documentElement.style.setProperty('--mc-h', '46vh');
+}
+(function pcMcGrip(){
+  var g=document.getElementById('pager'); if(!g) return;
+  g.addEventListener('mousedown', function(e){
+    if(e.button!==0 || (e.target.closest && e.target.closest('b'))) return;
+    e.preventDefault();
+    var y0=e.clientY, h0=pcMcCur(); g.classList.add('on');
+    function mv(ev){ pcMcSet(h0-(ev.clientY-y0), false); }
+    function up(){ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up);
+                   g.classList.remove('on'); pcMcSet(pcMcCur(), true); }
+    document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+  });
+  g.addEventListener('click', function(e){
+    var b=e.target.closest && e.target.closest('b[data-d]'); if(!b) return;
+    pcMcSet(pcMcCur() - Number(b.getAttribute('data-d'))*PC_MC_STEP, true);
+  });
+  g.addEventListener('dblclick', function(e){ if(e.target.closest && e.target.closest('b')) return; pcMcReset(); });
+  var s=pcMcGet(); if(s) pcMcSet(s,false);
+  window.addEventListener('resize', function(){
+    var el=document.getElementById('mc'), v=pcMcGet();
+    if(v && el && !el.classList.contains('min')) pcMcSet(v,false);
+  });
+})();
 
 /* ══════════════════════════════════════════════════════════════════════════
    규격 · 제조사명 입력검색 (2026-08-04 요청) — 상품코드 추가/수정 창 전용

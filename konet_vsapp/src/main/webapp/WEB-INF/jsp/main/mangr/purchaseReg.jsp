@@ -15,7 +15,8 @@
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>
 <%-- 상단 명세 표 높이 막대 (2026-09-10) — 합계줄 밑 막대를 아래로 끌면 늘고 위로 끌면 준다 (asset/js/ui-gridgrip.js 머리말) --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>
-<script type="text/javascript">konetPopDrag('.pu-pop'); konetGridGrip('puGridWrap', 'puFootWrap', 'purchaseReg');</script>
+<%-- [2026-09-22] 아래 두 표(전표 목록·원장)에도 높이 막대 — 판매등록과 같게. 수금·지급등록과 같은 자리(합계 줄 밑)·같은 규칙 --%>
+<script type="text/javascript">konetPopDrag('.pu-pop'); konetGridGrip('puGridWrap', 'puFootWrap', 'purchaseReg'); konetGridGrip('puListWrap', 'puSumBox', 'purchaseRegList'); konetGridGrip('lgWrap', 'lgFootWrap', 'purchaseRegLedger');</script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-quick.js?v=20260911"></script>
 <!--
   매입등록 — 홀세일닥터 매입등록 이관 (2026-07-25 신설)
@@ -274,7 +275,7 @@
       </table>
     </div>
     <div id="puPager" style="padding:6px 2px; text-align:center; min-height:26px"></div>
-    <div class="pu-sum">
+    <div class="pu-sum" id="puSumBox">
       <div class="k">매입계</div><div class="v" id="sPurch">0</div>
       <div class="k">반품계</div><div class="v" id="sRet">0</div>
       <div class="k">지급계</div><div class="v" id="sPay">0</div>
@@ -302,7 +303,7 @@
         <tbody id="lgBody"><tr><td colspan="6" class="pu-msg">거래처를 선택하세요.</td></tr></tbody>
       </table>
     </div>
-    <div class="pu-lgfoot">
+    <div class="pu-lgfoot" id="lgFootWrap">
       <table>
         <%-- 균형 배분(2026-08-04 — 판매등록과 동일) --%>
         <colgroup><col style="width:96px"><col><col style="width:88px"><col style="width:112px"><col style="width:88px"><col style="width:122px"></colgroup>

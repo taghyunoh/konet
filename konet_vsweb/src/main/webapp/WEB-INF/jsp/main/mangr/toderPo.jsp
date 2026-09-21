@@ -83,7 +83,7 @@
         <th>단위</th><th>수량</th><th>단가</th><th>상태</th></tr></thead>
         <tbody id="pvBody"></tbody></table>
     </div>
-    <div class="note" id="pvNote" style="display:none">· 주황 칸 = 넣어야 하는 칸 · 파랑 = 자동으로 채운 값(「자동」 = 지난 저장, 「추정」 = 사업장 마스터 이름과 맞춰 본 것 — 확인 필요) · 초록 = 마스터에 있는 코드 · 노랑 = 마스터에 없는 코드(그래도 저장은 된다) · 코드가 둘 다 든 줄만 저장된다</div>
+    <div class="note" id="pvNote" style="display:none">· 주황 칸 = 넣어야 하는 칸 · 파랑 = 자동으로 채운 값(「자동」 = 지난 저장, 「추정」 = 사업장 마스터 이름과 맞춰 본 것 — 확인 필요) · 초록 = 마스터에 있는 코드 · 노랑 = 마스터에 없는 코드(<b>저장 안 됨</b> — 사업장·상품 마스터에 먼저 등록) · 코드가 둘 다 든 줄만 저장된다 · 저장한 뒤에도 아래 목록에서 코드를 고칠 수 있다</div>
   </div>
 
   <div class="card">
@@ -181,7 +181,8 @@ function pvRender(){
       +'<td>'+esc(x.unit)+'</td><td class="r"><b>'+fmt(x.qty)+'</b></td><td class="r">'+(x.price?fmt(x.price):'')+'</td><td><span class="bd '+(/취소|반품/.test(x.status)?'cx':'st')+'">'+esc(x.status)+'</span></td></tr>';
   }).join('');
   var sel=_pv.filter(function(x){ return x.chk; }), rdy=sel.filter(function(x){ return x.bizCd&&x.itemCd&&x.dlvDt&&x.qty; });
-  document.getElementById('pvInfo').textContent='올린 줄 '+_pv.length+' · 선택 '+sel.length+' · 저장 가능 '+rdy.length+(sel.length-rdy.length?' · 코드 빈 줄 '+(sel.length-rdy.length):'');
+  var unk=rdy.filter(function(x){ return _biz[x.bizCd]==null || _prod[x.itemCd]==null; }).length;   /* 마스터에 없는 코드 — 저장 막힘(2026-09-22) */
+  document.getElementById('pvInfo').textContent='올린 줄 '+_pv.length+' · 선택 '+sel.length+' · 저장 가능 '+(rdy.length-unk)+(sel.length-rdy.length?' · 코드 빈 줄 '+(sel.length-rdy.length):'')+(unk?' · 마스터에 없는 코드 '+unk+'줄(저장 막힘)':'');
   document.getElementById('pvAll').checked=_pv.every(function(x){ return x.chk; });
 }
 /* 코드 한 번 넣으면 같은 이름의 빈 칸(또는 자동으로 채워졌던 칸)에 같이 */
@@ -204,9 +205,19 @@ function pvClear(){ _pv=[]; _onlyNo=false; pvRender(); }
 function save(){
   var sel=_pv.filter(function(x){ return x.chk; }), rdy=sel.filter(function(x){ return x.bizCd&&x.itemCd&&x.dlvDt&&x.qty; }), miss=sel.length-rdy.length;
   if(!rdy.length){ err('저장할 줄이 없습니다 — 사업장코드·품목코드를 넣으세요.'); return; }
-  var unk=rdy.filter(function(x){ return _biz[x.bizCd]==null || _prod[x.itemCd]==null; }).length;
+  /* ★[2026-09-22 「사업장코드·품목코드 선택한 것에 대하여 없으면 등록 안 되게」] 마스터에 없는 코드가 든 줄이 있으면 저장하지 않는다.
+       종전엔 「그래도 저장됩니다」였다 — 그런 줄은 재고에서 조용히 빠졌다. 서버(toderPoSave)도 같은 관문으로 거절한다. */
+  var unk=rdy.filter(function(x){ return _biz[x.bizCd]==null || _prod[x.itemCd]==null; });
+  if(unk.length){
+    var ub={}, ui={}; unk.forEach(function(x){ if(_biz[x.bizCd]==null) ub[x.bizCd]=1; if(_prod[x.itemCd]==null) ui[x.itemCd]=1; });
+    err('마스터에 없는 코드가 든 줄이 <b>'+unk.length+'</b>개 있어 저장하지 않았습니다.<br><span style="font-size:13px">'
+      +(Object.keys(ub).length?'사업장코드 : <b>'+esc(Object.keys(ub).join(', '))+'</b> — 거래처관리(사업장)에 먼저 등록<br>':'')
+      +(Object.keys(ui).length?'품목코드 : <b>'+esc(Object.keys(ui).join(', '))+'</b> — 상품코드등록·매칭코드에 먼저 등록<br>':'')
+      +'노란 칸을 고치거나 그 줄의 체크를 빼고 다시 저장하세요.</span>');
+    return;
+  }
   _confirmBox({ icon:'💾', okText:'저장',
-    msg:'토더 발주 <b>'+rdy.length+'</b>줄을 출고로 저장합니다.'+(miss?'<br><span style="color:#b45309;font-size:13px">코드가 빈 '+miss+'줄은 저장하지 않습니다(화면에 남습니다).</span>':'')+(unk?'<br><span style="color:#b45309;font-size:13px">마스터에 없는 코드가 든 줄 '+unk+'개 — 그래도 저장됩니다.</span>':'')
+    msg:'토더 발주 <b>'+rdy.length+'</b>줄을 출고로 저장합니다.'+(miss?'<br><span style="color:#b45309;font-size:13px">코드가 빈 '+miss+'줄은 저장하지 않습니다(화면에 남습니다).</span>':'')
        +'<br><span style="font-size:13px;color:#3d4d5c">같은 발주번호·배송지명·상품명이 이미 있으면 새것으로 대체합니다.</span>',
     onOk:function(){
       var b=document.getElementById('btnSave'); b.disabled=true;
@@ -237,10 +248,35 @@ function lsRender(){
   if(!_ls.length){ tb.innerHTML='<tr><td colspan="14" class="msg">저장된 토더 발주가 없습니다.</td></tr>'; document.getElementById('lsInfo').textContent=''; return; }
   var q=0;
   tb.innerHTML=_ls.map(function(x,i){ q+=n(x.qty);
-    return '<tr><td><input type="checkbox" class="lchk" data-i="'+i+'"></td><td>'+d10(x.dlvDt)+'</td><td>'+esc(x.ordNo)+'</td><td><b>'+esc(x.lineNo)+'</b></td><td>'+esc(x.dcNm)+'</td><td class="l">'+esc(x.bizNm)+'</td><td><b>'+esc(x.bizCd)+'</b></td>'
-      +'<td class="l">'+esc(x.itemNm)+'</td><td><b>'+esc(x.itemCd)+'</b>'+(x.prodCd&&x.prodCd!==x.itemCd?'<span class="sub">주코드 '+esc(x.prodCd)+'</span>':'')+'</td><td>'+esc(x.unit)+'</td><td class="r"><b>'+fmt(x.qty)+'</b></td>'
+    /* ★[2026-09-22 「저장 후 품목코드·사업장코드 수정 가능하게」] 두 코드 칸을 입력칸으로 — 고르면 확인창 뒤 lsCd(이름 단위로 고친다) */
+    var bn=_biz[x.bizCd], pn=_prod[x.itemCd];
+    return '<tr><td><input type="checkbox" class="lchk" data-i="'+i+'"></td><td>'+d10(x.dlvDt)+'</td><td>'+esc(x.ordNo)+'</td><td><b>'+esc(x.lineNo)+'</b></td><td>'+esc(x.dcNm)+'</td><td class="l">'+esc(x.bizNm)+'</td>'
+      +'<td class="l"><span class="sub nmf'+(bn==null?' warn':'')+'">'+esc(bn!=null?bn:'사업장 마스터에 없는 코드')+'</span><input type="text" list="bizList" class="'+(bn==null?'bad':'ok')+'" value="'+esc(x.bizCd)+'" title="고르거나 쳐서 바꾸면 같은 배송지명의 저장된 줄이 모두 바뀝니다" onchange="lsCd('+i+',\'biz\',this)"></td>'
+      +'<td class="l">'+esc(x.itemNm)+'</td><td class="l"><span class="sub nmf'+(pn==null?' warn':'')+'">'+esc(pn!=null?pn:'상품 마스터에 없는 코드')+'</span><input type="text" list="prodList" class="'+(pn==null?'bad':'ok')+'" value="'+esc(x.itemCd)+'" title="고르거나 쳐서 바꾸면 같은 상품명의 저장된 줄이 모두 바뀌고 재고도 다시 맞춥니다" onchange="lsCd('+i+',\'item\',this)">'+(x.prodCd&&x.prodCd!==x.itemCd?'<span class="sub">주코드 '+esc(x.prodCd)+'</span>':'')+'</td><td>'+esc(x.unit)+'</td><td class="r"><b>'+fmt(x.qty)+'</b></td>'
       +'<td class="l dim" style="max-width:260px;overflow:hidden;text-overflow:ellipsis" title="'+esc(x.remark)+'">'+esc(x.remark)+'</td><td class="l dim" style="max-width:200px;overflow:hidden;text-overflow:ellipsis" title="'+esc(x.srcFile)+'">'+esc(x.srcFile)+'</td><td class="dim">'+esc(String(x.uploadDttm||'').slice(0,16))+'<br>'+esc(x.regUser)+'</td></tr>'; }).join('');
   document.getElementById('lsInfo').textContent=_ls.length+'줄 · 수량 '+fmt(q);
+}
+/* 저장된 줄의 코드 고치기 (2026-09-22) — 이름(배송지명 / 상품명) 단위로 저장된 줄을 모두 바꾼다(조회 기간 밖 포함).
+     코드는 이름에 붙는 값이라 한 줄만 바꾸면 같은 이름의 다른 줄과 다음 업로드의 자동 매칭이 옛 코드로 남는다.
+     새 코드도 마스터에 있어야 한다(서버 toderPoCode 가 한 번 더 본다). 품목을 바꾸면 서버가 그 날짜들의 재고를 다시 맞춘다. */
+function lsCd(i, kind, el){
+  var x=_ls[i]; if(!x) return;
+  var mst=kind==='biz'?_biz:_prod, old=kind==='biz'?x.bizCd:x.itemCd, nm=kind==='biz'?x.bizNm:x.itemNm, cd=pickCd(el.value, mst);
+  var lab=kind==='biz'?'사업장코드':'품목코드', nmLab=kind==='biz'?'배송지명':'상품명';
+  if(!cd || cd===old){ el.value=old; return; }
+  if(mst[cd]==null){ el.value=old; err(lab+' <b>'+esc(cd)+'</b> 는 마스터에 없습니다 — '+(kind==='biz'?'거래처관리(사업장)':'상품코드등록·매칭코드')+'에 먼저 등록하세요.'); return; }
+  var same=_ls.filter(function(y){ return (kind==='biz'?y.bizNm:y.itemNm)===nm; }).length;
+  _confirmBox({ icon:'✏️', okText:'고치기',
+    msg:nmLab+' <b>'+esc(nm)+'</b> 의 '+lab+'를<br><b>'+esc(old)+'</b> → <b>'+esc(cd)+'</b> ('+esc(mst[cd])+') 로 고칩니다.'
+      +'<br><span style="font-size:13px;color:#3d4d5c">같은 '+nmLab+'으로 저장된 줄이 모두 바뀝니다(지금 목록 '+same+'줄 · 조회 기간 밖 포함).'
+      +(kind==='item'?' 그 날짜들의 재고를 다시 맞춥니다.':'')+' 다음 업로드의 자동 매칭도 새 코드로 채워집니다.</span>',
+    onOk:function(){
+      post('/shipout/toderPoCode.do',{ kind:kind, nm:nm, cd:cd },true)
+        .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
+        .then(function(t){ var warn=/\|STOCKFAIL:(.*)$/.exec(t); _map[kind][nm]=cd; load();
+          ok(lab+'를 고쳤습니다 — <b>'+(parseInt(t,10)||0)+'</b>줄.'+(warn?'<br><span style="color:#c0392b;font-size:13px">재고 반영 경고 — '+esc(warn[1])+'</span>':'')); })
+        .catch(function(e){ el.value=old; err('고치지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); });
+    }, onCancel:function(){ el.value=old; } });
 }
 function lsAllChk(el){ Array.prototype.forEach.call(document.querySelectorAll('.lchk'), function(c){ c.checked=el.checked; }); }
 function delSel(){

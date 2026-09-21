@@ -1258,6 +1258,32 @@ public class UserServiceImpl implements UserService {
 	}
 	@Override public java.util.List<java.util.Map<String,Object>> selectTdPoList(java.util.Map<String,Object> p) throws Exception { return mapper.selectTdPoList(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectTdPoMap(java.util.Map<String,Object> p) throws Exception { return mapper.selectTdPoMap(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectTdCodeExist(java.util.Map<String,Object> p) throws Exception { return mapper.selectTdCodeExist(p); }
+	/* 토더 발주 — 저장 뒤 코드 수정 (2026-09-22 「저장 후 품목코드·사업장코드 수정 가능하게」).
+	   이름(토더 배송지명 / 상품명) 단위로 살아 있는 줄을 모두 고친다 — 코드는 이름에 붙는 값이고 다음 업로드의 자동 매칭도 이름 → 코드라서.
+	   품목을 고치면 우리 상품을 비우고 다시 풀어(resolveShipoutProd) 재고 원장을 다시 만들 날짜를 돌려준다(컨트롤러가 dcResync).
+	   사업장만 고치면 재고는 그대로다 — 원장은 품목·날짜로 합산돼 사업장을 안 본다. 돌려주는 값 = {n: 고친 줄 수, dates: 다시 맞출 날짜} */
+	@Override public java.util.Map<String,Object> updateTdPoCode(String kind, String nm, String cd, String user, String ip, String compCd) throws Exception {
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("kind", kind); p.put("nm", nm); p.put("cd", cd); p.put("regUser", user); p.put("regIp", ip);
+		java.util.List<String> dates = mapper.selectTdPoDatesByName(p);
+		int n;
+		if ("item".equals(kind)) {
+			java.util.Map<String,Object> vq = new java.util.HashMap<String,Object>(); vq.put("compCd", compCd); vq.put("itemCd", cd);
+			java.util.Map<String,Object> pv = mapper.selectProdVendorOfItem(vq);
+			p.put("vendorCd", pv == null ? null : scStr(pv.get("vendorCd"))); p.put("vendorNm", pv == null ? null : scStr(pv.get("vendorNm")));
+			n = mapper.updateTdPoItemByName(p);
+			egovframework.konet.user.model.ProdXrefDTO rx = new egovframework.konet.user.model.ProdXrefDTO();
+			rx.setDcCd("TODER"); rx.setCompCd(compCd);   // 날짜·차수는 비움 = 토더 줄 중 우리 상품이 빈 것 전부
+			resolveShipoutProd(rx);
+		} else {
+			n = mapper.updateTdPoBizByName(p);
+			dates = new java.util.ArrayList<String>();   // 재고와 무관
+		}
+		res.put("n", n); res.put("dates", dates);
+		return res;
+	}
 	@Override public int deleteDcPo(java.util.List<java.util.Map<String,Object>> keys, String user, String ip, String compCd) throws Exception {
 		int n = 0;
 		if (keys == null) return 0;
