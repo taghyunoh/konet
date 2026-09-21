@@ -1205,6 +1205,59 @@ public class UserServiceImpl implements UserService {
 		}
 		return n;
 	}
+	/* 토더 발주 등록 (2026-09-21) — saveDcPo 와 같은 틀. 다른 점 : PROD_KIND='TD', 다시 올림 판정 = (발주번호, 배송지명, 상품명),
+	   BIZ_CD·ITEM_CD 는 화면에서 넣은 값. 묶음 = (납기일자, 출고장 TODER) 마다 새 배치. 매입처는 상품 마스터에서 채운다 */
+	@Override public int saveTdPo(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String user, String ip, String compCd) throws Exception {
+		if (rows == null || rows.isEmpty()) return 0;
+		java.util.LinkedHashMap<String, java.util.List<egovframework.konet.user.model.ShipoutDTO>> g = new java.util.LinkedHashMap<String, java.util.List<egovframework.konet.user.model.ShipoutDTO>>();
+		for (egovframework.konet.user.model.ShipoutDTO r : rows) {
+			String k = scStr(r.getDlvDt()).replace("-", "") + "|" + scStr(r.getDcCd());
+			java.util.List<egovframework.konet.user.model.ShipoutDTO> l = g.get(k);
+			if (l == null) { l = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>(); g.put(k, l); }
+			l.add(r);
+		}
+		int n = 0;
+		for (java.util.List<egovframework.konet.user.model.ShipoutDTO> grp : g.values()) {
+			egovframework.konet.user.model.ShipoutDTO head = grp.get(0);
+			for (egovframework.konet.user.model.ShipoutDTO r : grp) {
+				java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+				p.put("compCd", compCd); p.put("ordNo", scStr(r.getOrdNo())); p.put("bizNm", scStr(r.getBizNm())); p.put("itemNm", scStr(r.getItemNm())); p.put("regUser", user); p.put("regIp", ip);
+				mapper.markTdPoReplace(p);
+			}
+			head.setCompCd(compCd);
+			int jobSeq = mapper.getShipoutNextJobSeq(head);
+			int seq = 0;
+			java.util.List<egovframework.konet.user.model.ShipoutDTO> buf = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>();
+			for (egovframework.konet.user.model.ShipoutDTO r : grp) {
+				r.setCompCd(compCd); r.setJobSeq(jobSeq); r.setActionYn("Y"); r.setRowNo(++seq);
+				r.setProdKind("TD"); r.setRegUser(user); r.setRegIp(ip);
+				if (scStr(r.getVendorCd()).isEmpty() && !scStr(r.getItemCd()).isEmpty()) {
+					java.util.Map<String,Object> vq = new java.util.HashMap<String,Object>(); vq.put("compCd", compCd); vq.put("itemCd", scStr(r.getItemCd()));
+					java.util.Map<String,Object> pv = mapper.selectProdVendorOfItem(vq);
+					if (pv != null) { r.setVendorCd(scStr(pv.get("vendorCd"))); r.setVendorNm(scStr(pv.get("vendorNm"))); }
+				}
+				buf.add(r); n++;
+				if (buf.size() >= 40) { mapper.insertShipoutMstBulk(buf); buf.clear(); }
+			}
+			if (!buf.isEmpty()) mapper.insertShipoutMstBulk(buf);
+			egovframework.konet.user.model.ProdXrefDTO rx = new egovframework.konet.user.model.ProdXrefDTO();
+			rx.setJobSeq(Long.valueOf(jobSeq)); rx.setDlvDt(head.getDlvDt()); rx.setDcCd(head.getDcCd()); rx.setCompCd(compCd);
+			resolveShipoutProd(rx);
+		}
+		return n;
+	}
+	@Override public int deleteTdPo(java.util.List<java.util.Map<String,Object>> keys, String user, String ip, String compCd) throws Exception {
+		int n = 0; if (keys == null) return 0;
+		for (java.util.Map<String,Object> k : keys) {
+			if (scStr(k.get("itemNm")).isEmpty() || scStr(k.get("bizNm")).isEmpty()) continue;
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", compCd); p.put("ordNo", scStr(k.get("ordNo"))); p.put("bizNm", scStr(k.get("bizNm"))); p.put("itemNm", scStr(k.get("itemNm"))); p.put("regUser", user); p.put("regIp", ip);
+			n += mapper.deleteTdPo(p);
+		}
+		return n;
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectTdPoList(java.util.Map<String,Object> p) throws Exception { return mapper.selectTdPoList(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectTdPoMap(java.util.Map<String,Object> p) throws Exception { return mapper.selectTdPoMap(p); }
 	@Override public int deleteDcPo(java.util.List<java.util.Map<String,Object>> keys, String user, String ip, String compCd) throws Exception {
 		int n = 0;
 		if (keys == null) return 0;

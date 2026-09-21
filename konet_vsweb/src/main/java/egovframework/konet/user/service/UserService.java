@@ -101,6 +101,11 @@ public interface UserService {
 	int updateProd(egovframework.konet.user.model.ProdDTO dto) throws Exception;
 	java.util.Map<String,Object> selectProdInPriceBySeq(egovframework.konet.user.model.ProdDTO dto) throws Exception;
 	int updateSubProdInPrice(java.util.Map<String,Object> p) throws Exception;
+	/* 토더 발주 등록 (2026-09-21) */
+	int saveTdPo(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String user, String ip, String compCd) throws Exception;
+	int deleteTdPo(java.util.List<java.util.Map<String,Object>> keys, String user, String ip, String compCd) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectTdPoList(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectTdPoMap(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> saveExpenseCopy(String fromYm, String toYm, boolean overwrite, String user, String ip, String compCd) throws Exception;   // 비용 등록 : 한 달을 다른 달로 복사(2026-09-21)
 	int deleteProd(egovframework.konet.user.model.ProdDTO dto) throws Exception;
 	java.util.List<egovframework.konet.user.model.ProdDTO> selectProdDeletedList(egovframework.konet.user.model.ProdDTO dto) throws Exception;   // 삭제한 상품(ACTION_YN='N') 목록

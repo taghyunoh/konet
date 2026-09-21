@@ -1477,6 +1477,91 @@ public class UserController {
 		   · 저장 = TBL_SHIPOUT_MST, PROD_KIND='DC'. 출고장은 납품장소 이름으로(없으면 평택 E500 — 사용자 확정 2026-09-17)
 		   · 납기현황관리(대시보드·납기세부·이력)에서만 빠지고 재고 원장·정산서 교체·월별 출고현황·마감·출고내역 대사에는 들어간다
 		   · 멀티파트 설정이 없어 파일은 base64 JSON 으로 받는다. 해석은 서버(POI · itext)가 하고 화면은 미리보기 후 저장한다 */
+		/* ================= 토더 발주 등록 (2026-09-21) — 토더(가맹점 발주 플랫폼) 「상품별 발주 목록」 엑셀 → TBL_SHIPOUT_MST PROD_KIND='TD'.
+		   엑셀은 화면이 읽는다(SheetJS). 사업장코드·품목코드는 화면에서 넣고, 저장된 (이름 → 코드) 짝이 다음 업로드의 자동 매칭이 된다.
+		   DC 발주와 같은 자리 — 재고·정산서 대사·월별 출고현황·마감 포함 / 납기현황관리 제외. ================= */
+		@RequestMapping(value="/shipout/toderPo.do")
+		public String toderPo(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/toderPo";
+		}
+		@RequestMapping(value="/shipout/toderPoMap.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> toderPoMap(HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>(); Map<String,String> biz = new HashMap<String,String>(), item = new HashMap<String,String>();
+			if (session.getAttribute("s_comp_cd") != null) {
+				Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd"));
+				for (Map<String,Object> r : svc.selectTdPoMap(q)) { if ("biz".equals(poStr(r.get("kind")))) biz.put(poStr(r.get("nm")), poStr(r.get("cd"))); else item.put(poStr(r.get("nm")), poStr(r.get("cd"))); }
+			}
+			res.put("biz", biz); res.put("item", item);
+			return res;
+		}
+		@RequestMapping(value="/shipout/toderPoList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> toderPoList(@RequestParam(value="frDt", required=false) String fr, @RequestParam(value="toDt", required=false) String to, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); return res; }
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("frDt", fr); q.put("toDt", to);
+			res.put("data", svc.selectTdPoList(q));
+			return res;
+		}
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/shipout/toderPoSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> toderPoSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				String ip = request.getRemoteAddr();
+				String brand = poStr(p.get("brand")); String dcNm = "토더";   // 출고장 이름은 「토더」 하나로 (2026-09-21 사용자 지시) — 브랜드(샐러링 등)는 비고에 남긴다
+				java.util.List<Map<String,Object>> in = (java.util.List<Map<String,Object>>) p.get("rows");
+				java.util.List<egovframework.konet.user.model.ShipoutDTO> rows = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>();
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
+				if (in != null) for (Map<String,Object> m : in) {
+					String dlv = poStr(m.get("dlvDt")).replace("-", "").replace("/", "");
+					String bizCd = poStr(m.get("bizCd")), itemCd = poStr(m.get("itemCd")), bizNm = poStr(m.get("bizNm")), itemNm = poStr(m.get("itemNm"));
+					long q = Math.round(poNum(m.get("qty")));
+					if (!dlv.matches("[0-9]{8}") || bizCd.isEmpty() || itemCd.isEmpty() || bizNm.isEmpty() || itemNm.isEmpty() || q == 0) continue;
+					egovframework.konet.user.model.ShipoutDTO d = new egovframework.konet.user.model.ShipoutDTO();
+					d.setDlvDt(dlv); d.setShpoutDt(dlv);                       // 발주일자 = 납기일자 = 출고일자
+					d.setDcCd("TODER"); d.setDcNm(dcNm);
+					d.setBizCd(bizCd.length() > 20 ? bizCd.substring(0, 20) : bizCd); d.setBizNm(bizNm.length() > 100 ? bizNm.substring(0, 100) : bizNm);
+					d.setItemCd(itemCd.length() > 30 ? itemCd.substring(0, 30) : itemCd); d.setItemNm(itemNm.length() > 200 ? itemNm.substring(0, 200) : itemNm);
+					String unit = poStr(m.get("unit")); d.setUnit(unit.length() > 20 ? unit.substring(0, 20) : unit);
+					d.setCurQty((int) q); d.setLabelQty((int) q);
+					String ord = poStr(m.get("ordNo")); d.setOrdNo(ord.length() > 30 ? ord.substring(0, 30) : ord);
+					String lineNo = poStr(m.get("no")); d.setOrdItemNo(lineNo.length() > 20 ? lineNo.substring(0, 20) : lineNo);   // 엑셀의 no — 반품이 (발주번호, 번호)로 온다(2026-09-21)
+					d.setZone("TD"); d.setDlvGb("TD");
+					String rmk = "토더 발주" + (brand.isEmpty() ? "" : "(" + brand + ")");
+					if (!poStr(m.get("ordDttm")).isEmpty()) rmk += " · 발주일시 " + poStr(m.get("ordDttm"));
+					if (!poStr(m.get("dueDt")).isEmpty()) rmk += " · 출고마감 " + poStr(m.get("dueDt"));
+					if (!poStr(m.get("price")).isEmpty()) rmk += " · 단가 " + poStr(m.get("price"));
+					if (!poStr(m.get("status")).isEmpty()) rmk += " · " + poStr(m.get("status"));
+					d.setRemark(rmk.length() > 490 ? rmk.substring(0, 490) : rmk);
+					String src = poStr(m.get("fileNm")); d.setSrcFile(src.length() > 250 ? src.substring(0, 250) : src);
+					rows.add(d); dates.add(dlv);
+				}
+				if (rows.isEmpty()) return ResponseEntity.status(400).body("저장할 줄이 없습니다(발주일자·사업장코드·품목코드·수량을 확인하세요).");
+				/* 재고 연동 (2026-09-21 저녁 「토더도 재고 맞추어 주고 정산서는 사용자 협의 후」) — 낮의 「TBL_SHIPOUT_MST 에만」을 바꿨다. 그 날짜들의 출고 원장을 다시 만든다 */
+				int n = svc.saveTdPo(rows, u, ip, compCd);
+				String warn = dcResync(dates, u, ip);
+				return ResponseEntity.ok(n + (warn == null ? "" : "|STOCKFAIL:" + warn));
+			} catch (Exception e) { log.error(" toderPoSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/shipout/toderPoDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> toderPoDelete(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				java.util.List<Map<String,Object>> keys = (java.util.List<Map<String,Object>>) p.get("keys");
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
+				if (keys != null) for (Map<String,Object> k : keys) { String d = poStr(k.get("dlvDt")).replace("-", ""); if (d.matches("[0-9]{8}")) dates.add(d); }
+				int n = svc.deleteTdPo(keys, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")));
+				String warn = dcResync(dates, u, request.getRemoteAddr());   // 지운 날짜들의 재고도 다시 맞춘다
+				return ResponseEntity.ok(n + (warn == null ? "" : "|STOCKFAIL:" + warn));
+			} catch (Exception e) { log.error(" toderPoDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
 		@RequestMapping(value="/shipout/dcPo.do")
 		public String dcPo(HttpSession session) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
