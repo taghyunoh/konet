@@ -3338,6 +3338,8 @@
            서버도 /mangr/expenseReg.do·expenseSave·expenseDtlSave·expenseItemSave 에서 같은 조건으로 막는다(직접 URL 차단). --%>
       <% if ("1".equals(String.valueOf(session.getAttribute("s_main_gu")).trim())) { %>
       <a class="mi" data-key="expenseReg" onclick="logiFrame('expenseReg','${pageContext.request.contextPath}/mangr/expenseReg.do', this)"><span class="ic">💸</span>비용 등록</a>
+      <%-- 원가 관리 (2026-09-21 「비용 등록까지 해서 … 전체 원가관리」) — 회사 전체 달별 매출·매입원가·비용·순이익. 비용 등록과 같이 총괄관리자만. iframe 화면(mangr/costMng.jsp, panel-costMng) --%>
+      <a class="mi" data-key="costMng" onclick="logiFrame('costMng','${pageContext.request.contextPath}/mangr/costMng.do', this)"><span class="ic">📊</span>원가 관리</a>
       <% } %>
       <%-- 재고 일괄조정 — 2026-08-20 잠깐 내렸다가 사용자 요청으로 되살림(입구는 여기 하나) --%>
       <a class="mi" data-key="stockAdj" onclick="logiFrame('stockAdj','${pageContext.request.contextPath}/prod/stockAdj.do', this)"><span class="ic">🧮</span>재고 일괄조정</a><a class="mi" data-key="subStockFix" onclick="logiFrame('subStockFix','${pageContext.request.contextPath}/prod/subStockFix.do', this)" title="주코드에 매칭된 서브코드에 남은 재고 정리 — 서브코드로 잡힌 매입은 매입등록으로, 남은 재고는 0으로(2026-09-13)"><span class="ic">🧹</span>서브코드 재고 정리</a>
@@ -3389,7 +3391,8 @@
       <% if ("Y".equals(session.getAttribute("s_admin_yn")) && "1".equals(String.valueOf(session.getAttribute("s_main_gu")).trim())) { %>
       <a class="mi" data-key="compcd" onclick="logiFrame('compcd','${pageContext.request.contextPath}/mangr/compcd.do', this)"><span class="ic">🏢</span>회사/사용자 관리</a>
       <% } %>
-      <% if ("Y".equals(session.getAttribute("s_admin_yn"))) { %>
+      <%-- ★공통코드 관리도 관리자 회사 + 총괄관리자 둘 다여야 (2026-09-21 「공통코드도 총괄관리자만 보이게」). 서버도 /base/commcd.do 와 저장·삭제 6개에서 막는다 --%>
+      <% if ("Y".equals(session.getAttribute("s_admin_yn")) && "1".equals(String.valueOf(session.getAttribute("s_main_gu")).trim())) { %>
       <a class="mi" data-key="codecd" onclick="logiFrame('codecd','${pageContext.request.contextPath}/base/commcd.do', this)"><span class="ic">🧩</span>공통코드 관리</a>
       <% } %>
     </div>
@@ -4882,6 +4885,10 @@
       <iframe id="if-vendorPriceCmp" src="" title="거래처별 매입가 비교" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <%-- 비용 등록 (2026-09-16 P2-e) — 메뉴 logiFrame('expenseReg',…) 의 짝 --%>
+    <%-- 원가 관리 (2026-09-21) — 메뉴 logiFrame('costMng',…) 의 짝 --%>
+    <section id="panel-costMng" class="panel" style="padding:0;">
+      <iframe id="if-costMng" src="" title="원가 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
     <section id="panel-expenseReg" class="panel" style="padding:0;">
       <iframe id="if-expenseReg" src="" title="비용 등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>

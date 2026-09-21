@@ -1280,6 +1280,71 @@ public class UserController {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
 			return ".raw/main/mangr/costCalc";
 		}
+		/* 원가 관리 (2026-09-21 「비용 등록까지 해서 … 전체 원가관리」) — 회사 전체의 달별 매출·매입원가·비용·순이익. 매출 관리 ▸ 원가 관리.
+		   ★총괄관리자만 — 메뉴 숨김 + 직접 URL 차단(비용 등록과 같은 규칙). 자료는 아래 costBase.do */
+		@RequestMapping(value="/mangr/costMng.do")
+		public String costMng(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			if (!isChief(session)) return "redirect:/main.do";
+			return ".raw/main/mangr/costMng";
+		}
+		/* 원가 관리 자료 (2026-09-21) — 총괄관리자만.
+		   최근 N개월(기본 = 끝난 달까지, cur=Y 면 이번 달 포함)의 달별 매출·매입원가(매출 그래프 selectSalesChart 와 같은 규칙)와
+		   비용(마감과 같은 규칙 expenseSumOf — 사용 끈 항목 제외, 택배 자동 포함)을 모아 준다. 비용률 = 비용 합 ÷ 매출 합.
+		   화면은 이 비용률을 판매 계에 곱해 품목마다 간접비를 싣는다. DB 쓰기 없음. */
+		@RequestMapping(value="/mangr/costBase.do", method = RequestMethod.POST)
+		@ResponseBody
+		@SuppressWarnings("unchecked")
+		public Map<String,Object> costBase(@RequestParam(value="months", required=false, defaultValue="3") int months,
+		                                   @RequestParam(value="cur", required=false, defaultValue="N") String cur,
+		                                   HttpSession session, javax.servlet.http.HttpServletResponse response) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { response.setStatus(401); res.put("error", "로그인이 필요합니다."); return res; }
+			if (!isChief(session)) { response.setStatus(403); res.put("error", "총괄관리자만 볼 수 있습니다."); return res; }
+			String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+			int n = Math.max(1, Math.min(24, months));
+			java.time.YearMonth last = "Y".equals(cur) ? java.time.YearMonth.now() : java.time.YearMonth.now().minusMonths(1);
+			java.time.YearMonth first = last.minusMonths(n - 1);
+			java.time.format.DateTimeFormatter F = java.time.format.DateTimeFormatter.ofPattern("yyyyMM");
+			egovframework.konet.user.model.ClosingDTO dto = new egovframework.konet.user.model.ClosingDTO();
+			dto.setCompCd(compCd); dto.setFromDt(first.format(F) + "01"); dto.setToDt(last.format(F) + "01");
+			Map<String,double[]> byYm = new java.util.TreeMap<String,double[]>();   // ym → {매출, 매입원가}
+			for (java.time.YearMonth m = first; !m.isAfter(last); m = m.plusMonths(1)) byYm.put(m.format(F), new double[]{0, 0});
+			for (Map<String,Object> r : svc.selectSalesChart(dto)) {
+				double[] a = byYm.get(poStr(r.get("ym"))); if (a == null) continue;
+				a[0] += costNum(r.get("saleAmt")); a[1] += costNum(r.get("costAmt"));
+			}
+			List<Map<String,Object>> rows = new java.util.ArrayList<Map<String,Object>>();
+			Map<String,double[]> byItem = new java.util.LinkedHashMap<String,double[]>(); Map<String,String> itemNm = new HashMap<String,String>();
+			double tSale = 0, tCost = 0, tExp = 0;
+			for (Map.Entry<String,double[]> e : byYm.entrySet()) {
+				String ym = e.getKey(); double exp = svc.expenseSumOf(ym, compCd);
+				Map<String,Object> row = new HashMap<String,Object>();
+				row.put("ym", ym); row.put("saleAmt", Math.round(e.getValue()[0])); row.put("costAmt", Math.round(e.getValue()[1])); row.put("expAmt", Math.round(exp));
+				rows.add(row); tSale += e.getValue()[0]; tCost += e.getValue()[1]; tExp += exp;
+				Map<String,Object> mi = new HashMap<String,Object>(); row.put("items", mi);   // 그 달의 항목별 금액 {itemCd: amt} — 원가 관리의 「비용 항목 × 달」
+				/* 항목별 — 비용 등록 화면과 같은 자료(사용 끈 항목 제외, 택배 자동은 auto 금액) */
+				Map<String,Object> mon = svc.selectExpenseMonth(ym, compCd);
+				Map<String,Object> auto = (Map<String,Object>) mon.get("auto");
+				Map<String,Double> trx = new HashMap<String,Double>();
+				for (Map<String,Object> t : (List<Map<String,Object>>) mon.get("trx")) trx.put(poStr(t.get("itemCd")), costNum(t.get("amt")));
+				for (Map<String,Object> it : (List<Map<String,Object>>) mon.get("items")) {
+					if (!"Y".equals(poStr(it.get("useYn")))) continue;
+					String cd = poStr(it.get("itemCd")); itemNm.put(cd, poStr(it.get("itemNm")));
+					double amt = "PARCEL".equals(poStr(it.get("autoSrc"))) ? (auto == null ? 0 : costNum(auto.get("amt"))) : (trx.get(cd) == null ? 0 : trx.get(cd));
+					double[] a = byItem.get(cd); if (a == null) { a = new double[]{0}; byItem.put(cd, a); } a[0] += amt;
+					if (Math.round(amt) != 0) mi.put(cd, Math.round(amt));
+				}
+			}
+			List<Map<String,Object>> items = new java.util.ArrayList<Map<String,Object>>();
+			for (Map.Entry<String,double[]> e : byItem.entrySet()) { if (Math.round(e.getValue()[0]) == 0) continue; Map<String,Object> m = new HashMap<String,Object>(); m.put("itemCd", e.getKey()); m.put("itemNm", itemNm.get(e.getKey())); m.put("amt", Math.round(e.getValue()[0])); items.add(m); }
+			res.put("months", rows); res.put("items", items);
+			res.put("saleAmt", Math.round(tSale)); res.put("costAmt", Math.round(tCost)); res.put("expAmt", Math.round(tExp));
+			res.put("expRate", tSale > 0 ? Math.round(tExp / tSale * 10000.0) / 100.0 : 0);   // % 소수 둘째 자리
+			res.put("fromYm", first.format(F)); res.put("toYm", last.format(F));
+			return res;
+		}
+		private static double costNum(Object o) { if (o == null) return 0; try { return Double.parseDouble(String.valueOf(o).replace(",", "").trim()); } catch (Exception e) { return 0; } }
 		@RequestMapping(value="/mangr/quoteMst.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,Object> quoteMst(@RequestParam("quoteSeq") long quoteSeq, HttpSession session) throws Exception {
@@ -4248,6 +4313,7 @@ public class UserController {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
 			// ★ 공통코드 관리 = 관리자 회사(TBL_COMP_MST.COMMST_YN='Y')만 (2026-07-31 — 회사/사용자 관리와 동일 가드)
 			if (!"Y".equals(session.getAttribute("s_admin_yn"))) return "redirect:/main.do";
+			if (!isChief(session)) return "redirect:/main.do";   // ★총괄관리자만 (2026-09-21 「공통코드도 총괄관리자만 보이게」) — 메뉴 숨김 + 직접 URL 차단
 			return ".raw/main/base/codecd";
 		}
 
@@ -4261,7 +4327,8 @@ public class UserController {
 			return r;
 		}
 		@RequestMapping(value="/base/commMstInsert.do", method = RequestMethod.POST)
-		public ResponseEntity<String> commMstInsert(@RequestBody List<CodeMdDTO> data) {
+		public ResponseEntity<String> commMstInsert(@RequestBody List<CodeMdDTO> data, HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null || !isChief(session)) return ResponseEntity.status(403).body("총괄관리자만 공통코드를 고칠 수 있습니다.");   // 2026-09-21
 			try {
 				for (CodeMdDTO dto : data) {
 					if ("Y".equals(svc.codeMstDupChk(dto))) return ResponseEntity.status(400).body(dto.getCodeCd());
@@ -4271,14 +4338,16 @@ public class UserController {
 			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 		@RequestMapping(value="/base/commMstUpdate.do", method = RequestMethod.POST)
-		public ResponseEntity<String> commMstUpdate(@RequestBody List<CodeMdDTO> data) {
+		public ResponseEntity<String> commMstUpdate(@RequestBody List<CodeMdDTO> data, HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null || !isChief(session)) return ResponseEntity.status(403).body("총괄관리자만 공통코드를 고칠 수 있습니다.");   // 2026-09-21
 			try {
 				for (CodeMdDTO dto : data) { svc.updateCodeMst(dto); svc.insertCodeMst(dto); }
 				return ResponseEntity.ok("OK");
 			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 		@RequestMapping(value={"/base/commMstDelete.do","/user/commMstDelete.do"}, method = RequestMethod.POST)
-		public ResponseEntity<String> commMstDelete(@RequestBody List<CodeMdDTO> data) {
+		public ResponseEntity<String> commMstDelete(@RequestBody List<CodeMdDTO> data, HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null || !isChief(session)) return ResponseEntity.status(403).body("총괄관리자만 공통코드를 고칠 수 있습니다.");   // 2026-09-21
 			try {
 				for (CodeMdDTO dto : data) { dto.setCodeCd(dto.getKeycodeCd()); svc.updateCodeMst(dto); }
 				return ResponseEntity.ok("OK");
@@ -4295,7 +4364,8 @@ public class UserController {
 			return r;
 		}
 		@RequestMapping(value="/base/CommDtlInsert.do", method = RequestMethod.POST)
-		public ResponseEntity<String> CommDtlInsert(@RequestBody List<CodeMdDTO> data) {
+		public ResponseEntity<String> CommDtlInsert(@RequestBody List<CodeMdDTO> data, HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null || !isChief(session)) return ResponseEntity.status(403).body("총괄관리자만 공통코드를 고칠 수 있습니다.");   // 2026-09-21
 			try {
 				for (CodeMdDTO dto : data) {
 					if ("Y".equals(svc.codeDtlDupChk(dto))) return ResponseEntity.status(400).body(dto.getCodeCd());
@@ -4305,14 +4375,16 @@ public class UserController {
 			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 		@RequestMapping(value="/base/CommDtlUpdate.do", method = RequestMethod.POST)
-		public ResponseEntity<String> CommDtlUpdate(@RequestBody List<CodeMdDTO> data) {
+		public ResponseEntity<String> CommDtlUpdate(@RequestBody List<CodeMdDTO> data, HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null || !isChief(session)) return ResponseEntity.status(403).body("총괄관리자만 공통코드를 고칠 수 있습니다.");   // 2026-09-21
 			try {
 				for (CodeMdDTO dto : data) { svc.updateCodeDtl(dto); svc.insertCodeDtl(dto); }
 				return ResponseEntity.ok("OK");
 			} catch (Exception e) { return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 		@RequestMapping(value="/base/CommDtlDelete.do", method = RequestMethod.POST)
-		public ResponseEntity<String> CommDtlDelete(@RequestBody List<CodeMdDTO> data) {
+		public ResponseEntity<String> CommDtlDelete(@RequestBody List<CodeMdDTO> data, HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null || !isChief(session)) return ResponseEntity.status(403).body("총괄관리자만 공통코드를 고칠 수 있습니다.");   // 2026-09-21
 			try {
 				for (CodeMdDTO dto : data) {
 					dto.setCodeCd(dto.getKeycodeCd());

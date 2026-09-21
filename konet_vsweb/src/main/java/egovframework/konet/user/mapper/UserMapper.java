@@ -250,6 +250,7 @@ public interface UserMapper {
 	int deleteExpenseDtl(java.util.Map<String,Object> p) throws Exception;
 	int syncExpenseTrxFromDtl(java.util.Map<String,Object> p) throws Exception;
 	// DC 발주 (2026-09-17) — TBL_SHIPOUT_MST PROD_KIND='DC'. 납기현황관리에서만 빠지고 재고·정산서 대사에는 들어간다
+	java.util.Map<String,Object> selectProdVendorOfItem(java.util.Map<String,Object> p) throws Exception;   // 품목(주·서브코드)의 상품 마스터 매입처 — DC 발주 저장 때 채운다(2026-09-21)
 	int markDcPoReplace(java.util.Map<String,Object> p) throws Exception;
 	// 견적서 관리 (2026-09-17) — TBL_QUOTE_MST/DTL
 	java.util.List<java.util.Map<String,Object>> selectQuoteList(java.util.Map<String,Object> p) throws Exception;

@@ -1187,6 +1187,12 @@ public class UserServiceImpl implements UserService {
 			for (egovframework.konet.user.model.ShipoutDTO r : grp) {
 				r.setCompCd(compCd); r.setJobSeq(jobSeq); r.setActionYn("Y"); r.setRowNo(++seq);
 				r.setProdKind("DC"); r.setRegUser(user); r.setRegIp(ip);
+				/* 매입처 채우기 (2026-09-21) — DC 발주 자료엔 매입처가 없다 → 상품 마스터(서브코드면 주코드 상품)의 매입처. 못 찾으면 빈 채로 둔다 */
+				if (scStr(r.getVendorCd()).isEmpty() && !scStr(r.getItemCd()).isEmpty()) {
+					java.util.Map<String,Object> vq = new java.util.HashMap<String,Object>(); vq.put("compCd", compCd); vq.put("itemCd", scStr(r.getItemCd()));
+					java.util.Map<String,Object> pv = mapper.selectProdVendorOfItem(vq);
+					if (pv != null) { r.setVendorCd(scStr(pv.get("vendorCd"))); r.setVendorNm(scStr(pv.get("vendorNm"))); }
+				}
 				buf.add(r); n++;
 				if (buf.size() >= 40) { mapper.insertShipoutMstBulk(buf); buf.clear(); }   // 한 문장 파라미터 상한(2,100) — 발주현황표 업로드와 같은 40행
 			}
