@@ -1529,6 +1529,8 @@ public class UserController {
 					d.setItemCd(itemCd.length() > 30 ? itemCd.substring(0, 30) : itemCd); d.setItemNm(itemNm.length() > 200 ? itemNm.substring(0, 200) : itemNm);
 					String unit = poStr(m.get("unit")); d.setUnit(unit.length() > 20 ? unit.substring(0, 20) : unit);
 					d.setCurQty((int) q); d.setLabelQty((int) q);
+					/* ★판매가(2026-09-22 사용자 확정 「매입가 → 판매가 · 부가세 포함」) — 토더 엑셀의 매입가가 곧 우리 판매가. 매출 = 수량 × 이 값 */
+					if (!poStr(m.get("price")).isEmpty()) d.setSalePrice(poNum(m.get("price")));
 					String ord = poStr(m.get("ordNo")); d.setOrdNo(ord.length() > 30 ? ord.substring(0, 30) : ord);
 					String lineNo = poStr(m.get("no")); d.setOrdItemNo(lineNo.length() > 20 ? lineNo.substring(0, 20) : lineNo);   // 엑셀의 no — 반품이 (발주번호, 번호)로 온다(2026-09-21)
 					d.setZone("TD"); d.setDlvGb("TD");
@@ -1590,6 +1592,28 @@ public class UserController {
 				String warn = dcResync(dates, u, request.getRemoteAddr());
 				return ResponseEntity.ok(String.valueOf(r.get("n")) + (warn == null ? "" : "|STOCKFAIL:" + warn));
 			} catch (Exception e) { log.error(" toderPoCode ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		/* ★[2026-09-22 「지금까지 반품은 수정으로 처리」] 저장된 토더 한 줄의 수량·판매가 고치기.
+		   {ordNo, bizNm, itemNm, qty, price} — 키는 삭제와 같다. 수량 0 = 전량 반품(줄은 남고 재고·매출에서 빠진다).
+		   고친 뒤 그 날짜의 재고 원장을 다시 만든다. 매출은 조회 때 수량 × 판매가로 세므로 따로 할 일이 없다. 응답 = "1" (+ "|STOCKFAIL:사유") */
+		@RequestMapping(value="/shipout/toderPoRow.do", method = RequestMethod.POST)
+		public ResponseEntity<String> toderPoRow(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				String itemNm = poStr(p.get("itemNm")), bizNm = poStr(p.get("bizNm")), ordNo = poStr(p.get("ordNo"));
+				if (itemNm.isEmpty() || bizNm.isEmpty()) return ResponseEntity.status(400).body("고칠 줄을 찾을 수 없습니다.");
+				double qd = poNum(p.get("qty"));
+				if (qd < 0 || qd != Math.floor(qd) || qd > 1000000) return ResponseEntity.status(400).body("수량은 0 이상의 정수로 넣으세요(0 = 전량 반품).");
+				Double price = null;
+				if (!poStr(p.get("price")).isEmpty()) { price = poNum(p.get("price")); if (price < 0) return ResponseEntity.status(400).body("판매가는 0 이상으로 넣으세요."); }
+				String dlv = svc.updateTdPoRow(ordNo, bizNm, itemNm, (int) qd, price, u, request.getRemoteAddr(), compCd);
+				if (dlv == null) return ResponseEntity.status(404).body("저장된 줄을 찾을 수 없습니다(다른 곳에서 지웠거나 다시 올렸을 수 있습니다) — [조회]로 새로 읽으세요.");
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>(); if (dlv.matches("[0-9]{8}")) dates.add(dlv);
+				String warn = dcResync(dates, u, request.getRemoteAddr());
+				return ResponseEntity.ok("1" + (warn == null ? "" : "|STOCKFAIL:" + warn));
+			} catch (Exception e) { log.error(" toderPoRow ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 		/* 마스터에 없는 코드 → 거절 문구(없으면 null). 빈 집합은 조회에서 뺀다(foreach 는 빈 목록을 못 받는다) */
 		private String tdMissingCodes(java.util.Set<String> bizCds, java.util.Set<String> itemCds, String compCd) throws Exception {

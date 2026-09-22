@@ -263,6 +263,9 @@ public interface UserMapper {
 	java.util.List<String> selectTdPoDatesByName(java.util.Map<String,Object> p) throws Exception;                        // 2026-09-22 코드 수정 — 다시 맞출 날짜
 	int updateTdPoBizByName(java.util.Map<String,Object> p) throws Exception;                                             // 2026-09-22 저장 뒤 사업장코드 수정
 	int updateTdPoItemByName(java.util.Map<String,Object> p) throws Exception;                                            // 2026-09-22 저장 뒤 품목코드 수정
+	int updateTdPoPrice(java.util.Map<String,Object> p) throws Exception;                                                 // 2026-09-22 토더 = 매출 — 판매가(부가세 포함)
+	java.util.Map<String,Object> selectTdPoRow(java.util.Map<String,Object> p) throws Exception;                          // 2026-09-22 반품 = 수정 — 고치기 전 값
+	int updateTdPoRow(java.util.Map<String,Object> p) throws Exception;                                                   // 2026-09-22 반품 = 수정 — 수량·판매가
 	// 견적서 관리 (2026-09-17) — TBL_QUOTE_MST/DTL
 	java.util.List<java.util.Map<String,Object>> selectQuoteList(java.util.Map<String,Object> p) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectQuoteDtl(java.util.Map<String,Object> p) throws Exception;

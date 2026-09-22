@@ -2002,3 +2002,14 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
   검증 = 웹 자바 66파일 javac(톰캣 lib 포함, 임시 폴더) · MyBatis 로 매퍼 실제 파싱(318문·중복 0) + 새 구문 5개 SQL 풀기 · **운영DB 읽기 전용** : 저장된 토더 줄 0건(기존 자료 영향 없음) · 새 존재 확인 조회 실행(있는 코드만 돌아옴) · JSP 문법 · CRLF.
   ⛔**③매출은 아직 안 붙였다 — 결정 대기.** 지금 토더는 재고만 빠지고 매출에서 빠진다(selectClosing·selectSalesChart·Daily 의 `PROD_KIND <> 'TD'`, 09-21 「일단 재고만」). 사용자 새 지시 = 「별도 정산서 없음 — 발주가 곧 매출」.
     막힌 이유 : 엑셀 매입가가 **비고 글자에만** 있고 숫자 칸이 없다(단가로 매출을 잡으려면 `TBL_SHIPOUT_MST.SALE_PRICE` DDL) · 받을 돈의 상대(채권·채무)·「접수 대기」 줄 포함 여부·부가세 포함 여부·반품 처리가 안 정해졌다. 협의 항목은 사용자에게 목록으로 전달(2026-09-22).
+  [같은 날 추가] 토더 발주 등록에도 판매등록과 같은 높이 막대(ui-gridgrip.js) — 위 미리보기(pvWrap, 보관 이름 toderPoPv) · 아래 저장 목록(lsWrap 신설, toderPoList). 올린 줄이 없으면 미리보기 막대도 숨긴다(pvRender). JSP 만 — 새로고침이면 반영.
+- **[2026-09-22] 토더 발주 = 매출** (위 ③ 결정 대기의 답 — 사용자 확정 6가지 : ①엑셀 매입가 = 우리 판매가 ②부가세 포함 ③받을 상대 = 토더(플랫폼) ④골라 저장하면 곧 출고·매출 ⑤반품은 당분간 저장된 줄 수정 ⑥발주일자 = 출고일자). ⛔**DDL [20260922_toder_sales.sql](docs/sql/20260922_toder_sales.sql) 먼저**(`TBL_SHIPOUT_MST.SALE_PRICE` + 매출 거래처 「토더」 VENDOR_CD·DC_CD=`TODER`, VAT 포함) → 자바 + 매퍼 + JSP → WAR 재빌드·재기동. ⚠DDL 없이 새 WAR 를 올리면 마감·매출그래프·채권·일계장·토더 화면이 조회 오류.
+  ★**규칙 하나 = 매출 = 수량(LABEL_QTY) × SALE_PRICE**(비면 0 — 우리 판매단가로 물러서지 않는다. 화면끼리 같아야 해서). 걸리는 곳 9 :
+    마감 `selectClosing`(saleUnit·근거 배지 「토더」 · 09-21 TD 제외 줄 삭제) · 매출그래프 `selectSalesChart`/`Daily`(TD = 직접판매 trxAmt 칸, 추정에서 뺌, 출고장 줄은 dcCd TODER 「토더」로 따로 · 라벨 「직접판매(전표·토더)」) ·
+    채권·채무 `selectCustBalance` · 일계장 `selectDayBook` · 거래처 원장 `selectCustLedger` · 하루 명세 `selectCustDayDetail`(gb=SALE 「토더 발주」 → 출고내역 탭) · 거래처 합계 `selectVendorTrxSum`(정산서 몫에 합침).
+    거래처 연결은 **정산서와 같은 규칙**(거래처 DC_CD = 출고 줄 DC_CD, DC_CD 별 MIN(VENDOR_CD)) — 그래서 토더 거래처 DC_CD 가 `TODER` 여야 한다(거래처관리 물류센터코드 칸 라벨에 「토더 = TODER — 지우지 마세요」).
+  저장 : 화면이 판매가(price)를 보내고 서버가 `ShipoutDTO.salePrice` → 삽입 직후 `updateTdPoPrice`(공용 insertShipoutMstBulk 는 무변경 — 삼성 업로드에 영향 없음). 저장 확인창에 매출 합계·판매가 빈 줄 경고(막지는 않음).
+  반품 = 저장 목록의 **수량·판매가 입력칸**(Enter) → `/shipout/toderPoRow.do` → `updateTdPoRow`(키 = 발주번호·배송지명·상품명, 수량 0 = 전량 반품, 비고 끝에 「수정 MM-dd HH:mm 수량 a→b 판매가 x→y」) → 그 날 재고 원장 다시(`dcResync`). 목록에 판매가·금액 칸과 매출 합계.
+  업무설명서 = 매출마감 행 끝에 한 문장(demo2 줄 수 5,180 그대로). 차트 두 화면 도움말·KPI 라벨 갱신.
+  검증 = 웹 자바 66파일 javac · MyBatis 매퍼 파싱 321문 · **운영DB 읽기 전용 옛/새 대조**(토더 줄 0건이라 같아야 정상) : 월별 16·일별 227·채권 241·일계장 61·원장 218·하루 명세 72줄 전부 같음 · 거래처 합계 57줄 순서만 다름(내용 같음) · 마감의 바뀐 단가식은 따로 실행(삼성 줄 그대로) · 화면 문법 · CRLF. ⚠DDL 전이라 SALE_PRICE 는 NULL 로 바꿔 돌렸다 — 토더 줄이 실제로 매출에 잡히는 것은 DDL·배포 뒤 첫 저장으로 확인할 것.
+  ⚠손대지 않은 것 : 정산 그래프(logi-oh.js sg* — 정산서 기준 화면) · 매출내역 대사(토더는 정산서가 없어 계속 뺀다) · 앱(토더 화면 자체가 없다).

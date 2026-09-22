@@ -37,6 +37,7 @@ public class ShipoutDTO {
 	private String  shpoutDtTo;    // 기간조회 종료일 (조회 전용·비영속)
 	private String  dlvDtFrom;     // 납기일자 기간조회 시작일 (조회 전용·비영속) — selectBizZoneHist(통상 출고장 이력, 2026-09-16)
 	private String  dlvDtTo;       // 납기일자 기간조회 종료일 (조회 전용·비영속)
+	private Double  salePrice;     // 판매가(부가세 포함) — 토더 발주만(2026-09-22). 공용 insertShipoutMstBulk 는 안 싣고, 토더 저장 뒤 updateTdPoPrice 로 넣는다
 	private String  statYn;        // 상황여부
 	private String  prodKind;      // 상품종류
 	private String  dcYn;          // 조회 전용 — 'Y' 면 selectShipoutMst 가 DC 발주(PROD_KIND='DC')도 준다(출고내역 대사). 기본은 뺀다(2026-09-17)
@@ -118,6 +119,8 @@ public class ShipoutDTO {
 	public void setShpoutDtFrom(String shpoutDtFrom) { this.shpoutDtFrom = shpoutDtFrom; }
 	public String getShpoutDtTo() { return shpoutDtTo; }
 	public void setShpoutDtTo(String shpoutDtTo) { this.shpoutDtTo = shpoutDtTo; }
+	public Double getSalePrice() { return salePrice; }
+	public void setSalePrice(Double salePrice) { this.salePrice = salePrice; }
 	public String getDlvDtFrom() { return dlvDtFrom; }
 	public void setDlvDtFrom(String dlvDtFrom) { this.dlvDtFrom = dlvDtFrom; }
 	public String getDlvDtTo() { return dlvDtTo; }

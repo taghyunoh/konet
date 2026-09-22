@@ -38,10 +38,8 @@
   .card .hd{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 12px; border-bottom:1px solid #eef1f5; font-weight:800; color:#125a4e; font-size:14px; }
   .card .hd small{ font-weight:600; color:#6b7a89; font-size:12px; }
   .card .hd .sp{ margin-left:auto; }
-  .drop{ margin:12px; border:2px dashed #b9d3cc; border-radius:10px; background:#f6fbfa; padding:22px; text-align:center; color:#4b6b63; cursor:pointer; }
-  .drop.on{ background:#e3f2ee; border-color:var(--teal); }
-  .drop b{ color:var(--teal); }
-  .drop small{ display:block; margin-top:5px; color:#7c8e98; font-size:12px; }
+  /* 파일 고르기 = 제목 줄 단추(2026-09-22 「공간 없이 버튼으로」) · 끌어다 놓기는 카드 전체가 받는다 */
+  #upCard.on{ outline:2px dashed var(--teal); outline-offset:-2px; background:#f3faf8; }
   .tw{ overflow:auto; max-height:52vh; }
   table.g{ border-collapse:collapse; width:100%; font-size:13px; }
   table.g th{ position:sticky; top:0; z-index:1; background:#eaf2f0; color:#125a4e; font-weight:600; font-size:12.5px; border-bottom:1px solid #cfe0da; border-right:1px solid #d8e6e1; padding:7px 8px; text-align:center; white-space:nowrap; }
@@ -86,19 +84,14 @@
 <div class="wrap">
   <h2>🏷 DC 발주 등록</h2>
 
-  <div class="card">
-    <div class="hd">📥 파일 올리기 <small>— 여러 개를 한 번에 올릴 수 있습니다. 미리보기를 확인하고 [💾 저장]</small>
+  <div class="card" id="upCard">
+    <div class="hd">📥 파일 올리기
+      <button class="btn btn-teal" id="drop" onclick="document.getElementById('file').click()" style="margin-left:10px"
+        title="입고예약서 PDF 또는 발주서 엑셀 — 여러 개를 한 번에 골라도 됩니다. 이 카드 위로 파일을 끌어다 놓아도 됩니다.&#10;출고장은 납품장소 이름으로 정합니다. 엑셀처럼 납품장소가 비어 있으면 평택물류센터로 둡니다(미리보기에서 바꿀 수 있습니다).">📄 DC 발주 PDF·엑셀</button>
+      <button class="btn" onclick="pvManual()" title="서류가 없거나 읽지 못한 발주는 줄을 더해 납기일자·품목코드·수량을 직접 적고 [💾 저장]">✏ 수동 입력 줄 추가</button>
       <span class="sp tot" id="pvTot"></span>
     </div>
-    <div class="drop" id="drop" onclick="document.getElementById('file').click()">
-      📄 <b>입고예약서 PDF</b> 또는 <b>발주서 엑셀</b>을 여기에 끌어다 놓거나 눌러서 고르세요
-      <small>출고장은 납품장소 이름으로 정합니다. 엑셀처럼 납품장소가 비어 있으면 <b>평택물류센터</b>로 둡니다(아래에서 바꿀 수 있습니다).</small>
-    </div>
     <input type="file" id="file" accept=".pdf,.xlsx,.xls" multiple hidden onchange="pickFiles(this.files); this.value='';">
-    <div class="bar" style="padding:0 12px 10px">
-      <button class="btn" onclick="pvManual()" title="서류가 없거나 읽지 못했을 때 줄을 직접 적습니다">✏ 수동 입력 줄 추가</button>
-      <span class="dim" style="font-size:12.5px">서류가 없거나 읽지 못한 발주는 줄을 더해 납기일자·품목코드·수량을 직접 적고 [💾 저장]</span>
-    </div>
     <div id="pvErr"></div>
     <div id="pvWrap" hidden>
       <div class="pvhd" id="pvHd">🔎 미리보기</div>
@@ -157,7 +150,7 @@ function ask(m, okText){ return new Promise(function(res){ _confirmBox({ msg:m, 
 
 /* ── 파일 → 서버 해석 ── */
 (function(){
-  var d=document.getElementById('drop');
+  var d=document.getElementById('upCard');   /* 끌어다 놓기 = 카드 전체(2026-09-22 넓은 끌어놓기 칸을 단추로 바꿈) */
   ['dragenter','dragover'].forEach(function(t){ d.addEventListener(t,function(e){ e.preventDefault(); d.classList.add('on'); }); });
   ['dragleave','drop'].forEach(function(t){ d.addEventListener(t,function(e){ e.preventDefault(); d.classList.remove('on'); }); });
   d.addEventListener('drop',function(e){ if(e.dataTransfer && e.dataTransfer.files) pickFiles(e.dataTransfer.files); });
@@ -168,7 +161,7 @@ function pickFiles(list){
   if(!fs.length){ _alertBox('PDF 나 엑셀 파일을 골라 주세요.',{icon:'⚠️'}); return; }
   var big=fs.filter(function(f){ return f.size>15*1024*1024; });
   if(big.length){ _alertBox(big[0].name+' 이 15MB 를 넘습니다.',{icon:'⚠️'}); return; }
-  var dr=document.getElementById('drop'); dr.innerHTML='⏳ 읽는 중… ('+fs.length+'개)';
+  var dr=document.getElementById('drop'), drTx=dr.innerHTML; dr.innerHTML='⏳ 읽는 중… ('+fs.length+'개)'; dr.disabled=true;
   fs.forEach(docKeep);   // 원본 보기용(PDF 는 브라우저 뷰어, 엑셀은 시트 표) — 서버 해석과 별개
   Promise.all(fs.map(function(f){ return readB64(f).then(function(b){ return { name:f.name, b64:b }; }); }))
     .then(function(files){ return post('/shipout/dcPoParse.do', { files:files }, true); })
@@ -181,7 +174,7 @@ function pickFiles(list){
       if(rows.length) ok('<b>'+rows.length+'줄</b>을 읽었습니다.<br><span style="font-size:13px;color:#3d4d5c">아래 <b>미리보기</b> 표에서 납기일자·출고장·수량을 확인하고 [💾 저장]을 누르세요.</span>');
     })
     .catch(function(e){ err('파일을 읽지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); })
-    .then(function(){ dr.innerHTML='📄 <b>입고예약서 PDF</b> 또는 <b>발주서 엑셀</b>을 여기에 끌어다 놓거나 눌러서 고르세요<small>출고장은 납품장소 이름으로 정합니다. 엑셀처럼 납품장소가 비어 있으면 <b>평택물류센터</b>로 둡니다(아래에서 바꿀 수 있습니다).</small>'; });
+    .then(function(){ dr.innerHTML=drTx; dr.disabled=false; });
 }
 function pvRender(){
   var w=document.getElementById('pvWrap'), tb=document.getElementById('pvBody');

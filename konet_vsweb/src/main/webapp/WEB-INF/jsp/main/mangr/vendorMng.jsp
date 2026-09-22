@@ -163,7 +163,7 @@
       <div class="fld"><label>종목</label><input id="f_item"></div>
       <div class="fld"><label>담당자코드</label><input id="f_mgrcd"></div>
       <div class="fld"><label>담당자명</label><input id="f_mgrnm"></div>
-      <div class="fld"><label class="wide">물류센터코드 <span style="color:#9aa7b3;font-weight:400">(삼성웰스토리 지점만, 예: E500)</span></label><input id="f_dc" placeholder="비워두면 일반 거래처"></div>
+      <div class="fld"><label class="wide">물류센터코드 <span style="color:#9aa7b3;font-weight:400" title="이 코드로 출고 자료의 매출이 이 거래처에 붙는다 — 삼성웰스토리 지점(E100~E700) · 토더(TODER, 2026-09-22). 지우면 그 매출이 채권·채무에서 빠진다">(삼성웰스토리 지점 예: E500 · 토더 = TODER — 지우지 마세요)</span></label><input id="f_dc" placeholder="비워두면 일반 거래처"></div>
       <div class="sep">연락처·주소</div>
       <div class="fld"><label>연락처(휴대폰)</label><input id="f_hp"></div>
       <div class="fld"><label>전화</label><input id="f_tel"></div>

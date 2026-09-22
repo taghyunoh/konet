@@ -7,6 +7,8 @@
 <title>토더 발주 등록</title>
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 엑셀 읽기 (전역 XLSX) --%>
+<%-- 표 높이 막대 (2026-09-22 「여기도 판매등록 막대」) — 판매·매입·수금·지급등록과 같은 공용 파일. 위 미리보기 · 아래 저장 목록 둘 다 --%>
+<script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>
 <!--
   토더 발주 등록 (2026-09-21 신설 — 「토더라는 곳에서 발주 엑셀로 받아서 출고 업로드 … 기존 DC 발주 등록과 같은 개념」) — 매출 관리 ▸ 토더 발주 등록. 셸 iframe(logiFrame) 화면.
   · 토더(가맹점 발주 플랫폼, 예: 샐러링)의 「상품별 발주 목록」 엑셀을 올린다. 머리 줄 = no·배송지명·배송담당자·발주번호·발주일시·출고마감일·상품명·단위·매입가·발주수량·출고수량·상품 상태 …
@@ -15,8 +17,11 @@
   · 발주일자(발주일시의 날짜) = 납기일자 = 출고일자. 수량 = 출고수량이 있으면 그것, 없으면 발주수량. 상태가 취소·반품이면 기본으로 체크를 뺀다.
   · 저장 = TBL_SHIPOUT_MST PROD_KIND='TD'(출고장 「토더」) + 재고 연동 (2026-09-21 저녁 「토더도 재고 맞추어 주고 정산서는 사용자 협의 후」) —
     저장·삭제하면 그 발주일자들의 출고 원장을 다시 만들어 재고에서 뺀다. 그 날 삼성웰스토리 정산서가 있어도 토더 줄은 뺀다(그 정산서에 토더는 없다).
-    ★매출은 아직 안 잡는다 (2026-09-21 「일단 재고만 맞추고 반품이 정산서 형태로 오면 매출 및 재고 조정으로」) — 마감(selectClosing)·매출 그래프(월·일)의 출고 블록에서 TD 를 뺐다.
-    정산서 대사에서도 뺀다. 월별 출고현황(출고 수량)에는 보이고, 납기현황관리에서는 뺀다. 반품·정산 자료가 (발주번호, 번호 = ORD_ITEM_NO)로 오면 그때 매출·재고 조정을 붙인다.
+    ★[2026-09-22 사용자 확정] 토더 = 매출 — 별도 정산서가 없다. ①엑셀 「매입가」 = 우리 판매가(SALE_PRICE) ②부가세 포함 ③받을 상대 = 거래처 「토더」(VENDOR_CD·DC_CD='TODER')
+      ④사용자가 골라 저장하면 곧 출고·매출 ⑤반품은 당분간 저장된 줄의 수량 수정(0 = 전량 반품) ⑥발주일자 = 출고일자.
+      매출 = 수량 × 판매가 — 마감(근거 '토더')·매출 그래프(직접판매 칸, 출고장 줄 '토더')·채권·채무·일계장·거래처 원장·하루 명세·거래처 합계 모두 같은 식.
+      (09-21 의 「일단 재고만 · 반품이 정산서로 오면 매출」은 이것으로 바뀌었다.) 정산서 대사·납기현황관리에서는 여전히 뺀다.
+      ⛔DDL docs/sql/20260922_toder_sales.sql(SALE_PRICE 칸 + 거래처 「토더」)을 새 WAR 보다 먼저.
     같은 (발주번호, 배송지명, 상품명)을 다시 올리면 앞의 것을 대체한다(같은 기간을 여러 번 받아 올려도 중복되지 않는다).
   · 원본 파일은 보관하지 않는다(DC 발주와 같다). 파일 이름만 남는다.
 -->
@@ -35,9 +40,8 @@
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; margin-bottom:14px; }
   .card .hd{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 12px; border-bottom:1px solid #eef1f5; font-weight:800; color:#125a4e; font-size:14px; }
   .card .hd small{ font-weight:600; color:#6b7a89; font-size:12px; }
-  .drop{ margin:12px; border:1.5px dashed #b9c9c4; border-radius:10px; padding:20px; text-align:center; color:#37475a; cursor:pointer; background:#fbfdfc; }
-  .drop.on{ background:#e3f2ee; border-color:var(--teal); }
-  .drop b{ color:var(--teal); }
+  /* 엑셀 고르기 = 제목 줄 단추(2026-09-22 「공간 없이 버튼으로」) · 끌어다 놓기는 카드 전체가 받는다 */
+  #upCard.on{ outline:2px dashed var(--teal); outline-offset:-2px; background:#f3faf8; }
   .tw{ overflow:auto; }
   table.g{ border-collapse:collapse; width:100%; font-size:13px; }
   table.g th{ position:sticky; top:0; z-index:1; background:#eaf2f0; color:#125a4e; font-weight:600; font-size:12.5px; border-bottom:1px solid #cfe0da; border-right:1px solid #d8e6e1; padding:7px 6px; text-align:center; white-space:nowrap; }
@@ -48,6 +52,10 @@
   table.g input[type=text].auto{ border-color:#9db7e8; background:#eef3fd; }
   table.g input[type=text].bad{ border-color:#e2b93b; background:#fff7d6; }
   table.g tr.off td{ color:#9aa7b3; background:#fafbfc; }
+  /* 저장 목록의 수량·판매가 입력칸(2026-09-22 반품 = 수정) — 넣어야 하는 칸(주황)이 아니라 고칠 수 있는 값이라 흰 바탕 · 오른쪽 정렬 */
+  table.g input[type=text].num{ width:86px; text-align:right; background:#fff; border:1px solid var(--bd); font-variant-numeric:tabular-nums; }
+  table.g input[type=text].num:focus{ border-color:var(--teal); outline:none; }
+  table.g input[type=text].num.bad{ border-color:#e2b93b; background:#fff7d6; }
   .sub{ display:block; font-size:11.5px; color:#6b7a89; margin-top:1px; max-width:230px; overflow:hidden; text-overflow:ellipsis; }
   .sub.warn{ color:var(--amber); }
   .sub.nmf{ font-size:13px; color:#1f2a37; font-weight:700; margin:0 0 3px; max-width:260px; }   /* 명칭을 앞(위)에 */
@@ -64,8 +72,10 @@
 <div class="wrap">
   <h2>🛒 토더 발주 등록 <small>— 토더 「상품별 발주 목록」 엑셀을 올려 출고로 저장한다. 사업장코드·품목코드는 한 번 넣으면 다음부터 자동으로 채워진다</small></h2>
 
-  <div class="card">
-    <div class="hd">올리기 <small>— 엑셀(xlsx). 여러 개를 한 번에 올려도 된다</small>
+  <div class="card" id="upCard">
+    <div class="hd">올리기
+      <button class="btn btn-teal" id="drop" onclick="document.getElementById('fi').click()" style="margin-left:10px"
+        title="엑셀(xlsx) — 여러 개를 한 번에 골라도 됩니다. 이 카드 위로 파일을 끌어다 놓아도 됩니다.&#10;읽는 칸 : 배송지명 · 발주번호 · 발주일시 · 상품명 · 단위 · 매입가 · 발주수량 · 출고수량 · 상품 상태">📄 토더 발주 엑셀</button>
       <span class="bar" style="margin-left:auto">
         <span id="pvInfo" class="dim" style="font-weight:600;font-size:12.5px"></span>
         <button class="btn" id="btnOnlyNo" onclick="onlyNoToggle()" style="display:none">미입력 줄만</button>
@@ -73,8 +83,6 @@
         <button class="btn" id="btnClear" onclick="pvClear()" style="display:none" title="화면에 올려 둔 엑셀 내용을 비웁니다(저장된 것은 그대로)">업로드 취소</button>
       </span>
     </div>
-    <div class="drop" id="drop" onclick="document.getElementById('fi').click()">📄 <b>토더 발주 엑셀</b>을 여기에 끌어다 놓거나 눌러서 고르세요
-      <div class="dim" style="font-size:12.5px;margin-top:4px">배송지명 · 발주번호 · 발주일시 · 상품명 · 단위 · 매입가 · 발주수량 · 출고수량 · 상품 상태를 읽습니다</div></div>
     <input type="file" id="fi" accept=".xlsx,.xls" multiple style="display:none" onchange="onFiles(this.files); this.value=''">
     <div class="tw" id="pvWrap" style="display:none;max-height:56vh">
       <table class="g"><thead><tr>
@@ -95,9 +103,10 @@
         <span id="lsInfo" class="dim" style="font-weight:600;font-size:12.5px"></span>
       </span>
     </div>
-    <div class="tw" style="max-height:50vh"><table class="g"><thead><tr>
-      <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th><th>발주일자</th><th>발주번호</th><th title="토더 엑셀의 no — 반품이 (발주번호, 번호)로 온다">번호</th><th>구분</th><th>배송지명</th><th>사업장코드</th><th>상품명</th><th>품목코드</th><th>단위</th><th>수량</th><th>비고</th><th>올린 파일</th><th>등록</th></tr></thead>
-      <tbody id="lsBody"><tr><td colspan="14" class="msg">[🔍 조회]를 누르세요.</td></tr></tbody></table></div>
+    <div class="tw" id="lsWrap" style="max-height:50vh"><table class="g"><thead><tr>
+      <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th><th>발주일자</th><th>발주번호</th><th title="토더 엑셀의 no — 반품이 (발주번호, 번호)로 온다">번호</th><th>구분</th><th>배송지명</th><th>사업장코드</th><th>상품명</th><th>품목코드</th><th>단위</th>
+      <th title="고쳐서 Enter — 반품은 여기서 수량을 줄인다(0 = 전량 반품). 재고를 다시 맞춘다">수량 ✏️</th><th title="판매가(부가세 포함 — 토더 엑셀의 매입가). 고쳐서 Enter">판매가 ✏️</th><th title="매출 = 수량 × 판매가(부가세 포함) — 거래처 「토더」">금액</th><th>비고</th><th>올린 파일</th><th>등록</th></tr></thead>
+      <tbody id="lsBody"><tr><td colspan="16" class="msg">[🔍 조회]를 누르세요.</td></tr></tbody></table></div>
   </div>
 </div>
 <datalist id="bizList"></datalist><datalist id="prodList"></datalist>
@@ -167,6 +176,8 @@ function cdCls(cd, mst, auto){ if(!cd) return ''; return mst[cd]!=null ? (auto?'
 function pvRender(){
   var has=_pv.length>0;
   ['pvWrap','pvNote'].forEach(function(id){ document.getElementById(id).style.display=has?'':'none'; });
+  /* 미리보기 높이 막대(ui-gridgrip.js 가 #pvWrap 바로 뒤에 붙인 .kgg)도 표와 같이 숨긴다 — 올린 줄이 없을 때 막대만 떠 있지 않게 */
+  var pg=document.getElementById('pvWrap').nextElementSibling; if(pg && pg.classList.contains('kgg')) pg.style.display=has?'':'none';
   ['btnSave','btnClear','btnOnlyNo'].forEach(function(id){ document.getElementById(id).style.display=has?'':'none'; });
   document.getElementById('btnOnlyNo').textContent=_onlyNo?'전체 줄 보기':'미입력 줄만';
   var tb=document.getElementById('pvBody');
@@ -216,8 +227,12 @@ function save(){
       +'노란 칸을 고치거나 그 줄의 체크를 빼고 다시 저장하세요.</span>');
     return;
   }
+  /* 토더 = 매출(2026-09-22) — 매출 = 수량 × 판매가(엑셀 매입가, 부가세 포함). 판매가가 빈 줄은 매출 0 으로 들어가므로 알린다(막지는 않는다 — 저장 뒤 목록에서 고칠 수 있다) */
+  var noPrice=rdy.filter(function(x){ return !(n(x.price)>0); }).length, amt=rdy.reduce(function(s,x){ return s+n(x.qty)*n(x.price); },0);
   _confirmBox({ icon:'💾', okText:'저장',
-    msg:'토더 발주 <b>'+rdy.length+'</b>줄을 출고로 저장합니다.'+(miss?'<br><span style="color:#b45309;font-size:13px">코드가 빈 '+miss+'줄은 저장하지 않습니다(화면에 남습니다).</span>':'')
+    msg:'토더 발주 <b>'+rdy.length+'</b>줄을 <b>출고 · 매출</b>로 저장합니다. 매출 <b>'+fmt(amt)+'</b>원(부가세 포함 · 거래처 「토더」).'
+      +(noPrice?'<br><span style="color:#c0392b;font-size:13px">판매가(매입가)가 빈 줄 '+noPrice+'개 — 매출 0원으로 들어갑니다(저장 뒤 목록에서 고칠 수 있습니다).</span>':'')
+      +(miss?'<br><span style="color:#b45309;font-size:13px">코드가 빈 '+miss+'줄은 저장하지 않습니다(화면에 남습니다).</span>':'')
        +'<br><span style="font-size:13px;color:#3d4d5c">같은 발주번호·배송지명·상품명이 이미 있으면 새것으로 대체합니다.</span>',
     onOk:function(){
       var b=document.getElementById('btnSave'); b.disabled=true;
@@ -238,23 +253,50 @@ function save(){
 
 /* ── 저장된 목록 ── */
 function load(){
-  document.getElementById('lsBody').innerHTML='<tr><td colspan="14" class="msg">조회 중…</td></tr>';
+  document.getElementById('lsBody').innerHTML='<tr><td colspan="16" class="msg">조회 중…</td></tr>';
   post('/shipout/toderPoList.do','frDt='+encodeURIComponent(document.getElementById('fr').value)+'&toDt='+encodeURIComponent(document.getElementById('to').value))
     .then(function(r){ return r.json(); }).then(function(j){ _ls=(j&&j.data)||[]; lsRender(); })
-    .catch(function(e){ document.getElementById('lsBody').innerHTML='<tr><td colspan="14" class="msg" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
+    .catch(function(e){ document.getElementById('lsBody').innerHTML='<tr><td colspan="16" class="msg" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
 }
 function lsRender(){
   var tb=document.getElementById('lsBody'); document.getElementById('lsAll').checked=false;
-  if(!_ls.length){ tb.innerHTML='<tr><td colspan="14" class="msg">저장된 토더 발주가 없습니다.</td></tr>'; document.getElementById('lsInfo').textContent=''; return; }
-  var q=0;
-  tb.innerHTML=_ls.map(function(x,i){ q+=n(x.qty);
+  if(!_ls.length){ tb.innerHTML='<tr><td colspan="16" class="msg">저장된 토더 발주가 없습니다.</td></tr>'; document.getElementById('lsInfo').textContent=''; return; }
+  var q=0, amt=0;
+  tb.innerHTML=_ls.map(function(x,i){ q+=n(x.qty); amt+=n(x.qty)*n(x.salePrice);
     /* ★[2026-09-22 「저장 후 품목코드·사업장코드 수정 가능하게」] 두 코드 칸을 입력칸으로 — 고르면 확인창 뒤 lsCd(이름 단위로 고친다) */
     var bn=_biz[x.bizCd], pn=_prod[x.itemCd];
     return '<tr><td><input type="checkbox" class="lchk" data-i="'+i+'"></td><td>'+d10(x.dlvDt)+'</td><td>'+esc(x.ordNo)+'</td><td><b>'+esc(x.lineNo)+'</b></td><td>'+esc(x.dcNm)+'</td><td class="l">'+esc(x.bizNm)+'</td>'
       +'<td class="l"><span class="sub nmf'+(bn==null?' warn':'')+'">'+esc(bn!=null?bn:'사업장 마스터에 없는 코드')+'</span><input type="text" list="bizList" class="'+(bn==null?'bad':'ok')+'" value="'+esc(x.bizCd)+'" title="고르거나 쳐서 바꾸면 같은 배송지명의 저장된 줄이 모두 바뀝니다" onchange="lsCd('+i+',\'biz\',this)"></td>'
-      +'<td class="l">'+esc(x.itemNm)+'</td><td class="l"><span class="sub nmf'+(pn==null?' warn':'')+'">'+esc(pn!=null?pn:'상품 마스터에 없는 코드')+'</span><input type="text" list="prodList" class="'+(pn==null?'bad':'ok')+'" value="'+esc(x.itemCd)+'" title="고르거나 쳐서 바꾸면 같은 상품명의 저장된 줄이 모두 바뀌고 재고도 다시 맞춥니다" onchange="lsCd('+i+',\'item\',this)">'+(x.prodCd&&x.prodCd!==x.itemCd?'<span class="sub">주코드 '+esc(x.prodCd)+'</span>':'')+'</td><td>'+esc(x.unit)+'</td><td class="r"><b>'+fmt(x.qty)+'</b></td>'
+      +'<td class="l">'+esc(x.itemNm)+'</td><td class="l"><span class="sub nmf'+(pn==null?' warn':'')+'">'+esc(pn!=null?pn:'상품 마스터에 없는 코드')+'</span><input type="text" list="prodList" class="'+(pn==null?'bad':'ok')+'" value="'+esc(x.itemCd)+'" title="고르거나 쳐서 바꾸면 같은 상품명의 저장된 줄이 모두 바뀌고 재고도 다시 맞춥니다" onchange="lsCd('+i+',\'item\',this)">'+(x.prodCd&&x.prodCd!==x.itemCd?'<span class="sub">주코드 '+esc(x.prodCd)+'</span>':'')+'</td><td>'+esc(x.unit)+'</td>'
+      /* ★[2026-09-22 「반품은 수정으로」 · 「토더 = 매출」] 수량·판매가 = 입력칸(Enter 또는 칸을 벗어나면 lsRow) · 금액 = 수량 × 판매가(부가세 포함) */
+      +'<td class="r"><input type="text" class="num'+(n(x.qty)===0?' bad':'')+'" value="'+esc(fmtIn(x.qty))+'" data-v="'+esc(fmtIn(x.qty))+'" title="반품이면 줄여서 Enter — 0 = 전량 반품. 그 날 재고를 다시 맞춘다" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsRow('+i+',this,\'qty\')"></td>'
+      +'<td class="r"><input type="text" class="num'+(x.salePrice==null||x.salePrice===''?' bad':'')+'" value="'+esc(fmtIn(x.salePrice))+'" data-v="'+esc(fmtIn(x.salePrice))+'" title="판매가(부가세 포함). 비면 매출 0" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsRow('+i+',this,\'price\')"></td>'
+      +'<td class="r"><b>'+fmt(n(x.qty)*n(x.salePrice))+'</b></td>'
       +'<td class="l dim" style="max-width:260px;overflow:hidden;text-overflow:ellipsis" title="'+esc(x.remark)+'">'+esc(x.remark)+'</td><td class="l dim" style="max-width:200px;overflow:hidden;text-overflow:ellipsis" title="'+esc(x.srcFile)+'">'+esc(x.srcFile)+'</td><td class="dim">'+esc(String(x.uploadDttm||'').slice(0,16))+'<br>'+esc(x.regUser)+'</td></tr>'; }).join('');
-  document.getElementById('lsInfo').textContent=_ls.length+'줄 · 수량 '+fmt(q);
+  document.getElementById('lsInfo').textContent=_ls.length+'줄 · 수량 '+fmt(q)+' · 매출 '+fmt(amt)+'원(부가세 포함)';
+}
+/* 입력칸 값 — 콤마 없이(고칠 때 숫자만 치면 된다). 비면 빈 칸 */
+function fmtIn(v){ if(v==null||v==='') return ''; var x=n(v); return String(Math.round(x*100)/100); }
+/* 저장된 한 줄의 수량·판매가 고치기 (2026-09-22 「지금까지 반품은 수정으로 처리」) — 키는 삭제와 같은 (발주번호, 배송지명, 상품명).
+     바꾼 칸만 새 값, 다른 칸은 지금 값 그대로 보낸다. 서버가 비고에 「수정 옛값→새값」을 남기고 그 날 재고를 다시 맞춘다. */
+function lsRow(i, el, fld){
+  var x=_ls[i]; if(!x) return;
+  var old=el.getAttribute('data-v')||'', v=String(el.value||'').replace(/,/g,'').trim();
+  if(v===old) return;
+  if(fld==='qty' && !/^\d+$/.test(v)){ el.value=old; err('수량은 0 이상의 정수로 넣으세요(0 = 전량 반품).'); return; }
+  if(fld==='price' && v!=='' && !(/^\d+(\.\d+)?$/.test(v))){ el.value=old; err('판매가는 숫자로 넣으세요(부가세 포함).'); return; }
+  var qty = fld==='qty' ? v : fmtIn(x.qty), price = fld==='price' ? v : fmtIn(x.salePrice);
+  var what = fld==='qty' ? ('수량 <b>'+esc(old||'0')+'</b> → <b>'+esc(v)+'</b>'+(n(v)<n(old)?' <span style="color:#b45309">(반품 '+fmt(n(old)-n(v))+')</span>':'')) : ('판매가 <b>'+esc(old||'없음')+'</b> → <b>'+esc(v||'없음')+'</b>');
+  _confirmBox({ icon:'✏️', okText:'고치기',
+    msg:esc(x.bizNm)+' · '+esc(x.itemNm)+'<br>'+what
+      +'<br><span style="font-size:13px;color:#3d4d5c">매출 '+fmt(n(qty)*n(price))+'원(부가세 포함)'+(fld==='qty'?' · 그 날('+d10(x.dlvDt)+') 재고를 다시 맞춥니다':'')+'. 비고에 수정 기록이 남습니다.</span>',
+    onOk:function(){
+      post('/shipout/toderPoRow.do',{ ordNo:x.ordNo, bizNm:x.bizNm, itemNm:x.itemNm, qty:qty, price:price },true)
+        .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
+        .then(function(t){ var warn=/\|STOCKFAIL:(.*)$/.exec(t); load();
+          if(warn) err('고쳤지만 재고 반영에 실패했습니다 — '+esc(warn[1])+'<br><span style="font-size:13px">[출고반영 재집계]를 눌러 주세요.</span>'); else if(window._toast) _toast('고쳤습니다','ok'); })
+        .catch(function(e){ el.value=old; err('고치지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); });
+    }, onCancel:function(){ el.value=old; } });
 }
 /* 저장된 줄의 코드 고치기 (2026-09-22) — 이름(배송지명 / 상품명) 단위로 저장된 줄을 모두 바꾼다(조회 기간 밖 포함).
      코드는 이름에 붙는 값이라 한 줄만 바꾸면 같은 이름의 다른 줄과 다음 업로드의 자동 매칭이 옛 코드로 남는다.
@@ -290,10 +332,16 @@ function delSel(){
 
 /* ── 끌어다 놓기 · 시작 ── */
 (function(){
-  var d=document.getElementById('drop');
+  var d=document.getElementById('upCard');
   ['dragenter','dragover'].forEach(function(ev){ d.addEventListener(ev,function(e){ e.preventDefault(); d.classList.add('on'); }); });
   ['dragleave','drop'].forEach(function(ev){ d.addEventListener(ev,function(e){ e.preventDefault(); d.classList.remove('on'); }); });
   d.addEventListener('drop',function(e){ onFiles(e.dataTransfer.files); });
+  /* 높이 막대 (2026-09-22) — 판매등록 막대와 같은 동작 : 아래로 끌면 늘고 위로 끌면 준다 · [▲ 줄이기][▼ 늘리기] · 더블클릭 = 처음 높이 · 표마다 따로 기억 */
+  if(window.konetGridGrip){
+    konetGridGrip('pvWrap','pvWrap','toderPoPv'); konetGridGrip('lsWrap','lsWrap','toderPoList');
+    /* 막대는 문서가 다 읽힌 뒤(DOMContentLoaded) 붙는다 — 그 뒤에 pvRender 를 한 번 불러 올린 줄이 없으면 미리보기 막대를 숨긴다 */
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', pvRender); else pvRender();
+  }
   var t=new Date(), a=new Date(t.getFullYear(), t.getMonth(), t.getDate()-14);
   document.getElementById('fr').value=ymd(a); document.getElementById('to').value=ymd(t);
   loadMasters();

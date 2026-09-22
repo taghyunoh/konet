@@ -1240,6 +1240,14 @@ public class UserServiceImpl implements UserService {
 				if (buf.size() >= 40) { mapper.insertShipoutMstBulk(buf); buf.clear(); }
 			}
 			if (!buf.isEmpty()) mapper.insertShipoutMstBulk(buf);
+			/* ★판매가(부가세 포함 — 토더 엑셀 「매입가」, 2026-09-22 「토더 = 매출」) — 공용 벌크 INSERT(삼성 발주현황표도 쓴다)는 안 건드리고 방금 넣은 줄마다 채운다 */
+			for (egovframework.konet.user.model.ShipoutDTO r : grp) {
+				if (r.getSalePrice() == null) continue;
+				java.util.Map<String,Object> pp = new java.util.HashMap<String,Object>();
+				pp.put("compCd", compCd); pp.put("dlvDt", r.getDlvDt()); pp.put("jobSeq", jobSeq); pp.put("rowNo", r.getRowNo());
+				pp.put("salePrice", java.math.BigDecimal.valueOf(r.getSalePrice()));
+				mapper.updateTdPoPrice(pp);
+			}
 			egovframework.konet.user.model.ProdXrefDTO rx = new egovframework.konet.user.model.ProdXrefDTO();
 			rx.setJobSeq(Long.valueOf(jobSeq)); rx.setDlvDt(head.getDlvDt()); rx.setDcCd(head.getDcCd()); rx.setCompCd(compCd);
 			resolveShipoutProd(rx);
@@ -1283,6 +1291,23 @@ public class UserServiceImpl implements UserService {
 		}
 		res.put("n", n); res.put("dates", dates);
 		return res;
+	}
+	/* 토더 발주 — 저장된 한 줄의 수량·판매가 고치기 (2026-09-22 「지금까지 반품은 수정으로 처리」).
+	   키 = (발주번호, 배송지명, 상품명) — 삭제와 같다. 비고 끝에 「수정 옛값→새값」을 남긴다(누가·언제는 UPD_* 칸).
+	   돌려주는 값 = 그 줄의 납기일자(재고 원장을 다시 만들 날짜) · 줄이 없으면 null. 매출은 조회 때 수량 × 판매가로 세므로 따로 할 일이 없다. */
+	@Override public String updateTdPoRow(String ordNo, String bizNm, String itemNm, int qty, Double salePrice, String user, String ip, String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("ordNo", ordNo); p.put("bizNm", bizNm); p.put("itemNm", itemNm); p.put("regUser", user); p.put("regIp", ip);
+		java.util.Map<String,Object> old = mapper.selectTdPoRow(p);
+		if (old == null) return null;
+		Object op = old.get("salePrice");
+		String oldP = op == null ? "없음" : new java.math.BigDecimal(String.valueOf(op)).stripTrailingZeros().toPlainString();
+		String newP = salePrice == null ? "없음" : java.math.BigDecimal.valueOf(salePrice).stripTrailingZeros().toPlainString();
+		String note = " · 수정 " + new java.text.SimpleDateFormat("MM-dd HH:mm").format(new java.util.Date())
+		            + " 수량 " + scStr(old.get("qty")) + "→" + qty + (oldP.equals(newP) ? "" : " 판매가 " + oldP + "→" + newP);
+		p.put("qty", qty); p.put("salePrice", salePrice == null ? null : java.math.BigDecimal.valueOf(salePrice)); p.put("note", note);
+		mapper.updateTdPoRow(p);
+		return scStr(old.get("dlvDt"));
 	}
 	@Override public int deleteDcPo(java.util.List<java.util.Map<String,Object>> keys, String user, String ip, String compCd) throws Exception {
 		int n = 0;

@@ -108,6 +108,7 @@ public interface UserService {
 	java.util.List<java.util.Map<String,Object>> selectTdPoMap(java.util.Map<String,Object> p) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectTdCodeExist(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> updateTdPoCode(String kind, String nm, String cd, String user, String ip, String compCd) throws Exception;
+	String updateTdPoRow(String ordNo, String bizNm, String itemNm, int qty, Double salePrice, String user, String ip, String compCd) throws Exception;
 	java.util.Map<String,Object> saveExpenseCopy(String fromYm, String toYm, boolean overwrite, String user, String ip, String compCd) throws Exception;   // 비용 등록 : 한 달을 다른 달로 복사(2026-09-21)
 	int deleteProd(egovframework.konet.user.model.ProdDTO dto) throws Exception;
 	java.util.List<egovframework.konet.user.model.ProdDTO> selectProdDeletedList(egovframework.konet.user.model.ProdDTO dto) throws Exception;   // 삭제한 상품(ACTION_YN='N') 목록

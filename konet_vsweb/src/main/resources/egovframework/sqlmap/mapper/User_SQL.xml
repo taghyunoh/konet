@@ -892,17 +892,24 @@
 	<select id="selectVendorTrxSum" parameterType="egovframework.konet.user.model.VendorDTO" resultType="java.util.HashMap"><![CDATA[
 	  SELECT ven.VENDOR_CD AS vendorCd,
 	         ISNULL(sm.amt,0) + ISNULL(st.amt,0) AS saleAmt,     /* 매출 합계 = 정산서 + 판매전표 */
-	         ISNULL(sm.amt,0)                    AS settleAmt,   /* 그 중 정산서(TBL_SALES_MST) 몫 */
+	         ISNULL(sm.amt,0)                    AS settleAmt,   /* 그 중 정산서(TBL_SALES_MST) 몫 + 토더 발주(2026-09-22) 몫 — 둘 다 거래처 DC_CD 로 붙는다 */
 	         ISNULL(st.amt,0)                    AS trxAmt,      /* 그 중 판매전표(TBL_SALES_TRX_MST) 몫 */
 	         ISNULL(pm.amt,0)                    AS purchAmt
 	    FROM TBL_VENDOR_MST ven
-	    LEFT JOIN ( SELECT v2.VENDOR_CD AS cd, SUM(ISNULL(s.SALE_AMT,0)) AS amt
-	                  FROM TBL_SALES_MST s
+	    LEFT JOIN ( SELECT v2.VENDOR_CD AS cd, SUM(z.amt) AS amt
+	                  FROM ( SELECT s.DC_CD, ISNULL(s.SALE_AMT,0) AS amt
+	                           FROM TBL_SALES_MST s
+	                          WHERE s.ACTION_YN = 'Y'
+	                            AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                         UNION ALL
+	                         /* 토더 발주 = 매출(2026-09-22) — 수량 × 토더 판매가. 거래처 「토더」(DC_CD='TODER')에 붙는다 */
+	                         SELECT o.DC_CD, ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0)
+	                           FROM TBL_SHIPOUT_MST o
+	                          WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD'
+	                            AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} ) ) z
 	                  JOIN TBL_VENDOR_MST v2
-	                    ON v2.DC_CD = s.DC_CD AND v2.ACTION_YN = 'Y' AND ISNULL(v2.DC_CD,'') <> ''
+	                    ON v2.DC_CD = z.DC_CD AND v2.ACTION_YN = 'Y' AND ISNULL(v2.DC_CD,'') <> ''
 	                   AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v2.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	                 WHERE s.ACTION_YN = 'Y'
-	                   AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                 GROUP BY v2.VENDOR_CD ) sm ON sm.cd = ven.VENDOR_CD
 	    LEFT JOIN ( SELECT t2.CUST_CD AS cd, SUM(ISNULL(t2.TOT_AMT,0)) AS amt
 	                  FROM TBL_SALES_TRX_MST t2
@@ -1232,6 +1239,7 @@
 	  SELECT t.DLV_DT AS dlvDt, ISNULL(t.ORD_NO,'') AS ordNo, ISNULL(t.ORD_ITEM_NO,'') AS lineNo, ISNULL(t.DC_NM,'') AS dcNm,
 	         ISNULL(t.BIZ_CD,'') AS bizCd, ISNULL(t.BIZ_NM,'') AS bizNm, ISNULL(t.ITEM_CD,'') AS itemCd, ISNULL(t.ITEM_NM,'') AS itemNm,
 	         ISNULL(t.UNIT,'') AS unit, ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) AS qty, ISNULL(t.PROD_CD,'') AS prodCd,
+	         t.SALE_PRICE AS salePrice,   /* 판매가(부가세 포함, 2026-09-22) — 매출 = 수량 × 판매가 */
 	         ISNULL(t.SRC_FILE,'') AS srcFile, ISNULL(t.REMARK,'') AS remark,
 	         CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm, ISNULL(t.REG_USER,'') AS regUser
 	    FROM TBL_SHIPOUT_MST t
@@ -1311,6 +1319,35 @@
 	         UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
 	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y'
 	     AND ISNULL(ITEM_NM,'') = #{nm,jdbcType=NVARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<!-- ★[2026-09-22 토더 = 매출] 판매가(부가세 포함 — 토더 엑셀 「매입가」)를 저장 직후 줄마다 넣는다.
+	     공용 insertShipoutMstBulk(삼성 발주현황표도 쓴다)는 건드리지 않으려고 따로 둔다. 키 = 방금 넣은 (납기일자, 토더, 차수, 줄번호). -->
+	<update id="updateTdPoPrice" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET SALE_PRICE = #{salePrice,jdbcType=DECIMAL}
+	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND DC_CD = 'TODER'
+	     AND DLV_DT = REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-','')
+	     AND JOB_SEQ = #{jobSeq,jdbcType=INTEGER} AND ROW_NO = #{rowNo,jdbcType=INTEGER}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<!-- ★[2026-09-22 「지금까지 반품은 수정으로 처리」] 저장된 토더 한 줄의 수량·판매가를 고친다. 키 = 삭제와 같은 (발주번호, 배송지명, 상품명).
+	     수량은 CUR_QTY·LABEL_QTY 둘 다(재고·매출은 LABEL_QTY 를 읽는다) · 비고 끝에 「수정 옛값 → 새값(일시 사용자)」을 남긴다(비고 490자 안). -->
+	<select id="selectTdPoRow" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 1 t.DLV_DT AS dlvDt, ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) AS qty, t.SALE_PRICE AS salePrice
+	    FROM TBL_SHIPOUT_MST t
+	   WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN = 'Y'
+	     AND ISNULL(t.ORD_NO,'') = #{ordNo,jdbcType=NVARCHAR} AND ISNULL(t.BIZ_NM,'') = #{bizNm,jdbcType=NVARCHAR} AND ISNULL(t.ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></select>
+	<update id="updateTdPoRow" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET CUR_QTY = #{qty,jdbcType=INTEGER}, LABEL_QTY = #{qty,jdbcType=INTEGER},
+	         SALE_PRICE = #{salePrice,jdbcType=DECIMAL},
+	         REMARK = LEFT(ISNULL(REMARK,'') + #{note,jdbcType=NVARCHAR}, 490),
+	         UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y'
+	     AND ISNULL(ORD_NO,'') = #{ordNo,jdbcType=NVARCHAR} AND ISNULL(BIZ_NM,'') = #{bizNm,jdbcType=NVARCHAR} AND ISNULL(ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 	<update id="markDcPoReplace" parameterType="java.util.Map"><![CDATA[
@@ -1515,10 +1552,13 @@
 	          -- ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정) — 없는 옛 행만 CUR_QTY(수량) 폴백
 	          SELECT LEFT(ISNULL(NULLIF(o.DLV_DT,''), o.SHPOUT_DT),6) AS ym,
 	                 dk.dcKey AS dcCd, ISNULL(o.DC_NM,'(미지정)') AS dcNm,
-	                 CASE WHEN sk.itemCd IS NULL THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.saleUnit ELSE 0 END AS saleAmt,
+	                 /* ★토더 발주(PROD_KIND='TD', 2026-09-22 「발주가 곧 매출 · 별도 정산서 없음」) = 확정 매출 — 수량 × 토더 판매가(부가세 포함, SALE_PRICE · 비면 0 — 마감·채권과 같은 규칙).
+	                      추정(estAmt)이 아니라 직접판매(trxAmt) 칸에 넣는다(판매전표처럼 우리가 직접 판 것). 출고장 줄은 dcCd 'TODER'(토더)로 따로 선다. */
+	                 CASE WHEN o.PROD_KIND = 'TD'  THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0)
+	                      WHEN sk.itemCd IS NULL  THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.saleUnit ELSE 0 END AS saleAmt,
 	                 0 AS stlAmt,
-	                 CASE WHEN sk.itemCd IS NULL THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.saleUnit ELSE 0 END AS estAmt,
-	                 0 AS trxAmt,
+	                 CASE WHEN ISNULL(o.PROD_KIND,'') <> 'TD' AND sk.itemCd IS NULL THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.saleUnit ELSE 0 END AS estAmt,
+	                 CASE WHEN o.PROD_KIND = 'TD'  THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0) ELSE 0 END AS trxAmt,
 	                 ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.inUnit AS costAmt
 	            FROM TBL_SHIPOUT_MST o
 	            CROSS APPLY (
@@ -1554,7 +1594,7 @@
 	                   WHERE s2.ACTION_YN = 'Y'
 	            ) sk ON sk.dlvKey = dk.dlvKey AND sk.dcKey = dk.dcKey AND sk.itemCd = ISNULL(o.ITEM_CD,'') AND sk.compCd = o.COMP_CD
 	           WHERE o.ACTION_YN = 'Y'
-	             AND ISNULL(o.PROD_KIND,'') <> 'TD'   /* 토더 발주(TD)는 아직 매출로 안 잡는다 — 재고만 (2026-09-21 「일단 재고만 맞추고 반품이 정산서 형태로 오면 매출 및 재고 조정으로」) */
+	             /* 토더 발주(TD) — 09-21 「일단 재고만」 으로 여기서 뺐던 것을 2026-09-22 「발주가 곧 매출」 로 되돌려 넣었다(위 saleAmt·trxAmt 의 TD 갈래) */
 	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 
 	          UNION ALL
@@ -1659,10 +1699,13 @@
 	          -- ② 출고 — 매입액은 전 건, 매출은 정산서가 없는 건만(월별 쿼리와 같은 규칙)
 	          -- ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정) — 없는 옛 행만 CUR_QTY(수량) 폴백
 	          SELECT ISNULL(NULLIF(o.DLV_DT,''), o.SHPOUT_DT) AS dt,
-	                 CASE WHEN sk.itemCd IS NULL THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.saleUnit ELSE 0 END AS saleAmt,
+	                 /* ★토더 발주(PROD_KIND='TD', 2026-09-22 「발주가 곧 매출 · 별도 정산서 없음」) = 확정 매출 — 수량 × 토더 판매가(부가세 포함, SALE_PRICE · 비면 0 — 마감·채권과 같은 규칙).
+	                      추정(estAmt)이 아니라 직접판매(trxAmt) 칸에 넣는다(판매전표처럼 우리가 직접 판 것). 출고장 줄은 dcCd 'TODER'(토더)로 따로 선다. */
+	                 CASE WHEN o.PROD_KIND = 'TD'  THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0)
+	                      WHEN sk.itemCd IS NULL  THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.saleUnit ELSE 0 END AS saleAmt,
 	                 0 AS stlAmt,
-	                 CASE WHEN sk.itemCd IS NULL THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.saleUnit ELSE 0 END AS estAmt,
-	                 0 AS trxAmt,
+	                 CASE WHEN ISNULL(o.PROD_KIND,'') <> 'TD' AND sk.itemCd IS NULL THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.saleUnit ELSE 0 END AS estAmt,
+	                 CASE WHEN o.PROD_KIND = 'TD'  THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0) ELSE 0 END AS trxAmt,
 	                 ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.inUnit AS costAmt
 	            FROM TBL_SHIPOUT_MST o
 	            CROSS APPLY (
@@ -1698,7 +1741,7 @@
 	                   WHERE s2.ACTION_YN = 'Y'
 	            ) sk ON sk.dlvKey = dk.dlvKey AND sk.dcKey = dk.dcKey AND sk.itemCd = ISNULL(o.ITEM_CD,'') AND sk.compCd = o.COMP_CD
 	           WHERE o.ACTION_YN = 'Y'
-	             AND ISNULL(o.PROD_KIND,'') <> 'TD'   /* 토더 발주(TD)는 아직 매출로 안 잡는다 — 재고만 (2026-09-21 「일단 재고만 맞추고 반품이 정산서 형태로 오면 매출 및 재고 조정으로」) */
+	             /* 토더 발주(TD) — 09-21 「일단 재고만」 으로 여기서 뺐던 것을 2026-09-22 「발주가 곧 매출」 로 되돌려 넣었다(위 saleAmt·trxAmt 의 TD 갈래) */
 	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 
 	          UNION ALL
@@ -2638,10 +2681,15 @@
 	                       WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.PROD_CD AND h.APPLY_DT <= s.DLV_DT AND h.COMP_CD = s.COMP_CD
 	                       ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	                ) ih
+	                /* ★토더 발주(PROD_KIND='TD', 2026-09-22 「발주가 곧 매출」) — 판매단가 = 토더 판매가(SALE_PRICE, 부가세 포함), 근거 배지 '토더'.
+	                     토더는 정산서가 없어 아래 #SLK 와 짝이 안 난다 → 늘 이 단가로 매출이 선다.
+	                     ⚠판매가가 비면 0 — 우리 판매단가로 물러서지 않는다. 채권·채무·일계장도 수량 × SALE_PRICE 하나로 세므로 화면끼리 같아야 한다(저장 화면이 빈 판매가를 경고). */
 	                CROSS APPLY (
-	                      SELECT ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) AS saleUnit,
+	                      SELECT CASE WHEN s.PROD_KIND = 'TD' THEN ISNULL(s.SALE_PRICE,0)
+	                                  ELSE ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) END AS saleUnit,
 	                             ISNULL(ih.IN_PRICE,   ISNULL(pm.IN_PRICE,0))   AS inUnit,
-	                             CASE WHEN sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc,
+	                             CASE WHEN s.PROD_KIND = 'TD' THEN N'토더'
+	                                  WHEN sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc,
 	                             -- ★매입단가를 못 찾은 건을 '마스터'로 뭉뚱그리면 안 된다(2026-07-25).
 	                             --   마스터 IN_PRICE 가 0이면 매입액이 0으로 잡혀 마진율이 100%로 뜨는데,
 	                             --   배지는 '마스터'라 값을 찾은 것처럼 보인다. 별도 라벨로 드러낸다.
@@ -2657,7 +2705,7 @@
 	                ) dk
 	                LEFT JOIN #SLK st ON st.dlvKey = dk.dlvKey AND st.dcKey = dk.dcKey AND st.itemCd = s.ITEM_CD
 	               WHERE s.ACTION_YN = 'Y'
-	                 AND ISNULL(s.PROD_KIND,'') <> 'TD'   /* 토더 발주(TD)는 아직 매출로 안 잡는다 — 재고만 (2026-09-21 「일단 재고만 맞추고 반품이 정산서 형태로 오면 매출 및 재고 조정으로」) */
+	                 /* 토더 발주(TD) — 09-21 「일단 재고만」 으로 여기서 뺐던 것을 2026-09-22 「발주가 곧 매출」 로 되돌려 넣었다(위 saleUnit·saleSrc 의 TD 갈래) */
 	                 AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                 AND (
 	                       ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{toDt,jdbcType=VARCHAR},'') <> ''
@@ -4170,6 +4218,18 @@
 	                                AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                                AND v.ACTION_YN = 'Y' AND ISNULL(v.DC_CD,'') <> '' )
 	          UNION ALL
+	          -- ★토더 발주(2026-09-22 「발주가 곧 매출」) — 정산서와 같은 규칙 : 거래처의 DC_CD 가 토더 줄의 DC_CD('TODER')와 같으면 붙는다.
+	          --   매출 = 수량 × 토더 판매가(부가세 포함). 마감·매출그래프·채권·일계장과 같은 식.
+	          SELECT o.DLV_DT AS dt, ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0) AS saleAmt,
+	                 0 AS dcAmt, 0 AS rcvAmt, 0 AS purchAmt, 0 AS payAmt, 0 AS discAmt
+	            FROM TBL_SHIPOUT_MST o
+	           WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND ISNULL(o.DLV_DT,'') <> ''
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	             AND o.DC_CD = ( SELECT MAX(v.DC_CD) FROM TBL_VENDOR_MST v
+	                              WHERE v.VENDOR_CD = #{custCd,jdbcType=VARCHAR}
+	                                AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                                AND v.ACTION_YN = 'Y' AND ISNULL(v.DC_CD,'') <> '' )
+	          UNION ALL
 	          -- 판매전표(정산서 밖에서 직접 판 건) — 거래처코드로 바로 붙는다
 	          SELECT ISNULL(NULLIF(t2.DLV_DT,''), t2.SALE_DT) AS dt, ISNULL(t2.TOT_AMT,0) AS saleAmt,
 	                 ISNULL(t2.DC_AMT,0) AS dcAmt, ISNULL(t2.PAY_AMT,0) AS rcvAmt, 0 AS purchAmt, 0 AS payAmt, 0 AS discAmt
@@ -4269,6 +4329,23 @@
 	                     AND ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) IS NOT NULL
 
 	                  UNION ALL
+	                  -- ①-2 토더 발주(2026-09-22 「발주가 곧 매출」) — ①과 같은 규칙(DC_CD 별 MIN(VENDOR_CD) 1곳 = 거래처 「토더」).
+	                  --      매출 = 수량 × 토더 판매가(부가세 포함). 반품은 저장된 줄의 수량 수정으로 들어온다(사용자 확정).
+	                  SELECT vm.VENDOR_CD, vm.VENDOR_NM,
+	                         LEFT(o.DLV_DT,6), o.DLV_DT,
+	                         ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0), 0, 0,
+	                         0, 0, 0,
+	                         o.DLV_DT, CAST(NULL AS VARCHAR(8))
+	                    FROM TBL_SHIPOUT_MST o
+	                    JOIN ( SELECT DC_CD, MIN(VENDOR_CD) AS VENDOR_CD, MIN(VENDOR_NM) AS VENDOR_NM
+	                             FROM TBL_VENDOR_MST
+	                            WHERE ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> ''
+	                              AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                            GROUP BY DC_CD ) vm ON vm.DC_CD = o.DC_CD
+	                   WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND ISNULL(o.DLV_DT,'') <> ''
+	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+
+	                  UNION ALL
 	                  -- ② 판매전표 — 매출 + 전표에 적힌 즉시수금
 	                  SELECT t2.CUST_CD, t2.CUST_NM,
 	                         LEFT(ISNULL(NULLIF(t2.DLV_DT,''), t2.SALE_DT),6),
@@ -4356,6 +4433,26 @@
 	                                GROUP BY DC_CD HAVING MIN(VENDOR_CD) = #{custCd,jdbcType=VARCHAR} )
 
 	          UNION ALL
+	          -- ①-1 토더 발주 줄(2026-09-22 「발주가 곧 매출」) — 출고내역 탭에 함께(gb='SALE' — 화면 탭이 SALE·STRX 를 본다). ①과 같은 거래처 매칭(DC_CD 별 MIN(VENDOR_CD)).
+	          SELECT 'SALE', N'토더 발주',
+	                 o.DLV_DT,
+	                 LTRIM(RTRIM(ISNULL(o.ORD_NO,'')))
+	                   + CASE WHEN ISNULL(o.ORD_ITEM_NO,'') <> '' THEN '-' + LTRIM(RTRIM(o.ORD_ITEM_NO)) ELSE '' END,
+	                 ISNULL(o.BIZ_NM,''),
+	                 ISNULL(o.ITEM_CD,''), ISNULL(o.ITEM_NM,''),
+	                 ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)), ISNULL(o.SALE_PRICE,0),
+	                 ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0),
+	                 ISNULL(o.UNIT,''), ''
+	            FROM TBL_SHIPOUT_MST o
+	           WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	             AND o.DLV_DT = REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-','')
+	             AND o.DC_CD IN ( SELECT DC_CD FROM TBL_VENDOR_MST
+	                               WHERE ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> ''
+	                                 AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                               GROUP BY DC_CD HAVING MIN(VENDOR_CD) = #{custCd,jdbcType=VARCHAR} )
+
+	          UNION ALL
 	          -- ①-2 직접 판 판매전표 명세 (출고내역 탭에 함께 — 잔액의 매출이 정산서 + 이 전표라서)
 	          SELECT 'STRX', N'판매전표',
 	                 ISNULL(NULLIF(t2.DLV_DT,''), t2.SALE_DT),
@@ -4436,6 +4533,19 @@
 	         WHERE s.ACTION_YN = 'Y'
 	           AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	           AND ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) IS NOT NULL
+
+	        UNION ALL
+	        -- ①-2 토더 발주(2026-09-22 「발주가 곧 매출」) — selectCustBalance 와 같은 규칙(거래처 DC_CD = 'TODER'). 매출 = 수량 × 토더 판매가
+	        SELECT vm.VENDOR_CD, vm.VENDOR_NM, o.DLV_DT,
+	               ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0), 0, 0, 0, 0, 0
+	          FROM TBL_SHIPOUT_MST o
+	          JOIN ( SELECT DC_CD, MIN(VENDOR_CD) AS VENDOR_CD, MIN(VENDOR_NM) AS VENDOR_NM
+	                   FROM TBL_VENDOR_MST
+	                  WHERE ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> ''
+	                    AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                  GROUP BY DC_CD ) vm ON vm.DC_CD = o.DC_CD
+	         WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND ISNULL(o.DLV_DT,'') <> ''
+	           AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 
 	        UNION ALL
 	        -- ② 판매전표
