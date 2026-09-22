@@ -67,6 +67,17 @@
   .ed label.ck{ display:flex; align-items:center; gap:6px; font-size:13px; color:#37475a; cursor:pointer; }
   .ed .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .ed .row .sp{ margin-left:auto; color:var(--dim); font-size:12px; }
+  /* 게시 기간 (2026-09-22) */
+  .tag{ display:inline-block; font-size:11px; font-weight:800; border-radius:9px; padding:1px 7px; margin-left:5px; vertical-align:1px; white-space:nowrap; }
+  .tag.e{ background:#eef0f3; color:#6b7a89; border:1px solid #d8dde3; }
+  .tag.s{ background:#e8f0fb; color:#2f5f9e; border:1px solid #c9dbf2; }
+  .till{ color:var(--dim); font-size:11.5px; margin-left:5px; white-space:nowrap; }
+  table.g tr.exp td{ color:#9aa5b1; }
+  table.g tr.exp td.l{ font-weight:400; }
+  .period{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; font-size:13px; color:#37475a; }
+  .period input[type=date]{ height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13.5px; font-family:inherit; }
+  .period .qb{ height:30px; padding:0 10px; font-size:12.5px; }
+  .ck{ display:inline-flex; align-items:center; gap:5px; font-size:13px; color:#37475a; cursor:pointer; white-space:nowrap; }
   .onlyadmin{ display:none; }
   body.admin .onlyadmin{ display:inline-flex; align-items:center; justify-content:center; line-height:1; }   /* 세로 가운데 — 없으면 아이콘·글자가 한 줄에 안 앉는다(2026-09-22 지적) */
   @media (max-width:900px){ .cols{ flex-direction:column; } .left{ width:auto; min-width:0; max-height:45%; } }
@@ -80,6 +91,7 @@
     <input type="text" id="q" placeholder="제목·본문·작성자 찾기" onkeydown="if(event.key==='Enter') load()">
     <button class="btn" onclick="load()">🔍 조회</button>
     <button class="btn btn-teal onlyadmin" onclick="editNew()">📝 새 공지</button>
+    <label class="ck onlyadmin" title="게시 기간이 지났거나 아직 시작 전인 공지도 목록에 보입니다(관리자만). 끄면 직원이 보는 목록과 같습니다."><input type="checkbox" id="inclExp" checked onchange="load()"> 기간 지남·예정도 보기</label>
     <span class="cnt">공지 <b id="tot">0</b>건 · 안 읽음 <b id="unreadCnt">0</b>건</span>
   </div>
   <div class="cols">
@@ -105,26 +117,61 @@ function ask(m, okText, okColor){ return new Promise(function(res){ _confirmBox(
 function fail(j){ if(j && j.login==='N'){ err(j.message||'로그인이 끊겼습니다.'); return true; } if(!j || j.result!=='OK'){ err((j&&j.message)||'처리하지 못했습니다.'); return true; } return false; }
 function badge(){ try{ if(parent && typeof parent.konetEmpBadge==='function') parent.konetEmpBadge(); }catch(e){} }
 
+/* ── 게시 기간 (2026-09-22) — 서버는 'YYYYMMDD', 화면 날짜칸은 'YYYY-MM-DD' ── */
+function ymd(s){ s=(s||'').replace(/[^0-9]/g,''); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : ''; }
+function md(s){ s=(s||'').replace(/[^0-9]/g,''); return s.length===8 ? (+s.slice(4,6))+'/'+(+s.slice(6,8)) : ''; }
+function todayIso(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+function statTag(n){ return n.stat==='E' ? '<span class="tag e" title="게시 기간이 지나 직원에게 안 보입니다">기간 지남</span>'
+                          : n.stat==='S' ? '<span class="tag s" title="게시 시작일 전이라 직원에게 아직 안 보입니다">게시 예정</span>' : ''; }
+function periodTxt(n){
+  var s=ymd(n.startDt), e=ymd(n.endDt);
+  if(!s && !e) return '무기한';
+  return (s||'처음부터')+' ~ '+(e||'계속');
+}
+/* 「게시일부터 며칠간」(2026-09-22 「개시한 날부터 며칠까지」) — 게시일도 하루로 센다 : 7일간 = 게시일 + 6일까지.
+   일수를 넣으면 종료일을 세고, 종료일을 고르면 일수를 센다. 일수가 비면(0) 무기한. 저장은 시작일·종료일 그대로 */
+function isoOf(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+function dOf(iso){ var p=(iso||'').split('-'); return p.length===3 ? new Date(+p[0], +p[1]-1, +p[2]) : null; }
+function daysLeft(endDt){ var e=dOf(ymd(endDt)); if(!e) return null; var t=dOf(todayIso()); return Math.round((e-t)/86400000); }
+function periodFromDays(){
+  var st=document.getElementById('edStart'), dy=document.getElementById('edDays'), en=document.getElementById('edEnd');
+  var n=parseInt(dy.value,10);
+  if(!(n>0)){ en.value=''; return; }                 /* 비었거나 0 = 무기한 */
+  if(!st.value) st.value=todayIso();
+  var d=dOf(st.value); d.setDate(d.getDate()+n-1); en.value=isoOf(d);
+}
+function periodToDays(){
+  var st=document.getElementById('edStart'), dy=document.getElementById('edDays'), en=document.getElementById('edEnd');
+  if(!en.value){ dy.value=''; return; }
+  if(!st.value) st.value=todayIso();
+  var n=Math.round((dOf(en.value)-dOf(st.value))/86400000)+1;
+  dy.value = n>0 ? n : '';
+}
+function periodDays(n){ document.getElementById('edDays').value = n>0 ? n : ''; periodFromDays(); }
+function inclExp(){ var c=document.getElementById('inclExp'); return (ADMIN && c && c.checked) ? 'Y' : 'N'; }
+
 /* ── 목록 ── */
 function load(keep){
   var my=++LOAD_REQ;
-  post('/emp/noticeList.do',{findData:document.getElementById('q').value}).then(function(j){
+  post('/emp/noticeList.do',{findData:document.getElementById('q').value, inclExp:inclExp()}).then(function(j){
     if(my!==LOAD_REQ) return;                       /* 더 새 조회가 나갔으면 옛 응답은 버린다 */
+    var firstAdmin=(!ADMIN && j && j.admin==='Y');   /* 첫 조회는 ADMIN 을 몰라 게시 중인 것만 왔다 — 관리자면 한 번 더(기간 지남·예정 포함) */
     if(fail(j)) return;
     ME=j.me||''; ME_NM=j.meNm||''; ADMIN=(j.admin==='Y');
     document.body.classList.toggle('admin', ADMIN);
     LIST=j.list||[];
     render();
+    if(firstAdmin && inclExp()==='Y'){ load(keep); return; }
     if(!keep && CUR && !LIST.some(function(n){ return n.noticeSeq===CUR; })){ CUR=0; showEmpty(); }
   }).catch(function(){ if(my===LOAD_REQ) err('목록을 읽지 못했습니다.'); });
 }
 function render(){
   var tb=document.getElementById('lsBody'), h='', unread=0;
   LIST.forEach(function(n){
-    var un=(n.readYn!=='Y'); if(un) unread++;
-    h+='<tr data-seq="'+n.noticeSeq+'" class="'+(un?'unread':'')+(n.noticeSeq===CUR?' on':'')+'" onclick="open_('+n.noticeSeq+')">'
+    var un=(n.readYn!=='Y'); if(un && !n.stat) unread++;          /* 안 읽음 = 게시 중인 것만 센다 */
+    h+='<tr data-seq="'+n.noticeSeq+'" class="'+(un&&!n.stat?'unread':'')+(n.stat?' exp':'')+(n.noticeSeq===CUR?' on':'')+'" onclick="open_('+n.noticeSeq+')">'
       +'<td>'+(n.pinYn==='Y'?'<span class="pin" title="상단 고정">📌</span>':'')+'</td>'
-      +'<td class="l">'+esc(n.title)+'</td>'
+      +'<td class="l">'+esc(n.title)+statTag(n)+(n.endDt && !n.stat?'<span class="till" title="게시 종료일 — 이 날까지 보입니다">~'+md(n.endDt)+' · '+(daysLeft(n.endDt)>0?'남은 '+daysLeft(n.endDt)+'일':'오늘까지')+'</span>':'')+'</td>'
       +'<td>'+esc(n.regNm)+'</td>'
       +'<td>'+esc((n.regDttm||'').slice(0,16))+'</td>'
       +'<td>'+(un?'<span class="readno">—</span>':'<span class="readmk">✔</span>')+'</td>'
@@ -149,8 +196,9 @@ function open_(seq){
     var readers=n.readers||[];
     var who=readers.map(function(r){ return esc(r.userNm)+' <small>'+esc((r.readDttm||'').slice(5,16))+'</small>'; }).join(' · ');
     document.getElementById('detail').innerHTML=
-      '<div class="dhead"><h3>'+(n.pinYn==='Y'?'<span class="pin">📌</span> ':'')+esc(n.title)+'</h3>'
+      '<div class="dhead"><h3>'+(n.pinYn==='Y'?'<span class="pin">📌</span> ':'')+esc(n.title)+statTag(n)+'</h3>'
       +'<div class="dmeta"><span>✍ '+esc(n.regNm||n.regUser)+'</span><span>🕒 '+esc(n.regDttm)+(n.updDttm?' <span title="고친 때">(고침 '+esc(n.updDttm)+')</span>':'')+'</span>'
+      +'<span title="이 기간에만 직원에게 보입니다">📅 게시 '+esc(periodTxt(n))+'</span>'
       +(ADMIN?'<span class="act"><button class="btn" onclick="editCur()">📝 수정</button><button class="btn btn-red" onclick="delCur()">🗑 삭제</button></span>':'')
       +'</div></div>'
       +'<div class="dbody">'+esc(n.content)+'</div>'
@@ -166,9 +214,18 @@ function editForm(n){
     +'<div class="row"><b style="font-size:15px">'+(n?'📝 공지 수정':'📝 새 공지')+'</b><span class="sp">작성자 '+esc(ME_NM||ME)+'</span></div>'
     +'<input type="text" id="edTitle" maxlength="200" placeholder="제목 (200자까지)" value="'+esc(n?n.title:'')+'">'
     +'<textarea id="edBody" placeholder="본문 — 줄바꿈 그대로 보입니다. 파일·사진은 넣을 수 없습니다.">'+esc(n?n.content:'')+'</textarea>'
+    +'<div class="period" title="이 기간에만 직원 목록·하단 흐름 띠·우측 패널·안 읽음 배지에 보입니다. 종료일을 비우면 무기한.">'
+    +'<b>📅 게시일</b> <input type="date" id="edStart" value="'+esc(n?(ymd(n.startDt)||ymd((n.regDttm||'').slice(0,10))):todayIso())+'" onchange="periodFromDays()"> 부터 '
+    +'<input type="number" id="edDays" min="1" max="3650" style="width:70px;height:34px;border:1px solid var(--bd);border-radius:7px;padding:0 8px;font-size:13.5px;text-align:right" placeholder="무기한" oninput="periodFromDays()"> 일간'
+    +' → 종료 <input type="date" id="edEnd" value="'+esc(n?ymd(n.endDt):'')+'" onchange="periodToDays()">'
+    +'<button type="button" class="btn qb" onclick="periodDays(7)">7일</button><button type="button" class="btn qb" onclick="periodDays(30)">30일</button>'
+    +'<button type="button" class="btn qb" onclick="periodDays(90)">90일</button><button type="button" class="btn qb" onclick="periodDays(0)">무기한</button>'
+    +'<span style="color:var(--dim);font-size:12px">게시일도 하루로 셉니다 · 비우면 무기한</span></div>'
     +'<div class="row"><label class="ck"><input type="checkbox" id="edPin" '+(n&&n.pinYn==='Y'?'checked':'')+'> 📌 상단 고정</label>'
+    +'<span style="color:var(--dim);font-size:12px">새 공지가 올라와도 목록·하단 흐름 띠 맨 위에 둡니다 (게시 기간이 끝나면 함께 사라짐)</span>'
     +'<span class="sp"></span><button class="btn btn-teal" id="edSave" onclick="save()">💾 저장</button><button class="btn" onclick="cancelEdit()">취소</button></div>'
     +'</div>';
+  periodToDays();                                   /* 저장된 시작·종료일 → 「며칠간」 칸 */
   document.getElementById('edTitle').focus();
 }
 function editNew(){ if(!ADMIN) return; if(EDIT && !confirmLeaveEdit()) return; CUR=0; render(); editForm(null); }
@@ -189,14 +246,16 @@ function save(){
   var t=document.getElementById('edTitle').value.trim(), b=document.getElementById('edBody').value;
   if(!t){ _alertBox('제목을 입력하세요.',{icon:'⚠️'}); document.getElementById('edTitle').focus(); return; }
   if(!b.trim()){ _alertBox('본문을 입력하세요.',{icon:'⚠️'}); document.getElementById('edBody').focus(); return; }
+  var sd=document.getElementById('edStart').value, ed=document.getElementById('edEnd').value;
+  if(sd && ed && ed<sd){ _alertBox('게시 종료일이 시작일보다 앞입니다.',{icon:'⚠️'}); document.getElementById('edEnd').focus(); return; }
   var btn=document.getElementById('edSave'); btn.disabled=true;
-  post('/emp/noticeSave.do',{ noticeSeq:EDIT?EDIT.noticeSeq:0, title:t, content:b, pinYn:document.getElementById('edPin').checked?'Y':'N' }).then(function(j){
+  post('/emp/noticeSave.do',{ noticeSeq:EDIT?EDIT.noticeSeq:0, title:t, content:b, pinYn:document.getElementById('edPin').checked?'Y':'N', startDt:sd, endDt:ed }).then(function(j){
     btn.disabled=false;
     if(fail(j)) return;
     _toast('공지를 저장했습니다.','ok');
     EDIT=null; CUR=j.noticeSeq||CUR;
     var my=++LOAD_REQ;
-    post('/emp/noticeList.do',{findData:document.getElementById('q').value}).then(function(k){ if(my!==LOAD_REQ||fail(k)) return; LIST=k.list||[]; render(); open_(CUR); badge(); });
+    post('/emp/noticeList.do',{findData:document.getElementById('q').value, inclExp:inclExp()}).then(function(k){ if(my!==LOAD_REQ||fail(k)) return; LIST=k.list||[]; render(); open_(CUR); badge(); });
   }).catch(function(){ btn.disabled=false; err('저장하지 못했습니다.'); });
 }
 function delCur(){

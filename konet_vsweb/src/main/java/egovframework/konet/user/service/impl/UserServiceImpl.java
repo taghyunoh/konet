@@ -2402,9 +2402,10 @@ public class UserServiceImpl implements UserService {
 		return mapper.selectEmpUsers(empP(compCd, ""));
 	}
 
-	@Override public java.util.List<java.util.Map<String,Object>> empNoticeList(String compCd, String userId, String findData) throws Exception {
+	@Override public java.util.List<java.util.Map<String,Object>> empNoticeList(String compCd, String userId, String findData, boolean inclExp) throws Exception {
 		java.util.Map<String,Object> p = empP(compCd, userId);
 		p.put("findData", findData == null ? "" : findData.trim());
+		p.put("inclExp", inclExp ? "Y" : "N");
 		return mapper.selectEmpNoticeList(p);
 	}
 
@@ -2428,6 +2429,10 @@ public class UserServiceImpl implements UserService {
 		p.put("title", title); p.put("content", content);
 		p.put("pinYn", "Y".equals(empStr(body.get("pinYn"))) ? "Y" : "N");
 		p.put("userNm", userNm == null ? "" : userNm);
+		/* 게시 기간(2026-09-22) — 'YYYY-MM-DD'·'YYYYMMDD' 둘 다 받는다. 비면 제한 없음 */
+		String sd = empDt(body.get("startDt")), ed = empDt(body.get("endDt"));
+		if (!sd.isEmpty() && !ed.isEmpty() && ed.compareTo(sd) < 0) throw new IllegalArgumentException("게시 종료일이 시작일보다 앞입니다.");
+		p.put("startDt", sd); p.put("endDt", ed);
 		int seq = empInt(body.get("noticeSeq"));
 		if (seq > 0) {
 			p.put("noticeSeq", seq);
@@ -2438,6 +2443,14 @@ public class UserServiceImpl implements UserService {
 		int newSeq = empInt(p.get("noticeSeq"));
 		if (newSeq > 0) { p.put("noticeSeq", newSeq); mapper.insertEmpNoticeRead(p); }   // 쓴 사람은 읽은 것으로
 		return newSeq;
+	}
+
+	/** 날짜 칸 → 'YYYYMMDD'(빈 값은 ""). 숫자 8자리가 아니면 거절 */
+	private static String empDt(Object o) {
+		String s = o == null ? "" : String.valueOf(o).replaceAll("[^0-9]", "");
+		if (s.isEmpty()) return "";
+		if (s.length() != 8) throw new IllegalArgumentException("게시 기간 날짜가 올바르지 않습니다 : " + o);
+		return s;
 	}
 
 	@Override public int empNoticeDelete(String compCd, String userId, int noticeSeq) throws Exception {

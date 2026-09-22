@@ -386,7 +386,7 @@ public interface UserService {
 	int updateSendHistView(java.util.Map<String,Object> p) throws Exception;       // 링크 열람(공개 페이지)
 	/* ── 직원 공지사항 · 직원 메신저 (2026-09-22) — 컨트롤러는 세션(회사·아이디·이름)만 넘기고 권한·소속 확인은 여기서 한다 */
 	java.util.List<java.util.Map<String,Object>> empUsers(String compCd) throws Exception;
-	java.util.List<java.util.Map<String,Object>> empNoticeList(String compCd, String userId, String findData) throws Exception;
+	java.util.List<java.util.Map<String,Object>> empNoticeList(String compCd, String userId, String findData, boolean inclExp) throws Exception;   // inclExp = 기간 지남·게시 예정도(관리자만)
 	java.util.Map<String,Object> empNoticeGet(String compCd, String userId, int noticeSeq) throws Exception;        // 본문 + 읽음 표시 + 읽은 사람
 	int empNoticeSave(String compCd, String userId, String userNm, java.util.Map<String,Object> body) throws Exception;   // 돌려주는 값 = noticeSeq
 	int empNoticeDelete(String compCd, String userId, int noticeSeq) throws Exception;

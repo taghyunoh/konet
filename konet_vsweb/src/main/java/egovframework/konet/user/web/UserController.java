@@ -4905,7 +4905,9 @@ public class UserController {
 				if (!adjLoggedIn(session)) return EMP_LOGIN;
 				Map<String,Object> r = new HashMap<String,Object>();
 				r.put("result", "OK");
-				r.put("list", svc.empNoticeList(sessComp(session), empUser(session), body.get("findData") == null ? "" : String.valueOf(body.get("findData"))));
+				/* 기간 지남·게시 예정 공지는 관리자가 공지 화면에서 켰을 때만(inclExp) — 셸 흐름 띠·우측 패널·일반 직원은 게시 중인 것만 (2026-09-22) */
+				boolean inclExp = empAdmin(session) && "Y".equals(String.valueOf(body.get("inclExp")));
+				r.put("list", svc.empNoticeList(sessComp(session), empUser(session), body.get("findData") == null ? "" : String.valueOf(body.get("findData")), inclExp));
 				r.put("me", empUser(session)); r.put("meNm", empUserNm(session)); r.put("admin", empAdmin(session) ? "Y" : "N");
 				return r;
 			} catch (Exception e) { log.error(" empNoticeList ERROR : " + e.getMessage()); return empFail(e.getMessage()); }

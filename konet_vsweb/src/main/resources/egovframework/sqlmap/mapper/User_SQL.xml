@@ -6890,7 +6890,11 @@
 	  SELECT TOP 300 n.NOTICE_SEQ AS noticeSeq, n.TITLE AS title, n.PIN_YN AS pinYn, ISNULL(n.REG_NM,'') AS regNm, ISNULL(n.REG_USER,'') AS regUser,
 	         CONVERT(VARCHAR(16), n.REG_DTTM, 120) AS regDttm, ISNULL(CONVERT(VARCHAR(16), n.UPD_DTTM, 120),'') AS updDttm,
 	         CASE WHEN r.USER_ID IS NULL THEN 'N' ELSE 'Y' END AS readYn,
-	         (SELECT COUNT(*) FROM TBL_EMP_NOTICE_READ r2 WHERE r2.COMP_CD = n.COMP_CD AND r2.NOTICE_SEQ = n.NOTICE_SEQ) AS readCnt
+	         (SELECT COUNT(*) FROM TBL_EMP_NOTICE_READ r2 WHERE r2.COMP_CD = n.COMP_CD AND r2.NOTICE_SEQ = n.NOTICE_SEQ) AS readCnt,
+	         /* 게시 기간(2026-09-22) — 'YYYYMMDD', 비면 제한 없음. stat = ''(게시 중)·'E'(기간 지남)·'S'(게시 예정) */
+	         ISNULL(n.START_DT,'') AS startDt, ISNULL(n.END_DT,'') AS endDt,
+	         CASE WHEN ISNULL(n.END_DT,'') <> '' AND n.END_DT < CONVERT(VARCHAR(8), GETDATE(), 112) THEN 'E'
+	              WHEN ISNULL(n.START_DT,'') <> '' AND n.START_DT > CONVERT(VARCHAR(8), GETDATE(), 112) THEN 'S' ELSE '' END AS stat
 	    FROM TBL_EMP_NOTICE n
 	    LEFT JOIN TBL_EMP_NOTICE_READ r ON r.COMP_CD = n.COMP_CD AND r.NOTICE_SEQ = n.NOTICE_SEQ AND r.USER_ID = #{userId}
 	   WHERE n.COMP_CD = #{compCd} AND n.ACTION_YN = 'Y'
@@ -6899,11 +6903,20 @@
 	     AND ( n.TITLE LIKE '%' + #{findData} + '%' OR n.CONTENT LIKE '%' + #{findData} + '%' OR n.REG_NM LIKE '%' + #{findData} + '%' )
 	  ]]></if>
 	<![CDATA[
-	   ORDER BY n.PIN_YN DESC, n.NOTICE_SEQ DESC
+	   /* 게시 기간 — inclExp 'Y'(관리자가 공지 화면에서 켰을 때)가 아니면 오늘이 기간 안인 것만. 셸 흐름 띠·우측 패널·일반 직원은 늘 이쪽 */
+	     AND ( #{inclExp} = 'Y'
+	           OR ( ( ISNULL(n.START_DT,'') = '' OR n.START_DT <= CONVERT(VARCHAR(8), GETDATE(), 112) )
+	            AND ( ISNULL(n.END_DT,'')   = '' OR n.END_DT   >= CONVERT(VARCHAR(8), GETDATE(), 112) ) ) )
+	   ORDER BY CASE WHEN (ISNULL(n.END_DT,'') <> '' AND n.END_DT < CONVERT(VARCHAR(8), GETDATE(), 112))
+	                   OR (ISNULL(n.START_DT,'') <> '' AND n.START_DT > CONVERT(VARCHAR(8), GETDATE(), 112)) THEN 1 ELSE 0 END,   /* 게시 중 먼저 */
+	            n.PIN_YN DESC, n.NOTICE_SEQ DESC
 	]]></select>
 
 	<select id="selectEmpNotice" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
 	  SELECT n.NOTICE_SEQ AS noticeSeq, n.TITLE AS title, ISNULL(n.CONTENT,'') AS content, n.PIN_YN AS pinYn,
+	         ISNULL(n.START_DT,'') AS startDt, ISNULL(n.END_DT,'') AS endDt,
+	         CASE WHEN ISNULL(n.END_DT,'') <> '' AND n.END_DT < CONVERT(VARCHAR(8), GETDATE(), 112) THEN 'E'
+	              WHEN ISNULL(n.START_DT,'') <> '' AND n.START_DT > CONVERT(VARCHAR(8), GETDATE(), 112) THEN 'S' ELSE '' END AS stat,
 	         ISNULL(n.REG_NM,'') AS regNm, ISNULL(n.REG_USER,'') AS regUser,
 	         CONVERT(VARCHAR(16), n.REG_DTTM, 120) AS regDttm, ISNULL(CONVERT(VARCHAR(16), n.UPD_DTTM, 120),'') AS updDttm
 	    FROM TBL_EMP_NOTICE n
@@ -6911,13 +6924,13 @@
 	]]></select>
 
 	<insert id="insertEmpNotice" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="noticeSeq" keyColumn="NOTICE_SEQ"><![CDATA[
-	  INSERT INTO TBL_EMP_NOTICE (COMP_CD, TITLE, CONTENT, PIN_YN, ACTION_YN, REG_USER, REG_NM, REG_DTTM)
-	  VALUES (#{compCd}, #{title}, #{content}, #{pinYn}, 'Y', #{userId}, #{userNm}, GETDATE())
+	  INSERT INTO TBL_EMP_NOTICE (COMP_CD, TITLE, CONTENT, PIN_YN, ACTION_YN, REG_USER, REG_NM, REG_DTTM, START_DT, END_DT)
+	  VALUES (#{compCd}, #{title}, #{content}, #{pinYn}, 'Y', #{userId}, #{userNm}, GETDATE(), NULLIF(#{startDt},''), NULLIF(#{endDt},''))
 	]]></insert>
 
 	<update id="updateEmpNotice" parameterType="java.util.HashMap"><![CDATA[
 	  UPDATE TBL_EMP_NOTICE
-	     SET TITLE = #{title}, CONTENT = #{content}, PIN_YN = #{pinYn}, UPD_USER = #{userId}, UPD_DTTM = GETDATE()
+	     SET TITLE = #{title}, CONTENT = #{content}, PIN_YN = #{pinYn}, START_DT = NULLIF(#{startDt},''), END_DT = NULLIF(#{endDt},''), UPD_USER = #{userId}, UPD_DTTM = GETDATE()
 	   WHERE COMP_CD = #{compCd} AND NOTICE_SEQ = #{noticeSeq} AND ACTION_YN = 'Y'
 	]]></update>
 
@@ -6948,6 +6961,8 @@
 	  SELECT COUNT(*)
 	    FROM TBL_EMP_NOTICE n
 	   WHERE n.COMP_CD = #{compCd} AND n.ACTION_YN = 'Y' AND n.REG_DTTM >= DATEADD(DAY, -60, GETDATE())
+	     AND ( ISNULL(n.START_DT,'') = '' OR n.START_DT <= CONVERT(VARCHAR(8), GETDATE(), 112) )   /* 게시 기간 안의 것만(2026-09-22) */
+	     AND ( ISNULL(n.END_DT,'')   = '' OR n.END_DT   >= CONVERT(VARCHAR(8), GETDATE(), 112) )
 	     AND NOT EXISTS ( SELECT 1 FROM TBL_EMP_NOTICE_READ r WHERE r.COMP_CD = n.COMP_CD AND r.NOTICE_SEQ = n.NOTICE_SEQ AND r.USER_ID = #{userId} )
 	]]></select>
 
