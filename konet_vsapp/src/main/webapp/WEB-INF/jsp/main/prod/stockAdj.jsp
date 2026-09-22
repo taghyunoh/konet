@@ -67,6 +67,9 @@
   /* 서브 배지·주코드 링크·마스터 상품명 — 상품코드등록(prodcd.jsp)과 같은 모양 */
   .subbdg{ display:inline-block; padding:0 5px; border-radius:8px; background:#fdecea; color:#c0392b;
            font-size:12px; font-weight:700; }
+  /* 주코드 배지 — 상품코드등록과 같은 청록(2026-09-23) */
+  .mainbdg{ display:inline-block; padding:0 5px; border-radius:8px; background:#e3f2ee; color:#0f6b5e;
+            font-size:12px; font-weight:700; }
   /* ★[2026-08-19 확정 「여기서는 주코드 보여주는 것」] 주코드는 **표시 전용** —
      처음엔 링크(검색 이동 → 스크롤 이동)를 달았다가 액션 자체를 걷어냈다.
      이 화면은 재고를 고치는 곳이지 코드를 다루는 곳이 아니다 — 코드 정리는 상품코드등록에서.
@@ -146,7 +149,7 @@
 
     <%-- ★한 번 읽었으면 화면에서 거른다 — 누를 때마다 현재고 집계(느린 조회)가 돌지 않게(2026-08-20).
          서버를 다시 읽는 길 = 기준일자 변경 · 저장 직후 자동 재조회. --%>
-    <button type="button" class="btn ghost" onclick="_ALL.length?applyFilter():load();"
+    <button type="button" class="btn ghost" onclick="load();"
             title="이미 읽어 둔 목록에서 검색·필터를 겁니다. 서버에서 다시 읽으려면 기준일자를 바꾸세요.">리스트조회</button>
     <button type="button" class="btn" id="btnSave" onclick="save();">수정저장</button>
     <button type="button" class="btn ghost" onclick="packAuto();"
@@ -158,7 +161,7 @@
     <%-- ★「치면 바로 조회」 폐지 (2026-08-20 요청) — 목록을 아직 안 읽은 상태에서 글자를 치면
          현재고 집계(원장 합계) 조회가 바로 돌아 느렸다. 이제 **Enter 나 [리스트조회]를 눌러야** 검색된다. --%>
     <input type="text" id="findData" placeholder="코드 · 상품명 · 규격 — 입력 후 Enter" style="width:210px"
-           onkeydown="if(event.keyCode===13){ _ALL.length?applyFilter():load(); }">
+           onkeydown="if(event.keyCode===13){ load(); }">
     <label>유형</label>
     <select id="typeNm"><option value="">전체</option></select>
     <label>제조사</label>
@@ -247,6 +250,9 @@
 <script type="text/javascript">
 var CTX  = '${pageContext.request.contextPath}';
 var ROWS = [];        /* 화면에 보이는 목록(= _ALL 을 검색·필터·정렬한 결과) */
+/* ★[2026-09-17 지적 「상품코드에서 수정하고 다시 조회하면 적용이 안 됨 — 로그아웃해야 함」]
+     [조회] 단추와 검색칸 Enter 는 <항상> 서버를 다시 부른다(load). 종전엔 첫 조회 뒤로는 받아 둔 _ALL 만 다시 걸러(applyFilter)
+     상품코드관리에서 고친 이름·입수·중지가 로그아웃(=셸 새로 로드) 전엔 안 보였다. 글자 칠 때·유형/제조사/재고0제외/정렬은 종전대로 화면에서만 거른다. */
 var _ALL = [];        /* ★[2026-08-19 요청 「조회가 느림」] 서버에서 받은 전 품목 —
                           서버는 **기준일자가 바뀔 때만** 부른고(재고 누계가 그 날짜 기준이라),
                           검색어·유형·제조사·재고0제외·정렬은 applyFilter 가 화면에서 바로 건다.
@@ -277,21 +283,29 @@ function busy(on, msg){
    ★늘게 도착해도 맞는다 — 보조자료가 오면 목록이 이미 떠 있을 때만 다시 그린다. */
 var _pm = {}, _subOf = {}, _auxOk = false;   /* _pm = prodSeq→상품줄(중지·이름) / _subOf = 서브코드→통보줄 */
 function fmtDt8(v){ v=String(v||'').replace(/-/g,''); return v.length===8 ? v.slice(0,4)+'-'+v.slice(4,6)+'-'+v.slice(6,8) : v; }
-(function(){
+/* ★보조자료(상품 마스터 · 매칭코드)는 <조회할 때마다> 다시 받는다 (2026-09-17 지적 「상품코드에서 수정하고 다시 조회하면 적용이 안 됨, 로그아웃해야 함」).
+     종전엔 화면이 처음 뜰 때 한 번만 받았고, 셸이 iframe 을 살려 두므로 상품코드관리에서 고친 중지·매칭·마스터명이
+     로그아웃(=셸 새로 로드) 전엔 여기 안 보였다. 목록(stockAdjList)은 원래 조회마다 새로 받는다. */
+function loadAux(){
   function post(u){ return fetch(CTX+u, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
                                           credentials:'same-origin', body:'' }).then(function(r){ return r.json(); }); }
-  Promise.all([ post('/prod/prodList.do'), post('/prod/extItemList.do') ])
+  return Promise.all([ post('/prod/prodList.do'), post('/prod/extItemList.do') ])
     .then(function(a){
-      ((a[0]&&a[0].data)||[]).forEach(function(o){ _pm[o.prodSeq]=o; });
+      var pm={}, sub={};
+      ((a[0]&&a[0].data)||[]).forEach(function(o){ pm[o.prodSeq]=o; });
       /* 서브 판정은 prodcd.jsp 와 같은 규칙 — 통보 코드와 주코드가 다를 때만 서브다 */
       ((a[1]&&a[1].data)||[]).forEach(function(o){
-        if(o.prodCd && o.extItemCd && String(o.extItemCd)!==String(o.prodCd)) _subOf[String(o.extItemCd)]=o;
+        if(o.prodCd && o.extItemCd && String(o.extItemCd)!==String(o.prodCd)) sub[String(o.extItemCd)]=o;
       });
+      _pm=pm; _subOf=sub;                /* 통째로 바꿔 끼운다 — 지운 매칭·풀린 중지도 사라지게 */
       _auxOk=true;
       if(ROWS.length) render();          /* 목록이 먼저 떠 있으면 표시만 덧그린다 */
     })
     .catch(function(){ /* 보조표시만 빠질 뿐 조정 자체는 동작한다 — 조용히 넘어간다 */ });
-})();
+}
+loadAux();
+/* 셸 메뉴로 다시 들어올 때 — 다른 화면(상품코드관리)에서 고친 것을 반영. 적다 만 조정 수량이 있을 수 있어 목록은 안 건드리고 보조자료만 새로 받아 덧그린다(목록은 [조회]로) */
+window.konetShown=function(){ loadAux(); };
 
 /* 오늘 날짜를 기본값으로 */
 (function(){
@@ -385,6 +399,7 @@ function load(){
   gel('body').innerHTML = '<tr><td colspan="12" class="c dim" style="padding:26px">불러오는 중…</td></tr>';
 
   busy(true, '목록을 조회하는 중입니다…');           /* ★모래시계 — 문구는 '조회'(2026-08-19 지적: 재고집계 아님) */
+  loadAux();                                         /* 보조자료(중지·매칭·마스터명)도 새로 — 2026-09-17 */
   fetch(CTX + '/prod/stockAdjList.do', {
       method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
       credentials:'same-origin', body: p.toString() })
@@ -404,7 +419,7 @@ function render(){
   }
   gel('body').innerHTML = ROWS.map(function(r, i){
     var cur = nvl(r.curQty);
-    /* ★상품코드등록과 같은 표시(2026-08-19) — 서브 배지 + → 주코드 + 마스터 상품명 / 중지행 빨강 */
+    /* ★상품코드등록과 같은 표시(2026-08-19) — 주코드 · 서브 배지 + 마스터 상품명 / 중지행 빨강 */
     var st=_pm[r.prodSeq]||{}, stopped=(st.stopYn==='Y');
     var sb=_subOf[String(r.prodCd)], cdCell=esc(r.prodCd), mstNm='';
     /* 검색에 걸린 코드는 굵은 초록 — 그 아래로는 다음 코드들이 이어진 것(장부식, 판매·매입 검색과 동일) */
@@ -412,13 +427,19 @@ function render(){
     if(stopped) cdCell='<span style="white-space:nowrap">'+cdCell+' <span class="stopbdg">중지</span></span>';
     if(sb){
       var mp=_pm[sb.prodSeq]||{};
-      /* ★주코드가 중지된 상품이면 링크도 빨강 + (중지) — 누르기 전에 알아보게(2026-08-19) */
+      /* ★주코드가 중지된 상품이면 빨강 + (중지) — 한눈에 알아보게(2026-08-19) */
       var mStop=(mp.stopYn==='Y');
-      /* ★주코드는 여기서 **보여주기만** 한다(2026-08-19 확정) — 누르는 자리 아님 */
-      cdCell += '<div style="margin-top:2px"><span class="subbdg">서브</span>'
+      /* ★[2026-09-23 요청 「상품코드등록처럼 주코드를 위에」] 상품코드등록(prodcd.jsp)과 **같은 차례** —
+           위 = [주] 주코드 · 아래 = [서브] 이 줄 자신의 코드(검색 강조·중지 배지 그대로).
+           종전엔 제 코드가 위, 「서브 → 주코드」가 아래였다. 정렬·검색·저장은 여전히 이 줄 자신의 코드(r.prodCd)로 한다.
+         ★주코드는 여기서 **보여주기만** 한다(2026-08-19 확정) — 누르는 자리 아님.
+           이 화면은 재고를 고치는 곳이지 코드를 다루는 곳이 아니다 — 코드 정리는 상품코드등록에서. */
+      var ownCd = cdCell;
+      cdCell = '<div><span class="mainbdg">주</span>'
              +  ' <span class="subgo'+(mStop?' stop':'')+'"'
-             +  ' title="이 코드는 주코드 '+esc(sb.prodCd)+' 의 매칭코드입니다'+(mStop?' (거래중지된 상품)':'')+'">→ '
-             +  esc(sb.prodCd)+(mStop?' (중지)':'')+'</span></div>';
+             +  ' title="이 줄의 코드 '+esc(r.prodCd)+' 는 주코드 '+esc(sb.prodCd)+' 의 매칭코드입니다'+(mStop?' (거래중지된 상품)':'')+'">'
+             +  esc(sb.prodCd)+(mStop?' (중지)':'')+'</span></div>'
+             +  '<div style="margin-top:2px"><span class="subbdg">서브</span> '+ownCd+'</div>';
       if(mp.prodNm) mstNm='<div class="mstnm">마스터 : '+esc(mp.prodNm)+'</div>';
     }
     return '<tr id="tr'+i+'"'+(stopped?' class="stopped"':'')+'>'

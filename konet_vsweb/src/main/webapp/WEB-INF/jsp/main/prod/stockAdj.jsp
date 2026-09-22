@@ -67,6 +67,9 @@
   /* 서브 배지·주코드 링크·마스터 상품명 — 상품코드등록(prodcd.jsp)과 같은 모양 */
   .subbdg{ display:inline-block; padding:0 5px; border-radius:8px; background:#fdecea; color:#c0392b;
            font-size:12px; font-weight:700; }
+  /* 주코드 배지 — 상품코드등록과 같은 청록(2026-09-23) */
+  .mainbdg{ display:inline-block; padding:0 5px; border-radius:8px; background:#e3f2ee; color:#0f6b5e;
+            font-size:12px; font-weight:700; }
   /* ★[2026-08-19 확정 「여기서는 주코드 보여주는 것」] 주코드는 **표시 전용** —
      처음엔 링크(검색 이동 → 스크롤 이동)를 달았다가 액션 자체를 걷어냈다.
      이 화면은 재고를 고치는 곳이지 코드를 다루는 곳이 아니다 — 코드 정리는 상품코드등록에서.
@@ -416,7 +419,7 @@ function render(){
   }
   gel('body').innerHTML = ROWS.map(function(r, i){
     var cur = nvl(r.curQty);
-    /* ★상품코드등록과 같은 표시(2026-08-19) — 서브 배지 + → 주코드 + 마스터 상품명 / 중지행 빨강 */
+    /* ★상품코드등록과 같은 표시(2026-08-19) — 주코드 · 서브 배지 + 마스터 상품명 / 중지행 빨강 */
     var st=_pm[r.prodSeq]||{}, stopped=(st.stopYn==='Y');
     var sb=_subOf[String(r.prodCd)], cdCell=esc(r.prodCd), mstNm='';
     /* 검색에 걸린 코드는 굵은 초록 — 그 아래로는 다음 코드들이 이어진 것(장부식, 판매·매입 검색과 동일) */
@@ -424,13 +427,19 @@ function render(){
     if(stopped) cdCell='<span style="white-space:nowrap">'+cdCell+' <span class="stopbdg">중지</span></span>';
     if(sb){
       var mp=_pm[sb.prodSeq]||{};
-      /* ★주코드가 중지된 상품이면 링크도 빨강 + (중지) — 누르기 전에 알아보게(2026-08-19) */
+      /* ★주코드가 중지된 상품이면 빨강 + (중지) — 한눈에 알아보게(2026-08-19) */
       var mStop=(mp.stopYn==='Y');
-      /* ★주코드는 여기서 **보여주기만** 한다(2026-08-19 확정) — 누르는 자리 아님 */
-      cdCell += '<div style="margin-top:2px"><span class="subbdg">서브</span>'
+      /* ★[2026-09-23 요청 「상품코드등록처럼 주코드를 위에」] 상품코드등록(prodcd.jsp)과 **같은 차례** —
+           위 = [주] 주코드 · 아래 = [서브] 이 줄 자신의 코드(검색 강조·중지 배지 그대로).
+           종전엔 제 코드가 위, 「서브 → 주코드」가 아래였다. 정렬·검색·저장은 여전히 이 줄 자신의 코드(r.prodCd)로 한다.
+         ★주코드는 여기서 **보여주기만** 한다(2026-08-19 확정) — 누르는 자리 아님.
+           이 화면은 재고를 고치는 곳이지 코드를 다루는 곳이 아니다 — 코드 정리는 상품코드등록에서. */
+      var ownCd = cdCell;
+      cdCell = '<div><span class="mainbdg">주</span>'
              +  ' <span class="subgo'+(mStop?' stop':'')+'"'
-             +  ' title="이 코드는 주코드 '+esc(sb.prodCd)+' 의 매칭코드입니다'+(mStop?' (거래중지된 상품)':'')+'">→ '
-             +  esc(sb.prodCd)+(mStop?' (중지)':'')+'</span></div>';
+             +  ' title="이 줄의 코드 '+esc(r.prodCd)+' 는 주코드 '+esc(sb.prodCd)+' 의 매칭코드입니다'+(mStop?' (거래중지된 상품)':'')+'">'
+             +  esc(sb.prodCd)+(mStop?' (중지)':'')+'</span></div>'
+             +  '<div style="margin-top:2px"><span class="subbdg">서브</span> '+ownCd+'</div>';
       if(mp.prodNm) mstNm='<div class="mstnm">마스터 : '+esc(mp.prodNm)+'</div>';
     }
     return '<tr id="tr'+i+'"'+(stopped?' class="stopped"':'')+'>'
