@@ -141,9 +141,12 @@
 
     <label><input type="checkbox" id="zeroExc"> 재고 0 제외</label>
 
-    <%-- 창고 (2026-09-16 P3) — 조정은 창고마다. 목록의 현재고도 그 창고 것. 비면 전 창고 합계라 저장을 막는다 --%>
-    <label>창고</label>
-    <select id="adjWh" title="조정할 창고 — 목록의 현재고가 그 창고 재고로 바뀝니다" onchange="load()"></select>
+    <%-- ★[2026-09-23 요청] 상품 검색칸 ↔ 창고 자리 맞바꿈 — 검색은 앞(기준일자 앞), 창고는 뒤(유형 앞) --%>
+    <label>상품</label>
+    <%-- ★「치면 바로 조회」 폐지 (2026-08-20 요청) — 목록을 아직 안 읽은 상태에서 글자를 치면
+         현재고 집계(원장 합계) 조회가 바로 돌아 느렸다. 이제 **Enter 나 [리스트조회]를 눌러야** 검색된다. --%>
+    <input type="text" id="findData" placeholder="코드 · 상품명 · 규격 — 입력 후 Enter" style="width:210px"
+           onkeydown="if(event.keyCode===13){ load(); }">
     <label>기준일자</label>
     <input type="date" id="baseDt" title="오늘(또는 그 뒤) = 지금 현재고 전체(품목별재고현황과 같은 숫자 — 내일 납기로 이미 나간 출고까지 뺀 값)&#10;지난 날짜 = 그날까지의 누계 재고. 조정행도 이 날짜로 남습니다.">
 
@@ -157,11 +160,9 @@
 
     <span class="sp"></span>
 
-    <label>상품</label>
-    <%-- ★「치면 바로 조회」 폐지 (2026-08-20 요청) — 목록을 아직 안 읽은 상태에서 글자를 치면
-         현재고 집계(원장 합계) 조회가 바로 돌아 느렸다. 이제 **Enter 나 [리스트조회]를 눌러야** 검색된다. --%>
-    <input type="text" id="findData" placeholder="코드 · 상품명 · 규격 — 입력 후 Enter" style="width:210px"
-           onkeydown="if(event.keyCode===13){ load(); }">
+    <%-- 창고 (2026-09-16 P3) — 조정은 창고마다. 목록의 현재고도 그 창고 것. 비면 전 창고 합계라 저장을 막는다 --%>
+    <label>창고</label>
+    <select id="adjWh" title="조정할 창고 — 목록의 현재고가 그 창고 재고로 바뀝니다" onchange="load()"></select>
     <label>유형</label>
     <select id="typeNm"><option value="">전체</option></select>
     <label>제조사</label>
