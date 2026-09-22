@@ -441,4 +441,32 @@ public interface UserMapper {
 	java.util.List<java.util.Map<String,Object>> selectSendHistList(java.util.Map<String,Object> p) throws Exception;
 	int updateSendHistMailOpen(java.util.Map<String,Object> p) throws Exception;   // 메일 열림(1×1 그림)
 	int updateSendHistView(java.util.Map<String,Object> p) throws Exception;       // 링크 열람(공개 페이지)
+	/* ── 직원 공지사항 · 직원 메신저 (2026-09-22) — 표 5개 TBL_EMP_NOTICE(_READ)·TBL_EMP_ROOM(_MBR)·TBL_EMP_MSG. 전부 Map 파라미터(compCd·userId 는 서비스가 세션값으로 채운다) */
+	java.util.List<java.util.Map<String,Object>> selectEmpUsers(java.util.Map<String,Object> p) throws Exception;            // 회사 직원(활성 계정, 아이디마다 최근 1줄)
+	java.util.List<java.util.Map<String,Object>> selectEmpNoticeList(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectEmpNotice(java.util.Map<String,Object> p) throws Exception;
+	int insertEmpNotice(java.util.Map<String,Object> p) throws Exception;                                                   // useGeneratedKeys → p.noticeSeq
+	int updateEmpNotice(java.util.Map<String,Object> p) throws Exception;
+	int deleteEmpNotice(java.util.Map<String,Object> p) throws Exception;                                                   // ACTION_YN 'N'
+	int insertEmpNoticeRead(java.util.Map<String,Object> p) throws Exception;                                               // 있으면 그대로
+	java.util.List<java.util.Map<String,Object>> selectEmpNoticeReaders(java.util.Map<String,Object> p) throws Exception;
+	int selectEmpNoticeUnreadCnt(java.util.Map<String,Object> p) throws Exception;                                          // 최근 60일 중 안 읽은 것
+	java.util.Map<String,Object> selectEmpRoomByKey(java.util.Map<String,Object> p) throws Exception;                       // 1:1 방 찾기(DM_KEY)
+	int insertEmpRoom(java.util.Map<String,Object> p) throws Exception;                                                     // useGeneratedKeys → p.roomSeq
+	int insertEmpRoomMbr(java.util.Map<String,Object> p) throws Exception;                                                  // 있으면 다시 켬
+	java.util.List<java.util.Map<String,Object>> selectEmpRoomList(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectEmpRoomMbrsOfUser(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectEmpRoomMine(java.util.Map<String,Object> p) throws Exception;                        // 내가 든 방인가
+	java.util.List<java.util.Map<String,Object>> selectEmpRoomMbrs(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectEmpMsgList(java.util.Map<String,Object> p) throws Exception;         // 최근 100건(beforeSeq 앞)
+	java.util.List<java.util.Map<String,Object>> selectEmpMsgNew(java.util.Map<String,Object> p) throws Exception;          // afterSeq 뒤 새 글
+	int insertEmpMsg(java.util.Map<String,Object> p) throws Exception;                                                      // useGeneratedKeys → p.msgSeq
+	int updateEmpRoomLast(java.util.Map<String,Object> p) throws Exception;
+	int updateEmpRoomRead(java.util.Map<String,Object> p) throws Exception;
+	int updateEmpRoomLeave(java.util.Map<String,Object> p) throws Exception;
+	int updateEmpRoomNm(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectEmpMsgUnreadCnt(java.util.Map<String,Object> p) throws Exception;                   // msgUnread·roomUnread
+	int updateEmpMsgDel(java.util.Map<String,Object> p) throws Exception;                                                    // 내 글 지우기(MSG_GB X) — 본인 것만
+	int updateEmpRoomLastTxt(java.util.Map<String,Object> p) throws Exception;                                                // 지운 글이 마지막이면 LAST_TXT 갈아 끼움
+
 }

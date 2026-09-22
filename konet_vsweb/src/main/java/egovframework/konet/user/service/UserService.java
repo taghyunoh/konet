@@ -384,4 +384,21 @@ public interface UserService {
 	java.util.List<java.util.Map<String,Object>> selectSendHistList(java.util.Map<String,Object> p) throws Exception;
 	int updateSendHistMailOpen(java.util.Map<String,Object> p) throws Exception;   // 메일 열림(1×1 그림)
 	int updateSendHistView(java.util.Map<String,Object> p) throws Exception;       // 링크 열람(공개 페이지)
+	/* ── 직원 공지사항 · 직원 메신저 (2026-09-22) — 컨트롤러는 세션(회사·아이디·이름)만 넘기고 권한·소속 확인은 여기서 한다 */
+	java.util.List<java.util.Map<String,Object>> empUsers(String compCd) throws Exception;
+	java.util.List<java.util.Map<String,Object>> empNoticeList(String compCd, String userId, String findData) throws Exception;
+	java.util.Map<String,Object> empNoticeGet(String compCd, String userId, int noticeSeq) throws Exception;        // 본문 + 읽음 표시 + 읽은 사람
+	int empNoticeSave(String compCd, String userId, String userNm, java.util.Map<String,Object> body) throws Exception;   // 돌려주는 값 = noticeSeq
+	int empNoticeDelete(String compCd, String userId, int noticeSeq) throws Exception;
+	java.util.Map<String,Object> empBadge(String compCd, String userId) throws Exception;                            // noticeUnread·msgUnread·roomUnread
+	java.util.List<java.util.Map<String,Object>> empRoomList(String compCd, String userId) throws Exception;          // 구성원 이름·방 표시 이름까지 조립
+	java.util.Map<String,Object> empRoomOpen(String compCd, String userId, String userNm, java.util.List<String> users, String roomNm) throws Exception;   // 1:1 은 있으면 그 방
+	java.util.Map<String,Object> empMsgList(String compCd, String userId, int roomSeq, int afterSeq, int beforeSeq) throws Exception;   // 소속 확인 + 읽음 갱신
+	java.util.Map<String,Object> empMsgSend(String compCd, String userId, int roomSeq, String text) throws Exception;
+	int empRoomRead(String compCd, String userId, int roomSeq, int lastSeq) throws Exception;
+	int empRoomLeave(String compCd, String userId, String userNm, int roomSeq) throws Exception;
+	int empRoomInvite(String compCd, String userId, String userNm, int roomSeq, java.util.List<String> users) throws Exception;
+	int empRoomRename(String compCd, String userId, int roomSeq, String roomNm) throws Exception;
+	int empMsgDel(String compCd, String userId, int roomSeq, int msgSeq) throws Exception;                            // 내 글 지우기 — 자리에 「삭제된 글입니다」
+
 }

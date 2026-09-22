@@ -4827,4 +4827,226 @@ public class UserController {
 			}
 			return response;
 		}
+		/* ═══════════════════════════════════════════════════════════════════════════════
+		   직원 공지사항 · 직원 메신저 (2026-09-22 신설) — 셸 메뉴 「직원 소통」 ▸ 직원 공지사항 / 직원 메신저 (iframe 화면 2개)
+		     · 화면 : /emp/notice.do → mangr/empNotice.jsp · /emp/msg.do → mangr/empMsg.jsp
+		     · 자료 : 전부 POST + JSON 본문(@RequestBody) — HTMLTagFilter 가 파라미터의 <>&"' 를 바꾸므로 글 본문은 파라미터로 받지 않는다.
+		     · 응답 : {result:'OK'|'FAIL', message, ...}. 세션이 없으면 401 이 아니라 FAIL(login) — 화면이 「다시 로그인」 안내를 띄운다.
+		     · 권한 : 공지 쓰기·고치기·지우기 = 총괄관리자(MAIN_GU 1)·부관리자(2) — empAdmin(). 읽기는 전원.
+		              메신저는 회사 직원 누구나, 방 소속은 서비스가 본다(남의 방 글은 못 읽고 못 쓴다).
+		     · 배지 : /emp/badge.do — 셸(asset/js/emp-badge.js)이 30초마다 묻는다. 안 읽은 공지(최근 60일)·안 읽은 메시지 수.
+		   ═══════════════════════════════════════════════════════════════════════════════ */
+		private static boolean empAdmin(HttpSession s) {
+			String gu = s.getAttribute("s_main_gu") == null ? "" : String.valueOf(s.getAttribute("s_main_gu")).trim();
+			return "1".equals(gu) || "2".equals(gu);
+		}
+		private static String empUser(HttpSession s) { return s.getAttribute("s_user_id") == null ? "" : String.valueOf(s.getAttribute("s_user_id")).trim(); }
+		private static String empUserNm(HttpSession s) { return s.getAttribute("s_user_nm") == null ? "" : String.valueOf(s.getAttribute("s_user_nm")).trim(); }
+		private static int empInt(Object o) {
+			if (o == null) return 0;
+			if (o instanceof Number) return ((Number) o).intValue();
+			try { return Integer.parseInt(String.valueOf(o).trim().split("[.]")[0]); } catch (Exception e) { return 0; }
+		}
+		@SuppressWarnings("unchecked")
+		private static java.util.List<String> empIds(Object o) {
+			java.util.List<String> r = new java.util.ArrayList<String>();
+			if (o instanceof java.util.List) for (Object x : (java.util.List<Object>) o) if (x != null) r.add(String.valueOf(x).trim());
+			return r;
+		}
+		private static Map<String,Object> empFail(String msg) {
+			Map<String,Object> r = new HashMap<String,Object>(); r.put("result", "FAIL"); r.put("message", msg); return r;
+		}
+		private static final Map<String,Object> EMP_LOGIN = new HashMap<String,Object>();
+		static { EMP_LOGIN.put("result", "FAIL"); EMP_LOGIN.put("message", "로그인이 끊겼습니다 — 다시 로그인해 주세요."); EMP_LOGIN.put("login", "N"); }
+
+		@RequestMapping(value="/emp/notice.do")
+		public String empNotice(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/empNotice";
+		}
+		@RequestMapping(value="/emp/msg.do")
+		public String empMsg(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/empMsg";
+		}
+
+		/** 배지 — 셸이 30초마다. 세션이 없으면 조용히 0(로그인 화면으로 튕기지 않는다) */
+		@RequestMapping(value="/emp/badge.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empBadge(HttpSession session) {
+			Map<String,Object> r = new HashMap<String,Object>();
+			try {
+				if (!adjLoggedIn(session)) { r.put("result", "FAIL"); r.put("login", "N"); return r; }
+				r.putAll(svc.empBadge(sessComp(session), empUser(session)));
+				r.put("result", "OK");
+			} catch (Exception e) { log.error(" empBadge ERROR : " + e.getMessage()); r.put("result", "FAIL"); r.put("message", e.getMessage()); }
+			return r;
+		}
+
+		/** 직원 목록(대화 상대 고르기) + 내 정보·권한 */
+		@RequestMapping(value="/emp/users.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empUsers(HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				Map<String,Object> r = new HashMap<String,Object>();
+				r.put("result", "OK");
+				r.put("list", svc.empUsers(sessComp(session)));
+				r.put("me", empUser(session)); r.put("meNm", empUserNm(session)); r.put("admin", empAdmin(session) ? "Y" : "N");
+				return r;
+			} catch (Exception e) { log.error(" empUsers ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
+		}
+
+		/* ── 공지 ── */
+		@RequestMapping(value="/emp/noticeList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empNoticeList(@RequestBody Map<String,Object> body, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				Map<String,Object> r = new HashMap<String,Object>();
+				r.put("result", "OK");
+				r.put("list", svc.empNoticeList(sessComp(session), empUser(session), body.get("findData") == null ? "" : String.valueOf(body.get("findData"))));
+				r.put("me", empUser(session)); r.put("meNm", empUserNm(session)); r.put("admin", empAdmin(session) ? "Y" : "N");
+				return r;
+			} catch (Exception e) { log.error(" empNoticeList ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
+		}
+		@RequestMapping(value="/emp/noticeGet.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empNoticeGet(@RequestBody Map<String,Object> body, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				int seq = empInt(body.get("noticeSeq"));
+				if (seq <= 0) return empFail("공지 번호가 없습니다.");
+				Map<String,Object> n = svc.empNoticeGet(sessComp(session), empUser(session), seq);
+				if (n == null) return empFail("공지가 없습니다(삭제됐을 수 있습니다).");
+				Map<String,Object> r = new HashMap<String,Object>();
+				r.put("result", "OK"); r.put("notice", n); r.put("admin", empAdmin(session) ? "Y" : "N");
+				return r;
+			} catch (Exception e) { log.error(" empNoticeGet ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
+		}
+		@RequestMapping(value="/emp/noticeSave.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empNoticeSave(@RequestBody Map<String,Object> body, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				if (!empAdmin(session)) return empFail("공지는 관리자(총괄·부관리자)만 쓸 수 있습니다.");
+				int seq = svc.empNoticeSave(sessComp(session), empUser(session), empUserNm(session), body);
+				Map<String,Object> r = new HashMap<String,Object>();
+				r.put("result", "OK"); r.put("noticeSeq", seq);
+				return r;
+			} catch (IllegalArgumentException e) { return empFail(e.getMessage());
+			} catch (Exception e) { log.error(" empNoticeSave ERROR : " + e.getMessage()); return empFail("저장 중 오류 : " + e.getMessage()); }
+		}
+		@RequestMapping(value="/emp/noticeDel.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empNoticeDel(@RequestBody Map<String,Object> body, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				if (!empAdmin(session)) return empFail("공지는 관리자(총괄·부관리자)만 지울 수 있습니다.");
+				int n = svc.empNoticeDelete(sessComp(session), empUser(session), empInt(body.get("noticeSeq")));
+				if (n == 0) return empFail("지울 공지가 없습니다.");
+				Map<String,Object> r = new HashMap<String,Object>(); r.put("result", "OK"); return r;
+			} catch (Exception e) { log.error(" empNoticeDel ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
+		}
+
+		/* ── 메신저 ── */
+		@RequestMapping(value="/emp/roomList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empRoomList(HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				Map<String,Object> r = new HashMap<String,Object>();
+				r.put("result", "OK");
+				r.put("list", svc.empRoomList(sessComp(session), empUser(session)));
+				r.put("me", empUser(session)); r.put("meNm", empUserNm(session));
+				return r;
+			} catch (Exception e) { log.error(" empRoomList ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
+		}
+		/** 대화 열기 — users 1명이면 1:1(있으면 그 방), 2명 이상이면 그룹(새 방, roomNm 선택) */
+		@RequestMapping(value="/emp/roomOpen.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empRoomOpen(@RequestBody Map<String,Object> body, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				Map<String,Object> r = svc.empRoomOpen(sessComp(session), empUser(session), empUserNm(session), empIds(body.get("users")),
+				                                       body.get("roomNm") == null ? "" : String.valueOf(body.get("roomNm")));
+				r.put("result", "OK");
+				return r;
+			} catch (IllegalArgumentException e) { return empFail(e.getMessage());
+			} catch (Exception e) { log.error(" empRoomOpen ERROR : " + e.getMessage()); return empFail("대화방을 여는 중 오류 : " + e.getMessage()); }
+		}
+		/** 글 목록 — afterSeq(새 글만) / beforeSeq(위로 더 보기) / 둘 다 0 = 최근 100건 */
+		@RequestMapping(value="/emp/msgList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empMsgList(@RequestBody Map<String,Object> body, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				Map<String,Object> r = svc.empMsgList(sessComp(session), empUser(session), empInt(body.get("roomSeq")), empInt(body.get("afterSeq")), empInt(body.get("beforeSeq")));
+				r.put("result", "OK"); r.put("me", empUser(session));
+				return r;
+			} catch (IllegalArgumentException e) { return empFail(e.getMessage());
+			} catch (Exception e) { log.error(" empMsgList ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
+		}
+		@RequestMapping(value="/emp/msgSend.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empMsgSend(@RequestBody Map<String,Object> body, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				Map<String,Object> r = svc.empMsgSend(sessComp(session), empUser(session), empInt(body.get("roomSeq")), body.get("text") == null ? "" : String.valueOf(body.get("text")));
+				r.put("result", "OK");
+				return r;
+			} catch (IllegalArgumentException e) { return empFail(e.getMessage());
+			} catch (Exception e) { log.error(" empMsgSend ERROR : " + e.getMessage()); return empFail("보내는 중 오류 : " + e.getMessage()); }
+		}
+		@RequestMapping(value="/emp/roomRead.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empRoomRead(@RequestBody Map<String,Object> body, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				svc.empRoomRead(sessComp(session), empUser(session), empInt(body.get("roomSeq")), empInt(body.get("lastSeq")));
+				Map<String,Object> r = new HashMap<String,Object>(); r.put("result", "OK"); return r;
+			} catch (Exception e) { log.error(" empRoomRead ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
+		}
+		@RequestMapping(value="/emp/roomLeave.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empRoomLeave(@RequestBody Map<String,Object> body, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				svc.empRoomLeave(sessComp(session), empUser(session), empUserNm(session), empInt(body.get("roomSeq")));
+				Map<String,Object> r = new HashMap<String,Object>(); r.put("result", "OK"); return r;
+			} catch (IllegalArgumentException e) { return empFail(e.getMessage());
+			} catch (Exception e) { log.error(" empRoomLeave ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
+		}
+		@RequestMapping(value="/emp/roomInvite.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empRoomInvite(@RequestBody Map<String,Object> body, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				int n = svc.empRoomInvite(sessComp(session), empUser(session), empUserNm(session), empInt(body.get("roomSeq")), empIds(body.get("users")));
+				Map<String,Object> r = new HashMap<String,Object>(); r.put("result", "OK"); r.put("cnt", n); return r;
+			} catch (IllegalArgumentException e) { return empFail(e.getMessage());
+			} catch (Exception e) { log.error(" empRoomInvite ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
+		}
+		@RequestMapping(value="/emp/roomRename.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empRoomRename(@RequestBody Map<String,Object> body, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				svc.empRoomRename(sessComp(session), empUser(session), empInt(body.get("roomSeq")), body.get("roomNm") == null ? "" : String.valueOf(body.get("roomNm")));
+				Map<String,Object> r = new HashMap<String,Object>(); r.put("result", "OK"); return r;
+			} catch (IllegalArgumentException e) { return empFail(e.getMessage());
+			} catch (Exception e) { log.error(" empRoomRename ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
+		}
+		/** 내 글 지우기 (2026-09-22) — 본인 것만(서비스가 USER_ID 로 막는다). 지운 자리는 「삭제된 글입니다」로 남는다 */
+		@RequestMapping(value="/emp/msgDel.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empMsgDel(@RequestBody Map<String,Object> body, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				svc.empMsgDel(sessComp(session), empUser(session), empInt(body.get("roomSeq")), empInt(body.get("msgSeq")));
+				Map<String,Object> r = new HashMap<String,Object>(); r.put("result", "OK"); return r;
+			} catch (IllegalArgumentException e) { return empFail(e.getMessage());
+			} catch (Exception e) { log.error(" empMsgDel ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
+		}
+
 }

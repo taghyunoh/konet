@@ -62,6 +62,46 @@
 - **작업 버튼(신규등록·저장·새로고침·삭제하기)은 입력 칸 '아래'** — 4화면 통일(2026-08-01). 종전 수금·지급만 카드 맨 위에 있었다.
 - **`ssConfirm`(teal 「반영 확인」 모달)은 발주현황표 업로드 반영류 확인 전용** — 일반 확인에 쓰면 제목('반영 확인')·버튼('반영')이 어긋난다. 실제 사고: 로그아웃 확인을 ssConfirm 으로 냈다가 지적받고 `_confirmBox` 로 교체(2026-07-31).
 
+## ★[2026-09-22] 직원 공지사항 · 직원 메신저 신설 (셸 「직원 소통」 묶음) — ✅DDL 실행·재빌드·재기동·화면 실왕복 완료(2026-09-22)
+사용자 확정 4가지 : **①메신저 = 1:1 + 그룹방 ②공지 = 관리자(총괄·부관리자 MAIN_GU 1·2)만 쓰고 전원 읽기 ③글만(첨부 없음) ④PC 웹(9071) 먼저, 앱(9072)은 다음.**
+- **DDL** [docs/sql/20260922_emp_notice_msg.sql](docs/sql/20260922_emp_notice_msg.sql) — 표 5개 `TBL_EMP_NOTICE`(공지)·`_NOTICE_READ`(누가 읽었나)·`TBL_EMP_ROOM`(방, D/G)·`_ROOM_MBR`(구성원 + 어디까지 읽었나 `LAST_READ_SEQ`)·`TBL_EMP_MSG`(글). 재실행 안전. ★**새 WAR 보다 먼저 실행** — 매퍼 24문이 이 표를 읽는다.
+  · 1:1 은 두 아이디를 정렬해 `|` 로 붙인 `DM_KEY` 로 **한 방만**(필터 유니크 인덱스) — 같은 상대와 다시 열면 그 방(나갔던 방도 다시 켜짐). 그룹은 늘 새 방.
+  · **이름은 저장하지 않는다** — `TBL_USER_MST`(이력형, 활성·최근 1줄)에서 OUTER APPLY 로 그때 읽는다. 공지 작성자 이름(`REG_NM`)만 그 시점 이름을 남긴다.
+  · 안 읽은 수 = 방마다 `LAST_READ_SEQ` 뒤에 **남이** 쓴 글 수 · 공지 배지 = **최근 60일** 공지 중 안 읽은 것(새 직원에게 옛 공지가 전부 쌓이지 않게).
+- **서버** = `UserController` `/emp/*.do` 14개(화면 2 + 자료 12) · `UserService(Impl)` `emp*` 14 · `UserMapper` 24 · `User_SQL.xml` 24문(`selectEmpUsers`~`selectEmpMsgUnreadCnt`).
+  ★**자료는 전부 POST + JSON 본문(`@RequestBody`)** — `HTMLTagFilter` 가 파라미터의 `<>&"'` 를 바꾸므로 글 본문을 파라미터로 받으면 깨진다. 응답 `{result:'OK'|'FAIL', message}`, 세션 없으면 `login:'N'`(화면이 「다시 로그인」 알림).
+  ★권한은 서버가 본다 — 공지 쓰기·지우기 `empAdmin()`(s_main_gu 1·2) · 메신저 방 소속 `selectEmpRoomMine`(남의 방 글은 못 읽고 못 쓴다) · 대화 상대는 직원 목록에 있는 아이디만(화면이 보낸 아이디를 안 믿는다).
+- **화면** = [mangr/empNotice.jsp](src/main/webapp/WEB-INF/jsp/main/mangr/empNotice.jsp)(왼쪽 목록·오른쪽 본문, 안 읽은 것 굵게, 읽은 사람 수·이름(관리자), 📌 상단 고정) ·
+  [mangr/empMsg.jsp](src/main/webapp/WEB-INF/jsp/main/mangr/empMsg.jsp)(왼쪽 방 목록·오른쪽 글, 내 글 오른쪽 청록, 안내 글 가운데, 날짜 띠, [✚ 새 대화](1명 = 1:1 · 2명↑ = 그룹 + 이름), 그룹 = 초대·이름·나가기, Enter 보내기·Shift+Enter 줄바꿈, [↑ 이전 글 더 보기] 100건씩).
+  ★**새 글은 <묻기>(폴링)** — 보고 있는 방 4초 · 방 목록 15초 · 공지 60초 · 탭이 숨으면 쉼. 웹소켓은 안 썼다(톰캣 8.5 + iframe 셸, 필요하면 그때). 이름 바꾸기 창은 ui-message `.cfm-*` 를 빌린 입력 확인창(`prompt_`).
+  ★조회 함수에 **순번 가드**(`LOAD_REQ`·`ROOM_REQ`·`MSG_REQ`) — 방을 연달아 열면 늦게 온 앞 방 응답을 버린다(wnn QPS 에서 겪은 경주).
+- **셸**(logistics_demo2.jsp) = 「정보 현황」 앞에 **`직원 소통`** 묶음(메뉴 2 + `panel-empNotice`·`panel-empMsg` iframe 짝) + 메뉴 옆 **빨간 배지**(`.emp-badge`) ← [asset/js/emp-badge.js](src/main/webapp/asset/js/emp-badge.js)(30초마다 `/emp/badge.do`, 안 읽은 메시지가 **늘면** 토스트 한 번, 캐시버스터 = 파일 mtime).
+  iframe 화면이 읽음 처리한 뒤 `parent.konetEmpBadge()` 로 바로 갱신. 셸 JSP 엔 스크립트를 안 넣었다(65535 한도).
+- ✅**실왕복(재기동 뒤, 내장 브라우저 admin 계정)** : 공지 저장(📌·본문에 `<b>`·`&` 글자 그대로 = HTMLTagFilter 안 탐) → 목록·읽은 사람 1명 → 빨간 [삭제] 확인창 → ACTION_YN N · 메신저 새 대화(직원 6명 목록, 나 제외) → 김민지 1:1 방(DM_KEY `K001|admin`) → 보내기(내 글 오른쪽·목록 마지막 글) → DB 에 방·구성원 2·글 1, **김민지 쪽 안 읽음 1** → [나가기] 확인창 → 방 목록 0. 시험 글 1건은 김민지 방에 남아 있다(안내문 포함) — 지우려면 `DELETE FROM TBL_EMP_MSG WHERE ROOM_SEQ=1; DELETE FROM TBL_EMP_ROOM_MBR WHERE ROOM_SEQ=1; DELETE FROM TBL_EMP_ROOM WHERE ROOM_SEQ=1;`.
+  ⚠내장 브라우저 함정 : 뷰포트 1089px 는 태블릿 모드(≤1100)라 사이드바가 화면 밖 — `resize_window` 1400 으로 넓히고, ref 클릭 좌표가 어긋나면 메뉴 `a.click()` 으로.
+- **검증** = javac 4파일(lib + 톰캣 lib, exit 0) · XML 정형성 **346문·id 중복 0** · 새 JSP 인라인 JS `node --check` · 셸 태그 짝(section 57/57·div 530/530) · **jsdom 모의 실행 44검사**(scratch `emp/sim_emp.js` — 목록·읽음·저장 JSON·권한 숨김·세션 끊김 / 방·글·보내기·Enter·폴링 중복·새 대화 1명/2명·초대 비활성·나가기·순번 가드) ·
+  직원 목록 SQL 운영 DB 실행(W1234567 7명). ⛔**화면 왕복은 DDL 실행 → mvn compile → 9071 재기동 뒤** — 두 계정으로 로그인해 주고받기·배지·공지 권한을 눈으로 볼 것.
+- ✅**[같은 날 이어서] 하단 공지 흐름 띠**(사용자 「하단에 공지사항 흐르게도 추가」) — 셸 맨 아래 `#empTickerBar`(32px, 청록 그라데이션, 「📢 공지」 라벨) · 출고장 변경 알림 바(`#konetAsqBar`, 파랑 36px)가 켜지면 **그 위에 얹힌다**(`body.konet-asqbar-on #empTickerBar{bottom:36px}`).
+  내용 = [emp-badge.js](src/main/webapp/asset/js/emp-badge.js) 가 60초마다 **기존 `/emp/noticeList.do`** 로(새 엔드포인트·자바 변경 0) 고정(📌) 공지 + 최근 30일 공지 최대 10건 — 안 읽은 것엔 NEW 표, 제목을 누르면 공지 화면이 열리며 그 공지가 펼쳐진다(`empTickerOpen`, iframe 이 뜰 때까지 최대 5초 기다림).
+  [멈춤/재생] · [✕ 접기] → 왼쪽 아래 알약 `#empTickerPill`(「📢 공지 N건 · 안 읽음 n」, `localStorage konetEmpTickerFold`) · 공지가 0건이면 띠 자체가 안 보인다. `parent.konetEmpBadge()` 가 이제 배지와 띠를 함께 새로 읽는다(공지 저장·읽음 직후 반영).
+  ★띠가 켜지면 `body.emp-ticker-on` — 셸 CSS 가 **iframe 높이를 32px 줄인다**(`.panel > iframe` · `#if-shipstatus2` 는 44px 기준이라 따로 · 둘 다 켜지면 36+32) — 안 줄이면 업무 화면 마지막 줄이 띠에 가린다(실측 iframe 798px·bottom 852 < 띠 top 868).
+  검증(재기동 없이 새로고침, admin) = 공지 2건 띠 흐름(40s) · 제목 클릭 → 공지 화면 + 그 공지 펼침 · 접기 → 알약 「📢 공지 2건」 · 펼치기 · 멈춤/재생 · 삭제 뒤 띠에서 빠짐. 마르키는 `kaMarquee` 키프레임을 같이 쓴다(속도 초당 45px, 최소 30초).
+  ⚠**[📝 새 공지] 단추 세로 정렬** — 관리자용 단추만 `display:inline-flex` 로 켜면서 `align-items:center` 가 빠져 아이콘·글자가 한 줄에 안 앉았다(사용자 캡처). ✏ 는 맑은 고딕에서 선처럼 그려져 📝 로 바꿨다. **flex 로 display 를 바꾸는 단추엔 정렬을 같이 적는다.**
+- ✅**[같은 날 이어서] 우측 패널(도크) `#empDock`**(사용자 「공지사항·메신저도 우측 사이드에 보이게」 → 뜻 확인 「2번, 로그인 뒤 우측 패널」) — 어느 메뉴를 보고 있든 오른쪽 284px 에 **📢 공지 최근 5건 + 💬 내 대화방 8개**(안 읽음 배지·마지막 글). 줄을 누르면 그 공지/그 방으로 화면이 열린다(`empTickerOpen`·`empDockGoRoom`, iframe 이 뜰 때까지 기다리는 `openScreen` 공용). [✚ 새 대화] 는 메신저의 상대 고르기 창을 바로 연다. [전체 보기 →] = 그 메뉴.
+  ★열려 있으면 `body.emp-dock-on` → **`.logi-main{margin-right:284px}` 로 업무 화면을 민다**(덮으면 납기현황표 오른쪽 열이 가려진다 — 실측 mainRight 1116 = 도크 left 1115). 폭 ≤1100px 은 밀지 않고 덮는다. 접으면(✕) 오른쪽 가장자리 세로 탭 `#empDockTab`(📢·💬 안 읽은 수) 만 남고, 기본은 **열림**(`localStorage konetEmpDockOpen`).
+  하단 띠·출고장 알림 바가 켜지면 도크 bottom 을 그만큼 올린다(32/36/68). 자료 = 공지는 띠와 같은 응답(60초), 방 목록은 배지 폴링과 함께 30초(도크가 열려 있을 때만) + 새 메시지가 늘면 즉시. 자바 변경 0(기존 `/emp/roomList.do`·`noticeList.do`).
+  검증(새로고침, admin) = 도크 열림·내용 · 접기 → 탭 · [✚ 새 대화] → 메신저 + 고르기 창 · test 계정과 1:1 방 만들고 글 보냄 → 도크 방 목록에 뜸 → 도크 줄 클릭 → 메신저가 그 방으로 열림. ⚠**test 계정(사용자가 만든 담당자)과의 1:1 방·시험 글 1건이 남아 있다** — test 로 로그인하면 배지·도크·띠를 상대 쪽에서 볼 수 있다.
+- ✅**[같은 날 이어서] 내 글 지우기 + 말풍선 폭 결함 + 사이드바 로그인 사용자** :
+  · **내 글 지우기**(사용자 「지울 수도 있게 본인 작성한 것」) — 내 말풍선에 마우스를 올리면 🗑, 빨간 확인창 뒤 `/emp/msgDel.do` → `updateEmpMsgDel`(**본인 USER_ID · MSG_GB T 만**, 글자 비우고 `MSG_GB X`). 자리는 남아 「삭제된 글입니다」(점선 회색). 마지막 글이었으면 방 목록 LAST_TXT 도 그 말로(`updateEmpRoomLastTxt`). 안 읽음 셈 2곳(`selectEmpRoomList`·`selectEmpMsgUnreadCnt`)에서 X 는 뺀다. ⚠상대 화면은 **다음에 방을 열 때** 반영(폴링은 새 번호만 받는다). ⛔**자바 1 + 매퍼 3문 → 재빌드+재기동 필요**(javac 0 · XML 348문·dup 0 · 시뮬 48).
+  · ⚠**말풍선이 오른쪽에서 잘리고 세로로 길어지던 결함**(사용자 캡처) — `.bub{max-width:68%}` 의 % 가 부모 `.stack`(내용 폭, flex item)을 참조해 서로 물렸다. ⇒ **최대폭은 `.stack` 에(68%), `.bub` 는 100%**. flex 안에서 내용 폭 부모에 % 최대폭을 걸지 말 것.
+  · **사이드바에 누구로 로그인했나**(사용자 요청) — 회사명 밑 `.side-user` 「👤 이름 아이디 · 역할」(세션 s_user_nm·s_user_id·s_main_gu, 역할 이름은 JSP 에 1·2·3 고정 — 코드표를 안 읽는다). JSP 만.
+- ✅**[같은 날 이어서] 대화 지우기**(사용자 「대화도 지울 수 있게」) — 방 목록 줄에 마우스를 올리면 🗑 → 빨간 확인창 → **기존 `/emp/roomLeave.do`**(새 엔드포인트 없음). ⛔**DDL [20260922_emp_room_clear.sql](docs/sql/20260922_emp_room_clear.sql)(`TBL_EMP_ROOM_MBR.CLEAR_SEQ`) + 매퍼 5문 변경 → 재빌드+재기동 필요.**
+  ★뜻 = 카톡 「나가기」 : `LEAVE_YN Y` + **`CLEAR_SEQ` = 그때 마지막 글 번호** — 글은 안 지운다(상대에게 그대로), **그 사람에게만** 그 번호까지의 글이 안 보인다(`selectEmpMsgList`·`selectEmpMsgNew` 가 내 CLEAR_SEQ 뒤만 · `selectEmpRoomList` 는 마지막 글이 CLEAR 이전이면 빈 칸 · 안 읽음 셈 2곳도 CLEAR 뒤만). 같은 상대와 다시 시작하거나 다시 초대되면 그 뒤 글만 보이는 새 대화처럼 열린다. 방 머리의 [나가기]도 같은 동작(안내문을 맞췄다).
+  ⚠**지운 글(X)이 화면에 없다는 캡처는 오해** — 내 글은 오른쪽 정렬이라 캡처가 오른쪽에서 잘려 안 보였던 것(방 머리 [나가기]도 안 보이는 캡처였다). 실제로는 「삭제된 글입니다」 점선 말풍선이 있다.
+  검증 = XML 348문·dup 0 · 시뮬 **51** · 휴지통은 12px → **32px 원 단추**(늘 흐리게 보이고 hover 로 또렷 — 「너무 작다」 지적). 전 파일 CRLF 감사(bareLF 0).
+- ⚠**konet_vsapp(앱)에는 안 넣었다**(사용자 「웹 먼저」) — 이미 6파일이 웹과 어긋나 있어(09-17 이후 변경분) 앱 동기화는 별도 작업. 앱에 넣을 땐 모바일 화면(jsp/m)을 따로 만들어야 한다(이 화면은 PC 폭 기준).
+- ⚠트랜잭션 없음 — 그룹방 만들기(방 INSERT → 구성원 N줄 → 안내 글)가 중간에 실패하면 방만 남을 수 있다(실사용에서 보이면 `@Transactional` 이 실제로 걸리는지부터 확인 — wnn 에서는 이름뿐이었다).
+
 ## ★[완료 2026-09-11] 기준정보관리 ▸ 회사 정보 수정 (`mangr/compInfo.jsp`) — 고객 요청 「회사정보를 이렇게」
 고객이 다른 프로그램의 「설정 ▸ 회사정보 수정」 화면 3장을 보내 옴 → **전부 만들고 없는 칸은 채움**(사용자 지시 「1,2,3번 화면 전부, 없는 것 채우면 됨」).
 - **모든 회사가 쓴다**(관리자 전용 「회사/사용자 관리」와 별개). 서버는 **세션 회사코드로만** 읽고 쓴다(`sessComp`) — 화면 값을 안 받는다. 쓰기는 세션이 비면 401.

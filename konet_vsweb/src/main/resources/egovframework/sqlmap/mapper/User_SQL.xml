@@ -6867,4 +6867,231 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR H.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY H.SEND_SEQ DESC
 	]]></select>
+	<!-- ═══════════════════════════════════════════════════════════════════════════════
+	     직원 공지사항 · 직원 메신저 (2026-09-22 신설) — 표 5개 = docs/sql/20260922_emp_notice_msg.sql
+	       · 회사(COMP_CD)로 가른다 · 이름은 TBL_USER_MST(이력형, 활성·최근 1줄)에서 그때그때 읽는다(OUTER APPLY u)
+	       · 공지 배지 = 최근 60일 공지 중 내가 안 읽은 것 · 메신저 배지 = 방마다 LAST_READ_SEQ 뒤에 남이 쓴 글 수
+	     ═══════════════════════════════════════════════════════════════════════════════ -->
+
+	<!-- 직원 목록 — 회사 안 활성 계정, USER_ID 마다 최근 1줄(이력형). 대화 상대 고르기·초대 -->
+	<select id="selectEmpUsers" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT x.userId, x.userNm, x.mainGu,
+	         ISNULL((SELECT SUB_CODE_NM FROM TBL_CODE_DTL WHERE CODE_GB='Z' AND ACTION_YN='Y' AND CODE_CD='MAIN_GU' AND SUB_CODE=x.mainGu),'') AS mainGuNm
+	    FROM ( SELECT LTRIM(RTRIM(A.USER_ID)) AS userId, ISNULL(A.USER_NM,'') AS userNm, ISNULL(A.MAIN_GU,'') AS mainGu, ISNULL(A.USE_YN,'Y') AS useYn,
+	                  ROW_NUMBER() OVER (PARTITION BY LTRIM(RTRIM(A.USER_ID)) ORDER BY A.START_DT DESC, A.JOB_SEQ DESC) AS rn
+	             FROM TBL_USER_MST A
+	            WHERE A.COMP_CD = #{compCd} AND A.ACTION_YN = 'Y' ) x
+	   WHERE x.rn = 1 AND x.useYn <> 'N'
+	   ORDER BY x.userNm, x.userId
+	]]></select>
+
+	<!-- 공지 목록 — 고정(PIN) 먼저, 최신 먼저. readYn = 내가 읽었나 · readCnt = 읽은 사람 수 -->
+	<select id="selectEmpNoticeList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 300 n.NOTICE_SEQ AS noticeSeq, n.TITLE AS title, n.PIN_YN AS pinYn, ISNULL(n.REG_NM,'') AS regNm, ISNULL(n.REG_USER,'') AS regUser,
+	         CONVERT(VARCHAR(16), n.REG_DTTM, 120) AS regDttm, ISNULL(CONVERT(VARCHAR(16), n.UPD_DTTM, 120),'') AS updDttm,
+	         CASE WHEN r.USER_ID IS NULL THEN 'N' ELSE 'Y' END AS readYn,
+	         (SELECT COUNT(*) FROM TBL_EMP_NOTICE_READ r2 WHERE r2.COMP_CD = n.COMP_CD AND r2.NOTICE_SEQ = n.NOTICE_SEQ) AS readCnt
+	    FROM TBL_EMP_NOTICE n
+	    LEFT JOIN TBL_EMP_NOTICE_READ r ON r.COMP_CD = n.COMP_CD AND r.NOTICE_SEQ = n.NOTICE_SEQ AND r.USER_ID = #{userId}
+	   WHERE n.COMP_CD = #{compCd} AND n.ACTION_YN = 'Y'
+	]]>
+	  <if test="findData != null and findData != ''"><![CDATA[
+	     AND ( n.TITLE LIKE '%' + #{findData} + '%' OR n.CONTENT LIKE '%' + #{findData} + '%' OR n.REG_NM LIKE '%' + #{findData} + '%' )
+	  ]]></if>
+	<![CDATA[
+	   ORDER BY n.PIN_YN DESC, n.NOTICE_SEQ DESC
+	]]></select>
+
+	<select id="selectEmpNotice" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT n.NOTICE_SEQ AS noticeSeq, n.TITLE AS title, ISNULL(n.CONTENT,'') AS content, n.PIN_YN AS pinYn,
+	         ISNULL(n.REG_NM,'') AS regNm, ISNULL(n.REG_USER,'') AS regUser,
+	         CONVERT(VARCHAR(16), n.REG_DTTM, 120) AS regDttm, ISNULL(CONVERT(VARCHAR(16), n.UPD_DTTM, 120),'') AS updDttm
+	    FROM TBL_EMP_NOTICE n
+	   WHERE n.COMP_CD = #{compCd} AND n.NOTICE_SEQ = #{noticeSeq} AND n.ACTION_YN = 'Y'
+	]]></select>
+
+	<insert id="insertEmpNotice" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="noticeSeq" keyColumn="NOTICE_SEQ"><![CDATA[
+	  INSERT INTO TBL_EMP_NOTICE (COMP_CD, TITLE, CONTENT, PIN_YN, ACTION_YN, REG_USER, REG_NM, REG_DTTM)
+	  VALUES (#{compCd}, #{title}, #{content}, #{pinYn}, 'Y', #{userId}, #{userNm}, GETDATE())
+	]]></insert>
+
+	<update id="updateEmpNotice" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_EMP_NOTICE
+	     SET TITLE = #{title}, CONTENT = #{content}, PIN_YN = #{pinYn}, UPD_USER = #{userId}, UPD_DTTM = GETDATE()
+	   WHERE COMP_CD = #{compCd} AND NOTICE_SEQ = #{noticeSeq} AND ACTION_YN = 'Y'
+	]]></update>
+
+	<update id="deleteEmpNotice" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_EMP_NOTICE SET ACTION_YN = 'N', UPD_USER = #{userId}, UPD_DTTM = GETDATE()
+	   WHERE COMP_CD = #{compCd} AND NOTICE_SEQ = #{noticeSeq} AND ACTION_YN = 'Y'
+	]]></update>
+
+	<!-- 읽음 표시 — 한 사람 한 줄(있으면 그대로) -->
+	<insert id="insertEmpNoticeRead" parameterType="java.util.HashMap"><![CDATA[
+	  INSERT INTO TBL_EMP_NOTICE_READ (COMP_CD, NOTICE_SEQ, USER_ID, READ_DTTM)
+	  SELECT #{compCd}, #{noticeSeq}, #{userId}, GETDATE()
+	   WHERE NOT EXISTS ( SELECT 1 FROM TBL_EMP_NOTICE_READ WHERE COMP_CD = #{compCd} AND NOTICE_SEQ = #{noticeSeq} AND USER_ID = #{userId} )
+	]]></insert>
+
+	<select id="selectEmpNoticeReaders" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT r.USER_ID AS userId, ISNULL(u.USER_NM, r.USER_ID) AS userNm, CONVERT(VARCHAR(16), r.READ_DTTM, 120) AS readDttm
+	    FROM TBL_EMP_NOTICE_READ r
+	    OUTER APPLY ( SELECT TOP 1 x.USER_NM FROM TBL_USER_MST x
+	                   WHERE x.COMP_CD = r.COMP_CD AND LTRIM(RTRIM(x.USER_ID)) = r.USER_ID AND x.ACTION_YN = 'Y'
+	                   ORDER BY x.START_DT DESC, x.JOB_SEQ DESC ) u
+	   WHERE r.COMP_CD = #{compCd} AND r.NOTICE_SEQ = #{noticeSeq}
+	   ORDER BY r.READ_DTTM
+	]]></select>
+
+	<!-- 안 읽은 공지 수 — 최근 60일 것만(새 직원에게 옛 공지가 전부 「안 읽음」으로 쌓이지 않게) -->
+	<select id="selectEmpNoticeUnreadCnt" parameterType="java.util.HashMap" resultType="int"><![CDATA[
+	  SELECT COUNT(*)
+	    FROM TBL_EMP_NOTICE n
+	   WHERE n.COMP_CD = #{compCd} AND n.ACTION_YN = 'Y' AND n.REG_DTTM >= DATEADD(DAY, -60, GETDATE())
+	     AND NOT EXISTS ( SELECT 1 FROM TBL_EMP_NOTICE_READ r WHERE r.COMP_CD = n.COMP_CD AND r.NOTICE_SEQ = n.NOTICE_SEQ AND r.USER_ID = #{userId} )
+	]]></select>
+
+	<!-- ── 메신저 ── -->
+	<select id="selectEmpRoomByKey" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 1 ROOM_SEQ AS roomSeq FROM TBL_EMP_ROOM WHERE COMP_CD = #{compCd} AND DM_KEY = #{dmKey}
+	]]></select>
+
+	<insert id="insertEmpRoom" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="roomSeq" keyColumn="ROOM_SEQ"><![CDATA[
+	  INSERT INTO TBL_EMP_ROOM (COMP_CD, ROOM_GB, ROOM_NM, DM_KEY, LAST_MSG_SEQ, REG_USER, REG_DTTM)
+	  VALUES (#{compCd}, #{roomGb}, #{roomNm,jdbcType=NVARCHAR}, #{dmKey,jdbcType=VARCHAR}, 0, #{userId}, GETDATE())
+	]]></insert>
+
+	<!-- 구성원 넣기 — 이미 있으면(나갔다 다시 초대) 다시 켠다. 들어오는 시점의 마지막 글까지는 읽은 것으로(안 읽음이 0 에서 시작) -->
+	<insert id="insertEmpRoomMbr" parameterType="java.util.HashMap"><![CDATA[
+	  IF EXISTS ( SELECT 1 FROM TBL_EMP_ROOM_MBR WHERE COMP_CD = #{compCd} AND ROOM_SEQ = #{roomSeq} AND USER_ID = #{userId} )
+	     UPDATE TBL_EMP_ROOM_MBR SET LEAVE_YN = 'N', JOIN_DTTM = GETDATE(),
+	            LAST_READ_SEQ = ISNULL((SELECT LAST_MSG_SEQ FROM TBL_EMP_ROOM WHERE ROOM_SEQ = #{roomSeq}), 0)
+	      WHERE COMP_CD = #{compCd} AND ROOM_SEQ = #{roomSeq} AND USER_ID = #{userId} AND LEAVE_YN = 'Y'
+	  ELSE
+	     INSERT INTO TBL_EMP_ROOM_MBR (COMP_CD, ROOM_SEQ, USER_ID, LAST_READ_SEQ, LEAVE_YN, JOIN_DTTM)
+	     VALUES (#{compCd}, #{roomSeq}, #{userId}, ISNULL((SELECT LAST_MSG_SEQ FROM TBL_EMP_ROOM WHERE ROOM_SEQ = #{roomSeq}), 0), 'N', GETDATE())
+	]]></insert>
+
+	<!-- 내 방 목록 — 마지막 글이 최근인 차례. unread = 내가 읽은 번호 뒤에 남이 쓴 글 -->
+	<select id="selectEmpRoomList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT r.ROOM_SEQ AS roomSeq, r.ROOM_GB AS roomGb, ISNULL(r.ROOM_NM,'') AS roomNm,
+	         CASE WHEN r.LAST_MSG_SEQ <= m.CLEAR_SEQ THEN '' ELSE ISNULL(r.LAST_TXT,'') END AS lastTxt,
+	         ISNULL(r.LAST_USER,'') AS lastUser, CASE WHEN r.LAST_MSG_SEQ <= m.CLEAR_SEQ THEN '' ELSE ISNULL(CONVERT(VARCHAR(16), r.LAST_DTTM, 120),'') END AS lastDttm,
+	         r.LAST_MSG_SEQ AS lastMsgSeq, m.LAST_READ_SEQ AS lastReadSeq,
+	         (SELECT COUNT(*) FROM TBL_EMP_MSG g WHERE g.COMP_CD = r.COMP_CD AND g.ROOM_SEQ = r.ROOM_SEQ AND g.MSG_SEQ > m.LAST_READ_SEQ AND g.MSG_SEQ > m.CLEAR_SEQ AND g.USER_ID <> m.USER_ID AND g.MSG_GB <> 'X') AS unread
+	    FROM TBL_EMP_ROOM_MBR m
+	    JOIN TBL_EMP_ROOM r ON r.COMP_CD = m.COMP_CD AND r.ROOM_SEQ = m.ROOM_SEQ
+	   WHERE m.COMP_CD = #{compCd} AND m.USER_ID = #{userId} AND m.LEAVE_YN = 'N'
+	   ORDER BY ISNULL(r.LAST_DTTM, r.REG_DTTM) DESC, r.ROOM_SEQ DESC
+	]]></select>
+
+	<!-- 내가 든 방들의 구성원 전부(이름 붙여) — 방 이름·구성원 표시를 서비스가 조립한다 -->
+	<select id="selectEmpRoomMbrsOfUser" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT m.ROOM_SEQ AS roomSeq, m.USER_ID AS userId, ISNULL(u.USER_NM, m.USER_ID) AS userNm, m.LEAVE_YN AS leaveYn
+	    FROM TBL_EMP_ROOM_MBR m
+	    OUTER APPLY ( SELECT TOP 1 x.USER_NM FROM TBL_USER_MST x
+	                   WHERE x.COMP_CD = m.COMP_CD AND LTRIM(RTRIM(x.USER_ID)) = m.USER_ID AND x.ACTION_YN = 'Y'
+	                   ORDER BY x.START_DT DESC, x.JOB_SEQ DESC ) u
+	   WHERE m.COMP_CD = #{compCd}
+	     AND m.ROOM_SEQ IN ( SELECT z.ROOM_SEQ FROM TBL_EMP_ROOM_MBR z WHERE z.COMP_CD = #{compCd} AND z.USER_ID = #{userId} AND z.LEAVE_YN = 'N' )
+	   ORDER BY m.ROOM_SEQ, m.JOIN_DTTM
+	]]></select>
+
+	<!-- 이 방에 내가 들어 있나(권한 확인) — 없으면 0줄 -->
+	<select id="selectEmpRoomMine" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT r.ROOM_SEQ AS roomSeq, r.ROOM_GB AS roomGb, ISNULL(r.ROOM_NM,'') AS roomNm, r.LAST_MSG_SEQ AS lastMsgSeq,
+	         m.LAST_READ_SEQ AS lastReadSeq, m.LEAVE_YN AS leaveYn
+	    FROM TBL_EMP_ROOM r
+	    JOIN TBL_EMP_ROOM_MBR m ON m.COMP_CD = r.COMP_CD AND m.ROOM_SEQ = r.ROOM_SEQ AND m.USER_ID = #{userId}
+	   WHERE r.COMP_CD = #{compCd} AND r.ROOM_SEQ = #{roomSeq}
+	]]></select>
+
+	<select id="selectEmpRoomMbrs" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT m.USER_ID AS userId, ISNULL(u.USER_NM, m.USER_ID) AS userNm, m.LEAVE_YN AS leaveYn, m.LAST_READ_SEQ AS lastReadSeq
+	    FROM TBL_EMP_ROOM_MBR m
+	    OUTER APPLY ( SELECT TOP 1 x.USER_NM FROM TBL_USER_MST x
+	                   WHERE x.COMP_CD = m.COMP_CD AND LTRIM(RTRIM(x.USER_ID)) = m.USER_ID AND x.ACTION_YN = 'Y'
+	                   ORDER BY x.START_DT DESC, x.JOB_SEQ DESC ) u
+	   WHERE m.COMP_CD = #{compCd} AND m.ROOM_SEQ = #{roomSeq}
+	   ORDER BY m.JOIN_DTTM
+	]]></select>
+
+	<!-- 메시지 — 최근 100건(beforeSeq 가 오면 그 앞 100건 = 위로 더 보기). 오름차순으로 돌려준다 -->
+	<select id="selectEmpMsgList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT x.* FROM (
+	    SELECT TOP 100 g.MSG_SEQ AS msgSeq, g.USER_ID AS userId, ISNULL(u.USER_NM, g.USER_ID) AS userNm, ISNULL(g.MSG_TXT,'') AS msgTxt,
+	           g.MSG_GB AS msgGb, CONVERT(VARCHAR(19), g.REG_DTTM, 120) AS regDttm
+	      FROM TBL_EMP_MSG g
+	      OUTER APPLY ( SELECT TOP 1 y.USER_NM FROM TBL_USER_MST y
+	                     WHERE y.COMP_CD = g.COMP_CD AND LTRIM(RTRIM(y.USER_ID)) = g.USER_ID AND y.ACTION_YN = 'Y'
+	                     ORDER BY y.START_DT DESC, y.JOB_SEQ DESC ) u
+	     WHERE g.COMP_CD = #{compCd} AND g.ROOM_SEQ = #{roomSeq}
+       AND g.MSG_SEQ > ISNULL((SELECT mm.CLEAR_SEQ FROM TBL_EMP_ROOM_MBR mm WHERE mm.COMP_CD = g.COMP_CD AND mm.ROOM_SEQ = g.ROOM_SEQ AND mm.USER_ID = #{userId}), 0)
+	]]>
+	  <if test="beforeSeq != null and beforeSeq > 0"><![CDATA[ AND g.MSG_SEQ < #{beforeSeq} ]]></if>
+	<![CDATA[
+	     ORDER BY g.MSG_SEQ DESC ) x
+	   ORDER BY x.msgSeq
+	]]></select>
+
+	<!-- 새 메시지(afterSeq 뒤) — 화면이 몇 초마다 묻는다 -->
+	<select id="selectEmpMsgNew" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 200 g.MSG_SEQ AS msgSeq, g.USER_ID AS userId, ISNULL(u.USER_NM, g.USER_ID) AS userNm, ISNULL(g.MSG_TXT,'') AS msgTxt,
+	         g.MSG_GB AS msgGb, CONVERT(VARCHAR(19), g.REG_DTTM, 120) AS regDttm
+	    FROM TBL_EMP_MSG g
+	    OUTER APPLY ( SELECT TOP 1 y.USER_NM FROM TBL_USER_MST y
+	                   WHERE y.COMP_CD = g.COMP_CD AND LTRIM(RTRIM(y.USER_ID)) = g.USER_ID AND y.ACTION_YN = 'Y'
+	                   ORDER BY y.START_DT DESC, y.JOB_SEQ DESC ) u
+	   WHERE g.COMP_CD = #{compCd} AND g.ROOM_SEQ = #{roomSeq} AND g.MSG_SEQ > #{afterSeq}
+     AND g.MSG_SEQ > ISNULL((SELECT mm.CLEAR_SEQ FROM TBL_EMP_ROOM_MBR mm WHERE mm.COMP_CD = g.COMP_CD AND mm.ROOM_SEQ = g.ROOM_SEQ AND mm.USER_ID = #{userId}), 0)
+	   ORDER BY g.MSG_SEQ
+	]]></select>
+
+	<insert id="insertEmpMsg" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="msgSeq" keyColumn="MSG_SEQ"><![CDATA[
+	  INSERT INTO TBL_EMP_MSG (COMP_CD, ROOM_SEQ, USER_ID, MSG_TXT, MSG_GB, REG_DTTM)
+	  VALUES (#{compCd}, #{roomSeq}, #{userId}, #{msgTxt}, #{msgGb}, GETDATE())
+	]]></insert>
+
+	<update id="updateEmpRoomLast" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_EMP_ROOM SET LAST_MSG_SEQ = #{msgSeq}, LAST_TXT = #{lastTxt}, LAST_USER = #{userId}, LAST_DTTM = GETDATE()
+	   WHERE COMP_CD = #{compCd} AND ROOM_SEQ = #{roomSeq}
+	]]></update>
+
+	<!-- 어디까지 읽었나 — 뒤로 가지 않는다 -->
+	<update id="updateEmpRoomRead" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_EMP_ROOM_MBR SET LAST_READ_SEQ = CASE WHEN #{lastSeq} > LAST_READ_SEQ THEN #{lastSeq} ELSE LAST_READ_SEQ END
+	   WHERE COMP_CD = #{compCd} AND ROOM_SEQ = #{roomSeq} AND USER_ID = #{userId}
+	]]></update>
+
+	<update id="updateEmpRoomLeave" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_EMP_ROOM_MBR SET LEAVE_YN = 'Y',
+	         CLEAR_SEQ = ISNULL((SELECT LAST_MSG_SEQ FROM TBL_EMP_ROOM WHERE COMP_CD = #{compCd} AND ROOM_SEQ = #{roomSeq}), 0)   /* 대화 지우기(2026-09-22) — 여기까지의 글은 이 사람에게 안 보인다 */
+	   WHERE COMP_CD = #{compCd} AND ROOM_SEQ = #{roomSeq} AND USER_ID = #{userId}
+	]]></update>
+
+	<update id="updateEmpRoomNm" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_EMP_ROOM SET ROOM_NM = #{roomNm}
+	   WHERE COMP_CD = #{compCd} AND ROOM_SEQ = #{roomSeq} AND ROOM_GB = 'G'
+	]]></update>
+
+	<!-- 배지 — 안 읽은 글 수 · 안 읽은 글이 있는 방 수 -->
+	<select id="selectEmpMsgUnreadCnt" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT ISNULL(SUM(x.unread),0) AS msgUnread, ISNULL(SUM(CASE WHEN x.unread > 0 THEN 1 ELSE 0 END),0) AS roomUnread
+	    FROM ( SELECT (SELECT COUNT(*) FROM TBL_EMP_MSG g WHERE g.COMP_CD = m.COMP_CD AND g.ROOM_SEQ = m.ROOM_SEQ AND g.MSG_SEQ > m.LAST_READ_SEQ AND g.MSG_SEQ > m.CLEAR_SEQ AND g.USER_ID <> m.USER_ID AND g.MSG_GB <> 'X') AS unread
+	             FROM TBL_EMP_ROOM_MBR m
+	            WHERE m.COMP_CD = #{compCd} AND m.USER_ID = #{userId} AND m.LEAVE_YN = 'N' ) x
+	]]></select>
+
+	<!-- 내 글 지우기 (2026-09-22 「지울 수도 있게 본인 작성한 것」) — 글자는 비우고 MSG_GB X(삭제) : 그 자리에 「삭제된 글입니다」가 남는다. 본인 것(USER_ID)만, 이미 지운 것은 0줄 -->
+	<update id="updateEmpMsgDel" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_EMP_MSG SET MSG_GB = 'X', MSG_TXT = ''
+	   WHERE COMP_CD = #{compCd} AND ROOM_SEQ = #{roomSeq} AND MSG_SEQ = #{msgSeq} AND USER_ID = #{userId} AND MSG_GB = 'T'
+	]]></update>
+
+	<!-- 지운 글이 방의 마지막 글이었으면 목록에 보이는 마지막 글도 바꾼다 -->
+	<update id="updateEmpRoomLastTxt" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_EMP_ROOM SET LAST_TXT = #{lastTxt}
+	   WHERE COMP_CD = #{compCd} AND ROOM_SEQ = #{roomSeq} AND LAST_MSG_SEQ = #{msgSeq}
+	]]></update>
+
 </mapper>

@@ -94,6 +94,9 @@
   .logi-side .side-tit small { display:block; font-size:11px; font-weight:400; color:#8a98a8; margin-top:3px; }
   /* 로그인 회사명 — 대시보드 메뉴 위, 물류관리 제목과 같은 17px (2026-07-31 요청) */
   .logi-side .side-comp { padding:12px 20px 6px; font-size:17px; font-weight:700; color:#ffd98a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .logi-side .side-user { padding:0 20px 10px; font-size:13px; color:#cdd6e0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }   /* 로그인 사용자 (2026-09-22) */
+  .logi-side .side-user b { color:#fff; font-weight:800; }
+  .logi-side .side-user small { color:#8a98a8; font-size:11px; margin-left:6px; }
   /* ★[2026-08-21] 제목+회사명 고정(「스크롤해도 코네트까지 고정」) — .logi-side 가 스크롤 상자라
      그 안 sticky 로 충분하다. 배경을 사이드 색으로 깔아야 메뉴 글자가 밑으로 비쳐도 안 겹쳐 보인다. */
   .logi-side .side-fix { position:sticky; top:0; z-index:3; background:#1f2a37;
@@ -105,6 +108,77 @@
   .logi-side a.mi.on { background:var(--logi-teal); color:#fff; border-left:5px solid #0b5a52; padding-left:16px; font-weight:800; box-shadow:inset -3px 0 0 rgba(255,255,255,.18); }
   .logi-side a.mi.on .ic, .logi-side a.mi.on .caret { color:#fff; }
   .logi-side .sub-menu a.mi.on { padding-left:30px; }
+  /* 직원 공지 흐름 띠 (2026-09-22 「하단에 공지사항 흐르게도 추가」) — 화면 맨 아래 고정. 채우기·동작은 asset/js/emp-badge.js(empTicker*).
+     출고장 변경 알림 바(#konetAsqBar, 36px)가 켜지면 그 위에 얹힌다. [✕] 로 접으면 왼쪽 아래 작은 알약(#empTickerPill)만 남는다. 공지가 없으면 안 보인다.
+     띠가 켜지면 body.emp-ticker-on — 아래 규칙이 iframe·패널 높이를 그만큼 줄여 마지막 줄이 안 가려진다. */
+  #empTickerBar { position:fixed; bottom:0; left:0; width:100%; height:32px; display:none; align-items:center; z-index:9990; overflow:hidden;
+    font-size:13px; font-weight:700; color:#fff; box-shadow:0 -2px 8px rgba(0,0,0,.15); background:linear-gradient(135deg,#0f5f54 0%,#1f9b8e 100%); }
+  body.konet-asqbar-on #empTickerBar { bottom:36px; }
+  #empTickerBar .et-lbl { flex-shrink:0; height:100%; display:flex; align-items:center; gap:6px; padding:0 14px; background:#b06a00; white-space:nowrap; }
+  #empTickerBar .et-view { flex:1; height:100%; overflow:hidden; display:flex; align-items:center; }
+  #empTickerBar .et-track { display:flex; align-items:center; white-space:nowrap; animation:kaMarquee 60s linear infinite; }
+  #empTickerBar .et-track:hover { animation-play-state:paused; }
+  #empTickerBar .et-spacer { display:inline-block; flex-shrink:0; width:100vw; }
+  #empTickerBar .et-item { display:inline-block; padding:0 6px; cursor:pointer; }
+  #empTickerBar .et-item:hover { text-decoration:underline; }
+  #empTickerBar .et-item .pin { color:#ffd700; }
+  #empTickerBar .et-item .new { background:#e74c3c; color:#fff; font-size:10px; border-radius:8px; padding:0 6px; margin-right:5px; vertical-align:1px; }
+  #empTickerBar .et-item small { color:#cfe9e4; font-weight:400; margin-left:6px; font-size:11.5px; }
+  #empTickerBar .et-sep { color:#7fd3c6; margin:0 14px; }
+  #empTickerBar .et-btn { flex-shrink:0; margin:0 4px; padding:3px 10px; border-radius:4px; cursor:pointer; font-size:11px; color:#fff; white-space:nowrap;
+    background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); }
+  #empTickerBar .et-btn:hover { background:rgba(255,255,255,.28); }
+  #empTickerBar .et-btn.x { margin-right:10px; }
+  #empTickerPill { position:fixed; left:12px; bottom:10px; z-index:9990; display:none; padding:5px 12px; border-radius:16px; cursor:pointer; font-size:12px; font-weight:800;
+    color:#fff; background:#137a6c; box-shadow:0 4px 14px rgba(0,0,0,.25); }
+  body.konet-asqbar-on #empTickerPill { bottom:46px; }
+  #empTickerPill:hover { background:#1f9b8e; }
+  body.emp-ticker-on .logi-main .panel > iframe { height:calc(100vh - 70px - 32px) !important; }
+  body.emp-ticker-on #if-shipstatus2 { height:calc(100vh - 44px - 32px) !important; }
+  body.emp-ticker-on.konet-asqbar-on #if-shipstatus2 { height:calc(100vh - 44px - 36px - 32px) !important; }
+  body.emp-ticker-on .logi-main { padding-bottom:40px; }
+  /* 직원 소통 우측 패널(도크) (2026-09-22 「로그인 뒤 우측 패널」) — 어느 메뉴를 보고 있든 오른쪽에 최근 공지 5건 + 내 대화방이 늘 보인다.
+     채우기·동작은 asset/js/emp-badge.js(empDock*). 열려 있으면 body.emp-dock-on → .logi-main 을 그만큼 밀어 업무 화면(iframe)이 안 가려진다.
+     접으면 오른쪽 가장자리 세로 탭(#empDockTab, 안 읽은 수)만 남는다. 폭 ≤1100px(태블릿)에서는 밀지 않고 덮는다. localStorage konetEmpDockOpen */
+  #empDock { position:fixed; top:0; right:0; width:284px; bottom:0; z-index:9980; display:none; flex-direction:column; background:#fff;
+    border-left:1px solid #d5dee9; box-shadow:-4px 0 16px rgba(15,43,58,.12); font-family:'맑은 고딕','Malgun Gothic',sans-serif; font-size:13px; color:#1f2a37; }
+  body.emp-dock-on #empDock { display:flex; }
+  body.emp-dock-on .logi-main { margin-right:284px; }
+  body.emp-ticker-on #empDock { bottom:32px; }
+  body.emp-ticker-on.konet-asqbar-on #empDock { bottom:68px; }
+  body.konet-asqbar-on:not(.emp-ticker-on) #empDock { bottom:36px; }
+  @media (max-width:1100px){ body.emp-dock-on .logi-main { margin-right:0; } }
+  #empDock .ed-hd { flex:none; display:flex; align-items:center; gap:8px; padding:9px 12px; background:#1f2a37; color:#fff; font-weight:800; font-size:13.5px; }
+  #empDock .ed-hd .x { margin-left:auto; cursor:pointer; color:#cdd6e0; font-size:16px; line-height:1; padding:0 4px; }
+  #empDock .ed-hd .x:hover { color:#fff; }
+  #empDock .ed-body { flex:1; overflow:auto; }
+  #empDock .ed-sec { border-bottom:1px solid #e6ebf0; }
+  #empDock .ed-tit { display:flex; align-items:center; gap:6px; padding:8px 12px 5px; font-weight:800; color:#125a4e; font-size:12.5px; background:#f3f8f6; }
+  #empDock .ed-tit .n { background:#e74c3c; color:#fff; font-size:10.5px; font-weight:800; border-radius:9px; padding:1px 6px; min-width:16px; text-align:center; }
+  #empDock .ed-tit .more { margin-left:auto; font-weight:700; color:#137a6c; cursor:pointer; font-size:12px; }
+  #empDock .ed-tit .more:hover { text-decoration:underline; }
+  #empDock .ed-it { padding:7px 12px; border-top:1px solid #f0f3f6; cursor:pointer; }
+  #empDock .ed-it:hover { background:#f7faf9; }
+  #empDock .ed-it .t { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #empDock .ed-it.unread .t { font-weight:900; color:#0f2b3a; }
+  #empDock .ed-it .s { color:#6b7a89; font-size:11.5px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #empDock .ed-it .new { background:#e74c3c; color:#fff; font-size:10px; border-radius:8px; padding:0 5px; margin-right:4px; vertical-align:1px; }
+  #empDock .ed-it .pin { color:#b06a00; }
+  #empDock .ed-it .un { float:right; background:#e74c3c; color:#fff; font-size:10.5px; font-weight:800; border-radius:9px; padding:1px 6px; min-width:16px; text-align:center; margin-left:6px; }
+  #empDock .ed-empty { padding:12px; color:#8a98a8; font-size:12px; text-align:center; }
+  #empDock .ed-ft { flex:none; padding:8px 12px; border-top:1px solid #e6ebf0; display:flex; gap:6px; }
+  #empDock .ed-ft button { flex:1; height:30px; border:1px solid #d5dee9; border-radius:6px; background:#fff; cursor:pointer; font-size:12px; font-weight:700; color:#37475a; }
+  #empDock .ed-ft button:hover { border-color:#137a6c; color:#137a6c; }
+  /* 접힌 탭 — 오른쪽 가장자리 세로 */
+  #empDockTab { position:fixed; top:50%; right:0; transform:translateY(-50%); z-index:9980; display:none; flex-direction:column; align-items:center; gap:6px;
+    padding:10px 6px; background:#1f2a37; color:#fff; border-radius:10px 0 0 10px; cursor:pointer; box-shadow:-3px 0 12px rgba(0,0,0,.25); font-size:15px; }
+  body:not(.emp-dock-on) #empDockTab { display:flex; }
+  #empDockTab:hover { background:#28333f; }
+  #empDockTab .b { position:relative; }
+  #empDockTab .b .n { position:absolute; top:-7px; right:-9px; background:#e74c3c; color:#fff; font-size:10px; font-weight:800; border-radius:8px; padding:0 4px; min-width:14px; text-align:center; display:none; }
+  #empDockTab .lbl { writing-mode:vertical-rl; font-size:11px; font-weight:800; letter-spacing:2px; color:#cdd6e0; }
+  /* 직원 소통 메뉴의 안 읽음 배지 (2026-09-22) — 수는 asset/js/emp-badge.js 가 채운다. 0 이면 display:none */
+  .logi-side a.mi .emp-badge { margin-left:auto; background:#e74c3c; color:#fff; font-size:11px; font-weight:800; border-radius:10px; padding:1px 7px; min-width:18px; text-align:center; line-height:16px; }
   .logi-side a.mi .ic { width:18px; text-align:center; }
   .logi-side a.mi.core { color:#aef0e7; }
   /* ── 자주 쓰는 메뉴(최대 5개) ─────────────────────
@@ -3177,6 +3251,12 @@
      셸에만 걸면 된다 — iframe 업무화면은 이 스크립트가 알아서 같은 배율로 맞춘다.
      빼려면 이 한 줄만 지우면 종전 크기로 돌아간다. --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-fontsize.js?v=20260904a"></script>
+<%-- 직원 소통 안 읽음 배지 (2026-09-22) — 사이드바 「직원 공지사항 / 직원 메신저」 옆 수. 30초마다 /emp/badge.do. 캐시버스터는 파일 mtime --%>
+<%
+  long _ebJsVer = 0L;
+  try { _ebJsVer = new java.io.File(application.getRealPath("/asset/js/emp-badge.js")).lastModified(); } catch (Exception _e) { }
+%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/emp-badge.js?v=<%=_ebJsVer%>"></script>
 </head>
 <body>
 <%-- 좌측 메뉴 접힘 상태를 <그리기 전에> 입힌다 (2026-08-05) —
@@ -3259,6 +3339,13 @@
     <% String _compNm = (String)session.getAttribute("s_comp_nm");
        if (_compNm != null && !_compNm.trim().isEmpty()) { %>
     <div class="side-comp" title="로그인 회사">🏢 <%= _compNm.trim() %></div>
+    <% } %>
+    <%-- 누구로 로그인했나 (2026-09-22 사용자 「누구로 로그인했는지도 사이드바에 보이게」) — 이름 · 아이디 · 역할(MAIN_GU 1 총괄관리자 · 2 부관리자 · 3 담당자). 회사명 바로 밑 --%>
+    <% String _uNm = (String)session.getAttribute("s_user_nm"), _uId = (String)session.getAttribute("s_user_id");
+       String _gu = session.getAttribute("s_main_gu") == null ? "" : String.valueOf(session.getAttribute("s_main_gu")).trim();
+       String _guNm = "1".equals(_gu) ? "총괄관리자" : "2".equals(_gu) ? "부관리자" : "3".equals(_gu) ? "담당자" : "";
+       if (_uId != null && !_uId.trim().isEmpty()) { %>
+    <div class="side-user" title="로그인 사용자">👤 <b><%= (_uNm == null || _uNm.trim().isEmpty()) ? _uId.trim() : _uNm.trim() %></b><small><%= _uId.trim() %><%= _guNm.isEmpty() ? "" : " · " + _guNm %></small></div>
     <% } %>
     </div><%-- /side-fix --%>
 
@@ -3349,6 +3436,14 @@
            매핑이 안 되면 그 품목이 재고에서 빠지므로, 재고를 보다가 바로 갈 수 있는 자리가 맞다. --%>
       <a class="mi" data-key="xrefAudit" onclick="logiGo('xrefAudit', this); xaLoad();"><span class="ic">🔗</span>품목코드(매핑)</a>
     </div>
+
+    <%-- 직원 소통 (2026-09-22 신설) — 직원 공지사항(관리자 작성·전원 읽기) · 직원 메신저(1:1 + 그룹, 글만).
+         iframe 화면(mangr/empNotice.jsp · empMsg.jsp) — 아래 panel-empNotice · panel-empMsg 와 짝.
+         메뉴 옆 빨간 배지(.emp-badge) = 안 읽은 수 — asset/js/emp-badge.js 가 30초마다 /emp/badge.do 에 묻는다(이 JSP 엔 스크립트를 넣지 않는다 — 65535 한도).
+         화면(iframe)이 읽음 처리한 뒤 parent.konetEmpBadge() 로 바로 갱신한다. 모바일 앱(9072)은 아직 없다(웹 먼저). --%>
+    <div class="grp">직원 소통</div>
+    <a class="mi" data-key="empNotice" onclick="logiFrame('empNotice','${pageContext.request.contextPath}/emp/notice.do', this)"><span class="ic">📢</span>직원 공지사항<span class="emp-badge" id="empNoticeBadge" style="display:none"></span></a>
+    <a class="mi" data-key="empMsg" onclick="logiFrame('empMsg','${pageContext.request.contextPath}/emp/msg.do', this)"><span class="ic">💬</span>직원 메신저<span class="emp-badge" id="empMsgBadge" style="display:none"></span></a>
 
     <div class="grp">정보 현황</div>
     <a class="mi has-sub" data-sub="infomng" onclick="logiToggleSub('infomng', this)"><span class="ic">📈</span>정보 현황<span class="caret">▶</span></a>
@@ -5035,6 +5130,13 @@
       <div id="d2FrameLoading"><div class="box"><span class="sp"></span><span>대시보드를 불러오는 중입니다…</span></div></div>
     </section>
 
+    <%-- 직원 소통 (2026-09-22) — 메뉴 logiFrame('empNotice'|'empMsg',…) 의 짝 --%>
+    <section id="panel-empNotice" class="panel" style="padding:0;">
+      <iframe id="if-empNotice" src="" title="직원 공지사항" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <section id="panel-empMsg" class="panel" style="padding:0;">
+      <iframe id="if-empMsg" src="" title="직원 메신저" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
     <section id="panel-compcd" class="panel" style="padding:0;">
       <iframe id="if-compcd" src="" title="회사/사용자 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
@@ -5065,6 +5167,36 @@
 
   </main>
 </div>
+
+<!-- 직원 소통 우측 패널(도크) (2026-09-22) — 채우기·동작은 asset/js/emp-badge.js(empDock*). 접힌 탭(#empDockTab)은 도크가 닫혔을 때만 보인다(CSS) -->
+<div id="empDock">
+  <div class="ed-hd">💼 직원 소통<span class="x" onclick="empDockOpen(false)" title="접기">✕</span></div>
+  <div class="ed-body">
+    <div class="ed-sec">
+      <div class="ed-tit">📢 공지 <span class="n" id="empDockNoticeN" style="display:none"></span><span class="more" onclick="empDockGo('empNotice')">전체 보기 →</span></div>
+      <div id="empDockNotice"><div class="ed-empty">읽는 중…</div></div>
+    </div>
+    <div class="ed-sec">
+      <div class="ed-tit">💬 메신저 <span class="n" id="empDockMsgN" style="display:none"></span><span class="more" onclick="empDockGo('empMsg')">전체 보기 →</span></div>
+      <div id="empDockRooms"><div class="ed-empty">읽는 중…</div></div>
+    </div>
+  </div>
+  <div class="ed-ft"><button onclick="empDockGo('empMsg','new')">✚ 새 대화</button><button onclick="empDockRefresh()">⟳ 새로고침</button></div>
+</div>
+<div id="empDockTab" onclick="empDockOpen(true)" title="직원 소통 패널 펼치기">
+  <span class="b">📢<span class="n" id="empDockTabN1"></span></span>
+  <span class="b">💬<span class="n" id="empDockTabN2"></span></span>
+  <span class="lbl">직원소통</span>
+</div>
+
+<!-- 직원 공지 흐름 띠 (2026-09-22) — 채우기·동작은 asset/js/emp-badge.js. 공지가 없으면 안 보인다. 출고장 알림 바 위에 얹힌다(CSS) -->
+<div id="empTickerBar">
+  <div class="et-lbl">📢 공지</div>
+  <div class="et-view"><div class="et-track" id="empTickerTrack"></div></div>
+  <button class="et-btn" id="empTickerToggle" onclick="empTickerToggle()" title="흐름 멈춤/재생">멈춤</button>
+  <button class="et-btn x" onclick="empTickerFold(true)" title="띠 접기 — 왼쪽 아래 작은 단추로 남습니다">✕</button>
+</div>
+<div id="empTickerPill" onclick="empTickerFold(false)" title="공지 띠 펼치기">📢 공지 <span id="empTickerPillN"></span></div>
 
 <!-- 출고장 변경 알림 — 화면 하단 독립 고정 바 (데시보드2 iframe이 postMessage로 요약을 올림) -->
 <div id="konetAsqBar">

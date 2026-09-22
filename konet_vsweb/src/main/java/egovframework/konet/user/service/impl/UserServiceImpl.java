@@ -2379,4 +2379,279 @@ public class UserServiceImpl implements UserService {
 		}
 		return seq;
 	}
+	/* ═══════════════════════════════════════════════════════════════════════════════
+	   직원 공지사항 · 직원 메신저 (2026-09-22 신설)
+	     · 회사(compCd)·아이디(userId)·이름(userNm)은 컨트롤러가 세션에서 꺼내 넘긴다 — 화면 값을 믿지 않는다.
+	     · 메신저 소속 확인은 selectEmpRoomMine 한 곳(내가 든 방이 아니면 "방에 들어 있지 않습니다").
+	     · 1:1 방은 두 아이디를 정렬해 '|' 로 붙인 DM_KEY 로 한 방만(같은 상대와 두 번 열면 그 방).
+	     · 이름은 저장하지 않고 TBL_USER_MST 에서 읽는다(SQL 의 OUTER APPLY). 공지 작성자 이름(REG_NM)만 그때 이름을 남긴다.
+	   ═══════════════════════════════════════════════════════════════════════════════ */
+	private static java.util.Map<String,Object> empP(String compCd, String userId) {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("userId", userId);
+		return p;
+	}
+	private static String empStr(Object o) { return o == null ? "" : String.valueOf(o).trim(); }
+	private static int empInt(Object o) {
+		if (o == null) return 0;
+		if (o instanceof Number) return ((Number) o).intValue();
+		try { return Integer.parseInt(String.valueOf(o).trim().split("[.]")[0]); } catch (Exception e) { return 0; }
+	}
+
+	@Override public java.util.List<java.util.Map<String,Object>> empUsers(String compCd) throws Exception {
+		return mapper.selectEmpUsers(empP(compCd, ""));
+	}
+
+	@Override public java.util.List<java.util.Map<String,Object>> empNoticeList(String compCd, String userId, String findData) throws Exception {
+		java.util.Map<String,Object> p = empP(compCd, userId);
+		p.put("findData", findData == null ? "" : findData.trim());
+		return mapper.selectEmpNoticeList(p);
+	}
+
+	@Override public java.util.Map<String,Object> empNoticeGet(String compCd, String userId, int noticeSeq) throws Exception {
+		java.util.Map<String,Object> p = empP(compCd, userId);
+		p.put("noticeSeq", noticeSeq);
+		java.util.Map<String,Object> n = mapper.selectEmpNotice(p);
+		if (n == null) return null;
+		mapper.insertEmpNoticeRead(p);                       // 연 순간 읽음(있으면 그대로)
+		n.put("readers", mapper.selectEmpNoticeReaders(p));
+		return n;
+	}
+
+	@Override public int empNoticeSave(String compCd, String userId, String userNm, java.util.Map<String,Object> body) throws Exception {
+		String title = empStr(body.get("title"));
+		String content = body.get("content") == null ? "" : String.valueOf(body.get("content"));
+		if (title.isEmpty()) throw new IllegalArgumentException("제목을 입력하세요.");
+		if (title.length() > 200) throw new IllegalArgumentException("제목은 200자까지입니다.");
+		if (content.length() > 20000) throw new IllegalArgumentException("본문은 20,000자까지입니다.");
+		java.util.Map<String,Object> p = empP(compCd, userId);
+		p.put("title", title); p.put("content", content);
+		p.put("pinYn", "Y".equals(empStr(body.get("pinYn"))) ? "Y" : "N");
+		p.put("userNm", userNm == null ? "" : userNm);
+		int seq = empInt(body.get("noticeSeq"));
+		if (seq > 0) {
+			p.put("noticeSeq", seq);
+			if (mapper.updateEmpNotice(p) == 0) throw new IllegalArgumentException("고칠 공지가 없습니다(이미 삭제됐거나 다른 회사 것).");
+			return seq;
+		}
+		mapper.insertEmpNotice(p);
+		int newSeq = empInt(p.get("noticeSeq"));
+		if (newSeq > 0) { p.put("noticeSeq", newSeq); mapper.insertEmpNoticeRead(p); }   // 쓴 사람은 읽은 것으로
+		return newSeq;
+	}
+
+	@Override public int empNoticeDelete(String compCd, String userId, int noticeSeq) throws Exception {
+		java.util.Map<String,Object> p = empP(compCd, userId);
+		p.put("noticeSeq", noticeSeq);
+		return mapper.deleteEmpNotice(p);
+	}
+
+	@Override public java.util.Map<String,Object> empBadge(String compCd, String userId) throws Exception {
+		java.util.Map<String,Object> p = empP(compCd, userId);
+		java.util.Map<String,Object> r = new java.util.HashMap<String,Object>();
+		r.put("noticeUnread", mapper.selectEmpNoticeUnreadCnt(p));
+		java.util.Map<String,Object> m = mapper.selectEmpMsgUnreadCnt(p);
+		r.put("msgUnread", m == null ? 0 : empInt(m.get("msgUnread")));
+		r.put("roomUnread", m == null ? 0 : empInt(m.get("roomUnread")));
+		return r;
+	}
+
+	/** 방 목록 + 구성원 조립. dispNm = 1:1 이면 상대 이름(나간 상대는 「(나감)」), 그룹이면 방 이름(없으면 구성원 이름 나열) */
+	@Override public java.util.List<java.util.Map<String,Object>> empRoomList(String compCd, String userId) throws Exception {
+		java.util.Map<String,Object> p = empP(compCd, userId);
+		java.util.List<java.util.Map<String,Object>> rooms = mapper.selectEmpRoomList(p);
+		java.util.Map<Integer, java.util.List<java.util.Map<String,Object>>> byRoom = new java.util.HashMap<Integer, java.util.List<java.util.Map<String,Object>>>();
+		for (java.util.Map<String,Object> m : mapper.selectEmpRoomMbrsOfUser(p)) {
+			int rs = empInt(m.get("roomSeq"));
+			if (!byRoom.containsKey(rs)) byRoom.put(rs, new java.util.ArrayList<java.util.Map<String,Object>>());
+			byRoom.get(rs).add(m);
+		}
+		for (java.util.Map<String,Object> r : rooms) {
+			java.util.List<java.util.Map<String,Object>> ms = byRoom.get(empInt(r.get("roomSeq")));
+			if (ms == null) ms = new java.util.ArrayList<java.util.Map<String,Object>>();
+			r.put("members", ms);
+			r.put("dispNm", empRoomDispNm(r, ms, userId));
+		}
+		return rooms;
+	}
+	private static String empRoomDispNm(java.util.Map<String,Object> r, java.util.List<java.util.Map<String,Object>> ms, String me) {
+		boolean dm = "D".equals(empStr(r.get("roomGb")));
+		String nm = empStr(r.get("roomNm"));
+		if (!dm && !nm.isEmpty()) return nm;
+		StringBuilder sb = new StringBuilder();
+		int cnt = 0;
+		for (java.util.Map<String,Object> m : ms) {
+			if (me.equals(empStr(m.get("userId")))) continue;
+			if (sb.length() > 0) sb.append(", ");
+			sb.append(empStr(m.get("userNm")));
+			if ("Y".equals(empStr(m.get("leaveYn")))) sb.append("(나감)");
+			cnt++;
+		}
+		if (cnt == 0) return dm ? "(상대 없음)" : "(구성원 없음)";
+		return sb.toString();
+	}
+
+	@Override public java.util.Map<String,Object> empRoomOpen(String compCd, String userId, String userNm, java.util.List<String> users, String roomNm) throws Exception {
+		/* 상대 정리 — 빈 값·중복·나 자신 제거. 실제 직원인지도 본다(화면이 보낸 아이디를 그대로 믿지 않는다) */
+		java.util.Set<String> ok = new java.util.HashSet<String>();
+		for (java.util.Map<String,Object> u : mapper.selectEmpUsers(empP(compCd, ""))) ok.add(empStr(u.get("userId")));
+		java.util.List<String> others = new java.util.ArrayList<String>();
+		if (users != null) for (String u : users) {
+			String id = u == null ? "" : u.trim();
+			if (id.isEmpty() || id.equals(userId) || others.contains(id)) continue;
+			if (!ok.contains(id)) throw new IllegalArgumentException("직원 목록에 없는 아이디입니다 : " + id);
+			others.add(id);
+		}
+		if (others.isEmpty()) throw new IllegalArgumentException("대화 상대를 고르세요.");
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		java.util.Map<String,Object> p = empP(compCd, userId);
+		if (others.size() == 1) {
+			/* 1:1 — 같은 상대와는 한 방. 나갔던 방이면 다시 켠다 */
+			String a = userId, b = others.get(0);
+			String key = a.compareTo(b) <= 0 ? a + "|" + b : b + "|" + a;
+			p.put("dmKey", key);
+			java.util.Map<String,Object> ex = mapper.selectEmpRoomByKey(p);
+			int roomSeq;
+			if (ex != null && empInt(ex.get("roomSeq")) > 0) {
+				roomSeq = empInt(ex.get("roomSeq"));
+				res.put("created", false);
+			} else {
+				p.put("roomGb", "D"); p.put("roomNm", null);
+				mapper.insertEmpRoom(p);
+				roomSeq = empInt(p.get("roomSeq"));
+				res.put("created", true);
+			}
+			java.util.Map<String,Object> m = empP(compCd, userId); m.put("roomSeq", roomSeq); mapper.insertEmpRoomMbr(m);
+			java.util.Map<String,Object> m2 = empP(compCd, b);     m2.put("roomSeq", roomSeq); mapper.insertEmpRoomMbr(m2);
+			res.put("roomSeq", roomSeq);
+			return res;
+		}
+		/* 그룹 — 늘 새 방 */
+		String nm = roomNm == null ? "" : roomNm.trim();
+		if (nm.length() > 100) nm = nm.substring(0, 100);
+		p.put("roomGb", "G"); p.put("roomNm", nm.isEmpty() ? null : nm); p.put("dmKey", null);
+		mapper.insertEmpRoom(p);
+		int roomSeq = empInt(p.get("roomSeq"));
+		java.util.Map<String,Object> m = empP(compCd, userId); m.put("roomSeq", roomSeq); mapper.insertEmpRoomMbr(m);
+		for (String id : others) { java.util.Map<String,Object> mm = empP(compCd, id); mm.put("roomSeq", roomSeq); mapper.insertEmpRoomMbr(mm); }
+		empSysMsg(compCd, userId, roomSeq, (userNm == null || userNm.isEmpty() ? userId : userNm) + " 님이 대화방을 만들었습니다.");
+		res.put("roomSeq", roomSeq); res.put("created", true);
+		return res;
+	}
+
+	/** 시스템 글(입장·나감 안내) — MSG_GB 'S'. 방의 마지막 글도 갱신 */
+	private void empSysMsg(String compCd, String userId, int roomSeq, String text) throws Exception {
+		java.util.Map<String,Object> g = empP(compCd, userId);
+		g.put("roomSeq", roomSeq); g.put("msgTxt", text); g.put("msgGb", "S");
+		mapper.insertEmpMsg(g);
+		g.put("lastTxt", text.length() > 200 ? text.substring(0, 200) : text);
+		mapper.updateEmpRoomLast(g);
+	}
+
+	private java.util.Map<String,Object> empRoomMine(String compCd, String userId, int roomSeq) throws Exception {
+		java.util.Map<String,Object> p = empP(compCd, userId);
+		p.put("roomSeq", roomSeq);
+		java.util.Map<String,Object> r = mapper.selectEmpRoomMine(p);
+		if (r == null || "Y".equals(empStr(r.get("leaveYn")))) throw new IllegalArgumentException("이 대화방에 들어 있지 않습니다.");
+		return r;
+	}
+
+	@Override public java.util.Map<String,Object> empMsgList(String compCd, String userId, int roomSeq, int afterSeq, int beforeSeq) throws Exception {
+		java.util.Map<String,Object> room = empRoomMine(compCd, userId, roomSeq);
+		java.util.Map<String,Object> p = empP(compCd, userId);
+		p.put("roomSeq", roomSeq);
+		java.util.List<java.util.Map<String,Object>> list;
+		if (afterSeq > 0) { p.put("afterSeq", afterSeq); list = mapper.selectEmpMsgNew(p); }
+		else { p.put("beforeSeq", beforeSeq); list = mapper.selectEmpMsgList(p); }
+		/* 읽음 갱신 — 받은 글 중 마지막 번호까지(위로 더 보기 beforeSeq 는 옛 글이라 안 올린다) */
+		int last = 0;
+		for (java.util.Map<String,Object> m : list) last = Math.max(last, empInt(m.get("msgSeq")));
+		if (beforeSeq <= 0 && last > 0) { p.put("lastSeq", last); mapper.updateEmpRoomRead(p); }
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		res.put("list", list);
+		res.put("room", room);
+		if (afterSeq <= 0) {
+			java.util.List<java.util.Map<String,Object>> ms = mapper.selectEmpRoomMbrs(p);
+			res.put("members", ms);
+			res.put("dispNm", empRoomDispNm(room, ms, userId));
+		}
+		return res;
+	}
+
+	@Override public java.util.Map<String,Object> empMsgSend(String compCd, String userId, int roomSeq, String text) throws Exception {
+		String t = text == null ? "" : text.replace("\r\n", "\n").trim();
+		if (t.isEmpty()) throw new IllegalArgumentException("보낼 글이 없습니다.");
+		if (t.length() > 4000) throw new IllegalArgumentException("한 번에 4,000자까지 보낼 수 있습니다.");
+		empRoomMine(compCd, userId, roomSeq);
+		java.util.Map<String,Object> g = empP(compCd, userId);
+		g.put("roomSeq", roomSeq); g.put("msgTxt", t); g.put("msgGb", "T");
+		mapper.insertEmpMsg(g);
+		int msgSeq = empInt(g.get("msgSeq"));
+		String one = t.replace('\n', ' ');
+		g.put("lastTxt", one.length() > 200 ? one.substring(0, 200) : one);
+		mapper.updateEmpRoomLast(g);
+		g.put("lastSeq", msgSeq); mapper.updateEmpRoomRead(g);      // 내가 쓴 글은 읽은 것
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		res.put("msgSeq", msgSeq);
+		return res;
+	}
+
+	@Override public int empRoomRead(String compCd, String userId, int roomSeq, int lastSeq) throws Exception {
+		java.util.Map<String,Object> p = empP(compCd, userId);
+		p.put("roomSeq", roomSeq); p.put("lastSeq", lastSeq);
+		return mapper.updateEmpRoomRead(p);
+	}
+
+	@Override public int empRoomLeave(String compCd, String userId, String userNm, int roomSeq) throws Exception {
+		java.util.Map<String,Object> room = empRoomMine(compCd, userId, roomSeq);
+		java.util.Map<String,Object> p = empP(compCd, userId);
+		p.put("roomSeq", roomSeq);
+		int n = mapper.updateEmpRoomLeave(p);
+		if (n > 0 && "G".equals(empStr(room.get("roomGb"))))
+			empSysMsg(compCd, userId, roomSeq, (userNm == null || userNm.isEmpty() ? userId : userNm) + " 님이 나갔습니다.");
+		return n;
+	}
+
+	@Override public int empRoomInvite(String compCd, String userId, String userNm, int roomSeq, java.util.List<String> users) throws Exception {
+		java.util.Map<String,Object> room = empRoomMine(compCd, userId, roomSeq);
+		if (!"G".equals(empStr(room.get("roomGb")))) throw new IllegalArgumentException("1:1 대화에는 초대할 수 없습니다 — 새 그룹 대화를 만드세요.");
+		java.util.Map<String,String> nmOf = new java.util.HashMap<String,String>();
+		for (java.util.Map<String,Object> u : mapper.selectEmpUsers(empP(compCd, ""))) nmOf.put(empStr(u.get("userId")), empStr(u.get("userNm")));
+		java.util.Map<String,Object> p = empP(compCd, userId); p.put("roomSeq", roomSeq);
+		java.util.Set<String> in = new java.util.HashSet<String>();
+		for (java.util.Map<String,Object> m : mapper.selectEmpRoomMbrs(p)) if (!"Y".equals(empStr(m.get("leaveYn")))) in.add(empStr(m.get("userId")));
+		int cnt = 0; StringBuilder names = new StringBuilder();
+		if (users != null) for (String u : users) {
+			String id = u == null ? "" : u.trim();
+			if (id.isEmpty() || in.contains(id) || !nmOf.containsKey(id)) continue;
+			java.util.Map<String,Object> mm = empP(compCd, id); mm.put("roomSeq", roomSeq); mapper.insertEmpRoomMbr(mm);
+			in.add(id); cnt++;
+			if (names.length() > 0) names.append(", ");
+			names.append(nmOf.get(id));
+		}
+		if (cnt > 0) empSysMsg(compCd, userId, roomSeq, (userNm == null || userNm.isEmpty() ? userId : userNm) + " 님이 " + names + " 님을 초대했습니다.");
+		return cnt;
+	}
+
+	@Override public int empRoomRename(String compCd, String userId, int roomSeq, String roomNm) throws Exception {
+		java.util.Map<String,Object> room = empRoomMine(compCd, userId, roomSeq);
+		if (!"G".equals(empStr(room.get("roomGb")))) throw new IllegalArgumentException("1:1 대화는 이름을 바꿀 수 없습니다.");
+		String nm = roomNm == null ? "" : roomNm.trim();
+		if (nm.length() > 100) nm = nm.substring(0, 100);
+		java.util.Map<String,Object> p = empP(compCd, userId);
+		p.put("roomSeq", roomSeq); p.put("roomNm", nm.isEmpty() ? null : nm);
+		return mapper.updateEmpRoomNm(p);
+	}
+	/** 내 글 지우기 (2026-09-22) — 글자를 비우고 MSG_GB 'X'. 자리는 남는다(「삭제된 글입니다」). 남의 글·안내 글·이미 지운 글은 0줄 → 오류 */
+	@Override public int empMsgDel(String compCd, String userId, int roomSeq, int msgSeq) throws Exception {
+		empRoomMine(compCd, userId, roomSeq);
+		java.util.Map<String,Object> p = empP(compCd, userId);
+		p.put("roomSeq", roomSeq); p.put("msgSeq", msgSeq);
+		int n = mapper.updateEmpMsgDel(p);
+		if (n == 0) throw new IllegalArgumentException("지울 수 없습니다 — 내가 쓴 글만 지울 수 있고, 이미 지운 글은 다시 지울 수 없습니다.");
+		p.put("lastTxt", "삭제된 글입니다");
+		mapper.updateEmpRoomLastTxt(p);
+		return n;
+	}
+
 }
