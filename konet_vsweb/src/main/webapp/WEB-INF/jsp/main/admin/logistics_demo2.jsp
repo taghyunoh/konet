@@ -103,6 +103,17 @@
                          box-shadow:0 6px 10px -6px rgba(0,0,0,.45); }
   /* 메뉴 간격 — 그룹이 6개로 늘어 세로가 길어져 촘촘하게 줄였다(2026-07-25 요청) */
   .logi-side .grp { padding:9px 20px 3px; font-size:11px; letter-spacing:.5px; color:#7d8b9c; }
+  /* 묶음 제목 줄(.grp) = 글자는 위 42번 줄 규칙이 바탕색으로 칠해 안 보이고 자리(약 27px)만 차지했다 —
+     서브메뉴 묶음마다 간격이 크게 벌어진 원인(2026-09-22 「서브메뉴 있는 곳은 메뉴 간격이 커서 조금 축소」).
+     ⇒ 제목 글자를 접고 묶음 사이 6px 틈만 남긴다. konet-notebook.css 의 화면폭별 .grp 여백보다 이겨야 해서 !important. */
+  .logi-wrap .logi-side .grp { padding:0 !important; height:6px; font-size:0 !important; line-height:0; overflow:hidden; border-top:1px solid #2c3a4a; margin-top:4px; }
+  /* 주메뉴 ↔ 서브메뉴 구분 (2026-09-22 「주메뉴 서브메뉴 구분이 잘 안 됨」) — 여백은 konet-notebook.css 가 화면폭마다 다시 잡으므로
+     색·굵기·바탕·안내선으로 가른다. 고른 메뉴(.on 청록)·마우스 올림은 그대로. */
+  .logi-side a.mi { font-weight:600; }
+  .logi-side a.mi.has-sub.open { background:#28333f; color:#fff; font-weight:700; }
+  .logi-side .sub-menu { background:#151c24; box-shadow:inset 3px 0 0 #2e8a7e; padding:2px 0; }
+  .logi-side .sub-menu a.mi:not(.on):not(:hover) { color:#a9b6c4; font-weight:400; }
+  .logi-side .sub-menu a.mi .ic { opacity:.8; }
   .logi-side a.mi { display:flex; align-items:center; gap:8px; padding:6px 20px; color:#cdd6e0; text-decoration:none; font-size:13.5px; border-left:3px solid transparent; cursor:pointer; }
   .logi-side a.mi:hover { background:#28333f; color:#fff; }
   .logi-side a.mi.on { background:var(--logi-teal); color:#fff; border-left:5px solid #0b5a52; padding-left:16px; font-weight:800; box-shadow:inset -3px 0 0 rgba(255,255,255,.18); }
@@ -3494,19 +3505,8 @@
       <% } %>
     </div>
 
-    <div class="grp">부가·예정관리</div>
-    <a class="mi has-sub" data-sub="goods" onclick="logiToggleSub('goods', this)"><span class="ic">🚚</span>물품동선관리 <span style="font-size:10px;color:#9aa7b3">(예정·데모)</span><span class="caret">▶</span></a>
-    <div class="sub-menu" id="sub-goods">
-      <a class="mi" data-key="base"     onclick="logiGo('base', this)"><span class="ic">🏬</span>창고 / 로케이션</a>
-      <a class="mi" data-key="inbound"  onclick="logiGo('inbound', this)"><span class="ic">📥</span>입고등록 (창고선정)</a>
-      <%-- 창고 관리 (2026-09-16 P3 1단계 · 저녁에 기준정보관리에서 옮겨 옴) — 창고 마스터(TBL_WH_MST: 이름·기본창고·차례·사용) + 창고 이동
-           + 출고장 → 창고 매핑(2단계). ★매핑을 저장하는 자리라 이 줄이 없으면 2단계를 손볼 길이 없다. iframe 화면(prod/whMng.jsp) --%>
-      <a class="mi" data-key="whMng" onclick="logiFrame('whMng','${pageContext.request.contextPath}/prod/whMng.do', this)"><span class="ic">🏬</span>창고 관리</a>
-      <%-- 2026-09-16 : 데모(제1·2·3창고 숫자 박아 둔 panel-stock)가 아니라 진짜 화면(whStock)으로 — 재고 관리 메뉴와 같은 곳 --%>
-      <a class="mi" data-key="whStock"  onclick="logiFrame('whStock','${pageContext.request.contextPath}/prod/whStock.do', this)"><span class="ic">📊</span>창고별 재고현황</a>
-      <a class="mi" data-key="locate"   onclick="logiGo('locate', this)"><span class="ic">🔎</span>재고 / 위치 조회</a>
-      <a class="mi" data-key="outbound" onclick="logiGo('outbound', this)"><span class="ic">📤</span>출고지시 (위치→출고)</a>
-    </div>
+    <%-- 물품동선관리(부가·예정관리)는 업무 설명서 밑으로 옮겼다(2026-09-22 사용자 요청) — 아래 「도움말」 묶음 뒤 --%>
+    <div class="grp">견적서</div>
     <%-- 견적서관리 (2026-09-17 — 사용자 「메뉴 원래 견적서관리로 이동」) : 「견적서 목록」이 실제 화면(mangr/quoteMng.jsp, panel-quoteMng). 작성·출력은 아직 예정. --%>
     <a class="mi has-sub" data-sub="quote" onclick="logiToggleSub('quote', this)"><span class="ic">📝</span>견적서관리<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-quote">
@@ -3523,6 +3523,21 @@
 
     <div class="grp">도움말</div>
     <a class="mi" data-key="guide" onclick="logiGo('guide', this)"><span class="ic">📖</span>업무 설명서</a>
+
+    <%-- 물품동선관리(예정·데모) — 2026-09-22 「업무설명서 밑으로」 : 아직 숙고 중인 기능이라 업무 메뉴들 맨 뒤(로그아웃 위)로 --%>
+    <div class="grp">부가·예정관리</div>
+    <a class="mi has-sub" data-sub="goods" onclick="logiToggleSub('goods', this)"><span class="ic">🚚</span>물품동선관리 <span style="font-size:10px;color:#9aa7b3">(예정·데모)</span><span class="caret">▶</span></a>
+    <div class="sub-menu" id="sub-goods">
+      <a class="mi" data-key="base"     onclick="logiGo('base', this)"><span class="ic">🏬</span>창고 / 로케이션</a>
+      <a class="mi" data-key="inbound"  onclick="logiGo('inbound', this)"><span class="ic">📥</span>입고등록 (창고선정)</a>
+      <%-- 창고 관리 (2026-09-16 P3 1단계 · 저녁에 기준정보관리에서 옮겨 옴) — 창고 마스터(TBL_WH_MST: 이름·기본창고·차례·사용) + 창고 이동
+           + 출고장 → 창고 매핑(2단계). ★매핑을 저장하는 자리라 이 줄이 없으면 2단계를 손볼 길이 없다. iframe 화면(prod/whMng.jsp) --%>
+      <a class="mi" data-key="whMng" onclick="logiFrame('whMng','${pageContext.request.contextPath}/prod/whMng.do', this)"><span class="ic">🏬</span>창고 관리</a>
+      <%-- 2026-09-16 : 데모(제1·2·3창고 숫자 박아 둔 panel-stock)가 아니라 진짜 화면(whStock)으로 — 재고 관리 메뉴와 같은 곳 --%>
+      <a class="mi" data-key="whStock"  onclick="logiFrame('whStock','${pageContext.request.contextPath}/prod/whStock.do', this)"><span class="ic">📊</span>창고별 재고현황</a>
+      <a class="mi" data-key="locate"   onclick="logiGo('locate', this)"><span class="ic">🔎</span>재고 / 위치 조회</a>
+      <a class="mi" data-key="outbound" onclick="logiGo('outbound', this)"><span class="ic">📤</span>출고지시 (위치→출고)</a>
+    </div>
 
     <%-- 로그아웃 — 메뉴 맨 하단 (2026-07-31 요청, 같은 날 "조금 아래로" 요청으로 위 여백 추가).
          확인 후 /user/loginOutAct.do(세션 invalidate → 로그인 화면) --%>
