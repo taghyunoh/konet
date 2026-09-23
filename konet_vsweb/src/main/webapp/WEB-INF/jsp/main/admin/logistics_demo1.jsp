@@ -1128,7 +1128,7 @@
     .then(function(txt){ var j; try{ j=JSON.parse(txt); }catch(e){ j=null; }
       if(j && j.ok){
         d2DelClose();
-        if((+j.count||0)>0) d2Toast('🗑️ 삭제 완료 · '+(j.count||0)+'행 (출고장 '+pd.label+' · '+pd.dt+')');
+        if((+j.count||0)>0) d2Toast('🗑️ 삭제 완료 · '+(j.count||0)+'행 (출고장 '+pd.label+' · '+pd.dt+')'+(j.stockErr?'<br>⚠ 재고 반영 실패 — [출고반영 재집계]를 눌러 주세요 : '+String(j.stockErr).replace(/[<>]/g,'').slice(0,120):(j.stockSync!=null?' · 재고 반영됨':'')));
         else d2Toast('ℹ️ 삭제할 활성 출고분이 없습니다 (출고장 '+pd.label+' · '+pd.dt+')');
         d2Load();
       } else { d2Toast('⚠️ 삭제 실패: '+((j&&j.msg)||txt||'오류').toString().replace(/[<>]/g,'').slice(0,150)); }

@@ -2039,6 +2039,15 @@ public class UserController {
 				int n = svc.deleteShipoutZone(dto);
 				response.put("ok", true);
 				response.put("count", n);
+				/* ★재고 원장도 같이 (2026-09-23 「삭제했는데 재고에 잡히는지」) — 발주현황표 연동(SHIPOUT_LEDGER_ON)이 켜져 있어
+				   업로드 때 만든 그 납기일자의 O 행이 삭제 뒤에도 남아 현재고에서 계속 빠졌다. DC·토더 발주 삭제(dcResync)와 같은 길.
+				   실패해도 삭제는 유지(사유만 stockErr 로) — [출고반영 재집계]로 복구된다. */
+				if (n > 0) {
+					java.util.Set<String> ds = new java.util.LinkedHashSet<String>(svc.selectShipoutDlvDtsDeleted(dto));
+					String warn = dcResync(ds, regUser, request.getRemoteAddr());
+					response.put("stockSync", ds.size());
+					if (warn != null) response.put("stockErr", warn);
+				}
 			} catch (Exception e) {
 				log.error(" deleteShipoutZone ERROR ! : " + e.getMessage());
 				response.put("ok", false);

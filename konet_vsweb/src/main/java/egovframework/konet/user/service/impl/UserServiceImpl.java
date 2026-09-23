@@ -60,6 +60,7 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<String> selectShipoutActiveShpoutDts(egovframework.konet.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutActiveShpoutDts(dto); }
 	@Override public int markShipoutHistory(egovframework.konet.user.model.ShipoutDTO dto) throws Exception { return mapper.markShipoutHistory(dto); }
 	@Override public int deleteShipoutZone(egovframework.konet.user.model.ShipoutDTO dto) throws Exception { return mapper.deleteShipoutZone(dto); }
+	@Override public java.util.List<String> selectShipoutDlvDtsDeleted(egovframework.konet.user.model.ShipoutDTO dto) throws Exception { return mapper.selectShipoutDlvDtsDeleted(dto); }
 	@Override public int getShipoutNextJobSeq(egovframework.konet.user.model.ShipoutDTO dto) throws Exception { return mapper.getShipoutNextJobSeq(dto); }
 	@Override public int insertShipoutMst(egovframework.konet.user.model.ShipoutDTO dto) throws Exception { return mapper.insertShipoutMst(dto); }
 	@Override public int insertShipoutMstBulk(java.util.List<egovframework.konet.user.model.ShipoutDTO> list) throws Exception { return mapper.insertShipoutMstBulk(list); }

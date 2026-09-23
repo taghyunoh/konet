@@ -35,7 +35,8 @@ public interface UserMapper {
 	// ===== 출고장(발주현황표) 업로드 저장 (TBL_SHIPOUT_MST) =====
 	java.util.List<String> selectShipoutActiveShpoutDts(egovframework.konet.user.model.ShipoutDTO dto) throws Exception;  // 이력마감 전 (납품일자+물류센터) 활성배치의 출고일자 — 재고연동용
 	int markShipoutHistory(egovframework.konet.user.model.ShipoutDTO dto) throws Exception;
-	int deleteShipoutZone(egovframework.konet.user.model.ShipoutDTO dto) throws Exception;   // 출고장(DC_CD+INWH)+출고일자 활성분 소프트 삭제(ACTION_YN='D')
+	int deleteShipoutZone(egovframework.konet.user.model.ShipoutDTO dto) throws Exception;
+	java.util.List<String> selectShipoutDlvDtsDeleted(egovframework.konet.user.model.ShipoutDTO dto) throws Exception;   // 삭제(D)한 출고장 줄의 납기일자 — 재고 원장 재동기화용(2026-09-23)   // 출고장(DC_CD+INWH)+출고일자 활성분 소프트 삭제(ACTION_YN='D')
 	int getShipoutNextJobSeq(egovframework.konet.user.model.ShipoutDTO dto) throws Exception;
 	int insertShipoutMst(egovframework.konet.user.model.ShipoutDTO dto) throws Exception;
 	/* 대량 INSERT (2026-08-28) — 여러 행을 한 문장으로. 행마다 던지던 것이 업로드 병목이었다.
