@@ -157,6 +157,9 @@
     <button type="button" class="btn" id="btnSave" onclick="save();">수정저장</button>
     <button type="button" class="btn ghost" onclick="packAuto();"
             title="상품명 끝의 1000EA/BOX · 300EA · 2000매 같은 숫자를 읽어 입수수량에 채웁니다">입수수량 자동채우기</button>
+    <%-- 📥 엑셀 (2026-09-23 요청) — 지금 조건(검색·유형·제조사·재고0제외·정렬)으로 걸러진 **전체**(화면 200줄 상한 밖까지). 고치던 수정칸 값도 함께 --%>
+    <button type="button" class="btn ghost" onclick="adjExcel();"
+            title="지금 조건으로 걸러진 목록 전체를 엑셀로 (화면에 안 보이는 줄까지). 수정BOX/EA·증감은 화면에 보이는 줄만 값이 들어갑니다">📥 엑셀출력</button>
 
     <span class="sp"></span>
 
@@ -343,6 +346,7 @@ var _hitCnt = null; /* 검색으로 실제 걸린 건수 — 건수칸에 같이
      실제 사용은 '찾아서 몇 품목 고치기'라 전 품목을 펼쳐 둘 일이 없다.
      ★넘친 줄은 조용히 버리지 않는다 — 건수칸에 몇 건이 안 보이는지 적는다. */
 var LIST_MAX = 200;
+var _FLT = [];        /* 걸러진 전체 목록(상한 자르기 전) — 엑셀용 */
 var _cut     = 0;   /* 상한에 걸려 화면에서 빠진 줄 수 */
 var _allVer = 0;    /* load() 가 새 자료를 받을 때마다 올린다 — 같은 조건이라도 새 자료면 다시 그린다 */
 function applyFilter(){
@@ -376,6 +380,7 @@ function applyFilter(){
 
   /* 한 번에 그리는 줄 상한 — 행마다 입력칸이 3개라 전 품목을 펼치면 화면이 굳는다.
      넘친 줄은 조용히 버리지 않고 건수칸에 적는다. */
+  _FLT = base;   /* 엑셀은 화면 상한(LIST_MAX) 전의 전체 걸러진 목록을 쓴다 (2026-09-23) */
   _cut = 0;
   if (base.length > LIST_MAX){ _cut = base.length - LIST_MAX; base = base.slice(0, LIST_MAX); }
   ROWS = base;
@@ -474,6 +479,47 @@ function render(){
 }
 
 
+/* ── 📥 엑셀 (2026-09-23 요청 「표시부분에 엑셀출력」) ─────────────────────────────
+   화면 표와 같은 칸 + 구분/주코드/제조사 — 상품코드등록 pcExcel 과 같은 방식(셸의 SheetJS 를 빌려 쓰고 없으면 CSV).
+   ★대상 = 지금 조건으로 걸러진 **전체**(_FLT) — 화면은 200줄 상한이라 「58건은 안 보임」이 엑셀에는 다 들어간다.
+   수정BOX/EA·증감은 화면에 그려진 줄(ROWS)의 입력칸 값을 읽는다 — 상한 밖 줄은 빈 칸. */
+function adjExcel(){
+  var list=_FLT.length?_FLT:ROWS; if(!list.length){ alertBox("출력할 자료가 없습니다 — 먼저 [리스트조회]를 누르세요.","⚠️"); return; }
+  var idx={}; ROWS.forEach(function(r,i){ idx[String(r.prodSeq)+"|"+String(r.prodCd)]=i; });
+  var head=["상품코드","구분","주코드","상품명","규격","입수수량","유형","제조사","중지일","BOX재고","EA재고","합계재고","수정BOX재고","수정EA재고","증감"];
+  var aoa=[head].concat(list.map(function(r){
+    var st=_pm[r.prodSeq]||{}, sb=_subOf[String(r.prodCd)], i=idx[String(r.prodSeq)+"|"+String(r.prodCd)];
+    var bx="", ea="", df="";
+    if(i!=null && gel("bx"+i)){ bx=nvl(gel("bx"+i).value); ea=nvl(gel("ea"+i).value); var pk=nvl(gel("pk"+i)?gel("pk"+i).value:r.packQty)||1;
+      df=(bx*pk+ea)-nvl(r.curQty); }
+    return [r.prodCd, sb?"서브":"", sb?sb.prodCd:"", r.prodNm, r.spec, nvl(r.packQty), r.typeNm||"", r.makerNm||"",
+            st.stopYn==="Y"?fmtDt8(st.stopFrDt):"", nvl(r.boxQty), nvl(r.eaQty), nvl(r.curQty), bx, ea, df];
+  }));
+  var wh=gel("adjWh"), whNm=wh&&wh.options[wh.selectedIndex]?wh.options[wh.selectedIndex].text:"전체", bd=gel("baseDt").value||"";
+  var fn="재고일괄조정_"+(bd||"전체")+(whNm&&whNm!=="전체"?"_"+whNm:"")+".xlsx";
+  var P=window.parent;
+  function byLib(LIB){
+    var ws=LIB.utils.aoa_to_sheet(aoa);
+    ws["!cols"]=[{wch:14},{wch:6},{wch:14},{wch:44},{wch:22},{wch:9},{wch:16},{wch:14},{wch:11},{wch:9},{wch:9},{wch:9},{wch:11},{wch:11},{wch:8}];
+    /* ★머리글 고정 + 색 (2026-09-23 「헤더 고정으로 하고 색깔 틀리게」) — 첫 줄을 화면 표 머리글과 같은 청록 칠·흰 글자·굵게, 스크롤해도 남게 고정.
+       색은 스타일본(xlsx-js-style)일 때만 먹고 원본 SheetJS 면 조용히 무시된다(s 칸을 안 읽는다). 수정BOX/EA 두 칸은 입력칸이라 노랑으로 갈라 둔다 */
+    ws["!freeze"]={xSplit:0, ySplit:1, topLeftCell:"A2", activePane:"bottomLeft", state:"frozen"};
+    ws["!autofilter"]={ref:"A1:O"+aoa.length};
+    var bd={style:"thin",color:{rgb:"B7C9C3"}}, BD={top:bd,bottom:bd,left:bd,right:bd};
+    var HS={fill:{fgColor:{rgb:"137A6C"}},font:{bold:true,color:{rgb:"FFFFFF"}},alignment:{horizontal:"center",vertical:"center"},border:BD};
+    var HE={fill:{fgColor:{rgb:"E9A23B"}},font:{bold:true,color:{rgb:"FFFFFF"}},alignment:{horizontal:"center",vertical:"center"},border:BD};
+    for(var c=0;c<head.length;c++){ var a=LIB.utils.encode_cell({r:0,c:c}); if(ws[a]) ws[a].s=(c===12||c===13)?HE:HS; }
+    ws["!rows"]=[{hpt:22}];
+    var wb=LIB.utils.book_new(); LIB.utils.book_append_sheet(wb,ws,"재고일괄조정"); LIB.writeFile(wb,fn);
+    toast("📥 엑셀 저장 완료 · "+list.length+"건"+(list.length>ROWS.length?" (화면 밖 "+(list.length-ROWS.length)+"건 포함)":"")); }
+  try{ if(P && P.ssLoadStyleXlsx){ P.ssLoadStyleXlsx(function(XS){ var LIB=XS||P.XLSX; if(LIB){ byLib(LIB); } else { csv(); } }); return; } }catch(e){}
+  if(P && P.XLSX){ byLib(P.XLSX); return; }
+  csv();
+  function csv(){ var c=aoa.map(function(r){ return r.map(function(x){ x=(x==null?"":(""+x)); return "\""+x.replace(/"/g,"\"\"")+"\""; }).join(","); }).join("\r\n");
+    var b=new Blob(["\ufeff"+c],{type:"text/csv;charset=utf-8"}), a=document.createElement("a");
+    a.href=URL.createObjectURL(b); a.download=fn.replace(/\.xlsx$/,".csv"); document.body.appendChild(a); a.click(); a.remove();
+    toast("📥 CSV 저장 완료 · "+list.length+"건"); }
+}
 /* ── 입수수량 자동채우기 ─────────────────────────────────────────────
    상품명 끝에 적힌 포장 단위를 읽어 입수수량 칸에 넣는다.
 
