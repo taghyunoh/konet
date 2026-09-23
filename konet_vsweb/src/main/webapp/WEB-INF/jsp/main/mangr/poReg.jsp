@@ -155,7 +155,8 @@
       <button class="btn" id="btnLink" onclick="poCopyLink()" disabled>🔗 링크 복사</button>
       <%-- 전송이력 (2026-09-10) — 저장 전에도 열린다(그때는 「전체 이력」 탭만) --%>
       <button class="btn" id="btnHist" onclick="poSendHist()" title="이 발주서를 언제·누구에게·어떤 방법으로 보냈는지 봅니다.&#10;[전체 이력] 탭에서는 기간으로 모든 발주서의 전송을 훑어볼 수 있습니다.">📨 전송이력</button>
-      <button class="btn blue" id="btnCv" style="margin-left:auto" onclick="cvOpen()" disabled>📦 매입전환</button>
+      <span id="cvStat" style="margin-left:auto;font-size:13px"></span>
+      <button class="btn blue" id="btnCv" onclick="cvOpen()" disabled>📦 매입전환</button>
     </div>
   </div>
 
@@ -163,12 +164,13 @@
     <div class="hd">
       <label>조회기간</label><input type="date" id="frDt" data-range-to="toDt"> <span style="color:#8a98a8">~</span> <input type="date" id="toDt">
       <label>거래처</label><input type="text" id="findNm" placeholder="거래처명" style="width:180px" onkeydown="if(event.key==='Enter') poLoad()">
+      <label>매입전환</label><select id="cvFilt" onchange="listRender()" title="매입전환 여부로 목록을 거릅니다(화면에서 — 다시 조회하지 않음)"><option value="">전체</option><option value="N">미전환만</option><option value="Y">전환됨만</option></select>
       <button class="btn teal" onclick="poLoad()">🔍 리스트 조회</button>
       <span class="cnt" id="cnt">-</span>
     </div>
     <div class="listwrap" id="poListWrap" style="margin-top:8px">
-      <table class="lst" data-colrz="poReg-list"><thead><tr><th>발주일자</th><th>번호</th><th>거래처명</th><th>담당</th><th>품목</th><th>수량</th><th>공급가액</th><th>부가세</th><th>합계</th><th>공유</th><th title="입고 현황(2026-09-16) — 미입고 / 부분 입고수량/발주수량 / ✔ 완료 / 마감. 줄마다 연결된 매입 명세로 센다">입고</th><th>등록자</th></tr></thead>
-      <tbody id="lbody"><tr><td colspan="12" class="empty">기간을 고르고 [리스트 조회]를 누르세요.</td></tr></tbody></table>
+      <table class="lst" data-colrz="poReg-list"><thead><tr><th>발주일자</th><th>번호</th><th>거래처명</th><th>담당</th><th>품목</th><th>수량</th><th>공급가액</th><th>부가세</th><th>합계</th><th title="[💬 카톡 공유] 단추로 이 발주서를 보낸 횟수 — 링크 복사는 세지 않습니다. 언제·누구에게는 [📨 전송이력]">카톡 공유</th><th title="매입전환 여부(2026-09-23) — ✔ 전환 = 이 발주서로 만든 매입전표가 있음(마지막 전표는 마우스를 올리면). 미전환 = 아직 없음">매입전환</th><th title="입고 현황(2026-09-16) — 미입고 / 부분 입고수량/발주수량 / ✔ 완료 / 마감. 줄마다 연결된 매입 명세로 센다">입고</th><th>등록자</th></tr></thead>
+      <tbody id="lbody"><tr><td colspan="13" class="empty">기간을 고르고 [리스트 조회]를 누르세요.</td></tr></tbody></table>
     </div>
   </div>
 </div>
@@ -454,6 +456,18 @@ function poLineClose(i,on){ var o=_rows[i]; if(!o||!o.poDtlSeq) return;
     .catch(function(e){ toast('마감 저장 실패: '+esc(e.message),'⚠️'); stkPaint(); }); }
 /* 이 발주서를 보고 있는 매입전표들 — 삭제 확인창에 보여 준다 */
 function poLinked(seq, cb){ post('/mangr/poLinkedPurch.do','poSeq='+seq).then(function(r){return r.json();}).then(function(j){ cb((j&&j.data)||[]); }).catch(function(){ cb([]); }); }
+/* ★매입전환 여부 (2026-09-23 「매입전환 했는지 확인할 수 있게」) — 이 발주서 줄에 연결된 매입 명세가 있거나(inSum) 대표 매입전표(살아 있는 것)가 있으면 전환됨.
+   ⚠반품으로 입고 합이 0 이 된 드문 경우는 대표 전표(purchNo)로 잡는다. 서버 무변경 — 목록 자료(poList)만 본다 */
+function poCvDone(o){ return n(o.inSum)>0 || !!o.purchNo; }
+function poCvCell(o){ if(!poCvDone(o)) return '<td><span class="dim">미전환</span></td>';
+  return '<td title="'+(o.purchNo?('마지막 매입전표 '+d8(o.purchDt)+'-'+esc(o.purchNo)):'매입 명세가 연결됨')+'"><span style="color:#137a6c;font-weight:700">✔ 전환</span></td>'; }
+/* 편집 화면 상태 배지 — 열린 발주서에 연결된 매입전표(poLinkedPurch) */
+function poCvStat(){ var e=document.getElementById('cvStat'); if(!e) return; if(!_cur||!_cur.poSeq){ e.innerHTML=''; e.title=''; return; } var seq=_cur.poSeq;
+  poLinked(seq, function(lk){ if(!_cur||_cur.poSeq!==seq) return;
+    if(!lk.length){ e.innerHTML='<span style="color:#8a98a8;font-weight:700">⏳ 미전환</span>'; e.title='아직 이 발주서로 만든 매입전표가 없습니다'; return; }
+    var nm=lk.map(function(x){ return d8(x.purchDt)+'-'+(x.purchNo||''); });
+    e.innerHTML='<span style="color:#137a6c;font-weight:800">✔ 매입전환 됨</span> <span style="color:#3d4d5c">'+esc(nm[nm.length-1])+(lk.length>1?(' 외 '+(lk.length-1)+'장'):'')+'</span>';
+    e.title='연결된 매입전표 '+lk.length+'장 : '+nm.join(', '); }); }
 /* 목록 「입고」 열 — 줄마다 센 잔량을 넷으로 가른다 */
 function poRcvLbl(o){ var ln=n(o.lineCnt); if(!ln) return '';
   var rem=n(o.remainSum), ins=n(o.inSum), cl=n(o.closeCnt), tot=n(o.totQty);
@@ -640,7 +654,7 @@ function pinClose(){ if(_pinDrop) _pinDrop.style.display='none'; _pinList=[]; _p
 function pinBlur(){ setTimeout(pinClose, 150); }
 
 /* ── 머리 ── */
-function poNew(){ _cur=null; _rows=[]; document.getElementById('poDt').value=today(); venPick('',''); document.getElementById('remark').value=''; document.getElementById('poNo').value=''; poDtChanged(); render(); setButtons(); document.getElementById('stat').textContent='새 발주서'; }
+function poNew(){ _cur=null; _rows=[]; document.getElementById('poDt').value=today(); venPick('',''); document.getElementById('remark').value=''; document.getElementById('poNo').value=''; poDtChanged(); render(); setButtons(); poCvStat(); document.getElementById('stat').textContent='새 발주서'; }
 function poDtChanged(){ if(_cur) return; var d=document.getElementById('poDt').value; if(!d) return; post('/mangr/poNextNo.do','poDt='+encodeURIComponent(d)).then(function(r){return r.json();}).then(function(j){ document.getElementById('poNo').value=(j&&j.data)||'0001'; }).catch(function(){}); }
 function setButtons(){ var on=!!(_cur&&_cur.poSeq); ['btnDel','btnPrint','btnXls','btnKakao','btnLink','btnCv'].forEach(function(id){ document.getElementById(id).disabled=!on; }); }
 function poSave(){
@@ -667,19 +681,19 @@ function poDelete(){ if(!_cur) return; poLinked(_cur.poSeq, function(lk){
 function poOpen(seq, cb){ post('/mangr/poDetail.do','poSeq='+seq).then(function(r){return r.json();}).then(function(j){ var m=j&&j.mst; if(!m){ toast('발주서를 찾을 수 없습니다.','⚠️'); return; }
   _cur=m; document.getElementById('poDt').value=d8(m.poDt); document.getElementById('poNo').value=m.poNo||''; venPick(m.vendorCd||'', m.vendorNm||''); document.getElementById('remark').value=m.remark||'';
   if(m.mgrNm) document.getElementById('mgrNm').value=m.mgrNm;
-  _rows=(j.items||[]).map(function(d){ var o=emptyRow(); for(var k in o) if(d[k]!=null) o[k]=d[k]; return o; }); render(); setButtons();
+  _rows=(j.items||[]).map(function(d){ var o=emptyRow(); for(var k in o) if(d[k]!=null) o[k]=d[k]; return o; }); render(); setButtons(); poCvStat();
   document.getElementById('stat').textContent='발주서 '+d8(m.poDt)+' - '+m.poNo+' · 공유 '+(m.shareCnt||0)+'회'+(m.lastShareDttm?(' (마지막 '+m.lastShareDttm+')'):'')+(m.purchNo?(' · 📦 매입전표 '+d8(m.purchDt)+'-'+m.purchNo):'');
   markList(); if(typeof cb==='function') cb(); }).catch(function(e){ toast('불러오기 실패: '+esc(e.message),'⚠️'); }); }
 
 /* ── 목록 ── */
 function poLoad(selSeq){ var b='fromDt='+encodeURIComponent(document.getElementById('frDt').value)+'&toDt='+encodeURIComponent(document.getElementById('toDt').value)+'&findData='+encodeURIComponent(document.getElementById('findNm').value);
-  document.getElementById('lbody').innerHTML='<tr><td colspan="12" class="empty">조회 중…</td></tr>';
-  post('/mangr/poList.do', b).then(function(r){return r.json();}).then(function(j){ _list=(j&&j.data)||[]; listRender(); if(selSeq) markList(selSeq); }).catch(function(e){ document.getElementById('lbody').innerHTML='<tr><td colspan="12" class="empty" style="color:#c0392b">조회 오류: '+esc(e.message)+'</td></tr>'; }); }
-function listRender(){ var h='', ts=0, tv=0, tt=0;
-  _list.forEach(function(o,i){ ts+=n(o.supplyAmt); tv+=n(o.vatAmt); tt+=n(o.totAmt);
-    h+='<tr data-seq="'+o.poSeq+'" onclick="poOpen('+o.poSeq+')"><td>'+d8(o.poDt)+'</td><td>'+esc(o.poNo)+'</td><td class="l">'+esc(o.vendorNm)+'</td><td>'+esc(o.mgrNm)+'</td><td>'+n(o.prodCnt)+'</td><td class="r">'+fmtQ(o.totQty)+'</td><td class="r">'+fmt(o.supplyAmt)+'</td><td class="r">'+fmt(o.vatAmt)+'</td><td class="r">'+fmt(o.totAmt)+'</td><td>'+(n(o.shareCnt)?('💬 '+n(o.shareCnt)):'')+'</td><td title="'+(o.purchNo?('마지막 매입전표 '+d8(o.purchDt)+'-'+esc(o.purchNo)):'')+'">'+poRcvLbl(o)+'</td><td>'+esc(o.regUser)+'</td></tr>'; });
-  document.getElementById('lbody').innerHTML=h||'<tr><td colspan="12" class="empty">발주서가 없습니다.</td></tr>';
-  document.getElementById('cnt').innerHTML='<b>'+_list.length+'</b>건 · 공급가 <b>'+fmt(ts)+'</b> · 부가세 <b>'+fmt(tv)+'</b> · 합계 <b>'+fmt(tt)+'</b>'; }
+  document.getElementById('lbody').innerHTML='<tr><td colspan="13" class="empty">조회 중…</td></tr>';
+  post('/mangr/poList.do', b).then(function(r){return r.json();}).then(function(j){ _list=(j&&j.data)||[]; listRender(); if(selSeq) markList(selSeq); }).catch(function(e){ document.getElementById('lbody').innerHTML='<tr><td colspan="13" class="empty" style="color:#c0392b">조회 오류: '+esc(e.message)+'</td></tr>'; }); }
+function listRender(){ var h='', ts=0, tv=0, tt=0, fv=(document.getElementById('cvFilt')||{}).value||'', shown=0;
+  _list.forEach(function(o,i){ if(fv && (poCvDone(o)?'Y':'N')!==fv) return; shown++; ts+=n(o.supplyAmt); tv+=n(o.vatAmt); tt+=n(o.totAmt);
+    h+='<tr data-seq="'+o.poSeq+'" onclick="poOpen('+o.poSeq+')"><td>'+d8(o.poDt)+'</td><td>'+esc(o.poNo)+'</td><td class="l">'+esc(o.vendorNm)+'</td><td>'+esc(o.mgrNm)+'</td><td>'+n(o.prodCnt)+'</td><td class="r">'+fmtQ(o.totQty)+'</td><td class="r">'+fmt(o.supplyAmt)+'</td><td class="r">'+fmt(o.vatAmt)+'</td><td class="r">'+fmt(o.totAmt)+'</td><td>'+(n(o.shareCnt)?('💬 '+n(o.shareCnt)):'')+'</td>'+poCvCell(o)+'<td title="'+(o.purchNo?('마지막 매입전표 '+d8(o.purchDt)+'-'+esc(o.purchNo)):'')+'">'+poRcvLbl(o)+'</td><td>'+esc(o.regUser)+'</td></tr>'; });
+  document.getElementById('lbody').innerHTML=h||'<tr><td colspan="13" class="empty">발주서가 없습니다.</td></tr>';
+  document.getElementById('cnt').innerHTML='<b>'+shown+'</b>건'+(fv?(' / 전체 '+_list.length):'')+' · 공급가 <b>'+fmt(ts)+'</b> · 부가세 <b>'+fmt(tv)+'</b> · 합계 <b>'+fmt(tt)+'</b>'; }
 function markList(seq){ var s=seq||(_cur&&_cur.poSeq); document.querySelectorAll('#lbody tr').forEach(function(tr){ tr.classList.toggle('on', String(tr.getAttribute('data-seq'))===String(s)); }); }
 
 /* ── 인쇄 · 엑셀 · 공유 ── */
