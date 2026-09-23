@@ -89,6 +89,12 @@
   .cv.p{ background:#d9ecf7; } .cv.q{ background:#fff9d6; }
   .cv.b{ color:var(--blue); font-weight:800; }
   .cv.neg{ color:var(--red); }
+  table.g tr.crow.fee > td{ padding-left:2px; padding-right:2px; }
+  table.g tr.crow.fee > td:last-child{ padding-left:10px; }
+  table.g tr.crow.feeoff > td{ padding-top:3px; padding-bottom:3px; background:#f8fbfa; }
+  .fee-tg{ height:26px; padding:0 6px; font-size:12px; font-weight:700; white-space:nowrap; }
+  .fee-sum{ font-size:12px; color:#6b7a89; cursor:pointer; }
+  .fee-sum:hover{ color:#0f6b5e; text-decoration:underline; }
   .cex{ display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; margin-top:7px; font-size:12.5px; }
   .cex select{ height:28px; border:1px solid var(--bd); border-radius:6px; font-size:12px; background:#fff; }
   .cex input{ height:28px; border:1.5px solid #e9b98a; background:#fdebd9; border-radius:6px; padding:0 6px; font-size:13px; }
@@ -373,6 +379,13 @@ function cenSave(){
 function blank(){ return { prodNm:'', spec:'', boxQty:1, qty:0, unit:'ea', unitPrice:0, unitPrice2:0, remark:'', calc:feeCalc() }; }
 function feeCalc(){ var c=newCalc(); c.open=false; return c; }   /* 품명비 칸만 있는 자료 — 계산 표는 안 펼친다 */
 function ensureFee(l){ if(l && !l.calc) l.calc=feeCalc(); return l; }   /* 옛 견적서에서 불러온 줄에도 품명비 칸을 달아 준다 */
+/* 품명비 줄 닫기·열기 — 기본은 닫힘(feeOpen 없음). 불러올 때만 값이 있으면 연다(loadDoc) */
+function feeToggle(i){ var l=_lines[i]; if(!l) return; ensureFee(l); l.calc.feeOpen=!l.calc.feeOpen; renderLines(); }
+/* 닫혔을 때 한 줄 요약 — 값 든 칸만 「동판비 2 × 100,000 (원가 포함)」 */
+function feeSum(c){ var a=(c&&c.extras||[]).filter(function(x){ return n(x.qty)>0||n(x.price)>0||(x.use&&x.use!=='off'); }).map(function(x){
+    var u=x.use==='cost'?'원가 포함':(x.use==='sub'?'별도 청구':'적용 안 함');
+    return esc(x.nm||'품명비')+' '+(n(x.qty)?fmt(x.qty):'0')+' × '+(n(x.price)?fmt(x.price):'0')+' ('+u+')'; });
+  return a.length? a.join(' · ') : '동판비·목형비 — 닫힘 (눌러서 열기)'; }
 function addLine(){ _lines.push(blank()); renderLines(); focusLast(); }
 /* [원복 2026-09-18] 품목 추가 단추를 품명비 줄 맨 앞으로 옮겼다가(「1번 두 개를 2번 앞으로」) 곧바로 「지금 작업 원복」 — 카드 머리(오른쪽 위)가 자리다. 다시 옮기자는 얘기가 나오면 이 이력 확인 */
 /* ➕ 품목 추가 = 품명 + 마진계산 + 품명비 세트 한 벌 (2026-09-17 「이 내용을 품목 추가 버튼으로 계속 작성」).
@@ -417,7 +430,12 @@ function renderLines(){
     /* ★품명비(동판·목형)는 «원가계산이 아니다» — 품목이 보이면 늘 함께 보인다 (2026-09-20 「원가계산 아니어서 품목 보일 때 동판·목형은 보이게」).
        계산 칸([🧮])은 표만 펼친다. 품명비 값은 계산에도 쓰이므로 자료는 l.calc.extras 에 그대로 둔다. */
     /* ★시작 자리 = 「규격」 칸 (2026-09-20 「규격 있는 위치부터 시작하게」) — 앞 세 칸(No·단추·품명)은 비운다. 품목 줄 칸이 늘면 이 3 도 함께 고칠 것 */
-    h+='<tr class="crow fee"><td></td><td></td><td></td><td colspan="'+(NC-3)+'">'+feeHtml(l,i)+'</td></tr>';
+    /* ★품명비 줄 닫기·열기 (2026-09-23 「동판비·목형비 닫기·열기 — 수정 시 값 없으면 닫힌 채, 있으면 열림 · 품목 추가는 닫힌 채」) —
+       상태 = l.calc.feeOpen(화면 전용). 단추 색은 🧮 와 같은 규칙 : 값 있음 = 진한 청록 칠 · 없음 = 흰 단추. 닫혀도 줄은 얇게 남아 단추가 보인다 */
+    var fOpen=!!l.calc.feeOpen, fHas=calcHasFee(l.calc);
+    h+='<tr class="crow fee'+(fOpen?'':' feeoff')+'"><td></td><td><button class="btn lnk fee-tg" title="'+(fHas?'품명비(동판·목형) 있음 — ':'품명비(동판·목형) — ')+(fOpen?'누르면 닫기':'누르면 열기')+'"'
+      +(fHas?' style="background:#137a6c;border-color:#137a6c;color:#fff"':'')+' onclick="feeToggle('+i+')">'+(fOpen?'▾':'▸')+' 동판,목형</button></td><td></td><td colspan="'+(NC-3)+'">'
+      +(fOpen? feeHtml(l,i) : '<span class="fee-sum" onclick="feeToggle('+i+')">'+feeSum(l.calc)+'</span>')+'</td></tr>';
     if(l.calc&&l.calc.open) h+=calcRowHtml(l,i,NC);   /* 계산 표 + 품명비 한 줄 — 품명 바로 밑(종전 자리) */
     /* [삭제 2026-09-20 「목형·동판 보이니 2번은 제거」] 품목 밑 ↳ 표시 줄 — 바로 위 품명비 줄에 같은 내용(이름·수량·단가·갈래)이 이미 보여 겹쳤다.
        ⚠저장(견적서·엑셀·목록)에는 그대로 나간다(`payload` 가 `subsOf` 로 만든다) — 화면에서만 뺀 것이다. */
@@ -498,7 +516,7 @@ try{ if(localStorage.getItem('konetQuoteBig')==='1') document.addEventListener('
    ✕ = 그 품명비 한 칸 빼기 · 전부 빼면 [＋ 품명비 넣기] 로 되돌린다(저장·불러오기도 뺀 그대로 — normCalc 는 칸 자체가 없을 때만 채운다). */
 function feeHtml(l,i){
   var c=l.calc, ex=c.extras||[];
-  var h='<div class="cex" id="cex'+i+'"><b style="color:#125a4e" title="동판비·목형비 — 값을 적으면 그 품목 밑에 줄로 보입니다 · 원가 포함 = 금액 ÷ MOQ 수량을 개당 구매에 더함 · 적용 안 함 = 줄만 보임">품명비</b>';
+  var h='<div class="cex" id="cex'+i+'"><b style="color:#125a4e" title="동판비·목형비 — 값을 적으면 그 품목 밑에 줄로 보입니다 · 원가 포함 = 금액 ÷ MOQ 수량을 개당 구매에 더함 · 적용 안 함 = 줄만 보임">동판,목형</b>';
   ex.forEach(function(x,j){
     h+='<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid #dbe2ea;border-radius:8px;padding:4px 8px;background:#fff">'
       +'<b>'+esc(x.nm||('품명비'+(j+1)))+'</b>'
@@ -682,7 +700,7 @@ function loadDoc(seq, copy){
     _delivPrev=delivFromTitle(m.titleTxt); _delivRmk=''; document.getElementById('deliv').value=_delivPrev; delivSync();   /* 저장된 제목 줄의 「(…, 부가세 별도)」에서 배송을 읽는다 */
     var gen={}; if(cj&&cj.genRows) cj.genRows.forEach(function(r){ gen[r]=true; });
     _lines=((j&&j.lines)||[]).filter(function(l){ return !gen[l.rowNo]; }).map(function(l){ return { prodNm:l.prodNm, spec:l.spec, boxQty:l.boxQty==null?'':n(l.boxQty), qty:n(l.qty), unit:l.unit||'ea', unitPrice:n(l.unitPrice), unitPrice2:n(l.unitPrice2), remark:l.remark, prodCd:l.prodCd||'', calc:null }; });
-    if(cj&&cj.calcs) cj.calcs.forEach(function(c,idx){ if(c&&_lines[idx]){ _lines[idx].calc=normCalc(c); _lines[idx].calc.open=false; } });   /* ★접힌 채 + 🧮 단추 색으로 「있음」 표시만 (2026-09-18 「펼치지 말고 있다고 표시만」 — 같은 날 「다 보이게」를 뒤집음. 펼치기는 🧮) */
+    if(cj&&cj.calcs) cj.calcs.forEach(function(c,idx){ if(c&&_lines[idx]){ _lines[idx].calc=normCalc(c); _lines[idx].calc.open=false; _lines[idx].calc.feeOpen=calcHasFee(_lines[idx].calc); } });   /* ★접힌 채 + 🧮 단추 색으로 「있음」 표시만 (2026-09-18 「펼치지 말고 있다고 표시만」 — 같은 날 「다 보이게」를 뒤집음. 펼치기는 🧮) */
     if(cj&&cj.set){ _cs.mode=cj.set.mode||'center'; if(cj.set.center) _cs.center=cj.set.center; _cs.fee=n(cj.set.fee); }
     _costRmk='';   /* 저장된 비고에 이미 든 원가 포함 블록은 costRmkSync 가 그대로 알아본다(중복 안 붙음) */
     _lines.forEach(function(l,i){ moqRmkSync(i); });   /* 옛 저장분(비고 빈 채 저장)도 열면 MOQ 가 채워진다 — 다시 저장하면 인쇄·엑셀에도 나간다 (2026-09-18) */
