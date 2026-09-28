@@ -1900,7 +1900,11 @@
 	         MAX(g.prodNm) AS prodNm, MAX(g.spec) AS spec, MAX(g.makerNm) AS makerNm, MAX(g.packQty) AS packQty,
 	         SUM(g.saleQty) AS saleQty, SUM(g.saleAmt) AS saleAmt,
 	         SUM(g.rtnQty)  AS rtnQty,  SUM(g.rtnAmt)  AS rtnAmt,
-	         SUM(g.costAmt) AS costAmt, SUM(g.dcAmt)   AS dcAmt
+	         SUM(g.costAmt) AS costAmt, SUM(g.dcAmt)   AS dcAmt,
+	         /* ★센터별 물류비 (2026-09-28) — 비율은 회사 설정(konetSet.cost.centers)에 있고 SQL 은 그 JSON 을 못 읽는다(2012, JSON_VALUE 없음).
+	            ⇒ 여기서는 <어느 출고장인가(dcCd)> 와 <비율을 곱할 밑금액(logiBase = 정산·출고 매출액)> 만 준다. 곱하기는 화면이 한다.
+	            판매전표(③)는 출고장이 없어 dcCd 빈 값 · logiBase 0 → 물류비 0 (사용자 확정 2026-09-28). */
+	         MAX(g.dcCd)    AS dcCd,    SUM(g.logiBase) AS logiBase
 	    FROM (
 	          /* ① 정산서 — 매출 전부. 매입액은 출고에 짝이 없는 건만. 수량이 음수인 줄 = 반품 */
 	          SELECT ISNULL(vm.VENDOR_CD,'(none)') AS venCd, ISNULL(vm.VENDOR_NM, N'(거래처 미지정)') AS venNm,
@@ -1912,7 +1916,8 @@
 	                 CASE WHEN ISNULL(s.OUT_QTY,0) <  0 THEN -ISNULL(s.OUT_QTY,0)  * sh.shr ELSE 0 END AS rtnQty,
 	                 CASE WHEN ISNULL(s.OUT_QTY,0) <  0 THEN -ISNULL(s.SALE_AMT,0) * sh.shr ELSE 0 END AS rtnAmt,
 	                 CASE WHEN ok.itemCd IS NULL THEN ISNULL(s.OUT_QTY,0) * ISNULL(ih.IN_PRICE, ISNULL(pm1.IN_PRICE,0)) * sh.shr ELSE 0 END AS costAmt,
-	                 0 AS dcAmt
+	                 0 AS dcAmt,
+	                 dk.dcKey AS dcCd, ISNULL(s.SALE_AMT,0) * sh.shr AS logiBase
 	            FROM TBL_SALES_MST s
 	            CROSS APPLY ( SELECT ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ AS dcKey,
 	                                 REPLACE(ISNULL(s.DLV_DT,''),'-','') AS dlvKey ) dk
@@ -1983,7 +1988,11 @@
 	                      ELSE 0 END,
 	                 0, 0,
 	                 ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.inUnit,
-	                 0
+	                 0,
+	                 dk2.dcKey,
+	                 CASE WHEN o.PROD_KIND = 'TD' THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0)
+	                      WHEN sk.itemCd IS NULL  THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.saleUnit
+	                      ELSE 0 END
 	            FROM TBL_SHIPOUT_MST o
 	            CROSS APPLY ( SELECT ]]><include refid="dcKeyOf"><property name="a" value="o."/></include><![CDATA[ AS dcKey,
 	                                 REPLACE(ISNULL(o.DLV_DT,''),'-','') AS dlvKey ) dk2
@@ -2022,7 +2031,8 @@
 	                 CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN ISNULL(d.TOT_AMT,0) - dcx.dcShare ELSE 0 END,
 	                 CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.QTY,0) ELSE ISNULL(d.QTY,0) END
 	                   * ISNULL(ih3.IN_PRICE, ISNULL(pm3.IN_PRICE,0)),
-	                 dcx.dcShare
+	                 dcx.dcShare,
+	                 CAST('' AS VARCHAR(10)), 0   /* 판매전표엔 출고장이 없다 → 물류비 0 */
 	            FROM TBL_SALES_TRX_DTL d
 	            JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
 	            LEFT JOIN PM pm3 ON pm3.PROD_CD = d.PROD_CD AND pm3.COMP_CD = d.COMP_CD
