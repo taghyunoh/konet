@@ -8,6 +8,10 @@
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) — 브라우저 alert 금지 --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 원본 보기(시트를 병합 살려 표로) — 전역 XLSX --%>
 <script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917c"></script>   <%-- 🧮 마진 조회 — 스냅샷 없는 옛 근거자료의 센터 비율 폴백(konetSet.cost) --%>
+<%-- 카카오톡 공유 (2026-09-28 「발주서 관리처럼 카톡 공유」) — 발주서(poReg)와 같은 SDK·같은 설정(kakao.properties).
+     ⚠못 받아도 화면은 그대로 돈다(아래 quoteKakao 가 「링크 복사」로 물러선다). --%>
+<script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
+<script src="${pageContext.request.contextPath}/asset/js/send-hist.js?v=20260910f"></script>   <%-- 📨 전송이력 — 실제로 나간 것(카톡)만 남긴다 --%>
 <!--
   견적서 관리 (2026-09-17 신설 — 「견적서 엑셀을 입고예약서처럼 올리고 저장, 일자·담당자·문서번호로 관리」) — 매출 관리 ▸ 견적서 관리. 셸 iframe(logiFrame) 화면.
   · 우리가 낸 견적서 엑셀(xls/xlsx, 표본 260729-1(900cc, 500cc).xls)을 끌어다 놓으면 서버(POI)가 문서번호·견적일·수신·담당자·유효기간·품목 줄·비고를 읽어 미리보기를 준다.
@@ -120,6 +124,9 @@
         <input type="text" id="q" placeholder="문서번호 · 수신 · 품명" style="width:200px" onkeydown="if(event.keyCode===13) load()">
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
         <button class="btn" style="border-color:#137a6c;color:#137a6c" onclick="cmpOpen()" title="체크한 견적서(없으면 목록 전체)를 품명 × 견적서 행렬로 비교합니다 — 단가 변동·최저·최고">📊 견적 비교</button>
+        <%-- 카톡 공유 (2026-09-28) — ★줄마다 단추를 두면 표가 복잡해져 «체크한 줄»에 대해 도구줄에서 보낸다([선택 삭제]와 같은 방식) --%>
+        <button class="btn" style="border-color:#f3c200;background:#fff8dd;color:#7a5c00;font-weight:800" onclick="quoteKakao()" title="체크한 견적서 하나를 카카오톡으로 보냅니다 — 받는 쪽은 로그인 없이 견적서를 보고 인쇄·PDF 저장까지 합니다">💬 카톡 공유</button>
+        <button class="btn" onclick="quoteLink()" title="체크한 견적서의 공개 주소만 복사합니다 — 카톡·문자·메일 어디에나 붙여 넣을 수 있습니다">🔗 링크 복사</button>
         <button class="btn btn-red" onclick="del()">🗑 선택 삭제</button>
       </span>
       <span class="sp tot" id="lsTot"></span>
@@ -141,6 +148,7 @@
 </div>
 <script>
 var CTX='${pageContext.request.contextPath}';
+var KAKAO_KEY='${kakaoJsKey}', SHARE_BASE='${shareBase}';   /* 카톡 공유 (2026-09-28) — 발주서와 같은 kakao.properties */
 var _pv=[], _ls=[], _docs={}, _docOpen='', _sel=null;
 function esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function n(v){ var x=Number(String(v==null?'':v).replace(/,/g,'')); return isFinite(x)?x:0; }
@@ -295,7 +303,10 @@ function lsRender(){
     amt+=n(x.supplyAmt);
     return '<tr class="tap'+(_sel===x.quoteSeq?' sel':'')+'" onclick="if(event.target.tagName!==\'INPUT\' && event.target.tagName!==\'BUTTON\' && !(window.getSelection&&String(window.getSelection()).length)) detail('+i+')">'
       +'<td><input type="checkbox" class="lchk" data-i="'+i+'"></td>'
-      +'<td>'+d10(x.quoteDt)+'</td><td><b>'+esc(x.docNo)+'</b>'+(x.hasFile==='Y'?'<span class="bd up" title="엑셀 파일을 올려 저장한 견적서 ('+esc(x.fileNm)+')">올림</span>':'<span class="bd hand" title="견적서 작성 화면에서 직접 작성한 견적서(올린 파일 없음)">✍ 직접 작성</span>')+'</td><td>'+esc(x.recvNm)+'</td><td>'+esc(x.mgrNm)+'</td>'
+      +'<td>'+d10(x.quoteDt)+'</td><td><b>'+esc(x.docNo)+'</b>'+(x.hasFile==='Y'?'<span class="bd up" title="엑셀 파일을 올려 저장한 견적서 ('+esc(x.fileNm)+')">올림</span>':'<span class="bd hand" title="견적서 작성 화면에서 직접 작성한 견적서(올린 파일 없음)">✍ 직접 작성</span>')
+        /* 카톡으로 보낸 적이 있으면 작은 표시만 (2026-09-28 — 줄에 단추를 두지 않는 대신) */
+        +(n(x.shareCnt)?'<span class="dim" style="font-size:11px;margin-left:6px" title="카톡·링크로 '+n(x.shareCnt)+'회 보냈습니다'+(x.lastShareDttm?' · 마지막 '+esc(String(x.lastShareDttm).slice(0,16)):'')+'">💬'+n(x.shareCnt)+'</span>':'')
+        +'</td><td>'+esc(x.recvNm)+'</td><td>'+esc(x.mgrNm)+'</td>'
       /* ★품명비(동판비·목형비)는 이름 + 갈래를 함께 보여 준다 (2026-09-20 「여기에도 동판·목형 보이게」·「적용 안 함·원가 포함·별도 청구 표시」) — 서버 feeNms(옛 서버면 빈 값) */
       +'<td class="l" style="max-width:320px">'+(x.firstCd?'<span style="color:#0f6b5e;font-weight:700;font-size:12px;margin-right:6px" title="첫 줄의 우리 상품코드'+(n(x.cdCnt)>1?' · 상품코드가 든 줄 '+n(x.cdCnt)+'개':'')+'">'+esc(x.firstCd)+'</span>':(n(x.cdCnt)?'<span style="color:#0f6b5e;font-weight:700;font-size:12px;margin-right:6px" title="상품코드가 든 줄 '+n(x.cdCnt)+'개(첫 줄에는 없음)">코드 '+n(x.cdCnt)+'줄</span>':''))+esc(x.firstNm)+(n(x.lineCnt)>1?' <span class="dim">외 '+(n(x.lineCnt)-1)+'</span>':'')
         +(x.feeNms?'<div class="dim" style="font-size:11.5px;margin-top:2px">🧷 '+esc(x.feeNms)+'</div>':'')+'</td>'
@@ -303,6 +314,9 @@ function lsRender(){
       +'<td>'+(x.hasFile==='Y'?'<button class="btn lnk" onclick="viewFile('+x.quoteSeq+', this.getAttribute(\x27data-n\x27))" data-n="'+esc(x.fileNm)+'" title="올린 엑셀 양식을 화면에서 봅니다 ('+esc(x.fileNm)+')">📄 원본</button>':'<button class="btn lnk" onclick="fileDown(CTX+\'/mangr/quoteExcel.do?quoteSeq='+x.quoteSeq+'\', \'견적서.xls\')" title="우리 견적서 양식 그대로 엑셀로 내려받기">📥 엑셀</button>')+'</td>'
       +'<td style="white-space:nowrap"><button class="btn lnk" onclick="printQuote('+x.quoteSeq+')" title="A4 견적서 양식으로 인쇄">🖨 인쇄</button>'
       /* 마진계산 없는 견적서(hasCalc='N')는 [🧮 계산조회] 를 아예 안 그린다 (2026-09-18 「없으면 아이콘 제외」). ⚠옛 서버(hasCalc 미제공)면 종전대로 그린다 — 눌러도 안내창뿐이라 무해 */
+      /* ⚠카톡·링크 단추는 줄마다 두지 않는다 (2026-09-28 「선택하면 카톡공유로 — 그리드가 복잡함」) —
+         위 도구줄 [💬 카톡 공유]·[🔗 링크 복사]가 <체크한 줄>에 대해 보낸다([선택 삭제]와 같은 방식).
+         줄에는 보낸 적이 있을 때만 문서번호 옆에 작은 💬N 만 남긴다. */
       +(x.hasCalc==='N' ? '' : ' <button class="btn lnk" onclick="marginView('+i+')" title="저장된 원가·마진 계산(근거자료) 조회">🧮 계산조회</button>')+'</td>'
       /* 수정 · ★복사 작성 (2026-09-20 「견적서 목록에서 견적서 복사 작성 추가」) — 복사는 내용만 베껴 새 견적서로(번호·견적일은 오늘 것으로 새로) */
       +'<td><button class="btn lnk" style="border-color:#0f6b5e;background:#e3f2ee;color:#0f6b5e;font-weight:800" onclick="editQuote('+x.quoteSeq+')" title="견적서 작성 화면에서 이 견적서를 수정">📝 수정</button>'
@@ -312,6 +326,78 @@ function lsRender(){
   document.getElementById('lsTot').innerHTML='<b>'+_ls.length+'</b>건 · 금액 <b>'+fmt(amt)+'</b>원';
 }
 function lsAllChk(el){ Array.prototype.forEach.call(document.querySelectorAll('.lchk'), function(c){ c.checked=el.checked; }); }
+
+/* ── 💬 카톡 공유 · 🔗 링크 (2026-09-28 「발주서 관리처럼」) ──
+   카카오톡은 파일을 못 붙인다 ⇒ «로그인 없이 그 견적서 하나만 보는 공개 주소»(/pub/quote.do?t=토큰)를 만들어 링크를 보낸다.
+   받는 쪽은 그 화면에서 인쇄·PDF 저장까지 한다. 발주서(poKakao)·거래명세서와 같은 방식이다.
+   ★토큰은 <처음 보낼 때> 서버가 발급하고 그 뒤로는 바뀌지 않는다 — 이미 쌓인 옛 견적서도 그대로 보낼 수 있고,
+     한 번 보낸 링크가 계속 살아 있다. 링크를 죽이려면 그 견적서의 SHARE_TOKEN 을 NULL 로 지운다. */
+/* ★★보낼 견적서 = <체크한 줄> 하나 ([선택 삭제]와 같은 고르는 법).
+   2026-09-28 사용자 확정 「카톡은 하나씩 선택하게」 — 같은 거래처면 여러 건을 한 링크로 묶는 것을 잠깐 만들다가 되돌렸다.
+   뜻 = 카톡 카드 하나가 견적서 한 장을 가리킨다(주소 하나 = 견적서 하나). 다시 얘기가 나오면 이 이력부터 확인할 것. */
+function quotePick(){
+  var ks=Array.prototype.filter.call(document.querySelectorAll('.lchk'), function(c){ return c.checked; });
+  if(!ks.length){ _alertBox('보낼 견적서를 <b>왼쪽 체크칸</b>에서 하나 고르세요.',{icon:'ℹ️'}); return -1; }
+  if(ks.length>1){ _alertBox('견적서는 <b>하나씩</b> 보냅니다 — 체크를 하나만 남겨 주세요.<br><span style="font-size:12.5px;color:#3d4d5c">카톡 카드 하나가 견적서 한 장을 가리키기 때문입니다. 여러 건이면 한 건씩 나눠 보내세요.</span>',{icon:'ℹ️'}); return -1; }
+  return +ks[0].getAttribute('data-i');
+}
+function quoteShareUrl(i){
+  var x=_ls[i]; if(!x) return Promise.reject(new Error('견적서를 찾지 못했습니다.'));
+  return post('/mangr/quoteShare.do','quoteSeq='+encodeURIComponent(x.quoteSeq))
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(j&&j.login==='N') throw new Error('로그인이 끊겼습니다 — 다시 로그인한 뒤 눌러 주세요.');
+      if(!j||j.result!=='OK'||!j.url) throw new Error((j&&j.message)||'공유 주소를 만들지 못했습니다.');
+      x.shareCnt=n(x.shareCnt)+1; x.lastShareDttm=new Date().toISOString().slice(0,16).replace('T',' ');
+      return j.url;
+    });
+}
+/* 전송이력 꼬리표 — 보낼 때마다 새 열쇠를 붙여 «어느 전송이 열렸나»를 가른다(공개 주소 자체는 그대로, 떼도 열린다) */
+function quoteHistTag(u){ var k=window.konetSendHist?konetSendHist.key():''; return { k:k, u:(k?konetSendHist.tag(u,k):u) }; }
+function quoteHistLog(i, gb, ex){
+  if(!window.konetSendHist) return;
+  var x=_ls[i]||{};
+  var o={ docGb:'QUOTE', docSeq:x.quoteSeq, docNo:x.docNo, docDt:x.quoteDt, custNm:x.recvNm, totAmt:n(x.supplyAmt), sendGb:gb };
+  for(var k in (ex||{})) o[k]=ex[k];
+  konetSendHist.log(o);
+}
+function quoteLink(){
+  var i=quotePick(); if(i<0) return;
+  quoteShareUrl(i).then(function(u){
+    var done=function(){ _alertBox('견적서 링크를 복사했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">카톡·문자·메일에 붙여 넣으면 받는 쪽이 로그인 없이 봅니다.</span>'
+      +'<br><span style="font-size:11.5px;color:#6b7a89;word-break:break-all">'+esc(u)+'</span>',{icon:'🔗'}); lsRender(); };
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(done, function(){ prompt('아래 주소를 복사하세요', u); lsRender(); });
+    else { prompt('아래 주소를 복사하세요', u); lsRender(); }
+  }).catch(function(e){ _alertBox(esc(e.message),{icon:'⚠️', okColor:'red'}); });
+}
+function quoteKakao(){
+  var i=quotePick(); if(i<0) return;
+  var x=_ls[i]; if(!x) return;
+  quoteShareUrl(i).then(function(u0){
+    var tg=quoteHistTag(u0), u=tg.u;
+    /* 키가 없거나 SDK 를 못 받았으면 링크 복사로 물러선다 — 기능이 죽지 않게(발주서와 같은 규칙) */
+    if(!window.Kakao || !KAKAO_KEY){
+      _alertBox('카카오 공유 설정이 없어 <b>링크 복사</b>로 보냅니다.<br><span style="font-size:12px;color:#6b7a89">kakao.properties 의 kakao.js.key 를 채우고 Kakao Developers 에 이 사이트 도메인을 등록하면 카드로 보내집니다.</span>',{icon:'💬'});
+      if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(u0); else prompt('아래 주소를 복사하세요', u0);
+      lsRender(); return;
+    }
+    try{ if(!Kakao.isInitialized()) Kakao.init(KAKAO_KEY); }
+    catch(e){ _alertBox('카카오 초기화 실패 — '+esc(e.message)+'<br><span style="font-size:12px">[🔗 링크]로 보내세요.</span>',{icon:'⚠️', okColor:'red'}); return; }
+    try{
+      /* 텍스트형 카드 — 그림(썸네일) 없이 글만(발주서와 같은 꼴. feed 형은 이미지가 필수다) */
+      Kakao.Share.sendDefault({ objectType:'text',
+        text:'📄 견적서 — '+(x.recvNm||'')+'\n'+d10(x.quoteDt)+' · '+(x.docNo||'')+' · 품목 '+n(x.lineCnt)+'줄 · 합계 '+fmt(x.supplyAmt)+'원(부가세 별도)'+(x.mgrNm?' · '+x.mgrNm:''),
+        link:{ mobileWebUrl:u, webUrl:u },
+        buttons:[ { title:'견적서 보기', link:{ mobileWebUrl:u, webUrl:u } } ] });
+      quoteHistLog(i,'KAKAO',{shareUrl:u, trackKey:tg.k});
+      _toast&&_toast('카카오톡으로 보냈습니다 — 견적서 '+(x.docNo||''),'success');
+      lsRender();
+    }catch(e){
+      quoteHistLog(i,'KAKAO',{shareUrl:u, trackKey:tg.k, resultGb:'FAIL', errMsg:e.message});
+      _alertBox('카카오 공유 실패 — '+esc(e.message)+'<br><span style="font-size:12px">[🔗 링크]로 보내세요.</span>',{icon:'⚠️', okColor:'red'});
+    }
+  }).catch(function(e){ _alertBox(esc(e.message),{icon:'⚠️', okColor:'red'}); });
+}
 function dl(seq){ fileDown(CTX+'/mangr/quoteFile.do?quoteSeq='+seq, '견적서.xls'); }
 /* 파일 받기 — 새 창(window.open) 대신 이 화면에서 받는다 (2026-09-19 「엑셀 출력 시 화면이 다른 데로 갔다 온다」 — 새 탭이 떴다 닫히며 화면이 튀었다) */
 function fileDown(url, fallbackNm){

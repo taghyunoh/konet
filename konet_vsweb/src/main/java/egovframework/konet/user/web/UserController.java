@@ -1186,8 +1186,11 @@ public class UserController {
 		   우리가 낸 견적서 엑셀(xls/xlsx)을 올려 문서번호·견적일·수신·담당자·품목을 저장하고 목록으로 관리. 원본 파일도 같이 보관(내려받기).
 		   멀티파트 설정이 없어 파일은 base64 JSON 으로 받는다(DC 발주 등록과 같은 길). */
 		@RequestMapping(value="/mangr/quoteMng.do")
-		public String quoteMng(HttpSession session) {
+		public String quoteMng(HttpServletRequest request, HttpSession session, Model model) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			/* 카톡 공유 (2026-09-28) — 발주서(poReg)와 같은 설정(kakao.properties). 키가 비면 화면이 「링크 복사」로 물러선다 */
+			model.addAttribute("kakaoJsKey", poProp("kakao.js.key"));
+			model.addAttribute("shareBase", poShareBase(request));
 			return ".raw/main/mangr/quoteMng";
 		}
 		@SuppressWarnings("unchecked")
@@ -1390,11 +1393,30 @@ public class UserController {
 		public String quotePrint(@RequestParam("quoteSeq") long quoteSeq, Model model, HttpSession session) throws Exception {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
 			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("quoteSeq", Long.valueOf(quoteSeq));
-			Map<String,Object> mst = svc.selectQuoteMst(q);
+			return quoteFillPrint(svc.selectQuoteMst(q), model, false);
+		}
+		/* ★공개 견적서 (2026-09-28 「발주서 관리처럼 카톡 공유」) — 카톡 카드가 여는 주소. 로그인 없이 토큰만으로 읽는다.
+		     토큰이 없거나 틀리면 mst 가 null 이라 화면이 「견적서를 찾을 수 없습니다」만 보여 준다(발주서 /pub/po.do 와 같은 규칙).
+		   ★한 주소 = 견적서 한 장이다 (2026-09-28 사용자 확정 「카톡은 하나씩 선택하게」) —
+		     같은 거래처 여러 건을 한 링크로 묶는 것을 잠깐 만들다가 되돌렸다. 다시 얘기가 나오면 이 이력부터 확인할 것. */
+		@RequestMapping(value="/pub/quote.do")
+		public String quotePublic(@RequestParam(value="t", required=false) String token,
+		                          @RequestParam(value="s", required=false) String trackKey, Model model) throws Exception {
+			Map<String,Object> mst = svc.selectQuoteMstByToken(token);
+			if (mst != null) sendHistView(trackKey, "QUOTE");   /* 읽음·열람 — 전송이력이 있으면 센다 */
+			return quoteFillPrint(mst, model, true);
+		}
+		/** 인쇄 화면 채우기 — 로그인 인쇄와 공개 링크가 <같은 JSP·같은 값>을 쓴다(양식이 두 벌로 갈리지 않게).
+		 *  ★공개 쪽은 세션이 없으므로 회사 정보는 «그 견적서가 실어 온 회사코드»로 읽는다 — 이게 유일한 열쇠다
+		 *    (거래명세서에서 이 값을 안 실어 공급자 칸이 절반만 찍힌 사고가 있었다. 2026-09-10). */
+		private String quoteFillPrint(Map<String,Object> mst, Model model, boolean pub) throws Exception {
+			model.addAttribute("pub", pub);
 			model.addAttribute("mst", mst);
 			if (mst != null) {
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("quoteSeq", mst.get("quoteSeq")); q.put("compCd", mst.get("compCd"));
 				model.addAttribute("items", svc.selectQuoteDtl(q));
-				Map<String,Object> c = new HashMap<String,Object>(); c.put("compCd", session.getAttribute("s_comp_cd"));
+				Map<String,Object> c = new HashMap<String,Object>(); c.put("compCd", mst.get("compCd"));
 				Map<String,Object> comp = svc.selectCompInfo(c); if (comp == null) comp = new HashMap<String,Object>();
 				poFillDefault(comp, "compNm", "company.name"); poFillDefault(comp, "busiNum", "company.busi.num"); poFillDefault(comp, "compCeo", "company.ceo");
 				poFillDefault(comp, "compAddr", "company.addr"); poFillDefault(comp, "compTel", "company.tel"); poFillDefault(comp, "compType", "company.type");
@@ -1402,6 +1424,18 @@ public class UserController {
 				model.addAttribute("comp", comp);
 			}
 			return ".raw/main/mangr/quotePrint";
+		}
+		/** 견적서 공유 주소 — 화면이 [💬 카톡]·[🔗 링크]를 누르면 부른다. 토큰을 발급(처음 한 번)하고 공개 주소를 돌려준다 */
+		@RequestMapping(value="/mangr/quoteShare.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> quoteShare(@RequestParam("quoteSeq") long quoteSeq, HttpServletRequest request, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("result", "FAIL"); res.put("login", "N"); return res; }
+			String token = svc.shareQuote(quoteSeq, String.valueOf(session.getAttribute("s_comp_cd")));
+			if (token == null || token.isEmpty()) { res.put("result", "FAIL"); res.put("message", "견적서를 찾을 수 없습니다."); return res; }
+			res.put("result", "OK");
+			res.put("url", poShareBase(request) + "/pub/quote.do?t=" + token);
+			return res;
 		}
 		/* 견적서 엑셀 (2026-09-17 「엑셀로 출력은 양식 그대로」) — 우리 양식 파일(quote_tpl1/2.xls)에 값만 채워 내려준다. 파일 이름 = 문서번호.xls */
 		@RequestMapping(value="/mangr/quoteExcel.do")

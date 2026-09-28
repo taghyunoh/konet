@@ -406,4 +406,8 @@ public interface UserService {
 	java.util.List<java.util.Map<String,Object>> selectProfitStat(java.util.Map<String,Object> p) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectProfitRecv(java.util.Map<String,Object> p) throws Exception;
 
+	/* 견적서 카톡 공유 (2026-09-28) */
+	String shareQuote(long quoteSeq, String compCd) throws Exception;                                                        // 토큰(이미 있으면 그대로)을 돌려준다 · 없는 견적서면 null
+	java.util.Map<String,Object> selectQuoteMstByToken(String token) throws Exception;
+
 }

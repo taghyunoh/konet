@@ -56,7 +56,8 @@
 <div class="bar">
   <b>📄 견적서<c:if test="${not empty mst}"> — ${mst.docNo} · ${fn:substring(mst.quoteDt,0,4)}-${fn:substring(mst.quoteDt,4,6)}-${fn:substring(mst.quoteDt,6,8)} · ${mst.recvNm}</c:if></b>
   <button class="p" onclick="window.print()">🖨 인쇄</button>
-  <button onclick="window.close()">닫기</button>
+  <%-- 공개 링크(/pub/quote.do?t=)로 연 창은 우리가 연 것이 아니라 닫히지 않는다 — 단추를 감춘다 (2026-09-28, 발주서 poPrint 와 같은 규칙) --%>
+  <c:if test="${!pub}"><button onclick="window.close()">닫기</button></c:if>
 </div>
 <div class="sheet">
 <c:choose>

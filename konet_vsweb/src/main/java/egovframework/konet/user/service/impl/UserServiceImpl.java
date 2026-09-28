@@ -2687,4 +2687,27 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<java.util.Map<String,Object>> selectProfitStat(java.util.Map<String,Object> p) throws Exception { return mapper.selectProfitStat(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectProfitRecv(java.util.Map<String,Object> p) throws Exception { return mapper.selectProfitRecv(p); }
 
+	/* ── 견적서 카톡 공유 (2026-09-28) ── 발주서·거래명세서와 같은 방식 : 토큰으로 여는 공개 페이지 링크를 보낸다.
+	   ★토큰은 <처음 보낼 때> 발급하고 그 뒤로는 바뀌지 않는다(SQL 이 ISNULL(SHARE_TOKEN, 새토큰)) —
+	     이미 쌓인 옛 견적서도 그대로 보낼 수 있고, 한 번 보낸 링크가 계속 살아 있다.
+	   ⇒ 여기서 만든 «후보» 토큰을 그대로 돌려주면 <틀린다>. 쓴 뒤 다시 읽어 실제로 박힌 값을 돌려준다
+	     (거래명세서 shareSalesTrx 에서 겪은 것과 같은 함정 — 두 번째 보내기가 늘 어긋난다). */
+	@Override public String shareQuote(long quoteSeq, String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("quoteSeq", Long.valueOf(quoteSeq)); p.put("compCd", compCd);
+		p.put("shareToken", java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 24));
+		if (mapper.updateQuoteShare(p) == 0) return null;   // 없는 견적서거나 다른 회사
+		java.util.Map<String,Object> q = new java.util.HashMap<String,Object>();
+		q.put("quoteSeq", Long.valueOf(quoteSeq)); q.put("compCd", compCd);
+		java.util.Map<String,Object> mst = mapper.selectQuoteMst(q);
+		return mst == null ? null : scStr(mst.get("shareToken"));
+	}
+	/* 공개 조회 — 토큰이 곧 열쇠다. ★빈 토큰이면 아예 묻지 않는다(SQL 에도 같은 관문을 두었다). */
+	@Override public java.util.Map<String,Object> selectQuoteMstByToken(String token) throws Exception {
+		if (token == null || token.trim().isEmpty()) return null;
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("token", token.trim());
+		return mapper.selectQuoteMstByToken(p);
+	}
+
 }

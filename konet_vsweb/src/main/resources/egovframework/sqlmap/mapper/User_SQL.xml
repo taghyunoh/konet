@@ -1097,6 +1097,7 @@
 	                          FROM TBL_QUOTE_DTL f
 	                         WHERE f.QUOTE_SEQ = m.QUOTE_SEQ AND f.PROD_NM IN (N'동판비', N'목형비')
 	                         FOR XML PATH(''), TYPE ).value('.','NVARCHAR(400)'), 1, 2, ''), '') AS feeNms,
+	         ISNULL(m.SHARE_CNT,0) AS shareCnt, m.LAST_SHARE_DTTM AS lastShareDttm,   /* 카톡 공유 횟수·마지막 때 (2026-09-28) */
 	         m.REG_DTTM AS regDttm, ISNULL(m.REG_USER,'') AS regUser
 	    FROM TBL_QUOTE_MST m
 	    LEFT JOIN ( SELECT QUOTE_SEQ, COUNT(*) AS cnt, MIN(CASE WHEN ROW_NO = 1 THEN PROD_NM END) AS firstNm,
@@ -1159,7 +1160,8 @@
 	<select id="selectQuoteMst" parameterType="java.util.Map" resultType="java.util.HashMap">
 	  SELECT QUOTE_SEQ AS quoteSeq, COMP_CD AS compCd, DOC_NO AS docNo, ISNULL(QUOTE_DT,'') AS quoteDt, ISNULL(RECV_NM,'') AS recvNm, ISNULL(MGR_NM,'') AS mgrNm,
 	         ISNULL(VALID_TXT,'') AS validTxt, ISNULL(TITLE_TXT,'') AS titleTxt, ISNULL(REMARK,'') AS remark, ISNULL(SUPPLY_AMT,0) AS supplyAmt,
-	         ISNULL(PRICE1_NM,'') AS price1Nm, ISNULL(PRICE2_NM,'') AS price2Nm, ISNULL(CALC_JSON,'') AS calcJson, ISNULL(FILE_NM,'') AS fileNm, ISNULL(REG_USER,'') AS regUser, REG_DTTM AS regDttm
+	         ISNULL(PRICE1_NM,'') AS price1Nm, ISNULL(PRICE2_NM,'') AS price2Nm, ISNULL(CALC_JSON,'') AS calcJson, ISNULL(FILE_NM,'') AS fileNm, ISNULL(REG_USER,'') AS regUser, REG_DTTM AS regDttm,
+	         SHARE_TOKEN AS shareToken, ISNULL(SHARE_CNT,0) AS shareCnt, LAST_SHARE_DTTM AS lastShareDttm   <!-- 카톡 공유 (2026-09-28) -->
 	    FROM TBL_QUOTE_MST
 	   WHERE QUOTE_SEQ = #{quoteSeq} AND ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -1179,6 +1181,29 @@
 	    SELECT 'recv', RECV_NM, MAX(QUOTE_SEQ) FROM TBL_QUOTE_MST
 	     WHERE ACTION_YN <> 'D' AND ISNULL(RECV_NM,'') <> '' AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} ) GROUP BY RECV_NM
 	  ) x ORDER BY kind, lastSeq DESC
+	]]></select>
+	<!-- ★카톡 공유 (2026-09-28) — 발주서(updatePoMst 의 SHARE_TOKEN)·거래명세서(updateSalesTrxShare)와 같은 규칙.
+	     `ISNULL(SHARE_TOKEN, 새토큰)` 이라 **한 번 발급되면 바뀌지 않는다** — 이미 보낸 링크가 계속 살아 있어야 하기 때문.
+	     ⇒ 서비스가 돌려받은 «후보 토큰»을 그대로 쓰면 틀린다. 쓴 뒤 다시 읽어 확인할 것(shareQuote).
+	     ⚠DDL docs/sql/20260928_quote_share.sql 을 먼저. -->
+	<update id="updateQuoteShare" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_QUOTE_MST
+	     SET SHARE_TOKEN     = ISNULL(SHARE_TOKEN, #{shareToken,jdbcType=NVARCHAR}),
+	         SHARE_CNT       = ISNULL(SHARE_CNT,0) + 1,
+	         LAST_SHARE_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120)
+	   WHERE QUOTE_SEQ = #{quoteSeq} AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<!-- ★공개 견적서 — 토큰이 곧 열쇠다. 로그인이 없어 compCd 가 비므로 **빈 토큰은 반드시 거절**한다
+	     (안 그러면 fail-open 으로 견적서가 통째로 나온다 — 거래명세서 selectSalesTrxByToken 과 같은 관문). -->
+	<select id="selectQuoteMstByToken" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 1 QUOTE_SEQ AS quoteSeq, COMP_CD AS compCd, DOC_NO AS docNo, ISNULL(QUOTE_DT,'') AS quoteDt, ISNULL(RECV_NM,'') AS recvNm, ISNULL(MGR_NM,'') AS mgrNm,
+	         ISNULL(VALID_TXT,'') AS validTxt, ISNULL(TITLE_TXT,'') AS titleTxt, ISNULL(REMARK,'') AS remark, ISNULL(SUPPLY_AMT,0) AS supplyAmt,
+	         ISNULL(PRICE1_NM,'') AS price1Nm, ISNULL(PRICE2_NM,'') AS price2Nm, ISNULL(SHARE_CNT,0) AS shareCnt
+	    FROM TBL_QUOTE_MST
+	   WHERE ACTION_YN = 'Y'
+	     AND ISNULL(#{token,jdbcType=NVARCHAR},'') <> ''
+	     AND SHARE_TOKEN = #{token,jdbcType=NVARCHAR}
 	]]></select>
 	<update id="markQuoteReplace" parameterType="java.util.Map">
 	  UPDATE TBL_QUOTE_MST SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
