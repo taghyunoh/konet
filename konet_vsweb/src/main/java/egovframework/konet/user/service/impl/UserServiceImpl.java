@@ -866,6 +866,7 @@ public class UserServiceImpl implements UserService {
 			if (amt == 0 && qty != 0 && price != 0) amt = Math.round(qty * price);
 			java.util.Map<String,Object> d = new java.util.HashMap<String,Object>();
 			d.put("rowNo", ++no); d.put("prodNm", nm); d.put("spec", scStr(l.get("spec")));
+			d.put("makerNm", scStr(l.get("makerNm")));   // 제조사 (2026-09-28) — 비면 빈 글자, 화면·인쇄·엑셀이 「값이 있을 때만」 칸을 낸다
 			d.put("boxQty", l.get("boxQty") == null || scStr(l.get("boxQty")).isEmpty() ? null : Double.valueOf(scNum(l.get("boxQty"))));
 			d.put("unit", scStr(l.get("unit"))); d.put("qty", Double.valueOf(qty)); d.put("unitPrice", Double.valueOf(price)); d.put("amt", Double.valueOf(Math.round(amt)));
 			d.put("remark", scStr(l.get("remark"))); d.put("prodCd", scStr(l.get("prodCd")).isEmpty() ? null : scStr(l.get("prodCd")));
@@ -941,6 +942,15 @@ public class UserServiceImpl implements UserService {
 		cl.setCellStyle(ns);
 	}
 	@Override public byte[] buildQuoteXls(java.util.Map<String,Object> mst, java.util.List<java.util.Map<String,Object>> lines) throws Exception {
+		/* ★★[확정 2026-09-28 「원가 포함 동판비·목형비는 품명에서 제외」] 원가 포함 품명비 줄은 엑셀에도 안 찍는다 —
+		   단가에 이미 녹아 있어 단가·금액이 빈 줄로 나갔다. 근거 숫자는 견적서 비고에 그대로 있다.
+		   새로 저장하는 견적서는 작성 화면이 줄 자체를 안 만들지만, 이미 저장된 견적서는 DB 에 남아 있으므로 여기서 거른다(인쇄 quotePrint.jsp 와 같은 판정). */
+		java.util.List<java.util.Map<String,Object>> keep = new java.util.ArrayList<java.util.Map<String,Object>>();
+		for (java.util.Map<String,Object> l : lines) {
+			boolean costOnly = scNum(l.get("unitPrice")) == 0 && scNum(l.get("amt")) == 0 && scStr(l.get("remark")).startsWith("원가 포함");
+			if (!costOnly) keep.add(l);
+		}
+		lines = keep;
 		boolean two = !scStr(mst.get("price2Nm")).isEmpty();
 		java.io.InputStream in = UserServiceImpl.class.getClassLoader().getResourceAsStream(two ? "quote_tpl2.xls" : "quote_tpl1.xls");
 		if (in == null) throw new Exception("견적서 양식 파일(quote_tpl" + (two ? 2 : 1) + ".xls)이 없습니다.");
@@ -952,9 +962,11 @@ public class UserServiceImpl implements UserService {
 			if (shNm.length() > 31) shNm = shNm.substring(0, 31);
 			if (!shNm.isEmpty()) wb.setSheetName(0, shNm);
 			org.apache.poi.ss.usermodel.DataFormatter df = new org.apache.poi.ss.usermodel.DataFormatter();
-			int hdr = -1, cName = -1, cSpec = -1, cUnit = -1, cQty = -1, cP1 = -1, cA1 = -1, cP2 = -1, cA2 = -1, cRmk = -1; boolean twoRow = false;
+			int hdr = -1, cName = -1, cSpec = -1, cUnit = -1, cQty = -1, cP1 = -1, cA1 = -1, cP2 = -1, cA2 = -1, cRmk = -1, cMaker = -1; boolean twoRow = false;
 			int ceoRow = -1, ceoCol = -1;   /* 「대표이사」 값 칸 — 회사 도장을 겹쳐 찍는 자리 (2026-09-19) */
-			java.util.Set<String> known = new java.util.HashSet<String>(java.util.Arrays.asList("품명","품목","규격","단위","수량","단가","금액","비고","공급가액","box","ea"));
+			/* ★「제조」도 아는 머리글이다 (2026-09-28) — 아래 «묶음 이름(센터배송·택배출고)» 갈아 끼우기가 <모르는 머리글 앞 2개>를 골라 덮으므로,
+			   빼 놓으면 양식에 제조 칸을 넣는 순간 그 칸이 「센터배송」으로 덮인다 */
+			java.util.Set<String> known = new java.util.HashSet<String>(java.util.Arrays.asList("품명","품목","규격","단위","수량","단가","금액","비고","공급가액","제조","box","ea"));
 			for (int r = 0; r <= sh.getLastRowNum(); r++) {
 				org.apache.poi.ss.usermodel.Row row = sh.getRow(r); if (row == null) continue;
 				java.util.TreeMap<Integer,String> cells = qzRowText(row, df);
@@ -981,6 +993,8 @@ public class UserServiceImpl implements UserService {
 						String k = qzKey(e.getValue());
 						if (k.startsWith("품명") || k.startsWith("품목")) cName = e.getKey(); else if (k.startsWith("규격")) cSpec = e.getKey();
 						else if ("단위".equals(k)) cUnit = e.getKey(); else if ("수량".equals(k)) cQty = e.getKey(); else if (k.startsWith("비고")) cRmk = e.getKey();
+						/* 제조사 (2026-09-28) — 양식(quote_tpl1/2.xls)에 「제조」 칸이 있을 때만 채운다. 지금 두 양식에는 없어 그냥 건너뛴다 */
+						else if (k.startsWith("제조")) cMaker = e.getKey();
 					}
 					java.util.TreeMap<Integer,String> sub = qzRowText(sh.getRow(r + 1), df);
 					for (String v : sub.values()) { String k = qzKey(v).toLowerCase(); if ("단가".equals(k) || "금액".equals(k) || "box".equals(k) || "ea".equals(k)) twoRow = true; }
@@ -1045,6 +1059,7 @@ public class UserServiceImpl implements UserService {
 				java.util.Map<String,Object> l = i < lines.size() ? lines.get(i) : null;
 				qzSet(row, cName, l == null ? "" : scStr(l.get("prodNm")));
 				if (cSpec >= 0) qzSet(row, cSpec, l == null ? "" : scStr(l.get("spec")));
+				if (cMaker >= 0) qzSet(row, cMaker, l == null ? "" : scStr(l.get("makerNm")));
 				qzNumSet(row, cUnit, l == null ? null : l.get("boxQty"));
 				qzNumSet(row, cQty, l == null ? null : l.get("qty"));
 				boolean zero1 = l != null && scNum(l.get("unitPrice")) == 0 && scNum(l.get("amt")) == 0;   /* 원가 포함 품명비 표시 줄(2026-09-18) — 0 대신 빈칸, 근거는 비고에 */
@@ -2667,5 +2682,9 @@ public class UserServiceImpl implements UserService {
 		mapper.updateEmpRoomLastTxt(p);
 		return n;
 	}
+
+	/* ── 이익현황 (2026-09-28) ── 계산은 전부 SQL 이 한다(마감·매출그래프와 같은 규칙). 여기서는 넘겨주기만 한다 */
+	@Override public java.util.List<java.util.Map<String,Object>> selectProfitStat(java.util.Map<String,Object> p) throws Exception { return mapper.selectProfitStat(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectProfitRecv(java.util.Map<String,Object> p) throws Exception { return mapper.selectProfitRecv(p); }
 
 }

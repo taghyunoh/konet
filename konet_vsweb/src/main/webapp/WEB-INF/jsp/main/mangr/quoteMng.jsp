@@ -365,6 +365,13 @@ function viewFile(seq, nm){
 var _mgSeq=null;
 function mgRate(set){ if(set && set.rate!=null) return n(set.rate);
   try{ var cs=(window.konetSet&&konetSet.cost&&konetSet.cost.centers)||[]; for(var i=0;i<cs.length;i++) if(cs[i].nm===set.center) return n(cs[i].rate); }catch(e){} return 0; }
+/* ★센터별 세부분류 (2026-09-28) — 저장 때 실은 센터 스냅샷(set.centers)으로 물류비·실 판매금액·실 마진금액·실 마진율을 센터마다 보여 준다.
+   ⚠스냅샷이 없는 옛 저장분은 나누지 않는다 — 그때는 이 기능이 없었고, 지금 회사 설정 비율로 채우면 「그때 근거」가 아니게 된다.
+   ⚠센터배송(mode='center')이 아니면 센터가 없으므로 역시 한 칸씩. */
+function mgCents(set){ if(!set || set.mode!=='center') return null;
+  var cs=(set.centers||[]).filter(function(c){ return (c.nm||'').trim(); });
+  return cs.length>1 ? cs.map(function(c){ return { nm:String(c.nm), rate:n(c.rate) }; }) : null; }
+function mgShort(nm){ return String(nm||'').replace(/센터$/,''); }
 function marginView(i){
   var x=_ls[i]; if(!x) return;
   var w=document.getElementById('mgWrap');
@@ -390,13 +397,26 @@ function marginView(i){
     var mains=lines.filter(function(l){ return !gen[l.rowNo]; });
     var set=cj.set||{}, rate=mgRate(set);
     var dcRate=n(set.dcRate);   /* DC 비율 스냅샷(2026-09-18 「DC 비는 11.5%」) — 없는 옛 저장분은 그때 규칙(물류비 0) 그대로 */
-    var modeTxt= set.mode==='center' ? ('센터배송 — '+esc(set.center||'')+' '+rate+'%') : (set.mode==='parcel' ? ('직송 — 직송비/박스 '+fmt(set.fee)+'원') : ('DC — '+(dcRate? dcRate+'%' : '물류비 없음')));   /* 이름 변경 2026-09-18 「직송→DC · 택배→직송」 (값 direct/parcel 은 그대로) */
+    var cents=mgCents(set), K=cents?cents.length:0;   /* 센터별 세부분류 (2026-09-28) */
+    var modeTxt= set.mode==='center' ? ('센터배송 — '+(cents? ('센터 '+K+'곳 · 기준 '+esc(set.center||'')+' '+rate+'%') : (esc(set.center||'')+' '+rate+'%'))) : (set.mode==='parcel' ? ('직송 — 직송비/박스 '+fmt(set.fee)+'원') : ('DC — '+(dcRate? dcRate+'%' : '물류비 없음')));   /* 이름 변경 2026-09-18 「직송→DC · 택배→직송」 (값 direct/parcel 은 그대로) */
     var h='<div class="cmp"><div class="dh"><b>🧮 원가·마진 근거</b> <b style="color:#137a6c">'+esc(x.docNo)+'</b> · '+d10(x.quoteDt)
       /* [삭제 2026-09-20 「표시 제거 — 중복임」] 이 줄의 [✏ 수정] 단추 — 바로 위 목록 줄에 [📝 수정]이 있어 겹쳤다(안내 문구도 그 단추를 가리키게) */
       +' <span class="dim">저장 때 스냅샷 그대로 · 물류비 = '+modeTxt+' · 고치려면 목록 줄의 [📝 수정]</span>'
       +'<button class="btn lnk" style="margin-left:auto" onclick="marginView('+i+')">✕ 닫기</button></div>'
-      +'<div class="tw" style="max-height:56vh"><table class="g"><thead><tr><th class="nm">품명 / 규격</th><th>MOQ수량</th><th>단가</th><th>박스<br>입수량</th><th>구매<br>(계산)</th><th>구매 계</th><th title="확인용 메모 칸(2026-09-18) — 계산과 무관, 작성 화면에서 적은 값 그대로">타겟금액</th><th>판매<br>적용단가</th><th>판매 계</th><th>물류비</th><th>실 판매금액</th><th>실 마진금액</th><th>실 마진율</th><th>품명비 (동판·목형)</th></tr></thead><tbody>';
+      /* ★센터별 세부분류면 머리글이 두 줄 — 앞 칸은 rowspan, 네 묶음은 colspan + 아랫줄에 센터 이름 (2026-09-28) */
+      +'<div class="tw" style="max-height:56vh"><table class="g"><thead>'
+      +(cents
+        ? ('<tr><th class="nm" rowspan="2">품명 / 규격</th><th rowspan="2">MOQ수량</th><th rowspan="2">단가</th><th rowspan="2">박스<br>입수량</th><th rowspan="2">구매<br>(계산)</th><th rowspan="2">구매 계</th><th rowspan="2" title="확인용 메모 칸(2026-09-18) — 계산과 무관, 작성 화면에서 적은 값 그대로">타겟금액</th><th rowspan="2">판매<br>적용단가</th><th rowspan="2">판매 계</th>'
+           +'<th colspan="'+K+'">물류비</th><th colspan="'+K+'">실 판매금액</th><th colspan="'+K+'">실 마진금액</th><th colspan="'+K+'">실 마진율</th>'
+           +'<th rowspan="2">품명비 (동판·목형)</th></tr><tr>'
+           +[ '물류비','실 판매금액','실 마진금액','실 마진율' ].map(function(g){ return cents.map(function(z){
+               return '<th style="font-size:11px'+(z.nm===set.center?';color:#0f6b5e;text-decoration:underline':'')+'" title="'+esc(g)+' — '+esc(z.nm)+' (물류비율 '+z.rate+'%)'+(z.nm===set.center?' · 기준 센터':'')+'">'+esc(mgShort(z.nm))+'</th>'; }).join(''); }).join('')
+           +'</tr>')
+        : ('<tr><th class="nm">품명 / 규격</th><th>MOQ수량</th><th>단가</th><th>박스<br>입수량</th><th>구매<br>(계산)</th><th>구매 계</th><th title="확인용 메모 칸(2026-09-18) — 계산과 무관, 작성 화면에서 적은 값 그대로">타겟금액</th><th>판매<br>적용단가</th><th>판매 계</th><th>물류비</th><th>실 판매금액</th><th>실 마진금액</th><th>실 마진율</th><th>품명비 (동판·목형)</th></tr>'))
+      +'</thead><tbody>';
     var tI=0, tO=0, tP=0, tQ=0, tR=0, rows=0;
+    var zero=function(){ return cents? cents.map(function(){ return 0; }) : null; };
+    var tPc=zero(), tQc=zero(), tRc=zero();   /* 센터별 합계 (2026-09-28) */
     mains.forEach(function(l,idx){
       var c=cj.calcs[idx]; if(!c) return; rows++;
       var G=n(c.box), Q0=n(c.moqQty), E=n(c.buy);
@@ -408,20 +428,38 @@ function marginView(i){
       var P= set.mode==='center' ? O*rate/100 : (set.mode==='parcel' ? n(set.fee) : O*dcRate/100);
       var Q=O-P, R=Q-I, S=I?(Q/I-1):0;
       tI+=I; tO+=O; tP+=P; tQ+=Q; tR+=R;
+      /* 센터별 — 식은 위와 같고 비율만 그 센터 것 (2026-09-28) */
+      var cc=cents? cents.map(function(z){ var p=O*n(z.rate)/100, q=O-p; return { P:p, Q:q, R:q-I, S:I?(q/I-1):0 }; }) : null;
+      if(cc) cc.forEach(function(z,k){ tPc[k]+=z.P; tQc[k]+=z.Q; tRc[k]+=z.R; });
       var pb=(c.extras||[]).filter(function(e){ return (e.nm||'').trim()&&(n(e.qty)*n(e.price)||e.use!=='off'); }).map(function(e){
         var lab= e.use==='sub'?'서브 줄':(e.use==='cost'?('원가 포함'+(e.hide?' · 견적서 제외':'')):'안 함');   /* hide = 견적서에서만 뺀 것 (2026-09-20) */
         return esc(e.nm)+' '+fmt(n(e.qty)*n(e.price))+' <span class="sub">('+lab+')</span>'; }).join(' · ');
-      h+='<tr><td class="nm"><b>'+esc(l.prodNm)+'</b>'+(l.spec?'<div class="sub">'+esc(l.spec)+'</div>':'')+'</td>'
+      var pct=function(v){ return (I&&O)?((Math.round(v*10000)/100)+'%'):''; };
+      var four = cc
+        ? ( cc.map(function(z){ return '<td class="r">'+fmt(z.P)+'</td>'; }).join('')
+          + cc.map(function(z){ return '<td class="r">'+fmt(z.Q)+'</td>'; }).join('')
+          + cc.map(function(z){ return '<td class="r'+(z.R<0?' up':'')+'"><b>'+fmt(z.R)+'</b></td>'; }).join('')
+          + cc.map(function(z){ return '<td class="r"><b'+(z.S<0?' class="up"':'')+'>'+pct(z.S)+'</b></td>'; }).join('') )
+        : ( '<td class="r">'+fmt(P)+'</td><td class="r">'+fmt(Q)+'</td>'
+          + '<td class="r'+(R<0?' up':'')+'"><b>'+fmt(R)+'</b></td>'
+          + '<td class="r"><b'+(S<0?' class="up"':'')+'>'+pct(S)+'</b></td>' );
+      h+='<tr><td class="nm"><b>'+esc(l.prodNm)+'</b>'+(l.makerNm?' <span class="sub">('+esc(l.makerNm)+')</span>':'')+(l.spec?'<div class="sub">'+esc(l.spec)+'</div>':'')+'</td>'
         +'<td class="r">'+fmt(Q0)+'</td><td class="r">'+fmt(E)+'</td><td class="r">'+fmt(G)+'</td>'
         +'<td class="r">'+fmt(H)+'</td><td class="r">'+fmt(I)+'</td>'
         +'<td class="r">'+(n(c.tgtAmt)?fmt(c.tgtAmt):'<span class="same">—</span>')+'</td>'
-        +'<td class="r"><b>'+fmt(N)+'</b></td><td class="r">'+fmt(O)+'</td><td class="r">'+fmt(P)+'</td>'
-        +'<td class="r">'+fmt(Q)+'</td><td class="r'+(R<0?' up':'')+'"><b>'+fmt(R)+'</b></td>'
-        +'<td class="r"><b'+(S<0?' class="up"':'')+'>'+(I&&O?(Math.round(S*10000)/100)+'%':'')+'</b></td>'
+        +'<td class="r"><b>'+fmt(N)+'</b></td><td class="r">'+fmt(O)+'</td>'
+        +four
         +'<td class="l" style="white-space:normal;min-width:160px">'+(pb||'<span class="same">—</span>')+'</td></tr>';
     });
     var tS=tI?(tQ/tI-1):0;
-    h+='<tr class="tot"><td class="nm">합계 ('+rows+'품목)</td><td></td><td></td><td></td><td></td><td class="r">'+fmt(tI)+'</td><td></td><td></td><td class="r">'+fmt(tO)+'</td><td class="r">'+fmt(tP)+'</td><td class="r">'+fmt(tQ)+'</td><td class="r"><b>'+fmt(tR)+'</b></td><td class="r"><b>'+(tI?(Math.round(tS*10000)/100)+'%':'')+'</b></td><td></td></tr>';
+    /* ⚠합계 줄도 머리글·자료 줄과 칸 수가 같아야 한다 — 센터별이면 네 묶음이 각각 센터 수만큼 (2026-09-28) */
+    var tFour = cents
+      ? ( tPc.map(function(v){ return '<td class="r">'+fmt(v)+'</td>'; }).join('')
+        + tQc.map(function(v){ return '<td class="r">'+fmt(v)+'</td>'; }).join('')
+        + tRc.map(function(v){ return '<td class="r'+(v<0?' up':'')+'"><b>'+fmt(v)+'</b></td>'; }).join('')
+        + tQc.map(function(v){ var s=tI?(v/tI-1):0; return '<td class="r"><b'+(s<0?' class="up"':'')+'>'+(tI?(Math.round(s*10000)/100)+'%':'')+'</b></td>'; }).join('') )
+      : ( '<td class="r">'+fmt(tP)+'</td><td class="r">'+fmt(tQ)+'</td><td class="r"><b>'+fmt(tR)+'</b></td><td class="r"><b>'+(tI?(Math.round(tS*10000)/100)+'%':'')+'</b></td>' );
+    h+='<tr class="tot"><td class="nm">합계 ('+rows+'품목)</td><td></td><td></td><td></td><td></td><td class="r">'+fmt(tI)+'</td><td></td><td></td><td class="r">'+fmt(tO)+'</td>'+tFour+'<td></td></tr>';
     h+='</tbody></table></div></div>';
     w.innerHTML=h;
     try{ w.scrollIntoView({block:'nearest'}); }catch(e){}
@@ -439,8 +477,8 @@ function detail(i){
       w.innerHTML='<div class="dtl"><div class="dh"><b>'+esc(x.docNo)+'</b> · '+d10(x.quoteDt)+' · '+esc(x.recvNm)+' · 담당 '+esc(x.mgrNm)+(x.validTxt?' · '+esc(x.validTxt):'')
         +'<span style="margin-left:auto" class="tot">품목 <b>'+ls.length+'</b>줄 · 합계 <b>'+fmt(sum)+'</b>원</span></div>'
         +(x.titleTxt?'<div class="df" style="border-top:0;color:#37475a">'+esc(x.titleTxt)+'</div>':'')
-        +'<div class="tw" style="max-height:none"><table class="g"><thead><tr><th>No</th><th>상품코드</th><th>품명</th><th>규격</th><th>Box</th><th>수량</th><th>단위</th>'+priceHead(x)+'<th>비고</th></tr></thead><tbody>'
-        +(ls.length?ls.map(function(l){ return '<tr><td>'+esc(l.rowNo)+'</td><td style="color:#0f6b5e;font-weight:700">'+esc(l.prodCd||'')+'</td><td class="l">'+esc(l.prodNm)+'</td><td class="l">'+esc(l.spec)+'</td><td class="r">'+(l.boxQty!=null?fmt(l.boxQty):'')+'</td><td class="r"><b>'+fmt(l.qty)+'</b></td><td>'+esc(l.unit)+'</td>'+priceCells(l, !!x.price2Nm)+'<td class="l">'+esc(l.remark)+'</td></tr>'; }).join(''):'<tr><td colspan="11" class="empty">품목 줄이 없습니다.</td></tr>')
+        +'<div class="tw" style="max-height:none"><table class="g"><thead><tr><th>No</th><th>상품코드</th><th>제조사</th><th>품명</th><th>규격</th><th>Box</th><th>수량</th><th>단위</th>'+priceHead(x)+'<th>비고</th></tr></thead><tbody>'
+        +(ls.length?ls.map(function(l){ return '<tr><td>'+esc(l.rowNo)+'</td><td style="color:#0f6b5e;font-weight:700">'+esc(l.prodCd||'')+'</td><td>'+esc(l.makerNm||'')+'</td><td class="l">'+esc(l.prodNm)+'</td><td class="l">'+esc(l.spec)+'</td><td class="r">'+(l.boxQty!=null?fmt(l.boxQty):'')+'</td><td class="r"><b>'+fmt(l.qty)+'</b></td><td>'+esc(l.unit)+'</td>'+priceCells(l, !!x.price2Nm)+'<td class="l">'+esc(l.remark)+'</td></tr>'; }).join(''):'<tr><td colspan="13" class="empty">품목 줄이 없습니다.</td></tr>')
         +'</tbody></table></div>'+(x.remark?'<div class="df">비고 : '+esc(x.remark)+'</div>':'')+'</div>';
     })
     .catch(function(e){ w.innerHTML='<div class="err">품목을 불러오지 못했습니다 — '+esc(e.message)+'</div>'; });

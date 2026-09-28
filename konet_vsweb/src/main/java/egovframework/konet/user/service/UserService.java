@@ -402,4 +402,8 @@ public interface UserService {
 	int empRoomRename(String compCd, String userId, int roomSeq, String roomNm) throws Exception;
 	int empMsgDel(String compCd, String userId, int roomSeq, int msgSeq) throws Exception;                            // 내 글 지우기 — 자리에 「삭제된 글입니다」
 
+	/* 이익현황 (2026-09-28) */
+	java.util.List<java.util.Map<String,Object>> selectProfitStat(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectProfitRecv(java.util.Map<String,Object> p) throws Exception;
+
 }

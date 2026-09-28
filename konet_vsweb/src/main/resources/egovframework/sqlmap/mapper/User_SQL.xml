@@ -1118,7 +1118,8 @@
 	]]></select>
 	<select id="selectQuoteDtl" parameterType="java.util.Map" resultType="java.util.HashMap">
 	  SELECT d.ROW_NO AS rowNo, ISNULL(d.PROD_NM,'') AS prodNm, ISNULL(d.SPEC,'') AS spec, d.BOX_QTY AS boxQty, ISNULL(d.UNIT,'') AS unit,
-	         d.QTY AS qty, d.UNIT_PRICE AS unitPrice, d.AMT AS amt, d.UNIT_PRICE2 AS unitPrice2, d.AMT2 AS amt2, ISNULL(d.REMARK,'') AS remark, ISNULL(d.PROD_CD,'') AS prodCd
+	         d.QTY AS qty, d.UNIT_PRICE AS unitPrice, d.AMT AS amt, d.UNIT_PRICE2 AS unitPrice2, d.AMT2 AS amt2, ISNULL(d.REMARK,'') AS remark, ISNULL(d.PROD_CD,'') AS prodCd,
+	         ISNULL(d.MAKER_NM,'') AS makerNm   <!-- 제조사 (2026-09-28) — ⚠DDL docs/sql/20260928_quote_maker.sql 을 먼저 -->
 	    FROM TBL_QUOTE_DTL d
 	    JOIN TBL_QUOTE_MST m ON m.QUOTE_SEQ = d.QUOTE_SEQ
 	   WHERE d.QUOTE_SEQ = #{quoteSeq}
@@ -1145,7 +1146,8 @@
 	  SELECT m.QUOTE_SEQ AS quoteSeq, m.DOC_NO AS docNo, ISNULL(m.QUOTE_DT,'') AS quoteDt, ISNULL(m.RECV_NM,'') AS recvNm, ISNULL(m.MGR_NM,'') AS mgrNm,
 	         ISNULL(m.PRICE1_NM,'') AS price1Nm, ISNULL(m.PRICE2_NM,'') AS price2Nm, ISNULL(m.SUPPLY_AMT,0) AS supplyAmt,
 	         d.ROW_NO AS rowNo, ISNULL(d.PROD_NM,'') AS prodNm, ISNULL(d.SPEC,'') AS spec, d.BOX_QTY AS boxQty, ISNULL(d.UNIT,'') AS unit,
-	         d.QTY AS qty, d.UNIT_PRICE AS unitPrice, d.AMT AS amt, d.UNIT_PRICE2 AS unitPrice2, d.AMT2 AS amt2, ISNULL(d.REMARK,'') AS remark
+	         d.QTY AS qty, d.UNIT_PRICE AS unitPrice, d.AMT AS amt, d.UNIT_PRICE2 AS unitPrice2, d.AMT2 AS amt2, ISNULL(d.REMARK,'') AS remark,
+	         ISNULL(d.MAKER_NM,'') AS makerNm
 	    FROM TBL_QUOTE_MST m
 	    JOIN TBL_QUOTE_DTL d ON d.QUOTE_SEQ = m.QUOTE_SEQ
 	   WHERE m.ACTION_YN = 'Y'
@@ -1192,9 +1194,10 @@
 	          'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
 	</insert>
 	<insert id="insertQuoteDtl" parameterType="java.util.HashMap">
-	  INSERT INTO TBL_QUOTE_DTL (QUOTE_SEQ, ROW_NO, PROD_NM, SPEC, BOX_QTY, UNIT, QTY, UNIT_PRICE, AMT, UNIT_PRICE2, AMT2, REMARK, PROD_CD)
+	  INSERT INTO TBL_QUOTE_DTL (QUOTE_SEQ, ROW_NO, PROD_NM, SPEC, BOX_QTY, UNIT, QTY, UNIT_PRICE, AMT, UNIT_PRICE2, AMT2, REMARK, PROD_CD, MAKER_NM)
 	  VALUES (#{quoteSeq}, #{rowNo}, #{prodNm,jdbcType=NVARCHAR}, #{spec,jdbcType=NVARCHAR}, #{boxQty,jdbcType=DECIMAL}, #{unit,jdbcType=NVARCHAR},
-	          #{qty,jdbcType=DECIMAL}, #{unitPrice,jdbcType=DECIMAL}, #{amt,jdbcType=DECIMAL}, #{unitPrice2,jdbcType=DECIMAL}, #{amt2,jdbcType=DECIMAL}, #{remark,jdbcType=NVARCHAR}, #{prodCd,jdbcType=NVARCHAR})
+	          #{qty,jdbcType=DECIMAL}, #{unitPrice,jdbcType=DECIMAL}, #{amt,jdbcType=DECIMAL}, #{unitPrice2,jdbcType=DECIMAL}, #{amt2,jdbcType=DECIMAL}, #{remark,jdbcType=NVARCHAR}, #{prodCd,jdbcType=NVARCHAR},
+	          #{makerNm,jdbcType=NVARCHAR})
 	</insert>
 	<update id="deleteQuote" parameterType="java.util.Map">
 	  UPDATE TBL_QUOTE_MST SET ACTION_YN = 'D', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
@@ -1820,6 +1823,226 @@
 	     각 UNION 가지 안으로 밀어 넣어도 마찬가지였다(1,232 → 1,276ms).
 	     결과는 '하루 한 줄'이라 전 기간을 다 읽어도 26행뿐이다. 몇 해가 쌓여도 천 줄 남짓이므로
 	     전부 돌려주고 화면에서 조회기간만큼 잘라 쓴다. 파라미터를 남겨두면 다시 느려지므로 없앴다. -->
+
+	<!-- ============================================================
+	     이익현황 (2026-09-28 신설) — 정보 현황 ▸ 이익현황. 화면 mangr/profitStat.jsp
+	       거래처별 이익 · 상품별 이익 · 거래처별 상품별 이익 — ★세 화면이 <이 한 구문>을 쓴다.
+	       돌려주는 알갱이 = 거래처 × 상품. 화면이 거래처로 접거나(①) 상품으로 접거나(②) 그대로 쓴다(③).
+	       ⇒ 세 탭 숫자가 어긋날 수 없다(합계가 늘 같다). 「한 화면씩 SQL 을 따로」는 만들지 말 것.
+
+	     ★금액 정의 = 마감(selectClosing)·매출 그래프(selectSalesChart)와 <똑같다> (2026-09-28 사용자 확정 「전부 — 마감·매출그래프와 같은 숫자」) :
+	       ① 정산서(TBL_SALES_MST) 전체가 매출. 매입액은 <출고에 짝이 없는 건>에서만(짝 있는 건은 ②가 잡는다 — 이중계상 방지).
+	       ② 출고(TBL_SHIPOUT_MST) : 매입액은 전 건, 매출은 <정산서가 아직 없는 건>만 판매단가로 추정. 토더(PROD_KIND='TD')는 발주가 곧 확정 매출.
+	       ③ 판매전표(TBL_SALES_TRX) : 매출·매입 모두. 머리 할인(DC_AMT)은 명세 금액 비율로 안분해 매출에서 뺀다(마감과 같은 규칙).
+	       ⚠이 세 블록은 selectSalesChart 와 같은 꼴이다 — 금액 규칙을 고치면 <네 곳(마감·월별·일별·여기)>을 함께 볼 것.
+
+	     ★거래처 붙이는 규칙 = 거래처별 채권·채무(selectCustBalance)와 같다 :
+	       ①②는 출고장코드(DC_CD) → 「DC_CD 별 MIN(VENDOR_CD) 1곳」(둘 이상 잡히면 매출이 두 배가 된다), ③은 전표의 CUST_CD.
+	       거래처가 안 붙는 정산서·출고(DC_CD 에 거래처가 없음)는 '(거래처 미지정)' 한 줄로 모인다 — 숨기면 합계가 안 맞는다.
+
+	     ★사업장(점포) 필터 bizCd (2026-09-28 사용자 확정 「사업장/점포」) — 비우면 전체(종전 숫자 그대로) :
+	       · ② 출고 = BIZ_CD 로 바로 거른다(정확).
+	       · ① 정산서 = <사업장 칸이 없다>. 그래서 같은 발주라인의 발주행 사업장에 <발주수량 비율>로 나눈 몫만 센다
+	         (selectStockOutByMonth 의 SL/OL/SJ/SM 과 <같은 규칙·같은 찾는 순서> : ①같은 발주번호 → ②같은 출고장의 발주번호 빈 행 → ③같은 출고장 전체).
+	       · ③ 판매전표 = 사업장 칸이 자체가 없어 <빠진다>. 화면이 「사업장을 고르면 직접판매는 빠진다」고 알린다.
+	       ⚠사업장을 안 고르면 위 배분 CTE 는 아예 참조되지 않아 계획에도 안 들어간다(느려지지 않는다).
+	     ============================================================ -->
+	<select id="selectProfitStat" parameterType="java.util.Map" resultType="java.util.HashMap">
+	<![CDATA[
+	  WITH VM AS (   /* 출고장 → 거래처 1곳. 둘 이상 잡히면 매출이 두 배가 되므로 미리 접는다(채권·채무와 같은 규칙) */
+	    SELECT DC_CD, MIN(VENDOR_CD) AS VENDOR_CD, MIN(VENDOR_NM) AS VENDOR_NM, MIN(ISNULL(MGR_NM,'')) AS MGR_NM
+	      FROM TBL_VENDOR_MST
+	     WHERE ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> ''
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     GROUP BY DC_CD
+	  ), PM AS (     /* 상품마스터 활성 1줄 (이력형이라 MAX(PROD_SEQ)) — 품명·규격·제조사·입수·단가 */
+	    SELECT p.COMP_CD, p.PROD_CD, p.PROD_NM, p.SPEC, p.MAKER_NM, p.PACK_QTY, p.SALE_PRICE, p.IN_PRICE
+	      FROM TBL_PROD_MST p
+	     WHERE p.ACTION_YN = 'Y'
+	       AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
+	  ), OKY AS (    /* 출고 키 — 정산서 줄에 출고 짝이 있나(있으면 매입액은 ②가 잡는다) */
+	    SELECT DISTINCT REPLACE(ISNULL(o2.DLV_DT,''),'-','') AS dlvKey,
+	           ]]><include refid="dcKeyOf"><property name="a" value="o2."/></include><![CDATA[ AS dcKey,
+	           ISNULL(o2.ITEM_CD,'') AS itemCd, o2.COMP_CD AS compCd
+	      FROM TBL_SHIPOUT_MST o2 WHERE o2.ACTION_YN = 'Y'
+	  ), SKY AS (    /* 정산서 키 — 출고 줄에 정산서가 왔나(왔으면 추정 매출을 안 잡는다) */
+	    SELECT DISTINCT REPLACE(ISNULL(s2.DLV_DT,''),'-','') AS dlvKey,
+	           ]]><include refid="dcKeyOf"><property name="a" value="s2."/></include><![CDATA[ AS dcKey,
+	           ISNULL(s2.ITEM_CD,'') AS itemCd, s2.COMP_CD AS compCd
+	      FROM TBL_SALES_MST s2 WHERE s2.ACTION_YN = 'Y'
+	  )
+	  SELECT g.venCd AS venCd, MAX(g.venNm) AS venNm, MAX(g.mgrNm) AS mgrNm, g.prodCd AS prodCd,
+	         MAX(g.prodNm) AS prodNm, MAX(g.spec) AS spec, MAX(g.makerNm) AS makerNm, MAX(g.packQty) AS packQty,
+	         SUM(g.saleQty) AS saleQty, SUM(g.saleAmt) AS saleAmt,
+	         SUM(g.rtnQty)  AS rtnQty,  SUM(g.rtnAmt)  AS rtnAmt,
+	         SUM(g.costAmt) AS costAmt, SUM(g.dcAmt)   AS dcAmt
+	    FROM (
+	          /* ① 정산서 — 매출 전부. 매입액은 출고에 짝이 없는 건만. 수량이 음수인 줄 = 반품 */
+	          SELECT ISNULL(vm.VENDOR_CD,'(none)') AS venCd, ISNULL(vm.VENDOR_NM, N'(거래처 미지정)') AS venNm,
+	                 ISNULL(vm.MGR_NM,'') AS mgrNm,
+	                 ISNULL(s.PROD_CD,'') AS prodCd, ISNULL(pm1.PROD_NM, ISNULL(s.ITEM_NM,'')) AS prodNm,
+	                 ISNULL(pm1.SPEC,'') AS spec, ISNULL(pm1.MAKER_NM,'') AS makerNm, ISNULL(pm1.PACK_QTY,0) AS packQty,
+	                 CASE WHEN ISNULL(s.OUT_QTY,0) >= 0 THEN  ISNULL(s.OUT_QTY,0)  * sh.shr ELSE 0 END AS saleQty,
+	                 CASE WHEN ISNULL(s.OUT_QTY,0) >= 0 THEN  ISNULL(s.SALE_AMT,0) * sh.shr ELSE 0 END AS saleAmt,
+	                 CASE WHEN ISNULL(s.OUT_QTY,0) <  0 THEN -ISNULL(s.OUT_QTY,0)  * sh.shr ELSE 0 END AS rtnQty,
+	                 CASE WHEN ISNULL(s.OUT_QTY,0) <  0 THEN -ISNULL(s.SALE_AMT,0) * sh.shr ELSE 0 END AS rtnAmt,
+	                 CASE WHEN ok.itemCd IS NULL THEN ISNULL(s.OUT_QTY,0) * ISNULL(ih.IN_PRICE, ISNULL(pm1.IN_PRICE,0)) * sh.shr ELSE 0 END AS costAmt,
+	                 0 AS dcAmt
+	            FROM TBL_SALES_MST s
+	            CROSS APPLY ( SELECT ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ AS dcKey,
+	                                 REPLACE(ISNULL(s.DLV_DT,''),'-','') AS dlvKey ) dk
+	            LEFT JOIN VM  vm  ON vm.DC_CD = dk.dcKey
+	            LEFT JOIN PM  pm1 ON pm1.PROD_CD = s.PROD_CD AND pm1.COMP_CD = s.COMP_CD
+	            LEFT JOIN OKY ok  ON ok.dlvKey = dk.dlvKey AND ok.dcKey = dk.dcKey AND ok.itemCd = ISNULL(s.ITEM_CD,'') AND ok.compCd = s.COMP_CD
+	            OUTER APPLY ( SELECT TOP 1 h.IN_PRICE FROM TBL_PROD_INPRICE_HST h
+	                           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.PROD_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = s.COMP_CD
+	                           ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC ) ih
+	]]>
+	<choose>
+	<when test="bizCd != null and bizCd != ''">
+	<![CDATA[
+	            /* ★사업장(점포)을 고르면 — 정산서엔 사업장 칸이 없어 같은 발주라인의 발주행 사업장에 <발주수량 비율>로 나눈 몫만 센다.
+	               찾는 순서·비율 = selectStockOutByMonth 의 SL/OL/SJ/SM 과 같다(①발주번호 → ②출고장+발주번호 빈 행 → ③출고장 전체). */
+	            JOIN ( SELECT m.COMP_CD, m.DLV_DT, m.ORD_NO, m.PROD_CD,
+	                          SUM(CASE WHEN m.BIZ_CD = #{bizCd,jdbcType=NVARCHAR} THEN m.SQ ELSE 0 END) / NULLIF(MAX(m.LT),0) AS shr
+	                     FROM ( SELECT k.COMP_CD, k.DLV_DT, k.ORD_NO, k.PROD_CD, k.BIZ_CD, k.SQ,
+	                                   SUM(k.SQ) OVER (PARTITION BY k.COMP_CD, k.DLV_DT, k.ORD_NO, k.PROD_CD) AS LT
+	                              FROM ( SELECT j.*, MIN(j.MK) OVER (PARTITION BY j.COMP_CD, j.DLV_DT, j.ORD_NO, j.PROD_CD) AS BM
+	                                       FROM ( SELECT l.COMP_CD, l.DLV_DT, l.ORD_NO, l.PROD_CD, o.BIZ_CD, o.SQ,
+	                                                     CASE WHEN o.ORD_NO <> '' AND o.ORD_NO = l.ORD_NO THEN 1
+	                                                          WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD AND o.ORD_NO = '' THEN 2
+	                                                          WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD THEN 3 ELSE 9 END AS MK
+	                                                FROM ( SELECT v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,'') AS ORD_NO, v.PROD_CD,
+	                                                              MAX(]]><include refid="dcKeyOf"><property name="a" value="v."/></include><![CDATA[) AS DC_CD
+	                                                         FROM TBL_SALES_MST v
+	                                                        WHERE v.ACTION_YN = 'Y' AND ISNULL(v.PROD_CD,'') <> ''
+	                                                          AND v.DLV_DT >= #{frDt,jdbcType=VARCHAR} AND v.DLV_DT <= #{toDt,jdbcType=VARCHAR}
+	                                                          AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                                                        GROUP BY v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,''), v.PROD_CD ) l
+	                                                JOIN ( SELECT s3.COMP_CD, ISNULL(NULLIF(s3.DLV_DT,''), s3.SHPOUT_DT) AS DLV_DT,
+	                                                              ISNULL(s3.ORD_NO,'') AS ORD_NO, s3.PROD_CD,
+	                                                              UPPER(LTRIM(RTRIM(ISNULL(s3.DC_CD,'')))) AS DC_CD, ISNULL(s3.BIZ_CD,'') AS BIZ_CD,
+	                                                              SUM(ISNULL(s3.LABEL_QTY, ISNULL(s3.CUR_QTY,0))) AS SQ
+	                                                         FROM TBL_SHIPOUT_MST s3
+	                                                        WHERE s3.ACTION_YN = 'Y' AND ISNULL(s3.PROD_CD,'') <> ''
+	                                                          AND ISNULL(NULLIF(s3.DLV_DT,''), s3.SHPOUT_DT) >= #{frDt,jdbcType=VARCHAR}
+	                                                          AND ISNULL(NULLIF(s3.DLV_DT,''), s3.SHPOUT_DT) <= #{toDt,jdbcType=VARCHAR}
+	                                                          AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s3.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                                                        GROUP BY s3.COMP_CD, ISNULL(NULLIF(s3.DLV_DT,''), s3.SHPOUT_DT), ISNULL(s3.ORD_NO,''), s3.PROD_CD,
+	                                                                 UPPER(LTRIM(RTRIM(ISNULL(s3.DC_CD,'')))), ISNULL(s3.BIZ_CD,'') ) o
+	                                                  ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.PROD_CD = l.PROD_CD AND o.SQ > 0 ) j ) k
+	                             WHERE k.MK = k.BM AND k.MK < 9 ) m
+	                    GROUP BY m.COMP_CD, m.DLV_DT, m.ORD_NO, m.PROD_CD
+	                 ) sr ON sr.COMP_CD = s.COMP_CD AND sr.DLV_DT = s.DLV_DT AND sr.ORD_NO = ISNULL(s.ORD_NO,'') AND sr.PROD_CD = s.PROD_CD
+	            CROSS APPLY ( SELECT ISNULL(sr.shr,0) AS shr ) sh
+	]]>
+	</when>
+	<otherwise>
+	            CROSS APPLY ( SELECT CAST(1 AS DECIMAL(18,6)) AS shr ) sh
+	</otherwise>
+	</choose>
+	<![CDATA[
+	           WHERE s.ACTION_YN = 'Y' AND sh.shr > 0
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	             AND ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) >= #{frDt,jdbcType=VARCHAR}
+	             AND ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) <= #{toDt,jdbcType=VARCHAR}
+
+	          UNION ALL
+	          /* ② 출고 — 매입액은 전 건, 매출은 정산서가 아직 없는 건만 판매단가로 추정. 토더(TD)는 발주가 곧 확정 매출 */
+	          SELECT ISNULL(vm.VENDOR_CD,'(none)'), ISNULL(vm.VENDOR_NM, N'(거래처 미지정)'), ISNULL(vm.MGR_NM,''),
+	                 ISNULL(o.PROD_CD,''), ISNULL(pm2.PROD_NM, ISNULL(o.ITEM_NM,'')),
+	                 ISNULL(pm2.SPEC,''), ISNULL(pm2.MAKER_NM,''), ISNULL(pm2.PACK_QTY,0),
+	                 CASE WHEN o.PROD_KIND = 'TD' OR sk.itemCd IS NULL THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) ELSE 0 END,
+	                 CASE WHEN o.PROD_KIND = 'TD' THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0)
+	                      WHEN sk.itemCd IS NULL  THEN ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.saleUnit
+	                      ELSE 0 END,
+	                 0, 0,
+	                 ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * u.inUnit,
+	                 0
+	            FROM TBL_SHIPOUT_MST o
+	            CROSS APPLY ( SELECT ]]><include refid="dcKeyOf"><property name="a" value="o."/></include><![CDATA[ AS dcKey,
+	                                 REPLACE(ISNULL(o.DLV_DT,''),'-','') AS dlvKey ) dk2
+	            LEFT JOIN VM  vm  ON vm.DC_CD = dk2.dcKey
+	            LEFT JOIN PM  pm2 ON pm2.PROD_CD = o.PROD_CD AND pm2.COMP_CD = o.COMP_CD
+	            LEFT JOIN SKY sk  ON sk.dlvKey = dk2.dlvKey AND sk.dcKey = dk2.dcKey AND sk.itemCd = ISNULL(o.ITEM_CD,'') AND sk.compCd = o.COMP_CD
+	            OUTER APPLY ( SELECT TOP 1 h.SALE_PRICE FROM TBL_PROD_SALEPRICE_HST h
+	                           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.PROD_CD AND h.APPLY_DT <= dk2.dlvKey AND h.COMP_CD = o.COMP_CD
+	                             AND h.VENDOR_CD IS NULL
+	                           ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC ) sh2
+	            OUTER APPLY ( SELECT TOP 1 h.IN_PRICE FROM TBL_PROD_INPRICE_HST h
+	                           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.PROD_CD AND h.APPLY_DT <= dk2.dlvKey AND h.COMP_CD = o.COMP_CD
+	                           ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC ) ih2
+	            CROSS APPLY ( SELECT ISNULL(sh2.SALE_PRICE, ISNULL(pm2.SALE_PRICE,0)) AS saleUnit,
+	                                 ISNULL(ih2.IN_PRICE,   ISNULL(pm2.IN_PRICE,0))   AS inUnit ) u
+	           WHERE o.ACTION_YN = 'Y'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	             AND ISNULL(NULLIF(o.DLV_DT,''), o.SHPOUT_DT) >= #{frDt,jdbcType=VARCHAR}
+	             AND ISNULL(NULLIF(o.DLV_DT,''), o.SHPOUT_DT) <= #{toDt,jdbcType=VARCHAR}
+	]]>
+	<if test="bizCd != null and bizCd != ''">
+	             AND ISNULL(o.BIZ_CD,'') = #{bizCd,jdbcType=NVARCHAR}
+	</if>
+	<![CDATA[
+	          UNION ALL
+	          /* ③ 판매전표(직접판매) — 머리 할인(DC_AMT)은 명세 금액 비율로 안분해 매출에서 뺀다(마감과 같은 규칙).
+	             ★★거래처는 <전표에 들어간 그대로>(CUST_CD/CUST_NM — 선식당(세종점)·풍풍플라워 미금점처럼 저장된 이름) 이고,
+	               ★사업장을 골라도 <빠지지 않는다>(2026-09-28 사용자 확정 「사업장 골라도 빼지 말 것 · 판매전표는 이렇게 들어간 대로」).
+	               판매전표에는 사업장 칸이 아예 없다 — 그래서 사업장을 고르면 ①②는 그 점포 몫만 줄어들고 ③은 그대로 남는다(화면이 그렇게 알린다). */
+	          SELECT ISNULL(NULLIF(m.CUST_CD,''),'(none)'), ISNULL(NULLIF(m.CUST_NM,''), N'(거래처 미지정)'), ISNULL(m.MGR_NM,''),
+	                 ISNULL(d.PROD_CD,''), ISNULL(pm3.PROD_NM, ISNULL(d.PROD_NM,'')),
+	                 ISNULL(pm3.SPEC,''), ISNULL(pm3.MAKER_NM,''), ISNULL(pm3.PACK_QTY,0),
+	                 CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN 0 ELSE ISNULL(d.QTY,0) END,
+	                 CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN 0 ELSE ISNULL(d.TOT_AMT,0) - dcx.dcShare END,
+	                 CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN ISNULL(d.QTY,0) ELSE 0 END,
+	                 CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN ISNULL(d.TOT_AMT,0) - dcx.dcShare ELSE 0 END,
+	                 CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(d.QTY,0) ELSE ISNULL(d.QTY,0) END
+	                   * ISNULL(ih3.IN_PRICE, ISNULL(pm3.IN_PRICE,0)),
+	                 dcx.dcShare
+	            FROM TBL_SALES_TRX_DTL d
+	            JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
+	            LEFT JOIN PM pm3 ON pm3.PROD_CD = d.PROD_CD AND pm3.COMP_CD = d.COMP_CD
+	            OUTER APPLY ( SELECT TOP 1 h.IN_PRICE FROM TBL_PROD_INPRICE_HST h
+	                           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = d.PROD_CD AND h.COMP_CD = d.COMP_CD
+	                             AND h.APPLY_DT <= REPLACE(ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT),'-','')
+	                           ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC ) ih3
+	            OUTER APPLY ( SELECT CASE WHEN ISNULL(m.DC_AMT,0) = 0 THEN 0
+	                                      ELSE ISNULL(m.DC_AMT,0) * ISNULL(d.TOT_AMT,0) / NULLIF(st.sumTot,0) END AS dcShare
+	                            FROM ( SELECT SUM(ISNULL(d2.TOT_AMT,0)) AS sumTot FROM TBL_SALES_TRX_DTL d2
+	                                    WHERE d2.SALE_SEQ = d.SALE_SEQ AND d2.COMP_CD = d.COMP_CD AND d2.ACTION_YN = 'Y' ) st ) dcx
+	           WHERE d.ACTION_YN = 'Y'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	             AND ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT) >= #{frDt,jdbcType=VARCHAR}
+	             AND ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT) <= #{toDt,jdbcType=VARCHAR}
+	    ) g
+	   GROUP BY g.venCd, g.prodCd
+	   ORDER BY g.venCd, g.prodCd
+	]]>
+	</select>
+
+	<!-- 이익현황 ▸ 거래처별 수금·할인 (2026-09-28) — 「거래처별 이익」 표의 맨 오른쪽 두 칸.
+	     상품 축이 없어(수금은 전표 단위) 위 구문과 따로 읽어 화면에서 거래처로 갖다 붙인다.
+	     정의 = 거래처별 채권·채무(selectCustBalance)와 같다 : 수금 = 수금전표(TRX_GB='RCV') + 판매전표에 적힌 즉시수금(PAY_AMT) ·
+	            할인 = 판매전표 머리 할인(DC_AMT) + 수금전표 매출할인(SALE_DC_AMT). -->
+	<select id="selectProfitRecv" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT x.venCd AS venCd, SUM(x.rcvAmt) AS rcvAmt, SUM(x.dcAmt) AS dcAmt
+	    FROM (
+	          SELECT ISNULL(NULLIF(t.CUST_CD,''),'(none)') AS venCd,
+	                 CASE WHEN t.TRX_GB = 'RCV' THEN ISNULL(t.AMT,0) ELSE 0 END AS rcvAmt,
+	                 CASE WHEN t.TRX_GB = 'RCV' THEN ISNULL(t.SALE_DC_AMT,0) ELSE 0 END AS dcAmt
+	            FROM TBL_SETTLE_TRX t
+	           WHERE t.ACTION_YN = 'Y' AND t.TRX_GB = 'RCV'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	             AND t.TRX_DT >= #{frDt,jdbcType=VARCHAR} AND t.TRX_DT <= #{toDt,jdbcType=VARCHAR}
+	          UNION ALL
+	          SELECT ISNULL(NULLIF(m.CUST_CD,''),'(none)'), ISNULL(m.PAY_AMT,0), ISNULL(m.DC_AMT,0)
+	            FROM TBL_SALES_TRX_MST m
+	           WHERE m.ACTION_YN = 'Y'
+	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	             AND ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT) >= #{frDt,jdbcType=VARCHAR}
+	             AND ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT) <= #{toDt,jdbcType=VARCHAR}
+	    ) x
+	   GROUP BY x.venCd
+	]]></select>
 
 	<!-- ============================================================
 	     발주현황표 업로드 이력 — 출고현황이력조회 화면 (2026-07-25 신설)

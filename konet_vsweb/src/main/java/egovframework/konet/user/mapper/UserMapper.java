@@ -470,4 +470,8 @@ public interface UserMapper {
 	int updateEmpMsgDel(java.util.Map<String,Object> p) throws Exception;                                                    // 내 글 지우기(MSG_GB X) — 본인 것만
 	int updateEmpRoomLastTxt(java.util.Map<String,Object> p) throws Exception;                                                // 지운 글이 마지막이면 LAST_TXT 갈아 끼움
 
+	/* 이익현황 (2026-09-28) — 거래처 × 상품 알갱이 하나로 세 화면(거래처별·상품별·거래처별 상품별)을 다 그린다 */
+	java.util.List<java.util.Map<String,Object>> selectProfitStat(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectProfitRecv(java.util.Map<String,Object> p) throws Exception;          // 거래처별 수금액·할인액
+
 }

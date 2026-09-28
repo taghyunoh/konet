@@ -3461,6 +3461,12 @@
     <div class="sub-menu" id="sub-infomng">
       <a class="mi" data-key="closeStatus" onclick="logiGo('closeStatus', this)"><span class="ic">📊</span>마감현황(월계표)</a>
       <a class="mi" data-key="closeHist"   onclick="logiGo('closeHist', this); closeHistLoad();"><span class="ic">📅</span>월별 마감이력</a>
+      <%-- 이익현황 (2026-09-28 고객 요청) — ★탭이 아니라 <메뉴 3개>(사용자 「탭으로 하지 말고 메뉴로 추가」).
+           화면은 profitStat.jsp 하나이고 gb 로 어느 표인지 정한다(셈이 한 곳에 있어야 세 화면 합계가 어긋나지 않는다).
+           ⚠logiFrame 은 이미 뜬 iframe 의 src 를 유지하므로 <메뉴마다 제 패널>이 있어야 한다(키를 공유하면 처음 연 표만 계속 보인다). --%>
+      <a class="mi" data-key="profitVen"  onclick="logiFrame('profitVen','${pageContext.request.contextPath}/mangr/profitStat.do?gb=1', this)"><span class="ic">💹</span>거래처별 이익</a>
+      <a class="mi" data-key="profitProd" onclick="logiFrame('profitProd','${pageContext.request.contextPath}/mangr/profitStat.do?gb=2', this)"><span class="ic">📦</span>상품별 이익</a>
+      <a class="mi" data-key="profitVP"   onclick="logiFrame('profitVP','${pageContext.request.contextPath}/mangr/profitStat.do?gb=3', this)"><span class="ic">🧾</span>거래처별 상품별 이익</a>
     </div>
 
     <%-- 원장관리 (2026-07-26 요청) — 정보 현황 안에 있던 두 화면을 별도 그룹으로 분리.
@@ -4084,6 +4090,7 @@
         <table><tbody>
           <tr><td class="m">마감현황(월계표)</td><td>선택 월 매출·매입·매출총이익·비용·순마진 요약(KPI) + <b>🔒 확정 / 🔓 해제</b>. 확정 = 3종 통합 저장 + 기말재고 스냅샷 + 그 달 수불 잠금.</td></tr>
           <tr><td class="m">월별 마감이력</td><td>확정한 달들의 매출·원가·마진·매입·기말재고금액. 행 클릭 → 그 달 마감현황.</td></tr>
+          <tr><td class="m">거래처별 이익<br>상품별 이익<br>거래처별 상품별 이익</td><td>세 화면 모두 위에 <b>[회사전체이익]</b> 요약 + <b>🖨 인쇄</b>(새 창)·<b>📥 엑셀</b>·머리글 정렬·이름 거르기·<b>사업장 고르기</b>. <b>실판매액 = 판매−반품 · 이익금 = 실판매−입고 · 이익율 = 이익÷실판매.</b> 금액 기준은 <b>마감현황·매출 그래프와 같고</b>, 세 화면은 같은 자료를 접은 것이라 합계가 늘 같습니다. 사업장을 고르면 판매전표(사업장 칸 없음)는 빠집니다. <b>조회 전용.</b></td></tr>
           <tr><td class="m">거래처별 채권·채무</td><td>거래처마다 <b>받을금액</b>[(매출−할인)−수금]과 <b>지급할금액</b>[(매입−할인)−지급]. <b>이월 + 당월매출 − 당월수금 = 남은금액</b>, 오른쪽 끝에 <b>특정일자 발생</b> 4칸(그 하루의 매출·수금·매입·지급). 줄 클릭 → 월별 이력 + 아래 <b>건별 내역</b> 4탭.
             <div style="margin-top:4px;color:#5a6b7a">잔액은 <b>전 기간 누계</b>라 기간이 아니라 <b>기준월</b>로 봅니다. <b>특정일자</b>는 발생 4칸과 아래 건별 내역 전용이라 위 잔액을 바꾸지 않습니다 — 누계와 하루를 나란히 두는 것이라 숫자가 다른 게 정상. <b>구분(매입·매출)은 실제 거래로 판정</b>해 등록값과 다르면 별표가 붙습니다(수정은 거래처관리에서). <b>조회 전용.</b></div></td></tr>
           <tr><td class="m">일계장</td><td>고른 <b>하루</b>의 매출·매입·수금·지급을 거래처별로. <b>전일잔액 + 당일매출 − 당일수금 = 잔액</b>. 기본은 그날 움직인 곳만. 인쇄는 화면의 <b>🖨 인쇄</b> 버튼(A4 세로).</td></tr>
@@ -4104,7 +4111,9 @@
           <tr><td class="m">견적서관리</td><td>견적서 목록(엑셀 업로드·조회·비교) · 견적서 작성(문서번호 자동, 단가 묶음 1~2, 인쇄·엑셀은 양식 그대로 — 안 쓴 묶음·하단 합계는 안 나감).
             품목 줄 [🧮] = 그 품명의 원가·마진 계산(구매원가+운송·보관·소분·박스 → 실 마진율, 목표 마진율 → 필요 판매단가 [→ 적용] = 판매적용단가.
             계산 줄은 Box 1 · 수량 = 박스 입수량 자동, 품명비 = 품명+동판+목형 세트 — 동판·목형은 적용 여부만 고름(적용 안 함/서브 줄로(별도 청구·마진 0)/원가 포함)). 계산 내용은 견적서마다 근거자료로 저장 —
-            목록 줄의 [🧮]로 저장된 계산(구매계·물류비·실마진·마진율, 저장 때 비율 스냅샷)을 조회. 작성 화면 오른쪽 위 [ℹ️ 도움말] = 1) 견적서 작성 · 2) 원가·마진 계산 두 탭 설명.</td></tr>
+            목록 줄의 [🧮]로 저장된 계산(구매계·물류비·실마진·마진율, 저장 때 비율 스냅샷)을 조회. 작성 화면 오른쪽 위 [ℹ️ 도움말] = 1) 견적서 작성 · 2) 원가·마진 계산 두 탭 설명.
+            <b>제조사</b> 칸(품명 앞 · 🔍 상품에서 자동, 한 줄도 없으면 인쇄에 칸이 안 생김) · <b>센터배송이면 물류비·실 판매금액·실 마진금액·실 마진율이 센터별(평/용·왜관·광주·김해·제주)로 갈라져 함께</b> 보이고(드롭다운은 「필요 판매단가」를 내는 기준 센터), DC·직송은 한 칸씩.
+            <b>원가 포함</b> 동판비·목형비는 견적서(인쇄·엑셀)에 줄로 안 나감 — 단가에 이미 반영, 근거는 비고에.</td></tr>
           <tr><td class="m">예정 기능 <span style="color:#9aa7b3;font-size:11px">(데모)</span></td><td>물품동선관리(창고·위치·피킹) · 카카오톡관리 — 향후 추진.</td></tr>
         </tbody></table>
       </div>
@@ -5127,6 +5136,15 @@
     <!-- ===== 거래처별 받을금액·지급할금액 (2026-07-26) — logiFrame 은 #panel-<key> + #if-<key> 를 함께 찾는다 ===== -->
     <%-- ★2026-08-03: 이 패널만 위로 끌어올리던 margin-top:-14px 해제 — 화면 시작 위치를 전 화면 공통(36px)으로
            맞추기 위해서다(위 .panel 주석 참고). 대신 custBalance.jsp 의 .cb-wrap padding-top 을 14px 로 통일. --%>
+    <section id="panel-profitVen" class="panel" style="padding:0;">
+      <iframe id="if-profitVen" src="" title="거래처별 이익" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <section id="panel-profitProd" class="panel" style="padding:0;">
+      <iframe id="if-profitProd" src="" title="상품별 이익" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <section id="panel-profitVP" class="panel" style="padding:0;">
+      <iframe id="if-profitVP" src="" title="거래처별 상품별 이익" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
     <section id="panel-custbal" class="panel" style="padding:0;">
       <iframe id="if-custbal" src="" title="거래처별 채권·채무 현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>

@@ -3593,6 +3593,36 @@ public class UserController {
 		   전 거래처 × 월 한 번에 내려주고 화면에서 잔액 누계·이력으로 접는다(기간 파라미터 없음).
 		   잔액은 '전 기간 누계'라 기간을 걸면 잔액이 아니게 되기 때문. 자세한 근거는 SQL 주석 참조.
 		   ※ 2026-07-27 에 추가된 '특정일자'는 이 잔액과 무관하다 — 아래 selectCustDayDetail(하단 내역) 전용. */
+		/* ── 이익현황 (2026-09-28) ── 정보 현황 ▸ 이익현황. 한 조회(selectProfitStat)로 세 화면을 다 그린다 :
+		     거래처별 이익 · 상품별 이익 · 거래처별 상품별 이익. 알갱이 = 거래처 × 상품, 접는 것은 화면이 한다.
+		     금액 정의는 마감·매출 그래프와 같다(사용자 확정 2026-09-28 「전부 — 마감·매출그래프와 같은 숫자」). */
+		@RequestMapping(value="/mangr/profitStat.do")
+		public String profitStat(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/profitStat";
+		}
+		@RequestMapping(value="/mangr/profitStatList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> profitStatList(@RequestParam(value="frDt", required=false) String frDt,
+		                                         @RequestParam(value="toDt", required=false) String toDt,
+		                                         @RequestParam(value="bizCd", required=false) String bizCd,
+		                                         HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("result", "FAIL"); res.put("login", "N"); return res; }
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("compCd", session.getAttribute("s_comp_cd"));
+			p.put("frDt", poStr(frDt).replace("-", ""));    // 화면은 'YYYY-MM-DD' 로 보낸다 — DB 는 'YYYYMMDD'
+			p.put("toDt", poStr(toDt).replace("-", ""));
+			p.put("bizCd", poStr(bizCd));
+			res.put("data", svc.selectProfitStat(p));
+			/* 수금액·할인액은 상품 축이 없어 따로 읽어 화면이 거래처에 갖다 붙인다.
+			   ★판매전표와 같은 성격(거래처 단위·사업장 칸 없음)이라 사업장을 골라도 그대로 보낸다
+			     (2026-09-28 사용자 확정 「사업장 골라도 빼지 말 것」). */
+			res.put("recv", svc.selectProfitRecv(p));
+			res.put("result", "OK");
+			return res;
+		}
+
 		@RequestMapping(value="/mangr/custBalance.do")
 		public String custBalance(HttpSession session) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";

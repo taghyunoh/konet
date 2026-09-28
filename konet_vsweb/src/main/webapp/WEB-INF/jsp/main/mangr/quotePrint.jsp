@@ -65,8 +65,28 @@
 </c:when>
 <c:otherwise>
   <%-- ★둘째 묶음은 값이 실제로 든 줄이 있을 때만 (2026-09-17 「선택한 내용만 기입」) --%>
-  <c:set var="any2" value="false"/>
-  <c:forEach var="it" items="${items}"><c:if test="${not empty it.unitPrice2 and it.unitPrice2 > 0}"><c:set var="any2" value="true"/></c:if></c:forEach>
+  <%-- ★★[확정 2026-09-28 「원가 포함 동판비·목형비는 품명에서 제외」] 원가 포함 품명비 줄은 견적서에 찍지 않는다 —
+       단가에 이미 녹아 있어 단가·금액이 빈 줄로 나갔다(사용자 캡처). 근거 숫자는 아래 「비고」 칸에 그대로 있다.
+       새로 저장하는 견적서는 작성 화면(payload)이 아예 줄을 안 만들지만, <이미 저장된 견적서>는 그 줄이 DB 에 남아 있으므로 여기서도 거른다.
+       판정 = 단가·금액이 0 이고 비고가 「원가 포함」으로 시작 (작성 화면이 적는 말 · selectQuoteList 의 품명비 갈래 판정과 같은 규칙). --%>
+  <%-- ★제조사 칸은 <값이 있을 때만> (2026-09-28 「품목에서 제조사 추가」) — 한 줄도 안 적힌 견적서는 종전 양식 그대로 나간다.
+       단가 묶음을 「선택한 내용만」 그리는 것(any2)과 같은 규칙. --%>
+  <%-- ⚠★★판정에 `== 0` 을 쓰면 안 된다 (2026-09-28 실측으로 잡은 결함) — UNIT_PRICE 는 DECIMAL(15,2) 라 EL 에 BigDecimal `0.00`(소수 2자리)로 온다.
+       EL 의 `==` 는 BigDecimal 일 때 `equals()` 를 쓰고 `equals` 는 <자릿수까지> 비교하므로 **`0.00 == 0` 은 거짓**이다(자바 실측 확인).
+       그래서 처음 판은 이 줄이 그대로 인쇄됐다(사용자 캡처 2장). ⇒ `le`(= `compareTo`)로 비교한다 — 자릿수와 무관하다.
+       같은 이유로 아래 단가·금액 칸도 처음부터 `it.unitPrice > 0` 을 쓰고 있었다(그쪽은 멀쩡히 동작했다 = 값이 0 인 것은 맞다는 증거).
+       ★DECIMAL 칸을 EL 에서 0 과 견줄 때는 어디서든 `le`·`ge`·`gt`·`lt` 를 쓸 것. --%>
+  <c:set var="any2" value="false"/><c:set var="anyMk" value="false"/><c:set var="nSkip" value="0"/>
+  <c:forEach var="it" items="${items}">
+    <c:set var="isCost" value="${(empty it.unitPrice or it.unitPrice le 0) and (empty it.amt or it.amt le 0) and fn:startsWith(it.remark, '원가 포함')}"/>
+    <c:choose>
+      <c:when test="${isCost}"><c:set var="nSkip" value="${nSkip + 1}"/></c:when>
+      <c:otherwise>
+        <c:if test="${not empty it.unitPrice2 and it.unitPrice2 > 0}"><c:set var="any2" value="true"/></c:if>
+        <c:if test="${not empty it.makerNm}"><c:set var="anyMk" value="true"/></c:if>
+      </c:otherwise>
+    </c:choose>
+  </c:forEach>
   <c:set var="has2" value="${not empty mst.price2Nm and any2}"/>
   <h1>견 적 서</h1>
   <table class="hd">
@@ -86,24 +106,28 @@
       <c:when test="${has2}">
         <%-- 칸 폭 (2026-09-18 「단가가 잘림 — 품명·규격은 조금 축소」) : 품명 24→21 · 규격 26→22 로 줄이고 단가 8→10 · 금액 9→11 로 넓힘 --%>
         <%-- 비고(MOQ) 9→11% (2026-09-18 「비고 칸 늘려주세요」) + 품명 21→19 · 규격 22→18 (「규격·품명 줄이고」 — 내려쓰기로 받는다. 단가·금액 폭은 ⑨ 확정 그대로) --%>
-        <colgroup><col style="width:19%"><col style="width:18%"><col style="width:6%"><col style="width:8%"><col style="width:10%"><col style="width:11%"><col style="width:10%"><col style="width:11%"><col style="width:11%"></colgroup>
+        <%-- 제조사 칸이 생기면 그 폭(8%)은 품명·규격에서 덜어낸다 (2026-09-28) — 단가·금액·비고 폭은 건드리지 않는다 --%>
+        <colgroup><c:if test="${anyMk}"><col style="width:8%"></c:if><col style="width:${anyMk ? 15 : 19}%"><col style="width:${anyMk ? 14 : 18}%"><col style="width:6%"><col style="width:8%"><col style="width:10%"><col style="width:11%"><col style="width:10%"><col style="width:11%"><col style="width:11%"></colgroup>
         <thead>
-          <tr><td rowspan="2">품목</td><td rowspan="2">규격 및 재질</td><td>단위</td><td>수량</td><td colspan="2">${mst.price1Nm}</td><td colspan="2">${mst.price2Nm}</td><td rowspan="2">비고<br>(MOQ)</td></tr>
+          <tr><c:if test="${anyMk}"><td rowspan="2">제조사</td></c:if><td rowspan="2">품목</td><td rowspan="2">규격 및 재질</td><td>단위</td><td>수량</td><td colspan="2">${mst.price1Nm}</td><td colspan="2">${mst.price2Nm}</td><td rowspan="2">비고<br>(MOQ)</td></tr>
           <tr><td>box</td><td>ea</td><td>단가</td><td>금액</td><td>단가</td><td>금액</td></tr>
         </thead>
       </c:when>
       <c:otherwise>
         <%-- 비고 12→16% (2026-09-18 「비고 칸 늘려주세요」) + 품명 27→22 · 규격 31→25 (「규격·품명 줄이고」 — 긴 글자는 내려쓰기로 받는다) --%>
-        <colgroup><col style="width:22%"><col style="width:25%"><col style="width:7%"><col style="width:9%"><col style="width:10%"><col style="width:12%"><col style="width:16%"></colgroup>
+        <colgroup><c:if test="${anyMk}"><col style="width:9%"></c:if><col style="width:${anyMk ? 18 : 22}%"><col style="width:${anyMk ? 20 : 25}%"><col style="width:7%"><col style="width:9%"><col style="width:10%"><col style="width:12%"><col style="width:16%"></colgroup>
         <thead>
-          <tr><td rowspan="2">품명</td><td rowspan="2">규격</td><td>단위</td><td>수량</td><td rowspan="2">단가</td><td rowspan="2">금액</td><td rowspan="2">비고</td></tr>
+          <tr><c:if test="${anyMk}"><td rowspan="2">제조사</td></c:if><td rowspan="2">품명</td><td rowspan="2">규격</td><td>단위</td><td>수량</td><td rowspan="2">단가</td><td rowspan="2">금액</td><td rowspan="2">비고</td></tr>
           <tr><td>Box</td><td>ea</td></tr>
         </thead>
       </c:otherwise>
     </c:choose>
     <tbody>
     <c:forEach var="it" items="${items}">
-      <tr><td class="l wrap"><div class="tx">${it.prodNm}</div></td><td class="l wrap"><div class="tx">${it.spec}</div></td>
+      <%-- 원가 포함 품명비 줄은 건너뛴다 (2026-09-28) — 위 nSkip 과 <글자 하나까지 같은 판정>이어야 한다(다르면 빈 줄 수가 어긋난다) --%>
+      <c:set var="isCost" value="${(empty it.unitPrice or it.unitPrice le 0) and (empty it.amt or it.amt le 0) and fn:startsWith(it.remark, '원가 포함')}"/>
+      <c:if test="${not isCost}">
+      <tr><c:if test="${anyMk}"><td class="c wrap"><div class="tx">${it.makerNm}</div></td></c:if><td class="l wrap"><div class="tx">${it.prodNm}</div></td><td class="l wrap"><div class="tx">${it.spec}</div></td>
           <td class="c"><c:if test="${not empty it.boxQty}"><fmt:formatNumber value="${it.boxQty}" pattern="#,##0.##"/></c:if></td>
           <td class="r"><fmt:formatNumber value="${it.qty}" pattern="#,##0.##"/></td>
           <%-- 단가·금액 0 은 빈칸 (2026-09-18) — 원가 포함 품명비 줄(단가에 이미 반영·비고에 근거)이 0 으로 찍히지 않게 --%>
@@ -114,9 +138,10 @@
           <td class="r"><c:if test="${not empty it.amt2 and it.amt2 > 0}"><fmt:formatNumber value="${it.amt2}" pattern="#,##0"/></c:if></td>
           </c:if>
           <td class="l wrap"><div class="tx">${it.remark}</div></td></tr>
+      </c:if>
     </c:forEach>
-    <c:forEach begin="${fn:length(items) + 1}" end="${has2 ? 21 : 23}" var="i">
-      <tr><td></td><td></td><td></td><td></td><td></td><td></td><c:if test="${has2}"><td></td><td></td></c:if><td></td></tr>
+    <c:forEach begin="${fn:length(items) - nSkip + 1}" end="${has2 ? 21 : 23}" var="i">
+      <tr><c:if test="${anyMk}"><td></td></c:if><td></td><td></td><td></td><td></td><td></td><td></td><c:if test="${has2}"><td></td><td></td></c:if><td></td></tr>
     </c:forEach>
     </tbody>
     <%-- 하단 합계 줄은 출력하지 않는다 (2026-09-17 「하단 합계 내역은 출력 제외」 — 되살리려면 여기 tfoot 으로) --%>
