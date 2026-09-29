@@ -68,6 +68,29 @@
   .bd.xls{ background:#e3f2ee; color:#0f6b5e; } .bd.warn{ background:#fdecec; color:var(--red); } .bd.dup{ background:#fdf0d5; color:#9a5b05; }
   .bd.hand{ background:#e8eefb; color:#2f4f9a; margin-left:6px; vertical-align:1px; }   /* 직접 작성 표시 (2026-09-17) */
   .bd.up{ background:#eef2f5; color:#556; margin-left:6px; vertical-align:1px; }
+  /* 진행 상태 (2026-09-29) — 작성 중 / 제출완료 / 채택 / 거절 / 보류 */
+  .st{ display:inline-block; font-size:11.5px; font-weight:800; border-radius:6px; padding:2px 8px; white-space:nowrap; cursor:pointer; border:1px solid transparent; }
+  .st:hover{ box-shadow:0 0 0 2px rgba(19,122,108,.18); }
+  .st.W{ background:#eef2f5; color:#5b6b7b; }
+  .st.S{ background:#e8eefb; color:#2f4f9a; }
+  .st.A{ background:#e3f7df; color:#1f7a34; }
+  .st.R{ background:#fdecec; color:#c0392b; }
+  .st.H{ background:#fff3c4; color:#8a5a00; }
+  .stdt{ display:block; font-size:11px; color:#6b7a89; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .stdt b{ color:#37475a; }
+  .stdt.long{ color:#b45309; font-weight:700; }
+  .stpop{ position:fixed; inset:0; background:rgba(15,23,32,.35); display:none; align-items:flex-start; justify-content:center; z-index:1200; padding-top:7vh; }
+  .stpop.on{ display:flex; }
+  .stpop .box{ background:#fff; width:min(520px,94vw); border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); overflow:hidden; }
+  .stpop .ph{ padding:11px 14px; border-bottom:1px solid #eef1f5; font-weight:800; color:#125a4e; }
+  .stpop .pb{ padding:14px; }
+  .stpop .pf{ padding:10px 14px; border-top:1px solid #eef1f5; display:flex; gap:8px; justify-content:flex-end; }
+  .stpop .row{ display:grid; grid-template-columns:104px 1fr; gap:8px 10px; align-items:center; margin-bottom:9px; }
+  .stpop .row label{ font-weight:700; color:#37475a; font-size:13px; text-align:right; }
+  .stpop input[type=date], .stpop input[type=text]{ height:32px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13.5px; width:100%; }
+  .stpop .gbs{ display:flex; gap:6px; flex-wrap:wrap; }
+  .stpop .gbs label{ display:inline-flex; align-items:center; gap:5px; border:1px solid var(--bd); border-radius:8px; padding:5px 10px; cursor:pointer; font-size:13px; font-weight:700; color:#37475a; text-align:left; }
+  .stpop .gbs label:has(input:checked){ border-color:#0f6b5e; background:#e3f2ee; color:#0f6b5e; }
   .dim{ color:#8a98a8; }
   .empty{ padding:28px; text-align:center; color:#8a98a8; }
   .err{ margin:0 12px 12px; padding:8px 12px; border-radius:8px; background:#fdecec; color:#8a2a22; font-size:12.5px; line-height:1.7; }
@@ -122,6 +145,10 @@
         <input type="date" id="fr"> ~ <input type="date" id="to">
         <input type="text" id="mgr" placeholder="담당자" style="width:110px" list="mgrList" autocomplete="off"><datalist id="mgrList"></datalist>
         <input type="text" id="q" placeholder="문서번호 · 수신 · 품명" style="width:200px" onkeydown="if(event.keyCode===13) load()">
+        <%-- 진행 상태 거르기 (2026-09-29) --%>
+        <select id="stf" onchange="load()" title="진행 상태로 거릅니다" style="height:32px;border:1px solid var(--bd);border-radius:7px;padding:0 6px;font-size:13px">
+          <option value="">진행 전체</option><option value="W">작성 중</option><option value="S">제출완료</option><option value="A">채택</option><option value="R">거절</option><option value="H">보류</option>
+        </select>
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
         <button class="btn" style="border-color:#137a6c;color:#137a6c" onclick="cmpOpen()" title="체크한 견적서(없으면 목록 전체)를 품명 × 견적서 행렬로 비교합니다 — 단가 변동·최저·최고">📊 견적 비교</button>
         <%-- 카톡 공유 (2026-09-28) — ★줄마다 단추를 두면 표가 복잡해져 «체크한 줄»에 대해 도구줄에서 보낸다([선택 삭제]와 같은 방식) --%>
@@ -135,10 +162,33 @@
       <table class="g">
         <thead><tr>
           <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th>
-          <th>견적일</th><th>문서번호</th><th>수신</th><th>담당자</th><th>품목</th><th>줄</th><th>금액(부가세 별도)</th><th>유효기간</th><th>원본</th><th title="A4 견적서 양식 인쇄 · 저장된 원가·마진 계산 조회">출력</th><th title="견적서 작성 화면에서 수정">수정</th><th>등록</th>
+          <th>견적일</th><th>문서번호</th><th title="눌러서 제출완료·채택·거절·보류와 그 일자를 넣습니다 · 작성 기간 = 작성 시작일부터 제출완료일까지">진행</th><th>수신</th><th>담당자</th><th>품목</th><th>줄</th><th>금액(부가세 별도)</th><th>유효기간</th><th>원본</th><th title="A4 견적서 양식 인쇄 · 저장된 원가·마진 계산 조회">출력</th><th title="견적서 작성 화면에서 수정">수정</th><th>등록</th>
         </tr></thead>
-        <tbody id="lsBody"><tr><td colspan="13" class="empty">조회 중…</td></tr></tbody>
+        <tbody id="lsBody"><tr><td colspan="14" class="empty">조회 중…</td></tr></tbody>
       </table>
+    </div>
+    <%-- 진행 상태 창 (2026-09-29) --%>
+    <div class="stpop" id="stPop" onclick="if(event.target===this) stClose()">
+      <div class="box">
+        <div class="ph">📌 견적서 진행 상태 <span class="dim" style="font-weight:600;font-size:12.5px" id="stDoc"></span></div>
+        <div class="pb">
+          <div class="row"><label>지금 상태</label><div class="gbs">
+            <label><input type="radio" name="stgb" value="W"> 작성 중</label>
+            <label><input type="radio" name="stgb" value="S" onclick="stPick('S')"> 제출완료</label>
+            <label><input type="radio" name="stgb" value="A" onclick="stPick('A')"> 채택</label>
+            <label><input type="radio" name="stgb" value="R" onclick="stPick('R')"> 거절</label>
+            <label><input type="radio" name="stgb" value="H" onclick="stPick('H')"> 보류</label>
+          </div></div>
+          <div class="row"><label>제출완료 일자</label><input type="date" id="stSub"></div>
+          <div class="row"><label>채택 일자</label><input type="date" id="stAdo"></div>
+          <div class="row"><label>거절 일자</label><input type="date" id="stRej"></div>
+          <div class="row"><label>보류 일자</label><input type="date" id="stHol"></div>
+          <div class="row"><label>메모</label><input type="text" id="stMemo" maxlength="200" placeholder="거절 사유 · 보류 까닭 등"></div>
+          <div class="dim" style="font-size:12.5px;line-height:1.6" id="stInfo"></div>
+          <div class="dim" style="font-size:12.5px;margin-top:4px">· 일자는 항목마다 남습니다(제출 뒤 채택이면 둘 다). 칸을 비우고 저장하면 그 일자는 지워집니다.</div>
+        </div>
+        <div class="pf"><button class="btn" onclick="stClose()">닫기</button><button class="btn btn-teal" onclick="stSave()">💾 저장</button></div>
+      </div>
     </div>
     <div id="cmpWrap" hidden></div>
     <div id="mgWrap" hidden></div>
@@ -283,21 +333,85 @@ function docShow(nm){
 /* ── 목록 ── */
 function load(){
   var fr=document.getElementById('fr').value, to=document.getElementById('to').value, mgr=document.getElementById('mgr').value.trim(), q=document.getElementById('q').value.trim();
-  var tb=document.getElementById('lsBody'); tb.innerHTML='<tr><td colspan="13" class="empty">조회 중…</td></tr>';
+  var tb=document.getElementById('lsBody'); tb.innerHTML='<tr><td colspan="14" class="empty">조회 중…</td></tr>';
   _sel=null; document.getElementById('dtlWrap').hidden=true;
   /* 다시 조회(저장·삭제 뒤 포함)하면 아래 비교 표·원본 보기·상세도 접는다 (2026-09-17 「선택 삭제하면 아래도 없어지게」) — 지운 견적서가 비교 표에 남지 않게 */
   _cmp=null; var _cw=document.getElementById('cmpWrap'); if(_cw){ _cw.hidden=true; _cw.innerHTML=''; }
   _lsDocSeq=null; var _ld=document.getElementById('lsDoc'); if(_ld){ _ld.hidden=true; _ld.innerHTML=''; }
   _mgSeq=null; var _mw=document.getElementById('mgWrap'); if(_mw){ _mw.hidden=true; _mw.innerHTML=''; }
-  post('/mangr/quoteList.do','frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)+'&mgrNm='+encodeURIComponent(mgr)+'&findData='+encodeURIComponent(q))
+  post('/mangr/quoteList.do','frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)+'&mgrNm='+encodeURIComponent(mgr)+'&findData='+encodeURIComponent(q)+'&statGb='+encodeURIComponent((document.getElementById('stf')||{}).value||''))
     .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return JSON.parse(t); }); })
     .then(function(j){ _ls=(j&&j.data)||[]; lsRender(); if(_pv.length) pvRender(); })
-    .catch(function(e){ tb.innerHTML='<tr><td colspan="13" class="empty" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
+    .catch(function(e){ tb.innerHTML='<tr><td colspan="14" class="empty" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
+}
+/* ── 진행 상태 (2026-09-29 「제출완료·채택·거절·보류 각 항목에 대한 일자 관리」·「작성하기 시작해서 끝나는데 며칠 걸리는지」) ──
+     상태 = W 작성 중 · S 제출완료 · A 채택 · R 거절 · H 보류. 일자는 항목마다 따로 남는다(제출 뒤 채택이면 둘 다 남는다).
+     작성 기간 = 작성 시작일(첫 저장일)부터 제출완료일까지. 아직 제출 전이면 오늘까지 「N일째」. */
+var ST_NM={ W:'작성 중', S:'제출완료', A:'채택', R:'거절', H:'보류' };
+var ST_DTK={ S:'submitDt', A:'adoptDt', R:'rejectDt', H:'holdDt' };
+function stGb(x){ var g=String((x&&x.statGb)||'W'); return ST_NM[g]?g:'W'; }
+function dnum(s){ s=String(s||'').replace(/[^0-9]/g,''); return s.length>=8 ? s.slice(0,8) : ''; }
+function dToUtc(s){ s=dnum(s); return s? Date.UTC(+s.slice(0,4), +s.slice(4,6)-1, +s.slice(6,8)) : null; }
+function daysBetween(a,b){ var x=dToUtc(a), y=dToUtc(b); return (x==null||y==null)? null : Math.round((y-x)/86400000); }
+function todayYmd(){ var t=new Date(); return t.getFullYear()+('0'+(t.getMonth()+1)).slice(-2)+('0'+t.getDate()).slice(-2); }
+/* 작성 기간 — 제출완료 전이면 오늘까지 며칠째인지 (하루 만에 끝냈으면 1일) */
+function stSpan(x){
+  var st=dnum(x.startDt)||dnum(x.quoteDt), sub=dnum(x.submitDt);
+  if(!st) return null;
+  var end=sub||todayYmd(), d=daysBetween(st,end);
+  if(d==null||d<0) return null;
+  return { days:d+1, done:!!sub, start:st, end:end };
+}
+function stCell(x,i){
+  var g=stGb(x), dt=dnum(x[ST_DTK[g]]||''), sp=stSpan(x), out='';
+  var tip=[]; ['S','A','R','H'].forEach(function(k){ var v=dnum(x[ST_DTK[k]]); if(v) tip.push(ST_NM[k]+' '+d10(v)); });
+  if(x.statMemo) tip.push('메모 : '+x.statMemo);
+  if(n(x.editCnt)) tip.push('채택 뒤 수정 '+n(x.editCnt)+'회'+(x.editMemo?' · 마지막 사유 : '+x.editMemo:''));
+  out+='<span class="st '+g+'" onclick="event.stopPropagation(); stOpen('+i+')" title="'+esc(tip.join(' · ')||'눌러서 진행 상태를 넣습니다')+'">'+ST_NM[g]+(dt?' '+d10(dt).slice(5):'')+'</span>';
+  if(sp){
+    var txt = sp.done ? ('작성 <b>'+sp.days+'일</b>') : ('작성 <b>'+sp.days+'일째</b>');
+    out+='<span class="stdt'+(!sp.done&&sp.days>7?' long':'')+'" title="작성 시작 '+d10(sp.start)+(sp.done?' → 제출완료 '+d10(sp.end):' → 아직 제출 전')+'">'+txt+'</span>';
+  }
+  if(n(x.editCnt)) out+='<span class="stdt" title="'+esc(x.editMemo||'')+'">✏ 수정 '+n(x.editCnt)+'회</span>';
+  return out;
+}
+/* 상태 넣기 창 — 네 일자를 한 자리에서 고친다(빈 칸으로 저장하면 그 일자는 지워진다) */
+var _stSeq=null;
+function stOpen(i){
+  var x=_ls[i]; if(!x) return; _stSeq=x.quoteSeq;
+  var g=stGb(x), p=document.getElementById('stPop');
+  p.querySelector('#stDoc').textContent=x.docNo+' · '+(x.recvNm||'');
+  Array.prototype.forEach.call(p.querySelectorAll('input[name=stgb]'), function(r){ r.checked=(r.value===g); });
+  p.querySelector('#stSub').value=d10(dnum(x.submitDt)); p.querySelector('#stAdo').value=d10(dnum(x.adoptDt));
+  p.querySelector('#stRej').value=d10(dnum(x.rejectDt)); p.querySelector('#stHol').value=d10(dnum(x.holdDt));
+  p.querySelector('#stMemo').value=x.statMemo||'';
+  var sp=stSpan(x);
+  p.querySelector('#stInfo').innerHTML='작성 시작 <b>'+(sp?d10(sp.start):'—')+'</b>'+(sp?(sp.done?' → 제출완료까지 <b>'+sp.days+'일</b>':' → 오늘까지 <b>'+sp.days+'일째</b>'):'')
+    +(n(x.editCnt)?' · 채택 뒤 수정 <b>'+n(x.editCnt)+'회</b>':'');
+  p.classList.add('on');
+}
+function stClose(){ document.getElementById('stPop').classList.remove('on'); _stSeq=null; }
+/* 상태를 고르면 그 일자를 오늘로 채워 준다(이미 있으면 그대로) */
+function stPick(g){
+  var id={ S:'stSub', A:'stAdo', R:'stRej', H:'stHol' }[g]; if(!id) return;
+  var e=document.getElementById(id); if(e && !e.value){ var t=new Date(); e.value=t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2); }
+}
+function stSave(){
+  if(!_stSeq) return;
+  var g=(document.querySelector('input[name=stgb]:checked')||{}).value||'W';
+  var body={ quoteSeq:_stSeq, statGb:g,
+    submitDt:document.getElementById('stSub').value, adoptDt:document.getElementById('stAdo').value,
+    rejectDt:document.getElementById('stRej').value, holdDt:document.getElementById('stHol').value,
+    statMemo:document.getElementById('stMemo').value };
+  if(g!=='W' && !body[ST_DTK[g]]){ _alertBox(ST_NM[g]+' 일자를 넣으세요.',{icon:'⚠️'}); return; }
+  post('/mangr/quoteStat.do', body, true).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error((j&&j.error)||('HTTP '+r.status)); return j; }); })
+    .then(function(){ stClose(); load(); if(window._toast) _toast('진행 상태를 저장했습니다.','success'); })
+    .catch(function(e){ _alertBox('저장하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>',{icon:'⚠️'}); });
 }
 function lsRender(){
   var tb=document.getElementById('lsBody');
   document.getElementById('lsAll').checked=false;
-  if(!_ls.length){ tb.innerHTML='<tr><td colspan="13" class="empty">조건에 맞는 견적서가 없습니다.</td></tr>'; document.getElementById('lsTot').innerHTML=''; return; }
+  if(!_ls.length){ tb.innerHTML='<tr><td colspan="14" class="empty">조건에 맞는 견적서가 없습니다.</td></tr>'; document.getElementById('lsTot').innerHTML=''; return; }
   var amt=0;
   tb.innerHTML=_ls.map(function(x,i){
     amt+=n(x.supplyAmt);
@@ -306,7 +420,7 @@ function lsRender(){
       +'<td>'+d10(x.quoteDt)+'</td><td><b>'+esc(x.docNo)+'</b>'+(x.hasFile==='Y'?'<span class="bd up" title="엑셀 파일을 올려 저장한 견적서 ('+esc(x.fileNm)+')">올림</span>':'<span class="bd hand" title="견적서 작성 화면에서 직접 작성한 견적서(올린 파일 없음)">✍ 직접 작성</span>')
         /* 카톡으로 보낸 적이 있으면 작은 표시만 (2026-09-28 — 줄에 단추를 두지 않는 대신) */
         +(n(x.shareCnt)?'<span class="dim" style="font-size:11px;margin-left:6px" title="카톡·링크로 '+n(x.shareCnt)+'회 보냈습니다'+(x.lastShareDttm?' · 마지막 '+esc(String(x.lastShareDttm).slice(0,16)):'')+'">💬'+n(x.shareCnt)+'</span>':'')
-        +'</td><td>'+esc(x.recvNm)+'</td><td>'+esc(x.mgrNm)+'</td>'
+        +'</td><td style="white-space:nowrap">'+stCell(x,i)+'</td><td>'+esc(x.recvNm)+'</td><td>'+esc(x.mgrNm)+'</td>'
       /* ★품명비(동판비·목형비)는 이름 + 갈래를 함께 보여 준다 (2026-09-20 「여기에도 동판·목형 보이게」·「적용 안 함·원가 포함·별도 청구 표시」) — 서버 feeNms(옛 서버면 빈 값) */
       +'<td class="l" style="max-width:320px">'+(x.firstCd?'<span style="color:#0f6b5e;font-weight:700;font-size:12px;margin-right:6px" title="첫 줄의 우리 상품코드'+(n(x.cdCnt)>1?' · 상품코드가 든 줄 '+n(x.cdCnt)+'개':'')+'">'+esc(x.firstCd)+'</span>':(n(x.cdCnt)?'<span style="color:#0f6b5e;font-weight:700;font-size:12px;margin-right:6px" title="상품코드가 든 줄 '+n(x.cdCnt)+'개(첫 줄에는 없음)">코드 '+n(x.cdCnt)+'줄</span>':''))+esc(x.firstNm)+(n(x.lineCnt)>1?' <span class="dim">외 '+(n(x.lineCnt)-1)+'</span>':'')
         +(x.feeNms?'<div class="dim" style="font-size:11.5px;margin-top:2px">🧷 '+esc(x.feeNms)+'</div>':'')+'</td>'
@@ -564,7 +678,7 @@ function detail(i){
         +'<span style="margin-left:auto" class="tot">품목 <b>'+ls.length+'</b>줄 · 합계 <b>'+fmt(sum)+'</b>원</span></div>'
         +(x.titleTxt?'<div class="df" style="border-top:0;color:#37475a">'+esc(x.titleTxt)+'</div>':'')
         +'<div class="tw" style="max-height:none"><table class="g"><thead><tr><th>No</th><th>상품코드</th><th>제조사</th><th>품명</th><th>규격</th><th>Box</th><th>수량</th><th>단위</th>'+priceHead(x)+'<th>비고</th></tr></thead><tbody>'
-        +(ls.length?ls.map(function(l){ return '<tr><td>'+esc(l.rowNo)+'</td><td style="color:#0f6b5e;font-weight:700">'+esc(l.prodCd||'')+'</td><td>'+esc(l.makerNm||'')+'</td><td class="l">'+esc(l.prodNm)+'</td><td class="l">'+esc(l.spec)+'</td><td class="r">'+(l.boxQty!=null?fmt(l.boxQty):'')+'</td><td class="r"><b>'+fmt(l.qty)+'</b></td><td>'+esc(l.unit)+'</td>'+priceCells(l, !!x.price2Nm)+'<td class="l">'+esc(l.remark)+'</td></tr>'; }).join(''):'<tr><td colspan="13" class="empty">품목 줄이 없습니다.</td></tr>')
+        +(ls.length?ls.map(function(l){ return '<tr><td>'+esc(l.rowNo)+'</td><td style="color:#0f6b5e;font-weight:700">'+esc(l.prodCd||'')+'</td><td>'+esc(l.makerNm||'')+'</td><td class="l">'+esc(l.prodNm)+'</td><td class="l">'+esc(l.spec)+'</td><td class="r">'+(l.boxQty!=null?fmt(l.boxQty):'')+'</td><td class="r"><b>'+fmt(l.qty)+'</b></td><td>'+esc(l.unit)+'</td>'+priceCells(l, !!x.price2Nm)+'<td class="l">'+esc(l.remark)+'</td></tr>'; }).join(''):'<tr><td colspan="14" class="empty">품목 줄이 없습니다.</td></tr>')
         +'</tbody></table></div>'+(x.remark?'<div class="df">비고 : '+esc(x.remark)+'</div>':'')+'</div>';
     })
     .catch(function(e){ w.innerHTML='<div class="err">품목을 불러오지 못했습니다 — '+esc(e.message)+'</div>'; });

@@ -1098,6 +1098,13 @@
 	                         WHERE f.QUOTE_SEQ = m.QUOTE_SEQ AND f.PROD_NM IN (N'동판비', N'목형비')
 	                         FOR XML PATH(''), TYPE ).value('.','NVARCHAR(400)'), 1, 2, ''), '') AS feeNms,
 	         ISNULL(m.SHARE_CNT,0) AS shareCnt, m.LAST_SHARE_DTTM AS lastShareDttm,   /* 카톡 공유 횟수·마지막 때 (2026-09-28) */
+	         /* 진행 상태 (2026-09-29) — 빈 값은 「작성 중」(W). 일자는 항목마다 따로 남는다 */
+	         ISNULL(NULLIF(m.STAT_GB,''),'W') AS statGb, ISNULL(m.SUBMIT_DT,'') AS submitDt, ISNULL(m.ADOPT_DT,'') AS adoptDt,
+	         ISNULL(m.REJECT_DT,'') AS rejectDt, ISNULL(m.HOLD_DT,'') AS holdDt, ISNULL(m.STAT_MEMO,'') AS statMemo,
+	         ISNULL(m.STAT_DTTM,'') AS statDttm, ISNULL(m.STAT_USER,'') AS statUser,
+	         /* 작성 기간 (2026-09-29) — 시작일이 비면 등록일. 끝 = 제출완료일, 아직이면 오늘까지 */
+	         ISNULL(NULLIF(m.START_DT,''), LEFT(REPLACE(ISNULL(m.REG_DTTM,''),'-',''),8)) AS startDt,
+	         ISNULL(m.EDIT_CNT,0) AS editCnt, ISNULL(m.EDIT_MEMO,'') AS editMemo, ISNULL(m.EDIT_DTTM,'') AS editDttm, ISNULL(m.EDIT_USER,'') AS editUser,
 	         m.REG_DTTM AS regDttm, ISNULL(m.REG_USER,'') AS regUser
 	    FROM TBL_QUOTE_MST m
 	    LEFT JOIN ( SELECT QUOTE_SEQ, COUNT(*) AS cnt, MIN(CASE WHEN ROW_NO = 1 THEN PROD_NM END) AS firstNm,
@@ -1110,6 +1117,7 @@
 	     AND ( ISNULL(#{frDt,jdbcType=VARCHAR},'') = '' OR ISNULL(m.QUOTE_DT,'') >= REPLACE(#{frDt,jdbcType=VARCHAR},'-','') )
 	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'') = '' OR ISNULL(m.QUOTE_DT,'') <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
 	     AND ( ISNULL(#{mgrNm,jdbcType=NVARCHAR},'') = '' OR ISNULL(m.MGR_NM,'') LIKE '%' + #{mgrNm,jdbcType=NVARCHAR} + '%' )
+	     AND ( ISNULL(#{statGb,jdbcType=NVARCHAR},'') = '' OR ISNULL(NULLIF(m.STAT_GB,''),'W') = #{statGb,jdbcType=NVARCHAR} )   /* 진행 상태 거르기 (2026-09-29) */
 	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = ''
 	           OR m.DOC_NO LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
 	           OR ISNULL(m.RECV_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
@@ -1136,7 +1144,13 @@
 	<!-- 같은 문서번호의 활성 견적서 (2026-09-17 「기존에 올린 게 있는지 확인 메세지」) — 미리보기 표시 · 저장 전 확인 -->
 	<select id="selectQuoteByDoc" parameterType="java.util.Map" resultType="java.util.HashMap">
 	  SELECT TOP 1 QUOTE_SEQ AS quoteSeq, DOC_NO AS docNo, ISNULL(QUOTE_DT,'') AS quoteDt, ISNULL(MGR_NM,'') AS mgrNm, ISNULL(SUPPLY_AMT,0) AS supplyAmt,
-	         ISNULL(REG_DTTM,'') AS regDttm, ISNULL(REG_USER,'') AS regUser
+	         ISNULL(REG_DTTM,'') AS regDttm, ISNULL(REG_USER,'') AS regUser,
+	         /* 다시 저장(대체) 때 이어받을 값들 (2026-09-29) — 이 표는 같은 문서번호를 새 줄로 갈아 끼우므로 안 넘기면 진행 상태·작성 시작일이 사라진다 */
+	         ISNULL(NULLIF(STAT_GB,''),'W') AS statGb, ISNULL(SUBMIT_DT,'') AS submitDt, ISNULL(ADOPT_DT,'') AS adoptDt,
+	         ISNULL(REJECT_DT,'') AS rejectDt, ISNULL(HOLD_DT,'') AS holdDt, ISNULL(STAT_MEMO,'') AS statMemo,
+	         ISNULL(STAT_DTTM,'') AS statDttm, ISNULL(STAT_USER,'') AS statUser,
+	         ISNULL(NULLIF(START_DT,''), LEFT(REPLACE(ISNULL(REG_DTTM,''),'-',''),8)) AS startDt,
+	         ISNULL(EDIT_CNT,0) AS editCnt, ISNULL(EDIT_MEMO,'') AS editMemo
 	    FROM TBL_QUOTE_MST
 	   WHERE ACTION_YN = 'Y' AND DOC_NO = #{docNo,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -1161,7 +1175,11 @@
 	  SELECT QUOTE_SEQ AS quoteSeq, COMP_CD AS compCd, DOC_NO AS docNo, ISNULL(QUOTE_DT,'') AS quoteDt, ISNULL(RECV_NM,'') AS recvNm, ISNULL(MGR_NM,'') AS mgrNm,
 	         ISNULL(VALID_TXT,'') AS validTxt, ISNULL(TITLE_TXT,'') AS titleTxt, ISNULL(REMARK,'') AS remark, ISNULL(SUPPLY_AMT,0) AS supplyAmt,
 	         ISNULL(PRICE1_NM,'') AS price1Nm, ISNULL(PRICE2_NM,'') AS price2Nm, ISNULL(CALC_JSON,'') AS calcJson, ISNULL(FILE_NM,'') AS fileNm, ISNULL(REG_USER,'') AS regUser, REG_DTTM AS regDttm,
-	         SHARE_TOKEN AS shareToken, ISNULL(SHARE_CNT,0) AS shareCnt, LAST_SHARE_DTTM AS lastShareDttm   <!-- 카톡 공유 (2026-09-28) -->
+	         SHARE_TOKEN AS shareToken, ISNULL(SHARE_CNT,0) AS shareCnt, LAST_SHARE_DTTM AS lastShareDttm,   <!-- 카톡 공유 (2026-09-28) -->
+	         ISNULL(NULLIF(STAT_GB,''),'W') AS statGb, ISNULL(SUBMIT_DT,'') AS submitDt, ISNULL(ADOPT_DT,'') AS adoptDt,
+	         ISNULL(REJECT_DT,'') AS rejectDt, ISNULL(HOLD_DT,'') AS holdDt, ISNULL(STAT_MEMO,'') AS statMemo,   <!-- 진행 상태 (2026-09-29) -->
+	         ISNULL(NULLIF(START_DT,''), LEFT(REPLACE(ISNULL(REG_DTTM,''),'-',''),8)) AS startDt,
+	         ISNULL(EDIT_CNT,0) AS editCnt, ISNULL(EDIT_MEMO,'') AS editMemo
 	    FROM TBL_QUOTE_MST
 	   WHERE QUOTE_SEQ = #{quoteSeq} AND ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -1186,6 +1204,22 @@
 	     `ISNULL(SHARE_TOKEN, 새토큰)` 이라 **한 번 발급되면 바뀌지 않는다** — 이미 보낸 링크가 계속 살아 있어야 하기 때문.
 	     ⇒ 서비스가 돌려받은 «후보 토큰»을 그대로 쓰면 틀린다. 쓴 뒤 다시 읽어 확인할 것(shareQuote).
 	     ⚠DDL docs/sql/20260928_quote_share.sql 을 먼저. -->
+	<!-- 진행 상태·일자 저장 (2026-09-29 「제출완료·채택·거절·보류 각 항목에 대한 일자 관리」)
+	     · 네 일자를 한 번에 받는다 — 빈 값으로 보내면 그 일자를 지운다(잘못 넣은 일자를 되돌릴 길). 일자는 'YYYYMMDD' 여덟 자리만 남긴다.
+	     · 상태(STAT_GB)는 W/S/A/R/H 중 하나. 저장이 같은 회사 것만 되게 compCd 를 늘 건다. -->
+	<update id="updateQuoteStat" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_QUOTE_MST
+	     SET STAT_GB   = #{statGb,jdbcType=NVARCHAR},
+	         SUBMIT_DT = NULLIF(REPLACE(ISNULL(#{submitDt,jdbcType=VARCHAR},''),'-',''),''),
+	         ADOPT_DT  = NULLIF(REPLACE(ISNULL(#{adoptDt,jdbcType=VARCHAR},''),'-',''),''),
+	         REJECT_DT = NULLIF(REPLACE(ISNULL(#{rejectDt,jdbcType=VARCHAR},''),'-',''),''),
+	         HOLD_DT   = NULLIF(REPLACE(ISNULL(#{holdDt,jdbcType=VARCHAR},''),'-',''),''),
+	         STAT_MEMO = NULLIF(#{statMemo,jdbcType=NVARCHAR},''),
+	         STAT_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), STAT_USER = #{statUser,jdbcType=NVARCHAR},
+	         UPD_DTTM  = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{statUser,jdbcType=NVARCHAR}, UPD_IP = #{statIp,jdbcType=VARCHAR}
+	   WHERE QUOTE_SEQ = #{quoteSeq} AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
 	<update id="updateQuoteShare" parameterType="java.util.Map"><![CDATA[
 	  UPDATE TBL_QUOTE_MST
 	     SET SHARE_TOKEN     = ISNULL(SHARE_TOKEN, #{shareToken,jdbcType=NVARCHAR}),
@@ -1212,11 +1246,18 @@
 	</update>
 	<!-- CALC_JSON = 원가·마진 계산 근거자료 (2026-09-17 「견적서 하나당 기본으로 근거자료로 저장」) — ⚠DDL docs/sql/20260917_quote_calc.sql 을 먼저 -->
 	<insert id="insertQuoteMst" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="quoteSeq" keyColumn="QUOTE_SEQ">
-	  INSERT INTO TBL_QUOTE_MST (COMP_CD, DOC_NO, QUOTE_DT, RECV_NM, MGR_NM, VALID_TXT, TITLE_TXT, REMARK, SUPPLY_AMT, FILE_NM, FILE_B64, PRICE1_NM, PRICE2_NM, CALC_JSON, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  INSERT INTO TBL_QUOTE_MST (COMP_CD, DOC_NO, QUOTE_DT, RECV_NM, MGR_NM, VALID_TXT, TITLE_TXT, REMARK, SUPPLY_AMT, FILE_NM, FILE_B64, PRICE1_NM, PRICE2_NM, CALC_JSON, ACTION_YN, REG_DTTM, REG_USER, REG_IP,
+	                             STAT_GB, SUBMIT_DT, ADOPT_DT, REJECT_DT, HOLD_DT, STAT_MEMO, STAT_DTTM, STAT_USER, START_DT, EDIT_CNT, EDIT_MEMO, EDIT_DTTM, EDIT_USER)
 	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{docNo,jdbcType=NVARCHAR}, #{quoteDt,jdbcType=CHAR}, #{recvNm,jdbcType=NVARCHAR}, #{mgrNm,jdbcType=NVARCHAR},
 	          #{validTxt,jdbcType=NVARCHAR}, #{titleTxt,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, #{supplyAmt,jdbcType=DECIMAL}, #{fileNm,jdbcType=NVARCHAR}, #{fileB64,jdbcType=NVARCHAR},
 	          #{price1Nm,jdbcType=NVARCHAR}, #{price2Nm,jdbcType=NVARCHAR}, #{calcJson,jdbcType=NVARCHAR},
-	          'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
+	          'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR},
+	          /* 대체 저장 때 이어받은 진행 상태·작성 시작일·수정 이력 (2026-09-29). 새 견적서면 서비스가 W·오늘·0 을 넣는다 */
+	          #{statGb,jdbcType=NVARCHAR}, NULLIF(#{submitDt,jdbcType=CHAR},''), NULLIF(#{adoptDt,jdbcType=CHAR},''),
+	          NULLIF(#{rejectDt,jdbcType=CHAR},''), NULLIF(#{holdDt,jdbcType=CHAR},''), NULLIF(#{statMemo,jdbcType=NVARCHAR},''),
+	          NULLIF(#{statDttm,jdbcType=VARCHAR},''), NULLIF(#{statUser,jdbcType=NVARCHAR},''),
+	          NULLIF(#{startDt,jdbcType=CHAR},''), #{editCnt,jdbcType=INTEGER}, NULLIF(#{editMemo,jdbcType=NVARCHAR},''),
+	          NULLIF(#{editDttm,jdbcType=VARCHAR},''), NULLIF(#{editUser,jdbcType=NVARCHAR},''))
 	</insert>
 	<insert id="insertQuoteDtl" parameterType="java.util.HashMap">
 	  INSERT INTO TBL_QUOTE_DTL (QUOTE_SEQ, ROW_NO, PROD_NM, SPEC, BOX_QTY, UNIT, QTY, UNIT_PRICE, AMT, UNIT_PRICE2, AMT2, REMARK, PROD_CD, MAKER_NM)

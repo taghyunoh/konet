@@ -475,7 +475,8 @@ public interface UserMapper {
 	java.util.List<java.util.Map<String,Object>> selectProfitRecv(java.util.Map<String,Object> p) throws Exception;          // 거래처별 수금액·할인액
 
 	/* 견적서 카톡 공유 (2026-09-28) — 발주서·거래명세서와 같은 방식(공개 링크 /pub/quote.do?t=토큰) */
-	int updateQuoteShare(java.util.Map<String,Object> p) throws Exception;                                                   // 토큰 발급(한 번만)·공유 횟수 +1
+	int updateQuoteShare(java.util.Map<String,Object> p) throws Exception;
+	int updateQuoteStat(java.util.Map<String,Object> p) throws Exception;                                                // 견적서 진행 상태·일자 (2026-09-29)                                                   // 토큰 발급(한 번만)·공유 횟수 +1
 	java.util.Map<String,Object> selectQuoteMstByToken(java.util.Map<String,Object> p) throws Exception;                     // 공개 조회 — 빈 토큰은 SQL 이 거절
 
 }

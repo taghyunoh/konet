@@ -845,6 +845,34 @@ public class UserServiceImpl implements UserService {
 		if (docNo.isEmpty()) throw new Exception("문서번호가 없습니다.");
 		java.util.Map<String,Object> m = new java.util.HashMap<String,Object>();
 		m.put("compCd", compCd); m.put("docNo", docNo); m.put("regUser", user); m.put("regIp", ip);
+		/* ★다시 저장(대체)이면 옛 줄의 진행 상태·작성 시작일·수정 이력을 이어받는다 (2026-09-29)
+		     — 이 표는 같은 문서번호를 «새 줄»로 갈아 끼우므로, 안 넘기면 제출완료·채택 표시와 작성 시작일이 사라진다.
+		   ★채택(A)된 견적서는 «수정 사유»가 있어야 고칠 수 있다 (사용자 지시). 화면도 막지만 여기가 마지막 관문이다. */
+		java.util.Map<String,Object> old = mapper.selectQuoteByDoc(m);
+		String today = new java.text.SimpleDateFormat("yyyyMMdd").format(new java.util.Date());
+		String now = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
+		String editMemo = scStr(q.get("editMemo"));
+		if (old == null) {                                                            // 새 견적서
+			m.put("statGb", "W"); m.put("submitDt", ""); m.put("adoptDt", ""); m.put("rejectDt", ""); m.put("holdDt", "");
+			m.put("statMemo", ""); m.put("statDttm", ""); m.put("statUser", "");
+			m.put("startDt", today); m.put("editCnt", Integer.valueOf(0)); m.put("editMemo", ""); m.put("editDttm", ""); m.put("editUser", "");
+		} else {
+			String g = scStr(old.get("statGb")); if (!g.matches("[WSARH]")) g = "W";
+			if ("A".equals(g) && editMemo.isEmpty())
+				throw new Exception("QUOTE_ADOPTED:채택된 견적서입니다 — 수정 사유를 넣어야 고칠 수 있습니다.");
+			m.put("statGb", g);
+			m.put("submitDt", scStr(old.get("submitDt"))); m.put("adoptDt", scStr(old.get("adoptDt")));
+			m.put("rejectDt", scStr(old.get("rejectDt"))); m.put("holdDt", scStr(old.get("holdDt")));
+			m.put("statMemo", scStr(old.get("statMemo"))); m.put("statDttm", scStr(old.get("statDttm"))); m.put("statUser", scStr(old.get("statUser")));
+			String st = scStr(old.get("startDt")); m.put("startDt", st.matches("[0-9]{8}") ? st : today);
+			int ec = (int) Math.round(scNum(old.get("editCnt")));
+			if (!editMemo.isEmpty()) {                                                // 사유를 적어 고쳤다 — 이력을 남긴다
+				if (editMemo.length() > 290) editMemo = editMemo.substring(0, 290);
+				m.put("editCnt", Integer.valueOf(ec + 1)); m.put("editMemo", editMemo); m.put("editDttm", now); m.put("editUser", user);
+			} else {
+				m.put("editCnt", Integer.valueOf(ec)); m.put("editMemo", scStr(old.get("editMemo"))); m.put("editDttm", ""); m.put("editUser", "");
+			}
+		}
 		mapper.markQuoteReplace(m);                                                   // 같은 문서번호는 대체
 		String dt = scStr(q.get("quoteDt")).replace("-", "").replace("/", "").replace(".", "");
 		m.put("quoteDt", dt.length() == 8 ? dt : null);
@@ -2692,6 +2720,18 @@ public class UserServiceImpl implements UserService {
 	     이미 쌓인 옛 견적서도 그대로 보낼 수 있고, 한 번 보낸 링크가 계속 살아 있다.
 	   ⇒ 여기서 만든 «후보» 토큰을 그대로 돌려주면 <틀린다>. 쓴 뒤 다시 읽어 실제로 박힌 값을 돌려준다
 	     (거래명세서 shareSalesTrx 에서 겪은 것과 같은 함정 — 두 번째 보내기가 늘 어긋난다). */
+	/* 견적서 진행 상태·일자 (2026-09-29) — 상태는 W/S/A/R/H 중 하나만. 일자는 숫자 여덟 자리만 남기고, 그 밖은 빈 값(=지움)으로 본다 */
+	@Override public int saveQuoteStat(java.util.Map<String,Object> p) throws Exception {
+		String g = scStr(p.get("statGb")).toUpperCase();
+		p.put("statGb", g.matches("[WSARH]") ? g : "W");
+		for (String k : new String[]{ "submitDt", "adoptDt", "rejectDt", "holdDt" }) {
+			String d = scStr(p.get(k)).replace("-", "").trim();
+			p.put(k, d.matches("[0-9]{8}") ? d : "");
+		}
+		String memo = scStr(p.get("statMemo"));
+		p.put("statMemo", memo.length() > 200 ? memo.substring(0, 200) : memo);
+		return mapper.updateQuoteStat(p);
+	}
 	@Override public String shareQuote(long quoteSeq, String compCd) throws Exception {
 		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
 		p.put("quoteSeq", Long.valueOf(quoteSeq)); p.put("compCd", compCd);

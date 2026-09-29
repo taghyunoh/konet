@@ -1247,17 +1247,24 @@ public class UserController {
 				for (Map<String,Object> q : docs) { long s = svc.saveQuote(q, u, request.getRemoteAddr(), compCd); if (seqs.length() > 0) seqs.append(','); seqs.append(s); lastSeq = s; n++; }
 				/* JSON 으로 (2026-09-17 「저장 출력 오류」) — 종전 「n|번호」 글자를 화면이 번호로 못 읽어 출력·재저장이 「저장 전」으로 취급됐다 */
 				return ResponseEntity.ok().header("Content-Type", "application/json;charset=UTF-8").body("{\"cnt\":" + n + ",\"seqs\":[" + seqs + "],\"seq\":" + lastSeq + "}");
-			} catch (Exception e) { log.error(" quoteSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+			} catch (Exception e) {
+				/* 채택된 견적서를 사유 없이 고치려 한 경우 (2026-09-29) — 화면이 사유를 묻고 다시 보낸다 */
+				String msg = e.getMessage() == null ? "" : e.getMessage();
+				if (msg.startsWith("QUOTE_ADOPTED:")) return ResponseEntity.status(400).body(msg);
+				log.error(" quoteSave ERROR : " + msg); return ResponseEntity.status(500).body(msg);
+			}
 		}
 		@RequestMapping(value="/mangr/quoteList.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,Object> quoteList(@RequestParam(value="frDt", required=false) String frDt, @RequestParam(value="toDt", required=false) String toDt,
 		                                    @RequestParam(value="mgrNm", required=false) String mgrNm, @RequestParam(value="findData", required=false) String findData,
+		                                    @RequestParam(value="statGb", required=false) String statGb,
 		                                    HttpSession session) throws Exception {
 			Map<String,Object> res = new HashMap<String,Object>();
 			if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); return res; }
 			Map<String,Object> q = new HashMap<String,Object>();
 			q.put("compCd", session.getAttribute("s_comp_cd")); q.put("frDt", frDt); q.put("toDt", toDt); q.put("mgrNm", mgrNm); q.put("findData", findData);
+			q.put("statGb", statGb);   // 진행 상태 거르기 (2026-09-29) — 빈 값이면 전체
 			res.put("data", svc.selectQuoteList(q));
 			return res;
 		}
@@ -1426,6 +1433,31 @@ public class UserController {
 			return ".raw/main/mangr/quotePrint";
 		}
 		/** 견적서 공유 주소 — 화면이 [💬 카톡]·[🔗 링크]를 누르면 부른다. 토큰을 발급(처음 한 번)하고 공개 주소를 돌려준다 */
+		/* 견적서 진행 상태·일자 (2026-09-29 「제출완료·채택·거절·보류 각 항목에 대한 일자 관리」)
+		   body {quoteSeq, statGb:W|S|A|R|H, submitDt, adoptDt, rejectDt, holdDt, statMemo} — 네 일자를 한 번에 받는다(빈 값 = 그 일자 지움) */
+		@RequestMapping(value="/mangr/quoteStat.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> quoteStat(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session,
+		                                    javax.servlet.http.HttpServletResponse response) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { response.setStatus(401); res.put("error", "로그인이 필요합니다."); return res; }
+				long seq = Math.round(poNum(body.get("quoteSeq")));
+				if (seq <= 0) { response.setStatus(400); res.put("error", "견적서를 고르세요."); return res; }
+				Map<String,Object> p = new HashMap<String,Object>();
+				p.put("quoteSeq", Long.valueOf(seq)); p.put("compCd", session.getAttribute("s_comp_cd"));
+				p.put("statGb", poStr(body.get("statGb")));
+				p.put("submitDt", poStr(body.get("submitDt"))); p.put("adoptDt", poStr(body.get("adoptDt")));
+				p.put("rejectDt", poStr(body.get("rejectDt"))); p.put("holdDt", poStr(body.get("holdDt")));
+				p.put("statMemo", poStr(body.get("statMemo")));
+				p.put("statUser", session.getAttribute("s_user_id") == null ? "" : String.valueOf(session.getAttribute("s_user_id")));
+				p.put("statIp", request.getRemoteAddr());
+				int n = svc.saveQuoteStat(p);
+				if (n == 0) { response.setStatus(404); res.put("error", "견적서를 찾을 수 없습니다."); return res; }
+				res.put("result", "OK"); res.put("cnt", n);
+				return res;
+			} catch (Exception e) { log.error(" quoteStat ERROR : " + e.getMessage()); response.setStatus(500); res.put("error", e.getMessage()); return res; }
+		}
 		@RequestMapping(value="/mangr/quoteShare.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,Object> quoteShare(@RequestParam("quoteSeq") long quoteSeq, HttpServletRequest request, HttpSession session) throws Exception {
