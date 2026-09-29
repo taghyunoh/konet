@@ -10,8 +10,9 @@
   택배출고관리 (2026-08-06 신설) — 출고일자의 직송(TBL_SHIPOUT_MST ZONE='직송') 줄을
   택배 발송 엑셀(원양식: D:\코네트\택배관련\테스트 자료.xlsx)로 만든다.
     · 주소·전화 = TBL_BIZI_MST 택배값(PARCEL_ADDR/TEL/HP) 우선, 없으면 기본값(ADDR/TEL/HP) — 사용자 확정
-    · 운임 = PARCEL_FEE, 없으면 4500 기본(행에서 수정 가능 — 같은 사업장도 품목 따라 3500 등)
-    · [택배정보저장] = 그 행의 주소·전화·운임을 사업장(TBL_BIZI_MST)에 저장.
+    · ★택배비(운임) = 총수량 × 4,500 (2026-09-29 「택배비는 총수량 곱하기 4500」 — 4,500 = 회사 설정 기본 택배 운임 poFeeDef).
+      종전 「사업장 PARCEL_FEE(없으면 4500) 한 줄 한 값」은 폐기. 행에서 고치면 **그 줄만** 바뀐다(feeEd — 같은 사업장 다른 줄로 안 번진다).
+    · [택배정보저장] = 그 행의 주소·전화를 사업장(TBL_BIZI_MST)에 저장(같은 사업장 줄에 주소·전화만 일괄 반영 · 택배비는 안 건드림).
       사업장이 아직 없으면(출고자료에만 있는 신규) 자동 등록 후 저장(biziParcelUpdate.do)
     · 엑셀 9칼럼: A=받는분 · C=주소 · D=전화 · E=휴대폰 · F=총수량 · G=운임 · I=품목명 (B/H 빈칸),
       ※F=총수량 은 2026-08-14 요청으로 추가(그 전까지 F 는 빈칸이었다).
@@ -54,6 +55,7 @@
   td.c{ text-align:center; } td.num{ text-align:right; }
   td input{ width:100%; height:32px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13.5px; }
   td input.fee{ text-align:right; }
+  td input.fee.feeed{ background:#fff6d6; border-color:#e9b98a; }   /* 이 줄만 고친 택배비 */
   td input.miss{ border-color:#e57373; background:#fff5f4; }   /* 주소 없음 — 채워야 발송 가능 */
   .newbiz{ display:inline-block; padding:1px 7px; border-radius:9px; font-size:11px; font-weight:800; background:#fff1e8; color:#b45309; border:1px solid #f0c9a4; white-space:nowrap; }
   /* 직송 표시 — 이 화면은 ZONE='직송' 출고만 조회한다(그 사실을 줄마다 보이게) */
@@ -81,7 +83,7 @@
 <div class="wrap">
   <h2>🚛 택배납기관리</h2>
   <div class="sub">납기일자의 <b>직송(ZONE='직송')</b> 출고를 택배 발송 양식으로 만듭니다.
-    주소·전화는 사업장의 <b>택배주소 우선(없으면 기본주소)</b>, 운임은 사업장 기본운임(없으면 4,500)이며 행에서 고칠 수 있습니다.</div>
+    주소·전화는 사업장의 <b>택배주소 우선(없으면 기본주소)</b>, 택배비는 <b>총수량 × 4,500</b>이며 행에서 고치면 그 줄만 바뀝니다.</div>
 
   <div class="bar">
     <%-- 출고일자 기간 조회 (2026-08-06 요청) — 하루만 볼 때는 두 칸을 같은 날로 두면 된다 --%>
@@ -108,7 +110,7 @@
       <thead><tr>
         <th title="체크를 풀면 엑셀에서 빠집니다"><input type="checkbox" id="poAll" checked onchange="poAllChk(this.checked)"></th>
         <th>#</th><th>구분</th><th>납기일자</th><th>사업장코드</th><th>사업장명(받는분)</th><th>택배주소</th>
-        <th>전화</th><th>휴대폰</th><th>운임</th><th>품목명</th><th>박스</th>
+        <th>전화</th><th>휴대폰</th><th title="택배비 = 총수량 × 4,500(회사 설정 기본 택배 운임). 고치면 그 줄만 바뀌고 엑셀 G칸으로 나갑니다.">택배비</th><th>품목명</th><th>박스</th>
         <th title="발주현황표에 올라온 라벨수량 그대로입니다(계산하지 않습니다). 대시보드의 수량과 같은 값입니다. 엑셀 F칸으로 나갑니다.">총수량</th>
         <th>택배정보</th>
       </tr></thead>
@@ -134,6 +136,8 @@
 <script>
 var CTX = '${ctx}';
 /* 기본 택배 운임 — 회사 설정(comp-set parcelFeeDef, 기본 4500). 부를 때마다 읽는다(설정이 늦게 와도 따라오게) */
+/* ★택배비 = 총수량 × 기본 운임(4,500) — 그 줄에서 고친 값(feeEd)이 있으면 그것 (2026-09-29) */
+function poFeeOf(o){ return (o && o.feeEd!=null) ? n(o.feeEd) : Math.round(n(o && o.totQty) * poFeeDef()); }
 function poFeeDef(){ var v=Number(window.konetSet ? konetSet.f('parcelFeeDef') : 0); return (isFinite(v) && v>0) ? v : 4500; }
 var ROWS = [];
 
@@ -328,7 +332,7 @@ function poRender(){
   poCnt();
   if(!ROWS.length){ tb.innerHTML='<tr><td colspan="14" class="empty">이 날짜의 직송 출고가 없습니다.</td></tr>'; poFit(); return; }
   tb.innerHTML = ROWS.map(function(o,i){
-    var fee = n(o.fee) || poFeeDef();                      /* 미설정(0) = 기본 4500 */
+    var fee = poFeeOf(o);                                  /* 총수량 × 4,500 · 고친 줄은 그 값(2026-09-29) */
     var missA = !(o.addr && (''+o.addr).trim());
     var box = n(o.boxQty), tot = n(o.totQty);   /* 총수량 = 발주현황표 '라벨수량' 원값(2026-09-01) */
     /* 엑셀 제외 (2026-08-06 요청) — 체크를 풀면 그 줄은 엑셀에서 빠진다(화면 목록에는 남는다).
@@ -345,7 +349,7 @@ function poRender(){
       + '<td><input data-i="'+i+'" data-f="addr" class="'+(missA?'miss':'')+'" value="'+esc(o.addr)+'" placeholder="택배주소 입력" onchange="poSet(this)"></td>'
       + '<td><input data-i="'+i+'" data-f="tel" value="'+esc(o.tel)+'" onchange="poSet(this)"></td>'
       + '<td><input data-i="'+i+'" data-f="hp" value="'+esc(o.hp)+'" onchange="poSet(this)"></td>'
-      + '<td><input data-i="'+i+'" data-f="fee" class="fee" inputmode="numeric" value="'+fee+'" onchange="poSet(this)"></td>'
+      + '<td><input data-i="'+i+'" data-f="fee" class="fee'+(o.feeEd!=null?' feeed':'')+'" inputmode="numeric" value="'+fee+'" onchange="poSet(this)" title="'+(o.feeEd!=null?'이 줄만 고친 택배비입니다 (계산값 '+(n(o.totQty)*poFeeDef()).toLocaleString()+') — 비우면 계산값으로 돌아갑니다':'총수량 '+n(o.totQty).toLocaleString()+' × '+poFeeDef().toLocaleString()+' — 고치면 이 줄만 바뀝니다')+'"></td>'
       + '<td>'+esc(o.itemNm)+'</td>'
       + '<td class="c">'+box
           + (n(o.mergeCnt)>1 ? '<span style="font-size:10px;font-weight:400;color:#8a97a3" title="발주현황표에 같은 사업장·품목으로 '+n(o.mergeCnt)+'줄 올라온 것을 한 줄로 합쳤습니다. 엑셀도 이 한 줄로 나갑니다."> ('+n(o.mergeCnt)+'줄)</span>' : '')
@@ -415,21 +419,23 @@ function poCnt(){
 }
 function poSet(inp){
   var o = ROWS[+inp.dataset.i]; if(!o) return;
-  o[inp.dataset.f] = (inp.dataset.f==='fee') ? n(inp.value) : inp.value;
+  /* ★택배비는 그 줄만 (2026-09-29 「같은 사업장이라도 주소처럼 일괄수정이 아님」) — feeEd 에 담는다. 비우면 계산값으로 돌아간다 */
+  if (inp.dataset.f==='fee'){ var v=(''+inp.value).replace(/[^\d.\-]/g,''); o.feeEd = (v==='') ? null : n(v); poRender(); return; }
+  o[inp.dataset.f] = inp.value;
   if (inp.dataset.f==='addr') inp.classList.toggle('miss', !(''+inp.value).trim());
 }
 
 /* 행의 택배정보를 사업장(TBL_BIZI_MST)에 저장 — 같은 사업장 다른 행에도 즉시 반영 */
 function poSaveBiz(i){
   var o = ROWS[i]; if(!o) return;
-  var fee = n(o.fee) || poFeeDef();
+  var fee = n(o.fee) || poFeeDef();   /* 사업장 마스터 운임은 그대로 둔다(택배비 계산에는 이제 안 쓴다 · 2026-09-29) */
   fetch(CTX+'/mangr/biziParcelUpdate.do', { method:'POST', credentials:'same-origin',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify([{ bizCd:o.bizCd, bizNm:o.bizNm, parcelAddr:o.addr||'', parcelTel:o.tel||'', parcelHp:o.hp||'', parcelFee:fee }]) })
     .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); }); })
     .then(function(){
       swOk('저장했습니다 — '+esc(o.bizNm));
-      ROWS.forEach(function(x){ if(x.bizCd===o.bizCd){ x.addr=o.addr; x.tel=o.tel; x.hp=o.hp; x.fee=fee; x.bizYn='Y'; } });
+      ROWS.forEach(function(x){ if(x.bizCd===o.bizCd){ x.addr=o.addr; x.tel=o.tel; x.hp=o.hp; x.bizYn='Y'; } });   /* 택배비는 번지지 않는다(2026-09-29) */
       poRender();
     })
     .catch(function(e){ swErr('저장에 실패했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message).slice(0,150)+'</span>'); });
@@ -463,7 +469,7 @@ function poExcelMake(){
      ★같은 사업장이라도 품목이 다르면 줄은 나뉜다 — 화면 합침 규칙(poMerge)과 똑같이 간다.
      ★체크를 푼 줄(o.off)은 빼고 만든다 (2026-08-06 요청) */
   ROWS.filter(function(o){ return !o.off; }).forEach(function(o){
-    var fee = n(o.fee) || poFeeDef();
+    var fee = poFeeOf(o);   /* G칸 = 화면 택배비 그대로(총수량 × 4,500 · 고친 줄은 그 값) */
     /* ★F칸 = 총수량 (2026-08-14 요청). 화면 '총수량' 칸과 같은 값(발주현황표 '라벨수량' 원값, 2026-09-01)을
        손대지 않고 그대로 넣는다 — 빈값 대체·계산 없음(사용자 확정 "수량이 없을 수는 없음"). */
     aoa.push([ o.bizNm||'', '', o.addr||'', o.tel||'', o.hp||'', n(o.totQty), fee, '', o.itemNm||'' ]);

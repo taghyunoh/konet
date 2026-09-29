@@ -1082,9 +1082,52 @@ public class UserServiceImpl implements UserService {
 					for (int[] m : srcMerges) sh.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(rn, rn, m[0], m[1]));
 				}
 			}
+			/* ★순번 칸 (2026-09-29 「견적서 엑셀출력도 순번해줘요」) — 인쇄(quotePrint.jsp)와 같게 맨 앞에 순번(1,2,3…).
+			   양식(quote_tpl1/2.xls)에는 순번 칸이 없고 품명이 두 칸 병합(A:B)이라, 그 병합을 풀어 <앞 칸 = 순번 · 뒤 칸 = 품명>으로 쓴다(양식 파일은 그대로).
+			   품명이 병합이 아니거나 바로 뒤 칸이 규격이면 손대지 않는다(순번 없이 종전대로). 원가 포함 품명비 줄은 위에서 이미 빠져 번호에서도 빠진다. */
+			int cNo = -1;
+			{
+				int rowsAll0 = Math.max(need, tplRows);
+				boolean pair = false;
+				for (int i = sh.getNumMergedRegions() - 1; i >= 0; i--) {
+					org.apache.poi.ss.util.CellRangeAddress m = sh.getMergedRegion(i);
+					if (m.getFirstColumn() == cName && m.getLastColumn() == cName + 1 && m.getFirstRow() >= start && m.getLastRow() < start + rowsAll0) pair = true;
+				}
+				if (pair && cSpec != cName + 1) {
+					int hLast = hdr + (twoRow ? 1 : 0);
+					for (int i = sh.getNumMergedRegions() - 1; i >= 0; i--) {
+						org.apache.poi.ss.util.CellRangeAddress m = sh.getMergedRegion(i);
+						if (m.getFirstColumn() != cName || m.getLastColumn() != cName + 1) continue;
+						if ((m.getFirstRow() >= start && m.getLastRow() < start + rowsAll0) || (m.getFirstRow() >= hdr && m.getLastRow() <= hLast)) sh.removeMergedRegion(i);
+					}
+					org.apache.poi.ss.usermodel.Row h = sh.getRow(hdr);
+					org.apache.poi.ss.usermodel.Cell ha = qzCellOf(h, cName), hb = qzCellOf(h, cName + 1);
+					String hTxt = df.formatCellValue(ha).trim();
+					hb.setCellStyle(ha.getCellStyle()); qzSet(h, cName + 1, hTxt.isEmpty() ? "품명" : hTxt); qzSet(h, cName, "순번");
+					if (hLast > hdr) {
+						org.apache.poi.ss.usermodel.Row h2r = sh.getRow(hLast); if (h2r == null) h2r = sh.createRow(hLast);
+						qzCellOf(h2r, cName + 1).setCellStyle(qzCellOf(h2r, cName).getCellStyle());
+						sh.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(hdr, hLast, cName, cName));
+						sh.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(hdr, hLast, cName + 1, cName + 1));
+					}
+					java.util.Map<Short,org.apache.poi.ss.usermodel.CellStyle> ctr = new java.util.HashMap<Short,org.apache.poi.ss.usermodel.CellStyle>();
+					for (int i = 0; i < rowsAll0; i++) {
+						org.apache.poi.ss.usermodel.Row row = sh.getRow(start + i); if (row == null) row = sh.createRow(start + i);
+						org.apache.poi.ss.usermodel.Cell a = qzCellOf(row, cName), b = qzCellOf(row, cName + 1);
+						org.apache.poi.ss.usermodel.CellStyle as = a.getCellStyle(); b.setCellStyle(as);
+						org.apache.poi.ss.usermodel.CellStyle cs = ctr.get(as.getIndex());
+						if (cs == null) { cs = wb.createCellStyle(); cs.cloneStyleFrom(as); cs.setAlignment(org.apache.poi.ss.usermodel.HorizontalAlignment.CENTER); ctr.put(as.getIndex(), cs); }
+						a.setCellStyle(cs);
+					}
+					/* 품명 칸이 한 칸 줄었으니 규격에서 조금 덜어 품명에 준다(인쇄 폭 합계는 그대로) */
+					if (cSpec >= 0 && sh.getColumnWidth(cSpec) > 3000) { int mv = 700; sh.setColumnWidth(cSpec, sh.getColumnWidth(cSpec) - mv); sh.setColumnWidth(cName + 1, sh.getColumnWidth(cName + 1) + mv); }
+					cNo = cName; cName = cName + 1;
+				}
+			}
 			for (int i = 0; i < Math.max(need, tplRows); i++) {
 				org.apache.poi.ss.usermodel.Row row = sh.getRow(start + i); if (row == null) row = sh.createRow(start + i);
 				java.util.Map<String,Object> l = i < lines.size() ? lines.get(i) : null;
+				if (cNo >= 0) qzNumSet(row, cNo, l == null ? null : Integer.valueOf(i + 1));   /* 순번 (2026-09-29) */
 				qzSet(row, cName, l == null ? "" : scStr(l.get("prodNm")));
 				if (cSpec >= 0) qzSet(row, cSpec, l == null ? "" : scStr(l.get("spec")));
 				if (cMaker >= 0) qzSet(row, cMaker, l == null ? "" : scStr(l.get("makerNm")));

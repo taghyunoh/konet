@@ -3317,7 +3317,7 @@
     <div class="row"><div class="nm">매입마감</div><code>TBL_STOCK_LEDGER</code> 입고(<code>IO_GB='I'</code>) × 매입처(<code>VENDOR_CD</code>).</div>
     <div class="row"><div class="nm">재고마감</div><code>TBL_STOCK_LEDGER</code> 기간집계(기초+입−출±조정=기말) + 이월 스냅샷 <code>TBL_CLOSING_STOCK</code>.</div>
     <div class="row"><div class="nm">마감현황 / 월별 마감이력</div>확정 헤더 <code>TBL_CLOSING_MST</code>(+<code>TBL_CLOSING_STOCK</code>). 잠금=<code>STATUS='C'</code>.</div>
-    <div class="row"><div class="nm">비용 등록</div><code>TBL_EXPENSE_ITEM</code>(항목) · <code>TBL_EXPENSE_TRX</code>(달×항목 수기). 직송 택배 운임은 <code>selectParcelFeeAuto</code>(직송 출고 × 사업장 운임) 자동. 확정 때 <code>TBL_CLOSING_MST.EXPENSE_AMT / NET_MARGIN_AMT</code>(순마진 = 매출총이익 − 비용).</div>
+    <div class="row"><div class="nm">비용 등록</div><code>TBL_EXPENSE_ITEM</code>(항목) · <code>TBL_EXPENSE_TRX</code>(달×항목 수기). 직송 택배 운임은 <code>selectParcelFeeAuto</code>(직송 총수량 × 기본 운임 4,500 — 택배납기관리 택배비와 같은 규칙) 자동. 확정 때 <code>TBL_CLOSING_MST.EXPENSE_AMT / NET_MARGIN_AMT</code>(순마진 = 매출총이익 − 비용).</div>
     <div class="row"><div class="nm">매출 그래프(월별/일자별)</div>집계 전용 조회 <code>selectSalesChart</code>/<code>selectSalesChartDaily</code> — 정산서 <code>TBL_SALES_MST</code> + 출고 <code>TBL_SHIPOUT_MST</code> + 전표 <code>TBL_SALES_TRX_MST/DTL</code>. 매입액=출고수량×<code>TBL_PROD_INPRICE_HST</code>(APPLY_DT≤<code>DLV_DT</code> 최신, 없으면 <code>TBL_PROD_MST.IN_PRICE</code>), 순마진=매출−매입. <b>금액 정의는 <code>selectClosing</code>과 동일</b>.</div>
 
     <div class="grp">정산관리</div>
