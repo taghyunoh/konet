@@ -55,6 +55,7 @@
   td.c{ text-align:center; } td.num{ text-align:right; }
   td input{ width:100%; height:32px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13.5px; }
   td input.fee{ text-align:right; }
+  td input[data-f="tel"], td input[data-f="hp"]{ padding:0 5px; font-variant-numeric:tabular-nums; }   /* 전화 11자리 + 「-」 가 잘리지 않게 (2026-09-29 「전화번호 한자리 안보임」 · 칸 130→150px) */
   td input.fee.feeed{ background:#fff6d6; border-color:#e9b98a; }   /* 이 줄만 고친 택배비 */
   td input.miss{ border-color:#e57373; background:#fff5f4; }   /* 주소 없음 — 채워야 발송 가능 */
   .newbiz{ display:inline-block; padding:1px 7px; border-radius:9px; font-size:11px; font-weight:800; background:#fff1e8; color:#b45309; border:1px solid #f0c9a4; white-space:nowrap; }
@@ -104,8 +105,8 @@
     <table>
       <colgroup>
         <col style="width:36px"><col style="width:34px"><col style="width:52px"><col style="width:86px"><col style="width:96px"><col style="width:190px"><col>
-        <col style="width:130px"><col style="width:130px"><col style="width:84px">
-        <col style="width:300px"><col style="width:52px"><col style="width:72px"><col style="width:110px">
+        <col style="width:150px"><col style="width:150px"><col style="width:84px">
+        <col style="width:270px"><col style="width:52px"><col style="width:72px"><col style="width:110px">
       </colgroup>
       <thead><tr>
         <th title="체크를 풀면 엑셀에서 빠집니다"><input type="checkbox" id="poAll" checked onchange="poAllChk(this.checked)"></th>
