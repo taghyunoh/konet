@@ -1906,7 +1906,7 @@
     if(w && w.getBoundingClientRect().top){
       var t1=w.getBoundingClientRect().top;
       var need=(b && b.scrollHeight>40) ? Math.min(b.scrollHeight, 380)+130 : 310;   // ②내용+제목·머리줄 (미선택 시 예약 310)
-      w.style.maxHeight=Math.max(240, Math.floor((window.innerHeight - t1)/kz - need))+'px';
+      w.style.maxHeight=stkTopH(w, Math.max(240, Math.floor((window.innerHeight - t1)/kz - need)), (window.innerHeight - t1)/kz)+'px';   /* 막대로 고른 높이가 있으면 그 값(logi-oh.js, 2026-09-30) */
       if(window.lzFill && w._lz){   // 커진 높이만큼 행을 이어 붙인다(안 붙이면 표 안이 빈다)
         for(var g=0; w._lz.from<w._lz.list.length && w.scrollHeight<=w.clientHeight+2 && g<200; g++) lzFill(w);
       }
@@ -2670,7 +2670,7 @@
         var tip=(self ? '대표코드로 바로 나간 출고입니다(매칭코드 없이 주문된 건).'
                       : (cd+(nm?(' · '+nm):'')+'\n이 코드로 나간 출고 '+qm[cd])).replace(/"/g,'&quot;').replace(/\n/g,'&#10;');
         var c={};
-        c[iCd]='<td style="text-align:right;padding-right:14px; color:'+(self?'#5a6b7a':'#b06a00')+';font-weight:700;white-space:nowrap" title="'+tip+'">'
+        c[iCd]='<td style="'+stkSubAl(withSrch)+' color:'+(self?'#5a6b7a':'#b06a00')+';font-weight:700;white-space:nowrap" title="'+tip+'">'
              + stkBdg(self)+'↳ '+_cesc(cd)+_sIcon(cd)+'</td>';
         /* '(대표)' 는 코드 뒤가 아니라 품명 칸 앞에 붙인다 (2026-08-07 요청) —
            코드 옆에 두면 그 줄만 길어져 다른 매칭코드 줄과 세로로 안 맞는다.
@@ -2684,7 +2684,7 @@
       out=out.concat(restAlias.map(function(o){
         var tip=(o.cd+(o.nm?(' · '+o.nm):'')+' ('+o.via+')\n아직 이 코드로 나간 출고가 없습니다.').replace(/"/g,'&quot;').replace(/\n/g,'&#10;');
         var c={};
-        c[iCd]='<td style="text-align:right;padding-right:14px; color:#b06a00;font-weight:700;white-space:nowrap;opacity:.65" title="'+tip+'">'+stkBdg(0)+'↳ '+_cesc(o.cd)+_sIcon(o.cd)+'</td>';
+        c[iCd]='<td style="'+stkSubAl(withSrch)+' color:#b06a00;font-weight:700;white-space:nowrap;opacity:.65" title="'+tip+'">'+stkBdg(0)+'↳ '+_cesc(o.cd)+_sIcon(o.cd)+'</td>';
         if(o.nm) c[iCd+1]='<td class="txt-l" style="color:#8a5200;opacity:.65" title="거래처 품명">'+_cesc(o.nm)+'</td>';
         return { c:c, bg:'#fff6ea', cd:o.cd };
       }));
@@ -2802,7 +2802,7 @@
          안 그러면 화면이 잠깐 텅 비어 '자료가 없다'로 오해하게 된다. */
     var _onlyA = (function(){ var c=document.getElementById('stkOnlyAlias'); return !!(c && c.checked); })();
     var _onlyS = (function(){ var c=document.getElementById('stkOnlyShort'); return !!(c && c.checked); })();   /* [적정재고 미달만] (2026-09-16) — 다시 조회하지 않고 화면에서만 거른다 */
-    stkShortLoad();
+    stkShortLoad(); stkMainize();   /* 서브코드 줄 → 주코드 줄 (logi-oh.js, 2026-09-30) */
     var _aliasReady = !!_stkAlias;
     var _base = (_onlyA && _aliasReady) ? _stkRows.filter(function(r){ return _stkHasAlias(r.prodCd); }) : _stkRows;
     if(_onlyS) _base = _base.filter(function(r){ return !!stkShortOf(r); });   /* 적정재고 미달만 (2026-09-16) */
@@ -2846,15 +2846,7 @@
       /* data-main : 이 줄이 '품목 줄' 이라는 표시. 하위 ↳ 줄을 눌렀을 때 그 줄이 딸린
          품목 줄을 거슬러 찾아 맨 위로 올리는 데 쓴다(2026-08-07 요청). */
       return '<tr class="'+(nSub?'stk-grp':'')+'" data-main="1" data-seq="'+(r.prodSeq||0)+'" style="cursor:pointer" onclick="stkLedgerDetail('+(r.prodSeq||0)+', this)" title="클릭 → 아래 ② 수불 내역(근거) 표시">'+stkCdTd(r,_stkAliasRev,caret,nSub,open)
-        +'<td style="text-align:right;color:#137a6c">'+_cnum(r.inQty)+'</td>'
-        +'<td style="text-align:right;color:#b06a00">'+_cnum(r.outQty)+'</td>'
-        +'<td style="text-align:right;font-weight:700;color:'+((neg||sh)?'#c0392b':'#137a6c')+'"'+(sh?' title="적정재고 미달 — 적정 '+_cnum(sh.safe)+' · 가용 '+_cnum(sh.avail)+'(현재고+입고예정) · 부족 '+_cnum(sh.short)+'\n발주서 관리 [⚠ 추천 발주] 에서 한 번에 담을 수 있습니다"':'')+' >'+_cnum(r.curQty)+(sh?' <span style="font-size:11px;font-weight:800">▼'+_cnum(sh.short)+'</span>':'')+'</td>'
-        /* 입고예정 (2026-09-16 P1-b 2단계) — 0 이면 비워 둔다(눈에 걸리는 건 「들어올 게 있다」 뿐이라서) */
-        +'<td style="text-align:right;color:#b06a00"'+((+r.poRemainQty||0)>0?' title="발주했는데 아직 안 들어온 수량 — 발주서 관리에서 잔량을 봅니다"':'')+'>'+((+r.poRemainQty||0)>0?_cnum(r.poRemainQty):'')+'</td>'
-        /* 적정재고 (2026-09-16) — 0(미설정)이면 비운다. 미달이면 현재고 칸이 빨강이 된다(아래 sh) */
-        +'<td style="text-align:right;color:#6b7a89">'+((Math.round(Number(r.safeStock)||0)>0)?_cnum(r.safeStock):'')+'</td>'
-        +'<td style="text-align:right">'+_cnum(r.avgInPrice)+'</td><td style="text-align:right">'+_cnum(r.stockAmt)+'</td>'
-        +'<td>'+_fmtYmd(r.lastInDt)+'</td><td>'+_fmtYmd(r.lastOutDt)+'</td></tr>'
+        +stkNumTds(r,neg,sh)+'</tr>'   /* 숫자 칸 9개 — logi-oh.js (서브코드 줄은 주코드 재고를 윗줄에 함께) */
         /* 매칭코드 하위 행 — 9열, 품목코드=0번 칸, 출고=3번 칸.
            lzMount 는 rowFn 이 돌려준 문자열을 그대로 이어 붙이므로 <tr> 을 여러 개 줘도 된다. */
         + sub;

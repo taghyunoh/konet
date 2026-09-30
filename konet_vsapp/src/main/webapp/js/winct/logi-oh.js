@@ -5882,9 +5882,10 @@ function ssOutQty(o){
   }
   /* 요약줄 꼬리 — 켜져 있을 때만 「· 매입처 N곳」 */
   function stkVenSumTxt(view){
-    if(!_stkVen) return '';
+    var sw=stkSwTxt();   /* 서브코드 → 주코드 줄로 바꿔 보인 개수 (2026-09-30) */
+    if(!_stkVen) return sw;
     var s={}; view.forEach(function(r){ s[_stkVenKey(r)]=1; });
-    return ' · <b style="color:#0f6b5e">매입처별</b> <b>'+Object.keys(s).length.toLocaleString()+'</b>곳'
+    return sw+' · <b style="color:#0f6b5e">매입처별</b> <b>'+Object.keys(s).length.toLocaleString()+'</b>곳'
       +(_stkVenQ ? ' <span style="color:#b06a00">(매입처 「'+_cesc(_stkVenQ)+'」 검색'+(view.length?'':' — 없음')+')</span>' : '');
   }
   /* ── 매입처 검색 (2026-09-13 「매입처별로 했을 때 매입처 검색도」) ──
@@ -5930,6 +5931,11 @@ function ssOutQty(o){
     return '<span style="display:inline-block;padding:0 5px;border-radius:8px;font-size:12px;font-weight:700;margin-right:4px;'
       + (main?'background:#e3f2ee;color:#0f6b5e':'background:#fdecea;color:#c0392b')+'"'+(tip?(' title="'+tip+'"'):'')+'>'+(main?'주':'서브')+'</span>';
   }
+  /* ↳ 하위 줄 첫 칸의 정렬 (2026-09-30 「이런 경우도 조금 뒤로」) — ①표에서는 [주] ▼ 줄과 <같은 왼쪽 기준>으로 세우고 ↳ 줄만 14px 들여쓴다.
+       종전엔 ▼ 줄은 가운데·↳ 줄은 오른쪽 맞춤이라 [서브] 가 [주] 보다 오히려 앞으로 나왔다. 두 숫자(STK_PADM·STK_PADS)는 한 짝 — 같이 고친다.
+       on = ①표(stkAliasRows 의 withSrch) 일 때만. [입·출고 나누어보기] 팝업은 종전 오른쪽 맞춤 그대로. */
+  var STK_PADM=48, STK_PADS=62;
+  function stkSubAl(on){ return on ? ('text-align:left;padding-left:'+STK_PADS+'px;') : 'text-align:right;padding-right:14px;'; }
   function stkSubMains(cd, rev){
     var k=String(cd||'').trim(), l=(rev && rev[k]) || [], seen={}, out=[];
     l.forEach(function(o){ var c=String((o&&o.cd)||'').trim(); if(!c || c===k || seen[c]) return; seen[c]=1; out.push(o); });
@@ -5938,19 +5944,234 @@ function ssOutQty(o){
   }
   function stkCdTd(r, rev, caret, nSub, open){
     var more=(nSub&&!open) ? ' <span style="color:#b06a00;font-size:11px;font-weight:700">+'+nSub+'</span>' : '';
-    var nmTd=_cesc(r.prodNm)+(window.stkNoIoTag?stkNoIoTag(r):'');
+    var nmTd=_cesc(r.prodNm)+(window.stkNoIoTag?stkNoIoTag(r):'')+stkSwTag(r.prodCd);
     var ms=stkSubMains(r.prodCd, rev);
     /* ▼/▶ 가 붙은 줄 = 밑에 ↳ 코드별 출고가 딸린 <주코드> — 화살표 앞에 [주] 배지 (2026-09-30 「화살표 앞에 주 표시」). 하위 줄이 없는 보통 줄은 종전 그대로 */
-    var mb=caret ? stkBdg(1,'주코드 — 아래 ↳ 줄은 이 코드에 딸린 코드별 출고입니다') : '';
-    if(!ms.length) return '<td'+(caret?' style="white-space:nowrap"':'')+'>'+mb+(caret||'')+_cesc(r.prodCd)+more+'</td><td class="txt-l">'+nmTd+'</td>';
+    /* ★배지 없는 단독 줄도 같은 왼쪽 기준에 세운다 (2026-09-30 「단독도 주에 맞게」) — 종전엔 단독 줄만 칸 가운데라 [주] 줄들과 세로로 안 맞았다.
+         보이지 않는 [주] 배지(같은 폭)를 앞에 두어 코드 글자가 [주] 옆 주코드 글자와 같은 자리에서 시작한다. */
+    var mb=caret ? stkBdg(1,'주코드 — 아래 ↳ 줄은 이 코드에 딸린 코드별 출고입니다')
+                 : '<span style="display:inline-block;padding:0 5px;font-size:12px;font-weight:700;visibility:hidden">주</span> ';
+    if(!ms.length) return '<td style="white-space:nowrap;text-align:left;padding-left:'+STK_PADM+'px">'+mb+(caret||'')+_cesc(r.prodCd)+more+'</td><td class="txt-l">'+nmTd+'</td>';
     var m=ms[0], bdg='display:inline-block;padding:0 5px;border-radius:8px;font-size:12px;font-weight:700;';
     var tip=('이 코드는 아래 주코드의 서브코드(매칭코드)입니다.\n'+ms.map(function(o){ return '  '+o.cd+(o.nm?(' · '+o.nm):'')+(o.via?(' ('+o.via+')'):''); }).join('\n')
             +'\n재고·출고는 주코드로 잡힙니다.').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/\n/g,'&#10;');
-    return '<td style="white-space:nowrap" title="'+tip+'">'
+    /* ★칸 가운데가 아니라 [주] ▼ 줄과 같은 왼쪽 기준(STK_PADM) — 가운데에 두면 ▼ 묶음보다 더 들어가 보여 「위 묶음에 딸린 서브」로 읽혔다(2026-09-30 「표시 부분을 앞으로」) */
+    return '<td style="white-space:nowrap;text-align:left;padding-left:'+STK_PADM+'px" title="'+tip+'"><div style="display:inline-block;text-align:left">'
       + '<div>'+(caret||'')+'<span style="'+bdg+'background:#e3f2ee;color:#0f6b5e">주</span> '
       +   '<b style="color:#1f7a4d">'+_cesc(m.cd)+'</b>'+(ms.length>1?(' <b style="color:#274b8f;font-size:11px">+'+(ms.length-1)+'</b>'):'')+'</div>'
-      + '<div style="margin-top:2px"><span style="'+bdg+'background:#fdecea;color:#c0392b">서브</span> '+_cesc(r.prodCd)+more+'</div></td>'
-      + '<td class="txt-l">'+nmTd+(m.nm?('<div style="font-size:11.5px;color:#8a97a3;margin-top:2px">마스터 : '+_cesc(m.nm)+'</div>'):'')+'</td>';
+      + '<div style="margin:2px 0 0 12px"><span style="'+bdg+'background:#fdecea;color:#c0392b">서브</span> '+_cesc(r.prodCd)+more+'</div></div></td>'   /* 서브 줄은 12px 들여쓴다 — 주코드 밑에 딸린 코드로 읽히게(2026-09-30) */
+      /* ★품목명도 코드 칸과 같은 차례 (2026-09-30 「주코드하고 서브코드 명칭이 틀리다」) — 종전엔 위 = 이 줄(서브) 품명 · 아래 = 「마스터 : 주코드 품명」이라
+           코드 칸(위 주 · 아래 서브)과 <엇갈려> [주] 코드 옆에 서브 품명이, [서브] 코드 옆에 주코드 품명이 놓였다. 이제 위 = 주코드 품명 · 아래 = 서브(이 줄) 품명.
+           「입출고 없음」 표시는 이 줄(서브코드) 것이라 아래 줄에 붙는다. 주코드 품명을 모르면(등록표에 없음) 종전대로 제 품명 한 줄. */
+      + '<td class="txt-l">'+(m.nm ? ('<div title="주코드 '+_cesc(m.cd)+' 의 품명">'+_cesc(m.nm)+'</div><div style="margin:2px 0 0 12px;color:#5a6b7a" title="서브코드 '+_cesc(r.prodCd)+' 의 품명">'+nmTd+'</div>') : nmTd)+'</td>';
+  }
+
+  /* ══ 재고현황 ① 숫자 칸 9개(입고·출고·현재고·입고예정·적정·이동평균단가·재고금액·최근입고·최근출고) (2026-09-30) ══
+       ★서브코드 줄은 <두 줄>로 보인다 : 윗줄 = 주코드의 재고(코드 칸의 [주] 줄과 같은 줄) · 아랫줄 = 이 서브코드 자신의 것(흐리게).
+         고객 캡처 「여기도 입고·출고·재고·적정재고 등 표시 가능한 건 모두 표시」 + 「입출고 없어도 현재고·적정재고 있으면 표시」 —
+         재고는 주코드로 합쳐 잡히므로 서브코드 줄은 늘 0·0·0 이었고, 윗줄에 주코드가 보여 「주코드 재고가 0」으로 읽혔다.
+       · 주코드 줄은 ①지금 목록(_stkRows)에 있으면 그것 ②없으면 <검색어 없는 전체 목록>을 한 번 읽어(같은 기준일·창고) 거기서
+         ③거기도 없으면(원장 기록이 없는 주코드) 그 코드로 한 번 찾는다 — 검색은 입출고 없는 상품도 0 줄로 돌려줘 적정재고를 얻을 수 있다(40개까지).
+         읽는 동안은 윗줄에 … 를 두고, 도착하면 표를 다시 그린다. [조회]를 다시 하면(_stkRows 가 바뀌면) 전부 버리고 새로 읽는다.
+       · ★총합계·요약줄·[적정재고 미달만]은 종전대로 <그 줄 자신의 값>으로만 센다 — 윗줄(주코드 값)은 보여 주기만 한다(주코드 줄이 따로 있어 더하면 두 번 센다).
+       · 보통 줄(서브코드가 아닌 줄)은 종전 JSP 가 만들던 글자 그대로다. 주코드를 어디서도 못 찾으면 종전처럼 한 줄. */
+  var _stkFull={ rows:null };
+  function _stkIdx(){
+    if(_stkFull.rows!==_stkRows){                       // 새로 조회했다 → 주코드 캐시를 통째로 버린다
+      var F={ rows:_stkRows, here:{}, map:null, st:0, one:{}, nOne:0, t:null };
+      (_stkRows||[]).forEach(function(r){ F.here[String(r.prodCd||'').trim()]=r; });
+      _stkFull=F;
+    }
+    return _stkFull;
+  }
+  function _stkFetch(find, cb){
+    var asOf=(document.getElementById('stkAsOf')||{}).value||'', wh=(document.getElementById('stkWh')||{}).value||'';
+    fetch(KONET_CTX+'/prod/stockStatusList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin',
+            body:'findData='+encodeURIComponent(find)+'&asOfDt='+encodeURIComponent(asOf)+'&whCd='+encodeURIComponent(wh) })
+      .then(function(r){ return r.json(); }).then(function(j){ cb((j&&j.data)||[]); }).catch(function(){ cb(null); });
+  }
+  function _stkRepaint(F){ clearTimeout(F.t); F.t=setTimeout(function(){ if(_stkFull===F && typeof stkStatusRender==='function') stkStatusRender(); }, 80); }
+  /* 주코드 cd 의 재고 줄 — 줄 객체 / null(읽는 중 — 도착하면 다시 그린다) / false(어디에도 없다) */
+  function stkMainRow(cd){
+    var F=_stkIdx(), k=String(cd||'').trim();
+    if(!k) return false;
+    if(F.here[k]) return F.here[k];
+    if(F.one[k]!==undefined) return F.one[k];
+    if(F.st===0){
+      if(!String((document.getElementById('stkSrch')||{}).value||'').trim()){ F.map=F.here; F.st=2; }   // 검색어가 없으면 지금 목록이 곧 전체다
+      else { F.st=1; _stkFetch('', function(l){ if(_stkFull!==F) return; F.map={}; (l||[]).forEach(function(r){ F.map[String(r.prodCd||'').trim()]=r; }); F.st=2; _stkRepaint(F); }); }
+    }
+    if(F.st===1) return null;
+    if(F.map[k]) return F.map[k];
+    if(F.nOne>=40){ F.one[k]=false; return false; }
+    F.nOne++; F.one[k]=null;
+    _stkFetch(k, function(l){ if(_stkFull!==F) return; var hit=false; (l||[]).forEach(function(r){ if(String(r.prodCd||'').trim()===k) hit=r; }); F.one[k]=hit; _stkRepaint(F); });
+    return null;
+  }
+  /* 한 줄(x)의 숫자 칸 9개 — a = <td 뒤에 붙는 속성 글자, h = 칸 안 글자. ★종전 JSP 가 만들던 글자와 한 글자도 다르지 않게(시험으로 대조) */
+  function _stkCells(x, neg, sh){
+    var po=(+x.poRemainQty||0)>0, safe=Math.round(Number(x.safeStock)||0)>0;
+    return [
+      { a:' style="text-align:right;color:#137a6c"', h:_cnum(x.inQty) },
+      { a:' style="text-align:right;color:#b06a00"', h:_cnum(x.outQty) },
+      { a:' style="text-align:right;font-weight:700;color:'+((neg||sh)?'#c0392b':'#137a6c')+'"'+(sh?' title="적정재고 미달 — 적정 '+_cnum(sh.safe)+' · 가용 '+_cnum(sh.avail)+'(현재고+입고예정) · 부족 '+_cnum(sh.short)+'\n발주서 관리 [⚠ 추천 발주] 에서 한 번에 담을 수 있습니다"':'')+' ',
+        h:_cnum(x.curQty)+(sh?' <span style="font-size:11px;font-weight:800">▼'+_cnum(sh.short)+'</span>':'') },
+      /* 입고예정 (2026-09-16 P1-b 2단계) — 0 이면 비워 둔다(눈에 걸리는 건 「들어올 게 있다」 뿐이라서) */
+      { a:' style="text-align:right;color:#b06a00"'+(po?' title="발주했는데 아직 안 들어온 수량 — 발주서 관리에서 잔량을 봅니다"':''), h:(po?_cnum(x.poRemainQty):'') },
+      /* 적정재고 (2026-09-16) — 0(미설정)이면 비운다. 미달이면 현재고 칸이 빨강이 된다 */
+      { a:' style="text-align:right;color:#6b7a89"', h:(safe?_cnum(x.safeStock):'') },
+      { a:' style="text-align:right"', h:_cnum(x.avgInPrice) },
+      { a:' style="text-align:right"', h:_cnum(x.stockAmt) },
+      { a:'', h:_fmtYmd(x.lastInDt) },
+      { a:'', h:_fmtYmd(x.lastOutDt) }
+    ];
+  }
+  function stkNumTds(r, neg, sh){
+    var own=_stkCells(r, neg, sh);
+    var ms=stkSubMains(r.prodCd, (typeof _stkAliasRev!=='undefined') ? _stkAliasRev : null);
+    var M = ms.length ? stkMainRow(ms[0].cd) : false;
+    if(!ms.length || M===false) return own.map(function(c){ return '<td'+c.a+'>'+c.h+'</td>'; }).join('');
+    var top = M ? _stkCells(M, (+M.curQty||0)<0, stkShortOf(M)) : null;
+    var tip=' title="윗줄 = 주코드 '+_cesc(ms[0].cd)+' 의 재고 · 아랫줄 = 서브코드 '+_cesc(r.prodCd)+' 자신의 것 (합계에는 아랫줄만 들어갑니다)"';
+    return own.map(function(c, i){
+      var t=top ? top[i] : { a:c.a.replace(/ title="[^"]*"/,'').replace(/color:#c0392b/,'color:#137a6c'), h:'<span style="color:#9aa7b3;font-weight:400">…</span>' };
+      var red=(i===2 && neg) ? '#c0392b' : '#8a97a4';
+      return '<td'+t.a+(/ title="/.test(t.a)?'':tip)+'><div>'+(t.h||'&nbsp;')+'</div>'
+           + '<div style="margin-top:2px;color:'+red+';font-weight:400">'+(c.h||'&nbsp;')+'</div></td>';
+    }).join('');
+  }
+
+  /* ══ 재고현황 ① — 검색에 <서브코드 상품>이 걸리면 그 <주코드 줄>로 바꿔 보인다 (2026-09-30 「주코드 찾을 때처럼 동일하게」) ══
+       코드(1000782041)로 찾으면 stkStatusLoad 가 주코드로 바꿔 찾아 「[주] ▼ 9904012901 558·497·61 + [서브] ↳」 로 나오는데,
+       이름(뜨돈)으로 찾으면 서버가 <이름이 걸린 상품> = 서브코드 상품을 그대로 돌려줘 0·0·0 줄로 보였다 — 같은 물건인데 찾는 말에 따라 화면이 달랐다.
+       · stkStatusRender 가 그릴 때마다 부른다 : _stkRows 안의 서브코드 줄을 주코드 줄(stkMainRow — 지금 목록 → 전체 목록 → 그 코드로 한 번)로 <제자리에서> 갈아 끼운다.
+         같은 주코드에 서브가 여럿 걸려도 주코드 줄은 하나. 주코드 줄이 이미 목록에 있으면 서브 줄만 뺀다.
+       · ★배열을 새로 만들지 않고 내용만 바꾼다(_stkRows 가 그대로여야 _stkIdx 가 캐시를 안 버린다 — 새 배열이면 끝없이 다시 읽는다).
+       · ★서브코드 자신에게 입고·출고·재고가 남아 있는 줄은 <빼지 않는다> — 갈라진 재고라 숨기면 안 된다(주코드 줄 뒤에 종전 두 줄 모양으로 남는다).
+       · 주코드 줄을 읽는 동안·못 찾은 서브 줄은 그대로 둔다(종전 두 줄 모양). 도착하면 _stkRepaint 가 다시 그리며 그때 바뀐다.
+       · 총합계·요약줄·② 수불 내역(줄 클릭)은 _stkRows 를 보므로 바뀐 주코드 줄 기준이 된다 = 주코드로 찾았을 때와 같다.
+       · 어느 서브코드 때문에 나온 줄인지 : 요약줄 끝(stkSwTxt)과 품목명 옆 작은 표시(stkSwTag). */
+  function stkMainize(){
+    var rev=(typeof _stkAliasRev!=='undefined') ? _stkAliasRev : null;
+    if(!rev || typeof _stkRows==='undefined' || !_stkRows || !_stkRows.length) return;
+    var F=_stkIdx(), has={}, out=[], chg=false;
+    F.sw=F.sw||{};                                      // 주코드 → [바꿔 넣은 서브코드]
+    _stkRows.forEach(function(r){ has[String(r.prodCd||'').trim()]=1; });
+    var put={};                                         // 이번에 out 에 넣은 코드
+    _stkRows.forEach(function(r){
+      var k=String(r.prodCd||'').trim(), ms=stkSubMains(k, rev);
+      if(!ms.length){ if(!put[k]){ put[k]=1; out.push(r); } else chg=true; return; }
+      var M=stkMainRow(ms[0].cd);
+      if(!M){ if(!put[k]){ put[k]=1; out.push(r); } return; }          // 읽는 중(null) · 못 찾음(false) → 그대로
+      var mk=String(M.prodCd||'').trim();
+      if(!put[mk] && !has[mk]){ put[mk]=1; out.push(M); F.here[mk]=M; chg=true; }   // 주코드 줄이 목록에 없으면 이 자리에 넣는다(이미 있으면 제 자리에서 나온다)
+      var l=F.sw[mk]||(F.sw[mk]=[]); if(l.indexOf(k)<0) l.push(k);
+      if((+r.inQty||0) || (+r.outQty||0) || (+r.curQty||0) || (+r.stockAmt||0)){ if(!put[k]){ put[k]=1; out.push(r); } }   // 제 재고가 남은 서브 줄은 남긴다
+      else chg=true;
+    });
+    if(!chg) return;
+    _stkRows.length=0; for(var i=0;i<out.length;i++) _stkRows.push(out[i]);
+  }
+  function _stkSw(){ return (_stkFull && typeof _stkRows!=='undefined' && _stkFull.rows===_stkRows && _stkFull.sw) || null; }
+  /* 요약줄 끝 — 「서브코드 N개 → 주코드 줄로 보여 줍니다」 (툴팁에 짝 목록) */
+  function stkSwTxt(){
+    var sw=_stkSw(); if(!sw) return '';
+    var n=0, tip=[]; Object.keys(sw).forEach(function(m){ sw[m].forEach(function(s){ n++; if(tip.length<20) tip.push(s+' → '+m); }); });
+    if(!n) return '';
+    return ' · <span style="color:#b06a00" title="'+_cesc(tip.join(String.fromCharCode(10))+(n>tip.length?(String.fromCharCode(10)+'… 외 '+(n-tip.length)+'개'):'')).replace(/"/g,'&quot;')
+         +'">서브코드 <b>'+n+'</b>개는 주코드 줄로 보여 줍니다</span>';
+  }
+  /* 품목명 옆 — 이 주코드 줄이 어느 서브코드 때문에 나왔는지 */
+  function stkSwTag(cd){
+    var sw=_stkSw(), l=sw && sw[String(cd||'').trim()];
+    if(!l || !l.length) return '';
+    return ' <span style="color:#b06a00;font-size:11px;border:1px solid #f0d9b5;border-radius:8px;padding:0 6px;white-space:nowrap" title="찾은 말이 이 주코드의 서브코드에 걸렸습니다 — 재고는 주코드로 잡히므로 주코드 줄로 보여 줍니다&#10;'
+         + _cesc(l.join(', '))+'">서브 '+_cesc(l[0])+(l.length>1?(' 외 '+(l.length-1)):'')+' 로 찾음</span>';
+  }
+
+  /* ══ 재고현황 ① ↔ ② 높이 막대 (2026-09-30 「이 부분 막대로 하단 조절 가능하게」) ══
+       ①표 아래 행수 안내줄(#stkStatusPager) 밑에 막대 — 아래로 끌면 ①이 늘고(②가 줄고) 위로 끌면 ①이 준다. [▲ 줄이기][▼ 늘리기] 120px · 더블클릭 = 자동.
+       · 종전(자동) : _stkLedFit(JSP)이 ② 내용이 쓰는 만큼(상한 380)을 떼고 나머지를 ①에 줬다 — ② 내용이 많으면 ①이 240px 까지 줄어 고른 줄이 밀렸다.
+       · 막대로 고르면 그 높이가 ①의 상한(max-height)이 된다 — localStorage konetStkTopH(CSS px). ②는 종전대로 남은 화면을 채운다(_stkLedFit 뒷부분).
+         ★height 가 아니라 max-height — 줄이 적으면 표는 그만큼만 차지한다(빈 상자를 만들지 않는다). 공용 ui-gridgrip.js 를 안 쓴 이유 : 그쪽은 height!important 를 걸어
+           [위로 펼치기](_stkTopFitSel — ①을 고른 줄만 남게 줄임)가 안 먹는다. 높이를 정하는 곳은 여전히 _stkLedFit 하나다(이 함수는 값만 돌려준다).
+       · 범위 = 110px ~ (② 가 최소 180px + 제목·머리줄을 쓸 수 있는 데까지). 창이 작아지면 그만큼만 줄여 보이고 저장값은 그대로.
+       · 끄는 거리 = 화면 px ÷ 글자 배율(--kz) — 패널에 zoom 이 걸려 있다.
+     ★고른 줄이 가려지지 않게 (같은 날 「하단 내용이 많으면 위로 올라와 상단 선택 내용이 가려짐」) — 줄을 누르면 ②가 채워지며 ①이 줄어 방금 고른 줄이 상자 밖으로 나갔다.
+       ⇒ ① 높이를 잡을 때마다(stkSelKeep) 고른 줄(.stk-on)과 그에 딸린 ↳ 줄이 머리글·총합계 줄 밑 ~ 상자 바닥 사이에 들어오게 <모자란 만큼만> 스크롤한다. 이미 보이면 안 움직인다. */
+  var STK_TOPKEY='konetStkTopH', STK_TOPMIN=110, STK_TOPSTEP=120, _stkTopDrag=null;
+  function _stkTopUser(){ if(_stkTopDrag!=null) return _stkTopDrag; try{ var v=parseFloat(localStorage.getItem(STK_TOPKEY)); return (v>0)?v:null; }catch(e){ return null; } }
+  function _stkTopSave(v){ try{ if(v==null) localStorage.removeItem(STK_TOPKEY); else localStorage.setItem(STK_TOPKEY, String(Math.round(v))); }catch(e){} }
+  function _stkTopClamp(v, avail){ return Math.round(Math.max(STK_TOPMIN, Math.min(v, Math.max(STK_TOPMIN, avail-310)))); }   /* 310 = ② 제목·머리줄 130 + 최소 180 — 자동 배분이 ①에 주는 최대와 같다(자동보다 크게는 못 늘린다) */
+  /* _stkLedFit(JSP) 이 부른다 : auto = 자동 배분 값 · avail = ① 상자 꼭대기에서 화면 바닥까지(CSS px). 돌려주는 값 = ①의 max-height(px) */
+  function stkTopH(w, auto, avail){
+    stkTopBar(w);
+    setTimeout(function(){ stkSelKeep(w); }, 0);          // 높이가 바뀐 <뒤에> 고른 줄 자리를 본다
+    var u=_stkTopUser(), b=document.getElementById('stkTopGrip');
+    if(b) b.className='stk-grip'+((u>0)?' fix':'')+((_stkTopDrag!=null)?' on':'');
+    return (u>0) ? _stkTopClamp(u, avail) : auto;
+  }
+  function stkTopBar(w){
+    if(document.getElementById('stkTopGrip')) return;
+    var pg=document.getElementById('stkStatusPager'); if(!w || !pg || !pg.parentNode) return;
+    if(!document.getElementById('stkGripCss')){
+      var st=document.createElement('style'); st.id='stkGripCss';
+      st.textContent='.stk-grip{position:relative;height:16px;margin-top:3px;display:flex;align-items:center;justify-content:center;cursor:ns-resize;user-select:none;border-radius:6px;background:#f3f6f8}'
+        +'.stk-grip:hover,.stk-grip.on{background:#dff0eb}'
+        +'.stk-grip i{display:block;width:64px;height:4px;border-radius:2px;background:#b9c6d2;pointer-events:none}'
+        +'.stk-grip:hover i,.stk-grip.on i,.stk-grip.fix i{background:#137a6c}'
+        +'.stk-grip em{position:absolute;left:8px;top:0;line-height:16px;font-size:11px;font-style:normal;font-weight:700;color:#0f6b5e;display:none;pointer-events:none;white-space:nowrap}'
+        +'.stk-grip.fix em{display:block}'
+        +'.stk-grip span{position:absolute;right:4px;top:0;display:flex;gap:4px}'
+        +'.stk-grip b{height:16px;line-height:14px;padding:0 7px;font-size:11px;font-weight:700;color:#37475a;background:#fff;border:1px solid #cfd8e3;border-radius:4px;cursor:pointer;white-space:nowrap}'
+        +'.stk-grip b:hover{border-color:#137a6c;color:#137a6c}';
+      (document.head||document.documentElement).appendChild(st);
+    }
+    var bar=document.createElement('div'); bar.id='stkTopGrip'; bar.className='stk-grip';
+    bar.title='끌어서 위(① 현재고)·아래(② 수불 내역) 높이 조절 — 아래로 = 위 표 늘리기 · 위로 = 줄이기 · 더블클릭 = 자동';
+    bar.innerHTML='<em>높이 고정 · 더블클릭 = 자동</em><i></i><span><b data-d="-1" title="위 표 줄이기 (120px) — 아래 수불 내역이 그만큼 늘어납니다">▲ 줄이기</b>'
+      +'<b data-d="1" title="위 표 늘리기 (120px) — 아래 수불 내역이 그만큼 줄어듭니다">▼ 늘리기</b></span>';
+    pg.parentNode.insertBefore(bar, pg.nextSibling);
+    function cur(){ var r=w.getBoundingClientRect(); return (r.height>0) ? r.height/kzF() : (parseFloat(w.style.maxHeight)||240); }   // 지금 <보이는> 높이(CSS px)
+    function fit(){ if(typeof _stkLedFit==='function') _stkLedFit(); }
+    function busy(){ return w._savedMax!=null; }        // [위로 펼치기] 중 — ①은 고른 줄만 남게 줄여 둔 상태라 건드리지 않는다
+    bar.addEventListener('mousedown', function(e){
+      if(e.button!==0 || busy()) return;
+      if(e.target && e.target.closest && e.target.closest('b')) return;
+      e.preventDefault();
+      var sy=e.clientY, h0=cur(), kz=kzF();
+      _stkTopDrag=h0; document.body.style.cursor='ns-resize';
+      function mv(ev){ _stkTopDrag=Math.max(STK_TOPMIN, h0+(ev.clientY-sy)/kz); fit(); }
+      function up(){
+        document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up);
+        document.body.style.cursor='';
+        var v=_stkTopDrag, moved=Math.abs(v-h0)>=2; _stkTopDrag=null;
+        if(moved) _stkTopSave(parseFloat(w.style.maxHeight)||v);   // 실제로 걸린(범위 안으로 조인) 값을 남긴다. 안 움직였으면(그냥 누름·더블클릭) 저장 안 함
+        fit();
+      }
+      document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+    });
+    bar.addEventListener('click', function(e){
+      var b=e.target && e.target.closest && e.target.closest('b[data-d]'); if(!b || busy()) return;
+      _stkTopSave(Math.max(STK_TOPMIN, cur()+parseInt(b.getAttribute('data-d'),10)*STK_TOPSTEP)); fit();
+      _stkTopSave(parseFloat(w.style.maxHeight)||null);           // 범위에 걸려 덜 움직였으면 그 값으로
+    });
+    bar.addEventListener('dblclick', function(e){
+      if(e.target && e.target.closest && e.target.closest('b')) return;
+      if(busy()) return;
+      _stkTopSave(null); fit();
+    });
+  }
+  function stkSelKeep(w){
+    if(!w || w._savedMax!=null || !w.querySelector) return;
+    var sel=w.querySelector('tbody tr.stk-on'); if(!sel) return;
+    var kz=kzF(), wr=w.getBoundingClientRect(); if(!(wr.height>0)) return;
+    var sr=sel.getBoundingClientRect(), top=sr.top, bot=sr.bottom, n=sel.nextElementSibling;
+    while(n && !n.getAttribute('data-main')){ bot=n.getBoundingClientRect().bottom; n=n.nextElementSibling; }   // 딸린 ↳ 줄까지
+    var th=w.querySelector('table thead'), tt=w.querySelector('tbody tr.close-total');
+    var vTop=wr.top+(th?th.getBoundingClientRect().height:0)+(tt?tt.getBoundingClientRect().height:0), vBot=wr.bottom-2;
+    if(top<vTop-1) w.scrollTop-=(vTop-top)/kz;
+    else if(bot>vBot+1){ var d=Math.min(bot-vBot, top-vTop); if(d>0) w.scrollTop+=d/kz; }   // 묶음이 상자보다 길면 고른 줄이 맨 위에 오는 데까지만
   }
 
   /* ══ 표 공통 — N행씩 보여주고 나머지는 스크롤로 자동 이어붙이기(무한 스크롤) ══════════
