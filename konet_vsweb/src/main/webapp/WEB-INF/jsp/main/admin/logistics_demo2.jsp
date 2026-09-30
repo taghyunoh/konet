@@ -2839,7 +2839,7 @@
                       : (cd+(nm?(' · '+nm):'')+'\n이 코드로 나간 출고 '+qm[cd])).replace(/"/g,'&quot;').replace(/\n/g,'&#10;');
         var c={};
         c[iCd]='<td style="text-align:right;padding-right:14px; color:'+(self?'#5a6b7a':'#b06a00')+';font-weight:700;white-space:nowrap" title="'+tip+'">'
-             + '↳ '+_cesc(cd)+_sIcon(cd)+'</td>';
+             + stkBdg(self)+'↳ '+_cesc(cd)+_sIcon(cd)+'</td>';
         /* '(대표)' 는 코드 뒤가 아니라 품명 칸 앞에 붙인다 (2026-08-07 요청) —
            코드 옆에 두면 그 줄만 길어져 다른 매칭코드 줄과 세로로 안 맞는다.
            코드는 코드끼리 같은 자리에 서야 견주기 쉽다. */
@@ -2852,7 +2852,7 @@
       out=out.concat(restAlias.map(function(o){
         var tip=(o.cd+(o.nm?(' · '+o.nm):'')+' ('+o.via+')\n아직 이 코드로 나간 출고가 없습니다.').replace(/"/g,'&quot;').replace(/\n/g,'&#10;');
         var c={};
-        c[iCd]='<td style="text-align:right;padding-right:14px; color:#b06a00;font-weight:700;white-space:nowrap;opacity:.65" title="'+tip+'">↳ '+_cesc(o.cd)+_sIcon(o.cd)+'</td>';
+        c[iCd]='<td style="text-align:right;padding-right:14px; color:#b06a00;font-weight:700;white-space:nowrap;opacity:.65" title="'+tip+'">'+stkBdg(0)+'↳ '+_cesc(o.cd)+_sIcon(o.cd)+'</td>';
         if(o.nm) c[iCd+1]='<td class="txt-l" style="color:#8a5200;opacity:.65" title="거래처 품명">'+_cesc(o.nm)+'</td>';
         return { c:c, bg:'#fff6ea', cd:o.cd };
       }));
@@ -3013,7 +3013,7 @@
       if(!open) sub='';
       /* data-main : 이 줄이 '품목 줄' 이라는 표시. 하위 ↳ 줄을 눌렀을 때 그 줄이 딸린
          품목 줄을 거슬러 찾아 맨 위로 올리는 데 쓴다(2026-08-07 요청). */
-      return '<tr class="'+(nSub?'stk-grp':'')+'" data-main="1" data-seq="'+(r.prodSeq||0)+'" style="cursor:pointer" onclick="stkLedgerDetail('+(r.prodSeq||0)+', this)" title="클릭 → 아래 ② 수불 내역(근거) 표시"><td>'+caret+_cesc(r.prodCd)+(nSub&&!open?' <span style="color:#b06a00;font-size:11px;font-weight:700">+'+nSub+'</span>':'')+'</td><td class="txt-l">'+_cesc(r.prodNm)+stkNoIoTag(r)+'</td>'
+      return '<tr class="'+(nSub?'stk-grp':'')+'" data-main="1" data-seq="'+(r.prodSeq||0)+'" style="cursor:pointer" onclick="stkLedgerDetail('+(r.prodSeq||0)+', this)" title="클릭 → 아래 ② 수불 내역(근거) 표시">'+stkCdTd(r,_stkAliasRev,caret,nSub,open)
         +'<td style="text-align:right;color:#137a6c">'+_cnum(r.inQty)+'</td>'
         +'<td style="text-align:right;color:#b06a00">'+_cnum(r.outQty)+'</td>'
         +'<td style="text-align:right;font-weight:700;color:'+((neg||sh)?'#c0392b':'#137a6c')+'"'+(sh?' title="적정재고 미달 — 적정 '+_cnum(sh.safe)+' · 가용 '+_cnum(sh.avail)+'(현재고+입고예정) · 부족 '+_cnum(sh.short)+'\n발주서 관리 [⚠ 추천 발주] 에서 한 번에 담을 수 있습니다"':'')+' >'+_cnum(r.curQty)+(sh?' <span style="font-size:11px;font-weight:800">▼'+_cnum(sh.short)+'</span>':'')+'</td>'

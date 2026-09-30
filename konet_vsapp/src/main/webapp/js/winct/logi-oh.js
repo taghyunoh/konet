@@ -5918,6 +5918,41 @@ function ssOutQty(o){
   function stkVenFold(k){ _stkVenFold[k]=_stkVenOpen(k); stkStatusRender(); }
   function stkVenFoldAll(){ _stkVenFoldAll=!_stkVenFoldAll; _stkVenFold={}; stkStatusRender(); }
 
+  /* ══ 재고현황 ① 품목코드·품목명 칸 — 서브코드 줄은 「[주] 주코드 위 · [서브] 제 코드 아래」 (2026-09-30 「품목별재고현황도 상품코드등록처럼 주코드에 서브로」) ══
+       · 서브코드 = 이 줄의 품목코드가 다른 상품의 매칭코드·연결로 등록돼 있는 것(역방향 표 rev = JSP 의 _stkAliasRev — 매칭표가 늦게 오면 그때 다시 그린다).
+       · ★주코드는 <표시 전용>이다 — 누르면 다른 칸과 똑같이 그 줄이 골라진다(② 수불 내역). 글자에 재조회를 걸었다가 두 번 뺀 자리다(2026-08-06·08-07).
+       · ★정렬·검색·선택·② 수불은 전부 이 줄 자신의 코드 그대로 — 보이는 차례만 바뀐다(상품코드등록 2026-09-22 · 재고 일괄조정 2026-09-23 과 같은 규칙).
+       · 품목명 밑에 「마스터 : 주코드 품명」 한 줄. 주코드가 여럿이면 매칭(상품코드등록) 것을 먼저 쓰고 나머지는 +N(툴팁에 전부).
+       · JSP(stkStatusRender)의 품목 줄 앞 두 칸을 이 함수가 통째로 돌려준다 — demo2 는 _jspService 65,535 한계라 거기 글자를 늘리지 않는다. */
+  /* [주]/[서브] 배지 한 개 — ①표 품목 줄(▼ 앞)과 ↳ 하위 줄(JSP stkAliasRows)이 같이 쓴다 (2026-09-30 「화살표 앞에 주 표시」·「주 서브표시」).
+       main 이 참이면 주(청록) · 아니면 서브(빨강). ↳ 줄에서는 대표코드 직접출고 줄 = 주, 매칭코드 줄 = 서브. */
+  function stkBdg(main, tip){
+    return '<span style="display:inline-block;padding:0 5px;border-radius:8px;font-size:12px;font-weight:700;margin-right:4px;'
+      + (main?'background:#e3f2ee;color:#0f6b5e':'background:#fdecea;color:#c0392b')+'"'+(tip?(' title="'+tip+'"'):'')+'>'+(main?'주':'서브')+'</span>';
+  }
+  function stkSubMains(cd, rev){
+    var k=String(cd||'').trim(), l=(rev && rev[k]) || [], seen={}, out=[];
+    l.forEach(function(o){ var c=String((o&&o.cd)||'').trim(); if(!c || c===k || seen[c]) return; seen[c]=1; out.push(o); });
+    out.sort(function(a,b){ return (a.via==='매칭'?0:1)-(b.via==='매칭'?0:1); });   // 매칭코드(상품코드등록)로 붙은 주코드가 먼저
+    return out;
+  }
+  function stkCdTd(r, rev, caret, nSub, open){
+    var more=(nSub&&!open) ? ' <span style="color:#b06a00;font-size:11px;font-weight:700">+'+nSub+'</span>' : '';
+    var nmTd=_cesc(r.prodNm)+(window.stkNoIoTag?stkNoIoTag(r):'');
+    var ms=stkSubMains(r.prodCd, rev);
+    /* ▼/▶ 가 붙은 줄 = 밑에 ↳ 코드별 출고가 딸린 <주코드> — 화살표 앞에 [주] 배지 (2026-09-30 「화살표 앞에 주 표시」). 하위 줄이 없는 보통 줄은 종전 그대로 */
+    var mb=caret ? stkBdg(1,'주코드 — 아래 ↳ 줄은 이 코드에 딸린 코드별 출고입니다') : '';
+    if(!ms.length) return '<td'+(caret?' style="white-space:nowrap"':'')+'>'+mb+(caret||'')+_cesc(r.prodCd)+more+'</td><td class="txt-l">'+nmTd+'</td>';
+    var m=ms[0], bdg='display:inline-block;padding:0 5px;border-radius:8px;font-size:12px;font-weight:700;';
+    var tip=('이 코드는 아래 주코드의 서브코드(매칭코드)입니다.\n'+ms.map(function(o){ return '  '+o.cd+(o.nm?(' · '+o.nm):'')+(o.via?(' ('+o.via+')'):''); }).join('\n')
+            +'\n재고·출고는 주코드로 잡힙니다.').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/\n/g,'&#10;');
+    return '<td style="white-space:nowrap" title="'+tip+'">'
+      + '<div>'+(caret||'')+'<span style="'+bdg+'background:#e3f2ee;color:#0f6b5e">주</span> '
+      +   '<b style="color:#1f7a4d">'+_cesc(m.cd)+'</b>'+(ms.length>1?(' <b style="color:#274b8f;font-size:11px">+'+(ms.length-1)+'</b>'):'')+'</div>'
+      + '<div style="margin-top:2px"><span style="'+bdg+'background:#fdecea;color:#c0392b">서브</span> '+_cesc(r.prodCd)+more+'</div></td>'
+      + '<td class="txt-l">'+nmTd+(m.nm?('<div style="font-size:11.5px;color:#8a97a3;margin-top:2px">마스터 : '+_cesc(m.nm)+'</div>'):'')+'</td>';
+  }
+
   /* ══ 표 공통 — N행씩 보여주고 나머지는 스크롤로 자동 이어붙이기(무한 스크롤) ══════════
        쓰는 곳 : 매출내역 4탭(18행) · 재고현황 ①품목별 현재고(10행)
        화면 쪽에서는 '표시행 목록(list)'과 '행 하나를 HTML 로 만드는 함수(rowFn)'만 넘긴다.
