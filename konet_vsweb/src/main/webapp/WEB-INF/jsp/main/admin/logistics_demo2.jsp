@@ -2984,6 +2984,8 @@
       sum.innerHTML='<b style="color:#b06a00">'+_cesc(_stkSrchVia)+'</b> 는 매칭코드입니다. 대표코드로 바꿔 찾았으나 재고가 없습니다.';
       wrap.innerHTML=''; if(pg) pg.innerHTML=''; return;
     }
+    /* 입출고 기록이 아직 없는 상품(검색했을 때만 0 줄로 온다 — selectStockMstList 의 UNION, 2026-09-30) — 품목명 옆에 작은 표시 */
+    window.stkNoIoTag = window.stkNoIoTag || function(r){ return (!(+r.inQty) && !(+r.outQty) && !r.lastInDt && !r.lastOutDt) ? ' <span style="color:#9aa3ad;font-size:11px;border:1px solid #d5dae0;border-radius:8px;padding:0 6px;white-space:nowrap" title="상품코드는 등록돼 있지만 입고·출고 기록이 아직 없습니다">입출고 없음</span>' : ''; };
     if(!_stkRows.length){ sum.textContent='현재고 데이터가 없습니다. (입고 수불 등록 또는 출고(SHIPOUT) 발생 시 표시)'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
     sum.innerHTML=(_onlyA ? (_aliasReady ? '<b style="color:#b06a00">매칭코드 있는 것만</b> · '
                                         : '<span style="color:#9aa7b3">매칭코드 불러오는 중…</span> · ') : '')
@@ -3011,7 +3013,7 @@
       if(!open) sub='';
       /* data-main : 이 줄이 '품목 줄' 이라는 표시. 하위 ↳ 줄을 눌렀을 때 그 줄이 딸린
          품목 줄을 거슬러 찾아 맨 위로 올리는 데 쓴다(2026-08-07 요청). */
-      return '<tr class="'+(nSub?'stk-grp':'')+'" data-main="1" data-seq="'+(r.prodSeq||0)+'" style="cursor:pointer" onclick="stkLedgerDetail('+(r.prodSeq||0)+', this)" title="클릭 → 아래 ② 수불 내역(근거) 표시"><td>'+caret+_cesc(r.prodCd)+(nSub&&!open?' <span style="color:#b06a00;font-size:11px;font-weight:700">+'+nSub+'</span>':'')+'</td><td class="txt-l">'+_cesc(r.prodNm)+'</td>'
+      return '<tr class="'+(nSub?'stk-grp':'')+'" data-main="1" data-seq="'+(r.prodSeq||0)+'" style="cursor:pointer" onclick="stkLedgerDetail('+(r.prodSeq||0)+', this)" title="클릭 → 아래 ② 수불 내역(근거) 표시"><td>'+caret+_cesc(r.prodCd)+(nSub&&!open?' <span style="color:#b06a00;font-size:11px;font-weight:700">+'+nSub+'</span>':'')+'</td><td class="txt-l">'+_cesc(r.prodNm)+stkNoIoTag(r)+'</td>'
         +'<td style="text-align:right;color:#137a6c">'+_cnum(r.inQty)+'</td>'
         +'<td style="text-align:right;color:#b06a00">'+_cnum(r.outQty)+'</td>'
         +'<td style="text-align:right;font-weight:700;color:'+((neg||sh)?'#c0392b':'#137a6c')+'"'+(sh?' title="적정재고 미달 — 적정 '+_cnum(sh.safe)+' · 가용 '+_cnum(sh.avail)+'(현재고+입고예정) · 부족 '+_cnum(sh.short)+'\n발주서 관리 [⚠ 추천 발주] 에서 한 번에 담을 수 있습니다"':'')+' >'+_cnum(r.curQty)+(sh?' <span style="font-size:11px;font-weight:800">▼'+_cnum(sh.short)+'</span>':'')+'</td>'
