@@ -861,7 +861,11 @@ public class UserServiceImpl implements UserService {
 		/* ★판(개정) 이력 (2026-10-01) — 세 갈래 :
 		     ① 새 견적서 : 문서번호에서 머리·판을 떼어 담고 처음 판(PREV_SEQ 없음).
 		     ② 작성 중(W)인 것을 다시 저장 : 종전대로 같은 번호에 덮어쓴다(옛 줄 N) — 판 칸은 그대로 물려받는다.
-		     ③ 제출완료(S)·채택(A)·거절(R)·보류(H) 뒤에 고쳐 저장 : <새 판> — 그 담당자의 그 날짜 다음 번호(-02, -03 …)로 새 줄을 넣고
+		     ③ 제출완료(S)·채택(A)·거절(R)·보류(H) 뒤에 고쳐 저장 : <새 판> — ★번호의 날짜는 «고친 날(오늘)»이다
+		        (2026-10-01 사용자 「현재일자에 번호부여 — 0930-01 을 고치면 0930-03 이 아니라 오늘일자 261001-01 로」).
+		        'Konet' + 오늘 yyMMdd + 그 담당자의 그 날짜 다음 번호. 같은 날 낸 것을 같은 날 고치면 종전처럼 -02, -03 … 로 이어진다.
+		        ⚠종전(같은 날 오전)엔 처음 판의 날짜를 물려받았다 — 그때는 옛 날짜에 그 담당자가 쓰다 버린 번호까지 세어 -03 처럼 건너뛰어 보였다.
+		        판 사이의 이음은 번호가 아니라 PREV_SEQ 라 날짜가 달라져도 변경 이력은 그대로 이어진다. 새 줄을 넣고
 		        앞 판은 LATEST_YN='N'(ACTION_YN 은 Y 그대로 — 인쇄·이력 조회는 된다). 채택(A)이면 채택 상태·일자를 물려받고(수정 사유 필수),
 		        그 밖(S/R/H)은 다시 「작성 중」으로 시작한다(제출·거절·보류 일자는 앞 판에 남는다). 사유(editMemo)는 새 판의 REV_MEMO.
 		   ★이전 판(LATEST_YN='N')은 고칠 수 없다 — 최신 판을 열어 고치게 막는다(화면도 막지만 여기가 마지막 관문). */
@@ -882,7 +886,20 @@ public class UserServiceImpl implements UserService {
 			revise = !"W".equals(g);
 			String base = scStr(old.get("docBase")); if (base.isEmpty()) base = quoteBaseRev(docNo)[0];
 			if (revise) {
-				docNo = quoteRevDocNo(compCd, base, scStr(q.get("mgrNm")).trim(), 0); m.put("docNo", docNo);   // 새 판 번호 — 담당자가 바뀌면 그 담당자의 다음 번호(-01 부터)
+				/* ★새 판의 견적일·문서번호는 «저장 확인창»에서 사람이 확정한다 (2026-10-01 사용자 「견적일도 바뀌어야 함 · 확인 시 견적일·문서번호 수정 가능하게(입력 타입으로) — 만약을 위해」).
+				     화면이 오늘 날짜와 그 날짜의 다음 번호를 채워 보여 주고, 고친 값을 revDocNo(번호)·quoteDt(견적일)로 보낸다.
+				     같은 담당자의 살아 있는 번호와 겹치면 막는다(앞 판 번호를 그대로 쓰는 것도 여기서 걸린다). revDocNo 가 없으면(옛 화면) 오늘 날짜의 다음 번호. */
+				String want = scStr(q.get("revDocNo")).trim();
+				if (!want.isEmpty()) {
+					if (want.length() > 30) throw new Exception("QUOTE_DUPNO:문서번호가 너무 깁니다(30자까지).");
+					java.util.Map<String,Object> dk = new java.util.HashMap<String,Object>(); dk.put("compCd", compCd); dk.put("docNo", want); dk.put("mgrNm", mgr);
+					if (mapper.selectQuoteByDoc(dk) != null) throw new Exception("QUOTE_DUPNO:문서번호 " + want + " 는 이미 있습니다 — 다른 번호로 넣어 주세요.");
+					docNo = want; base = quoteBaseRev(docNo)[0];
+				} else {
+					base = "Konet" + today.substring(2);                              // 새 판의 머리 = 고친 날(오늘) — 처음 판의 날짜를 물려받지 않는다 (2026-10-01)
+					docNo = quoteRevDocNo(compCd, base, mgr, 0);                      // 그 담당자의 오늘 다음 번호(처음이면 -01)
+				}
+				m.put("docNo", docNo);
 				m.put("docBase", base); m.put("revNo", Integer.valueOf(quoteBaseRev(docNo)[1])); m.put("prevSeq", old.get("quoteSeq")); m.put("latestYn", "Y");
 				m.put("revMemo", editMemo); m.put("revDttm", now); m.put("revUser", user);
 			} else {
@@ -1286,7 +1303,8 @@ public class UserServiceImpl implements UserService {
 	/* 문서번호 = 'Konet' + 견적일 yyMMdd + '-' + 두 자리 차례 (표본 Konet260729-01 과 같은 꼴). 그날 번호가 이미 있으면 다음 번호 */
 	/* ★문서번호 = 'Konet' + 견적일 yyMMdd + '-' + <그 담당자의 그 날짜 다음 번호> (2026-10-01 「담당자에 문서번호 증가로 보면 됨 · 해당년월일에」).
 	     종전엔 그 날짜의 몇 번째 견적서냐였다. 이제 (회사·DOC_BASE·담당자) 안에서 1 씩 늘어난다 — 새 견적서든 제출완료 뒤 개정판이든 같은 셈.
-	     담당자가 다르면 같은 날짜라도 -01 부터. docBase 를 주면(개정판) 그 머리를 그대로 쓴다(개정판은 처음 판의 날짜를 물려받는다). */
+	     담당자가 다르면 같은 날짜라도 -01 부터. docBase 를 주면 그 머리를 그대로 쓴다.
+	     ★개정판 미리 보기는 quoteDt·docBase 를 둘 다 비워 부른다 → 오늘 날짜 머리(개정판 번호의 날짜 = 고친 날 · 2026-10-01 사용자 지시 — saveQuote ③). */
 	@Override public String nextQuoteNo(String compCd, String quoteDt, String mgrNm, String docBase) throws Exception {
 		String base = docBase == null ? "" : docBase.trim();
 		if (base.isEmpty()) {

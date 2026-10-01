@@ -449,6 +449,16 @@ function stSave(){
     .then(function(){ stClose(); load(); if(window._toast) _toast('진행 상태를 저장했습니다.','success'); })
     .catch(function(e){ _alertBox('저장하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>',{icon:'⚠️'}); });
 }
+/* ★족보 (2026-10-01 「날짜 바뀐 경우 족보 찾기 쉽게 — 견적일 밑에 따라다니게 · 이력도」) — 제출완료 뒤 고친 판은 번호의 날짜가 고친 날이라
+   번호만으로는 어디서 왔는지 모른다. 견적일 밑에 앞 판 번호를 「↩ Konet260930-01」로 달고, 누르면 변경 이력 창(revView). 서버 lineage(앞 판 번호 '|' 이음 · 옛 서버면 빈 값) */
+/* ★«날짜가 다른» 앞 판만 단다 (같은 날 사용자 「견적일 같은 경우는 이력 조회로 보면 되는데, 다른 견적서로 된 것은 이력 보기 편하게」) —
+   같은 날짜 안의 -01 → -02 는 번호만 봐도 이어지고 [📜 이력]으로 본다. 날짜가 바뀐 것만 번호로 못 찾으니 견적일 밑에 따라다닌다 */
+function linBase(d){ return String(d||'').replace(/-[0-9]+$/,''); }
+function linCell(x,i){
+  var me=x.docBase||linBase(x.docNo);
+  var a=String(x.lineage||'').split('|').filter(function(s){ return s && linBase(s)!==me; }); if(!a.length) return '';
+  return '<div style="font-size:11.5px;color:#2f4f9a;font-weight:700;white-space:nowrap;cursor:pointer;margin-top:2px" title="이 견적서가 나온 앞 판 — 누르면 변경 이력" onclick="event.stopPropagation(); revView('+i+')">↩ '+a.map(esc).join(' ← ')+'</div>';
+}
 function lsRender(){
   var tb=document.getElementById('lsBody');
   document.getElementById('lsAll').checked=false;
@@ -458,7 +468,7 @@ function lsRender(){
     amt+=n(x.supplyAmt);
     return '<tr class="tap'+(_sel===x.quoteSeq?' sel':'')+'" onclick="if(event.target.tagName!==\'INPUT\' && event.target.tagName!==\'BUTTON\' && !(window.getSelection&&String(window.getSelection()).length)) detail('+i+')">'
       +'<td><input type="checkbox" class="lchk" data-i="'+i+'"></td>'
-      +'<td>'+d10(x.quoteDt)+'</td><td><b>'+esc(x.docNo)+'</b>'
+      +'<td>'+d10(x.quoteDt)+linCell(x,i)+'</td><td><b>'+esc(x.docNo)+'</b>'
         /* 판 배지 (2026-10-01) — 2판부터 「N판」 · 이전 판(최신이 아님)은 회색 「이전 판」 */
         +(n(x.revNo)>1?'<span class="bd" style="background:#e8eefb;color:#2f4f9a;margin-left:6px;vertical-align:1px" title="'+n(x.revNo)+'판'+(x.revMemo?' · 변경 사유 : '+esc(x.revMemo):'')+(x.revDttm?' · '+esc(String(x.revDttm).slice(0,16)):'')+'">'+n(x.revNo)+'판</span>':'')
         +(x.latestYn==='N'?'<span class="bd" style="background:#eef2f5;color:#6b7a89;margin-left:6px;vertical-align:1px" title="이 뒤에 새 판이 있습니다 — 체크하고 [📜 이력]에서 최신 판을 보세요">이전 판</span>':'')

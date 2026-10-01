@@ -1070,6 +1070,14 @@
 	     · 원본 파일은 FILE_B64 에 base64 로 — 목록 조회(selectQuoteList)에서는 읽지 않는다(무겁다). 내려받기만 selectQuoteFile
 	     ============================================================ -->
 	<select id="selectQuoteList" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  /* ★족보 (2026-10-01 사용자 「날짜 바뀐 경우 족보 찾기 쉽게 — 견적일 밑에 따라다니게 · 이력도」) —
+	     제출완료 뒤 고친 판은 번호의 날짜가 «고친 날»이라(0930-01 → 261001-01) 번호만 봐서는 어느 견적서에서 왔는지 모른다.
+	     anc = 줄마다 PREV_SEQ 를 거슬러 올라간 앞 판 전부(seq = 나 · prev = 앞 판 · lv = 몇 대 앞). 목록은 이것으로
+	       · lineage : 앞 판 문서번호들을 가까운 것부터 '|' 로 이어 준다 → 화면이 견적일 밑에 「↩ 앞 번호」로 그린다
+	       · 찾기    : 옛 문서번호로 찾아도 지금 판이 나온다 */
+	  WITH anc AS ( SELECT q.QUOTE_SEQ AS seq, q.PREV_SEQ AS prev, 1 AS lv FROM TBL_QUOTE_MST q WHERE q.PREV_SEQ IS NOT NULL AND q.ACTION_YN = 'Y'
+	                UNION ALL
+	                SELECT a.seq, k.PREV_SEQ, a.lv + 1 FROM anc a JOIN TBL_QUOTE_MST k ON k.QUOTE_SEQ = a.prev WHERE k.PREV_SEQ IS NOT NULL AND a.lv < 50 )
 	  SELECT m.QUOTE_SEQ AS quoteSeq, m.DOC_NO AS docNo, ISNULL(m.QUOTE_DT,'') AS quoteDt, ISNULL(m.RECV_NM,'') AS recvNm, ISNULL(m.MGR_NM,'') AS mgrNm,
 	         ISNULL(m.VALID_TXT,'') AS validTxt, ISNULL(m.TITLE_TXT,'') AS titleTxt, ISNULL(m.REMARK,'') AS remark, ISNULL(m.SUPPLY_AMT,0) AS supplyAmt,
 	         ISNULL(m.FILE_NM,'') AS fileNm, CASE WHEN m.FILE_B64 IS NULL THEN 'N' ELSE 'Y' END AS hasFile,
@@ -1113,7 +1121,13 @@
 	         /* 작성 기간 (2026-09-29) — 시작일이 비면 등록일. 끝 = 제출완료일, 아직이면 오늘까지 */
 	         ISNULL(NULLIF(m.START_DT,''), LEFT(REPLACE(ISNULL(m.REG_DTTM,''),'-',''),8)) AS startDt,
 	         ISNULL(m.EDIT_CNT,0) AS editCnt, ISNULL(m.EDIT_MEMO,'') AS editMemo, ISNULL(m.EDIT_DTTM,'') AS editDttm, ISNULL(m.EDIT_USER,'') AS editUser,
-	         m.REG_DTTM AS regDttm, ISNULL(m.REG_USER,'') AS regUser
+	         m.REG_DTTM AS regDttm, ISNULL(m.REG_USER,'') AS regUser,
+	         /* 족보 — 앞 판 문서번호(가까운 것부터, 지운 판 제외) */
+	         ISNULL(STUFF(( SELECT '|' + k.DOC_NO
+	                          FROM anc a JOIN TBL_QUOTE_MST k ON k.QUOTE_SEQ = a.prev AND k.ACTION_YN = 'Y'
+	                         WHERE a.seq = m.QUOTE_SEQ
+	                         ORDER BY a.lv
+	                         FOR XML PATH(''), TYPE ).value('.','NVARCHAR(600)'), 1, 1, ''), '') AS lineage
 	    FROM TBL_QUOTE_MST m
 	    LEFT JOIN ( SELECT QUOTE_SEQ, COUNT(*) AS cnt, MIN(CASE WHEN ROW_NO = 1 THEN PROD_NM END) AS firstNm,
 	                       MIN(CASE WHEN ROW_NO = 1 THEN NULLIF(PROD_CD,'') END) AS firstCd,
@@ -1129,6 +1143,8 @@
 	     AND ( ISNULL(#{statGb,jdbcType=NVARCHAR},'') = '' OR ISNULL(NULLIF(m.STAT_GB,''),'W') = #{statGb,jdbcType=NVARCHAR} )   /* 진행 상태 거르기 (2026-09-29) */
 	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = ''
 	           OR m.DOC_NO LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR EXISTS ( SELECT 1 FROM anc a JOIN TBL_QUOTE_MST k ON k.QUOTE_SEQ = a.prev
+	                        WHERE a.seq = m.QUOTE_SEQ AND k.DOC_NO LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )   /* 옛 번호(앞 판)로도 찾는다 */
 	           OR ISNULL(m.RECV_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
 	           OR EXISTS ( SELECT 1 FROM TBL_QUOTE_DTL x WHERE x.QUOTE_SEQ = m.QUOTE_SEQ
 	                        AND ( ISNULL(x.PROD_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' OR ISNULL(x.SPEC,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' ) ) )

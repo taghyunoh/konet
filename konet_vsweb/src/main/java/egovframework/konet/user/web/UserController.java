@@ -1253,7 +1253,7 @@ public class UserController {
 			} catch (Exception e) {
 				/* 채택된 견적서를 사유 없이 고치려 한 경우 (2026-09-29) — 화면이 사유를 묻고 다시 보낸다 */
 				String msg = e.getMessage() == null ? "" : e.getMessage();
-				if (msg.startsWith("QUOTE_ADOPTED:") || msg.startsWith("QUOTE_OLDREV:")) return ResponseEntity.status(400).body(msg);   // 이전 판 수정 차단 (2026-10-01)
+				if (msg.startsWith("QUOTE_ADOPTED:") || msg.startsWith("QUOTE_OLDREV:") || msg.startsWith("QUOTE_DUPNO:")) return ResponseEntity.status(400).body(msg);   // 이전 판 수정 차단 (2026-10-01)
 				log.error(" quoteSave ERROR : " + msg); return ResponseEntity.status(500).body(msg);
 			}
 		}
