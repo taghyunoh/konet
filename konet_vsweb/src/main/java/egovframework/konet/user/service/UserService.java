@@ -412,4 +412,10 @@ public interface UserService {
 	int saveQuoteStat(java.util.Map<String,Object> p) throws Exception;   // 견적서 진행 상태·일자 (2026-09-29)                                                        // 토큰(이미 있으면 그대로)을 돌려준다 · 없는 견적서면 null
 	java.util.Map<String,Object> selectQuoteMstByToken(String token) throws Exception;
 
+	/* 상품코드 계약(납품기간) 이력 (2026-10-01) */
+	java.util.List<java.util.Map<String,Object>> selectProdContractList(String compCd) throws Exception;
+	java.util.Map<String,Object> saveProdContracts(java.util.List<java.util.Map<String,Object>> rows, String fileNm, String compCd, String user, String ip) throws Exception;
+	int deleteProdContract(long contractSeq, String compCd, String user, String ip) throws Exception;
+	int applyDueProdContract(String compCd) throws Exception;
+
 }

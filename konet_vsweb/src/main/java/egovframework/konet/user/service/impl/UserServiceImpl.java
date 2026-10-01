@@ -1080,6 +1080,7 @@ public class UserServiceImpl implements UserService {
 					else if ("담당자".equals(k)) qzSet(row, vc, scStr(mst.get("mgrNm")));
 					else if (("대표이사".equals(k) || "대표자".equals(k) || "성명".equals(k)) && ceoRow < 0) { ceoRow = r; ceoCol = vc; }   /* 값은 양식 그대로 — 자리만 기억 */
 					else if ("유효기간".equals(k)) qzSet(row, vc, scStr(mst.get("validTxt")));
+					else if ("업태".equals(k) && !scStr(mst.get("supBizCond")).isEmpty()) qzSet(row, vc, scStr(mst.get("supBizCond")));   /* 업태 = 기준정보(회사 정보) (2026-10-01 「업태 기준정보 읽어서 — 제조가 빠짐」). 비면 양식 값 그대로 */
 					else if (e.getValue().indexOf("견적을") >= 0 && e.getValue().indexOf("드립니다") >= 0 && !scStr(mst.get("titleTxt")).isEmpty()) qzSet(row, e.getKey(), scStr(mst.get("titleTxt")));
 				}
 				boolean hn = false, hq = false;
@@ -2878,6 +2879,92 @@ public class UserServiceImpl implements UserService {
 		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
 		p.put("token", token.trim());
 		return mapper.selectQuoteMstByToken(p);
+	}
+
+	/* ===== 상품코드 계약(납품기간) 이력 (2026-10-01 「삼성 계약 엑셀 · 신규코드는 납품기간 · 기존코드는 이력관리 · 기존 시스템은 날짜 도래 시 입력」) =====
+	   줄마다 :
+	     ① 상품코드가 없으면 새로 만든다(품목코드·품명·과세·계약단가) — 입고단가·매입처·입수량은 비워 둔다(나중에 수정으로).
+	        삭제된 코드만 있으면 건너뛴다(되살린 뒤 다시 올리게).
+	     ② 같은 (품목 · 납품 시작일) 계약이 이미 있으면 그 줄과 그때 넣은 판매가 이력을 닫고 새로 넣는다 — 다시 올려도 줄이 겹치지 않는다.
+	     ③ 판매가 이력(공통가)에 「적용일 = 납품 시작일」로 한 줄 — 발주·출고 마감이 날짜로 단가를 집으므로 그날부터 저절로 새 단가.
+	        ⚠서비스 insertSaleprice 를 쓰지 않는다 — 그것은 넣는 즉시 상품코드 판매단가를 덮는다(미래 날짜면 안 된다).
+	     ④ 상품코드 판매단가 : 납품 시작일이 오늘 이전이면 지금 바꾸고(APPLIED_YN=Y), 미래면 그대로 두었다가 날짜가 된 뒤 applyDueProdContract 가 바꾼다.
+	   한 트랜잭션 — 중간에 실패하면 전부 취소. */
+	@Override public java.util.List<java.util.Map<String,Object>> selectProdContractList(String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd);
+		return mapper.selectProdContractList(p);
+	}
+	@Override public int applyDueProdContract(String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd);
+		return mapper.applyDueProdContract(p);
+	}
+	@Override
+	@org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
+	public java.util.Map<String,Object> saveProdContracts(java.util.List<java.util.Map<String,Object>> rows, String fileNm, String compCd, String user, String ip) throws Exception {
+		int newCnt = 0, nowCnt = 0, pendCnt = 0; java.util.List<String> skip = new java.util.ArrayList<String>();
+		String today = new java.text.SimpleDateFormat("yyyyMMdd").format(new java.util.Date());
+		String src = fileNm == null ? "" : fileNm.trim(); if (src.length() > 190) src = src.substring(0, 190);
+		if (rows != null) for (java.util.Map<String,Object> r : rows) {
+			String cd = scStr(r.get("prodCd")).trim(); if (cd.isEmpty()) continue;
+			String fr = scStr(r.get("frDt")).replaceAll("[^0-9]", ""), to = scStr(r.get("toDt")).replaceAll("[^0-9]", "");
+			double price = scNum(r.get("price"));
+			if (cd.length() > 20) { skip.add(cd + " (코드가 20자를 넘음)"); continue; }
+			if (price <= 0) { skip.add(cd + " (계약단가 없음)"); continue; }
+			if (fr.length() != 8) { skip.add(cd + " (납품 시작일 없음)"); continue; }
+			if (!to.isEmpty() && (to.length() != 8 || to.compareTo(fr) < 0)) { skip.add(cd + " (납품 종료일이 시작일보다 빠름)"); continue; }
+			String nm = scStr(r.get("prodNm")).trim(); if (nm.length() > 190) nm = nm.substring(0, 190);
+			String unit = scStr(r.get("unit")).trim(); if (unit.length() > 20) unit = unit.substring(0, 20);
+			String tax = scStr(r.get("taxGb")).trim(); tax = tax.indexOf("면") >= 0 ? "면세" : "과세";
+			java.util.Map<String,Object> k = new java.util.HashMap<String,Object>(); k.put("compCd", compCd); k.put("prodCd", cd);
+			java.util.Map<String,Object> pr = mapper.selectProdByCdForContract(k);
+			Object seqO = pr == null ? null : pr.get("prodSeq");
+			boolean isNew = false; Double prev = null;
+			if (seqO == null) {
+				if (pr != null && scNum(pr.get("deadCnt")) > 0) { skip.add(cd + " (삭제된 상품코드 — [삭제 목록]에서 되살린 뒤 다시 올리세요)"); continue; }
+				if (nm.isEmpty()) { skip.add(cd + " (새 코드인데 품명이 없음)"); continue; }
+				egovframework.konet.user.model.ProdDTO nd = new egovframework.konet.user.model.ProdDTO();
+				nd.setCompCd(compCd); nd.setProdCd(cd); nd.setProdNm(nm); nd.setTaxGb(tax); nd.setPackQty(Integer.valueOf(1));
+				nd.setSalePrice(Double.valueOf(price)); nd.setRegUser(user); nd.setRegIp(ip);
+				mapper.insertProd(nd);
+				pr = mapper.selectProdByCdForContract(k); seqO = pr == null ? null : pr.get("prodSeq");
+				if (seqO == null) throw new Exception("상품코드 " + cd + " 를 만들지 못했습니다.");
+				isNew = true; newCnt++;
+			} else if (pr.get("salePrice") != null) prev = Double.valueOf(scNum(pr.get("salePrice")));
+			long prodSeq = Math.round(scNum(seqO));
+			boolean due = isNew || fr.compareTo(today) <= 0;   // 새 코드는 처음부터 계약단가 · 기존 코드는 날짜가 됐을 때만
+			java.util.Map<String,Object> c = new java.util.HashMap<String,Object>();
+			c.put("compCd", compCd); c.put("prodCd", cd); c.put("frDt", fr); c.put("regUser", user); c.put("regIp", ip);
+			mapper.closeProdContractSame(c); mapper.closeContractSalePrice(c);
+			egovframework.konet.user.model.ProdSalepriceDTO sp = new egovframework.konet.user.model.ProdSalepriceDTO();
+			sp.setCompCd(compCd); sp.setProdSeq(Long.valueOf(prodSeq)); sp.setProdCd(cd); sp.setApplyDt(fr); sp.setSalePrice(Double.valueOf(price));
+			sp.setRemark("계약 납품 " + fr.substring(0, 4) + "-" + fr.substring(4, 6) + "-" + fr.substring(6) + (to.isEmpty() ? " 부터" : " 부터 " + to.substring(0, 4) + "-" + to.substring(4, 6) + "-" + to.substring(6) + " 까지"));
+			sp.setRegUser(user); sp.setRegIp(ip);
+			mapper.insertSaleprice(sp);
+			if (due && !isNew) { mapper.syncProdSalePrice(sp); nowCnt++; }
+			if (!due) pendCnt++;
+			c.put("prodSeq", Long.valueOf(prodSeq)); c.put("prodNm", nm); c.put("unit", unit); c.put("taxGb", tax);
+			c.put("contractPrice", Double.valueOf(price)); c.put("prevPrice", prev); c.put("toDt", to);
+			c.put("newYn", isNew ? "Y" : "N"); c.put("appliedYn", due ? "Y" : "N"); c.put("srcFile", src);
+			mapper.insertProdContract(c);
+		}
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		res.put("newCnt", Integer.valueOf(newCnt)); res.put("nowCnt", Integer.valueOf(nowCnt)); res.put("pendCnt", Integer.valueOf(pendCnt));
+		res.put("skipCnt", Integer.valueOf(skip.size())); res.put("skip", skip);
+		return res;
+	}
+	/* 계약 줄 지우기 — 그 줄과 그때 넣은 판매가 이력(같은 품목·적용일의 「계약」 줄)을 닫는다.
+	   ⚠이미 상품코드 판매단가에 반영된 것은 단가를 되돌리지 않는다(무엇으로 되돌릴지 정할 수 없다) — 화면이 그렇게 알린다. */
+	@Override
+	@org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
+	public int deleteProdContract(long contractSeq, String compCd, String user, String ip) throws Exception {
+		java.util.Map<String,Object> k = new java.util.HashMap<String,Object>();
+		k.put("compCd", compCd); k.put("contractSeq", Long.valueOf(contractSeq)); k.put("regUser", user); k.put("regIp", ip);
+		java.util.Map<String,Object> row = mapper.selectProdContractById(k);
+		if (row == null) return 0;
+		k.put("prodCd", row.get("prodCd")); k.put("frDt", row.get("frDt"));
+		int n = mapper.deleteProdContract(k);
+		if (n > 0) mapper.closeContractSalePrice(k);
+		return n;
 	}
 
 }

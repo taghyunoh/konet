@@ -76,7 +76,7 @@
      다시 달자는 얘기가 나오면 이 이력부터 확인할 것. */
   .subgo{ font-size:12.5px; color:#1f7a4d; font-weight:700; }
   .subgo.stop{ color:#c0392b; }              /* 주코드가 중지면 빨강 */
-  .mstnm{ font-size:11.5px; color:#8a97a3; margin-top:2px; white-space:normal; }
+  .mstnm{ font-size:11.5px; color:#8a97a3; margin-bottom:2px; white-space:normal; }   /* 2026-10-01 — 마스터 이름이 위로 올라가 여백도 아래쪽으로 */
   .stopbdg{ display:inline-block; padding:0 5px; border-radius:8px; background:#eceff1; color:#546e7a;
             font-size:11px; font-weight:700; }
   .diff{ font-weight:800; }
@@ -450,7 +450,9 @@ function render(){
     }
     return '<tr id="tr'+i+'"'+(stopped?' class="stopped"':'')+'>'
       + '<td>' + cdCell + '</td>'
-      + '<td class="nm" style="white-space:normal">' + esc(r.prodNm) + mstNm + '</td>'
+      /* ★상품명도 코드와 «같은 차례»로 (2026-10-01 「주코드·서브코드 명칭 오류 수정(순서 오류)」) — 코드 칸이 위 = [주] · 아래 = [서브] 이므로
+           이름도 위 = 마스터(주코드) 이름 · 아래 = 이 줄(서브) 이름. 종전엔 제 이름이 위라 주코드 옆에 서브의 이름이 놓였다(상품코드등록과 같이 고침) */
+      + '<td class="nm" style="white-space:normal">' + mstNm + esc(r.prodNm) + '</td>'
       + '<td>' + esc(r.spec) + '</td>'
       + '<td class="c"><input class="ed pk" id="pk'+i+'" value="' + nvl(r.packQty) + '"'
       +     ' title="입수수량(BOX당 EA) — 엔터를 치거나 칸을 벗어나면 BOX/EA 가 다시 나뉩니다"'

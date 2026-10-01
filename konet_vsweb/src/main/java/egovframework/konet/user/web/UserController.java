@@ -1446,6 +1446,9 @@ public class UserController {
 				poFillDefault(comp, "compNm", "company.name"); poFillDefault(comp, "busiNum", "company.busi.num"); poFillDefault(comp, "compCeo", "company.ceo");
 				poFillDefault(comp, "compAddr", "company.addr"); poFillDefault(comp, "compTel", "company.tel"); poFillDefault(comp, "compType", "company.type");
 				poFillDefault(comp, "compFax", "company.fax");
+				/* ★업태는 기준정보(회사 정보 ▸ 업태 = TBL_COMP_MST.BIZ_COND)가 먼저다 (2026-10-01 사용자 「업태 기준정보 읽어서 — 제조가 빠짐」).
+				     종전엔 company.properties 의 고정값 「도. 소매」가 늘 덮어써 회사 정보의 「제조,도소매」가 안 나왔다. 회사 정보가 비어 있을 때만 설정값으로 물러선다. */
+				String bizCond = poStr(comp.get("bizCond")); if (!bizCond.isEmpty()) comp.put("compType", bizCond);
 				model.addAttribute("comp", comp);
 			}
 			return ".raw/main/mangr/quotePrint";
@@ -1499,6 +1502,7 @@ public class UserController {
 				Map<String,Object> c = new HashMap<String,Object>(); c.put("compCd", session.getAttribute("s_comp_cd"));
 				Map<String,Object> comp = svc.selectCompInfo(c);
 				if (comp != null && comp.get("stampImg") != null) mst.put("stampImg", comp.get("stampImg"));
+				if (comp != null && !poStr(comp.get("bizCond")).isEmpty()) mst.put("supBizCond", poStr(comp.get("bizCond")));   // 업태 = 기준정보 (2026-10-01) — 양식에 박힌 「도. 소매」를 갈아 끼운다
 			} catch (Exception e) { /* 도장 없이 나간다 */ }
 			byte[] b = svc.buildQuoteXls(mst, svc.selectQuoteDtl(q));
 			String nm = poStr(mst.get("docNo")); if (nm.isEmpty()) nm = "견적서"; nm += ".xls";
@@ -4008,10 +4012,52 @@ public class UserController {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
 			return ".raw/main/prod/prodcd";
 		}
+		/* ===== 상품코드 계약(납품기간) 이력 (2026-10-01 「삼성 계약 엑셀 · 신규코드는 납품기간 · 기존코드는 이력관리」) =====
+		   상품코드 등록 화면의 [📄 계약 엑셀]이 쓴다. 표(TBL_PROD_CONTRACT)가 아직 없으면 목록은 빈 값 + error 로 알린다(화면이 안내). */
+		@RequestMapping(value="/prod/contractList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> prodContractList(HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("data", new java.util.ArrayList<Object>());
+			if (session.getAttribute("s_comp_cd") == null) return res;
+			String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+			try { svc.applyDueProdContract(compCd); res.put("data", svc.selectProdContractList(compCd)); }
+			catch (Exception e) { log.error(" prodContractList ERROR : " + e.getMessage()); res.put("error", "계약 이력 표를 읽지 못했습니다 — DDL(20261001_prod_contract.sql)을 실행했는지 확인하세요."); }
+			return res;
+		}
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/prod/contractSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> prodContractSave(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				Object o = body.get("rows");
+				if (!(o instanceof java.util.List) || ((java.util.List<?>) o).isEmpty()) return ResponseEntity.status(400).body("저장할 줄이 없습니다.");
+				java.util.List<Map<String,Object>> rows = (java.util.List<Map<String,Object>>) o;
+				if (rows.size() > 2000) return ResponseEntity.status(400).body("한 번에 2,000줄까지만 올릴 수 있습니다.");
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				Map<String,Object> r = svc.saveProdContracts(rows, poStr(body.get("fileNm")), String.valueOf(session.getAttribute("s_comp_cd")), u, request.getRemoteAddr());
+				/* ⚠Content-Type 을 text/plain 으로 박지 않는다 */ return ResponseEntity.ok(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(r));
+			} catch (Exception e) { log.error(" prodContractSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@RequestMapping(value="/prod/contractDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> prodContractDelete(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				long seq = Math.round(poNum(body.get("contractSeq")));
+				if (seq <= 0) return ResponseEntity.status(400).body("지울 계약 줄을 고르세요.");
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				return ResponseEntity.ok(String.valueOf(svc.deleteProdContract(seq, String.valueOf(session.getAttribute("s_comp_cd")), u, request.getRemoteAddr())));
+			} catch (Exception e) { log.error(" prodContractDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
 		@RequestMapping(value="/prod/prodList.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,Object> prodList(@ModelAttribute("DTO") egovframework.konet.user.model.ProdDTO dto, HttpSession session) throws Exception {
 			Map<String,Object> response = new HashMap<String,Object>();
+			/* ★날짜가 된 계약단가를 판매단가에 먼저 반영한다 (2026-10-01 「기존 시스템은 날짜 도래 시 입력」) — 상품 목록은 판매·발주·재고 화면이 모두 여기서 읽는다.
+			     대상이 없으면 0건이라 매번 불러도 된다. 표가 아직 없거나(DDL 전) 실패해도 목록은 그대로 준다. */
+			if (session.getAttribute("s_comp_cd") != null) {
+				try { svc.applyDueProdContract(String.valueOf(session.getAttribute("s_comp_cd"))); }
+				catch (Exception e) { log.error(" applyDueProdContract WARN : " + e.getMessage()); }
+			}
 			response.put("data", svc.selectProdList(dto));
 			return response;
 		}

@@ -185,6 +185,43 @@
           white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #rc td.num{ text-align:right; }
   #rc .empty{ text-align:center; color:#8a97a3; padding:26px 0; }
+  /* 📄 계약 엑셀 모달 (2026-10-01) — #rc 와 같은 골격. 표 둘(올린 엑셀 미리보기 · 계약 이력) */
+  #ct{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:62; align-items:flex-start; justify-content:center; }
+  #ct.on{ display:flex; }
+  #ct .box{ background:#fff; width:min(1380px,97vw); margin-top:3vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); max-height:93vh; display:flex; flex-direction:column; }
+  #ct .mh{ background:linear-gradient(135deg,#1f9b8e,#137a6c); color:#fff; padding:13px 18px; border-radius:12px 12px 0 0; display:flex; gap:10px; align-items:center; }
+  #ct .mh b{ font-size:16px; } #ct .mh .x{ margin-left:auto; background:none; border:none; color:#fff; font-size:22px; cursor:pointer; }
+  #ct .mb{ padding:12px 16px; overflow:auto; }
+  /* 저장 진행 바 (2026-10-01) — 올리기 상자를 덮는다 */
+  #ct .box{ position:relative; }
+  #ctPg{ display:none; position:absolute; inset:0; background:rgba(255,255,255,.82); z-index:5; border-radius:12px; align-items:center; justify-content:center; }
+  #ctPg.on{ display:flex; }
+  #ctPg .pgbox{ background:#fff; border:1px solid #dbe2ea; border-radius:12px; box-shadow:0 8px 28px rgba(0,0,0,.18); padding:18px 22px; width:min(440px,86%); text-align:center; }
+  #ctPg .pgtrack{ height:14px; background:#e6ecf1; border-radius:8px; overflow:hidden; }
+  #ctPgBar{ height:100%; width:0; background:linear-gradient(90deg,#1f9b8e,#137a6c); border-radius:8px; transition:width .25s ease; }
+  #ct .cttw{ border:1px solid #dbe2ea; border-radius:8px; overflow:auto; }
+  #ct table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
+  #ct th{ background:#eef3f6; color:#3d4d5c; padding:7px 8px; text-align:center; position:sticky; top:0; z-index:1; border-right:1px solid #e1e8ee; }
+  #ct td{ padding:6px 8px; border-bottom:1px solid #eef1f4; border-right:1px solid #f0f3f6; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #ct td.num{ text-align:right; font-variant-numeric:tabular-nums; } #ct td.l{ text-align:left; } #ct td.code{ font-weight:600; }
+  #ct .empty{ text-align:center; color:#8a97a3; padding:22px 0; }
+  #ct .ctb, #ch .ctb{ display:inline-block; padding:0 7px; border-radius:8px; font-size:11.5px; font-weight:700; }
+  /* 📄 계약 이력 조회 창 (2026-10-01) — 상품 하나의 계약 줄들. 올리기 창(#ct) 위에 뜬다 */
+  #ch{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:64; align-items:flex-start; justify-content:center; }
+  #ch.on{ display:flex; }
+  #ch .box{ background:#fff; width:min(1080px,96vw); margin-top:9vh; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.3); max-height:84vh; display:flex; flex-direction:column; }
+  #ch .mh{ background:linear-gradient(135deg,#3f5fae,#2f4f9a); color:#fff; padding:13px 18px; border-radius:12px 12px 0 0; display:flex; gap:10px; align-items:center; }
+  #ch .mh b{ font-size:16px; } #ch .mh .x{ margin-left:auto; background:none; border:none; color:#fff; font-size:22px; cursor:pointer; }
+  #ch .mb{ padding:12px 16px; overflow:auto; }
+  #ch .cttw{ border:1px solid #dbe2ea; border-radius:8px; overflow:auto; }
+  #ch table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
+  #ch th{ background:#eef3f6; color:#3d4d5c; padding:7px 8px; text-align:center; position:sticky; top:0; z-index:1; border-right:1px solid #e1e8ee; }
+  #ch td{ padding:6px 8px; border-bottom:1px solid #eef1f4; border-right:1px solid #f0f3f6; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #ch td.num{ text-align:right; font-variant-numeric:tabular-nums; } #ch td.l{ text-align:left; }
+  #ch .empty{ text-align:center; color:#8a97a3; padding:22px 0; }
+  /* 목록 「납품기간」 칸의 단추 */
+  .ctbtn{ height:24px; padding:0 8px; border:1px solid #9db2de; background:#f3f6fd; color:#2f4f9a; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; }
+  .ctbtn:hover{ background:#e3ebfb; border-color:#2f4f9a; }
   /* ⛔ 거래중지 입력창 (2026-08-17) — prompt() 대신 프로젝트 창 모양으로. **중지일만** 받는다 */
   #sp{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.5); z-index:70; align-items:flex-start; justify-content:center; }
   #sp.on{ display:flex; }
@@ -398,6 +435,14 @@
       <option value="Y">거래중지만</option>
       <option value="N">중지 안 된 것만</option>
     </select>
+    <%-- ★계약 조건 (2026-10-01 「상단에 이력 있는 것 조회조건도」) — 계약 엑셀로 올린 계약(납품기간) 이력이 있는 상품만 / 없는 것만 / 만료·임박만 --%>
+    <select id="fCt" onchange="pcFilter()" style="height:34px;border:1px solid var(--bd);border-radius:7px;padding:0 8px;font-size:13px;font-weight:700;color:#37475a"
+            title="계약 엑셀로 올린 계약(납품기간) 이력이 있는 상품만 / 없는 것만 / 만료됐거나 30일 안에 만료되는 것만">
+      <option value="">전체 (계약 무관)</option>
+      <option value="Y">계약 이력 있는 것만</option>
+      <option value="E">만료·임박만</option>
+      <option value="N">계약 이력 없는 것만</option>
+    </select>
     <button class="btn btn-teal" style="margin-left:auto" onclick="pcOpen()">＋ 상품코드 추가</button>
     <button class="btn btn-teal" onclick="pcCopySel()" title="고른 상품의 값을 그대로 담아 새 코드로 등록합니다 — 규격·색만 다른 상품을 만들 때. 원본은 그대로 있습니다.">⧉ 복사등록</button>
     <button class="btn" onclick="pcEditSel()">✎ 수정</button>
@@ -408,6 +453,8 @@
     <%-- 삭제는 소프트 삭제라 자료가 남아 있다 — 실수로 지운 것을 여기서 되살린다 (2026-08-17 요청) --%>
     <%-- 적정재고 일괄 입력 (2026-09-16) — 품목이 많으면 하나씩 폼으로 넣을 수 없다. 엑셀 두 열을 그대로 붙여넣는다 --%>
     <button class="btn" onclick="ssOpen()" title="엑셀에서 「품목코드 적정재고」 두 열을 복사해 붙여넣으면 한 번에 들어갑니다.&#10;적정재고를 넣어 두면 품목별재고현황·발주서가 미달을 알려 줍니다.">📊 적정재고 일괄</button>
+    <%-- 📄 계약 엑셀 (2026-10-01 「삼성 계약 엑셀 · 신규코드는 납품기간 · 기존코드는 이력관리」) — 납품기간·계약단가를 올린다. 계약단가는 납품 시작일부터 적용 --%>
+    <button class="btn" onclick="ctOpen()" title="삼성웰스토리 계약 엑셀(품목코드 · 계약단가 · 납품기간)을 올립니다.&#10;신규코드는 상품코드로 새로 만들고, 기존코드는 계약 이력을 쌓아 납품 시작일부터 계약단가를 적용합니다.">📄 계약 엑셀</button>
     <button class="btn" onclick="rcOpen()" title="삭제한 상품코드를 보고 되살립니다">♻ 삭제 목록</button>
     <button class="btn" onclick="pcExcel()">📥 엑셀 출력</button>
     <span class="cnt" id="cnt">0건</span>
@@ -439,6 +486,9 @@
         <th>코드</th><th>상품명</th><th>규격</th>
         <th>제조사</th><th>유형</th><th class="r">적정재고</th><th>과세</th>
         <th class="r">입수</th><th class="r">입고가</th><th class="r">판매가</th><th class="r">도매가</th>
+        <%-- ★납품기간 (2026-10-01) — [📄 계약 엑셀]로 올린 계약의 납품기간. 윗줄 = 지금 계약(만료·임박 배지) · 아랫줄 = 시작 전 계약(「10-12 부터 33,200」).
+             ⚠칸이 하나 늘었다 — 아래 colspan(17)과 pcRender 의 td 순서도 같이 고쳤다 --%>
+        <th title="계약 엑셀로 올린 납품기간 — 계약이 있는 상품에 [📄 계약] 단추가 보입니다. 누르면 그 상품의 계약 이력(계약단가 · 납품기간 · 상태)">납품기간</th>
         <%-- ★[2026-08-18 요청 「기본수량·매칭 위치 변경」] 기본수량을 **매칭 뒤로** 밀었다 —
              중지일·매칭이 한 칸씩 앞으로 당겨져 가로 스크롤 없이 먼저 보인다(자주 보는 값이다).
              바뀐 순서 : … 도매가 · 중지일 · 매칭 · **기본수량** · 낱개BC · 박스BC --%>
@@ -446,7 +496,7 @@
         <th class="r">기본수량</th>
         <th>낱개BC</th><th>박스BC</th>
       </tr></thead>
-      <tbody id="tb"><tr><td colspan="16" class="empty">불러오는 중…</td></tr></tbody>
+      <tbody id="tb"><tr><td colspan="17" class="empty">불러오는 중…</td></tr></tbody>
     </table>
   </div>
   <%-- ★[2026-09-22 고객 요청 「이 부분(①)을 자유롭게 늘였다 줄였다 · 아래 서브코드(②)도 따라서」] 페이지 줄 → 높이 막대.
@@ -676,6 +726,7 @@ function pcLoad(done){
       if(_mcCur) _mcCur=_byseq[_mcCur.prodSeq]||_mcCur;
       pcUniqBuild();                     // 규격·제조사명 입력검색이 볼 값 목록(2026-08-04)
       pcFilter();
+      ctLoad();                          // 계약(납품기간) 이력 — 목록 「납품기간」 칸 (2026-10-01)
       mcStopSync();                      // 중지·해제가 반영되면 [＋ 등록] 잠금도 같이 맞춘다
       if(typeof done==='function'){ try{ done(); }catch(e){} }
     })
@@ -690,6 +741,7 @@ function pcFilter(){
   var q=(document.getElementById('q').value||'').trim().toLowerCase();
   var mc=(document.getElementById('fMc')||{}).value||'';
   var sp=(document.getElementById('fStop')||{}).value||'';   // ★거래중지 조건(2026-08-17)
+  var ctf=(document.getElementById('fCt')||{}).value||'';    // ★계약 조건(2026-10-01) — _ctBy 는 계약 이력을 읽을 때(ctLoad) 채워진다
   _view=LIST.filter(function(o){
     if(_tax && (''+(o.taxGb||''))!==_tax) return false;
     // 매칭 필터 — _mcCnt 는 하단 [거래처 매칭코드] 를 읽을 때 채워진다(상품별 건수)
@@ -697,6 +749,12 @@ function pcFilter(){
     if(mc==='N' &&  _mcCnt[o.prodSeq]) return false;
     if(sp==='Y' && o.stopYn!=='Y') return false;
     if(sp==='N' && o.stopYn==='Y') return false;
+    if(ctf){
+      var ca=_ctBy[String(o.prodCd)], has=!!(ca&&ca.length);
+      if(ctf==='Y' && !has) return false;
+      if(ctf==='N' && has) return false;
+      if(ctf==='E'){ var cc=has?ctPick(o.prodCd).cur:null, ck=cc?ctState(cc, cc).k:''; if(ck!=='end' && ck!=='soon') return false; }
+    }
     if(!q) return true;
     return [o.prodCd,o.prodNm,o.spec,o.makerNm,o.typeNm,o.unitBarcode,o.boxBarcode]
       .some(function(v){ return (''+(v||'')).toLowerCase().indexOf(q)>=0; });
@@ -709,7 +767,7 @@ function pcRender(){
   // ★_sel 은 지우지 않는다 — 매칭코드 등록 후 목록을 다시 그려도 고른 상품이 풀리면 안 된다
   //   (그 행이 이번 화면에 없으면 아래 복원에서 자연히 표시만 안 된다)
   var tb=document.getElementById('tb');
-  if(!tot){ tb.innerHTML='<tr><td colspan="16" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1,0); return; }
+  if(!tot){ tb.innerHTML='<tr><td colspan="17" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1,0); return; }
   // 펼침(_all)이면 조회된 전 건을 한 번에 — 페이지 버튼 대신 목록 스크롤로 훑는다
   var from = _all ? 0 : (_page-1)*PAGE, to = _all ? tot : Math.min(from+PAGE, tot);
   tb.innerHTML=_view.slice(from,to).map(function(o){
@@ -747,11 +805,14 @@ function pcRender(){
              +  esc(sb.prodCd)+'</a></div>'
              +  '<div style="margin-top:2px"><span style="display:inline-block;padding:0 5px;border-radius:8px;'
              +  'background:#fdecea;color:#c0392b;font-size:13px;font-weight:700">서브</span> '+ownCd+'</div>';
-      if(mp.prodNm) mstNm='<div style="font-size:11.5px;color:#8a97a3;margin-top:2px">마스터 : '+esc(mp.prodNm)+'</div>';
+      /* ★상품명도 코드와 «같은 차례»로 (2026-10-01 사용자 「주코드·서브코드 명칭 오류 수정(순서 오류)」) —
+           코드 칸은 09-22 에 위 = [주] 주코드 · 아래 = [서브] 제 코드로 뒤집었는데 상품명 칸은 그대로(위 = 제 이름 · 아래 = 마스터 이름)라
+           옆으로 읽으면 주코드 옆에 서브의 이름이 놓였다. 이름도 위 = 마스터(주코드) 이름 · 아래 = 이 줄(서브) 이름으로 맞춘다. */
+      if(mp.prodNm) mstNm='<div style="font-size:11.5px;color:#8a97a3;margin-bottom:2px">마스터 : '+esc(mp.prodNm)+'</div>';
     }
     /* ★중지된 줄은 class="stopped" — 색칠하기는 CSS 가 한다(2026-08-19 요청) */
     return '<tr'+(o.stopYn==='Y'?' class="stopped"':'')+' data-seq="'+o.prodSeq+'" onclick="pcSel(this,'+o.prodSeq+')" ondblclick="pcOpen('+o.prodSeq+')">'
-      +'<td class="code">'+cdCell+'</td><td class="nm">'+esc(o.prodNm)+mstNm+'</td>'
+      +'<td class="code">'+cdCell+'</td><td class="nm">'+mstNm+esc(o.prodNm)+'</td>'   /* 마스터(주) 이름이 위 · 이 줄 이름이 아래 — 코드 칸과 같은 차례 */
       /* ★칸 순서는 위 thead 와 **똑같이** 유지한다(2026-08-20 거래처명 칸 삭제) :
            규격 → 제조사 → 유형 → 적정재고 → 과세 → 입수 → 입고가 → 판매가 → 도매가
            → 중지일 → 매칭 → 기본수량 → 낱개BC → 박스BC
@@ -762,6 +823,7 @@ function pcRender(){
       +'<td><span class="tx" style="background:'+c+'">'+esc(o.taxGb||'-')+'</span></td>'
       +'<td class="num">'+num(o.packQty)+'</td><td class="num">'+num(o.inPrice)+'</td>'
       +'<td class="num">'+num(o.salePrice)+'</td><td class="num">'+num(o.wholePrice)+'</td>'
+      +'<td style="white-space:nowrap;font-size:12.5px">'+ctCell(o)+'</td>'   /* 납품기간 (2026-10-01) — 계약 엑셀 */
       /* 중지일 — 값이 있으면 회색으로. 코드 아래 배지와 겹치지만, ***칸으로도 있어야*** 훑거나
          엑셀로 뽑을 때 읽힌다(2026-08-17 요청). */
       +'<td style="white-space:nowrap;color:#546e7a">'+(o.stopYn==='Y'?esc(pcFmtDt8(o.stopFrDt)):'')+'</td>'
@@ -2315,6 +2377,292 @@ function ssSave(){
     .catch(function(e){ btn.disabled=false; document.getElementById('ssMsg').textContent=''; toast('저장 실패: '+e.message,'err'); });
 }
 
+/* ═══ 📄 계약 엑셀 — 납품기간 · 계약단가 (2026-10-01 「삼성하고 계약으로 이루어진 코드 · 엑셀로 제공 ·
+     신규코드는 납품기간(from~to)이 있어야 함(상품코드에 등록) · 기존코드는 이력관리해서 입력되게 · 기존 시스템은 날짜 도래 시 입력」) ═══
+   삼성웰스토리가 주는 계약 엑셀(품목코드 · 품명 · 단위 · 계약단가 · 납품기간 From/To)을 올린다. 자료 = TBL_PROD_CONTRACT (DDL docs/sql/20261001_prod_contract.sql).
+     · 신규코드(상품코드에 없는 품목코드) = 상품코드를 새로 만든다(품명·과세·계약단가). 입고단가·매입처·입수량은 비어 있다 — 나중에 [✎ 수정]으로.
+     · 기존코드 = 계약 이력에 한 줄 쌓고, 계약단가는 «납품 시작일부터» 적용한다. 시작일이 미래면 지금 판매단가는 그대로 두고 그 날짜가 되면 서버가 바꾼다
+       (상품 목록을 읽을 때 — prodList.do). 발주·출고 마감은 판매가 이력의 적용일로 단가를 집으므로 그날 발주분부터 새 단가다.
+     · 납품 종료일이 지나도 단가는 그대로 — 목록 「납품기간」 칸에 「만료」(30일 전부터 「임박」)만 표시한다.
+     · 배송구분 · 물류비율 · 수수료율은 읽지 않는다(사용자 결정).
+   ⚠날짜 칸은 엑셀 «날짜 일련번호»로 온다 — ctDate 가 숫자·글자(2026-10-12 · 20261012 · 10/12/26) 어느 쪽이든 YYYYMMDD 로 바꾼다. */
+var CT=[], _ctBy={}, _ctRows=[], _ctFile='', _ctErr='';
+var CT_TL=String.fromCharCode(126);   /* 물결표 — 기간 표시용 */
+function ctP2(n){ return ('0'+n).slice(-2); }
+function ctYmd(){ var d=new Date(); return ''+d.getFullYear()+ctP2(d.getMonth()+1)+ctP2(d.getDate()); }
+function ctAddDays(ymd, n){ var d=new Date(+ymd.slice(0,4), +ymd.slice(4,6)-1, +ymd.slice(6,8)+n); return ''+d.getFullYear()+ctP2(d.getMonth()+1)+ctP2(d.getDate()); }
+function ctShort(d){ d=String(d||''); return d.length===8 ? d.slice(2,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8) : ''; }
+/* 한 품목의 계약들 → 지금 계약(시작일이 오늘 이전인 것 중 가장 늦은 것) · 다음 계약(아직 시작 전인 것 중 가장 이른 것) */
+function ctPick(cd){
+  var a=_ctBy[String(cd)]||[], t=ctYmd(), cur=null, nxt=null;
+  a.forEach(function(c){ if(String(c.frDt)<=t){ if(!cur||String(c.frDt)>String(cur.frDt)) cur=c; } else { if(!nxt||String(c.frDt)<String(nxt.frDt)) nxt=c; } });
+  return { cur:cur, nxt:nxt };
+}
+function ctState(c, cur){
+  var t=ctYmd();
+  /* ★신규코드는 「대기」가 아니라 「신규」 (2026-10-01 사용자 「이것은 신규품목으로 금액 보여주나요」 → 표시만 바꾸기) —
+       계약 엑셀로 새로 만든 상품코드는 만들 때 계약단가가 곧 판매가다(유지할 이전 단가가 없다). 납품 시작일 전이라고 「대기」로 적으면
+       판매가가 아직 반영 전인 것처럼 읽힌다. 기존코드의 「대기」(= 그 날짜까지 지금 단가, 그날 바뀜)와 뜻이 다르다. */
+  if(String(c.frDt)>t && c.newYn==='Y') return { k:'new', nm:'신규 — 납품 '+ctShort(c.frDt)+' 부터', col:'#1f7a34', bg:'#e6f4ea' };
+  if(String(c.frDt)>t) return { k:'wait', nm:'대기 — '+ctShort(c.frDt)+' 부터', col:'#2f4f9a', bg:'#e8eefb' };
+  if(c!==cur) return { k:'old', nm:'지난 계약', col:'#6b7a89', bg:'#eef2f5' };
+  if(c.toDt && String(c.toDt)<t) return { k:'end', nm:'계약 만료', col:'#c0392b', bg:'#fdecea' };
+  if(c.toDt && String(c.toDt)<=ctAddDays(t,30)) return { k:'soon', nm:'만료 임박', col:'#b06a00', bg:'#fff3cd' };
+  return { k:'on', nm:'적용 중', col:'#1f7a34', bg:'#e6f4ea' };
+}
+/* 목록 「납품기간」 칸 — ★글자 대신 «단추»만 둔다 (2026-10-01 사용자 「이런 경우 버튼 표시로 · 조회로 보게」).
+   계약이 있는 상품에만 [📄 계약] 단추(여러 건이면 건수) + 상태 한 마디(대기 = 시작 전 계약이 있음 · 임박 · 만료). 누르면 그 상품의 계약 이력 창(chOpen).
+   기간·단가는 단추에 마우스를 올리면 보인다. ⚠인라인 onclick 에 코드를 글자로 넣지 않는다 — data-cd 로 싣고 읽는다(따옴표 사고 방지) */
+function ctCell(o){
+  var a=_ctBy[String(o.prodCd)]; if(!a||!a.length) return '';
+  var p=ctPick(o.prodCd), st=p.cur?ctState(p.cur, p.cur):null, tip=[];
+  if(p.cur) tip.push('지금 계약 '+num(p.cur.contractPrice)+' · '+pcFmtDt8(p.cur.frDt)+' '+CT_TL+' '+pcFmtDt8(p.cur.toDt)+(st.k==='end'?' (만료)':(st.k==='soon'?' (만료 임박)':'')));
+  var isNew=!!(p.nxt && p.nxt.newYn==='Y');   /* 계약 엑셀로 새로 만든 코드 — 판매가는 이미 계약단가 */
+  if(p.nxt) tip.push(isNew ? ('신규코드 — 판매가는 계약단가 '+num(p.nxt.contractPrice)+' 로 등록됨 · 납품 '+pcFmtDt8(p.nxt.frDt)+' 부터')
+                           : ('다음 계약 '+num(p.nxt.contractPrice)+' · '+pcFmtDt8(p.nxt.frDt)+' 부터'));
+  var bd=(st&&st.k==='end')?['만료','#fdecea','#c0392b']:((st&&st.k==='soon')?['임박','#fff3cd','#b06a00']:(p.nxt?(isNew?['신규','#e6f4ea','#1f7a34']:['대기','#e8eefb','#2f4f9a']):null));
+  return '<button type="button" class="ctbtn" data-cd="'+esc(o.prodCd)+'" title="'+esc(tip.join(' / '))+' — 누르면 계약 이력"'
+    +' onclick="event.stopPropagation(); chOpen(this.getAttribute(\'data-cd\'))" ondblclick="event.stopPropagation()">📄 계약'+(a.length>1?' '+a.length:'')+'</button>'
+    +(bd?' <span style="display:inline-block;padding:0 5px;border-radius:8px;background:'+bd[1]+';color:'+bd[2]+';font-size:11px;font-weight:700">'+bd[0]+'</span>':'');
+}
+function ctLoad(){
+  fetch(CTX+'/prod/contractList.do',{ method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      CT=(j&&j.data)||[]; _ctErr=(j&&j.error)||''; _ctBy={};
+      CT.forEach(function(c){ (_ctBy[String(c.prodCd)]=_ctBy[String(c.prodCd)]||[]).push(c); });
+      if((document.getElementById('fCt')||{}).value) pcFilter(); else pcRender();   /* 계약 조건이 걸려 있으면 새 이력으로 다시 거른다 */
+      if(document.getElementById('ct').classList.contains('on')) ctPreRender();
+      if(document.getElementById('ch').classList.contains('on')) chRender();
+    }).catch(function(){});
+}
+function ctOpen(){ document.getElementById('ct').classList.add('on'); ctPreRender(); }
+function ctClose(){ document.getElementById('ct').classList.remove('on'); }
+function ctReset(){ _ctRows=[]; _ctFile=''; ctPreRender(); }
+/* 엑셀 읽기 도구 — 이 화면에 없으면 묶음 파일을 그때 싣는다(토더 발주 등록과 같은 파일). 그래도 없으면 셸의 것 */
+function ctLib(cb){
+  if(window.XLSX && window.XLSX.read){ cb(window.XLSX); return; }
+  var s=document.createElement('script'); s.src=CTX+'/assets/vendor/xlsx-js-style/xlsx.bundle.js';
+  s.onload=function(){ cb((window.XLSX&&window.XLSX.read)?window.XLSX:null); };
+  s.onerror=function(){ var P=null; try{ P=window.parent; }catch(e){} cb(P&&P.XLSX&&P.XLSX.read?P.XLSX:null); };
+  document.head.appendChild(s);
+}
+function ctKey(s){ return String(s==null?'':s).replace(/\s+/g,''); }
+function ctDate(v){
+  if(v==null||v==='') return '';
+  if(v instanceof Date) return ''+v.getFullYear()+ctP2(v.getMonth()+1)+ctP2(v.getDate());
+  if(typeof v==='number'){
+    if(v>19000101 && v<21001231 && Math.floor(v)===v) return String(v);            /* 20261012 처럼 숫자로 적은 날짜 */
+    var d=new Date(Math.round((v-25569)*86400000));                               /* 엑셀 날짜 일련번호(25569 = 1970-01-01) */
+    return ''+d.getUTCFullYear()+ctP2(d.getUTCMonth()+1)+ctP2(d.getUTCDate());
+  }
+  var s=String(v).trim(), m=/^(\d{4})[-./]?(\d{1,2})[-./]?(\d{1,2})/.exec(s);
+  if(m) return m[1]+ctP2(m[2])+ctP2(m[3]);
+  m=/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(s);                                   /* 10/12/26 (월/일/년) */
+  if(m) return (m[3].length===2?'20'+m[3]:m[3])+ctP2(m[1])+ctP2(m[2]);
+  return '';
+}
+/* ★엑셀 고쳐 읽기 (2026-10-01 실측 「품목코드 머리글을 찾지 못했습니다」) — 삼성웰스토리 계약 엑셀은 글자 칸 목록(xl/sharedStrings.xml)을
+     <si ><t>품목코드</t></si> 처럼 «이름표 안에 빈칸이 낀» 꼴로 적는다. 엑셀·POI 는 읽지만 이 화면의 읽기 도구(SheetJS)는 그 꼴을 몰라
+     글자 칸을 전부 빈 값으로 준다(숫자·날짜만 읽힌다 → 머리글을 못 찾는다).
+     ⇒ 읽기 전에 그 파일 안의 글자 칸 목록만 꺼내 빈칸을 걷고 다시 묶는다. 고칠 것이 없거나 도중에 실패하면 받은 그대로 돌려준다(종전 동작). */
+function ctFixXlsx(X, u8){
+  try{
+    if(!X.CFB || !X.CFB.read || !X.CFB.write || !window.TextDecoder || !window.TextEncoder) return u8;
+    var cfb=X.CFB.read(u8,{ type:'array' }), idx=-1;
+    (cfb.FullPaths||[]).forEach(function(p,i){ if(/xl\/sharedStrings\.xml$/i.test(p)) idx=i; });
+    if(idx<0) return u8;
+    var f=cfb.FileIndex[idx], raw=(f.content instanceof Uint8Array)?f.content:new Uint8Array(f.content);
+    var txt=new TextDecoder('utf-8').decode(raw);
+    var fixed=txt.replace(/<(\/?)((?:\w+:)?(?:si|t|r|rPr|sst))\s+>/g,'<$1$2>');
+    if(fixed===txt) return u8;                                   /* 보통 엑셀 — 손댈 것 없음 */
+    var enc=new TextEncoder().encode(fixed); f.content=enc; f.size=enc.length;
+    var z=X.CFB.write(cfb,{ type:'array', fileType:'zip' });
+    return (z instanceof Uint8Array)?z:new Uint8Array(z);
+  }catch(e){ return u8; }
+}
+function ctFile(files){
+  var f=files&&files[0]; if(!f) return;
+  ctLib(function(X){
+    if(!X){ alertBox('엑셀 읽기 도구를 불러오지 못했습니다 — 화면을 새로 고친 뒤 다시 해 주세요.','⚠️'); return; }
+    var rd=new FileReader();
+    rd.onload=function(e){
+      try{
+        var wb=X.read(ctFixXlsx(X, new Uint8Array(e.target.result)),{ type:'array' }), ws=wb.Sheets[wb.SheetNames[0]];
+        ctParse(X.utils.sheet_to_json(ws,{ header:1, raw:true, defval:'' }), f.name);
+      }catch(err){ alertBox('엑셀을 읽지 못했습니다.<br><span style="font-size:12.5px">'+esc(err&&err.message||'')+'</span>','⚠️'); }
+    };
+    rd.readAsArrayBuffer(f);
+  });
+}
+/* 머리줄 = 「품목코드」가 든 줄(그 아랫줄에 「품목면과세」 같은 둘째 머리줄이 있을 수 있다 — 두 줄을 함께 본다) */
+function ctParse(aoa, fileNm){
+  var hr=-1, i, j;
+  for(i=0;i<Math.min(aoa.length,30)&&hr<0;i++){ for(j=0;j<(aoa[i]||[]).length;j++){ if(ctKey(aoa[i][j])==='품목코드'){ hr=i; break; } } }
+  if(hr<0){ alertBox('「품목코드」 머리글을 찾지 못했습니다 — 계약 엑셀이 맞는지 확인하세요.','⚠️'); return; }
+  var col={ cd:-1, nm:-1, unit:-1, price:-1, fr:-1, to:-1, tax:-1 };
+  [hr, hr+1].forEach(function(r){ (aoa[r]||[]).forEach(function(v, c){
+    var k=ctKey(v), lo=k.toLowerCase();
+    if(k==='품목코드' && col.cd<0) col.cd=c;
+    else if((k==='품명'||k==='품목명'||k==='상품명') && col.nm<0) col.nm=c;
+    else if(k==='단위' && col.unit<0) col.unit=c;
+    else if(k==='계약단가' && col.price<0) col.price=c;
+    else if(k.indexOf('납품기간')>=0 && lo.indexOf('from')>=0) col.fr=c;
+    else if(k.indexOf('납품기간')>=0 && lo.indexOf('to')>=0) col.to=c;
+    else if(k==='품목면과세') col.tax=c;
+    else if(k==='면과세' && col.tax<0) col.tax=c;
+  }); });
+  var miss=[]; if(col.price<0) miss.push('계약단가'); if(col.fr<0) miss.push('납품기간(From)');
+  if(miss.length){ alertBox('엑셀에 <b>'+miss.join(' · ')+'</b> 칸이 없습니다.','⚠️'); return; }
+  var rows=[], seen={};
+  for(i=hr+1;i<aoa.length;i++){
+    var r=aoa[i]||[], cd=String(r[col.cd]==null?'':r[col.cd]).trim();
+    if(!cd || ctKey(cd)==='품목코드') continue;
+    var o={ prodCd:cd, prodNm:col.nm>=0?String(r[col.nm]||'').trim():'', unit:col.unit>=0?String(r[col.unit]||'').trim():'',
+            taxGb:(col.tax>=0&&String(r[col.tax]||'').indexOf('면')>=0)?'면세':'과세',
+            price:Number(String(r[col.price]==null?'':r[col.price]).replace(/,/g,''))||0,
+            frDt:ctDate(r[col.fr]), toDt:col.to>=0?ctDate(r[col.to]):'' };
+    var key=cd+'|'+o.frDt;
+    if(seen[key]!=null) rows[seen[key]]=o; else { seen[key]=rows.length; rows.push(o); }   /* 같은 (품목·시작일)이 두 번이면 뒤의 것 */
+  }
+  if(!rows.length){ alertBox('읽을 품목 줄이 없습니다.','⚠️'); return; }
+  _ctRows=rows; _ctFile=fileNm||''; ctPreRender();
+}
+function ctRowErr(x){
+  if(!(x.price>0)) return '계약단가 없음';
+  if(String(x.frDt).length!==8) return '납품 시작일 없음';
+  if(x.toDt && String(x.toDt)<String(x.frDt)) return '종료일이 시작일보다 빠름';
+  return '';
+}
+function ctPreRender(){
+  var tb=document.getElementById('ctTb'), msg=document.getElementById('ctMsg'), go=document.getElementById('ctGo');
+  document.getElementById('ctFn').textContent=_ctFile?('📎 '+_ctFile):'';
+  if(_ctErr){ msg.innerHTML='<span style="color:#c0392b;font-weight:700">'+esc(_ctErr)+'</span>'; }
+  if(!_ctRows.length){
+    tb.innerHTML='<tr><td colspan="11" class="empty">[📂 엑셀 고르기]로 계약 엑셀을 올리세요 — 품목코드 · 품명 · 단위 · 계약단가 · 납품기간(From/To)을 읽습니다.</td></tr>';
+    if(!_ctErr) msg.innerHTML=''; go.disabled=true; return;
+  }
+  var byCd={}; LIST.forEach(function(o){ byCd[String(o.prodCd)]=o; });
+  var t=ctYmd(), nNew=0, nNow=0, nWait=0, nBad=0;
+  tb.innerHTML=_ctRows.map(function(x){
+    var o=byCd[x.prodCd], er=ctRowErr(x), isNew=!o, cur=o?Number(o.salePrice||0):null, diff=(o&&x.price>0)?(x.price-cur):null;
+    var again=(_ctBy[x.prodCd]||[]).some(function(c){ return String(c.frDt)===String(x.frDt); });
+    var ap;
+    if(er){ nBad++; ap='<span style="color:#c0392b;font-weight:700">'+er+' — 건너뜀</span>'; }
+    else if(isNew){ nNew++; ap='<b style="color:#1f7a34">새 코드 등록</b> · 계약단가로 시작'; }
+    else if(String(x.frDt)<=t){ nNow++; ap='<b>바로 적용</b>'; }
+    else { nWait++; ap='<b style="color:#2f4f9a">'+pcFmtDt8(x.frDt)+' 부터</b> · 그때까지 지금 단가'; }
+    if(!er && again) ap+=' <span style="color:#8a97a3;font-size:11.5px">(같은 시작일 계약을 다시 올림 — 앞의 것 대체)</span>';
+    /* ★이미 계약이 있던 품목 표시 (2026-10-01 「상단 엑셀 업로드 시 기존 있었으면 표시로」) — 누르면 그 상품의 계약 이력 창 */
+    var had=_ctBy[x.prodCd]||[];
+    if(had.length){ var hp=ctPick(x.prodCd), hc=hp.cur||hp.nxt||had[0];
+      ap+=' <a href="javascript:;" class="ctb" data-cd="'+esc(x.prodCd)+'" style="background:#fff3cd;color:#8a5a00;text-decoration:none"'
+        +' title="이미 올린 계약이 있습니다 — 가장 가까운 것 : 계약단가 '+num(hc.contractPrice)+' · '+pcFmtDt8(hc.frDt)+' '+CT_TL+' '+pcFmtDt8(hc.toDt)+'. 누르면 계약 이력"'
+        +' onclick="chOpen(this.getAttribute(\'data-cd\'))">기존 계약 '+had.length+'건</a>'; }
+    return '<tr'+(er?' style="background:#fff5f5"':'')+'>'
+      +'<td>'+(isNew?'<span class="ctb" style="background:#e6f4ea;color:#1f7a34">신규</span>':'<span class="ctb" style="background:#eef2f5;color:#48566a">기존</span>')+'</td>'
+      +'<td class="code">'+esc(x.prodCd)+'</td><td class="l" title="'+esc(x.prodNm)+'">'+esc(x.prodNm)+(o&&o.prodNm&&o.prodNm!==x.prodNm?'<div style="font-size:11.5px;color:#8a97a3" title="우리 상품코드의 상품명">등록명 : '+esc(o.prodNm)+'</div>':'')+'</td>'
+      +'<td>'+esc(x.unit)+'</td><td>'+esc(x.taxGb)+'</td>'
+      +'<td class="num">'+(o?num(cur):'')+'</td><td class="num"><b>'+num(x.price)+'</b></td>'
+      +'<td class="num" style="color:'+(diff>0?'#c0392b':(diff<0?'#1f5fbf':'#8a97a3'))+'">'+(diff==null?'':(diff>0?'+':'')+num(diff))+'</td>'
+      +'<td>'+pcFmtDt8(x.frDt)+'</td><td>'+pcFmtDt8(x.toDt)+'</td><td class="l">'+ap+'</td></tr>';
+  }).join('');
+  if(!_ctErr) msg.innerHTML='읽은 줄 <b>'+_ctRows.length+'</b> — 신규 <b>'+nNew+'</b> · 기존 바로 적용 <b>'+nNow+'</b> · 기존 날짜 대기 <b>'+nWait+'</b>'
+    +(nBad?' · <span style="color:#c0392b">건너뛸 줄 '+nBad+'</span>':'')+' <span style="color:#8a97a3">— 확인한 뒤 [💾 저장]</span>';
+  go.disabled=!!_ctErr || (_ctRows.length-nBad)<1;
+}
+/* 진행 바 — d < 0 이면 감춘다. 저장하는 동안 올리기 창을 덮어 다른 단추를 못 누르게 한다 */
+function ctProg(d, n){
+  var w=document.getElementById('ctPg'); if(!w) return;
+  if(d<0){ w.classList.remove('on'); return; }
+  var pct=n>0?Math.round(d*100/n):0;
+  document.getElementById('ctPgBar').style.width=pct+'%';
+  document.getElementById('ctPgTxt').innerHTML='저장 중 <b>'+d+'</b> / '+n+'줄 <span style="color:#6b7a89">('+pct+'%)</span>';
+  w.classList.add('on');
+}
+function ctSave(){
+  var ok=_ctRows.filter(function(x){ return !ctRowErr(x); });
+  if(!ok.length){ toast('저장할 줄이 없습니다.','warn'); return; }
+  var byCd={}; LIST.forEach(function(o){ byCd[String(o.prodCd)]=o; });
+  var t=ctYmd(), nNew=0, nNow=0, nWait=0;
+  ok.forEach(function(x){ if(!byCd[x.prodCd]) nNew++; else if(String(x.frDt)<=t) nNow++; else nWait++; });
+  confirmBox('계약 <b>'+ok.length+'</b>줄을 저장합니다.<br><span style="font-size:12.5px;color:#3d4d5c;line-height:1.7">'
+    +'· 신규코드 <b>'+nNew+'</b> — 상품코드를 새로 만듭니다(입고단가·매입처·입수량은 나중에 수정으로)<br>'
+    +'· 기존코드 바로 적용 <b>'+nNow+'</b> — 판매단가가 지금 계약단가로 바뀝니다<br>'
+    +'· 기존코드 날짜 대기 <b>'+nWait+'</b> — 납품 시작일이 되면 판매단가가 바뀝니다(그때까지 지금 단가)</span>',
+    function(){
+      /* ★진행 바 (2026-10-01 「엑셀 저장 시 진행바」) — 한 번에 다 보내면 끝날 때까지 화면이 멈춘 것처럼 보인다(줄마다 DB 를 여러 번 다녀온다).
+           CT_STEP 줄씩 나눠 차례로 보내고, 한 묶음이 끝날 때마다 바를 채운다.
+         ⚠묶음마다 따로 저장된다 — 도중에 멈추면 앞 묶음은 이미 저장된 상태다. 같은 (품목·납품 시작일)을 다시 올리면 앞의 줄을 대체하므로
+           [💾 저장]을 다시 눌러 처음부터 보내도 겹치지 않는다(멈췄을 때 그렇게 안내한다). */
+      var go=document.getElementById('ctGo'); go.disabled=true;
+      var CT_STEP=5, done=0, sum={ newCnt:0, nowCnt:0, pendCnt:0, skip:[] };
+      ctProg(0, ok.length);
+      var finish=function(){
+        ctProg(-1);
+        alertBox('계약을 저장했습니다.<br><span style="font-size:13px;color:#3d4d5c;line-height:1.7">신규코드 <b>'+sum.newCnt+'</b> · 바로 적용 <b>'+sum.nowCnt+'</b> · 날짜 대기 <b>'+sum.pendCnt+'</b>'
+          +(sum.skip.length?'<br><span style="color:#c0392b">건너뛴 줄 '+sum.skip.length+' : '+esc(sum.skip.slice(0,8).join(' / '))+(sum.skip.length>8?' …':'')+'</span>':'')+'</span>', sum.skip.length?'⚠️':'✅');
+        _ctRows=[]; _ctFile=''; ctPreRender();
+        pcLoad();   /* 목록(새 코드·바뀐 단가)과 계약 이력을 다시 읽는다 — pcLoad 가 ctLoad 까지 부른다 */
+      };
+      var next=function(){
+        if(done>=ok.length){ finish(); return; }
+        var part=ok.slice(done, done+CT_STEP);
+        fetch(CTX+'/prod/contractSave.do',{ method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json; charset=UTF-8'},
+            body:JSON.stringify({ fileNm:_ctFile, rows:part }) })
+          .then(function(res){ return res.text().then(function(tx){ if(!res.ok) throw new Error(tx); return tx; }); })
+          .then(function(tx){
+            var j={}; try{ j=JSON.parse(tx); if(typeof j==='string') j=JSON.parse(j); }catch(e){ j={}; }
+            sum.newCnt+=Number(j.newCnt||0); sum.nowCnt+=Number(j.nowCnt||0); sum.pendCnt+=Number(j.pendCnt||0); sum.skip=sum.skip.concat(j.skip||[]);
+            done+=part.length; ctProg(done, ok.length); next();
+          })
+          .catch(function(e){
+            ctProg(-1); go.disabled=false;
+            var m=String(e&&e.message||''); if(m.indexOf('<')>=0) m='서버 오류(응답을 읽지 못했습니다)';   /* 오류 페이지(HTML)를 그대로 띄우지 않는다 */
+            alertBox('저장하다 멈췄습니다 — <b>'+done+' / '+ok.length+'</b>줄까지 저장됐습니다.<br><span style="font-size:12.5px;color:#3d4d5c;line-height:1.7">'+esc(m)
+              +'<br>[💾 저장]을 다시 누르면 처음부터 다시 저장합니다 — 이미 들어간 줄은 대체되므로 겹치지 않습니다.</span>','⚠️');
+            if(done>0) pcLoad();
+          });
+      };
+      next();
+    }, '저장', '📄');
+}
+/* ── 📄 계약 이력 조회 — 상품 하나의 계약 줄들 (2026-10-01 「버튼 표시로 조회로 보게 · 올리기 창 아래 이력 표는 보여 주지 말고」) ──
+   목록 「납품기간」 칸의 [📄 계약] 단추, 올리기 미리보기의 「기존 계약 n건」 표시가 연다. 올리기 창(#ct) 위에 뜬다.
+   종전엔 올리기 창 아래에 전체 계약 이력 표가 있었다 — 뺐다. 이력은 상품별로 이 창에서 본다 */
+var _chCd=null;
+function chOpen(cd){ _chCd=String(cd==null?'':cd); document.getElementById('ch').classList.add('on'); chRender(); }
+function chClose(){ document.getElementById('ch').classList.remove('on'); _chCd=null; }
+function chRender(){
+  if(_chCd==null) return;
+  var l=_ctBy[_chCd]||[], o=null; LIST.forEach(function(x){ if(String(x.prodCd)===_chCd) o=x; });
+  document.getElementById('chWho').innerHTML='<b>'+esc(_chCd)+'</b> '+esc((o&&o.prodNm)||(l[0]&&l[0].prodNm)||'')+(o?' · 지금 판매단가 <b>'+num(o.salePrice)+'</b>':'');
+  var cur=ctPick(_chCd).cur;
+  document.getElementById('chTb').innerHTML = l.length ? l.map(function(c){
+    var st=ctState(c, cur);
+    return '<tr><td class="num"><b>'+num(c.contractPrice)+'</b>'+(c.newYn==='Y'?' <span class="ctb" style="background:#e6f4ea;color:#1f7a34" title="이 계약으로 상품코드를 새로 만들었습니다">신규</span>':'')+'</td>'
+      +'<td class="num">'+(c.prevPrice==null?'':num(c.prevPrice))+'</td>'
+      +'<td>'+pcFmtDt8(c.frDt)+'</td><td>'+pcFmtDt8(c.toDt)+'</td>'
+      +'<td><span class="ctb" style="background:'+st.bg+';color:'+st.col+'">'+st.nm+'</span></td>'
+      +'<td class="l" title="'+esc(c.srcFile)+'">'+esc(c.srcFile)+'</td>'
+      +'<td>'+esc(String(c.regDttm||'').slice(0,16))+(c.regUser?' · '+esc(c.regUser):'')+'</td>'
+      +'<td><button class="btn btn-danger" style="height:26px;padding:0 9px;font-size:11.5px" onclick="ctDel('+c.contractSeq+')">지우기</button></td></tr>';
+  }).join('') : '<tr><td colspan="8" class="empty">이 상품에 올린 계약이 없습니다.</td></tr>';
+}
+function ctDel(seq){
+  var c=null; CT.forEach(function(x){ if(String(x.contractSeq)===String(seq)) c=x; }); if(!c) return;
+  confirmBox('['+esc(c.prodCd)+'] '+esc(c.prodNm||'')+'<br>계약단가 <b>'+num(c.contractPrice)+'</b> · 납품 '+pcFmtDt8(c.frDt)+' '+CT_TL+' '+pcFmtDt8(c.toDt)
+    +'<br><br>이 계약 줄을 지울까요?<br><span style="font-size:12.5px;color:#5b6b7a">'
+    +(c.appliedYn==='Y'?'이미 판매단가에 반영된 계약입니다 — 지워도 <b>판매단가는 그대로</b> 둡니다(필요하면 상품코드 수정에서 고치세요).':'아직 적용 전입니다 — 지우면 그 날짜에 판매단가가 바뀌지 않습니다.')
+    +(c.newYn==='Y'?'<br>이 계약으로 만든 상품코드는 지워지지 않습니다.':'')+'</span>',
+    function(){
+      fetch(CTX+'/prod/contractDelete.do',{ method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ contractSeq:seq }) })
+        .then(function(r){ return r.text().then(function(tx){ if(!r.ok) throw new Error(tx); return tx; }); })
+        .then(function(){ toast('계약 줄을 지웠습니다.','ok'); ctLoad(); })
+        .catch(function(e){ toast(e.message||'지우지 못했습니다.','err'); });
+    }, '지우기', '🗑️');
+}
+
 function rcOpen(){
   document.getElementById('rc').classList.add('on');
   document.getElementById('rcTb').innerHTML='<tr><td colspan="9" class="empty">불러오는 중…</td></tr>';
@@ -2427,6 +2775,68 @@ function pcStopSend(url, body, okMsg){
       <span id="ssMsg" style="margin-right:auto;font-size:12.5px;color:#6b7a89"></span>
       <button class="btn" onclick="ssClose()">닫기</button>
       <button class="btn btn-teal" id="ssGo" onclick="ssSave()">저장</button>
+    </div>
+  </div>
+</div>
+
+<%-- ───────── 📄 계약 엑셀 — 납품기간 · 계약단가 (2026-10-01) ─────────
+     삼성웰스토리 계약 엑셀을 올려 신규코드는 상품코드로 만들고, 기존코드는 계약 이력을 쌓는다. 계약단가는 납품 시작일부터 적용.
+     올린 엑셀 미리보기(저장 전)만 보인다. ★계약 이력 표는 뺐다(2026-10-01 「1번은 보여 주지 말고」) — 이력은 상품별 조회 창(#ch)에서 본다. --%>
+<div id="ct">
+  <div class="box">
+    <%-- 진행 바 (2026-10-01 「엑셀 저장 시 진행바」) — 저장하는 동안 상자를 덮는다. ctProg 가 켜고 끈다 --%>
+    <div id="ctPg"><div class="pgbox">
+      <div id="ctPgTxt" style="font-size:14px;color:#1f2a37;margin-bottom:10px">저장 중…</div>
+      <div class="pgtrack"><div id="ctPgBar"></div></div>
+      <div style="font-size:12px;color:#8a97a3;margin-top:8px">끝날 때까지 창을 닫지 마세요.</div>
+    </div></div>
+    <div class="mh"><b>📄 계약 엑셀 — 납품기간 · 계약단가</b>
+      <span style="font-size:12.5px;opacity:.9">계약단가는 납품 시작일부터 적용됩니다 · 신규코드는 상품코드로 새로 만듭니다</span>
+      <button class="x" onclick="ctClose()">&times;</button>
+    </div>
+    <div class="mb">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+        <button class="btn btn-teal" onclick="document.getElementById('ctFi').click()" title="삼성웰스토리가 준 계약 엑셀(xlsx) — 품목코드 · 품명 · 단위 · 계약단가 · 납품기간(From/To)을 읽습니다">📂 엑셀 고르기</button>
+        <input type="file" id="ctFi" accept=".xlsx,.xls" style="display:none" onchange="ctFile(this.files); this.value=''">
+        <span id="ctFn" style="font-size:12.5px;color:#37475a;font-weight:700"></span>
+        <span id="ctMsg" style="font-size:12.5px;color:#37475a"></span>
+        <button class="btn" style="margin-left:auto" onclick="ctReset()" title="올린 엑셀 미리보기를 비웁니다(저장된 계약은 그대로)">비우기</button>
+        <button class="btn btn-teal" id="ctGo" onclick="ctSave()" disabled>💾 저장</button>
+      </div>
+      <div class="cttw" style="max-height:64vh">
+        <table>
+          <thead><tr><th style="width:54px">구분</th><th style="width:110px">품목코드</th><th>품명</th><th style="width:56px">단위</th><th style="width:56px">과세</th>
+            <th style="width:100px" title="우리 상품코드에 지금 들어 있는 판매단가">지금 판매단가</th><th style="width:90px">계약단가</th><th style="width:80px">차이</th>
+            <th style="width:96px">납품 시작</th><th style="width:96px">납품 종료</th><th style="width:380px">적용</th></tr></thead>
+          <tbody id="ctTb"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:#8a97a3;line-height:1.6">
+        이미 계약이 있던 품목은 「적용」 칸에 <b style="color:#8a5a00">기존 계약 n건</b>으로 표시됩니다(누르면 그 상품의 계약 이력). 저장한 뒤의 이력은 목록 「납품기간」 칸의 <b>[📄 계약]</b> 단추로 봅니다.
+      </div>
+    </div>
+  </div>
+</div>
+
+<%-- ───────── 📄 계약 이력 조회 (2026-10-01 「버튼 표시로 조회로 보게」) — 상품 하나의 계약 줄들. 목록 [📄 계약] 단추 · 올리기 미리보기의 「기존 계약 n건」이 연다 --%>
+<div id="ch">
+  <div class="box">
+    <div class="mh"><b>📄 계약 이력</b>
+      <span id="chWho" style="font-size:13px;opacity:.95"></span>
+      <button class="x" onclick="chClose()">&times;</button>
+    </div>
+    <div class="mb">
+      <div class="cttw" style="max-height:60vh">
+        <table>
+          <thead><tr><th style="width:120px">계약단가</th><th style="width:100px" title="계약을 올릴 때의 판매단가">이전 단가</th>
+            <th style="width:100px">납품 시작</th><th style="width:100px">납품 종료</th><th style="width:140px">상태</th><th>올린 파일</th>
+            <th style="width:180px">올린 때</th><th style="width:70px">지우기</th></tr></thead>
+          <tbody id="chTb"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:#8a97a3;line-height:1.6">
+        계약단가는 납품 시작일부터 적용됩니다. 같은 품목에 계약이 다시 오면 줄이 하나 더 쌓입니다. 납품 종료일이 지나도 단가는 그대로이고 「계약 만료」로만 표시합니다.
+      </div>
     </div>
   </div>
 </div>

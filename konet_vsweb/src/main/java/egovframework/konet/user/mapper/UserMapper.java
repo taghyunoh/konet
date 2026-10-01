@@ -483,4 +483,14 @@ public interface UserMapper {
 	int updateQuoteStat(java.util.Map<String,Object> p) throws Exception;                                                // 견적서 진행 상태·일자 (2026-09-29)                                                   // 토큰 발급(한 번만)·공유 횟수 +1
 	java.util.Map<String,Object> selectQuoteMstByToken(java.util.Map<String,Object> p) throws Exception;                     // 공개 조회 — 빈 토큰은 SQL 이 거절
 
+	/* 상품코드 계약(납품기간) 이력 (2026-10-01) — TBL_PROD_CONTRACT */
+	java.util.List<java.util.Map<String,Object>> selectProdContractList(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectProdByCdForContract(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectProdContractById(java.util.Map<String,Object> p) throws Exception;
+	int closeProdContractSame(java.util.Map<String,Object> p) throws Exception;
+	int closeContractSalePrice(java.util.Map<String,Object> p) throws Exception;
+	int insertProdContract(java.util.Map<String,Object> p) throws Exception;
+	int deleteProdContract(java.util.Map<String,Object> p) throws Exception;
+	int applyDueProdContract(java.util.Map<String,Object> p) throws Exception;   // 날짜가 된 계약단가 → 상품코드 판매단가
+
 }

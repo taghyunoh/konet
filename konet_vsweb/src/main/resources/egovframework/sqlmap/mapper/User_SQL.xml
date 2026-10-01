@@ -652,9 +652,22 @@
 	             AND h.VENDOR_CD IS NULL   -- 공통가만 (마감과 동일 — 판매처 전용가는 섞지 않는다)
 	           ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
 	    ) sh
+	    /* ★추정 단가는 «삼성 품목코드의 이력»이 먼저다 (2026-10-01 사용자 「삼성 품목코드의 이력(계약·정산)을 먼저 보고, 없으면 주코드 단가」).
+	         발주의 품목코드(ITEM_CD)가 매칭코드라 주코드(PROD_CD)로 바뀌어 잡힌 줄은, 종전엔 주코드 쪽 단가만 봤다.
+	         그런데 계약단가(계약 엑셀)와 정산 단가(매출 엑셀 반영)는 삼성 품목코드 쪽 이력에 쌓인다 → 서로 못 만나 주코드의 옛 단가·0원으로 추정됐다
+	         (실측 : 7-9월 발주 164개 품목코드 7,795줄이 이 갈래, 그중 1,553줄은 주코드 판매단가 0).
+	         차례 = ① 품목코드 이력(적용일 <= 발주일 중 최신) → ② 주코드 이력 → ③ 주코드 판매단가. 품목코드 = 상품코드인 줄은 ②가 곧 ①이라 종전과 같다.
+	         같은 규칙을 마감(selectClosing)·매출 그래프(selectSalesChart·Daily)·손익(selectProfitStat)에도 넣었다 — 다섯 곳이 같아야 화면끼리 맞는다. */
+	    OUTER APPLY (
+	          SELECT TOP 1 h.SALE_PRICE
+	            FROM TBL_PROD_SALEPRICE_HST h
+	           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = t.ITEM_CD AND ISNULL(t.ITEM_CD,'') <> ISNULL(t.PROD_CD,'')
+	             AND h.APPLY_DT <= t.DLV_DT AND h.COMP_CD = t.COMP_CD AND h.VENDOR_CD IS NULL
+	           ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
+	    ) shi
 	    CROSS APPLY (
-	          SELECT ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) AS saleUnit,
-	                 CASE WHEN sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc
+	          SELECT ISNULL(shi.SALE_PRICE, ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0))) AS saleUnit,
+	                 CASE WHEN shi.SALE_PRICE IS NOT NULL OR sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc
 	    ) u
 	    -- ★정산서 반영 (2026-09-03 규칙: 납기일자에 정산서가 있으면 발주수량 대신 정산수량 — 원장·출고재고현황과 같은 규칙)
 	    --   정산서엔 사업장이 없어, 정산서 줄마다 나눠 줄 발주행을 골라(sa) 그 안에서 발주수량 비율로 나눈 값(settleQty).
@@ -1755,13 +1768,21 @@
 	                     AND h.VENDOR_CD IS NULL
 	                   ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
 	            ) sh
+	            /* 추정 단가 = 삼성 품목코드 이력 먼저 (2026-10-01) — 규칙·까닭은 selectShipoutMst 의 같은 자리 주석 */
+	            OUTER APPLY (
+	                  SELECT TOP 1 h.SALE_PRICE
+	                    FROM TBL_PROD_SALEPRICE_HST h
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND ISNULL(o.ITEM_CD,'') <> ISNULL(o.PROD_CD,'')
+	                     AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD AND h.VENDOR_CD IS NULL
+	                   ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
+	            ) shi
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.IN_PRICE
 	                    FROM TBL_PROD_INPRICE_HST h
 	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.PROD_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD
 	                   ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	            ) ih
-	            CROSS APPLY ( SELECT ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) AS saleUnit,
+	            CROSS APPLY ( SELECT ISNULL(shi.SALE_PRICE, ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0))) AS saleUnit,
 	                                 ISNULL(ih.IN_PRICE,   ISNULL(pm.IN_PRICE,0))   AS inUnit ) u
 	            LEFT JOIN (
 	                  SELECT DISTINCT REPLACE(ISNULL(s2.DLV_DT,''),'-','') AS dlvKey,
@@ -1902,13 +1923,21 @@
 	                     AND h.VENDOR_CD IS NULL
 	                   ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
 	            ) sh
+	            /* 추정 단가 = 삼성 품목코드 이력 먼저 (2026-10-01) — 규칙·까닭은 selectShipoutMst 의 같은 자리 주석 */
+	            OUTER APPLY (
+	                  SELECT TOP 1 h.SALE_PRICE
+	                    FROM TBL_PROD_SALEPRICE_HST h
+	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND ISNULL(o.ITEM_CD,'') <> ISNULL(o.PROD_CD,'')
+	                     AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD AND h.VENDOR_CD IS NULL
+	                   ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
+	            ) shi
 	            OUTER APPLY (
 	                  SELECT TOP 1 h.IN_PRICE
 	                    FROM TBL_PROD_INPRICE_HST h
 	                   WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.PROD_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = o.COMP_CD
 	                   ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC
 	            ) ih
-	            CROSS APPLY ( SELECT ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) AS saleUnit,
+	            CROSS APPLY ( SELECT ISNULL(shi.SALE_PRICE, ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0))) AS saleUnit,
 	                                 ISNULL(ih.IN_PRICE,   ISNULL(pm.IN_PRICE,0))   AS inUnit ) u
 	            LEFT JOIN (
 	                  SELECT DISTINCT REPLACE(ISNULL(s2.DLV_DT,''),'-','') AS dlvKey,
@@ -2124,10 +2153,15 @@
 	                           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.PROD_CD AND h.APPLY_DT <= dk2.dlvKey AND h.COMP_CD = o.COMP_CD
 	                             AND h.VENDOR_CD IS NULL
 	                           ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC ) sh2
+	            /* 추정 단가 = 삼성 품목코드 이력 먼저 (2026-10-01) — 규칙·까닭은 selectShipoutMst 의 같은 자리 주석 */
+	            OUTER APPLY ( SELECT TOP 1 h.SALE_PRICE FROM TBL_PROD_SALEPRICE_HST h
+	                           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.ITEM_CD AND ISNULL(o.ITEM_CD,'') <> ISNULL(o.PROD_CD,'')
+	                             AND h.APPLY_DT <= dk2.dlvKey AND h.COMP_CD = o.COMP_CD AND h.VENDOR_CD IS NULL
+	                           ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC ) shi2
 	            OUTER APPLY ( SELECT TOP 1 h.IN_PRICE FROM TBL_PROD_INPRICE_HST h
 	                           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.PROD_CD AND h.APPLY_DT <= dk2.dlvKey AND h.COMP_CD = o.COMP_CD
 	                           ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC ) ih2
-	            CROSS APPLY ( SELECT ISNULL(sh2.SALE_PRICE, ISNULL(pm2.SALE_PRICE,0)) AS saleUnit,
+	            CROSS APPLY ( SELECT ISNULL(shi2.SALE_PRICE, ISNULL(sh2.SALE_PRICE, ISNULL(pm2.SALE_PRICE,0))) AS saleUnit,
 	                                 ISNULL(ih2.IN_PRICE,   ISNULL(pm2.IN_PRICE,0))   AS inUnit ) u
 	           WHERE o.ACTION_YN = 'Y'
 	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -3102,6 +3136,15 @@
 	                         AND h.VENDOR_CD IS NULL   -- 공통가만. 판매처 전용가는 물류센터 출고 마감에 안 섞는다
 	                       ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
 	                ) sh
+	                /* 추정 단가 = 삼성 품목코드 이력 먼저 (2026-10-01) — 규칙·까닭은 selectShipoutMst 의 같은 자리 주석.
+	                   정산서가 있는 줄은 종전대로 정산 금액이 매출이다 — 이 단가는 정산서가 아직 없는 줄에만 쓰인다 */
+	                OUTER APPLY (
+	                      SELECT TOP 1 h.SALE_PRICE
+	                        FROM TBL_PROD_SALEPRICE_HST h
+	                       WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.ITEM_CD AND ISNULL(s.ITEM_CD,'') <> ISNULL(s.PROD_CD,'')
+	                         AND h.APPLY_DT <= s.DLV_DT AND h.COMP_CD = s.COMP_CD AND h.VENDOR_CD IS NULL
+	                       ORDER BY h.APPLY_DT DESC, h.SALEPRICE_SEQ DESC
+	                ) shi
 	                OUTER APPLY (
 	                      SELECT TOP 1 h.IN_PRICE
 	                        FROM TBL_PROD_INPRICE_HST h
@@ -3113,10 +3156,10 @@
 	                     ⚠판매가가 비면 0 — 우리 판매단가로 물러서지 않는다. 채권·채무·일계장도 수량 × SALE_PRICE 하나로 세므로 화면끼리 같아야 한다(저장 화면이 빈 판매가를 경고). */
 	                CROSS APPLY (
 	                      SELECT CASE WHEN s.PROD_KIND = 'TD' THEN ISNULL(s.SALE_PRICE,0)
-	                                  ELSE ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0)) END AS saleUnit,
+	                                  ELSE ISNULL(shi.SALE_PRICE, ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0))) END AS saleUnit,
 	                             ISNULL(ih.IN_PRICE,   ISNULL(pm.IN_PRICE,0))   AS inUnit,
 	                             CASE WHEN s.PROD_KIND = 'TD' THEN N'토더'
-	                                  WHEN sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc,
+	                                  WHEN shi.SALE_PRICE IS NOT NULL OR sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc,
 	                             -- ★매입단가를 못 찾은 건을 '마스터'로 뭉뚱그리면 안 된다(2026-07-25).
 	                             --   마스터 IN_PRICE 가 0이면 매입액이 0으로 잡혀 마진율이 100%로 뜨는데,
 	                             --   배지는 '마스터'라 값을 찾은 것처럼 보인다. 별도 라벨로 드러낸다.
@@ -7556,6 +7599,88 @@
 	<update id="updateEmpRoomLastTxt" parameterType="java.util.HashMap"><![CDATA[
 	  UPDATE TBL_EMP_ROOM SET LAST_TXT = #{lastTxt}
 	   WHERE COMP_CD = #{compCd} AND ROOM_SEQ = #{roomSeq} AND LAST_MSG_SEQ = #{msgSeq}
+	]]></update>
+
+	<!-- ============================================================
+	     상품코드 계약(납품기간) 이력 — TBL_PROD_CONTRACT (2026-10-01 「삼성 계약 엑셀 · 신규코드는 납품기간 · 기존코드는 이력관리 ·
+	     기존 시스템은 날짜 도래 시 입력」) — DDL docs/sql/20261001_prod_contract.sql
+	     · 계약단가는 납품 시작일(FR_DT)부터 적용. 저장할 때 판매가 이력(공통가 · APPLY_DT = FR_DT)에도 한 줄 넣어 발주·출고 마감이 날짜로 집어 가게 한다.
+	     · 상품코드의 판매단가(TBL_PROD_MST.SALE_PRICE)는 FR_DT 가 된 뒤에 바뀐다 — applyDueProdContract (상품 목록을 읽을 때 부른다).
+	     · TO_DT 가 지나도 단가는 그대로(화면이 「계약 만료」만 표시).
+	     ============================================================ -->
+	<select id="selectProdContractList" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT c.CONTRACT_SEQ AS contractSeq, c.PROD_SEQ AS prodSeq, c.PROD_CD AS prodCd,
+	         ISNULL(p.PROD_NM, ISNULL(c.PROD_NM,'')) AS prodNm, ISNULL(c.UNIT,'') AS unit, ISNULL(c.TAX_GB,'') AS taxGb,
+	         c.CONTRACT_PRICE AS contractPrice, c.PREV_PRICE AS prevPrice, c.FR_DT AS frDt, ISNULL(c.TO_DT,'') AS toDt,
+	         ISNULL(c.NEW_YN,'N') AS newYn, ISNULL(c.APPLIED_YN,'N') AS appliedYn, ISNULL(c.APPLIED_DTTM,'') AS appliedDttm,
+	         ISNULL(c.SRC_FILE,'') AS srcFile, ISNULL(c.REG_DTTM,'') AS regDttm, ISNULL(c.REG_USER,'') AS regUser,
+	         p.SALE_PRICE AS salePrice
+	    FROM TBL_PROD_CONTRACT c
+	    LEFT JOIN TBL_PROD_MST p ON p.COMP_CD = c.COMP_CD AND p.PROD_CD = c.PROD_CD AND p.ACTION_YN = 'Y'
+	         AND p.PROD_SEQ = ( SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.COMP_CD = c.COMP_CD AND p2.PROD_CD = c.PROD_CD AND p2.ACTION_YN = 'Y' )
+	   WHERE c.ACTION_YN = 'Y'
+	     AND c.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	   ORDER BY c.PROD_CD, c.FR_DT DESC, c.CONTRACT_SEQ DESC
+	]]></select>
+	<!-- 품목코드 → 살아 있는 상품(가장 최근 것) · 삭제된 것이 있는지 -->
+	<select id="selectProdByCdForContract" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT ( SELECT MAX(PROD_SEQ) FROM TBL_PROD_MST WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND PROD_CD = #{prodCd,jdbcType=NVARCHAR} AND ACTION_YN = 'Y' ) AS prodSeq,
+	         ( SELECT TOP 1 SALE_PRICE FROM TBL_PROD_MST WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND PROD_CD = #{prodCd,jdbcType=NVARCHAR} AND ACTION_YN = 'Y' ORDER BY PROD_SEQ DESC ) AS salePrice,
+	         ( SELECT COUNT(*) FROM TBL_PROD_MST WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND PROD_CD = #{prodCd,jdbcType=NVARCHAR} AND ACTION_YN <> 'Y' ) AS deadCnt
+	]]></select>
+	<!-- 같은 (품목 · 납품 시작일)을 다시 올리면 앞의 계약 줄과 그때 넣은 판매가 이력 줄을 닫는다(이력으로 남는다) -->
+	<update id="closeProdContractSame" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_PROD_CONTRACT
+	     SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=NVARCHAR}
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND PROD_CD = #{prodCd,jdbcType=NVARCHAR} AND FR_DT = #{frDt,jdbcType=CHAR} AND ACTION_YN = 'Y'
+	]]></update>
+	<update id="closeContractSalePrice" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_PROD_SALEPRICE_HST
+	     SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=NVARCHAR}
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND PROD_CD = #{prodCd,jdbcType=NVARCHAR} AND APPLY_DT = #{frDt,jdbcType=CHAR}
+	     AND VENDOR_CD IS NULL AND ACTION_YN = 'Y' AND ISNULL(REMARK,'') LIKE N'계약 %'
+	]]></update>
+	<insert id="insertProdContract" parameterType="java.util.Map"><![CDATA[
+	  INSERT INTO TBL_PROD_CONTRACT
+	    (COMP_CD, PROD_SEQ, PROD_CD, PROD_NM, UNIT, TAX_GB, CONTRACT_PRICE, PREV_PRICE, FR_DT, TO_DT, NEW_YN, APPLIED_YN, APPLIED_DTTM,
+	     SRC_FILE, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (#{compCd,jdbcType=VARCHAR}, #{prodSeq,jdbcType=BIGINT}, #{prodCd,jdbcType=NVARCHAR}, #{prodNm,jdbcType=NVARCHAR}, #{unit,jdbcType=NVARCHAR}, #{taxGb,jdbcType=NVARCHAR},
+	     #{contractPrice,jdbcType=DECIMAL}, #{prevPrice,jdbcType=DECIMAL}, #{frDt,jdbcType=CHAR}, NULLIF(#{toDt,jdbcType=CHAR},''),
+	     #{newYn,jdbcType=CHAR}, #{appliedYn,jdbcType=CHAR},
+	     CASE WHEN #{appliedYn,jdbcType=CHAR} = 'Y' THEN CONVERT(VARCHAR(19), GETDATE(), 120) ELSE NULL END,
+	     #{srcFile,jdbcType=NVARCHAR}, 'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	]]></insert>
+	<select id="selectProdContractById" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT CONTRACT_SEQ AS contractSeq, PROD_CD AS prodCd, FR_DT AS frDt, ISNULL(APPLIED_YN,'N') AS appliedYn
+	    FROM TBL_PROD_CONTRACT
+	   WHERE CONTRACT_SEQ = #{contractSeq} AND COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
+	]]></select>
+	<update id="deleteProdContract" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_PROD_CONTRACT
+	     SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=NVARCHAR}
+	   WHERE CONTRACT_SEQ = #{contractSeq} AND COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
+	]]></update>
+	<!-- ★날짜가 된 계약단가를 상품코드의 판매단가에 반영 — 「기존 시스템은 날짜 도래 시 입력」을 대신한다.
+	     아직 반영 안 한(APPLIED_YN 이 Y 가 아닌) 계약 중 납품 시작일이 오늘 이전인 것. 한 품목에 여럿이면 시작일이 가장 늦은 것의 단가.
+	     두 문장을 한 번에 보낸다(반영 → 반영 표시). 대상이 없으면 0건이라 매번 불러도 된다. -->
+	<update id="applyDueProdContract" parameterType="java.util.Map"><![CDATA[
+	  UPDATE p
+	     SET p.SALE_PRICE = c.CONTRACT_PRICE,
+	         p.UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), p.UPD_USER = N'계약적용'
+	    FROM TBL_PROD_MST p
+	    JOIN TBL_PROD_CONTRACT c ON c.COMP_CD = p.COMP_CD AND c.PROD_CD = p.PROD_CD
+	   WHERE p.ACTION_YN = 'Y' AND c.ACTION_YN = 'Y' AND ISNULL(c.APPLIED_YN,'N') <> 'Y'
+	     AND c.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND c.FR_DT <= CONVERT(VARCHAR(8), GETDATE(), 112)
+	     AND c.CONTRACT_SEQ = ( SELECT TOP 1 c2.CONTRACT_SEQ FROM TBL_PROD_CONTRACT c2
+	                             WHERE c2.COMP_CD = c.COMP_CD AND c2.PROD_CD = c.PROD_CD AND c2.ACTION_YN = 'Y'
+	                               AND c2.FR_DT <= CONVERT(VARCHAR(8), GETDATE(), 112)
+	                             ORDER BY c2.FR_DT DESC, c2.CONTRACT_SEQ DESC );
+	  UPDATE TBL_PROD_CONTRACT
+	     SET APPLIED_YN = 'Y', APPLIED_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120)
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y' AND ISNULL(APPLIED_YN,'N') <> 'Y'
+	     AND FR_DT <= CONVERT(VARCHAR(8), GETDATE(), 112);
 	]]></update>
 
 </mapper>
