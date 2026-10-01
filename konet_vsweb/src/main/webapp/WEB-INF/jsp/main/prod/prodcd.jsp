@@ -2539,7 +2539,7 @@ function ctPreRender(){
   document.getElementById('ctFn').textContent=_ctFile?('📎 '+_ctFile):'';
   if(_ctErr){ msg.innerHTML='<span style="color:#c0392b;font-weight:700">'+esc(_ctErr)+'</span>'; }
   if(!_ctRows.length){
-    tb.innerHTML='<tr><td colspan="11" class="empty">[📂 엑셀 고르기]로 계약 엑셀을 올리세요 — 품목코드 · 품명 · 단위 · 계약단가 · 납품기간(From/To)을 읽습니다.</td></tr>';
+    tb.innerHTML='<tr><td colspan="11" class="empty">[📂 계약파일 선택]으로 계약 엑셀을 올리세요 — 품목코드 · 품명 · 단위 · 계약단가 · 납품기간(From/To)을 읽습니다.</td></tr>';
     if(!_ctErr) msg.innerHTML=''; go.disabled=true; return;
   }
   var byCd={}; LIST.forEach(function(o){ byCd[String(o.prodCd)]=o; });
@@ -2796,7 +2796,7 @@ function pcStopSend(url, body, okMsg){
     </div>
     <div class="mb">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-        <button class="btn btn-teal" onclick="document.getElementById('ctFi').click()" title="삼성웰스토리가 준 계약 엑셀(xlsx) — 품목코드 · 품명 · 단위 · 계약단가 · 납품기간(From/To)을 읽습니다">📂 엑셀 고르기</button>
+        <button class="btn btn-teal" onclick="document.getElementById('ctFi').click()" title="삼성웰스토리가 준 계약 엑셀(xlsx) — 품목코드 · 품명 · 단위 · 계약단가 · 납품기간(From/To)을 읽습니다">📂 계약파일 선택</button>
         <input type="file" id="ctFi" accept=".xlsx,.xls" style="display:none" onchange="ctFile(this.files); this.value=''">
         <span id="ctFn" style="font-size:12.5px;color:#37475a;font-weight:700"></span>
         <span id="ctMsg" style="font-size:12.5px;color:#37475a"></span>
