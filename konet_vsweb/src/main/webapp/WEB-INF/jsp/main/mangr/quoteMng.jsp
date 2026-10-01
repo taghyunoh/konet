@@ -44,7 +44,7 @@
   .card .hd{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 12px; border-bottom:1px solid #eef1f5; font-weight:800; color:#125a4e; font-size:14px; }
   .card .hd small{ font-weight:600; color:#6b7a89; font-size:12px; }
   .card .hd .sp{ margin-left:auto; }
-  .drop{ margin:12px; border:2px dashed #b9d3cc; border-radius:10px; background:#f6fbfa; padding:20px; text-align:center; color:#4b6b63; cursor:pointer; }
+  .drop{ margin:10px 12px; border:2px dashed #b9d3cc; border-radius:10px; background:#f6fbfa; padding:10px; text-align:center; color:#4b6b63; cursor:pointer; }   /* 접힌 칸이 펼쳐질 때만 보이므로 얇게 (2026-10-01) */
   .drop.on{ background:#e3f2ee; border-color:var(--teal); }
   .drop b{ color:var(--teal); }
   .drop small{ display:block; margin-top:5px; color:#7c8e98; font-size:12px; }
@@ -137,9 +137,11 @@
 <div class="wrap">
   <h2>📄 견적서 관리</h2>
 
-  <div class="card">
+  <%-- 올리기 칸은 평소 접혀 있다 (2026-10-01 「영역 너무 차지함 — 버튼으로」) : 목록 도구줄 [📥 견적서 올리기]가 파일 창을 바로 열고, 파일을 고르면(읽는 중·미리보기·오류) 이 칸이 펼쳐진다. 비우면 다시 접힌다(upCardSync) --%>
+  <div class="card" id="upCard" hidden>
     <div class="hd">📥 견적서 올리기 <small>— 우리가 낸 견적서 엑셀(xls/xlsx). 여러 개를 한 번에. 미리보기에서 문서번호·견적일·담당자를 확인하고 [💾 저장]</small>
       <span class="sp tot" id="pvTot"></span>
+      <button class="btn lnk" style="margin-left:8px" onclick="pvClear()" title="올리기 칸 접기">✕ 접기</button>
     </div>
     <div class="drop" id="drop" onclick="document.getElementById('file').click()">
       📄 <b>견적서 엑셀</b>을 여기에 끌어다 놓거나 눌러서 고르세요
@@ -170,6 +172,8 @@
         <%-- 이전 판 포함 (2026-10-01) — 제출완료 뒤 고치면 새 판이 생기고 앞 판은 목록에서 빠진다(이력으로). 켜면 앞 판도 줄로 보인다 --%>
         <label class="dim" style="font-size:12.5px;white-space:nowrap;cursor:pointer" title="제출완료·채택 뒤 고쳐 저장하면 새 판(-02 …)이 생기고 앞 판은 목록에서 빠집니다. 켜면 앞 판도 함께 보입니다(체크하고 [📜 이력]으로도 봅니다)"><input type="checkbox" id="inclOld" onchange="load()"> 이전 판 포함</label>
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
+        <%-- 📥 견적서 올리기 (2026-10-01 「영역 너무 차지함 — 버튼으로」) — 위 올리기 칸을 접어 두고 여기서 파일 창을 바로 연다. 파일을 고르면 위 칸이 펼쳐진다 --%>
+        <button class="btn" style="border-color:#137a6c;color:#137a6c;font-weight:800" onclick="upOpen()" title="우리가 낸 견적서 엑셀(xls/xlsx)을 올립니다 — 여러 개를 한 번에. 고르면 위에 미리보기가 펼쳐지고 [💾 저장]으로 넣습니다">📥 견적서 올리기</button>
         <button class="btn" style="border-color:#137a6c;color:#137a6c" onclick="cmpOpen()" title="체크한 견적서(없으면 목록 전체)를 품명 × 견적서 행렬로 비교합니다 — 단가 변동·최저·최고">📊 견적 비교</button>
         <%-- 카톡 공유 (2026-09-28) — ★줄마다 단추를 두면 표가 복잡해져 «체크한 줄»에 대해 도구줄에서 보낸다([선택 삭제]와 같은 방식) --%>
         <button class="btn" style="border-color:#f3c200;background:#fff8dd;color:#7a5c00;font-weight:800" onclick="quoteKakao()" title="체크한 견적서 하나를 카카오톡으로 보냅니다 — 받는 쪽은 로그인 없이 견적서를 보고 인쇄·PDF 저장까지 합니다">💬 카톡 공유</button>
@@ -256,6 +260,7 @@ function pickFiles(list){
   var big=fs.filter(function(f){ return f.size>5*1024*1024; });
   if(big.length){ _alertBox(big[0].name+' 이 5MB 를 넘습니다.',{icon:'⚠️'}); return; }
   var dr=document.getElementById('drop'); dr.innerHTML='⏳ 읽는 중… ('+fs.length+'개)';
+  upCardSync(true);   /* 읽는 동안 올리기 칸을 펼쳐 「읽는 중」이 보이게 */
   fs.forEach(docKeep);
   Promise.all(fs.map(function(f){ return readB64(f).then(function(b){ return { name:f.name, b64:b }; }); }))
     .then(function(files){ return post('/mangr/quoteParse.do', { files:files }, true); })
@@ -268,7 +273,7 @@ function pickFiles(list){
       if(docs.length){ ok('견적서 <b>'+docs.length+'</b>건을 읽었습니다.<br><span style="font-size:13px;color:#3d4d5c">아래 <b>미리보기</b>에서 문서번호·견적일·담당자·품목을 확인하고 [💾 저장]을 누르세요.</span>'); try{ document.getElementById('pvWrap').scrollIntoView({block:'nearest'}); }catch(e){} }
     })
     .catch(function(e){ err('파일을 읽지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); })
-    .then(function(){ dr.innerHTML=DROP_HTML; });
+    .then(function(){ dr.innerHTML=DROP_HTML; upCardSync(); });
 }
 function pvRender(){
   var w=document.getElementById('pvWrap'), box=document.getElementById('pvDocs');
@@ -301,7 +306,14 @@ function pvRender(){
   pvTot();
 }
 function pvTot(){ var on=_pv.filter(function(q){ return q._on; }); document.getElementById('pvTot').innerHTML = _pv.length ? ('저장 대상 <b>'+on.length+'</b>/'+_pv.length+'건') : ''; }
-function pvClear(){ _pv=[]; document.getElementById('pvErr').innerHTML=''; docShow(''); _docs={}; pvRender(); }
+function pvClear(){ _pv=[]; document.getElementById('pvErr').innerHTML=''; docShow(''); _docs={}; pvRender(); upCardSync(); }
+/* 올리기 칸 펼침/접힘 (2026-10-01 「영역 너무 차지함 — 버튼으로」) — 미리보기·오류·읽는 중이 있을 때만 보인다. force=true 는 읽는 동안 */
+function upOpen(){ document.getElementById('file').click(); }
+function upCardSync(force){
+  var c=document.getElementById('upCard'); if(!c) return;
+  var errOn=!!(document.getElementById('pvErr')||{}).innerHTML;
+  c.hidden = !(force || _pv.length || errOn);
+}
 function save(){
   var docs=_pv.filter(function(q){ return q._on; });
   if(!docs.length){ _alertBox('저장할 견적서를 체크하세요.',{icon:'ℹ️'}); return; }
