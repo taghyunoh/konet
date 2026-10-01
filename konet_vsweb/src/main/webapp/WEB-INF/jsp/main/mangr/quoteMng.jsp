@@ -6,6 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>견적서 관리</title>
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) — 브라우저 alert 금지 --%>
+<script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>   <%-- 목록 높이 막대 (2026-10-01) — 아래 konetGridGrip('lsWrap', …) --%>
+<script src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>   <%-- 변경 이력 팝업 끌어 옮기기 (2026-10-01) — konetPopDrag('.rvpop', '.dh') --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 원본 보기(시트를 병합 살려 표로) — 전역 XLSX --%>
 <script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917c"></script>   <%-- 🧮 마진 조회 — 스냅샷 없는 옛 근거자료의 센터 비율 폴백(konetSet.cost) --%>
 <%-- 카카오톡 공유 (2026-09-28 「발주서 관리처럼 카톡 공유」) — 발주서(poReg)와 같은 SDK·같은 설정(kakao.properties).
@@ -72,6 +74,22 @@
   .st{ display:inline-block; font-size:11.5px; font-weight:800; border-radius:6px; padding:2px 8px; white-space:nowrap; cursor:pointer; border:1px solid transparent; }
   .st:hover{ box-shadow:0 0 0 2px rgba(19,122,108,.18); }
   .st.W{ background:#eef2f5; color:#5b6b7b; }
+  /* 변경 이력 줄을 누르면 그때 품목 세부내역 (2026-10-01 「이 부분 클릭 시 세부내역도 보여줘」) */
+  /* 변경 이력 = 팝업 (2026-10-01 「이력조회는 팝업으로 — 하단 중간에 보여주니 너무 복잡함」) — stpop 뼈대를 빌려 넓게. 제목줄(.dh)을 끌어 옮긴다(ui-popdrag) · [✕ 닫기]로만 닫힌다 */
+  .stpop.rvpop{ padding-top:2vh; align-items:flex-start; }
+  .stpop.rvpop .box{ width:min(1560px,97vw); display:flex; flex-direction:column; }
+  .stpop.rvpop .box .cmp{ margin:0; border:0; border-radius:0; display:flex; flex-direction:column; min-height:0; padding-bottom:4px; }
+  .stpop.rvpop .box .cmp .dh{ cursor:move; font-size:14px; }
+  /* 표 높이 = 밑의 막대(ui-gridgrip, 「위 부분 막대로 축소확대」)로 고른다 · 안 골랐으면 revFit 이 화면 바닥까지로 맞춘다 */
+  .stpop.rvpop .box .cmp > .kgg{ margin:3px 8px 0; }
+  #rvWrap tbody tr.rvrow{ cursor:pointer; }
+  #rvWrap tbody tr.rvrow:hover td{ background:#f3f7f5; }
+  #rvWrap tbody tr.rvon td{ background:#e3f2ee !important; }
+  /* 세부내역 = 표 «밑의 별도 칸»(2026-10-01 「상단·하단 분리 — 막대는 상단에」) : 위 = 이력 표(막대로 높이) · 아래 = 누른 줄의 품목 세부내역(남은 높이 안에서 스크롤) */
+  #rvWrap .rvdtl{ margin:6px 8px 4px; border:1px solid #c3e2d8; border-radius:8px; background:#f7fbf9; overflow:auto; }
+  #rvWrap .rvdtl td.rvchg{ background:#fff8e1; }
+  #rvWrap .rvdtl tr.rvadd td{ background:#f0faf2; }
+  #rvWrap .rvdtl tr.rvdel td{ color:#9aa7b3; text-decoration:line-through; background:#fdf3f3; }
   .st.S{ background:#e8eefb; color:#2f4f9a; }
   .st.A{ background:#e3f7df; color:#1f7a34; }
   .st.R{ background:#fdecec; color:#c0392b; }
@@ -149,16 +167,21 @@
         <select id="stf" onchange="load()" title="진행 상태로 거릅니다" style="height:32px;border:1px solid var(--bd);border-radius:7px;padding:0 6px;font-size:13px">
           <option value="">진행 전체</option><option value="W">작성 중</option><option value="S">제출완료</option><option value="A">채택</option><option value="R">거절</option><option value="H">보류</option>
         </select>
+        <%-- 이전 판 포함 (2026-10-01) — 제출완료 뒤 고치면 새 판이 생기고 앞 판은 목록에서 빠진다(이력으로). 켜면 앞 판도 줄로 보인다 --%>
+        <label class="dim" style="font-size:12.5px;white-space:nowrap;cursor:pointer" title="제출완료·채택 뒤 고쳐 저장하면 새 판(-02 …)이 생기고 앞 판은 목록에서 빠집니다. 켜면 앞 판도 함께 보입니다(체크하고 [📜 이력]으로도 봅니다)"><input type="checkbox" id="inclOld" onchange="load()"> 이전 판 포함</label>
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
         <button class="btn" style="border-color:#137a6c;color:#137a6c" onclick="cmpOpen()" title="체크한 견적서(없으면 목록 전체)를 품명 × 견적서 행렬로 비교합니다 — 단가 변동·최저·최고">📊 견적 비교</button>
         <%-- 카톡 공유 (2026-09-28) — ★줄마다 단추를 두면 표가 복잡해져 «체크한 줄»에 대해 도구줄에서 보낸다([선택 삭제]와 같은 방식) --%>
         <button class="btn" style="border-color:#f3c200;background:#fff8dd;color:#7a5c00;font-weight:800" onclick="quoteKakao()" title="체크한 견적서 하나를 카카오톡으로 보냅니다 — 받는 쪽은 로그인 없이 견적서를 보고 인쇄·PDF 저장까지 합니다">💬 카톡 공유</button>
         <button class="btn" onclick="quoteLink()" title="체크한 견적서의 공개 주소만 복사합니다 — 카톡·문자·메일 어디에나 붙여 넣을 수 있습니다">🔗 링크 복사</button>
+        <%-- 📜 이력 (2026-10-01 「출력에 이력 버튼 추가로 복잡한 — 카톡 공유처럼 하나 선택 후 버튼으로」) — 줄마다 두던 단추를 도구줄로 옮겼다. 체크한 줄 하나의 변경 이력(판·덮어쓰기) --%>
+        <button class="btn" style="border-color:#2f4f9a;color:#2f4f9a;font-weight:800" onclick="quoteHist()" title="체크한 견적서 하나의 변경 이력 — 판마다 문서번호·상태·금액·변경 사유, 작성 중 덮어쓰기까지. 이력 줄을 누르면 그때 품목 세부내역">📜 이력</button>
         <button class="btn btn-red" onclick="del()">🗑 선택 삭제</button>
       </span>
       <span class="sp tot" id="lsTot"></span>
     </div>
-    <div class="tw">
+    <%-- 목록 상자 — 높이 막대(ui-gridgrip.js, 2026-10-01 「여기도 막대로 축소확대」) : 아래 막대를 끌면 목록이 늘고 줄어 밑의 변경 이력·품목 창이 그만큼 오르내린다 --%>
+    <div class="tw" id="lsWrap">
       <table class="g">
         <thead><tr>
           <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th>
@@ -192,6 +215,8 @@
     </div>
     <div id="cmpWrap" hidden></div>
     <div id="mgWrap" hidden></div>
+    <%-- 📜 변경 이력 팝업 (2026-10-01 「팝업으로」) — 내용은 revHistHtml 이 #rvBox 에 그린다. 바깥 클릭으로는 안 닫힌다([✕ 닫기]만 — 세부내역을 펼쳐 보다가 잘못 닫히지 않게) --%>
+    <div class="stpop rvpop" id="rvWrap"><div class="box" id="rvBox"></div></div>
     <div id="lsDoc" class="docview" hidden></div>
     <div id="dtlWrap" hidden></div>
   </div>
@@ -199,6 +224,9 @@
 <script>
 var CTX='${pageContext.request.contextPath}';
 var KAKAO_KEY='${kakaoJsKey}', SHARE_BASE='${shareBase}';   /* 카톡 공유 (2026-09-28) — 발주서와 같은 kakao.properties */
+/* 목록 높이 막대 (2026-10-01 「여기도 막대로 축소확대 기능」) — 발주서 목록과 같은 꼴(막대 = 표 상자 바로 뒤) · 보관 이름 konetGridH.quoteMngList · 더블클릭 = 처음(CSS max-height 46vh) */
+if(window.konetGridGrip) konetGridGrip('lsWrap', 'lsWrap', 'quoteMngList');
+if(window.konetPopDrag) konetPopDrag('.rvpop', '.dh');   /* 변경 이력 팝업 — 제목줄을 잡고 끈다 · 자리 localStorage konetPopPos.rvWrap · 더블클릭 = 가운데 */
 var _pv=[], _ls=[], _docs={}, _docOpen='', _sel=null;
 function esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function n(v){ var x=Number(String(v==null?'':v).replace(/,/g,'')); return isFinite(x)?x:0; }
@@ -296,7 +324,7 @@ function save(){
         }
         if(!r.ok) throw new Error(t); return t; }); })
       .then(function(t){
-        var jr={}; try{ jr=JSON.parse(t); }catch(e){}
+        var jr={}; try{ jr=JSON.parse(t); if(typeof jr==='string') jr=JSON.parse(jr); if(!jr||typeof jr!=='object') jr={}; }catch(e){}   /* Jackson 이 String 응답을 한 겹 더 감싼다 (2026-10-01 실측) */
         ok('견적서 <b>'+esc(jr.cnt!=null?jr.cnt:docs.length)+'</b>건을 저장했습니다.');
         docs.forEach(function(q){ var d=d10(q.quoteDt), fr=document.getElementById('fr'), to=document.getElementById('to'); if(d && (!fr.value || d<fr.value)) fr.value=d; if(d && (!to.value || d>to.value)) to.value=d; });
         pvClear(); load();
@@ -339,7 +367,8 @@ function load(){
   _cmp=null; var _cw=document.getElementById('cmpWrap'); if(_cw){ _cw.hidden=true; _cw.innerHTML=''; }
   _lsDocSeq=null; var _ld=document.getElementById('lsDoc'); if(_ld){ _ld.hidden=true; _ld.innerHTML=''; }
   _mgSeq=null; var _mw=document.getElementById('mgWrap'); if(_mw){ _mw.hidden=true; _mw.innerHTML=''; }
-  post('/mangr/quoteList.do','frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)+'&mgrNm='+encodeURIComponent(mgr)+'&findData='+encodeURIComponent(q)+'&statGb='+encodeURIComponent((document.getElementById('stf')||{}).value||''))
+  _rvSeq=null; var _rw=document.getElementById('rvWrap'); if(_rw){ _rw.classList.remove('on'); var _rb=document.getElementById('rvBox'); if(_rb) _rb.innerHTML=''; }
+  post('/mangr/quoteList.do','frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)+'&mgrNm='+encodeURIComponent(mgr)+'&findData='+encodeURIComponent(q)+'&statGb='+encodeURIComponent((document.getElementById('stf')||{}).value||'')+'&inclOld='+((document.getElementById('inclOld')||{}).checked?'Y':''))
     .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return JSON.parse(t); }); })
     .then(function(j){ _ls=(j&&j.data)||[]; lsRender(); if(_pv.length) pvRender(); })
     .catch(function(e){ tb.innerHTML='<tr><td colspan="14" class="empty" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
@@ -417,7 +446,12 @@ function lsRender(){
     amt+=n(x.supplyAmt);
     return '<tr class="tap'+(_sel===x.quoteSeq?' sel':'')+'" onclick="if(event.target.tagName!==\'INPUT\' && event.target.tagName!==\'BUTTON\' && !(window.getSelection&&String(window.getSelection()).length)) detail('+i+')">'
       +'<td><input type="checkbox" class="lchk" data-i="'+i+'"></td>'
-      +'<td>'+d10(x.quoteDt)+'</td><td><b>'+esc(x.docNo)+'</b>'+(x.hasFile==='Y'?'<span class="bd up" title="엑셀 파일을 올려 저장한 견적서 ('+esc(x.fileNm)+')">올림</span>':'<span class="bd hand" title="견적서 작성 화면에서 직접 작성한 견적서(올린 파일 없음)">✍ 직접 작성</span>')
+      +'<td>'+d10(x.quoteDt)+'</td><td><b>'+esc(x.docNo)+'</b>'
+        /* 판 배지 (2026-10-01) — 2판부터 「N판」 · 이전 판(최신이 아님)은 회색 「이전 판」 */
+        +(n(x.revNo)>1?'<span class="bd" style="background:#e8eefb;color:#2f4f9a;margin-left:6px;vertical-align:1px" title="'+n(x.revNo)+'판'+(x.revMemo?' · 변경 사유 : '+esc(x.revMemo):'')+(x.revDttm?' · '+esc(String(x.revDttm).slice(0,16)):'')+'">'+n(x.revNo)+'판</span>':'')
+        +(x.latestYn==='N'?'<span class="bd" style="background:#eef2f5;color:#6b7a89;margin-left:6px;vertical-align:1px" title="이 뒤에 새 판이 있습니다 — 체크하고 [📜 이력]에서 최신 판을 보세요">이전 판</span>':'')
+        +(x.histYn==='Y'&&n(x.revNo)<=1&&x.latestYn!=='N'?'<span class="dim" style="font-size:11px;margin-left:6px" title="작성 중 덮어쓴 기록이 있습니다 — 체크하고 [📜 이력]">📜</span>':'')
+        +(x.hasFile==='Y'?'<span class="bd up" title="엑셀 파일을 올려 저장한 견적서 ('+esc(x.fileNm)+')">올림</span>':'<span class="bd hand" title="견적서 작성 화면에서 직접 작성한 견적서(올린 파일 없음)">✍ 직접 작성</span>')
         /* 카톡으로 보낸 적이 있으면 작은 표시만 (2026-09-28 — 줄에 단추를 두지 않는 대신) */
         +(n(x.shareCnt)?'<span class="dim" style="font-size:11px;margin-left:6px" title="카톡·링크로 '+n(x.shareCnt)+'회 보냈습니다'+(x.lastShareDttm?' · 마지막 '+esc(String(x.lastShareDttm).slice(0,16)):'')+'">💬'+n(x.shareCnt)+'</span>':'')
         +'</td><td style="white-space:nowrap">'+stCell(x,i)+'</td><td>'+esc(x.recvNm)+'</td><td>'+esc(x.mgrNm)+'</td>'
@@ -431,9 +465,12 @@ function lsRender(){
       /* ⚠카톡·링크 단추는 줄마다 두지 않는다 (2026-09-28 「선택하면 카톡공유로 — 그리드가 복잡함」) —
          위 도구줄 [💬 카톡 공유]·[🔗 링크 복사]가 <체크한 줄>에 대해 보낸다([선택 삭제]와 같은 방식).
          줄에는 보낸 적이 있을 때만 문서번호 옆에 작은 💬N 만 남긴다. */
+      /* 📜 이력 단추는 줄에 두지 않는다 (2026-10-01 「출력에 이력 버튼 추가로 복잡한 — 카톡 공유처럼 하나 선택 후 버튼으로」) — 도구줄 [📜 이력]이 체크한 줄에 대해 연다. histYn 은 문서번호 옆 작은 표시로만 */
       +(x.hasCalc==='N' ? '' : ' <button class="btn lnk" onclick="marginView('+i+')" title="저장된 원가·마진 계산(근거자료) 조회">🧮 계산조회</button>')+'</td>'
       /* 수정 · ★복사 작성 (2026-09-20 「견적서 목록에서 견적서 복사 작성 추가」) — 복사는 내용만 베껴 새 견적서로(번호·견적일은 오늘 것으로 새로) */
-      +'<td><button class="btn lnk" style="border-color:#0f6b5e;background:#e3f2ee;color:#0f6b5e;font-weight:800" onclick="editQuote('+x.quoteSeq+')" title="견적서 작성 화면에서 이 견적서를 수정">📝 수정</button>'
+      +'<td>'+(x.latestYn==='N'
+        ? '<button class="btn lnk" onclick="editQuote('+x.quoteSeq+')" title="이전 판 — 작성 화면에서 보기만(고치려면 최신 판)">👁 보기</button>'
+        : '<button class="btn lnk" style="border-color:#0f6b5e;background:#e3f2ee;color:#0f6b5e;font-weight:800" onclick="editQuote('+x.quoteSeq+')" title="견적서 작성 화면에서 이 견적서를 수정'+(stGb(x)!=='W'?' — '+ST_NM[stGb(x)]+' 뒤라 고쳐 저장하면 새 판(-'+('0'+(n(x.revNo)+1)).slice(-2)+' …)이 됩니다':'')+'">📝 수정</button>')
         +' <button class="btn lnk" onclick="copyQuote('+x.quoteSeq+')" title="이 견적서를 베껴 새 견적서로 — 문서번호·견적일은 오늘 것으로 새로 매깁니다(원본은 그대로)">📋 복사 작성</button></td>'
       +'<td class="dim">'+esc(String(x.regDttm||'').slice(0,16))+(x.regUser?'<br>'+esc(x.regUser):'')+'</td></tr>';
   }).join('');
@@ -449,11 +486,23 @@ function lsAllChk(el){ Array.prototype.forEach.call(document.querySelectorAll('.
 /* ★★보낼 견적서 = <체크한 줄> 하나 ([선택 삭제]와 같은 고르는 법).
    2026-09-28 사용자 확정 「카톡은 하나씩 선택하게」 — 같은 거래처면 여러 건을 한 링크로 묶는 것을 잠깐 만들다가 되돌렸다.
    뜻 = 카톡 카드 하나가 견적서 한 장을 가리킨다(주소 하나 = 견적서 하나). 다시 얘기가 나오면 이 이력부터 확인할 것. */
-function quotePick(){
+function quotePick(what){
+  what=what||'보낼';
   var ks=Array.prototype.filter.call(document.querySelectorAll('.lchk'), function(c){ return c.checked; });
-  if(!ks.length){ _alertBox('보낼 견적서를 <b>왼쪽 체크칸</b>에서 하나 고르세요.',{icon:'ℹ️'}); return -1; }
-  if(ks.length>1){ _alertBox('견적서는 <b>하나씩</b> 보냅니다 — 체크를 하나만 남겨 주세요.<br><span style="font-size:12.5px;color:#3d4d5c">카톡 카드 하나가 견적서 한 장을 가리키기 때문입니다. 여러 건이면 한 건씩 나눠 보내세요.</span>',{icon:'ℹ️'}); return -1; }
+  if(!ks.length){ _alertBox(what+' 견적서를 <b>왼쪽 체크칸</b>에서 하나 고르세요.',{icon:'ℹ️'}); return -1; }
+  if(ks.length>1){ _alertBox('견적서는 <b>하나씩</b> 고릅니다 — 체크를 하나만 남겨 주세요.'+(what==='보낼'?'<br><span style="font-size:12.5px;color:#3d4d5c">카톡 카드 하나가 견적서 한 장을 가리키기 때문입니다. 여러 건이면 한 건씩 나눠 보내세요.</span>':''),{icon:'ℹ️'}); return -1; }
   return +ks[0].getAttribute('data-i');
+}
+/* 📜 이력 — 체크한 줄 하나, 체크가 없으면 «클릭해서 고른 줄»(_sel, 아래 품목이 펼쳐진 줄) (2026-10-01 「카톡 공유처럼 하나 선택 후 버튼으로」 → 「체크나 클릭으로 다 되게 — 선택 내용」).
+   이력이 없는 견적서(처음 판뿐)면 그 한 줄만 보인다 */
+function quoteHist(){
+  var ks=Array.prototype.filter.call(document.querySelectorAll('.lchk'), function(c){ return c.checked; });
+  var i=-1;
+  if(ks.length===1) i=+ks[0].getAttribute('data-i');
+  else if(ks.length>1){ _alertBox('이력은 <b>하나씩</b> 봅니다 — 체크를 하나만 남기거나, 체크를 다 풀고 줄을 눌러 고르세요.',{icon:'ℹ️'}); return; }
+  else if(_sel!=null){ i=_ls.findIndex(function(x){ return x.quoteSeq===_sel; }); }
+  if(i<0){ _alertBox('이력을 볼 견적서를 <b>체크하거나 줄을 눌러</b> 고르세요.',{icon:'ℹ️'}); return; }
+  revView(i);
 }
 function quoteShareUrl(i){
   var x=_ls[i]; if(!x) return Promise.reject(new Error('견적서를 찾지 못했습니다.'));
@@ -559,6 +608,138 @@ function viewFile(seq, nm){
       try{ v.scrollIntoView({block:'nearest'}); }catch(e){}
     })
     .catch(function(e){ v.innerHTML='<div class="err" style="margin:10px">원본을 펼치지 못했습니다 — '+esc(e.message)+' <button class="btn lnk" onclick="dl('+seq+')">⬇ 내려받기</button></div>'; });
+}
+/* ── 📜 변경 이력 (2026-10-01 「최종이 만들어지기까지 이력 조회 확인 가능하게」) ──
+     그 견적서의 개정 사슬(quoteRevHist.do — 앞 판·뒤 판 전부, 지운 판 제외)을 판 차례로. 판마다 문서번호·상태·일자·담당자·금액·변경 사유·저장한 사람.
+     ★번호 규칙 = 담당자별 · 그 날짜(DOC_BASE) 안에서 1 씩 — 담당자가 바뀐 판은 그 담당자의 번호(-01 부터)로 이어진다. [🖨]·[👁/📝]는 목록과 같은 함수. */
+var _rvSeq=null;
+function revView(i){
+  var x=_ls[i]; if(!x) return;
+  /* 팝업(#rvWrap.stpop.rvpop > #rvBox) — 같은 줄로 다시 부르면(= [✕ 닫기]) 닫는다 (2026-10-01 「팝업으로」) */
+  var w=document.getElementById('rvWrap'), b=document.getElementById('rvBox');
+  if(_rvSeq===x.quoteSeq){ revClose(); return; }
+  _rvSeq=x.quoteSeq; b.innerHTML='<div class="cmp"><div class="dh">📜 변경 이력 <span class="dim">불러오는 중…</span></div></div>'; w.classList.add('on');
+  post('/mangr/quoteRevHist.do','quoteSeq='+encodeURIComponent(x.quoteSeq)).then(function(r){ return r.json(); }).then(function(j){
+    if(_rvSeq!==x.quoteSeq) return;
+    _rvList=(j&&j.data)||[];   /* 줄 클릭(세부내역)이 본다 */
+    b.innerHTML=revHistHtml(_rvList, x.quoteSeq, i);
+    /* 표 밑 높이 막대 (2026-10-01 「위 부분 막대로 축소확대로 변경」) — 다른 표와 같은 막대 · 보관 konetGridH.quoteMngHist · 더블클릭 = 처음(48vh). 그릴 때마다 새 요소라 다시 건다 */
+    if(window.konetGridGrip) konetGridGrip('rvTw', 'rvTw', 'quoteMngHist');
+    revFit();
+  }).catch(function(e){ b.innerHTML='<div class="cmp"><div class="dh">📜 변경 이력 <button class="btn lnk" style="margin-left:auto" onclick="revClose()">✕ 닫기</button></div><div class="err" style="margin:10px">이력을 불러오지 못했습니다 — '+esc(e.message)+'</div></div>'; });
+}
+function revClose(){ _rvSeq=null; _rvDtlK=null; var w=document.getElementById('rvWrap'), b=document.getElementById('rvBox'); if(w) w.classList.remove('on'); if(b) b.innerHTML=''; }
+/* ★팝업 표의 높이 = «지금 창 자리에서 화면 바닥까지» (2026-10-01 사용자 캡처 「1판 선택하면 2판이 가려짐」) —
+   세부내역을 펼치면 표가 길어지는데, 창을 끌어 내려 두었거나 화면이 낮으면 창 바닥이 화면 밖으로 나가 아랫줄이 잘렸다(덮개는 스크롤이 없다).
+   ⇒ 표(.tw)의 최대 높이를 창 윗변 기준으로 다시 재서 inline !important 로 건다 — 넘치면 표 안에서 스크롤. 그릴 때·펼칠 때·창 크기·끌기(mouseup)·더블클릭 뒤 다시 잰다 */
+function revFit(){
+  var w=document.getElementById('rvWrap'), b=document.getElementById('rvBox'); if(!w||!b||!w.classList.contains('on')) return;
+  var tw=b.querySelector('.cmp > .tw'), hd=b.querySelector('.cmp > .dh'), dv=document.getElementById('rvDtl'); if(!tw) return;
+  var top=b.getBoundingClientRect().top, avail=window.innerHeight - Math.max(0, top) - (hd?hd.offsetHeight:44) - 14;
+  var dvOn = dv && !dv.hidden;
+  var saved=null; try{ saved=localStorage.getItem('konetGridH.quoteMngHist'); }catch(e){}
+  /* 위 표 : 막대로 고른 높이가 있으면 그것이 이긴다(ui-gridgrip 이 inline !important 로 건다). 없으면 화면 바닥까지 — 아래 칸이 열려 있으면 절반까지만(나머지는 아래 칸) */
+  if(!saved) tw.style.setProperty('max-height', Math.max(160, Math.floor(dvOn ? avail*0.5 : avail))+'px', 'important');
+  /* 아래 칸 : 제 윗변부터 화면 바닥까지 — 넘치면 제 안에서 스크롤 */
+  if(dvOn){ var dt=dv.getBoundingClientRect().top; dv.style.maxHeight=Math.max(120, Math.floor(window.innerHeight - dt - 14))+'px'; }
+}
+window.addEventListener('resize', revFit);
+document.addEventListener('mouseup', function(){ setTimeout(revFit, 0); });      /* 제목줄을 끌어 옮긴 뒤 */
+document.addEventListener('dblclick', function(){ setTimeout(revFit, 0); });    /* 제목줄 더블클릭 = 가운데로 되돌린 뒤 */
+/* ★작성 중 덮어쓰기(actionYn='N' — 같은 번호·담당자에 덮어써 대체된 옛 줄)도 줄로 보인다 (2026-10-01 「작성중도 이력 남는지」 → 「1번으로 진행」).
+   판 번호는 그대로 하나 · 회색 「↳ 덮어씀」 · 저장 때·사람·금액 차이만 — 옛 줄은 인쇄·수정이 안 된다(ACTION_YN=N 이라 화면이 못 연다) */
+function revHistHtml(l, curSeq, i){
+  var nLive=l.filter(function(h){ return h.actionYn!=='N'; }).length, nOvw=l.length-nLive;
+  var head='<div class="cmp"><div class="dh">📜 변경 이력 <b>'+esc((_ls[i]||{}).docBase||'')+'</b> <span class="dim">'+nLive+'판'+(nOvw?' · 작성 중 덮어쓰기 '+nOvw+'회':'')+' · 최신이 위 · 줄을 누르면 그때 품목이 아래에(바로 앞 저장과 견줌) · 수정은 목록의 [📝 수정](최신 판만)</span>'
+    +'<button class="btn lnk" style="margin-left:auto" onclick="revClose()">✕ 닫기</button></div>';
+  if(!l.length) return head+'<div class="dim" style="padding:12px">이력이 없습니다.</div></div>';
+  var seenLive=false;
+  var rows=l.map(function(h,k){
+    var g=stGb(h), dt=dnum(h[ST_DTK[g]]||''), me=(n(h.quoteSeq)===n(curSeq)), ovw=(h.actionYn==='N');
+    var prev=k>0?l[k-1]:null, diff=prev?(n(h.supplyAmt)-n(prev.supplyAmt)):0;
+    var mgrChg=prev && String(prev.mgrNm||'')!==String(h.mgrNm||'');
+    var first=!ovw && !seenLive; if(!ovw) seenLive=true;
+    /* 줄을 누르면 그때 품목 세부내역 + 앞 줄 대비 무엇이 바뀌었나 (단추 위는 제외) */
+    return '<tr class="rvrow" data-k="'+k+'" title="눌러서 그때 저장한 품목 줄과 앞 줄 대비 바뀐 것을 봅니다" onclick="if(event.target.tagName!==\'BUTTON\') revDtl('+k+', this)"'+(me?' style="background:#f2f9f6"':(ovw?' style="color:#6b7a89;background:#fafbfc"':''))+'>'
+      +'<td class="r">'+(ovw?'<span class="dim" style="font-size:11.5px" title="작성 중에 같은 번호에 덮어쓴 옛 내용 — 판 번호는 그대로 하나">↳ 덮어씀</span>':'<b>'+n(h.revNo)+'</b>판'+(h.latestYn==='Y'?'<div style="font-size:11px;color:#1f7a34;font-weight:800">최신</div>':''))+'</td>'
+      +'<td>'+(ovw?'<span class="dim">'+esc(h.docNo)+'</span>':'<b>'+esc(h.docNo)+'</b>')+(me?'<div class="dim" style="font-size:11px">(목록의 줄)</div>':'')+'</td>'
+      +'<td><span class="st '+g+'"'+(ovw?' style="opacity:.6"':'')+'>'+ST_NM[g]+(dt?' '+d10(dt).slice(5):'')+'</span></td>'
+      +'<td>'+d10(h.quoteDt)+'</td><td>'+esc(h.mgrNm)+(mgrChg?' <span class="bd" style="background:#fff3c4;color:#8a5a00" title="앞 판과 담당자가 다릅니다 — 번호가 이 담당자의 차례로 이어집니다">담당자 변경</span>':'')+'</td>'
+      +'<td class="r">'+fmt(h.lineCnt)+'</td><td class="r"><b>'+fmt(h.supplyAmt)+'</b>'+(prev?'<div style="font-size:11px;color:'+(diff>0?'#c0392b':(diff<0?'#2f4f9a':'#9aa7b3'))+'">'+(diff>0?'▲ +':(diff<0?'▼ ':'='))+(diff?fmt(Math.abs(diff)):'')+'</div>':'')+'</td>'
+      +'<td class="l">'+(ovw?'<span class="dim">작성 중 덮어쓰기 — 그때 저장한 내용</span>':(first?'<span class="dim">처음 판</span>':(h.revMemo?esc(h.revMemo):'<span class="dim">(사유 없음)</span>')))+(n(h.editCnt)&&h.editMemo?'<div class="dim" style="font-size:11px">채택 뒤 수정 사유 : '+esc(h.editMemo)+'</div>':'')+'</td>'
+      +'<td class="dim">'+esc(String((ovw?h.regDttm:(h.revDttm||h.regDttm))||'').slice(0,16))+((ovw?h.regUser:(h.revUser||h.regUser))?'<br>'+esc(ovw?h.regUser:(h.revUser||h.regUser)):'')+'</td></tr>';
+    /* 「보기」 칸(🖨·👁 보기·📝 수정)은 뺐다 (2026-10-01 사용자 「하단에 보여주니까 필요 없을 듯」) — 내용은 줄을 누르면 아래 칸에, 수정은 목록의 [📝 수정], 인쇄는 목록의 [🖨 인쇄] */
+  });
+  /* ★최신이 위 (2026-10-01 「이력에서 최신이 위로」) — 셈(앞 줄 대비 ▲▼ · 처음 판 · data-k)은 시간순으로 한 뒤 보이는 차례만 뒤집는다 */
+  rows=rows.reverse().join('');
+  return head+'<div class="tw" id="rvTw" style="max-height:48vh"><table class="g"><thead><tr><th>판</th><th>문서번호</th><th>상태</th><th>견적일</th><th>담당자</th><th>줄</th><th>금액(부가세 별도)</th><th class="l">변경 사유</th><th>저장</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+    +'<div class="rvdtl" id="rvDtl" hidden></div></div>';   /* 아래 칸 — 누른 줄의 세부내역(막대는 위 표 바로 밑, 이 칸은 막대 아래) */
+}
+/* ── 이력 줄 세부내역 (2026-10-01 「이 부분 클릭 시 세부내역도 보여줘」) ──
+   이력 줄을 누르면 바로 밑에 «그때 저장한 품목 줄»을 펼치고, 바로 앞 줄(앞 판 또는 앞 덮어쓰기)과 견주어
+   변경(칸 노랑 · 「옛 값 → 새 값」) · 추가(초록) · 삭제(빨강 취소선) 을 표시한다. 줄 짝은 상품코드, 없으면 품명+규격.
+   자료 = 기존 quoteDetail.do(옛 N 줄도 TBL_QUOTE_DTL 은 남아 있어 그대로 읽힌다) · 한 번 읽은 것은 _rvDtl 에 둔다. 다시 누르면 접힌다. */
+var _rvList=[], _rvDtl={};
+function revDtlGet(seq){
+  if(_rvDtl[seq]) return Promise.resolve(_rvDtl[seq]);
+  return post('/mangr/quoteDetail.do','quoteSeq='+encodeURIComponent(seq)).then(function(r){ return r.json(); }).then(function(j){ var l=(j&&j.data)||[]; _rvDtl[seq]=l; return l; });
+}
+/* 줄을 누르면 «아래 칸(#rvDtl)»에 그린다 (2026-10-01 「상단·하단 분리」 — 처음엔 줄 밑 sub-row 였는데 표가 길어져 막대·바닥이 흔들렸다).
+   ★같은 줄을 다시 눌러도 닫히지 않는다 (2026-10-01 「다시 클릭하면 닫히기 — 사용자 헷갈린다」) — 누르면 늘 그 줄을 보여 주고, 닫는 길은 아래 칸의 [✕] 하나 */
+var _rvDtlK=null;
+function revDtl(k, tr){
+  var tb=tr.parentNode, dv=document.getElementById('rvDtl'); if(!dv) return;
+  var h=_rvList[k], p=k>0?_rvList[k-1]:null; if(!h) return;
+  Array.prototype.forEach.call(tb.querySelectorAll('tr.rvon'), function(x){ x.classList.remove('rvon'); });
+  _rvDtlK=k; tr.classList.add('rvon');
+  dv.hidden=false; dv.innerHTML='<div class="dim" style="padding:8px 10px">품목을 불러오는 중…</div>'; revFit();
+  Promise.all([ revDtlGet(h.quoteSeq), p ? revDtlGet(p.quoteSeq) : Promise.resolve(null) ]).then(function(a){
+    if(_rvDtlK!==k) return;
+    dv.innerHTML=revDiffHtml(a[0], a[1], h, p); revFit();
+  }).catch(function(e){ if(_rvDtlK===k) dv.innerHTML='<div class="err" style="margin:8px">품목을 불러오지 못했습니다 — '+esc(e.message)+'</div>'; });
+}
+function revDtlClose(){
+  var dv=document.getElementById('rvDtl'); _rvDtlK=null; if(!dv) return;
+  dv.hidden=true; dv.innerHTML='';
+  var tb=document.querySelector('#rvTw tbody'); if(tb) Array.prototype.forEach.call(tb.querySelectorAll('tr.rvon'), function(x){ x.classList.remove('rvon'); });
+  revFit();
+}
+function revKey(l){ var c=String(l.prodCd||'').trim(); return c ? ('c:'+c) : ('n:'+cmpKey(l.prodNm)+'|'+cmpKey(l.spec)); }
+function revFmt(v, t){ if(t===0) return esc(v==null?'':v); if(v==null||v==='') return ''; return t===2 ? n(v).toLocaleString(undefined,{maximumFractionDigits:2}) : fmt(v); }
+function revDiffHtml(cur, prev, h, p){
+  cur=cur||[];
+  var has2=cur.concat(prev||[]).some(function(l){ return n(l.unitPrice2)||n(l.amt2); });
+  var F=[['makerNm','제조사',0],['prodNm','품명',0],['spec','규격',0],['boxQty','Box',1],['qty','수량',1],['unit','단위',0],['unitPrice','단가',2],['amt','금액',1]];
+  if(has2) F.push(['unitPrice2','단가2',2],['amt2','금액2',1]);
+  F.push(['remark','비고',0]);
+  var pm={}; (prev||[]).forEach(function(l){ var k=revKey(l); (pm[k]=pm[k]||[]).push(l); });
+  var nAdd=0, nChg=0, nDel=0, rows=[];
+  cur.forEach(function(l,i){
+    var q=pm[revKey(l)], o=(q&&q.length)?q.shift():null, chg=false, cls='', tag='';
+    var cells=F.map(function(f){
+      var v=l[f[0]], ov=o?o[f[0]]:null;
+      var same=!o || (f[2] ? Math.abs(n(v)-n(ov))<0.0005 : String(v==null?'':v).trim()===String(ov==null?'':ov).trim());
+      var txt=revFmt(v,f[2]);
+      if(!same){ chg=true; txt='<span class="dim" style="text-decoration:line-through">'+(revFmt(ov,f[2])||'(빈 칸)')+'</span> → <b style="color:#c0392b">'+(revFmt(v,f[2])||'(빈 칸)')+'</b>'; }
+      return '<td class="'+(f[2]?'r':'l')+(same?'':' rvchg')+'">'+txt+'</td>';
+    });
+    if(prev && !o){ cls='rvadd'; tag='<span class="bd" style="background:#dff3e3;color:#1f7a34">추가</span>'; nAdd++; }
+    else if(chg){ nChg++; tag='<span class="bd" style="background:#fff3c4;color:#8a5a00">변경</span>'; }
+    rows.push('<tr class="'+cls+'"><td class="r">'+(i+1)+'</td><td style="color:#0f6b5e;font-weight:700">'+esc(l.prodCd||'')+'</td>'+cells.join('')+'<td>'+tag+'</td></tr>');
+  });
+  Object.keys(pm).forEach(function(k){ pm[k].forEach(function(o){
+    nDel++;
+    rows.push('<tr class="rvdel"><td></td><td>'+esc(o.prodCd||'')+'</td>'+F.map(function(f){ return '<td class="'+(f[2]?'r':'l')+'">'+revFmt(o[f[0]],f[2])+'</td>'; }).join('')+'<td><span class="bd" style="background:#fde2e2;color:#a33;text-decoration:none">삭제</span></td></tr>');
+  }); });
+  var sumC=0; cur.forEach(function(l){ sumC+=n(l.amt); }); var sumP=0; (prev||[]).forEach(function(l){ sumP+=n(l.amt); });
+  var head = p
+    ? ('앞 줄(<b>'+esc(p.docNo)+'</b> · '+esc(String(p.regDttm||'').slice(0,16))+') 대비 — 변경 <b>'+nChg+'</b> · 추가 <b>'+nAdd+'</b> · 삭제 <b>'+nDel+'</b>'
+       +((nChg+nAdd+nDel)?'':' · <span class="dim">품목 줄은 같습니다(머리 칸이나 비고만 바뀐 저장)</span>')+' · 합계 '+fmt(sumP)+' → <b>'+fmt(sumC)+'</b>')
+    : ('처음 저장 — 견줄 앞 내용이 없습니다 · 합계 <b>'+fmt(sumC)+'</b>');
+  return '<div style="padding:8px 10px"><div style="font-size:12.5px;margin-bottom:6px;display:flex;gap:8px;align-items:center"><span>📋 <b>'+esc(h.docNo)+'</b> 그때 저장한 품목 <b>'+cur.length+'</b>줄 — '+head+'</span>'
+    +'<button class="btn lnk" style="margin-left:auto" onclick="revDtlClose()" title="세부내역 칸 닫기">✕</button></div>'
+    +'<div class="tw" style="max-height:none"><table class="g" style="font-size:12px"><thead><tr><th>No</th><th>상품코드</th>'+F.map(function(f){ return '<th>'+f[1]+'</th>'; }).join('')+'<th>비교</th></tr></thead><tbody>'
+    +(rows.length?rows.join(''):'<tr><td colspan="'+(F.length+3)+'" class="empty">품목 줄이 없습니다.</td></tr>')+'</tbody></table></div></div>';
 }
 /* ── 🧮 마진 조회 (2026-09-17 「원가마진계산도 저장 및 조회하게」) ── 작성 화면이 저장한 근거자료(CALC_JSON)를 읽기 전용 표로.
      식 = 작성 화면과 동일. 물류비율·보관값은 저장 스냅샷(set.rate·calc.storeVal) 우선 — 없는 옛 자료만 회사 설정(konetSet.cost)으로. */

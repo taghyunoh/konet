@@ -1073,6 +1073,14 @@
 	  SELECT m.QUOTE_SEQ AS quoteSeq, m.DOC_NO AS docNo, ISNULL(m.QUOTE_DT,'') AS quoteDt, ISNULL(m.RECV_NM,'') AS recvNm, ISNULL(m.MGR_NM,'') AS mgrNm,
 	         ISNULL(m.VALID_TXT,'') AS validTxt, ISNULL(m.TITLE_TXT,'') AS titleTxt, ISNULL(m.REMARK,'') AS remark, ISNULL(m.SUPPLY_AMT,0) AS supplyAmt,
 	         ISNULL(m.FILE_NM,'') AS fileNm, CASE WHEN m.FILE_B64 IS NULL THEN 'N' ELSE 'Y' END AS hasFile,
+	         /* 판(개정) 이력 (2026-10-01 「문서번호 담당자별·날짜별 -NN · 제출완료 뒤 변경은 새 판 · 변경이력 조회」) — DDL docs/sql/20261001_quote_rev.sql
+	            histYn = 앞 판이 있거나(PREV_SEQ) 뒤 판이 있으면(누가 나를 PREV_SEQ 로) — 목록 [📜 이력] 단추를 낼지. latestYn = 사슬의 최신 판이면 Y(목록 기본은 Y 만) */
+	         ISNULL(m.DOC_BASE,'') AS docBase, ISNULL(m.REV_NO,1) AS revNo, m.PREV_SEQ AS prevSeq, ISNULL(m.LATEST_YN,'Y') AS latestYn,
+	         ISNULL(m.REV_MEMO,'') AS revMemo, ISNULL(m.REV_DTTM,'') AS revDttm, ISNULL(m.REV_USER,'') AS revUser,
+	         /* 작성 중 덮어쓰기(같은 번호·담당자의 옛 줄 N)도 이력이다 (2026-10-01 「1번으로 진행」) — 그것만 있어도 단추를 낸다 */
+	         CASE WHEN m.PREV_SEQ IS NOT NULL OR EXISTS (SELECT 1 FROM TBL_QUOTE_MST c WHERE c.PREV_SEQ = m.QUOTE_SEQ AND c.ACTION_YN = 'Y')
+	                OR EXISTS (SELECT 1 FROM TBL_QUOTE_MST o WHERE o.ACTION_YN = 'N' AND o.COMP_CD = m.COMP_CD AND o.DOC_NO = m.DOC_NO AND ISNULL(o.DOC_BASE,'') = ISNULL(m.DOC_BASE,'') AND ISNULL(o.MGR_NM,'') = ISNULL(m.MGR_NM,''))
+	              THEN 'Y' ELSE 'N' END AS histYn,
 	         /* 마진계산 유무 — 목록 [🧮 계산조회] 아이콘 (2026-09-18 「없으면 아이콘 제외」)
 	            ★2026-09-20 「계산조회에는 표시 없고」 : **품명비(동판·목형)만 적은 것은 계산이 아니다** — 입력 아홉 칸 중 <0 이 아닌 값>이 하나라도 있어야 'Y'.
 	            (화면 calcHasVal 과 같은 규칙 · JSON 글자로 보므로 `"키":1~9…` 또는 `"키":0.…`(소수) 를 찾는다 — `"키":0` 은 안 걸린다) */
@@ -1113,6 +1121,7 @@
 	                  FROM TBL_QUOTE_DTL GROUP BY QUOTE_SEQ ) d
 	      ON d.QUOTE_SEQ = m.QUOTE_SEQ
 	   WHERE m.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{inclOld,jdbcType=VARCHAR},'') = 'Y' OR ISNULL(m.LATEST_YN,'Y') = 'Y' )   /* 이전 판은 [이전 판 포함] 을 켰을 때만 (2026-10-01) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{frDt,jdbcType=VARCHAR},'') = '' OR ISNULL(m.QUOTE_DT,'') >= REPLACE(#{frDt,jdbcType=VARCHAR},'-','') )
 	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'') = '' OR ISNULL(m.QUOTE_DT,'') <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
@@ -1150,10 +1159,14 @@
 	         ISNULL(REJECT_DT,'') AS rejectDt, ISNULL(HOLD_DT,'') AS holdDt, ISNULL(STAT_MEMO,'') AS statMemo,
 	         ISNULL(STAT_DTTM,'') AS statDttm, ISNULL(STAT_USER,'') AS statUser,
 	         ISNULL(NULLIF(START_DT,''), LEFT(REPLACE(ISNULL(REG_DTTM,''),'-',''),8)) AS startDt,
-	         ISNULL(EDIT_CNT,0) AS editCnt, ISNULL(EDIT_MEMO,'') AS editMemo
+	         ISNULL(EDIT_CNT,0) AS editCnt, ISNULL(EDIT_MEMO,'') AS editMemo,
+	         ISNULL(DOC_BASE,'') AS docBase, ISNULL(REV_NO,1) AS revNo, PREV_SEQ AS prevSeq, ISNULL(LATEST_YN,'Y') AS latestYn,   /* 판 이력 (2026-10-01) */
+	         ISNULL(REV_MEMO,'') AS revMemo, ISNULL(REV_DTTM,'') AS revDttm, ISNULL(REV_USER,'') AS revUser
 	    FROM TBL_QUOTE_MST
 	   WHERE ACTION_YN = 'Y' AND DOC_NO = #{docNo,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     /* ★문서번호는 담당자별이라 같은 번호가 담당자마다 있을 수 있다 (2026-10-01 실측 — 담당자를 바꿔도 -01 이 아니라 -03 이 나왔다). mgrNm 을 주면 그 담당자 것만 */
+	     AND ( ISNULL(#{mgrNm,jdbcType=NVARCHAR},'') = '' OR ISNULL(MGR_NM,'') = #{mgrNm,jdbcType=NVARCHAR} )
 	   ORDER BY QUOTE_SEQ DESC
 	</select>
 	<!-- 견적서별 비교분석 (2026-09-17) — 고른 견적서들의 품목 줄 전부(머리와 함께). 화면이 품명 × 견적서 행렬로 짠다 -->
@@ -1179,7 +1192,9 @@
 	         ISNULL(NULLIF(STAT_GB,''),'W') AS statGb, ISNULL(SUBMIT_DT,'') AS submitDt, ISNULL(ADOPT_DT,'') AS adoptDt,
 	         ISNULL(REJECT_DT,'') AS rejectDt, ISNULL(HOLD_DT,'') AS holdDt, ISNULL(STAT_MEMO,'') AS statMemo,   <!-- 진행 상태 (2026-09-29) -->
 	         ISNULL(NULLIF(START_DT,''), LEFT(REPLACE(ISNULL(REG_DTTM,''),'-',''),8)) AS startDt,
-	         ISNULL(EDIT_CNT,0) AS editCnt, ISNULL(EDIT_MEMO,'') AS editMemo
+	         ISNULL(EDIT_CNT,0) AS editCnt, ISNULL(EDIT_MEMO,'') AS editMemo,
+	         ISNULL(DOC_BASE,'') AS docBase, ISNULL(REV_NO,1) AS revNo, PREV_SEQ AS prevSeq, ISNULL(LATEST_YN,'Y') AS latestYn,   /* 판 이력 (2026-10-01) */
+	         ISNULL(REV_MEMO,'') AS revMemo, ISNULL(REV_DTTM,'') AS revDttm, ISNULL(REV_USER,'') AS revUser
 	    FROM TBL_QUOTE_MST
 	   WHERE QUOTE_SEQ = #{quoteSeq} AND ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -1241,13 +1256,19 @@
 	]]></select>
 	<update id="markQuoteReplace" parameterType="java.util.Map">
 	  UPDATE TBL_QUOTE_MST SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
-	   WHERE ACTION_YN = 'Y' AND DOC_NO = #{docNo,jdbcType=NVARCHAR}
+	   WHERE ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     /* 고치던 줄(oldSeq)을 알면 그 줄만 — 문서번호는 담당자별이라 번호로 지우면 다른 담당자의 같은 번호까지 내린다 (2026-10-01) */
+	     <choose>
+	       <when test="oldSeq != null">AND QUOTE_SEQ = #{oldSeq}</when>
+	       <otherwise>AND DOC_NO = #{docNo,jdbcType=NVARCHAR} AND ( ISNULL(#{mgrNm,jdbcType=NVARCHAR},'') = '' OR ISNULL(MGR_NM,'') = #{mgrNm,jdbcType=NVARCHAR} )</otherwise>
+	     </choose>
 	</update>
 	<!-- CALC_JSON = 원가·마진 계산 근거자료 (2026-09-17 「견적서 하나당 기본으로 근거자료로 저장」) — ⚠DDL docs/sql/20260917_quote_calc.sql 을 먼저 -->
 	<insert id="insertQuoteMst" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="quoteSeq" keyColumn="QUOTE_SEQ">
 	  INSERT INTO TBL_QUOTE_MST (COMP_CD, DOC_NO, QUOTE_DT, RECV_NM, MGR_NM, VALID_TXT, TITLE_TXT, REMARK, SUPPLY_AMT, FILE_NM, FILE_B64, PRICE1_NM, PRICE2_NM, CALC_JSON, ACTION_YN, REG_DTTM, REG_USER, REG_IP,
-	                             STAT_GB, SUBMIT_DT, ADOPT_DT, REJECT_DT, HOLD_DT, STAT_MEMO, STAT_DTTM, STAT_USER, START_DT, EDIT_CNT, EDIT_MEMO, EDIT_DTTM, EDIT_USER)
+	                             STAT_GB, SUBMIT_DT, ADOPT_DT, REJECT_DT, HOLD_DT, STAT_MEMO, STAT_DTTM, STAT_USER, START_DT, EDIT_CNT, EDIT_MEMO, EDIT_DTTM, EDIT_USER,
+	                             DOC_BASE, REV_NO, PREV_SEQ, LATEST_YN, REV_MEMO, REV_DTTM, REV_USER)
 	  VALUES (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{docNo,jdbcType=NVARCHAR}, #{quoteDt,jdbcType=CHAR}, #{recvNm,jdbcType=NVARCHAR}, #{mgrNm,jdbcType=NVARCHAR},
 	          #{validTxt,jdbcType=NVARCHAR}, #{titleTxt,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR}, #{supplyAmt,jdbcType=DECIMAL}, #{fileNm,jdbcType=NVARCHAR}, #{fileB64,jdbcType=NVARCHAR},
 	          #{price1Nm,jdbcType=NVARCHAR}, #{price2Nm,jdbcType=NVARCHAR}, #{calcJson,jdbcType=NVARCHAR},
@@ -1257,7 +1278,10 @@
 	          NULLIF(#{rejectDt,jdbcType=CHAR},''), NULLIF(#{holdDt,jdbcType=CHAR},''), NULLIF(#{statMemo,jdbcType=NVARCHAR},''),
 	          NULLIF(#{statDttm,jdbcType=VARCHAR},''), NULLIF(#{statUser,jdbcType=NVARCHAR},''),
 	          NULLIF(#{startDt,jdbcType=CHAR},''), #{editCnt,jdbcType=INTEGER}, NULLIF(#{editMemo,jdbcType=NVARCHAR},''),
-	          NULLIF(#{editDttm,jdbcType=VARCHAR},''), NULLIF(#{editUser,jdbcType=NVARCHAR},''))
+	          NULLIF(#{editDttm,jdbcType=VARCHAR},''), NULLIF(#{editUser,jdbcType=NVARCHAR},''),
+	          /* 판 이력 (2026-10-01) — 서비스 saveQuote 가 새 견적서·덮어쓰기·개정 세 갈래로 채운다 */
+	          NULLIF(#{docBase,jdbcType=NVARCHAR},''), #{revNo,jdbcType=INTEGER}, #{prevSeq,jdbcType=BIGINT}, ISNULL(#{latestYn,jdbcType=CHAR},'Y'),
+	          NULLIF(#{revMemo,jdbcType=NVARCHAR},''), NULLIF(#{revDttm,jdbcType=VARCHAR},''), NULLIF(#{revUser,jdbcType=NVARCHAR},''))
 	</insert>
 	<insert id="insertQuoteDtl" parameterType="java.util.HashMap">
 	  INSERT INTO TBL_QUOTE_DTL (QUOTE_SEQ, ROW_NO, PROD_NM, SPEC, BOX_QTY, UNIT, QTY, UNIT_PRICE, AMT, UNIT_PRICE2, AMT2, REMARK, PROD_CD, MAKER_NM)
@@ -1265,6 +1289,46 @@
 	          #{qty,jdbcType=DECIMAL}, #{unitPrice,jdbcType=DECIMAL}, #{amt,jdbcType=DECIMAL}, #{unitPrice2,jdbcType=DECIMAL}, #{amt2,jdbcType=DECIMAL}, #{remark,jdbcType=NVARCHAR}, #{prodCd,jdbcType=NVARCHAR},
 	          #{makerNm,jdbcType=NVARCHAR})
 	</insert>
+	<!-- ═══ 견적서 판(개정) 이력 (2026-10-01 「문서번호는 담당자별·해당 날짜에 증가 · 제출완료 뒤 변경은 -02, -03 · 변경이력 조회」) — DDL docs/sql/20261001_quote_rev.sql
+	     · selectQuoteMaxRev : (회사 · DOC_BASE · 담당자) 안의 최대 판 번호 — 새 견적서·개정판 모두 이 값 + 1. 이력(N)·삭제(D)도 센다(번호가 겹치지 않게).
+	     · updateQuoteLatest : 개정판을 만들면 앞 판 LATEST_YN='N'(ACTION_YN 은 Y 그대로 — 인쇄·이력은 된다) · 최신 판을 지우면 앞 판을 다시 'Y'.
+	     · selectQuoteRevHist : 한 견적서의 개정 사슬 전부 — PREV_SEQ 를 거슬러(앞 판) + 나를 PREV_SEQ 로 가리키는 줄을 따라(뒤 판). 삭제(D)된 판은 뺀다. -->
+	<select id="selectQuoteMaxRev" parameterType="java.util.Map" resultType="int">
+	  SELECT ISNULL(MAX(REV_NO),0) FROM TBL_QUOTE_MST
+	   WHERE ISNULL(DOC_BASE,'') = #{docBase,jdbcType=NVARCHAR} AND ISNULL(MGR_NM,'') = #{mgrNm,jdbcType=NVARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	</select>
+	<update id="updateQuoteLatest" parameterType="java.util.Map">
+	  UPDATE TBL_QUOTE_MST SET LATEST_YN = #{latestYn,jdbcType=CHAR}
+	   WHERE QUOTE_SEQ = #{quoteSeq} AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	</update>
+	<select id="selectQuoteRevHist" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  WITH up AS ( SELECT QUOTE_SEQ, PREV_SEQ FROM TBL_QUOTE_MST WHERE QUOTE_SEQ = #{quoteSeq}
+	               UNION ALL SELECT m.QUOTE_SEQ, m.PREV_SEQ FROM TBL_QUOTE_MST m JOIN up u ON m.QUOTE_SEQ = u.PREV_SEQ ),
+	       dn AS ( SELECT QUOTE_SEQ, PREV_SEQ FROM TBL_QUOTE_MST WHERE QUOTE_SEQ = #{quoteSeq}
+	               UNION ALL SELECT m.QUOTE_SEQ, m.PREV_SEQ FROM TBL_QUOTE_MST m JOIN dn d ON m.PREV_SEQ = d.QUOTE_SEQ ),
+	       /* 사슬의 살아 있는 판 */
+	       ch AS ( SELECT k.QUOTE_SEQ, k.COMP_CD, ISNULL(k.DOC_BASE,'') AS DOC_BASE, k.DOC_NO, ISNULL(k.MGR_NM,'') AS MGR_NM
+	                 FROM TBL_QUOTE_MST k WHERE k.ACTION_YN = 'Y' AND k.QUOTE_SEQ IN ( SELECT QUOTE_SEQ FROM up UNION SELECT QUOTE_SEQ FROM dn ) )
+	  /* ★작성 중 덮어쓰기(같은 번호·담당자로 대체돼 N 이 된 옛 줄)도 함께 — actionYn='N' 줄 (2026-10-01 「작성중도 이력 남는지」 → 1번).
+	       ⚠작성 중에 담당자를 바꿔 번호가 다시 매겨진 옛 줄(번호·담당자가 다름)은 못 잇는다 — 이을 칸이 없다. 이 줄들은 latestYn 을 N 으로 준다(인쇄·수정은 못 한다) */
+	  SELECT m.QUOTE_SEQ AS quoteSeq, m.DOC_NO AS docNo, ISNULL(m.DOC_BASE,'') AS docBase, ISNULL(m.REV_NO,1) AS revNo, m.PREV_SEQ AS prevSeq,
+	         CASE WHEN m.ACTION_YN = 'N' THEN 'N' ELSE ISNULL(m.LATEST_YN,'Y') END AS latestYn, m.ACTION_YN AS actionYn,
+	         ISNULL(m.QUOTE_DT,'') AS quoteDt, ISNULL(m.RECV_NM,'') AS recvNm, ISNULL(m.MGR_NM,'') AS mgrNm, ISNULL(m.SUPPLY_AMT,0) AS supplyAmt,
+	         ISNULL(NULLIF(m.STAT_GB,''),'W') AS statGb, ISNULL(m.SUBMIT_DT,'') AS submitDt, ISNULL(m.ADOPT_DT,'') AS adoptDt, ISNULL(m.REJECT_DT,'') AS rejectDt, ISNULL(m.HOLD_DT,'') AS holdDt,
+	         ISNULL(m.REV_MEMO,'') AS revMemo, ISNULL(m.REV_DTTM,'') AS revDttm, ISNULL(m.REV_USER,'') AS revUser,
+	         ISNULL(m.EDIT_CNT,0) AS editCnt, ISNULL(m.EDIT_MEMO,'') AS editMemo,
+	         m.REG_DTTM AS regDttm, ISNULL(m.REG_USER,'') AS regUser, m.UPD_DTTM AS updDttm,
+	         ( SELECT COUNT(*) FROM TBL_QUOTE_DTL x WHERE x.QUOTE_SEQ = m.QUOTE_SEQ ) AS lineCnt
+	    FROM TBL_QUOTE_MST m
+	   WHERE ( ( m.ACTION_YN = 'Y' AND m.QUOTE_SEQ IN ( SELECT QUOTE_SEQ FROM ch ) )
+	        OR ( m.ACTION_YN = 'N' AND EXISTS ( SELECT 1 FROM ch c WHERE c.COMP_CD = m.COMP_CD AND c.DOC_NO = m.DOC_NO
+	                                              AND c.DOC_BASE = ISNULL(m.DOC_BASE,'') AND c.MGR_NM = ISNULL(m.MGR_NM,'') ) ) )
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   ORDER BY m.QUOTE_SEQ
+	  OPTION (MAXRECURSION 200)
+	]]></select>
 	<update id="deleteQuote" parameterType="java.util.Map">
 	  UPDATE TBL_QUOTE_MST SET ACTION_YN = 'D', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
 	   WHERE QUOTE_SEQ = #{quoteSeq} AND ACTION_YN = 'Y'

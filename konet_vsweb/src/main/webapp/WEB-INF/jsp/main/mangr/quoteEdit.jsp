@@ -32,6 +32,12 @@
   · [🖨 출력] = quotePrint.do (A4 양식 — 합계 줄 없음). [📥 엑셀] = quoteExcel.do (양식 파일 그대로 — 합계 줄이 원래 없다).
 -->
 <!--
+  ★문서번호 = 담당자별 · 그 날짜 -NN + 판(개정) 이력 (2026-10-01 「문서번호는 담당자가 동일하면 Konet261001-01 · 작성 중엔 번호 하나 ·
+    제출완료 뒤 변경은 -02, 또 변경되면 -03 · 채택 뒤 변경도 사유 넣고 · 담당자가 다르면 -01 부터 · 변경이력 조회」 · 「담당자에 문서번호 증가 · 해당년월일에」)
+    · 새 견적서 번호 = 'Konet' + 견적일 yyMMdd + '-' + <그 담당자의 그 날짜 다음 번호>(quoteNextNo.do 에 mgrNm) — 담당자를 바꾸면 번호를 다시 받는다(_docAuto · 손으로 고친 번호는 안 건드린다).
+    · 작성 중(W)은 같은 번호에 덮어쓰기(종전) · 제출완료·거절·보류·채택 뒤에 고쳐 저장하면 서버가 <새 판>(-02 …)을 만든다 — 위 띠(.lockbar.rev)가 다음 번호를 미리 보여 주고,
+      저장 때 변경 사유를 묻는다(채택은 필수 · 그 밖은 비워도 됨). 응답의 docNo 로 화면이 새 번호로 갈아탄다(loadDoc 다시).
+    · 이전 판(latestYn='N')을 열면 보기·인쇄만(.lockbar.oldrev + body.qlock · [저장] 잠금) — [최신 판 열기 →]. 서버도 QUOTE_OLDREV 로 막는다.
   채택된 견적서 잠금 (2026-09-29 「채택이 된 견적서는 수정을 못하게, 꼭 수정을 하여야 한다면 수정 사유를 넣어야 되게끔」)
     · 불러온 견적서의 진행 상태가 「채택(A)」이면 화면을 읽기 전용으로 잠그고 위에 빨간 띠를 띄운다.
     · [🔓 수정 사유 넣고 고치기] 로 사유를 적어야 잠금이 풀리고, 그 사유가 저장에 함께 간다(editMemo → TBL_QUOTE_MST.EDIT_MEMO·EDIT_CNT).
@@ -70,6 +76,9 @@
   .lockbar.on{ display:flex; }
   .lockbar.unlocked{ background:#fff3c4; border-color:#e2b93b; color:#8a5a00; }
   .lockbar .why{ font-weight:600; color:#6b4a2a; }
+  .lockbar.rev{ background:#e8eefb; border-color:#b8c7ea; color:#2f4f9a; }        /* 제출완료·거절·보류 뒤 — 고치면 새 판 (2026-10-01) */
+  .lockbar.oldrev{ background:#eef2f5; border-color:#cfd8e3; color:#37475a; }     /* 이전 판 — 보기만 */
+  .lockbar.oldrev a{ color:#137a6c; }
   body.qlock .card .fm input, body.qlock .card .fm textarea, body.qlock .card .fm select,
   body.qlock table.g input, body.qlock table.g select{ background:#f5f7f9 !important; color:#7b8794 !important; pointer-events:none; }
   body.qlock .btn.lockable{ opacity:.45; pointer-events:none; }
@@ -199,10 +208,10 @@
         <label class="frmOpt"><input type="radio" name="frm" value="2" id="use2" checked onchange="renderLines(); delivOnUse2()"> <b>센터배송 + 택배출고(D2~3)</b> <span class="dim">— 단가·금액 두 묶음 + 비고(MOQ) · 260730-1 꼴</span></label>
         <label class="frmOpt"><input type="radio" name="frm" value="1" id="use1" onchange="renderLines(); delivOnUse2()"> <b>단가 하나</b> <span class="dim">— 센터배송만 · 260729-1 꼴</span></label>
       </div>
-      <label>문서번호</label><div style="display:flex;gap:6px"><input type="text" id="docNo" style="font-weight:800" placeholder="Konet260917-01"><button class="btn lnk" style="height:32px" onclick="nextNo(true)" title="견적일 기준 다음 번호">↻ 번호</button></div>
+      <label>문서번호</label><div style="display:flex;gap:6px"><input type="text" id="docNo" style="font-weight:800" placeholder="Konet261001-01" oninput="_docAuto=false" title="Konet + 견적일 yyMMdd + -NN · NN 은 그 담당자의 그 날짜 다음 번호(담당자가 다르면 -01 부터). 제출완료 뒤 고쳐 저장하면 새 판 번호가 자동으로 매겨집니다"><button class="btn lnk" style="height:32px" onclick="nextNo(true)" title="견적일 기준 다음 번호">↻ 번호</button></div>
       <label>견적일</label><input type="date" id="quoteDt" onchange="if(!_seq) nextNo(false)">
       <label>수신</label><input type="text" id="recvNm" value="삼성웰스토리" list="recvList" autocomplete="off">
-      <label>담당자</label><input type="text" id="mgrNm" placeholder="예: 김정호 프로님" list="mgrList" autocomplete="off" title="지금까지 저장한 담당자 이름이 목록으로 뜹니다(칸을 비우고 ▼ 또는 글자를 치면). 새 이름은 그냥 적으면 됩니다">
+      <label>담당자</label><input type="text" id="mgrNm" placeholder="예: 김정호 프로님" list="mgrList" autocomplete="off" onchange="mgrChg()" title="지금까지 저장한 담당자 이름이 목록으로 뜹니다(칸을 비우고 ▼ 또는 글자를 치면). 새 이름은 그냥 적으면 됩니다">
       <datalist id="mgrList"></datalist><datalist id="recvList"></datalist>
       <label>유효기간</label><input type="text" id="validTxt" value="견적일로부터 15일">
       <label>단가 묶음 이름</label><div style="display:flex;gap:6px;align-items:center"><input type="text" id="p1" value="센터배송" style="width:130px" title="첫째 묶음 이름(묶음이 하나면 인쇄에 안 나옵니다)"><span class="dim">/</span><input type="text" id="p2" value="택배출고 (D2~3)" style="width:150px" title="둘째 묶음 이름"></div>
@@ -722,7 +731,24 @@ function delivFromTitle(t){ var m=/\((.*?),\s*부가세 별도\)\s*$/.exec(t||''
 /* ── 번호 · 불러오기 ── */
 function nextNo(force){
   if(!force && gv('docNo')) return;
-  post('/mangr/quoteNextNo.do','quoteDt='+encodeURIComponent(gv('quoteDt'))).then(function(r){ return r.json(); }).then(function(j){ if(j&&j.docNo) document.getElementById('docNo').value=j.docNo; }).catch(function(){});
+  /* 담당자별·날짜별 다음 번호 (2026-10-01) — 담당자를 함께 보낸다. 받은 번호는 «자동 번호»(_docAuto) — 담당자를 바꾸면 다시 받고, 손으로 고친 번호는 안 건드린다 */
+  post('/mangr/quoteNextNo.do','quoteDt='+encodeURIComponent(gv('quoteDt'))+'&mgrNm='+encodeURIComponent(gv('mgrNm'))).then(function(r){ return r.json(); }).then(function(j){ if(j&&j.docNo){ document.getElementById('docNo').value=j.docNo; _docAuto=true; } }).catch(function(){});
+}
+/* 담당자가 바뀌면 : 새 견적서면 번호를 다시 받고(자동 번호일 때만), 제출완료 뒤 개정이면 새 판 번호 미리보기를 다시 센다 */
+function mgrChg(){ if(!_seq){ if(_docAuto) nextNo(true); } else if(_statGb!=='W' && _latestYn!=='N' && !copyMode()) revNote(); }
+/* 새 판 번호 미리보기 — 제출완료·채택·거절·보류 뒤 고치면 서버가 매길 번호(DOC_BASE 의 그 담당자 다음 번호). 띠(lockApply)에 보인다 */
+function revNote(){
+  if(!_docBase){ _nextDoc=''; lockApply(); return; }
+  post('/mangr/quoteNextNo.do','docBase='+encodeURIComponent(_docBase)+'&mgrNm='+encodeURIComponent(gv('mgrNm'))).then(function(r){ return r.json(); })
+    .then(function(j){ _nextDoc=(j&&j.docNo)||''; lockApply(); }).catch(function(){ _nextDoc=''; lockApply(); });
+}
+/* 개정 사슬 — 최신 판의 번호(이전 판을 열었을 때 [최신 판 열기 →])와 판 수 */
+function revHistLoad(seq){
+  post('/mangr/quoteRevHist.do','quoteSeq='+encodeURIComponent(seq)).then(function(r){ return r.json(); }).then(function(j){
+    var l=(j&&j.data)||[]; _latestSeq=0; _histCnt=l.length;
+    l.forEach(function(x){ if(String(x.latestYn)==='Y') _latestSeq=n(x.quoteSeq); });
+    lockApply();
+  }).catch(function(){});
 }
 /* 도움말 (2026-09-18 「도움말 버튼으로 1) 견적서작성 2) 원가마진계산」) — 기본 접힘, 탭 둘 */
 function helpToggle(){ var b=document.getElementById('qHelp'); b.hidden=!b.hidden; }
@@ -732,7 +758,7 @@ function helpTab(k){
 }
 function newDoc(){
   _seq=0; _savedSeq=0; _savedDocNo=''; _lines=[blank()];
-  _statGb='W'; _editMemo=''; _unlocked=false; lockApply();   /* 새 견적서는 잠금 없음 (2026-09-29) */ document.getElementById('mode').textContent='새 견적서';
+  _statGb='W'; _editMemo=''; _unlocked=false; _latestYn='Y'; _revNo=1; _prevSeq=null; _docBase=''; _nextDoc=''; _latestSeq=0; _histCnt=0; _revAsked=false; lockApply();   /* 새 견적서는 잠금 없음 (2026-09-29) · 판 이력 초기화 (2026-10-01) */ document.getElementById('mode').textContent='새 견적서';
   var t=new Date(); document.getElementById('quoteDt').value=t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2);
   document.getElementById('docNo').value=''; document.getElementById('mgrNm').value=''; document.getElementById('remark').value='';
   document.getElementById('recvNm').value='삼성웰스토리'; document.getElementById('validTxt').value='견적일로부터 15일'; document.getElementById('titleTxt').value='아래와 같이 견적을 드립니다.(부가세 별도)';
@@ -740,23 +766,35 @@ function newDoc(){
   document.getElementById('deliv').value=DELIV_DEF2; _delivPrev=''; _delivRmk=''; delivApply();   /* 배송 기본 → 제목 줄·비고 */
   _cs={ mode:'center', center:(COST.centers[0]?COST.centers[0].nm:''), fee:(window.konetSet?n(konetSet.f('parcelFeeDef')):0) };
   _costRmk='';
-  csBarPaint(); renderLines(); nextNo(true);
-  loadNames(function(){ var m=document.getElementById('mgrNm'); if(!m.value && _names.mgr.length) m.value=_names.mgr[0]; });   /* 최근 담당자를 기본으로 */
+  csBarPaint(); renderLines();
+  /* ★번호는 담당자를 채운 <뒤에> 받는다 (2026-10-01 실측 — 앞서 받으면 빈 담당자 번호가 들어와 담당자별 번호와 어긋난다). loadNames 는 실패해도 cb 를 부른다 */
+  loadNames(function(){ var m=document.getElementById('mgrNm'); if(!m.value && _names.mgr.length) m.value=_names.mgr[0]; nextNo(true); });   /* 최근 담당자를 기본으로 */
 }
 /* copy=true 면 «복사 작성» — 내용만 베끼고 새 견적서로 (2026-09-20 「견적서 목록에서 견적서 복사 작성 추가」) :
    문서번호·견적일은 오늘 것으로 새로 매기고, 저장해야 새 견적서가 생긴다(원본은 그대로 남는다). */
 /* ── 채택 잠금 (2026-09-29) ── */
 var _statGb='W', _editMemo='', _unlocked=false;
+var _docAuto=true, _latestYn='Y', _revNo=1, _prevSeq=null, _docBase='', _nextDoc='', _latestSeq=0, _histCnt=0, _revAsked=false;   /* 판 이력 (2026-10-01) */
+var ST_NM={ W:'작성 중', S:'제출완료', A:'채택', R:'거절', H:'보류' };
 function lockApply(){
-  var on = (_statGb==='A' && !copyMode());
+  var cp=copyMode();
+  var oldRev = (_latestYn==='N' && !cp);                         /* 이전 판 — 보기·인쇄만 (2026-10-01) */
+  var on  = (!oldRev && _statGb==='A' && !cp);                    /* 채택 — 사유를 넣어야 고친다 (2026-09-29) · 고치면 새 판 */
+  var rev = (!oldRev && !on && _statGb!=='W' && !cp);             /* 제출완료·거절·보류 — 고치면 새 판 (2026-10-01) */
   var bar=document.getElementById('lockBar');
-  document.body.classList.toggle('qlock', on && !_unlocked);
-  bar.classList.toggle('on', on);
+  document.body.classList.toggle('qlock', oldRev || (on && !_unlocked));
+  bar.classList.toggle('on', oldRev||on||rev);
   bar.classList.toggle('unlocked', on && _unlocked);
+  bar.classList.toggle('rev', rev);
+  bar.classList.toggle('oldrev', oldRev);
   document.getElementById('lockBtn').style.display = (on && !_unlocked) ? '' : 'none';
-  document.getElementById('lockTxt').innerHTML = on
-    ? (_unlocked ? '✏ <b>수정 사유를 넣었습니다</b> — 고친 뒤 [💾 저장]을 누르면 사유가 함께 남습니다.'
-                 : '🔒 <b>채택된 견적서</b>입니다 — 고치려면 사유를 넣어야 합니다.')
+  var sb=document.getElementById('saveBtn'); if(sb) sb.disabled=oldRev;
+  var nx = _nextDoc ? ('<b>'+esc(_nextDoc)+'</b>') : '<b>다음 판 번호</b>';
+  document.getElementById('lockTxt').innerHTML = oldRev
+    ? ('📜 <b>이전 판</b>('+_revNo+'판)입니다 — 보기·인쇄만 됩니다. 고치려면 최신 판을 여세요.'+(_latestSeq?' <a href="javascript:void(0)" onclick="loadDoc('+_latestSeq+')" style="font-weight:800">최신 판 열기 →</a>':''))
+    : on ? (_unlocked ? '✏ <b>수정 사유를 넣었습니다</b> — 고친 뒤 [💾 저장]을 누르면 <b>새 판</b> '+nx+' 으로 남고 사유가 함께 기록됩니다.'
+                      : '🔒 <b>채택된 견적서</b>입니다 — 고치려면 사유를 넣어야 합니다. 고친 것은 새 판 '+nx+' 으로 남습니다.')
+    : rev ? ('📌 <b>'+(ST_NM[_statGb]||_statGb)+'</b>된 견적서입니다 — 고쳐서 [💾 저장]하면 <b>새 판</b> '+nx+' 으로 남고, 이 판('+esc(gv('docNo'))+')은 이력으로 남습니다.')
     : '';
   document.getElementById('lockWhy').textContent = (on && _unlocked && _editMemo) ? ('사유 : '+_editMemo) : '';
 }
@@ -768,12 +806,19 @@ function lockAsk(){
     if(window._toast) _toast('수정 사유를 받았습니다 — 이제 고칠 수 있습니다.','success');
   });
 }
+/* 제출완료·거절·보류 뒤 고쳐 저장할 때 — 변경 사유를 한 번 묻는다(비워도 됨 · 채택은 lockAsk 가 필수로). 새 판의 REV_MEMO 로 남는다 (2026-10-01) */
+function revAsk(){
+  _promptBox('<b>'+(ST_NM[_statGb]||'')+'</b>된 견적서를 고쳐 <b>새 판</b> '+(_nextDoc?esc(_nextDoc):'')+' 으로 저장합니다.<br>무엇을 바꾸는지 <b>변경 사유</b>를 적어 주세요 — 변경 이력에 남습니다. (비워도 됩니다)', function(v){
+    _editMemo=String(v||'').trim().slice(0,290); _revAsked=true; save();
+  }, { title:'📝 변경 사유' });
+}
 /* 작은 입력창 — ui-message.js 에 프롬프트가 없어 여기서 만든다(브라우저 prompt 금지 규칙) */
-function _promptBox(msg, cb){
+function _promptBox(msg, cb, opt){
+  opt=opt||{};
   var wrap=document.createElement('div');
   wrap.style.cssText='position:fixed;inset:0;background:rgba(15,23,32,.35);display:flex;align-items:flex-start;justify-content:center;z-index:1300;padding-top:8vh';
   wrap.innerHTML='<div style="background:#fff;width:min(520px,94vw);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">'
-    +'<div style="padding:12px 14px;border-bottom:1px solid #eef1f5;font-weight:800;color:#8a2b2b">✏ 수정 사유</div>'
+    +'<div style="padding:12px 14px;border-bottom:1px solid #eef1f5;font-weight:800;color:#8a2b2b">'+(opt.title||'✏ 수정 사유')+'</div>'
     +'<div style="padding:14px;font-size:14px;color:#1f2a37;line-height:1.6">'+msg
     +'<input type="text" id="_pmVal" maxlength="290" placeholder="예: 단가 재협의로 금액 조정" style="width:100%;height:34px;margin-top:10px;border:1px solid #dbe2ea;border-radius:7px;padding:0 9px;font-size:13.5px"></div>'
     +'<div style="padding:10px 14px;border-top:1px solid #eef1f5;display:flex;gap:8px;justify-content:flex-end">'
@@ -790,11 +835,15 @@ function loadDoc(seq, copy){
   post('/mangr/quoteMst.do','quoteSeq='+encodeURIComponent(seq)).then(function(r){ return r.json(); }).then(function(j){
     var m=j&&j.mst; if(!m){ err('견적서를 찾을 수 없습니다.'); newDoc(); return; }
     _seq=copy?0:seq; _savedSeq=copy?0:seq; _savedDocNo='';
-    document.getElementById('mode').textContent=copy?('복사 작성 — 원본 '+m.docNo):('수정 — '+m.docNo);
+    document.getElementById('mode').textContent=copy?('복사 작성 — 원본 '+m.docNo):('수정 — '+m.docNo+(n(m.revNo)>1?' · '+n(m.revNo)+'판':'')+(String(m.latestYn)==='N'?' (이전 판)':''));
     document.getElementById('docNo').value=m.docNo; document.getElementById('quoteDt').value=d10(m.quoteDt); document.getElementById('recvNm').value=m.recvNm; document.getElementById('mgrNm').value=m.mgrNm;
     document.getElementById('validTxt').value=m.validTxt; document.getElementById('titleTxt').value=m.titleTxt; document.getElementById('remark').value=m.remark;
     /* 진행 상태 (2026-09-29) — 채택이면 잠근다. 복사 작성은 새 견적서라 잠그지 않는다 */
-    _statGb=copy?'W':(String(m.statGb||'W')); _editMemo=''; _unlocked=false; lockApply();
+    _statGb=copy?'W':(String(m.statGb||'W')); _editMemo=''; _unlocked=false;
+    /* 판 이력 (2026-10-01) — 이전 판이면 보기만 · 제출완료 뒤면 새 판 번호 미리보기 */
+    _latestYn=copy?'Y':String(m.latestYn||'Y'); _revNo=n(m.revNo)||1; _prevSeq=m.prevSeq||null; _docBase=copy?'':String(m.docBase||''); _nextDoc=''; _latestSeq=0; _histCnt=0; _revAsked=false; _docAuto=false;
+    lockApply();
+    if(!copy){ if(_latestYn!=='N' && _statGb!=='W') revNote(); if(_latestYn==='N' || _prevSeq) revHistLoad(seq); }
     /* 근거자료(원가·마진 계산) — CALC_JSON. genRows(서브 줄)는 걷어내고 계산에서 다시 만든다 */
     var cj=null; try{ cj=JSON.parse(m.calcJson||'null'); }catch(e){}
     var h2=(cj&&cj.use2!=null)?!!cj.use2:!!m.price2Nm;   /* 양식 라디오 — 묶음이 정리돼 저장됐어도 근거자료가 기억한다 */
@@ -848,19 +897,21 @@ function payload(){
      ⚠이 칸이 없는 옛 저장분은 종전대로 기준 센터 한 칸만 보여 준다(그때는 세부분류가 없었다 — 지금 비율로 채우면 그때 근거가 아니게 된다) */
   var calcJson=JSON.stringify({ v:1, use2:h2, set:{ mode:_cs.mode, center:_cs.center, fee:n(_cs.fee), rate:csRate(), dcRate:n(COST.dcRate),
       centers: csCents().map(function(c){ return { nm:c.nm, rate:n(c.rate) }; }) }, calcs:calcs, genRows:genRows });   /* rate·dcRate 도 스냅샷 — 목록 조회가 그때 비율로 다시 그린다(dcRate 없는 옛 저장분 = 그때 규칙 0%) */
-  return { confirm: _seq?'Y':'N', docs:[{ editMemo:(_statGb==='A'&&_unlocked)?_editMemo:'', docNo:gv('docNo'), quoteDt:gv('quoteDt'), recvNm:gv('recvNm'), mgrNm:gv('mgrNm'), validTxt:gv('validTxt'), titleTxt:gv('titleTxt'), remark:gv('remark'),
+  return { confirm: _seq?'Y':'N', docs:[{ quoteSeq:_seq||0,   /* 고치던 줄 — 서버가 번호가 아니라 이것으로 옛 줄을 찾는다(번호는 담당자별이라 겹칠 수 있다 · 2026-10-01) */ editMemo:(_statGb!=='W'&&!copyMode())?_editMemo:'',   /* 채택은 lockAsk 의 사유 · 제출완료·거절·보류는 revAsk 의 변경 사유 (2026-10-01) */ docNo:gv('docNo'), quoteDt:gv('quoteDt'), recvNm:gv('recvNm'), mgrNm:gv('mgrNm'), validTxt:gv('validTxt'), titleTxt:gv('titleTxt'), remark:gv('remark'),
     price1Nm: h2?gv('p1'):'', price2Nm: real2?gv('p2'):'', fileNm:'', fileB64:'', calcJson:calcJson, lines:lines }] };
 }
 function save(){
   var p=payload(), d=p.docs[0];
   /* 채택된 견적서는 사유가 있어야 저장된다 (2026-09-29) — 서버도 같은 관문을 둔다 */
+  if(_latestYn==='N' && !copyMode()){ _alertBox('<b>이전 판</b>은 고칠 수 없습니다.<br>위 띠의 [최신 판 열기 →]로 최신 판을 열어 고치세요.',{icon:'📜'}); return; }   /* 판 이력 (2026-10-01) */
   if(_statGb==='A' && !(_unlocked && _editMemo)){ _alertBox('<b>채택된 견적서</b>입니다.<br>위의 [🔓 수정 사유 넣고 고치기] 로 사유를 먼저 넣으세요.',{icon:'🔒'}); return; }
+  if(_statGb!=='W' && _statGb!=='A' && !copyMode() && !_revAsked){ revAsk(); return; }   /* 제출완료·거절·보류 뒤 — 변경 사유 한 번 (비워도 됨) */
   if(!d.docNo){ _alertBox('문서번호를 넣으세요.',{icon:'⚠️'}); return; }
   if(!d.quoteDt){ _alertBox('견적일을 고르세요.',{icon:'⚠️'}); return; }
   if(!d.lines.length){ _alertBox('품목을 한 줄 이상 적으세요.',{icon:'⚠️'}); return; }
   var noP=d.lines.filter(function(l){ return !l.qty || !l.unitPrice; });
   var sum=0; d.lines.forEach(function(l){ sum+=l.amt; });
-  ask('견적서 <b>'+esc(d.docNo)+'</b>를 저장합니다.<br><span style="font-size:13px;color:#3d4d5c">'+d10(d.quoteDt)+' · '+esc(d.recvNm)+' · '+esc(d.mgrNm)+' · 품목 '+d.lines.length+'줄 · 합계 <b>'+fmt(sum)+'</b>원'+(noP.length?'<br><span style="color:#b45309">⚠ 수량이나 단가가 빈 줄 '+noP.length+'개</span>':'')+'<br><span style="color:#6b7a89">원가·마진 계산 내용은 이 견적서의 근거자료로 함께 저장됩니다.</span></span>', _seq?'덮어쓰기':'저장')
+  ask('견적서 <b>'+esc(d.docNo)+'</b>를 저장합니다.<br><span style="font-size:13px;color:#3d4d5c">'+d10(d.quoteDt)+' · '+esc(d.recvNm)+' · '+esc(d.mgrNm)+' · 품목 '+d.lines.length+'줄 · 합계 <b>'+fmt(sum)+'</b>원'+(noP.length?'<br><span style="color:#b45309">⚠ 수량이나 단가가 빈 줄 '+noP.length+'개</span>':'')+((_statGb!=='W'&&!copyMode())?'<br><span style="color:#2f4f9a">'+(ST_NM[_statGb]||'')+' 뒤 변경 — <b>새 판 '+esc(_nextDoc||'(다음 번호)')+'</b> 으로 저장되고 이 판은 이력으로 남습니다'+(_editMemo?' · 사유 : '+esc(_editMemo):'')+'</span>':'')+'<br><span style="color:#6b7a89">원가·마진 계산 내용은 이 견적서의 근거자료로 함께 저장됩니다.</span></span>', (_statGb!=='W'&&!copyMode())?'새 판으로 저장':(_seq?'덮어쓰기':'저장'))
   .then(function(y){ if(!y) return;
     var b=document.getElementById('saveBtn'); b.disabled=true;
     var send=function(conf){ p.confirm=conf?'Y':'N'; return post('/mangr/quoteSave.do', p, true).then(function(r){ return r.text().then(function(t){ return { st:r.status, ok:r.ok, t:t }; }); }); };
@@ -869,24 +920,33 @@ function save(){
       return res;
     }).then(function(res){
       if(!res.ok){
+        if(String(res.t||'').indexOf('QUOTE_OLDREV:')===0){ _latestYn='N'; lockApply(); throw new Error(String(res.t).replace('QUOTE_OLDREV:','')); }   /* 이전 판 (2026-10-01) */
         if(String(res.t||'').indexOf('QUOTE_ADOPTED:')===0){   /* 서버 관문 (2026-09-29) */
           _statGb='A'; _unlocked=false; lockApply();
           throw new Error(String(res.t).replace('QUOTE_ADOPTED:',''));
         }
         throw new Error(res.t);
       }
-      var jr={}; try{ jr=JSON.parse(res.t); }catch(e){ var m=/\|(\d+)/.exec(String(res.t)); if(m) jr={ seq:+m[1] }; }
+      /* ⚠Jackson 이 ResponseEntity<String> 의 JSON 을 한 번 더 문자열로 감싼다(sessionChk 와 같은 함정 — 2026-10-01 실측 : 첫 파싱 결과가 «문자열»이라 seq·docNo 가 비어
+         새 판 -02 를 저장하고도 옛 번호 -01 로 되물어 «이전 판»이 열렸다). 문자열이면 한 겹 더 푼다 · 객체가 아니면 빈 것으로 */
+      var jr={}; try{ jr=JSON.parse(res.t); if(typeof jr==='string') jr=JSON.parse(jr); if(!jr||typeof jr!=='object') jr={}; }catch(e){ var m=/\|(\d+)/.exec(String(res.t)); if(m) jr={ seq:+m[1] }; }
       try{ console.log('quoteSave 응답', res.t); }catch(e){}
-      var seq=n(jr.seq); _savedDocNo=d.docNo;
+      var seq=n(jr.seq);
+      /* ★서버가 새 판 번호(-02 …)를 매겼으면 그 번호로 갈아탄다 (2026-10-01) — 옛 번호로 다시 물으면 앞 판(이력)이 잡힌다 */
+      if(jr.docNo && String(jr.docNo)!==d.docNo){ d.docNo=String(jr.docNo); document.getElementById('docNo').value=d.docNo; }
+      _savedDocNo=d.docNo;
       /* ★번호는 서버에 문서번호로 다시 물어 확정한다 (2026-09-17 「저장 후 출력 시 오류」) — 대체 저장이면 옛 번호는 이력(N)이 되므로
            응답 번호가 비거나 늦게 오면 옛 번호로 인쇄해 「찾을 수 없습니다」가 났다. 확정될 때까지 출력 창을 띄우지 않는다. */
-      return post('/mangr/quoteByDoc.do','docNo='+encodeURIComponent(d.docNo)).then(function(r){ return r.json(); }).then(function(j){
-        var s2=n(j&&j.quoteSeq); if(s2) seq=s2;
+      return post('/mangr/quoteByDoc.do','docNo='+encodeURIComponent(d.docNo)+'&mgrNm='+encodeURIComponent(d.mgrNm||'')).then(function(r){ return r.json(); }).then(function(j){
+        var s2=n(j&&j.quoteSeq); if(!seq && s2) seq=s2;   /* 응답 seq 가 먼저(2026-10-01 — 번호는 담당자별이라 번호로 되물은 값은 뒷받침일 뿐) */
         _seq=seq||_seq; _savedSeq=seq||_savedSeq;
       }).catch(function(){ _seq=seq||_seq; _savedSeq=seq||_savedSeq; });
     }).then(function(){
       document.getElementById('mode').textContent='수정 — '+d.docNo;
-      ok('견적서 <b>'+esc(d.docNo)+'</b>를 저장했습니다.<br><span style="font-size:13px;color:#3d4d5c">인쇄는 [🖨 출력], 엑셀은 [📥 엑셀] 단추로.</span>');   /* 저장 뒤 자동으로 출력을 묻지 않는다(2026-09-17 「별도 출력하게」) */
+      var wasRev=(_statGb!=='W'&&!copyMode());
+      ok('견적서 <b>'+esc(d.docNo)+'</b>를 저장했습니다.'+(wasRev?'<br><span style="font-size:13px;color:#2f4f9a">새 판으로 저장됐습니다 — 앞 판은 견적서 목록 [📜 이력]에서 볼 수 있습니다.</span>':'')+'<br><span style="font-size:13px;color:#3d4d5c">인쇄는 [🖨 출력], 엑셀은 [📥 엑셀] 단추로.</span>');   /* 저장 뒤 자동으로 출력을 묻지 않는다(2026-09-17 「별도 출력하게」) */
+      _editMemo=''; _unlocked=false; _revAsked=false;
+      if(_seq) loadDoc(_seq);   /* 판·상태·띠를 서버 값으로 다시 (2026-10-01) — 새 판이면 W(또는 채택 유지)로 시작한다 */
     }).catch(function(e){ if(String(e&&e.message)!=='__cancel') err('저장하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); })
     .then(function(){ b.disabled=false; });
   });

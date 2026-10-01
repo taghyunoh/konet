@@ -278,6 +278,10 @@ public interface UserMapper {
 	java.util.List<java.util.Map<String,Object>> selectQuoteNames(java.util.Map<String,Object> p) throws Exception;   // 쌓인 담당자·수신 이름
 	java.util.List<java.util.Map<String,Object>> selectQuoteCompare(java.util.Map<String,Object> p) throws Exception;   // 비교분석 — compCd · seqs(List)
 	int insertQuoteMst(java.util.Map<String,Object> p) throws Exception;
+	/* 견적서 판(개정) 이력 (2026-10-01) — 문서번호 = 담당자별·날짜별 -NN, 제출완료 뒤 변경은 새 판 */
+	int selectQuoteMaxRev(java.util.Map<String,Object> p) throws Exception;                          // (회사·DOC_BASE·담당자) 최대 판 번호
+	int updateQuoteLatest(java.util.Map<String,Object> p) throws Exception;                          // LATEST_YN 바꾸기
+	java.util.List<java.util.Map<String,Object>> selectQuoteRevHist(java.util.Map<String,Object> p) throws Exception;   // 개정 사슬(변경 이력)
 	int insertQuoteDtl(java.util.Map<String,Object> p) throws Exception;
 	int deleteQuote(java.util.Map<String,Object> p) throws Exception;
 	int deleteDcPo(java.util.Map<String,Object> p) throws Exception;

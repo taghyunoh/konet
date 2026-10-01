@@ -215,7 +215,8 @@ public interface UserService {
 	int deleteQuote(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectQuoteByDoc(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectQuoteMst(java.util.Map<String,Object> p) throws Exception;
-	String nextQuoteNo(String compCd, String quoteDt) throws Exception;
+	String nextQuoteNo(String compCd, String quoteDt, String mgrNm, String docBase) throws Exception;   // 담당자별·날짜별 다음 판 번호 (2026-10-01 — docBase 를 주면 그 머리로)
+	java.util.List<java.util.Map<String,Object>> selectQuoteRevHist(java.util.Map<String,Object> p) throws Exception;   // 개정 사슬(변경 이력) (2026-10-01)
 	java.util.List<java.util.Map<String,Object>> selectQuoteNames(java.util.Map<String,Object> p) throws Exception;
 	byte[] buildQuoteXls(java.util.Map<String,Object> mst, java.util.List<java.util.Map<String,Object>> lines) throws Exception;   // 양식 파일에 값 채운 xls (2026-09-17)   // 'Konet' + yyMMdd + '-' + 두 자리 (2026-09-17 견적서 작성)
 	java.util.List<java.util.Map<String,Object>> selectQuoteCompare(java.util.Map<String,Object> p) throws Exception;

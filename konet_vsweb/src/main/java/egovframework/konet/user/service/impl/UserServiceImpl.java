@@ -848,32 +848,69 @@ public class UserServiceImpl implements UserService {
 		/* ★다시 저장(대체)이면 옛 줄의 진행 상태·작성 시작일·수정 이력을 이어받는다 (2026-09-29)
 		     — 이 표는 같은 문서번호를 «새 줄»로 갈아 끼우므로, 안 넘기면 제출완료·채택 표시와 작성 시작일이 사라진다.
 		   ★채택(A)된 견적서는 «수정 사유»가 있어야 고칠 수 있다 (사용자 지시). 화면도 막지만 여기가 마지막 관문이다. */
-		java.util.Map<String,Object> old = mapper.selectQuoteByDoc(m);
+		/* ★고치던 줄은 화면이 보낸 quoteSeq 로 찾는다 (2026-10-01 실측) — 문서번호는 «담당자별»이라 번호만으로 찾으면 다른 담당자의 같은 번호를 잡는다.
+		   quoteSeq 가 없거나(옛 화면·엑셀 올리기) 그 줄이 이미 대체됐으면 (문서번호 + 담당자)로 물러선다. */
+		String mgr = scStr(q.get("mgrNm")).trim(); m.put("mgrNm", mgr);
+		java.util.Map<String,Object> old = null;
+		long oseq = q.get("quoteSeq") == null ? 0L : (long) scNum(q.get("quoteSeq"));
+		if (oseq > 0) { java.util.Map<String,Object> k = new java.util.HashMap<String,Object>(); k.put("compCd", compCd); k.put("quoteSeq", Long.valueOf(oseq)); old = mapper.selectQuoteMst(k); }
+		if (old == null) old = mapper.selectQuoteByDoc(m);
 		String today = new java.text.SimpleDateFormat("yyyyMMdd").format(new java.util.Date());
 		String now = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
-		String editMemo = scStr(q.get("editMemo"));
+		String editMemo = scStr(q.get("editMemo")); if (editMemo.length() > 290) editMemo = editMemo.substring(0, 290);
+		/* ★판(개정) 이력 (2026-10-01) — 세 갈래 :
+		     ① 새 견적서 : 문서번호에서 머리·판을 떼어 담고 처음 판(PREV_SEQ 없음).
+		     ② 작성 중(W)인 것을 다시 저장 : 종전대로 같은 번호에 덮어쓴다(옛 줄 N) — 판 칸은 그대로 물려받는다.
+		     ③ 제출완료(S)·채택(A)·거절(R)·보류(H) 뒤에 고쳐 저장 : <새 판> — 그 담당자의 그 날짜 다음 번호(-02, -03 …)로 새 줄을 넣고
+		        앞 판은 LATEST_YN='N'(ACTION_YN 은 Y 그대로 — 인쇄·이력 조회는 된다). 채택(A)이면 채택 상태·일자를 물려받고(수정 사유 필수),
+		        그 밖(S/R/H)은 다시 「작성 중」으로 시작한다(제출·거절·보류 일자는 앞 판에 남는다). 사유(editMemo)는 새 판의 REV_MEMO.
+		   ★이전 판(LATEST_YN='N')은 고칠 수 없다 — 최신 판을 열어 고치게 막는다(화면도 막지만 여기가 마지막 관문). */
+		boolean revise = false;
 		if (old == null) {                                                            // 새 견적서
 			m.put("statGb", "W"); m.put("submitDt", ""); m.put("adoptDt", ""); m.put("rejectDt", ""); m.put("holdDt", "");
 			m.put("statMemo", ""); m.put("statDttm", ""); m.put("statUser", "");
 			m.put("startDt", today); m.put("editCnt", Integer.valueOf(0)); m.put("editMemo", ""); m.put("editDttm", ""); m.put("editUser", "");
+			String[] br = quoteBaseRev(docNo);
+			m.put("docBase", br[0]); m.put("revNo", Integer.valueOf(br[1])); m.put("prevSeq", null); m.put("latestYn", "Y");
+			m.put("revMemo", ""); m.put("revDttm", ""); m.put("revUser", "");
 		} else {
 			String g = scStr(old.get("statGb")); if (!g.matches("[WSARH]")) g = "W";
+			if ("N".equals(scStr(old.get("latestYn"))))
+				throw new Exception("QUOTE_OLDREV:이전 판(" + docNo + ")은 고칠 수 없습니다 — 최신 판을 열어 고치세요.");
 			if ("A".equals(g) && editMemo.isEmpty())
 				throw new Exception("QUOTE_ADOPTED:채택된 견적서입니다 — 수정 사유를 넣어야 고칠 수 있습니다.");
-			m.put("statGb", g);
-			m.put("submitDt", scStr(old.get("submitDt"))); m.put("adoptDt", scStr(old.get("adoptDt")));
-			m.put("rejectDt", scStr(old.get("rejectDt"))); m.put("holdDt", scStr(old.get("holdDt")));
-			m.put("statMemo", scStr(old.get("statMemo"))); m.put("statDttm", scStr(old.get("statDttm"))); m.put("statUser", scStr(old.get("statUser")));
+			revise = !"W".equals(g);
+			String base = scStr(old.get("docBase")); if (base.isEmpty()) base = quoteBaseRev(docNo)[0];
+			if (revise) {
+				docNo = quoteRevDocNo(compCd, base, scStr(q.get("mgrNm")).trim(), 0); m.put("docNo", docNo);   // 새 판 번호 — 담당자가 바뀌면 그 담당자의 다음 번호(-01 부터)
+				m.put("docBase", base); m.put("revNo", Integer.valueOf(quoteBaseRev(docNo)[1])); m.put("prevSeq", old.get("quoteSeq")); m.put("latestYn", "Y");
+				m.put("revMemo", editMemo); m.put("revDttm", now); m.put("revUser", user);
+			} else {
+				m.put("docBase", base); m.put("revNo", Integer.valueOf((int) Math.round(scNum(old.get("revNo")))));
+				if (!scStr(old.get("mgrNm")).trim().equals(mgr)) {   // 작성 중에 담당자를 바꿨다 — 번호는 담당자별이라 새 담당자의 다음 번호로 다시 매긴다 (2026-10-01)
+					docNo = quoteRevDocNo(compCd, base, mgr, 0); m.put("docNo", docNo); m.put("revNo", Integer.valueOf(quoteBaseRev(docNo)[1]));
+				}
+				m.put("prevSeq", old.get("prevSeq")); m.put("latestYn", "Y");
+				m.put("revMemo", scStr(old.get("revMemo"))); m.put("revDttm", scStr(old.get("revDttm"))); m.put("revUser", scStr(old.get("revUser")));
+			}
+			m.put("statGb", (revise && !"A".equals(g)) ? "W" : g);   // 제출완료·거절·보류 뒤의 새 판은 다시 작성 중 · 채택은 채택 그대로
+			boolean keep = !revise || "A".equals(g);   // 일자·메모는 덮어쓰기와 채택 개정에서만 물려받는다(S/R/H 의 새 판은 빈 채 시작)
+			m.put("submitDt", keep ? scStr(old.get("submitDt")) : ""); m.put("adoptDt", keep ? scStr(old.get("adoptDt")) : "");
+			m.put("rejectDt", keep ? scStr(old.get("rejectDt")) : ""); m.put("holdDt", keep ? scStr(old.get("holdDt")) : "");
+			m.put("statMemo", keep ? scStr(old.get("statMemo")) : ""); m.put("statDttm", keep ? scStr(old.get("statDttm")) : ""); m.put("statUser", keep ? scStr(old.get("statUser")) : "");
 			String st = scStr(old.get("startDt")); m.put("startDt", st.matches("[0-9]{8}") ? st : today);
 			int ec = (int) Math.round(scNum(old.get("editCnt")));
-			if (!editMemo.isEmpty()) {                                                // 사유를 적어 고쳤다 — 이력을 남긴다
-				if (editMemo.length() > 290) editMemo = editMemo.substring(0, 290);
+			if ("A".equals(g) && !editMemo.isEmpty()) {                           // 채택 뒤 사유를 적어 고쳤다 — 이력을 남긴다(S/R/H 의 사유는 REV_MEMO 로만)
 				m.put("editCnt", Integer.valueOf(ec + 1)); m.put("editMemo", editMemo); m.put("editDttm", now); m.put("editUser", user);
 			} else {
 				m.put("editCnt", Integer.valueOf(ec)); m.put("editMemo", scStr(old.get("editMemo"))); m.put("editDttm", ""); m.put("editUser", "");
 			}
 		}
-		mapper.markQuoteReplace(m);                                                   // 같은 문서번호는 대체
+		if (revise) {   // 앞 판은 이력으로(ACTION_YN 그대로 · LATEST_YN='N') — 덮어쓰지 않는다
+			java.util.Map<String,Object> lt = new java.util.HashMap<String,Object>();
+			lt.put("compCd", compCd); lt.put("quoteSeq", old.get("quoteSeq")); lt.put("latestYn", "N");
+			mapper.updateQuoteLatest(lt);
+		} else { m.put("oldSeq", old == null ? null : old.get("quoteSeq")); mapper.markQuoteReplace(m); }   // 고치던 줄(없으면 같은 문서번호·담당자)은 대체
 		String dt = scStr(q.get("quoteDt")).replace("-", "").replace("/", "").replace(".", "");
 		m.put("quoteDt", dt.length() == 8 ? dt : null);
 		m.put("recvNm", scStr(q.get("recvNm"))); m.put("mgrNm", scStr(q.get("mgrNm"))); m.put("validTxt", scStr(q.get("validTxt")));
@@ -912,7 +949,22 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteList(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteList(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteDtl(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteDtl(p); }
 	@Override public java.util.Map<String,Object> selectQuoteFile(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteFile(p); }
-	@Override public int deleteQuote(java.util.Map<String,Object> p) throws Exception { return mapper.deleteQuote(p); }
+	@Override public int deleteQuote(java.util.Map<String,Object> p) throws Exception {
+		/* 최신 판을 지우면 바로 앞 판이 다시 최신 판이 된다 (2026-10-01) — 안 하면 그 사슬이 목록에서 통째로 사라진다(앞 판은 LATEST_YN='N' 이라). 앞 판이 지워진 것이면 그 앞으로. */
+		java.util.Map<String,Object> mst = mapper.selectQuoteMst(p);
+		int n = mapper.deleteQuote(p);
+		if (n > 0 && mst != null && "Y".equals(scStr(mst.get("latestYn")))) {
+			Object prev = mst.get("prevSeq");
+			for (int guard = 0; guard < 50 && prev != null; guard++) {
+				java.util.Map<String,Object> lt = new java.util.HashMap<String,Object>();
+				lt.put("compCd", p.get("compCd")); lt.put("quoteSeq", prev); lt.put("latestYn", "Y");
+				if (mapper.updateQuoteLatest(lt) > 0) break;
+				java.util.Map<String,Object> k = new java.util.HashMap<String,Object>(); k.put("compCd", p.get("compCd")); k.put("quoteSeq", prev);
+				java.util.Map<String,Object> pm = mapper.selectQuoteMst(k); prev = pm == null ? null : pm.get("prevSeq");   // 앞 판이 지워졌으면(ACTION_YN≠Y → 0건) 그 앞으로
+			}
+		}
+		return n;
+	}
 	@Override public java.util.Map<String,Object> selectQuoteByDoc(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteByDoc(p); }
 	@Override public java.util.Map<String,Object> selectQuoteMst(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteMst(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteNames(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteNames(p); }
@@ -1232,21 +1284,38 @@ public class UserServiceImpl implements UserService {
 		} catch (Throwable e) { /* 도장만 빠지고 엑셀은 나간다 */ }
 	}
 	/* 문서번호 = 'Konet' + 견적일 yyMMdd + '-' + 두 자리 차례 (표본 Konet260729-01 과 같은 꼴). 그날 번호가 이미 있으면 다음 번호 */
-	@Override public String nextQuoteNo(String compCd, String quoteDt) throws Exception {
-		String d = quoteDt == null ? "" : quoteDt.replaceAll("[^0-9]", "");
-		if (d.length() != 8) d = new java.text.SimpleDateFormat("yyyyMMdd").format(new java.util.Date());
-		String prefix = "Konet" + d.substring(2) + "-";
+	/* ★문서번호 = 'Konet' + 견적일 yyMMdd + '-' + <그 담당자의 그 날짜 다음 번호> (2026-10-01 「담당자에 문서번호 증가로 보면 됨 · 해당년월일에」).
+	     종전엔 그 날짜의 몇 번째 견적서냐였다. 이제 (회사·DOC_BASE·담당자) 안에서 1 씩 늘어난다 — 새 견적서든 제출완료 뒤 개정판이든 같은 셈.
+	     담당자가 다르면 같은 날짜라도 -01 부터. docBase 를 주면(개정판) 그 머리를 그대로 쓴다(개정판은 처음 판의 날짜를 물려받는다). */
+	@Override public String nextQuoteNo(String compCd, String quoteDt, String mgrNm, String docBase) throws Exception {
+		String base = docBase == null ? "" : docBase.trim();
+		if (base.isEmpty()) {
+			String d = quoteDt == null ? "" : quoteDt.replaceAll("[^0-9]", "");
+			if (d.length() != 8) d = new java.text.SimpleDateFormat("yyyyMMdd").format(new java.util.Date());
+			base = "Konet" + d.substring(2);
+		}
+		return quoteRevDocNo(compCd, base, mgrNm == null ? "" : mgrNm.trim(), 0);
+	}
+	/** base-NN 의 다음 번호 — (회사·base·담당자) 최대 판 + 1 부터, 이미 살아 있는 문서번호는 건너뛴다(옛 자료의 「그 날 두 번째」 번호와 안 겹치게). minRev 보다 큰 번호. */
+	private String quoteRevDocNo(String compCd, String base, String mgrNm, int minRev) throws Exception {
 		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
-		p.put("compCd", compCd); p.put("prefix", prefix);
-		int n = mapper.selectQuoteNoCnt(p) + 1;
-		for (int guard = 0; guard < 50; guard++) {                                  // 번호가 비어 있는 자리가 있어도 겹치지 않게
-			String cand = prefix + (n < 10 ? "0" + n : String.valueOf(n));
-			java.util.Map<String,Object> k = new java.util.HashMap<String,Object>(); k.put("compCd", compCd); k.put("docNo", cand);
+		p.put("compCd", compCd); p.put("docBase", base); p.put("mgrNm", mgrNm);
+		int n = Math.max(mapper.selectQuoteMaxRev(p), minRev) + 1;
+		for (int guard = 0; guard < 99; guard++) {
+			String cand = base + "-" + (n < 10 ? "0" + n : String.valueOf(n));
+			java.util.Map<String,Object> k = new java.util.HashMap<String,Object>(); k.put("compCd", compCd); k.put("docNo", cand); k.put("mgrNm", mgrNm);   // 같은 담당자 안에서만 겹침을 본다
 			if (mapper.selectQuoteByDoc(k) == null) return cand;
 			n++;
 		}
-		return prefix + n;
+		return base + "-" + n;
 	}
+	/** 문서번호 → [머리, 판] — 'Konet261001-02' → Konet261001 · 2. 뒤가 숫자가 아니면 통째가 머리 · 판 1 */
+	private static String[] quoteBaseRev(String docNo) {
+		String d = docNo == null ? "" : docNo.trim(); int k = d.lastIndexOf('-');
+		if (k > 0 && d.substring(k + 1).matches("[0-9]{1,6}")) return new String[]{ d.substring(0, k), String.valueOf(Integer.parseInt(d.substring(k + 1))) };
+		return new String[]{ d, "1" };
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteRevHist(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteRevHist(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteCompare(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteCompare(p); }
 
 	/* ===== DC 발주 (2026-09-17) — 입고예약서·발주서에서 읽은 줄을 TBL_SHIPOUT_MST 에 PROD_KIND='DC' 로.

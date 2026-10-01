@@ -1211,7 +1211,7 @@ public class UserController {
 					Map<String,Object> q = svc.parseQuoteXls(b, nm);
 					q.put("fileB64", b64);
 					/* 기존에 올린 게 있는지 (2026-09-17) — 미리보기에 「이미 올린 견적서」 배지 */
-					if (!poStr(q.get("docNo")).isEmpty()) { Map<String,Object> k = new HashMap<String,Object>(); k.put("compCd", session.getAttribute("s_comp_cd")); k.put("docNo", poStr(q.get("docNo"))); q.put("exists", svc.selectQuoteByDoc(k)); }
+					if (!poStr(q.get("docNo")).isEmpty()) { Map<String,Object> k = new HashMap<String,Object>(); k.put("compCd", session.getAttribute("s_comp_cd")); k.put("docNo", poStr(q.get("docNo"))); k.put("mgrNm", poStr(q.get("mgrNm")).trim()); q.put("exists", svc.selectQuoteByDoc(k)); }
 					if (((List<?>) q.get("lines")).isEmpty() && poStr(q.get("docNo")).isEmpty()) errs.add(nm + " : 견적서 양식을 찾지 못했습니다(문서 번호·품명·수량·단가 머리글이 있어야 합니다).");
 					docs.add(q);
 				} catch (Exception e) {
@@ -1237,7 +1237,7 @@ public class UserController {
 					StringBuilder dup = new StringBuilder();
 					for (Map<String,Object> q : docs) {
 						String dn = poStr(q.get("docNo")); if (dn.isEmpty()) continue;
-						Map<String,Object> k = new HashMap<String,Object>(); k.put("compCd", compCd); k.put("docNo", dn);
+						Map<String,Object> k = new HashMap<String,Object>(); k.put("compCd", compCd); k.put("docNo", dn); k.put("mgrNm", poStr(q.get("mgrNm")).trim());   // 번호는 담당자별 (2026-10-01)
 						Map<String,Object> ex = svc.selectQuoteByDoc(k);
 						if (ex != null) { if (dup.length() > 0) dup.append("\n"); dup.append(dn).append(" (").append(poStr(ex.get("regDttm")).length() >= 16 ? poStr(ex.get("regDttm")).substring(0, 16) : poStr(ex.get("regDttm"))).append(poStr(ex.get("regUser")).isEmpty() ? "" : " · " + poStr(ex.get("regUser"))).append(")"); }
 					}
@@ -1246,11 +1246,14 @@ public class UserController {
 				int n = 0; StringBuilder seqs = new StringBuilder(); long lastSeq = 0;
 				for (Map<String,Object> q : docs) { long s = svc.saveQuote(q, u, request.getRemoteAddr(), compCd); if (seqs.length() > 0) seqs.append(','); seqs.append(s); lastSeq = s; n++; }
 				/* JSON 으로 (2026-09-17 「저장 출력 오류」) — 종전 「n|번호」 글자를 화면이 번호로 못 읽어 출력·재저장이 「저장 전」으로 취급됐다 */
-				return ResponseEntity.ok().header("Content-Type", "application/json;charset=UTF-8").body("{\"cnt\":" + n + ",\"seqs\":[" + seqs + "],\"seq\":" + lastSeq + "}");
+				/* 저장된 번호도 돌려준다 (2026-10-01) — 제출완료 뒤 고치면 서버가 새 판 번호(-02 …)를 매기므로 화면이 그 번호로 갈아탄다 */
+				String lastDoc = "";
+				if (lastSeq > 0) { Map<String,Object> k = new HashMap<String,Object>(); k.put("compCd", compCd); k.put("quoteSeq", Long.valueOf(lastSeq)); Map<String,Object> lm = svc.selectQuoteMst(k); if (lm != null) lastDoc = poStr(lm.get("docNo")); }
+				return ResponseEntity.ok().header("Content-Type", "application/json;charset=UTF-8").body("{\"cnt\":" + n + ",\"seqs\":[" + seqs + "],\"seq\":" + lastSeq + ",\"docNo\":\"" + lastDoc.replace("\\", "\\\\").replace("\"", "\\\"") + "\"}");
 			} catch (Exception e) {
 				/* 채택된 견적서를 사유 없이 고치려 한 경우 (2026-09-29) — 화면이 사유를 묻고 다시 보낸다 */
 				String msg = e.getMessage() == null ? "" : e.getMessage();
-				if (msg.startsWith("QUOTE_ADOPTED:")) return ResponseEntity.status(400).body(msg);
+				if (msg.startsWith("QUOTE_ADOPTED:") || msg.startsWith("QUOTE_OLDREV:")) return ResponseEntity.status(400).body(msg);   // 이전 판 수정 차단 (2026-10-01)
 				log.error(" quoteSave ERROR : " + msg); return ResponseEntity.status(500).body(msg);
 			}
 		}
@@ -1259,13 +1262,25 @@ public class UserController {
 		public Map<String,Object> quoteList(@RequestParam(value="frDt", required=false) String frDt, @RequestParam(value="toDt", required=false) String toDt,
 		                                    @RequestParam(value="mgrNm", required=false) String mgrNm, @RequestParam(value="findData", required=false) String findData,
 		                                    @RequestParam(value="statGb", required=false) String statGb,
+		                                    @RequestParam(value="inclOld", required=false) String inclOld,
 		                                    HttpSession session) throws Exception {
 			Map<String,Object> res = new HashMap<String,Object>();
 			if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); return res; }
 			Map<String,Object> q = new HashMap<String,Object>();
 			q.put("compCd", session.getAttribute("s_comp_cd")); q.put("frDt", frDt); q.put("toDt", toDt); q.put("mgrNm", mgrNm); q.put("findData", findData);
 			q.put("statGb", statGb);   // 진행 상태 거르기 (2026-09-29) — 빈 값이면 전체
+			q.put("inclOld", inclOld); // 이전 판 포함 (2026-10-01) — 'Y' 가 아니면 사슬의 최신 판만
 			res.put("data", svc.selectQuoteList(q));
+			return res;
+		}
+		/* 견적서 변경 이력 (2026-10-01 「최종이 만들어지기까지 이력 조회」) — 그 견적서의 개정 사슬(앞 판·뒤 판 전부, 지운 판 제외) */
+		@RequestMapping(value="/mangr/quoteRevHist.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> quoteRevHist(@RequestParam("quoteSeq") long quoteSeq, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); return res; }
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("quoteSeq", Long.valueOf(quoteSeq));
+			res.put("data", svc.selectQuoteRevHist(q));
 			return res;
 		}
 		@RequestMapping(value="/mangr/quoteDetail.do", method = RequestMethod.POST)
@@ -1380,20 +1395,23 @@ public class UserController {
 		/* 문서번호 → 지금 활성 번호 (2026-09-17 「저장 후 출력 시 오류」) — 저장 직후 화면이 응답 번호 대신 이것으로 확정한다(대체 저장 뒤 옛 번호로 인쇄하던 것) */
 		@RequestMapping(value="/mangr/quoteByDoc.do", method = RequestMethod.POST)
 		@ResponseBody
-		public Map<String,Object> quoteByDoc(@RequestParam("docNo") String docNo, HttpSession session) throws Exception {
+		public Map<String,Object> quoteByDoc(@RequestParam("docNo") String docNo, @RequestParam(value="mgrNm", required=false) String mgrNm, HttpSession session) throws Exception {
 			Map<String,Object> res = new HashMap<String,Object>(); res.put("quoteSeq", 0);
 			if (session.getAttribute("s_comp_cd") == null || docNo == null || docNo.trim().isEmpty()) return res;
-			Map<String,Object> k = new HashMap<String,Object>(); k.put("compCd", session.getAttribute("s_comp_cd")); k.put("docNo", docNo.trim());
+			Map<String,Object> k = new HashMap<String,Object>(); k.put("compCd", session.getAttribute("s_comp_cd")); k.put("docNo", docNo.trim()); k.put("mgrNm", mgrNm == null ? "" : mgrNm.trim());   // 번호는 담당자별 (2026-10-01)
 			Map<String,Object> ex = svc.selectQuoteByDoc(k);
 			if (ex != null) { res.put("quoteSeq", ex.get("quoteSeq")); res.put("docNo", ex.get("docNo")); }
 			return res;
 		}
 		@RequestMapping(value="/mangr/quoteNextNo.do", method = RequestMethod.POST)
 		@ResponseBody
-		public Map<String,Object> quoteNextNo(@RequestParam(value="quoteDt", required=false) String quoteDt, HttpSession session) throws Exception {
+		public Map<String,Object> quoteNextNo(@RequestParam(value="quoteDt", required=false) String quoteDt,
+		                                      @RequestParam(value="mgrNm", required=false) String mgrNm,
+		                                      @RequestParam(value="docBase", required=false) String docBase, HttpSession session) throws Exception {
 			Map<String,Object> res = new HashMap<String,Object>();
 			if (session.getAttribute("s_comp_cd") == null) { res.put("docNo", ""); return res; }
-			res.put("docNo", svc.nextQuoteNo(String.valueOf(session.getAttribute("s_comp_cd")), quoteDt));
+			/* 담당자별·날짜별 다음 번호 (2026-10-01) — docBase 를 주면(개정판 미리 보기) 그 머리의 다음 번호 */
+			res.put("docNo", svc.nextQuoteNo(String.valueOf(session.getAttribute("s_comp_cd")), quoteDt, mgrNm, docBase));
 			return res;
 		}
 		@RequestMapping(value="/mangr/quotePrint.do")
