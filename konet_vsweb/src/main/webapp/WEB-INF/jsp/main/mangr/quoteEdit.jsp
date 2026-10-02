@@ -321,7 +321,7 @@ function csBarPaint(){ var r=document.querySelector('input[name=csmode][value="'
   var dl=document.getElementById('csDcLab'); if(dl) dl.textContent='('+fmt(n(COST.dcRate),1)+'%)';
   document.getElementById('csNote').textContent=_cs.mode==='center'?('물류비 = 판매 계 × 센터 비율 · 센터 '+csCents().length+'곳을 표에 함께 보여 줍니다'):(_cs.mode==='direct'?('물류비 = 판매 계 × DC 비율 '+fmt(n(COST.dcRate),1)+'%'):'물류비 = 박스마다 직송비'); }
 /* ⚠갈래·기준 센터·센터 목록이 바뀌면 «표 구조»가 바뀐다(센터배송만 네 묶음이 갈라진다) → 값만 다시 칠하지 말고 줄을 다시 그린다 (2026-09-28) */
-function csModeSet(){ var r=document.querySelector('input[name=csmode]:checked'); _cs.mode=r?r.value:'center'; csBarPaint(); renderLines(); }
+function csModeSet(){ var r=document.querySelector('input[name=csmode]:checked'); _cs.mode=r?r.value:'center'; csBarPaint(); renderLines(); delivByMode(); }
 function csCenterSet(v){ _cs.center=v; if(csSplit()) renderLines(); else csPaintAll(); }   /* 기준 센터 = 필요 판매단가를 내는 센터 · 머리글 밑줄도 그 칸으로 옮긴다 */
 function csPaintAll(){ _lines.forEach(function(l,i){ if(l.calc) calcPaint(i); }); calc(); }
 /* ★품명 세트 = 품명 + 동판 + 목형 (2026-09-17 「품명, 동판, 목형 세 개 세트 — (동판·목형) 적용 여부만」) —
@@ -711,18 +711,46 @@ function loadNames(cb){
   }).catch(function(){ if(cb) cb(); });
 }
 /* 배송 조건 (2026-09-17 「직접 작성 시 배송 내용도 추가」) — 표본 견적서처럼 제목 줄 「(센터배송, 부가세 별도)」와 비고 「1. 센터배송」에 넣는다.
-   제목 줄은 「(…, 부가세 별도)」 괄호를 바꿔 끼우고, 비고는 비었거나 앞서 넣은 배송 줄 그대로일 때만 바꾼다(사람이 고친 비고는 안 건드린다). */
+   제목 줄은 「(…, 부가세 별도)」 괄호를 바꿔 끼우고, 비고는 비었거나 앞서 넣은 배송 줄 그대로일 때 통째로 바꾼다.
+   사람이 고친(또는 불러온) 비고는 그 안의 배송 글만 바꿔 끼운다(delivSwap, 2026-10-02) — 그 글이 없으면 안 건드린다. */
 var _delivPrev='', _delivRmk='';
 var DELIV_DEF2='센터배송 / 택배출고 (D2~3)', DELIV_DEF1='센터배송';   /* 양식별 기본 배송 (「이것을 기본으로」) */
 function delivTitle(v){ var t=gv('titleTxt')||'아래와 같이 견적을 드립니다.(부가세 별도)'; var par=v?'('+v+', 부가세 별도)':'(부가세 별도)';
   if(/\(.*부가세 별도\)\s*$/.test(t)) return t.replace(/\(.*부가세 별도\)\s*$/, par); return t.replace(/\s*$/,'')+par; }
+/* 비고에 적는 배송 글 — 「DC」처럼 배송이라는 말이 없는 글에는 「배송」을 붙인다 (2026-10-02 사용자 「배송표시」 — 비고가 「DC, 부가세 별도」가 아니라 「DC 배송, 부가세 별도」).
+   센터배송 · 택배출고 · 직송 · 배송비 포함처럼 이미 그 말이 든 글은 그대로. 제목 줄 괄호는 종전대로 배송 칸의 글 그대로 쓴다. */
+function delivRmkTxt(v){ v=String(v||'').trim(); return (!v || /배송|출고|직송/.test(v)) ? v : v+' 배송'; }
 function delivApply(){
   var v=(gv('deliv')||'').trim(); delivSync();
   document.getElementById('titleTxt').value=delivTitle(v);
-  var r=document.getElementById('remark'), cur=(r.value||'').trim();
-  var rmk=!v?'':(use2()?v+', 부가세 별도':'1. '+v);   /* 표본 꼴 — 양식1 「1. 센타배송」, 양식2 「배송비 포함, 부가세 별도」 */
+  var r=document.getElementById('remark'), cur=(r.value||'').trim(), rv=delivRmkTxt(v);
+  var rmk=!v?'':(use2()?rv+', 부가세 별도':'1. '+rv);   /* 표본 꼴 — 양식1 「1. 센타배송」, 양식2 「배송비 포함, 부가세 별도」 */
   if(cur===''||(_delivRmk&&cur===_delivRmk)) r.value=rmk;   /* 사람이 고친 비고는 안 건드린다 */
+  /* ★불러온 견적서(수정·복사 작성)에서 배송을 바꾸면 비고의 배송 글도 같이 바꾼다 (2026-10-02 사용자 「1번을 복사해서 2번으로 DC 배송했을 때 비고 내용 바뀌게 — 반대로 DC 를 센터배송으로 할 때도」).
+       종전엔 불러온 비고를 「사람이 고친 것」으로 보아 제목 줄만 바뀌고 비고는 옛 배송 글 그대로였다(불러올 때 _delivRmk 가 비기 때문).
+       ⇒ 비고 안에 «바꾸기 전 배송 글»이 낱말로 들어 있으면 그 자리만 새 배송 글로 바꾼다 — 사람이 덧붙인 다른 글은 그대로 둔다. */
+  else if(_delivPrev && v && _delivPrev!==v){ var nx=delivSwap(r.value, _delivPrev, rv); if(nx!==null) r.value=nx; }
   _delivPrev=v; _delivRmk=rmk;
+}
+/* 글 안의 prev 를 next 로 — 낱말 경계(앞 = 줄 처음·빈칸·마침표, 뒤 = 줄 끝·빈칸·쉼표)에서 처음 한 곳만. 없으면 null */
+function delivSwap(txt, prev, next){
+  var pe=String(prev).replace(/[.*+?^$(){}|\[\]\\]/g, function(c){ return '\\'+c; });
+  /* 「DC 배송」처럼 배송 글 뒤에 「배송」을 손으로 붙여 둔 것도 같이 바꾼다(안 그러면 「센터배송 배송」이 된다) */
+  var tail=/배송$/.test(prev) ? '' : '(?:\\s*배송)?';
+  var re=new RegExp('(^|[\\s.])'+pe+tail+'(?=$|[\\s,])', 'm');
+  txt=String(txt||'');
+  return re.test(txt) ? txt.replace(re, function(m, a){ return a+next; }) : null;
+}
+/* ★🧮 마진계산 물류비(센터배송 · DC · 직송)를 바꾸면 배송 글도 따라간다 (2026-10-02 사용자 「1번 수정하면 2번 변경 없음」) —
+     종전엔 그 단추가 마진 계산 방식만 바꾸고 배송 칸·제목 줄·비고는 그대로였다(DC 로 바꾸고도 「센터배송」으로 나갔다).
+     센터배송 → 양식의 기본 배송 글 · DC → 「DC」 · 직송 → 「직송」. 그 뒤는 delivApply 가 제목 줄 괄호와 비고의 배송 글을 바꾼다.
+     사람이 배송 칸에 따로 적어 둔 글(예: 배송비 포함)은 건드리지 않는다. 불러올 때는 부르지 않는다(저장된 글 그대로) — 단추를 누를 때만. */
+function delivByMode(){
+  var d=document.getElementById('deliv'), cur=(d.value||'').trim();
+  if(['', DELIV_DEF1, DELIV_DEF2, 'DC', 'DC 배송', 'DC배송', '직송'].indexOf(cur)<0) return;
+  var nx=_cs.mode==='center' ? (use2()?DELIV_DEF2:DELIV_DEF1) : (_cs.mode==='direct' ? 'DC' : (_cs.mode==='parcel' ? '직송' : cur));
+  if(nx===cur) return;
+  d.value=nx; delivApply();
 }
 function delivPick(v){ if(v==='*'){ var d=document.getElementById('deliv'); d.focus(); d.select(); return; } document.getElementById('deliv').value=v; delivApply(); }
 function delivSync(){ var v=(gv('deliv')||'').trim(), sel=document.getElementById('delivSel'), hit=false;   /* 직접 적은 값이 목록에 있으면 그것을, 없으면 「직접 입력…」을 고른 상태로 */
