@@ -1,4 +1,5 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -24,6 +25,8 @@
       ⛔DDL docs/sql/20260922_toder_sales.sql(SALE_PRICE 칸 + 거래처 「토더」)을 새 WAR 보다 먼저.
     같은 (발주번호, 배송지명, 상품명)을 다시 올리면 앞의 것을 대체한다(같은 기간을 여러 번 받아 올려도 중복되지 않는다).
   · 원본 파일은 보관하지 않는다(DC 발주와 같다). 파일 이름만 남는다.
+  · [📒 토더 마감장부] (이름 = 같은 날 사용자 「토더 마감장부」 · 2026-10-02 사용자 「토더발주에 대장 조회 및 엑셀출력 추가」 · 「토더 발주 이런 식으로 마감장」) — 조회 기간의 저장된 토더 발주를
+    옛 시스템 「유형별 매출원장 전체조회」 엑셀과 같은 모양(거래처별 · 일계 · 소계 · 합계 · 누계)으로 보여 주고 엑셀로 낸다. 화면만의 기능이다(서버는 그대로).
 -->
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; --red:#c0392b; --amber:#b45309; }
@@ -66,6 +69,24 @@
   input[type=date]{ height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13px; }
   .msg{ padding:22px; text-align:center; color:#8a98a8; }
   .note{ font-size:12.5px; color:#6b7a89; padding:8px 12px; line-height:1.6; }
+  /* 마감장 창 — 예시 엑셀과 같은 색(머리글 하늘 · 일계 연두 · 소계 보라 · 합계 크림) */
+  #lgPop{ display:none; position:fixed; left:0; top:0; right:0; bottom:0; z-index:50; background:rgba(15,23,32,.45); align-items:center; justify-content:center; }
+  #lgPop.on{ display:flex; }
+  #lgPop .lg-box{ background:#fff; border-radius:12px; width:96vw; max-width:1560px; height:90vh; display:flex; flex-direction:column; box-shadow:0 14px 44px rgba(0,0,0,.28); overflow:hidden; }
+  .lg-hd{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:10px 14px; border-bottom:1px solid #eef1f5; }
+  .lg-hd #lgTitle{ font-size:16px; font-weight:800; color:#1f2a37; }
+  .lg-hd .lg-act{ margin-left:auto; display:flex; gap:8px; white-space:nowrap; }
+  .lg-hd .lg-hd2{ flex-basis:100%; display:flex; gap:8px; align-items:center; }
+  .lg-hd label{ font-size:12.5px; font-weight:700; color:#37475a; }
+  .lg-hd input[type=date]{ height:32px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13px; font-family:inherit; }
+  .lg-hd input[type=text]{ height:32px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13px; width:170px; font-family:inherit; }
+  .lg-bd{ flex:1; overflow:auto; }
+  table.lg{ border-collapse:collapse; width:100%; font-size:12.5px; }
+  table.lg th{ position:sticky; top:0; z-index:1; background:#d9edf7; font-weight:700; border:1px solid #9fb6c3; padding:6px 6px; white-space:nowrap; text-align:center; }
+  table.lg td{ border:1px solid #c9d3dc; padding:4px 6px; text-align:center; white-space:nowrap; }
+  table.lg td.l{ text-align:left; } table.lg td.r{ text-align:right; font-variant-numeric:tabular-nums; }
+  table.lg tr.lg-day td{ background:#eeffb9; } table.lg tr.lg-day td.lg-keep{ background:#fff; }
+  table.lg tr.lg-sub td{ background:#ecc7ff; } table.lg tr.lg-tot td{ background:#fcf8e3; font-weight:700; }
 </style>
 </head>
 <body>
@@ -99,6 +120,7 @@
       <span class="bar" style="margin-left:auto">
         <input type="date" id="fr"> <span class="dim">~</span> <input type="date" id="to">
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
+        <button class="btn" onclick="lgOpen()" title="지난달의 토더 발주를 마감장부(유형별 매출원장 — 거래처별 · 일계 · 소계 · 합계) 모양으로 보고 엑셀로 냅니다">📒 토더 마감장부</button>
         <button class="btn btn-red" onclick="delSel()">🗑 선택 삭제</button>
         <span id="lsInfo" class="dim" style="font-weight:600;font-size:12.5px"></span>
       </span>
@@ -107,6 +129,36 @@
       <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th><th>발주일자</th><th>발주번호</th><th title="토더 엑셀의 no — 반품이 (발주번호, 번호)로 온다">번호</th><th>구분</th><th>배송지명</th><th>사업장코드</th><th>상품명</th><th>품목코드</th><th>단위</th>
       <th title="고쳐서 Enter — 반품은 여기서 수량을 줄인다(0 = 전량 반품). 재고를 다시 맞춘다">수량 ✏️</th><th title="판매가(부가세 포함 — 토더 엑셀의 매입가). 고쳐서 Enter">판매가 ✏️</th><th title="매출 = 수량 × 판매가(부가세 포함) — 거래처 「토더」">금액</th><th>비고</th><th>올린 파일</th><th>등록</th></tr></thead>
       <tbody id="lsBody"><tr><td colspan="16" class="msg">[🔍 조회]를 누르세요.</td></tr></tbody></table></div>
+  </div>
+</div>
+<%-- 마감장 창 (2026-10-02) — 예시 엑셀 「유형별 매출원장 전체조회」와 같은 칸 · 같은 색. 회사 이름은 엑셀 머리 칸에 쓴다 --%>
+<span id="compNm" style="display:none"><c:out value="${sessionScope.s_comp_nm}"/></span>
+<div id="lgPop" onclick="if(event.target===this) lgClose()">
+  <div class="lg-box">
+    <div class="lg-hd">
+      <span style="font-size:13px;font-weight:800;color:#125a4e;background:#e3f2ee;border-radius:7px;padding:3px 9px">📒 토더 마감장부</span>
+      <span id="lgTitle">[테그글로벌-코네트] 유형별 매출원장 전체조회</span>
+      <%-- 창 안에서 기간을 바꿔 다시 조회 (2026-10-02 사용자 「마감장부에서도 날짜 수정 가능하게 · 다시 조회 가능하게」).
+           처음 값 = 지난달 한 달(같은 날 「이전달 월 기본으로」). 여기서 바꿔도 목록의 기간은 그대로 둔다 — [지난달][이번 달] --%>
+      <input type="date" id="lgFr" onkeydown="if(event.key==='Enter') lgLoad()"> <span class="dim">&#126;</span> <input type="date" id="lgTo" onkeydown="if(event.key==='Enter') lgLoad()">
+      <button class="btn btn-teal" onclick="lgLoad()">🔍 조회</button>
+      <button class="btn" style="padding:0 10px" onclick="lgMonth(-1)" title="지난달 1일부터 말일까지로 조회합니다">지난달</button>
+      <button class="btn" style="padding:0 10px" onclick="lgMonth(0)" title="이번 달 1일부터 말일까지로 조회합니다">이번 달</button>
+      <span id="lgPeriod" style="display:none"></span>
+      <%-- [엑셀 출력][닫기]는 첫 줄 오른쪽 끝에 붙여 두고, 유형 칸은 둘째 줄로 내린다 (2026-10-02 사용자 「닫기 엑셀출력 뒤로 · 유형 닫기 위치로」) --%>
+      <span class="lg-act">
+        <button class="btn btn-teal" onclick="lgXls()">📥 엑셀 출력</button>
+        <button class="btn" onclick="lgClose()">닫기</button>
+      </span>
+      <div class="lg-hd2">
+        <label title="제목과 엑셀의 「유형」 칸에 들어가는 이름 — 고치면 이 PC 에 기억합니다">유형</label>
+        <input type="text" id="lgType" value="테그글로벌-코네트" onchange="lgTypeSave()">
+        <span id="lgInfo" class="dim" style="font-size:12.5px;font-weight:700;color:#125a4e;margin-left:8px"></span>   <%-- 건수·합계는 둘째 줄에(첫 줄이 넘쳐 단추가 밀리지 않게) --%>
+      </div>
+    </div>
+    <div class="lg-bd"><table class="lg"><thead><tr>
+      <th>거래처</th><th>일자</th><th>번호</th><th>NO</th><th>구분</th><th>상품명</th><th>규격</th><th>수량</th><th>단가</th><th>금액</th><th>할인액</th><th>판매액</th><th title="처음부터 그 줄까지의 누계">계</th><th>S</th><th>행사</th><th>비고</th></tr></thead>
+      <tbody id="lgBody"></tbody></table></div>
   </div>
 </div>
 <datalist id="bizList"></datalist><datalist id="prodList"></datalist>
@@ -125,7 +177,7 @@ function d10(s){ s=String(s||'').replace(/[^0-9]/g,''); return s.length>=8? s.sl
 var _biz={}, _prod={}, _map={ biz:{}, item:{} }, _pv=[], _ls=[], _onlyNo=false;
 function loadMasters(){
   var p1=post('/mangr/clientList.do','findData=').then(function(r){ return r.json(); }).then(function(j){ _biz={}; var h=[]; ((j&&j.data)||[]).forEach(function(o){ if(!o.bizCd) return; _biz[String(o.bizCd)]=o.bizNm||''; h.push('<option value="'+esc((o.bizNm||'')+' ['+o.bizCd+']')+'"></option>'); }); document.getElementById('bizList').innerHTML=h.join(''); }).catch(function(){});
-  var p2=post('/prod/prodList.do','').then(function(r){ return r.json(); }).then(function(j){ _prod={}; var h=[]; ((j&&j.data)||[]).forEach(function(o){ if(!o.prodCd) return; _prod[String(o.prodCd)]=o.prodNm||''; h.push('<option value="'+esc((o.prodNm||'')+' ['+o.prodCd+']')+'"></option>'); }); document.getElementById('prodList').innerHTML=h.join(''); }).catch(function(){});
+  var p2=post('/prod/prodList.do','').then(function(r){ return r.json(); }).then(function(j){ _prod={}; var h=[]; ((j&&j.data)||[]).forEach(function(o){ if(!o.prodCd) return; _prod[String(o.prodCd)]=o.prodNm||''; _spec[String(o.prodCd)]=o.spec||''; h.push('<option value="'+esc((o.prodNm||'')+' ['+o.prodCd+']')+'"></option>'); }); document.getElementById('prodList').innerHTML=h.join(''); }).catch(function(){});
   var p3=post('/prod/extItemList.do','').then(function(r){ return r.json(); }).then(function(j){ ((j&&j.data)||[]).forEach(function(o){ if(o.extItemCd && !_prod[String(o.extItemCd)]) _prod[String(o.extItemCd)]=(o.extItemNm||'')+' 〔매칭코드〕'; }); }).catch(function(){});
   var p4=post('/shipout/toderPoMap.do','').then(function(r){ return r.json(); }).then(function(j){ _map={ biz:(j&&j.biz)||{}, item:(j&&j.item)||{} }; }).catch(function(){});
   return Promise.all([p1,p2,p3,p4]).then(function(){ if(_pv.length){ autoFill(); pvRender(); } });
@@ -328,6 +380,127 @@ function delSel(){
     onOk:function(){ post('/shipout/toderPoDelete.do',{ keys:keys },true).then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
       .then(function(t){ var warn=/\|STOCKFAIL:(.*)$/.exec(t); load(); ok((parseInt(t,10)||0)+'줄을 삭제했습니다.'+(warn?'<br><span style="color:#c0392b;font-size:13px">재고 반영 경고 — '+esc(warn[1])+'</span>':'')); })
       .catch(function(e){ err('삭제하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); }); }, onCancel:function(){} });
+}
+
+
+/* ── 마감장(유형별 매출원장) 조회 · 엑셀 (2026-10-02 사용자 「토더발주에 대장 조회 및 엑셀출력 추가」 · 「토더 발주 이런 식으로 마감장」) ──
+   옛 시스템의 「유형별 매출원장 전체조회」 엑셀(예: D:\코네트\테그,샐러링 8월.xlsx)과 같은 모양으로 저장된 토더 발주를 보여 주고 엑셀로 낸다.
+     · 칸 : 거래처 · 일자 · 번호 · NO · 구분 · 상품명 · 규격 · 수량 · 단가 · 금액 · 할인액 · 판매액 · 계 · S · 행사 · 비고
+     · 거래처 = 사업장 마스터 이름(없으면 토더 배송지명) — 거래처의 첫 줄에만 적는다. 번호 = 토더 발주번호 · NO = 그 발주의 줄 번호.
+     · 상품명·규격 = 우리 상품 마스터 것(품목코드가 매칭코드면 그 주코드 상품). 단가 = 판매가(부가세 포함) · 금액 = 수량 × 단가 · 할인액 0 · 판매액 = 금액.
+     · 계 = 처음부터 그 줄까지의 누계. 날짜가 바뀔 때 「일계」(연두), 거래처가 바뀔 때 「소계」(보라), 맨 끝에 「합계」(크림).
+     · 수량 0 줄(전량 반품)은 뺀다 — 매출이 아니다. 차례 = 사업장코드 → 일자 → 발주번호 → 줄 번호.
+     · 기간 = 아래 목록의 조회 기간. 자료는 그때 새로 읽는다(/shipout/toderPoList.do) — 서버는 그대로다. */
+var _spec={}, _lg=null;
+/* 유형 이름 기본값 = 「테그글로벌-코네트」 (같은 날 사용자 「테그글로벌-코네트 처럼 변경」) — 예시 엑셀의 유형 이름 그대로. 창에서 고치면 이 PC 에 기억한다 */
+var LG_TYPE_DEF='테그글로벌-코네트';
+function lgTypeNm(){ var e=document.getElementById('lgType'); return (String(e&&e.value||'').trim())||LG_TYPE_DEF; }
+function lgBuild(rows){
+  var list=(rows||[]).filter(function(x){ return n(x.qty)>0; }).map(function(x){
+    var pc=(x.prodCd && _prod[x.prodCd]!=null) ? String(x.prodCd) : String(x.itemCd||'');
+    return { biz:String(_biz[x.bizCd]||x.bizNm||''), bizCd:String(x.bizCd||''), dt:d10(x.dlvDt), no:String(x.ordNo||''), ln:String(x.lineNo||''),
+      nm:String(_prod[pc]!=null ? _prod[pc] : (x.itemNm||'')).replace(' 〔매칭코드〕',''), spec:String(_spec[pc]||''),
+      qty:n(x.qty), price:n(x.salePrice), amt:Math.round(n(x.qty)*n(x.salePrice)) }; });
+  var cmp=function(a,b){ return String(a).localeCompare(String(b),'ko',{ numeric:true }); };
+  list.sort(function(a,b){ return cmp(a.bizCd,b.bizCd) || cmp(a.biz,b.biz) || cmp(a.dt,b.dt) || cmp(a.no,b.no) || cmp(a.ln,b.ln); });
+  var out=[], run=0, tot=0, i=0, bizCnt=0;
+  while(i<list.length){
+    var bk=list[i].bizCd+'|'+list[i].biz, sub=0, first=true; bizCnt++;
+    while(i<list.length && (list[i].bizCd+'|'+list[i].biz)===bk){
+      var dt=list[i].dt, day=0;
+      while(i<list.length && (list[i].bizCd+'|'+list[i].biz)===bk && list[i].dt===dt){
+        var r=list[i]; run+=r.amt; day+=r.amt;
+        out.push({ k:'row', biz:(first?r.biz:''), dt:r.dt, no:r.no, ln:r.ln, nm:r.nm, spec:r.spec, qty:r.qty, price:r.price, amt:r.amt, run:run });
+        first=false; i++; }
+      out.push({ k:'day', amt:day }); sub+=day; }
+    out.push({ k:'sub', amt:sub }); tot+=sub; }
+  if(list.length) out.push({ k:'tot', amt:tot });
+  return { lines:out, cnt:list.length, bizCnt:bizCnt, tot:tot };
+}
+function lgOpen(){
+  /* ★처음 값 = «지난달» 1일부터 말일까지 (2026-10-02 사용자 「이전달 월 기본으로」) — 마감장부는 지난달 치를 마감하며 본다.
+       종전엔 아래 목록의 조회 기간을 가져왔다. 다른 기간은 창에서 날짜를 고치거나 [이번 달]을 누른다. */
+  var t=new Date(), a=new Date(t.getFullYear(), t.getMonth()-1, 1), b=new Date(t.getFullYear(), t.getMonth(), 0);
+  document.getElementById('lgFr').value=ymd(a); document.getElementById('lgTo').value=ymd(b);
+  document.getElementById('lgPop').classList.add('on');
+  try{ var sv=localStorage.getItem('tdLedgerType'); if(sv && sv!=='토더') document.getElementById('lgType').value=sv; }catch(e){}
+  lgLoad();
+}
+/* 그 달 1일부터 말일까지로 조회. d = 0 이번 달 · -1 지난달 */
+function lgMonth(d){ var t=new Date(), a=new Date(t.getFullYear(), t.getMonth()+d, 1), b=new Date(t.getFullYear(), t.getMonth()+d+1, 0);
+  document.getElementById('lgFr').value=ymd(a); document.getElementById('lgTo').value=ymd(b); lgLoad(); }
+/* 창의 기간으로 다시 읽는다 */
+function lgLoad(){
+  var fr=document.getElementById('lgFr').value, to=document.getElementById('lgTo').value;
+  if(!fr || !to){ err('조회 기간을 넣으세요.'); return; }
+  if(fr>to){ err('시작일이 끝일보다 늦습니다.'); return; }
+  document.getElementById('lgBody').innerHTML='<tr><td colspan="16" class="msg">불러오는 중…</td></tr>'; document.getElementById('lgInfo').textContent='';
+  post('/shipout/toderPoList.do','frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to))
+    .then(function(r){ return r.json(); })
+    .then(function(j){ _lg=lgBuild((j&&j.data)||[]); _lg.fr=fr; _lg.to=to; lgRender(); })
+    .catch(function(e){ _lg=null; document.getElementById('lgBody').innerHTML='<tr><td colspan="16" class="msg" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
+}
+function lgClose(){ document.getElementById('lgPop').classList.remove('on'); }
+function lgTypeSave(){ try{ localStorage.setItem('tdLedgerType', lgTypeNm()); }catch(e){} lgRender(); }
+function lgRender(){
+  if(!_lg) return;
+  document.getElementById('lgTitle').textContent='['+lgTypeNm()+'] 유형별 매출원장 전체조회';
+  document.getElementById('lgPeriod').textContent='조회기간 : '+_lg.fr+' ~ '+_lg.to;
+  var tb=document.getElementById('lgBody');
+  if(!_lg.lines.length){ tb.innerHTML='<tr><td colspan="16" class="msg">이 기간에 저장된 토더 발주가 없습니다.</td></tr>'; document.getElementById('lgInfo').textContent=''; return; }
+  var blank7='<td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
+  tb.innerHTML=_lg.lines.map(function(o){
+    if(o.k==='row') return '<tr><td class="l">'+esc(o.biz)+'</td><td>'+esc(o.dt)+'</td><td>'+esc(o.no)+'</td><td>'+esc(o.ln)+'</td><td>매출</td><td class="l">'+esc(o.nm)+'</td><td class="l">'+esc(o.spec)+'</td>'
+      +'<td class="r">'+fmt(o.qty)+'</td><td class="r">'+fmt(o.price)+'</td><td class="r">'+fmt(o.amt)+'</td><td class="r">0</td><td class="r">'+fmt(o.amt)+'</td><td class="r">'+fmt(o.run)+'</td><td class="r">0</td><td></td><td></td></tr>';
+    var cls=o.k==='day'?'lg-day':(o.k==='sub'?'lg-sub':'lg-tot'), lab=o.k==='day'?'일계':(o.k==='sub'?'소계':'합계');
+    return '<tr class="'+cls+'">'+(o.k==='day'?'<td class="lg-keep"></td><td>일계</td>':'<td>'+lab+'</td><td></td>')+blank7
+      +'<td class="r"><b>'+fmt(o.amt)+'</b></td><td class="r">0</td><td class="r"><b>'+fmt(o.amt)+'</b></td><td></td><td></td><td></td><td></td></tr>';
+  }).join('');
+  document.getElementById('lgInfo').textContent='거래처 '+_lg.bizCnt+'곳 · '+_lg.cnt+'줄 · 합계 '+fmt(_lg.tot)+'원';
+}
+/* 엑셀 — 예시 파일과 같은 틀 : 제목(A1:P2) · 조회기간/출력일자 줄 · 유형 줄 · 머리글 · 본문(일계·소계·합계 색) · 같은 글꼴·테두리 */
+function lgXls(){
+  if(!window.XLSX){ err('엑셀 도구를 불러오지 못했습니다 — 화면을 새로 고친 뒤 다시 해 보세요.'); return; }
+  if(!_lg || !_lg.lines.length){ err('엑셀로 낼 자료가 없습니다.'); return; }
+  var type=lgTypeNm(), today=ymd(new Date()), comp=String((document.getElementById('compNm')||{}).textContent||'').trim();
+  var H=['거래처','일자','번호','NO','구분','상품명','규격','수량','단가','금액','할인액','판매액','계','S','행사','비고'], E=function(k){ var a=[]; for(var i=0;i<k;i++) a.push(''); return a; };
+  var aoa=[ ['['+type+'] 유형별 매출원장 전체조회'].concat(E(15)), E(16),
+            ['조회기간 : '+_lg.fr+' ~ '+_lg.to].concat(E(14)).concat(['출력일자 : '+today]),
+            [_lg.fr+' ~ '+_lg.to,'','','유형',type,'','','','출력일자 : '+today,'','','',comp,'','',''], H ];
+  var kinds=['t','t','p','h','h'];
+  var serial=function(d){ var p=String(d).split('-'); return (Date.UTC(+p[0],+p[1]-1,+p[2])-Date.UTC(1899,11,30))/86400000; };
+  _lg.lines.forEach(function(o){
+    if(o.k==='row') aoa.push([o.biz, serial(o.dt), o.no, (/^\d+$/.test(o.ln)?Number(o.ln):o.ln), '매출', o.nm, o.spec, o.qty, o.price, o.amt, 0, o.amt, o.run, 0, '', '']);
+    else if(o.k==='day') aoa.push(['','일계','','','','','','','',o.amt,0,o.amt,'','','','']);
+    else aoa.push([(o.k==='sub'?'소계':'합계'),'','','','','','','','',o.amt,0,o.amt,'','','','']);
+    kinds.push(o.k); });
+  var ws=XLSX.utils.aoa_to_sheet(aoa), bd={ style:'thin', color:{ rgb:'000000' } }, box={ top:bd, bottom:bd, left:bd, right:bd };
+  var FILL={ h:'D9EDF7', day:'EEFFB9', sub:'ECC7FF', tot:'FCF8E3' };
+  for(var r=0;r<aoa.length;r++){ var k=kinds[r];
+    for(var c=0;c<16;c++){ var ref=XLSX.utils.encode_cell({ r:r, c:c }); if(!ws[ref]) ws[ref]={ t:'s', v:'' };
+      var s={ font:{ name:'맑은 고딕', sz:10 }, alignment:{ vertical:'center', wrapText:true } };
+      if(k==='t'){ s.font={ name:'맑은 고딕', sz:15, bold:true }; s.alignment.horizontal='center'; }
+      else if(k==='p'){ s.alignment.horizontal=(c===15?'right':'left'); if(c<15) s.border={ bottom:bd }; }
+      else if(k==='h'){ s.font.bold=true; s.alignment.horizontal=(r===3 && c>=12 ? 'right' : 'center'); s.fill={ fgColor:{ rgb:FILL.h } }; s.border=box; }
+      else {
+        s.border=box;
+        var num=(c>=7 && c<=13), mid=(c>=1 && c<=4);
+        s.alignment.horizontal = num ? 'right' : (mid ? 'center' : 'left');
+        if(k==='row'){ s.fill={ fgColor:{ rgb:'FFFFFF' } }; if(c===0) s.border={ left:bd, right:bd }; }
+        else { s.fill={ fgColor:{ rgb:FILL[k] } }; if(c===0) s.alignment.horizontal='center';
+               if(k==='day' && c===0){ s.fill={ fgColor:{ rgb:'FFFFFF' } }; s.border={ left:bd, right:bd }; } }
+        if(k==='row' && c===1){ ws[ref].t='n'; ws[ref].z='yyyy-mm-dd'; }
+        if(ws[ref].t==='n' && c>=7 && c!==13 && c!==10){ ws[ref].z=(c===8 && Math.round(ws[ref].v)!==ws[ref].v) ? '#,##0.##' : '#,##0'; }
+      }
+      ws[ref].s=s; } }
+  ws['!merges']=[ { s:{ r:0, c:0 }, e:{ r:1, c:15 } }, { s:{ r:2, c:0 }, e:{ r:2, c:14 } },
+                  { s:{ r:3, c:0 }, e:{ r:3, c:2 } }, { s:{ r:3, c:4 }, e:{ r:3, c:7 } }, { s:{ r:3, c:8 }, e:{ r:3, c:11 } }, { s:{ r:3, c:12 }, e:{ r:3, c:15 } } ];
+  ws['!cols']=[{ wch:21 },{ wch:11 },{ wch:10.5 },{ wch:4.75 },{ wch:4.75 },{ wch:36 },{ wch:26 },{ wch:6.5 },{ wch:9 },{ wch:10.5 },{ wch:6.4 },{ wch:10.5 },{ wch:11.5 },{ wch:2.4 },{ wch:4.75 },{ wch:18.75 }];
+  ws['!rows']=aoa.map(function(a,i){ return { hpt:(i<2?18.75:16.5) }; });
+  var f8=_lg.fr.replace(/-/g,''), t8=_lg.to.replace(/-/g,'');
+  var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, ('유형별원장조회_'+f8+'~'+t8).slice(0,31));
+  XLSX.writeFile(wb, '토더 마감장부_'+type.replace(/[\\\/:*?"<>|]/g,'_')+'_'+f8+'~'+t8+'.xlsx');
+  if(window._toast) _toast('📥 토더 마감장부 엑셀 생성 — '+_lg.cnt+'줄 · 합계 '+fmt(_lg.tot)+'원','ok');
 }
 
 /* ── 끌어다 놓기 · 시작 ── */
