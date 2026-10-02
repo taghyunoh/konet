@@ -25,6 +25,8 @@
       ⛔DDL docs/sql/20260922_toder_sales.sql(SALE_PRICE 칸 + 거래처 「토더」)을 새 WAR 보다 먼저.
     같은 (발주번호, 배송지명, 상품명)을 다시 올리면 앞의 것을 대체한다(같은 기간을 여러 번 받아 올려도 중복되지 않는다).
   · 원본 파일은 보관하지 않는다(DC 발주와 같다). 파일 이름만 남는다.
+  · [✏️ 직접 입력] (2026-10-02 사용자 「엑셀업로드 말고 카톡으로 오는 경우도 있어서 직접입력 기능도」) — 엑셀 없이 줄을 만들어 친다.
+    올린 표 안에 「직접」 줄로 들어가고 저장은 엑셀 줄과 같은 길이다(서버 그대로). 빈 발주번호·배송지명·상품명은 저장할 때 채운다(mPrep 머리말).
   · [📒 토더 마감장부] (이름 = 같은 날 사용자 「토더 마감장부」 · 2026-10-02 사용자 「토더발주에 대장 조회 및 엑셀출력 추가」 · 「토더 발주 이런 식으로 마감장」) — 조회 기간의 저장된 토더 발주를
     옛 시스템 「유형별 매출원장 전체조회」 엑셀과 같은 모양(거래처별 · 일계 · 소계 · 합계 · 누계)으로 보여 주고 엑셀로 낸다. 화면만의 기능이다(서버는 그대로).
 -->
@@ -58,6 +60,10 @@
   /* 저장 목록의 수량·판매가 입력칸(2026-09-22 반품 = 수정) — 넣어야 하는 칸(주황)이 아니라 고칠 수 있는 값이라 흰 바탕 · 오른쪽 정렬 */
   table.g input[type=text].num{ width:86px; text-align:right; background:#fff; border:1px solid var(--bd); font-variant-numeric:tabular-nums; }
   table.g input[type=text].num:focus{ border-color:var(--teal); outline:none; }
+  /* 직접 입력 줄의 글자 칸 — 넣어도 되고 비워도 되는 칸이라 흰 바탕 */
+  table.g input[type=text].mi, table.g input[type=date].mi{ height:30px; background:#fff; border:1px solid var(--bd); border-radius:6px; padding:0 6px; font-size:13px; font-family:inherit; }
+  table.g input.mi:focus{ border-color:var(--teal); outline:none; }
+  table.g input[type=date].mi.bad{ border-color:#e2b93b; background:#fff7d6; }
   table.g input[type=text].num.bad{ border-color:#e2b93b; background:#fff7d6; }
   .sub{ display:block; font-size:11.5px; color:#6b7a89; margin-top:1px; max-width:230px; overflow:hidden; text-overflow:ellipsis; }
   .sub.warn{ color:var(--amber); }
@@ -97,19 +103,24 @@
     <div class="hd">올리기
       <button class="btn btn-teal" id="drop" onclick="document.getElementById('fi').click()" style="margin-left:10px"
         title="엑셀(xlsx) — 여러 개를 한 번에 골라도 됩니다. 이 카드 위로 파일을 끌어다 놓아도 됩니다.&#10;읽는 칸 : 배송지명 · 발주번호 · 발주일시 · 상품명 · 단위 · 매입가 · 발주수량 · 출고수량 · 상품 상태">📄 토더 발주 엑셀</button>
+      <button class="btn" onclick="mAdd()" title="엑셀 없이 줄을 만들어 직접 넣습니다 — 카톡으로 온 발주처럼. 발주일자·사업장코드·품목코드·수량·단가를 넣고 [저장]">✏️ 직접 입력</button>
       <span class="bar" style="margin-left:auto">
         <span id="pvInfo" class="dim" style="font-weight:600;font-size:12.5px"></span>
         <button class="btn" id="btnOnlyNo" onclick="onlyNoToggle()" style="display:none">미입력 줄만</button>
         <button class="btn btn-teal" id="btnSave" onclick="save()" style="display:none">💾 저장</button>
-        <button class="btn" id="btnClear" onclick="pvClear()" style="display:none" title="화면에 올려 둔 엑셀 내용을 비웁니다(저장된 것은 그대로)">업로드 취소</button>
+        <button class="btn btn-red" id="btnClear" onclick="pvClearAsk()" style="display:none" title="위 표에 올려 둔 줄(엑셀로 올린 줄 · 직접 입력한 줄)을 모두 비웁니다. 저장된 토더 발주는 그대로입니다">🧹 전체 비우기</button>
       </span>
     </div>
     <input type="file" id="fi" accept=".xlsx,.xls" multiple style="display:none" onchange="onFiles(this.files); this.value=''">
     <div class="tw" id="pvWrap" style="display:none;max-height:56vh">
       <table class="g"><thead><tr>
-        <th><input type="checkbox" id="pvAll" checked onchange="pvAllChk(this)"></th><th title="엑셀의 no 그대로">No</th><th>발주일자</th><th>발주번호</th><th title="우리 사업장코드 — 한 번 넣으면 같은 배송지명의 빈 칸에 같이 들어가고, 저장하면 다음부터 자동">사업장코드</th><th>배송지명</th>
-        <th title="우리 품목코드(상품코드) — 한 번 넣으면 같은 상품명의 빈 칸에 같이 들어가고, 저장하면 다음부터 자동">품목코드</th><th>상품명</th>
-        <th>단위</th><th>수량</th><th>단가</th><th>상태</th></tr></thead>
+        <%-- ★칸 차례는 아래 「저장된 토더 발주」 목록과 같게 한다 (2026-10-02 사용자 「1번(저장 목록)과 동일한 형식으로 입력되게 — 지금은 우측에 판매가 등이 없음」) —
+             발주일자 · 발주번호 · 번호 · 구분 · 배송지명 · 사업장코드 · 상품명 · 품목코드 · 단위 · 수량 · 판매가 · 금액. 엑셀로 올린 줄도 직접 입력 줄도 같은 칸이다.
+             종전엔 No · 발주일자 · 발주번호 · 사업장코드 · 배송지명 · 품목코드 · 상품명 · 단위 · 수량 · 단가 · 상태 였고 금액 칸이 없었다. --%>
+        <th><input type="checkbox" id="pvAll" checked onchange="pvAllChk(this)"></th><th title="✕ = 그 줄을 화면에서 뺍니다(저장된 것과는 무관) — 맨 오른쪽 끝에 있을 때는 표를 옆으로 밀어야 보였다(2026-10-02)">빼기</th><th>발주일자</th><th>발주번호</th><th title="토더 엑셀의 no 그대로 · 직접 입력 줄은 저장할 때 매깁니다">번호</th><th>구분</th><th>배송지명</th>
+        <th title="우리 사업장코드 — 한 번 넣으면 같은 배송지명의 빈 칸에 같이 들어가고, 저장하면 다음부터 자동">사업장코드</th><th>상품명</th>
+        <th title="우리 품목코드(상품코드) — 한 번 넣으면 같은 상품명의 빈 칸에 같이 들어가고, 저장하면 다음부터 자동">품목코드</th>
+        <th>단위</th><th>수량</th><th title="판매가(부가세 포함 — 토더 엑셀의 매입가)">판매가</th><th title="수량 × 판매가(부가세 포함)">금액</th><th>상태</th></tr></thead>
         <tbody id="pvBody"></tbody></table>
     </div>
     <div class="note" id="pvNote" style="display:none">· 주황 칸 = 넣어야 하는 칸 · 파랑 = 자동으로 채운 값(「자동」 = 지난 저장, 「추정」 = 사업장 마스터 이름과 맞춰 본 것 — 확인 필요) · 초록 = 마스터에 있는 코드 · 노랑 = 마스터에 없는 코드(<b>저장 안 됨</b> — 사업장·상품 마스터에 먼저 등록) · 코드가 둘 다 든 줄만 저장된다 · 저장한 뒤에도 아래 목록에서 코드를 고칠 수 있다</div>
@@ -206,7 +217,7 @@ function onFiles(files){
   Promise.all(jobs).then(function(rs){
     var bad=[], add=[]; rs.forEach(function(r){ if(!r.rows.length) bad.push(esc(r.nm)+(r.err?' — '+esc(r.err):' — 머리 줄(배송지명·상품명)을 못 찾았습니다')); else add=add.concat(r.rows); });
     /* 같은 (발주번호, 배송지명, 상품명) 은 나중 것으로 */
-    var seen={}; _pv.concat(add).forEach(function(x){ seen[x.ordNo+'|'+x.bizNm+'|'+x.itemNm]=x; }); _pv=Object.keys(seen).map(function(k){ return seen[k]; });
+    var seen={}; _pv.concat(add).forEach(function(x){ seen[x.manual ? ('(직접)'+x.mid) : (x.ordNo+'|'+x.bizNm+'|'+x.itemNm)]=x; }); _pv=Object.keys(seen).map(function(k){ return seen[k]; });
     /* 엑셀에 적힌 차례 그대로(파일 이름 → 줄 차례). 여러 파일이면 파일별로 이어 붙는다 */
     _pv.sort(function(a,b){ return String(a.fileNm||'').localeCompare(String(b.fileNm||'')) || (a.seq-b.seq); });
     autoFill(); pvRender();
@@ -235,14 +246,19 @@ function pvRender(){
   var tb=document.getElementById('pvBody');
   tb.innerHTML=_pv.map(function(x,i){
     if(_onlyNo && x.bizCd && x.itemCd) return '';
+    if(x.manual) return mRow(x, i);   /* 직접 입력 줄 — 칸마다 입력칸 (2026-10-02) */
     var bn=_biz[x.bizCd], pn=_prod[x.itemCd];
-    return '<tr class="'+(x.chk?'':'off')+'"><td><input type="checkbox" '+(x.chk?'checked':'')+' onchange="_pv['+i+'].chk=this.checked; pvRender()"></td><td>'+esc(x.no!==''&&x.no!=null?x.no:(i+1))+'</td><td>'+esc(x.dlvDt)+'</td><td>'+esc(x.ordNo)+'</td>'
-      +'<td class="l">'+(x.bizCd?'<span class="sub nmf'+(bn==null?' warn':'')+'">'+(x.bizAuto?'<span class="bd auto" title="'+(x.bizGuess?'사업장 마스터의 이름과 맞춰 본 추정 — 맞는지 확인하세요':'지난 저장에서 가져온 값')+'">'+(x.bizGuess?'추정':'자동')+'</span> ':'')+esc(bn!=null?bn:'사업장 마스터에 없는 코드')+'</span>':'')+'<input type="text" list="bizList" class="'+cdCls(x.bizCd,_biz,x.bizAuto)+'" value="'+esc(x.bizCd)+'" placeholder="명칭 또는 코드" onchange="setCd('+i+',\'biz\',this.value)"></td>'
+    return '<tr class="'+(x.chk?'':'off')+'"><td><input type="checkbox" '+(x.chk?'checked':'')+' onchange="_pv['+i+'].chk=this.checked; pvRender()"></td><td><button class="btn" style="height:26px;padding:0 7px;color:#c0392b" title="이 줄을 화면에서 뺍니다(저장된 것과는 무관)" onclick="mDel('+i+')">✕</button></td><td>'+esc(x.dlvDt)+'</td><td>'+esc(x.ordNo)+'</td><td><b>'+esc(x.no!==''&&x.no!=null?x.no:(i+1))+'</b></td><td>토더</td>'
       +'<td class="l">'+esc(x.bizNm)+'</td>'
-      +'<td class="l">'+(x.itemCd?'<span class="sub nmf'+(pn==null?' warn':'')+'">'+(x.itemAuto?'<span class="bd auto">자동</span> ':'')+esc(pn!=null?pn:'상품 마스터에 없는 코드')+'</span>':'')+'<input type="text" list="prodList" class="'+cdCls(x.itemCd,_prod,x.itemAuto)+'" value="'+esc(x.itemCd)+'" placeholder="명칭 또는 코드" onchange="setCd('+i+',\'item\',this.value)"></td>'
+      +'<td class="l">'+(x.bizCd?'<span class="sub nmf'+(bn==null?' warn':'')+'">'+(x.bizAuto?'<span class="bd auto" title="'+(x.bizGuess?'사업장 마스터의 이름과 맞춰 본 추정 — 맞는지 확인하세요':'지난 저장에서 가져온 값')+'">'+(x.bizGuess?'추정':'자동')+'</span> ':'')+esc(bn!=null?bn:'사업장 마스터에 없는 코드')+'</span>':'')+'<input type="text" list="bizList" class="'+cdCls(x.bizCd,_biz,x.bizAuto)+'" value="'+esc(x.bizCd)+'" placeholder="명칭 또는 코드" onchange="setCd('+i+',\'biz\',this.value)"></td>'
       +'<td class="l">'+esc(x.itemNm)+'</td>'
-      +'<td>'+esc(x.unit)+'</td><td class="r"><b>'+fmt(x.qty)+'</b></td><td class="r">'+(x.price?fmt(x.price):'')+'</td><td><span class="bd '+(/취소|반품/.test(x.status)?'cx':'st')+'">'+esc(x.status)+'</span></td></tr>';
+      +'<td class="l">'+(x.itemCd?'<span class="sub nmf'+(pn==null?' warn':'')+'">'+(x.itemAuto?'<span class="bd auto">자동</span> ':'')+esc(pn!=null?pn:'상품 마스터에 없는 코드')+'</span>':'')+'<input type="text" list="prodList" class="'+cdCls(x.itemCd,_prod,x.itemAuto)+'" value="'+esc(x.itemCd)+'" placeholder="명칭 또는 코드" onchange="setCd('+i+',\'item\',this.value)"></td>'
+      +'<td>'+esc(x.unit)+'</td><td class="r"><b>'+fmt(x.qty)+'</b></td><td class="r">'+(x.price?fmt(x.price):'')+'</td><td class="r"><b>'+fmt(n(x.qty)*n(x.price))+'</b></td>'
+      +'<td><span class="bd '+(/취소|반품/.test(x.status)?'cx':'st')+'">'+esc(x.status)+'</span></td></tr>';
   }).join('');
+  pvInfoUpd();
+}
+function pvInfoUpd(){
   var sel=_pv.filter(function(x){ return x.chk; }), rdy=sel.filter(function(x){ return x.bizCd&&x.itemCd&&x.dlvDt&&x.qty; });
   var unk=rdy.filter(function(x){ return _biz[x.bizCd]==null || _prod[x.itemCd]==null; }).length;   /* 마스터에 없는 코드 — 저장 막힘(2026-09-22) */
   document.getElementById('pvInfo').textContent='올린 줄 '+_pv.length+' · 선택 '+sel.length+' · 저장 가능 '+(rdy.length-unk)+(sel.length-rdy.length?' · 코드 빈 줄 '+(sel.length-rdy.length):'')+(unk?' · 마스터에 없는 코드 '+unk+'줄(저장 막힘)':'');
@@ -257,13 +273,24 @@ function pickCd(v, mst){
 }
 function setCd(i, kind, v){
   v=pickCd(v, kind==='biz'?_biz:_prod); var x=_pv[i]; if(!x) return;
-  if(kind==='biz'){ var nm=x.bizNm; _pv.forEach(function(y){ if(y===x || (y.bizNm===nm && (!y.bizCd || y.bizAuto))){ y.bizCd=v; y.bizAuto=false; y.bizGuess=false; } }); }
-  else { var inm=x.itemNm; _pv.forEach(function(y){ if(y===x || (y.itemNm===inm && (!y.itemCd || y.itemAuto))){ y.itemCd=v; y.itemAuto=false; } }); }
+  if(kind==='biz'){ var nm=x.bizNm; _pv.forEach(function(y){ if(y===x || (nm && !y.manual && y.bizNm===nm && (!y.bizCd || y.bizAuto))){ y.bizCd=v; y.bizAuto=false; y.bizGuess=false; } }); }
+  else { var inm=x.itemNm; _pv.forEach(function(y){ if(y===x || (inm && !y.manual && y.itemNm===inm && (!y.itemCd || y.itemAuto))){ y.itemCd=v; y.itemAuto=false; } }); }
+  if(x.manual) mFill(x, kind);   /* 직접 줄 — 그 품목의 마지막 토더 판매가·단위 */
   pvRender();
 }
 function pvAllChk(el){ _pv.forEach(function(x){ x.chk=el.checked; }); pvRender(); }
 function onlyNoToggle(){ _onlyNo=!_onlyNo; pvRender(); }
 function pvClear(){ _pv=[]; _onlyNo=false; pvRender(); }
+/* 전체 비우기 — 위 표의 줄(엑셀 · 직접 입력)을 모두 치운다. 저장된 것은 건드리지 않는다.
+   종전 이름 「업로드 취소」는 직접 입력 줄이 생긴 뒤로 「엑셀만 지우는 것」처럼 읽혀 헷갈렸다(2026-10-02). 한 번 묻고 비운다 */
+function pvClearAsk(){
+  if(!_pv.length){ if(window._toast) _toast('비울 줄이 없습니다.','info'); return; }
+  var man=_pv.filter(function(x){ return x.manual; }).length, xl=_pv.length-man;
+  _confirmBox({ icon:'🧹', okText:'비우기',
+    msg:'위 표의 <b>'+_pv.length+'</b>줄을 모두 비웁니다.<br><span style="font-size:13px;color:#3d4d5c">'
+      +(xl?'엑셀로 올린 줄 '+xl+'개':'')+(xl&&man?' · ':'')+(man?'직접 입력한 줄 '+man+'개':'')+' — 아직 저장하지 않은 내용은 사라집니다. 저장된 토더 발주는 그대로입니다.</span>',
+    onOk:function(){ pvClear(); }, onCancel:function(){} });
+}
 
 function save(){
   var sel=_pv.filter(function(x){ return x.chk; }), rdy=sel.filter(function(x){ return x.bizCd&&x.itemCd&&x.dlvDt&&x.qty; }), miss=sel.length-rdy.length;
@@ -279,6 +306,7 @@ function save(){
       +'노란 칸을 고치거나 그 줄의 체크를 빼고 다시 저장하세요.</span>');
     return;
   }
+  mPrep(rdy);   /* 직접 입력 줄 — 배송지명·상품명·발주번호·줄 번호를 채운다 (2026-10-02) */
   /* 토더 = 매출(2026-09-22) — 매출 = 수량 × 판매가(엑셀 매입가, 부가세 포함). 판매가가 빈 줄은 매출 0 으로 들어가므로 알린다(막지는 않는다 — 저장 뒤 목록에서 고칠 수 있다) */
   var noPrice=rdy.filter(function(x){ return !(n(x.price)>0); }).length, amt=rdy.reduce(function(s,x){ return s+n(x.qty)*n(x.price); },0);
   _confirmBox({ icon:'💾', okText:'저장',
@@ -501,6 +529,82 @@ function lgXls(){
   var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, ('유형별원장조회_'+f8+'~'+t8).slice(0,31));
   XLSX.writeFile(wb, '토더 마감장부_'+type.replace(/[\\\/:*?"<>|]/g,'_')+'_'+f8+'~'+t8+'.xlsx');
   if(window._toast) _toast('📥 토더 마감장부 엑셀 생성 — '+_lg.cnt+'줄 · 합계 '+fmt(_lg.tot)+'원','ok');
+}
+
+
+/* ── 직접 입력 (2026-10-02 사용자 「토더 엑셀업로드 말고 카톡으로 오는 경우도 있어서 직접입력 기능도 추가」) ──
+   엑셀 없이 줄을 만들어 친다. 올린 표 안에 「직접」 줄로 섞여 들어가고, 저장은 엑셀 줄과 같은 길(toderPoSave)을 탄다 — 서버는 그대로다.
+     · 치는 칸 : 발주일자 · 사업장코드 · 품목코드 · 수량 · 단가(부가세 포함). 발주번호·배송지명·상품명·단위는 비워도 된다.
+     · 비운 칸은 저장할 때 채운다 — 배송지명 = 사업장 마스터 이름 · 상품명 = 상품 마스터 이름 ·
+       발주번호 = 「KT + 일시 + 차례」(같은 날·같은 사업장의 직접 줄은 한 번호로 묶고 줄 번호를 1부터 매긴다).
+       ★발주번호를 꼭 붙이는 까닭 : 저장된 줄의 열쇠가 (발주번호, 배송지명, 상품명)이라, 비워 두면 다른 날 같은 지점·같은 상품을 넣을 때 앞의 것을 덮어쓴다.
+     · 품목코드를 고르면 그 품목의 «마지막 토더 판매가»·단위를 가져온다(최근 석 달의 저장분에서). 없으면 단가 칸이 비어 있으니 직접 넣는다.
+     · [직접 입력]을 다시 누르면 바로 앞 직접 줄의 발주일자·사업장을 이어받는다(한 지점이 여러 품목을 보내는 일이 많다). */
+var _mid=0, _mh=null;
+function mHist(){
+  if(_mh) return;
+  _mh=[]; var t=new Date(), a=new Date(t.getFullYear(), t.getMonth()-3, t.getDate());
+  post('/shipout/toderPoList.do','frDt='+encodeURIComponent(ymd(a))+'&toDt='+encodeURIComponent(ymd(t)))
+    .then(function(r){ return r.json(); }).then(function(j){ _mh=(j&&j.data)||[]; }).catch(function(){});
+}
+function mLast(pred){ var hit=null; (_mh||[]).concat(_ls||[]).forEach(function(y){ if(pred(y) && (!hit || String(y.dlvDt)>String(hit.dlvDt))) hit=y; }); return hit; }
+/* 고른 코드로 빈 칸을 채운다 — 손으로 넣은 값은 안 건드린다 */
+function mFill(x, kind){
+  if(kind==='item' && x.itemCd){ var h=mLast(function(y){ return String(y.itemCd)===String(x.itemCd); });
+    if(h){ if(!x.price && h.salePrice!=null) x.price=n(h.salePrice); if(!x.unit && h.unit) x.unit=h.unit; } }
+}
+function mAdd(){
+  mHist();
+  var prev=null; _pv.forEach(function(y){ if(y.manual) prev=y; });
+  var x={ manual:true, mid:(++_mid), no:'', seq:9000000+_mid, chk:true, brand:'', fileNm:'직접 입력(카톡)', bizNm:(prev?prev.bizNm:''), ordNo:'', ordDttm:'',
+          dlvDt:(prev&&prev.dlvDt)?prev.dlvDt:ymd(new Date()), dueDt:'', itemNm:'', unit:'', price:0, qty:1, status:'직접 입력',
+          bizCd:(prev?prev.bizCd:''), itemCd:'', bizAuto:false, itemAuto:false };
+  _pv.push(x); pvRender();
+  var tr=document.querySelector('#pvBody tr[data-mid="'+x.mid+'"]');
+  if(tr){ var e=tr.querySelector(x.bizCd ? 'input[list="prodList"]' : 'input[list="bizList"]'); if(e) e.focus(); tr.scrollIntoView({ block:'nearest' }); }
+}
+function mDel(i){ _pv.splice(i,1); pvRender(); }
+function mSet(i, f, el){
+  var x=_pv[i]; if(!x) return; var v=String(el.value||'').replace(/,/g,'').trim();
+  if(f==='qty'){ x.qty=Math.max(0, Math.round(n(v))); el.value=x.qty||''; el.classList.toggle('bad', !x.qty); }
+  else if(f==='price'){ x.price=(v==='' ? 0 : Math.max(0, n(v))); el.value=x.price||''; el.classList.toggle('bad', !x.price); }
+  else if(f==='dlvDt'){ x.dlvDt=v; el.classList.toggle('bad', !v); }
+  else { x[f]=String(el.value||'').trim(); if(f==='ordNo') x.ordAuto=false; }   /* 손으로 넣은 발주번호는 저장할 때 다시 매기지 않는다 */
+  var ma=document.getElementById('mAmt'+x.mid); if(ma) ma.textContent=fmt(n(x.qty)*n(x.price));   /* 금액 = 수량 × 판매가 */
+  pvInfoUpd();
+}
+function mRow(x, i){
+  var bn=_biz[x.bizCd], pn=_prod[x.itemCd];
+  var ti=function(f, w, ph){ return '<input type="text" class="mi" style="width:'+w+'px" value="'+esc(x[f]==null?'':x[f])+'" placeholder="'+ph+'" onchange="mSet('+i+',\''+f+'\',this)">'; };
+  /* 칸 차례 = 저장 목록과 같다 : 발주일자 · 발주번호 · 번호 · 구분 · 배송지명 · 사업장코드 · 상품명 · 품목코드 · 단위 · 수량 · 판매가 · 금액 (2026-10-02 「1번과 동일한 형식」) */
+  return '<tr data-mid="'+x.mid+'" class="'+(x.chk?'':'off')+'"><td><input type="checkbox" '+(x.chk?'checked':'')+' onchange="_pv['+i+'].chk=this.checked; pvRender()"></td>'
+    +'<td><button class="btn" style="height:26px;padding:0 7px;color:#c0392b" title="이 줄을 화면에서 뺍니다(저장된 것과는 무관)" onclick="mDel('+i+')">✕</button></td>'
+    +'<td><input type="date" class="mi'+(x.dlvDt?'':' bad')+'" value="'+esc(x.dlvDt)+'" onchange="mSet('+i+',\'dlvDt\',this)"></td>'
+    +'<td>'+ti('ordNo', 96, '자동')+'</td>'
+    +'<td class="dim" title="저장할 때 매깁니다">'+esc(x.ordAuto && x.no ? x.no : '자동')+'</td>'
+    +'<td><span class="bd auto" title="직접 입력한 줄(엑셀이 아님)">직접</span></td>'
+    +'<td class="l">'+ti('bizNm', 110, '(사업장명)')+'</td>'
+    +'<td class="l">'+(x.bizCd?'<span class="sub nmf'+(bn==null?' warn':'')+'">'+esc(bn!=null?bn:'사업장 마스터에 없는 코드')+'</span>':'')
+      +'<input type="text" list="bizList" class="'+cdCls(x.bizCd,_biz,false)+'" value="'+esc(x.bizCd)+'" placeholder="명칭 또는 코드" onchange="setCd('+i+',\'biz\',this.value)"></td>'
+    +'<td class="l">'+ti('itemNm', 170, '(상품 마스터 이름)')+'</td>'
+    +'<td class="l">'+(x.itemCd?'<span class="sub nmf'+(pn==null?' warn':'')+'">'+esc(pn!=null?pn:'상품 마스터에 없는 코드')+'</span>':'')
+      +'<input type="text" list="prodList" class="'+cdCls(x.itemCd,_prod,false)+'" value="'+esc(x.itemCd)+'" placeholder="명칭 또는 코드" onchange="setCd('+i+',\'item\',this.value)"></td>'
+    +'<td>'+ti('unit', 96, '단위')+'</td>'
+    +'<td class="r"><input type="text" class="num'+(x.qty?'':' bad')+'" style="width:70px" value="'+esc(x.qty||'')+'" title="수량" onchange="mSet('+i+',\'qty\',this)"></td>'
+    +'<td class="r"><input type="text" class="num'+(x.price?'':' bad')+'" style="width:86px" value="'+esc(x.price||'')+'" placeholder="판매가" title="판매가(부가세 포함)" onchange="mSet('+i+',\'price\',this)"></td>'
+    +'<td class="r"><b id="mAmt'+x.mid+'">'+fmt(n(x.qty)*n(x.price))+'</b></td>'
+    +'<td><span class="bd st">직접 입력</span></td></tr>';
+}
+/* 저장 직전 — 직접 줄의 빈 칸을 채운다(배송지명·상품명 = 마스터 이름, 발주번호 = KT+일시+차례, 줄 번호) */
+function mPrep(rdy){
+  var d=new Date(), p2=function(v){ return ('0'+v).slice(-2); };
+  var stamp=String(d.getFullYear()).slice(2)+p2(d.getMonth()+1)+p2(d.getDate())+p2(d.getHours())+p2(d.getMinutes())+p2(d.getSeconds());
+  var grp={}, gk=0;
+  rdy.forEach(function(x){ if(!x.manual) return;
+    if(!x.bizNm) x.bizNm=String(_biz[x.bizCd]||'');
+    if(!x.itemNm) x.itemNm=String(_prod[x.itemCd]||'').replace(' 〔매칭코드〕','');
+    if(!x.ordNo || x.ordAuto){ var k=x.dlvDt+'|'+x.bizCd; if(!grp[k]) grp[k]={ no:'KT'+stamp+'-'+(++gk), ln:0 }; x.ordNo=grp[k].no; x.ordAuto=true; x.no=String(++grp[k].ln); }
+    else if(x.no==='' || x.no==null) x.no='1'; });
 }
 
 /* ── 끌어다 놓기 · 시작 ── */

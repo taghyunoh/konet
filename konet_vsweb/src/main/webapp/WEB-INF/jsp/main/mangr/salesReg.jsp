@@ -20,7 +20,7 @@
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-quick.js?v=20260911"></script>
 <%-- 거래명세서 양식 — 이 화면과 공개 링크(/pub/stmt.do)가 같이 쓰는 렌더러 (2026-09-09).
      양식을 고칠 때는 이 파일 하나만 고치면 두 곳이 함께 바뀐다. --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/stmt-sheet.js?v=20260911"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/stmt-sheet.js?v=20261002"></script>
 <%-- 카톡 공유 — 발주서(poReg)와 **같은 방식**(2026-09-09 확정 「발주서에서 했으니 그대로」).
      키가 없거나 SDK 를 못 불러오면 [🔗 링크 복사]로 넘어간다(카드 미리보기는 og: 태그로 뜬다). --%>
 <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous"></script>
@@ -908,7 +908,7 @@
           <div class="f"><label style="color:#137a6c">업태 <span style="font-weight:600">· 서버</span></label><input type="text" id="ps_cond"></div>
           <div class="f" style="grid-column:span 2"><label>주소</label><input type="text" id="ps_addr"></div>
           <div class="f" style="grid-column:span 2"><label style="color:#137a6c">종목 <span style="font-weight:600">· 서버</span></label><input type="text" id="ps_item"></div>
-          <div class="f" style="grid-column:span 2"><label style="color:#137a6c">계좌 <span style="font-weight:600">· 서버</span></label><input type="text" id="ps_bank" placeholder="국민은행 (주)코네트 000000-00-000000"></div>
+          <div class="f" style="grid-column:span 2"><label style="color:#137a6c" title="회사의 기본 계좌입니다. 거래처관리에서 그 거래처에 「계좌」를 적어 두었으면 명세서에는 그 계좌가 찍힙니다">계좌 <span style="font-weight:600">· 서버</span></label><input type="text" id="ps_bank" placeholder="국민은행 (주)코네트 000000-00-000000" title="회사의 기본 계좌 — 거래처에 계좌가 적혀 있으면 명세서에는 그 계좌가 찍힙니다"></div>
           <div class="f" style="grid-column:span 2"><label>연락처</label><input type="text" id="ps_tel"></div>
           <div class="f" style="grid-column:span 4"><label style="color:#137a6c">공지사항 <span style="font-weight:600">· 서버</span> <span style="font-weight:600;color:#8a97a4">(맨 아래 칸에 늘 찍히는 글)</span></label><input type="text" id="ps_notice" placeholder="비워 두면 빈 칸으로 나갑니다"></div>
         </div>

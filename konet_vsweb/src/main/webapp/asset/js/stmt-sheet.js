@@ -9,7 +9,7 @@
 
    쓰는 법 :
      konetStmt.doc(D, O, S, prev, opt) → 문서 한 장 통째(HTML 문자열)
-       D  전표   {dt,no,dlvDt,venNm,ven{bizno,addr,addr2,email,hp,tel},remark,pay,dc,
+       D  전표   {dt,no,dlvDt,venNm,ven{bizno,addr,addr2,email,hp,tel,bankAcct},remark,pay,dc,   ← ven.bankAcct(거래처의 입금 계좌)가 있으면 S.bank 대신 찍는다
                   t{box,ea,qty,sup,vat,tot}, rows[...], balBefore,balAfter, sortMap{prodCd:조회순서}}
        O  조건   konetStmt.DEF 참고
        S  공급자 {nm,biz,ceo,cond,item,addr,bank,tel,notice,notice2,stamp}
@@ -231,7 +231,10 @@
        /* 반품액·실매출액을 찍으면 이 칸은 <반품 전 매출액> — 매출액 − 반품액 = 실매출액 이 한 줄에 맞아떨어진다 */
        +     '<td class="k">매출액</td><td class="r">'+(money?fmt(netAmt + (rtn ? rtnAmt : 0)):'')+'</td>'
        +     '<td class="k">세액</td><td class="r">'+((money&&O.vat==='Y')?fmt(D.t.vat):'')+'</td>'
-       +     '<td class="k">계좌</td><td class="l">'+esc(S.bank)+'</td></tr>'
+       /* ★계좌 = «거래처에 적힌 계좌»가 있으면 그것, 없으면 회사 계좌 (2026-10-02 사용자 「코네트 계좌번호를 찍어 주지만 이외 경우 발생함」) —
+            거래처관리의 「계좌」 칸은 그 거래처가 입금할 계좌다(대부분 코네트 계좌이지만 다른 계좌를 쓰는 거래처가 있다).
+            종전엔 늘 회사 계좌 하나만 찍어 그런 거래처에는 틀린 계좌가 나갔다. 화면 인쇄(D.ven = 거래처 마스터)와 공개 링크(서버 stmtJson)가 같은 값을 준다. */
+       +     '<td class="k">계좌</td><td class="l">'+esc((D.ven && String(D.ven.bankAcct||'').replace(/^\s+|\s+$/g,'')) || S.bank)+'</td></tr>'
        + '<tr><td class="k">합계</td><td class="r"><b>'+(money?fmt(D.t.tot):'')+'</b></td>'
        +     '<td class="k">수금</td><td class="r">'+(money?fmt(D.pay):'')+'</td>'
        +     '<td class="k">잔고</td><td class="r">'+(bal?fmt(D.balAfter):'')+'</td>'

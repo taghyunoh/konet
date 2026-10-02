@@ -3432,6 +3432,7 @@ public class UserController {
 				egovframework.konet.user.model.VendorDTO v = vl.get(0);
 				ven.put("bizno", v.getBizno()); ven.put("addr", v.getAddr()); ven.put("addr2", v.getAddr2());
 				ven.put("email", v.getEmail()); ven.put("hp", v.getHp()); ven.put("tel", v.getTel());
+				ven.put("bankAcct", v.getBankAcct());   // 거래처의 입금 계좌 — 있으면 명세서 계좌 칸에 회사 계좌 대신 찍힌다(2026-10-02 · stmt-sheet.js)
 			}
 			D.put("ven", ven);
 			/* 공급자 — 회사 마스터(업태·종목·계좌 포함, 2026-09-09 신설 칸) */
