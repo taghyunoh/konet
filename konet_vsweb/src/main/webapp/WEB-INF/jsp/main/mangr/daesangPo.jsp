@@ -8,6 +8,7 @@
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 엑셀 읽기·쓰기 (전역 XLSX) --%>
 <script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>   <%-- 표 높이 막대(판매등록과 같은 공용 파일) --%>
+<script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917"></script>   <%-- 회사 설정(konetSet) — 기본 택배 운임 parcelFeeDef --%>
 <!--
   대상 발주 등록 (2026-10-02 신설 — 사용자 「토더처럼 대상이라는 곳에서 이메일로 엑셀을 캡쳐해서 옵니다(토더는 금액은 있는데 대상은 없습니다, 발주일자도 없고),
     캡쳐를 엑셀로 출력 기능도 있어야 함 · 토더처럼 입력하고 저장하는 스타일로 · 나중에 쌓이면 발주일자만 입력 · 매출관리에 대상발주등록 추가 · 저장 후 취소 기능도 · 매출은 토더처럼 발생하게」)
@@ -26,7 +27,14 @@
       저장하면 곧 출고·매출(수량 × 단가), 그 날짜의 재고에서 빠진다. 매출 거래처 = 대상주식회사(물류센터코드 DAESANG — ⛔DDL docs/sql/20261002_daesang_po.sql 먼저).
     사업장 = 위에서 고른 대상 사업장 하나. 받는 사람(학교·지점)은 사업장으로 만들지 않고 줄마다 배송 정보로만 남긴다(사용자 확정).
   · 저장 뒤 : 아래 목록에서 발주일자·품목코드·수량·단가를 고치고(옛 줄을 이력으로 닫고 새 줄을 넣는다), [선택 삭제]로 저장을 취소한다(재고도 다시 맞춘다).
-  · 엑셀 저장 = 캡쳐와 같은 열 차례 그대로(사용자 「캡쳐처럼 엑셀 저장만 하면 됨 · 그다음은 사용자가 알아서」) — 올린 표에서도, 저장된 목록에서도 된다.
+    받는 사람·주소·전화 1·2·제품코드·제품명·택배비도 고칠 수 있다(같은 날 사용자 「저장내용 수정기능」) — 매출·재고와 무관한 칸이라 그 줄만 제자리에서 바로 저장한다(확인창 없이 알림만).
+  · 엑셀 저장 = «택배 납기관리»의 엑셀과 같은 양식(머리글 없는 9칸 — 사용자 「엑셀출력은 택배 납기관리에서 엑셀저장처럼 동일하게」) — 올린 표에서도, 저장된 목록에서도 된다.
+    (처음엔 「캡쳐처럼 엑셀 저장만 하면 됨」으로 메일 표와 같은 10칸이었다가 같은 날 이것으로 바꿨다.)
+  · 택배비 (같은 날 사용자 「기본 택배비는 4500으로 입력 가능하게」) — 줄마다 기본 4,500원(회사 설정의 기본 택배 운임), 칸에서 고칠 수 있고 엑셀의 운임(G) 칸으로 나간다.
+    ★DB 에 저장한다(같은 날 사용자 「DB 저장은 없나요」 — TBL_SHIPOUT_MST.RCV_FEE, DDL 같은 파일에 덧붙임) — 저장할 때 줄마다 같이 들어가고,
+     저장 목록에서 고치면 그 줄만 바로 저장된다(/shipout/daesangPoFee.do). 매출·재고와는 무관한 값이라 재고를 다시 맞추지 않는다.
+     (처음엔 택배 납기관리처럼 화면에서만 쓰는 값이었다.)
+    택배 납기관리는 「총수량 × 운임」이지만 대상의 수량은 낱개(ea)라 곱하지 않고 한 줄에 한 번만 넣는다.
   · 같은 표를 두 번 올리면 두 번 들어간다(발주번호가 없다) — 저장 때 같은 줄(날짜·받는 사람·제품명·수량)이 이미 있으면 한 번 더 묻는다.
 -->
 <style>
@@ -72,6 +80,14 @@
   .x{ border:0; background:none; color:#b0392b; cursor:pointer; font-size:15px; padding:2px 6px; }
   /* 올리는 방법 안내(올린 줄이 없을 때) */
   #howBox{ padding:14px 14px 12px; color:#3d4d5c; font-size:13px; }
+  .how-top{ text-align:right; margin-bottom:6px; } .how-top .btn{ height:28px; padding:0 10px; font-size:12px; }
+  /* 접힌 모양 — 붙여넣기 자리 한 줄 + [펼치기] */
+  #howBox.fold{ display:flex; align-items:center; gap:8px; padding:8px 12px; }
+  #howBox.fold .how-top{ order:2; margin:0; }
+  #howBox.fold #pasteZone{ flex:1; padding:6px 12px; text-align:left; border-radius:8px; }
+  #howBox.fold .pz-ic, #howBox.fold .pz-s, #howBox.fold .how-cards, #howBox.fold .how-steps{ display:none; }
+  #howBox.fold .pz-t{ font-size:14px; margin-top:0; }
+  #howBox.fold #pasteZone kbd{ font-size:12.5px; min-width:24px; padding:0 6px; border-bottom-width:2px; }
   #pasteZone{ border:2px dashed #b9c7d6; border-radius:12px; background:#f8fafc; padding:20px 12px 18px; text-align:center; cursor:pointer; outline:none; transition:border-color .12s, background .12s; }
   #pasteZone:hover{ border-color:#7fa9a1; background:#f3faf8; }
   #pasteZone:focus{ border-color:var(--teal); border-style:solid; background:#eaf6f3; box-shadow:0 0 0 3px rgba(19,122,108,.14); }
@@ -115,7 +131,7 @@
       <select id="bizSel" onchange="bizSave()"></select>
       <span class="bar" style="margin-left:auto">
         <span id="pvInfo" class="dim" style="font-weight:600;font-size:12.5px"></span>
-        <button class="btn" id="btnXls" onclick="pvXls()" style="display:none" title="올려 둔 표를 메일 표와 같은 열 차례의 엑셀로 저장합니다(체크한 줄)">📊 엑셀 저장</button>
+        <button class="btn" id="btnXls" onclick="pvXls()" style="display:none" title="올려 둔 표를 택배 납기관리의 엑셀과 같은 양식(머리글 없는 9칸)으로 저장합니다(체크한 줄)">📊 엑셀 저장</button>
         <button class="btn btn-teal" id="btnSave" onclick="save()" style="display:none">💾 저장</button>
       </span>
     </div>
@@ -132,7 +148,10 @@
     <%-- 올리는 방법 안내 (2026-10-02 사용자 「이 부분을 직관적으로」 · 「사용자는 무엇인지 헷갈림」) — 설명 글 네 줄을 없애고 할 일만 남겼다 :
          «큰 붙여넣기 자리 + 단추 둘 + 차례 한 줄».
          큰 자리는 눌러서 이 화면을 잡게 한다 — 메뉴를 막 누른 직후에는 글쇠가 바깥(셸)으로 가서 Ctrl+V 가 안 먹기 때문. 잡히면 테두리가 초록으로 바뀌고 글이 「준비됐습니다」로 바뀐다. --%>
-    <div id="howBox">
+    <%-- ★기본은 접힌 한 줄 (2026-10-02 사용자 「기본은 접기」) — 아래 저장 목록이 바로 보이게. 접혀 있어도 그 한 줄을 누르고 Ctrl+V 하면 그대로 붙는다.
+         [▼ 펼치기]로 큰 자리·단추·차례를 다시 볼 수 있고, 펼침·접힘은 이 PC 에 기억한다(dsPoHow). --%>
+    <div id="howBox" class="fold">
+      <div class="how-top"><button class="btn" id="howTgl" onclick="howToggle()" title="붙여넣기 안내를 펼치거나 접습니다">▼ 펼치기</button></div>
       <div id="pasteZone" tabindex="0" title="여기를 한 번 누른 뒤 Ctrl+V 를 누르세요">
         <div class="pz-ic">📋</div>
         <div class="pz-t"><span class="pz-idle">여기를 누르고 <kbd>Ctrl</kbd> + <kbd>V</kbd></span><span class="pz-on">준비됐습니다 — <kbd>Ctrl</kbd> + <kbd>V</kbd> 를 누르세요</span></div>
@@ -146,13 +165,14 @@
     </div>
     <div class="tw" id="pvWrap" style="display:none;max-height:56vh">
       <table class="g"><thead><tr>
-        <th><input type="checkbox" id="pvAll" checked onchange="pvAllChk(this)"></th><th>No</th>
-        <th title="발주일자(납품일자) = 출고일자">발주일자</th><th>받는 사람</th><th>주소</th><th>전화번호1</th><th>전화번호2</th><th>수량(ea)</th>
+        <%-- 줄 빼기(✕) 칸은 No 앞에 둔다 (2026-10-02 사용자 「취소코드를 NO 앞으로」) — 맨 오른쪽 끝에 있을 때는 표를 옆으로 밀어야 보였다 --%>
+        <th><input type="checkbox" id="pvAll" checked onchange="pvAllChk(this)"></th><th title="✕ = 그 줄을 화면에서 뺍니다(저장된 것과는 무관)">빼기</th><th>No</th>
+        <th title="발주일자(납품일자) = 출고일자">발주일자</th><th>받는 사람</th><th>주소</th><th>전화번호1</th><th>전화번호2</th><th>수량(ea)</th><th title="엑셀의 운임 칸으로 나갑니다. 기본 4,500원 — 고칠 수 있고, 비우면 빈 칸으로 나갑니다. [저장]하면 줄마다 같이 저장됩니다">택배비</th>
         <th title="대상의 제품코드(메일 표에 적힌 값 그대로)">제품코드</th>
         <%-- 품목코드를 제품명 앞에 (2026-10-02 사용자 「품목코드가 제품명 앞으로 오게」) — 아래 저장 목록도 같은 차례 --%>
         <th title="우리 품목코드(상품코드) — 한 번 넣으면 같은 제품명의 빈 칸에 같이 들어가고, 저장하면 다음부터 자동">품목코드</th>
         <th title="대상의 제품명(메일 표에 적힌 값 그대로) — 이 이름으로 품목코드를 기억합니다">제품명</th>
-        <th title="품목코드를 고르면 상품코드의 판매가가 들어갑니다. 고칠 수 있습니다">단가</th><th title="수량 × 단가">금액</th><th></th></tr></thead>
+        <th title="품목코드를 고르면 상품코드의 판매가가 들어갑니다. 고칠 수 있습니다">단가</th><th title="수량 × 단가" style="min-width:110px">금액</th></tr></thead>
         <tbody id="pvBody"></tbody></table>
     </div>
     <div class="note" id="pvNote" style="display:none">· 모든 칸을 고칠 수 있습니다 · 주황 칸(품목코드) = 넣어야 하는 칸 · 파랑 = 지난 저장에서 자동으로 채운 값 · 초록 = 마스터에 있는 코드 · 노랑 = 마스터에 없는 코드(<b>저장 안 됨</b>) 또는 빠진 값 · 발주일자·품목코드·수량이 든 줄만 저장됩니다 · 저장 = 출고·매출(수량 × 단가) + 재고 차감 · 저장한 뒤에도 아래 목록에서 고치거나 취소(삭제)할 수 있습니다</div>
@@ -163,15 +183,15 @@
       <span class="bar" style="margin-left:auto">
         <input type="date" id="fr"> <span class="dim">~</span> <input type="date" id="to">
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
-        <button class="btn" onclick="lsXls()" title="저장된 줄을 메일 표와 같은 열 차례의 엑셀로 저장합니다(체크한 줄 — 체크가 없으면 조회된 전부)">📊 엑셀 저장</button>
+        <button class="btn" onclick="lsXls()" title="저장된 줄을 택배 납기관리의 엑셀과 같은 양식(머리글 없는 9칸)으로 저장합니다(체크한 줄 — 체크가 없으면 조회된 전부)">📊 엑셀 저장</button>
         <button class="btn btn-red" onclick="delSel()" title="체크한 줄의 저장을 취소합니다 — 출고·매출에서 빠지고 재고도 다시 맞춥니다">🗑 선택 삭제(저장 취소)</button>
         <span id="lsInfo" class="dim" style="font-weight:600;font-size:12.5px"></span>
       </span>
     </div>
     <div class="tw" id="lsWrap" style="max-height:50vh"><table class="g"><thead><tr>
-      <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th><th title="고치면 그 줄을 새 날짜로 옮깁니다(재고도 두 날짜 모두 다시 맞춥니다)">발주일자 ✏️</th><th>받는 사람</th><th>주소</th><th>전화번호</th><th>제품코드</th>
-      <th title="고르거나 쳐서 바꾸면 이 줄의 품목코드가 바뀌고 재고도 다시 맞춥니다">품목코드 ✏️</th><th>제품명</th><th title="고쳐서 Enter">수량 ✏️</th><th title="고쳐서 Enter. 비면 매출 0">단가 ✏️</th><th title="매출 = 수량 × 단가 — 거래처 대상주식회사">금액</th><th>사업장</th><th>비고</th><th>등록</th></tr></thead>
-      <tbody id="lsBody"><tr><td colspan="14" class="msg">[🔍 조회]를 누르세요.</td></tr></tbody></table></div>
+      <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th><th title="고치면 그 줄을 새 날짜로 옮깁니다(재고도 두 날짜 모두 다시 맞춥니다)">발주일자 ✏️</th><th title="고치면 그 줄만 바로 저장됩니다">받는 사람 ✏️</th><th title="고치면 그 줄만 바로 저장됩니다">주소 ✏️</th><th>전화번호1 ✏️</th><th>전화번호2 ✏️</th><th>제품코드 ✏️</th>
+      <th title="고르거나 쳐서 바꾸면 이 줄의 품목코드가 바뀌고 재고도 다시 맞춥니다">품목코드 ✏️</th><th title="고치면 그 줄만 바로 저장됩니다. 이 이름으로 품목코드를 기억합니다">제품명 ✏️</th><th title="고쳐서 Enter">수량 ✏️</th><th title="엑셀의 운임 칸으로 나갑니다. 고쳐서 Enter — 그 줄만 바로 저장됩니다">택배비 ✏️</th><th title="고쳐서 Enter. 비면 매출 0">단가 ✏️</th><th title="매출 = 수량 × 단가 — 거래처 대상주식회사" style="min-width:110px">금액</th><th>사업장</th><th>비고</th><th>등록</th></tr></thead>
+      <tbody id="lsBody"><tr><td colspan="16" class="msg">[🔍 조회]를 누르세요.</td></tr></tbody></table></div>
   </div>
 </div>
 <datalist id="prodList"></datalist>
@@ -216,6 +236,10 @@ function bizSave(){ try{ localStorage.setItem('dsPoBiz', document.getElementById
 /* 단가 = 그 코드의 상품코드 판매가. 매칭코드(상품으로 따로 등록되지 않은 것)면 그 주코드의 판매가. 없으면 0 */
 function priceOf(cd){ cd=String(cd||''); if(_price[cd]>0) return _price[cd]; var m=_main[cd]; return (m && _price[m]>0) ? _price[m] : 0; }
 function prodNmOf(cd){ return String(_prod[cd]||'').replace(' 〔매칭코드〕',''); }
+/* 기본 택배비 = 회사 설정의 기본 택배 운임(없으면 4,500) — 택배 납기관리(poFeeDef)와 같은 값. 줄마다 한 번(수량을 곱하지 않는다) */
+function feeDef(){ var v=Number(window.konetSet ? konetSet.f('parcelFeeDef') : 0); return (isFinite(v) && v>0) ? v : 4500; }
+function feeNum(x){ return (x.fee===''||x.fee==null) ? '' : n(x.fee); }   /* 비운 줄은 빈 칸 */
+
 
 /* ── 읽기 : 표(HTML · 탭 글 · 엑셀) → 줄 ── */
 function htmlRows(html){
@@ -296,7 +320,7 @@ function guessRow(a){
   return x;
 }
 function newRow(x){ x=x||{}; return { chk:true, dlvDt:document.getElementById('dt').value||'', rcvNm:x.rcvNm||'', rcvAddr:x.rcvAddr||'', rcvTel:x.rcvTel||'', rcvTel2:x.rcvTel2||'',
-  qty:n(x.qty), rcvItemCd:x.rcvItemCd||'', itemNm:x.itemNm||'', itemCd:'', itemAuto:false, price:'', priceAuto:true, fix:!!x.fix }; }
+  qty:n(x.qty), rcvItemCd:x.rcvItemCd||'', itemNm:x.itemNm||'', itemCd:'', itemAuto:false, price:'', priceAuto:true, fix:!!x.fix, fee:feeDef() }; }
 function addParsed(rows, src){
   if(!rows.length){ err('표에서 읽을 줄을 찾지 못했습니다.<br><span style="font-size:13px">메일 본문의 표를 머리 줄(받는 사람 … 제품명)부터 끝 줄까지 끌어 고른 뒤 복사해 붙여 보세요.</span>'); return; }
   if(src && !_fileNm) _fileNm=src;
@@ -364,25 +388,26 @@ function pvRender(){
   document.getElementById('pvBody').innerHTML=_pv.map(function(x,i){
     var pn=_prod[x.itemCd], k=function(f){ return ' data-k="'+i+':'+f+'"'; }, t=function(f,w,ph){ return '<input type="text"'+k(f)+' style="width:'+w+'px" value="'+esc(x[f])+'" placeholder="'+(ph||'')+'" onchange="pvSet('+i+',\''+f+'\',this)">'; };
     return '<tr class="'+(x.chk?'':'off')+'"><td><input type="checkbox" '+(x.chk?'checked':'')+' onchange="_pv['+i+'].chk=this.checked; pvLater()"></td>'
+      +'<td><button class="x" title="이 줄을 화면에서 뺍니다" onclick="pvDel('+i+')">✕</button></td>'
       +(x.fix?'<td style="color:#b45309;font-weight:800;background:#fff7d6" title="원본 글에서 이 줄은 칸이 붙거나 빠져 있어 전화번호를 기준으로 맞춰 넣었습니다 — 받는 사람·주소·수량·제품명을 확인하세요">⚠ '+(i+1)+'</td>':'<td>'+(i+1)+'</td>')
       +'<td><input type="date"'+k('dlvDt')+' class="req'+(x.dlvDt?'':' bad')+'" value="'+esc(x.dlvDt)+'" onchange="pvSet('+i+',\'dlvDt\',this)"></td>'
       +'<td class="l">'+t('rcvNm',150,'받는 사람')+'</td><td class="l">'+t('rcvAddr',300,'주소')+'</td><td>'+t('rcvTel',118,'')+'</td><td>'+t('rcvTel2',118,'')+'</td>'
       +'<td><input type="text"'+k('qty')+' class="num'+(n(x.qty)>=1?'':' bad')+'" style="width:84px" value="'+(x.qty?esc(fmt(x.qty)):'')+'" onchange="pvSet('+i+',\'qty\',this)"></td>'
+      +'<td><input type="text"'+k('fee')+' class="num" style="width:68px" value="'+(feeNum(x)===''?'':esc(fmt(x.fee)))+'" title="택배비(엑셀 운임 칸)" onchange="pvSet('+i+',\'fee\',this)"></td>'
       +'<td>'+t('rcvItemCd',64,'')+'</td>'
       +'<td class="l">'+(x.itemCd?'<span class="sub nmf'+(pn==null?' warn':'')+'">'+(x.itemAuto?'<span class="bd auto" title="지난 저장에서 가져온 값">자동</span> ':'')+esc(pn!=null?pn:'상품 마스터에 없는 코드')+'</span>':'')
         +'<input type="text" list="prodList"'+k('itemCd')+' class="cd'+cdCls(x.itemCd,x.itemAuto)+'" value="'+esc(x.itemCd)+'" placeholder="명칭 또는 코드" onchange="setItem('+i+',this)"></td>'
       +'<td class="l">'+t('itemNm',190,'제품명')+'</td>'
-      +'<td><input type="text"'+k('price')+' class="num" style="width:90px" value="'+(x.price===''?'':esc(fmt(x.price)))+'" title="'+(x.priceAuto&&x.price!==''?'상품코드 판매가에서 가져온 값 — 고칠 수 있습니다':'')+'" onchange="pvSet('+i+',\'price\',this)"></td>'
-      +'<td class="r"><b id="amt'+i+'">'+fmt(n(x.qty)*n(x.price))+'</b></td>'
-      +'<td><button class="x" title="이 줄을 화면에서 뺍니다" onclick="pvDel('+i+')">✕</button></td></tr>';
+      +'<td><input type="text"'+k('price')+' class="num" style="width:74px" value="'+(x.price===''?'':esc(fmt(x.price)))+'" title="'+(x.priceAuto&&x.price!==''?'상품코드 판매가에서 가져온 값 — 고칠 수 있습니다':'')+'" onchange="pvSet('+i+',\'price\',this)"></td>'
+      +'<td class="r" style="min-width:110px"><b id="amt'+i+'">'+fmt(n(x.qty)*n(x.price))+'</b></td></tr>';
   }).join('');
   pvInfo();
 }
 function pvInfo(){
   var sel=_pv.filter(function(x){ return x.chk; }), rdy=sel.filter(rowReady), unk=rdy.filter(function(x){ return _prod[x.itemCd]==null; }).length;
-  var q=0, amt=0; rdy.forEach(function(x){ q+=n(x.qty); amt+=n(x.qty)*n(x.price); });
+  var q=0, amt=0, fee=0; rdy.forEach(function(x){ q+=n(x.qty); amt+=n(x.qty)*n(x.price); }); sel.forEach(function(x){ fee+=n(x.fee); });
   document.getElementById('pvInfo').textContent=_pv.length ? ('올린 줄 '+_pv.length+' · 선택 '+sel.length+' · 저장 가능 '+(rdy.length-unk)
-    +(sel.length-rdy.length?' · 빠진 값이 있는 줄 '+(sel.length-rdy.length):'')+(unk?' · 마스터에 없는 코드 '+unk+'줄(저장 막힘)':'')+' · 수량 '+fmt(q)+' · 금액 '+fmt(amt)+'원') : '';
+    +(sel.length-rdy.length?' · 빠진 값이 있는 줄 '+(sel.length-rdy.length):'')+(unk?' · 마스터에 없는 코드 '+unk+'줄(저장 막힘)':'')+' · 수량 '+fmt(q)+' · 금액 '+fmt(amt)+'원 · 택배비 '+fmt(fee)+'원') : '';
   var a=document.getElementById('pvAll'); if(a) a.checked=_pv.length>0 && _pv.every(function(x){ return x.chk; });
 }
 /* 다시 그리기 — 칸을 벗어난 뒤(다음 칸으로 옮겨 간 뒤)에 그리고, 옮겨 간 칸을 다시 잡는다(Tab 으로 이어 칠 수 있게) */
@@ -392,6 +417,7 @@ function pvSet(i, f, el){
   var x=_pv[i]; if(!x) return; var v=String(el.value||'').trim();
   if(f==='qty'){ x.qty=Math.round(n(v)); el.value=x.qty?fmt(x.qty):''; el.classList.toggle('bad', !(x.qty>=1)); }
   else if(f==='price'){ if(v===''){ x.price=''; } else { x.price=Math.max(0,n(v)); x.priceAuto=false; el.value=fmt(x.price); } el.title=''; }
+  else if(f==='fee'){ x.fee=(v===''?'':Math.max(0,Math.round(n(v)))); el.value=(x.fee===''?'':fmt(x.fee)); }
   else if(f==='dlvDt'){ x.dlvDt=v; el.classList.toggle('bad', !v); }
   else if(f==='itemNm'){ x.itemNm=v; if(!x.itemCd && v && _map[v]){ autoFill(); pvLater(); return; } }
   else x[f]=v;
@@ -442,7 +468,7 @@ function save(){
   var ds={}; rdy.forEach(function(x){ ds[x.dlvDt]=1; }); var dl=Object.keys(ds).sort();
   var body=function(force){ return { bizCd:bizCd, bizNm:bizNm, fileNm:_fileNm||'', force:force?'Y':'',
     rows:rdy.map(function(x){ return { dlvDt:x.dlvDt, rcvNm:x.rcvNm, rcvAddr:x.rcvAddr, rcvTel:x.rcvTel, rcvTel2:x.rcvTel2, qty:x.qty, rcvItemCd:x.rcvItemCd,
-      itemNm:(x.itemNm||prodNmOf(x.itemCd)), itemCd:x.itemCd, price:(x.price===''?'':x.price) }; }) }; };
+      itemNm:(x.itemNm||prodNmOf(x.itemCd)), itemCd:x.itemCd, price:(x.price===''?'':x.price), fee:feeNum(x) }; }) }; };
   var go=function(force){
     var b=document.getElementById('btnSave'); b.disabled=true;
     post('/shipout/daesangPoSave.do', body(force), true).then(pj)
@@ -470,54 +496,91 @@ function save(){
     onOk:function(){ go(false); }, onCancel:function(){} });
 }
 
-/* ── 엑셀 저장 — 메일 표(캡쳐)와 같은 열 차례 그대로 ── */
-function xlsOut(rows, tag){
+/* ── 엑셀 저장 — «택배 납기관리»의 엑셀과 같은 양식 (2026-10-02 사용자 「엑셀출력은 택배 납기관리에서 엑셀저장처럼 동일하게」) ──
+     parcelOut.jsp 의 poExcelMake 와 같은 모양 : 머리글 줄 없음 · 9칸 · 시트명 = MMDD(여러 날이면 MMDD-MMDD) · 같은 칸 너비·테두리.
+       A = 받는 분 · B = 빈칸 · C = 주소 · D = 전화 · E = 휴대폰(전화번호2) · F = 총수량 · G = 운임 · H = 빈칸 · I = 품목명(대상 제품명)
+     ★G(운임) = 화면의 택배비 칸 그대로(기본 4,500 · 고친 줄은 그 값 · 비운 줄은 빈 칸). 택배 납기관리는 「총수량 × 기본 운임」이지만
+       대상의 수량은 낱개(ea)라 곱하지 않는다 — 한 줄에 한 번.
+     (같은 날 먼저 만든 「메일 표와 같은 10칸 + 머리글」 양식은 이 요청으로 바꿨다. 대상 제품코드 칸은 택배 양식에 없어 빠진다.) */
+function xlsOut(rows){
   if(!window.XLSX){ err('엑셀 도구를 불러오지 못했습니다 — 화면을 새로 고친 뒤 다시 해 보세요.'); return; }
   if(!rows.length){ err('엑셀로 저장할 줄이 없습니다.'); return; }
-  var H=['받는 사람','공란','주소','전화번호1','전화번호2','수량(ea)','공란','공란','제품코드','제품명'];
-  var aoa=[H].concat(rows.map(function(x){ var c=String(x.rcvItemCd||'');
-    return [x.rcvNm||'','',x.rcvAddr||'',x.rcvTel||'',x.rcvTel2||'',n(x.qty),'','',(/^\d{1,9}$/.test(c)?Number(c):c),x.itemNm||'']; }));
-  var ws=XLSX.utils.aoa_to_sheet(aoa), bd={ style:'thin', color:{ rgb:'7F7F7F' } }, box={ top:bd, bottom:bd, left:bd, right:bd }, blank={ 1:1, 6:1, 7:1 };
-  for(var r=0;r<aoa.length;r++){ for(var c=0;c<H.length;c++){ var ad=XLSX.utils.encode_cell({ r:r, c:c }); if(!ws[ad]) ws[ad]={ t:'s', v:'' };
-    var s={ border:box, font:{ sz:10, bold:(r===0) }, alignment:{ vertical:'center', horizontal:(r===0||c===0||c===3||c===4||c===9)?'center':(c===5||c===8?'right':'left') } };
-    if(r===0) s.fill={ fgColor:{ rgb:(blank[c]?'ADB9CA':'D9D9D9') } }; else if(blank[c]) s.fill={ fgColor:{ rgb:'ADB9CA' } };
-    if(r>0 && c===5){ ws[ad].t='n'; ws[ad].z='#,##0'; }
-    ws[ad].s=s; } }
-  ws['!cols']=[{ wch:22 },{ wch:8 },{ wch:58 },{ wch:16 },{ wch:16 },{ wch:11 },{ wch:8 },{ wch:8 },{ wch:10 },{ wch:28 }];
-  var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '배송요청');
-  XLSX.writeFile(wb, '대상_배송요청_'+tag+'.xlsx');
+  var ds=rows.map(function(x){ return d10(x.dlvDt); }).filter(function(v){ return v; }).sort();
+  var dt=ds.length?ds[0]:ymd(new Date()), dt2=ds.length?ds[ds.length-1]:dt;
+  var mmdd=dt.slice(5,7)+dt.slice(8,10)+(dt2!==dt ? '-'+dt2.slice(5,7)+dt2.slice(8,10) : '');
+  var aoa=rows.map(function(x){ return [ x.rcvNm||'', '', x.rcvAddr||'', x.rcvTel||'', x.rcvTel2||'', n(x.qty), feeNum(x), '', x.itemNm||'' ]; });
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{ wch:24 },{ wch:4 },{ wch:46 },{ wch:14 },{ wch:14 },{ wch:9 },{ wch:8 },{ wch:4 },{ wch:44 }];
+  var LINE={ style:'thin', color:{ rgb:'DFE6E3' } }, box={ top:LINE, bottom:LINE, left:LINE, right:LINE };
+  var CELL={ alignment:{ vertical:'center' }, border:box }, NUM={ alignment:{ horizontal:'right', vertical:'center' }, border:box };
+  for(var r=0;r<aoa.length;r++){ for(var c=0;c<9;c++){ var ref=XLSX.utils.encode_cell({ r:r, c:c });
+    if(!ws[ref]) ws[ref]={ t:'s', v:'' };          /* 빈 칸도 테두리가 이어지게 */
+    ws[ref].s=((c===5 || c===6) ? NUM : CELL); } }   /* F = 총수량 · G = 운임 = 숫자 칸(오른쪽 맞춤) */
+  var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, mmdd);
+  XLSX.writeFile(wb, '택배출고_대상_'+dt.replace(/-/g,'')+'.xlsx');
+  if(window._toast) _toast('📥 엑셀 생성 — '+rows.length+'줄 (택배 납기관리와 같은 양식)','ok');
 }
-function pvXls(){ var rows=_pv.filter(function(x){ return x.chk && (x.rcvNm||x.itemNm||x.qty); });
-  xlsOut(rows, (document.getElementById('dt').value||ymd(new Date())).replace(/-/g,'')); }
+function pvXls(){ xlsOut(_pv.filter(function(x){ return x.chk && (x.rcvNm||x.rcvAddr||x.itemNm||x.qty); })); }
 function lsXls(){ var pick=[]; Array.prototype.forEach.call(document.querySelectorAll('.lchk:checked'), function(c){ var x=_ls[+c.getAttribute('data-i')]; if(x) pick.push(x); });
-  var rows=pick.length?pick:_ls;
-  xlsOut(rows, (document.getElementById('fr').value||'').replace(/-/g,'')+'_'+(document.getElementById('to').value||'').replace(/-/g,'')); }
+  xlsOut(pick.length?pick:_ls); }
 
 /* ── 저장된 목록 ── */
 function load(){
-  document.getElementById('lsBody').innerHTML='<tr><td colspan="14" class="msg">조회 중…</td></tr>';
+  document.getElementById('lsBody').innerHTML='<tr><td colspan="16" class="msg">조회 중…</td></tr>';
   post('/shipout/daesangPoList.do','frDt='+encodeURIComponent(document.getElementById('fr').value)+'&toDt='+encodeURIComponent(document.getElementById('to').value)).then(pj)
-    .then(function(j){ _ls=(j&&j.data)||[]; if(j&&j.error){ _ls=[]; document.getElementById('lsBody').innerHTML='<tr><td colspan="14" class="msg" style="color:#c0392b">'+esc(j.error)+'</td></tr>'; document.getElementById('lsInfo').textContent=''; return; } lsRender(); })
-    .catch(function(e){ document.getElementById('lsBody').innerHTML='<tr><td colspan="14" class="msg" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
+    .then(function(j){ _ls=(j&&j.data)||[]; _ls.forEach(function(x){ x.fee=(x.rcvFee==null ? '' : n(x.rcvFee)); });   /* 택배비 = 저장된 값(없으면 빈 칸) */ if(j&&j.error){ _ls=[]; document.getElementById('lsBody').innerHTML='<tr><td colspan="16" class="msg" style="color:#c0392b">'+esc(j.error)+'</td></tr>'; document.getElementById('lsInfo').textContent=''; return; } lsRender(); })
+    .catch(function(e){ document.getElementById('lsBody').innerHTML='<tr><td colspan="16" class="msg" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
 }
 function lsRender(){
   var tb=document.getElementById('lsBody'); document.getElementById('lsAll').checked=false;
-  if(!_ls.length){ tb.innerHTML='<tr><td colspan="14" class="msg">저장된 대상 발주가 없습니다.</td></tr>'; document.getElementById('lsInfo').textContent=''; return; }
+  if(!_ls.length){ tb.innerHTML='<tr><td colspan="16" class="msg">저장된 대상 발주가 없습니다.</td></tr>'; document.getElementById('lsInfo').textContent=''; return; }
   var q=0, amt=0;
-  tb.innerHTML=_ls.map(function(x,i){ q+=n(x.qty); amt+=n(x.qty)*n(x.salePrice); var pn=_prod[x.itemCd], tel=[x.rcvTel,x.rcvTel2].filter(function(v){ return v; }).join(' / ');
+  tb.innerHTML=_ls.map(function(x,i){ q+=n(x.qty); amt+=n(x.qty)*n(x.salePrice); var pn=_prod[x.itemCd];
+    /* 글자 칸(배송 정보·제품코드·제품명) = 입력칸 — 고치면 lsInfo 가 그 줄만 바로 저장한다 */
+    var ti=function(f,w){ return '<input type="text" style="width:'+w+'px" value="'+esc(x[f])+'" data-v="'+esc(x[f])+'" title="'+esc(x[f])+'" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsInfo('+i+',\''+f+'\',this)">'; };
     return '<tr><td><input type="checkbox" class="lchk" data-i="'+i+'"></td>'
       +'<td><input type="date" value="'+d10(x.dlvDt)+'" data-v="'+d10(x.dlvDt)+'" onchange="lsEdit('+i+',\'dlvDt\',this)"></td>'
-      +'<td class="l">'+esc(x.rcvNm)+'</td><td class="l" style="max-width:320px;overflow:hidden;text-overflow:ellipsis" title="'+esc(x.rcvAddr)+'">'+esc(x.rcvAddr)+'</td><td>'+esc(tel)+'</td>'
-      +'<td>'+esc(x.rcvItemCd)+'</td>'
+      +'<td class="l">'+ti('rcvNm',150)+'</td><td class="l">'+ti('rcvAddr',300)+'</td><td>'+ti('rcvTel',116)+'</td><td>'+ti('rcvTel2',116)+'</td>'
+      +'<td>'+ti('rcvItemCd',60)+'</td>'
       +'<td class="l"><span class="sub nmf'+(pn==null?' warn':'')+'">'+esc(pn!=null?pn:'상품 마스터에 없는 코드')+'</span><input type="text" list="prodList" class="cd '+(pn==null?'bad':'ok')+'" value="'+esc(x.itemCd)+'" data-v="'+esc(x.itemCd)+'" onchange="lsEdit('+i+',\'itemCd\',this)">'+(x.prodCd&&x.prodCd!==x.itemCd?'<span class="sub">주코드 '+esc(x.prodCd)+'</span>':'')+'</td>'
-      +'<td class="l">'+esc(x.itemNm)+'</td>'
+      +'<td class="l">'+ti('itemNm',180)+'</td>'
       +'<td class="r"><input type="text" class="num" style="width:84px" value="'+esc(fmtIn(x.qty))+'" data-v="'+esc(fmtIn(x.qty))+'" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsEdit('+i+',\'qty\',this)"></td>'
-      +'<td class="r"><input type="text" class="num'+(x.salePrice==null||x.salePrice===''?' bad':'')+'" style="width:90px" value="'+esc(fmtIn(x.salePrice))+'" data-v="'+esc(fmtIn(x.salePrice))+'" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsEdit('+i+',\'price\',this)"></td>'
-      +'<td class="r"><b>'+fmt(n(x.qty)*n(x.salePrice))+'</b></td>'
+      +'<td class="r"><input type="text" class="num" style="width:68px" value="'+(feeNum(x)===''?'':esc(fmt(x.fee)))+'" title="택배비(엑셀 운임 칸) — 고쳐서 Enter. 그 줄만 바로 저장됩니다" data-v="'+(feeNum(x)===''?'':x.fee)+'" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsFee('+i+',this)"></td>'
+      +'<td class="r"><input type="text" class="num'+(x.salePrice==null||x.salePrice===''?' bad':'')+'" style="width:74px" value="'+esc(fmtIn(x.salePrice))+'" data-v="'+esc(fmtIn(x.salePrice))+'" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsEdit('+i+',\'price\',this)"></td>'
+      +'<td class="r" style="min-width:110px"><b>'+fmt(n(x.qty)*n(x.salePrice))+'</b></td>'
       +'<td class="l dim">'+esc(x.bizNm)+'</td>'
       +'<td class="l dim" style="max-width:220px;overflow:hidden;text-overflow:ellipsis" title="'+esc(x.remark)+'">'+esc(x.remark)+'</td>'
       +'<td class="dim">'+esc(String(x.uploadDttm||'').slice(0,16))+'<br>'+esc(x.regUser)+'</td></tr>'; }).join('');
-  document.getElementById('lsInfo').textContent=_ls.length+'줄 · 수량 '+fmt(q)+' · 매출 '+fmt(amt)+'원';
+  lsInfoUpd();
+}
+function lsInfoUpd(){ var q=0, amt=0, fee=0; _ls.forEach(function(x){ q+=n(x.qty); amt+=n(x.qty)*n(x.salePrice); fee+=n(x.fee); });
+  document.getElementById('lsInfo').textContent=_ls.length+'줄 · 수량 '+fmt(q)+' · 매출 '+fmt(amt)+'원 · 택배비 '+fmt(fee)+'원'; }
+/* 저장 목록의 글자 칸(받는 사람·주소·전화 1·2·제품코드·제품명) — 고치면 그 줄만 바로 저장한다(/shipout/daesangPoInfo.do).
+     매출·재고와 무관한 칸이라 확인창 없이 저장하고 알림만 띄운다. 실패하면 옛 값으로 되돌린다. 바꾸지 않은 칸은 지금 값을 그대로 보낸다 */
+function lsInfo(i, fld, el){
+  var x=_ls[i]; if(!x) return; var old=el.getAttribute('data-v')||'', v=String(el.value||'').replace(/\s+/g,' ').trim();
+  var back=function(){ el.value=old; };
+  if(v===old){ back(); return; }
+  if(fld==='itemNm' && !v){ back(); err('제품명은 비울 수 없습니다.'); return; }
+  var b={ seq:x.seq, rcvNm:x.rcvNm||'', rcvAddr:x.rcvAddr||'', rcvTel:x.rcvTel||'', rcvTel2:x.rcvTel2||'', rcvItemCd:x.rcvItemCd||'', itemNm:x.itemNm||'' }; b[fld]=v;
+  post('/shipout/daesangPoInfo.do', b, true).then(pj)
+    .then(function(j){ if(j.error){ back(); err(esc(j.error)); return; }
+      x[fld]=v; el.value=v; el.setAttribute('data-v', v); el.title=v;
+      if(fld==='itemNm' && x.itemCd) _map[v]=x.itemCd;   /* 고친 제품명도 다음 붙여넣기의 자동 매칭에 쓴다 */
+      if(window._toast) _toast('저장했습니다','ok'); })
+    .catch(function(e){ back(); err('고치지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); });
+}
+/* 저장 목록의 택배비 — 고치면 그 줄만 바로 저장한다(/shipout/daesangPoFee.do). 매출·재고와 무관한 값이라 확인창 없이 저장하고 알림만 띄운다. 실패하면 옛 값으로 되돌린다 */
+function lsFee(i, el){
+  var x=_ls[i]; if(!x) return; var old=el.getAttribute('data-v')||'', v=String(el.value||'').replace(/,/g,'').trim();
+  var back=function(){ el.value=(old===''?'':fmt(old)); };
+  if(v!=='' && !/^\d+$/.test(v)){ back(); err('택배비는 숫자로 넣으세요(비우면 빈 칸).'); return; }
+  if(v===old){ back(); return; }
+  post('/shipout/daesangPoFee.do',{ seq:x.seq, fee:v },true).then(pj)
+    .then(function(j){ if(j.error){ back(); err(esc(j.error)); return; }
+      x.fee=(v===''?'':n(v)); x.rcvFee=(v===''?null:n(v)); el.setAttribute('data-v', v); el.value=(v===''?'':fmt(v)); lsInfoUpd();
+      if(window._toast) _toast('택배비를 저장했습니다','ok'); })
+    .catch(function(e){ back(); err('택배비를 저장하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); });
 }
 /* 저장된 한 줄 고치기 — 발주일자·품목코드·수량·단가. 바꾼 칸만 새 값, 다른 칸은 지금 값 그대로 보낸다(서버가 옛 줄을 이력으로 닫고 새 줄을 넣는다) */
 function lsEdit(i, fld, el){
@@ -554,6 +617,12 @@ function delSel(){
       .catch(function(e){ err('삭제하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); }); }, onCancel:function(){} });
 }
 
+/* 붙여넣기 안내 펼치기·접기 — 기본은 접힘. 이 PC 에 기억한다 */
+function howSet(open){ var b=document.getElementById('howBox'), t=document.getElementById('howTgl');
+  b.classList.toggle('fold', !open); t.textContent=open?'▲ 접기':'▼ 펼치기'; }
+function howToggle(){ var open=document.getElementById('howBox').classList.contains('fold'); howSet(open);
+  try{ localStorage.setItem('dsPoHow', open?'1':'0'); }catch(e){} }
+
 /* ── 붙여넣기 · 끌어다 놓기 · 시작 ── */
 (function(){
   /* 붙여넣기 — 표(HTML 표 · 탭으로 나뉜 글)면 줄로 읽고, 그림뿐이면 캡쳐로 띄운다. 칸 안에서 한 칸짜리 글을 붙이는 것은 그대로 둔다 */
@@ -582,12 +651,17 @@ function delSel(){
     konetGridGrip('pvWrap','pvWrap','daesangPoPv'); konetGridGrip('lsWrap','lsWrap','daesangPoList');
     if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', pvRender); else pvRender();
   }
+  try{ howSet(localStorage.getItem('dsPoHow')==='1'); }catch(e){ howSet(false); }
   var t=new Date(), a=new Date(t.getFullYear(), t.getMonth(), t.getDate()-30);
   document.getElementById('dt').value=ymd(t);
   document.getElementById('fr').value=ymd(a); document.getElementById('to').value=ymd(t);
   loadMasters();
+  grabFocus();
 })();
-window.konetShown=function(){ loadMasters(); };   /* 다른 화면에서 상품·사업장을 고치고 돌아오면 새로 */
+/* 이 화면이 보일 때 글쇠를 이 화면으로 가져온다 — 메뉴를 누른 직후에는 글쇠가 바깥(셸)에 있어 Ctrl+V 가 안 먹는다(접혀 있어도 바로 붙여넣을 수 있게).
+   입력칸에 커서가 있으면 건드리지 않는다 */
+function grabFocus(){ try{ var a=document.activeElement; if(a && (a.tagName==='INPUT' || a.tagName==='SELECT' || a.tagName==='TEXTAREA')) return; window.focus(); }catch(e){} }
+window.konetShown=function(){ loadMasters(); grabFocus(); };   /* 다른 화면에서 상품·사업장을 고치고 돌아오면 새로 */
 </script>
 </body>
 </html>

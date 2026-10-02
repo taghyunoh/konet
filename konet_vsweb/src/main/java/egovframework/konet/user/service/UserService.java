@@ -117,6 +117,8 @@ public interface UserService {
 	int countDsPoDup(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String compCd) throws Exception;
 	java.util.List<String> deleteDsPo(java.util.List<Long> seqs, String user, String ip, String compCd) throws Exception;
 	java.util.List<String> updateDsPoRow(long seq, String dlvDt, String itemCd, int qty, Double salePrice, String user, String ip, String compCd) throws Exception;
+	int updateDsPoFee(long seq, Integer fee, String user, String ip, String compCd) throws Exception;
+	int updateDsPoInfo(long seq, java.util.Map<String,Object> v, String user, String ip, String compCd) throws Exception;
 	java.util.Map<String,Object> saveExpenseCopy(String fromYm, String toYm, boolean overwrite, String user, String ip, String compCd) throws Exception;   // 비용 등록 : 한 달을 다른 달로 복사(2026-09-21)
 	int deleteProd(egovframework.konet.user.model.ProdDTO dto) throws Exception;
 	java.util.List<egovframework.konet.user.model.ProdDTO> selectProdDeletedList(egovframework.konet.user.model.ProdDTO dto) throws Exception;   // 삭제한 상품(ACTION_YN='N') 목록

@@ -272,6 +272,8 @@ public interface UserMapper {
 	java.util.Map<String,Object> selectDsPoRowFull(java.util.Map<String,Object> p) throws Exception;
 	int closeDsPo(java.util.Map<String,Object> p) throws Exception;
 	int selectDsPoDup(java.util.Map<String,Object> p) throws Exception;
+	int updateDsPoFee(java.util.Map<String,Object> p) throws Exception;
+	int updateDsPoInfo(java.util.Map<String,Object> p) throws Exception;   // 배송 정보·제품명 제자리에서   // 택배비만 제자리에서
 	java.util.Map<String,Object> selectTdPoRow(java.util.Map<String,Object> p) throws Exception;                          // 2026-09-22 반품 = 수정 — 고치기 전 값
 	int updateTdPoRow(java.util.Map<String,Object> p) throws Exception;                                                   // 2026-09-22 반품 = 수정 — 수량·판매가
 	// 견적서 관리 (2026-09-17) — TBL_QUOTE_MST/DTL

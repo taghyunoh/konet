@@ -1540,7 +1540,7 @@
 	  SELECT t.SEQ AS seq, t.DLV_DT AS dlvDt, ISNULL(t.ORD_NO,'') AS ordNo, ISNULL(t.ORD_ITEM_NO,'') AS [lineNo],
 	         ISNULL(t.BIZ_CD,'') AS bizCd, ISNULL(t.BIZ_NM,'') AS bizNm, ISNULL(t.ITEM_CD,'') AS itemCd, ISNULL(t.ITEM_NM,'') AS itemNm,
 	         ISNULL(t.RCV_NM,'') AS rcvNm, ISNULL(t.RCV_ADDR,'') AS rcvAddr, ISNULL(t.RCV_TEL,'') AS rcvTel, ISNULL(t.RCV_TEL2,'') AS rcvTel2,
-	         ISNULL(t.RCV_ITEM_CD,'') AS rcvItemCd,
+	         ISNULL(t.RCV_ITEM_CD,'') AS rcvItemCd, t.RCV_FEE AS rcvFee,   /* 택배비(운임) — 줄마다 한 값, 엑셀 운임 칸 */
 	         ISNULL(t.UNIT,'') AS unit, ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) AS qty, ISNULL(t.PROD_CD,'') AS prodCd,
 	         t.SALE_PRICE AS salePrice,
 	         ISNULL(t.SRC_FILE,'') AS srcFile, ISNULL(t.REMARK,'') AS remark,
@@ -1567,7 +1567,8 @@
 	  UPDATE TBL_SHIPOUT_MST
 	     SET SALE_PRICE = #{salePrice,jdbcType=DECIMAL},
 	         RCV_NM = #{rcvNm,jdbcType=NVARCHAR}, RCV_ADDR = #{rcvAddr,jdbcType=NVARCHAR},
-	         RCV_TEL = #{rcvTel,jdbcType=NVARCHAR}, RCV_TEL2 = #{rcvTel2,jdbcType=NVARCHAR}, RCV_ITEM_CD = #{rcvItemCd,jdbcType=NVARCHAR}
+	         RCV_TEL = #{rcvTel,jdbcType=NVARCHAR}, RCV_TEL2 = #{rcvTel2,jdbcType=NVARCHAR}, RCV_ITEM_CD = #{rcvItemCd,jdbcType=NVARCHAR},
+	         RCV_FEE = #{rcvFee,jdbcType=INTEGER}
 	   WHERE PROD_KIND = 'TD' AND DC_CD = 'DAESANG' AND ACTION_YN = 'Y'
 	     AND DLV_DT = REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-','')
 	     AND JOB_SEQ = #{jobSeq,jdbcType=INTEGER} AND ROW_NO = #{rowNo,jdbcType=INTEGER}
@@ -1578,7 +1579,7 @@
 	  SELECT TOP 1 t.SEQ AS seq, t.DLV_DT AS dlvDt, ISNULL(t.ORD_NO,'') AS ordNo, ISNULL(t.ORD_ITEM_NO,'') AS [lineNo],
 	         ISNULL(t.BIZ_CD,'') AS bizCd, ISNULL(t.BIZ_NM,'') AS bizNm, ISNULL(t.ITEM_CD,'') AS itemCd, ISNULL(t.ITEM_NM,'') AS itemNm,
 	         ISNULL(t.RCV_NM,'') AS rcvNm, ISNULL(t.RCV_ADDR,'') AS rcvAddr, ISNULL(t.RCV_TEL,'') AS rcvTel, ISNULL(t.RCV_TEL2,'') AS rcvTel2,
-	         ISNULL(t.RCV_ITEM_CD,'') AS rcvItemCd,
+	         ISNULL(t.RCV_ITEM_CD,'') AS rcvItemCd, t.RCV_FEE AS rcvFee,   /* 택배비(운임) — 줄마다 한 값, 엑셀 운임 칸 */
 	         ISNULL(t.UNIT,'') AS unit, ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) AS qty, t.SALE_PRICE AS salePrice,
 	         ISNULL(t.SRC_FILE,'') AS srcFile, ISNULL(t.REMARK,'') AS remark
 	    FROM TBL_SHIPOUT_MST t
@@ -1589,6 +1590,24 @@
 	<update id="closeDsPo" parameterType="java.util.Map"><![CDATA[
 	  UPDATE TBL_SHIPOUT_MST
 	     SET ACTION_YN = #{actionYn,jdbcType=VARCHAR}, UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE SEQ = #{seq,jdbcType=BIGINT} AND PROD_KIND = 'TD' AND DC_CD = 'DAESANG' AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<!-- 저장된 한 줄의 배송 정보(받는 사람·주소·전화 1·2·대상 제품코드)와 제품명 고치기 (2026-10-02 사용자 「저장내용 수정기능」).
+	     매출·재고와 무관한 글자 칸이라 제자리에서 고친다(옛 줄을 닫고 새 줄을 넣지 않는다). 제품명을 고치면 그 이름이 다음 업로드의 자동 매칭 이름이 된다. -->
+	<update id="updateDsPoInfo" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET RCV_NM = #{rcvNm,jdbcType=NVARCHAR}, RCV_ADDR = #{rcvAddr,jdbcType=NVARCHAR},
+	         RCV_TEL = #{rcvTel,jdbcType=NVARCHAR}, RCV_TEL2 = #{rcvTel2,jdbcType=NVARCHAR}, RCV_ITEM_CD = #{rcvItemCd,jdbcType=NVARCHAR},
+	         ITEM_NM = #{itemNm,jdbcType=NVARCHAR},
+	         UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE SEQ = #{seq,jdbcType=BIGINT} AND PROD_KIND = 'TD' AND DC_CD = 'DAESANG' AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<!-- 저장된 한 줄의 택배비만 고친다. 매출·재고와 무관한 값이라 제자리에서 고친다(다른 칸처럼 옛 줄을 닫고 새 줄을 넣지 않는다). 빈 값 = NULL -->
+	<update id="updateDsPoFee" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET RCV_FEE = #{rcvFee,jdbcType=INTEGER}, UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
 	   WHERE SEQ = #{seq,jdbcType=BIGINT} AND PROD_KIND = 'TD' AND DC_CD = 'DAESANG' AND ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>

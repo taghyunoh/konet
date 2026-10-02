@@ -42,6 +42,7 @@ public class ShipoutDTO {
 	private String  rcvTel;        // 받는 전화 1
 	private String  rcvTel2;       // 받는 전화 2
 	private String  rcvItemCd;     // 대상 제품코드
+	private Integer rcvFee;        // 택배비(운임) — 대상 발주만. 줄마다 한 값, 엑셀 운임 칸
 	private Double  salePrice;     // 판매가(부가세 포함) — 토더 발주만(2026-09-22). 공용 insertShipoutMstBulk 는 안 싣고, 토더 저장 뒤 updateTdPoPrice 로 넣는다
 	private String  statYn;        // 상황여부
 	private String  prodKind;      // 상품종류
@@ -134,6 +135,8 @@ public class ShipoutDTO {
 	public void setRcvTel2(String rcvTel2) { this.rcvTel2 = rcvTel2; }
 	public String getRcvItemCd() { return rcvItemCd; }
 	public void setRcvItemCd(String rcvItemCd) { this.rcvItemCd = rcvItemCd; }
+	public Integer getRcvFee() { return rcvFee; }
+	public void setRcvFee(Integer rcvFee) { this.rcvFee = rcvFee; }
 	public Double getSalePrice() { return salePrice; }
 	public void setSalePrice(Double salePrice) { this.salePrice = salePrice; }
 	public String getDlvDtFrom() { return dlvDtFrom; }

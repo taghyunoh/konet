@@ -1522,6 +1522,7 @@ public class UserServiceImpl implements UserService {
 				pp.put("salePrice", r.getSalePrice() == null ? null : java.math.BigDecimal.valueOf(r.getSalePrice()));
 				pp.put("rcvNm", scStr(r.getRcvNm())); pp.put("rcvAddr", scStr(r.getRcvAddr())); pp.put("rcvTel", scStr(r.getRcvTel()));
 				pp.put("rcvTel2", scStr(r.getRcvTel2())); pp.put("rcvItemCd", scStr(r.getRcvItemCd()));
+				pp.put("rcvFee", r.getRcvFee());   // 택배비(운임) — 빈 값이면 NULL
 				mapper.updateDsPoExtra(pp);
 			}
 			egovframework.konet.user.model.ProdXrefDTO rx = new egovframework.konet.user.model.ProdXrefDTO();
@@ -1542,6 +1543,19 @@ public class UserServiceImpl implements UserService {
 			if (mapper.selectDsPoDup(p) > 0) n++;
 		}
 		return n;
+	}
+	/* 대상 발주 — 저장된 한 줄의 택배비만 고친다(2026-10-02 「DB 저장은 없나요」). 매출·재고와 무관해 제자리에서 고치고 재고 원장도 다시 만들지 않는다. 돌려주는 값 = 고친 줄 수 */
+	@Override public int updateDsPoFee(long seq, Integer fee, String user, String ip, String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("seq", seq); p.put("rcvFee", fee); p.put("regUser", user); p.put("regIp", ip);
+		return mapper.updateDsPoFee(p);
+	}
+	/* 대상 발주 — 저장된 한 줄의 배송 정보·제품명·대상 제품코드 고치기 (2026-10-02 「저장내용 수정기능」). 글자 칸이라 제자리에서 고친다. 돌려주는 값 = 고친 줄 수 */
+	@Override public int updateDsPoInfo(long seq, java.util.Map<String,Object> v, String user, String ip, String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		for (String k : new String[]{ "rcvNm", "rcvAddr", "rcvTel", "rcvTel2", "rcvItemCd", "itemNm" }) p.put(k, scStr(v.get(k)));
+		p.put("compCd", compCd); p.put("seq", seq); p.put("regUser", user); p.put("regIp", ip);
+		return mapper.updateDsPoInfo(p);
 	}
 	/* 대상 발주 — 저장 취소(삭제). 돌려주는 값 = 지운 줄마다 그 납기일자(컨트롤러가 그 날짜들의 재고 원장을 다시 만든다) */
 	@Override public java.util.List<String> deleteDsPo(java.util.List<Long> seqs, String user, String ip, String compCd) throws Exception {
@@ -1589,6 +1603,7 @@ public class UserServiceImpl implements UserService {
 		d.setSrcFile(scStr(old.get("srcFile")));
 		d.setRcvNm(scStr(old.get("rcvNm"))); d.setRcvAddr(scStr(old.get("rcvAddr"))); d.setRcvTel(scStr(old.get("rcvTel")));
 		d.setRcvTel2(scStr(old.get("rcvTel2"))); d.setRcvItemCd(scStr(old.get("rcvItemCd")));
+		d.setRcvFee(old.get("rcvFee") == null ? null : Integer.valueOf(((Number) old.get("rcvFee")).intValue()));   // 택배비도 새 줄로 가져간다
 		java.util.List<egovframework.konet.user.model.ShipoutDTO> one = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>(); one.add(d);
 		saveDsPo(one, user, ip, compCd);
 		dates.add(oDt); if (!oDt.equals(dlvDt)) dates.add(dlvDt);

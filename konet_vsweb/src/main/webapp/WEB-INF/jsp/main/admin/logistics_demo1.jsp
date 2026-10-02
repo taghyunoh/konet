@@ -948,7 +948,7 @@
          코드는 data-cd(주코드)로 싣고 읽는다 — 인라인 onclick 에 글자로 넣지 않는다. */
     var mk = d2StockMain((''+(code||'')).trim()) || s.key;
     var act = !s.low ? '' : (' data-cd="'+d2Esc(mk)+'" data-st="'+rq+'" onclick="d2PoReqOne(this)"');
-    var how = !s.low ? '' : (rq==='Y' ? '' : (rq ? '\n▶ 누르면 발주목록에서 뺍니다' : '\n▶ 누르면 이 품목을 발주목록에 올립니다'));
+    var how = !s.low ? '' : (rq==='Y' ? '' : (rq ? '\n▶ 누르면 발주목록에서 뺄지 묻습니다' : '\n▶ 누르면 이 품목을 발주목록에 올릴지 묻습니다'));
     return '<td class="num" style="font-weight:700;'+bg+(s.low?'cursor:pointer;':'')+'color:'+(s.low?'#c0392b':'#37475a')+'"'+act+' title="적정재고 '+d2Num(s.safe)+' · 현재고 '+d2Num(s.cur)+tail+how+'">'+d2Num(s.safe)+'</td>';
   }
   /* 지금 조회된 품목 가운데 미달인 것 — 주코드 기준으로 한 번씩만 */
@@ -972,10 +972,10 @@
       + '\n발주서 관리 ▸ [📋 발주목록 리스트]에서 골라 담습니다.';
     b.style.color = k ? '#c0392b' : ''; b.style.borderColor = k ? '#f0b4b0' : '';
   }
-  function d2Ask(msg, onOk){
+  function d2Ask(msg, onOk, okText){
     var P=null; try{ P=window.parent; }catch(e){}
     var f=window._confirmBox || (P && P._confirmBox);
-    if(f){ f({ msg:msg, icon:'📋', okText:'실행', okColor:'blue', onOk:onOk }); return; }
+    if(f){ f({ msg:msg, icon:'📋', okText:okText||'실행', okColor:'blue', onOk:onOk, onCancel:function(){} }); return; }
     if(confirm(String(msg).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,''))) onOk();
   }
   function d2Say(msg, icon){
@@ -991,13 +991,24 @@
       .then(function(j){ var m={}; ((j&&j.data)||[]).forEach(function(o){ var c=(''+(o.prodCd||'')).trim(); if(c) m[c]=(o.regYn==='Y'?'Y':'N'); }); D2_REQ=m; d2Render(); })
       .catch(function(){});
   }
-  /* 「적정」 칸 클릭 — 품목 하나를 발주목록에 올리거나(주황) 뺀다(하늘·미등록). 확인창 없이 바로 하고 알림만 띄운다(다시 누르면 되돌아간다) */
+  /* 「적정」 칸 클릭 — 품목 하나를 발주목록에 올리거나(주황) 뺀다(하늘·미등록).
+       ★바로 하지 않고 «먼저 확인창으로 묻는다» (2026-10-02 사용자 「적정재고 클릭 시 자동 저장·취소가 아니고 ALERT 기능」) —
+         종전엔 확인창 없이 누르는 즉시 올리고 뺐다(잘못 눌러도 그대로 들어갔다). 발주서에 이미 등록된 품목은 알림창만 띄운다. */
   var _d2ReqBusy=false;
   function d2PoReqOne(el){
     if(_d2ReqBusy) return;
     var cd=el.getAttribute('data-cd')||'', st=el.getAttribute('data-st')||'';
     if(!cd) return;
-    if(st==='Y'){ d2Toast('ℹ️ 이미 <b>발주서에 등록</b>된 품목입니다 — 취소하려면 발주서 관리에서 그 발주서를 고치거나 지우세요.'); return; }
+    /* 확인창 문구는 짧게(같은 날 사용자 「메시지는 기존 쓰는 것, 간결하게」) — 코드·품명 + 한 줄. 창은 공용 확인창(_confirmBox) 그대로 */
+    var nm='';
+    (D2_DATA||[]).some(function(r){ var c=(''+(r.code||'')).trim(); if((d2StockMain(c)||c)!==cd) return false; nm=r.item||''; return true; });
+    var head='<b>'+d2Esc(cd)+'</b>'+(nm?' '+d2Esc(nm):'');
+    if(st==='Y'){ d2Say(head+'<br>이미 발주서에 등록된 품목입니다.'); return; }
+    if(st) d2Ask(head+'<br>발주목록에서 뺄까요?', function(){ d2PoReqDo(cd, st); }, '빼기');
+    else   d2Ask(head+'<br>발주목록에 올릴까요?', function(){ d2PoReqDo(cd, st); }, '올리기');
+  }
+  function d2PoReqDo(cd, st){
+    if(_d2ReqBusy) return;
     var url = st ? '/mangr/poReqCancel.do' : '/mangr/poReqMake.do';
     var body = st ? { prodCd:cd } : { prodCds:[cd], dlvDt:((document.getElementById('d2DateFrom')||{}).value||'') };
     _d2ReqBusy=true;

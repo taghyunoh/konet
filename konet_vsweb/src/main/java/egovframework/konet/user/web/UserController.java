@@ -1744,7 +1744,7 @@ public class UserController {
 			} catch (Exception e) { log.error(" daesangPoList ERROR : " + e.getMessage()); res.put("data", new java.util.ArrayList<Object>()); res.put("error", dsErr(e, "조회하지 못했습니다")); }
 			return res;
 		}
-		/* 저장 — {bizCd, bizNm, fileNm, force:'Y'|'', rows:[{dlvDt, rcvNm, rcvAddr, rcvTel, rcvTel2, qty, rcvItemCd, itemNm, itemCd, price}]}
+		/* 저장 — {bizCd, bizNm, fileNm, force:'Y'|'', rows:[{dlvDt, rcvNm, rcvAddr, rcvTel, rcvTel2, qty, rcvItemCd, itemNm, itemCd, price, fee}]}
 		   응답 = {cnt, warn?} · 거절 {error} · 같은 줄이 이미 있으면 {dup:n}(화면이 물은 뒤 force='Y' 로 다시 보낸다) */
 		@SuppressWarnings("unchecked")
 		@RequestMapping(value="/shipout/daesangPoSave.do", method = RequestMethod.POST)
@@ -1785,6 +1785,9 @@ public class UserController {
 					d.setRcvNm(dsCut(poStr(m.get("rcvNm")), 100)); d.setRcvAddr(dsCut(poStr(m.get("rcvAddr")), 300));
 					d.setRcvTel(dsCut(poStr(m.get("rcvTel")), 40)); d.setRcvTel2(dsCut(poStr(m.get("rcvTel2")), 40));
 					d.setRcvItemCd(dsCut(poStr(m.get("rcvItemCd")), 30));
+					/* 택배비(운임) — 빈 칸이면 저장하지 않는다(NULL). 엑셀의 운임 칸으로 나가는 값이고 매출·재고와는 무관하다 */
+					String fs = poStr(m.get("fee"));
+					if (!fs.isEmpty()) { double fd = poNum(fs); if (fd < 0 || fd > 100000000) { bad++; continue; } d.setRcvFee(Integer.valueOf((int) Math.round(fd))); }
 					rows.add(d); dates.add(dlv); ic.add(d.getItemCd());
 				}
 				if (bad > 0) { res.put("error", "발주일자·품목코드·제품명·수량(1 이상의 정수)·단가를 확인하세요 — 잘못된 줄 " + bad + "개. 저장하지 않았습니다."); return res; }
@@ -1818,6 +1821,45 @@ public class UserController {
 				String warn = dcResync(dates, u, request.getRemoteAddr());
 				res.put("cnt", Integer.valueOf(ds.size())); if (warn != null) res.put("warn", warn);
 			} catch (Exception e) { log.error(" daesangPoDelete ERROR : " + e.getMessage()); res.put("error", dsErr(e, "삭제하지 못했습니다")); }
+			return res;
+		}
+		/* 저장된 한 줄의 배송 정보·제품명 고치기 — {seq, rcvNm, rcvAddr, rcvTel, rcvTel2, rcvItemCd, itemNm} (바꾸지 않는 칸도 지금 값을 그대로 보낸다).
+		   그 줄만 바뀐다. 매출·재고와 무관한 글자 칸이라 재고를 다시 맞추지 않는다. 제품명은 비울 수 없다(자동 매칭의 이름이다) */
+		@RequestMapping(value="/shipout/daesangPoInfo.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> daesangPoInfo(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				long seq; try { seq = Long.parseLong(poStr(p.get("seq"))); } catch (NumberFormatException ne) { res.put("error", "고칠 줄을 찾을 수 없습니다."); return res; }
+				if (poStr(p.get("itemNm")).isEmpty()) { res.put("error", "제품명은 비울 수 없습니다."); return res; }
+				Map<String,Object> v = new HashMap<String,Object>();
+				v.put("rcvNm", dsCut(poStr(p.get("rcvNm")), 100)); v.put("rcvAddr", dsCut(poStr(p.get("rcvAddr")), 300));
+				v.put("rcvTel", dsCut(poStr(p.get("rcvTel")), 40)); v.put("rcvTel2", dsCut(poStr(p.get("rcvTel2")), 40));
+				v.put("rcvItemCd", dsCut(poStr(p.get("rcvItemCd")), 30)); v.put("itemNm", dsCut(poStr(p.get("itemNm")), 200));
+				int n = svc.updateDsPoInfo(seq, v, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")));
+				if (n == 0) { res.put("error", "저장된 줄을 찾을 수 없습니다(다른 곳에서 지웠거나 고쳤을 수 있습니다) — [조회]로 새로 읽으세요."); return res; }
+				res.put("cnt", Integer.valueOf(n));
+			} catch (Exception e) { log.error(" daesangPoInfo ERROR : " + e.getMessage()); res.put("error", dsErr(e, "고치지 못했습니다")); }
+			return res;
+		}
+		/* 저장된 한 줄의 택배비 고치기 — {seq, fee}(빈 값 = 지움). 그 줄만 바뀐다. 매출·재고와 무관해 재고를 다시 맞추지 않는다 */
+		@RequestMapping(value="/shipout/daesangPoFee.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> daesangPoFee(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				long seq; try { seq = Long.parseLong(poStr(p.get("seq"))); } catch (NumberFormatException ne) { res.put("error", "고칠 줄을 찾을 수 없습니다."); return res; }
+				Integer fee = null;
+				String fs = poStr(p.get("fee"));
+				if (!fs.isEmpty()) { double fd = poNum(fs); if (fd < 0 || fd > 100000000) { res.put("error", "택배비는 0 이상으로 넣으세요."); return res; } fee = Integer.valueOf((int) Math.round(fd)); }
+				int n = svc.updateDsPoFee(seq, fee, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")));
+				if (n == 0) { res.put("error", "저장된 줄을 찾을 수 없습니다(다른 곳에서 지웠거나 고쳤을 수 있습니다) — [조회]로 새로 읽으세요."); return res; }
+				res.put("cnt", Integer.valueOf(n));
+			} catch (Exception e) { log.error(" daesangPoFee ERROR : " + e.getMessage()); res.put("error", dsErr(e, "택배비를 저장하지 못했습니다")); }
 			return res;
 		}
 		/* 저장된 한 줄 고치기 — {seq, dlvDt, itemCd, qty, price} (바꾸지 않는 칸도 지금 값을 그대로 보낸다). 새 품목코드도 마스터에 있어야 한다 */
