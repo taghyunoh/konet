@@ -1624,16 +1624,22 @@ function puProdRender(){
     if (sb) {
       /* ★마스터코드를 **직접 누를 수 있게** 한다 (2026-08-17 요청 "주코드도 선택 가능하게").
          줄 전체를 눌러도 마스터로 담기지만, 마스터코드 글자를 바로 누르는 길도 둔다. */
-      cd += '<div style="margin-top:2px"><span style="display:inline-block;padding:0 5px;border-radius:8px;'
-          + 'background:#fdecea;color:#c0392b;font-size:11px;font-weight:700">서브</span>'
+      /* ★위치 변경 (2026-10-02 사용자 「매입등록 상품조회 주코드·서브코드 위치 변경」) — 상품코드 등록·재고 일괄조정과 같은 차례 :
+           위 = [주] 주코드(누르면 주코드로 담는다) · 아래 = [서브] 이 줄 자신의 코드. 종전엔 제 코드가 위, 「서브 → 주코드」가 아래였다.
+           상품명도 같은 차례(위 = 마스터 이름 · 아래 = 이 줄 이름)로 맞췄다. 줄을 누르면 종전대로 주코드로 담긴다. */
+      var ownCd = cd;
+      cd = '<div><span style="display:inline-block;padding:0 5px;border-radius:8px;'
+          + 'background:#e3f2ee;color:#0f6b5e;font-size:11px;font-weight:700">주</span>'
           + ' <a href="javascript:;" style="font-size:11.5px;color:#1f7a4d;font-weight:700;text-decoration:underline"'
           + ' onclick="event.stopPropagation();puProdPick(\'' + esc(sb.prodCd) + '\');"'
-          + ' title="마스터코드로 담습니다">→ ' + esc(sb.prodCd) + '</a></div>';
+          + ' title="마스터코드로 담습니다">' + esc(sb.prodCd) + '</a></div>'
+          + '<div style="margin-top:2px"><span style="display:inline-block;padding:0 5px;border-radius:8px;'
+          + 'background:#fdecea;color:#c0392b;font-size:11px;font-weight:700">서브</span> ' + ownCd + '</div>';
       /* 마스터 품명은 상품마스터에서 다시 찾는다 — 조인으로 온 이름이 비어 있는 통보도 있다. */
       var mp = null;
       for (var mi=0; mi<_prods.length; mi++){ if (String(_prods[mi].prodCd)===String(sb.prodCd)) { mp=_prods[mi]; break; } }
       var nm = (mp && mp.prodNm) || sb.prodNm || '';
-      if (nm) mstNm = '<div style="font-size:11.5px;color:#8a97a3;margin-top:2px">마스터 : ' + esc(nm) + '</div>';
+      if (nm) mstNm = '<div style="font-size:11.5px;color:#8a97a3;margin-bottom:2px">마스터 : ' + esc(nm) + '</div>';
     }
     /* ✔칸 — 체크하면 순번(1,2,3…)이 찍히고 그 순서대로 담긴다. 체크박스 클릭이 줄 클릭(한 건 담기)으로
        번지지 않게 td 에서 끊는다. 체크박스 자체 클릭도 td 로 흘러 한 번만 토글된다(pointer-events 없음). */
@@ -1662,7 +1668,7 @@ function puProdRender(){
          + '<td style="cursor:pointer" onclick="event.stopPropagation();puProdToggle(\''+esc(o.prodCd)+'\')">'
          +   (k>=0 ? '<b style="color:#137a6c">'+(k+1)+'</b>' : '<input type="checkbox" style="pointer-events:none">')
          + '</td>'
-         + '<td>'+cd+'</td><td class="txt" style="text-align:left">'+esc(o.prodNm)+mstNm+'</td>'
+         + '<td>'+cd+'</td><td class="txt" style="text-align:left">'+mstNm+esc(o.prodNm)+'</td>'   /* 마스터(주) 이름이 위 · 이 줄 이름이 아래 — 코드 칸과 같은 차례 */
          + '<td>'+esc(o.spec)+'</td><td class="num">'+n(o.packQty)+'</td><td class="num">'+fmt(o.inPrice)+'</td></tr>';
     /* 🔖 서브코드 줄 — 판매등록과 **같은 모양**(코드는 코드 칸, 품명은 품명 칸)으로 붙인다.
        ★다만 누르면 ***마스터코드로*** 담긴다 — 매입을 서브코드로 잡으면 재고가 갈라지기 때문이다.

@@ -431,17 +431,20 @@
      ★현재고는 일부러 뺀다 (2026-08-07 요청 "노란색에 겹쳐도 기존 색깔 유지") —
        노랑은 <출고 수량이 직전과 다르다> 는 뜻이라 재고와는 상관이 없고,
        덮어 칠하면 음수 빨강·양수 초록이 지워져 재고를 못 읽는다. */
-  table.d2-tb tr.item.r-diff td:nth-child(3),
+  /* ★칸 번호가 <또> 한 칸 밀렸다 (2026-10-02 「적정재고」 열이 No 뒤 · 현재고 앞에 들어왔다) —
+       1=No 2=적정재고 3=현재고 4=매칭 5=사업장 6=품목코드 7=품목명 8=현재 9=직전. 적정재고·현재고는 노랑에서 뺀다(제 색을 지킨다). */
   table.d2-tb tr.item.r-diff td:nth-child(4),
   table.d2-tb tr.item.r-diff td:nth-child(5),
   table.d2-tb tr.item.r-diff td:nth-child(6),
   table.d2-tb tr.item.r-diff td:nth-child(7),
-  table.d2-tb tr.item.r-diff td:nth-child(8) { background:#ffe680 !important; color:#1f2a37 !important; }
-  table.d2-tb tr.item.r-diff td:nth-child(7) b,
-  table.d2-tb tr.item.r-diff td:nth-child(8) b { color:#8a5a00 !important; }
+  table.d2-tb tr.item.r-diff td:nth-child(8),
+  table.d2-tb tr.item.r-diff td:nth-child(9) { background:#ffe680 !important; color:#1f2a37 !important; }
+  table.d2-tb tr.item.r-diff td:nth-child(8) b,
+  table.d2-tb tr.item.r-diff td:nth-child(9) b { color:#8a5a00 !important; }
   table.d2-tb tr.r-del td { background:#fbf4f4 !important; color:#b06a66; text-decoration:line-through; text-decoration-color:#d99; }
   /* 삭제 줄이라도 재고는 지워진 게 아니다 — 취소선·회색을 걷어 원래 색을 지킨다(2026-08-07) */
-  table.d2-tb tr.item.r-del td:nth-child(2) { text-decoration:none; color:inherit; }
+  table.d2-tb tr.item.r-del td:nth-child(2),
+  table.d2-tb tr.item.r-del td:nth-child(3) { text-decoration:none; color:inherit; }   /* 2 = 적정재고 · 3 = 현재고 (2026-10-02 한 칸 밀림) */
   table.d2-tb tr.r-del td.num { color:#b06a66; }
   .d2-empty { padding:38px 20px; text-align:center; color:#6b7a89; font-size:13.5px; }
   .note { font-size:12px; color:#6b7a89; margin-top:8px; }
@@ -640,6 +643,14 @@
           <div class="dc-pop" id="d2GordPop" style="left:auto; right:0; min-width:260px"></div>
         </span>
         <button class="btn-line" onclick="d2ColReset()" title="드래그로 바꾼 컬럼 너비를 기본값으로 되돌립니다 (헤더 경계 더블클릭도 동일)">↺ 열초기화</button>
+        <%-- 📋 발주목록 실행 (2026-10-02) — 지금 조회된 품목 가운데 적정재고 미달인 것을 발주목록에 넣는다. 발주서 관리 [📋 발주목록 리스트]에서 골라 담는다 --%>
+        <%-- 방식 (2026-10-02 사용자 「전체로 할지 개별로 할지 — 기본은 개별」) — 개별 = 주황색 「적정」 칸을 눌러 하나씩 · 전체 = 단추로 미달 품목을 한꺼번에.
+             화면을 열 때마다 개별로 시작한다(전체는 실수로 누르면 한꺼번에 들어가므로 그때그때 고르게) --%>
+        <select id="d2PoReqMode" onchange="d2PoReqBadge()" style="height:30px;border:1px solid #cfd8e3;border-radius:7px;padding:0 6px;font-size:12.5px;font-weight:700;color:#37475a"
+                title="발주목록에 올리는 방식 — 개별 : 주황색 「적정」 칸을 눌러 하나씩 올리고, 하늘색 칸을 누르면 뺍니다 · 전체 : 오른쪽 단추로 미달 품목을 한꺼번에 올립니다">
+          <option value="one" selected>개별</option><option value="all">전체</option>
+        </select>
+        <button class="btn-line" id="d2PoReqBtn" onclick="d2PoReqRun()" title="지금 조회된 품목 가운데 적정재고 미달인 것을 발주목록에 넣습니다.&#10;발주서 관리 ▸ [📋 발주목록 리스트]에서 골라 발주서에 담습니다.&#10;이미 발주해 입고예정으로 채워지는 품목은 넣지 않습니다.">📋 발주목록 실행</button>
         <%-- [제외 2026-07-02] 품목 추가/출고장 추가/출고장 초기화 — 편집 기능은 데시보드1에서만. 재노출 시 주석 해제
         <button class="btn-teal" onclick="d2Go('additem')" title="데시보드1로 이동하여 품목을 추가합니다">＋ 품목 추가</button>
         <button class="btn-line" onclick="d2Go('addzone')" title="데시보드1로 이동하여 출고장을 추가합니다">＋ 출고장 추가</button>
@@ -778,6 +789,10 @@
     {k:'no',   nm:'No',    f:0.035},
     /* 현재고 (2026-08-07 요청 "No 뒤에") — 근거는 재고현황(①)과 같다: 수불원장 입고−출고.
        여기서 바로 보이면 "이만큼 나가는데 재고는 있나" 를 화면을 옮기지 않고 안다. */
+    /* 적정재고 (2026-10-02 사용자 「현재고 앞에 적정재고 보여주고 미달이면 표시」) — 상품코드의 SAFE_STOCK(주코드 기준). 미달이면 빨간 「미달」.
+       ⚠기준칸이 7 → 8칸이 됐다 — 전체합계·그룹·센터/입고장 소계·출고장 소계·묶음 합계 줄의 빈 칸/colspan 과 CSS 칸 번호를 함께 고쳤다.
+       폭은 품목명에서 덜어 왔다(0.215 → 0.180). */
+        {k:'safe', nm:'적정', f:0.035},   /* 머리글은 「적정」 · 칸은 숫자만 · 자세한 것은 팁 (2026-10-02 「헤더 적정이라고 하고 데이터는 숫자만, 팁으로 전체 내용」 — 「미달」 글자가 붙어 숫자가 「50…」으로 잘렸다) */
         {k:'stock',nm:'현재고', f:0.038},
     /* 매칭 사업장 (2026-08-28 요청 「현재고와 사업장 사이」) — 거래처관리에서 지정한 공통 매칭명칭.
        ★없으면 '—' 로 둔다. 사업장명을 그대로 되풀이하면 두 칸이 같은 말이 되어 읽는 데 방해만 된다.
@@ -787,7 +802,7 @@
     {k:'match',nm:'매칭 사업장', f:0.065},
     {k:'biz',  nm:'사업장', f:0.15},
     {k:'code', nm:'품목코드', f:0.075},
-    {k:'item', nm:'품목명', f:0.215}   /* 0.275 → 0.245 → 0.215 (2026-09-02 「품목명 조금 축소」+출고장 재확대) — 출고장 칸에 자리를 넘겼다 */
+    {k:'item', nm:'품목명', f:0.180}   /* 0.275 → 0.245 → 0.215 (2026-09-02 「품목명 조금 축소」+출고장 재확대) — 출고장 칸에 자리를 넘겼다 */
   ];
   var D2_COLS=D2_BASECOLS.slice();   // d2Render에서 매 렌더 시 [기준 + 차수컬럼]으로 재구성
   var D2_COLW={};   // {k: fraction(0~1)} — 사용자 조절값(localStorage). 합계 1 유지 → 항상 우측까지 채움
@@ -898,6 +913,131 @@
           ⇒ 그 화면이 살아 있는 내내 현재고가 '·' 로만 나온다(「최초 조회는 되는데 재조회하면 안 나옴」의 정체).
      ⇒ 조회(_d2LoadInner)마다 캐시를 버리고, <실패하면 굳히지 않는다>(다음 조회에서 다시 시도).
      ⚠실패했을 때 대기 콜백을 부르지 않는 것도 일부러다 — d2Render 가 다시 부르면 «실패 → 재조회» 가 무한히 돈다. */
+  /* ── 적정재고 · 발주목록 실행 (2026-10-02 사용자 「대시보드에서 현재고 앞에 적정재고 보여주고 적정재고 미달일 경우 표시하고,
+       실행하면 발주서등록을 위해 데이터 발생」) ──────────────────────────────
+     · 적정재고 = 상품코드의 SAFE_STOCK(주코드 기준 — 재고의 주인이 주코드라 현재고와 같은 코드를 본다). /prod/safeStockMap.do 가 적정재고 있는 상품만 준다.
+     · 미달 = 적정재고가 있고 현재고 < 적정재고. 적정 칸에 빨간 「미달」을 단다(재고가 안 잡힌 품목은 0 으로 본다).
+     · [📋 발주목록 실행] = 지금 조회된 품목 가운데 미달인 것을 발주목록(TBL_PO_REQ)에 넣는다 → 발주서 관리 [📋 발주목록 리스트]에서 골라 담는다.
+       ★서버가 한 번 더 거른다 : 이미 발주해 «입고예정»으로 채워지는 품목은 넣지 않는다(중복 발주 방지). 그래서 화면의 미달 수보다 적게 들어갈 수 있다. */
+  var D2_SAFE={};
+  /* ★「적정」 칸 바탕색 (2026-10-02 사용자 「발주목록 올린 것은 하늘색 · 아직 안 올린 것은 주황색」) — 미달 품목만 칠한다.
+       하늘색 = 발주목록에 올라가 있다(미등록이든, 발주서에 등록돼 아직 덜 들어온 것이든) · 주황색 = 미달인데 아직 안 올렸다.
+       D2_REQ = 주코드 → 'N'(미등록) | 'Y'(발주서 등록·입고 대기). /mangr/poReqCodes.do — 현재고와 함께 조회마다 다시 읽는다. */
+  var D2_REQ={};
+  function d2ReqOf(code){ var c=(''+(code||'')).trim(); if(!c) return ''; var mk=d2StockMain(c)||c; return D2_REQ[mk]||D2_REQ[c]||''; }
+  function d2SafeOf(code){
+    var c=(''+(code||'')).trim(); if(!c) return null;
+    var main=d2StockMain(c), key=main||c, safe=+(D2_SAFE[key]||0);
+    if(!(safe>0) && main){ key=c; safe=+(D2_SAFE[c]||0); }      /* 주코드에 적정재고가 없으면 제 코드라도 */
+    if(!(safe>0)) return null;
+    var q=d2StockQty(c); if(q==null) q=0;
+    return { key:key, safe:safe, cur:q, low:(q<safe) };
+  }
+  function d2SafeCell(code){
+    if(!D2_STOCK) return '<td class="num" style="color:#c3ccd4">·</td>';
+    var s=d2SafeOf(code);
+    if(!s) return '<td class="num" style="color:#c3ccd4" title="적정재고가 없는 품목입니다 — 상품코드 등록에서 넣습니다.">·</td>';
+    /* 칸에는 숫자만(미달이면 빨강) — 「미달」 글자는 팁으로 옮겼다 (2026-10-02).
+       미달이면 바탕색 : 발주목록에 올린 것 = 하늘색 · 아직 안 올린 것 = 주황색 (!important — 줄 강조색(노랑·줄무늬)에 안 덮이게) */
+    var rq = s.low ? d2ReqOf(code) : '';
+    var bg = !s.low ? '' : (rq ? 'background:#cfe8ff !important;' : 'background:#ffd9a8 !important;');
+    var tail = !s.low ? ' — 충족' : (' — 적정재고 미달 (부족 '+d2Num(s.safe-s.cur)+')'
+             + (rq==='Y' ? ' · 발주서에 등록됨(입고 대기)' : (rq ? ' · 발주목록에 올림(아직 발주서 미등록)' : ' · 아직 발주목록에 안 올림')));
+    /* ★미달 칸은 누를 수 있다 (2026-10-02 사용자 「개별로 들어가게 하고 여기에서 발주목록 저장 취소도」) —
+         주황(안 올림) = 누르면 그 품목 하나를 발주목록에 올린다 · 하늘(미등록) = 누르면 발주목록에서 뺀다 · 하늘(발주서 등록됨) = 여기서는 못 뺀다(발주서 관리에서).
+         코드는 data-cd(주코드)로 싣고 읽는다 — 인라인 onclick 에 글자로 넣지 않는다. */
+    var mk = d2StockMain((''+(code||'')).trim()) || s.key;
+    var act = !s.low ? '' : (' data-cd="'+d2Esc(mk)+'" data-st="'+rq+'" onclick="d2PoReqOne(this)"');
+    var how = !s.low ? '' : (rq==='Y' ? '' : (rq ? '\n▶ 누르면 발주목록에서 뺍니다' : '\n▶ 누르면 이 품목을 발주목록에 올립니다'));
+    return '<td class="num" style="font-weight:700;'+bg+(s.low?'cursor:pointer;':'')+'color:'+(s.low?'#c0392b':'#37475a')+'"'+act+' title="적정재고 '+d2Num(s.safe)+' · 현재고 '+d2Num(s.cur)+tail+how+'">'+d2Num(s.safe)+'</td>';
+  }
+  /* 지금 조회된 품목 가운데 미달인 것 — 주코드 기준으로 한 번씩만 */
+  function d2ShortCodes(){
+    var seen={}, out=[];
+    /* ★보내는 코드는 «주코드» (2026-10-02 「대시보드에서 발주등록은 주코드가 들어가게」) — 적정재고가 서브코드 쪽에만 있어도 주코드를 보낸다.
+         서버(makePoReq)도 한 번 더 주코드로 바꾸고, 재고·입고예정은 주코드 것으로 계산한다. */
+    (D2_DATA||[]).forEach(function(r){ var s=d2SafeOf(r.code); if(!s || !s.low) return;
+      var mk=d2StockMain((''+(r.code||'')).trim()) || s.key;
+      if(!seen[mk]){ seen[mk]=1; out.push(mk); } });
+    return out;
+  }
+  function d2PoReqBadge(){
+    var b=document.getElementById('d2PoReqBtn'); if(!b) return;
+    var all=D2_STOCK ? d2ShortCodes() : [], k=all.filter(function(c){ return !D2_REQ[c]; }).length;   /* 숫자 = 미달인데 아직 발주목록에 안 올린 품목(주황색) */
+    var one=d2PoReqIsOne();
+    b.innerHTML = (one ? '📋 발주목록 (개별)' : '📋 발주목록 전체 실행') + (k ? ' <b>'+k+'</b>' : '');
+    b.title = '지금 조회된 품목 가운데 적정재고 미달 '+all.length+'개 — 아직 안 올린 것 '+k+'개(주황색) · 올린 것 '+(all.length-k)+'개(하늘색).\n'
+      + (one ? '개별 방식 : 주황색 「적정」 칸을 눌러 하나씩 올리고, 하늘색 칸을 누르면 뺍니다. 한꺼번에 올리려면 왼쪽을 「전체」로 바꾸세요.'
+             : '전체 방식 : 누르면 미달 품목을 한꺼번에 발주목록에 넣습니다(이미 올린 것은 수량만 갱신).')
+      + '\n발주서 관리 ▸ [📋 발주목록 리스트]에서 골라 담습니다.';
+    b.style.color = k ? '#c0392b' : ''; b.style.borderColor = k ? '#f0b4b0' : '';
+  }
+  function d2Ask(msg, onOk){
+    var P=null; try{ P=window.parent; }catch(e){}
+    var f=window._confirmBox || (P && P._confirmBox);
+    if(f){ f({ msg:msg, icon:'📋', okText:'실행', okColor:'blue', onOk:onOk }); return; }
+    if(confirm(String(msg).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,''))) onOk();
+  }
+  function d2Say(msg, icon){
+    var P=null; try{ P=window.parent; }catch(e){}
+    var f=window._alertBox || (P && P._alertBox);
+    if(f){ f(msg, { icon:icon||'ℹ️' }); return; }
+    d2Toast(msg);
+  }
+  /* 발주목록에 올린 품목만 다시 읽어 칸 색을 바꾼다(현재고·적정재고는 그대로 둔다 — 가볍게) */
+  function d2ReqReload(){
+    fetch(CTX+'/mangr/poReqCodes.do', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ var m={}; ((j&&j.data)||[]).forEach(function(o){ var c=(''+(o.prodCd||'')).trim(); if(c) m[c]=(o.regYn==='Y'?'Y':'N'); }); D2_REQ=m; d2Render(); })
+      .catch(function(){});
+  }
+  /* 「적정」 칸 클릭 — 품목 하나를 발주목록에 올리거나(주황) 뺀다(하늘·미등록). 확인창 없이 바로 하고 알림만 띄운다(다시 누르면 되돌아간다) */
+  var _d2ReqBusy=false;
+  function d2PoReqOne(el){
+    if(_d2ReqBusy) return;
+    var cd=el.getAttribute('data-cd')||'', st=el.getAttribute('data-st')||'';
+    if(!cd) return;
+    if(st==='Y'){ d2Toast('ℹ️ 이미 <b>발주서에 등록</b>된 품목입니다 — 취소하려면 발주서 관리에서 그 발주서를 고치거나 지우세요.'); return; }
+    var url = st ? '/mangr/poReqCancel.do' : '/mangr/poReqMake.do';
+    var body = st ? { prodCd:cd } : { prodCds:[cd], dlvDt:((document.getElementById('d2DateFrom')||{}).value||'') };
+    _d2ReqBusy=true;
+    fetch(CTX+url, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json; charset=UTF-8'}, body:JSON.stringify(body) })
+      .then(function(r){ return r.text(); })
+      .then(function(t){ _d2ReqBusy=false; var j=null; try{ j=JSON.parse(t); if(typeof j==='string') j=JSON.parse(j); }catch(e){ j=null; }
+        if(!j){ d2Toast('⚠️ 서버 응답을 읽지 못했습니다.'); return; }
+        if(j.error){ d2Toast('⚠️ '+d2Esc(j.error)); return; }
+        if(st){ d2Toast((j.cnt||0) ? ('↩ <b>'+d2Esc(cd)+'</b> 발주목록에서 뺐습니다.') : ('ℹ️ <b>'+d2Esc(cd)+'</b> — 뺄 미등록 줄이 없습니다(이미 발주서에 등록됐을 수 있습니다).')); }
+        else if((j.newCnt||0)+(j.updCnt||0) > 0){ d2Toast('📋 <b>'+d2Esc(cd)+'</b> 발주목록에 올렸습니다 — 발주서 관리 ▸ [발주목록 리스트]'); }
+        else { d2Toast('ℹ️ <b>'+d2Esc(cd)+'</b> — 올리지 않았습니다. 이미 발주해 입고예정으로 채워지는 품목입니다.'); }
+        d2ReqReload();
+      })
+      .catch(function(e){ _d2ReqBusy=false; d2Toast('⚠️ 처리하지 못했습니다 : '+d2Esc(e&&e.message||'')); });
+  }
+  function d2PoReqIsOne(){ var m=document.getElementById('d2PoReqMode'); return !m || m.value!=='all'; }   /* 기본 = 개별 */
+  function d2PoReqRun(){
+    if(d2PoReqIsOne()){ d2Toast('ℹ️ <b>개별</b> 방식입니다 — 주황색 「적정」 칸을 눌러 하나씩 올립니다(하늘색 칸을 누르면 뺍니다).<br>한꺼번에 올리려면 왼쪽을 <b>「전체」</b>로 바꾼 뒤 누르세요.'); return; }
+    if(!D2_STOCK){ d2Toast('⚠️ 현재고를 아직 읽지 못했습니다 — [조회]를 한 번 누른 뒤 다시 해 주세요.'); return; }
+    var cds=d2ShortCodes();
+    if(!cds.length){ d2Say('지금 조회된 품목 가운데 <b>적정재고 미달</b>이 없습니다.<br><span style="font-size:12.5px;color:#3d4d5c">적정재고는 상품코드 등록에서 품목마다 넣습니다.</span>'); return; }
+    var dlv=(document.getElementById('d2DateFrom')||{}).value||'';
+    d2Ask('적정재고 미달 품목 <b>'+cds.length+'</b>개를 <b>발주목록</b>에 넣습니다.<br><span style="font-size:12.5px;color:#3d4d5c;line-height:1.7">'
+      +'· 발주수량 = (적정재고 − 현재고 − 입고예정)을 입수 배수로 올린 값<br>'
+      +'· 이미 발주해 입고예정으로 채워지는 품목은 넣지 않습니다<br>'
+      +'· 발주서 관리 ▸ <b>[📋 발주목록 리스트]</b>에서 골라 발주서에 담습니다</span>', function(){
+      fetch(CTX+'/mangr/poReqMake.do', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json; charset=UTF-8'},
+              body:JSON.stringify({ prodCds:cds, dlvDt:dlv }) })
+        .then(function(r){ return r.text(); })
+        .then(function(t){ var j=null; try{ j=JSON.parse(t); if(typeof j==='string') j=JSON.parse(j); }catch(e){ j=null; }
+          if(!j){ d2Say('발주목록을 만들지 못했습니다 — 서버 응답을 읽지 못했습니다.','⚠️'); return; }
+          if(j.error){ d2Say(d2Esc(j.error),'⚠️'); return; }
+          d2Say('발주목록을 만들었습니다.<br><span style="font-size:13px;color:#3d4d5c;line-height:1.7">새로 <b>'+(j.newCnt||0)+'</b> · 수량 갱신 <b>'+(j.updCnt||0)+'</b>'
+            +((j.skipCnt||0)?' · 제외 <b>'+j.skipCnt+'</b> (입고예정으로 충족)':'')
+            +'<br>발주서 관리 ▸ <b>[📋 발주목록 리스트]</b>에서 골라 담으세요.</span>','✅');
+          d2ReqReload();   /* 올린 품목을 다시 읽어 「적정」 칸을 하늘색으로 (2026-10-02) */
+        })
+        .catch(function(e){ d2Say('발주목록을 만들지 못했습니다.<br><span style="font-size:12.5px">'+d2Esc(e&&e.message||'')+'</span>','⚠️'); });
+    });
+  }
   var D2_STOCK=null, D2_MAINCD=null, _d2StkBusy=false, _d2StkWait=[];
   function d2StockInvalidate(){ D2_STOCK=null; D2_MAINCD=null; }
   function d2StockLoad(cb){
@@ -905,14 +1045,14 @@
     if(cb) _d2StkWait.push(cb);      /* 부르는 중이면 줄을 세운다 — 종전에는 <버려서> 표를 다시 안 그렸다 */
     if(_d2StkBusy) return;
     _d2StkBusy=true;
-    var left=3, m={}, mc={}, ok=true;
+    var left=5, m={}, mc={}, sf={}, rq={}, ok=true;   /* 4번째 = 적정재고(safeStockMap) · 5번째 = 발주목록에 올린 품목(poReqCodes) — 2026-10-02 */
     function done(bad){
       if(bad) ok=false;
       if(--left) return;
       _d2StkBusy=false;
       var w=_d2StkWait; _d2StkWait=[];
       if(!ok){ D2_STOCK=null; D2_MAINCD=null; return; }   /* 실패 — 캐시하지 않는다(다음 조회에서 재시도) */
-      D2_STOCK=m; D2_MAINCD=mc;
+      D2_STOCK=m; D2_MAINCD=mc; D2_SAFE=sf; D2_REQ=rq;
       w.forEach(function(f){ try{ f(); }catch(e){} });
     }
     function fail(){ done(true); }
@@ -926,6 +1066,20 @@
               var c=(''+(o.prodCd||'')).trim();
               if(c) m[c]={ q:(+o.curQty||0), i:(+o.inQty||0) }; }); done(); })
       .catch(fail);
+    /* 발주목록에 올린 품목 (2026-10-02) — 바탕색용. 실패해도 전체 실패로 치지 않는다(그때는 미달이 전부 주황으로 보인다) */
+    fetch(CTX+'/mangr/poReqCodes.do', { method:'POST', credentials:'same-origin',
+            headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ ((j&&j.data)||[]).forEach(function(o){
+              var c=(''+(o.prodCd||'')).trim(); if(c) rq[c]=(o.regYn==='Y'?'Y':'N'); }); done(); })
+      .catch(function(){ done(); });
+    /* 적정재고 (2026-10-02) — ★실패해도 전체 실패로 치지 않는다 : 적정재고가 안 와도 현재고는 보여야 한다(옛 서버면 이 주소가 없다) */
+    fetch(CTX+'/prod/safeStockMap.do', { method:'POST', credentials:'same-origin',
+            headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ ((j&&j.data)||[]).forEach(function(o){
+              var c=(''+(o.prodCd||'')).trim(); if(c) sf[c]=(+o.safeStock||0); }); done(); })
+      .catch(function(){ done(); });
     /* 매칭코드 → 주코드. 재고는 주코드로만 쌓이므로(원장 PROD_CD) 이 표가 없으면
        매칭코드 줄은 영영 빈칸이다. '매칭'과 '연결' 둘 다 같은 구실을 하므로 함께 읽는다. */
     ['/prod/extItemList.do','/prod/xrefList.do'].forEach(function(u){
@@ -3109,6 +3263,7 @@
     /* 현재고는 목록을 기다리게 하지 않는다 — 없으면 그 칸만 '·' 로 두고, 도착하면 한 번 더 그린다.
        ★재귀 조심 : D2_STOCK 이 채워진 뒤에만 다시 부르므로 두 번째에는 이 가지로 안 들어온다. */
     if(!D2_STOCK) d2StockLoad(function(){ d2Render(); });
+    d2PoReqBadge();   /* 적정재고 미달 품목 수 — [📋 발주목록 실행] 단추 (2026-10-02) */
     var ag=d2Aggregate();
     var from=(document.getElementById('d2DateFrom')||{}).value||'';
     var to=(document.getElementById('d2DateTo')||{}).value||'';
@@ -3353,7 +3508,9 @@
          (2026-08-07 에 **현재고** 칸을 No 뒤에 끼워 넣으면서 이 줄만 안 늘린 것이 원인.)
        ⚠기준칸은 zone·no·**stock**·biz·code·item **6칸**이다 — 아래 그룹행(colspan 5+1)·
          출고장행(1+1+1+colspan 3)·소계행(1+colspan 5) 은 모두 6칸으로 맞아 있었다.
-       ⚠칸을 더하거나 뺄 때는 **이 네 줄을 함께** 고쳐야 한다. */
+       ⚠칸을 더하거나 뺄 때는 **이 네 줄을 함께** 고쳐야 한다.
+       ★[2026-10-02] 「적정재고」 칸이 No 뒤에 들어와 기준칸이 **8칸**(zone·no·safe·stock·match·biz·code·item)이 됐다 —
+         이 줄(1+빈 4+colspan 3) · 그룹(1+colspan 7) · 센터/입고장 소계·묶음 합계(1+colspan 7) · 출고장 소계(zone+빈 4+colspan 3)를 함께 늘렸다. */
     /* 직송 요약 (2026-08-31 요청 「직송 총 몇 건 표시」) —
        출고장 이름이 '… 직송' 인 곳이 직송이다(d2MapRow 가 그렇게 붙인다).
        물류센터 합계 줄의 (배송 N · 직송 M) 과 <같은 근거·같은 말>로 맞춘다 — 수량 기준.
@@ -3363,7 +3520,7 @@
       var t=ag.zones[zn].tot||0;
       if(/\s직송$/.test(zn)){ _tJk+=t; _tJkZ++; } else _tDl+=t;
     });
-    h+='<tr class="tot"><td class="txt-l">전체 '+D2_UNIT+' 합계</td><td></td><td></td><td></td>'
+    h+='<tr class="tot"><td class="txt-l">전체 '+D2_UNIT+' 합계</td><td></td><td></td><td></td><td></td>'
       +'<td class="txt-l" colspan="3">'+D2_UNIT+' '+d2Num(zonesWithItems.length)+'곳 · 품목 '+d2Num(ag.itemCnt)+'종 · 사업장 '+d2Num(ag.bizCnt)+'곳'
       + (_tJkZ ? (' · <span class="jkw">직송</span> '+d2Num(_tJkZ)+'곳 <b>'+d2Num(_tJk)+'</b>'
                  +' <span style="font-weight:600;font-size:.92em;opacity:.85">(배송 '+d2Num(_tDl)+')</span>') : '')
@@ -3395,7 +3552,7 @@
       // ▼ 대표그룹 헤더 (데시보드1 lgrp 형태: "▼ 광주물류센터" + "1개 출고장") — 클릭 시 그룹 접기/펼치기
       h+='<tr class="grp" data-g="'+d2Esc(g)+'" onclick="d2ToggleGroup(this.getAttribute(\'data-g\'))" title="클릭하여 그룹 접기/펼치기">'
         +'<td><span class="zcaret">'+(gColl?'▶':'▼')+'</span> '+d2Esc(g)+'</td>'
-        +'<td colspan="6">'+zs.length+'개 '+D2_UNIT+(gColl?' <span style="color:#9aa7b3">— 접힘(클릭하여 펼치기)</span>':'')+'</td>'
+        +'<td colspan="7">'+zs.length+'개 '+D2_UNIT+(gColl?' <span style="color:#9aa7b3">— 접힘(클릭하여 펼치기)</span>':'')+'</td>'
         + slotTotalCells(zs)+'</tr>';
       /* ★묶음 합계(gsub)를 넣을 자리 = 그룹 머리줄 <바로 밑> (2026-09-02 「센터 합계를 각 그룹 밑으로 이동,
            그룹핑 맨 아래가 아니고」). 값은 블록을 다 그려야 나오므로 여기 위치만 기억해 두고 끝에서 끼워 넣는다
@@ -3411,7 +3568,7 @@
       function _cFlush(){
         if(_cCur!==null && _cMulti && _cCnt[_cCur]>1){
           var _dS=0,_jS=0; _cZs.forEach(function(zn){ var t=ag.zones[zn].tot||0; if(/\s직송$/.test(zn)) _jS+=t; else _dS+=t; });
-          var _row='<tr class="csub"><td>'+d2Esc(_cCur)+' 합계'+d2BdxLabel(_dS,_jS)+'</td><td colspan="6"></td>'+slotTotalCells(_cZs)+'</tr>';
+          var _row='<tr class="csub"><td>'+d2Esc(_cCur)+' 합계'+d2BdxLabel(_dS,_jS)+'</td><td colspan="7"></td>'+slotTotalCells(_cZs)+'</tr>';
           h=h.slice(0,_cMark)+_row+h.slice(_cMark);
         }
         _cZs=[];
@@ -3429,7 +3586,7 @@
       function _iFlush(){
         if(_iCur!==null && _iCnt[_iCur]>1 && _cIG[d2CenterOf(_iZs[0])]>1){
           var _dS=0,_jS=0; _iZs.forEach(function(zn){ var t=ag.zones[zn].tot||0; if(/\s직송$/.test(zn)) _jS+=t; else _dS+=t; });
-          var _row='<tr class="isub"><td>'+d2Esc(d2ZoneBase(_iZs[0]))+d2BdxLabel(_dS,_jS)+'</td><td colspan="6"></td>'+slotTotalCells(_iZs)+'</tr>';
+          var _row='<tr class="isub"><td>'+d2Esc(d2ZoneBase(_iZs[0]))+d2BdxLabel(_dS,_jS)+'</td><td colspan="7"></td>'+slotTotalCells(_iZs)+'</tr>';
           h=h.slice(0,_iMark)+_row+h.slice(_iMark);
         }
         _iZs=[];
@@ -3466,7 +3623,7 @@
             +((D2_VIEW==='zone' && z.dcCd && !/\s직송$/.test(zn))?'<span class="z-del" title="이 출고장의 해당 출고일자 출고분을 삭제(이력 보존)" data-dt="'+d2Esc(blockDate||from||'')+'" data-cd="'+d2Esc(z.dcCd||'')+'" data-iw="'+d2Esc(z.inwh||'')+'" data-zn="'+d2Esc(zn)+'" onclick="event.stopPropagation(); d2DelZoneFromGrid(this)">🗑️</span>':'')
             +(dl?'<span class="z-dlv">('+d2Esc(dl)+')</span>':'')+'</td>';
           // 출고장 소계(블록 상단) + 차수별 소계
-          h+='<tr class="sub">'+zoneCell+'<td></td><td></td><td></td><td class="txt-l" colspan="3" data-z="'+d2Esc(zn)+'" '
+          h+='<tr class="sub">'+zoneCell+'<td></td><td></td><td></td><td></td><td class="txt-l" colspan="3" data-z="'+d2Esc(zn)+'" '
             +'onclick="d2ToggleZone(this.getAttribute(\'data-z\'))" style="cursor:pointer" title="클릭하여 접기/펼치기">소계 '
             +'<span style="color:#9aa7b3">(품목 '+keys.length+'종'+(coll?' — 접힘':'')+')</span>'
             +'</td>'+zoneHeadCells(zn)+'</tr>';
@@ -3477,6 +3634,7 @@
               /* 출고장별 뷰에서만 「통상 출고장과 다름」 배지를 붙인다(2026-09-16) — 사업장별 뷰의 그 칸은 출고장 콤보라 뜻이 겹친다 */
               var bizCell=(D2_VIEW==='biz')?d2DistCell(r.ozones,'출고장'):(d2Esc(r.biz)+d2ZoneOddBadge(r.bizCode, zn));
               h+='<tr class="item'+(r.isNew?' r-new':'')+(itemRowChanged(zn,k)?' r-diff':'')+'"><td>'+(ix+1)+'</td>'
+                + d2SafeCell(r.code)        /* 적정재고 (2026-10-02) — 현재고 앞 */
                 + d2StockCell(r.code,'q')
                 + d2MatchCell(r)
                 +'<td class="txt-l">'+bizCell+'</td>'
@@ -3489,6 +3647,7 @@
             dels.forEach(function(r){
               var rk=delRk(r);
               h+='<tr class="item r-del"><td>–</td>'
+                + d2SafeCell(r.code)        /* 적정재고 (2026-10-02) — 현재고 앞 */
                 + d2StockCell(r.code,'q')
                 + d2MatchCell(r)
                 +'<td class="txt-l">'+((D2_VIEW==='biz')?d2DistCell(r.ozones,'출고장'):d2Esc(r.biz))+'</td>'
@@ -3506,7 +3665,7 @@
       var _gdS=0,_gjS=0; zs.forEach(function(zn){ var t=ag.zones[zn].tot||0; if(/\s직송$/.test(zn)) _gjS+=t; else _gdS+=t; });
       /* ★맨 아래가 아니라 <그룹 머리줄 바로 밑>(_gMark)에 끼운다 (2026-09-02) —
            csub/isub 는 이미 각자 블록 앞에 들어가 있고, 그 삽입은 전부 _gMark 뒤에서 일어나므로 자리가 안 어긋난다. */
-      var _gRow='<tr class="gsub"><td>'+d2Esc(g)+' 합계'+d2BdxLabel(_gdS,_gjS)+'</td><td colspan="6"></td>'
+      var _gRow='<tr class="gsub"><td>'+d2Esc(g)+' 합계'+d2BdxLabel(_gdS,_gjS)+'</td><td colspan="7"></td>'
         + slotTotalCells(zs)+'</tr>';
       h=h.slice(0,_gMark)+_gRow+h.slice(_gMark);
     });

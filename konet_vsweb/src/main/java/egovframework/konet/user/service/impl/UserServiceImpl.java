@@ -1484,6 +1484,116 @@ public class UserServiceImpl implements UserService {
 		mapper.updateTdPoRow(p);
 		return scStr(old.get("dlvDt"));
 	}
+	/* 대상 발주 등록 (2026-10-02 사용자 「토더처럼 … 매출관리에 대상발주등록 추가 … 매출은 토더처럼 발생하게」) — saveTdPo 와 같은 틀.
+	   다른 점 : 출고장 = DAESANG(「대상」) · 발주번호가 없어 다시 올림 판정(대체)을 하지 않는다(같은 줄은 컨트롤러가 저장 전에 세어 화면이 묻는다) ·
+	   판매가와 배송 정보(받는 사람·주소·전화·대상 제품코드)를 넣은 줄마다 채운다(updateDsPoExtra).
+	   종류는 토더와 같은 PROD_KIND='TD' — 매출·재고·마감·채권 조회가 모두 「TD + 거래처의 DC_CD」로 세므로 그대로 선다. 묶음 = 납기일자마다 새 배치. */
+	@Override public int saveDsPo(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String user, String ip, String compCd) throws Exception {
+		if (rows == null || rows.isEmpty()) return 0;
+		java.util.LinkedHashMap<String, java.util.List<egovframework.konet.user.model.ShipoutDTO>> g = new java.util.LinkedHashMap<String, java.util.List<egovframework.konet.user.model.ShipoutDTO>>();
+		for (egovframework.konet.user.model.ShipoutDTO r : rows) {
+			String k = scStr(r.getDlvDt()).replace("-", "");
+			java.util.List<egovframework.konet.user.model.ShipoutDTO> l = g.get(k);
+			if (l == null) { l = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>(); g.put(k, l); }
+			l.add(r);
+		}
+		int n = 0;
+		for (java.util.List<egovframework.konet.user.model.ShipoutDTO> grp : g.values()) {
+			egovframework.konet.user.model.ShipoutDTO head = grp.get(0);
+			head.setCompCd(compCd); head.setDcCd("DAESANG");
+			int jobSeq = mapper.getShipoutNextJobSeq(head);
+			int seq = 0;
+			java.util.List<egovframework.konet.user.model.ShipoutDTO> buf = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>();
+			for (egovframework.konet.user.model.ShipoutDTO r : grp) {
+				r.setCompCd(compCd); r.setJobSeq(jobSeq); r.setActionYn("Y"); r.setRowNo(++seq);
+				r.setProdKind("TD"); r.setDcCd("DAESANG"); r.setDcNm("대상"); r.setRegUser(user); r.setRegIp(ip);
+				if (scStr(r.getVendorCd()).isEmpty() && !scStr(r.getItemCd()).isEmpty()) {
+					java.util.Map<String,Object> vq = new java.util.HashMap<String,Object>(); vq.put("compCd", compCd); vq.put("itemCd", scStr(r.getItemCd()));
+					java.util.Map<String,Object> pv = mapper.selectProdVendorOfItem(vq);
+					if (pv != null) { r.setVendorCd(scStr(pv.get("vendorCd"))); r.setVendorNm(scStr(pv.get("vendorNm"))); }
+				}
+				buf.add(r); n++;
+				if (buf.size() >= 40) { mapper.insertShipoutMstBulk(buf); buf.clear(); }
+			}
+			if (!buf.isEmpty()) mapper.insertShipoutMstBulk(buf);
+			for (egovframework.konet.user.model.ShipoutDTO r : grp) {
+				java.util.Map<String,Object> pp = new java.util.HashMap<String,Object>();
+				pp.put("compCd", compCd); pp.put("dlvDt", r.getDlvDt()); pp.put("jobSeq", jobSeq); pp.put("rowNo", r.getRowNo());
+				pp.put("salePrice", r.getSalePrice() == null ? null : java.math.BigDecimal.valueOf(r.getSalePrice()));
+				pp.put("rcvNm", scStr(r.getRcvNm())); pp.put("rcvAddr", scStr(r.getRcvAddr())); pp.put("rcvTel", scStr(r.getRcvTel()));
+				pp.put("rcvTel2", scStr(r.getRcvTel2())); pp.put("rcvItemCd", scStr(r.getRcvItemCd()));
+				mapper.updateDsPoExtra(pp);
+			}
+			egovframework.konet.user.model.ProdXrefDTO rx = new egovframework.konet.user.model.ProdXrefDTO();
+			rx.setJobSeq(Long.valueOf(jobSeq)); rx.setDlvDt(head.getDlvDt()); rx.setDcCd("DAESANG"); rx.setCompCd(compCd);
+			resolveShipoutProd(rx);
+		}
+		return n;
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectDsPoList(java.util.Map<String,Object> p) throws Exception { return mapper.selectDsPoList(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectDsPoMap(java.util.Map<String,Object> p) throws Exception { return mapper.selectDsPoMap(p); }
+	/* 이미 저장된 것과 같은 줄(날짜·받는 사람·제품명·수량) 수 — 같은 표를 두 번 올리는 것을 화면이 한 번 더 묻게 */
+	@Override public int countDsPoDup(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String compCd) throws Exception {
+		int n = 0; if (rows == null) return 0;
+		for (egovframework.konet.user.model.ShipoutDTO r : rows) {
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", compCd); p.put("dlvDt", scStr(r.getDlvDt())); p.put("rcvNm", scStr(r.getRcvNm())); p.put("itemNm", scStr(r.getItemNm()));
+			p.put("qty", r.getLabelQty() == null ? 0 : r.getLabelQty());
+			if (mapper.selectDsPoDup(p) > 0) n++;
+		}
+		return n;
+	}
+	/* 대상 발주 — 저장 취소(삭제). 돌려주는 값 = 지운 줄마다 그 납기일자(컨트롤러가 그 날짜들의 재고 원장을 다시 만든다) */
+	@Override public java.util.List<String> deleteDsPo(java.util.List<Long> seqs, String user, String ip, String compCd) throws Exception {
+		java.util.List<String> dates = new java.util.ArrayList<String>(); if (seqs == null) return dates;
+		for (Long s : seqs) {
+			if (s == null) continue;
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd); p.put("seq", s);
+			java.util.Map<String,Object> old = mapper.selectDsPoRowFull(p);
+			if (old == null) continue;
+			p.put("actionYn", "D"); p.put("regUser", user); p.put("regIp", ip);
+			if (mapper.closeDsPo(p) > 0) dates.add(scStr(old.get("dlvDt")));
+		}
+		return dates;
+	}
+	/* 대상 발주 — 저장된 한 줄 고치기(발주일자·품목코드·수량·판매가). 날짜가 바뀌면 묶음(납기일자 + 차수)이 달라지므로
+	   제자리에서 고치지 않고 «옛 줄을 이력(N)으로 닫고 고친 값으로 새 줄을 넣는다»(saveDsPo 한 길) — 묶음 번호·줄 번호·배송 정보는 그대로 가져간다.
+	   비고 끝에 무엇을 고쳤는지 남긴다. 돌려주는 값 = 재고 원장을 다시 만들 날짜(옛 날짜·새 날짜) · 줄이 없으면 null · 바뀐 것이 없으면 빈 목록 */
+	@Override public java.util.List<String> updateDsPoRow(long seq, String dlvDt, String itemCd, int qty, Double salePrice, String user, String ip, String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd); p.put("seq", seq);
+		java.util.Map<String,Object> old = mapper.selectDsPoRowFull(p);
+		if (old == null) return null;
+		String oDt = scStr(old.get("dlvDt")), oItem = scStr(old.get("itemCd"));
+		int oQty = old.get("qty") == null ? 0 : ((Number) old.get("qty")).intValue();
+		Object op = old.get("salePrice");
+		String oldP = op == null ? "없음" : new java.math.BigDecimal(String.valueOf(op)).stripTrailingZeros().toPlainString();
+		String newP = salePrice == null ? "없음" : java.math.BigDecimal.valueOf(salePrice).stripTrailingZeros().toPlainString();
+		StringBuilder note = new StringBuilder();
+		if (!oDt.equals(dlvDt)) note.append(" 일자 ").append(oDt).append("→").append(dlvDt);
+		if (!oItem.equals(itemCd)) note.append(" 품목 ").append(oItem).append("→").append(itemCd);
+		if (oQty != qty) note.append(" 수량 ").append(oQty).append("→").append(qty);
+		if (!oldP.equals(newP)) note.append(" 판매가 ").append(oldP).append("→").append(newP);
+		java.util.List<String> dates = new java.util.ArrayList<String>();
+		if (note.length() == 0) return dates;
+		p.put("actionYn", "N"); p.put("regUser", user); p.put("regIp", ip);
+		if (mapper.closeDsPo(p) == 0) return null;
+		egovframework.konet.user.model.ShipoutDTO d = new egovframework.konet.user.model.ShipoutDTO();
+		d.setDlvDt(dlvDt); d.setShpoutDt(dlvDt);
+		d.setBizCd(scStr(old.get("bizCd"))); d.setBizNm(scStr(old.get("bizNm")));
+		d.setItemCd(itemCd); d.setItemNm(scStr(old.get("itemNm"))); d.setUnit(scStr(old.get("unit")));
+		d.setCurQty(qty); d.setLabelQty(qty); d.setSalePrice(salePrice);
+		d.setOrdNo(scStr(old.get("ordNo"))); d.setOrdItemNo(scStr(old.get("lineNo")));
+		d.setZone("DS"); d.setDlvGb("DS");
+		String rmk = scStr(old.get("remark")) + " · 수정 " + new java.text.SimpleDateFormat("MM-dd HH:mm").format(new java.util.Date()) + note;
+		d.setRemark(rmk.length() > 490 ? rmk.substring(0, 490) : rmk);
+		d.setSrcFile(scStr(old.get("srcFile")));
+		d.setRcvNm(scStr(old.get("rcvNm"))); d.setRcvAddr(scStr(old.get("rcvAddr"))); d.setRcvTel(scStr(old.get("rcvTel")));
+		d.setRcvTel2(scStr(old.get("rcvTel2"))); d.setRcvItemCd(scStr(old.get("rcvItemCd")));
+		java.util.List<egovframework.konet.user.model.ShipoutDTO> one = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>(); one.add(d);
+		saveDsPo(one, user, ip, compCd);
+		dates.add(oDt); if (!oDt.equals(dlvDt)) dates.add(dlvDt);
+		return dates;
+	}
 	@Override public int deleteDcPo(java.util.List<java.util.Map<String,Object>> keys, String user, String ip, String compCd) throws Exception {
 		int n = 0;
 		if (keys == null) return 0;
@@ -1876,7 +1986,7 @@ public class UserServiceImpl implements UserService {
 			java.util.Map<String,String> nm = new java.util.HashMap<String,String>();
 			for (egovframework.konet.user.model.SalesTrxDtlDTO d : dto.getItems()) {
 				if (d.getProdCd()==null || d.getProdCd().trim().isEmpty()) continue;
-				double q = Math.abs(d.getQty()==null ? 0d : d.getQty());
+				double q = stockOutQty(d);   // 재고로 실제 나가는 수량 = 합계수량 − 출고차감 (2026-10-02)
 				String g = d.getTrxGb();
 				double sgn = "반품".equals(g) ? -1 : ("불량반품".equals(g) ? 0 : 1);
 				if (d.getQty()!=null && d.getQty() < 0 && !"불량반품".equals(g)) sgn = -1;   // 음수 수량 = 반품(saveSalesTrx 와 같은 해석)
@@ -2030,6 +2140,15 @@ public class UserServiceImpl implements UserService {
 		return head;
 	}
 
+	/* 출고차감 (2026-10-02) — 다듬은 차감 수량(0 이상 합계수량 이하) · 재고로 실제 나가는(반품이면 돌아오는) 수량 */
+	private static double stockCutOf(egovframework.konet.user.model.SalesTrxDtlDTO d) {
+		double q = Math.abs(d.getQty()==null ? 0d : d.getQty());
+		double c = Math.abs(d.getStockCutQty()==null ? 0d : d.getStockCutQty());
+		return c > q ? q : c;
+	}
+	private static double stockOutQty(egovframework.konet.user.model.SalesTrxDtlDTO d) {
+		return Math.abs(d.getQty()==null ? 0d : d.getQty()) - stockCutOf(d);
+	}
 	@Override public int saveSalesTrx(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception {
 		boolean isNew = (dto.getSaleSeq() == null || dto.getSaleSeq() <= 0);
 		if (isNew) {
@@ -2061,6 +2180,10 @@ public class UserServiceImpl implements UserService {
 			}
 			/* ★「불량반품」(2026-09-11 회사 설정 「불량 반품 사용」) — 금액은 반품처럼 빠지지만(조회 SQL 이 반품과 같이 − 를 붙인다)
 			     <재고로는 돌아가지 않는다>(팔 수 없는 물건). 그래서 재고원장을 만들지 않는다. */
+			/* ★출고차감 (2026-10-02 사용자 「수량은 입력하지만 재고에서는 덜 나가는 것으로 — (정상 출고수량 − 출고차감) · 외부 나가는 것은 모두 정상 출고수량 ·
+			     매출금액은 유지」) — 줄의 수량·금액은 그대로 두고 <재고 원장 수량만> 줄인다. 차감은 0 이상 합계수량 이하으로 다듬어 저장한다(음수·초과 방지). */
+			double cutQ = stockCutOf(d);
+			d.setStockCutQty(cutQ > 0 ? Double.valueOf(cutQ) : null);
 			if ("불량반품".equals(d.getTrxGb())) { mapper.insertSalesTrxDtl(d); continue; }
 
 			// 파생 재고원장 — 판매는 출고 'O', 판매반품(고객이 되돌려줌)은 'R'.
@@ -2075,16 +2198,20 @@ public class UserServiceImpl implements UserService {
 			led.setTrxDt(dto.getSaleDt());
 			boolean isReturn = "반품".equals(d.getTrxGb());
 			led.setIoGb(isReturn ? "R" : "O");
-			double q = d.getQty()==null ? 0d : d.getQty();
-			led.setQty((int) Math.round(Math.abs(q)));
+			/* 원장 수량 = 합계수량 − 출고차감 (2026-10-02). 전부 차감이라 0 이면 원장 줄을 만들지 않는다(수불에 0 수량 줄이 안 생기게) —
+			   그래도 현재고는 다시 센다(수정 저장이면 위에서 옛 원장 줄을 걷어냈으므로). 차감이 있으면 원장 비고에 적어 수불에서 까닭이 보이게 한다. */
+			int outQ = (int) Math.round(stockOutQty(d));
+			led.setQty(outQ);
 			led.setUnitPrice(d.getUnitPrice());
 			led.setAmt(d.getAmt());
 			led.setVendorCd(dto.getCustCd());
 			led.setWhCd(dto.getWhCd());            // 전표 창고(비면 기본창고) — 2026-09-16 P3
 			led.setRefGb("SALE"); led.setRefNo(refNo);
-			led.setRemark(d.getRemark());
+			String lrm = d.getRemark() == null ? "" : d.getRemark().trim();
+			if (cutQ > 0) lrm = (lrm.isEmpty() ? "" : lrm + " · ") + "출고차감 " + fmtN(cutQ) + " (전표 수량 " + fmtN(Math.abs(d.getQty()==null ? 0d : d.getQty())) + ")";
+			led.setRemark(lrm.isEmpty() ? d.getRemark() : lrm);
 			led.setRegUser(dto.getRegUser()); led.setRegIp(dto.getRegIp());
-			mapper.insertStockLedger(led);
+			if (outQ > 0) mapper.insertStockLedger(led);
 			mapper.recalcStockMst(led);
 
 			mapper.insertSalesTrxDtl(d);
@@ -2964,6 +3091,105 @@ public class UserServiceImpl implements UserService {
 		k.put("prodCd", row.get("prodCd")); k.put("frDt", row.get("frDt"));
 		int n = mapper.deleteProdContract(k);
 		if (n > 0) mapper.closeContractSalePrice(k);
+		return n;
+	}
+
+	/* ===== 발주목록 (2026-10-02 「대시보드에서 적정재고 미달 표시 · 실행하면 발주서등록을 위한 데이터 발생 · 발주서등록에서 조회해서 선택 등록」) =====
+	   makePoReq : 대시보드가 보낸 품목(주코드)들 가운데 <지금도 부족한 것>만 발주목록에 넣는다.
+	     · 근거는 추천 발주와 같다(selectSafeStockShort) — 가용 = 현재고(음수면 0) + 입고예정 · 부족 = 적정재고 − 가용 · 발주수량 = 부족을 입수 배수로 올림.
+	       대시보드의 「미달」(현재고 < 적정재고)이라도 이미 발주해 입고예정으로 채워지는 품목은 넣지 않는다 — 중복 발주가 된다(skip 으로 센다).
+	     · 같은 품목의 미등록 줄이 있으면 숫자만 고친다 — 실행을 여러 번 눌러도 줄이 안 쌓인다. */
+	@Override public java.util.List<java.util.Map<String,Object>> selectSafeStockMap(String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd);
+		return mapper.selectSafeStockMap(p);
+	}
+	@Override
+	@org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
+	public java.util.Map<String,Object> makePoReq(java.util.List<String> prodCds, String srcDlvDt, String compCd, String user, String ip) throws Exception {
+		int newCnt = 0, updCnt = 0, skipCnt = 0;
+		/* ★발주목록에는 «주코드»가 들어간다 (2026-10-02 사용자 「대시보드에서 발주등록은 주코드가 들어가게」).
+		     화면이 서브코드(매칭코드)를 보내도 주코드로 바꾸고(selectMainCdOfExt), 재고·입고예정·매입처·입수·단가는 전부 주코드 것으로 계산한다(selectPoReqCalc).
+		     적정재고는 주코드 것이 먼저 — 주코드에 없고 서브코드 쪽 상품에만 들어 있으면 그 값을 쓴다(실측 : 적정재고 145품목 중 6개가 서브코드 쪽).
+		     종전(같은 날 오전)엔 selectSafeStockShort 를 보낸 코드 그대로 찾아, 서브코드에 적정재고가 있으면 서브코드로 · 서브코드의 재고(대개 0)로 계산됐다. */
+		String dlv = srcDlvDt == null ? "" : srcDlvDt.replaceAll("[^0-9]", ""); if (dlv.length() != 8) dlv = "";
+		java.util.Set<String> seen = new java.util.HashSet<String>();
+		if (prodCds != null) for (String cd0 : prodCds) {
+			String cd = cd0 == null ? "" : cd0.trim();
+			if (cd.isEmpty()) continue;
+			java.util.Map<String,Object> k = new java.util.HashMap<String,Object>(); k.put("compCd", compCd); k.put("prodCd", cd);
+			String main = mapper.selectMainCdOfExt(k);
+			String mcd = (main == null || main.trim().isEmpty()) ? cd : main.trim();
+			if (!seen.add(mcd)) continue;                                              // 같은 주코드는 한 번만(서브코드 여럿이 한 주코드로 모인다)
+			k.put("prodCd", mcd);
+			java.util.Map<String,Object> s = mapper.selectPoReqCalc(k);
+			if (s == null || "Y".equals(scStr(s.get("stopYn")))) { skipCnt++; continue; }   // 상품이 없거나 거래중지
+			double safe = scNum(s.get("safeStock"));
+			if (safe <= 0 && !mcd.equals(cd)) {                                         // 적정재고가 서브코드 쪽에만 있는 품목
+				java.util.Map<String,Object> k2 = new java.util.HashMap<String,Object>(); k2.put("compCd", compCd); k2.put("prodCd", cd);
+				java.util.Map<String,Object> sub = mapper.selectPoReqCalc(k2);
+				if (sub != null) safe = scNum(sub.get("safeStock"));
+			}
+			if (safe <= 0) { skipCnt++; continue; }                                     // 적정재고가 없다
+			double cur = scNum(s.get("curQty")), remain = scNum(s.get("poRemainQty"));
+			double shRaw = safe - ((cur < 0 ? 0 : cur) + remain);                       // 음수 현재고는 0 으로 본다(추천 발주와 같은 규칙)
+			if (shRaw <= 0) { skipCnt++; continue; }                                    // 입고예정까지 치면 부족하지 않다
+			s.put("safeStock", Double.valueOf(safe)); s.put("shortQty", Double.valueOf(shRaw));
+			cd = mcd;
+			double pack = scNum(s.get("packQty")); if (pack < 1) pack = 1;
+			double sh = Math.max(0, Math.round(scNum(s.get("shortQty"))));
+			double reco = pack <= 1 ? sh : Math.ceil(sh / pack) * pack;
+			java.util.Map<String,Object> m = new java.util.HashMap<String,Object>();
+			m.put("compCd", compCd); m.put("prodCd", cd); m.put("prodSeq", s.get("prodSeq")); m.put("prodNm", scStr(s.get("prodNm"))); m.put("spec", scStr(s.get("spec")));
+			m.put("packQty", Double.valueOf(pack)); m.put("inPrice", Double.valueOf(scNum(s.get("inPrice")))); m.put("taxGb", scStr(s.get("taxGb")));
+			m.put("safeStock", Double.valueOf(scNum(s.get("safeStock")))); m.put("curQty", Double.valueOf(scNum(s.get("curQty"))));
+			m.put("poRemainQty", Double.valueOf(scNum(s.get("poRemainQty")))); m.put("shortQty", Double.valueOf(sh)); m.put("reqQty", Double.valueOf(reco));
+			m.put("vendorCd", scStr(s.get("vendorCd"))); m.put("vendorNm", scStr(s.get("vendorNm"))); m.put("srcDlvDt", dlv);
+			m.put("regUser", user); m.put("regIp", ip);
+			java.util.Map<String,Object> open = mapper.selectPoReqOpenByProd(m);
+			if (open != null && open.get("reqSeq") != null) { m.put("reqSeq", open.get("reqSeq")); mapper.updatePoReqNums(m); updCnt++; }
+			else { mapper.insertPoReq(m); newCnt++; }
+		}
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		res.put("newCnt", Integer.valueOf(newCnt)); res.put("updCnt", Integer.valueOf(updCnt)); res.put("skipCnt", Integer.valueOf(skipCnt));
+		return res;
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectPoReqCodes(String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd);
+		return mapper.selectPoReqCodes(p);
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectPoReqList(String compCd, String regYn) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd);
+		p.put("regYn", ("Y".equals(regYn) || "N".equals(regYn)) ? regYn : "");
+		return mapper.selectPoReqList(p);
+	}
+	@Override public int markPoReq(java.util.List<Long> reqSeqs, long poSeq, String compCd, String user, String ip) throws Exception {
+		int n = 0;
+		if (reqSeqs != null) for (Long r : reqSeqs) { if (r == null) continue;
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", compCd); p.put("reqSeq", r); p.put("poSeq", Long.valueOf(poSeq)); p.put("regUser", user); p.put("regIp", ip);
+			n += mapper.markPoReq(p); }
+		return n;
+	}
+	@Override public int unmarkPoReqByPo(long poSeq, String compCd, String user, String ip) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("poSeq", Long.valueOf(poSeq)); p.put("regUser", user); p.put("regIp", ip);
+		return mapper.unmarkPoReqByPo(p);
+	}
+	/* 대시보드에서 품목 하나 취소 (2026-10-02) — 화면이 서브코드를 보내도 주코드로 바꿔 그 주코드의 미등록 줄을 지운다(makePoReq 와 같은 바꾸기) */
+	@Override public int cancelPoReqByProd(String prodCd, String compCd, String user, String ip) throws Exception {
+		String cd = prodCd == null ? "" : prodCd.trim(); if (cd.isEmpty()) return 0;
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd); p.put("prodCd", cd);
+		String main = mapper.selectMainCdOfExt(p);
+		if (main != null && !main.trim().isEmpty()) p.put("prodCd", main.trim());
+		p.put("regUser", user); p.put("regIp", ip);
+		return mapper.deletePoReqByProd(p);
+	}
+	@Override public int deletePoReq(java.util.List<Long> reqSeqs, String compCd, String user, String ip) throws Exception {
+		int n = 0;
+		if (reqSeqs != null) for (Long r : reqSeqs) { if (r == null) continue;
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", compCd); p.put("reqSeq", r); p.put("regUser", user); p.put("regIp", ip);
+			n += mapper.deletePoReq(p); }
 		return n;
 	}
 

@@ -118,6 +118,8 @@
       <label>거래처</label><input type="text" id="venNm" placeholder="거래처명 입력·선택" style="width:220px" autocomplete="off">
       <button class="btn" onclick="venOpen()">거래처</button>
       <label>담당자</label><input type="text" id="mgrNm" value="${sessionScope.s_user_nm}" readonly style="width:110px">
+      <%-- 📋 발주목록 리스트 (2026-10-02 「표시 부분에 버튼 추가」) — 대시보드 [📋 발주목록 실행]이 만든 적정재고 미달 품목을 골라 담는다. 거래처를 골라야 담긴다 --%>
+      <button class="btn" id="btnReq" onclick="rqOpen()" title="대시보드(납기현황표)의 [📋 발주목록 실행]으로 만든 발주목록을 봅니다.">📋 발주목록 리스트</button>
       <span id="stat" style="margin-left:auto; color:#6b7a89; font-size:12.5px"></span>
     </div>
     <div class="gridwrap" id="poGridWrap" style="margin-top:10px">
@@ -216,6 +218,34 @@
   </div>
 </div></div>
 
+<!-- 발주목록 리스트 (2026-10-02) — 대시보드 [📋 발주목록 실행]이 만든 적정재고 미달 품목. 추천 발주 팝업과 같은 틀·같은 담기 경로(prodFill). 거래처를 골라야 담긴다 -->
+<div class="pop" id="rqPop"><div class="box" style="width:min(1300px,97vw)">
+  <div class="ph">📋 발주목록 리스트 <span id="rqSub" style="font-weight:600;font-size:12.5px;color:#6b7a89"></span>
+    <label style="white-space:nowrap;font-size:12.5px;font-weight:700">구분</label>
+    <select id="rqGb" onchange="rqLoad()" style="flex:0 0 auto;height:32px;border:1px solid var(--bd);border-radius:7px;padding:0 8px;font-weight:700" title="미등록 = 아직 발주서에 안 담은 것 · 등록 = 발주서에 담아 저장한 것">
+      <option value="N">미등록</option><option value="Y">등록</option><option value="">전체</option>
+    </select>
+    <input type="text" id="rqQ" placeholder="코드·상품명·규격·매입처" oninput="rqRender()">
+    <button class="btn" onclick="rqClose()">닫기</button>
+  </div>
+  <div class="pb"><table><thead><tr>
+    <th class="ck" style="width:36px"><input type="checkbox" id="rqAll" onclick="rqAllToggle(this.checked)" title="이 목록의 미등록 전체 선택"></th>
+    <th style="width:64px">구분</th><th style="width:92px" title="대시보드에서 [📋 발주목록 실행]을 누른 날">실행일</th>
+    <th style="width:100px">코드</th><th>상품명</th><th style="width:120px">규격</th>
+    <th style="width:64px" title="실행할 때의 현재고">현재고</th><th style="width:64px" title="실행할 때 이미 발주해 아직 안 들어온 수량">입고예정</th>
+    <th style="width:56px">적정</th><th style="width:62px" title="적정 − (현재고 + 입고예정)">부족</th>
+    <th style="width:84px" title="부족을 입수 배수로 올린 수량 — 담으면 이 수량이 들어갑니다">발주수량</th>
+    <th style="width:130px" title="실행할 때의 대표 매입처(가장 최근 입고한 매입처, 없으면 상품코드의 거래처)">매입처</th>
+    <th style="width:78px">단가</th><th style="width:210px" title="등록된 줄 — 담아 저장한 발주서">발주서</th></tr></thead><tbody id="rqBody"></tbody></table></div>
+  <div class="pf" style="display:flex; align-items:center; gap:8px; text-align:left">
+    <%-- 선택 삭제는 맨 왼쪽에 따로 둔다 (2026-10-02 사용자 「선택삭제는 좌측으로 이동 분리」) — 담기·해제 옆에 있으면 잘못 누르기 쉽다 --%>
+    <button class="btn red" id="rqDel" onclick="rqDelSel()" disabled title="고른 미등록 줄을 발주목록에서 지웁니다" style="margin-right:14px">선택 삭제</button>
+    <span id="rqInfo" style="margin-right:auto; color:#6b7a89; font-size:12.5px"></span>
+    <button class="btn" id="rqClr" onclick="rqClear()" disabled>선택 해제</button>
+    <button class="btn teal" id="rqAdd" onclick="rqAddSel()" disabled>선택한 0개 담기</button>
+  </div>
+</div></div>
+
 <!-- 매입전환 (2026-09-03) — 발주서를 그대로 매입전표로 넣는다. 매입일자 = 실제 들어온 날. 매입 등록과 같은 저장 경로(재고·단가이력 함께) -->
 <div class="pop" id="cvPop"><div class="box" style="width:min(860px,96vw)">
   <div class="ph">📦 매입전환 — 들어온 수량만큼 매입전표로</div>
@@ -295,6 +325,7 @@ function loadStockInfo(){
   post('/mangr/poRecentByProd.do','').then(function(r){return r.json();}).then(function(j){ var m={}; ((j&&j.data)||[]).forEach(function(x){ if(x.prodCd!=null) m[String(x.prodCd)]=x; }); _poRecent=m; stkPaint(); }).catch(function(){});
   post('/mangr/poRemainByProd.do','').then(function(r){return r.json();}).then(function(j){ var m={}; ((j&&j.data)||[]).forEach(function(x){ if(x.prodCd!=null) m[String(x.prodCd)]=x; }); _poRemain=m; stkPaint(); }).catch(function(){});
   shLoad();   // 추천 발주(적정재고 미달) — 단추 배지에 품목 수 (2026-09-16)
+  rqBadge();  // 발주목록 리스트(미등록 건수) — 2026-10-02
   /* 거래처별 매입가 (P2-b 2026-09-16) — 최근 6개월, 품목마다 최근가 싼 차례. 상품 팝업 「최저 거래처」 칸 + 명세 단가 칸 툴팁·노란 바탕 */
   post('/mangr/vendorPriceCmpList.do','months=6').then(function(r){return r.json();}).then(function(j){ var m={};
     ((j&&j.data)||[]).forEach(function(x){ var k=String(x.prodCd||''); if(!k) return; (m[k]||(m[k]=[])).push({ vendorCd:String(x.vendorCd||''), vendorNm:x.vendorNm||'', lastPrice:n(x.lastPrice), lastDt:x.lastDt||'', cnt:n(x.cnt) }); });
@@ -323,7 +354,36 @@ function shBadge(){
               : '적정재고에 못 미치는 품목이 없습니다. (적정재고는 상품코드관리에서 넣습니다)';
 }
 function shRecoQty(o){ var pk=n(o.packQty)||1, sh=Math.max(0, Math.round(n(o.shortQty))); if(pk<=1) return sh; return Math.ceil(sh/pk)*pk; }
-function shHasRow(cd){ return _rows.some(function(o){ return o.prodCd && String(o.prodCd)===String(cd); }); }
+/* ★주코드·서브코드 (2026-10-02 사용자 「추천발주도 주코드 서브코드로」) — 추천 발주·발주목록 리스트의 품목이 서브코드(상품코드로도 등록된 매칭코드)이면
+     상품 선택 창과 같이 위 = [주] 주코드 · 아래 = [서브] 그 코드로 보여 주고(subCdHtml), 담을 때는 주코드 상품으로 바꿔 담는다(subMainMap — 상품 선택 창과 같은 지도).
+     「담김」 판정도 그 주코드가 이미 발주서에 있으면 담긴 것으로 본다 — 안 그러면 같은 주코드가 두 줄 들어간다. */
+/* 주코드 → 그 서브코드(매칭코드·추가코드) 목록. 같은 코드는 한 번만. 매칭 목록을 새로 읽으면(배열이 바뀌면) 다시 만든다
+     (2026-10-02 사용자 「여기도 서브·주코드 보여주게」 — 발주목록 리스트는 주코드로 쌓이므로 그 주코드에 딸린 서브코드를 아래에 적는다) */
+var _mainSubs=null, _mainSubsSrc=null;
+function mainSubs(cd){
+  if(!_mainSubs || _mainSubsSrc!==_extItems){ var m={}, seen={};
+    (_extItems||[]).forEach(function(e){ if(!e || !e.prodCd || !e.extItemCd) return; var sc=String(e.extItemCd), mc=String(e.prodCd);
+      if(sc===mc || seen[mc+'|'+sc]) return; seen[mc+'|'+sc]=1; (m[mc]||(m[mc]=[])).push({ cd:sc, nm:(e.extItemNm||''), ven:(e.vendorNm||'') }); });
+    _mainSubs=m; _mainSubsSrc=_extItems; }
+  return _mainSubs[String(cd)] || [];
+}
+function subCdHtml(cd, subCd){
+  /* 주코드 줄(발주목록 리스트 · 추천 발주) — 위 = [주] 주코드 · 아래 = [서브] 그 주코드에 딸린 서브코드 전부.
+     subCd = 서버가 알려 준 «적정재고가 들어 있던 서브코드»(추천 발주) — 매칭 목록에 없더라도 맨 앞에 적는다. 서브코드가 하나도 없으면 종전대로 코드만. */
+  var subs=mainSubs(cd).slice();
+  if(subCd && !subs.some(function(x){ return x.cd===String(subCd); })) subs.unshift({ cd:String(subCd), nm:'', ven:'' });
+  if(subs.length){ return { cd:'<div><span style="display:inline-block;padding:0 5px;border-radius:8px;background:#e3f2ee;color:#0f6b5e;font-size:11px;font-weight:700">주</span> '
+              +'<span style="font-size:11.5px;color:#1f7a4d;font-weight:700" title="담으면 이 주코드로 들어갑니다">'+esc(cd)+'</span></div>'
+              +subs.map(function(x){ var own=(subCd && x.cd===String(subCd));
+                  return '<div style="margin-top:2px;white-space:nowrap" title="'+esc((x.nm||'서브코드')+(x.ven?' ('+x.ven+')':'')+(own?' — 적정재고가 이 서브코드 쪽 상품에 들어 있습니다(재고는 주코드로 계산)':''))+'">'
+                    +'<span style="display:inline-block;padding:0 5px;border-radius:8px;background:#fdecea;color:#c0392b;font-size:11px;font-weight:700">서브</span> '+esc(x.cd)+'</div>'; }).join(''), nm:'' }; }
+  var mi=subMainMap()[String(cd)]; if(mi==null) return null; var mp=_prods[mi]||{};
+  return { cd:'<div><span style="display:inline-block;padding:0 5px;border-radius:8px;background:#e3f2ee;color:#0f6b5e;font-size:11px;font-weight:700">주</span> '
+              +'<span style="font-size:11.5px;color:#1f7a4d;font-weight:700" title="담으면 이 주코드로 들어갑니다">'+esc(mp.prodCd)+'</span></div>'
+              +'<div style="margin-top:2px"><span style="display:inline-block;padding:0 5px;border-radius:8px;background:#fdecea;color:#c0392b;font-size:11px;font-weight:700">서브</span> '+esc(cd)+'</div>',
+           nm:(mp.prodNm?'<div style="font-size:11.5px;color:#8a97a3;margin-bottom:2px">마스터 : '+esc(mp.prodNm)+'</div>':'') }; }
+function shHasRow(cd){ var mi=subMainMap()[String(cd)], mc=(mi!=null && _prods[mi])?String(_prods[mi].prodCd):null;
+  return _rows.some(function(o){ return o.prodCd && (String(o.prodCd)===String(cd) || (mc && String(o.prodCd)===mc)); }); }
 function shOpen(){
   if(!_short.length){ toast('적정재고에 못 미치는 품목이 없습니다.<br><span style="font-size:12.5px;color:#3d4d5c">적정재고는 <b>기준정보관리 ▸ 상품코드관리</b> 에서 품목마다 넣습니다. 넣어 두면 「현재고 + 입고예정」이 그 아래로 내려갈 때 여기에 모입니다.</span>','ℹ️'); return; }
   _shSel=[]; document.getElementById('shPop').classList.add('on'); document.getElementById('shQ').value=''; shRender();
@@ -336,7 +396,7 @@ function shList(){
   var all=(document.getElementById('shAllVen')||{}).checked, ven=shVenCd();
   return _short.filter(function(o){
     if(!all && ven && String(o.vendorCd||'')!==String(ven)) return false;
-    if(q){ var hay=(o.prodCd+' '+(o.prodNm||'')+' '+(o.spec||'')).toLowerCase(); if(hay.indexOf(q)<0) return false; }
+    if(q){ var hay=(o.prodCd+' '+(o.subCd||'')+' '+(o.prodNm||'')+' '+(o.spec||'')+' '+mainSubs(o.prodCd).map(function(x){ return x.cd; }).join(' ')).toLowerCase(); if(hay.indexOf(q)<0) return false; }   /* 서브코드로도 찾는다 */
     return true; });
 }
 function shRender(){
@@ -347,7 +407,7 @@ function shRender(){
     var on=_shSel.indexOf(i)>=0, has=shHasRow(o.prodCd), reco=shRecoQty(o);
     h+='<tr class="pick'+(on?' sel':'')+'"'+(has?' style="opacity:.55"':' onclick="shToggle('+i+',event)"')+'>'
       +'<td class="ck" onclick="event.stopPropagation()">'+(has?'<span class="dim" title="이미 이 발주서에 담겨 있습니다">담김</span>':'<input type="checkbox"'+(on?' checked':'')+' onclick="shToggle('+i+',event)">')+'</td>'
-      +'<td>'+esc(o.prodCd)+'</td><td class="l">'+esc(o.prodNm)+'</td><td class="l">'+esc(o.spec)+'</td>'
+      +(function(){ var sc=subCdHtml(o.prodCd, o.subCd); return '<td>'+(sc?sc.cd:esc(o.prodCd))+'</td><td class="l">'+(sc?sc.nm:'')+esc(o.prodNm)+'</td>'; })()+'<td class="l">'+esc(o.spec)+'</td>'   /* 주코드·서브코드 표시 (2026-10-02) */
       +'<td class="r">'+fmtQ(o.curQty)+'</td>'
       +'<td class="r" style="color:#b06a00">'+(n(o.poRemainQty)>0?fmtQ(o.poRemainQty):'')+'</td>'
       +'<td class="r">'+fmtQ(o.safeStock)+'</td>'
@@ -378,15 +438,123 @@ function shSelUpd(){ var c=_shSel.length;
 function shAddSel(){
   if(!_shSel.length) return;
   var base=_prodRow; if(!_rows[base] || _rows[base].prodCd){ ensureTail(); base=_rows.length-1; }
-  var at=base, cnt=0;
+  var at=base, cnt=0, conv=0;
   _shSel.forEach(function(i){ var o=_short[i]; if(!o || shHasRow(o.prodCd)) return;
     var row; if(!cnt){ row=_rows[base]; } else { row=emptyRow(); _rows.splice(++at,0,row); }
-    prodFill(row, { prodSeq:o.prodSeq, prodCd:o.prodCd, prodNm:o.prodNm, spec:o.spec, packQty:o.packQty, inPrice:o.inPrice, taxGb:o.taxGb });
-    var pk=n(o.packQty)||1, reco=shRecoQty(o);
+    var smi=subMainMap()[String(o.prodCd)];
+    if(smi!=null && _prods[smi]){ prodFill(row, _prods[smi]); conv++; }      /* 서브코드 → 주코드 상품으로 담는다 (2026-10-02) */
+    else prodFill(row, { prodSeq:o.prodSeq, prodCd:o.prodCd, prodNm:o.prodNm, spec:o.spec, packQty:o.packQty, inPrice:o.inPrice, taxGb:o.taxGb });
+    var pk=n(row.packQty)||1, reco=shRecoQty(o);   /* 입수는 담긴 줄(주코드) 것으로 */
     if(pk>1 && reco%pk===0){ row.boxQty=reco/pk; row.eaQty=0; } else { row.boxQty=0; row.eaQty=reco; }
     calcRow(row); cnt++; });
   _shSel=[]; shClose(); render(); prodFocusRow(base);
-  if(window._toast) _toast(cnt+'개 품목을 담았습니다 — 추천 수량이 채워져 있습니다. 필요하면 고치세요.','ok');
+  if(window._toast) _toast(cnt+'개 품목을 담았습니다'+(conv?' (서브코드 '+conv+'개는 주코드로 바꿔 담음)':'')+' — 추천 수량이 채워져 있습니다. 필요하면 고치세요.','ok');
+}
+/* ── 📋 발주목록 리스트 (2026-10-02 사용자 「대시보드에서 실행하면 발주서등록을 위해 데이터 발생 · 발주서등록에서 조회해서 선택 등록 ·
+     조회조건 미등록/등록 구분 · 버튼 제목은 발주목록 리스트 · 거래처 선택 못하면 등록 못하게」) ───────────
+   납기현황표(대시보드)의 [📋 발주목록 실행]이 TBL_PO_REQ 에 쌓아 둔 «적정재고 미달 품목»을 읽어 골라 담는다(/mangr/poReqList.do).
+     · 구분 : 미등록(아직 발주서에 안 담음 — 기본) · 등록(발주서에 담아 저장함 — 어느 발주서인지 보인다) · 전체.
+     · 담기는 추천 발주와 같은 길(prodFill) — 발주수량이 채워지고 담은 뒤 고칠 수 있다.
+     · ★거래처를 고르지 않으면 못 담는다 — 발주서 한 장 = 거래처 한 곳이다.
+     · 발주서를 [저장]하면 그때 담았던 줄이 「등록」으로 바뀐다(_reqPend → /mangr/poReqMark.do). 저장 전에 줄을 지웠으면 그 줄은 미등록 그대로.
+       발주서를 지우면 서버가 그 발주서로 등록됐던 줄을 다시 미등록으로 돌린다.
+     · 추천 발주(⚠)와의 차이 : 추천 발주는 «지금» 계산한 미달 전부, 발주목록은 대시보드에서 «실행해 둔 것»만(미등록·등록 이력이 남는다). */
+var _req=[], _rqSel=[], _rqShown=[], _reqPend=[], _rqErr='';
+function rqBadge(){
+  post('/mangr/poReqList.do','regYn=N').then(function(r){return r.json();}).then(function(j){
+      var b=document.getElementById('btnReq'); if(!b) return; var k=((j&&j.data)||[]).length;
+      b.innerHTML = k ? ('📋 발주목록 리스트 <b>'+k+'</b>') : '📋 발주목록 리스트';
+      b.style.color = k ? '#1d4ed8' : ''; b.style.borderColor = k ? '#b9c8ee' : '';
+      b.title = k ? ('아직 발주서에 안 담은 발주목록 '+k+'건 — 눌러서 골라 담습니다.') : '대시보드(납기현황표)의 [📋 발주목록 실행]으로 만든 발주목록을 봅니다. 지금 미등록은 없습니다.';
+    }).catch(function(){});
+}
+function rqLoad(){
+  var gb=(document.getElementById('rqGb')||{}).value; if(gb==null) gb='N';
+  document.getElementById('rqBody').innerHTML='<tr><td colspan="14" class="empty" style="padding:22px;text-align:center;color:#8a98a8">불러오는 중…</td></tr>';
+  post('/mangr/poReqList.do','regYn='+encodeURIComponent(gb)).then(function(r){return r.json();})
+    .then(function(j){ _req=(j&&j.data)||[]; _rqErr=(j&&j.error)||''; _rqSel=[]; rqRender(); })
+    .catch(function(){ _req=[]; _rqErr='발주목록을 불러오지 못했습니다.'; _rqSel=[]; rqRender(); });
+}
+function rqOpen(){ document.getElementById('rqPop').classList.add('on'); document.getElementById('rqQ').value=''; document.getElementById('rqGb').value='N'; rqLoad(); }
+function rqClose(){ document.getElementById('rqPop').classList.remove('on'); }
+function rqList(){
+  var q=(document.getElementById('rqQ').value||'').trim().toLowerCase();
+  return _req.filter(function(o){ if(!q) return true;
+    return (o.prodCd+' '+(o.prodNm||'')+' '+(o.spec||'')+' '+(o.vendorNm||'')+' '+mainSubs(o.prodCd).map(function(x){ return x.cd; }).join(' ')).toLowerCase().indexOf(q)>=0; });   /* 서브코드로도 찾는다 */
+}
+function rqCan(o){ return o && o.regYn==='N' && !shHasRow(o.prodCd); }
+function rqRender(){
+  var l=rqList(), h='', ven=shVenCd(); _rqShown=[];
+  l.forEach(function(o){
+    var i=_req.indexOf(o); _rqShown.push(i);
+    var on=_rqSel.indexOf(i)>=0, reg=(o.regYn==='Y'), has=shHasRow(o.prodCd), can=rqCan(o);
+    var other=(ven && o.vendorCd && String(o.vendorCd)!==String(ven));
+    h+='<tr class="pick'+(on?' sel':'')+'"'+(can?' onclick="rqToggle('+i+',event)"':' style="opacity:.6"')+'>'
+      +'<td class="ck" onclick="event.stopPropagation()">'+(reg?'':(has?'<span class="dim" title="이미 이 발주서에 담겨 있습니다">담김</span>':'<input type="checkbox"'+(on?' checked':'')+' onclick="rqToggle('+i+',event)">'))+'</td>'
+      +'<td>'+(reg?'<span style="color:#137a6c;font-weight:700">등록</span>':'<span style="color:#c0392b;font-weight:700">미등록</span>')+'</td>'
+      +'<td>'+esc(d8(o.reqDt))+'</td>'
+      +(function(){ var sc=subCdHtml(o.prodCd, o.subCd); return '<td>'+(sc?sc.cd:esc(o.prodCd))+'</td><td class="l">'+(sc?sc.nm:'')+esc(o.prodNm)+'</td>'; })()+'<td class="l">'+esc(o.spec)+'</td>'   /* 주코드·서브코드 표시 (2026-10-02) */
+      +'<td class="r">'+fmtQ(o.curQty)+'</td>'
+      +'<td class="r" style="color:#b06a00">'+(n(o.poRemainQty)>0?fmtQ(o.poRemainQty):'')+'</td>'
+      +'<td class="r">'+fmtQ(o.safeStock)+'</td>'
+      +'<td class="r low">'+fmtQ(o.shortQty)+'</td>'
+      +'<td class="r"><b>'+fmtQ(o.reqQty)+'</b>'+((n(o.packQty)||1)>1?'<span class="dim" style="font-size:11px"> ('+fmtQ(n(o.packQty))+'입)</span>':'')+'</td>'
+      +'<td class="l" style="font-size:12px'+(other?';color:#b06a00':'')+'"'+(other?' title="이 발주서에 고른 거래처와 다른 매입처입니다"':'')+'>'+(o.vendorNm?esc(o.vendorNm):'<span class="dim">— (매입처 없음)</span>')+'</td>'
+      +'<td class="r">'+fmt(o.inPrice)+'</td>'
+      +'<td class="l" style="font-size:12px">'+(reg?(o.poNo?esc(d8(o.poDt))+' - '+esc(o.poNo)+' '+esc(o.poVendorNm):'<span class="dim">(발주서 삭제됨)</span>'):'')+'</td></tr>';
+  });
+  document.getElementById('rqBody').innerHTML = h || '<tr><td colspan="14" class="empty" style="padding:22px;text-align:center;color:#8a98a8">'
+    + (_rqErr ? '<span style="color:#c0392b;font-weight:700">'+esc(_rqErr)+'</span>'
+              : '발주목록이 없습니다 — 납기현황표(대시보드)의 <b>[📋 발주목록 실행]</b>으로 만듭니다.') + '</td></tr>';
+  document.getElementById('rqSub').textContent = _req.length+'건'+(l.length!==_req.length?' · 검색 '+l.length+'건':'');
+  rqSelUpd();
+}
+function rqToggle(i, ev){ if(ev&&ev.stopPropagation) ev.stopPropagation();
+  if(!rqCan(_req[i])) return; var k=_rqSel.indexOf(i); if(k<0) _rqSel.push(i); else _rqSel.splice(k,1); rqRender(); }
+function rqAllToggle(on){ _rqShown.forEach(function(i){ if(!rqCan(_req[i])) return;
+  var k=_rqSel.indexOf(i); if(on&&k<0) _rqSel.push(i); else if(!on&&k>=0) _rqSel.splice(k,1); }); rqRender(); }
+function rqClear(){ _rqSel=[]; rqRender(); }
+function rqSelUpd(){ var c=_rqSel.length, ven=shVenCd();
+  document.getElementById('rqAdd').disabled=!c; document.getElementById('rqClr').disabled=!c; document.getElementById('rqDel').disabled=!c;
+  document.getElementById('rqAdd').textContent='선택한 '+c+'개 담기';
+  var a=document.getElementById('rqAll'); if(a) a.checked=false;
+  document.getElementById('rqInfo').innerHTML = !ven ? '<span style="color:#c0392b;font-weight:700">⚠ 발주서의 거래처를 먼저 고르세요 — 거래처가 없으면 담을 수 없습니다.</span>'
+    : (c ? ('고른 '+c+'개를 담으면 <b>발주수량</b>이 채워집니다 — 담은 뒤 고칠 수 있고, 발주서를 [저장]하면 「등록」으로 바뀝니다.')
+         : '<b>미등록</b> 줄을 ☑ 로 고른 뒤 [담기]. 발주서를 [저장]하면 「등록」으로 바뀝니다.'); }
+/* 담기 — ★거래처를 고르지 않았으면 못 담는다(사용자 「거래처 선택 못하면 등록 못하게」) */
+function rqAddSel(){
+  if(!_rqSel.length) return;
+  if(!shVenCd()){ toast('발주서의 <b>거래처</b>를 먼저 고르세요.<br><span style="font-size:12.5px;color:#3d4d5c">발주서 한 장은 거래처 한 곳에 보내는 것이라, 거래처를 고른 뒤에 담을 수 있습니다.</span>','⚠️'); return; }
+  var base=_prodRow; if(!_rows[base] || _rows[base].prodCd){ ensureTail(); base=_rows.length-1; }
+  var at=base, cnt=0, conv=0;
+  _rqSel.forEach(function(i){ var o=_req[i]; if(!rqCan(o)) return;
+    var row; if(!cnt){ row=_rows[base]; } else { row=emptyRow(); _rows.splice(++at,0,row); }
+    var smi=subMainMap()[String(o.prodCd)];
+    if(smi!=null && _prods[smi]){ prodFill(row, _prods[smi]); conv++; }      /* 서브코드 → 주코드 상품으로 담는다 (2026-10-02) */
+    else prodFill(row, { prodSeq:o.prodSeq, prodCd:o.prodCd, prodNm:o.prodNm, spec:o.spec, packQty:o.packQty, inPrice:o.inPrice, taxGb:o.taxGb });
+    var pk=n(row.packQty)||1, q=n(o.reqQty);   /* 입수는 담긴 줄(주코드) 것으로 */
+    if(pk>1 && q%pk===0){ row.boxQty=q/pk; row.eaQty=0; } else { row.boxQty=0; row.eaQty=q; }
+    calcRow(row); cnt++;
+    _reqPend.push({ reqSeq:o.reqSeq, prodCd:String(row.prodCd) }); });   /* 담긴 코드(주코드)로 기억한다 — 저장 뒤 「등록」 표시가 이 코드로 짝을 찾는다 */
+  _rqSel=[]; rqClose(); render(); prodFocusRow(base);
+  if(window._toast) _toast(cnt+'개 품목을 담았습니다'+(conv?' (서브코드 '+conv+'개는 주코드로 바꿔 담음)':'')+' — 발주서를 [저장]하면 발주목록에서 「등록」으로 바뀝니다.','ok');
+}
+/* 미등록 줄 지우기 — 발주하지 않기로 한 것 정리(등록된 줄은 못 지운다 — 서버도 막는다) */
+function rqDelSel(){
+  var seqs=_rqSel.map(function(i){ return _req[i] && _req[i].regYn==='N' ? _req[i].reqSeq : null; }).filter(function(x){ return x!=null; });
+  if(!seqs.length) return;
+  confirmBox('고른 발주목록 <b>'+seqs.length+'</b>건을 지울까요?<br><span style="font-size:12.5px;color:#3d4d5c">미등록 줄만 지워집니다. 다시 필요하면 대시보드에서 [📋 발주목록 실행]을 누르면 만들어집니다.</span>', function(){
+    post('/mangr/poReqDelete.do',{ reqSeqs:seqs },true).then(function(r){return r.json();}).then(function(j){
+        if(j&&j.error){ toast(esc(j.error),'⚠️'); return; }
+        if(window._toast) _toast('발주목록 '+((j&&j.cnt)||0)+'건을 지웠습니다.','ok'); rqLoad(); rqBadge(); })
+      .catch(function(e){ toast('지우지 못했습니다: '+esc(e.message),'⚠️'); }); });
+}
+/* 발주서 저장 뒤 — 이번에 발주목록에서 담은 줄(아직 발주서에 남아 있는 것만)을 「등록」으로 */
+function rqMarkSaved(poSeq, items){
+  var seqs=_reqPend.filter(function(p){ return (items||[]).some(function(o){ return String(o.prodCd)===p.prodCd; }); }).map(function(p){ return p.reqSeq; });
+  _reqPend=[];
+  if(!seqs.length || !(+poSeq>0)){ rqBadge(); return; }
+  post('/mangr/poReqMark.do',{ poSeq:+poSeq, reqSeqs:seqs },true).then(function(r){return r.json();}).then(function(){ rqBadge(); }).catch(function(){ rqBadge(); });
 }
 /* 상품 팝업 「최저 거래처」 칸 — 마스터 매입가(inPrice)보다 싸면 빨강 */
 function vpcCell(cd, inPrice){ var l=_vpc[cd]||[]; if(!l.length) return '<td><span class="dim">—</span></td>';
@@ -550,18 +718,61 @@ function delRow(i){ _rows.splice(i,1); render(); }
 function calcAll(){ var t={cnt:0,box:0,ea:0,qty:0,amt:0,dc:0,sup:0,vat:0,tot:0,svc:0}; _rows.forEach(function(o){ if(!o.prodCd) return; calcRow(o); t.cnt++; t.box+=n(o.boxQty); t.ea+=n(o.eaQty); t.qty+=o.qty; t.amt+=o.amt; t.dc+=n(o.dcAmt); t.sup+=o.supplyAmt; t.vat+=o.vatAmt; t.tot+=o.totAmt; t.svc+=n(o.serviceQty); }); return t; }
 function prodOpen(i){ _prodRow=i; _prodSel=[]; document.getElementById('prodPop').classList.add('on'); document.getElementById('prodQ').value=''; prodRender(); loadMasters();setTimeout(function(){ document.getElementById('prodQ').focus(); },50); }
 function prodClose(){ document.getElementById('prodPop').classList.remove('on'); }
+/* ★주코드·서브코드 표시 (2026-10-02 사용자 「발주관리에 상품코드도 표시 부탁」) — 매입 등록의 상품 선택 창과 같은 표시 :
+     · 이 줄의 코드가 다른 주코드의 서브(매칭코드)이면 위 = [주] 주코드(누르면 주코드로 담는다) · 아래 = [서브] 이 줄의 코드, 상품명도 위 = 마스터 이름.
+     · 🔖 줄 = 상품코드로는 등록돼 있지 않고 매칭코드로만 붙어 있는 거래처 코드. 주코드 줄 바로 밑에 딸려 나오고, 누르면 주코드로 담긴다.
+     · 검색은 서브코드·거래처 품명으로 쳐도 그 주코드 줄이 나온다.
+   ★[서브] 줄을 눌러도 «주코드로» 담는다 (같은 날 사용자 확인 「네」) — 매입 등록과 같다. 서브코드로 발주하면 매입전환 때 그 코드로 재고가 들어가
+     같은 물건의 재고가 주코드와 갈라진다. 줄 클릭(prodPick)·☑ 여러 개 담기(prodAddSel)·코드 칸 입력검색(pinCands) 세 길 모두 prodMain 을 거친다.
+     주코드가 상품 목록에 없으면(거래중지 등) 바꾸지 않고 그 줄 코드 그대로 담는다. */
+var _subMainMap=null, _subMainSrc=[null,null];
+/* 서브코드(상품코드로도 등록된 매칭코드) → 주코드 상품의 첨자. 상품·매칭 목록을 새로 읽으면(배열이 바뀌면) 다시 만든다 */
+function subMainMap(){
+  if(_subMainMap && _subMainSrc[0]===_prods && _subMainSrc[1]===_extItems) return _subMainMap;
+  var idx={}, m={};
+  for(var a=0;a<_prods.length;a++){ if(_prods[a].prodCd!=null) idx[String(_prods[a].prodCd)]=a; }
+  (_extItems||[]).forEach(function(e){ if(!e || !e.prodCd || !e.extItemCd) return; var sc=String(e.extItemCd), mc=String(e.prodCd);
+    if(sc===mc || idx[sc]==null || idx[mc]==null) return; m[sc]=idx[mc]; });
+  _subMainMap=m; _subMainSrc=[_prods,_extItems]; return m;
+}
+/* 담을 상품 — 서브코드 상품이면 주코드 상품으로 바꾼다. viaSub = 바꾸기 전 서브코드(안내용) */
+function prodMain(pi){ var p=_prods[pi]; if(!p) return { pi:pi };
+  var mi=subMainMap()[String(p.prodCd)];
+  return (mi==null || mi===pi) ? { pi:pi } : { pi:mi, viaSub:String(p.prodCd) }; }
 function prodRender(){ var q=(document.getElementById('prodQ').value||'').trim().toLowerCase(), h='', k=0; _prodShown=[];
-  for(var i=0;i<_prods.length && k<300;i++){ var p=_prods[i]; var hay=(p.prodCd+' '+(p.prodNm||'')+' '+(p.spec||'')).toLowerCase(); if(q && hay.indexOf(q)<0) continue; k++; _prodShown.push(i);
-    var on=_prodSel.indexOf(i)>=0;
-    h+='<tr class="pick'+(on?' sel':'')+'" onclick="prodPick('+i+')">'
+  var idx={}, sub={}, extBy={};
+  for(var a=0;a<_prods.length;a++){ if(_prods[a].prodCd!=null) idx[String(_prods[a].prodCd)]=a; }
+  (_extItems||[]).forEach(function(e){ if(!e || !e.prodCd || !e.extItemCd || String(e.extItemCd)===String(e.prodCd)) return;
+    sub[String(e.extItemCd)]=e; (extBy[String(e.prodCd)]||(extBy[String(e.prodCd)]=[])).push(e); });
+  for(var i=0;i<_prods.length && k<300;i++){ var p=_prods[i], cdS=String(p.prodCd);
+    /* 🔖 로 보일 것 = 이 상품의 매칭코드 중 상품코드로 따로 등록되지 않은 것(등록된 것은 제 줄에 [서브]로 나온다) — 같은 코드는 한 번만 */
+    var seenE={}, exts=(extBy[cdS]||[]).filter(function(e){ var c=String(e.extItemCd); if(idx[c]!=null || seenE[c]) return false; seenE[c]=1; return true; });
+    var hay=(p.prodCd+' '+(p.prodNm||'')+' '+(p.spec||'')+' '+exts.map(function(e){ return e.extItemCd+' '+(e.extItemNm||''); }).join(' ')).toLowerCase();
+    if(q && hay.indexOf(q)<0) continue; k++; _prodShown.push(i);
+    var on=_prodSel.indexOf(i)>=0, sb=sub[cdS], cdCell=esc(p.prodCd), mst='';
+    if(sb){ var mi=idx[String(sb.prodCd)], mp=(mi!=null)?_prods[mi]:null;
+      cdCell='<div><span style="display:inline-block;padding:0 5px;border-radius:8px;background:#e3f2ee;color:#0f6b5e;font-size:11px;font-weight:700">주</span> '
+        +(mi!=null ? '<a href="javascript:;" style="font-size:11.5px;color:#1f7a4d;font-weight:700;text-decoration:underline" onclick="event.stopPropagation();prodPick('+mi+')" title="주코드로 담습니다">'+esc(sb.prodCd)+'</a>'
+                   : '<span style="font-size:11.5px;color:#1f7a4d;font-weight:700" title="주코드가 상품 목록에 없습니다(거래중지 등)">'+esc(sb.prodCd)+'</span>')+'</div>'
+        +'<div style="margin-top:2px"><span style="display:inline-block;padding:0 5px;border-radius:8px;background:#fdecea;color:#c0392b;font-size:11px;font-weight:700">서브</span> '+esc(p.prodCd)+'</div>';
+      var mnm=(mp&&mp.prodNm)||sb.prodNm||'';
+      if(mnm) mst='<div style="font-size:11.5px;color:#8a97a3;margin-bottom:2px">마스터 : '+esc(mnm)+'</div>'; }
+    h+='<tr class="pick'+(on?' sel':'')+'" onclick="prodPick('+i+')"'+(sb?' title="서브코드입니다 — 누르면 주코드 '+esc(sb.prodCd)+' 로 담깁니다"':'')+'>'
       +'<td class="ck" onclick="event.stopPropagation()"><input type="checkbox"'+(on?' checked':'')+' onclick="prodToggle('+i+',event)"></td>'
-      +'<td>'+esc(p.prodCd)+'</td><td class="l">'+esc(p.prodNm)+'</td><td class="l">'+esc(p.spec)+'</td><td>'+fmtQ(p.packQty||1)+'</td>'
+      +'<td>'+cdCell+'</td><td class="l">'+mst+esc(p.prodNm)+'</td><td class="l">'+esc(p.spec)+'</td><td>'+fmtQ(p.packQty||1)+'</td>'
       +(function(){ var s=stkInfo(String(p.prodCd)); return '<td class="r stk'+(s.low?' low':'')+'" title="'+(s.cur==null?'재고 원장에 기록이 없는 품목':('현재고 '+fmtQ(s.cur)+(s.safe?' · 적정 '+fmtQ(s.safe):'')))+'">'+(s.cur==null?'—':fmtQ(s.cur))+'</td>'; })()   // 현재고 (2026-09-16)
       +'<td class="r">'+fmt(p.inPrice)+'</td>'
       +vpcCell(String(p.prodCd), n(p.inPrice))   // 최저 거래처 (P2-b)
-      +'<td>'+esc(p.taxGb)+'</td></tr>'; }
+      +'<td>'+esc(p.taxGb)+'</td></tr>';
+    exts.forEach(function(e){
+      h+='<tr class="pick" style="background:#fbfdff" onclick="prodPick('+i+')" title="서브코드(거래처 매칭코드)입니다 — 누르면 주코드 '+esc(p.prodCd)+' 로 담깁니다'+(e.vendorNm?(' · '+esc(e.vendorNm)):'')+'">'
+        +'<td class="ck"></td><td style="color:#c0392b;white-space:nowrap">🔖 '+esc(e.extItemCd)+'</td>'
+        +'<td class="l" style="color:#5b6b7a">'+esc(e.extItemNm||'')+(e.vendorNm?(' <span style="color:#8a97a3">('+esc(e.vendorNm)+')</span>'):'')+'</td>'
+        +'<td class="l" style="color:#5b6b7a">'+esc(e.extSpec||'')+'</td><td></td><td></td><td></td><td></td><td></td></tr>'; });
+  }
   document.getElementById('prodBody').innerHTML=h||'<tr><td colspan="9" class="empty">상품이 없습니다.</td></tr>';
   prodSelUpd(); }
+
 /* ☑ 여러 개 담기 — _prodSel 은 <고른 차례>대로 담는다(그 순서로 줄이 생긴다). 검색어를 바꿔도 선택은 남는다. */
 function prodToggle(pi, ev){ if(ev&&ev.stopPropagation) ev.stopPropagation();
   var k=_prodSel.indexOf(pi); if(k<0) _prodSel.push(pi); else _prodSel.splice(k,1);
@@ -579,19 +790,21 @@ function prodSelUpd(){ var c=_prodSel.length;
 function prodFill(o,p){ o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=p.prodNm||''; o.spec=p.spec||''; o.packQty=n(p.packQty)||1; o.unitPrice=n(p.inPrice); o.taxGb=p.taxGb||''; if(!n(o.boxQty)&&!n(o.eaQty)) o.boxQty=1;
   poDupNote(String(p.prodCd)); }   // 담는 길 셋(팝업 한 개·팝업 여러 개·코드 칸 입력검색)이 전부 여기를 지나므로 중복 발주 알림은 여기 한 곳
 function prodFocusRow(i){ var tr=document.getElementById('gbody').rows[i]; if(tr){ var inp=tr.querySelector('input[data-f="boxQty"]');   /* 몇 번째 input 으로 찾지 않는다 — 빈 줄은 코드 칸에도 input 이 있다(2026-09-10) */ if(inp){ inp.focus(); inp.select(); } } }
-function prodPick(pi){ var p=_prods[pi], o=_rows[_prodRow]; if(!p||!o) return;
+function prodPick(pi){ var m=prodMain(pi), p=_prods[m.pi], o=_rows[_prodRow]; if(!p||!o) return;
   prodFill(o,p);
-  prodClose(); render(); prodFocusRow(_prodRow); }
+  prodClose(); render(); prodFocusRow(_prodRow);
+  if(m.viaSub && window._toast) _toast('서브코드 '+m.viaSub+' → 주코드 '+p.prodCd+' 로 담았습니다.','ok'); }
 /* 고른 것 중 첫 줄은 팝업을 연 그 줄에 넣고, 나머지는 바로 밑에 줄을 만들어 이어 넣는다. */
 function prodAddSel(){
   if(!_prodSel.length) return;
   var base=_prodRow; if(!_rows[base]){ ensureTail(); base=_rows.length-1; }
-  var at=base, cnt=0;
-  _prodSel.forEach(function(pi){ var p=_prods[pi]; if(!p) return;
+  var at=base, cnt=0, conv=0, seenPi={};
+  _prodSel.forEach(function(pi0){ var m=prodMain(pi0), p=_prods[m.pi]; if(!p || seenPi[m.pi]) return; seenPi[m.pi]=1;   // 서브코드 → 주코드 · 같은 주코드는 한 번만
+    if(m.viaSub) conv++;
     var o; if(!cnt){ o=_rows[base]; } else { o=emptyRow(); _rows.splice(++at,0,o); }
     prodFill(o,p); cnt++; });
   _prodSel=[]; prodClose(); render(); prodFocusRow(base);
-  if(window._toast) _toast(cnt+'개 상품을 담았습니다. 수량을 입력하세요.','ok'); }
+  if(window._toast) _toast(cnt+'개 상품을 담았습니다'+(conv?' (서브코드 '+conv+'개는 주코드로 바꿔 담음)':'')+'. 수량을 입력하세요.','ok'); }
 
 /* ── 코드 칸 입력검색 (2026-09-10 「코드 직접입력 가능하게 — 매입등록하는 것처럼」) ──
    매입등록 puPin* 과 같은 동작 : 빈 줄의 코드 칸에 치면 후보가 뜨고 ↑↓·Enter(또는 마우스)로 고른다 → 커서는 BOX 로.
@@ -615,7 +828,9 @@ function pinCands(q){
   for(var i=0;i<_prods.length && out.length<12;i++){ var p=_prods[i]; if(!p.prodCd) continue;
     if(![p.prodCd, p.prodNm, p.spec].some(_pinHit(q))) continue;
     if(seen['M'+p.prodCd]) continue; seen['M'+p.prodCd]=1;
-    out.push({ pi:i }); }
+    var pm=prodMain(i);                                                    // 서브코드 상품이면 주코드로 (2026-10-02)
+    if(pm.viaSub){ var mk='S'+pm.viaSub+'>'+_prods[pm.pi].prodCd; if(seen[mk]) continue; seen[mk]=1; out.push({ pi:pm.pi, viaSub:pm.viaSub }); }
+    else out.push({ pi:i }); }
   return out; }
 function pinInput(inp){ _pinRow=+inp.dataset.r; var q=String(inp.value||'').trim().toLowerCase();
   if(!q){ pinClose(); return; }
@@ -654,7 +869,7 @@ function pinClose(){ if(_pinDrop) _pinDrop.style.display='none'; _pinList=[]; _p
 function pinBlur(){ setTimeout(pinClose, 150); }
 
 /* ── 머리 ── */
-function poNew(){ _cur=null; _rows=[]; document.getElementById('poDt').value=today(); venPick('',''); document.getElementById('remark').value=''; document.getElementById('poNo').value=''; poDtChanged(); render(); setButtons(); poCvStat(); document.getElementById('stat').textContent='새 발주서'; }
+function poNew(){ _cur=null; _rows=[]; _reqPend=[]; document.getElementById('poDt').value=today(); venPick('',''); document.getElementById('remark').value=''; document.getElementById('poNo').value=''; poDtChanged(); render(); setButtons(); poCvStat(); document.getElementById('stat').textContent='새 발주서'; }
 function poDtChanged(){ if(_cur) return; var d=document.getElementById('poDt').value; if(!d) return; post('/mangr/poNextNo.do','poDt='+encodeURIComponent(d)).then(function(r){return r.json();}).then(function(j){ document.getElementById('poNo').value=(j&&j.data)||'0001'; }).catch(function(){}); }
 function setButtons(){ var on=!!(_cur&&_cur.poSeq); ['btnDel','btnPrint','btnXls','btnKakao','btnLink','btnCv'].forEach(function(id){ document.getElementById(id).disabled=!on; }); }
 function poSave(){
@@ -669,6 +884,7 @@ function poSave(){
   post('/mangr/poSave.do', dto, true).then(function(r){ return r.text().then(function(x){ if(!r.ok) throw new Error(x); return x; }); })
     .then(function(seq){ seq=String(seq||'').replace(/[^0-9]/g,'');   /* 응답이 감싸여 와도 숫자만 */
       shLoad();   /* 저장하면 잔량(입고예정)이 늘어 미달이 풀린다 — 배지를 다시 센다 (2026-09-16) */
+      rqMarkSaved(seq, items);   /* 발주목록에서 담은 줄 → 「등록」 (2026-10-02) */
       toast('발주서를 저장했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">번호 '+esc(document.getElementById('poDt').value)+' - '+esc(document.getElementById('poNo').value)+'</span>','✅'); poLoad(seq); poOpen(seq); loadStockInfo(); })   // 저장한 발주가 곧 「최근 발주」가 되므로 다시 읽는다
     .catch(function(e){ toast('저장에 실패했습니다.<br><span style="font-size:12.5px;color:#c0392b">'+esc(e.message)+'</span>','⚠️'); });
 }
@@ -679,7 +895,7 @@ function poDelete(){ if(!_cur) return; poLinked(_cur.poSeq, function(lk){
   post('/mangr/poDelete.do','poSeq='+_cur.poSeq).then(function(r){ if(!r.ok) return r.text().then(function(x){ throw new Error(x); }); toast('삭제했습니다.','✅'); poNew(); poLoad(); loadStockInfo(); }).catch(function(e){ toast('삭제 실패: '+esc(e.message),'⚠️'); }); }); }); }
 /* cb = 다 올린 뒤 부를 함수(선택) — 전송이력 [📂 전표 열기]가 연 뒤 이력 창을 다시 띄우는 데 쓴다 (2026-09-10) */
 function poOpen(seq, cb){ post('/mangr/poDetail.do','poSeq='+seq).then(function(r){return r.json();}).then(function(j){ var m=j&&j.mst; if(!m){ toast('발주서를 찾을 수 없습니다.','⚠️'); return; }
-  _cur=m; document.getElementById('poDt').value=d8(m.poDt); document.getElementById('poNo').value=m.poNo||''; venPick(m.vendorCd||'', m.vendorNm||''); document.getElementById('remark').value=m.remark||'';
+  _cur=m; _reqPend=[]; document.getElementById('poDt').value=d8(m.poDt); document.getElementById('poNo').value=m.poNo||''; venPick(m.vendorCd||'', m.vendorNm||''); document.getElementById('remark').value=m.remark||'';
   if(m.mgrNm) document.getElementById('mgrNm').value=m.mgrNm;
   _rows=(j.items||[]).map(function(d){ var o=emptyRow(); for(var k in o) if(d[k]!=null) o[k]=d[k]; return o; }); render(); setButtons(); poCvStat();
   document.getElementById('stat').textContent='발주서 '+d8(m.poDt)+' - '+m.poNo+' · 공유 '+(m.shareCnt||0)+'회'+(m.lastShareDttm?(' (마지막 '+m.lastShareDttm+')'):'')+(m.purchNo?(' · 📦 매입전표 '+d8(m.purchDt)+'-'+m.purchNo):'');

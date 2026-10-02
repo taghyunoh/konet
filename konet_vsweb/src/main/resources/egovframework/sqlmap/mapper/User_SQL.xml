@@ -1397,26 +1397,26 @@
 	<update id="markTdPoReplace" parameterType="java.util.Map"><![CDATA[
 	  UPDATE TBL_SHIPOUT_MST
 	     SET ACTION_YN = 'N', UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
-	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y'
+	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> 'DAESANG'   /* 대상 발주(같은 TD, 출고장 DAESANG)는 토더 화면에서 뺀다 (2026-10-02) */
 	     AND ISNULL(ORD_NO,'') = #{ordNo,jdbcType=NVARCHAR} AND ISNULL(BIZ_NM,'') = #{bizNm,jdbcType=NVARCHAR} AND ISNULL(ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 	<update id="deleteTdPo" parameterType="java.util.Map"><![CDATA[
 	  UPDATE TBL_SHIPOUT_MST
 	     SET ACTION_YN = 'D', UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
-	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y'
+	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> 'DAESANG'   /* 대상 발주(같은 TD, 출고장 DAESANG)는 토더 화면에서 뺀다 (2026-10-02) */
 	     AND ISNULL(ORD_NO,'') = #{ordNo,jdbcType=NVARCHAR} AND ISNULL(BIZ_NM,'') = #{bizNm,jdbcType=NVARCHAR} AND ISNULL(ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 	<select id="selectTdPoList" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
-	  SELECT t.DLV_DT AS dlvDt, ISNULL(t.ORD_NO,'') AS ordNo, ISNULL(t.ORD_ITEM_NO,'') AS lineNo, ISNULL(t.DC_NM,'') AS dcNm,
+	  SELECT t.DLV_DT AS dlvDt, ISNULL(t.ORD_NO,'') AS ordNo, ISNULL(t.ORD_ITEM_NO,'') AS [lineNo], ISNULL(t.DC_NM,'') AS dcNm,
 	         ISNULL(t.BIZ_CD,'') AS bizCd, ISNULL(t.BIZ_NM,'') AS bizNm, ISNULL(t.ITEM_CD,'') AS itemCd, ISNULL(t.ITEM_NM,'') AS itemNm,
 	         ISNULL(t.UNIT,'') AS unit, ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) AS qty, ISNULL(t.PROD_CD,'') AS prodCd,
 	         t.SALE_PRICE AS salePrice,   /* 판매가(부가세 포함, 2026-09-22) — 매출 = 수량 × 판매가 */
 	         ISNULL(t.SRC_FILE,'') AS srcFile, ISNULL(t.REMARK,'') AS remark,
 	         CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm, ISNULL(t.REG_USER,'') AS regUser
 	    FROM TBL_SHIPOUT_MST t
-	   WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN = 'Y'
+	   WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN = 'Y' AND ISNULL(t.DC_CD,'') <> 'DAESANG'   /* 대상 발주 제외 (2026-10-02) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{frDt,jdbcType=VARCHAR},'') = '' OR t.DLV_DT >= REPLACE(#{frDt,jdbcType=VARCHAR},'-','') )
 	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'') = '' OR t.DLV_DT <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
@@ -1429,12 +1429,12 @@
 	  SELECT kind, nm, cd FROM (
 	    SELECT 'biz' AS kind, t.BIZ_NM AS nm, t.BIZ_CD AS cd, ROW_NUMBER() OVER (PARTITION BY t.BIZ_NM ORDER BY CASE WHEN t.ACTION_YN = 'Y' THEN 0 ELSE 1 END, t.UPLOAD_DTTM DESC) AS rn
 	      FROM TBL_SHIPOUT_MST t
-	     WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.BIZ_NM,'') <> '' AND ISNULL(t.BIZ_CD,'') <> ''
+	     WHERE t.PROD_KIND = 'TD' AND ISNULL(t.DC_CD,'') <> 'DAESANG' AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.BIZ_NM,'') <> '' AND ISNULL(t.BIZ_CD,'') <> ''
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	    UNION ALL
 	    SELECT 'item', t.ITEM_NM, t.ITEM_CD, ROW_NUMBER() OVER (PARTITION BY t.ITEM_NM ORDER BY CASE WHEN t.ACTION_YN = 'Y' THEN 0 ELSE 1 END, t.UPLOAD_DTTM DESC)
 	      FROM TBL_SHIPOUT_MST t
-	     WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.ITEM_NM,'') <> '' AND ISNULL(t.ITEM_CD,'') <> ''
+	     WHERE t.PROD_KIND = 'TD' AND ISNULL(t.DC_CD,'') <> 'DAESANG' AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.ITEM_NM,'') <> '' AND ISNULL(t.ITEM_CD,'') <> ''
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  ) x WHERE x.rn = 1
 	]]></select>
@@ -1473,7 +1473,7 @@
 	<select id="selectTdPoDatesByName" parameterType="java.util.Map" resultType="string"><![CDATA[
 	  SELECT DISTINCT t.DLV_DT
 	    FROM TBL_SHIPOUT_MST t
-	   WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN = 'Y'
+	   WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN = 'Y' AND ISNULL(t.DC_CD,'') <> 'DAESANG'   /* 대상 발주 제외 (2026-10-02) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ( #{kind,jdbcType=VARCHAR} = 'biz'  AND ISNULL(t.BIZ_NM,'')  = #{nm,jdbcType=NVARCHAR} )
 	        OR ( #{kind,jdbcType=VARCHAR} = 'item' AND ISNULL(t.ITEM_NM,'') = #{nm,jdbcType=NVARCHAR} ) )
@@ -1481,7 +1481,7 @@
 	<update id="updateTdPoBizByName" parameterType="java.util.Map"><![CDATA[
 	  UPDATE TBL_SHIPOUT_MST
 	     SET BIZ_CD = #{cd,jdbcType=VARCHAR}, UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
-	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y'
+	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> 'DAESANG'   /* 대상 발주(같은 TD, 출고장 DAESANG)는 토더 화면에서 뺀다 (2026-10-02) */
 	     AND ISNULL(BIZ_NM,'') = #{nm,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
@@ -1490,7 +1490,7 @@
 	     SET ITEM_CD = #{cd,jdbcType=VARCHAR}, PROD_SEQ = NULL, PROD_CD = NULL,
 	         VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}, VENDOR_NM = #{vendorNm,jdbcType=NVARCHAR},
 	         UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
-	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y'
+	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> 'DAESANG'   /* 대상 발주(같은 TD, 출고장 DAESANG)는 토더 화면에서 뺀다 (2026-10-02) */
 	     AND ISNULL(ITEM_NM,'') = #{nm,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
@@ -1509,7 +1509,7 @@
 	<select id="selectTdPoRow" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
 	  SELECT TOP 1 t.DLV_DT AS dlvDt, ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) AS qty, t.SALE_PRICE AS salePrice
 	    FROM TBL_SHIPOUT_MST t
-	   WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN = 'Y'
+	   WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN = 'Y' AND ISNULL(t.DC_CD,'') <> 'DAESANG'   /* 대상 발주 제외 (2026-10-02) */
 	     AND ISNULL(t.ORD_NO,'') = #{ordNo,jdbcType=NVARCHAR} AND ISNULL(t.BIZ_NM,'') = #{bizNm,jdbcType=NVARCHAR} AND ISNULL(t.ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
@@ -1519,10 +1519,89 @@
 	         SALE_PRICE = #{salePrice,jdbcType=DECIMAL},
 	         REMARK = LEFT(ISNULL(REMARK,'') + #{note,jdbcType=NVARCHAR}, 490),
 	         UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
-	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y'
+	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> 'DAESANG'   /* 대상 발주(같은 TD, 출고장 DAESANG)는 토더 화면에서 뺀다 (2026-10-02) */
 	     AND ISNULL(ORD_NO,'') = #{ordNo,jdbcType=NVARCHAR} AND ISNULL(BIZ_NM,'') = #{bizNm,jdbcType=NVARCHAR} AND ISNULL(ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
+	<!-- ============================================================
+	     대상 발주 등록 (2026-10-02 — 「토더처럼 대상이라는 곳에서 이메일로 엑셀을 캡쳐해서 옵니다 … 매출관리에 대상발주등록 추가 … 매출은 토더처럼 발생하게」)
+	     대상(대상주식회사)이 이메일로 보내는 배송요청 표(받는 사람·주소·전화·수량·제품코드·제품명)를 화면에서 올려 TBL_SHIPOUT_MST 에 넣는다.
+	     · ★토더와 같은 종류(PROD_KIND='TD')로 넣고 출고장만 다르게 한다(DC_CD='DAESANG' · DC_NM='대상' · ZONE·DLV_GB='DS').
+	       매출·재고·마감·채권·일계장은 모두 「PROD_KIND='TD' + 거래처의 DC_CD = 줄의 DC_CD」로 세므로 그 조회들을 하나도 안 고치고 토더와 똑같이 선다.
+	       매출 거래처 = DC_CD 가 'DAESANG' 인 거래처(대상주식회사 — DDL docs/sql/20261002_daesang_po.sql).
+	       토더 화면의 조회·수정문에는 「DC_CD 가 DAESANG 이 아닌 것」 조건을 달아 대상 줄이 섞이지 않게 했다.
+	     · 금액이 없다 → 판매가(SALE_PRICE)는 화면이 상품코드 판매가로 채우고 사람이 고친다. 발주일자(납품일자)도 화면에서 넣는다(= 출고일자).
+	     · 받는 사람(학교·지점)은 사업장으로 만들지 않는다 — BIZ_CD·BIZ_NM = 화면에서 고른 대상 사업장, 받는 사람·주소·전화·대상 제품코드는 RCV_* 칸에.
+	     · ITEM_NM = 대상 제품명 그대로 — (제품명 → 품목코드) 짝이 쌓여 다음 업로드의 자동 매칭이 된다(selectDsPoMap).
+	     · 발주번호가 없다 → 저장할 때마다 묶음 번호(ORD_NO = DS + 일시)와 줄 번호(ORD_ITEM_NO)를 붙인다. 저장된 줄은 SEQ 로 가리킨다.
+	     · 같은 표를 두 번 올리면 두 번 들어간다 → 저장 전에 같은 줄(날짜·받는 사람·제품명·수량)이 있는지 세어 화면이 한 번 더 묻는다(selectDsPoDup).
+	     ============================================================ -->
+	<select id="selectDsPoList" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT t.SEQ AS seq, t.DLV_DT AS dlvDt, ISNULL(t.ORD_NO,'') AS ordNo, ISNULL(t.ORD_ITEM_NO,'') AS [lineNo],
+	         ISNULL(t.BIZ_CD,'') AS bizCd, ISNULL(t.BIZ_NM,'') AS bizNm, ISNULL(t.ITEM_CD,'') AS itemCd, ISNULL(t.ITEM_NM,'') AS itemNm,
+	         ISNULL(t.RCV_NM,'') AS rcvNm, ISNULL(t.RCV_ADDR,'') AS rcvAddr, ISNULL(t.RCV_TEL,'') AS rcvTel, ISNULL(t.RCV_TEL2,'') AS rcvTel2,
+	         ISNULL(t.RCV_ITEM_CD,'') AS rcvItemCd,
+	         ISNULL(t.UNIT,'') AS unit, ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) AS qty, ISNULL(t.PROD_CD,'') AS prodCd,
+	         t.SALE_PRICE AS salePrice,
+	         ISNULL(t.SRC_FILE,'') AS srcFile, ISNULL(t.REMARK,'') AS remark,
+	         CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm, ISNULL(t.REG_USER,'') AS regUser
+	    FROM TBL_SHIPOUT_MST t
+	   WHERE t.PROD_KIND = 'TD' AND t.DC_CD = 'DAESANG' AND t.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{frDt,jdbcType=VARCHAR},'') = '' OR t.DLV_DT >= REPLACE(#{frDt,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'') = '' OR t.DLV_DT <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
+	   ORDER BY t.DLV_DT DESC, t.ORD_NO DESC, RIGHT('00000' + ISNULL(t.ORD_ITEM_NO,''), 5), t.SEQ
+	]]></select>
+	<!-- 자동 매칭 자료 — 지금까지 저장한 대상 발주에서 제품명 → 품목코드(살아 있는 줄 먼저, 그다음 올린 시각 최신). 고쳐서 닫힌 이력(N)도 본다 -->
+	<select id="selectDsPoMap" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT x.nm, x.cd FROM (
+	    SELECT t.ITEM_NM AS nm, t.ITEM_CD AS cd,
+	           ROW_NUMBER() OVER (PARTITION BY t.ITEM_NM ORDER BY CASE WHEN t.ACTION_YN = 'Y' THEN 0 ELSE 1 END, t.UPLOAD_DTTM DESC, t.SEQ DESC) AS rn
+	      FROM TBL_SHIPOUT_MST t
+	     WHERE t.PROD_KIND = 'TD' AND t.DC_CD = 'DAESANG' AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.ITEM_NM,'') <> '' AND ISNULL(t.ITEM_CD,'') <> ''
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	  ) x WHERE x.rn = 1
+	]]></select>
+	<!-- 방금 넣은 줄(납기일자·대상·차수·줄번호)에 판매가와 배송 정보를 채운다 — 공용 insertShipoutMstBulk(삼성 발주현황표도 쓴다)는 건드리지 않는다(토더의 updateTdPoPrice 와 같은 방식) -->
+	<update id="updateDsPoExtra" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET SALE_PRICE = #{salePrice,jdbcType=DECIMAL},
+	         RCV_NM = #{rcvNm,jdbcType=NVARCHAR}, RCV_ADDR = #{rcvAddr,jdbcType=NVARCHAR},
+	         RCV_TEL = #{rcvTel,jdbcType=NVARCHAR}, RCV_TEL2 = #{rcvTel2,jdbcType=NVARCHAR}, RCV_ITEM_CD = #{rcvItemCd,jdbcType=NVARCHAR}
+	   WHERE PROD_KIND = 'TD' AND DC_CD = 'DAESANG' AND ACTION_YN = 'Y'
+	     AND DLV_DT = REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-','')
+	     AND JOB_SEQ = #{jobSeq,jdbcType=INTEGER} AND ROW_NO = #{rowNo,jdbcType=INTEGER}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<!-- 저장된 한 줄(SEQ) — 고치기·삭제 전에 읽는다 -->
+	<select id="selectDsPoRowFull" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 1 t.SEQ AS seq, t.DLV_DT AS dlvDt, ISNULL(t.ORD_NO,'') AS ordNo, ISNULL(t.ORD_ITEM_NO,'') AS [lineNo],
+	         ISNULL(t.BIZ_CD,'') AS bizCd, ISNULL(t.BIZ_NM,'') AS bizNm, ISNULL(t.ITEM_CD,'') AS itemCd, ISNULL(t.ITEM_NM,'') AS itemNm,
+	         ISNULL(t.RCV_NM,'') AS rcvNm, ISNULL(t.RCV_ADDR,'') AS rcvAddr, ISNULL(t.RCV_TEL,'') AS rcvTel, ISNULL(t.RCV_TEL2,'') AS rcvTel2,
+	         ISNULL(t.RCV_ITEM_CD,'') AS rcvItemCd,
+	         ISNULL(t.UNIT,'') AS unit, ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) AS qty, t.SALE_PRICE AS salePrice,
+	         ISNULL(t.SRC_FILE,'') AS srcFile, ISNULL(t.REMARK,'') AS remark
+	    FROM TBL_SHIPOUT_MST t
+	   WHERE t.SEQ = #{seq,jdbcType=BIGINT} AND t.PROD_KIND = 'TD' AND t.DC_CD = 'DAESANG' AND t.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></select>
+	<!-- 저장된 한 줄을 닫는다 — actionYn = 'D'(삭제 = 취소) / 'N'(고쳐서 새 줄로 바꿀 때의 이력) -->
+	<update id="closeDsPo" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET ACTION_YN = #{actionYn,jdbcType=VARCHAR}, UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE SEQ = #{seq,jdbcType=BIGINT} AND PROD_KIND = 'TD' AND DC_CD = 'DAESANG' AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<!-- 같은 줄이 이미 저장돼 있나 — 날짜·받는 사람·제품명·수량이 모두 같은 살아 있는 줄 수 -->
+	<select id="selectDsPoDup" parameterType="java.util.Map" resultType="int"><![CDATA[
+	  SELECT COUNT(*)
+	    FROM TBL_SHIPOUT_MST t
+	   WHERE t.PROD_KIND = 'TD' AND t.DC_CD = 'DAESANG' AND t.ACTION_YN = 'Y'
+	     AND t.DLV_DT = REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-','')
+	     AND ISNULL(t.RCV_NM,'') = #{rcvNm,jdbcType=NVARCHAR} AND ISNULL(t.ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
+	     AND ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) = #{qty,jdbcType=INTEGER}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></select>
 	<update id="markDcPoReplace" parameterType="java.util.Map"><![CDATA[
 	  UPDATE TBL_SHIPOUT_MST
 	     SET ACTION_YN = 'N', UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
@@ -3158,7 +3237,8 @@
 	                      SELECT CASE WHEN s.PROD_KIND = 'TD' THEN ISNULL(s.SALE_PRICE,0)
 	                                  ELSE ISNULL(shi.SALE_PRICE, ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0))) END AS saleUnit,
 	                             ISNULL(ih.IN_PRICE,   ISNULL(pm.IN_PRICE,0))   AS inUnit,
-	                             CASE WHEN s.PROD_KIND = 'TD' THEN N'토더'
+	                             CASE WHEN s.PROD_KIND = 'TD' AND s.DC_CD = 'DAESANG' THEN N'대상'   /* 대상 발주(2026-10-02) — 토더와 같은 종류, 출고장만 다르다 */
+                                  WHEN s.PROD_KIND = 'TD' THEN N'토더'
 	                                  WHEN shi.SALE_PRICE IS NOT NULL OR sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc,
 	                             -- ★매입단가를 못 찾은 건을 '마스터'로 뭉뚱그리면 안 된다(2026-07-25).
 	                             --   마스터 IN_PRICE 가 0이면 매입액이 0으로 잡혀 마진율이 100%로 뜨는데,
@@ -5152,6 +5232,8 @@
 	         d.SUPPLY_AMT AS supplyAmt, d.VAT_AMT AS vatAmt, d.TOT_AMT AS totAmt,
 	         d.SERVICE_QTY AS serviceQty, d.REMARK AS remark, d.EVENT_YN AS eventYn,
 	         d.TRX_GB AS trxGb, d.LEDGER_SEQ AS ledgerSeq, d.EXT_CD AS extCd,
+	         /* 출고차감 (2026-10-02) — 재고로는 안 나가는 수량. 재고 원장에는 (QTY - STOCK_CUT_QTY)만 나간다. ⚠DDL docs/sql/20261002_sales_trx_stockcut.sql 을 먼저 */
+	         ISNULL(d.STOCK_CUT_QTY,0) AS stockCutQty,
 	         /* 조회순서 (2026-09-10) — 공개 거래명세서(/pub/stmt.do)가 「정렬 = 조회번호」로 찍을 때 쓴다.
 	            ★로그인이 없는 화면이라 상품마스터를 통째로 읽을 수 없어 <줄마다> 붙여 온다
 	              (판매등록 화면은 _prods 를 이미 들고 있어 이 칸을 안 본다).
@@ -5246,7 +5328,7 @@
 	  INSERT INTO TBL_SALES_TRX_DTL
 	    (COMP_CD, SALE_SEQ, ROW_NO, PROD_SEQ, PROD_CD, PROD_NM, SPEC, PACK_QTY, BOX_QTY, EA_QTY, QTY,
 	     UNIT_PRICE, AMT, DC_AMT, SUPPLY_AMT, VAT_AMT, TOT_AMT, SERVICE_QTY, REMARK, EVENT_YN,
-	     TRX_GB, LEDGER_SEQ, EXT_CD, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	     TRX_GB, LEDGER_SEQ, EXT_CD, STOCK_CUT_QTY, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
 	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), #{saleSeq}, #{rowNo}, #{prodSeq,jdbcType=INTEGER}, #{prodCd,jdbcType=VARCHAR}, #{prodNm,jdbcType=NVARCHAR},
 	     #{spec,jdbcType=NVARCHAR}, #{packQty,jdbcType=DECIMAL}, #{boxQty,jdbcType=DECIMAL}, #{eaQty,jdbcType=DECIMAL},
@@ -5254,6 +5336,7 @@
 	     #{supplyAmt,jdbcType=DECIMAL}, #{vatAmt,jdbcType=DECIMAL}, #{totAmt,jdbcType=DECIMAL},
 	     #{serviceQty,jdbcType=DECIMAL}, #{remark,jdbcType=NVARCHAR}, #{eventYn,jdbcType=CHAR},
 	     #{trxGb,jdbcType=VARCHAR}, #{ledgerSeq,jdbcType=INTEGER}, #{extCd,jdbcType=NVARCHAR},
+	     NULLIF(#{stockCutQty,jdbcType=DECIMAL}, 0),
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
 	]]></insert>
 
@@ -6879,19 +6962,46 @@
 	     대표 매입처 = 가장 최근 입고(IO_GB='I')한 매입처 → 없으면 상품마스터 거래처(재고현황·재고마감과 같은 규칙).
 	     거래중지(STOP_YN='Y') 품목은 뺀다 — 발주서 상품 목록도 그렇게 거른다(poReg loadMasters). -->
 	<select id="selectSafeStockShort" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
-	  SELECT m.PROD_SEQ AS prodSeq, m.PROD_CD AS prodCd, ISNULL(m.PROD_NM,'') AS prodNm, ISNULL(m.SPEC,'') AS spec,
+	  /* ★«주코드» 기준 (2026-10-02 사용자 「추천발주도 주코드가 담기게」) — 재고·입고예정·매입처는 주코드에 쌓인다.
+	       종전엔 적정재고가 든 상품코드 그대로 계산해, 적정재고가 서브코드(매칭코드) 쪽 상품에 들어 있으면 그 서브코드의 재고(대개 0)로 부족을 셌다
+	       (실측 : 1000742588 적정 600 — 주코드 9904013323 재고 474 인데 현재고 0 · 부족 600 으로 나왔다. 맞는 값은 부족 126).
+	     ⇒ 적정재고가 든 상품을 주코드로 바꿔 놓고(매칭코드 대장), 주코드의 상품 정보·재고·입고예정·매입처로 계산한다.
+	       · prodCd = 주코드 · subCd = 적정재고가 서브코드 쪽에만 있을 때 그 서브코드(화면이 [주]/[서브]로 보여 준다), 아니면 빈 값
+	       · 주코드와 서브코드 둘 다 적정재고가 있으면 주코드 것만 남긴다(같은 물건이 두 줄 나오지 않게) */
+	  SELECT m.PROD_SEQ AS prodSeq, m.PROD_CD AS prodCd, ISNULL(m.SUB_CD,'') AS subCd, ISNULL(m.PROD_NM,'') AS prodNm, ISNULL(m.SPEC,'') AS spec,
 	         ISNULL(m.PACK_QTY,1) AS packQty, ISNULL(m.IN_PRICE,0) AS inPrice, ISNULL(m.TAX_GB,'') AS taxGb,
 	         m.SAFE_STOCK AS safeStock, ISNULL(st.curQty,0) AS curQty, ISNULL(pr.remainQty,0) AS poRemainQty,
 	         m.SAFE_STOCK - (CASE WHEN ISNULL(st.curQty,0) < 0 THEN 0 ELSE ISNULL(st.curQty,0) END + ISNULL(pr.remainQty,0)) AS shortQty,
 	         ISNULL(lv.VENDOR_CD, ISNULL(m.VENDOR_CD,'')) AS vendorCd,
 	         ISNULL(vm.VENDOR_NM, CASE WHEN lv.VENDOR_CD IS NULL THEN ISNULL(m.VENDOR_NM,'') ELSE '' END) AS vendorNm
-	    FROM ( SELECT COMP_CD, PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ, MAX(PROD_NM) AS PROD_NM, MAX(SPEC) AS SPEC,
-	                  MAX(PACK_QTY) AS PACK_QTY, MAX(IN_PRICE) AS IN_PRICE, MAX(TAX_GB) AS TAX_GB,
-	                  MAX(ISNULL(SAFE_STOCK,0)) AS SAFE_STOCK, MAX(VENDOR_CD) AS VENDOR_CD, MAX(VENDOR_NM) AS VENDOR_NM
-	             FROM TBL_PROD_MST
-	            WHERE ACTION_YN = 'Y' AND ISNULL(STOP_YN,'N') <> 'Y' AND ISNULL(SAFE_STOCK,0) > 0
-	              AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	            GROUP BY COMP_CD, PROD_CD ) m
+	    FROM ( SELECT z.COMP_CD, z.MAIN_CD AS PROD_CD, z.SUB_CD, z.SAFE_STOCK,
+	                  pn.PROD_SEQ, pn.PROD_NM, pn.SPEC, pn.PACK_QTY, pn.IN_PRICE, pn.TAX_GB, pn.VENDOR_CD, pn.VENDOR_NM
+	             FROM ( SELECT a.COMP_CD, ISNULL(x.mainCd, a.PROD_CD) AS MAIN_CD,
+	                           CASE WHEN x.mainCd IS NULL THEN '' ELSE a.PROD_CD END AS SUB_CD, a.SAFE_STOCK,
+	                           ROW_NUMBER() OVER ( PARTITION BY a.COMP_CD, ISNULL(x.mainCd, a.PROD_CD)
+	                                               ORDER BY CASE WHEN x.mainCd IS NULL THEN 0 ELSE 1 END, a.SAFE_STOCK DESC, a.PROD_CD ) AS rn
+	                      FROM ( SELECT COMP_CD, PROD_CD, MAX(ISNULL(SAFE_STOCK,0)) AS SAFE_STOCK
+	                               FROM TBL_PROD_MST
+	                              WHERE ACTION_YN = 'Y' AND ISNULL(STOP_YN,'N') <> 'Y' AND ISNULL(SAFE_STOCK,0) > 0
+	                                AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                              GROUP BY COMP_CD, PROD_CD ) a
+	                      OUTER APPLY ( SELECT TOP 1 e.PROD_CD AS mainCd
+	                                      FROM TBL_EXT_ITEM_MST e
+	                                     WHERE e.ACTION_YN = 'Y' AND e.COMP_CD = a.COMP_CD
+	                                       AND ( e.EXT_ITEM_CD = a.PROD_CD OR e.ADD_ITEM_CD = a.PROD_CD )
+	                                       AND ISNULL(e.PROD_CD,'') <> '' AND e.PROD_CD <> a.PROD_CD
+	                                       AND EXISTS ( SELECT 1 FROM TBL_PROD_MST q WHERE q.COMP_CD = e.COMP_CD AND q.PROD_CD = e.PROD_CD
+	                                                       AND q.ACTION_YN = 'Y' AND ISNULL(q.STOP_YN,'N') <> 'Y' )
+	                                     ORDER BY CASE WHEN e.EXT_ITEM_CD = a.PROD_CD THEN 0 ELSE 1 END, e.EXT_SEQ DESC ) x ) z
+	             JOIN ( SELECT COMP_CD, PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ, MAX(PROD_NM) AS PROD_NM, MAX(SPEC) AS SPEC,
+	                           MAX(PACK_QTY) AS PACK_QTY, MAX(IN_PRICE) AS IN_PRICE, MAX(TAX_GB) AS TAX_GB,
+	                           MAX(VENDOR_CD) AS VENDOR_CD, MAX(VENDOR_NM) AS VENDOR_NM
+	                      FROM TBL_PROD_MST
+	                     WHERE ACTION_YN = 'Y'
+	                       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                     GROUP BY COMP_CD, PROD_CD ) pn
+	               ON pn.COMP_CD = z.COMP_CD AND pn.PROD_CD = z.MAIN_CD
+	            WHERE z.rn = 1 ) m
 	    LEFT JOIN ( SELECT COMP_CD, PROD_CD,
 	                       SUM(CASE WHEN IO_GB IN ('I','R','A') THEN QTY ELSE -QTY END) AS curQty
 	                  FROM TBL_STOCK_LEDGER WHERE ACTION_YN = 'Y'
@@ -7681,6 +7791,148 @@
 	     SET APPLIED_YN = 'Y', APPLIED_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120)
 	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y' AND ISNULL(APPLIED_YN,'N') <> 'Y'
 	     AND FR_DT <= CONVERT(VARCHAR(8), GETDATE(), 112);
+	]]></update>
+
+	<!-- ============================================================
+	     발주목록 — TBL_PO_REQ (2026-10-02 「대시보드에서 적정재고 미달 표시 · 실행하면 발주서등록을 위한 데이터 발생 ·
+	     발주서등록에서 조회해서 선택 등록 · 미등록/등록 구분 · 발주목록 리스트」) — DDL docs/sql/20261002_po_req.sql
+	     · 만들기 : 서비스 makePoReq 가 selectSafeStockShort(추천 발주와 같은 근거 — 가용 = 현재고 + 입고예정)에서 골라 넣는다.
+	     · 같은 품목의 미등록 줄이 있으면 숫자만 고친다(updatePoReqNums). 실행을 여러 번 눌러도 줄이 안 쌓인다.
+	     · 발주서에 담아 저장하면 markPoReq(등록) · 그 발주서를 지우면 unmarkPoReqByPo(다시 미등록).
+	     ============================================================ -->
+	<!-- 대시보드 「적정재고」 칸 — 적정재고가 있는 상품만(주코드 기준). 가볍게 코드·수량만 -->
+	<select id="selectSafeStockMap" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT PROD_CD AS prodCd, MAX(ISNULL(SAFE_STOCK,0)) AS safeStock
+	    FROM TBL_PROD_MST
+	   WHERE ACTION_YN = 'Y' AND ISNULL(SAFE_STOCK,0) > 0
+	     AND COMP_CD = #{compCd,jdbcType=VARCHAR}
+	   GROUP BY PROD_CD
+	]]></select>
+	<!-- ★발주목록은 «주코드»로 넣는다 (2026-10-02 사용자 「대시보드에서 발주등록은 주코드가 들어가게」) —
+	     selectMainCdOfExt : 그 코드가 다른 상품의 매칭코드(품목코드·추가 매칭코드)이면 그 주코드를 준다(주코드 상품이 살아 있을 때만). 아니면 0건.
+	     selectPoReqCalc   : 품목 하나의 계산 근거 — 상품 정보 · 적정재고 · 현재고(수불원장 합) · 입고예정(발주 잔량) · 대표 매입처. selectSafeStockShort 와 같은 식을 한 품목에 쓴 것.
+	                         적정재고가 0 이어도 돌려준다 — 적정재고가 서브코드 쪽에만 들어 있는 품목은 서비스가 서브코드의 적정재고를 가져와 주코드의 재고로 계산한다. -->
+	<select id="selectMainCdOfExt" parameterType="java.util.Map" resultType="java.lang.String"><![CDATA[
+	  SELECT TOP 1 e.PROD_CD
+	    FROM TBL_EXT_ITEM_MST e
+	   WHERE e.ACTION_YN = 'Y' AND e.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND ( e.EXT_ITEM_CD = #{prodCd,jdbcType=NVARCHAR} OR e.ADD_ITEM_CD = #{prodCd,jdbcType=NVARCHAR} )
+	     AND ISNULL(e.PROD_CD,'') <> '' AND e.PROD_CD <> #{prodCd,jdbcType=NVARCHAR}
+	     AND EXISTS ( SELECT 1 FROM TBL_PROD_MST p WHERE p.COMP_CD = e.COMP_CD AND p.PROD_CD = e.PROD_CD AND p.ACTION_YN = 'Y' )
+	   ORDER BY CASE WHEN e.EXT_ITEM_CD = #{prodCd,jdbcType=NVARCHAR} THEN 0 ELSE 1 END, e.EXT_SEQ DESC
+	]]></select>
+	<select id="selectPoReqCalc" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT m.PROD_SEQ AS prodSeq, m.PROD_CD AS prodCd, ISNULL(m.PROD_NM,'') AS prodNm, ISNULL(m.SPEC,'') AS spec,
+	         ISNULL(m.PACK_QTY,1) AS packQty, ISNULL(m.IN_PRICE,0) AS inPrice, ISNULL(m.TAX_GB,'') AS taxGb,
+	         ISNULL(m.SAFE_STOCK,0) AS safeStock, ISNULL(m.STOP_YN,'N') AS stopYn,
+	         ISNULL(( SELECT SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY ELSE -l.QTY END)
+	                    FROM TBL_STOCK_LEDGER l WHERE l.ACTION_YN = 'Y' AND l.COMP_CD = m.COMP_CD AND l.PROD_CD = m.PROD_CD ), 0) AS curQty,
+	         ISNULL(( SELECT SUM(ISNULL(D.QTY,0) - ISNULL(R.inQty,0))
+	                    FROM TBL_PO_DTL D
+	                    JOIN TBL_PO_MST PO ON PO.PO_SEQ = D.PO_SEQ AND PO.ACTION_YN = 'Y' AND PO.COMP_CD = D.COMP_CD   /* 별칭을 M 으로 두면 바깥 m(TBL_PROD_MST)을 가린다 - 대소문자를 안 가린다 */
+	                    OUTER APPLY ( SELECT SUM(CASE WHEN P.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(P.QTY,0) ELSE ISNULL(P.QTY,0) END) AS inQty
+	                                    FROM TBL_PURCHASE_DTL P
+	                                    JOIN TBL_PURCHASE_MST PM ON PM.PURCH_SEQ = P.PURCH_SEQ AND PM.ACTION_YN = 'Y'
+	                                   WHERE P.PO_DTL_SEQ = D.PO_DTL_SEQ AND P.ACTION_YN = 'Y' ) R
+	                   WHERE D.ACTION_YN = 'Y' AND ISNULL(D.CLOSE_YN,'N') = 'N' AND D.COMP_CD = m.COMP_CD AND D.PROD_CD = m.PROD_CD
+	                     AND ISNULL(D.QTY,0) - ISNULL(R.inQty,0) > 0 ), 0) AS poRemainQty,
+	         ISNULL(lv.VENDOR_CD, ISNULL(m.VENDOR_CD,'')) AS vendorCd,
+	         ISNULL(vm.VENDOR_NM, CASE WHEN lv.VENDOR_CD IS NULL THEN ISNULL(m.VENDOR_NM,'') ELSE '' END) AS vendorNm
+	    FROM TBL_PROD_MST m
+	    OUTER APPLY ( SELECT TOP 1 l2.VENDOR_CD FROM TBL_STOCK_LEDGER l2
+	                   WHERE l2.ACTION_YN = 'Y' AND l2.IO_GB = 'I' AND ISNULL(l2.VENDOR_CD,'') <> '' AND l2.COMP_CD = m.COMP_CD AND l2.PROD_CD = m.PROD_CD
+	                   ORDER BY l2.TRX_DT DESC, l2.LEDGER_SEQ DESC ) lv
+	    OUTER APPLY ( SELECT TOP 1 v.VENDOR_NM FROM TBL_VENDOR_MST v
+	                   WHERE v.ACTION_YN = 'Y' AND v.COMP_CD = m.COMP_CD AND v.VENDOR_CD = ISNULL(lv.VENDOR_CD, m.VENDOR_CD) ) vm
+	   WHERE m.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR} AND m.PROD_CD = #{prodCd,jdbcType=NVARCHAR}
+	     AND m.PROD_SEQ = ( SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.COMP_CD = m.COMP_CD AND p2.PROD_CD = m.PROD_CD AND p2.ACTION_YN = 'Y' )
+	]]></select>
+	<!-- 대시보드 「적정」 칸 바탕색 (2026-10-02 사용자 「발주목록 올린 것은 하늘색 · 아직 안 올린 것은 주황색」) — 발주목록에 «올라가 있는» 품목(주코드).
+	     · regYn 'N' = 미등록(발주목록에만 있음) · 'Y' = 발주서에 등록됐고 아직 덜 들어옴(그 발주서 줄의 잔량이 남아 있고 마감 안 됨).
+	       한 품목에 둘 다 있으면 'N'(MIN). 등록된 뒤 다 들어온(또는 발주서가 지워진) 줄은 뺀다 — 그 뒤 다시 모자라면 «안 올린 것»으로 보여야 한다. -->
+	<select id="selectPoReqCodes" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT r.PROD_CD AS prodCd, MIN(r.REG_YN) AS regYn
+	    FROM TBL_PO_REQ r
+	   WHERE r.ACTION_YN = 'Y' AND r.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND ( r.REG_YN = 'N'
+	        OR EXISTS ( SELECT 1
+	                      FROM TBL_PO_DTL D
+	                      JOIN TBL_PO_MST PO ON PO.PO_SEQ = D.PO_SEQ AND PO.ACTION_YN = 'Y' AND PO.COMP_CD = D.COMP_CD
+	                      OUTER APPLY ( SELECT SUM(CASE WHEN P.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(P.QTY,0) ELSE ISNULL(P.QTY,0) END) AS inQty
+	                                      FROM TBL_PURCHASE_DTL P
+	                                      JOIN TBL_PURCHASE_MST PM ON PM.PURCH_SEQ = P.PURCH_SEQ AND PM.ACTION_YN = 'Y'
+	                                     WHERE P.PO_DTL_SEQ = D.PO_DTL_SEQ AND P.ACTION_YN = 'Y' ) RI   /* R 로 두면 바깥 r(TBL_PO_REQ)을 가린다 - 대소문자를 안 가린다 */
+	                     WHERE D.PO_SEQ = r.PO_SEQ AND D.ACTION_YN = 'Y' AND ISNULL(D.CLOSE_YN,'N') = 'N' AND D.PROD_CD = r.PROD_CD
+	                       AND ISNULL(D.QTY,0) - ISNULL(RI.inQty,0) > 0 ) )
+	   GROUP BY r.PROD_CD
+	]]></select>
+	<select id="selectPoReqOpenByProd" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 1 REQ_SEQ AS reqSeq
+	    FROM TBL_PO_REQ
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND PROD_CD = #{prodCd,jdbcType=NVARCHAR} AND REG_YN = 'N' AND ACTION_YN = 'Y'
+	   ORDER BY REQ_SEQ DESC
+	]]></select>
+	<insert id="insertPoReq" parameterType="java.util.Map"><![CDATA[
+	  INSERT INTO TBL_PO_REQ
+	    (COMP_CD, REQ_DT, PROD_SEQ, PROD_CD, PROD_NM, SPEC, PACK_QTY, IN_PRICE, TAX_GB, SAFE_STOCK, CUR_QTY, PO_REMAIN_QTY, SHORT_QTY, REQ_QTY,
+	     VENDOR_CD, VENDOR_NM, SRC_DLV_DT, REG_YN, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES
+	    (#{compCd,jdbcType=VARCHAR}, CONVERT(VARCHAR(8), GETDATE(), 112), #{prodSeq,jdbcType=BIGINT}, #{prodCd,jdbcType=NVARCHAR}, #{prodNm,jdbcType=NVARCHAR}, #{spec,jdbcType=NVARCHAR},
+	     #{packQty,jdbcType=DECIMAL}, #{inPrice,jdbcType=DECIMAL}, #{taxGb,jdbcType=NVARCHAR}, #{safeStock,jdbcType=DECIMAL}, #{curQty,jdbcType=DECIMAL},
+	     #{poRemainQty,jdbcType=DECIMAL}, #{shortQty,jdbcType=DECIMAL}, #{reqQty,jdbcType=DECIMAL},
+	     NULLIF(#{vendorCd,jdbcType=NVARCHAR},''), NULLIF(#{vendorNm,jdbcType=NVARCHAR},''), NULLIF(#{srcDlvDt,jdbcType=CHAR},''),
+	     'N', 'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR})
+	]]></insert>
+	<update id="updatePoReqNums" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_PO_REQ
+	     SET REQ_DT = CONVERT(VARCHAR(8), GETDATE(), 112), PROD_NM = #{prodNm,jdbcType=NVARCHAR}, SPEC = #{spec,jdbcType=NVARCHAR},
+	         PACK_QTY = #{packQty,jdbcType=DECIMAL}, IN_PRICE = #{inPrice,jdbcType=DECIMAL}, TAX_GB = #{taxGb,jdbcType=NVARCHAR},
+	         SAFE_STOCK = #{safeStock,jdbcType=DECIMAL}, CUR_QTY = #{curQty,jdbcType=DECIMAL}, PO_REMAIN_QTY = #{poRemainQty,jdbcType=DECIMAL},
+	         SHORT_QTY = #{shortQty,jdbcType=DECIMAL}, REQ_QTY = #{reqQty,jdbcType=DECIMAL},
+	         VENDOR_CD = NULLIF(#{vendorCd,jdbcType=NVARCHAR},''), VENDOR_NM = NULLIF(#{vendorNm,jdbcType=NVARCHAR},''),
+	         SRC_DLV_DT = NULLIF(#{srcDlvDt,jdbcType=CHAR},''),
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=NVARCHAR}
+	   WHERE REQ_SEQ = #{reqSeq} AND COMP_CD = #{compCd,jdbcType=VARCHAR} AND REG_YN = 'N' AND ACTION_YN = 'Y'
+	]]></update>
+	<!-- 발주서 관리 [📋 발주목록 리스트] — regYn : 'N' 미등록 · 'Y' 등록 · 빈 값 = 전체. 등록 줄에는 담긴 발주서 번호·거래처를 붙인다 -->
+	<select id="selectPoReqList" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT r.REQ_SEQ AS reqSeq, r.REQ_DT AS reqDt, r.PROD_SEQ AS prodSeq, r.PROD_CD AS prodCd, ISNULL(r.PROD_NM,'') AS prodNm, ISNULL(r.SPEC,'') AS spec,
+	         ISNULL(r.PACK_QTY,1) AS packQty, ISNULL(r.IN_PRICE,0) AS inPrice, ISNULL(r.TAX_GB,'') AS taxGb,
+	         ISNULL(r.SAFE_STOCK,0) AS safeStock, ISNULL(r.CUR_QTY,0) AS curQty, ISNULL(r.PO_REMAIN_QTY,0) AS poRemainQty,
+	         ISNULL(r.SHORT_QTY,0) AS shortQty, ISNULL(r.REQ_QTY,0) AS reqQty,
+	         ISNULL(r.VENDOR_CD,'') AS vendorCd, ISNULL(r.VENDOR_NM,'') AS vendorNm, ISNULL(r.SRC_DLV_DT,'') AS srcDlvDt,
+	         r.REG_YN AS regYn, r.PO_SEQ AS poSeq, ISNULL(r.PO_REG_DTTM,'') AS poRegDttm,
+	         ISNULL(pm.PO_DT,'') AS poDt, ISNULL(pm.PO_NO,'') AS poNo, ISNULL(pm.VENDOR_NM,'') AS poVendorNm,
+	         ISNULL(r.REG_DTTM,'') AS regDttm, ISNULL(r.REG_USER,'') AS regUser
+	    FROM TBL_PO_REQ r
+	    LEFT JOIN TBL_PO_MST pm ON pm.PO_SEQ = r.PO_SEQ AND pm.ACTION_YN = 'Y'
+	   WHERE r.ACTION_YN = 'Y' AND r.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{regYn,jdbcType=VARCHAR},'') = '' OR r.REG_YN = #{regYn,jdbcType=VARCHAR} )
+	   ORDER BY r.REG_YN, r.REQ_SEQ DESC
+	]]></select>
+	<update id="markPoReq" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_PO_REQ
+	     SET REG_YN = 'Y', PO_SEQ = #{poSeq,jdbcType=BIGINT}, PO_REG_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), PO_REG_USER = #{regUser,jdbcType=NVARCHAR},
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=NVARCHAR}
+	   WHERE REQ_SEQ = #{reqSeq} AND COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
+	]]></update>
+	<update id="unmarkPoReqByPo" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_PO_REQ
+	     SET REG_YN = 'N', PO_SEQ = NULL, PO_REG_DTTM = NULL, PO_REG_USER = NULL,
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=NVARCHAR}
+	   WHERE PO_SEQ = #{poSeq} AND COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y' AND REG_YN = 'Y'
+	]]></update>
+	<!-- 대시보드에서 품목 하나 취소 (2026-10-02 사용자 「개별로 들어가게 하고 여기에서 발주목록 저장 취소도」) — 그 품목(주코드)의 미등록 줄을 지운다. 등록된 줄은 안 건드린다 -->
+	<update id="deletePoReqByProd" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_PO_REQ
+	     SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=NVARCHAR}
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND PROD_CD = #{prodCd,jdbcType=NVARCHAR} AND ACTION_YN = 'Y' AND REG_YN = 'N'
+	]]></update>
+	<!-- 미등록 줄만 지운다(등록된 줄은 그 발주서의 근거라 남긴다) -->
+	<update id="deletePoReq" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_PO_REQ
+	     SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=NVARCHAR}
+	   WHERE REQ_SEQ = #{reqSeq} AND COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y' AND REG_YN = 'N'
 	]]></update>
 
 </mapper>

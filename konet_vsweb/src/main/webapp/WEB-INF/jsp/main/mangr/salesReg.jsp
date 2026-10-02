@@ -70,10 +70,10 @@
        · 화면이 그보다 넓으면 width:100% 로 <우측 끝까지> 늘어난다 — 남는 폭은 두 표가
          같은 비율로 나눠 갖고, scrollbar-gutter 로 세로 스크롤바 자리도 똑같이 예약하므로
          어느 쪽도 밀리지 않는다(종전엔 그리드만 스크롤바만큼 좁아져 칸이 어긋났다). */
-  .sa-foot table{ width:100%; min-width:1764px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
+  .sa-foot table{ width:100%; min-width:1834px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .sa-foot td{ border:1px solid var(--sa-bd); padding:6px 4px; text-align:center; background:#137a6c; color:#fff; font-weight:800; }
   .sa-foot td.num{ text-align:right; }
-  .sa-grid table{ width:100%; min-width:1764px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
+  .sa-grid table{ width:100%; min-width:1834px; table-layout:fixed; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .sa-grid th{ background:#f4dcbc; color:#6f4200; font-weight:800; box-shadow:inset 0 -2px 0 #b06a00; border:1px solid var(--sa-bd); padding:7px 6px; position:sticky; top:0; z-index:2; }
   /* 컬럼 폭 조절 손잡이 — 머리글 오른쪽 경계를 끌면 그 칼럼이 늘고 줄어든다(2026-08-04 요청).
      합계줄 colgroup 도 같이 움직여 칸 맞춤이 유지된다(saColResize). */
@@ -218,7 +218,7 @@
   <div style="display:flex; align-items:flex-start; gap:12px">
     <div style="flex:1 1 auto; min-width:0">
       <h2>🧾 판매등록</h2>
-      <div class="sa-sub">정산서 밖에서 <b>직접 판 건</b>을 입력합니다. 저장 시 <b>재고가 출고</b>로 빠지고 거래처 원장의 매출·미수에 잡힙니다.</div>
+      <div class="sa-sub">정산서 밖에서 <b>직접 판 건</b>을 입력합니다. 저장 시 <b>재고가 출고</b>로 빠지고 거래처 원장의 매출·미수에 잡힙니다. <b>출고차감</b>을 넣은 줄은 재고가 (합계수량 − 출고차감)만 빠집니다(금액·명세서는 그대로).</div>
     </div>
     <%-- 설명은 버튼 '앞(왼쪽)' — 버튼 아래에 두면 아래 입력카드와 붙어 읽기 나빴다(2026-08-01 요청) --%>
     <div style="flex:0 0 auto; display:flex; align-items:center; gap:10px">
@@ -266,11 +266,14 @@
          가로 스크롤은 JS 로 동기화한다. --%>
     <div class="sa-grid" id="saGridWrap">
       <table>
-        <colgroup><col style="width:38px"><col style="width:106px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
+        <colgroup><col style="width:38px"><col style="width:106px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:70px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
         <thead><tr>
           <th>No</th><th title="✖ 이 줄 삭제 · ＋ 이 줄 위에 삽입 · ▲▼ 순서 바꾸기">행(✖/＋/▲▼)</th><th>상품코드</th><th>품명(단가이력조회)</th>
           <th>[입수량]규격</th><th>BOX수량</th><th>EA수량</th>
-          <th>합계수량</th><th>단가</th><th>금액</th>
+          <%-- ★출고차감 (2026-10-02 사용자 「수량은 입력하지만 재고에서는 덜 나가는 것으로 — (정상 출고수량 − 출고차감) · 외부 나가는 것은 모두 정상 출고수량 ·
+               매출금액은 유지 · 합계수량 뒤에 표시」) — 재고 원장에는 (합계수량 − 출고차감)만 나간다. 수량·단가·금액·거래명세서는 합계수량 그대로.
+               ⚠칸이 하나 늘었다 — 두 colgroup · 합계줄 · saFldApply 의 칸 번호(서비스 15 · 비고 16)를 함께 고쳤다. DDL docs/sql/20261002_sales_trx_stockcut.sql --%>
+          <th>합계수량</th><th title="재고에서 덜 나가게 할 수량 — 재고는 (합계수량 − 출고차감)만 빠집니다. 금액·거래명세서는 합계수량 그대로입니다">출고차감</th><th>단가</th><th>금액</th>
           <th>DC</th><th>공급가</th><th>부가세</th>
           <th>판매금액</th><th>서비스</th><th>비고</th>
           <th>행사</th><th>거래구분</th>
@@ -281,10 +284,10 @@
     <div id="saGridPager" style="padding:5px 2px 0; text-align:center; min-height:22px"></div>
     <div class="sa-foot" id="saFootWrap">
       <table>
-        <colgroup><col style="width:38px"><col style="width:106px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
+        <colgroup><col style="width:38px"><col style="width:106px"><col style="width:110px"><col style="width:320px"><col style="width:140px"><col style="width:70px"><col style="width:70px"><col style="width:80px"><col style="width:70px"><col style="width:85px"><col style="width:95px"><col style="width:70px"><col style="width:95px"><col style="width:85px"><col style="width:100px"><col style="width:60px"><col style="width:110px"><col style="width:50px"><col style="width:80px"></colgroup>
         <tbody><tr class="tot">
           <td colspan="5">■ 합계</td>
-          <td class="num" id="tBox">0</td><td class="num" id="tEa">0</td><td class="num" id="tQty">0</td>
+          <td class="num" id="tBox">0</td><td class="num" id="tEa">0</td><td class="num" id="tQty">0</td><td class="num" id="tCut" title="출고차감 합계 — 재고에서 덜 나가는 수량"></td>
           <td></td><td class="num" id="tAmt">0</td><td class="num" id="tDc">0</td>
           <td class="num" id="tSup">0</td><td class="num" id="tVat">0</td><td class="num" id="tTot">0</td>
           <td class="num" id="tSvc">0</td><td colspan="3"></td>
@@ -1120,8 +1123,8 @@ function saClosedAsk(dts, what){
    ★값은 _rows 에 그대로 있어 저장된다(줄에서는 입력칸 대신 빈 칸 td.fh 를 그린다 — saRender). */
 (function saFldApply(){
   var hide = [];
-  if (!SVC_FLD) hide.push(14);     // 0:No 1:행 2:코드 3:품명 4:규격 5:BOX 6:EA 7:합계 8:단가 9:금액 10:DC 11:공급가 12:부가세 13:판매금액 14:서비스 15:비고
-  if (!RMK_FLD) hide.push(15);
+  if (!SVC_FLD) hide.push(15);     // 0:No 1:행 2:코드 3:품명 4:규격 5:BOX 6:EA 7:합계 8:출고차감 9:단가 10:금액 11:DC 12:공급가 13:부가세 14:판매금액 15:서비스 16:비고 (출고차감이 들어와 하나씩 밀림 · 2026-10-02)
+  if (!RMK_FLD) hide.push(16);
   if (!hide.length) return;
   ['saGridWrap','saFootWrap'].forEach(function(id){
     var w = document.getElementById(id); if (!w) return;
@@ -1235,7 +1238,7 @@ function saNew(){
   saFocusFirstProd();                    // 진입 즉시 첫 상품칸에 커서(2026-08-04)
 }
 function emptyRow(){ return { prodCd:'', prodNm:'', spec:'', packQty:1, boxQty:0, eaQty:0, qty:0, unitPrice:0, amt:0, dcAmt:0,
-                              supplyAmt:0, vatAmt:0, totAmt:0, serviceQty:0, remark:'', eventYn:'N', trxGb:'판매', taxGb:'과세' }; }
+                              supplyAmt:0, vatAmt:0, totAmt:0, serviceQty:0, stockCutQty:0, remark:'', eventYn:'N', trxGb:'판매', taxGb:'과세' }; }
 function saNextNo(){
   var dt = document.getElementById('saDt').value;
   if (!dt || _cur) return;
@@ -1348,6 +1351,11 @@ function saRender(){
       + '<td><input inputmode="'+(QTY_DEC?'decimal':'numeric')+'" data-r="'+i+'" data-f="boxQty" value="'+(n(o.boxQty)*sg)+'" onchange="saSet('+i+',\'boxQty\',this.value)"></td>'
       + '<td><input inputmode="'+(QTY_DEC?'decimal':'numeric')+'" data-r="'+i+'" data-f="eaQty" value="'+(n(o.eaQty)*sg)+'" onchange="saSet('+i+',\'eaQty\',this.value)"></td>'
       + '<td class="num">'+fmtQ(n(o.qty)*sg)+'</td>'
+      /* 출고차감 (2026-10-02) — 값이 있으면 주황으로 도드라지게 + 「재고에서는 n 만 나갑니다」 */
+      + '<td><input inputmode="'+(QTY_DEC?'decimal':'numeric')+'" data-r="'+i+'" data-f="stockCutQty" value="'+(n(o.stockCutQty)?n(o.stockCutQty):'')+'" placeholder="0"'
+      +   (n(o.stockCutQty)>0 ? ' style="color:#b45309;font-weight:700;background:#fff7e6" title="재고에서는 '+fmtQ(n(o.qty)-n(o.stockCutQty))+' 만 '+(isRtn(o.trxGb)?'돌아옵니다':'나갑니다')+' (합계수량 '+fmtQ(o.qty)+' − 출고차감 '+fmtQ(o.stockCutQty)+'). 금액·거래명세서는 합계수량 그대로입니다"'
+                              : ' title="재고에서 덜 나가게 할 수량 — 금액·거래명세서는 합계수량 그대로이고 재고만 (합계수량 − 출고차감)으로 나갑니다"')
+      +   ' onchange="saSet('+i+',\'stockCutQty\',this.value)"></td>'
       /* 단가·DC 는 천단위 콤마로 보여 준다(2026-08-04 "단가 단위구분") — n() 이 콤마를 지우므로 계산은 그대로다 */
       + '<td><input inputmode="'+(PRICE_DEC?'decimal':'numeric')+'" data-r="'+i+'" data-f="unitPrice" value="'+fmtP(o.unitPrice)+'" onchange="saSet('+i+',\'unitPrice\',this.value)"></td>'
       + '<td class="num">'+fmt(n(o.amt)*sg)+'</td>'
@@ -1381,6 +1389,7 @@ function saSet(i, k, v){
   /* 회사 설정(2026-09-11) — 단가·수량 소수점을 안 쓰면 친 값을 반올림한다 */
   if (k==='unitPrice' && !PRICE_DEC) o[k] = Math.round(o[k]);
   if ((k==='boxQty'||k==='eaQty') && !QTY_DEC) o[k] = Math.round(o[k]);
+  if (k==='stockCutQty') { o[k] = Math.abs(o[k]); if (!QTY_DEC) o[k] = Math.round(o[k]); }   /* 출고차감 — 양수만. 합계수량을 넘으면 saCalcRow 가 합계수량으로 자른다 (2026-10-02) */
   if (k==='dcAmt') { o._dcAuto = false; o._dcByAuto = false; }   // DC 를 손으로 고치면 그 줄은 자동 DC 를 멈춘다
   /* ★수량에 음수를 치면 「반품 + 양수」로 (2026-09-05, 매입등록과 같은 규칙) — 줄이 음수면 합계·저장 머리·SQL 에서
        「반품이면 −」가 한 번 더 붙어 부호가 두 번 뒤집힌다(매입등록 2026-07-29/0005 실사고) */
@@ -1398,6 +1407,7 @@ function saCalcRow(o){
      예) [9]1.5kg 에 BOX 2 → 합계 18 → 금액 = 18 × 단가. (종전 2026-08-01 「합계 = EA, 입수 환산 안 함」은 폐기) */
   o.qty = n(o.boxQty) * (n(o.packQty)||1) + n(o.eaQty);
   if (QTY_DEC) o.qty = Math.round(o.qty * 1000) / 1000;       // 소수 수량이면 부동소수 찌꺼기(0.30000000004) 제거
+  o.stockCutQty = Math.min(Math.abs(n(o.stockCutQty)), o.qty);   /* 출고차감은 합계수량을 넘지 못한다 — 수량을 줄이면 따라 준다 (2026-10-02 · 서버도 같은 다듬기) */
   /* 거래처 DC율 자동 (2026-09-11 회사 정보 수정 「기능」) — DC 사용 = 예 인 거래처만.
        ★저장된 전표를 불러온 줄(_dcAuto=false)·손으로 DC 를 고친 줄은 건드리지 않는다.
        ★DC율이 0 인 거래처로 바꾸면 자동으로 넣었던 DC 만 걷어낸다(손으로 넣은 DC·이력으로 온 DC 는 그대로). */
@@ -1489,6 +1499,7 @@ function saCalc(){
     if(!o.prodCd) return;
     var sign = isRtn(o.trxGb) ? -1 : 1;
     t.box += n(o.boxQty)*sign; t.ea += n(o.eaQty)*sign; t.qty += n(o.qty)*sign;
+    t.cut = (t.cut||0) + n(o.stockCutQty)*sign;   /* 출고차감 합계 (2026-10-02) */
     t.amt += n(o.amt)*sign; t.dc += n(o.dcAmt); t.sup += n(o.supplyAmt)*sign;
     t.vat += n(o.vatAmt)*sign; t.tot += n(o.totAmt)*sign; t.svc += n(o.serviceQty);
   });
@@ -1497,6 +1508,7 @@ function saCalc(){
   document.getElementById('tDc').textContent=fmt(t.dc);   document.getElementById('tSup').textContent=fmt(t.sup);
   document.getElementById('tVat').textContent=fmt(t.vat); document.getElementById('tTot').textContent=fmt(t.tot);
   document.getElementById('tSvc').textContent=fmt(t.svc);
+  var tce=document.getElementById('tCut'); if(tce) tce.textContent = t.cut ? fmtQ(t.cut) : '';
   /* 거래후잔고 = 현잔고 − (이 전표가 이미 반영해 둔 금액) + (지금 화면 금액)
        · 신규     : _curNet = 0 → 현잔고 + 이번 전표
        · 수정 중  : 고친 만큼만 움직인다. 아무것도 안 고치면 현잔고와 같다

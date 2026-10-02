@@ -265,6 +265,13 @@ public interface UserMapper {
 	int updateTdPoBizByName(java.util.Map<String,Object> p) throws Exception;                                             // 2026-09-22 저장 뒤 사업장코드 수정
 	int updateTdPoItemByName(java.util.Map<String,Object> p) throws Exception;                                            // 2026-09-22 저장 뒤 품목코드 수정
 	int updateTdPoPrice(java.util.Map<String,Object> p) throws Exception;                                                 // 2026-09-22 토더 = 매출 — 판매가(부가세 포함)
+	/* 대상 발주 등록 (2026-10-02) — 토더와 같은 종류(TD), 출고장 DAESANG */
+	java.util.List<java.util.Map<String,Object>> selectDsPoList(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDsPoMap(java.util.Map<String,Object> p) throws Exception;
+	int updateDsPoExtra(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectDsPoRowFull(java.util.Map<String,Object> p) throws Exception;
+	int closeDsPo(java.util.Map<String,Object> p) throws Exception;
+	int selectDsPoDup(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectTdPoRow(java.util.Map<String,Object> p) throws Exception;                          // 2026-09-22 반품 = 수정 — 고치기 전 값
 	int updateTdPoRow(java.util.Map<String,Object> p) throws Exception;                                                   // 2026-09-22 반품 = 수정 — 수량·판매가
 	// 견적서 관리 (2026-09-17) — TBL_QUOTE_MST/DTL
@@ -492,5 +499,19 @@ public interface UserMapper {
 	int insertProdContract(java.util.Map<String,Object> p) throws Exception;
 	int deleteProdContract(java.util.Map<String,Object> p) throws Exception;
 	int applyDueProdContract(java.util.Map<String,Object> p) throws Exception;   // 날짜가 된 계약단가 → 상품코드 판매단가
+
+	/* 발주목록 (2026-10-02) — TBL_PO_REQ */
+	java.util.List<java.util.Map<String,Object>> selectSafeStockMap(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectPoReqOpenByProd(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPoReqCodes(java.util.Map<String,Object> p) throws Exception;   // 발주목록에 올라가 있는 품목(주코드)
+	String selectMainCdOfExt(java.util.Map<String,Object> p) throws Exception;                         // 매칭코드 → 주코드 (없으면 null)
+	java.util.Map<String,Object> selectPoReqCalc(java.util.Map<String,Object> p) throws Exception;     // 품목 하나의 발주 계산 근거
+	int insertPoReq(java.util.Map<String,Object> p) throws Exception;
+	int updatePoReqNums(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPoReqList(java.util.Map<String,Object> p) throws Exception;
+	int markPoReq(java.util.Map<String,Object> p) throws Exception;
+	int unmarkPoReqByPo(java.util.Map<String,Object> p) throws Exception;
+	int deletePoReq(java.util.Map<String,Object> p) throws Exception;
+	int deletePoReqByProd(java.util.Map<String,Object> p) throws Exception;   // 품목 하나의 미등록 줄 지우기(대시보드에서 취소)
 
 }

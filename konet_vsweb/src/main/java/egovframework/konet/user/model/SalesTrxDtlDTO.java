@@ -34,6 +34,9 @@ public class SalesTrxDtlDTO {
     private Double  vatAmt;
     private Double  totAmt;
     private Double  serviceQty;    // 서비스(무상) 수량
+    /* 출고차감 (2026-10-02) — 이 줄에서 «재고로는 안 나가는» 수량. 재고 원장에는 (qty − stockCutQty)만 나간다.
+       수량·금액은 그대로라 매출·거래명세서는 정상 수량으로 나간다. DDL docs/sql/20261002_sales_trx_stockcut.sql */
+    private Double  stockCutQty;
     private String  remark;        // ★ 단가 조회 시에는 거래처코드를 담아 보낸다(매입과 같은 방식)
     private String  eventYn;
     private String  trxGb;         // 판매 | 반품
@@ -96,6 +99,8 @@ public class SalesTrxDtlDTO {
     public void setTotAmt(Double totAmt) { this.totAmt = totAmt; }
     public Double getServiceQty() { return serviceQty; }
     public void setServiceQty(Double serviceQty) { this.serviceQty = serviceQty; }
+    public Double getStockCutQty() { return stockCutQty; }
+    public void setStockCutQty(Double stockCutQty) { this.stockCutQty = stockCutQty; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
     public String getEventYn() { return eventYn; }

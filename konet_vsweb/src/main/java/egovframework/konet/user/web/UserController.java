@@ -1703,6 +1703,152 @@ public class UserController {
 				return ResponseEntity.ok("1" + (warn == null ? "" : "|STOCKFAIL:" + warn));
 			} catch (Exception e) { log.error(" toderPoRow ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
+		/* ================= 대상 발주 등록 (2026-10-02 사용자 「토더처럼 대상이라는 곳에서 이메일로 엑셀을 캡쳐해서 옵니다 … 매출관리에 대상발주등록 추가 … 매출은 토더처럼 발생하게」) =================
+		   대상(대상주식회사)의 배송요청 표(받는 사람·주소·전화·수량·제품코드·제품명)를 화면에서 붙여넣거나 쳐서 TBL_SHIPOUT_MST 에 넣는다.
+		   · 토더와 같은 종류(PROD_KIND='TD')에 출고장만 DAESANG — 매출·재고·마감·채권 조회를 안 고치고 토더와 똑같이 선다(매퍼 selectDsPoList 머리말).
+		   · 금액·발주일자가 없다 → 화면이 상품코드 판매가를 채우고 사람이 발주일자(납품일자)·품목코드·단가를 넣는다. 받는 사람은 배송 정보로만(RCV_* 칸).
+		   · 사업장 = 화면에서 고른 대상 사업장 하나. 매출 거래처 = DC_CD 가 DAESANG 인 거래처(대상주식회사). ⛔DDL docs/sql/20261002_daesang_po.sql 먼저.
+		   · 응답은 모두 JSON(Map) — 문자열(text/plain) 응답은 변환기가 없어 저장 뒤에 500 이 난다. */
+		@RequestMapping(value="/shipout/daesangPo.do")
+		public String daesangPo(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/daesangPo";
+		}
+		private static String dsCut(String s, int n) { return s.length() > n ? s.substring(0, n) : s; }
+		private static String dsErr(Exception e, String what) {
+			String m = e.getMessage() == null ? "" : e.getMessage();
+			if (m.contains("RCV_")) return what + " — DB 에 배송 정보 칸이 없습니다. docs/sql/20261002_daesang_po.sql 을 먼저 실행해 주세요.";
+			return what + (m.trim().isEmpty() ? "" : " : " + (m.length() > 200 ? m.substring(0, 200) : m));
+		}
+		@RequestMapping(value="/shipout/daesangPoMap.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> daesangPoMap(HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); Map<String,String> item = new HashMap<String,String>();
+			try {
+				if (session.getAttribute("s_comp_cd") != null) {
+					Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd"));
+					for (Map<String,Object> r : svc.selectDsPoMap(q)) item.put(poStr(r.get("nm")), poStr(r.get("cd")));
+				}
+			} catch (Exception e) { log.error(" daesangPoMap ERROR : " + e.getMessage()); }
+			res.put("item", item);
+			return res;
+		}
+		@RequestMapping(value="/shipout/daesangPoList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> daesangPoList(@RequestParam(value="frDt", required=false) String fr, @RequestParam(value="toDt", required=false) String to, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("frDt", fr); q.put("toDt", to);
+				res.put("data", svc.selectDsPoList(q));
+			} catch (Exception e) { log.error(" daesangPoList ERROR : " + e.getMessage()); res.put("data", new java.util.ArrayList<Object>()); res.put("error", dsErr(e, "조회하지 못했습니다")); }
+			return res;
+		}
+		/* 저장 — {bizCd, bizNm, fileNm, force:'Y'|'', rows:[{dlvDt, rcvNm, rcvAddr, rcvTel, rcvTel2, qty, rcvItemCd, itemNm, itemCd, price}]}
+		   응답 = {cnt, warn?} · 거절 {error} · 같은 줄이 이미 있으면 {dup:n}(화면이 물은 뒤 force='Y' 로 다시 보낸다) */
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/shipout/daesangPoSave.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> daesangPoSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				String ip = request.getRemoteAddr();
+				String bizCd = poStr(p.get("bizCd")), bizNm = poStr(p.get("bizNm")), fileNm = poStr(p.get("fileNm"));
+				boolean force = "Y".equals(poStr(p.get("force")));
+				if (bizCd.isEmpty() || bizNm.isEmpty()) { res.put("error", "사업장(대상)을 고르세요."); return res; }
+				java.util.List<Map<String,Object>> in = (java.util.List<Map<String,Object>>) p.get("rows");
+				String ordNo = "DS" + new java.text.SimpleDateFormat("yyMMddHHmmss").format(new java.util.Date());   // 발주번호가 없다 — 저장 묶음 번호
+				java.util.List<egovframework.konet.user.model.ShipoutDTO> rows = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>();
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>(), ic = new java.util.LinkedHashSet<String>(), bc = new java.util.LinkedHashSet<String>();
+				int line = 0, bad = 0;
+				if (in != null) for (Map<String,Object> m : in) {
+					String dlv = poStr(m.get("dlvDt")).replace("-", "").replace("/", "").replace(".", "");
+					String itemCd = poStr(m.get("itemCd")), itemNm = poStr(m.get("itemNm"));
+					double qd = poNum(m.get("qty"));
+					Double price = null;
+					if (!poStr(m.get("price")).isEmpty()) price = poNum(m.get("price"));
+					if (!dlv.matches("[0-9]{8}") || itemCd.isEmpty() || itemNm.isEmpty() || qd < 1 || qd != Math.floor(qd) || qd > 100000000 || (price != null && price < 0)) { bad++; continue; }
+					egovframework.konet.user.model.ShipoutDTO d = new egovframework.konet.user.model.ShipoutDTO();
+					d.setDlvDt(dlv); d.setShpoutDt(dlv);                       // 발주일자(납품일자) = 출고일자
+					d.setBizCd(dsCut(bizCd, 20)); d.setBizNm(dsCut(bizNm, 100));
+					d.setItemCd(dsCut(itemCd, 30)); d.setItemNm(dsCut(itemNm, 200));
+					d.setUnit("EA");
+					d.setCurQty((int) qd); d.setLabelQty((int) qd);
+					d.setSalePrice(price);
+					d.setOrdNo(ordNo); d.setOrdItemNo(String.valueOf(++line));
+					d.setZone("DS"); d.setDlvGb("DS");
+					d.setRemark("대상 발주");
+					d.setSrcFile(dsCut(fileNm, 250));
+					d.setRcvNm(dsCut(poStr(m.get("rcvNm")), 100)); d.setRcvAddr(dsCut(poStr(m.get("rcvAddr")), 300));
+					d.setRcvTel(dsCut(poStr(m.get("rcvTel")), 40)); d.setRcvTel2(dsCut(poStr(m.get("rcvTel2")), 40));
+					d.setRcvItemCd(dsCut(poStr(m.get("rcvItemCd")), 30));
+					rows.add(d); dates.add(dlv); ic.add(d.getItemCd());
+				}
+				if (bad > 0) { res.put("error", "발주일자·품목코드·제품명·수량(1 이상의 정수)·단가를 확인하세요 — 잘못된 줄 " + bad + "개. 저장하지 않았습니다."); return res; }
+				if (rows.isEmpty()) { res.put("error", "저장할 줄이 없습니다."); return res; }
+				bc.add(dsCut(bizCd, 20));
+				String miss = tdMissingCodes(bc, ic, compCd);   // 마스터에 없는 사업장·품목코드면 통째로 거절(토더와 같은 관문)
+				if (miss != null) { res.put("error", miss); return res; }
+				if (!force) { int dup = svc.countDsPoDup(rows, compCd); if (dup > 0) { res.put("dup", Integer.valueOf(dup)); return res; } }
+				int n = svc.saveDsPo(rows, u, ip, compCd);
+				String warn = dcResync(dates, u, ip);   // 그 날짜들의 출고 원장을 다시 만들어 재고에서 뺀다
+				res.put("cnt", Integer.valueOf(n)); if (warn != null) res.put("warn", warn);
+			} catch (Exception e) { log.error(" daesangPoSave ERROR : " + e.getMessage()); res.put("error", dsErr(e, "저장하지 못했습니다")); }
+			return res;
+		}
+		/* 저장 취소(삭제) — {seqs:[SEQ…]} · 출고 자료에서 빠지고 그 날짜들의 재고를 다시 맞춘다 */
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/shipout/daesangPoDelete.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> daesangPoDelete(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				java.util.List<Long> ids = new java.util.ArrayList<Long>();
+				Object so = p.get("seqs");
+				if (so instanceof java.util.List) for (Object o : (java.util.List<Object>) so) { try { ids.add(Long.valueOf(poStr(o))); } catch (NumberFormatException ne) { /* 숫자가 아닌 것은 버린다 */ } }
+				if (ids.isEmpty()) { res.put("error", "삭제할 줄을 고르세요."); return res; }
+				java.util.List<String> ds = svc.deleteDsPo(ids, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")));
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
+				for (String d : ds) if (d != null && d.matches("[0-9]{8}")) dates.add(d);
+				String warn = dcResync(dates, u, request.getRemoteAddr());
+				res.put("cnt", Integer.valueOf(ds.size())); if (warn != null) res.put("warn", warn);
+			} catch (Exception e) { log.error(" daesangPoDelete ERROR : " + e.getMessage()); res.put("error", dsErr(e, "삭제하지 못했습니다")); }
+			return res;
+		}
+		/* 저장된 한 줄 고치기 — {seq, dlvDt, itemCd, qty, price} (바꾸지 않는 칸도 지금 값을 그대로 보낸다). 새 품목코드도 마스터에 있어야 한다 */
+		@RequestMapping(value="/shipout/daesangPoRow.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> daesangPoRow(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				long seq; try { seq = Long.parseLong(poStr(p.get("seq"))); } catch (NumberFormatException ne) { res.put("error", "고칠 줄을 찾을 수 없습니다."); return res; }
+				String dlv = poStr(p.get("dlvDt")).replace("-", "").replace("/", "").replace(".", ""), itemCd = poStr(p.get("itemCd"));
+				double qd = poNum(p.get("qty"));
+				if (!dlv.matches("[0-9]{8}")) { res.put("error", "발주일자를 확인하세요."); return res; }
+				if (itemCd.isEmpty() || itemCd.length() > 30) { res.put("error", "품목코드를 확인하세요."); return res; }
+				if (qd < 1 || qd != Math.floor(qd) || qd > 100000000) { res.put("error", "수량은 1 이상의 정수로 넣으세요(취소는 [선택 삭제])."); return res; }
+				Double price = null;
+				if (!poStr(p.get("price")).isEmpty()) { price = poNum(p.get("price")); if (price < 0) { res.put("error", "단가는 0 이상으로 넣으세요."); return res; } }
+				java.util.LinkedHashSet<String> ic = new java.util.LinkedHashSet<String>(); ic.add(itemCd);
+				String miss = tdMissingCodes(new java.util.LinkedHashSet<String>(), ic, compCd);
+				if (miss != null) { res.put("error", miss); return res; }
+				java.util.List<String> ds = svc.updateDsPoRow(seq, dlv, itemCd, (int) qd, price, u, request.getRemoteAddr(), compCd);
+				if (ds == null) { res.put("error", "저장된 줄을 찾을 수 없습니다(다른 곳에서 지웠거나 고쳤을 수 있습니다) — [조회]로 새로 읽으세요."); return res; }
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
+				for (String d : ds) if (d != null && d.matches("[0-9]{8}")) dates.add(d);
+				String warn = dcResync(dates, u, request.getRemoteAddr());
+				res.put("cnt", Integer.valueOf(ds.isEmpty() ? 0 : 1)); if (warn != null) res.put("warn", warn);
+			} catch (Exception e) { log.error(" daesangPoRow ERROR : " + e.getMessage()); res.put("error", dsErr(e, "고치지 못했습니다")); }
+			return res;
+		}
 		/* 마스터에 없는 코드 → 거절 문구(없으면 null). 빈 집합은 조회에서 뺀다(foreach 는 빈 목록을 못 받는다) */
 		private String tdMissingCodes(java.util.Set<String> bizCds, java.util.Set<String> itemCds, String compCd) throws Exception {
 			java.util.Set<String> hb = new java.util.HashSet<String>(), hi = new java.util.HashSet<String>();
@@ -2512,6 +2658,103 @@ public class UserController {
 				return ResponseEntity.status(500).body(e.getMessage());
 			}
 		}
+		/* ===== 발주목록 (2026-10-02 「대시보드에서 적정재고 미달 표시 · 실행하면 발주서등록을 위한 데이터 발생 · 발주서등록에서 조회해서 선택 등록 ·
+		     미등록/등록 구분 · 발주목록 리스트」) — 표 TBL_PO_REQ (DDL docs/sql/20261002_po_req.sql).
+		   ★응답은 전부 @ResponseBody Map 으로 준다(이 앱의 응답 변환기는 Jackson 하나 — String 에 다른 Content-Type 을 박으면 저장 뒤 500 이 난다).
+		   ★표가 아직 없으면(DDL 전) 오류를 삼키고 error 글로 알린다 — 대시보드·발주서 관리의 다른 기능이 막히지 않게. */
+		@RequestMapping(value="/prod/safeStockMap.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> safeStockMap(HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("data", new java.util.ArrayList<Object>());
+			if (session.getAttribute("s_comp_cd") == null) return res;
+			try { res.put("data", svc.selectSafeStockMap(String.valueOf(session.getAttribute("s_comp_cd")))); }
+			catch (Exception e) { log.error(" safeStockMap ERROR : " + e.getMessage()); }
+			return res;
+		}
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/mangr/poReqMake.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poReqMake(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				java.util.List<String> cds = new java.util.ArrayList<String>();
+				Object o = body.get("prodCds");
+				if (o instanceof java.util.List) for (Object x : (java.util.List<Object>) o) { if (x != null) cds.add(String.valueOf(x)); }
+				if (cds.isEmpty()) { res.put("error", "만들 품목이 없습니다."); return res; }
+				if (cds.size() > 3000) { res.put("error", "한 번에 3,000품목까지만 만들 수 있습니다."); return res; }
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				res.putAll(svc.makePoReq(cds, poStr(body.get("dlvDt")), String.valueOf(session.getAttribute("s_comp_cd")), u, request.getRemoteAddr()));
+			} catch (Exception e) {
+				log.error(" poReqMake ERROR : " + e.getMessage());
+				res.put("error", "발주목록을 만들지 못했습니다 — DDL(20261002_po_req.sql)을 실행했는지 확인하세요.");
+			}
+			return res;
+		}
+		/** 대시보드 「적정」 칸 바탕색 — 발주목록에 올라가 있는 품목(주코드) · regYn N 미등록 / Y 발주서 등록·입고 대기 */
+		@RequestMapping(value="/mangr/poReqCodes.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poReqCodes(HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("data", new java.util.ArrayList<Object>());
+			if (session.getAttribute("s_comp_cd") == null) return res;
+			try { res.put("data", svc.selectPoReqCodes(String.valueOf(session.getAttribute("s_comp_cd")))); }
+			catch (Exception e) { log.error(" poReqCodes ERROR : " + e.getMessage()); }
+			return res;
+		}
+		@RequestMapping(value="/mangr/poReqList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poReqList(@RequestParam(value="regYn", required=false) String regYn, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("data", new java.util.ArrayList<Object>());
+			if (session.getAttribute("s_comp_cd") == null) return res;
+			try { res.put("data", svc.selectPoReqList(String.valueOf(session.getAttribute("s_comp_cd")), regYn)); }
+			catch (Exception e) { log.error(" poReqList ERROR : " + e.getMessage()); res.put("error", "발주목록 표를 읽지 못했습니다 — DDL(20261002_po_req.sql)을 실행했는지 확인하세요."); }
+			return res;
+		}
+		/** 화면이 보낸 번호들 → Long 목록 (숫자가 아닌 것은 버린다) */
+		private static java.util.List<Long> poReqSeqs(Object o) {
+			java.util.List<Long> l = new java.util.ArrayList<Long>();
+			if (o instanceof java.util.List) for (Object x : (java.util.List<?>) o) { long v = Math.round(poNum(x)); if (v > 0) l.add(Long.valueOf(v)); }
+			return l;
+		}
+		/** 발주서를 저장한 뒤 화면이 부른다 — 그 발주서에 담은 발주목록 줄을 「등록」으로 */
+		@RequestMapping(value="/mangr/poReqMark.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poReqMark(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다."); return res; }
+				long poSeq = Math.round(poNum(body.get("poSeq")));
+				if (poSeq <= 0) { res.put("error", "발주서 번호가 없습니다."); return res; }
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				res.put("cnt", Integer.valueOf(svc.markPoReq(poReqSeqs(body.get("reqSeqs")), poSeq, String.valueOf(session.getAttribute("s_comp_cd")), u, request.getRemoteAddr())));
+			} catch (Exception e) { log.error(" poReqMark ERROR : " + e.getMessage()); res.put("error", "발주목록 등록 표시를 남기지 못했습니다."); }
+			return res;
+		}
+		/** 대시보드에서 품목 하나를 발주목록에서 뺀다 (2026-10-02 「개별로 들어가게 하고 여기에서 발주목록 저장 취소도」) — 미등록 줄만. 넣기는 poReqMake 에 품목 하나를 보낸다 */
+		@RequestMapping(value="/mangr/poReqCancel.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poReqCancel(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String cd = poStr(body.get("prodCd"));
+				if (cd.isEmpty()) { res.put("error", "품목을 고르세요."); return res; }
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				res.put("cnt", Integer.valueOf(svc.cancelPoReqByProd(cd, String.valueOf(session.getAttribute("s_comp_cd")), u, request.getRemoteAddr())));
+			} catch (Exception e) { log.error(" poReqCancel ERROR : " + e.getMessage()); res.put("error", "발주목록에서 빼지 못했습니다."); }
+			return res;
+		}
+		@RequestMapping(value="/mangr/poReqDelete.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poReqDelete(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다."); return res; }
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				res.put("cnt", Integer.valueOf(svc.deletePoReq(poReqSeqs(body.get("reqSeqs")), String.valueOf(session.getAttribute("s_comp_cd")), u, request.getRemoteAddr())));
+			} catch (Exception e) { log.error(" poReqDelete ERROR : " + e.getMessage()); res.put("error", "지우지 못했습니다."); }
+			return res;
+		}
 		@RequestMapping(value="/mangr/poDelete.do", method = RequestMethod.POST)
 		public ResponseEntity<String> poDelete(@RequestParam("poSeq") long poSeq, HttpServletRequest request, HttpSession session) {
 			try {
@@ -2521,6 +2764,9 @@ public class UserController {
 				p.put("regUser", session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "");
 				p.put("regIp", request.getRemoteAddr());
 				svc.deletePo(p);
+				/* 이 발주서로 「등록」됐던 발주목록 줄은 다시 미등록으로 (2026-10-02) — 표가 없거나 실패해도 발주서 삭제는 그대로 끝낸다 */
+				try { svc.unmarkPoReqByPo(poSeq, String.valueOf(session.getAttribute("s_comp_cd")), String.valueOf(p.get("regUser")), request.getRemoteAddr()); }
+				catch (Exception ue) { log.error(" unmarkPoReqByPo WARN : " + ue.getMessage()); }
 				return ResponseEntity.ok("1");
 			} catch (Exception e) { log.error(" poDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}

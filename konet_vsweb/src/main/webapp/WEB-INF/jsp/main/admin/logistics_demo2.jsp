@@ -1150,12 +1150,12 @@
     var txt=(keys.indexOf('마스터')>=0 && keys.indexOf('이력')>=0) ? '이력+마스터' : keys[0];
     var col= (txt==='출고미상' || txt==='매입가없음') ? '#c0392b'
            : (txt.indexOf('정산')===0) ? '#1a73c7'
-           : (txt==='전표' || txt==='토더') ? '#1a73c7'
+           : (txt==='전표' || txt==='토더' || txt==='대상') ? '#1a73c7'
            : txt==='이력' ? '#137a6c' : (txt==='마스터' ? '#a85700' : '#7f8c9a');
     var tip= (txt==='정산')     ? '정산서 금액 그대로'
            : (txt==='정산안분') ? '정산서 금액을 사업장별 출고수량 비율로 안분'
            : (txt==='출고미상') ? '정산서에는 있는데 출고 자료가 없는 건 — 수량·매입액은 정산서 기준 추정입니다. 발주현황표를 올리면 정상 줄로 흡수됩니다.'
-           : (txt==='전표')     ? '판매등록으로 직접 입력한 매출(정산서 밖 직접판매)' : (txt==='토더') ? '토더 발주 = 매출(2026-09-22) — 수량 × 토더 판매가(엑셀 매입가, 부가세 포함) · 거래처 「토더」'
+           : (txt==='전표')     ? '판매등록으로 직접 입력한 매출(정산서 밖 직접판매)' : (txt==='대상') ? '대상 발주 = 매출(2026-10-02) — 수량 × 단가(상품코드 판매가에서 넣고 고친 값) · 거래처 대상주식회사' : (txt==='토더') ? '토더 발주 = 매출(2026-09-22) — 수량 × 토더 판매가(엑셀 매입가, 부가세 포함) · 거래처 「토더」'
            /* 매입단가를 어디서도 못 찾은 건 — 종전엔 '마스터'로 뭉뚱그려져 값을 찾은 것처럼 보였다.
               매입액이 0으로 잡혀 마진율이 100%로 뜨므로 반드시 눈에 띄어야 한다(2026-07-25). */
            : (txt==='매입가없음') ? '이 품목의 매입단가가 상품마스터에도 이력에도 없습니다.\n매입액이 0으로 잡혀 순마진·마진율이 실제보다 크게 나옵니다. 매입등록을 하거나 상품마스터 매입가를 채워 주세요.'
@@ -3381,6 +3381,8 @@
       <a class="mi" data-key="dcPo" onclick="logiFrame('dcPo','${pageContext.request.contextPath}/shipout/dcPo.do', this)"><span class="ic">🏷</span>DC 발주 등록</a>
       <%-- 토더 발주 등록 (2026-09-21) — 토더(가맹점 발주 플랫폼) 「상품별 발주 목록」 엑셀 → 출고(PROD_KIND='TD'). DC 발주와 같은 자리. iframe 화면(mangr/toderPo.jsp, panel-toderPo) --%>
       <a class="mi" data-key="toderPo" onclick="logiFrame('toderPo','${pageContext.request.contextPath}/shipout/toderPo.do', this)"><span class="ic">🛒</span>토더 발주 등록</a>
+      <%-- 대상 발주 등록 (2026-10-02) — 대상주식회사가 메일로 보내는 배송요청 표 → 출고·매출(토더와 같은 종류, 출고장 「대상」). 납기현황관리(대시보드)와는 무관. iframe 화면(mangr/daesangPo.jsp, panel-daesangPo) --%>
+      <a class="mi" data-key="daesangPo" onclick="logiFrame('daesangPo','${pageContext.request.contextPath}/shipout/daesangPo.do', this)"><span class="ic">📦</span>대상 발주 등록</a>
       <a class="mi" data-key="salesreg" onclick="logiFrame('salesreg','${pageContext.request.contextPath}/mangr/salesReg.do', this)"><span class="ic">🧾</span>판매 등록</a>
       <a class="mi" data-key="rcvreg" onclick="logiFrame('rcvreg','${pageContext.request.contextPath}/mangr/rcvReg.do', this)"><span class="ic">🧾</span>수금 등록</a>
       <%-- 수금 / 미수금(월 단위, TBL_RECEIVE_MST) 메뉴 내림 : 2026-07-25.
@@ -5029,6 +5031,10 @@
       <iframe id="if-quoteMng" src="" title="견적서 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <%-- 토더 발주 등록 (2026-09-21) — 메뉴 logiFrame('toderPo',…) 의 짝 --%>
+    <%-- 대상 발주 등록 (2026-10-02) — 메뉴 logiFrame('daesangPo',…) 의 짝 --%>
+    <section id="panel-daesangPo" class="panel" style="padding:0;">
+      <iframe id="if-daesangPo" src="" title="대상 발주 등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
     <section id="panel-toderPo" class="panel" style="padding:0;">
       <iframe id="if-toderPo" src="" title="토더 발주 등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>

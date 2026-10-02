@@ -37,6 +37,11 @@ public class ShipoutDTO {
 	private String  shpoutDtTo;    // 기간조회 종료일 (조회 전용·비영속)
 	private String  dlvDtFrom;     // 납기일자 기간조회 시작일 (조회 전용·비영속) — selectBizZoneHist(통상 출고장 이력, 2026-09-16)
 	private String  dlvDtTo;       // 납기일자 기간조회 종료일 (조회 전용·비영속)
+	private String  rcvNm;         // 받는 사람 — 대상 발주만(2026-10-02). 아래 넷도 같다. 공용 insertShipoutMstBulk 는 안 싣고 대상 저장 뒤 따로 채운다
+	private String  rcvAddr;       // 받는 주소
+	private String  rcvTel;        // 받는 전화 1
+	private String  rcvTel2;       // 받는 전화 2
+	private String  rcvItemCd;     // 대상 제품코드
 	private Double  salePrice;     // 판매가(부가세 포함) — 토더 발주만(2026-09-22). 공용 insertShipoutMstBulk 는 안 싣고, 토더 저장 뒤 updateTdPoPrice 로 넣는다
 	private String  statYn;        // 상황여부
 	private String  prodKind;      // 상품종류
@@ -119,6 +124,16 @@ public class ShipoutDTO {
 	public void setShpoutDtFrom(String shpoutDtFrom) { this.shpoutDtFrom = shpoutDtFrom; }
 	public String getShpoutDtTo() { return shpoutDtTo; }
 	public void setShpoutDtTo(String shpoutDtTo) { this.shpoutDtTo = shpoutDtTo; }
+	public String getRcvNm() { return rcvNm; }
+	public void setRcvNm(String rcvNm) { this.rcvNm = rcvNm; }
+	public String getRcvAddr() { return rcvAddr; }
+	public void setRcvAddr(String rcvAddr) { this.rcvAddr = rcvAddr; }
+	public String getRcvTel() { return rcvTel; }
+	public void setRcvTel(String rcvTel) { this.rcvTel = rcvTel; }
+	public String getRcvTel2() { return rcvTel2; }
+	public void setRcvTel2(String rcvTel2) { this.rcvTel2 = rcvTel2; }
+	public String getRcvItemCd() { return rcvItemCd; }
+	public void setRcvItemCd(String rcvItemCd) { this.rcvItemCd = rcvItemCd; }
 	public Double getSalePrice() { return salePrice; }
 	public void setSalePrice(Double salePrice) { this.salePrice = salePrice; }
 	public String getDlvDtFrom() { return dlvDtFrom; }

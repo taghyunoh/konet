@@ -110,6 +110,13 @@ public interface UserService {
 	java.util.List<java.util.Map<String,Object>> selectTdCodeExist(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> updateTdPoCode(String kind, String nm, String cd, String user, String ip, String compCd) throws Exception;
 	String updateTdPoRow(String ordNo, String bizNm, String itemNm, int qty, Double salePrice, String user, String ip, String compCd) throws Exception;
+	/* 대상 발주 등록 (2026-10-02) */
+	int saveDsPo(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String user, String ip, String compCd) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDsPoList(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDsPoMap(java.util.Map<String,Object> p) throws Exception;
+	int countDsPoDup(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String compCd) throws Exception;
+	java.util.List<String> deleteDsPo(java.util.List<Long> seqs, String user, String ip, String compCd) throws Exception;
+	java.util.List<String> updateDsPoRow(long seq, String dlvDt, String itemCd, int qty, Double salePrice, String user, String ip, String compCd) throws Exception;
 	java.util.Map<String,Object> saveExpenseCopy(String fromYm, String toYm, boolean overwrite, String user, String ip, String compCd) throws Exception;   // 비용 등록 : 한 달을 다른 달로 복사(2026-09-21)
 	int deleteProd(egovframework.konet.user.model.ProdDTO dto) throws Exception;
 	java.util.List<egovframework.konet.user.model.ProdDTO> selectProdDeletedList(egovframework.konet.user.model.ProdDTO dto) throws Exception;   // 삭제한 상품(ACTION_YN='N') 목록
@@ -417,5 +424,15 @@ public interface UserService {
 	java.util.Map<String,Object> saveProdContracts(java.util.List<java.util.Map<String,Object>> rows, String fileNm, String compCd, String user, String ip) throws Exception;
 	int deleteProdContract(long contractSeq, String compCd, String user, String ip) throws Exception;
 	int applyDueProdContract(String compCd) throws Exception;
+
+	/* 발주목록 (2026-10-02) */
+	java.util.List<java.util.Map<String,Object>> selectSafeStockMap(String compCd) throws Exception;
+	java.util.Map<String,Object> makePoReq(java.util.List<String> prodCds, String srcDlvDt, String compCd, String user, String ip) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPoReqList(String compCd, String regYn) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPoReqCodes(String compCd) throws Exception;   // 대시보드 바탕색 — 발주목록에 올라가 있는 품목
+	int markPoReq(java.util.List<Long> reqSeqs, long poSeq, String compCd, String user, String ip) throws Exception;
+	int unmarkPoReqByPo(long poSeq, String compCd, String user, String ip) throws Exception;
+	int deletePoReq(java.util.List<Long> reqSeqs, String compCd, String user, String ip) throws Exception;
+	int cancelPoReqByProd(String prodCd, String compCd, String user, String ip) throws Exception;   // 대시보드에서 품목 하나 취소
 
 }
