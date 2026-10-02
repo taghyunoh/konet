@@ -715,10 +715,10 @@ function loadNames(cb){
    사람이 고친(또는 불러온) 비고는 그 안의 배송 글만 바꿔 끼운다(delivSwap, 2026-10-02) — 그 글이 없으면 안 건드린다. */
 var _delivPrev='', _delivRmk='';
 var DELIV_DEF2='센터배송 / 택배출고 (D2~3)', DELIV_DEF1='센터배송';   /* 양식별 기본 배송 (「이것을 기본으로」) */
-function delivTitle(v){ var t=gv('titleTxt')||'아래와 같이 견적을 드립니다.(부가세 별도)'; var par=v?'('+v+', 부가세 별도)':'(부가세 별도)';
+function delivTitle(v){ var t=gv('titleTxt')||'아래와 같이 견적을 드립니다.(부가세 별도)'; var par=v?'('+delivRmkTxt(v)+', 부가세 별도)':'(부가세 별도)';   /* 제목 줄도 「DC 배송」 (2026-10-02 「제목줄도」) */
   if(/\(.*부가세 별도\)\s*$/.test(t)) return t.replace(/\(.*부가세 별도\)\s*$/, par); return t.replace(/\s*$/,'')+par; }
 /* 비고에 적는 배송 글 — 「DC」처럼 배송이라는 말이 없는 글에는 「배송」을 붙인다 (2026-10-02 사용자 「배송표시」 — 비고가 「DC, 부가세 별도」가 아니라 「DC 배송, 부가세 별도」).
-   센터배송 · 택배출고 · 직송 · 배송비 포함처럼 이미 그 말이 든 글은 그대로. 제목 줄 괄호는 종전대로 배송 칸의 글 그대로 쓴다. */
+   센터배송 · 택배출고 · 직송 · 배송비 포함처럼 이미 그 말이 든 글은 그대로. 제목 줄 괄호도 같은 글을 쓴다(같은 날 「제목줄도」 — delivTitle). */
 function delivRmkTxt(v){ v=String(v||'').trim(); return (!v || /배송|출고|직송/.test(v)) ? v : v+' 배송'; }
 function delivApply(){
   var v=(gv('deliv')||'').trim(); delivSync();
@@ -743,12 +743,12 @@ function delivSwap(txt, prev, next){
 }
 /* ★🧮 마진계산 물류비(센터배송 · DC · 직송)를 바꾸면 배송 글도 따라간다 (2026-10-02 사용자 「1번 수정하면 2번 변경 없음」) —
      종전엔 그 단추가 마진 계산 방식만 바꾸고 배송 칸·제목 줄·비고는 그대로였다(DC 로 바꾸고도 「센터배송」으로 나갔다).
-     센터배송 → 양식의 기본 배송 글 · DC → 「DC」 · 직송 → 「직송」. 그 뒤는 delivApply 가 제목 줄 괄호와 비고의 배송 글을 바꾼다.
+     센터배송 → 양식의 기본 배송 글 · DC → 「DC 배송」 · 직송 → 「직송」. 그 뒤는 delivApply 가 제목 줄 괄호와 비고의 배송 글을 바꾼다.
      사람이 배송 칸에 따로 적어 둔 글(예: 배송비 포함)은 건드리지 않는다. 불러올 때는 부르지 않는다(저장된 글 그대로) — 단추를 누를 때만. */
 function delivByMode(){
   var d=document.getElementById('deliv'), cur=(d.value||'').trim();
   if(['', DELIV_DEF1, DELIV_DEF2, 'DC', 'DC 배송', 'DC배송', '직송'].indexOf(cur)<0) return;
-  var nx=_cs.mode==='center' ? (use2()?DELIV_DEF2:DELIV_DEF1) : (_cs.mode==='direct' ? 'DC' : (_cs.mode==='parcel' ? '직송' : cur));
+  var nx=_cs.mode==='center' ? (use2()?DELIV_DEF2:DELIV_DEF1) : (_cs.mode==='direct' ? 'DC 배송' : (_cs.mode==='parcel' ? '직송' : cur));
   if(nx===cur) return;
   d.value=nx; delivApply();
 }
