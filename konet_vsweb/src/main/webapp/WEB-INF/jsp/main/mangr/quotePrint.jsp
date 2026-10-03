@@ -23,7 +23,10 @@
   .bar b{ font-size:15px; color:#137a6c; margin-right:auto; }
   .bar button{ height:34px; padding:0 14px; border:1px solid #cfd8e3; border-radius:7px; background:#fff; font-weight:700; cursor:pointer; font-size:13px; }
   .bar button.p{ background:#137a6c; color:#fff; border-color:#137a6c; }
-  .sheet{ width:210mm; min-height:297mm; margin:14px auto; background:#fff; padding:14mm 12mm; box-shadow:0 4px 20px rgba(0,0,0,.12); }
+  .sheet{ width:210mm; min-height:297mm; margin:14px auto; background:#fff; padding:12mm 10mm; box-shadow:0 4px 20px rgba(0,0,0,.12); }
+  /* ★화면 .sheet 안쪽 여백 = 인쇄와 같은 12mm 10mm (2026-10-03) — 아래 fitRows 가 화면에서 잰 높이로 빈 줄 수를 정하므로 품명·규격의 줄바꿈이 인쇄와 똑같이 떨어져야 한다 */
+  /* 종이 여백 표(.pgt) — thead/tfoot 빈 줄이 인쇄 때 <모든 장>의 위·아래 여백 구실(아래 @media print). 화면에서는 높이 0 · 선 없음 */
+  .pgt{ table-layout:auto; } .pgt>thead>tr>td.pgsp, .pgt>tfoot>tr>td.pgsp{ height:0; padding:0; border:0; } .pgt>tbody>tr>td.pgbd{ padding:0; border:0; height:auto; vertical-align:top; }
   h1{ text-align:center; font-size:30px; letter-spacing:14px; margin:0 0 14px; text-decoration:underline; text-underline-offset:6px; }
   table{ border-collapse:collapse; width:100%; table-layout:fixed; }
   td,th{ border:1px solid #222; padding:4px 6px; font-size:12.5px; height:26px; }
@@ -33,7 +36,7 @@
   .hd td{ height:28px; }
   .title{ margin:10px 0 6px; font-size:13px; }
   .items thead td{ background:#f6f7f9; font-weight:700; text-align:center; white-space:nowrap; font-size:12px; padding:4px 2px; }
-  /* 품목 표가 종이 아래까지 (2026-09-17 「양식은 하단까지」) — 빈 줄을 22~24줄 채운다 */
+  /* 품목 표가 종이 아래까지 (2026-09-17 「양식은 하단까지」) — 빈 줄을 23/21줄까지 채우되, ★한 장을 넘기면 아래 fitRows 가 넘친 만큼 빈 줄을 뺀다 (2026-10-03) */
   .items td{ height:26px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   /* ★품명·규격·비고 = 글자 원래 크기 그대로 두고 <여러 줄 내려쓰기> (2026-09-18 「글자 커지고 내려쓰기로」 — 종전 「10.5px 로 줄여 두 줄 클램프」(09-17)를 대체.
      줄이 길면 그 행 높이가 자란다(26px 은 최소) — 긴 품명이 많으면 종이가 길어질 수 있다 */
@@ -49,7 +52,10 @@
   td.stc{ position:relative; overflow:visible; }
   img.stamp{ position:absolute; right:6px; top:50%; transform:translateY(-50%); height:44px; max-width:60%; object-fit:contain; opacity:.92;
              pointer-events:none; z-index:2; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  @media print { body{ background:#fff; } .bar{ display:none; } .sheet{ width:auto; min-height:auto; margin:0; padding:0; box-shadow:none; } @page{ size:A4 portrait; margin:12mm 10mm; } }
+  /* ★인쇄 머리글·바닥글(주소·날짜·쪽번호) 안 나오게 — @page 여백 0 (일계장 dayBook 과 같은 수법, 2026-10-03).
+     좌우 여백은 .sheet padding, 위·아래 여백은 .pgt 의 thead/tfoot 빈 줄(12mm) — 브라우저가 thead/tfoot 을 장마다 되풀이하므로 2장째에도 여백이 생긴다.
+     (.sheet padding 만으로는 첫 장 위·끝 장 아래만 여백이 생겨 2장째 글이 종이 끝에 붙는다) */
+  @media print { body{ background:#fff; } .bar{ display:none; } .sheet{ width:auto; min-height:auto; margin:0; padding:0 10mm; box-shadow:none; } .pgt>thead>tr>td.pgsp, .pgt>tfoot>tr>td.pgsp{ height:12mm; } @page{ size:A4 portrait; margin:0; } }
 </style>
 </head>
 <body>
@@ -60,6 +66,7 @@
   <c:if test="${!pub}"><button onclick="window.close()">닫기</button></c:if>
 </div>
 <div class="sheet">
+<table class="pgt"><thead><tr><td class="pgsp"></td></tr></thead><tfoot><tr><td class="pgsp"></td></tr></tfoot><tbody><tr><td class="pgbd">
 <c:choose>
 <c:when test="${empty mst}">
   <div class="none">견적서를 찾을 수 없습니다.<br><span style="font-size:13px">삭제됐거나 번호가 잘못되었습니다.</span></div>
@@ -142,8 +149,9 @@
           <td class="l wrap"><div class="tx">${it.remark}</div></td></tr>
       </c:if>
     </c:forEach>
+    <%-- ★빈 줄(tr.fill)은 «최대» 수 — 품명·규격이 두 줄로 접혀 한 장을 넘기면 맨 아래 <script> fitRows 가 넘친 만큼 뺀다 (2026-10-03 「1번 공간 충분한데 비고가 2장째로」) --%>
     <c:forEach begin="${fn:length(items) - nSkip + 1}" end="${has2 ? 21 : 23}" var="i">
-      <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><c:if test="${has2}"><td></td><td></td></c:if><td></td></tr>
+      <tr class="fill"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><c:if test="${has2}"><td></td><td></td></c:if><td></td></tr>
     </c:forEach>
     </tbody>
     <%-- 하단 합계 줄은 출력하지 않는다 (2026-09-17 「하단 합계 내역은 출력 제외」 — 되살리려면 여기 tfoot 으로) --%>
@@ -152,6 +160,22 @@
   <div class="comp">${comp.compNm}<c:if test="${not empty comp.compTel}"> · ${comp.compTel}</c:if></div>
 </c:otherwise>
 </c:choose>
+</td></tr></tbody></table>
 </div>
+<script>
+/* ★빈 줄 수를 종이에 맞춘다 (2026-10-03 사용자 캡처 「1번 공간 충분한데 2번(비고)이 두 번째 페이지로」) —
+   품명·규격이 두 줄로 접힌 줄이 있으면 23/21줄 <고정> 채움이 한 장을 넘겨 비고·회사 줄만 2장째로 밀렸다(2026-09-18 ⑮ 에서 예고한 그 경우).
+   화면 .sheet 안쪽 폭을 인쇄(190mm)와 같게 맞춰 두었으므로 화면에서 잰 높이 = 인쇄 높이. 한 장에 쓸 수 있는 높이 = 297 − 12 − 12 = 273mm(.pgt 위·아래 빈 줄),
+   2mm 를 안전선으로 뺀다. 품목만으로 한 장을 넘는 견적서는 빈 줄이 애초에 없어(begin > end) 아무 일도 하지 않는다(여러 장이 정상). */
+(function(){
+  var MM = 96/25.4, LIM = Math.floor(271*MM);
+  function fitRows(){
+    var bd = document.querySelector('.pgt>tbody>tr>td.pgbd'); if(!bd) return;
+    var blanks = [].slice.call(document.querySelectorAll('.items tbody tr.fill'));
+    while(blanks.length && bd.offsetHeight > LIM){ var tr = blanks.pop(); tr.parentNode.removeChild(tr); }
+  }
+  fitRows(); window.addEventListener('load', fitRows); window.addEventListener('beforeprint', fitRows);
+})();
+</script>
 </body>
 </html>

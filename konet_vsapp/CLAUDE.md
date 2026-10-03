@@ -150,6 +150,7 @@
   m.js/인라인 스크립트/manifest 문법 · 모의 서버(375px)로 카드·기록 없음·되돌림·더 보기·탭 숫자 4·토스트 확인. ⚠**실제 로그인 폰에서는 아직 안 봤다.**
 - **배포 : 자바 + User_SQL.xml → 두 WAR 재빌드 + 재기동**(DDL 없음). konet_vsweb 에도 매퍼·DTO·컨트롤러·stockAdj.jsp 같은 파일.
 
+- **[2026-10-03] 인쇄 머리글·바닥글 제거(웹과 동일 패치만)** — poPrint.jsp `.sheet{padding:12mm 10mm}`+`@page{margin:0}` · stmt-sheet.js `.pg{padding:9mm}`+`@page{margin:0}`(salesReg·stmtPrint `?v=20261003`). 앱 파일은 웹보다 뒤처진 판이라 **이 두 줄만** 얹었다. 자세한 것은 konet_vsweb/CLAUDE.md 같은 날짜 절. ⚠WAR 를 풀지 않고 도는 운영은 재빌드·교체.
 - 아래 내용은 **web 에서 가져온 이력**(2026-09-11 시점)이다. 이후 app 쪽 변경은 이 절 아래에 새로 적는다.
 
 ---

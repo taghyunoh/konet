@@ -46,7 +46,8 @@
   .items thead td{ background:#f6f7f9; font-weight:700; text-align:center; }
   .foot td{ font-weight:700; }
   .none{ text-align:center; padding:60px 20px; color:#8a97a4; font-size:16px; }
-  @media print { body{ background:#fff; } .bar{ display:none; } .sheet{ width:auto; min-height:auto; margin:0; padding:0; box-shadow:none; } @page{ size:A4 portrait; margin:12mm 10mm; } }
+  /* ★인쇄 머리글·바닥글(주소·날짜·쪽번호) 안 나오게 — @page 여백 0 + 종이 여백은 .sheet padding 으로 (일계장 dayBook 과 같은 수법, 2026-10-03) */
+  @media print { body{ background:#fff; } .bar{ display:none; } .sheet{ width:auto; min-height:auto; margin:0; padding:12mm 10mm; box-shadow:none; } @page{ size:A4 portrait; margin:0; } }
 </style>
 </head>
 <body>

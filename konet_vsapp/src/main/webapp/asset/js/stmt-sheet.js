@@ -304,10 +304,10 @@
   + '@media print{'
   +   'body{background:#fff}'
   +   '.bar{display:none}'
-  +   '.pg{width:auto;min-height:0;margin:0;padding:0;box-shadow:none;page-break-after:always}'
+  +   '.pg{width:auto;min-height:0;margin:0;padding:9mm;box-shadow:none;page-break-after:always}'
   +   '.pg:last-child{page-break-after:auto}'
   +   '.cut{margin:6mm 0 5mm}'
-  +   '@page{size:A4 portrait;margin:9mm 9mm}'
+  +   '@page{size:A4 portrait;margin:0}'   /* ★여백 0 = 브라우저가 주소·날짜·쪽번호를 못 찍는다. 종이 여백은 위 .pg padding 으로 (2026-10-03) */
   + '}';
 
   /* 명세서 본문(페이지들)만 — 문서 뼈대 없이 필요할 때 */
