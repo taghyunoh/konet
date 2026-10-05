@@ -3455,6 +3455,9 @@
     <div class="grp">정보 현황</div>
     <a class="mi has-sub" data-sub="infomng" onclick="logiToggleSub('infomng', this)"><span class="ic">📈</span>정보 현황<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-infomng">
+      <%-- 진행 현황 (2026-10-06 사용자 「발주리스트등록·발주서등록·매입전환 / 견적 등록·제출·채택·판매등록 진행 상황」 → 「정보현황 메뉴에 추가」).
+           두 흐름을 단계 띠로 보고, 단계를 누르면 목록, 줄을 누르면 그 일을 하는 화면으로. iframe 화면(mangr/pipeline.jsp) — 아래 panel-pipeline 이 짝 --%>
+      <a class="mi" data-key="pipeline" onclick="logiFrame('pipeline','${pageContext.request.contextPath}/mangr/pipeline.do', this)"><span class="ic">🔄</span>진행 현황</a>
       <a class="mi" data-key="closeStatus" onclick="logiGo('closeStatus', this)"><span class="ic">📊</span>마감현황(월계표)</a>
       <a class="mi" data-key="closeHist"   onclick="logiGo('closeHist', this); closeHistLoad();"><span class="ic">📅</span>월별 마감이력</a>
       <%-- 이익현황 (2026-09-28 고객 요청) — ★탭이 아니라 <메뉴 3개>(사용자 「탭으로 하지 말고 메뉴로 추가」).
@@ -5026,6 +5029,10 @@
     <%-- 원가·마진 계산 (2026-09-17) — 메뉴 logiFrame('costCalc',…) 의 짝 --%>
     <section id="panel-costCalc" class="panel" style="padding:0;">
       <iframe id="if-costCalc" src="" title="원가·마진 계산" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <%-- 진행 현황 (2026-10-06) — 메뉴 logiFrame('pipeline',…) 의 짝. ★메뉴와 패널은 짝이다 — 하나만 넣으면 눌러도 아무 일이 없다 --%>
+    <section id="panel-pipeline" class="panel" style="padding:0;">
+      <iframe id="if-pipeline" src="" title="진행 현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <section id="panel-quoteMng" class="panel" style="padding:0;">
       <iframe id="if-quoteMng" src="" title="견적서 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>

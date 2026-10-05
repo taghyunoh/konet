@@ -94,6 +94,10 @@
   .st.A{ background:#e3f7df; color:#1f7a34; }
   .st.R{ background:#fdecec; color:#c0392b; }
   .st.H{ background:#fff3c4; color:#8a5a00; }
+  /* 판매등록 단계 (2026-10-06) — 판매 등록 [📄 견적서]로 이 견적에서 나온 판매전표가 있을 때 */
+  .stsale{ display:inline-block; margin-left:4px; font-size:11.5px; font-weight:800; border-radius:6px; padding:2px 7px; white-space:nowrap;
+           background:#e3f4ef; color:#0e6657; border:1px solid #9fd8cb; }
+  .stsale.wait{ background:#fff; color:#8a5a00; border:1px dashed #e0c58a; font-weight:700; }
   .stdt{ display:block; font-size:11px; color:#6b7a89; margin-top:2px; font-variant-numeric:tabular-nums; }
   .stdt b{ color:#37475a; }
   .stdt.long{ color:#b45309; font-weight:700; }
@@ -414,6 +418,13 @@ function stCell(x,i){
     out+='<span class="stdt'+(!sp.done&&sp.days>7?' long':'')+'" title="작성 시작 '+d10(sp.start)+(sp.done?' → 제출완료 '+d10(sp.end):' → 아직 제출 전')+'">'+txt+'</span>';
   }
   if(n(x.editCnt)) out+='<span class="stdt" title="'+esc(x.editMemo||'')+'">✏ 수정 '+n(x.editCnt)+'회</span>';
+  /* 판매등록 단계 (2026-10-06) — 견적의 마지막 단계. 판매 등록 [📄 견적서]로 이어진 판매전표가 있으면 「💰 판매 n건」,
+     채택됐는데 아직 없으면 「판매 전」(점선) — 채택에서 멈춘 견적이 눈에 띄게. 옛 서버(saleCnt 없음)면 아무것도 안 붙인다 */
+  if(x.saleCnt!=null){
+    var sc=n(x.saleCnt);
+    if(sc>0) out+='<span class="stsale" title="이 견적에서 나온 판매전표 '+sc+'건 · 마지막 '+d10(dnum(x.saleLastDt))+' · 합계 '+fmt(x.saleAmt)+'원">💰 판매 '+sc+'건</span>';
+    else if(g==='A') out+='<span class="stsale wait" title="채택됐지만 아직 이 견적으로 등록한 판매가 없습니다 — 판매 등록 ▸ [📄 견적서]에서 가져오면 연결됩니다">판매 전</span>';
+  }
   return out;
 }
 /* 상태 넣기 창 — 네 일자를 한 자리에서 고친다(빈 칸으로 저장하면 그 일자는 지워진다) */

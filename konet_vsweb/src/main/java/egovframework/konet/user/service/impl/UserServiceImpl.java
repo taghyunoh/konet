@@ -2522,6 +2522,25 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<java.util.Map<String,Object>> selectPoRecentByProd(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoRecentByProd(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectPoRemainByProd(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoRemainByProd(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectSafeStockShort(java.util.Map<String,Object> p) throws Exception { return mapper.selectSafeStockShort(p); }
+	/* ── 진행 현황 (2026-10-06) ────────────────────────────────────────────────
+	   ①발주 : 발주목록 등록 → 발주서 등록 → 매입전환   ②견적 : 작성 → 제출 → 채택 → 판매등록
+	   ★두 집계를 «한 번에» 돌려준다 — 화면이 두 번 물으면 그 사이에 자료가 바뀌어 숫자가 어긋날 수 있다.
+	   ★어느 한쪽이 없어도(표가 아직 없거나 조회가 실패해도) 나머지는 보여 준다 — 화면이 통째로 빈 채 멎지 않게. */
+	@Override public java.util.Map<String,Object> selectPipeline(java.util.Map<String,Object> p) throws Exception {
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		try { res.put("po", mapper.selectPipelinePo(p)); }
+		catch (Exception e) { res.put("poErr", String.valueOf(e.getMessage())); }      // TBL_PO_REQ 가 아직 없는 회사
+		try { res.put("quote", mapper.selectPipelineQuote(p)); }
+		catch (Exception e) { res.put("quoteErr", String.valueOf(e.getMessage())); }   // 견적 상태 칸이 아직 없는 DB
+		return res;
+	}
+	/* 단계별 목록 — stage 가 발주 쪽(REQ·PO·PURCH)이면 발주 조회로, 그 밖은 견적 조회로 */
+	@Override public java.util.List<java.util.Map<String,Object>> selectPipelineList(java.util.Map<String,Object> p) throws Exception {
+		String st = p.get("stage") == null ? "" : String.valueOf(p.get("stage"));
+		if ("REQ".equals(st) || "PO".equals(st) || "PURCH".equals(st)) return mapper.selectPipelinePoList(p);
+		return mapper.selectPipelineQuoteList(p);
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteAdoptList(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteAdoptList(p); }
 	/* 회사 설정(SET_JSON func.*) 정수 하나 — parcelFeeDefOf 와 같은 정규식 방식(JSON 라이브러리 없이) */
 	private int compSetInt(String compCd, String key, int def) {
 		try {

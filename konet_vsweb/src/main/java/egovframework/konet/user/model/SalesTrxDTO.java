@@ -62,6 +62,9 @@ public class SalesTrxDTO {
     private String  fromDt;
     private String  toDt;
     private String  findData;      // 거래처명 검색어
+    /* 견적 → 판매 연결 (2026-10-06) — 견적을 거치지 않은 판매는 둘 다 비어 있다 */
+    private Long    quoteSeq;      // 이 판매가 나온 견적서
+    private String  quoteDocNo;    // 그때의 문서번호(견적서는 판이 바뀌면 줄이 갈린다 — 번호를 함께 남긴다)
     private Integer prodCnt;       // 목록의 상품수(명세 건수)
 
     public Long getSaleSeq() { return saleSeq; }
@@ -134,6 +137,10 @@ public class SalesTrxDTO {
     public void    setShareToken(String shareToken) { this.shareToken = shareToken; }
     public Integer getShareCnt() { return shareCnt; }
     public void    setShareCnt(Integer shareCnt) { this.shareCnt = shareCnt; }
+    public Long    getQuoteSeq() { return quoteSeq; }
+    public void    setQuoteSeq(Long quoteSeq) { this.quoteSeq = quoteSeq; }
+    public String  getQuoteDocNo() { return quoteDocNo; }
+    public void    setQuoteDocNo(String quoteDocNo) { this.quoteDocNo = quoteDocNo; }
     public String  getLastShareDttm() { return lastShareDttm; }
     public void    setLastShareDttm(String lastShareDttm) { this.lastShareDttm = lastShareDttm; }
 }

@@ -248,6 +248,9 @@
       <%-- 납품분 = 그 거래처에 이미 나간 품목(판매전표+정산서)을 중복 없이 모아 보여준다.
            체크한 순서 그대로 명세에 담긴다 — 주문 받은 순서대로 입력하기 위한 장치(2026-07-31). --%>
       <button class="sa-btn teal" onclick="saDlvOpen()" title="이 거래처가 받아 온 품목 목록에서 골라 담기">납품분</button>
+      <%-- 견적서에서 가져오기 (2026-10-06) — 채택된 견적서의 품목·단가를 담고 「이 판매가 그 견적에서 나왔다」는 연결을 남긴다.
+           연결이 있어야 정보 현황 ▸ 진행 현황의 견적 「판매등록」 단계가 센다. 견적 없는 판매는 지금처럼 그대로 된다. --%>
+      <button class="sa-btn teal" onclick="saQtOpen()" title="채택된 견적서를 골라 품목·단가를 담습니다.&#10;이 판매가 그 견적에서 나왔다는 연결이 함께 저장됩니다(진행 현황 ▸ 견적 판매등록).">📄 견적서</button>
       <div class="sa-fld" style="flex:0 0 120px"><label>담당자</label><input type="text" id="saMgrNm" readonly style="background:#f5f7f9"></div>
       <div class="sa-fld" style="flex:0 0 130px"><label>창고</label><select id="saWhNm" title="이 전표의 창고 — 재고가 여기서 빠집니다(2026-09-16)"></select></div>
       <%-- 일괄등록 (2026-08-06 — 매입등록과 동일) — 거래처는 그대로 두고 일자만 바꿔 여러 상품을 일자별 전표로 저장 --%>
@@ -318,6 +321,8 @@
            저장 전에도 열린다(그때는 「전체 이력」 탭만). 줄마다 [↻ 재전송] · 읽음·열람 표시. --%>
       <button class="sa-btn" id="saBtnHist" onclick="saSendHist()" title="이 명세서를 언제·누구에게·어떤 방법으로 보냈는지, 받는 쪽이 읽었는지 봅니다.&#10;[전체 이력] 탭에서는 기간으로 모든 명세서의 전송을 훑어보고, 줄마다 [↻ 재전송]할 수 있습니다.">📨 전송이력</button>
       <span id="saState" style="margin-left:8px; color:#3d4d5c; font-size:12.5px"></span>
+      <%-- 이 전표가 어느 견적에서 나왔는지 (2026-10-06) — 비어 있으면 견적 없는 판매 --%>
+      <span id="saQtTag" style="margin-left:8px"></span>
       <span style="margin-left:auto; color:#8a97a4; font-size:11.5px"
             title="상품칸에 바로 입력해 ↑↓·Enter 로 고르고, Enter 로 다음 칸/다음 줄, ↑↓ 로 줄을 오갑니다">⌨ 상품칸 입력검색 · Enter 다음칸 · ↑↓ 줄이동 · Ctrl+S 저장 · Alt+N 신규</span>
     </div>
@@ -610,6 +615,32 @@
        · 체크한 '순서'가 곧 명세 줄 순서다. 체크 칸에 1,2,3… 이 찍혀 순서를 눈으로 확인한다.
        · [납품분제외] = 앞으로 이 목록에 안 나오게 한다(거래처별). 판매 이력은 그대로 둔다.
        · [제외이력보기] 에서 되돌릴 수 있다. -->
+<%-- 견적서에서 가져오기 (2026-10-06) — 채택(A)된 견적만. 이미 판매로 이어진 견적도 보인다(분할 납품) — 「판매 n건」으로 알려 줄 뿐 막지 않는다 --%>
+<div class="sa-pop" id="saQtPop">
+  <div class="box" style="width:min(980px,96vw)">
+    <div class="hd">📄 견적서에서 가져오기 <span style="font-weight:600;font-size:12.5px;color:#6b7a89;margin-left:6px">채택된 견적서만 보입니다</span>
+      <span style="margin-left:auto"><span class="sa-btn" style="border:0;background:transparent;font-size:18px" onclick="saQtClose()">✕</span></span>
+    </div>
+    <div class="bd">
+      <div style="display:flex; gap:6px; margin-bottom:8px">
+        <input type="text" id="qtQ" placeholder="문서번호·수신처" style="flex:1; height:32px; border:1px solid var(--sa-bd); border-radius:6px; padding:0 8px; font-size:13.5px" onkeydown="if(event.key==='Enter') saQtLoad()">
+        <button class="sa-btn" onclick="saQtLoad()">🔍</button>
+      </div>
+      <div style="max-height:420px; overflow:auto; border:1px solid var(--sa-bd); border-radius:6px">
+        <table>
+          <thead><tr><th style="width:130px">문서번호</th><th style="width:90px">견적일</th><th>수신</th><th style="width:110px">담당</th>
+            <th style="width:90px">채택일</th><th style="width:60px">품목</th><th style="width:100px">공급가</th><th style="width:90px">판매</th></tr></thead>
+          <tbody id="qtBody"><tr><td colspan="8" style="padding:20px;color:#8a97a4">불러오는 중…</td></tr></tbody>
+        </table>
+      </div>
+      <div style="margin-top:8px; font-size:12px; color:#6b7a89; line-height:1.6">
+        줄을 누르면 그 견적의 품목·단가가 명세에 담기고, 저장하면 이 판매가 그 견적에서 나왔다는 연결이 함께 남습니다.<br>
+        ★수량은 견적의 수량을 <b>낱개(EA)</b>로 넣습니다 — 이번에 납품할 만큼 고치세요. 상품코드가 없는 견적 줄은 담지 못해 알려 드립니다.
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="sa-pop" id="saDlvPop">
   <div class="box" style="width:min(980px,96vw)">
     <div class="hd">납품분 검색
@@ -972,6 +1003,7 @@ var _venDc = 0;
 var _prods = [];       // 상품 마스터
 var _extItems = [];    // 거래처 통보품목(TBL_EXT_ITEM_MST) — 거래처가 준 코드로 찾기용
 var _cur = null;       // 선택된 전표(수정 모드)
+var _quoteLink = null; // 이 전표가 나온 견적 {quoteSeq, docNo} — 없으면 견적 없는 판매 (2026-10-06)
 /* 수정 중인 전표가 '저장된 상태로' 현잔고에 이미 반영해 놓은 금액(판매금액 − 수금액 − 할인액).
    현잔고는 그 전표를 포함해 계산되므로, 거래후잔고를 낼 때 이 값을 빼지 않으면 이중으로 더해진다.
    신규 전표는 0. (2026-07-25 수정 — 전표를 고르면 거래후잔고가 두 배로 뜨던 문제) */
@@ -1232,6 +1264,7 @@ function saNew(){
   document.getElementById('saRemark').value=''; document.getElementById('saPayAmt').value='0'; document.getElementById('saDcAmt').value='0';
   document.getElementById('saDlvDt').value='';
   document.getElementById('saState').textContent = '신규 전표';
+  _quoteLink = null; saQtTag();          // 새 전표는 견적 연결 없음 (2026-10-06)
   for (var i=0;i<5;i++) _rows.push(emptyRow());
   saRender(); saNextNo();
   Array.prototype.forEach.call(document.querySelectorAll('#saListBody tr'), function(tr){ tr.classList.remove('on'); });
@@ -1544,6 +1577,8 @@ function saSave(){
     payGb: document.getElementById('saPayGb').value, payAmt:n(document.getElementById('saPayAmt').value),
     taxGb: '과세',
     remark: document.getElementById('saRemark').value,
+    /* 견적 연결 (2026-10-06) — 견적 없는 판매는 null. 서버는 null 이면 기존 연결을 그대로 둔다 */
+    quoteSeq: _quoteLink ? _quoteLink.quoteSeq : null, quoteDocNo: _quoteLink ? (_quoteLink.docNo||'') : '',
     items: items
   };
   /* ★마감 확정된 달이면 먼저 묻는다(2026-09-16 P2-g) — 막지 않는다. 수정이면 옮기기 전 날짜도 본다 */
@@ -1655,6 +1690,7 @@ function saPick(i){
 /* 서버에서 읽은 전표 1건을 상단 입력 영역에 그대로 얹는다 (선택·새로고침 공용) */
 function saApply(d){
   _cur = d;
+  _quoteLink = (d && d.quoteSeq) ? { quoteSeq:d.quoteSeq, docNo:d.quoteDocNo||'' } : null; saQtTag();   // 견적 연결 (2026-10-06)
   _shareUrl = '';                 /* 다른 전표를 열었으니 공개 주소도 그 전표 것으로 다시 받는다 (2026-09-09) */
   _curNet = n(d.totAmt) - n(d.payAmt) - n(d.dcAmt);   // 이 전표가 현잔고에 이미 반영해 둔 금액
   document.getElementById('saDt').value = fmtDt(d.saleDt);
@@ -2654,6 +2690,86 @@ function saHistClose(){ document.getElementById('saHistPop').classList.remove('o
 var _dlv = [];          // 서버에서 받은 납품분(또는 제외이력) 목록
 var _dvPick = [];       // 체크한 상품코드 — ★배열 순서 = 담길 순서
 var _dvExclMode = false;// true 면 제외이력 보기
+
+/* ── 견적서에서 가져오기 (2026-10-06 사용자 「견적서관리에서 등록·제출·채택 과정 및 판매등록 진행 상황 볼 수 있게」) ──
+     채택(A)된 견적서를 골라 품목·단가를 담고, 저장할 때 「이 판매가 그 견적에서 나왔다」(QUOTE_SEQ·문서번호)를 남긴다.
+     ★거래처는 수신처 이름이 거래처 이름과 «정확히 하나» 맞을 때만 저절로 고른다 — 비슷한 이름으로 짐작해 고르면 틀린 거래처로 나간다.
+     ★상품코드가 없는(또는 상품마스터에 없는) 견적 줄은 담지 못한다 — 판매는 상품코드로 재고가 빠지기 때문. 무엇이 빠졌는지 알려 준다.
+     ★이미 명세에 있는 상품은 건너뛴다(납품분 담기와 같은 규칙). */
+var _qtList = [];
+function saQtOpen(){ document.getElementById('saQtPop').classList.add('on'); document.getElementById('qtQ').value=''; saQtLoad();
+  setTimeout(function(){ var q=document.getElementById('qtQ'); if(q) q.focus(); }, 30); }
+function saQtClose(){ document.getElementById('saQtPop').classList.remove('on'); }
+function saQtLoad(){
+  var tb=document.getElementById('qtBody');
+  tb.innerHTML='<tr><td colspan="8" style="padding:20px;color:#8a97a4">불러오는 중…</td></tr>';
+  post('/mangr/quoteAdoptList.do','findData='+encodeURIComponent(document.getElementById('qtQ').value||''))
+    .then(function(r){ return r.json(); })
+    .then(function(j){ _qtList=(j&&j.data)||[]; saQtRender(); })
+    .catch(function(e){ tb.innerHTML='<tr><td colspan="8" style="padding:20px;color:#c0392b">불러오지 못했습니다 — '+esc(e.message)+'</td></tr>'; });
+}
+function saQtD8(d){ d=String(d||''); return /^\d{8}$/.test(d) ? d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8) : d; }
+function saQtRender(){
+  var tb=document.getElementById('qtBody');
+  if(!_qtList.length){ tb.innerHTML='<tr><td colspan="8" style="padding:20px;color:#8a97a4">채택된 견적서가 없습니다.<br><span style="font-size:12px">견적서 관리에서 상태를 「채택」으로 바꾸면 여기에 나타납니다.</span></td></tr>'; return; }
+  tb.innerHTML=_qtList.map(function(q,i){
+    var sold=n(q.saleCnt)>0;
+    return '<tr style="cursor:pointer" onclick="saQtPick('+i+')" title="눌러서 이 견적의 품목·단가를 담습니다">'
+      +'<td><b>'+esc(q.docNo)+'</b></td><td>'+esc(saQtD8(q.quoteDt))+'</td><td style="text-align:left">'+esc(q.recvNm)+'</td><td>'+esc(q.mgrNm)+'</td>'
+      +'<td>'+esc(saQtD8(q.adoptDt))+'</td><td class="num">'+n(q.itemCnt)+'</td><td class="num">'+fmt(q.amt)+'</td>'
+      +'<td>'+(sold?'<span style="color:#137a6c;font-weight:700" title="이 견적에서 이미 판매한 전표 '+n(q.saleCnt)+'건 · 마지막 '+esc(saQtD8(q.saleLastDt))+'">💰 '+n(q.saleCnt)+'건</span>':'<span style="color:#8a97a4">—</span>')+'</td></tr>';
+  }).join('');
+}
+function saQtPick(i){
+  var q=_qtList[i]; if(!q) return;
+  post('/mangr/quoteDetail.do','quoteSeq='+encodeURIComponent(q.quoteSeq))
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      var items=(j&&j.data)||[];
+      /* 거래처 — 아직 안 골랐을 때만, 이름이 정확히 하나 맞으면 고른다 */
+      var venNote='';
+      var curVen=(document.getElementById('saVenNm').dataset.cd||'');
+      if(!curVen){
+        var nm=String(q.recvNm||'').replace(/\s+/g,'');
+        var hit=_vendors.filter(function(v){ return String(v.vendorNm||'').replace(/\s+/g,'')===nm; });
+        if(hit.length===1) saVenPick(hit[0].vendorCd);
+        else venNote='<br><span style="font-size:12.5px;color:#b06a00">거래처를 골라 주세요 — 견적 수신처 「'+esc(q.recvNm)+'」와 이름이 '+(hit.length?'같은 거래처가 여럿':'같은 거래처가 없어')+' 저절로 고르지 않았습니다.</span>';
+      }
+      var rows=_rows.filter(function(o){ return o.prodCd; });
+      var added=0, dup=[], miss=[];
+      items.forEach(function(it){
+        var cd=String(it.prodCd||'').trim();
+        var p=cd ? _prods.filter(function(x){ return String(x.prodCd)===cd; })[0] : null;
+        if(!p){ miss.push(it.prodNm||('줄 '+it.rowNo)); return; }
+        if(rows.some(function(o){ return String(o.prodCd)===cd; })){ dup.push(cd); return; }
+        var o=emptyRow();
+        o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=saNmFor(p.prodCd, p.prodNm); o.spec=p.spec||'';
+        o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
+        o.unitPrice=n(it.unitPrice);          // 견적 단가(채택된 값)
+        o.boxQty=0; o.eaQty=n(it.qty);        // 견적 수량을 낱개로 — 납품할 만큼 고친다
+        saCalcRow(o); rows.push(o); added++;
+      });
+      rows.push(emptyRow());
+      _rows=rows; _pShown=_rows.length;
+      _quoteLink={ quoteSeq:q.quoteSeq, docNo:q.docNo||'' }; saQtTag();
+      saRender(); saQtClose();
+      var msg='견적 <b>'+esc(q.docNo)+'</b> 에서 '+added+'개 품목을 담았습니다.'
+        +(dup.length?'<br><span style="font-size:12.5px;color:#3d4d5c">이미 명세에 있는 '+dup.length+'건은 건너뛰었습니다.</span>':'')
+        +(miss.length?'<br><span style="font-size:12.5px;color:#c0392b">상품코드가 없거나 상품마스터에 없어 못 담은 줄 '+miss.length+'건 — '+esc(miss.slice(0,5).join(', '))+(miss.length>5?' 외':'')+'</span>':'')
+        +venNote
+        +'<br><span style="font-size:12.5px;color:#3d4d5c">저장하면 이 판매가 그 견적에서 나왔다는 연결이 남습니다.</span>';
+      swAlert(msg);
+    })
+    .catch(function(e){ swErr('견적서를 읽지 못했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
+}
+/* 상태줄 옆 표시 — 저장 전(새 전표)이면 ✕ 로 연결을 풀 수 있다. 저장된 전표의 연결은 다른 견적을 가져와야 바뀐다 */
+function saQtTag(){
+  var el=document.getElementById('saQtTag'); if(!el) return;
+  if(!_quoteLink){ el.innerHTML=''; return; }
+  el.innerHTML='<span style="display:inline-flex;align-items:center;gap:4px;background:#e8f4f1;border:1px solid #b9e6dd;color:#0e6657;border-radius:11px;padding:1px 9px;font-size:12px;font-weight:700"'
+    +' title="이 판매는 견적서 '+esc(_quoteLink.docNo)+' 에서 나왔습니다(정보 현황 ▸ 진행 현황의 견적 「판매등록」에 셉니다)">📄 견적 '+esc(_quoteLink.docNo||'')
+    +(_cur?'':' <span style="cursor:pointer;color:#8a97a4;font-weight:400" title="이 견적과의 연결을 풉니다(품목은 그대로)" onclick="_quoteLink=null;saQtTag()">✕</span>')+'</span>';
+}
 
 function saDlvOpen(){
   var cd = document.getElementById('saVenNm').dataset.cd || '';

@@ -2979,6 +2979,50 @@ public class UserController {
 			res.put("data", svc.selectPoRemainByProd(p));
 			return res;
 		}
+		/* ===== 진행 현황 (2026-10-06) — 정보 현황 ▸ 진행 현황 =====================================
+		   ①발주 : 발주목록 등록 → 발주서 등록 → 매입전환   ②견적 : 작성 → 제출 → 채택 → 판매등록
+		   화면 하나(mangr/pipeline.jsp)가 집계·단계목록 둘을 쓴다. 조회 전용이라 로그인 확인만 한다. */
+		@RequestMapping(value="/mangr/pipeline.do")
+		public String pipeline(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/pipeline";
+		}
+		@RequestMapping(value="/mangr/pipelineStat.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> pipelineStat(@RequestParam(value="frDt", required=false) String frDt,
+		                                       @RequestParam(value="toDt", required=false) String toDt,
+		                                       HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("compCd", session.getAttribute("s_comp_cd"));
+			p.put("frDt", str(frDt)); p.put("toDt", str(toDt));
+			return svc.selectPipeline(p);
+		}
+		@RequestMapping(value="/mangr/pipelineList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> pipelineList(@RequestParam(value="stage", required=false) String stage,
+		                                       @RequestParam(value="frDt", required=false) String frDt,
+		                                       @RequestParam(value="toDt", required=false) String toDt,
+		                                       HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("compCd", session.getAttribute("s_comp_cd"));
+			p.put("stage", str(stage) == null ? "" : str(stage).toUpperCase());
+			p.put("frDt", str(frDt)); p.put("toDt", str(toDt));
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", svc.selectPipelineList(p));
+			return res;
+		}
+		/** 판매 등록 [📄 견적서에서 가져오기] — 채택된 견적 목록. 품목은 기존 견적 상세(quoteDetail)를 그대로 쓴다 */
+		@RequestMapping(value="/mangr/quoteAdoptList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> quoteAdoptList(@RequestParam(value="findData", required=false) String findData,
+		                                         HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("compCd", session.getAttribute("s_comp_cd"));
+			p.put("findData", str(findData));
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", svc.selectQuoteAdoptList(p));
+			return res;
+		}
 		/** 적정재고 미달 = 추천 발주 (2026-09-16 P1-c 후반, 프로그램 목적 ①의 반대쪽 「떨어졌는데 발주를 안 하는」).
 		    마스터 기준이라 원장에 기록이 없는 품목도 나온다. 화면 = 발주서 [⚠ 추천 발주] · 재고현황 요약 줄. */
 		@RequestMapping(value="/prod/safeStockShort.do", method = RequestMethod.POST)

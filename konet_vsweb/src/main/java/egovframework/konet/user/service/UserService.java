@@ -361,6 +361,10 @@ public interface UserService {
 	java.util.List<java.util.Map<String,Object>> selectPoRecentByProd(java.util.Map<String,Object> p) throws Exception;   // 품목별 최근 발주 한 줄 (2026-09-16)
 	java.util.List<java.util.Map<String,Object>> selectPoRemainByProd(java.util.Map<String,Object> p) throws Exception;   // 품목별 미입고(잔량 합) (2026-09-16 P1-b)
 	java.util.List<java.util.Map<String,Object>> selectSafeStockShort(java.util.Map<String,Object> p) throws Exception;
+	/* 진행 현황 (2026-10-06) */
+	java.util.Map<String,Object> selectPipeline(java.util.Map<String,Object> p) throws Exception;                          // 두 흐름 집계를 한 번에
+	java.util.List<java.util.Map<String,Object>> selectPipelineList(java.util.Map<String,Object> p) throws Exception;       // 단계별 목록(발주·견적)
+	java.util.List<java.util.Map<String,Object>> selectQuoteAdoptList(java.util.Map<String,Object> p) throws Exception;     // 채택 견적
 	java.util.Map<String,Object> selectSafeStockSuggest(String compCd, Integer window, Integer lead, Integer buf, Integer minDays) throws Exception;   // 적정재고 자동 산출 제안(2026-09-17) — {data, params, summary}   // 적정재고 미달 목록 = 추천 발주 (2026-09-16 P1-c 후반)
 	java.util.Map<String,Object> saveSafeStockBulk(java.util.List<java.util.Map<String,Object>> rows, String compCd, String regUser) throws Exception;   // 적정재고 일괄 입력
 	java.util.List<java.util.Map<String,Object>> selectPoLinkedPurch(java.util.Map<String,Object> p) throws Exception;    // 이 발주서를 보고 있는 매입전표들

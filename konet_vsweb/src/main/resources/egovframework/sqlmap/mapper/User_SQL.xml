@@ -1126,7 +1126,9 @@
 	                          FROM TBL_QUOTE_DTL f
 	                         WHERE f.QUOTE_SEQ = m.QUOTE_SEQ AND f.PROD_NM IN (N'동판비', N'목형비')
 	                         FOR XML PATH(''), TYPE ).value('.','NVARCHAR(400)'), 1, 2, ''), '') AS feeNms,
-	         ISNULL(m.SHARE_CNT,0) AS shareCnt, m.LAST_SHARE_DTTM AS lastShareDttm,   /* 카톡 공유 횟수·마지막 때 (2026-09-28) */
+	         ISNULL(m.SHARE_CNT,0) AS shareCnt, m.LAST_SHARE_DTTM AS lastShareDttm,
+	         /* 이 견적에서 나온 판매전표 (2026-10-06) — 판매 등록 [📄 견적서에서 가져오기]가 남긴 연결 */
+	         ISNULL(sl.cnt,0) AS saleCnt, ISNULL(sl.lastDt,'') AS saleLastDt, ISNULL(sl.amt,0) AS saleAmt,   /* 카톡 공유 횟수·마지막 때 (2026-09-28) */
 	         /* 진행 상태 (2026-09-29) — 빈 값은 「작성 중」(W). 일자는 항목마다 따로 남는다 */
 	         ISNULL(NULLIF(m.STAT_GB,''),'W') AS statGb, ISNULL(m.SUBMIT_DT,'') AS submitDt, ISNULL(m.ADOPT_DT,'') AS adoptDt,
 	         ISNULL(m.REJECT_DT,'') AS rejectDt, ISNULL(m.HOLD_DT,'') AS holdDt, ISNULL(m.STAT_MEMO,'') AS statMemo,
@@ -1147,6 +1149,11 @@
 	                       SUM(CASE WHEN ISNULL(PROD_CD,'') = '' THEN 0 ELSE 1 END) AS cdCnt
 	                  FROM TBL_QUOTE_DTL GROUP BY QUOTE_SEQ ) d
 	      ON d.QUOTE_SEQ = m.QUOTE_SEQ
+	    /* 판매 연결 (2026-10-06) — 한 견적에서 여러 번 팔 수 있다(분할 납품) */
+	    LEFT JOIN ( SELECT QUOTE_SEQ, COUNT(*) AS cnt, MAX(SALE_DT) AS lastDt, SUM(ISNULL(TOT_AMT,0)) AS amt
+	                  FROM TBL_SALES_TRX_MST WHERE ACTION_YN='Y' AND QUOTE_SEQ IS NOT NULL
+	                 GROUP BY QUOTE_SEQ ) sl
+	      ON sl.QUOTE_SEQ = m.QUOTE_SEQ
 	   WHERE m.ACTION_YN = 'Y'
 	     AND ( ISNULL(#{inclOld,jdbcType=VARCHAR},'') = 'Y' OR ISNULL(m.LATEST_YN,'Y') = 'Y' )   /* 이전 판은 [이전 판 포함] 을 켰을 때만 (2026-10-01) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -4552,6 +4559,8 @@
 	     #{totBoxQty,jdbcType=DECIMAL}, #{totEaQty,jdbcType=DECIMAL}, #{totQty,jdbcType=DECIMAL},
 	     #{supplyAmt,jdbcType=DECIMAL}, #{vatAmt,jdbcType=DECIMAL}, #{totAmt,jdbcType=DECIMAL}, #{dcAmt,jdbcType=DECIMAL},
 	     #{payGb,jdbcType=VARCHAR}, #{payAmt,jdbcType=DECIMAL}, #{remark,jdbcType=NVARCHAR}, #{poSeq,jdbcType=BIGINT},
+	     /* 견적 → 판매 연결 (2026-10-06) — 견적을 거치지 않은 판매는 둘 다 NULL */
+	     #{quoteSeq,jdbcType=BIGINT}, NULLIF(#{quoteDocNo,jdbcType=NVARCHAR},N''),
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
 	]]></insert>
 
@@ -5225,6 +5234,8 @@
 	         m.REG_DTTM AS regDttm, m.REG_USER AS regUser,
 	         /* 거래명세서 공유(2026-09-09) — DDL: sql/sales_trx_share_alter.sql */
 	         m.SHARE_TOKEN AS shareToken, ISNULL(m.SHARE_CNT,0) AS shareCnt, m.LAST_SHARE_DTTM AS lastShareDttm,
+	         /* 견적 연결 (2026-10-06) — ⚠DDL docs/sql/20261006_quote_sale_link.sql 을 먼저 */
+	         m.QUOTE_SEQ AS quoteSeq, ISNULL(m.QUOTE_DOC_NO,'') AS quoteDocNo,
 	         (SELECT COUNT(*) FROM TBL_SALES_TRX_DTL d WHERE d.SALE_SEQ = m.SALE_SEQ AND d.ACTION_YN='Y' AND d.COMP_CD = m.COMP_CD) AS prodCnt
 	    FROM TBL_SALES_TRX_MST m
 	   WHERE m.ACTION_YN = 'Y'
@@ -5295,7 +5306,7 @@
 	  INSERT INTO TBL_SALES_TRX_MST
 	    (COMP_CD, SALE_DT, SALE_NO, DLV_DT, CUST_CD, CUST_NM, MGR_CD, MGR_NM, WH_CD, WH_NM,
 	     TOT_BOX_QTY, TOT_EA_QTY, TOT_QTY, SUPPLY_AMT, VAT_AMT, TOT_AMT, DC_AMT,
-	     PAY_GB, PAY_AMT, TAX_GB, REMARK, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	     PAY_GB, PAY_AMT, TAX_GB, REMARK, QUOTE_SEQ, QUOTE_DOC_NO, ACTION_YN, REG_DTTM, REG_USER, REG_IP)
 	  VALUES
 	    (ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'),
 	     REPLACE(ISNULL(#{saleDt,jdbcType=VARCHAR},''),'-',''), #{saleNo,jdbcType=VARCHAR},
@@ -5321,6 +5332,9 @@
 	         VAT_AMT = #{vatAmt,jdbcType=DECIMAL}, TOT_AMT = #{totAmt,jdbcType=DECIMAL}, DC_AMT = #{dcAmt,jdbcType=DECIMAL},
 	         PAY_GB = #{payGb,jdbcType=VARCHAR}, PAY_AMT = #{payAmt,jdbcType=DECIMAL},
 	         TAX_GB = #{taxGb,jdbcType=VARCHAR}, REMARK = #{remark,jdbcType=NVARCHAR},
+	         /* 견적 연결 (2026-10-06) — 화면이 안 보내면(옛 화면·다른 길) 기존 값을 지우지 않는다 */
+	         QUOTE_SEQ    = ISNULL(#{quoteSeq,jdbcType=BIGINT}, QUOTE_SEQ),
+	         QUOTE_DOC_NO = ISNULL(NULLIF(#{quoteDocNo,jdbcType=NVARCHAR},N''), QUOTE_DOC_NO),
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE SALE_SEQ = #{saleSeq}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -6974,6 +6988,143 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR D.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   GROUP BY D.PROD_CD
 	]]></select>
+	<!-- ===================================================================================================
+	     진행 현황 (2026-10-06 — 사용자 「①발주리스트등록·발주서등록·매입전환 ②견적 등록·제출·채택·판매등록, 두 가지 진행 상황 볼 수 있게」)
+	     정보 현황 ▸ 진행 현황(mangr/pipeline.jsp) 한 화면이 쓴다.
+	     ★세는 식은 «이미 다른 화면이 쓰는 것»을 그대로 가져온다 — 숫자가 화면마다 갈리면 아무도 안 믿는다.
+	       · 발주 잔량 = selectPoRemainByProd·재고현황 「입고예정」과 같은 셈(발주수량 − 연결된 매입수량, 반품은 음수)
+	       · 견적 상태 = selectQuoteList 와 같은 규칙(빈 값 = 작성 중 W · 마지막 판 LATEST_YN='Y' 만)
+	     =================================================================================================== -->
+
+	<!-- 발주 3단계 집계 — 기간을 걸지 않는다(미등록·미입고는 «밀린 일»이라 기간으로 가리면 안 보인다) -->
+	<select id="selectPipelinePo" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT
+	    (SELECT COUNT(*)                         FROM TBL_PO_REQ WHERE ACTION_YN='Y' AND REG_YN='N'
+	      AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'')='' OR COMP_CD=#{compCd,jdbcType=VARCHAR} ))     AS reqCnt,
+	    (SELECT ISNULL(SUM(ISNULL(REQ_QTY,0)),0) FROM TBL_PO_REQ WHERE ACTION_YN='Y' AND REG_YN='N'
+	      AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'')='' OR COMP_CD=#{compCd,jdbcType=VARCHAR} ))     AS reqQty,
+	    (SELECT COUNT(DISTINCT D.PO_SEQ) FROM TBL_PO_DTL D
+	       JOIN TBL_PO_MST M ON M.PO_SEQ=D.PO_SEQ AND M.ACTION_YN='Y'
+	       OUTER APPLY ( SELECT SUM(CASE WHEN P.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(P.QTY,0) ELSE ISNULL(P.QTY,0) END) AS inQty
+	                       FROM TBL_PURCHASE_DTL P JOIN TBL_PURCHASE_MST PM ON PM.PURCH_SEQ=P.PURCH_SEQ AND PM.ACTION_YN='Y'
+	                      WHERE P.PO_DTL_SEQ=D.PO_DTL_SEQ AND P.ACTION_YN='Y' ) R
+	      WHERE D.ACTION_YN='Y' AND ISNULL(D.CLOSE_YN,'N')='N' AND ISNULL(D.QTY,0)-ISNULL(R.inQty,0) > 0
+	        AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'')='' OR M.COMP_CD=#{compCd,jdbcType=VARCHAR} )) AS poCnt,
+	    (SELECT ISNULL(SUM(ISNULL(D.QTY,0)-ISNULL(R.inQty,0)),0) FROM TBL_PO_DTL D
+	       JOIN TBL_PO_MST M ON M.PO_SEQ=D.PO_SEQ AND M.ACTION_YN='Y'
+	       OUTER APPLY ( SELECT SUM(CASE WHEN P.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(P.QTY,0) ELSE ISNULL(P.QTY,0) END) AS inQty
+	                       FROM TBL_PURCHASE_DTL P JOIN TBL_PURCHASE_MST PM ON PM.PURCH_SEQ=P.PURCH_SEQ AND PM.ACTION_YN='Y'
+	                      WHERE P.PO_DTL_SEQ=D.PO_DTL_SEQ AND P.ACTION_YN='Y' ) R
+	      WHERE D.ACTION_YN='Y' AND ISNULL(D.CLOSE_YN,'N')='N' AND ISNULL(D.QTY,0)-ISNULL(R.inQty,0) > 0
+	        AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'')='' OR M.COMP_CD=#{compCd,jdbcType=VARCHAR} )) AS poRemainQty,
+	    (SELECT COUNT(DISTINCT D.PO_SEQ) FROM TBL_PO_DTL D
+	       JOIN TBL_PO_MST M ON M.PO_SEQ=D.PO_SEQ AND M.ACTION_YN='Y'
+	       JOIN TBL_PURCHASE_DTL P ON P.PO_DTL_SEQ=D.PO_DTL_SEQ AND P.ACTION_YN='Y'
+	       JOIN TBL_PURCHASE_MST PM ON PM.PURCH_SEQ=P.PURCH_SEQ AND PM.ACTION_YN='Y'
+	      WHERE D.ACTION_YN='Y'
+	        AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'')='' OR M.COMP_CD=#{compCd,jdbcType=VARCHAR} )) AS purchCnt,
+	    (SELECT COUNT(*) FROM TBL_PO_MST WHERE ACTION_YN='Y'
+	      AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'')='' OR COMP_CD=#{compCd,jdbcType=VARCHAR} ))     AS poAllCnt
+	]]></select>
+
+	<!-- 견적 4단계 집계 — 기간을 건다(견적은 날마다 쌓인다). 마지막 판만(LATEST_YN) — 목록 화면과 같은 규칙 -->
+	<select id="selectPipelineQuote" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT ISNULL(NULLIF(m.STAT_GB,''),'W') AS statGb,
+	         COUNT(*) AS cnt,
+	         ISNULL(SUM(ISNULL(m.SUPPLY_AMT,0)),0) AS amt,
+	         SUM(CASE WHEN ISNULL(sl.cnt,0) > 0 THEN 1 ELSE 0 END) AS saleCnt,
+	         ISNULL(SUM(CASE WHEN ISNULL(sl.cnt,0) > 0 THEN sl.amt ELSE 0 END),0) AS saleAmt
+	    FROM TBL_QUOTE_MST m
+	    LEFT JOIN ( SELECT QUOTE_SEQ, COUNT(*) AS cnt, SUM(ISNULL(TOT_AMT,0)) AS amt
+	                  FROM TBL_SALES_TRX_MST WHERE ACTION_YN='Y' AND QUOTE_SEQ IS NOT NULL
+	                 GROUP BY QUOTE_SEQ ) sl ON sl.QUOTE_SEQ = m.QUOTE_SEQ
+	   WHERE m.ACTION_YN='Y' AND ISNULL(m.LATEST_YN,'Y')='Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'')='' OR m.COMP_CD=#{compCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{frDt,jdbcType=VARCHAR},'')='' OR ISNULL(m.QUOTE_DT,'') >= REPLACE(#{frDt,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'')='' OR ISNULL(m.QUOTE_DT,'') <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
+	   GROUP BY ISNULL(NULLIF(m.STAT_GB,''),'W')
+	]]></select>
+
+	<!-- 발주 단계별 목록 — stage : REQ 미등록 · PO 잔량 남은 발주 줄 · PURCH 매입전환된 줄 -->
+	<select id="selectPipelinePoList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 500 * FROM (
+	    SELECT 'REQ' AS stage, CAST(Q.REQ_SEQ AS VARCHAR(20)) AS keySeq, ISNULL(Q.REQ_DT,'') AS dt,
+	           ISNULL(Q.PROD_CD,'') AS prodCd, ISNULL(Q.PROD_NM,'') AS prodNm, ISNULL(Q.SPEC,'') AS spec,
+	           ISNULL(Q.VENDOR_NM,'') AS partyNm, ISNULL(Q.REQ_QTY,0) AS qty, ISNULL(Q.SHORT_QTY,0) AS qty2,
+	           '' AS docNo, N'미등록' AS note
+	      FROM TBL_PO_REQ Q
+	     WHERE Q.ACTION_YN='Y' AND Q.REG_YN='N' AND #{stage,jdbcType=VARCHAR} = 'REQ'
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'')='' OR Q.COMP_CD=#{compCd,jdbcType=VARCHAR} )
+	    UNION ALL
+	    SELECT 'PO', CAST(D.PO_DTL_SEQ AS VARCHAR(20)), ISNULL(M.PO_DT,''),
+	           ISNULL(D.PROD_CD,''), ISNULL(D.PROD_NM,''), ISNULL(D.SPEC,''),
+	           ISNULL(M.VENDOR_NM,''), ISNULL(D.QTY,0)-ISNULL(R.inQty,0), ISNULL(D.QTY,0),
+	           ISNULL(M.PO_NO,''), N'미입고'
+	      FROM TBL_PO_DTL D
+	      JOIN TBL_PO_MST M ON M.PO_SEQ=D.PO_SEQ AND M.ACTION_YN='Y'
+	      OUTER APPLY ( SELECT SUM(CASE WHEN P.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(P.QTY,0) ELSE ISNULL(P.QTY,0) END) AS inQty
+	                      FROM TBL_PURCHASE_DTL P JOIN TBL_PURCHASE_MST PM ON PM.PURCH_SEQ=P.PURCH_SEQ AND PM.ACTION_YN='Y'
+	                     WHERE P.PO_DTL_SEQ=D.PO_DTL_SEQ AND P.ACTION_YN='Y' ) R
+	     WHERE D.ACTION_YN='Y' AND ISNULL(D.CLOSE_YN,'N')='N' AND ISNULL(D.QTY,0)-ISNULL(R.inQty,0) > 0
+	       AND #{stage,jdbcType=VARCHAR} = 'PO'
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'')='' OR M.COMP_CD=#{compCd,jdbcType=VARCHAR} )
+	    UNION ALL
+	    SELECT 'PURCH', CAST(P.DTL_SEQ AS VARCHAR(20)), ISNULL(PM.PURCH_DT,''),
+	           ISNULL(P.PROD_CD,''), ISNULL(P.PROD_NM,''), ISNULL(P.SPEC,''),
+	           ISNULL(PM.VENDOR_NM,''), ISNULL(P.QTY,0), ISNULL(D.QTY,0),
+	           ISNULL(M.PO_NO,''), N'매입 ' + ISNULL(PM.PURCH_NO,'')
+	      FROM TBL_PURCHASE_DTL P
+	      JOIN TBL_PURCHASE_MST PM ON PM.PURCH_SEQ=P.PURCH_SEQ AND PM.ACTION_YN='Y'
+	      JOIN TBL_PO_DTL D ON D.PO_DTL_SEQ=P.PO_DTL_SEQ AND D.ACTION_YN='Y'
+	      JOIN TBL_PO_MST M ON M.PO_SEQ=D.PO_SEQ AND M.ACTION_YN='Y'
+	     WHERE P.ACTION_YN='Y' AND #{stage,jdbcType=VARCHAR} = 'PURCH'
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'')='' OR PM.COMP_CD=#{compCd,jdbcType=VARCHAR} )
+	  ) z ORDER BY z.dt DESC, z.prodCd
+	]]></select>
+
+	<!-- 견적 단계별 목록 — stage : W/S/A/R/H 는 그 상태, SALE 은 「판매까지 간 것」 -->
+	<select id="selectPipelineQuoteList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 500
+	         m.QUOTE_SEQ AS quoteSeq, ISNULL(m.DOC_NO,'') AS docNo, ISNULL(m.QUOTE_DT,'') AS quoteDt,
+	         ISNULL(m.RECV_NM,'') AS recvNm, ISNULL(m.MGR_NM,'') AS mgrNm, ISNULL(m.SUPPLY_AMT,0) AS amt,
+	         ISNULL(NULLIF(m.STAT_GB,''),'W') AS statGb,
+	         ISNULL(m.SUBMIT_DT,'') AS submitDt, ISNULL(m.ADOPT_DT,'') AS adoptDt,
+	         ISNULL(m.REJECT_DT,'') AS rejectDt, ISNULL(m.HOLD_DT,'') AS holdDt, ISNULL(m.STAT_MEMO,'') AS statMemo,
+	         ISNULL(sl.cnt,0) AS saleCnt, ISNULL(sl.lastDt,'') AS saleLastDt, ISNULL(sl.amt,0) AS saleAmt
+	    FROM TBL_QUOTE_MST m
+	    LEFT JOIN ( SELECT QUOTE_SEQ, COUNT(*) AS cnt, MAX(SALE_DT) AS lastDt, SUM(ISNULL(TOT_AMT,0)) AS amt
+	                  FROM TBL_SALES_TRX_MST WHERE ACTION_YN='Y' AND QUOTE_SEQ IS NOT NULL
+	                 GROUP BY QUOTE_SEQ ) sl ON sl.QUOTE_SEQ = m.QUOTE_SEQ
+	   WHERE m.ACTION_YN='Y' AND ISNULL(m.LATEST_YN,'Y')='Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'')='' OR m.COMP_CD=#{compCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{frDt,jdbcType=VARCHAR},'')='' OR ISNULL(m.QUOTE_DT,'') >= REPLACE(#{frDt,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'')='' OR ISNULL(m.QUOTE_DT,'') <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
+	     AND ( ( #{stage,jdbcType=VARCHAR} = 'SALE' AND ISNULL(sl.cnt,0) > 0 )
+	           OR ( #{stage,jdbcType=VARCHAR} <> 'SALE' AND ISNULL(NULLIF(m.STAT_GB,''),'W') = #{stage,jdbcType=VARCHAR} ) )
+	   ORDER BY m.QUOTE_DT DESC, m.QUOTE_SEQ DESC
+	]]></select>
+
+	<!-- 판매 등록 [📄 견적서에서 가져오기] — 채택(A)된 견적만. 이미 판매로 이어진 것도 보여 준다(막지 않는다 · 분할 납품) -->
+	<select id="selectQuoteAdoptList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 300
+	         m.QUOTE_SEQ AS quoteSeq, ISNULL(m.DOC_NO,'') AS docNo, ISNULL(m.QUOTE_DT,'') AS quoteDt,
+	         ISNULL(m.RECV_NM,'') AS recvNm, ISNULL(m.MGR_NM,'') AS mgrNm, ISNULL(m.SUPPLY_AMT,0) AS amt,
+	         ISNULL(m.ADOPT_DT,'') AS adoptDt, ISNULL(d.cnt,0) AS itemCnt,
+	         ISNULL(sl.cnt,0) AS saleCnt, ISNULL(sl.lastDt,'') AS saleLastDt
+	    FROM TBL_QUOTE_MST m
+	    LEFT JOIN ( SELECT QUOTE_SEQ, COUNT(*) AS cnt FROM TBL_QUOTE_DTL GROUP BY QUOTE_SEQ ) d ON d.QUOTE_SEQ = m.QUOTE_SEQ
+	    LEFT JOIN ( SELECT QUOTE_SEQ, COUNT(*) AS cnt, MAX(SALE_DT) AS lastDt
+	                  FROM TBL_SALES_TRX_MST WHERE ACTION_YN='Y' AND QUOTE_SEQ IS NOT NULL
+	                 GROUP BY QUOTE_SEQ ) sl ON sl.QUOTE_SEQ = m.QUOTE_SEQ
+	   WHERE m.ACTION_YN='Y' AND ISNULL(m.LATEST_YN,'Y')='Y'
+	     AND ISNULL(NULLIF(m.STAT_GB,''),'W') = 'A'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'')='' OR m.COMP_CD=#{compCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'')=''
+	           OR m.DOC_NO  LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR ISNULL(m.RECV_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	   ORDER BY ISNULL(m.ADOPT_DT, m.QUOTE_DT) DESC, m.QUOTE_SEQ DESC
+	]]></select>
+
 	<!-- 적정재고 미달 목록 = 추천 발주 (2026-09-16 P1-c 후반, 프로그램 목적 ①「재고 파악이 안 돼 중복 발주」의 반대쪽 = 「떨어졌는데 발주를 안 하는」) —
 	     ★마스터 기준이라 원장에 기록이 없는 품목도 나온다(재고현황 두 표는 원장 GROUP BY 라 안 나온다).
 	     가용 = 현재고(원장 합) + 입고예정(마감 안 된 발주 잔량). 미달 = SAFE_STOCK > 0 이고 가용 < SAFE_STOCK. 부족 = SAFE_STOCK − 가용.
