@@ -21,7 +21,8 @@ import javax.servlet.http.HttpSession;
  *
  * <p>막을 때 :
  * <ul>
- *   <li>화면 이동(GET + 브라우저가 HTML 을 원함) → 로그인 화면(/konet.do)으로 보낸다.</li>
+ *   <li>화면 이동(GET + 브라우저가 HTML 을 원함) → 로그인 화면(/konet.do)으로 보낸다
+ *       (302 가 아니라 상대 주소로 옮기는 작은 페이지 — 운영 톰캣의 302 는 http 절대주소라 https 셸의 iframe 에서 막힌다).</li>
  *   <li>그 밖(fetch·ajax·POST) → <b>401</b> + 「로그인이 필요합니다」. 화면의 오류 알림에 그 글이 그대로 뜬다.
  *       ※운영 nginx 는 401 을 그대로 통과시킨다(2026-10-06 실측 — 404 만 가비아 오류 페이지로 바뀐다).</li>
  * </ul>
@@ -71,7 +72,19 @@ public class LoginCheckFilter implements Filter {
 		boolean page = "GET".equalsIgnoreCase(req.getMethod())
 			&& accept != null && accept.contains("text/html")
 			&& !"XMLHttpRequest".equals(req.getHeader("X-Requested-With"));
-		if (page) { res.sendRedirect(ctx + "/konet.do"); return; }
+		/* ★sendRedirect 를 쓰지 않는다 (2026-10-06 운영 실측) — 운영 톰캣은 Location 을 <절대 http://allcare24.kr/…> 로 만든다(앞단 nginx 가 https 를 풀어서 넘김).
+		     메뉴 화면은 https 셸 안의 iframe 이라 http 로 튀면 Mixed Content 로 막혀 <빈 칸>이 된다. 그래서 상대 주소로 옮기는 작은 페이지를 준다 —
+		     iframe 안이면 <창 전체(top)>를 로그인 화면으로(로그인 화면이 메뉴 칸 안에 박히지 않게). */
+		if (page) {
+			String to = ctx + "/konet.do";
+			res.setStatus(200);
+			res.setContentType("text/html; charset=UTF-8");
+			res.setHeader("Cache-Control", "no-store");
+			res.getWriter().write("<!doctype html><html><head><meta charset=\"utf-8\"><title>로그인</title></head><body>"
+				+ "<script>(function(u){try{if(window.top!==window.self){window.top.location.replace(u);return;}}catch(e){}location.replace(u);})('" + to + "');</script>"
+				+ "<noscript><a href=\"" + to + "\">로그인이 필요합니다 — 로그인 화면으로</a></noscript></body></html>");
+			return;
+		}
 
 		res.setStatus(401);
 		res.setContentType("text/plain; charset=UTF-8");

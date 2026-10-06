@@ -2286,3 +2286,4 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
   공개(그대로 통과) = `/konet.do`·`/index.do`·`/main.do`·`/user/loginAct|loginChk|loginOutAct|sessionChk.do`·`/getSignList.do`·`/patient/login|register.do`·`/json/user/pwdresetAct|pwdchgAct.do`·**`/pub/*`(공개 링크 — 토큰이 열쇠)**·`/popup/*`.
   ★**새 공개 주소(로그인 없이 열려야 하는 것)를 만들면 `LoginCheckFilter.PUBLIC_*` 에 더한다** — 안 더하면 카톡·메일로 보낸 링크가 로그인 화면으로 튄다.
   검증 = javac · web.xml `[xml]` 로드(CRLF 84/84) · 가짜 요청 하네스 30검사(미로그인 데이터 401 · 화면 리다이렉트 · `;jsessionid` 꼬리 · 로그인 통과 · 공개 19주소 통과 · `/pubx` 흉내 차단). ⛔실서버 확인은 재기동 뒤.
+  ✅**[같은 날] 운영 재배포 확인** — 미로그인 `salesTrxList` = **401** · 로그인·비번 팝업·`sessionChk` 그대로. ⚠**운영 톰캣의 302 는 `http://allcare24.kr/…` 절대주소**다(로컬은 상대 `/konet.do`) — https 셸의 iframe 안에서 http 로 튀면 Mixed Content 로 막혀 **빈 칸**. ⇒ 화면 이동은 302 대신 **상대 주소로 옮기는 작은 페이지(200, iframe 이면 창 전체 top 을)** 로 바꿨다(⛔다시 WAR 재빌드·배포). 기존 `loginOutAct`(Spring redirect)도 같은 http 절대주소다 — 별건.
