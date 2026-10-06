@@ -14,6 +14,16 @@
     <filter-name>encodingFilter</filter-name>
     <url-pattern>*.do</url-pattern>
   </filter-mapping>
+  <!-- 상대 주소 리다이렉트 (2026-10-06) — 운영 톰캣은 redirect: 를 http://allcare24.kr/… 절대주소로 바꾼다(앞단 nginx 가 https 를 풀어 넘김).
+       그러면 로그아웃·권한 없는 화면이 http 로 튄다. 이 필터가 Location 을 상대 주소 그대로 두어 브라우저가 https 를 유지한다(상태 303). -->
+  <filter>
+    <filter-name>relativeRedirectFilter</filter-name>
+    <filter-class>org.springframework.web.filter.RelativeRedirectFilter</filter-class>
+  </filter>
+  <filter-mapping>
+    <filter-name>relativeRedirectFilter</filter-name>
+    <url-pattern>*.do</url-pattern>
+  </filter-mapping>
   <!-- 다중회사(멀티테넌트) — 로그인 세션(s_comp_cd)의 회사코드를 요청 스레드에 실어
        MyBatis 인터셉터(CompCdMybatisInterceptor)가 모든 SQL 에 compCd 를 자동 주입하게 한다 -->
   <filter>

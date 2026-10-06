@@ -1,6 +1,9 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 <html>
 <head>
+<%-- http 로 들어오면 https 로 (2026-10-06) — 운영 nginx 가 http(80)도 그대로 받아 주어, 로그아웃 뒤 http 화면에 머무르는 일이 있었다.
+     allcare24.kr 에서만 동작(로컬·IP 접속은 그대로). 근본 해결은 nginx 에서 80 → 443 301. --%>
+<script>(function(l){if(l.protocol==='http:'&&/(^|\.)allcare24\.kr$/i.test(l.hostname)){l.replace('https://'+l.host+l.pathname+l.search+l.hash);}})(location);</script>
   
 <meta charset="UTF-8">
 <%-- defer(2026-07-31 속도): CDN 스크립트가 head 에서 첫 렌더를 막지 않게. swAlert/swConfirm 은 window.Swal 가드가 있어 안전 --%>

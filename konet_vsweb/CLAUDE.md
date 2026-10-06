@@ -2287,3 +2287,9 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
   ★**새 공개 주소(로그인 없이 열려야 하는 것)를 만들면 `LoginCheckFilter.PUBLIC_*` 에 더한다** — 안 더하면 카톡·메일로 보낸 링크가 로그인 화면으로 튄다.
   검증 = javac · web.xml `[xml]` 로드(CRLF 84/84) · 가짜 요청 하네스 30검사(미로그인 데이터 401 · 화면 리다이렉트 · `;jsessionid` 꼬리 · 로그인 통과 · 공개 19주소 통과 · `/pubx` 흉내 차단). ⛔실서버 확인은 재기동 뒤.
   ✅**[같은 날] 운영 재배포 확인** — 미로그인 `salesTrxList` = **401** · 로그인·비번 팝업·`sessionChk` 그대로. ⚠**운영 톰캣의 302 는 `http://allcare24.kr/…` 절대주소**다(로컬은 상대 `/konet.do`) — https 셸의 iframe 안에서 http 로 튀면 Mixed Content 로 막혀 **빈 칸**. ⇒ 화면 이동은 302 대신 **상대 주소로 옮기는 작은 페이지(200, iframe 이면 창 전체 top 을)** 로 바꿨다(⛔다시 WAR 재빌드·배포). 기존 `loginOutAct`(Spring redirect)도 같은 http 절대주소다 — 별건.
+- **[2026-10-06] 로그아웃·redirect 가 http 로 튀던 것 + http 접속을 https 로**(사용자 「로그아웃 http 문제도 고쳐줘」) — ⛔**WAR 재빌드+재기동**(web.xml).
+  원인 = 운영 톰캣이 Spring `redirect:` 를 **`http://allcare24.kr/…` 절대주소**로 바꾼다(앞단 nginx 가 https 를 풀어 넘겨 톰캣은 http 로 안다). 로그아웃(`/user/loginOutAct.do` → `redirect:/konet.do`)·권한 없는 화면(`redirect:/main.do`) 전부 해당.
+  ①**`RelativeRedirectFilter`**(Spring 5.3 기본 제공, web.xml `*.do`) — Location 을 상대 주소 그대로 둔다(상태 **303**) → 브라우저가 https 를 유지. 코드의 `redirect:` 는 손대지 않았다.
+  ②**https 가드** — 운영 nginx 가 80(http)도 그대로 받아 준다(`http://allcare24.kr/konet/konet.do` = 200). 로그인 틀(`tiles/login/login.jsp`)·셸(`logistics_demo2.jsp`) `<head>` 맨 앞에 「`allcare24.kr`(·`*.allcare24.kr`) 이고 http 면 같은 주소 https 로 `location.replace`」 한 줄. 로컬·IP 접속은 그대로. www 도 인증서 유효(실측).
+  ★근본 해결은 nginx 에서 80 → 443 **301** — 가비아/서버 설정 사안. 이 가드는 그 전까지의 안전망이다.
+  검증 = web.xml `[xml]`(CRLF 94/94) · jspsyn(셸 7블록·로그인 1블록 0오류) · 가드 규칙 7경우(http 운영 → https · https/로컬/IP/`evilallcare24.kr` 그대로). ⛔실서버 확인은 재기동 뒤.
