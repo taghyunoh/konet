@@ -2278,3 +2278,11 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
   기존 전표 수정(UPDATE)은 정상이라(11:31 세진유통) 늦게 드러났다. javac·XML·MyBatis 파싱은 전부 통과했다 — **칸 수 어긋남·엉뚱한 문장 수정은 그 검사들로 안 잡힌다.**
   ⇒ 고침 = 매입 INSERT 를 백업과 바이트까지 같게 되돌리고 판매 INSERT 에 값 두 개. 검증 = `mapper_audit.js diff` 로 오늘 바뀐 문장이 **의도한 9개뿐**(고친 4·새 5) · `count` INSERT 39문 칸=값 · MyBatis 자리표 판매 25·매입 22.
   ★★**규칙 : 패치는 문장 블록을 잘라 그 안에서만 고치고 `s///g` 로 센다. 매퍼를 고치면 `mapper_audit.js count`·`diff` 를 반드시 돌린다.**
+  ✅**[같은 날 12:20] 운영 재배포 확인** — 운영 DB 접속이 12:20:43 에 새로 붙고, K001 이 퐁퐁플라워 건대점 전표(SALE_SEQ 43 · 0002 · 73,800 · 4줄)를 운영에서 저장했다. 옛 1줄은 수정 저장이 `ACTION_YN='N'` 으로 걷어냈다(조회할 때 ACTION_YN 을 꼭 걸 것 — 안 걸면 줄이 둘로 보인다).
+  ⚠「Failed to fetch」 원인 조사 : konet 은 **`https://allcare24.kr/konet/`** 이다(루트 `/` 는 다른 프로그램 — 처음에 루트를 재서 헛짚었다). `/konet` 아래에서 400·401·405 는 앱 문구가 그대로 오고 **404 만 nginx 가 `http://errdoc.gabia.net/404.html` 302** 로 바꾼다(https 화면의 fetch 가 그 http 주소에서 Mixed Content 로 막혀 「Failed to fetch」). 500 도 그렇게 바뀌는지는 **안전하게 500 을 낼 길이 없어 미확인** — 다음에 나면 F12 Network 에서 302→errdoc 인지 볼 것.
+- **[2026-10-06] 로그인 확인 필터 `LoginCheckFilter`**(사용자 「로그인 체크 추가해줘」) — ⛔**WAR 재빌드+재기동**(자바 1 + web.xml).
+  까닭 = 미로그인이면 compCd 가 빈 값이라 COMP_CD 조건이 fail-open → **로그인 없이 `/mangr/salesTrxList.do` 가 모든 회사 판매전표를 돌려줬다**(로컬 실측). 엔드포인트 340여 개에 하나씩 넣지 않고 `*.do` 필터 한 곳에서 막는다.
+  규칙 = 세션 `s_comp_cd` 가 있어야 통과 · 화면 이동(GET+text/html) → `/konet.do` 로 · 그 밖(fetch·ajax) → **401 「로그인이 필요합니다」**(운영 nginx 가 401 은 통과시킨다 — 실측).
+  공개(그대로 통과) = `/konet.do`·`/index.do`·`/main.do`·`/user/loginAct|loginChk|loginOutAct|sessionChk.do`·`/getSignList.do`·`/patient/login|register.do`·`/json/user/pwdresetAct|pwdchgAct.do`·**`/pub/*`(공개 링크 — 토큰이 열쇠)**·`/popup/*`.
+  ★**새 공개 주소(로그인 없이 열려야 하는 것)를 만들면 `LoginCheckFilter.PUBLIC_*` 에 더한다** — 안 더하면 카톡·메일로 보낸 링크가 로그인 화면으로 튄다.
+  검증 = javac · web.xml `[xml]` 로드(CRLF 84/84) · 가짜 요청 하네스 30검사(미로그인 데이터 401 · 화면 리다이렉트 · `;jsessionid` 꼬리 · 로그인 통과 · 공개 19주소 통과 · `/pubx` 흉내 차단). ⛔실서버 확인은 재기동 뒤.

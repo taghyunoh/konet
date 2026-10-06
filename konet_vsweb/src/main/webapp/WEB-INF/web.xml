@@ -24,6 +24,16 @@
     <filter-name>compCdFilter</filter-name>
     <url-pattern>*.do</url-pattern>
   </filter-mapping>
+  <!-- 로그인 확인 (2026-10-06) — 미로그인 *.do 는 로그인 화면으로(화면) / 401(데이터). 공개 주소 목록은 LoginCheckFilter.PUBLIC_*
+       ★compCdFilter 뒤에 둔다(순서는 무관하지만 회사코드 필터와 짝으로 읽히게) -->
+  <filter>
+    <filter-name>loginCheckFilter</filter-name>
+    <filter-class>egovframework.konet.cmmn.LoginCheckFilter</filter-class>
+  </filter>
+  <filter-mapping>
+    <filter-name>loginCheckFilter</filter-name>
+    <url-pattern>*.do</url-pattern>
+  </filter-mapping>
   <filter>
     <filter-name>HTMLTagFilter</filter-name>
     <filter-class>org.egovframe.rte.ptl.mvc.filter.HTMLTagFilter</filter-class>
