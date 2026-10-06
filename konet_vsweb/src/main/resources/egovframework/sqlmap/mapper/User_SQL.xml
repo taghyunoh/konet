@@ -4559,8 +4559,6 @@
 	     #{totBoxQty,jdbcType=DECIMAL}, #{totEaQty,jdbcType=DECIMAL}, #{totQty,jdbcType=DECIMAL},
 	     #{supplyAmt,jdbcType=DECIMAL}, #{vatAmt,jdbcType=DECIMAL}, #{totAmt,jdbcType=DECIMAL}, #{dcAmt,jdbcType=DECIMAL},
 	     #{payGb,jdbcType=VARCHAR}, #{payAmt,jdbcType=DECIMAL}, #{remark,jdbcType=NVARCHAR}, #{poSeq,jdbcType=BIGINT},
-	     /* 견적 → 판매 연결 (2026-10-06) — 견적을 거치지 않은 판매는 둘 다 NULL */
-	     #{quoteSeq,jdbcType=BIGINT}, NULLIF(#{quoteDocNo,jdbcType=NVARCHAR},N''),
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
 	]]></insert>
 
@@ -5317,6 +5315,8 @@
 	     #{totBoxQty,jdbcType=DECIMAL}, #{totEaQty,jdbcType=DECIMAL}, #{totQty,jdbcType=DECIMAL},
 	     #{supplyAmt,jdbcType=DECIMAL}, #{vatAmt,jdbcType=DECIMAL}, #{totAmt,jdbcType=DECIMAL}, #{dcAmt,jdbcType=DECIMAL},
 	     #{payGb,jdbcType=VARCHAR}, #{payAmt,jdbcType=DECIMAL}, #{taxGb,jdbcType=VARCHAR}, #{remark,jdbcType=NVARCHAR},
+	     /* 견적 → 판매 연결 (2026-10-06) — 견적을 거치지 않은 판매는 둘 다 NULL */
+	     #{quoteSeq,jdbcType=BIGINT}, NULLIF(#{quoteDocNo,jdbcType=NVARCHAR},N''),
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
 	]]></insert>
 

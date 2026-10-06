@@ -2273,3 +2273,8 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
   ★**검사 도구를 저장소로** [docs/tools/check](docs/tools/check/README.md) — 세션 임시 폴더의 jspsyn·MapperParse 가 하룻밤 사이 지워져 다시 만들었다. `sqlof.js` + `docs/tools/dbread` 로 **매퍼 문장을 운영 DB 에 그대로 태워 본다**(이번에 `TBL_PURCHASE_DTL` 기본키가 `PURCH_DTL_SEQ` 가 아니라 `DTL_SEQ` 인 것을 여기서 잡았다 — javac·XML 검사로는 안 잡힌다).
   ⚠매퍼 줄머리는 「탭 + 공백」 — 패치 스크립트의 **여러 줄 앵커에는 탭을 넣는다**(공백만 쓰면 빗나간다).
   ⚠jsdom 시뮬에서 `onclick="…"` 를 실행하려면 `runScripts: 'dangerously'`.
+  ⛔⛔**[같은 날 운영 사고 — 고침, 재배포 필요]** 배포 뒤 판매 등록 **새 전표**가 「Failed to fetch」로 저장 안 됐다. 원인 = 제 패치 도우미 `sub1` 이 `s///`(g 없음)라 **첫 번째로 맞는 문장**을 고쳤다 —
+  견적 값 두 개가 `insertSalesTrxMst` 가 아니라 **`insertPurchaseMst`** 에 들어가 ①판매 INSERT 칸 27·값 25 ②매입 INSERT 값이 2개 많음(+PurchaseDTO 에 quoteSeq 없음) → **판매·매입 새 전표 저장이 둘 다 실패**.
+  기존 전표 수정(UPDATE)은 정상이라(11:31 세진유통) 늦게 드러났다. javac·XML·MyBatis 파싱은 전부 통과했다 — **칸 수 어긋남·엉뚱한 문장 수정은 그 검사들로 안 잡힌다.**
+  ⇒ 고침 = 매입 INSERT 를 백업과 바이트까지 같게 되돌리고 판매 INSERT 에 값 두 개. 검증 = `mapper_audit.js diff` 로 오늘 바뀐 문장이 **의도한 9개뿐**(고친 4·새 5) · `count` INSERT 39문 칸=값 · MyBatis 자리표 판매 25·매입 22.
+  ★★**규칙 : 패치는 문장 블록을 잘라 그 안에서만 고치고 `s///g` 로 센다. 매퍼를 고치면 `mapper_audit.js count`·`diff` 를 반드시 돌린다.**
