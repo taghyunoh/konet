@@ -1708,6 +1708,37 @@ public class UserServiceImpl implements UserService {
 		return n;
 	}
 	@Override public java.util.List<java.util.Map<String,Object>> selectDcPoList(java.util.Map<String,Object> p) throws Exception { return mapper.selectDcPoList(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectDcPoDelList(java.util.Map<String,Object> p) throws Exception { return mapper.selectDcPoDelList(p); }
+	/* DC 발주 복구 (2026-10-07 「복구기능 해줘」) — 지운 줄('D')·대체된 옛 줄('N')을 살린다.
+	   ★저장과 같은 규칙 : 같은 납기일자·품목코드의 «지금 줄»은 먼저 'N'(대체)으로 내린다 → 이력에 남아 되돌릴 수 있다.
+	   같은 열쇠를 두 줄 고르면 둘 다 살아나 겹치므로 거절한다. 재고 원장은 컨트롤러가 그 납기일자들로 다시 맞춘다. */
+	@Override public java.util.Map<String,Object> restoreDcPo(java.util.List<Long> seqs, String user, String ip, String compCd) throws Exception {
+		java.util.Map<String,Object> out = new java.util.HashMap<String,Object>();
+		java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
+		out.put("n", 0); out.put("dates", dates);
+		if (seqs == null || seqs.isEmpty() || scStr(compCd).isEmpty()) return out;
+		java.util.Map<String,Object> q = new java.util.HashMap<String,Object>();
+		q.put("compCd", compCd); q.put("seqs", seqs); q.put("regUser", user); q.put("regIp", ip);
+		java.util.List<java.util.Map<String,Object>> rows = mapper.selectDcPoBySeqs(q);
+		if (rows == null || rows.isEmpty()) throw new IllegalArgumentException("복구할 줄을 찾지 못했습니다 — 이미 복구됐거나 이 회사 자료가 아닙니다.");
+		java.util.LinkedHashSet<String> keys = new java.util.LinkedHashSet<String>();
+		for (java.util.Map<String,Object> r : rows) {
+			String k = scStr(r.get("dlvDt")) + "|" + scStr(r.get("itemCd"));
+			if (!keys.add(k)) throw new IllegalArgumentException("같은 납기일자·품목코드(" + scStr(r.get("dlvDt")) + " · " + scStr(r.get("itemCd")) + ")를 두 줄 골랐습니다 — 하나만 골라 주세요.");
+		}
+		for (String k : keys) {
+			String[] kv = k.split("\\|", -1);
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", compCd); p.put("dlvDt", kv[0]); p.put("itemCd", kv[1]); p.put("regUser", user); p.put("regIp", ip);
+			mapper.markDcPoReplace(p);
+			dates.add(kv[0]);
+		}
+		java.util.List<Long> ok = new java.util.ArrayList<Long>();
+		for (java.util.Map<String,Object> r : rows) ok.add(Long.valueOf(String.valueOf(r.get("seq"))));
+		q.put("seqs", ok);
+		out.put("n", mapper.restoreDcPo(q));
+		return out;
+	}
 	/* 비용 등록 — 한 달을 다른 달로 복사 (2026-09-21 「전월 복사 말고 금월 복사도, 역순으로 복사 가능하게」)
 	   fromYm 의 수기 항목(자동 택배 제외, 사용 끈 항목 제외)을 toYm 으로 : 내역 줄이 있는 항목은 줄째로(일자는 같은 날짜를 그 달로 옮기고 말일을 넘으면 말일,
 	   확인 표시는 지운다) 넣고 합계를 맞춘다. 내역이 없는 항목은 금액·비고를 넣는다.

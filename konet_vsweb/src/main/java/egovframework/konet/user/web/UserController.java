@@ -2004,6 +2004,39 @@ public class UserController {
 			res.put("data", svc.selectDcPoList(q));
 			return res;
 		}
+		/* DC 발주 삭제·대체 이력 (2026-10-07 「삭제이력 보여줘요 — 버튼 실행으로」) — 이 화면에서 지운 줄('D')과 다시 올려 대체된 옛 줄('N') */
+		@RequestMapping(value="/shipout/dcPoDelList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> dcPoDelList(@RequestParam(value="dlvDtFrom", required=false) String fr, @RequestParam(value="dlvDtTo", required=false) String to,
+		                                      HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); return res; }
+			Map<String,Object> q = new HashMap<String,Object>();
+			q.put("compCd", session.getAttribute("s_comp_cd")); q.put("dlvDtFrom", fr); q.put("dlvDtTo", to);
+			res.put("data", svc.selectDcPoDelList(q));
+			return res;
+		}
+		/* DC 발주 복구 (2026-10-07 「복구기능 해줘」) — {seqs:[…]} → 살리고, 그 납기일자 재고 원장을 다시 맞춘다(저장·삭제와 같은 dcResync) */
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/shipout/dcPoRestore.do", method = RequestMethod.POST)
+		public ResponseEntity<String> dcPoRestore(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				java.util.List<Long> seqs = new java.util.ArrayList<Long>();
+				Object in = p.get("seqs");
+				if (in instanceof java.util.List) for (Object o : (java.util.List<Object>) in) {
+					try { long v = Long.parseLong(String.valueOf(o).trim()); if (v > 0 && !seqs.contains(v)) seqs.add(v); } catch (NumberFormatException ignore) {}
+				}
+				if (seqs.isEmpty()) return ResponseEntity.status(400).body("복구할 줄을 골라 주세요.");
+				if (seqs.size() > 500) return ResponseEntity.status(400).body("한 번에 500줄까지 복구할 수 있습니다.");
+				Map<String,Object> r = svc.restoreDcPo(seqs, u, request.getRemoteAddr(), compCd);
+				String warn = dcResync((java.util.Set<String>) r.get("dates"), u, request.getRemoteAddr());
+				return ResponseEntity.ok(r.get("n") + (warn == null ? "" : "|STOCKFAIL:" + warn));
+			} catch (IllegalArgumentException e) { return ResponseEntity.status(400).body(e.getMessage());
+			} catch (Exception e) { log.error(" dcPoRestore ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
 		@SuppressWarnings("unchecked")
 		@RequestMapping(value="/shipout/dcPoDelete.do", method = RequestMethod.POST)
 		public ResponseEntity<String> dcPoDelete(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {

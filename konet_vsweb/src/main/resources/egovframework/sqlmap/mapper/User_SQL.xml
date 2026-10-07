@@ -1665,6 +1665,36 @@
 	     AND ( ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'')   = '' OR t.DLV_DT <= REPLACE(#{dlvDtTo,jdbcType=VARCHAR},'-','') )
 	   ORDER BY t.DLV_DT DESC, t.ITEM_CD
 	]]></select>
+	<!-- 삭제 이력 (2026-10-07 「체크 부분(도구줄)에 삭제이력 — 버튼 실행으로」) — 이 화면에서 지운 줄(ACTION_YN='D') + 다시 올려 대체된 옛 줄('N'). 기간은 목록과 같은 납기일자 -->
+	<select id="selectDcPoDelList" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 500 t.SEQ AS seq, t.DLV_DT AS dlvDt, t.DC_CD AS dcCd, ISNULL(t.ORD_NO,'') AS ordNo, t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm,
+	         ISNULL(t.UNIT,'') AS unit, ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) AS qty, ISNULL(t.PROD_CD,'') AS prodCd,
+	         ISNULL(t.SRC_FILE,'') AS srcFile, ISNULL(t.REMARK,'') AS remark, t.ACTION_YN AS actionYn,
+	         CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm, ISNULL(t.REG_USER,'') AS regUser,
+	         CONVERT(varchar(19), t.UPD_DTTM, 120) AS updDttm, ISNULL(t.UPD_USER,'') AS updUser
+	    FROM TBL_SHIPOUT_MST t
+	   WHERE t.PROD_KIND = 'DC' AND t.ACTION_YN IN ('D','N')
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') = '' OR t.DLV_DT >= REPLACE(#{dlvDtFrom,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'')   = '' OR t.DLV_DT <= REPLACE(#{dlvDtTo,jdbcType=VARCHAR},'-','') )
+	   ORDER BY t.UPD_DTTM DESC, t.DLV_DT DESC, t.ITEM_CD
+	]]></select>
+	<!-- 복구 (2026-10-07 「복구기능 해줘」) — 고른 줄(SEQ)이 지운 줄('D')·대체된 옛 줄('N')인지 확인하고 열쇠(납기일자·품목코드)를 돌려준다 -->
+	<select id="selectDcPoBySeqs" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT SEQ AS seq, DLV_DT AS dlvDt, ITEM_CD AS itemCd, ACTION_YN AS actionYn
+	    FROM TBL_SHIPOUT_MST
+	   WHERE PROD_KIND = 'DC' AND ACTION_YN IN ('D','N')
+	     AND COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND SEQ IN ]]><foreach collection="seqs" item="s" open="(" separator="," close=")">#{s}</foreach>
+	</select>
+	<!-- 복구 — 고른 줄을 살린다. 같은 열쇠의 지금 줄은 서비스가 먼저 markDcPoReplace 로 'N'(대체) 으로 내린다(저장과 같은 규칙) -->
+	<update id="restoreDcPo" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET ACTION_YN = 'Y', UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE PROD_KIND = 'DC' AND ACTION_YN IN ('D','N')
+	     AND COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND SEQ IN ]]><foreach collection="seqs" item="s" open="(" separator="," close=")">#{s}</foreach>
+	</update>
 
 	<select id="selectShipoutSrcFiles" resultType="egovframework.konet.user.model.ShipoutDTO"><![CDATA[
 	  SELECT SRC_FILE AS srcFile,

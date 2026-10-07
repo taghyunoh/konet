@@ -233,6 +233,8 @@ public interface UserService {
 	int saveDcPo(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String user, String ip, String compCd) throws Exception;
 	int deleteDcPo(java.util.List<java.util.Map<String,Object>> keys, String user, String ip, String compCd) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectDcPoList(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDcPoDelList(java.util.Map<String,Object> p) throws Exception;   // DC 발주 삭제·대체 이력(2026-10-07)
+	java.util.Map<String,Object> restoreDcPo(java.util.List<Long> seqs, String user, String ip, String compCd) throws Exception;   // 복구 → {n, dates}(2026-10-07)
 	int saveExpenseDtl(java.util.List<java.util.Map<String,Object>> rows, String ym, String itemCd, String user, String ip, String compCd) throws Exception;   // 비용 내역(2026-09-17) — 줄 추가·수정·삭제 뒤 달×항목 금액을 내역 합계로
 	int confirmClosing(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception; // 집계+헤더+재고스냅샷 저장(확정)
 	int cancelClosing(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception;  // 확정 해제

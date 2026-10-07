@@ -5,7 +5,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DC 발주 등록</title>
-<script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) — 브라우저 alert 금지 --%>
+<script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
+<script src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>   <%-- 팝업 끌어 옮기기(판매등록·발주서와 같은 공용) --%>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) — 브라우저 alert 금지 --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 엑셀 원본 보기(화면에서 시트를 표로 펼친다) — 전역 XLSX --%>
 <!--
   DC 발주 등록 (2026-09-17 신설) — 매출 관리 ▸ DC 발주 등록. 셸 iframe(logiFrame) 화면.
@@ -50,6 +51,12 @@
   table.g input[type=date], table.g input[type=text], table.g select{ height:28px; border:1px solid var(--bd); border-radius:6px; padding:0 6px; font-size:13px; background:#fff; }
   table.g input.q{ width:80px; text-align:right; font-weight:700; }
   table.g input[type=checkbox]{ width:16px; height:16px; accent-color:var(--teal); cursor:pointer; }
+  /* 수동 줄 품목코드 칸 = 판매등록 명세의 상품코드 칸과 같은 모양(2026-10-07 「판매등록 스타일로」) — 테두리 없는 입력칸 + 밑줄 🔍 */
+  table.g td.pin{ padding:2px 3px; min-width:170px; }
+  table.g td.pin > div{ display:flex; align-items:center; gap:2px; }
+  table.g input.mcd{ width:100%; height:auto; border:0; background:transparent; border-radius:0; font-size:13.5px; text-align:left; padding:4px 2px; }
+  table.g input.mcd:focus{ outline:2px solid #bfe3dc; border-radius:3px; }
+  .lnk{ color:var(--teal); text-decoration:underline; cursor:pointer; }
   .bd{ display:inline-block; font-size:11px; font-weight:800; border-radius:6px; padding:1px 6px; }
   .bd.pdf{ background:#fdecec; color:#a8322a; } .bd.xls{ background:#e3f2ee; color:#0f6b5e; }
   .bd.ok{ background:#e3f2ee; color:#0f6b5e; } .bd.wait{ background:#fdf0d5; color:#9a5b05; } .bd.warn{ background:#fdecec; color:var(--red); }
@@ -78,6 +85,26 @@
   .xh{ padding:8px 10px; }
   .xh table{ border-collapse:collapse; font-size:14px; table-layout:auto; }
   .xh td{ border:1px solid #d9e0e7; padding:3px 7px; white-space:pre-wrap; vertical-align:middle; min-width:14px; max-width:520px; line-height:1.35; }
+  /* ── 상품 선택 팝업 = 판매등록 saProdPop 과 같은 뼈대·모양·동작 (2026-10-07 「검색화면 판매등록 동일하게」 · 한 건 고르기 — 멀티선택은 요청 뒤 취소) ── */
+  .dcpop{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; }
+  .dcpop.on{ display:block; }
+  .dcpop .box{ background:#fff; width:min(940px,96vw); max-height:80vh; margin:6vh auto; border-radius:12px; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.3); }
+  .dcpop .hd{ padding:12px 16px; border-bottom:1px solid var(--bd); font-weight:800; display:flex; align-items:center; gap:8px; }
+  .dcpop .hd input{ flex:1; height:30px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:13.5px; }
+  .dcpop .pbd{ padding:0 16px 12px; overflow:auto; min-height:0; }
+  .dcpop .pbd table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  .dcpop .pbd thead th{ background:#eef3f2; border:1px solid var(--bd); padding:6px 8px; position:sticky; top:0; z-index:5; box-shadow:inset 0 1px 0 var(--bd), inset 0 -1px 0 var(--bd); }
+  .dcpop .pbd tbody td{ position:relative; z-index:1; }
+  .dcpop .pbd td{ border:1px solid var(--bd); padding:6px 8px; text-align:center; }
+  .dcpop .pbd td.txt{ text-align:left; }
+  .dcpop .pbd td.num{ text-align:right; }
+  .dcpop .pbd tr.pick{ cursor:pointer; }
+  .dcpop .pbd tr.pick:hover td{ background:#f3f8f6; }
+  .dcpop .pbd tr.exrow td{ color:#274b8f; background:#f7faff; }
+  .dcpop .pbd tr.exrow td:first-child{ box-shadow:inset 3px 0 0 #c9d9f5; }
+  .dcpop .pbd tr.exrow:hover td{ background:#eef4ff; }
+  .dcpop .pbd td.msg{ color:#5a6b7a; padding:10px; }
+  .dcpop .ft{ padding:10px 16px; border-top:1px solid var(--bd); text-align:right; }
 </style>
 </head>
 <body>
@@ -100,6 +127,7 @@
         <table class="g">
           <thead><tr>
             <th><input type="checkbox" id="pvAll" checked onchange="pvAllChk(this)"></th>
+            <th title="이 줄 빼기" style="width:34px"></th><%-- ★줄 빼기 ✕ = 맨 앞 체크 바로 뒤 (2026-10-07 「x 맨앞으로」 — 매입·판매·발주서와 같은 규칙. 종전엔 수동 줄 맨 끝 비고 칸) --%>
             <th>원본</th><th>납기일자</th><th>출고장</th><th>발주번호</th><th>품목코드</th><th>품목명</th><th>단위</th><th>수량</th><th>단가</th><th>금액</th><th>비고</th>
           </tr></thead>
           <tbody id="pvBody"></tbody>
@@ -120,7 +148,8 @@
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
         <button class="btn btn-red" onclick="del()">🗑 선택 삭제</button>
       </span>
-      <span class="sp tot" id="lsTot"></span>
+      <button class="btn" style="margin-left:auto" onclick="delHist()" title="이 기간(납기일자)에 지운 줄과 다시 올려 대체된 옛 줄을 봅니다">🗂 삭제 이력</button><%-- 2026-10-07 「삭제이력 — 버튼 실행으로」→「우측으로」 : 합계 바로 왼쪽 --%>
+      <span class="tot" id="lsTot"></span>
     </div>
     <div class="tw">
       <table class="g">
@@ -131,6 +160,27 @@
         <tbody id="lsBody"><tr><td colspan="12" class="empty">조회 중…</td></tr></tbody>
       </table>
     </div>
+  </div>
+</div>
+<%-- 상품 선택 팝업 — 판매등록(saProdPop)과 같은 모양·같은 검색 규칙(장부식 : 걸린 코드 굵은 초록 → 그 다음 코드 이어붙임 → 품명·규격 매치 맨 뒤 · 🔖 매칭코드 줄 · 거래중지는 흐리게).
+     ★한 가지만 다르다 : 🔖 줄을 고르면 그 <서브코드(삼성 코드)> 가 그대로 담긴다 — 판매등록은 우리 주코드로 담지만 이 화면의 품목코드는 삼성 정산서와 맞추는 열쇠라서(2026-10-07 사용자 확정). --%>
+<%-- 삭제 이력 팝업 (2026-10-07) — 지운 줄(ACTION_YN D)·대체된 옛 줄(N). 상품 선택 팝업과 같은 뼈대(.dcpop) --%>
+<div class="dcpop" id="dcDelPop">
+  <div class="box" style="width:min(1180px,97vw)">
+    <div class="hd">🗂 DC 발주 삭제 이력 <small id="dcDelSub" style="font-weight:600;color:#6b7a89;font-size:12px"></small></div>
+    <div class="pbd"><table><thead><tr><th style="width:40px"><input type="checkbox" id="dcDelAll" onchange="delAllChk(this)" title="모두 고르기"></th><th style="width:64px">구분</th><th style="width:92px">납기일자</th><th style="width:56px">출고장</th><th style="width:100px">발주번호</th><th style="width:100px">품목코드</th><th>품목명</th><th style="width:80px">수량</th><th style="width:100px">우리 품목</th><th style="width:150px">원본 파일</th><th style="width:150px">등록</th><th style="width:150px">지운 때 · 사람</th></tr></thead>
+      <tbody id="dcDelBody"></tbody></table></div>
+    <div class="ft"><span id="dcDelPick" style="float:left;line-height:34px;font-size:12.5px;color:var(--teal);font-weight:700"></span><button class="btn btn-teal" onclick="delRestore()" title="고른 줄을 다시 살립니다 — 같은 납기일자·품목코드로 지금 등록된 줄은 「대체」로 이력에 남고, 그 날 재고를 다시 맞춥니다">↩ 선택 복구</button> <button class="btn" onclick="document.getElementById('dcDelPop').classList.remove('on')">닫기</button></div>
+  </div>
+</div>
+<div class="dcpop" id="dcProdPop">
+  <div class="box">
+    <div class="hd">상품 선택
+      <input type="text" id="dcProdQ" placeholder="상품코드·상품명 — 거래처가 준 품목코드로도 찾습니다" oninput="prodRender()" autocomplete="off">
+    </div>
+    <div class="pbd"><table><thead><tr><th style="width:130px">상품코드</th><th>상품명</th><th style="width:150px">규격</th><th style="width:64px">입수</th><th style="width:90px">판매가</th></tr></thead>
+      <tbody id="dcProdBody"></tbody></table></div>
+    <div class="ft"><button class="btn" onclick="prodClose()">닫기</button></div>
   </div>
 </div>
 <script>
@@ -191,6 +241,7 @@ function pvRender(){
     if(x._manual) return pvManualRow(x,i);   // 수동 입력 줄(2026-09-17)
     return '<tr>'
       +'<td><input type="checkbox"'+(x._on?' checked':'')+' onchange="_pv['+i+']._on=this.checked; pvTot()"></td>'
+      +'<td><button class="btn" style="height:26px;padding:0 8px;font-size:12px" onclick="_pv.splice('+i+',1); pvRender()" title="이 줄 빼기">✕</button></td>'
       +'<td><span class="bd '+(isPdf?'pdf':'xls')+'" title="'+esc(x.fileNm)+'">'+esc(x.src)+'</span></td>'
       +'<td><input type="date" value="'+d10(x.dlvDt)+'" onchange="_pv['+i+'].dlvDt=this.value; _pv['+i+'].shpoutDt=this.value"></td>'
       +'<td><select onchange="_pv['+i+'].dcCd=this.value">'+DCS.map(function(d){ return '<option value="'+d[0]+'"'+(d[0]===(x.dcCd||'E500')?' selected':'')+'>'+d[1]+'</option>'; }).join('')+'</select></td>'
@@ -209,7 +260,7 @@ function pvRender(){
      품목코드를 적고 칸을 떠나면 우리 상품 마스터(/prod/prodList.do)에서 이름을 찾아 채운다(없으면 비워 두고 직접 적는다). 저장 규칙은 파일로 읽은 줄과 같다. */
 function pvManual(){
   var t=new Date(), ymd=t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2);
-  _pv.push({ src:'수동', fileNm:'수동 입력', _manual:true, _on:true, dlvDt:ymd, shpoutDt:ymd, dcCd:'E500', place:'', ordNo:'', rsvNo:'', itemCd:'', itemNm:'', unit:'BOX', qty:0, price:'', amt:0, ordDt:'' });
+  _pv.push({ src:'수동', fileNm:'수동 입력', _manual:true, _on:true, dlvDt:ymd, shpoutDt:ymd, dcCd:'E500', place:'', ordNo:'', rsvNo:'', itemCd:'', itemNm:'', unit:'BOX', qty:0, price:'', amt:0, ordDt:'' });   pinLoad();   /* 품목코드 입력검색 자료(상품·매칭코드) — 처음 한 번 */
   pvRender();
   var rows=document.querySelectorAll('#pvBody tr'); var last=rows[rows.length-1]; var c=last&&last.querySelector('.mcd'); if(c) c.focus();
   try{ document.getElementById('pvWrap').scrollIntoView({block:'nearest'}); }catch(e){}
@@ -217,17 +268,19 @@ function pvManual(){
 function pvManualRow(x,i){
   return '<tr>'
     +'<td><input type="checkbox"'+(x._on?' checked':'')+' onchange="_pv['+i+']._on=this.checked; pvTot()"></td>'
+    +'<td><button class="btn" style="height:26px;padding:0 8px;font-size:12px" onclick="_pv.splice('+i+',1); pvRender()" title="이 줄 빼기">✕</button></td>'
     +'<td><span class="bd day" title="직접 적은 줄">수동</span></td>'
     +'<td><input type="date" value="'+d10(x.dlvDt)+'" onchange="_pv['+i+'].dlvDt=this.value; _pv['+i+'].shpoutDt=this.value"></td>'
     +'<td><select onchange="_pv['+i+'].dcCd=this.value">'+DCS.map(function(d){ return '<option value="'+d[0]+'"'+(d[0]===(x.dcCd||'E500')?' selected':'')+'>'+d[1]+'</option>'; }).join('')+'</select></td>'
     +'<td><input type="text" value="'+esc(x.ordNo||'')+'" placeholder="발주번호" style="width:110px" oninput="_pv['+i+'].ordNo=this.value"></td>'
-    +'<td><input type="text" class="mcd" value="'+esc(x.itemCd||'')+'" placeholder="품목코드" style="width:120px;font-weight:700" oninput="_pv['+i+'].itemCd=this.value.trim()" onblur="pvLookup('+i+', this)"></td>'
+    +'<td class="pin"><div><input type="text" class="mcd" data-r="'+i+'" autocomplete="off" value="'+esc(x.itemCd||'')+'" placeholder="상품검색" oninput="_pv['+i+'].itemCd=this.value.trim(); pinInput(this)" onkeydown="pinKey(this,event)" onblur="pinBlur(); pvLookup('+i+', this)">'
+    +'<span class="lnk" title="상품 선택 팝업으로 찾기" style="font-size:12px" onmousedown="event.preventDefault()" onclick="prodOpen('+i+')">🔍</span></div></td>'
     +'<td class="l"><input type="text" class="mnm" value="'+esc(x.itemNm||'')+'" placeholder="품목명 (코드를 적으면 찾아 채웁니다)" style="width:100%;min-width:260px" oninput="_pv['+i+'].itemNm=this.value"></td>'
     +'<td><input type="text" value="'+esc(x.unit||'')+'" style="width:56px;text-align:center" oninput="_pv['+i+'].unit=this.value"></td>'
     +'<td><input type="text" class="q" value="'+(n(x.qty)?fmt(x.qty):'')+'" placeholder="수량" onfocus="this.select()" oninput="_pv['+i+'].qty=this.value; _pv['+i+'].amt=n(this.value)*n(_pv['+i+'].price); pvTot()"></td>'
     +'<td><input type="text" value="'+esc(x.price||'')+'" placeholder="단가" style="width:90px;text-align:right" oninput="_pv['+i+'].price=this.value.replace(/,/g,\'\'); _pv['+i+'].amt=n(_pv['+i+'].qty)*n(this.value); pvTot()"></td>'
     +'<td class="r">'+(n(x.amt)?fmt(x.amt):'')+'</td>'
-    +'<td><button class="btn" style="height:26px;padding:0 8px;font-size:12px" onclick="_pv.splice('+i+',1); pvRender()" title="이 줄 빼기">✕</button></td></tr>';
+    +'<td></td></tr>';
 }
 function pvLookup(i, el){
   var x=_pv[i]; if(!x) return; var cd=String(el.value||'').trim(); if(!cd || (x.itemNm||'').trim()) return;
@@ -237,6 +290,145 @@ function pvLookup(i, el){
     x.itemNm=hit.prodNm||''; var tr=el.closest('tr'), nm=tr&&tr.querySelector('.mnm'); if(nm) nm.value=x.itemNm;
   }).catch(function(){});
 }
+/* ── 품목코드 입력검색 (2026-10-07 「상품코드 검색기능 추가」) — 발주서(poReg pin*)·매입등록(puPin*)과 같은 동작 :
+     수동 입력 줄의 품목코드 칸에 치면 그 밑에 후보가 뜬다(코드·품명·규격 부분일치 + 서브코드(매칭코드)는 주코드로) · ↑↓ · Enter · Esc · 누르면 담김.
+     [🔍] 단추·후보 없을 때 Enter = 상품 선택 팝업(아래 prod* — 판매등록 saProdPop 과 같은 모양·장부식 차례). ★이 화면만의 차이 = 🔖 매칭코드(삼성 코드)를 고르면 그 코드 그대로 담긴다(판매등록은 주코드) — 정산서가 오면 납기일자·품목코드로 맞춰야 해서(2026-10-07 「이 내용도 기존 DC 처럼 정산서가 옴」). 자료 = 상품마스터(/prod/prodList.do) + 매칭코드(/prod/extItemList.do) — 첫 수동 줄을 만들 때 한 번 읽고
+     화면이 다시 보일 때(konetShown) 새로 읽는다(다른 화면에서 상품을 고친 것 반영). 담으면 품목코드·품목명이 채워지고 커서는 수량으로. */
+var _prods=[], _ext=[], _pinList=[], _pinIdx=-1, _pinRow=-1, _pinDrop=null, _pinAt=0;
+function pinLoad(force){
+  if(!force && _pinAt && (Date.now()-_pinAt)<60000) return;   /* 1분 안 재호출은 한 번만 */
+  _pinAt=Date.now();
+  post('/prod/prodList.do','findData=').then(function(r){ return r.json(); }).then(function(j){
+    _prods=((j&&j.data)||[]).filter(function(p){ return p && p.prodCd && (''+(p.stopYn||'')).toUpperCase()!=='Y'; });
+  }).catch(function(){});
+  post('/prod/extItemList.do','').then(function(r){ return r.json(); }).then(function(j){ _ext=(j&&j.data)||[]; }).catch(function(){});
+}
+function _pinHit(q){ return function(v){ return String(v==null?'':v).toLowerCase().indexOf(q)>=0; }; }
+function pinCands(q){
+  /* ★판매등록 상품코드 칸 입력검색(saPinCands)과 같은 모양·차례 (2026-10-07 「사용자 헷갈림 — 판매등록처럼, 서브코드 등록도 가능하게」) :
+     🔖 매칭코드(삼성 코드 — 코드·품명·규격이 걸린 것, 앞 5개) → 우리 상품(코드·품명·규격, 12개까지). 배지·「→ 우리」 칸 없이 한 줄 꼴.
+     매칭코드를 고르면 그 코드 그대로 담긴다(이 화면의 품목코드는 삼성 정산서와 맞추는 열쇠 — 주코드로 바꾸지 않는다). */
+  var out=[], i, p;
+  if(!q){ for(i=0;i<_prods.length && out.length<30;i++){ p=_prods[i]; out.push({k:'prod', code:String(p.prodCd), nm:p.prodNm||'', spec:p.spec||'', pack:p.packQty, prodCd:p.prodCd}); } return out; }
+  var ext=_ext.filter(function(e){ return e && e.prodCd && e.extItemCd && String(e.extItemCd)!==String(e.prodCd) && [e.extItemCd,e.extItemNm,e.extSpec].some(_pinHit(q)); });
+  var seen={};
+  ext.forEach(function(e){ if(out.length>=5) return; if(seen['E'+e.extItemCd]) return; seen['E'+e.extItemCd]=1;
+    var mp=null; for(var j=0;j<_prods.length;j++){ if(String(_prods[j].prodCd)===String(e.prodCd)){ mp=_prods[j]; break; } }
+    out.push({k:'ext', code:String(e.extItemCd), nm:e.extItemNm||(mp&&mp.prodNm)||'', spec:e.extSpec||(mp&&mp.spec)||'', pack:mp&&mp.packQty, vendorNm:e.vendorNm||'', prodCd:e.prodCd}); });
+  for(i=0;i<_prods.length && out.length<12;i++){ p=_prods[i]; if(!p.prodCd) continue;
+    if(![p.prodCd,p.prodNm,p.spec].some(_pinHit(q))) continue;
+    out.push({k:'prod', code:String(p.prodCd), nm:p.prodNm||'', spec:p.spec||'', pack:p.packQty, prodCd:p.prodCd}); }
+  return out.slice(0,12);
+}
+function pinInput(inp, all){
+  _pinRow=+inp.dataset.r; var q=String(inp.value||'').trim().toLowerCase();
+  if(!q && !all){ pinClose(); return; }
+  if(!_prods.length){ pinLoad(); setTimeout(function(){ if(document.activeElement===inp) pinInput(inp, all); }, 400); return; }
+  _pinList=pinCands(q); _pinIdx=_pinList.length?0:-1; pinDraw(inp);
+}
+function pinOpen(btn, i){ var tr=btn.closest('tr'), inp=tr&&tr.querySelector('.mcd'); if(!inp) return; inp.focus(); pinInput(inp, true); }
+function pinDraw(inp){
+  if(!_pinDrop){ _pinDrop=document.createElement('div');
+    _pinDrop.style.cssText='position:fixed;z-index:400;background:#fff;border:1px solid #cfd8e3;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.18);font-size:12.5px;max-height:280px;overflow:auto';
+    _pinDrop.addEventListener('mousedown', function(e){ e.preventDefault(); });   /* 후보 창의 스크롤바를 잡아도 코드 칸 blur 로 닫히지 않게(2026-10-07 「스크롤 안됨」) */
+    document.body.appendChild(_pinDrop); }
+  if(!_pinList.length){ pinClose(); return; }
+  var rc=inp.getBoundingClientRect();
+  _pinDrop.style.left=rc.left+'px'; _pinDrop.style.top=(rc.bottom+2)+'px'; _pinDrop.style.minWidth=Math.max(380, rc.width)+'px';
+  _pinDrop.innerHTML=_pinList.map(function(it,k){ var on=(k===_pinIdx);
+    var badge=(it.k==='ext') ? '<span style="color:#274b8f" title="매칭코드(삼성 코드) — 이 코드 그대로 담깁니다">🔖 </span>' : '';   /* 판매등록과 같은 표시 */
+    return '<div onmousedown="pinPickMd(event,'+k+')" style="display:flex;gap:8px;padding:6px 10px;cursor:pointer;white-space:nowrap;align-items:center;'+(on?'background:#e9f4f1;':'')+'">'
+      + '<b style="min-width:100px;color:#137a6c">'+badge+esc(it.code)+'</b>'
+      + '<span style="flex:1;text-align:left;color:#1f2a37">'+esc(it.nm)+'</span>'
+      + '<span style="min-width:96px;color:#8a97a4">'+esc(it.spec||'')+'</span>'
+      + '<span style="min-width:40px;text-align:right;color:#8a97a4" title="입수수량">['+fmt(it.pack||1)+']</span>'
+      + (it.vendorNm ? '<span style="color:#9aa7b3">('+esc(it.vendorNm)+')</span>' : '')
+      + '</div>'; }).join('');
+  _pinDrop.style.display='block';
+  var onEl=_pinDrop.children[_pinIdx]; if(onEl && onEl.scrollIntoView) onEl.scrollIntoView({block:'nearest'});
+}
+function pinKey(inp, e){
+  if(e.key==='ArrowDown'){ e.preventDefault(); if(_pinList.length){ _pinIdx=Math.min(_pinList.length-1,_pinIdx+1); pinDraw(inp); } else pinInput(inp, true); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); if(_pinList.length){ _pinIdx=Math.max(0,_pinIdx-1); pinDraw(inp); } }
+  else if(e.key==='Enter'){ e.preventDefault(); if(_pinList.length && _pinIdx>=0) pinPick(_pinIdx); else { pinClose(); prodOpenQ(_pinRow, String(inp.value||'').trim()); } }   /* 후보 없으면 Enter = 상품 선택 팝업(친 글자 검색어로) — 판매등록과 동일 */
+  else if(e.key==='Escape'){ pinClose(); }
+}
+function pinPickMd(e, k){ e.preventDefault(); pinPick(k); }
+function pinPick(k){
+  var it=_pinList[k], row=_pinRow; pinClose(); if(!it) return;
+  var x=_pv[row]; if(!x) return;
+  /* 고른 코드 그대로 — 🔖 매칭코드면 삼성 코드(정산서와 맞추는 열쇠), 아니면 우리 코드. 우리 상품은 서버 resolve 가 찾는다(목록 「우리 품목」 칸) */
+  x.itemCd=String(it.code); x.itemNm=it.nm||''; if(!x.unit) x.unit='BOX';
+  var tr=document.querySelectorAll('#pvBody tr')[row];
+  if(tr){ var c=tr.querySelector('.mcd'), nmEl=tr.querySelector('.mnm'), q=tr.querySelector('.q');
+    if(c) c.value=x.itemCd; if(nmEl) nmEl.value=x.itemNm; if(q){ q.focus(); q.select(); } }   /* 담은 뒤 커서 = 수량 */
+}
+function pinClose(){ if(_pinDrop) _pinDrop.style.display='none'; _pinList=[]; _pinIdx=-1; }
+function pinBlur(){ setTimeout(pinClose, 150); }
+/* ── 상품 선택 팝업 (판매등록 saProdOpen/saProdRender 와 같은 규칙) ── */
+var _prodRow=-1;
+function prodOpen(i){
+  _prodRow=i; pinClose();
+  document.getElementById('dcProdPop').classList.add('on');
+  var q=document.getElementById('dcProdQ'); q.value='';
+  prodRender(); pinLoad();
+  setTimeout(function(){ q.focus(); }, 0);   /* 열리면 바로 검색칸에 커서(판매등록과 동일) */
+}
+function prodOpenQ(i, text){ prodOpen(i); var q=document.getElementById('dcProdQ'); q.value=text||''; prodRender(); }
+function prodClose(){ document.getElementById('dcProdPop').classList.remove('on'); }
+function prodExtListFor(cd){ return _ext.filter(function(e){ return e && e.extItemCd && String(e.prodCd||'')===String(cd) && String(e.extItemCd)!==String(e.prodCd); }); }
+function prodRender(){
+  var q=(document.getElementById('dcProdQ').value||'').trim().toLowerCase(), body=document.getElementById('dcProdBody');
+  if(!_prods.length){ body.innerHTML='<tr><td colspan="5" class="msg">상품 목록을 읽는 중…</td></tr>'; return; }
+  /* 매칭코드로 쳐도 우리 상품이 나오게 — 그 코드로 걸린 상품코드 집합 */
+  var byExt={}; if(q) _ext.forEach(function(e){ if(e && e.prodCd && [e.extItemCd,e.extItemNm,e.extSpec].some(_pinHit(q))) byExt[String(e.prodCd)]=1; });
+  var l, hit={};
+  if(!q){ l=_prods.slice(0,200); }
+  else{
+    var byCd=[], byNm=[];
+    _prods.forEach(function(o){
+      if(String(o.prodCd||'').toLowerCase().indexOf(q)>=0 || byExt[String(o.prodCd)]) byCd.push(o);
+      else if([o.prodNm,o.spec].some(_pinHit(q))) byNm.push(o); });
+    var byCode=function(a,b){ return String(a.prodCd||'').localeCompare(String(b.prodCd||'')); };
+    byCd.sort(byCode);
+    if(byCd.length){ byCd.forEach(function(o){ hit[String(o.prodCd)]=1; });
+      var first=String(byCd[0].prodCd||'');
+      var after=_prods.filter(function(o){ return !hit[String(o.prodCd)] && String(o.prodCd||'')>first; }).sort(byCode);   /* 장부 넘겨 보기 — 찾은 코드 다음 코드부터 이어붙임 */
+      l=byCd.concat(after).concat(byNm).slice(0,200); }
+    else l=byNm.slice(0,200);
+  }
+  body.innerHTML = l.length ? l.map(function(o){
+    if(String(o.stopYn||'').toUpperCase()==='Y'){
+      var sd=String(o.stopFrDt||''); if(sd.length===8) sd=sd.slice(0,4)+'-'+sd.slice(4,6)+'-'+sd.slice(6,8);
+      return '<tr style="background:#f5f6f7;color:#9aa7b3" title="거래중지된 코드입니다 — 쓸 수 없습니다"><td style="white-space:nowrap">'+esc(o.prodCd)+' <span style="display:inline-block;padding:0 5px;border-radius:8px;background:#eceff1;color:#546e7a;font-size:11px;font-weight:700">중지</span></td>'
+        +'<td class="txt">'+esc(o.prodNm)+(sd?' <span style="font-size:11.5px">('+esc(sd)+' 부터 중지)</span>':'')+'</td><td>'+esc(o.spec||'')+'</td><td class="num">'+fmt(o.packQty||1)+'</td><td class="num">'+(o.salePrice!=null&&o.salePrice!==''?fmt(o.salePrice):'')+'</td></tr>'; }
+    var h='<tr class="pick" onclick="prodPick(\''+esc(o.prodCd)+'\')" title="이 줄을 누르면 우리 상품코드로 넣습니다">'
+      +'<td>'+(hit[String(o.prodCd)]?'<b style="color:#137a6c">'+esc(o.prodCd)+'</b>':esc(o.prodCd))+'</td>'
+      +'<td class="txt">'+esc(o.prodNm)+'</td><td>'+esc(o.spec||'')+'</td><td class="num">'+fmt(o.packQty||1)+'</td><td class="num">'+(o.salePrice!=null&&o.salePrice!==''?fmt(o.salePrice):'')+'</td></tr>';
+    /* 🔖 매칭코드 줄 — 같은 칸 자리에 별도 줄(판매등록과 동일). ★누르면 <그 서브코드> 그대로 담긴다(이 화면만의 차이) */
+    h += prodExtListFor(o.prodCd).map(function(e){
+      return '<tr class="pick exrow" onclick="extPick(\''+esc(e.extItemCd)+'\',\''+esc(o.prodCd)+'\')" title="이 거래처 코드(서브코드)·품명 그대로 넣습니다'+(e.vendorNm?(' — '+esc(e.vendorNm)):'')+'">'
+        +'<td>🔖 '+esc(e.extItemCd)+'</td><td class="txt">'+esc(e.extItemNm||'')+(e.vendorNm?(' <span style="color:#8a97a3">('+esc(e.vendorNm)+')</span>'):'')+'</td>'
+        +'<td>'+esc(e.extSpec||'')+'</td><td class="num"></td><td class="num">'+(e.extPrice!=null&&e.extPrice!==''?fmt(e.extPrice):'')+'</td></tr>'; }).join('');
+    return h;
+  }).join('') : '<tr><td colspan="5" class="msg">검색 결과가 없습니다.</td></tr>';
+}
+function _prodFill(code, nm){
+  var x=_pv[_prodRow]; if(!x) return;
+  x.itemCd=String(code); x.itemNm=nm||''; if(!x.unit) x.unit='BOX';
+  var tr=document.querySelectorAll('#pvBody tr')[_prodRow];
+  if(tr){ var c=tr.querySelector('.mcd'), nmEl=tr.querySelector('.mnm'), q=tr.querySelector('.q');
+    if(c) c.value=x.itemCd; if(nmEl) nmEl.value=x.itemNm; if(q){ q.focus(); q.select(); } }   /* 담은 뒤 커서 = 수량 */
+  prodClose();
+}
+function prodPick(cd){ var p=null; for(var i=0;i<_prods.length;i++){ if(String(_prods[i].prodCd)===String(cd)){ p=_prods[i]; break; } } if(!p) return; _prodFill(p.prodCd, p.prodNm); }
+function extPick(extCd, prodCd){ var e=prodExtListFor(prodCd).filter(function(o){ return String(o.extItemCd)===String(extCd); })[0]; if(!e) return;
+  var mp=null; for(var i=0;i<_prods.length;i++){ if(String(_prods[i].prodCd)===String(prodCd)){ mp=_prods[i]; break; } }
+  _prodFill(e.extItemCd, e.extItemNm || (mp&&mp.prodNm) || ''); }
+/* ESC = 팝업 닫기(한글 조합 중 ESC 는 IME 취소라 제외 — 판매등록과 동일) */
+document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !e.isComposing && document.getElementById('dcProdPop').classList.contains('on')) prodClose(); });
+if(window.konetPopDrag) konetPopDrag('.dcpop','.hd');   /* 제목줄을 잡고 끌어 옮긴다(판매등록 팝업과 같은 공용 스크립트) */
+
 function pvTot(){ var on=_pv.filter(function(x){ return x._on; }); var q=0, a=0; on.forEach(function(x){ q+=n(x.qty); a+=n(x.amt); });
   document.getElementById('pvTot').innerHTML = _pv.length ? ('선택 <b>'+on.length+'</b>/'+_pv.length+'줄 · 수량 <b>'+fmt(q)+'</b> · 금액 <b>'+fmt(a)+'</b>원') : ''; }
 function pvAllChk(el){ _pv.forEach(function(x){ x._on=el.checked; }); pvRender(); }
@@ -316,7 +508,7 @@ function lsRender(){
   tb.innerHTML=_ls.map(function(x,i){
     q+=n(x.qty);
     var st = x.settleYn==='Y' ? '<span class="bd ok">반영 '+fmt(x.settleQty)+'</span>'
-           : (x.settleDayYn==='Y' ? '<span class="bd day" title="그 날 정산서가 있어 원장은 정산서를 씁니다 — 이 품목은 정산서에 없습니다">그 날 정산서 있음</span>' : '<span class="bd wait">대기</span>');
+           : (x.settleDayYn==='Y' ? '<span class="bd warn" title="그 날 정산서는 있는데 이 품목 줄은 없습니다 — 재고에 안 빠진 상태 (원장은 정산서가 주인 · 정산서에 이 코드가 오면 「반영 N」으로)">정산서 미적용</span>' : '<span class="bd wait">대기</span>');
     if(x.settleYn!=='Y' && x.settleDayYn!=='Y') wait++;
     return '<tr><td><input type="checkbox" class="lchk" data-i="'+i+'"></td>'
       +'<td>'+d10(x.dlvDt)+'</td><td>'+esc(dcNm(x.dcCd))+'</td><td>'+esc(x.ordNo||'')+'</td><td><b>'+esc(x.itemCd)+'</b></td>'
@@ -339,6 +531,59 @@ function del(){
   });
 }
 
+/* ── 삭제 이력 (2026-10-07 「체크 부분에 삭제이력 — 버튼 실행으로」) — 목록 기간(납기일자) 그대로 /shipout/dcPoDelList.do → 팝업. 지운 줄 = 빨강 「삭제」 · 다시 올려 밀려난 옛 줄 = 회색 「대체」 ── */
+function delHist(){
+  var fr=document.getElementById('fr').value, to=document.getElementById('to').value, pop=document.getElementById('dcDelPop'), tb=document.getElementById('dcDelBody');
+  pop.classList.add('on'); tb.innerHTML='<tr><td colspan="12" class="msg">조회 중…</td></tr>'; _delL=[]; delPickInfo();
+  document.getElementById('dcDelSub').textContent='— 납기일자 '+fr+' ~ '+to;
+  post('/shipout/dcPoDelList.do','dlvDtFrom='+encodeURIComponent(fr)+'&dlvDtTo='+encodeURIComponent(to))
+    .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t||('HTTP '+r.status)); return JSON.parse(t); }); })
+    .then(function(j){ var l=(j&&j.data)||[]; delHistRender(l); })
+    .catch(function(e){ tb.innerHTML='<tr><td colspan="12" class="msg" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
+}
+var _delL=[];
+function delHistRender(l){
+  var tb=document.getElementById('dcDelBody'); _delL=l||[]; document.getElementById('dcDelAll').checked=false; delPickInfo();
+  if(!l.length){ tb.innerHTML='<tr><td colspan="12" class="msg">이 기간에 지우거나 대체된 DC 발주가 없습니다.</td></tr>'; return; }
+  var nd=0, nn=0;
+  tb.innerHTML=l.map(function(x,i){
+    var del=(x.actionYn==='D'); if(del) nd++; else nn++;
+    return '<tr>'
+      +'<td><input type="checkbox" class="dchk" data-i="'+i+'" onchange="delPickInfo()"></td>'
+      +'<td>'+(del?'<span class="bd warn" title="[🗑 선택 삭제]로 지운 줄">삭제</span>':'<span class="bd" style="background:#eceff1;color:#546e7a" title="같은 납기일자·품목코드를 다시 올려 밀려난 옛 줄">대체</span>')+'</td>'
+      +'<td>'+d10(x.dlvDt)+'</td><td>'+esc(dcNm(x.dcCd))+'</td><td>'+esc(x.ordNo||'')+'</td><td><b>'+esc(x.itemCd)+'</b></td>'
+      +'<td class="txt">'+esc(x.itemNm)+'</td><td class="num"><b>'+fmt(x.qty)+'</b> '+esc(x.unit||'')+'</td><td>'+esc(x.prodCd||'')+'</td>'
+      +'<td class="txt" style="white-space:normal">'+esc(x.srcFile)+'</td>'
+      +'<td style="color:#6b7a89">'+esc(String(x.uploadDttm||'').slice(0,16))+(x.regUser?'<br>'+esc(x.regUser):'')+'</td>'
+      +'<td style="color:'+(del?'#c0392b':'#6b7a89')+'">'+esc(String(x.updDttm||'').slice(0,16))+(x.updUser?'<br>'+esc(x.updUser):'')+'</td></tr>';
+  }).join('');
+  document.getElementById('dcDelSub').textContent += ' · 삭제 '+nd+'줄 · 대체 '+nn+'줄'+(l.length>=500?' (최근 500줄까지)':'');
+}
+function delAllChk(el){ Array.prototype.forEach.call(document.querySelectorAll('#dcDelBody .dchk'), function(c){ c.checked=el.checked; }); delPickInfo(); }
+function delPicked(){ return Array.prototype.filter.call(document.querySelectorAll('#dcDelBody .dchk'), function(c){ return c.checked; }).map(function(c){ return _delL[+c.getAttribute('data-i')]; }).filter(Boolean); }
+function delPickInfo(){ var n=delPicked().length, el=document.getElementById('dcDelPick'); if(el) el.textContent=n?('선택 '+n+'줄'):''; }
+/* ↩ 선택 복구 (2026-10-07 「복구기능 해줘」) — 고른 줄을 살린다. 같은 납기일자·품목코드로 «지금 등록된 줄»은 「대체」로 내려가 이 이력에 남는다(저장과 같은 규칙 · 되돌릴 수 있다).
+   같은 열쇠를 두 줄 고르면 막는다(둘 다 살아나 겹친다). 서버가 그 날 재고 원장을 다시 맞춘다. */
+function delRestore(){
+  var rs=delPicked();
+  if(!rs.length){ _alertBox('복구할 줄을 체크하세요.',{icon:'ℹ️'}); return; }
+  var seen={}, dup=null; rs.forEach(function(x){ var k=x.dlvDt+'|'+x.itemCd; if(seen[k]) dup=x; seen[k]=1; });
+  if(dup){ _alertBox('같은 납기일자·품목코드('+d10(dup.dlvDt)+' · '+esc(dup.itemCd)+')를 두 줄 골랐습니다.<br><span style="font-size:13px">하나만 골라 주세요 — 둘 다 살리면 겹칩니다.</span>',{icon:'⚠️'}); return; }
+  var cur=_ls.filter(function(x){ return seen[x.dlvDt+'|'+x.itemCd]; }).length;
+  ask('DC 발주 <b>'+rs.length+'줄</b>을 복구합니다.'
+     +(cur?'<br><span style="font-size:13px;color:#b45309">같은 납기일자·품목코드로 지금 등록된 <b>'+cur+'줄</b>은 「대체」로 이력에 남습니다.</span>':'')
+     +'<br><span style="font-size:13px;color:#3d4d5c">그 날짜 재고 원장을 다시 맞춥니다.</span>','복구').then(function(y){ if(!y) return;
+    post('/shipout/dcPoRestore.do', { seqs: rs.map(function(x){ return x.seq; }) }, true)
+      .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t||('HTTP '+r.status)); return t; }); })
+      .then(function(t){ var fail=String(t).indexOf('|STOCKFAIL:')>=0, n=String(t).split('|')[0];
+        if(fail) _alertBox(esc(n)+'줄을 복구했지만 재고 반영에 실패했습니다 — [출고반영 재집계]를 눌러 주세요.',{icon:'⚠️'}); else ok(esc(n)+'줄을 복구하고 재고에 반영했습니다');
+        rs.forEach(function(x){ var d=d10(x.dlvDt), fr=document.getElementById('fr'), to=document.getElementById('to'); if(d && (!fr.value || d<fr.value)) fr.value=d; if(d && (!to.value || d>to.value)) to.value=d; });
+        load(); delHist(); })
+      .catch(function(e){ err('복구하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); });
+  });
+}
+document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !e.isComposing) document.getElementById('dcDelPop').classList.remove('on'); });
+
 /* 시작 — 지난 달 1일 ~ 다음 달 말일 */
 (function(){
   var t=new Date(), a=new Date(t.getFullYear(), t.getMonth()-1, 1), b=new Date(t.getFullYear(), t.getMonth()+2, 0);
@@ -346,7 +591,7 @@ function del(){
   document.getElementById('fr').value=ymd(a); document.getElementById('to').value=ymd(b);
   load();
 })();
-window.konetShown=function(){ if(!_pv.length) load(); };
+window.konetShown=function(){ if(!_pv.length) load(); if(_prods.length) pinLoad(true); };   /* 다시 보일 때 상품·매칭코드도 새로(다른 화면에서 고친 것 반영) */
 </script>
 </body>
 </html>

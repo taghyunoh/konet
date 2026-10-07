@@ -295,6 +295,9 @@ public interface UserMapper {
 	int deleteQuote(java.util.Map<String,Object> p) throws Exception;
 	int deleteDcPo(java.util.Map<String,Object> p) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectDcPoList(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDcPoDelList(java.util.Map<String,Object> p) throws Exception;   // DC 발주 삭제·대체 이력(2026-10-07)
+	java.util.List<java.util.Map<String,Object>> selectDcPoBySeqs(java.util.Map<String,Object> p) throws Exception;    // 복구할 줄 확인(2026-10-07)
+	int restoreDcPo(java.util.Map<String,Object> p) throws Exception;                                                  // 복구(2026-10-07)
 	java.util.Map<String,Object> selectParcelFeeAuto(java.util.Map<String,Object> p) throws Exception;                // {cnt, amt} — 직송 출고 × 사업장 운임(없으면 feeDef)
 	int isClosedYm(@Param("closeYm") String closeYm, @Param("compCd") String compCd) throws Exception;   // ★compCd 를 시그니처에 둔다 — 인터셉터가 못 넣어도 ParamMap 에 키가 있어 #{compCd} 가 안 터진다(fail-open)
 	int updateClosingMst(egovframework.konet.user.model.ClosingMstDTO dto) throws Exception; // 확정 UPDATE(있으면)
