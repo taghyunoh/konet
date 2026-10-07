@@ -6795,7 +6795,7 @@ function ssOutQty(o){
        마진  = 매출 − 원가.  매입가 없는 품목은 원가 0 으로 잡히므로 마진이 부풀 수 있다 — 요약줄에 알린다.
      ★Chart.js 는 셸에 없어서 처음 열 때 /js/Chart.min.js 를 심는다(매출 그래프 화면과 같은 2.7.2).
      ══════════════════════════════════════════════════════════════════════════ */
-  var _sgTab='d', _sgChart=null, _sgDcChart=null, _sgRows=[];
+  var _sgTab='d', _sgChart=null, _sgDcChart=null, _sgRows=[], _sgAgg=null, _sgDone=false;   /* _sgAgg = 월별 탭의 서버 합계(2026-10-07) · _sgDone = 한 번이라도 받았나 */
   function _sgChartJs(cb){
     if(window.Chart){ cb(); return; }
     var sc=document.createElement('script');
@@ -6811,7 +6811,7 @@ function ssOutQty(o){
       var t=document.getElementById('sgTo'); if(t) t.value=r[1];
       sgTab('d'); return;
     }
-    if(!_sgRows.length) sgLoad();
+    if(!_sgDone) sgLoad();
   }
   /* 기간 빠른 선택 — 매출 그래프(일자별) sdQuick/sdMonth 와 같은 계산.
      차이 하나: 거기는 날짜만 바꾸고 [조회]를 기다리지만, 여기는 누르는 즉시 조회한다(정산실적과 같은 조작감). */
@@ -6884,25 +6884,39 @@ function ssOutQty(o){
           headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:body })
         .then(function(r){ return r.json(); }).then(function(j){ return (j&&j.data)||[]; });
     };
+    /* ★월별 = 서버가 (달 · 출고장) 합계만 준다 (2026-10-07 사용자 「월별은 서버에서 합계로」) — 종전엔 1월부터 10월까지면 정산서 30,588줄(약 14MB)을 다 받아 화면에서 더했다.
+         계산 규칙은 서버(UserServiceImpl.selectSettleChartMonth)가 이 화면의 _spPriceOf·sgRender 와 같게 옮겨 갔다. 일자별은 종전대로 줄을 받는다(한 주 = 수백 줄).
+         직접판매(판매전표)는 두 탭 모두 줄로 받아 여기서 더한다(1년치 200줄 안팎). */
+    var isM=(_sgTab==='m');
     Promise.all([
-      _post('/sales/selectSalesMst.do', 'dlvDtFrom='+encodeURIComponent(f)+'&dlvDtTo='+encodeURIComponent(t)+'&itemCd='),
+      isM ? _post('/sales/settleChartMonth.do', 'dlvDtFrom='+encodeURIComponent(f)+'&dlvDtTo='+encodeURIComponent(t))
+          : _post('/sales/selectSalesMst.do', 'dlvDtFrom='+encodeURIComponent(f)+'&dlvDtTo='+encodeURIComponent(t)+'&itemCd='),
       _post('/mangr/salesTrxHist.do',   'fromDt='+encodeURIComponent(f)+'&toDt='+encodeURIComponent(t)+'&findData=').catch(function(){ return []; })
     ]).then(function(a){
-      _sgRows=(a[0]||[]).concat(a[1]||[]);
+      _sgDone=true;
+      if(isM){ _sgAgg=a[0]||[]; _sgRows=a[1]||[]; } else { _sgAgg=null; _sgRows=(a[0]||[]).concat(a[1]||[]); }
       _sgChartJs(function(){ _spLoadInPrice(function(){ sgRender(); }); });
     }).catch(function(e){ if(sum) sum.textContent='통신오류: '+e.message; });
   }
   function sgRender(){
-    var rows=_sgRows;
+    /* ★묶음(unit)으로 센다 (2026-10-07) — 줄 하나 = 묶음 하나(n=1), 월별 탭의 서버 합계 한 줄 = (달 · 출고장) 묶음 하나(n=그 줄 수).
+         그래서 아래 계산(달별 · 반품 · 직접판매 · 출고장별 · 행수)은 줄로 받든 합계로 받든 같은 결과가 된다. */
+    var units=[];
+    (_sgAgg||[]).forEach(function(a){
+      units.push({ d:String(a.ym||''), dcCd:a.dcCd, dcNm:a.dcNm, n:+a.n||0, amt:+a.amt||0, cost:+a.cost||0, noCost:+a.noCost||0,
+                   retN:+a.retN||0, retAmt:+a.retAmt||0, trxN:0, trxAmt:0 }); });
+    _sgRows.forEach(function(r){
+      var q=(+r.outQty||0), a=(+r.saleAmt||0), pc=_spPrice(r), tx=(r.trxYn==='Y');
+      units.push({ d:_ohYmd(r.dlvDt)||'', dcCd:r.dcCd, dcNm:r.dcNm, n:1, amt:a, cost:(pc==null?0:q*pc), noCost:((pc==null&&_spInPrice)?1:0),
+                   retN:(q<0?1:0), retAmt:(q<0?a:0), trxN:(tx?1:0), trxAmt:(tx?a:0) }); });
+    var nRows=0; units.forEach(function(u){ nRows+=u.n; });
     /* 일자별 = YYYYMMDD 그대로, 월별 = YYYYMM 으로 접는다 */
     var m={}, ord=[], noCost=0;
-    rows.forEach(function(r){
-      var d=_ohYmd(r.dlvDt)||''; if(!d) return;
+    units.forEach(function(u){
+      var d=u.d; if(!d) return;
       var k=(_sgTab==='d')?d:d.slice(0,6);
       var e=m[k]; if(!e){ e=m[k]={ amt:0, cost:0, n:0 }; ord.push(k); }
-      e.amt+=(+r.saleAmt||0); e.n++;
-      var pc=_spPrice(r);
-      if(pc==null){ if(_spInPrice) noCost++; } else e.cost+=(+r.outQty||0)*pc;
+      e.amt+=u.amt; e.n+=u.n; e.cost+=u.cost; noCost+=u.noCost;
     });
     ord.sort().reverse();   // ★최근 것부터(왼쪽이 최신) — 매출 그래프와 같은 방향(2026-08-02 요청)
     /* 축 라벨 = 07-27(월) · 표 라벨 = 2026-07-27 (월) — 매출 그래프(일자별)와 같은 표기(2026-08-02 요청) */
@@ -6920,10 +6934,7 @@ function ssOutQty(o){
     (function(){
       var kp=document.getElementById('sgKpi'); if(!kp) return;
       var nRet=0, retAmt=0, tTrx=0, nTrx=0;
-      rows.forEach(function(r){
-        if((+r.outQty||0)<0){ nRet++; retAmt+=(+r.saleAmt||0); }
-        if(r.trxYn==='Y'){ nTrx++; tTrx+=(+r.saleAmt||0); }
-      });
+      units.forEach(function(u){ nRet+=u.retN; retAmt+=u.retAmt; nTrx+=u.trxN; tTrx+=u.trxAmt; });
       var bestK='', bestV=-1;
       ord.forEach(function(k,i){ if(m[k].amt>bestV){ bestV=m[k].amt; bestK=labels[i]; } });
       var unit=(_sgTab==='d')?'일':'월';
@@ -6941,8 +6952,8 @@ function ssOutQty(o){
         + card('최고 '+(_sgTab==='d'?'하루':'달'), bestV>=0?(_cnum(Math.round(bestV))+' <span style="display:inline;font-size:11px;color:#9aa7b3">('+bestK+')</span>'):'-');
     })();
     var sum=document.getElementById('sgSum');
-    var _tTrx2=0; rows.forEach(function(r){ if(r.trxYn==='Y') _tTrx2+=(+r.saleAmt||0); });
-    if(sum) sum.innerHTML=(_sgTab==='d'?'일자별':'월별')+' <b>'+ord.length+'</b>구간 · 행 <b>'+rows.length.toLocaleString()+'</b>'
+    var _tTrx2=0; units.forEach(function(u){ _tTrx2+=u.trxAmt; });
+    if(sum) sum.innerHTML=(_sgTab==='d'?'일자별':'월별')+' <b>'+ord.length+'</b>구간 · 행 <b>'+nRows.toLocaleString()+'</b>'
       +' · <span style="color:#137a6c">매출 <b>'+_cnum(tA)+'</b></span>'
       +(_tTrx2?(' <span style="color:#1a73c7">(정산서 '+_cnum(tA-_tTrx2)+' + 직접판매 '+_cnum(_tTrx2)+')</span>'):'')
       +' · <span style="color:#a85700">매입원가 <b>'+_cnum(tC)+'</b></span>'
@@ -7044,7 +7055,7 @@ function ssOutQty(o){
           +'<th style="text-align:right">매출(정산서)</th><th style="text-align:right">매입원가</th>'
           +'<th style="text-align:right">마진</th><th style="text-align:right">마진율</th>'
           +'<th style="text-align:right">비중</th></tr></thead><tbody>';
-      h+='<tr class="close-total"><td'+(isD?' colspan="2"':'')+'>■ 합계</td><td style="text-align:right">'+rows.length.toLocaleString()+'</td>'
+      h+='<tr class="close-total"><td'+(isD?' colspan="2"':'')+'>■ 합계</td><td style="text-align:right">'+nRows.toLocaleString()+'</td>'
         +'<td style="text-align:right">'+_cnum(tA)+'</td><td style="text-align:right">'+_cnum(tC)+'</td>'
         +'<td style="text-align:right">'+_cnum(tA-tC)+'</td><td style="text-align:right">'+(tA?((tA-tC)/tA*100).toFixed(1)+'%':'')+'</td>'
         +'<td style="text-align:right">100%</td></tr>';
@@ -7069,11 +7080,10 @@ function ssOutQty(o){
     if(_sgDcChart){ _sgDcChart.destroy(); _sgDcChart=null; }
     if(_sgTab==='m'){
       var dm={}, dOrd=[];
-      rows.forEach(function(r){
-        var g=_ohDcGrp(_ohDcOf(r)||'(출고장 미지정)');
+      units.forEach(function(u){
+        var g=_ohDcGrp(_ohDcOf(u)||'(출고장 미지정)');   /* _ohDcOf 는 dcCd·dcNm 만 본다 — 묶음에도 그 둘이 있다 */
         var e=dm[g]; if(!e){ e=dm[g]={ amt:0, cost:0, n:0 }; dOrd.push(g); }
-        e.amt+=(+r.saleAmt||0); e.n++;
-        var pc=_spPrice(r); if(pc!=null) e.cost+=(+r.outQty||0)*pc;
+        e.amt+=u.amt; e.n+=u.n; e.cost+=u.cost;
       });
       dOrd.sort(function(x,y){ return dm[y].amt-dm[x].amt; });   // 매출 큰 곳부터 — 매출 그래프와 같은 정렬
       var dBox=document.getElementById('sgDcCanvas');
@@ -7107,7 +7117,7 @@ function ssOutQty(o){
             +'<th style="text-align:right">매출(정산서)</th><th style="text-align:right">매입원가</th>'
             +'<th style="text-align:right">마진</th><th style="text-align:right">마진율</th>'
             +'<th style="text-align:right">비중</th></tr></thead><tbody>';
-        dh+='<tr class="close-total"><td>■ 합계</td><td style="text-align:right">'+rows.length.toLocaleString()+'</td>'
+        dh+='<tr class="close-total"><td>■ 합계</td><td style="text-align:right">'+nRows.toLocaleString()+'</td>'
           +'<td style="text-align:right">'+_cnum(tA)+'</td><td style="text-align:right">'+_cnum(tC)+'</td>'
           +'<td style="text-align:right">'+_cnum(tA-tC)+'</td><td style="text-align:right">'+(tA?((tA-tC)/tA*100).toFixed(1)+'%':'')+'</td>'
           +'<td style="text-align:right">100%</td></tr>';

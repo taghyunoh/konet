@@ -1789,6 +1789,10 @@
 	         (마감 화면의 inSrc='매입가없음' 과 같은 한계 — 그래프에는 배지가 없으니 화면 안내로 대신한다).
 	     ============================================================ -->
 	<select id="selectSalesChart" parameterType="egovframework.konet.user.model.ClosingDTO" resultType="java.util.HashMap"><![CDATA[
+	  /* ★속도 (2026-10-07 사용자 「매출마감 매출그래프도 속도 체크」) — 「출고 키(ok)」·「정산서 키(sk)」 결합은 HASH 로 고정한다(LEFT HASH JOIN).
+	       DB 통계가 아직 모르는 이번 달 날짜는 줄 수를 «1줄»로 어림해 중첩 반복을 고르고, 줄마다 정산서·출고 표 전체의 키 목록을 다시 훑었다
+	       (실측 월별 10월 14.7초). HASH 로 고정 후 0.5초 · 다른 기간도 같거나 빨라졌고(1~10월 2.3→1.3초) 결과는 줄 하나하나까지 같았다(읽기 전용 대조).
+	       같은 원인·같은 고침 = 이익현황 selectProfitStat. ⚠결합 힌트는 이 구문의 결합 차례를 쓴 그대로 고정한다 — FROM 차례를 바꾸지 말 것. */
 	  SELECT x.ym AS ym, x.dcCd AS dcCd, MAX(x.dcNm) AS dcNm,
 	         SUM(x.saleAmt) AS saleAmt,
 	         SUM(x.stlAmt)  AS stlAmt,      -- 그중 정산서 확정분
@@ -1815,7 +1819,7 @@
 	                  SELECT ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ AS dcKey,
 	                         REPLACE(ISNULL(s.DLV_DT,''),'-','') AS dlvKey
 	            ) dk
-	            LEFT JOIN (
+	            LEFT HASH JOIN (
 	                  SELECT DISTINCT REPLACE(ISNULL(o2.DLV_DT,''),'-','') AS dlvKey,
 	                         ]]><include refid="dcKeyOf"><property name="a" value="o2."/></include><![CDATA[ AS dcKey,
 	                         ISNULL(o2.ITEM_CD,'') AS itemCd, o2.COMP_CD AS compCd
@@ -1889,7 +1893,7 @@
 	            ) ih
 	            CROSS APPLY ( SELECT ISNULL(shi.SALE_PRICE, ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0))) AS saleUnit,
 	                                 ISNULL(ih.IN_PRICE,   ISNULL(pm.IN_PRICE,0))   AS inUnit ) u
-	            LEFT JOIN (
+	            LEFT HASH JOIN (
 	                  SELECT DISTINCT REPLACE(ISNULL(s2.DLV_DT,''),'-','') AS dlvKey,
 	                         ]]><include refid="dcKeyOf"><property name="a" value="s2."/></include><![CDATA[ AS dcKey,
 	                         ISNULL(s2.ITEM_CD,'') AS itemCd, s2.COMP_CD AS compCd
@@ -1956,6 +1960,10 @@
 	       단, 매입액을 잡을 때의 '정산서↔출고 짝 맞추기'는 출고장까지 포함한 대사키로 판정한다
 	       (그래야 월별·마감과 같은 건이 짝으로 잡힌다). -->
 	<select id="selectSalesChartDaily" parameterType="egovframework.konet.user.model.ClosingDTO" resultType="java.util.HashMap"><![CDATA[
+	  /* ★속도 (2026-10-07 사용자 「매출마감 매출그래프도 속도 체크」) — 「출고 키(ok)」·「정산서 키(sk)」 결합은 HASH 로 고정한다(LEFT HASH JOIN).
+	       DB 통계가 아직 모르는 이번 달 날짜는 줄 수를 «1줄»로 어림해 중첩 반복을 고르고, 줄마다 정산서·출고 표 전체의 키 목록을 다시 훑었다
+	       (실측 월별 10월 14.7초). HASH 로 고정 후 0.5초 · 다른 기간도 같거나 빨라졌고(1~10월 2.3→1.3초) 결과는 줄 하나하나까지 같았다(읽기 전용 대조).
+	       같은 원인·같은 고침 = 이익현황 selectProfitStat. ⚠결합 힌트는 이 구문의 결합 차례를 쓴 그대로 고정한다 — FROM 차례를 바꾸지 말 것. */
 	  SELECT x.dt AS dt,
 	         SUM(x.saleAmt) AS saleAmt,
 	         SUM(x.stlAmt)  AS stlAmt,
@@ -1975,7 +1983,7 @@
 	                  SELECT ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ AS dcKey,
 	                         REPLACE(ISNULL(s.DLV_DT,''),'-','') AS dlvKey
 	            ) dk
-	            LEFT JOIN (
+	            LEFT HASH JOIN (
 	                  SELECT DISTINCT REPLACE(ISNULL(o2.DLV_DT,''),'-','') AS dlvKey,
 	                         ]]><include refid="dcKeyOf"><property name="a" value="o2."/></include><![CDATA[ AS dcKey,
 	                         ISNULL(o2.ITEM_CD,'') AS itemCd, o2.COMP_CD AS compCd
@@ -2044,7 +2052,7 @@
 	            ) ih
 	            CROSS APPLY ( SELECT ISNULL(shi.SALE_PRICE, ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0))) AS saleUnit,
 	                                 ISNULL(ih.IN_PRICE,   ISNULL(pm.IN_PRICE,0))   AS inUnit ) u
-	            LEFT JOIN (
+	            LEFT HASH JOIN (
 	                  SELECT DISTINCT REPLACE(ISNULL(s2.DLV_DT,''),'-','') AS dlvKey,
 	                         ]]><include refid="dcKeyOf"><property name="a" value="s2."/></include><![CDATA[ AS dcKey,
 	                         ISNULL(s2.ITEM_CD,'') AS itemCd, s2.COMP_CD AS compCd
@@ -2129,6 +2137,11 @@
 	     ============================================================ -->
 	<select id="selectProfitStat" parameterType="java.util.Map" resultType="java.util.HashMap">
 	<![CDATA[
+	  /* ★속도 (2026-10-07 사용자 「거래처별·상품별·거래처별 상품별 이익 속도 체크」) — OKY·SKY 결합은 HASH 로 고정한다(LEFT HASH JOIN).
+	       DB 통계가 아직 모르는 최근 날짜(이번 달)는 출고·정산 줄을 «1줄»로 어림해 중첩 반복을 고르고, 줄마다 OKY·SKY(정산서·출고 표 전체의 키 목록)를
+	       다시 훑었다 — 실측 10/01~10/07 13.7초(SKY 1,146번 반복), 사업장 고르고 1~10월 2분 49초.
+	       ⇒ HASH 로 고정 후 0.6초 · 1.5초. 결과는 6가지 기간·사업장 조합에서 줄 하나하나까지 같았다(읽기 전용 대조).
+	       ⚠결합 힌트는 이 구문의 결합 차례를 쓴 그대로 고정한다 — 갈래 ①②의 FROM 차례(정산서·출고 표가 먼저)를 바꾸지 말 것. */
 	  WITH VM AS (   /* 출고장 → 거래처 1곳. 둘 이상 잡히면 매출이 두 배가 되므로 미리 접는다(채권·채무와 같은 규칙) */
 	    SELECT DC_CD, MIN(VENDOR_CD) AS VENDOR_CD, MIN(VENDOR_NM) AS VENDOR_NM, MIN(ISNULL(MGR_NM,'')) AS MGR_NM
 	      FROM TBL_VENDOR_MST
@@ -2178,7 +2191,7 @@
 	                                 REPLACE(ISNULL(s.DLV_DT,''),'-','') AS dlvKey ) dk
 	            LEFT JOIN VM  vm  ON vm.DC_CD = dk.dcKey
 	            LEFT JOIN PM  pm1 ON pm1.PROD_CD = s.PROD_CD AND pm1.COMP_CD = s.COMP_CD
-	            LEFT JOIN OKY ok  ON ok.dlvKey = dk.dlvKey AND ok.dcKey = dk.dcKey AND ok.itemCd = ISNULL(s.ITEM_CD,'') AND ok.compCd = s.COMP_CD
+	            LEFT HASH JOIN OKY ok  ON ok.dlvKey = dk.dlvKey AND ok.dcKey = dk.dcKey AND ok.itemCd = ISNULL(s.ITEM_CD,'') AND ok.compCd = s.COMP_CD
 	            OUTER APPLY ( SELECT TOP 1 h.IN_PRICE FROM TBL_PROD_INPRICE_HST h
 	                           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = s.PROD_CD AND h.APPLY_DT <= dk.dlvKey AND h.COMP_CD = s.COMP_CD
 	                           ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC ) ih
@@ -2253,7 +2266,7 @@
 	                                 REPLACE(ISNULL(o.DLV_DT,''),'-','') AS dlvKey ) dk2
 	            LEFT JOIN VM  vm  ON vm.DC_CD = dk2.dcKey
 	            LEFT JOIN PM  pm2 ON pm2.PROD_CD = o.PROD_CD AND pm2.COMP_CD = o.COMP_CD
-	            LEFT JOIN SKY sk  ON sk.dlvKey = dk2.dlvKey AND sk.dcKey = dk2.dcKey AND sk.itemCd = ISNULL(o.ITEM_CD,'') AND sk.compCd = o.COMP_CD
+	            LEFT HASH JOIN SKY sk  ON sk.dlvKey = dk2.dlvKey AND sk.dcKey = dk2.dcKey AND sk.itemCd = ISNULL(o.ITEM_CD,'') AND sk.compCd = o.COMP_CD
 	            OUTER APPLY ( SELECT TOP 1 h.SALE_PRICE FROM TBL_PROD_SALEPRICE_HST h
 	                           WHERE h.ACTION_YN = 'Y' AND h.PROD_CD = o.PROD_CD AND h.APPLY_DT <= dk2.dlvKey AND h.COMP_CD = o.COMP_CD
 	                             AND h.VENDOR_CD IS NULL

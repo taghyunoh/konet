@@ -197,6 +197,93 @@ public class UserServiceImpl implements UserService {
 
 	/* ===== 매입가 이력 : 등록 시 마스터(IN_PRICE) 동기화 ===== */
 	@Override public java.util.List<egovframework.konet.user.model.ProdInpriceDTO> selectInpriceList(egovframework.konet.user.model.ProdInpriceDTO dto) throws Exception { return mapper.selectInpriceList(dto); }
+	/* ── 정산 그래프 «월별» 합계 (2026-10-07 사용자 「월별은 서버에서 합계로 바꿔줘」) ──
+	   종전엔 화면이 정산서를 한 줄씩 다 받아(1~10월 = 30,588줄 · 약 14MB) 달별로 더했다. 여기서 같은 계산을 해 (달 · 출고장) 묶음 합계만 보낸다.
+	   ★계산 규칙은 화면(logi-oh.js)의 _spLoadInPrice · _spPriceOf · sgRender 와 «한 줄도 다르지 않게» 옮겼다 — 고치면 두 곳을 같이 고칠 것.
+	     · 매입단가 = 품목코드를 주코드로 풀고(매칭코드 → 연결코드 차례, 먼저 잡힌 것), 그 주코드의 매입가 이력 중 납품일자 이하 최신 적용일 값.
+	       이력이 없으면 상품 마스터의 매입가(주코드 → 원래 코드 차례). 어디에도 없으면 원가 없음(noCost).
+	     · 매입원가 = 입고량 × 매입단가 · 반품 = 입고량 음수인 줄.
+	     · 출고장 묶음(오산센터 등)은 화면 규칙(_ohDcGrp)이라 여기서는 출고장 코드·이름을 그대로 주고 화면이 묶는다.
+	     · 납품일자가 빈 줄은 달 칸(ym)을 비워 보낸다 — 화면은 그 줄을 달별에서는 빼고 행수·반품·출고장별에는 넣는다(종전과 같다).
+	   직접판매(판매전표)는 줄 수가 적어 종전대로 화면이 따로 받아 더한다. */
+	@Override public java.util.List<java.util.Map<String,Object>> selectSettleChartMonth(String compCd, String fromDt, String toDt) throws Exception {
+		egovframework.konet.user.model.ProdDTO pq = new egovframework.konet.user.model.ProdDTO(); pq.setCompCd(compCd);
+		egovframework.konet.user.model.ExtItemDTO eq = new egovframework.konet.user.model.ExtItemDTO(); eq.setCompCd(compCd);
+		egovframework.konet.user.model.ProdXrefDTO xq = new egovframework.konet.user.model.ProdXrefDTO(); xq.setCompCd(compCd);
+		egovframework.konet.user.model.ProdInpriceDTO hq = new egovframework.konet.user.model.ProdInpriceDTO(); hq.setCompCd(compCd);
+		egovframework.konet.user.model.SalesDTO sq = new egovframework.konet.user.model.SalesDTO();
+		sq.setCompCd(compCd); sq.setDlvDtFrom(fromDt); sq.setDlvDtTo(toDt); sq.setItemCd("");
+		return settleChartMonthAgg(mapper.selectProdList(pq), mapper.selectExtItemList(eq), mapper.selectXrefList(xq),
+		                           mapper.selectInpriceHstAll(hq), mapper.selectSalesMst(sq));
+	}
+	/** 위 계산의 몸통 — DB 없이도 같은 자료로 화면 계산과 맞춰 볼 수 있게 따로 둔다(읽기 전용 대조에 쓴다) */
+	public static java.util.List<java.util.Map<String,Object>> settleChartMonthAgg(
+			java.util.List<egovframework.konet.user.model.ProdDTO> prods, java.util.List<egovframework.konet.user.model.ExtItemDTO> exts,
+			java.util.List<egovframework.konet.user.model.ProdXrefDTO> xrefs, java.util.List<egovframework.konet.user.model.ProdInpriceDTO> hsts,
+			java.util.List<egovframework.konet.user.model.SalesDTO> rows) {
+		/* 상품 마스터 매입가 — 같은 코드가 여러 번이면 나중 것(화면과 같다) */
+		java.util.Map<String,Double> master = new java.util.HashMap<String,Double>();
+		if (prods != null) for (egovframework.konet.user.model.ProdDTO o : prods) {
+			String c = scStr(o.getProdCd()); if (c.isEmpty()) continue;
+			master.put(c, o.getInPrice());
+		}
+		/* 매칭코드 → 주코드, 그다음 연결코드 → 주코드 (먼저 잡힌 것을 둔다) */
+		java.util.Map<String,String> alias = new java.util.HashMap<String,String>();
+		if (exts != null) for (egovframework.konet.user.model.ExtItemDTO o : exts) {
+			String e = scStr(o.getExtItemCd()), p = scStr(o.getProdCd());
+			if (!e.isEmpty() && !p.isEmpty() && !alias.containsKey(e)) alias.put(e, p);
+		}
+		if (xrefs != null) for (egovframework.konet.user.model.ProdXrefDTO o : xrefs) {
+			String e = scStr(o.getExtItemCd()), p = scStr(o.getProdCd());
+			if (!e.isEmpty() && !p.isEmpty() && !alias.containsKey(e)) alias.put(e, p);
+		}
+		/* 매입가 이력 — 품목별 (적용일 8자리, 단가), 적용일 차례 */
+		java.util.Map<String,java.util.List<Object[]>> hst = new java.util.HashMap<String,java.util.List<Object[]>>();
+		if (hsts != null) for (egovframework.konet.user.model.ProdInpriceDTO o : hsts) {
+			String c = scStr(o.getProdCd()), d = (o.getApplyDt() == null ? "" : o.getApplyDt()).replace("-", "");
+			if (c.isEmpty() || d.length() != 8 || o.getInPrice() == null) continue;
+			java.util.List<Object[]> l = hst.get(c); if (l == null) { l = new java.util.ArrayList<Object[]>(); hst.put(c, l); }
+			l.add(new Object[]{ d, o.getInPrice() });
+		}
+		for (java.util.List<Object[]> l : hst.values()) {
+			java.util.Collections.sort(l, new java.util.Comparator<Object[]>() { public int compare(Object[] a, Object[] b) { return ((String) a[0]).compareTo((String) b[0]); } });
+		}
+		java.util.LinkedHashMap<String,java.util.Map<String,Object>> out = new java.util.LinkedHashMap<String,java.util.Map<String,Object>>();
+		if (rows != null) for (egovframework.konet.user.model.SalesDTO r : rows) {
+			String dlv = r.getDlvDt() == null ? "" : r.getDlvDt();
+			String d = dlv.replace("-", "").trim();
+			String ym = d.isEmpty() ? "" : d.substring(0, Math.min(6, d.length()));
+			String dcCd = r.getDcCd() == null ? "" : r.getDcCd(), dcNm = r.getDcNm() == null ? "" : r.getDcNm();
+			double q = r.getOutQty() == null ? 0d : r.getOutQty().doubleValue(), a = r.getSaleAmt() == null ? 0d : r.getSaleAmt().doubleValue();
+			if (Double.isNaN(q)) q = 0d; if (Double.isNaN(a)) a = 0d;
+			/* 매입단가 — 화면 _spPriceOf 와 같은 차례 */
+			String c = scStr(r.getItemCd()); String main = alias.get(c); if (main == null || main.isEmpty()) main = c;
+			String dt = dlv.replace("-", "");
+			Double pc = null;
+			java.util.List<Object[]> L = hst.get(main);
+			if (L != null && !L.isEmpty() && dt.length() == 8) {
+				Object[] hit = null;
+				for (Object[] h : L) { if (((String) h[0]).compareTo(dt) <= 0) hit = h; else break; }
+				if (hit != null && !((Double) hit[1]).isNaN()) pc = (Double) hit[1];
+			}
+			if (pc == null) { Double v = master.get(main); if (v == null) v = master.get(c); if (v != null && !v.isNaN()) pc = v; }
+			String key = ym + "\u0001" + dcCd + "\u0001" + dcNm;
+			java.util.Map<String,Object> g = out.get(key);
+			if (g == null) {
+				g = new java.util.LinkedHashMap<String,Object>();
+				g.put("ym", ym); g.put("dcCd", dcCd); g.put("dcNm", dcNm);
+				g.put("n", Integer.valueOf(0)); g.put("amt", Double.valueOf(0)); g.put("cost", Double.valueOf(0));
+				g.put("noCost", Integer.valueOf(0)); g.put("retN", Integer.valueOf(0)); g.put("retAmt", Double.valueOf(0));
+				out.put(key, g);
+			}
+			g.put("n", Integer.valueOf((Integer) g.get("n") + 1));
+			g.put("amt", Double.valueOf((Double) g.get("amt") + a));
+			if (pc == null) g.put("noCost", Integer.valueOf((Integer) g.get("noCost") + 1));
+			else g.put("cost", Double.valueOf((Double) g.get("cost") + q * pc.doubleValue()));
+			if (q < 0) { g.put("retN", Integer.valueOf((Integer) g.get("retN") + 1)); g.put("retAmt", Double.valueOf((Double) g.get("retAmt") + a)); }
+		}
+		return new java.util.ArrayList<java.util.Map<String,Object>>(out.values());
+	}
 	@Override public java.util.List<egovframework.konet.user.model.ProdInpriceDTO> selectInpriceHstAll(egovframework.konet.user.model.ProdInpriceDTO dto) throws Exception { return mapper.selectInpriceHstAll(dto); }   // 정산실적 시점 단가(2026-09-16)
 	@Override public int insertInprice(egovframework.konet.user.model.ProdInpriceDTO dto) throws Exception {
 		int n = mapper.insertInprice(dto);

@@ -1038,6 +1038,22 @@ public class UserController {
 			}
 		}
 
+		/* 정산 그래프 «월별» 합계 (2026-10-07 「월별은 서버에서 합계로」) — {dlvDtFrom, dlvDtTo} → {data:[{ym, dcCd, dcNm, n, amt, cost, noCost, retN, retAmt}]}.
+		   계산 규칙은 서비스 selectSettleChartMonth 머리말(화면 logi-oh.js sgRender 와 같은 규칙). 일자별 탭은 종전대로 selectSalesMst.do 를 쓴다 */
+		@RequestMapping(value="/sales/settleChartMonth.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> settleChartMonth(@RequestParam(value="dlvDtFrom", required=false) String fr,
+		                                           @RequestParam(value="dlvDtTo", required=false) String to, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				res.put("data", svc.selectSettleChartMonth(String.valueOf(session.getAttribute("s_comp_cd")), poStr(fr), poStr(to)));
+			} catch (Exception e) {
+				log.error(" settleChartMonth ERROR : " + e.getMessage());
+				res.put("data", new java.util.ArrayList<Object>()); res.put("error", "조회하지 못했습니다.");
+			}
+			return res;
+		}
 		/* 매출 확정내역 조회 — 기간(dlvDtFrom~dlvDtTo) 또는 단일 납품일자 + 출고장(선택) (JSON: {data:[...]}) */
 		@RequestMapping(value="/sales/selectSalesMst.do", method = RequestMethod.POST)
 		@ResponseBody

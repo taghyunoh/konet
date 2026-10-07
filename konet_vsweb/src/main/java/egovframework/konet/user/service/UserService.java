@@ -53,6 +53,7 @@ public interface UserService {
 	int getSalesNextJobSeq(egovframework.konet.user.model.SalesDTO dto) throws Exception;
 	int insertSalesMst(egovframework.konet.user.model.SalesDTO dto) throws Exception;
 	java.util.List<egovframework.konet.user.model.SalesDTO> selectSalesMst(egovframework.konet.user.model.SalesDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectSettleChartMonth(String compCd, String fromDt, String toDt) throws Exception;   // 정산 그래프 월별 합계(2026-10-07)
 	java.util.List<egovframework.konet.user.model.SalesDTO> selectSalesSrcFiles() throws Exception;
 
 	// 출고장 정정(2026-07-27) — 반환: 바뀐 행수. 키가 겹치면 -1(정정 불가, 화면에서 안내)
