@@ -5395,11 +5395,20 @@
 	     'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
 	]]></insert>
 
+	<!-- 판매전표가 만든 파생 재고원장(출고) 논리삭제 (수정/삭제 시)
+	     ★지울 원장 번호(REF_NO = 일자-번호)는 «DB 에 저장돼 있는 그 전표의 일자·번호»로 찾는다 (2026-10-07 사용자 「판매등록도 그런 경우 확인」) —
+	       매입전표(deletePurchaseLedger)와 같은 결함·같은 고침. 종전엔 화면이 보낸 «새» 일자로 찾아 날짜를 고쳐 다시 저장하면 옛 날짜의 출고 줄이 남아
+	       같은 출고가 두 번 빠졌다(실측 2건 11줄 : 20260911-0001 대상주식회사 · 20260928-0002 퐁퐁플라워 광주 빛고을센터).
+	       저장(saveSalesTrx)은 updateSalesTrxMst 보다 먼저 이것을 부르므로 이때 마스터에는 아직 옛 일자·번호가 있다. 키가 없으면 종전대로. -->
 	<update id="deleteSalesTrxLedger" parameterType="egovframework.konet.user.model.SalesTrxDTO"><![CDATA[
 	  UPDATE TBL_STOCK_LEDGER SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
 	   WHERE ACTION_YN='Y' AND REF_GB='SALE'
-	     AND REF_NO = REPLACE(ISNULL(#{saleDt,jdbcType=VARCHAR},''),'-','') + '-' + #{saleNo,jdbcType=VARCHAR}
+	     AND REF_NO = ISNULL( ( SELECT TOP 1 REPLACE(ISNULL(m.SALE_DT,''),'-','') + '-' + m.SALE_NO
+	                              FROM TBL_SALES_TRX_MST m
+	                             WHERE m.SALE_SEQ = #{saleSeq,jdbcType=BIGINT}
+	                               AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} ) ),
+	                          REPLACE(ISNULL(#{saleDt,jdbcType=VARCHAR},''),'-','') + '-' + #{saleNo,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
