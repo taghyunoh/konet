@@ -52,11 +52,13 @@
   .chip.off{ background:#f4f6f8; border-color:var(--bd); color:#9aa7b3; text-decoration:line-through; }
   .chip .cnt{ font-size:11.5px; font-weight:600; color:#6b7a89; text-decoration:none; }
   .chips .hint{ font-size:12px; color:var(--amber); margin-left:6px; }
-  /* 탭 — 지금 보는 쪽을 꽉 찬 청록으로 (2026-10-07 사용자 「구분 더 명확하게」 — 종전엔 흰 바탕·회색 바탕 차이뿐이라 어느 쪽인지 헷갈렸다) */
-  .tabs{ display:flex; gap:6px; align-items:flex-end; flex-wrap:wrap; border-bottom:2px solid #9fd3c7; margin-bottom:10px; }
-  .tab{ height:40px; padding:0 20px; border:1px solid #c9d3dc; border-bottom:0; border-radius:9px 9px 0 0; background:#eef1f4; cursor:pointer; font-size:14px; font-weight:700; color:#6b7a89; font-family:inherit; }
-  .tab:hover{ background:#e2efeb; color:#125a4e; }
-  .tab.on{ background:#dcf1ec; color:#0f5f54; border-color:#9fd3c7; border-top:3px solid #3fa392; font-size:14.5px; }   /* 「색깔 조금 연하게」(같은 날) — 꽉 찬 청록 → 연한 청록 */
+  /* 탭 — 다른 화면(회사 정보·거래처 화면 탭)과 같은 모양 : 고른 탭 = 청록 칠 + ✓ · 나머지 = 연회색
+     (2026-10-07 사용자 「구분 더 명확하게」 → 「조금 연하게」 → 「조금 진하게」 → 「다른 내용과 동일하게 좀더 진하게」) */
+  .tabs{ display:flex; gap:4px; align-items:flex-end; flex-wrap:wrap; border-bottom:2px solid #d5e3df; margin-bottom:10px; }
+  .tab{ height:36px; padding:0 16px; border:1px solid #d5e3df; border-bottom:none; border-radius:8px 8px 0 0; background:#f1f5f4; cursor:pointer; font-size:14px; font-weight:700; color:#5a6b7a; font-family:inherit; margin-bottom:-2px; }
+  .tab:hover{ color:var(--teal); }
+  .tab.on{ background:var(--teal); color:#fff; border-color:var(--teal); }
+  .tab.on::before{ content:'✓ '; }
   .tab .tsub{ font-size:11.5px; font-weight:600; opacity:.8; margin-left:4px; }
   /* 엑셀 출력 단추 — 엑셀 초록으로 따로 보이게 (같은 날 「엑셀 출력 버튼도」) */
   .btn-xls{ background:#e8f5ec; color:#1d6f42; border-color:#a9d6b8; }   /* 「색깔 조금 연하게」 — 진한 초록 → 연한 초록 바탕 · 초록 글자 */
@@ -133,8 +135,8 @@
   <div class="chips" id="chips"></div>
 
   <div class="tabs">
-    <button class="tab on" id="tab-l" onclick="tab('l')">📄 거래처별 매출장<span class="tsub">거래처마다 따로</span></button>
-    <button class="tab" id="tab-c" onclick="tab('c')">📒 마감장<span class="tsub">유형별 매출원장 · 거래처 모아서</span></button>
+    <button class="tab on" id="tab-l" onclick="tab('l')">📄 거래처별 매출장</button>
+    <button class="tab" id="tab-c" onclick="tab('c')">📒 마감장 유형별 매출원장</button>
     <span class="info" id="info"></span>
     <span class="act" id="act-l">
       <button class="btn btn-xls" onclick="xlsLedgerAll(false)" title="거래처마다 엑셀 파일을 하나씩 만듭니다 (거래처 수만큼 내려받기)">📥 매출장 엑셀 출력 · 거래처마다 파일</button>

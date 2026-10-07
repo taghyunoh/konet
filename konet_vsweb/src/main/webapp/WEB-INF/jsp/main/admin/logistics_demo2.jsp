@@ -3388,6 +3388,9 @@
       <a class="mi" data-key="daesangPo" onclick="logiFrame('daesangPo','${pageContext.request.contextPath}/shipout/daesangPo.do', this)"><span class="ic">📦</span>대상 발주 등록</a>
       <a class="mi" data-key="salesreg" onclick="logiFrame('salesreg','${pageContext.request.contextPath}/mangr/salesReg.do', this)"><span class="ic">🧾</span>판매 등록</a>
       <a class="mi" data-key="rcvreg" onclick="logiFrame('rcvreg','${pageContext.request.contextPath}/mangr/rcvReg.do', this)"><span class="ic">🧾</span>수금 등록</a>
+      <%-- 거래처 매출장·마감 (2026-10-07) — 판매전표를 거래처별 매출장(표본 「샐러드플러스 0821」)과 마감 유형별 매출원장(표본 「우리푸드 샐러드플러스 7월 마감」)으로.
+           마감 유형(거래처 묶음)은 화면에서 늘린다(회사 설정 ledger). 수금 등록 바로 아래(같은 날 「정산실적 밑」 → 「판매등록 밑」 → 「수금등록 밑으로 한번만」). iframe 화면(mangr/salesLedger.jsp) — ★메뉴와 아래 panel-salesLedger 는 짝이다 --%>
+      <a class="mi" data-key="salesLedger" onclick="logiFrame('salesLedger','${pageContext.request.contextPath}/mangr/salesLedger.do', this)"><span class="ic">📗</span>거래처 매출장·마감</a>
       <%-- 수금 / 미수금(월 단위, TBL_RECEIVE_MST) 메뉴 내림 : 2026-07-25.
            '수금 등록'(건별 전표)이 같은 일을 하고 원장의 [월 계] 로 월 합계까지 나온다.
            두 군데 입력하면 잔고가 갈라져서 뺐다. 실사용 0건이라 잃는 데이터 없음.
@@ -3395,9 +3398,6 @@
            수금/미수 관리는 [거래처별 채권·채무]의 「미수 경과」·[🔒 이 달 마감 확정]이 맡는다(docs/설계_수금미수_연동_2026-09-16.md).
            (EL 표기는 JSP 주석 안에서도 파서를 건드릴 수 있어 일부러 풀어 적었다) --%>
       <a class="mi" data-key="closeSales" onclick="logiGo('closeSales', this)"><span class="ic">📒</span>매출마감</a>
-      <%-- 거래처 매출장·마감 (2026-10-07) — 판매전표를 거래처별 매출장(표본 「샐러드플러스 0821」)과 마감 유형별 매출원장(표본 「우리푸드 샐러드플러스 7월 마감」)으로.
-           마감 유형(거래처 묶음)은 화면에서 늘린다(회사 설정 ledger). iframe 화면(mangr/salesLedger.jsp) — ★메뉴와 아래 panel-salesLedger 는 짝이다 --%>
-      <a class="mi" data-key="salesLedger" onclick="logiFrame('salesLedger','${pageContext.request.contextPath}/mangr/salesLedger.do', this)"><span class="ic">📗</span>거래처 매출장·마감</a>
       <%-- 매출 그래프 — 월별/일자별 화면 2개를 탭 하나로 통합(2026-08-02 요청).
            화면 자체(salesChart(Day).jsp)는 그대로 두고, 셸에서 iframe 을 탭으로 갈아끼운다.
            '월별이 일자 자료를 받아 무거워진다' 던 분리 사유는 iframe 탭이라 그대로 유효하다(각자 따로 조회). --%>
