@@ -4136,10 +4136,15 @@
 	  /* ★[2026-09-13 「거래처별 재고현황」] 품목마다 「대표 매입처」(vendorCd·vendorNm)를 붙인다 — 화면 [🏷 매입처별]이 이걸로 묶는다.
 	       대표 매입처 = 그 품목을 가장 최근에 입고(IO_GB='I')한 매입처(재고마감 selectStockClosing 과 같은 규칙) → 입고 기록이 없으면 상품마스터 거래처.
 	       기준일(asOfDt)을 주면 그날까지의 입고만 본다. 집계 뒤에 붙이려고 원래 조회를 z 로 한 번 감쌌다(값·순서는 종전 그대로). */
-	  WITH SD AS (   /* 정산서가 있는 납기일자 — 원장 출고(정산서 있는 날 = 정산서, 없는 날 = 발주현황표)와 같은 갈림 */
+	  /* ★속도 (2026-10-07 사용자 「품목별재고현황 검색 시 속도 체크」) — 매칭코드별 출고 합계(종전 WITH EQ)를 임시 표 #SEQ 에 «한 번만» 만든다(매출마감 #SLK 와 같은 방식).
+       종전엔 품목 줄마다 extQtys 를 붙이며 EQ(정산서·발주현황표 전체 합계)를 다시 계산해, 검색 결과가 1줄이어도 1.7초 · 전체 2.2초 걸렸다(EQ 만 따로 세면 0.1초).
+       ⇒ 0.5~0.8초. 결과는 검색어 · 기준일 · 창고 7가지 조합에서 줄 하나하나까지 같았다(읽기 전용 대조). 임시 표는 이 연결에서만 보이고 다음 조회 때 먼저 지운다. */
+  SET NOCOUNT ON;
+  IF OBJECT_ID('tempdb..#SEQ') IS NOT NULL DROP TABLE #SEQ;
+  WITH SD AS (   /* 정산서가 있는 납기일자 — 원장 출고(정산서 있는 날 = 정산서, 없는 날 = 발주현황표)와 같은 갈림 */
 	    SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST
 	     WHERE ACTION_YN = 'Y' AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	  ), EQ AS (
+	  )
 	    /* ★매칭코드(거래처 품목코드 ITEM_CD)별 출고수량 — ①표 품목 줄 밑 ↳ 줄에 붙는다(형식 코드:수량|코드:수량, 화면이 쪼갠다).
 	         ★[2026-09-13 「매칭코드 줄도 정산서 우선」] 종전엔 발주현황표 라벨수량만 셌다 → 정산서가 있는 날에도 발주 수량이라
 	           대표 줄 출고(원장)와 달랐다(9904013376 : ↳ 1,671 / 대표 1,609 — 발주현황표 이중 업로드·김해 직송 줄 62개).
@@ -4148,6 +4153,7 @@
 	         · 기준일(asOfDt)은 「납기일자」로 자른다 — 원장 TRX_DT 가 납기일자다(종전엔 출고일자로 잘라 어긋났다).
 	         · 품목마다 되묻지 않고 한 번에 모은다(종전 = 품목 줄마다 발주현황표 서브쿼리). 입고는 코드별로 나뉘지 않는다(매입은 주코드). */
 	    SELECT u.COMP_CD, u.PROD_CD, u.ITEM_CD, SUM(u.q) AS q
+      INTO #SEQ
 	      FROM ( SELECT v.COMP_CD, v.PROD_CD, ISNULL(v.ITEM_CD,'') AS ITEM_CD,
 	                    CASE WHEN ISNULL(v.DLV_TYPE,'') = 'X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END AS q
 	               FROM TBL_SALES_MST v
@@ -4166,11 +4172,11 @@
 	  </if>
 	                AND NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = s.COMP_CD AND SD.DLV_DT = ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) ) ) u
 	     GROUP BY u.COMP_CD, u.PROD_CD, u.ITEM_CD
-	    HAVING SUM(u.q) > 0
-	  )
+	    HAVING SUM(u.q) > 0;
+	  CREATE CLUSTERED INDEX IX_SEQ ON #SEQ(COMP_CD, PROD_CD);
 	  SELECT z.*,
 	         STUFF((SELECT '|' + e.ITEM_CD + ':' + CAST(CAST(ROUND(e.q,0) AS INT) AS VARCHAR(12))
-	                  FROM EQ e WHERE e.COMP_CD = z.compCd AND e.PROD_CD = z.prodCd AND e.ITEM_CD != ''
+	                  FROM #SEQ e WHERE e.COMP_CD = z.compCd AND e.PROD_CD = z.prodCd AND e.ITEM_CD != ''
 	                 ORDER BY e.q DESC
 	                 FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 1, '') AS extQtys,
 	         ISNULL(pr.remainQty,0) AS poRemainQty,   /* 입고예정 = 마감 안 된 발주 줄의 잔량 합 (2026-09-16 P1-b 2단계) */
