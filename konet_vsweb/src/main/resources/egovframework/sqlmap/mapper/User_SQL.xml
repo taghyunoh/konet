@@ -5478,6 +5478,35 @@
 	   ORDER BY ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT), m.SALE_NO, d.ROW_NO
 	]]></select>
 
+	<!-- ============================================================
+	     거래처 매출장 · 마감장 (2026-10-07 신설) — 매출 관리 ▸ 거래처 매출장·마감 (mangr/salesLedger.jsp)
+	       사용자 「샐러드플러스 0821 · 우리푸드 0821 = 매출장 거래처별 / 우리푸드 샐러드플러스 7월 마감 = 두 거래처 이름 포함 마감 / 나중에 확장」.
+	       원천 = 판매 등록(판매전표 TBL_SALES_TRX_*). 기간 = 전표일자(SALE_DT). 거래처 = 화면이 넘긴 거래처코드 목록(custCds, 1곳 이상 — 몇 곳이든).
+	       반품·불량반품 줄은 수량·금액 부호를 뒤집는다(selectSalesTrxHist 와 같은 규칙).
+	       금액 칸 뜻 : amt = 수량 × 단가(입력한 그대로 — 부가세 포함 거래처면 포함 금액. 마감장의 「금액」)
+	                    supplyAmt · vatAmt · totAmt = 공급가 · 세액 · 합계(매출장의 금액 · 세액 · 합계, 마감장의 「판매액」 = totAmt).
+	       거래처 이름 = 지금 거래처 마스터 이름(없으면 전표에 적힌 이름).
+	     ============================================================ -->
+	<select id="selectSalesLedger" parameterType="java.util.Map" resultType="java.util.HashMap">
+	  SELECT m.SALE_DT AS saleDt, m.SALE_NO AS saleNo, d.ROW_NO AS rowNo,
+	         m.CUST_CD AS custCd, ISNULL(NULLIF(vn.VENDOR_NM,''), m.CUST_NM) AS custNm,
+	         ISNULL(d.PROD_CD,'') AS prodCd, ISNULL(d.PROD_NM,'') AS prodNm, ISNULL(d.SPEC,'') AS spec,
+	         z.sg * ISNULL(d.BOX_QTY,0) AS boxQty, z.sg * ISNULL(d.EA_QTY,0) AS eaQty, z.sg * ISNULL(d.QTY,0) AS qty,
+	         ISNULL(d.UNIT_PRICE,0) AS unitPrice,
+	         z.sg * ISNULL(d.AMT,0) AS amt, z.sg * ISNULL(d.DC_AMT,0) AS dcAmt,
+	         z.sg * ISNULL(d.SUPPLY_AMT,0) AS supplyAmt, z.sg * ISNULL(d.VAT_AMT,0) AS vatAmt, z.sg * ISNULL(d.TOT_AMT,0) AS totAmt,
+	         ISNULL(NULLIF(d.TRX_GB,''),N'판매') AS trxGb, ISNULL(d.EVENT_YN,'N') AS eventYn, ISNULL(d.REMARK,'') AS remark
+	    FROM TBL_SALES_TRX_DTL d
+	    JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
+	    CROSS APPLY ( SELECT CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN -1 ELSE 1 END AS sg ) z
+	    OUTER APPLY ( SELECT TOP 1 v.VENDOR_NM FROM TBL_VENDOR_MST v WHERE v.COMP_CD = m.COMP_CD AND v.VENDOR_CD = m.CUST_CD ) vn
+	   WHERE d.ACTION_YN = 'Y'
+	     AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND m.SALE_DT BETWEEN REPLACE(#{frDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
+	     AND m.CUST_CD IN <foreach collection="custCds" item="c" open="(" separator="," close=")">#{c,jdbcType=VARCHAR}</foreach>
+	   ORDER BY m.CUST_CD, m.SALE_DT, m.SALE_NO, d.ROW_NO
+	</select>
+
 	<!-- 품목 판매단가 이력 (품명 클릭 팝업) — 거래처 × 상품, 최근순. 매입 쪽과 같은 형태 -->
 	<select id="selectSalesPriceHist" parameterType="egovframework.konet.user.model.SalesTrxDtlDTO" resultType="egovframework.konet.user.model.SalesTrxDtlDTO"><![CDATA[
 	  SELECT m.SALE_DT AS spec,             -- 거래일자 (화면 표시용으로 spec 칸 재사용)

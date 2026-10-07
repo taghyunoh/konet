@@ -3909,6 +3909,87 @@ public class UserController {
 			response.put("remark", last == null ? null : last.getRemark());      // 이전 비고(2026-09-13) — 비어 있지 않은 마지막 것, 카톡 원문 제외
 			return response;
 		}
+		/* 거래처 매출장 · 마감장 (2026-10-07 신설 — 사용자 「첫번째·두번째 매출장 거래처별로, 세번째 내용 두 거래처명 포함으로 … 마감해서 매출관리 메뉴에」 · 「확장 감안해서」)
+		   · 매출 관리 ▸ 거래처 매출장·마감. 화면 mangr/salesLedger.jsp. 원천 = 판매 등록(판매전표).
+		   · 거래처 묶음(마감 유형 — 예 「우리푸드」 = 우리푸드 + 샐러드 플러스)은 회사 설정 SET_JSON 의 ledger 덩어리(compSetPatch key=ledger).
+		     표를 새로 두지 않는다(DDL 없음). 묶음·거래처 수는 정해져 있지 않다 — 화면에서 늘린다. 응답은 JSON(Map). */
+		@RequestMapping(value="/mangr/salesLedger.do")
+		public String salesLedger(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/salesLedger";
+		}
+		/* 매출장 줄 — {frDt, toDt (yyyy-MM-dd), custCds = 거래처코드 쉼표 목록} → {data:[…]} (칸 뜻은 매퍼 selectSalesLedger 머리말) */
+		@RequestMapping(value="/mangr/salesLedgerList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesLedgerList(@RequestParam(value="frDt", required=false) String fr, @RequestParam(value="toDt", required=false) String to,
+		                                          @RequestParam(value="custCds", required=false) String cds, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", new java.util.ArrayList<Object>());
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String f = fr == null ? "" : fr.trim(), t = to == null ? "" : to.trim();
+				if (!f.matches("[0-9]{4}-?[0-9]{2}-?[0-9]{2}") || !t.matches("[0-9]{4}-?[0-9]{2}-?[0-9]{2}")) { res.put("error", "조회 기간을 넣어 주세요."); return res; }
+				java.util.List<String> list = new java.util.ArrayList<String>();
+				for (String s : (cds == null ? "" : cds).split(",")) { s = s.trim(); if (s.matches("[A-Za-z0-9_-]{1,30}") && !list.contains(s)) list.add(s); }
+				if (list.isEmpty()) { res.put("error", "거래처를 한 곳 이상 고르세요."); return res; }
+				if (list.size() > 300) { res.put("error", "거래처가 너무 많습니다(300곳까지)."); return res; }
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("frDt", f); q.put("toDt", t); q.put("custCds", list);
+				res.put("data", svc.selectSalesLedger(q));
+			} catch (Exception e) { log.error(" salesLedgerList ERROR : " + e.getMessage()); res.put("error", "조회하지 못했습니다."); }
+			return res;
+		}
+		/* 거래처 묶음(마감 유형) 저장 — body {grps:[{nm, custs:[{cd, nm}]}]} → {ok:1, grps} · 거절 {error}
+		   · 회사 설정 SET_JSON 의 ledger 덩어리를 통째로 바꾼다(다른 덩어리 func·prt·cost … 는 그대로 — compSetPatch 와 같은 방식).
+		   · 읽기는 화면이 /user/compSetGet.do 의 setJson.ledger 로 한다. 유형 100개 · 유형마다 거래처 300곳까지. */
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/mangr/salesLedgerGrpSave.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesLedgerGrpSave(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (sessComp(session).isEmpty()) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				Object g = body == null ? null : body.get("grps");
+				if (!(g instanceof java.util.List)) { res.put("error", "저장할 내용이 없습니다."); return res; }
+				java.util.List<Object> out = new java.util.ArrayList<Object>();
+				java.util.Set<String> names = new java.util.HashSet<String>();
+				for (Object o : (java.util.List<Object>) g) {
+					if (!(o instanceof Map)) continue;
+					Map<String,Object> m = (Map<String,Object>) o;
+					String nm = trimStr(m.get("nm"), 40);
+					if (nm.isEmpty() || !names.add(nm)) continue;
+					java.util.List<Object> cs = new java.util.ArrayList<Object>();
+					java.util.Set<String> seen = new java.util.HashSet<String>();
+					if (m.get("custs") instanceof java.util.List) {
+						for (Object c : (java.util.List<Object>) m.get("custs")) {
+							if (!(c instanceof Map)) continue;
+							String cd = trimStr(((Map<String,Object>) c).get("cd"), 30);
+							if (!cd.matches("[A-Za-z0-9_-]{1,30}") || !seen.add(cd)) continue;
+							Map<String,Object> e = new java.util.LinkedHashMap<String,Object>();
+							e.put("cd", cd); e.put("nm", trimStr(((Map<String,Object>) c).get("nm"), 100));
+							cs.add(e);
+							if (cs.size() >= 300) break;
+						}
+					}
+					Map<String,Object> e = new java.util.LinkedHashMap<String,Object>();
+					e.put("nm", nm); e.put("custs", cs);
+					out.add(e);
+					if (out.size() >= 100) break;
+				}
+				Map<String,Object> p = compParam(session, request);
+				String js = svc.selectCompSetJson(p);
+				Map<String,Object> all = (js == null || js.trim().isEmpty())
+					? new java.util.LinkedHashMap<String,Object>() : COMP_JSON.readValue(js, java.util.LinkedHashMap.class);
+				Map<String,Object> led = new java.util.LinkedHashMap<String,Object>();
+				led.put("grps", out);
+				all.put("ledger", led);
+				p.put("setJson", COMP_JSON.writeValueAsString(all));
+				p.put("avgZeroYn", avgZeroOf(all));
+				svc.mergeCompSetJson(p);
+				res.put("ok", 1); res.put("grps", out);
+			} catch (Exception e) { log.error(" salesLedgerGrpSave ERROR : " + e.getMessage()); res.put("error", "저장하지 못했습니다."); }
+			return res;
+		}
 		/** 매출내역·마감현황에 얹을 판매전표 명세 — 정산서 행과 같은 모양으로 돌려준다 */
 		@RequestMapping(value="/mangr/salesTrxHist.do", method = RequestMethod.POST)
 		@ResponseBody

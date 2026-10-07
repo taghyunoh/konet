@@ -3395,6 +3395,9 @@
            수금/미수 관리는 [거래처별 채권·채무]의 「미수 경과」·[🔒 이 달 마감 확정]이 맡는다(docs/설계_수금미수_연동_2026-09-16.md).
            (EL 표기는 JSP 주석 안에서도 파서를 건드릴 수 있어 일부러 풀어 적었다) --%>
       <a class="mi" data-key="closeSales" onclick="logiGo('closeSales', this)"><span class="ic">📒</span>매출마감</a>
+      <%-- 거래처 매출장·마감 (2026-10-07) — 판매전표를 거래처별 매출장(표본 「샐러드플러스 0821」)과 마감 유형별 매출원장(표본 「우리푸드 샐러드플러스 7월 마감」)으로.
+           마감 유형(거래처 묶음)은 화면에서 늘린다(회사 설정 ledger). iframe 화면(mangr/salesLedger.jsp) — ★메뉴와 아래 panel-salesLedger 는 짝이다 --%>
+      <a class="mi" data-key="salesLedger" onclick="logiFrame('salesLedger','${pageContext.request.contextPath}/mangr/salesLedger.do', this)"><span class="ic">📗</span>거래처 매출장·마감</a>
       <%-- 매출 그래프 — 월별/일자별 화면 2개를 탭 하나로 통합(2026-08-02 요청).
            화면 자체(salesChart(Day).jsp)는 그대로 두고, 셸에서 iframe 을 탭으로 갈아끼운다.
            '월별이 일자 자료를 받아 무거워진다' 던 분리 사유는 iframe 탭이라 그대로 유효하다(각자 따로 조회). --%>
@@ -5041,6 +5044,10 @@
       <iframe id="if-quoteMng" src="" title="견적서 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <%-- 토더 발주 등록 (2026-09-21) — 메뉴 logiFrame('toderPo',…) 의 짝 --%>
+    <%-- 거래처 매출장·마감 (2026-10-07) — 메뉴 logiFrame('salesLedger',…) 의 짝 --%>
+    <section id="panel-salesLedger" class="panel" style="padding:0;">
+      <iframe id="if-salesLedger" src="" title="거래처 매출장·마감" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
     <%-- 대상 발주 등록 (2026-10-02) — 메뉴 logiFrame('daesangPo',…) 의 짝 --%>
     <section id="panel-daesangPo" class="panel" style="padding:0;">
       <iframe id="if-daesangPo" src="" title="대상 발주 등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>

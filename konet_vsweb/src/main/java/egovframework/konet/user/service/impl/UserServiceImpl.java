@@ -2176,6 +2176,7 @@ public class UserServiceImpl implements UserService {
 	@Override public String selectSalesTrxNextNo(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception { return mapper.selectSalesTrxNextNo(dto); }
 	@Override public egovframework.konet.user.model.SalesTrxDtlDTO selectCustLastPrice(egovframework.konet.user.model.SalesTrxDtlDTO dto) throws Exception { return mapper.selectCustLastPrice(dto); }
 	@Override public java.util.List<egovframework.konet.user.model.SalesTrxDtlDTO> selectSalesPriceHist(egovframework.konet.user.model.SalesTrxDtlDTO dto) throws Exception { return mapper.selectSalesPriceHist(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectSalesLedger(java.util.Map<String,Object> p) throws Exception { return mapper.selectSalesLedger(p); }   // 거래처 매출장·마감장(2026-10-07)
 	@Override public java.util.List<java.util.Map<String,Object>> selectSalesTrxHist(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception { return mapper.selectSalesTrxHist(dto); }
 
 	/* ===== 납품분 / 납품분 제외 — 2026-07-31 ===== */

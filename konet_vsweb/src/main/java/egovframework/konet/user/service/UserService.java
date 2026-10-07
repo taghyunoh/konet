@@ -325,6 +325,7 @@ public interface UserService {
 	java.util.List<egovframework.konet.user.model.SalesTrxDtlDTO> selectSalesPriceHist(egovframework.konet.user.model.SalesTrxDtlDTO dto) throws Exception;
 	/** 매출내역 화면에 얹을 판매전표 명세 — 정산서 행과 같은 모양 */
 	java.util.List<java.util.Map<String,Object>> selectSalesTrxHist(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectSalesLedger(java.util.Map<String,Object> p) throws Exception;   // 거래처 매출장·마감장(2026-10-07)
 
 	/* ===== 납품분(그 거래처에 나간 품목) / 납품분 제외 — 2026-07-31 ===== */
 	java.util.List<egovframework.konet.user.model.SalesDlvDTO> selectSalesDlvList(egovframework.konet.user.model.SalesDlvDTO dto) throws Exception;
