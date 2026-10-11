@@ -189,8 +189,8 @@
       </span>
     </div>
     <div class="tw" id="lsWrap" style="max-height:50vh"><table class="g"><thead><tr>
-      <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th><th title="고치면 그 줄을 새 날짜로 옮깁니다(재고도 두 날짜 모두 다시 맞춥니다)">발주일자 ✏️</th><th title="고치면 그 줄만 바로 저장됩니다">받는 사람 ✏️</th><th title="고치면 그 줄만 바로 저장됩니다">주소 ✏️</th><th>전화번호1 ✏️</th><th>전화번호2 ✏️</th><th>제품코드 ✏️</th>
-      <th title="고르거나 쳐서 바꾸면 이 줄의 품목코드가 바뀌고 재고도 다시 맞춥니다">품목코드 ✏️</th><th title="고치면 그 줄만 바로 저장됩니다. 이 이름으로 품목코드를 기억합니다">제품명 ✏️</th><th title="고쳐서 Enter">수량 ✏️</th><th title="엑셀의 운임 칸으로 나갑니다. 고쳐서 Enter — 그 줄만 바로 저장됩니다">택배비 ✏️</th><th title="고쳐서 Enter. 비면 매출 0">단가 ✏️</th><th title="매출 = 수량 × 단가 — 거래처 대상주식회사" style="min-width:110px">금액</th><th>사업장</th><th>비고</th><th>등록</th></tr></thead>
+      <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th><th title="고치면 그 줄을 새 날짜로 옮깁니다(재고도 두 날짜 모두 다시 맞춥니다)">발주일자</th><th title="고치면 그 줄만 바로 저장됩니다">받는 사람</th><th title="고치면 그 줄만 바로 저장됩니다">주소</th><th>전화번호1</th><th>전화번호2</th><th>제품코드</th>
+      <th title="고르거나 쳐서 바꾸면 이 줄의 품목코드가 바뀌고 재고도 다시 맞춥니다">품목코드</th><th title="고치면 그 줄만 바로 저장됩니다. 이 이름으로 품목코드를 기억합니다">제품명</th><th title="고쳐서 Enter">수량</th><th title="엑셀의 운임 칸으로 나갑니다. 고쳐서 Enter — 그 줄만 바로 저장됩니다">택배비</th><th title="고쳐서 Enter. 비면 매출 0">단가</th><th title="매출 = 수량 × 단가 — 거래처 대상주식회사" style="min-width:110px">금액</th><th>사업장</th><th>비고</th><th>등록</th></tr></thead>
       <tbody id="lsBody"><tr><td colspan="16" class="msg">[🔍 조회]를 누르세요.</td></tr></tbody></table></div>
   </div>
 </div>
