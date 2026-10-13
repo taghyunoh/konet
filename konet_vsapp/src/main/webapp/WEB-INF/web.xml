@@ -25,6 +25,17 @@
     <filter-name>mobileGuardFilter</filter-name>
     <url-pattern>*.do</url-pattern>
   </filter-mapping>
+  <!-- 로그인 확인 (2026-10-13) — mobileGuardFilter 는 헤더 X-Konet-M 이 달린 요청만 막는다. 이 필터는 헤더 없는 요청까지
+       미로그인이면 막는다(화면 = 앱 로그인 /m/index.do 로, 데이터 = 401). 공개 주소는 LoginCheckFilter.PUBLIC_* (앱 화면 /m/* 포함).
+       ★반드시 mobileGuardFilter 뒤 — 앱 화면은 그쪽의 JSON 401 을 받아 로그인 화면을 띄운다. -->
+  <filter>
+    <filter-name>loginCheckFilter</filter-name>
+    <filter-class>egovframework.konet.cmmn.LoginCheckFilter</filter-class>
+  </filter>
+  <filter-mapping>
+    <filter-name>loginCheckFilter</filter-name>
+    <url-pattern>*.do</url-pattern>
+  </filter-mapping>
   <!-- 다중회사(멀티테넌트) — 로그인 세션(s_comp_cd)의 회사코드를 요청 스레드에 실어
        MyBatis 인터셉터(CompCdMybatisInterceptor)가 모든 SQL 에 compCd 를 자동 주입하게 한다 -->
   <filter>

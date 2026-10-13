@@ -1654,3 +1654,8 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
     **페이지 나눔은 없앴다** — 목록은 늘 전체 스크롤(`_pager` 는 첫 줄에서 돌아가고 `pcCollapse` 는 빈 함수. 부르는 곳은 남겨 두었다). 건수는 위 조회줄 오른쪽에 있다. `#mc` min-height 330 → **150px**(안 낮추면 목록을 넓혀도 창이 330 밑으로 안 줄어 목록 끝을 가린다).
     검증 = 인라인 문법 · 함수를 떼어 가짜 화면(창 900px)으로 돌린 시뮬 15(scratch `sim_mcgrip.js` — 최대·최소 멈춤 · 단추 방향 · 접힘 펼치기 · 더블클릭 · 저장값) · 두 앱 수정분 동일 · CRLF. ⚠실제 로그인 화면에서는 아직 안 끌어 봤다.
   ⚠**작업 중 pull 이 들어왔다** — 다른 PC 가 웹에만 42개 소스를 바꿔 올렸다(설정 다시 읽기 `saApplySet`·`puApplySet` · 매칭코드 표 입고가·판매가 칸 등). **앱에는 그 42개가 아직 안 옮겨졌다.** 이번 변경은 앱에 <제 수정분만> 얹어 앱 자신과 어긋나지 않게 했다.
+- **[2026-10-13] 로그인 확인 필터 `LoginCheckFilter`(앱 판)** — ⛔**앱 WAR 재빌드+재배포**(자바 1 + web.xml).
+  까닭 = `MobileGuardFilter` 는 **헤더 X-Konet-M 이 달린 요청만** 막아, 헤더 없이 `/konetapp/mangr/salesTrxList.do` 를 부르면 로그인 없이 돌았다(운영 실측 200 — 회사코드가 비면 COMP_CD 조건이 전체 조회). 웹(konet_vsweb)은 같은 날 먼저 막았다.
+  순서 = web.xml 에서 **mobileGuardFilter 뒤**(앱 화면은 그쪽 JSON 401 로 로그인 화면을 띄운다 — 그대로). 이 필터는 헤더 없는 미로그인 요청 : 화면 GET → `/m/index.do`(상대 주소로 옮기는 작은 페이지 — 운영 302 는 http 절대주소) · 그 밖 → 401.
+  공개 = `/m/*`(MobileController 가 스스로 로그인 여부를 본다) · `/user/loginChk|loginAct|loginOutAct|sessionChk.do` · `/konet.do`·`/index.do`·`/main.do` · `/pub/*`·`/popup/*` · `/json/user/pwd*` · `/getSignList.do` · `/patient/login|register.do`. ★새 공개 주소는 웹·앱 두 필터에 같이 더한다.
+  검증 = javac(앱 WAR lib) · web.xml [xml]·CRLF · 가짜 요청 하네스 20검사. ⛔운영 확인은 재배포 뒤(`curl -X POST https://allcare24.kr/konetapp/mangr/salesTrxList.do` → 401).
