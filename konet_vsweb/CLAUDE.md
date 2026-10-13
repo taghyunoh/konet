@@ -2331,3 +2331,8 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
   ②**https 가드** — 운영 nginx 가 80(http)도 그대로 받아 준다(`http://allcare24.kr/konet/konet.do` = 200). 로그인 틀(`tiles/login/login.jsp`)·셸(`logistics_demo2.jsp`) `<head>` 맨 앞에 「`allcare24.kr`(·`*.allcare24.kr`) 이고 http 면 같은 주소 https 로 `location.replace`」 한 줄. 로컬·IP 접속은 그대로. www 도 인증서 유효(실측).
   ★근본 해결은 nginx 에서 80 → 443 **301** — 가비아/서버 설정 사안. 이 가드는 그 전까지의 안전망이다.
   검증 = web.xml `[xml]`(CRLF 94/94) · jspsyn(셸 7블록·로그인 1블록 0오류) · 가드 규칙 7경우(http 운영 → https · https/로컬/IP/`evilallcare24.kr` 그대로). ⛔실서버 확인은 재기동 뒤.
+- **[2026-10-13] 세 가지(JS·JSP 만 — 재빌드 불필요)** :
+  ①**첫 로그인 때 납기현황표가 오늘로 뜨던 것**(「다시 로그인하면 내일로 뜸」) — 셸 끝 인라인 스크립트가 납기현황표 iframe 을 파싱 중에 먼저 띄우는데, 셸의 숨은 출고현황표 패널(`ssInit`, logi-oh.js)은 DOMContentLoaded 에 돌며 「오늘」을 공유 날짜(`logiShipDate`)에 써서 storage 이벤트로 납기현황표를 끌어내렸다(캐시 빈 첫 로그인만 순서가 그렇게 된다). ⇒ ssInit 도 **내일**로 시작 + 진입 기본값은 **공유하지 않음**(`_ssDateSyncing`). 숨은 패널이라 보이는 변화 없음. 같이 빠진 것 = 로그인 때 selectBiziMst(1.35MB)·출고 조회 한 벌.
+  ②**진행 현황 ③ 채택 — 제출→채택 기간·평균**(pipeline.jsp, 서버 무변경 : 채택 목록 stage=A 를 받아 화면이 센다) · 목록 칸 「N일/당일/제출일 없음」 · 견적서 목록 「채택까지 N일」 + **채택인데 제출일이 비면 한 번 묻는다**(막지 않음). ⚠Konet260918-01·260928-02 는 기능 첫날(09-29) 제출을 건너뛰고 바로 채택해 제출일이 없다 — 평균에서 빠진다.
+  ③**품목별재고현황 [📥 엑셀]**(logi-oh.js `stkExcel`) — 화면 목록 전부(스크롤로 아직 안 붙은 줄까지 `window._stkView`)·조건 그대로 · 마감장(salesLedger xlsClose)과 같은 서식(`ssLoadStyleXlsx` = xlsx-js-style 지연 로드) · [🏷 매입처별]이면 매입처 묶음 + 보라 소계 · 사용자 확인 완료.
+  ★logistics_demo2.jsp `_jspService` = **44,899 / 65,535 바이트**(2026-10-13 javap 실측) — 정적 글자는 거의 안 늘지만 EL·스크립틀릿을 더하면 이 숫자를 먼저 본다.

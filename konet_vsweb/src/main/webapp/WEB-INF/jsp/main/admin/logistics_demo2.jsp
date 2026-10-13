@@ -2978,6 +2978,7 @@
     var _base = (_onlyA && _aliasReady) ? _stkRows.filter(function(r){ return _stkHasAlias(r.prodCd); }) : _stkRows;
     if(_onlyS) _base = _base.filter(function(r){ return !!stkShortOf(r); });   /* 적정재고 미달만 (2026-09-16) */
     var view = (window.stkVenFilter ? stkVenFilter : function(v){ return v; })(_base);   /* 매입처 검색(2026-09-13) — logi-oh.js */
+    window._stkView = view;   /* [📥 엑셀](stkExcel — logi-oh.js)이 <지금 보는 목록 전부>를 내보낸다 (2026-10-13) */
     var tI=0,tO=0,tQ=0,tA=0,tP=0; view.forEach(function(r){ tI+=(+r.inQty||0); tO+=(+r.outQty||0); tQ+=(+r.curQty||0); tA+=(+r.stockAmt||0); tP+=(+r.poRemainQty||0); });   // tP = 입고예정 합 (2026-09-16)
     if(_onlyA && _aliasReady && !view.length){
       sum.innerHTML='<b style="color:#b06a00">매칭코드가 등록된 품목이 없습니다.</b> (체크를 풀면 전체가 보입니다)';
@@ -4246,6 +4247,7 @@
         <div><h2 style="margin:0">품목별재고현황 <span class="badge b-done">현재고</span>
           <span style="font-size:12px;font-weight:400;color:#9aa7b3;margin-left:6px">입고(수불원장) − 출고(SHIPOUT) · 실시간 자동갱신</span></h2></div>
         <div class="actions">
+          <button class="btn-line" onclick="stkExcel()" title="지금 표의 품목 전부를 엑셀로 저장합니다 — 검색어·창고·기준일·체크 조건이 그대로 걸립니다(화면에 아직 안 나온 줄까지 전부)">📥 엑셀출력</button>
           <button class="btn-line" onclick="stkRebuild()" title="※ 평소에는 누를 필요가 없습니다.&#10;수불/출고 등록 시 실시간으로 자동집계되기 때문입니다.&#10;&#10;과거 SHIPOUT 최초 반영·보정 등 부득이한 경우에만 실행하세요.&#10;(마감 확정된 달은 제외됩니다)">🔄 출고반영 재집계</button>
           <button class="btn-teal" onclick="stkStatusLoad()">↻ 새로고침</button>
         </div>

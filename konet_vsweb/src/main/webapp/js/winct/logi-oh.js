@@ -6036,6 +6036,100 @@ function ssOutQty(o){
       { a:'', h:_fmtYmd(x.lastOutDt) }
     ];
   }
+  /* ══ 품목별재고현황 ① 엑셀 출력 (2026-10-13 사용자 「품목별재고현황 엑셀출력 만들어줘」) ══
+       · 내보내는 줄 = <지금 화면이 보는 목록 그대로>(stkStatusRender 가 남긴 window._stkView) — 검색어·창고·기준일·[매칭코드 있는 것만]·[적정재고 미달만]·매입처 검색이 그대로 걸린다.
+         ★화면은 스크롤로 이어 붙이지만(264 / 844행) 엑셀은 <전부> 담는다 — DOM 이 아니라 자료에서 만든다.
+       · 서브코드 줄 = 「서브」 + 주코드 칸(화면의 [주]/[서브] 두 줄 모양 대신 한 줄에 칸으로). 합계는 화면 총합계와 같은 셈(자기 줄만).
+       · 맨 위 두 줄 = 제목·조회조건, 그 다음 머리줄·자료·총합계. 숫자는 숫자로(엑셀에서 다시 더할 수 있게). */
+  function stkExcel(){
+    ssLoadStyleXlsx(function(XLSXS){
+      var LIB=XLSXS || window.XLSX, styled=!!XLSXS;            // 서식본을 못 불러오면 원본(무색)으로라도 저장
+      if(!LIB || !LIB.utils){ (window._alertBox||alert)('엑셀 도구를 불러오지 못했습니다 — 화면을 새로 고친 뒤 다시 해 보세요.'); return; }
+      var view=window._stkView||[];
+      if(!view.length){ (window._alertBox||alert)('내보낼 품목이 없습니다. 먼저 조회해 주세요.'); return; }
+      var rev=(typeof _stkAliasRev!=='undefined') ? _stkAliasRev : null;
+      var num=function(v){ var x=Number(v); return isFinite(x) ? x : 0; };
+      var ymd=function(s){ s=String(s||'').replace(/[^0-9]/g,''); return s.length>=8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : ''; };
+      var val=function(id){ var e=document.getElementById(id); return e ? String(e.value||'').trim() : ''; };
+      var chk=function(id){ var e=document.getElementById(id); return !!(e && e.checked); };
+      var wch=function(s){ var w=0; String(s||'').split('').forEach(function(ch){ w+=(ch.charCodeAt(0)>255?1.8:1); }); return w; };
+      var whE=document.getElementById('stkWh'), whOn=!!(whE && whE.value), whNm=(whE && whE.selectedIndex>=0) ? whE.options[whE.selectedIndex].text : '전 창고';
+      var asOf=val('stkAsOf'), q=val('stkSrch');
+      var compE=document.querySelector('.side-comp'), comp=compE ? String(compE.textContent||'').replace(/^[^0-9A-Za-z가-힣(]+/,'').trim() : '';
+      var now=new Date(), p2=function(n){ return ('0'+n).slice(-2); };
+      var today=now.getFullYear()+'-'+p2(now.getMonth()+1)+'-'+p2(now.getDate()), stamp=today+' '+p2(now.getHours())+':'+p2(now.getMinutes());
+      var cond=['기준일 '+(asOf||'현재'), '창고 '+whNm];
+      if(q) cond.push('검색 「'+q+'」');
+      if(chk('stkOnlyAlias')) cond.push('매칭코드 있는 것만');
+      if(chk('stkOnlyShort')) cond.push('적정재고 미달만');
+      var grouped=(typeof _stkVen!=='undefined' && !!_stkVen);   // 화면이 [🏷 매입처별]이면 엑셀도 매입처마다 묶고 소계(보라)를 단다
+      if(grouped && typeof _stkVenQ!=='undefined' && _stkVenQ) cond.push('매입처 「'+_stkVenQ+'」');
+      var NC=15, E=function(n){ var a=[]; for(var i=0;i<n;i++) a.push(''); return a; };
+      /* 마감장(거래처 매출장·마감 xlsClose)과 같은 꼴 — 맑은 고딕 10 · 제목 15 굵게(두 줄 병합) · 조회조건(밑줄) · 정보줄·머리글 하늘 · 소계 보라 · 총합계 크림 */
+      var aoa=[ ['품목별재고현황'+(whOn?' ['+whNm+']':'')].concat(E(NC-1)), E(NC),
+                ['조회조건 : '+cond.join(' · ')].concat(E(NC-1)),
+                ['기준일 : '+(asOf||today+' (현재)'),'','','창고',whNm,'품목 '+view.length.toLocaleString()+'개','','','','','','출력일자 : '+stamp,'','',comp],
+                ['매입처','구분','주코드','품목코드','품목명','입고','출고','현재고','입고예정','적정재고','미달','이동평균단가','재고금액','최근입고','최근출고'] ];
+      var kinds=['t','t','p','h','h'], red=[false,false,false,false,false], nmW=30, venW=10;
+      var T={ i:0, o:0, c:0, p:0, a:0 };
+      var push=function(r, venCell){
+        var ms=(rev && typeof stkSubMains==='function') ? stkSubMains(r.prodCd, rev) : [];
+        var sh=(typeof stkShortOf==='function') ? stkShortOf(r) : null, safe=Math.round(num(r.safeStock));
+        aoa.push([ venCell, ms.length ? '서브' : '', ms.length ? ms[0].cd : '', String(r.prodCd||''), String(r.prodNm||''),
+                   num(r.inQty), num(r.outQty), num(r.curQty), num(r.poRemainQty)||'', safe>0 ? safe : '', sh ? num(sh.short) : '',
+                   num(r.avgInPrice), num(r.stockAmt), ymd(r.lastInDt), ymd(r.lastOutDt) ]);
+        kinds.push('row'); red.push(num(r.curQty)<0 || !!sh);
+        nmW=Math.max(nmW, Math.min(56, wch(r.prodNm)+2));
+        T.i+=num(r.inQty); T.o+=num(r.outQty); T.c+=num(r.curQty); T.p+=num(r.poRemainQty); T.a+=num(r.stockAmt);
+      };
+      if(grouped){
+        var g={}, order=[];
+        view.forEach(function(r){ var k=String((r&&r.vendorCd)||'').trim(); if(!g[k]){ g[k]={ k:k, nm:(k ? (String(r.vendorNm||'').trim()||k) : '(매입처 없음)'), rows:[] }; order.push(g[k]); } g[k].rows.push(r); });
+        order.sort(function(a,b){ if(!a.k !== !b.k) return a.k ? -1 : 1; return a.nm.localeCompare(b.nm,'ko'); });   // 화면 매입처별과 같은 차례
+        order.forEach(function(o){
+          var s={ i:T.i, o:T.o, c:T.c, p:T.p, a:T.a };
+          o.rows.forEach(function(r, ix){ push(r, ix===0 ? o.nm : ''); });   // 매입처 이름은 묶음 첫 줄에만(마감장의 거래처 칸처럼)
+          venW=Math.max(venW, Math.min(30, wch(o.nm)+2));
+          aoa.push(['소계','','','',o.rows.length.toLocaleString()+'품목', T.i-s.i, T.o-s.o, T.c-s.c, (T.p-s.p)||'', '', '', '', T.a-s.a, '', '']);
+          kinds.push('sub'); red.push(false);
+        });
+      } else {
+        view.forEach(function(r){ push(r, String(r.vendorNm||'')); venW=Math.max(venW, Math.min(24, wch(r.vendorNm)+2)); });
+      }
+      aoa.push(['총합계','','','',view.length.toLocaleString()+'품목', T.i, T.o, T.c, T.p||'', '', '', '', T.a, '', '']); kinds.push('tot'); red.push(false);
+      var ws=LIB.utils.aoa_to_sheet(aoa);
+      if(styled){
+        var bd={ style:'thin', color:{ rgb:'000000' } }, box={ top:bd, bottom:bd, left:bd, right:bd }, FILL={ sub:'ECC7FF', tot:'FCF8E3' };
+        for(var r=0;r<aoa.length;r++){ var k=kinds[r];
+          for(var cc=0;cc<NC;cc++){ var ref=LIB.utils.encode_cell({ r:r, c:cc }); if(!ws[ref]) ws[ref]={ t:'s', v:'' };
+            var st={ font:{ name:'맑은 고딕', sz:10 }, alignment:{ vertical:'center', wrapText:true } };
+            if(k==='t'){ st.font={ name:'맑은 고딕', sz:15, bold:true }; st.alignment.horizontal='center'; }
+            else if(k==='p'){ st.alignment.horizontal='left'; st.border={ bottom:bd }; }
+            else if(k==='h'){ st.font.bold=true; st.alignment.horizontal='center'; st.fill={ fgColor:{ rgb:'D9EDF7' } }; st.border=box; }
+            else {
+              st.border=box; st.fill={ fgColor:{ rgb:(k==='row'?'FFFFFF':FILL[k]) } };
+              st.alignment.horizontal = (cc>=5 && cc<=12) ? 'right' : ((k==='row' && (cc===0 || cc===4)) ? 'left' : 'center');
+              if(k!=='row') st.font.bold=true;
+              if(k==='row' && cc===7 && red[r]) st.font.color={ rgb:'C0392B' };          // 현재고 — 음수·적정재고 미달은 빨강(화면과 같다)
+              if(k==='row' && cc===10 && ws[ref].v!=='') st.font.color={ rgb:'C0392B' };
+              if(k==='row' && cc===1 && ws[ref].v==='서브') st.font.color={ rgb:'B06A00' };
+              if(grouped && k==='row' && cc===0){ st.border= ws[ref].v ? { top:bd, left:bd, right:bd } : { left:bd, right:bd }; }   // 매입처 칸 = 묶음 안에서는 가로줄 없이
+              if(ws[ref].t==='n') ws[ref].z='#,##0';
+            }
+            ws[ref].s=st; } }
+      } else {
+        for(var r2=5;r2<aoa.length;r2++) for(var c2=5;c2<=12;c2++){ var rf=LIB.utils.encode_cell({ r:r2, c:c2 }); if(ws[rf] && ws[rf].t==='n') ws[rf].z='#,##0'; }
+      }
+      ws['!merges']=[ { s:{ r:0, c:0 }, e:{ r:1, c:NC-1 } }, { s:{ r:2, c:0 }, e:{ r:2, c:NC-1 } },
+                      { s:{ r:3, c:0 }, e:{ r:3, c:2 } }, { s:{ r:3, c:5 }, e:{ r:3, c:10 } }, { s:{ r:3, c:11 }, e:{ r:3, c:13 } } ];
+      ws['!cols']=[{ wch:venW },{ wch:5 },{ wch:12 },{ wch:12 },{ wch:nmW },{ wch:9 },{ wch:9 },{ wch:9 },{ wch:9 },{ wch:8 },{ wch:6 },{ wch:11 },{ wch:13 },{ wch:10.5 },{ wch:10.5 }];
+      ws['!rows']=aoa.map(function(a,i){ return { hpt:(i<2?18.75:16.5) }; });
+      var wb=LIB.utils.book_new(); LIB.utils.book_append_sheet(wb, ws, '품목별재고현황');
+      LIB.writeFile(wb, '품목별재고현황_'+(asOf||today).replace(/-/g,'')+(whOn ? '_'+whNm : '')+(grouped ? '_매입처별' : '')+'.xlsx');
+      if(window._toast) _toast('📥 품목별재고현황 '+view.length.toLocaleString()+'품목을 엑셀로 저장했습니다'+(grouped?' (매입처별 소계)':'')+(styled?'':' — 서식 없이'),'success');
+    });
+  }
+  window.stkExcel=stkExcel;
   function stkNumTds(r, neg, sh){
     var own=_stkCells(r, neg, sh);
     var ms=stkSubMains(r.prodCd, (typeof _stkAliasRev!=='undefined') ? _stkAliasRev : null);
