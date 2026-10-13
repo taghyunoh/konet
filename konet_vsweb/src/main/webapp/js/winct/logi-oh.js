@@ -4149,10 +4149,19 @@ function ssOutQty(o){
     if(!window.ssSrcInfo){ window.ssSrcInfo='내장 샘플 데이터 (당일 기준)'; window.ssSrcUp=false; }
     SHIP_DATA.forEach(function(r){ if(!r.date) r.date=SS_TODAY; });
     var f=document.getElementById('ssDateFrom'), t=document.getElementById('ssDateTo');
-    // 진입(로그인) 시엔 항상 당일로 시작 — 이전 날짜 기억 안 함. (두 대시보드 동시 사용 중엔 아래 storage 이벤트로 실시간 동기화)
-    if(f) f.value=SS_TODAY;
-    if(t) t.value=SS_TODAY;
-    ssLoadShipoutFromDB();   // 진입 시 = 당일 → DB에서 조회
+    /* ★진입(로그인) 날짜 = 내일 — 납기현황표(logistics_demo1 D2_TOMORROW)와 같은 규칙 (2026-10-13)
+         「최초 로그인 때 납기현황표가 오늘로 뜨고, 다시 로그인하면 내일로 뜬다」의 원인 :
+         셸 끝의 인라인 스크립트가 납기현황표 iframe 을 <파싱 중> 먼저 띄우는데 이 함수는 DOMContentLoaded 에 돈다.
+         캐시가 빈 첫 로그인은 DOMContentLoaded 가 늦어 납기현황표가 먼저 「내일」로 뜬 뒤, 여기서 「오늘」을 공유 날짜(logiShipDate)에
+         써서 storage 이벤트로 납기현황표를 오늘로 끌어내렸다. 다시 로그인하면 캐시 덕에 순서가 바뀌어 멀쩡했다.
+         ⇒ ①같은 「내일」로 시작 ②진입 기본값은 공유하지 않는다(_ssDateSyncing) — 사람이 고른 날짜만 다른 화면으로 번진다.
+         이 패널(데시보드1)은 메뉴로 안 열리는 숨은 화면이라 진입 날짜를 바꿔도 보이는 것은 없다(알림 바 기준일만 — 종전에도 곧 내일로 따라갔다). */
+    var _ssD=new Date(); _ssD.setDate(_ssD.getDate()+1);
+    var _ssTomorrow=_ssD.getFullYear()+'-'+ssPad(_ssD.getMonth()+1)+'-'+ssPad(_ssD.getDate());
+    if(f) f.value=_ssTomorrow;
+    if(t) t.value=_ssTomorrow;
+    _ssDateSyncing=true;
+    try{ ssLoadShipoutFromDB(); } finally { _ssDateSyncing=false; }   // 진입 시 = 내일 → DB에서 조회(공유 날짜는 안 건드린다)
     // 기본 화면 = 대시보드2 → iframe 자동 로드(한 번만). 직접/AJAX 로드 모두 커버
     var _if2=document.getElementById('if-shipstatus2');
     if(_if2){ var _c2=_if2.getAttribute('src')||''; if(!_c2 || _c2==='about:blank'){ _if2.src=KONET_CTX+'/admin/logistics_demo1.do'; } _if2.setAttribute('data-loaded','1'); }

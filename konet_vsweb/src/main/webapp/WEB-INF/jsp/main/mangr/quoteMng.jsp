@@ -417,6 +417,13 @@ function stCell(x,i){
     var txt = sp.done ? ('작성 <b>'+sp.days+'일</b>') : ('작성 <b>'+sp.days+'일째</b>');
     out+='<span class="stdt'+(!sp.done&&sp.days>7?' long':'')+'" title="작성 시작 '+d10(sp.start)+(sp.done?' → 제출완료 '+d10(sp.end):' → 아직 제출 전')+'">'+txt+'</span>';
   }
+  /* 제출 → 채택 걸린 기간 (2026-10-13) — 두 일자가 다 있을 때만. 같은 날이면 「당일」. 진행 현황 ③ 채택의 평균과 같은 셈 */
+  var subD=dnum(x.submitDt), adoD=dnum(x.adoptDt);
+  if(adoD){
+    var sa=subD ? daysBetween(subD, adoD) : null;
+    if(sa!=null && sa>=0) out+='<span class="stdt" title="제출완료 '+d10(subD)+' → 채택 '+d10(adoD)+'">채택까지 <b>'+(sa===0?'당일':sa+'일')+'</b></span>';
+    else if(!subD) out+='<span class="stdt" title="제출일 없이 바로 채택 — 상태를 눌러 제출일을 넣으면 제출→채택 기간을 셉니다">제출일 없음</span>';
+  }
   if(n(x.editCnt)) out+='<span class="stdt" title="'+esc(x.editMemo||'')+'">✏ 수정 '+n(x.editCnt)+'회</span>';
   /* 판매등록 단계 (2026-10-06) — 견적의 마지막 단계. 판매 등록 [📄 견적서]로 이어진 판매전표가 있으면 「💰 판매 n건」,
      채택됐는데 아직 없으면 「판매 전」(점선) — 채택에서 멈춘 견적이 눈에 띄게. 옛 서버(saleCnt 없음)면 아무것도 안 붙인다 */
@@ -456,6 +463,13 @@ function stSave(){
     rejectDt:document.getElementById('stRej').value, holdDt:document.getElementById('stHol').value,
     statMemo:document.getElementById('stMemo').value };
   if(g!=='W' && !body[ST_DTK[g]]){ _alertBox(ST_NM[g]+' 일자를 넣으세요.',{icon:'⚠️'}); return; }
+  /* 채택인데 제출일이 비면 한 번 묻는다(막지 않는다 — 2026-10-13) : 비어 있으면 제출→채택 기간·평균에서 빠진다 */
+  if(g==='A' && !body.submitDt && !stSave._ok){
+    _confirmBox({ icon:'❓', okText:'제출일 없이 저장',
+      msg:'<b>제출일</b>이 비어 있습니다.<br>제출일이 없으면 <b>제출→채택 기간</b>과 평균에서 이 견적이 빠집니다.<br><span style="font-size:13px;color:#5b6b7c">고객에게 낸 날을 알면 [취소] 뒤 제출일을 넣어 주세요.</span>',
+      onOk:function(){ stSave._ok=true; try{ stSave(); } finally { stSave._ok=false; } } });
+    return;
+  }
   post('/mangr/quoteStat.do', body, true).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error((j&&j.error)||('HTTP '+r.status)); return j; }); })
     .then(function(){ stClose(); load(); if(window._toast) _toast('진행 상태를 저장했습니다.','success'); })
     .catch(function(e){ _alertBox('저장하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>',{icon:'⚠️'}); });

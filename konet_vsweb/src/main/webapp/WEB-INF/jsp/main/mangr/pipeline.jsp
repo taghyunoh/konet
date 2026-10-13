@@ -143,11 +143,59 @@ function load(){
   var fr=document.getElementById('fr').value, to=document.getElementById('to').value;
   post('/mangr/pipelineStat.do','frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to))
     .then(function(r){ return r.json(); })
-    .then(function(j){ _stat=j||{}; render(); if(_stage) list(_stage);
+    .then(function(j){ _stat=j||{}; render(); if(_stage) list(_stage); adoptLoad();
       var d=new Date(); document.getElementById('stamp').textContent='집계 '+ymd(d)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); })
     .catch(function(e){ document.getElementById('poErr').textContent='조회 오류 — '+e.message; });
 }
 function qtMap(){ var m={}; ((_stat&&_stat.quote)||[]).forEach(function(r){ m[r.statGb]=r; }); return m; }
+/* ── 제출 → 채택 걸린 기간 (2026-10-13 「채택한 경우 제출해서 채택까지 걸리는 기간 체크 그리고 평균」) ──
+     한 건 = 채택일 − 제출일(날짜 차, 같은 날이면 0일 = 당일). 두 일자가 다 있어야 센다 —
+     제출을 건너뛰고 바로 채택한 견적(제출일 없음)은 평균에서 빼고 따로 센다(지어 넣지 않는다).
+     ★카드의 평균은 ③ 채택 목록(pipelineList stage=A)을 그대로 받아 센다 — 목록과 카드가 같은 줄을 본다. 서버 무변경. */
+var _adopt=null, _adoptSeq=0;
+function dUtc(s){ s=String(s||'').replace(/[^0-9]/g,''); return s.length>=8 ? Date.UTC(+s.slice(0,4), +s.slice(4,6)-1, +s.slice(6,8)) : null; }
+function adoptDays(r){
+  var a=dUtc(r&&r.submitDt), b=dUtc(r&&r.adoptDt);
+  if(a==null||b==null) return null;
+  var d=Math.round((b-a)/86400000);
+  return d<0 ? null : d;          // 채택일이 제출일보다 앞이면 잘못 적힌 것 — 평균에서 뺀다
+}
+function adoptStat(rows){
+  var s={ cnt:0, sum:0, min:null, max:null, noSub:0, bad:0 };
+  (rows||[]).forEach(function(r){
+    if(!dUtc(r.adoptDt)) return;
+    if(!dUtc(r.submitDt)){ s.noSub++; return; }
+    var d=adoptDays(r); if(d==null){ s.bad++; return; }
+    s.cnt++; s.sum+=d; s.min=(s.min==null?d:Math.min(s.min,d)); s.max=(s.max==null?d:Math.max(s.max,d));
+  });
+  s.avg = s.cnt ? Math.round(s.sum/s.cnt*10)/10 : null;
+  return s;
+}
+function daysTxt(d){ return d===0 ? '당일' : d+'일'; }
+function adoptLine(s){
+  if(!s) return '';
+  if(!s.cnt) return s.noSub ? '<span style="color:#8a98a8" title="제출일 없이 바로 채택한 견적은 기간을 셀 수 없습니다 — 견적서 관리에서 제출일을 넣으면 셉니다">제출→채택 — (제출일 없음 '+s.noSub+'건)</span>' : '';
+  return '<span title="채택일 − 제출일 · '+s.cnt+'건 기준'+(s.cnt>1?' · 가장 짧게 '+daysTxt(s.min)+' · 가장 길게 '+daysTxt(s.max):'')
+    +(s.noSub?' · 제출일 없는 '+s.noSub+'건은 뺐습니다':'')+'">제출→채택 평균 <b>'+s.avg+'일</b>'
+    +' <span style="color:#8a98a8">('+s.cnt+'건'+(s.noSub?' · 제출일 없음 '+s.noSub:'')+')</span></span>';
+}
+/* 목록 칸 — 채택된 줄만. 제출일이 없으면 「제출일 없음」(누르면 견적서 관리로 가서 넣는다 — 줄 클릭이 이미 그 화면이다) */
+function adoptCell(r){
+  if(!dUtc(r.adoptDt)) return '<span style="color:#b8c2cc">—</span>';
+  if(!dUtc(r.submitDt)) return '<span style="color:#8a98a8;font-size:12px" title="제출일 없이 바로 채택 — 견적서 관리 ▸ 상태에서 제출일을 넣으면 셉니다">제출일 없음</span>';
+  var d=adoptDays(r);
+  if(d==null) return '<span style="color:var(--red)" title="채택일이 제출일보다 앞입니다 — 일자를 확인하세요">확인</span>';
+  return '<b>'+daysTxt(d)+'</b>';
+}
+function adoptLoad(){
+  var my=++_adoptSeq, q=qtMap();
+  if(!n((q.A||{}).cnt)){ _adopt=null; render(); return; }
+  var fr=document.getElementById('fr').value, to=document.getElementById('to').value;
+  post('/mangr/pipelineList.do','stage=A&frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to))
+    .then(function(r){ return r.json(); })
+    .then(function(j){ if(my!==_adoptSeq) return; _adopt=adoptStat((j&&j.data)||[]); render(); })
+    .catch(function(){ if(my===_adoptSeq){ _adopt=null; render(); } });
+}
 function stepHtml(s, val, unit, sub, extraCls){
   var cls='step '+(val>0 ? s.kind : 'zero')+(_stage===s.key?' on':'')+(extraCls||'');
   return '<div class="'+cls+'" onclick="list(\''+s.key+'\')" title="'+esc(s.tip)+'">'
@@ -177,7 +225,8 @@ function render(){
   g+='<div class="arrow">▸</div>';
   g+=stepHtml(QT_STEPS[1], cnt('S'), '건', amt('S') ? '공급가 '+fmt(amt('S')) : '');
   g+='<div class="arrow">▸</div>';
-  g+=stepHtml(QT_STEPS[2], cnt('A'), '건', cnt('A') ? (aWait ? '<span style="color:var(--amb);font-weight:700">판매 전 '+aWait+'건</span>' : '전부 판매로 이어짐') : '');
+  var aLine=adoptLine(_adopt);
+  g+=stepHtml(QT_STEPS[2], cnt('A'), '건', cnt('A') ? (aWait ? '<span style="color:var(--amb);font-weight:700">판매 전 '+aWait+'건</span>' : '전부 판매로 이어짐')+(aLine?'<br>'+aLine:'') : '');
   g+='<div class="arrow">▸</div>';
   g+=stepHtml(QT_STEPS[3], saleCnt, '건', saleAmt ? '판매 '+fmt(saleAmt)+'원' : '');
   document.getElementById('qtSteps').innerHTML=g;
@@ -226,9 +275,11 @@ function drawPo(k, rows){
 var ST_NM={ W:'작성 중', S:'제출완료', A:'채택', R:'거절', H:'보류' };
 function drawQt(k, rows){
   document.getElementById('lHead').innerHTML='<tr><th style="width:96px">견적일</th><th style="width:140px">문서번호</th><th>수신</th><th style="width:110px">담당</th>'
-    +'<th style="width:110px">공급가</th><th style="width:120px">상태</th><th style="width:96px">제출</th><th style="width:96px">채택</th><th style="width:150px">판매</th></tr>';
-  document.getElementById('lCnt').innerHTML='<b>'+rows.length+'</b>건'+(rows.length>=500?' (500건까지)':'');
-  if(!rows.length){ document.getElementById('lBody').innerHTML='<tr><td colspan="9" class="empty">'+emptyMsg(k)+'</td></tr>'; return; }
+    +'<th style="width:110px">공급가</th><th style="width:120px">상태</th><th style="width:96px">제출</th><th style="width:96px">채택</th>'
+    +'<th style="width:96px" title="채택일 − 제출일 (같은 날이면 당일)">제출→채택</th><th style="width:150px">판매</th></tr>';
+  var as=adoptStat(rows), aTxt=adoptLine(as);
+  document.getElementById('lCnt').innerHTML='<b>'+rows.length+'</b>건'+(rows.length>=500?' (500건까지)':'')+(aTxt?' · '+aTxt:'');
+  if(!rows.length){ document.getElementById('lBody').innerHTML='<tr><td colspan="10" class="empty">'+emptyMsg(k)+'</td></tr>'; return; }
   document.getElementById('lBody').innerHTML=rows.map(function(r){
     var g=r.statGb||'W', sold=n(r.saleCnt);
     var sale = sold ? '<span class="tag SALE" title="마지막 판매 '+d10(r.saleLastDt)+'">💰 '+sold+'건 · '+fmt(r.saleAmt)+'</span>'
@@ -237,7 +288,7 @@ function drawQt(k, rows){
     return '<tr class="go" onclick="openMenu(\''+(k==='A'&&!sold?'salesreg':'quoteMng')+'\')" title="'+(k==='A'&&!sold?'눌러서 판매 등록 화면으로 갑니다 — [📄 견적서]에서 이 견적을 가져오세요':'눌러서 견적서 관리 화면으로 갑니다')+'">'
       +'<td>'+d10(r.quoteDt)+'</td><td><b>'+esc(r.docNo)+'</b></td><td class="l">'+esc(r.recvNm)+'</td><td>'+esc(r.mgrNm)+'</td>'
       +'<td class="r">'+fmt(r.amt)+'</td><td><span class="tag '+g+'"'+memo+'>'+ST_NM[g]+'</span></td>'
-      +'<td>'+d10(r.submitDt)+'</td><td>'+d10(r.adoptDt)+'</td><td>'+sale+'</td></tr>';
+      +'<td>'+d10(r.submitDt)+'</td><td>'+d10(r.adoptDt)+'</td><td>'+adoptCell(r)+'</td><td>'+sale+'</td></tr>';
   }).join('');
 }
 /* 그 일을 하는 화면으로 — 셸(부모)의 메뉴를 그대로 누른다(메뉴 강조·iframe 로드·다시 보일 때 알림이 메뉴와 똑같이 돈다) */
