@@ -60,7 +60,8 @@
   .gb{ display:inline-block; font-size:11px; font-weight:800; border-radius:6px; padding:1px 6px; }
   .gb.FIX{ background:#e8eef7; color:#2b4a7a; }
   .gb.VAR{ background:#fdf0d5; color:#9a5b05; }
-  .auto{ font-size:11.5px; font-weight:800; color:var(--teal); }
+  /* 「자동」 배지만 — 종전 .auto 는 <tr class="auto"> 에도 걸려 줄 전체가 11.5px 청록으로 작았다 (2026-10-14 사용자 「글자 조금 크게」) */
+  span.auto{ font-size:11.5px; font-weight:800; color:var(--teal); }
   .dim{ color:#8a98a8; }
   .off td{ opacity:.55; }
   .empty{ padding:36px; text-align:center; color:#8a98a8; }
@@ -191,7 +192,9 @@ function render(){
     if(it.autoSrc==='PARCEL'){
       var cnt=autoCnt(), amt=autoAmt();
       return '<tr class="auto"><td class="l"><b>'+esc(it.itemNm)+'</b> <span class="auto">자동</span></td><td><span class="gb '+esc(it.itemGb)+'">'+(it.itemGb==='FIX'?'고정':'변동')+'</span></td>'
-        +'<td class="r"><b>'+fmt(amt)+'</b></td>'
+        /* 금액 = 다른 줄과 같은 읽기 전용 입력 상자 (2026-10-14 사용자 「직송 택배 금액 다른 내용하고 위치·크기 동일하게」 — 종전엔 굵은 글자라 자리·크기가 달랐다).
+           data-cd 를 안 붙여 저장·복사 루프(input.amt[data-cd=…])에는 안 잡힌다 */
+        +'<td><input type="text" class="amt" value="'+fmt(amt)+'" readonly title="자동 계산 — 직송 총수량 × 기본 택배 운임. 손으로 못 고칩니다"></td>'
         +'<td class="l">'+(cnt?('직송 택배 '+cnt.toLocaleString()+'건 · 총수량 <b>'+fmt(n(_auto&&_auto.qty))+'</b> × '+fmt(_feeDef)+'원 '):'이 달 직송 출고 없음 ')
         +'<button class="btn" style="height:26px;padding:0 8px;font-size:12px" onclick="goParcel()">택배출고관리 →</button></td>'
         +'<td class="dim">집계값</td></tr>';
