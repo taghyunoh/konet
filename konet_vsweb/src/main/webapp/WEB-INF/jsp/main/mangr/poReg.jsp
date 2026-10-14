@@ -603,7 +603,8 @@ function stkPaint(){
              : rem<0 ? '<span class="low" title="발주보다 많이 들어왔습니다(초과 입고)">초과 +'+fmtQ(-rem)+'</span>'
              : rem===0 ? '<span style="color:#137a6c;font-weight:700">✔ 완료</span>'
              : (inq>0 ? '<span class="low">잔 '+fmtQ(rem)+'</span>' : '<span class="dim">미입고</span>');
-      var ck = (rem>0) ? ' <label title="더 안 들어온다 — 이 줄의 잔량을 미입고에서 뺍니다(다시 누르면 풉니다)" style="font-size:11px;white-space:nowrap;cursor:pointer"><input type="checkbox"'+(cl?' checked':'')+' onchange="poLineClose('+i+',this.checked)"> 마감</label>' : '';
+      /* [마감] = 입고 칸 안 둘째 줄 (2026-10-14 — 한 줄이면 칸을 넘쳐 「마감」 글자가 옆 BOX 칸 숫자 앞으로 밀려 보였다) */
+      var ck = (rem>0) ? '<div style="margin-top:2px;line-height:1"><label title="더 안 들어온다 — 이 줄의 잔량을 미입고에서 뺍니다(다시 누르면 풉니다)" style="font-size:11px;white-space:nowrap;cursor:pointer;display:inline-flex;align-items:center;gap:3px"><input type="checkbox" style="margin:0"'+(cl?' checked':'')+' onchange="poLineClose('+i+',this.checked)">마감</label></div>' : '';
       rv.innerHTML='<span style="font-size:12px">'+fmtQ(inq)+'</span> '+st+ck;
       rv.title='발주 '+fmtQ(o.qty)+' · 기입고 '+fmtQ(inq)+' · 잔량 '+fmtQ(rem)+(cl?' · 마감(더 안 온다)':''); }
     /* 단가 칸 툴팁 (P2-b) — 이 품목의 거래처별 최근가. 이 발주서 거래처보다 싼 곳이 있으면 노란 바탕(알림뿐, 막지 않는다) */
