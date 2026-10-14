@@ -28,7 +28,7 @@
 <%-- 명세 표 높이 막대 (2026-09-10 「발주서 표도 높이 조절 막대」) — 판매·매입등록과 같은 공용 파일.
      표 바로 밑 막대를 아래로 끌면 늘고 위로 끌면 준다 · [▲ 줄이기][▼ 늘리기] · 더블클릭 = 처음(38vh 까지 저절로) · 높이 기억.
      이 화면은 합계줄이 표 안(tfoot)이라 막대를 표 상자 바로 뒤에 붙인다(둘째 인자 = 표 상자 자신). --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20261014"></script>
 <%-- 아래 발주서 목록 표에도 같은 막대 (2026-09-10 「발주서 목록 표에도 높이 막대」) — 높이는 표마다 따로 기억한다(poReg / poRegList) --%>
 <script type="text/javascript">konetPopDrag('.pop', '.ph'); konetGridGrip('poGridWrap', 'poGridWrap', 'poReg'); konetGridGrip('poListWrap', 'poListWrap', 'poRegList');</script>
 <%-- 전송이력 — 발주서를 <누구에게 · 어떤 방법으로> 보냈는지 남기고 보여 준다 (2026-09-10).

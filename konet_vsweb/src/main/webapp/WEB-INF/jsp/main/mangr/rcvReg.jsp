@@ -13,7 +13,7 @@
 <%-- 표 높이 막대 (2026-09-10 「수금등록 지급등록도 높이 막대」) — 판매·매입·발주서와 같은 공용 파일(asset/js/ui-gridgrip.js).
      전표 목록(수금계 줄 밑) · 원장(합계 줄 밑) · 그 날 매출품목 — 세 표에 하나씩, 높이는 표마다 따로 기억한다.
      아래로 끌면 늘고 위로 끌면 준다 · [▲ 줄이기][▼ 늘리기] · 더블클릭 = 원래 모양(원장의 inline max-height 도 되살린다). --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20261014"></script>
 <%-- 팝업 창 끌어 옮기기 (2026-09-10 「수금등록 지급등록 팝업도 움직이게」) — 판매·매입·발주서와 같은 공용 파일(asset/js/ui-popdrag.js).
      거래처 선택 창 : 제목줄을 잡고 끈다(검색칸 위는 제외) · 자리 기억 · 더블클릭 = 처음 자리 --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>

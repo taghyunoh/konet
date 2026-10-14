@@ -6,6 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DC 발주 등록</title>
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
+<%-- 목록 높이 막대 (2026-10-14 사용자 「막대 표시 추가해 줘 dc 발주등록」) — 토더·대상 발주와 같은 공용 파일. 끌어서 늘리고, 안 보이는 줄이 남으면 「아래 N줄 더 있음」 --%>
+<script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20261014"></script>
 <script src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>   <%-- 팝업 끌어 옮기기(판매등록·발주서와 같은 공용) --%>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) — 브라우저 alert 금지 --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 엑셀 원본 보기(화면에서 시트를 표로 펼친다) — 전역 XLSX --%>
 <!--
@@ -151,7 +153,7 @@
       <button class="btn" style="margin-left:auto" onclick="delHist()" title="이 기간(납기일자)에 지운 줄과 다시 올려 대체된 옛 줄을 봅니다">🗂 삭제 이력</button><%-- 2026-10-07 「삭제이력 — 버튼 실행으로」→「우측으로」 : 합계 바로 왼쪽 --%>
       <span class="tot" id="lsTot"></span>
     </div>
-    <div class="tw">
+    <div class="tw" id="lsWrap"><%-- id = 높이 막대(konetGridGrip)가 잡는 상자 (2026-10-14) --%>
       <table class="g">
         <thead><tr>
           <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th>
@@ -590,6 +592,7 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !e.isCo
   function ymd(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
   document.getElementById('fr').value=ymd(a); document.getElementById('to').value=ymd(b);
   load();
+  konetGridGrip('lsWrap','lsWrap','dcPoList');   /* 목록 높이 막대 (2026-10-14) — 저장 이름 dcPoList, 처음 높이 = CSS max-height 52vh */
 })();
 window.konetShown=function(){ if(!_pv.length) load(); if(_prods.length) pinLoad(true); };   /* 다시 보일 때 상품·매칭코드도 새로(다른 화면에서 고친 것 반영) */
 </script>

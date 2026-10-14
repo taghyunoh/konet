@@ -14,7 +14,7 @@
 <%-- 팝업 창 끌어 옮기기 (2026-09-10) — 제목줄을 잡고 끈다 · 더블클릭 = 처음 자리 (asset/js/ui-popdrag.js 머리말) --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>
 <%-- 상단 명세 표 높이 막대 (2026-09-10) — 합계줄 밑 막대를 아래로 끌면 늘고 위로 끌면 준다 (asset/js/ui-gridgrip.js 머리말) --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20261014"></script>
 <%-- [2026-09-22] 아래 두 표(전표 목록·원장)에도 높이 막대 — 판매등록과 같게. 수금·지급등록과 같은 자리(합계 줄 밑)·같은 규칙 --%>
 <script type="text/javascript">konetPopDrag('.pu-pop'); konetGridGrip('puGridWrap', 'puFootWrap', 'purchaseReg'); konetGridGrip('puListWrap', 'puSumBox', 'purchaseRegList'); konetGridGrip('lgWrap', 'lgFootWrap', 'purchaseRegLedger');</script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-quick.js?v=20260911"></script>

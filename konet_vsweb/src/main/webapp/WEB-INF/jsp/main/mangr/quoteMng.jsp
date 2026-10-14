@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>견적서 관리</title>
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) — 브라우저 alert 금지 --%>
-<script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>   <%-- 목록 높이 막대 (2026-10-01) — 아래 konetGridGrip('lsWrap', …) --%>
+<script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20261014"></script>   <%-- 목록 높이 막대 (2026-10-01) — 아래 konetGridGrip('lsWrap', …) --%>
 <script src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>   <%-- 변경 이력 팝업 끌어 옮기기 (2026-10-01) — konetPopDrag('.rvpop', '.dh') --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 원본 보기(시트를 병합 살려 표로) — 전역 XLSX --%>
 <script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917c"></script>   <%-- 🧮 마진 조회 — 스냅샷 없는 옛 근거자료의 센터 비율 폴백(konetSet.cost) --%>

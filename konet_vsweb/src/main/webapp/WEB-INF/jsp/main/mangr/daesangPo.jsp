@@ -7,7 +7,7 @@
 <title>대상 발주 등록</title>
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 엑셀 읽기·쓰기 (전역 XLSX) --%>
-<script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>   <%-- 표 높이 막대(판매등록과 같은 공용 파일) --%>
+<script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20261014"></script>   <%-- 표 높이 막대(판매등록과 같은 공용 파일) --%>
 <script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917"></script>   <%-- 회사 설정(konetSet) — 기본 택배 운임 parcelFeeDef --%>
 <!--
   대상 발주 등록 (2026-10-02 신설 — 사용자 「토더처럼 대상이라는 곳에서 이메일로 엑셀을 캡쳐해서 옵니다(토더는 금액은 있는데 대상은 없습니다, 발주일자도 없고),

@@ -9,7 +9,7 @@
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 엑셀 읽기 (전역 XLSX) --%>
 <%-- 표 높이 막대 (2026-09-22 「여기도 판매등록 막대」) — 판매·매입·수금·지급등록과 같은 공용 파일. 위 미리보기 · 아래 저장 목록 둘 다 --%>
-<script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>
+<script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20261014"></script>
 <!--
   토더 발주 등록 (2026-09-21 신설 — 「토더라는 곳에서 발주 엑셀로 받아서 출고 업로드 … 기존 DC 발주 등록과 같은 개념」) — 매출 관리 ▸ 토더 발주 등록. 셸 iframe(logiFrame) 화면.
   · 토더(가맹점 발주 플랫폼, 예: 샐러링)의 「상품별 발주 목록」 엑셀을 올린다. 머리 줄 = no·배송지명·배송담당자·발주번호·발주일시·출고마감일·상품명·단위·매입가·발주수량·출고수량·상품 상태 …
