@@ -424,7 +424,12 @@ public interface UserMapper {
 	java.util.Map<String,Object> selectPipelinePo(java.util.Map<String,Object> p) throws Exception;                       // 발주 3단계 집계
 	java.util.List<java.util.Map<String,Object>> selectPipelineQuote(java.util.Map<String,Object> p) throws Exception;     // 견적 상태별 집계
 	java.util.List<java.util.Map<String,Object>> selectPipelinePoList(java.util.Map<String,Object> p) throws Exception;    // 발주 단계별 목록
-	java.util.List<java.util.Map<String,Object>> selectPipelineQuoteList(java.util.Map<String,Object> p) throws Exception; // 견적 단계별 목록
+	java.util.List<java.util.Map<String,Object>> selectPipelineQuoteList(java.util.Map<String,Object> p) throws Exception;
+	/* 업무 진행 상황 (2026-10-14) — 진행 현황 맨 위 */
+	java.util.List<java.util.Map<String,Object>> selectWorkUnmatched(java.util.Map<String,Object> p) throws Exception;   // 출고미상 개수·금액(달별)
+	String selectWorkPrevShipDt(java.util.Map<String,Object> p) throws Exception;                                   // 당일 전 마지막 출고일자
+	java.util.Map<String,Object> selectWorkMisc(java.util.Map<String,Object> p) throws Exception;                      // 미매핑·견적 후속·자료 첫 달
+	java.util.List<java.util.Map<String,Object>> selectWorkClosing(java.util.Map<String,Object> p) throws Exception;   // 마감 확정 달(CLOSE·RCV) // 견적 단계별 목록
 	java.util.List<java.util.Map<String,Object>> selectQuoteAdoptList(java.util.Map<String,Object> p) throws Exception;    // 채택 견적(판매 등록에서 고르기)
 	int updateSafeStockByCd(java.util.Map<String,Object> p) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectSafeStockSuggest(java.util.Map<String,Object> p) throws Exception;   // 적정재고 자동 산출 자료(2026-09-17) — compCd·frDt·toDt                                             // 적정재고 일괄 입력 — 품목코드 한 줄

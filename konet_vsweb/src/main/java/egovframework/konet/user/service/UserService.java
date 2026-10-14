@@ -367,6 +367,8 @@ public interface UserService {
 	java.util.List<java.util.Map<String,Object>> selectSafeStockShort(java.util.Map<String,Object> p) throws Exception;
 	/* 진행 현황 (2026-10-06) */
 	java.util.Map<String,Object> selectPipeline(java.util.Map<String,Object> p) throws Exception;                          // 두 흐름 집계를 한 번에
+	java.util.Map<String,Object> selectPipelineWork(String compCd) throws Exception;   // 업무 진행 상황(2026-10-14)
+	java.util.Map<String,Object> selectPipelineWorkShip(String compCd) throws Exception;   // 업무 진행 상황 ① 출고(따로 — 속도)
 	java.util.List<java.util.Map<String,Object>> selectPipelineList(java.util.Map<String,Object> p) throws Exception;       // 단계별 목록(발주·견적)
 	java.util.List<java.util.Map<String,Object>> selectQuoteAdoptList(java.util.Map<String,Object> p) throws Exception;     // 채택 견적
 	java.util.Map<String,Object> selectSafeStockSuggest(String compCd, Integer window, Integer lead, Integer buf, Integer minDays) throws Exception;   // 적정재고 자동 산출 제안(2026-09-17) — {data, params, summary}   // 적정재고 미달 목록 = 추천 발주 (2026-09-16 P1-c 후반)

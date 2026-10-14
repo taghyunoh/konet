@@ -3030,7 +3030,9 @@ public class UserController {
 		}
 		/* ===== 진행 현황 (2026-10-06) — 정보 현황 ▸ 진행 현황 =====================================
 		   ①발주 : 발주목록 등록 → 발주서 등록 → 매입전환   ②견적 : 작성 → 제출 → 채택 → 판매등록
-		   화면 하나(mangr/pipeline.jsp)가 집계·단계목록 둘을 쓴다. 조회 전용이라 로그인 확인만 한다. */
+		   화면 하나(mangr/pipeline.jsp)가 집계·단계목록 둘을 쓴다. 조회 전용.
+	   ★로그인 확인 (2026-10-14 사용자 「pipelineStat 도 로그인 체크 추가」) — 종전엔 화면(pipeline.do)만 막고 자료 둘은 안 막아,
+	     세션 없이 주소만 치면 회사코드 없이(= 전 회사) 집계·목록이 나왔다. 업무 진행 상황(pipelineWork)과 같은 응답으로 막는다. */
 		@RequestMapping(value="/mangr/pipeline.do")
 		public String pipeline(HttpSession session) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
@@ -3041,6 +3043,7 @@ public class UserController {
 		public Map<String,Object> pipelineStat(@RequestParam(value="frDt", required=false) String frDt,
 		                                       @RequestParam(value="toDt", required=false) String toDt,
 		                                       HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) { Map<String,Object> r = new HashMap<String,Object>(); r.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return r; }
 			Map<String,Object> p = new HashMap<String,Object>();
 			p.put("compCd", session.getAttribute("s_comp_cd"));
 			p.put("frDt", str(frDt)); p.put("toDt", str(toDt));
@@ -3052,6 +3055,7 @@ public class UserController {
 		                                       @RequestParam(value="frDt", required=false) String frDt,
 		                                       @RequestParam(value="toDt", required=false) String toDt,
 		                                       HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) { Map<String,Object> r = new HashMap<String,Object>(); r.put("data", new java.util.ArrayList<Object>()); r.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return r; }
 			Map<String,Object> p = new HashMap<String,Object>();
 			p.put("compCd", session.getAttribute("s_comp_cd"));
 			p.put("stage", str(stage) == null ? "" : str(stage).toUpperCase());
@@ -3059,6 +3063,20 @@ public class UserController {
 			Map<String,Object> res = new HashMap<String,Object>();
 			res.put("data", svc.selectPipelineList(p));
 			return res;
+		}
+		/* 업무 진행 상황 (2026-10-14 「경영자가 보아야 할 내용 위주로」 → 「업무 진행 상황 위주로」) — 진행 현황 맨 위. 셈은 서비스 selectPipelineWork 머리말. 조회 전용 */
+		@RequestMapping(value="/mangr/pipelineWork.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> pipelineWork(HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) { Map<String,Object> r = new HashMap<String,Object>(); r.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return r; }
+			return svc.selectPipelineWork(String.valueOf(session.getAttribute("s_comp_cd")));
+		}
+		/* 업무 진행 상황 ① 출고(이전·당일 납기수량) — 따로 받는다(같은 날 「속도가 너무 느립니다」 : 화면이 위와 동시에 부른다) */
+		@RequestMapping(value="/mangr/pipelineWorkShip.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> pipelineWorkShip(HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) { Map<String,Object> r = new HashMap<String,Object>(); r.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return r; }
+			return svc.selectPipelineWorkShip(String.valueOf(session.getAttribute("s_comp_cd")));
 		}
 		/** 판매 등록 [📄 견적서에서 가져오기] — 채택된 견적 목록. 품목은 기존 견적 상세(quoteDetail)를 그대로 쓴다 */
 		@RequestMapping(value="/mangr/quoteAdoptList.do", method = RequestMethod.POST)

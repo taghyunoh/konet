@@ -1874,7 +1874,18 @@ public class UserServiceImpl implements UserService {
 
 	/* ===== 마감 집계 ===== */
 	@Override public java.util.List<egovframework.konet.user.model.ClosingDTO> selectClosing(egovframework.konet.user.model.ClosingDTO dto) throws Exception { return mapper.selectClosing(dto); }
-	@Override public java.util.List<egovframework.konet.user.model.ClosingDTO> selectClosingUnmatched(egovframework.konet.user.model.ClosingDTO dto) throws Exception { return mapper.selectClosingUnmatched(dto); }
+	/* 출고미상 (매출마감 경고) — 기간 키를 여기서 채운다 (2026-10-14 「매출마감 출고미상도 같은 방식으로 빠르게」, 매퍼 머리말).
+	   화면이 fromDt·toDt 를 주면 그 기간, 아니면 ym 의 1일~31일(문자 비교라 31 이면 그 달 끝까지). 둘 다 없으면 종전처럼 빈 목록. */
+	@Override public java.util.List<egovframework.konet.user.model.ClosingDTO> selectClosingUnmatched(egovframework.konet.user.model.ClosingDTO dto) throws Exception {
+		String fr = scStr(dto.getFromDt()).replace("-", ""), to = scStr(dto.getToDt()).replace("-", "");
+		if (fr.length() < 8 || to.length() < 8) {
+			String ym = scStr(dto.getYm()).replace("-", "");
+			if (ym.length() < 6) return new java.util.ArrayList<egovframework.konet.user.model.ClosingDTO>();
+			fr = ym.substring(0, 6) + "01"; to = ym.substring(0, 6) + "31";
+		}
+		dto.setKeyFrom(fr.substring(0, 8)); dto.setKeyTo(to.substring(0, 8));
+		return mapper.selectClosingUnmatched(dto);
+	}
 	@Override public java.util.List<egovframework.konet.user.model.StockClosingDTO> selectStockClosing(egovframework.konet.user.model.StockClosingDTO dto) throws Exception { return mapper.selectStockClosing(dto); }
 	@Override public java.util.List<egovframework.konet.user.model.StockClosingDTO> selectInboundClosing(egovframework.konet.user.model.StockClosingDTO dto) throws Exception { return mapper.selectInboundClosing(dto); }
 
@@ -2658,6 +2669,157 @@ public class UserServiceImpl implements UserService {
 		String st = p.get("stage") == null ? "" : String.valueOf(p.get("stage"));
 		if ("REQ".equals(st) || "PO".equals(st) || "PURCH".equals(st)) return mapper.selectPipelinePoList(p);
 		return mapper.selectPipelineQuoteList(p);
+	}
+	/* ── 업무 진행 상황 (2026-10-14 사용자 「이 화면에 경영자가 보아야 할 내용 위주로 추가」 → 「업무 진행 상황 위주로」) ──
+	   진행 현황 맨 위 「📌 업무 진행 상황」. 밀린 일·확인할 일만 센다(매출·이익 실적은 다른 화면 몫).
+	   ★세는 식은 그 일을 하는 화면과 같다(매퍼 selectWork* 머리말).
+	     · 납기수량 = 대시보드(납기현황표) KPI 「납기수량(BOX)」과 같은 셈 — 대시보드 조회 selectShipoutMst 를 그대로 부르고
+	       줄 수량 = 정산서 있으면(settleYn=Y) 정산 배분 수량(소수 1자리), 아니면 라벨수량(없으면 수량), 0 이하 줄은 뺀다
+	       (logistics_demo1.jsp d2MapRow·d2Aggregate). 품목 = 품목코드(없으면 품목명) · 출고장 = 물류센터명+입고장(+ 직송)
+	     · 출고미상 = 매출마감 경고(selectClosingUnmatched)와 같은 대사키·판정의 개수 조회 selectWorkUnmatched (지난달 · 이번 달)
+	     · 미수 경과 = 거래처별 채권·채무와 같은 selectCustBalance + 화면(custBalance.jsp cbFold·cbDueDays)과 같은 셈 :
+	       받을금액 = Σ(매출 − 매출할인 − 수금) > 0 인 거래처, 경과 = 오늘 − 마지막 수금일(없으면 마지막 매출일),
+	       기준 = 회사 설정 dueWarn(30) · dueBad(60, 경고보다 작으면 경고 일수)
+	     · 월 마감 = 자료 첫 달(정산서)부터 지난달까지 중 마감 확정(STATUS='C') 안 된 달 — 최대 24개월
+	   ★한 덩어리가 실패해도 나머지는 보여 준다(selectPipeline 과 같은 방식). DB 쓰기 없음. */
+	/* 업무 진행 상황 ① 출고 — 이전 출고 · 당일 출고(내일 출고일자) 납기수량. (같은 날 사용자 「오늘 출고를 이전 출고로, 내일을 당일로」 —
+	   대시보드가 내일 출고일자를 «당일»로 연다. 이전 출고 = 당일 전 «마지막으로 출고가 있는 날»(selectWorkPrevShipDt, 「당일 이전 중 출고일자 있는 것 기준으로」) — 주말·공휴일이면 오늘이 아니다) 셈은 위 머리말 「납기수량」 그대로 — 대시보드 조회 selectShipoutMst 를 두 날짜 «한 번»에 부른다(기간 조회, 날짜별로 나눔) */
+	@Override public java.util.Map<String,Object> selectPipelineWorkShip(String compCd) throws Exception {
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyyMMdd");
+		java.util.Calendar c = java.util.Calendar.getInstance();
+		String today = f.format(c.getTime());
+		c.add(java.util.Calendar.DATE, 1); String tomorrow = f.format(c.getTime());
+		String prevDt = today;
+		try {
+			java.util.Map<String,Object> pp = new java.util.HashMap<String,Object>();
+			pp.put("compCd", compCd); pp.put("before", tomorrow);
+			String v = mapper.selectWorkPrevShipDt(pp);
+			if (v != null && v.trim().length() >= 8) prevDt = v.trim().substring(0, 8);
+		} catch (Exception e) { /* 못 읽으면 오늘 */ }
+		res.put("today", today); res.put("tomorrow", tomorrow); res.put("prevDt", prevDt);
+		try {
+			egovframework.konet.user.model.ShipoutDTO q = new egovframework.konet.user.model.ShipoutDTO();
+			q.setCompCd(compCd); q.setShpoutDtFrom(prevDt); q.setShpoutDtTo(tomorrow);   /* 사이 날짜엔 출고가 없다(prevDt 가 그 전 마지막) */
+			java.util.Map<String,double[]> tot = new java.util.HashMap<String,double[]>();
+			java.util.Map<String,java.util.Set<String>> items = new java.util.HashMap<String,java.util.Set<String>>(), zones = new java.util.HashMap<String,java.util.Set<String>>();
+			for (String dt : new String[]{ prevDt, tomorrow }) { tot.put(dt, new double[]{ 0 }); items.put(dt, new java.util.HashSet<String>()); zones.put(dt, new java.util.HashSet<String>()); }
+			for (egovframework.konet.user.model.ShipoutDTO r : mapper.selectShipoutMst(q)) {
+				String dt = scStr(r.getShpoutDt()).replace("-", "");
+				if (!tot.containsKey(dt)) continue;
+				double v = "Y".equals(scStr(r.getSettleYn()))
+					? Math.round((r.getSettleQty() == null ? 0 : r.getSettleQty().doubleValue()) * 10) / 10.0
+					: (r.getLabelQty() != null ? r.getLabelQty().doubleValue() : (r.getCurQty() == null ? 0 : r.getCurQty().doubleValue()));
+				if (v <= 0) continue;
+				tot.get(dt)[0] += v;
+				String code = scStr(r.getItemCd()); items.get(dt).add(code.isEmpty() ? "NM:" + scStr(r.getItemNm()) : code);
+				String dcNm = scStr(r.getDcNm()), rz = scStr(r.getZone());
+				boolean jk = "직송".equals(rz) || "직송".equals(scStr(r.getDlvGb()));
+				String zn = !dcNm.isEmpty() ? dcNm + scStr(r.getInwh()) + (jk ? " 직송" : "") : rz;
+				zones.get(dt).add(zn.isEmpty() ? "미배정" : zn);
+			}
+			java.util.List<java.util.Map<String,Object>> ship = new java.util.ArrayList<java.util.Map<String,Object>>();
+			for (String dt : new String[]{ prevDt, tomorrow }) {
+				java.util.Map<String,Object> x = new java.util.HashMap<String,Object>();
+				x.put("dt", dt); x.put("qty", Math.round(tot.get(dt)[0] * 10) / 10.0); x.put("items", items.get(dt).size()); x.put("zones", zones.get(dt).size());
+				ship.add(x);
+			}
+			res.put("ship", ship);
+		} catch (Exception e) { res.put("shipErr", String.valueOf(e.getMessage())); }
+		return res;
+	}
+	@Override public java.util.Map<String,Object> selectPipelineWork(String compCd) throws Exception {
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyyMMdd");
+		java.util.Calendar c = java.util.Calendar.getInstance();
+		String today = f.format(c.getTime());
+		c.add(java.util.Calendar.DATE, 1); String tomorrow = f.format(c.getTime());
+		c = java.util.Calendar.getInstance(); c.add(java.util.Calendar.DATE, -14); String ago14 = f.format(c.getTime());
+		c = java.util.Calendar.getInstance(); c.add(java.util.Calendar.DATE, -30); String ago30 = f.format(c.getTime());
+		java.time.format.DateTimeFormatter YM = java.time.format.DateTimeFormatter.ofPattern("yyyyMM");
+		java.time.YearMonth thisM = java.time.YearMonth.now(), lastM = thisM.minusMonths(1);
+		String thisYm = thisM.format(YM), lastYm = lastM.format(YM);
+		res.put("today", today); res.put("tomorrow", tomorrow); res.put("thisYm", thisYm); res.put("lastYm", lastYm);
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("today", today); p.put("tomorrow", tomorrow); p.put("ago14", ago14); p.put("ago30", ago30);
+		/* ① 출고(납기수량)는 따로 받는다 — selectPipelineWorkShip. (같은 날 「속도가 너무 느립니다」 — 화면이 두 요청을 동시에 보내
+		     대시보드 조회(약 1초)가 다른 칸을 붙잡지 않게 했다. 서버 안에서 스레드를 나누지 않은 것은 회사코드 채움이 요청 단위라서다) */
+		/* ③ 미매핑 · 답 없는 견적 · 판매 전 채택 · 자료 첫 달 */
+		String firstYm = "";
+		try {
+			java.util.Map<String,Object> m = mapper.selectWorkMisc(p);
+			res.put("misc", m);
+			if (m != null) firstYm = scStr(m.get("firstYm"));
+		} catch (Exception e) { res.put("miscErr", String.valueOf(e.getMessage())); }
+		/* ④ 출고미상 — 지난달 · 이번 달을 한 번에 (selectWorkUnmatched — 매출마감 경고와 같은 대사키·판정, 기간 조건만 단순 BETWEEN.
+		     종전엔 selectClosingUnmatched 를 달마다 불러 매개변수 실행에서 9월 12초·10월 2.7초가 걸렸다 → 두 달 0.26초, 결과 같음 2026-10-14 실측) */
+		try {
+			java.util.Map<String,Object> q = new java.util.HashMap<String,Object>();
+			q.put("compCd", compCd); q.put("frDt", lastYm + "01"); q.put("toDt", thisYm + "31");
+			java.util.Map<String,Object> um = new java.util.HashMap<String,Object>();
+			for (String k : new String[]{ "last", "this" }) { java.util.Map<String,Object> x = new java.util.HashMap<String,Object>(); x.put("cnt", 0); x.put("amt", 0L); um.put(k, x); }
+			for (java.util.Map<String,Object> r : mapper.selectWorkUnmatched(q)) {
+				String ym = scStr(r.get("ym"));
+				java.util.Map<String,Object> x = new java.util.HashMap<String,Object>();
+				x.put("cnt", (int) Math.round(scNum(r.get("cnt")))); x.put("amt", Math.round(scNum(r.get("amt"))));
+				if (ym.equals(lastYm)) um.put("last", x); else if (ym.equals(thisYm)) um.put("this", x);
+			}
+			res.put("unmatched", um);
+		} catch (Exception e) { res.put("unmatchedErr", String.valueOf(e.getMessage())); }
+		/* ⑤ 미수 경과 */
+		try {
+			int warn = compSetInt(compCd, "dueWarn", 30);
+			int bad = Math.max(compSetInt(compCd, "dueBad", 60), warn);
+			egovframework.konet.user.model.SettleTrxDTO d = new egovframework.konet.user.model.SettleTrxDTO();
+			d.setCompCd(compCd);
+			java.util.Map<String,double[]> recv = new java.util.LinkedHashMap<String,double[]>();
+			java.util.Map<String,String[]> dts = new java.util.HashMap<String,String[]>();   // {마지막 매출일, 마지막 수금일}
+			for (java.util.Map<String,Object> r : mapper.selectCustBalance(d)) {
+				String k = scStr(r.get("custCd")); if (k.isEmpty()) continue;
+				String ym = scStr(r.get("ym")); if (!ym.isEmpty() && ym.compareTo(thisYm) > 0) continue;   // 화면처럼 기준월(이번 달) 뒤는 뺀다
+				double[] a = recv.get(k); if (a == null) { a = new double[]{ 0 }; recv.put(k, a); }
+				a[0] += scNum(r.get("saleAmt")) - scNum(r.get("saleDcAmt")) - scNum(r.get("rcvAmt"));
+				String[] t = dts.get(k); if (t == null) { t = new String[]{ "", "" }; dts.put(k, t); }
+				String ls = scStr(r.get("lastSaleDt")), lr = scStr(r.get("lastRcvDt"));
+				if (ls.compareTo(t[0]) > 0) t[0] = ls;
+				if (lr.compareTo(t[1]) > 0) t[1] = lr;
+			}
+			long now = f.parse(today).getTime();
+			int recvCnt = 0, warnCnt = 0, badCnt = 0; double recvAmt = 0, warnAmt = 0, badAmt = 0;
+			for (java.util.Map.Entry<String,double[]> e : recv.entrySet()) {
+				double v = e.getValue()[0];
+				if (Math.round(v) <= 0) continue;
+				recvCnt++; recvAmt += v;
+				String[] t = dts.get(e.getKey());
+				String base = t[1].length() >= 8 ? t[1] : t[0];
+				if (base.length() < 8) continue;
+				long days = Math.max(0, Math.round((now - f.parse(base.substring(0, 8)).getTime()) / 86400000.0));
+				if (days >= warn) { warnCnt++; warnAmt += v; }
+				if (days >= bad)  { badCnt++;  badAmt += v; }
+			}
+			java.util.Map<String,Object> x = new java.util.HashMap<String,Object>();
+			x.put("warn", warn); x.put("bad", bad);
+			x.put("recvCnt", recvCnt); x.put("recvAmt", Math.round(recvAmt));
+			x.put("warnCnt", warnCnt); x.put("warnAmt", Math.round(warnAmt));
+			x.put("badCnt", badCnt);   x.put("badAmt", Math.round(badAmt));
+			res.put("recv", x);
+		} catch (Exception e) { res.put("recvErr", String.valueOf(e.getMessage())); }
+		/* ⑥ 월 마감 */
+		try {
+			java.util.Set<String> closed = new java.util.HashSet<String>(), rcv = new java.util.HashSet<String>();
+			for (java.util.Map<String,Object> r : mapper.selectWorkClosing(p)) {
+				if ("RCV".equals(scStr(r.get("gb")))) rcv.add(scStr(r.get("ym"))); else closed.add(scStr(r.get("ym")));
+			}
+			java.time.YearMonth m = firstYm.matches("[0-9]{6}") ? java.time.YearMonth.parse(firstYm, YM) : lastM;
+			if (m.isBefore(lastM.minusMonths(23))) m = lastM.minusMonths(23);
+			java.util.List<String> open = new java.util.ArrayList<String>();
+			for (; !m.isAfter(lastM); m = m.plusMonths(1)) { String y = m.format(YM); if (!closed.contains(y)) open.add(y); }
+			java.util.Map<String,Object> x = new java.util.HashMap<String,Object>();
+			x.put("lastClosed", closed.contains(lastYm)); x.put("lastRcvClosed", rcv.contains(lastYm));
+			x.put("open", open); x.put("rcvUsed", !rcv.isEmpty());
+			res.put("closing", x);
+		} catch (Exception e) { res.put("closingErr", String.valueOf(e.getMessage())); }
+		return res;
 	}
 	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteAdoptList(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteAdoptList(p); }
 	/* 회사 설정(SET_JSON func.*) 정수 하나 — parcelFeeDefOf 와 같은 정규식 방식(JSON 라이브러리 없이) */

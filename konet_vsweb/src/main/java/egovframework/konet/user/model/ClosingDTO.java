@@ -41,6 +41,13 @@ public class ClosingDTO {
     public void setDlvDt(String dlvDt) { this.dlvDt = dlvDt; }
     public Double getSettleQty() { return settleQty; }
     public void setSettleQty(Double settleQty) { this.settleQty = settleQty; }
+    /* 출고미상 조회 기간 키 'yyyymmdd' (2026-10-14 속도) — 서비스가 fromDt·toDt 또는 ym 에서 채운다. 화면은 모른다 */
+    private String  keyFrom;
+    private String  keyTo;
+    public String getKeyFrom() { return keyFrom; }
+    public void setKeyFrom(String keyFrom) { this.keyFrom = keyFrom; }
+    public String getKeyTo() { return keyTo; }
+    public void setKeyTo(String keyTo) { this.keyTo = keyTo; }
     public String getYm() { return ym; }
     public void setYm(String ym) { this.ym = ym; }
     public String getFromDt() { return fromDt; }
