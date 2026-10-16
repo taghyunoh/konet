@@ -4561,8 +4561,29 @@
 	         m.REG_DTTM AS regDttm, m.REG_USER AS regUser,
 	         (SELECT COUNT(*) FROM TBL_PURCHASE_DTL d WHERE d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN='Y' AND d.COMP_CD = m.COMP_CD) AS prodCnt,
 	         /* 반품 줄 수 (2026-10-16 사용자 「해당 선택 전 반품이 있는지 표시 하단에」) — 목록 줄에 빨간 「반품 n줄」 배지 */
-	         (SELECT COUNT(*) FROM TBL_PURCHASE_DTL d WHERE d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN='Y' AND d.COMP_CD = m.COMP_CD AND d.TRX_GB IN (N'반품', N'불량반품')) AS rtnCnt
+	         (SELECT COUNT(*) FROM TBL_PURCHASE_DTL d WHERE d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN='Y' AND d.COMP_CD = m.COMP_CD AND d.TRX_GB IN (N'반품', N'불량반품')) AS rtnCnt,
+	         /* 이 매입 전표를 «원본»으로 반품한 줄 수 · 그 반품을 원위치한 줄 수 (2026-10-16 사용자 「원본에 대하여 반품 발생 표시」)
+	            — 반품 줄 비고 「매입 yyyy-mm-dd-번호」로 센다(매입분 반품 창이 적는 꼴). 같은 거래처 안에서.
+	            uc = 그 반품 줄 가운데 「반품 (반품 전표 일자-번호) 원위치」 매입 줄이 있는 것의 수.
+	            ★전표마다 상관 서브쿼리로 세면 85줄에 740ms — 반품 줄을 한 번만 훑어 (거래처, 매입 전표)로 집계한 x 를 LEFT JOIN 하면 13ms (매개변수 측정). */
+	         ISNULL(x.rc, 0) AS rtnFromCnt,
+	         ISNULL(x.uc, 0) AS undoFromCnt
 	    FROM TBL_PURCHASE_MST m
+	    CROSS APPLY ( SELECT SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),1,4) + '-' + SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),5,2) + '-' + SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),7,2) + '-' + m.PURCH_NO AS slip ) k
+	    LEFT JOIN ( SELECT r.COMP_CD, rm.VENDOR_CD, SUBSTRING(r.REMARK, 4, 15) AS slip,
+	                       COUNT(*) AS rc, SUM(CASE WHEN uu.f = 1 THEN 1 ELSE 0 END) AS uc
+	                  FROM TBL_PURCHASE_DTL r
+	                  JOIN TBL_PURCHASE_MST rm ON rm.PURCH_SEQ = r.PURCH_SEQ AND rm.ACTION_YN = 'Y' AND rm.COMP_CD = r.COMP_CD
+	                  CROSS APPLY ( SELECT SUBSTRING(REPLACE(ISNULL(rm.PURCH_DT,''),'-',''),1,4) + '-' + SUBSTRING(REPLACE(ISNULL(rm.PURCH_DT,''),'-',''),5,2) + '-' + SUBSTRING(REPLACE(ISNULL(rm.PURCH_DT,''),'-',''),7,2) + '-' + rm.PURCH_NO AS slip ) kr
+	                  OUTER APPLY ( SELECT TOP 1 1 AS f
+	                                  FROM TBL_PURCHASE_DTL u
+	                                  JOIN TBL_PURCHASE_MST um ON um.PURCH_SEQ = u.PURCH_SEQ AND um.ACTION_YN = 'Y' AND um.COMP_CD = u.COMP_CD
+	                                 WHERE u.ACTION_YN = 'Y' AND u.COMP_CD = r.COMP_CD AND um.VENDOR_CD = rm.VENDOR_CD AND u.PROD_CD = r.PROD_CD
+	                                   AND ISNULL(NULLIF(u.TRX_GB,''), N'매입') = N'매입' AND u.REMARK LIKE N'반품 ' + kr.slip + ' 원위치%' ) uu
+	                 WHERE r.ACTION_YN = 'Y' AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR r.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                   AND r.TRX_GB IN (N'반품', N'불량반품') AND r.REMARK LIKE N'매입 [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9]%'
+	                 GROUP BY r.COMP_CD, rm.VENDOR_CD, SUBSTRING(r.REMARK, 4, 15) ) x
+	           ON x.COMP_CD = m.COMP_CD AND x.VENDOR_CD = m.VENDOR_CD AND x.slip = k.slip
 	   WHERE m.ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = '' OR m.PURCH_DT >= REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') )
@@ -4692,16 +4713,35 @@
 	         ISNULL(d.UNIT_PRICE,0) AS unitPrice, ISNULL(d.TOT_AMT,0) AS totAmt, ISNULL(d.REMARK,'') AS remark,
 	         ISNULL(p.TAX_GB, N'과세') AS taxGb, ISNULL(m.WH_CD,'') AS whCd, ISNULL(m.WH_NM,'') AS whNm,
 	         ISNULL(NULLIF(d.TRX_GB,''), N'매입') AS trxGb,
-	         CASE WHEN ISNULL(NULLIF(d.TRX_GB,''), N'매입') IN (N'반품', N'불량반품') THEN 0 ELSE ISNULL(rq.q, 0) END AS rtnQty
+	         /* 매입 줄 : rtnQty = 이 줄을 반품한 수량 − 그 반품을 원위치한 수량 · 반품 줄 : undoQty = 이 반품 줄을 원위치(재매입)한 수량
+	            비고 글귀로 센다 — 반품 줄 「매입 yyyy-mm-dd-번호」(매입 전표) · 원위치 줄 「반품 yyyy-mm-dd-번호 원위치」(반품 전표). 같은 거래처·같은 상품 안에서.
+	            (2026-10-16 사용자 「비고에 '매입 2026-10-16' 표시만」 → 「전표 번호가 적어줘」 — 일자-번호만, 「반품」 글자·원래 비고는 안 붙인다) */
+	         CASE WHEN ISNULL(NULLIF(d.TRX_GB,''), N'매입') IN (N'반품', N'불량반품') THEN 0 ELSE ISNULL(rq.q, 0) - ISNULL(ru.q, 0) END AS rtnQty,
+	         CASE WHEN ISNULL(NULLIF(d.TRX_GB,''), N'매입') IN (N'반품', N'불량반품') THEN ISNULL(rq.undo, 0) ELSE 0 END AS undoQty
 	    FROM TBL_PURCHASE_DTL d
 	    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
 	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = d.PROD_SEQ
-	    OUTER APPLY ( SELECT SUM(ISNULL(r.QTY,0)) AS q
-	                    FROM TBL_PURCHASE_DTL r
-	                    JOIN TBL_PURCHASE_MST rm ON rm.PURCH_SEQ = r.PURCH_SEQ AND rm.ACTION_YN = 'Y' AND rm.COMP_CD = r.COMP_CD
-	                   WHERE r.ACTION_YN = 'Y' AND r.COMP_CD = d.COMP_CD AND rm.VENDOR_CD = m.VENDOR_CD AND r.PROD_CD = d.PROD_CD
-	                     AND r.TRX_GB IN (N'반품', N'불량반품')
-	                     AND r.REMARK LIKE N'매입 ' + SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),1,4) + '-' + SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),5,2) + '-' + SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),7,2) + '-' + m.PURCH_NO + '%' ) rq
+	    CROSS APPLY ( SELECT SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),1,4) + '-' + SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),5,2) + '-' + SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),7,2) + '-' + m.PURCH_NO AS slip ) k
+	    /* q = 이 매입 전표를 가리키는 반품 수량 · undo = 이 반품 전표를 가리키는 원위치 수량 */
+	    OUTER APPLY ( SELECT SUM(x.q) AS q, SUM(x.undo) AS undo
+	                    FROM ( SELECT CASE WHEN r.TRX_GB IN (N'반품', N'불량반품') AND r.REMARK LIKE N'매입 ' + k.slip + '%' THEN ISNULL(r.QTY,0) ELSE 0 END AS q,
+	                                  CASE WHEN ISNULL(NULLIF(r.TRX_GB,''), N'매입') = N'매입' AND r.REMARK LIKE N'반품 ' + k.slip + ' 원위치%' THEN ISNULL(r.QTY,0) ELSE 0 END AS undo
+	                             FROM TBL_PURCHASE_DTL r
+	                             JOIN TBL_PURCHASE_MST rm ON rm.PURCH_SEQ = r.PURCH_SEQ AND rm.ACTION_YN = 'Y' AND rm.COMP_CD = r.COMP_CD
+	                            WHERE r.ACTION_YN = 'Y' AND r.COMP_CD = d.COMP_CD AND rm.VENDOR_CD = m.VENDOR_CD AND r.PROD_CD = d.PROD_CD
+	                              AND r.REMARK LIKE N'%' + k.slip + '%' ) x ) rq
+	    /* 그 반품(이 매입 전표를 가리키는 반품 줄)의 반품 전표를 가리키는 원위치 수량 — 매입 줄에서만 뜻이 있다 */
+	    OUTER APPLY ( SELECT SUM(ISNULL(u.QTY,0)) AS q
+	                    FROM TBL_PURCHASE_DTL u
+	                    JOIN TBL_PURCHASE_MST um ON um.PURCH_SEQ = u.PURCH_SEQ AND um.ACTION_YN = 'Y' AND um.COMP_CD = u.COMP_CD
+	                   WHERE u.ACTION_YN = 'Y' AND u.COMP_CD = d.COMP_CD AND um.VENDOR_CD = m.VENDOR_CD AND u.PROD_CD = d.PROD_CD
+	                     AND ISNULL(NULLIF(u.TRX_GB,''), N'매입') = N'매입' AND u.REMARK LIKE N'반품 % 원위치%'
+	                     AND ISNULL(NULLIF(d.TRX_GB,''), N'매입') NOT IN (N'반품', N'불량반품')
+	                     AND EXISTS ( SELECT 1 FROM TBL_PURCHASE_DTL rr
+	                                    JOIN TBL_PURCHASE_MST rrm ON rrm.PURCH_SEQ = rr.PURCH_SEQ AND rrm.ACTION_YN = 'Y' AND rrm.COMP_CD = rr.COMP_CD
+	                                   WHERE rr.ACTION_YN = 'Y' AND rr.COMP_CD = d.COMP_CD AND rrm.VENDOR_CD = m.VENDOR_CD AND rr.PROD_CD = d.PROD_CD
+	                                     AND rr.TRX_GB IN (N'반품', N'불량반품') AND rr.REMARK LIKE N'매입 ' + k.slip + '%'
+	                                     AND u.REMARK LIKE N'반품 ' + SUBSTRING(REPLACE(ISNULL(rrm.PURCH_DT,''),'-',''),1,4) + '-' + SUBSTRING(REPLACE(ISNULL(rrm.PURCH_DT,''),'-',''),5,2) + '-' + SUBSTRING(REPLACE(ISNULL(rrm.PURCH_DT,''),'-',''),7,2) + '-' + rrm.PURCH_NO + ' 원위치%' ) ) ru
 	   WHERE d.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
 	     AND m.VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}
 	     AND REPLACE(ISNULL(m.PURCH_DT,''),'-','') BETWEEN REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')

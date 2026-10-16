@@ -57,6 +57,8 @@ public class PurchaseDTO {
     private String  findData;      // 거래처명 검색어
     private Integer prodCnt;       // 상품수(목록 표시용, 집계)
     private Integer rtnCnt;        // 반품 줄 수(목록 표시용, 집계 — 2026-10-16)
+    private Integer rtnFromCnt;    // 이 전표를 원본으로 반품한 줄 수 (다른 전표 비고로 셈 — 2026-10-16 「원본에 대하여 반품 발생 표시」)
+    private Integer undoFromCnt;   // 그 반품을 원위치한 줄 수
 
     public Long getPurchSeq() { return purchSeq; }
     public void setPurchSeq(Long purchSeq) { this.purchSeq = purchSeq; }
@@ -122,4 +124,8 @@ public class PurchaseDTO {
     public void setProdCnt(Integer prodCnt) { this.prodCnt = prodCnt; }
     public Integer getRtnCnt() { return rtnCnt; }
     public void setRtnCnt(Integer rtnCnt) { this.rtnCnt = rtnCnt; }
+    public Integer getRtnFromCnt() { return rtnFromCnt; }
+    public void setRtnFromCnt(Integer rtnFromCnt) { this.rtnFromCnt = rtnFromCnt; }
+    public Integer getUndoFromCnt() { return undoFromCnt; }
+    public void setUndoFromCnt(Integer undoFromCnt) { this.undoFromCnt = undoFromCnt; }
 }
