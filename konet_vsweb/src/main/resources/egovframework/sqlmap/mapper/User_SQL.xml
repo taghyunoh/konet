@@ -4679,7 +4679,8 @@
 	]]></update>
 
 	<!-- 매입분 반품 원천 (2026-10-16 사용자 「매입한 내역을 불러와서 해당 제품만 클릭하고 반품 수량만 입력」) — 매입등록 [↩ 매입분 반품] 창.
-	     그 거래처에서 기간(매입일자) 안에 «매입»으로 산 줄(반품·불량반품 줄은 뺀다). 최근 전표부터. 과세구분은 상품 마스터.
+	     그 거래처에서 기간(매입일자) 안의 줄 전부 — 매입 줄과 반품 줄 (2026-10-16 사용자 「반품된 것은 매입으로, 매입은 반품으로 선별 가능하게」). 최근 전표부터. 과세구분은 상품 마스터.
+	     rtnQty = 매입 줄에 대해 이 창이 만든 반품 줄(비고가 「매입 일자-번호」로 시작)의 수량 합 — 같은 줄을 두 번 반품하지 않게 화면이 «남은 수량»을 기본으로 쓴다.
 	     화면은 고른 줄을 반품 줄로 담고 비고에 「매입 일자-번호」를 적는다 — 어느 매입을 되돌린 것인지 나중에 알 수 있게. 읽기 전용. -->
 	<select id="selectPurchaseRtnSrc" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
 	  SELECT TOP 500
@@ -4687,13 +4688,20 @@
 	         d.PROD_SEQ AS prodSeq, ISNULL(d.PROD_CD,'') AS prodCd, ISNULL(d.PROD_NM,'') AS prodNm, ISNULL(d.SPEC,'') AS spec,
 	         ISNULL(NULLIF(d.PACK_QTY,0),1) AS packQty, ISNULL(d.BOX_QTY,0) AS boxQty, ISNULL(d.EA_QTY,0) AS eaQty, ISNULL(d.QTY,0) AS qty,
 	         ISNULL(d.UNIT_PRICE,0) AS unitPrice, ISNULL(d.TOT_AMT,0) AS totAmt, ISNULL(d.REMARK,'') AS remark,
-	         ISNULL(p.TAX_GB, N'과세') AS taxGb, ISNULL(m.WH_CD,'') AS whCd, ISNULL(m.WH_NM,'') AS whNm
+	         ISNULL(p.TAX_GB, N'과세') AS taxGb, ISNULL(m.WH_CD,'') AS whCd, ISNULL(m.WH_NM,'') AS whNm,
+	         ISNULL(NULLIF(d.TRX_GB,''), N'매입') AS trxGb,
+	         CASE WHEN ISNULL(NULLIF(d.TRX_GB,''), N'매입') IN (N'반품', N'불량반품') THEN 0 ELSE ISNULL(rq.q, 0) END AS rtnQty
 	    FROM TBL_PURCHASE_DTL d
 	    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
 	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = d.PROD_SEQ
+	    OUTER APPLY ( SELECT SUM(ISNULL(r.QTY,0)) AS q
+	                    FROM TBL_PURCHASE_DTL r
+	                    JOIN TBL_PURCHASE_MST rm ON rm.PURCH_SEQ = r.PURCH_SEQ AND rm.ACTION_YN = 'Y' AND rm.COMP_CD = r.COMP_CD
+	                   WHERE r.ACTION_YN = 'Y' AND r.COMP_CD = d.COMP_CD AND rm.VENDOR_CD = m.VENDOR_CD AND r.PROD_CD = d.PROD_CD
+	                     AND r.TRX_GB IN (N'반품', N'불량반품')
+	                     AND r.REMARK LIKE N'매입 ' + SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),1,4) + '-' + SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),5,2) + '-' + SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),7,2) + '-' + m.PURCH_NO + '%' ) rq
 	   WHERE d.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
 	     AND m.VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}
-	     AND ISNULL(NULLIF(d.TRX_GB,''), N'매입') NOT IN (N'반품', N'불량반품')
 	     AND REPLACE(ISNULL(m.PURCH_DT,''),'-','') BETWEEN REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
 	   ORDER BY m.PURCH_DT DESC, m.PURCH_NO DESC, d.ROW_NO
 	]]></select>
