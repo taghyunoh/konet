@@ -4559,7 +4559,9 @@
 	         m.SUPPLY_AMT AS supplyAmt, m.VAT_AMT AS vatAmt, m.TOT_AMT AS totAmt,
 	         m.DC_AMT AS dcAmt, m.PAY_GB AS payGb, m.PAY_AMT AS payAmt, m.REMARK AS remark,
 	         m.REG_DTTM AS regDttm, m.REG_USER AS regUser,
-	         (SELECT COUNT(*) FROM TBL_PURCHASE_DTL d WHERE d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN='Y' AND d.COMP_CD = m.COMP_CD) AS prodCnt
+	         (SELECT COUNT(*) FROM TBL_PURCHASE_DTL d WHERE d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN='Y' AND d.COMP_CD = m.COMP_CD) AS prodCnt,
+	         /* 반품 줄 수 (2026-10-16 사용자 「해당 선택 전 반품이 있는지 표시 하단에」) — 목록 줄에 빨간 「반품 n줄」 배지 */
+	         (SELECT COUNT(*) FROM TBL_PURCHASE_DTL d WHERE d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN='Y' AND d.COMP_CD = m.COMP_CD AND d.TRX_GB IN (N'반품', N'불량반품')) AS rtnCnt
 	    FROM TBL_PURCHASE_MST m
 	   WHERE m.ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )

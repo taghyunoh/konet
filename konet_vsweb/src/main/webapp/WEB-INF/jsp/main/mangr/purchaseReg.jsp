@@ -1360,7 +1360,8 @@ function puRowHtml(o, i){
   return '<tr onclick="puPick('+i+')">'
     + '<td><button class="pu-btn" style="height:24px;padding:0 8px;font-size:12px" onclick="event.stopPropagation();puCopy('+i+')">복사저장</button></td>'
     + '<td>'+esc(fmtDt(o.purchDt))+'</td><td>'+esc(o.purchNo)+'</td>'
-    + '<td class="txt" style="text-align:left">'+esc(o.vendorNm)+'</td><td>'+esc(o.mgrNm)+'</td>'
+    /* 반품 줄이 든 전표는 거래처명 옆에 빨간 「반품 n줄」 (2026-10-16 사용자 「선택 전 반품이 있는지 표시」 — 종전엔 눌러서 위 명세를 봐야 알았다) */
+    + '<td class="txt" style="text-align:left">'+esc(o.vendorNm)+(n(o.rtnCnt)?' <span style="display:inline-block;font-size:11px;font-weight:800;color:#c0392b;background:#fdecec;border-radius:6px;padding:1px 6px;margin-left:4px" title="반품(불량반품) 줄 '+n(o.rtnCnt)+'개가 든 전표">반품 '+n(o.rtnCnt)+'줄</span>':'')+'</td><td>'+esc(o.mgrNm)+'</td>'
     + '<td>'+n(o.prodCnt)+'</td><td class="num">'+fmt(o.totAmt)+'</td>'
     + '<td>'+esc(o.whNm)+'</td><td>'+esc(o.regUser)+'</td></tr>';
 }
