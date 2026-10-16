@@ -426,6 +426,7 @@ public interface UserMapper {
 	java.util.List<java.util.Map<String,Object>> selectPipelinePoList(java.util.Map<String,Object> p) throws Exception;    // 발주 단계별 목록
 	java.util.List<java.util.Map<String,Object>> selectPipelineQuoteList(java.util.Map<String,Object> p) throws Exception;
 	/* 업무 진행 상황 (2026-10-14) — 진행 현황 맨 위 */
+	java.util.List<java.util.Map<String,Object>> selectPurchaseRtnSrc(java.util.Map<String,Object> p) throws Exception;   // 매입분 반품 원천(2026-10-16)
 	java.util.List<java.util.Map<String,Object>> selectWorkUnmatched(java.util.Map<String,Object> p) throws Exception;   // 출고미상 개수·금액(달별)
 	String selectWorkPrevShipDt(java.util.Map<String,Object> p) throws Exception;                                   // 당일 전 마지막 출고일자
 	java.util.Map<String,Object> selectWorkMisc(java.util.Map<String,Object> p) throws Exception;                      // 미매핑·견적 후속·자료 첫 달

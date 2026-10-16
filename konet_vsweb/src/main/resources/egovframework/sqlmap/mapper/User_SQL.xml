@@ -4678,6 +4678,26 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
+	<!-- 매입분 반품 원천 (2026-10-16 사용자 「매입한 내역을 불러와서 해당 제품만 클릭하고 반품 수량만 입력」) — 매입등록 [↩ 매입분 반품] 창.
+	     그 거래처에서 기간(매입일자) 안에 «매입»으로 산 줄(반품·불량반품 줄은 뺀다). 최근 전표부터. 과세구분은 상품 마스터.
+	     화면은 고른 줄을 반품 줄로 담고 비고에 「매입 일자-번호」를 적는다 — 어느 매입을 되돌린 것인지 나중에 알 수 있게. 읽기 전용. -->
+	<select id="selectPurchaseRtnSrc" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 500
+	         m.PURCH_SEQ AS purchSeq, m.PURCH_DT AS purchDt, m.PURCH_NO AS purchNo, d.DTL_SEQ AS dtlSeq, d.ROW_NO AS rowNo,
+	         d.PROD_SEQ AS prodSeq, ISNULL(d.PROD_CD,'') AS prodCd, ISNULL(d.PROD_NM,'') AS prodNm, ISNULL(d.SPEC,'') AS spec,
+	         ISNULL(NULLIF(d.PACK_QTY,0),1) AS packQty, ISNULL(d.BOX_QTY,0) AS boxQty, ISNULL(d.EA_QTY,0) AS eaQty, ISNULL(d.QTY,0) AS qty,
+	         ISNULL(d.UNIT_PRICE,0) AS unitPrice, ISNULL(d.TOT_AMT,0) AS totAmt, ISNULL(d.REMARK,'') AS remark,
+	         ISNULL(p.TAX_GB, N'과세') AS taxGb, ISNULL(m.WH_CD,'') AS whCd, ISNULL(m.WH_NM,'') AS whNm
+	    FROM TBL_PURCHASE_DTL d
+	    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
+	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = d.PROD_SEQ
+	   WHERE d.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND m.VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}
+	     AND ISNULL(NULLIF(d.TRX_GB,''), N'매입') NOT IN (N'반품', N'불량반품')
+	     AND REPLACE(ISNULL(m.PURCH_DT,''),'-','') BETWEEN REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
+	   ORDER BY m.PURCH_DT DESC, m.PURCH_NO DESC, d.ROW_NO
+	]]></select>
+
 	<!-- 거래처 × 품목의 최근 매입단가 (품목 선택 시 단가 자동 채움) -->
 	<!-- 그 거래처에서 마지막으로 산 단가 + 비고 (2026-09-13 「이전 비고란 안 따라옴」)
 	     ★파라미터 remark 는 «거래처코드»다(옛 호출 규약 그대로) — 돌려주는 remark 는 명세 줄 비고다.

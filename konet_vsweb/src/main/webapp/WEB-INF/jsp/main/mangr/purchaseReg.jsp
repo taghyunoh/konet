@@ -10,6 +10,8 @@
 <%-- 거래처 입력검색 — 거래처 칸에 직접 쳐서 고른다(2026-08-01). [거래처] 팝업은 그대로 둔다. --%>
 <%-- 회사 설정(기준정보관리 ▸ 회사 정보 수정의 「기능」) — window.konetSet (2026-09-11) --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917"></script>
+<%-- 거래명세서 양식 (2026-10-16 「매입등록에서 반품 등록에 대하여 거래명세서 인쇄」) — 판매등록과 같은 공용 파일. 매입용 라벨은 O.kind='purch' --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/stmt-sheet.js?v=20261016b"></script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260911"></script>
 <%-- 팝업 창 끌어 옮기기 (2026-09-10) — 제목줄을 잡고 끈다 · 더블클릭 = 처음 자리 (asset/js/ui-popdrag.js 머리말) --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>
@@ -186,6 +188,8 @@
       <button class="pu-btn teal" onclick="puDlvOpen()" title="이 매입처에서 사 온 품목 목록에서 골라 담기">매입분</button>
       <%-- 발주분 (2026-09-16 P1-b 2단계) — 잔량이 남은 발주 줄을 골라 담는다. 담긴 줄은 발주 연결(poSeq/poDtlSeq)을 들고 가서 저장하면 발주서에 입고·잔량이 잡힌다 --%>
       <button class="pu-btn teal" onclick="puPoOpen()" title="발주했는데 아직 안 들어온 줄에서 골라 담기 — 저장하면 발주서에 입고·잔량이 잡힙니다">발주분</button>
+      <%-- 매입분 반품 (2026-10-16) — 이 거래처에서 매입한 줄을 불러와 체크하고 반품 수량만 넣어 반품 줄로 담는다. 비고에 매입 일자-번호가 자동으로 적힌다 --%>
+      <button class="pu-btn" style="color:#c0392b; border-color:#e3b0a9" onclick="puRtnOpen()" title="이 거래처에서 매입한 줄을 불러와 반품으로 담기 — 반품 수량만 넣으면 됩니다. 저장하면 재고에서 빠집니다">↩ 매입분 반품</button>
       <div class="pu-fld" style="flex:0 0 120px"><label>담당자</label><input type="text" id="puMgrNm" readonly style="background:#f5f7f9"></div>
       <div class="pu-fld" style="flex:0 0 130px"><label>창고</label><select id="puWhNm" title="이 전표의 창고 — 재고가 여기로 들어옵니다(2026-09-16)"></select></div>
       <%-- 일괄등록 (2026-08-06 요청) — 거래처는 그대로 두고 일자만 바꿔 여러 상품을 한 번에 전표로 저장 --%>
@@ -247,6 +251,7 @@
       <button class="pu-btn" onclick="puSave()">💾 저장</button>
       <button class="pu-btn" onclick="puReload()">🔄 새로고침</button>
       <button class="pu-btn red" onclick="puDelete()">✖ 삭제하기</button>
+      <button class="pu-btn" onclick="puPrtOpen()" title="이 전표의 거래명세서 — 판매등록과 같은 양식(공급자 = 거래처 · 공급받는자 = 우리 회사). 반품 전표도 됩니다">🖨 거래명세서</button>
       <span id="puState" style="margin-left:8px; color:#3d4d5c; font-size:12.5px"></span>
       <span style="margin-left:auto; color:#8a97a4; font-size:11.5px"
             title="상품칸에 바로 입력해 ↑↓·Enter 로 고르고, Enter 로 다음 칸/다음 줄, ↑↓ 로 줄을 오갑니다">⌨ 상품칸 입력검색 · Enter 다음칸 · ↑↓ 줄이동 · Ctrl+S 저장 · Alt+N 신규</span>
@@ -448,6 +453,79 @@
       <span style="font-size:12.5px; color:#5a6b7a" id="poCnt">0줄</span>
       <span style="margin-left:auto"></span>
       <button class="pu-btn teal" id="poOk" onclick="puPoApply()">확인 — 순서대로 담기</button>
+    </div>
+  </div>
+</div>
+<%-- ↩ 매입분 반품 (2026-10-16 사용자 「매입등록에서 매입한 내역을 불러와서 해당 제품만 클릭하고 반품 수량만 입력한 후 날짜를 반품하는 날짜로 등록」)
+     그 거래처에서 기간 안에 매입한 줄(/mangr/purchaseRtnSrc.do)을 보여 주고, 체크한 줄을 «반품» 줄로 담는다. 반품 수량은 매입 수량으로 채워 두고 일부 반품이면 고친다.
+     비고에 「매입 일자-번호」가 자동으로 적혀 어느 매입을 되돌린 것인지 남는다(사용자 「메모 기능을 많이 이용」). 발주분 창(puPoPop)과 같은 장치. --%>
+<div class="pu-pop" id="puRtnPop">
+  <div class="box" style="width:min(1180px,97vw)">
+    <div class="hd">↩ 매입분 반품 — <span id="rtVen" style="color:#137a6c"></span> 에서 산 줄을 불러와 반품으로 담기
+      <span style="margin-left:auto"><span class="pu-btn" style="border:0;background:transparent;font-size:18px" onclick="puRtnClose()">✕</span></span>
+    </div>
+    <div class="bd">
+      <div style="display:flex; gap:6px; margin-bottom:8px; align-items:center; flex-wrap:wrap">
+        <label style="font-size:12.5px; font-weight:700">매입일자</label>
+        <input type="date" id="rtFr" style="height:32px; border:1px solid var(--pu-bd); border-radius:6px; padding:0 6px"> <span>~</span>
+        <input type="date" id="rtTo" style="height:32px; border:1px solid var(--pu-bd); border-radius:6px; padding:0 6px">
+        <button class="pu-btn" onclick="puRtnLoad()">🔍 조회</button>
+        <label style="font-size:12.5px; font-weight:700; margin-left:8px">구분</label>
+        <select id="rtGb" style="height:32px; border:1px solid var(--pu-bd); border-radius:6px" title="담길 줄의 거래구분 — 둘 다 재고에서 빠지고 매입액이 줍니다"></select>
+        <%-- 매입 전표로 좁히기 (2026-10-16 사용자 「반품을 설정하고 해당 일자에 선택 내용 품목만 보이게」) — 일자-번호 하나를 고르면 그 전표의 줄만. 목록의 매입 칸을 눌러도 된다 --%>
+        <label style="font-size:12.5px; font-weight:700; margin-left:8px">매입 전표</label>
+        <select id="rtSlip" style="height:32px; border:1px solid var(--pu-bd); border-radius:6px; max-width:220px" onchange="puRtnRender()" title="매입 일자-번호 하나를 고르면 그 전표의 줄만 보입니다"><option value="">전체</option></select>
+        <label style="font-size:12.5px; cursor:pointer; display:flex; align-items:center; gap:4px; margin-left:4px" title="체크한 줄만 남겨 확인합니다"><input type="checkbox" id="rtOnlyPick" onchange="puRtnRender()"> 체크한 줄만</label>
+        <input type="text" id="rtQ" placeholder="상품코드·상품명·규격·매입번호" style="flex:1; min-width:200px; height:32px; border:1px solid var(--pu-bd); border-radius:6px; padding:0 8px; font-size:13.5px" oninput="puRtnRender()">
+      </div>
+      <div style="max-height:420px; overflow:auto; border:1px solid var(--pu-bd); border-radius:6px">
+        <table>
+          <thead><tr>
+            <th style="width:46px"><input type="checkbox" id="rtAll" onchange="puRtnAll(this.checked)"></th>
+            <th style="width:118px; white-space:nowrap">매입</th><th style="width:100px">상품코드</th><th>상품명</th><th style="width:100px">규격</th>
+            <th style="width:48px">입수</th><th style="width:84px">단가</th><th style="width:80px">매입수량</th><th style="width:120px">매입 비고</th>
+            <th style="width:96px" title="되돌리는 수량 — 매입 수량으로 채워 둡니다. 일부만 반품이면 그 수량으로 고치세요">반품 수량</th>
+          </tr></thead>
+          <tbody id="rtBody"><tr><td colspan="10" class="pu-msg">불러오는 중…</td></tr></tbody>
+        </table>
+      </div>
+      <div style="margin-top:8px; font-size:12.5px; color:#3d4d5c">
+        체크한 <b>순서대로</b> 반품 줄로 담깁니다. 반품 수량은 <b>매입 수량</b>으로 채워 둡니다 — 일부만 반품이면 그 수량으로 고치세요.
+        비고에 <b>「매입 일자-번호」</b>가 자동으로 적힙니다. 담은 뒤 <b>전표 일자를 반품한 날짜</b>로 맞추고 저장하세요. 저장하면 재고에서 빠집니다. <span id="rtPickInfo" style="color:#137a6c; font-weight:700"></span>
+      </div>
+    </div>
+    <div class="ft" style="display:flex; align-items:center; gap:8px">
+      <span style="font-size:12.5px; color:#5a6b7a" id="rtCnt">0줄</span>
+      <span style="margin-left:auto"></span>
+      <button class="pu-btn teal" onclick="puRtnApply()">확인 — 반품으로 담기</button>
+    </div>
+  </div>
+</div>
+<%-- 🖨 거래명세서 (2026-10-16 「매입등록에서 반품 등록에 대하여 거래명세서 인쇄 — 판매등록 거래명세서와 동일, 안 내용만 조금 다름」)
+     양식은 판매등록과 같은 공용 파일(asset/js/stmt-sheet.js)이고 O.kind='purch' 로 라벨만 바뀐다(매입액·지급·순매입액). 공급자 = 거래처, 공급받는자 = 우리 회사. --%>
+<div class="pu-pop" id="puPrtPop">
+  <div class="box" style="width:min(520px,96vw)">
+    <div class="hd">🖨 거래명세서 (매입)
+      <span style="margin-left:auto"><span class="pu-btn" style="border:0;background:transparent;font-size:18px" onclick="puPrtClose()">✕</span></span>
+    </div>
+    <div class="bd" style="display:flex; flex-direction:column; gap:10px; font-size:13.5px">
+      <label style="display:flex; align-items:center; gap:8px"><span style="width:90px; font-weight:700">출력 형태</span>
+        <select id="prtMode" style="height:32px; border:1px solid var(--pu-bd); border-radius:6px; flex:1">
+          <option value="both">공급받는자 보관용 + 공급자 보관용 (한 장에 두 부)</option>
+          <option value="two">두 부 따로</option>
+          <option value="b1">공급받는자 보관용 한 부</option>
+          <option value="r1">공급자 보관용 한 부</option>
+        </select></label>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer" title="매입 줄과 반품 줄이 섞인 전표에서 반품 줄만 명세서로 — 합계도 반품 줄만으로 냅니다"><input type="checkbox" id="prtOnlyRtn"> <b>반품 줄만 찍기</b> (매입 줄은 뺌)</label>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer"><input type="checkbox" id="prtRtn"> 반품액·순매입액 줄 찍기 (메모 줄 옆)</label>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer"><input type="checkbox" id="prtVat"> 부가세 칸 따로 (공급가 · 부가세)</label>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer"><input type="checkbox" id="prtBal"> 전잔고 · 잔고 찍기</label>
+      <div style="font-size:12px; color:#5a6b7a">공급자 = 이 전표의 거래처(거래처관리의 사업자·주소·계좌) · 공급받는자 = 우리 회사(회사 정보 수정) · 메모 = 이 전표의 메모 칸. 저장 여부와 무관하게 지금 화면 그대로 찍습니다.</div>
+    </div>
+    <div class="ft" style="display:flex; align-items:center; gap:8px">
+      <span style="margin-left:auto"></span>
+      <button class="pu-btn" onclick="puPrtGo(false)">👁 미리보기</button>
+      <button class="pu-btn teal" onclick="puPrtGo(true)">🖨 인쇄</button>
     </div>
   </div>
 </div>
@@ -2717,6 +2795,162 @@ function puPinBlur(){ setTimeout(puPinClose, 150); }
     }
   });
 })();
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ↩ 매입분 반품 (2026-10-16 사용자 「매입한 내역을 불러와서 해당 제품만 클릭하고 반품 수량만 입력한 후 날짜를 반품하는 날짜로 등록」)
+     · 원천 = /mangr/purchaseRtnSrc.do — 이 전표 거래처에서 기간(매입일자) 안에 «매입»한 줄. 반품·불량반품 줄은 안 나온다.
+     · 담기 = 발주분(puPoApply)과 같은 길 : emptyRow → 값 채움 → puCalcRow → _rows. 수량은 양수, 반품은 trxGb 로만(화면 규칙).
+     · 반품 수량 = 매입 수량으로 채워 두고 고친다(일부 반품). 0 이면 못 담는다.
+     · 비고 = 「매입 2026-10-15-0001 반품」(+ 그때 비고). 전표 메모가 비어 있으면 「매입 2026-10-15 분 반품」을 넣는다 — 어느 매입을 되돌린 것인지 남긴다.
+     · 구분 = 반품 / (회사 설정 badRtn 이면) 불량반품. 둘 다 재고에서 빠지고 매입액이 준다(저장 서비스가 같게 다룬다).
+     · 전표 일자는 건드리지 않는다 — 사용자가 반품한 날짜로 맞춘다(안내 토스트).
+   ══════════════════════════════════════════════════════════════════════════ */
+var _rt=[], _rtPick=[], _rtCur=null;   /* _rtCur = 창을 열 때 불러와 있던 저장 전표 {purchSeq, slip:'yyyy-mm-dd-번호', dt:'yyyy-mm-dd'} — 그 전표 줄만 기본으로 보이고, 담을 때 새 반품 전표를 만든다 */
+function rtYmd(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+function puRtnOpen(){
+  var cd=document.getElementById('puVenNm').dataset.cd||'';
+  if(!cd){ swErr('먼저 <b>거래처</b>를 고르세요 — 그 거래처에서 산 줄을 불러옵니다.'); return; }
+  _rtPick=[]; document.getElementById('rtQ').value=''; document.getElementById('rtAll').checked=false;
+  document.getElementById('rtSlip').innerHTML='<option value="">전체</option>'; document.getElementById('rtOnlyPick').checked=false;
+  /* 아래 목록에서 눌러 불러온 전표가 있으면 «그 전표» (2026-10-16 사용자 「일단 선택한 건만」) — 기간이 그 날짜를 품게 넓힌다 */
+  _rtCur = (_cur && _cur.purchSeq) ? { purchSeq:_cur.purchSeq, slip:fmtDt(_cur.purchDt)+'-'+_cur.purchNo, dt:fmtDt(_cur.purchDt) } : null;
+  if(!document.getElementById('rtFr').value){ var t=new Date(), a=new Date(t.getFullYear(), t.getMonth()-3, t.getDate());
+    document.getElementById('rtFr').value=rtYmd(a); document.getElementById('rtTo').value=rtYmd(t); }
+  if(_rtCur && _rtCur.dt){ if(_rtCur.dt<document.getElementById('rtFr').value) document.getElementById('rtFr').value=_rtCur.dt; if(_rtCur.dt>document.getElementById('rtTo').value) document.getElementById('rtTo').value=_rtCur.dt; }
+  var gb=document.getElementById('rtGb');
+  gb.innerHTML='<option selected>반품</option>'+(BAD_RTN?'<option>불량반품</option>':'');   /* 기본 = 반품 (2026-10-16 사용자 「기본은 … 구분 반품으로」). 불량반품은 쓰는 회사에만 보인다 */
+  document.getElementById('rtVen').textContent=document.getElementById('puVenNm').value||'';
+  document.getElementById('puRtnPop').classList.add('on'); puRtnLoad();
+}
+function puRtnClose(){ document.getElementById('puRtnPop').classList.remove('on'); }
+function puRtnLoad(){
+  var cd=document.getElementById('puVenNm').dataset.cd||'', fr=document.getElementById('rtFr').value, to=document.getElementById('rtTo').value;
+  if(!fr||!to){ swErr('매입일자 기간을 넣으세요.'); return; }
+  if(fr>to){ swErr('시작일이 끝일보다 늦습니다.'); return; }
+  document.getElementById('rtBody').innerHTML='<tr><td colspan="10" class="pu-msg">불러오는 중…</td></tr>';
+  post('/mangr/purchaseRtnSrc.do','vendorCd='+encodeURIComponent(cd)+'&fromDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)).then(function(r){ return r.json(); })
+    .then(function(j){ if(j&&j.error) throw new Error(j.error);
+      _rt=((j&&j.data)||[]).map(function(o){ o.id=String(o.dtlSeq); o.rtQty=n(o.qty); o.slip=fmtDt(o.purchDt)+'-'+o.purchNo; return o; }); _rtPick=[];
+      /* 매입 전표 목록 — 최근 전표부터(조회 순서 그대로), 줄 수 표시 */
+      var seen={}, opts='<option value="">전체 ('+_rt.length+'줄)</option>';
+      _rt.forEach(function(o){ if(seen[o.slip]) { seen[o.slip]++; return; } seen[o.slip]=1; });
+      Object.keys(seen).forEach(function(k){ opts+='<option value="'+esc(k)+'">'+esc(k)+' ('+seen[k]+'줄)</option>'; });
+      document.getElementById('rtSlip').innerHTML=opts;
+      /* 기본 = 가장 최근 전표 하나만 (2026-10-16 사용자 「기본은 선택한 건만」) — 전체를 보려면 「전체」를 고른다 */
+      var firstSlip=(_rtCur && seen[_rtCur.slip]) ? _rtCur.slip : (Object.keys(seen)[0]||''); document.getElementById('rtSlip').value=firstSlip;
+      puRtnRender(); })
+    .catch(function(e){ document.getElementById('rtBody').innerHTML='<tr><td colspan="10" class="pu-msg" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
+}
+function puRtnFiltered(){ var q=(document.getElementById('rtQ').value||'').toLowerCase(), slip=document.getElementById('rtSlip').value||'', only=document.getElementById('rtOnlyPick').checked;
+  return _rt.filter(function(o){ if(slip && o.slip!==slip) return false; if(only && _rtPick.indexOf(o.id)<0) return false; if(!q) return true; return [fmtDt(o.purchDt)+'-'+o.purchNo, o.purchNo, o.prodCd, o.prodNm, o.spec, o.remark].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; }); }); }
+function puRtnRender(){ var l=puRtnFiltered();
+  document.getElementById('rtCnt').textContent=l.length+'줄'+(l.length!==_rt.length?' (전체 '+_rt.length+'줄 중)':'');
+  document.getElementById('rtBody').innerHTML = l.length ? l.map(function(o){ var id=o.id, k=_rtPick.indexOf(id);
+    return '<tr class="pick" onclick="puRtnPick(\''+id+'\')">'
+      +'<td>'+(k>=0?'<b style="color:#137a6c">'+(k+1)+'</b>':'<input type="checkbox" onclick="event.stopPropagation();puRtnPick(\''+id+'\')">')+'</td>'
+      +'<td style="white-space:nowrap; color:#137a6c; text-decoration:underline; cursor:pointer" title="이 전표의 줄만 보기" onclick="event.stopPropagation(); puRtnSlip(\''+esc(o.slip)+'\')">'+esc(o.slip)+'</td>'
+      +'<td>'+esc(o.prodCd)+'</td><td class="txt" style="text-align:left">'+esc(o.prodNm)+'</td><td>'+esc(o.spec)+'</td>'
+      +'<td class="num">'+fmt(o.packQty||1)+'</td><td class="num">'+fmtP(o.unitPrice)+'</td>'
+      +'<td class="num" title="BOX '+fmt(o.boxQty)+' · EA '+fmt(o.eaQty)+'">'+fmt(o.qty)+'</td>'
+      +'<td class="txt" style="text-align:left; font-size:12px; color:#5a6b7a">'+esc(o.remark)+'</td>'
+      +'<td><input value="'+fmt(o.rtQty)+'" style="width:80px;text-align:right" onclick="event.stopPropagation()" onchange="puRtnQty(\''+id+'\',this.value)"></td></tr>'; }).join('')
+    : '<tr><td colspan="10" class="pu-msg">'+(_rt.length?'조건에 맞는 줄이 없습니다 — 매입 전표를 「전체」로 하거나 「체크한 줄만」을 끄세요.':'이 기간에 이 거래처에서 매입한 줄이 없습니다 — 매입일자 기간을 넓혀 보세요.')+'</td></tr>';
+  var el=document.getElementById('rtPickInfo'); el.textContent=_rtPick.length?('선택 '+_rtPick.length+'줄'):''; }
+/* 매입 칸 클릭 — 그 전표로 좁히기. 같은 전표를 다시 누르면 전체로 */
+function puRtnSlip(k){ var s=document.getElementById('rtSlip'); s.value=(s.value===k?'':k); puRtnRender(); }
+function puRtnQty(id,v){ var o=_rt.filter(function(x){ return x.id===id; })[0]; if(!o) return;
+  o.rtQty=Math.abs(n(v)); if(o.rtQty>0 && _rtPick.indexOf(id)<0) _rtPick.push(id);   // 수량을 치면 고른 것으로 본다
+  if(o.rtQty>n(o.qty) && window._toast) _toast('매입 수량('+fmt(o.qty)+')보다 많이 되돌립니다 — 맞는지 확인하세요.','warn');
+  puRtnRender(); }
+function puRtnPick(id){ var k=_rtPick.indexOf(id); if(k>=0) _rtPick.splice(k,1); else _rtPick.push(id); puRtnRender(); }
+function puRtnAll(on){ _rtPick = on ? puRtnFiltered().map(function(o){ return o.id; }) : []; puRtnRender(); }
+function puRtnApply(){
+  if(!_rtPick.length){ swErr('반품할 줄을 체크하세요.'); return; }
+  var picked=_rtPick.map(function(id){ return _rt.filter(function(x){ return x.id===id; })[0]; }).filter(Boolean);
+  var zero=picked.filter(function(o){ return !(o.rtQty>0); });
+  if(zero.length){ swErr('반품 수량이 0 인 줄이 '+zero.length+'개 있습니다 — 수량을 넣거나 체크를 푸세요.'); return; }
+  var gb=document.getElementById('rtGb').value||'반품';
+  /* 불러온 전표가 열려 있어도 «지금 줄 뒤에 이어» 담는다 (2026-10-16 사용자 「기존 것 유지하고 아래에 반품이 떠야」 —
+       한때 새 전표로 바꿔 담게 했다가 같은 날 되돌렸다). 저장하면 그 전표에 반품 줄이 더해진다. 날짜를 따로 하려면 [＋ 신규등록] 뒤에 담으면 된다. */
+  var rows=_rows.filter(function(o){ return o.prodCd; }), added=0, dts={};
+  picked.forEach(function(s){ var o=emptyRow();
+    o.prodSeq=s.prodSeq; o.prodCd=s.prodCd; o.prodNm=s.prodNm; o.spec=s.spec||''; o.packQty=n(s.packQty)||1; o.taxGb=s.taxGb||'과세'; o.unitPrice=n(s.unitPrice);
+    o.trxGb=gb;
+    var pk=o.packQty, q=n(s.rtQty); o.boxQty=Math.floor(q/pk); o.eaQty=q-o.boxQty*pk;
+    o.remark='매입 '+fmtDt(s.purchDt)+'-'+s.purchNo+' 반품'+(String(s.remark||'').trim()?' ('+String(s.remark).trim()+')':'');
+    dts[fmtDt(s.purchDt)]=1;
+    puCalcRow(o); rows.push(o); added++; });
+  rows.push(emptyRow()); _rows=rows; _pShown=_rows.length; puRender(); puRtnClose();
+  var memo=document.getElementById('puRemark');
+  if(memo && !String(memo.value||'').trim()) memo.value='매입 '+Object.keys(dts).sort().join(', ')+' 분 반품';
+  if(window._toast) _toast('반품 '+added+'줄을 아래에 담았습니다 — 전표 일자가 반품한 날짜인지 보고 저장하세요. 저장하면 재고에서 빠집니다.','ok');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   🖨 거래명세서 (2026-10-16 「매입등록에서 반품 등록에 대하여 거래명세서 인쇄 — 판매등록 거래명세서와 동일, 안 내용만 조금 다름」)
+     · 양식 = 판매등록과 같은 공용 파일 asset/js/stmt-sheet.js (konetStmt.doc). O.kind='purch' 로 라벨만 바뀐다 : 매입액 · 지급 · 순매입액 · (공급받는자 보관용).
+     · 자리 바꿈은 여기서 : D.ven·D.venNm = «우리 회사»(공급받는자, 회사 정보 수정 /user/compInfoGet.do) · S = «거래처»(공급자, 거래처 마스터 _vendors).
+       계좌 = 거래처 계좌(S.bank) — D.ven 에 bankAcct 를 안 넣어 우리 계좌가 끼어들지 않게 한다.
+     · 메모 = 전표 메모(puRemark) · 반품 줄은 양식이 알아서 빨간 [반품]·음수로 찍는다 · 저장 여부와 무관하게 화면 그대로.
+   ══════════════════════════════════════════════════════════════════════════ */
+var _supMst=null;
+function puPrtSupLoad(){ if(_supMst) return Promise.resolve(_supMst);
+  return post('/user/compInfoGet.do','').then(function(r){ return r.json(); }).then(function(j){ _supMst=(j&&j.info)||{}; return _supMst; }).catch(function(){ _supMst={}; return _supMst; }); }
+function puPrtOpen(){
+  if(!_rows.filter(function(o){ return o.prodCd; }).length){ swErr('인쇄할 명세 줄이 없습니다.'); return; }
+  if(!(document.getElementById('puVenNm').dataset.cd||'')){ swErr('거래처를 고르세요.'); return; }
+  var P=(window.konetSet && konetSet.prt)||{};
+  document.getElementById('prtMode').value=P.mode||'both';
+  document.getElementById('prtVat').checked=(P.vat==='Y'); document.getElementById('prtBal').checked=(P.bal==='Y');
+  var hasRtn=_rows.some(function(o){ return o.prodCd && isRtn(o.trxGb); });
+  document.getElementById('prtRtn').checked=hasRtn;   /* 반품 줄이 있으면 반품액 줄 */
+  document.getElementById('prtOnlyRtn').checked=hasRtn;   /* 사용자 「반품 목록만 찍을 수 있어야」(2026-10-16) — 반품 줄이 있으면 반품만 찍는 것이 기본 */
+  document.getElementById('puPrtPop').classList.add('on'); puPrtSupLoad();
+}
+function puPrtClose(){ document.getElementById('puPrtPop').classList.remove('on'); }
+/* 찍을 줄 — 「반품 줄만」이면 반품·불량반품 줄만. 합계는 그 줄들로 다시 센다(puCalc 는 전표 전체라서) */
+function puPrtRows(){ var only=document.getElementById('prtOnlyRtn').checked;
+  return _rows.filter(function(o){ return o.prodCd && (!only || isRtn(o.trxGb)); }); }
+function puPrtCalc(rows){ var t={ box:0, ea:0, qty:0, amt:0, dc:0, sup:0, vat:0, tot:0, svc:0 };
+  rows.forEach(function(o){ var sg=isRtn(o.trxGb)?-1:1;
+    t.box+=sg*n(o.boxQty); t.ea+=sg*n(o.eaQty); t.qty+=sg*n(o.qty); t.amt+=sg*n(o.amt); t.dc+=sg*n(o.dcAmt);
+    t.sup+=sg*n(o.supplyAmt); t.vat+=sg*n(o.vatAmt); t.tot+=sg*n(o.totAmt); t.svc+=sg*n(o.serviceQty); });
+  return t; }
+function puPrtData(){
+  var rows=puPrtRows(), t=puPrtCalc(rows), c=_supMst||{};
+  var pay=n(document.getElementById('puPayAmt').value), dc=n(document.getElementById('puDcAmt').value);
+  var before=n(document.getElementById('puBalNow').textContent)-_curNet;   /* 전잔고 = 현잔고 − 이 전표가 이미 반영해 둔 금액(판매등록과 같은 셈) */
+  return { dt:document.getElementById('puDt').value, no:document.getElementById('puNo').value, dlvDt:'',
+           venCd:document.getElementById('puVenNm').dataset.cd||'',
+           ven:{ bizno:c.busiNum||'', addr:((c.compAddr||'')+' '+(c.compExtradr||'')).trim(), addr2:'', email:c.compEmail||'', hp:c.compHp||'', tel:c.compTel||'' },
+           venNm:c.compNm||'', mgrNm:document.getElementById('puMgrNm').value, whNm:puWhNmTxt(),
+           remark:document.getElementById('puRemark').value, payGb:document.getElementById('puPayGb').value,
+           pay:pay, dc:dc, t:t, rows:rows,
+           balBefore:before, balAfter:before+t.tot-pay-dc };
+}
+function puPrtSup(){
+  var cd=document.getElementById('puVenNm').dataset.cd||'', v=_vendors.filter(function(x){ return String(x.vendorCd)===String(cd); })[0]||{};
+  return { nm:v.vendorNm||document.getElementById('puVenNm').value||'', biz:v.bizno||'', ceo:v.ceoNm||'', cond:v.bizCond||'', item:v.bizItem||'',
+           addr:((v.addr||'')+' '+(v.addr2||'')).trim(), bank:v.bankAcct||'', tel:v.tel||v.hp||'', notice:'', notice2:'', stamp:'' };
+}
+function puPrtGo(doPrint){
+  if(!puPrtRows().length){ swErr('찍을 줄이 없습니다 — 「반품 줄만 찍기」를 끄거나 반품 줄을 담으세요.'); return; }
+  if(!window.konetStmt){ swErr('명세서 양식 파일을 불러오지 못했습니다 — 화면을 새로 고친 뒤 다시 해 보세요.'); return; }
+  var P=(window.konetSet && konetSet.prt)||{}, O={}, k;
+  for(k in (konetStmt.DEF||{})) O[k]=konetStmt.DEF[k];
+  for(k in P) O[k]=P[k];
+  O.kind='purch'; O.amt='Y'; O.price='Y';
+  O.mode=document.getElementById('prtMode').value||'both';
+  O.vat=document.getElementById('prtVat').checked?'Y':'N'; O.rtn=document.getElementById('prtRtn').checked?'Y':'N'; O.bal=document.getElementById('prtBal').checked?'Y':'N';
+  puPrtSupLoad().then(function(){
+    var D=puPrtData(), S=puPrtSup();
+    D.sortMap={}; D.bcMap={};
+    (_prods||[]).forEach(function(p){ if(p.sortOrd!=null && D.sortMap[p.prodCd]==null) D.sortMap[p.prodCd]=p.sortOrd; var b=p.unitBarcode||p.boxBarcode; if(b && D.bcMap[p.prodCd]==null) D.bcMap[p.prodCd]=b; });
+    var w=window.open('','_blank'); if(!w){ swErr('새 창이 막혔습니다 — 브라우저의 팝업 차단을 풀어 주세요.'); return; }
+    w.document.open(); w.document.write(konetStmt.doc(D,O,S,!doPrint,{ autoPrint:!!doPrint })); w.document.close();
+    puPrtClose();
+  });
+}
 </script>
 
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.

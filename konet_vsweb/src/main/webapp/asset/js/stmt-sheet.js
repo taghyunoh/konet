@@ -133,7 +133,8 @@
          부가세 미출력 : 금액 = 판매금액(부가세 포함) — 그래야 품목 합과 하단 합계가 같다 */
     if (k==='amt') return fmt((O.vat==='Y' ? n(o.supplyAmt) : n(o.totAmt)) * sg);
     if (k==='vat') return fmt(n(o.vatAmt)*sg);
-    if (k==='rm')  return esc(o.remark||'');
+    /* 비고도 넘치면 두 줄 (2026-10-16 사용자 「글자가 잘림」 — 「매입 2026-10-15-0006 반품」이 12% 칸에서 잘렸다). 품명과 같은 .tx + fit() */
+    if (k==='rm')  return '<div class="tx">'+esc(o.remark||'')+'</div>';
     return '';
   }
   function nowStr(){
@@ -142,7 +143,11 @@
   }
   /* 한 부(공급받는자용 b / 공급자 보관용 r) */
   function copy(D,O,S,prev,rs,pi,pn,kind,fill){
-    var lab   = (kind==='b') ? '공급받는자용' : '공급자 보관용';
+    /* ★매입 명세서 (2026-10-16 「매입등록에서 반품 등록에 대하여 거래명세서 인쇄」) — O.kind='purch' 면 라벨만 바꾼다.
+         자리 바꿈은 부르는 쪽(purchaseReg)이 한다 : D.ven·D.venNm = 우리 회사(공급받는자), S = 거래처(공급자). 양식은 하나다. */
+    var purch = (O.kind==='purch');
+    var L = purch ? { b:'공급받는자 보관용', sale:'매입액', rcv:'지급', net:'순매입액' } : { b:'공급받는자용', sale:'매출액', rcv:'수금', net:'실매출액' };
+    var lab   = (kind==='b') ? L.b : '공급자 보관용';
     var last  = (pi === pn-1);
     var cs    = cols(O);
     var money = (O.amt==='Y');
@@ -152,7 +157,7 @@
     /* 공급받는자 이메일 (2026-09-09 요청) — 거래처 마스터 TBL_VENDOR_MST.EMAIL 그대로. 없으면 빈 칸 */
     var vMail = ven.email || '';
     var h = '<div class="cp cp-'+kind+(O.inv==='Y'?' inv':'')+'">';
-    h += '<div class="top"><span>공급받는자연락처 : '+esc(telNo(ven.hp||ven.tel||''))+'</span>'
+    h += '<div class="top"><span>'+(purch ? '공급자 연락처 : '+esc(telNo(S.tel||'')) : '공급받는자연락처 : '+esc(telNo(ven.hp||ven.tel||'')))+'</span>'
        /* 인쇄일시 — 회사 설정 ③ 「인쇄일시」(2026-09-11). 종전에는 늘 찍었다 → 옛 조건(ptime 없음)은 찍는다 */
        + (O.ptime==='N' ? '<span></span>' : '<span>인쇄일시 : '+nowStr()+'</span>') + '</div>';
     h += '<h1>거 래 명 세 서 <small>('+lab+')</small></h1>';
@@ -229,20 +234,20 @@
        +   '<col style="width:8%"><col style="width:12%"><col style="width:9%"><col style="width:31%"></colgroup>'
        + '<tr><td class="k">전잔고</td><td class="r">'+(bal?fmt(D.balBefore):'')+'</td>'
        /* 반품액·실매출액을 찍으면 이 칸은 <반품 전 매출액> — 매출액 − 반품액 = 실매출액 이 한 줄에 맞아떨어진다 */
-       +     '<td class="k">매출액</td><td class="r">'+(money?fmt(netAmt + (rtn ? rtnAmt : 0)):'')+'</td>'
+       +     '<td class="k">'+L.sale+'</td><td class="r">'+(money?fmt(netAmt + (rtn ? rtnAmt : 0)):'')+'</td>'
        +     '<td class="k">세액</td><td class="r">'+((money&&O.vat==='Y')?fmt(D.t.vat):'')+'</td>'
        /* ★계좌 = «거래처에 적힌 계좌»가 있으면 그것, 없으면 회사 계좌 (2026-10-02 사용자 「코네트 계좌번호를 찍어 주지만 이외 경우 발생함」) —
             거래처관리의 「계좌」 칸은 그 거래처가 입금할 계좌다(대부분 코네트 계좌이지만 다른 계좌를 쓰는 거래처가 있다).
             종전엔 늘 회사 계좌 하나만 찍어 그런 거래처에는 틀린 계좌가 나갔다. 화면 인쇄(D.ven = 거래처 마스터)와 공개 링크(서버 stmtJson)가 같은 값을 준다. */
        +     '<td class="k">계좌</td><td class="l">'+esc((D.ven && String(D.ven.bankAcct||'').replace(/^\s+|\s+$/g,'')) || S.bank)+'</td></tr>'
        + '<tr><td class="k">합계</td><td class="r"><b>'+(money?fmt(D.t.tot):'')+'</b></td>'
-       +     '<td class="k">수금</td><td class="r">'+(money?fmt(D.pay):'')+'</td>'
+       +     '<td class="k">'+L.rcv+'</td><td class="r">'+(money?fmt(D.pay):'')+'</td>'
        +     '<td class="k">잔고</td><td class="r">'+(bal?fmt(D.balAfter):'')+'</td>'
        +     '<td class="k">연락처</td><td class="l">'+esc(telNo(S.tel))+'</td></tr>'
        + (rtn
           ? '<tr><td class="k">메모</td><td class="l wrap"><div class="tx">'+memo+'</div></td>'
             + '<td class="k">반품액</td><td class="r ret">'+(rtnAmt ? '−'+fmt(rtnAmt) : '0')+'</td>'
-            + '<td class="k">실매출액</td><td class="r"><b>'+fmt(netAmt)+'</b></td>'
+            + '<td class="k">'+L.net+'</td><td class="r"><b>'+fmt(netAmt)+'</b></td>'
           : '<tr><td class="k">메모</td><td colspan="5" class="l">'+memo+'</td>')
        +     '<td class="k">인수자</td><td class="r sig">(인)</td></tr>'
        + '<tr><td class="k">공지사항</td>'+noticeTd+'</tr>'
@@ -344,7 +349,7 @@
   function doc(D,O,S,prev,opt){
     opt = opt || {};
     var b = body(D,O,S,prev);
-    var title = '거래명세서 — '+(D.venNm||'')+' '+(D.dt||'')+(D.no?' / '+D.no:'');
+    var title = '거래명세서 — '+((O.kind==='purch' ? S.nm : D.venNm)||'')+' '+(D.dt||'')+(D.no?' / '+D.no:'');
     /* ★[🖨 인쇄]로 연 창은 <프린터로 보낸 뒤 스스로 닫힌다> (2026-09-09 「인쇄시 프린터로 갔다가 우리쪽으로 화면 다시옴」) —
          인쇄가 끝나도 이 창이 남아 있어 사람이 손으로 닫아야 우리 화면으로 돌아왔다.
          `afterprint` 는 <인쇄>든 <취소>든 대화상자를 닫으면 뜨므로 어느 쪽이든 제자리로 돌아온다.

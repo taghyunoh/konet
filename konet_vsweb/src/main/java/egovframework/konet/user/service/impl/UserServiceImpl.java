@@ -2684,6 +2684,7 @@ public class UserServiceImpl implements UserService {
 	   ★한 덩어리가 실패해도 나머지는 보여 준다(selectPipeline 과 같은 방식). DB 쓰기 없음. */
 	/* 업무 진행 상황 ① 출고 — 이전 출고 · 당일 출고(내일 출고일자) 납기수량. (같은 날 사용자 「오늘 출고를 이전 출고로, 내일을 당일로」 —
 	   대시보드가 내일 출고일자를 «당일»로 연다. 이전 출고 = 당일 전 «마지막으로 출고가 있는 날»(selectWorkPrevShipDt, 「당일 이전 중 출고일자 있는 것 기준으로」) — 주말·공휴일이면 오늘이 아니다) 셈은 위 머리말 「납기수량」 그대로 — 대시보드 조회 selectShipoutMst 를 두 날짜 «한 번»에 부른다(기간 조회, 날짜별로 나눔) */
+	@Override public java.util.List<java.util.Map<String,Object>> selectPurchaseRtnSrc(java.util.Map<String,Object> p) throws Exception { return mapper.selectPurchaseRtnSrc(p); }   // 매입분 반품 원천(2026-10-16)
 	@Override public java.util.Map<String,Object> selectPipelineWorkShip(String compCd) throws Exception {
 		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
 		java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyyMMdd");

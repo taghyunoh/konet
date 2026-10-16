@@ -368,6 +368,7 @@ public interface UserService {
 	/* 진행 현황 (2026-10-06) */
 	java.util.Map<String,Object> selectPipeline(java.util.Map<String,Object> p) throws Exception;                          // 두 흐름 집계를 한 번에
 	java.util.Map<String,Object> selectPipelineWork(String compCd) throws Exception;   // 업무 진행 상황(2026-10-14)
+	java.util.List<java.util.Map<String,Object>> selectPurchaseRtnSrc(java.util.Map<String,Object> p) throws Exception;   // 매입분 반품 원천(2026-10-16)
 	java.util.Map<String,Object> selectPipelineWorkShip(String compCd) throws Exception;   // 업무 진행 상황 ① 출고(따로 — 속도)
 	java.util.List<java.util.Map<String,Object>> selectPipelineList(java.util.Map<String,Object> p) throws Exception;       // 단계별 목록(발주·견적)
 	java.util.List<java.util.Map<String,Object>> selectQuoteAdoptList(java.util.Map<String,Object> p) throws Exception;     // 채택 견적

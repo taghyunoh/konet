@@ -3071,6 +3071,25 @@ public class UserController {
 			if (session.getAttribute("s_comp_cd") == null) { Map<String,Object> r = new HashMap<String,Object>(); r.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return r; }
 			return svc.selectPipelineWork(String.valueOf(session.getAttribute("s_comp_cd")));
 		}
+		/* 매입분 반품 원천 (2026-10-16 「매입한 내역을 불러와서 … 반품 수량만 입력」) — 매입등록 [↩ 매입분 반품] 창. {vendorCd, fromDt, toDt} → {data:[…]}. 조회 전용 */
+		@RequestMapping(value="/mangr/purchaseRtnSrc.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> purchaseRtnSrc(@RequestParam(value="vendorCd", required=false) String vendorCd,
+		                                          @RequestParam(value="fromDt", required=false) String fromDt,
+		                                          @RequestParam(value="toDt", required=false) String toDt, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", new java.util.ArrayList<Object>());
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String v = vendorCd == null ? "" : vendorCd.trim(), f = fromDt == null ? "" : fromDt.trim(), t = toDt == null ? "" : toDt.trim();
+				if (v.isEmpty()) { res.put("error", "거래처를 먼저 고르세요."); return res; }
+				if (!f.matches("[0-9]{4}-?[0-9]{2}-?[0-9]{2}") || !t.matches("[0-9]{4}-?[0-9]{2}-?[0-9]{2}")) { res.put("error", "조회 기간을 넣어 주세요."); return res; }
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("vendorCd", v); q.put("fromDt", f); q.put("toDt", t);
+				res.put("data", svc.selectPurchaseRtnSrc(q));
+			} catch (Exception e) { log.error(" purchaseRtnSrc ERROR : " + e.getMessage()); res.put("error", "조회하지 못했습니다."); }
+			return res;
+		}
 		/* 업무 진행 상황 ① 출고(이전·당일 납기수량) — 따로 받는다(같은 날 「속도가 너무 느립니다」 : 화면이 위와 동시에 부른다) */
 		@RequestMapping(value="/mangr/pipelineWorkShip.do", method = RequestMethod.POST)
 		@ResponseBody
