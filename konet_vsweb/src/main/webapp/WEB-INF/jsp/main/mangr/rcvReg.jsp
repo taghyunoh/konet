@@ -119,6 +119,8 @@
         <td>
           <%-- 거래처 = 직접 입력검색(거래처명·코드·별칭·대표·담당 부분일치). 목록을 훑어보려면 [거래처] 버튼. --%>
           <input type="text" id="svCustNm" placeholder="매출처명 입력 또는 [거래처]" style="width:230px" title="거래처명·코드·별칭·대표자·담당자로 검색합니다. ↑↓ 로 고르고 Enter.">
+          <%-- 거래처 코드 (2026-10-19 「매입처 코드도 추가」와 같은 식) — 같은 이름이 두 코드일 때 구분. svCustNm 의 data-cd 를 따라간다(svCustCdWatch) --%>
+          <input type="text" id="svCustCd" readonly tabindex="-1" style="width:64px; background:#f5f7f9; color:#5a6b7a; text-align:center" title="거래처 코드 — 같은 이름이 두 코드로 있을 때 구분합니다" placeholder="코드">
           <button class="sv-btn teal" tabindex="-1" onclick="svCustOpen()">거래처</button>
           <span class="sv-lbl">담당자</span><input type="text" id="svMgrNm" readonly tabindex="-1" style="width:110px">
           <span class="sv-lbl">현잔고</span><span class="sv-bal" id="svBal">0</span>
@@ -182,12 +184,12 @@
                눌렀을 뿐인데 그대로 저장하면 새 수금이 아니라 옛 전표를 덮어썼다. --%>
           <thead><tr>
             <th style="width:56px">수정</th>
-            <th style="width:150px">수금일자</th><th style="width:70px">번호</th><th>거래처명</th>
+            <th style="width:150px">수금일자</th><th style="width:70px">번호</th><th style="width:70px" title="거래처 코드 — 같은 이름이 두 코드로 있을 때 구분합니다 (2026-10-19)">코드</th><th>거래처명</th>
             <th style="width:90px">담당자</th><th style="width:100px">구분</th>
             <th style="width:120px">수금액</th><th style="width:100px">할인액</th>
             <th style="width:90px">등록자</th><th style="width:150px">비고</th>
           </tr></thead>
-          <tbody id="svListBody"><tr><td colspan="10" class="sv-msg">[리스트조회]를 누르세요.</td></tr></tbody>
+          <tbody id="svListBody"><tr><td colspan="11" class="sv-msg">[리스트조회]를 누르세요.</td></tr></tbody>
         </table>
       </div>
       <div id="svPager" style="padding:6px 2px; text-align:center; min-height:26px"></div>
@@ -258,8 +260,10 @@
   <div class="box">
     <div class="hd">거래처 선택
       <input type="text" id="svCustQ" placeholder="거래처명·코드·별칭·대표자" style="flex:1; height:30px; border:1px solid var(--sv-bd); border-radius:6px; padding:0 8px" oninput="svCustRender()">
+      <%-- 매출 거래처만 (2026-10-19 「수금등록도 같은 식으로」 — 지급등록은 매입만, 여기는 매출만). [전체]로 끄면 모두 --%>
+      <button class="sv-btn" id="svVenAllBtn" onclick="svVenAll(!_venAll)" title="평소엔 거래유형이 매출(또는 미지정)인 거래처만 보입니다 — 누르면 매입 거래처까지 전부" style="margin-left:6px">전체</button>
     </div>
-    <div class="bd"><table><thead><tr><th style="width:90px">코드</th><th>거래처명</th><th style="width:130px">별칭</th><th style="width:100px">대표자</th><th style="width:90px">담당사원</th></tr></thead>
+    <div class="bd"><table><thead><tr><th style="width:90px">코드</th><th>거래처명</th><th style="width:84px">거래유형</th><th style="width:130px">별칭</th><th style="width:100px">대표자</th><th style="width:90px">담당사원</th></tr></thead>
       <tbody id="svCustBody"></tbody></table></div>
     <div class="ft"><button class="sv-btn" onclick="svCustClose()">닫기</button></div>
   </div>
@@ -444,24 +448,24 @@ function svLoad(){
         + '&toDt='+encodeURIComponent(document.getElementById('svTo').value)
         + '&payGb='+encodeURIComponent(document.getElementById('svFPayGb').value)
         + '&findData='+encodeURIComponent(document.getElementById('svFind').value);
-  document.getElementById('svListBody').innerHTML='<tr><td colspan="10" class="sv-msg">조회 중…</td></tr>';
+  document.getElementById('svListBody').innerHTML='<tr><td colspan="11" class="sv-msg">조회 중…</td></tr>';
   post('/mangr/settleList.do', b).then(function(r){return r.json();}).then(function(j){
     _list=(j&&j.data)||[]; svListRender();
-  }).catch(function(e){ document.getElementById('svListBody').innerHTML='<tr><td colspan="10" class="sv-msg" style="color:#c0392b">조회 오류</td></tr>'; });
+  }).catch(function(e){ document.getElementById('svListBody').innerHTML='<tr><td colspan="11" class="sv-msg" style="color:#c0392b">조회 오류</td></tr>'; });
 }
 function svRowHtml(o,i){
   return '<tr onclick="svPickCust('+i+')" title="클릭 → 이 거래처를 골라 새 수금 전표로">'
     + '<td><button class="sv-btn" style="height:24px;padding:0 8px;font-size:12px" title="이 전표를 불러와 고칩니다"'
     +   ' onclick="event.stopPropagation();svEdit('+i+')">수정</button></td>'
     + '<td>'+esc(fmtDt(o.trxDt))+' '+esc(String(o.regDttm||'').slice(11,16))+'</td>'
-    + '<td>'+esc(o.trxNo)+'</td><td style="text-align:left">'+esc(o.custNm)+'</td><td>'+esc(o.mgrNm)+'</td>'
+    + '<td>'+esc(o.trxNo)+'</td><td style="color:#5a6b7a; font-size:12.5px">'+esc(o.custCd)+'</td><td style="text-align:left">'+esc(o.custNm)+'</td><td>'+esc(o.mgrNm)+'</td>'   /* 거래처 코드 (2026-10-19) */
     + '<td>'+esc(o.payGb)+'</td><td class="num">'+fmt(o.amt)+'</td><td class="num">'+fmt(o.dcAmt)+'</td>'
     + '<td>'+esc(o.regUser)+'</td><td style="text-align:left">'+esc(o.remark)+'</td></tr>';
 }
 function svListRender(){
   document.getElementById('svTotal').textContent = _list.length;
   var tb = document.getElementById('svListBody');
-  if(!_list.length){ tb.innerHTML='<tr><td colspan="10" class="sv-msg">전표가 없습니다.</td></tr>'; _lShown=0; svPager(); svSum(); return; }
+  if(!_list.length){ tb.innerHTML='<tr><td colspan="11" class="sv-msg">전표가 없습니다.</td></tr>'; _lShown=0; svPager(); svSum(); return; }
   _lShown = Math.min(LIST_ROWS, _list.length);
   tb.innerHTML = _list.slice(0,_lShown).map(function(o,i){ return svRowHtml(o,i); }).join('');
   svBind(); svPager(); svSum();
@@ -532,18 +536,34 @@ function svEdit(i){
 }
 
 /* ── 거래처 ── */
+/* 거래처 코드 칸 — svCustNm 의 data-cd 가 바뀔 때마다(고르기·목록 클릭·수정·새로고침 어느 길이든) 따라 적는다 (2026-10-19) */
+(function svCustCdWatch(){
+  var v=document.getElementById('svCustNm'), c=document.getElementById('svCustCd'); if(!v||!c) return;
+  var sync=function(){ c.value=v.dataset.cd||''; };
+  if(window.MutationObserver) new MutationObserver(sync).observe(v, { attributes:true, attributeFilter:['data-cd'] });
+  v.addEventListener('input', function(){ setTimeout(sync, 0); }); sync();
+})();
 function svCustOpen(){ document.getElementById('svCustPop').classList.add('on'); document.getElementById('svCustQ').value=''; svCustRender(); svLoadMasters(); }
 function svCustClose(){ document.getElementById('svCustPop').classList.remove('on'); }
 /* 새로 읽은 거래처 목록이 도착했을 때 — 창이 열려 있으면 그 자리에서 다시 그린다(닫혀 있으면 아무 일 없음) */
 function svCustRefreshed(){ var p=document.getElementById('svCustPop'); if(p && p.classList.contains('on')) svCustRender(); }
+/* 거래처 고르기 — 매출(또는 미지정) 거래처만 보이고, 같은 이름이 둘 이상이면 ⚠ 를 붙인다 (2026-10-19, 지급등록과 같은 식)
+     거래유형이 비어 있는 예전 거래처는 그대로 보여 준다. [전체]를 켜면 모두 보인다. */
+var _venAll=false;
+function svVenAll(on){ _venAll=!!on; var b=document.getElementById('svVenAllBtn'); if(b){ b.textContent=_venAll?'전체 ✔':'전체'; b.style.background=_venAll?'#137a6c':''; b.style.color=_venAll?'#fff':''; } svCustRender(); }
+function svVenFit(o){ if(_venAll) return true; var g=String((o&&o.vendorGb)||''); return !g || g.indexOf('매출')>=0; }
 function svCustRender(){
   var q=(document.getElementById('svCustQ').value||'').toLowerCase();
-  var l=_vendors.filter(function(o){ if(!q) return true;
+  var cnt={}; _vendors.forEach(function(o){ var k=String(o.vendorNm||'').trim(); cnt[k]=(cnt[k]||0)+1; });
+  var l=_vendors.filter(function(o){ if(!svVenFit(o)) return false; if(!q) return true;
     return [o.vendorCd,o.vendorNm,o.alias,o.ceoNm,o.mgrNm].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; }); }).slice(0,200);
   document.getElementById('svCustBody').innerHTML = l.length ? l.map(function(o){
+    var gb=String(o.vendorGb||''), dup=(cnt[String(o.vendorNm||'').trim()]||0)>1;
     return '<tr class="pick" onclick="svCustPick(\''+esc(o.vendorCd)+'\')"><td>'+esc(o.vendorCd)+'</td>'
-         + '<td style="text-align:left">'+esc(o.vendorNm)+'</td><td>'+esc(o.alias)+'</td><td>'+esc(o.ceoNm)+'</td><td>'+esc(o.mgrNm)+'</td></tr>';
-  }).join('') : '<tr><td colspan="5" class="sv-msg">검색 결과가 없습니다.</td></tr>';
+         + '<td style="text-align:left">'+esc(o.vendorNm)+(dup?' <span style="font-size:11px; font-weight:800; color:#9a4b00; background:#fff1e0; border:1px solid #f0c9a4; border-radius:6px; padding:0 5px" title="같은 이름의 거래처가 '+cnt[String(o.vendorNm||'').trim()]+'개 있습니다 — 코드·거래유형을 보고 고르세요">⚠ 같은 이름 '+cnt[String(o.vendorNm||'').trim()]+'개</span>':'')+'</td>'
+         + '<td><span style="display:inline-block; padding:1px 7px; border-radius:10px; font-size:11.5px; font-weight:800; '+(gb?(gb.indexOf('&')>=0?'background:#eef0ff; color:#3f43a8':(gb.indexOf('매출')>=0?'background:#e6f4f1; color:#137a6c':'background:#fdecec; color:#c0392b')):'background:#f2f4f6; color:#8a97a4')+'">'+esc(gb||'미지정')+'</span></td>'
+         + '<td>'+esc(o.alias)+'</td><td>'+esc(o.ceoNm)+'</td><td>'+esc(o.mgrNm)+'</td></tr>';
+  }).join('') : '<tr><td colspan="6" class="sv-msg">'+(_venAll?'검색 결과가 없습니다.':'매출 거래처 중에는 없습니다 — [전체]를 켜면 매입 거래처까지 보입니다.')+'</td></tr>';
 }
 function svCustPick(cd){
   var o=_vendors.filter(function(x){ return String(x.vendorCd)===String(cd); })[0]; if(!o) return;

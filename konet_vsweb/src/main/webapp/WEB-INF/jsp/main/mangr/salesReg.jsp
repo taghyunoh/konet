@@ -243,6 +243,8 @@
       <div class="sa-fld" style="flex:0 0 90px"><label>전표번호</label><input type="text" id="saNo" readonly style="background:#f5f7f9"></div>
       <%-- 거래처 = 직접 입력검색(거래처명·코드·별칭·대표·담당 부분일치). 목록을 훑어보려면 [거래처] 버튼. --%>
       <div class="sa-fld" style="flex:0 0 220px"><label>거래처</label><input type="text" id="saVenNm" placeholder="거래처명 입력 또는 [거래처]" title="거래처명·코드·별칭·대표자·담당자로 검색합니다. ↑↓ 로 고르고 Enter."><span id="saVatTag" class="vat-tag" style="display:none"></span></div>
+      <%-- 거래처 코드 (2026-10-19 「판매등록도 같은 식으로」) — 같은 이름이 두 코드일 때 구분. saVenNm 의 data-cd 를 따라간다(saVenCdWatch) --%>
+      <div class="sa-fld" style="flex:0 0 74px"><label>코드</label><input type="text" id="saVenCd" readonly tabindex="-1" style="background:#f5f7f9; color:#5a6b7a; text-align:center" title="거래처 코드 — 같은 이름이 두 코드로 있을 때 구분합니다"></div>
       <button class="sa-btn teal" onclick="saVenOpen()">거래처</button>
       <button class="sa-btn" onclick="saVenNew()" title="없는 거래처를 이 자리에서 바로 등록합니다">＋신규</button>
       <%-- 납품분 = 그 거래처에 이미 나간 품목(판매전표+정산서)을 중복 없이 모아 보여준다.
@@ -343,10 +345,10 @@
         <thead><tr>
           <th style="width:70px">복사저장</th><th style="width:110px">판매일시</th><th style="width:64px">번호</th>
           <%-- 거래처명은 폭을 지정해 줄인다(2026-08-04) — 자동 폭이면 남는 자리를 혼자 다 먹었다 --%>
-          <th style="width:220px">거래처명</th><th style="width:84px">담당사원</th><th style="width:64px">상품수</th>
+          <th style="width:70px" title="거래처 코드 — 같은 이름이 두 코드로 있을 때 구분합니다 (2026-10-19)">코드</th><th style="width:220px">거래처명</th><th style="width:84px">담당사원</th><th style="width:64px">상품수</th>
           <th style="width:110px">금액</th><th style="width:84px">창고</th><th style="width:84px">등록자</th>
         </tr></thead>
-        <tbody id="saListBody"><tr><td colspan="9" class="sa-msg">[리스트조회]를 누르세요.</td></tr></tbody>
+        <tbody id="saListBody"><tr><td colspan="10" class="sa-msg">[리스트조회]를 누르세요.</td></tr></tbody>
       </table>
     </div>
     <div id="saPager" style="padding:6px 2px; text-align:center; min-height:26px"></div>
@@ -1608,10 +1610,10 @@ function saLoad(){
   var b = 'fromDt='+encodeURIComponent(document.getElementById('saFrom').value)
         + '&toDt='+encodeURIComponent(document.getElementById('saTo').value)
         + '&findData='+encodeURIComponent(document.getElementById('saFindNm').value);
-  document.getElementById('saListBody').innerHTML = '<tr><td colspan="9" class="sa-msg">조회 중…</td></tr>';
+  document.getElementById('saListBody').innerHTML = '<tr><td colspan="10" class="sa-msg">조회 중…</td></tr>';
   post('/mangr/salesTrxList.do', b).then(function(r){return r.json();}).then(function(j){
     _list = (j&&j.data)||[]; saListRender();
-  }).catch(function(e){ document.getElementById('saListBody').innerHTML='<tr><td colspan="9" class="sa-msg" style="color:#c0392b">조회 오류 : '+esc(e.message)+'</td></tr>'; });
+  }).catch(function(e){ document.getElementById('saListBody').innerHTML='<tr><td colspan="10" class="sa-msg" style="color:#c0392b">조회 오류 : '+esc(e.message)+'</td></tr>'; });
 }
 /* 하단 목록 — 5행만 보여주고 스크롤이 바닥에 닿으면 다음 5행을 이어붙인다(매출내역과 같은 방식).
      행수에 따라 화면 높이가 들쑥날쑥하던 것을 막는다(2026-07-25 요청).
@@ -1621,6 +1623,7 @@ function saRowHtml(o, i){
   return '<tr onclick="saPick('+i+')">'
     + '<td><button class="sa-btn" style="height:24px;padding:0 8px;font-size:12px" onclick="event.stopPropagation();saCopy('+i+')">복사저장</button></td>'
     + '<td>'+esc(fmtDt(o.saleDt))+'</td><td>'+esc(o.saleNo)+'</td>'
+    + '<td style="color:#5a6b7a; font-size:12.5px">'+esc(o.custCd)+'</td>'   /* 거래처 코드 (2026-10-19) */
     + '<td class="txt" style="text-align:left">'+esc(o.custNm)+'</td><td>'+esc(o.mgrNm)+'</td>'
     + '<td>'+n(o.prodCnt)+'</td><td class="num">'+fmt(o.totAmt)+'</td>'
     + '<td>'+esc(o.whNm)+'</td><td>'+esc(o.regUser)+'</td></tr>';
@@ -1628,7 +1631,7 @@ function saRowHtml(o, i){
 function saListRender(){
   document.getElementById('saTotal').textContent = _list.length;
   var tb = document.getElementById('saListBody');
-  if (!_list.length) { tb.innerHTML='<tr><td colspan="9" class="sa-msg">전표가 없습니다.</td></tr>'; _lShown=0; saPagerRender(); saSumRender(); return; }
+  if (!_list.length) { tb.innerHTML='<tr><td colspan="10" class="sa-msg">전표가 없습니다.</td></tr>'; _lShown=0; saPagerRender(); saSumRender(); return; }
   _lShown = Math.min(LIST_ROWS, _list.length);
   tb.innerHTML = _list.slice(0,_lShown).map(function(o,i){ return saRowHtml(o,i); }).join('');
   saListBind();
@@ -1831,10 +1834,12 @@ function saVenRender(){
     if(!q) return true;
     return [o.vendorCd,o.vendorNm,o.alias,o.ceoNm,o.mgrNm].some(function(x){ return String(x||'').toLowerCase().indexOf(q)>=0; });
   })).slice(0,200);
+  /* 같은 이름이 둘 이상이면 ⚠ (2026-10-19 — 제이투팩(주)가 매출·매입 두 코드로 있어 엉뚱한 쪽을 골랐었다) */
+  var _venDupCnt={}; _vendors.forEach(function(o){ var k=String(o.vendorNm||'').trim(); _venDupCnt[k]=(_venDupCnt[k]||0)+1; });
   document.getElementById('saVenBody').innerHTML = l.length ? l.map(function(o){
     var gb = String(o.vendorGb||''), vt = String(o.vatGb||'') || VAT_DEF;
     var sum = _venSum[o.vendorCd] || {};
-    return '<tr class="pick" onclick="saVenPick(\''+esc(o.vendorCd)+'\')"><td>'+esc(o.vendorCd)+'</td><td class="txt" style="text-align:left">'+esc(o.vendorNm)+'</td>'
+    return '<tr class="pick" onclick="saVenPick(\''+esc(o.vendorCd)+'\')"><td>'+esc(o.vendorCd)+'</td><td class="txt" style="text-align:left">'+esc(o.vendorNm)+((_venDupCnt[String(o.vendorNm||'').trim()]||0)>1?' <span style="font-size:11px; font-weight:800; color:#9a4b00; background:#fff1e0; border:1px solid #f0c9a4; border-radius:6px; padding:0 5px" title="같은 이름의 거래처가 '+_venDupCnt[String(o.vendorNm||'').trim()]+'개 있습니다 — 코드·거래유형을 보고 고르세요">⚠ 같은 이름 '+_venDupCnt[String(o.vendorNm||'').trim()]+'개</span>':'')+'</td>'
          /* 거래유형·부가세도 같이 보여 준다 (2026-08-03 요청) — 고르기 전에 성격을 알 수 있게.
             부가세가 비어 있는 예전 거래처는 '별도*' 로 — 계산도 별도로 하고 있음을 별표로 알린다. */
          + '<td>'+(gb ? '<span class="vp-gb'+(gb.indexOf('&')>=0?' both':'')+'">'+esc(gb)+'</span>'
@@ -4438,6 +4443,13 @@ function saMailCopy(){
 
 /* 전역 리스너 — 그리드 키 위임, 스크롤 시 드롭다운 닫기, 저장/신규 단축키.
    (함수 선언은 hoisting 되므로 init 보다 뒤에 있어도 안전하다) */
+/* 거래처 코드 칸 — saVenNm 의 data-cd 가 바뀔 때마다 따라 적는다 (2026-10-19) */
+(function saVenCdWatch(){
+  var v=document.getElementById('saVenNm'), c=document.getElementById('saVenCd'); if(!v||!c) return;
+  var sync=function(){ c.value=v.dataset.cd||''; };
+  if(window.MutationObserver) new MutationObserver(sync).observe(v, { attributes:true, attributeFilter:['data-cd'] });
+  v.addEventListener('input', function(){ setTimeout(sync, 0); }); sync();
+})();
 (function saKbdBind(){
   var b = document.getElementById('saBody');
   if (b) b.addEventListener('keydown', saGridKey);

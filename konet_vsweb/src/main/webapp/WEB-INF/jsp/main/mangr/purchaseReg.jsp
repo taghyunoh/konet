@@ -193,6 +193,8 @@
       <div class="pu-fld" style="flex:0 0 90px"><label>전표번호</label><input type="text" id="puNo" readonly style="background:#f5f7f9"></div>
       <%-- 거래처 = 직접 입력검색(거래처명·코드·별칭·대표·담당 부분일치). 목록을 훑어보려면 [거래처] 버튼. --%>
       <div class="pu-fld" style="flex:0 0 220px"><label>거래처</label><input type="text" id="puVenNm" placeholder="거래처명 입력 또는 [거래처]" title="거래처명·코드·별칭·대표자·담당자로 검색합니다. ↑↓ 로 고르고 Enter."><span id="puVatTag" class="vat-tag" style="display:none"></span></div>
+      <%-- 거래처 코드 (2026-10-19 사용자 「여기도 추가해 줘」) — 같은 이름이 두 코드일 때 구분. 값은 puVenNm 의 data-cd 를 따라간다(puVenCdWatch) --%>
+      <div class="pu-fld" style="flex:0 0 74px"><label>코드</label><input type="text" id="puVenCd" readonly tabindex="-1" style="background:#f5f7f9; color:#5a6b7a; text-align:center" title="거래처 코드 — 같은 이름이 두 코드로 있을 때 구분합니다"></div>
       <button class="pu-btn teal" onclick="puVenOpen()">거래처</button>
       <button class="pu-btn" onclick="puVenNew()" title="없는 거래처를 이 자리에서 바로 등록합니다">＋신규</button>
       <%-- 매입분 = 그 매입처에서 이미 사 온 품목(매입전표 + 매입단가이력)을 중복 없이.
@@ -289,10 +291,10 @@
         <thead><tr>
           <th style="width:70px">복사저장</th><th style="width:110px">매입일시</th><th style="width:64px">번호</th>
           <%-- 거래처명은 폭을 지정해 줄인다(2026-08-04 — 판매등록과 동일) --%>
-          <th style="width:220px">거래처명</th><th style="width:84px">담당사원</th><th style="width:64px">상품수</th>
+          <th style="width:70px" title="거래처 코드 — 같은 이름이 두 코드로 있을 때 구분합니다 (2026-10-19)">코드</th><th style="width:220px">거래처명</th><th style="width:84px">담당사원</th><th style="width:64px">상품수</th>
           <th style="width:110px">금액</th><th style="width:84px">창고</th><th style="width:84px">등록자</th>
         </tr></thead>
-        <tbody id="puListBody"><tr><td colspan="9" class="pu-msg">[리스트조회]를 누르세요.</td></tr></tbody>
+        <tbody id="puListBody"><tr><td colspan="10" class="pu-msg">[리스트조회]를 누르세요.</td></tr></tbody>
       </table>
     </div>
     <div id="puPager" style="padding:6px 2px; text-align:center; min-height:26px"></div>
@@ -1369,7 +1371,7 @@ function puLoad(){
   var b = 'fromDt='+encodeURIComponent(document.getElementById('puFrom').value)
         + '&toDt='+encodeURIComponent(document.getElementById('puTo').value)
         + '&findData='+encodeURIComponent(document.getElementById('puFindNm').value);
-  document.getElementById('puListBody').innerHTML = '<tr><td colspan="9" class="pu-msg">조회 중…</td></tr>';
+  document.getElementById('puListBody').innerHTML = '<tr><td colspan="10" class="pu-msg">조회 중…</td></tr>';
   post('/mangr/purchaseList.do', b).then(function(r){return r.json();}).then(function(j){
     _list = (j&&j.data)||[]; puListRender();
   }).catch(function(e){ document.getElementById('puListBody').innerHTML='<tr><td colspan="10" class="pu-msg" style="color:#c0392b">조회 오류 : '+esc(e.message)+'</td></tr>'; });
@@ -1382,6 +1384,7 @@ function puRowHtml(o, i){
   return '<tr onclick="puPick('+i+')">'
     + '<td><button class="pu-btn" style="height:24px;padding:0 8px;font-size:12px" onclick="event.stopPropagation();puCopy('+i+')">복사저장</button></td>'
     + '<td>'+esc(fmtDt(o.purchDt))+'</td><td>'+esc(o.purchNo)+'</td>'
+    + '<td style="color:#5a6b7a; font-size:12.5px">'+esc(o.vendorCd)+'</td>'   /* 매입처 코드 (2026-10-19) */
     /* 반품 줄이 든 전표는 거래처명 옆에 빨간 「반품 n줄」 (2026-10-16 사용자 「선택 전 반품이 있는지 표시」 — 종전엔 눌러서 위 명세를 봐야 알았다) */
     + '<td class="txt" style="text-align:left">'+esc(o.vendorNm)+(n(o.rtnCnt)?' <span style="display:inline-block;font-size:11px;font-weight:800;color:#c0392b;background:#fdecec;border-radius:6px;padding:1px 6px;margin-left:4px" title="반품(불량반품) 줄 '+n(o.rtnCnt)+'개가 든 전표">반품 '+n(o.rtnCnt)+'줄</span>':'')
     /* 원본 전표 표시 (2026-10-16 사용자 「원본에 대하여 반품 발생 표시」) — 이 전표에서 반품해 간 줄 수(주황) · 그 반품을 원위치한 줄 수(파랑) */
@@ -1394,7 +1397,7 @@ function puRowHtml(o, i){
 function puListRender(){
   document.getElementById('puTotal').textContent = _list.length;
   var tb = document.getElementById('puListBody');
-  if (!_list.length) { tb.innerHTML='<tr><td colspan="9" class="pu-msg">전표가 없습니다.</td></tr>'; _lShown=0; puPagerRender(); puSumRender(); return; }
+  if (!_list.length) { tb.innerHTML='<tr><td colspan="10" class="pu-msg">전표가 없습니다.</td></tr>'; _lShown=0; puPagerRender(); puSumRender(); return; }
   _lShown = Math.min(LIST_ROWS, _list.length);
   tb.innerHTML = _list.slice(0,_lShown).map(function(o,i){ return puRowHtml(o,i); }).join('');
   puListBind();
@@ -1591,10 +1594,12 @@ function puVenRender(){
     return d || String(a.vendorNm||'').localeCompare(String(b.vendorNm||''), 'ko');
   });
   l = l.slice(0,200);
+  /* 같은 이름이 둘 이상이면 ⚠ (2026-10-19 — 제이투팩(주)가 매출·매입 두 코드로 있어 엉뚱한 쪽을 골랐었다) */
+  var _venDupCnt={}; _vendors.forEach(function(o){ var k=String(o.vendorNm||'').trim(); _venDupCnt[k]=(_venDupCnt[k]||0)+1; });
   document.getElementById('puVenBody').innerHTML = l.length ? l.map(function(o){
     var gb = String(o.vendorGb||''), vt = String(o.vatGb||'') || VAT_DEF;
     var sum = _venSum[o.vendorCd] || {};
-    return '<tr class="pick" onclick="puVenPick(\''+esc(o.vendorCd)+'\')"><td>'+esc(o.vendorCd)+'</td><td class="txt" style="text-align:left">'+esc(o.vendorNm)+'</td>'
+    return '<tr class="pick" onclick="puVenPick(\''+esc(o.vendorCd)+'\')"><td>'+esc(o.vendorCd)+'</td><td class="txt" style="text-align:left">'+esc(o.vendorNm)+((_venDupCnt[String(o.vendorNm||'').trim()]||0)>1?' <span style="font-size:11px; font-weight:800; color:#9a4b00; background:#fff1e0; border:1px solid #f0c9a4; border-radius:6px; padding:0 5px" title="같은 이름의 거래처가 '+_venDupCnt[String(o.vendorNm||'').trim()]+'개 있습니다 — 코드·거래유형을 보고 고르세요">⚠ 같은 이름 '+_venDupCnt[String(o.vendorNm||'').trim()]+'개</span>':'')+'</td>'
          /* 거래유형·부가세도 같이 보여 준다 (2026-08-03 요청) — 고르기 전에 성격을 알 수 있게.
             부가세가 비어 있는 예전 거래처는 '별도*' 로 — 계산도 별도로 하고 있음을 별표로 알린다. */
          + '<td>'+(gb ? '<span class="vp-gb'+(gb.indexOf('&')>=0?' both':'')+'">'+esc(gb)+'</span>'
@@ -2808,6 +2813,13 @@ function puPinPick(k){
 function puPinClose(){ if (_pinDrop) _pinDrop.style.display = 'none'; _pinList = []; _pinIdx = -1; }
 function puPinBlur(){ setTimeout(puPinClose, 150); }
 
+/* 거래처 코드 칸 — puVenNm 의 data-cd 가 바뀔 때마다(고르기·불러오기·신규·복사저장 어느 길이든) 따라 적는다 (2026-10-19) */
+(function puVenCdWatch(){
+  var v=document.getElementById('puVenNm'), c=document.getElementById('puVenCd'); if(!v||!c) return;
+  var sync=function(){ c.value=v.dataset.cd||''; };
+  if(window.MutationObserver) new MutationObserver(sync).observe(v, { attributes:true, attributeFilter:['data-cd'] });
+  v.addEventListener('input', function(){ setTimeout(sync, 0); }); sync();
+})();
 (function puKbdBind(){
   var b = document.getElementById('puBody');
   if (b) b.addEventListener('keydown', puGridKey);
