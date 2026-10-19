@@ -2997,7 +2997,12 @@ public class UserController {
 				if (subMsg != null) return ResponseEntity.status(409).body(subMsg);
 				String stopMsg = stopBlockMsg(codes, dto.getPurchDt(), session);
 				if (stopMsg != null) return ResponseEntity.status(409).body(stopMsg);
-				String u = (session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "");
+				/* ★로그인 관문 (2026-10-19 사용자 「등록자가 없는데 확인해 주세요」) — 세션이 죽은(재배포·만료) 채 열려 있던 화면이 저장을 보내면
+				   종전엔 COMP_CD 기본값·REG_USER 빈칸으로 «그냥 저장»됐다(2026-09-08~17 전표 21건). 세션에 회사·사용자가 없으면 저장하지 않는다. */
+				if (session.getAttribute("s_comp_cd") == null || session.getAttribute("s_user_id") == null)
+					return ResponseEntity.status(401).body("로그인이 끊겼습니다 — 다시 로그인한 뒤 저장해 주세요. (입력한 내용은 화면에 남아 있습니다)");
+				dto.setCompCd(String.valueOf(session.getAttribute("s_comp_cd")));
+				String u = String.valueOf(session.getAttribute("s_user_id"));
 				dto.setRegUser(u); dto.setUpdUser(u); dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());
 				int n = svc.savePurchase(dto);
 				Map<String,Object> q = new HashMap<String,Object>();
@@ -3348,7 +3353,12 @@ public class UserController {
 				for (egovframework.konet.user.model.PurchaseDtlDTO it : dto.getItems()) pCodes.add(it.getProdCd());
 				String stopMsg = stopBlockMsg(pCodes, dto.getPurchDt(), session);
 				if (stopMsg != null) return ResponseEntity.status(409).body(stopMsg);
-				String u = (session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"");
+				/* ★로그인 관문 (2026-10-19 사용자 「등록자가 없는데 확인해 주세요」) — 세션이 죽은(재배포·만료) 채 열려 있던 화면이 저장을 보내면
+				   종전엔 COMP_CD 기본값·REG_USER 빈칸으로 «그냥 저장»됐다(2026-09-08~17 전표 21건). 세션에 회사·사용자가 없으면 저장하지 않는다. */
+				if (session.getAttribute("s_comp_cd") == null || session.getAttribute("s_user_id") == null)
+					return ResponseEntity.status(401).body("로그인이 끊겼습니다 — 다시 로그인한 뒤 저장해 주세요. (입력한 내용은 화면에 남아 있습니다)");
+				dto.setCompCd(String.valueOf(session.getAttribute("s_comp_cd")));
+				String u = String.valueOf(session.getAttribute("s_user_id"));
 				dto.setRegUser(u); dto.setUpdUser(u);
 				dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());
 				int n = svc.savePurchase(dto);
