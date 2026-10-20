@@ -448,4 +448,16 @@ public interface UserService {
 	int deletePoReq(java.util.List<Long> reqSeqs, String compCd, String user, String ip) throws Exception;
 	int cancelPoReqByProd(String prodCd, String compCd, String user, String ip) throws Exception;   // 대시보드에서 품목 하나 취소
 
+	/* ===== 직원 휴가 (2026-10-21) — 달력·현황·엑셀. 표 = TBL_LEAVE_MST / TBL_LEAVE_QUOTA (docs/sql/20261021_leave.sql) ===== */
+	java.util.List<java.util.Map<String,Object>> selectLeaveUsers(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectLeaveList(java.util.Map<String,Object> p) throws Exception;
+	int selectLeaveOverlap(java.util.Map<String,Object> p) throws Exception;
+	int insertLeave(java.util.Map<String,Object> p) throws Exception;
+	int updateLeave(java.util.Map<String,Object> p) throws Exception;
+	int updateLeaveStatus(java.util.Map<String,Object> p) throws Exception;
+	int deleteLeave(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectLeaveSummary(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectLeaveQuota(java.util.Map<String,Object> p) throws Exception;
+	int mergeLeaveQuota(java.util.Map<String,Object> p) throws Exception;
+
 }

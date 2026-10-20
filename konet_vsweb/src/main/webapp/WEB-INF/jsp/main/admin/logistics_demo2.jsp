@@ -3455,9 +3455,16 @@
          iframe 화면(mangr/empNotice.jsp · empMsg.jsp) — 아래 panel-empNotice · panel-empMsg 와 짝.
          메뉴 옆 빨간 배지(.emp-badge) = 안 읽은 수 — asset/js/emp-badge.js 가 30초마다 /emp/badge.do 에 묻는다(이 JSP 엔 스크립트를 넣지 않는다 — 65535 한도).
          화면(iframe)이 읽음 처리한 뒤 parent.konetEmpBadge() 로 바로 갱신한다. 모바일 앱(9072)은 아직 없다(웹 먼저). --%>
-    <div class="grp">직원 소통</div>
-    <a class="mi" data-key="empNotice" onclick="logiFrame('empNotice','${pageContext.request.contextPath}/emp/notice.do', this)"><span class="ic">📢</span>직원 공지사항<span class="emp-badge" id="empNoticeBadge" style="display:none"></span></a>
-    <a class="mi" data-key="empMsg" onclick="logiFrame('empMsg','${pageContext.request.contextPath}/emp/msg.do', this)"><span class="ic">💬</span>직원 메신저<span class="emp-badge" id="empMsgBadge" style="display:none"></span></a>
+    <div class="grp">직원관리</div>
+    <%-- 직원관리 주메뉴 + 서브메뉴 (2026-10-21 사용자 「직원관리 주메뉴에 서브메뉴로 처리해줘」) — 매출 관리·매입 관리와 같은 접이식.
+         주메뉴 옆 배지(empGrpBadge) = 공지 + 메신저 안 읽은 수 합 — 접혀 있어도 보이게(asset/js/emp-badge.js 가 같이 칠한다) --%>
+    <a class="mi has-sub" data-sub="emp" onclick="logiToggleSub('emp', this)"><span class="ic">👥</span>직원관리<span class="emp-badge" id="empGrpBadge" style="display:none"></span><span class="caret">▶</span></a>
+    <div class="sub-menu" id="sub-emp">
+      <a class="mi" data-key="empNotice" onclick="logiFrame('empNotice','${pageContext.request.contextPath}/emp/notice.do', this)"><span class="ic">📢</span>직원 공지사항<span class="emp-badge" id="empNoticeBadge" style="display:none"></span></a>
+      <a class="mi" data-key="empMsg" onclick="logiFrame('empMsg','${pageContext.request.contextPath}/emp/msg.do', this)"><span class="ic">💬</span>직원 메신저<span class="emp-badge" id="empMsgBadge" style="display:none"></span></a>
+      <%-- 직원 휴가 관리 (2026-10-21 사용자 「연차·월차·반차·병가 구분으로 직원별 휴가 관리, 달력·현황·엑셀」) — iframe 화면(mangr/leaveMng.jsp, panel-leaveMng). 표 = docs/sql/20261021_leave.sql --%>
+      <a class="mi" data-key="leaveMng" onclick="logiFrame('leaveMng','${pageContext.request.contextPath}/mangr/leaveMng.do', this)"><span class="ic">🏖</span>직원 휴가 관리</a>
+    </div>
 
     <div class="grp">정보 현황</div>
     <a class="mi has-sub" data-sub="infomng" onclick="logiToggleSub('infomng', this)"><span class="ic">📈</span>정보 현황<span class="caret">▶</span></a>
@@ -5185,6 +5192,10 @@
     <%-- 직원 소통 (2026-09-22) — 메뉴 logiFrame('empNotice'|'empMsg',…) 의 짝 --%>
     <section id="panel-empNotice" class="panel" style="padding:0;">
       <iframe id="if-empNotice" src="" title="직원 공지사항" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <%-- 직원 휴가 관리 (2026-10-21) — 메뉴 logiFrame('leaveMng',…) 의 짝 --%>
+    <section id="panel-leaveMng" class="panel" style="padding:0;">
+      <iframe id="if-leaveMng" src="" title="직원 휴가 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <section id="panel-empMsg" class="panel" style="padding:0;">
       <iframe id="if-empMsg" src="" title="직원 메신저" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>

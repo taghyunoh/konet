@@ -5730,4 +5730,218 @@ public class UserController {
 			} catch (Exception e) { log.error(" empMsgDel ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
 		}
 
+		/* ══════════════════════════════════════════════════════════════════════════
+		   직원 휴가 관리 (2026-10-21 사용자 「기존 직원 휴가 내용을 메시지로 처리 → 연차·월차·반차·병가 등 구분으로 직원별 휴가 관리,
+		                                   메뉴는 직원 메신저 밑에, 달력으로 한눈에, 총괄관리자는 현황을 한눈에, 엑셀 월별·연별·사원별」)
+		     · 화면 = mangr/leaveMng.jsp (셸 iframe panel-leaveMng) · 표 = TBL_LEAVE_MST / TBL_LEAVE_QUOTA (docs/sql/20261021_leave.sql)
+		     · 권한 = 세션 s_main_gu 1(총괄관리자)만 관리자 : 모든 직원의 휴가 등록·수정·삭제·승인·반려 + 부여 일수 설정
+		              (2026-10-21 사용자 「기존 정보 설정은 총괄관리자가 수정할 수 있게」「수정은 본인 것만」 — 처음엔 부관리자(2)도 관리자였다)
+		              그 밖(부관리자 2·담당자 3) → 제 휴가만 등록·수정·삭제(상태는 늘 「신청」), 현황은 전체를 본다(누가 쉬는지 알아야 하므로)
+		     · 상태 = 신청 · 승인 · 반려. 총괄관리자가 넣으면 바로 승인. 겹치는 기간은 막는다(반차 오전·오후는 같은 날 둘 다 가능)
+		   ══════════════════════════════════════════════════════════════════════════ */
+		private boolean leaveAdmin(HttpSession session) {
+			String gu = String.valueOf(session.getAttribute("s_main_gu")).trim();
+			return "1".equals(gu);   /* 총괄관리자만 (2026-10-21) */
+		}
+		private Map<String,Object> leaveFail(String msg) { Map<String,Object> r = new HashMap<String,Object>(); r.put("error", msg); return r; }
+		private static String leaveStr(Object v) { return v == null ? "" : String.valueOf(v).trim(); }
+		/* yyyy-mm-dd / yyyymmdd → yyyymmdd. 틀리면 "" */
+		private static String leaveYmd(Object v) {
+			String s = leaveStr(v).replace("-", "");
+			return s.matches("[0-9]{8}") ? s : "";
+		}
+
+		@RequestMapping(value="/mangr/leaveMng.do")
+		public String leaveMng(HttpSession session, Model model) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			model.addAttribute("leaveAdmin", leaveAdmin(session) ? "Y" : "N");
+			model.addAttribute("leaveUserId", leaveStr(session.getAttribute("s_user_id")));
+			model.addAttribute("leaveUserNm", leaveStr(session.getAttribute("s_user_nm")));
+			return ".raw/main/mangr/leaveMng";
+		}
+
+		/** 직원 목록 + 로그인 사용자·권한 — 화면이 처음 한 번 부른다 */
+		@RequestMapping(value="/mangr/leaveUsers.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> leaveUsers(HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) return leaveFail("로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요.");
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd"));
+			res.put("data", svc.selectLeaveUsers(q));
+			res.put("admin", leaveAdmin(session) ? "Y" : "N");
+			res.put("userId", leaveStr(session.getAttribute("s_user_id")));
+			res.put("userNm", leaveStr(session.getAttribute("s_user_nm")));
+			return res;
+		}
+
+		/** 휴가 목록 — frDt~toDt(yyyymmdd 또는 yyyy-mm-dd) 와 겹치는 건. userId 는 선택 */
+		@RequestMapping(value="/mangr/leaveList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> leaveList(@RequestParam("frDt") String frDt, @RequestParam("toDt") String toDt,
+		                                    @RequestParam(value="userId", required=false) String userId, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) return leaveFail("로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요.");
+			String a = leaveYmd(frDt), b = leaveYmd(toDt);
+			if (a.isEmpty() || b.isEmpty()) return leaveFail("기간이 올바르지 않습니다.");
+			Map<String,Object> q = new HashMap<String,Object>();
+			q.put("compCd", session.getAttribute("s_comp_cd")); q.put("frDt", a); q.put("toDt", b); q.put("userId", leaveStr(userId));
+			res.put("data", svc.selectLeaveList(q));
+			return res;
+		}
+
+		/** 저장(신규·수정) — JSON {leaveSeq, userId, userNm, leaveGb, fromDt, toDt, days, remark} */
+		@RequestMapping(value="/mangr/leaveSave.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> leaveSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return leaveFail("로그인이 끊겼습니다 — 다시 로그인한 뒤 저장해 주세요.");
+				boolean admin = leaveAdmin(session);
+				String me = leaveStr(session.getAttribute("s_user_id")), meNm = leaveStr(session.getAttribute("s_user_nm"));
+				long seq = 0; try { seq = Long.parseLong(leaveStr(p.get("leaveSeq"))); } catch (Exception e) { seq = 0; }
+				String userId = admin ? leaveStr(p.get("userId")) : me;
+				String userNm = admin ? leaveStr(p.get("userNm")) : meNm;
+				if (userId.isEmpty()) return leaveFail("직원을 고르세요.");
+				String gb = leaveStr(p.get("leaveGb"));
+				if (!java.util.Arrays.asList("연차","월차","반차(오전)","반차(오후)","병가","경조","공가","기타").contains(gb)) return leaveFail("구분이 올바르지 않습니다.");
+				String fromDt = leaveYmd(p.get("fromDt")), toDt = leaveYmd(p.get("toDt"));
+				if (fromDt.isEmpty()) return leaveFail("시작일을 넣으세요.");
+				if (toDt.isEmpty() || gb.startsWith("반차")) toDt = fromDt;
+				if (toDt.compareTo(fromDt) < 0) return leaveFail("종료일이 시작일보다 앞섭니다.");
+				double days = 0; try { days = Double.parseDouble(leaveStr(p.get("days"))); } catch (Exception e) { days = 0; }
+				if (gb.startsWith("반차")) days = 0.5;
+				if (days <= 0) return leaveFail("일수를 넣으세요.");
+				String remark = leaveStr(p.get("remark")); if (remark.length() > 200) remark = remark.substring(0, 200);
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("leaveSeq", Long.valueOf(seq));
+				q.put("userId", userId); q.put("userNm", userNm); q.put("leaveGb", gb); q.put("fromDt", fromDt); q.put("toDt", toDt);
+				q.put("days", java.math.BigDecimal.valueOf(days)); q.put("remark", remark);
+				q.put("regUser", me); q.put("regIp", request.getRemoteAddr());
+				if (svc.selectLeaveOverlap(q) > 0) return leaveFail("같은 직원의 휴가가 그 기간에 이미 있습니다 — 기간을 확인하세요.");
+				/* 상태 : 관리자가 넣으면 바로 승인, 담당자가 넣거나 고치면 신청(다시 승인 받는다) */
+				String status = admin ? "승인" : "신청";
+				q.put("status", status); q.put("statUser", admin ? meNm : null); q.put("statDttm", admin ? new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date()) : null);
+				int n;
+				if (seq > 0) {
+					if (!admin) {
+						/* 담당자는 제 것만 고친다 — 목록에서 본인 것인지 확인 */
+						Map<String,Object> chk = new HashMap<String,Object>(); chk.put("compCd", session.getAttribute("s_comp_cd")); chk.put("frDt", "00000000"); chk.put("toDt", "99991231"); chk.put("userId", me);
+						boolean mine = false; for (Map<String,Object> o : svc.selectLeaveList(chk)) if (String.valueOf(o.get("leaveSeq")).equals(String.valueOf(seq))) mine = true;
+						if (!mine) return leaveFail("다른 직원의 휴가는 고칠 수 없습니다.");
+					}
+					n = svc.updateLeave(q);
+				} else n = svc.insertLeave(q);
+				Map<String,Object> res = new HashMap<String,Object>(); res.put("rows", Integer.valueOf(n)); res.put("leaveSeq", q.get("leaveSeq")); res.put("status", status);
+				return res;
+			} catch (Exception e) { log.error(" leaveSave ERROR : " + e.getMessage()); return leaveFail(e.getMessage()); }
+		}
+
+		/** 여러 날짜 한 번에 (2026-10-21 사용자 「휴가 등록은 월별 및 연으로 등록도 가능하게」 — 메신저에 「10/23, 11/06, 11/13 …」 식으로 올리던 것)
+		 *  JSON {userId, userNm, leaveGb, dates:["20261023", …], remark} — 날짜마다 한 건씩(반차 0.5, 그 밖 1일). 겹치는 날짜는 건너뛰고 알려 준다 */
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/mangr/leaveSaveMulti.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> leaveSaveMulti(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return leaveFail("로그인이 끊겼습니다 — 다시 로그인한 뒤 저장해 주세요.");
+				boolean admin = leaveAdmin(session);
+				String me = leaveStr(session.getAttribute("s_user_id")), meNm = leaveStr(session.getAttribute("s_user_nm"));
+				String userId = admin ? leaveStr(p.get("userId")) : me, userNm = admin ? leaveStr(p.get("userNm")) : meNm;
+				if (userId.isEmpty()) return leaveFail("직원을 고르세요.");
+				String gb = leaveStr(p.get("leaveGb"));
+				if (!java.util.Arrays.asList("연차","월차","반차(오전)","반차(오후)","병가","경조","공가","기타").contains(gb)) return leaveFail("구분이 올바르지 않습니다.");
+				java.util.List<Object> raw = (java.util.List<Object>) p.get("dates");
+				if (raw == null || raw.isEmpty()) return leaveFail("날짜를 하나 이상 고르세요.");
+				java.util.TreeSet<String> dates = new java.util.TreeSet<String>();
+				for (Object o : raw) { String d = leaveYmd(o); if (!d.isEmpty()) dates.add(d); }
+				if (dates.isEmpty()) return leaveFail("날짜가 올바르지 않습니다.");
+				if (dates.size() > 60) return leaveFail("한 번에 60일까지 넣을 수 있습니다.");
+				String remark = leaveStr(p.get("remark")); if (remark.length() > 200) remark = remark.substring(0, 200);
+				String status = admin ? "승인" : "신청", now = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
+				int ok = 0; java.util.List<String> skipped = new java.util.ArrayList<String>();
+				for (String d : dates) {
+					Map<String,Object> q = new HashMap<String,Object>();
+					q.put("compCd", session.getAttribute("s_comp_cd")); q.put("leaveSeq", Long.valueOf(0));
+					q.put("userId", userId); q.put("userNm", userNm); q.put("leaveGb", gb); q.put("fromDt", d); q.put("toDt", d);
+					q.put("days", java.math.BigDecimal.valueOf(gb.startsWith("반차") ? 0.5 : 1.0)); q.put("remark", remark);
+					q.put("status", status); q.put("statUser", admin ? meNm : null); q.put("statDttm", admin ? now : null);
+					q.put("regUser", me); q.put("regIp", request.getRemoteAddr());
+					if (svc.selectLeaveOverlap(q) > 0) { skipped.add(d); continue; }
+					ok += svc.insertLeave(q);
+				}
+				Map<String,Object> res = new HashMap<String,Object>(); res.put("rows", Integer.valueOf(ok)); res.put("skipped", skipped); res.put("status", status);
+				return res;
+			} catch (Exception e) { log.error(" leaveSaveMulti ERROR : " + e.getMessage()); return leaveFail(e.getMessage()); }
+		}
+
+		/** 승인 · 반려 · 신청으로 되돌림 — 관리자만 */
+		@RequestMapping(value="/mangr/leaveStatus.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> leaveStatus(@RequestParam("leaveSeq") long leaveSeq, @RequestParam("status") String status,
+		                                      HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return leaveFail("로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요.");
+				if (!leaveAdmin(session)) return leaveFail("승인·반려는 총괄관리자만 할 수 있습니다.");
+				String st = leaveStr(status);
+				if (!java.util.Arrays.asList("신청","승인","반려").contains(st)) return leaveFail("상태가 올바르지 않습니다.");
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("leaveSeq", Long.valueOf(leaveSeq)); q.put("status", st);
+				q.put("statUser", leaveStr(session.getAttribute("s_user_nm"))); q.put("regUser", leaveStr(session.getAttribute("s_user_id"))); q.put("regIp", request.getRemoteAddr());
+				Map<String,Object> res = new HashMap<String,Object>(); res.put("rows", Integer.valueOf(svc.updateLeaveStatus(q)));
+				return res;
+			} catch (Exception e) { log.error(" leaveStatus ERROR : " + e.getMessage()); return leaveFail(e.getMessage()); }
+		}
+
+		@RequestMapping(value="/mangr/leaveDelete.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> leaveDelete(@RequestParam("leaveSeq") long leaveSeq, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return leaveFail("로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요.");
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("leaveSeq", Long.valueOf(leaveSeq));
+				q.put("ownerId", leaveAdmin(session) ? "" : leaveStr(session.getAttribute("s_user_id")));   /* 담당자는 제 것만 */
+				q.put("regUser", leaveStr(session.getAttribute("s_user_id"))); q.put("regIp", request.getRemoteAddr());
+				int n = svc.deleteLeave(q);
+				if (n == 0) return leaveFail("지울 수 없습니다 — 이미 지워졌거나 다른 직원의 휴가입니다.");
+				Map<String,Object> res = new HashMap<String,Object>(); res.put("rows", Integer.valueOf(n));
+				return res;
+			} catch (Exception e) { log.error(" leaveDelete ERROR : " + e.getMessage()); return leaveFail(e.getMessage()); }
+		}
+
+		/** 연간 현황 — 직원 × 구분 사용 일수 + 부여 일수(TBL_LEAVE_QUOTA) */
+		@RequestMapping(value="/mangr/leaveSummary.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> leaveSummary(@RequestParam("year") String year, HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) return leaveFail("로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요.");
+			String y = leaveStr(year); if (!y.matches("[0-9]{4}")) return leaveFail("연도가 올바르지 않습니다.");
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("year", y);
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", svc.selectLeaveSummary(q)); res.put("quota", svc.selectLeaveQuota(q));
+			return res;
+		}
+
+		/** 부여 일수 저장 — 관리자만. JSON {year, items:[{userId, annualDays, monthlyDays, remark}]} */
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/mangr/leaveQuotaSave.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> leaveQuotaSave(@RequestBody Map<String,Object> p, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return leaveFail("로그인이 끊겼습니다 — 다시 로그인한 뒤 저장해 주세요.");
+				if (!leaveAdmin(session)) return leaveFail("부여 일수는 총괄관리자만 고칠 수 있습니다.");
+				String y = leaveStr(p.get("year")); if (!y.matches("[0-9]{4}")) return leaveFail("연도가 올바르지 않습니다.");
+				java.util.List<Map<String,Object>> items = (java.util.List<Map<String,Object>>) p.get("items");
+				int n = 0;
+				if (items != null) for (Map<String,Object> it : items) {
+					String uid = leaveStr(it.get("userId")); if (uid.isEmpty()) continue;
+					double a = 0, m = 0; try { a = Double.parseDouble(leaveStr(it.get("annualDays"))); } catch (Exception e) { a = 0; } try { m = Double.parseDouble(leaveStr(it.get("monthlyDays"))); } catch (Exception e) { m = 0; }
+					Map<String,Object> q = new HashMap<String,Object>();
+					q.put("compCd", session.getAttribute("s_comp_cd")); q.put("userId", uid); q.put("year", y);
+					q.put("annualDays", java.math.BigDecimal.valueOf(a)); q.put("monthlyDays", java.math.BigDecimal.valueOf(m)); q.put("remark", leaveStr(it.get("remark")));
+					q.put("regUser", leaveStr(session.getAttribute("s_user_id")));
+					n += svc.mergeLeaveQuota(q);
+				}
+				Map<String,Object> res = new HashMap<String,Object>(); res.put("rows", Integer.valueOf(n));
+				return res;
+			} catch (Exception e) { log.error(" leaveQuotaSave ERROR : " + e.getMessage()); return leaveFail(e.getMessage()); }
+		}
+
 }

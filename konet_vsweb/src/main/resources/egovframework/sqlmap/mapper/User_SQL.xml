@@ -8346,4 +8346,111 @@
 	   WHERE REQ_SEQ = #{reqSeq} AND COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y' AND REG_YN = 'N'
 	]]></update>
 
+
+	<!-- ============================================================
+	     직원 휴가 (2026-10-21 사용자 「연차·월차·반차·병가 등 구분으로 직원별 휴가 관리 · 달력 · 총괄관리자 현황 · 엑셀」)
+	       표 = TBL_LEAVE_MST(한 건) · TBL_LEAVE_QUOTA(직원 × 연도 부여 일수) — docs/sql/20261021_leave.sql
+	       화면 = mangr/leaveMng.jsp · 자바 = /mangr/leave*.do (UserController 「직원 휴가」 묶음)
+	     ============================================================ -->
+	<!-- 직원 목록 — 지금 재직(START_DT~END_DT) 중인 사용자. 사용자 관리에서 지운(ACTION_YN='N')·사용 안 함(USE_YN='N') 계정은 빠진다 -->
+	<select id="selectLeaveUsers" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT LTRIM(RTRIM(A.USER_ID)) AS userId, A.USER_NM AS userNm, A.MAIN_GU AS mainGu
+	    FROM TBL_USER_MST A
+	   WHERE A.COMP_CD = #{compCd,jdbcType=VARCHAR} AND A.ACTION_YN = 'Y' AND ISNULL(A.USE_YN,'Y') <> 'N'
+	     AND CONVERT(VARCHAR(8), GETDATE(), 112) BETWEEN ISNULL(A.START_DT,'00000000') AND ISNULL(A.END_DT,'99991231')
+	   ORDER BY A.MAIN_GU, A.USER_NM
+	]]></select>
+
+	<!-- 휴가 목록 — 기간(frDt~toDt, yyyymmdd)과 겹치는 건. userId 를 주면 그 직원만 -->
+	<select id="selectLeaveList" parameterType="java.util.HashMap" resultType="java.util.HashMap">
+	  <![CDATA[
+	  SELECT L.LEAVE_SEQ AS leaveSeq, L.USER_ID AS userId, ISNULL(L.USER_NM,'') AS userNm, L.LEAVE_GB AS leaveGb,
+	         L.FROM_DT AS fromDt, L.TO_DT AS toDt, L.DAYS AS days, ISNULL(L.REMARK,'') AS remark,
+	         L.STATUS AS status, ISNULL(L.STAT_USER,'') AS statUser, ISNULL(L.STAT_DTTM,'') AS statDttm,
+	         ISNULL(L.REG_DTTM,'') AS regDttm, ISNULL(L.REG_USER,'') AS regUser
+	    FROM TBL_LEAVE_MST L
+	   WHERE L.COMP_CD = #{compCd,jdbcType=VARCHAR} AND L.ACTION_YN = 'Y'
+	     AND L.TO_DT >= #{frDt,jdbcType=CHAR} AND L.FROM_DT <= #{toDt,jdbcType=CHAR}
+	  ]]>
+	  <if test="userId != null and userId != ''"> AND L.USER_ID = #{userId,jdbcType=VARCHAR}</if>
+	  <![CDATA[
+	   ORDER BY L.FROM_DT, L.USER_NM, L.LEAVE_SEQ
+	  ]]>
+	</select>
+
+	<!-- 같은 직원의 겹치는 휴가 수 — 저장 전 검사. 반차(오전)·반차(오후)는 같은 날 둘 다 될 수 있다 -->
+	<select id="selectLeaveOverlap" parameterType="java.util.HashMap" resultType="java.lang.Integer"><![CDATA[
+	  SELECT COUNT(*)
+	    FROM TBL_LEAVE_MST L
+	   WHERE L.COMP_CD = #{compCd,jdbcType=VARCHAR} AND L.ACTION_YN = 'Y' AND L.STATUS <> N'반려'
+	     AND L.USER_ID = #{userId,jdbcType=VARCHAR} AND L.LEAVE_SEQ <> #{leaveSeq,jdbcType=BIGINT}
+	     AND L.TO_DT >= #{fromDt,jdbcType=CHAR} AND L.FROM_DT <= #{toDt,jdbcType=CHAR}
+	     AND NOT ( L.LEAVE_GB LIKE N'반차%' AND #{leaveGb,jdbcType=NVARCHAR} LIKE N'반차%' AND L.LEAVE_GB <> #{leaveGb,jdbcType=NVARCHAR} )
+	]]></select>
+
+	<insert id="insertLeave" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="leaveSeq" keyColumn="LEAVE_SEQ"><![CDATA[
+	  INSERT INTO TBL_LEAVE_MST (COMP_CD, USER_ID, USER_NM, LEAVE_GB, FROM_DT, TO_DT, DAYS, REMARK, STATUS, STAT_USER, STAT_DTTM,
+	                             ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES (#{compCd,jdbcType=VARCHAR}, #{userId,jdbcType=VARCHAR}, #{userNm,jdbcType=NVARCHAR}, #{leaveGb,jdbcType=NVARCHAR},
+	          #{fromDt,jdbcType=CHAR}, #{toDt,jdbcType=CHAR}, #{days,jdbcType=DECIMAL}, #{remark,jdbcType=NVARCHAR},
+	          #{status,jdbcType=NVARCHAR}, #{statUser,jdbcType=NVARCHAR}, #{statDttm,jdbcType=VARCHAR},
+	          'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
+	]]></insert>
+
+	<update id="updateLeave" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_LEAVE_MST
+	     SET USER_ID = #{userId,jdbcType=VARCHAR}, USER_NM = #{userNm,jdbcType=NVARCHAR}, LEAVE_GB = #{leaveGb,jdbcType=NVARCHAR},
+	         FROM_DT = #{fromDt,jdbcType=CHAR}, TO_DT = #{toDt,jdbcType=CHAR}, DAYS = #{days,jdbcType=DECIMAL}, REMARK = #{remark,jdbcType=NVARCHAR},
+	         STATUS = #{status,jdbcType=NVARCHAR}, STAT_USER = #{statUser,jdbcType=NVARCHAR}, STAT_DTTM = #{statDttm,jdbcType=VARCHAR},
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND LEAVE_SEQ = #{leaveSeq,jdbcType=BIGINT} AND ACTION_YN = 'Y'
+	]]></update>
+
+	<!-- 승인 · 반려 · 신청(되돌림) — 관리자만 -->
+	<update id="updateLeaveStatus" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_LEAVE_MST
+	     SET STATUS = #{status,jdbcType=NVARCHAR}, STAT_USER = #{statUser,jdbcType=NVARCHAR}, STAT_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120),
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND LEAVE_SEQ = #{leaveSeq,jdbcType=BIGINT} AND ACTION_YN = 'Y'
+	]]></update>
+
+	<!-- 지우기 = ACTION_YN 'N'. 담당자는 제 것만(ownerId 가 오면 그 직원 것만) -->
+	<update id="deleteLeave" parameterType="java.util.HashMap">
+	  <![CDATA[
+	  UPDATE TBL_LEAVE_MST
+	     SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND LEAVE_SEQ = #{leaveSeq,jdbcType=BIGINT} AND ACTION_YN = 'Y'
+	  ]]>
+	  <if test="ownerId != null and ownerId != ''"> AND USER_ID = #{ownerId,jdbcType=VARCHAR}</if>
+	</update>
+
+	<!-- 연간 현황 — 직원 × 구분의 사용 일수(반려 제외) · 신청 대기 건수 -->
+	<select id="selectLeaveSummary" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT L.USER_ID AS userId, MAX(ISNULL(L.USER_NM,'')) AS userNm, L.LEAVE_GB AS leaveGb,
+	         SUM(CASE WHEN L.STATUS <> N'반려' THEN L.DAYS ELSE 0 END) AS days,
+	         SUM(CASE WHEN L.STATUS <> N'반려' THEN 1 ELSE 0 END) AS cnt,
+	         SUM(CASE WHEN L.STATUS = N'신청' THEN 1 ELSE 0 END) AS pendCnt
+	    FROM TBL_LEAVE_MST L
+	   WHERE L.COMP_CD = #{compCd,jdbcType=VARCHAR} AND L.ACTION_YN = 'Y' AND LEFT(L.FROM_DT, 4) = #{year,jdbcType=CHAR}
+	   GROUP BY L.USER_ID, L.LEAVE_GB
+	]]></select>
+
+	<select id="selectLeaveQuota" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT Q.USER_ID AS userId, Q.ANNUAL_DAYS AS annualDays, Q.MONTHLY_DAYS AS monthlyDays, ISNULL(Q.REMARK,'') AS remark
+	    FROM TBL_LEAVE_QUOTA Q
+	   WHERE Q.COMP_CD = #{compCd,jdbcType=VARCHAR} AND Q.LEAVE_YEAR = #{year,jdbcType=CHAR}
+	]]></select>
+
+	<!-- 부여 일수 저장 — 있으면 고치고 없으면 넣는다(직원 × 연도 한 줄) -->
+	<update id="mergeLeaveQuota" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_LEAVE_QUOTA
+	     SET ANNUAL_DAYS = #{annualDays,jdbcType=DECIMAL}, MONTHLY_DAYS = #{monthlyDays,jdbcType=DECIMAL}, REMARK = #{remark,jdbcType=NVARCHAR},
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND USER_ID = #{userId,jdbcType=VARCHAR} AND LEAVE_YEAR = #{year,jdbcType=CHAR};
+	  IF @@ROWCOUNT = 0
+	  INSERT INTO TBL_LEAVE_QUOTA (COMP_CD, USER_ID, LEAVE_YEAR, ANNUAL_DAYS, MONTHLY_DAYS, REMARK, REG_DTTM, REG_USER)
+	  VALUES (#{compCd,jdbcType=VARCHAR}, #{userId,jdbcType=VARCHAR}, #{year,jdbcType=CHAR}, #{annualDays,jdbcType=DECIMAL}, #{monthlyDays,jdbcType=DECIMAL},
+	          #{remark,jdbcType=NVARCHAR}, CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR})
+	]]></update>
+
 </mapper>

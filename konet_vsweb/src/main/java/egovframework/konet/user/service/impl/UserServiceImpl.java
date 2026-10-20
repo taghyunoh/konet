@@ -3509,4 +3509,16 @@ public class UserServiceImpl implements UserService {
 		return n;
 	}
 
+	/* ===== 직원 휴가 (2026-10-21) — 전부 매퍼로 바로. 권한(관리자·본인) 판단은 컨트롤러가 한다 ===== */
+	@Override public java.util.List<java.util.Map<String,Object>> selectLeaveUsers(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveUsers(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectLeaveList(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveList(p); }
+	@Override public int selectLeaveOverlap(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveOverlap(p); }
+	@Override public int insertLeave(java.util.Map<String,Object> p) throws Exception { return mapper.insertLeave(p); }
+	@Override public int updateLeave(java.util.Map<String,Object> p) throws Exception { return mapper.updateLeave(p); }
+	@Override public int updateLeaveStatus(java.util.Map<String,Object> p) throws Exception { return mapper.updateLeaveStatus(p); }
+	@Override public int deleteLeave(java.util.Map<String,Object> p) throws Exception { return mapper.deleteLeave(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectLeaveSummary(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveSummary(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectLeaveQuota(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveQuota(p); }
+	@Override public int mergeLeaveQuota(java.util.Map<String,Object> p) throws Exception { return mapper.mergeLeaveQuota(p); }
+
 }

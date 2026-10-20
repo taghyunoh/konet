@@ -71,6 +71,7 @@
         lastBadge = { noticeUnread: Number(j.noticeUnread) || 0, msgUnread: Number(j.msgUnread) || 0 };
         paint('empNoticeBadge', j.noticeUnread);
         paint('empMsgBadge', j.msgUnread);
+        paint('empGrpBadge', (Number(j.noticeUnread) || 0) + (Number(j.msgUnread) || 0));   /* 「직원관리」 주메뉴 — 접혀 있어도 보이게 (2026-10-21) */
         paint('empDockNoticeN', j.noticeUnread); paint('empDockMsgN', j.msgUnread);
         paint('empDockTabN1', j.noticeUnread); paint('empDockTabN2', j.msgUnread);
         var m = Number(j.msgUnread) || 0;

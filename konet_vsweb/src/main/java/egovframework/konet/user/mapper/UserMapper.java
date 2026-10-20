@@ -532,4 +532,16 @@ public interface UserMapper {
 	int deletePoReq(java.util.Map<String,Object> p) throws Exception;
 	int deletePoReqByProd(java.util.Map<String,Object> p) throws Exception;   // 품목 하나의 미등록 줄 지우기(대시보드에서 취소)
 
+	/* ===== 직원 휴가 (2026-10-21) — 달력·현황·엑셀. 표 = TBL_LEAVE_MST / TBL_LEAVE_QUOTA (docs/sql/20261021_leave.sql) ===== */
+	java.util.List<java.util.Map<String,Object>> selectLeaveUsers(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectLeaveList(java.util.Map<String,Object> p) throws Exception;
+	int selectLeaveOverlap(java.util.Map<String,Object> p) throws Exception;
+	int insertLeave(java.util.Map<String,Object> p) throws Exception;
+	int updateLeave(java.util.Map<String,Object> p) throws Exception;
+	int updateLeaveStatus(java.util.Map<String,Object> p) throws Exception;
+	int deleteLeave(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectLeaveSummary(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectLeaveQuota(java.util.Map<String,Object> p) throws Exception;
+	int mergeLeaveQuota(java.util.Map<String,Object> p) throws Exception;
+
 }
