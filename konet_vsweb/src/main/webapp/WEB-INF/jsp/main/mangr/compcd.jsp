@@ -803,6 +803,16 @@ $(document).on('init.dt', function(e, settings) {
 						</div>
 					</div>
 					<div class="form-group row ">
+						<label for="joinDt_two"
+							class="col-2 col-lg-2 col-form-label text-left">입사일</label>
+						<div class="col-2 col-lg-2">
+							<input id="joinDt_two" name="joinDt_two" type="text"
+								class="form-control date1-inputmask"
+								placeholder="yyyy-mm-dd">
+						</div>
+						<div class="col-8 col-lg-8 col-form-label text-left" style="color:#6c7a89; font-size:12.5px">휴가 관리의 근속·연차 계산용</div>
+					</div>
+					<div class="form-group row ">
 						<label for="bfPassWd_two"
 							class="col-2 col-lg-2 col-form-label text-left">비밀번호</label>
 						<div class="col-4 col-lg-4">
@@ -869,7 +879,7 @@ $(document).on('init.dt', function(e, settings) {
 		<!-- 공통코드 Setting End -->
 		<!-- ============================================================== -->
 		var format_convert = ['startDt','endDt','compTel' ,'acceptDt','joinDt','closeDt','compTel', 'compFax',
-		                      'startDt_one','endDt_one','acceptDt_one','joinDt_one','closeDt_one','startDt_two','endDt_two'
+		                      'startDt_one','endDt_one','acceptDt_one','joinDt_one','closeDt_one','startDt_two','endDt_two','joinDt_two'
 			                 ] ; //날자에서 '-' '/' 제외설정   
 		
 		<!-- ============================================================== -->
@@ -2766,7 +2776,8 @@ $(document).on('init.dt', function(e, settings) {
 		    	startDt_two:    { kname: "사용시작일" , k_req: true },
 		    	endDt_two:      { kname: "사용종료일" , k_req: true },
 		    	useYn_two:      { kname: "사용여부" },
-		    	mbrJoin_two:    { kname: "회원가입여부" }
+		    	mbrJoin_two:    { kname: "회원가입여부" },
+		    	joinDt_two:     { kname: "입사일" }
 		    });
 		    return results;
 		}
@@ -2783,7 +2794,8 @@ $(document).on('init.dt', function(e, settings) {
         		endDt_two:       $('#endDt_two').val(),
         		useYn_two:       $('#useYn_two').val(),
         		mainGuNm_two:    $('#mainGuNm_two').val(),
-        		mbrJoin_two:     $('#mbrJoin_two').val()
+        		mbrJoin_two:     $('#mbrJoin_two').val(),
+        		joinDt_two:      $('#joinDt_two').val()
 			    };
 		    return hu_newData;
 		}	
@@ -2839,7 +2851,9 @@ $(document).on('init.dt', function(e, settings) {
 	        				}
 	    				},
 	    				{ title: "회원가입여부",   data: "mbrJoin_two",    visible: true ,   className: "text-center" }, 
-		            	{ title: "사용여부",      data: "useYn_two",    className: "text-center" } 
+		            	{ title: "사용여부",      data: "useYn_two",    className: "text-center" },
+		            	{ title: "입사일",        data: "joinDt_two",   className: "text-center", defaultContent: '',   /* 2026-10-21 입사일 — 휴가 관리 근속·연차 */
+	                      	render: function(data, type, row) { return (type === 'display' && data) ? getFormat(data,'d1') : (data || ''); } }
 		            ],
 		            ajax: huserLoad ,
 				});

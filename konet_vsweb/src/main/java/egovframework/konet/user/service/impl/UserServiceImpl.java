@@ -3519,6 +3519,9 @@ public class UserServiceImpl implements UserService {
 	@Override public int deleteLeave(java.util.Map<String,Object> p) throws Exception { return mapper.deleteLeave(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectLeaveSummary(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveSummary(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectLeaveQuota(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveQuota(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectLeaveQuotaAll(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveQuotaAll(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectLeaveUsedYear(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveUsedYear(p); }
 	@Override public int mergeLeaveQuota(java.util.Map<String,Object> p) throws Exception { return mapper.mergeLeaveQuota(p); }
+	@Override public int updateLeaveJoinDt(java.util.Map<String,Object> p) throws Exception { return mapper.updateLeaveJoinDt(p); }
 
 }

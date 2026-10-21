@@ -5839,8 +5839,9 @@ public class UserController {
 				boolean admin = leaveAdmin(session);
 				String me = leaveStr(session.getAttribute("s_user_id")), meNm = leaveStr(session.getAttribute("s_user_nm"));
 				long seq = 0; try { seq = Long.parseLong(leaveStr(p.get("leaveSeq"))); } catch (Exception e) { seq = 0; }
-				String userId = admin ? leaveStr(p.get("userId")) : me;
-				String userNm = admin ? leaveStr(p.get("userNm")) : meNm;
+				/* 등록·수정은 직원 본인 휴가만 — 총괄관리자는 등록·수정·삭제 없음, 보기 + 승인·반려만 (2026-10-21 「총괄관리자도 삭제·수정 못함 보기만」 「본인만 활성화 … 저장도」) */
+				String userId = me;
+				String userNm = meNm;
 				if (userId.isEmpty()) return leaveFail("직원을 고르세요.");
 				String gb = leaveStr(p.get("leaveGb"));
 				Map<String,Object> gbDef = leaveGbOf(session, gb);
@@ -5860,16 +5861,18 @@ public class UserController {
 				q.put("days", java.math.BigDecimal.valueOf(days)); q.put("remark", remark);
 				q.put("regUser", me); q.put("regIp", request.getRemoteAddr());
 				if (svc.selectLeaveOverlap(q) > 0) return leaveFail("같은 직원의 휴가가 그 기간에 이미 있습니다 — 기간을 확인하세요.");
-				/* 상태 : 관리자가 넣으면 바로 승인, 담당자가 넣거나 고치면 신청(다시 승인 받는다) */
+				/* 상태 : 직원은 「신청」, 총괄관리자 본인 것은 바로 「승인」 — 승인해 줄 사람이 없다 (2026-10-21 「총괄관리자 본인 휴가 승인 가능하게, 할 사람이 없는데」) */
 				String status = admin ? "승인" : "신청";
 				q.put("status", status); q.put("statUser", admin ? meNm : null); q.put("statDttm", admin ? new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date()) : null);
 				int n;
 				if (seq > 0) {
-					if (!admin) {
-						/* 담당자는 제 것만 고친다 — 목록에서 본인 것인지 확인 */
+					{
+						/* 제 것만 고친다 — 목록에서 본인 것인지 확인 (총괄관리자도, 2026-10-21) */
 						Map<String,Object> chk = new HashMap<String,Object>(); chk.put("compCd", session.getAttribute("s_comp_cd")); chk.put("frDt", "00000000"); chk.put("toDt", "99991231"); chk.put("userId", me);
-						boolean mine = false; for (Map<String,Object> o : svc.selectLeaveList(chk)) if (String.valueOf(o.get("leaveSeq")).equals(String.valueOf(seq))) mine = true;
-						if (!mine) return leaveFail("다른 직원의 휴가는 고칠 수 없습니다.");
+						Map<String,Object> cur = null; for (Map<String,Object> o : svc.selectLeaveList(chk)) if (String.valueOf(o.get("leaveSeq")).equals(String.valueOf(seq))) cur = o;
+						if (cur == null) return leaveFail("다른 직원의 휴가는 고칠 수 없습니다.");
+						/* 승인된 휴가는 본인도 못 고친다 (2026-10-21 「승인된 상태면 수정·삭제 못함」) — 총괄관리자가 「신청으로」 되돌린 뒤 */
+						if ("승인".equals(leaveStr(cur.get("status")))) return leaveFail("승인된 휴가는 고칠 수 없습니다 — 총괄관리자가 「신청으로」 되돌린 뒤 고치세요.");
 					}
 					n = svc.updateLeave(q);
 				} else n = svc.insertLeave(q);
@@ -5888,7 +5891,7 @@ public class UserController {
 				if (session.getAttribute("s_comp_cd") == null) return leaveFail("로그인이 끊겼습니다 — 다시 로그인한 뒤 저장해 주세요.");
 				boolean admin = leaveAdmin(session);
 				String me = leaveStr(session.getAttribute("s_user_id")), meNm = leaveStr(session.getAttribute("s_user_nm"));
-				String userId = admin ? leaveStr(p.get("userId")) : me, userNm = admin ? leaveStr(p.get("userNm")) : meNm;
+				String userId = me, userNm = meNm;   /* 여러 날짜 등록도 본인만 — 총괄관리자도 (2026-10-21) */
 				if (userId.isEmpty()) return leaveFail("직원을 고르세요.");
 				String gb = leaveStr(p.get("leaveGb"));
 				Map<String,Object> gbDef = leaveGbOf(session, gb);
@@ -5908,7 +5911,7 @@ public class UserController {
 					q.put("compCd", session.getAttribute("s_comp_cd")); q.put("leaveSeq", Long.valueOf(0));
 					q.put("userId", userId); q.put("userNm", userNm); q.put("leaveGb", gb); q.put("fromDt", d); q.put("toDt", d);
 					q.put("days", java.math.BigDecimal.valueOf(half ? 0.5 : 1.0)); q.put("remark", remark);
-					q.put("status", status); q.put("statUser", admin ? meNm : null); q.put("statDttm", admin ? now : null);
+					q.put("status", status); q.put("statUser", admin ? meNm : null); q.put("statDttm", admin ? now : null);   /* 총괄관리자 본인 것은 바로 승인 (2026-10-21) */
 					q.put("regUser", me); q.put("regIp", request.getRemoteAddr());
 					if (svc.selectLeaveOverlap(q) > 0) { skipped.add(d); continue; }
 					ok += svc.insertLeave(q);
@@ -5941,12 +5944,13 @@ public class UserController {
 		public Map<String,Object> leaveDelete(@RequestParam("leaveSeq") long leaveSeq, HttpServletRequest request, HttpSession session) {
 			try {
 				if (session.getAttribute("s_comp_cd") == null) return leaveFail("로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요.");
+
 				Map<String,Object> q = new HashMap<String,Object>();
 				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("leaveSeq", Long.valueOf(leaveSeq));
-				q.put("ownerId", leaveAdmin(session) ? "" : leaveStr(session.getAttribute("s_user_id")));   /* 담당자는 제 것만 */
+				q.put("ownerId", leaveStr(session.getAttribute("s_user_id")));   /* 삭제는 그 휴가의 본인만 — 총괄관리자도 남의 휴가는 못 지운다(반려로) (2026-10-21 「삭제는 해당 담당자만」) */
 				q.put("regUser", leaveStr(session.getAttribute("s_user_id"))); q.put("regIp", request.getRemoteAddr());
 				int n = svc.deleteLeave(q);
-				if (n == 0) return leaveFail("지울 수 없습니다 — 이미 지워졌거나 다른 직원의 휴가입니다.");
+				if (n == 0) return leaveFail("지울 수 없습니다 — 이미 지워졌거나, 다른 직원의 휴가이거나, 승인된 휴가입니다(총괄관리자가 「신청으로」 되돌린 뒤 지우세요).");
 				Map<String,Object> res = new HashMap<String,Object>(); res.put("rows", Integer.valueOf(n));
 				return res;
 			} catch (Exception e) { log.error(" leaveDelete ERROR : " + e.getMessage()); return leaveFail(e.getMessage()); }
@@ -5961,8 +5965,37 @@ public class UserController {
 			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("year", y);
 			Map<String,Object> res = new HashMap<String,Object>();
 			res.put("data", svc.selectLeaveSummary(q)); res.put("quota", svc.selectLeaveQuota(q));
+			res.put("auto", leaveAutoCarry(session, y));   /* 전년 잔여 자동 이월 (2026-10-21) — 부여 줄의 carryDays 가 NULL 이면 화면이 이 값을 쓴다 */
 			return res;
 		}
+
+		/** 전년 잔여 자동 이월 (2026-10-21 「그럼 2027년도는 자동 이월이죠」)
+		 *  직원마다 자료가 있는 첫 해부터 year 직전 해까지 차례로 잔여 = 이월 + 부여 − 사용(연차 차감 구분, 반려 제외) 을 굴려서 year 의 이월을 낸다.
+		 *  그 해 부여 줄의 CARRY_DAYS 가 숫자면 그 값(고정), NULL 이면 앞 해 잔여. 부여 줄이 없으면 부여 15. 앞 해 자료가 하나도 없는 직원은 뺀다(이월 없음) */
+		private Map<String,Object> leaveAutoCarry(HttpSession session, String year) throws Exception {
+			Map<String,Object> out = new HashMap<String,Object>();
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd"));
+			java.util.Set<String> annual = new java.util.HashSet<String>();
+			for (Map<String,Object> g : leaveGbs(session)) if ("annual".equals(leaveStr(g.get("kind")))) annual.add(leaveStr(g.get("nm")));
+			if (annual.isEmpty()) annual.add("연차");
+			java.util.TreeSet<String> years = new java.util.TreeSet<String>(); java.util.Set<String> users = new java.util.HashSet<String>();
+			Map<String,Map<String,Object>> qy = new HashMap<String,Map<String,Object>>();   /* "yr|user" → 부여 줄 */
+			Map<String,Double> uy = new HashMap<String,Double>();                              /* "yr|user" → 연차 사용 */
+			for (Map<String,Object> r : svc.selectLeaveQuotaAll(q)) { String yr = leaveStr(r.get("leaveYear")), u = leaveStr(r.get("userId")); years.add(yr); users.add(u); qy.put(yr + "|" + u, r); }
+			for (Map<String,Object> r : svc.selectLeaveUsedYear(q)) { if (!annual.contains(leaveStr(r.get("leaveGb")))) continue;
+				String yr = leaveStr(r.get("leaveYear")), u = leaveStr(r.get("userId")), k = yr + "|" + u; years.add(yr); users.add(u);
+				uy.put(k, (uy.containsKey(k) ? uy.get(k) : 0d) + leaveNum(r.get("days"))); }
+			for (String u : users) { Double remain = null;
+				for (String yr : years) { if (yr.compareTo(year) >= 0) break;
+					Map<String,Object> qr = qy.get(yr + "|" + u); Double used = uy.get(yr + "|" + u);
+					if (qr == null && used == null && remain == null) continue;
+					double carry = (qr != null && qr.get("carryDays") != null) ? leaveNum(qr.get("carryDays")) : (remain == null ? 0d : remain.doubleValue());
+					double ann = qr != null ? leaveNum(qr.get("annualDays")) : 15d;
+					remain = Double.valueOf(carry + ann - (used == null ? 0d : used.doubleValue())); }
+				if (remain != null) out.put(u, Double.valueOf(Math.round(remain.doubleValue() * 10d) / 10d)); }
+			return out;
+		}
+		private static double leaveNum(Object v) { try { return v == null ? 0d : Double.parseDouble(String.valueOf(v)); } catch (Exception e) { return 0d; } }
 
 		/** 부여 일수 저장 — 관리자만. JSON {year, items:[{userId, annualDays, monthlyDays, remark}]} */
 		@SuppressWarnings("unchecked")
@@ -5977,12 +6010,18 @@ public class UserController {
 				int n = 0;
 				if (items != null) for (Map<String,Object> it : items) {
 					String uid = leaveStr(it.get("userId")); if (uid.isEmpty()) continue;
-					double a = 0, m = 0; try { a = Double.parseDouble(leaveStr(it.get("annualDays"))); } catch (Exception e) { a = 0; } try { m = Double.parseDouble(leaveStr(it.get("monthlyDays"))); } catch (Exception e) { m = 0; }
+					double a = 0, m = 0, cq = 0; try { a = Double.parseDouble(leaveStr(it.get("annualDays"))); } catch (Exception e) { a = 0; } try { m = Double.parseDouble(leaveStr(it.get("monthlyDays"))); } catch (Exception e) { m = 0; }
+					String cs = leaveStr(it.get("carryDays")); boolean cAuto = cs.isEmpty();   /* 전년 이월 : 비우면 NULL = 자동(전년 잔여), 숫자면 고정 (2026-10-21) */
+					if (!cAuto) try { cq = Double.parseDouble(cs); } catch (Exception e) { cq = 0; }
 					Map<String,Object> q = new HashMap<String,Object>();
 					q.put("compCd", session.getAttribute("s_comp_cd")); q.put("userId", uid); q.put("year", y);
-					q.put("annualDays", java.math.BigDecimal.valueOf(a)); q.put("monthlyDays", java.math.BigDecimal.valueOf(m)); q.put("remark", leaveStr(it.get("remark")));
+					q.put("annualDays", java.math.BigDecimal.valueOf(a)); q.put("monthlyDays", java.math.BigDecimal.valueOf(m)); q.put("carryDays", cAuto ? null : java.math.BigDecimal.valueOf(cq)); q.put("remark", leaveStr(it.get("remark")));
 					q.put("regUser", leaveStr(session.getAttribute("s_user_id")));
 					n += svc.mergeLeaveQuota(q);
+					/* 입사일 — 직원 정보에 (연도와 무관). 8자리가 아니면 비운다 */
+					String jd = leaveYmd(it.get("joinDt"));
+					Map<String,Object> uj = new HashMap<String,Object>(); uj.put("compCd", session.getAttribute("s_comp_cd")); uj.put("userId", uid); uj.put("joinDt", jd.isEmpty() ? null : jd);
+					svc.updateLeaveJoinDt(uj);
 				}
 				Map<String,Object> res = new HashMap<String,Object>(); res.put("rows", Integer.valueOf(n));
 				return res;

@@ -81,6 +81,7 @@ public class UserDTO{
 	private String email;
 	private String userTel;
 	private String mbrJoin;
+	private String joinDt;      // 입사일 yyyymmdd (휴가 관리 근속·연차, 2026-10-21)
 	private String passCdt;
 	private String encPassWd;   // 신규 저장용 인코딩 비번
 	private String bfPassWd;    // 입력 원문 비번
@@ -104,6 +105,8 @@ public class UserDTO{
 	public void setUserTel(String userTel) { this.userTel = userTel; }
 	public String getMbrJoin() { return mbrJoin; }
 	public void setMbrJoin(String mbrJoin) { this.mbrJoin = mbrJoin; }
+	public String getJoinDt() { return joinDt; }
+	public void setJoinDt(String joinDt) { this.joinDt = joinDt; }
 	public String getPassCdt() { return passCdt; }
 	public void setPassCdt(String passCdt) { this.passCdt = passCdt; }
 	public String getEncPassWd() { return encPassWd; }

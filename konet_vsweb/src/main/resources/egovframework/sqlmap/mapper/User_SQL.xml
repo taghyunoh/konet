@@ -355,6 +355,7 @@
 	         A.COMMST_YN                     AS commstYn,
 	         A.USE_YN                        AS useYn,
 	         A.MBR_JOIN                      AS mbrJoin,
+	         RTRIM(ISNULL(A.JOIN_DT,''))     AS joinDt,
 	         A.REG_DTTM                      AS regDttm,
 	         A.UPD_DTTM                      AS updDttm,
 	         (SELECT SUB_CODE_NM FROM TBL_CODE_DTL
@@ -369,7 +370,7 @@
 	<insert id="insertCompUser" parameterType="UserDTO"><![CDATA[
 	  INSERT INTO TBL_USER_MST (
 	      COMP_CD, USER_ID, JOB_SEQ, USER_NM, START_DT, END_DT, MAIN_GU,
-	      PASS_WD, PASS_CDT, BIGO, EMAIL, USER_TEL, COMMST_YN, USE_YN, MBR_JOIN, ACTION_YN,
+	      PASS_WD, PASS_CDT, BIGO, EMAIL, USER_TEL, COMMST_YN, USE_YN, MBR_JOIN, JOIN_DT, ACTION_YN,
 	      REG_DTTM, REG_USER, REG_IP, UPD_DTTM, UPD_USER, UPD_IP
 	  ) VALUES (
 	      #{compCd}, #{userId},
@@ -377,7 +378,7 @@
 	        WHERE A.COMP_CD = #{compCd} AND A.USER_ID = #{userId} AND A.START_DT = #{startDt}),
 	      #{userNm}, #{startDt}, #{endDt}, #{mainGu},
 	      CONVERT(VARBINARY(500), CONVERT(VARCHAR(500), CASE WHEN #{encPassWd} IS NOT NULL AND #{encPassWd} <> '' THEN #{encPassWd} ELSE #{passWd} END)),
-	      CONVERT(date, GETDATE()), #{bigo}, #{email}, #{userTel}, #{commstYn}, #{useYn}, #{mbrJoin}, 'Y',
+	      CONVERT(date, GETDATE()), #{bigo}, #{email}, #{userTel}, #{commstYn}, #{useYn}, #{mbrJoin}, NULLIF(#{joinDt,jdbcType=CHAR},''), 'Y',
 	      GETDATE(), #{regUser}, #{regIp}, GETDATE(), #{updUser}, #{updIp}
 	  )
 	]]></insert>
@@ -8354,7 +8355,7 @@
 	     ============================================================ -->
 	<!-- 직원 목록 — 지금 재직(START_DT~END_DT) 중인 사용자. 사용자 관리에서 지운(ACTION_YN='N')·사용 안 함(USE_YN='N') 계정은 빠진다 -->
 	<select id="selectLeaveUsers" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
-	  SELECT LTRIM(RTRIM(A.USER_ID)) AS userId, A.USER_NM AS userNm, A.MAIN_GU AS mainGu
+	  SELECT LTRIM(RTRIM(A.USER_ID)) AS userId, A.USER_NM AS userNm, A.MAIN_GU AS mainGu, RTRIM(ISNULL(A.JOIN_DT,'')) AS joinDt
 	    FROM TBL_USER_MST A
 	   WHERE A.COMP_CD = #{compCd,jdbcType=VARCHAR} AND A.ACTION_YN = 'Y' AND ISNULL(A.USE_YN,'Y') <> 'N'
 	     AND CONVERT(VARCHAR(8), GETDATE(), 112) BETWEEN ISNULL(A.START_DT,'00000000') AND ISNULL(A.END_DT,'99991231')
@@ -8422,6 +8423,8 @@
 	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND LEAVE_SEQ = #{leaveSeq,jdbcType=BIGINT} AND ACTION_YN = 'Y'
 	  ]]>
 	  <if test="ownerId != null and ownerId != ''"> AND USER_ID = #{ownerId,jdbcType=VARCHAR}</if>
+	  <!-- 승인된 휴가는 본인도 못 지운다 (2026-10-21 「승인된 상태면 수정·삭제 못함」) -->
+	  AND STATUS <![CDATA[<>]]> N'승인'
 	</update>
 
 	<!-- 연간 현황 — 직원 × 구분의 사용 일수(반려 제외) · 신청 대기 건수 -->
@@ -8436,21 +8439,41 @@
 	]]></select>
 
 	<select id="selectLeaveQuota" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
-	  SELECT Q.USER_ID AS userId, Q.ANNUAL_DAYS AS annualDays, Q.MONTHLY_DAYS AS monthlyDays, ISNULL(Q.REMARK,'') AS remark
+	  SELECT Q.USER_ID AS userId, Q.ANNUAL_DAYS AS annualDays, Q.MONTHLY_DAYS AS monthlyDays, Q.CARRY_DAYS AS carryDays, ISNULL(Q.REMARK,'') AS remark
 	    FROM TBL_LEAVE_QUOTA Q
 	   WHERE Q.COMP_CD = #{compCd,jdbcType=VARCHAR} AND Q.LEAVE_YEAR = #{year,jdbcType=CHAR}
+	]]></select>
+
+	<!-- 전년 이월 자동 계산용 (2026-10-21) : 회사의 부여 줄 전부 + 연도·직원·구분별 사용 일수(반려 제외). carryDays NULL = 자동 -->
+	<select id="selectLeaveQuotaAll" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT Q.USER_ID AS userId, Q.LEAVE_YEAR AS leaveYear, Q.ANNUAL_DAYS AS annualDays, Q.CARRY_DAYS AS carryDays
+	    FROM TBL_LEAVE_QUOTA Q
+	   WHERE Q.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	]]></select>
+	<select id="selectLeaveUsedYear" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT L.USER_ID AS userId, LEFT(L.FROM_DT, 4) AS leaveYear, L.LEAVE_GB AS leaveGb, SUM(L.DAYS) AS days
+	    FROM TBL_LEAVE_MST L
+	   WHERE L.COMP_CD = #{compCd,jdbcType=VARCHAR} AND L.ACTION_YN = 'Y' AND L.STATUS <> N'반려'
+	   GROUP BY L.USER_ID, LEFT(L.FROM_DT, 4), L.LEAVE_GB
 	]]></select>
 
 	<!-- 부여 일수 저장 — 있으면 고치고 없으면 넣는다(직원 × 연도 한 줄) -->
 	<update id="mergeLeaveQuota" parameterType="java.util.HashMap"><![CDATA[
 	  UPDATE TBL_LEAVE_QUOTA
-	     SET ANNUAL_DAYS = #{annualDays,jdbcType=DECIMAL}, MONTHLY_DAYS = #{monthlyDays,jdbcType=DECIMAL}, REMARK = #{remark,jdbcType=NVARCHAR},
+	     SET ANNUAL_DAYS = #{annualDays,jdbcType=DECIMAL}, MONTHLY_DAYS = #{monthlyDays,jdbcType=DECIMAL}, CARRY_DAYS = #{carryDays,jdbcType=DECIMAL}, REMARK = #{remark,jdbcType=NVARCHAR},
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}
 	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND USER_ID = #{userId,jdbcType=VARCHAR} AND LEAVE_YEAR = #{year,jdbcType=CHAR};
 	  IF @@ROWCOUNT = 0
-	  INSERT INTO TBL_LEAVE_QUOTA (COMP_CD, USER_ID, LEAVE_YEAR, ANNUAL_DAYS, MONTHLY_DAYS, REMARK, REG_DTTM, REG_USER)
-	  VALUES (#{compCd,jdbcType=VARCHAR}, #{userId,jdbcType=VARCHAR}, #{year,jdbcType=CHAR}, #{annualDays,jdbcType=DECIMAL}, #{monthlyDays,jdbcType=DECIMAL},
+	  INSERT INTO TBL_LEAVE_QUOTA (COMP_CD, USER_ID, LEAVE_YEAR, ANNUAL_DAYS, MONTHLY_DAYS, CARRY_DAYS, REMARK, REG_DTTM, REG_USER)
+	  VALUES (#{compCd,jdbcType=VARCHAR}, #{userId,jdbcType=VARCHAR}, #{year,jdbcType=CHAR}, #{annualDays,jdbcType=DECIMAL}, #{monthlyDays,jdbcType=DECIMAL}, #{carryDays,jdbcType=DECIMAL},
 	          #{remark,jdbcType=NVARCHAR}, CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR})
+	]]></update>
+
+	<!-- 입사일 저장 — 직원 정보(TBL_USER_MST.JOIN_DT, docs/sql/20261021_leave_v2.sql). [⚙ 부여 일수] 에서 같이 고친다 (2026-10-21 연차양식.xlsx) -->
+	<update id="updateLeaveJoinDt" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_USER_MST
+	     SET JOIN_DT = #{joinDt,jdbcType=CHAR}
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND LTRIM(RTRIM(USER_ID)) = #{userId,jdbcType=VARCHAR}
 	]]></update>
 
 </mapper>

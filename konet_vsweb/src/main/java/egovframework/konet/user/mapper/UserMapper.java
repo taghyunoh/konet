@@ -542,6 +542,9 @@ public interface UserMapper {
 	int deleteLeave(java.util.Map<String,Object> p) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectLeaveSummary(java.util.Map<String,Object> p) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectLeaveQuota(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectLeaveQuotaAll(java.util.Map<String,Object> p) throws Exception;   /* 이월 자동 (2026-10-21) */
+	java.util.List<java.util.Map<String,Object>> selectLeaveUsedYear(java.util.Map<String,Object> p) throws Exception;
 	int mergeLeaveQuota(java.util.Map<String,Object> p) throws Exception;
+	int updateLeaveJoinDt(java.util.Map<String,Object> p) throws Exception;   /* 입사일 (2026-10-21) */
 
 }
