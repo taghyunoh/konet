@@ -6334,4 +6334,25 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR H.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY H.SEND_SEQ DESC
 	]]></select>
+
+	<!-- ============================================================
+	     직원 휴가 — 당월 휴가자 보기 (2026-10-21 사용자 「KONET_VSAPP 에서 당월 휴가자 볼 수 있게」)
+	       읽기만. 표 = TBL_LEAVE_MST (웹 konet_vsweb 「직원 휴가 관리」가 만든다, docs/sql/20261021_leave.sql) · 화면 = mangr/leaveMonth.jsp
+	     ============================================================ -->
+	<select id="selectLeaveList" parameterType="java.util.HashMap" resultType="java.util.HashMap">
+	  <![CDATA[
+	  SELECT L.LEAVE_SEQ AS leaveSeq, L.USER_ID AS userId, ISNULL(L.USER_NM,'') AS userNm, L.LEAVE_GB AS leaveGb,
+	         L.FROM_DT AS fromDt, L.TO_DT AS toDt, L.DAYS AS days, ISNULL(L.REMARK,'') AS remark,
+	         L.STATUS AS status, ISNULL(L.STAT_USER,'') AS statUser, ISNULL(L.STAT_DTTM,'') AS statDttm,
+	         ISNULL(L.REG_DTTM,'') AS regDttm, ISNULL(L.REG_USER,'') AS regUser
+	    FROM TBL_LEAVE_MST L
+	   WHERE L.COMP_CD = #{compCd,jdbcType=VARCHAR} AND L.ACTION_YN = 'Y'
+	     AND L.TO_DT >= #{frDt,jdbcType=CHAR} AND L.FROM_DT <= #{toDt,jdbcType=CHAR}
+	  ]]>
+	  <if test="userId != null and userId != ''"> AND L.USER_ID = #{userId,jdbcType=VARCHAR}</if>
+	  <![CDATA[
+	   ORDER BY L.FROM_DT, L.USER_NM, L.LEAVE_SEQ
+	  ]]>
+	</select>
+
 </mapper>

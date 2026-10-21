@@ -3250,6 +3250,10 @@
       <a class="mi" data-key="xrefAudit" onclick="logiGo('xrefAudit', this); xaLoad();"><span class="ic">🔗</span>품목코드(매핑)</a>
     </div>
 
+    <%-- 직원관리 (2026-10-21 사용자 「KONET_VSAPP 에서 당월 휴가자 볼 수 있게」) — 앱은 보기만. 등록·승인은 웹(konet_vsweb) 직원관리 ▸ 직원 휴가 관리. iframe 화면(mangr/leaveMonth.jsp, panel-leaveMonth) --%>
+    <div class="grp">직원관리</div>
+    <a class="mi" data-key="leaveMonth" onclick="logiFrame('leaveMonth','${pageContext.request.contextPath}/mangr/leaveMonth.do', this)"><span class="ic">🏖</span>당월 휴가자</a>
+
     <div class="grp">정보 현황</div>
     <a class="mi has-sub" data-sub="infomng" onclick="logiToggleSub('infomng', this)"><span class="ic">📈</span>정보 현황<span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-infomng">
@@ -4747,6 +4751,10 @@
       <iframe id="if-vendorPriceCmp" src="" title="거래처별 매입가 비교" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <%-- 비용 등록 (2026-09-16 P2-e) — 메뉴 logiFrame('expenseReg',…) 의 짝 --%>
+    <%-- 당월 휴가자 (2026-10-21) — 메뉴 logiFrame('leaveMonth',…) 의 짝 --%>
+    <section id="panel-leaveMonth" class="panel" style="padding:0;">
+      <iframe id="if-leaveMonth" src="" title="당월 휴가자" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
     <section id="panel-expenseReg" class="panel" style="padding:0;">
       <iframe id="if-expenseReg" src="" title="비용 등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>

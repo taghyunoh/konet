@@ -1,6 +1,6 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 <%-- 모바일(PWA) 요약 — /m/index.do (MobileController, 로그인 필수).
-     카드 5장 : ①그날 장부(일계장) ②이번 달 매출·순마진 ③출고 ④받을금액·지급할금액 ⑤재고 마이너스
+     카드 6장 : ①그날 장부(일계장) ②이번 달 매출·순마진 ③출고 ④받을금액·지급할금액 ⑤재고 마이너스 ⑥이번 달 휴가자(2026-10-21 「KONET_VSAPP 에서 당월 휴가자 볼 수 있게」)
      자료는 PC 화면과 **같은 조회(*.do)** 를 부르고, 금액 규칙도 PC 와 같게 계산한다(할인 뺀 금액 · 라벨수량 등).
      ★자료를 부르기 전에 /m/session.do 로 로그인부터 확인한다 — 기존 조회는 세션을 안 봐서
        끊긴 세션으로 부르면 전 회사 자료가 오기 때문(MobileController 주석 참고). --%>
@@ -22,11 +22,16 @@
 <style>
   .btn2{ display:inline-block; margin-top:10px; height:34px; padding:0 14px; border:1px solid var(--teal); border-radius:8px;
     background:#fff; color:var(--teal-d); font:inherit; font-size:15.5px; font-weight:700; }
-  .quick{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:12px; }
+  .quick{ display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-bottom:12px; }   /* 넷째 칸 = 휴가자조회 (2026-10-21) */
   .quick a{ display:flex; flex-direction:column; align-items:center; gap:4px; padding:12px 4px; border-radius:12px; background:#fff;
     border:1px solid var(--bd); text-decoration:none; color:var(--teal-d); font-size:16px; font-weight:800; }
   .quick a i{ font-style:normal; font-size:24px; }
+  @media (max-width:420px){ .quick a{ font-size:14.5px; padding:10px 2px; } .quick a i{ font-size:22px; } }
   @media (min-width:768px){ .quick a{ flex-direction:row; justify-content:center; gap:8px; font-size:18px; padding:14px 4px; } }
+  .lvchip{ display:inline-block; font-size:14px; font-weight:800; line-height:1.4; padding:1px 8px; border-radius:7px; color:#fff; background:#5a6b7a; margin:2px 4px 2px 0; white-space:nowrap; }
+  .lvchip.pend{ opacity:.75; outline:2px dashed rgba(0,0,0,.3); outline-offset:-2px; }
+  .lvday{ flex:0 0 76px; font-weight:800; color:var(--teal-d); } .lvday.today{ color:var(--red); }
+  .row.lv{ align-items:flex-start; } .row.lv .k{ white-space:normal; }
 </style>
 </head>
 <body>
@@ -51,10 +56,13 @@
     <a href="<%=request.getContextPath()%>/m/sales.do"><i>🧾</i>판매등록</a>
     <a href="<%=request.getContextPath()%>/m/settle.do?gb=RCV"><i>💰</i>수금</a>
     <a href="<%=request.getContextPath()%>/m/settle.do?gb=PAY"><i>💸</i>지급</a>
+    <a href="<%=request.getContextPath()%>/m/leave.do"><i>🏖</i>휴가자조회</a>
   </nav>
   <section class="card"><h2>📒 그날 장부 <small id="dayLbl"></small></h2><div id="cDay" class="loading">불러오는 중…</div></section>
   <section class="card"><h2>💰 이번 달 매출 <small id="monLbl"></small><span class="badge" id="closeBadge" hidden></span></h2><div id="cMon" class="loading">불러오는 중…</div></section>
   <section class="card"><h2>🚚 출고 <small id="shipLbl"></small></h2><div id="cShip" class="loading">불러오는 중…</div></section>
+  <%-- ⑥ 이번 달 휴가자 (2026-10-21) — 웹 직원관리 ▸ 직원 휴가 관리와 같은 표(TBL_LEAVE_MST)·같은 구분 색(회사 설정 'leave'). 보기만, 등록·승인은 웹에서 --%>
+  <section class="card"><h2>🏖 이번 달 휴가자 <small id="lvLbl"></small><span class="badge ok" id="lvBadge" hidden></span></h2><div id="cLv" class="loading">불러오는 중…</div></section>
   <section class="card"><h2>📊 받을금액 · 지급할금액 <small id="balLbl"></small></h2><div id="cBal" class="loading">불러오는 중…</div></section>
   <section class="card"><h2>📦 재고</h2><div id="cStk" class="loading">불러오는 중…</div></section>
 </main>
@@ -80,9 +88,9 @@ function loadAll(){
   post('/m/session.do',{}).then(function(s){
     if(!s.ok){ location.replace(M.CTX+'/m/login.do'); return; }
     $('who').textContent = (s.compNm||'') + (s.userNm ? ' · '+s.userNm : '');
-    loadDay(); loadMon(); loadShip(); loadBal(); loadStk();
+    loadDay(); loadMon(); loadShip(); loadBal(); loadStk(); loadLv();
   }).catch(function(){
-    ['cDay','cMon','cShip','cBal','cStk'].forEach(function(id){ $(id).innerHTML='<div class="err">서버에 연결하지 못했습니다.<button type="button" onclick="loadAll()">다시</button></div>'; });
+    ['cDay','cMon','cShip','cBal','cStk','cLv'].forEach(function(id){ $(id).innerHTML='<div class="err">서버에 연결하지 못했습니다.<button type="button" onclick="loadAll()">다시</button></div>'; });
   });
 }
 
@@ -184,6 +192,37 @@ function loadShip(){
     });
     el.innerHTML=h+'</div>';
   }).catch(function(){ el.innerHTML=errHtml('loadShip'); });
+}
+
+/* ⑥ 이번 달 휴가자 = 웹 「직원 휴가 관리」 표(/mangr/leaveList.do, 그 달 범위). 반려는 뺀다. 구분 색은 /mangr/leaveInfo.do(회사 설정 'leave').
+      위 타일 = 오늘 쉬는 사람 · 이번 달 건수/인원. 아래 = 날짜별 줄(이름 + 구분 칩, 점선 = 승인 대기). 사유는 안 보인다(개인 사정). */
+var _lvGb=null;
+function lvColor(g){ var x=(_lvGb||[]).filter(function(o){ return o.nm===g; })[0]; return x?x.color:'#5a6b7a'; }
+function lvShort(g){ return String(g||'').replace('(오전)','AM').replace('(오후)','PM'); }
+function loadLv(){
+  var el=$('cLv'); el.innerHTML='<div class="loading">불러오는 중…</div>';
+  var y=+D.slice(0,4), m=+D.slice(5,7), a=D.slice(0,7)+'-01', bd=new Date(y, m, 0), b=ymd(bd), tk=D.replace(/-/g,'');
+  $('lvLbl').textContent=lblMon(D); var bg=$('lvBadge'); bg.hidden=true;
+  var gbP=_lvGb ? Promise.resolve(_lvGb) : post('/mangr/leaveInfo.do',{}).then(function(r){ _lvGb=(r&&r.gbs)||[]; return _lvGb; }).catch(function(){ _lvGb=[]; return _lvGb; });
+  gbP.then(function(){ return post('/mangr/leaveList.do',{ frDt:a, toDt:b }); }).then(function(res){
+    if(res&&res.error) throw new Error(res.error);
+    var rows=(res.data||[]).filter(function(o){ return o.status!=='반려'; });
+    if(!rows.length){ el.innerHTML='<p class="note" style="margin:0">이 달에 등록된 휴가가 없습니다.</p>'; return; }
+    var people={}, todayL=rows.filter(function(o){ return String(o.fromDt)<=tk && String(o.toDt)>=tk; });
+    rows.forEach(function(o){ people[o.userId]=1; });
+    bg.textContent=Object.keys(people).length+'명'; bg.hidden=false;
+    var h='<div class="tiles">'+tile('오늘 휴가', todayL.length?todayL.map(function(o){ return esc(o.userNm); }).join(', '):'없음', todayL.length?'red':'', todayL.length?todayL.map(function(o){ return lvShort(o.leaveGb); }).join(' · '):lblDay(D))
+        +tile('이번 달', rows.length+'건', 'teal', Object.keys(people).length+'명 · '+rows.reduce(function(t,o){ return t+n(o.days); },0).toLocaleString('ko-KR')+'일')+'</div>';
+    /* 날짜별 — 기간 휴가는 걸치는 날마다 */
+    var byDay={}, keys=[]; var d=new Date(y, m-1, 1);
+    while(d.getMonth()===m-1){ var k=ymd(d).replace(/-/g,''); var l=rows.filter(function(o){ return String(o.fromDt)<=k && String(o.toDt)>=k; }); if(l.length){ byDay[k]=l; keys.push(k); } d.setDate(d.getDate()+1); }
+    var W=['일','월','화','수','목','금','토'];
+    h+='<div class="list">'+keys.map(function(k){ var dd=new Date(+k.slice(0,4), +k.slice(4,6)-1, +k.slice(6,8));
+      return '<div class="row lv"><div class="lvday'+(k===tk?' today':'')+'">'+(+k.slice(4,6))+'/'+(+k.slice(6,8))+' ('+W[dd.getDay()]+')</div><div class="k">'
+        +byDay[k].map(function(o){ return '<span class="lvchip'+(o.status==='신청'?' pend':'')+'" style="background:'+lvColor(o.leaveGb)+'">'+esc(o.userNm)+' '+esc(lvShort(o.leaveGb))+(o.status==='신청'?' (신청)':'')+'</span>'; }).join('')+'</div></div>'; }).join('')+'</div>';
+    h+='<p class="note" style="margin:8px 0 0">등록·수정·승인은 PC 웹 「직원관리 ▸ 직원 휴가 관리」에서 합니다. 점선 = 승인 대기.</p>';
+    el.innerHTML=h;
+  }).catch(function(e){ el.innerHTML=errHtml('loadLv'); });
 }
 
 /* ④ 받을금액·지급할금액 = 거래처별 채권·채무(selectCustBalance) 누적 방식.

@@ -63,6 +63,12 @@ public class MobileController {
 		return loggedIn(session) ? ".raw/m/adjhis" : ".raw/m/login";
 	}
 
+	/** 휴가자 조회(2026-10-21 「KONET_VSAPP 에서 당월 휴가자」) — 달별 · 날짜별 이름 칩 · 직원별 일수. 자료 = /mangr/leaveList.do(UserController) — 조회 전용 */
+	@RequestMapping(value = "/m/leave.do")
+	public String leave(HttpSession session) {
+		return loggedIn(session) ? ".raw/m/leave" : ".raw/m/login";
+	}
+
 	/** 모바일 로그인 화면 — 실제 로그인은 PC 와 같은 /user/loginChk.do 를 쓴다 */
 	@RequestMapping(value = "/m/login.do")
 	public String login(HttpSession session) {

@@ -1585,4 +1585,6 @@ public class UserServiceImpl implements UserService {
 		}
 		return seq;
 	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectLeaveList(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveList(p); }   /* 당월 휴가자 (2026-10-21) */
+
 }

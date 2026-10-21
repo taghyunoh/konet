@@ -354,4 +354,7 @@ public interface UserService {
 	java.util.List<java.util.Map<String,Object>> selectSendHistList(java.util.Map<String,Object> p) throws Exception;
 	int updateSendHistMailOpen(java.util.Map<String,Object> p) throws Exception;   // 메일 열림(1×1 그림)
 	int updateSendHistView(java.util.Map<String,Object> p) throws Exception;       // 링크 열람(공개 페이지)
+	/* 직원 휴가 — 당월 휴가자 보기 (2026-10-21, 읽기만. 표는 웹 konet_vsweb 이 만든다) */
+	java.util.List<java.util.Map<String,Object>> selectLeaveList(java.util.Map<String,Object> p) throws Exception;
+
 }

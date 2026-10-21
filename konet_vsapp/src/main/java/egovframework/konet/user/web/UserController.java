@@ -3988,4 +3988,74 @@ public class UserController {
 			}
 			return response;
 		}
+		/* ══════════════════════════════════════════════════════════════════════════
+		   당월 휴가자 (2026-10-21 사용자 「KONET_VSAPP 에서 당월 휴가자 볼 수 있게」) — 읽기만.
+		     · 등록·수정·승인은 웹(konet_vsweb 직원관리 ▸ 직원 휴가 관리)에서. 표 TBL_LEAVE_MST 는 웹이 만든다(docs/sql/20261021_leave.sql).
+		     · 휴가 구분의 색·반일은 회사 설정(TBL_COMP_SET SET_JSON 'leave')에서 읽는다 — 웹 [⚙ 휴가 구분]과 같은 목록. 없으면 기본 8가지.
+		   ══════════════════════════════════════════════════════════════════════════ */
+		private static String leaveStr(Object v) { return v == null ? "" : String.valueOf(v).trim(); }
+		private static String leaveYmd(Object v) { String s = leaveStr(v).replace("-", ""); return s.matches("[0-9]{8}") ? s : ""; }
+		@SuppressWarnings("unchecked")
+		private java.util.List<Map<String,Object>> leaveGbs(HttpSession session) {
+			java.util.List<Map<String,Object>> out = new java.util.ArrayList<Map<String,Object>>();
+			try {
+				String js = svc.selectCompSetJson(compParam(session, null));
+				if (js != null && !js.trim().isEmpty()) {
+					Map<String,Object> all = COMP_JSON.readValue(js, java.util.LinkedHashMap.class);
+					Object lv = all.get("leave");
+					if (lv instanceof Map) {
+						Object gbs = ((Map<String,Object>) lv).get("gbs");
+						if (gbs instanceof java.util.List) for (Object o : (java.util.List<Object>) gbs) {
+							if (!(o instanceof Map)) continue;
+							Map<String,Object> g = (Map<String,Object>) o;
+							String nm = leaveStr(g.get("nm")); if (nm.isEmpty()) continue;
+							String color = leaveStr(g.get("color")); if (!color.matches("#[0-9A-Fa-f]{6}")) color = "#5a6b7a";
+							Map<String,Object> m = new java.util.LinkedHashMap<String,Object>();
+							m.put("nm", nm); m.put("kind", leaveStr(g.get("kind"))); m.put("half", Boolean.TRUE.equals(g.get("half"))); m.put("color", color);
+							m.put("use", !(Boolean.FALSE.equals(g.get("use")) || "N".equals(leaveStr(g.get("use")))));
+							out.add(m);
+						}
+					}
+				}
+			} catch (Exception e) { log.error(" leaveGbs ERROR : " + e.getMessage()); out.clear(); }
+			if (out.isEmpty()) {
+				String[][] D = { {"연차","annual","N","#137a6c"}, {"월차","monthly","N","#2f4f9a"}, {"반차(오전)","annual","Y","#6b4fa0"}, {"반차(오후)","annual","Y","#6b4fa0"},
+				                 {"병가","other","N","#c0392b"}, {"경조","other","N","#b45309"}, {"공가","other","N","#3b7a57"}, {"기타","other","N","#5a6b7a"} };
+				for (String[] d : D) { Map<String,Object> m = new java.util.LinkedHashMap<String,Object>(); m.put("nm", d[0]); m.put("kind", d[1]); m.put("half", "Y".equals(d[2])); m.put("color", d[3]); m.put("use", Boolean.TRUE); out.add(m); }
+			}
+			return out;
+		}
+
+		@RequestMapping(value="/mangr/leaveMonth.do")
+		public String leaveMonth(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/leaveMonth";
+		}
+
+		/** 휴가 구분(색)·로그인 사용자 — 화면이 처음 한 번 */
+		@RequestMapping(value="/mangr/leaveInfo.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> leaveInfo(HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+			res.put("gbs", leaveGbs(session));
+			res.put("userId", leaveStr(session.getAttribute("s_user_id"))); res.put("userNm", leaveStr(session.getAttribute("s_user_nm")));
+			return res;
+		}
+
+		/** 휴가 목록 — frDt~toDt(yyyymmdd 또는 yyyy-mm-dd) 와 겹치는 건 */
+		@RequestMapping(value="/mangr/leaveList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> leaveList(@RequestParam("frDt") String frDt, @RequestParam("toDt") String toDt,
+		                                    @RequestParam(value="userId", required=false) String userId, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+			String a = leaveYmd(frDt), b = leaveYmd(toDt);
+			if (a.isEmpty() || b.isEmpty()) { res.put("error", "기간이 올바르지 않습니다."); return res; }
+			Map<String,Object> q = new HashMap<String,Object>();
+			q.put("compCd", session.getAttribute("s_comp_cd")); q.put("frDt", a); q.put("toDt", b); q.put("userId", leaveStr(userId));
+			res.put("data", svc.selectLeaveList(q));
+			return res;
+		}
+
 }
