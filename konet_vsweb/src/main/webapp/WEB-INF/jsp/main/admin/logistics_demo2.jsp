@@ -3458,7 +3458,7 @@
     <div class="grp">직원관리</div>
     <%-- 직원관리 주메뉴 + 서브메뉴 (2026-10-21 사용자 「직원관리 주메뉴에 서브메뉴로 처리해줘」) — 매출 관리·매입 관리와 같은 접이식.
          주메뉴 옆 배지(empGrpBadge) = 공지 + 메신저 안 읽은 수 합 — 접혀 있어도 보이게(asset/js/emp-badge.js 가 같이 칠한다) --%>
-    <a class="mi has-sub" data-sub="emp" onclick="logiToggleSub('emp', this)"><span class="ic">👥</span>직원관리<span class="emp-badge" id="empGrpBadge" style="display:none"></span><span class="caret">▶</span></a>
+    <a class="mi has-sub" data-sub="emp" onclick="logiToggleSub('emp', this)"><span class="ic">🙋</span>직원관리<span class="emp-badge" id="empGrpBadge" style="display:none"></span><span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-emp">
       <a class="mi" data-key="empNotice" onclick="logiFrame('empNotice','${pageContext.request.contextPath}/emp/notice.do', this)"><span class="ic">📢</span>직원 공지사항<span class="emp-badge" id="empNoticeBadge" style="display:none"></span></a>
       <a class="mi" data-key="empMsg" onclick="logiFrame('empMsg','${pageContext.request.contextPath}/emp/msg.do', this)"><span class="ic">💬</span>직원 메신저<span class="emp-badge" id="empMsgBadge" style="display:none"></span></a>

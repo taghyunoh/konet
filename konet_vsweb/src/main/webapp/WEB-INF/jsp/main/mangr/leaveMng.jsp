@@ -160,6 +160,12 @@
         </table>
         <div class="hint" style="padding:6px 10px" id="sumHint">반일 구분(반차)은 0.5일로 그 종류(연차·월차)의 사용에 들어갑니다. 공휴일은 일수에서 자동으로 빠지지 않으니 등록 창에서 일수를 고치세요.</div>
       </div>
+    <%-- 고른 직원의 올해 휴가 목록 (2026-10-21 사용자 「현황에서 대상자를 클릭하면 밑에 해당자 휴가 리스트」) — 현황 이름 클릭 = 달력 거르기 + 이 목록 --%>
+    <div class="box" id="ulBox" style="display:none; margin-top:10px">
+      <div class="bh">📋 <span id="ulTitle">휴가 목록</span> <small id="ulCnt"></small><span style="margin-left:auto; cursor:pointer; color:#8a98a8" onclick="lvPickUser('')" title="닫기(전체 보기로)">✕</span></div>
+      <table class="grid"><thead><tr><th style="width:84px">구분</th><th style="width:170px">기간</th><th style="width:46px">일수</th><th>사유</th><th style="width:60px">상태</th><th style="width:60px"></th></tr></thead>
+        <tbody id="ulBody"></tbody></table>
+    </div>
     </div>
   </div>
 </div>
@@ -277,7 +283,7 @@ function load(){
   Promise.all([
     post('/mangr/leaveList.do','frDt='+ymd(a)+'&toDt='+ymd(b)),
     post('/mangr/leaveSummary.do','year='+yearOf())
-  ]).then(function(r){ _rows=(r[0]&&r[0].data)||[]; _sum=(r[1]&&r[1].data)||[]; _quota=(r[1]&&r[1].quota)||[]; lvRender(); sumRender(); })
+  ]).then(function(r){ _rows=(r[0]&&r[0].data)||[]; _sum=(r[1]&&r[1].data)||[]; _quota=(r[1]&&r[1].quota)||[]; lvRender(); sumRender(); ulRender(); })
     .catch(function(e){ swErr(e.message); });
 }
 function lvMove(k){ _ym=new Date(_ym.getFullYear(), _ym.getMonth()+k, 1); load(); }
@@ -404,13 +410,29 @@ function gbSave(){
     .then(function(){ _gbs=list.map(function(g,i){ g._idx=i; return g; }); gbApply(); gbClose(); toast('휴가 구분을 저장했습니다 — 어느 PC 에서나 같습니다','ok'); lvRender(); sumRender(); })
     .catch(function(e){ swErr(e.message); });
 }
-function lvPickUser(id){ var s=document.getElementById('fUser'); s.value=(s.value===id?'':id); lvRender(); }
+function lvPickUser(id){ var s=document.getElementById('fUser'); s.value=(s.value===id?'':id); lvRender(); ulRender(); }
+/* 고른 직원의 올해 휴가 목록 — 현황 표 밑 (2026-10-21). 달력 거르기(fUser)와 같은 직원. 줄을 더블클릭하면 그 휴가 창 */
+function ulRender(){
+  var box=document.getElementById('ulBox'), id=document.getElementById('fUser').value;
+  if(!id){ box.style.display='none'; return; }
+  var u=_users.filter(function(x){ return x.userId===id; })[0]||{ userNm:id };
+  box.style.display=''; document.getElementById('ulTitle').textContent=yearOf()+'년 '+u.userNm+' 휴가';
+  document.getElementById('ulBody').innerHTML='<tr><td colspan="6" class="msg">불러오는 중…</td></tr>';
+  yearRows().then(function(rows){ if(document.getElementById('fUser').value!==id) return;
+    var l=rows.filter(function(o){ return o.userId===id; }), d=l.reduce(function(a,o){ return a+(o.status==='반려'?0:n(o.days)); },0);
+    document.getElementById('ulCnt').textContent=l.length+'건 · '+fmtD(d)+'일 (반려 제외)';
+    document.getElementById('ulBody').innerHTML = l.length ? l.map(function(o){ var can=_admin||o.userId===_me;
+      return '<tr class="pick" ondblclick="lvOpen('+o.leaveSeq+',null)" title="더블클릭 = 열기"><td><span class="chip '+gbCls(o.leaveGb)+'" style="display:inline-block">'+esc(o.leaveGb)+'</span></td>'
+        +'<td>'+fmtDt(o.fromDt)+(o.fromDt!==o.toDt?' ~ '+fmtDt(o.toDt):'')+'</td><td class="r">'+fmtD(o.days)+'</td><td class="l" style="white-space:normal">'+esc(o.remark)+'</td>'
+        +'<td><span class="st '+esc(o.status)+'">'+esc(o.status)+'</span></td><td>'+(can?'<button class="mini" onclick="lvOpen('+o.leaveSeq+',null)">✏</button>':'')+'</td></tr>'; }).join('')
+      : '<tr><td colspan="6" class="msg">올해 휴가가 없습니다.</td></tr>'; }).catch(function(e){ document.getElementById('ulBody').innerHTML='<tr><td colspan="6" class="msg" style="color:#c0392b">'+esc(e.message)+'</td></tr>'; });
+}
 
 /* ── 등록·수정 창 ── */
 function lvOpen(seq, dateYmd){
   if(!seq && dateYmd){ var mine=_rows.filter(function(o){ return String(o.fromDt)<=dateYmd && String(o.toDt)>=dateYmd && (_admin || o.userId===_me); });
     if(mine.length===1){ seq=mine[0].leaveSeq; dateYmd=null; } }   /* 하나뿐이면 수정 창으로 바로 (2026-10-21) */
-  _cur = seq ? _rows.filter(function(o){ return String(o.leaveSeq)===String(seq); })[0] : null;
+  _cur = seq ? (_rows.concat(_yearRows||[]).filter(function(o){ return String(o.leaveSeq)===String(seq); })[0]) : null;
   if(seq && !_cur){ swErr('그 휴가를 찾지 못했습니다 — 달을 다시 불러오세요.'); return; }
   if(_cur && !_admin && _cur.userId!==_me){ /* 담당자는 남의 휴가는 보기만 */
     swErr('<b>'+esc(_cur.userNm)+'</b> · '+esc(_cur.leaveGb)+' · '+fmtDt(_cur.fromDt)+(_cur.fromDt!==_cur.toDt?' ~ '+fmtDt(_cur.toDt):'')+' · '+fmtD(_cur.days)+'일 · '+esc(_cur.status)+(_cur.remark?'<br><span class="hint">'+esc(_cur.remark)+'</span>':'')+'<br><span class="hint">다른 직원의 휴가는 총괄관리자만 고칩니다.</span>'); return; }
