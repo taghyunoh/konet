@@ -15,7 +15,9 @@
       [📋 목록] 으로 바꾸면 그 달 휴가 줄 목록(수정·삭제·승인·반려)
     · 권한 = 서버가 정한다(leaveUsers.do 의 admin). 총괄관리자만 관리자 : 모든 직원 등록·수정·승인·반려·부여 일수. 그 밖(부관리자·담당자) : 제 휴가만 등록(상태 「신청」)·수정·삭제
       (2026-10-21 사용자 「기존 정보 설정은 총괄관리자가 수정할 수 있게」「수정은 본인 것만」)
-    · 일수 = 평일 수(토·일 뺌, 공휴일은 안 뺀다 — 손으로 고칠 수 있음) · 반차 = 0.5 하루
+    · 일수 = 평일 수(토·일 뺌, 공휴일은 안 뺀다 — 손으로 고칠 수 있음) · 반일 구분(반차) = 0.5 하루
+    · 휴가 구분 = 회사 설정(SET_JSON 'leave', leaveUsers.do 의 gbs) — 총괄관리자가 [⚙ 휴가 구분]에서 이름·종류(연차 차감/월차 차감/별도)·반일·색·사용을 고친다
+      (2026-10-21 「휴가 구분은 설정 아닌가요」). 서버 저장 검사도 같은 목록. 현황 표의 칸은 구분 목록에 따라 바뀐다
     · 엑셀 = 월별(지금 달 줄) · 연별(그 해 줄 + 현황 시트) · 사원별(그 해를 직원 차례로 한 시트에, 직원마다 소계 + 현황 시트)
     · 달력 셀 빈 곳 더블클릭 = 그 날짜로 등록 창 · 칩 더블클릭 = 그 휴가 열기 (2026-10-21 「달력은 더블클릭으로」 — 한 번 클릭은 아무 일도 없다)
     · 등록 창 「여러 날짜」 (2026-10-21 「월별 및 연으로 등록도 가능하게」) — 작은 달력을 넘기며 날짜를 여러 개 찍거나 「10/23, 11/06 …」 글로 붙여 넣으면
@@ -57,8 +59,9 @@
   .chip.pend{ opacity:.75; outline:2px dashed rgba(0,0,0,.25); outline-offset:-2px; }
   .chip.rej{ text-decoration:line-through; opacity:.45; }
   .chip:hover{ filter:brightness(.92); }
-  .gb-연차{ background:#137a6c; } .gb-월차{ background:#2f4f9a; } .gb-반차{ background:#6b4fa0; } .gb-병가{ background:#c0392b; }
-  .gb-경조{ background:#b45309; } .gb-공가{ background:#3b7a57; } .gb-기타{ background:#5a6b7a; }
+  .chip.gb-x{ background:#5a6b7a; }   /* 구분별 색은 gbApply() 가 #gbCss 에 .gb-0 ~ .gb-N 으로 만든다 (2026-10-21 구분 = 설정) */
+  .gbt td{ padding:3px 4px; } .gbt input[type=text]{ width:100%; height:28px; border:1px solid var(--bd); border-radius:6px; padding:0 6px; }
+  .gbt select{ height:28px; border:1px solid var(--bd); border-radius:6px; } .gbt input[type=color]{ width:36px; height:28px; border:1px solid var(--bd); border-radius:6px; padding:0; background:#fff; }
   .legend{ display:flex; gap:10px; flex-wrap:wrap; font-size:12px; color:#3d4d5c; margin-top:6px; align-items:center; }
   .legend i{ display:inline-block; width:12px; height:12px; border-radius:3px; vertical-align:-1px; margin-right:3px; }
   /* 현황·목록 표 */
@@ -106,6 +109,7 @@
   .dsel span:hover{ background:#fdecec; color:#c0392b; text-decoration:line-through; }
   @media (max-width:1180px){ .lv-main{ flex-direction:column; } .lv-right{ flex:1 1 auto; width:100%; } .lv-left{ min-width:0; } }
 </style>
+<style id="gbCss"></style>
 </head>
 <body>
 <div class="lv-wrap">
@@ -129,6 +133,7 @@
     <button class="lv-btn xls" onclick="xlsMonth()" title="지금 달의 휴가 줄을 엑셀로">📥 월별</button>
     <button class="lv-btn xls" onclick="xlsYear()" title="올해(달력의 해) 휴가 줄 전체 + 현황 시트">📥 연별</button>
     <button class="lv-btn xls" onclick="xlsUser()" title="올해 휴가를 직원 차례로 한 시트에(직원마다 소계) + 현황 시트. 직원을 골라 두면 그 직원만">📥 사원별</button>
+    <button class="lv-btn" id="btnGb" style="display:none" onclick="gbOpen()" title="휴가 구분(연차·월차·반차·병가 …) 이름·종류·반일·색을 정합니다 — 총괄관리자">⚙ 휴가 구분</button>
     <button class="lv-btn" id="btnQuota" style="display:none" onclick="qtOpen()" title="직원마다 올해 연차·월차 부여 일수 — 현황의 「잔여」 계산에 쓴다">⚙ 부여 일수</button>
   </div>
 
@@ -150,11 +155,10 @@
       <div class="box">
         <div class="bh">📊 <span id="sumTitle">연간 현황</span> <small>부여 − 사용 = 잔여 · 반려는 안 셉니다 · 이름을 누르면 그 직원만</small></div>
         <table class="grid" id="sumTbl">
-          <thead><tr><th rowspan="2" style="width:74px">직원</th><th colspan="3">연차</th><th colspan="3">월차</th><th rowspan="2" title="반차 건수(0.5일씩, 연차에서 뺀다)">반차</th><th rowspan="2">병가</th><th rowspan="2">경조</th><th rowspan="2">공가</th><th rowspan="2">기타</th><th rowspan="2" title="승인 대기 건수">대기</th></tr>
-                 <tr><th>부여</th><th>사용</th><th>잔여</th><th>부여</th><th>사용</th><th>잔여</th></tr></thead>
+          <thead id="sumHead"></thead>
           <tbody id="sumBody"><tr><td colspan="13" class="msg">불러오는 중…</td></tr></tbody>
         </table>
-        <div class="hint" style="padding:6px 10px">반차는 0.5일로 연차 사용에 들어갑니다. 공휴일은 일수에서 자동으로 빠지지 않으니 등록 창에서 일수를 고치세요.</div>
+        <div class="hint" style="padding:6px 10px" id="sumHint">반일 구분(반차)은 0.5일로 그 종류(연차·월차)의 사용에 들어갑니다. 공휴일은 일수에서 자동으로 빠지지 않으니 등록 창에서 일수를 고치세요.</div>
       </div>
     </div>
   </div>
@@ -197,6 +201,19 @@
   </div>
 </div>
 
+<%-- 휴가 구분 설정 (총괄관리자) — 회사 설정 'leave' (2026-10-21) --%>
+<div class="pop" id="gbPop">
+  <div class="bx" style="width:min(720px,96vw)">
+    <div class="hd">⚙ 휴가 구분<span class="hint" style="margin-left:6px">이름 · 종류(연차에서 뺌 / 월차에서 뺌 / 따로 셈) · 반일(0.5일, 하루) · 색 · 사용</span><span style="margin-left:auto; font-size:18px; cursor:pointer; color:#8a98a8" onclick="gbClose()">✕</span></div>
+    <div class="bd">
+      <table class="grid gbt"><thead><tr><th style="width:150px">이름</th><th style="width:120px">종류</th><th style="width:52px" title="하루짜리 0.5일">반일</th><th style="width:52px">색</th><th style="width:52px">사용</th><th style="width:96px">순서</th><th style="width:52px"></th></tr></thead><tbody id="gbBody"></tbody></table>
+      <div style="margin-top:6px"><button class="lv-btn" onclick="gbAdd()">＋ 구분 추가</button></div>
+      <div class="hint" style="margin-top:6px">이름을 바꿔도 이미 등록된 휴가의 구분 글자는 그대로 남습니다 — 그런 구분은 현황에 따로 칸이 생깁니다. 안 쓰는 구분은 지우지 말고 「사용」을 끄면 옛 자료가 그대로 보입니다.</div>
+    </div>
+    <div class="ft"><span style="margin-left:auto"></span><button class="lv-btn" onclick="gbClose()">닫기</button><button class="lv-btn teal" onclick="gbSave()">💾 저장</button></div>
+  </div>
+</div>
+
 <%-- 부여 일수 (관리자) --%>
 <div class="pop" id="qtPop">
   <div class="bx" style="width:min(640px,96vw)">
@@ -211,7 +228,19 @@
 
 <script>
 var CTX='${pageContext.request.contextPath}';
-var GBS=['연차','월차','반차(오전)','반차(오후)','병가','경조','공가','기타'];
+var _gbs=[];   /* 휴가 구분 [{nm,kind:'annual'|'monthly'|'other',half,color,use}] — leaveUsers.do 가 준다(회사 설정 'leave', 없으면 기본 8가지) */
+function gbDef(g){ g=String(g||''); for(var i=0;i<_gbs.length;i++) if(_gbs[i].nm===g) return _gbs[i]; return { nm:g, kind:'other', half:false, color:'#5a6b7a', use:true, _idx:-1 }; }
+function gbHalf(g){ return !!gbDef(g).half; }
+function gbUse(){ return _gbs.filter(function(g){ return g.use!==false; }); }
+/* 구분별 색 CSS(.gb-0 …)·고르기 목록·범례를 목록대로 다시 만든다 */
+function gbApply(){
+  document.getElementById('gbCss').textContent=_gbs.map(function(g,i){ return '.chip.gb-'+i+'{ background:'+(g.color||'#5a6b7a')+'; }'; }).join('\n');
+  var fg=document.getElementById('fGb'), eg=document.getElementById('eGb'), fv=fg.value;
+  fg.innerHTML='<option value="">전체</option>'+gbUse().map(function(g){ return '<option>'+esc(g.nm)+'</option>'; }).join(''); fg.value=fv;
+  eg.innerHTML=gbUse().map(function(g){ return '<option>'+esc(g.nm)+'</option>'; }).join('');
+  var seen={}; document.getElementById('legend').innerHTML=gbUse().filter(function(g){ var k=g.nm.replace(/\(.*\)$/,''); if(seen[k]) return false; seen[k]=1; return true; }).map(function(g){ return '<span><i class="chip '+gbCls(g.nm)+'" style="display:inline-block; width:12px; height:12px; padding:0"></i>'+esc(g.nm.replace(/\(.*\)$/,''))+'</span>'; }).join('')
+    +'<span style="margin-left:8px"><span class="chip pend" style="display:inline-block; background:#8a98a8; padding:0 6px">점선 = 신청(승인 대기)</span></span><span class="hint" style="margin-left:auto">빈 칸 <b>더블클릭</b> = 그 날짜로 등록 · 칩 <b>더블클릭</b> = 열기 · 마우스를 올리면 내용</span>';
+}
 var _ym=new Date(); _ym=new Date(_ym.getFullYear(), _ym.getMonth(), 1);
 var _users=[], _me='', _meNm='', _admin=false, _rows=[], _sum=[], _quota=[], _view='cal', _cur=null, _yearRows=null;
 function n(v){ var x=parseFloat(String(v==null?'':v).replace(/,/g,'')); return isNaN(x)?0:x; }
@@ -223,19 +252,17 @@ function ymd(d){ return d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.
 function iso(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
 function fmtDt(s){ s=String(s||'').replace(/-/g,''); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : s; }
 function fmtD(v){ var x=n(v); return (Math.round(x*10)/10).toLocaleString('ko-KR'); }
-function gbCls(g){ g=String(g||''); return 'gb-'+(g.indexOf('반차')===0?'반차':(GBS.indexOf(g)>=0?g:'기타')); }
-function gbShort(g){ g=String(g||''); return g==='반차(오전)'?'반차AM':(g==='반차(오후)'?'반차PM':g); }
+function gbCls(g){ g=String(g||''); for(var i=0;i<_gbs.length;i++) if(_gbs[i].nm===g) return 'gb-'+i; return 'gb-x'; }
+function gbShort(g){ return String(g||'').replace('(오전)','AM').replace('(오후)','PM'); }
 function weekdays(a,b){ var d=new Date(a.getTime()), c=0; while(d<=b){ var w=d.getDay(); if(w!==0&&w!==6) c++; d.setDate(d.getDate()+1); } return c; }
 function yearOf(){ return String(_ym.getFullYear()); }
 
 /* ── 초기 ── */
 function init(){
-  var gb=document.getElementById('fGb'); GBS.forEach(function(g){ gb.insertAdjacentHTML('beforeend','<option>'+g+'</option>'); });
-  var eg=document.getElementById('eGb'); GBS.forEach(function(g){ eg.insertAdjacentHTML('beforeend','<option>'+g+'</option>'); });
-  document.getElementById('legend').innerHTML=['연차','월차','반차','병가','경조','공가','기타'].map(function(g){ return '<span><i class="'+gbCls(g)+'"></i>'+g+'</span>'; }).join('')
-    +'<span style="margin-left:8px"><span class="chip pend" style="display:inline-block; background:#8a98a8; padding:0 6px">점선 = 신청(승인 대기)</span></span><span class="hint" style="margin-left:auto">빈 칸 <b>더블클릭</b> = 그 날짜로 등록 · 칩 <b>더블클릭</b> = 열기 · 마우스를 올리면 내용</span>';
   post('/mangr/leaveUsers.do','').then(function(j){
     _users=(j&&j.data)||[]; _admin=(j.admin==='Y'); _me=j.userId||''; _meNm=j.userNm||'';
+    _gbs=(j.gbs||[]).map(function(g,i){ g._idx=i; return g; }); gbApply();
+    if(_admin) document.getElementById('btnGb').style.display='';
     var fu=document.getElementById('fUser'), eu=document.getElementById('eUser');
     _users.forEach(function(u){ fu.insertAdjacentHTML('beforeend','<option value="'+esc(u.userId)+'">'+esc(u.userNm)+'</option>'); eu.insertAdjacentHTML('beforeend','<option value="'+esc(u.userId)+'">'+esc(u.userNm)+'</option>'); });
     if(_admin) document.getElementById('btnQuota').style.display='';
@@ -311,27 +338,71 @@ function listRender(){
 }
 
 /* ── 연간 현황 ── */
+/* 현황 칸 = 구분 목록대로 : 연차(부여·사용·잔여) · 월차(월차 종류가 있을 때) · 반일 건수(반일 구분이 있을 때) · 따로 셈 구분마다 한 칸 · 대기
+     올해 자료에 있는데 목록에 없는 구분(이름을 바꿨거나 지운 것)도 따로 칸을 만든다 */
+function sumCols(){
+  var use=gbUse(), inSum={}; _sum.forEach(function(s){ inSum[s.leaveGb]=1; });
+  var others=use.filter(function(g){ return g.kind==='other'; }).map(function(g){ return g.nm; });
+  Object.keys(inSum).forEach(function(k){ if(!_gbs.some(function(g){ return g.nm===k; }) && others.indexOf(k)<0) others.push(k); });
+  return { hasM:use.some(function(g){ return g.kind==='monthly'; }), hasHalf:use.some(function(g){ return g.half; }), others:others };
+}
+function sumCalc(g, C){   /* g = {구분:{days,cnt}} → {au, mu, half, oth:{nm:days}} */
+  var r={ au:0, mu:0, half:0, oth:{} };
+  Object.keys(g).forEach(function(k){ var d=gbDef(k), x=g[k];
+    if(d._idx>=0 && d.kind==='annual'){ r.au+=x.days; if(d.half) r.half+=x.cnt; }
+    else if(d._idx>=0 && d.kind==='monthly'){ r.mu+=x.days; if(d.half) r.half+=x.cnt; }
+    else { r.oth[k]=(r.oth[k]||0)+x.days; } });
+  return r;
+}
 function sumRender(){
-  var q={}; _quota.forEach(function(x){ q[x.userId]=x; });
+  var q={}; _quota.forEach(function(x){ q[x.userId]=x; }); var C=sumCols();
+  document.getElementById('sumHead').innerHTML='<tr><th rowspan="2" style="width:74px">직원</th><th colspan="3">연차</th>'+(C.hasM?'<th colspan="3">월차</th>':'')+(C.hasHalf?'<th rowspan="2" title="반일 구분 건수(0.5일씩)">반일</th>':'')
+    +C.others.map(function(nm){ return '<th rowspan="2">'+esc(nm)+'</th>'; }).join('')+'<th rowspan="2" title="승인 대기 건수">대기</th></tr><tr><th>부여</th><th>사용</th><th>잔여</th>'+(C.hasM?'<th>부여</th><th>사용</th><th>잔여</th>':'')+'</tr>';
   var by={}; _sum.forEach(function(s){ var u=by[s.userId]=by[s.userId]||{ userId:s.userId, userNm:s.userNm, g:{}, pend:0 }; u.g[s.leaveGb]={ days:n(s.days), cnt:n(s.cnt) }; u.pend+=n(s.pendCnt); });
   var ids=_users.map(function(u){ return u.userId; }); Object.keys(by).forEach(function(k){ if(ids.indexOf(k)<0) ids.push(k); });   /* 퇴직자도 올해 휴가가 있으면 보인다 */
-  var tot={ aq:0, au:0, mq:0, mu:0, half:0, sick:0, fam:0, pub:0, etc:0, pend:0 }, h='';
+  var tot={ aq:0, au:0, mq:0, mu:0, half:0, oth:{}, pend:0 }, h='', ncol=4+(C.hasM?3:0)+(C.hasHalf?1:0)+C.others.length+1;
   ids.forEach(function(id){
     var u=_users.filter(function(x){ return x.userId===id; })[0]||{ userId:id, userNm:(by[id]||{}).userNm||id };
-    var s=by[id]||{ g:{}, pend:0 }, g=function(k){ return (s.g[k]||{ days:0, cnt:0 }); };
-    var aq=q[id]?n(q[id].annualDays):15, mq=q[id]?n(q[id].monthlyDays):0;
-    var half=g('반차(오전)').cnt+g('반차(오후)').cnt, halfDays=g('반차(오전)').days+g('반차(오후)').days;
-    var au=g('연차').days+halfDays, mu=g('월차').days;
-    tot.aq+=aq; tot.au+=au; tot.mq+=mq; tot.mu+=mu; tot.half+=half; tot.sick+=g('병가').days; tot.fam+=g('경조').days; tot.pub+=g('공가').days; tot.etc+=g('기타').days; tot.pend+=s.pend;
+    var s=by[id]||{ g:{}, pend:0 }, r=sumCalc(s.g, C), aq=q[id]?n(q[id].annualDays):15, mq=q[id]?n(q[id].monthlyDays):0;
+    tot.aq+=aq; tot.au+=r.au; tot.mq+=mq; tot.mu+=r.mu; tot.half+=r.half; tot.pend+=s.pend; C.others.forEach(function(nm){ tot.oth[nm]=(tot.oth[nm]||0)+(r.oth[nm]||0); });
     h+='<tr class="pick'+(id===_me?' me':'')+'" onclick="lvPickUser(\''+esc(id)+'\')" title="이 직원만 보기">'
-      +'<td class="l"><b>'+esc(u.userNm)+'</b></td><td>'+fmtD(aq)+'</td><td>'+fmtD(au)+'</td><td class="rem'+(aq-au<0?' neg':'')+'">'+fmtD(aq-au)+'</td>'
-      +'<td>'+(mq?fmtD(mq):'')+'</td><td>'+(mu?fmtD(mu):'')+'</td><td class="rem'+(mq-mu<0?' neg':'')+'">'+(mq||mu?fmtD(mq-mu):'')+'</td>'
-      +'<td>'+(half?half+'건':'')+'</td><td>'+(g('병가').days?fmtD(g('병가').days):'')+'</td><td>'+(g('경조').days?fmtD(g('경조').days):'')+'</td><td>'+(g('공가').days?fmtD(g('공가').days):'')+'</td><td>'+(g('기타').days?fmtD(g('기타').days):'')+'</td>'
+      +'<td class="l"><b>'+esc(u.userNm)+'</b></td><td>'+fmtD(aq)+'</td><td>'+fmtD(r.au)+'</td><td class="rem'+(aq-r.au<0?' neg':'')+'">'+fmtD(aq-r.au)+'</td>'
+      +(C.hasM?'<td>'+(mq?fmtD(mq):'')+'</td><td>'+(r.mu?fmtD(r.mu):'')+'</td><td class="rem'+(mq-r.mu<0?' neg':'')+'">'+(mq||r.mu?fmtD(mq-r.mu):'')+'</td>':'')
+      +(C.hasHalf?'<td>'+(r.half?r.half+'건':'')+'</td>':'')
+      +C.others.map(function(nm){ return '<td>'+(r.oth[nm]?fmtD(r.oth[nm]):'')+'</td>'; }).join('')
       +'<td>'+(s.pend?'<span class="st 신청">'+s.pend+'</span>':'')+'</td></tr>';
   });
-  h+='<tr class="tot"><td class="l">합계</td><td>'+fmtD(tot.aq)+'</td><td>'+fmtD(tot.au)+'</td><td>'+fmtD(tot.aq-tot.au)+'</td><td>'+(tot.mq?fmtD(tot.mq):'')+'</td><td>'+(tot.mu?fmtD(tot.mu):'')+'</td><td>'+(tot.mq||tot.mu?fmtD(tot.mq-tot.mu):'')+'</td>'
-    +'<td>'+(tot.half?tot.half+'건':'')+'</td><td>'+(tot.sick?fmtD(tot.sick):'')+'</td><td>'+(tot.fam?fmtD(tot.fam):'')+'</td><td>'+(tot.pub?fmtD(tot.pub):'')+'</td><td>'+(tot.etc?fmtD(tot.etc):'')+'</td><td>'+(tot.pend?tot.pend:'')+'</td></tr>';
-  document.getElementById('sumBody').innerHTML=h||'<tr><td colspan="13" class="msg">직원이 없습니다.</td></tr>';
+  h+='<tr class="tot"><td class="l">합계</td><td>'+fmtD(tot.aq)+'</td><td>'+fmtD(tot.au)+'</td><td>'+fmtD(tot.aq-tot.au)+'</td>'
+    +(C.hasM?'<td>'+(tot.mq?fmtD(tot.mq):'')+'</td><td>'+(tot.mu?fmtD(tot.mu):'')+'</td><td>'+(tot.mq||tot.mu?fmtD(tot.mq-tot.mu):'')+'</td>':'')
+    +(C.hasHalf?'<td>'+(tot.half?tot.half+'건':'')+'</td>':'')+C.others.map(function(nm){ return '<td>'+(tot.oth[nm]?fmtD(tot.oth[nm]):'')+'</td>'; }).join('')+'<td>'+(tot.pend?tot.pend:'')+'</td></tr>';
+  document.getElementById('sumBody').innerHTML=h||'<tr><td colspan="'+ncol+'" class="msg">직원이 없습니다.</td></tr>';
+}
+/* ── 휴가 구분 설정 (총괄관리자) ── */
+var _gbEdit=[];
+function gbOpen(){ _gbEdit=_gbs.map(function(g){ return { nm:g.nm, kind:g.kind||'other', half:!!g.half, color:g.color||'#5a6b7a', use:g.use!==false }; }); gbDraw(); document.getElementById('gbPop').classList.add('on'); }
+function gbClose(){ document.getElementById('gbPop').classList.remove('on'); }
+function gbDraw(){
+  document.getElementById('gbBody').innerHTML=_gbEdit.map(function(g,i){ var K=function(v,l){ return '<option value="'+v+'"'+(g.kind===v?' selected':'')+'>'+l+'</option>'; };
+    return '<tr><td><input type="text" maxlength="20" value="'+esc(g.nm)+'" oninput="_gbEdit['+i+'].nm=this.value"></td>'
+      +'<td><select onchange="_gbEdit['+i+'].kind=this.value">'+K('annual','연차에서 뺌')+K('monthly','월차에서 뺌')+K('other','따로 셈')+'</select></td>'
+      +'<td><input type="checkbox"'+(g.half?' checked':'')+' onchange="_gbEdit['+i+'].half=this.checked" title="하루짜리 0.5일"></td>'
+      +'<td><input type="color" value="'+esc(g.color)+'" onchange="_gbEdit['+i+'].color=this.value"></td>'
+      +'<td><input type="checkbox"'+(g.use?' checked':'')+' onchange="_gbEdit['+i+'].use=this.checked"></td>'
+      +'<td><button class="mini" onclick="gbMove('+i+',-1)">▲</button><button class="mini" onclick="gbMove('+i+',1)">▼</button></td>'
+      +'<td><button class="mini no" onclick="gbDel('+i+')" title="목록에서 빼기 — 옛 자료는 남는다">✕</button></td></tr>'; }).join('') || '<tr><td colspan="7" class="msg">구분이 없습니다 — 「＋ 구분 추가」</td></tr>';
+}
+function gbAdd(){ _gbEdit.push({ nm:'', kind:'other', half:false, color:'#5a6b7a', use:true }); gbDraw(); var l=document.querySelectorAll('#gbBody input[type=text]'); if(l.length) l[l.length-1].focus(); }
+function gbDel(i){ _gbEdit.splice(i,1); gbDraw(); }
+function gbMove(i,k){ var j=i+k; if(j<0||j>=_gbEdit.length) return; var t=_gbEdit[i]; _gbEdit[i]=_gbEdit[j]; _gbEdit[j]=t; gbDraw(); }
+function gbSave(){
+  var list=_gbEdit.map(function(g){ return { nm:String(g.nm||'').trim(), kind:g.kind, half:!!g.half, color:g.color, use:!!g.use }; }).filter(function(g){ return g.nm; });
+  if(!list.length){ swErr('구분을 하나 이상 두세요.'); return; }
+  var seen={}; for(var i=0;i<list.length;i++){ if(list[i].nm.length>20){ swErr('이름은 20자까지입니다 — '+list[i].nm); return; } if(seen[list[i].nm]){ swErr('같은 이름이 둘 있습니다 — '+list[i].nm); return; } seen[list[i].nm]=1; }
+  if(!list.some(function(g){ return g.kind==='annual' && g.use; })){ swErr('「연차에서 뺌」 구분이 하나는 있어야 합니다(현황의 연차 칸).'); return; }
+  fetch(CTX+'/user/compSetPatch.do',{ method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json;charset=UTF-8'}, body:JSON.stringify({ key:'leave', val:{ gbs:list } }) })
+    .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t||('HTTP '+r.status)); }); })
+    .then(function(){ _gbs=list.map(function(g,i){ g._idx=i; return g; }); gbApply(); gbClose(); toast('휴가 구분을 저장했습니다 — 어느 PC 에서나 같습니다','ok'); lvRender(); sumRender(); })
+    .catch(function(e){ swErr(e.message); });
 }
 function lvPickUser(id){ var s=document.getElementById('fUser'); s.value=(s.value===id?'':id); lvRender(); }
 
@@ -390,7 +461,7 @@ function mcRender(){
   document.getElementById('mcBody').innerHTML=h;
   var keys=Object.keys(_mcSel).sort();
   document.getElementById('mcSel').innerHTML=keys.map(function(k){ return '<span onclick="mcToggle(\''+k+'\')" title="빼기">'+k.slice(4,6)+'/'+k.slice(6,8)+(k.slice(0,4)!==String(y)?' ('+k.slice(0,4)+')':'')+'</span>'; }).join('');
-  var half=String(document.getElementById('eGb').value||'').indexOf('반차')===0;
+  var half=gbHalf(document.getElementById('eGb').value);
   document.getElementById('mcHint').textContent='고른 날짜 '+keys.length+'일 — 날짜마다 한 건씩('+(half?'반차 0.5일':'1일')+') 저장됩니다. 이미 휴가가 있는 날(붉은 밑줄)은 건너뜁니다.';
 }
 /* 「10/23, 11/06」 「2026-12-04」 「12.11」 꼴을 달력의 해 기준으로 읽는다 */
@@ -411,9 +482,9 @@ function lvSaveMulti(){
 }
 function lvDays(){
   var gb=document.getElementById('eGb').value, f=document.getElementById('eFrom').value, t=document.getElementById('eTo').value, dd=document.getElementById('eDays'), hint=document.getElementById('eDaysHint');
-  var half=(gb.indexOf('반차')===0);
+  var half=gbHalf(gb);
   if(_mode==='multi') mcRender();
-  if(half){ document.getElementById('eTo').value=f; dd.value=0.5; dd.readOnly=true; hint.textContent='반차 = 0.5일 (하루)'; return; }
+  if(half){ document.getElementById('eTo').value=f; dd.value=0.5; dd.readOnly=true; hint.textContent='반일 구분 = 0.5일 (하루)'; return; }
   dd.readOnly=false; hint.textContent='평일 수로 자동 계산 — 공휴일이 끼면 고치세요';
   if(!f) return; if(!t||t<f){ document.getElementById('eTo').value=f; t=f; }
   var a=new Date(f+'T00:00:00'), b=new Date(t+'T00:00:00'); dd.value=Math.max(0.5, weekdays(a,b));
@@ -487,12 +558,16 @@ function xlsListSheet(period, rows){ var R=rows.map(lvRow), K=rows.map(function(
   var opt={ cols:LV_OPT.cols.slice(), right:LV_OPT.right, num:LV_OPT.num }; var w=opt.cols[5]; rows.forEach(function(o){ w=Math.max(w, Math.min(50, wch(o.remark)+2)); }); opt.cols[5]=w;
   return xlsSheet('[휴가 목록]', period, LV_HEAD, R, K, opt); }
 function xlsSumSheet(){
-  var q={}; _quota.forEach(function(x){ q[x.userId]=x; }); var by={}; _sum.forEach(function(s){ (by[s.userId]=by[s.userId]||{})[s.leaveGb]=n(s.days); });
-  var head=['직원','연차 부여','연차 사용','연차 잔여','월차 부여','월차 사용','월차 잔여','반차(일)','병가','경조','공가','기타'], R=[], K=[], T=[0,0,0,0,0,0,0,0,0,0,0];
-  _users.forEach(function(u){ var g=by[u.userId]||{}, aq=q[u.userId]?n(q[u.userId].annualDays):15, mq=q[u.userId]?n(q[u.userId].monthlyDays):0, half=(g['반차(오전)']||0)+(g['반차(오후)']||0), au=(g['연차']||0)+half, mu=g['월차']||0;
-    var row=[u.userNm, aq, au, aq-au, mq, mu, mq-mu, half, g['병가']||0, g['경조']||0, g['공가']||0, g['기타']||0]; R.push(row); K.push('row'); for(var i=1;i<12;i++) T[i-1]+=row[i]; });
+  var q={}; _quota.forEach(function(x){ q[x.userId]=x; }); var C=sumCols();
+  var by={}; _sum.forEach(function(s){ var u=by[s.userId]=by[s.userId]||{}; u[s.leaveGb]={ days:n(s.days), cnt:n(s.cnt) }; });
+  var head=['직원','연차 부여','연차 사용','연차 잔여'].concat(C.hasM?['월차 부여','월차 사용','월차 잔여']:[]).concat(C.hasHalf?['반일(건)']:[]).concat(C.others), R=[], K=[], T=[];
+  for(var i=1;i<head.length;i++) T.push(0);
+  _users.forEach(function(u){ var r=sumCalc(by[u.userId]||{}, C), aq=q[u.userId]?n(q[u.userId].annualDays):15, mq=q[u.userId]?n(q[u.userId].monthlyDays):0;
+    var row=[u.userNm, aq, r.au, aq-r.au].concat(C.hasM?[mq, r.mu, mq-r.mu]:[]).concat(C.hasHalf?[r.half]:[]).concat(C.others.map(function(nm){ return r.oth[nm]||0; }));
+    R.push(row); K.push('row'); for(var i=1;i<row.length;i++) T[i-1]+=row[i]; });
   R.push(['합 계'].concat(T)); K.push('tot');
-  return xlsSheet('[휴가 현황]', '기준연도 : '+yearOf()+'년 (부여 − 사용 = 잔여 · 반려 제외 · 반차 0.5일)', head, R, K, { cols:[9,9,9,9,9,9,9,8,7,7,7,7], right:[1,2,3,4,5,6,7,8,9,10,11], num:[1,2,3,4,5,6,7,8,9,10,11] }); }
+  var cols=[9], right=[], num=[]; for(var i=1;i<head.length;i++){ cols.push(Math.max(7, Math.min(14, wch(head[i])+1))); right.push(i); num.push(i); }
+  return xlsSheet('[휴가 현황]', '기준연도 : '+yearOf()+'년 (부여 − 사용 = 잔여 · 반려 제외 · 반일 구분 0.5일)', head, R, K, { cols:cols, right:right, num:num }); }
 function xlsMonth(){
   var rows=filtered(); if(!rows.length){ swErr('이 달에 휴가가 없습니다.'); return; }
   var a=new Date(_ym.getFullYear(), _ym.getMonth(), 1), b=new Date(_ym.getFullYear(), _ym.getMonth()+1, 0), tag=_ym.getFullYear()+'-'+('0'+(_ym.getMonth()+1)).slice(-2);

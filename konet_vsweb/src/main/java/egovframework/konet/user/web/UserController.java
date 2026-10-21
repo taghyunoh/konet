@@ -623,7 +623,7 @@ public class UserController {
 			try {
 				if (sessComp(session).isEmpty()) return ResponseEntity.status(401).body("로그인이 필요합니다.");
 				String key = trimStr(body.get("key"), 20);
-				if (!key.matches("func|prt|prtApp|cost")) return ResponseEntity.status(400).body("알 수 없는 설정입니다.");   // cost = 원가·마진 계산의 센터 비율·보관 기본값 (2026-09-17)
+				if (!key.matches("func|prt|prtApp|cost|leave")) return ResponseEntity.status(400).body("알 수 없는 설정입니다.");   // cost = 원가·마진 계산의 센터 비율·보관 기본값 (2026-09-17) · leave = 휴가 구분 목록 (2026-10-21)
 				Map<String,Object> p = compParam(session, request);
 				String js = svc.selectCompSetJson(p);
 				Map<String,Object> all = (js == null || js.trim().isEmpty())
@@ -5744,6 +5744,46 @@ public class UserController {
 			return "1".equals(gu);   /* 총괄관리자만 (2026-10-21) */
 		}
 		private Map<String,Object> leaveFail(String msg) { Map<String,Object> r = new HashMap<String,Object>(); r.put("error", msg); return r; }
+		/** 휴가 구분 목록 (2026-10-21 사용자 「휴가 구분은 설정 아닌가요」) — 회사 설정(SET_JSON) 'leave' 덩어리 {gbs:[{nm,kind,half,color,use}]}.
+		 *  kind = annual(연차에서 뺌) · monthly(월차에서 뺌) · other(따로 셈) · half = 반일(0.5일, 하루). 설정이 없거나 비면 기본 8가지.
+		 *  화면(leaveUsers.do 의 gbs)과 저장 검사(leaveSave·leaveSaveMulti)가 같은 목록을 쓴다. 총괄관리자가 화면 [⚙ 휴가 구분]에서 compSetPatch key=leave 로 고친다 */
+		@SuppressWarnings("unchecked")
+		private java.util.List<Map<String,Object>> leaveGbs(HttpSession session) {
+			java.util.List<Map<String,Object>> out = new java.util.ArrayList<Map<String,Object>>();
+			try {
+				String js = svc.selectCompSetJson(compParam(session, null));
+				if (js != null && !js.trim().isEmpty()) {
+					Map<String,Object> all = COMP_JSON.readValue(js, java.util.LinkedHashMap.class);
+					Object lv = all.get("leave");
+					if (lv instanceof Map) {
+						Object gbs = ((Map<String,Object>) lv).get("gbs");
+						if (gbs instanceof java.util.List) for (Object o : (java.util.List<Object>) gbs) {
+							if (!(o instanceof Map)) continue;
+							Map<String,Object> g = (Map<String,Object>) o;
+							String nm = leaveStr(g.get("nm")); if (nm.isEmpty() || nm.length() > 20) continue;
+							boolean dup = false; for (Map<String,Object> x : out) if (nm.equals(x.get("nm"))) dup = true; if (dup) continue;
+							String kind = leaveStr(g.get("kind")); if (!kind.matches("annual|monthly|other")) kind = "other";
+							String color = leaveStr(g.get("color")); if (!color.matches("#[0-9A-Fa-f]{6}")) color = "#5a6b7a";
+							Map<String,Object> m = new java.util.LinkedHashMap<String,Object>();
+							m.put("nm", nm); m.put("kind", kind); m.put("half", Boolean.TRUE.equals(g.get("half")) || "Y".equals(leaveStr(g.get("half"))));
+							m.put("color", color); m.put("use", !(Boolean.FALSE.equals(g.get("use")) || "N".equals(leaveStr(g.get("use")))));
+							out.add(m);
+						}
+					}
+				}
+			} catch (Exception e) { log.error(" leaveGbs ERROR : " + e.getMessage()); out.clear(); }
+			if (out.isEmpty()) {
+				String[][] D = { {"연차","annual","N","#137a6c"}, {"월차","monthly","N","#2f4f9a"}, {"반차(오전)","annual","Y","#6b4fa0"}, {"반차(오후)","annual","Y","#6b4fa0"},
+				                 {"병가","other","N","#c0392b"}, {"경조","other","N","#b45309"}, {"공가","other","N","#3b7a57"}, {"기타","other","N","#5a6b7a"} };
+				for (String[] d : D) { Map<String,Object> m = new java.util.LinkedHashMap<String,Object>(); m.put("nm", d[0]); m.put("kind", d[1]); m.put("half", "Y".equals(d[2])); m.put("color", d[3]); m.put("use", Boolean.TRUE); out.add(m); }
+			}
+			return out;
+		}
+		/** 쓰는 구분인지 — 맞으면 그 정의, 아니면 null */
+		private Map<String,Object> leaveGbOf(HttpSession session, String nm) {
+			for (Map<String,Object> g : leaveGbs(session)) if (nm.equals(g.get("nm")) && Boolean.TRUE.equals(g.get("use"))) return g;
+			return null;
+		}
 		private static String leaveStr(Object v) { return v == null ? "" : String.valueOf(v).trim(); }
 		/* yyyy-mm-dd / yyyymmdd → yyyymmdd. 틀리면 "" */
 		private static String leaveYmd(Object v) {
@@ -5771,6 +5811,7 @@ public class UserController {
 			res.put("admin", leaveAdmin(session) ? "Y" : "N");
 			res.put("userId", leaveStr(session.getAttribute("s_user_id")));
 			res.put("userNm", leaveStr(session.getAttribute("s_user_nm")));
+			res.put("gbs", leaveGbs(session));   /* 휴가 구분 목록 (2026-10-21) */
 			return res;
 		}
 
@@ -5802,13 +5843,15 @@ public class UserController {
 				String userNm = admin ? leaveStr(p.get("userNm")) : meNm;
 				if (userId.isEmpty()) return leaveFail("직원을 고르세요.");
 				String gb = leaveStr(p.get("leaveGb"));
-				if (!java.util.Arrays.asList("연차","월차","반차(오전)","반차(오후)","병가","경조","공가","기타").contains(gb)) return leaveFail("구분이 올바르지 않습니다.");
+				Map<String,Object> gbDef = leaveGbOf(session, gb);
+				if (gbDef == null) return leaveFail("쓰지 않는 구분입니다 — 총괄관리자의 [⚙ 휴가 구분] 설정을 확인하세요.");
+				boolean half = Boolean.TRUE.equals(gbDef.get("half"));
 				String fromDt = leaveYmd(p.get("fromDt")), toDt = leaveYmd(p.get("toDt"));
 				if (fromDt.isEmpty()) return leaveFail("시작일을 넣으세요.");
-				if (toDt.isEmpty() || gb.startsWith("반차")) toDt = fromDt;
+				if (toDt.isEmpty() || half) toDt = fromDt;
 				if (toDt.compareTo(fromDt) < 0) return leaveFail("종료일이 시작일보다 앞섭니다.");
 				double days = 0; try { days = Double.parseDouble(leaveStr(p.get("days"))); } catch (Exception e) { days = 0; }
-				if (gb.startsWith("반차")) days = 0.5;
+				if (half) days = 0.5;
 				if (days <= 0) return leaveFail("일수를 넣으세요.");
 				String remark = leaveStr(p.get("remark")); if (remark.length() > 200) remark = remark.substring(0, 200);
 				Map<String,Object> q = new HashMap<String,Object>();
@@ -5848,7 +5891,9 @@ public class UserController {
 				String userId = admin ? leaveStr(p.get("userId")) : me, userNm = admin ? leaveStr(p.get("userNm")) : meNm;
 				if (userId.isEmpty()) return leaveFail("직원을 고르세요.");
 				String gb = leaveStr(p.get("leaveGb"));
-				if (!java.util.Arrays.asList("연차","월차","반차(오전)","반차(오후)","병가","경조","공가","기타").contains(gb)) return leaveFail("구분이 올바르지 않습니다.");
+				Map<String,Object> gbDef = leaveGbOf(session, gb);
+				if (gbDef == null) return leaveFail("쓰지 않는 구분입니다 — 총괄관리자의 [⚙ 휴가 구분] 설정을 확인하세요.");
+				boolean half = Boolean.TRUE.equals(gbDef.get("half"));
 				java.util.List<Object> raw = (java.util.List<Object>) p.get("dates");
 				if (raw == null || raw.isEmpty()) return leaveFail("날짜를 하나 이상 고르세요.");
 				java.util.TreeSet<String> dates = new java.util.TreeSet<String>();
@@ -5862,7 +5907,7 @@ public class UserController {
 					Map<String,Object> q = new HashMap<String,Object>();
 					q.put("compCd", session.getAttribute("s_comp_cd")); q.put("leaveSeq", Long.valueOf(0));
 					q.put("userId", userId); q.put("userNm", userNm); q.put("leaveGb", gb); q.put("fromDt", d); q.put("toDt", d);
-					q.put("days", java.math.BigDecimal.valueOf(gb.startsWith("반차") ? 0.5 : 1.0)); q.put("remark", remark);
+					q.put("days", java.math.BigDecimal.valueOf(half ? 0.5 : 1.0)); q.put("remark", remark);
 					q.put("status", status); q.put("statUser", admin ? meNm : null); q.put("statDttm", admin ? now : null);
 					q.put("regUser", me); q.put("regIp", request.getRemoteAddr());
 					if (svc.selectLeaveOverlap(q) > 0) { skipped.add(d); continue; }
