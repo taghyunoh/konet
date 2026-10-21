@@ -64,6 +64,10 @@
   .over{ display:inline-block; margin-left:5px; padding:0 5px; border-radius:9px; font-size:11.5px; font-weight:800;
       background:#fdecea; color:#c0392b; border:1px solid #f5c6c0; cursor:help; white-space:nowrap; }
   .over small{ font-weight:700; opacity:.85; }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「매입관리, 입고내역도」 — 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc · 합계 줄 크림(#fcf8e3). 그 밖의 줄 색·배지·입력칸은 그대로 */
+  table.g th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3; }
+  table.g td{ border:1px solid #c9d3dc !important; }
 </style>
 </head>
 <body>

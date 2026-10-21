@@ -71,6 +71,10 @@
   .busy.on{ display:flex; }
   .busy .bx{ background:#fff; border:1px solid var(--bd); border-radius:10px; padding:13px 24px;
              font-size:14.5px; font-weight:700; color:var(--teal); box-shadow:0 8px 26px rgba(0,0,0,.18); }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「메뉴 3개 내용도 수정해줘」) — 머리줄 하늘·칸 테두리 */
+  table{ font-size:12.5px; }
+  thead th{ background:#d9edf7; color:#1f2a37; border:1px solid #9fb6c3; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3; }
+  tbody td{ border:1px solid #c9d3dc; padding:4px 6px; }
 </style>
 <%-- 화면 콘셉 공통 + 공통 UI 보정 — 반드시 이 화면 <style> 뒤에 --%>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">

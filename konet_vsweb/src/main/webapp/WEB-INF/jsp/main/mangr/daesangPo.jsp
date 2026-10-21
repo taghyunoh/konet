@@ -112,6 +112,11 @@
   #capScroll{ max-height:260px; max-width:100%; overflow:auto; border:1px solid var(--bd); border-radius:8px; background:#fff; }
   #capScroll.big{ max-height:70vh; }
   #capImg{ display:block; max-width:none; }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「DC 발주등록, 토더 발주등록, 대상 발주등록도」 — 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc · 합계 줄 크림(#fcf8e3). 고른 줄·상태 배지·입력칸은 그대로. !important = 공용 ui-concept.css 가 덮지 않게 */
+  table.g th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+  table.g td{ border:1px solid #c9d3dc !important; }
+  table.g tr.tot td, table.g tr.sum td{ background:#fcf8e3 !important; color:#1f2a37; font-weight:800; }
 </style>
 </head>
 <body>

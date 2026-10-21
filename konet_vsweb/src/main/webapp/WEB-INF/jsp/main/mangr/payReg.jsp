@@ -80,6 +80,10 @@
   .sv-lgfoot table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
   .sv-lgfoot td{ border:1px solid var(--sv-bd); padding:7px 8px; text-align:right; background:#d9f0e0; font-weight:800; }
   .sv-lgfoot td:first-child{ text-align:center; }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「매입관리, 입고내역도」 — 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc · 합계 줄 크림(#fcf8e3). 그 밖의 줄 색·배지·입력칸은 그대로 */
+  .sv-list th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; border:1px solid #9fb6c3 !important; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+  .sv-list td{ border:1px solid #c9d3dc; }
 </style>
 
 <div class="sv-wrap">

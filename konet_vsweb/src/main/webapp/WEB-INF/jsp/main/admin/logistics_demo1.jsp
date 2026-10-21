@@ -491,6 +491,7 @@
   .d2-loading .box { display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--bd); border-radius:12px; padding:16px 22px; box-shadow:0 10px 30px rgba(0,0,0,.14); font-size:14px; font-weight:800; color:#137a6c; }
   .d2-loading .sp { width:20px; height:20px; border:3px solid #d7ece7; border-top-color:#137a6c; border-radius:50%; animation:d2spin .8s linear infinite; flex:0 0 auto; }
   @keyframes d2spin { to { transform:rotate(360deg); } }
+  /* 납기현황표(대시보드)·납기세부조회 표 모양은 원래대로 둔다 (2026-10-21 「대시보드는 원복」 — 매출장 그리드 색을 넣었다가 되돌림) */
 </style>
 <%-- 노트북(1366×768·1440×900) 대응 — 2026-08-02 추가.
      viewport 는 이 화면이 tiles 를 안 거치는 .raw 페이지라 여기에 직접 둔다(셸 = 최상위 문서).

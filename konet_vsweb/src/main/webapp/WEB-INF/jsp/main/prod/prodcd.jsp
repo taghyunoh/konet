@@ -403,6 +403,10 @@
   .wrap{ height:calc(100% - var(--mc-h)); }
   .tag{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:700; background:#eef4ff; color:#274b8f; border:1px solid #c9d9f5; }
   .tag-n{ color:#9aa7b3; background:#f4f6f8; border-color:#e4e9ee; }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「두 개 메뉴도 수정, 원가관리도」 — 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc · 합계 줄 크림(#fcf8e3). !important = 공용 ui-concept.css(.card thead th) 가 덮지 않게. 그 밖의 줄 색·표시는 그대로 */
+  thead th, #mc thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; font-size:12.5px; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+  tbody td{ border:1px solid #c9d3dc; }
 </style>
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
      이 한 줄만 빼면 종전 데스크탑 화면 그대로다(파일 안에서 폭·높이 조건으로만 동작). --%>

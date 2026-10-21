@@ -73,6 +73,11 @@
   .note{ background:#fff8e1; border:1px solid #f0d98a; color:#8a5a12; border-radius:8px; padding:7px 10px; font-size:12.5px; margin-bottom:10px; }
   .note.info{ background:#eef4f2; border-color:#cfe0da; color:#125a4e; }   /* 물류비 설명 — 사업장 노란 띠와 구별 */
   .empty{ text-align:center; color:#8a97a4; padding:26px 10px; }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「3가지 메뉴도」 — 거래처별·상품별·거래처별 상품별 이익, 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc · 합계 줄 크림(#fcf8e3). 요약표(table.s)와 목록(table.g) 모두. 정렬·마진 색 글자는 그대로 */
+  table.s th, table.g th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3; }
+  table.s td, table.g td{ border:1px solid #c9d3dc !important; }
+  table.g tr.tot td{ background:#fcf8e3 !important; color:#1f2a37; font-weight:800; border-top:1px solid #c9d3dc; box-shadow:inset 0 1px 0 #9fb6c3; }
 </style>
 </head>
 <body>

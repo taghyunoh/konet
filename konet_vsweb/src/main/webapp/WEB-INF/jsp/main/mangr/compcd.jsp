@@ -217,6 +217,13 @@ $(document).on('init.dt', function(e, settings) {
   /* 검색칸을 넓힌다 (2026-08-28 「2번 좌측으로 조금 확대」) — 오른쪽 끝에 붙어 있으므로
      폭을 키우면 그만큼 <왼쪽으로> 자란다. 단추 자리는 그대로. */
   #tableName_wrapper .datatable-controls .konet-tbar #findData{ width:300px; }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「회사/사용자관리, 공통코드관리도」 — 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc · 글자 12.5px. DataTables 가 늦게 입히므로 !important. 고른 줄 바탕색은 그대로 */
+  table.dataTable thead th, table.dataTable thead td, .dataTables_scrollHead table thead th{
+    background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700 !important; font-size:12.5px !important; border:1px solid #9fb6c3 !important; padding:6px 6px !important; box-shadow:none !important; }
+  table.dataTable thead th.sorting:after, table.dataTable thead th.sorting_asc:after, table.dataTable thead th.sorting_desc:after,
+  table.dataTable thead th.sorting:before, table.dataTable thead th.sorting_asc:before, table.dataTable thead th.sorting_desc:before{ color:#1f2a37 !important; }
+  table.dataTable tbody td{ border:1px solid #c9d3dc !important; padding:4px 6px !important; font-size:12.5px; }
 </style>
 <script>
 (function(){

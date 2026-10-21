@@ -1143,7 +1143,7 @@
   var KONET_GRID_ROWS = 18;
 
   // ── 마감 집계: 출고(TBL_SHIPOUT_MST) × 단가이력/마스터 → 화면별 재집계 ──
-  function _cnum(v){ return (v==null||v==='')?'0':Math.round(Number(v)).toLocaleString(); }
+  function _cnum(v){ return (v==null||v==='')?'0':(Math.round(Number(v))||0).toLocaleString(); }   /* ||0 : -0 이 「-0」으로 찍히지 않게 (2026-10-21 재고마감 재고금액) */
   function _cesc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   /* 금액 근거 배지 — 매출액이 어디서 왔는지.
        정산 / 정산안분 = 정산서(출고장이 준 실제 청구금액). 안분은 그 키에 사업장이 여러 곳이라 수량비율로 나눈 것.
@@ -1248,7 +1248,9 @@
   }
   function closeRenderStock(rows){ _stockRows=rows; _stockCollapsed={}; _stockAllCollapsed=false; stockUpdAllBtn(); stockRender(); }
   // 재고 숫자셀 7개(기초·입고·출고·조정·기말·평균·재고금액) — showAvg=false면 평균 공란
-  function _stkCells(beg,inq,out,adj,end,avg,amt,showAvg){
+  // ★이름을 _stkCells → _closeStkCells 로 (2026-10-21 「재고마감 이 내용 무엇인지」 — 품목코드 탭에 [object Object] 가 찍히고 숫자 칸이 비었다).
+  //   js/winct/logi-oh.js(2026-09-30 재고현황 분리)가 같은 이름 _stkCells(x,neg,sh) 를 전역으로 정의해 이 함수를 덮어썼다 — 재고현황용은 칸 정의 배열을 돌려줘 글자로 찍히면 [object Object],… 가 된다
+  function _closeStkCells(beg,inq,out,adj,end,avg,amt,showAvg){
     return '<td style="text-align:right">'+_cnum(beg)+'</td><td style="text-align:right">'+_cnum(inq)+'</td>'
       +'<td style="text-align:right">'+_cnum(out)+'</td><td style="text-align:right">'+_cnum(adj)+'</td>'
       +'<td style="text-align:right;font-weight:700">'+_cnum(end)+'</td>'
@@ -1260,9 +1262,9 @@
     var g={b:0,i:0,o:0,a:0,e:0,amt:0};
     _stockRows.forEach(function(r){ g.b+=(+r.beginQty||0); g.i+=(+r.inQty||0); g.o+=(+r.outQty||0); g.a+=(+r.adjQty||0); g.e+=(+r.endQty||0); g.amt+=((+r.endQty||0)*(+r.avgInPrice||0)); });
     if(!_stockRows.length){ sum.textContent='해당 기간 재고 수불 내역이 없습니다.'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
-    var totalRow='<tr class="close-total"><td colspan="2" style="text-align:left">■ 총합계</td>'+_stkCells(g.b,g.i,g.o,g.a,g.e,0,g.amt,false)+'</tr>';
+    var totalRow='<tr class="close-total"><td colspan="2" style="text-align:left">■ 총합계</td>'+_closeStkCells(g.b,g.i,g.o,g.a,g.e,0,g.amt,false)+'</tr>';
     var _iRow=function(r){ var amt=(+r.endQty||0)*(+r.avgInPrice||0);
-      return '<tr><td>'+_cesc(r.prodCd)+'</td><td class="txt-l">'+_cesc(r.prodNm)+'</td>'+_stkCells(+r.beginQty||0,+r.inQty||0,+r.outQty||0,+r.adjQty||0,+r.endQty||0,+r.avgInPrice||0,amt,true)+'</tr>'; };
+      return '<tr><td>'+_cesc(r.prodCd)+'</td><td class="txt-l">'+_cesc(r.prodNm)+'</td>'+_closeStkCells(+r.beginQty||0,+r.inQty||0,+r.outQty||0,+r.adjQty||0,+r.endQty||0,+r.avgInPrice||0,amt,true)+'</tr>'; };
 
     var head='<table class="logi-tb">'+thead+'<tbody>'+totalRow;
     if(_stockTab==='item'){
@@ -1277,7 +1279,7 @@
     _stockRows.forEach(function(r){ var gk=r.vendorCd||'(미지정)'; var gg=gmap[gk]; if(!gg){ gg=gmap[gk]={label:gk, items:[], b:0,i:0,o:0,a:0,e:0,amt:0}; groups.push(gg); } gg.items.push(r); gg.b+=(+r.beginQty||0); gg.i+=(+r.inQty||0); gg.o+=(+r.outQty||0); gg.a+=(+r.adjQty||0); gg.e+=(+r.endQty||0); gg.amt+=((+r.endQty||0)*(+r.avgInPrice||0)); });
     sum.innerHTML='총 <b>'+groups.length+'</b>매입처 · 기말 <b>'+_cnum(g.e)+'</b> · 재고금액 <b>'+_cnum(g.amt)+'</b>';
     var _gRow=function(gi){ var gg=groups[gi], c=!!_stockCollapsed['k#'+gi], car=c?'▶':'▼';
-      return '<tr class="close-grp" onclick="stockToggleKey(\'k#'+gi+'\')"><td colspan="2" style="text-align:left"><span class="ccar">'+car+'</span><b>'+_cesc(gg.label)+'</b> <span style="color:#5b6b7a;font-weight:600">(품목 '+gg.items.length+'종)</span></td>'+_stkCells(gg.b,gg.i,gg.o,gg.a,gg.e,0,gg.amt,false)+'</tr>'; };
+      return '<tr class="close-grp" onclick="stockToggleKey(\'k#'+gi+'\')"><td colspan="2" style="text-align:left"><span class="ccar">'+car+'</span><b>'+_cesc(gg.label)+'</b> <span style="color:#5b6b7a;font-weight:600">(품목 '+gg.items.length+'종)</span></td>'+_closeStkCells(gg.b,gg.i,gg.o,gg.a,gg.e,0,gg.amt,false)+'</tr>'; };
     var rowsD=[];
     groups.forEach(function(gg,gi){ rowsD.push({t:'g',gi:gi}); if(!_stockCollapsed['k#'+gi]) gg.items.forEach(function(o){ rowsD.push({t:'i',gi:gi,o:o}); }); });
     lzMount({ wrap:wrap, pager:'closeStockPager', head:head, list:rowsD, rows:STOCK_ROWS, capTop:320, fill:true, pad:84,
@@ -3683,6 +3685,67 @@
            종전 top:34px 고정이 화면 배율 110% 에서 어긋나 <머리줄과 겹쳤다>(2026-08-31 지적).
            실제 thead 높이를 재서 --thh 로 넣는다(_stkStickyFit). */
       #stkStatusWrap table.logi-tb tbody tr.close-total td{ position:sticky; top:var(--thh, 34px); z-index:3; box-shadow:inset 0 -1px 0 rgba(255,255,255,.3); }
+      /* ★품목별재고현황 표를 「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「첫 번째 거래처 매출장·마감 그리드처럼 품목별재고현황 변경」)
+           = salesLedger.jsp table.lg : 글자 12.5px · 머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc, 여백 4px 6px · 합계 줄 크림(#fcf8e3) 굵게.
+           머리줄 고정·총합계 줄 고정(sticky)·선택 줄 강조는 그대로. 뒤에 두어 위 회청 머리줄 규칙을 덮는다 */
+      #stkStatusWrap table.logi-tb{ font-size:12.5px; }
+      #stkStatusWrap table.logi-tb thead th{ background:#d9edf7; color:#1f2a37; font-weight:700; font-size:12.5px; border:1px solid #9fb6c3; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3; }
+      #stkStatusWrap table.logi-tb tbody td{ border:1px solid #c9d3dc; padding:4px 6px; }
+      #stkStatusWrap table.logi-tb tbody tr.close-total td{ background:#fcf8e3 !important; color:#1f2a37 !important; font-weight:700; border:1px solid #c9d3dc; box-shadow:inset 0 -1px 0 #c9d3dc; }
+      #stkStatusWrap table.logi-tb tbody tr.close-total td *{ color:#1f2a37 !important; }
+      /* ② 선택 품목 수불 내역(하단)도 같은 모양 (2026-10-21 「하단도 수정해줘」) — 머리줄 하늘·칸 테두리·합계 크림 */
+      #stkLedgerBody table{ font-size:12.5px; }
+      #stkLedgerBody table thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; font-size:12.5px; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+      #stkLedgerBody table tbody td{ border:1px solid #c9d3dc; padding:4px 6px; }
+      #stkLedgerBody table tbody tr.close-total td, #stkLedgerBody table tbody tr.close-sub td{ background:#fcf8e3 !important; color:#1f2a37 !important; font-weight:700; }
+      #stkLedgerBody table tbody tr.close-total td *, #stkLedgerBody table tbody tr.close-sub td *{ color:#1f2a37 !important; }
+      /* 매출내역(일자별/품목별 납품실적 조회) 표도 같은 모양 (2026-10-21 「이 내용도 수정해줘」) — 머리줄 하늘·칸 테두리·총합계 크림. 센터 묶음·소계 줄 색은 기존 그대로 */
+      #ohWrap table.logi-tb{ font-size:12.5px; }
+      #ohWrap table.logi-tb thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; font-size:12.5px; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+      #ohWrap table.logi-tb tbody td{ border:1px solid #c9d3dc; padding:4px 6px; }
+      #ohWrap table.logi-tb tbody tr.close-total td{ background:#fcf8e3 !important; color:#1f2a37 !important; font-weight:700; }
+      #ohWrap table.logi-tb tbody tr.close-total td *{ color:#1f2a37 !important; }
+      /* 정산실적(발주번호) 표도 같은 모양 (2026-10-21 「정산실적도」) — 품목별재고현황과 같게. 센터·출고장 묶음 줄 색은 기존 그대로 */
+      #spWrap table.logi-tb{ font-size:12.5px; }
+      #spWrap table.logi-tb thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; font-size:12.5px; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+      #spWrap table.logi-tb tbody td{ border:1px solid #c9d3dc; padding:4px 6px; }
+      #spWrap table.logi-tb tbody tr.close-total td{ background:#fcf8e3 !important; color:#1f2a37 !important; font-weight:700; }
+      #spWrap table.logi-tb tbody tr.close-total td *{ color:#1f2a37 !important; }
+      /* 매출마감 표도 같은 모양 (2026-10-21 「매출마감도」) — 품목별재고현황과 같게. 묶음·소계 줄 색은 기존 그대로 */
+      #closeSalesWrap table.logi-tb{ font-size:12.5px; }
+      #closeSalesWrap table.logi-tb thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; font-size:12.5px; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+      #closeSalesWrap table.logi-tb tbody td{ border:1px solid #c9d3dc; padding:4px 6px; }
+      #closeSalesWrap table.logi-tb tbody tr.close-total td{ background:#fcf8e3 !important; color:#1f2a37 !important; font-weight:700; }
+      #closeSalesWrap table.logi-tb tbody tr.close-total td *{ color:#1f2a37 !important; }
+      /* 매입마감·재고마감 표도 같은 모양 (2026-10-21 「매입마감, 재고마감도 같은 모양으로」) — 품목별재고현황과 같게. 묶음·소계 줄 색은 기존 그대로. 머리줄·총합계 고정(sticky)은 그대로 */
+      /* 품목코드(매핑) 점검표도 같은 모양 (2026-10-21 「메뉴 3개 내용도 수정해줘」) — 머리줄 하늘·칸 테두리. 미매핑 분홍·고른 줄 초록은 그대로 */
+      #xaWrap table thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-size:12.5px; font-weight:700; padding:6px 6px; border:1px solid #9fb6c3; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+      #xaWrap table tbody td{ border:1px solid #c9d3dc; padding:4px 6px; }
+      #closeCostWrap table.logi-tb, #closeStockWrap table.logi-tb{ font-size:12.5px; }
+      #closeCostWrap table.logi-tb thead th, #closeStockWrap table.logi-tb thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; font-size:12.5px; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+      #closeCostWrap table.logi-tb tbody td, #closeStockWrap table.logi-tb tbody td{ border:1px solid #c9d3dc; padding:4px 6px; }
+      #closeCostWrap table.logi-tb tbody tr.close-total td, #closeStockWrap table.logi-tb tbody tr.close-total td{ background:#fcf8e3 !important; color:#1f2a37 !important; font-weight:700; }
+      #closeCostWrap table.logi-tb tbody tr.close-total td *, #closeStockWrap table.logi-tb tbody tr.close-total td *{ color:#1f2a37 !important; }
+      /* 마감현황(월계표) 표도 같은 모양 (2026-10-21 「마감현황도」) — 품목별재고현황과 같게. 센터·출고장 묶음 줄 색, 마진 빨강·초록 글자는 그대로 */
+      #closeStatusWrap table.logi-tb{ font-size:12.5px; }
+      #closeStatusWrap table.logi-tb thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; font-size:12.5px; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+      #closeStatusWrap table.logi-tb tbody td{ border:1px solid #c9d3dc; padding:4px 6px; }
+      #closeStatusWrap table.logi-tb tbody tr.close-total td{ background:#fcf8e3 !important; color:#1f2a37 !important; font-weight:700; }
+      #closeStatusWrap table.logi-tb tbody tr.close-total td *{ color:#1f2a37 !important; }
+      /* 월별 마감이력 표도 같은 모양 (2026-10-21 「월별 마감이력도」) — 머리줄 하늘·칸 테두리·합계 크림 */
+      #closeHistWrap table{ font-size:12.5px; }
+      #closeHistWrap table thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; font-size:12.5px; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+      #closeHistWrap table tbody td{ border:1px solid #c9d3dc; padding:4px 6px; }
+      #closeHistWrap table tbody tr.close-total td, #closeHistWrap table tbody tr.close-sub td{ background:#fcf8e3 !important; color:#1f2a37 !important; font-weight:700; }
+      #closeHistWrap table tbody tr.close-total td *, #closeHistWrap table tbody tr.close-sub td *{ color:#1f2a37 !important; }
+      /* 입고내역 표도 같은 모양 (2026-10-21 「매입관리, 입고내역도」) — 머리줄 하늘·칸 테두리·총합계 크림. 묶음(일자/매입처) 줄 색·머리줄 고정은 그대로 */
+      #inbWrap table.logi-tb{ font-size:12.5px; }
+      #inbWrap table.logi-tb thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; font-size:12.5px; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+      #inbWrap table.logi-tb tbody td{ border:1px solid #c9d3dc; padding:4px 6px; }
+      #inbWrap table.logi-tb tbody tr.close-total td{ background:#fcf8e3 !important; color:#1f2a37 !important; font-weight:700; }
+      #inbWrap table.logi-tb tbody tr.close-total td *{ color:#1f2a37 !important; }
+
+      #stkStatusWrap table.logi-tb tbody tr.close-total td:first-child{ text-align:center; }
       /* 조회 진행바 — 정산서 대사가 붙으면서 마감·매출내역 조회가 무거워졌다(2026-07-25).
          응답이 올 때까지 표 자리에 띄운다. 진행률을 알 수 없는 조회라 좌우로 흐르는 무한 바. */
       .qprog{ height:3px; background:#e8efed; border-radius:2px; overflow:hidden; margin:2px 0 8px; }
@@ -3980,8 +4043,9 @@
         #panel-guide .g-sec h3{ margin:0 0 4px; font-size:15px; color:#137a6c; }
         #panel-guide .g-sec .gd{ color:#5b6b7a; font-size:12.5px; margin-bottom:10px; }
         #panel-guide table{ width:100%; border-collapse:collapse; font-size:12.5px; }
-        #panel-guide th{ background:#f1f5f4; text-align:left; padding:7px 10px; color:#37475a; white-space:nowrap; }
-        #panel-guide td{ border-bottom:1px solid #eef1f5; padding:7px 10px; vertical-align:top; }
+        /* 업무 설명서 표도 「거래처 매출장·마감」 그리드 모양 (2026-10-21 「업무 설명서도」) — 머리줄 하늘·칸 테두리. 글은 왼쪽 맞춤 그대로 */
+        #panel-guide th{ background:#d9edf7; text-align:left; padding:6px 10px; color:#1f2a37; font-weight:700; border:1px solid #9fb6c3; white-space:nowrap; }
+        #panel-guide td{ border:1px solid #c9d3dc; padding:6px 10px; vertical-align:top; }
         #panel-guide td.m{ font-weight:700; color:#1f2a37; white-space:nowrap; }
         /* ★display:block 필수 — 전역 .flow 는 flex(가로 배치)라 여기서 쓰면
            <br> 이 먹지 않고 각 단계가 좌우로 늘어서며 글자가 세로로 접힌다(2026-07-22 수정) */
@@ -5130,6 +5194,12 @@
         /* 하단 표 — 매출 그래프(일자별)처럼 안에서 스크롤 + 머리글 고정 (2026-08-02 요청) */
         #sgTbl table.logi-tb thead th, #sgDcTbl table.logi-tb thead th{ position:sticky; top:0; z-index:2; box-shadow:inset 0 -1px 0 var(--logi-border); }
         #sgTbl tr.sg-we td{ background:#fdf4ea; }                 /* 주말 줄 배경 */
+        /* 정산 그래프 하단 표도 「거래처 매출장·마감」 그리드 모양 (2026-10-21 「매출·정산 그래프(하단 그리드)도」) — 머리줄 하늘·칸 테두리·합계 크림. 주말 줄 색은 그대로 */
+        #sgTbl table.logi-tb, #sgDcTbl table.logi-tb{ font-size:12.5px; }
+        #sgTbl table.logi-tb thead th, #sgDcTbl table.logi-tb thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; font-size:12.5px; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+        #sgTbl table.logi-tb tbody td, #sgDcTbl table.logi-tb tbody td{ border:1px solid #c9d3dc; padding:4px 6px; }
+        #sgTbl table.logi-tb tbody tr.close-total td, #sgDcTbl table.logi-tb tbody tr.close-total td{ background:#fcf8e3 !important; color:#1f2a37 !important; font-weight:700; }
+        #sgTbl table.logi-tb tbody tr.close-total td *, #sgDcTbl table.logi-tb tbody tr.close-total td *{ color:#1f2a37 !important; }
       </style>
       <div class="card">
         <div id="sgKpi"></div>

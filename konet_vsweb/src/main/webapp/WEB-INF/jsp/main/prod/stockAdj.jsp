@@ -114,6 +114,12 @@
              font-size:14.5px; font-weight:700; color:var(--teal); box-shadow:0 8px 26px rgba(0,0,0,.18); }
   .busy .hg{ display:inline-block; animation:hgFlip 1.2s linear infinite; margin-right:6px; }
   @keyframes hgFlip{ 0%,80%{ transform:rotate(0) } 90%,100%{ transform:rotate(180deg) } }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「메뉴 3개 내용도 수정해줘」 — 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc. 고친 줄(노랑)·음수 재고(빨강)·입력칸은 그대로 */
+  table{ font-size:12.5px; }
+  thead th{ background:#d9edf7 !important; color:#1f2a37 !important; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }   /* !important : 공용 ui-concept.css(.card thead th) 가 덮어서 */
+  tbody td{ border:1px solid #c9d3dc; padding:4px 6px; }
+  .hgrid thead th{ background:#d9edf7 !important; }
 </style>
 <%-- ★[2026-08-20] 화면 콘셉 공통 — 표 형식 입력 · 세로선 격자 · Pretendard.
      반드시 이 화면의 <style>·다른 CSS **뒤에** 걸어야 옛 규칙을 덮는다.

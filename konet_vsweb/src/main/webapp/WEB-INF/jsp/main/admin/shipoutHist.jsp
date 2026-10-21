@@ -83,6 +83,11 @@
   .kpi div{ flex:1 1 150px; border:1px solid var(--sh-bd); border-radius:8px; padding:8px 12px; background:#fbfdfc; }
   .kpi b{ display:block; font-size:19px; color:#137a6c; margin-top:2px; }
   .kpi span{ font-size:11.5px; color:#6b7a89; }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「납기현황이력조회도」 — 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc. 이력 목록(.sh-list)·상세(.sh-dtl) 모두. 머리줄 고정·고른 줄 표시는 그대로 */
+  .sh-list th, .sh-dtl th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; border:1px solid #9fb6c3 !important; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+  .sh-list td, .sh-dtl td{ border:1px solid #c9d3dc; }
+  .sh-list tr.tot td, .sh-dtl tr.tot td{ background:#fcf8e3 !important; color:#1f2a37 !important; font-weight:800; }
 </style>
 
 <div class="sh-wrap">

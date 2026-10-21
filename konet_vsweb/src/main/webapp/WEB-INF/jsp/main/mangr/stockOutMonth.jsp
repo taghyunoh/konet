@@ -114,6 +114,13 @@
   /* 출고코드(거래처 매칭코드) — 품목별재고현황의 ↳ 줄과 같은 주황 */
   .dtl td .xc{ color:#c8741a; font-weight:700; } .dtl td .xn{ color:#a06a2c; font-size:12px; }
   .dtl .none{ padding:18px; text-align:center; color:#9aa7b3; }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「월별 출고현황도」 — 품목별재고현황·매출내역·마감 표와 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc · 합계 줄 크림(#fcf8e3). 사업장 묶음 머리(gh)·품목 머리(it)·현재고 줄(stk)·고정칸 동작은 그대로 */
+  table.mx th, table.mx td{ border:1px solid #c9d3dc; }
+  table.mx thead th{ background:#d9edf7; border:1px solid #9fb6c3; }
+  table.mx thead th.cn, table.mx thead th.rt{ background:#d9edf7; }
+  table.mx tr.sum td{ background:#fcf8e3; color:#1f2a37; font-weight:800; }
+  table.mx tr.sum td.cn, table.mx tr.sum td.rt{ background:#fcf8e3; }
 </style>
 </head>
 <body>

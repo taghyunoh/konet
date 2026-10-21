@@ -216,6 +216,13 @@
   .cb-msg{ padding:24px; text-align:center; color:#2b3a48; font-size:13.5px; font-weight:600; }
   .cb-note{ font-size:12.5px; color:#1f2a37; line-height:1.75; font-weight:600; }
   .cb-note b{ color:#37475a; }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「거래처별 채권·채무도」 — 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc · 합계 줄 크림(#fcf8e3). 일자 묶음 머리(연주황)·머리줄 고정·고른 줄 표시는 그대로 */
+  table.cb-tb{ font-size:12.5px; }
+  table.cb-tb th, #cbList thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }   /* !important : #cbList 쪽 고정 머리 규칙이 덮어서 */
+  table.cb-tb th.grp{ background:#d9edf7 !important; }
+  table.cb-tb td{ border:1px solid #c9d3dc !important; }
+  table.cb-tb tr.tot td, table.cb-tb tr.tot td.dayc, #cbList tbody tr.tot td:first-child{ background:#fcf8e3 !important; color:#1f2a37 !important; font-weight:800; }
 </style>
 
 <div class="cb-wrap" id="cbWrap">

@@ -54,6 +54,12 @@
   .sd-tbwrap table{ margin-top:0; }
   .sd-note{ font-size:12.5px; color:#1f2a37; line-height:1.7; font-weight:600; }
   .sd-note b{ color:#37475a; }
+  /* ★하단 표를 「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「매출·정산 그래프(하단 그리드)도」 — 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc · 합계 줄 크림(#fcf8e3). 그래프·주말 줄 색은 그대로 */
+  table.sd-tb{ font-size:12.5px; }
+  table.sd-tb th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+  table.sd-tb td{ border:1px solid #c9d3dc; }
+  table.sd-tb tr.tot td{ background:#fcf8e3 !important; color:#1f2a37 !important; font-weight:800; }
 </style>
 
 <div class="sd-wrap">

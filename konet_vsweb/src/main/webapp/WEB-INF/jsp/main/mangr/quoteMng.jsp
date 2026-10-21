@@ -135,6 +135,15 @@
   .cmp .up{ color:var(--red); font-weight:700; } .cmp .dn{ color:#1f5fbf; font-weight:700; } .cmp .same{ color:#8a98a8; }
   .cmp .sub{ font-size:11.5px; color:#6b7a89; }
   .cmp tr.tot td{ background:#eef4f2; font-weight:800; }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「견적서 목록」 — 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc · 합계 줄 크림(#fcf8e3). 목록·미리보기·비교·이력·원본 표(table.g) 모두. 고른 줄 바탕색·진행 배지·버튼은 그대로 */
+  table.g th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3; }
+  table.g td{ border:1px solid #c9d3dc; }
+  .cmp tr.tot td{ background:#fcf8e3; color:#1f2a37; font-weight:800; }
+  /* ★두 줄 머리글(물류비·실 판매금액 묶음 + 센터 이름)이 스크롤하면 윗줄이 사라지던 것 (2026-10-21 사용자 「스크롤하면 물류비, 실판매금액이 없어짐」)
+       — th 하나하나가 top:0 sticky 라 둘째 줄이 첫째 줄을 덮었다. 계산조회·비교 표는 thead 를 통째로 고정하고 th 는 보통 흐름으로 */
+  .cmp table.g thead{ position:sticky; top:0; z-index:3; }
+  .cmp table.g thead th{ position:static; }
 </style>
 </head>
 <body>

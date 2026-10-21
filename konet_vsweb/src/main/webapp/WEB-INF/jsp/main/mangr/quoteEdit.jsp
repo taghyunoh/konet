@@ -158,6 +158,11 @@
   .pop .pb{ overflow:auto; }
   .pop table.g tr.pick{ cursor:pointer; } .pop table.g tr.pick:hover td{ background:#e3f2ee; }
   .pop .pb .in{ border:1.5px solid #e9b98a; background:#fdebd9; height:30px; border-radius:6px; padding:0 6px; font-size:13px; }
+  /* ★품목 그리드를 「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「견적서 작성 그리드도 수정해줘」 — 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc · 합계 줄 크림(#fcf8e3). 입력칸·동판·목형 줄(부대비)·버튼은 그대로. 원가 계산 창(table.csh)은 손대지 않는다 */
+  table.g th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+  table.g td{ border:1px solid #c9d3dc; }
+  table.g tr.sum td{ background:#fcf8e3 !important; color:#1f2a37; font-weight:800; }
 </style>
 </head>
 <body>

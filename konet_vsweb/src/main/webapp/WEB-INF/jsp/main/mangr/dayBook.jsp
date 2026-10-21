@@ -81,6 +81,12 @@
     tr{ page-break-inside:avoid; }
     thead{ display:table-header-group; }             /* 페이지마다 머리글 반복 */
   }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「일계장도」) — 머리줄 하늘·칸 테두리·합계 크림. 일합계 줄·인쇄 규칙은 그대로 */
+  table.db-tb{ font-size:12.5px; }
+  table.db-tb th{ background:#d9edf7; color:#1f2a37; font-weight:700; border:1px solid #9fb6c3; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3; }
+  table.db-tb th.grp{ background:#d9edf7; }
+  table.db-tb td{ border:1px solid #c9d3dc; padding:4px 6px; }
+  table.db-tb tr.tot td{ background:#fcf8e3; color:#1f2a37; font-weight:800; }
 </style>
 
 <div class="db-wrap">

@@ -68,6 +68,10 @@
   #msg{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%); background:#1f2a37; color:#fff; padding:10px 18px; border-radius:9px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:50; }
   #msg.on{ opacity:1; }
   .note{ margin-top:10px; color:#8a98a8; font-size:12px; line-height:1.7; }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「택배납기관리도」 — 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc. 글자 크기(14px, 2026-08-06 요청)·입력칸·머리줄 고정은 그대로 */
+  thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; border:1px solid #9fb6c3 !important; padding:7px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+  tbody td{ border:1px solid #c9d3dc !important; }
 </style>
 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/winmc/konet-notebook.css">
 <%-- ★공통 UI 보정 (2026-08-21) — 단추 글자 두 줄 접힘 방지 + [글자 축소/확대] 단추 모양.

@@ -122,6 +122,11 @@
   #mov .mchip.on .n{ color:#bfe6dd; }
   /* 목록의 매칭코드 표시 — 코드가 있는 줄이 한눈에 보이게 */
   .mtag{ display:inline-block; background:#e3f4ef; color:#137a6c; border:1px solid #b9e6dd; border-radius:11px; padding:1px 9px; font-size:12px; font-weight:700; }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「거래처관리(사업장)도」 — 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리 · 칸 테두리 #c9d3dc · 글자 12.5px. 고른 줄은 바탕색만(굵은 선 없음). !important = 공용 ui-concept.css 가 덮지 않게 */
+  thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; font-size:12.5px; border:1px solid #9fb6c3 !important; padding:6px 6px !important; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+  tbody td{ border:1px solid #c9d3dc; }
+  tbody tr.sel td{ box-shadow:none !important; }
 </style>
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
      이 한 줄만 빼면 종전 데스크탑 화면 그대로다(파일 안에서 폭·높이 조건으로만 동작). --%>

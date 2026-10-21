@@ -90,6 +90,11 @@
   #ov .lastcd button{ height:26px; padding:0 11px; font-size:12.5px; font-weight:700; border:1px solid var(--teal);
                       background:#fff; color:var(--teal); border-radius:6px; cursor:pointer; }
   #ov .lastcd button:hover{ background:var(--teal); color:#fff; }
+  /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「매입/매출 거래처도 수정해줘」 — 품목별재고현황과 같게)
+       머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc · 글자 12.5px. 고른 줄은 바탕색만. !important = 공용 ui-concept.css 가 덮지 않게 */
+  thead th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; font-size:12.5px; border:1px solid #9fb6c3 !important; padding:6px 6px !important; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
+  tbody td{ border:1px solid #c9d3dc !important; }   /* !important : 공용 ui-concept.css(.card tbody td) 가 덮어서 */
+  tbody tr.sel td{ box-shadow:none !important; }
 </style>
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
      이 한 줄만 빼면 종전 데스크탑 화면 그대로다(파일 안에서 폭·높이 조건으로만 동작). --%>
