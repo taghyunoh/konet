@@ -75,6 +75,7 @@
   table.grid tr.pick:hover td{ background:#f7fbfa; cursor:pointer; }
   table.grid tr.tot td{ background:#eef5f3; font-weight:800; }
   table.grid tr.me td{ background:#fffbea; }
+  table.grid tr.on td{ background:#cfeae3 !important; font-weight:800; } table.grid tr.on td:first-child{ box-shadow:inset 4px 0 0 #137a6c; }   /* 현황에서 고른 직원 (2026-10-21) */
   .rem{ color:var(--teal); font-weight:800; } .rem.neg{ color:var(--red); }
   .st{ display:inline-block; font-size:11px; font-weight:800; border-radius:6px; padding:1px 6px; }
   .st.신청{ background:#fff1e0; color:#9a4b00; border:1px solid #f0c9a4; } .st.승인{ background:#e6f4f1; color:#137a6c; } .st.반려{ background:#fdecec; color:#c0392b; }
@@ -162,8 +163,8 @@
       </div>
     <%-- 고른 직원의 올해 휴가 목록 (2026-10-21 사용자 「현황에서 대상자를 클릭하면 밑에 해당자 휴가 리스트」) — 현황 이름 클릭 = 달력 거르기 + 이 목록 --%>
     <div class="box" id="ulBox" style="display:none; margin-top:10px">
-      <div class="bh">📋 <span id="ulTitle">휴가 목록</span> <small id="ulCnt"></small><span style="margin-left:auto; cursor:pointer; color:#8a98a8" onclick="lvPickUser('')" title="닫기(전체 보기로)">✕</span></div>
-      <table class="grid"><thead><tr><th style="width:84px">구분</th><th style="width:170px">기간</th><th style="width:46px">일수</th><th>사유</th><th style="width:60px">상태</th><th style="width:60px"></th></tr></thead>
+      <div class="bh">📋 <span id="ulTitle">휴가 목록</span> <small id="ulCnt"></small><button class="mini ok" id="ulAll" style="display:none; margin-left:8px; height:26px"></button><span style="margin-left:auto; cursor:pointer; color:#8a98a8" onclick="lvPickUser('')" title="닫기">✕</span></div>
+      <table class="grid"><thead><tr><th style="width:84px">구분</th><th style="width:170px">기간</th><th style="width:46px">일수</th><th>사유</th><th style="width:60px">상태</th><th style="width:96px"></th></tr></thead>
         <tbody id="ulBody"></tbody></table>
     </div>
     </div>
@@ -371,7 +372,7 @@ function sumRender(){
     var u=_users.filter(function(x){ return x.userId===id; })[0]||{ userId:id, userNm:(by[id]||{}).userNm||id };
     var s=by[id]||{ g:{}, pend:0 }, r=sumCalc(s.g, C), aq=q[id]?n(q[id].annualDays):15, mq=q[id]?n(q[id].monthlyDays):0;
     tot.aq+=aq; tot.au+=r.au; tot.mq+=mq; tot.mu+=r.mu; tot.half+=r.half; tot.pend+=s.pend; C.others.forEach(function(nm){ tot.oth[nm]=(tot.oth[nm]||0)+(r.oth[nm]||0); });
-    h+='<tr class="pick'+(id===_me?' me':'')+'" onclick="lvPickUser(\''+esc(id)+'\')" title="이 직원만 보기">'
+    h+='<tr class="pick'+(id===_me?' me':'')+(id===_pickUser?' on':'')+'" onclick="lvPickUser(\''+esc(id)+'\')" title="누르면 아래에 이 직원의 올해 휴가 목록 (달력은 그대로)">'
       +'<td class="l"><b>'+esc(u.userNm)+'</b></td><td>'+fmtD(aq)+'</td><td>'+fmtD(r.au)+'</td><td class="rem'+(aq-r.au<0?' neg':'')+'">'+fmtD(aq-r.au)+'</td>'
       +(C.hasM?'<td>'+(mq?fmtD(mq):'')+'</td><td>'+(r.mu?fmtD(r.mu):'')+'</td><td class="rem'+(mq-r.mu<0?' neg':'')+'">'+(mq||r.mu?fmtD(mq-r.mu):'')+'</td>':'')
       +(C.hasHalf?'<td>'+(r.half?r.half+'건':'')+'</td>':'')
@@ -410,22 +411,26 @@ function gbSave(){
     .then(function(){ _gbs=list.map(function(g,i){ g._idx=i; return g; }); gbApply(); gbClose(); toast('휴가 구분을 저장했습니다 — 어느 PC 에서나 같습니다','ok'); lvRender(); sumRender(); })
     .catch(function(e){ swErr(e.message); });
 }
-function lvPickUser(id){ var s=document.getElementById('fUser'); s.value=(s.value===id?'':id); lvRender(); ulRender(); }
+var _pickUser='';   /* 현황에서 고른 직원 — 아래 목록용. 달력 거르기(fUser)와는 따로 (2026-10-21 「선택하면 다른 직원이 안 보임」) */
+function lvPickUser(id){ _pickUser=(_pickUser===id?'':id); sumRender(); ulRender(); }
 /* 고른 직원의 올해 휴가 목록 — 현황 표 밑 (2026-10-21). 달력 거르기(fUser)와 같은 직원. 줄을 더블클릭하면 그 휴가 창 */
 function ulRender(){
-  var box=document.getElementById('ulBox'), id=document.getElementById('fUser').value;
+  var box=document.getElementById('ulBox'), id=_pickUser;
   if(!id){ box.style.display='none'; return; }
   var u=_users.filter(function(x){ return x.userId===id; })[0]||{ userNm:id };
   box.style.display=''; document.getElementById('ulTitle').textContent=yearOf()+'년 '+u.userNm+' 휴가';
   document.getElementById('ulBody').innerHTML='<tr><td colspan="6" class="msg">불러오는 중…</td></tr>';
-  yearRows().then(function(rows){ if(document.getElementById('fUser').value!==id) return;
+  yearRows().then(function(rows){ if(_pickUser!==id) return;
     var l=rows.filter(function(o){ return o.userId===id; }), d=l.reduce(function(a,o){ return a+(o.status==='반려'?0:n(o.days)); },0);
     document.getElementById('ulCnt').textContent=l.length+'건 · '+fmtD(d)+'일 (반려 제외)';
     document.getElementById('ulBody').innerHTML = l.length ? l.map(function(o){ var can=_admin||o.userId===_me;
       return '<tr class="pick" ondblclick="lvOpen('+o.leaveSeq+',null)" title="더블클릭 = 열기"><td><span class="chip '+gbCls(o.leaveGb)+'" style="display:inline-block">'+esc(o.leaveGb)+'</span></td>'
         +'<td>'+fmtDt(o.fromDt)+(o.fromDt!==o.toDt?' ~ '+fmtDt(o.toDt):'')+'</td><td class="r">'+fmtD(o.days)+'</td><td class="l" style="white-space:normal">'+esc(o.remark)+'</td>'
-        +'<td><span class="st '+esc(o.status)+'">'+esc(o.status)+'</span></td><td>'+(can?'<button class="mini" onclick="lvOpen('+o.leaveSeq+',null)">✏</button>':'')+'</td></tr>'; }).join('')
-      : '<tr><td colspan="6" class="msg">올해 휴가가 없습니다.</td></tr>'; }).catch(function(e){ document.getElementById('ulBody').innerHTML='<tr><td colspan="6" class="msg" style="color:#c0392b">'+esc(e.message)+'</td></tr>'; });
+        +'<td><span class="st '+esc(o.status)+'">'+esc(o.status)+'</span></td><td style="white-space:nowrap">'+(can?'<button class="mini" onclick="lvOpen('+o.leaveSeq+',null)" title="열기">✏</button>':'')
+        +(_admin&&o.status!=='승인'?'<button class="mini ok" onclick="lvStatus('+o.leaveSeq+',\'승인\')" title="승인">✔</button>':'')+(_admin&&o.status!=='반려'?'<button class="mini no" onclick="lvStatus('+o.leaveSeq+',\'반려\')" title="반려">✖</button>':'')+'</td></tr>'; }).join('')
+      : '<tr><td colspan="6" class="msg">올해 휴가가 없습니다.</td></tr>';
+    var pend=l.filter(function(o){ return o.status==='신청'; }), ab=document.getElementById('ulAll');
+    if(ab){ ab.style.display=(_admin&&pend.length)?'':'none'; ab.textContent='✔ 대기 '+pend.length+'건 전부 승인'; ab.onclick=function(){ lvApproveAll(pend.map(function(o){ return o.leaveSeq; }), u.userNm); }; } }).catch(function(e){ document.getElementById('ulBody').innerHTML='<tr><td colspan="6" class="msg" style="color:#c0392b">'+esc(e.message)+'</td></tr>'; });
 }
 
 /* ── 등록·수정 창 ── */
@@ -528,7 +533,19 @@ function lvDeleteSeq(seq){
   if(window._confirmBox) _confirmBox({ msg:'<b>'+esc(o.userNm)+'</b> · '+esc(o.leaveGb)+' · '+fmtDt(o.fromDt)+(o.fromDt!==o.toDt?' ~ '+fmtDt(o.toDt):'')+' 를 지울까요?', icon:'🗑', okText:'지우기', okColor:'red', onOk:go });
   else if(confirm('지울까요?')) go();
 }
-function lvStatus(seq, st){ post('/mangr/leaveStatus.do','leaveSeq='+seq+'&status='+encodeURIComponent(st)).then(function(){ lvClose(); toast('「'+st+'」으로 바꿨습니다','ok'); load(); }).catch(function(e){ swErr(e.message); }); }
+/* 한 직원의 신청 건을 한 번에 승인 (2026-10-21) — 차례로 보내고 끝나면 다시 읽는다 */
+function lvApproveAll(seqs, nm){ if(!seqs.length) return;
+  var go=function(){ var i=0; (function next(){ if(i>=seqs.length){ toast(nm+' 신청 '+seqs.length+'건을 모두 승인했습니다','ok'); load(); return; }
+      post('/mangr/leaveStatus.do','leaveSeq='+seqs[i]+'&status='+encodeURIComponent('승인')).then(function(){ i++; next(); }).catch(function(e){ swErr(e.message); load(); }); })(); };
+  if(window._confirmBox) _confirmBox({ msg:'<b>'+esc(nm)+'</b>의 신청 <b>'+seqs.length+'건</b>을 모두 승인할까요?', icon:'✔', okText:'전부 승인', onOk:go }); else if(confirm(nm+' 신청 '+seqs.length+'건을 모두 승인할까요?')) go(); }
+/* 승인·반려·신청으로 — 확인창을 거친 뒤 바꾼다 (2026-10-21 사용자 「승인·반려 누르면 메시지 처리 후 진행하나요」 → 「네」) */
+function lvStatus(seq, st){
+  var o=_rows.concat(_yearRows||[]).filter(function(x){ return String(x.leaveSeq)===String(seq); })[0]||{};
+  var who=(o.userNm?'<b>'+esc(o.userNm)+'</b> · '+esc(o.leaveGb||'')+' · '+fmtDt(o.fromDt)+(o.fromDt&&o.fromDt!==o.toDt?' ~ '+fmtDt(o.toDt):'')+(o.days?' · '+fmtD(o.days)+'일':''):'이 휴가');
+  var go=function(){ post('/mangr/leaveStatus.do','leaveSeq='+seq+'&status='+encodeURIComponent(st)).then(function(){ lvClose(); toast('「'+st+'」으로 바꿨습니다','ok'); load(); }).catch(function(e){ swErr(e.message); }); };
+  var msg=who+(st==='승인'?'을(를) <b>승인</b>할까요?':(st==='반려'?'을(를) <b style="color:#c0392b">반려</b>할까요?<br><span class="hint">반려하면 달력에 취소선으로 남고 잔여 계산에서 빠집니다.</span>':'을(를) 다시 <b>신청</b> 상태로 돌릴까요?'));
+  if(window._confirmBox) _confirmBox({ msg:msg, icon:(st==='반려'?'✖':'✔'), okText:st, okColor:(st==='반려'?'red':'blue'), onOk:go }); else if(confirm(msg.replace(/<[^>]+>/g,''))) go();
+}
 
 /* ── 부여 일수 ── */
 function qtOpen(){
