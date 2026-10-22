@@ -104,6 +104,9 @@
   table.grid td.who{ font-weight:800; }
   table.grid.pend2 th.gap, table.grid.pend2 td.gap{ width:10px; border-top:0; border-bottom:0; background:#f7f9fb; padding:0; }   /* 두 건 사이 틈 */
   table.grid.pend2 td.blank{ background:#fafbfc; }
+  .ulScroll{ overflow:auto; }   /* 직원 휴가 목록 — 15줄까지는 그대로, 넘으면 ulFit() 이 max-height 를 준다 */
+  .ulScroll thead th{ position:sticky; top:0; z-index:1; box-shadow:0 1px 0 var(--bd); }   /* 스크롤해도 머리줄은 남는다 */
+  .ul-more{ text-align:center; font-size:12px; font-weight:700; color:#137a6c; background:#eef5f3; border-top:1px solid var(--bd); padding:4px 0; cursor:pointer; }   /* 「▼ 아래 N건 더」 — 끝까지 내리면 사라진다 */
   /* 여러 날짜 고르기 (작은 달력) */
   .mode{ display:flex; gap:4px; margin-bottom:6px; } .mode .lv-btn{ height:28px; font-size:12.5px; padding:0 10px; }
   .mcal{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:12.5px; }
@@ -172,8 +175,12 @@
     <%-- 고른 직원의 올해 휴가 목록 (2026-10-21 사용자 「현황에서 대상자를 클릭하면 밑에 해당자 휴가 리스트」) — 현황 이름 클릭 = 달력 거르기 + 이 목록 --%>
     <div class="box" id="ulBox" style="display:none; margin-top:10px">
       <div class="bh">📋 <span id="ulTitle">휴가 목록</span> <small id="ulCnt"></small><button class="mini ok" id="ulAll" style="display:none; margin-left:8px; height:26px"></button><span style="margin-left:auto; cursor:pointer; color:#8a98a8" onclick="lvPickUser('')" title="닫기">✕</span></div>
+      <%-- 15줄 넘으면 상자 안에서만 스크롤 (2026-10-22) — 높이는 ulFit() 이 머리줄 + 앞 15줄을 실제로 재서 정한다 --%>
+      <div class="ulScroll" id="ulScroll">
       <table class="grid"><thead><tr><th style="width:84px">구분</th><th style="width:170px">기간</th><th style="width:46px">일수</th><th>사유</th><th style="width:60px">상태</th><th style="width:110px">신청일</th><th style="width:96px"></th></tr></thead>
         <tbody id="ulBody"></tbody></table>
+      </div>
+      <div id="ulMore" class="ul-more" style="display:none" onclick="document.getElementById('ulScroll').scrollBy({top:200,behavior:'smooth'})" title="누르면 아래로 내립니다"></div>
     </div>
     </div>
   </div>
@@ -348,6 +355,21 @@ function pendRender(){
     + (function(){ var rows=[]; for(var i=0;i<p.length;i+=2) rows.push('<tr>'+pendCells(p[i])+'<td class="gap"></td>'+(p[i+1]?pendCells(p[i+1]):'<td colspan="6" class="blank"></td>')+'</tr>'); return rows.join(''); })()
     + '</tbody></table>';
 }
+/* 직원 휴가 목록 — 15줄 넘으면 상자 안 스크롤 (2026-10-22 사용자 「15개에서 스크롤되게」). 머리줄 + 앞 15줄 높이를 실제로 재서 max-height 로 */
+var UL_MAX_ROWS=15;
+function ulFit(){
+  var more=document.getElementById('ulMore');
+  var sc=document.getElementById('ulScroll'), tb=document.getElementById('ulBody'); if(!sc||!tb) return;
+  var rows=tb.rows; sc.style.maxHeight='';
+  if(rows.length<=UL_MAX_ROWS){ if(more) more.style.display='none'; return; }
+  var th=sc.querySelector('thead'), h=(th?th.offsetHeight:0);
+  for(var i=0;i<UL_MAX_ROWS;i++) h+=rows[i].offsetHeight;
+  sc.style.maxHeight=(h+1)+'px';
+  /* 「▼ 아래 N건 더」 — 보이는 마지막 줄 밑에 몇 건이 남았는지, 스크롤할 때마다 다시 센다. 끝까지 내리면 띠가 사라진다 */
+  var upd=function(){ var bottom=sc.scrollTop+sc.clientHeight, left=0; for(var k=0;k<rows.length;k++){ if(rows[k].offsetTop+rows[k].offsetHeight>bottom+2) left++; }
+    if(!more) return; if(left>0){ more.style.display=''; more.textContent='아래 '+left+'건 더 있음';   /* 2026-10-22 사용자 「안보이는 건수만」 */ } else more.style.display='none'; };
+  sc.onscroll=upd; upd();
+}
 /* 승인 대기 전부 승인 (2026-10-22) — 확인창에 사람별 건수를 적고, 직원 패널의 lvApproveAll 과 같은 길(한 건씩 차례로 /mangr/leaveStatus.do) */
 function pendApproveAll(){
   var p=_admin ? _rows.filter(function(o){ return o.status==='신청'; }) : [];
@@ -474,6 +496,7 @@ function ulRender(){
         +'<td><span class="st '+esc(o.status)+'">'+esc(o.status)+'</span></td><td class="hint">'+esc(String(o.regDttm||'').slice(0,16))+'</td><td style="white-space:nowrap">'+(o.userId===_me&&o.status!=='승인'?'<button class="mini" onclick="lvOpen('+o.leaveSeq+',null)" title="수정">✏</button>':'<button class="mini" onclick="lvOpen('+o.leaveSeq+',null)" title="보기">👁</button>')
         +(_admin&&o.status!=='승인'?'<button class="mini ok" onclick="lvStatus('+o.leaveSeq+',\'승인\')" title="승인">✔</button>':'')+(_admin&&o.status!=='반려'?'<button class="mini no" onclick="lvStatus('+o.leaveSeq+',\'반려\')" title="반려">✖</button>':'')+'</td></tr>'; }).join('')
       : '<tr><td colspan="7" class="msg">'+y+'년 휴가가 없습니다.</td></tr>';
+    ulFit();
     var pend=l.filter(function(o){ return o.status==='신청'; }), ab=document.getElementById('ulAll');
     if(ab){ ab.style.display=(_admin&&pend.length)?'':'none'; ab.textContent='✔ 대기 '+pend.length+'건 전부 승인'; ab.onclick=function(){ lvApproveAll(pend.map(function(o){ return o.leaveSeq; }), u.userNm); }; } }).catch(function(e){ document.getElementById('ulBody').innerHTML='<tr><td colspan="7" class="msg" style="color:#c0392b">'+esc(e.message)+'</td></tr>'; });
 }
