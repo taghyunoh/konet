@@ -12,7 +12,7 @@
                                      메뉴는 직원 메신저 밑에, 달력으로 한눈에, 총괄관리자는 현황을 한눈에, 엑셀 월별·연별·사원별」, 직원 10명 정도)
     · 셸 iframe(logiFrame('leaveMng')) · 자바 /mangr/leave*.do · 표 TBL_LEAVE_MST / TBL_LEAVE_QUOTA (docs/sql/20261021_leave.sql)
     · 왼쪽 = 달력(그 달 휴가가 직원 이름 칩으로, 구분마다 색) · 오른쪽 = 연간 현황(직원마다 연차·월차 부여/사용/잔여, 반차·병가·경조·공가·기타 건수, 신청 대기)
-      [📋 목록] 으로 바꾸면 그 달 휴가 줄 목록(수정·삭제·승인·반려)
+      ([📋 목록] 보기는 2026-10-22 사용자 지시로 단추를 뺐다 — 코드는 남아 있음)
     · 권한 = 서버가 정한다(leaveUsers.do 의 admin). 등록·수정·삭제는 본인 휴가만(총괄관리자도) · 승인 전 상태만. 총괄관리자 본인 것은 저장 즉시 승인. 승인·반려·부여 일수(입사일·이월 포함)·휴가 구분은 총괄관리자만
       (2026-10-21 사용자 「기존 정보 설정은 총괄관리자가 수정할 수 있게」「수정은 본인 것만」)
     · 일수 = 평일 수(토·일 뺌, 공휴일은 안 뺀다 — 손으로 고칠 수 있음) · 반일 구분(반차) = 0.5 하루
@@ -69,8 +69,8 @@
   .box .bh{ display:flex; align-items:center; gap:8px; padding:7px 10px; background:#eef5f3; border-bottom:1px solid var(--bd); font-weight:800; color:#0b4f43; font-size:13.5px; }
   .box .bh small{ font-weight:400; color:var(--gray); }
   table.grid{ width:100%; border-collapse:collapse; font-size:13px; }
-  table.grid th{ background:#f3f6f8; color:#3d4d5c; font-weight:800; padding:5px 4px; border-bottom:1px solid var(--bd); border-right:1px solid #eef1f4; white-space:nowrap; text-align:center; }
-  table.grid td{ padding:4px 5px; border-bottom:1px solid #eef1f4; border-right:1px solid #f1f4f6; text-align:center; white-space:nowrap; }
+  table.grid th{ background:#f3f6f8; color:#3d4d5c; font-weight:800; padding:5px 4px; border:1px solid var(--bd); white-space:nowrap; text-align:center; }
+  table.grid td{ padding:4px 5px; border:1px solid var(--bd); text-align:center; white-space:nowrap; }
   table.grid td.l{ text-align:left; } table.grid td.r{ text-align:right; }
   table.grid tr.pick:hover td{ background:#f7fbfa; cursor:pointer; }
   table.grid tr.tot td{ background:#eef5f3; font-weight:800; }
@@ -100,8 +100,10 @@
   /* 보기 전용 창 : 잠근 칸도 글자는 또렷하게 (2026-10-21 「표시 활성화하고 저장만 없애면 — 글자가 희미해서」) */
   #lvPop .fld input:disabled, #lvPop .fld select:disabled, #lvPop .fld textarea:disabled, #lvPop .fld input[readonly]{ color:#1f2d3a; -webkit-text-fill-color:#1f2d3a; opacity:1; background:#f7f9fb; border-color:#d5dde5; cursor:default; }
   .hint{ font-size:12px; color:var(--gray); }
-  .pend-row{ display:flex; align-items:center; gap:8px; padding:5px 10px; border-bottom:1px solid #f1f4f6; font-size:13px; }
-  .pend-row:last-child{ border-bottom:0; } .pend-row .who{ font-weight:800; min-width:60px; } .pend-row .hint{ flex:1; }
+  /* 승인 대기 — 2026-10-22 「표시부분 다른 그리드처럼」 : 띠(flex 줄) → table.grid 로. 칸마다 테두리(위 table.grid 와 같은 선) */
+  table.grid td.who{ font-weight:800; }
+  table.grid.pend2 th.gap, table.grid.pend2 td.gap{ width:10px; border-top:0; border-bottom:0; background:#f7f9fb; padding:0; }   /* 두 건 사이 틈 */
+  table.grid.pend2 td.blank{ background:#fafbfc; }
   /* 여러 날짜 고르기 (작은 달력) */
   .mode{ display:flex; gap:4px; margin-bottom:6px; } .mode .lv-btn{ height:28px; font-size:12.5px; padding:0 10px; }
   .mcal{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:12.5px; }
@@ -128,8 +130,7 @@
     <button class="lv-btn" onclick="lvMove(1)" title="다음 달">▶</button>
     <button class="lv-btn" onclick="lvToday()">오늘</button>
     <span class="lv-sep"></span>
-    <button class="lv-btn on" id="btnCal" onclick="lvView('cal')">📅 달력</button>
-    <button class="lv-btn" id="btnList" onclick="lvView('list')">📋 목록</button>
+    <%-- [📅 달력]·[📋 목록] 전환 단추는 2026-10-22 사용자 「목록은 제거」로 뺐다 — lvView()·listWrap 은 남아 있어 단추만 되넣으면 목록 보기가 돌아온다 --%>
     <span class="lv-sep"></span>
     <label style="font-size:12.5px; font-weight:700">직원</label>
     <select id="fUser" onchange="lvRender()" title="달력·목록을 이 직원만 보기"><option value="">전체</option></select>
@@ -308,7 +309,7 @@ function load(){
 }
 function lvMove(k){ _ym=new Date(_ym.getFullYear(), _ym.getMonth()+k, 1); load(); }
 function lvToday(){ var t=new Date(); _ym=new Date(t.getFullYear(), t.getMonth(), 1); load(); }
-function lvView(v){ _view=v; document.getElementById('btnCal').classList.toggle('on', v==='cal'); document.getElementById('btnList').classList.toggle('on', v==='list');
+function lvView(v){ _view=v; var bc=document.getElementById('btnCal'), bl=document.getElementById('btnList'); if(bc) bc.classList.toggle('on', v==='cal'); if(bl) bl.classList.toggle('on', v==='list');
   document.getElementById('calWrap').style.display=(v==='cal'?'':'none'); document.getElementById('listWrap').style.display=(v==='list'?'':'none'); lvRender(); }
 function filtered(){ var u=document.getElementById('fUser').value, g=document.getElementById('fGb').value;
   return _rows.filter(function(o){ return (!u||o.userId===u) && (!g||o.leaveGb===g); }); }
@@ -341,10 +342,25 @@ function pendRender(){
   var p=_admin ? _rows.filter(function(o){ return o.status==='신청'; }) : [];
   if(!p.length){ bar.style.display='none'; bar.innerHTML=''; return; }
   bar.style.display='';
-  bar.innerHTML='<div class="bh">⏳ 승인 대기 <span class="st 신청">'+p.length+'건</span> <small>줄의 버튼으로 바로 승인·반려 — 내용을 보려면 「열기」</small></div>'
-    + p.map(function(o){ return '<div class="pend-row"><span class="who">'+esc(o.userNm)+'</span><span class="chip '+gbCls(o.leaveGb)+'" style="display:inline-block">'+esc(o.leaveGb)+'</span>'
-        +'<span>'+fmtDt(o.fromDt)+(o.fromDt!==o.toDt?' ~ '+fmtDt(o.toDt):'')+' · '+fmtD(o.days)+'일</span><span class="hint">'+esc(o.remark||'')+'</span><span class="hint" title="신청일">📝 '+esc(String(o.regDttm||'').slice(0,16))+'</span>'
-        +'<button class="mini" onclick="lvOpen('+o.leaveSeq+',null)">열기</button><button class="mini ok" onclick="lvStatus('+o.leaveSeq+',\'승인\')">✔ 승인</button><button class="mini no" onclick="lvStatus('+o.leaveSeq+',\'반려\')">✖ 반려</button></div>'; }).join('');
+  bar.innerHTML='<div class="bh">⏳ 승인 대기 <span class="st 신청">'+p.length+'건</span> <small>줄의 버튼으로 바로 승인·반려 — 내용을 보려면 「열기」</small>'
+    +'<button class="mini ok" style="margin-left:auto;height:26px;font-weight:700" onclick="pendApproveAll()" title="이 달 승인 대기 전부를 한 번에 승인 — 확인창을 거칩니다">✔ 대기 '+p.length+'건 전부 승인</button></div>'
+    + '<table class="grid pend2"><thead><tr>'+[0,1].map(function(){ return '<th style="width:72px">직원</th><th style="width:60px">구분</th><th style="width:150px">기간</th><th style="width:44px">일수</th><th style="width:112px">신청일</th><th style="width:168px"></th>'; }).join('<th class="gap"></th>')+'</tr></thead><tbody>'
+    + (function(){ var rows=[]; for(var i=0;i<p.length;i+=2) rows.push('<tr>'+pendCells(p[i])+'<td class="gap"></td>'+(p[i+1]?pendCells(p[i+1]):'<td colspan="6" class="blank"></td>')+'</tr>'); return rows.join(''); })()
+    + '</tbody></table>';
+}
+/* 승인 대기 전부 승인 (2026-10-22) — 확인창에 사람별 건수를 적고, 직원 패널의 lvApproveAll 과 같은 길(한 건씩 차례로 /mangr/leaveStatus.do) */
+function pendApproveAll(){
+  var p=_admin ? _rows.filter(function(o){ return o.status==='신청'; }) : [];
+  if(!p.length){ toast('승인 대기 건이 없습니다',''); return; }
+  var by={}, order=[]; p.forEach(function(o){ if(!by[o.userNm]){ by[o.userNm]=0; order.push(o.userNm); } by[o.userNm]++; });
+  var who=order.map(function(n){ return esc(n)+' '+by[n]+'건'; }).join(' · ');
+  lvApproveAll(p.map(function(o){ return o.leaveSeq; }), '승인 대기', '이 달 <b>승인 대기 '+p.length+'건</b>을 모두 승인할까요?<br><span class="hint">'+who+'</span><br><span class="hint">반려할 건이 있으면 먼저 줄의 [✖ 반려]를 누르고 나서 쓰세요.</span>');
+}
+/* 승인 대기 한 건 = 칸 6개 (한 줄에 두 건 — 2026-10-22 사용자 「한줄에 두개씩」). 사유는 title 로 */
+function pendCells(o){
+  return '<td class="who" title="'+esc(o.remark||'')+'">'+esc(o.userNm)+'</td><td><span class="chip '+gbCls(o.leaveGb)+'" style="display:inline-block">'+esc(o.leaveGb)+'</span></td>'
+    +'<td>'+fmtDt(o.fromDt)+(o.fromDt!==o.toDt?' ~ '+fmtDt(o.toDt):'')+'</td><td>'+fmtD(o.days)+'</td><td title="신청일">'+esc(String(o.regDttm||'').slice(0,16))+'</td>'
+    +'<td><button class="mini" onclick="lvOpen('+o.leaveSeq+',null)">열기</button><button class="mini ok" onclick="lvStatus('+o.leaveSeq+',\'승인\')">✔ 승인</button><button class="mini no" onclick="lvStatus('+o.leaveSeq+',\'반려\')">✖ 반려</button></td>';
 }
 
 /* ── 목록 ── */
@@ -569,10 +585,11 @@ function lvDeleteSeq(seq){
   else if(confirm('지울까요?')) go();
 }
 /* 한 직원의 신청 건을 한 번에 승인 (2026-10-21) — 차례로 보내고 끝나면 다시 읽는다 */
-function lvApproveAll(seqs, nm){ if(!seqs.length) return;
+function lvApproveAll(seqs, nm, msg){ if(!seqs.length) return;   /* msg = 확인창 글(선택) — 승인 대기 띠의 전부 승인이 넘긴다 */
   var go=function(){ var i=0; (function next(){ if(i>=seqs.length){ toast(nm+' 신청 '+seqs.length+'건을 모두 승인했습니다','ok'); load(); return; }
       post('/mangr/leaveStatus.do','leaveSeq='+seqs[i]+'&status='+encodeURIComponent('승인')).then(function(){ i++; next(); }).catch(function(e){ swErr(e.message); load(); }); })(); };
-  if(window._confirmBox) _confirmBox({ msg:'<b>'+esc(nm)+'</b>의 신청 <b>'+seqs.length+'건</b>을 모두 승인할까요?', icon:'✔', okText:'전부 승인', onOk:go }); else if(confirm(nm+' 신청 '+seqs.length+'건을 모두 승인할까요?')) go(); }
+  var m=msg||('<b>'+esc(nm)+'</b>의 신청 <b>'+seqs.length+'건</b>을 모두 승인할까요?');
+  if(window._confirmBox) _confirmBox({ msg:m, icon:'✔', okText:'전부 승인', onOk:go }); else if(confirm(m.replace(/<[^>]+>/g,''))) go(); }
 /* 승인·반려·신청으로 — 확인창을 거친 뒤 바꾼다 (2026-10-21 사용자 「승인·반려 누르면 메시지 처리 후 진행하나요」 → 「네」) */
 function lvStatus(seq, st){
   var o=allRows().filter(function(x){ return String(x.leaveSeq)===String(seq); })[0]||{};

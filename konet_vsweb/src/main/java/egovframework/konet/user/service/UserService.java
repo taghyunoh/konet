@@ -410,8 +410,8 @@ public interface UserService {
 	java.util.List<java.util.Map<String,Object>> empUsers(String compCd) throws Exception;
 	java.util.List<java.util.Map<String,Object>> empNoticeList(String compCd, String userId, String findData, boolean inclExp) throws Exception;   // inclExp = 기간 지남·게시 예정도(관리자만)
 	java.util.Map<String,Object> empNoticeGet(String compCd, String userId, int noticeSeq) throws Exception;        // 본문 + 읽음 표시 + 읽은 사람
-	int empNoticeSave(String compCd, String userId, String userNm, java.util.Map<String,Object> body) throws Exception;   // 돌려주는 값 = noticeSeq
-	int empNoticeDelete(String compCd, String userId, int noticeSeq) throws Exception;
+	int empNoticeSave(String compCd, String userId, String userNm, java.util.Map<String,Object> body, boolean admin) throws Exception;   // 돌려주는 값 = noticeSeq · 고치기는 작성자(또는 관리자)만
+	int empNoticeDelete(String compCd, String userId, int noticeSeq, boolean admin) throws Exception;   // 작성자(또는 관리자)만
 	java.util.Map<String,Object> empBadge(String compCd, String userId) throws Exception;                            // noticeUnread·msgUnread·roomUnread
 	java.util.List<java.util.Map<String,Object>> empRoomList(String compCd, String userId) throws Exception;          // 구성원 이름·방 표시 이름까지 조립
 	java.util.Map<String,Object> empRoomOpen(String compCd, String userId, String userNm, java.util.List<String> users, String roomNm) throws Exception;   // 1:1 은 있으면 그 방

@@ -5511,7 +5511,7 @@ public class UserController {
 		     · 화면 : /emp/notice.do → mangr/empNotice.jsp · /emp/msg.do → mangr/empMsg.jsp
 		     · 자료 : 전부 POST + JSON 본문(@RequestBody) — HTMLTagFilter 가 파라미터의 <>&"' 를 바꾸므로 글 본문은 파라미터로 받지 않는다.
 		     · 응답 : {result:'OK'|'FAIL', message, ...}. 세션이 없으면 401 이 아니라 FAIL(login) — 화면이 「다시 로그인」 안내를 띄운다.
-		     · 권한 : 공지 쓰기·고치기·지우기 = 총괄관리자(MAIN_GU 1)·부관리자(2) — empAdmin(). 읽기는 전원.
+		     · 권한 : 공지 쓰기 = 회사 직원 누구나(2026-10-22, 사용자 「누구나 접근 가능한 레벨로」) · 고치기·지우기 = 작성자 또는 관리자(MAIN_GU 1·2, empAdmin()) · 읽기는 전원.
 		              메신저는 회사 직원 누구나, 방 소속은 서비스가 본다(남의 방 글은 못 읽고 못 쓴다).
 		     · 배지 : /emp/badge.do — 셸(asset/js/emp-badge.js)이 30초마다 묻는다. 안 읽은 공지(최근 60일)·안 읽은 메시지 수.
 		   ═══════════════════════════════════════════════════════════════════════════════ */
@@ -5610,8 +5610,7 @@ public class UserController {
 		public Map<String,Object> empNoticeSave(@RequestBody Map<String,Object> body, HttpSession session) {
 			try {
 				if (!adjLoggedIn(session)) return EMP_LOGIN;
-				if (!empAdmin(session)) return empFail("공지는 관리자(총괄·부관리자)만 쓸 수 있습니다.");
-				int seq = svc.empNoticeSave(sessComp(session), empUser(session), empUserNm(session), body);
+				int seq = svc.empNoticeSave(sessComp(session), empUser(session), empUserNm(session), body, empAdmin(session));   // 2026-10-22 쓰기는 누구나 · 고치기는 작성자(또는 관리자)
 				Map<String,Object> r = new HashMap<String,Object>();
 				r.put("result", "OK"); r.put("noticeSeq", seq);
 				return r;
@@ -5623,10 +5622,10 @@ public class UserController {
 		public Map<String,Object> empNoticeDel(@RequestBody Map<String,Object> body, HttpSession session) {
 			try {
 				if (!adjLoggedIn(session)) return EMP_LOGIN;
-				if (!empAdmin(session)) return empFail("공지는 관리자(총괄·부관리자)만 지울 수 있습니다.");
-				int n = svc.empNoticeDelete(sessComp(session), empUser(session), empInt(body.get("noticeSeq")));
+				int n = svc.empNoticeDelete(sessComp(session), empUser(session), empInt(body.get("noticeSeq")), empAdmin(session));   // 작성자(또는 관리자)만
 				if (n == 0) return empFail("지울 공지가 없습니다.");
 				Map<String,Object> r = new HashMap<String,Object>(); r.put("result", "OK"); return r;
+			} catch (IllegalArgumentException e) { return empFail(e.getMessage());
 			} catch (Exception e) { log.error(" empNoticeDel ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
 		}
 

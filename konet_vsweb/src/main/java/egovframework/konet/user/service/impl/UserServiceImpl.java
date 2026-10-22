@@ -3037,7 +3037,7 @@ public class UserServiceImpl implements UserService {
 		return n;
 	}
 
-	@Override public int empNoticeSave(String compCd, String userId, String userNm, java.util.Map<String,Object> body) throws Exception {
+	@Override public int empNoticeSave(String compCd, String userId, String userNm, java.util.Map<String,Object> body, boolean admin) throws Exception {
 		String title = empStr(body.get("title"));
 		String content = body.get("content") == null ? "" : String.valueOf(body.get("content"));
 		if (title.isEmpty()) throw new IllegalArgumentException("제목을 입력하세요.");
@@ -3054,6 +3054,7 @@ public class UserServiceImpl implements UserService {
 		int seq = empInt(body.get("noticeSeq"));
 		if (seq > 0) {
 			p.put("noticeSeq", seq);
+			empNoticeOwnerChk(p, userId, admin, "고칠");   // 2026-10-22 누구나 쓰되 고치기·지우기는 작성자(또는 관리자)만
 			if (mapper.updateEmpNotice(p) == 0) throw new IllegalArgumentException("고칠 공지가 없습니다(이미 삭제됐거나 다른 회사 것).");
 			return seq;
 		}
@@ -3061,6 +3062,15 @@ public class UserServiceImpl implements UserService {
 		int newSeq = empInt(p.get("noticeSeq"));
 		if (newSeq > 0) { p.put("noticeSeq", newSeq); mapper.insertEmpNoticeRead(p); }   // 쓴 사람은 읽은 것으로
 		return newSeq;
+	}
+
+	/** 작성자(REG_USER) 또는 관리자만 고치고 지운다(2026-10-22 사용자 「수정,삭제는 작성자 가능하게」). 없는 공지는 호출부의 0건 처리에 맡긴다 */
+	private void empNoticeOwnerChk(java.util.Map<String,Object> p, String userId, boolean admin, String verb) throws Exception {
+		if (admin) return;
+		java.util.Map<String,Object> n = mapper.selectEmpNotice(p);
+		if (n == null) return;
+		String reg = n.get("regUser") == null ? "" : String.valueOf(n.get("regUser")).trim();
+		if (!reg.equals(userId == null ? "" : userId.trim())) throw new IllegalArgumentException("본인이 쓴 공지만 " + verb + " 수 있습니다(작성자 " + (n.get("regNm") == null ? reg : n.get("regNm")) + ").");
 	}
 
 	/** 날짜 칸 → 'YYYYMMDD'(빈 값은 ""). 숫자 8자리가 아니면 거절 */
@@ -3071,9 +3081,10 @@ public class UserServiceImpl implements UserService {
 		return s;
 	}
 
-	@Override public int empNoticeDelete(String compCd, String userId, int noticeSeq) throws Exception {
+	@Override public int empNoticeDelete(String compCd, String userId, int noticeSeq, boolean admin) throws Exception {
 		java.util.Map<String,Object> p = empP(compCd, userId);
 		p.put("noticeSeq", noticeSeq);
+		empNoticeOwnerChk(p, userId, admin, "지울");
 		return mapper.deleteEmpNotice(p);
 	}
 

@@ -9,7 +9,7 @@
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) — 브라우저 alert 금지 --%>
 <!--
   직원 공지사항 (2026-09-22 신설) — 셸 「직원 소통」 ▸ 직원 공지사항. 사이드바 iframe(logiFrame) 화면.
-  · 관리자(총괄관리자 MAIN_GU 1 · 부관리자 2)만 쓰고·고치고·지운다. 읽기는 회사 직원 전원. 권한은 서버(/emp/noticeSave·noticeDel)가 다시 본다 — 화면의 단추 숨김은 편의.
+  · 쓰기는 회사 직원 누구나(2026-10-22 사용자 「누구나 접근 가능한 레벨로」) · 고치기·지우기는 작성자 또는 관리자(MAIN_GU 1·2) · 읽기는 전원. 권한은 서버(/emp/noticeSave·noticeDel)가 다시 본다 — 화면의 단추 숨김은 편의.
   · 글만(파일·사진 없음). 본문은 줄바꿈 그대로(pre-wrap). 상단 고정(📌)은 목록 맨 위.
   · 왼쪽 = 목록(안 읽은 것은 굵게 · 읽은 사람 수) / 오른쪽 = 본문. 열면 읽음으로 남고(TBL_EMP_NOTICE_READ) 셸 배지(parent.konetEmpBadge)를 바로 갱신한다.
   · 자료 : /emp/noticeList.do · noticeGet.do · noticeSave.do · noticeDel.do — 전부 POST JSON.
@@ -86,11 +86,11 @@
 <body>
 <div class="wrap">
   <h2>📢 직원 공지사항</h2>
-  <div class="sub">관리자(총괄·부관리자)가 쓰고 직원 전원이 읽습니다. 열면 <b>읽음</b>으로 남고, 읽은 사람 수가 목록에 보입니다. 📌 은 상단 고정.</div>
+  <div class="sub">직원 누구나 쓰고 읽습니다. 고치기·지우기는 <b>쓴 사람</b>(관리자도)만. 열면 <b>읽음</b>으로 남고, 읽은 사람 수가 목록에 보입니다. 📌 은 상단 고정.</div>
   <div class="bar">
     <input type="text" id="q" placeholder="제목·본문·작성자 찾기" onkeydown="if(event.key==='Enter') load()">
     <button class="btn" onclick="load()">🔍 조회</button>
-    <button class="btn btn-teal onlyadmin" onclick="editNew()">📝 새 공지</button>
+    <button class="btn btn-teal" onclick="editNew()">📝 새 공지</button>
     <label class="ck onlyadmin" title="게시 기간이 지났거나 아직 시작 전인 공지도 목록에 보입니다(관리자만). 끄면 직원이 보는 목록과 같습니다."><input type="checkbox" id="inclExp" checked onchange="load()"> 기간 지남·예정도 보기</label>
     <span class="cnt">공지 <b id="tot">0</b>건 · 안 읽음 <b id="unreadCnt">0</b>건</span>
   </div>
@@ -177,7 +177,7 @@ function render(){
       +'<td>'+(un?'<span class="readno">—</span>':'<span class="readmk">✔</span>')+'</td>'
       +'<td>'+esc(n.readCnt)+'</td></tr>';
   });
-  tb.innerHTML=h||'<tr><td colspan="6" class="empty">'+(document.getElementById('q').value?'찾은 공지가 없습니다.':'등록된 공지가 없습니다.'+(ADMIN?' [📝 새 공지]로 첫 공지를 쓰세요.':''))+'</td></tr>';
+  tb.innerHTML=h||'<tr><td colspan="6" class="empty">'+(document.getElementById('q').value?'찾은 공지가 없습니다.':'등록된 공지가 없습니다.'+' [📝 새 공지]로 첫 공지를 쓰세요.')+'</td></tr>';
   document.getElementById('tot').textContent=LIST.length;
   document.getElementById('unreadCnt').textContent=unread;
 }
@@ -199,14 +199,14 @@ function open_(seq){
       '<div class="dhead"><h3>'+(n.pinYn==='Y'?'<span class="pin">📌</span> ':'')+esc(n.title)+statTag(n)+'</h3>'
       +'<div class="dmeta"><span>✍ '+esc(n.regNm||n.regUser)+'</span><span>🕒 '+esc(n.regDttm)+(n.updDttm?' <span title="고친 때">(고침 '+esc(n.updDttm)+')</span>':'')+'</span>'
       +'<span title="이 기간에만 직원에게 보입니다">📅 게시 '+esc(periodTxt(n))+'</span>'
-      +(ADMIN?'<span class="act"><button class="btn" onclick="editCur()">📝 수정</button><button class="btn btn-red" onclick="delCur()">🗑 삭제</button></span>':'')
+      +((ADMIN||(n.regUser||'')===ME)?'<span class="act"><button class="btn" onclick="editCur()">📝 수정</button><button class="btn btn-red" onclick="delCur()">🗑 삭제</button></span>':'')
       +'</div></div>'
       +'<div class="dbody">'+esc(n.content)+'</div>'
-      +'<div class="dreaders">읽은 사람 <b>'+readers.length+'</b>명'+(ADMIN&&readers.length?'<div class="who">'+who+'</div>':'')+'</div>';
+      +'<div class="dreaders">읽은 사람 <b>'+readers.length+'</b>명'+((ADMIN||(n.regUser||'')===ME)&&readers.length?'<div class="who">'+who+'</div>':'')+'</div>';
   }).catch(function(){ err('공지를 읽지 못했습니다.'); });
 }
 
-/* ── 쓰기·고치기·지우기 (관리자) ── */
+/* ── 쓰기(누구나)·고치기·지우기(작성자 또는 관리자) ── */
 function editForm(n){
   EDIT={ noticeSeq:n?n.noticeSeq:0 };
   document.getElementById('detail').innerHTML=
@@ -228,9 +228,9 @@ function editForm(n){
   periodToDays();                                   /* 저장된 시작·종료일 → 「며칠간」 칸 */
   document.getElementById('edTitle').focus();
 }
-function editNew(){ if(!ADMIN) return; if(EDIT && !confirmLeaveEdit()) return; CUR=0; render(); editForm(null); }
+function editNew(){ if(EDIT && !confirmLeaveEdit()) return; CUR=0; render(); editForm(null); }
 function editCur(){
-  if(!ADMIN||!CUR) return;
+  if(!CUR) return;   /* 작성자인지는 서버가 다시 본다 */
   post('/emp/noticeGet.do',{noticeSeq:CUR}).then(function(j){ if(fail(j)) return; editForm(j.notice); }).catch(function(){ err('공지를 읽지 못했습니다.'); });
 }
 function confirmLeaveEdit(){
@@ -259,7 +259,7 @@ function save(){
   }).catch(function(){ btn.disabled=false; err('저장하지 못했습니다.'); });
 }
 function delCur(){
-  if(!ADMIN||!CUR) return;
+  if(!CUR) return;   /* 작성자인지는 서버가 다시 본다 */
   var row=LIST.filter(function(x){ return x.noticeSeq===CUR; })[0];
   ask('이 공지를 지울까요?<br><b>'+esc(row?row.title:'')+'</b><br><small>지운 공지는 목록에서 사라집니다.</small>','삭제','red').then(function(y){
     if(!y) return;
