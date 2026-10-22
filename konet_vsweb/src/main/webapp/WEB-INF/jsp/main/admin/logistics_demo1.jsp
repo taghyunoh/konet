@@ -326,6 +326,8 @@
   table.d2-tb thead th { position:sticky; top:0; z-index:4; height:30px; background:#137a6c; color:#fff; font-weight:800; font-size:14px; letter-spacing:.02em; border-bottom:1px solid #0e6657; }
   table.d2-tb td.txt-l { text-align:left; }
   table.d2-tb td.num { text-align:right; font-variant-numeric:tabular-nums; }  /* [2026-08-20] 콘셉 : 세로로 자릿수가 맞아 눈으로 검산된다 */
+  /* 「적정」 칸 발주 배지 (2026-10-22 사용자 「발주한 품목은 V 색을 다르게 · ㅁ 에 발주 수량·날짜(마우스 올리면)」) — 📦수량. 날짜·발주번호는 title 로 */
+  table.d2-tb td.num .d2po { display:inline-block; margin-left:4px; padding:0 4px; border-radius:4px; background:#1e7a46; color:#fff; font-size:10.5px; font-weight:800; line-height:15px; vertical-align:1px; cursor:help; white-space:nowrap; }
   /* 출고장 셀(좌측 rowspan) — 데시보드1의 td.stick 속성(#f4f8f7 / teal / weight 600) + 클릭으로 접기/펼치기 */
   table.d2-tb td.zone { background:#f4f8f7; color:#178074; font-weight:600; text-align:left; vertical-align:top; position:sticky; left:0; z-index:2; cursor:pointer; }
   /* ★낱알(출고장) 수량 — 이름 바로 옆(2026-09-02 「낱개에도 숫자」). 합계 줄의 (배송 X · 직송 Y) 와 같은 자리·같은 굵기 */
@@ -793,7 +795,7 @@
     /* 적정재고 (2026-10-02 사용자 「현재고 앞에 적정재고 보여주고 미달이면 표시」) — 상품코드의 SAFE_STOCK(주코드 기준). 미달이면 빨간 「미달」.
        ⚠기준칸이 7 → 8칸이 됐다 — 전체합계·그룹·센터/입고장 소계·출고장 소계·묶음 합계 줄의 빈 칸/colspan 과 CSS 칸 번호를 함께 고쳤다.
        폭은 품목명에서 덜어 왔다(0.215 → 0.180). */
-        {k:'safe', nm:'적정', f:0.035},   /* 머리글은 「적정」 · 칸은 숫자만 · 자세한 것은 팁 (2026-10-02 「헤더 적정이라고 하고 데이터는 숫자만, 팁으로 전체 내용」 — 「미달」 글자가 붙어 숫자가 「50…」으로 잘렸다) */
+        {k:'safe', nm:'적정', f:0.052},
         {k:'stock',nm:'현재고', f:0.038},
     /* 매칭 사업장 (2026-08-28 요청 「현재고와 사업장 사이」) — 거래처관리에서 지정한 공통 매칭명칭.
        ★없으면 '—' 로 둔다. 사업장명을 그대로 되풀이하면 두 칸이 같은 말이 되어 읽는 데 방해만 된다.
@@ -803,7 +805,7 @@
     {k:'match',nm:'매칭 사업장', f:0.065},
     {k:'biz',  nm:'사업장', f:0.15},
     {k:'code', nm:'품목코드', f:0.075},
-    {k:'item', nm:'품목명', f:0.180}   /* 0.275 → 0.245 → 0.215 (2026-09-02 「품목명 조금 축소」+출고장 재확대) — 출고장 칸에 자리를 넘겼다 */
+    {k:'item', nm:'품목명', f:0.163}   /* 0.275 → 0.245 → 0.215 (2026-09-02 「품목명 조금 축소」+출고장 재확대) — 출고장 칸에 자리를 넘겼다 */
   ];
   var D2_COLS=D2_BASECOLS.slice();   // d2Render에서 매 렌더 시 [기준 + 차수컬럼]으로 재구성
   var D2_COLW={};   // {k: fraction(0~1)} — 사용자 조절값(localStorage). 합계 1 유지 → 항상 우측까지 채움
@@ -925,6 +927,21 @@
        하늘색 = 발주목록에 올라가 있다(미등록이든, 발주서에 등록돼 아직 덜 들어온 것이든) · 주황색 = 미달인데 아직 안 올렸다.
        D2_REQ = 주코드 → 'N'(미등록) | 'Y'(발주서 등록·입고 대기). /mangr/poReqCodes.do — 현재고와 함께 조회마다 다시 읽는다. */
   var D2_REQ={};
+  /* ★발주한 품목 (2026-10-22 사용자 「적정재고 옆에 발주서 관리에서 작성한 발주 수량과 날짜 — 발주했는지 바로 보이게」) —
+       D2_PO = 품목코드 → { qty:미입고 잔량 합, lines:[{poDt,poNo,qty,remainQty,vendorNm}] }. /mangr/poOpenLines.do(발주서의 미입고 줄 = 재고현황 「입고예정」과 같은 셈).
+       「적정」 칸 : 발주가 있으면 초록 바탕 + 📦잔량 배지, 배지에 마우스를 올리면 발주일·발주번호·거래처가 줄줄이. 발주목록(D2_REQ)과는 별개 — 발주목록에 안 올리고 바로 발주한 것도 잡힌다. */
+  var D2_PO={};
+  function d2PoBuild(list){ var m={}; (list||[]).forEach(function(o){ var c=(''+(o.prodCd||'')).trim(); if(!c) return;
+      var q=+o.remainQty||0; if(!(q>0)) return; var e=m[c]||(m[c]={ qty:0, lines:[] }); e.qty+=q;
+      e.lines.push({ poDt:(''+(o.poDt||'')), poNo:(''+(o.poNo||'')), qty:(+o.qty||0), remainQty:q, vendorNm:(''+(o.vendorNm||'')) }); });
+    return m; }
+  /* 주코드와 제 코드 양쪽을 본다(발주서에 서브코드로 적힌 줄도 같은 품목) */
+  function d2PoOf(code){ var c=(''+(code||'')).trim(); if(!c) return null; var mk=d2StockMain(c)||c, a=D2_PO[mk], b=(mk!==c)?D2_PO[c]:null;
+    if(!a && !b) return null; if(!b) return a; if(!a) return b; return { qty:a.qty+b.qty, lines:a.lines.concat(b.lines) }; }
+  function d2PoDt(d){ d=(''+(d||'')).replace(/[^0-9]/g,''); return d.length>=8 ? d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8) : d; }
+  /* 배지 팁 — 발주일 차례로 「2026-10-20 · 발주 300 · 미입고 300 · 거래처 · PO번호」 */
+  function d2PoTip(po){ var ls=po.lines.slice().sort(function(a,b){ return a.poDt<b.poDt?-1:(a.poDt>b.poDt?1:0); });
+    return '발주 '+ls.length+'건 · 미입고 '+d2Num(po.qty)+'\n'+ls.map(function(l){ return d2PoDt(l.poDt)+' · 발주 '+d2Num(l.qty)+(l.remainQty!==l.qty?' · 미입고 '+d2Num(l.remainQty):'')+(l.vendorNm?' · '+l.vendorNm:'')+(l.poNo?' · No.'+l.poNo:''); }).join('\n'); }
   function d2ReqOf(code){ var c=(''+(code||'')).trim(); if(!c) return ''; var mk=d2StockMain(c)||c; return D2_REQ[mk]||D2_REQ[c]||''; }
   function d2SafeOf(code){
     var c=(''+(code||'')).trim(); if(!c) return null;
@@ -941,16 +958,20 @@
     /* 칸에는 숫자만(미달이면 빨강) — 「미달」 글자는 팁으로 옮겼다 (2026-10-02).
        미달이면 바탕색 : 발주목록에 올린 것 = 하늘색 · 아직 안 올린 것 = 주황색 (!important — 줄 강조색(노랑·줄무늬)에 안 덮이게) */
     var rq = s.low ? d2ReqOf(code) : '';
-    var bg = !s.low ? '' : (rq ? 'background:#cfe8ff !important;' : 'background:#ffd9a8 !important;');
-    var tail = !s.low ? ' — 충족' : (' — 적정재고 미달 (부족 '+d2Num(s.safe-s.cur)+')'
-             + (rq==='Y' ? ' · 발주서에 등록됨(입고 대기)' : (rq ? ' · 발주목록에 올림(아직 발주서 미등록)' : ' · 아직 발주목록에 안 올림')));
+    var po = d2PoOf(code);   /* 발주서에 미입고 줄이 있는 품목 (2026-10-22) */
+    /* 바탕색 : 발주함(미입고 있음) = 초록 — 미달이든 아니든 · 미달인데 발주 없음 : 발주목록에 올림 = 하늘 · 안 올림 = 주황 (2026-10-22 사용자 「발주한 품목은 색을 다르게」) */
+    var bg = po ? 'background:#c6efce !important;' : (!s.low ? '' : (rq ? 'background:#cfe8ff !important;' : 'background:#ffd9a8 !important;'));
+    var tail = (!s.low ? ' — 충족' : (' — 적정재고 미달 (부족 '+d2Num(s.safe-s.cur)+')'
+             + (rq==='Y' ? ' · 발주서에 등록됨(입고 대기)' : (rq ? ' · 발주목록에 올림(아직 발주서 미등록)' : ' · 아직 발주목록에 안 올림'))))
+             + (po ? '\n📦 '+d2PoTip(po) : '');
     /* ★미달 칸은 누를 수 있다 (2026-10-02 사용자 「개별로 들어가게 하고 여기에서 발주목록 저장 취소도」) —
          주황(안 올림) = 누르면 그 품목 하나를 발주목록에 올린다 · 하늘(미등록) = 누르면 발주목록에서 뺀다 · 하늘(발주서 등록됨) = 여기서는 못 뺀다(발주서 관리에서).
          코드는 data-cd(주코드)로 싣고 읽는다 — 인라인 onclick 에 글자로 넣지 않는다. */
     var mk = d2StockMain((''+(code||'')).trim()) || s.key;
     var act = !s.low ? '' : (' data-cd="'+d2Esc(mk)+'" data-st="'+rq+'" onclick="d2PoReqOne(this)"');
     var how = !s.low ? '' : (rq==='Y' ? '' : (rq ? '\n▶ 누르면 발주목록에서 뺄지 묻습니다' : '\n▶ 누르면 이 품목을 발주목록에 올릴지 묻습니다'));
-    return '<td class="num" style="font-weight:700;'+bg+(s.low?'cursor:pointer;':'')+'color:'+(s.low?'#c0392b':'#37475a')+'"'+act+' title="적정재고 '+d2Num(s.safe)+' · 현재고 '+d2Num(s.cur)+tail+how+'">'+d2Num(s.safe)+'</td>';
+    var badge = po ? '<span class="d2po" title="'+d2Esc(d2PoTip(po))+'">📦'+d2Num(po.qty)+'</span>' : '';   /* 발주 잔량 배지 — 마우스를 올리면 발주일·번호·거래처 */
+    return '<td class="num" style="font-weight:700;'+bg+(s.low?'cursor:pointer;':'')+'color:'+(s.low?'#c0392b':'#37475a')+'"'+act+' title="적정재고 '+d2Num(s.safe)+' · 현재고 '+d2Num(s.cur)+tail+how+'">'+d2Num(s.safe)+badge+'</td>';
   }
   /* 지금 조회된 품목 가운데 미달인 것 — 주코드 기준으로 한 번씩만 */
   function d2ShortCodes(){
@@ -967,7 +988,7 @@
     var all=D2_STOCK ? d2ShortCodes() : [], k=all.filter(function(c){ return !D2_REQ[c]; }).length;   /* 숫자 = 미달인데 아직 발주목록에 안 올린 품목(주황색) */
     var one=d2PoReqIsOne();
     b.innerHTML = (one ? '📋 발주목록 (개별)' : '📋 발주목록 전체 실행') + (k ? ' <b>'+k+'</b>' : '');
-    b.title = '지금 조회된 품목 가운데 적정재고 미달 '+all.length+'개 — 아직 안 올린 것 '+k+'개(주황색) · 올린 것 '+(all.length-k)+'개(하늘색).\n'
+    b.title = '지금 조회된 품목 가운데 적정재고 미달 '+all.length+'개 — 아직 안 올린 것 '+k+'개(주황색) · 올린 것 '+(all.length-k)+'개(하늘색) · 발주서에 미입고가 있으면 초록색(📦 잔량).\n'
       + (one ? '개별 방식 : 주황색 「적정」 칸을 눌러 하나씩 올리고, 하늘색 칸을 누르면 뺍니다. 한꺼번에 올리려면 왼쪽을 「전체」로 바꾸세요.'
              : '전체 방식 : 누르면 미달 품목을 한꺼번에 발주목록에 넣습니다(이미 올린 것은 수량만 갱신).')
       + '\n발주서 관리 ▸ [📋 발주목록 리스트]에서 골라 담습니다.';
@@ -989,7 +1010,14 @@
   function d2ReqReload(){
     fetch(CTX+'/mangr/poReqCodes.do', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
       .then(function(r){ return r.json(); })
-      .then(function(j){ var m={}; ((j&&j.data)||[]).forEach(function(o){ var c=(''+(o.prodCd||'')).trim(); if(c) m[c]=(o.regYn==='Y'?'Y':'N'); }); D2_REQ=m; d2Render(); })
+      .then(function(j){ var m={}; ((j&&j.data)||[]).forEach(function(o){ var c=(''+(o.prodCd||'')).trim(); if(c) m[c]=(o.regYn==='Y'?'Y':'N'); }); D2_REQ=m; d2Render(); d2PoReload(); })
+      .catch(function(){});
+  }
+  /* 발주서 미입고 줄만 다시 읽어 「적정」 칸의 초록·📦배지를 맞춘다 (2026-10-22) */
+  function d2PoReload(){
+    fetch(CTX+'/mangr/poOpenLines.do', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ D2_PO=d2PoBuild((j&&j.data)||[]); d2Render(); })
       .catch(function(){});
   }
   /* 「적정」 칸 클릭 — 품목 하나를 발주목록에 올리거나(주황) 뺀다(하늘·미등록).
@@ -1057,14 +1085,14 @@
     if(cb) _d2StkWait.push(cb);      /* 부르는 중이면 줄을 세운다 — 종전에는 <버려서> 표를 다시 안 그렸다 */
     if(_d2StkBusy) return;
     _d2StkBusy=true;
-    var left=5, m={}, mc={}, sf={}, rq={}, ok=true;   /* 4번째 = 적정재고(safeStockMap) · 5번째 = 발주목록에 올린 품목(poReqCodes) — 2026-10-02 */
+    var left=6, m={}, mc={}, sf={}, rq={}, po=[], ok=true;   /* 4번째 = 적정재고(safeStockMap) · 5번째 = 발주목록에 올린 품목(poReqCodes) — 2026-10-02 · 6번째 = 발주서 미입고 줄(poOpenLines) — 2026-10-22 */
     function done(bad){
       if(bad) ok=false;
       if(--left) return;
       _d2StkBusy=false;
       var w=_d2StkWait; _d2StkWait=[];
       if(!ok){ D2_STOCK=null; D2_MAINCD=null; return; }   /* 실패 — 캐시하지 않는다(다음 조회에서 재시도) */
-      D2_STOCK=m; D2_MAINCD=mc; D2_SAFE=sf; D2_REQ=rq;
+      D2_STOCK=m; D2_MAINCD=mc; D2_SAFE=sf; D2_REQ=rq; D2_PO=d2PoBuild(po);
       w.forEach(function(f){ try{ f(); }catch(e){} });
     }
     function fail(){ done(true); }
@@ -1084,6 +1112,12 @@
       .then(function(r){ return r.json(); })
       .then(function(j){ ((j&&j.data)||[]).forEach(function(o){
               var c=(''+(o.prodCd||'')).trim(); if(c) rq[c]=(o.regYn==='Y'?'Y':'N'); }); done(); })
+      .catch(function(){ done(); });
+    /* 발주서 미입고 줄 (2026-10-22) — 「적정」 칸 초록·📦배지용. 실패해도 전체 실패로 치지 않는다 */
+    fetch(CTX+'/mangr/poOpenLines.do', { method:'POST', credentials:'same-origin',
+            headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ po=((j&&j.data)||[]); done(); })
       .catch(function(){ done(); });
     /* 적정재고 (2026-10-02) — ★실패해도 전체 실패로 치지 않는다 : 적정재고가 안 와도 현재고는 보여야 한다(옛 서버면 이 주소가 없다) */
     fetch(CTX+'/prod/safeStockMap.do', { method:'POST', credentials:'same-origin',
