@@ -3066,7 +3066,7 @@ public class UserServiceImpl implements UserService {
 
 	/** 작성자(REG_USER) 또는 관리자만 고치고 지운다(2026-10-22 사용자 「수정,삭제는 작성자 가능하게」). 없는 공지는 호출부의 0건 처리에 맡긴다 */
 	private void empNoticeOwnerChk(java.util.Map<String,Object> p, String userId, boolean admin, String verb) throws Exception {
-		if (admin) return;
+		/* 2026-10-23 사용자 「공지사항도 등록한 사람만 수정·삭제」 — 관리자 예외 없음(휴가 관리와 같은 규칙). admin 은 호출부 호환용으로만 남김 */
 		java.util.Map<String,Object> n = mapper.selectEmpNotice(p);
 		if (n == null) return;
 		String reg = n.get("regUser") == null ? "" : String.valueOf(n.get("regUser")).trim();

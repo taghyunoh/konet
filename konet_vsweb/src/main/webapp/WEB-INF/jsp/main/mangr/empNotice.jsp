@@ -86,7 +86,7 @@
 <body>
 <div class="wrap">
   <h2>📢 직원 공지사항</h2>
-  <div class="sub">직원 누구나 쓰고 읽습니다. 고치기·지우기는 <b>쓴 사람</b>(관리자도)만. 열면 <b>읽음</b>으로 남고, 읽은 사람 수가 목록에 보입니다. 📌 은 상단 고정.</div>
+  <div class="sub">직원 누구나 쓰고 읽습니다. 고치기·지우기는 <b>쓴 사람만</b>(총괄관리자도 남의 공지는 못 고칩니다). 열면 <b>읽음</b>으로 남고, 읽은 사람 수가 목록에 보입니다. 📌 은 상단 고정.</div>
   <div class="bar">
     <input type="text" id="q" placeholder="제목·본문·작성자 찾기" onkeydown="if(event.key==='Enter') load()">
     <button class="btn" onclick="load()">🔍 조회</button>
@@ -199,7 +199,7 @@ function open_(seq){
       '<div class="dhead"><h3>'+(n.pinYn==='Y'?'<span class="pin">📌</span> ':'')+esc(n.title)+statTag(n)+'</h3>'
       +'<div class="dmeta"><span>✍ '+esc(n.regNm||n.regUser)+'</span><span>🕒 '+esc(n.regDttm)+(n.updDttm?' <span title="고친 때">(고침 '+esc(n.updDttm)+')</span>':'')+'</span>'
       +'<span title="이 기간에만 직원에게 보입니다">📅 게시 '+esc(periodTxt(n))+'</span>'
-      +((ADMIN||(n.regUser||'')===ME)?'<span class="act"><button class="btn" onclick="editCur()">📝 수정</button><button class="btn btn-red" onclick="delCur()">🗑 삭제</button></span>':'')
+      +(((n.regUser||'')===ME)?'<span class="act"><button class="btn" onclick="editCur()">📝 수정</button><button class="btn btn-red" onclick="delCur()">🗑 삭제</button></span>':'')
       +'</div></div>'
       +'<div class="dbody">'+esc(n.content)+'</div>'
       +'<div class="dreaders">읽은 사람 <b>'+readers.length+'</b>명'+((ADMIN||(n.regUser||'')===ME)&&readers.length?'<div class="who">'+who+'</div>':'')+'</div>';
