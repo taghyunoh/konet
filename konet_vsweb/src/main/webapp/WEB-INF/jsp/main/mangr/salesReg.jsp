@@ -1231,6 +1231,12 @@ function saLoadMasters(){
       _venSum[o.vendorCd] = { s:n(o.saleAmt), p:n(o.purchAmt), st:n(o.settleAmt), tx:n(o.trxAmt) };
     });
     }).catch(function(){});
+  /* ★계약단가 (2026-10-27 사용자 「판매등록에도 계약단가 우선 적용」) — 상품코드 등록의 계약 이력(TBL_PROD_CONTRACT)을 한 번 읽어 둔다.
+       판매일자에 유효한 계약(납품 시작 ≤ 판매일 ≤ 납품 종료, 종료가 비면 무기한)이 있으면 그 계약단가가 «거래처 최근 단가»보다 앞선다.
+       실패해도 조용히 — 그때는 종전대로(마스터 → 최근 단가). */
+  post('/prod/contractList.do','').then(function(r){return r.json();}).then(function(j){
+    var m={}; ((j&&j.data)||[]).forEach(function(c){ var cd=String(c.prodCd||''); if(cd) (m[cd]=m[cd]||[]).push(c); }); _saCt=m;
+  }).catch(function(){});
   post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){
     /* ★거래중지된 코드 — **빼지 않고 표시한다** (2026-08-17 지시 "중지일 표시").
        종전에는 목록에서 뺐는데, 그러면 ***왜 안 보이는지 알 수 없다***("있는 코드인데 검색이 안 된다").
@@ -1277,6 +1283,31 @@ function saNew(){
   Array.prototype.forEach.call(document.querySelectorAll('#saListBody tr'), function(tr){ tr.classList.remove('on'); });
   saFocusFirstProd();                    // 진입 즉시 첫 상품칸에 커서(2026-08-04)
 }
+/* ── 계약단가 (2026-10-27) ── _saCt = 품목코드 → 계약 줄들. 판매일자(없으면 오늘) 기준 «납품 시작이 그날 이전인 계약 중 가장 늦은 것».
+     ★납품 종료일은 보지 않는다 (같은 날 사용자 「a로 맞춰줘」) — 삼성 출고·마감이 판매가 이력을 「적용일 <= 납품일 중 최신」으로 집고 종료일을 안 보므로
+       판매 등록도 같게 : 만료돼도 다음 계약이 들어올 때까지 마지막 계약단가를 쓴다. 상품 판매단가도 만료 때 되돌리지 않는다(2026-10-01 결정). */
+var _saCt={};
+function saCtDay(){
+  var d=String((document.getElementById('saDt')||{}).value||'').replace(/-/g,'');
+  if(d.length!==8){ var t=new Date(); d=''+t.getFullYear()+('0'+(t.getMonth()+1)).slice(-2)+('0'+t.getDate()).slice(-2); }
+  return d;
+}
+function saCtOf(cd){
+  var l=_saCt[String(cd||'')]; if(!l||!l.length) return null;
+  var d=saCtDay();
+  var best=null; l.forEach(function(c){ var fr=String(c.frDt||'');
+    if(fr && fr<=d && n(c.contractPrice)>0 && (!best || fr>String(best.frDt))) best=c; });
+  return best;
+}
+/* 줄에 계약단가를 넣는다 — 넣었으면 true. 표시는 «안 보이는» 칸(_ct)에 둔다 : 저장 때 줄이 통째로 서버에 가므로 모르는 칸을 싣지 않는다 */
+function saCtApply(o){
+  var c=o&&saCtOf(o.prodCd); if(!c){ if(o) Object.defineProperty(o,'_ct',{ value:null, writable:true, configurable:true, enumerable:false }); return false; }
+  o.unitPrice=n(c.contractPrice);
+  Object.defineProperty(o,'_ct',{ value:c, writable:true, configurable:true, enumerable:false });
+  return true;
+}
+function saCtTip(c){ var exp=(c.toDt && String(c.toDt)<saCtDay());
+  return '계약단가 '+fmt(c.contractPrice)+' · 납품 '+fmtDt(c.frDt)+(c.toDt?' ~ '+fmtDt(c.toDt):' ~')+(exp?' (계약 만료 — 다음 계약 전까지 마지막 계약단가)':'')+(c.srcFile?' · '+c.srcFile:''); }
 function emptyRow(){ return { prodCd:'', prodNm:'', spec:'', packQty:1, boxQty:0, eaQty:0, qty:0, unitPrice:0, amt:0, dcAmt:0,
                               supplyAmt:0, vatAmt:0, totAmt:0, serviceQty:0, stockCutQty:0, remark:'', eventYn:'N', trxGb:'판매', taxGb:'과세' }; }
 function saNextNo(){
@@ -2131,7 +2162,7 @@ function saProdMultiApply(){
     o.extCd=null; o.extNm=null;                   // 원코드 기본 — 매칭 체크면 바로 아래에서 덮는다
     if (ext){ o.extCd=ext.extItemCd; o.extNm=ext.extItemNm||''; if(ext.extItemNm) o.prodNm=ext.extItemNm; }
     o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
-    o.unitPrice=n(p.salePrice);
+    o.unitPrice=n(p.salePrice); saCtApply(o);    // 계약단가가 있으면 그것 (2026-10-27)
     o.boxQty=1; o.eaQty=0;                        // BOX수량 기본 1 (2026-08-06 요청) — 합계 = 1 × 입수 (2026-09-10)
     saCalcRow(o);
     rows.push(o); added.push(o);
@@ -2146,7 +2177,7 @@ function saProdMultiApply(){
       .then(function(r){return r.json();}).then(function(j){
         if(!j) return;
         var ch=false;
-        if(j.data){ o.unitPrice=n(j.data); ch=true; }
+        if(j.data && !o._ct){ o.unitPrice=n(j.data); ch=true; }   /* 계약단가가 있으면 최근 단가로 안 덮는다 (2026-10-27) */
         if(j.remark && !o.remark){ o.remark=j.remark; ch=true; }
         if(ch){ saCalcRow(o); saRender(); }
       })
@@ -2237,6 +2268,7 @@ function saProdPick(cd){
   o.extCd=null; o.extNm=null;
   o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
   o.unitPrice=n(p.salePrice);   // 기본값 = 상품마스터 판매가 (매입 화면은 inPrice 를 쓴다)
+  var _ctHit=saCtApply(o);       // ★계약단가가 있으면 그것이 먼저 (2026-10-27)
   /* 수량이 빈 줄이면 BOX수량 기본 1 (2026-08-06 요청 — 🔖 매칭코드·인라인 검색 담기 포함) — 합계 = 1 × 입수 (2026-09-10).
      이미 수량이 있는 줄(다른 상품으로 바꾸기)은 건드리지 않는다. */
   if (!n(o.boxQty) && !n(o.eaQty)) { o.boxQty = 1; o.eaQty = 0; }
@@ -2245,10 +2277,11 @@ function saProdPick(cd){
   var ven = document.getElementById('saVenNm').dataset.cd||'';
   post('/mangr/salesLastPrice.do','prodCd='+encodeURIComponent(p.prodCd)+'&remark='+encodeURIComponent(ven))
     .then(function(r){return r.json();}).then(function(j){
-      if(j&&j.data) o.unitPrice=n(j.data);
+      if(j&&j.data&&!o._ct) o.unitPrice=n(j.data);
       if(j&&j.remark&&!o.remark) o.remark=j.remark;
     })
     .catch(function(){}).then(function(){
+      if(_ctHit && window._toast) _toast('계약단가 '+fmt(o.unitPrice)+' 적용 — '+saCtTip(o._ct),'ok');
       saCalcRow(o);
       if (_prodTargetRow === _rows.length-1) saEnsureTail();
       saRender();
@@ -2465,7 +2498,7 @@ function saBatchRowFor(s){
       if (e){ o.extCd=e.extItemCd; o.extNm=e.extItemNm||''; if(e.extItemNm) o.prodNm=e.extItemNm; }
     }
     o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
-    o.unitPrice=n(p.salePrice);
+    o.unitPrice=n(p.salePrice); saCtApply(o);    // 계약단가가 있으면 그것 (2026-10-27)
     o.boxQty=1; o.eaQty=0;                            /* BOX 1 — 합계 = 1 × 입수 (2026-09-10, 매입과 같은 규칙) */
     saCalcRow(o);
     return btSelOverride(s, o);
@@ -2601,7 +2634,7 @@ function saBatchApply(){
       var keepP = (e.s.unitPrice != null);   /* 단가를 직접 고친 줄은 그 값 그대로 — 비고는 받는다(2026-09-13) */
       jobs.push(post('/mangr/salesLastPrice.do','prodCd='+encodeURIComponent(e.row.prodCd)+'&remark='+encodeURIComponent(venCd))
         .then(function(r){return r.json();}).then(function(j){
-          if(j&&j.data&&!keepP){ e.row.unitPrice=n(j.data); saCalcRow(e.row); }
+          if(j&&j.data&&!keepP&&!e.row._ct){ e.row.unitPrice=n(j.data); saCalcRow(e.row); }   /* 계약단가 줄은 최근 단가로 안 덮는다 */
           if(j&&j.remark&&!e.row.remark) e.row.remark=j.remark;
         })
         .catch(function(){}));
@@ -2872,6 +2905,7 @@ function saDlvApply(){
     o.packQty  = n(s.packQty)||1;
     o.taxGb    = s.taxGb || '과세';
     o.unitPrice= n(s.unitPrice);      // 그 거래처의 최근 거래단가
+    saCtApply(o);                     // ★계약단가가 있으면 그것이 먼저 (2026-10-27)
     saCalcRow(o);
     rows.push(o); added++;
   });
@@ -3451,7 +3485,7 @@ function ktSetProd(r, cd, st){
   r.st=st||'선택'; r.alt=0;
   /* 단가 = 상품마스터 판매가로 먼저 채우고, 그 거래처 최근 판매단가가 있으면 그것으로 덮는다(saProdPick 과 같은 규칙).
      사람이 단가 칸을 고쳤으면(priceEdited) 어느 쪽도 덮지 않는다 — 그리드에 보이는 값이 그대로 저장된다 */
-  if(!r.priceEdited){ r.unitPrice=n(p.salePrice); r.priceSrc='마스터'; ktPriceLookup(r); }
+  if(!r.priceEdited){ r.unitPrice=n(p.salePrice); r.priceSrc='마스터'; if(saCtApply(r)) r.priceSrc='계약'; else ktPriceLookup(r); }   /* 계약단가 우선 (2026-10-27) */
 }
 function ktAmt(r){ return Math.round((n(r.box)*(n(r.packQty)||1) + n(r.ea))*n(r.unitPrice)); }   // 합계 = BOX × 입수 + EA (2026-09-10)
 function ktPriceLookup(r){
@@ -3459,13 +3493,13 @@ function ktPriceLookup(r){
   var cd=r.prodCd, ven=r.venCd;
   post('/mangr/salesLastPrice.do','prodCd='+encodeURIComponent(cd)+'&remark='+encodeURIComponent(ven))
     .then(function(x){ return x.json(); }).then(function(j){
-      if(!(j&&j.data) || r.priceEdited || r.prodCd!==cd || r.venCd!==ven) return;
+      if(!(j&&j.data) || r.priceEdited || r._ct || r.prodCd!==cd || r.venCd!==ven) return;
       r.unitPrice=n(j.data); r.priceSrc='최근'; ktPaintRow(r); })
     .catch(function(){});
 }
 /* 한 줄의 단가·금액·묶음 합계만 다시 칠한다 — 전체를 다시 그리면 치고 있던 칸의 커서가 날아간다 */
 function ktPaintRow(r){
-  var pi=document.getElementById('ktP'+r.id); if(pi && document.activeElement!==pi){ pi.value=fmtP(r.unitPrice); pi.title=(r.priceSrc==='최근'?'그 거래처 최근 판매단가':(r.priceSrc==='마스터'?'상품마스터 판매가':'직접 입력')); }
+  var pi=document.getElementById('ktP'+r.id); if(pi && document.activeElement!==pi){ pi.value=fmtP(r.unitPrice); pi.title=(r.priceSrc==='계약'&&r._ct?saCtTip(r._ct):(r.priceSrc==='최근'?'그 거래처 최근 판매단가':(r.priceSrc==='마스터'?'상품마스터 판매가':'직접 입력'))); }
   var ai=document.getElementById('ktA'+r.id); if(ai) ai.textContent=fmt(ktAmt(r));
   var ei=document.getElementById('ktE'+r.id); if(ei && document.activeElement!==ei) ei.value=n(r.ea);
   ktSums();

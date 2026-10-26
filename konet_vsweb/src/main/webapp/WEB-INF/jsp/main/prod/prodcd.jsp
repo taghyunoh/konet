@@ -365,6 +365,14 @@
   #mc .addbar input, #mc .addbar select{ height:34px; border:1px solid var(--bd); border-radius:6px; padding:0 8px; font-size:14px; }
   /* 품목명 입력칸 — 화면 폭을 다 먹지 않게 580px 로 (2026-08-02 요청, 380→490→580 재조정). 좁아지면 줄어들기만 한다 */
   #mc .addbar .grow{ flex:0 1 580px; }
+  /* 하단 패널 탭 (2026-10-27) — [🔖 매칭코드][📄 계약정보]. 고른 탭만 진하게 · 다른 탭은 글자만 */
+  #mc .mh .tab{ flex:0 0 auto; border:1px solid transparent; background:none; color:#3d6b62; font-size:14px; font-weight:700; padding:3px 10px; border-radius:7px; cursor:pointer; }
+  #mc .mh .tab.on{ background:#fff; border-color:#8fc7bc; color:#0b4f43; font-weight:800; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  #mc .mh .tab .tn{ display:inline-block; min-width:16px; margin-left:4px; padding:0 5px; border-radius:8px; background:#137a6c; color:#fff; font-size:11px; line-height:16px; }
+  #mc .mh .tab .tn:empty{ display:none; }
+  #mc .ctb{ display:inline-block; padding:0 7px; border-radius:8px; font-size:11.5px; font-weight:700; }
+  #mcCt td.l{ text-align:left; } #mcCt td.c{ text-align:center; }
+  #mcCtBar .hint{ align-self:center; font-size:12px; color:#6b7a89; max-width:520px; line-height:1.5; }
   #mc .addbar .grow input{ width:100%; }
   /* 표 맨 끝 빈 칸 — 남는 폭을 여기서 먹어 품목명 칸이 늘어나지 않게 한다 */
   #mc thead th.sp{ border-left:none; }
@@ -519,14 +527,16 @@
   <div class="box">
     <div class="mh">
       <%-- 제목에서 '거래처' 는 뺐다(2026-08-04 요청) — 바로 아래 첫 칸이 '거래처'라 같은 말이 겹쳤다 --%>
-      <b>🔖 매칭코드</b>
+      <%-- 탭 (2026-10-27 사용자 「매칭코드 · 계약정보 탭 추가로 하단에 보여 주고 입력할 수도 있게」) — 같은 상품(위에서 고른 줄)을 두 갈래로 본다 --%>
+      <button type="button" class="tab on" id="mcTabMc" onclick="mcTab('mc')" title="거래처가 부르는 코드 ↔ 우리 상품코드">🔖 매칭코드</button>
+      <button type="button" class="tab" id="mcTabCt" onclick="mcTab('ct')" title="이 상품의 계약단가 · 납품기간 이력 — 여기서 바로 등록도 합니다">📄 계약정보<span class="tn" id="mcCtN"></span></button>
       <span class="pick" id="mcPick">위 목록에서 상품을 고르세요.</span>
       <%-- 전체 보기 — 고른 상품 것만이 아니라 등록된 매칭코드 전부를 상품코드·상품명과 함께 본다 --%>
       <button class="btn" id="mcAllBtn" style="height:26px;padding:0 10px;font-size:12px" onclick="mcAllToggle()"
               title="등록된 매칭코드를 전부 봅니다(상품코드·상품명 포함). 줄을 누르면 그 상품으로 갑니다.">📋 전체 보기</button>
       <button class="x" id="mcToggleBtn" onclick="mcToggle()" title="접기/펼치기">&#9662;</button>
     </div>
-    <div class="mb2">
+    <div class="mb2" id="mcPaneMc">
       <div class="tbwrap">
         <table>
           <thead id="mth"></thead>
@@ -574,6 +584,32 @@
         <div class="f"><label>비고</label><input id="a_remark" style="width:150px" placeholder="예) 담당자 구두통보"></div>
         <button class="btn btn-teal" id="a_addBtn" onclick="mcAdd()">＋ 등록</button>
         <span id="a_msg" style="align-self:center; font-size:12px; color:#6b7a89">상품을 고른 뒤 코드를 입력하세요.</span>
+      </div>
+    </div>
+    <%-- 📄 계약정보 탭 (2026-10-27) — 위 [📄 계약] 창과 같은 표 + 직접 등록줄. 저장은 [📄 계약 엑셀]과 같은 길(/prod/contractSave.do)이라 규칙이 같다 :
+         납품 시작일이 오늘 이전이면 판매단가가 바로 계약단가로 바뀌고, 미래면 「대기」로 두었다가 그날 바뀐다. 같은 시작일을 다시 넣으면 앞의 것을 대체한다. --%>
+    <div class="mb2" id="mcPaneCt" style="display:none">
+      <div class="tbwrap">
+        <table id="mcCt">
+          <thead><tr><th class="r" style="width:120px">계약단가</th><th class="r" style="width:100px" title="계약을 올릴 때의 판매단가">이전 단가</th>
+            <th style="width:110px">납품 시작</th><th style="width:110px">납품 종료</th><th style="width:150px">상태</th><th>올린 파일 · 메모</th>
+            <th style="width:190px">올린 때</th><th style="width:76px">지우기</th></tr></thead>
+          <tbody id="mcCtTb"><tr><td colspan="8" class="empty">위 목록에서 상품 줄을 고르세요.</td></tr></tbody>
+        </table>
+      </div>
+      <div class="addbar" id="mcCtBar">
+        <%-- ★신규 코드 (2026-10-27) — 켜면 위에서 고른 상품 대신 여기 적은 코드·품명으로 상품코드를 새로 만들고 계약을 붙인다(계약 엑셀의 「새 코드 등록」과 같은 길). --%>
+        <div class="f"><label>대상</label><label style="display:flex;align-items:center;gap:5px;height:34px;font-weight:700;color:#1f7a34;cursor:pointer" title="켜면 아래 칸에 적은 코드·품명으로 상품코드를 새로 만들고 계약을 붙입니다"><input type="checkbox" id="c_new" style="height:16px;width:16px" onchange="mcCtNewSync()"> 신규 코드</label></div>
+        <div class="f c-newf" style="display:none"><label>품목코드 *</label><input id="c_cd" style="width:130px" autocomplete="off" placeholder="예) 9904013500" oninput="mcCtCdInfo()"></div>
+        <div class="f c-newf" style="display:none"><label>품명 * <span id="c_cdInfo" style="font-weight:400;font-size:11.5px"></span></label><input id="c_nm" style="width:300px"></div>
+        <div class="f c-newf" style="display:none"><label>과세</label><select id="c_tax" style="width:80px"><option>과세</option><option>면세</option></select></div>
+        <div class="f c-newf" style="display:none"><label>단위</label><input id="c_unit" style="width:70px" placeholder="BOX"></div>
+        <div class="f"><label>계약단가 *</label><input id="c_price" type="number" step="0.01" min="0" style="width:120px" onkeydown="if(event.keyCode===13) mcCtAdd()"></div>
+        <div class="f"><label>납품 시작 *</label><input id="c_fr" type="date" style="width:150px"></div>
+        <div class="f"><label>납품 종료</label><input id="c_to" type="date" style="width:150px" title="비우면 기한 없음"></div>
+        <div class="f"><label>메모</label><input id="c_memo" style="width:240px" placeholder="예) 2026 하반기 삼성 계약" title="계약 이력의 「올린 파일」 칸에 남습니다. 비우면 「직접 입력」" onkeydown="if(event.keyCode===13) mcCtAdd()"></div>
+        <button class="btn btn-teal" id="c_addBtn" onclick="mcCtAdd()">＋ 계약 등록</button>
+        <span class="hint" id="c_msg">상품을 고른 뒤 계약단가와 납품 시작일을 넣으세요.</span>
       </div>
     </div>
   </div>
@@ -1306,7 +1342,7 @@ function mcLoad(keepList){
 function mcPickProd(seq){
   _mcCur=_byseq[seq]||null;
   var el=document.getElementById('mcPick');
-  if(!_mcCur){ el.textContent='위 목록에서 상품을 고르세요.'; mcRender(); return; }
+  if(!_mcCur){ el.textContent='위 목록에서 상품을 고르세요.'; mcRender(); mcCtRender(); return; }
   el.innerHTML='<b>'+esc(_mcCur.prodCd)+'</b> '+esc(_mcCur.prodNm||'')
     + (_mcCur.spec?(' · '+esc(_mcCur.spec)):'');
   document.getElementById('a_msg').textContent='이 상품에 거래처 코드를 붙입니다.';
@@ -1314,6 +1350,7 @@ function mcPickProd(seq){
   mcCdInfo();                              // 친 코드가 남아 있으면 표시도 다시 맞춘다
   if(!gv('a_noti')) document.getElementById('a_noti').value=mcToday();
   if(document.getElementById('mc').classList.contains('min')) mcToggle();   // 접혀 있으면 펼친다
+  mcCtRender();                            // 계약정보 탭도 이 상품으로 (2026-10-27)
   mcRender();
 }
 /* 목록 그리기 — 모드 둘
@@ -1395,6 +1432,92 @@ function mcRender(){
   tb.innerHTML=l.map(function(o){ return row(o,false); }).join('');
 }
 /* 전체 보기 토글 — 켜도 아래 등록 줄은 그대로 '고른 상품'에 붙는다(등록 대상이 바뀌지 않는다) */
+/* ── 하단 패널 탭 (2026-10-27) ── 매칭코드 / 계약정보. 「📋 전체 보기」는 매칭코드 탭에서만 뜻이 있어 계약 탭에서는 숨긴다 */
+var _mcTab='mc';
+function mcTab(t){
+  _mcTab=(t==='ct'?'ct':'mc');
+  document.getElementById('mcTabMc').classList.toggle('on', _mcTab==='mc');
+  document.getElementById('mcTabCt').classList.toggle('on', _mcTab==='ct');
+  document.getElementById('mcPaneMc').style.display=(_mcTab==='mc'?'':'none');
+  document.getElementById('mcPaneCt').style.display=(_mcTab==='ct'?'':'none');
+  document.getElementById('mcAllBtn').style.display=(_mcTab==='mc'?'':'none');
+  if(_mcTab==='ct' && _mcAll) mcAllToggle();       /* 전체 보기를 켠 채 넘어오면 「이 상품만」으로 — 계약 탭은 고른 상품 하나를 본다 */
+  if(document.getElementById('mc').classList.contains('min')) mcToggle();
+  mcCtRender();
+}
+/* 계약정보 탭 — 고른 상품의 계약 줄(_ctBy, ctLoad 가 채움). 줄 모양은 [📄 계약] 창(chRender)과 같은 함수(ctRowHtml) */
+function mcCtRender(){
+  var n=document.getElementById('mcCtN'), tb=document.getElementById('mcCtTb'); if(!tb) return;
+  var cd=_mcCur ? String(_mcCur.prodCd) : '', l=cd ? (_ctBy[cd]||[]) : [];
+  if(n) n.textContent = l.length ? String(l.length) : '';
+  var msg=document.getElementById('c_msg'), btn=document.getElementById('c_addBtn');
+  if(mcCtIsNew()){ if(btn) btn.disabled=false; if(msg) msg.innerHTML='<b style="color:#1f7a34">신규 코드</b> — 적은 코드·품명으로 상품코드를 새로 만들고 계약을 붙입니다. 판매단가는 계약단가로 시작합니다(입고단가·매입처는 나중에 [✎ 수정]).'; }
+  if(!_mcCur){ tb.innerHTML='<tr><td colspan="8" class="empty">위 목록에서 상품 줄을 고르세요'+(mcCtIsNew()?' — 신규 코드는 저장하면 그 코드가 골라집니다.':'.')+'</td></tr>'; if(btn&&!mcCtIsNew()) btn.disabled=true; if(msg&&!mcCtIsNew()) msg.textContent='상품을 고른 뒤 계약단가와 납품 시작일을 넣으세요 — 새 코드면 「신규 코드」를 켜세요.'; var fr0=document.getElementById('c_fr'); if(fr0 && !fr0.value) fr0.value=mcToday(); return; }
+  if(btn) btn.disabled=false;
+  if(_ctErr){ tb.innerHTML='<tr><td colspan="8" class="empty" style="color:#c0392b">'+esc(_ctErr)+'</td></tr>'; return; }
+  var cur=ctPick(cd).cur;
+  tb.innerHTML = l.length ? l.map(function(c){ return ctRowHtml(c, cur); }).join('')
+                          : '<tr><td colspan="8" class="empty">이 상품에 등록된 계약이 없습니다 — 아래에서 바로 등록하거나 [📄 계약 엑셀]로 올립니다.</td></tr>';
+  if(msg && !mcCtIsNew()) msg.innerHTML='지금 판매단가 <b>'+num(_mcCur.salePrice)+'</b> · 납품 시작일이 오늘 이전이면 <b>판매단가가 바로</b> 계약단가로 바뀌고, 미래면 그날 바뀝니다(「대기」).';
+  var fr=document.getElementById('c_fr'); if(fr && !fr.value) fr.value=mcToday();
+}
+/* 신규 코드 모드 (2026-10-27) */
+function mcCtIsNew(){ var c=document.getElementById('c_new'); return !!(c && c.checked); }
+function mcCtNewSync(){
+  var on=mcCtIsNew();
+  Array.prototype.forEach.call(document.querySelectorAll('#mcCtBar .c-newf'), function(e){ e.style.display=on?'':'none'; });
+  if(on){ var cd=document.getElementById('c_cd'); setTimeout(function(){ cd.focus(); },0); }
+  mcCtCdInfo(); mcCtRender();
+}
+/* 친 코드가 이미 있으면 그 이름을, 지운 코드면 그 사실을 바로 알린다(등록 매칭코드 칸 mcCdInfo 와 같은 생각) */
+function mcCtCdInfo(){
+  var el=document.getElementById('c_cdInfo'); if(!el) return;
+  var cd=String((document.getElementById('c_cd')||{}).value||'').trim(); if(!cd){ el.innerHTML=''; return; }
+  var hit=null; LIST.forEach(function(o){ if(String(o.prodCd)===cd) hit=o; });
+  el.innerHTML = hit ? '<span style="color:#b06a00">이미 있는 코드 — '+esc(hit.prodNm||'')+' (그 상품에 계약을 붙입니다)</span>' : '<span style="color:#1f7a34">새 코드</span>';
+}
+/* 계약 한 줄 등록 — [📄 계약 엑셀]과 같은 서버 길(/prod/contractSave.do)에 한 줄만 보낸다. 같은 품목·같은 시작일 계약은 대체된다 */
+function mcCtAdd(){
+  var isNewMode=mcCtIsNew(), o;
+  if(isNewMode){
+    var ncd=String(document.getElementById('c_cd').value||'').trim(), nnm=String(document.getElementById('c_nm').value||'').trim();
+    if(!ncd){ alertBox('품목코드를 넣으세요.','⚠️'); document.getElementById('c_cd').focus(); return; }
+    if(ncd.length>20){ alertBox('품목코드는 20자까지입니다.','⚠️'); document.getElementById('c_cd').focus(); return; }
+    var hit=null; LIST.forEach(function(x){ if(String(x.prodCd)===ncd) hit=x; });
+    if(!hit && !nnm){ alertBox('새 코드는 품명이 있어야 합니다.','⚠️'); document.getElementById('c_nm').focus(); return; }
+    o = hit ? hit : { prodCd:ncd, prodNm:nnm, unit:String(document.getElementById('c_unit').value||'').trim(), taxGb:document.getElementById('c_tax').value, salePrice:null, _new:true };
+  } else {
+    if(!_mcCur){ alertBox('위 목록에서 상품 줄을 먼저 고르세요 — 새 코드면 「신규 코드」를 켜세요.','⚠️'); return; }
+    o=_mcCur;
+  }
+  var price=Number(document.getElementById('c_price').value||0), fr=(document.getElementById('c_fr').value||'').replace(/-/g,''), to=(document.getElementById('c_to').value||'').replace(/-/g,'');
+  var memo=(document.getElementById('c_memo').value||'').trim();
+  if(!(price>0)){ alertBox('계약단가를 넣으세요.','⚠️'); document.getElementById('c_price').focus(); return; }
+  if(fr.length!==8){ alertBox('납품 시작일을 넣으세요.','⚠️'); document.getElementById('c_fr').focus(); return; }
+  if(to && to<fr){ alertBox('납품 종료일이 시작일보다 앞입니다.','⚠️'); document.getElementById('c_to').focus(); return; }
+  var cd=String(o.prodCd), t=ctYmd(), now=(fr<=t), same=(_ctBy[cd]||[]).filter(function(c){ return String(c.frDt)===fr; }).length;
+  var msg='['+esc(cd)+'] '+esc(o.prodNm||'')+'<br>계약단가 <b>'+num(price)+'</b> · 납품 '+pcFmtDt8(fr)+' '+CT_TL+' '+(to?pcFmtDt8(to):'(기한 없음)')
+    +(o._new ? '<br><b style="color:#1f7a34">새 상품코드를 만듭니다</b> — 과세 '+esc(o.taxGb)+(o.unit?' · 단위 '+esc(o.unit):'')+' · 판매단가 = 계약단가 · 입수 1<br><span style="font-size:12px;color:#5b6b7a">입고단가 · 매입처 · 규격은 비어 있습니다 — 저장 뒤 [✎ 수정]으로 채우세요.</span>' : '')
+    +'<br><br><span style="font-size:12.5px;color:#3d4d5c;line-height:1.7">'
+    +(o._new ? '' : now ? '· 시작일이 오늘 이전 — <b>판매단가가 바로 '+num(o.salePrice)+' → '+num(price)+'</b> 로 바뀝니다<br>'
+          : '· 시작일이 미래 — 지금 판매단가 '+num(o.salePrice)+' 는 그대로, <b>'+pcFmtDt8(fr)+'</b> 이 되면 '+num(price)+' 로 바뀝니다<br>')
+    +'· 판매단가 이력에도 「계약 납품 …」 줄이 남습니다(출고·매출 단가가 날짜별로 이것을 따릅니다)'
+    +(same ? '<br>· <b style="color:#b06a00">같은 시작일 계약이 이미 있어 그것을 대체합니다</b>' : '')+'</span>';
+  confirmBox(msg, function(){
+    var b=document.getElementById('c_addBtn'); b.disabled=true;
+    fetch(CTX+'/prod/contractSave.do',{ method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json; charset=UTF-8'},
+      body:JSON.stringify({ fileNm:(memo||'직접 입력'), rows:[{ prodCd:cd, prodNm:(o.prodNm||''), unit:(o.unit||''), taxGb:(o.taxGb||''), price:price, frDt:fr, toDt:to }] }) })
+      .then(function(r){ return r.text().then(function(tx){ if(!r.ok) throw new Error(tx); return tx; }); })
+      .then(function(tx){ b.disabled=false; var sum={}; try{ sum=JSON.parse(tx); }catch(e){}
+        if(sum.skipCnt){ alertBox('등록하지 못했습니다 — '+esc((sum.skip||[]).join(' / ')),'⚠️'); return; }
+        toast(o._new ? ('새 코드 '+cd+' 를 만들고 계약을 등록했습니다.') : (now ? '계약을 등록했습니다 — 판매단가를 '+num(price)+' 로 바꿨습니다.' : '계약을 등록했습니다 — '+pcFmtDt8(fr)+' 부터 적용됩니다.'),'ok');
+        document.getElementById('c_price').value=''; document.getElementById('c_to').value=''; document.getElementById('c_memo').value='';
+        if(isNewMode){ ['c_cd','c_nm','c_unit'].forEach(function(id){ document.getElementById(id).value=''; }); document.getElementById('c_new').checked=false; mcCtNewSync(); }
+        pcLoad(isNewMode ? function(){ mcGoProd(null, cd); } : null);   /* 목록·계약 이력을 다시 읽고, 신규 코드 모드였으면 그 코드를 골라 준다 */
+      })
+      .catch(function(e){ b.disabled=false; alertBox('등록하지 못했습니다 : '+esc(e.message||''),'⚠️'); });
+  }, '계약 등록', '📄');
+}
 function mcAllToggle(){
   _mcAll=!_mcAll;
   var b=document.getElementById('mcAllBtn');
@@ -2438,6 +2561,7 @@ function ctLoad(){
       if((document.getElementById('fCt')||{}).value) pcFilter(); else pcRender();   /* 계약 조건이 걸려 있으면 새 이력으로 다시 거른다 */
       if(document.getElementById('ct').classList.contains('on')) ctPreRender();
       if(document.getElementById('ch').classList.contains('on')) chRender();
+      mcCtRender();                       /* 하단 계약정보 탭 (2026-10-27) */
     }).catch(function(){});
 }
 function ctOpen(){ document.getElementById('ct').classList.add('on'); ctPreRender(); }
@@ -2532,8 +2656,12 @@ function ctParse(aoa, fileNm){
   if(!rows.length){ alertBox('읽을 품목 줄이 없습니다.','⚠️'); return; }
   _ctRows=rows; _ctFile=fileNm||''; ctPreRender();
 }
+/* ★새 코드는 품명이 있어야 한다 (2026-10-27 확인) — 서버(saveProdContracts)는 품명 없는 새 코드를 「새 코드인데 품명이 없음」으로 건너뛴다.
+     종전엔 미리보기가 그 줄을 「새 코드 등록」으로 보여 놓고 저장에서 빠졌다 → 미리보기에서 먼저 빨갛게 알린다. 기존 코드는 품명이 비어도 된다(상품코드 이름을 안 바꾼다). */
+function ctIsNewCd(cd){ var hit=false; LIST.forEach(function(o){ if(String(o.prodCd)===String(cd)) hit=true; }); return !hit; }
 function ctRowErr(x){
   if(!(x.price>0)) return '계약단가 없음';
+  if(!String(x.prodNm||'').trim() && ctIsNewCd(x.prodCd)) return '새 코드인데 품명 없음';
   if(String(x.frDt).length!==8) return '납품 시작일 없음';
   if(x.toDt && String(x.toDt)<String(x.frDt)) return '종료일이 시작일보다 빠름';
   return '';
@@ -2642,7 +2770,11 @@ function chRender(){
   var l=_ctBy[_chCd]||[], o=null; LIST.forEach(function(x){ if(String(x.prodCd)===_chCd) o=x; });
   document.getElementById('chWho').innerHTML='<b>'+esc(_chCd)+'</b> '+esc((o&&o.prodNm)||(l[0]&&l[0].prodNm)||'')+(o?' · 지금 판매단가 <b>'+num(o.salePrice)+'</b>':'');
   var cur=ctPick(_chCd).cur;
-  document.getElementById('chTb').innerHTML = l.length ? l.map(function(c){
+  document.getElementById('chTb').innerHTML = l.length ? l.map(function(c){ return ctRowHtml(c, cur); }).join('')
+                                                       : '<tr><td colspan="8" class="empty">이 상품에 올린 계약이 없습니다.</td></tr>';
+}
+/* 계약 한 줄 — [📄 계약] 창(chRender)과 하단 계약정보 탭(mcCtRender)이 같이 쓴다 (2026-10-27 한 벌로) */
+function ctRowHtml(c, cur){
     var st=ctState(c, cur);
     return '<tr><td class="num"><b>'+num(c.contractPrice)+'</b>'+(c.newYn==='Y'?' <span class="ctb" style="background:#e6f4ea;color:#1f7a34" title="이 계약으로 상품코드를 새로 만들었습니다">신규</span>':'')+'</td>'
       +'<td class="num">'+(c.prevPrice==null?'':num(c.prevPrice))+'</td>'
@@ -2651,7 +2783,6 @@ function chRender(){
       +'<td class="l" title="'+esc(c.srcFile)+'">'+esc(c.srcFile)+'</td>'
       +'<td>'+esc(String(c.regDttm||'').slice(0,16))+(c.regUser?' · '+esc(c.regUser):'')+'</td>'
       +'<td><button class="btn btn-danger" style="height:26px;padding:0 9px;font-size:11.5px" onclick="ctDel('+c.contractSeq+')">지우기</button></td></tr>';
-  }).join('') : '<tr><td colspan="8" class="empty">이 상품에 올린 계약이 없습니다.</td></tr>';
 }
 function ctDel(seq){
   var c=null; CT.forEach(function(x){ if(String(x.contractSeq)===String(seq)) c=x; }); if(!c) return;
