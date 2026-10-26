@@ -3620,6 +3620,7 @@ function ssOutQty(o){
           if(window._alertBox) window._alertBox(_bm, _opt);
           else ssToast((Number(bizInfo.newCnt)>0?'새 사업장 '+Number(bizInfo.newCnt)+'곳 등록 · ':'')+(_na.length?'주소 없는 직송 사업장 '+_na.length+'곳 — 택배납기관리에서 주소를 넣어 주세요':''));
         }
+        ssContractCheck(rows);                                   // ★계약 만료·임박 품목 알림 (2026-10-27)
         if(window.ssLoadShipoutFromDB) ssLoadShipoutFromDB();   // 저장 끝나면 출고일자로 DB 조회 1회 자동 실행
         if(window.ssUpHistLoad) ssUpHistLoad();                 // 방금 올린 배치가 좌측 '올린 이력' 맨 위로 올라오게
         if(window.ssArchiveApplied) ssArchiveApplied(srcFile);  // 반영 끝난 엑셀은 상단 목록에서 「_반영됨」으로 치운다
@@ -3630,6 +3631,75 @@ function ssOutQty(o){
     xhr.ontimeout=function(){ shpProgHide(); ssToast('⚠️ 저장 시간 초과 — 잠시 후 다시 시도하세요.'); };
     xhr.send(body);
   }
+
+  /* ── 계약 만료·임박 알림 (2026-10-27 사용자 「계약 만료가 다가오면 삼성 출고장 받을 때 알 수 있게」) ──────────────
+     발주현황표를 저장한 뒤, 이번에 올린 품목코드 가운데 «지금 계약»(납품 시작이 오늘 이전인 계약 중 가장 늦은 것)이
+     ① 이미 만료(납품 종료 < 오늘) ② 30일 안에 만료되는 품목을 모아 알린다. 기준은 상품코드 등록의 「만료·임박」 배지와 같다(ctPick·ctState).
+     · 단가는 만료돼도 그대로다(다음 계약 전까지 마지막 계약단가) — 알림은 «계약 갱신을 챙기라»는 뜻이지 막는 장치가 아니다.
+     · [상품코드 등록에서 보기] = 그 코드들만 목록에 남겨 연다(window.konetPcOnly 를 상품코드 등록 화면이 받아 간다).
+     · 같은 알림창을 쓰는 다른 안내(재고 반영 실패·새 사업장)가 떠 있으면 그것을 닫은 뒤에 띄운다 — 알림창은 하나라 겹치면 앞 것이 사라진다.
+     · 계약 표가 없거나 읽기 실패면 조용히 넘어간다(업로드는 이미 끝났다). */
+  var SS_CT_SOON=30;
+  function _ssYmd(dd){ return ''+dd.getFullYear()+('0'+(dd.getMonth()+1)).slice(-2)+('0'+dd.getDate()).slice(-2); }
+  function _ssDt8(d){ d=String(d||''); return d.length===8 ? d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8) : d; }
+  function ssContractCheck(rows){
+    var seen={}, cds=[], nmOf={};
+    (rows||[]).forEach(function(o){ var c=(''+(o.itemCd||'')).trim(); if(c && !seen[c]){ seen[c]=1; cds.push(c); nmOf[c]=o.itemNm||''; } });
+    if(!cds.length) return;
+    fetch(KONET_CTX+'/prod/contractList.do', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        var by={}; ((j&&j.data)||[]).forEach(function(c){ var k=String(c.prodCd||''); if(seen[k]) (by[k]=by[k]||[]).push(c); });
+        var t=_ssYmd(new Date()), lim=new Date(); lim.setDate(lim.getDate()+SS_CT_SOON); var t30=_ssYmd(lim), hit=[];
+        cds.forEach(function(cd){ var a=by[cd]; if(!a) return; var cur=null, nxt=null;
+          a.forEach(function(c){ var fr=String(c.frDt||''); if(fr<=t){ if(!cur||fr>String(cur.frDt)) cur=c; } else if(!nxt||fr<String(nxt.frDt)) nxt=c; });
+          if(!cur || !cur.toDt) return;                                 /* 지금 계약이 없거나 종료일이 없으면 무기한 */
+          var to=String(cur.toDt), k = to<t ? 'end' : (to<=t30 ? 'soon' : '');
+          if(!k) return;
+          var left=Math.round((new Date(+to.slice(0,4),+to.slice(4,6)-1,+to.slice(6,8)) - new Date(+t.slice(0,4),+t.slice(4,6)-1,+t.slice(6,8)))/864e5);
+          hit.push({ cd:cd, nm:(cur.prodNm||nmOf[cd]||''), to:to, price:cur.contractPrice, k:k, left:left, nxt:nxt }); });
+        if(!hit.length) return;
+        hit.sort(function(a,b){ return a.to<b.to?-1:(a.to>b.to?1:0); });
+        ssCtAlert(hit);
+      })
+      .catch(function(){});
+  }
+  function ssCtAlert(hit){
+    var esc=function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
+    var nEnd=hit.filter(function(x){ return x.k==='end'; }).length, nSoon=hit.length-nEnd, MAX=15;
+    var h='<div style="text-align:left;line-height:1.6">이번 발주현황표에 <b>계약 확인이 필요한 품목 '+hit.length+'개</b>가 있습니다'
+      +' <span style="font-size:12px;color:#8a97a3">('+(nEnd?'만료 '+nEnd:'')+(nEnd&&nSoon?' · ':'')+(nSoon?SS_CT_SOON+'일 안 만료 '+nSoon:'')+')</span>'
+      +'<div style="max-height:300px;overflow:auto;margin:8px 0;border:1px solid #dbe2ea;border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12.5px">'
+      +'<tr style="background:#eef3f6"><th style="padding:4px 6px;text-align:left">품목코드</th><th style="padding:4px 6px;text-align:left">품명</th><th style="padding:4px 6px">납품 종료</th><th style="padding:4px 6px;text-align:right">계약단가</th></tr>'
+      +hit.slice(0,MAX).map(function(x){
+         var st = x.k==='end' ? '<span style="color:#c0392b;font-weight:700">만료</span>' : '<span style="color:#b06a00;font-weight:700">'+x.left+'일 남음</span>';
+         var nx = x.nxt ? '<div style="font-size:11px;color:#2f4f9a">다음 계약 '+_ssDt8(x.nxt.frDt)+' 부터 등록됨</div>' : '';
+         return '<tr style="border-top:1px solid #eef1f4"><td style="padding:4px 6px;font-family:Consolas,monospace">'+esc(x.cd)+'</td><td style="padding:4px 6px">'+esc(x.nm)+nx+'</td>'
+           +'<td style="padding:4px 6px;text-align:center;white-space:nowrap">'+_ssDt8(x.to)+'<br>'+st+'</td><td style="padding:4px 6px;text-align:right">'+Number(x.price||0).toLocaleString()+'</td></tr>'; }).join('')
+      +'</table></div>'
+      +(hit.length>MAX?'<div style="font-size:12px;color:#8a97a3">… 외 '+(hit.length-MAX)+'개 — 상품코드 등록에서 모두 봅니다</div>':'')
+      +'<div style="font-size:12px;color:#5b6b7a">만료돼도 단가는 마지막 계약단가 그대로 갑니다 — 새 계약이 오면 상품코드 등록 ▸ 계약정보 탭이나 [📄 계약 엑셀]로 넣으세요.</div></div>';
+    var cds=hit.map(function(x){ return x.cd; });
+    var opt={ icon:'📄', okText:'상품코드 등록에서 보기', onOk:function(){
+      window.konetPcOnly={ cds:cds, label:'발주현황표 계약 확인 '+cds.length+'개' };
+      var el=document.querySelector('.mi[data-key="prodcd"]');
+      if(window.logiFrame) logiFrame('prodcd', KONET_CTX+'/prod/prodcd.do', el);
+    } };
+    /* 다른 알림이 떠 있으면 닫힐 때까지 기다린다(최대 10분) */
+    var tries=0;
+    (function show(){ var bd=document.getElementById('confirmBackdrop');
+      if(bd && bd.style.display==='flex' && tries++<1500){ setTimeout(show, 400); return; }
+      /* ★선택 사항이다 (2026-10-27 사용자 「사용자 선택이고 업무 진행 계속이죠」) — 단추 둘 : [닫기 — 업무 계속] / [상품코드 등록에서 보기].
+           업로드는 이미 저장됐고, 닫아도 아무것도 바뀌지 않는다. 확인창의 취소 단추 글자를 잠시 바꿨다가 창이 닫히면 「취소」로 되돌린다(다른 화면 확인창에 남지 않게). */
+      if(window._confirmBox){
+        window._confirmBox({ msg:h, icon:'📄', okText:opt.okText, okColor:'blue', onOk:opt.onOk, onCancel:function(){} });
+        var cc=document.getElementById('confirmCancel'), bd2=document.getElementById('confirmBackdrop');
+        if(cc){ cc.textContent='닫기 — 업무 계속';
+          (function back(){ if(bd2 && bd2.style.display==='flex'){ setTimeout(back, 300); return; } cc.textContent='취소'; })(); }
+      } else if(window._alertBox) window._alertBox(h, opt); else ssToast('📄 계약 확인 필요 '+hit.length+'개 (만료 '+nEnd+' · 임박 '+nSoon+') — 상품코드 등록 ▸ 「만료·임박만」');
+    })();
+  }
+  window.ssContractCheck=ssContractCheck;
 
   // 일자별(단일 일자) 조건인지
   function ssIsSingleDay(){

@@ -471,6 +471,10 @@
     <button class="btn" onclick="pcExcel()">📥 엑셀 출력</button>
     <span class="cnt" id="cnt">0건</span>
   </div>
+  <%-- 「이 코드만 보기」 띠 (2026-10-27) — 발주현황표 업로드 뒤 계약 알림의 [상품코드 등록에서 보기] 가 넘긴 코드들만 목록에 남겼을 때 보인다 --%>
+  <div id="pcOnlyBar" style="display:none;margin:6px 0 0;padding:6px 12px;border-radius:8px;background:#fff3cd;border:1px solid #f0d58a;color:#7a5200;font-size:13px;font-weight:700;align-items:center;gap:10px">
+    <span id="pcOnlyLbl"></span><button class="btn" style="height:26px;padding:0 10px;font-size:12px" onclick="pcOnlyClear()">✕ 전체 보기</button>
+  </div>
 
   <div class="tabs" id="taxTabs">
     <button class="t on" data-g=""     onclick="pcTab('')">전체</button>
@@ -783,6 +787,7 @@ function pcFilter(){
   var sp=(document.getElementById('fStop')||{}).value||'';   // ★거래중지 조건(2026-08-17)
   var ctf=(document.getElementById('fCt')||{}).value||'';    // ★계약 조건(2026-10-01) — _ctBy 는 계약 이력을 읽을 때(ctLoad) 채워진다
   _view=LIST.filter(function(o){
+    if(_pcOnly && !_pcOnly[String(o.prodCd)]) return false;   /* 「이 코드만 보기」 (2026-10-27) */
     if(_tax && (''+(o.taxGb||''))!==_tax) return false;
     // 매칭 필터 — _mcCnt 는 하단 [거래처 매칭코드] 를 읽을 때 채워진다(상품별 건수)
     if(mc==='Y' && !_mcCnt[o.prodSeq]) return false;
@@ -2437,10 +2442,27 @@ function pcRowEdge(first){
   window.addEventListener('resize', function(){ if(_faFor) pcAcPos(_faFor); });
 })();
 
-pcLoad(); mcVendors(); mcLoad(true);
+/* ── 「이 코드만 보기」 (2026-10-27) — 셸이 window.konetPcOnly = {cds:[…], label} 를 두고 이 화면을 열면 그 코드들만 남긴다.
+     처음 열 때(pcLoad 끝)와 다시 보일 때(konetShown) 받아 간다 — 받으면 셸의 값은 지운다(한 번만). 다른 조건(검색·과세·계약)은 풀어 둔다 : 그 코드가 다른 조건에 걸려 안 보이면 「안 나온다」가 된다. */
+var _pcOnly=null;
+function pcOnlyTake(){
+  var P=null; try{ P=window.parent; }catch(e){}
+  var x=null; try{ x=P && P.konetPcOnly; if(x) P.konetPcOnly=null; }catch(e){}
+  if(!x || !x.cds || !x.cds.length) return;
+  _pcOnly={}; x.cds.forEach(function(c){ _pcOnly[String(c)]=1; });
+  ['q'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+  ['fMc','fStop','fCt'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+  if(_tax) pcTab('');
+  document.getElementById('pcOnlyLbl').textContent='📄 '+(x.label||('코드 '+x.cds.length+'개'))+'만 보는 중 — 납품기간 칸의 [📄 계약]으로 계약을 확인·등록하세요';
+  document.getElementById('pcOnlyBar').style.display='flex';
+  pcFilter();
+}
+function pcOnlyClear(){ _pcOnly=null; document.getElementById('pcOnlyBar').style.display='none'; pcFilter(); }
+pcLoad(pcOnlyTake); mcVendors(); mcLoad(true);
 /* 다시 보일 때 기준자료 다시 읽기 (2026-09-17 「데이터 수정 후 연관 조회 바로 안 됨」) — 셸 iframe 은 로그아웃 전까지 그대로라 다른 화면에서 고친 것을 몰랐다. 3초 안 중복 호출은 한 번만. 수정 창(#ov)이 열려 있으면 건너뛴다(입력 중인 것을 지키려고). */
 var _shownAt=0;
 window.konetShown=function(){
+  pcOnlyTake();                       /* 셸이 넘긴 「이 코드만 보기」가 있으면 먼저 (2026-10-27) */
   if(Date.now()-_shownAt<3000) return; _shownAt=Date.now();
   var ov=document.getElementById('ov'); if(ov && ov.classList.contains('on')) return;
   pcLoad(); mcVendors(); mcLoad(true);
