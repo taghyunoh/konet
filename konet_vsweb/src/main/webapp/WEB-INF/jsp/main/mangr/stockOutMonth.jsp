@@ -9,11 +9,13 @@
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox) — 브라우저 alert 대신 (2026-09-03 요청) --%>
 <%-- 기간 = 납기현황표와 같은 우리 달력(ui-datenav.js) — 시작·종료가 달력 두 개로 한 번에 뜬다. 2026-09-03 「이런 형태로」 --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
+<script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>   <%-- 표 높이 막대 — 판매·매입등록과 같은 공용 (2026-10-26) --%>
 <!--
   월별 출고현황 (2026-09-03 신설, 처음 이름 「출고재고현황」→ 같은 날 「월별 출고현황」으로 바꿈) — 재고 관리 > 품목별재고현황 밑 메뉴. 사이드바 iframe(logiFrame) 화면.
   · 행 = 년월(최근월부터 내림차순) · 열 = 사업장 ▸ 품목 (납기현황표 가로표와 같은 2단 머리) · 값 = 그 달 출고량 · 맨 위 줄 = 품목 현재고
   · 원천 규칙(사용자 확정 2026-09-03) = <납기일자> 기준으로 그 날 정산서가 있으면 정산서, 없으면 발주현황표(라벨수량). 원장(품목별재고현황)과 같은 규칙.
     정산서엔 사업장이 없어 같은 발주라인의 사업장에 발주수량 비율로 나눈다(SQL selectStockOutByMonth). 현재고 줄은 원장(TBL_STOCK_MST).
+  · ★[2026-10-26] 원장이 세는 출고를 전부 센다 — 정산서 · 발주현황표(정산서 없는 날, DC 발주 포함) · 토더·대상 발주(정산서 날에도 늘) · 판매전표(판매일자 · 판매 줄 · 거래처가 사업장 자리, 이름 뒤 「(판매전표)」).
   · 사업장 이름 = 거래처관리 매칭명(MATCH_NM)이 있으면 그것, 없으면 원래 사업장명 (납기현황표 가로표와 같은 규칙, SQL에서 묶음)
   · 열 차례 = 출고 많은 사업장이 왼쪽, 사업장 안에서도 많이 나간 품목이 왼쪽. 출고장은 넣지 않는다(요청).
   · 현재고는 품목 잔량이라 사업장과 무관 — 같은 품목이 여러 사업장에 있으면 같은 값이 되풀이되고, 합계는 품목 하나당 한 번만 더한다.
@@ -110,7 +112,7 @@
   .dtl th, .dtl td{ border-bottom:1px solid #eef1f4; padding:5px 9px; white-space:nowrap; text-align:center; }
   .dtl th{ position:sticky; top:0; background:#eef4fa; font-weight:700; }
   .dtl td.l{ text-align:left; } .dtl td.r{ text-align:right; font-weight:700; }
-  .dtl td.src-s{ color:#1f6fb3; } .dtl td.src-o{ color:#6b7a89; }
+  .dtl td.src-s{ color:#1f6fb3; } .dtl td.src-o{ color:#6b7a89; } .dtl td.src-t{ color:#8a4c0d; font-weight:600; } .dtl td.src-d{ color:#6b3fa0; font-weight:600; }
   /* 출고코드(거래처 매칭코드) — 품목별재고현황의 ↳ 줄과 같은 주황 */
   .dtl td .xc{ color:#c8741a; font-weight:700; } .dtl td .xn{ color:#a06a2c; font-size:12px; }
   .dtl .none{ padding:18px; text-align:center; color:#9aa7b3; }
@@ -126,7 +128,7 @@
 <body>
 <div class="wrap">
   <h2>📦 월별 출고현황</h2>
-  <div class="sub"><b>사업장</b> ▸ <b>품목</b>별 <b>월 출고량</b>과 <b>현재고</b>를 한 표로 봅니다 — 행은 년월(최근월부터), 맨 위 줄이 품목 현재고(사업장과 무관한 품목 잔량)입니다. 출고량은 <b>납기일자</b> 기준으로 그 날 <b>정산서가 있으면 정산서</b>, 없으면 발주현황표(라벨수량)를 읽고(품목별재고현황과 같은 규칙), 사업장은 거래처관리 매칭명으로 묶습니다.</div>
+  <div class="sub"><b>사업장</b> ▸ <b>품목</b>별 <b>월 출고량</b>과 <b>현재고</b>를 한 표로 봅니다 — 행은 년월(최근월부터), 맨 위 줄이 품목 현재고(사업장과 무관한 품목 잔량)입니다. 출고량은 <b>납기일자</b> 기준으로 그 날 <b>정산서가 있으면 정산서</b>, 없으면 발주현황표(라벨수량)를 읽고, <b>토더·대상 발주</b>는 정산서가 있는 날에도 세고, <b>판매전표</b>(판매등록)는 판매일자 기준으로 거래처를 사업장 자리에 「(판매전표)」로 보입니다 — 품목별재고현황(재고 원장)과 같은 규칙. 사업장은 거래처관리 매칭명으로 묶습니다.</div>
   <div class="bar">
     <label style="font-weight:700">기간</label>
     <input type="date" id="frDt" data-range-to="toDt" onchange="somLoad()" title="클릭하여 달력 선택 — 시작·종료를 한 번에 고릅니다"> <span style="color:#8a98a8">~</span> <input type="date" id="toDt" onchange="somLoad()" title="클릭하여 달력 선택 — 시작·종료를 한 번에 고릅니다">
@@ -254,14 +256,18 @@ function somBuild(){
     var gn=(''+(r.bizNm||'')).trim()||'(사업장없음)', gk=''+(r.bizKey||''); if(!gk) gk='~'+gn;
     if(!cd||!ym) return;
     if(q && (gn+' '+cd+' '+(r.prodNm||'')).toLowerCase().indexOf(q)<0) return;
-    var g=grp[gk]; if(!g){ g=grp[gk]={key:gk, nm:gn, tot:0, items:{}, iord:[]}; gord.push(gk); }
+    var g=grp[gk]; if(!g){ g=grp[gk]={key:gk, nm:gn, tot:0, newTot:0, items:{}, iord:[]}; gord.push(gk); }
     var it=g.items[cd]; if(!it){ it=g.items[cd]={cd:cd, nm:(r.prodNm||''), seq:(r.prodSeq||''), tot:0}; g.iord.push(cd); }
-    it.tot+=q0; g.tot+=q0; pset[cd]=1;
+    it.tot+=q0; g.tot+=q0; g.newTot+=(Number(r.newQty)||0); pset[cd]=1;
     if(!yms[ym]){ yms[ym]=0; yord.push(ym); }
     yms[ym]+=q0;
     var k=ym+'|'+gk+'|'+cd; cell[k]=(cell[k]||0)+q0;
   });
-  gord.sort(function(a,b){ return grp[b].tot-grp[a].tot || grp[a].nm.localeCompare(grp[b].nm); });   // 많이 나간 사업장이 왼쪽
+  /* ★열 차례 (2026-10-26 「기존 것 유지하고 발생내역을 맨 뒤로」) — 종전 원천(정산서·발주현황표) 사업장은 종전처럼 «종전 원천 출고량» 큰 순으로 왼쪽,
+     토더·대상·판매전표만으로 생긴 사업장(거래처)은 그 뒤에 따로(그 안에서는 출고량 큰 순). newQty 가 없는 옛 서버 응답이면 종전 정렬 그대로. */
+  function _old(g){ return g.tot-(g.newTot||0); } function _isNew(g){ return (g.newTot||0)>0 && _old(g)<=0; }
+  gord.sort(function(a,b){ var A=grp[a], B=grp[b], na=_isNew(A)?1:0, nb=_isNew(B)?1:0; if(na!==nb) return na-nb;
+    var ta=na?A.tot:_old(A), tb=nb?B.tot:_old(B); return tb-ta || A.nm.localeCompare(B.nm); });   // 많이 나간 사업장이 왼쪽
   gord.forEach(function(gk){ var g=grp[gk]; g.iord.sort(function(a,b){ return g.items[b].tot-g.items[a].tot || a.localeCompare(b); }); });
   yord.sort(function(a,b){ return b.localeCompare(a); });                                              // 최근월부터
   var cols=[]; gord.forEach(function(gk){ grp[gk].iord.forEach(function(cd,i){ cols.push({g:gk, cd:cd, first:i===0}); }); });
@@ -358,7 +364,7 @@ function somPaint(force){
 })();
 /* ── 셀 클릭 → 하단 출고내역·입고내역 (2026-09-03 요청) ──
    · 월 셀 = 그 달, 현재고·기간합계 셀 = 조회 기간 전체. 사업장은 그 열의 사업장(매칭명) 하나.
-   · 출고내역 = /prod/stockOutDetail.do (통합 원천: 정산서 있는 날은 정산서, 없으면 발주현황표 — 표와 같은 규칙)
+   · 출고내역 = /prod/stockOutDetail.do (통합 원천: 정산서 있는 날은 정산서, 없으면 발주현황표(DC 발주 포함) + 토더·대상 발주(늘) + 판매전표 — 표와 같은 규칙, 2026-10-26)
    · 입고내역 = 같은 응답의 수불원장(ledger)에서 출고(O)가 아닌 행(입고 I·반품 R·조정 A)을 년월로 걸러 보여 준다 */
 var DTL_LAST=null;
 document.getElementById('card').addEventListener('click', function(ev){
@@ -373,7 +379,7 @@ function somDetail(sel){
   DTL_LAST=sel;
   var fr=document.getElementById('frDt').value.replace(/-/g,''), to=document.getElementById('toDt').value.replace(/-/g,'');
   var box=document.getElementById('dtl'); box.style.display='block';
-  document.getElementById('dtlHead').innerHTML='② <b>'+(sel.ym?ymLabel(sel.ym):(dt8(fr)+' ~ '+dt8(to)))+'</b> · 사업장 <b>'+esc(sel.g.nm)+'</b>'+(sel.g.key.charAt(0)==='~'?'':' <span style="color:#6b7a89;font-weight:600">[매칭코드 '+esc(sel.g.key)+']</span>')+' · 품목 <b>'+esc(sel.it.cd)+'</b> '+esc(sel.it.nm)
+  document.getElementById('dtlHead').innerHTML='② <b>'+(sel.ym?ymLabel(sel.ym):(dt8(fr)+' ~ '+dt8(to)))+'</b> · 사업장 <b>'+esc(sel.g.nm)+'</b>'+(sel.g.key.charAt(0)==='~'?'':' <span style="color:#6b7a89;font-weight:600">'+(sel.g.key.indexOf('STRX:')===0?'[판매전표 거래처 '+esc(sel.g.key.slice(5))+']':'[매칭코드 '+esc(sel.g.key)+']')+'</span>')+' · 품목 <b>'+esc(sel.it.cd)+'</b> '+esc(sel.it.nm)
     +'<button class="x" onclick="somDetailClose()">✕ 닫기</button>';
   document.getElementById('dtlOut').innerHTML=qprog('출고내역을 조회하는 중…'); document.getElementById('dtlIn').innerHTML=qprog('입고내역을 조회하는 중…');
   document.getElementById('dtlOutSum').textContent=''; document.getElementById('dtlInSum').textContent='';
@@ -386,13 +392,16 @@ function somDetail(sel){
 }
 function somDetailClose(){ DTL_LAST=null; _somPick=''; document.getElementById('dtl').style.display='none'; var p=document.querySelector('table.mx td.pick'); if(p) p.classList.remove('pick'); somFit(); }
 function dt8(d){ d=''+(d||''); return /^\d{8}$/.test(d) ? (d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8)) : d; }
+/* 원천 칸 색·표 (2026-10-26) — 정산서 📄 파랑 · 판매전표 🧾 갈색 · 토더·대상 발주 🏷 보라 · 발주현황표/DC 발주 회색 */
+function srcCls(s){ return s==='정산서'?'src-s':((''+s).indexOf('판매전표')===0?'src-t':((s==='토더 발주'||s==='대상 발주')?'src-d':'src-o')); }   // 「판매전표(대상)」도 판매전표 색
+function srcIco(s){ return s==='정산서'?'📄 ':((''+s).indexOf('판매전표')===0?'🧾 ':((s==='토더 발주'||s==='대상 발주')?'🏷 ':'')); }
 function somDetailRender(sel, j, fr, to){
   /* 출고내역 — 납기일자별·원래 사업장별. 거래처 매칭코드 칸은 주코드와 다를 때만(재고현황 ↳ 줄과 같은 규칙, 2026-09-03 「주코드이면 보여주지 마세요」) */
   var out=j.out||[], os=0, h='';
   if(!out.length) h='<div class="none">출고가 없습니다.</div>';
   else { h='<table><thead><tr><th>납기일자</th><th>사업장 [사업장코드]</th><th>물류센터</th><th>거래처 매칭코드 · 품목명</th><th>원천</th><th>수량</th></tr></thead><tbody>';
     out.forEach(function(r){ var q=Number(r.qty)||0; os+=q; var s=(''+(r.src||''));
-      h+='<tr><td>'+dt8(r.dlvDt)+'</td><td class="l" title="'+esc(r.mtNm)+'">'+esc(r.bizNm||r.mtNm)+'</td><td>'+esc(r.dcNm)+'</td><td class="l">'+((r.itemCd && (''+r.itemCd)!==(''+sel.it.cd))?('<span class="xc">↳ '+esc(r.itemCd)+'</span> <span class="xn">'+esc(r.itemNm||'')+'</span>'):'')+'</td><td class="'+(s==='정산서'?'src-s':'src-o')+'">'+(s==='정산서'?'📄 ':'')+esc(s)+'</td><td class="r">'+num(q)+'</td></tr>'; });
+      h+='<tr><td>'+dt8(r.dlvDt)+'</td><td class="l" title="'+esc(r.mtNm)+'">'+esc(r.bizNm||r.mtNm)+'</td><td>'+esc(r.dcNm)+'</td><td class="l">'+((r.itemCd && (''+r.itemCd)!==(''+sel.it.cd))?('<span class="xc">↳ '+esc(r.itemCd)+'</span> <span class="xn">'+esc(r.itemNm||'')+'</span>'):'')+'</td><td class="'+srcCls(s)+'">'+srcIco(s)+esc(s)+'</td><td class="r">'+num(q)+'</td></tr>'; });
     h+='</tbody></table>'; }
   document.getElementById('dtlOut').innerHTML=h; document.getElementById('dtlOutSum').textContent=out.length?(out.length+'건 · '+num(os)):'';
   /* 입고내역 — 원장에서 출고(O) 뺀 행, 년월로 거른다 */
@@ -471,12 +480,18 @@ var _somSleptScroll=null, _somHidN=0;
     else { _somHidN=0; if(_somSleptScroll) wake(); }        /* 돌아오면 0.5초 안에 다시 그린다 */
   }, 500);
 })();
+/* ★막대로 고른 높이(ui-gridgrip, localStorage konetGridH.stockOutMonth)가 있으면 그 높이가 이긴다 — 자동 맞춤(아래)은 건너뛴다.
+     막대 더블클릭(= 처음 높이)이 저장값을 지우고 inline 높이를 되살리므로 그때 다시 자동으로 맞춘다(아래 dblclick 리스너). 2026-10-26 「표시부분도 막대로 줄였다 늘렸다」 */
+function somGripH(){ try{ var v=parseFloat(localStorage.getItem('konetGridH.stockOutMonth')); return v>0?v:0; }catch(e){ return 0; } }
 function somFit(){ var c=document.getElementById('card'); if(!c) return;
+  if(somGripH()>0) return;   // 사람이 막대로 정한 높이 — 하단 내역이 열려도 안 줄인다
   /* 하단 내역 패널이 열려 있으면 표는 화면 절반만 쓴다 */
   var d=document.getElementById('dtl'), open=!!(d && d.style.display==='block');
   var top=c.getBoundingClientRect().top+(window.pageYOffset||0);
   c.style.maxHeight=Math.max(220, Math.round((window.innerHeight-top-16)*(open?0.5:1)))+'px'; }
 window.addEventListener('resize', somFit);
+konetGridGrip('card', 'card', 'stockOutMonth');   // 표 상자 바로 밑에 막대(합계줄이 표 안이라 발주서와 같은 꼴) · 보관 konetGridH.stockOutMonth
+document.addEventListener('dblclick', function(e){ if(e.target && e.target.closest && e.target.closest('.kgg')) setTimeout(somFit, 0); });   // 처음 높이로 = 자동 맞춤 복귀
 /* 엑셀 — 화면 표 그대로(머리 2줄: 사업장 병합 + 품목, 현재고 줄 포함). 부모의 xlsx 라이브러리를 빌려 쓴다(택배납기관리와 같은 방식) */
 function somExcel(){
   if(!RAW){ toast('먼저 조회하세요.'); return; }

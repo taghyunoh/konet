@@ -2861,6 +2861,36 @@ public class UserController {
 				return ResponseEntity.ok("1");
 			} catch (Exception e) { log.error(" poDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
+		/* 발주서 삭제 이력 · 복구 (2026-10-26 「발주서관리에서 삭제이력 보여주고 복구기능」) — 응답은 Map(Jackson) — String 두 겹 감싸기 함정을 피한다 */
+		@RequestMapping(value="/mangr/poDelList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poDelList(@RequestParam(value="fromDt", required=false) String fromDt,
+		                                    @RequestParam(value="toDt", required=false) String toDt,
+		                                    @RequestParam(value="findData", required=false) String findData, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("data", new java.util.ArrayList<Object>());
+			if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+			try {
+				Map<String,Object> p = new HashMap<String,Object>();
+				p.put("fromDt", fromDt); p.put("toDt", toDt); p.put("findData", findData); p.put("compCd", session.getAttribute("s_comp_cd"));
+				res.put("data", svc.selectPoDelList(p));
+			} catch (Exception e) { log.error(" poDelList ERROR : " + e.getMessage()); res.put("error", "삭제 이력을 읽지 못했습니다."); }
+			return res;
+		}
+		@RequestMapping(value="/mangr/poRestore.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poRestore(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				java.util.List<Long> seqs = poReqSeqs(body.get("seqs"));
+				if (seqs.isEmpty()) { res.put("error", "복구할 발주서를 고르세요."); return res; }
+				if (seqs.size() > 100) { res.put("error", "한 번에 100장까지만 복구할 수 있습니다."); return res; }
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				java.util.List<Map<String,Object>> done = svc.restorePo(seqs, String.valueOf(session.getAttribute("s_comp_cd")), u, request.getRemoteAddr());
+				res.put("data", done); res.put("cnt", Integer.valueOf(done.size()));
+			} catch (Exception e) { log.error(" poRestore ERROR : " + e.getMessage()); res.put("error", "복구하지 못했습니다 — " + e.getMessage()); }
+			return res;
+		}
 		/** 카톡 공유 뒤 화면이 알려 준다 — 공유 횟수·마지막 공유 시각만 남긴다 */
 		@RequestMapping(value="/mangr/poShared.do", method = RequestMethod.POST)
 		@ResponseBody

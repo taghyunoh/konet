@@ -174,6 +174,8 @@
       <label>매입전환</label><select id="cvFilt" onchange="listRender()" title="매입전환 여부로 목록을 거릅니다(화면에서 — 다시 조회하지 않음)"><option value="">전체</option><option value="N">미전환만</option><option value="Y">전환됨만</option></select>
       <button class="btn teal" onclick="poLoad()">🔍 리스트 조회</button>
       <span class="cnt" id="cnt">-</span>
+      <%-- 삭제 이력 · 복구 (2026-10-26 「발주서관리에서 삭제이력 보여주고 복구기능」) — 목록과 같은 조회기간(발주일자)·거래처 조건으로 지운 발주서를 보여 준다 --%>
+      <button class="btn" style="margin-left:auto" onclick="delHist()" title="지운 발주서를 봅니다 — 위 조회기간(발주일자)·거래처 조건 그대로.&#10;골라서 [↩ 선택 복구]를 누르면 지울 때 모습(마지막 저장분) 그대로 되살아납니다.">🗂 삭제 이력</button>
     </div>
     <div class="listwrap" id="poListWrap" style="margin-top:8px">
       <table class="lst" data-colrz="poReg-list"><thead><tr><th>발주일자</th><th>번호</th><th>거래처명</th><th>담당</th><th>품목</th><th>수량</th><th>공급가액</th><th>부가세</th><th>합계</th><th title="[💬 카톡 공유] 단추로 이 발주서를 보낸 횟수 — 링크 복사는 세지 않습니다. 언제·누구에게는 [📨 전송이력]">카톡 공유</th><th title="매입전환 여부(2026-09-23) — ✔ 전환 = 이 발주서로 만든 매입전표가 있음(마지막 전표는 마우스를 올리면). 미전환 = 아직 없음">매입전환</th><th title="입고 현황(2026-09-16) — 미입고 / 부분 입고수량/발주수량 / ✔ 완료 / 마감. 줄마다 연결된 매입 명세로 센다">입고</th><th>등록자</th></tr></thead>
@@ -182,6 +184,24 @@
   </div>
 </div>
 
+<!-- 🗂 삭제 이력 · 복구 (2026-10-26) — 지운 발주서. 골라서 되살린다(지울 때 살아 있던 줄 = 마지막 저장분). 같은 날 같은 번호가 이미 있으면 그 날 다음 번호로 -->
+<div class="pop" id="dlPop"><div class="box" style="width:min(1240px,97vw)">
+  <div class="ph">🗂 삭제 이력 <span id="dlSub" style="font-weight:600;font-size:12.5px;color:#6b7a89"></span>
+    <span style="margin-left:auto"></span><button class="btn" onclick="delClose()">닫기</button></div>
+  <div class="pb"><table><thead><tr>
+    <th class="ck" style="width:36px"><input type="checkbox" id="dlAll" onclick="delAllChk(this.checked)" title="이 목록 전체 선택"></th>
+    <th style="width:96px">발주일자</th><th style="width:60px">번호</th><th>거래처명</th><th style="width:70px">담당</th>
+    <th style="width:44px" title="지울 때 살아 있던 줄 수 — 복구하면 이 줄들이 그대로 돌아옵니다">줄</th>
+    <th style="width:70px">수량</th><th style="width:100px">합계</th>
+    <th style="width:84px" title="이 발주 줄에 연결된 매입 명세가 있는 줄 수 — 복구하면 입고·잔량이 다시 잡힙니다">매입 연결</th>
+    <th style="width:120px">등록</th><th style="width:150px">지운 때 · 사람</th>
+    <th style="width:120px" title="같은 날 같은 번호의 발주서가 이미 있으면 복구할 때 그 날의 다음 번호로 바뀝니다">비고</th></tr></thead>
+    <tbody id="dlBody"></tbody></table></div>
+  <div class="pf" style="display:flex; align-items:center; gap:8px; text-align:left">
+    <span id="dlInfo" style="margin-right:auto; color:#6b7a89; font-size:12.5px"></span>
+    <button class="btn teal" id="dlGo" onclick="delRestore()" disabled>↩ 선택 복구</button>
+  </div>
+</div></div>
 <!-- 거래처 선택 팝업 -->
 <div class="pop" id="venPop"><div class="box">
   <div class="ph">거래처 선택 <input type="text" id="venQ" placeholder="거래처명·코드·사업자번호" oninput="venRender()"><button class="btn" onclick="venClose()">닫기</button></div>
@@ -917,6 +937,54 @@ function listRender(){ var h='', ts=0, tv=0, tt=0, fv=(document.getElementById('
   document.getElementById('lbody').innerHTML=h||'<tr><td colspan="13" class="empty">발주서가 없습니다.</td></tr>';
   document.getElementById('cnt').innerHTML='<b>'+shown+'</b>건'+(fv?(' / 전체 '+_list.length):'')+' · 공급가 <b>'+fmt(ts)+'</b> · 부가세 <b>'+fmt(tv)+'</b> · 합계 <b>'+fmt(tt)+'</b>'; }
 function markList(seq){ var s=seq||(_cur&&_cur.poSeq); document.querySelectorAll('#lbody tr').forEach(function(tr){ tr.classList.toggle('on', String(tr.getAttribute('data-seq'))===String(s)); }); }
+
+/* ── 🗂 삭제 이력 · 복구 (2026-10-26 「발주서관리에서 삭제이력 보여주고 복구기능」) ──
+   조건 = 목록과 같은 조회기간(발주일자)·거래처. 복구 = 지울 때 모습(마지막 저장분) 그대로 · 매입 연결도 다시 잡힌다.
+   같은 날 같은 번호가 그 사이 다른 발주서에 쓰였으면(번호는 살아 있는 것만 세어 다시 준다) 서버가 그 날 다음 번호로 바꿔 살린다.
+   발주목록(대시보드)의 「등록」 표시는 지울 때 풀렸고 되살리지 않는다. */
+var _delL=[], _delChk={};
+function delHist(){ _delChk={}; var a=document.getElementById('dlAll'); if(a) a.checked=false; document.getElementById('dlPop').classList.add('on'); delLoad(); }
+function delClose(){ document.getElementById('dlPop').classList.remove('on'); }
+function delLoad(){ var fr=document.getElementById('frDt').value, to=document.getElementById('toDt').value, nm=document.getElementById('findNm').value;
+  document.getElementById('dlSub').textContent='발주일자 '+(fr||'처음')+' ~ '+(to||'끝')+(nm?(' · 거래처 「'+nm+'」'):'');
+  document.getElementById('dlBody').innerHTML='<tr><td colspan="12" class="empty">조회 중…</td></tr>';
+  post('/mangr/poDelList.do','fromDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)+'&findData='+encodeURIComponent(nm))
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(j){ if(j&&j.error) throw new Error(j.error); _delL=(j&&j.data)||[]; delRender(); })
+    .catch(function(e){ _delL=[]; document.getElementById('dlBody').innerHTML='<tr><td colspan="12" class="empty" style="color:#c0392b">조회 오류: '+esc(e.message)+'</td></tr>'; delPickInfo(); }); }
+function delRender(){ var h='';
+  _delL.forEach(function(o){ var ck=!!_delChk[o.poSeq];
+    h+='<tr><td class="ck"><input type="checkbox" '+(ck?'checked ':'')+'onchange="delPick('+o.poSeq+',this.checked)"></td>'
+      +'<td>'+d8(o.poDt)+'</td><td>'+esc(o.poNo)+'</td><td class="l">'+esc(o.vendorNm)+'</td><td>'+esc(o.mgrNm)+'</td>'
+      +'<td>'+n(o.lineCnt)+'</td><td class="r">'+fmtQ(o.totQty)+'</td><td class="r">'+fmt(o.totAmt)+'</td>'
+      +'<td>'+(n(o.linkCnt)?('📦 '+n(o.linkCnt)+'줄'):'<span style="color:#9aa7b3">—</span>')+'</td>'
+      +'<td style="font-size:12px">'+esc(o.regUser)+'<br><span style="color:#8a98a8">'+esc((o.regDttm||'').slice(0,16))+'</span></td>'
+      +'<td style="font-size:12px"><b style="color:#c0392b">'+esc((o.delDttm||'').slice(0,16))+'</b><br><span style="color:#8a98a8">'+esc(o.delUser)+'</span></td>'
+      +'<td style="font-size:12px">'+(o.dupYn==='Y'?'<span style="color:#9a4b00;font-weight:700" title="같은 날 '+esc(o.poNo)+'번을 다른 발주서가 쓰고 있습니다 — 복구하면 그 날의 다음 번호로 바뀝니다">⚠ 번호 바뀜</span>':'')+'</td></tr>'; });
+  document.getElementById('dlBody').innerHTML=h||'<tr><td colspan="12" class="empty">이 기간에 지운 발주서가 없습니다.</td></tr>';
+  delPickInfo(); }
+function delPick(seq,on){ if(on) _delChk[seq]=1; else delete _delChk[seq]; delPickInfo(); }
+function delAllChk(on){ _delChk={}; if(on) _delL.forEach(function(o){ _delChk[o.poSeq]=1; }); delRender(); }
+function delPicked(){ return _delL.filter(function(o){ return _delChk[o.poSeq]; }); }
+function delPickInfo(){ var k=delPicked().length, b=document.getElementById('dlGo');
+  if(b){ b.disabled=!k; b.textContent='↩ 선택 '+(k||'')+(k?'장 ':'')+'복구'; }
+  document.getElementById('dlInfo').innerHTML='지운 발주서 <b>'+_delL.length+'</b>장'+(k?(' · 고름 <b>'+k+'</b>장'):'')+' — 복구하면 지울 때 모습(마지막 저장분) 그대로 돌아오고, 매입 연결도 다시 잡힙니다.'; }
+function delRestore(){ var ps=delPicked(); if(!ps.length){ toast('복구할 발주서를 고르세요.','ℹ️'); return; }
+  var dup=ps.filter(function(o){ return o.dupYn==='Y'; }), lk=ps.filter(function(o){ return n(o.linkCnt)>0; });
+  var li=ps.slice(0,6).map(function(o){ return '· '+esc(d8(o.poDt))+' - '+esc(o.poNo)+' '+esc(o.vendorNm)+' ('+n(o.lineCnt)+'줄)'; }).join('<br>')+(ps.length>6?('<br>· 외 '+(ps.length-6)+'장'):'');
+  var msg='발주서 <b>'+ps.length+'장</b>을 되살릴까요?<br><span style="font-size:12.5px;color:#3d4d5c">'+li+'</span>'
+    +(dup.length?('<br><span style="font-size:12.5px;color:#9a4b00">⚠ '+dup.length+'장은 같은 날 같은 번호가 이미 있어 그 날의 다음 번호로 바뀝니다.</span>'):'')
+    +(lk.length?('<br><span style="font-size:12.5px;color:#137a6c">📦 '+lk.length+'장은 매입 연결이 있어 입고·잔량이 다시 잡힙니다.</span>'):'')
+    +'<br><span style="font-size:12px;color:#8a98a8">발주목록(대시보드)의 「등록」 표시는 되살아나지 않습니다.</span>';
+  confirmBox(msg, function(){
+    post('/mangr/poRestore.do',{ seqs: ps.map(function(o){ return o.poSeq; }) }, true)
+      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(function(j){ if(j&&j.error) throw new Error(j.error); var d=(j&&j.data)||[];
+        var ch=d.filter(function(x){ return String(x.oldNo)!==String(x.poNo); });
+        toast('발주서 <b>'+d.length+'장</b>을 복구했습니다.'+(d.length<ps.length?('<br><span style="font-size:12.5px;color:#9a4b00">'+(ps.length-d.length)+'장은 이미 복구됐거나 찾지 못했습니다.</span>'):'')
+          +(ch.length?('<br><span style="font-size:12.5px;color:#9a4b00">번호가 바뀐 발주서 : '+ch.map(function(x){ return esc(d8(x.poDt))+' '+esc(x.oldNo)+' → <b>'+esc(x.poNo)+'</b>'; }).join(', ')+'</span>'):''),'✅');
+        _delChk={}; delLoad(); poLoad(d.length===1?d[0].poSeq:null); loadStockInfo(); })
+      .catch(function(e){ toast('복구 실패: '+esc(e.message),'⚠️'); }); }); }
 
 /* ── 인쇄 · 엑셀 · 공유 ── */
 function poPrint(){ if(!_cur) return; window.open(CTX+'/mangr/poPrint.do?poSeq='+_cur.poSeq, 'poPrint', 'width=900,height=1000'); }

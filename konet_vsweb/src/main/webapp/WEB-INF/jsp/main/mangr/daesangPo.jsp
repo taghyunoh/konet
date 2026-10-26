@@ -23,7 +23,10 @@
   · 품목코드(우리 코드)는 줄마다 넣는다 — 같은 제품명의 빈 칸은 한 번 넣으면 같이 채워지고, 저장하면 (제품명 → 품목코드) 짝이 쌓여 다음부터 자동(/shipout/daesangPoMap.do).
     그래서 쌓이고 나면 발주일자만 넣고 저장하면 된다.
   · 단가 = 고른 품목코드의 상품코드 판매가(매칭코드면 그 주코드의 판매가)를 자동으로 넣고 고칠 수 있다(사용자 확정). 금액 = 수량 × 단가.
-  · 저장 = TBL_SHIPOUT_MST — 토더와 같은 종류(PROD_KIND='TD'), 출고장만 「대상」(DC_CD='DAESANG'). 그래서 매출·재고·마감·채권이 토더와 똑같이 선다 :
+  · ★★[2026-10-26 사용자 확정 「대상은 판매전표가 주인」] 이 화면의 줄은 «배송(택배) 처리용»이다 — 매출·재고·마감·채권·월별 출고현황에는 안 들어가고 판매등록 전표(거래처 대상 주식회사 00177)가 맡는다.
+      운영 실측 : 10-01 부터 대상 발주와 대상 판매전표가 같은 날 같은 수량으로 둘 다 들어가 있어(10-21 34,400 / 34,402) 둘 다 세면 두 번 빠진다. 매퍼 11문이 DC_CD<>'DAESANG' 으로 뺀다(마감·그래프·이익·채권·일계장·원장·거래처합계·재고원장·월별출고).
+      아래 두 줄은 옛 규칙(10-02 판)이다 :
+  · 저장 = TBL_SHIPOUT_MST — 토더와 같은 종류(PROD_KIND='TD'), 출고장만 「대상」(DC_CD='DAESANG'). (옛) 그래서 매출·재고·마감·채권이 토더와 똑같이 선다 :
       저장하면 곧 출고·매출(수량 × 단가), 그 날짜의 재고에서 빠진다. 매출 거래처 = 대상주식회사(물류센터코드 DAESANG — ⛔DDL docs/sql/20261002_daesang_po.sql 먼저).
     사업장 = 위에서 고른 대상 사업장 하나. 받는 사람(학교·지점)은 사업장으로 만들지 않고 줄마다 배송 정보로만 남긴다(사용자 확정).
   · 저장 뒤 : 아래 목록에서 발주일자·품목코드·수량·단가를 고치고(옛 줄을 이력으로 닫고 새 줄을 넣는다), [선택 삭제]로 저장을 취소한다(재고도 다시 맞춘다).
@@ -121,7 +124,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h2>📦 대상 발주 등록 <small>— 대상의 배송요청 표를 올려 출고·매출로 저장한다. 품목코드는 한 번 넣으면 다음부터 자동으로 채워진다</small></h2>
+  <h2>📦 대상 발주 등록 <small>— 대상의 배송요청 표를 올려 배송(택배) 처리용으로 저장한다 — 매출·재고는 판매등록 전표가 맡는다(2026-10-26). 품목코드는 한 번 넣으면 다음부터 자동으로 채워진다</small></h2>
 
   <div class="card" id="upCard">
     <div class="hd">올리기
@@ -189,7 +192,7 @@
         <input type="date" id="fr"> <span class="dim">~</span> <input type="date" id="to">
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
         <button class="btn" onclick="lsXls()" title="저장된 줄을 택배 납기관리의 엑셀과 같은 양식(머리글 없는 9칸)으로 저장합니다(체크한 줄 — 체크가 없으면 조회된 전부)">📊 엑셀 저장</button>
-        <button class="btn btn-red" onclick="delSel()" title="체크한 줄의 저장을 취소합니다 — 출고·매출에서 빠지고 재고도 다시 맞춥니다">🗑 선택 삭제(저장 취소)</button>
+        <button class="btn btn-red" onclick="delSel()" title="체크한 줄의 저장을 취소합니다 — 배송 목록에서 빠집니다(매출·재고는 판매전표가 맡아 영향 없음)">🗑 선택 삭제(저장 취소)</button>
         <span id="lsInfo" class="dim" style="font-weight:600;font-size:12.5px"></span>
       </span>
     </div>
@@ -494,10 +497,10 @@ function save(){
       .then(function(){ b.disabled=false; });
   };
   _confirmBox({ icon:'💾', okText:'저장',
-    msg:'대상 발주 <b>'+rdy.length+'</b>줄을 <b>출고 · 매출</b>로 저장합니다.<br>발주일자 <b>'+esc(dl.length>1?(dl[0]+' ~ '+dl[dl.length-1]):dl[0])+'</b> · 사업장 <b>'+esc(bizNm)+'</b><br>매출 <b>'+fmt(amt)+'</b>원 (수량 × 단가 · 거래처 대상주식회사)'
-      +(noPrice?'<br><span style="color:#c0392b;font-size:13px">단가가 빈 줄 '+noPrice+'개 — 매출 0원으로 들어갑니다(저장 뒤 목록에서 고칠 수 있습니다).</span>':'')
+    msg:'대상 발주 <b>'+rdy.length+'</b>줄을 <b>배송 처리용</b>으로 저장합니다(매출·재고는 판매등록 전표가 맡습니다).<br>발주일자 <b>'+esc(dl.length>1?(dl[0]+' ~ '+dl[dl.length-1]):dl[0])+'</b> · 사업장 <b>'+esc(bizNm)+'</b><br>금액 <b>'+fmt(amt)+'</b>원 (참고값 — 매출에 안 잡힙니다)'
+      +(noPrice?'<br><span style="color:#c0392b;font-size:13px">단가가 빈 줄 '+noPrice+'개 — 금액 0원으로 남습니다(참고값 · 저장 뒤 목록에서 고칠 수 있습니다).</span>':'')
       +(miss?'<br><span style="color:#b45309;font-size:13px">발주일자·품목코드·수량이 빠진 '+miss+'줄은 저장하지 않습니다(화면에 남습니다).</span>':'')
-      +'<br><span style="font-size:13px;color:#3d4d5c">그 날짜의 재고에서 빠집니다. 저장 뒤 아래 목록에서 고치거나 취소(삭제)할 수 있습니다.</span>',
+      +'<br><span style="font-size:13px;color:#3d4d5c">재고·매출에는 안 들어갑니다(판매전표가 주인). 저장 뒤 아래 목록에서 고치거나 취소(삭제)할 수 있습니다.</span>',
     onOk:function(){ go(false); }, onCancel:function(){} });
 }
 
@@ -559,7 +562,7 @@ function lsRender(){
   lsInfoUpd();
 }
 function lsInfoUpd(){ var q=0, amt=0, fee=0; _ls.forEach(function(x){ q+=n(x.qty); amt+=n(x.qty)*n(x.salePrice); fee+=n(x.fee); });
-  document.getElementById('lsInfo').textContent=_ls.length+'줄 · 수량 '+fmt(q)+' · 매출 '+fmt(amt)+'원 · 택배비 '+fmt(fee)+'원'; }
+  document.getElementById('lsInfo').textContent=_ls.length+'줄 · 수량 '+fmt(q)+' · 금액 '+fmt(amt)+'원(참고) · 택배비 '+fmt(fee)+'원'; }
 /* 저장 목록의 글자 칸(받는 사람·주소·전화 1·2·제품코드·제품명) — 고치면 그 줄만 바로 저장한다(/shipout/daesangPoInfo.do).
      매출·재고와 무관한 칸이라 확인창 없이 저장하고 알림만 띄운다. 실패하면 옛 값으로 되돌린다. 바꾸지 않은 칸은 지금 값을 그대로 보낸다 */
 function lsInfo(i, fld, el){

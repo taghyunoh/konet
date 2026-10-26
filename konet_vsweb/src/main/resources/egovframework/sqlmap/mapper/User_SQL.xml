@@ -930,7 +930,7 @@
 	                         /* 토더 발주 = 매출(2026-09-22) — 수량 × 토더 판매가. 거래처 「토더」(DC_CD='TODER')에 붙는다 */
 	                         SELECT o.DC_CD, ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0)
 	                           FROM TBL_SHIPOUT_MST o
-	                          WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD'
+	                          WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND ISNULL(o.DC_CD,'') <> 'DAESANG'   /* 대상 발주(DC_CD DAESANG)는 배송용 — 매출·원가·재고는 판매전표가 주인(2026-10-26 사용자 확정) */
 	                            AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} ) ) z
 	                  JOIN TBL_VENDOR_MST v2
 	                    ON v2.DC_CD = z.DC_CD AND v2.ACTION_YN = 'Y' AND ISNULL(v2.DC_CD,'') <> ''
@@ -1931,7 +1931,7 @@
 	                    FROM TBL_SALES_MST s2
 	                   WHERE s2.ACTION_YN = 'Y'
 	            ) sk ON sk.dlvKey = dk.dlvKey AND sk.dcKey = dk.dcKey AND sk.itemCd = ISNULL(o.ITEM_CD,'') AND sk.compCd = o.COMP_CD
-	           WHERE o.ACTION_YN = 'Y'
+	           WHERE o.ACTION_YN = 'Y' AND ISNULL(o.DC_CD,'') <> 'DAESANG'   /* 대상 발주(DC_CD DAESANG)는 배송용 — 매출·원가·재고는 판매전표가 주인(2026-10-26 사용자 확정) */
 	             /* 토더 발주(TD) — 09-21 「일단 재고만」 으로 여기서 뺐던 것을 2026-09-22 「발주가 곧 매출」 로 되돌려 넣었다(위 saleAmt·trxAmt 의 TD 갈래) */
 	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 
@@ -2090,7 +2090,7 @@
 	                    FROM TBL_SALES_MST s2
 	                   WHERE s2.ACTION_YN = 'Y'
 	            ) sk ON sk.dlvKey = dk.dlvKey AND sk.dcKey = dk.dcKey AND sk.itemCd = ISNULL(o.ITEM_CD,'') AND sk.compCd = o.COMP_CD
-	           WHERE o.ACTION_YN = 'Y'
+	           WHERE o.ACTION_YN = 'Y' AND ISNULL(o.DC_CD,'') <> 'DAESANG'   /* 대상 발주(DC_CD DAESANG)는 배송용 — 매출·원가·재고는 판매전표가 주인(2026-10-26 사용자 확정) */
 	             /* 토더 발주(TD) — 09-21 「일단 재고만」 으로 여기서 뺐던 것을 2026-09-22 「발주가 곧 매출」 로 되돌려 넣었다(위 saleAmt·trxAmt 의 TD 갈래) */
 	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 
@@ -2312,7 +2312,7 @@
 	                           ORDER BY h.APPLY_DT DESC, h.INPRICE_SEQ DESC ) ih2
 	            CROSS APPLY ( SELECT ISNULL(shi2.SALE_PRICE, ISNULL(sh2.SALE_PRICE, ISNULL(pm2.SALE_PRICE,0))) AS saleUnit,
 	                                 ISNULL(ih2.IN_PRICE,   ISNULL(pm2.IN_PRICE,0))   AS inUnit ) u
-	           WHERE o.ACTION_YN = 'Y'
+	           WHERE o.ACTION_YN = 'Y' AND ISNULL(o.DC_CD,'') <> 'DAESANG'   /* 대상 발주(DC_CD DAESANG)는 배송용 — 매출·원가·재고는 판매전표가 주인(2026-10-26 사용자 확정) */
 	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	             AND ISNULL(NULLIF(o.DLV_DT,''), o.SHPOUT_DT) >= #{frDt,jdbcType=VARCHAR}
 	             AND ISNULL(NULLIF(o.DLV_DT,''), o.SHPOUT_DT) <= #{toDt,jdbcType=VARCHAR}
@@ -3324,7 +3324,7 @@
 	                             REPLACE(ISNULL(s.DLV_DT,''),'-','') AS dlvKey
 	                ) dk
 	                LEFT JOIN #SLK st ON st.dlvKey = dk.dlvKey AND st.dcKey = dk.dcKey AND st.itemCd = s.ITEM_CD
-	               WHERE s.ACTION_YN = 'Y'
+	               WHERE s.ACTION_YN = 'Y' AND ISNULL(s.DC_CD,'') <> 'DAESANG'   /* 대상 발주(DC_CD DAESANG)는 배송용 — 매출·원가·재고는 판매전표가 주인(2026-10-26 사용자 확정) */
 	                 /* 토더 발주(TD) — 09-21 「일단 재고만」 으로 여기서 뺐던 것을 2026-09-22 「발주가 곧 매출」 로 되돌려 넣었다(위 saleUnit·saleSrc 의 TD 갈래) */
 	                 AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                 AND (
@@ -4003,6 +4003,12 @@
 	     ★[2026-09-13] 발주라인 찾는 순서 = ①같은 발주번호 → ②같은 출고장의 발주번호 빈 행 → ③같은 출고장 전체 (앞에서 찾으면 뒤는 안 본다).
 	       마감 전(전날 17시대)에 받은 발주현황표는 발주번호가 비어 있어(2026-09 실측 52%) ①만으로는 '(정산서·발주없음)' 이 쌓였다.
 	       ⚠같은 규칙이 selectStockOutDetail(하단 내역)·selectShipoutMst(납기현황표 정산수량)에 있다 — 셋을 함께 고칠 것.
+	     ★[2026-10-26 「판매전표·DC·토더·대상도 월별 출고현황에」] 원장(품목별재고현황)이 세는 출고는 전부 센다 — 네 갈래 :
+	       ① 정산서 없는 날의 발주현황표(삼성 TC·DC 발주 — DC 발주도 그 날 정산서가 오면 정산서로 갈아탄다, insertShipoutLedger 와 같다)
+	       ② 정산서(사업장 비율 배분)   ③ 토더 발주(PROD_KIND='TD' — ⚠대상 DAESANG 은 뺀다 : 배송용이고 출고·매출은 판매전표가 주인, 2026-10-26 사용자 확정) — 정산서가 있는 날에도 늘(삼성 정산서엔 토더·대상 출고가 없다, 원장 TD 예외와 같다)
+	       ④ 판매전표(판매등록) — 원장 REF_GB='SALE' 과 같은 셈 : 판매일자 · 판매 줄만(반품은 입고 R, 불량반품은 원장 없음) · 줄마다 |수량|−출고차감 반올림.
+	          사업장 자리 = 거래처(열쇠 'STRX:'+거래처코드 — 사업장코드와 안 섞인다 · 이름 뒤 「(판매전표)」).
+	       ⚠③④ 를 빼고 세면 월 합계가 원장 O행과 어긋난다(2026-10 실측 : 대상 104,052 · 판매전표 83,685 가 빠져 있었다).
 	     사업장 묶음 = 거래처관리 매칭코드(MATCH_CD) 있으면 그것, 없으면 원래 사업장코드 (납기현황표 가로표와 같은 규칙)
 	     ★[2026-09-04 속도] 기간 파라미터(frDt·toDt)를 REPLACE(ISNULL(…),'-','') 로 감싸지 않는다 — 함수로 감싸면 최적화기가 값을 못 보고
 	       일반 추정 계획을 짜서 2.3초, 그대로 비교하면 0.84초(운영 DB 실측). 하이픈 제거는 컨트롤러(_d8)가 이미 한다. */
@@ -4020,7 +4026,7 @@
 	  ), OL AS (     /* 발주현황표 라인별·출고장별·사업장별 수량 */
 	    SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS DLV_DT, ISNULL(s.ORD_NO,'') AS ORD_NO, s.PROD_CD,
 	           UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))) AS DC_CD,
-	           ISNULL(s.BIZ_CD,'') AS BIZ_CD, MAX(ISNULL(s.BIZ_NM,'')) AS BIZ_NM,
+	           ISNULL(s.PROD_KIND,'') AS KIND, ISNULL(s.BIZ_CD,'') AS BIZ_CD, MAX(ISNULL(s.BIZ_NM,'')) AS BIZ_NM,
 	           SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) AS SQ
 	      FROM TBL_SHIPOUT_MST s
 	     WHERE s.ACTION_YN='Y' AND ISNULL(s.PROD_CD,'')<>''
@@ -4028,35 +4034,50 @@
 	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= #{toDt}
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD,
-	              UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))), ISNULL(s.BIZ_CD,'')
+	              UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))), ISNULL(s.PROD_KIND,''), ISNULL(s.BIZ_CD,'')
 	  ), SJ AS (     /* 정산서 줄 × 같은 날·같은 품목 발주행 — MK = 찾은 순서(①발주번호 ②출고장+발주번호 빈 행 ③출고장 전체, 9=해당 없음) */
 	    SELECT l.COMP_CD, l.DLV_DT, l.ORD_NO, l.PROD_CD, l.VQ, o.BIZ_CD, o.BIZ_NM, o.SQ,
 	           CASE WHEN o.ORD_NO <> '' AND o.ORD_NO = l.ORD_NO THEN 1
 	                WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD AND o.ORD_NO = '' THEN 2
 	                WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD THEN 3 ELSE 9 END AS MK
 	      FROM SL l
-	      JOIN OL o ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.PROD_CD = l.PROD_CD AND o.SQ > 0
+	      JOIN OL o ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.PROD_CD = l.PROD_CD AND o.SQ > 0 AND o.KIND <> 'TD'   /* 토더·대상 줄에는 정산서를 나누지 않는다 */
 	  ), SM AS (     /* 정산서 줄마다 가장 앞 순서(BM)의 발주행만 남기고, 그 안의 발주수량 합(LT)으로 비율 */
 	    SELECT k.*, SUM(k.SQ) OVER (PARTITION BY k.COMP_CD, k.DLV_DT, k.ORD_NO, k.PROD_CD) AS LT
 	      FROM ( SELECT j.*, MIN(j.MK) OVER (PARTITION BY j.COMP_CD, j.DLV_DT, j.ORD_NO, j.PROD_CD) AS BM FROM SJ j ) k
 	     WHERE k.MK = k.BM AND k.MK < 9
 	  ), U AS (
 	    /* ① 정산서 없는 날 : 발주현황표 */
-	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.PROD_CD, CAST(o.SQ AS DECIMAL(18,3)) AS QTY
+	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.PROD_CD, CAST(o.SQ AS DECIMAL(18,3)) AS QTY, 0 AS NEW_YN   /* NEW_YN : 0 = 종전 원천, 1 = 토더·대상·판매전표(화면이 그 사업장 열을 맨 뒤에 둔다, 2026-10-26) */
 	      FROM OL o
-	     WHERE NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = o.COMP_CD AND SD.DLV_DT = o.DLV_DT )
+	     WHERE o.KIND <> 'TD' AND NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = o.COMP_CD AND SD.DLV_DT = o.DLV_DT )
 	    UNION ALL
 	    /* ② 정산서 있는 날 : 정산수량을 SM 이 고른 발주행의 사업장에 발주수량 비율로 (못 고르면 '(정산서·발주없음)') */
 	    SELECT l.COMP_CD, l.DLV_DT, ISNULL(m.BIZ_CD,''), ISNULL(m.BIZ_NM, N'(정산서·발주없음)'), l.PROD_CD,
-	           CAST(CASE WHEN m.BIZ_CD IS NULL THEN l.VQ ELSE l.VQ * m.SQ / m.LT END AS DECIMAL(18,3))
+	           CAST(CASE WHEN m.BIZ_CD IS NULL THEN l.VQ ELSE l.VQ * m.SQ / m.LT END AS DECIMAL(18,3)), 0
 	      FROM SL l
 	      LEFT JOIN SM m ON m.COMP_CD = l.COMP_CD AND m.DLV_DT = l.DLV_DT AND m.ORD_NO = l.ORD_NO AND m.PROD_CD = l.PROD_CD
+	    UNION ALL
+	    /* ③ 토더·대상 발주(TD) : 정산서가 있는 날에도 늘 (2026-10-26) */
+	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.PROD_CD, CAST(o.SQ AS DECIMAL(18,3)), 1
+	      FROM OL o WHERE o.KIND = 'TD' AND o.DC_CD <> 'DAESANG'   /* 대상 발주는 배송용 — 출고는 판매전표가 주인(2026-10-26) */
+	    UNION ALL
+	    /* ④ 판매전표 : 원장 REF_GB='SALE' 과 같은 셈 (2026-10-26) */
+	    SELECT m.COMP_CD, REPLACE(ISNULL(m.SALE_DT,''),'-',''), 'STRX:' + ISNULL(m.CUST_CD,''), ISNULL(NULLIF(m.CUST_NM,''), N'(거래처 없음)') + N' (판매전표)', d.PROD_CD,
+	           CAST(SUM(ROUND(ABS(ISNULL(d.QTY,0)) - CASE WHEN ISNULL(d.STOCK_CUT_QTY,0) > ABS(ISNULL(d.QTY,0)) THEN ABS(ISNULL(d.QTY,0)) ELSE ISNULL(d.STOCK_CUT_QTY,0) END, 0)) AS DECIMAL(18,3)), 1
+	      FROM TBL_SALES_TRX_MST m
+	      JOIN TBL_SALES_TRX_DTL d ON d.SALE_SEQ = m.SALE_SEQ AND d.ACTION_YN = 'Y' AND ISNULL(d.PROD_CD,'') <> ''
+	       AND ISNULL(d.TRX_GB, N'판매') NOT IN (N'반품', N'불량반품')
+	     WHERE m.ACTION_YN = 'Y'
+	       AND REPLACE(ISNULL(m.SALE_DT,''),'-','') >= #{frDt} AND REPLACE(ISNULL(m.SALE_DT,''),'-','') <= #{toDt}
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     GROUP BY m.COMP_CD, REPLACE(ISNULL(m.SALE_DT,''),'-',''), ISNULL(m.CUST_CD,''), ISNULL(NULLIF(m.CUST_NM,''), N'(거래처 없음)'), d.PROD_CD
 	  )
 	  SELECT LEFT(u.DLV_DT,6) AS ym,
 	         ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD) AS bizKey,
 	         MAX(ISNULL(NULLIF(b.MATCH_NM,''), u.BIZ_NM)) AS bizNm,
 	         u.PROD_CD AS prodCd, ISNULL(MAX(p.PROD_NM),'') AS prodNm, MAX(pm.PROD_SEQ) AS prodSeq,
-	         SUM(u.QTY) AS outQty
+	         SUM(u.QTY) AS outQty, SUM(CASE WHEN u.NEW_YN = 1 THEN u.QTY ELSE 0 END) AS newQty
 	    FROM U u
 	    LEFT JOIN ( SELECT COMP_CD, BIZ_CD, MAX(MATCH_CD) AS MATCH_CD, MAX(MATCH_NM) AS MATCH_NM
 	                  FROM TBL_BIZI_MST WHERE ACTION_YN = 'Y' GROUP BY COMP_CD, BIZ_CD ) b
@@ -4085,7 +4106,7 @@
 	  ), OL AS (
 	    SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS DLV_DT, ISNULL(s.ORD_NO,'') AS ORD_NO, s.PROD_CD,
 	           UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))) AS DC_CD,
-	           ISNULL(s.BIZ_CD,'') AS BIZ_CD, MAX(ISNULL(s.BIZ_NM,'')) AS BIZ_NM, MAX(ISNULL(s.DC_NM,'')) AS DC_NM,
+	           ISNULL(s.PROD_KIND,'') AS KIND, ISNULL(s.BIZ_CD,'') AS BIZ_CD, MAX(ISNULL(s.BIZ_NM,'')) AS BIZ_NM, MAX(ISNULL(s.DC_NM,'')) AS DC_NM,
 	           ISNULL(s.ITEM_CD,'') AS ITEM_CD, MAX(ISNULL(s.ITEM_NM,'')) AS ITEM_NM,   /* 출고 때 쓴 거래처 코드(매칭코드) — 재고현황 ↳ 줄과 같은 것 */
 	           SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0))) AS SQ
 	      FROM TBL_SHIPOUT_MST s
@@ -4094,26 +4115,48 @@
 	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= #{toDt}
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD,
-	              UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))), ISNULL(s.BIZ_CD,''), ISNULL(s.ITEM_CD,'')
+	              UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))), ISNULL(s.PROD_KIND,''), ISNULL(s.BIZ_CD,''), ISNULL(s.ITEM_CD,'')
 	  ), SJ AS (   /* 찾는 순서 = selectStockOutByMonth 와 같다 (①발주번호 ②출고장+발주번호 빈 행 ③출고장 전체) */
 	    SELECT l.COMP_CD, l.DLV_DT, l.ORD_NO, l.PROD_CD, l.VQ, o.BIZ_CD, o.BIZ_NM, o.DC_NM, o.ITEM_CD, o.ITEM_NM, o.SQ,
 	           CASE WHEN o.ORD_NO <> '' AND o.ORD_NO = l.ORD_NO THEN 1
 	                WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD AND o.ORD_NO = '' THEN 2
 	                WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD THEN 3 ELSE 9 END AS MK
 	      FROM SL l
-	      JOIN OL o ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.PROD_CD = l.PROD_CD AND o.SQ > 0
+	      JOIN OL o ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.PROD_CD = l.PROD_CD AND o.SQ > 0 AND o.KIND <> 'TD'   /* 토더·대상 줄에는 정산서를 나누지 않는다 */
 	  ), SM AS (
 	    SELECT k.*, SUM(k.SQ) OVER (PARTITION BY k.COMP_CD, k.DLV_DT, k.ORD_NO, k.PROD_CD) AS LT
 	      FROM ( SELECT j.*, MIN(j.MK) OVER (PARTITION BY j.COMP_CD, j.DLV_DT, j.ORD_NO, j.PROD_CD) AS BM FROM SJ j ) k
 	     WHERE k.MK = k.BM AND k.MK < 9
 	  ), U AS (
-	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.DC_NM, o.ORD_NO, o.ITEM_CD, o.ITEM_NM, CAST(o.SQ AS DECIMAL(18,3)) AS QTY, N'발주현황표' AS SRC
-	      FROM OL o WHERE NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = o.COMP_CD AND SD.DLV_DT = o.DLV_DT )
+	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.DC_NM, o.ORD_NO, o.ITEM_CD, o.ITEM_NM, CAST(o.SQ AS DECIMAL(18,3)) AS QTY,
+	           CASE WHEN o.KIND = 'DC' THEN N'DC 발주' ELSE N'발주현황표' END AS SRC
+	      FROM OL o WHERE o.KIND <> 'TD' AND NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = o.COMP_CD AND SD.DLV_DT = o.DLV_DT )
 	    UNION ALL
 	    SELECT l.COMP_CD, l.DLV_DT, ISNULL(m.BIZ_CD,''), ISNULL(m.BIZ_NM, N'(정산서·발주없음)'), ISNULL(m.DC_NM, l.DC_NM), l.ORD_NO, ISNULL(m.ITEM_CD, l.ITEM_CD), ISNULL(m.ITEM_NM, l.ITEM_NM),
 	           CAST(CASE WHEN m.BIZ_CD IS NULL THEN l.VQ ELSE l.VQ * m.SQ / m.LT END AS DECIMAL(18,3)), N'정산서'
 	      FROM SL l
 	      LEFT JOIN SM m ON m.COMP_CD = l.COMP_CD AND m.DLV_DT = l.DLV_DT AND m.ORD_NO = l.ORD_NO AND m.PROD_CD = l.PROD_CD
+	    UNION ALL
+	    /* ③ 토더·대상 발주(TD) : 정산서가 있는 날에도 늘 — selectStockOutByMonth 와 같다 (2026-10-26) */
+	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.DC_NM, o.ORD_NO, o.ITEM_CD, o.ITEM_NM, CAST(o.SQ AS DECIMAL(18,3)),
+	           CASE WHEN o.DC_CD = 'DAESANG' THEN N'대상 발주' ELSE N'토더 발주' END
+	      FROM OL o WHERE o.KIND = 'TD' AND o.DC_CD <> 'DAESANG'   /* 대상 발주는 배송용 — 출고는 판매전표가 주인(2026-10-26) */
+	    UNION ALL
+	    /* ④ 판매전표 : 줄마다 한 줄(전표번호 = 원장 REF_NO 꼴, 매칭코드로 판 줄은 EXT_CD) — 셈은 selectStockOutByMonth 와 같다 */
+	    SELECT m.COMP_CD, REPLACE(ISNULL(m.SALE_DT,''),'-',''), 'STRX:' + ISNULL(m.CUST_CD,''), ISNULL(NULLIF(m.CUST_NM,''), N'(거래처 없음)') + N' (판매전표)', ISNULL(m.WH_NM,''),
+	           REPLACE(ISNULL(m.SALE_DT,''),'-','') + '-' + ISNULL(m.SALE_NO,''), ISNULL(NULLIF(d.EXT_CD,''), d.PROD_CD), ISNULL(d.PROD_NM,''),
+	           CAST(ROUND(ABS(ISNULL(d.QTY,0)) - CASE WHEN ISNULL(d.STOCK_CUT_QTY,0) > ABS(ISNULL(d.QTY,0)) THEN ABS(ISNULL(d.QTY,0)) ELSE ISNULL(d.STOCK_CUT_QTY,0) END, 0) AS DECIMAL(18,3)),
+	           /* 대상 거래처의 전표는 「판매전표(대상)」 (2026-10-26 「원천 칸에 판매전표(대상)으로」) — 대상 발주 줄 대신 전표가 주인이 됐으므로 어느 줄이 대상 몫인지 보이게.
+	              판정 = 거래처 DC_CD 가 DAESANG(대상주식회사 1) 이거나 거래처명이 「대상」으로 시작(판매전표 거래처 00177 은 이름이 「대상 급식」이고 DC_CD 가 비어 있다 — 운영 실측) */
+	           CASE WHEN REPLACE(ISNULL(m.CUST_NM,''),' ','') LIKE N'대상%'
+	                  OR EXISTS ( SELECT 1 FROM TBL_VENDOR_MST v WHERE v.VENDOR_CD = m.CUST_CD AND v.COMP_CD = m.COMP_CD AND v.ACTION_YN = 'Y' AND ISNULL(v.DC_CD,'') = 'DAESANG' )
+	                THEN N'판매전표(대상)' ELSE N'판매전표' END
+	      FROM TBL_SALES_TRX_MST m
+	      JOIN TBL_SALES_TRX_DTL d ON d.SALE_SEQ = m.SALE_SEQ AND d.ACTION_YN = 'Y' AND d.PROD_CD = #{prodCd}
+	       AND ISNULL(d.TRX_GB, N'판매') NOT IN (N'반품', N'불량반품')
+	     WHERE m.ACTION_YN = 'Y'
+	       AND REPLACE(ISNULL(m.SALE_DT,''),'-','') >= #{frDt} AND REPLACE(ISNULL(m.SALE_DT,''),'-','') <= #{toDt}
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  )
 	  SELECT u.DLV_DT AS dlvDt, ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD) AS bizKey, ISNULL(NULLIF(b.MATCH_NM,''), u.BIZ_NM) AS mtNm,
 	         u.BIZ_CD AS bizCd, u.BIZ_NM AS bizNm, u.DC_NM AS dcNm, u.ORD_NO AS ordNo, u.ITEM_CD AS itemCd, u.ITEM_NM AS itemNm, u.SRC AS src, u.QTY AS qty
@@ -4123,7 +4166,7 @@
 	      ON b.BIZ_CD = u.BIZ_CD AND b.COMP_CD = u.COMP_CD
 	   WHERE ( ISNULL(#{bizKey,jdbcType=VARCHAR},'') = '' OR ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD) = #{bizKey,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{bizNm,jdbcType=NVARCHAR},'')  = '' OR ISNULL(NULLIF(b.MATCH_NM,''), u.BIZ_NM) = #{bizNm,jdbcType=NVARCHAR} )
-	   ORDER BY u.DLV_DT DESC, mtNm, u.BIZ_NM, u.ITEM_CD
+	   ORDER BY u.DLV_DT DESC, CASE WHEN u.SRC IN (N'토더 발주', N'대상 발주') OR u.SRC LIKE N'판매전표%' THEN 1 ELSE 0 END, mtNm, u.BIZ_NM, u.ITEM_CD
 	]]></select>
 
 	<select id="selectStockOutSrcDays" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
@@ -4336,7 +4379,7 @@
 	    /* 창고 2단계(2026-09-16) : 출고장 → 창고 매핑(TBL_DC_MST.WH_CD). 매핑이 비면 아래 ISNULL 이 기본창고로 */
 	    LEFT JOIN TBL_DC_MST dcw ON dcw.COMP_CD = s.COMP_CD AND dcw.USE_YN = 'Y' AND ISNULL(dcw.WH_CD,'') <> ''
 	     AND dcw.DC_CD = ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[
-	   WHERE s.ACTION_YN = 'Y' AND ISNULL(s.PROD_CD,'') <> ''
+	   WHERE s.ACTION_YN = 'Y' AND ISNULL(s.PROD_CD,'') <> '' AND ISNULL(s.DC_CD,'') <> 'DAESANG'   /* 대상 발주(DC_CD DAESANG)는 배송용 — 재고(원장)는 판매전표가 주인(2026-10-26 사용자 확정) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) = REPLACE(ISNULL(#{trxDt},''),'-','')
 	     /* 그 납기일자에 정산서가 있으면 발주현황표는 읽지 않는다 — 정산서가 출고의 주인이다
@@ -4952,7 +4995,7 @@
 	          SELECT o.DLV_DT AS dt, ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0) AS saleAmt,
 	                 0 AS dcAmt, 0 AS rcvAmt, 0 AS purchAmt, 0 AS payAmt, 0 AS discAmt
 	            FROM TBL_SHIPOUT_MST o
-	           WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND ISNULL(o.DLV_DT,'') <> ''
+	           WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND ISNULL(o.DLV_DT,'') <> '' AND ISNULL(o.DC_CD,'') <> 'DAESANG'   /* 대상 발주(DC_CD DAESANG)는 배송용 — 매출·원가·재고는 판매전표가 주인(2026-10-26 사용자 확정) */
 	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	             AND o.DC_CD = ( SELECT MAX(v.DC_CD) FROM TBL_VENDOR_MST v
 	                              WHERE v.VENDOR_CD = #{custCd,jdbcType=VARCHAR}
@@ -5071,7 +5114,7 @@
 	                            WHERE ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> ''
 	                              AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                            GROUP BY DC_CD ) vm ON vm.DC_CD = o.DC_CD
-	                   WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND ISNULL(o.DLV_DT,'') <> ''
+	                   WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND ISNULL(o.DLV_DT,'') <> '' AND ISNULL(o.DC_CD,'') <> 'DAESANG'   /* 대상 발주(DC_CD DAESANG)는 배송용 — 매출·원가·재고는 판매전표가 주인(2026-10-26 사용자 확정) */
 	                     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 
 	                  UNION ALL
@@ -5173,7 +5216,7 @@
 	                 ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0),
 	                 ISNULL(o.UNIT,''), ''
 	            FROM TBL_SHIPOUT_MST o
-	           WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD'
+	           WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND ISNULL(o.DC_CD,'') <> 'DAESANG'   /* 대상 발주(DC_CD DAESANG)는 배송용 — 매출·원가·재고는 판매전표가 주인(2026-10-26 사용자 확정) */
 	             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	             AND o.DLV_DT = REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-','')
 	             AND o.DC_CD IN ( SELECT DC_CD FROM TBL_VENDOR_MST
@@ -5273,7 +5316,7 @@
 	                  WHERE ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> ''
 	                    AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	                  GROUP BY DC_CD ) vm ON vm.DC_CD = o.DC_CD
-	         WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND ISNULL(o.DLV_DT,'') <> ''
+	         WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND ISNULL(o.DLV_DT,'') <> '' AND ISNULL(o.DC_CD,'') <> 'DAESANG'   /* 대상 발주(DC_CD DAESANG)는 배송용 — 매출·원가·재고는 판매전표가 주인(2026-10-26 사용자 확정) */
 	           AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 
 	        UNION ALL
@@ -7651,6 +7694,51 @@
 	]]></update>
 	<update id="deletePoDtlAll" parameterType="java.util.HashMap"><![CDATA[
 	  UPDATE TBL_PO_DTL SET ACTION_YN = 'N' WHERE PO_SEQ = #{poSeq,jdbcType=BIGINT} AND ACTION_YN = 'Y'
+	]]></update>
+	<!-- 발주서 삭제 이력 (2026-10-26 「발주서관리에서 삭제이력 보여주고 복구기능」) — 지운 발주서(머리 ACTION_YN='N') · 목록과 같은 발주일자 기간 · 지운 때 최근 순.
+	     줄 수 = 지울 때 살아 있던 줄(마지막 저장분 = 마지막 ROW_NO 1 줄 번호부터 끝까지 — 저장은 늘 1번 줄부터 다시 넣는다).
+	     linkCnt = 그 줄 중 매입 명세가 연결된 줄 수 · dupYn = 같은 날 같은 번호의 살아 있는 발주서가 있음(살리면 번호가 바뀐다) -->
+	<select id="selectPoDelList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 500 M.PO_SEQ AS poSeq, M.PO_DT AS poDt, M.PO_NO AS poNo, M.VENDOR_CD AS vendorCd, M.VENDOR_NM AS vendorNm, M.MGR_NM AS mgrNm,
+	         M.TOT_QTY AS totQty, M.SUPPLY_AMT AS supplyAmt, M.VAT_AMT AS vatAmt, M.TOT_AMT AS totAmt,
+	         M.REG_USER AS regUser, M.REG_DTTM AS regDttm, M.UPD_DTTM AS delDttm, M.UPD_USER AS delUser,
+	         ISNULL(L.lineCnt,0) AS lineCnt, ISNULL(K.linkCnt,0) AS linkCnt,
+	         CASE WHEN EXISTS ( SELECT 1 FROM TBL_PO_MST X WHERE X.ACTION_YN = 'Y' AND X.COMP_CD = M.COMP_CD AND X.PO_DT = M.PO_DT AND X.PO_NO = M.PO_NO )
+	              THEN 'Y' ELSE 'N' END AS dupYn
+	    FROM TBL_PO_MST M
+	    OUTER APPLY ( SELECT MAX(D1.PO_DTL_SEQ) AS s1 FROM TBL_PO_DTL D1 WHERE D1.PO_SEQ = M.PO_SEQ AND D1.ROW_NO = 1 ) F
+	    OUTER APPLY ( SELECT COUNT(*) AS lineCnt FROM TBL_PO_DTL D WHERE D.PO_SEQ = M.PO_SEQ AND D.PO_DTL_SEQ >= F.s1 ) L
+	    OUTER APPLY ( SELECT COUNT(DISTINCT P.PO_DTL_SEQ) AS linkCnt
+	                    FROM TBL_PURCHASE_DTL P
+	                    JOIN TBL_PURCHASE_MST PM ON PM.PURCH_SEQ = P.PURCH_SEQ AND PM.ACTION_YN = 'Y'
+	                   WHERE P.ACTION_YN = 'Y'
+	                     AND P.PO_DTL_SEQ IN ( SELECT D.PO_DTL_SEQ FROM TBL_PO_DTL D WHERE D.PO_SEQ = M.PO_SEQ AND D.PO_DTL_SEQ >= F.s1 ) ) K
+	   WHERE M.ACTION_YN = 'N'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR M.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND M.PO_DT >= REPLACE(ISNULL(NULLIF(#{fromDt,jdbcType=VARCHAR},''),'00000000'),'-','')
+	     AND M.PO_DT <= REPLACE(ISNULL(NULLIF(#{toDt,jdbcType=VARCHAR},''),'99999999'),'-','')
+	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = '' OR ISNULL(M.VENDOR_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	   ORDER BY M.UPD_DTTM DESC, M.PO_SEQ DESC
+	]]></select>
+	<!-- 복구 대상 한 장 — 이 회사의 지운 발주서만(회사 조건 fail-open 아님) · dupYn 은 지금 이 순간 기준(여러 장을 차례로 살릴 때 앞에서 살린 것도 센다) -->
+	<select id="selectPoDelOne" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT M.PO_SEQ AS poSeq, M.PO_DT AS poDt, M.PO_NO AS poNo, M.VENDOR_NM AS vendorNm,
+	         CASE WHEN EXISTS ( SELECT 1 FROM TBL_PO_MST X WHERE X.ACTION_YN = 'Y' AND X.COMP_CD = M.COMP_CD AND X.PO_DT = M.PO_DT AND X.PO_NO = M.PO_NO )
+	              THEN 'Y' ELSE 'N' END AS dupYn
+	    FROM TBL_PO_MST M
+	   WHERE M.PO_SEQ = #{poSeq,jdbcType=BIGINT} AND M.ACTION_YN = 'N' AND M.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	]]></select>
+	<update id="restorePoMst" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_PO_MST
+	     SET ACTION_YN = 'Y', PO_NO = #{poNo,jdbcType=VARCHAR},
+	         UPD_DTTM = CONVERT(VARCHAR(19),GETDATE(),120), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE PO_SEQ = #{poSeq,jdbcType=BIGINT} AND ACTION_YN = 'N' AND COMP_CD = #{compCd,jdbcType=VARCHAR}
+	]]></update>
+	<!-- 지울 때 살아 있던 줄만 되살린다 = 마지막 ROW_NO 1 줄의 번호부터 끝까지(그보다 앞 번호는 고쳐 저장하며 내려간 옛 줄) -->
+	<update id="restorePoDtlLast" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_PO_DTL SET ACTION_YN = 'Y'
+	   WHERE PO_SEQ = #{poSeq,jdbcType=BIGINT} AND ACTION_YN = 'N' AND COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND PO_DTL_SEQ >= ( SELECT MAX(D1.PO_DTL_SEQ) FROM TBL_PO_DTL D1 WHERE D1.PO_SEQ = #{poSeq,jdbcType=BIGINT} AND D1.ROW_NO = 1 )
 	]]></update>
 	<!-- ★새 줄 번호를 돌려준다(newDtlSeq) — 발주서를 고쳐 저장하면 줄이 다시 들어가므로 savePo 가 매입 연결을 새 번호로 옮긴다 (2026-09-16 P1-b).
 	     CLOSE_YN·CLOSE_RMK 도 화면이 줄에 실어 보내 재저장에 살아남는다. -->

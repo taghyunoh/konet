@@ -2952,6 +2952,37 @@ public class UserServiceImpl implements UserService {
 		if (n > 0) mapper.deletePoDtlAll(p);
 		return n;
 	}
+	/* ══════════ 발주서 삭제 이력 · 복구 (2026-10-26 「발주서관리에서 삭제이력 보여주고 복구기능」) ══════════
+	   · 지우면 머리(MST)와 줄(DTL)이 함께 'N' 이 된다. 그런데 고쳐 저장할 때마다 옛 줄도 'N' 으로 남으므로
+	     «지울 때 살아 있던 줄» = 마지막 저장분 = 마지막 ROW_NO 1 줄의 번호부터 끝까지(저장은 늘 1번 줄부터 다시 넣는다).
+	   · 그 사이 같은 날 같은 번호를 새 발주서가 받았으면(번호는 살아 있는 것만 세어 다시 준다) 그 날의 다음 번호로 바꿔 살린다.
+	   · 매입 명세의 연결(PO_DTL_SEQ)은 지울 때 안 건드렸으므로 줄이 살아나면 입고·잔량도 그대로 다시 잡힌다.
+	   · 발주목록(TBL_PO_REQ)의 「등록」 표시는 지울 때 풀렸다 — 되살리지 않는다(어느 줄이었는지 남아 있지 않다). */
+	@Override public java.util.List<java.util.Map<String,Object>> selectPoDelList(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoDelList(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> restorePo(java.util.List<Long> seqs, String compCd, String user, String ip) throws Exception {
+		java.util.List<java.util.Map<String,Object>> out = new java.util.ArrayList<java.util.Map<String,Object>>();
+		for (Long s : seqs) {
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("poSeq", s); p.put("compCd", compCd); p.put("regUser", user); p.put("regIp", ip);
+			java.util.Map<String,Object> row = mapper.selectPoDelOne(p);
+			if (row == null) continue;   // 이 회사의 지운 발주서가 아니다(이미 살렸거나 다른 회사)
+			String poDt = String.valueOf(row.get("poDt")), oldNo = String.valueOf(row.get("poNo"));
+			String no = oldNo;
+			if ("Y".equals(String.valueOf(row.get("dupYn")))) {
+				java.util.Map<String,Object> q = new java.util.HashMap<String,Object>();
+				q.put("poDt", poDt); q.put("compCd", compCd);
+				no = mapper.selectPoNextNo(q);
+			}
+			p.put("poNo", no);
+			if (mapper.restorePoMst(p) <= 0) continue;
+			int lines = mapper.restorePoDtlLast(p);
+			java.util.Map<String,Object> r = new java.util.HashMap<String,Object>();
+			r.put("poSeq", s); r.put("poDt", poDt); r.put("oldNo", oldNo); r.put("poNo", no); r.put("lines", lines);
+			r.put("vendorNm", row.get("vendorNm"));
+			out.add(r);
+		}
+		return out;
+	}
 	/** 발주서 저장 — 신규면 번호 채번(그 날 0001~) + 공유 토큰 발급, 수정이면 머리 갱신 + 줄 전부 지우고 다시 넣는다. */
 	@SuppressWarnings("unchecked")
 	@Override public long savePo(java.util.Map<String,Object> b, String user, String ip) throws Exception {

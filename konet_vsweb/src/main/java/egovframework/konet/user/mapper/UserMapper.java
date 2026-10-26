@@ -446,6 +446,10 @@ public interface UserMapper {
 	int updatePoMst(java.util.Map<String,Object> p) throws Exception;
 	int deletePoMst(java.util.Map<String,Object> p) throws Exception;
 	int deletePoDtlAll(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPoDelList(java.util.Map<String,Object> p) throws Exception;   // 삭제 이력 (2026-10-26)
+	java.util.Map<String,Object> selectPoDelOne(java.util.Map<String,Object> p) throws Exception;
+	int restorePoMst(java.util.Map<String,Object> p) throws Exception;
+	int restorePoDtlLast(java.util.Map<String,Object> p) throws Exception;
 	int insertPoDtl(java.util.Map<String,Object> p) throws Exception;
 	int updatePoShared(java.util.Map<String,Object> p) throws Exception;
 	int updatePoPurchSeq(java.util.Map<String,Object> p) throws Exception;   // 매입전환 결과 기억

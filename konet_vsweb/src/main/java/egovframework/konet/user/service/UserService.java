@@ -384,6 +384,8 @@ public interface UserService {
 	java.util.List<java.util.Map<String,Object>> selectPoDtl(java.util.Map<String,Object> p) throws Exception;
 	long savePo(java.util.Map<String,Object> body, String user, String ip) throws Exception;   // 머리+줄 저장, poSeq 반환
 	int deletePo(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPoDelList(java.util.Map<String,Object> p) throws Exception;   // 삭제 이력 (2026-10-26)
+	java.util.List<java.util.Map<String,Object>> restorePo(java.util.List<Long> seqs, String compCd, String user, String ip) throws Exception;
 	int updatePoShared(java.util.Map<String,Object> p) throws Exception;
 	int updatePoPurchSeq(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectCompInfo(java.util.Map<String,Object> p) throws Exception;
