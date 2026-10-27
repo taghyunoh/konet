@@ -2636,6 +2636,18 @@ public class UserServiceImpl implements UserService {
 		mapper.deleteSalesLedger(led);
 		int n = mapper.insertSalesLedger(led);
 
+		/* ★토더 발주 줄 되살리기 (2026-10-27 사용자 「토더 결함도 고쳐줘」) — 위 deleteShipoutLedger 가 이 날의 SHIPOUT 원장을 통째로 지워
+		     토더(PROD_KIND TD) 줄까지 사라졌다. 토더는 「정산서가 있는 날에도 늘 재고에서 뺀다」(2026-09-21)인데 정산서를 올리거나
+		     [출고반영 재집계]를 누르면 그 날 토더 출고가 재고로 되돌아왔다(2026-10-27 재집계에서 09-28 토더 12개 실측).
+		   ⇒ 정산서 줄을 넣은 뒤 insertShipoutLedger 를 이 날짜로 한 번 더 부른다. 그 SQL 은 정산서가 있는 날엔 TD 줄만 고르고
+		     (NOT EXISTS 정산서 · TD 예외) 대상(DC_CD DAESANG)은 뺀다(2026-10-26 「대상은 판매전표가 주인」) — 그래서 다시 넣히는 것은 토더뿐이다.
+		   ⚠2026-10-26 에 같은 4줄을 넣었다 되돌린 것은 그때 대상이 함께 들어가 «두 번 차감»됐기 때문이다. 대상 제외가 들어간 지금은 안전하다. */
+		if (SHIPOUT_LEDGER_ON) {
+			egovframework.konet.user.model.StockLedgerDTO td = new egovframework.konet.user.model.StockLedgerDTO();
+			td.setTrxDt(dt); td.setCompCd(compCd); td.setRegUser(regUser); td.setRegIp(regIp);
+			mapper.insertShipoutLedger(td);
+		}
+
 		/* ★[2026-09-03] 납품일자 D 의 발주행이 <다른 출고일자> 밑에 합산돼 있으면 그 날짜들도 다시 만든다.
 		     김해는 매일 하루 먼저 나가(출고 D-1 · 납품 D) SHIPOUT 원장이 D-1 에 붙어 있다.
 		     위 deleteShipoutLedger(D) 는 D 만 지우므로 D-1 의 김해 몫이 남아 정산서와 <두 번> 빠졌다.
