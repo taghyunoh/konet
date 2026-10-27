@@ -2536,6 +2536,7 @@ function ssSave(){
      · 배송구분 · 물류비율 · 수수료율은 읽지 않는다(사용자 결정).
    ⚠날짜 칸은 엑셀 «날짜 일련번호»로 온다 — ctDate 가 숫자·글자(2026-10-12 · 20261012 · 10/12/26) 어느 쪽이든 YYYYMMDD 로 바꾼다. */
 var CT=[], _ctBy={}, _ctRows=[], _ctFile='', _ctErr='';
+var _ctFiles=[];   /* 올린 파일들 [{nm, n(읽은 줄)}] — 여러 파일 (2026-10-27) */
 var CT_TL=String.fromCharCode(126);   /* 물결표 — 기간 표시용 */
 function ctP2(n){ return ('0'+n).slice(-2); }
 function ctYmd(){ var d=new Date(); return ''+d.getFullYear()+ctP2(d.getMonth()+1)+ctP2(d.getDate()); }
@@ -2586,9 +2587,34 @@ function ctLoad(){
       mcCtRender();                       /* 하단 계약정보 탭 (2026-10-27) */
     }).catch(function(){});
 }
-function ctOpen(){ document.getElementById('ct').classList.add('on'); ctPreRender(); }
+function ctOpen(){ document.getElementById('ct').classList.add('on'); ctDropBind(); ctPreRender(); }
+/* ★파일 창 — 누를 때마다 «여러 개 선택»이 켜진 입력칸을 새로 만들어 연다 (2026-10-27 사용자 「Ctrl 하고 클릭하면 선택이 안 됨」).
+     화면에 박아 둔 #ctFi 에 multiple 을 실었는데도 파일 창이 한 개 모드로 열렸다는 신고 — 속성을 어디서 잃든 상관없게 매번 JS 로 켠다.
+     입력칸은 문서에 붙였다가 고른 뒤 뗀다(붙여 두지 않으면 일부 브라우저가 change 를 안 준다). */
+function ctPickFiles(){
+  var i=document.createElement('input');
+  i.type='file'; i.multiple=true; i.setAttribute('multiple','multiple'); i.accept='.xlsx,.xls';
+  i.style.cssText='position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0';
+  i.addEventListener('change', function(){ var fl=Array.prototype.slice.call(i.files||[]); if(i.parentNode) i.parentNode.removeChild(i); if(fl.length) ctFile(fl); });
+  document.body.appendChild(i);
+  i.click();
+}
+/* ★끌어다 놓기 (2026-10-27 사용자 「여러 개 선택되게 — 한 개 선택만 됨」) — 파일 창은 Ctrl·Shift 를 누른 채 눌러야 여러 개가 골라진다.
+     그걸 모르면 하나만 잡힌다 ⇒ 탐색기에서 여러 파일을 골라 이 창에 끌어다 놓아도 되게 한다(같은 ctFile 길). 엑셀이 아닌 파일은 뺀다. */
+function ctDropBind(){
+  var box=document.querySelector('#ct .box'); if(!box || box._ctDrop) return; box._ctDrop=1;
+  var on=function(v){ box.classList.toggle('ctdrop', v); };
+  box.addEventListener('dragover', function(e){ if(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types||[],'Files')>=0){ e.preventDefault(); e.dataTransfer.dropEffect='copy'; on(true); } });
+  box.addEventListener('dragleave', function(e){ if(!box.contains(e.relatedTarget)) on(false); });
+  box.addEventListener('drop', function(e){
+    e.preventDefault(); on(false);
+    var fl=Array.prototype.filter.call((e.dataTransfer&&e.dataTransfer.files)||[], function(x){ return /\.xlsx?$/i.test(x.name); });
+    if(!fl.length){ alertBox('엑셀 파일(.xlsx · .xls)만 올릴 수 있습니다.','⚠️'); return; }
+    ctFile(fl);
+  });
+}
 function ctClose(){ document.getElementById('ct').classList.remove('on'); }
-function ctReset(){ _ctRows=[]; _ctFile=''; ctPreRender(); }
+function ctReset(){ _ctRows=[]; _ctFile=''; _ctFiles=[]; ctPreRender(); }
 /* 엑셀 읽기 도구 — 이 화면에 없으면 묶음 파일을 그때 싣는다(토더 발주 등록과 같은 파일). 그래도 없으면 셸의 것 */
 function ctLib(cb){
   if(window.XLSX && window.XLSX.read){ cb(window.XLSX); return; }
@@ -2631,25 +2657,43 @@ function ctFixXlsx(X, u8){
     return (z instanceof Uint8Array)?z:new Uint8Array(z);
   }catch(e){ return u8; }
 }
+/* ★여러 파일 (2026-10-27 사용자 「계약파일 선택 한 파일이 아니고 여러 개 올릴 수 있게」) —
+     파일 창에서 여러 개를 함께 고르거나, [📂 계약파일 선택]을 다시 눌러 더 붙인다(앞에 읽은 줄은 그대로 · 새로 시작하려면 [비우기]).
+     파일마다 따로 읽고, 못 읽은 파일은 건너뛴 뒤 끝에 한 번에 알린다(한 파일 때문에 나머지를 버리지 않는다).
+     같은 (품목코드·납품 시작일)이 여러 파일에 있으면 «나중에 읽은 파일» 것을 쓴다 — 한 파일 안에서 뒤의 줄을 쓰는 것과 같은 규칙.
+     줄마다 어느 파일에서 왔는지(_fn)를 들고 있다가 저장할 때 그 파일 이름을 계약 이력(SRC_FILE)에 남긴다. */
 function ctFile(files){
-  var f=files&&files[0]; if(!f) return;
+  var fl=Array.prototype.slice.call(files||[]); if(!fl.length) return;
   ctLib(function(X){
     if(!X){ alertBox('엑셀 읽기 도구를 불러오지 못했습니다 — 화면을 새로 고친 뒤 다시 해 주세요.','⚠️'); return; }
-    var rd=new FileReader();
-    rd.onload=function(e){
-      try{
-        var wb=X.read(ctFixXlsx(X, new Uint8Array(e.target.result)),{ type:'array' }), ws=wb.Sheets[wb.SheetNames[0]];
-        ctParse(X.utils.sheet_to_json(ws,{ header:1, raw:true, defval:'' }), f.name);
-      }catch(err){ alertBox('엑셀을 읽지 못했습니다.<br><span style="font-size:12.5px">'+esc(err&&err.message||'')+'</span>','⚠️'); }
+    var bad=[], add=0, rep=0, i=0;
+    var next=function(){
+      if(i>=fl.length){
+        ctPreRender();
+        if(bad.length) alertBox('읽지 못한 파일 <b>'+bad.length+'</b>개는 건너뛰었습니다.<br><span style="font-size:12.5px;color:#3d4d5c;line-height:1.7">'+bad.map(function(b){ return '· <b>'+esc(b.nm)+'</b> — '+b.msg; }).join('<br>')+'</span>','⚠️');
+        else if(fl.length>1 || _ctFiles.length>1) toast('파일 '+fl.length+'개에서 '+add+'줄을 읽었습니다'+(rep?' — 앞에 읽은 줄과 겹친 '+rep+'줄은 나중 파일 것으로 바꿨습니다':'')+'.','ok');
+        return;
+      }
+      var f=fl[i++], rd=new FileReader();
+      rd.onload=function(e){
+        try{
+          var wb=X.read(ctFixXlsx(X, new Uint8Array(e.target.result)),{ type:'array' }), ws=wb.Sheets[wb.SheetNames[0]];
+          var r=ctParse(X.utils.sheet_to_json(ws,{ header:1, raw:true, defval:'' }), f.name);
+          if(r.err) bad.push({ nm:f.name, msg:r.err }); else { add+=r.n; rep+=r.rep; }
+        }catch(err){ bad.push({ nm:f.name, msg:'엑셀을 읽지 못했습니다'+(err&&err.message?' ('+esc(err.message)+')':'') }); }
+        next();
+      };
+      rd.onerror=function(){ bad.push({ nm:f.name, msg:'파일을 열지 못했습니다' }); next(); };
+      rd.readAsArrayBuffer(f);
     };
-    rd.readAsArrayBuffer(f);
+    next();
   });
 }
 /* 머리줄 = 「품목코드」가 든 줄(그 아랫줄에 「품목면과세」 같은 둘째 머리줄이 있을 수 있다 — 두 줄을 함께 본다) */
 function ctParse(aoa, fileNm){
   var hr=-1, i, j;
   for(i=0;i<Math.min(aoa.length,30)&&hr<0;i++){ for(j=0;j<(aoa[i]||[]).length;j++){ if(ctKey(aoa[i][j])==='품목코드'){ hr=i; break; } } }
-  if(hr<0){ alertBox('「품목코드」 머리글을 찾지 못했습니다 — 계약 엑셀이 맞는지 확인하세요.','⚠️'); return; }
+  if(hr<0) return { err:'「품목코드」 머리글을 찾지 못했습니다 — 계약 엑셀이 맞는지 확인하세요.' };
   var col={ cd:-1, nm:-1, unit:-1, price:-1, fr:-1, to:-1, tax:-1 };
   [hr, hr+1].forEach(function(r){ (aoa[r]||[]).forEach(function(v, c){
     var k=ctKey(v), lo=k.toLowerCase();
@@ -2663,7 +2707,7 @@ function ctParse(aoa, fileNm){
     else if(k==='면과세' && col.tax<0) col.tax=c;
   }); });
   var miss=[]; if(col.price<0) miss.push('계약단가'); if(col.fr<0) miss.push('납품기간(From)');
-  if(miss.length){ alertBox('엑셀에 <b>'+miss.join(' · ')+'</b> 칸이 없습니다.','⚠️'); return; }
+  if(miss.length) return { err:'엑셀에 <b>'+miss.join(' · ')+'</b> 칸이 없습니다.' };
   var rows=[], seen={};
   for(i=hr+1;i<aoa.length;i++){
     var r=aoa[i]||[], cd=String(r[col.cd]==null?'':r[col.cd]).trim();
@@ -2671,16 +2715,26 @@ function ctParse(aoa, fileNm){
     var o={ prodCd:cd, prodNm:col.nm>=0?String(r[col.nm]||'').trim():'', unit:col.unit>=0?String(r[col.unit]||'').trim():'',
             taxGb:(col.tax>=0&&String(r[col.tax]||'').indexOf('면')>=0)?'면세':'과세',
             price:Number(String(r[col.price]==null?'':r[col.price]).replace(/,/g,''))||0,
-            frDt:ctDate(r[col.fr]), toDt:col.to>=0?ctDate(r[col.to]):'' };
+            frDt:ctDate(r[col.fr]), toDt:col.to>=0?ctDate(r[col.to]):'', _fn:fileNm||'' };
     var key=cd+'|'+o.frDt;
     if(seen[key]!=null) rows[seen[key]]=o; else { seen[key]=rows.length; rows.push(o); }   /* 같은 (품목·시작일)이 두 번이면 뒤의 것 */
   }
-  if(!rows.length){ alertBox('읽을 품목 줄이 없습니다.','⚠️'); return; }
-  _ctRows=rows; _ctFile=fileNm||''; ctPreRender();
+  if(!rows.length) return { err:'읽을 품목 줄이 없습니다.' };
+  /* 앞 파일에서 읽은 줄에 붙인다 — 같은 (품목·시작일)이면 이 파일 것으로 바꾼다 */
+  var at={}, rep=0; _ctRows.forEach(function(x, k){ at[x.prodCd+'|'+x.frDt]=k; });
+  rows.forEach(function(o){ var k=at[o.prodCd+'|'+o.frDt]; if(k!=null){ _ctRows[k]=o; rep++; } else { at[o.prodCd+'|'+o.frDt]=_ctRows.length; _ctRows.push(o); } });
+  _ctFiles=_ctFiles.filter(function(x){ return x.nm!==fileNm; }); _ctFiles.push({ nm:fileNm||'', n:rows.length });
+  _ctFile=_ctFiles.map(function(x){ return x.nm; }).join(', ');
+  return { n:rows.length, rep:rep };
 }
 /* ★새 코드는 품명이 있어야 한다 (2026-10-27 확인) — 서버(saveProdContracts)는 품명 없는 새 코드를 「새 코드인데 품명이 없음」으로 건너뛴다.
      종전엔 미리보기가 그 줄을 「새 코드 등록」으로 보여 놓고 저장에서 빠졌다 → 미리보기에서 먼저 빨갛게 알린다. 기존 코드는 품명이 비어도 된다(상품코드 이름을 안 바꾼다). */
-function ctIsNewCd(cd){ var hit=false; LIST.forEach(function(o){ if(String(o.prodCd)===String(cd)) hit=true; }); return !hit; }
+/* ★속도 (2026-10-27) — 종전엔 줄마다 상품 목록 2,191줄을 처음부터 훑었다(미리보기 한 번에 줄 수 × 2,191). 목록이 바뀔 때만 표를 다시 만든다 */
+var _ctCdSet=null, _ctCdSrc=null;
+function ctIsNewCd(cd){
+  if(_ctCdSrc!==LIST || !_ctCdSet){ _ctCdSet={}; LIST.forEach(function(o){ _ctCdSet[String(o.prodCd)]=1; }); _ctCdSrc=LIST; }
+  return !_ctCdSet[String(cd)];
+}
 function ctRowErr(x){
   if(!(x.price>0)) return '계약단가 없음';
   if(!String(x.prodNm||'').trim() && ctIsNewCd(x.prodCd)) return '새 코드인데 품명 없음';
@@ -2690,10 +2744,10 @@ function ctRowErr(x){
 }
 function ctPreRender(){
   var tb=document.getElementById('ctTb'), msg=document.getElementById('ctMsg'), go=document.getElementById('ctGo');
-  document.getElementById('ctFn').textContent=_ctFile?('📎 '+_ctFile):'';
+  document.getElementById('ctFn').innerHTML=_ctFiles.length ? ('📎 '+_ctFiles.map(function(x){ return esc(x.nm)+' <span style="color:#8a97a3;font-weight:400">('+x.n+'줄)</span>'; }).join(' · ')) : '';
   if(_ctErr){ msg.innerHTML='<span style="color:#c0392b;font-weight:700">'+esc(_ctErr)+'</span>'; }
   if(!_ctRows.length){
-    tb.innerHTML='<tr><td colspan="11" class="empty">[📂 계약파일 선택]으로 계약 엑셀을 올리세요 — 품목코드 · 품명 · 단위 · 계약단가 · 납품기간(From/To)을 읽습니다.</td></tr>';
+    tb.innerHTML='<tr><td colspan="11" class="empty">[📂 계약파일 선택]으로 계약 엑셀을 올리세요(여러 개를 함께 골라도 됩니다) — 품목코드 · 품명 · 단위 · 계약단가 · 납품기간(From/To)을 읽습니다.</td></tr>';
     if(!_ctErr) msg.innerHTML=''; go.disabled=true; return;
   }
   var byCd={}; LIST.forEach(function(o){ byCd[String(o.prodCd)]=o; });
@@ -2713,6 +2767,7 @@ function ctPreRender(){
       ap+=' <a href="javascript:;" class="ctb" data-cd="'+esc(x.prodCd)+'" style="background:#fff3cd;color:#8a5a00;text-decoration:none"'
         +' title="이미 올린 계약이 있습니다 — 가장 가까운 것 : 계약단가 '+num(hc.contractPrice)+' · '+pcFmtDt8(hc.frDt)+' '+CT_TL+' '+pcFmtDt8(hc.toDt)+'. 누르면 계약 이력"'
         +' onclick="chOpen(this.getAttribute(\'data-cd\'))">기존 계약 '+had.length+'건</a>'; }
+    if(_ctFiles.length>1 && x._fn) ap+=' <span style="color:#8a97a3;font-size:11px" title="이 줄을 읽은 파일">· '+esc(x._fn)+'</span>';
     return '<tr'+(er?' style="background:#fff5f5"':'')+'>'
       +'<td>'+(isNew?'<span class="ctb" style="background:#e6f4ea;color:#1f7a34">신규</span>':'<span class="ctb" style="background:#eef2f5;color:#48566a">기존</span>')+'</td>'
       +'<td class="code">'+esc(x.prodCd)+'</td><td class="l" title="'+esc(x.prodNm)+'">'+esc(x.prodNm)+(o&&o.prodNm&&o.prodNm!==x.prodNm?'<div style="font-size:11.5px;color:#8a97a3" title="우리 상품코드의 상품명">등록명 : '+esc(o.prodNm)+'</div>':'')+'</td>'
@@ -2721,7 +2776,7 @@ function ctPreRender(){
       +'<td class="num" style="color:'+(diff>0?'#c0392b':(diff<0?'#1f5fbf':'#8a97a3'))+'">'+(diff==null?'':(diff>0?'+':'')+num(diff))+'</td>'
       +'<td>'+pcFmtDt8(x.frDt)+'</td><td>'+pcFmtDt8(x.toDt)+'</td><td class="l">'+ap+'</td></tr>';
   }).join('');
-  if(!_ctErr) msg.innerHTML='읽은 줄 <b>'+_ctRows.length+'</b> — 신규 <b>'+nNew+'</b> · 기존 바로 적용 <b>'+nNow+'</b> · 기존 날짜 대기 <b>'+nWait+'</b>'
+  if(!_ctErr) msg.innerHTML=(_ctFiles.length>1?'파일 <b>'+_ctFiles.length+'</b>개 · ':'')+'읽은 줄 <b>'+_ctRows.length+'</b> — 신규 <b>'+nNew+'</b> · 기존 바로 적용 <b>'+nNow+'</b> · 기존 날짜 대기 <b>'+nWait+'</b>'
     +(nBad?' · <span style="color:#c0392b">건너뛸 줄 '+nBad+'</span>':'')+' <span style="color:#8a97a3">— 확인한 뒤 [💾 저장]</span>';
   go.disabled=!!_ctErr || (_ctRows.length-nBad)<1;
 }
@@ -2740,7 +2795,7 @@ function ctSave(){
   var byCd={}; LIST.forEach(function(o){ byCd[String(o.prodCd)]=o; });
   var t=ctYmd(), nNew=0, nNow=0, nWait=0;
   ok.forEach(function(x){ if(!byCd[x.prodCd]) nNew++; else if(String(x.frDt)<=t) nNow++; else nWait++; });
-  confirmBox('계약 <b>'+ok.length+'</b>줄을 저장합니다.<br><span style="font-size:12.5px;color:#3d4d5c;line-height:1.7">'
+  confirmBox((_ctFiles.length>1?'파일 <b>'+_ctFiles.length+'</b>개 · ':'')+'계약 <b>'+ok.length+'</b>줄을 저장합니다.<br><span style="font-size:12.5px;color:#3d4d5c;line-height:1.7">'
     +'· 신규코드 <b>'+nNew+'</b> — 상품코드를 새로 만듭니다(입고단가·매입처·입수량은 나중에 수정으로)<br>'
     +'· 기존코드 바로 적용 <b>'+nNow+'</b> — 판매단가가 지금 계약단가로 바뀝니다<br>'
     +'· 기존코드 날짜 대기 <b>'+nWait+'</b> — 납품 시작일이 되면 판매단가가 바뀝니다(그때까지 지금 단가)</span>',
@@ -2750,20 +2805,23 @@ function ctSave(){
          ⚠묶음마다 따로 저장된다 — 도중에 멈추면 앞 묶음은 이미 저장된 상태다. 같은 (품목·납품 시작일)을 다시 올리면 앞의 줄을 대체하므로
            [💾 저장]을 다시 눌러 처음부터 보내도 겹치지 않는다(멈췄을 때 그렇게 안내한다). */
       var go=document.getElementById('ctGo'); go.disabled=true;
-      var CT_STEP=5, done=0, sum={ newCnt:0, nowCnt:0, pendCnt:0, skip:[] };
+      /* ★한 번에 20줄 (2026-10-27 속도 — 종전 5줄). 줄마다 DB 를 7번쯤 다녀오는데 DB 는 빠르고(한 번 4ms) 요청 왕복 수가 더 컸다.
+           묶음은 «같은 파일 줄끼리» 만든다 — 서버가 묶음마다 받은 파일 이름 하나를 계약 이력(SRC_FILE)에 적기 때문 */
+      var CT_STEP=20, done=0, sum={ newCnt:0, nowCnt:0, pendCnt:0, skip:[] }, parts=[];
+      ok.forEach(function(x){ var p=parts[parts.length-1]; if(!p || p.fn!==(x._fn||'') || p.rows.length>=CT_STEP){ p={ fn:x._fn||'', rows:[] }; parts.push(p); } p.rows.push(x); });
       ctProg(0, ok.length);
       var finish=function(){
         ctProg(-1);
         alertBox('계약을 저장했습니다.<br><span style="font-size:13px;color:#3d4d5c;line-height:1.7">신규코드 <b>'+sum.newCnt+'</b> · 바로 적용 <b>'+sum.nowCnt+'</b> · 날짜 대기 <b>'+sum.pendCnt+'</b>'
           +(sum.skip.length?'<br><span style="color:#c0392b">건너뛴 줄 '+sum.skip.length+' : '+esc(sum.skip.slice(0,8).join(' / '))+(sum.skip.length>8?' …':'')+'</span>':'')+'</span>', sum.skip.length?'⚠️':'✅');
-        _ctRows=[]; _ctFile=''; ctPreRender();
+        _ctRows=[]; _ctFile=''; _ctFiles=[]; ctPreRender();
         pcLoad();   /* 목록(새 코드·바뀐 단가)과 계약 이력을 다시 읽는다 — pcLoad 가 ctLoad 까지 부른다 */
       };
       var next=function(){
-        if(done>=ok.length){ finish(); return; }
-        var part=ok.slice(done, done+CT_STEP);
+        if(!parts.length){ finish(); return; }
+        var pp=parts.shift(), part=pp.rows;
         fetch(CTX+'/prod/contractSave.do',{ method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json; charset=UTF-8'},
-            body:JSON.stringify({ fileNm:_ctFile, rows:part }) })
+            body:JSON.stringify({ fileNm:pp.fn||_ctFile, rows:part.map(function(x){ return { prodCd:x.prodCd, prodNm:x.prodNm, unit:x.unit, taxGb:x.taxGb, price:x.price, frDt:x.frDt, toDt:x.toDt }; }) }) })
           .then(function(res){ return res.text().then(function(tx){ if(!res.ok) throw new Error(tx); return tx; }); })
           .then(function(tx){
             var j={}; try{ j=JSON.parse(tx); if(typeof j==='string') j=JSON.parse(j); }catch(e){ j={}; }
@@ -2939,6 +2997,7 @@ function pcStopSend(url, body, okMsg){
 <%-- ───────── 📄 계약 엑셀 — 납품기간 · 계약단가 (2026-10-01) ─────────
      삼성웰스토리 계약 엑셀을 올려 신규코드는 상품코드로 만들고, 기존코드는 계약 이력을 쌓는다. 계약단가는 납품 시작일부터 적용.
      올린 엑셀 미리보기(저장 전)만 보인다. ★계약 이력 표는 뺐다(2026-10-01 「1번은 보여 주지 말고」) — 이력은 상품별 조회 창(#ch)에서 본다. --%>
+<style>#ct .box.ctdrop{ outline:3px dashed #1a8a7d; outline-offset:-6px; background:#f2fbf9; }</style>
 <div id="ct">
   <div class="box">
     <%-- 진행 바 (2026-10-01 「엑셀 저장 시 진행바」) — 저장하는 동안 상자를 덮는다. ctProg 가 켜고 끈다 --%>
@@ -2953,8 +3012,9 @@ function pcStopSend(url, body, okMsg){
     </div>
     <div class="mb">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-        <button class="btn btn-teal" onclick="document.getElementById('ctFi').click()" title="삼성웰스토리가 준 계약 엑셀(xlsx) — 품목코드 · 품명 · 단위 · 계약단가 · 납품기간(From/To)을 읽습니다">📂 계약파일 선택</button>
-        <input type="file" id="ctFi" accept=".xlsx,.xls" style="display:none" onchange="ctFile(this.files); this.value=''">
+        <button class="btn btn-teal" onclick="ctPickFiles()" title="삼성웰스토리가 준 계약 엑셀(xlsx) — 여러 개를 함께 고를 수 있고, 다시 누르면 더 붙입니다. 품목코드 · 품명 · 단위 · 계약단가 · 납품기간(From/To)을 읽습니다">📂 계약파일 선택</button>
+        <input type="file" id="ctFi" accept=".xlsx,.xls" multiple style="display:none" onchange="ctFile(this.files); this.value=''">
+        <span style="font-size:11.5px;color:#6b7a89" title="파일 창에서 Ctrl 을 누른 채 누르면 하나씩 더 골라지고, Shift 를 누른 채 누르면 사이에 있는 파일이 한꺼번에 골라집니다">여러 개 : 파일 창에서 <b>Ctrl</b>·<b>Shift</b>+클릭 · 또는 이 창에 <b>끌어다 놓기</b></span>
         <span id="ctFn" style="font-size:12.5px;color:#37475a;font-weight:700"></span>
         <span id="ctMsg" style="font-size:12.5px;color:#37475a"></span>
         <button class="btn" style="margin-left:auto" onclick="ctReset()" title="올린 엑셀 미리보기를 비웁니다(저장된 계약은 그대로)">비우기</button>
