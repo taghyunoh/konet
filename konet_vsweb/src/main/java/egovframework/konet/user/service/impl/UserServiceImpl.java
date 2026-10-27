@@ -1611,6 +1611,9 @@ public class UserServiceImpl implements UserService {
 				pp.put("rcvTel2", scStr(r.getRcvTel2())); pp.put("rcvItemCd", scStr(r.getRcvItemCd()));
 				pp.put("rcvFee", r.getRcvFee());   // 택배비(운임) — 빈 값이면 NULL
 				pp.put("dsRound", scStr(r.getDsRound()));   // 차수 (2026-10-27)
+				pp.put("dsDcAmt", r.getDsDcAmt() == null ? null : java.math.BigDecimal.valueOf(r.getDsDcAmt())); pp.put("dsSvcQty", r.getDsSvcQty());
+				pp.put("dsZeroYn", "Y".equals(scStr(r.getDsZeroYn())) ? "Y" : "N"); pp.put("dsTrxGb", "반품".equals(scStr(r.getDsTrxGb())) ? "반품" : "판매"); pp.put("dsMemo", scStr(r.getDsMemo()));
+				pp.put("dsVatAmt", r.getDsVatAmt() == null ? null : java.math.BigDecimal.valueOf(r.getDsVatAmt()));
 				mapper.updateDsPoExtra(pp);
 			}
 			egovframework.konet.user.model.ProdXrefDTO rx = new egovframework.konet.user.model.ProdXrefDTO();
@@ -1636,14 +1639,21 @@ public class UserServiceImpl implements UserService {
 	@Override public int updateDsPoFee(long seq, Integer fee, String user, String ip, String compCd) throws Exception {
 		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
 		p.put("compCd", compCd); p.put("seq", seq); p.put("rcvFee", fee); p.put("regUser", user); p.put("regIp", ip);
-		return mapper.updateDsPoFee(p);
+		int n = mapper.updateDsPoFee(p);
+		if (n > 0) { java.util.Map<String,Object> row = mapper.selectDsPoRowFull(p); if (row != null) syncDsFeeRows(java.util.Collections.singleton(scStr(row.get("dlvDt"))), user, ip, compCd); }   /* 택배비(로젠) 줄 다시 (2026-10-27) */
+		return n;
 	}
 	/* 대상 발주 — 저장된 한 줄의 배송 정보·제품명·대상 제품코드 고치기 (2026-10-02 「저장내용 수정기능」). 글자 칸이라 제자리에서 고친다. 돌려주는 값 = 고친 줄 수 */
 	@Override public int updateDsPoInfo(long seq, java.util.Map<String,Object> v, String user, String ip, String compCd) throws Exception {
 		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
-		for (String k : new String[]{ "rcvNm", "rcvAddr", "rcvTel", "rcvTel2", "rcvItemCd", "itemNm", "dsRound" }) p.put(k, scStr(v.get(k)));
+		for (String k : new String[]{ "rcvNm", "rcvAddr", "rcvTel", "rcvTel2", "rcvItemCd", "itemNm", "dsRound", "dsMemo" }) p.put(k, scStr(v.get(k)));
+		String dc = scStr(v.get("dsDcAmt")).trim(); p.put("dsDcAmt", dc.isEmpty() ? null : java.math.BigDecimal.valueOf(scNum(dc)));
+		String vt = scStr(v.get("dsVatAmt")).trim(); p.put("dsVatAmt", vt.isEmpty() ? null : java.math.BigDecimal.valueOf(scNum(vt)));   /* 빈 값 = 자동 */
+		p.put("dsZeroYn", "Y".equals(scStr(v.get("dsZeroYn"))) ? "Y" : "N");
 		p.put("compCd", compCd); p.put("seq", seq); p.put("regUser", user); p.put("regIp", ip);
-		return mapper.updateDsPoInfo(p);
+		int n = mapper.updateDsPoInfo(p);
+		if (n > 0) { java.util.Map<String,Object> row = mapper.selectDsPoRowFull(p); if (row != null) syncDsFeeRows(java.util.Collections.singleton(scStr(row.get("dlvDt"))), user, ip, compCd); }   /* 받는 사람·차수가 바뀌면 택배비 묶음도 — 택배비(로젠) 줄 다시 (2026-10-27) */
+		return n;
 	}
 	/* ★대상 단가표 (2026-10-27) — 품목코드마다 기본 수량·이상 단가·미만 단가. 화면이 줄째로 보낸다(한 줄씩 MERGE). 돌려주는 값 = 저장한 줄 수 */
 	@Override public java.util.List<java.util.Map<String,Object>> selectDsPriceList(String compCd) throws Exception {
@@ -1704,6 +1714,64 @@ public class UserServiceImpl implements UserService {
 		dates.add(scStr(old.get("dlvDt")));
 		return dates;
 	}
+	/* ★대상 택배비(로젠) 줄 (2026-10-27 「대상 발주 등록을 매출 주인으로 되돌려줘 택배비는 로젠 한 줄로」)
+	   날짜마다 : 택배비 줄(DLV_GB DSFEE)을 통째로 지우고, 살아 있는 줄을 받는 사람(발주일자·차수·받는 사람)으로 묶어 RCV_FEE 합이 0 보다 크면
+	   「택배비(로젠)」(ITEM_CD 9901010150) 줄 하나를 넣는다 — 수량 = 합 ÷ 4,000(나누어떨어지면, 3 × 4,000 처럼) 아니면 1 · 단가 = 4,000 또는 합.
+	   그 줄은 매출(수량 × 단가)에만 들어가고 재고·월별 출고현황·대상 화면에서는 빠진다(DSFEE). 마감 엑셀과 같은 셈. 돌려주는 값 = 만든 줄 수 */
+	private static final String DS_FEE_ITEM = "9901010150", DS_FEE_NM = "택배비(로젠)"; private static final int DS_FEE_UNIT = 4000;
+	@Override public int syncDsFeeRows(java.util.Collection<String> dates, String user, String ip, String compCd) throws Exception {
+		int made = 0; if (dates == null) return 0;
+		for (String d0 : dates) {
+			String d = scStr(d0).replace("-", ""); if (!d.matches("[0-9]{8}")) continue;
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd); p.put("dlvDt", d);
+			mapper.deleteDsFeeRows(p);
+			java.util.Map<String,Object> q = new java.util.HashMap<String,Object>(); q.put("compCd", compCd); q.put("frDt", d); q.put("toDt", d);
+			java.util.LinkedHashMap<String, java.util.Map<String,Object>> g = new java.util.LinkedHashMap<String, java.util.Map<String,Object>>();
+			java.util.Map<String,Integer> sum = new java.util.HashMap<String,Integer>();
+			for (java.util.Map<String,Object> r : mapper.selectDsPoList(q)) {
+				String nm = scStr(r.get("rcvNm")).replaceAll("\\s+", " ").trim(); if (nm.isEmpty()) continue;
+				String k = scStr(r.get("dsRound")) + "|" + nm;
+				if (!g.containsKey(k)) { g.put(k, r); sum.put(k, 0); }
+				if (r.get("rcvFee") != null) sum.put(k, sum.get(k) + ((Number) r.get("rcvFee")).intValue());
+			}
+			java.util.List<egovframework.konet.user.model.ShipoutDTO> rows = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>();
+			for (String k : g.keySet()) {
+				int fee = sum.get(k); if (fee <= 0) continue;
+				java.util.Map<String,Object> f = g.get(k);
+				egovframework.konet.user.model.ShipoutDTO x = new egovframework.konet.user.model.ShipoutDTO();
+				x.setDlvDt(d); x.setShpoutDt(d);
+				x.setBizCd(scStr(f.get("bizCd"))); x.setBizNm(scStr(f.get("bizNm")));
+				x.setItemCd(DS_FEE_ITEM); x.setItemNm(DS_FEE_NM); x.setUnit("EA");
+				int qty = (fee % DS_FEE_UNIT == 0) ? fee / DS_FEE_UNIT : 1; double price = (fee % DS_FEE_UNIT == 0) ? DS_FEE_UNIT : fee;
+				x.setCurQty(qty); x.setLabelQty(qty); x.setSalePrice(Double.valueOf(price));
+				x.setOrdNo(scStr(f.get("ordNo"))); x.setOrdItemNo("FEE");
+				x.setZone("DS"); x.setDlvGb("DSFEE"); x.setRemark("대상 택배비(자동) · " + scStr(f.get("rcvNm")));
+				x.setRcvNm(scStr(f.get("rcvNm"))); x.setRcvAddr(scStr(f.get("rcvAddr"))); x.setDsRound(scStr(f.get("dsRound")));
+				rows.add(x);
+			}
+			if (rows.isEmpty()) continue;
+			egovframework.konet.user.model.ShipoutDTO head = new egovframework.konet.user.model.ShipoutDTO();
+			head.setCompCd(compCd); head.setDcCd("DAESANG"); head.setDlvDt(d);
+			int jobSeq = mapper.getShipoutNextJobSeq(head), seq = 0;
+			for (egovframework.konet.user.model.ShipoutDTO x : rows) {
+				x.setCompCd(compCd); x.setJobSeq(jobSeq); x.setActionYn("Y"); x.setRowNo(++seq);
+				x.setProdKind("TD"); x.setDcCd("DAESANG"); x.setDcNm("대상"); x.setRegUser(user); x.setRegIp(ip);
+			}
+			mapper.insertShipoutMstBulk(rows);
+			for (egovframework.konet.user.model.ShipoutDTO x : rows) {
+				java.util.Map<String,Object> pp = new java.util.HashMap<String,Object>();
+				pp.put("compCd", compCd); pp.put("dlvDt", d); pp.put("jobSeq", jobSeq); pp.put("rowNo", x.getRowNo());
+				pp.put("salePrice", java.math.BigDecimal.valueOf(x.getSalePrice()));
+				pp.put("rcvNm", x.getRcvNm()); pp.put("rcvAddr", x.getRcvAddr()); pp.put("rcvTel", ""); pp.put("rcvTel2", ""); pp.put("rcvItemCd", "FEE");
+				pp.put("rcvFee", null); pp.put("dsRound", x.getDsRound());
+				pp.put("dsDcAmt", null); pp.put("dsSvcQty", null); pp.put("dsZeroYn", "N"); pp.put("dsTrxGb", "판매"); pp.put("dsMemo", ""); pp.put("dsVatAmt", null);
+				mapper.updateDsPoExtra(pp);
+			}
+			mapper.updateDsFeeProd(p);
+			made += rows.size();
+		}
+		return made;
+	}
 	/* 대상 발주 — 저장 취소(삭제). 돌려주는 값 = 지운 줄마다 그 납기일자(컨트롤러가 그 날짜들의 재고 원장을 다시 만든다) */
 	@Override public java.util.List<String> deleteDsPo(java.util.List<Long> seqs, String user, String ip, String compCd) throws Exception {
 		java.util.List<String> dates = new java.util.ArrayList<String>(); if (seqs == null) return dates;
@@ -1721,6 +1789,10 @@ public class UserServiceImpl implements UserService {
 	   제자리에서 고치지 않고 «옛 줄을 이력(N)으로 닫고 고친 값으로 새 줄을 넣는다»(saveDsPo 한 길) — 묶음 번호·줄 번호·배송 정보는 그대로 가져간다.
 	   비고 끝에 무엇을 고쳤는지 남긴다. 돌려주는 값 = 재고 원장을 다시 만들 날짜(옛 날짜·새 날짜) · 줄이 없으면 null · 바뀐 것이 없으면 빈 목록 */
 	@Override public java.util.List<String> updateDsPoRow(long seq, String dlvDt, String itemCd, int qty, Double salePrice, String user, String ip, String compCd) throws Exception {
+		return updateDsPoRow(seq, dlvDt, itemCd, qty, salePrice, null, null, user, ip, compCd);
+	}
+	/* svcQty·trxGb 가 null 이면 옛 값 그대로 (2026-10-27 서비스·거래구분) */
+	@Override public java.util.List<String> updateDsPoRow(long seq, String dlvDt, String itemCd, int qty, Double salePrice, Integer svcQty, String trxGb, String user, String ip, String compCd) throws Exception {
 		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd); p.put("seq", seq);
 		java.util.Map<String,Object> old = mapper.selectDsPoRowFull(p);
 		if (old == null) return null;
@@ -1734,6 +1806,10 @@ public class UserServiceImpl implements UserService {
 		if (!oItem.equals(itemCd)) note.append(" 품목 ").append(oItem).append("→").append(itemCd);
 		if (oQty != qty) note.append(" 수량 ").append(oQty).append("→").append(qty);
 		if (!oldP.equals(newP)) note.append(" 판매가 ").append(oldP).append("→").append(newP);
+		int oSvc = old.get("dsSvcQty") == null ? 0 : ((Number) old.get("dsSvcQty")).intValue(); String oTrx = scStr(old.get("dsTrxGb")).isEmpty() ? "판매" : scStr(old.get("dsTrxGb"));
+		int nSvc = svcQty == null ? oSvc : svcQty.intValue(); String nTrx = trxGb == null ? oTrx : ("반품".equals(trxGb) ? "반품" : "판매");
+		if (oSvc != nSvc) note.append(" 서비스 ").append(oSvc).append("→").append(nSvc);
+		if (!oTrx.equals(nTrx)) note.append(" 거래구분 ").append(oTrx).append("→").append(nTrx);
 		java.util.List<String> dates = new java.util.ArrayList<String>();
 		if (note.length() == 0) return dates;
 		p.put("actionYn", "N"); p.put("regUser", user); p.put("regIp", ip);
@@ -1752,6 +1828,9 @@ public class UserServiceImpl implements UserService {
 		d.setRcvTel2(scStr(old.get("rcvTel2"))); d.setRcvItemCd(scStr(old.get("rcvItemCd")));
 		d.setRcvFee(old.get("rcvFee") == null ? null : Integer.valueOf(((Number) old.get("rcvFee")).intValue()));   // 택배비도 새 줄로 가져간다
 		d.setDsRound(scStr(old.get("dsRound")));   // 차수도 (2026-10-27)
+		d.setDsDcAmt(old.get("dsDcAmt") == null ? null : Double.valueOf(((Number) old.get("dsDcAmt")).doubleValue())); d.setDsSvcQty(Integer.valueOf(nSvc));
+		d.setDsZeroYn(scStr(old.get("dsZeroYn"))); d.setDsTrxGb(nTrx); d.setDsMemo(scStr(old.get("dsMemo")));
+		d.setDsVatAmt(old.get("dsVatAmt") == null ? null : Double.valueOf(((Number) old.get("dsVatAmt")).doubleValue()));
 		java.util.List<egovframework.konet.user.model.ShipoutDTO> one = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>(); one.add(d);
 		saveDsPo(one, user, ip, compCd);
 		dates.add(oDt); if (!oDt.equals(dlvDt)) dates.add(dlvDt);
@@ -2701,8 +2780,8 @@ public class UserServiceImpl implements UserService {
 		     토더(PROD_KIND TD) 줄까지 사라졌다. 토더는 「정산서가 있는 날에도 늘 재고에서 뺀다」(2026-09-21)인데 정산서를 올리거나
 		     [출고반영 재집계]를 누르면 그 날 토더 출고가 재고로 되돌아왔다(2026-10-27 재집계에서 09-28 토더 12개 실측).
 		   ⇒ 정산서 줄을 넣은 뒤 insertShipoutLedger 를 이 날짜로 한 번 더 부른다. 그 SQL 은 정산서가 있는 날엔 TD 줄만 고르고
-		     (NOT EXISTS 정산서 · TD 예외) 대상(DC_CD DAESANG)은 뺀다(2026-10-26 「대상은 판매전표가 주인」) — 그래서 다시 넣히는 것은 토더뿐이다.
-		   ⚠2026-10-26 에 같은 4줄을 넣었다 되돌린 것은 그때 대상이 함께 들어가 «두 번 차감»됐기 때문이다. 대상 제외가 들어간 지금은 안전하다. */
+		     (NOT EXISTS 정산서 · TD 예외) — 토더와 대상(2026-10-27 되돌림 : 대상 발주 등록이 다시 매출·재고 주인, 대상 판매전표는 사용자가 취소)이 다시 들어간다.
+		   ⚠2026-10-26 에 같은 4줄을 넣었다 되돌린 것은 그때 대상 판매전표와 대상 발주가 둘 다 있어 «두 번 차감»됐기 때문 — 이제 판매전표가 없으니 안전하다. */
 		if (SHIPOUT_LEDGER_ON) {
 			egovframework.konet.user.model.StockLedgerDTO td = new egovframework.konet.user.model.StockLedgerDTO();
 			td.setTrxDt(dt); td.setCompCd(compCd); td.setRegUser(regUser); td.setRegIp(regIp);

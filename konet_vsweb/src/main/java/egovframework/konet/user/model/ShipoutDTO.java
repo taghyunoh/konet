@@ -44,6 +44,8 @@ public class ShipoutDTO {
 	private String  rcvItemCd;     // 대상 제품코드
 	private Integer rcvFee;        // 택배비(운임) — 대상 발주만. 줄마다 한 값, 엑셀 운임 칸
 	private String dsRound;        // 차수 「10월 1차」 — 대상 발주만 (2026-10-27)
+	private Double dsDcAmt;        // DC(할인액) · 서비스 수량 · 영세 · 거래구분 · 비고 — 대상 발주만 (2026-10-27 판매등록 그리드와 같게)
+	private Integer dsSvcQty; private String dsZeroYn; private String dsTrxGb; private String dsMemo; private Double dsVatAmt;   // 손으로 넣은 부가세(null = 자동)
 	private Double  salePrice;     // 판매가(부가세 포함) — 토더 발주만(2026-09-22). 공용 insertShipoutMstBulk 는 안 싣고, 토더 저장 뒤 updateTdPoPrice 로 넣는다
 	private String  statYn;        // 상황여부
 	private String  prodKind;      // 상품종류
@@ -140,6 +142,12 @@ public class ShipoutDTO {
 	public void setRcvFee(Integer rcvFee) { this.rcvFee = rcvFee; }
 	public String getDsRound() { return dsRound; }
 	public void setDsRound(String dsRound) { this.dsRound = dsRound; }
+	public Double getDsDcAmt() { return dsDcAmt; } public void setDsDcAmt(Double v) { this.dsDcAmt = v; }
+	public Integer getDsSvcQty() { return dsSvcQty; } public void setDsSvcQty(Integer v) { this.dsSvcQty = v; }
+	public String getDsZeroYn() { return dsZeroYn; } public void setDsZeroYn(String v) { this.dsZeroYn = v; }
+	public String getDsTrxGb() { return dsTrxGb; } public void setDsTrxGb(String v) { this.dsTrxGb = v; }
+	public String getDsMemo() { return dsMemo; } public void setDsMemo(String v) { this.dsMemo = v; }
+	public Double getDsVatAmt() { return dsVatAmt; } public void setDsVatAmt(Double v) { this.dsVatAmt = v; }
 	public Double getSalePrice() { return salePrice; }
 	public void setSalePrice(Double salePrice) { this.salePrice = salePrice; }
 	public String getDlvDtFrom() { return dlvDtFrom; }

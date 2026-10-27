@@ -1811,6 +1811,11 @@ public class UserController {
 					d.setRcvTel(dsCut(poStr(m.get("rcvTel")), 40)); d.setRcvTel2(dsCut(poStr(m.get("rcvTel2")), 40));
 					d.setRcvItemCd(dsCut(poStr(m.get("rcvItemCd")), 30));
 					d.setDsRound(dsCut(poStr(m.get("dsRound")), 20));   // 차수 「10월 1차」 (2026-10-27)
+					/* DC·서비스·영세·거래구분·비고 (2026-10-27 판매등록 그리드와 같게) — 빈 값은 NULL/기본 */
+					String dcS = poStr(m.get("dsDcAmt")); if (!dcS.isEmpty()) { double dcv = poNum(dcS); if (dcv < 0) { bad++; continue; } d.setDsDcAmt(Double.valueOf(dcv)); }
+					String svS = poStr(m.get("dsSvcQty")); if (!svS.isEmpty()) { double svv = poNum(svS); if (svv < 0 || svv != Math.floor(svv)) { bad++; continue; } d.setDsSvcQty(Integer.valueOf((int) svv)); }
+					d.setDsZeroYn("Y".equals(poStr(m.get("dsZeroYn"))) ? "Y" : "N"); d.setDsTrxGb("반품".equals(poStr(m.get("dsTrxGb"))) ? "반품" : "판매"); d.setDsMemo(dsCut(poStr(m.get("dsMemo")), 200));
+					String vtS = poStr(m.get("dsVatAmt")); if (!vtS.isEmpty()) { double vtv = poNum(vtS); if (vtv < 0) { bad++; continue; } d.setDsVatAmt(Double.valueOf(vtv)); }   /* 손 부가세 (2026-10-27) */
 					/* 택배비(운임) — 빈 칸이면 저장하지 않는다(NULL). 엑셀의 운임 칸으로 나가는 값이고 매출·재고와는 무관하다 */
 					String fs = poStr(m.get("fee"));
 					if (!fs.isEmpty()) { double fd = poNum(fs); if (fd < 0 || fd > 100000000) { bad++; continue; } d.setRcvFee(Integer.valueOf((int) Math.round(fd))); }
@@ -1823,6 +1828,7 @@ public class UserController {
 				if (miss != null) { res.put("error", miss); return res; }
 				if (!force) { int dup = svc.countDsPoDup(rows, compCd); if (dup > 0) { res.put("dup", Integer.valueOf(dup)); return res; } }
 				int n = svc.saveDsPo(rows, u, ip, compCd);
+				svc.syncDsFeeRows(dates, u, ip, compCd);   // 택배비(로젠) 줄 (2026-10-27) — 매출에만, 재고 원장은 뺀다
 				String warn = dcResync(dates, u, ip);   // 그 날짜들의 출고 원장을 다시 만들어 재고에서 뺀다
 				res.put("cnt", Integer.valueOf(n)); if (warn != null) res.put("warn", warn);
 			} catch (Exception e) { log.error(" daesangPoSave ERROR : " + e.getMessage()); res.put("error", dsErr(e, "저장하지 못했습니다")); }
@@ -1844,6 +1850,7 @@ public class UserController {
 				java.util.List<String> ds = svc.deleteDsPo(ids, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")));
 				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
 				for (String d : ds) if (d != null && d.matches("[0-9]{8}")) dates.add(d);
+				svc.syncDsFeeRows(dates, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")));   // 택배비(로젠) 줄 다시 (2026-10-27)
 				String warn = dcResync(dates, u, request.getRemoteAddr());
 				res.put("cnt", Integer.valueOf(ds.size())); if (warn != null) res.put("warn", warn);
 			} catch (Exception e) { log.error(" daesangPoDelete ERROR : " + e.getMessage()); res.put("error", dsErr(e, "삭제하지 못했습니다")); }
@@ -1865,6 +1872,7 @@ public class UserController {
 				v.put("rcvTel", dsCut(poStr(p.get("rcvTel")), 40)); v.put("rcvTel2", dsCut(poStr(p.get("rcvTel2")), 40));
 				v.put("rcvItemCd", dsCut(poStr(p.get("rcvItemCd")), 30)); v.put("itemNm", dsCut(poStr(p.get("itemNm")), 200));
 				v.put("dsRound", dsCut(poStr(p.get("dsRound")), 20));   // 차수 (2026-10-27)
+				v.put("dsMemo", dsCut(poStr(p.get("dsMemo")), 200)); v.put("dsDcAmt", poStr(p.get("dsDcAmt"))); v.put("dsZeroYn", poStr(p.get("dsZeroYn"))); v.put("dsVatAmt", poStr(p.get("dsVatAmt")));   // DC·영세·비고·부가세 (2026-10-27)
 				int n = svc.updateDsPoInfo(seq, v, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")));
 				if (n == 0) { res.put("error", "저장된 줄을 찾을 수 없습니다(다른 곳에서 지웠거나 고쳤을 수 있습니다) — [조회]로 새로 읽으세요."); return res; }
 				res.put("cnt", Integer.valueOf(n));
@@ -1896,9 +1904,28 @@ public class UserController {
 				if (ds == null) { res.put("error", "복구할 줄을 찾을 수 없습니다(이미 복구됐거나 다른 곳에서 바뀌었을 수 있습니다) — 이력을 다시 읽으세요."); return res; }
 				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
 				for (String d : ds) if (d != null && d.matches("[0-9]{8}")) dates.add(d);
+				svc.syncDsFeeRows(dates, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")));   // 택배비(로젠) 줄 다시 (2026-10-27)
 				String warn = dcResync(dates, u, request.getRemoteAddr());
 				res.put("cnt", Integer.valueOf(1)); if (warn != null) res.put("warn", warn);
 			} catch (Exception e) { log.error(" daesangPoRestore ERROR : " + e.getMessage()); res.put("error", dsErr(e, "복구하지 못했습니다")); }
+			return res;
+		}
+		/* 택배비(로젠) 줄 다시 만들기 — {frDt, toDt} 기간의 날짜마다 syncDsFeeRows + 재고 원장 (2026-10-27). 화면 [🚚 택배비 다시 계산] 끝에 부른다 — 아무 줄도 안 바뀐 날(옛 저장분)에도 줄이 생기게 */
+		@RequestMapping(value="/shipout/daesangFeeSync.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> daesangFeeSync(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", compCd); q.put("frDt", poStr(p.get("frDt"))); q.put("toDt", poStr(p.get("toDt")));
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
+				for (Map<String,Object> r : svc.selectDsPoList(q)) { String d = poStr(r.get("dlvDt")); if (d.matches("[0-9]{8}")) dates.add(d); }
+				int made = svc.syncDsFeeRows(dates, u, request.getRemoteAddr(), compCd);
+				String warn = dcResync(dates, u, request.getRemoteAddr());
+				res.put("cnt", Integer.valueOf(made)); res.put("days", Integer.valueOf(dates.size())); if (warn != null) res.put("warn", warn);
+			} catch (Exception e) { log.error(" daesangFeeSync ERROR : " + e.getMessage()); res.put("error", dsErr(e, "택배비 줄을 만들지 못했습니다")); }
 			return res;
 		}
 		/* ★대상 단가표 저장 (2026-10-27) — {rows:[{prodCd, baseQty, basePrice, underPrice, remark, sortOrd, useYn}]} · 품목코드는 마스터(상품코드·매칭코드)에 있어야 한다 */
@@ -1980,10 +2007,13 @@ public class UserController {
 				java.util.LinkedHashSet<String> ic = new java.util.LinkedHashSet<String>(); ic.add(itemCd);
 				String miss = tdMissingCodes(new java.util.LinkedHashSet<String>(), ic, compCd);
 				if (miss != null) { res.put("error", miss); return res; }
-				java.util.List<String> ds = svc.updateDsPoRow(seq, dlv, itemCd, (int) qd, price, u, request.getRemoteAddr(), compCd);
+				Integer svcQ = null; String svS = poStr(p.get("dsSvcQty")); if (!svS.isEmpty()) { double svv = poNum(svS); if (svv < 0 || svv != Math.floor(svv)) { res.put("error", "서비스 수량은 0 이상의 정수로 넣으세요."); return res; } svcQ = Integer.valueOf((int) svv); }
+				String trxG = poStr(p.get("dsTrxGb")); if (trxG.isEmpty()) trxG = null;   /* 서비스·거래구분 (2026-10-27) — 안 보내면 옛 값 */
+				java.util.List<String> ds = svc.updateDsPoRow(seq, dlv, itemCd, (int) qd, price, svcQ, trxG, u, request.getRemoteAddr(), compCd);
 				if (ds == null) { res.put("error", "저장된 줄을 찾을 수 없습니다(다른 곳에서 지웠거나 고쳤을 수 있습니다) — [조회]로 새로 읽으세요."); return res; }
 				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
 				for (String d : ds) if (d != null && d.matches("[0-9]{8}")) dates.add(d);
+				svc.syncDsFeeRows(dates, u, request.getRemoteAddr(), compCd);   // 택배비(로젠) 줄 다시 (2026-10-27)
 				String warn = dcResync(dates, u, request.getRemoteAddr());
 				res.put("cnt", Integer.valueOf(ds.isEmpty() ? 0 : 1)); if (warn != null) res.put("warn", warn);
 			} catch (Exception e) { log.error(" daesangPoRow ERROR : " + e.getMessage()); res.put("error", dsErr(e, "고치지 못했습니다")); }

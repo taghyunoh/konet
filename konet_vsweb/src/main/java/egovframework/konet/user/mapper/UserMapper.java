@@ -281,6 +281,8 @@ public interface UserMapper {
 	java.util.List<java.util.Map<String,Object>> selectDsPoHist(java.util.Map<String,Object> p) throws Exception;      // 2026-10-27 이력(N·D)
 	java.util.Map<String,Object> selectDsPoHistRow(java.util.Map<String,Object> p) throws Exception;
 	int restoreDsPo(java.util.Map<String,Object> p) throws Exception;
+	int deleteDsFeeRows(java.util.Map<String,Object> p) throws Exception;   // 2026-10-27 대상 택배비(로젠) 줄
+	int updateDsFeeProd(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectTdPoRow(java.util.Map<String,Object> p) throws Exception;                          // 2026-09-22 반품 = 수정 — 고치기 전 값
 	int updateTdPoRow(java.util.Map<String,Object> p) throws Exception;                                                   // 2026-09-22 반품 = 수정 — 수량·판매가
 	// 견적서 관리 (2026-09-17) — TBL_QUOTE_MST/DTL
