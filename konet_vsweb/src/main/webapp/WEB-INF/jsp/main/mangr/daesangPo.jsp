@@ -338,6 +338,10 @@ function feeNum(x){ return (x.fee===''||x.fee==null) ? '' : n(x.fee); }   /* 비
        손으로 고친 받는 사람은 자동 계산을 멈춘다(박스가 여러 개라 3 × 4,000 처럼 매기는 경우 — 실제 마감 엑셀에 있다). 비우면 다시 자동.
    · 근거 = 「대상급식 마감.xlsx」 2026-09·10월 시트(실제로 매긴 단가·택배비 줄)와 견적서 0310-1. */
 var DS_FEE=4000, DS_FREE=30000, DS_JEJU=3000;
+/* 택배비 부가세 = 10% (2026-10-27 사용자 「택배비 4,000 에 부가세 400 이 반영 안 됨 — 택배 포함 판매금액은 490,050」) — 택배비 칸 값은 부가세 별도(4,000) 그대로 두고,
+   합계 줄 「택배 포함」·요약줄·마감 엑셀 택배비(로젠) 줄의 판매금액에서만 부가세를 더한다. 서버 택배비(로젠) 매출 줄은 수량 × 4,000(공급가)이라 그대로 */
+function feeVat(f){ return Math.round(n(f)*0.1); }
+function feeTot(f){ return n(f)+feeVat(f); }
 var _dsPrice={}, _dsPriceList=[], _rounds=[], _spec={}, _tax={}, _priceErr='', _roundTouched=false;
 /* 공급가·부가세·판매금액 (2026-10-27 사용자 「판매등록 그리드처럼 세부로」) — 공급가 = 수량 × 단가 · 부가세 = 과세 품목 10%(면세 0) · 판매금액 = 공급가 + 부가세. 매칭코드면 주코드의 과세 구분 */
 function taxOf(cd){ cd=String(cd||''); return _tax[cd]||_tax[_main[cd]]||'과세'; }
@@ -379,7 +383,7 @@ function sumRowHtml(label, g, cols){
   return '<tr class="sum"><td colspan="'+cols.lead+'" class="l" style="text-align:right">'+esc(label)+' <span class="dim" style="font-weight:600">· 받는 사람 '+g.people+'곳 · '+g.n+'줄</span></td>'
     +'<td class="r">'+fmt(g.qty)+'</td><td class="r">'+fmt(g.fee)+'</td>'+(cols.mid?'<td colspan="'+cols.mid+'"></td>':'')
     +'<td class="r">'+fmt(g.gross)+'</td><td class="r">'+fmt(g.dc)+'</td><td class="r">'+fmt(g.amt)+'</td><td class="r">'+fmt(g.vat)+'</td>'
-    +'<td class="r">'+fmt(g.amt+g.vat)+(g.fee?'<span class="feeg pay" title="판매금액 + 택배비 '+fmt(g.fee)+' (택배비는 부가세 별도)">택배 포함 '+fmt(g.amt+g.vat+g.fee)+'</span>':'')+'</td>'
+    +'<td class="r">'+fmt(g.amt+g.vat)+(g.fee?'<span class="feeg pay" title="판매금액 + 택배비 '+fmt(g.fee)+' + 택배비 부가세 '+fmt(feeVat(g.fee))+' (택배비도 부가세 10%)">택배 포함 '+fmt(g.amt+g.vat+feeTot(g.fee))+'</span>':'')+'</td>'
     +'<td class="r">'+(g.svc?fmt(g.svc):'')+'</td><td colspan="3"></td>'+(cols.tail?'<td colspan="'+cols.tail+'"></td>':'')+'</tr>';
 }
 function withSums(rows, keyOf, labelOf, acc, rowHtml, cols){
@@ -611,7 +615,7 @@ function pvInfo(){
   var sel=_pv.filter(function(x){ return x.chk; }), rdy=sel.filter(rowReady), unk=rdy.filter(function(x){ return _prod[x.itemCd]==null; }).length;
   var q=0, amt=0, vat=0, fee=0; rdy.forEach(function(x){ var c=dsCalc(x,'pv'); q+=n(x.qty)*c.sign; amt+=c.sup*c.sign; vat+=c.vat*c.sign; }); sel.forEach(function(x){ fee+=n(x.fee); });
   document.getElementById('pvInfo').textContent=_pv.length ? ('올린 줄 '+_pv.length+' · 선택 '+sel.length+' · 저장 가능 '+(rdy.length-unk)
-    +(sel.length-rdy.length?' · 빠진 값이 있는 줄 '+(sel.length-rdy.length):'')+(unk?' · 마스터에 없는 코드 '+unk+'줄(저장 막힘)':'')+' · 수량 '+fmt(q)+' · 공급가 '+fmt(amt)+' · 부가세 '+fmt(vat)+' · 판매금액 '+fmt(amt+vat)+'원 · 택배비 '+fmt(fee)+'원') : '';
+    +(sel.length-rdy.length?' · 빠진 값이 있는 줄 '+(sel.length-rdy.length):'')+(unk?' · 마스터에 없는 코드 '+unk+'줄(저장 막힘)':'')+' · 수량 '+fmt(q)+' · 공급가 '+fmt(amt)+' · 부가세 '+fmt(vat)+' · 판매금액 '+fmt(amt+vat)+'원 · 택배비 '+fmt(fee)+'원(부가세 포함 '+fmt(feeTot(fee))+') · 택배 포함 '+fmt(amt+vat+feeTot(fee))+'원') : '';
   var a=document.getElementById('pvAll'); if(a) a.checked=_pv.length>0 && _pv.every(function(x){ return x.chk; });
 }
 /* 다시 그리기 — 칸을 벗어난 뒤(다음 칸으로 옮겨 간 뒤)에 그리고, 옮겨 간 칸을 다시 잡는다(Tab 으로 이어 칠 수 있게) */
@@ -774,7 +778,7 @@ function lsRender(){
   lsInfoUpd();
 }
 function lsInfoUpd(){ var q=0, amt=0, vat=0, fee=0; _ls.forEach(function(x){ var c=dsCalc(x,'ls'); q+=n(x.qty)*c.sign; amt+=c.sup*c.sign; vat+=c.vat*c.sign; fee+=n(x.fee); });
-  document.getElementById('lsInfo').textContent=_ls.length+'줄 · 수량 '+fmt(q)+' · 공급가 '+fmt(amt)+' · 부가세 '+fmt(vat)+' · 판매금액 '+fmt(amt+vat)+'원 · 택배비 '+fmt(fee)+'원'; }
+  document.getElementById('lsInfo').textContent=_ls.length+'줄 · 수량 '+fmt(q)+' · 공급가 '+fmt(amt)+' · 부가세 '+fmt(vat)+' · 판매금액 '+fmt(amt+vat)+'원 · 택배비 '+fmt(fee)+'원(부가세 포함 '+fmt(feeTot(fee))+') · 택배 포함 '+fmt(amt+vat+feeTot(fee))+'원'; }
 /* 저장 목록의 글자 칸(받는 사람·주소·전화 1·2·제품코드·제품명) — 고치면 그 줄만 바로 저장한다(/shipout/daesangPoInfo.do).
      매출·재고와 무관한 칸이라 확인창 없이 저장하고 알림만 띄운다. 실패하면 옛 값으로 되돌린다. 바꾸지 않은 칸은 지금 값을 그대로 보낸다 */
 function lsInfo(i, fld, el){
@@ -904,7 +908,7 @@ function lsRoundAll(){
    맨 위 [매출장] · 조회기간 · VAT 별도 · 오른쪽 위 = 택배비 건수(I1)·합계(J1) (사용자 「표시 제거하지 말아주세요」 — 그대로 둠) / 칸 = 일자 · 출고점 · 상품명 · 규격 · 수량 · 단가 · 금액
    · 일자 칸 = 「2026-09-28 10월 1차」 — 같은 차수의 줄은 위아래로 합친다. 출고점 칸 = 받는 사람 — 그 사람의 줄(택배비 줄 포함)을 합친다.
    · 상품명·규격 = 우리 상품코드의 이름·규격(대상 제품명이 아니다 — 실제 마감 엑셀이 그렇다). 매칭코드면 그 주코드의 것.
-   · 받는 사람마다 택배비가 있으면 그 사람 줄 밑에 「택배비(로젠) 수량 × 4,000」 한 줄(4,000 의 배수면 수량으로 — 3 × 4,000 = 12,000).
+   · 받는 사람마다 택배비가 있으면 그 사람 줄 밑에 「택배비(로젠) 수량 × 4,000」 한 줄(4,000 의 배수면 수량으로 — 3 × 4,000 = 12,000). 판매금액 = 택배비 × 1.1(부가세 10% · 2026-10-27).
    · 금액 = 수량 × 단가(엑셀 식) · 맨 아래 합 계(식). 범위 = 지금 조회한 기간의 줄 전부(체크와 무관). */
 function dsCloseXls(){
   if(!window.XLSX){ err('엑셀 도구를 불러오지 못했습니다 — 화면을 새로 고친 뒤 다시 해 보세요.'); return; }
@@ -928,12 +932,12 @@ function dsCloseXls(){
   rounds.forEach(function(R){ var r0=aoa.length;
     R.people.forEach(function(P){ var p0=aoa.length;
       P.rows.forEach(function(x){ aoa.push(['', '', nmOf(x.itemCd, x.itemNm), spOf(x.itemCd), n(x.qty)*(x.dsTrxGb==='반품'?-1:1), (x.salePrice==null||x.salePrice==='')?'':n(x.salePrice), (function(c){ return c.tot*c.sign; })(dsCalc(x,'ls'))]); });   /* 반품은 수량 음수 · 판매금액은 음수 (2026-10-27) */
-      if(P.fee>0){ var fq=(P.fee%DS_FEE===0)?P.fee/DS_FEE:1, fu=(P.fee%DS_FEE===0)?DS_FEE:P.fee; aoa.push(['', '', FEE_NM, '', fq, fu, P.fee]); feeQty+=fq; feeSum+=P.fee; }
+      if(P.fee>0){ var fq=(P.fee%DS_FEE===0)?P.fee/DS_FEE:1, fu=(P.fee%DS_FEE===0)?DS_FEE:P.fee; aoa.push(['', '', FEE_NM, '', fq, fu, feeTot(P.fee)]); feeQty+=fq; feeSum+=feeTot(P.fee); }   /* 판매금액 = 택배비 + 부가세 10% (G 열은 VAT 포함 · 2026-10-27) */
       aoa[p0][1]=P.nm; if(aoa.length-1>p0) merges.push({ s:{r:p0,c:1}, e:{r:aoa.length-1,c:1} }); });
     aoa[r0][0]=R.dt+(R.rd?' '+R.rd:''); if(aoa.length-1>r0) merges.push({ s:{r:r0,c:0}, e:{r:aoa.length-1,c:0} }); });
   var last=aoa.length;   /* 엑셀 줄 번호(1부터) = 마지막 자료 줄 */
   aoa.push(['합 계','','','','',null,null]); merges.push({ s:{r:last,c:0}, e:{r:last,c:1} });
-  aoa[0][8]=feeQty+'건'; aoa[0][9]=feeSum;
+  aoa[0][8]=feeQty+'건'; aoa[0][9]=feeSum;   /* 택배비 합계 = 부가세 포함(G 열과 같은 기준) */
   var ws=XLSX.utils.aoa_to_sheet(aoa);
   var L={ style:'thin', color:{ rgb:'000000' } }, BX={ top:L, bottom:L, left:L, right:L };
   var st=function(ref, s){ if(!ws[ref]) ws[ref]={ t:'s', v:'' }; ws[ref].s=s; };
@@ -965,7 +969,7 @@ function dsCloseXls(){
   var sheet=yy+('0'+mm).slice(-2);
   var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, sheet);
   XLSX.writeFile(wb, '대상급식_마감_'+sheet+'.xlsx');
-  if(window._toast) _toast('📑 마감 엑셀 — '+sheet+' · '+rows.length+'줄 · 택배비 '+feeQty+'건 '+fmt(feeSum)+'원','ok');
+  if(window._toast) _toast('📑 마감 엑셀 — '+sheet+' · '+rows.length+'줄 · 택배비 '+feeQty+'건 '+fmt(feeSum)+'원(부가세 포함)','ok');
   if(noRnd) err('차수가 빈 줄 <b>'+noRnd+'</b>개는 일자 칸에 날짜만 찍혔습니다.<br><span style="font-size:13px">목록의 「차수」 칸에 넣고 다시 만들면 됩니다.</span>');
 }
 

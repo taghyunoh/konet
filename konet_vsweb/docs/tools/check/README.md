@@ -16,7 +16,7 @@
 cd docs/tools/check && javac -encoding UTF-8 -nowarn -cp "D:/egv/Servers/konet_vsweb-vscode/lib/*;../../../target/classes" MapperParse.java && java -cp "D:/egv/Servers/konet_vsweb-vscode/lib/*;../../../target/classes;." MapperParse selectPipelinePo insertSalesTrxMst
 ```
 
-⚠jsdom 은 이 저장소에 깔려 있지 않다 — 시뮬은 `C:/Users/user/git/winn/wnn_medcost/docs/tools/sim/node_modules/jsdom` 을 빌려 쓴다.
+⚠jsdom 은 이 저장소에 깔려 있지 않다 — 시뮬은 `C:/Users/user/git/winn/wnn_medcost/docs/tools/sim/node_modules/jsdom` 을 빌려 쓴다. 그 폴더가 없는 PC(HYUN)에서는 `cd %TEMP%/konet_chk && npm i jsdom@22` 한 번 뒤 `NODE_PATH=%TEMP%/konet_chk/node_modules node docs/tools/sim/<파일>.js` 로(2026-10-27).
 ⚠jsdom 에서 `onclick="…"` 속성을 실행하려면 `runScripts: 'dangerously'` 여야 한다(`'outside-only'` 면 눌러도 아무 일이 없어 「단계를 눌러도 목록이 안 뜬다」로 오판한다).
 ⚠`sqlof.js` 로 만든 SQL 이 `WITH` 로 시작하면 그대로 넘긴다 — `SELECT … FROM ( … ) z` 로 감싸면 CTE 문법 오류가 난다.
 | `mapper_audit.js` | ① `count` 모든 INSERT 의 **칸 수 = 값 수** ② `diff <옛.xml>` 옛 판과 문장 단위로 견주어 **바뀐 문장 id** 목록 — javac·XML·MyBatis 파싱이 못 잡는 것을 잡는다 | `node docs/tools/check/mapper_audit.js count` |
