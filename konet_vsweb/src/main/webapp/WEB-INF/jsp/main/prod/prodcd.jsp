@@ -3014,7 +3014,7 @@ function pcStopSend(url, body, okMsg){
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
         <button class="btn btn-teal" onclick="ctPickFiles()" title="삼성웰스토리가 준 계약 엑셀(xlsx) — 여러 개를 함께 고를 수 있고, 다시 누르면 더 붙입니다. 품목코드 · 품명 · 단위 · 계약단가 · 납품기간(From/To)을 읽습니다">📂 계약파일 선택</button>
         <input type="file" id="ctFi" accept=".xlsx,.xls" multiple style="display:none" onchange="ctFile(this.files); this.value=''">
-        <span style="font-size:11.5px;color:#6b7a89" title="파일 창에서 Ctrl 을 누른 채 누르면 하나씩 더 골라지고, Shift 를 누른 채 누르면 사이에 있는 파일이 한꺼번에 골라집니다">여러 개 : 파일 창에서 <b>Ctrl</b>·<b>Shift</b>+클릭 · 또는 이 창에 <b>끌어다 놓기</b></span>
+        <span style="font-size:11.5px;color:#6b7a89" title="파일 창에서 Ctrl 을 누른 채 파일을 하나씩 누르면 여러 개가 골라집니다">여러 개 : 파일 창에서 <b>Ctrl + 클릭</b> · 또는 이 창에 <b>끌어다 놓기</b></span>
         <span id="ctFn" style="font-size:12.5px;color:#37475a;font-weight:700"></span>
         <span id="ctMsg" style="font-size:12.5px;color:#37475a"></span>
         <button class="btn" style="margin-left:auto" onclick="ctReset()" title="올린 엑셀 미리보기를 비웁니다(저장된 계약은 그대로)">비우기</button>
