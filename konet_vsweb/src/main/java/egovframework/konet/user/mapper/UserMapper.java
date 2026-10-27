@@ -274,6 +274,13 @@ public interface UserMapper {
 	int selectDsPoDup(java.util.Map<String,Object> p) throws Exception;
 	int updateDsPoFee(java.util.Map<String,Object> p) throws Exception;
 	int updateDsPoInfo(java.util.Map<String,Object> p) throws Exception;   // 배송 정보·제품명 제자리에서   // 택배비만 제자리에서
+	java.util.List<java.util.Map<String,Object>> selectDsPriceList(java.util.Map<String,Object> p) throws Exception;   // 2026-10-27 대상 단가표
+	int mergeDsPrice(java.util.Map<String,Object> p) throws Exception;
+	int deleteDsPrice(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDsRounds(java.util.Map<String,Object> p) throws Exception;      // 2026-10-27 차수 목록
+	java.util.List<java.util.Map<String,Object>> selectDsPoHist(java.util.Map<String,Object> p) throws Exception;      // 2026-10-27 이력(N·D)
+	java.util.Map<String,Object> selectDsPoHistRow(java.util.Map<String,Object> p) throws Exception;
+	int restoreDsPo(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectTdPoRow(java.util.Map<String,Object> p) throws Exception;                          // 2026-09-22 반품 = 수정 — 고치기 전 값
 	int updateTdPoRow(java.util.Map<String,Object> p) throws Exception;                                                   // 2026-09-22 반품 = 수정 — 수량·판매가
 	// 견적서 관리 (2026-09-17) — TBL_QUOTE_MST/DTL

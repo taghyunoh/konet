@@ -335,12 +335,14 @@ function shUpBuild(){
   _upMap = {};
   _view.forEach(function(o){
     var k=shUpKey(o), g=_upMap[k];
-    if(!g){ g=_upMap[k]={ n:0, live:0, hist:0, rowCnt:0, qtySum:0, jobMax:0, dcs:[], _seen:{},
+    if(!g){ g=_upMap[k]={ n:0, live:0, hist:0, rowCnt:0, qtySum:0, bizSum:0, itemSum:0, users:[], jobMax:0, dcs:[], _seen:{},
                           // 날짜+분까지 — 출고일자 머리줄(▣)과 업로드 날짜가 다를 수 있어 시각만으로는 헷갈린다(2026-08-03)
                           file:String(o.srcFile||''), hm:String(o.uploadDttm||'').slice(0,16) }; }
     var dc=String(o.dcNm||o.dcCd||'미지정').replace(/\s+/g,'').replace(/(물류)?센터$/,'');   // '용인물류센터'→'용인'
     if(!g._seen[dc]){ g._seen[dc]=1; g.dcs.push(dc); }
     g.n++; g.rowCnt+=n(o.rowCnt); g.qtySum+=n(o.qtySum);
+    g.bizSum+=n(o.bizCnt); g.itemSum+=n(o.itemCnt);                                   // 사업장·품목 = 출고장별 수의 합(겹치면 두 번 셈 — 머리줄 title 에 적음, 2026-10-27)
+    var u=String(o.regUser||'').trim(); if(u && g.users.indexOf(u)<0) g.users.push(u);   // 올린 사람 — 보통 한 사람
     if(o.actionYn==='Y') g.live++; else g.hist++;
     if(n(o.jobSeq)>g.jobMax) g.jobMax=n(o.jobSeq);
   });
@@ -358,8 +360,9 @@ function shUpRow(k){
        + '<td colspan="4"><span class="car">'+(col?'▶':'▼')+'</span> 📦 출고장 <b>'+g.dcs.length+'곳</b>'
        + ' <span style="color:#5a6b7a;font-weight:600">'+esc(g.dcs.join('·'))+'</span></td>'
        + '<td>'+st+'</td>'
-       + '<td>'+fmtUp(g.hm)+'</td><td></td>'
-       + '<td class="num">'+fmt(g.rowCnt)+'</td><td class="num"></td><td class="num"></td>'
+       /* 묶음 머리줄의 올린 사람·사업장·품목 — 처음엔 비워 뒀다(2026-10-27 사용자 「블랭크로 된 내역은 왜 이런 거죠」). 올린 사람은 그대로, 사업장·품목은 출고장별 수의 합 */
+       + '<td>'+fmtUp(g.hm)+'</td><td>'+esc(g.users.join('·'))+'</td>'
+       + '<td class="num">'+fmt(g.rowCnt)+'</td><td class="num" title="출고장별 사업장 수의 합 — 여러 출고장에 걸친 사업장은 두 번 셉니다">'+fmt(g.bizSum)+'</td><td class="num" title="출고장별 품목 수의 합 — 여러 출고장에 걸친 품목은 두 번 셉니다">'+fmt(g.itemSum)+'</td>'
        + '<td class="num">'+fmt(g.qtySum)+'</td>'
        + '<td class="txt" style="color:#6b7a89">'+esc(g.file)+'</td></tr>';
 }

@@ -120,6 +120,12 @@ public interface UserService {
 	java.util.List<String> updateDsPoRow(long seq, String dlvDt, String itemCd, int qty, Double salePrice, String user, String ip, String compCd) throws Exception;
 	int updateDsPoFee(long seq, Integer fee, String user, String ip, String compCd) throws Exception;
 	int updateDsPoInfo(long seq, java.util.Map<String,Object> v, String user, String ip, String compCd) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDsPriceList(String compCd) throws Exception;   // 2026-10-27 대상 단가표
+	int saveDsPrice(java.util.List<java.util.Map<String,Object>> rows, String user, String compCd) throws Exception;
+	int deleteDsPrice(String prodCd, String compCd) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDsRounds(String compCd) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDsPoHist(java.util.Map<String,Object> p) throws Exception;   // 2026-10-27 이력 조회
+	java.util.List<String> restoreDsPo(long seq, String user, String ip, String compCd) throws Exception;            // 복구 — 돌려주는 값 = 재고 다시 맞출 날짜(없으면 null = 줄 없음)
 	java.util.Map<String,Object> saveExpenseCopy(String fromYm, String toYm, boolean overwrite, String user, String ip, String compCd) throws Exception;   // 비용 등록 : 한 달을 다른 달로 복사(2026-09-21)
 	int deleteProd(egovframework.konet.user.model.ProdDTO dto) throws Exception;
 	java.util.List<egovframework.konet.user.model.ProdDTO> selectProdDeletedList(egovframework.konet.user.model.ProdDTO dto) throws Exception;   // 삭제한 상품(ACTION_YN='N') 목록

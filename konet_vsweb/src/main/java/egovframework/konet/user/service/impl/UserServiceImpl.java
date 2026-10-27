@@ -1610,6 +1610,7 @@ public class UserServiceImpl implements UserService {
 				pp.put("rcvNm", scStr(r.getRcvNm())); pp.put("rcvAddr", scStr(r.getRcvAddr())); pp.put("rcvTel", scStr(r.getRcvTel()));
 				pp.put("rcvTel2", scStr(r.getRcvTel2())); pp.put("rcvItemCd", scStr(r.getRcvItemCd()));
 				pp.put("rcvFee", r.getRcvFee());   // 택배비(운임) — 빈 값이면 NULL
+				pp.put("dsRound", scStr(r.getDsRound()));   // 차수 (2026-10-27)
 				mapper.updateDsPoExtra(pp);
 			}
 			egovframework.konet.user.model.ProdXrefDTO rx = new egovframework.konet.user.model.ProdXrefDTO();
@@ -1640,9 +1641,68 @@ public class UserServiceImpl implements UserService {
 	/* 대상 발주 — 저장된 한 줄의 배송 정보·제품명·대상 제품코드 고치기 (2026-10-02 「저장내용 수정기능」). 글자 칸이라 제자리에서 고친다. 돌려주는 값 = 고친 줄 수 */
 	@Override public int updateDsPoInfo(long seq, java.util.Map<String,Object> v, String user, String ip, String compCd) throws Exception {
 		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
-		for (String k : new String[]{ "rcvNm", "rcvAddr", "rcvTel", "rcvTel2", "rcvItemCd", "itemNm" }) p.put(k, scStr(v.get(k)));
+		for (String k : new String[]{ "rcvNm", "rcvAddr", "rcvTel", "rcvTel2", "rcvItemCd", "itemNm", "dsRound" }) p.put(k, scStr(v.get(k)));
 		p.put("compCd", compCd); p.put("seq", seq); p.put("regUser", user); p.put("regIp", ip);
 		return mapper.updateDsPoInfo(p);
+	}
+	/* ★대상 단가표 (2026-10-27) — 품목코드마다 기본 수량·이상 단가·미만 단가. 화면이 줄째로 보낸다(한 줄씩 MERGE). 돌려주는 값 = 저장한 줄 수 */
+	@Override public java.util.List<java.util.Map<String,Object>> selectDsPriceList(String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd);
+		return mapper.selectDsPriceList(p);
+	}
+	@Override public int saveDsPrice(java.util.List<java.util.Map<String,Object>> rows, String user, String compCd) throws Exception {
+		int n = 0; if (rows == null) return 0;
+		for (java.util.Map<String,Object> r : rows) {
+			String cd = scStr(r.get("prodCd")).trim(); if (cd.isEmpty()) continue;
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", compCd); p.put("prodCd", cd.length() > 30 ? cd.substring(0, 30) : cd); p.put("regUser", user);
+			p.put("baseQty", Integer.valueOf((int) Math.max(0, Math.round(scNum(r.get("baseQty"))))));
+			p.put("basePrice", java.math.BigDecimal.valueOf(Math.max(0, scNum(r.get("basePrice")))));
+			String up = scStr(r.get("underPrice")).trim();
+			p.put("underPrice", up.isEmpty() ? null : java.math.BigDecimal.valueOf(Math.max(0, scNum(up))));
+			String rm = scStr(r.get("remark")); p.put("remark", rm.length() > 200 ? rm.substring(0, 200) : rm);
+			p.put("sortOrd", Integer.valueOf((int) Math.round(scNum(r.get("sortOrd")))));
+			p.put("useYn", "N".equals(scStr(r.get("useYn"))) ? "N" : "Y");
+			n += mapper.mergeDsPrice(p) > 0 ? 1 : 0;
+		}
+		return n;
+	}
+	@Override public int deleteDsPrice(String prodCd, String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd); p.put("prodCd", prodCd);
+		return mapper.deleteDsPrice(p);
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectDsRounds(String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd);
+		return mapper.selectDsRounds(p);
+	}
+	/* ★이력 조회·복구 (2026-10-27 사용자 「이력조회 및 복구기능」)
+	   · 이력 = 고쳐서 닫힌 줄(N — updateDsPoRow 가 옛 줄을 닫고 새 줄을 넣는다) · 삭제한 줄(D — deleteDsPo). 배송 정보·택배비·차수 고치기는 제자리라 이력이 없다.
+	   · 복구 = 그 줄을 다시 Y 로. «수정 전» 줄(N)을 되살리면 같은 묶음(ORD_NO+ORD_ITEM_NO)의 지금 살아 있는 줄(고친 결과)을 N 으로 닫는다 — 안 그러면 같은 줄이 둘이 된다.
+	     «삭제» 줄(D)은 그냥 Y 로(살아 있는 짝이 있으면 — 삭제 뒤 같은 표를 다시 올린 경우 — 그대로 두고 둘 다 산다 : 사람이 본다). 돌려주는 값 = 재고 원장을 다시 만들 날짜 */
+	@Override public java.util.List<java.util.Map<String,Object>> selectDsPoHist(java.util.Map<String,Object> p) throws Exception { return mapper.selectDsPoHist(p); }
+	@Override public java.util.List<String> restoreDsPo(long seq, String user, String ip, String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("compCd", compCd); p.put("seq", seq);
+		java.util.Map<String,Object> old = mapper.selectDsPoHistRow(p);
+		if (old == null) return null;
+		java.util.List<String> dates = new java.util.ArrayList<String>();
+		String stamp = new java.text.SimpleDateFormat("MM-dd HH:mm").format(new java.util.Date());
+		if ("N".equals(scStr(old.get("actionYn")))) {
+			java.util.Map<String,Object> q = new java.util.HashMap<String,Object>(); q.put("compCd", compCd); q.put("frDt", ""); q.put("toDt", "");
+			/* 지금 살아 있는 짝 — selectDsPoHist 의 liveSeq 와 같은 규칙으로 찾는다 */
+			for (java.util.Map<String,Object> h : mapper.selectDsPoHist(q)) {
+				if (scNum(h.get("seq")) == seq && h.get("liveSeq") != null) {
+					java.util.Map<String,Object> c = new java.util.HashMap<String,Object>();
+					c.put("compCd", compCd); c.put("seq", Long.valueOf(Math.round(scNum(h.get("liveSeq"))))); c.put("actionYn", "N"); c.put("regUser", user); c.put("regIp", ip);
+					java.util.Map<String,Object> live = mapper.selectDsPoRowFull(c);
+					if (live != null) { mapper.closeDsPo(c); dates.add(scStr(live.get("dlvDt"))); }
+					break;
+				}
+			}
+		}
+		p.put("note", " · 복구 " + stamp); p.put("regUser", user); p.put("regIp", ip);
+		if (mapper.restoreDsPo(p) == 0) return null;
+		dates.add(scStr(old.get("dlvDt")));
+		return dates;
 	}
 	/* 대상 발주 — 저장 취소(삭제). 돌려주는 값 = 지운 줄마다 그 납기일자(컨트롤러가 그 날짜들의 재고 원장을 다시 만든다) */
 	@Override public java.util.List<String> deleteDsPo(java.util.List<Long> seqs, String user, String ip, String compCd) throws Exception {
@@ -1691,6 +1751,7 @@ public class UserServiceImpl implements UserService {
 		d.setRcvNm(scStr(old.get("rcvNm"))); d.setRcvAddr(scStr(old.get("rcvAddr"))); d.setRcvTel(scStr(old.get("rcvTel")));
 		d.setRcvTel2(scStr(old.get("rcvTel2"))); d.setRcvItemCd(scStr(old.get("rcvItemCd")));
 		d.setRcvFee(old.get("rcvFee") == null ? null : Integer.valueOf(((Number) old.get("rcvFee")).intValue()));   // 택배비도 새 줄로 가져간다
+		d.setDsRound(scStr(old.get("dsRound")));   // 차수도 (2026-10-27)
 		java.util.List<egovframework.konet.user.model.ShipoutDTO> one = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>(); one.add(d);
 		saveDsPo(one, user, ip, compCd);
 		dates.add(oDt); if (!oDt.equals(dlvDt)) dates.add(dlvDt);

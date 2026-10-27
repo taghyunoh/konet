@@ -8,7 +8,8 @@
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 엑셀 읽기·쓰기 (전역 XLSX) --%>
 <script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20261014"></script>   <%-- 표 높이 막대(판매등록과 같은 공용 파일) --%>
-<script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917"></script>   <%-- 회사 설정(konetSet) — 기본 택배 운임 parcelFeeDef --%>
+<script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917"></script>
+<script src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>   <%-- 단가표·이력 창 제목줄 잡고 끌기 (2026-10-27 「이 내용 클릭해서 움직이게」) — konetPopDrag(덮개, 제목줄) --%>   <%-- 회사 설정(konetSet) — 기본 택배 운임 parcelFeeDef --%>
 <!--
   대상 발주 등록 (2026-10-02 신설 — 사용자 「토더처럼 대상이라는 곳에서 이메일로 엑셀을 캡쳐해서 옵니다(토더는 금액은 있는데 대상은 없습니다, 발주일자도 없고),
     캡쳐를 엑셀로 출력 기능도 있어야 함 · 토더처럼 입력하고 저장하는 스타일로 · 나중에 쌓이면 발주일자만 입력 · 매출관리에 대상발주등록 추가 · 저장 후 취소 기능도 · 매출은 토더처럼 발생하게」)
@@ -39,6 +40,14 @@
      (처음엔 택배 납기관리처럼 화면에서만 쓰는 값이었다.)
     택배 납기관리는 「총수량 × 운임」이지만 대상의 수량은 낱개(ea)라 곱하지 않고 한 줄에 한 번만 넣는다.
   · 같은 표를 두 번 올리면 두 번 들어간다(발주번호가 없다) — 저장 때 같은 줄(날짜·받는 사람·제품명·수량)이 이미 있으면 한 번 더 묻는다.
+  ★★[2026-10-27 사용자 「품목마다 기본수량일 때 단가, 이하일 때 단가 관리 · 받는 사람 하나로 합해서 3만원부터 택배무료 · 미만 4,000원 · 붙여넣기·수동·바로 수정 모두 · 엑셀 일자에 10월 1차」]
+  · 단가 = 대상 단가표(TBL_DS_PRICE, [💲 대상 단가표] 창) — 수량 ≥ 기본 수량 → 이상 단가 · 미만 → 미만 단가(예 1,000개 62원 · 그 미만 67원). 단가표에 없는 품목만 상품코드 판매가.
+    수량을 고치면 단가도 따라 바뀐다(단가 칸 아래 「기본/미만/수동」). 손으로 넣은 단가는 그대로, 비우면 다시 자동. 저장 목록에서 수량·품목을 고칠 때도 같은 규칙(자동 값이었을 때만 바꾼다).
+  · 택배비 = «같은 발주일자·차수·받는 사람»을 합쳐 3만 원부터 0원, 미만 4,000원 — 그 사람 첫 줄에 한 번(나머지 0). 제주는 3,000원 추가. 손으로 넣으면 그 사람은 자동 멈춤(비우면 다시).
+    저장 목록은 [🚚 택배비 다시 계산] 또는 줄을 고친 뒤 자동(lsFeeSync — 3×4,000 처럼 손으로 넣은 묶음은 안 건드림). 종전 「줄마다 4,500 고정」은 없앴다.
+  · 차수(DS_ROUND) = 「10월 1차」 — 마감월 기준(9/28 이 10월 1차). 지난 저장의 다음 차수를 제안(같은 날이면 같은 차수). 줄마다 저장·목록에서 고침.
+  · [📑 마감 엑셀(대상 송부용)] = 「대상급식 마감.xlsx」 월 시트 모양(dsCloseXls) — 일자(차수)·출고점 세로 합침 · 상품명·규격은 우리 상품코드 것 · 택배비 줄 「택배비(로젠) n×4,000」 · 오른쪽 위 건수·합계 · 합계 식.
+  ⛔DDL docs/sql/20261027_daesang_price.sql(단가표 + DS_ROUND 칸 + 씨앗 8품목) 먼저. 자바·매퍼 → 재기동. 시뮬 docs/tools/sim/sim_daesangPo_price.js(33검사).
 -->
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; --red:#c0392b; --amber:#b45309; }
@@ -120,6 +129,35 @@
   table.g th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; border:1px solid #9fb6c3 !important; padding:6px 6px; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3 !important; }
   table.g td{ border:1px solid #c9d3dc !important; }
   table.g tr.tot td, table.g tr.sum td{ background:#fcf8e3 !important; color:#1f2a37; font-weight:800; }
+  /* ★대상 단가표·택배비·차수 (2026-10-27) — 단가 칸 아래 「기본/미만/수동」 · 택배비 칸 아래 받는 사람 합계 */
+  .tier{ display:block; font-size:11px; font-weight:800; margin-top:1px; text-align:right; }
+  .tier.base{ color:#137a6c; } .tier.under{ color:#b45309; } .tier.man{ color:#6b7a89; }
+  .feeg{ display:block; font-size:10.5px; color:#6b7a89; margin-top:1px; text-align:right; white-space:nowrap; }
+  .feeg.free{ color:#137a6c; } .feeg.pay{ color:#b45309; }
+  table.g input.rnd{ width:88px; text-align:center; font-weight:700; color:#2f4f9a; }
+  #round{ height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13px; font-weight:700; color:#2f4f9a; width:110px; }
+  /* 이력·복구 창 */
+  #dhMask{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.38); z-index:9000; }
+  #dhMask.on{ display:flex; align-items:flex-start; justify-content:center; padding-top:4vh; }
+  #dhBox{ background:#fff; border-radius:12px; width:min(1280px,97vw); max-height:78vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.25); }
+  #dhBox .dh{ display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid #eef1f5; font-weight:800; color:#125a4e; font-size:15px; }
+  #dhBox .dh small{ font-weight:600; color:#6b7a89; font-size:12px; }
+  #dhBox .db{ overflow:auto; padding:10px 14px; }
+  #dhBox .df{ display:flex; gap:8px; align-items:center; padding:2px 12px; border-top:1px solid #eef1f5; font-size:10.5px; color:#6b7a89; line-height:1.25; }
+  #dhBox .df .btn{ height:24px; padding:0 9px; font-size:11.5px; }
+  .st{ display:inline-block; font-size:11px; font-weight:800; border-radius:6px; padding:1px 7px; white-space:nowrap; }
+  .st.N{ background:#e8eefb; color:#2f4f9a; } .st.D{ background:#fdecec; color:var(--red); }
+  .st.gone{ background:#eef2f5; color:#6b7a89; }
+  /* 대상 단가표 창 */
+  #dpMask{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.38); z-index:9000; }
+  #dpMask.on{ display:flex; align-items:flex-start; justify-content:center; padding-top:5vh; }
+  #dpBox{ background:#fff; border-radius:12px; width:min(980px,96vw); max-height:88vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.25); }
+  #dpBox .dh{ display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid #eef1f5; font-weight:800; color:#125a4e; font-size:15px; }
+  #dpBox .dh small{ font-weight:600; color:#6b7a89; font-size:12px; }
+  #dpBox .db{ overflow:auto; padding:10px 14px; }
+  #dpBox .df{ display:flex; gap:8px; align-items:center; padding:6px 12px; border-top:1px solid #eef1f5; font-size:12px; }
+  #dpBox table.g input[type=text]{ width:100%; }
+  .dpwarn{ background:#fff7d6; color:#8a5a00; border:1px solid #e9cf7a; border-radius:8px; padding:8px 12px; margin:0 12px 10px; font-size:12.5px; }
 </style>
 </head>
 <body>
@@ -133,8 +171,12 @@
       <button class="btn" onclick="addRow(true)" title="빈 줄을 하나 더합니다 — 캡쳐 그림을 보면서 직접 칠 때">＋ 줄 추가</button>
       <button class="btn btn-red" id="btnClear" onclick="pvClearAsk()" title="화면에 올려 둔 줄과 캡쳐 그림을 모두 비웁니다(저장된 것은 그대로)">🧹 전체 비우기</button>
       <label style="margin-left:8px" title="줄마다 들어가는 발주일자(납품일자) = 출고일자. 줄마다 따로 고칠 수도 있습니다">발주일자(납품일자)</label>
-      <input type="date" id="dt">
-      <button class="btn" onclick="dtAll()" title="위 날짜를 올려 둔 모든 줄에 넣습니다">전체 적용</button>
+      <input type="date" id="dt" onchange="roundAuto()">
+      <%-- ★차수 (2026-10-27 사용자 「엑셀에 일자에 10월 1차 찍어야 하니 관리하게」) — 마감월 기준(9/28 이 10월 1차일 수 있다). 지난 저장을 보고 다음 차수를 제안한다 --%>
+      <label style="margin-left:4px" title="새로 올리는 줄에 들어갈 차수 — 마감 엑셀의 「일자」 칸에 날짜와 함께 찍힙니다(예 10월 1차). 다음 차수를 자동으로 제안하며, 이미 저장된 줄은 아래 목록에서 넣습니다">차수</label>
+      <input type="text" id="round" list="roundList" placeholder="10월 1차" autocomplete="off" oninput="_roundTouched=true">
+      <button class="btn" onclick="dtAll()" title="위 발주일자·차수를 올려 둔 모든 줄에 넣습니다">전체 적용</button>
+      <button class="btn" onclick="dpOpen()" title="품목마다 기본 수량 · 이상 단가 · 미만 단가 — 붙여넣기·직접 입력·저장 뒤 고치기에서 이 표대로 단가가 들어갑니다">💲 대상 단가표</button>
       <label style="margin-left:8px" title="이 발주를 붙일 대상 사업장 — 받는 사람(학교·지점)은 줄마다 배송 정보로만 남습니다">사업장</label>
       <select id="bizSel" onchange="bizSave()"></select>
       <span class="bar" style="margin-left:auto">
@@ -175,15 +217,15 @@
       <table class="g"><thead><tr>
         <%-- 줄 빼기(✕) 칸은 No 앞에 둔다 (2026-10-02 사용자 「취소코드를 NO 앞으로」) — 맨 오른쪽 끝에 있을 때는 표를 옆으로 밀어야 보였다 --%>
         <th><input type="checkbox" id="pvAll" checked onchange="pvAllChk(this)"></th><th title="✕ = 그 줄을 화면에서 뺍니다(저장된 것과는 무관)">빼기</th><th>No</th>
-        <th title="발주일자(납품일자) = 출고일자">발주일자</th><th>받는 사람</th><th>주소</th><th>전화번호1</th><th>전화번호2</th><th>수량(ea)</th><th title="엑셀의 운임 칸으로 나갑니다. 기본 4,500원 — 고칠 수 있고, 비우면 빈 칸으로 나갑니다. [저장]하면 줄마다 같이 저장됩니다">택배비</th>
+        <th title="발주일자(납품일자) = 출고일자">발주일자</th><th title="마감 엑셀의 일자 칸에 찍히는 차수 — 예) 10월 1차">차수</th><th>받는 사람</th><th>주소</th><th>전화번호1</th><th>전화번호2</th><th>수량(ea)</th><th title="받는 사람 한 곳의 금액 합계(부가세 별도)가 3만 원부터 0원, 3만 원 미만이면 4,000원 — 그 사람 첫 줄에 한 번. 손으로 고치면 그 받는 사람은 자동 계산을 멈춥니다(비우면 다시 자동)">택배비</th>
         <th title="대상의 제품코드(메일 표에 적힌 값 그대로)">제품코드</th>
         <%-- 품목코드를 제품명 앞에 (2026-10-02 사용자 「품목코드가 제품명 앞으로 오게」) — 아래 저장 목록도 같은 차례 --%>
         <th title="우리 품목코드(상품코드) — 한 번 넣으면 같은 제품명의 빈 칸에 같이 들어가고, 저장하면 다음부터 자동">품목코드</th>
         <th title="대상의 제품명(메일 표에 적힌 값 그대로) — 이 이름으로 품목코드를 기억합니다">제품명</th>
-        <th title="품목코드를 고르면 상품코드의 판매가가 들어갑니다. 고칠 수 있습니다">단가</th><th title="수량 × 단가" style="min-width:110px">금액</th></tr></thead>
+        <th title="대상 단가표에 있는 품목은 수량이 기본 수량 이상이면 이상 단가, 미만이면 미만 단가(없는 품목은 상품코드 판매가). 고칠 수 있습니다(수동)">단가</th><th title="수량 × 단가" style="min-width:110px">금액</th></tr></thead>
         <tbody id="pvBody"></tbody></table>
     </div>
-    <div class="note" id="pvNote" style="display:none">· 모든 칸을 고칠 수 있습니다 · 주황 칸(품목코드) = 넣어야 하는 칸 · 파랑 = 지난 저장에서 자동으로 채운 값 · 초록 = 마스터에 있는 코드 · 노랑 = 마스터에 없는 코드(<b>저장 안 됨</b>) 또는 빠진 값 · 발주일자·품목코드·수량이 든 줄만 저장됩니다 · 저장 = 출고·매출(수량 × 단가) + 재고 차감 · 저장한 뒤에도 아래 목록에서 고치거나 취소(삭제)할 수 있습니다</div>
+    <div class="note" id="pvNote" style="display:none">· 모든 칸을 고칠 수 있습니다 · 주황 칸(품목코드) = 넣어야 하는 칸 · 파랑 = 지난 저장에서 자동으로 채운 값 · 초록 = 마스터에 있는 코드 · 노랑 = 마스터에 없는 코드(<b>저장 안 됨</b>) 또는 빠진 값 · 발주일자·품목코드·수량이 든 줄만 저장됩니다 · <b>단가</b> = 대상 단가표대로(기본/미만) · <b>택배비</b> = 받는 사람 합계 3만 원부터 0원, 미만 4,000원 · 저장 = 출고·매출(수량 × 단가) + 재고 차감 · 저장한 뒤에도 아래 목록에서 고치거나 취소(삭제)할 수 있습니다</div>
   </div>
 
   <div class="card">
@@ -192,17 +234,46 @@
         <input type="date" id="fr"> <span class="dim">~</span> <input type="date" id="to">
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
         <button class="btn" onclick="lsXls()" title="저장된 줄을 택배 납기관리의 엑셀과 같은 양식(머리글 없는 9칸)으로 저장합니다(체크한 줄 — 체크가 없으면 조회된 전부)">📊 엑셀 저장</button>
+        <%-- 차수 넣기는 «이 칸 + 이 단추» 한 쌍으로 (2026-10-27 사용자 「차수 넣기 헷갈림」 — 위 올리기 줄의 차수 칸을 읽게 했더니 어느 칸인지 헷갈렸다) --%>
+        <span style="display:inline-flex;align-items:center;gap:4px;border:1px dashed #9fb6c3;border-radius:8px;padding:2px 6px" title="왼쪽 체크칸으로 고른 줄에 이 차수를 넣습니다(전부면 머리줄 체크). 줄마다 바로 저장됩니다"><input type="text" id="roundLs" list="roundList" class="rnd" placeholder="10월 1차" autocomplete="off" style="height:30px"><button class="btn" style="height:30px" onclick="lsRoundAll()">📌 체크한 줄에 이 차수 넣기</button></span>
+        <button class="btn" onclick="lsFeeAll()" title="체크한 줄(없으면 조회된 전부)의 받는 사람마다 택배비를 규칙대로 다시 넣습니다 — 3만 원부터 0원 · 미만 4,000원">🚚 택배비 다시 계산</button>
+        <button class="btn btn-teal" onclick="dsCloseXls()" title="조회한 기간을 대상에 보내는 마감 엑셀(매출장 양식)로 만듭니다 — 일자(차수) · 출고점 · 상품명 · 규격 · 수량 · 단가 · 금액 + 택배비 줄 + 합계">📑 마감 엑셀(대상 송부용)</button>
         <button class="btn btn-red" onclick="delSel()" title="체크한 줄의 저장을 취소합니다 — 배송 목록에서 빠집니다(매출·재고는 판매전표가 맡아 영향 없음)">🗑 선택 삭제(저장 취소)</button>
+        <button class="btn" onclick="dhOpen()" title="이 기간에 고쳐서 닫힌 줄(수정 전)과 삭제한 줄을 보고 되살립니다">🕘 이력조회</button>
         <span id="lsInfo" class="dim" style="font-weight:600;font-size:12.5px"></span>
       </span>
     </div>
     <div class="tw" id="lsWrap" style="max-height:50vh"><table class="g"><thead><tr>
-      <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th><th title="고치면 그 줄을 새 날짜로 옮깁니다(재고도 두 날짜 모두 다시 맞춥니다)">발주일자</th><th title="고치면 그 줄만 바로 저장됩니다">받는 사람</th><th title="고치면 그 줄만 바로 저장됩니다">주소</th><th>전화번호1</th><th>전화번호2</th><th>제품코드</th>
+      <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th><th title="고치면 그 줄을 새 날짜로 옮깁니다(재고도 두 날짜 모두 다시 맞춥니다)">발주일자</th><th title="고치면 그 줄만 바로 저장됩니다 — 마감 엑셀의 일자 칸">차수</th><th title="고치면 그 줄만 바로 저장됩니다">받는 사람</th><th title="고치면 그 줄만 바로 저장됩니다">주소</th><th>전화번호1</th><th>전화번호2</th><th>제품코드</th>
       <th title="고르거나 쳐서 바꾸면 이 줄의 품목코드가 바뀌고 재고도 다시 맞춥니다">품목코드</th><th title="고치면 그 줄만 바로 저장됩니다. 이 이름으로 품목코드를 기억합니다">제품명</th><th title="고쳐서 Enter">수량</th><th title="엑셀의 운임 칸으로 나갑니다. 고쳐서 Enter — 그 줄만 바로 저장됩니다">택배비</th><th title="고쳐서 Enter. 비면 매출 0">단가</th><th title="매출 = 수량 × 단가 — 거래처 대상주식회사" style="min-width:110px">금액</th><th>사업장</th><th>비고</th><th>등록</th></tr></thead>
-      <tbody id="lsBody"><tr><td colspan="16" class="msg">[🔍 조회]를 누르세요.</td></tr></tbody></table></div>
+      <tbody id="lsBody"><tr><td colspan="17" class="msg">[🔍 조회]를 누르세요.</td></tr></tbody></table></div>
   </div>
 </div>
 <datalist id="prodList"></datalist>
+<datalist id="roundList"></datalist>
+<%-- ★이력·복구 창 (2026-10-27 사용자 「이력조회 및 복구기능」) — 고쳐서 닫힌 줄(수정 전)·삭제한 줄. [복구]로 되살린다 --%>
+<div id="dhMask"><div id="dhBox" class="box">
+  <div class="dh">🕘 이력조회 <small>— 발주일자</small>
+    <%-- 기간을 창 안에서 바꿔 조회 (2026-10-27 「일자 변경 조회 가능하게」) — 처음엔 저장 목록의 조회 기간이 들어온다 --%>
+    <input type="date" id="dhFr" style="height:30px;border:1px solid var(--bd);border-radius:6px;padding:0 6px;font-size:13px"> <span class="dim">~</span> <input type="date" id="dhTo" style="height:30px;border:1px solid var(--bd);border-radius:6px;padding:0 6px;font-size:13px">
+    <button class="btn btn-teal" style="height:30px;padding:0 12px" onclick="dhLoad()">🔍 조회</button><small id="dhSub"></small>
+    <span style="margin-left:auto"></span><button class="x" onclick="dhClose()" title="닫기">✕</button></div>
+  <div class="db"><table class="g"><thead><tr><th style="width:62px">상태</th><th style="width:110px">언제</th><th style="width:60px">누가</th><th style="width:92px">발주일자</th><th style="width:72px">차수</th><th>받는 사람</th><th>품목</th><th style="width:70px">수량</th><th style="width:70px">단가</th><th style="width:80px">금액</th><th style="width:64px">택배비</th><th>비고</th><th style="width:70px">복구</th></tr></thead>
+    <tbody id="dhBody"><tr><td colspan="13" class="msg">읽는 중…</td></tr></tbody></table></div>
+  <div class="df"><span><b>수정 전</b> = 고치면서 닫힌 옛 줄(복구 = 고친 결과를 닫고 이 값으로) · <b>삭제</b> = 저장 취소한 줄(복구 = 다시 살림) · 받는 사람·택배비·차수만 고친 것은 이력이 없음</span>
+    <span style="margin-left:auto"></span><button class="btn" onclick="dhClose()">닫기</button></div>
+</div></div>
+<%-- ★대상 단가표 창 (2026-10-27) — 품목코드 · 기본 수량 · 이상 단가 · 미만 단가. 기본 수량이 0 이면 단가 하나 --%>
+<div id="dpMask"><div id="dpBox" class="box">
+  <div class="dh">💲 대상 단가표 <small>— 수량이 기본 수량 <b>이상</b>이면 이상 단가, <b>미만</b>이면 미만 단가 (개당 · 부가세 별도) · 기본 수량 0 = 단가 하나</small>
+    <span style="margin-left:auto"></span><button class="x" onclick="dpClose()" title="닫기">✕</button></div>
+  <div id="dpWarn"></div>
+  <div class="db"><table class="g"><thead><tr><th style="width:190px">품목코드</th><th>품명</th><th style="width:92px">기본 수량</th><th style="width:92px">이상 단가</th><th style="width:92px">미만 단가</th><th style="width:150px">메모</th><th style="width:54px">사용</th><th style="width:44px">빼기</th></tr></thead>
+    <tbody id="dpBody"></tbody></table></div>
+  <div class="df"><button class="btn" onclick="dpAdd()">＋ 품목 추가</button>
+    <span class="dim" style="font-size:12.5px">고친 뒤 [💾 단가표 저장] — 올려 둔 줄의 자동 단가도 새 단가로 바뀝니다(손으로 고친 단가는 그대로).</span>
+    <span style="margin-left:auto"></span><button class="btn" onclick="dpClose()">닫기</button><button class="btn btn-teal" onclick="dpSave()">💾 단가표 저장</button></div>
+</div></div>
 
 <script>
 var CTX='${pageContext.request.contextPath}';
@@ -229,24 +300,87 @@ function loadMasters(){
       var want=[keep, saved, 'K0000002'].filter(function(c){ return c && _bizNm[c]!=null; })[0];   /* 기본 = 마지막에 고른 곳 → 대상주식회사(급식) → 첫 줄 */
       if(want) sel.value=want;
     }).catch(function(){});
-  var p2=post('/prod/prodList.do','').then(function(r){ return r.json(); }).then(function(j){ _prod={}; _price={}; var h=[];
-      ((j&&j.data)||[]).forEach(function(o){ if(!o.prodCd) return; var c=String(o.prodCd); _prod[c]=o.prodNm||''; _price[c]=n(o.salePrice);
+  var p2=post('/prod/prodList.do','').then(function(r){ return r.json(); }).then(function(j){ _prod={}; _price={}; _spec={}; var h=[];
+      ((j&&j.data)||[]).forEach(function(o){ if(!o.prodCd) return; var c=String(o.prodCd); _prod[c]=o.prodNm||''; _price[c]=n(o.salePrice); _spec[c]=o.spec||'';
         if(o.stopYn!=='Y') h.push('<option value="'+esc((o.prodNm||'')+' ['+c+']')+'"></option>'); });
       document.getElementById('prodList').innerHTML=h.join(''); }).catch(function(){});
   var p3=p2.then(function(){ return post('/prod/extItemList.do',''); }).then(function(r){ return r.json(); }).then(function(j){ _main={};
       ((j&&j.data)||[]).forEach(function(o){ if(!o.extItemCd) return; var c=String(o.extItemCd);
         if(o.prodCd && String(o.prodCd)!==c) _main[c]=String(o.prodCd);
         if(_prod[c]==null) _prod[c]=(o.extItemNm||'')+' 〔매칭코드〕'; }); }).catch(function(){});
-  var p4=post('/shipout/daesangPoMap.do','').then(function(r){ return r.json(); }).then(function(j){ _map=(j&&j.item)||{}; }).catch(function(){});
+  var p4=loadDsMap();
   return Promise.all([p1,p3,p4]).then(function(){ if(_pv.length){ autoFill(); pvRender(); } if(_ls.length) lsRender(); });
 }
+/* 자동 매칭 + 대상 단가표 + 지금까지 쓴 차수 — 한 번에 받는다(2026-10-27) */
+function loadDsMap(){
+  return post('/shipout/daesangPoMap.do','').then(function(r){ return r.json(); }).then(function(j){
+    _map=(j&&j.item)||{}; _priceErr=(j&&j.priceErr)||''; _rounds=(j&&j.rounds)||[];
+    dsPriceSet((j&&j.price)||[]); roundListFill(); roundAuto();
+  }).catch(function(){});
+}
 function bizSave(){ try{ localStorage.setItem('dsPoBiz', document.getElementById('bizSel').value||''); }catch(e){} }
-/* 단가 = 그 코드의 상품코드 판매가. 매칭코드(상품으로 따로 등록되지 않은 것)면 그 주코드의 판매가. 없으면 0 */
-function priceOf(cd){ cd=String(cd||''); if(_price[cd]>0) return _price[cd]; var m=_main[cd]; return (m && _price[m]>0) ? _price[m] : 0; }
+/* 단가 = ★대상 단가표가 먼저(2026-10-27 — 수량이 기본 수량 이상이면 이상 단가, 미만이면 미만 단가).
+     단가표에 없는 품목은 종전대로 그 코드의 상품코드 판매가 · 매칭코드면 그 주코드의 판매가. 없으면 0 */
+function priceOf(cd, q){ cd=String(cd||''); var t=dsTier(cd); if(t) return tierPrice(t, q);
+  if(_price[cd]>0) return _price[cd]; var m=_main[cd]; return (m && _price[m]>0) ? _price[m] : 0; }
 function prodNmOf(cd){ return String(_prod[cd]||'').replace(' 〔매칭코드〕',''); }
 /* 기본 택배비 = 회사 설정의 기본 택배 운임(없으면 4,500) — 택배 납기관리(poFeeDef)와 같은 값. 줄마다 한 번(수량을 곱하지 않는다) */
 function feeDef(){ var v=Number(window.konetSet ? konetSet.f('parcelFeeDef') : 0); return (isFinite(v) && v>0) ? v : 4500; }
 function feeNum(x){ return (x.fee===''||x.fee==null) ? '' : n(x.fee); }   /* 비운 줄은 빈 칸 */
+
+/* ═══ 대상 단가표 · 택배비 · 차수 (2026-10-27 사용자 「품목마다 기본수량일 때 단가, 이하일 때 단가 관리 · 받는 사람 하나로 합해서 3만원부터 택배무료,
+       3만원 미만이면 4,000원 · Ctrl+C→Ctrl+V 할 때나 수동 입력 시 · 바로 수정 시도 적용 · 엑셀 일자에 10월 1차 찍어야 하니 관리」) ═══
+   · 단가표 = TBL_DS_PRICE(품목코드 · 기본 수량 · 이상 단가 · 미만 단가). 매칭코드면 그 주코드의 단가표를 본다. 기본 수량 0 = 단가 하나.
+   · 택배비 = «같은 발주일자 · 같은 차수 · 같은 받는 사람»의 줄을 합쳐 금액(수량 × 단가, 부가세 별도)이 3만 원부터 0원, 미만이면 4,000원 —
+       그 사람 «첫 줄»에 한 번 넣고 나머지 줄은 0원. 주소에 「제주」가 있으면 3,000원을 더한다(사장님 요청 「제주도는 3,000원 추가」).
+       손으로 고친 받는 사람은 자동 계산을 멈춘다(박스가 여러 개라 3 × 4,000 처럼 매기는 경우 — 실제 마감 엑셀에 있다). 비우면 다시 자동.
+   · 근거 = 「대상급식 마감.xlsx」 2026-09·10월 시트(실제로 매긴 단가·택배비 줄)와 견적서 0310-1. */
+var DS_FEE=4000, DS_FREE=30000, DS_JEJU=3000;
+var _dsPrice={}, _dsPriceList=[], _rounds=[], _spec={}, _priceErr='', _roundTouched=false;
+function dsPriceSet(list){ _dsPriceList=list||[]; _dsPrice={}; _dsPriceList.forEach(function(t){ if(t && t.prodCd) _dsPrice[String(t.prodCd)]=t; }); }
+function dsTier(cd){ cd=String(cd||''); var t=_dsPrice[cd]||_dsPrice[_main[cd]]; return (t && t.useYn!=='N' && n(t.basePrice)>0) ? t : null; }
+function tierUnder(t, q){ return n(t.baseQty)>0 && n(q)<n(t.baseQty) && n(t.underPrice)>0; }
+function tierPrice(t, q){ return tierUnder(t, q) ? n(t.underPrice) : n(t.basePrice); }
+/* 단가 칸 아래 표시 — 기본(이상 단가) · 미만(미만 단가) · 수동(단가표 값과 다름) */
+function tierTag(cd, q, price){ var t=dsTier(cd); if(!t) return '';
+  var u=tierUnder(t, q), want=tierPrice(t, q), man=(price!=='' && price!=null && Math.abs(n(price)-want)>0.0001);
+  var tip=n(t.baseQty)>0 ? ('대상 단가표 : '+fmt(t.baseQty)+'개 이상 '+fmt(t.basePrice)+' · 미만 '+fmt(n(t.underPrice)||n(t.basePrice))) : ('대상 단가표 : 단가 '+fmt(t.basePrice));
+  if(man) tip+=' — 지금 단가는 손으로 넣은 값('+fmt(want)+' 이 단가표 값)';
+  return '<span class="tier '+(man?'man':(u?'under':'base'))+'" title="'+esc(tip)+'">'+(man?'수동':(u?'미만 '+fmt(t.underPrice):'기본'))+'</span>'; }
+function dsName(v){ return String(v||'').replace(/s+/g,' ').trim(); }
+function isJeju(a){ return /제주/.test(String(a||'')); }
+function feeWant(amt, jeju){ return (amt>=DS_FREE?0:DS_FEE)+(jeju?DS_JEJU:0); }
+function feeAutoSum(v){ return v===0 || v===DS_FEE || v===DS_JEJU || v===DS_FEE+DS_JEJU; }
+/* 올린 표 — 받는 사람마다 택배비. 체크한 줄만 묶는다(빼는 줄은 저장되지 않으니) */
+function pvFeeCalc(){
+  var g={}, order=[];
+  _pv.forEach(function(x, i){ x.feeInfo=null; if(!x.chk) return; var nm=dsName(x.rcvNm), k=nm ? (x.dlvDt+'|'+dsName(x.dsRound)+'|'+nm) : ('#'+i);
+    if(!g[k]){ g[k]=[]; order.push(k); } g[k].push(x); });
+  order.forEach(function(k){ var l=g[k], amt=0, jj=false; l.forEach(function(x){ amt+=n(x.qty)*n(x.price); if(isJeju(x.rcvAddr)) jj=true; });
+    var info={ amt:amt, n:l.length, jeju:jj };
+    l.forEach(function(x){ x.feeInfo=info; });
+    if(l.some(function(x){ return !x.feeAuto; })) return;   /* 손으로 고친 받는 사람은 그대로 */
+    var w=feeWant(amt, jj); l.forEach(function(x, i){ x.fee=(i===0 ? w : 0); }); });
+}
+function feeTag(info){ if(!info) return '';
+  var free=info.amt>=DS_FREE;
+  return '<span class="feeg '+(free?'free':'pay')+'" title="받는 사람 '+info.n+'줄 합계 '+fmt(info.amt)+'원(부가세 별도) — 3만 원부터 택배비 0원'+(info.jeju?' · 제주 '+fmt(DS_JEJU)+'원 추가':'')+'">'+(info.n>1?info.n+'줄 ':'')+'합 '+fmt(info.amt)+'</span>'; }
+/* 차수 — 지난 저장의 마지막 차수 다음을 제안(같은 날이면 같은 차수). 예) 10월 11차 → 10월 12차 */
+function roundParse(v){ var m=/(\d+)\s*월\s*(\d+)\s*차/.exec(String(v||'')); return m ? { m:+m[1], k:+m[2] } : null; }
+function roundNext(){
+  var dt=(document.getElementById('dt').value||'').replace(/-/g,''), r=_rounds[0], p=r?roundParse(r.dsRound):null;
+  if(!p) return dt ? (+dt.slice(4,6))+'월 1차' : '';
+  if(dt && String(r.toDt)===dt) return r.dsRound;
+  return p.m+'월 '+(p.k+1)+'차';
+}
+function roundAuto(){ var v=roundNext(); var el=document.getElementById('round'); if(el && !_roundTouched && v) el.value=v;
+  var l=document.getElementById('roundLs'); if(l && !l.value && v) l.value=v; }   /* 목록 쪽 칸도 비어 있으면 제안값으로 */
+function roundListFill(){
+  var o=[], seen={}, add=function(v){ v=dsName(v); if(v && !seen[v]){ seen[v]=1; o.push('<option value="'+esc(v)+'"></option>'); } };
+  add(roundNext()); var p=roundParse(_rounds[0]&&_rounds[0].dsRound); if(p){ add(_rounds[0].dsRound); add((p.m%12+1)+'월 1차'); }
+  _rounds.slice(0,8).forEach(function(r){ add(r.dsRound); });
+  var dl=document.getElementById('roundList'); if(dl) dl.innerHTML=o.join('');
+}
 
 
 /* ── 읽기 : 표(HTML · 탭 글 · 엑셀) → 줄 ── */
@@ -327,8 +461,8 @@ function guessRow(a){
     if(txt.length>2) x.rcvAddr=txt.slice(1,-1).sort(function(p,q){ return q.length-p.length; })[0]; }
   return x;
 }
-function newRow(x){ x=x||{}; return { chk:true, dlvDt:document.getElementById('dt').value||'', rcvNm:x.rcvNm||'', rcvAddr:x.rcvAddr||'', rcvTel:x.rcvTel||'', rcvTel2:x.rcvTel2||'',
-  qty:n(x.qty), rcvItemCd:x.rcvItemCd||'', itemNm:x.itemNm||'', itemCd:'', itemAuto:false, price:'', priceAuto:true, fix:!!x.fix, fee:feeDef() }; }
+function newRow(x){ x=x||{}; return { chk:true, dlvDt:document.getElementById('dt').value||'', dsRound:dsName(document.getElementById('round').value), rcvNm:x.rcvNm||'', rcvAddr:x.rcvAddr||'', rcvTel:x.rcvTel||'', rcvTel2:x.rcvTel2||'',
+  qty:n(x.qty), rcvItemCd:x.rcvItemCd||'', itemNm:x.itemNm||'', itemCd:'', itemAuto:false, price:'', priceAuto:true, fix:!!x.fix, fee:'', feeAuto:true }; }   /* 택배비 = 받는 사람마다 자동(pvFeeCalc) — 종전 줄마다 4,500 고정 */
 function addParsed(rows, src){
   if(!rows.length){ err('표에서 읽을 줄을 찾지 못했습니다.<br><span style="font-size:13px">메일 본문의 표를 머리 줄(받는 사람 … 제품명)부터 끝 줄까지 끌어 고른 뒤 복사해 붙여 보세요.</span>'); return; }
   if(src && !_fileNm) _fileNm=src;
@@ -384,7 +518,7 @@ function capClose(){ document.getElementById('capBox').style.display='none'; }
 /* ── 올린 표 ── */
 function autoFill(){ _pv.forEach(function(x){
   if(!x.itemCd && x.itemNm && _map[x.itemNm]){ x.itemCd=_map[x.itemNm]; x.itemAuto=true; }
-  if(x.itemCd && x.price==='' && x.priceAuto){ var p=priceOf(x.itemCd); if(p>0) x.price=p; } }); }
+  if(x.itemCd && x.priceAuto){ var p=priceOf(x.itemCd, x.qty); x.price=(p>0?p:''); } }); }   /* 자동 단가는 수량에 따라 늘 다시 (단가표 기본/미만) */
 function cdCls(cd, auto){ if(!cd) return ''; return _prod[cd]!=null ? (auto?' auto':' ok') : ' bad'; }
 function rowReady(x){ return x.chk && x.dlvDt && x.itemCd && n(x.qty)>=1; }
 function pvRender(){
@@ -393,20 +527,22 @@ function pvRender(){
   ['pvWrap','pvNote'].forEach(function(id){ document.getElementById(id).style.display=has?'':'none'; });
   var pg=document.getElementById('pvWrap').nextElementSibling; if(pg && pg.classList.contains('kgg')) pg.style.display=has?'':'none';   /* 높이 막대도 같이 숨긴다 */
   ['btnSave','btnXls'].forEach(function(id){ document.getElementById(id).style.display=has?'':'none'; });
+  pvFeeCalc();
   document.getElementById('pvBody').innerHTML=_pv.map(function(x,i){
     var pn=_prod[x.itemCd], k=function(f){ return ' data-k="'+i+':'+f+'"'; }, t=function(f,w,ph){ return '<input type="text"'+k(f)+' style="width:'+w+'px" value="'+esc(x[f])+'" placeholder="'+(ph||'')+'" onchange="pvSet('+i+',\''+f+'\',this)">'; };
     return '<tr class="'+(x.chk?'':'off')+'"><td><input type="checkbox" '+(x.chk?'checked':'')+' onchange="_pv['+i+'].chk=this.checked; pvLater()"></td>'
       +'<td><button class="x" title="이 줄을 화면에서 뺍니다" onclick="pvDel('+i+')">✕</button></td>'
       +(x.fix?'<td style="color:#b45309;font-weight:800;background:#fff7d6" title="원본 글에서 이 줄은 칸이 붙거나 빠져 있어 전화번호를 기준으로 맞춰 넣었습니다 — 받는 사람·주소·수량·제품명을 확인하세요">⚠ '+(i+1)+'</td>':'<td>'+(i+1)+'</td>')
       +'<td><input type="date"'+k('dlvDt')+' class="req'+(x.dlvDt?'':' bad')+'" value="'+esc(x.dlvDt)+'" onchange="pvSet('+i+',\'dlvDt\',this)"></td>'
+      +'<td><input type="text" list="roundList"'+k('dsRound')+' class="rnd" value="'+esc(x.dsRound||'')+'" placeholder="10월 1차" onchange="pvSet('+i+',\'dsRound\',this)"></td>'
       +'<td class="l">'+t('rcvNm',150,'받는 사람')+'</td><td class="l">'+t('rcvAddr',300,'주소')+'</td><td>'+t('rcvTel',118,'')+'</td><td>'+t('rcvTel2',118,'')+'</td>'
       +'<td><input type="text"'+k('qty')+' class="num'+(n(x.qty)>=1?'':' bad')+'" style="width:84px" value="'+(x.qty?esc(fmt(x.qty)):'')+'" onchange="pvSet('+i+',\'qty\',this)"></td>'
-      +'<td><input type="text"'+k('fee')+' class="num" style="width:68px" value="'+(feeNum(x)===''?'':esc(fmt(x.fee)))+'" title="택배비(엑셀 운임 칸)" onchange="pvSet('+i+',\'fee\',this)"></td>'
+      +'<td><input type="text"'+k('fee')+' class="num" style="width:68px'+(x.feeAuto?'':';border-color:#e2b93b')+'" value="'+(feeNum(x)===''?'':esc(fmt(x.fee)))+'" title="'+(x.feeAuto?'자동 — 받는 사람 합계 3만 원부터 0원, 미만 4,000원':'손으로 넣은 값 — 비우면 다시 자동')+'" onchange="pvSet('+i+',\'fee\',this)">'+feeTag(x.feeInfo)+'</td>'
       +'<td>'+t('rcvItemCd',64,'')+'</td>'
       +'<td class="l">'+(x.itemCd?'<span class="sub nmf'+(pn==null?' warn':'')+'">'+(x.itemAuto?'<span class="bd auto" title="지난 저장에서 가져온 값">자동</span> ':'')+esc(pn!=null?pn:'상품 마스터에 없는 코드')+'</span>':'')
         +'<input type="text" list="prodList"'+k('itemCd')+' class="cd'+cdCls(x.itemCd,x.itemAuto)+'" value="'+esc(x.itemCd)+'" placeholder="명칭 또는 코드" onchange="setItem('+i+',this)"></td>'
       +'<td class="l">'+t('itemNm',190,'제품명')+'</td>'
-      +'<td><input type="text"'+k('price')+' class="num" style="width:74px" value="'+(x.price===''?'':esc(fmt(x.price)))+'" title="'+(x.priceAuto&&x.price!==''?'상품코드 판매가에서 가져온 값 — 고칠 수 있습니다':'')+'" onchange="pvSet('+i+',\'price\',this)"></td>'
+      +'<td><input type="text"'+k('price')+' class="num" style="width:74px" value="'+(x.price===''?'':esc(fmt(x.price)))+'" title="'+(x.priceAuto&&x.price!==''?(dsTier(x.itemCd)?'대상 단가표 값 — 고칠 수 있습니다(비우면 다시 자동)':'상품코드 판매가에서 가져온 값 — 고칠 수 있습니다'):'손으로 넣은 값 — 비우면 다시 자동')+'" onchange="pvSet('+i+',\'price\',this)">'+tierTag(x.itemCd, x.qty, x.price)+'</td>'
       +'<td class="r" style="min-width:110px"><b id="amt'+i+'">'+fmt(n(x.qty)*n(x.price))+'</b></td></tr>';
   }).join('');
   pvInfo();
@@ -423,10 +559,13 @@ function pvLater(){ setTimeout(function(){ var a=document.activeElement, k=(a&&a
   if(k){ var e=document.querySelector('#pvBody [data-k="'+k+'"]'); if(e){ e.focus(); if(e.type==='text'){ try{ e.select(); }catch(x){} } } } },0); }
 function pvSet(i, f, el){
   var x=_pv[i]; if(!x) return; var v=String(el.value||'').trim();
-  if(f==='qty'){ x.qty=Math.round(n(v)); el.value=x.qty?fmt(x.qty):''; el.classList.toggle('bad', !(x.qty>=1)); }
-  else if(f==='price'){ if(v===''){ x.price=''; } else { x.price=Math.max(0,n(v)); x.priceAuto=false; el.value=fmt(x.price); } el.title=''; }
-  else if(f==='fee'){ x.fee=(v===''?'':Math.max(0,Math.round(n(v)))); el.value=(x.fee===''?'':fmt(x.fee)); }
-  else if(f==='dlvDt'){ x.dlvDt=v; el.classList.toggle('bad', !v); }
+  if(f==='qty'){ x.qty=Math.round(n(v)); el.value=x.qty?fmt(x.qty):''; el.classList.toggle('bad', !(x.qty>=1));
+    if(x.itemCd && x.priceAuto){ var pq=priceOf(x.itemCd, x.qty); x.price=(pq>0?pq:''); }   /* 수량이 바뀌면 기본/미만 단가도 다시 (2026-10-27) */
+    pvLater(); return; }
+  else if(f==='price'){ if(v===''){ x.priceAuto=true; var pp=priceOf(x.itemCd, x.qty); x.price=(pp>0?pp:''); } else { x.price=Math.max(0,n(v)); x.priceAuto=false; } pvLater(); return; }
+  else if(f==='fee'){ if(v===''){ x.feeAuto=true; } else { x.fee=Math.max(0,Math.round(n(v))); x.feeAuto=false; } pvLater(); return; }   /* 손으로 넣으면 그 받는 사람은 자동을 멈춘다 · 비우면 다시 자동 */
+  else if(f==='dlvDt'){ x.dlvDt=v; el.classList.toggle('bad', !v); pvLater(); return; }
+  else if(f==='dsRound' || f==='rcvNm' || f==='rcvAddr'){ x[f]=(f==='dsRound'?dsName(v):v); pvLater(); return; }   /* 받는 사람 묶음이 바뀐다 → 택배비 다시 */
   else if(f==='itemNm'){ x.itemNm=v; if(!x.itemCd && v && _map[v]){ autoFill(); pvLater(); return; } }
   else x[f]=v;
   var a=document.getElementById('amt'+i); if(a) a.textContent=fmt(n(x.qty)*n(x.price));
@@ -442,7 +581,7 @@ function pickCd(v){
 function setItem(i, el){
   var x=_pv[i]; if(!x) return; var v=pickCd(el.value), nm=x.itemNm;
   _pv.forEach(function(y){ if(y===x || (nm && y.itemNm===nm && (!y.itemCd || y.itemAuto))){ y.itemCd=v; y.itemAuto=false;
-    if(y.priceAuto){ var p=priceOf(v); y.price=(p>0?p:''); } } });
+    if(y.priceAuto){ var p=priceOf(v, y.qty); y.price=(p>0?p:''); } } });
   pvLater();
 }
 function pvAllChk(el){ _pv.forEach(function(x){ x.chk=el.checked; }); pvRender(); }
@@ -459,9 +598,9 @@ function pvClearAsk(){
   _confirmBox({ icon:'🧹', okText:'비우기', msg:'올려 둔 <b>'+filled+'</b>줄'+(img?'과 캡쳐 그림':'')+'을 모두 비웁니다.<br><span style="font-size:13px;color:#3d4d5c">아직 저장하지 않은 내용은 사라집니다. 아래 「저장된 대상 발주」는 그대로입니다.</span>',
     onOk:function(){ pvClear(); if(window._toast) _toast('비웠습니다','ok'); }, onCancel:function(){} });
 }
-function dtAll(){ var d=document.getElementById('dt').value; if(!d){ err('발주일자(납품일자)를 고르세요.'); return; }
-  if(!_pv.length){ if(window._toast) _toast('올려 둔 줄이 없습니다 — 이 날짜는 앞으로 올리는 줄에 들어갑니다.','info'); return; }
-  _pv.forEach(function(x){ x.dlvDt=d; }); pvRender(); if(window._toast) _toast('모든 줄의 발주일자를 '+d+' 로 넣었습니다','ok'); }
+function dtAll(){ var d=document.getElementById('dt').value, rd=dsName(document.getElementById('round').value); if(!d){ err('발주일자(납품일자)를 고르세요.'); return; }
+  if(!_pv.length){ if(window._toast) _toast('올려 둔 줄이 없습니다 — 이 날짜·차수는 앞으로 올리는 줄에 들어갑니다.','info'); return; }
+  _pv.forEach(function(x){ x.dlvDt=d; x.dsRound=rd; }); pvRender(); if(window._toast) _toast('모든 줄에 발주일자 '+d+(rd?' · 차수 '+rd:'')+' 를 넣었습니다','ok'); }
 
 /* ── 저장 ── */
 function save(){
@@ -472,10 +611,11 @@ function save(){
   var unk=rdy.filter(function(x){ return _prod[x.itemCd]==null; });
   if(unk.length){ var ui={}; unk.forEach(function(x){ ui[x.itemCd]=1; });
     err('마스터에 없는 품목코드가 든 줄이 <b>'+unk.length+'</b>개 있어 저장하지 않았습니다.<br><span style="font-size:13px">품목코드 : <b>'+esc(Object.keys(ui).join(', '))+'</b> — 상품코드등록·매칭코드에 먼저 등록하거나, 노란 칸을 고치거나 그 줄의 체크를 빼고 다시 저장하세요.</span>'); return; }
+  var noRnd=rdy.filter(function(x){ return !dsName(x.dsRound); }).length;
   var noPrice=rdy.filter(function(x){ return !(n(x.price)>0); }).length, amt=rdy.reduce(function(s,x){ return s+n(x.qty)*n(x.price); },0);
   var ds={}; rdy.forEach(function(x){ ds[x.dlvDt]=1; }); var dl=Object.keys(ds).sort();
   var body=function(force){ return { bizCd:bizCd, bizNm:bizNm, fileNm:_fileNm||'', force:force?'Y':'',
-    rows:rdy.map(function(x){ return { dlvDt:x.dlvDt, rcvNm:x.rcvNm, rcvAddr:x.rcvAddr, rcvTel:x.rcvTel, rcvTel2:x.rcvTel2, qty:x.qty, rcvItemCd:x.rcvItemCd,
+    rows:rdy.map(function(x){ return { dlvDt:x.dlvDt, dsRound:dsName(x.dsRound), rcvNm:x.rcvNm, rcvAddr:x.rcvAddr, rcvTel:x.rcvTel, rcvTel2:x.rcvTel2, qty:x.qty, rcvItemCd:x.rcvItemCd,
       itemNm:(x.itemNm||prodNmOf(x.itemCd)), itemCd:x.itemCd, price:(x.price===''?'':x.price), fee:feeNum(x) }; }) }; };
   var go=function(force){
     var b=document.getElementById('btnSave'); b.disabled=true;
@@ -489,7 +629,7 @@ function save(){
         _pv=_pv.filter(function(x){ return rdy.indexOf(x)<0; }); if(!_pv.length){ _fileNm=''; } pvRender();
         document.getElementById('fr').value=dl[0]<document.getElementById('fr').value||!document.getElementById('fr').value?dl[0]:document.getElementById('fr').value;
         if(dl[dl.length-1]>document.getElementById('to').value) document.getElementById('to').value=dl[dl.length-1];
-        load();
+        load(); _roundTouched=false; loadDsMap();   /* 차수 목록 새로 → 다음 차수 제안 */
         ok('대상 발주 <b>'+(j.cnt||rdy.length)+'</b>줄을 저장했습니다.'+(_pv.length?'<br><span style="font-size:13px">저장하지 않은 '+_pv.length+'줄이 화면에 남아 있습니다.</span>':'')
           +(j.warn?'<br><span style="color:#c0392b;font-size:13px">재고 반영 경고 — '+esc(j.warn)+'</span>':''));
       })
@@ -500,6 +640,8 @@ function save(){
     msg:'대상 발주 <b>'+rdy.length+'</b>줄을 <b>배송 처리용</b>으로 저장합니다(매출·재고는 판매등록 전표가 맡습니다).<br>발주일자 <b>'+esc(dl.length>1?(dl[0]+' ~ '+dl[dl.length-1]):dl[0])+'</b> · 사업장 <b>'+esc(bizNm)+'</b><br>금액 <b>'+fmt(amt)+'</b>원 (참고값 — 매출에 안 잡힙니다)'
       +(noPrice?'<br><span style="color:#c0392b;font-size:13px">단가가 빈 줄 '+noPrice+'개 — 금액 0원으로 남습니다(참고값 · 저장 뒤 목록에서 고칠 수 있습니다).</span>':'')
       +(miss?'<br><span style="color:#b45309;font-size:13px">발주일자·품목코드·수량이 빠진 '+miss+'줄은 저장하지 않습니다(화면에 남습니다).</span>':'')
+      +(noRnd?'<br><span style="color:#b45309;font-size:13px">차수가 빈 줄 '+noRnd+'개 — 마감 엑셀에 날짜만 찍힙니다(저장 뒤 목록에서 넣을 수 있습니다).</span>':'')
+      +'<br>택배비 합계 <b>'+fmt(rdy.reduce(function(s2,x){ return s2+n(x.fee); },0))+'</b>원'
       +'<br><span style="font-size:13px;color:#3d4d5c">재고·매출에는 안 들어갑니다(판매전표가 주인). 저장 뒤 아래 목록에서 고치거나 취소(삭제)할 수 있습니다.</span>',
     onOk:function(){ go(false); }, onCancel:function(){} });
 }
@@ -533,28 +675,30 @@ function lsXls(){ var pick=[]; Array.prototype.forEach.call(document.querySelect
   xlsOut(pick.length?pick:_ls); }
 
 /* ── 저장된 목록 ── */
-function load(){
-  document.getElementById('lsBody').innerHTML='<tr><td colspan="16" class="msg">조회 중…</td></tr>';
+function load(cb){
+  document.getElementById('lsBody').innerHTML='<tr><td colspan="17" class="msg">조회 중…</td></tr>';
   post('/shipout/daesangPoList.do','frDt='+encodeURIComponent(document.getElementById('fr').value)+'&toDt='+encodeURIComponent(document.getElementById('to').value)).then(pj)
-    .then(function(j){ _ls=(j&&j.data)||[]; _ls.forEach(function(x){ x.fee=(x.rcvFee==null ? '' : n(x.rcvFee)); });   /* 택배비 = 저장된 값(없으면 빈 칸) */ if(j&&j.error){ _ls=[]; document.getElementById('lsBody').innerHTML='<tr><td colspan="16" class="msg" style="color:#c0392b">'+esc(j.error)+'</td></tr>'; document.getElementById('lsInfo').textContent=''; return; } lsRender(); })
-    .catch(function(e){ document.getElementById('lsBody').innerHTML='<tr><td colspan="16" class="msg" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
+    .then(function(j){ _ls=(j&&j.data)||[]; _ls.forEach(function(x){ x.fee=(x.rcvFee==null ? '' : n(x.rcvFee)); });   /* 택배비 = 저장된 값(없으면 빈 칸) */ if(j&&j.error){ _ls=[]; document.getElementById('lsBody').innerHTML='<tr><td colspan="17" class="msg" style="color:#c0392b">'+esc(j.error)+'</td></tr>'; document.getElementById('lsInfo').textContent=''; return; } lsRender(); if(typeof cb==='function') cb(); })
+    .catch(function(e){ document.getElementById('lsBody').innerHTML='<tr><td colspan="17" class="msg" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
 }
 function lsRender(){
   var tb=document.getElementById('lsBody'); document.getElementById('lsAll').checked=false;
-  if(!_ls.length){ tb.innerHTML='<tr><td colspan="16" class="msg">저장된 대상 발주가 없습니다.</td></tr>'; document.getElementById('lsInfo').textContent=''; return; }
-  var q=0, amt=0;
+  if(!_ls.length){ tb.innerHTML='<tr><td colspan="17" class="msg">저장된 대상 발주가 없습니다.</td></tr>'; document.getElementById('lsInfo').textContent=''; return; }
+  var q=0, amt=0, lsGrpInfo={};
+  _ls.forEach(function(x){ var k=lsKey(x), g=lsGrpInfo[k]||(lsGrpInfo[k]={ amt:0, n:0, jeju:false }); g.amt+=n(x.qty)*n(x.salePrice); g.n++; if(isJeju(x.rcvAddr)) g.jeju=true; });
   tb.innerHTML=_ls.map(function(x,i){ q+=n(x.qty); amt+=n(x.qty)*n(x.salePrice); var pn=_prod[x.itemCd];
     /* 글자 칸(배송 정보·제품코드·제품명) = 입력칸 — 고치면 lsInfo 가 그 줄만 바로 저장한다 */
     var ti=function(f,w){ return '<input type="text" style="width:'+w+'px" value="'+esc(x[f])+'" data-v="'+esc(x[f])+'" title="'+esc(x[f])+'" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsInfo('+i+',\''+f+'\',this)">'; };
     return '<tr><td><input type="checkbox" class="lchk" data-i="'+i+'"></td>'
       +'<td><input type="date" value="'+d10(x.dlvDt)+'" data-v="'+d10(x.dlvDt)+'" onchange="lsEdit('+i+',\'dlvDt\',this)"></td>'
+      +'<td><input type="text" list="roundList" class="rnd" value="'+esc(x.dsRound||'')+'" data-v="'+esc(x.dsRound||'')+'" placeholder="10월 1차" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsInfo('+i+',\'dsRound\',this)"></td>'
       +'<td class="l">'+ti('rcvNm',150)+'</td><td class="l">'+ti('rcvAddr',300)+'</td><td>'+ti('rcvTel',116)+'</td><td>'+ti('rcvTel2',116)+'</td>'
       +'<td>'+ti('rcvItemCd',60)+'</td>'
       +'<td class="l"><span class="sub nmf'+(pn==null?' warn':'')+'">'+esc(pn!=null?pn:'상품 마스터에 없는 코드')+'</span><input type="text" list="prodList" class="cd '+(pn==null?'bad':'ok')+'" value="'+esc(x.itemCd)+'" data-v="'+esc(x.itemCd)+'" onchange="lsEdit('+i+',\'itemCd\',this)">'+(x.prodCd&&x.prodCd!==x.itemCd?'<span class="sub">주코드 '+esc(x.prodCd)+'</span>':'')+'</td>'
       +'<td class="l">'+ti('itemNm',180)+'</td>'
       +'<td class="r"><input type="text" class="num" style="width:84px" value="'+esc(fmtIn(x.qty))+'" data-v="'+esc(fmtIn(x.qty))+'" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsEdit('+i+',\'qty\',this)"></td>'
-      +'<td class="r"><input type="text" class="num" style="width:68px" value="'+(feeNum(x)===''?'':esc(fmt(x.fee)))+'" title="택배비(엑셀 운임 칸) — 고쳐서 Enter. 그 줄만 바로 저장됩니다" data-v="'+(feeNum(x)===''?'':x.fee)+'" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsFee('+i+',this)"></td>'
-      +'<td class="r"><input type="text" class="num'+(x.salePrice==null||x.salePrice===''?' bad':'')+'" style="width:74px" value="'+esc(fmtIn(x.salePrice))+'" data-v="'+esc(fmtIn(x.salePrice))+'" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsEdit('+i+',\'price\',this)"></td>'
+      +'<td class="r"><input type="text" class="num" style="width:68px" value="'+(feeNum(x)===''?'':esc(fmt(x.fee)))+'" title="택배비(엑셀 운임 칸) — 고쳐서 Enter. 그 줄만 바로 저장됩니다" data-v="'+(feeNum(x)===''?'':x.fee)+'" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsFee('+i+',this)">'+feeTag(lsGrpInfo[lsKey(x)])+'</td>'
+      +'<td class="r"><input type="text" class="num'+(x.salePrice==null||x.salePrice===''?' bad':'')+'" style="width:74px" value="'+esc(fmtIn(x.salePrice))+'" data-v="'+esc(fmtIn(x.salePrice))+'" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsEdit('+i+',\'price\',this)">'+tierTag(x.itemCd, x.qty, x.salePrice)+'</td>'
       +'<td class="r" style="min-width:110px"><b>'+fmt(n(x.qty)*n(x.salePrice))+'</b></td>'
       +'<td class="l dim">'+esc(x.bizNm)+'</td>'
       +'<td class="l dim" style="max-width:220px;overflow:hidden;text-overflow:ellipsis" title="'+esc(x.remark)+'">'+esc(x.remark)+'</td>'
@@ -570,11 +714,17 @@ function lsInfo(i, fld, el){
   var back=function(){ el.value=old; };
   if(v===old){ back(); return; }
   if(fld==='itemNm' && !v){ back(); err('제품명은 비울 수 없습니다.'); return; }
-  var b={ seq:x.seq, rcvNm:x.rcvNm||'', rcvAddr:x.rcvAddr||'', rcvTel:x.rcvTel||'', rcvTel2:x.rcvTel2||'', rcvItemCd:x.rcvItemCd||'', itemNm:x.itemNm||'' }; b[fld]=v;
+  if(fld==='dsRound') v=dsName(v);
+  var oldKey=lsKey(x);
+  var b={ seq:x.seq, rcvNm:x.rcvNm||'', rcvAddr:x.rcvAddr||'', rcvTel:x.rcvTel||'', rcvTel2:x.rcvTel2||'', rcvItemCd:x.rcvItemCd||'', itemNm:x.itemNm||'', dsRound:x.dsRound||'' }; b[fld]=v;
   post('/shipout/daesangPoInfo.do', b, true).then(pj)
     .then(function(j){ if(j.error){ back(); err(esc(j.error)); return; }
       x[fld]=v; el.value=v; el.setAttribute('data-v', v); el.title=v;
       if(fld==='itemNm' && x.itemCd) _map[v]=x.itemCd;   /* 고친 제품명도 다음 붙여넣기의 자동 매칭에 쓴다 */
+      if(fld==='dsRound' || fld==='rcvNm' || fld==='rcvAddr'){   /* 받는 사람 묶음이 바뀌었다 — 옛 묶음·새 묶음의 택배비를 다시 (2026-10-27) */
+        lsFeeSync([oldKey, lsKey(x)], false).then(function(r){ lsRender(); if(window._toast) _toast('저장했습니다'+(r.cnt?' — 택배비 '+r.cnt+'줄 다시 계산':''),'ok'); });
+        if(fld==='dsRound'){ _roundTouched=false; loadDsMap(); }
+        return; }
       if(window._toast) _toast('저장했습니다','ok'); })
     .catch(function(e){ back(); err('고치지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); });
 }
@@ -602,25 +752,245 @@ function lsEdit(i, fld, el){
   if(fld==='itemCd' && (!v || _prod[v]==null)){ back(); err('품목코드 <b>'+esc(v)+'</b> 는 마스터에 없습니다 — 상품코드등록·매칭코드에 먼저 등록하세요.'); return; }
   var b={ seq:x.seq, dlvDt:(fld==='dlvDt'?v:d10(x.dlvDt)), itemCd:(fld==='itemCd'?v:x.itemCd), qty:(fld==='qty'?v:fmtIn(x.qty)), price:(fld==='price'?v:fmtIn(x.salePrice)) };
   var lab={ dlvDt:'발주일자', itemCd:'품목코드', qty:'수량', price:'단가' }[fld];
+  /* ★바로 수정에도 단가표 (2026-10-27 사용자 「바로 수정 시도 적용되게」) — 수량·품목코드를 고치면, 지금 단가가 «자동 값»(단가표·판매가 그대로)일 때만
+       새 수량·코드의 단가표 값으로 같이 바꾼다. 손으로 넣은 단가는 그대로 둔다. 단가 칸을 비우면 단가표 값으로 */
+  var autoP='', oldAuto=Math.abs(n(x.salePrice)-priceOf(x.itemCd, x.qty))<0.0001 || x.salePrice==null || x.salePrice==='';
+  if((fld==='qty' || fld==='itemCd') && oldAuto){ var np=priceOf(b.itemCd, b.qty); if(np>0 && Math.abs(np-n(x.salePrice))>0.0001){ b.price=fmtIn(np); autoP=np; } }
+  if(fld==='price' && v===''){ var ep=priceOf(b.itemCd, b.qty); if(ep>0){ b.price=fmtIn(ep); autoP=ep; } }
+  var keys=[lsKey(x)]; if(fld==='dlvDt') keys.push(v+'|'+dsName(x.dsRound)+'|'+dsName(x.rcvNm));
   _confirmBox({ icon:'✏️', okText:'고치기',
     msg:esc(x.rcvNm||'')+' · '+esc(x.itemNm)+'<br>'+lab+' <b>'+esc(old||'없음')+'</b> → <b>'+esc(v||'없음')+'</b>'+(fld==='itemCd'?' ('+esc(_prod[v])+')':'')
+      +(autoP!==''?'<br>단가 <b>'+esc(fmtIn(x.salePrice)||'없음')+'</b> → <b>'+fmt(autoP)+'</b> <span style="font-size:12.5px;color:#137a6c">(대상 단가표 · '+(dsTier(b.itemCd)&&tierUnder(dsTier(b.itemCd), b.qty)?'미만':'기본')+')</span>':'')
       +'<br><span style="font-size:13px;color:#3d4d5c">매출 '+fmt(n(b.qty)*n(b.price))+'원'+(fld==='price'?'':' · 재고를 다시 맞춥니다')+'. 비고에 수정 기록이 남습니다.</span>',
     onOk:function(){
       post('/shipout/daesangPoRow.do', b, true).then(pj)
         .then(function(j){ if(j.error){ back(); err(esc(j.error)); return; }
           if(fld==='itemCd' && x.itemNm) _map[x.itemNm]=v;
-          load();
-          if(j.warn) err('고쳤지만 재고 반영에 실패했습니다 — '+esc(j.warn)); else if(window._toast) _toast('고쳤습니다','ok'); })
+          load(function(){ lsFeeSync(keys, false).then(function(r){ if(r.cnt) lsRender();   /* 금액이 바뀌었으니 그 받는 사람의 택배비를 다시 */
+            if(j.warn) err('고쳤지만 재고 반영에 실패했습니다 — '+esc(j.warn)); else if(window._toast) _toast('고쳤습니다'+(r.cnt?' — 택배비 '+r.cnt+'줄 다시 계산':'')+(r.skip?' (손으로 넣은 택배비 '+r.skip+'곳은 그대로)':''),'ok'); }); }); })
         .catch(function(e){ back(); err('고치지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); });
     }, onCancel:back });
 }
+/* ═══ 저장 목록의 택배비 맞추기 (2026-10-27) — 받는 사람(같은 발주일자·차수·이름)마다 첫 줄 = 규칙 값, 나머지 = 0.
+     force 가 아니면 «손으로 넣은 것 같은» 묶음(합이 0·4,000·제주 값이 아닌 것 — 예 3 × 4,000)은 건드리지 않는다. 바뀌는 줄만 /shipout/daesangPoFee.do 로 하나씩 */
+function lsKey(x){ var nm=dsName(x.rcvNm); return nm ? (d10(x.dlvDt)+'|'+dsName(x.dsRound)+'|'+nm) : ('#'+x.seq); }
+function lsFeeSync(keys, force){
+  var g={}; _ls.forEach(function(x){ var k=lsKey(x); if(keys && keys.indexOf(k)<0) return; (g[k]=g[k]||[]).push(x); });
+  var jobs=[], skip=0;
+  Object.keys(g).forEach(function(k){ var l=g[k].slice().sort(function(a,b){ return n(a.seq)-n(b.seq); });
+    var cur=0, blank=true; l.forEach(function(x){ if(feeNum(x)!==''){ blank=false; cur+=n(x.fee); } });
+    if(!force && !blank && !feeAutoSum(cur)){ skip++; return; }
+    var amt=0, jj=false; l.forEach(function(x){ amt+=n(x.qty)*n(x.salePrice); if(isJeju(x.rcvAddr)) jj=true; });
+    var w=feeWant(amt, jj);
+    l.forEach(function(x, i){ var v=(i===0 ? w : 0); if(feeNum(x)==='' || n(x.fee)!==v) jobs.push({ x:x, v:v }); }); });
+  var done=0, fail=0;
+  return jobs.reduce(function(p, jb){ return p.then(function(){ return post('/shipout/daesangPoFee.do',{ seq:jb.x.seq, fee:String(jb.v) },true).then(pj)
+      .then(function(j){ if(j.error){ fail++; return; } jb.x.fee=jb.v; jb.x.rcvFee=jb.v; done++; }).catch(function(){ fail++; }); }); }, Promise.resolve())
+    .then(function(){ if(fail) err('택배비 '+fail+'줄을 저장하지 못했습니다 — [조회] 뒤 다시 해 보세요.'); return { cnt:done, skip:skip, fail:fail }; });
+}
+function lsFeeAll(){
+  if(!_ls.length){ err('조회된 줄이 없습니다.'); return; }
+  var pick=[]; Array.prototype.forEach.call(document.querySelectorAll('.lchk:checked'), function(c){ var x=_ls[+c.getAttribute('data-i')]; if(x) pick.push(x); });
+  var rows=pick.length?pick:_ls, keys=[]; rows.forEach(function(x){ var k=lsKey(x); if(keys.indexOf(k)<0) keys.push(k); });
+  _confirmBox({ icon:'🚚', okText:'다시 계산',
+    msg:(pick.length?'체크한 줄':'조회된 줄 전부')+'의 받는 사람 <b>'+keys.length+'</b>곳 택배비를 규칙대로 다시 넣습니다.<br><span style="font-size:13px;color:#3d4d5c">받는 사람 합계(부가세 별도)가 3만 원부터 0원 · 미만이면 4,000원(첫 줄에 한 번)'+(DS_JEJU?' · 제주 '+fmt(DS_JEJU)+'원 추가':'')+'.<br><b style="color:#b45309">손으로 넣은 택배비(예 3 × 4,000)도 규칙 값으로 바뀝니다.</b></span>',
+    onOk:function(){ lsFeeSync(keys, true).then(function(r){ lsRender(); if(window._toast) _toast('택배비 '+r.cnt+'줄을 다시 넣었습니다','ok'); }); }, onCancel:function(){} });
+}
+
+/* 저장 목록 — 차수 일괄 넣기 (2026-10-27 「차수 안 찍힘」 : 이 기능 전에 저장된 줄은 차수가 비어 마감 엑셀 일자 칸에 날짜만 찍혔다). 위 차수 칸의 값을 체크한 줄(없으면 전부)에 — 줄마다 daesangPoInfo */
+function lsRoundAll(){
+  var rd=dsName(document.getElementById('roundLs').value); if(!rd){ err('단추 왼쪽 칸에 넣을 차수를 적으세요 — 예) 10월 1차'); document.getElementById('roundLs').focus(); return; }
+  if(!_ls.length){ err('조회된 줄이 없습니다.'); return; }
+  var pick=[]; Array.prototype.forEach.call(document.querySelectorAll('.lchk:checked'), function(c){ var x=_ls[+c.getAttribute('data-i')]; if(x) pick.push(x); });
+  if(!pick.length){ err('차수를 넣을 줄을 먼저 <b>체크</b>하세요.<br><span style="font-size:13px">맨 왼쪽 체크칸 — 전부면 머리줄의 체크칸.</span>'); return; }   /* 체크한 줄에만 (2026-10-27 사용자 「체크하고 차수 일괄 적용하게」) */
+  var rows=pick.filter(function(x){ return dsName(x.dsRound)!==rd; });
+  if(!rows.length){ if(window._toast) _toast('체크한 줄은 이미 모두 '+rd+' 입니다','info'); return; }
+  _confirmBox({ icon:'📌', okText:'넣기', msg:'체크한 '+pick.length+'줄 가운데 <b>'+rows.length+'</b>줄의 차수를 <b>'+esc(rd)+'</b> 로 넣습니다.<br><span style="font-size:13px;color:#3d4d5c">마감 엑셀의 일자 칸에 날짜와 함께 찍힙니다. 받는 사람 택배비도 차수 묶음으로 다시 맞춥니다.</span>',
+    onOk:function(){ var done=0, fail=0, keys=[];
+      return rows.reduce(function(p,x){ return p.then(function(){ keys.push(lsKey(x));
+        return post('/shipout/daesangPoInfo.do',{ seq:x.seq, rcvNm:x.rcvNm||'', rcvAddr:x.rcvAddr||'', rcvTel:x.rcvTel||'', rcvTel2:x.rcvTel2||'', rcvItemCd:x.rcvItemCd||'', itemNm:x.itemNm||'', dsRound:rd },true).then(pj)
+          .then(function(j){ if(j.error){ fail++; return; } x.dsRound=rd; keys.push(lsKey(x)); done++; }).catch(function(){ fail++; }); }); }, Promise.resolve())
+      .then(function(){ return lsFeeSync(keys, false); })
+      .then(function(){ lsRender(); _roundTouched=false; loadDsMap();
+        if(fail) err('차수 '+fail+'줄을 저장하지 못했습니다 — [조회] 뒤 다시 해 보세요.'); else if(window._toast) _toast('차수 '+rd+' 를 '+done+'줄에 넣었습니다','ok'); }); },
+    onCancel:function(){} });
+}
+
+/* ═══ 마감 엑셀(대상 송부용) — 「대상급식 마감.xlsx」 월 시트와 같은 모양 (2026-10-27 「나중에 해당 자료 보내 주어야 함 — 엑셀 일자에 10월 1차」) ═══
+   맨 위 [매출장] · 조회기간 · VAT 별도 · 오른쪽 위 = 택배비 건수(I1)·합계(J1) (사용자 「표시 제거하지 말아주세요」 — 그대로 둠) / 칸 = 일자 · 출고점 · 상품명 · 규격 · 수량 · 단가 · 금액
+   · 일자 칸 = 「2026-09-28 10월 1차」 — 같은 차수의 줄은 위아래로 합친다. 출고점 칸 = 받는 사람 — 그 사람의 줄(택배비 줄 포함)을 합친다.
+   · 상품명·규격 = 우리 상품코드의 이름·규격(대상 제품명이 아니다 — 실제 마감 엑셀이 그렇다). 매칭코드면 그 주코드의 것.
+   · 받는 사람마다 택배비가 있으면 그 사람 줄 밑에 「택배비(로젠) 수량 × 4,000」 한 줄(4,000 의 배수면 수량으로 — 3 × 4,000 = 12,000).
+   · 금액 = 수량 × 단가(엑셀 식) · 맨 아래 합 계(식). 범위 = 지금 조회한 기간의 줄 전부(체크와 무관). */
+function dsCloseXls(){
+  if(!window.XLSX){ err('엑셀 도구를 불러오지 못했습니다 — 화면을 새로 고친 뒤 다시 해 보세요.'); return; }
+  if(!_ls.length){ err('조회된 줄이 없습니다 — 마감 기간을 고르고 [🔍 조회] 하세요.'); return; }
+  var rk=function(v){ var p=roundParse(v); return p ? p.m*1000+p.k : 0; };
+  var rows=_ls.slice().sort(function(a,b){ return String(a.dlvDt).localeCompare(String(b.dlvDt)) || (rk(a.dsRound)-rk(b.dsRound)) || String(a.ordNo).localeCompare(String(b.ordNo)) || (n(a.lineNo)-n(b.lineNo)) || (n(a.seq)-n(b.seq)); });
+  /* 차수 묶음 → 그 안에서 받는 사람(처음 나온 차례) 묶음 */
+  var rounds=[], rIdx={};
+  rows.forEach(function(x){ var rkey=String(x.dlvDt)+'|'+dsName(x.dsRound); var R=rIdx[rkey];
+    if(!R){ R={ dt:d10(x.dlvDt), rd:dsName(x.dsRound), people:[], pIdx:{} }; rIdx[rkey]=R; rounds.push(R); }
+    var pk=dsName(x.rcvNm)||('#'+x.seq), P=R.pIdx[pk]; if(!P){ P={ nm:dsName(x.rcvNm), rows:[], fee:0 }; R.pIdx[pk]=P; R.people.push(P); }
+    P.rows.push(x); P.fee+=n(x.fee); });
+  var noRnd=rows.filter(function(x){ return !dsName(x.dsRound); }).length;
+  var nmOf=function(cd, fb){ var m=_main[cd]; var v=prodNmOf(cd)||(m?prodNmOf(m):''); return v||fb||''; };
+  var spOf=function(cd){ return _spec[cd]||(_main[cd]?(_spec[_main[cd]]||''):''); };
+  var aoa=[], merges=[], FEE_NM='택배비(로젠)', feeQty=0, feeSum=0;
+  var fr=document.getElementById('fr').value, to=document.getElementById('to').value;
+  aoa.push(['[매출장]','','','','','','','','','']); aoa.push(['조회기간 : '+(fr||rows[0].dlvDt)+' ~ '+(to||rows[rows.length-1].dlvDt),'','','','','','VAT 별도']);
+  aoa.push(['일자','출고점','상품명','규격','수량','단가','금액']);
+  merges.push({ s:{r:0,c:0}, e:{r:0,c:6} }, { s:{r:1,c:0}, e:{r:1,c:3} });
+  rounds.forEach(function(R){ var r0=aoa.length;
+    R.people.forEach(function(P){ var p0=aoa.length;
+      P.rows.forEach(function(x){ aoa.push(['', '', nmOf(x.itemCd, x.itemNm), spOf(x.itemCd), n(x.qty), (x.salePrice==null||x.salePrice==='')?'':n(x.salePrice), null]); });
+      if(P.fee>0){ var fq=(P.fee%DS_FEE===0)?P.fee/DS_FEE:1, fu=(P.fee%DS_FEE===0)?DS_FEE:P.fee; aoa.push(['', '', FEE_NM, '', fq, fu, null]); feeQty+=fq; feeSum+=P.fee; }
+      aoa[p0][1]=P.nm; if(aoa.length-1>p0) merges.push({ s:{r:p0,c:1}, e:{r:aoa.length-1,c:1} }); });
+    aoa[r0][0]=R.dt+(R.rd?' '+R.rd:''); if(aoa.length-1>r0) merges.push({ s:{r:r0,c:0}, e:{r:aoa.length-1,c:0} }); });
+  var last=aoa.length;   /* 엑셀 줄 번호(1부터) = 마지막 자료 줄 */
+  aoa.push(['합 계','','','','',null,null]); merges.push({ s:{r:last,c:0}, e:{r:last,c:1} });
+  aoa[0][8]=feeQty+'건'; aoa[0][9]=feeSum;
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  var L={ style:'thin', color:{ rgb:'000000' } }, BX={ top:L, bottom:L, left:L, right:L };
+  var st=function(ref, s){ if(!ws[ref]) ws[ref]={ t:'s', v:'' }; ws[ref].s=s; };
+  var C={ alignment:{ vertical:'center', wrapText:true }, border:BX, font:{ name:'맑은 고딕', sz:10 } };
+  var CC={ alignment:{ horizontal:'center', vertical:'center', wrapText:true }, border:BX, font:{ name:'맑은 고딕', sz:10 } };
+  var NI={ alignment:{ horizontal:'right', vertical:'center' }, border:BX, numFmt:'#,##0', font:{ name:'맑은 고딕', sz:10 } };
+  var ND={ alignment:{ horizontal:'right', vertical:'center' }, border:BX, numFmt:'#,##0.0#', font:{ name:'맑은 고딕', sz:10 } };
+  var HD={ alignment:{ horizontal:'center', vertical:'center' }, border:BX, fill:{ fgColor:{ rgb:'DDEBF7' } }, font:{ name:'맑은 고딕', sz:10, bold:true } };
+  var TT={ alignment:{ horizontal:'center', vertical:'center' }, border:BX, fill:{ fgColor:{ rgb:'FCF8E3' } }, font:{ name:'맑은 고딕', sz:10, bold:true } };
+  ws['A1'].s={ alignment:{ horizontal:'center', vertical:'center' }, font:{ name:'맑은 고딕', sz:14, bold:true } };   /* 제목 가운데 (사용자 「매출장 가운데로」 — A1:G1 병합 위에서) */
+  ws['A2'].s={ font:{ name:'맑은 고딕', sz:10 } }; ws['G2'].s={ alignment:{ horizontal:'right' }, font:{ name:'맑은 고딕', sz:10 } };
+  ws['I1'].s={ font:{ name:'맑은 고딕', sz:10, bold:true } }; ws['J1'].s={ numFmt:'#,##0', font:{ name:'맑은 고딕', sz:10, bold:true } };
+  for(var c=0;c<7;c++) st(XLSX.utils.encode_cell({ r:2, c:c }), HD);
+  for(var r=3;r<last;r++){ var R1=r+1;
+    st('A'+R1, CC); st('B'+R1, CC); st('C'+R1, C); st('D'+R1, C);
+    st('E'+R1, NI); var fv=aoa[r][5]; st('F'+R1, (typeof fv==='number' && Math.round(fv)!==fv) ? ND : NI);
+    var gv=(typeof aoa[r][4]==='number' && typeof fv==='number') ? Math.round(aoa[r][4]*fv*100)/100 : 0;
+    ws['G'+R1]={ t:'n', v:gv, f:'E'+R1+'*F'+R1, s:NI }; }
+  var T=last+1, sumE=0, sumG=0; for(var r2=3;r2<last;r2++){ if(typeof aoa[r2][4]==='number') sumE+=aoa[r2][4]; if(ws['G'+(r2+1)]) sumG+=ws['G'+(r2+1)].v; }
+  ['A','B','C','D','F'].forEach(function(cl){ st(cl+T, TT); });
+  ws['E'+T]={ t:'n', v:sumE, f:'SUM(E4:E'+last+')', s:Object.assign({}, NI, { fill:TT.fill, font:TT.font }) };
+  ws['G'+T]={ t:'n', v:sumG, f:'SUM(G4:G'+last+')', s:Object.assign({}, NI, { fill:TT.fill, font:TT.font }) };
+  ws['!merges']=merges;
+  ws['!cols']=[{ wch:20 },{ wch:25 },{ wch:42 },{ wch:21 },{ wch:8 },{ wch:9 },{ wch:11 },{ wch:2 },{ wch:6 },{ wch:9 }];
+  /* 시트 이름 = 마감월 YYYYMM — 차수의 월(가장 많이 나온 것), 차수가 없으면 마지막 발주일자의 월. 차수 월이 날짜 월보다 앞이면(1월 차수에 12월 날짜) 해를 넘긴다 */
+  var cnt={}; rows.forEach(function(x){ var p=roundParse(x.dsRound); if(p) cnt[p.m]=(cnt[p.m]||0)+1; });
+  var lastDt=String(rows[rows.length-1].dlvDt), yy=+lastDt.slice(0,4), mm=+lastDt.slice(4,6), best=0;
+  Object.keys(cnt).forEach(function(k){ if(cnt[k]>best){ best=cnt[k]; mm=+k; } });
+  if(mm<+lastDt.slice(4,6)-6) yy++;
+  var sheet=yy+('0'+mm).slice(-2);
+  var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, sheet);
+  XLSX.writeFile(wb, '대상급식_마감_'+sheet+'.xlsx');
+  if(window._toast) _toast('📑 마감 엑셀 — '+sheet+' · '+rows.length+'줄 · 택배비 '+feeQty+'건 '+fmt(feeSum)+'원','ok');
+  if(noRnd) err('차수가 빈 줄 <b>'+noRnd+'</b>개는 일자 칸에 날짜만 찍혔습니다.<br><span style="font-size:13px">목록의 「차수」 칸에 넣고 다시 만들면 됩니다.</span>');
+}
+
+/* ═══ 이력 · 복구 (2026-10-27 사용자 「이력조회 및 복구기능」) ═══
+   /shipout/daesangPoHist.do(조회 기간의 N·D 줄, 최근 닫힌 것 먼저) · /shipout/daesangPoRestore.do({seq}).
+   수정 전(N) 줄의 [복구] = 그 묶음(ORD_NO+줄번호)의 지금 살아 있는 줄(liveSeq)을 닫고 옛 값으로 — 확인창에 「지금 → 되돌릴 값」을 적는다. 삭제(D) 줄의 [복구] = 그냥 되살림.
+   복구 뒤 저장 목록을 다시 읽고 그 받는 사람의 택배비를 다시 맞춘다 */
+var _dh=[];
+function dhOpen(){
+  document.getElementById('dhMask').classList.add('on');
+  document.getElementById('dhFr').value=document.getElementById('fr').value; document.getElementById('dhTo').value=document.getElementById('to').value;   /* 처음 = 저장 목록의 기간 */
+  dhLoad();
+}
+function dhLoad(){
+  document.getElementById('dhBody').innerHTML='<tr><td colspan="13" class="msg">읽는 중…</td></tr>';
+  var fr=document.getElementById('dhFr').value, to=document.getElementById('dhTo').value;
+  document.getElementById('dhSub').textContent='';
+  post('/shipout/daesangPoHist.do','frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)).then(pj)
+    .then(function(j){ if(j.error){ _dh=[]; document.getElementById('dhBody').innerHTML='<tr><td colspan="13" class="msg" style="color:#c0392b">'+esc(j.error)+'</td></tr>'; return; } _dh=(j&&j.data)||[]; dhRender(); document.getElementById('dhSub').textContent=_dh.length?(_dh.length+'줄'):''; })
+    .catch(function(e){ document.getElementById('dhBody').innerHTML='<tr><td colspan="13" class="msg" style="color:#c0392b">읽지 못했습니다 — '+esc(e.message)+'</td></tr>'; });
+}
+function dhClose(){ document.getElementById('dhMask').classList.remove('on'); }
+function dhLive(seq){ var hit=null; _ls.forEach(function(x){ if(String(x.seq)===String(seq)) hit=x; }); return hit; }
+function dhRender(){
+  var tb=document.getElementById('dhBody');
+  if(!_dh.length){ tb.innerHTML='<tr><td colspan="13" class="msg">이 기간에 고치거나 삭제한 줄이 없습니다.</td></tr>'; return; }
+  tb.innerHTML=_dh.map(function(x,i){ var isN=x.actionYn==='N', live=isN&&x.liveSeq?dhLive(x.liveSeq):null, pn=_prod[x.itemCd];
+    var st=isN ? (x.liveSeq?'<span class="st N" title="고친 결과가 살아 있는 줄 SEQ '+esc(x.liveSeq)+' 입니다">수정 전</span>':'<span class="st gone" title="고친 결과도 그 뒤에 삭제되어 지금 살아 있는 줄이 없습니다">수정 전 (결과 삭제됨)</span>')
+                 : '<span class="st D">삭제</span>';
+    return '<tr><td>'+st+'</td><td class="dim">'+esc(x.updDttm||'')+'</td><td class="dim">'+esc(x.updUser||'')+'</td><td>'+d10(x.dlvDt)+'</td><td>'+esc(x.dsRound||'')+'</td>'
+      +'<td class="l">'+esc(x.rcvNm)+'</td><td class="l" style="white-space:normal"><span class="sub nmf'+(pn==null?' warn':'')+'">'+esc(pn!=null?pn:x.itemNm)+'</span><span class="sub">'+esc(x.itemCd)+(x.itemNm&&pn!=null?' · '+esc(x.itemNm):'')+'</span></td>'
+      +'<td class="r">'+fmt(x.qty)+'</td><td class="r">'+(x.salePrice==null?'':fmtIn(x.salePrice))+'</td><td class="r">'+fmt(n(x.qty)*n(x.salePrice))+'</td><td class="r">'+(x.rcvFee==null?'':fmt(x.rcvFee))+'</td>'
+      +'<td class="l dim" style="white-space:normal;max-width:260px;font-size:12px">'+esc(x.remark)+'</td>'
+      +'<td><button class="btn" style="height:28px;padding:0 10px" onclick="dhRestore('+i+')">↩ 복구</button></td></tr>'; }).join('');
+}
+function dhRestore(i){
+  var x=_dh[i]; if(!x) return; var isN=x.actionYn==='N', live=isN&&x.liveSeq?dhLive(x.liveSeq):null;
+  var msg;
+  if(isN){
+    msg='<b>'+esc(x.rcvNm||'')+' · '+esc(_prod[x.itemCd]||x.itemNm)+'</b> 을(를) <b>수정 전 값</b>으로 되돌립니다.<br>'
+      +(live ? '<span style="font-size:13px;color:#3d4d5c">지금 : '+d10(live.dlvDt)+' · '+esc(live.itemCd)+' · 수량 '+fmt(live.qty)+' · 단가 '+fmtIn(live.salePrice)+'<br>→ 되돌릴 값 : '+d10(x.dlvDt)+' · '+esc(x.itemCd)+' · 수량 '+fmt(x.qty)+' · 단가 '+(x.salePrice==null?'없음':fmtIn(x.salePrice))+'</span>'
+             : '<span style="font-size:13px;color:#3d4d5c">되돌릴 값 : '+d10(x.dlvDt)+' · '+esc(x.itemCd)+' · 수량 '+fmt(x.qty)+' · 단가 '+(x.salePrice==null?'없음':fmtIn(x.salePrice))+(x.liveSeq?'<br>지금 살아 있는 줄(고친 결과)은 닫힙니다.':'<br>고친 결과는 이미 삭제되어 이 줄만 살아납니다.')+'</span>')
+      +'<br><span style="font-size:12.5px;color:#6b7a89">두 날짜의 재고를 다시 맞춥니다. 비고에 복구 기록이 남습니다.</span>';
+  } else {
+    msg='삭제했던 줄을 <b>다시 살립니다</b>.<br><span style="font-size:13px;color:#3d4d5c">'+d10(x.dlvDt)+(x.dsRound?' '+esc(x.dsRound):'')+' · '+esc(x.rcvNm||'')+' · '+esc(_prod[x.itemCd]||x.itemNm)+' · 수량 '+fmt(x.qty)+' · 단가 '+(x.salePrice==null?'없음':fmtIn(x.salePrice))+'</span>'
+      +'<br><span style="font-size:12.5px;color:#6b7a89">같은 표를 다시 올려 둔 상태면 같은 줄이 둘이 됩니다 — 복구 뒤 목록에서 확인하세요.</span>';
+  }
+  _confirmBox({ icon:'↩', okText:'복구', msg:msg,
+    onOk:function(){ post('/shipout/daesangPoRestore.do',{ seq:x.seq },true).then(pj)
+      .then(function(j){ if(j.error){ err(esc(j.error)); return; }
+        _dh.splice(i,1); dhRender();
+        var k=d10(x.dlvDt)+'|'+dsName(x.dsRound)+'|'+dsName(x.rcvNm), keys=[k]; if(live) keys.push(lsKey(live));
+        load(function(){ lsFeeSync(keys, false).then(function(r){ if(r.cnt) lsRender(); }); });
+        if(j.warn) err('복구했지만 재고 반영에 실패했습니다 — '+esc(j.warn)); else if(window._toast) _toast('복구했습니다','ok'); })
+      .catch(function(e){ err('복구하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); }); }, onCancel:function(){} });
+}
+
+/* ═══ 대상 단가표 창 (2026-10-27) ═══ */
+var _dpRows=[];
+function dpOpen(){
+  _dpRows=_dsPriceList.map(function(t){ return { prodCd:String(t.prodCd||''), baseQty:t.baseQty, basePrice:t.basePrice, underPrice:(t.underPrice==null?'':t.underPrice), remark:t.remark||'', sortOrd:t.sortOrd, useYn:t.useYn||'Y', saved:true }; });
+  document.getElementById('dpWarn').innerHTML=_priceErr?'<div class="dpwarn">'+esc(_priceErr)+'</div>':'';
+  dpRender(); document.getElementById('dpMask').classList.add('on');
+}
+function dpClose(){ document.getElementById('dpMask').classList.remove('on'); }
+function dpAdd(){ var mx=0; _dpRows.forEach(function(r){ mx=Math.max(mx, n(r.sortOrd)); }); _dpRows.push({ prodCd:'', baseQty:'', basePrice:'', underPrice:'', remark:'', sortOrd:mx+10, useYn:'Y', saved:false }); dpRender();
+  var e=document.querySelector('#dpBody tr:last-child input'); if(e) e.focus(); }
+function dpRender(){
+  document.getElementById('dpBody').innerHTML=_dpRows.length ? _dpRows.map(function(r,i){ var pn=_prod[r.prodCd];
+    var inp=function(f,cls,ph){ return '<input type="text" class="'+cls+'" value="'+esc(r[f]==null?'':(cls==='num'&&r[f]!==''?fmtIn(r[f]):r[f]))+'" placeholder="'+(ph||'')+'" onchange="dpSet('+i+',\''+f+'\',this)">'; };
+    return '<tr'+(r.useYn==='N'?' class="off"':'')+'><td class="l"><input type="text" list="prodList" class="cd '+(r.prodCd?(pn!=null?'ok':'bad'):'')+'" style="width:170px" value="'+esc(r.prodCd)+'" placeholder="명칭 또는 코드" onchange="dpSet('+i+',\'prodCd\',this)"></td>'
+      +'<td class="l" style="white-space:normal">'+esc(pn!=null?pn:(r.prodCd?'상품 마스터에 없는 코드':''))+'</td>'
+      +'<td>'+inp('baseQty','num','0 = 하나')+'</td><td>'+inp('basePrice','num','')+'</td><td>'+inp('underPrice','num','같음')+'</td><td>'+inp('remark','','')+'</td>'
+      +'<td><input type="checkbox" '+(r.useYn!=='N'?'checked':'')+' onchange="_dpRows['+i+'].useYn=this.checked?\'Y\':\'N\'; dpRender()"></td>'
+      +'<td><button class="x" title="단가표에서 뺍니다" onclick="dpDel('+i+')">✕</button></td></tr>'; }).join('')
+    : '<tr><td colspan="8" class="msg">등록된 품목이 없습니다 — [＋ 품목 추가]</td></tr>';
+}
+function dpSet(i, f, el){ var r=_dpRows[i]; if(!r) return; var v=String(el.value||'').trim();
+  if(f==='prodCd'){ r.prodCd=pickCd(v); dpRender(); return; }
+  if(f==='remark'){ r.remark=v; return; }
+  v=v.replace(/,/g,''); if(v!=='' && !/^\d+(\.\d+)?$/.test(v)){ err('숫자로 넣으세요.'); el.value=(r[f]===''||r[f]==null)?'':fmtIn(r[f]); return; }
+  r[f]=(v===''?'':n(v)); el.value=(r[f]===''?'':fmtIn(r[f])); }
+function dpDel(i){ var r=_dpRows[i]; if(!r) return;
+  if(!r.saved){ _dpRows.splice(i,1); dpRender(); return; }
+  _confirmBox({ icon:'🗑', okText:'빼기', msg:'단가표에서 <b>'+esc(r.prodCd)+'</b> '+esc(_prod[r.prodCd]||'')+' 을(를) 뺍니다.<br><span style="font-size:13px;color:#3d4d5c">이미 저장된 대상 발주의 단가는 그대로입니다. 앞으로 이 품목은 상품코드 판매가로 들어갑니다.</span>',
+    onOk:function(){ post('/shipout/daesangPriceDel.do',{ prodCd:r.prodCd },true).then(pj).then(function(j){ if(j.error){ err(esc(j.error)); return; }
+      dsPriceSet(j.price||[]); _dpRows.splice(i,1); dpRender(); dpApply(); if(window._toast) _toast('단가표에서 뺐습니다','ok'); }).catch(function(e){ err(esc(e.message)); }); }, onCancel:function(){} });
+}
+function dpSave(){
+  var rows=_dpRows.filter(function(r){ return r.prodCd; }), bad=[], seen={};
+  rows.forEach(function(r){ if(_prod[r.prodCd]==null) bad.push(r.prodCd+' (마스터에 없는 코드)'); else if(!(n(r.basePrice)>0)) bad.push(r.prodCd+' (이상 단가 없음)'); else if(seen[r.prodCd]) bad.push(r.prodCd+' (두 번 들어감)'); seen[r.prodCd]=1; });
+  if(!rows.length){ err('저장할 품목이 없습니다.'); return; }
+  if(bad.length){ err('고칠 줄이 있습니다.<br><span style="font-size:13px">'+esc(bad.join(' · '))+'</span>'); return; }
+  post('/shipout/daesangPriceSave.do',{ rows:rows.map(function(r){ return { prodCd:r.prodCd, baseQty:String(r.baseQty===''?0:r.baseQty), basePrice:String(r.basePrice), underPrice:(r.underPrice===''?'':String(r.underPrice)), remark:r.remark||'', sortOrd:String(n(r.sortOrd)), useYn:r.useYn }; }) },true).then(pj)
+    .then(function(j){ if(j.error){ err(esc(j.error)); return; } dsPriceSet(j.price||[]); _priceErr=''; dpOpen(); dpApply();
+      if(window._toast) _toast('대상 단가표를 저장했습니다 — '+(j.cnt||0)+'품목','ok'); })
+    .catch(function(e){ err('단가표를 저장하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); });
+}
+/* 단가표가 바뀌면 올려 둔 줄의 자동 단가를 새로(손으로 넣은 단가는 그대로) · 저장 목록은 표시만 새로 */
+function dpApply(){ autoFill(); pvRender(); if(_ls.length) lsRender(); }
+
 function lsAllChk(el){ Array.prototype.forEach.call(document.querySelectorAll('.lchk'), function(c){ c.checked=el.checked; }); }
 function delSel(){
-  var seqs=[]; Array.prototype.forEach.call(document.querySelectorAll('.lchk:checked'), function(c){ var x=_ls[+c.getAttribute('data-i')]; if(x) seqs.push(x.seq); });
+  var seqs=[], dkeys=[]; Array.prototype.forEach.call(document.querySelectorAll('.lchk:checked'), function(c){ var x=_ls[+c.getAttribute('data-i')]; if(x){ seqs.push(x.seq); dkeys.push(lsKey(x)); } });
   if(!seqs.length){ err('취소(삭제)할 줄을 고르세요.'); return; }
   _confirmBox({ icon:'🗑', okText:'삭제', msg:'고른 대상 발주 <b>'+seqs.length+'</b>줄의 저장을 취소(삭제)합니다.<br><span style="font-size:13px;color:#3d4d5c">출고·매출에서 빠지고 재고도 다시 맞춥니다. (자동 매칭용 제품명 → 품목코드 짝은 남습니다)</span>',
     onOk:function(){ post('/shipout/daesangPoDelete.do',{ seqs:seqs },true).then(pj)
-      .then(function(j){ if(j.error){ err(esc(j.error)); return; } load();
+      .then(function(j){ if(j.error){ err(esc(j.error)); return; } load(function(){ lsFeeSync(dkeys, false).then(function(r){ if(r.cnt) lsRender(); }); });   /* 남은 줄의 택배비 다시 */
         ok((j.cnt||0)+'줄을 삭제했습니다.'+(j.warn?'<br><span style="color:#c0392b;font-size:13px">재고 반영 경고 — '+esc(j.warn)+'</span>':'')); })
       .catch(function(e){ err('삭제하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); }); }, onCancel:function(){} });
 }
@@ -660,6 +1030,11 @@ function howToggle(){ var open=document.getElementById('howBox').classList.conta
     if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', pvRender); else pvRender();
   }
   try{ howSet(localStorage.getItem('dsPoHow')==='1'); }catch(e){ howSet(false); }
+  /* 단가표·이력 창 — 제목줄(.dh)을 잡고 끈다 · 더블클릭 = 가운데 · 자리는 localStorage konetPopPos.dpMask / dhMask (2026-10-27) */
+  /* ⚠덮개의 「바깥 누르면 닫기」는 onclick 속성이 아니라 여기서 — popdrag 는 onclick 이 달린 요소 «안»에서는 끌지 않는다(제목줄도 덮개 안이라 창이 안 움직였다, 2026-10-27 「마우스 표시는 되는데 안 움직임」) */
+  document.getElementById('dpMask').addEventListener('click', function(e){ if(e.target===this) dpClose(); });
+  document.getElementById('dhMask').addEventListener('click', function(e){ if(e.target===this) dhClose(); });
+  if(window.konetPopDrag){ konetPopDrag('#dpMask','.dh'); konetPopDrag('#dhMask','.dh'); }
   var t=new Date(), a=new Date(t.getFullYear(), t.getMonth(), t.getDate()-30);
   document.getElementById('dt').value=ymd(t);
   document.getElementById('fr').value=ymd(a); document.getElementById('to').value=ymd(t);

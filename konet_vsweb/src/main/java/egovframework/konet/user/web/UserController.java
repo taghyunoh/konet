@@ -1734,6 +1734,7 @@ public class UserController {
 		private static String dsErr(Exception e, String what) {
 			String m = e.getMessage() == null ? "" : e.getMessage();
 			if (m.contains("RCV_")) return what + " — DB 에 배송 정보 칸이 없습니다. docs/sql/20261002_daesang_po.sql 을 먼저 실행해 주세요.";
+			if (m.contains("DS_ROUND") || m.contains("TBL_DS_PRICE")) return what + " — DB 에 차수 칸·대상 단가표가 없습니다. docs/sql/20261027_daesang_price.sql 을 먼저 실행해 주세요.";
 			return what + (m.trim().isEmpty() ? "" : " : " + (m.length() > 200 ? m.substring(0, 200) : m));
 		}
 		@RequestMapping(value="/shipout/daesangPoMap.do", method = RequestMethod.POST)
@@ -1747,6 +1748,14 @@ public class UserController {
 				}
 			} catch (Exception e) { log.error(" daesangPoMap ERROR : " + e.getMessage()); }
 			res.put("item", item);
+			/* ★대상 단가표·차수 목록 (2026-10-27) — 따로 잡는다 : DDL 전이라 표가 없어도 자동 매칭(item)은 그대로 준다. 실패하면 priceErr 로 알린다 */
+			try {
+				if (session.getAttribute("s_comp_cd") != null) {
+					String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+					res.put("price", svc.selectDsPriceList(compCd));
+					res.put("rounds", svc.selectDsRounds(compCd));
+				}
+			} catch (Exception e) { log.error(" daesangPoMap price ERROR : " + e.getMessage()); res.put("priceErr", dsErr(e, "대상 단가표를 읽지 못했습니다")); }
 			return res;
 		}
 		@RequestMapping(value="/shipout/daesangPoList.do", method = RequestMethod.POST)
@@ -1801,6 +1810,7 @@ public class UserController {
 					d.setRcvNm(dsCut(poStr(m.get("rcvNm")), 100)); d.setRcvAddr(dsCut(poStr(m.get("rcvAddr")), 300));
 					d.setRcvTel(dsCut(poStr(m.get("rcvTel")), 40)); d.setRcvTel2(dsCut(poStr(m.get("rcvTel2")), 40));
 					d.setRcvItemCd(dsCut(poStr(m.get("rcvItemCd")), 30));
+					d.setDsRound(dsCut(poStr(m.get("dsRound")), 20));   // 차수 「10월 1차」 (2026-10-27)
 					/* 택배비(운임) — 빈 칸이면 저장하지 않는다(NULL). 엑셀의 운임 칸으로 나가는 값이고 매출·재고와는 무관하다 */
 					String fs = poStr(m.get("fee"));
 					if (!fs.isEmpty()) { double fd = poNum(fs); if (fd < 0 || fd > 100000000) { bad++; continue; } d.setRcvFee(Integer.valueOf((int) Math.round(fd))); }
@@ -1854,10 +1864,82 @@ public class UserController {
 				v.put("rcvNm", dsCut(poStr(p.get("rcvNm")), 100)); v.put("rcvAddr", dsCut(poStr(p.get("rcvAddr")), 300));
 				v.put("rcvTel", dsCut(poStr(p.get("rcvTel")), 40)); v.put("rcvTel2", dsCut(poStr(p.get("rcvTel2")), 40));
 				v.put("rcvItemCd", dsCut(poStr(p.get("rcvItemCd")), 30)); v.put("itemNm", dsCut(poStr(p.get("itemNm")), 200));
+				v.put("dsRound", dsCut(poStr(p.get("dsRound")), 20));   // 차수 (2026-10-27)
 				int n = svc.updateDsPoInfo(seq, v, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")));
 				if (n == 0) { res.put("error", "저장된 줄을 찾을 수 없습니다(다른 곳에서 지웠거나 고쳤을 수 있습니다) — [조회]로 새로 읽으세요."); return res; }
 				res.put("cnt", Integer.valueOf(n));
 			} catch (Exception e) { log.error(" daesangPoInfo ERROR : " + e.getMessage()); res.put("error", dsErr(e, "고치지 못했습니다")); }
+			return res;
+		}
+		/* ★이력 조회 (2026-10-27 「이력조회 및 복구기능」) — frDt·toDt(발주일자) → 고쳐서 닫힌 줄(N)·삭제한 줄(D) */
+		@RequestMapping(value="/shipout/daesangPoHist.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> daesangPoHist(@RequestParam(value="frDt", required=false) String fr, @RequestParam(value="toDt", required=false) String to, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("frDt", fr); q.put("toDt", to);
+				res.put("data", svc.selectDsPoHist(q));
+			} catch (Exception e) { log.error(" daesangPoHist ERROR : " + e.getMessage()); res.put("data", new java.util.ArrayList<Object>()); res.put("error", dsErr(e, "이력을 읽지 못했습니다")); }
+			return res;
+		}
+		/* 복구 — {seq}. 수정 전 줄이면 지금 살아 있는 짝을 닫고 되살린다. 그 날짜들의 재고 원장을 다시 만든다 */
+		@RequestMapping(value="/shipout/daesangPoRestore.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> daesangPoRestore(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				long seq; try { seq = Long.parseLong(poStr(p.get("seq"))); } catch (NumberFormatException ne) { res.put("error", "복구할 줄을 찾을 수 없습니다."); return res; }
+				java.util.List<String> ds = svc.restoreDsPo(seq, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")));
+				if (ds == null) { res.put("error", "복구할 줄을 찾을 수 없습니다(이미 복구됐거나 다른 곳에서 바뀌었을 수 있습니다) — 이력을 다시 읽으세요."); return res; }
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
+				for (String d : ds) if (d != null && d.matches("[0-9]{8}")) dates.add(d);
+				String warn = dcResync(dates, u, request.getRemoteAddr());
+				res.put("cnt", Integer.valueOf(1)); if (warn != null) res.put("warn", warn);
+			} catch (Exception e) { log.error(" daesangPoRestore ERROR : " + e.getMessage()); res.put("error", dsErr(e, "복구하지 못했습니다")); }
+			return res;
+		}
+		/* ★대상 단가표 저장 (2026-10-27) — {rows:[{prodCd, baseQty, basePrice, underPrice, remark, sortOrd, useYn}]} · 품목코드는 마스터(상품코드·매칭코드)에 있어야 한다 */
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/shipout/daesangPriceSave.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> daesangPriceSave(@RequestBody Map<String,Object> p, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				Object ro = p.get("rows");
+				if (!(ro instanceof java.util.List) || ((java.util.List<?>) ro).isEmpty()) { res.put("error", "저장할 줄이 없습니다."); return res; }
+				java.util.List<Map<String,Object>> rows = (java.util.List<Map<String,Object>>) ro;
+				java.util.LinkedHashSet<String> ic = new java.util.LinkedHashSet<String>();
+				for (Map<String,Object> r : rows) {
+					String cd = poStr(r.get("prodCd"));
+					if (cd.isEmpty()) continue;
+					if (poNum(r.get("basePrice")) <= 0) { res.put("error", "품목 " + cd + " 의 기본(이상) 단가를 넣으세요."); return res; }
+					ic.add(cd);
+				}
+				if (ic.isEmpty()) { res.put("error", "품목코드를 넣으세요."); return res; }
+				String miss = tdMissingCodes(new java.util.LinkedHashSet<String>(), ic, compCd);
+				if (miss != null) { res.put("error", miss); return res; }
+				res.put("cnt", Integer.valueOf(svc.saveDsPrice(rows, u, compCd)));
+				res.put("price", svc.selectDsPriceList(compCd));
+			} catch (Exception e) { log.error(" daesangPriceSave ERROR : " + e.getMessage()); res.put("error", dsErr(e, "단가표를 저장하지 못했습니다")); }
+			return res;
+		}
+		@RequestMapping(value="/shipout/daesangPriceDel.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> daesangPriceDel(@RequestBody Map<String,Object> p, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String compCd = String.valueOf(session.getAttribute("s_comp_cd")), cd = poStr(p.get("prodCd"));
+				if (cd.isEmpty()) { res.put("error", "지울 품목코드가 없습니다."); return res; }
+				res.put("cnt", Integer.valueOf(svc.deleteDsPrice(cd, compCd)));
+				res.put("price", svc.selectDsPriceList(compCd));
+			} catch (Exception e) { log.error(" daesangPriceDel ERROR : " + e.getMessage()); res.put("error", dsErr(e, "단가표에서 지우지 못했습니다")); }
 			return res;
 		}
 		/* 저장된 한 줄의 택배비 고치기 — {seq, fee}(빈 값 = 지움). 그 줄만 바뀐다. 매출·재고와 무관해 재고를 다시 맞추지 않는다 */
