@@ -56,6 +56,7 @@
   .dmeta{ color:var(--dim); font-size:12.5px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
   .dmeta .act{ margin-left:auto; display:flex; gap:6px; }
   .dbody{ padding:16px; white-space:pre-wrap; word-break:break-word; line-height:1.7; font-size:14.5px; flex:1; overflow:auto; }
+  td.rdn{ cursor:help; text-decoration:underline dotted #8a97a3; text-underline-offset:3px; }
   .dreaders{ border-top:1px solid var(--bd); padding:10px 16px; font-size:12.5px; color:#37475a; background:#fafbfc; }
   .dreaders b{ color:var(--teal); }
   .dreaders .who{ color:var(--dim); margin-top:3px; line-height:1.6; }
@@ -175,7 +176,8 @@ function render(){
       +'<td>'+esc(n.regNm)+'</td>'
       +'<td>'+esc((n.regDttm||'').slice(0,16))+'</td>'
       +'<td>'+(un?'<span class="readno">—</span>':'<span class="readmk">✔</span>')+'</td>'
-      +'<td>'+esc(n.readCnt)+'</td></tr>';
+      /* 읽은 수에 마우스 → 읽은 사람 이름·시각 (2026-10-27). 이름은 총괄관리자에게만 온다 — 안 오면 숫자만 */
+      +'<td'+(n.readNames?' class="rdn" title="읽은 사람 '+esc(n.readCnt)+'명&#10;'+esc(n.readNames).replace(/\n/g,'&#10;')+'"':'')+'>'+esc(n.readCnt)+'</td></tr>';
   });
   tb.innerHTML=h||'<tr><td colspan="6" class="empty">'+(document.getElementById('q').value?'찾은 공지가 없습니다.':'등록된 공지가 없습니다.'+' [📝 새 공지]로 첫 공지를 쓰세요.')+'</td></tr>';
   document.getElementById('tot').textContent=LIST.length;
@@ -202,7 +204,7 @@ function open_(seq){
       +(((n.regUser||'')===ME)?'<span class="act"><button class="btn" onclick="editCur()">📝 수정</button><button class="btn btn-red" onclick="delCur()">🗑 삭제</button></span>':'')
       +'</div></div>'
       +'<div class="dbody">'+esc(n.content)+'</div>'
-      +'<div class="dreaders">읽은 사람 <b>'+readers.length+'</b>명'+((ADMIN||(n.regUser||'')===ME)&&readers.length?'<div class="who">'+who+'</div>':'')+'</div>';
+      +'<div class="dreaders">읽은 사람 <b>'+readers.length+'</b>명'+((j.chief==='Y')&&readers.length?'<div class="who">'+who+'</div>':'')+'</div>';
   }).catch(function(){ err('공지를 읽지 못했습니다.'); });
 }
 
