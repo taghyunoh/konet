@@ -5617,11 +5617,10 @@ public class UserController {
 				/* 기간 지남·게시 예정 공지는 관리자가 공지 화면에서 켰을 때만(inclExp) — 셸 흐름 띠·우측 패널·일반 직원은 게시 중인 것만 (2026-09-22) */
 				boolean inclExp = empAdmin(session) && "Y".equals(String.valueOf(body.get("inclExp")));
 				java.util.List<java.util.Map<String,Object>> list = svc.empNoticeList(sessComp(session), empUser(session), body.get("findData") == null ? "" : String.valueOf(body.get("findData")), inclExp);
-				/* 읽은 사람 이름(readNames, 2026-10-27 사용자 「마스터만 보이게 — 총괄관리자」) — 총괄관리자(MAIN_GU 1, isChief)에게만 보낸다. 작성자·부관리자·담당자는 숫자만 */
-				boolean adm = empAdmin(session), chief = isChief(session); String me = empUser(session);
-				if (list != null && !chief) for (java.util.Map<String,Object> n : list) n.remove("readNames");
+				/* 읽은 사람 이름(readNames, 2026-10-27) — 직원 누구에게나 보인다(사용자 「읽은 사람은 다 보이게」 — 같은 날 잠깐 총괄관리자만으로 했다가 되돌림) */
+				boolean adm = empAdmin(session); String me = empUser(session);
 				r.put("list", list);
-				r.put("me", me); r.put("meNm", empUserNm(session)); r.put("admin", adm ? "Y" : "N"); r.put("chief", chief ? "Y" : "N");
+				r.put("me", me); r.put("meNm", empUserNm(session)); r.put("admin", adm ? "Y" : "N");
 				return r;
 			} catch (Exception e) { log.error(" empNoticeList ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
 		}
@@ -5635,11 +5634,7 @@ public class UserController {
 				Map<String,Object> n = svc.empNoticeGet(sessComp(session), empUser(session), seq);
 				if (n == null) return empFail("공지가 없습니다(삭제됐을 수 있습니다).");
 				Map<String,Object> r = new HashMap<String,Object>();
-				/* 읽은 사람 이름은 총괄관리자에게만 (2026-10-27 「마스터만 보이게 — 총괄관리자」) — 다른 사람에겐 수만 남기고 이름·시각을 지운다(화면이 숨기는 것만으로는 응답에 남는다) */
-				boolean chief = isChief(session);
-				Object rd = n.get("readers");
-				if (!chief && rd instanceof java.util.List) { java.util.List<Object> bl = new java.util.ArrayList<Object>(); for (int i = 0; i < ((java.util.List<?>) rd).size(); i++) bl.add(new HashMap<String,Object>()); n.put("readers", bl); }
-				r.put("result", "OK"); r.put("notice", n); r.put("admin", empAdmin(session) ? "Y" : "N"); r.put("chief", chief ? "Y" : "N");
+				r.put("result", "OK"); r.put("notice", n); r.put("admin", empAdmin(session) ? "Y" : "N");   /* 읽은 사람(readers) 이름은 누구에게나 (2026-10-27 「읽은 사람은 다 보이게」) */
 				return r;
 			} catch (Exception e) { log.error(" empNoticeGet ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
 		}

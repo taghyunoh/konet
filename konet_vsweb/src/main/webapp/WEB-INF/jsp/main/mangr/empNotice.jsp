@@ -176,7 +176,7 @@ function render(){
       +'<td>'+esc(n.regNm)+'</td>'
       +'<td>'+esc((n.regDttm||'').slice(0,16))+'</td>'
       +'<td>'+(un?'<span class="readno">—</span>':'<span class="readmk">✔</span>')+'</td>'
-      /* 읽은 수에 마우스 → 읽은 사람 이름·시각 (2026-10-27). 이름은 총괄관리자에게만 온다 — 안 오면 숫자만 */
+      /* 읽은 수에 마우스 → 읽은 사람 이름·시각 (2026-10-27) — 직원 누구에게나 */
       +'<td'+(n.readNames?' class="rdn" title="읽은 사람 '+esc(n.readCnt)+'명&#10;'+esc(n.readNames).replace(/\n/g,'&#10;')+'"':'')+'>'+esc(n.readCnt)+'</td></tr>';
   });
   tb.innerHTML=h||'<tr><td colspan="6" class="empty">'+(document.getElementById('q').value?'찾은 공지가 없습니다.':'등록된 공지가 없습니다.'+' [📝 새 공지]로 첫 공지를 쓰세요.')+'</td></tr>';
@@ -204,7 +204,7 @@ function open_(seq){
       +(((n.regUser||'')===ME)?'<span class="act"><button class="btn" onclick="editCur()">📝 수정</button><button class="btn btn-red" onclick="delCur()">🗑 삭제</button></span>':'')
       +'</div></div>'
       +'<div class="dbody">'+esc(n.content)+'</div>'
-      +'<div class="dreaders">읽은 사람 <b>'+readers.length+'</b>명'+((j.chief==='Y')&&readers.length?'<div class="who">'+who+'</div>':'')+'</div>';
+      +'<div class="dreaders">읽은 사람 <b>'+readers.length+'</b>명'+(readers.length?'<div class="who">'+who+'</div>':'')+'</div>';
   }).catch(function(){ err('공지를 읽지 못했습니다.'); });
 }
 
