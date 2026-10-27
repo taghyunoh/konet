@@ -2392,3 +2392,7 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
   [이어서] 그래도 「Ctrl 클릭 안 됨」 → [📂 계약파일 선택] 이 `ctPickFiles()` 로 **누를 때마다 multiple 을 JS 로 켠 입력칸을 새로 만들어** 연다(#ctFi 는 남겨 둠). 원인은 못 찾았다 — 서버가 보낸 화면엔 multiple 이 있었고, 그 속성을 지우는 스크립트도 저장소에 없다.
 
 - **[2026-10-27] 직원 공지 — 읽은 수에 마우스 → 읽은 사람 이름** : 목록 SQL `selectEmpNoticeList` 에 `readNames`(「이름 MM-DD HH:MM」 읽은 차례, CHAR(10) 구분, FOR XML PATH) · empNotice.jsp 읽은 수 칸 `td.rdn` title. ★**직원 누구에게나 보인다**(사용자 「읽은 사람은 다 보이게 · 마스터 상관없이」 — 같은 날 잠깐 총괄관리자만으로 했다가 되돌림). 상세 창 「읽은 사람」 이름도 누구에게나(종전 = 작성자·관리자 1·2에게만). 자바·매퍼 → **재기동**.
+
+- **[2026-10-27] 견적서 도장 조금 크게** : 인쇄 quotePrint.jsp `img.stamp` 높이 44→**56px** · 엑셀 `STAMP_XLS_H` 46→**58px**(UserServiceImpl, 견적 엑셀만 쓴다). 발주서(poPrint 40px)·거래명세표는 그대로. 자바 → 재기동.
+  [이어서] 발주서 poPrint.jsp `img.stamp` 40→**52px** · 거래명세표(판매·매입 명세서 공용 asset/js/stmt-sheet.js) 32→**42px** + 그 파일을 싣는 3화면(purchaseReg·salesReg·stmtPrint)의 `?v=` 를 20261027 로(브라우저 캐시). JSP·JS 만 — 재기동 불필요.
+  [이어서] 카톡 링크 화면 확인(로컬, 공개 링크 · 열람 기록 안 남게 s 없이) : 명세서 /pub/stmt.do 42px · 발주서 /pub/po.do 52px · 견적서 /pub/quote.do 56px — 셋 다 인쇄와 같은 파일이라 따로 고칠 것 없음. ★견적서는 커진 도장 아래 끝이 「주 소」 첫 줄 끝 글자(묘봉로23)에 10px 걸쳐 `translateY(-68%)` 로 살짝 올림 → 실측 도장 201~257 · 주소 글자 257~ · 상호 글자 오른끝 781 < 도장 왼끝 801(겹침 0).

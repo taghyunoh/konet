@@ -294,7 +294,8 @@
   + '.cp .bcn{font-family:Consolas,monospace;font-size:10px;letter-spacing:.5px}'
   /* 도장 — 성명 칸 오른쪽에 겹친다. 칸 높이(19px)를 안 늘리려고 그림을 칸 밖으로 비어져 나오게 둔다 */
   + '.cp td.stc{position:relative;overflow:visible}'
-  + '.cp img.stamp{position:absolute;right:2px;top:50%;transform:translateY(-50%);height:32px;max-width:60%;'
+  /* 2026-10-27 사용자 「발주서와 거래명세표 도장 키워줘」 32→42px — 칸(19px) 밖으로 더 비어져 나오지만 칸 높이는 그대로 */
+  + '.cp img.stamp{position:absolute;right:2px;top:50%;transform:translateY(-50%);height:42px;max-width:60%;'
   +        'object-fit:contain;opacity:.92;pointer-events:none;z-index:2;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
   + '.cp .it thead td{background:#f4f6f8;font-weight:800;font-size:10.5px}'
   + '.cp .it tr.sub td{background:#f7f9fa;font-weight:800}'

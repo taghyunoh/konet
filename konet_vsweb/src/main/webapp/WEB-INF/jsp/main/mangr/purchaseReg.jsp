@@ -11,7 +11,7 @@
 <%-- 회사 설정(기준정보관리 ▸ 회사 정보 수정의 「기능」) — window.konetSet (2026-09-11) --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917"></script>
 <%-- 거래명세서 양식 (2026-10-16 「매입등록에서 반품 등록에 대하여 거래명세서 인쇄」) — 판매등록과 같은 공용 파일. 매입용 라벨은 O.kind='purch' --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/stmt-sheet.js?v=20261016b"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/stmt-sheet.js?v=20261027"></script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/vendor-pick.js?v=20260911"></script>
 <%-- 팝업 창 끌어 옮기기 (2026-09-10) — 제목줄을 잡고 끈다 · 더블클릭 = 처음 자리 (asset/js/ui-popdrag.js 머리말) --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>

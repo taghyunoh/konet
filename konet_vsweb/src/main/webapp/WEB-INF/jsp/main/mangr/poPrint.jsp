@@ -49,7 +49,7 @@
   /* 회사 도장 (2026-09-19 「발주서·견적서·거래명세표 나갈 때 회사 도장」) — 거래명세표(stmt-sheet)와 같은 수법 :
      성명 칸 오른쪽에 겹쳐 찍고 칸 높이는 안 늘린다(그림이 칸 밖으로 비어져 나온다). 도장 = 회사 정보 수정 ② 에서 올린 것 */
   td.stc{ position:relative; overflow:visible; }
-  img.stamp{ position:absolute; right:4px; top:50%; transform:translateY(-50%); height:40px; max-width:60%; object-fit:contain; opacity:.92;
+  img.stamp{ position:absolute; right:4px; top:50%; transform:translateY(-50%); height:52px; max-width:60%;   /* 2026-10-27 「도장 키워줘」 40→52px (견적서 56px) */ object-fit:contain; opacity:.92;
              pointer-events:none; z-index:2; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   /* ★인쇄 머리글·바닥글(주소·날짜·쪽번호) 안 나오게 — @page 여백 0 + 종이 여백은 .sheet padding 으로 (일계장 dayBook 과 같은 수법, 2026-10-03) */
   @media print { body{ background:#fff; } .bar{ display:none; } .sheet{ width:auto; min-height:auto; margin:0; padding:12mm 10mm; box-shadow:none; } @page{ size:A4 portrait; margin:0; } }

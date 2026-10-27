@@ -50,7 +50,7 @@
   .none{ text-align:center; padding:60px 20px; color:#8a97a4; font-size:16px; }
   /* 회사 도장 (2026-09-19 「발주서·견적서·거래명세표 나갈 때 회사 도장」) — 거래명세표(stmt-sheet)·발주서와 같은 수법 */
   td.stc{ position:relative; overflow:visible; }
-  img.stamp{ position:absolute; right:6px; top:50%; transform:translateY(-50%); height:44px; max-width:60%; object-fit:contain; opacity:.92;
+  img.stamp{ position:absolute; right:6px; top:50%; transform:translateY(-68%); height:56px; max-width:60%;   /* 2026-10-27 「도장 조금 크게」 44→56px (엑셀 STAMP_XLS_H 46→58) · 커진 만큼 아래 「주 소」 글자에 걸쳐 -68% 로 살짝 올림(위 「상호」 칸은 글자가 가운데라 안 걸린다) */ object-fit:contain; opacity:.92;
              pointer-events:none; z-index:2; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   /* ★인쇄 머리글·바닥글(주소·날짜·쪽번호) 안 나오게 — @page 여백 0 (일계장 dayBook 과 같은 수법, 2026-10-03).
      좌우 여백은 .sheet padding, 위·아래 여백은 .pgt 의 thead/tfoot 빈 줄(12mm) — 브라우저가 thead/tfoot 을 장마다 되풀이하므로 2장째에도 여백이 생긴다.

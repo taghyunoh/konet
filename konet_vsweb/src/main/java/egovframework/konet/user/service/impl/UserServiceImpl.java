@@ -1340,7 +1340,7 @@ public class UserServiceImpl implements UserService {
 	   ・⚠pic.resize() 를 쓰지 않는다 — 그림의 DPI·기본 글꼴 폭으로 크기를 다시 셈해 엑셀에서 <아주 작게> 찍혔다(2026-09-19 「엑셀은 너무 작게」).
 	     ⇒ 시작·끝 칸과 칸 안 오프셋(dx 1/1024 · dy 1/256)을 직접 셈해 <정한 픽셀 크기>로 박는다.
 	   ・크기 = 높이 약 56px(칸보다 조금 크게, 위아래 줄로 살짝 넘침 — 실제 도장 찍은 모양), 가로 = 이름 글자 끝을 반쯤 덮는 자리. 실패해도 엑셀은 그대로 나간다. */
-	private static final double STAMP_XLS_H = 46;
+	private static final double STAMP_XLS_H = 58;   /* 2026-10-27 사용자 「도장 조금 크게」 46→58 (인쇄 화면 quotePrint 도 44→56px) */
 	private static double xlsColPx(org.apache.poi.ss.usermodel.Sheet sh, int c) { return Math.max(4, sh.getColumnWidth(c) / 256.0 * 7 + 5); }
 	private static double xlsRowPx(org.apache.poi.ss.usermodel.Sheet sh, int r) { org.apache.poi.ss.usermodel.Row rw = sh.getRow(r); return Math.max(4, (rw == null ? sh.getDefaultRowHeightInPoints() : rw.getHeightInPoints()) * 96 / 72.0); }
 	private static void quoteXlsStamp(org.apache.poi.hssf.usermodel.HSSFWorkbook wb, org.apache.poi.ss.usermodel.Sheet sh0, String dataUrl, int row, int col) {
