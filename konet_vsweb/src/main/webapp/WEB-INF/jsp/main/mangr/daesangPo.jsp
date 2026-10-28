@@ -948,18 +948,18 @@ function dsCloseXls(){
   var spOf=function(cd){ return _spec[cd]||(_main[cd]?(_spec[_main[cd]]||''):''); };
   var aoa=[], merges=[], FEE_NM='택배비(로젠)', feeQty=0, feeSum=0;
   var fr=document.getElementById('fr').value, to=document.getElementById('to').value;
-  aoa.push(['[매출장]','','','','','','','','','']); aoa.push(['조회기간 : '+(fr||rows[0].dlvDt)+' ~ '+(to||rows[rows.length-1].dlvDt),'','','','','','VAT 포함']);   /* 금액 = 화면의 판매금액(공급가+부가세 · DC·손 부가세 반영) (2026-10-27 사용자 「매출장 판매금액으로」 — 종전 수량×단가 VAT 별도) */
-  aoa.push(['일자','출고점','상품명','규격','수량','단가','판매금액']);
+  aoa.push(['[매출장]','','','','','','','','','']); aoa.push(['조회기간 : '+(fr||rows[0].dlvDt)+' ~ '+(to||rows[rows.length-1].dlvDt),'','','','','','VAT 별도']);   /* 금액 = 공급가(수량×단가 − DC · 반품 음수 · 부가세 안 더함) — 2026-10-28 사용자 「마감엑셀에 부가세 미포함으로」 (10-27 밤 「판매금액(VAT 포함)」을 뒤집음 · 화면 합계 줄의 판매금액·택배 포함은 그대로) */
+  aoa.push(['일자','출고점','상품명','규격','수량','단가','공급가액']);
   merges.push({ s:{r:0,c:0}, e:{r:0,c:6} }, { s:{r:1,c:0}, e:{r:1,c:3} });
   rounds.forEach(function(R){ var r0=aoa.length;
     R.people.forEach(function(P){ var p0=aoa.length;
-      P.rows.forEach(function(x){ aoa.push(['', '', nmOf(x.itemCd, x.itemNm), spOf(x.itemCd), n(x.qty)*(x.dsTrxGb==='반품'?-1:1), (x.salePrice==null||x.salePrice==='')?'':n(x.salePrice), (function(c){ return c.tot*c.sign; })(dsCalc(x,'ls'))]); });   /* 반품은 수량 음수 · 판매금액은 음수 (2026-10-27) */
-      if(P.fee>0){ var fq=(P.fee%DS_FEE===0)?P.fee/DS_FEE:1, fu=(P.fee%DS_FEE===0)?DS_FEE:P.fee; aoa.push(['', '', FEE_NM, '', fq, fu, feeTot(P.fee)]); feeQty+=fq; feeSum+=feeTot(P.fee); }   /* 판매금액 = 택배비 + 부가세 10% (G 열은 VAT 포함 · 2026-10-27) */
+      P.rows.forEach(function(x){ aoa.push(['', '', nmOf(x.itemCd, x.itemNm), spOf(x.itemCd), n(x.qty)*(x.dsTrxGb==='반품'?-1:1), (x.salePrice==null||x.salePrice==='')?'':n(x.salePrice), (function(c){ return c.sup*c.sign; })(dsCalc(x,'ls'))]); });   /* 반품은 수량 음수 · 공급가도 음수 (2026-10-27) · 부가세 미포함 (2026-10-28) */
+      if(P.fee>0){ var fq=(P.fee%DS_FEE===0)?P.fee/DS_FEE:1, fu=(P.fee%DS_FEE===0)?DS_FEE:P.fee; aoa.push(['', '', FEE_NM, '', fq, fu, P.fee]); feeQty+=fq; feeSum+=P.fee; }   /* 택배비 줄 금액 = 택배비 그대로(부가세 별도 · 2026-10-28 — 10-27 밤 ×1.1 을 뒤집음) */
       aoa[p0][1]=P.nm; if(aoa.length-1>p0) merges.push({ s:{r:p0,c:1}, e:{r:aoa.length-1,c:1} }); });
     aoa[r0][0]=R.dt+(R.rd?' '+R.rd:''); if(aoa.length-1>r0) merges.push({ s:{r:r0,c:0}, e:{r:aoa.length-1,c:0} }); });
   var last=aoa.length;   /* 엑셀 줄 번호(1부터) = 마지막 자료 줄 */
   aoa.push(['합 계','','','','',null,null]); merges.push({ s:{r:last,c:0}, e:{r:last,c:1} });
-  aoa[0][8]=feeQty+'건'; aoa[0][9]=feeSum;   /* 택배비 합계 = 부가세 포함(G 열과 같은 기준) */
+  aoa[0][8]=feeQty+'건'; aoa[0][9]=feeSum;   /* 택배비 합계 = 부가세 별도(G 열과 같은 기준 · 2026-10-28) */
   var ws=XLSX.utils.aoa_to_sheet(aoa);
   var L={ style:'thin', color:{ rgb:'000000' } }, BX={ top:L, bottom:L, left:L, right:L };
   var st=function(ref, s){ if(!ws[ref]) ws[ref]={ t:'s', v:'' }; ws[ref].s=s; };
@@ -991,7 +991,7 @@ function dsCloseXls(){
   var sheet=yy+('0'+mm).slice(-2);
   var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, sheet);
   XLSX.writeFile(wb, '대상급식_마감_'+sheet+'.xlsx');
-  if(window._toast) _toast('📑 마감 엑셀 — '+sheet+' · '+rows.length+'줄 · 택배비 '+feeQty+'건 '+fmt(feeSum)+'원(부가세 포함)','ok');
+  if(window._toast) _toast('📑 마감 엑셀 — '+sheet+' · '+rows.length+'줄 · 택배비 '+feeQty+'건 '+fmt(feeSum)+'원(부가세 별도)','ok');
   if(noRnd) err('차수가 빈 줄 <b>'+noRnd+'</b>개는 일자 칸에 날짜만 찍혔습니다.<br><span style="font-size:13px">목록의 「차수」 칸에 넣고 다시 만들면 됩니다.</span>');
 }
 

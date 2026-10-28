@@ -96,18 +96,18 @@ const m = /<script>\n([\s\S]*?)<\/script>/.exec(html); vm.runInContext(m[1], dom
   const ws = w.__xls.wb.Sheets[w.__xls.wb.SheetNames[0]];
   t(w.__xls.wb.SheetNames[0] === '202610', '시트 202610 (' + w.__xls.wb.SheetNames[0] + ')');
   t(ws.A4.v === '2026-09-28 10월 1차' && ws.B4.v === '영석고' && ws.C4.v === '급식 친환경 종이컵 10oz' && ws.D4.v === '10oz' && ws.E4.v === 1000 && ws.F4.v === 62, '첫 줄 = 일자 차수·출고점·상품명·규격·수량·단가');
-  t(ws.G3.v === '판매금액' && ws.G2.v === 'VAT 포함' && !ws.G4.f && ws.G4.v === 68200, '금액 = 판매금액(VAT 포함) 68,200 (' + ws.G4.v + ')');
-  t(ws.G7.v === 4400 && ws.G9.v === 13200, '택배비 줄 금액 = 택배비 + 부가세 10%');
+  t(ws.G3.v === '공급가액' && ws.G2.v === 'VAT 별도' && !ws.G4.f && ws.G4.v === 62000, '금액 = 공급가(VAT 별도) 62,000 (' + ws.G4.v + ') — 2026-10-28');
+  t(ws.G7.v === 4000 && ws.G9.v === 12000, '택배비 줄 금액 = 택배비 그대로(부가세 별도)');
   t(ws.B5.v === '경인중' && ws.A5.v === '', '같은 차수 둘째 줄 일자 비움(합치기)');
-  t(ws.C7.v === '택배비(로젠)' && ws.E7.v === 1 && ws.F7.v === 4000 && ws.G7.v === 4400, '송임숙 아래 택배비 1×4,000 · 판매금액 4,400(부가세 포함)');
-  t(ws.C9.v === '택배비(로젠)' && ws.E9.v === 3 && ws.F9.v === 4000 && ws.G9.v === 13200, '장유림 12,000 → 3×4,000 · 판매금액 13,200');
-  t(ws.I1.v === '4건' && ws.J1.v === 17600, '오른쪽 위 택배비 4건 17,600(부가세 포함)');
+  t(ws.C7.v === '택배비(로젠)' && ws.E7.v === 1 && ws.F7.v === 4000 && ws.G7.v === 4000, '송임숙 아래 택배비 1×4,000 · 금액 4,000(부가세 별도)');
+  t(ws.C9.v === '택배비(로젠)' && ws.E9.v === 3 && ws.F9.v === 4000 && ws.G9.v === 12000, '장유림 12,000 → 3×4,000 · 금액 12,000');
+  t(ws.I1.v === '4건' && ws.J1.v === 16000, '오른쪽 위 택배비 4건 16,000(부가세 별도)');
   // 차수 일괄 넣기 — 차수 없는 줄 2개에 넣고 daesangPoInfo 가 줄마다 간다
   w._ls[2].dsRound=''; w._ls[3].dsRound=''; w.document.getElementById('roundLs').value='10월 9차'; CALLS.length=0; w.__alerts=[]; w.__cfm=null; w.lsRoundAll(); await new Promise(r=>setTimeout(r,10));
   t(!w.__cfm && (w.__alerts||[]).some(m=>/체크/.test(m)) && CALLS.filter(c=>/daesangPoInfo/.test(c.url)).length===0, '체크 없으면 넣지 않고 안내');
   w.document.querySelectorAll('.lchk')[2].checked=true; w.document.querySelectorAll('.lchk')[3].checked=true; w.lsRoundAll(); if(w.__cfm) await w.__cfm.onOk(); await new Promise(r=>setTimeout(r,30));
   t(w._ls[2].dsRound==='10월 9차' && w._ls[3].dsRound==='10월 9차' && w._ls[0].dsRound==='10월 1차' && CALLS.filter(c=>/daesangPoInfo/.test(c.url)).length===2, '체크한 2줄에만 차수');
-  t(ws.A10.v === '합 계' && ws.E10.f === 'SUM(E4:E9)' && ws.G10.v === 68200 + 44220 + 11880 + 4400 + 204600 + 13200, '합계 줄 = 판매금액 합(VAT 포함) + 택배비(부가세 포함)');
+  t(ws.A10.v === '합 계' && ws.E10.f === 'SUM(E4:E9)' && ws.G10.v === 62000 + 40200 + 10800 + 4000 + 186000 + 12000, '합계 줄 = 공급가 합(VAT 별도) + 택배비');
   t(ws['!merges'].some(m => m.s.r === 3 && m.e.r === 4 && m.s.c === 0), '차수 세로 합치기');
   // ── 이력·복구 ──
   w.__HIST=[ { seq: 100, actionYn:'N', dlvDt:'20261016', dsRound:'10월 8차', rcvNm:'장유림', itemCd:'1010014032', itemNm:'종이컵', qty:2000, salePrice:62, rcvFee:0, remark:'대상 발주', updDttm:'2026-10-27 17:53', updUser:'admin', liveSeq:4 },
