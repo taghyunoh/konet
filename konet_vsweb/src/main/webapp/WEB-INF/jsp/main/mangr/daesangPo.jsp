@@ -47,6 +47,7 @@
   · 택배비 = «같은 발주일자·차수·받는 사람»을 합쳐 3만 원부터 0원, 미만 4,000원 — 그 사람 첫 줄에 한 번(나머지 0). 제주는 3,000원 추가. 손으로 넣으면 그 사람은 자동 멈춤(비우면 다시).
     저장 목록은 [🚚 택배비 다시 계산] 또는 줄을 고친 뒤 자동(lsFeeSync — 3×4,000 처럼 손으로 넣은 묶음은 안 건드림). 종전 「줄마다 4,500 고정」은 없앴다.
   · 차수(DS_ROUND) = 「10월 1차」 — 마감월 기준(9/28 이 10월 1차). 지난 저장의 다음 차수를 제안(같은 날이면 같은 차수). 줄마다 저장·목록에서 고침.
+  · [2026-10-28] 합계 줄 = 묶음 «맨 앞» + ▾/▸ 접기(_dsFold · dsFold/dsFoldAll/dsFoldApply — 토글은 합계 줄 맨 앞 칸 td.fd, 라벨 옆이 아님) · [⊟ 전체 접기] 단추(저장 목록 조회 옆 · 올린 표 엑셀 저장 옆) · 차수 칸 88→112px.
   · [📑 마감 엑셀(대상 송부용)] = 「대상급식 마감.xlsx」 월 시트 모양(dsCloseXls) — 일자(차수)·출고점 세로 합침 · 상품명·규격은 우리 상품코드 것 · 택배비 줄 「택배비(로젠) n×4,000」 · 오른쪽 위 건수·합계 · 합계 식.
   ⛔DDL docs/sql/20261027_daesang_price.sql(단가표 + DS_ROUND 칸 + 씨앗 8품목) 먼저. 자바·매퍼 → 재기동. 시뮬 docs/tools/sim/sim_daesangPo_price.js(33검사).
 -->
@@ -135,7 +136,10 @@
   .tier.base{ color:#137a6c; } .tier.under{ color:#b45309; } .tier.man{ color:#6b7a89; }
   .feeg{ display:block; font-size:10.5px; color:#6b7a89; margin-top:1px; text-align:right; white-space:nowrap; }
   .feeg.free{ color:#137a6c; } .feeg.pay{ color:#b45309; }
-  table.g input.rnd{ width:88px; text-align:center; font-weight:700; color:#2f4f9a; }
+  table.g input.rnd{ width:112px; text-align:center; font-weight:700; color:#2f4f9a; }   /* 88 → 112 (2026-10-28 「표시부분 조금 늘리고」 — 「10월 11차」가 꽉 찼다) */
+  table.g tr.sum td.fd{ text-align:center; padding:2px 0; }   /* 접기 토글 칸 = 줄 맨 앞(체크 칸 자리) */
+  table.g tr.sum td.fd .fold{ display:inline-block; width:22px; text-align:center; cursor:pointer; user-select:none; color:#0f6b5e; font-size:13px; border:1px solid #b9d6cf; border-radius:6px; background:#fff; }
+  table.g tr.sum td.fd .fold:hover{ background:#e3f2ee; }
   #round{ height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13px; font-weight:700; color:#2f4f9a; width:110px; }
   /* 이력·복구 창 */
   #dhMask{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.38); z-index:9000; }
@@ -183,6 +187,7 @@
       <select id="bizSel" onchange="bizSave()"></select>
       <span class="bar" style="margin-left:auto">
         <span id="pvInfo" class="dim" style="font-weight:600;font-size:12.5px"></span>
+        <button class="btn" id="pvFoldAll" data-all="0" onclick="dsFoldAll('pv')" style="display:none" title="올린 표의 차수 묶음을 전부 접거나 펼칩니다">⊟ 전체 접기</button>
         <button class="btn" id="btnXls" onclick="pvXls()" style="display:none" title="올려 둔 표를 택배 납기관리의 엑셀과 같은 양식(머리글 없는 9칸)으로 저장합니다(체크한 줄)">📊 엑셀 저장</button>
         <button class="btn btn-teal" id="btnSave" onclick="save()" style="display:none">💾 저장</button>
       </span>
@@ -235,6 +240,7 @@
       <span class="bar" style="margin-left:auto">
         <input type="date" id="fr"> <span class="dim">~</span> <input type="date" id="to">
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
+        <button class="btn" id="lsFoldAll" data-all="0" onclick="dsFoldAll('ls')" title="차수 묶음을 전부 접거나 펼칩니다 — 묶음마다 합계 줄 앞 ▾/▸ 로 하나씩도 됩니다">⊟ 전체 접기</button>
         <button class="btn" onclick="lsXls()" title="저장된 줄을 택배 납기관리의 엑셀과 같은 양식(머리글 없는 9칸)으로 저장합니다(체크한 줄 — 체크가 없으면 조회된 전부)">📊 엑셀 저장</button>
         <%-- 차수 넣기는 «이 칸 + 이 단추» 한 쌍으로 (2026-10-27 사용자 「차수 넣기 헷갈림」 — 위 올리기 줄의 차수 칸을 읽게 했더니 어느 칸인지 헷갈렸다) --%>
         <span style="display:inline-flex;align-items:center;gap:4px;border:1px dashed #9fb6c3;border-radius:8px;padding:2px 6px" title="왼쪽 체크칸으로 고른 줄에 이 차수를 넣습니다(전부면 머리줄 체크). 줄마다 바로 저장됩니다"><input type="text" id="roundLs" list="roundList" class="rnd" placeholder="10월 1차" autocomplete="off" style="height:30px"><button class="btn" style="height:30px" onclick="lsRoundAll()">📌 체크한 줄에 이 차수 넣기</button></span>
@@ -379,19 +385,35 @@ var AMT_TH='<th title="금액 = 수량 × 단가" style="min-width:90px">금액<
   +'<th title="서비스(무상) 수량" style="width:64px">서비스</th><th title="비고(사용자 글)">비고</th><th title="영세 — 부가세 0" style="width:44px">영세</th><th title="판매 / 반품" style="width:70px">거래구분</th>';
 /* 차수(발주일자 + 차수)마다 합계 줄 (2026-10-27 사용자 「차수마다 합계」) — 줄 차례대로 묶어, 묶음이 바뀌는 자리와 끝에 「n월 m차 합계」, 묶음이 둘 이상이면 끝에 「전체 합계」.
    withRows(rows, keyOf, rowHtml, cols) : cols = { lead(합계 글자가 차지할 칸 수), mid(수량·택배비 뒤 ~ 금액 앞 칸 수), tail(금액 뒤 칸 수) } */
-function sumRowHtml(label, g, cols){
-  return '<tr class="sum"><td colspan="'+cols.lead+'" class="l" style="text-align:right">'+esc(label)+' <span class="dim" style="font-weight:600">· 받는 사람 '+g.people+'곳 · '+g.n+'줄</span></td>'
+/* 접기/펼치기 (2026-10-28 사용자 「차수마다 앞에 접기·펼치기 · 차수 전체 접기·펼치기」) — 합계 줄이 묶음 «맨 앞»에 서고(대시보드 소계와 같은 자리) 그 앞 ▾/▸ 가 그 묶음 줄을 숨기고 보인다.
+   상태 = _dsFold[mode][묶음키](손댄 것) · 없으면 _dsFoldAll[mode](전체 단추). 다시 그려도 남는다(조회·저장 뒤에도 접힌 채). 「전체 합계」 줄은 토글 없음 */
+var _dsFold={ pv:{}, ls:{} }, _dsFoldAll={ pv:false, ls:false }, _dsGrpKeys={ pv:[], ls:[] };
+function dsFolded(mode, key){ var v=_dsFold[mode][key]; return (v===undefined) ? !!_dsFoldAll[mode] : !!v; }
+function dsFoldApply(mode){ var tb=document.getElementById(mode==='pv'?'pvBody':'lsBody'); if(!tb) return;
+  _dsGrpKeys[mode].forEach(function(key, gi){ var f=dsFolded(mode, key);
+    Array.prototype.forEach.call(tb.querySelectorAll('tr[data-g="'+gi+'"]'), function(tr){ tr.style.display=f?'none':''; });
+    var b=document.getElementById('dsfold-'+mode+'-'+gi); if(b){ b.textContent=f?'▸':'▾'; b.title=f?'펼치기 — 이 차수의 줄을 보입니다':'접기 — 이 차수의 줄을 숨기고 합계만 남깁니다'; } });
+  var ab=document.getElementById(mode==='pv'?'pvFoldAll':'lsFoldAll'); if(ab){ var all=_dsGrpKeys[mode].length>0 && _dsGrpKeys[mode].every(function(k){ return dsFolded(mode,k); }); ab.textContent=all?'⊞ 전체 펼치기':'⊟ 전체 접기'; ab.dataset.all=all?'1':'0'; } }
+function dsFold(mode, gi){ var key=_dsGrpKeys[mode][gi]; if(key===undefined) return; _dsFold[mode][key]=!dsFolded(mode, key); dsFoldApply(mode); }
+function dsFoldAll(mode){ var ab=document.getElementById(mode==='pv'?'pvFoldAll':'lsFoldAll'); var fold=!(ab && ab.dataset.all==='1'); _dsFoldAll[mode]=fold; _dsFold[mode]={}; dsFoldApply(mode); }
+function sumRowHtml(label, g, cols, mode, gi){
+  /* 토글은 «맨 앞 칸»(체크 칸 자리)에 따로 — 라벨 옆이 아니다 (2026-10-28 사용자 캡처 「1번 접기로, 2번 접기는 제거」). 「전체 합계」 줄(mode 없음)은 종전대로 한 칸 */
+  var tg=(mode && gi!=null) ? '<td class="fd"><span class="fold" id="dsfold-'+mode+'-'+gi+'" onclick="dsFold(\''+mode+'\','+gi+')">▾</span></td><td colspan="'+(cols.lead-1)+'"' : '<td colspan="'+cols.lead+'"';
+  return '<tr class="sum">'+tg+' class="l" style="text-align:right">'+esc(label)+' <span class="dim" style="font-weight:600">· 받는 사람 '+g.people+'곳 · '+g.n+'줄</span></td>'
     +'<td class="r">'+fmt(g.qty)+'</td><td class="r">'+fmt(g.fee)+'</td>'+(cols.mid?'<td colspan="'+cols.mid+'"></td>':'')
     +'<td class="r">'+fmt(g.gross)+'</td><td class="r">'+fmt(g.dc)+'</td><td class="r">'+fmt(g.amt)+'</td><td class="r">'+fmt(g.vat)+'</td>'
     +'<td class="r">'+fmt(g.amt+g.vat)+(g.fee?'<span class="feeg pay" title="판매금액 + 택배비 '+fmt(g.fee)+' + 택배비 부가세 '+fmt(feeVat(g.fee))+' (택배비도 부가세 10%)">택배 포함 '+fmt(g.amt+g.vat+feeTot(g.fee))+'</span>':'')+'</td>'
     +'<td class="r">'+(g.svc?fmt(g.svc):'')+'</td><td colspan="3"></td>'+(cols.tail?'<td colspan="'+cols.tail+'"></td>':'')+'</tr>';
 }
-function withSums(rows, keyOf, labelOf, acc, rowHtml, cols){
-  var h='', g=null, gk=null, mk=function(first){ return { qty:0, gross:0, dc:0, amt:0, vat:0, fee:0, svc:0, n:0, people:0, _p:{}, first:first }; }, tot=mk(null), groups=0;
-  var flush=function(){ if(!g) return; h+=sumRowHtml(labelOf(g.first)+' 합계', g, cols); groups++; g=null; };
-  rows.forEach(function(x, i){ var k=keyOf(x); if(k!==gk){ flush(); gk=k; g=mk(x); }
-    h+=rowHtml(x, i); var a=acc(x); [g, tot].forEach(function(t){ ['qty','gross','dc','amt','vat','fee','svc'].forEach(function(f){ t[f]+=n(a[f]); }); t.n++; if(a.who && !t._p[a.who]){ t._p[a.who]=1; t.people++; } }); });
+function withSums(rows, keyOf, labelOf, acc, rowHtml, cols, mode){
+  var h='', g=null, gk=null, mk=function(first){ return { qty:0, gross:0, dc:0, amt:0, vat:0, fee:0, svc:0, n:0, people:0, _p:{}, first:first }; }, tot=mk(null), groups=0, mark=0, keys=[];
+  /* 합계 줄은 묶음 «맨 앞»(mark 자리)에 끼운다 — 다 더한 뒤라 flush 때 slice 로 삽입(대시보드 csub 와 같은 요령). 묶음 줄엔 data-g 로 묶음 번호 */
+  var flush=function(){ if(!g) return; var gi=keys.length-1; var sr=sumRowHtml(labelOf(g.first)+' 합계', g, cols, mode, gi); h=h.slice(0,mark)+sr+h.slice(mark); groups++; g=null; };
+  rows.forEach(function(x, i){ var k=keyOf(x); if(k!==gk){ flush(); gk=k; g=mk(x); keys.push(k); mark=h.length; }
+    var rh=rowHtml(x, i), gi=keys.length-1, hid=(mode && dsFolded(mode, k)) ? ' style="display:none"' : '';
+    h+=rh.replace(/^<tr/, '<tr data-g="'+gi+'"'+hid); var a=acc(x); [g, tot].forEach(function(t){ ['qty','gross','dc','amt','vat','fee','svc'].forEach(function(f){ t[f]+=n(a[f]); }); t.n++; if(a.who && !t._p[a.who]){ t._p[a.who]=1; t.people++; } }); });
   flush(); if(groups>1) h+=sumRowHtml('전체 합계', tot, cols);
+  if(mode){ _dsGrpKeys[mode]=keys; setTimeout(function(){ dsFoldApply(mode); }, 0); }
   return h;
 }
 /* 합계용 — 반품은 음수 · 체크 안 한 올린 줄은 0 */
@@ -588,10 +610,10 @@ function pvRender(){
   document.getElementById('howBox').style.display=has?'none':'';
   ['pvWrap','pvNote'].forEach(function(id){ document.getElementById(id).style.display=has?'':'none'; });
   var pg=document.getElementById('pvWrap').nextElementSibling; if(pg && pg.classList.contains('kgg')) pg.style.display=has?'':'none';   /* 높이 막대도 같이 숨긴다 */
-  ['btnSave','btnXls'].forEach(function(id){ document.getElementById(id).style.display=has?'':'none'; });
+  ['btnSave','btnXls','pvFoldAll'].forEach(function(id){ document.getElementById(id).style.display=has?'':'none'; });
   pvFeeCalc();
   document.getElementById('pvBody').innerHTML=withSums(_pv, function(x){ return x.dlvDt+'|'+dsName(x.dsRound); }, function(x){ return dsKeyLabel(x.dlvDt, dsName(x.dsRound)); },
-    function(x){ return dsAcc(x, 'pv'); },
+    function(x){ return dsAcc(x, 'pv'); }, /* rowHtml */
     function(x,i){
     var pn=_prod[x.itemCd], k=function(f){ return ' data-k="'+i+':'+f+'"'; }, t=function(f,w,ph){ return '<input type="text"'+k(f)+' style="width:'+w+'px" value="'+esc(x[f])+'" placeholder="'+(ph||'')+'" onchange="pvSet('+i+',\''+f+'\',this)">'; };
     return '<tr class="'+(x.chk?'':'off')+'"><td><input type="checkbox" '+(x.chk?'checked':'')+' onchange="_pv['+i+'].chk=this.checked; pvLater()"></td>'
@@ -608,7 +630,7 @@ function pvRender(){
       +'<td class="l">'+t('itemNm',190,'제품명')+'</td>'
       +'<td><input type="text"'+k('price')+' class="num" style="width:74px" value="'+(x.price===''?'':esc(fmt(x.price)))+'" title="'+(x.priceAuto&&x.price!==''?(dsTier(x.itemCd)?'대상 단가표 값 — 고칠 수 있습니다(비우면 다시 자동)':'상품코드 판매가에서 가져온 값 — 고칠 수 있습니다'):'손으로 넣은 값 — 비우면 다시 자동')+'" onchange="pvSet('+i+',\'price\',this)">'+tierTag(x.itemCd, x.qty, x.price)+'</td>'
       +extCells(x, i, 'pv')+'</tr>';
-  }, { lead:9, mid:4, tail:0 });   /* 칸 차례 : 체크·빼기·No·발주일자·차수·받는 사람·주소·전화 1·전화 2(9) | 수량 | 택배비 | 제품코드·품목코드·제품명·단가(4) | 공급가·부가세·판매금액 */
+  }, { lead:9, mid:4, tail:0 }, 'pv');   /* 칸 차례 : 체크·빼기·No·발주일자·차수·받는 사람·주소·전화 1·전화 2(9) | 수량 | 택배비 | 제품코드·품목코드·제품명·단가(4) | 공급가·부가세·판매금액 */
   pvInfo();
 }
 function pvInfo(){
@@ -773,7 +795,7 @@ function lsRender(){
       +extCells(x, i, 'ls')
       +'<td class="l dim">'+esc(x.bizNm)+'</td>'
       +'<td class="l dim" style="max-width:220px;overflow:hidden;text-overflow:ellipsis" title="'+esc(x.remark)+'">'+esc(x.remark)+'</td>'
-      +'<td class="dim">'+esc(String(x.uploadDttm||'').slice(0,16))+'<br>'+esc(x.regUser)+'</td></tr>'; }, { lead:10, mid:1, tail:3 });
+      +'<td class="dim">'+esc(String(x.uploadDttm||'').slice(0,16))+'<br>'+esc(x.regUser)+'</td></tr>'; }, { lead:10, mid:1, tail:3 }, 'ls');
   /* 칸 차례 : 체크·발주일자·차수·받는 사람·주소·전화 1·전화 2·제품코드·품목코드·제품명(10) | 수량 | 택배비 | 단가(1) | 공급가·부가세·판매금액 | 사업장·비고·등록(3) */
   lsInfoUpd();
 }

@@ -3654,6 +3654,7 @@ function ssOutQty(o){
         cds.forEach(function(cd){ var a=by[cd]; if(!a) return; var cur=null, nxt=null;
           a.forEach(function(c){ var fr=String(c.frDt||''); if(fr<=t){ if(!cur||fr>String(cur.frDt)) cur=c; } else if(!nxt||fr<String(nxt.frDt)) nxt=c; });
           if(!cur || !cur.toDt) return;                                 /* 지금 계약이 없거나 종료일이 없으면 무기한 */
+          if(nxt) return;                                               /* ★다음 계약이 이미 등록돼 있으면 알릴 것이 없다 (2026-10-28 사용자 「추가 계약정보가 없는 경우」) */
           var to=String(cur.toDt), k = to<t ? 'end' : (to<=t30 ? 'soon' : '');
           if(!k) return;
           var left=Math.round((new Date(+to.slice(0,4),+to.slice(4,6)-1,+to.slice(6,8)) - new Date(+t.slice(0,4),+t.slice(4,6)-1,+t.slice(6,8)))/864e5);
@@ -3673,12 +3674,12 @@ function ssOutQty(o){
       +'<tr style="background:#eef3f6"><th style="padding:4px 6px;text-align:left">품목코드</th><th style="padding:4px 6px;text-align:left">품명</th><th style="padding:4px 6px">납품 종료</th><th style="padding:4px 6px;text-align:right">계약단가</th></tr>'
       +hit.slice(0,MAX).map(function(x){
          var st = x.k==='end' ? '<span style="color:#c0392b;font-weight:700">만료</span>' : '<span style="color:#b06a00;font-weight:700">'+x.left+'일 남음</span>';
-         var nx = x.nxt ? '<div style="font-size:11px;color:#2f4f9a">다음 계약 '+_ssDt8(x.nxt.frDt)+' 부터 등록됨</div>' : '';
+         var nx = x.nxt ? '<div style="font-size:11px;color:#2f4f9a">다음 계약 '+_ssDt8(x.nxt.frDt)+' 부터 등록됨</div>' : '';   /* 2026-10-28 부터 nxt 가 있는 품목은 목록에 안 들어온다 — 옛 호환용 */
          return '<tr style="border-top:1px solid #eef1f4"><td style="padding:4px 6px;font-family:Consolas,monospace">'+esc(x.cd)+'</td><td style="padding:4px 6px">'+esc(x.nm)+nx+'</td>'
            +'<td style="padding:4px 6px;text-align:center;white-space:nowrap">'+_ssDt8(x.to)+'<br>'+st+'</td><td style="padding:4px 6px;text-align:right">'+Number(x.price||0).toLocaleString()+'</td></tr>'; }).join('')
       +'</table></div>'
       +(hit.length>MAX?'<div style="font-size:12px;color:#8a97a3">… 외 '+(hit.length-MAX)+'개 — 상품코드 등록에서 모두 봅니다</div>':'')
-      +'<div style="font-size:12px;color:#5b6b7a">만료돼도 단가는 마지막 계약단가 그대로 갑니다 — 새 계약이 오면 상품코드 등록 ▸ 계약정보 탭이나 [📄 계약 엑셀]로 넣으세요.</div></div>';
+      +'<div style="font-size:12px;color:#5b6b7a">다음 계약이 아직 없는 품목만 보입니다 · 만료돼도 단가는 마지막 계약단가 그대로 갑니다 — 새 계약이 오면 상품코드 등록 ▸ 계약정보 탭이나 [📄 계약 엑셀]로 넣으세요.</div></div>';
     var cds=hit.map(function(x){ return x.cd; });
     var opt={ icon:'📄', okText:'상품코드 등록에서 보기', onOk:function(){
       window.konetPcOnly={ cds:cds, label:'발주현황표 계약 확인 '+cds.length+'개' };

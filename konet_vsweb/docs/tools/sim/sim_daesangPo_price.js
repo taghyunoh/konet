@@ -145,6 +145,19 @@ const m = /<script>\n([\s\S]*?)<\/script>/.exec(html); vm.runInContext(m[1], dom
   w.load(); await new Promise(r=>setTimeout(r,20)); var sums=[...w.document.querySelectorAll('#lsBody tr.sum')].map(tr=>tr.textContent.replace(/s+/g,' '));
   t(sums.length===3 && /2026-08-27 9월 2차 합계 · 받는 사람 2곳 · 2줄/.test(sums[0]) && /1,000/.test(sums[0]) && /67,000/.test(sums[0]) && /6,700/.test(sums[0]) && /73,700/.test(sums[0]) && /택배 포함 78,100/.test(sums[0]), '9월 2차 합계 줄 (수량 1,000 · 공급가 67,000 · 부가세 6,700 · 판매 73,700 · 택배 포함 78,100 = 택배비 4,000 + 부가세 400) : '+sums[0]);
   t(/9월 1차 합계/.test(sums[1]) && /전체 합계/.test(sums[2]) && /562,000/.test(sums[2]), '9월 1차 합계 + 전체 합계(공급가 562,000)');
+  // ── 접기/펼치기 (2026-10-28) : 합계 줄 = 묶음 맨 앞 · ▾/▸ · 전체 접기 ──
+  await new Promise(r=>setTimeout(r,10));
+  var trs=[...w.document.querySelectorAll('#lsBody tr')];
+  t(trs[0].classList.contains('sum') && /9월 2차 합계/.test(trs[0].textContent) && trs[1].getAttribute('data-g')==='0' && trs[2].getAttribute('data-g')==='0' && trs[3].classList.contains('sum') && /9월 1차 합계/.test(trs[3].textContent) && trs[4].getAttribute('data-g')==='1', '합계 줄이 묶음 맨 앞 · 줄에 data-g 묶음 번호');
+  var tg0=w.document.getElementById('dsfold-ls-0'); t(!!tg0 && tg0.textContent==='▾' && trs[1].style.display==='', '묶음 0 토글 ▾ · 줄 보임');
+  w.dsFold('ls',0); t(tg0.textContent==='▸' && trs[1].style.display==='none' && trs[2].style.display==='none' && trs[4].style.display==='', '▸ 로 접으면 그 묶음 줄만 숨고 합계는 남는다 · 다른 묶음 그대로');
+  w.dsFold('ls',0); t(tg0.textContent==='▾' && trs[1].style.display==='', '다시 누르면 펼침');
+  var fa=w.document.getElementById('lsFoldAll'); t(!!fa && /전체 접기/.test(fa.textContent), '[⊟ 전체 접기] 단추');
+  w.dsFoldAll('ls'); await new Promise(r=>setTimeout(r,5)); t(trs[1].style.display==='none' && trs[4].style.display==='none' && /전체 펼치기/.test(fa.textContent) && w.document.getElementById('dsfold-ls-1').textContent==='▸', '전체 접기 → 모든 묶음 줄 숨김 · 단추 「전체 펼치기」');
+  w.load(); await new Promise(r=>setTimeout(r,20)); var trs2=[...w.document.querySelectorAll('#lsBody tr')]; t(trs2[1].style.display==='none' && trs2[4].style.display==='none', '다시 그려도 접힌 채(상태 유지)');
+  w.dsFoldAll('ls'); await new Promise(r=>setTimeout(r,5)); t(trs2[1].style.display==='' && trs2[4].style.display==='' && /전체 접기/.test(fa.textContent), '전체 펼치기 → 전부 보임');
+  t(w.document.querySelector('table.g input.rnd') && /112px/.test(w.document.querySelector('style').textContent), '차수 칸 112px');
+  var s0=w.document.querySelector('#lsBody tr.sum'), s0td=s0.children; t(s0td[0].classList.contains('fd') && s0td[0].querySelector('.fold') && +s0td[1].getAttribute('colspan')===9 && s0td[1].classList.contains('l') && !s0td[1].querySelector('.fold'), '토글 = 합계 줄 맨 앞 칸(td.fd) · 라벨 칸 colspan 9(=lead-1) · 라벨 옆엔 토글 없음 (2026-10-28)');
   // ── 판매등록 그리드 칸 : DC · 영세 · 반품 · 서비스 ──
   var c1=w.dsCalc({ qty:1000, price:62, itemCd:'1010014032', dsDcAmt:2000, dsZeroYn:'N', dsTrxGb:'판매', dsSvcQty:50 },'pv');
   t(c1.gross===62000 && c1.dc===2000 && c1.sup===60000 && c1.vat===6000 && c1.tot===66000 && c1.sign===1 && c1.svc===50, 'DC 2,000 → 공급가 60,000 · 부가세 6,000 · 판매 66,000');
