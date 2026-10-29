@@ -111,6 +111,13 @@ public interface UserService {
 	java.util.List<java.util.Map<String,Object>> selectTdCodeExist(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> updateTdPoCode(String kind, String nm, String cd, String user, String ip, String compCd) throws Exception;
 	String updateTdPoRow(String ordNo, String bizNm, String itemNm, int qty, Double salePrice, String user, String ip, String compCd) throws Exception;
+	/* 동원홈푸드 등록 (2026-10-29) — 토더와 같은 틀 */
+	int saveDwPo(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String user, String ip, String compCd) throws Exception;
+	int deleteDwPo(java.util.List<java.util.Map<String,Object>> keys, String user, String ip, String compCd) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDwPoList(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDwPoMap(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> updateDwPoCode(String kind, String nm, String cd, String user, String ip, String compCd) throws Exception;
+	String updateDwPoRow(String ordNo, String lineNo, String itemNm, int qty, Double salePrice, String user, String ip, String compCd) throws Exception;
 	/* 대상 발주 등록 (2026-10-02) */
 	int saveDsPo(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String user, String ip, String compCd) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectDsPoList(java.util.Map<String,Object> p) throws Exception;

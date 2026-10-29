@@ -1793,6 +1793,18 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
   · 새 문장 `selectDcPoBySeqs`(고른 SEQ 가 이 회사의 DC 'D'/'N' 줄인지 + 열쇠) · `restoreDcPo`(SEQ IN … · D/N 만) — 둘 다 `COMP_CD = 세션 회사`(fail-open 아님) · `foreach` 는 CDATA 밖. `selectDcPoDelList` 에 `seq` 칸.
   검증 = javac 67 · MyBatis 실제 조립(393문 bad 0 · restoreDcPo 자리표 6 · BySeqs 4) · `mapper_audit` diff = 바뀐 1(DelList seq) · 새 2 · INSERT 39 어긋남 0 · **운영DB 읽기 전용** : 오늘 지운 두 줄 = SEQ 172241·172242(D) · 그 날 지금 줄 0 ⇒ 복구하면 두 줄이 그대로 살아난다 · jsdom 13(복구) + 14·24·25 · CRLF 0. ⚠**복구(UPDATE) 자체는 운영에서 안 돌렸다** — 재기동 뒤 그 두 줄로 한 번 눌러 볼 것.
 
+## ★[2026-10-29] 동원홈푸드 등록 — 매출 관리 ▸ 대상 발주 등록 밑 (토더 등록 형태 · 매출장부 엑셀 · 매출·재고 직접 연계)
+사용자 「대상 발주 등록 밑에 동원홈푸드 등록 메뉴 추가 · 토더 등록 형태 · 엑셀 동원홈푸드 매출장부도(매출 및 재고 직접 연계)」 + 샘플 `직송발주정보_주문내역_20261029.xlsx`. ⛔**DDL [20261029_dongwon_po.sql](docs/sql/20261029_dongwon_po.sql)(거래처 「동원홈푸드」 VENDOR_CD·DC_CD=DONGWON · VAT 별도 — 칸 추가 없음) → 자바 4 + 매퍼 → WAR 재빌드 + 재기동.** 앱(konet_vsapp) 미반영.
+- **엑셀** = 머리 1행(배송일자 Date · 납품진행상태 · 상품코드 640862 · 상품명 · 규격 「3,000EA/BOX」 · 출고단위 BOX · 최종주문량 · 주문번호 · 의뢰번호 · 순번 · 배송처코드 · 배송처 · 배송처주소 · 배송처연락처). **단가 칸이 없다.** 배송처 = 샐러링·테그42 점포(토더와 같은 가맹점) — 사업장 마스터엔 「성수 샐러링(2-18)」 꼴로 있고 동원 배송처코드(208437)·동원 상품코드는 마스터에 없다(운영 실측).
+- **저장 = 토더와 같은 종류** `PROD_KIND='TD'` · `DC_CD='DONGWON'` · DC_NM 동원홈푸드 · ZONE/DLV_GB 'DW' → 매출·재고·마감·채권·일계장·이익현황이 「TD + 거래처 DC_CD」 규칙으로 **조회문 수정 없이** 선다. 주문번호=ORD_NO · 순번=ORD_ITEM_NO · 의뢰번호=JUMUN_NO · 동원 상품코드=RCV_ITEM_CD · 배송처/주소/연락처=RCV_NM/ADDR/TEL(택배용). **대체 열쇠 = (주문번호, 순번, 상품명)**(토더는 이름 셋).
+  매퍼 새 10문(`markDwPoReplace`~`updateDwPoRow`, 토더 블록 뒤) · ★토더 10문의 `<> 'DAESANG'` → `NOT IN ('DAESANG','DONGWON')`(동원 줄이 토더 화면에 안 섞이게) · `selectClosing` 근거 배지 「동원」 · `selectStockOutDetail` 원천 「동원홈푸드 발주」 · demo2 `_srcBadge` 파랑·툴팁. 자바 = `UserController` `/shipout/dongwonPo*.do` 7개(저장 관문 `tdMissingCodes` · 재고 `dcResync` 재사용) · `UserServiceImpl` `saveDwPo`(판매가·받는 곳은 `updateDwPoExtra` 로 따로 — 공용 insertShipoutMstBulk 무변경)·`deleteDwPo`·`updateDwPoCode`·`updateDwPoRow`.
+- **화면** [mangr/dongwonPo.jsp](src/main/webapp/WEB-INF/jsp/main/mangr/dongwonPo.jsp)(toderPo.jsp 본) : 품목 자동 매칭 = 동원코드→지난 저장(`dwcd`) → 상품명→지난 저장 → **동원코드가 매칭코드로 등록돼 있으면 그 코드 그대로**(「매칭」 배지 — ITEM_CD 는 매칭코드, 주코드는 서버 resolve). 사업장 = 지난 저장 → 브랜드 말(샐러링·테그42)·괄호·본점/점을 떼고 마스터 이름과 맞춰 「추정」.
+  ★**단가 차례 = 지난 동원 저장 단가 → 계약단가(판매 등록 saCtOf 와 같은 규칙) → 상품 판매가**(출처 배지) · 손으로 고치면 같은 품목의 다른 줄도 따라감. **부가세 별도**(공급가·부가세(과세 10%·면세 0)·합계 칸 — 매퍼 매출 = 수량×단가 = 공급가, 대상과 같은 셈). ★**수량 = 최종주문량(출고단위 BOX) 그대로, 단가도 BOX 기준**(토더 전례 — EA 환산 안 함. 바꾸자면 규격의 EA/BOX 곱하기 + 단가 EA 기준을 함께).
+  저장 목록 = 코드·수량(반품 = 줄이기, 0 = 전량)·단가 제자리 고침 · [🗑 선택 삭제] · [✏️ 직접 입력](주문번호 DW+일시) · **[📒 동원홈푸드 매출장부]** = 목록의 조회 기간으로 새로 읽어 배송처 → 배송일자 묶음(일계·소계·합계·누계 · 공급가액·부가세·합계 · 상품명·규격은 동원 것) 엑셀을 **창 없이 바로** 내린다(토더 마감장부 서식 · 시트 `동원홈푸드_기간`). ⚠처음 판의 미리보기 창은 같은 날 사용자 「이 내용 필요 없이 엑셀 바로 나오게」로 뺐다 — 다시 창을 두자는 얘기가 나오면 이 이력부터.
+  ⚠`cellTxt` 의 Date 판정은 `Object.prototype.toString` — jsdom(다른 realm)에서 `instanceof Date` 가 거짓이라 날짜가 「2920-26-00」으로 깨졌다(브라우저엔 무해하지만 시뮬이 잡음).
+- **셸** 메뉴(대상 밑 🧃)·`panel-dongwonPo`·업무설명서 「토더 · 대상 · 동원홈푸드 등록」 행 신설.
+- 검증 = javac 67(--release 8) · MyBatis 파싱 434문 bad 0 · `mapper_audit` diff 바뀐 11·새 10 · count INSERT 40 어긋남 0 · 운영 DB 읽기 전용 새 SELECT 4문(0줄·오류 0) · jspsyn 2화면 · **jsdom 시뮬 45**([sim_dongwonPo.js](docs/tools/sim/sim_dongwonPo.js) — 실제 샘플 엑셀 4줄 · 매칭·추정 · 단가 차례 · 면세 · 저장 payload · 직접 줄 · 매출장부 일계/소계/합계/누계 · 엑셀 14칸). ⚠화면 실왕복·저장(UPDATE)은 DDL·재기동 뒤.
+
 ## 업무 설명서 동기화 (필수 방침)
 - **메뉴·기능이 바뀔 때마다 `logistics_demo2.jsp`의 업무설명서 패널(`panel-guide`)도 반드시 함께 수정**한다 (사용자 상시 요청 2026-07-05). 화면 추가/삭제/이동, 성격 변경 시 설명서 표의 해당 행을 갱신.
 

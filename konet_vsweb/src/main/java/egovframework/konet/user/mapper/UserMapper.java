@@ -285,6 +285,17 @@ public interface UserMapper {
 	int updateDsFeeProd(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectTdPoRow(java.util.Map<String,Object> p) throws Exception;                          // 2026-09-22 반품 = 수정 — 고치기 전 값
 	int updateTdPoRow(java.util.Map<String,Object> p) throws Exception;                                                   // 2026-09-22 반품 = 수정 — 수량·판매가
+	/* 동원홈푸드 등록 (2026-10-29) — 토더와 같은 틀, 출고장 DONGWON. 열쇠 = (주문번호, 순번, 상품명) */
+	int markDwPoReplace(java.util.Map<String,Object> p) throws Exception;
+	int deleteDwPo(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDwPoList(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectDwPoMap(java.util.Map<String,Object> p) throws Exception;              // biz·item·dwcd·price 네 갈래
+	java.util.List<String> selectDwPoDatesByName(java.util.Map<String,Object> p) throws Exception;
+	int updateDwPoBizByName(java.util.Map<String,Object> p) throws Exception;
+	int updateDwPoItemByName(java.util.Map<String,Object> p) throws Exception;
+	int updateDwPoExtra(java.util.Map<String,Object> p) throws Exception;                                                 // 판매가 · 동원 상품코드 · 받는 곳
+	java.util.Map<String,Object> selectDwPoRow(java.util.Map<String,Object> p) throws Exception;
+	int updateDwPoRow(java.util.Map<String,Object> p) throws Exception;
 	// 견적서 관리 (2026-09-17) — TBL_QUOTE_MST/DTL
 	java.util.List<java.util.Map<String,Object>> selectQuoteList(java.util.Map<String,Object> p) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectQuoteDtl(java.util.Map<String,Object> p) throws Exception;

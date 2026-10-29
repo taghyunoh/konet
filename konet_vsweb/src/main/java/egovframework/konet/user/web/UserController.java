@@ -1719,6 +1719,152 @@ public class UserController {
 				return ResponseEntity.ok("1" + (warn == null ? "" : "|STOCKFAIL:" + warn));
 			} catch (Exception e) { log.error(" toderPoRow ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
+		/* ================= 동원홈푸드 등록 (2026-10-29 사용자 「대상 발주 등록 밑에 동원홈푸드 등록 메뉴 추가 · 토더 등록 형태 · 엑셀 동원홈푸드 매출장부 · 매출 및 재고 직접 연계」) =================
+		   동원홈푸드 「직송발주정보_주문내역」 엑셀(배송일자·상품코드·상품명·규격·출고단위·최종주문량·주문번호·순번·배송처코드·배송처·주소·연락처)을 화면이 읽어(SheetJS)
+		   TBL_SHIPOUT_MST 에 PROD_KIND='TD' · DC_CD='DONGWON' 으로 넣는다 — 토더와 같은 틀(매퍼 markDwPoReplace 머리말).
+		   · 엑셀에 단가가 없다 → 화면이 지난 동원 저장 단가 → 계약단가 → 상품 판매가 차례로 채우고 사람이 고친다. 판매가 = ★부가세 별도(거래처 「동원홈푸드」 VAT_GB 별도).
+		   · 사업장코드·품목코드는 토더와 같은 관문(tdMissingCodes) — 마스터에 없으면 통째로 거절. 저장·삭제·수량 수정 뒤 그 날짜들의 재고 원장을 다시 만든다(dcResync). */
+		@RequestMapping(value="/shipout/dongwonPo.do")
+		public String dongwonPo(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/dongwonPo";
+		}
+		/* 자동 매칭 자료 — {biz:{배송처→사업장코드}, item:{상품명→품목코드}, dwcd:{동원 상품코드→품목코드}, price:{품목코드→마지막 판매가}} */
+		@RequestMapping(value="/shipout/dongwonPoMap.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> dongwonPoMap(HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			Map<String,String> biz = new HashMap<String,String>(), item = new HashMap<String,String>(), dwcd = new HashMap<String,String>(), price = new HashMap<String,String>();
+			if (session.getAttribute("s_comp_cd") != null) {
+				Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd"));
+				for (Map<String,Object> r : svc.selectDwPoMap(q)) {
+					String k = poStr(r.get("kind"));
+					if ("biz".equals(k)) biz.put(poStr(r.get("nm")), poStr(r.get("cd")));
+					else if ("item".equals(k)) item.put(poStr(r.get("nm")), poStr(r.get("cd")));
+					else if ("dwcd".equals(k)) dwcd.put(poStr(r.get("nm")), poStr(r.get("cd")));
+					else if ("price".equals(k)) price.put(poStr(r.get("nm")), poStr(r.get("cd")));
+				}
+			}
+			res.put("biz", biz); res.put("item", item); res.put("dwcd", dwcd); res.put("price", price);
+			return res;
+		}
+		@RequestMapping(value="/shipout/dongwonPoList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> dongwonPoList(@RequestParam(value="frDt", required=false) String fr, @RequestParam(value="toDt", required=false) String to, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("data", new java.util.ArrayList<Object>()); return res; }
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("frDt", fr); q.put("toDt", to);
+			res.put("data", svc.selectDwPoList(q));
+			return res;
+		}
+		/* 저장 — {rows:[{dlvDt, ordNo, no(순번), reqNo(의뢰번호), bizCode(동원 배송처코드), bizNm(배송처), bizCd(우리 사업장코드), dwItemCd(동원 상품코드), itemNm, itemCd, spec, unit, qty, price, rcvAddr, rcvTel, status, createDttm, fileNm}]}
+		   응답 = "줄 수" (+ "|STOCKFAIL:사유"). 토더(toderPoSave)와 같은 길 — 다른 점은 받는 곳·동원 상품코드·의뢰번호를 함께 싣는 것 */
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/shipout/dongwonPoSave.do", method = RequestMethod.POST)
+		public ResponseEntity<String> dongwonPoSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				String ip = request.getRemoteAddr();
+				java.util.List<Map<String,Object>> in = (java.util.List<Map<String,Object>>) p.get("rows");
+				java.util.List<egovframework.konet.user.model.ShipoutDTO> rows = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>();
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
+				if (in != null) for (Map<String,Object> m : in) {
+					String dlv = poStr(m.get("dlvDt")).replace("-", "").replace("/", "").replace(".", "");
+					String bizCd = poStr(m.get("bizCd")), itemCd = poStr(m.get("itemCd")), bizNm = poStr(m.get("bizNm")), itemNm = poStr(m.get("itemNm"));
+					long q = Math.round(poNum(m.get("qty")));
+					if (!dlv.matches("[0-9]{8}") || bizCd.isEmpty() || itemCd.isEmpty() || bizNm.isEmpty() || itemNm.isEmpty() || q <= 0) continue;
+					egovframework.konet.user.model.ShipoutDTO d = new egovframework.konet.user.model.ShipoutDTO();
+					d.setDlvDt(dlv); d.setShpoutDt(dlv);                       // 배송일자 = 납기일자 = 출고일자
+					d.setDcCd("DONGWON"); d.setDcNm("동원홈푸드");
+					d.setBizCd(dsCut(bizCd, 20)); d.setBizNm(dsCut(bizNm, 100));
+					d.setItemCd(dsCut(itemCd, 30)); d.setItemNm(dsCut(itemNm, 200));
+					String unit = poStr(m.get("unit")); d.setUnit(dsCut(unit, 20));
+					d.setCurQty((int) q); d.setLabelQty((int) q);
+					/* 판매가(부가세 별도) — 화면이 채운 값(지난 저장 → 계약단가 → 상품 판매가 → 사람이 고침). 비면 NULL = 매출 0(화면이 저장 전에 알린다) */
+					if (!poStr(m.get("price")).isEmpty()) { double pr = poNum(m.get("price")); if (pr < 0) continue; d.setSalePrice(pr); }
+					String ord = poStr(m.get("ordNo")); d.setOrdNo(dsCut(ord, 30));
+					String lineNo = poStr(m.get("no")); d.setOrdItemNo(dsCut(lineNo, 20));   // 동원 순번 — (주문번호, 순번)이 줄의 열쇠
+					String reqNo = poStr(m.get("reqNo")); if (!reqNo.isEmpty()) d.setJumunNo(dsCut(reqNo, 30));   // 의뢰번호
+					d.setZone("DW"); d.setDlvGb("DW");
+					d.setRcvItemCd(dsCut(poStr(m.get("dwItemCd")), 30));                      // 동원 상품코드 — 다음 업로드의 코드 매칭 자료
+					d.setRcvNm(dsCut(bizNm, 100)); d.setRcvAddr(dsCut(poStr(m.get("rcvAddr")), 300)); d.setRcvTel(dsCut(poStr(m.get("rcvTel")), 40));   // 받는 곳(택배 처리용)
+					String rmk = "동원홈푸드 발주";
+					if (!poStr(m.get("bizCode")).isEmpty()) rmk += " · 배송처코드 " + poStr(m.get("bizCode"));
+					if (!reqNo.isEmpty()) rmk += " · 의뢰 " + reqNo;
+					if (!poStr(m.get("spec")).isEmpty()) rmk += " · 규격 " + poStr(m.get("spec"));
+					if (!poStr(m.get("createDttm")).isEmpty()) rmk += " · 생성 " + poStr(m.get("createDttm"));
+					if (!poStr(m.get("status")).isEmpty()) rmk += " · " + poStr(m.get("status"));
+					d.setRemark(dsCut(rmk, 490));
+					d.setSrcFile(dsCut(poStr(m.get("fileNm")), 250));
+					rows.add(d); dates.add(dlv);
+				}
+				if (rows.isEmpty()) return ResponseEntity.status(400).body("저장할 줄이 없습니다(배송일자·사업장코드·품목코드·수량을 확인하세요).");
+				java.util.LinkedHashSet<String> bc = new java.util.LinkedHashSet<String>(), ic = new java.util.LinkedHashSet<String>();
+				for (egovframework.konet.user.model.ShipoutDTO r : rows) { bc.add(r.getBizCd()); ic.add(r.getItemCd()); }
+				String miss = tdMissingCodes(bc, ic, compCd);   // 마스터에 없는 사업장·품목코드면 통째로 거절(토더와 같은 관문)
+				if (miss != null) return ResponseEntity.status(400).body(miss);
+				int n = svc.saveDwPo(rows, u, ip, compCd);
+				String warn = dcResync(dates, u, ip);   // 그 날짜들의 출고 원장을 다시 만들어 재고에서 뺀다
+				return ResponseEntity.ok(n + (warn == null ? "" : "|STOCKFAIL:" + warn));
+			} catch (Exception e) { log.error(" dongwonPoSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/shipout/dongwonPoDelete.do", method = RequestMethod.POST)
+		public ResponseEntity<String> dongwonPoDelete(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				java.util.List<Map<String,Object>> keys = (java.util.List<Map<String,Object>>) p.get("keys");
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
+				if (keys != null) for (Map<String,Object> k : keys) { String d = poStr(k.get("dlvDt")).replace("-", ""); if (d.matches("[0-9]{8}")) dates.add(d); }
+				int n = svc.deleteDwPo(keys, u, request.getRemoteAddr(), String.valueOf(session.getAttribute("s_comp_cd")));
+				String warn = dcResync(dates, u, request.getRemoteAddr());   // 지운 날짜들의 재고도 다시 맞춘다
+				return ResponseEntity.ok(n + (warn == null ? "" : "|STOCKFAIL:" + warn));
+			} catch (Exception e) { log.error(" dongwonPoDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		/* 저장 뒤 코드 수정 {kind:'biz'|'item', nm, cd} — 토더(toderPoCode)와 같은 규칙. 응답 = "고친 줄 수" (+ "|STOCKFAIL:사유") */
+		@RequestMapping(value="/shipout/dongwonPoCode.do", method = RequestMethod.POST)
+		public ResponseEntity<String> dongwonPoCode(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				String kind = poStr(p.get("kind")), nm = poStr(p.get("nm")), cd = poStr(p.get("cd"));
+				if (!("biz".equals(kind) || "item".equals(kind)) || nm.isEmpty() || cd.isEmpty()) return ResponseEntity.status(400).body("고칠 이름과 새 코드를 확인하세요.");
+				if (cd.length() > ("biz".equals(kind) ? 20 : 30)) return ResponseEntity.status(400).body("코드가 너무 깁니다.");
+				java.util.LinkedHashSet<String> bc = new java.util.LinkedHashSet<String>(), ic = new java.util.LinkedHashSet<String>();
+				if ("biz".equals(kind)) bc.add(cd); else ic.add(cd);
+				String miss = tdMissingCodes(bc, ic, compCd);
+				if (miss != null) return ResponseEntity.status(400).body(miss);
+				Map<String,Object> r = svc.updateDwPoCode(kind, nm, cd, u, request.getRemoteAddr(), compCd);
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>();
+				Object ds = r.get("dates"); if (ds instanceof java.util.List) for (Object d : (java.util.List<?>) ds) { String s = poStr(d); if (s.matches("[0-9]{8}")) dates.add(s); }
+				String warn = dcResync(dates, u, request.getRemoteAddr());
+				return ResponseEntity.ok(String.valueOf(r.get("n")) + (warn == null ? "" : "|STOCKFAIL:" + warn));
+			} catch (Exception e) { log.error(" dongwonPoCode ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
+		/* 저장된 한 줄의 수량·판매가 고치기 {ordNo, lineNo, itemNm, qty, price} — 수량 0 = 전량 반품. 응답 = "1" (+ "|STOCKFAIL:사유") */
+		@RequestMapping(value="/shipout/dongwonPoRow.do", method = RequestMethod.POST)
+		public ResponseEntity<String> dongwonPoRow(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				if (session.getAttribute("s_comp_cd") == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+				String compCd = String.valueOf(session.getAttribute("s_comp_cd"));
+				String u = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				String itemNm = poStr(p.get("itemNm")), lineNo = poStr(p.get("lineNo")), ordNo = poStr(p.get("ordNo"));
+				if (itemNm.isEmpty() || ordNo.isEmpty()) return ResponseEntity.status(400).body("고칠 줄을 찾을 수 없습니다.");
+				double qd = poNum(p.get("qty"));
+				if (qd < 0 || qd != Math.floor(qd) || qd > 1000000) return ResponseEntity.status(400).body("수량은 0 이상의 정수로 넣으세요(0 = 전량 반품).");
+				Double price = null;
+				if (!poStr(p.get("price")).isEmpty()) { price = poNum(p.get("price")); if (price < 0) return ResponseEntity.status(400).body("판매가는 0 이상으로 넣으세요."); }
+				String dlv = svc.updateDwPoRow(ordNo, lineNo, itemNm, (int) qd, price, u, request.getRemoteAddr(), compCd);
+				if (dlv == null) return ResponseEntity.status(404).body("저장된 줄을 찾을 수 없습니다(다른 곳에서 지웠거나 다시 올렸을 수 있습니다) — [조회]로 새로 읽으세요.");
+				java.util.LinkedHashSet<String> dates = new java.util.LinkedHashSet<String>(); if (dlv.matches("[0-9]{8}")) dates.add(dlv);
+				String warn = dcResync(dates, u, request.getRemoteAddr());
+				return ResponseEntity.ok("1" + (warn == null ? "" : "|STOCKFAIL:" + warn));
+			} catch (Exception e) { log.error(" dongwonPoRow ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+		}
 		/* ================= 대상 발주 등록 (2026-10-02 사용자 「토더처럼 대상이라는 곳에서 이메일로 엑셀을 캡쳐해서 옵니다 … 매출관리에 대상발주등록 추가 … 매출은 토더처럼 발생하게」) =================
 		   대상(대상주식회사)의 배송요청 표(받는 사람·주소·전화·수량·제품코드·제품명)를 화면에서 붙여넣거나 쳐서 TBL_SHIPOUT_MST 에 넣는다.
 		   · 토더와 같은 종류(PROD_KIND='TD')에 출고장만 DAESANG — 매출·재고·마감·채권 조회를 안 고치고 토더와 똑같이 선다(매퍼 selectDsPoList 머리말).

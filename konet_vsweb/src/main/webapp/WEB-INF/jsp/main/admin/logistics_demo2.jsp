@@ -1153,12 +1153,12 @@
     var txt=(keys.indexOf('마스터')>=0 && keys.indexOf('이력')>=0) ? '이력+마스터' : keys[0];
     var col= (txt==='출고미상' || txt==='매입가없음') ? '#c0392b'
            : (txt.indexOf('정산')===0) ? '#1a73c7'
-           : (txt==='전표' || txt==='토더' || txt==='대상') ? '#1a73c7'
+           : (txt==='전표' || txt==='토더' || txt==='대상' || txt==='동원') ? '#1a73c7'
            : txt==='이력' ? '#137a6c' : (txt==='마스터' ? '#a85700' : '#7f8c9a');
     var tip= (txt==='정산')     ? '정산서 금액 그대로'
            : (txt==='정산안분') ? '정산서 금액을 사업장별 출고수량 비율로 안분'
            : (txt==='출고미상') ? '정산서에는 있는데 출고 자료가 없는 건 — 수량·매입액은 정산서 기준 추정입니다. 발주현황표를 올리면 정상 줄로 흡수됩니다.'
-           : (txt==='전표')     ? '판매등록으로 직접 입력한 매출(정산서 밖 직접판매)' : (txt==='대상') ? '대상 발주(옛 줄) — 2026-10-26 부터 대상은 판매전표가 매출·재고의 주인이라 새 줄은 여기 안 잡힌다' : (txt==='토더') ? '토더 발주 = 매출(2026-09-22) — 수량 × 토더 판매가(엑셀 매입가, 부가세 포함) · 거래처 「토더」'
+           : (txt==='전표')     ? '판매등록으로 직접 입력한 매출(정산서 밖 직접판매)' : (txt==='대상') ? '대상 발주(옛 줄) — 2026-10-26 부터 대상은 판매전표가 매출·재고의 주인이라 새 줄은 여기 안 잡힌다' : (txt==='토더') ? '토더 발주 = 매출(2026-09-22) — 수량 × 토더 판매가(엑셀 매입가, 부가세 포함) · 거래처 「토더」' : (txt==='동원') ? '동원홈푸드 등록 = 매출(2026-10-29) — 수량 × 판매가(부가세 별도) · 거래처 「동원홈푸드」'
            /* 매입단가를 어디서도 못 찾은 건 — 종전엔 '마스터'로 뭉뚱그려져 값을 찾은 것처럼 보였다.
               매입액이 0으로 잡혀 마진율이 100%로 뜨므로 반드시 눈에 띄어야 한다(2026-07-25). */
            : (txt==='매입가없음') ? '이 품목의 매입단가가 상품마스터에도 이력에도 없습니다.\n매입액이 0으로 잡혀 순마진·마진율이 실제보다 크게 나옵니다. 매입등록을 하거나 상품마스터 매입가를 채워 주세요.'
@@ -3389,6 +3389,8 @@
       <a class="mi" data-key="toderPo" onclick="logiFrame('toderPo','${pageContext.request.contextPath}/shipout/toderPo.do', this)"><span class="ic">🛒</span>토더 발주 등록</a>
       <%-- 대상 발주 등록 (2026-10-02) — 대상주식회사가 메일로 보내는 배송요청 표 → 배송 처리용(매출·재고는 판매등록 전표가 주인 — 2026-10-26). 저장은 토더와 같은 종류(출고장 「대상」)지만 매퍼가 뺀다. 납기현황관리(대시보드)와는 무관. iframe 화면(mangr/daesangPo.jsp, panel-daesangPo) --%>
       <a class="mi" data-key="daesangPo" onclick="logiFrame('daesangPo','${pageContext.request.contextPath}/shipout/daesangPo.do', this)"><span class="ic">📦</span>대상 발주 등록</a>
+      <%-- 동원홈푸드 등록 (2026-10-29) — 동원홈푸드 「직송발주정보_주문내역」 엑셀 → 출고·매출(PROD_KIND='TD', 출고장 DONGWON). 토더 등록과 같은 틀 · 매출장부 엑셀. iframe 화면(mangr/dongwonPo.jsp, panel-dongwonPo) --%>
+      <a class="mi" data-key="dongwonPo" onclick="logiFrame('dongwonPo','${pageContext.request.contextPath}/shipout/dongwonPo.do', this)"><span class="ic">🧃</span>동원홈푸드 등록</a>
       <a class="mi" data-key="salesreg" onclick="logiFrame('salesreg','${pageContext.request.contextPath}/mangr/salesReg.do', this)"><span class="ic">🧾</span>판매 등록</a>
       <a class="mi" data-key="rcvreg" onclick="logiFrame('rcvreg','${pageContext.request.contextPath}/mangr/rcvReg.do', this)"><span class="ic">🧾</span>수금 등록</a>
       <%-- 거래처 매출장·마감 (2026-10-07) — 판매전표를 거래처별 매출장(표본 「샐러드플러스 0821」)과 마감 유형별 매출원장(표본 「우리푸드 샐러드플러스 7월 마감」)으로.
@@ -4141,6 +4143,7 @@
             <b>👁 열람</b> = 보낸 주소로 명세서를 실제로 열어 봤음(이쪽이 더 확실). 줄마다 <b>[↻ 재전송]</b> = 같은 수단·같은 받는 곳으로 다시(이메일은 창에 채워 열고 사람이 [발송]).
             다른 전표 줄은 <b>[📂 전표 열기]</b>로 그 전표부터 엽니다. 창의 <b>[🔄 새로고침]</b>으로 읽음 상태를 다시 읽어 옵니다.</td></tr>
           <tr><td class="m">매출마감</td><td>출고 × <b>납기일자 시점 단가</b> → 매출·매입·매출총이익(순마진은 마감현황에서 비용을 뺀 값). 출고장별(오산센터 등 2단)·사업장별·품목별 3탭, 품목 검색 공통. <b>토더 발주</b>는 정산서 없이 저장하면 곧 매출 — 수량 × 토더 판매가(엑셀 매입가, 부가세 포함), 근거 「토더」 · 받을 곳 = 거래처 「토더」(채권·채무·일계장에도). 반품은 토더 발주 등록의 저장 목록에서 수량을 고친다.</td></tr>
+          <tr><td class="m">토더 · 대상 · 동원홈푸드 등록</td><td>정산서 없이 <b>발주가 곧 출고·매출</b>인 거래처 셋 — 엑셀(토더 「상품별 발주 목록」 · 대상 배송요청 표 · <b>동원홈푸드 「직송발주정보_주문내역」</b>)을 올려 사업장코드·품목코드를 넣고 저장하면 그 날짜 재고가 빠지고 매출(수량 × 판매가)이 선다. 동원홈푸드는 엑셀에 단가가 없어 <b>지난 저장 → 계약단가 → 상품 판매가</b> 차례로 채우고 고친다(부가세 별도 · 수량 = 출고단위 BOX 그대로). 코드 짝은 한 번 저장하면 다음부터 자동(동원 상품코드를 매칭코드에 걸어 두면 처음부터 자동). 저장 뒤 목록에서 코드·수량(반품 = 줄이기, 0 = 전량)·단가를 고친다. <b>[📒 동원홈푸드 매출장부]</b> = 배송처·배송일자별 일계·소계·합계·공급가액·부가세 엑셀(송부용). 거래처 「동원홈푸드」(DONGWON) — 채권·채무·일계장·마감(근거 「동원」)에도 같은 식.</td></tr>
           <tr><td class="m">매출 그래프(월별/일자별)</td><td>매출액·매입액·순마진 그래프+표. <b>금액 기준은 마감현황과 동일</b>(매출 = 정산서 + 정산서 없는 출고의 추정 + 직접판매). <b>최근이 왼쪽</b>. <span style="color:#b45309">매입가 미등록 품목은 매입액 0이라 마진이 커 보입니다.</span></td></tr>
         </tbody></table>
       </div>
@@ -5125,6 +5128,10 @@
     <%-- 대상 발주 등록 (2026-10-02) — 메뉴 logiFrame('daesangPo',…) 의 짝 --%>
     <section id="panel-daesangPo" class="panel" style="padding:0;">
       <iframe id="if-daesangPo" src="" title="대상 발주 등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <%-- 동원홈푸드 등록 (2026-10-29) — 메뉴 logiFrame('dongwonPo',…) 의 짝 --%>
+    <section id="panel-dongwonPo" class="panel" style="padding:0;">
+      <iframe id="if-dongwonPo" src="" title="동원홈푸드 등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <section id="panel-toderPo" class="panel" style="padding:0;">
       <iframe id="if-toderPo" src="" title="토더 발주 등록" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>

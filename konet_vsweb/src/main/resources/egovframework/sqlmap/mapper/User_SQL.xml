@@ -1405,14 +1405,14 @@
 	<update id="markTdPoReplace" parameterType="java.util.Map"><![CDATA[
 	  UPDATE TBL_SHIPOUT_MST
 	     SET ACTION_YN = 'N', UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
-	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> 'DAESANG'   /* 대상 발주(같은 TD, 출고장 DAESANG)는 토더 화면에서 뺀다 (2026-10-02) */
+	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') NOT IN ('DAESANG','DONGWON')   /* 대상(DAESANG)·동원홈푸드(DONGWON) 발주 — 같은 TD — 는 토더 화면에서 뺀다 (2026-10-02 · 2026-10-29) */
 	     AND ISNULL(ORD_NO,'') = #{ordNo,jdbcType=NVARCHAR} AND ISNULL(BIZ_NM,'') = #{bizNm,jdbcType=NVARCHAR} AND ISNULL(ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 	<update id="deleteTdPo" parameterType="java.util.Map"><![CDATA[
 	  UPDATE TBL_SHIPOUT_MST
 	     SET ACTION_YN = 'D', UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
-	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> 'DAESANG'   /* 대상 발주(같은 TD, 출고장 DAESANG)는 토더 화면에서 뺀다 (2026-10-02) */
+	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') NOT IN ('DAESANG','DONGWON')   /* 대상(DAESANG)·동원홈푸드(DONGWON) 발주 — 같은 TD — 는 토더 화면에서 뺀다 (2026-10-02 · 2026-10-29) */
 	     AND ISNULL(ORD_NO,'') = #{ordNo,jdbcType=NVARCHAR} AND ISNULL(BIZ_NM,'') = #{bizNm,jdbcType=NVARCHAR} AND ISNULL(ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
@@ -1424,7 +1424,7 @@
 	         ISNULL(t.SRC_FILE,'') AS srcFile, ISNULL(t.REMARK,'') AS remark,
 	         CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm, ISNULL(t.REG_USER,'') AS regUser
 	    FROM TBL_SHIPOUT_MST t
-	   WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN = 'Y' AND ISNULL(t.DC_CD,'') <> 'DAESANG'   /* 대상 발주 제외 (2026-10-02) */
+	   WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN = 'Y' AND ISNULL(t.DC_CD,'') NOT IN ('DAESANG','DONGWON')   /* 대상·동원홈푸드 발주 제외 (2026-10-02 · 2026-10-29) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{frDt,jdbcType=VARCHAR},'') = '' OR t.DLV_DT >= REPLACE(#{frDt,jdbcType=VARCHAR},'-','') )
 	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'') = '' OR t.DLV_DT <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
@@ -1437,12 +1437,12 @@
 	  SELECT kind, nm, cd FROM (
 	    SELECT 'biz' AS kind, t.BIZ_NM AS nm, t.BIZ_CD AS cd, ROW_NUMBER() OVER (PARTITION BY t.BIZ_NM ORDER BY CASE WHEN t.ACTION_YN = 'Y' THEN 0 ELSE 1 END, t.UPLOAD_DTTM DESC) AS rn
 	      FROM TBL_SHIPOUT_MST t
-	     WHERE t.PROD_KIND = 'TD' AND ISNULL(t.DC_CD,'') <> 'DAESANG' AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.BIZ_NM,'') <> '' AND ISNULL(t.BIZ_CD,'') <> ''
+	     WHERE t.PROD_KIND = 'TD' AND ISNULL(t.DC_CD,'') NOT IN ('DAESANG','DONGWON') AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.BIZ_NM,'') <> '' AND ISNULL(t.BIZ_CD,'') <> ''
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	    UNION ALL
 	    SELECT 'item', t.ITEM_NM, t.ITEM_CD, ROW_NUMBER() OVER (PARTITION BY t.ITEM_NM ORDER BY CASE WHEN t.ACTION_YN = 'Y' THEN 0 ELSE 1 END, t.UPLOAD_DTTM DESC)
 	      FROM TBL_SHIPOUT_MST t
-	     WHERE t.PROD_KIND = 'TD' AND ISNULL(t.DC_CD,'') <> 'DAESANG' AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.ITEM_NM,'') <> '' AND ISNULL(t.ITEM_CD,'') <> ''
+	     WHERE t.PROD_KIND = 'TD' AND ISNULL(t.DC_CD,'') NOT IN ('DAESANG','DONGWON') AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.ITEM_NM,'') <> '' AND ISNULL(t.ITEM_CD,'') <> ''
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  ) x WHERE x.rn = 1
 	]]></select>
@@ -1481,7 +1481,7 @@
 	<select id="selectTdPoDatesByName" parameterType="java.util.Map" resultType="string"><![CDATA[
 	  SELECT DISTINCT t.DLV_DT
 	    FROM TBL_SHIPOUT_MST t
-	   WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN = 'Y' AND ISNULL(t.DC_CD,'') <> 'DAESANG'   /* 대상 발주 제외 (2026-10-02) */
+	   WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN = 'Y' AND ISNULL(t.DC_CD,'') NOT IN ('DAESANG','DONGWON')   /* 대상·동원홈푸드 발주 제외 (2026-10-02 · 2026-10-29) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ( #{kind,jdbcType=VARCHAR} = 'biz'  AND ISNULL(t.BIZ_NM,'')  = #{nm,jdbcType=NVARCHAR} )
 	        OR ( #{kind,jdbcType=VARCHAR} = 'item' AND ISNULL(t.ITEM_NM,'') = #{nm,jdbcType=NVARCHAR} ) )
@@ -1489,7 +1489,7 @@
 	<update id="updateTdPoBizByName" parameterType="java.util.Map"><![CDATA[
 	  UPDATE TBL_SHIPOUT_MST
 	     SET BIZ_CD = #{cd,jdbcType=VARCHAR}, UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
-	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> 'DAESANG'   /* 대상 발주(같은 TD, 출고장 DAESANG)는 토더 화면에서 뺀다 (2026-10-02) */
+	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') NOT IN ('DAESANG','DONGWON')   /* 대상(DAESANG)·동원홈푸드(DONGWON) 발주 — 같은 TD — 는 토더 화면에서 뺀다 (2026-10-02 · 2026-10-29) */
 	     AND ISNULL(BIZ_NM,'') = #{nm,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
@@ -1498,7 +1498,7 @@
 	     SET ITEM_CD = #{cd,jdbcType=VARCHAR}, PROD_SEQ = NULL, PROD_CD = NULL,
 	         VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}, VENDOR_NM = #{vendorNm,jdbcType=NVARCHAR},
 	         UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
-	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> 'DAESANG'   /* 대상 발주(같은 TD, 출고장 DAESANG)는 토더 화면에서 뺀다 (2026-10-02) */
+	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') NOT IN ('DAESANG','DONGWON')   /* 대상(DAESANG)·동원홈푸드(DONGWON) 발주 — 같은 TD — 는 토더 화면에서 뺀다 (2026-10-02 · 2026-10-29) */
 	     AND ISNULL(ITEM_NM,'') = #{nm,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
@@ -1517,7 +1517,7 @@
 	<select id="selectTdPoRow" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
 	  SELECT TOP 1 t.DLV_DT AS dlvDt, ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) AS qty, t.SALE_PRICE AS salePrice
 	    FROM TBL_SHIPOUT_MST t
-	   WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN = 'Y' AND ISNULL(t.DC_CD,'') <> 'DAESANG'   /* 대상 발주 제외 (2026-10-02) */
+	   WHERE t.PROD_KIND = 'TD' AND t.ACTION_YN = 'Y' AND ISNULL(t.DC_CD,'') NOT IN ('DAESANG','DONGWON')   /* 대상·동원홈푸드 발주 제외 (2026-10-02 · 2026-10-29) */
 	     AND ISNULL(t.ORD_NO,'') = #{ordNo,jdbcType=NVARCHAR} AND ISNULL(t.BIZ_NM,'') = #{bizNm,jdbcType=NVARCHAR} AND ISNULL(t.ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></select>
@@ -1527,8 +1527,129 @@
 	         SALE_PRICE = #{salePrice,jdbcType=DECIMAL},
 	         REMARK = LEFT(ISNULL(REMARK,'') + #{note,jdbcType=NVARCHAR}, 490),
 	         UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
-	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> 'DAESANG'   /* 대상 발주(같은 TD, 출고장 DAESANG)는 토더 화면에서 뺀다 (2026-10-02) */
+	   WHERE PROD_KIND = 'TD' AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') NOT IN ('DAESANG','DONGWON')   /* 대상(DAESANG)·동원홈푸드(DONGWON) 발주 — 같은 TD — 는 토더 화면에서 뺀다 (2026-10-02 · 2026-10-29) */
 	     AND ISNULL(ORD_NO,'') = #{ordNo,jdbcType=NVARCHAR} AND ISNULL(BIZ_NM,'') = #{bizNm,jdbcType=NVARCHAR} AND ISNULL(ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<!-- ============================================================
+	     동원홈푸드 등록 (2026-10-29 — 사용자 「대상 발주 등록 밑에 동원홈푸드 등록 메뉴 · 토더 등록 형태 · 엑셀 동원홈푸드 매출장부 · 매출 및 재고 직접 연계」)
+	     동원홈푸드가 내려 주는 「직송발주정보_주문내역」 엑셀(배송일자·상품코드·상품명·규격·출고단위·최종주문량·주문번호·순번·배송처코드·배송처·주소·연락처)을 화면이 읽어
+	     TBL_SHIPOUT_MST 에 넣는다. ★토더와 같은 종류(PROD_KIND='TD')로 넣고 출고장만 다르게 한다(DC_CD='DONGWON' · DC_NM='동원홈푸드' · ZONE·DLV_GB='DW').
+	       매출·재고·마감·채권·일계장은 모두 「PROD_KIND='TD' + 거래처의 DC_CD = 줄의 DC_CD」로 세므로 그 조회들을 하나도 안 고치고 토더와 똑같이 선다.
+	       매출 거래처 = DC_CD 가 'DONGWON' 인 거래처(동원홈푸드 — DDL docs/sql/20261029_dongwon_po.sql). 매출 = 수량 × 판매가(SALE_PRICE, ★부가세 별도 — 거래처 VAT_GB 별도).
+	       토더 화면의 조회·수정문에는 「DC_CD 가 DAESANG·DONGWON 이 아닌 것」 조건을 달아 섞이지 않게 했다.
+	     · 엑셀에 단가가 없다 → 화면이 «지난 동원 저장 단가 → 계약단가 → 상품 판매가» 차례로 채우고 사람이 고친다.
+	     · BIZ_NM = 동원 배송처 이름 · ITEM_NM = 동원 상품명 그대로 — (이름 → 코드) 짝이 쌓여 다음 업로드의 자동 매칭이 된다(selectDwPoMap). 동원 상품코드는 RCV_ITEM_CD 에(코드 → 품목코드 매칭에도 쓴다).
+	     · 배송처(받는 곳)·주소·연락처는 RCV_NM·RCV_ADDR·RCV_TEL 에(택배 처리용). 주문번호 = ORD_NO · 순번 = ORD_ITEM_NO · 의뢰번호 = JUMUN_NO.
+	     · 같은 (주문번호, 순번, 상품명)을 다시 올리면 앞의 것을 이력(N)으로 닫고 새로 넣는다(마감 전 자료를 여러 번 받아 올려도 중복되지 않는다).
+	     ============================================================ -->
+	<update id="markDwPoReplace" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET ACTION_YN = 'N', UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE PROD_KIND = 'TD' AND DC_CD = 'DONGWON' AND ACTION_YN = 'Y'
+	     AND ISNULL(ORD_NO,'') = #{ordNo,jdbcType=NVARCHAR} AND ISNULL(ORD_ITEM_NO,'') = #{lineNo,jdbcType=NVARCHAR} AND ISNULL(ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<update id="deleteDwPo" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET ACTION_YN = 'D', UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE PROD_KIND = 'TD' AND DC_CD = 'DONGWON' AND ACTION_YN = 'Y'
+	     AND ISNULL(ORD_NO,'') = #{ordNo,jdbcType=NVARCHAR} AND ISNULL(ORD_ITEM_NO,'') = #{lineNo,jdbcType=NVARCHAR} AND ISNULL(ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<select id="selectDwPoList" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT t.SEQ AS seq, t.DLV_DT AS dlvDt, ISNULL(t.ORD_NO,'') AS ordNo, ISNULL(t.ORD_ITEM_NO,'') AS [lineNo], ISNULL(t.JUMUN_NO,'') AS reqNo, ISNULL(t.DC_NM,'') AS dcNm,
+	         ISNULL(t.BIZ_CD,'') AS bizCd, ISNULL(t.BIZ_NM,'') AS bizNm, ISNULL(t.ITEM_CD,'') AS itemCd, ISNULL(t.ITEM_NM,'') AS itemNm,
+	         ISNULL(t.RCV_ITEM_CD,'') AS dwItemCd,   /* 동원 상품코드 */
+	         ISNULL(t.RCV_NM,'') AS rcvNm, ISNULL(t.RCV_ADDR,'') AS rcvAddr, ISNULL(t.RCV_TEL,'') AS rcvTel,
+	         ISNULL(t.UNIT,'') AS unit, ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) AS qty, ISNULL(t.PROD_CD,'') AS prodCd,
+	         t.SALE_PRICE AS salePrice,   /* 판매가(부가세 별도) — 매출 = 수량 × 판매가 */
+	         ISNULL(t.SRC_FILE,'') AS srcFile, ISNULL(t.REMARK,'') AS remark,
+	         CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm, ISNULL(t.REG_USER,'') AS regUser
+	    FROM TBL_SHIPOUT_MST t
+	   WHERE t.PROD_KIND = 'TD' AND t.DC_CD = 'DONGWON' AND t.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{frDt,jdbcType=VARCHAR},'') = '' OR t.DLV_DT >= REPLACE(#{frDt,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'') = '' OR t.DLV_DT <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
+	   ORDER BY t.DLV_DT DESC, t.ORD_NO DESC, RIGHT('00000' + ISNULL(t.ORD_ITEM_NO,''), 5), t.SEQ
+	]]></select>
+	<!-- 자동 매칭 자료 — 지금까지 저장한 동원홈푸드 발주에서(살아 있는 줄 먼저, 그다음 올린 시각 최신). kind = 'biz'(배송처 → 사업장코드) / 'item'(상품명 → 품목코드) /
+	     'dwcd'(동원 상품코드 → 품목코드 — 상품명이 바뀌어도 코드로 찾는다) / 'price'(품목코드 → 마지막 판매가 — 엑셀에 단가가 없어 지난 값을 먼저 쓴다) -->
+	<select id="selectDwPoMap" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT kind, nm, cd FROM (
+	    SELECT 'biz' AS kind, t.BIZ_NM AS nm, t.BIZ_CD AS cd, ROW_NUMBER() OVER (PARTITION BY t.BIZ_NM ORDER BY CASE WHEN t.ACTION_YN = 'Y' THEN 0 ELSE 1 END, t.UPLOAD_DTTM DESC, t.SEQ DESC) AS rn
+	      FROM TBL_SHIPOUT_MST t
+	     WHERE t.PROD_KIND = 'TD' AND t.DC_CD = 'DONGWON' AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.BIZ_NM,'') <> '' AND ISNULL(t.BIZ_CD,'') <> ''
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	    UNION ALL
+	    SELECT 'item', t.ITEM_NM, t.ITEM_CD, ROW_NUMBER() OVER (PARTITION BY t.ITEM_NM ORDER BY CASE WHEN t.ACTION_YN = 'Y' THEN 0 ELSE 1 END, t.UPLOAD_DTTM DESC, t.SEQ DESC)
+	      FROM TBL_SHIPOUT_MST t
+	     WHERE t.PROD_KIND = 'TD' AND t.DC_CD = 'DONGWON' AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.ITEM_NM,'') <> '' AND ISNULL(t.ITEM_CD,'') <> ''
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	    UNION ALL
+	    SELECT 'dwcd', t.RCV_ITEM_CD, t.ITEM_CD, ROW_NUMBER() OVER (PARTITION BY t.RCV_ITEM_CD ORDER BY CASE WHEN t.ACTION_YN = 'Y' THEN 0 ELSE 1 END, t.UPLOAD_DTTM DESC, t.SEQ DESC)
+	      FROM TBL_SHIPOUT_MST t
+	     WHERE t.PROD_KIND = 'TD' AND t.DC_CD = 'DONGWON' AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.RCV_ITEM_CD,'') <> '' AND ISNULL(t.ITEM_CD,'') <> ''
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	    UNION ALL
+	    SELECT 'price', t.ITEM_CD, CONVERT(varchar(30), t.SALE_PRICE), ROW_NUMBER() OVER (PARTITION BY t.ITEM_CD ORDER BY CASE WHEN t.ACTION_YN = 'Y' THEN 0 ELSE 1 END, t.DLV_DT DESC, t.UPLOAD_DTTM DESC, t.SEQ DESC)
+	      FROM TBL_SHIPOUT_MST t
+	     WHERE t.PROD_KIND = 'TD' AND t.DC_CD = 'DONGWON' AND t.ACTION_YN IN ('Y','N') AND ISNULL(t.ITEM_CD,'') <> '' AND ISNULL(t.SALE_PRICE,0) > 0
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	  ) x WHERE x.rn = 1
+	]]></select>
+	<!-- 저장 뒤 코드 수정 — 토더(selectTdPoDatesByName·updateTdPoBizByName·updateTdPoItemByName)와 같은 규칙 : 이름 단위로 살아 있는 줄을 모두 고친다 -->
+	<select id="selectDwPoDatesByName" parameterType="java.util.Map" resultType="string"><![CDATA[
+	  SELECT DISTINCT t.DLV_DT
+	    FROM TBL_SHIPOUT_MST t
+	   WHERE t.PROD_KIND = 'TD' AND t.DC_CD = 'DONGWON' AND t.ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( ( #{kind,jdbcType=VARCHAR} = 'biz'  AND ISNULL(t.BIZ_NM,'')  = #{nm,jdbcType=NVARCHAR} )
+	        OR ( #{kind,jdbcType=VARCHAR} = 'item' AND ISNULL(t.ITEM_NM,'') = #{nm,jdbcType=NVARCHAR} ) )
+	]]></select>
+	<update id="updateDwPoBizByName" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET BIZ_CD = #{cd,jdbcType=VARCHAR}, UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE PROD_KIND = 'TD' AND DC_CD = 'DONGWON' AND ACTION_YN = 'Y'
+	     AND ISNULL(BIZ_NM,'') = #{nm,jdbcType=NVARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<update id="updateDwPoItemByName" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET ITEM_CD = #{cd,jdbcType=VARCHAR}, PROD_SEQ = NULL, PROD_CD = NULL,
+	         VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}, VENDOR_NM = #{vendorNm,jdbcType=NVARCHAR},
+	         UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE PROD_KIND = 'TD' AND DC_CD = 'DONGWON' AND ACTION_YN = 'Y'
+	     AND ISNULL(ITEM_NM,'') = #{nm,jdbcType=NVARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<!-- 방금 넣은 줄(납기일자·동원홈푸드·차수·줄번호)에 판매가·동원 상품코드·받는 곳을 채운다 — 공용 insertShipoutMstBulk(삼성 발주현황표도 쓴다)는 건드리지 않는다(토더 updateTdPoPrice 와 같은 방식) -->
+	<update id="updateDwPoExtra" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET SALE_PRICE = #{salePrice,jdbcType=DECIMAL},
+	         RCV_ITEM_CD = NULLIF(#{dwItemCd,jdbcType=NVARCHAR},''),
+	         RCV_NM = NULLIF(#{rcvNm,jdbcType=NVARCHAR},''), RCV_ADDR = NULLIF(#{rcvAddr,jdbcType=NVARCHAR},''), RCV_TEL = NULLIF(#{rcvTel,jdbcType=NVARCHAR},'')
+	   WHERE PROD_KIND = 'TD' AND DC_CD = 'DONGWON' AND ACTION_YN = 'Y'
+	     AND DLV_DT = REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-','')
+	     AND JOB_SEQ = #{jobSeq,jdbcType=INTEGER} AND ROW_NO = #{rowNo,jdbcType=INTEGER}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+	<!-- 저장된 한 줄의 수량·판매가 고치기(반품 = 수량 줄이기, 0 = 전량 반품) — 키 = 삭제와 같은 (주문번호, 순번, 상품명). 비고 끝에 「수정 옛값 → 새값」을 남긴다 -->
+	<select id="selectDwPoRow" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 1 t.DLV_DT AS dlvDt, ISNULL(t.LABEL_QTY, ISNULL(t.CUR_QTY,0)) AS qty, t.SALE_PRICE AS salePrice
+	    FROM TBL_SHIPOUT_MST t
+	   WHERE t.PROD_KIND = 'TD' AND t.DC_CD = 'DONGWON' AND t.ACTION_YN = 'Y'
+	     AND ISNULL(t.ORD_NO,'') = #{ordNo,jdbcType=NVARCHAR} AND ISNULL(t.ORD_ITEM_NO,'') = #{lineNo,jdbcType=NVARCHAR} AND ISNULL(t.ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></select>
+	<update id="updateDwPoRow" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_SHIPOUT_MST
+	     SET CUR_QTY = #{qty,jdbcType=INTEGER}, LABEL_QTY = #{qty,jdbcType=INTEGER},
+	         SALE_PRICE = #{salePrice,jdbcType=DECIMAL},
+	         REMARK = LEFT(ISNULL(REMARK,'') + #{note,jdbcType=NVARCHAR}, 490),
+	         UPD_DTTM = GETDATE(), UPD_USER = #{regUser,jdbcType=VARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE PROD_KIND = 'TD' AND DC_CD = 'DONGWON' AND ACTION_YN = 'Y'
+	     AND ISNULL(ORD_NO,'') = #{ordNo,jdbcType=NVARCHAR} AND ISNULL(ORD_ITEM_NO,'') = #{lineNo,jdbcType=NVARCHAR} AND ISNULL(ITEM_NM,'') = #{itemNm,jdbcType=NVARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 	<!-- ============================================================
@@ -3401,6 +3522,7 @@
 	                                  ELSE ISNULL(shi.SALE_PRICE, ISNULL(sh.SALE_PRICE, ISNULL(pm.SALE_PRICE,0))) END AS saleUnit,
 	                             ISNULL(ih.IN_PRICE,   ISNULL(pm.IN_PRICE,0))   AS inUnit,
 	                             CASE WHEN s.PROD_KIND = 'TD' AND s.DC_CD = 'DAESANG' THEN N'대상'   /* 대상 발주(2026-10-02) — 토더와 같은 종류, 출고장만 다르다 */
+	                                  WHEN s.PROD_KIND = 'TD' AND s.DC_CD = 'DONGWON' THEN N'동원'   /* 동원홈푸드 등록(2026-10-29) — 토더와 같은 종류, 출고장만 다르다 · 판매가는 부가세 별도 */
                                   WHEN s.PROD_KIND = 'TD' THEN N'토더'
 	                                  WHEN shi.SALE_PRICE IS NOT NULL OR sh.SALE_PRICE IS NOT NULL THEN '이력' ELSE '마스터' END AS saleSrc,
 	                             -- ★매입단가를 못 찾은 건을 '마스터'로 뭉뚱그리면 안 된다(2026-07-25).
@@ -4232,7 +4354,7 @@
 	    UNION ALL
 	    /* ③ 토더·대상 발주(TD) : 정산서가 있는 날에도 늘 — selectStockOutByMonth 와 같다 (2026-10-26) */
 	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.DC_NM, o.ORD_NO, o.ITEM_CD, o.ITEM_NM, CAST(o.SQ AS DECIMAL(18,3)),
-	           CASE WHEN o.DC_CD = 'DAESANG' THEN N'대상 발주' ELSE N'토더 발주' END
+	           CASE WHEN o.DC_CD = 'DAESANG' THEN N'대상 발주' WHEN o.DC_CD = 'DONGWON' THEN N'동원홈푸드 발주' ELSE N'토더 발주' END
 	      FROM OL o WHERE o.KIND = 'TD'   /* 대상 발주도 센다(2026-10-27 되돌림) — 택배비 줄은 OL 에서 이미 뺐다 */
 	    UNION ALL
 	    /* ④ 판매전표 : 줄마다 한 줄(전표번호 = 원장 REF_NO 꼴, 매칭코드로 판 줄은 EXT_CD) — 셈은 selectStockOutByMonth 와 같다 */
@@ -4259,7 +4381,7 @@
 	      ON b.BIZ_CD = u.BIZ_CD AND b.COMP_CD = u.COMP_CD
 	   WHERE ( ISNULL(#{bizKey,jdbcType=VARCHAR},'') = '' OR ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD) = #{bizKey,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{bizNm,jdbcType=NVARCHAR},'')  = '' OR ISNULL(NULLIF(b.MATCH_NM,''), u.BIZ_NM) = #{bizNm,jdbcType=NVARCHAR} )
-	   ORDER BY u.DLV_DT DESC, CASE WHEN u.SRC IN (N'토더 발주', N'대상 발주') OR u.SRC LIKE N'판매전표%' THEN 1 ELSE 0 END, mtNm, u.BIZ_NM, u.ITEM_CD
+	   ORDER BY u.DLV_DT DESC, CASE WHEN u.SRC IN (N'토더 발주', N'대상 발주', N'동원홈푸드 발주') OR u.SRC LIKE N'판매전표%' THEN 1 ELSE 0 END, mtNm, u.BIZ_NM, u.ITEM_CD
 	]]></select>
 
 	<select id="selectStockOutSrcDays" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[

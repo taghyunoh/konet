@@ -1571,6 +1571,106 @@ public class UserServiceImpl implements UserService {
 		mapper.updateTdPoRow(p);
 		return scStr(old.get("dlvDt"));
 	}
+	/* 동원홈푸드 등록 (2026-10-29 사용자 「대상 발주 등록 밑에 동원홈푸드 등록 메뉴 — 토더 등록 형태 · 매출·재고 직접 연계」) — saveTdPo 와 같은 틀.
+	   다른 점 : 출고장 = DONGWON(「동원홈푸드」) · 다시 올림 판정(대체) 열쇠 = (주문번호, 순번, 상품명) — 동원 엑셀은 주문번호+순번이 줄마다 하나다 ·
+	   저장 뒤 updateDwPoExtra 로 판매가(부가세 별도)·동원 상품코드(RCV_ITEM_CD)·받는 곳(RCV_NM·RCV_ADDR·RCV_TEL)을 줄마다 채운다.
+	   종류는 토더와 같은 PROD_KIND='TD' — 매출·재고·마감·채권 조회가 모두 「TD + 거래처의 DC_CD」로 세므로 그대로 선다. 묶음 = 납기일자마다 새 배치. */
+	@Override public int saveDwPo(java.util.List<egovframework.konet.user.model.ShipoutDTO> rows, String user, String ip, String compCd) throws Exception {
+		if (rows == null || rows.isEmpty()) return 0;
+		java.util.LinkedHashMap<String, java.util.List<egovframework.konet.user.model.ShipoutDTO>> g = new java.util.LinkedHashMap<String, java.util.List<egovframework.konet.user.model.ShipoutDTO>>();
+		for (egovframework.konet.user.model.ShipoutDTO r : rows) {
+			String k = scStr(r.getDlvDt()).replace("-", "");
+			java.util.List<egovframework.konet.user.model.ShipoutDTO> l = g.get(k);
+			if (l == null) { l = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>(); g.put(k, l); }
+			l.add(r);
+		}
+		int n = 0;
+		for (java.util.List<egovframework.konet.user.model.ShipoutDTO> grp : g.values()) {
+			egovframework.konet.user.model.ShipoutDTO head = grp.get(0);
+			for (egovframework.konet.user.model.ShipoutDTO r : grp) {
+				java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+				p.put("compCd", compCd); p.put("ordNo", scStr(r.getOrdNo())); p.put("lineNo", scStr(r.getOrdItemNo())); p.put("itemNm", scStr(r.getItemNm())); p.put("regUser", user); p.put("regIp", ip);
+				mapper.markDwPoReplace(p);
+			}
+			head.setCompCd(compCd); head.setDcCd("DONGWON");
+			int jobSeq = mapper.getShipoutNextJobSeq(head);
+			int seq = 0;
+			java.util.List<egovframework.konet.user.model.ShipoutDTO> buf = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>();
+			for (egovframework.konet.user.model.ShipoutDTO r : grp) {
+				r.setCompCd(compCd); r.setJobSeq(jobSeq); r.setActionYn("Y"); r.setRowNo(++seq);
+				r.setProdKind("TD"); r.setDcCd("DONGWON"); r.setDcNm("동원홈푸드"); r.setRegUser(user); r.setRegIp(ip);
+				if (scStr(r.getVendorCd()).isEmpty() && !scStr(r.getItemCd()).isEmpty()) {
+					java.util.Map<String,Object> vq = new java.util.HashMap<String,Object>(); vq.put("compCd", compCd); vq.put("itemCd", scStr(r.getItemCd()));
+					java.util.Map<String,Object> pv = mapper.selectProdVendorOfItem(vq);
+					if (pv != null) { r.setVendorCd(scStr(pv.get("vendorCd"))); r.setVendorNm(scStr(pv.get("vendorNm"))); }
+				}
+				buf.add(r); n++;
+				if (buf.size() >= 40) { mapper.insertShipoutMstBulk(buf); buf.clear(); }
+			}
+			if (!buf.isEmpty()) mapper.insertShipoutMstBulk(buf);
+			/* 판매가(부가세 별도)·동원 상품코드·받는 곳 — 공용 벌크 INSERT(삼성 발주현황표도 쓴다)는 안 건드리고 방금 넣은 줄마다 채운다 */
+			for (egovframework.konet.user.model.ShipoutDTO r : grp) {
+				java.util.Map<String,Object> pp = new java.util.HashMap<String,Object>();
+				pp.put("compCd", compCd); pp.put("dlvDt", r.getDlvDt()); pp.put("jobSeq", jobSeq); pp.put("rowNo", r.getRowNo());
+				pp.put("salePrice", r.getSalePrice() == null ? null : java.math.BigDecimal.valueOf(r.getSalePrice()));
+				pp.put("dwItemCd", scStr(r.getRcvItemCd())); pp.put("rcvNm", scStr(r.getRcvNm())); pp.put("rcvAddr", scStr(r.getRcvAddr())); pp.put("rcvTel", scStr(r.getRcvTel()));
+				mapper.updateDwPoExtra(pp);
+			}
+			egovframework.konet.user.model.ProdXrefDTO rx = new egovframework.konet.user.model.ProdXrefDTO();
+			rx.setJobSeq(Long.valueOf(jobSeq)); rx.setDlvDt(head.getDlvDt()); rx.setDcCd("DONGWON"); rx.setCompCd(compCd);
+			resolveShipoutProd(rx);
+		}
+		return n;
+	}
+	@Override public int deleteDwPo(java.util.List<java.util.Map<String,Object>> keys, String user, String ip, String compCd) throws Exception {
+		int n = 0; if (keys == null) return 0;
+		for (java.util.Map<String,Object> k : keys) {
+			if (scStr(k.get("itemNm")).isEmpty() || scStr(k.get("ordNo")).isEmpty()) continue;
+			java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+			p.put("compCd", compCd); p.put("ordNo", scStr(k.get("ordNo"))); p.put("lineNo", scStr(k.get("lineNo"))); p.put("itemNm", scStr(k.get("itemNm"))); p.put("regUser", user); p.put("regIp", ip);
+			n += mapper.deleteDwPo(p);
+		}
+		return n;
+	}
+	@Override public java.util.List<java.util.Map<String,Object>> selectDwPoList(java.util.Map<String,Object> p) throws Exception { return mapper.selectDwPoList(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectDwPoMap(java.util.Map<String,Object> p) throws Exception { return mapper.selectDwPoMap(p); }
+	/* 동원홈푸드 — 저장 뒤 코드 수정 : updateTdPoCode 와 같은 규칙(이름 단위 · 품목이면 우리 상품을 다시 풀고 재고 다시 맞출 날짜를 돌려준다) */
+	@Override public java.util.Map<String,Object> updateDwPoCode(String kind, String nm, String cd, String user, String ip, String compCd) throws Exception {
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("kind", kind); p.put("nm", nm); p.put("cd", cd); p.put("regUser", user); p.put("regIp", ip);
+		java.util.List<String> dates = mapper.selectDwPoDatesByName(p);
+		int n;
+		if ("item".equals(kind)) {
+			java.util.Map<String,Object> vq = new java.util.HashMap<String,Object>(); vq.put("compCd", compCd); vq.put("itemCd", cd);
+			java.util.Map<String,Object> pv = mapper.selectProdVendorOfItem(vq);
+			p.put("vendorCd", pv == null ? null : scStr(pv.get("vendorCd"))); p.put("vendorNm", pv == null ? null : scStr(pv.get("vendorNm")));
+			n = mapper.updateDwPoItemByName(p);
+			egovframework.konet.user.model.ProdXrefDTO rx = new egovframework.konet.user.model.ProdXrefDTO();
+			rx.setDcCd("DONGWON"); rx.setCompCd(compCd);   // 날짜·차수는 비움 = 동원홈푸드 줄 중 우리 상품이 빈 것 전부
+			resolveShipoutProd(rx);
+		} else {
+			n = mapper.updateDwPoBizByName(p);
+			dates = new java.util.ArrayList<String>();   // 재고와 무관
+		}
+		res.put("n", n); res.put("dates", dates);
+		return res;
+	}
+	/* 동원홈푸드 — 저장된 한 줄의 수량·판매가 고치기(반품 = 수량 줄이기). 열쇠 = (주문번호, 순번, 상품명). updateTdPoRow 와 같은 규칙 */
+	@Override public String updateDwPoRow(String ordNo, String lineNo, String itemNm, int qty, Double salePrice, String user, String ip, String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("ordNo", ordNo); p.put("lineNo", lineNo); p.put("itemNm", itemNm); p.put("regUser", user); p.put("regIp", ip);
+		java.util.Map<String,Object> old = mapper.selectDwPoRow(p);
+		if (old == null) return null;
+		Object op = old.get("salePrice");
+		String oldP = op == null ? "없음" : new java.math.BigDecimal(String.valueOf(op)).stripTrailingZeros().toPlainString();
+		String newP = salePrice == null ? "없음" : java.math.BigDecimal.valueOf(salePrice).stripTrailingZeros().toPlainString();
+		String note = " · 수정 " + new java.text.SimpleDateFormat("MM-dd HH:mm").format(new java.util.Date())
+		            + " 수량 " + scStr(old.get("qty")) + "→" + qty + (oldP.equals(newP) ? "" : " 판매가 " + oldP + "→" + newP);
+		p.put("qty", qty); p.put("salePrice", salePrice == null ? null : java.math.BigDecimal.valueOf(salePrice)); p.put("note", note);
+		mapper.updateDwPoRow(p);
+		return scStr(old.get("dlvDt"));
+	}
 	/* 대상 발주 등록 (2026-10-02 사용자 「토더처럼 … 매출관리에 대상발주등록 추가 … 매출은 토더처럼 발생하게」) — saveTdPo 와 같은 틀.
 	   다른 점 : 출고장 = DAESANG(「대상」) · 발주번호가 없어 다시 올림 판정(대체)을 하지 않는다(같은 줄은 컨트롤러가 저장 전에 세어 화면이 묻는다) ·
 	   판매가와 배송 정보(받는 사람·주소·전화·대상 제품코드)를 넣은 줄마다 채운다(updateDsPoExtra).
