@@ -141,6 +141,18 @@ function d10(s){ s=String(s||'').replace(/[^0-9]/g,''); return s.length>=8? s.sl
 
 /* ── 기준자료 : 사업장·상품 마스터 + 매칭코드 + 계약단가 + 자동 매칭(지난 저장) ── */
 var _biz={}, _prod={}, _price={}, _spec={}, _tax={}, _main={}, _ct={}, _map={ biz:{}, item:{}, dwcd:{}, price:{} }, _pv=[], _ls=[], _onlyNo=false;
+/* ★거래처 「동원홈푸드」의 부가세 구분(거래처관리 VAT_GB : 포함/별도/면세) — 단가를 어떻게 가르는지가 여기서 정해진다 (2026-10-30 사용자 「토더처럼 부가세 포함으로 설정했는데 … 기준정보 따르지 않는지」 — 종전엔 「별도」로 못 박혀 있었다).
+     포함 = 단가에 부가세가 들어 있다 → 합계 = 수량×단가, 공급가 = 합계÷1.1 · 별도 = 공급가 = 수량×단가, 부가세 10% 얹음 · 면세 = 부가세 0. 품목이 면세면 구분과 무관하게 0.
+     매출(서버, 수량×SALE_PRICE)은 그대로다 — 토더(포함)와 같이 「포함」이면 그 값이 부가세 포함 매출이다. 못 읽으면 종전대로 「별도」 */
+var _venVat='별도';
+function vtLbl(){ return '부가세 '+_venVat; }
+function dwSplit(cd, qty, price){ var base=Math.round(n(qty)*n(price)), free=(_venVat==='면세')||(cd && taxOf(cd)==='면세');
+  if(free) return { sup:base, vat:0, tot:base };
+  if(_venVat==='포함'){ var sup=Math.round(base/1.1); return { sup:sup, vat:base-sup, tot:base }; }
+  var vat=Math.round(base*0.1); return { sup:base, vat:vat, tot:base+vat }; }
+/* 머리글·칸 설명의 「부가세 별도」를 읽어 온 구분으로 바꾼다 */
+function vtApply(){ var l=vtLbl(); document.querySelectorAll('#pvWrap th[title], #lsWrap th[title]').forEach(function(th){ th.title=th.title.replace(/부가세 (별도|포함|면세)/g, l); });
+  var sup=document.querySelector('#pvWrap th[title="수량 × 단가"]'); if(sup) sup.title=(_venVat==='포함'?'합계 ÷ 1.1 (단가가 부가세 포함)':'수량 × 단가'); }
 function loadMasters(){
   var p1=post('/mangr/clientList.do','findData=').then(function(r){ return r.json(); }).then(function(j){ _biz={}; var h=[]; ((j&&j.data)||[]).forEach(function(o){ if(!o.bizCd) return; _biz[String(o.bizCd)]=o.bizNm||''; h.push('<option value="'+esc((o.bizNm||'')+' ['+o.bizCd+']')+'"></option>'); }); document.getElementById('bizList').innerHTML=h.join(''); }).catch(function(){});
   var p2=post('/prod/prodList.do','').then(function(r){ return r.json(); }).then(function(j){ _prod={}; _price={}; _spec={}; _tax={}; var h=[];
@@ -153,8 +165,9 @@ function loadMasters(){
         if(_prod[c]==null) _prod[c]=(o.extItemNm||'')+' 〔매칭코드〕'; }); }).catch(function(){});
   /* 계약단가(2026-10-27 판매 등록과 같은 규칙) — 품목코드 → 계약 줄들 */
   var p4=post('/prod/contractList.do','').then(function(r){ return r.json(); }).then(function(j){ var m={}; ((j&&j.data)||[]).forEach(function(c){ var cd=String(c.prodCd||''); if(cd) (m[cd]=m[cd]||[]).push(c); }); _ct=m; }).catch(function(){});
+  var p6=post('/vendor/selectVendorMst.do','').then(function(r){ return r.json(); }).then(function(j){ var v=((j&&j.data)||[]).filter(function(o){ return String(o.vendorCd||'')==='DONGWON'; })[0]; _venVat=(v&&v.vatGb)||'별도'; vtApply(); }).catch(function(){});
   var p5=post('/shipout/dongwonPoMap.do','').then(function(r){ return r.json(); }).then(function(j){ _map={ biz:(j&&j.biz)||{}, item:(j&&j.item)||{}, dwcd:(j&&j.dwcd)||{}, price:(j&&j.price)||{} }; }).catch(function(){});
-  return Promise.all([p1,p3,p4,p5]).then(function(){ if(_pv.length){ autoFill(); pvRender(); } if(_ls.length) lsRender(); });
+  return Promise.all([p1,p3,p4,p5,p6]).then(function(){ if(_pv.length){ autoFill(); pvRender(); } if(_ls.length) lsRender(); });
 }
 function prodNmOf(cd){ return String(_prod[cd]||'').replace(' 〔매칭코드〕',''); }
 function mainOf(cd){ cd=String(cd||''); return (_main[cd] && _prod[_main[cd]]!=null) ? _main[cd] : cd; }
@@ -225,7 +238,7 @@ function autoFill(){ _pv.forEach(function(x){
 /* 단가 — 사람이 고친 값은 안 건드린다. 품목코드가 바뀌면 다시 채운다 */
 function priceFill(x){ if(x.priceEdited || !x.itemCd) return; var r=priceOf(x.itemCd, x.dlvDt); x.price=r.p; x.priceSrc=r.src; }
 function cdCls(cd, mst, auto){ if(!cd) return ''; return mst[cd]!=null ? (auto?'auto':'ok') : 'bad'; }
-function amtOf(x){ var sup=Math.round(n(x.qty)*n(x.price)), vat=x.itemCd?vatOf(x.itemCd, sup):Math.round(sup*0.1); return { sup:sup, vat:vat, tot:sup+vat }; }
+function amtOf(x){ return dwSplit(x.itemCd, x.qty, x.price); }   /* 거래처 부가세 구분(_venVat)에 따라 가른다 (2026-10-30) */
 function pvRender(){
   var has=_pv.length>0;
   ['pvWrap','pvNote'].forEach(function(id){ document.getElementById(id).style.display=has?'':'none'; });
@@ -243,14 +256,14 @@ function pvRender(){
       +'<td>'+esc(x.dwItemCd)+'</td><td class="l" title="'+esc(x.itemNm)+'" style="max-width:300px;overflow:hidden;text-overflow:ellipsis">'+esc(x.itemNm)+'</td>'
       +'<td class="l">'+(x.itemCd?'<span class="sub nmf'+(pn==null?' warn':'')+'">'+(x.itemAuto?'<span class="bd auto" title="'+(x.itemHow==='매칭'?'동원코드가 매칭코드(또는 우리 코드)로 등록돼 있어 그대로 씁니다':'지난 저장에서 가져온 값')+'">'+esc(x.itemHow||'자동')+'</span> ':'')+esc(pn!=null?pn:'상품 마스터에 없는 코드')+'</span>':'')+'<input type="text" list="prodList" class="'+cdCls(x.itemCd,_prod,x.itemAuto)+'" value="'+esc(x.itemCd)+'" placeholder="명칭 또는 코드" onchange="setCd('+i+',\'item\',this.value)"></td>'
       +'<td>'+esc(x.spec||x.unit)+'</td><td class="r"><b>'+fmt(x.qty)+'</b></td>'
-      +'<td class="r">'+(x.priceSrc&&!x.priceEdited?'<span class="bd ps" title="단가 출처">'+esc(x.priceSrc)+'</span> ':'')+'<input type="text" class="num'+(n(x.price)>0?'':' bad')+'" style="width:84px" value="'+esc(x.price?String(x.price):'')+'" title="판매가(부가세 별도 · 수량 단위 기준) — 고치면 그 값으로" onchange="pvPrice('+i+',this)"></td>'
+      +'<td class="r">'+(x.priceSrc&&!x.priceEdited?'<span class="bd ps" title="단가 출처">'+esc(x.priceSrc)+'</span> ':'')+'<input type="text" class="num'+(n(x.price)>0?'':' bad')+'" style="width:84px" value="'+esc(x.price?String(x.price):'')+'" title="판매가('+vtLbl()+' · 수량 단위 기준) — 고치면 그 값으로" onchange="pvPrice('+i+',this)"></td>'
       +'<td class="r"><b>'+fmt(a.sup)+'</b></td><td class="r">'+fmt(a.vat)+'</td><td class="r"><b>'+fmt(a.tot)+'</b></td>'
       +'<td><span class="bd '+(/취소|반려|반품/.test(x.status)?'cx':'st')+'">'+esc(x.status)+'</span></td></tr>';
   }).join('');
   pvInfoUpd();
 }
 function pvPrice(i, el){ var x=_pv[i]; if(!x) return; var v=String(el.value||'').replace(/,/g,'').trim();
-  if(v!=='' && !(/^\d+(\.\d+)?$/.test(v))){ err('단가는 숫자로 넣으세요(부가세 별도).'); pvRender(); return; }
+  if(v!=='' && !(/^\d+(\.\d+)?$/.test(v))){ err('단가는 숫자로 넣으세요('+vtLbl()+').'); pvRender(); return; }
   x.price=v===''?0:n(v); x.priceEdited=true; x.priceSrc='';
   /* 같은 품목코드의 다른 줄도 — 단가는 품목에 붙는 값(사람이 따로 고친 줄은 둔다) */
   _pv.forEach(function(y){ if(y!==x && !y.manual && y.itemCd && y.itemCd===x.itemCd && !y.priceEdited){ y.price=x.price; y.priceSrc='같이'; } });
@@ -330,7 +343,7 @@ function load(){
     .then(function(r){ return r.json(); }).then(function(j){ _ls=(j&&j.data)||[]; lsRender(); })
     .catch(function(e){ document.getElementById('lsBody').innerHTML='<tr><td colspan="18" class="msg" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
 }
-function lsAmt(x){ var sup=Math.round(n(x.qty)*n(x.salePrice)), vat=vatOf(x.itemCd, sup); return { sup:sup, vat:vat, tot:sup+vat }; }
+function lsAmt(x){ return dwSplit(x.itemCd, x.qty, x.salePrice); }
 function lsRender(){
   var tb=document.getElementById('lsBody'); document.getElementById('lsAll').checked=false;
   if(!_ls.length){ tb.innerHTML='<tr><td colspan="18" class="msg">저장된 동원홈푸드 발주가 없습니다.</td></tr>'; document.getElementById('lsInfo').textContent=''; return; }
@@ -343,7 +356,7 @@ function lsRender(){
       +'<td>'+esc(x.dwItemCd)+'</td><td class="l" title="'+esc(x.itemNm)+'" style="max-width:300px;overflow:hidden;text-overflow:ellipsis">'+esc(x.itemNm)+'</td>'
       +'<td class="l"><span class="sub nmf'+(pn==null?' warn':'')+'">'+esc(pn!=null?pn:'상품 마스터에 없는 코드')+'</span><input type="text" list="prodList" class="'+(pn==null?'bad':'ok')+'" value="'+esc(x.itemCd)+'" title="고르거나 쳐서 바꾸면 같은 상품명의 저장된 줄이 모두 바뀌고 재고도 다시 맞춥니다" onchange="lsCd('+i+',\'item\',this)">'+(x.prodCd&&x.prodCd!==x.itemCd?'<span class="sub">주코드 '+esc(x.prodCd)+'</span>':'')+'</td><td>'+esc(x.unit)+'</td>'
       +'<td class="r"><input type="text" class="num'+(n(x.qty)===0?' bad':'')+'" value="'+esc(fmtIn(x.qty))+'" data-v="'+esc(fmtIn(x.qty))+'" title="반품이면 줄여서 Enter — 0 = 전량 반품. 그 날 재고를 다시 맞춘다" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsRow('+i+',this,\'qty\')"></td>'
-      +'<td class="r"><input type="text" class="num'+(x.salePrice==null||x.salePrice===''?' bad':'')+'" value="'+esc(fmtIn(x.salePrice))+'" data-v="'+esc(fmtIn(x.salePrice))+'" title="판매가(부가세 별도). 비면 매출 0" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsRow('+i+',this,\'price\')"></td>'
+      +'<td class="r"><input type="text" class="num'+(x.salePrice==null||x.salePrice===''?' bad':'')+'" value="'+esc(fmtIn(x.salePrice))+'" data-v="'+esc(fmtIn(x.salePrice))+'" title="판매가('+vtLbl()+'). 비면 매출 0" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsRow('+i+',this,\'price\')"></td>'
       +'<td class="r"><b>'+fmt(a.sup)+'</b></td><td class="r">'+fmt(a.vat)+'</td><td class="r"><b>'+fmt(a.tot)+'</b></td>'
       +'<td class="l dim" style="max-width:260px;overflow:hidden;text-overflow:ellipsis" title="'+esc(x.remark)+'">'+esc(x.remark)+'</td><td class="l dim" style="max-width:200px;overflow:hidden;text-overflow:ellipsis" title="'+esc(x.srcFile)+'">'+esc(x.srcFile)+'</td><td class="dim">'+esc(String(x.uploadDttm||'').slice(0,16))+'<br>'+esc(x.regUser)+'</td></tr>'; }).join('');
   document.getElementById('lsInfo').textContent=_ls.length+'줄 · 수량 '+fmt(q)+' · 공급가 '+fmt(sup)+' · 부가세 '+fmt(vat)+' · 합계 '+fmt(sup+vat)+'원';
@@ -355,12 +368,12 @@ function lsRow(i, el, fld){
   var old=el.getAttribute('data-v')||'', v=String(el.value||'').replace(/,/g,'').trim();
   if(v===old) return;
   if(fld==='qty' && !/^\d+$/.test(v)){ el.value=old; err('수량은 0 이상의 정수로 넣으세요(0 = 전량 반품).'); return; }
-  if(fld==='price' && v!=='' && !(/^\d+(\.\d+)?$/.test(v))){ el.value=old; err('판매가는 숫자로 넣으세요(부가세 별도).'); return; }
+  if(fld==='price' && v!=='' && !(/^\d+(\.\d+)?$/.test(v))){ el.value=old; err('판매가는 숫자로 넣으세요('+vtLbl()+').'); return; }
   var qty = fld==='qty' ? v : fmtIn(x.qty), price = fld==='price' ? v : fmtIn(x.salePrice);
   var what = fld==='qty' ? ('수량 <b>'+esc(old||'0')+'</b> → <b>'+esc(v)+'</b>'+(n(v)<n(old)?' <span style="color:#b45309">(반품 '+fmt(n(old)-n(v))+')</span>':'')) : ('판매가 <b>'+esc(old||'없음')+'</b> → <b>'+esc(v||'없음')+'</b>');
   _confirmBox({ icon:'✏️', okText:'고치기',
     msg:esc(x.bizNm)+' · '+esc(x.itemNm)+'<br>'+what
-      +'<br><span style="font-size:13px;color:#3d4d5c">공급가 '+fmt(n(qty)*n(price))+'원(부가세 별도)'+(fld==='qty'?' · 그 날('+d10(x.dlvDt)+') 재고를 다시 맞춥니다':'')+'. 비고에 수정 기록이 남습니다.</span>',
+      +'<br><span style="font-size:13px;color:#3d4d5c">'+(_venVat==='포함'?'합계':'공급가')+' '+fmt(n(qty)*n(price))+'원('+vtLbl()+')'+(fld==='qty'?' · 그 날('+d10(x.dlvDt)+') 재고를 다시 맞춥니다':'')+'. 비고에 수정 기록이 남습니다.</span>',
     onOk:function(){
       post('/shipout/dongwonPoRow.do',{ ordNo:x.ordNo, lineNo:x.lineNo, itemNm:x.itemNm, qty:qty, price:price },true)
         .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
@@ -403,7 +416,7 @@ function delSel(){
    저장된 동원홈푸드 발주를 배송처별 → 배송일자별로 묶어 엑셀로 낸다.
      · 칸 : 배송처 · 배송일자 · 주문번호 · 순번 · 동원코드 · 상품명 · 규격 · 수량 · 단가 · 공급가액 · 부가세 · 합계 · 누계 · 비고
      · 배송처 = 사업장 마스터 이름(없으면 동원 배송처) — 배송처의 첫 줄에만 적는다. 상품명 = 동원 상품명(동원이 보는 장부라 그쪽 이름), 규격 = 동원 규격(단위 칸).
-     · 공급가액 = 수량 × 단가(부가세 별도) · 부가세 = 과세 10%(면세 0) · 합계 = 공급가액 + 부가세 · 누계 = 처음부터 그 줄까지 합계 누계.
+     · 공급가액·부가세 = 거래처 부가세 구분대로(dwSplit : 포함이면 합계 = 수량×단가, 공급가액 = ÷1.1 / 별도면 공급가액 = 수량×단가 + 10%) · 면세 품목 0 · 합계 = 공급가액 + 부가세 · 누계 = 처음부터 그 줄까지 합계 누계.
      · 날짜가 바뀔 때 「일계」(연두), 배송처가 바뀔 때 「소계」(보라), 맨 끝에 「합계」(크림). 수량 0 줄(전량 반품)은 뺀다.
      · 기간 = 아래 목록의 조회 기간. 자료는 그때 새로 읽는다(/shipout/dongwonPoList.do) — 서버는 그대로다. 미리보기 창은 없다(바로 엑셀). */
 var _lg=null;
@@ -448,7 +461,7 @@ function lgXls(){
   var H=['배송처','배송일자','주문번호','순번','동원코드','상품명','규격','수량','단가','공급가액','부가세','합계','누계','비고'], E=function(k){ var a=[]; for(var i=0;i<k;i++) a.push(''); return a; };
   var aoa=[ ['[동원홈푸드] 매출장부'].concat(E(NC-1)), E(NC),
             ['조회기간 : '+_lg.fr+' ~ '+_lg.to].concat(E(NC-2)).concat(['출력일자 : '+today]),
-            ['공급자 : '+comp,'','','','','','','','','','','','부가세 별도',''], H ];
+            ['공급자 : '+comp,'','','','','','','','','','','',vtLbl(),''], H ];   /* 거래처 부가세 구분 그대로 (2026-10-30) */
   var kinds=['t','t','p','p','h'];
   var serial=function(d){ var p=String(d).split('-'); return (Date.UTC(+p[0],+p[1]-1,+p[2])-Date.UTC(1899,11,30))/86400000; };
   _lg.lines.forEach(function(o){
@@ -523,7 +536,7 @@ function mRow(x, i){
       +'<input type="text" list="prodList" class="'+cdCls(x.itemCd,_prod,false)+'" value="'+esc(x.itemCd)+'" placeholder="명칭 또는 코드" onchange="setCd('+i+',\'item\',this.value)"></td>'
     +'<td>'+ti('unit', 96, '규격')+'</td>'
     +'<td class="r"><input type="text" class="num'+(x.qty?'':' bad')+'" style="width:70px" value="'+esc(x.qty||'')+'" title="수량" onchange="mSet('+i+',\'qty\',this)"></td>'
-    +'<td class="r">'+(x.priceSrc&&!x.priceEdited?'<span class="bd ps">'+esc(x.priceSrc)+'</span> ':'')+'<input type="text" class="num'+(x.price?'':' bad')+'" style="width:84px" value="'+esc(x.price||'')+'" placeholder="단가" title="판매가(부가세 별도)" onchange="mSet('+i+',\'price\',this)"></td>'
+    +'<td class="r">'+(x.priceSrc&&!x.priceEdited?'<span class="bd ps">'+esc(x.priceSrc)+'</span> ':'')+'<input type="text" class="num'+(x.price?'':' bad')+'" style="width:84px" value="'+esc(x.price||'')+'" placeholder="단가" title="판매가('+vtLbl()+')" onchange="mSet('+i+',\'price\',this)"></td>'
     +'<td class="r" colspan="3"><b id="mAmt'+x.mid+'">'+fmt(a.sup)+' / '+fmt(a.vat)+' / '+fmt(a.tot)+'</b></td>'
     +'<td><span class="bd st">직접 입력</span></td></tr>';
 }

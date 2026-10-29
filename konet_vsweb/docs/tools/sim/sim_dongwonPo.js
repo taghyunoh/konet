@@ -20,6 +20,7 @@ w.fetch = (url, o) => { CALLS.push({ url, body: o && o.body });
     { prodCd: '9904012904', prodNm: '테그 로고봉투 대', salePrice: 50000, spec: '1,500EA/BOX', taxGb: '면세' }] });
   if (/extItemList/.test(url)) return J({ data: [{ extItemCd: '640862', prodCd: '9904012901', extItemNm: '[C]70파이 2온스 소스용기 투명' }] });
   if (/contractList/.test(url)) return J({ data: [{ prodCd: '9904012903', contractPrice: 20000, frDt: '20261001', toDt: '' }, { prodCd: '9904012903', contractPrice: 15000, frDt: '20250101', toDt: '20250930' }, { prodCd: '9904012902', contractPrice: 99999, frDt: '20261201', toDt: '' }] });
+  if (/selectVendorMst/.test(url)) return J({ data: [{ vendorCd: 'DONGWON', vendorNm: '동원홈푸드', vatGb: w.__VAT || '별도' }] });
   if (/dongwonPoMap/.test(url)) return J({ biz: {}, item: {}, dwcd: { '640863': '9904012902' }, price: { '9904012902': '48000' } });
   if (/dongwonPoSave/.test(url)) return J('4');
   if (/dongwonPoList/.test(url)) return J({ data: w.__LS || [] });
@@ -114,6 +115,15 @@ const XL = process.argv[2] || path.join(process.env.TEMP || '', 'claude/C--Users
   t(w.__xls && w.__xls.wb.SheetNames[0] === '동원홈푸드_20261001~20261031', '[📒 매출장부] = 목록 기간으로 바로 엑셀');
   w.__LS = []; w.__xls = null; w.__alerts = []; w.lgXlsNow(); await new Promise(r => setTimeout(r, 30));
   t(!w.__xls && w.__alerts.some(x => /없습니다/.test(x)), '줄이 없으면 안내만');
+  // ── 거래처 부가세 구분 = 포함 (2026-10-30 「토더처럼 부가세 포함으로 설정했는데 … 기준정보 따르지 않는지」) ──
+  w.__VAT = '포함'; w._venVat = '별도'; w.loadMasters(); await new Promise(r => setTimeout(r, 30));
+  t(w._venVat === '포함', '거래처관리 VAT_GB 를 읽는다 (' + w._venVat + ')');
+  const ai = w.amtOf({ itemCd: '9904012901', qty: 1, price: 11000 }); t(ai.tot === 11000 && ai.sup === 10000 && ai.vat === 1000, '포함 : 단가 11,000 → 합계 11,000 · 공급가 10,000 · 부가세 1,000 (' + JSON.stringify(ai) + ')');
+  const af = w.amtOf({ itemCd: '9904012904', qty: 2, price: 50000 }); t(af.tot === 100000 && af.vat === 0 && af.sup === 100000, '포함이어도 면세 품목은 부가세 0');
+  const al = w.lsAmt({ itemCd: '9904012902', qty: 3, salePrice: 10000 }); t(al.tot === 30000 && al.sup === 27273 && al.vat === 2727, '저장 목록도 같은 규칙 (' + JSON.stringify(al) + ')');
+  const th = w.document.querySelector('#pvWrap th[title*="부가세"]'); t(th && /부가세 포함/.test(th.title) && !/부가세 별도/.test(th.title), '머리글 설명이 「부가세 포함」으로 (' + (th && th.title) + ')');
+  w.__VAT = '면세'; w.loadMasters(); await new Promise(r => setTimeout(r, 30)); const an = w.amtOf({ itemCd: '9904012901', qty: 1, price: 11000 }); t(an.vat === 0 && an.sup === 11000, '거래처 면세 → 부가세 0');
+  w.__VAT = ''; w.loadMasters(); await new Promise(r => setTimeout(r, 30)); t(w._venVat === '별도', '구분이 비면 종전대로 별도');
   console.log('동원홈푸드 등록 시뮬 : 통과 ' + ok + ' · 실패 ' + bad);
   process.exit(bad ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });

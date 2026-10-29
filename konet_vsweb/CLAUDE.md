@@ -1804,6 +1804,11 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
   ⚠`cellTxt` 의 Date 판정은 `Object.prototype.toString` — jsdom(다른 realm)에서 `instanceof Date` 가 거짓이라 날짜가 「2920-26-00」으로 깨졌다(브라우저엔 무해하지만 시뮬이 잡음).
 - **셸** 메뉴(대상 밑 🧃)·`panel-dongwonPo`·업무설명서 「토더 · 대상 · 동원홈푸드 등록」 행 신설.
 - 검증 = javac 67(--release 8) · MyBatis 파싱 434문 bad 0 · `mapper_audit` diff 바뀐 11·새 10 · count INSERT 40 어긋남 0 · 운영 DB 읽기 전용 새 SELECT 4문(0줄·오류 0) · jspsyn 2화면 · **jsdom 시뮬 45**([sim_dongwonPo.js](docs/tools/sim/sim_dongwonPo.js) — 실제 샘플 엑셀 4줄 · 매칭·추정 · 단가 차례 · 면세 · 저장 payload · 직접 줄 · 매출장부 일계/소계/합계/누계 · 엑셀 14칸). ⚠화면 실왕복·저장(UPDATE)은 DDL·재기동 뒤.
+- ✅**[2026-10-30] 부가세 구분 = 거래처관리(VAT_GB) 를 따른다**(사용자 「토더처럼 부가세 포함으로 설정했는데 (별도로) 나오는 이유는 기준정보 따르지 않는지」 — 그렇다, 10-29 판은 「별도」로 못 박혀 있었고 토더는 「포함」으로 못 박혀 있다. 거래처 VAT_GB 를 읽는 화면은 매입·판매 등록뿐이었다).
+  JSP 만 : `_venVat`(`/vendor/selectVendorMst.do` 의 DONGWON vatGb, 못 읽으면 별도) · `dwSplit(cd,qty,price)` 한 곳 — **포함** = 합계 = 수량×단가 · 공급가 = ÷1.1 · 부가세 = 나머지 / **별도** = 공급가 = 수량×단가 + 10% / 거래처·품목 **면세** = 0. amtOf·lsAmt·매출장부(공급자 줄 「부가세 포함」)·칸 설명(`vtApply` 가 th title 의 「부가세 별도」를 바꿈)·직접 입력 전부 이 함수.
+  ★서버 매출(수량×SALE_PRICE)은 손대지 않았다 — 토더처럼 「포함」이면 그 값이 부가세 포함 매출(매출 그래프·마감·채권 그대로). 매퍼 주석만 고침. 검증 = jspsyn OK · 시뮬(포함 11,000 → 10,000/1,000 · 면세 품목 0 · 거래처 면세 0 · 빈 구분 → 별도 · th 설명 교체) 9/9.
+  ⚠**sim_dongwonPo.js 의 엑셀 고정자료는 다른 PC(HYUN) scratchpad 경로** — 이 PC 엔 없어 엑셀 구간을 뺀 사본으로 돌렸다(인자로 엑셀 경로를 주면 전체가 돈다). 고정자료를 `docs/tools/sim/` 에 넣어 두는 것이 다음 사람 몫.
+  ⚠**운영 반영 = dongwonPo.jsp 파일 교체**(재빌드 불필요). 토더 화면은 여전히 「포함」 고정 — 거래처 TODER 도 포함이라 지금은 맞다.
 
 ## 업무 설명서 동기화 (필수 방침)
 - **메뉴·기능이 바뀔 때마다 `logistics_demo2.jsp`의 업무설명서 패널(`panel-guide`)도 반드시 함께 수정**한다 (사용자 상시 요청 2026-07-05). 화면 추가/삭제/이동, 성격 변경 시 설명서 표의 해당 행을 갱신.
