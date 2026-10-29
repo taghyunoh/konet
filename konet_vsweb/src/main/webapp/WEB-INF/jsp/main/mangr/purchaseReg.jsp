@@ -215,6 +215,9 @@
       <div class="pu-fld" style="flex:0 0 130px"><label>창고</label><select id="puWhNm" title="이 전표의 창고 — 재고가 여기로 들어옵니다(2026-09-16)"></select></div>
       <%-- 일괄등록 (2026-08-06 요청) — 거래처는 그대로 두고 일자만 바꿔 여러 상품을 한 번에 전표로 저장 --%>
       <button class="pu-btn teal" onclick="puBatchOpen()" title="거래처가 선택된 상태에서 일자만 바꿔 여러 상품을 한 번에 전표로 저장합니다">일괄등록</button>
+      <%-- 발주서 (2026-10-30 사용자 「매입등록에서 해당 자료에 대하여 발주서 정보 보여줘요, 일괄등록 옆에」) — 이 전표의 줄이 들고 있는 발주 연결(poSeq)로 발주서를 읽어 보여 준다.
+           [발주분]으로 담았거나 발주서관리 [매입전환]으로 만든 전표만 발주서가 있다. 서버는 그대로(/mangr/poDetail.do). --%>
+      <button class="pu-btn" id="puPoiBtn" onclick="puPoiOpen()" title="이 전표에 연결된 발주서 보기 — 발주 수량 · 기입고 · 잔량 · 이 전표 수량 · 🖨 발주서 인쇄">📋 발주서</button>
       <div class="pu-bal">
         <span>현잔고 <b id="puBalNow">0</b></span>
         <span>거래후잔고 <b id="puBalAfter">0</b></span>
@@ -445,6 +448,20 @@
        · 체크한 '순서'가 곧 명세 줄 순서다. 체크 칸에 1,2,3… 이 찍혀 순서를 눈으로 확인한다.
        · [매입분제외] = 앞으로 이 목록에 안 나오게 한다(거래처별). 매입 이력은 그대로 둔다.
        · 판매등록의 [납품분]과 같은 표를 쓰되 GB='P' 로 갈린다 — 매출에서 뺀 게 매입에 영향 없다. -->
+<!-- 발주서 보기 팝업 (2026-10-30) — 이 전표에 연결된 발주서(여러 장이면 차례로). 읽기 전용 · 🖨 인쇄는 poPrint.jsp 새 창 -->
+<div class="pu-pop" id="puPoiPop">
+  <div class="box" style="width:min(1120px,97vw)">
+    <div class="hd">📋 발주서 — <span id="poiTitle" style="font-weight:600;color:#137a6c">이 전표에 연결된 발주서</span>
+      <span style="margin-left:auto"><span class="pu-btn" style="border:0;background:transparent;font-size:18px" onclick="puPoiClose()">✕</span></span>
+    </div>
+    <div class="bd" id="poiBody" style="max-height:72vh"><div class="pu-msg">불러오는 중…</div></div>
+    <div class="ft" style="display:flex; align-items:center; gap:8px">
+      <span style="font-size:12.5px; color:#5a6b7a">「이 전표」 = 지금 명세에서 그 발주 줄에 연결된 수량(반품은 −). 기입고는 저장된 전표 기준이라 저장 전 줄은 안 들어 있습니다.</span>
+      <span style="margin-left:auto"></span>
+      <button class="pu-btn" onclick="puPoiClose()">닫기</button>
+    </div>
+  </div>
+</div>
 <!-- 발주분 팝업 (2026-09-16 P1-b 2단계) — 잔량이 남은 발주 줄. 매입분 팝업과 같은 뼈대. 이번 입고 기본값 = 잔량 -->
 <div class="pu-pop" id="puPoPop">
   <div class="box" style="width:min(1180px,97vw)">
@@ -1051,6 +1068,7 @@ function puGridPager(){
   if (el) { el.innerHTML = ''; el.style.display = 'none'; }
 }
 function puRender(){
+  puPoiBtnSync();                         // [📋 발주서] 색 — 연결 발주 있으면 초록(일괄등록과 같은 색), 없으면 흰 단추 (2026-10-30)
   var _keep = puCaptureFocus();          // 다시 그려도 커서가 있던 칸을 유지(2026-08-04 키보드 입력)
   var h = '';
   /* ★명세는 <전부> 그린다 (2026-09-10 요청 「모두표시 제거, 스크롤 되게」) — 8행씩 이어붙이던 규칙과 [모두 표시] 단추를 걷고 표 안 스크롤만 남긴다.
@@ -2360,6 +2378,51 @@ var _dlv = [], _dvPick = [], _dvExclMode = false;
      담긴 줄은 poSeq/poDtlSeq 를 들고 가서 저장하면 발주서에 입고·잔량이 잡힌다. 한 전표에 발주 여러 장을 섞어도 된다(줄마다 연결이 따로).
      거래처가 비어 있으면 전 거래처 발주를 보여 주고, 담을 때 첫 줄의 거래처로 맞춘다. 다른 거래처 줄이 섞이면 확인창 한 번(막지 않는다). */
 var _po=[], _poPick=[];   // 열린 발주 줄 · 고른 poDtlSeq(문자열) 차례
+/* ── 발주서 보기 (2026-10-30) ──────────────────────────────
+   연결된 발주서 = 명세 줄의 poSeq(중복 없이, 나온 차례). 발주서마다 /mangr/poDetail.do(머리 + 줄 · 기입고·잔량은 서버가 센다).
+   「이 전표」 칸 = 명세에서 그 발주 줄(poDtlSeq)에 연결된 수량 합(반품·불량반품은 −) — 저장 전이어도 보인다. 연결 없는 전표는 안내만. */
+function puPoiSeqs(){ var out=[]; _rows.forEach(function(o){ if(o.prodCd && o.poSeq && out.indexOf(String(o.poSeq))<0) out.push(String(o.poSeq)); }); return out; }
+function puPoiOpen(){
+  var seqs=puPoiSeqs();
+  if(!seqs.length){ _alertBox('이 전표에 연결된 발주서가 없습니다.<br><span style="font-size:13px;color:#5a6b7a">[발주분]으로 담은 줄이나 발주서관리 ▸ [📦 매입전환]으로 만든 전표만 발주서가 있습니다.</span>'); return; }
+  document.getElementById('poiTitle').textContent=(_cur&&_cur.purchSeq ? '전표 '+fmtDt(_cur.purchDt)+'-'+_cur.purchNo : '작성 중인 전표')+' · 발주서 '+seqs.length+'장';
+  document.getElementById('poiBody').innerHTML='<div class="pu-msg">불러오는 중…</div>';
+  document.getElementById('puPoiPop').classList.add('on');
+  Promise.all(seqs.map(function(sq){ return post('/mangr/poDetail.do','poSeq='+encodeURIComponent(sq)).then(function(r){ return r.json(); }).then(function(j){ return { seq:sq, mst:(j&&j.mst)||null, items:(j&&j.items)||[] }; }).catch(function(e){ return { seq:sq, err:e.message }; }); }))
+    .then(function(list){ document.getElementById('poiBody').innerHTML=list.map(puPoiHtml).join(''); });
+}
+/* 단추 색 = 연결 여부 (사용자 「일괄등록처럼 색깔 동일하게 — 있을 때·없을 때 색깔 구분」). 명세를 그릴 때마다 다시 본다 */
+function puPoiBtnSync(){ var b=document.getElementById('puPoiBtn'); if(!b) return; var k=puPoiSeqs().length;
+  b.classList.toggle('teal', k>0); b.style.color=k?'':'#8a94a0'; b.textContent=k?'📋 발주서'+(k>1?' '+k+'장':''):'📋 발주서';
+  b.title=k?'이 전표에 연결된 발주서 '+k+'장 — 발주 수량 · 기입고 · 잔량 · 이 전표 수량 · 🖨 발주서 인쇄':'이 전표에 연결된 발주서가 없습니다([발주분]으로 담거나 발주서관리 [매입전환]으로 만든 전표만)'; }
+function puPoiClose(){ document.getElementById('puPoiPop').classList.remove('on'); }
+function puPoiThis(dtlSeq){ var q=0; _rows.forEach(function(o){ if(String(o.poDtlSeq||'')===String(dtlSeq)) q+=(/반품/.test(o.trxGb||'')?-1:1)*n(o.qty); }); return q; }
+function puPoiPrint(seq){ window.open(CTX+'/mangr/poPrint.do?poSeq='+encodeURIComponent(seq), 'poPrint', 'width=900,height=1000'); }
+function puPoiHtml(d){
+  if(d.err || !d.mst) return '<div class="pu-msg" style="color:#c0392b">발주서 #'+esc(d.seq)+' 를 읽지 못했습니다'+(d.err?' — '+esc(d.err):'(지워졌거나 권한 밖)')+'</div>';
+  var m=d.mst, h='';
+  h+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 6px;font-size:13px">'
+    +'<b style="font-size:14.5px;color:#1b5e9e">발주 '+esc(fmtDt(m.poDt))+'-'+esc(m.poNo)+'</b>'
+    +'<span>'+esc(m.vendorNm||'')+'</span>'+(m.mgrNm?'<span style="color:#5a6b7a">담당 '+esc(m.mgrNm)+'</span>':'')
+    +'<span>합계 <b>'+fmt(m.totAmt)+'</b>원 <span style="color:#5a6b7a">(공급가 '+fmt(m.supplyAmt)+' · 부가세 '+fmt(m.vatAmt)+(n(m.dcAmt)?' · DC '+fmt(m.dcAmt):'')+')</span></span>'
+    +(m.purchSeq?'<span style="color:#5a6b7a" title="발주서관리 [매입전환]으로 만든 전표">매입전환 '+esc(fmtDt(m.purchDt||''))+(m.purchNo?'-'+esc(m.purchNo):'')+'</span>':'')
+    +'<button class="pu-btn" style="margin-left:auto" onclick="puPoiPrint('+esc(m.poSeq)+')">🖨 발주서 인쇄</button></div>'
+    +(m.remark?'<div style="font-size:12.5px;color:#3d4d5c;margin-bottom:6px;white-space:pre-wrap">메모 : '+esc(m.remark)+'</div>':'');
+  h+='<div style="max-height:300px;overflow:auto;border:1px solid var(--pu-bd);border-radius:6px"><table><thead><tr>'
+    +'<th style="width:40px">No</th><th style="width:100px">상품코드</th><th>상품명</th><th style="width:110px">규격</th><th style="width:48px">입수</th>'
+    +'<th style="width:70px">발주</th><th style="width:84px">단가</th><th style="width:90px">금액</th><th style="width:70px" title="저장된 매입전표의 연결 수량 합(반품 −)">기입고</th><th style="width:70px">잔량</th>'
+    +'<th style="width:70px" title="지금 명세에서 이 발주 줄에 연결된 수량">이 전표</th><th style="width:60px">상태</th></tr></thead><tbody>';
+  var tq=0, ta=0, ti=0, tr=0, tt=0;
+  d.items.forEach(function(it, i){ var th=puPoiThis(it.poDtlSeq), rem=n(it.remainQty), link=_rows.some(function(o){ return String(o.poDtlSeq||'')===String(it.poDtlSeq); });
+    tq+=n(it.qty); ta+=n(it.totAmt); ti+=n(it.inQty); tr+=rem; tt+=th;
+    h+='<tr'+(link?' style="background:#f3faf7"':'')+'><td>'+(i+1)+'</td><td>'+esc(it.prodCd)+(link?' <span title="이 전표에 연결된 줄" style="font-size:10px">📋</span>':'')+'</td><td style="text-align:left">'+esc(it.prodNm)+'</td><td style="text-align:left">'+esc(it.spec||'')+'</td>'
+      +'<td style="text-align:right">'+fmt(it.packQty)+'</td><td style="text-align:right"><b>'+fmt(it.qty)+'</b></td><td style="text-align:right">'+fmt(it.unitPrice)+'</td><td style="text-align:right">'+fmt(it.totAmt)+'</td>'
+      +'<td style="text-align:right">'+fmt(it.inQty)+'</td><td style="text-align:right'+(rem<0?';color:#c0392b':'')+'">'+fmt(rem)+'</td><td style="text-align:right'+(th?';color:#137a6c;font-weight:700':'')+'">'+(th?fmt(th):'')+'</td>'
+      +'<td>'+(it.closeYn==='Y'?'<span title="'+esc(it.closeRmk||'')+'" style="color:#8a94a0">마감</span>':(rem<=0?'<span style="color:#137a6c">완료</span>':'<span style="color:#b45309">미입고</span>'))+'</td></tr>'; });
+  h+='<tr style="background:#fcf8e3;font-weight:700"><td colspan="5">합계</td><td style="text-align:right">'+fmt(tq)+'</td><td></td><td style="text-align:right">'+fmt(ta)+'</td><td style="text-align:right">'+fmt(ti)+'</td><td style="text-align:right">'+fmt(tr)+'</td><td style="text-align:right">'+(tt?fmt(tt):'')+'</td><td></td></tr>';
+  h+='</tbody></table></div>';
+  return h;
+}
 function puPoOpen(){ _poPick=[]; document.getElementById('poQ').value=''; document.getElementById('poAll').checked=false;
   var cd=document.getElementById('puVenNm').dataset.cd||''; document.getElementById('poAllVen').checked=!cd;
   document.getElementById('puPoPop').classList.add('on'); puPoLoad(); }
