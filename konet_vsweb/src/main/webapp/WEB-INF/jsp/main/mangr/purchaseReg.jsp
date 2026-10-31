@@ -121,6 +121,9 @@
                font-size:12.5px; color:#8a4c0d; font-weight:700; line-height:1.6; }
   .pu-prcwarn .one{ display:inline-block; margin-right:12px; cursor:pointer; text-decoration:underline; }
   .pu-prcwarn .one:hover{ color:#c0392b; }
+  /* 입수가 마스터와 다른 줄 — 입수 칸 옆 ↻ (2026-10-31) */
+  .packdiff{ display:inline-block; margin:0 4px 0 2px; padding:0 5px; border-radius:6px; background:#fdebd9; color:#b45309; font-weight:800; font-size:11px; cursor:pointer; }
+  .packdiff:hover{ background:#f6cfa8; }
   /* 🔎 반품 대사 패널 (2026-10-16 사용자 「반품 처리하면 기존 게 없어져서 대사가 어려움 (예: 4개 중 2개)」)
        — 반품·원위치 전표 밑에 «원본 전표»의 전 줄을 읽기 전용으로 깔아 준다. 되돌린 줄은 붉게, 안 건드린 줄은 흐리게 */
   .pu-rtnref{ margin:6px 2px 0; border:1px solid #e3b0a9; background:#fff7f6; border-radius:8px; font-size:13.5px; color:#1f2a37; }
@@ -258,6 +261,9 @@
     <%-- ★이전 단가와 다른 줄 안내 (2026-09-12 요청 「이전 단가와 다를 경우 메세지나 이전 단가를 표시」)
          — 줄이 없으면 자리째 숨는다(puPrcWarnRender). 저장을 막지 않는다. --%>
     <div id="puPrcWarn" class="pu-prcwarn" style="display:none"></div>
+    <%-- 입수가 상품마스터와 다른 줄 안내 (2026-10-31 사용자 「입수수량 수정하고 이 내용 수정하는데 합계수량이 변경 안 되네요」) —
+         전표 줄은 저장 때 입수를 따로 들고 있어 마스터를 고쳐도 옛 전표는 그대로다. [마스터 입수로 맞추기]를 누르면 BOX × 새 입수 + EA 로 합계수량·금액이 다시 계산된다(저장은 사람이). --%>
+    <div id="puPackWarn" class="pu-prcwarn" style="display:none"></div>
     <%-- 🔎 반품 대사 — 이 전표의 반품·원위치 줄이 가리키는 «원본 전표»를 통째로 보여 준다(읽기 전용). 비고의 「매입 일자-번호」「반품 일자-번호 원위치」로 찾는다 --%>
     <div id="puRtnRef" class="pu-rtnref" style="display:none"></div>
 
@@ -291,7 +297,7 @@
       <span style="font-weight:700">Total : <span id="puTotal">0</span></span>
       <div class="pu-fld" style="flex:0 0 140px"><label>검색기간</label><input type="date" id="puFrom"></div>
       <div class="pu-fld" style="flex:0 0 140px"><label>&nbsp;</label><input type="date" id="puTo"></div>
-      <div class="pu-fld" style="flex:0 0 200px"><label>거래처</label><input type="text" id="puFindNm" placeholder="거래처명"></div>
+      <div class="pu-fld" style="flex:0 0 200px"><label>거래처</label><input type="text" id="puFindNm" placeholder="거래처명 (치면 기간 무시)" title="거래처명을 치면 검색기간과 상관없이 그 거래처 전표를 전부 찾습니다 (2026-10-31)"></div>
       <button class="pu-btn teal" onclick="puLoad()">리스트조회</button>
     </div>
     <div class="pu-list" id="puListWrap">
@@ -1020,6 +1026,33 @@ function puPrcLab(c){
      다른 줄의 차이는 각 단가 칸 ▲▼ 배지로만 남는다. */
 var _prcRow = null;
 /* 그리드 밑 안내줄 — 지금 작업한 줄이 이전 단가와 다르면 보여 준다(누르면 그 줄 단가 칸으로 간다) */
+/* ── 입수 ↔ 상품마스터 대조 (2026-10-31 사용자 「입수수량 수정하고 이 내용 수정하는데 합계수량이 변경 안 되네요」) ──
+   전표 줄은 저장 때의 입수(TBL_PURCHASE_DTL.PACK_QTY)를 그대로 불러오므로, 상품마스터 입수를 1 → 1,000 으로 고쳐도 옛 전표의 [1]·합계 95 는 그대로다.
+   ⇒ 마스터와 다른 줄에 입수 칸 옆 ↻마스터값 배지 + 그리드 밑 안내줄 [📦 마스터 입수로 맞추기]. 누르면 그 줄(또는 전부)의 입수를 마스터값으로 바꾸고
+      합계수량 = BOX × 새 입수 + EA · 금액 = 합계 × 단가 로 다시 계산한다(puCalcRow). ★자동으로 바꾸지 않는다 — 옛 전표를 단가만 보려고 열었을 때 수량이 몰래 바뀌면 안 된다.
+      단가는 손대지 않는다(상자값이면 사람이 개당값으로 고친다 — 안내줄에 적음). 저장은 [💾 저장]. */
+function puMstPack(o){ if(!o || !o.prodCd) return 0; for (var i=0;i<_prods.length;i++){ if (String(_prods[i].prodCd)===String(o.prodCd)) return n(_prods[i].packQty)||0; } return 0; }
+function puPackDiff(o){ var m=puMstPack(o); return (m>0 && m!==(n(o.packQty)||1)) ? m : 0; }
+function puPackSync(i){
+  var o=_rows[i]; if(!o) return; var m=puPackDiff(o); if(!m) return;
+  var old=n(o.packQty)||1; o.packQty=m; puCalcRow(o); puRender();
+  if(window._toast) _toast((i+1)+'. '+(o.prodNm||o.prodCd)+' 입수 '+fmt(old)+' → '+fmt(m)+' · 합계수량 '+fmt(o.qty)+' (단가는 그대로 — 상자값이면 개당값으로 고치세요)','ok');
+}
+function puPackSyncAll(){
+  var k=0; _rows.forEach(function(o){ var m=puPackDiff(o); if(m){ o.packQty=m; puCalcRow(o); k++; } });
+  puRender(); if(window._toast) _toast(k+'줄의 입수를 마스터값으로 맞췄습니다 — 합계수량·금액을 확인하고 단가가 상자값이면 개당값으로 고친 뒤 [💾 저장]','ok');
+}
+function puPackWarnRender(){
+  var box=document.getElementById('puPackWarn'); if(!box) return;
+  var list=[]; _rows.forEach(function(o,i){ var m=puPackDiff(o); if(m) list.push({ i:i, o:o, m:m }); });
+  if(!list.length){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='';
+  box.innerHTML='📦 입수가 상품마스터와 다른 줄 <b>'+list.length+'</b> — '
+    + list.slice(0,6).map(function(x){ return '<span class="one" title="누르면 이 줄만 마스터 입수로" onclick="puPackSync('+x.i+')">'+(x.i+1)+'. '+esc(x.o.prodNm||x.o.prodCd)+' ['+fmt(x.o.packQty||1)+' → '+fmt(x.m)+']</span>'; }).join('')
+    + (list.length>6 ? '<span style="color:#8a97a4">외 '+(list.length-6)+'줄 </span>' : '')
+    + '<button class="pu-btn" style="height:26px;padding:0 9px;font-size:12px;margin-left:6px" onclick="puPackSyncAll()">📦 마스터 입수로 맞추기(전부)</button>'
+    + ' <span style="font-weight:600;color:#8a97a4">※ 합계수량 = BOX × 입수 + EA 로 다시 계산됩니다. 단가가 상자값이면 개당값으로 고치고 [💾 저장].</span>';
+}
 function puPrcWarnRender(){
   var box = document.getElementById('puPrcWarn'); if (!box) return;
   var i = _prcRow ? _rows.indexOf(_prcRow) : -1;
@@ -1107,7 +1140,7 @@ function puRender(){
           ? '<span class="lnk" onclick="puHistOpen('+i+')" title="클릭 → 이 거래처의 매입단가 이력(최대 3년)">'+esc(o.prodNm)+'</span>'
             + ' <span class="hist" onclick="puHistOpen('+i+')" title="매입단가 이력 보기">📈</span>'
           : '') +'</td>'
-      + '<td class="txt">'+ (o.packQty?('['+fmt(o.packQty)+']'):'') + esc(o.spec) +'</td>'
+      + '<td class="txt">'+ (o.packQty?('['+fmt(o.packQty)+']'):'') + (function(pd){ return pd ? '<span class="packdiff" title="상품마스터 입수는 '+fmt(pd)+' — 누르면 이 줄에 적용(합계수량 = BOX × '+fmt(pd)+' + EA 로 다시 계산)" onclick="puPackSync('+i+')">↻'+fmt(pd)+'</span>' : ''; })(puPackDiff(o)) + esc(o.spec) +'</td>'
       /* ★반품 줄은 수량·금액을 「−」로 **보여 준다** (2026-09-05 「상단은 − 그대로」) — 저장값은 양수(규칙), 표시만 부호를 붙인다.
            BOX·EA 칸에 −32 가 보이는 상태에서 다시 −20 을 쳐도 puSet 이 「반품 + 20」으로 받으므로 어긋나지 않는다. */
       + '<td><input inputmode="'+(QTY_DEC?'decimal':'numeric')+'" data-r="'+i+'" data-f="boxQty" value="'+(n(o.boxQty)*sg)+'" onchange="puSet('+i+',\'boxQty\',this.value)"></td>'
@@ -1147,6 +1180,7 @@ function puRender(){
   puGridBind(); puGridPager();
   puCalc();
   puPrcWarnRender();                     // 이전 단가와 다른 줄 안내 (2026-09-13 되살림)
+  puPackWarnRender();                    // 입수가 마스터와 다른 줄 안내 (2026-10-31)
   puRtnRefSoon();                        // 🔎 반품 대사 패널 (2026-10-16)
   puRestoreFocus(_keep);                 // _focusNext 가 있으면 그 칸으로, 없으면 있던 칸 그대로
 }
@@ -1391,9 +1425,12 @@ function puDelete(){
 
 /* ── 전표 목록 ────────────────────────────────────────── */
 function puLoad(){
-  var b = 'fromDt='+encodeURIComponent(document.getElementById('puFrom').value)
-        + '&toDt='+encodeURIComponent(document.getElementById('puTo').value)
-        + '&findData='+encodeURIComponent(document.getElementById('puFindNm').value);
+  /* ★거래처명을 치면 검색기간을 안 보낸다 (2026-10-31 「거래처 입력 시에는 일자 상관없이 검색」) —
+     SQL(selectPurchaseList)이 빈 fromDt/toDt 를 「전체」로 보므로 화면이 비워 보내기만 하면 된다. 기간 칸 값은 그대로 둔다. */
+  var nm = (document.getElementById('puFindNm').value||'').trim();
+  var b = 'fromDt='+encodeURIComponent(nm ? '' : document.getElementById('puFrom').value)
+        + '&toDt='+encodeURIComponent(nm ? '' : document.getElementById('puTo').value)
+        + '&findData='+encodeURIComponent(nm);
   document.getElementById('puListBody').innerHTML = '<tr><td colspan="10" class="pu-msg">조회 중…</td></tr>';
   post('/mangr/purchaseList.do', b).then(function(r){return r.json();}).then(function(j){
     _list = (j&&j.data)||[]; puListRender();

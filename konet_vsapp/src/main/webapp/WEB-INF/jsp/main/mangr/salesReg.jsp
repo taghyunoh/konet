@@ -327,7 +327,7 @@
       <span style="font-weight:700">Total : <span id="saTotal">0</span></span>
       <div class="sa-fld" style="flex:0 0 140px"><label>검색기간</label><input type="date" id="saFrom"></div>
       <div class="sa-fld" style="flex:0 0 140px"><label>&nbsp;</label><input type="date" id="saTo"></div>
-      <div class="sa-fld" style="flex:0 0 200px"><label>거래처</label><input type="text" id="saFindNm" placeholder="거래처명"></div>
+      <div class="sa-fld" style="flex:0 0 200px"><label>거래처</label><input type="text" id="saFindNm" placeholder="거래처명 (치면 기간 무시)" title="거래처명을 치면 검색기간과 상관없이 그 거래처 전표를 전부 찾습니다 (2026-10-31)"></div>
       <button class="sa-btn teal" onclick="saLoad()">리스트조회</button>
     </div>
     <div class="sa-list" id="saListWrap">
@@ -1554,9 +1554,12 @@ function saDelete(){
 
 /* ── 전표 목록 ────────────────────────────────────────── */
 function saLoad(){
-  var b = 'fromDt='+encodeURIComponent(document.getElementById('saFrom').value)
-        + '&toDt='+encodeURIComponent(document.getElementById('saTo').value)
-        + '&findData='+encodeURIComponent(document.getElementById('saFindNm').value);
+  /* ★거래처명을 치면 검색기간을 안 보낸다 (2026-10-31 「거래처 입력 시에는 일자 상관없이 검색」) —
+     SQL(selectSalesTrxList)이 빈 fromDt/toDt 를 「전체」로 보므로 화면이 비워 보내기만 하면 된다. 기간 칸 값은 그대로 둔다. */
+  var nm = (document.getElementById('saFindNm').value||'').trim();
+  var b = 'fromDt='+encodeURIComponent(nm ? '' : document.getElementById('saFrom').value)
+        + '&toDt='+encodeURIComponent(nm ? '' : document.getElementById('saTo').value)
+        + '&findData='+encodeURIComponent(nm);
   document.getElementById('saListBody').innerHTML = '<tr><td colspan="9" class="sa-msg">조회 중…</td></tr>';
   post('/mangr/salesTrxList.do', b).then(function(r){return r.json();}).then(function(j){
     _list = (j&&j.data)||[]; saListRender();

@@ -68,6 +68,7 @@
   .bd.ps{ background:#e3f2ee; color:#0f6b5e; }   /* 단가 출처(지난 저장 · 계약 · 판매가) */
   .dim{ color:#8a98a8; }
   input[type=date]{ height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13px; }
+  #lsQ{ height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13px; font-family:inherit; background:#fff; }   /* 품목코드 검색칸 = 날짜 칸과 같은 높이 (2026-10-31) */
   .msg{ padding:22px; text-align:center; color:#8a98a8; }
   .note{ font-size:12.5px; color:#6b7a89; padding:8px 12px; line-height:1.6; }
   /* 「거래처 매출장·마감」 그리드 모양(2026-10-21 「DC·토더·대상 발주등록도」) — 머리줄 하늘 · 칸 테두리 · 합계 줄 크림. !important = 공용 ui-concept.css 가 덮지 않게 */
@@ -111,8 +112,9 @@
 
   <div class="card">
     <div class="hd">저장된 동원홈푸드 발주 <small>— 배송일자 기준</small>
-      <span class="bar" style="margin-left:auto">
+      <span class="bar" style="margin-left:8px">
         <input type="date" id="fr"> <span class="dim">~</span> <input type="date" id="to">
+        <input type="text" id="lsQ" placeholder="품목코드" style="width:120px" title="품목코드·우리 품목·동원 상품코드·품목명 부분일치 — 치는 대로 아래 목록을 거릅니다(기간 안에서 · 서버 재조회 없음) · Esc = 지우기" oninput="lsRender()" onkeydown="if(event.key==='Escape'){this.value='';lsRender();}">
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
         <button class="btn" onclick="lgXlsNow()" title="위 조회 기간의 저장된 동원홈푸드 발주를 매출장부 엑셀(배송처 · 배송일자별 · 일계 · 소계 · 합계 · 공급가액 · 부가세 · 누계)로 바로 내립니다 — 동원홈푸드 송부용">📒 동원홈푸드 매출장부</button>
         <button class="btn btn-red" onclick="delSel()">🗑 선택 삭제</button>
@@ -347,8 +349,8 @@ function lsAmt(x){ return dwSplit(x.itemCd, x.qty, x.salePrice); }
 function lsRender(){
   var tb=document.getElementById('lsBody'); document.getElementById('lsAll').checked=false;
   if(!_ls.length){ tb.innerHTML='<tr><td colspan="18" class="msg">저장된 동원홈푸드 발주가 없습니다.</td></tr>'; document.getElementById('lsInfo').textContent=''; return; }
-  var q=0, sup=0, vat=0;
-  tb.innerHTML=_ls.map(function(x,i){ var a=lsAmt(x); q+=n(x.qty); sup+=a.sup; vat+=a.vat;
+  var q=0, sup=0, vat=0, k=0;
+  tb.innerHTML=_ls.map(function(x,i){ if(!lsHit(x)) return ''; k++; var a=lsAmt(x); q+=n(x.qty); sup+=a.sup; vat+=a.vat;
     var bn=_biz[x.bizCd], pn=_prod[x.itemCd];
     return '<tr><td><input type="checkbox" class="lchk" data-i="'+i+'"></td><td>'+d10(x.dlvDt)+'</td><td>'+esc(x.ordNo)+(x.reqNo?'<span class="sub" title="의뢰번호">'+esc(x.reqNo)+'</span>':'')+'</td><td><b>'+esc(x.lineNo)+'</b></td>'
       +'<td class="l" title="'+esc((x.rcvAddr||'')+(x.rcvTel?'\n'+x.rcvTel:''))+'">'+esc(x.bizNm)+(x.rcvAddr?'<span class="sub">'+esc(x.rcvAddr)+'</span>':'')+'</td>'
@@ -359,8 +361,15 @@ function lsRender(){
       +'<td class="r"><input type="text" class="num'+(x.salePrice==null||x.salePrice===''?' bad':'')+'" value="'+esc(fmtIn(x.salePrice))+'" data-v="'+esc(fmtIn(x.salePrice))+'" title="판매가('+vtLbl()+'). 비면 매출 0" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsRow('+i+',this,\'price\')"></td>'
       +'<td class="r"><b>'+fmt(a.sup)+'</b></td><td class="r">'+fmt(a.vat)+'</td><td class="r"><b>'+fmt(a.tot)+'</b></td>'
       +'<td class="l dim" style="max-width:260px;overflow:hidden;text-overflow:ellipsis" title="'+esc(x.remark)+'">'+esc(x.remark)+'</td><td class="l dim" style="max-width:200px;overflow:hidden;text-overflow:ellipsis" title="'+esc(x.srcFile)+'">'+esc(x.srcFile)+'</td><td class="dim">'+esc(String(x.uploadDttm||'').slice(0,16))+'<br>'+esc(x.regUser)+'</td></tr>'; }).join('');
-  document.getElementById('lsInfo').textContent=_ls.length+'줄 · 수량 '+fmt(q)+' · 공급가 '+fmt(sup)+' · 부가세 '+fmt(vat)+' · 합계 '+fmt(sup+vat)+'원';
+  if(!k) tb.innerHTML='<tr><td colspan="18" class="msg">품목코드 검색에 맞는 줄이 없습니다 — 칸을 비우면(Esc) 전부 보입니다.</td></tr>';
+  document.getElementById('lsInfo').textContent=k+'줄'+(k<_ls.length?' / '+_ls.length:'')+' · 수량 '+fmt(q)+' · 공급가 '+fmt(sup)+' · 부가세 '+fmt(vat)+' · 합계 '+fmt(sup+vat)+'원';
 }
+
+/* 품목코드 검색 (2026-10-31 「품목코드 검색도 추가」) — 조회줄 #lsQ · 화면에서 거른다(서버 재조회 없음) · itemCd·prodCd·dwItemCd·itemNm 부분일치 · 빈 값 = 전부.
+     lsRender 가 안 맞는 줄은 안 그리고(색인 i 는 _ls 그대로 — 고치기·체크가 그 줄을 가리킨다) 합계·줄 수도 거른 것만 센다. */
+function lsHit(x){ var q=String((document.getElementById('lsQ')||{}).value||'').trim().toLowerCase(); if(!q) return true;
+  return [x.itemCd,x.prodCd,x.dwItemCd,x.itemNm].some(function(v){ return String(v||'').toLowerCase().indexOf(q)>=0; }); }
+function lsHitCnt(){ return _ls.filter(lsHit).length; }
 function fmtIn(v){ if(v==null||v==='') return ''; var x=n(v); return String(Math.round(x*100)/100); }
 /* 저장된 한 줄의 수량·판매가 고치기 — 열쇠 = (주문번호, 순번, 상품명). 서버가 비고에 「수정 옛값→새값」을 남기고 그 날 재고를 다시 맞춘다 */
 function lsRow(i, el, fld){

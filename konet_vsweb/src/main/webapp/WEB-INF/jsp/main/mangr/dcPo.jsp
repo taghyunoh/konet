@@ -32,6 +32,7 @@
   .sub b{ color:var(--teal); }
   .bar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .bar input[type=date]{ height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13.5px; background:#fff; }
+  #lsQ{ height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13px; font-family:inherit; background:#fff; }   /* 품목코드 검색칸 = 날짜 칸과 같은 높이 (2026-10-31) */
   .btn{ height:34px; border:1px solid var(--bd); background:#fff; border-radius:7px; padding:0 14px; cursor:pointer; font-size:13px; font-weight:700; color:#37475a; white-space:nowrap; }
   .btn:hover{ border-color:var(--teal); }
   .btn:disabled{ opacity:.5; cursor:default; }
@@ -152,6 +153,7 @@
     <div class="hd">📋 등록된 DC 발주 <small>— 납기일자 기준</small>
       <span class="bar" style="margin-left:8px">
         <input type="date" id="fr"> ~ <input type="date" id="to">
+        <input type="text" id="lsQ" placeholder="품목코드" style="width:120px" title="품목코드·우리 품목·품목명 부분일치 — 치는 대로 아래 목록을 거릅니다(기간 안에서 · 서버 재조회 없음) · Esc = 지우기" oninput="lsRender()" onkeydown="if(event.key==='Escape'){this.value='';lsRender();}">
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
         <button class="btn btn-red" onclick="del()">🗑 선택 삭제</button>
       </span>
@@ -511,8 +513,8 @@ function lsRender(){
   var tb=document.getElementById('lsBody');
   document.getElementById('lsAll').checked=false;
   if(!_ls.length){ tb.innerHTML='<tr><td colspan="12" class="empty">이 기간에 등록된 DC 발주가 없습니다.</td></tr>'; document.getElementById('lsTot').innerHTML=''; return; }
-  var q=0, wait=0;
-  tb.innerHTML=_ls.map(function(x,i){
+  var q=0, wait=0, k=0;
+  tb.innerHTML=_ls.map(function(x,i){ if(!lsHit(x)) return ''; k++;
     q+=n(x.qty);
     var st = x.settleYn==='Y' ? '<span class="bd ok">반영 '+fmt(x.settleQty)+'</span>'
            : (x.settleDayYn==='Y' ? '<span class="bd warn" title="그 날 정산서는 있는데 이 품목 줄은 없습니다 — 재고에 안 빠진 상태 (원장은 정산서가 주인 · 정산서에 이 코드가 오면 「반영 N」으로)">정산서 미적용</span>' : '<span class="bd wait">대기</span>');
@@ -524,8 +526,15 @@ function lsRender(){
       +'<td>'+st+'</td><td class="dim" style="white-space:normal;max-width:220px">'+esc(x.srcFile)+'</td><td class="dim">'+esc(x.remark)+'</td>'
       +'<td class="dim">'+esc(String(x.uploadDttm||'').slice(0,16))+(x.regUser?'<br>'+esc(x.regUser):'')+'</td></tr>';
   }).join('');
-  document.getElementById('lsTot').innerHTML='<b>'+_ls.length+'</b>줄 · 수량 <b>'+fmt(q)+'</b>'+(wait?(' · 정산서 대기 <b style="color:#b45309">'+wait+'</b>'):'');
+  if(!k) tb.innerHTML='<tr><td colspan="12" class="empty">품목코드 검색에 맞는 줄이 없습니다 — 칸을 비우면(Esc) 전부 보입니다.</td></tr>';
+  document.getElementById('lsTot').innerHTML='<b>'+k+'</b>줄'+(k<_ls.length?'<span class="dim"> / '+_ls.length+'</span>':'')+' · 수량 <b>'+fmt(q)+'</b>'+(wait?(' · 정산서 대기 <b style="color:#b45309">'+wait+'</b>'):'');
 }
+
+/* 품목코드 검색 (2026-10-31 「품목코드 검색도 추가」) — 조회줄 #lsQ · 화면에서 거른다(서버 재조회 없음) · itemCd·prodCd·itemNm 부분일치 · 빈 값 = 전부.
+     lsRender 가 안 맞는 줄은 안 그리고(색인 i 는 _ls 그대로 — 고치기·체크가 그 줄을 가리킨다) 합계·줄 수도 거른 것만 센다. */
+function lsHit(x){ var q=String((document.getElementById('lsQ')||{}).value||'').trim().toLowerCase(); if(!q) return true;
+  return [x.itemCd,x.prodCd,x.itemNm].some(function(v){ return String(v||'').toLowerCase().indexOf(q)>=0; }); }
+function lsHitCnt(){ return _ls.filter(lsHit).length; }
 function lsAllChk(el){ Array.prototype.forEach.call(document.querySelectorAll('.lchk'), function(c){ c.checked=el.checked; }); }
 function del(){
   var ks=Array.prototype.filter.call(document.querySelectorAll('.lchk'), function(c){ return c.checked; }).map(function(c){ var x=_ls[+c.getAttribute('data-i')]; return { dlvDt:x.dlvDt, itemCd:x.itemCd }; });

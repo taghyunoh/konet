@@ -88,6 +88,7 @@
   .bd{ display:inline-block; font-size:11px; font-weight:800; border-radius:6px; padding:1px 6px; }
   .bd.auto{ background:#e8eefb; color:#2f4f9a; }
   .dim{ color:#8a98a8; }
+  #lsQ{ height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13px; font-family:inherit; background:#fff; }   /* 품목코드 검색칸 = 날짜 칸과 같은 높이 (2026-10-31) */
   .hd input[type=date], .hd select{ height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13px; font-family:inherit; background:#fff; }
   .msg{ padding:22px; text-align:center; color:#8a98a8; }
   .note{ font-size:12.5px; color:#6b7a89; padding:8px 12px; line-height:1.6; }
@@ -242,8 +243,9 @@
 
   <div class="card">
     <div class="hd">저장된 대상 발주 <small>— 발주일자 기준</small>
-      <span class="bar" style="margin-left:auto">
+      <span class="bar" style="margin-left:8px">
         <input type="date" id="fr"> <span class="dim">~</span> <input type="date" id="to">
+        <input type="text" id="lsQ" placeholder="품목코드" style="width:120px" title="품목코드·우리 품목·제품코드·품목명 부분일치 — 치는 대로 아래 목록을 거릅니다(기간 안에서 · 서버 재조회 없음) · Esc = 지우기" oninput="lsRender()" onkeydown="if(event.key==='Escape'){this.value='';lsRender();}">
         <button class="btn btn-teal" onclick="load()">🔍 조회</button>
         <button class="btn" id="lsFoldAll" data-all="0" onclick="dsFoldAll('ls')" title="차수 묶음을 전부 접거나 펼칩니다 — 묶음마다 합계 줄 앞 ▾/▸ 로 하나씩도 됩니다">⊟ 전체 접기</button>
         <button class="btn" onclick="lsXls()" title="저장된 줄을 택배 납기관리의 엑셀과 같은 양식(머리글 없는 9칸)으로 저장합니다(체크한 줄 — 체크가 없으면 조회된 전부)">📊 엑셀 저장</button>
@@ -804,9 +806,10 @@ function lsRender(){
   if(!_ls.length){ tb.innerHTML='<tr><td colspan="19" class="msg">저장된 대상 발주가 없습니다.</td></tr>'; document.getElementById('lsInfo').textContent=''; return; }
   var q=0, amt=0, lsGrpInfo={};
   _ls.forEach(function(x){ var k=lsKey(x), g=lsGrpInfo[k]||(lsGrpInfo[k]={ amt:0, n:0, jeju:false }), c=dsCalc(x,'ls'); g.amt+=c.sup*c.sign; g.n++; if(isJeju(x.rcvAddr)) g.jeju=true; });
-  tb.innerHTML=withSums(_ls, function(x){ return String(x.dlvDt)+'|'+dsName(x.dsRound); }, function(x){ return dsKeyLabel(x.dlvDt, dsName(x.dsRound)); },
+  var V=_ls.filter(lsHit);   /* 품목코드 검색(2026-10-31) — 거른 줄만 묶음·합계에 · i 는 아래에서 _ls 색인으로 */
+  tb.innerHTML=withSums(V, function(x){ return String(x.dlvDt)+'|'+dsName(x.dsRound); }, function(x){ return dsKeyLabel(x.dlvDt, dsName(x.dsRound)); },
     function(x){ return dsAcc(x, 'ls'); },
-    function(x,i){ q+=n(x.qty); amt+=n(x.qty)*n(x.salePrice); var pn=_prod[x.itemCd];
+    function(x,i){ i=_ls.indexOf(x); q+=n(x.qty); amt+=n(x.qty)*n(x.salePrice); var pn=_prod[x.itemCd];
     /* 글자 칸(배송 정보·제품코드·제품명) = 입력칸 — 고치면 lsInfo 가 그 줄만 바로 저장한다 */
     var ti=function(f,w){ return '<input type="text" style="width:'+w+'px" value="'+esc(x[f])+'" data-v="'+esc(x[f])+'" title="'+esc(x[f])+'" onkeydown="if(event.key===\'Enter\'){this.blur();}" onchange="lsInfo('+i+',\''+f+'\',this)">'; };
     return '<tr><td><input type="checkbox" class="lchk" data-i="'+i+'"></td>'
@@ -824,10 +827,17 @@ function lsRender(){
       +'<td class="l dim" style="max-width:220px;overflow:hidden;text-overflow:ellipsis" title="'+esc(x.remark)+'">'+esc(x.remark)+'</td>'
       +'<td class="dim">'+esc(String(x.uploadDttm||'').slice(0,16))+'<br>'+esc(x.regUser)+'</td></tr>'; }, { lead:10, mid:1, tail:3 }, 'ls');
   /* 칸 차례 : 체크·발주일자·차수·받는 사람·주소·전화 1·전화 2·제품코드·품목코드·제품명(10) | 수량 | 택배비 | 단가(1) | 공급가·부가세·판매금액 | 사업장·비고·등록(3) */
+  if(!V.length) tb.innerHTML='<tr><td colspan="19" class="msg">품목코드 검색에 맞는 줄이 없습니다 — 칸을 비우면(Esc) 전부 보입니다.</td></tr>';
   lsInfoUpd();
 }
-function lsInfoUpd(){ var q=0, amt=0, vat=0, fee=0; _ls.forEach(function(x){ var c=dsCalc(x,'ls'); q+=n(x.qty)*c.sign; amt+=c.sup*c.sign; vat+=c.vat*c.sign; fee+=n(x.fee); });
-  document.getElementById('lsInfo').textContent=_ls.length+'줄 · 수량 '+fmt(q)+' · 공급가 '+fmt(amt)+' · 부가세 '+fmt(vat)+' · 판매금액 '+fmt(amt+vat)+'원 · 택배비 '+fmt(fee)+'원(부가세 포함 '+fmt(feeTot(fee))+') · 택배 포함 '+fmt(amt+vat+feeTot(fee))+'원'; }
+
+/* 품목코드 검색 (2026-10-31 「품목코드 검색도 추가」) — 조회줄 #lsQ · 화면에서 거른다(서버 재조회 없음) · itemCd·prodCd·rcvItemCd·itemNm 부분일치 · 빈 값 = 전부.
+     lsRender 가 안 맞는 줄은 안 그리고(색인 i 는 _ls 그대로 — 고치기·체크가 그 줄을 가리킨다) 합계·줄 수도 거른 것만 센다. */
+function lsHit(x){ var q=String((document.getElementById('lsQ')||{}).value||'').trim().toLowerCase(); if(!q) return true;
+  return [x.itemCd,x.prodCd,x.rcvItemCd,x.itemNm].some(function(v){ return String(v||'').toLowerCase().indexOf(q)>=0; }); }
+function lsHitCnt(){ return _ls.filter(lsHit).length; }
+function lsInfoUpd(){ var q=0, amt=0, vat=0, fee=0, V=_ls.filter(lsHit); V.forEach(function(x){ var c=dsCalc(x,'ls'); q+=n(x.qty)*c.sign; amt+=c.sup*c.sign; vat+=c.vat*c.sign; fee+=n(x.fee); });
+  document.getElementById('lsInfo').textContent=V.length+'줄'+(V.length<_ls.length?' / '+_ls.length:'')+' · 수량 '+fmt(q)+' · 공급가 '+fmt(amt)+' · 부가세 '+fmt(vat)+' · 판매금액 '+fmt(amt+vat)+'원 · 택배비 '+fmt(fee)+'원(부가세 포함 '+fmt(feeTot(fee))+') · 택배 포함 '+fmt(amt+vat+feeTot(fee))+'원'; }
 /* 저장 목록의 글자 칸(받는 사람·주소·전화 1·2·제품코드·제품명) — 고치면 그 줄만 바로 저장한다(/shipout/daesangPoInfo.do).
      매출·재고와 무관한 칸이라 확인창 없이 저장하고 알림만 띄운다. 실패하면 옛 값으로 되돌린다. 바꾸지 않은 칸은 지금 값을 그대로 보낸다 */
 function lsInfo(i, fld, el){
