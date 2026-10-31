@@ -1243,7 +1243,7 @@
   function stockUpdAllBtn(){ var b=document.getElementById('stockAllBtn'); if(b) b.innerHTML=_stockAllCollapsed?'⊞ 전체 펼치기':'⊟ 전체 접기'; }
   function stockToggleAll(){
     if(_stockAllCollapsed){ _stockCollapsed={}; _stockAllCollapsed=false; }
-    else { var seen={}, gi=0; _stockRows.forEach(function(r){ var gk=r.vendorCd||'(미지정)'; if(!(gk in seen)){ seen[gk]=gi; _stockCollapsed['k#'+gi]=true; gi++; } }); _stockAllCollapsed=true; }
+    else { var seen={}, gi=0; _stockView().forEach(function(r){ var gk=r.vendorCd||'(미지정)'; if(!(gk in seen)){ seen[gk]=gi; _stockCollapsed['k#'+gi]=true; gi++; } }); _stockAllCollapsed=true; }
     stockUpdAllBtn(); stockRender();
   }
   function closeRenderStock(rows){ _stockRows=rows; _stockCollapsed={}; _stockAllCollapsed=false; stockUpdAllBtn(); stockRender(); }
@@ -1256,28 +1256,32 @@
       +'<td style="text-align:right;font-weight:700">'+_cnum(end)+'</td>'
       +'<td style="text-align:right">'+(showAvg?_cnum(avg):'')+'</td><td style="text-align:right">'+_cnum(amt)+'</td>';
   }
+  var _stockQ='';
+  function _stockView(){ if(!_stockQ) return _stockRows; return _stockRows.filter(function(r){ return (''+(r.prodCd||'')).toLowerCase().indexOf(_stockQ)>=0 || (''+(r.prodNm||'')).toLowerCase().indexOf(_stockQ)>=0; }); }   /* 품목코드/품목명 검색 — 두 탭 공통 · 합계·소계·건수도 거른 것만 (2026-10-31, 매출마감 _salesView 와 같은 꼴) */
+  function _stockQNote(){ return _stockQ ? ' · <span style="color:#137a6c">🔎 \''+_cesc(_stockQ)+'\' 검색중</span>' : ''; }
+  function stockSearch(){ var el=document.getElementById('stockQ'); _stockQ=((el&&el.value)||'').trim().toLowerCase(); stockRender(); }
   function stockRender(){
     var wrap=document.getElementById('closeStockWrap'), sum=document.getElementById('closeStockSum'), pg=document.getElementById('closeStockPager');
     var thead='<thead><tr><th>품목코드</th><th>품목명</th><th style="text-align:right">기초</th><th style="text-align:right">입고</th><th style="text-align:right">출고</th><th style="text-align:right">조정</th><th style="text-align:right">기말</th><th style="text-align:right">이동평균단가</th><th style="text-align:right">재고금액</th></tr></thead>';
-    var g={b:0,i:0,o:0,a:0,e:0,amt:0};
-    _stockRows.forEach(function(r){ g.b+=(+r.beginQty||0); g.i+=(+r.inQty||0); g.o+=(+r.outQty||0); g.a+=(+r.adjQty||0); g.e+=(+r.endQty||0); g.amt+=((+r.endQty||0)*(+r.avgInPrice||0)); });
-    if(!_stockRows.length){ sum.textContent='해당 기간 재고 수불 내역이 없습니다.'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
+    var rows=_stockView(), g={b:0,i:0,o:0,a:0,e:0,amt:0};
+    rows.forEach(function(r){ g.b+=(+r.beginQty||0); g.i+=(+r.inQty||0); g.o+=(+r.outQty||0); g.a+=(+r.adjQty||0); g.e+=(+r.endQty||0); g.amt+=((+r.endQty||0)*(+r.avgInPrice||0)); });
+    if(!rows.length){ sum.textContent=(_stockRows.length&&_stockQ)?('\''+_stockQ+'\' 검색 결과가 없습니다. (품목코드/품목명)'):'해당 기간 재고 수불 내역이 없습니다.'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
     var totalRow='<tr class="close-total"><td colspan="2" style="text-align:left">■ 총합계</td>'+_closeStkCells(g.b,g.i,g.o,g.a,g.e,0,g.amt,false)+'</tr>';
     var _iRow=function(r){ var amt=(+r.endQty||0)*(+r.avgInPrice||0);
       return '<tr><td>'+_cesc(r.prodCd)+'</td><td class="txt-l">'+_cesc(r.prodNm)+'</td>'+_closeStkCells(+r.beginQty||0,+r.inQty||0,+r.outQty||0,+r.adjQty||0,+r.endQty||0,+r.avgInPrice||0,amt,true)+'</tr>'; };
 
     var head='<table class="logi-tb">'+thead+'<tbody>'+totalRow;
     if(_stockTab==='item'){
-      sum.innerHTML='총 <b>'+_stockRows.length.toLocaleString()+'</b>품목 · 기말 <b>'+_cnum(g.e)+'</b> · 재고금액 <b>'+_cnum(g.amt)+'</b>';
+      sum.innerHTML='총 <b>'+rows.length.toLocaleString()+'</b>품목 · 기말 <b>'+_cnum(g.e)+'</b> · 재고금액 <b>'+_cnum(g.amt)+'</b>'+_stockQNote();
       /* fill — 화면 바닥까지 채운다 (2026-08-28 「100% 인데 빈공간이 있어서 조금 확대」).
          pad 84 = 아래 행수 안내줄 + ※ 설명줄 자리 — 46(기본)이면 설명줄이 화면 밖으로 밀린다. */
-      lzMount({ wrap:wrap, pager:'closeStockPager', head:head, list:_stockRows, rowFn:_iRow, rows:STOCK_ROWS, capTop:320, fill:true, pad:84 });
+      lzMount({ wrap:wrap, pager:'closeStockPager', head:head, list:rows, rowFn:_iRow, rows:STOCK_ROWS, capTop:320, fill:true, pad:84 });
       return;
     }
     // 매입처별
     var groups=[], gmap={};
-    _stockRows.forEach(function(r){ var gk=r.vendorCd||'(미지정)'; var gg=gmap[gk]; if(!gg){ gg=gmap[gk]={label:gk, items:[], b:0,i:0,o:0,a:0,e:0,amt:0}; groups.push(gg); } gg.items.push(r); gg.b+=(+r.beginQty||0); gg.i+=(+r.inQty||0); gg.o+=(+r.outQty||0); gg.a+=(+r.adjQty||0); gg.e+=(+r.endQty||0); gg.amt+=((+r.endQty||0)*(+r.avgInPrice||0)); });
-    sum.innerHTML='총 <b>'+groups.length+'</b>매입처 · 기말 <b>'+_cnum(g.e)+'</b> · 재고금액 <b>'+_cnum(g.amt)+'</b>';
+    rows.forEach(function(r){ var gk=r.vendorCd||'(미지정)'; var gg=gmap[gk]; if(!gg){ gg=gmap[gk]={label:gk, items:[], b:0,i:0,o:0,a:0,e:0,amt:0}; groups.push(gg); } gg.items.push(r); gg.b+=(+r.beginQty||0); gg.i+=(+r.inQty||0); gg.o+=(+r.outQty||0); gg.a+=(+r.adjQty||0); gg.e+=(+r.endQty||0); gg.amt+=((+r.endQty||0)*(+r.avgInPrice||0)); });
+    sum.innerHTML='총 <b>'+groups.length+'</b>매입처 · 기말 <b>'+_cnum(g.e)+'</b> · 재고금액 <b>'+_cnum(g.amt)+'</b>'+_stockQNote();
     var _gRow=function(gi){ var gg=groups[gi], c=!!_stockCollapsed['k#'+gi], car=c?'▶':'▼';
       return '<tr class="close-grp" onclick="stockToggleKey(\'k#'+gi+'\')"><td colspan="2" style="text-align:left"><span class="ccar">'+car+'</span><b>'+_cesc(gg.label)+'</b> <span style="color:#5b6b7a;font-weight:600">(품목 '+gg.items.length+'종)</span></td>'+_closeStkCells(gg.b,gg.i,gg.o,gg.a,gg.e,0,gg.amt,false)+'</tr>'; };
     var rowsD=[];
@@ -1480,18 +1484,22 @@
   function costUpdAllBtn(){ var b=document.getElementById('costAllBtn'); if(b) b.innerHTML=_costAllCollapsed?'⊞ 전체 펼치기':'⊟ 전체 접기'; }
   function costToggleAll(){
     if(_costAllCollapsed){ _costCollapsed={}; _costAllCollapsed=false; }
-    else { var seen={}, gi=0; _costRows.forEach(function(r){ var gk=r.vendorCd||'(미지정)'; if(!(gk in seen)){ seen[gk]=gi; _costCollapsed['c#'+gi]=true; gi++; } }); _costAllCollapsed=true; }
+    else { var seen={}, gi=0; _costView().forEach(function(r){ var gk=r.vendorCd||'(미지정)'; if(!(gk in seen)){ seen[gk]=gi; _costCollapsed['c#'+gi]=true; gi++; } }); _costAllCollapsed=true; }
     costUpdAllBtn(); costRender();
   }
   function closeRenderCost(rows){ _costRows=rows; _costCollapsed={}; _costAllCollapsed=false; costUpdAllBtn(); costRender(); }
+  var _costQ='';
+  function _costView(){ if(!_costQ) return _costRows; return _costRows.filter(function(r){ return (''+(r.prodCd||'')).toLowerCase().indexOf(_costQ)>=0 || (''+(r.prodNm||'')).toLowerCase().indexOf(_costQ)>=0; }); }   /* 품목코드/품목명 검색 — 묶음·합계·건수도 거른 것만 (2026-10-31, 재고마감 _stockView 와 같은 꼴) */
+  function _costQNote(){ return _costQ ? ' · <span style="color:#137a6c">🔎 \''+_cesc(_costQ)+'\' 검색중</span>' : ''; }
+  function costSearch(){ var el=document.getElementById('costQ'); _costQ=((el&&el.value)||'').trim().toLowerCase(); costRender(); }
   function costRender(){
     var wrap=document.getElementById('closeCostWrap'), sum=document.getElementById('closeCostSum'), pg=document.getElementById('closeCostPager');
-    var gQ=0,gA=0; _costRows.forEach(function(r){ gQ+=(+r.inQty||0); gA+=(+r.inAmt||0); });
-    if(!_costRows.length){ sum.textContent='해당 기간 입고(수불) 내역이 없습니다.'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
+    var rows=_costView(), gQ=0,gA=0; rows.forEach(function(r){ gQ+=(+r.inQty||0); gA+=(+r.inAmt||0); });
+    if(!rows.length){ sum.textContent=(_costRows.length&&_costQ)?('\''+_costQ+'\' 검색 결과가 없습니다. (품목코드/품목명)'):'해당 기간 입고(수불) 내역이 없습니다.'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
     // 매입처 그룹
     var groups=[], gmap={};
-    _costRows.forEach(function(r){ var gk=r.vendorCd||'(미지정)'; var g=gmap[gk]; if(!g){ g=gmap[gk]={label:gk, items:[], q:0, amt:0}; groups.push(g); } g.items.push(r); g.q+=(+r.inQty||0); g.amt+=(+r.inAmt||0); });
-    sum.innerHTML='총 <b>'+groups.length+'</b>매입처 · 입고 <b>'+_cnum(gQ)+'</b> · 매입액 <b>'+_cnum(gA)+'</b>';
+    rows.forEach(function(r){ var gk=r.vendorCd||'(미지정)'; var g=gmap[gk]; if(!g){ g=gmap[gk]={label:gk, items:[], q:0, amt:0}; groups.push(g); } g.items.push(r); g.q+=(+r.inQty||0); g.amt+=(+r.inAmt||0); });
+    sum.innerHTML='총 <b>'+groups.length+'</b>매입처 · 입고 <b>'+_cnum(gQ)+'</b> · 매입액 <b>'+_cnum(gA)+'</b>'+_costQNote();
     var thead='<thead><tr><th>매입처</th><th>품목코드</th><th>품목명</th><th style="text-align:right">입고수량</th><th style="text-align:right">매입단가</th><th style="text-align:right">매입액</th></tr></thead>';
     var totalRow='<tr class="close-total"><td colspan="3" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(gQ)+'</td><td></td><td style="text-align:right">'+_cnum(gA)+'</td></tr>';
     var _gRow=function(gi){ var g=groups[gi], c=!!_costCollapsed['c#'+gi], car=c?'▶':'▼';
@@ -3927,8 +3935,8 @@
           <button type="button" class="ctab on" data-t="zone" onclick="salesTab('zone')">🗂️ 출고장별 품목코드</button>
           <button type="button" class="ctab"    data-t="biz"  onclick="salesTab('biz')">🏢 사업장별 품목코드</button>
           <button type="button" class="ctab"    data-t="item" onclick="salesTab('item')">📦 품목코드</button>
-          <span style="margin-left:auto"></span>
           <input type="search" class="cq" id="salesQ" placeholder="🔎 품목코드 / 품목명 검색" title="세 탭(출고장별·사업장별·품목코드) 모두에 적용됩니다. Esc = 검색 해제" oninput="salesSearch()" onkeydown="if(event.key==='Escape'){ this.value=''; salesSearch(); }">
+          <span style="margin-left:auto"></span>
           <button type="button" class="btn-line" id="salesAllBtn" style="height:30px;margin-bottom:2px" onclick="salesToggleAll()">⊟ 전체 접기</button>
         </div>
         <div class="close-summary" id="closeSalesSum">마감월/기간을 선택하고 [조회]를 누르세요.</div>
@@ -3955,6 +3963,7 @@
           <div class="fld" style="flex:0 0 160px"><label>시작일자</label><input type="date" id="closeCostFrom"></div>
           <div class="fld" style="flex:0 0 160px"><label>종료일자</label><input type="date" id="closeCostTo"></div>
           <div class="fld" style="flex:0 0 110px; align-self:flex-end"><button class="btn-teal" style="width:100%" onclick="closeLoad('cost')">조회</button></div>
+          <div class="fld" style="align-self:flex-end"><input type="search" class="cq" id="costQ" style="height:34px" placeholder="🔎 품목코드 / 품목명 검색" title="매입처 묶음·총합계·건수도 거른 것만 셉니다. Esc = 검색 해제" oninput="costSearch()" onkeydown="if(event.key==='Escape'){ this.value=''; costSearch(); }"></div>
           <div class="fld" style="margin-left:auto; align-self:flex-end"><button class="btn-line" id="costAllBtn" style="height:34px" onclick="costToggleAll()">⊟ 전체 접기</button></div>
         </div>
         <div class="close-summary" id="closeCostSum">마감월/기간을 선택하고 [조회]를 누르세요.</div>
@@ -3985,6 +3994,7 @@
         <div class="close-tabs" id="stockTabs">
           <button type="button" class="ctab on" data-t="vendor" onclick="stockTab('vendor')">🧾 매입처별 품목코드</button>
           <button type="button" class="ctab"    data-t="item"   onclick="stockTab('item')">📦 품목코드</button>
+          <input type="search" class="cq" id="stockQ" placeholder="🔎 품목코드 / 품목명 검색" title="두 탭(매입처별·품목코드) 모두에 적용됩니다. Esc = 검색 해제" oninput="stockSearch()" onkeydown="if(event.key==='Escape'){ this.value=''; stockSearch(); }">
           <span style="margin-left:auto"></span>
           <button type="button" class="btn-line" id="stockAllBtn" style="height:30px;margin-bottom:2px" onclick="stockToggleAll()">⊟ 전체 접기</button>
         </div>
@@ -4160,10 +4170,10 @@
             <div style="margin-top:4px;color:#5a6b7a"><b>· 📨 전송이력</b>(2026-09-10) <b>언제 · 누구에게 · 어떤 방법으로</b> 보냈는지 봅니다 — 거래명세표와 <b>같은 목록·같은 규칙</b>입니다. <b>[이 전표]</b> = 지금 발주서, <b>[전체 이력]</b> = 기간·거래처로 훑어보기. <span style="color:#b45309">💬 카톡 공유만 남고, 🔗 링크 복사는 보낸 것이 아니라 남기지 않습니다.</span> <b>👁 열람</b> = 받는 쪽이 그 주소로 발주서를 열어 봤음 · 줄마다 <b>[↻ 재전송]</b>(같은 수단으로 다시) · 다른 발주서 줄은 <b>[📂 전표 열기]</b>.</div>
             <div style="margin-top:4px;color:#5a6b7a"><b>· 🗂 삭제 이력 · 복구</b>(2026-10-26) 목록 조회줄 오른쪽 단추 — 위 조회기간(발주일자)·거래처 조건으로 <b>지운 발주서</b>를 보여 줍니다. 골라서 <b>[↩ 선택 복구]</b> 하면 <b>지울 때 모습(마지막 저장분)</b> 그대로 돌아오고 매입전표와의 입고·잔량 연결도 다시 잡힙니다. <span style="color:#b45309">같은 날 같은 번호를 그 사이 다른 발주서가 받았으면 그 날의 다음 번호로 바뀌어 살아납니다(⚠ 표시).</span> 대시보드 발주목록의 「등록」 표시는 되살아나지 않습니다.</div></td></tr>
           <tr><td class="m">입고내역</td><td>전체 품목 <b>입고 거래 목록</b> — 기간·검색·페이징·합계.</td></tr>
-          <tr><td class="m">매입마감</td><td><b>입고 기준</b> 당월 매입을 매입처·품목별로 집계(매입단가 = 가중평균).</td></tr>
+          <tr><td class="m">매입마감</td><td><b>입고 기준</b> 당월 매입을 매입처·품목별로 집계(매입단가 = 가중평균). 조회줄 <b>🔎 품목코드/품목명 검색</b>(묶음·합계·건수도 거른 것만 · Esc = 해제).</td></tr>
           <tr><td class="m">재고현황</td><td>실시간 현재고 = <b>입고 − 출고</b>(수불원장 하나만 봄). <b>기준일</b> 비움=현재고 / 날짜=그날까지 기말 → 마감월 말일로 맞추면 재고마감과 대사. <b>음수</b>면 입고 누락 신호. 품목 행 클릭 → 아래 <b>수불내역</b>(근거). <b>🏷 매입처별</b> = 품목을 대표 매입처(가장 최근 입고 매입처 → 없으면 상품마스터 거래처)로 묶어 소계와 함께(매입처 줄 클릭 = 접기). <b>🔄 출고반영 재집계</b>는 과거 보정용으로만. <b>🧹 서브코드 재고 정리</b>(재고 관리 메뉴) = 주코드에 매칭된 서브코드에 남은 재고를 찾아, 서브코드로 잡힌 매입은 [매입등록에서 열기]로 주코드로 바꾸고 남은 재고는 0으로 조정(기본 주코드에 합침 · 재고 일괄조정 [조정 이력]에서 되돌리기).</td></tr>
           <tr><td class="m">월별 출고현황</td><td><b>사업장 ▸ 품목</b>별 월 출고량 + 맨 윗줄 현재고. 출고량은 <b>납기일자</b> 기준으로 그 날 <b>정산서가 있으면 정산서</b>, 없으면 발주현황표(라벨수량) + <b>토더·대상 발주</b>(정산서 날에도) + <b>판매전표</b>(거래처가 사업장 자리, 「(판매전표)」) — 품목별재고현황(재고 원장)과 같은 규칙(2026-10-26). 셀을 누르면 아래 <b>출고내역·입고내역</b>. <b>기본 기간 = 올해 1월 1일 ~ 오늘</b>(기간이 곧 표의 열 수라 넓히면 그만큼 느려집니다). 거르기 칸은 <b>치던 손을 멈추면</b> 걸립니다(Enter 는 바로).</td></tr>
-          <tr><td class="m">재고마감</td><td>기초+입고−출고±조정=<b>기말</b>, 재고금액=기말×이동평균. 기초는 <b>직전 확정월 기말에서 이월</b>.</td></tr>
+          <tr><td class="m">재고마감</td><td>기초+입고−출고±조정=<b>기말</b>, 재고금액=기말×이동평균. 기초는 <b>직전 확정월 기말에서 이월</b>. 탭줄 <b>🔎 품목코드/품목명 검색</b> = 두 탭 공통(합계·건수도 거른 것만 · Esc = 해제).</td></tr>
         </tbody></table>
       </div>
 
