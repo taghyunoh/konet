@@ -5832,6 +5832,11 @@
 	                   (출고 자료에 짝이 있을 수 없으니 '출고미상'으로 잡히면 안 된다).
 	     기간은 정산서와 같게 납품일자(없으면 판매일자) 기준. -->
 	<select id="selectSalesTrxHist" parameterType="egovframework.konet.user.model.SalesTrxDTO" resultType="java.util.HashMap"><![CDATA[
+	  /* ★[2026-10-31] 판매전표 + 발주 등록(TD : 대상·토더·동원홈푸드) 두 갈래 — 매출내역·정산 그래프가 「직접판매」 줄로 함께 본다
+	       (사용자 「판매등록이든 대상등록이든 하나만 할 예정 — 재고든 매출이든 모두 적용」). 종전엔 판매전표만 와서 대상 발주가 매출내역에 안 보였다.
+	       TD 매출 = (반품 −1) × (수량 × 판매가 − DC) — 마감·매출그래프·채권과 같은 식(부가세 안 더함 · 토더는 판매가 자체가 부가세 포함). 택배비(로젠) 줄도 매출이라 함께.
+	       trxYn='Y' 라 화면이 대사(출고 짝 맞추기)에서 뺀다 — 발주 등록 줄은 발주현황표에 짝이 없다. */
+	  SELECT x.* FROM (
 	  SELECT ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT) AS dlvDt,
 	         m.SALE_DT AS outDt,
 	         '직접판매(전표)' AS dcNm, '' AS dcCd,
@@ -5854,7 +5859,28 @@
 	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = ''
 	           OR ISNULL(d.PROD_CD,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
 	           OR ISNULL(d.PROD_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
-	   ORDER BY ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT), m.SALE_NO, d.ROW_NO
+	  UNION ALL
+	  SELECT o.DLV_DT AS dlvDt, ISNULL(NULLIF(o.SHPOUT_DT,''), o.DLV_DT) AS outDt,
+	         N'직접판매(' + ISNULL(NULLIF(o.DC_NM,''), o.DC_CD) + N')' AS dcNm, '' AS dcCd,
+	         ISNULL(o.BIZ_CD,'') AS custCd, ISNULL(NULLIF(o.RCV_NM,''), ISNULL(o.BIZ_NM,'')) AS custNm,
+	         ISNULL(o.ORD_NO,'') AS ordNo, ISNULL(o.ORD_ITEM_NO,'') AS ordItemNo,
+	         ISNULL(o.PROD_CD, o.ITEM_CD) AS itemCd, o.ITEM_NM AS itemNm, '' AS spec,
+	         (CASE WHEN ISNULL(o.DS_TRX_GB,'') = N'반품' THEN -1 ELSE 1 END) * ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) AS outQty,
+	         (CASE WHEN ISNULL(o.DS_TRX_GB,'') = N'반품' THEN -1 ELSE 1 END) * ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) AS settleQty,
+	         (CASE WHEN ISNULL(o.DS_TRX_GB,'') = N'반품' THEN -1 ELSE 1 END) * (ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0) - ISNULL(o.DS_DC_AMT,0)) AS saleAmt,
+	         ISNULL(o.SALE_PRICE,0) AS salePrice,
+	         'Y' AS trxYn, ISNULL(o.DS_TRX_GB,'') AS trxGb
+	    FROM TBL_SHIPOUT_MST o
+	   WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND ISNULL(o.DLV_DT,'') <> ''
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR o.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{fromDt,jdbcType=VARCHAR},'') = '' OR o.DLV_DT >= REPLACE(#{fromDt,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'') = '' OR o.DLV_DT <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = ''
+	           OR ISNULL(o.ITEM_CD,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR ISNULL(o.PROD_CD,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+	           OR ISNULL(o.ITEM_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	  ) x
+	   ORDER BY x.dlvDt, x.dcNm, x.ordNo, TRY_CONVERT(int, x.ordItemNo), x.ordItemNo
 	]]></select>
 
 	<!-- ============================================================

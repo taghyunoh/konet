@@ -142,17 +142,22 @@
   table.g tr.sum td.fd .fold:hover{ background:#e3f2ee; }
   #round{ height:34px; border:1px solid var(--bd); border-radius:7px; padding:0 8px; font-size:13px; font-weight:700; color:#2f4f9a; width:110px; }
   /* 이력·복구 창 */
-  #dhMask{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.38); z-index:9000; }
-  #dhMask.on{ display:flex; align-items:flex-start; justify-content:center; padding-top:4vh; }
-  #dhBox{ background:#fff; border-radius:12px; width:min(1280px,97vw); max-height:78vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.25); }
-  #dhBox .dh{ display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid #eef1f5; font-weight:800; color:#125a4e; font-size:15px; }
-  #dhBox .dh small{ font-weight:600; color:#6b7a89; font-size:12px; }
-  #dhBox .db{ overflow:auto; padding:10px 14px; }
-  #dhBox .df{ display:flex; gap:8px; align-items:center; padding:2px 12px; border-top:1px solid #eef1f5; font-size:10.5px; color:#6b7a89; line-height:1.25; }
-  #dhBox .df .btn{ height:24px; padding:0 9px; font-size:11.5px; }
+  #dhMask,#dkMask{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.38); z-index:9000; }
+  #dhMask.on,#dkMask.on{ display:flex; align-items:flex-start; justify-content:center; padding-top:4vh; }
+  #dhBox,#dkBox{ background:#fff; border-radius:12px; width:min(1280px,97vw); max-height:78vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.25); }
+  #dhBox .dh,#dkBox .dh{ display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid #eef1f5; font-weight:800; color:#125a4e; font-size:15px; }
+  #dhBox .dh small,#dkBox .dh small{ font-weight:600; color:#6b7a89; font-size:12px; }
+  #dhBox .db,#dkBox .db{ overflow:auto; padding:10px 14px; }
+  #dhBox .df,#dkBox .df{ display:flex; gap:8px; align-items:center; padding:2px 12px; border-top:1px solid #eef1f5; font-size:10.5px; color:#6b7a89; line-height:1.25; }
+  #dhBox .df .btn,#dkBox .df .btn{ height:24px; padding:0 9px; font-size:11.5px; }
   .st{ display:inline-block; font-size:11px; font-weight:800; border-radius:6px; padding:1px 7px; white-space:nowrap; }
   .st.N{ background:#e8eefb; color:#2f4f9a; } .st.D{ background:#fdecec; color:var(--red); }
   .st.gone{ background:#eef2f5; color:#6b7a89; }
+  /* 중복 점검 창 (2026-10-31) — 이력조회 창과 같은 틀 */
+  .dkh{ display:flex; align-items:center; gap:8px; font-weight:800; color:#125a4e; font-size:13.5px; margin:8px 0 6px; }
+  .dkh small{ font-weight:600; color:#6b7a89; font-size:12px; }
+  .dkh .btn{ height:26px; padding:0 9px; font-size:12px; }
+  #dkBox table.g{ margin-bottom:6px; }
   /* 대상 단가표 창 */
   #dpMask{ display:none; position:fixed; inset:0; background:rgba(15,23,32,.38); z-index:9000; }
   #dpMask.on{ display:flex; align-items:flex-start; justify-content:center; padding-top:5vh; }
@@ -248,6 +253,8 @@
         <button class="btn btn-teal" onclick="dsCloseXls()" title="조회한 기간을 대상에 보내는 마감 엑셀(매출장 양식)로 만듭니다 — 일자(차수) · 출고점 · 상품명 · 규격 · 수량 · 단가 · 금액 + 택배비 줄 + 합계">📑 마감 엑셀(대상 송부용)</button>
         <button class="btn btn-red" onclick="delSel()" title="체크한 줄의 저장을 취소합니다 — 출고·매출에서 빠지고 재고도 다시 맞춥니다">🗑 선택 삭제(저장 취소)</button>
         <button class="btn" onclick="dhOpen()" title="이 기간에 고쳐서 닫힌 줄(수정 전)과 삭제한 줄을 보고 되살립니다">🕘 이력조회</button>
+        <%-- ⚠ 중복 점검 (2026-10-31 사용자 「오류 사용자 수정할 수 있게」) — 같은 기간의 «대상 판매전표»(판매등록으로 따로 넣은 것 = 매출·재고 두 번) 와 대상 발주 안의 겹친 줄을 보여 주고 그 자리에서 지운다 --%>
+        <button class="btn" onclick="dkOpen()" title="이 기간의 대상 판매전표(판매등록으로 따로 넣은 것)와, 대상 발주 안에서 같은 날·같은 받는 사람·같은 품목이 두 번 들어간 줄을 찾아 그 자리에서 지웁니다 — 판매등록과 대상 발주 등록은 하나만 쓴다(2026-10-31)">⚠ 중복 점검</button>
         <span id="lsInfo" class="dim" style="font-weight:600;font-size:12.5px"></span>
       </span>
     </div>
@@ -281,6 +288,26 @@
   <div class="df"><button class="btn" onclick="dpAdd()">＋ 품목 추가</button>
     <span class="dim" style="font-size:12.5px">고친 뒤 [💾 단가표 저장] — 올려 둔 줄의 자동 단가도 새 단가로 바뀝니다(손으로 고친 단가는 그대로).</span>
     <span style="margin-left:auto"></span><button class="btn" onclick="dpClose()">닫기</button><button class="btn btn-teal" onclick="dpSave()">💾 단가표 저장</button></div>
+</div></div>
+<%-- ★⚠ 중복 점검 창 (2026-10-31 사용자 「오류 사용자 수정할 수 있게」) — 판매등록과 대상 발주 등록은 앞으로 하나만 쓴다(사용자 확정). 둘 다 넣은 날은 매출·재고가 두 번 잡히므로
+     ① 같은 기간의 대상 판매전표(거래처가 DC_CD DAESANG 이거나 이름이 「대상」으로 시작)를 보여 주고 [체크한 전표 삭제](/mangr/salesTrxDelete.do — 판매등록의 삭제와 같은 길)
+     ② 대상 발주 안에서 같은 발주일자·받는 사람·품목코드가 두 줄 이상(차수를 다시 올려 겹친 것)을 보여 주고 [체크한 줄 삭제](daesangPoDelete — 재고 원장도 그 날짜를 다시 맞춘다)
+     ③ [🔄 출고반영 재집계](/prod/stockRebuild.do) — 정리한 뒤 원장을 전 기간 다시 만든다. 서버 무변경 — 전부 있던 끝점. --%>
+<div id="dkMask"><div id="dkBox" class="box">
+  <div class="dh">⚠ 중복 점검 <small id="dkSub">— 저장 목록의 조회 기간</small>
+    <span style="margin-left:auto"></span><button class="x" onclick="dkClose()" title="닫기">✕</button></div>
+  <div class="db">
+    <div class="dkh">① 같은 기간의 대상 판매전표 <small>— 판매등록으로 따로 넣은 전표. 대상 발주 등록을 쓰기로 했으면 이 전표는 지운다(매출·재고가 두 번 잡힌다)</small>
+      <button class="btn btn-red" onclick="dkDelTrx()">🗑 체크한 전표 삭제</button></div>
+    <table class="g"><thead><tr><th style="width:30px"><input type="checkbox" onchange="dkAll('dkTrx',this)"></th><th style="width:92px">판매일자</th><th style="width:60px">전표</th><th>거래처</th><th style="width:60px">품목수</th><th style="width:110px">판매금액(부가세 포함)</th><th style="width:170px" title="같은 발주일자에 저장된 대상 발주 줄 수와 공급가 합">같은 날 대상 발주</th></tr></thead>
+      <tbody id="dkTrx"><tr><td colspan="7" class="msg">읽는 중…</td></tr></tbody></table>
+    <div class="dkh">② 대상 발주 안의 겹친 줄 <small>— 같은 발주일자 · 받는 사람 · 품목코드가 두 줄 이상(같은 표를 다시 올려 차수만 다른 것). 남길 줄을 빼고 체크해서 지운다</small>
+      <button class="btn btn-red" onclick="dkDelDup()">🗑 체크한 줄 삭제</button></div>
+    <table class="g"><thead><tr><th style="width:30px"><input type="checkbox" onchange="dkAll('dkDup',this)"></th><th style="width:92px">발주일자</th><th style="width:80px">차수</th><th>받는 사람</th><th>품목</th><th style="width:70px">수량</th><th style="width:70px">단가</th><th style="width:130px">저장한 때</th></tr></thead>
+      <tbody id="dkDup"><tr><td colspan="8" class="msg">읽는 중…</td></tr></tbody></table>
+  </div>
+  <div class="df"><span>지운 뒤에는 <b>[🔄 출고반영 재집계]</b>를 한 번 — 재고 원장을 전 기간 다시 만들어 두 번 빠진 출고를 바로잡는다(수십 초 걸릴 수 있음) · 매출내역·마감·그래프는 지우는 즉시 바뀐다</span>
+    <span style="margin-left:auto"></span><button class="btn" onclick="dkRebuild()">🔄 출고반영 재집계</button><button class="btn" onclick="dkClose()">닫기</button></div>
 </div></div>
 
 <script>
@@ -1000,6 +1027,90 @@ function dsCloseXls(){
    수정 전(N) 줄의 [복구] = 그 묶음(ORD_NO+줄번호)의 지금 살아 있는 줄(liveSeq)을 닫고 옛 값으로 — 확인창에 「지금 → 되돌릴 값」을 적는다. 삭제(D) 줄의 [복구] = 그냥 되살림.
    복구 뒤 저장 목록을 다시 읽고 그 받는 사람의 택배비를 다시 맞춘다 */
 var _dh=[];
+/* ── ⚠ 중복 점검 (2026-10-31 사용자 「오류 사용자 수정할 수 있게」) — 판매전표 ↔ 대상 발주 겹침 · 대상 발주 안 겹침을 보여 주고 지운다. 서버 무변경 ── */
+var _dk={ trx:[], dup:[] };
+function dkOpen(){ document.getElementById('dkMask').classList.add('on'); dkLoad(); }
+function dkClose(){ document.getElementById('dkMask').classList.remove('on'); }
+function dkAll(id, el){ Array.prototype.forEach.call(document.querySelectorAll('#'+id+' input.dkc'), function(c){ c.checked=el.checked; }); }
+function dkLoad(){
+  var fr=document.getElementById('fr').value, to=document.getElementById('to').value;
+  document.getElementById('dkSub').textContent='— '+fr+' ~ '+to+' (저장 목록의 조회 기간 · 기간을 바꾸려면 목록에서 [🔍 조회])';
+  document.getElementById('dkTrx').innerHTML='<tr><td colspan="7" class="msg">읽는 중…</td></tr>';
+  document.getElementById('dkDup').innerHTML='<tr><td colspan="8" class="msg">읽는 중…</td></tr>';
+  /* 대상 거래처 = 거래처관리에서 물류센터코드 DAESANG 인 곳 + 이름이 「대상」으로 시작하는 곳(00177 대상 급식은 DC_CD 가 비어 있다 — selectStockOutDetail 과 같은 규칙) */
+  var pV=post('/vendor/selectVendorMst.do','').then(pj).then(function(j){ var s={}; ((j&&j.data)||[]).forEach(function(v){ if(String(v.dcCd||'')==='DAESANG') s[String(v.vendorCd)]=1; }); return s; }).catch(function(){ return {}; });
+  var pT=post('/mangr/salesTrxList.do','fromDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)).then(pj).then(function(j){ return (j&&j.data)||[]; }).catch(function(){ return null; });
+  Promise.all([pV,pT]).then(function(a){ var vs=a[0], trx=a[1];
+    if(trx===null){ _dk.trx=[]; document.getElementById('dkTrx').innerHTML='<tr><td colspan="7" class="msg" style="color:#c0392b">판매전표를 읽지 못했습니다</td></tr>'; }
+    else { _dk.trx=trx.filter(function(m){ return vs[String(m.custCd||'')] || /^대상/.test(String(m.custNm||'').trim()); }); dkRenderTrx(); }
+    dkRenderDup();
+  });
+}
+/* 같은 발주일자의 대상 발주(지금 목록) — 줄 수 · 공급가 합 */
+function dkSameDay(ymd){ var n0=0, sup=0; _ls.forEach(function(x){ if(d10(x.dlvDt)===ymd){ n0++; var c=dsCalc(x,'ls'); sup+=c.sup*c.sign; } }); return { n:n0, sup:sup }; }
+function dkRenderTrx(){
+  var tb=document.getElementById('dkTrx');
+  if(!_dk.trx.length){ tb.innerHTML='<tr><td colspan="7" class="msg">이 기간에 대상 거래처로 넣은 판매전표가 없습니다.</td></tr>'; return; }
+  tb.innerHTML=_dk.trx.map(function(m,i){ var d=d10(m.saleDt), s=dkSameDay(d);
+    return '<tr><td><input type="checkbox" class="dkc" data-i="'+i+'"></td><td>'+esc(d)+'</td><td>'+esc(m.saleNo||'')+'</td><td class="l">'+esc(m.custNm||'')+' <span class="dim">'+esc(m.custCd||'')+'</span></td>'
+      +'<td class="r">'+fmt(m.prodCnt)+'</td><td class="r">'+fmt(m.totAmt)+'</td>'
+      +'<td class="r">'+(s.n ? ('<b>'+s.n+'</b>줄 · 공급가 '+fmt(s.sup)+' <span style="color:#c0392b;font-weight:800">겹침</span>') : '<span class="dim">없음</span>')+'</td></tr>'; }).join('');
+}
+function dkRenderDup(){
+  var tb=document.getElementById('dkDup'), g={}, ord=[];
+  _ls.forEach(function(x){ var k=d10(x.dlvDt)+'|'+dsName(x.rcvNm)+'|'+String(x.itemCd||''); if(!g[k]){ g[k]=[]; ord.push(k); } g[k].push(x); });
+  var dup=[]; ord.forEach(function(k){ if(g[k].length>1) dup.push(k); });
+  _dk.dup=dup.map(function(k){ return g[k]; });
+  if(!dup.length){ tb.innerHTML='<tr><td colspan="8" class="msg">같은 날·같은 받는 사람·같은 품목이 두 번 들어간 줄이 없습니다.</td></tr>'; return; }
+  var h=[];
+  _dk.dup.forEach(function(rows, gi){
+    h.push('<tr class="sum"><td colspan="8" style="text-align:left">'+esc(d10(rows[0].dlvDt))+' · '+esc(dsName(rows[0].rcvNm))+' · '+esc(rows[0].itemCd)+' '+esc(_prod[rows[0].itemCd]||rows[0].itemNm||'')+' — <b>'+rows.length+'</b>줄 겹침 (남길 줄 하나를 빼고 체크)</td></tr>');
+    rows.forEach(function(x){ h.push('<tr><td><input type="checkbox" class="dkc" data-seq="'+esc(x.seq)+'"></td><td>'+esc(d10(x.dlvDt))+'</td><td>'+esc(x.dsRound||'')+'</td><td class="l">'+esc(x.rcvNm)+'</td><td class="l">'+esc(x.itemCd)+' '+esc(x.itemNm||'')+'</td>'
+      +'<td class="r">'+fmt(x.qty)+'</td><td class="r">'+fmt(x.salePrice)+'</td><td class="dim">'+esc(String(x.uploadDttm||'').slice(0,16))+' '+esc(x.regUser||'')+'</td></tr>'); });
+  });
+  tb.innerHTML=h.join('');
+}
+/* 판매전표 삭제 = 판매등록의 [✖ 삭제하기]와 같은 길(/mangr/salesTrxDelete.do · 전표 원장도 그 서비스가 거둔다). 한 장씩 차례로 */
+function dkDelTrx(){
+  var pick=[]; Array.prototype.forEach.call(document.querySelectorAll('#dkTrx input.dkc:checked'), function(c){ var m=_dk.trx[+c.getAttribute('data-i')]; if(m) pick.push(m); });
+  if(!pick.length){ err('지울 판매전표를 체크하세요.'); return; }
+  var amt=0; pick.forEach(function(m){ amt+=n(m.totAmt); });
+  _confirmBox({ icon:'🗑', okText:'전표 삭제', okColor:'#c0392b',
+    msg:'대상 판매전표 <b>'+pick.length+'</b>장(판매금액 '+fmt(amt)+'원)을 삭제합니다.<br><span style="font-size:13px;color:#3d4d5c">판매등록에서 지우는 것과 같습니다 — 매출·채권·재고 원장에서 빠집니다. 대상 발주 등록 줄은 그대로 남습니다.</span>',
+    onOk:function(){
+      var done=0, fail=[];
+      (function next(i){
+        if(i>=pick.length){ dkLoad(); ok('판매전표 <b>'+done+'</b>장을 지웠습니다.'+(fail.length?'<br><span style="color:#c0392b;font-size:13px">실패 '+fail.length+'장 — '+esc(fail.join(' / '))+'</span>':'')+'<br><span style="font-size:13px">정리가 끝나면 [🔄 출고반영 재집계]를 한 번 눌러 주세요.</span>'); return; }
+        var m=pick[i];
+        post('/mangr/salesTrxDelete.do',{ saleSeq:m.saleSeq },true)
+          .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); done++; }); })
+          .catch(function(e){ fail.push(d10(m.saleDt)+'-'+(m.saleNo||'')+' '+e.message); })
+          .then(function(){ next(i+1); });
+      })(0);
+    }, onCancel:function(){} });
+}
+/* 대상 발주 겹친 줄 삭제 = [🗑 선택 삭제]와 같은 길(daesangPoDelete — 그 날짜 재고 원장을 다시 맞춘다) */
+function dkDelDup(){
+  var seqs=[], keys=[]; Array.prototype.forEach.call(document.querySelectorAll('#dkDup input.dkc:checked'), function(c){ var sq=c.getAttribute('data-seq'); if(sq){ seqs.push(+sq); _ls.forEach(function(x){ if(String(x.seq)===String(sq)) keys.push(lsKey(x)); }); } });
+  if(!seqs.length){ err('지울 줄을 체크하세요.'); return; }
+  _confirmBox({ icon:'🗑', okText:'삭제', okColor:'#c0392b',
+    msg:'대상 발주 <b>'+seqs.length+'</b>줄을 삭제합니다.<br><span style="font-size:13px;color:#3d4d5c">출고·매출에서 빠지고 그 날 재고도 다시 맞춥니다. 이력조회에서 되살릴 수 있습니다.</span>',
+    onOk:function(){ post('/shipout/daesangPoDelete.do',{ seqs:seqs },true).then(pj)
+      .then(function(j){ if(j.error){ err(esc(j.error)); return; }
+        load(function(){ lsFeeSync(keys, false).then(function(r){ if(r.cnt) lsRender(); dkLoad(); }); });
+        ok((j.cnt||0)+'줄을 삭제했습니다.'+(j.warn?'<br><span style="color:#c0392b;font-size:13px">재고 반영 경고 — '+esc(j.warn)+'</span>':'')); })
+      .catch(function(e){ err('삭제하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); }); }, onCancel:function(){} });
+}
+/* 출고반영 재집계 — 셸의 단추와 같은 끝점(/prod/stockRebuild.do). 전 기간이라 수십 초 */
+function dkRebuild(){
+  _confirmBox({ icon:'🔄', okText:'재집계',
+    msg:'출고 원장을 <b>전 기간</b> 다시 만듭니다(발주현황표 → 정산서 → 발주 등록 차례). 수십 초 걸릴 수 있습니다.<br><span style="font-size:13px;color:#3d4d5c">마감 확정한 달은 건너뜁니다. 품목별재고현황 숫자가 바로잡힙니다.</span>',
+    onOk:function(){ var b=document.querySelector('#dkBox .df .btn'); if(b) b.disabled=true; if(window._toast) _toast('재집계 중… 끝나면 알립니다','info');
+      post('/prod/stockRebuild.do','').then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
+        .then(function(t){ ok('출고반영 재집계를 마쳤습니다 — '+esc(String(t).replace(/^"|"$/g,''))+'일치 처리.'); })
+        .catch(function(e){ err('재집계에 실패했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>'); })
+        .then(function(){ if(b) b.disabled=false; }); }, onCancel:function(){} });
+}
 function dhOpen(){
   document.getElementById('dhMask').classList.add('on');
   document.getElementById('dhFr').value=document.getElementById('fr').value; document.getElementById('dhTo').value=document.getElementById('to').value;   /* 처음 = 저장 목록의 기간 */
@@ -1159,7 +1270,7 @@ function howToggle(){ var open=document.getElementById('howBox').classList.conta
   /* ⚠덮개의 「바깥 누르면 닫기」는 onclick 속성이 아니라 여기서 — popdrag 는 onclick 이 달린 요소 «안»에서는 끌지 않는다(제목줄도 덮개 안이라 창이 안 움직였다, 2026-10-27 「마우스 표시는 되는데 안 움직임」) */
   document.getElementById('dpMask').addEventListener('click', function(e){ if(e.target===this) dpClose(); });
   document.getElementById('dhMask').addEventListener('click', function(e){ if(e.target===this) dhClose(); });
-  if(window.konetPopDrag){ konetPopDrag('#dpMask','.dh'); konetPopDrag('#dhMask','.dh'); }
+  if(window.konetPopDrag){ konetPopDrag('#dpMask','.dh'); konetPopDrag('#dhMask','.dh'); konetPopDrag('#dkMask','.dh'); }
   ['pvAmtTh','lsAmtTh'].forEach(function(id){ var th=document.getElementById(id); if(th) th.outerHTML=AMT_TH; });   /* 공급가·부가세·판매금액 머리글 (2026-10-27) */
   var t=new Date(), a=new Date(t.getFullYear(), t.getMonth(), t.getDate()-30);
   document.getElementById('dt').value=ymd(t);

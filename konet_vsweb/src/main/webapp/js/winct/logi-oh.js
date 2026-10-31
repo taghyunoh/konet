@@ -5047,8 +5047,12 @@ function ssOutQty(o){
         Object.keys(g.oKeys).forEach(function(x){ if(!g.sKeys[x]) g.oOnly++; });
         return g;
       });
-      var tot={ oRows:0,oQty:0,sRows:0,sQty:0,sAmt:0,eQty:0,eAmt:0,sOnly:0,oOnly:0 };
-      kids.forEach(function(g){ tot.oRows+=g.oRows; tot.oQty+=g.oQty; tot.sRows+=g.sRows; tot.sQty+=g.sQty; tot.sAmt+=g.sAmt; tot.eQty+=g.eQty; tot.eAmt+=g.eAmt; tot.sOnly+=g.sOnly; tot.oOnly+=g.oOnly; });
+      var tot={ oRows:0,oQty:0,sRows:0,sQty:0,sAmt:0,eQty:0,eAmt:0,sOnly:0,oOnly:0, tQty:0, tRows:0 };
+      kids.forEach(function(g){ tot.oRows+=g.oRows; tot.oQty+=g.oQty; tot.sRows+=g.sRows; tot.sQty+=g.sQty; tot.sAmt+=g.sAmt; tot.eQty+=g.eQty; tot.eAmt+=g.eAmt; tot.sOnly+=g.sOnly; tot.oOnly+=g.oOnly;
+        if(g.trx){ tot.tQty+=g.sQty; tot.tRows+=g.sRows; } });
+      /* ★직접판매(판매전표 · 대상·토더·동원홈푸드 발주 등록)는 정산서도 발주현황표 출고도 오지 않는다(2026-10-31 사용자 「정산서가 안 옴 — 직접판매도 마찬가지」).
+           날짜 합계의 수량차이·상태는 그 몫을 뺀 나머지(정산서 ↔ 출고)로만 재고, 그 날이 전부 직접판매면 상태를 「전표」로 — 종전엔 날짜 줄이 「−2,550 · 출고내역 없음」(빨강)으로 떠 어긋난 것처럼 보였다. */
+      tot.trx = kids.length>0 && kids.every(function(g){ return !!g.trx; });
       return { date:d, kids:kids, tot:tot };
     });
   }
@@ -5160,7 +5164,7 @@ function ssOutQty(o){
       +' · 정산 <b>'+_ohSales.length.toLocaleString()+'</b>행/<b>'+_ohQ(sQ)+'</b>'
       +' · <span style="color:#137a6c">정산금액 <b>'+_cnum(sA+eA)+'</b></span>'
       +(eA?' <span style="color:#a85700" title="정산서가 아직 안 온 출고를 판매단가(마감관리와 같은 규칙)로 채운 금액입니다.">(정산 '+_cnum(sA)+' + 추정 '+_cnum(eA)+')</span>':'')
-      +(tRows ? ' · <span style="color:#1a73c7;font-weight:700" title="판매등록으로 직접 입력한 매출. 출고장 대사 대상이 아니라 수량차이 계산에서 빠집니다.">직접판매 '+tRows.toLocaleString()+'행/'+_cnum(tA)+'</span>' : '')
+      +(tRows ? ' · <span style="color:#1a73c7;font-weight:700" title="판매등록 전표 + 발주 등록(대상·토더·동원홈푸드)으로 들어온 매출(2026-10-31). 출고장 대사 대상이 아니라 수량차이 계산에서 빠집니다.">직접판매 '+tRows.toLocaleString()+'행/'+_cnum(tA)+'</span>' : '')
       +(Math.abs(gapQ)>1e-6 ? ' · <span class="oh-gap">수량차이 '+_ohQ(gapQ)+'</span>' : ' · <span class="oh-ok">수량 일치</span>')
       // 짝 없는 대사키 — 수량이 상쇄돼 '일치'로 보일 수 있으므로 건수를 따로 띄운다
       +(function(){ var so=0,oo=0; G.forEach(function(g){ so+=g.sOnly; oo+=g.oOnly; });
@@ -5404,7 +5408,7 @@ function ssOutQty(o){
   function _ohStBadge(g){
     /* 직접판매(판매등록 전표)는 출고장 발주현황표와 맞출 대상이 아니다.
        출고내역이 없는 게 정상이라 '출고내역 없음'·'출고미상' 을 띄우면 오해를 부른다(2026-07-25). */
-    if(g.trx) return '<span class="badge b-done" title="판매등록으로 직접 입력한 매출입니다.&#10;출고장 발주현황표와 대사하는 대상이 아니라 수량차이·출고미상이 잡히지 않습니다.">전표</span>';
+    if(g.trx) return '<span class="badge b-done" title="판매등록 전표 또는 발주 등록(대상·토더·동원홈푸드)으로 들어온 매출입니다.&#10;정산서도 발주현황표 출고도 오지 않는 자료라 대사 대상이 아니고, 수량차이·출고미상이 잡히지 않습니다.">전표</span>';
     var gap=g.oQty-g.sQty, ok=Math.abs(gap)<1e-6;
     // ★수량 합계만 보면 안 된다 — '정산에만 5개 + 출고에만 5개' 가 상쇄돼 차이 0 이 될 수 있다.
     //   짝 없는 대사키가 하나라도 있으면 '일치'로 부르지 않는다.
@@ -5514,7 +5518,8 @@ function ssOutQty(o){
         +'<td colspan="9"><span class="ccar">'+(dsecCol?'▶':'▼')+'</span> 📅 <b>일자별 합계</b>'
         +' <span style="font-weight:600;color:#5a6b7a">(최근순 · '+DBYD.length+'일 · 납품일자 기준'+(dsecCol?' · 접힘, 클릭해 펼치기':'')+')</span></td></tr>');
       if(!dsecCol) DBYD.forEach(function(D){
-        var dk='dt:'+D.date, dCol=_ohIsCol2(dk, false), dgap=D.tot.oQty-D.tot.sQty;
+        var dk='dt:'+D.date, dCol=_ohIsCol2(dk, false), dgap=D.tot.oQty-(D.tot.sQty-(D.tot.tQty||0));   /* 직접판매 몫은 뺀다(2026-10-31) */
+        var dSt=D.tot.trx ? D.tot : { oRows:D.tot.oRows, oQty:D.tot.oQty, sRows:D.tot.sRows-(D.tot.tRows||0), sQty:D.tot.sQty-(D.tot.tQty||0), sOnly:D.tot.sOnly, oOnly:D.tot.oOnly };   /* 상태 판정도 정산서 몫만 */
         R.push('<tr class="close-grp" onclick="ohGrp(\''+encodeURIComponent(dk)+'\')" title="클릭 → '+_ohDateFmt(D.date)+' 소속 출고장 접기/펼치기">'
           +'<td style="padding-left:22px"><span class="ccar">'+(dCol?'▶':'▼')+'</span> 🗓️ '+_ohDateFmt(D.date)
           +' <span style="font-weight:600;color:#5a6b7a">('+D.kids.length+'곳)</span></td>'
@@ -5523,7 +5528,7 @@ function ssOutQty(o){
           +_ohGapCell(dgap)
           +'<td style="text-align:right">'+(_ohAmtQ(D.tot)?_cnum(_ohAmt(D.tot)/_ohAmtQ(D.tot)):'')+'</td>'
           +_ohAmtCell(D.tot,true)
-          +_ohStCellGrp(D.tot)+'</tr>');
+          +_ohStCellGrp(dSt)+'</tr>');
         if(!dCol) D.kids.forEach(function(g){
           R.push('<tr title="원표기: '+_cesc(Object.keys(g.raw).join(' / '))+'">'
             +'<td class="txt-l" style="padding-left:40px"><b>'+_cesc(_ohDcLabel(g))+'</b></td>'
@@ -6714,11 +6719,23 @@ function ssOutQty(o){
     var t=(document.getElementById('spTo')||{}).value||'';
     var ic=(document.getElementById('spItem')||{}).value||'';
     var sum=document.getElementById('spSum'); if(sum) sum.textContent='조회 중…';
-    fetch(KONET_CTX+'/sales/selectSalesMst.do', { method:'POST', credentials:'same-origin',
+    var pS=fetch(KONET_CTX+'/sales/selectSalesMst.do', { method:'POST', credentials:'same-origin',
         headers:{'Content-Type':'application/x-www-form-urlencoded'},
         body:'dlvDtFrom='+encodeURIComponent(f)+'&dlvDtTo='+encodeURIComponent(t)+'&itemCd='+encodeURIComponent(ic) })
-      .then(function(r){ return r.json(); })
-      .then(function(j){ _spRows=(j&&j.data)||[];
+      .then(function(r){ return r.json(); }).then(function(j){ return (j&&j.data)||[]; });
+    /* ★발주 등록(토더·대상·동원홈푸드 = TD) + 판매등록 전표도 정산실적에 (2026-10-31 사용자 「정산 오는 것 + 토더 + 대상 + 동원도」 → 같은 날 「정산실적에 직접판매는 안 나오나요」로 전표까지).
+         매출내역과 같은 조회(salesTrxHist — 2026-10-31 부터 TD 줄을 「직접판매(출고장)」 로 준다)의 trxYn 줄 전부를 정산서 행 모양으로 바꿔 붙인다.
+         출고장 칸 = 토더/대상/동원홈푸드/판매전표 · 원본 파일 칸 = 「발주 등록(…)」/「판매등록 전표」 · 매입원가는 정산서 줄과 같은 식(입고량 × 매입가). */
+    var pT=fetch(KONET_CTX+'/mangr/salesTrxHist.do', { method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:'fromDt='+encodeURIComponent(f)+'&toDt='+encodeURIComponent(t)+'&findData='+encodeURIComponent(ic) })
+      .then(function(r){ return r.json(); }).then(function(j){ return ((j&&j.data)||[]).filter(function(r){ return r.trxYn==='Y'; })
+        .map(function(r){ var nm=(''+(r.dcNm||'')).replace(/^직접판매\(/,'').replace(/\)$/,''); if(nm==='전표' || !nm) nm='판매전표';
+          return { dlvDt:r.dlvDt, outDt:r.outDt, dcNm:nm, dcCd:'', ordNo:r.ordNo, ordItemNo:r.ordItemNo, itemCd:r.itemCd, itemNm:r.itemNm, spec:r.spec||'', unit:'',
+                   ordQty:r.outQty, settleQty:r.settleQty, settleAmt:r.saleAmt, outQty:r.outQty, salePrice:r.salePrice, saleAmt:r.saleAmt,
+                   dlvType:(/반품/.test(''+(r.trxGb||''))?'반품':'납품'), srcFile:(nm==='판매전표'?'판매등록 전표':'발주 등록('+nm+')'), uploadDttm:'', custNm:r.custNm||'', tdYn:'Y' }; }); })
+      .catch(function(){ return []; });   /* 못 읽어도 정산서만으로 그린다 */
+    Promise.all([pS,pT]).then(function(a){ _spRows=(a[0]||[]).concat(a[1]||[]);
         /* 매입단가는 늦게 와도 화면을 막지 않는다 — 먼저 그리고, 도착하면 표만 다시 그린다 */
         spRender(); _spLoadInPrice(function(){ spRender(); }); })
       .catch(function(e){ if(sum) sum.textContent='통신오류: '+e.message; });
@@ -7049,8 +7066,8 @@ function ssOutQty(o){
       f = mf ? (mf+'-01') : '';
       t = mt ? (mt+'-31') : '';    // 문자열 비교(YYYYMMDD)라 짧은 달도 '31'이 상한으로 안전하다
     }
-    /* 직접판매(판매전표) 포함 (2026-08-02 요청) — 매출내역과 같은 API.
-         서버가 정산서 행과 같은 모양으로 주고 trxYn='Y'·출고장='직접판매(전표)' 로 온다.
+    /* 직접판매(판매전표 + 발주 등록 대상·토더·동원홈푸드 — 2026-10-31) 포함 (2026-08-02 요청) — 매출내역과 같은 API.
+         서버가 정산서 행과 같은 모양으로 주고 trxYn='Y'·출고장='직접판매(전표)'/'직접판매(대상)' … 로 온다.
          ★추정(정산서 미도착 출고)은 여기 안 넣는다 — 출고내역 대사까지 필요해 화면이 무거워지고,
            그 용도는 매출 그래프가 이미 담당한다. */
     var _post=function(url, body){
@@ -7116,7 +7133,7 @@ function ssOutQty(o){
       kp.innerHTML =
           card('매출 합계', _cnum(tA))
         + card('정산서', _cnum(tA-tTrx))
-        + card('직접판매(전표)', nTrx?(_cnum(tTrx)):'0')
+        + card('직접판매(전표·발주 등록)', nTrx?(_cnum(tTrx)):'0')
         + card('매입원가', _cnum(tC), 'amber')
         + card('마진', _cnum(tA-tC), (tA-tC)<0?'warn':'')
         + card('마진율', tA?(((tA-tC)/tA*100).toFixed(1)+'%'):'-')
