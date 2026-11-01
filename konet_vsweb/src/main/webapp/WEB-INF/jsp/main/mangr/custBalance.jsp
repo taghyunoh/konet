@@ -8,6 +8,10 @@
 <%-- 회사 설정(회사 정보 수정 「기능」 ▸ 수금 ▸ 미수 경과 경고·위험 일수, 2026-09-16 P2-g) — window.konetSet --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917"></script>
 <script src="${pageContext.request.contextPath}/asset/js/dc-map.js?v=20260916"></script>
+<%-- 표 높이 막대 (2026-11-01 사용자 「여기도 탭마다 막대 표시 위아래로 조정」) — 공용 ui-gridgrip.js(판매·매입·발주서·수금·지급·견적서 목록·월별 출고현황과 같은 것).
+     막대 = 표 상자 바로 밑(둘째 인자 = 상자 자신) · [▲ 줄이기][▼ 늘리기] 120px · 더블클릭 = 화면 CSS 높이 · localStorage konetGridH.custBal* · 잔액표는 누적/월/년 세 모드가 한 표라 높이도 하나로 기억 --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>
+<script type="text/javascript">konetGridGrip('cbListWrap', 'cbListWrap', 'custBalList'); konetGridGrip('cbHistWrap', 'cbHistWrap', 'custBalHist'); konetGridGrip('cbDtlWrap', 'cbDtlWrap', 'custBalDtl');</script>
 <!--
   거래처별 채권·채무 (2026-07-26 요청 신설)
     · 메뉴 이름은 "거래처별 채권·채무"(사용자 유지 요청), 화면 표기는 쉬운 말로 — 받을금액 / 지급할금액 / 이월 / 남은금액.
@@ -385,7 +389,7 @@
       <div class="cb-card">
         <div class="cb-tit"><span id="cbListTit">🏢 거래처별 잔액 <small id="cbListSub">기준월 말 기준</small></span>
           <span style="font-size:12px; font-weight:600; color:#5a6b7a">머리글을 누르면 정렬</span></div>
-        <div class="cb-tbwrap"><table class="cb-tb" id="cbList"></table></div>
+        <div class="cb-tbwrap" id="cbListWrap"><table class="cb-tb" id="cbList"></table></div>
       </div>
     </div>
     <%-- 월별 이력 — **누적 모드 전용**(2026-07-29 확정).
@@ -393,7 +397,7 @@
     <div class="r" id="cbHistCard">
       <div class="cb-card">
         <div class="cb-tit"><span id="cbHistTit">📅 월별 이력 <small id="cbHistSub">거래처를 고르세요</small></span></div>
-        <div class="cb-tbwrap"><table class="cb-tb" id="cbHist"></table></div>
+        <div class="cb-tbwrap" id="cbHistWrap"><table class="cb-tb" id="cbHist"></table></div>
       </div>
     </div>
   </div>
@@ -407,7 +411,7 @@
       <span id="cbDtlTabs" class="cb-tabs"></span>
     </div>
     <%-- max(340px, 38vh) — 글자 축소 시 340px 고정이라 커진 화면을 못 썼다(2026-08-28, iframe 이라 vh 로 충분) --%>
-    <div class="cb-tbwrap" style="max-height:max(340px, 38vh); min-height:120px"><table class="cb-tb" id="cbDtl"></table></div>
+    <div class="cb-tbwrap" id="cbDtlWrap" style="max-height:max(340px, 38vh); min-height:120px"><table class="cb-tb" id="cbDtl"></table></div>
     <div class="cb-dtlnote" id="cbDtlNote">
       위 잔액(이월·당월·남은금액)은 <b>기준월 말까지 쌓인 누계</b>이고, 이 표는 조회줄의 <b>특정일자 하루</b>에 벌어진 거래입니다 —
       <b>서로 다른 것을 보는 표</b>라 숫자가 맞지 않는 것이 정상입니다.

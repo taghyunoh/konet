@@ -88,12 +88,12 @@
   <div class="bar">
     <span class="lab">검색일자</span>
     <input type="date" id="frDt"> <span class="dim">~</span> <input type="date" id="toDt">
-    <button class="btn btn-teal" onclick="load()">리스트조회</button>
     <span class="lab" style="margin-left:8px">사업장</span>
     <select id="bizCd" style="min-width:230px" title="사업장(점포)을 고르면 정산서는 발주행 사업장에 나눈 몫, 출고는 그 사업장 것만 봅니다. 판매전표는 사업장 칸이 없어 거래처에 들어간 그대로 함께 잡힙니다"><option value="">전체</option></select>
     <span class="lab" style="margin-left:8px" id="mkLab" hidden>제조사</span>
     <select id="mkSel" style="min-width:130px" onchange="render()" hidden><option value="">전체</option></select>
     <input type="text" id="q" placeholder="거래처 · 상품 이름으로 거르기" style="width:210px" oninput="render()">
+    <button class="btn btn-teal" onclick="load()">리스트조회</button><%-- 2026-11-01 사용자 「리스트조회를 엑셀 다운로드 앞으로」 — 세 메뉴(거래처별·상품별·거래처별 상품별)가 이 화면 하나 --%>
     <button class="btn" onclick="excel()">📥 엑셀 다운로드</button>
     <button class="btn btn-red" onclick="printIt()">🖨 인쇄</button>
     <span class="cnt" id="cnt">—</span>

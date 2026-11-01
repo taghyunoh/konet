@@ -1531,12 +1531,12 @@
   function statToggleAll(){
     if(_statAllCollapsed){ _statCollapsed={}; _statAllCollapsed=false; }
     else if(_statTab==='zone'){
-      var az=_closeAgg(_statRows, function(r){ return _zoneGroup(r)+'~'+(r.dcCd||'')+'~'+r.itemCd; }), L1=[],l1m={};
+      var az=_closeAgg(_statView(), function(r){ return _zoneGroup(r)+'~'+(r.dcCd||'')+'~'+r.itemCd; }), L1=[],l1m={};
       az.forEach(function(o){ var k1=_zoneGroup(o.s); var g1=l1m[k1]; if(!g1){g1=l1m[k1]={l2:[],l2m:{}};L1.push(g1);} var k2=(o.s.dcCd||'')+'|'+(o.s.dcNm||''); if(!g1.l2m[k2]){g1.l2m[k2]=1;g1.l2.push(k2);} });
       L1.forEach(function(g1,i1){ _statCollapsed['z1#'+i1]=true; g1.l2.forEach(function(_,i2){ _statCollapsed['z2#'+i1+'.'+i2]=true; }); });
       _statAllCollapsed=true;
     } else {
-      var ab=_closeAgg(_statRows, function(r){ return (r.bizNm||'(미지정)')+'~'+r.itemCd; }), seen={}, gi=0;
+      var ab=_closeAgg(_statView(), function(r){ return (r.bizNm||'(미지정)')+'~'+r.itemCd; }), seen={}, gi=0;
       ab.forEach(function(o){ var gk=o.s.bizNm||'(미지정)'; if(!(gk in seen)){ seen[gk]=gi; _statCollapsed['b#'+gi]=true; gi++; } });
       _statAllCollapsed=true;
     }
@@ -1553,6 +1553,21 @@
     statRenderTab();
     closeStatusChk();
   }
+  var _statQ='';
+  /* 품목코드/품목명 검색 — 세 탭 공통(접기 전 원천 행에 적용 · 매출마감 _salesView 와 같은 꼴, 2026-11-01 「탭별 검색」).
+     품목코드·품목명은 어느 탭이든 · 출고장별 탭은 출고장 이름(dcNm·대표 묶음)으로도 · 사업장별 탭은 사업장 이름으로도. 위 KPI 카드(월 전체)는 거르지 않는다. */
+  function _statView(){
+    if(!_statQ) return _statRows;
+    var q=_statQ, tab=_statTab;
+    return _statRows.filter(function(r){
+      if((''+(r.itemCd||'')).toLowerCase().indexOf(q)>=0 || (''+(r.itemNm||'')).toLowerCase().indexOf(q)>=0) return true;
+      if(tab==='zone') return (''+(r.dcNm||'')).toLowerCase().indexOf(q)>=0 || (''+_zoneGroup(r)).toLowerCase().indexOf(q)>=0;
+      if(tab==='biz')  return (''+(r.bizNm||'')).toLowerCase().indexOf(q)>=0;
+      return false;
+    });
+  }
+  function _statQNote(){ return _statQ ? ' · <span style="color:#137a6c">🔎 \''+_cesc(_statQ)+'\' 검색중</span>' : ''; }
+  function statSearch(){ var el=document.getElementById('statQ'); _statQ=((el&&el.value)||'').trim().toLowerCase(); statRenderTab(); }
   function statRenderTab(){
     var wrap=document.getElementById('closeStatusWrap'), sum=document.getElementById('closeStatusSum'), pg=document.getElementById('closeStatusPager');
     var tab=_statTab;
@@ -1560,14 +1575,14 @@
     var lead0=headCols.length;
     var priceCols='<th style="text-align:right">출고수량</th><th style="text-align:right">매출액</th><th style="text-align:right">매입액</th><th style="text-align:right">매출총이익</th><th style="text-align:right">마진율</th>';
     var thead='<thead><tr>'+headCols.map(function(h){return '<th>'+h+'</th>';}).join('')+priceCols+'</tr></thead>';
-    var gQ=0,gS=0,gC=0,gM=0; _statRows.forEach(function(r){ gQ+=+r.outQty||0; gS+=+r.salesAmt||0; gC+=+r.costAmt||0; gM+=+r.marginAmt||0; });
-    if(!_statRows.length){ sum.textContent='해당 기간 출고 자료가 없습니다.'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
+    var rows=_statView(), gQ=0,gS=0,gC=0,gM=0; rows.forEach(function(r){ gQ+=+r.outQty||0; gS+=+r.salesAmt||0; gC+=+r.costAmt||0; gM+=+r.marginAmt||0; });
+    if(!rows.length){ sum.textContent=(_statRows.length&&_statQ)?('\''+_statQ+'\' 검색 결과가 없습니다. (품목코드/품목명 · 출고장 · 사업장)'):'해당 기간 출고 자료가 없습니다.'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
     var totalRow='<tr class="close-total"><td colspan="'+lead0+'" style="text-align:left">■ 총합계</td>'+_statCells(gQ,gS,gC,gM)+'</tr>';
 
     var head='<table class="logi-tb">'+thead+'<tbody>'+totalRow;
     if(tab==='item'){
-      var agg=_closeAgg(_statRows, function(r){ return r.itemCd; });
-      sum.innerHTML='총 <b>'+agg.length.toLocaleString()+'</b>품목 · 매출 <b>'+_cnum(gS)+'</b> · 매출총이익 <b>'+_cnum(gM)+'</b>'+(window.closeNoCostNote?closeNoCostNote(_statRows,'stat'):'');   /* 매입가 없음 경고(2026-09-16) — logi-oh.js */
+      var agg=_closeAgg(rows, function(r){ return r.itemCd; });
+      sum.innerHTML='총 <b>'+agg.length.toLocaleString()+'</b>품목 · 매출 <b>'+_cnum(gS)+'</b> · 매출총이익 <b>'+_cnum(gM)+'</b>'+(window.closeNoCostNote?closeNoCostNote(rows,'stat'):'')+_statQNote();   /* 매입가 없음 경고(2026-09-16) — logi-oh.js */
       lzMount({ wrap:wrap, pager:'closeStatusPager', head:head, list:agg, rows:STAT_ROWS, capTop:320, fill:true, pad:84,
                 rowFn:function(o){ return _statItemRow(o,0); } });
       return;
@@ -1575,19 +1590,19 @@
 
     var rowsD=[], _hdr;
     if(tab==='zone'){
-      var az=_closeAgg(_statRows, function(r){ return _zoneGroup(r)+'~'+(r.dcCd||'')+'~'+r.itemCd; }), L1=[],l1m={};
+      var az=_closeAgg(rows, function(r){ return _zoneGroup(r)+'~'+(r.dcCd||'')+'~'+r.itemCd; }), L1=[],l1m={};
       az.forEach(function(o){ var k1=_zoneGroup(o.s); var g1=l1m[k1]; if(!g1){g1=l1m[k1]={label:k1,l2:[],l2m:{},q:0,s:0,c:0,m:0};L1.push(g1);} g1.q+=o.outQty;g1.s+=o.salesAmt;g1.c+=o.costAmt;g1.m+=o.marginAmt;
         var k2=(o.s.dcCd||'')+'|'+(o.s.dcNm||''); var g2=g1.l2m[k2]; if(!g2){g2=g1.l2m[k2]={label:(o.s.dcNm||'(미지정)')+(o.s.dcCd?(' ('+o.s.dcCd+')'):''),items:[],q:0,s:0,c:0,m:0};g1.l2.push(g2);} g2.q+=o.outQty;g2.s+=o.salesAmt;g2.c+=o.costAmt;g2.m+=o.marginAmt;g2.items.push(o); });
-      sum.innerHTML='총 <b>'+L1.length+'</b>대표출고장 · 매출 <b>'+_cnum(gS)+'</b> · 매출총이익 <b>'+_cnum(gM)+'</b>'+(window.closeNoCostNote?closeNoCostNote(_statRows,'stat'):'');
+      sum.innerHTML='총 <b>'+L1.length+'</b>대표출고장 · 매출 <b>'+_cnum(gS)+'</b> · 매출총이익 <b>'+_cnum(gM)+'</b>'+(window.closeNoCostNote?closeNoCostNote(rows,'stat'):'')+_statQNote();
       L1.forEach(function(g1,i1){ rowsD.push({t:'l1',g:g1,i1:i1}); if(!_statCollapsed['z1#'+i1]) g1.l2.forEach(function(g2,i2){ rowsD.push({t:'l2',g:g2,i1:i1,i2:i2}); if(!_statCollapsed['z2#'+i1+'.'+i2]) g2.items.forEach(function(o){ rowsD.push({t:'it',o:o}); }); }); });
       _hdr=function(r){
         if(r.t==='l1'){ var c1=!!_statCollapsed['z1#'+r.i1]; return '<tr class="close-grp" onclick="statToggleKey(\'z1#'+r.i1+'\')"><td colspan="'+lead0+'" style="text-align:left"><span class="ccar">'+(c1?'▶':'▼')+'</span><b>'+_cesc(r.g.label)+'</b> <span style="color:#5b6b7a;font-weight:600">('+r.g.l2.length+'개 출고장)</span></td>'+_statCells(r.g.q,r.g.s,r.g.c,r.g.m)+'</tr>'; }
         var c2=!!_statCollapsed['z2#'+r.i1+'.'+r.i2]; return '<tr class="close-sub" onclick="statToggleKey(\'z2#'+r.i1+'.'+r.i2+'\')" style="cursor:pointer"><td colspan="'+lead0+'" style="text-align:left;padding-left:24px"><span class="ccar">'+(c2?'▶':'▼')+'</span>'+_cesc(r.g.label)+' <span style="color:#5b6b7a;font-weight:600">(품목 '+r.g.items.length+'종)</span></td>'+_statCells(r.g.q,r.g.s,r.g.c,r.g.m)+'</tr>';
       };
     } else {
-      var ab=_closeAgg(_statRows, function(r){ return (r.bizNm||'(미지정)')+'~'+r.itemCd; }), groups=[],gm={};
+      var ab=_closeAgg(rows, function(r){ return (r.bizNm||'(미지정)')+'~'+r.itemCd; }), groups=[],gm={};
       ab.forEach(function(o){ var gk=o.s.bizNm||'(미지정)'; var g=gm[gk]; if(!g){g=gm[gk]={label:gk,items:[],q:0,s:0,c:0,m:0};groups.push(g);} g.items.push(o);g.q+=o.outQty;g.s+=o.salesAmt;g.c+=o.costAmt;g.m+=o.marginAmt; });
-      sum.innerHTML='총 <b>'+groups.length+'</b>사업장 · 매출 <b>'+_cnum(gS)+'</b> · 매출총이익 <b>'+_cnum(gM)+'</b>'+(window.closeNoCostNote?closeNoCostNote(_statRows,'stat'):'');
+      sum.innerHTML='총 <b>'+groups.length+'</b>사업장 · 매출 <b>'+_cnum(gS)+'</b> · 매출총이익 <b>'+_cnum(gM)+'</b>'+(window.closeNoCostNote?closeNoCostNote(rows,'stat'):'')+_statQNote();
       groups.forEach(function(g,gi){ rowsD.push({t:'g',g:g,gi:gi}); if(!_statCollapsed['b#'+gi]) g.items.forEach(function(o){ rowsD.push({t:'it',o:o}); }); });
       _hdr=function(r){ var c=!!_statCollapsed['b#'+r.gi]; return '<tr class="close-grp" onclick="statToggleKey(\'b#'+r.gi+'\')"><td colspan="'+lead0+'" style="text-align:left"><span class="ccar">'+(c?'▶':'▼')+'</span><b>'+_cesc(r.g.label)+'</b> <span style="color:#5b6b7a;font-weight:600">(품목 '+r.g.items.length+'종)</span></td>'+_statCells(r.g.q,r.g.s,r.g.c,r.g.m)+'</tr>'; };
     }
@@ -4035,6 +4050,7 @@
           <button type="button" class="ctab on" data-t="zone" onclick="statTab('zone')">🗂️ 출고장별</button>
           <button type="button" class="ctab"    data-t="biz"  onclick="statTab('biz')">🏢 사업장별</button>
           <button type="button" class="ctab"    data-t="item" onclick="statTab('item')">📦 품목별</button>
+          <input type="search" class="cq" id="statQ" placeholder="🔎 품목코드 / 품목명 · 출고장 · 사업장" title="세 탭(출고장별·사업장별·품목별) 모두에 적용됩니다 — 품목코드·품목명은 늘, 출고장별 탭에서는 출고장 이름, 사업장별 탭에서는 사업장 이름으로도 찾습니다. 위 KPI 카드는 거르지 않습니다(월 전체). Esc = 검색 해제" oninput="statSearch()" onkeydown="if(event.key==='Escape'){ this.value=''; statSearch(); }">
           <span style="margin-left:auto"></span>
           <button type="button" class="btn-line" id="statAllBtn" style="height:30px;margin-bottom:2px" onclick="statToggleAll()">⊟ 전체 접기</button>
         </div>
@@ -4180,7 +4196,7 @@
       <div class="g-sec">
         <h3>4. 정보 현황 · 원장관리</h3>
         <table><tbody>
-          <tr><td class="m">마감현황(월계표)</td><td>선택 월 매출·매입·매출총이익·비용·순마진 요약(KPI) + <b>🔒 확정 / 🔓 해제</b>. 확정 = 3종 통합 저장 + 기말재고 스냅샷 + 그 달 수불 잠금.</td></tr>
+          <tr><td class="m">마감현황(월계표)</td><td>탭줄 <b>🔎 검색</b>(세 탭 공통 — 품목코드·품목명 늘, 출고장별 탭은 출고장 이름, 사업장별 탭은 사업장 이름으로도 · 합계·건수는 거른 것만 · 위 KPI 카드는 월 전체 · Esc = 해제). 선택 월 매출·매입·매출총이익·비용·순마진 요약(KPI) + <b>🔒 확정 / 🔓 해제</b>. 확정 = 3종 통합 저장 + 기말재고 스냅샷 + 그 달 수불 잠금.</td></tr>
           <tr><td class="m">월별 마감이력</td><td>확정한 달들의 매출·원가·마진·매입·기말재고금액. 행 클릭 → 그 달 마감현황.</td></tr>
           <tr><td class="m">거래처별 이익<br>상품별 이익<br>거래처별 상품별 이익</td><td>세 화면 모두 위에 <b>[회사전체이익]</b> 요약 + <b>🖨 인쇄</b>(새 창)·<b>📥 엑셀</b>·머리글 정렬·이름 거르기·<b>사업장 고르기</b>. <b>실판매액 = 판매−반품 · 이익금 = 실판매−입고 · 이익율 = 이익÷실판매.</b> 금액 기준은 <b>마감현황·매출 그래프와 같고</b>, 세 화면은 같은 자료를 접은 것이라 합계가 늘 같습니다. 사업장을 고르면 판매전표(사업장 칸 없음)는 빠집니다. <b>조회 전용.</b></td></tr>
           <tr><td class="m">거래처별 채권·채무</td><td>거래처마다 <b>받을금액</b>[(매출−할인)−수금]과 <b>지급할금액</b>[(매입−할인)−지급]. <b>이월 + 당월매출 − 당월수금 = 남은금액</b>, 오른쪽 끝에 <b>특정일자 발생</b> 4칸(그 하루의 매출·수금·매입·지급). 줄 클릭 → 월별 이력 + 아래 <b>건별 내역</b> 4탭.
