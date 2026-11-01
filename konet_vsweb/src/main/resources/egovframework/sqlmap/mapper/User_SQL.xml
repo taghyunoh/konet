@@ -5439,7 +5439,7 @@
 
 	          UNION ALL
 	          -- ①-1 토더 발주 줄(2026-09-22 「발주가 곧 매출」) — 출고내역 탭에 함께(gb='SALE' — 화면 탭이 SALE·STRX 를 본다). ①과 같은 거래처 매칭(DC_CD 별 MIN(VENDOR_CD)).
-	          SELECT 'SALE', N'토더 발주',
+	          SELECT 'SALE', CASE WHEN o.DC_CD = 'DAESANG' THEN N'대상 발주' WHEN o.DC_CD = 'DONGWON' THEN N'동원홈푸드 발주' ELSE N'토더 발주' END,   /* 2026-11-01 수금등록 매출품목 구분 — 출고장(DC_CD)으로 가른다(selectStockOutDetail 과 같은 규칙) */
 	                 o.DLV_DT,
 	                 LTRIM(RTRIM(ISNULL(o.ORD_NO,'')))
 	                   + CASE WHEN ISNULL(o.ORD_ITEM_NO,'') <> '' THEN '-' + LTRIM(RTRIM(o.ORD_ITEM_NO)) ELSE '' END,

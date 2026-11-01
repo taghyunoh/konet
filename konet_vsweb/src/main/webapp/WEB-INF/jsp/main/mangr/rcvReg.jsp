@@ -57,6 +57,15 @@
   .sv-list td{ border:1px solid var(--sv-bd); padding:6px 8px; text-align:center; }
   .sv-list td.num{ text-align:right; }
   .sv-list tr{ cursor:pointer; }
+  /* 우측 카드 탭 — 원장 / 미수 현황 (2026-11-01) */
+  .sv-tabs{ display:flex; gap:6px; align-items:center; margin-bottom:8px; }
+  .sv-tab{ height:30px; padding:0 12px; border:1px solid var(--sv-bd); border-radius:7px; background:#fff; font-size:13px; font-weight:700; color:#37475a; cursor:pointer; white-space:nowrap; }
+  .sv-tab.on{ background:#137a6c; border-color:#137a6c; color:#fff; }
+  #arQ{ height:30px; width:200px; border:1px solid var(--sv-bd); border-radius:7px; padding:0 10px; font-size:13px; font-family:inherit; }
+  #arList tr.on td{ background:#e3f2ee; }
+  #arList td.nm{ text-align:left; }
+  .ar-due{ display:inline-block; padding:1px 7px; border-radius:10px; font-size:11.5px; font-weight:800; }
+  .ar-due.ok{ background:#e3f2ee; color:#0f6b5e; } .ar-due.w{ background:#fff3cd; color:#8a4c0d; } .ar-due.b{ background:#fde2e2; color:#b42318; }
   .sv-list tr:hover td{ background:#f3f8f6; }
   .sv-list tr.on td{ background:#fdeef0; font-weight:700; }
   .sv-sum{ display:flex; border:1px solid var(--sv-bd); border-top:0; border-radius:0 0 8px 8px; overflow:hidden; }
@@ -208,10 +217,13 @@
     <!-- 우측 열 — 원장 + 그 날 매출품목 (2026-07-31). 좌측보다 조금 좁은 비율 -->
     <div style="flex:1 1 620px; min-width:520px">
     <div class="sv-card">
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
-        <b>원장</b>
-        <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a">* 일자를 클릭하면 아래에 그 날 매출품목이 나옵니다.</span>
+      <%-- 탭 2개 (2026-11-01 「우측에 탭 추가해서 판매 근거 수금 안 된 정보를 거래처별로 · 검색도」) — 종전엔 [신규등록]에서 거래처를 하나씩 찾아야 잔고를 볼 수 있었다 --%>
+      <div class="sv-tabs">
+        <button type="button" class="sv-tab on" id="svTabLg" onclick="svRTab('lg')">📒 원장</button>
+        <button type="button" class="sv-tab" id="svTabAr" onclick="svRTab('ar')" title="판매(정산서·판매전표·발주 등록)는 있는데 수금이 덜 된 거래처를 한눈에 — 줄을 누르면 그 거래처가 왼쪽 전표에 올라갑니다">💰 미수 현황</button>
+        <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a" id="svRTabHint">* 일자를 클릭하면 아래에 그 날 매출품목이 나옵니다.</span>
       </div>
+      <div id="svRLg">
       <div style="border:1px solid var(--sv-bd); border-radius:6px; padding:6px 8px; margin-bottom:6px; font-size:13px">
         <b>거래처명</b> <span id="lgCust" style="margin-left:8px">—</span>
       </div>
@@ -235,6 +247,24 @@
           <colgroup><col style="width:14%"><col style="width:14%"><col style="width:9%"><col style="width:12%"><col style="width:14%"><col style="width:12%"><col style="width:9%"><col style="width:16%"></colgroup>
           <tbody id="lgFoot"></tbody>
         </table>
+      </div>
+      </div>
+      <%-- 미수 현황 — 원천 = 거래처별 채권·채무와 같은 selectCustBalance(전 거래처 × 월 누계). 받을금액 = (매출 − 매출DC) − 수금 · 화면에서 거래처로 접는다 --%>
+      <div id="svRAr" style="display:none">
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px; flex-wrap:wrap">
+          <input type="search" id="arQ" placeholder="🔎 거래처명 / 코드" title="거래처명·코드 부분일치(영타로 쳐도 한글로 봅니다). Esc = 지우기" oninput="arRender()" onkeydown="if(event.key==='Escape'){ this.value=''; arRender(); }">
+          <label style="font-size:12.5px; display:flex; align-items:center; gap:4px"><input type="checkbox" id="arOnly" checked onchange="arRender()"> 미수 있는 곳만</label>
+          <button type="button" class="sv-btn" style="height:30px; padding:0 10px; font-size:12.5px" onclick="arLoad(true)" title="서버에서 다시 읽습니다(저장·삭제 뒤에는 저절로 다시 읽습니다)">🔄</button>
+          <span id="arInfo" style="margin-left:auto; font-size:12.5px; color:#5a6b7a"></span>
+        </div>
+        <div class="sv-list" id="arWrap" style="max-height:max(440px, 52vh)">
+          <table>
+            <colgroup><col style="width:30%"><col style="width:15%"><col style="width:15%"><col style="width:16%"><col style="width:12%"><col style="width:12%"></colgroup>
+            <thead><tr><th>거래처</th><th>매출</th><th>수금</th><th>미수(잔고)</th><th>마지막 수금</th><th>경과</th></tr></thead>
+            <tbody id="arList"><tr><td colspan="6" class="sv-msg">읽는 중…</td></tr></tbody>
+          </table>
+        </div>
+        <div style="font-size:11.5px; color:#5a6b7a; margin-top:6px">※ 매출 = 정산서 + 판매전표 + 발주 등록(토더·대상·동원) − 매출DC · 수금 = 수금 전표(할인 포함) · 미수 = 매출 − 수금 (거래처별 채권·채무 화면과 같은 식). 경과 = 마지막 수금일(없으면 마지막 매출일)부터 오늘까지.</div>
       </div>
     </div>
 
@@ -414,7 +444,7 @@ function svSave(){
         /* 무엇이 저장됐는지 분명히 — '저장했습니다' 만으로는 신규인지 수정인지 알 수 없다 */
         swOk(edit ? ('전표를 수정했습니다 — '+dto.trxDt+' / '+dto.trxNo)
                   : ('새 수금 전표로 저장했습니다 — '+dto.trxDt+' / '+dto.trxNo));
-        svNewKeep(); svLoad();
+        svNewKeep(); svLoad(); arLoad(true);
       })
       .catch(function(e){ swErr('저장에 실패했습니다.<br><span style="font-size:13px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
   });
@@ -425,7 +455,7 @@ function svDelete(){
   svClosedAsk([_cur.trxDt], '삭제').then(function(ok0){ return ok0 ? swConfirm('이 수금 전표를 삭제할까요?', '삭제') : false; }).then(function(ok){
     if(!ok) return;
     post('/mangr/settleDelete.do', { trxSeq:_cur.trxSeq }, true)
-      .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t); }); swOk('삭제했습니다.'); svNewKeep(); svLoad(); })
+      .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t); }); swOk('삭제했습니다.'); svNewKeep(); svLoad(); arLoad(true); })
       .catch(function(e){ swErr('삭제에 실패했습니다.<br><span style="font-size:13px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
   });
 }
@@ -728,6 +758,81 @@ document.addEventListener('keydown', function(e){
   if((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')){ e.preventDefault(); svSave(); }
   else if(e.altKey && (e.key==='n'||e.key==='N')){ e.preventDefault(); svNew(); }
 });
+
+/* ── 💰 미수 현황 탭 (2026-11-01 「우측에 탭 추가해서 판매 근거 수금 안 된 정보 거래처별로 · 검색도 — 지금은 신규등록으로 일일이 검색」) ──
+     원천 = /mangr/selectCustBalance.do (거래처별 채권·채무 화면과 같은 조회 · 전 거래처 × 월 누계 · 기간을 안 건다 = 전 기간 누계가 곧 잔액).
+     화면에서 거래처로 접는다 : 매출 = saleAmt − saleDcAmt · 수금 = rcvAmt · 미수 = 매출 − 수금. 서버 무변경.
+     탭을 처음 열 때 한 번 읽고, 저장·삭제 뒤(arLoad(true))와 [🔄] 로 다시 읽는다. 줄을 누르면 svCustPick(기존) 으로 왼쪽 전표에 거래처가 올라간다(탭은 그대로 — 다음 거래처를 이어서 고를 수 있게). */
+var _ar=[], _arLoaded=false, _arBusy=false, _arTab='lg';
+function svRTab(t){
+  _arTab=t;
+  document.getElementById('svTabLg').classList.toggle('on', t==='lg'); document.getElementById('svTabAr').classList.toggle('on', t==='ar');
+  document.getElementById('svRLg').style.display=(t==='lg')?'':'none'; document.getElementById('svRAr').style.display=(t==='ar')?'':'none';
+  var h=document.getElementById('svRTabHint'); if(h) h.textContent=(t==='lg')?'* 일자를 클릭하면 아래에 그 날 매출품목이 나옵니다.':'* 줄을 누르면 그 거래처가 왼쪽 전표에 올라갑니다.';
+  if(t==='ar'){ if(!_arLoaded) arLoad(false); else arRender(); var q=document.getElementById('arQ'); if(q) q.focus(); }
+}
+function arLoad(force){
+  if(_arBusy) return; if(_arLoaded && !force && _arTab!=='ar') return;
+  _arBusy=true; if(!_arLoaded){ var tb=document.getElementById('arList'); if(tb) tb.innerHTML='<tr><td colspan="6" class="sv-msg">읽는 중…</td></tr>'; }
+  post('/mangr/selectCustBalance.do','').then(function(r){ return r.json(); }).then(function(j){
+    _ar=arFold((j&&j.data)||[]); _arLoaded=true; _arBusy=false; if(_arTab==='ar') arRender();
+  }).catch(function(e){ _arBusy=false; var tb=document.getElementById('arList'); if(tb) tb.innerHTML='<tr><td colspan="6" class="sv-msg" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
+}
+/* 거래처로 접기 — custBalance.jsp cbFold 와 같은 식(이월·당월 구분 없이 전부 누계) */
+function arFold(rows){
+  var m={}, ord=[];
+  rows.forEach(function(r){ var k=String(r.custCd||''); if(!k) return;
+    var o=m[k]; if(!o){ o=m[k]={ custCd:k, custNm:r.custNm||k, sale:0, rcv:0, recv:0, lastSaleDt:'', lastRcvDt:'' }; ord.push(k); }
+    var sale=n(r.saleAmt)-n(r.saleDcAmt), rcv=n(r.rcvAmt);
+    o.sale+=sale; o.rcv+=rcv; o.recv+=sale-rcv;
+    if(String(r.lastSaleDt||'')>o.lastSaleDt) o.lastSaleDt=String(r.lastSaleDt||'');
+    if(String(r.lastRcvDt||'')>o.lastRcvDt) o.lastRcvDt=String(r.lastRcvDt||'');
+  });
+  return ord.map(function(k){ return m[k]; }).filter(function(o){ return o.sale!==0 || o.rcv!==0; });   // 매출·수금이 둘 다 0 인 곳(매입처)은 뺀다
+}
+function arDtLbl(d){ d=String(d||'').replace(/-/g,''); return d.length===8 ? (d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6)) : ''; }
+function arDueDays(o){
+  if(Math.round(o.recv)<=0) return null; var d=String(o.lastRcvDt||o.lastSaleDt||'').replace(/-/g,''); if(d.length!==8) return null;
+  var b=new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6)), t=new Date(); t=new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  return Math.max(0, Math.round((t-b)/86400000));
+}
+/* 경과 기준일 = 회사 설정 dueWarn(⚠, 기본 30)·dueBad(⛔, 기본 60) — 거래처별 채권·채무 「미수 경과」와 같은 값 */
+function arDueWarn(){ var v=Number(window.konetSet ? konetSet.f('dueWarn') : 0); return (isFinite(v)&&v>0)?v:30; }
+function arDueBad(){ var v=Number(window.konetSet ? konetSet.f('dueBad') : 0); return (isFinite(v)&&v>0)?Math.max(v,arDueWarn()):Math.max(60,arDueWarn()); }
+function arNorm(s){ return String(s||'').toLowerCase().replace(/\s+/g,''); }
+function arView(){
+  var q=arNorm((document.getElementById('arQ')||{}).value), only=!!(document.getElementById('arOnly')||{}).checked, qs=[q];
+  if(q && typeof engToKor==='function'){ try{ var k=arNorm(engToKor(q)); if(k && k!==q) qs.push(k); }catch(e){} }   // 영타 → 한글도 한 번 더(vendor-pick 과 같은 요령)
+  return _ar.filter(function(o){
+    if(only && Math.round(o.recv)<=0) return false;
+    if(!q) return true;
+    var nm=arNorm(o.custNm), cd=arNorm(o.custCd);
+    return qs.some(function(x){ return nm.indexOf(x)>=0 || cd.indexOf(x)>=0; });
+  }).sort(function(a,b){ return b.recv-a.recv; });
+}
+function arRender(){
+  var tb=document.getElementById('arList'), info=document.getElementById('arInfo'); if(!tb) return;
+  if(!_arLoaded){ tb.innerHTML='<tr><td colspan="6" class="sv-msg">읽는 중…</td></tr>'; return; }
+  var v=arView(), cur=String((document.getElementById('svCustNm')||{}).dataset ? (document.getElementById('svCustNm').dataset.cd||'') : ''), sum=0;
+  if(!v.length){ tb.innerHTML='<tr><td colspan="6" class="sv-msg">'+(_ar.length?'맞는 거래처가 없습니다 — 검색어를 지우거나 「미수 있는 곳만」을 끄세요.':'매출 자료가 없습니다.')+'</td></tr>'; if(info) info.textContent=''; return; }
+  tb.innerHTML=v.map(function(o){ sum+=o.recv; var d=arDueDays(o), lv=(d==null)?'':(d>=arDueBad()?'b':(d>=arDueWarn()?'w':'ok'));
+    return '<tr data-cd="'+esc(o.custCd)+'"'+(o.custCd===cur?' class="on"':'')+' onclick="arPick(\''+esc(o.custCd)+'\')" title="누르면 이 거래처가 왼쪽 전표에 올라갑니다">'
+      +'<td class="nm"><b>'+esc(o.custNm)+'</b> <span style="color:#5a6b7a;font-size:12px">'+esc(o.custCd)+'</span></td>'
+      +'<td class="num">'+fmt(o.sale)+'</td><td class="num">'+fmt(o.rcv)+'</td>'
+      +'<td class="num" style="font-weight:800;color:'+(Math.round(o.recv)>0?'#c0392b':(Math.round(o.recv)<0?'#1b5fb3':'#37475a'))+'">'+fmt(o.recv)+'</td>'
+      +'<td>'+(o.lastRcvDt?arDtLbl(o.lastRcvDt):'<span style="color:#9aa6b2">없음</span>')+'</td>'
+      +'<td>'+(d==null?'':('<span class="ar-due '+lv+'" title="마지막 수금 '+(o.lastRcvDt?arDtLbl(o.lastRcvDt):'없음')+' · 마지막 매출 '+(o.lastSaleDt?arDtLbl(o.lastSaleDt):'없음')+'">'+d+'일</span>'))+'</td></tr>';
+  }).join('');
+  if(info) info.innerHTML='<b>'+v.length+'</b>곳'+(v.length<_ar.length?' / '+_ar.length:'')+' · 미수 합계 <b style="color:#c0392b">'+fmt(sum)+'</b>';
+}
+/* 줄 클릭 → 기존 svCustPick(거래처 칸·담당자·현잔고·원장·금액칸 커서). 거래처 마스터에 없는 코드(옛 거래처)면 이름만 넣는다 */
+function arPick(cd){
+  var o=_ar.filter(function(x){ return x.custCd===String(cd); })[0]; if(!o) return;
+  if(_cur) svNewKeep();                                   // 저장된 전표를 보고 있었으면 새 전표로(엉뚱한 전표에 거래처가 덮이지 않게)
+  if(_vendors.some(function(x){ return String(x.vendorCd)===o.custCd; })) svCustPick(o.custCd);
+  else { var c=document.getElementById('svCustNm'); c.value=o.custNm; c.dataset.cd=o.custCd; svBal(o.custCd); svLedger(o.custCd); svFocusAmt(); }
+  Array.prototype.forEach.call(document.querySelectorAll('#arList tr'), function(tr){ tr.classList.toggle('on', tr.getAttribute('data-cd')===o.custCd); });
+}
 </script>
 
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
