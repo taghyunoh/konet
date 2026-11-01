@@ -56,6 +56,15 @@
   .sv-list td{ border:1px solid var(--sv-bd); padding:6px 8px; text-align:center; }
   .sv-list td.num{ text-align:right; }
   .sv-list tr{ cursor:pointer; }
+  /* 우측 카드 탭 — 원장 / 미지급 현황 (2026-11-01, 수금등록 미수 현황과 같은 모양) */
+  .sv-tabs{ display:flex; gap:6px; align-items:center; margin-bottom:8px; }
+  .sv-tab{ height:30px; padding:0 12px; border:1px solid var(--sv-bd); border-radius:7px; background:#fff; font-size:13px; font-weight:700; color:#37475a; cursor:pointer; white-space:nowrap; }
+  .sv-tab.on{ background:#137a6c; border-color:#137a6c; color:#fff; }
+  #apQ{ height:30px; width:200px; border:1px solid var(--sv-bd); border-radius:7px; padding:0 10px; font-size:13px; font-family:inherit; }
+  #apList tr.on td{ background:#e3f2ee; }
+  #apList td.nm{ text-align:left; }
+  .ap-due{ display:inline-block; padding:1px 7px; border-radius:10px; font-size:11.5px; font-weight:800; }
+  .ap-due.ok{ background:#e3f2ee; color:#0f6b5e; } .ap-due.w{ background:#fff3cd; color:#8a4c0d; } .ap-due.b{ background:#fde2e2; color:#b42318; }
   .sv-list tr:hover td{ background:#f3f8f6; }
   .sv-list tr.on td{ background:#fdeef0; font-weight:700; }
   .sv-sum{ display:flex; border:1px solid var(--sv-bd); border-top:0; border-radius:0 0 8px 8px; overflow:hidden; }
@@ -200,10 +209,13 @@
            그래서 우측을 세로 2단으로 감싼다 — 감싸지 않으면 새 카드가 flex 3번째 칸이 되어 옆으로 붙는다. --%>
     <div style="flex:1 1 620px; min-width:520px; display:flex; flex-direction:column">
     <div class="sv-card">
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
-        <b>원장</b>
-        <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a">* 매출&amp;매입 거래처는 최종 잔고만 표시됩니다.</span>
+      <%-- 탭 2개 (2026-11-01 「지급등록에도 수금등록 미수현황처럼 원장 옆에 지급현황」) — 매입은 있는데 지급이 덜 된 매입처를 거래처별로 · 검색 --%>
+      <div class="sv-tabs">
+        <button type="button" class="sv-tab on" id="svTabLg" onclick="svRTab('lg')">📒 원장</button>
+        <button type="button" class="sv-tab" id="svTabAp" onclick="svRTab('ap')" title="매입(매입전표)은 있는데 지급이 덜 된 매입처를 한눈에 — 줄을 누르면 그 매입처가 왼쪽 전표에 올라갑니다">💰 미지급 현황</button>
+        <span style="margin-left:auto; font-size:11.5px; color:#5a6b7a" id="svRTabHint">* 매출&amp;매입 거래처는 최종 잔고만 표시됩니다.</span>
       </div>
+      <div id="svRLg">
       <div style="border:1px solid var(--sv-bd); border-radius:6px; padding:6px 8px; margin-bottom:6px; font-size:13px">
         <b>거래처명</b> <span id="lgCust" style="margin-left:8px">—</span>
       </div>
@@ -227,6 +239,24 @@
           <colgroup><col style="width:14%"><col style="width:14%"><col style="width:9%"><col style="width:12%"><col style="width:14%"><col style="width:12%"><col style="width:9%"><col style="width:16%"></colgroup>
           <tbody id="lgFoot"></tbody>
         </table>
+      </div>
+      </div>
+      <%-- 미지급 현황 — 원천 = 거래처별 채권·채무와 같은 selectCustBalance(전 거래처 × 월 누계). 지급할금액 = (매입 − 매입할인) − 지급 · 화면에서 거래처로 접는다 --%>
+      <div id="svRAp" style="display:none">
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px; flex-wrap:wrap">
+          <input type="search" id="apQ" placeholder="🔎 매입처명 / 코드" title="매입처명·코드 부분일치(영타로 쳐도 한글로 봅니다). Esc = 지우기" oninput="apRender()" onkeydown="if(event.key==='Escape'){ this.value=''; apRender(); }">
+          <label style="font-size:12.5px; display:flex; align-items:center; gap:4px"><input type="checkbox" id="apOnly" checked onchange="apRender()"> 미지급 있는 곳만</label>
+          <button type="button" class="sv-btn" style="height:30px; padding:0 10px; font-size:12.5px" onclick="apLoad(true)" title="서버에서 다시 읽습니다(저장·삭제 뒤에는 저절로 다시 읽습니다)">🔄</button>
+          <span id="apInfo" style="margin-left:auto; font-size:12.5px; color:#5a6b7a"></span>
+        </div>
+        <div class="sv-list" id="apWrap" style="max-height:max(440px, 52vh)">
+          <table>
+            <colgroup><col style="width:30%"><col style="width:15%"><col style="width:15%"><col style="width:16%"><col style="width:12%"><col style="width:12%"></colgroup>
+            <thead><tr><th>매입처</th><th>매입</th><th>지급</th><th>미지급(잔고)</th><th>마지막 지급</th><th>경과</th></tr></thead>
+            <tbody id="apList"><tr><td colspan="6" class="sv-msg">읽는 중…</td></tr></tbody>
+          </table>
+        </div>
+        <div style="font-size:11.5px; color:#5a6b7a; margin-top:6px">※ 매입 = 매입전표 − 매입할인 · 지급 = 지급 전표(할인 포함) · 미지급 = 매입 − 지급 (거래처별 채권·채무 화면과 같은 식). 마지막 지급 = 지급이 있던 마지막 달 · 경과 = 그 매입처의 마지막 거래일부터 오늘까지.</div>
       </div>
     </div>
 
@@ -376,7 +406,7 @@ function svSave(){
         /* 무엇이 저장됐는지 분명히 — '저장했습니다' 만으로는 신규인지 수정인지 알 수 없다 */
         swOk(edit ? ('전표를 수정했습니다 — '+dto.trxDt+' / '+dto.trxNo)
                   : ('새 지급 전표로 저장했습니다 — '+dto.trxDt+' / '+dto.trxNo));
-        svNewKeep(); svLoad();
+        svNewKeep(); svLoad(); apLoad(true);
       })
       .catch(function(e){ swErr('저장에 실패했습니다.<br><span style="font-size:13px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
   });
@@ -387,7 +417,7 @@ function svDelete(){
   swConfirm('이 지급 전표를 삭제할까요?', '삭제').then(function(ok){
     if(!ok) return;
     post('/mangr/settleDelete.do', { trxSeq:_cur.trxSeq }, true)
-      .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t); }); swOk('삭제했습니다.'); svNewKeep(); svLoad(); })
+      .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t); }); swOk('삭제했습니다.'); svNewKeep(); svLoad(); apLoad(true); })
       .catch(function(e){ swErr('삭제에 실패했습니다.<br><span style="font-size:13px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
   });
 }
@@ -689,6 +719,83 @@ document.addEventListener('keydown', function(e){
   if((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')){ e.preventDefault(); svSave(); }
   else if(e.altKey && (e.key==='n'||e.key==='N')){ e.preventDefault(); svNew(); }
 });
+
+/* ── 💰 미지급 현황 탭 (2026-11-01 「지급등록에도 수금등록 미수현황처럼 원장 옆에 지급현황」) ──
+     원천 = /mangr/selectCustBalance.do (거래처별 채권·채무 화면과 같은 조회 · 전 거래처 × 월 누계 · 기간을 안 건다 = 전 기간 누계가 곧 잔액).
+     화면에서 거래처로 접는다 : 매입 = purchAmt − purchDcAmt · 지급 = payAmt · 미지급 = 매입 − 지급. 서버 무변경.
+     마지막 지급 = payAmt > 0 인 마지막 달(ym — 조회가 월 낟알이라 날짜까지는 없다) · 경과 = lastDt(그 매입처의 마지막 거래일)부터 오늘까지.
+     탭을 처음 열 때 한 번 읽고, 저장·삭제 뒤(apLoad(true))와 [🔄] 로 다시 읽는다. 줄을 누르면 svCustPick(기존) 으로 왼쪽 전표에 매입처가 올라간다(탭은 그대로). */
+var _ap=[], _apLoaded=false, _apBusy=false, _apTab='lg';
+function svRTab(t){
+  _apTab=t;
+  document.getElementById('svTabLg').classList.toggle('on', t==='lg'); document.getElementById('svTabAp').classList.toggle('on', t==='ap');
+  document.getElementById('svRLg').style.display=(t==='lg')?'':'none'; document.getElementById('svRAp').style.display=(t==='ap')?'':'none';
+  var pd=document.getElementById('pdCard'); if(pd) pd.style.display=(t==='lg')?'':'none';   // [매입등록 내역]은 원장 일자 클릭용 — 미지급 탭에선 숨긴다(2026-11-01 「관계없으면 제거」)
+  var h=document.getElementById('svRTabHint'); if(h) h.textContent=(t==='lg')?'* 매출&매입 거래처는 최종 잔고만 표시됩니다.':'* 줄을 누르면 그 매입처가 왼쪽 전표에 올라갑니다.';
+  if(t==='ap'){ if(!_apLoaded) apLoad(false); else apRender(); var q=document.getElementById('apQ'); if(q) q.focus(); }
+}
+function apLoad(force){
+  if(_apBusy) return; if(_apLoaded && !force && _apTab!=='ap') return;
+  _apBusy=true; if(!_apLoaded){ var tb=document.getElementById('apList'); if(tb) tb.innerHTML='<tr><td colspan="6" class="sv-msg">읽는 중…</td></tr>'; }
+  post('/mangr/selectCustBalance.do','').then(function(r){ return r.json(); }).then(function(j){
+    _ap=apFold((j&&j.data)||[]); _apLoaded=true; _apBusy=false; if(_apTab==='ap') apRender();
+  }).catch(function(e){ _apBusy=false; var tb=document.getElementById('apList'); if(tb) tb.innerHTML='<tr><td colspan="6" class="sv-msg" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
+}
+/* 거래처로 접기 — custBalance.jsp cbFold 의 지급 쪽과 같은 식(이월·당월 구분 없이 전부 누계) */
+function apFold(rows){
+  var m={}, ord=[];
+  rows.forEach(function(r){ var k=String(r.custCd||''); if(!k) return;
+    var o=m[k]; if(!o){ o=m[k]={ custCd:k, custNm:r.custNm||k, purch:0, pay:0, owe:0, lastDt:'', lastPayYm:'' }; ord.push(k); }
+    var purch=n(r.purchAmt)-n(r.purchDcAmt), pay=n(r.payAmt);
+    o.purch+=purch; o.pay+=pay; o.owe+=purch-pay;
+    if(String(r.lastDt||'')>o.lastDt) o.lastDt=String(r.lastDt||'');
+    if(pay!==0 && String(r.ym||'')>o.lastPayYm) o.lastPayYm=String(r.ym||'');
+  });
+  return ord.map(function(k){ return m[k]; }).filter(function(o){ return o.purch!==0 || o.pay!==0; });   // 매입·지급이 둘 다 0 인 곳(매출 거래처)은 뺀다
+}
+function apDtLbl(d){ d=String(d||'').replace(/-/g,''); return d.length===8 ? (d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6)) : (d.length===6 ? (d.slice(0,4)+'-'+d.slice(4)) : ''); }
+function apDueDays(o){
+  if(Math.round(o.owe)<=0) return null; var d=String(o.lastDt||'').replace(/-/g,''); if(d.length!==8) return null;
+  var b=new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6)), t=new Date(); t=new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  return Math.max(0, Math.round((t-b)/86400000));
+}
+/* 경과 기준일 = 회사 설정 dueWarn(⚠, 기본 30)·dueBad(⛔, 기본 60) — 수금등록 미수 현황과 같은 값 */
+function apDueWarn(){ var v=Number(window.konetSet ? konetSet.f('dueWarn') : 0); return (isFinite(v)&&v>0)?v:30; }
+function apDueBad(){ var v=Number(window.konetSet ? konetSet.f('dueBad') : 0); return (isFinite(v)&&v>0)?Math.max(v,apDueWarn()):Math.max(60,apDueWarn()); }
+function apNorm(s){ return String(s||'').toLowerCase().replace(/\s+/g,''); }
+function apView(){
+  var q=apNorm((document.getElementById('apQ')||{}).value), only=!!(document.getElementById('apOnly')||{}).checked, qs=[q];
+  if(q && typeof engToKor==='function'){ try{ var k=apNorm(engToKor(q)); if(k && k!==q) qs.push(k); }catch(e){} }
+  return _ap.filter(function(o){
+    if(only && Math.round(o.owe)<=0) return false;
+    if(!q) return true;
+    var nm=apNorm(o.custNm), cd=apNorm(o.custCd);
+    return qs.some(function(x){ return nm.indexOf(x)>=0 || cd.indexOf(x)>=0; });
+  }).sort(function(a,b){ return b.owe-a.owe; });
+}
+function apRender(){
+  var tb=document.getElementById('apList'), info=document.getElementById('apInfo'); if(!tb) return;
+  if(!_apLoaded){ tb.innerHTML='<tr><td colspan="6" class="sv-msg">읽는 중…</td></tr>'; return; }
+  var v=apView(), cur=String((document.getElementById('svCustNm')||{}).dataset ? (document.getElementById('svCustNm').dataset.cd||'') : ''), sum=0;
+  if(!v.length){ tb.innerHTML='<tr><td colspan="6" class="sv-msg">'+(_ap.length?'맞는 매입처가 없습니다 — 검색어를 지우거나 「미지급 있는 곳만」을 끄세요.':'매입 자료가 없습니다.')+'</td></tr>'; if(info) info.textContent=''; return; }
+  tb.innerHTML=v.map(function(o){ sum+=o.owe; var d=apDueDays(o), lv=(d==null)?'':(d>=apDueBad()?'b':(d>=apDueWarn()?'w':'ok'));
+    return '<tr data-cd="'+esc(o.custCd)+'"'+(o.custCd===cur?' class="on"':'')+' onclick="apPick(\''+esc(o.custCd)+'\')" title="누르면 이 매입처가 왼쪽 전표에 올라갑니다">'
+      +'<td class="nm"><b>'+esc(o.custNm)+'</b> <span style="color:#5a6b7a;font-size:12px">'+esc(o.custCd)+'</span></td>'
+      +'<td class="num">'+fmt(o.purch)+'</td><td class="num">'+fmt(o.pay)+'</td>'
+      +'<td class="num" style="font-weight:800;color:'+(Math.round(o.owe)>0?'#c0392b':(Math.round(o.owe)<0?'#1b5fb3':'#37475a'))+'">'+fmt(o.owe)+'</td>'
+      +'<td>'+(o.lastPayYm?apDtLbl(o.lastPayYm):'<span style="color:#9aa6b2">없음</span>')+'</td>'
+      +'<td>'+(d==null?'':('<span class="ap-due '+lv+'" title="마지막 거래 '+(o.lastDt?apDtLbl(o.lastDt):'없음')+' · 마지막 지급 '+(o.lastPayYm?apDtLbl(o.lastPayYm):'없음')+'">'+d+'일</span>'))+'</td></tr>';
+  }).join('');
+  if(info) info.innerHTML='<b>'+v.length+'</b>곳'+(v.length<_ap.length?' / '+_ap.length:'')+' · 미지급 합계 <b style="color:#c0392b">'+fmt(sum)+'</b>';
+}
+/* 줄 클릭 → 기존 svCustPick(거래처 칸·담당자·현잔고·원장·금액칸 커서). 거래처 마스터에 없는 코드(옛 거래처)면 이름만 넣는다 */
+function apPick(cd){
+  var o=_ap.filter(function(x){ return x.custCd===String(cd); })[0]; if(!o) return;
+  if(_cur) svNewKeep();                                   // 저장된 전표를 보고 있었으면 새 전표로(엉뚱한 전표에 거래처가 덮이지 않게)
+  if(_vendors.some(function(x){ return String(x.vendorCd)===o.custCd; })) svCustPick(o.custCd);
+  else { var c=document.getElementById('svCustNm'); c.value=o.custNm; c.dataset.cd=o.custCd; svBal(o.custCd); svLedger(o.custCd); svFocusAmt(); }
+  Array.prototype.forEach.call(document.querySelectorAll('#apList tr'), function(tr){ tr.classList.toggle('on', tr.getAttribute('data-cd')===o.custCd); });
+}
 </script>
 
 <%-- 노트북(1366×768·1440×900) 대응 공통 CSS — 2026-08-02 추가.
