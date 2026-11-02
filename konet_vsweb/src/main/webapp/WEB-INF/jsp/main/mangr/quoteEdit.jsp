@@ -532,11 +532,11 @@ function calcRowHtml(l,i,NC){
     +'<th class="g2" rowspan="2">박스<br>입수량</th>'
     +'<th class="g1" colspan="6">구매</th>'
     +'<th class="g7" rowspan="2" title="확인용 메모 칸 — 다른 값과 아무 연관 없이 저장만 됩니다 (2026-09-18)">타겟<br>금액</th>'
+    +'<th class="g7" rowspan="2" title="목표 마진율 — 넣으면 맨 오른쪽 「필요 판매단가」가 나옵니다">목표<br>마진율(%)</th>'   /* 타겟 금액 바로 뒤로 (2026-11-02 사용자 「타겟금액 뒤로 목표마진율 이동」 — 종전엔 실 마진율 뒤) */
     +'<th class="g1" colspan="2">판매</th>'
     /* ★센터배송이면 네 묶음이 센터 수만큼 갈라진다 (2026-09-28) — 아랫줄에 센터 이름. DC·직송은 종전대로 한 칸씩 */
     +(cs? ('<th class="g4" colspan="'+K+'">물류비</th><th class="g1" colspan="'+K+'">실 판매금액</th><th class="g1" colspan="'+K+'">실 마진금액</th><th class="g6" colspan="'+K+'">실 마진율</th>')
         : ('<th class="g4" rowspan="2">물류비</th><th class="g1" rowspan="2">실 판매금액</th><th class="g1" rowspan="2">실 마진금액</th><th class="g6" rowspan="2">실 마진율</th>'))
-    +'<th class="g7" rowspan="2">목표<br>마진율(%)</th>'
     +'<th class="g7" rowspan="2">필요<br>판매단가</th>'
     +'<th class="g7" rowspan="2"></th>'
     +'</tr><tr>'
@@ -556,11 +556,11 @@ function calcRowHtml(l,i,NC){
     +'<td>'+ci('split',c.split,2)+'</td>'
     +'<td>'+ci('pack',c.pack,2)+'</td>'
     +'<td>'+ci('tgtAmt',c.tgtAmt,0)+'</td>'   /* 타겟금액 — 확인용 저장 전용, 어떤 계산에도 안 들어간다 (2026-09-18) */
+    +'<td>'+ci('target',c.target,1,'',64)+'</td>'   /* 목표 마진율 — 타겟 금액 바로 뒤 (2026-11-02) */
     +'<td><input type="text" class="ci" style="width:90px;border-color:#0f6b5e;background:#e3f2ee" id="cSell'+i+'" value="'+(n(l.unitPrice)?fmt(l.unitPrice,2):'')+'" onfocus="this.select()" oninput="sellSet('+i+', this.value, \'calc\')" title="= 품목 줄의 단가(같은 값)"></td>'
     +'<td class="au" id="cO'+i+'"></td>'
     +(cs? (cenCells(cs,i,'cP','au p cc')+cenCells(cs,i,'cQ','au q cc')+cenCells(cs,i,'cR','au q cc')+cenCells(cs,i,'cS','au s cc'))
         : ('<td class="au p" id="cP'+i+'"></td><td class="au q" id="cQ'+i+'"></td><td class="au q" id="cR'+i+'"></td><td class="au s" id="cS'+i+'"></td>'))
-    +'<td>'+ci('target',c.target,1,'',64)+'</td>'
     +'<td class="au b" id="cNeed'+i+'"></td>'
     +'<td class="c"><button class="btn lnk" style="height:28px" onclick="applyNeed('+i+')" title="필요 판매단가를 판매적용단가(줄 단가)로">→ 적용</button> <button class="btn lnk btn-red" style="height:28px" onclick="calcDrop('+i+')" title="이 줄의 마진계산을 뺀다">계산 빼기</button></td>'
     +'</tr></tbody></table></div></td></tr>';
