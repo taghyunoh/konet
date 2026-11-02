@@ -3490,7 +3490,7 @@
       <a class="mi" data-key="empNotice" onclick="logiFrame('empNotice','${pageContext.request.contextPath}/emp/notice.do', this)"><span class="ic">📢</span>직원 공지사항<span class="emp-badge" id="empNoticeBadge" style="display:none"></span></a>
       <a class="mi" data-key="empMsg" onclick="logiFrame('empMsg','${pageContext.request.contextPath}/emp/msg.do', this)"><span class="ic">💬</span>직원 메신저<span class="emp-badge" id="empMsgBadge" style="display:none"></span></a>
       <%-- 직원 휴가 관리 (2026-10-21 사용자 「연차·월차·반차·병가 구분으로 직원별 휴가 관리, 달력·현황·엑셀」) — iframe 화면(mangr/leaveMng.jsp, panel-leaveMng). 표 = docs/sql/20261021_leave.sql --%>
-      <a class="mi" data-key="leaveMng" onclick="logiFrame('leaveMng','${pageContext.request.contextPath}/mangr/leaveMng.do', this)"><span class="ic">🏖</span>직원 휴가 관리</a>
+      <a class="mi" data-key="leaveMng" onclick="logiFrame('leaveMng','${pageContext.request.contextPath}/mangr/leaveMng.do', this)"><span class="ic">🏖</span>직원 휴가 관리<span class="emp-badge" id="empLeaveBadge" style="display:none" title="오늘 휴가자"></span></a>
     </div>
 
     <div class="grp">정보 현황</div>

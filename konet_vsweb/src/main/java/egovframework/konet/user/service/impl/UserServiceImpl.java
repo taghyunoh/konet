@@ -3378,6 +3378,13 @@ public class UserServiceImpl implements UserService {
 		java.util.Map<String,Object> m = mapper.selectEmpMsgUnreadCnt(p);
 		r.put("msgUnread", m == null ? 0 : empInt(m.get("msgUnread")));
 		r.put("roomUnread", m == null ? 0 : empInt(m.get("roomUnread")));
+		/* 오늘 휴가자 — 메뉴 「직원 휴가 관리」 배지 (2026-11-03). 이름 · 구분을 말풍선에 */
+		try {
+			java.util.List<java.util.Map<String,Object>> lv = mapper.selectLeaveToday(p);
+			StringBuilder nm = new StringBuilder();
+			for (java.util.Map<String,Object> o : lv) { if (nm.length() > 0) nm.append(", "); nm.append(String.valueOf(o.get("userNm"))).append(" ").append(String.valueOf(o.get("leaveGb"))); if ("신청".equals(String.valueOf(o.get("status")))) nm.append("(신청)"); }
+			r.put("leaveToday", lv.size()); r.put("leaveNames", nm.toString());
+		} catch (Exception e) { r.put("leaveToday", 0); r.put("leaveNames", ""); }   /* 휴가 표가 없는 회사여도 배지는 돈다 */
 		return r;
 	}
 
@@ -3815,6 +3822,7 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<java.util.Map<String,Object>> selectLeaveQuota(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveQuota(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectLeaveQuotaAll(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveQuotaAll(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectLeaveUsedYear(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveUsedYear(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectLeaveToday(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveToday(p); }
 	@Override public int mergeLeaveQuota(java.util.Map<String,Object> p) throws Exception { return mapper.mergeLeaveQuota(p); }
 	@Override public int updateLeaveJoinDt(java.util.Map<String,Object> p) throws Exception { return mapper.updateLeaveJoinDt(p); }
 

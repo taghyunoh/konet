@@ -1,7 +1,8 @@
 /* =====================================================================
    emp-badge.js — 셸(logistics_demo2.jsp)의 직원 소통 세 가지 (2026-09-22)
      ① 사이드바 「직원 공지사항 / 직원 메신저」 안 읽음 배지
-        · 30초마다 POST /emp/badge.do → {noticeUnread, msgUnread, roomUnread}
+        · 30초마다 POST /emp/badge.do → {noticeUnread, msgUnread, roomUnread, leaveToday, leaveNames}
+        · 「직원 휴가 관리」 옆 empLeaveBadge = 오늘 휴가 중인 직원 수(반려 제외), 말풍선에 이름·구분 (2026-11-03)
         · 메뉴 글자 옆 <span class="emp-badge" id="empNoticeBadge|empMsgBadge"> 에 수를 적고, 0 이면 숨긴다
         · 안 읽은 메시지가 <늘어나면>(다른 사람이 보냄) 하단 토스트 한 번 — 메신저 화면을 보고 있을 때는 안 띄운다
      ② 화면 맨 아래 「📢 공지」 흐름 띠 (사용자 「하단에 공지사항 흐르게도 추가」)
@@ -49,13 +50,13 @@
   }
 
   /* ── ① 배지 ── */
-  function paint(id, n, dockToo) {
+  function paint(id, n, title) {
     var el = document.getElementById(id);
     if (!el) return;
     n = Number(n) || 0;
     el.textContent = n > 99 ? '99+' : String(n);
     el.style.display = n > 0 ? '' : 'none';
-    el.title = n > 0 ? ('안 읽은 것 ' + n + '건') : '';
+    el.title = n > 0 ? (title || ('안 읽은 것 ' + n + '건')) : '';
   }
   function msgPanelShown() {
     var p = document.getElementById('panel-empMsg');
@@ -72,6 +73,7 @@
         paint('empNoticeBadge', j.noticeUnread);
         paint('empMsgBadge', j.msgUnread);
         paint('empGrpBadge', (Number(j.noticeUnread) || 0) + (Number(j.msgUnread) || 0));   /* 「직원관리」 주메뉴 — 접혀 있어도 보이게 (2026-10-21) */
+        paint('empLeaveBadge', j.leaveToday, '오늘 휴가 ' + (Number(j.leaveToday) || 0) + '명 : ' + (j.leaveNames || ''));   /* 「직원 휴가 관리」 — 오늘 휴가자 수 (2026-11-03). 주메뉴 합계에는 안 넣는다(안 읽은 수가 아니라서) */
         paint('empDockNoticeN', j.noticeUnread); paint('empDockMsgN', j.msgUnread);
         paint('empDockTabN1', j.noticeUnread); paint('empDockTabN2', j.msgUnread);
         var m = Number(j.msgUnread) || 0;
