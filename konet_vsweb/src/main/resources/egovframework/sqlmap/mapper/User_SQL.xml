@@ -8332,6 +8332,16 @@
 	]]></select>
 
 	<!-- 안 읽은 공지 수 — 최근 60일 것만(새 직원에게 옛 공지가 전부 「안 읽음」으로 쌓이지 않게) -->
+	<!-- 오늘 휴가 중인 직원 (2026-11-03 메뉴 배지) — 승인·신청(반려 제외). 같은 직원이 반차 둘이면 한 줄로 -->
+	<select id="selectLeaveToday" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT L.USER_ID AS userId, MAX(ISNULL(L.USER_NM,'')) AS userNm, MIN(L.LEAVE_GB) AS leaveGb, MIN(L.STATUS) AS status
+	    FROM TBL_LEAVE_MST L
+	   WHERE L.COMP_CD = #{compCd,jdbcType=VARCHAR} AND L.ACTION_YN = 'Y' AND L.STATUS <> N'반려'
+	     AND L.FROM_DT <= CONVERT(VARCHAR(8), GETDATE(), 112) AND L.TO_DT >= CONVERT(VARCHAR(8), GETDATE(), 112)
+	   GROUP BY L.USER_ID
+	   ORDER BY MAX(ISNULL(L.USER_NM,''))
+	]]></select>
+
 	<select id="selectEmpNoticeUnreadCnt" parameterType="java.util.HashMap" resultType="int"><![CDATA[
 	  SELECT COUNT(*)
 	    FROM TBL_EMP_NOTICE n
