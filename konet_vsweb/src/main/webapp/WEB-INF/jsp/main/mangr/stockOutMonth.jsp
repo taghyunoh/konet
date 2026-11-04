@@ -340,7 +340,9 @@ function somPaint(force){
   var L=spL?'<td class="sp"></td>':'', R=spR?'<td class="sp"></td>':'';
   function cell(cls, ym, c, txt){ var k=ym+'|'+c.g+'|'+c.cd; return '<td class="'+cls+(c.first?' gs':'')+(_somPick===k?' pick':'')+'" data-ym="'+esc(ym)+'" data-g="'+esc(c.g)+'" data-cd="'+esc(c.cd)+'">'+txt+'</td>'; }
   /* ① 현재고 */
-  h+='<tr class="stk"><td class="cn">현재고 <small style="font-weight:400;color:#6b7a89">(품목)</small></td><td class="rt">'+(m.stkAny?num(m.stkTot):'')+'</td>'+L;
+  /* 현재고 = 기간 끝날짜까지 (2026-11-04) — 이름에 그 날짜를 붙여 「지금 재고」로 읽히지 않게 */
+  var _stkTo=((document.getElementById('toDt')||{}).value||'').slice(5);   // mm-dd
+  h+='<tr class="stk"><td class="cn" title="기간 끝날짜(납기일자)까지 반영한 품목 재고 — 그 뒤 날짜의 출고 예정분은 빼지 않습니다">현재고 <small style="font-weight:400;color:#6b7a89">('+(_stkTo?(_stkTo+' 기준'):'품목')+')</small></td><td class="rt">'+(m.stkAny?num(m.stkTot):'')+'</td>'+L;
   cols.forEach(function(c){ var v=m.stock[c.cd]; h+= (v==null) ? '<td class="none'+(c.first?' gs':'')+'"></td>' : cell(v<0?'neg':'', '', c, num(v)); });
   h+=R+'</tr>';
   /* ② 년월 줄 */

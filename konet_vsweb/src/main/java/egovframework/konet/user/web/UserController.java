@@ -2873,7 +2873,11 @@ public class UserController {
 			p.put("frDt", fd); p.put("toDt", td);
 			Map<String,Object> res = new HashMap<String,Object>();
 			res.put("months", svc.selectStockOutByMonth(p));
-			res.put("stock",  svc.selectStockQtyMap(new egovframework.konet.user.model.StockMstDTO()));
+			/* 현재고 = 기간 끝날짜(납기일자)까지 (2026-11-04 사용자 「11-03 이면 21」 — 종전엔 기간과 무관한 원장 전체라 끝날짜를 바꿔도 같은 숫자였다).
+			     끝날짜가 비면 종전대로 원장 전체. 대시보드(납기현황표)와 같은 조건(selectStockQtyMap asOfDt) */
+			egovframework.konet.user.model.StockMstDTO stq = new egovframework.konet.user.model.StockMstDTO();
+			if (!td.isEmpty()) stq.setAsOfDt(td);
+			res.put("stock",  svc.selectStockQtyMap(stq));
 			/* ★srcDays(월별 정산서/발주 원천 일수) 호출은 뺐다 (2026-09-03 속도점검) —
 			     화면이 년월 칸 표시를 뺀 뒤로 쓰는 데가 없는데 조회마다 실측 120ms 를 썼다.
 			     화면의 srcBadge() 함수는 그대로 남아 있으니, 다시 보여 주려면 이 줄만 되살리면 된다.

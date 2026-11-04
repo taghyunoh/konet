@@ -1099,8 +1099,12 @@
     /* ★재고현황(stockStatusList)이 아니라 <가벼운 전용 조회>를 부른다 (2026-08-07 속도개선).
          근거(수불원장 입고−출고)는 똑같고, 화면에 안 쓰는 extQtys 만 안 만든다.
          실측 664ms → 29ms. 값이 어긋날 일은 없다 — 같은 원장을 같은 규칙으로 더한다. */
+    /* ★현재고 = 보고 있는 납기일(끝날짜)까지 (2026-11-04 사용자 「납기일 11-04 화면이면 11-04 출고까지만 빠진 재고로」).
+         종전에는 기준일 없이 원장 전체라, 하루 전 오후에 올라온 다음 날 발주현황표 출고까지 미리 빠져 있었다.
+         끝날짜가 비면(전체 조회) 종전대로 원장 전체. 적정재고 「미달」도 이 숫자로 판정한다. */
+    var _asOf=((document.getElementById('d2DateTo')||{}).value||'').replace(/-/g,'');
     fetch(CTX+'/prod/stockQtyMap.do', { method:'POST', credentials:'same-origin',
-            headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+            headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:(_asOf?('asOfDt='+_asOf):'') })
       .then(function(r){ return r.json(); })
       .then(function(j){ ((j&&j.data)||[]).forEach(function(o){
               var c=(''+(o.prodCd||'')).trim();

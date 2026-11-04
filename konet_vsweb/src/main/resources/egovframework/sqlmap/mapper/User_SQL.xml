@@ -4420,6 +4420,10 @@
 		 WHERE l.ACTION_YN = 'Y'
 		   AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 		<if test="whCd != null and whCd != ''"> AND l.WH_CD = #{whCd} </if>   <!-- 창고 필터(2026-09-16 P3) — 비면 전 창고 합계 -->
+		<!-- 기준일(납기일자) — 넣으면 그날 납기까지만 읽는다(앞날 출고 예정분은 안 뺀다). 비면 종전대로 원장 전체.
+		     2026-11-04 사용자 「납기일 11-04 화면이면 11-04 출고까지만 빠진 재고로」 — 대시보드(납기현황표)가 보고 있는 끝날짜를 넘긴다.
+		     원장 TRX_DT = 납기일자(insertShipoutLedger·정산서 둘 다). 품목별재고현황 selectStockByWh 와 같은 조건 -->
+		<if test="asOfDt != null and asOfDt != ''"> <![CDATA[ AND l.TRX_DT <= REPLACE(#{asOfDt},'-','') ]]> </if>
 		 GROUP BY l.PROD_CD
 	</select>
 
