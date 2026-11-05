@@ -20,6 +20,7 @@ public class StockLedgerDTO {
     private String  toDt;          // 조회 종료일자 — 비영속
     private String  findData;      // 검색어(품목/매입처) — 비영속
     private String  trxDt;         // 거래일자
+    private java.util.List<String> trxDts;   // 거래일자 목록 — 원장 지우기·만들기를 날짜 여러 개 한 번에(2026-11-05 속도). 비면 trxDt 한 날짜
     private String  ioGb;          // 입출구분 I/O/R/A
     private Integer qty;           // 수량(조정은 부호 허용)
     private Double  unitPrice;     // 단가
@@ -56,6 +57,8 @@ public class StockLedgerDTO {
     public String getFindData() { return findData; }
     public void setFindData(String findData) { this.findData = findData; }
     public String getTrxDt() { return trxDt; }
+    public java.util.List<String> getTrxDts() { return trxDts; }
+    public void setTrxDts(java.util.List<String> trxDts) { this.trxDts = trxDts; }
     public void setTrxDt(String trxDt) { this.trxDt = trxDt; }
     public String getIoGb() { return ioGb; }
     public void setIoGb(String ioGb) { this.ioGb = ioGb; }

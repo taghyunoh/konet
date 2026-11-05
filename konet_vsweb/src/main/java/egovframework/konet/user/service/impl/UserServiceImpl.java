@@ -449,7 +449,8 @@ public class UserServiceImpl implements UserService {
 		String user = dto.getRegUser() != null ? dto.getRegUser() : dto.getUpdUser();   // 수정 경로는 upd* 만 채워져 온다
 		String ip   = dto.getRegIp()   != null ? dto.getRegIp()   : dto.getUpdIp();
 		/* 정산서 날짜는 이 상품의 매칭코드·추가 매칭코드가 들어 있는 날만 — 위 패스가 옮기는 행은 그 코드들뿐이다 */
-		extLedgerResync(mapper.selectShipoutDatesByProd(f), mapper.selectSalesDatesByExtProd(f), user, ip);
+		/* ★[2026-11-05 속도] 발주 날짜도 «이 상품의 매칭·추가 코드가 든 날»만 — 상품의 모든 날짜(110일)를 다시 만들어 8~12초 걸리던 것 */
+		extLedgerResync(mapper.selectShipoutDatesByExtProd(f), mapper.selectSalesDatesByExtProd(f), user, ip);
 	}
 	/* ★코드를 «풀었을 때» 되돌리기 — deleteExtItem(품목코드·추가 매칭코드)·updateExtItem(추가 매칭코드를 바꾸거나 지웠을 때)이 같이 쓴다.
 	     그 코드로 채워진 출고·정산 행을 비우고 → 다시 해석(XREF → 남은 매칭 → 추가 매칭 → 코드 직결) → 원장 재생성.
@@ -479,15 +480,36 @@ public class UserServiceImpl implements UserService {
 	     종전에는 발주현황표 날짜만 다시 만들어, 매칭코드를 붙여도 정산서 원장이 옛 코드에 남아
 	     [출고반영 재집계]를 눌러야 주코드로 옮겨졌다. 날짜 단위 삭제+재생성이라 옛 코드 몫도 함께 걷힌다.
 	   ★실패해도 저장·삭제는 롤백하지 않는다(로그만) — [재고 재집계]로 복구된다. */
+	/* ★[2026-11-05 속도] 날짜마다 돌던 것(발주 날짜 3번 · 정산 날짜 6번 왕복, 250일이면 30초)을 날짜 목록으로 한 번에.
+	     한 날짜의 일 순서(syncShipoutLedgerDate · syncSalesLedgerCore)는 그대로 — 발주 원장 걷기 → 정산 원장 걷고 다시 만들기 → 발주 원장 다시 만들기
+	     (insertShipoutLedger 는 정산서가 있는 날엔 토더 줄만 넣는다 — SQL 의 NOT EXISTS) → 현재고 재집계 한 번. 마감 확정월은 목록을 한 번만 읽어 뺀다.
+	     SQL Server 파라미터 한도(2,100) 때문에 500일씩 끊는다. */
 	private void extLedgerResync(java.util.Collection<String> shipDts, java.util.Collection<String> salesDts, String user, String ip) {
 		try {
-			int k = 0;
-			if (shipDts  != null) for (String d : shipDts)  { syncShipoutLedgerDate(d, user, ip); k++; }
-			if (salesDts != null) for (String d : salesDts) { syncSalesLedgerCore(d, null, user, ip); k++; }
-			if (k > 0) recalcStockMstAll(user, ip);
+			java.util.HashSet<String> closed = new java.util.HashSet<String>();
+			java.util.List<String> cl = mapper.selectClosedYmList(); if (cl != null) closed.addAll(cl);
+			java.util.TreeSet<String> sales = new java.util.TreeSet<String>(), all = new java.util.TreeSet<String>();
+			if (salesDts != null) for (String d : salesDts) { String x = d == null ? "" : d.replace("-", "").trim(); if (x.length() >= 8 && !closed.contains(x.substring(0, 6))) { sales.add(x); all.add(x); } }
+			if (shipDts  != null) for (String d : shipDts)  { String x = d == null ? "" : d.replace("-", "").trim(); if (x.length() >= 8 && !closed.contains(x.substring(0, 6))) all.add(x); }
+			if (all.isEmpty()) return;
+			for (java.util.List<String> part : ledgerChunks(all)) { mapper.deleteShipoutLedger(ledgerDts(part, user, ip)); }
+			for (java.util.List<String> part : ledgerChunks(sales)) { egovframework.konet.user.model.StockLedgerDTO d = ledgerDts(part, user, ip); mapper.deleteSalesLedger(d); mapper.insertSalesLedger(d); }
+			if (SHIPOUT_LEDGER_ON) for (java.util.List<String> part : ledgerChunks(all)) { mapper.insertShipoutLedger(ledgerDts(part, user, ip)); }
+			recalcStockMstAll(user, ip);
 		} catch (Exception se) {
 			LOGGER.error(" 매칭코드 재고 재동기화 WARN : " + se.getMessage());
 		}
+	}
+	private static java.util.List<java.util.List<String>> ledgerChunks(java.util.Collection<String> dts) {
+		java.util.List<java.util.List<String>> out = new java.util.ArrayList<java.util.List<String>>();
+		java.util.List<String> cur = null;
+		for (String d : dts) { if (cur == null || cur.size() >= 500) { cur = new java.util.ArrayList<String>(); out.add(cur); } cur.add(d); }
+		return out;
+	}
+	private static egovframework.konet.user.model.StockLedgerDTO ledgerDts(java.util.List<String> dts, String user, String ip) {
+		egovframework.konet.user.model.StockLedgerDTO d = new egovframework.konet.user.model.StockLedgerDTO();
+		d.setTrxDts(dts); d.setRegUser(user); d.setRegIp(ip);
+		return d;
 	}
 	/* 통보서 붙여넣기 — 한 줄씩 MERGE(있으면 갱신·없으면 신규). 한 트랜잭션이라 중간에 실패하면 전부 취소된다. */
 	@Override public int mergeExtItems(java.util.List<egovframework.konet.user.model.ExtItemDTO> list) throws Exception {
@@ -3596,6 +3618,11 @@ public class UserServiceImpl implements UserService {
 	   ⇒ 여기서 만든 «후보» 토큰을 그대로 돌려주면 <틀린다>. 쓴 뒤 다시 읽어 실제로 박힌 값을 돌려준다
 	     (거래명세서 shareSalesTrx 에서 겪은 것과 같은 함정 — 두 번째 보내기가 늘 어긋난다). */
 	/* 견적서 진행 상태·일자 (2026-09-29) — 상태는 W/S/A/R/H 중 하나만. 일자는 숫자 여덟 자리만 남기고, 그 밖은 빈 값(=지움)으로 본다 */
+	/* 견적서 마스터 승인·취소 (2026-11-05) — 권한은 컨트롤러(quoteAppr)가 s_main_gu 로 가른다. 여기서는 값만 다듬는다 */
+	@Override public int approveQuote(java.util.Map<String,Object> p) throws Exception {
+		p.put("apprYn", "Y".equalsIgnoreCase(scStr(p.get("apprYn"))) ? "Y" : "N");
+		return mapper.updateQuoteAppr(p);
+	}
 	@Override public int saveQuoteStat(java.util.Map<String,Object> p) throws Exception {
 		String g = scStr(p.get("statGb")).toUpperCase();
 		p.put("statGb", g.matches("[WSARH]") ? g : "W");

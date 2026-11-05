@@ -806,16 +806,8 @@ function pcFilter(){
   });
   _page=1; pcRender();
 }
-function pcRender(){
-  var tot=_view.length, pages=Math.max(1,Math.ceil(tot/PAGE)); if(_page>pages)_page=pages;
-  document.getElementById('cnt').textContent=tot.toLocaleString()+'건 / 전체 '+LIST.length.toLocaleString()+'건';
-  // ★_sel 은 지우지 않는다 — 매칭코드 등록 후 목록을 다시 그려도 고른 상품이 풀리면 안 된다
-  //   (그 행이 이번 화면에 없으면 아래 복원에서 자연히 표시만 안 된다)
-  var tb=document.getElementById('tb');
-  if(!tot){ tb.innerHTML='<tr><td colspan="17" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1,0); return; }
-  // 펼침(_all)이면 조회된 전 건을 한 번에 — 페이지 버튼 대신 목록 스크롤로 훑는다
-  var from = _all ? 0 : (_page-1)*PAGE, to = _all ? tot : Math.min(from+PAGE, tot);
-  tb.innerHTML=_view.slice(from,to).map(function(o){
+/* 그리드 한 줄 — pcRender 가 전 줄을, pcPatchRows 가 바뀐 줄만 그린다 (2026-11-05 속도 : 매칭코드 등록·삭제 뒤 2,252줄을 통째로 다시 그리던 220~300ms 를 없앰) */
+function pcRowHtml(o){
     var c=(o.taxGb==='면세')?'#2e7d32':'#5a6b7a';
     /* ★이 상품코드가 **다른 주코드의 서브로 등록돼 있으면** 그렇게 적는다 (2026-08-17 요청) —
        매입등록 상품검색과 **같은 모양**(빨간 '서브' 배지 + → 주코드, 아래에 마스터 상품명).
@@ -878,10 +870,40 @@ function pcRender(){
       +'<td class="num">'+num(o.saleBaseQty)+'</td>'
       +'<td>'+esc(o.unitBarcode)+'</td><td>'+esc(o.boxBarcode)+'</td>'
     +'</tr>';
-  }).join('');
+}
+function pcRender(){
+  var tot=_view.length, pages=Math.max(1,Math.ceil(tot/PAGE)); if(_page>pages)_page=pages;
+  document.getElementById('cnt').textContent=tot.toLocaleString()+'건 / 전체 '+LIST.length.toLocaleString()+'건';
+  // ★_sel 은 지우지 않는다 — 매칭코드 등록 후 목록을 다시 그려도 고른 상품이 풀리면 안 된다
+  //   (그 행이 이번 화면에 없으면 아래 복원에서 자연히 표시만 안 된다)
+  var tb=document.getElementById('tb');
+  if(!tot){ tb.innerHTML='<tr><td colspan="17" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1,0); return; }
+  // 펼침(_all)이면 조회된 전 건을 한 번에 — 페이지 버튼 대신 목록 스크롤로 훑는다
+  var from = _all ? 0 : (_page-1)*PAGE, to = _all ? tot : Math.min(from+PAGE, tot);
+  tb.innerHTML=_view.slice(from,to).map(pcRowHtml).join('');
   // 선택행 하이라이트 복원 — 매칭코드를 등록하면 목록을 다시 그리는데, 고른 상품 표시가 풀리면 안 된다
   if(_sel!=null){ var sr=tb.querySelector('tr[data-seq="'+_sel+'"]'); if(sr) sr.classList.add('sel'); }
   _pager(pages,_page,tot,from,to);
+}
+/* ★매칭코드가 바뀐 줄만 바꿔 끼운다 (2026-11-05 속도) — 매칭 건수(_mcCnt)나 서브→주코드 표시(_subOf)가 달라진 상품 줄만.
+     oldCnt·oldSub = 다시 읽기 전 지도(mcIndex 가 새 객체를 만들므로 옛 것은 그대로 남는다). 화면에 없는 줄(다른 페이지)은 건너뛴다. */
+function pcPatchRows(oldCnt, oldSub){
+  var tb=document.getElementById('tb'); if(!tb) return;
+  var seqs={}, k;
+  for(k in _mcCnt){ if((_mcCnt[k]||0)!==(oldCnt[k]||0)) seqs[k]=1; }
+  for(k in oldCnt){ if((_mcCnt[k]||0)!==(oldCnt[k]||0)) seqs[k]=1; }
+  var cds={}, key=function(s){ return s ? (s.prodSeq+'/'+s.prodCd) : ''; };
+  for(k in _subOf){ if(key(_subOf[k])!==key(oldSub[k])) cds[k]=1; }
+  for(k in oldSub){ if(key(_subOf[k])!==key(oldSub[k])) cds[k]=1; }
+  if(Object.keys(cds).length) LIST.forEach(function(o){ if(o.prodCd && cds[String(o.prodCd)]) seqs[o.prodSeq]=1; });
+  var tmp=document.createElement('tbody');
+  for(k in seqs){
+    var tr=tb.querySelector('tr[data-seq="'+k+'"]'), o=_byseq[k];
+    if(!tr || !o) continue;
+    tmp.innerHTML=pcRowHtml(o); var nt=tmp.firstChild; if(!nt) continue;
+    if(tr.classList.contains('sel')) nt.classList.add('sel');
+    tr.parentNode.replaceChild(nt, tr);
+  }
 }
 /* 페이지를 넘기면 목록 맨 위로 — 스크롤이 중간에 있던 채로 다음 장이 그려지면 첫 줄을 놓친다 */
 function _go(p){ _page=p; pcRender(); var c=document.querySelector('.card'); if(c) c.scrollTop=0; }
@@ -1335,10 +1357,11 @@ function mcLoad(keepList){
   fetch(CTX+'/prod/extItemList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
     .then(function(r){ return r.json(); })
     .then(function(j){
+      var oc=_mcCnt||{}, os=_subOf||{};   /* 다시 읽기 전 지도 — 바뀐 줄만 찾으려고 (2026-11-05 속도) */
       MC=(j&&j.data)||[]; mcIndex();
       if(!keepList){
-        // 매칭 필터가 걸려 있으면 목록 자체가 바뀌므로 다시 거른다(그 외에는 보던 페이지 유지)
-        if((document.getElementById('fMc')||{}).value) pcFilter(); else pcRender();
+        // 매칭 필터가 걸려 있으면 목록 자체가 바뀌므로 다시 거른다. 그 외에는 바뀐 줄만 바꿔 끼운다(2,252줄 통째로 다시 그리지 않는다 — 2026-11-05)
+        if((document.getElementById('fMc')||{}).value) pcFilter(); else pcPatchRows(oc, os);
       }
       mcRender();
     })

@@ -1098,6 +1098,7 @@
 	         /* 판(개정) 이력 (2026-10-01 「문서번호 담당자별·날짜별 -NN · 제출완료 뒤 변경은 새 판 · 변경이력 조회」) — DDL docs/sql/20261001_quote_rev.sql
 	            histYn = 앞 판이 있거나(PREV_SEQ) 뒤 판이 있으면(누가 나를 PREV_SEQ 로) — 목록 [📜 이력] 단추를 낼지. latestYn = 사슬의 최신 판이면 Y(목록 기본은 Y 만) */
 	         ISNULL(m.DOC_BASE,'') AS docBase, ISNULL(m.REV_NO,1) AS revNo, m.PREV_SEQ AS prevSeq, ISNULL(m.LATEST_YN,'Y') AS latestYn,
+	         ISNULL(m.APPR_YN,'N') AS apprYn, ISNULL(m.APPR_DTTM,'') AS apprDttm, ISNULL(m.APPR_USER,'') AS apprUser,   /* 마스터 승인 (2026-11-05) — DDL docs/sql/20261105_quote_appr.sql */
 	         ISNULL(m.REV_MEMO,'') AS revMemo, ISNULL(m.REV_DTTM,'') AS revDttm, ISNULL(m.REV_USER,'') AS revUser,
 	         /* 작성 중 덮어쓰기(같은 번호·담당자의 옛 줄 N)도 이력이다 (2026-10-01 「1번으로 진행」) — 그것만 있어도 단추를 낸다 */
 	         CASE WHEN m.PREV_SEQ IS NOT NULL OR EXISTS (SELECT 1 FROM TBL_QUOTE_MST c WHERE c.PREV_SEQ = m.QUOTE_SEQ AND c.ACTION_YN = 'Y')
@@ -1226,6 +1227,7 @@
 	         ISNULL(VALID_TXT,'') AS validTxt, ISNULL(TITLE_TXT,'') AS titleTxt, ISNULL(REMARK,'') AS remark, ISNULL(SUPPLY_AMT,0) AS supplyAmt,
 	         ISNULL(PRICE1_NM,'') AS price1Nm, ISNULL(PRICE2_NM,'') AS price2Nm, ISNULL(CALC_JSON,'') AS calcJson, ISNULL(FILE_NM,'') AS fileNm, ISNULL(REG_USER,'') AS regUser, REG_DTTM AS regDttm,
 	         SHARE_TOKEN AS shareToken, ISNULL(SHARE_CNT,0) AS shareCnt, LAST_SHARE_DTTM AS lastShareDttm,   <!-- 카톡 공유 (2026-09-28) -->
+	         ISNULL(APPR_YN,'N') AS apprYn, ISNULL(APPR_DTTM,'') AS apprDttm, ISNULL(APPR_USER,'') AS apprUser,   <!-- 마스터 승인 (2026-11-05) -->
 	         ISNULL(NULLIF(STAT_GB,''),'W') AS statGb, ISNULL(SUBMIT_DT,'') AS submitDt, ISNULL(ADOPT_DT,'') AS adoptDt,
 	         ISNULL(REJECT_DT,'') AS rejectDt, ISNULL(HOLD_DT,'') AS holdDt, ISNULL(STAT_MEMO,'') AS statMemo,   <!-- 진행 상태 (2026-09-29) -->
 	         ISNULL(NULLIF(START_DT,''), LEFT(REPLACE(ISNULL(REG_DTTM,''),'-',''),8)) AS startDt,
@@ -1272,12 +1274,24 @@
 	   WHERE QUOTE_SEQ = #{quoteSeq} AND ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
+	<!-- ★마스터 승인 (2026-11-05 「카톡공유 마스터 승인없이 못올라게」) — 총괄관리자만 부른다(컨트롤러 quoteAppr 가 s_main_gu 로 가른다).
+	     'Y' 면 승인한 때·사람을 적고, 그 외('N')면 비운다(승인 취소). -->
+	<update id="updateQuoteAppr" parameterType="java.util.Map"><![CDATA[
+	  UPDATE TBL_QUOTE_MST
+	     SET APPR_YN   = CASE WHEN #{apprYn,jdbcType=VARCHAR} = 'Y' THEN 'Y' ELSE 'N' END,
+	         APPR_DTTM = CASE WHEN #{apprYn,jdbcType=VARCHAR} = 'Y' THEN CONVERT(VARCHAR(19), GETDATE(), 120) ELSE NULL END,
+	         APPR_USER = CASE WHEN #{apprYn,jdbcType=VARCHAR} = 'Y' THEN #{apprUser,jdbcType=NVARCHAR} ELSE NULL END,
+	         UPD_DTTM  = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{apprUser,jdbcType=NVARCHAR}, UPD_IP = #{apprIp,jdbcType=VARCHAR}
+	   WHERE QUOTE_SEQ = #{quoteSeq} AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
 	<update id="updateQuoteShare" parameterType="java.util.Map"><![CDATA[
 	  UPDATE TBL_QUOTE_MST
 	     SET SHARE_TOKEN     = ISNULL(SHARE_TOKEN, #{shareToken,jdbcType=NVARCHAR}),
 	         SHARE_CNT       = ISNULL(SHARE_CNT,0) + 1,
 	         LAST_SHARE_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120)
 	   WHERE QUOTE_SEQ = #{quoteSeq} AND ACTION_YN = 'Y'
+	     AND ISNULL(APPR_YN,'N') = 'Y'   /* ★마스터 승인된 견적서만 공개 주소를 발급 (2026-11-05) — 화면·컨트롤러를 건너뛰어도 여기서 막힌다 */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 	<!-- ★공개 견적서 — 토큰이 곧 열쇠다. 로그인이 없어 compCd 가 비므로 **빈 토큰은 반드시 거절**한다
@@ -4567,7 +4581,7 @@
 	<!-- (A) 출고→원장 자동연동 : 특정 출고일자의 SHIPOUT 파생 O행 삭제(재동기화용) -->
 	<delete id="deleteShipoutLedger" parameterType="egovframework.konet.user.model.StockLedgerDTO"><![CDATA[
 	  DELETE FROM TBL_STOCK_LEDGER
-	   WHERE REF_GB = 'SHIPOUT' AND REF_NO = REPLACE(ISNULL(#{trxDt},''),'-','')
+	   WHERE REF_GB = 'SHIPOUT' ]]><choose><when test="trxDts != null and trxDts.size() > 0"> AND REF_NO IN <foreach collection="trxDts" item="d" open="(" separator="," close=")">#{d}</foreach></when><otherwise> AND REF_NO = REPLACE(ISNULL(#{trxDt},''),'-','')</otherwise></choose><![CDATA[   /* 날짜 목록이면 IN (2026-11-05 속도) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></delete>
 
@@ -4601,7 +4615,7 @@
 	   WHERE s.ACTION_YN = 'Y' AND ISNULL(s.PROD_CD,'') <> '' AND ISNULL(s.DLV_GB,'') <> 'DSFEE'   /* 대상 발주는 다시 재고 주인(2026-10-27 「대상 발주 등록을 매출 주인으로」) — 택배비(로젠) 줄만 뺀다(서비스 품목, 재고 없음) */
 	     AND ISNULL(s.DS_TRX_GB,'') <> N'반품'   /* 대상 반품 줄은 아래 두 번째 INSERT 에서 입고(R)로 (2026-10-27) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	     AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) = REPLACE(ISNULL(#{trxDt},''),'-','')
+	     ]]><choose><when test="trxDts != null and trxDts.size() > 0"> AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) IN <foreach collection="trxDts" item="d" open="(" separator="," close=")">#{d}</foreach></when><otherwise> AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) = REPLACE(ISNULL(#{trxDt},''),'-','')</otherwise></choose><![CDATA[
 	     /* 그 납기일자에 정산서가 있으면 발주현황표는 읽지 않는다 — 정산서가 출고의 주인이다
 	        ★토더 발주(PROD_KIND='TD', 2026-09-21 「토더도 재고 맞추어 주고, 정산서는 협의 후」)는 예외 — 그 정산서(삼성웰스토리)에는 토더 출고가 없으므로
 	          정산서가 있는 날에도 토더 줄은 늘 재고에서 뺀다. 토더의 정산서 처리는 아직 정하지 않았다. */
@@ -4626,7 +4640,7 @@
 	   WHERE s.ACTION_YN = 'Y' AND ISNULL(s.PROD_CD,'') <> '' AND s.PROD_KIND = 'TD' AND s.DC_CD = 'DAESANG' AND ISNULL(s.DLV_GB,'') <> 'DSFEE'
 	     AND ISNULL(s.DS_TRX_GB,'') = N'반품'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	     AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) = REPLACE(ISNULL(#{trxDt},''),'-','')
+	     ]]><choose><when test="trxDts != null and trxDts.size() > 0"> AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) IN <foreach collection="trxDts" item="d" open="(" separator="," close=")">#{d}</foreach></when><otherwise> AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) = REPLACE(ISNULL(#{trxDt},''),'-','')</otherwise></choose><![CDATA[
 	   GROUP BY s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), dcw.WH_CD
 	  HAVING SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) + ISNULL(s.DS_SVC_QTY,0)) > 0
 	]]></insert>
@@ -4674,7 +4688,7 @@
 	<!-- (B) 정산서→원장 : 특정 납품일자의 SALES 파생행 삭제(재동기화용) -->
 	<delete id="deleteSalesLedger" parameterType="egovframework.konet.user.model.StockLedgerDTO"><![CDATA[
 	  DELETE FROM TBL_STOCK_LEDGER
-	   WHERE REF_GB = 'SALES' AND REF_NO = REPLACE(ISNULL(#{trxDt},''),'-','')
+	   WHERE REF_GB = 'SALES' ]]><choose><when test="trxDts != null and trxDts.size() > 0"> AND REF_NO IN <foreach collection="trxDts" item="d" open="(" separator="," close=")">#{d}</foreach></when><otherwise> AND REF_NO = REPLACE(ISNULL(#{trxDt},''),'-','')</otherwise></choose><![CDATA[   /* 날짜 목록이면 IN (2026-11-05 속도) */
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></delete>
 
@@ -4700,7 +4714,7 @@
 	     AND dcw.DC_CD = ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[
 	       WHERE s.ACTION_YN = 'Y' AND s.PROD_SEQ IS NOT NULL
 	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	         AND s.DLV_DT = REPLACE(ISNULL(#{trxDt},''),'-','')
+	         ]]><choose><when test="trxDts != null and trxDts.size() > 0"> AND s.DLV_DT IN <foreach collection="trxDts" item="d" open="(" separator="," close=")">#{d}</foreach></when><otherwise> AND s.DLV_DT = REPLACE(ISNULL(#{trxDt},''),'-','')</otherwise></choose><![CDATA[
 	       GROUP BY s.COMP_CD, s.PROD_SEQ, s.DLV_DT, dcw.WH_CD
 
 	      UNION ALL
@@ -4723,7 +4737,7 @@
 	       WHERE s.ACTION_YN = 'Y' AND s.PROD_SEQ IS NOT NULL
 	         AND ISNULL(s.DLV_TYPE,'') = 'X'
 	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	         AND s.DLV_DT = REPLACE(ISNULL(#{trxDt},''),'-','')
+	         ]]><choose><when test="trxDts != null and trxDts.size() > 0"> AND s.DLV_DT IN <foreach collection="trxDts" item="d" open="(" separator="," close=")">#{d}</foreach></when><otherwise> AND s.DLV_DT = REPLACE(ISNULL(#{trxDt},''),'-','')</otherwise></choose><![CDATA[
 	       GROUP BY s.COMP_CD, s.PROD_SEQ, s.DLV_DT, dcw.WH_CD
 	    ) d
 	   WHERE d.QTY > 0
@@ -6243,11 +6257,12 @@
 	     되돌린 뒤 다시 해석(resolve)하고 재고를 다시 만든다.
 	     되돌릴 출고일자는 지우기 '전에' 받아 둬야 한다 — 지운 뒤에는 찾을 수 없다. -->
 	<select id="selectShipoutDatesByExtCd" parameterType="egovframework.konet.user.model.ProdXrefDTO" resultType="string"><![CDATA[
-	  SELECT DISTINCT s.SHPOUT_DT
+	  -- ★[2026-11-05] 원장 키 = 납기일자(2026-09-03 부터) — 출고일자(SHPOUT_DT)를 돌려주면 김해처럼 하루 먼저 나간 건은 엉뚱한 날짜를 다시 만들었다
+	  SELECT DISTINCT ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS D
 	    FROM TBL_SHIPOUT_MST s
 	   WHERE s.ACTION_YN='Y' AND s.ITEM_CD = #{extItemCd} AND ISNULL(s.SHPOUT_DT,'') <> ''
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	   ORDER BY s.SHPOUT_DT
+	   ORDER BY D
 	]]></select>
 
 	<!-- 정산서 쪽 날짜 (2026-09-13) — 재고의 원천이 정산서라, 매칭코드를 풀거나 붙이면 이 날짜의 정산서 원장을 다시 만든다.
@@ -6273,6 +6288,22 @@
 	                         WHERE e.ACTION_YN='Y' AND e.PROD_SEQ = #{prodSeq} AND e.COMP_CD = s.COMP_CD
 	                           AND e.ADD_ITEM_CD IS NOT NULL )
 	   ORDER BY s.DLV_DT
+	]]></select>
+
+	<!-- 한 상품의 매칭코드·추가 매칭코드가 들어 있는 발주 납기일자 (2026-11-05 속도) — 소급 반영(extItemRetro)이 옮기는 행은 이 코드들뿐이라
+	     상품의 모든 날짜(selectShipoutDatesByProd · 110일)를 다시 만들 일이 없다. 정산서 쪽 selectSalesDatesByExtProd 와 짝 -->
+	<select id="selectShipoutDatesByExtProd" parameterType="egovframework.konet.user.model.ProdXrefDTO" resultType="string"><![CDATA[
+	  SELECT DISTINCT ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS D
+	    FROM TBL_SHIPOUT_MST s
+	   WHERE s.ACTION_YN='Y' AND ISNULL(s.SHPOUT_DT,'') <> ''
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND s.ITEM_CD IN ( SELECT e.EXT_ITEM_CD FROM TBL_EXT_ITEM_MST e
+	                         WHERE e.ACTION_YN='Y' AND e.PROD_SEQ = #{prodSeq} AND e.COMP_CD = s.COMP_CD
+	                        UNION
+	                        SELECT e.ADD_ITEM_CD FROM TBL_EXT_ITEM_MST e
+	                         WHERE e.ACTION_YN='Y' AND e.PROD_SEQ = #{prodSeq} AND e.COMP_CD = s.COMP_CD
+	                           AND e.ADD_ITEM_CD IS NOT NULL )
+	   ORDER BY D
 	]]></select>
 
 	<update id="clearShipoutProdByExtCd" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[

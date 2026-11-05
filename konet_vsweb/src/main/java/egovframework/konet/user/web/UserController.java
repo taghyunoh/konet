@@ -1207,6 +1207,8 @@ public class UserController {
 			/* 카톡 공유 (2026-09-28) — 발주서(poReg)와 같은 설정(kakao.properties). 키가 비면 화면이 「링크 복사」로 물러선다 */
 			model.addAttribute("kakaoJsKey", poProp("kakao.js.key"));
 			model.addAttribute("shareBase", poShareBase(request));
+			/* 관리자 승인 (2026-11-05) — 총괄관리자(s_main_gu '1')만 [✔ 승인] 단추를 본다. 마지막 문은 quoteAppr·quoteShare 가 다시 본다 */
+			model.addAttribute("isMaster", leaveAdmin(session) ? "Y" : "N");
 			return ".raw/main/mangr/quoteMng";
 		}
 		@SuppressWarnings("unchecked")
@@ -1500,11 +1502,39 @@ public class UserController {
 		public Map<String,Object> quoteShare(@RequestParam("quoteSeq") long quoteSeq, HttpServletRequest request, HttpSession session) throws Exception {
 			Map<String,Object> res = new HashMap<String,Object>();
 			if (session.getAttribute("s_comp_cd") == null) { res.put("result", "FAIL"); res.put("login", "N"); return res; }
+			/* ★관리자 승인 전이면 공개 주소를 내주지 않는다 (2026-11-05 「카톡공유 관리자 승인없이 못올라게」) — 화면이 먼저 막지만 마지막 문은 여기(+ updateQuoteShare WHERE) */
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("quoteSeq", Long.valueOf(quoteSeq));
+			Map<String,Object> mst = svc.selectQuoteMst(q);
+			if (mst == null) { res.put("result", "FAIL"); res.put("message", "견적서를 찾을 수 없습니다."); return res; }
+			if (!"Y".equals(poStr(mst.get("apprYn")))) { res.put("result", "FAIL"); res.put("code", "NOAPPR"); res.put("message", "관리자(총괄관리자) 승인 전입니다 — 승인된 견적서만 카톡 공유·링크 복사가 됩니다."); return res; }
 			String token = svc.shareQuote(quoteSeq, String.valueOf(session.getAttribute("s_comp_cd")));
 			if (token == null || token.isEmpty()) { res.put("result", "FAIL"); res.put("message", "견적서를 찾을 수 없습니다."); return res; }
 			res.put("result", "OK");
 			res.put("url", poShareBase(request) + "/pub/quote.do?t=" + token);
 			return res;
+		}
+		/* 견적서 관리자 승인·취소 (2026-11-05 「카톡공유 관리자 승인없이 못올라게」) — 총괄관리자(s_main_gu '1')만. body = { quoteSeq, apprYn:'Y'|'N' } */
+		@RequestMapping(value="/mangr/quoteAppr.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> quoteAppr(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session,
+		                                    javax.servlet.http.HttpServletResponse response) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { response.setStatus(401); res.put("error", "로그인이 필요합니다."); return res; }
+				if (!leaveAdmin(session)) { response.setStatus(403); res.put("error", "견적서 승인은 관리자(총괄관리자)만 할 수 있습니다."); return res; }
+				long seq = Math.round(poNum(body.get("quoteSeq")));
+				if (seq <= 0) { response.setStatus(400); res.put("error", "견적서를 고르세요."); return res; }
+				Map<String,Object> p = new HashMap<String,Object>();
+				p.put("quoteSeq", Long.valueOf(seq)); p.put("compCd", session.getAttribute("s_comp_cd"));
+				p.put("apprYn", poStr(body.get("apprYn")));
+				p.put("apprUser", session.getAttribute("s_user_id") == null ? "" : String.valueOf(session.getAttribute("s_user_id")));
+				p.put("apprIp", request.getRemoteAddr());
+				int n = svc.approveQuote(p);
+				if (n == 0) { response.setStatus(404); res.put("error", "견적서를 찾을 수 없습니다."); return res; }
+				res.put("result", "OK"); res.put("apprYn", p.get("apprYn")); res.put("apprUser", p.get("apprUser"));
+				res.put("apprDttm", new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date()));
+				return res;
+			} catch (Exception e) { log.error(" quoteAppr ERROR : " + e.getMessage()); response.setStatus(500); res.put("error", e.getMessage()); return res; }
 		}
 		/* 견적서 엑셀 (2026-09-17 「엑셀로 출력은 양식 그대로」) — 우리 양식 파일(quote_tpl1/2.xls)에 값만 채워 내려준다. 파일 이름 = 문서번호.xls */
 		@RequestMapping(value="/mangr/quoteExcel.do")

@@ -189,7 +189,7 @@
         <button class="btn" style="border-color:#137a6c;color:#137a6c;font-weight:800" onclick="upOpen()" title="우리가 낸 견적서 엑셀(xls/xlsx)을 올립니다 — 여러 개를 한 번에. 고르면 위에 미리보기가 펼쳐지고 [💾 저장]으로 넣습니다">📥 견적서 올리기</button>
         <button class="btn" style="border-color:#137a6c;color:#137a6c" onclick="cmpOpen()" title="체크한 견적서(없으면 목록 전체)를 품명 × 견적서 행렬로 비교합니다 — 단가 변동·최저·최고">📊 견적 비교</button>
         <%-- 카톡 공유 (2026-09-28) — ★줄마다 단추를 두면 표가 복잡해져 «체크한 줄»에 대해 도구줄에서 보낸다([선택 삭제]와 같은 방식) --%>
-        <button class="btn" style="border-color:#f3c200;background:#fff8dd;color:#7a5c00;font-weight:800" onclick="quoteKakao()" title="체크한 견적서 하나를 카카오톡으로 보냅니다 — 받는 쪽은 로그인 없이 견적서를 보고 인쇄·PDF 저장까지 합니다">💬 카톡 공유</button>
+        <button class="btn" style="border-color:#f3c200;background:#fff8dd;color:#7a5c00;font-weight:800" onclick="quoteKakao()" title="체크한 견적서 하나를 카카오톡으로 보냅니다 — 받는 쪽은 로그인 없이 견적서를 보고 인쇄·PDF 저장까지 합니다. ★관리자(총괄관리자)가 승인한 견적서만 보낼 수 있습니다">💬 카톡 공유</button>
         <button class="btn" onclick="quoteLink()" title="체크한 견적서의 공개 주소만 복사합니다 — 카톡·문자·메일 어디에나 붙여 넣을 수 있습니다">🔗 링크 복사</button>
         <%-- 📜 이력 (2026-10-01 「출력에 이력 버튼 추가로 복잡한 — 카톡 공유처럼 하나 선택 후 버튼으로」) — 줄마다 두던 단추를 도구줄로 옮겼다. 체크한 줄 하나의 변경 이력(판·덮어쓰기) --%>
         <button class="btn" style="border-color:#2f4f9a;color:#2f4f9a;font-weight:800" onclick="quoteHist()" title="체크한 견적서 하나의 변경 이력 — 판마다 문서번호·상태·금액·변경 사유, 작성 중 덮어쓰기까지. 이력 줄을 누르면 그때 품목 세부내역">📜 이력</button>
@@ -202,9 +202,9 @@
       <table class="g">
         <thead><tr>
           <th><input type="checkbox" id="lsAll" onchange="lsAllChk(this)"></th>
-          <th>견적일</th><th>문서번호</th><th title="눌러서 제출완료·채택·거절·보류와 그 일자를 넣습니다 · 작성 기간 = 작성 시작일부터 제출완료일까지">진행</th><th>수신</th><th>담당자</th><th>품목</th><th>줄</th><th>금액(부가세 별도)</th><th>유효기간</th><th>원본</th><th title="A4 견적서 양식 인쇄 · 저장된 원가·마진 계산 조회">출력</th><th title="견적서 작성 화면에서 수정">수정</th><th>등록</th>
+          <th>견적일</th><th>문서번호</th><th title="눌러서 제출완료·채택·거절·보류와 그 일자를 넣습니다 · 작성 기간 = 작성 시작일부터 제출완료일까지">진행</th><th title="관리자(총괄관리자) 승인 — 승인된 견적서만 카톡 공유·링크 복사가 됩니다. 고쳐 저장하면 새 판이라 승인이 풀립니다">승인</th><th>수신</th><th>담당자</th><th>품목</th><th>줄</th><th>금액(부가세 별도)</th><th>유효기간</th><th>원본</th><th title="A4 견적서 양식 인쇄 · 저장된 원가·마진 계산 조회">출력</th><th title="견적서 작성 화면에서 수정">수정</th><th>등록</th>
         </tr></thead>
-        <tbody id="lsBody"><tr><td colspan="14" class="empty">조회 중…</td></tr></tbody>
+        <tbody id="lsBody"><tr><td colspan="15" class="empty">조회 중…</td></tr></tbody>
       </table>
     </div>
     <%-- 진행 상태 창 (2026-09-29) --%>
@@ -241,6 +241,7 @@
 <script>
 var CTX='${pageContext.request.contextPath}';
 var KAKAO_KEY='${kakaoJsKey}', SHARE_BASE='${shareBase}';   /* 카톡 공유 (2026-09-28) — 발주서와 같은 kakao.properties */
+var IS_MASTER=('${isMaster}'==='Y');   /* 총괄관리자 — 견적서 [✔ 승인] (2026-11-05 「카톡공유 관리자 승인없이 못올라게」). 서버(quoteAppr·quoteShare)가 다시 본다 */
 /* 목록 높이 막대 (2026-10-01 「여기도 막대로 축소확대 기능」) — 발주서 목록과 같은 꼴(막대 = 표 상자 바로 뒤) · 보관 이름 konetGridH.quoteMngList · 더블클릭 = 처음(CSS max-height 46vh) */
 if(window.konetGridGrip) konetGridGrip('lsWrap', 'lsWrap', 'quoteMngList');
 if(window.konetPopDrag) konetPopDrag('.rvpop', '.dh');   /* 변경 이력 팝업 — 제목줄을 잡고 끈다 · 자리 localStorage konetPopPos.rvWrap · 더블클릭 = 가운데 */
@@ -386,7 +387,7 @@ function docShow(nm){
 /* ── 목록 ── */
 function load(){
   var fr=document.getElementById('fr').value, to=document.getElementById('to').value, mgr=document.getElementById('mgr').value.trim(), q=document.getElementById('q').value.trim();
-  var tb=document.getElementById('lsBody'); tb.innerHTML='<tr><td colspan="14" class="empty">조회 중…</td></tr>';
+  var tb=document.getElementById('lsBody'); tb.innerHTML='<tr><td colspan="15" class="empty">조회 중…</td></tr>';
   _sel=null; document.getElementById('dtlWrap').hidden=true;
   /* 다시 조회(저장·삭제 뒤 포함)하면 아래 비교 표·원본 보기·상세도 접는다 (2026-09-17 「선택 삭제하면 아래도 없어지게」) — 지운 견적서가 비교 표에 남지 않게 */
   _cmp=null; var _cw=document.getElementById('cmpWrap'); if(_cw){ _cw.hidden=true; _cw.innerHTML=''; }
@@ -396,7 +397,7 @@ function load(){
   post('/mangr/quoteList.do','frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)+'&mgrNm='+encodeURIComponent(mgr)+'&findData='+encodeURIComponent(q)+'&statGb='+encodeURIComponent((document.getElementById('stf')||{}).value||'')+'&inclOld='+((document.getElementById('inclOld')||{}).checked?'Y':''))
     .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return JSON.parse(t); }); })
     .then(function(j){ _ls=(j&&j.data)||[]; lsRender(); if(_pv.length) pvRender(); })
-    .catch(function(e){ tb.innerHTML='<tr><td colspan="14" class="empty" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
+    .catch(function(e){ tb.innerHTML='<tr><td colspan="15" class="empty" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
 }
 /* ── 진행 상태 (2026-09-29 「제출완료·채택·거절·보류 각 항목에 대한 일자 관리」·「작성하기 시작해서 끝나는데 며칠 걸리는지」) ──
      상태 = W 작성 중 · S 제출완료 · A 채택 · R 거절 · H 보류. 일자는 항목마다 따로 남는다(제출 뒤 채택이면 둘 다 남는다).
@@ -496,7 +497,7 @@ function linCell(x,i){
 function lsRender(){
   var tb=document.getElementById('lsBody');
   document.getElementById('lsAll').checked=false;
-  if(!_ls.length){ tb.innerHTML='<tr><td colspan="14" class="empty">조건에 맞는 견적서가 없습니다.</td></tr>'; document.getElementById('lsTot').innerHTML=''; return; }
+  if(!_ls.length){ tb.innerHTML='<tr><td colspan="15" class="empty">조건에 맞는 견적서가 없습니다.</td></tr>'; document.getElementById('lsTot').innerHTML=''; return; }
   var amt=0;
   tb.innerHTML=_ls.map(function(x,i){
     amt+=n(x.supplyAmt);
@@ -510,7 +511,7 @@ function lsRender(){
         +(x.hasFile==='Y'?'<span class="bd up" title="엑셀 파일을 올려 저장한 견적서 ('+esc(x.fileNm)+')">올림</span>':'<span class="bd hand" title="견적서 작성 화면에서 직접 작성한 견적서(올린 파일 없음)">✍ 직접 작성</span>')
         /* 카톡으로 보낸 적이 있으면 작은 표시만 (2026-09-28 — 줄에 단추를 두지 않는 대신) */
         +(n(x.shareCnt)?'<span class="dim" style="font-size:11px;margin-left:6px" title="카톡·링크로 '+n(x.shareCnt)+'회 보냈습니다'+(x.lastShareDttm?' · 마지막 '+esc(String(x.lastShareDttm).slice(0,16)):'')+'">💬'+n(x.shareCnt)+'</span>':'')
-        +'</td><td style="white-space:nowrap">'+stCell(x,i)+'</td><td>'+esc(x.recvNm)+'</td><td>'+esc(x.mgrNm)+'</td>'
+        +'</td><td style="white-space:nowrap">'+stCell(x,i)+'</td><td style="white-space:nowrap">'+apprCell(x,i)+'</td><td>'+esc(x.recvNm)+'</td><td>'+esc(x.mgrNm)+'</td>'
       /* ★품명비(동판비·목형비)는 이름 + 갈래를 함께 보여 준다 (2026-09-20 「여기에도 동판·목형 보이게」·「적용 안 함·원가 포함·별도 청구 표시」) — 서버 feeNms(옛 서버면 빈 값) */
       +'<td class="l" style="max-width:320px">'+(x.firstCd?'<span style="color:#0f6b5e;font-weight:700;font-size:12px;margin-right:6px" title="첫 줄의 우리 상품코드'+(n(x.cdCnt)>1?' · 상품코드가 든 줄 '+n(x.cdCnt)+'개':'')+'">'+esc(x.firstCd)+'</span>':(n(x.cdCnt)?'<span style="color:#0f6b5e;font-weight:700;font-size:12px;margin-right:6px" title="상품코드가 든 줄 '+n(x.cdCnt)+'개(첫 줄에는 없음)">코드 '+n(x.cdCnt)+'줄</span>':''))+esc(x.firstNm)+(n(x.lineCnt)>1?' <span class="dim">외 '+(n(x.lineCnt)-1)+'</span>':'')
         +(x.feeNms?'<div class="dim" style="font-size:11.5px;margin-top:2px">🧷 '+esc(x.feeNms)+'</div>':'')+'</td>'
@@ -560,12 +561,52 @@ function quoteHist(){
   if(i<0){ _alertBox('이력을 볼 견적서를 <b>체크하거나 줄을 눌러</b> 고르세요.',{icon:'ℹ️'}); return; }
   revView(i);
 }
+/* ── ✔ 관리자 승인 (2026-11-05 「견적서 카톡공유 관리자 승인없이 못올라게」) ──
+   카톡 공유·링크 복사(공개 주소 발급)는 총괄관리자가 승인한 견적서만. 줄의 「승인」 칸 = 승인됨(언제·누가) / 마스터면 [✔ 승인] 단추 / 아니면 「미승인」.
+   마스터가 미승인 견적서를 보내려 하면 「승인하고 보내기」를 묻는다. 마지막 문은 서버(quoteShare.do · updateQuoteShare)라 화면을 건너뛰어도 막힌다.
+   고쳐 저장하면 새 줄(새 QUOTE_SEQ)이라 승인이 저절로 풀린다 — 승인한 내용 그대로만 나간다. */
+function apprCell(x,i){
+  if(x.apprYn==='Y'){
+    return '<span class="bd" style="background:#e3f2ee;color:#0f6b5e;font-weight:800" title="관리자 승인 '+esc(String(x.apprDttm||'').slice(0,16))+(x.apprUser?' · '+esc(x.apprUser):'')+'">✔ 승인</span>'
+      +(IS_MASTER?' <a href="javascript:;" class="dim" style="font-size:11px;margin-left:4px" onclick="event.stopPropagation(); quoteAppr('+i+',\'N\')" title="승인을 거둡니다 — 그 뒤로는 카톡 공유·링크 복사가 막힙니다(이미 보낸 링크는 그대로)">취소</a>':'');
+  }
+  /* 마스터의 미승인 줄 = 「미승인」 단추(누르면 승인) — 2026-11-05 사용자 「승인을 미승인으로」: 단추 글자가 지금 상태를 말해야 한다 */
+  if(IS_MASTER) return '<button class="btn lnk" style="border-color:#b45309;color:#b45309;font-weight:800" onclick="event.stopPropagation(); quoteAppr('+i+',\'Y\')" title="아직 승인 전 — 누르면 승인합니다(승인 뒤 카톡 공유·링크 복사가 됩니다)">미승인</button>';
+  return '<span class="dim" style="font-size:12px" title="관리자(총괄관리자) 승인 전 — 승인되면 카톡 공유·링크 복사가 됩니다">미승인</span>';
+}
+function quoteAppr(i, yn){
+  var x=_ls[i]; if(!x) return Promise.resolve(false);
+  return post('/mangr/quoteAppr.do',{ quoteSeq:x.quoteSeq, apprYn:yn },true)
+    .then(function(r){ return r.text().then(function(t){ var j={}; try{ j=JSON.parse(t||'{}'); }catch(e){} if(!r.ok) throw new Error(j.error||t||('HTTP '+r.status)); return j; }); })
+    .then(function(j){
+      x.apprYn=j.apprYn||yn; x.apprDttm=j.apprDttm||''; x.apprUser=j.apprUser||'';
+      lsRender();
+      _toast&&_toast((yn==='Y'?'✔ 승인 — ':'승인 취소 — ')+(x.docNo||''),'success');
+      return true;
+    })
+    .catch(function(e){ _alertBox(esc(e.message),{icon:'⚠️', okColor:'red'}); return false; });
+}
 function quoteShareUrl(i){
   var x=_ls[i]; if(!x) return Promise.reject(new Error('견적서를 찾지 못했습니다.'));
+  /* 승인 관문 — 승인 전이면 누구든 막는다 (2026-11-05 사용자 「승인 안 되었으면 카톡 공유 안 되게」 — 마스터도 줄의 [미승인]을 눌러 승인한 뒤에 보낸다.
+     처음엔 관리자에게 「승인하고 바로 보낼까요?」를 물었는데 같은 날 이것으로 바꿨다) */
+  if(x.apprYn!=='Y'){
+    /* ⚠글만 — 받는 쪽(quoteKakao·quoteLink 의 catch)이 esc() 로 감싸 보여 주므로 HTML 을 넣으면 태그가 그대로 찍힌다 (2026-11-05 실제 발생) */
+    /* 마스터가 아니면 「승인이 안 되었다 + 승인 요청하세요」 (2026-11-05 사용자 지시) */
+    var err=new Error(IS_MASTER
+      ? ('승인 전 견적서는 카톡 공유·링크 복사가 안 됩니다 — '+(x.docNo||'')+' · 줄의 [미승인]을 눌러 승인한 뒤 보내세요.')
+      : ('이 견적서는 아직 관리자 승인이 안 되었습니다 — '+(x.docNo||'')+' · 관리자(총괄관리자)에게 승인 요청하세요.'));
+    /* 알림창용 꾸민 글(html) — quoteKakao·quoteLink 의 catch 가 e.html 이 있으면 그대로, 없으면 esc(e.message) 로 보여 준다 */
+    err.html=IS_MASTER
+      ? ('<b>승인 전</b> 견적서는 카톡 공유·링크 복사가 안 됩니다 — '+esc(x.docNo||'')+'<br><span style="font-size:12.5px;color:#3d4d5c">줄의 [미승인]을 눌러 승인한 뒤 보내세요.</span>')
+      : ('<b>이 견적서는 아직 관리자 승인이 안 되었습니다</b><br>'+esc(x.docNo||'')+'<br><span style="font-size:13.5px">관리자(총괄관리자)에게 <b>승인 요청</b>하세요.</span><br><span style="font-size:12.5px;color:#3d4d5c">승인된 뒤에 카톡 공유·링크 복사가 됩니다.</span>');
+    return Promise.reject(err);
+  }
   return post('/mangr/quoteShare.do','quoteSeq='+encodeURIComponent(x.quoteSeq))
     .then(function(r){ return r.json(); })
     .then(function(j){
       if(j&&j.login==='N') throw new Error('로그인이 끊겼습니다 — 다시 로그인한 뒤 눌러 주세요.');
+      if(j&&j.code==='NOAPPR'){ x.apprYn='N'; lsRender(); }   /* 다른 사람이 승인을 거둔 경우 — 줄 표시도 맞춘다 (2026-11-05) */
       if(!j||j.result!=='OK'||!j.url) throw new Error((j&&j.message)||'공유 주소를 만들지 못했습니다.');
       x.shareCnt=n(x.shareCnt)+1; x.lastShareDttm=new Date().toISOString().slice(0,16).replace('T',' ');
       return j.url;
@@ -587,7 +628,7 @@ function quoteLink(){
       +'<br><span style="font-size:11.5px;color:#6b7a89;word-break:break-all">'+esc(u)+'</span>',{icon:'🔗'}); lsRender(); };
     if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(done, function(){ prompt('아래 주소를 복사하세요', u); lsRender(); });
     else { prompt('아래 주소를 복사하세요', u); lsRender(); }
-  }).catch(function(e){ _alertBox(esc(e.message),{icon:'⚠️', okColor:'red'}); });
+  }).catch(function(e){ _alertBox(e.html||esc(e.message),{icon:'⚠️', okColor:'red'}); });
 }
 function quoteKakao(){
   var i=quotePick(); if(i<0) return;
@@ -615,7 +656,7 @@ function quoteKakao(){
       quoteHistLog(i,'KAKAO',{shareUrl:u, trackKey:tg.k, resultGb:'FAIL', errMsg:e.message});
       _alertBox('카카오 공유 실패 — '+esc(e.message)+'<br><span style="font-size:12px">[🔗 링크]로 보내세요.</span>',{icon:'⚠️', okColor:'red'});
     }
-  }).catch(function(e){ _alertBox(esc(e.message),{icon:'⚠️', okColor:'red'}); });
+  }).catch(function(e){ _alertBox(e.html||esc(e.message),{icon:'⚠️', okColor:'red'}); });
 }
 function dl(seq){ fileDown(CTX+'/mangr/quoteFile.do?quoteSeq='+seq, '견적서.xls'); }
 /* 파일 받기 — 새 창(window.open) 대신 이 화면에서 받는다 (2026-09-19 「엑셀 출력 시 화면이 다른 데로 갔다 온다」 — 새 탭이 떴다 닫히며 화면이 튀었다) */
@@ -881,7 +922,7 @@ function marginView(i){
           + '<td class="r'+(R<0?' up':'')+'"><b>'+fmt(R)+'</b></td>'
           + '<td class="r"><b'+(S<0?' class="up"':'')+'>'+pct(S)+'</b></td>' );
       h+='<tr><td class="nm"><b>'+esc(l.prodNm)+'</b>'+(l.makerNm?' <span class="sub">('+esc(l.makerNm)+')</span>':'')+(l.spec?'<div class="sub">'+esc(l.spec)+'</div>':'')+'</td>'
-        +'<td class="r">'+fmt(Q0)+'</td><td class="r">'+fmt(E)+'</td><td class="r">'+fmt(G)+'</td>'
+        +'<td class="r">'+fmt(Q0)+'</td><td class="r"'+(c.buyMemo?' title="📝 '+esc(c.buyMemo)+'" style="background:#fff8dd;cursor:help"':'')+'>'+fmt(E)+(c.buyMemo?' <span style="font-size:11px">📝</span>':'')+'</td><td class="r">'+fmt(G)+'</td>'   /* 배송 단가 메모 팁 (2026-11-05) */
         +'<td class="r">'+fmt(H)+'</td><td class="r">'+fmt(I)+'</td>'
         +'<td class="r">'+(n(c.tgtAmt)?fmt(c.tgtAmt):'<span class="same">—</span>')+'</td>'
         +'<td class="r"><b>'+fmt(N)+'</b></td><td class="r">'+fmt(O)+'</td>'

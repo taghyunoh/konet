@@ -446,6 +446,7 @@ public interface UserService {
 
 	/* 견적서 카톡 공유 (2026-09-28) */
 	String shareQuote(long quoteSeq, String compCd) throws Exception;
+	int approveQuote(java.util.Map<String,Object> p) throws Exception;   // 견적서 마스터 승인·취소 (2026-11-05) — 카톡 공유 관문
 	int saveQuoteStat(java.util.Map<String,Object> p) throws Exception;   // 견적서 진행 상태·일자 (2026-09-29)                                                        // 토큰(이미 있으면 그대로)을 돌려준다 · 없는 견적서면 null
 	java.util.Map<String,Object> selectQuoteMstByToken(String token) throws Exception;
 

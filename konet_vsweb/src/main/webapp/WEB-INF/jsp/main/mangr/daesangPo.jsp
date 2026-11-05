@@ -338,7 +338,7 @@ function loadMasters(){
       if(want) sel.value=want;
     }).catch(function(){});
   var p2=post('/prod/prodList.do','').then(function(r){ return r.json(); }).then(function(j){ _prod={}; _price={}; _spec={}; var h=[];
-      ((j&&j.data)||[]).forEach(function(o){ if(!o.prodCd) return; var c=String(o.prodCd); _prod[c]=o.prodNm||''; _price[c]=n(o.salePrice); _spec[c]=o.spec||''; _tax[c]=o.taxGb||'';
+      ((j&&j.data)||[]).forEach(function(o){ if(!o.prodCd) return; var c=String(o.prodCd); _prod[c]=o.prodNm||''; _price[c]=n(o.salePrice); _spec[c]=o.spec||''; _tax[c]=o.taxGb||''; _pack[c]=n(o.packQty);
         if(o.stopYn!=='Y') h.push('<option value="'+esc((o.prodNm||'')+' ['+c+']')+'"></option>'); });
       document.getElementById('prodList').innerHTML=h.join(''); }).catch(function(){});
   var p3=p2.then(function(){ return post('/prod/extItemList.do',''); }).then(function(r){ return r.json(); }).then(function(j){ _main={};
@@ -364,6 +364,20 @@ function prodNmOf(cd){ return String(_prod[cd]||'').replace(' 〔매칭코드〕
 /* 기본 택배비 = 회사 설정의 기본 택배 운임(없으면 4,500) — 택배 납기관리(poFeeDef)와 같은 값. 줄마다 한 번(수량을 곱하지 않는다) */
 function feeDef(){ var v=Number(window.konetSet ? konetSet.f('parcelFeeDef') : 0); return (isFinite(v) && v>0) ? v : 4500; }
 function feeNum(x){ return (x.fee===''||x.fee==null) ? '' : n(x.fee); }   /* 비운 줄은 빈 칸 */
+/* ★택배 엑셀의 총수량(F) = 박스 수 (2026-11-05 사용자 「대상발주목록 엑셀출력시 표시 수량으로 나와서 상품코드 입수수량이 있으면 입수수량 나누기 하고,
+     입수수량도 작으면 1로 · 다른 코드 입수수량 1이면 같은 조건으로 명칭에 수량 보고 처리」)
+   · 대상의 수량은 낱개(ea)라 택배 기사에게 가는 총수량은 박스 수여야 한다.
+   · 입수수량 = 상품코드(매칭코드면 그 주코드)의 입수수량(PACK_QTY) 이 2 이상이면 그 값,
+       아니면 상품명·규격에서 「500EA/BOX」「1,000EA」「300개」 같은 수량을 읽어 2 이상이면 그 값, 그것도 없으면 1(= 수량 그대로).
+   · 박스 수는 올림 — 1,100 ÷ 500 = 3 (낱개가 남아도 한 상자 더 간다). 화면·매출·재고는 그대로 낱개다. */
+function packOf(cd){ cd=String(cd||''); var m=_main[cd]||'';
+  var p=n(_pack[cd]); if(!(p>1) && m) p=n(_pack[m]);
+  if(p>1) return p;
+  var txt=[prodNmOf(cd), _spec[cd]||'', m?prodNmOf(m):'', m?(_spec[m]||''):''].join(' ');
+  var r=/(\d[\d,]*)\s*(?:EA|ea|Ea|개|매|장|입)(?![A-Za-z])/.exec(txt);
+  if(r){ var q=n(String(r[1]).replace(/,/g,'')); if(q>1) return q; }
+  return 1; }
+function boxQty(x){ var q=n(x.qty), p=packOf(x.itemCd||''); return p>1 ? Math.ceil(q/p) : q; }
 
 /* ═══ 대상 단가표 · 택배비 · 차수 (2026-10-27 사용자 「품목마다 기본수량일 때 단가, 이하일 때 단가 관리 · 받는 사람 하나로 합해서 3만원부터 택배무료,
        3만원 미만이면 4,000원 · Ctrl+C→Ctrl+V 할 때나 수동 입력 시 · 바로 수정 시도 적용 · 엑셀 일자에 10월 1차 찍어야 하니 관리」) ═══
@@ -377,7 +391,7 @@ var DS_FEE=4000, DS_FREE=30000, DS_JEJU=3000;
    합계 줄 「택배 포함」·요약줄·마감 엑셀 택배비(로젠) 줄의 판매금액에서만 부가세를 더한다. 서버 택배비(로젠) 매출 줄은 수량 × 4,000(공급가)이라 그대로 */
 function feeVat(f){ return Math.round(n(f)*0.1); }
 function feeTot(f){ return n(f)+feeVat(f); }
-var _dsPrice={}, _dsPriceList=[], _rounds=[], _spec={}, _tax={}, _priceErr='', _roundTouched=false;
+var _dsPrice={}, _dsPriceList=[], _rounds=[], _spec={}, _tax={}, _pack={}, _priceErr='', _roundTouched=false;   /* _pack = 상품코드 입수수량(BOX당 EA) — 택배 엑셀의 총수량을 박스 수로 바꿀 때 (2026-11-05) */
 /* 공급가·부가세·판매금액 (2026-10-27 사용자 「판매등록 그리드처럼 세부로」) — 공급가 = 수량 × 단가 · 부가세 = 과세 품목 10%(면세 0) · 판매금액 = 공급가 + 부가세. 매칭코드면 주코드의 과세 구분 */
 function taxOf(cd){ cd=String(cd||''); return _tax[cd]||_tax[_main[cd]]||'과세'; }
 function vatOf(cd, amt){ return taxOf(cd)==='면세' ? 0 : Math.round(n(amt)*0.1); }
@@ -771,6 +785,7 @@ function save(){
        A = 받는 분 · B = 빈칸 · C = 주소 · D = 전화 · E = 휴대폰(전화번호2) · F = 총수량 · G = 운임 · H = 빈칸 · I = 품목명(대상 제품명)
      ★G(운임) = 화면의 택배비 칸 그대로(기본 4,500 · 고친 줄은 그 값 · 비운 줄은 빈 칸). 택배 납기관리는 「총수량 × 기본 운임」이지만
        대상의 수량은 낱개(ea)라 곱하지 않는다 — 한 줄에 한 번.
+     ★F(총수량) = 박스 수 (2026-11-05) — 낱개 수량을 입수수량(packOf)으로 나눠 올림. 입수수량을 모르는 코드는 낱개 그대로.
      (같은 날 먼저 만든 「메일 표와 같은 10칸 + 머리글」 양식은 이 요청으로 바꿨다. 대상 제품코드 칸은 택배 양식에 없어 빠진다.) */
 function xlsOut(rows){
   if(!window.XLSX){ err('엑셀 도구를 불러오지 못했습니다 — 화면을 새로 고친 뒤 다시 해 보세요.'); return; }
@@ -778,7 +793,7 @@ function xlsOut(rows){
   var ds=rows.map(function(x){ return d10(x.dlvDt); }).filter(function(v){ return v; }).sort();
   var dt=ds.length?ds[0]:ymd(new Date()), dt2=ds.length?ds[ds.length-1]:dt;
   var mmdd=dt.slice(5,7)+dt.slice(8,10)+(dt2!==dt ? '-'+dt2.slice(5,7)+dt2.slice(8,10) : '');
-  var aoa=rows.map(function(x){ return [ x.rcvNm||'', '', x.rcvAddr||'', x.rcvTel||'', x.rcvTel2||'', n(x.qty), feeNum(x), '', x.itemNm||'' ]; });
+  var aoa=rows.map(function(x){ return [ x.rcvNm||'', '', x.rcvAddr||'', x.rcvTel||'', x.rcvTel2||'', boxQty(x), feeNum(x), '', x.itemNm||'' ]; });   /* F = 박스 수(입수수량으로 나눔 · 2026-11-05) */
   var ws=XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols']=[{ wch:24 },{ wch:4 },{ wch:46 },{ wch:14 },{ wch:14 },{ wch:9 },{ wch:8 },{ wch:4 },{ wch:44 }];
   var LINE={ style:'thin', color:{ rgb:'DFE6E3' } }, box={ top:LINE, bottom:LINE, left:LINE, right:LINE };
@@ -788,7 +803,8 @@ function xlsOut(rows){
     ws[ref].s=((c===5 || c===6) ? NUM : CELL); } }   /* F = 총수량 · G = 운임 = 숫자 칸(오른쪽 맞춤) */
   var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, mmdd);
   XLSX.writeFile(wb, '택배출고_대상_'+dt.replace(/-/g,'')+'.xlsx');
-  if(window._toast) _toast('📥 엑셀 생성 — '+rows.length+'줄 (택배 납기관리와 같은 양식)','ok');
+  var nb=rows.filter(function(x){ return packOf(x.itemCd||'')<=1 && n(x.qty)>1; }).length;
+  if(window._toast) _toast('📥 엑셀 생성 — '+rows.length+'줄 (택배 납기관리와 같은 양식 · 총수량은 박스 수)'+(nb?' · 입수수량을 모르는 줄 '+nb+'개는 낱개 그대로':''), nb?'warn':'ok');
 }
 function pvXls(){ xlsOut(_pv.filter(function(x){ return x.chk && (x.rcvNm||x.rcvAddr||x.itemNm||x.qty); })); }
 function lsXls(){ var pick=[]; Array.prototype.forEach.call(document.querySelectorAll('.lchk:checked'), function(c){ var x=_ls[+c.getAttribute('data-i')]; if(x) pick.push(x); });

@@ -152,6 +152,7 @@ public interface UserMapper {
 	java.util.List<String> selectShipoutDatesByExtCd(egovframework.konet.user.model.ProdXrefDTO dto) throws Exception;
 	java.util.List<String> selectSalesDatesByExtCd(egovframework.konet.user.model.ProdXrefDTO dto) throws Exception;    // 정산서 납품일자 — 그 코드(2026-09-13)
 	java.util.List<String> selectSalesDatesByExtProd(egovframework.konet.user.model.ProdXrefDTO dto) throws Exception;  // 정산서 납품일자 — 그 상품의 매칭·추가 코드
+	java.util.List<String> selectShipoutDatesByExtProd(egovframework.konet.user.model.ProdXrefDTO dto) throws Exception;  // 발주 납기일자 — 그 상품의 매칭·추가 코드 (2026-11-05 속도)
 	int clearShipoutProdByExtCd(egovframework.konet.user.model.ProdXrefDTO dto) throws Exception;
 	int clearSalesProdByExtCd(egovframework.konet.user.model.ProdXrefDTO dto) throws Exception;
 	int resolveShipoutProd(egovframework.konet.user.model.ProdXrefDTO dto) throws Exception;        // 1차 : XREF 매핑
@@ -529,6 +530,7 @@ public interface UserMapper {
 
 	/* 견적서 카톡 공유 (2026-09-28) — 발주서·거래명세서와 같은 방식(공개 링크 /pub/quote.do?t=토큰) */
 	int updateQuoteShare(java.util.Map<String,Object> p) throws Exception;
+	int updateQuoteAppr(java.util.Map<String,Object> p) throws Exception;                                                // 견적서 마스터 승인·취소 (2026-11-05)
 	int updateQuoteStat(java.util.Map<String,Object> p) throws Exception;                                                // 견적서 진행 상태·일자 (2026-09-29)                                                   // 토큰 발급(한 번만)·공유 횟수 +1
 	java.util.Map<String,Object> selectQuoteMstByToken(java.util.Map<String,Object> p) throws Exception;                     // 공개 조회 — 빈 토큰은 SQL 이 거절
 
