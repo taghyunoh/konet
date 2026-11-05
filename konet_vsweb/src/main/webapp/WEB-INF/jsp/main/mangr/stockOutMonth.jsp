@@ -195,6 +195,7 @@ function somLoad(){
   /* 걸린 시간을 조회 결과 줄에 같이 적는다(2026-09-04 「조회 자체 느림」 — 서버·그리기 어느 쪽인지 사용자가 바로 보게) */
   somAliasLoad();          /* 매칭코드 → 주코드 표 (한 번만 · 조회를 기다리게 하지 않는다) */
   var t0=performance.now(), tFetch=0;
+  _dtlCache={};   /* 새로 조회하면 셀별 내역 보관도 비운다 (2026-11-05) */
   fetch(CTX+'/prod/stockOutMonthList.do', { method:'POST', credentials:'same-origin',
          headers:{'Content-Type':'application/x-www-form-urlencoded'},
          body:'frDt='+encodeURIComponent(fr.replace(/-/g,''))+'&toDt='+encodeURIComponent(to.replace(/-/g,'')) })
@@ -368,7 +369,7 @@ function somPaint(force){
    · 월 셀 = 그 달, 현재고·기간합계 셀 = 조회 기간 전체. 사업장은 그 열의 사업장(매칭명) 하나.
    · 출고내역 = /prod/stockOutDetail.do (통합 원천: 정산서 있는 날은 정산서, 없으면 발주현황표(DC 발주 포함) + 토더·대상 발주(늘) + 판매전표 — 표와 같은 규칙, 2026-10-26)
    · 입고내역 = 같은 응답의 수불원장(ledger)에서 출고(O)가 아닌 행(입고 I·반품 R·조정 A)을 년월로 걸러 보여 준다 */
-var DTL_LAST=null;
+var DTL_LAST=null, _dtlCache={};   /* 셀별 출고·입고내역 응답 보관 (2026-11-05 속도) */
 document.getElementById('card').addEventListener('click', function(ev){
   var td=ev.target.closest ? ev.target.closest('td[data-cd]') : null; if(!td || !RAW) return;
   var m=_somM||somBuild(), g=m.grp[td.getAttribute('data-g')]; if(!g) return;
@@ -387,9 +388,11 @@ function somDetail(sel){
   document.getElementById('dtlOutSum').textContent=''; document.getElementById('dtlInSum').textContent='';
   var gk=sel.g.key, body='ym='+encodeURIComponent(sel.ym)+'&frDt='+fr+'&toDt='+to+'&prodCd='+encodeURIComponent(sel.it.cd)+'&prodSeq='+encodeURIComponent(sel.it.seq||'')
     +(gk.charAt(0)==='~' ? '&bizNm='+encodeURIComponent(sel.g.nm) : '&bizKey='+encodeURIComponent(gk));
+  /* ★같은 셀을 다시 누르면 서버에 안 묻고 바로 (2026-11-05 속도) — 조회 버튼을 누르면 비운다(somDetailCache). 응답은 그대로 두고 그리기만 다시 */
+  var ck=body; if(_dtlCache[ck]){ var jc=_dtlCache[ck]; somDetailRender(sel, jc, fr, to); somFit(); box.scrollIntoView({behavior:'smooth', block:'nearest'}); return; }
   fetch(CTX+'/prod/stockOutDetail.do', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:body })
     .then(function(r){ return r.json(); })
-    .then(function(j){ if(DTL_LAST!==sel) return; somDetailRender(sel, j||{}, fr, to); somFit(); box.scrollIntoView({behavior:'smooth', block:'nearest'}); })
+    .then(function(j){ _dtlCache[ck]=j||{}; if(DTL_LAST!==sel) return; somDetailRender(sel, j||{}, fr, to); somFit(); box.scrollIntoView({behavior:'smooth', block:'nearest'}); })
     .catch(function(e){ document.getElementById('dtlOut').innerHTML='<div class="none">조회 실패: '+esc(e.message)+'</div>'; });
 }
 function somDetailClose(){ DTL_LAST=null; _somPick=''; document.getElementById('dtl').style.display='none'; var p=document.querySelector('table.mx td.pick'); if(p) p.classList.remove('pick'); somFit(); }

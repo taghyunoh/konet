@@ -3004,6 +3004,18 @@ public class UserController {
 			res.put("data", svc.selectPoRecentByProd(p));
 			return res;
 		}
+		/* 품목 발주이력 (2026-11-05 「품목이 언제 어느 거래처에 발주됐는지 찾으려면 하단을 일일이 클릭해야 함」) — 품목 하나의 발주서 줄 전부 */
+		@RequestMapping(value="/mangr/poHistByProd.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> poHistByProd(@RequestParam("prodCd") String prodCd,
+		                                       @RequestParam(value="frDt", required=false) String frDt,
+		                                       @RequestParam(value="toDt", required=false) String toDt, HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>(); p.put("compCd", session.getAttribute("s_comp_cd"));
+			p.put("prodCd", prodCd); p.put("frDt", frDt == null ? "" : frDt); p.put("toDt", toDt == null ? "" : toDt);
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", (prodCd == null || prodCd.trim().isEmpty()) ? new java.util.ArrayList<Object>() : svc.selectPoHistByProd(p));
+			return res;
+		}
 		@RequestMapping(value="/mangr/poDetail.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,Object> poDetail(@RequestParam("poSeq") long poSeq, HttpSession session) throws Exception {

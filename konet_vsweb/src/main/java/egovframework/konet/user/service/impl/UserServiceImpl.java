@@ -2924,6 +2924,7 @@ public class UserServiceImpl implements UserService {
 	/* ══════════ 발주서 관리 (2026-09-03) ══════════ */
 	@Override public java.util.List<java.util.Map<String,Object>> selectPoList(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoList(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectPoRecentByProd(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoRecentByProd(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectPoHistByProd(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoHistByProd(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectPoRemainByProd(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoRemainByProd(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectSafeStockShort(java.util.Map<String,Object> p) throws Exception { return mapper.selectSafeStockShort(p); }
 	/* ── 진행 현황 (2026-10-06) ────────────────────────────────────────────────

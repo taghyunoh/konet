@@ -104,6 +104,12 @@
   .pop td.ck, .pop th.ck{ padding:4px; }
   .pop td.ck input, .pop th.ck input{ width:16px; height:16px; cursor:pointer; vertical-align:middle; }
   .pop .pf{ padding:10px 16px; border-top:1px solid var(--bd); text-align:right; }
+  /* 🔎 품목 발주이력 (2026-11-05) — 목록 도구줄의 품목 후보 · 거래처 묶음 줄 */
+  #phList{ position:absolute; left:0; right:0; top:34px; max-height:260px; overflow:auto; background:#fff; border:1px solid var(--bd); border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.15); z-index:50; display:none; min-width:360px; }
+  #phList div{ padding:5px 10px; cursor:pointer; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #phList div:hover, #phList div.sel{ background:#e3f2ee; }
+  table.lst tr.phv td{ background:#dff0ee; border-top:2px solid #9fc9c0; font-weight:700; color:#125a4e; text-align:left; cursor:default; }
+  table.lst tr.phi td.rem{ color:#a6241c; font-weight:700; }
   /* ★「거래처 매출장·마감」 그리드 모양으로 (2026-10-21 사용자 「매입관리, 입고내역도」 — 품목별재고현황과 같게)
        머리줄 하늘(#d9edf7)+회청 테두리(#9fb6c3) · 칸 테두리 #c9d3dc · 합계 줄 크림(#fcf8e3). 그 밖의 줄 색·배지·입력칸은 그대로 */
   table.g th, table.lst th{ background:#d9edf7 !important; color:#1f2a37 !important; font-weight:700; border:1px solid #9fb6c3 !important; box-shadow:inset 0 -1px 0 #9fb6c3, inset 0 1px 0 #9fb6c3; }
@@ -125,6 +131,8 @@
       <label>담당자</label><input type="text" id="mgrNm" value="${sessionScope.s_user_nm}" readonly style="width:110px">
       <%-- 📋 발주목록 리스트 (2026-10-02 「표시 부분에 버튼 추가」) — 대시보드 [📋 발주목록 실행]이 만든 적정재고 미달 품목을 골라 담는다. 거래처를 골라야 담긴다 --%>
       <button class="btn" id="btnReq" onclick="rqOpen()" title="대시보드(납기현황표)의 [📋 발주목록 실행]으로 만든 발주목록을 봅니다.">📋 발주목록 리스트</button>
+      <%-- 💬 카톡 주문 (2026-11-05 「판매등록 카톡글 올리기처럼 발주서관리에서」) — 카톡 글을 붙여넣어 품목·수량으로 갈라 명세에 담는다 --%>
+      <button class="btn kakao" id="btnKt" onclick="ktOpen()" title="카톡 주문 창이 열립니다.&#10;「복숭아자두--2 레드자몽--1 …」 같은 글을 붙여넣고 [분류]하면 품목·수량으로 갈라 보여 주고,&#10;체크한 줄을 [→ 발주서로] 넘겨 이 화면에서 확인 후 [발주서 저장]합니다.">💬 카톡 주문 가져오기</button>
       <span id="stat" style="margin-left:auto; color:#6b7a89; font-size:12.5px"></span>
     </div>
     <div class="gridwrap" id="poGridWrap" style="margin-top:10px">
@@ -171,6 +179,8 @@
     <div class="hd">
       <label>조회기간</label><input type="date" id="frDt" data-range-to="toDt"> <span style="color:#8a98a8">~</span> <input type="date" id="toDt">
       <label>거래처</label><input type="text" id="findNm" placeholder="거래처명" style="width:180px" onkeydown="if(event.key==='Enter') poLoad()">
+      <%-- 🔎 품목 발주이력 (2026-11-05 3판) — 품목을 고르면 아래 목록이 「거래처 줄 → 그 거래처에 낸 발주 줄」로 바뀐다(날짜 무관). 비우거나 [리스트 조회]면 보통 목록 --%>
+      <label title="품목 발주이력 — 코드·상품명을 치고 고르면 아래 목록이 그 품목의 발주 내역(거래처별)로 바뀝니다">품목</label><span style="position:relative"><input type="text" id="phQ" placeholder="품목 발주이력 — 코드·상품명" style="width:220px" autocomplete="off" oninput="phSuggest()" onkeydown="phKey(event)" onblur="setTimeout(phHide,150)"><div id="phList"></div></span>
       <label>매입전환</label><select id="cvFilt" onchange="listRender()" title="매입전환 여부로 목록을 거릅니다(화면에서 — 다시 조회하지 않음)"><option value="">전체</option><option value="N">미전환만</option><option value="Y">전환됨만</option></select>
       <button class="btn teal" onclick="poLoad()">🔍 리스트 조회</button>
       <span class="cnt" id="cnt">-</span>
@@ -185,6 +195,46 @@
 </div>
 
 <!-- 🗂 삭제 이력 · 복구 (2026-10-26) — 지운 발주서. 골라서 되살린다(지울 때 살아 있던 줄 = 마지막 저장분). 같은 날 같은 번호가 이미 있으면 그 날 다음 번호로 -->
+<%-- ═══ 💬 카톡 주문 가져오기 (2026-11-05 — 판매등록 saKtPop 을 발주서에 맞춰 줄인 것) ═══
+     떠 있는 창(배경 안 덮음) : 오른쪽 절반에 뜨고 머리줄을 끌어 옮긴다. 저장 단추는 없다 — 담은 뒤 발주서 [💾 발주서 저장] 한 곳. --%>
+<style>
+  #poKtPop{ display:none; position:fixed; left:46vw; top:3vh; width:53vw; height:92vh; min-width:520px; min-height:360px; resize:both; overflow:hidden; z-index:190;
+            background:#fff; border:1px solid #9fc9c0; border-radius:8px; box-shadow:0 14px 40px rgba(15,23,32,.28); font-size:14px; color:#1f2a37; }
+  #poKtPop.on{ display:flex; flex-direction:column; }
+  #poKtPop > .hd2{ display:flex; align-items:center; gap:8px; padding:9px 14px; border-bottom:1px solid var(--bd); background:#e6f1ee; font-weight:800; font-size:15px; color:#125a4e; border-radius:8px 8px 0 0; cursor:move; user-select:none; flex:0 0 auto; }
+  #poKtPop > .bd2{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:8px; padding:10px 12px 6px; }
+  #poKtPop > .ft2{ flex:0 0 auto; padding:6px 12px; border-top:1px solid var(--bd); background:#fafcfb; display:flex; align-items:center; gap:8px; font-size:12.5px; color:#5a6b7a; border-radius:0 0 8px 8px; }
+  #poKtPop textarea{ height:150px; border:1px solid var(--bd); border-radius:6px; padding:9px; font-size:13.5px; line-height:1.5; resize:vertical; font-family:inherit; width:100%; box-sizing:border-box; }
+  .kt-tbwrap{ flex:1 1 auto; min-height:120px; overflow:auto; border:1px solid var(--bd); border-radius:6px; }
+  table.kt{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  table.kt th{ position:sticky; top:0; background:#eaf2f0; color:#125a4e; font-weight:600; padding:5px 6px; border-bottom:1px solid var(--bd); white-space:nowrap; z-index:1; }
+  table.kt td{ padding:3px 6px; border-bottom:1px solid #eef1f4; vertical-align:middle; white-space:nowrap; }
+  table.kt tr.ke td{ background:#f7f8fa; color:#6b7a89; white-space:normal; }
+  table.kt input[type=text], table.kt input[type=number]{ height:24px; border:1px solid var(--bd); border-radius:4px; padding:0 5px; font-size:12.5px; }
+  table.kt .raw{ color:#5a6b7a; max-width:150px; overflow:hidden; text-overflow:ellipsis; }
+  .kt-st{ display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px; font-weight:700; white-space:nowrap; }
+  .kt-st.ok{ background:#d5efe9; color:#0b5349; } .kt-st.gs{ background:#fdf0cf; color:#7a5a12; } .kt-st.no{ background:#fde1de; color:#a6241c; } .kt-st.pk{ background:#dbe7f7; color:#274b8f; }
+  .kt-prod{ cursor:pointer; border-bottom:1px dashed #9fb6cc; } .kt-prod:hover{ color:#137a6c; }
+  .kt-bar{ display:flex; align-items:center; gap:8px 10px; flex-wrap:wrap; font-size:12.5px; }
+</style>
+<div id="poKtPop">
+  <div class="hd2" id="ktHd" title="잡아서 끌면 창이 옮겨집니다">💬 카톡 주문 <span id="ktCnt" style="font-size:12.5px;font-weight:600;color:#137a6c"></span>
+    <span style="margin-left:auto;cursor:pointer;font-size:18px;line-height:1" onclick="ktClose()" title="닫기">✕</span></div>
+  <div class="bd2">
+    <div style="font-size:12.5px;font-weight:800;color:#37475a">① 카톡 글 붙여넣기 <span style="font-weight:600;color:#8a97a4">— 「복숭아자두--2 레드자몽--1 …」 · 「레몬 2박스」 · 「체리 2」 전부 읽습니다</span></div>
+    <textarea id="ktText" oninput="ktKeep()" placeholder="카톡 글을 그대로 복사해 붙여넣으세요."></textarea>
+    <div style="display:flex;gap:6px"><button class="btn teal" style="flex:1" onclick="ktParseGo()" title="붙여넣은 글 전체를 분류합니다">🔍 분류</button><button class="btn" onclick="ktReset()">비우기</button></div>
+    <div class="kt-bar" id="ktBar"></div>
+    <div class="kt-tbwrap"><table class="kt"><thead><tr>
+      <th style="width:28px"><input type="checkbox" id="ktChkAll" onchange="ktChkAll(this.checked)" title="전체 선택/해제"></th>
+      <th style="width:30px">#</th><th style="width:150px">카톡 원문</th><th style="width:120px">읽은 품목</th>
+      <th style="min-width:220px">우리 상품 <span style="font-weight:400">(눌러서 바꾸기)</span></th><th style="width:60px">상태</th>
+      <th style="width:50px" title="상품마스터 입수수량">입수</th><th style="width:56px">BOX</th><th style="width:56px">EA</th>
+      <th style="width:78px" title="상품마스터 매입가 — 담은 뒤 명세에서 고칠 수 있습니다">단가</th><th style="width:88px">금액</th><th>비고</th><th style="width:26px"></th>
+    </tr></thead><tbody id="ktBody"><tr><td colspan="13" style="color:#8a97a4;padding:14px;text-align:center">위에 카톡 글을 붙여넣고 [🔍 분류]를 누르세요.</td></tr></tbody></table></div>
+  </div>
+  <div class="ft2">담기는 [→ 발주서로], 저장은 발주서의 [💾 발주서 저장]에서.</div>
+</div>
 <div class="pop" id="dlPop"><div class="box" style="width:min(1240px,97vw)">
   <div class="ph">🗂 삭제 이력 <span id="dlSub" style="font-weight:600;font-size:12.5px;color:#6b7a89"></span>
     <span style="margin-left:auto"></span><button class="btn" onclick="delClose()">닫기</button></div>
@@ -606,11 +656,12 @@ function stkPaint(){
     a.title = (s.cur==null) ? '재고 원장에 기록이 없는 품목' : ('현재고 '+fmtQ(s.cur)+(s.safe?' · 적정 '+fmtQ(s.safe):'')+(s.low?' — 적정재고 미달':''));
     b.innerHTML = s.safe ? fmtQ(s.safe) : '<span class="dim">—</span>';
     var k=rcntInfo(o.prodCd);
-    if(!k){ c.innerHTML='<span class="dim">없음</span>'; c.className='l rcnt'; c.title='이 품목의 다른 발주서가 없습니다'; }
+    var phBtn='<span style="cursor:pointer;margin-left:4px" title="이 품목의 발주이력 전부 보기" onclick="event.stopPropagation(); phOpen(\''+esc(o.prodCd)+'\')">🔎</span>';   /* 품목 발주이력 (2026-11-05) */
+    if(!k){ c.innerHTML='<span class="dim">없음</span>'+phBtn; c.className='l rcnt'; c.title='이 품목의 다른 발주서가 없습니다'; }
     else { var r=k.r, hasRem=(r.remainQty!=null);
       var tail = hasRem ? (k.open ? ' · <b>잔 '+fmtQ(r.remainQty)+'</b>' : (r.closeYn==='Y' ? ' <span class="dim">(마감)</span>' : ' <span class="dim">(입고됨)</span>'))
                         : (r.purchSeq ? ' <span class="dim">(매입됨)</span>' : '');
-      c.innerHTML=(k.warn?'⚠ ':'')+esc(whenTxt(k.days,r.poDt))+' · '+fmtQ(r.qty)+' · '+esc(r.vendorNm||'')+tail;
+      c.innerHTML=(k.warn?'⚠ ':'')+esc(whenTxt(k.days,r.poDt))+' · '+fmtQ(r.qty)+' · '+esc(r.vendorNm||'')+tail+phBtn;
       c.className='l rcnt'+(k.warn?' warn':'');
       c.title='최근 발주서 '+d8(r.poDt)+' - '+(r.poNo||'')+' · '+(r.vendorNm||'')+' · 수량 '+fmtQ(r.qty)
         +(hasRem ? ' · 잔량 '+fmtQ(r.remainQty)+(r.closeYn==='Y'?'(마감)':'') : (r.purchSeq?' · 매입전환 됨':' · 아직 매입전환 안 됨'))
@@ -816,7 +867,9 @@ function prodSelUpd(){ var c=_prodSel.length;
 function prodFill(o,p){ o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=p.prodNm||''; o.spec=p.spec||''; o.packQty=n(p.packQty)||1; o.unitPrice=n(p.inPrice); o.taxGb=p.taxGb||''; if(!n(o.boxQty)&&!n(o.eaQty)) o.boxQty=1;
   poDupNote(String(p.prodCd)); }   // 담는 길 셋(팝업 한 개·팝업 여러 개·코드 칸 입력검색)이 전부 여기를 지나므로 중복 발주 알림은 여기 한 곳
 function prodFocusRow(i){ var tr=document.getElementById('gbody').rows[i]; if(tr){ var inp=tr.querySelector('input[data-f="boxQty"]');   /* 몇 번째 input 으로 찾지 않는다 — 빈 줄은 코드 칸에도 input 이 있다(2026-09-10) */ if(inp){ inp.focus(); inp.select(); } } }
-function prodPick(pi){ var m=prodMain(pi), p=_prods[m.pi], o=_rows[_prodRow]; if(!p||!o) return;
+function prodPick(pi){ var m=prodMain(pi), p=_prods[m.pi];
+  if(_kt.prodTarget!=null){ var kr=ktRowById(_kt.prodTarget); _kt.prodTarget=null; prodClose(); if(kr&&p){ ktSetProd(kr, p, '선택'); ktRender(); } return; }   /* 💬 카톡 주문 줄의 상품 바꾸기 (2026-11-05) */
+  var o=_rows[_prodRow]; if(!p||!o) return;
   prodFill(o,p);
   prodClose(); render(); prodFocusRow(_prodRow);
   if(m.viaSub && window._toast) _toast('서브코드 '+m.viaSub+' → 주코드 '+p.prodCd+' 로 담았습니다.','ok'); }
@@ -895,6 +948,172 @@ function pinClose(){ if(_pinDrop) _pinDrop.style.display='none'; _pinList=[]; _p
 function pinBlur(){ setTimeout(pinClose, 150); }
 
 /* ── 머리 ── */
+/* ══════════════ 💬 카톡 주문 가져오기 (2026-11-05 — 판매등록 ktParse 의 축소판) ══════════════
+   · 「이름--수량」·「이름~~2」·「이름:2」(단위 없으면 박스), 「이름 2박스」·「이름 10개」, 「이름 2」(줄 끝 숫자 = 박스) 를 읽는다. 한 줄에 여러 품목이 이어 와도 가른다.
+   · 첫 품목 앞 머리말(두 칸 이상 띄움 · 매입처 마스터에 있는 이름 · 줄머리 *·• 기호)은 거래처로 본다 → 발주서 머리 거래처가 비어 있으면 넣는다.
+   · 우리 상품 추정 : 매칭코드(_extItems 의 거래처 품명·코드) → 상품마스터 상품명·규격·코드. 확정이 아니라 추정 — 상태색으로 알린다.
+   · 담기 = prodFill(단가 = 상품마스터 매입가) + BOX·EA 그대로. 원문은 비고에 「카톡 …」 로 남긴다. 저장은 [💾 발주서 저장]. */
+var _kt={ rows:[], seq:0, prodTarget:null, ven:null };
+var KT_UNIT_SRC='(\\d[\\d,]*(?:\\.\\d+)?)\\s*(박스|BOX|Box|box|개|EA|Ea|ea|세트|병|팩|장|롤|봉|매|묶음|캔)(?![가-힣A-Za-z])';
+var KT_QTY_RE=new RegExp(KT_UNIT_SRC), KT_QTY_ALL=new RegExp(KT_UNIT_SRC,'g');
+var KT_DASH_ALL=/([-‐‑–—―~〜=:：]+)\s*(\d+(?:\.\d+)?)\s*(박스|BOX|Box|box|개|EA|Ea|ea|세트|병|팩|장|롤|봉|매|묶음|캔)?(?![\d가-힣A-Za-z])/g;
+var KT_TIME_RE=/^(오전|오후)\s*\d{1,2}:\d{2}$/, KT_PC_RE=/^\[(.+?)\]\s*\[(오전|오후)\s*\d{1,2}:\d{2}\]\s*(.*)$/, KT_MOB_RE=/^(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.\s*(오전|오후)\s*\d{1,2}:\d{2},\s*(.+?)\s*:\s*(.*)$/;
+var KT_SKIP_RE=/^(네|넵|예|ㅇㅇ|응|알겠습니다|알겠어요|감사합니다|감사해요|고마워|고맙습니다|ok|OK|확인|확인했습니다|수고하세요|수고|넹|ㄳ|ㄱㅅ)[.!~ ]*$/;
+var KT_VERB_RE=/(합니다|습니다|해주세요|해 주세요|하세요|주세요|드립니다|입니다|부탁|발주|주문)/, KT_PHONE_RE=/01[016789]-?\d{3,4}-?\d{4}/;
+function ktNorm(s){ return String(s==null?'':s).toLowerCase().replace(/\(주\)|㈜|주식회사/g,'').replace(/[\s\-_·.,()\[\]\/]/g,''); }
+function ktUnit(u){ u=String(u||''); if(/^box$/i.test(u)) return '박스'; if(/^ea$/i.test(u)) return '개'; return u||'개'; }
+function ktRowById(id){ for(var i=0;i<_kt.rows.length;i++){ if(_kt.rows[i].id===id) return _kt.rows[i]; } return null; }
+function ktFindVen(nm){ var k=ktNorm(nm); if(!k) return null; var best=null;
+  _vendors.forEach(function(v){ [v.vendorNm, v.fullNm, v.alias].forEach(function(c){ c=ktNorm(c); if(!c) return; var sc=(c===k)?3:((k.length>2&&(c.indexOf(k)>=0||k.indexOf(c)>=0))?2:0); if(sc&&(!best||sc>best.sc)) best={v:v,sc:sc}; }); });
+  return best?best.v:null; }
+function ktDashHits(bare){ var out=[], m; KT_DASH_ALL.lastIndex=0;
+  while((m=KT_DASH_ALL.exec(bare))){ if(m[1].length<2){ var prev=bare.slice(0,m.index).replace(/\s+$/,'').slice(-1); if(!/[가-힣)\]]/.test(prev)||m[2].length>3) continue; } out.push({at:m.index,end:m.index+m[0].length,q:m[2],u:(m[3]||'박스'),tok:m[0].trim()}); }
+  if(!out.length && !KT_PHONE_RE.test(bare) && !KT_VERB_RE.test(bare)){ var t=/\s(\d{1,3}(?:\.\d+)?)\s*$/.exec(bare); if(t && /[가-힣A-Za-z)\]]/.test(bare.slice(0,t.index))) out.push({at:t.index,end:bare.length,q:t[1],u:'박스',tok:' '+t[1]}); }
+  return out; }
+function ktOpen(){ var pop=document.getElementById('poKtPop'); pop.classList.add('on'); loadMasters(); try{ var p=JSON.parse(localStorage.getItem('konetPoKtPos')||'null'); if(p&&p.l){ pop.style.left=p.l; pop.style.top=p.t; } var r=pop.getBoundingClientRect(); if(r.left>window.innerWidth-200||r.top>window.innerHeight-100){ pop.style.left='46vw'; pop.style.top='3vh'; } }catch(e){} setTimeout(function(){ document.getElementById('ktText').focus(); },0); }
+function ktClose(){ document.getElementById('poKtPop').classList.remove('on'); _kt.prodTarget=null; }
+function ktKeep(){ try{ localStorage.setItem('konetPoKtText', document.getElementById('ktText').value); }catch(e){} }
+function ktReset(){ _kt.rows=[]; _kt.seq=0; _kt.ven=null; document.getElementById('ktText').value=''; ktKeep(); ktRender(); }
+(function ktDrag(){ var hd=document.getElementById('ktHd'), pop=document.getElementById('poKtPop'); if(!hd||!pop) return; var sx=0,sy=0,ox=0,oy=0,on=false;
+  hd.addEventListener('mousedown', function(e){ if(e.button!==0||e.target.closest('button,input,select,span[onclick]')) return; var r=pop.getBoundingClientRect(); sx=e.clientX; sy=e.clientY; ox=r.left; oy=r.top; on=true; e.preventDefault(); });
+  document.addEventListener('mousemove', function(e){ if(!on) return; pop.style.left=Math.max(0,Math.min(window.innerWidth-120,ox+e.clientX-sx))+'px'; pop.style.top=Math.max(0,Math.min(window.innerHeight-60,oy+e.clientY-sy))+'px'; });
+  document.addEventListener('mouseup', function(){ if(!on) return; on=false; try{ localStorage.setItem('konetPoKtPos', JSON.stringify({l:pop.style.left,t:pop.style.top})); }catch(e){} });
+  try{ var t=localStorage.getItem('konetPoKtText'); if(t) document.getElementById('ktText').value=t; }catch(e){} })();
+function ktParseGo(){ var t=document.getElementById('ktText'), all=t.value; if(!all.trim()){ toast('카톡 글을 붙여넣고 [분류]를 누르세요.','⚠️'); t.focus(); return; }
+  var add=ktParse(all), have={}; var key=function(r){ return (r.raw||'')+'|'+(r.name||''); };
+  _kt.rows.forEach(function(r){ have[key(r)]=1; }); add=add.filter(function(r){ var k=key(r); if(have[k]) return false; have[k]=1; return true; });
+  _kt.rows=_kt.rows.concat(add); ktRender();
+  if(!add.length && _kt.rows.length) toast('이 글은 이미 분류되어 있습니다.'); if(!_kt.rows.length) toast('읽을 내용이 없습니다. 카톡 글을 붙여넣고 다시 눌러 주세요.','⚠️'); }
+function ktParse(text){
+  var lines=String(text||'').replace(/\r/g,'').split(/\n|\s\/\s|\s\|\s/), rows=[];
+  function push(r){ r.id=++_kt.seq; rows.push(r); return r; }
+  function item(raw, name, qtyS, unit, tail){ var set=/세트/.test(tail||'')||/세트$/.test(name||''); name=String(name||'').replace(/세트$/,'').replace(/[\-:：x×*]+$/,'').trim(); if(!name) return;
+    var r=push({ t:'item', raw:raw, name:name, qty:n(qtyS), unit:ktUnit(unit), set:set, note:String(tail||'').replace(/세트/g,'').replace(/^[\s\-,·]+/,'').trim(), chk:true, prodCd:'', prodNm:'', prodSeq:null, st:'none', box:0, ea:0, alt:0 });
+    r.box=(r.unit==='박스')?r.qty:0; r.ea=(r.unit==='박스')?0:r.qty; ktSuggest(r); }
+  function head(raw, nm){ var v=ktFindVen(nm); if(v && !_kt.ven) _kt.ven=v; push({ t:'biz', raw:raw, name:nm, venCd:v?v.vendorCd:'', venNm:v?v.vendorNm:'' }); }
+  lines.forEach(function(rawLine){ var s=rawLine.replace(/ /g,' ').trim(), m; if(!s) return;
+    if((m=KT_MOB_RE.exec(s))){ s=m[6].trim(); if(!s) return; } else if((m=KT_PC_RE.exec(s))){ s=m[3].trim(); if(!s) return; }
+    if(KT_TIME_RE.test(s)||KT_SKIP_RE.test(s)) return;
+    var mk=(/^[*•·\-▪■●◆○◇※#>]/.exec(s)||[''])[0], bare=s.replace(/^[\s*•·\-▪■●◆○◇※#>]+/,'').trim(); if(!bare) return;
+    var hasQty=KT_QTY_RE.test(bare), dh=ktDashHits(bare);
+    if(dh.length>=2 || (dh.length===1 && !hasQty)){ var pos=0;
+      dh.forEach(function(h,i){ var nm=bare.slice(pos,h.at).replace(/[,，·\s]+$/,'').replace(/^[,，·\s]+/,''); pos=h.end;
+        if(i===0){ var hd='', gap=/^(\S.*?)\s{2,}(\S.*)$/.exec(nm); if(gap){ hd=gap[1]; nm=gap[2]; }
+          else if(/\s/.test(nm)){ var sp=nm.lastIndexOf(' '), h1=nm.slice(0,sp).trim(); if(ktFindVen(h1)||(dh.length>=2&&mk)){ hd=h1; nm=nm.slice(sp+1); } }
+          if(hd) head(mk+hd, hd); }
+        if(nm) item(nm+h.tok, nm, h.q, h.u, ''); });
+      return; }
+    if(hasQty){ var all=bare.match(KT_QTY_ALL), last=all[all.length-1], at=bare.lastIndexOf(last), q=KT_QTY_RE.exec(last); item(s, bare.slice(0,at), q[1], q[2], bare.slice(at+last.length)); return; }
+    var v=ktFindVen(bare), bizLike=bare.length<=22 && !/\d{2,}/.test(bare) && !KT_VERB_RE.test(bare) && !KT_PHONE_RE.test(bare);
+    if(v || bizLike){ head(s, bare); return; }
+    push({ t:'etc', raw:s }); });
+  return rows; }
+function ktSuggest(r){ var k=ktNorm(r.name); if(!k) return; var best=null;
+  (_extItems||[]).forEach(function(e){ if(!e.prodCd) return; var c1=ktNorm(e.extItemNm), c2=ktNorm(e.extItemCd); var h=(c1===k||c2===k)?2:((k.length>1&&((c1&&c1.indexOf(k)>=0)||(c2&&c2.indexOf(k)>=0)||(c1&&c1.length>1&&k.indexOf(c1)>=0)))?1:0); if(h&&(!best||h>best.h)) best={e:e,h:h}; });
+  if(best){ var p=_prodByCd[String(best.e.prodCd)]; if(p){ ktSetProd(r, p, best.h===2?'매칭':'추정'); r.extCd=best.e.extItemCd; return; } }
+  var hits=_prods.filter(function(p){ return ktNorm(p.prodCd)===k || (k.length>1 && (ktNorm(p.prodNm).indexOf(k)>=0 || ktNorm(p.spec).indexOf(k)>=0)); });
+  if(!hits.length && /\(/.test(r.name||'')){ var hd=ktNorm(String(r.name).split('(')[0]); if(hd&&hd!==k) hits=_prods.filter(function(p){ return ktNorm(p.prodNm).indexOf(hd)>=0; }); }
+  if(hits.length){ ktSetProd(r, hits[0], '추정'); r.alt=hits.length-1; } }
+function ktSetProd(r, p, st){ r.prodCd=p.prodCd; r.prodNm=p.prodNm||''; r.prodSeq=p.prodSeq; r.spec=p.spec||''; r.packQty=n(p.packQty)||1; r.unitPrice=n(p.inPrice); r.st=st||'선택'; r.alt=0; r.extCd=null; }
+function ktAmt(r){ return Math.round((n(r.box)*(n(r.packQty)||1)+n(r.ea))*n(r.unitPrice)); }
+function ktProdOpen(id){ var r=ktRowById(id); if(!r) return; _kt.prodTarget=id; _prodRow=-1; _prodSel=[]; document.getElementById('prodPop').classList.add('on'); var q=document.getElementById('prodQ'); q.value=r.name||''; prodRender(); setTimeout(function(){ q.focus(); q.select(); },0); }
+function ktEdit(id,k,v){ var r=ktRowById(id); if(!r) return; if(k==='chk'){ r.chk=!!v; ktCnt(); return; } if(k==='box'||k==='ea'){ r[k]=n(v); var a=document.getElementById('ktA'+id); if(a) a.textContent=fmt(ktAmt(r)); return; } r[k]=v; }
+function ktDel(id){ _kt.rows=_kt.rows.filter(function(r){ return r.id!==id; }); ktRender(); }
+function ktChkAll(on){ _kt.rows.forEach(function(r){ if(r.t==='item') r.chk=!!on; }); ktRender(); }
+function ktStBadge(r){ if(!r.prodCd) return '<span class="kt-st no">미연결</span>'; if(r.st==='매칭') return '<span class="kt-st ok" title="매칭코드와 정확히 같음">매칭</span>'; if(r.st==='선택') return '<span class="kt-st pk">선택</span>'; return '<span class="kt-st gs" title="이름이 비슷해 추정만 했습니다 — 맞는지 확인'+(r.alt?' (다른 후보 '+r.alt+')':'')+'">추정'+(r.alt?'+'+r.alt:'')+'</span>'; }
+function ktRender(){ var b=document.getElementById('ktBody'), bar=document.getElementById('ktBar'), h='', no=0;
+  var items=_kt.rows.filter(function(r){ return r.t==='item'; });
+  if(!_kt.rows.length){ b.innerHTML='<tr><td colspan="13" style="color:#8a97a4;padding:14px;text-align:center">위에 카톡 글을 붙여넣고 [🔍 분류]를 누르세요.</td></tr>'; bar.innerHTML=''; ktCnt(); return; }
+  var headVen=document.getElementById('venNm').dataset.cd||'', headNm=document.getElementById('venNm').value||'';
+  bar.innerHTML='<span>🏢 거래처 : <b>'+(_kt.ven?esc(_kt.ven.vendorNm)+' <span style="font-weight:400;color:#5a6b7a">[카톡 글에서 읽음]</span>':(headVen?esc(headNm)+' <span style="font-weight:400;color:#5a6b7a">[발주서 머리]</span>':'<span style="color:#a6241c">없음 — 발주서 머리에서 [거래처]를 고르세요</span>'))+'</b></span>'
+    +'<span style="color:#37475a">품목 '+items.length+'줄</span>'
+    +'<span style="margin-left:auto"><button class="btn teal" style="height:26px;padding:0 10px;font-size:12.5px" onclick="ktApply()" title="체크된 품목을 발주서 명세에 담습니다 — 거기서 확인·수정한 뒤 [💾 발주서 저장]">→ 발주서로</button></span>';
+  _kt.rows.forEach(function(r){
+    if(r.t==='biz'){ h+='<tr class="ke"><td></td><td></td><td colspan="11">🏢 '+esc(r.raw)+(r.venCd?' <span style="color:#0b5349">→ 매입처 '+esc(r.venNm)+' ['+esc(r.venCd)+']</span>':' <span style="color:#a6241c">— 매입처 마스터에 없는 이름(발주서 머리 거래처로 담깁니다)</span>')+'</td></tr>'; return; }
+    if(r.t==='etc'){ h+='<tr class="ke"><td></td><td></td><td colspan="10">'+esc(r.raw)+'</td><td><span style="cursor:pointer;color:#c0392b" onclick="ktDel('+r.id+')">✖</span></td></tr>'; return; }
+    h+='<tr><td><input type="checkbox" '+(r.chk?'checked':'')+' onchange="ktEdit('+r.id+',\'chk\',this.checked)"></td><td style="color:#8a97a4">'+(++no)+'</td>'
+      +'<td class="raw" title="'+esc(r.raw)+'">'+esc(r.raw)+'</td><td title="'+esc(r.name)+'">'+esc(r.name)+'</td>'
+      +'<td><span class="kt-prod" onclick="ktProdOpen('+r.id+')" title="눌러서 상품 선택 팝업 — 읽은 품목명이 검색어로 들어갑니다">'+(r.prodCd?('<b>'+esc(r.prodCd)+'</b> '+esc(r.prodNm)):'<span style="color:#a6241c">상품 고르기…</span>')+'</span>'+(r.extCd?' <span style="font-size:11px;color:#274b8f" title="매칭코드">🔖'+esc(r.extCd)+'</span>':'')+'</td>'
+      +'<td>'+ktStBadge(r)+'</td><td style="text-align:right;color:#5a6b7a">'+(r.prodCd?n(r.packQty||1):'')+'</td>'
+      +'<td><input type="number" style="width:50px;text-align:right" value="'+n(r.box)+'" oninput="ktEdit('+r.id+',\'box\',this.value)" title="원문 : '+n(r.qty)+' '+esc(r.unit)+'"></td>'
+      +'<td><input type="number" style="width:50px;text-align:right" value="'+n(r.ea)+'" oninput="ktEdit('+r.id+',\'ea\',this.value)"></td>'
+      +'<td style="text-align:right">'+(r.prodCd?fmt(r.unitPrice):'')+'</td><td id="ktA'+r.id+'" style="text-align:right;font-weight:700">'+(r.prodCd?fmt(ktAmt(r)):'')+'</td>'
+      +'<td><input type="text" style="width:100%;min-width:120px" value="'+esc(r.note||'')+'" oninput="ktEdit('+r.id+',\'note\',this.value)"></td>'
+      +'<td><span style="cursor:pointer;color:#c0392b" onclick="ktDel('+r.id+')">✖</span></td></tr>'; });
+  b.innerHTML=h; ktCnt(); }
+function ktCnt(){ var it=_kt.rows.filter(function(r){ return r.t==='item'; }), chk=it.filter(function(r){ return r.chk; }), ok=chk.filter(function(r){ return r.prodCd; });
+  document.getElementById('ktCnt').textContent=_kt.rows.length?('품목 '+it.length+'줄 · 체크 '+chk.length+' (연결 '+ok.length+' / 미연결 '+(chk.length-ok.length)+')'):'';
+  var all=document.getElementById('ktChkAll'); if(all) all.checked=it.length>0&&chk.length===it.length; }
+function ktApply(){ var items=_kt.rows.filter(function(r){ return r.t==='item'&&r.chk; });
+  if(!items.length){ toast('담을 줄을 체크하세요.','⚠️'); return; }
+  var miss=items.filter(function(r){ return !r.prodCd; }); if(miss.length){ toast('<b>상품이 연결되지 않은 줄 '+miss.length+'개</b>가 있습니다.<br>상품 칸을 눌러 고르거나 체크를 해제하세요.','⚠️'); return; }
+  var vn=document.getElementById('venNm'); if(_kt.ven && !(vn.dataset.cd||'')) venPick(_kt.ven.vendorCd, _kt.ven.vendorNm);
+  _rows=_rows.filter(function(o){ return o.prodCd; }); var cnt=0;
+  items.forEach(function(r){ var p=_prodByCd[String(r.prodCd)]; if(!p) return; var o=emptyRow(); o.boxQty=n(r.box); o.eaQty=n(r.ea); prodFill(o,p); if(!n(o.boxQty)&&!n(o.eaQty)) o.eaQty=1;
+    o.remark=('카톡 '+(r.raw||'')+(r.set?' [세트]':'')+(r.note?' · '+r.note:'')).slice(0,200); calcRow(o); _rows.push(o); cnt++; });
+  ensureTail(); render(); poDupFlush();
+  _kt.rows=_kt.rows.filter(function(r){ return !(r.t==='item'&&r.chk&&r.prodCd); }); ktRender();
+  toast('품목 <b>'+cnt+'줄</b>을 발주서 명세에 담았습니다.<br><span style="font-size:12.5px;color:#3d4d5c">수량·단가를 확인한 뒤 [💾 발주서 저장]을 누르세요.</span>','✅');
+  var gw=document.getElementById('poGridWrap'); if(gw&&gw.scrollIntoView) gw.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+/* ══════════════ 🔎 품목 발주이력 (2026-11-05 · 3판 = 별도 창 없이 하단 목록 자리에) ══════════════
+   목록 도구줄 「품목」 칸에 코드·상품명을 치고 고르면 /mangr/poHistByProd.do 로 그 품목이 든 발주서 줄 전부(날짜 무관, 최근 500줄)를 받아
+   하단 목록을 「거래처 줄(위) → 그 거래처에 낸 발주 줄(아래, 날짜 역순)」로 바꿔 그린다. 줄 클릭 = 그 발주서 열기. [리스트 조회]·칸 비우기 = 보통 목록으로.
+   품목 후보는 상품마스터(_prods)에서 코드·상품명·규격으로(서버 안 부름). 명세 줄의 「최근발주」 칸 🔎 로도 바로 연다 */
+var _ph={ cd:'', list:[], idx:-1, mode:false, thead0:null };
+function phOpen(cd){
+  var q=document.getElementById('phQ');
+  if(cd){ var p=_prodByCd[String(cd)]; _ph.cd=String(cd); q.value=p?(p.prodCd+' '+(p.prodNm||'')):String(cd); phLoad(); return; }
+  var lw=document.getElementById('poListWrap'); if(lw&&lw.scrollIntoView) lw.scrollIntoView({behavior:'smooth',block:'center'});
+  setTimeout(function(){ q.focus(); q.select(); },150);
+}
+function phHide(){ var l=document.getElementById('phList'); l.style.display='none'; _ph.idx=-1; }
+function phSuggest(){
+  var q=(document.getElementById('phQ').value||'').trim().toLowerCase(), l=document.getElementById('phList'); _ph.cd=''; _ph.list=[];
+  if(!q){ phHide(); return; }   /* 비워도 목록은 그대로 — [리스트 조회]를 눌러야 보통 목록으로 (2026-11-05) */
+  for(var i=0;i<_prods.length && _ph.list.length<40;i++){ var p=_prods[i]; var hay=(String(p.prodCd)+' '+(p.prodNm||'')+' '+(p.spec||'')).toLowerCase(); if(hay.indexOf(q)>=0) _ph.list.push(p); }
+  /* 코드를 그대로 쳤으면 고르지 않아도 바로 조회 (2026-11-05 「품목코드만 쳐도 나오게」) — 0.4초 뒤. 중지 품목처럼 후보에 없는 코드도 Enter 로 조회된다 */
+  var exact=_prodByCd[document.getElementById('phQ').value.trim()];
+  if(exact){ _ph.cd=String(exact.prodCd); clearTimeout(_ph.tm); _ph.tm=setTimeout(function(){ if(_ph.cd===String(exact.prodCd)){ phHide(); phLoad(); } }, 400); }
+  if(!_ph.list.length){ l.innerHTML='<div style="color:#8a97a4;cursor:default">후보 없음 — Enter 를 누르면 친 코드로 조회합니다</div>'; l.style.display='block'; return; }
+  l.innerHTML=_ph.list.map(function(p,i){ return '<div data-i="'+i+'" onmousedown="phPick('+i+')"><b>'+esc(p.prodCd)+'</b> '+esc(p.prodNm||'')+(p.spec?' <span class="dim">'+esc(p.spec)+'</span>':'')+'</div>'; }).join('');
+  l.style.display='block'; _ph.idx=-1;
+}
+function phKey(e){
+  var l=document.getElementById('phList'), on=l.style.display==='block';
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){ if(!on) return; e.preventDefault(); var nI=_ph.idx+(e.key==='ArrowDown'?1:-1); if(nI<0) nI=_ph.list.length-1; if(nI>=_ph.list.length) nI=0; _ph.idx=nI;
+    Array.prototype.forEach.call(l.children, function(d,i){ d.classList.toggle('sel', i===nI); }); var sel=l.children[nI]; if(sel&&sel.scrollIntoView) sel.scrollIntoView({block:'nearest'}); return; }
+  if(e.key==='Enter'){ e.preventDefault(); if(on && _ph.list.length) phPick(_ph.idx>=0?_ph.idx:0); else if(_ph.cd) phLoad(); else { var q=(document.getElementById('phQ').value||'').trim().split(' ')[0]; if(q.length>=4){ _ph.cd=q; phHide(); phLoad(); } } return; }
+  if(e.key==='Escape'){ phHide(); }
+}
+function phPick(i){ var p=_ph.list[i]; if(!p) return; _ph.cd=String(p.prodCd); document.getElementById('phQ').value=p.prodCd+' '+(p.prodNm||''); phHide(); phLoad(); }
+/* 목록 머리글 바꾸기·되돌리기 — 처음 머리글을 기억해 두고 품목 모드에서만 바꾼다 */
+function phHead(on){ var tb=document.getElementById('lbody').parentNode, th=tb.tHead; if(!th) return; if(_ph.thead0==null) _ph.thead0=th.innerHTML;
+  if(on) th.innerHTML='<tr><th>발주일자</th><th>번호</th><th>거래처 / 상품명(발주서에 적힌 것)</th><th>담당</th><th>입수</th><th>BOX</th><th>EA</th><th>수량</th><th>단가</th><th>공급가</th><th title="입고된 수량 / 잔량 (마감 표시)">입고/잔량</th><th>매입전환</th><th>비고</th></tr>';
+  else th.innerHTML=_ph.thead0; }
+function phExit(){ if(!_ph.mode) return; _ph.mode=false; _ph.cd=''; document.getElementById('phQ').value=''; phHead(false); }
+function phLoad(){
+  var b=document.getElementById('lbody'), cnt=document.getElementById('cnt');
+  if(!_ph.cd){ toast('품목을 고르세요 — 코드나 상품명을 치면 후보가 뜹니다.','⚠️'); return; }
+  var p=_prodByCd[_ph.cd]||{}; _ph.mode=true; phHead(true);
+  cnt.innerHTML='<b>'+esc(_ph.cd)+'</b> '+esc(p.prodNm||'')+' <span class="dim">조회 중…</span>';
+  b.innerHTML='<tr><td colspan="13" class="empty">조회 중…</td></tr>';
+  post('/mangr/poHistByProd.do','prodCd='+encodeURIComponent(_ph.cd)+'&frDt=&toDt=').then(function(r){ return r.json(); }).then(function(j){
+    if(!_ph.mode) return;
+    var rows=(j&&j.data)||[], h='', tq=0, ta=0, groups=[], gmap={};
+    rows.forEach(function(o){ var k=String(o.vendorCd||'')+'|'+(o.vendorNm||''); var g=gmap[k]; if(!g){ g=gmap[k]={ nm:o.vendorNm||'(거래처 없음)', cd:o.vendorCd||'', rows:[], qty:0, amt:0, last:'' }; groups.push(g); } g.rows.push(o); g.qty+=n(o.qty); g.amt+=n(o.supplyAmt); if(String(o.poDt||'')>g.last) g.last=String(o.poDt||''); tq+=n(o.qty); ta+=n(o.supplyAmt); });
+    groups.forEach(function(g){
+      h+='<tr class="phv"><td colspan="13">🏢 '+esc(g.nm)+(g.cd?' <span style="font-weight:400;color:#5a6b7a">['+esc(g.cd)+']</span>':'')+' <span style="font-weight:400;color:#37475a;margin-left:10px">발주 '+g.rows.length+'건 · 수량 '+fmtQ(g.qty)+' · 공급가 '+fmt(g.amt)+' · 최근 '+d8(g.last)+'</span></td></tr>';
+      g.rows.forEach(function(o){ var rem=n(o.remainQty), open=(rem>0 && o.closeYn!=='Y');
+        h+='<tr class="phi" data-seq="'+o.poSeq+'" onclick="poOpen('+o.poSeq+')" title="누르면 이 발주서를 엽니다"><td>'+d8(o.poDt)+'</td><td>'+esc(o.poNo)+'</td><td class="l" style="white-space:normal;color:#37475a">'+esc(o.prodNm||'')+'</td><td>'+esc(o.mgrNm||'')+'</td>'
+          +'<td class="r">'+fmtQ(o.packQty)+'</td><td class="r">'+fmtQ(o.boxQty)+'</td><td class="r">'+fmtQ(o.eaQty)+'</td><td class="r"><b>'+fmtQ(o.qty)+'</b></td><td class="r">'+fmt(o.unitPrice)+'</td><td class="r">'+fmt(o.supplyAmt)+'</td>'
+          +'<td class="r'+(open?' rem':'')+'">'+fmtQ(o.inQty)+' / '+fmtQ(rem)+(o.closeYn==='Y'?' <span class="dim">(마감)</span>':'')+'</td><td>'+(o.purchSeq?'전환':'<span class="dim">미전환</span>')+'</td><td class="l" style="color:#5a6b7a">'+esc(o.remark||'')+'</td></tr>'; });
+    });
+    if(!rows.length) h='<tr><td colspan="13" class="empty">이 품목이 든 발주서가 없습니다.</td></tr>';
+    b.innerHTML=h;
+    cnt.innerHTML='🔎 <b>'+esc(_ph.cd)+'</b> '+esc(p.prodNm||'')+' · 거래처 <b>'+groups.length+'곳</b> · 발주 '+rows.length+'건 · 수량 '+fmtQ(tq)+' · 공급가 '+fmt(ta)+(rows.length>=500?' <span style="color:#a6241c">(최근 500줄까지만)</span>':'')+' <span class="dim">— 날짜 무관 · [리스트 조회]로 돌아갑니다</span>';
+    var lw=document.getElementById('poListWrap'); if(lw&&lw.scrollIntoView) lw.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }).catch(function(e){ b.innerHTML='<tr><td colspan="13" class="empty" style="color:#c0392b">조회 실패 — '+esc(e.message)+'</td></tr>'; });
+}
 function poNew(){ _cur=null; _rows=[]; _reqPend=[]; document.getElementById('poDt').value=today(); venPick('',''); document.getElementById('remark').value=''; document.getElementById('poNo').value=''; poDtChanged(); render(); setButtons(); poCvStat(); document.getElementById('stat').textContent='새 발주서'; }
 function poDtChanged(){ if(_cur) return; var d=document.getElementById('poDt').value; if(!d) return; post('/mangr/poNextNo.do','poDt='+encodeURIComponent(d)).then(function(r){return r.json();}).then(function(j){ document.getElementById('poNo').value=(j&&j.data)||'0001'; }).catch(function(){}); }
 function setButtons(){ var on=!!(_cur&&_cur.poSeq); ['btnDel','btnPrint','btnXls','btnKakao','btnLink','btnCv'].forEach(function(id){ document.getElementById(id).disabled=!on; }); }
@@ -928,10 +1147,16 @@ function poOpen(seq, cb){ post('/mangr/poDetail.do','poSeq='+seq).then(function(
   markList(); if(typeof cb==='function') cb(); }).catch(function(e){ toast('불러오기 실패: '+esc(e.message),'⚠️'); }); }
 
 /* ── 목록 ── */
-function poLoad(selSeq){ var b='fromDt='+encodeURIComponent(document.getElementById('frDt').value)+'&toDt='+encodeURIComponent(document.getElementById('toDt').value)+'&findData='+encodeURIComponent(document.getElementById('findNm').value);
+function poLoad(selSeq){
+  /* [리스트 조회] — 품목 칸에 코드가 남아 있으면 그 품목의 발주이력을 다시, 비어 있으면 보통 목록 (2026-11-05 「지우고 조회해야 정상 조회로」) */
+  var phq=(document.getElementById('phQ').value||'').trim().split(' ')[0];
+  if(phq && selSeq==null){ _ph.cd=phq; phLoad(); return; }
+  phExit();
+  var b='fromDt='+encodeURIComponent(document.getElementById('frDt').value)+'&toDt='+encodeURIComponent(document.getElementById('toDt').value)+'&findData='+encodeURIComponent(document.getElementById('findNm').value);
   document.getElementById('lbody').innerHTML='<tr><td colspan="13" class="empty">조회 중…</td></tr>';
   post('/mangr/poList.do', b).then(function(r){return r.json();}).then(function(j){ _list=(j&&j.data)||[]; listRender(); if(selSeq) markList(selSeq); }).catch(function(e){ document.getElementById('lbody').innerHTML='<tr><td colspan="13" class="empty" style="color:#c0392b">조회 오류: '+esc(e.message)+'</td></tr>'; }); }
-function listRender(){ var h='', ts=0, tv=0, tt=0, fv=(document.getElementById('cvFilt')||{}).value||'', shown=0;
+function listRender(){ if(_ph.mode) return;   /* 품목 발주이력이 목록 자리를 쓰는 동안은 안 덮는다 (2026-11-05) */
+  var h='', ts=0, tv=0, tt=0, fv=(document.getElementById('cvFilt')||{}).value||'', shown=0;
   _list.forEach(function(o,i){ if(fv && (poCvDone(o)?'Y':'N')!==fv) return; shown++; ts+=n(o.supplyAmt); tv+=n(o.vatAmt); tt+=n(o.totAmt);
     h+='<tr data-seq="'+o.poSeq+'" onclick="poOpen('+o.poSeq+')"><td>'+d8(o.poDt)+'</td><td>'+esc(o.poNo)+'</td><td class="l">'+esc(o.vendorNm)+'</td><td>'+esc(o.mgrNm)+'</td><td>'+n(o.prodCnt)+'</td><td class="r">'+fmtQ(o.totQty)+'</td><td class="r">'+fmt(o.supplyAmt)+'</td><td class="r">'+fmt(o.vatAmt)+'</td><td class="r">'+fmt(o.totAmt)+'</td><td>'+(n(o.shareCnt)?('💬 '+n(o.shareCnt)):'')+'</td>'+poCvCell(o)+'<td title="'+(o.purchNo?('마지막 매입전표 '+d8(o.purchDt)+'-'+esc(o.purchNo)):'')+'">'+poRcvLbl(o)+'</td><td>'+esc(o.regUser)+'</td></tr>'; });
   document.getElementById('lbody').innerHTML=h||'<tr><td colspan="13" class="empty">발주서가 없습니다.</td></tr>';

@@ -4396,6 +4396,9 @@
 	   WHERE ( ISNULL(#{bizKey,jdbcType=VARCHAR},'') = '' OR ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD) = #{bizKey,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{bizNm,jdbcType=NVARCHAR},'')  = '' OR ISNULL(NULLIF(b.MATCH_NM,''), u.BIZ_NM) = #{bizNm,jdbcType=NVARCHAR} )
 	   ORDER BY u.DLV_DT DESC, CASE WHEN u.SRC IN (N'토더 발주', N'대상 발주', N'동원홈푸드 발주') OR u.SRC LIKE N'판매전표%' THEN 1 ELSE 0 END, mtNm, u.BIZ_NM, u.ITEM_CD
+	   /* ★OPTION (MAXDOP 1) — 2026-11-05 속도 : 전체 기간(1,085줄)에서 병렬 계획이 716ms, 직렬이 250ms (실측 3회 최소). 한 달은 차이 없음(116 vs 109).
+	        SQL 자체(집계·조인)는 손대지 않았다 — 결과 동일. 느려지면 이 줄만 빼면 된다 */
+	   OPTION (MAXDOP 1)
 	]]></select>
 
 	<select id="selectStockOutSrcDays" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
@@ -7460,6 +7463,24 @@
 	     purchSeq 가 있으면 이미 매입전환된 발주(들어온 것), 없으면 아직 안 들어온 발주 — 14일 안이면 화면이 ⚠ 로 경고한다.
 	     cnt30 = 최근 30일 발주 줄 수(같은 품목을 여러 장에 나눠 발주했는지). 현재고는 /prod/stockQtyMap.do(대시보드와 같은 SQL)를 그대로 쓴다.
 	     ★미입고(발주 잔량)는 아직 개념이 없다 — TBL_PO_DTL 에 입고수량이 생기면 여기에 붙인다(분석 문서 P1-b). -->
+	<!-- 품목 발주이력 (2026-11-05) — 한 품목이 든 발주서 줄 전부(기간 안, 최근 300줄). 입고·잔량은 selectPoDtl 과 같은 셈 -->
+	<select id="selectPoHistByProd" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 500 M.PO_SEQ AS poSeq, M.PO_DT AS poDt, M.PO_NO AS poNo, M.VENDOR_CD AS vendorCd, M.VENDOR_NM AS vendorNm, M.MGR_NM AS mgrNm,
+	         D.PROD_CD AS prodCd, D.PROD_NM AS prodNm, D.PACK_QTY AS packQty, D.BOX_QTY AS boxQty, D.EA_QTY AS eaQty, D.QTY AS qty,
+	         D.UNIT_PRICE AS unitPrice, D.SUPPLY_AMT AS supplyAmt, D.REMARK AS remark,
+	         ISNULL(R.inQty,0) AS inQty, ISNULL(D.QTY,0) - ISNULL(R.inQty,0) AS remainQty, ISNULL(D.CLOSE_YN,'N') AS closeYn, M.PURCH_SEQ AS purchSeq
+	    FROM TBL_PO_DTL D
+	    JOIN TBL_PO_MST M ON M.PO_SEQ = D.PO_SEQ AND M.ACTION_YN = 'Y' AND M.COMP_CD = D.COMP_CD
+	    OUTER APPLY ( SELECT SUM(CASE WHEN P.TRX_GB IN (N'반품',N'불량반품') THEN -ISNULL(P.QTY,0) ELSE ISNULL(P.QTY,0) END) AS inQty
+	                    FROM TBL_PURCHASE_DTL P
+	                    JOIN TBL_PURCHASE_MST PM ON PM.PURCH_SEQ = P.PURCH_SEQ AND PM.ACTION_YN = 'Y'
+	                   WHERE P.PO_DTL_SEQ = D.PO_DTL_SEQ AND P.ACTION_YN = 'Y' ) R
+	   WHERE D.ACTION_YN = 'Y' AND D.PROD_CD = #{prodCd,jdbcType=NVARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR D.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{frDt,jdbcType=VARCHAR},'') = '' OR M.PO_DT >= REPLACE(#{frDt,jdbcType=VARCHAR},'-','') )
+	     AND ( ISNULL(#{toDt,jdbcType=VARCHAR},'') = '' OR M.PO_DT <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
+	   ORDER BY M.PO_DT DESC, M.PO_NO DESC, D.PO_DTL_SEQ DESC
+	]]></select>
 	<select id="selectPoRecentByProd" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
 	  SELECT x.PROD_CD AS prodCd, x.PO_SEQ AS poSeq, x.PO_DT AS poDt, x.PO_NO AS poNo, x.VENDOR_NM AS vendorNm,
 	         x.QTY AS qty, x.PURCH_SEQ AS purchSeq, x.cnt30 AS cnt30,

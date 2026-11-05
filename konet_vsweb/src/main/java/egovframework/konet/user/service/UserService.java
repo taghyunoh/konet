@@ -378,6 +378,7 @@ public interface UserService {
 	/* ── 발주서 관리 (2026-09-03) */
 	java.util.List<java.util.Map<String,Object>> selectPoList(java.util.Map<String,Object> p) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectPoRecentByProd(java.util.Map<String,Object> p) throws Exception;   // 품목별 최근 발주 한 줄 (2026-09-16)
+	java.util.List<java.util.Map<String,Object>> selectPoHistByProd(java.util.Map<String,Object> p) throws Exception;     // 품목 발주이력 — 그 품목이 든 발주서 줄 전부 (2026-11-05)
 	java.util.List<java.util.Map<String,Object>> selectPoRemainByProd(java.util.Map<String,Object> p) throws Exception;   // 품목별 미입고(잔량 합) (2026-09-16 P1-b)
 	java.util.List<java.util.Map<String,Object>> selectSafeStockShort(java.util.Map<String,Object> p) throws Exception;
 	/* 진행 현황 (2026-10-06) */
