@@ -3491,6 +3491,8 @@
       <a class="mi" data-key="empMsg" onclick="logiFrame('empMsg','${pageContext.request.contextPath}/emp/msg.do', this)"><span class="ic">💬</span>직원 메신저<span class="emp-badge" id="empMsgBadge" style="display:none"></span></a>
       <%-- 직원 휴가 관리 (2026-10-21 사용자 「연차·월차·반차·병가 구분으로 직원별 휴가 관리, 달력·현황·엑셀」) — iframe 화면(mangr/leaveMng.jsp, panel-leaveMng). 표 = docs/sql/20261021_leave.sql --%>
       <a class="mi" data-key="leaveMng" onclick="logiFrame('leaveMng','${pageContext.request.contextPath}/mangr/leaveMng.do', this)"><span class="ic">🏖</span>직원 휴가 관리<span class="emp-badge" id="empLeaveBadge" style="display:none" title="오늘 휴가자"></span></a>
+      <%-- 📢 공지 띠 켜기/끄기 (2026-11-05) — 하단 공지 흐름 띠를 ✕ 로 접었을 때 되살리는 길. 접힘은 브라우저(localStorage konetEmpTickerFold)에 기억되므로 여기서 토글한다 --%>
+      <a class="mi" data-nofav="1" onclick="var on=(function(){ try{ return localStorage.getItem('konetEmpTickerFold')==='1'; }catch(e){ return false; } })(); empTickerFold(!on); if(window._toast) _toast(on?'📢 공지 띠를 다시 켰습니다 (화면 맨 아래)':'공지 띠를 접었습니다 — 왼쪽 아래 📢 알약이나 이 메뉴로 다시 켭니다','ok');" title="화면 맨 아래 공지·메신저 흐름 띠를 켜거나 접습니다. ✕ 로 접은 띠도 여기서 되살립니다"><span class="ic">📢</span>공지 띠 켜기/끄기</a>
     </div>
 
     <div class="grp">정보 현황</div>
