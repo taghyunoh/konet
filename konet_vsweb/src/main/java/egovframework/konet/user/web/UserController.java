@@ -623,7 +623,7 @@ public class UserController {
 			try {
 				if (sessComp(session).isEmpty()) return ResponseEntity.status(401).body("로그인이 필요합니다.");
 				String key = trimStr(body.get("key"), 20);
-				if (!key.matches("func|prt|prtApp|cost|leave")) return ResponseEntity.status(400).body("알 수 없는 설정입니다.");   // cost = 원가·마진 계산의 센터 비율·보관 기본값 (2026-09-17) · leave = 휴가 구분 목록 (2026-10-21)
+				if (!key.matches("func|prt|prtApp|cost|leave|custGrp")) return ResponseEntity.status(400).body("알 수 없는 설정입니다.");   // custGrp = 거래처 통합(수금 묶음) 2026-11-05   // cost = 원가·마진 계산의 센터 비율·보관 기본값 (2026-09-17) · leave = 휴가 구분 목록 (2026-10-21)
 				Map<String,Object> p = compParam(session, request);
 				String js = svc.selectCompSetJson(p);
 				Map<String,Object> all = (js == null || js.trim().isEmpty())
@@ -6083,6 +6083,13 @@ public class UserController {
 		private static String leaveYmd(Object v) {
 			String s = leaveStr(v).replace("-", "");
 			return s.matches("[0-9]{8}") ? s : "";
+		}
+
+		/** 거래처 통합(수금 묶음) 설정 화면 (2026-11-05) — 기준정보관리 ▸ 거래처 통합. 저장은 /user/compSetPatch.do(key custGrp) */
+		@RequestMapping(value="/mangr/custGrp.do")
+		public String custGrp(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/custGrp";
 		}
 
 		@RequestMapping(value="/mangr/leaveMng.do")

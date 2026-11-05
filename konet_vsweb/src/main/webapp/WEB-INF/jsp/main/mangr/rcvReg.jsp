@@ -66,6 +66,10 @@
   #arList td.nm{ text-align:left; }
   .ar-due{ display:inline-block; padding:1px 7px; border-radius:10px; font-size:11.5px; font-weight:800; }
   .ar-due.ok{ background:#e3f2ee; color:#0f6b5e; } .ar-due.w{ background:#fff3cd; color:#8a4c0d; } .ar-due.b{ background:#fde2e2; color:#b42318; }
+  /* 거래처 통합(수금 묶음) 2026-11-05 — 대표 줄(통합 합계) + 그 밑 소속 줄(분리) */
+  .ar-grp{ display:inline-block; margin-left:4px; padding:1px 7px; border-radius:10px; background:#fff3cd; color:#8a4c0d; font-size:11px; font-weight:800; vertical-align:middle; }
+  tr.ar-mem td{ background:#fafcfd; color:#5a6b7a; font-size:12px; padding-top:2px; padding-bottom:2px; }
+  tr.ar-mem td.nm{ padding-left:16px; } tr.ar-mem td.nm b{ font-weight:600; color:#3d4d5c; }
   .sv-list tr:hover td{ background:#f3f8f6; }
   .sv-list tr.on td{ background:#fdeef0; font-weight:700; }
   .sv-sum{ display:flex; border:1px solid var(--sv-bd); border-top:0; border-radius:0 0 8px 8px; overflow:hidden; }
@@ -476,15 +480,23 @@ window.konetShown=function(){
 
 /* ── 목록 (5행 고정 + 자동 스크롤) ── */
 var LIST_ROWS = 5, _lShown = 0, _lBound = false;
+/* 거래처 검색어가 통합 묶음(대표·소속 이름/코드)에 걸리면 그 묶음 — [대표코드, 소속코드…] · 아니면 null (2026-11-05) */
+function svGrpByFind(f){ f=String(f||'').toLowerCase().replace(/\s+/g,''); if(!f) return null;
+  var gs=arGroups(); for(var i=0;i<gs.length;i++){ var g=gs[i], names=[g.mainNm||'', g.mainCd].concat((g.members||[]).map(function(m){ return m.nm||''; }), (g.members||[]).map(function(m){ return String(m.cd||m); }));
+    if(names.some(function(x){ return String(x||'').toLowerCase().replace(/\s+/g,'').indexOf(f)>=0; })) return { main:String(g.mainCd), nm:g.mainNm||g.mainCd, codes:arGroupCodes(g.mainCd) }; }
+  return null; }
+function svGrpOfCd(cd){ cd=String(cd||''); var gs=arGroups(); for(var i=0;i<gs.length;i++){ var c=arGroupCodes(gs[i].mainCd); if(c.indexOf(cd)>=0) return { main:String(gs[i].mainCd), nm:gs[i].mainNm||gs[i].mainCd, codes:c }; } return null; }
+var _lGrp=null;   /* 지금 목록이 통합 묶음으로 걸러진 것이면 그 묶음 */
 function svLoad(){
+  var find=document.getElementById('svFind').value, grp=svGrpByFind(find); _lGrp=grp;
   var b = 'trxGb='+GB
         + '&fromDt='+encodeURIComponent(document.getElementById('svFrom').value)
         + '&toDt='+encodeURIComponent(document.getElementById('svTo').value)
         + '&payGb='+encodeURIComponent(document.getElementById('svFPayGb').value)
-        + '&findData='+encodeURIComponent(document.getElementById('svFind').value);
+        + '&findData='+encodeURIComponent(grp?'':find);   /* 묶음이면 이름으로 안 거르고 받아서 코드로 거른다 (2026-11-05) */
   document.getElementById('svListBody').innerHTML='<tr><td colspan="11" class="sv-msg">조회 중…</td></tr>';
   post('/mangr/settleList.do', b).then(function(r){return r.json();}).then(function(j){
-    _list=(j&&j.data)||[]; svListRender();
+    _list=(j&&j.data)||[]; if(grp) _list=_list.filter(function(o){ return grp.codes.indexOf(String(o.custCd))>=0; }); svListRender();
   }).catch(function(e){ document.getElementById('svListBody').innerHTML='<tr><td colspan="11" class="sv-msg" style="color:#c0392b">조회 오류</td></tr>'; });
 }
 function svRowHtml(o,i){
@@ -492,7 +504,7 @@ function svRowHtml(o,i){
     + '<td><button class="sv-btn" style="height:24px;padding:0 8px;font-size:12px" title="이 전표를 불러와 고칩니다"'
     +   ' onclick="event.stopPropagation();svEdit('+i+')">수정</button></td>'
     + '<td>'+esc(fmtDt(o.trxDt))+' '+esc(String(o.regDttm||'').slice(11,16))+'</td>'
-    + '<td>'+esc(o.trxNo)+'</td><td style="color:#5a6b7a; font-size:12.5px">'+esc(o.custCd)+'</td><td style="text-align:left">'+esc(o.custNm)+'</td><td>'+esc(o.mgrNm)+'</td>'   /* 거래처 코드 (2026-10-19) */
+    + '<td>'+esc(o.trxNo)+'</td><td style="color:#5a6b7a; font-size:12.5px">'+esc(o.custCd)+'</td><td style="text-align:left">'+esc(o.custNm)+(function(){ var g=svGrpOfCd(o.custCd); return g?'<span class="ar-grp" title="통합 묶음 — 대표 '+esc(g.nm)+'">통합</span>':''; })()+'</td><td>'+esc(o.mgrNm)+'</td>'   /* 거래처 코드 (2026-10-19) · 통합 표 (2026-11-05) */
     + '<td>'+esc(o.payGb)+'</td><td class="num">'+fmt(o.amt)+'</td><td class="num">'+fmt(o.dcAmt)+'</td>'
     + '<td>'+esc(o.regUser)+'</td><td style="text-align:left">'+esc(o.remark)+'</td></tr>';
 }
@@ -532,6 +544,18 @@ function svSum(){
   var p=0,d=0; _list.forEach(function(o){ p+=n(o.amt); d+=n(o.dcAmt); });
   document.getElementById('sPay').textContent=fmt(p);
   document.getElementById('sDc').textContent=fmt(d);
+  svGrpSum();
+}
+/* 목록 밑 통합 묶음 소계 — 목록에 묶음 거래처 전표가 있으면 묶음마다 「대표 통합 n곳 : 수금 합계 (대표 a · 소속 b …)」 (2026-11-05) */
+function svGrpSum(){
+  var box=document.getElementById('svGrpSum'), anchor=document.getElementById('svSumBox'); if(!anchor) return;
+  if(!box){ box=document.createElement('div'); box.id='svGrpSum'; box.style.cssText='padding:4px 10px 2px; font-size:12.5px; color:#3d4d5c; display:none'; anchor.parentNode.insertBefore(box, anchor.nextSibling); }
+  var by={}, ord=[];
+  _list.forEach(function(o){ var g=svGrpOfCd(o.custCd); if(!g) return; var G=by[g.main]; if(!G){ G=by[g.main]={ nm:g.nm, codes:g.codes, amt:0, dc:0, each:{} }; ord.push(g.main); }
+    G.amt+=n(o.amt); G.dc+=n(o.dcAmt); var k=String(o.custCd); var e=G.each[k]=G.each[k]||{ nm:o.custNm, amt:0 }; e.amt+=n(o.amt); });
+  if(!ord.length){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display=''; box.innerHTML=ord.map(function(k){ var G=by[k]; return '<div><span class="ar-grp" style="margin:0 6px 0 0">통합 '+G.codes.length+'곳</span><b>'+esc(G.nm)+'</b> 수금 소계 <b style="color:#0f6b5e">'+fmt(G.amt)+'</b>'+(G.dc?' · 할인 '+fmt(G.dc):'')
+    +' <span style="color:#5a6b7a">( '+Object.keys(G.each).map(function(c){ return esc(G.each[c].nm)+' '+fmt(G.each[c].amt); }).join(' · ')+' )</span>'+(_lGrp&&_lGrp.main===k?' <span style="color:#8a4c0d">— 거래처 검색이 묶음이라 소속 전표를 함께 보입니다</span>':'')+'</div>'; }).join('');
 }
 /* 목록 행 클릭 = '이 거래처를 고른다' (2026-08-01 사용자 확정).
    거래처·담당자만 가져오고 화면은 신규 전표 상태를 지킨다 — 수금일자는 오늘, 금액은 0.
@@ -609,11 +633,14 @@ function svCustPick(cd){
 /* 현잔고 = 매출 − 매출할인(DC) − 수금 − 할인 누계 (미수 잔액) */
 function svBal(cd){
   if(!cd){ _balNow=0; document.getElementById('svBal').textContent='0'; svCalc(); svBalBtnUpd(); return; }
-  post('/mangr/custLedger.do','custCd='+encodeURIComponent(cd)).then(function(r){return r.json();}).then(function(j){
-    var l=(j&&j.data)||[], bal=0;
-    l.forEach(function(o){ bal += n(o.saleAmt) - n(o.dcAmt) - n(o.rcvAmt) - n(o.discAmt); });
+  /* 통합 묶음의 대표 거래처면 소속 거래처 원장까지 합친다 — 입금이 대표로 같이 들어오므로 (2026-11-05 거래처 통합) */
+  var cds=arGroupCodes(cd);
+  Promise.all(cds.map(function(c){ return post('/mangr/custLedger.do','custCd='+encodeURIComponent(c)).then(function(r){ return r.json(); }).then(function(j){ return (j&&j.data)||[]; }); })).then(function(ls){
+    if((document.getElementById('svCustNm').dataset.cd||'')!==String(cd)) return;   // 그새 다른 거래처를 골랐으면 버린다
+    var bal=0;
+    ls.forEach(function(l){ l.forEach(function(o){ bal += n(o.saleAmt) - n(o.dcAmt) - n(o.rcvAmt) - n(o.discAmt); }); });
     _balNow = bal;
-    document.getElementById('svBal').textContent = fmt(bal);
+    document.getElementById('svBal').textContent = fmt(bal)+(cds.length>1?' (통합 '+cds.length+'곳)':'');
     svCalc();                                // 수금 후 잔고 다시 계산
     svBalBtnUpd();
   }).catch(function(){});
@@ -674,9 +701,14 @@ function svLedger(cd){
   document.getElementById('lgCust').textContent = cd ? (document.getElementById('svCustNm').value||cd) : '—';
   if(!cd){ tb.innerHTML='<tr><td colspan="8" class="sv-msg">거래처를 선택하세요.</td></tr>'; document.getElementById('lgFoot').innerHTML=''; return; }
   tb.innerHTML='<tr><td colspan="8" class="sv-msg">불러오는 중…</td></tr>';
-  post('/mangr/custLedger.do','custCd='+encodeURIComponent(cd)).then(function(r){return r.json();}).then(function(j){
-    var l=(j&&j.data)||[];
-    if(!l.length){ tb.innerHTML='<tr><td colspan="8" class="sv-msg">거래 내역이 없습니다.</td></tr>'; return; }
+  /* 통합 묶음의 대표면 소속 거래처 원장도 같이 받아 날짜순으로 합친다 — 줄마다 거래처 이름(cnm) (2026-11-05) */
+  var cds=arGroupCodes(cd), grp=cds.length>1;
+  if(grp) document.getElementById('lgCust').textContent=(document.getElementById('svCustNm').value||cd)+' (통합 '+cds.length+'곳)';
+  Promise.all(cds.map(function(c){ return post('/mangr/custLedger.do','custCd='+encodeURIComponent(c)).then(function(r){ return r.json(); }).then(function(j){ return ((j&&j.data)||[]).map(function(o){ o.cnm=grp?(function(){ var v=_vendors.filter(function(x){ return String(x.vendorCd)===c; })[0]; return v?v.vendorNm:c; })():''; o.ccd=c; return o; }); }); })).then(function(ls){
+    if(_lgCd!==String(cd)) return;   // 그새 다른 거래처를 골랐으면 버린다
+    var l=[]; ls.forEach(function(x){ l=l.concat(x); });
+    if(grp) l.sort(function(a,b){ return String(a.dt)<String(b.dt)?-1:(String(a.dt)>String(b.dt)?1:(a.cnm<b.cnm?-1:(a.cnm>b.cnm?1:0))); });
+    if(!l.length){ tb.innerHTML='<tr><td colspan="8" class="sv-msg">거래 내역이 없습니다.</td></tr>'; document.getElementById('lgFoot').innerHTML=''; return; }
     var h='', bal=0, mm=null, m=z(), t=z();
     function z(){ return {s:0,d:0,r:0,p:0,y:0,c:0}; }
     function monthRow(){
@@ -694,8 +726,8 @@ function svLedger(cd){
       m.s+=s;m.d+=d;m.r+=r;m.p+=p;m.y+=y;m.c+=c;
       t.s+=s;t.d+=d;t.r+=r;t.p+=p;t.y+=y;t.c+=c;
       /* 일자 줄 클릭 → 아래 카드에 그 날 매출품목. [월 계]·[합 계] 줄은 클릭 대상이 아니다 */
-      h += '<tr data-dt="'+esc(dt)+'" onclick="svDayOpen(\''+dt+'\')" title="클릭 → 이 날 매출품목 보기">'
-         + '<td>'+esc(fmtDt(dt))+'</td><td class="num">'+fmt(s)+'</td><td class="num">'+fmt(d)+'</td><td class="num">'+fmt(r)
+      h += '<tr data-dt="'+esc(dt)+'" data-cd="'+esc(o.ccd||'')+'" onclick="'+(grp?'_lgCd=\''+esc(o.ccd)+'\'; ':'')+'svDayOpen(\''+dt+'\')" title="클릭 → 이 날 매출품목 보기'+(grp?' ('+esc(o.cnm)+')':'')+'">'
+         + '<td style="white-space:nowrap">'+esc(fmtDt(dt))+(grp?' <span style="color:#5a6b7a; font-size:11.5px">'+esc(o.cnm)+'</span>':'')+'</td><td class="num">'+fmt(s)+'</td><td class="num">'+fmt(d)+'</td><td class="num">'+fmt(r)
          + '</td><td class="num">'+fmt(p)+'</td><td class="num">'+fmt(y)+'</td><td class="num">'+fmt(c)
          + '</td><td class="num"><b>'+fmt(bal)+'</b></td></tr>';
     });
@@ -764,6 +796,42 @@ document.addEventListener('keydown', function(e){
      화면에서 거래처로 접는다 : 매출 = saleAmt − saleDcAmt · 수금 = rcvAmt · 미수 = 매출 − 수금. 서버 무변경.
      탭을 처음 열 때 한 번 읽고, 저장·삭제 뒤(arLoad(true))와 [🔄] 로 다시 읽는다. 줄을 누르면 svCustPick(기존) 으로 왼쪽 전표에 거래처가 올라간다(탭은 그대로 — 다음 거래처를 이어서 고를 수 있게). */
 var _ar=[], _arLoaded=false, _arBusy=false, _arTab='lg';
+/* ── 거래처 통합(수금 묶음) 2026-11-05 — 기준정보관리 ▸ 거래처 통합(custGrp.jsp) 에서 정한 회사 설정 custGrp.groups[{mainCd, members:[{cd,nm}]}]
+     미수 현황 : 대표 거래처 줄 = 묶음 전체 합계(통합) + 그 밑에 소속 거래처(대표 포함) 줄 = 분리. 대표 줄을 누르면 대표 거래처가 전표에 올라간다.
+     현잔고·잔고 수금 : 대표 거래처를 고르면 묶음 전체 원장 합(통합) */
+function arGroups(){ try{ var g=(window.konetSet && konetSet._raw && konetSet._raw.custGrp && konetSet._raw.custGrp.groups)||[]; return g.filter(function(x){ return x && x.mainCd && (x.members||[]).length; }); }catch(e){ return []; } }
+function arGroupCodes(cd){ cd=String(cd||''); var g=arGroups().filter(function(x){ return String(x.mainCd)===cd; })[0]; if(!g) return [cd]; return [cd].concat((g.members||[]).map(function(m){ return String(m.cd||m); }).filter(function(c){ return c && c!==cd; })); }
+function arGroupify(list){
+  var gs=arGroups(); if(!gs.length) return list;
+  var byCd={}; list.forEach(function(o){ byCd[o.custCd]=o; });
+  var used={}, out=[];
+  gs.forEach(function(g){ var main=String(g.mainCd||''), cds=arGroupCodes(main), mem=cds.filter(function(c){ return byCd[c] && !used[c]; }); if(!mem.length) return;
+    var G={ custCd:main, custNm:byCd[main]?byCd[main].custNm:(g.mainNm||main), grp:true, members:[], sale:0, rcv:0, recv:0, lastSaleDt:'', lastRcvDt:'' };
+    mem.forEach(function(c){ var o=byCd[c]; used[c]=1; G.members.push(o); G.sale+=o.sale; G.rcv+=o.rcv; G.recv+=o.recv; if(o.lastSaleDt>G.lastSaleDt) G.lastSaleDt=o.lastSaleDt; if(o.lastRcvDt>G.lastRcvDt) G.lastRcvDt=o.lastRcvDt; });
+    out.push(G); });
+  list.forEach(function(o){ if(!used[o.custCd]) out.push(o); });
+  return out;
+}
+var _arAlloc={};   /* 대표코드 → { 소속코드: { rcv, recv } } — 오래된 매출부터 배분한 결과 (2026-11-05) */
+function arAllocLoad(G){
+  var codes=[G.custCd].concat(G.members.map(function(m){ return m.custCd; }).filter(function(c){ return c!==G.custCd; }));
+  Promise.all(codes.map(function(c){ return post('/mangr/custLedger.do','custCd='+encodeURIComponent(c)).then(function(r){ return r.json(); }).then(function(j){ return ((j&&j.data)||[]).map(function(o){ return { dt:String(o.dt||''), cd:c, net:n(o.saleAmt)-n(o.dcAmt), paid:n(o.rcvAmt)+n(o.discAmt) }; }); }); }))
+  .then(function(ls){
+    var rows=[]; ls.forEach(function(x){ rows=rows.concat(x); });
+    var remain=0; rows.forEach(function(o){ remain+=o.paid; });                       /* 묶음 전체 입금(할인 포함) */
+    rows.sort(function(a,b){ return a.dt<b.dt?-1:(a.dt>b.dt?1:0); });   /* 날짜순 */
+    var alloc={}, sale={}; codes.forEach(function(c){ alloc[c]=0; sale[c]=0; });
+    rows.forEach(function(o){ sale[o.cd]+=o.net; });
+    /* 날짜별로 묶어 오래된 날부터 지운다. 같은 날 두 곳 매출이 있으면 그 날 매출 비율로 나눈다 */
+    var days={}, dts=[]; rows.forEach(function(o){ if(o.net<=0) return; if(!days[o.dt]){ days[o.dt]=[]; dts.push(o.dt); } days[o.dt].push(o); });
+    dts.forEach(function(dt){ if(remain<=0) return; var l=days[dt], dayNet=0; l.forEach(function(o){ dayNet+=o.net; }); var take=Math.min(remain, dayNet); remain-=take;
+      var given=0; l.forEach(function(o,k){ var a=(k===l.length-1)?(take-given):Math.round(take*o.net/dayNet); alloc[o.cd]+=a; given+=a; }); });
+    if(remain>0) alloc[G.custCd]+=remain;                                             /* 남는 입금(선수금)은 대표에 */
+    var A={}; codes.forEach(function(c){ A[c]={ rcv:alloc[c], recv:sale[c]-alloc[c] }; });
+    _arAlloc[G.custCd]=A; if(_arTab==='ar') arRender();
+  }).catch(function(){});
+}
+function arFindCd(cd){ cd=String(cd); for(var i=0;i<_ar.length;i++){ var o=_ar[i]; if(o.custCd===cd) return o; if(o.members) for(var j=0;j<o.members.length;j++) if(o.members[j].custCd===cd) return o.members[j]; } return null; }
 function svRTab(t){
   _arTab=t;
   document.getElementById('svTabLg').classList.toggle('on', t==='lg'); document.getElementById('svTabAr').classList.toggle('on', t==='ar');
@@ -775,7 +843,8 @@ function arLoad(force){
   if(_arBusy) return; if(_arLoaded && !force && _arTab!=='ar') return;
   _arBusy=true; if(!_arLoaded){ var tb=document.getElementById('arList'); if(tb) tb.innerHTML='<tr><td colspan="6" class="sv-msg">읽는 중…</td></tr>'; }
   post('/mangr/selectCustBalance.do','').then(function(r){ return r.json(); }).then(function(j){
-    _ar=arFold((j&&j.data)||[]); _arLoaded=true; _arBusy=false; if(_arTab==='ar') arRender();
+    _ar=arGroupify(arFold((j&&j.data)||[])); _arLoaded=true; _arBusy=false; if(_arTab==='ar') arRender();   /* 통합 묶음은 대표 줄로 (2026-11-05) */
+    _arAlloc={}; _ar.filter(function(o){ return o.grp; }).forEach(arAllocLoad);   /* 분리 줄의 수금·미수 = 오래된 매출부터 배분 (2026-11-05) */
   }).catch(function(e){ _arBusy=false; var tb=document.getElementById('arList'); if(tb) tb.innerHTML='<tr><td colspan="6" class="sv-msg" style="color:#c0392b">조회 오류 — '+esc(e.message)+'</td></tr>'; });
 }
 /* 거래처로 접기 — custBalance.jsp cbFold 와 같은 식(이월·당월 구분 없이 전부 누계) */
@@ -806,7 +875,7 @@ function arView(){
   return _ar.filter(function(o){
     if(only && Math.round(o.recv)<=0) return false;
     if(!q) return true;
-    var nm=arNorm(o.custNm), cd=arNorm(o.custCd);
+    var nm=arNorm(o.custNm+(o.members?o.members.map(function(m){ return m.custNm; }).join(' '):'')), cd=arNorm(o.custCd+(o.members?o.members.map(function(m){ return m.custCd; }).join(' '):''));   /* 통합 줄은 소속 이름·코드로도 찾힌다 */
     return qs.some(function(x){ return nm.indexOf(x)>=0 || cd.indexOf(x)>=0; });
   }).sort(function(a,b){ return b.recv-a.recv; });
 }
@@ -815,23 +884,26 @@ function arRender(){
   if(!_arLoaded){ tb.innerHTML='<tr><td colspan="6" class="sv-msg">읽는 중…</td></tr>'; return; }
   var v=arView(), cur=String((document.getElementById('svCustNm')||{}).dataset ? (document.getElementById('svCustNm').dataset.cd||'') : ''), sum=0;
   if(!v.length){ tb.innerHTML='<tr><td colspan="6" class="sv-msg">'+(_ar.length?'맞는 거래처가 없습니다 — 검색어를 지우거나 「미수 있는 곳만」을 끄세요.':'매출 자료가 없습니다.')+'</td></tr>'; if(info) info.textContent=''; return; }
-  tb.innerHTML=v.map(function(o){ sum+=o.recv; var d=arDueDays(o), lv=(d==null)?'':(d>=arDueBad()?'b':(d>=arDueWarn()?'w':'ok'));
-    return '<tr data-cd="'+esc(o.custCd)+'"'+(o.custCd===cur?' class="on"':'')+' onclick="arPick(\''+esc(o.custCd)+'\')" title="누르면 이 거래처가 왼쪽 전표에 올라갑니다">'
-      +'<td class="nm"><b>'+esc(o.custNm)+'</b> <span style="color:#5a6b7a;font-size:12px">'+esc(o.custCd)+'</span></td>'
-      +'<td class="num">'+fmt(o.sale)+'</td><td class="num">'+fmt(o.rcv)+'</td>'
-      +'<td class="num" style="font-weight:800;color:'+(Math.round(o.recv)>0?'#c0392b':(Math.round(o.recv)<0?'#1b5fb3':'#37475a'))+'">'+fmt(o.recv)+'</td>'
+  var row=function(o, mem, G){ var d=arDueDays(o), lv=(d==null)?'':(d>=arDueBad()?'b':(d>=arDueWarn()?'w':'ok'));
+    var al=(mem && G && _arAlloc[G.custCd] && _arAlloc[G.custCd][o.custCd]) || null;   /* 분리 줄 : 배분된 수금·미수 (2026-11-05) */
+    if(al){ o={ custCd:o.custCd, custNm:o.custNm, sale:o.sale, rcv:al.rcv, recv:al.recv, lastSaleDt:o.lastSaleDt, lastRcvDt:o.lastRcvDt }; }
+    return '<tr data-cd="'+esc(o.custCd)+'" class="'+(mem?'ar-mem':'')+(o.custCd===cur&&!mem?' on':'')+'" onclick="arPick(\''+esc(o.custCd)+'\')" title="'+(mem?'소속 거래처(분리) — 누르면 이 거래처가 전표에 올라갑니다':(o.grp?'통합 묶음 — 누르면 대표 거래처가 왼쪽 전표에 올라갑니다(현잔고·잔고 수금은 통합 금액)':'누르면 이 거래처가 왼쪽 전표에 올라갑니다'))+'">'
+      +'<td class="nm">'+(mem?'└ ':'')+'<b>'+esc(o.custNm)+'</b> <span style="color:#5a6b7a;font-size:12px">'+esc(o.custCd)+'</span>'+(o.grp?'<span class="ar-grp" title="소속 '+o.members.map(function(m){ return esc(m.custNm); }).join(' · ')+'">통합 '+o.members.length+'곳</span>':'')+'</td>'
+      +'<td class="num">'+fmt(o.sale)+'</td><td class="num"'+(al?' title="통합 입금을 오래된 매출부터 배분한 값(표시용 — 전표는 대표 거래처에)"':'')+'>'+fmt(o.rcv)+(al?' <span style="color:#8a4c0d; font-size:10.5px">배분</span>':'')+'</td>'
+      +'<td class="num" style="font-weight:'+(mem?'600':'800')+';color:'+(Math.round(o.recv)>0?'#c0392b':(Math.round(o.recv)<0?'#1b5fb3':'#37475a'))+'">'+fmt(o.recv)+'</td>'
       +'<td>'+(o.lastRcvDt?arDtLbl(o.lastRcvDt):'<span style="color:#9aa6b2">없음</span>')+'</td>'
-      +'<td>'+(d==null?'':('<span class="ar-due '+lv+'" title="마지막 수금 '+(o.lastRcvDt?arDtLbl(o.lastRcvDt):'없음')+' · 마지막 매출 '+(o.lastSaleDt?arDtLbl(o.lastSaleDt):'없음')+'">'+d+'일</span>'))+'</td></tr>';
-  }).join('');
+      +'<td>'+(d==null?'':('<span class="ar-due '+lv+'" title="마지막 수금 '+(o.lastRcvDt?arDtLbl(o.lastRcvDt):'없음')+' · 마지막 매출 '+(o.lastSaleDt?arDtLbl(o.lastSaleDt):'없음')+'">'+d+'일</span>'))+'</td></tr>'; };
+  /* 통합 묶음 = 대표 줄(합계) + 소속 줄(분리, 대표 자신 포함) (2026-11-05) */
+  tb.innerHTML=v.map(function(o){ sum+=o.recv; return row(o,false)+(o.grp?o.members.map(function(m){ return row(m,true,o); }).join(''):''); }).join('');
   if(info) info.innerHTML='<b>'+v.length+'</b>곳'+(v.length<_ar.length?' / '+_ar.length:'')+' · 미수 합계 <b style="color:#c0392b">'+fmt(sum)+'</b>';
 }
 /* 줄 클릭 → 기존 svCustPick(거래처 칸·담당자·현잔고·원장·금액칸 커서). 거래처 마스터에 없는 코드(옛 거래처)면 이름만 넣는다 */
 function arPick(cd){
-  var o=_ar.filter(function(x){ return x.custCd===String(cd); })[0]; if(!o) return;
+  var o=arFindCd(cd); if(!o) return;   /* 통합 줄 → 대표 거래처 · 소속 줄 → 그 거래처 (2026-11-05) */
   if(_cur) svNewKeep();                                   // 저장된 전표를 보고 있었으면 새 전표로(엉뚱한 전표에 거래처가 덮이지 않게)
   if(_vendors.some(function(x){ return String(x.vendorCd)===o.custCd; })) svCustPick(o.custCd);
   else { var c=document.getElementById('svCustNm'); c.value=o.custNm; c.dataset.cd=o.custCd; svBal(o.custCd); svLedger(o.custCd); svFocusAmt(); }
-  Array.prototype.forEach.call(document.querySelectorAll('#arList tr'), function(tr){ tr.classList.toggle('on', tr.getAttribute('data-cd')===o.custCd); });
+  Array.prototype.forEach.call(document.querySelectorAll('#arList tr'), function(tr){ tr.classList.toggle('on', tr.getAttribute('data-cd')===o.custCd && !tr.classList.contains('ar-mem')); });
 }
 </script>
 

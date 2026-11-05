@@ -3534,6 +3534,8 @@
     <div class="sub-menu" id="sub-baseinfo">
       <a class="mi" data-key="vendor"  onclick="logiFrame('vendor','${pageContext.request.contextPath}/mangr/vendorMng.do', this)"><span class="ic">🧾</span>매입/매출 거래처</a>
       <a class="mi" data-key="client"  onclick="logiFrame('client','${pageContext.request.contextPath}/mangr/clientMng.do', this)"><span class="ic">🤝</span>거래처관리(사업장)</a>
+      <%-- 거래처 통합(수금 묶음) (2026-11-05 사용자 「우리푸드·샐러드 플러스 입금은 통합 — 기준정보 설정으로」) — 회사 설정 custGrp. 수금등록 미수 현황·현잔고가 통합으로 --%>
+      <a class="mi" data-key="custGrp" onclick="logiFrame('custGrp','${pageContext.request.contextPath}/mangr/custGrp.do', this)"><span class="ic">🔗</span>거래처 통합(수금 묶음)</a>
       <%-- 회사 정보 수정 (2026-09-11) = <모든 회사>가 자기 회사 정보·도장·기능·거래명세서 인쇄 옵션을 고친다.
            관리자 전용 「회사/사용자 관리」와 별개 — 서버는 세션 회사코드로만 읽고 쓴다. --%>
       <a class="mi" data-key="compinfo" onclick="logiFrame('compinfo','${pageContext.request.contextPath}/mangr/compInfo.do', this)"><span class="ic">🏷</span>회사 정보 수정</a>
@@ -5297,6 +5299,10 @@
     <%-- 직원 소통 (2026-09-22) — 메뉴 logiFrame('empNotice'|'empMsg',…) 의 짝 --%>
     <section id="panel-empNotice" class="panel" style="padding:0;">
       <iframe id="if-empNotice" src="" title="직원 공지사항" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <%-- 거래처 통합(수금 묶음) (2026-11-05) — 메뉴 logiFrame('custGrp',…) 의 짝 --%>
+    <section id="panel-custGrp" class="panel" style="padding:0;">
+      <iframe id="if-custGrp" src="" title="거래처 통합(수금 묶음)" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <%-- 직원 휴가 관리 (2026-10-21) — 메뉴 logiFrame('leaveMng',…) 의 짝 --%>
     <section id="panel-leaveMng" class="panel" style="padding:0;">

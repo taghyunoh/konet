@@ -227,6 +227,10 @@
   table.cb-tb th.grp{ background:#d9edf7 !important; }
   table.cb-tb td{ border:1px solid #c9d3dc !important; }
   table.cb-tb tr.tot td, table.cb-tb tr.tot td.dayc, #cbList tbody tr.tot td:first-child{ background:#fcf8e3 !important; color:#1f2a37 !important; font-weight:800; }
+  /* 거래처 통합(수금 묶음) 2026-11-05 — 대표 줄 합계 + 소속 줄(분리) */
+  .cb-grpb{ display:inline-block; margin-left:5px; padding:0 6px; border-radius:9px; background:#fff3cd; color:#8a4c0d; font-size:10.5px; font-weight:800; vertical-align:middle; }
+  .cb-tb tr.cb-mem td{ background:#fafcfd; color:#5a6b7a; font-size:12px; }
+  .cb-tb tr.cb-mem td .nm{ font-weight:500; }
 </style>
 
 <div class="cb-wrap" id="cbWrap">
@@ -913,6 +917,26 @@ function cbFold(){
   return ord.map(function(k){ return m[k]; });
 }
 
+/* ── 거래처 통합(수금 묶음) — 회사 설정 custGrp.groups[{mainCd, mainNm, members:[{cd,nm}]}] (2026-11-05)
+     목록에서 묶음 거래처들을 대표 줄 하나(합계)로 접고 members 에 원래 줄을 둔다. 그리기는 cbRowGrp 가 대표 줄 + 소속 줄 */
+function cbGroups(){ try{ var g=(window.konetSet && konetSet._raw && konetSet._raw.custGrp && konetSet._raw.custGrp.groups)||[]; return g.filter(function(x){ return x && x.mainCd && (x.members||[]).length; }); }catch(e){ return []; } }
+function cbCustGrp(list){
+  var gs=cbGroups(); if(!gs.length) return list;
+  var by={}; list.forEach(function(o){ by[o.custCd]=o; });
+  var used={}, out=[], SUM=['recv','pay','sale','rcv','purch','payout','prevRecv','prevPay','curSale','curRcv','curPurch','curPay'], MAX=['lastDt','lastSaleDt','lastRcvDt'];
+  gs.forEach(function(g){ var main=String(g.mainCd), codes=[main].concat((g.members||[]).map(function(m){ return String(m.cd||m); })), mem=codes.filter(function(c){ return by[c] && !used[c]; }); if(!mem.length) return;
+    var base=by[main]||by[mem[0]], G={}; Object.keys(base).forEach(function(k){ G[k]=base[k]; });
+    G.custCd=main; G.custNm=by[main]?by[main].custNm:(g.mainNm||main); G.grp=true; G.members=[]; G.months=[]; G.buckets=[];
+    SUM.forEach(function(k){ G[k]=0; }); MAX.forEach(function(k){ G[k]=''; });
+    mem.forEach(function(c){ var o=by[c]; used[c]=1; G.members.push(o); SUM.forEach(function(k){ G[k]+=n(o[k]); }); MAX.forEach(function(k){ if(String(o[k]||'')>G[k]) G[k]=String(o[k]||''); }); G.months=G.months.concat(o.months||[]); G.buckets=G.buckets.concat(o.buckets||[]); });
+    out.push(G); });
+  list.forEach(function(o){ if(!used[o.custCd]) out.push(o); });
+  return out;
+}
+function cbQHit(o, q){ var hit=function(x){ return (x.custNm||'').toLowerCase().indexOf(q)>=0 || (x.custCd||'').toLowerCase().indexOf(q)>=0; }; return hit(o) || (o.members||[]).some(hit); }
+function cbDaySum(G){ var t={ sale:0, rcv:0, purch:0, pay:0 }; (G.members||[]).forEach(function(m){ var d=cbDayOf(m.custCd); t.sale+=d.sale; t.rcv+=d.rcv; t.purch+=d.purch; t.pay+=d.pay; }); return t; }
+function cbRowGrp(o, lvl, bkey){ var h=cbRowHtml(o, lvl, bkey); if(o.grp) o.members.forEach(function(m){ h+=cbRowHtml(m, (lvl||0)+1, bkey, true); }); return h; }
+
 function cbRender(){
   var occ=cbIsOcc();
   if(occ && !_occOn){
@@ -932,7 +956,7 @@ function cbRender(){
   var q=(document.getElementById('cbFind').value||'').trim().toLowerCase();
   cbCloseUI();                                   // 기준월이 바뀌면 [🔒 확정]↔[🔓 해제] 글자도 따라간다(2026-09-16)
 
-  _list = (occ ? cbOccFold() : cbFold()).filter(function(o){
+  _list = cbCustGrp(occ ? cbOccFold() : cbFold()).filter(function(o){   /* 통합 묶음은 대표 줄로 (2026-11-05) */
     /* 발생 모드의 '받을/지급만' 은 **움직임이 있었는지**로 본다 — 매출과 수금이 같아 차액이 0인 달도
        거래는 있었던 것이라 빼면 안 된다(누적 모드의 '잔액 0'과는 뜻이 다르다). */
     if(occ){
@@ -950,7 +974,7 @@ function cbRender(){
       if(_dueOnly() && Math.round(o.recv) <= 0) return false;
       if(_dueOver()){ var dd=cbDueDays(o); if(dd==null || dd < cbDueWarn()) return false; }
     }
-    if(q && (o.custNm||'').toLowerCase().indexOf(q)<0 && (o.custCd||'').toLowerCase().indexOf(q)<0) return false;
+    if(q && !cbQHit(o,q)) return false;   /* 통합 줄은 소속 이름으로도 찾힌다 */
     return true;
   });
 
@@ -1111,7 +1135,7 @@ function cbGroupHtml(list, prefix, lvl, bkey){
   lvl=lvl||0;
   var html='', keys=[];
   if(!document.getElementById('cbGroup').checked){
-    list.forEach(function(o){ html+=cbRowHtml(o, lvl, bkey); });
+    list.forEach(function(o){ html+=cbRowGrp(o, lvl, bkey); });
     return { html:html, keys:keys };
   }
 
@@ -1153,7 +1177,7 @@ function cbGroupHtml(list, prefix, lvl, bkey){
   gord.forEach(function(g){
     var t=gm[g], key=prefix+g, off=cbOffKey(key);
     /* 묶음이 한 곳뿐이면 머리행을 만들지 않는다(용인·평택은 혼자다) — 매출내역 4탭과 같은 규칙 */
-    if(t.rows.length === 1 && g !== CB_ETC){ html+=cbRowHtml(t.rows[0], lvl, bkey); return; }
+    if(t.rows.length === 1 && g !== CB_ETC){ html+=cbRowGrp(t.rows[0], lvl, bkey); return; }
     keys.push(key);
     /* ★접기는 ▼ 화살표를 눌렀을 때만 (2026-07-26 요청).
          종전엔 머리행 전체가 onclick 이라 소계 숫자를 짚어 보려고 눌러도 접혔다. */
@@ -1169,7 +1193,7 @@ function cbGroupHtml(list, prefix, lvl, bkey){
      + cbNetCell(t.recv, t.pay)
      + '<td class="ctr">'+dtLbl(t.lastDt)+'</td>'+(cbIsOcc()?'':cbDueCntCell(t.rows))+'</tr>';
     if(off) return;
-    t.rows.forEach(function(o){ html+=cbRowHtml(o, lvl+1, bkey); });
+    t.rows.forEach(function(o){ html+=cbRowGrp(o, lvl+1, bkey); });
   });
   return { html:html, keys:keys };
 }
@@ -1188,7 +1212,7 @@ function cbOccListBody(el, h){
   var mon=(_mode==='mon');
   /* 보기(필터)·검색을 통과한 거래처만 — 판정은 이미 _list 가 갖고 있다 */
   var keep={}, meta={};
-  _list.forEach(function(o){ keep[o.custCd]=1; meta[o.custCd]=o; });
+  _list.forEach(function(o){ keep[o.custCd]=1; meta[o.custCd]=o; (o.members||[]).forEach(function(m){ keep[m.custCd]=1; meta[m.custCd]=m; }); });   /* 통합 묶음의 소속도 낟알 안에 (2026-11-05) */
 
   var bm={}, bord=[];
   _occ.forEach(function(r){
@@ -1275,18 +1299,18 @@ function cbGbCell(o){
 
 /* 거래처 한 줄. lvl = 들여쓰기 단계(0 맨 왼쪽 / 1 묶음·낟알 아래 / 2 낟알 ▸ 묶음 아래).
    ★옛 호출부는 true/false 를 넘긴다 — 그대로 0·1 로 읽힌다(_indCls). */
-function cbRowHtml(o, lvl, bkey){
+function cbRowHtml(o, lvl, bkey, mem){   /* mem = 통합 묶음의 소속 줄(분리) (2026-11-05) */
   /* ★출고장 꼬리표(평택·오산…)는 안 붙인다 (2026-07-27 요청) — 거래처명에 이미 지역이 들어 있어 겹치는 표시였다.
        대신 마우스를 올리면 나오는 설명(title)에 남겨 둔다. 뺀 만큼 거래처 칸을 좁혔다. */
-  var net=o.recv-o.pay, dc=cbDcNm(o), d=cbDayOf(o.custCd);
+  var net=o.recv-o.pay, dc=cbDcNm(o), d=o.grp?cbDaySum(o):cbDayOf(o.custCd);
   /* ★data-cd/data-b = 선택 표시를 **표를 다시 그리지 않고** 바꾸기 위한 표식(cbMarkPick).
        전체 재렌더로 하면 큰 표가 통째로 새로 그려져 화면이 깜박인다(2026-07-29 지적). */
-  return '<tr class="pick'+((_pick===o.custCd && (!bkey || _pickB===bkey))?' on':'')+'"'
+  return '<tr class="pick'+((_pick===o.custCd && (!bkey || _pickB===bkey))?' on':'')+(mem?' cb-mem':'')+'"'
    + ' data-cd="'+esc(o.custCd)+'"'+(bkey?(' data-b="'+esc(bkey)+'"'):'')
    + ' onclick="cbPick(\''+esc(o.custCd).replace(/'/g,"\\'")+'\''+(bkey?(',\''+bkey+'\''):'')+')">'
    + '<td class="txt'+_indCls(lvl?(lvl===true?1:lvl):0)+'" title="'+esc(o.custNm)+' ('+esc(o.custCd)+')'+(dc?' · 출고장 '+esc(dc):'')
    +   (o.mgrNm?' · 담당 '+esc(o.mgrNm):'')+(o.tel?' · '+esc(o.tel):'')+'">'
-   +   '<span class="nm">'+esc(o.custNm)+'</span></td>'
+   +   '<span class="nm">'+(mem?'└ ':'')+esc(o.custNm)+'</span>'+(o.grp?'<span class="cb-grpb" title="통합 묶음(수금) — 소속 '+esc(o.members.map(function(m){ return m.custNm; }).join(' · '))+'">통합 '+o.members.length+'곳</span>':'')+'</td>'
    + cbGbCell(o)
    /* 발생 모드(월·년) = 매출·수금·차액 / 매입·지급·차액 — 누계(이월·당월)와 [특정일자 발생] 칸은 없다 */
    + (cbIsOcc()
