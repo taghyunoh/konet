@@ -123,6 +123,14 @@
   table.mx thead th.cn, table.mx thead th.rt{ background:#d9edf7; }
   table.mx tr.sum td{ background:#fcf8e3; color:#1f2a37; font-weight:800; }
   table.mx tr.sum td.cn, table.mx tr.sum td.rt{ background:#fcf8e3; }
+  /* 품목 머리글 클릭 → 상품 정보 창 (2026-11-05) */
+  table.mx th.it[data-pcd]{ cursor:pointer; } table.mx th.it[data-pcd]:hover .cd{ text-decoration:underline; }
+  #somProdPop{ position:fixed; z-index:9000; width:400px; background:#fff; border:1px solid #9fc9c0; border-radius:8px; box-shadow:0 12px 32px rgba(15,23,32,.28); font-size:13px; color:#1f2a37; display:none; }
+  #somProdPop .spi-hd{ display:flex; align-items:center; gap:8px; padding:9px 12px; background:#e6f1ee; color:#125a4e; font-weight:800; border-radius:8px 8px 0 0; font-size:13.5px; }
+  #somProdPop .spi-x{ margin-left:auto; cursor:pointer; font-size:16px; line-height:1; color:#5a6b7a; } #somProdPop .spi-x:hover{ color:#c0392b; }
+  #somProdPop table.spi{ width:100%; border-collapse:collapse; } #somProdPop table.spi th{ width:118px; text-align:left; padding:4px 10px; background:#f6f9f8; color:#37475a; font-weight:700; border-bottom:1px solid #eef1f4; white-space:nowrap; }
+  #somProdPop table.spi td{ padding:4px 10px; border-bottom:1px solid #eef1f4; word-break:break-all; } #somProdPop table.spi td.r{ font-variant-numeric:tabular-nums; }
+  #somProdPop .spi-ft{ display:flex; align-items:center; gap:10px; padding:8px 12px; } #somProdPop .dim{ color:#8a97a4; }
 </style>
 </head>
 <body>
@@ -336,7 +344,7 @@ function somPaint(force){
     h+='<th class="gh'+(cols[i].first?' gs':'')+'" colspan="'+(j-i)+'" title="'+esc(g.nm)+'"><span class="gl">'+esc(g.nm)+'<small>'+num(g.iord.length)+'품목 · '+num(g.tot)+'</small></span></th>'; i=j; }
   h+=(spR?'<th class="sp"></th>':'')+'</tr><tr class="r2"><th class="cn">품목</th><th class="rt"></th>'+(spL?'<th class="sp"></th>':'');
   cols.forEach(function(c){ var it=m.grp[c.g].items[c.cd];
-    h+='<th class="it'+(c.first?' gs':'')+'" title="'+esc(c.cd+' '+it.nm)+'"><span class="cd">'+esc(c.cd)+'</span><span class="nm">'+esc(shortNm(it.nm, m.grp[c.g].nm))+'</span></th>'; });
+    h+='<th class="it'+(c.first?' gs':'')+'" data-pcd="'+esc(c.cd)+'" title="'+esc(c.cd+' '+it.nm)+' — 누르면 상품 정보"><span class="cd">'+esc(c.cd)+'</span><span class="nm">'+esc(shortNm(it.nm, m.grp[c.g].nm))+'</span></th>'; });   /* data-pcd = 상품 정보 창 (2026-11-05) */
   h+=(spR?'<th class="sp"></th>':'')+'</tr></thead><tbody>';
   var L=spL?'<td class="sp"></td>':'', R=spR?'<td class="sp"></td>':'';
   function cell(cls, ym, c, txt){ var k=ym+'|'+c.g+'|'+c.cd; return '<td class="'+cls+(c.first?' gs':'')+(_somPick===k?' pick':'')+'" data-ym="'+esc(ym)+'" data-g="'+esc(c.g)+'" data-cd="'+esc(c.cd)+'">'+txt+'</td>'; }
@@ -369,8 +377,52 @@ function somPaint(force){
    · 월 셀 = 그 달, 현재고·기간합계 셀 = 조회 기간 전체. 사업장은 그 열의 사업장(매칭명) 하나.
    · 출고내역 = /prod/stockOutDetail.do (통합 원천: 정산서 있는 날은 정산서, 없으면 발주현황표(DC 발주 포함) + 토더·대상 발주(늘) + 판매전표 — 표와 같은 규칙, 2026-10-26)
    · 입고내역 = 같은 응답의 수불원장(ledger)에서 출고(O)가 아닌 행(입고 I·반품 R·조정 A)을 년월로 걸러 보여 준다 */
+/* ── 품목 머리글 클릭 → 상품 정보 창 (2026-11-05) ──
+   상품코드등록으로 건너가지 않고 여기서 본다 : 코드·상품명·규격·제조사·유형·과세·입수·입고가·판매가·도매가·적정재고·거래처·바코드·거래중지·매칭코드·현재고.
+   자료 = /prod/prodList.do (findData=코드, 정확히 같은 코드만) — 한 번 받은 코드는 보관. 매칭코드 = 이 화면의 별칭표(_somAlias)를 거꾸로 */
+var _spiCache={}, _spiCd='';
+function spiN(v){ return Number(String(v==null?'':v).replace(/,/g,''))||0; }
+function spiD8(d){ d=''+(d||''); return /^\d{8}$/.test(d)?(d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8)):d; }
+function somProdInfo(cd, anchor){
+  cd=String(cd||''); if(!cd) return;
+  var pop=document.getElementById('somProdPop'); if(!pop){ pop=document.createElement('div'); pop.id='somProdPop'; document.body.appendChild(pop); }
+  var r=anchor?anchor.getBoundingClientRect():{left:200,bottom:120,right:300};
+  var left=Math.min(Math.max(8, r.left), window.innerWidth-420), top=Math.min(r.bottom+6, window.innerHeight-320);
+  pop.style.left=left+'px'; pop.style.top=top+'px'; pop.style.display='block'; _spiCd=cd;
+  var paint=function(p){
+    if(_spiCd!==cd) return;
+    var stk=null; ((RAW&&RAW.stock)||[]).forEach(function(s){ if(String(s.prodCd)===cd) stk=s.curQty; });
+    var exts=[]; if(_somAlias){ for(var k in _somAlias){ if(String(_somAlias[k])===cd) exts.push(k); } }
+    var row=function(l,v,cls){ return '<tr><th>'+l+'</th><td'+(cls?' class="'+cls+'"':'')+'>'+(v==null||v===''?'<span class="dim">—</span>':v)+'</td></tr>'; };
+    var h='<div class="spi-hd"><b>'+esc(cd)+'</b> '+(p?esc(p.prodNm||''):'<span style="color:#a6241c">상품마스터에 없는 코드</span>')+'<span class="spi-x" onclick="somProdClose()" title="닫기">✕</span></div>';
+    if(p){
+      h+='<table class="spi">'
+        +row('규격', esc(p.spec||''))+row('제조사', esc(p.makerNm||''))+row('유형', esc(p.typeNm||''))+row('과세', esc(p.taxGb||''))
+        +row('입수', spiN(p.packQty)?num(p.packQty):'')+row('입고가 / 판매가 / 도매가', (spiN(p.inPrice)?num(p.inPrice):'—')+' / '+(spiN(p.salePrice)?num(p.salePrice):'—')+' / '+(spiN(p.wholePrice)?num(p.wholePrice):'—'),'r')
+        +row('현재고 / 적정', (stk==null?'—':num(stk))+' / '+(spiN(p.safeStock)?num(p.safeStock):'—')+(stk!=null&&spiN(p.safeStock)&&spiN(stk)<spiN(p.safeStock)?' <b style="color:#a6241c">적정 미달</b>':''),'r')
+        +row('거래처', esc(p.vendorNm||''))+row('바코드', esc([p.unitBarcode,p.boxBarcode].filter(Boolean).join(' / ')))
+        +row('거래중지', p.stopYn==='Y'?('<b style="color:#a6241c">중지</b> '+esc(spiD8(p.stopFrDt)||'')+(p.stopMemo?' · '+esc(p.stopMemo):'')):'정상')
+        +row('매칭코드 '+(exts.length?exts.length+'개':''), exts.length?exts.map(esc).join(', '):'')
+        +'</table>';
+    }
+    h+='<div class="spi-ft"><button class="btn" onclick="somProdGo(\''+esc(cd)+'\')" title="상품코드등록 화면을 엽니다(코드는 복사해 둡니다)">상품코드등록 열기</button><span class="dim" style="font-size:11.5px">머리글을 누르면 다른 품목으로 바뀝니다 · ESC 닫기</span></div>';
+    pop.innerHTML=h;
+  };
+  if(_spiCache[cd]!==undefined){ paint(_spiCache[cd]); return; }
+  pop.innerHTML='<div class="spi-hd"><b>'+esc(cd)+'</b> <span class="dim">상품 정보 조회 중…</span><span class="spi-x" onclick="somProdClose()">✕</span></div>';
+  fetch(CTX+'/prod/prodList.do', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'findData='+encodeURIComponent(cd) })
+    .then(function(r){ return r.json(); })
+    .then(function(j){ var p=null; ((j&&j.data)||[]).forEach(function(o){ if(String(o.prodCd)===cd) p=o; }); _spiCache[cd]=p; paint(p); })
+    .catch(function(e){ pop.innerHTML='<div class="spi-hd"><b>'+esc(cd)+'</b> <span style="color:#a6241c">조회 실패 : '+esc(e.message)+'</span><span class="spi-x" onclick="somProdClose()">✕</span></div>'; });
+}
+function somProdClose(){ var pop=document.getElementById('somProdPop'); if(pop) pop.style.display='none'; _spiCd=''; }
+function somProdGo(cd){ try{ if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(cd); }catch(e){} somProdClose();
+  try{ var a=parent.document.querySelector('.logi-side a.mi[data-key="prodcd"]'); if(a){ a.click(); return; } }catch(e){} window.open(CTX+'/prod/prodcd.do','_blank'); }
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') somProdClose(); });
+document.addEventListener('mousedown', function(e){ var pop=document.getElementById('somProdPop'); if(!pop||pop.style.display!=='block') return; if(pop.contains(e.target)) return; if(e.target.closest&&e.target.closest('th.it[data-pcd]')) return; somProdClose(); });
 var DTL_LAST=null, _dtlCache={};   /* 셀별 출고·입고내역 응답 보관 (2026-11-05 속도) */
 document.getElementById('card').addEventListener('click', function(ev){
+  var th=ev.target.closest ? ev.target.closest('th.it[data-pcd]') : null; if(th){ somProdInfo(th.getAttribute('data-pcd'), th); return; }   /* 품목 머리글 → 상품 정보 창 (2026-11-05) */
   var td=ev.target.closest ? ev.target.closest('td[data-cd]') : null; if(!td || !RAW) return;
   var m=_somM||somBuild(), g=m.grp[td.getAttribute('data-g')]; if(!g) return;
   var it=g.items[td.getAttribute('data-cd')]; if(!it) return;
