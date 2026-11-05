@@ -4609,7 +4609,7 @@
 	         NULL, NULL, NULL, 'SHIPOUT', ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), N'출고 자동연동(SHIPOUT)',
 	         /* 창고 = 출고장 매핑(TBL_DC_MST.WH_CD, 2단계 2026-09-16) → 없으면 기본창고(1단계) */
 	         ISNULL(dcw.WH_CD, ISNULL((SELECT TOP 1 w.WH_CD FROM TBL_WH_MST w WHERE w.COMP_CD = s.COMP_CD AND w.DEFAULT_YN='Y' AND w.USE_YN='Y' ORDER BY w.SORT_ORD),'WH1')), 'Y',
-	         CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR}
+	         ISNULL(CONVERT(VARCHAR(19), MAX(s.REG_DTTM), 120), CONVERT(VARCHAR(19),GETDATE(),120)), ISNULL(NULLIF(MAX(s.REG_USER),''), #{regUser,jdbcType=NVARCHAR}), #{regIp,jdbcType=NVARCHAR}   /* 등록자·등록일시 = 발주현황표를 올린 사람·때 (2026-11-05) */
 	    FROM TBL_SHIPOUT_MST s
 	    JOIN ( SELECT COMP_CD, PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ FROM TBL_PROD_MST WHERE ACTION_YN='Y' GROUP BY COMP_CD, PROD_CD ) pm
 	      ON pm.PROD_CD = s.PROD_CD AND pm.COMP_CD = s.COMP_CD
@@ -4635,7 +4635,7 @@
 	  SELECT s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), 'R', SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) + ISNULL(s.DS_SVC_QTY,0)),
 	         NULL, NULL, NULL, 'SHIPOUT', ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), N'대상 반품 자동연동(SHIPOUT)',
 	         ISNULL(dcw.WH_CD, ISNULL((SELECT TOP 1 w.WH_CD FROM TBL_WH_MST w WHERE w.COMP_CD = s.COMP_CD AND w.DEFAULT_YN='Y' AND w.USE_YN='Y' ORDER BY w.SORT_ORD),'WH1')), 'Y',
-	         CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR}
+	         ISNULL(CONVERT(VARCHAR(19), MAX(s.REG_DTTM), 120), CONVERT(VARCHAR(19),GETDATE(),120)), ISNULL(NULLIF(MAX(s.REG_USER),''), #{regUser,jdbcType=NVARCHAR}), #{regIp,jdbcType=NVARCHAR}   /* 등록자·등록일시 = 발주현황표를 올린 사람·때 (2026-11-05) */
 	    FROM TBL_SHIPOUT_MST s
 	    JOIN ( SELECT COMP_CD, PROD_CD, MAX(PROD_SEQ) AS PROD_SEQ FROM TBL_PROD_MST WHERE ACTION_YN='Y' GROUP BY COMP_CD, PROD_CD ) pm
 	      ON pm.PROD_CD = s.PROD_CD AND pm.COMP_CD = s.COMP_CD
@@ -4703,7 +4703,7 @@
 	         NULL, NULL, NULL, 'SALES', d.DLV_DT, d.REMARK,
 	         /* 창고 = 출고장 매핑(TBL_DC_MST.WH_CD, 2단계 2026-09-16) → 없으면 기본창고 */
 	         ISNULL(d.WH_CD, ISNULL((SELECT TOP 1 w.WH_CD FROM TBL_WH_MST w WHERE w.COMP_CD = d.COMP_CD AND w.DEFAULT_YN='Y' AND w.USE_YN='Y' ORDER BY w.SORT_ORD),'WH1')), 'Y',
-	         CONVERT(VARCHAR(19),GETDATE(),120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=NVARCHAR}
+	         ISNULL(d.REG_DTTM, CONVERT(VARCHAR(19),GETDATE(),120)), ISNULL(NULLIF(d.REG_USER,''), #{regUser,jdbcType=NVARCHAR}), #{regIp,jdbcType=NVARCHAR}   /* 등록자·등록일시 = 정산서를 올린 사람·때 (2026-11-05) */
 	    FROM (
 	      /* ── 출고행 : 정상은 정산수량, 반품행은 '나갔던' 발주량 ── */
 	      SELECT s.COMP_CD, s.PROD_SEQ, MAX(s.PROD_CD) AS PROD_CD, s.DLV_DT,
@@ -4711,7 +4711,7 @@
 	             SUM( CASE WHEN ISNULL(s.DLV_TYPE,'') = 'X'
 	                       THEN ISNULL(s.ORD_QTY,0)
 	                       ELSE ISNULL(s.OUT_QTY,0) END ) AS QTY,
-	             N'출고 자동연동(정산서)' AS REMARK, dcw.WH_CD AS WH_CD
+	             N'출고 자동연동(정산서)' AS REMARK, dcw.WH_CD AS WH_CD, CONVERT(VARCHAR(19), MAX(s.REG_DTTM), 120) AS REG_DTTM, MAX(s.REG_USER) AS REG_USER
 	        FROM TBL_SALES_MST s
 	    /* 창고 2단계(2026-09-16) : 출고장 → 창고 매핑(TBL_DC_MST.WH_CD). 매핑이 비면 아래 ISNULL 이 기본창고로 */
 	    LEFT JOIN TBL_DC_MST dcw ON dcw.COMP_CD = s.COMP_CD AND dcw.USE_YN = 'Y' AND ISNULL(dcw.WH_CD,'') <> ''
@@ -4733,7 +4733,7 @@
 	                                       = FLOOR(ISNULL(s.ORD_QTY,0) + ISNULL(s.OUT_QTY,0)) ) )
 	                       THEN ABS(ISNULL(s.OUT_QTY,0))
 	                       ELSE 0 END ) AS QTY,
-	             N'반품 자동연동(정산서)' AS REMARK, dcw.WH_CD AS WH_CD
+	             N'반품 자동연동(정산서)' AS REMARK, dcw.WH_CD AS WH_CD, CONVERT(VARCHAR(19), MAX(s.REG_DTTM), 120) AS REG_DTTM, MAX(s.REG_USER) AS REG_USER
 	        FROM TBL_SALES_MST s
 	    /* 창고 2단계(2026-09-16) : 출고장 → 창고 매핑(TBL_DC_MST.WH_CD). 매핑이 비면 아래 ISNULL 이 기본창고로 */
 	    LEFT JOIN TBL_DC_MST dcw ON dcw.COMP_CD = s.COMP_CD AND dcw.USE_YN = 'Y' AND ISNULL(dcw.WH_CD,'') <> ''
