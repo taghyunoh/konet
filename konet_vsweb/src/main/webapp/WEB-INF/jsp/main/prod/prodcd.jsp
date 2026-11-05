@@ -759,6 +759,15 @@ function gnum(id){ var v=gv(id); return v===''?null:Number(v); }
 
 /* ★done 콜백을 받는다(2026-08-17) — 상품을 새로 만든 뒤 **그 상품의 prodSeq 를 알아야** 매칭코드를
      붙일 수 있어서, 목록을 다시 읽고 나서 이어 할 일을 넘긴다. 인수를 안 주면 종전과 똑같이 동작한다. */
+/* 다른 화면이 넘긴 검색어 (2026-11-05) — 월별 재고현황 상품 정보 창의 [상품코드등록 열기] 등. 목록을 읽은 뒤 검색칸에 넣고 거른다 */
+var _pcPendQ='';
+function pcTakeQ(q){ q=String(q||'').trim(); if(!q) return; var el=document.getElementById('q'); if(!el) return;
+  if(!LIST.length){ _pcPendQ=q; return; }
+  el.value=q; pcFilter(); _pcPendQ='';
+  var first=document.querySelector('#tb tr[data-seq]'); if(first) pcSel(first, Number(first.getAttribute('data-seq')));   /* 첫 줄을 골라 아래 매칭코드·계약도 바로 보이게 */
+  el.focus(); el.select(); }
+window.addEventListener('message', function(e){ var d=e&&e.data; if(d&&d.type==='konetProdcdFind') pcTakeQ(d.q); });
+(function(){ try{ var q=localStorage.getItem('konetProdcdQ'); if(q){ localStorage.removeItem('konetProdcdQ'); _pcPendQ=q; } }catch(e){} })();
 function pcLoad(done){
   fetch(CTX+'/prod/prodList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
     .then(function(r){ return r.text(); })
@@ -770,6 +779,7 @@ function pcLoad(done){
       if(_mcCur) _mcCur=_byseq[_mcCur.prodSeq]||_mcCur;
       pcUniqBuild();                     // 규격·제조사명 입력검색이 볼 값 목록(2026-08-04)
       pcFilter();
+      if(_pcPendQ){ pcTakeQ(_pcPendQ); }   /* 다른 화면이 넘긴 검색어 (2026-11-05) */
       ctLoad();                          // 계약(납품기간) 이력 — 목록 「납품기간」 칸 (2026-10-01)
       mcStopSync();                      // 중지·해제가 반영되면 [＋ 등록] 잠금도 같이 맞춘다
       if(typeof done==='function'){ try{ done(); }catch(e){} }

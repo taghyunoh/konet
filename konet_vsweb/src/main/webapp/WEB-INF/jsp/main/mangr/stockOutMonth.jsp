@@ -130,7 +130,7 @@
   #somProdPop .spi-x{ margin-left:auto; cursor:pointer; font-size:16px; line-height:1; color:#5a6b7a; } #somProdPop .spi-x:hover{ color:#c0392b; }
   #somProdPop table.spi{ width:100%; border-collapse:collapse; } #somProdPop table.spi th{ width:118px; text-align:left; padding:4px 10px; background:#f6f9f8; color:#37475a; font-weight:700; border-bottom:1px solid #eef1f4; white-space:nowrap; }
   #somProdPop table.spi td{ padding:4px 10px; border-bottom:1px solid #eef1f4; word-break:break-all; } #somProdPop table.spi td.r{ font-variant-numeric:tabular-nums; }
-  #somProdPop .spi-ft{ display:flex; align-items:center; gap:10px; padding:8px 12px; } #somProdPop .dim{ color:#8a97a4; }
+  #somProdPop .spi-ft{ display:flex; align-items:center; gap:10px; padding:8px 12px; white-space:nowrap; } #somProdPop .spi-ft .btn{ white-space:nowrap; flex:0 0 auto; height:30px; padding:0 12px; } #somProdPop .dim{ color:#8a97a4; }   /* 단추 한 줄로 (2026-11-05) */
 </style>
 </head>
 <body>
@@ -405,7 +405,7 @@ function somProdInfo(cd, anchor){
         +row('매칭코드 '+(exts.length?exts.length+'개':''), exts.length?exts.map(esc).join(', '):'')
         +'</table>';
     }
-    h+='<div class="spi-ft"><button class="btn" onclick="somProdGo(\''+esc(cd)+'\')" title="상품코드등록 화면을 엽니다(코드는 복사해 둡니다)">상품코드등록 열기</button><span class="dim" style="font-size:11.5px">머리글을 누르면 다른 품목으로 바뀝니다 · ESC 닫기</span></div>';
+    h+='<div class="spi-ft"><button class="btn" onclick="somProdGo(\''+esc(cd)+'\')" title="상품코드등록 화면을 엽니다(코드는 복사해 둡니다)">상품코드등록 열기</button><span class="dim" style="font-size:11.5px">다른 머리글 누르면 바뀜 · ESC 닫기</span></div>';
     pop.innerHTML=h;
   };
   if(_spiCache[cd]!==undefined){ paint(_spiCache[cd]); return; }
@@ -416,8 +416,14 @@ function somProdInfo(cd, anchor){
     .catch(function(e){ pop.innerHTML='<div class="spi-hd"><b>'+esc(cd)+'</b> <span style="color:#a6241c">조회 실패 : '+esc(e.message)+'</span><span class="spi-x" onclick="somProdClose()">✕</span></div>'; });
 }
 function somProdClose(){ var pop=document.getElementById('somProdPop'); if(pop) pop.style.display='none'; _spiCd=''; }
-function somProdGo(cd){ try{ if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(cd); }catch(e){} somProdClose();
-  try{ var a=parent.document.querySelector('.logi-side a.mi[data-key="prodcd"]'); if(a){ a.click(); return; } }catch(e){} window.open(CTX+'/prod/prodcd.do','_blank'); }
+/* [상품코드등록 열기] — 그 코드로 검색된 채 연다 (2026-11-05 「해당 코드 자동 가져가서 검색되게」) :
+   처음 뜨는 화면은 localStorage(konetProdcdQ)로, 이미 떠 있는 화면은 postMessage(konetProdcdFind)로 넘긴다(prodcd.jsp pcTakeQ) */
+function somProdGo(cd){ somProdClose();
+  try{ localStorage.setItem('konetProdcdQ', cd); }catch(e){}
+  try{ var a=parent.document.querySelector('.logi-side a.mi[data-key="prodcd"]'); if(a){ a.click();
+      var f=parent.document.getElementById('if-prodcd'); if(f&&f.contentWindow){ var send=function(){ try{ f.contentWindow.postMessage({type:'konetProdcdFind', q:cd}, '*'); }catch(e){} }; send(); setTimeout(send, 800); }
+      return; } }catch(e){}
+  window.open(CTX+'/prod/prodcd.do','_blank'); }
 document.addEventListener('keydown', function(e){ if(e.key==='Escape') somProdClose(); });
 document.addEventListener('mousedown', function(e){ var pop=document.getElementById('somProdPop'); if(!pop||pop.style.display!=='block') return; if(pop.contains(e.target)) return; if(e.target.closest&&e.target.closest('th.it[data-pcd]')) return; somProdClose(); });
 var DTL_LAST=null, _dtlCache={};   /* 셀별 출고·입고내역 응답 보관 (2026-11-05 속도) */
