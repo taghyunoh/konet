@@ -3651,6 +3651,15 @@ public class UserController {
 			response.put("data", svc.selectPurchaseList(dto));
 			return response;
 		}
+		/* 품목 매입이력 (2026-11-05 「매입등록도 같은 식으로 품목 검색」) — 품목 하나의 매입전표 줄 전부 */
+		@RequestMapping(value="/mangr/purchaseHistByProd.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> purchaseHistByProd(@RequestParam("prodCd") String prodCd, HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>(); p.put("compCd", session.getAttribute("s_comp_cd")); p.put("prodCd", prodCd);
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", (prodCd == null || prodCd.trim().isEmpty()) ? new java.util.ArrayList<Object>() : svc.selectPurchaseHistByProd(p));
+			return res;
+		}
 		@RequestMapping(value="/mangr/purchaseDetail.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,Object> purchaseDetail(@ModelAttribute("DTO") egovframework.konet.user.model.PurchaseDTO dto, HttpSession session) throws Exception {
@@ -3837,6 +3846,15 @@ public class UserController {
 			Map<String,Object> response = new HashMap<String,Object>();
 			response.put("data", svc.selectSalesTrxList(dto));
 			return response;
+		}
+		/* 품목 판매이력 (2026-11-05 「판매등록도 발주서등록 검색처럼」) — 품목 하나의 판매전표 줄 전부 */
+		@RequestMapping(value="/mangr/salesHistByProd.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesHistByProd(@RequestParam("prodCd") String prodCd, HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>(); p.put("compCd", session.getAttribute("s_comp_cd")); p.put("prodCd", prodCd);
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", (prodCd == null || prodCd.trim().isEmpty()) ? new java.util.ArrayList<Object>() : svc.selectSalesHistByProd(p));
+			return res;
 		}
 		@RequestMapping(value="/mangr/salesTrxDetail.do", method = RequestMethod.POST)
 		@ResponseBody

@@ -37,6 +37,7 @@ public class StockLedgerDTO {
     private String  actionYn;
     private String  regDttm;
     private String  regUser;
+    private String  regUserNm;     // 등록자 이름 (조인, 비영속) — 품목별재고현황 수불내역 표시용 (2026-11-05)
     private String  regIp;
     private String  updDttm;
     private String  updUser;
@@ -57,6 +58,8 @@ public class StockLedgerDTO {
     public String getFindData() { return findData; }
     public void setFindData(String findData) { this.findData = findData; }
     public String getTrxDt() { return trxDt; }
+    public String getRegUserNm() { return regUserNm; }
+    public void setRegUserNm(String regUserNm) { this.regUserNm = regUserNm; }
     public java.util.List<String> getTrxDts() { return trxDts; }
     public void setTrxDts(java.util.List<String> trxDts) { this.trxDts = trxDts; }
     public void setTrxDt(String trxDt) { this.trxDt = trxDt; }

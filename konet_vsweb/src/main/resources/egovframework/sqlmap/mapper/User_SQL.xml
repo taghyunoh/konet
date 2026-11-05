@@ -4120,7 +4120,8 @@
 	                           FOR XML PATH(''), TYPE).value('.','NVARCHAR(MAX)'), 1, 1, '')
 	              ELSE '' END AS extCds,
 	         l.REF_GB AS refGb, l.REF_NO AS refNo, l.REMARK AS remark,
-	         l.REG_DTTM AS regDttm, l.REG_USER AS regUser
+	         l.REG_DTTM AS regDttm, l.REG_USER AS regUser,
+	         (SELECT MAX(u.USER_NM) FROM TBL_USER_MST u WHERE LTRIM(RTRIM(u.USER_ID)) = LTRIM(RTRIM(l.REG_USER)) AND u.COMP_CD = l.COMP_CD) AS regUserNm   /* 등록자 이름 (2026-11-05) — 화면은 이름을 보이고 아이디는 말풍선 */
 	    FROM TBL_STOCK_LEDGER l
 	   WHERE l.PROD_SEQ = #{prodSeq} AND l.ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -4893,6 +4894,17 @@
 	]]></select>
 
 	<!-- 전표 1건의 명세 -->
+	<!-- 품목 매입이력 (2026-11-05) — 한 품목이 든 매입전표 줄 전부(최근 500줄). 매입등록 하단 목록의 「품목」 칸 -->
+	<select id="selectPurchaseHistByProd" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 500 m.PURCH_SEQ AS purchSeq, m.PURCH_DT AS purchDt, m.PURCH_NO AS purchNo, m.VENDOR_CD AS vendorCd, m.VENDOR_NM AS vendorNm, m.MGR_NM AS mgrNm, m.WH_NM AS whNm,
+	         d.PROD_CD AS prodCd, d.PROD_NM AS prodNm, d.PACK_QTY AS packQty, d.BOX_QTY AS boxQty, d.EA_QTY AS eaQty, d.QTY AS qty,
+	         d.UNIT_PRICE AS unitPrice, d.SUPPLY_AMT AS supplyAmt, d.TOT_AMT AS totAmt, ISNULL(NULLIF(d.TRX_GB,''), N'매입') AS trxGb, d.REMARK AS remark, d.PO_SEQ AS poSeq
+	    FROM TBL_PURCHASE_DTL d
+	    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN = 'Y'
+	   WHERE d.ACTION_YN = 'Y' AND d.PROD_CD = #{prodCd,jdbcType=NVARCHAR}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   ORDER BY m.PURCH_DT DESC, m.PURCH_NO DESC, d.DTL_SEQ DESC
+	]]></select>
 	<select id="selectPurchaseDtl" parameterType="egovframework.konet.user.model.PurchaseDTO" resultType="egovframework.konet.user.model.PurchaseDtlDTO"><![CDATA[
 	  SELECT d.DTL_SEQ AS dtlSeq, d.PURCH_SEQ AS purchSeq, d.ROW_NO AS rowNo,
 	         d.PROD_SEQ AS prodSeq, d.PROD_CD AS prodCd, d.PROD_NM AS prodNm, d.SPEC AS spec,
@@ -5680,6 +5692,18 @@
 	   ORDER BY m.SALE_DT DESC, m.SALE_NO DESC, m.SALE_SEQ DESC
 	]]></select>
 
+	<!-- 품목 판매이력 (2026-11-05) — 한 품목이 든 판매전표 줄 전부(최근 500줄). 매칭코드(EXT_CD)로 판 줄도 잡는다. 판매등록 하단 목록의 「품목」 칸 -->
+	<select id="selectSalesHistByProd" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 500 m.SALE_SEQ AS saleSeq, m.SALE_DT AS saleDt, m.SALE_NO AS saleNo, m.CUST_CD AS custCd, m.CUST_NM AS custNm, m.MGR_NM AS mgrNm, m.WH_NM AS whNm,
+	         d.PROD_CD AS prodCd, d.PROD_NM AS prodNm, d.EXT_CD AS extCd, d.PACK_QTY AS packQty, d.BOX_QTY AS boxQty, d.EA_QTY AS eaQty, d.QTY AS qty,
+	         d.UNIT_PRICE AS unitPrice, d.SUPPLY_AMT AS supplyAmt, d.TOT_AMT AS totAmt, ISNULL(NULLIF(d.TRX_GB,''), N'판매') AS trxGb, d.REMARK AS remark
+	    FROM TBL_SALES_TRX_DTL d
+	    JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y'
+	   WHERE d.ACTION_YN = 'Y'
+	     AND ( d.PROD_CD = #{prodCd,jdbcType=NVARCHAR} OR d.EXT_CD = #{prodCd,jdbcType=NVARCHAR} )
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   ORDER BY m.SALE_DT DESC, m.SALE_NO DESC, d.DTL_SEQ DESC
+	]]></select>
 	<select id="selectSalesTrxDtl" parameterType="egovframework.konet.user.model.SalesTrxDTO" resultType="egovframework.konet.user.model.SalesTrxDtlDTO"><![CDATA[
 	  SELECT d.DTL_SEQ AS dtlSeq, d.SALE_SEQ AS saleSeq, d.ROW_NO AS rowNo,
 	         d.PROD_SEQ AS prodSeq, d.PROD_CD AS prodCd, d.PROD_NM AS prodNm, d.SPEC AS spec,

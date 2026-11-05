@@ -122,6 +122,12 @@
   /* 하단 목록 */
   /* 하단 목록 — 5행 고정 + 자동 스크롤(매출내역과 같은 방식) */
   .sa-list{ max-height:196px; overflow:auto; border:1px solid var(--sa-bd); border-radius:8px; }
+  /* 🔎 품목 판매이력 (2026-11-05) — 품목 후보 · 거래처 묶음 줄 */
+  #sphList{ position:absolute; left:0; right:0; top:100%; max-height:260px; overflow:auto; background:#fff; border:1px solid var(--sa-bd); border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.15); z-index:60; display:none; min-width:360px; }
+  #sphList div{ padding:5px 10px; cursor:pointer; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #sphList div:hover, #sphList div.sel{ background:#e3f2ee; }
+  #saListBody tr.sphv td{ background:#dff0ee; border-top:2px solid #9fc9c0; font-weight:700; color:#125a4e; text-align:left; cursor:default; }
+  #saListBody tr.sphi{ cursor:pointer; } #saListBody tr.sphi td.ret{ color:#a6241c; font-weight:700; }
   /* ★본문 목록만 max(…, vh) (2026-08-28 글자 축소 시 하단 빈공간) — 고정 px 라 축소해 화면이 커져도
      안 늘어났다. 100% 는 종전 그대로, 축소할수록 vh 쪽이 커진다. 팝업 안 목록은 그대로(제 안에서 일관).
      iframe 화면이라 vh 만으로 정확(상자 역보정 — CLAUDE.md 배율 항목). */
@@ -343,8 +349,12 @@
       <div class="sa-fld" style="flex:0 0 140px"><label>검색기간</label><input type="date" id="saFrom"></div>
       <div class="sa-fld" style="flex:0 0 140px"><label>&nbsp;</label><input type="date" id="saTo"></div>
       <div class="sa-fld" style="flex:0 0 200px"><label>거래처</label><input type="text" id="saFindNm" placeholder="거래처명 (치면 기간 무시)" title="거래처명을 치면 검색기간과 상관없이 그 거래처 전표를 전부 찾습니다 (2026-10-31)"></div>
+      <%-- 🔎 품목 판매이력 (2026-11-05 「판매등록도 발주서등록 검색처럼」) — 코드·상품명을 치면 아래 목록이 「거래처 줄 → 그 거래처 전표 줄」로(날짜 무관). 지우고 [리스트조회]면 보통 목록 --%>
+      <div class="sa-fld" style="flex:0 0 230px; position:relative"><label title="품목 판매이력 — 코드·상품명을 치고 고르면 아래 목록이 그 품목의 판매 내역(거래처별)로 바뀝니다. 코드는 끝까지 치면 바로 조회">품목</label><input type="text" id="sphQ" placeholder="품목 판매이력 — 코드·상품명" autocomplete="off" oninput="sphSuggest()" onkeydown="sphKey(event)" onblur="setTimeout(sphHide,150)"><div id="sphList"></div></div>
       <button class="sa-btn teal" onclick="saLoad()">리스트조회</button>
     </div>
+    <%-- 🔎 품목 판매이력 요약 줄 — 발주서 관리와 같은 자리(도구줄 아래, 표 위) (2026-11-05 「판매등록도 이런 식으로」) --%>
+    <div id="sphHead" style="display:none; margin:2px 0 6px; font-size:13px; color:#37475a"></div>
     <div class="sa-list" id="saListWrap">
       <table>
         <thead><tr>
@@ -1008,6 +1018,7 @@ var _venVat = VAT_DEF;
 /* 고른 거래처의 DC율(%) — DC 사용 = 예 인 거래처만(TBL_VENDOR_MST.DC_YN/DC_RATE). 0 이면 자동 DC 없음 */
 var _venDc = 0;
 var _prods = [];       // 상품 마스터
+var _sph={ cd:'', list:[], idx:-1, mode:false, thead0:null, tm:null };   /* 🔎 품목 판매이력 상태 — saLoad 보다 먼저 있어야 한다 (2026-11-05) */
 var _extItems = [];    // 거래처 통보품목(TBL_EXT_ITEM_MST) — 거래처가 준 코드로 찾기용
 var _cur = null;       // 선택된 전표(수정 모드)
 var _quoteLink = null; // 이 전표가 나온 견적 {quoteSeq, docNo} — 없으면 견적 없는 판매 (2026-10-06)
@@ -1643,6 +1654,10 @@ function saDelete(){
 
 /* ── 전표 목록 ────────────────────────────────────────── */
 function saLoad(){
+  /* 품목 판매이력 (2026-11-05) — 품목 칸에 코드가 남아 있으면 그 품목으로, 비어 있으면 보통 목록(품목 모드 해제) */
+  var sphq=(document.getElementById('sphQ').value||'').trim().split(' ')[0];
+  if(sphq){ _sph.cd=sphq; sphLoad(); return; }
+  sphExit();
   /* ★거래처명을 치면 검색기간을 안 보낸다 (2026-10-31 「거래처 입력 시에는 일자 상관없이 검색」) —
      SQL(selectSalesTrxList)이 빈 fromDt/toDt 를 「전체」로 보므로 화면이 비워 보내기만 하면 된다. 기간 칸 값은 그대로 둔다. */
   var nm = (document.getElementById('saFindNm').value||'').trim();
@@ -1668,6 +1683,7 @@ function saRowHtml(o, i){
     + '<td>'+esc(o.whNm)+'</td><td>'+esc(o.regUser)+'</td></tr>';
 }
 function saListRender(){
+  if(_sph.mode) return;   /* 품목 판매이력이 목록 자리를 쓰는 동안은 안 덮는다 (2026-11-05) */
   document.getElementById('saTotal').textContent = _list.length;
   var tb = document.getElementById('saListBody');
   if (!_list.length) { tb.innerHTML='<tr><td colspan="10" class="sa-msg">전표가 없습니다.</td></tr>'; _lShown=0; saPagerRender(); saSumRender(); return; }
@@ -1720,6 +1736,61 @@ function saSumRender(){
   document.getElementById('sPay').textContent=fmt(pay);
   document.getElementById('sDc').textContent=fmt(dc);
   document.getElementById('sUnpaid').textContent=fmt(p+r-pay-dc);
+}
+/* ══════════════ 🔎 품목 판매이력 (2026-11-05 — 발주서 관리의 품목 발주이력과 같은 꼴) ══════════════
+   하단 목록 도구줄 「품목」 칸에 코드·상품명 → /mangr/salesHistByProd.do 로 그 품목이 든 판매전표 줄 전부(날짜 무관, 최근 500줄)를 받아
+   목록을 「거래처 줄(위) → 그 거래처 전표 줄(아래, 날짜 역순)」로 바꿔 그린다. 줄 클릭 = 그 전표 열기(saApply).
+   코드를 끝까지 치면 고르지 않아도 0.4초 뒤 조회 · 후보에 없는 코드도 Enter 로 조회. 지우기만 해서는 안 바뀌고 지우고 [리스트조회]면 보통 목록. */
+/* _sph 선언은 위쪽(_prods 옆) — 화면 초기화가 saLoad() 를 먼저 부르는데 var 할당이 아직이라 TypeError 로 목록이 안 떴다 (2026-11-05 실측 「기본 검색 안됨」) */
+function sphHide(){ var l=document.getElementById('sphList'); l.style.display='none'; _sph.idx=-1; }
+function sphProd(cd){ cd=String(cd||''); for(var i=0;i<_prods.length;i++){ if(String(_prods[i].prodCd)===cd) return _prods[i]; } return null; }
+function sphSuggest(){
+  var q=(document.getElementById('sphQ').value||'').trim().toLowerCase(), l=document.getElementById('sphList'); _sph.cd=''; _sph.list=[];
+  if(!q){ sphHide(); return; }
+  for(var i=0;i<_prods.length && _sph.list.length<40;i++){ var p=_prods[i]; var hay=(String(p.prodCd)+' '+(p.prodNm||'')+' '+(p.spec||'')).toLowerCase(); if(hay.indexOf(q)>=0) _sph.list.push(p); }
+  var exact=sphProd(document.getElementById('sphQ').value.trim());
+  if(exact){ _sph.cd=String(exact.prodCd); clearTimeout(_sph.tm); _sph.tm=setTimeout(function(){ if(_sph.cd===String(exact.prodCd)){ sphHide(); sphLoad(); } }, 400); }
+  if(!_sph.list.length){ l.innerHTML='<div style="color:#8a97a4;cursor:default">후보 없음 — Enter 를 누르면 친 코드로 조회합니다</div>'; l.style.display='block'; return; }
+  l.innerHTML=_sph.list.map(function(p,i){ return '<div data-i="'+i+'" onmousedown="sphPick('+i+')"><b>'+esc(p.prodCd)+'</b> '+esc(p.prodNm||'')+(p.spec?' <span style="color:#8a97a4">'+esc(p.spec)+'</span>':'')+'</div>'; }).join('');
+  l.style.display='block'; _sph.idx=-1;
+}
+function sphKey(e){
+  var l=document.getElementById('sphList'), on=l.style.display==='block';
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){ if(!on) return; e.preventDefault(); var nI=_sph.idx+(e.key==='ArrowDown'?1:-1); if(nI<0) nI=_sph.list.length-1; if(nI>=_sph.list.length) nI=0; _sph.idx=nI;
+    Array.prototype.forEach.call(l.children, function(d,i){ d.classList.toggle('sel', i===nI); }); var sel=l.children[nI]; if(sel&&sel.scrollIntoView) sel.scrollIntoView({block:'nearest'}); return; }
+  if(e.key==='Enter'){ e.preventDefault(); if(on && _sph.list.length) sphPick(_sph.idx>=0?_sph.idx:0); else { var q=(document.getElementById('sphQ').value||'').trim().split(' ')[0]; if(q.length>=4){ _sph.cd=q; sphHide(); sphLoad(); } } return; }
+  if(e.key==='Escape'){ sphHide(); }
+}
+function sphPick(i){ var p=_sph.list[i]; if(!p) return; _sph.cd=String(p.prodCd); document.getElementById('sphQ').value=p.prodCd+' '+(p.prodNm||''); sphHide(); sphLoad(); }
+function sphHead(on){ var tb=document.getElementById('saListBody').parentNode, th=tb.tHead; if(!th) return; if(_sph.thead0==null) _sph.thead0=th.innerHTML;
+  if(on) th.innerHTML='<tr><th style="width:92px">판매일자</th><th style="width:56px">번호</th><th style="width:70px">코드</th><th>거래처 / 상품명(전표에 적힌 것)</th><th style="width:84px">담당</th><th style="width:60px">BOX</th><th style="width:60px">EA</th><th style="width:78px">수량</th><th style="width:84px">단가</th><th style="width:100px">공급가</th></tr>';
+  else th.innerHTML=_sph.thead0; }
+function sphExit(){ if(!_sph.mode) return; _sph.mode=false; _sph.cd=''; document.getElementById('sphQ').value=''; sphHead(false); var hd=document.getElementById('sphHead'); if(hd) hd.style.display='none'; }
+function sphLoad(){
+  var b=document.getElementById('saListBody');
+  if(!_sph.cd){ swAlert('품목을 고르세요 — 코드나 상품명을 치면 후보가 뜹니다.'); return; }
+  var p=sphProd(_sph.cd)||{}; _sph.mode=true; sphHead(true); _list=[]; _lShown=0;
+  b.innerHTML='<tr><td colspan="10" class="sa-msg">조회 중…</td></tr>';
+  post('/mangr/salesHistByProd.do','prodCd='+encodeURIComponent(_sph.cd)).then(function(r){ return r.json(); }).then(function(j){
+    if(!_sph.mode) return;
+    var rows=(j&&j.data)||[], h='', tq=0, ta=0, groups=[], gmap={};
+    rows.forEach(function(o){ var k=String(o.custCd||'')+'|'+(o.custNm||''); var g=gmap[k]; if(!g){ g=gmap[k]={ nm:o.custNm||'(거래처 없음)', cd:o.custCd||'', rows:[], qty:0, amt:0, last:'' }; groups.push(g); } g.rows.push(o); var sg=(String(o.trxGb||'').indexOf('반품')>=0)?-1:1; g.qty+=sg*n(o.qty); g.amt+=sg*n(o.supplyAmt); if(String(o.saleDt||'')>g.last) g.last=String(o.saleDt||''); tq+=sg*n(o.qty); ta+=sg*n(o.supplyAmt); });
+    groups.forEach(function(g){
+      h+='<tr class="sphv"><td colspan="10">🏢 '+esc(g.nm)+(g.cd?' <span style="font-weight:400;color:#5a6b7a">['+esc(g.cd)+']</span>':'')+' <span style="font-weight:400;color:#37475a;margin-left:10px">전표 '+g.rows.length+'건 · 수량 '+fmt(g.qty)+' · 공급가 '+fmt(g.amt)+' · 최근 '+esc(fmtDt(g.last))+'</span></td></tr>';
+      g.rows.forEach(function(o){ var ret=String(o.trxGb||'').indexOf('반품')>=0;
+        h+='<tr class="sphi" onclick="sphOpen('+o.saleSeq+', this)" title="누르면 이 전표를 엽니다"><td>'+esc(fmtDt(o.saleDt))+'</td><td>'+esc(o.saleNo)+'</td><td style="color:#5a6b7a;font-size:12.5px">'+esc(o.custCd||'')+'</td>'
+          +'<td class="txt" style="text-align:left;white-space:normal;color:#37475a">'+esc(o.prodNm||'')+(o.extCd&&String(o.extCd)!==String(o.prodCd)?' <span style="font-size:11px;color:#274b8f" title="매칭코드로 판 줄">🔖'+esc(o.extCd)+'</span>':'')+(ret?' <span class="ret" style="color:#a6241c;font-weight:700">['+esc(o.trxGb)+']</span>':'')+'</td>'
+          +'<td>'+esc(o.mgrNm||'')+'</td><td class="num">'+n(o.boxQty)+'</td><td class="num">'+n(o.eaQty)+'</td><td class="num'+(ret?' ret':'')+'"><b>'+fmt(o.qty)+'</b></td><td class="num">'+fmt(o.unitPrice)+'</td><td class="num">'+fmt(o.supplyAmt)+'</td></tr>'; });
+    });
+    if(!rows.length) h='<tr><td colspan="10" class="sa-msg">이 품목이 든 판매전표가 없습니다.</td></tr>';
+    b.innerHTML=h;
+    document.getElementById('saTotal').textContent=rows.length;
+    var hd=document.getElementById('sphHead'); hd.style.display=''; hd.innerHTML='🔎 <b>'+esc(_sph.cd)+'</b> '+esc(p.prodNm||'')+(p.spec?' <span style="color:#8a97a4">'+esc(p.spec)+'</span>':'')+' · 거래처 <b>'+groups.length+'곳</b> · 전표 '+rows.length+'건 · 수량 '+fmt(tq)+' · 공급가 '+fmt(ta)+(rows.length>=500?' <span style="color:#a6241c">(최근 500줄까지만)</span>':'')+' <span style="color:#8a97a4">— 날짜 무관 · 지우고 [리스트조회]로 돌아갑니다</span>';   /* 요약은 표 위 한 줄에 (발주서 관리와 같은 꼴, 2026-11-05) */
+  }).catch(function(e){ b.innerHTML='<tr><td colspan="10" class="sa-msg" style="color:#c0392b">조회 오류 : '+esc(e.message)+'</td></tr>'; });
+}
+function sphOpen(seq, tr){
+  post('/mangr/salesTrxDetail.do','saleSeq='+seq).then(function(r){return r.json();}).then(function(j){ var d=j&&j.data; if(!d) return; saApply(d);
+    Array.prototype.forEach.call(document.querySelectorAll('#saListBody tr'), function(x){ x.classList.toggle('on', x===tr); }); });
 }
 function saPick(i){
   var o = _list[i]; if(!o) return;

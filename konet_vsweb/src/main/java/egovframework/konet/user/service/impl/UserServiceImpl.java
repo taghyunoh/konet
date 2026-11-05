@@ -2243,6 +2243,7 @@ public class UserServiceImpl implements UserService {
 	   전표가 원본이고, 재고원장·매입단가 이력은 저장할 때 만들어지는 파생 기록이다.
 	   그래서 재고현황·재고마감·매입마감·매출마감 원가가 별도 작업 없이 맞는다.
 	   수정은 '지우고 다시 넣기' — 명세 행이 늘거나 줄 수 있어 부분 갱신보다 안전하다. */
+	@Override public java.util.List<java.util.Map<String,Object>> selectPurchaseHistByProd(java.util.Map<String,Object> p) throws Exception { return mapper.selectPurchaseHistByProd(p); }
 	@Override public java.util.List<egovframework.konet.user.model.PurchaseDTO> selectPurchaseList(egovframework.konet.user.model.PurchaseDTO dto) throws Exception { return mapper.selectPurchaseList(dto); }
 	@Override public String selectPurchaseNextNo(egovframework.konet.user.model.PurchaseDTO dto) throws Exception { return mapper.selectPurchaseNextNo(dto); }
 	@Override public egovframework.konet.user.model.PurchaseDtlDTO selectVendorLastPrice(egovframework.konet.user.model.PurchaseDtlDTO dto) throws Exception { return mapper.selectVendorLastPrice(dto); }
@@ -2477,6 +2478,7 @@ public class UserServiceImpl implements UserService {
 	   판매가 탭(TBL_PROD_SALEPRICE_HST)이 따로 담당하고, 그건 정산서 밖 판매도
 	   손으로 등록할 수 있게 열어둔 칸이라 전표가 덮어쓰면 안 된다. */
 	@Override public java.util.List<egovframework.konet.user.model.SalesTrxDTO> selectSalesTrxList(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception { return mapper.selectSalesTrxList(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectSalesHistByProd(java.util.Map<String,Object> p) throws Exception { return mapper.selectSalesHistByProd(p); }
 	@Override public String selectSalesTrxNextNo(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception { return mapper.selectSalesTrxNextNo(dto); }
 	@Override public egovframework.konet.user.model.SalesTrxDtlDTO selectCustLastPrice(egovframework.konet.user.model.SalesTrxDtlDTO dto) throws Exception { return mapper.selectCustLastPrice(dto); }
 	@Override public java.util.List<egovframework.konet.user.model.SalesTrxDtlDTO> selectSalesPriceHist(egovframework.konet.user.model.SalesTrxDtlDTO dto) throws Exception { return mapper.selectSalesPriceHist(dto); }

@@ -2465,7 +2465,7 @@
               +'<td>'+_cesc(l.refNo||'')+'</td>'
               +'<td>'+_cesc(l.remark||'')+'</td>'
               +'<td style="color:#9aa7b3">'+_cesc(l.regDttm||'')+'</td>'
-              +'<td style="color:#9aa7b3">'+_cesc(l.regUser||'')+'</td></tr>'
+              +'<td style="color:#9aa7b3" title="'+_cesc(l.regUser||'')+'">'+_cesc(l.regUserNm||l.regUser||'')+'</td></tr>'   /* 등록자 이름(없으면 아이디) · 말풍선에 아이디 (2026-11-05) */
               /* ★대체출고 하위 행 (2026-08-07 요청) — 대표 줄 아래에 매칭코드마다 한 줄.
                    품목코드·수량·사업장을 대표 줄과 '같은 칸' 에 세워 바로 견줄 수 있게 한다.
                    대체가 없는 날은 서버가 빈 값을 줘 하위 행이 아예 안 생긴다.

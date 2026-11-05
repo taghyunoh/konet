@@ -139,6 +139,12 @@
   /* 하단 목록 */
   /* 하단 목록 — 5행 고정 + 자동 스크롤(매출내역과 같은 방식) */
   .pu-list{ max-height:196px; overflow:auto; border:1px solid var(--pu-bd); border-radius:8px; }
+  /* 🔎 품목 매입이력 (2026-11-05) — 품목 후보 · 거래처 묶음 줄 */
+  #pphList{ position:absolute; left:0; right:0; top:100%; max-height:260px; overflow:auto; background:#fff; border:1px solid var(--pu-bd); border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.15); z-index:60; display:none; min-width:360px; }
+  #pphList div{ padding:5px 10px; cursor:pointer; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #pphList div:hover, #pphList div.sel{ background:#e3f2ee; }
+  #puListBody tr.pphv td{ background:#dff0ee; border-top:2px solid #9fc9c0; font-weight:700; color:#125a4e; text-align:left; cursor:default; }
+  #puListBody tr.pphi{ cursor:pointer; } #puListBody tr.pphi td.ret{ color:#a6241c; font-weight:700; }
   /* ★본문 목록만 max(…, vh) — 판매등록(salesReg #saListWrap)과 같은 이유·같은 날(2026-08-28) */
   #puListWrap{ max-height:max(196px, 30vh); }
   .pu-list table{ width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap; }
@@ -298,8 +304,13 @@
       <div class="pu-fld" style="flex:0 0 140px"><label>검색기간</label><input type="date" id="puFrom"></div>
       <div class="pu-fld" style="flex:0 0 140px"><label>&nbsp;</label><input type="date" id="puTo"></div>
       <div class="pu-fld" style="flex:0 0 200px"><label>거래처</label><input type="text" id="puFindNm" placeholder="거래처명 (치면 기간 무시)" title="거래처명을 치면 검색기간과 상관없이 그 거래처 전표를 전부 찾습니다 (2026-10-31)"></div>
+      <%-- 🔎 품목 매입이력 (2026-11-05 「매입등록도 같은 식으로」) — 코드·상품명을 치면 아래 목록이 「거래처 줄 → 그 거래처 전표 줄」로(날짜 무관). 지우고 [리스트조회]면 보통 목록 --%>
+      <div class="pu-fld" style="flex:0 0 230px; position:relative"><label title="품목 매입이력 — 코드·상품명을 치고 고르면 아래 목록이 그 품목의 매입 내역(거래처별)로 바뀝니다. 코드는 끝까지 치면 바로 조회">품목</label><input type="text" id="pphQ" placeholder="품목 매입이력 — 코드·상품명" autocomplete="off" oninput="pphSuggest()" onkeydown="pphKey(event)" onblur="setTimeout(pphHide,150)"><div id="pphList"></div></div>
+
       <button class="pu-btn teal" onclick="puLoad()">리스트조회</button>
     </div>
+    <%-- 🔎 품목 매입이력 요약 줄 (도구줄 아래, 표 위) --%>
+    <div id="pphHead" style="display:none; margin:2px 0 6px; font-size:13px; color:#37475a"></div>
     <div class="pu-list" id="puListWrap">
       <table>
         <thead><tr>
@@ -742,6 +753,7 @@ function isRtn(g){ return g === '반품' || g === '불량반품'; }
 var _venVat = VAT_DEF;
 var _venDc = 0;        // 고른 거래처의 DC율(%) — DC 사용 = 예 인 거래처만 (2026-09-11)
 var _prods = [];       // 상품 마스터
+var _pph={ cd:'', list:[], idx:-1, mode:false, thead0:null, tm:null };   /* 🔎 품목 매입이력 상태 — puLoad 보다 먼저 있어야 한다(초기화가 puLoad 를 먼저 부른다) (2026-11-05) */
 /* ★거래처 통보품목(TBL_EXT_ITEM_MST) = ***서브코드*** (2026-08-17)
    판매등록 상품검색이 🔖 줄로 보여 주는 바로 그 자료다. 매입등록도 **같은 화면**으로 맞춘다
    (사용자 요청 — "똑같은 화면, 조건만 매입").
@@ -1425,6 +1437,10 @@ function puDelete(){
 
 /* ── 전표 목록 ────────────────────────────────────────── */
 function puLoad(){
+  /* 품목 매입이력 (2026-11-05) — 품목 칸에 코드가 남아 있으면 그 품목으로, 비어 있으면 보통 목록(품목 모드 해제) */
+  var pphq=(document.getElementById('pphQ').value||'').trim().split(' ')[0];
+  if(pphq){ _pph.cd=pphq; pphLoad(); return; }
+  pphExit();
   /* ★거래처명을 치면 검색기간을 안 보낸다 (2026-10-31 「거래처 입력 시에는 일자 상관없이 검색」) —
      SQL(selectPurchaseList)이 빈 fromDt/toDt 를 「전체」로 보므로 화면이 비워 보내기만 하면 된다. 기간 칸 값은 그대로 둔다. */
   var nm = (document.getElementById('puFindNm').value||'').trim();
@@ -1455,6 +1471,7 @@ function puRowHtml(o, i){
     + '<td>'+esc(o.whNm)+'</td><td>'+esc(o.regUser)+'</td></tr>';
 }
 function puListRender(){
+  if(_pph.mode) return;   /* 품목 매입이력이 목록 자리를 쓰는 동안은 안 덮는다 (2026-11-05) */
   document.getElementById('puTotal').textContent = _list.length;
   var tb = document.getElementById('puListBody');
   if (!_list.length) { tb.innerHTML='<tr><td colspan="10" class="pu-msg">전표가 없습니다.</td></tr>'; _lShown=0; puPagerRender(); puSumRender(); return; }
@@ -1511,6 +1528,60 @@ function puSumRender(){
   document.getElementById('sPay').textContent=fmt(pay);
   document.getElementById('sDc').textContent=fmt(dc);
   document.getElementById('sUnpaid').textContent=fmt(p+r-pay-dc);
+}
+/* ══════════════ 🔎 품목 매입이력 (2026-11-05 — 판매등록·발주서 관리와 같은 꼴) ══════════════
+   「품목」 칸에 코드·상품명 → /mangr/purchaseHistByProd.do 로 그 품목이 든 매입전표 줄 전부(날짜 무관, 최근 500줄)를 받아
+   목록을 「거래처 줄(위) → 그 거래처 전표 줄(아래, 날짜 역순)」로 바꿔 그린다. 줄 클릭 = 그 전표 열기(puApply).
+   코드를 끝까지 치면 0.4초 뒤 자동 조회 · 후보에 없는 코드도 Enter 로 조회. 지우기만 해서는 안 바뀌고 지우고 [리스트조회]면 보통 목록. */
+function pphHide(){ var l=document.getElementById('pphList'); l.style.display='none'; _pph.idx=-1; }
+function pphProd(cd){ cd=String(cd||''); for(var i=0;i<_prods.length;i++){ if(String(_prods[i].prodCd)===cd) return _prods[i]; } return null; }
+function pphSuggest(){
+  var q=(document.getElementById('pphQ').value||'').trim().toLowerCase(), l=document.getElementById('pphList'); _pph.cd=''; _pph.list=[];
+  if(!q){ pphHide(); return; }
+  for(var i=0;i<_prods.length && _pph.list.length<40;i++){ var p=_prods[i]; var hay=(String(p.prodCd)+' '+(p.prodNm||'')+' '+(p.spec||'')).toLowerCase(); if(hay.indexOf(q)>=0) _pph.list.push(p); }
+  var exact=pphProd(document.getElementById('pphQ').value.trim());
+  if(exact){ _pph.cd=String(exact.prodCd); clearTimeout(_pph.tm); _pph.tm=setTimeout(function(){ if(_pph.cd===String(exact.prodCd)){ pphHide(); pphLoad(); } }, 400); }
+  if(!_pph.list.length){ l.innerHTML='<div style="color:#8a97a4;cursor:default">후보 없음 — Enter 를 누르면 친 코드로 조회합니다</div>'; l.style.display='block'; return; }
+  l.innerHTML=_pph.list.map(function(p,i){ return '<div data-i="'+i+'" onmousedown="pphPick('+i+')"><b>'+esc(p.prodCd)+'</b> '+esc(p.prodNm||'')+(p.spec?' <span style="color:#8a97a4">'+esc(p.spec)+'</span>':'')+'</div>'; }).join('');
+  l.style.display='block'; _pph.idx=-1;
+}
+function pphKey(e){
+  var l=document.getElementById('pphList'), on=l.style.display==='block';
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){ if(!on) return; e.preventDefault(); var nI=_pph.idx+(e.key==='ArrowDown'?1:-1); if(nI<0) nI=_pph.list.length-1; if(nI>=_pph.list.length) nI=0; _pph.idx=nI;
+    Array.prototype.forEach.call(l.children, function(d,i){ d.classList.toggle('sel', i===nI); }); var sel=l.children[nI]; if(sel&&sel.scrollIntoView) sel.scrollIntoView({block:'nearest'}); return; }
+  if(e.key==='Enter'){ e.preventDefault(); if(on && _pph.list.length) pphPick(_pph.idx>=0?_pph.idx:0); else { var q=(document.getElementById('pphQ').value||'').trim().split(' ')[0]; if(q.length>=4){ _pph.cd=q; pphHide(); pphLoad(); } } return; }
+  if(e.key==='Escape'){ pphHide(); }
+}
+function pphPick(i){ var p=_pph.list[i]; if(!p) return; _pph.cd=String(p.prodCd); document.getElementById('pphQ').value=p.prodCd+' '+(p.prodNm||''); pphHide(); pphLoad(); }
+function pphHead(on){ var tb=document.getElementById('puListBody').parentNode, th=tb.tHead; if(!th) return; if(_pph.thead0==null) _pph.thead0=th.innerHTML;
+  if(on) th.innerHTML='<tr><th style="width:92px">매입일자</th><th style="width:56px">번호</th><th style="width:70px">코드</th><th>거래처 / 상품명(전표에 적힌 것)</th><th style="width:84px">담당</th><th style="width:60px">BOX</th><th style="width:60px">EA</th><th style="width:78px">수량</th><th style="width:84px">단가</th><th style="width:100px">공급가</th></tr>';
+  else th.innerHTML=_pph.thead0; }
+function pphExit(){ if(!_pph.mode) return; _pph.mode=false; _pph.cd=''; document.getElementById('pphQ').value=''; pphHead(false); var hd=document.getElementById('pphHead'); if(hd) hd.style.display='none'; }
+function pphLoad(){
+  var b=document.getElementById('puListBody');
+  if(!_pph.cd){ swAlert('품목을 고르세요 — 코드나 상품명을 치면 후보가 뜹니다.'); return; }
+  var p=pphProd(_pph.cd)||{}; _pph.mode=true; pphHead(true); _list=[]; _lShown=0;
+  b.innerHTML='<tr><td colspan="10" class="pu-msg">조회 중…</td></tr>';
+  post('/mangr/purchaseHistByProd.do','prodCd='+encodeURIComponent(_pph.cd)).then(function(r){ return r.json(); }).then(function(j){
+    if(!_pph.mode) return;
+    var rows=(j&&j.data)||[], h='', tq=0, ta=0, groups=[], gmap={};
+    rows.forEach(function(o){ var k=String(o.vendorCd||'')+'|'+(o.vendorNm||''); var g=gmap[k]; if(!g){ g=gmap[k]={ nm:o.vendorNm||'(거래처 없음)', cd:o.vendorCd||'', rows:[], qty:0, amt:0, last:'' }; groups.push(g); } g.rows.push(o); var sg=(String(o.trxGb||'').indexOf('반품')>=0)?-1:1; g.qty+=sg*n(o.qty); g.amt+=sg*n(o.supplyAmt); if(String(o.purchDt||'')>g.last) g.last=String(o.purchDt||''); tq+=sg*n(o.qty); ta+=sg*n(o.supplyAmt); });
+    groups.forEach(function(g){
+      h+='<tr class="pphv"><td colspan="10">🏢 '+esc(g.nm)+(g.cd?' <span style="font-weight:400;color:#5a6b7a">['+esc(g.cd)+']</span>':'')+' <span style="font-weight:400;color:#37475a;margin-left:10px">전표 '+g.rows.length+'건 · 수량 '+fmt(g.qty)+' · 공급가 '+fmt(g.amt)+' · 최근 '+esc(fmtDt(g.last))+'</span></td></tr>';
+      g.rows.forEach(function(o){ var ret=String(o.trxGb||'').indexOf('반품')>=0;
+        h+='<tr class="pphi" onclick="pphOpen('+o.purchSeq+', this)" title="누르면 이 전표를 엽니다"><td>'+esc(fmtDt(o.purchDt))+'</td><td>'+esc(o.purchNo)+'</td><td style="color:#5a6b7a;font-size:12.5px">'+esc(o.vendorCd||'')+'</td>'
+          +'<td class="txt" style="text-align:left;white-space:normal;color:#37475a">'+esc(o.prodNm||'')+(o.poSeq?' <span style="font-size:11px;color:#274b8f" title="발주서에서 전환된 줄">📋</span>':'')+(ret?' <span class="ret" style="color:#a6241c;font-weight:700">['+esc(o.trxGb)+']</span>':'')+'</td>'
+          +'<td>'+esc(o.mgrNm||'')+'</td><td class="num">'+n(o.boxQty)+'</td><td class="num">'+n(o.eaQty)+'</td><td class="num'+(ret?' ret':'')+'"><b>'+fmt(o.qty)+'</b></td><td class="num">'+fmt(o.unitPrice)+'</td><td class="num">'+fmt(o.supplyAmt)+'</td></tr>'; });
+    });
+    if(!rows.length) h='<tr><td colspan="10" class="pu-msg">이 품목이 든 매입전표가 없습니다.</td></tr>';
+    b.innerHTML=h;
+    document.getElementById('puTotal').textContent=rows.length;
+    var hd=document.getElementById('pphHead'); hd.style.display=''; hd.innerHTML='🔎 <b>'+esc(_pph.cd)+'</b> '+esc(p.prodNm||'')+(p.spec?' <span style="color:#8a97a4">'+esc(p.spec)+'</span>':'')+' · 거래처 <b>'+groups.length+'곳</b> · 전표 '+rows.length+'건 · 수량 '+fmt(tq)+' · 공급가 '+fmt(ta)+(rows.length>=500?' <span style="color:#a6241c">(최근 500줄까지만)</span>':'')+' <span style="color:#8a97a4">— 날짜 무관 · 지우고 [리스트조회]로 돌아갑니다</span>';
+  }).catch(function(e){ b.innerHTML='<tr><td colspan="10" class="pu-msg" style="color:#c0392b">조회 오류 : '+esc(e.message)+'</td></tr>'; });
+}
+function pphOpen(seq, tr){
+  post('/mangr/purchaseDetail.do','purchSeq='+seq).then(function(r){return r.json();}).then(function(j){ var d=j&&j.data; if(!d) return; puApply(d);
+    Array.prototype.forEach.call(document.querySelectorAll('#puListBody tr'), function(x){ x.classList.toggle('on', x===tr); }); });
 }
 function puPick(i){
   var o = _list[i]; if(!o) return;

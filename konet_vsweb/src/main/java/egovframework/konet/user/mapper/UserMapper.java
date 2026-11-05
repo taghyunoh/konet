@@ -371,6 +371,7 @@ public interface UserMapper {
 
 	/* ===== 매입등록 (TBL_PURCHASE_MST / DTL) — 2026-07-25 ===== */
 	java.util.List<egovframework.konet.user.model.PurchaseDTO> selectPurchaseList(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPurchaseHistByProd(java.util.Map<String,Object> p) throws Exception;   // 품목 매입이력 — 그 품목이 든 매입전표 줄 전부 (2026-11-05)
 	java.util.List<egovframework.konet.user.model.PurchaseDtlDTO> selectPurchaseDtl(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectSubStockList(java.util.Map<String,Object> p) throws Exception;   // 서브코드 재고 정리 ① 재고가 남은 서브코드 (2026-09-13)
 	java.util.List<java.util.Map<String,Object>> selectSubPurchList(java.util.Map<String,Object> p) throws Exception;   // 서브코드 재고 정리 ② 서브코드로 잡힌 매입 줄 (2026-09-13)
@@ -398,6 +399,7 @@ public interface UserMapper {
 	/* ===== 판매등록 (TBL_SALES_TRX_MST/DTL) — 2026-07-25. 매입등록과 대칭 ===== */
 	java.util.List<egovframework.konet.user.model.SalesTrxDTO> selectSalesTrxList(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
 	java.util.List<egovframework.konet.user.model.SalesTrxDtlDTO> selectSalesTrxDtl(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectSalesHistByProd(java.util.Map<String,Object> p) throws Exception;   // 품목 판매이력 — 그 품목이 든 판매전표 줄 전부 (2026-11-05)
 	String selectSalesTrxNextNo(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
 	int insertSalesTrxMst(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
 	int updateSalesTrxMst(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;

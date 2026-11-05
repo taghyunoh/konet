@@ -431,7 +431,7 @@
     &nbsp;|&nbsp; 창에서 <b>Enter</b> 다음 칸 · <b>Ctrl+S</b> 저장 · <b>Esc</b> 닫기</div>
 
   <div class="bar">
-    <input type="text" class="search" id="q" placeholder="코드·상품명·규격·제조사·유형·바코드 검색" onkeyup="pcFilter()">
+    <input type="text" class="search" id="q" placeholder="코드·상품명·규격·제조사·유형·바코드 검색" oninput="pcFilterLazy()" onkeydown="if(event.key==='Enter') pcFilter()">
     <button class="btn" onclick="pcLoad()">↻ 조회</button>
     <%-- 매칭 여부로 좁혀 보기 — 미매칭 목록이 곧 '그 코드로 오면 미매핑이 될 상품들' 이다 --%>
     <select id="fMc" onchange="pcFilter()" style="height:34px;border:1px solid var(--bd);border-radius:7px;padding:0 8px;font-size:13px;font-weight:700;color:#37475a"
@@ -763,7 +763,7 @@ function pcLoad(done){
   fetch(CTX+'/prod/prodList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
     .then(function(r){ return r.text(); })
     .then(function(txt){ var j; try{ j=JSON.parse(txt); }catch(e){ toast('목록 응답 오류','err'); return; }
-      LIST=(j&&j.data)||[]; _byseq={}; LIST.forEach(function(o){ _byseq[o.prodSeq]=o; });
+      LIST=(j&&j.data)||[]; _byseq={}; LIST.forEach(function(o){ _byseq[o.prodSeq]=o; }); _viewKey='';   /* 새로 읽었으니 꼭 다시 그린다 (2026-11-05) */
       /* ★[2026-08-19] 고른 상품(_mcCur)도 **새로 읽은 줄로 갈아 끼운다** — 안 하면
          [⛔ 거래중지]·[▶ 거래해제] 를 누른 뒤에도 **옆날 상태**를 들고 있어
          매칭코드 잠금(아래 mcStopSync)이 그대로 남거나 풀리지 않는다. */
@@ -781,7 +781,12 @@ function pcTab(g){
   Array.prototype.forEach.call(document.querySelectorAll('#taxTabs .t'), function(b){ b.classList.toggle('on', b.getAttribute('data-g')===g); });
   pcFilter();
 }
+/* 검색 칸은 글자마다 바로 거르지 않는다 (2026-11-05 속도) — 2,252줄 그리드를 통째로 다시 그리는 데 220~300ms 라 타자가 걸렸다.
+   0.2초 멈추면 한 번만 거른다(Enter 는 바로). 거른 결과가 직전과 같으면(검색어·조건 같음) 다시 그리지도 않는다 — 자료를 새로 읽으면(pcLoad) 꼭 다시 그린다 */
+var _pcFt=null, _viewKey='';
+function pcFilterLazy(){ clearTimeout(_pcFt); _pcFt=setTimeout(pcFilter, 200); }
 function pcFilter(){
+  clearTimeout(_pcFt);
   var q=(document.getElementById('q').value||'').trim().toLowerCase();
   var mc=(document.getElementById('fMc')||{}).value||'';
   var sp=(document.getElementById('fStop')||{}).value||'';   // ★거래중지 조건(2026-08-17)
@@ -804,7 +809,10 @@ function pcFilter(){
     return [o.prodCd,o.prodNm,o.spec,o.makerNm,o.typeNm,o.unitBarcode,o.boxBarcode]
       .some(function(v){ return (''+(v||'')).toLowerCase().indexOf(q)>=0; });
   });
-  _page=1; pcRender();
+  _page=1;
+  var key=[q, mc, sp, ctf, _tax, _all, (_pcOnly?Object.keys(_pcOnly).join(','):''), _view.length, (_view.length?_view[0].prodSeq+'-'+_view[_view.length-1].prodSeq:'')].join('\u0001');
+  if(key===_viewKey && document.getElementById('tb').children.length) return;   /* 같은 검색어·조건이면 그리기 생략 (2026-11-05) */
+  _viewKey=key; pcRender();
 }
 /* 그리드 한 줄 — pcRender 가 전 줄을, pcPatchRows 가 바뀐 줄만 그린다 (2026-11-05 속도 : 매칭코드 등록·삭제 뒤 2,252줄을 통째로 다시 그리던 220~300ms 를 없앰) */
 function pcRowHtml(o){

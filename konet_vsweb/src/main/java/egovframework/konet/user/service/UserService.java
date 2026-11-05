@@ -305,6 +305,7 @@ public interface UserService {
 
 	/* ===== 매입등록 — 2026-07-25 ===== */
 	java.util.List<egovframework.konet.user.model.PurchaseDTO> selectPurchaseList(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPurchaseHistByProd(java.util.Map<String,Object> p) throws Exception;   // 품목 매입이력 — 그 품목이 든 매입전표 줄 전부 (2026-11-05)
 	egovframework.konet.user.model.PurchaseDTO selectPurchaseOne(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;
 	String selectPurchaseNextNo(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;
 	/** 전표 저장(신규/수정) — 헤더·명세 + 파생 재고원장 + 매입단가 이력을 한 번에 */
@@ -330,6 +331,7 @@ public interface UserService {
 
 	/* ===== 판매등록 — 2026-07-25 ===== */
 	java.util.List<egovframework.konet.user.model.SalesTrxDTO> selectSalesTrxList(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectSalesHistByProd(java.util.Map<String,Object> p) throws Exception;   // 품목 판매이력 (2026-11-05)
 	egovframework.konet.user.model.SalesTrxDTO selectSalesTrxOne(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
 	/** 거래명세서 공유 — 토큰을 발급(처음 한 번)하고 그 토큰을 돌려준다. 카톡·이메일 보내기가 부른다 (2026-09-09) */
 	String shareSalesTrx(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
