@@ -229,13 +229,17 @@
   <div style="display:flex; align-items:flex-start; gap:12px">
     <div style="flex:1 1 auto; min-width:0">
       <h2>🧾 판매등록</h2>
-      <div class="sa-sub">정산서 밖에서 <b>직접 판 건</b>을 입력합니다. 저장 시 <b>재고가 출고</b>로 빠지고 거래처 원장의 매출·미수에 잡힙니다. <b>출고차감</b>을 넣은 줄은 재고가 (합계수량 − 출고차감)만 빠집니다(금액·명세서는 그대로).</div>
+      <%-- 설명글은 한 줄로 (2026-11-06 「판매등록 밑에 내용 간결하게」) — 세부(재고 출고·원장 반영·출고차감 규칙)는 마우스를 올리면 툴팁으로 --%>
+      <div class="sa-sub" title="저장하면 재고가 출고로 빠지고 거래처 원장의 매출·미수에 잡힙니다.&#10;출고차감을 넣은 줄은 재고가 (합계수량 − 출고차감)만 빠집니다(금액·명세서는 그대로).">정산서 밖 <b>직접 판매</b> 전표 — 저장하면 재고·거래처 원장에 반영됩니다.</div>
     </div>
     <%-- 설명은 버튼 '앞(왼쪽)' — 버튼 아래에 두면 아래 입력카드와 붙어 읽기 나빴다(2026-08-01 요청) --%>
     <div style="flex:0 0 auto; display:flex; align-items:center; gap:10px">
       <%-- 💬 카톡 주문 (2026-09-04 신설) — 삼성 외 업체는 카톡으로 주문한다. 글을 붙여넣으면 거래처·품목·수량으로 갈라 그리드로 보여 주고
            사람이 고쳐서 [→ 판매등록으로] 명세에 담고, 이 화면의 [저장]으로 저장한다(2026-09-05 떠 있는 창). 아래 saKtPop / kt* 참고.
            자리 = 정산서 설명글 <앞> (2026-09-05 「표시 앞으로」) — 정산서 묶음(설명+단추)과 떨어져 보이게 --%>
+      <%-- 📥 판매자료 엑셀업로드 (2026-11-06) — 구전산 매출 엑셀 → 판매전표. 자리 = 카톡 주문 가져오기 <앞>(사용자 지정) · 떠 있는 창에서 내용을 다 보여 준 뒤 [💾 선택 전표 저장]으로만 저장 --%>
+      <button class="sa-btn" id="saBtnXu" onclick="xuOpen()" style="margin-right:8px"
+              title="구전산(옛 전산) 판매자료 엑셀을 올려 판매일자·거래처별 전표로 저장합니다.&#10;올린 내용을 표로 다 보여 주고(거래처·상품 매칭·금액 확인), [💾 선택 전표 저장]을 눌러야 저장됩니다.">📥 판매자료 엑셀업로드</button>
       <button class="sa-btn" onclick="ktOpen()" style="margin-right:14px"
               title="카톡 주문 창이 열립니다.&#10;주문 글을 붙여넣고 부분을 선택해 분류하면 거래처 ▸ 품목 ▸ 수량으로 보여 주고,&#10;체크한 줄을 [→ 판매등록으로] 넘겨 이 화면에서 확인 후 [저장]합니다.">💬 카톡 주문 가져오기</button>
       <span style="font-size:11.5px; color:#5a6b7a; line-height:1.5; text-align:right">
@@ -584,6 +588,32 @@
   .kt-guide{ font-size:12.5px; font-weight:800; color:#a6241c; background:#fff1ef; border:1px solid #f3c1bb; border-radius:10px; padding:1px 10px; }
   .kt-guide.blink{ animation:ktBlink 1s steps(2,jump-none) 10; }   /* 1초 × 10회 뒤 멈춤 */
   @keyframes ktBlink{ 0%,100%{ opacity:1; } 50%{ opacity:.15; } }
+  /* ── 📥 엑셀 업로드(구전산 매출) 창 (2026-11-06) — 카톡 주문 창과 같은 꼴의 떠 있는 창 ── */
+  #saXuPop{ display:none; position:fixed; left:18vw; top:3vh; width:80vw; height:92vh; min-width:720px; min-height:380px; background:#fff; border:1px solid var(--sa-bd); border-radius:8px; box-shadow:0 10px 32px rgba(0,0,0,.28); z-index:150; resize:both; overflow:hidden; }
+  #saXuPop.on{ display:flex; flex-direction:column; }
+  #saXuPop > .hd{ display:flex; align-items:center; gap:8px; padding:9px 14px; border-bottom:1px solid var(--sa-bd); background:#e6f1ee; font-weight:800; font-size:15px; color:#125a4e; border-radius:8px 8px 0 0; cursor:move; user-select:none; flex:0 0 auto; }
+  #saXuPop > .bd{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:8px; padding:10px 12px 6px; }
+  #saXuPop > .ft{ flex:0 0 auto; padding:6px 12px; border-top:1px solid var(--sa-bd); background:#fafcfb; display:flex; align-items:center; gap:8px; flex-wrap:wrap; border-radius:0 0 8px 8px; font-size:12.5px; color:#3d4d5c; }
+  .xu-bar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12.5px; color:#37475a; }
+  .xu-bar label{ display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
+  .xu-tbwrap{ flex:1 1 auto; min-height:120px; overflow:auto; border:1px solid var(--sa-bd); border-radius:6px; }
+  table.xu{ width:100%; border-collapse:collapse; font-size:12.5px; min-width:1180px; }
+  table.xu th{ position:sticky; top:0; background:#eaf2f0; color:#125a4e; font-weight:600; padding:5px 6px; border-bottom:1px solid var(--sa-bd); white-space:nowrap; z-index:1; text-align:center; }
+  table.xu td{ padding:3px 6px; border-bottom:1px solid #eef1f4; vertical-align:middle; white-space:nowrap; }
+  table.xu td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  table.xu td.txt{ max-width:260px; overflow:hidden; text-overflow:ellipsis; }
+  table.xu tr.xg td{ background:#dff0ee; padding:6px; border-top:2px solid #9fc9c0; font-weight:700; }
+  table.xu tr.xg.bad td{ background:#fdecea; border-top-color:#e3b4ae; }
+  table.xu tr.xg.dup td{ background:#fff3d6; border-top-color:#e8c98a; }
+  table.xu tr.xg.ok td{ background:#eef7ee; border-top-color:#a9d3a9; }
+  table.xu tr.xr.bad td{ background:#fff5f4; }
+  table.xu tr.xr.bad td.cd{ color:#c0392b; font-weight:700; }
+  table.xu tr.xr td.cd, table.xu tr.xr td.nm{ cursor:pointer; }
+  table.xu tr.xr td.cd:hover, table.xu tr.xr td.nm:hover{ text-decoration:underline; }
+  .xu-st{ display:inline-block; padding:0 6px; border-radius:9px; font-size:11px; font-weight:700; line-height:17px; }
+  .xu-st.m{ background:#d8f0ea; color:#0f6b5e; }  .xu-st.x{ background:#e3eefb; color:#2a5fa8; }  .xu-st.b{ background:#f9d6d2; color:#a93226; }  .xu-st.w{ background:#fff0c2; color:#8a5a00; }
+  .xu-fold{ cursor:pointer; color:#137a6c; margin-right:4px; font-weight:800; }
+  .xu-link{ color:#137a6c; cursor:pointer; text-decoration:underline; font-weight:600; }
 </style>
 <div id="saKtPop">
     <div class="hd" id="ktHd" title="잡아서 끌면 창이 옮겨집니다">💬 카톡 주문
@@ -624,6 +654,40 @@
       <span class="kt-help">저장은 왼쪽 판매등록 [💾 저장]에서.</span>
       <span style="margin-left:auto"></span>
       <button class="sa-btn" style="min-width:90px" onclick="ktClose()">닫기</button>
+    </div>
+</div>
+
+<%-- 📥 엑셀 업로드 (2026-11-06 「구전산 매출엑셀자료를 판매등록에서 엑셀업로드 저장」) — 카톡 주문 창과 같은 떠 있는 창. [닫기]로만 닫힌다 --%>
+<div id="saXuPop">
+    <div class="hd" id="xuHd" title="잡아서 끌면 창이 옮겨집니다">📥 판매자료 엑셀업로드 — 구전산 매출 → 판매전표
+      <span id="xuCnt" style="font-size:12.5px; font-weight:600; color:#137a6c"></span>
+      <span style="margin-left:auto; display:flex; align-items:center; gap:6px">
+        <span class="sa-btn" style="border:0;background:transparent;font-size:18px;height:28px;line-height:1" onclick="xuClose()" title="닫기">✕</span>
+      </span>
+    </div>
+    <div class="bd">
+      <div class="xu-bar">
+        <input type="file" id="xuFile" accept=".xlsx,.xls" style="display:none" onchange="xuFileChg(this)">
+        <button class="sa-btn teal" onclick="document.getElementById('xuFile').click()" title="첫 줄이 머리글인 엑셀 — 판매일자·거래처(코드 또는 이름)·상품코드·BOX/EA(또는 합계수량)·단가 칸이 있어야 합니다. 공급가·부가세·판매금액 칸이 있으면 그 값을 그대로 저장합니다.">📂 엑셀 파일 고르기</button>
+        <span id="xuFileNm" style="color:#5a6b7a"></span>
+        <label title="켜면 엑셀의 공급가·부가세·판매금액 칸을 그대로 저장합니다(옛 전산 금액과 1원도 안 어긋나게). 끄면 판매등록 규칙(합계 × 단가, 거래처 부가세 구분)으로 다시 셉니다."><input type="checkbox" id="xuAmtX" checked onchange="xuRegroup()"> 엑셀 공급가·부가세·판매금액 그대로</label>
+        <button class="sa-btn" id="xuFoldAllBtn" onclick="xuFoldAll()" style="display:none" title="전표 묶음의 줄을 모두 접거나 펼칩니다">⊟ 전체 접기</button>
+        <span style="margin-left:auto; color:#37475a; font-size:12px; font-weight:700" title="올린 내용은 저장되지 않습니다 — 아래 표에서 확인한 뒤 [💾 선택 전표 저장]을 눌러야 저장됩니다">① 파일 고르기 → ② 아래 표에서 확인(거래처·상품·금액) → ③ [💾 선택 전표 저장]</span>
+        <span style="flex-basis:100%; color:#8a97a4; font-size:11.5px">전표 = 판매일자 + 거래처 · 빨간 칸을 누르면 거래처·상품을 고를 수 있습니다 · 이미 있는 전표는 체크가 꺼져 있습니다 · 저장은 체크한 전표만</span>
+      </div>
+      <div class="xu-tbwrap"><table class="xu"><thead><tr>
+        <th style="width:28px"><input type="checkbox" id="xuChkAll" checked onchange="xuChkAll(this.checked)" title="전표 전체 선택/해제"></th>
+        <th style="width:30px">#</th><th style="width:118px">상품코드</th><th style="width:240px">상품명</th><th style="width:120px">규격</th>
+        <th style="width:52px" title="상품마스터 입수">입수</th><th style="width:56px">BOX</th><th style="width:64px">EA</th><th style="width:72px" title="BOX × 입수 + EA">합계</th>
+        <th style="width:84px">단가</th><th style="width:92px">공급가</th><th style="width:80px">부가세</th><th style="width:96px">판매금액</th>
+        <th style="width:170px">비고</th><th style="width:160px">상태</th>
+      </tr></thead><tbody id="xuBody"><tr><td colspan="15" class="sa-msg">[📂 엑셀 파일 고르기]로 구전산 매출 엑셀을 올리세요.</td></tr></tbody></table></div>
+    </div>
+    <div class="ft">
+      <span id="xuSum"></span>
+      <span style="margin-left:auto"></span>
+      <button class="sa-btn teal" id="xuSaveBtn" onclick="xuSave()" disabled title="체크한 전표를 판매일자·거래처별로 한 장씩 저장합니다(기존 저장과 같은 길). 거래처·상품이 안 맞는 전표는 건너뜁니다.">💾 선택 전표 저장</button>
+      <button class="sa-btn" style="min-width:90px" onclick="xuClose()">닫기</button>
     </div>
 </div>
 
@@ -1968,6 +2032,8 @@ function saVenPick(cd){
   /* 💬 카톡 주문 창에서 [거래처]로 열었으면 그 묶음에 넣고 끝 — 본 화면 거래처는 건드리지 않는다 (2026-09-04) */
   if (_kt.venRowTarget != null) { var rid=_kt.venRowTarget; _kt.venRowTarget=null; saVenClose(); ktSetRowVen(rid, o); return; }   // 💬 줄 하나만 (2026-09-05)
   if (_kt.venTarget != null) { var gi=_kt.venTarget; _kt.venTarget=null; saVenClose(); ktSetGroupVen(gi, o); return; }
+  /* 📥 엑셀 업로드 창의 거래처 칸에서 열었으면 그 묶음(같은 이름 전부)에 넣고 끝 (2026-11-06) */
+  if (_xu.venTarget != null) { var xg=_xu.venTarget; _xu.venTarget=null; saVenClose(); xuSetVen(xg, o); return; }
   var v = document.getElementById('saVenNm'); v.value = o.vendorNm||''; v.dataset.cd = o.vendorCd||'';
   var m = document.getElementById('saMgrNm'); m.value = o.mgrNm||''; m.dataset.cd = o.mgrCd||'';
   saVenVat(o);
@@ -2319,6 +2385,9 @@ function saExtPick(seq){
       + '<span style="color:#5a6b7a;font-size:12.5px">연결 전에는 아래 목록에서 상품을 직접 고르셔도 됩니다.</span>');
     return;
   }
+  /* 📥 엑셀 업로드 창에서 열었으면 그 줄에 매칭으로 넣고 끝 (2026-11-06) */
+  if (_xu.prodTarget != null) { var xr2=xuRowById(_xu.prodTarget); _xu.prodTarget=null; saProdClose();
+    var xp=_prods.filter(function(x){ return String(x.prodCd)===String(o.prodCd); })[0]; if(xr2 && xp) xuSetProd(xr2, xp, o); return; }
   /* 💬 카톡 주문 창에서 열었으면 그 줄에 매칭으로 넣고 끝 (2026-09-04) */
   if (_kt.prodTarget != null) { var kr=ktRowById(_kt.prodTarget); _kt.prodTarget=null; saProdClose();
     if(kr){ ktSetProd(kr, o.prodCd, '매칭'); kr.extCd=o.extItemCd; kr.extNm=o.extItemNm||''; ktRender(); } return; }
@@ -2333,6 +2402,8 @@ function saProdPick(cd){
   /* 💬 카톡 주문 창의 상품 칸에서 열었으면 그 줄에 넣고 끝 — 명세 그리드(_rows)는 건드리지 않는다 (2026-09-04) */
   if (_kt.prodTarget != null) { var kr=ktRowById(_kt.prodTarget); _kt.prodTarget=null; saProdClose();
     if(kr){ ktSetProd(kr, p.prodCd, '선택'); kr.extCd=null; kr.extNm=null; ktRender(); } return; }
+  /* 📥 엑셀 업로드 창의 상품 칸에서 열었으면 그 줄(같은 코드 전부)에 넣고 끝 (2026-11-06) */
+  if (_xu.prodTarget != null) { var xr=xuRowById(_xu.prodTarget); _xu.prodTarget=null; saProdClose(); if(xr) xuSetProd(xr, p, null); return; }
   var o = _rows[_prodTargetRow]; if(!o) return;
   /* 품명 = 그 거래처가 요청한 이름(있으면). 없으면 우리 품명 그대로 */
   o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=saNmFor(p.prodCd, p.prodNm); o.spec=p.spec||'';
@@ -3884,6 +3955,379 @@ function ktExcel(){
     var wb=X.utils.book_new(); X.utils.book_append_sheet(wb, ws, '카톡주문 분류');
     var fn='카톡주문_분류_'+today().replace(/-/g,'')+'.xlsx'; X.writeFile(wb, fn);
     swOk('<b>'+esc(fn)+'</b><br>엑셀 파일을 내려받았습니다.');
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   📥 엑셀 업로드 — 구전산 매출 엑셀 → 판매전표 (2026-11-06 「구전산 매출엑셀자료를 판매등록에서 엑셀업로드 저장 기능구현」)
+   함수 접두사 xu* · 상태 _xu
+   · 양식 = 첫 줄 머리글(D:/코네트/판매내역_판매등록양식.xlsx 꼴). 머리글 이름으로 칸을 찾는다 —
+       필수 : 판매일자 · 거래처(코드 또는 이름) · 상품코드 · BOX/EA(또는 합계수량) · 단가(「단가(입력용)」이 있으면 그것)
+       선택 : 부가세구분 · 합계수량(캡처) · DC · 공급가 · 부가세 · 판매금액 · 서비스 · 비고. 시트는 그 머리글이 있는 첫 시트.
+   · 전표 = 판매일자 + 거래처 한 장, 줄 = 명세(엑셀 줄 차례 그대로 ROW_NO).
+   · 거래처 = 거래처코드 → 마스터, 없으면 이름(거래처명·전체이름·별칭, 띄어쓰기 무시) 정확히 하나. 상품 = 상품마스터 코드 →
+       매칭코드(TBL_EXT_ITEM_MST, 서브코드는 주코드로 — 「매칭」 배지). 못 맞춘 것은 빨갛게 — 칸을 누르면 기존 거래처 팝업(saVenOpen)·
+       상품 팝업(saProdOpen 과 같은 창)으로 고른다(_xu.venTarget / _xu.prodTarget — 카톡 주문 창과 같은 수법). 같은 이름·같은 코드 줄에 함께 적용.
+   · 수량 = 판매등록 현행(합계 = BOX × 우리 입수 + EA). ★엑셀의 합계수량(캡처 = 옛 전산 합계)과 어긋나면 우리 입수가 다른 품목이라
+       BOX 대신 EA 로 넣어 수량을 맞춘다(「입수 → EA」 표시 — 양식 설명 시트의 규칙).
+   · 금액 = 엑셀에 공급가·부가세·판매금액이 있으면 <그대로 저장>(기본 켬 — 옛 전산과 1원도 안 어긋나게. 우리 셈은 부가세 반올림이라
+       38줄에서 1원 많아진다는 것이 양식 설명). 끄면 ktCalcRow(거래처 부가세 구분 — 엑셀 부가세구분 칸이 있으면 그 값 우선)로 다시 센다.
+   · 저장 = 기존 경로 그대로(salesTrxNextNo → salesTrxSave, 카톡 ktSaveOne 과 같은 payload) 전표마다 차례로 — 서버 무변경.
+       같은 판매일자·거래처 전표가 이미 있으면(salesTrxList 로 미리 본다) 「이미 전표 n장」 표시 + 체크를 끈다(= 건너뛰기).
+       다시 체크하면 추가로 저장 — 저장 전에 한 번 묻는다. 결과 = 성공 n장 · 실패 n장(사유 — 한 장이 실패해도 다음 장을 계속 저장).
+   · 전표 메모 = 「[엑셀 업로드 파일명]」 · 줄 비고 = 엑셀 비고. 마감 확정된 달은 saClosedAsk 로 묻는다(저장과 같은 규칙).
+   ══════════════════════════════════════════════════════════════════════════ */
+var _xu = { file:'', rows:[], groups:[], seq:0, venTarget:null, prodTarget:null, dup:null, busy:false, open:{}, chk:{}, miss:[] };
+function xuUseX(){ var e=document.getElementById('xuAmtX'); return !e || e.checked; }
+function xuOpen(){
+  var pop=document.getElementById('saXuPop'); pop.classList.add('on');
+  setTimeout(function(){ var r=pop.getBoundingClientRect(); if(r.left>window.innerWidth-200 || r.top>window.innerHeight-100){ pop.style.left='18vw'; pop.style.top='3vh'; } }, 0);
+  saLoadMasters();                     // 상품·거래처·매칭코드를 새로 읽는다(다른 화면에서 등록한 것 반영)
+}
+function xuClose(){ document.getElementById('saXuPop').classList.remove('on'); _xu.venTarget=null; _xu.prodTarget=null; }
+/* 떠 있는 창 끌어 옮기기 — 카톡 주문 창(ktDrag)과 같은 수법. 머리줄(xuHd)을 잡고 끌면 위치가 바뀌고 localStorage 에 남는다 */
+(function xuDrag(){
+  var hd=document.getElementById('xuHd'), pop=document.getElementById('saXuPop'); if(!hd||!pop||!hd.addEventListener) return;
+  var sx=0, sy=0, ox=0, oy=0, on=false;
+  hd.addEventListener('mousedown', function(e){
+    if(e.button!==0 || e.target.closest('button,.sa-btn,input,select')) return;
+    var r=pop.getBoundingClientRect(); sx=e.clientX; sy=e.clientY; ox=r.left; oy=r.top; on=true; e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e){ if(!on) return;
+    var x=Math.max(0, Math.min(window.innerWidth-120, ox+e.clientX-sx)), y=Math.max(0, Math.min(window.innerHeight-60, oy+e.clientY-sy));
+    pop.style.left=x+'px'; pop.style.top=y+'px'; });
+  document.addEventListener('mouseup', function(){ if(!on) return; on=false;
+    try{ localStorage.setItem('konetXuPos', JSON.stringify({l:pop.style.left, t:pop.style.top})); }catch(e){} });
+  try{ var p=JSON.parse(localStorage.getItem('konetXuPos')||'null'); if(p&&p.l){ pop.style.left=p.l; pop.style.top=p.t; } }catch(e){}
+})();
+/* 파일 → 엑셀 모듈(카톡 창과 같은 ktLoadXlsx) → 파싱 */
+function xuFileChg(inp){
+  var f=inp.files && inp.files[0]; if(!f) return;
+  var nm=f.name; inp.value='';
+  document.getElementById('xuFileNm').textContent='읽는 중… '+nm;
+  var rd=new FileReader();
+  rd.onload=function(ev){
+    ktLoadXlsx(function(X){
+      if(!X){ swErr('엑셀 모듈을 불러오지 못했습니다.'); document.getElementById('xuFileNm').textContent=''; return; }
+      var wb; try{ wb=X.read(new Uint8Array(ev.target.result), {type:'array', cellDates:true}); }
+      catch(e){ swErr('엑셀 파일을 읽지 못했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); document.getElementById('xuFileNm').textContent=''; return; }
+      var res=xuParse(X, wb, nm);
+      if(res.err){ swErr(res.err); document.getElementById('xuFileNm').textContent=''; return; }
+      document.getElementById('xuFileNm').textContent=nm+' · '+esc(res.sheet)+' 시트 '+_xu.rows.length+'줄';
+      xuRegroup(); xuDupLoad();
+      if(window._toast) _toast('엑셀 '+_xu.rows.length+'줄을 '+_xu.groups.length+'장 전표로 읽었습니다 — 아직 저장되지 않았습니다. 표를 확인한 뒤 [💾 선택 전표 저장]을 누르세요.','info');
+    });
+  };
+  rd.onerror=function(){ swErr('파일을 읽지 못했습니다.'); };
+  rd.readAsArrayBuffer(f);
+}
+function xuNorm(h){ return String(h==null?'':h).replace(/\s+/g,'').toUpperCase(); }
+/* 머리글 → 칸 번호. 「단가(입력용)」·「합계수량(우리 입수 적용)」 처럼 양식이 두 벌 준 칸은 입력용을 먼저 집는다 */
+function xuCols(hdr){
+  var hs=hdr.map(xuNorm), c={};
+  function find(fn){ for(var i=0;i<hs.length;i++){ if(hs[i] && fn(hs[i], i)) return i; } return -1; }
+  function pick(){ for(var k=0;k<arguments.length;k++){ var i=find(arguments[k]); if(i>=0) return i; } return -1; }
+  c.dt    = pick(function(h){ return h==='판매일자'; }, function(h){ return h.indexOf('일자')>=0 && !/납품|배송|등록/.test(h); }, function(h){ return h==='날짜'; });
+  c.venCd = find(function(h){ return h.indexOf('거래처코드')>=0; });
+  c.venNm = pick(function(h){ return h.indexOf('거래처명')>=0; }, function(h){ return h==='거래처'; });
+  c.vat   = find(function(h){ return h.indexOf('부가세구분')>=0; });
+  c.cd    = find(function(h){ return /^(상품|품목)코드/.test(h); });
+  c.nm    = find(function(h){ return /^(상품명|품명|품목명)/.test(h); });
+  c.spec  = find(function(h){ return /^규격/.test(h); });
+  c.box   = find(function(h){ return /^BOX/.test(h); });
+  c.ea    = find(function(h){ return /^EA/.test(h); });
+  c.qty   = pick(function(h){ return h.indexOf('합계수량(우리')>=0; }, function(h){ return /^합계수량/.test(h) && h.indexOf('캡처')<0; }, function(h){ return h==='수량'; });
+  c.qtyCap= pick(function(h){ return h.indexOf('합계수량(캡처')>=0; }, function(h){ return /^합계수량/.test(h) && h.indexOf('우리')<0 && h.indexOf('캡처')<0; });
+  if(c.qtyCap===c.qty) c.qtyCap=-1;
+  c.price = pick(function(h){ return /^단가\(입력/.test(h); }, function(h){ return /^단가/.test(h); });
+  c.dc    = pick(function(h){ return h==='DC'; }, function(h){ return /^할인/.test(h); });
+  c.sup   = find(function(h){ return /^공급가/.test(h); });
+  c.vatAmt= find(function(h){ return /^부가세/.test(h) && h.indexOf('구분')<0; });
+  c.tot   = pick(function(h){ return /^판매금액/.test(h); }, function(h){ return /^합계금액/.test(h); });
+  c.svc   = find(function(h){ return /^서비스/.test(h); });
+  c.rmk   = find(function(h){ return /^비고/.test(h); });
+  var miss=[];
+  if(c.dt<0) miss.push('판매일자'); if(c.venCd<0 && c.venNm<0) miss.push('거래처코드 또는 거래처명'); if(c.cd<0) miss.push('상품코드');
+  if(c.box<0 && c.ea<0 && c.qty<0) miss.push('BOX/EA 또는 합계수량'); if(c.price<0) miss.push('단가');
+  c.miss=miss; return c;
+}
+/* 엑셀 날짜 → 'YYYY-MM-DD' (Date · 시리얼 · 글자 모두). 못 읽으면 '' */
+function xuDate(v){
+  if(v==null || v==='') return '';
+  if(v instanceof Date || Object.prototype.toString.call(v)==='[object Date]'){ if(isNaN(v.getTime())) return ''; return v.getFullYear()+'-'+('0'+(v.getMonth()+1)).slice(-2)+'-'+('0'+v.getDate()).slice(-2); }
+  if(typeof v==='number'){ if(v>19000000 && v<30000000){ var s0=String(v); return s0.slice(0,4)+'-'+s0.slice(4,6)+'-'+s0.slice(6,8); }
+    var d=new Date(Date.UTC(1899,11,30)+Math.round(v)*86400000); return d.getUTCFullYear()+'-'+('0'+(d.getUTCMonth()+1)).slice(-2)+'-'+('0'+d.getUTCDate()).slice(-2); }
+  var s=String(v).trim(), m=s.match(/^(\d{4})[-./년\s]*(\d{1,2})[-./월\s]*(\d{1,2})/);
+  if(m) return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
+  if(/^\d{8}$/.test(s)) return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);
+  return '';
+}
+function xuNum(v){ if(v==null || v==='') return null; var x=Number(String(v).replace(/,/g,'').trim()); return isFinite(x)?x:null; }
+function xuStr(v){ return v==null ? '' : String(v).trim(); }
+/* 워크북 → _xu.rows. 머리글 줄은 앞 8줄 안에서 「일자」+「코드」 가 함께 있는 줄 */
+function xuParse(X, wb, fname){
+  var sheet=null, rows=null, h=-1;
+  for(var si=0; si<wb.SheetNames.length && !sheet; si++){
+    var ws=wb.Sheets[wb.SheetNames[si]]; if(!ws || !ws['!ref']) continue;
+    var aoa=X.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+    for(var i=0;i<Math.min(8,aoa.length);i++){ var hs=(aoa[i]||[]).map(xuNorm).join('|'); if(hs.indexOf('일자')>=0 && hs.indexOf('코드')>=0){ sheet=wb.SheetNames[si]; rows=aoa; h=i; break; } }
+  }
+  if(!sheet) return { err:'<b>판매등록 양식</b>이 아닙니다.<br><span style="font-size:12.5px;color:#3d4d5c">첫 줄에 판매일자·거래처·상품코드·BOX/EA·단가 머리글이 있는 시트가 없습니다.</span>' };
+  var c=xuCols(rows[h]);
+  if(c.miss.length) return { err:'양식에 <b>없는 칸</b>이 있습니다 : '+esc(c.miss.join(' · '))+'<br><span style="font-size:12.5px;color:#3d4d5c">시트 「'+esc(sheet)+'」 머리글 : '+esc(rows[h].filter(Boolean).join(', ').slice(0,200))+'</span>' };
+  _xu.file=fname; _xu.rows=[]; _xu.seq=0; _xu.dup=null; _xu.open={}; _xu.chk={}; _xu.groups=[];
+  var get=function(r, k){ return c[k]>=0 ? r[c[k]] : null; };
+  for(var ri=h+1; ri<rows.length; ri++){
+    var r=rows[ri]||[]; var cd=xuStr(get(r,'cd')), dt=xuDate(get(r,'dt'));
+    var box=xuNum(get(r,'box')), ea=xuNum(get(r,'ea')), qty=xuNum(get(r,'qty')), qtyCap=xuNum(get(r,'qtyCap'));
+    if(!cd && !dt && box==null && ea==null && qty==null) continue;            // 빈 줄·합계 줄
+    if(!cd && /합계|소계|총계/.test(xuStr(get(r,'venNm'))+xuStr(get(r,'dt')))) continue;
+    var o={ id:++_xu.seq, line:ri+1, dt:dt, venCdX:xuStr(get(r,'venCd')), venNmX:xuStr(get(r,'venNm')), vatX:xuStr(get(r,'vat')),
+            cd:cd, nmX:xuStr(get(r,'nm')), specX:xuStr(get(r,'spec')), box:box, ea:ea, qtyX:qty, qtyCap:qtyCap,
+            price:xuNum(get(r,'price')), dc:xuNum(get(r,'dc')), sup:xuNum(get(r,'sup')), vat:xuNum(get(r,'vatAmt')), tot:xuNum(get(r,'tot')),
+            svc:xuNum(get(r,'svc')), rmk:xuStr(get(r,'rmk')).slice(0,200), venCd:'', venNm:'', prodCd:'', st:'미연결', err:'' };
+    o.hasX = (o.sup!=null && o.tot!=null);
+    if(!o.dt) o.err='판매일자 못 읽음'; else if(!o.cd) o.err='상품코드 없음'; else if(o.price==null) o.err='단가 없음';
+    var v=xuVenOf(o.venCdX, o.venNmX); if(v){ o.venCd=String(v.vendorCd); o.venNm=v.vendorNm||''; }
+    var p=xuProdOf(o.cd); if(p) xuSetProdFields(o, p.p, p.ext);
+    xuQty(o);
+    _xu.rows.push(o);
+  }
+  if(!_xu.rows.length) return { err:'시트 「'+esc(sheet)+'」 에 자료 줄이 없습니다.' };
+  return { sheet:sheet };
+}
+/* 거래처 = 코드 → 이름(거래처명·전체이름·별칭, 띄어쓰기 무시) 정확히 하나 */
+function xuVenOf(cd, nm){
+  if(cd){ var v=_vendors.filter(function(x){ return String(x.vendorCd)===String(cd); })[0]; if(v) return v; }
+  var k=xuNorm(nm); if(!k) return null;
+  var hit=_vendors.filter(function(x){ return xuNorm(x.vendorNm)===k || xuNorm(x.fullNm)===k || xuNorm(x.alias)===k; });
+  return hit.length===1 ? hit[0] : (hit.length>1 ? hit[0] : null);
+}
+/* 상품 = 마스터 코드 → 매칭코드(서브코드 → 주코드). {p, ext} 또는 null */
+function xuProdOf(cd){
+  if(!cd) return null;
+  var p=_prods.filter(function(x){ return String(x.prodCd)===String(cd); })[0]; if(p) return { p:p, ext:null };
+  var e=_extItems.filter(function(x){ return String(x.extItemCd)===String(cd) && x.prodCd; })[0]; if(!e) return null;
+  var p2=_prods.filter(function(x){ return String(x.prodCd)===String(e.prodCd); })[0]; return p2 ? { p:p2, ext:e } : null;
+}
+function xuSetProdFields(o, p, ext){
+  o.prodSeq=p.prodSeq; o.prodCd=p.prodCd; o.prodNm=p.prodNm||''; o.spec=p.spec||''; o.packQty=n(p.packQty)||1; o.taxGb=p.taxGb||'과세';
+  o.extCd=ext?ext.extItemCd:null; o.extNm=ext?(ext.extItemNm||''):null; o.st=ext?'매칭':'코드';
+}
+/* 수량 — BOX·EA 그대로, 합계 = BOX × 우리 입수 + EA. 엑셀 합계(캡처)와 어긋나면 EA 로(양식 설명 시트 규칙) */
+function xuQty(o){
+  var pk=n(o.packQty)||1;
+  o.boxQty=n(o.box); o.eaQty=n(o.ea);
+  if(o.box==null && o.ea==null && o.qtyX!=null){ o.boxQty=0; o.eaQty=n(o.qtyX); }
+  var q=o.boxQty*pk+o.eaQty, ref=(o.qtyCap!=null)?o.qtyCap:o.qtyX; o.note='';
+  if(ref!=null && Math.abs(q-n(ref))>0.0001){ o.boxQty=0; o.eaQty=n(ref); o.note='입수 '+pk+' ≠ 엑셀 → EA '+fmt(ref); }
+  o.qty=o.boxQty*pk+o.eaQty;
+}
+function xuRowById(id){ for(var i=0;i<_xu.rows.length;i++){ if(_xu.rows[i].id===id) return _xu.rows[i]; } return null; }
+/* 줄 → 묶음(판매일자 + 거래처). 접힘·체크는 묶음 키로 기억해 다시 묶어도 남는다 */
+function xuRegroup(applyDup){
+  var map={}, list=[];
+  _xu.rows.forEach(function(r){
+    var key=r.dt+'|'+(r.venCd?('c:'+r.venCd):('n:'+xuNorm(r.venNmX||r.venCdX)));
+    var g=map[key]; if(!g){ g={ key:key, dt:r.dt, venCd:r.venCd, venNm:r.venNm, venRaw:r.venNmX||r.venCdX||'(거래처 없음)', rows:[], done:'', dup:[] }; map[key]=g; list.push(g); }
+    g.rows.push(r);
+  });
+  var old={}; _xu.groups.forEach(function(g){ old[g.key]=g; });
+  list.forEach(function(g){
+    var o=old[g.key]; if(o){ g.done=o.done; }
+    var v=g.venCd ? (_vendors.filter(function(x){ return String(x.vendorCd)===g.venCd; })[0]||{}) : {};
+    var vx=(g.rows[0]||{}).vatX; g.vatGb = (/^(포함|별도|면세)$/.test(vx) ? vx : '') || v.vatGb || VAT_DEF;
+    g.dup = (_xu.dup && g.venCd && _xu.dup[g.dt+'|'+g.venCd]) || [];
+    g.bad = !g.venCd || g.rows.some(function(r){ return !r.prodCd || r.err; });
+    if(_xu.chk[g.key]===undefined) _xu.chk[g.key]=true;
+    if(applyDup && g.dup.length) _xu.chk[g.key]=false;                        // 이미 있는 전표 = 기본 건너뛰기(다시 체크하면 추가 저장)
+    if(_xu.open[g.key]===undefined) _xu.open[g.key]=true;      // ★올린 내용은 전부 펼쳐 보인다(2026-11-06 「업로드 내용 보여주고 저장기능으로」) — 접는 것은 사람이
+    g.chk=_xu.chk[g.key]; g.open=_xu.open[g.key];
+    g.rows.forEach(function(r){ xuCalc(r, g); });
+  });
+  _xu.groups=list; xuRender();
+}
+/* 한 줄의 저장 모양(SalesTrxDtl) — 카톡 ktCalcRow 와 같은 식. 엑셀 금액 그대로면 공급가·부가세·판매금액을 덮고 차이는 fix 로 */
+function xuCalc(r, g){
+  var o=emptyRow();
+  o.prodSeq=r.prodSeq||null; o.prodCd=r.prodCd||''; o.prodNm=r.prodNm||r.nmX||''; o.spec=r.spec||r.specX||''; o.packQty=n(r.packQty)||1; o.taxGb=r.taxGb||'과세';
+  o.boxQty=r.boxQty; o.eaQty=r.eaQty; o.unitPrice=n(r.price); o.dcAmt=n(r.dc); o.serviceQty=n(r.svc); o.remark=r.rmk||'';
+  if(r.extCd){ o.extCd=r.extCd; o.extNm=r.extNm||''; }
+  ktCalcRow(o, g.vatGb);
+  r.fix=0;
+  if(xuUseX() && r.hasX){
+    var sup=n(r.sup), tot=n(r.tot), vat=(r.vat!=null)?n(r.vat):(tot-sup), calc=o.amt;
+    o.supplyAmt=sup; o.vatAmt=vat; o.totAmt=tot; o.amt=(g.vatGb==='포함')?tot:sup; r.fix=o.amt-calc;
+  }
+  r.o=o; return o;
+}
+function xuGroupSum(g){ var t={box:0,ea:0,qty:0,sup:0,vat:0,tot:0}; g.rows.forEach(function(r){ var o=r.o||xuCalc(r,g); t.box+=n(o.boxQty); t.ea+=n(o.eaQty); t.qty+=n(o.qty); t.sup+=n(o.supplyAmt); t.vat+=n(o.vatAmt); t.tot+=n(o.totAmt); }); return t; }
+function xuStBadge(r){
+  var h='';
+  if(r.err) h+='<span class="xu-st b" title="이 줄은 저장할 수 없습니다">'+esc(r.err)+'</span> ';
+  if(!r.prodCd) h+='<span class="xu-st b" title="상품마스터·매칭코드에 없는 코드 — 상품코드 칸을 눌러 고르세요">미연결</span>';
+  else if(r.st==='매칭') h+='<span class="xu-st x" title="매칭코드 '+esc(r.extCd)+' → 우리 상품 '+esc(r.prodCd)+'">매칭 '+esc(r.extCd)+'</span>';
+  else if(r.st==='선택') h+='<span class="xu-st x" title="상품 팝업에서 고른 상품">선택</span>';
+  else h+='<span class="xu-st m" title="상품마스터 코드와 같음">마스터</span>';
+  if(r.note) h+=' <span class="xu-st w" title="우리 입수로 BOX × 입수 + EA 를 세면 엑셀 합계와 다릅니다 — 엑셀 합계를 EA 로 넣었습니다">'+esc(r.note)+'</span>';
+  if(r.fix) h+=' <span class="xu-st w" title="엑셀 금액을 그대로 저장합니다. 우리 셈(합계 × 단가)과의 차이 = '+fmt(r.fix)+'원">금액 '+(r.fix>0?'+':'')+fmt(r.fix)+'</span>';
+  return h;
+}
+function xuRender(){
+  var tb=document.getElementById('xuBody'); if(!tb) return;
+  if(!_xu.groups.length){ tb.innerHTML='<tr><td colspan="15" class="sa-msg">[📂 엑셀 파일 고르기]로 구전산 매출 엑셀을 올리세요.</td></tr>'; xuSumPaint(); return; }
+  var h='';
+  _xu.groups.forEach(function(g, gi){
+    var t=xuGroupSum(g), cls='xg'+(g.bad?' bad':(/^저장됨/.test(g.done)?' ok':(g.dup.length?' dup':'')));
+    var ven = g.venCd ? '<span class="xu-link" onclick="xuVenOpen('+gi+')" title="눌러서 다른 거래처로 바꾸기">'+esc(g.venNm)+' <span style="font-weight:600;color:#5a6b7a">('+esc(g.venCd)+')</span></span>'
+                      : '<span class="xu-link" style="color:#c0392b" onclick="xuVenOpen('+gi+')" title="거래처 마스터에 없습니다 — 눌러서 고르세요">'+esc(g.venRaw)+' — 거래처 고르기</span>';
+    h+='<tr class="'+cls+'"><td><input type="checkbox" '+(g.chk?'checked':'')+' onchange="xuChk('+gi+',this.checked)" title="이 전표를 저장 대상에 넣기"></td>'
+      +'<td colspan="14"><span class="xu-fold" onclick="xuFold('+gi+')" title="줄 접기/펼치기">'+(g.open?'▾':'▸')+'</span>'
+      +'<b>'+esc(g.dt||'(날짜 없음)')+'</b> · '+ven+' · 줄 '+g.rows.length+' · <span style="font-weight:600;color:#5a6b7a">부가세 '+esc(g.vatGb)+'</span>'
+      +' · 공급가 '+fmt(t.sup)+' · 부가세 '+fmt(t.vat)+' · <b>합계 '+fmt(t.tot)+'</b>'
+      +(g.dup.length?' <span class="xu-st w" title="이 판매일자·거래처로 이미 저장된 전표 번호 : '+esc(g.dup.join(', '))+' — 체크하면 추가로 한 장 더 저장됩니다">이미 전표 '+g.dup.length+'장 ('+esc(g.dup.join(', '))+')</span>':'')
+      +(g.done?' <span class="xu-st '+(/^저장됨/.test(g.done)?'m':'b')+'">'+esc(g.done)+'</span>':'')
+      +'</td></tr>';
+    if(!g.open) return;
+    g.rows.forEach(function(r, i){
+      var o=r.o, bad=(!r.prodCd || r.err);
+      h+='<tr class="xr'+(bad?' bad':'')+'"><td></td><td style="text-align:center;color:#8a97a4">'+(i+1)+'</td>'
+        +'<td class="cd" onclick="xuProdOpen('+r.id+')" title="눌러서 상품 고르기 (엑셀 '+r.line+'행)">'+esc(r.cd)+(r.prodCd && String(r.prodCd)!==String(r.cd)?' <span style="color:#2a5fa8;font-size:11px">→ '+esc(r.prodCd)+'</span>':'')+'</td>'
+        +'<td class="nm txt" onclick="xuProdOpen('+r.id+')" title="'+esc(r.prodNm||r.nmX)+(r.nmX && r.prodNm && r.nmX!==r.prodNm?'\n엑셀 : '+esc(r.nmX):'')+'">'+esc(r.prodNm||r.nmX||'')+'</td>'
+        +'<td class="txt" title="'+esc(o.spec)+'">'+esc(o.spec)+'</td>'
+        +'<td class="num">'+(r.prodCd?fmt(o.packQty):'')+'</td><td class="num">'+fmt(o.boxQty)+'</td><td class="num">'+fmt(o.eaQty)+'</td><td class="num"><b>'+fmt(o.qty)+'</b></td>'
+        +'<td class="num">'+fmtP(o.unitPrice)+'</td><td class="num">'+fmt(o.supplyAmt)+'</td><td class="num">'+fmt(o.vatAmt)+'</td><td class="num"><b>'+fmt(o.totAmt)+'</b></td>'
+        +'<td class="txt" title="'+esc(r.rmk)+'">'+esc(r.rmk)+'</td><td>'+xuStBadge(r)+'</td></tr>';
+    });
+  });
+  tb.innerHTML=h;
+  var all=document.getElementById('xuChkAll'); if(all) all.checked=_xu.groups.every(function(g){ return g.chk; });
+  xuSumPaint();
+}
+function xuSumPaint(){
+  var el=document.getElementById('xuSum'), cnt=document.getElementById('xuCnt'); if(!el) return;
+  var sb=document.getElementById('xuSaveBtn'), fb=document.getElementById('xuFoldAllBtn');
+  if(sb && !_xu.busy) sb.disabled=!_xu.groups.length;                      // 파일을 올리기 전엔 저장할 것이 없다
+  if(fb){ fb.style.display=_xu.groups.length?'':'none'; fb.textContent=_xu.groups.some(function(g){ return g.open; })?'⊟ 전체 접기':'⊞ 전체 펼치기'; }
+  if(!_xu.groups.length){ el.textContent=''; if(cnt) cnt.textContent=''; return; }
+  var gs=_xu.groups, chk=gs.filter(function(g){ return g.chk; }), noVen=gs.filter(function(g){ return !g.venCd; }).length,
+      noProd=_xu.rows.filter(function(r){ return !r.prodCd; }).length, dup=gs.filter(function(g){ return g.dup.length; }).length,
+      t={sup:0,vat:0,tot:0}; chk.forEach(function(g){ var s=xuGroupSum(g); t.sup+=s.sup; t.vat+=s.vat; t.tot+=s.tot; });
+  el.innerHTML='전표 <b>'+gs.length+'장</b>(체크 '+chk.length+') · 줄 '+_xu.rows.length
+    +(noVen?' · <span style="color:#c0392b;font-weight:700">거래처 미연결 '+noVen+'장</span>':'')
+    +(noProd?' · <span style="color:#c0392b;font-weight:700">상품 미연결 '+noProd+'줄</span>':'')
+    +(dup?' · <span style="color:#8a5a00;font-weight:700">이미 있는 전표 '+dup+'장</span>':'')
+    +' · 체크한 전표 공급가 '+fmt(t.sup)+' · 부가세 '+fmt(t.vat)+' · <b>합계 '+fmt(t.tot)+'</b>';
+  var wait=gs.filter(function(g){ return !/^저장됨/.test(g.done||''); }).length;
+  if(cnt) cnt.textContent=gs.length+'장 · '+_xu.rows.length+'줄'+(wait?(' · 확인 대기 '+wait+'장 — 아직 저장 안 됨'):' · 전부 저장됨');
+}
+function xuFold(gi){ var g=_xu.groups[gi]; if(!g) return; _xu.open[g.key]=!g.open; g.open=!g.open; xuRender(); }
+function xuChk(gi, on){ var g=_xu.groups[gi]; if(!g) return; _xu.chk[g.key]=!!on; g.chk=!!on; xuRender(); }
+function xuChkAll(on){ _xu.groups.forEach(function(g){ _xu.chk[g.key]=!!on; g.chk=!!on; }); xuRender(); }
+function xuFoldAll(){ var on=!_xu.groups.some(function(g){ return g.open; }); _xu.groups.forEach(function(g){ _xu.open[g.key]=on; g.open=on; }); xuRender(); }
+/* 거래처 고르기 — 기존 거래처 팝업(saVenOpen). saVenPick 이 _xu.venTarget 을 보고 xuSetVen 으로 돌려준다 */
+function xuVenOpen(gi){
+  var g=_xu.groups[gi]; if(!g) return;
+  _xu.venTarget=gi; _kt.venTarget=null; _kt.venRowTarget=null; saVenOpen();
+  var q=document.getElementById('saVenQ'); q.value=g.venCd?'':(g.venRaw||''); saVenRender();
+  setTimeout(function(){ q.focus(); }, 0);
+}
+function xuSetVen(gi, v){
+  var g=_xu.groups[gi]; if(!g||!v) return;
+  var raw=xuNorm(g.venRaw), was=g.venCd, cnt=0;
+  _xu.rows.forEach(function(r){
+    var same = was ? (r.venCd===was && r.dt===g.dt) : (!r.venCd && xuNorm(r.venNmX||r.venCdX)===raw);   // 미연결이면 같은 이름 전부 · 바꾸기면 그 전표만
+    if(!same) return; r.venCd=String(v.vendorCd); r.venNm=v.vendorNm||''; cnt++;
+  });
+  xuRegroup();
+  if(window._toast) _toast('거래처 '+(v.vendorNm||'')+' — '+cnt+'줄에 적용','ok');
+}
+/* 상품 고르기 — 기존 상품 팝업. saProdPick(원코드)·saExtPick(🔖 매칭) 이 _xu.prodTarget 을 보고 xuSetProd 로 돌려준다 */
+function xuProdOpen(id){
+  var r=xuRowById(id); if(!r) return;
+  _xu.prodTarget=id; _kt.prodTarget=null; _prodTargetRow=-1; _ppPick=[];
+  document.getElementById('saProdPop').classList.add('on');
+  var q=document.getElementById('saProdQ'); q.value=r.prodCd?'':(r.cd||r.nmX||'');
+  saProdRender(); saLoadMasters();
+  setTimeout(function(){ q.focus(); q.select(); }, 0);
+}
+function xuSetProd(r, p, ext){
+  var raw=r.cd, cnt=0;
+  _xu.rows.forEach(function(x){ if(x.cd!==raw) return; xuSetProdFields(x, p, ext); if(!ext) x.st='선택'; xuQty(x); cnt++; });   // 같은 코드 줄 전부
+  xuRegroup();
+  if(window._toast) _toast((ext?('매칭코드 '+ext.extItemCd+' → '):'')+p.prodCd+' '+(p.prodNm||'')+' — '+cnt+'줄에 적용','ok');
+}
+/* 이미 있는 전표 — 파일 날짜 범위의 전표 목록을 한 번 읽어 판매일자|거래처코드 → 전표번호들 */
+function xuDupLoad(){
+  var ds=_xu.rows.map(function(r){ return r.dt; }).filter(Boolean).sort(); if(!ds.length) return;
+  var b='fromDt='+encodeURIComponent(ds[0])+'&toDt='+encodeURIComponent(ds[ds.length-1])+'&findData=';
+  post('/mangr/salesTrxList.do', b).then(function(r){ return r.json(); }).then(function(j){
+    var m={}; ((j&&j.data)||[]).forEach(function(x){ var k=fmtDt(x.saleDt)+'|'+String(x.custCd||''); (m[k]=m[k]||[]).push(String(x.saleNo||'')); });
+    _xu.dup=m; xuRegroup(true);
+  }).catch(function(){});
+}
+/* [💾 선택 전표 저장] — 체크한 전표 가운데 거래처·상품이 다 맞는 것만, 전표마다 차례로. 실패해도 다음 장을 계속 */
+function xuSave(){
+  if(_xu.busy) return;
+  if(!_xu.groups.length){ swErr('먼저 엑셀 파일을 올리세요.'); return; }
+  var todo=[], skip=[];
+  _xu.groups.forEach(function(g){
+    if(!g.chk) return;
+    var lab=esc(g.dt)+' '+esc(g.venNm||g.venRaw);
+    if(/^저장됨/.test(g.done||'')){ skip.push(lab+' — 이미 저장됨'); return; }
+    if(!g.venCd){ skip.push(lab+' — 거래처 미연결'); return; }
+    var miss=g.rows.filter(function(r){ return !r.prodCd; }).length; if(miss){ skip.push(lab+' — 상품 미연결 '+miss+'줄'); return; }
+    var bad=g.rows.filter(function(r){ return r.err; }).length; if(bad){ skip.push(lab+' — '+g.rows.filter(function(r){ return r.err; })[0].err); return; }
+    todo.push(g);
+  });
+  var skipH = skip.length ? '<br><span style="font-size:12.5px;color:#c0392b">건너뜀 : '+skip.join(' · ')+'</span>' : '';
+  if(!todo.length){ swErr('저장할 전표가 없습니다.'+skipH); return; }
+  var dups=todo.filter(function(g){ return g.dup.length; });
+  var p = dups.length
+    ? swConfirm('<b>이미 전표가 있는</b> 판매일자·거래처 <b>'+dups.length+'장</b>이 체크돼 있습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'
+        + dups.map(function(g){ return esc(g.dt)+' '+esc(g.venNm)+' (전표 '+esc(g.dup.join(', '))+')'; }).join('<br>')
+        + '<br>그대로 저장하면 그 날짜·거래처에 전표가 <b>한 장 더</b> 생깁니다. 건너뛰려면 [취소] 뒤 체크를 끄세요.</span>', null, '추가 저장')
+    : Promise.resolve(true);
+  p.then(function(ok){ if(!ok) return false; return saClosedAsk(todo.map(function(g){ return g.dt; }), '저장'); })
+   .then(function(ok){ if(!ok) return;
+     var t={sup:0,vat:0,tot:0,n:0}; todo.forEach(function(g){ var s=xuGroupSum(g); t.sup+=s.sup; t.vat+=s.vat; t.tot+=s.tot; t.n+=g.rows.length; });
+     return swConfirm('<b>전표 '+todo.length+'장</b> (줄 '+t.n+') 을 저장할까요?<br><span style="font-size:12.5px;color:#3d4d5c">공급가 '+fmt(t.sup)+' · 부가세 '+fmt(t.vat)+' · <b>합계 '+fmt(t.tot)+'</b>'
+       + '<br>'+(xuUseX()?'엑셀의 공급가·부가세·판매금액을 그대로 저장합니다.':'판매등록 규칙(합계 × 단가 · 거래처 부가세 구분)으로 다시 센 금액입니다.')
+       + ' 전표 메모에 「[엑셀 업로드 '+esc(_xu.file)+']」 가 남습니다.</span>'+skipH, null, '저장')
+       .then(function(ok2){ if(ok2) return xuSaveRun(todo); });
+   });
+}
+function xuSaveRun(todo){
+  _xu.busy=true; var btn=document.getElementById('xuSaveBtn'); if(btn){ btn.disabled=true; btn.textContent='⏳ 저장 중…'; }
+  var made=[], fail=[];
+  function one(k){
+    if(k>=todo.length) return Promise.resolve();
+    var g=todo[k]; g.done='⏳ 저장 중…'; xuRender();
+    return xuSaveOne(g).then(function(m){ made.push(m); }, function(e){ g.done='실패 · '+(e&&e.message||e); fail.push(esc(g.dt)+' '+esc(g.venNm)+' — '+esc(e&&e.message||e)); })
+      .then(function(){ return one(k+1); });
+  }
+  return one(0).then(function(){
+    _xu.busy=false; if(btn){ btn.disabled=false; btn.textContent='💾 선택 전표 저장'; }
+    xuRender(); saLoad();
+    var msg='<b>전표 '+made.length+'장</b>을 저장했습니다.'+(fail.length?' · <span style="color:#c0392b">실패 '+fail.length+'장</span>':'')
+      +'<br><span style="font-size:12.5px;color:#3d4d5c">'+made.join('<br>')+(fail.length?'<br><span style="color:#c0392b">'+fail.join('<br>')+'</span>':'')+'<br>하단 전표 목록에서 확인·수정할 수 있습니다.</span>';
+    (fail.length?swErr:swOk)(msg);
+  });
+}
+/* 전표 한 장 — 카톡 ktSaveOne 과 같은 payload(salesTrxNextNo → salesTrxSave). 서버 무변경 */
+function xuSaveOne(g){
+  var rows=g.rows.map(function(r){ return xuCalc(r, g); }), v=_vendors.filter(function(x){ return String(x.vendorCd)===g.venCd; })[0]||{};
+  return post('/mangr/salesTrxNextNo.do','saleDt='+encodeURIComponent(g.dt)).then(function(r){ return r.json(); }).then(function(j){ return (j&&j.data)||'0001'; }).catch(function(){ return '0001'; })
+  .then(function(no){
+    var t={box:0,ea:0,qty:0,sup:0,vat:0,tot:0};
+    rows.forEach(function(o){ t.box+=n(o.boxQty); t.ea+=n(o.eaQty); t.qty+=n(o.qty); t.sup+=n(o.supplyAmt); t.vat+=n(o.vatAmt); t.tot+=n(o.totAmt); });
+    var dto={ saleSeq:null, saleDt:g.dt, dlvDt:g.dt, saleNo:no, custCd:g.venCd, custNm:g.venNm,
+              mgrCd:v.mgrCd||'', mgrNm:v.mgrNm||'', whCd:saWhCd(), whNm:saWhNmTxt(),
+              totBoxQty:t.box, totEaQty:t.ea, totQty:t.qty, supplyAmt:t.sup, vatAmt:t.vat, totAmt:t.tot, dcAmt:0,
+              payGb:(document.getElementById('saPayGb')||{}).value||'외상', payAmt:0, taxGb:'과세',
+              remark:('[엑셀 업로드 '+_xu.file+']').slice(0,500), quoteSeq:null, quoteDocNo:'', items:rows };
+    return post('/mangr/salesTrxSave.do', dto, true).then(function(r){ return r.text().then(function(t2){ if(!r.ok) throw new Error(t2||('HTTP '+r.status));
+      g.done='저장됨 · 전표 '+no; _xu.chk[g.key]=false; g.chk=false; return esc(g.dt)+' '+esc(g.venNm)+' · 전표 '+esc(no)+' ('+rows.length+'줄 · '+fmt(t.tot)+')'; }); });
   });
 }
 

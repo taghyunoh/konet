@@ -10,6 +10,7 @@
 | `sqlof.js` | 매퍼 문장 하나를 꺼내 `#{…}` 에 값을 넣은 SQL 로 만든다 → 읽기 전용 조회기(`docs/tools/dbread`)로 운영 DB 에 태운다 | `node docs/tools/check/sqlof.js selectPipelinePo compCd=W1234567` |
 | `sim_pipeline.js` | 정보 현황 ▸ 진행 현황 화면 시뮬(36) | `node docs/tools/check/sim_pipeline.js` |
 | `sim_salesquote.js` | 판매 등록 [📄 견적서] 가져오기 시뮬(26) | `node docs/tools/check/sim_salesquote.js` |
+| `../sim/sim_salesXlsUpload.js` | 판매 등록 [📥 엑셀 업로드](구전산 매출 → 판매전표) 시뮬(73) — 실제 양식 `D:/코네트/판매내역_판매등록양식.xlsx` 를 읽는다(인자로 다른 파일) | `node docs/tools/sim/sim_salesXlsUpload.js` |
 | `mapper_audit.js` | 아래 표 참고 | `node docs/tools/check/mapper_audit.js count` |
 
 ```bash
