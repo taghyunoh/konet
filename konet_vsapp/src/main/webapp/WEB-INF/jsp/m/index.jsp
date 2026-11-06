@@ -211,7 +211,7 @@ function loadLv(){
     var people={}, todayL=rows.filter(function(o){ return String(o.fromDt)<=tk && String(o.toDt)>=tk; });
     rows.forEach(function(o){ people[o.userId]=1; });
     bg.textContent=Object.keys(people).length+'명'; bg.hidden=false;
-    var h='<div class="tiles">'+tile('오늘 휴가', todayL.length?todayL.map(function(o){ return esc(o.userNm); }).join(', '):'없음', todayL.length?'red':'', todayL.length?todayL.map(function(o){ return lvShort(o.leaveGb); }).join(' · '):lblDay(D))
+    var h='<div class="tiles">'+tile('오늘 휴가', todayL.length?todayL.map(function(o){ return esc(o.userNm); }).join(', '):'없음', todayL.length?'blue':'', todayL.length?todayL.map(function(o){ return lvShort(o.leaveGb); }).join(' · '):lblDay(D))
         +tile('이번 달', rows.length+'건', 'teal', Object.keys(people).length+'명 · '+rows.reduce(function(t,o){ return t+n(o.days); },0).toLocaleString('ko-KR')+'일')+'</div>';
     /* 날짜별 — 기간 휴가는 걸치는 날마다 */
     var byDay={}, keys=[]; var d=new Date(y, m-1, 1);
