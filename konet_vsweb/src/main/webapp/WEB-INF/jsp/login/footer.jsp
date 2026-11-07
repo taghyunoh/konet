@@ -3,6 +3,6 @@
     
     <footer id="footer" style="color: var(--color-gray);">
     	<div class="inner" style="text-align:center; font-size:12px">
-    		<p> COPYRIGHT©2024 DCA. ALL RIGHTS RESERVED </p>
+    		<p> COPYRIGHT 2011 © KONET. ALL RIGHTS RESERVED </p>
     	</div>
     </footer>
