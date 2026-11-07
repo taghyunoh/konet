@@ -304,6 +304,19 @@ function fnPwdClear(){
   /* 아이디 저장 체크 — 청록으로 */
   #login .form-check-input:checked{ background-color:#137a6c !important; border-color:#137a6c !important; }
   #login .form-check-input:focus{ box-shadow:0 0 0 3px rgba(19,122,108,.14) !important; border-color:#137a6c !important; }
+
+  /* ── 배경 사진 (2026-11-07 사용자 최종 선택 「① 파란 선반 창고」 — Unsplash · Jacques Dillies · 무료, 출처 표기 불요. 같은 날 ①→③→① 왕복) ──
+       사진은 asset/img/login-bg.jpg(2800×975 · 786KB · q78) 로 프로젝트 안에 둔다(외부 링크 X — 사내망에서도 뜬다). ⚠파노라마(2.9:1)라 16:9 화면에서 세로로 늘어난다 — 1920 폭이면 1.35배 확대돼 뭉개져 2800 으로 받았다. 바꾸려면 같은 이름으로 덮어쓰면 된다.
+       위에 청록 그라데이션 덮개(body:before)를 얹어 흰 로그인 카드가 또렷하게 — 사진이 안 받아지면 덮개 색만 남아 깨지지 않는다.
+       ⚠login.css 가 body 배경색을 변수로 박아 두어 !important 가 필요하다. ⚠되돌리려면 이 블록만 지우면 된다. */
+  body{ background:#0e2b27 url('${pageContext.request.contextPath}/asset/img/login-bg.jpg') center/cover no-repeat fixed !important; min-height:100vh; }
+  body:before{ content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+    /* 2026-11-07 「뒤배경 흐리네요」 — 덮개를 .80/.62/.72 → .42/.30/.45 로 옅게(사진이 또렷이 보이게). 카드가 흰색이라 이 정도로도 읽힌다 */
+    background:linear-gradient(135deg, rgba(14,102,87,.42) 0%, rgba(11,60,52,.30) 55%, rgba(8,32,29,.45) 100%); }
+  #login.container{ background:transparent !important; }   /* login.css 가 #login.container(100vw×100vh)에 파란 바탕을 깔아 body 사진을 덮는다 — 투명으로 */
+  #login, #footer{ position:relative; z-index:1; }
+  #login .login-box{ box-shadow:0 18px 48px rgba(0,0,0,.38) !important; border-radius:12px; overflow:hidden; }
+  #footer, #footer p{ color:rgba(230,241,238,.85) !important; text-shadow:0 1px 2px rgba(0,0,0,.4); }
 </style>
 </head>
 
