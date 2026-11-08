@@ -3600,6 +3600,21 @@ public class UserServiceImpl implements UserService {
 		return mapper.updateEmpRoomNm(p);
 	}
 	/** 내 글 지우기 (2026-09-22) — 글자를 비우고 MSG_GB 'X'. 자리는 남는다(「삭제된 글입니다」). 남의 글·안내 글·이미 지운 글은 0줄 → 오류 */
+	/** 직원 업무일지 (2026-11-08) — 메신저 글을 원천으로 직원 × 날짜 격자를 그리는 보기 화면(mangr/empWorkLog.jsp)의 자료.
+	    내가 든 방의 글(T)만(selectEmpWorkLogMsgs 가 TBL_EMP_ROOM_MBR 로 가른다 — 남의 방 글은 안 나온다). 날짜 묶음 나누기는 화면이 한다.
+	    frDt·toDt = 'YYYY-MM-DD'(보낸 때 기준) · roomSeq 0 = 내 방 전부. rooms = empRoomList(방 표시 이름 dispNm — 1:1 은 상대 이름) */
+	@Override public java.util.Map<String,Object> empWorkLog(String compCd, String userId, String frDt, String toDt, int roomSeq) throws Exception {
+		String a = frDt == null ? "" : frDt.trim(), b = toDt == null ? "" : toDt.trim();
+		if (!a.matches("\\d{4}-\\d{2}-\\d{2}") || !b.matches("\\d{4}-\\d{2}-\\d{2}")) throw new IllegalArgumentException("기간(YYYY-MM-DD)이 비었거나 모양이 다릅니다.");
+		if (a.compareTo(b) > 0) { String t = a; a = b; b = t; }
+		java.util.Map<String,Object> p = empP(compCd, userId);
+		p.put("frDt", a); p.put("toDt", b); p.put("roomSeq", roomSeq);
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		res.put("list", mapper.selectEmpWorkLogMsgs(p));
+		res.put("rooms", empRoomList(compCd, userId));
+		return res;
+	}
+
 	@Override public int empMsgDel(String compCd, String userId, int roomSeq, int msgSeq) throws Exception {
 		empRoomMine(compCd, userId, roomSeq);
 		java.util.Map<String,Object> p = empP(compCd, userId);

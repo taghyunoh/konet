@@ -526,6 +526,7 @@ public interface UserMapper {
 	java.util.Map<String,Object> selectEmpMsgUnreadCnt(java.util.Map<String,Object> p) throws Exception;                   // msgUnread·roomUnread
 	int updateEmpMsgDel(java.util.Map<String,Object> p) throws Exception;                                                    // 내 글 지우기(MSG_GB X) — 본인 것만
 	int updateEmpRoomLastTxt(java.util.Map<String,Object> p) throws Exception;                                                // 지운 글이 마지막이면 LAST_TXT 갈아 끼움
+	java.util.List<java.util.Map<String,Object>> selectEmpWorkLogMsgs(java.util.Map<String,Object> p) throws Exception;     // 직원 업무일지(2026-11-08) — 내가 든 방의 글(T) 원문, 기간(보낸 때)·방 선택
 
 	/* 이익현황 (2026-09-28) — 거래처 × 상품 알갱이 하나로 세 화면(거래처별·상품별·거래처별 상품별)을 다 그린다 */
 	java.util.List<java.util.Map<String,Object>> selectProfitStat(java.util.Map<String,Object> p) throws Exception;

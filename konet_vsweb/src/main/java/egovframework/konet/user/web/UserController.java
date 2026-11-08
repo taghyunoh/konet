@@ -5900,6 +5900,12 @@ public class UserController {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
 			return ".raw/main/mangr/empMsg";
 		}
+		/** 직원 업무일지 (2026-11-08) — 메신저 글(「11/6」 날짜 줄 + 번호 줄)을 직원 × 날짜 격자로 보는 읽기 전용 화면. 자료 = /emp/workLogList.do */
+		@RequestMapping(value="/emp/workLog.do")
+		public String empWorkLog(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/empWorkLog";
+		}
 
 		/** 배지 — 셸이 30초마다. 세션이 없으면 조용히 0(로그인 화면으로 튕기지 않는다) */
 		@RequestMapping(value="/emp/badge.do", method = RequestMethod.POST)
@@ -6021,6 +6027,19 @@ public class UserController {
 				return r;
 			} catch (IllegalArgumentException e) { return empFail(e.getMessage());
 			} catch (Exception e) { log.error(" empMsgList ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
+		}
+		/** 직원 업무일지 자료 (2026-11-08) — {frDt, toDt(YYYY-MM-DD · 보낸 때 기준), roomSeq(0 = 내 방 전부)} → list(글 원문)·rooms(내 방 목록). 내가 든 방의 글만(서비스·SQL 이 가른다) */
+		@RequestMapping(value="/emp/workLogList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> empWorkLogList(@RequestBody Map<String,Object> body, HttpSession session) {
+			try {
+				if (!adjLoggedIn(session)) return EMP_LOGIN;
+				Map<String,Object> r = svc.empWorkLog(sessComp(session), empUser(session),
+					body.get("frDt") == null ? "" : String.valueOf(body.get("frDt")), body.get("toDt") == null ? "" : String.valueOf(body.get("toDt")), empInt(body.get("roomSeq")));
+				r.put("result", "OK"); r.put("me", empUser(session)); r.put("meNm", empUserNm(session));
+				return r;
+			} catch (IllegalArgumentException e) { return empFail(e.getMessage());
+			} catch (Exception e) { log.error(" empWorkLogList ERROR : " + e.getMessage()); return empFail(e.getMessage()); }
 		}
 		@RequestMapping(value="/emp/msgSend.do", method = RequestMethod.POST)
 		@ResponseBody

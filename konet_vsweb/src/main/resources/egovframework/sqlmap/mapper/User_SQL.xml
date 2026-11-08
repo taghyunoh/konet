@@ -8570,6 +8570,27 @@
 	   WHERE COMP_CD = #{compCd} AND ROOM_SEQ = #{roomSeq} AND LAST_MSG_SEQ = #{msgSeq}
 	]]></update>
 
+	<!-- 직원 업무일지 (2026-11-08) — 내가 든 방(나가지 않은 방 · 내 CLEAR_SEQ 뒤)의 글(T)만. 기간은 「보낸 때」(REG_DTTM) 기준 · roomSeq 가 오면 그 방만.
+	     날짜 묶음 나누기(「11/6」 줄 + 번호 줄)는 화면 JS(parseWorkLog)가 한다 — 서버는 글 원문만 준다. 상한 5000줄 -->
+	<select id="selectEmpWorkLogMsgs" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 5000 g.MSG_SEQ AS msgSeq, g.ROOM_SEQ AS roomSeq, ISNULL(r.ROOM_NM,'') AS roomNm, r.ROOM_GB AS roomGb,
+	         g.USER_ID AS userId, ISNULL(u.USER_NM, g.USER_ID) AS userNm, ISNULL(g.MSG_TXT,'') AS msgTxt,
+	         CONVERT(VARCHAR(19), g.REG_DTTM, 120) AS regDttm
+	    FROM TBL_EMP_MSG g
+	    JOIN TBL_EMP_ROOM r ON r.COMP_CD = g.COMP_CD AND r.ROOM_SEQ = g.ROOM_SEQ
+	    JOIN TBL_EMP_ROOM_MBR m ON m.COMP_CD = g.COMP_CD AND m.ROOM_SEQ = g.ROOM_SEQ AND m.USER_ID = #{userId} AND m.LEAVE_YN = 'N'
+	    OUTER APPLY ( SELECT TOP 1 y.USER_NM FROM TBL_USER_MST y
+	                   WHERE y.COMP_CD = g.COMP_CD AND LTRIM(RTRIM(y.USER_ID)) = g.USER_ID AND y.ACTION_YN = 'Y'
+	                   ORDER BY y.START_DT DESC, y.JOB_SEQ DESC ) u
+	   WHERE g.COMP_CD = #{compCd} AND g.MSG_GB = 'T' AND g.MSG_SEQ > m.CLEAR_SEQ
+	     AND g.REG_DTTM >= CONVERT(DATETIME, #{frDt} + ' 00:00:00', 120)
+	     AND g.REG_DTTM <  DATEADD(DAY, 1, CONVERT(DATETIME, #{toDt} + ' 00:00:00', 120))
+	]]>
+	  <if test="roomSeq != null and roomSeq > 0"><![CDATA[ AND g.ROOM_SEQ = #{roomSeq} ]]></if>
+	<![CDATA[
+	   ORDER BY g.REG_DTTM, g.MSG_SEQ
+	]]></select>
+
 	<!-- ============================================================
 	     상품코드 계약(납품기간) 이력 — TBL_PROD_CONTRACT (2026-10-01 「삼성 계약 엑셀 · 신규코드는 납품기간 · 기존코드는 이력관리 ·
 	     기존 시스템은 날짜 도래 시 입력」) — DDL docs/sql/20261001_prod_contract.sql

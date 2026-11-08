@@ -442,6 +442,7 @@ public interface UserService {
 	int empRoomInvite(String compCd, String userId, String userNm, int roomSeq, java.util.List<String> users) throws Exception;
 	int empRoomRename(String compCd, String userId, int roomSeq, String roomNm) throws Exception;
 	int empMsgDel(String compCd, String userId, int roomSeq, int msgSeq) throws Exception;                            // 내 글 지우기 — 자리에 「삭제된 글입니다」
+	java.util.Map<String,Object> empWorkLog(String compCd, String userId, String frDt, String toDt, int roomSeq) throws Exception;   // 직원 업무일지(2026-11-08) — list(글 원문) + rooms(내 방 목록 · 표시 이름)
 
 	/* 이익현황 (2026-09-28) */
 	java.util.List<java.util.Map<String,Object>> selectProfitStat(java.util.Map<String,Object> p) throws Exception;

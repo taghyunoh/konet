@@ -3489,6 +3489,7 @@
     <div class="sub-menu" id="sub-emp">
       <a class="mi" data-key="empNotice" onclick="logiFrame('empNotice','${pageContext.request.contextPath}/emp/notice.do', this)"><span class="ic">📢</span>직원 공지사항<span class="emp-badge" id="empNoticeBadge" style="display:none"></span></a>
       <a class="mi" data-key="empMsg" onclick="logiFrame('empMsg','${pageContext.request.contextPath}/emp/msg.do', this)"><span class="ic">💬</span>직원 메신저<span class="emp-badge" id="empMsgBadge" style="display:none"></span></a>
+      <a class="mi" data-key="empWorkLog" onclick="logiFrame('empWorkLog','${pageContext.request.contextPath}/emp/workLog.do', this)" title="메신저에 올린 업무일지(「11/6」 날짜 줄 + 번호 줄)를 직원 × 날짜 격자로 — 읽기 전용(2026-11-08)"><span class="ic">📋</span>직원 업무일지</a>
       <%-- 직원 휴가 관리 (2026-10-21 사용자 「연차·월차·반차·병가 구분으로 직원별 휴가 관리, 달력·현황·엑셀」) — iframe 화면(mangr/leaveMng.jsp, panel-leaveMng). 표 = docs/sql/20261021_leave.sql --%>
       <a class="mi" data-key="leaveMng" onclick="logiFrame('leaveMng','${pageContext.request.contextPath}/mangr/leaveMng.do', this)"><span class="ic">🏖</span>직원 휴가 관리<span class="emp-badge" id="empLeaveBadge" style="display:none" title="오늘 휴가자"></span></a>
       <%-- 📢 공지 띠 켜기/끄기 (2026-11-05) — 하단 공지 흐름 띠를 ✕ 로 접었을 때 되살리는 길. 접힘은 브라우저(localStorage konetEmpTickerFold)에 기억되므로 여기서 토글한다 --%>
@@ -4226,6 +4227,7 @@
             목록 줄의 [🧮]로 저장된 계산(구매계·물류비·실마진·마진율, 저장 때 비율 스냅샷)을 조회. 작성 화면 오른쪽 위 [ℹ️ 도움말] = 1) 견적서 작성 · 2) 원가·마진 계산 두 탭 설명.
             <b>제조사</b> 칸(품명 앞 · 🔍 상품에서 자동, 한 줄도 없으면 인쇄에 칸이 안 생김) · <b>센터배송이면 물류비·실 판매금액·실 마진금액·실 마진율이 센터별(평/용·왜관·광주·김해·제주)로 갈라져 함께</b> 보이고(드롭다운은 「필요 판매단가」를 내는 기준 센터), DC·직송은 한 칸씩.
             <b>원가 포함</b> 동판비·목형비는 견적서(인쇄·엑셀)에 줄로 안 나감 — 단가에 이미 반영, 근거는 비고에. <b>문서번호 = 담당자별·그 날짜 번호</b>(Konet261001-01, 담당자가 다르면 -01 부터) · 작성 중은 같은 번호에 덮어쓰고, <b>제출완료·채택·거절·보류 뒤 고쳐 저장하면 새 판</b>(-02, -03 …, 변경 사유 기록 · 채택은 사유 필수) · 앞 판은 목록에서 빠지고 도구줄 [📜 이력](체크한 줄 하나, 체크가 없으면 눌러서 고른 줄 — 팝업으로 뜨고 제목줄을 끌어 옮기며 표 밑 막대로 높이 조절)·「이전 판 포함」으로 조회(보기·인쇄만). 목록 밑 막대로 목록 높이 조절. 작성 중에 같은 번호에 덮어쓴 것도 [📜 이력]에 「↳ 덮어씀」 줄로 남는다(저장 때·사람·금액 — 인쇄·수정은 안 됨). 이력 줄을 누르면 그때 저장한 품목 줄이 펼쳐지고 앞 줄 대비 변경(노랑 · 옛 값 → 새 값)·추가(초록)·삭제(빨강)가 표시된다.</td></tr>
+          <tr><td class="m">직원 업무일지</td><td>직원 메신저(그룹방)에 올린 업무일지 글(「11/6」 날짜 줄 + 「1. …」 번호 줄, 한 글에 날짜 여럿)을 <b>직원 × 날짜 격자</b>로 한눈에(읽기 전용 · 내가 든 방의 글만). 기간·방·직원·글자로 거르고, 칸을 누르면 원문. <b>[👤 직원별]</b> 탭 = 한 명의 일지를 최근 날짜부터 · 🖨 인쇄 · 📥 엑셀. 작성은 <b>직원 메신저</b>에서 하던 대로(이 화면의 작성 탭은 2026-11-08 숨김). 날짜 줄이 없는 글은 보낸 날짜로 묶입니다.</td></tr>
           <tr><td class="m">예정 기능 <span style="color:#9aa7b3;font-size:11px">(데모)</span></td><td>물품동선관리(창고·위치·피킹) · 카카오톡관리 — 향후 추진.</td></tr>
         </tbody></table>
       </div>
@@ -5312,6 +5314,9 @@
     </section>
     <section id="panel-empMsg" class="panel" style="padding:0;">
       <iframe id="if-empMsg" src="" title="직원 메신저" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <section id="panel-empWorkLog" class="panel" style="padding:0;">
+      <iframe id="if-empWorkLog" src="" title="직원 업무일지" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <section id="panel-compcd" class="panel" style="padding:0;">
       <iframe id="if-compcd" src="" title="회사/사용자 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
