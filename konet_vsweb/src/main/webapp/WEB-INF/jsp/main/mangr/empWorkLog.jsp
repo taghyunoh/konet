@@ -65,6 +65,14 @@
   .cols.big #gridWrap{ min-height:120px; }
   .dh .bg{ cursor:pointer; color:var(--dim); font-size:12.5px; padding:2px 8px; border:1px solid var(--bd); border-radius:6px; background:#fff; }
   .dh .bg:hover{ color:var(--teal); border-color:#bcd9d1; }
+  /* 격자 ↔ 상세 사이 높이 막대 (2026-11-08 사용자 「하단 막대로 위아래 조정 가능하게」 — 품목별재고현황 ①·② 막대와 같은 요령) :
+     끌면 격자 높이를 px 로 고정(.cols.fixed · #gridWrap inline height)하고 상세가 나머지를 쓴다 · 더블클릭 = 자동(처음 모양) · localStorage konetWlGridH */
+  #dtlGrip{ display:none; flex:0 0 auto; height:12px; margin:-5px 0; cursor:row-resize; position:relative; z-index:2; }
+  #dtlGrip:before{ content:""; position:absolute; left:50%; top:4px; width:64px; height:4px; margin-left:-32px; border-radius:2px; background:#bcd9d1; }
+  #dtlGrip:hover:before, #dtlGrip.drag:before{ background:var(--teal); }
+  #dtlGrip.show{ display:block; }
+  .cols.fixed #gridWrap{ flex:0 0 auto; min-height:0; }
+  .cols.fixed #dtl{ flex:1 1 auto; max-height:none; min-height:80px; }
   /* 격자 */
   table.g{ border-collapse:separate; border-spacing:0; min-width:100%; font-size:13px; }
   table.g th{ background:#eaf2f0; color:#125a4e; font-weight:600; font-size:12.5px; border-bottom:1px solid #cfe0da; border-right:1px solid #d8e6e1; padding:7px 8px; text-align:center; position:sticky; top:0; z-index:3; white-space:nowrap; }
@@ -155,6 +163,7 @@
     <div class="card" id="gridWrap">
       <table class="g"><thead id="gHead"></thead><tbody id="gBody"><tr><td class="empty">조회 중…</td></tr></tbody></table>
     </div>
+    <div id="dtlGrip" title="끌어서 격자·상세 높이 조절 — 더블클릭 = 자동"></div>
     <div class="card" id="dtl"></div>
     <div class="card" id="empWrap" style="display:none; flex:1;">
       <div class="dh"><b id="eTitle">—</b><span class="hint" id="eSub"></span>
@@ -270,12 +279,21 @@ function build(){
       if(g.date<f || g.date>e) return;
       var k=m.userId+'|'+g.date, o=map[k];
       if(!o){ o=map[k]={ userId:m.userId, userNm:m.userNm, date:g.date, items:[], srcs:[] }; }
-      g.items.forEach(function(t){ o.items.push({ t:t, msgSeq:m.msgSeq }); });
-      if(!o.srcs.some(function(s){ return s.msgSeq===m.msgSeq; })) o.srcs.push({ msgSeq:m.msgSeq, regDttm:m.regDttm, roomSeq:m.roomSeq, text:m.msgTxt, hasDate:g.hasDate });
+      var sent=(m.regDttm||'').slice(0,10);
+      g.items.forEach(function(t){ o.items.push({ t:t, msgSeq:m.msgSeq, sent:sent }); });
+      if(!o.srcs.some(function(s){ return s.msgSeq===m.msgSeq; })) o.srcs.push({ msgSeq:m.msgSeq, regDttm:m.regDttm, roomSeq:m.roomSeq, text:m.msgTxt, hasDate:g.hasDate, sent:sent });
       emps[m.userId]=m.userNm;
     });
   });
-  GROUPS=Object.keys(map).map(function(k){ return map[k]; });
+  /* ★미리 쓴 예정은 격자에서 뺀다(2026-11-08 사용자 「그날 글이 있으면 전날 미리 쓴 예정은 격자에서 빼 주세요 — 하단에 클릭하면 있으니까」) :
+     그 날짜 글이 <그날 이후에> 보낸 글에 있으면, 그보다 먼저 보낸 글의 같은 날짜 부분(전날 적어 둔 예정)은 items 에서 뺀다 — 격자·직원별·엑셀·인쇄 전부.
+     그날 글이 아직 없으면(예정뿐) 그대로 보인다. 상세(srcs)는 원문 그대로 두고 그 글에 plan 표시만 */
+  GROUPS=Object.keys(map).map(function(k){ var o=map[k];
+    if(o.srcs.some(function(s){ return s.sent>=o.date; })){
+      o.plan=o.items.filter(function(x){ return x.sent<o.date; }).length;
+      if(o.plan){ o.items=o.items.filter(function(x){ return x.sent>=o.date; }); o.srcs.forEach(function(s){ if(s.sent<o.date) s.plan=true; }); }
+    }
+    return o; });
   EMPS=Object.keys(emps).map(function(id){ return { userId:id, userNm:emps[id] }; }).sort(function(a,b){ return a.userNm<b.userNm?-1:a.userNm>b.userNm?1:0; });
   var sel=document.getElementById('emp'), cur=sel.value, h='<option value="">전체</option>';
   EMPS.forEach(function(u){ h+='<option value="'+esc(u.userId)+'">'+esc(u.userNm)+'</option>'; });
@@ -336,20 +354,38 @@ function pick(userId, date){
   var g=GROUPS.filter(function(x){ return x.userId===userId && x.date===date; })[0];
   if(!g) return;
   SEL={ userId:userId, date:date };
-  var h='<div class="dh"><b>'+esc(g.userNm)+'</b> '+esc(date)+' ('+wday(date)+') · 항목 '+g.items.length+'건 · 글 '+g.srcs.length+'건'+(g.srcs.length>1?' <small style="color:var(--dim)">(최근 글부터)</small>':'')+'<span class="bg" onclick="dtlBig()" id="dtlBg" title="상세를 크게 — 격자를 최소로 줄이고 이 칸이 나머지를 다 씁니다 (다시 누르면 원래대로)">⛶ 크게</span><span class="x" onclick="dtlClose()" title="닫기">✕</span></div>';
+  var h='<div class="dh"><b>'+esc(g.userNm)+'</b> '+esc(date)+' ('+wday(date)+') · 항목 '+g.items.length+'건 · 글 '+g.srcs.length+'건'+(g.srcs.length>1?' <small style="color:var(--dim)">(최근 글부터)</small>':'')+(g.plan?' <small style="color:#b06a00" title="그날 이후에 보낸 글이 있어, 먼저 보낸 글의 이 날짜 부분(미리 쓴 예정)은 격자에서 뺐습니다 — 원문은 아래에 그대로">· 미리 쓴 예정 '+g.plan+'건은 격자에서 뺌</small>':'')+'<span class="bg" onclick="dtlBig()" id="dtlBg" title="상세를 크게 — 격자를 최소로 줄이고 이 칸이 나머지를 다 씁니다 (다시 누르면 원래대로)">⛶ 크게</span><span class="x" onclick="dtlClose()" title="닫기">✕</span></div>';
   g.srcs.slice().sort(function(a,b){ return a.regDttm<b.regDttm?1:a.regDttm>b.regDttm?-1:0; }).forEach(function(s){
     var body=esc(s.text).replace(/\r\n?/g,'\n').split('\n').map(function(ln){ return DATE_RE.test(ln) ? '<span class="dl">'+ln+'</span>' : ln; }).join('\n');
-    h+='<div class="src"><div class="meta"><b>'+esc(s.regDttm)+'</b>'+esc(roomNm(s.roomSeq))+(s.hasDate?'':'<br><span style="color:#b06a00">날짜 줄 없음 — 보낸 날짜로</span>')+'</div><pre>'+body+'</pre></div>';
+    h+='<div class="src"><div class="meta"><b>'+esc(s.regDttm)+'</b>'+esc(roomNm(s.roomSeq))+(s.hasDate?'':'<br><span style="color:#b06a00">날짜 줄 없음 — 보낸 날짜로</span>')+(s.plan?'<br><span style="color:#b06a00">미리 쓴 예정 — 격자에서 뺌</span>':'')+'</div><pre>'+body+'</pre></div>';
   });
   var d=document.getElementById('dtl'); d.innerHTML=h; d.className='card on'; d.scrollTop=0; dtlBigPaint();
   var cells=document.querySelectorAll('#gBody .cell.on'); for(var i=0;i<cells.length;i++) cells[i].classList.remove('on');
   render();
 }
-function dtlClose(){ SEL=null; document.getElementById('dtl').className='card'; render(); }
+function dtlClose(){ SEL=null; document.getElementById('dtl').className='card'; render(); dtlGripPaint(); }
 /* [⛶ 크게] — .cols.big 토글, localStorage 기억(konetWlDtlBig). 처음 상태는 작게 */
 function dtlBigOn(){ try{ return localStorage.getItem('konetWlDtlBig')==='1'; }catch(e){ return false; } }
-function dtlBig(){ var on=!dtlBigOn(); try{ localStorage.setItem('konetWlDtlBig', on?'1':'0'); }catch(e){} dtlBigPaint(); }
-function dtlBigPaint(){ var on=dtlBigOn(); var c=document.querySelector('.cols'); if(c) c.classList.toggle('big', on); var b=document.getElementById('dtlBg'); if(b) b.textContent=on?'⛶ 작게':'⛶ 크게'; }
+function dtlBig(){ var on=!dtlBigOn(); try{ localStorage.setItem('konetWlDtlBig', on?'1':'0'); if(on) localStorage.removeItem('konetWlGridH'); }catch(e){} dtlBigPaint(); }
+function dtlBigPaint(){ var on=dtlBigOn(); var c=document.querySelector('.cols'); if(c) c.classList.toggle('big', on); var b=document.getElementById('dtlBg'); if(b) b.textContent=on?'⛶ 작게':'⛶ 크게'; dtlGripPaint(); }
+/* 높이 막대 — 끌면 격자 높이 고정(상세가 나머지) · 더블클릭 = 자동 · 기억(konetWlGridH). [⛶ 크게] 를 누르면 막대 고정은 푼다(둘 중 나중 것이 이긴다) */
+function dtlGripH(){ try{ var v=parseInt(localStorage.getItem('konetWlGridH'),10); return v>0?v:0; }catch(e){ return 0; } }
+function dtlGripSet(h){ var c=document.querySelector('.cols'), g=document.getElementById('gridWrap'); if(!c||!g) return;
+  if(h>0){ g.style.height=h+'px'; c.classList.add('fixed'); } else { g.style.height=''; c.classList.remove('fixed'); } }
+function dtlGripPaint(){ var gr=document.getElementById('dtlGrip'), d=document.getElementById('dtl'); if(!gr||!d) return;
+  var on=d.className.indexOf('on')>=0 && TAB==='grid'; gr.classList.toggle('show', on);
+  dtlGripSet(on ? dtlGripH() : 0); }
+(function(){
+  var gr=document.getElementById('dtlGrip'); if(!gr) return;
+  var sy=0, sh=0, cur=0, dragging=false;
+  function lim(h){ var c=document.querySelector('.cols'); var max=Math.max(200, (c?c.clientHeight:0)-160); return Math.min(max, Math.max(120, Math.round(h))); }
+  gr.addEventListener('mousedown', function(e){ if(e.button!==0) return; e.preventDefault(); var g=document.getElementById('gridWrap');
+    sy=e.clientY; sh=g.getBoundingClientRect().height; cur=0; dragging=true; gr.classList.add('drag'); document.body.style.userSelect='none'; });
+  document.addEventListener('mousemove', function(e){ if(!dragging) return; cur=lim(sh+(e.clientY-sy)); dtlGripSet(cur); });
+  document.addEventListener('mouseup', function(){ if(!dragging) return; dragging=false; gr.classList.remove('drag'); document.body.style.userSelect='';
+    if(cur>0){ try{ localStorage.setItem('konetWlGridH', String(cur)); localStorage.setItem('konetWlDtlBig','0'); }catch(ex){} dtlBigPaint(); } });
+  gr.addEventListener('dblclick', function(){ try{ localStorage.removeItem('konetWlGridH'); }catch(ex){} dtlGripSet(0); });
+})();
 
 /* ── 직원별 보기 — 한 명을 고르면 날짜 순 목록(★최근 날짜가 위 — 2026-11-08 사용자 「직원별 최근것부터」, 처음 판은 오래된 것부터). 직원 칸이 「전체」면 첫 직원. 인쇄·엑셀도 eRows 를 써 같은 차례 ── */
 function tab(t){
@@ -357,7 +393,7 @@ function tab(t){
   TAB=t;
   document.getElementById('tbGrid').className='tb'+(t==='grid'?' on':''); document.getElementById('tbEmp').className='tb'+(t==='emp'?' on':''); document.getElementById('tbWrite').className='tb'+(t==='write'?' on':'');
   document.getElementById('gridWrap').style.display = t==='grid' ? '' : 'none';
-  document.getElementById('dtl').style.display = t==='grid' && SEL ? 'block' : 'none';
+  document.getElementById('dtl').style.display = t==='grid' && SEL ? 'block' : 'none'; dtlGripPaint();
   document.getElementById('empWrap').style.display = t==='emp' ? '' : 'none';
   document.getElementById('writeWrap').style.display = t==='write' ? '' : 'none';
   if(t==='write'){ wInit(); return; }

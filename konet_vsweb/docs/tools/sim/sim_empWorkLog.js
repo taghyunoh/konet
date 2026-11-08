@@ -88,12 +88,13 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   t('행 = 날짜 최근이 위 · 10/20 은 기간 밖', dts.join('|') === '2026-11-08|2026-11-07|2026-11-06|2026-11-05', dts.join('|'));
   function cell(nm, dt){ const ci = ths.indexOf(nm); const tr = [...d.querySelectorAll('#gBody tr')].find(r => r.querySelector('td.dt').firstChild.textContent === dt); return tr.children[ci]; }
   t('김민지 11/6 칸 9건', cell('김민지', '2026-11-06').querySelector('.n').textContent === '9건');
-  t('김민지 11/7 칸 = 두 글 합쳐 5건 · 번호 다시 셈 · 최근 글(11-07 09:10 「추가 …」)이 앞', cell('김민지', '2026-11-07').querySelector('.n').textContent === '5건' && cell('김민지', '2026-11-07').querySelectorAll('li').length === 5 && cell('김민지', '2026-11-07').querySelectorAll('li')[0].textContent === '추가 — 거래명세서 발송' && cell('김민지', '2026-11-07').querySelectorAll('li')[1].textContent.indexOf('소') === 0, [...cell('김민지', '2026-11-07').querySelectorAll('li')].map(x => x.textContent).join('|'));
+  t('김민지 11/7 칸 = 그날 글(11-07 09:10 「추가 …」) 1건만 — 11-06 에 미리 쓴 11/7 예정 4건은 격자에서 뺌', cell('김민지', '2026-11-07').querySelector('.n').textContent === '1건' && cell('김민지', '2026-11-07').querySelectorAll('li').length === 1 && cell('김민지', '2026-11-07').querySelectorAll('li')[0].textContent === '추가 — 거래명세서 발송', [...cell('김민지', '2026-11-07').querySelectorAll('li')].map(x => x.textContent).join('|'));
   t('전원배 11/6 5건 · 11/8 3건', cell('전원배', '2026-11-06').querySelector('.n').textContent === '5건' && cell('전원배', '2026-11-08').querySelector('.n').textContent === '3건');
   t('설재우 11/8 2건 · 11/7 빈 칸', cell('설재우', '2026-11-08').querySelector('.n').textContent === '2건' && cell('설재우', '2026-11-07').children.length === 0);
   t('이영섭(날짜 없는 글) 11/5 3건', cell('이영섭', '2026-11-05').querySelector('.n').textContent === '3건');
-  t('머리글 직원 합계 (김민지 14건)', d.querySelectorAll('#gHead th')[1].querySelector('small').textContent === '14건');
-  t('요약 카드 — 직원 4 · 날짜 4 · 항목 30 · 글 5', d.getElementById('kEmp').textContent === '4명' && d.getElementById('kDay').textContent === '4일' && d.getElementById('kItem').textContent === '30건' && d.getElementById('kMsg').textContent === '5건',
+  t('머리글 직원 합계 (김민지 10건 = 11/6 9 + 11/7 1)', d.querySelectorAll('#gHead th')[1].querySelector('small').textContent === '10건', d.querySelectorAll('#gHead th')[1].querySelector('small').textContent);
+  t('예정만 있는 날은 그대로 — 전원배 11/8(11-06 에 쓴 글) 3건', cell('전원배', '2026-11-08').querySelector('.n').textContent === '3건');
+  t('요약 카드 — 직원 4 · 날짜 4 · 항목 26(예정 4 뺌) · 글 5', d.getElementById('kEmp').textContent === '4명' && d.getElementById('kDay').textContent === '4일' && d.getElementById('kItem').textContent === '26건' && d.getElementById('kMsg').textContent === '5건',
     [d.getElementById('kEmp').textContent, d.getElementById('kDay').textContent, d.getElementById('kItem').textContent, d.getElementById('kMsg').textContent].join(' '));
   t('방 고르기에 내 방 2 + 전부', d.getElementById('room').options.length === 3 && d.getElementById('room').options[2].textContent.indexOf('1:1 · 김민지') === 0);
 
@@ -103,17 +104,27 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const dtl = d.getElementById('dtl');
   t('상세 열림 · 글 2건 원문', dtl.className === 'card on' && dtl.querySelectorAll('.src').length === 2 && dtl.querySelector('.dh b').textContent === '김민지', dtl.querySelector('.dh') && dtl.querySelector('.dh').textContent);
   t('상세 원문의 날짜 줄 강조', dtl.querySelectorAll('.src pre .dl').length === 3);
+  t('상세 머리 「미리 쓴 예정 4건은 격자에서 뺌」 · 그 글 meta 에 표시', dtl.querySelector('.dh').textContent.indexOf('미리 쓴 예정 4건은 격자에서 뺌') > 0 && dtl.querySelectorAll('.src')[1].querySelector('.meta').textContent.indexOf('미리 쓴 예정 — 격자에서 뺌') > 0 && dtl.querySelectorAll('.src')[0].querySelector('.meta').textContent.indexOf('미리 쓴') < 0, dtl.querySelector('.dh').textContent);
   t('상세 글은 최근 보낸 것부터(11-07 09:10 → 11-06 17:40)', [...dtl.querySelectorAll('.src .meta b')].map(x => x.textContent).join('|') === '2026-11-07 09:10:00|2026-11-06 17:40:00', [...dtl.querySelectorAll('.src .meta b')].map(x => x.textContent).join('|'));
+  t('높이 막대 — 상세가 열리면 보임 · 끌면 격자 px 고정 + 기억 + 크게 해제 · 더블클릭 = 자동', (() => {
+    const gr = d.getElementById('dtlGrip'), cols = d.querySelector('.cols'), gw = d.getElementById('gridWrap'); const ev = (t, y) => { const e = new w.MouseEvent(t, { bubbles: true, clientY: y, button: 0 }); return e; };
+    const a = gr.classList.contains('show');
+    gr.dispatchEvent(ev('mousedown', 100)); d.dispatchEvent(ev('mousemove', 300)); d.dispatchEvent(ev('mouseup', 300));
+    const b = cols.classList.contains('fixed') && gw.style.height === '200px' && w.localStorage.getItem('konetWlGridH') === '200' && !cols.classList.contains('big');
+    gr.dispatchEvent(new w.MouseEvent('dblclick', { bubbles: true }));
+    const c = !cols.classList.contains('fixed') && gw.style.height === '' && !w.localStorage.getItem('konetWlGridH');
+    return a && b && c; })(), [d.getElementById('dtlGrip').className, d.querySelector('.cols').className, d.getElementById('gridWrap').style.height, w.localStorage.getItem('konetWlGridH')].join(' | '));
   t('[⛶ 크게] 토글 — .cols.big · 글자 · 기억', (() => { const bg = d.getElementById('dtlBg'); const cols = d.querySelector('.cols'); const a = bg.textContent === '⛶ 크게' && !cols.classList.contains('big'); bg.click(); const b = cols.classList.contains('big') && bg.textContent === '⛶ 작게' && w.localStorage.getItem('konetWlDtlBig') === '1'; bg.click(); const c = !cols.classList.contains('big') && bg.textContent === '⛶ 크게'; return a && b && c; })());
   t('고른 칸 .on', cell('김민지', '2026-11-07').querySelector('.cell').className.indexOf('on') > 0);
   w.dtlClose(); await sleep(5);
   t('상세 닫기', d.getElementById('dtl').className === 'card');
+  t('상세 닫으면 막대도 숨김', !d.getElementById('dtlGrip').classList.contains('show'));
 
   /* ── 5. 거르기 ── */
   d.getElementById('q').value = '택배'; w.render();
   t('글자 거르기 — 김민지 11/6 칸 「4건 / 9」 · 걸린 항목 노랑', cell('김민지', '2026-11-06').querySelector('.n').textContent === '4건 / 9' && cell('김민지', '2026-11-06').querySelectorAll('li.hit').length === 4, cell('김민지', '2026-11-06').querySelector('.n').textContent);
   t('안 걸린 직원 열은 빠짐(이영섭)', [...d.querySelectorAll('#gHead th')].map(x => x.firstChild.textContent).indexOf('이영섭') < 0);
-  t('요약은 거른 것 기준', d.getElementById('kItem').textContent === '7건' && d.getElementById('kNote').style.display === '', d.getElementById('kItem').textContent);
+  t('요약은 거른 것 기준(택배 5건 — 뺀 예정의 택배 2건 제외)', d.getElementById('kItem').textContent === '5건' && d.getElementById('kNote').style.display === '', d.getElementById('kItem').textContent);
   d.getElementById('q').value = ''; d.getElementById('emp').value = 'J001'; w.render();
   t('직원 거르기 — 열 하나', d.querySelectorAll('#gHead th').length === 2 && d.getElementById('kDay').textContent === '2일');
   d.getElementById('emp').value = ''; w.render();
@@ -123,10 +134,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   t('직원별 탭 — 직원 「전체」면 첫 직원(김민지)이 골라진다', d.getElementById('emp').value === 'K001' && d.getElementById('eTitle').textContent === '김민지');
   const eDates = [...d.querySelectorAll('#eBody td[rowspan]')].filter((x, i) => i % 2 === 0).map(x => x.textContent);
   t('최근 날짜가 위 · 11/7 · 11/6', eDates.join('|') === '2026-11-07|2026-11-06', eDates.join('|'));
-  t('줄 수 = 14 · 번호 다시 셈(최근 11/7 5줄이 앞 · 11/6 9줄이 뒤)', d.querySelectorAll('#eBody tr').length === 14 && d.querySelectorAll('#eBody tr')[4].children[0].textContent === '5' && d.querySelectorAll('#eBody tr')[13].children[0].textContent === '9');
+  t('줄 수 = 10 · 번호 다시 셈(최근 11/7 1줄이 앞 · 11/6 9줄이 뒤)', d.querySelectorAll('#eBody tr').length === 10 && d.querySelectorAll('#eBody tr')[0].children[2].textContent === '1' && d.querySelectorAll('#eBody tr')[9].children[0].textContent === '9', d.querySelectorAll('#eBody tr').length);
   t('격자 숨고 직원별 표 보임', d.getElementById('gridWrap').style.display === 'none' && d.getElementById('empWrap').style.display === '');
   const ed = w.eData();
-  t('엑셀 자료 14줄 · 칸 6 · 방 이름', ed.length === 14 && ed[0].length === 6 && ed[0][5].indexOf('김민지, 강인성') === 0 && ed[0][0] === '2026-11-07' && ed[4][2] === 5 && ed[13][2] === 9, JSON.stringify(ed[13]));
+  t('엑셀 자료 10줄 · 칸 6 · 방 이름', ed.length === 10 && ed[0].length === 6 && ed[0][5].indexOf('김민지, 강인성') === 0 && ed[0][0] === '2026-11-07' && ed[0][2] === 1 && ed[9][2] === 9, JSON.stringify(ed[9]));
   w.ePrint(); await sleep(5);
   t('인쇄 = 새 창에 그린다(이 창 print 아님)', w.__popup && w.__popup.html.indexOf('직원 업무일지 — 김민지') > 0 && w.__popup.html.indexOf('window.print()') > 0);
   d.getElementById('emp').value = 'S001'; w.render();
@@ -171,7 +182,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   t('첫 묶음 글은 그대로', d.querySelectorAll('#wBlocks .wTx')[0].value.indexOf('삼성 직배송건') === 0);
   t('항목 없는 묶음이 있으면 막는다', (() => { const n0 = calls.length, a0 = w.__alerts.length; w.wSend(); return calls.length === n0 && w.__alerts.length === a0 + 1 && w.__alerts[a0].indexOf('11/9') === 0; })());
   d.querySelectorAll('#wBlocks .wDt')[1].value = '2026-11-07'; d.querySelectorAll('#wBlocks .wTx')[1].value = '내일 할 것'; w.wPrevUpd();
-  t('이미 있는 날짜(김민지 11/7 5건) 안내', d.getElementById('wHas1').textContent.indexOf('이미 내 일지 5건') > 0, d.getElementById('wHas1').textContent);
+  t('이미 있는 날짜(김민지 11/7 1건 — 격자 기준) 안내', d.getElementById('wHas1').textContent.indexOf('이미 내 일지 1건') > 0, d.getElementById('wHas1').textContent);
   t('미리보기 두 묶음 = 빈 줄로 잇는다', d.getElementById('wPrev').textContent === '11/8\n1. 삼성 직배송건 출력\n2. 재고맞춤 및 서브코드정리\n3. 배송출고건 검수\n\n11/7\n1. 내일 할 것');
   w.wDelBlock(1); await sleep(5);
   t('✕ 로 묶음 빼기 — 하나 남으면 ✕ 사라짐', d.querySelectorAll('#wBlocks .wblk').length === 1 && !d.querySelector('#wBlocks .x'));
