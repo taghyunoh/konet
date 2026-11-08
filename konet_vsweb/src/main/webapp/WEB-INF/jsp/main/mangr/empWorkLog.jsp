@@ -57,8 +57,14 @@
   .cols{ display:flex; flex-direction:column; gap:10px; flex:1; min-height:0; }
   .card{ background:#fff; border:1px solid var(--bd); border-radius:10px; overflow:auto; }
   #gridWrap{ flex:1; min-height:160px; }
-  #dtl{ flex:0 0 auto; max-height:38%; display:none; }
+  /* 상세 칸 높이 — 2026-11-08 사용자 「하단 업무일지 이력은 전부 안 보여주네요」 : 38% 는 글 두 건이면 잘렸다 → 기본 60%,
+     머리줄 [⛶ 크게] 를 켜면(.big · localStorage konetWlDtlBig) 격자를 최소(120px)로 줄이고 상세가 나머지 전부(제 안에서 스크롤) */
+  #dtl{ flex:0 0 auto; max-height:60%; display:none; }
   #dtl.on{ display:block; }
+  .cols.big #dtl{ max-height:none; flex:0 1 auto; }
+  .cols.big #gridWrap{ min-height:120px; }
+  .dh .bg{ cursor:pointer; color:var(--dim); font-size:12.5px; padding:2px 8px; border:1px solid var(--bd); border-radius:6px; background:#fff; }
+  .dh .bg:hover{ color:var(--teal); border-color:#bcd9d1; }
   /* 격자 */
   table.g{ border-collapse:separate; border-spacing:0; min-width:100%; font-size:13px; }
   table.g th{ background:#eaf2f0; color:#125a4e; font-weight:600; font-size:12.5px; border-bottom:1px solid #cfe0da; border-right:1px solid #d8e6e1; padding:7px 8px; text-align:center; position:sticky; top:0; z-index:3; white-space:nowrap; }
@@ -252,11 +258,13 @@ function roomsFill(rooms){
 }
 function roomNm(seq){ var r=ROOMS[seq]; return r ? ((r.roomGb==='D'?'1:1 · ':'')+(r.dispNm||r.roomNm||('방 '+seq))) : ('방 '+seq); }
 
-/* build — 글 → 직원×날짜 묶음(GROUPS) + 직원 목록(EMPS). 같은 직원·같은 날짜는 합친다(글 차례대로 이어 붙임 · 원문은 srcs 에 전부) */
+/* build — 글 → 직원×날짜 묶음(GROUPS) + 직원 목록(EMPS). 같은 직원·같은 날짜는 합친다(원문은 srcs 에 전부).
+   ★이어 붙이는 차례 = 최근 보낸 글부터(2026-11-08 사용자 캡처 「이 경우 하단이 정리된 것 같은데」 — 상세는 최근 글부터인데 격자는 오래된 글부터라 어긋났다).
+   서버는 REG_DTTM 오름차순으로 주므로 여기서 뒤집는다. 격자 칸·직원별·엑셀·인쇄가 전부 이 차례를 쓴다 */
 function build(){
   var f=document.getElementById('frDt').value, e=document.getElementById('toDt').value;
   var map={}, emps={};
-  MSGS.forEach(function(m){
+  MSGS.slice().sort(function(a,b){ return a.regDttm<b.regDttm?1:a.regDttm>b.regDttm?-1:(b.msgSeq||0)-(a.msgSeq||0); }).forEach(function(m){
     var gs=parseWorkLog(m.msgTxt, m.regDttm);
     gs.forEach(function(g){
       if(g.date<f || g.date>e) return;
@@ -323,21 +331,25 @@ function render(){
   });
   document.getElementById('gBody').innerHTML=h;
 }
-/* 칸을 누르면 아래 상세 — 그 직원·그 날짜의 원문 글 전부(날짜 줄은 강조) */
+/* 칸을 누르면 아래 상세 — 그 직원·그 날짜의 원문 글 전부(날짜 줄은 강조). ★글은 최근 보낸 것부터(2026-11-08 사용자 「최근일자 부터」 — 글 안의 날짜 차례는 원문 그대로) */
 function pick(userId, date){
   var g=GROUPS.filter(function(x){ return x.userId===userId && x.date===date; })[0];
   if(!g) return;
   SEL={ userId:userId, date:date };
-  var h='<div class="dh"><b>'+esc(g.userNm)+'</b> '+esc(date)+' ('+wday(date)+') · 항목 '+g.items.length+'건 · 글 '+g.srcs.length+'건<span class="x" onclick="dtlClose()" title="닫기">✕</span></div>';
-  g.srcs.forEach(function(s){
+  var h='<div class="dh"><b>'+esc(g.userNm)+'</b> '+esc(date)+' ('+wday(date)+') · 항목 '+g.items.length+'건 · 글 '+g.srcs.length+'건'+(g.srcs.length>1?' <small style="color:var(--dim)">(최근 글부터)</small>':'')+'<span class="bg" onclick="dtlBig()" id="dtlBg" title="상세를 크게 — 격자를 최소로 줄이고 이 칸이 나머지를 다 씁니다 (다시 누르면 원래대로)">⛶ 크게</span><span class="x" onclick="dtlClose()" title="닫기">✕</span></div>';
+  g.srcs.slice().sort(function(a,b){ return a.regDttm<b.regDttm?1:a.regDttm>b.regDttm?-1:0; }).forEach(function(s){
     var body=esc(s.text).replace(/\r\n?/g,'\n').split('\n').map(function(ln){ return DATE_RE.test(ln) ? '<span class="dl">'+ln+'</span>' : ln; }).join('\n');
     h+='<div class="src"><div class="meta"><b>'+esc(s.regDttm)+'</b>'+esc(roomNm(s.roomSeq))+(s.hasDate?'':'<br><span style="color:#b06a00">날짜 줄 없음 — 보낸 날짜로</span>')+'</div><pre>'+body+'</pre></div>';
   });
-  var d=document.getElementById('dtl'); d.innerHTML=h; d.className='card on'; d.scrollTop=0;
+  var d=document.getElementById('dtl'); d.innerHTML=h; d.className='card on'; d.scrollTop=0; dtlBigPaint();
   var cells=document.querySelectorAll('#gBody .cell.on'); for(var i=0;i<cells.length;i++) cells[i].classList.remove('on');
   render();
 }
 function dtlClose(){ SEL=null; document.getElementById('dtl').className='card'; render(); }
+/* [⛶ 크게] — .cols.big 토글, localStorage 기억(konetWlDtlBig). 처음 상태는 작게 */
+function dtlBigOn(){ try{ return localStorage.getItem('konetWlDtlBig')==='1'; }catch(e){ return false; } }
+function dtlBig(){ var on=!dtlBigOn(); try{ localStorage.setItem('konetWlDtlBig', on?'1':'0'); }catch(e){} dtlBigPaint(); }
+function dtlBigPaint(){ var on=dtlBigOn(); var c=document.querySelector('.cols'); if(c) c.classList.toggle('big', on); var b=document.getElementById('dtlBg'); if(b) b.textContent=on?'⛶ 작게':'⛶ 크게'; }
 
 /* ── 직원별 보기 — 한 명을 고르면 날짜 순 목록(★최근 날짜가 위 — 2026-11-08 사용자 「직원별 최근것부터」, 처음 판은 오래된 것부터). 직원 칸이 「전체」면 첫 직원. 인쇄·엑셀도 eRows 를 써 같은 차례 ── */
 function tab(t){

@@ -88,7 +88,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   t('행 = 날짜 최근이 위 · 10/20 은 기간 밖', dts.join('|') === '2026-11-08|2026-11-07|2026-11-06|2026-11-05', dts.join('|'));
   function cell(nm, dt){ const ci = ths.indexOf(nm); const tr = [...d.querySelectorAll('#gBody tr')].find(r => r.querySelector('td.dt').firstChild.textContent === dt); return tr.children[ci]; }
   t('김민지 11/6 칸 9건', cell('김민지', '2026-11-06').querySelector('.n').textContent === '9건');
-  t('김민지 11/7 칸 = 두 글 합쳐 5건 · 번호 다시 셈', cell('김민지', '2026-11-07').querySelector('.n').textContent === '5건' && cell('김민지', '2026-11-07').querySelectorAll('li').length === 5 && cell('김민지', '2026-11-07').querySelectorAll('li')[4].textContent === '추가 — 거래명세서 발송');
+  t('김민지 11/7 칸 = 두 글 합쳐 5건 · 번호 다시 셈 · 최근 글(11-07 09:10 「추가 …」)이 앞', cell('김민지', '2026-11-07').querySelector('.n').textContent === '5건' && cell('김민지', '2026-11-07').querySelectorAll('li').length === 5 && cell('김민지', '2026-11-07').querySelectorAll('li')[0].textContent === '추가 — 거래명세서 발송' && cell('김민지', '2026-11-07').querySelectorAll('li')[1].textContent.indexOf('소') === 0, [...cell('김민지', '2026-11-07').querySelectorAll('li')].map(x => x.textContent).join('|'));
   t('전원배 11/6 5건 · 11/8 3건', cell('전원배', '2026-11-06').querySelector('.n').textContent === '5건' && cell('전원배', '2026-11-08').querySelector('.n').textContent === '3건');
   t('설재우 11/8 2건 · 11/7 빈 칸', cell('설재우', '2026-11-08').querySelector('.n').textContent === '2건' && cell('설재우', '2026-11-07').children.length === 0);
   t('이영섭(날짜 없는 글) 11/5 3건', cell('이영섭', '2026-11-05').querySelector('.n').textContent === '3건');
@@ -103,6 +103,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const dtl = d.getElementById('dtl');
   t('상세 열림 · 글 2건 원문', dtl.className === 'card on' && dtl.querySelectorAll('.src').length === 2 && dtl.querySelector('.dh b').textContent === '김민지', dtl.querySelector('.dh') && dtl.querySelector('.dh').textContent);
   t('상세 원문의 날짜 줄 강조', dtl.querySelectorAll('.src pre .dl').length === 3);
+  t('상세 글은 최근 보낸 것부터(11-07 09:10 → 11-06 17:40)', [...dtl.querySelectorAll('.src .meta b')].map(x => x.textContent).join('|') === '2026-11-07 09:10:00|2026-11-06 17:40:00', [...dtl.querySelectorAll('.src .meta b')].map(x => x.textContent).join('|'));
+  t('[⛶ 크게] 토글 — .cols.big · 글자 · 기억', (() => { const bg = d.getElementById('dtlBg'); const cols = d.querySelector('.cols'); const a = bg.textContent === '⛶ 크게' && !cols.classList.contains('big'); bg.click(); const b = cols.classList.contains('big') && bg.textContent === '⛶ 작게' && w.localStorage.getItem('konetWlDtlBig') === '1'; bg.click(); const c = !cols.classList.contains('big') && bg.textContent === '⛶ 크게'; return a && b && c; })());
   t('고른 칸 .on', cell('김민지', '2026-11-07').querySelector('.cell').className.indexOf('on') > 0);
   w.dtlClose(); await sleep(5);
   t('상세 닫기', d.getElementById('dtl').className === 'card');
