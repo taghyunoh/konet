@@ -178,13 +178,17 @@
         <input type="date" id="fr"> ~ <input type="date" id="to">
         <input type="text" id="mgr" placeholder="담당자" style="width:110px" list="mgrList" autocomplete="off"><datalist id="mgrList"></datalist>
         <input type="text" id="q" placeholder="문서번호 · 수신 · 품명" style="width:200px" onkeydown="if(event.keyCode===13) load()">
+        <%-- 수신별 조회 (2026-11-08 사용자 「수신별 조회 구성해줘」) — 조회한 목록의 수신을 모아 고른다(건수·금액). 화면에서 거른다(재조회 없음 · 줄 번호는 _ls 그대로라 체크·상세가 그 줄을 가리킨다) --%>
+        <select id="recv" onchange="lsRender()" title="수신(거래처)별로 거릅니다 — 조회한 기간 안의 수신만 나옵니다(건수 · 금액)" style="height:32px;border:1px solid var(--bd);border-radius:7px;padding:0 6px;font-size:13px;min-width:260px;max-width:460px">
+          <option value="">수신 전체</option>
+        </select>
         <%-- 진행 상태 거르기 (2026-09-29) --%>
         <select id="stf" onchange="load()" title="진행 상태로 거릅니다" style="height:32px;border:1px solid var(--bd);border-radius:7px;padding:0 6px;font-size:13px">
           <option value="">진행 전체</option><option value="W">작성 중</option><option value="S">제출완료</option><option value="A">채택</option><option value="R">거절</option><option value="H">보류</option>
         </select>
         <%-- 이전 판 포함 (2026-10-01) — 제출완료 뒤 고치면 새 판이 생기고 앞 판은 목록에서 빠진다(이력으로). 켜면 앞 판도 줄로 보인다 --%>
         <label class="dim" style="font-size:12.5px;white-space:nowrap;cursor:pointer" title="제출완료·채택 뒤 고쳐 저장하면 새 판(-02 …)이 생기고 앞 판은 목록에서 빠집니다. 켜면 앞 판도 함께 보입니다(체크하고 [📜 이력]으로도 봅니다)"><input type="checkbox" id="inclOld" onchange="load()"> 이전 판 포함</label>
-        <button class="btn btn-teal" onclick="load()">🔍 조회</button>
+        <button class="btn btn-teal" onclick="load()" style="margin-left:auto">🔍 조회</button>
         <%-- 📥 견적서 올리기 (2026-10-01 「영역 너무 차지함 — 버튼으로」) — 위 올리기 칸을 접어 두고 여기서 파일 창을 바로 연다. 파일을 고르면 위 칸이 펼쳐진다 --%>
         <button class="btn" style="border-color:#137a6c;color:#137a6c;font-weight:800" onclick="upOpen()" title="우리가 낸 견적서 엑셀(xls/xlsx)을 올립니다 — 여러 개를 한 번에. 고르면 위에 미리보기가 펼쳐지고 [💾 저장]으로 넣습니다">📥 견적서 올리기</button>
         <button class="btn" style="border-color:#137a6c;color:#137a6c" onclick="cmpOpen()" title="체크한 견적서(없으면 목록 전체)를 품명 × 견적서 행렬로 비교합니다 — 단가 변동·최저·최고">📊 견적 비교</button>
@@ -494,13 +498,30 @@ function linCell(x,i){
   var a=String(x.lineage||'').split('|').filter(function(s){ return s && linBase(s)!==me; }); if(!a.length) return '';
   return '<div style="font-size:11.5px;color:#2f4f9a;font-weight:700;white-space:nowrap;cursor:pointer;margin-top:2px" title="이 견적서가 나온 앞 판 — 누르면 변경 이력" onclick="event.stopPropagation(); revView('+i+')">↩ '+a.map(esc).join(' ← ')+'</div>';
 }
+/* ── 수신별 조회 (2026-11-08) — 조회한 목록(_ls)의 수신을 이름순으로 모아 #recv 에 채우고(건수·금액), 고른 수신만 그린다.
+   ★줄 번호 i 는 _ls 그대로(거른 줄은 빈 글자) — 체크(data-i)·상세(detail(i))·카톡·이력이 그 번호를 쓴다. 수신이 빈 줄은 「(수신 없음)」 */
+var RECV_NONE='__none__';
+function recvKey(x){ var v=String(x.recvNm||'').trim(); return v||RECV_NONE; }
+function recvFill(){
+  var sel=document.getElementById('recv'); if(!sel) return;
+  var cur=sel.value, m={};
+  _ls.forEach(function(x){ var k=recvKey(x); if(!m[k]) m[k]={ n:0, amt:0 }; m[k].n++; m[k].amt+=n(x.supplyAmt); });
+  var ks=Object.keys(m).sort(function(a,b){ if(a===RECV_NONE) return 1; if(b===RECV_NONE) return -1; return a<b?-1:a>b?1:0; });
+  var h='<option value="">수신 전체 ('+_ls.length+'건)</option>';
+  ks.forEach(function(k){ h+='<option value="'+esc(k)+'">'+(k===RECV_NONE?'(수신 없음)':esc(k))+' ('+m[k].n+'건 · '+fmt(m[k].amt)+'원)</option>'; });
+  sel.innerHTML=h; sel.value=cur; if(sel.value!==cur) sel.value='';   /* 다시 조회해 그 수신이 사라졌으면 전체로 */
+}
+function lsHit(x){ var v=(document.getElementById('recv')||{}).value||''; return !v || recvKey(x)===v; }
+function lsView(){ return _ls.filter(lsHit); }
 function lsRender(){
   var tb=document.getElementById('lsBody');
   document.getElementById('lsAll').checked=false;
+  recvFill();
   if(!_ls.length){ tb.innerHTML='<tr><td colspan="15" class="empty">조건에 맞는 견적서가 없습니다.</td></tr>'; document.getElementById('lsTot').innerHTML=''; return; }
-  var amt=0;
+  var amt=0, cnt=0;
   tb.innerHTML=_ls.map(function(x,i){
-    amt+=n(x.supplyAmt);
+    if(!lsHit(x)) return '';
+    amt+=n(x.supplyAmt); cnt++;
     return '<tr class="tap'+(_sel===x.quoteSeq?' sel':'')+'" onclick="if(event.target.tagName!==\'INPUT\' && event.target.tagName!==\'BUTTON\' && !(window.getSelection&&String(window.getSelection()).length)) detail('+i+')">'
       +'<td><input type="checkbox" class="lchk" data-i="'+i+'"></td>'
       +'<td>'+d10(x.quoteDt)+linCell(x,i)+'</td><td><b>'+esc(x.docNo)+'</b>'
@@ -531,7 +552,9 @@ function lsRender(){
         +' <button class="btn lnk" onclick="copyQuote('+x.quoteSeq+')" title="이 견적서를 베껴 새 견적서로 — 문서번호·견적일은 오늘 것으로 새로 매깁니다(원본은 그대로)">📋 복사 작성</button></td>'
       +'<td class="dim">'+esc(String(x.regDttm||'').slice(0,16))+(x.regUser?'<br>'+esc(x.regUser):'')+'</td></tr>';
   }).join('');
-  document.getElementById('lsTot').innerHTML='<b>'+_ls.length+'</b>건 · 금액 <b>'+fmt(amt)+'</b>원';
+  if(!cnt) tb.innerHTML='<tr><td colspan="15" class="empty">이 수신의 견적서가 없습니다 — 「수신 전체」로 돌리거나 기간을 넓히세요.</td></tr>';
+  var rv=(document.getElementById('recv')||{}).value||'';
+  document.getElementById('lsTot').innerHTML='<b>'+cnt+'</b>건'+(rv?' / 전체 '+_ls.length:'')+' · 금액 <b>'+fmt(amt)+'</b>원'+(rv?' <span class="dim">(수신 '+(rv===RECV_NONE?'없음':esc(rv))+')</span>':'');
 }
 function lsAllChk(el){ Array.prototype.forEach.call(document.querySelectorAll('.lchk'), function(c){ c.checked=el.checked; }); }
 
@@ -979,7 +1002,7 @@ var _cmp=null;
 function cmpKey(s){ return String(s||'').replace(/\s+/g,'').toLowerCase(); }
 function cmpOpen(){
   var seqs=Array.prototype.filter.call(document.querySelectorAll('.lchk'), function(c){ return c.checked; }).map(function(c){ return _ls[+c.getAttribute('data-i')].quoteSeq; });
-  if(!seqs.length) seqs=_ls.map(function(x){ return x.quoteSeq; });
+  if(!seqs.length) seqs=lsView().map(function(x){ return x.quoteSeq; });   /* 수신을 골랐으면 그 수신의 줄만 (2026-11-08) */
   if(seqs.length<1){ _alertBox('비교할 견적서가 없습니다 — 목록을 먼저 조회하세요.',{icon:'ℹ️'}); return; }
   if(seqs.length>30){ seqs=seqs.slice(0,30); _toast&&_toast('최근 30건까지만 비교합니다','warning'); }
   var w=document.getElementById('cmpWrap'); w.hidden=false; w.innerHTML='<div class="cmp"><div class="dh">📊 견적 비교 <span class="dim">불러오는 중…</span></div></div>';
