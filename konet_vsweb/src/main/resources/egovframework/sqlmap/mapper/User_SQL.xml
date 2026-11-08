@@ -4333,6 +4333,7 @@
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     GROUP BY v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,''), v.PROD_CD
 	  ), SD AS ( SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST WHERE ACTION_YN='Y'
+	               AND DLV_DT >= #{frDt} AND DLV_DT <= #{toDt}   /* 조회 기간만 (2026-11-08 속도) — OL 이 그 기간뿐이라 결과 같다. 종전엔 정산서 표 전체 DISTINCT */
 	  ), OL AS (
 	    SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS DLV_DT, ISNULL(s.ORD_NO,'') AS ORD_NO, s.PROD_CD,
 	           UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))) AS DC_CD,
@@ -4399,7 +4400,10 @@
 	   ORDER BY u.DLV_DT DESC, CASE WHEN u.SRC IN (N'토더 발주', N'대상 발주', N'동원홈푸드 발주') OR u.SRC LIKE N'판매전표%' THEN 1 ELSE 0 END, mtNm, u.BIZ_NM, u.ITEM_CD
 	   /* ★OPTION (MAXDOP 1) — 2026-11-05 속도 : 전체 기간(1,085줄)에서 병렬 계획이 716ms, 직렬이 250ms (실측 3회 최소). 한 달은 차이 없음(116 vs 109).
 	        SQL 자체(집계·조인)는 손대지 않았다 — 결과 동일. 느려지면 이 줄만 빼면 된다 */
-	   OPTION (MAXDOP 1)
+	   /* ★★RECOMPILE (2026-11-08 「처음 조회속도가 늘림」) — 운영 DB 계획 캐시 실측 : 앱의 «매개변수» 문장(@P0 nvarchar…)이 10월 조회값(품목 1000772435 · 사업장 M0240)으로 한 번 컴파일된 계획을
+	        19번 재사용해 평균 10.2초 · 최대 56.8초 · 논리읽기 500만 — 같은 SQL 을 값 그대로 돌리면 0.45초 · 11.7만. 값마다 자료 분포가 달라 한 계획을 재사용하면 안 되는 문장(parameter sniffing).
+	        RECOMPILE 이면 실행마다 그 값으로 다시 짠다(컴파일 수십 ms — 실측 literal 첫 실행 457ms ≈ 둘째 465ms). 느려지면 RECOMPILE 만 빼면 된다 */
+	   OPTION (MAXDOP 1, RECOMPILE)
 	]]></select>
 
 	<select id="selectStockOutSrcDays" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
