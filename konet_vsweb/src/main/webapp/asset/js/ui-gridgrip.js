@@ -17,6 +17,8 @@
      다시 세는 때 : 표 스크롤 · 높이 바꿈 · 창 크기 · 표 안 내용 바뀜(MutationObserver) — 40ms 타이머로 한 번에 모은다.
    ⚠높이를 바꾼 뒤 표에 scroll 이벤트를 한 번 쏜다 — 판매·매입 명세는 «아래로 스크롤하면 이어서 그리기» 라
      표를 늘려 빈자리가 생겨도 스크롤이 안 일어나 다음 줄이 안 나온다(saGridBind/puGridBind 가 이 신호로 더 그린다).
+   ★넷째 인자 { fit:true } (2026-11-09 견적서 머리 「늘리기는 기본까지」) — 늘릴 때 <내용 높이(원래 높이)>를 넘지 않는다.
+     그 높이에 닿으면 원래 모양으로 돌려놓고 저장값도 지운다(빈 칸이 안 생긴다). 넷째 인자가 없는 종전 화면은 그대로.
    ───────────────────────────────────────────────────────────────────────── */
 (function () {
   if (window.konetGridGrip) return;
@@ -44,7 +46,8 @@
   function lsGet(k) { try { var v = localStorage.getItem(k); return v == null ? null : parseFloat(v); } catch (e) { return null; } }
   function lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, String(v)); } catch (e) {} }
 
-  function bind(gridId, afterId, key) {
+  function bind(gridId, afterId, key, opts) {
+    opts = opts || {};
     var g = document.getElementById(gridId), a = document.getElementById(afterId || gridId);
     if (!g || !a || g.getAttribute('data-kgg')) return;
     g.setAttribute('data-kgg', '1');
@@ -73,6 +76,9 @@
     function curH() { return parseFloat(getComputedStyle(g).height) || g.offsetHeight || 210; }
     function setH(h) {
       h = Math.round(Math.min(maxH(), Math.max(MIN, h)));
+      if (opts.fit && h >= g.scrollHeight - 1) {          // 원래(내용) 높이까지만 — 닿으면 원래 모양으로, 저장값 없음(null)
+        back('height', orig.h, orig.hp); back('max-height', orig.m, orig.mp); moreSoon(); return null;
+      }
       g.style.setProperty('height', h + 'px', 'important');
       g.style.setProperty('max-height', 'none', 'important');
       moreSoon();
@@ -140,9 +146,9 @@
     });
   }
 
-  window.konetGridGrip = function (gridId, afterId, key) {
+  window.konetGridGrip = function (gridId, afterId, key, opts) {
     if (document.readyState === 'loading')
-      document.addEventListener('DOMContentLoaded', function () { bind(gridId, afterId, key); });
-    else bind(gridId, afterId, key);
+      document.addEventListener('DOMContentLoaded', function () { bind(gridId, afterId, key, opts); });
+    else bind(gridId, afterId, key, opts);
   };
 })();

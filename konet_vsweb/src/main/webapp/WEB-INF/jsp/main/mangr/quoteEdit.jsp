@@ -7,7 +7,8 @@
 <title>견적서 작성</title>
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) — 브라우저 alert 금지 --%>
 <script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917c"></script>   <%-- 회사 설정 — 센터별 물류비율·보관 기본값(konetSet.cost) --%>
-<script src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>   <%-- 팝업 끌어 옮기기 (2026-09-18 「상품검색 마우스 클릭으로 이동」) — 발주서와 같은 .pop+.ph 뼈대 --%>
+<script src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>
+<script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20261109"></script>   <%-- 머리 높이 막대 — 판매·매입·수금과 같은 공용 막대 (2026-11-09) --%>   <%-- 팝업 끌어 옮기기 (2026-09-18 「상품검색 마우스 클릭으로 이동」) — 발주서와 같은 .pop+.ph 뼈대 --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 📥 엑셀 (전역 XLSX) --%>
 <!--
   견적서 작성 (2026-09-17 신설 — 「여기에서 견적서 작성 및 출력 가능하게」) — 견적서관리 ▸ 견적서 작성. 셸 iframe(logiFrame) 화면.
@@ -86,6 +87,13 @@
   /* 크게 보기 — 머리 카드를 접고 품목 표를 화면 높이까지 (2026-09-20) */
   body.big #headCard{ display:none; }
   body.big #itemWrap{ max-height:calc(100vh - 210px); }
+  /* 머리 접기 (2026-11-09 사용자 「상단 줄이기 기능」) — 머리 카드는 남기고 입력칸만 접는다. 접으면 머리줄에 문서번호·수신·견적일 요약 */
+  #headCard.fold .fm{ display:none; }
+  #headCard.fold .hd{ border-bottom:0; }
+  #hdSum{ font-weight:600; color:#3d4d5c; font-size:12.5px; }
+  #hdFm{ overflow:auto; }
+  #headCard .kgg{ margin:0 8px 6px; }
+  #headCard.fold .kgg{ display:none; }
   body.big #bigBtn{ border-color:#0f6b5e; background:#e3f2ee; color:#0f6b5e; font-weight:800; }
   table.g{ border-collapse:collapse; width:100%; font-size:13px; }
   table.g th{ position:sticky; top:0; z-index:1; background:#eaf2f0; color:#125a4e; font-weight:600; font-size:12.5px; border-bottom:1px solid #cfe0da; border-right:1px solid #d8e6e1; padding:7px 6px; text-align:center; white-space:nowrap; }
@@ -215,9 +223,11 @@
     </div>
   </div>
   <div class="card" id="headCard">
-    <div class="hd">머리 <small>— 문서번호는 견적일로 자동 매깁니다(고칠 수 있음). 같은 문서번호를 저장하면 앞의 것을 대체합니다</small>
+    <div class="hd">머리 <small id="hdTip">— 문서번호는 견적일로 자동 매깁니다(고칠 수 있음). 같은 문서번호를 저장하면 앞의 것을 대체합니다</small>
+      <span id="hdSum" hidden></span>
+      <button class="btn lnk" id="hdFoldBtn" style="margin-left:auto;height:26px" onclick="hdFold()" title="머리 입력칸을 접어 품목 표를 위로 올립니다 — 다시 누르면 펼칩니다">▲ 접기</button>
     </div>
-    <div class="fm">
+    <div class="fm" id="hdFm">
       <label>양식</label><div class="full" style="display:flex;gap:8px;flex-wrap:wrap">
         <label class="frmOpt"><input type="radio" name="frm" value="2" id="use2" checked onchange="renderLines(); delivOnUse2()"> <b>센터배송 + 택배출고(D2~3)</b> <span class="dim">— 단가·금액 두 묶음 + 비고(MOQ) · 260730-1 꼴</span></label>
         <label class="frmOpt"><input type="radio" name="frm" value="1" id="use1" onchange="renderLines(); delivOnUse2()"> <b>단가 하나</b> <span class="dim">— 센터배송만 · 260729-1 꼴</span></label>
@@ -610,6 +620,29 @@ function feeAlignAll(){}
 /* ★[⛶ 크게 보기] — 품목이 많을 때 머리 카드를 접고 품목 표를 화면 위까지 넓힌다 (2026-09-20 「품목이 많을 경우 화면 위로 확대 기능」).
    표 자체는 그대로다 — 가리는 것은 머리(문서번호·수신·견적일…) 칸뿐이고, 저장·인쇄에는 아무 영향이 없다.
    상태는 localStorage('konetQuoteBig') 에 남아 다음에 들어와도 그대로. 다시 누르면 원래대로. */
+/* ★머리 접기 (2026-11-09 사용자 「상단 줄이기 기능」) — [⛶ 크게 보기]는 머리 카드를 통째로 감추지만, 이건 입력칸만 접고
+     머리줄에 요약(문서번호 · 수신 · 견적일)을 남긴다. 머리줄 [▲ 접기] 또는 카드 아래 띠로. 상태는 localStorage('konetQuoteHeadFold').
+     저장·인쇄에는 영향 없음(칸은 그대로 있고 보이지만 않는다). */
+function hdFold(on){
+  var c=document.getElementById('headCard'); if(!c) return;
+  var v=(on==null? !c.classList.contains('fold') : !!on);
+  c.classList.toggle('fold', v);
+  var b=document.getElementById('hdFoldBtn'), tip=document.getElementById('hdTip'), sm=document.getElementById('hdSum');
+  if(b) b.textContent=v?'▼ 펼치기':'▲ 접기';
+  if(tip) tip.hidden=v;
+  if(sm){ sm.hidden=!v; if(v) sm.textContent=hdSumTxt(); }
+  try{ localStorage.setItem('konetQuoteHeadFold', v?'1':'0'); }catch(e){}
+}
+function hdSumTxt(){ var g=function(id){ var e=document.getElementById(id); return e? String(e.value||'').trim() : ''; };
+  return [g('docNo'), g('recvNm'), g('quoteDt'), g('mgrNm')].filter(function(x){ return x; }).join(' · '); }
+/* 접힌 채로 문서를 불러오거나 번호가 바뀌어도 요약이 따라오게 — 칸이 바뀔 때마다 다시 쓴다 */
+document.addEventListener('input', function(e){ var c=document.getElementById('headCard'); if(c && c.classList.contains('fold') && c.contains(e.target)){ var sm=document.getElementById('hdSum'); if(sm) sm.textContent=hdSumTxt(); } });
+setInterval(function(){ var c=document.getElementById('headCard'), sm=document.getElementById('hdSum'); if(c && sm && c.classList.contains('fold')){ var t=hdSumTxt(); if(sm.textContent!==t) sm.textContent=t; } }, 1000);
+try{ if(localStorage.getItem('konetQuoteHeadFold')==='1') document.addEventListener('DOMContentLoaded', function(){ hdFold(true); }); }catch(e){}
+/* ★머리 높이 막대 (2026-11-09 사용자 「1번은 접기, 2번은 막대 줄이기」 → 「기존 막대로 표현」) — 판매·매입·수금 표와 같은 공용 막대
+     (asset/js/ui-gridgrip.js). 끌면 입력칸 높이가 줄고 안은 스크롤 · [▲ 줄이기]·[▼ 늘리기] · 더블클릭 = 원래 높이 ·
+     높이는 localStorage('konetGridH.quoteHead'). 머리를 접으면 막대도 숨는다. */
+if(window.konetGridGrip) konetGridGrip('hdFm', 'hdFm', 'quoteHead', { fit:true });   /* 늘리기는 원래 높이까지만 (2026-11-09 「늘리기는 기본까지」) */
 function bigToggle(on){
   var b=document.body, v=(on==null? !b.classList.contains('big') : !!on);
   b.classList.toggle('big', v);
