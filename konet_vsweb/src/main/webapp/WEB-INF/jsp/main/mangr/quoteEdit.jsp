@@ -232,7 +232,7 @@
         <label class="frmOpt"><input type="radio" name="frm" value="2" id="use2" checked onchange="renderLines(); delivOnUse2()"> <b>센터배송 + 택배출고(D2~3)</b> <span class="dim">— 단가·금액 두 묶음 + 비고(MOQ) · 260730-1 꼴</span></label>
         <label class="frmOpt"><input type="radio" name="frm" value="1" id="use1" onchange="renderLines(); delivOnUse2()"> <b>단가 하나</b> <span class="dim">— 센터배송만 · 260729-1 꼴</span></label>
       </div>
-      <label>문서번호</label><div style="display:flex;gap:6px"><input type="text" id="docNo" style="font-weight:800" placeholder="Konet261001-01" oninput="_docAuto=false" title="Konet + 견적일 yyMMdd + -NN · NN 은 그 담당자의 그 날짜 다음 번호(담당자가 다르면 -01 부터). 제출완료 뒤 고쳐 저장하면 새 판 번호가 자동으로 매겨집니다"><button class="btn lnk" style="height:32px" onclick="nextNo(true)" title="견적일 기준 다음 번호">↻ 번호</button></div>
+      <label>문서번호</label><div style="display:flex;gap:6px"><input type="text" id="docNo" style="font-weight:800" placeholder="(담당자를 적거나 저장하면 자동)" oninput="_docAuto=false" title="Konet + 견적일 yyMMdd + -NN · NN 은 그 담당자의 그 날짜 다음 번호(담당자가 다르면 -01 부터). 제출완료 뒤 고쳐 저장하면 새 판 번호가 자동으로 매겨집니다"><button class="btn lnk" style="height:32px" onclick="nextNo(true)" title="견적일 기준 다음 번호">↻ 번호</button></div>
       <label>견적일</label><div><input type="date" id="quoteDt" onchange="if(!_seq) nextNo(false)">
         <%-- 족보 (2026-10-01 「날짜 바뀐 경우 족보 찾기 쉽게 — 견적일 밑에 따라다니게」) — 판이 둘 이상일 때만 linPaint 가 채운다 --%>
         <div id="linBox" hidden style="font-size:12px;color:#2f4f9a;margin-top:3px;line-height:1.5"></div></div>
@@ -243,6 +243,7 @@
       <label>단가 묶음 이름</label><div style="display:flex;gap:6px;align-items:center"><input type="text" id="p1" value="센터배송" style="width:130px" title="첫째 묶음 이름(묶음이 하나면 인쇄에 안 나옵니다)"><span class="dim">/</span><input type="text" id="p2" value="택배출고 (D2~3)" style="width:150px" title="둘째 묶음 이름"></div>
       <label>배송</label><div class="full" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <select id="delivSel" onchange="delivPick(this.value)" title="배송 조건 — 제목 줄 「(…, 부가세 별도)」와 비고에 같이 들어갑니다">
+          <option value="">(배송 선택)</option>
           <option value="센터배송 / 택배출고 (D2~3)">센터배송 / 택배출고 (D2~3)</option><option value="센터배송">센터배송</option><option value="택배출고 (D2~3)">택배출고 (D2~3)</option><option value="배송비 포함">배송비 포함</option><option value="직송">직송</option><option value="배송비 별도">배송비 별도</option><option value="*">직접 입력…</option>
         </select>
         <input type="text" id="deliv" autocomplete="off" value="센터배송 / 택배출고 (D2~3)" style="width:230px" placeholder="직접 적기" oninput="delivSync()" onchange="delivApply()" title="고른 값이 여기 들어옵니다. 다르게 쓰려면 이 칸에 직접 적으세요">
@@ -796,6 +797,12 @@ function delivTitle(v){ var t=gv('titleTxt')||'아래와 같이 견적을 드립
 function delivRmkTxt(v){ v=String(v||'').trim(); return (!v || /배송|출고|직송/.test(v)) ? v : v+' 배송'; }
 function delivApply(){
   var v=(gv('deliv')||'').trim(); delivSync();
+  /* 단가 묶음 이름이 비어 있으면 배송 글로 채운다 (2026-11-09 — 새 견적서는 묶음 이름이 빈 채로 시작) :
+       「센터배송 / 택배출고 (D2~3)」 → 센터배송 · 택배출고 (D2~3) / 「센터배송」 → 첫 칸만. 사람이 적어 둔 이름은 안 건드린다 */
+  if(v){ var pp=v.split("/").map(function(x){ return x.trim(); }), e1=document.getElementById('p1'), e2=document.getElementById('p2'), ch=false;
+    if(e1 && !e1.value.trim() && pp[0]){ e1.value=pp[0]; ch=true; }
+    if(e2 && !e2.value.trim() && pp[1]){ e2.value=pp[1]; ch=true; }
+    if(ch && typeof renderLines==='function' && _lines) renderLines(); }
   document.getElementById('titleTxt').value=delivTitle(v);
   var r=document.getElementById('remark'), cur=(r.value||'').trim(), rv=delivRmkTxt(v);
   var rmk=!v?'':(use2()?rv+', 부가세 별도':'1. '+rv);   /* 표본 꼴 — 양식1 「1. 센타배송」, 양식2 「배송비 포함, 부가세 별도」 */
@@ -880,14 +887,18 @@ function newDoc(){
   _statGb='W'; _editMemo=''; _unlocked=false; _latestYn='Y'; _revNo=1; _prevSeq=null; _docBase=''; _nextDoc=''; _latestSeq=0; _histCnt=0; _revAsked=false; _revDoc=''; _revDt=''; lockApply(); linPaint([],0);   /* 새 견적서는 잠금 없음 (2026-09-29) · 판 이력 초기화 (2026-10-01) */ document.getElementById('mode').textContent='새 견적서';
   var t=new Date(); document.getElementById('quoteDt').value=t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2);
   document.getElementById('docNo').value=''; document.getElementById('mgrNm').value=''; document.getElementById('remark').value='';
-  document.getElementById('recvNm').value='삼성웰스토리'; document.getElementById('validTxt').value='견적일로부터 15일'; document.getElementById('titleTxt').value='아래와 같이 견적을 드립니다.(부가세 별도)';
-  document.getElementById('use2').checked=true; document.getElementById('p1').value='센터배송'; document.getElementById('p2').value='택배출고 (D2~3)';   /* 기본 = 양식 2 (2026-09-17 「직접 작성 시 이런 내용 포함이 안 됨」) */
-  document.getElementById('deliv').value=DELIV_DEF2; _delivPrev=''; _delivRmk=''; delivApply();   /* 배송 기본 → 제목 줄·비고 */
+  /* ★새 견적서 = 빈 화면 (2026-11-09 사용자 「새 견적서를 눌렀는데 이전 데이터를 갖고 온다 — 전부 클리어」) —
+       종전엔 수신 「삼성웰스토리」·최근 담당자·배송 「센터배송 / 택배출고 (D2~3)」와 그 글이 든 제목·비고를 기본으로 채웠다.
+       이제 수신·담당자·배송·비고는 비우고, 제목은 배송 없는 기본 문장만. 남기는 것 = 견적일(오늘)·유효기간·양식·단가 묶음 이름(표 머리글)·자동 문서번호. */
+  document.getElementById('recvNm').value=''; document.getElementById('validTxt').value='견적일로부터 15일'; document.getElementById('titleTxt').value='아래와 같이 견적을 드립니다.(부가세 별도)';
+  document.getElementById('use2').checked=true; document.getElementById('p1').value=''; document.getElementById('p2').value='';   /* 단가 묶음 이름도 비움(2026-11-09 「해당 내용도 초기화」) — 배송을 고르면 delivApply 가 채운다 · 기본 = 양식 2 (2026-09-17 「직접 작성 시 이런 내용 포함이 안 됨」) */
+  document.getElementById('deliv').value=''; _delivPrev=''; _delivRmk=''; delivApply();   /* 배송 비움(2026-11-09) → 제목 줄 「(부가세 별도)」·비고 빈칸 */
   _cs={ mode:'center', center:(COST.centers[0]?COST.centers[0].nm:''), fee:(window.konetSet?n(konetSet.f('parcelFeeDef')):0) };
   _costRmk='';
   csBarPaint(); renderLines();
   /* ★번호는 담당자를 채운 <뒤에> 받는다 (2026-10-01 실측 — 앞서 받으면 빈 담당자 번호가 들어와 담당자별 번호와 어긋난다). loadNames 는 실패해도 cb 를 부른다 */
-  loadNames(function(){ var m=document.getElementById('mgrNm'); if(!m.value && _names.mgr.length) m.value=_names.mgr[0]; nextNo(true); });   /* 최근 담당자를 기본으로 */
+  _docAuto=true; loadNames(function(){});   /* ★문서번호도 비움(2026-11-09 「해당 내용도 초기화」) — 담당자를 적으면 mgrChg 가, 비운 채 저장하면 save 가 번호를 받는다 */
+  /* (종전) nextNo(true) 를 여기서 불러 빈 담당자 번호를 미리 채웠다 */   /* 담당자는 비워 둔다(2026-11-09 「전부 클리어」 — 종전엔 최근 담당자를 기본으로). 목록(datalist)은 그대로 받아 고를 수 있다. 담당자를 적으면 mgrChg 가 번호를 다시 받는다 */
 }
 /* copy=true 면 «복사 작성» — 내용만 베끼고 새 견적서로 (2026-09-20 「견적서 목록에서 견적서 복사 작성 추가」) :
    문서번호·견적일은 오늘 것으로 새로 매기고, 저장해야 새 견적서가 생긴다(원본은 그대로 남는다). */
@@ -1062,6 +1073,13 @@ function save(){
   if(_latestYn==='N' && !copyMode()){ _alertBox('<b>이전 판</b>은 고칠 수 없습니다.<br>위 띠의 [최신 판 열기 →]로 최신 판을 열어 고치세요.',{icon:'📜'}); return; }   /* 판 이력 (2026-10-01) */
   if(_statGb==='A' && !(_unlocked && _editMemo)){ _alertBox('<b>채택된 견적서</b>입니다.<br>위의 [🔓 수정 사유 넣고 고치기] 로 사유를 먼저 넣으세요.',{icon:'🔒'}); return; }
   if(_statGb!=='W' && !copyMode() && !_revAsked){ revAsk(); return; }   /* 제출완료·채택·거절·보류 뒤 — 새 판 확인창(견적일·문서번호·사유) 한 번 */
+  if(!d.docNo && !_seq && d.quoteDt && !save._noTry){   /* 새 견적서를 문서번호 없이 저장 → 그 담당자·견적일의 다음 번호를 받아 다시 (2026-11-09) */
+    save._noTry=true;
+    post('/mangr/quoteNextNo.do','quoteDt='+encodeURIComponent(gv('quoteDt'))+'&mgrNm='+encodeURIComponent(gv('mgrNm'))).then(function(r){ return r.json(); })
+      .then(function(j){ if(j&&j.docNo){ document.getElementById('docNo').value=j.docNo; _docAuto=true; } save(); save._noTry=false; })
+      .catch(function(){ save._noTry=false; _alertBox('문서번호를 받지 못했습니다 — [↻ 번호]를 누르거나 직접 넣으세요.',{icon:'⚠️'}); });
+    return;
+  }
   if(!d.docNo){ _alertBox('문서번호를 넣으세요.',{icon:'⚠️'}); return; }
   if(!d.quoteDt){ _alertBox('견적일을 고르세요.',{icon:'⚠️'}); return; }
   if(!d.lines.length){ _alertBox('품목을 한 줄 이상 적으세요.',{icon:'⚠️'}); return; }
