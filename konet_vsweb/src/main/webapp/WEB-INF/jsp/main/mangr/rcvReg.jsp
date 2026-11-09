@@ -515,7 +515,18 @@ function svListRender(){
   _lShown = Math.min(LIST_ROWS, _list.length);
   tb.innerHTML = _list.slice(0,_lShown).map(function(o,i){ return svRowHtml(o,i); }).join('');
   svBind(); svPager(); svSum();
+  svListFill();
 }
+/* ★목록 칸이 5줄보다 높으면 스크롤이 안 생겨 「아래로 스크롤하면 이어서」가 영영 안 돈다 (2026-11-09 사용자 「다안보옴」 — 5 / 28건에서 멈춤).
+     ⇒ 칸이 찰 때까지 더 붙인다(판매등록 saListFill 과 같은 규칙). 창 크기·목록 칸 높이(끌기 손잡이)가 바뀌어도 다시 채운다. */
+function svListFill(){
+  var w = document.getElementById('svListWrap');
+  if(!w) return;
+  var guard = 0;
+  while(_lShown < _list.length && w.scrollHeight <= w.clientHeight + 4 && guard++ < 200) svMore();
+}
+window.addEventListener('resize', svListFill);
+(function(){ var w = document.getElementById('svListWrap'); if(w && window.ResizeObserver) new ResizeObserver(svListFill).observe(w); })();
 function svMore(cnt){
   if(_lShown >= _list.length) return;
   var to = Math.min(_lShown + (cnt||LIST_ROWS), _list.length), h='';

@@ -352,7 +352,7 @@
       <span style="font-weight:700">Total : <span id="saTotal">0</span></span>
       <div class="sa-fld" style="flex:0 0 140px"><label>검색기간</label><input type="date" id="saFrom"></div>
       <div class="sa-fld" style="flex:0 0 140px"><label>&nbsp;</label><input type="date" id="saTo"></div>
-      <div class="sa-fld" style="flex:0 0 200px"><label>거래처</label><input type="text" id="saFindNm" placeholder="거래처명 (치면 기간 무시)" title="거래처명을 치면 검색기간과 상관없이 그 거래처 전표를 전부 찾습니다 (2026-10-31)"></div>
+      <div class="sa-fld" style="flex:0 0 200px"><label>거래처</label><input type="text" id="saFindNm" placeholder="거래처명" title="검색기간 안에서 이 거래처 전표만 찾습니다 (2026-11-09)"></div>
       <%-- 🔎 품목 판매이력 (2026-11-05 「판매등록도 발주서등록 검색처럼」) — 코드·상품명을 치면 아래 목록이 「거래처 줄 → 그 거래처 전표 줄」로(날짜 무관). 지우고 [리스트조회]면 보통 목록 --%>
       <div class="sa-fld" style="flex:0 0 230px; position:relative"><label title="품목 판매이력 — 코드·상품명을 치고 고르면 아래 목록이 그 품목의 판매 내역(거래처별)로 바뀝니다. 코드는 끝까지 치면 바로 조회">품목</label><input type="text" id="sphQ" placeholder="품목 판매이력 — 코드·상품명" autocomplete="off" oninput="sphSuggest()" onkeydown="sphKey(event)" onblur="setTimeout(sphHide,150)"><div id="sphList"></div></div>
       <button class="sa-btn teal" onclick="saLoad()">리스트조회</button>
@@ -1722,11 +1722,12 @@ function saLoad(){
   var sphq=(document.getElementById('sphQ').value||'').trim().split(' ')[0];
   if(sphq){ _sph.cd=sphq; sphLoad(); return; }
   sphExit();
-  /* ★거래처명을 치면 검색기간을 안 보낸다 (2026-10-31 「거래처 입력 시에는 일자 상관없이 검색」) —
-     SQL(selectSalesTrxList)이 빈 fromDt/toDt 를 「전체」로 보므로 화면이 비워 보내기만 하면 된다. 기간 칸 값은 그대로 둔다. */
+  /* ★검색기간은 늘 건다 — 거래처명은 그 기간 안에서 거르는 조건 (2026-11-09 사용자 「거래처 상관없이 기간것만 나오게」).
+       2026-10-31 에는 「거래처 입력 시에는 일자 상관없이 검색」으로 거래처명이 있으면 기간을 비워 보냈는데, 사용자가 되돌렸다.
+       전체 기간이 필요하면 기간 칸을 넓히면 된다. (매입등록 puLoad 는 10-31 규칙 그대로 — 요청 범위 밖) */
   var nm = (document.getElementById('saFindNm').value||'').trim();
-  var b = 'fromDt='+encodeURIComponent(nm ? '' : document.getElementById('saFrom').value)
-        + '&toDt='+encodeURIComponent(nm ? '' : document.getElementById('saTo').value)
+  var b = 'fromDt='+encodeURIComponent(document.getElementById('saFrom').value)
+        + '&toDt='+encodeURIComponent(document.getElementById('saTo').value)
         + '&findData='+encodeURIComponent(nm);
   document.getElementById('saListBody').innerHTML = '<tr><td colspan="10" class="sa-msg">조회 중…</td></tr>';
   post('/mangr/salesTrxList.do', b).then(function(r){return r.json();}).then(function(j){
@@ -1948,6 +1949,9 @@ function saCopyPick(cd){
     saApply(d);                       // 명세를 그대로 올린 뒤
     _cur = null; _curNet = 0;         // 새 전표로 돌린다 — 현잔고에 반영된 게 없다
     document.getElementById('saDt').value = dt;
+    /* ★납품일자는 비운다(=판매일로 저장) — 원본 전표의 납품일자가 남으면 원장·수금에서 원본 날짜로 들어간다
+         (2026-11-09 샐러드 플러스 12월 5장이 01-08 전표를 복사해 납품일자 20260108 로 저장 → 원장 12월에서 사라짐). */
+    document.getElementById('saDlvDt').value = '';
     if (ven) {
       var v = document.getElementById('saVenNm'); v.value = ven.vendorNm||''; v.dataset.cd = ven.vendorCd||'';
       var m = document.getElementById('saMgrNm'); m.value = ven.mgrNm||''; m.dataset.cd = ven.mgrCd||'';
