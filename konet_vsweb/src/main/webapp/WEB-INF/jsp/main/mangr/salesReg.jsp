@@ -1561,6 +1561,9 @@ function saCalcRow(o){
     if (_venDc > 0) { o.dcAmt = Math.round(Math.round(o.qty * n(o.unitPrice)) * _venDc / 100); o._dcByAuto = true; }
     else if (o._dcByAuto) { o.dcAmt = 0; o._dcByAuto = false; }
   }
+  /* ★할인은 원 단위 정수 (2026-11-09 사용자 「할인 정수로」 — 우리푸드 2025-12-02 전표(157)에 할인 -0.5 가 들어가 합계가 3,438,851.5 로 저장됐다).
+       반올림(Math.round, -0.5 → 0). ||0 은 -0 을 0 으로. */
+  o.dcAmt = Math.round(n(o.dcAmt)) || 0;
   o.amt = Math.round(o.qty * n(o.unitPrice)) - n(o.dcAmt);
   /* 부가세 = ① 거래처 설정(TBL_VENDOR_MST.VAT_GB) × ② 품목 과세여부 (2026-08-03 요청)
        · 별도(기본) : 공급가 = 금액,        부가세 = 금액의 10%   → 합계 = 금액 + 부가세
@@ -3823,6 +3826,7 @@ function ktToRow(r){
 }
 /* 거래처 부가세 설정으로 줄 금액 계산 — saCalcRow 는 화면의 거래처(_venVat)를 보므로, 다른 거래처 전표를 바로 저장할 때는 이걸 쓴다 */
 function ktCalcRow(o, vg){
+  o.dcAmt=Math.round(n(o.dcAmt))||0;   // 할인은 원 단위 정수 (2026-11-09 — saCalcRow 와 같다)
   o.qty=n(o.boxQty)*(n(o.packQty)||1)+n(o.eaQty); o.amt=Math.round(o.qty*n(o.unitPrice))-n(o.dcAmt);   // 합계 = BOX × 입수 + EA (saCalcRow 와 같은 식)
   var tax=(o.taxGb!=='면세')&&((vg||VAT_DEF)!=='면세');
   if(!tax){ o.supplyAmt=o.amt; o.vatAmt=0; }
