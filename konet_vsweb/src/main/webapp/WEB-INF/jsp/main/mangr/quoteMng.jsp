@@ -927,6 +927,8 @@ function marginView(i){
       var H=E+n(c.trans)+store+n(c.split)+n(c.pack)+exPer;
       var I=H*G, N=n(l.unitPrice), O=N*G;
       var P= set.mode==='center' ? O*rate/100 : (set.mode==='parcel' ? n(set.fee) : O*dcRate/100);
+      var lgMan = set.mode!=='center' && c.lgFee!=null && c.lgFee!=='';   /* 줄 물류비 직접 입력(2026-11-09, 작성 화면 lgFeeMan 과 같은 규칙) */
+      if(lgMan) P=n(c.lgFee);
       var Q=O-P, R=Q-I, S=I?(Q/I-1):0;
       tI+=I; tO+=O; tP+=P; tQ+=Q; tR+=R;
       /* 센터별 — 식은 위와 같고 비율만 그 센터 것 (2026-09-28) */
@@ -941,7 +943,7 @@ function marginView(i){
           + cc.map(function(z){ return '<td class="r">'+fmt(z.Q)+'</td>'; }).join('')
           + cc.map(function(z){ return '<td class="r'+(z.R<0?' up':'')+'"><b>'+fmt(z.R)+'</b></td>'; }).join('')
           + cc.map(function(z){ return '<td class="r"><b'+(z.S<0?' class="up"':'')+'>'+pct(z.S)+'</b></td>'; }).join('') )
-        : ( '<td class="r">'+fmt(P)+'</td><td class="r">'+fmt(Q)+'</td>'
+        : ( '<td class="r"'+(lgMan?' style="background:#fff3c4" title="이 줄에 직접 넣은 물류비"':'')+'>'+fmt(P)+'</td><td class="r">'+fmt(Q)+'</td>'
           + '<td class="r'+(R<0?' up':'')+'"><b>'+fmt(R)+'</b></td>'
           + '<td class="r"><b'+(S<0?' class="up"':'')+'>'+pct(S)+'</b></td>' );
       h+='<tr><td class="nm"><b>'+esc(l.prodNm)+'</b>'+(l.makerNm?' <span class="sub">('+esc(l.makerNm)+')</span>':'')+(l.spec?'<div class="sub">'+esc(l.spec)+'</div>':'')+'</td>'
