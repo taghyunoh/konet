@@ -449,7 +449,7 @@
     </select>
     <%-- ★계약 조건 (2026-10-01 「상단에 이력 있는 것 조회조건도」) — 계약 엑셀로 올린 계약(납품기간) 이력이 있는 상품만 / 없는 것만 / 만료·임박만 --%>
     <select id="fCt" onchange="pcFilter()" style="height:34px;border:1px solid var(--bd);border-radius:7px;padding:0 8px;font-size:13px;font-weight:700;color:#37475a"
-            title="계약 엑셀로 올린 계약(납품기간) 이력이 있는 상품만 / 없는 것만 / 만료됐거나 30일 안에 만료되는데 다음 계약이 아직 없는 것만">
+            title="계약 엑셀로 올린 계약(납품기간) 이력이 있는 상품만 / 없는 것만 / 만료됐거나 60일 안에 만료되는데 다음 계약이 아직 없는 것만">
       <option value="">전체 (계약 무관)</option>
       <option value="Y">계약 이력 있는 것만</option>
       <option value="E">만료·임박만 (다음 계약 없음)</option>
@@ -2573,7 +2573,7 @@ function ssSave(){
      · 신규코드(상품코드에 없는 품목코드) = 상품코드를 새로 만든다(품명·과세·계약단가). 입고단가·매입처·입수량은 비어 있다 — 나중에 [✎ 수정]으로.
      · 기존코드 = 계약 이력에 한 줄 쌓고, 계약단가는 «납품 시작일부터» 적용한다. 시작일이 미래면 지금 판매단가는 그대로 두고 그 날짜가 되면 서버가 바꾼다
        (상품 목록을 읽을 때 — prodList.do). 발주·출고 마감은 판매가 이력의 적용일로 단가를 집으므로 그날 발주분부터 새 단가다.
-     · 납품 종료일이 지나도 단가는 그대로 — 목록 「납품기간」 칸에 「만료」(30일 전부터 「임박」)만 표시한다.
+     · 납품 종료일이 지나도 단가는 그대로 — 목록 「납품기간」 칸에 「만료」(60일 전부터 「임박」 — 2026-11-10 종전 30일)만 표시한다.
      · ★만료·임박 표시·「만료·임박만」 필터·업로드 알림은 «다음 계약이 없을 때만» (2026-10-28 사용자 「추가 계약정보가 없는 경우」) — 다음 계약이 있으면 파랑 「다음 계약 있음」.
      · 배송구분 · 물류비율 · 수수료율은 읽지 않는다(사용자 결정).
    ⚠날짜 칸은 엑셀 «날짜 일련번호»로 온다 — ctDate 가 숫자·글자(2026-10-12 · 20261012 · 10/12/26) 어느 쪽이든 YYYYMMDD 로 바꾼다. */
@@ -2592,6 +2592,8 @@ function ctPick(cd){
 }
 /* ★만료·임박 경고는 «다음 계약이 없을 때만» (2026-10-28 사용자 「계약 종료 1개월 전부터 — 추가 계약정보가 없는 경우」) —
      다음 계약이 이미 등록돼 있으면 사람이 할 일이 없으므로 빨강·노랑 대신 파랑 「다음 계약 있음」. nxt 는 ctPick(cd).nxt (없으면 종전과 같다) */
+/* 만료 임박 기준 일수 (2026-11-10 사용자 「계약종료 한 달 전 → 두 달」, 종전 30) — 대시보드 발주현황표 알림 logi-oh.js SS_CT_SOON 과 같은 값 */
+var CT_SOON=60;
 function ctState(c, cur, nxt){
   var t=ctYmd();
   /* ★신규코드는 「대기」가 아니라 「신규」 (2026-10-01 사용자 「이것은 신규품목으로 금액 보여주나요」 → 표시만 바꾸기) —
@@ -2600,9 +2602,9 @@ function ctState(c, cur, nxt){
   if(String(c.frDt)>t && c.newYn==='Y') return { k:'new', nm:'신규 — 납품 '+ctShort(c.frDt)+' 부터', col:'#1f7a34', bg:'#e6f4ea' };
   if(String(c.frDt)>t) return { k:'wait', nm:'대기 — '+ctShort(c.frDt)+' 부터', col:'#2f4f9a', bg:'#e8eefb' };
   if(c!==cur) return { k:'old', nm:'지난 계약', col:'#6b7a89', bg:'#eef2f5' };
-  if(c.toDt && String(c.toDt)<=ctAddDays(t,30) && nxt) return { k:'next', nm:(String(c.toDt)<t?'만료':'만료 예정')+' — 다음 계약 '+ctShort(nxt.frDt)+' 부터', col:'#2f4f9a', bg:'#e8eefb' };
+  if(c.toDt && String(c.toDt)<=ctAddDays(t,CT_SOON) && nxt) return { k:'next', nm:(String(c.toDt)<t?'만료':'만료 예정')+' — 다음 계약 '+ctShort(nxt.frDt)+' 부터', col:'#2f4f9a', bg:'#e8eefb' };
   if(c.toDt && String(c.toDt)<t) return { k:'end', nm:'계약 만료', col:'#c0392b', bg:'#fdecea' };
-  if(c.toDt && String(c.toDt)<=ctAddDays(t,30)) return { k:'soon', nm:'만료 임박', col:'#b06a00', bg:'#fff3cd' };
+  if(c.toDt && String(c.toDt)<=ctAddDays(t,CT_SOON)) return { k:'soon', nm:'만료 임박', col:'#b06a00', bg:'#fff3cd' };
   return { k:'on', nm:'적용 중', col:'#1f7a34', bg:'#e6f4ea' };
 }
 /* 목록 「납품기간」 칸 — ★글자 대신 «단추»만 둔다 (2026-10-01 사용자 「이런 경우 버튼 표시로 · 조회로 보게」).
