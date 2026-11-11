@@ -302,7 +302,9 @@ function psRender(){
 /* ───────── 사원별 현황 — 기간별 / 일별(종료일) ───────── */
 function psRenderEmp(P, D){
   var M={}, ord=[];
-  function get(cd, nm){ var k=String(cd||''); if(!M[k]){ M[k]={ cd:k, nm:nm||k, p:null, d:null, prev:0, pr:[], dr:[] }; ord.push(k); } if(nm && !M[k].nm) M[k].nm=nm; return M[k]; }
+  /* 담당자코드가 빈 줄은 전부 「(담당 없음)」 한 줄로 (2026-11-11 사용자 「이정호 확인」 — 코드 없이 이름만 적힌 거래처(이정호·김연태 과장)와 담당자 없는 거래처(토더·동원·모두상사)가
+     같은 빈 코드 묶음인데 첫 줄 이름(이정호)으로 보여 그 사람 매출처럼 읽혔다). 이름들은 말풍선에 모아 보인다 */
+  function get(cd, nm){ var k=String(cd||''); if(!M[k]){ M[k]={ cd:k, nm:(k? (nm||k) : '(담당 없음)'), nms:{}, p:null, d:null, prev:0, pr:[], dr:[] }; ord.push(k); } if(nm) M[k].nms[nm]=1; return M[k]; }
   _rows.forEach(function(r){
     var o=get(r.mgrCd, r.mgrNm);
     if(r.src==='PREV'){
@@ -313,7 +315,7 @@ function psRenderEmp(P, D){
   _mgrs.forEach(function(m){ if(M[m.mgrCd]) M[m.mgrCd].nm=m.mgrNm||M[m.mgrCd].nm; });
   var list=ord.map(function(k){ var o=M[k]; o.p=sumOf(o.pr); o.d=sumOf(o.dr);
     o.cur = o.prev + (o.p.sale - o.p.saleDc) - (o.p.rcv + o.p.rcvSaleDc); return o; });
-  list.sort(function(a,b){ return (a.cd||'~').localeCompare(b.cd||'~'); });
+  list.sort(function(a,b){ return (a.cd||'~~').localeCompare(b.cd||'~~'); });   /* 빈 코드(담당 없음)는 맨 뒤 */
   var T={ p:sumOf(P), d:sumOf(D), prev:0, cur:0 }; list.forEach(function(o){ T.prev+=o.prev; T.cur+=o.cur; });
   _emp={ list:list, T:T };
   function seg(s, bal, isCur){ return fc(s.sale)+fc(s.svc)+fc(s.saleDc+s.rcvSaleDc)+fc(s.rcv)+fc(s.cash)+fc(s.bank)+fc(s.card)+fc(s.etc)+fc(s.rcvDc)+fc(bal).replace('<td','<td style="font-weight:700"'); }
@@ -321,7 +323,7 @@ function psRenderEmp(P, D){
        +'<tr><th>매출</th><th>서비스</th><th>DC</th><th>수금합계</th><th>현금</th><th>무통장</th><th>카드</th><th>기타</th><th>할인</th><th>전잔고</th>'
        +'<th>매출</th><th>서비스</th><th>DC</th><th>수금합계</th><th>현금</th><th>무통장</th><th>카드</th><th>기타</th><th>할인</th><th>현잔고</th></tr></thead><tbody>';
   if(!list.length) h+='<tr><td class="msg" colspan="21">자료가 없습니다.</td></tr>';
-  list.forEach(function(o){ h+='<tr><td class="ctr" title="'+esc(o.cd)+'">'+esc(o.nm||'(담당 없음)')+'</td>'+seg(o.p, o.prev)+seg(o.d, o.cur, true)+'</tr>'; });
+  list.forEach(function(o){ var tip=o.cd? o.cd : ('담당자코드가 없는 전표 — 거래처 관리에서 담당자를 고르면 그 직원 줄로 갑니다'+(Object.keys(o.nms).length?' · 이름만 적힌 것: '+Object.keys(o.nms).join(', '):'')); h+='<tr><td class="ctr" title="'+esc(tip)+'"'+(o.cd?'':' style="color:#8a98a8"')+'>'+esc(o.nm)+'</td>'+seg(o.p, o.prev)+seg(o.d, o.cur, true)+'</tr>'; });
   h+='<tr class="tot"><td class="ctr">합 계</td>'+seg(T.p, T.prev)+seg(T.d, T.cur, true)+'</tr>';
   document.getElementById('psEmp').innerHTML=h+'</tbody>';
 }
