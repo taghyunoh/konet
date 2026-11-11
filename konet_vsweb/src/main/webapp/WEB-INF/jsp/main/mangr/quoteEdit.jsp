@@ -917,7 +917,7 @@ function helpTab(k){
 }
 function newDoc(){
   _seq=0; _savedSeq=0; _savedDocNo=''; _lines=[blank()];
-  _statGb='W'; _editMemo=''; _unlocked=false; _latestYn='Y'; _revNo=1; _prevSeq=null; _docBase=''; _nextDoc=''; _latestSeq=0; _histCnt=0; _revAsked=false; _revDoc=''; _revDt=''; lockApply(); linPaint([],0);   /* 새 견적서는 잠금 없음 (2026-09-29) · 판 이력 초기화 (2026-10-01) */ document.getElementById('mode').textContent='새 견적서';
+  _statGb='W'; _editMemo=''; _unlocked=false; _latestYn='Y'; _revNo=1; _prevSeq=null; _docBase=''; _nextDoc=''; _latestSeq=0; _histCnt=0; _revAsked=false; _revDoc=''; _revDt=''; _openDoc=''; _openMgr=''; lockApply(); linPaint([],0);   /* 새 견적서는 잠금 없음 (2026-09-29) · 판 이력 초기화 (2026-10-01) */ document.getElementById('mode').textContent='새 견적서';
   var t=new Date(); document.getElementById('quoteDt').value=t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2);
   document.getElementById('docNo').value=''; document.getElementById('mgrNm').value=''; document.getElementById('remark').value='';
   /* ★새 견적서 = 빈 화면 (2026-11-09 사용자 「새 견적서를 눌렀는데 이전 데이터를 갖고 온다 — 전부 클리어」) —
@@ -973,7 +973,11 @@ function lockAsk(){
    제출완료·채택·거절·보류 뒤 고쳐 저장할 때 한 번 뜬다. 견적일(기본 = 오늘)·문서번호(기본 = 그 날짜의 그 담당자 다음 번호)·변경 사유.
    견적일을 바꾸면 번호도 그 날짜 것으로 다시 받는다(받은 뒤 손으로 고쳐도 된다). [확인]하면 견적일 칸이 그 날짜로 바뀌고 번호는 revDocNo 로 서버에 간다.
    사유 : 채택은 필수(lockAsk 에서 받은 것이 채워져 있다) · 그 밖은 비워도 된다. 새 판의 REV_MEMO 로 남는다 */
-var _revDoc='', _revDt='';
+var _revDoc='', _revDt='', _openDoc='', _openMgr='';   /* _openDoc·_openMgr = 지금 열어 둔 판의 문서번호·담당자(새 판 번호가 이것과 같으면 서버가 막는다 — 2026-11-11) */
+/* ★서버 오류 글자 풀기 (2026-11-11 사용자 캡처 「이런 문구가 나오면서 저장이 안 되네」) — quoteSave 는 ResponseEntity<String> 이라 Jackson 이 오류 글자도
+   따옴표로 한 겹 감싸 보낸다("QUOTE_DUPNO:…"). 그래서 아래 머리말 검사(QUOTE_DUPNO·OLDREV·ADOPTED)가 한 번도 안 맞았고,
+   번호 겹침 때 새 판 확인창이 다시 열리지 않아 [저장]을 다시 눌러도 같은 번호만 계속 보내 같은 오류가 되풀이됐다. */
+function errTxt(t){ t=String(t==null?'':t); if(t.length>1 && t.charAt(0)==='"' && t.charAt(t.length-1)==='"'){ try{ var u=JSON.parse(t); if(typeof u==='string') return u; }catch(e){} } return t; }
 function revAsk(){
   var adopted=(_statGb==='A'), t=new Date(), today=t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2);
   var wrap=document.createElement('div');
@@ -996,7 +1000,8 @@ function revAsk(){
     post('/mangr/quoteNextNo.do','quoteDt='+encodeURIComponent(dt.value)+'&mgrNm='+encodeURIComponent(gv('mgrNm'))).then(function(r){ return r.json(); })
       .then(function(j){ if(k===tick && j && j.docNo && (force || !typed)) no.value=j.docNo; }).catch(function(){}); };
   dt.value=_revDt||today; why.value=_editMemo||'';
-  if(_revDoc){ no.value=_revDoc; typed=true; } else fetchNo(false);
+  var hd=gv('docNo');   /* 머리의 문서번호 칸을 손으로(또는 [↻ 번호]로) 바꿔 뒀으면 그 번호가 새 판 번호의 기본값 (2026-11-11 — 종전엔 그 칸이 무시됐다) */
+  if(_revDoc){ no.value=_revDoc; typed=true; } else if(hd && _openDoc && hd!==_openDoc){ no.value=hd; typed=true; } else fetchNo(false);
   dt.onchange=function(){ if(dt.value){ typed=false; fetchNo(true); } };
   no.oninput=function(){ typed=true; };
   var close=function(){ try{ document.body.removeChild(wrap); }catch(e){} };
@@ -1004,6 +1009,9 @@ function revAsk(){
     var d=dt.value, v=String(no.value||'').trim(), w=String(why.value||'').trim().slice(0,290);
     if(!d){ _alertBox('견적일을 고르세요.',{icon:'⚠️'}); return; }
     if(!v){ _alertBox('문서번호를 넣으세요.',{icon:'⚠️'}); return; }
+    if(_openDoc && v===_openDoc && gv('mgrNm')===_openMgr){   /* 지금 판 번호 그대로 = 서버가 「이미 있습니다」로 막는다 — 여기서 알리고 다음 번호를 넣어 준다 (2026-11-11) */
+      _alertBox('<b>'+esc(v)+'</b> 는 지금 판의 번호입니다.<br><span style="font-size:13px;color:#3d4d5c">'+(ST_NM[_statGb]||'')+'된 견적서는 같은 번호로 덮어쓰지 않고 <b>새 판</b>으로 저장합니다 — 문서번호 칸에 다음 번호를 넣었습니다.</span>',{icon:'ℹ️'});
+      typed=false; fetchNo(true); return; }
     if(adopted && !w){ _alertBox('채택된 견적서는 <b>수정 사유</b>가 있어야 합니다.',{icon:'⚠️'}); return; }
     document.getElementById('quoteDt').value=d; _revDt=d; _revDoc=v; _editMemo=w; _revAsked=true; close(); save();
   };
@@ -1041,7 +1049,7 @@ function loadDoc(seq, copy){
     /* 진행 상태 (2026-09-29) — 채택이면 잠근다. 복사 작성은 새 견적서라 잠그지 않는다 */
     _statGb=copy?'W':(String(m.statGb||'W')); _editMemo=''; _unlocked=false;
     /* 판 이력 (2026-10-01) — 이전 판이면 보기만 · 제출완료 뒤면 새 판 번호 미리보기 */
-    _latestYn=copy?'Y':String(m.latestYn||'Y'); _revNo=n(m.revNo)||1; _prevSeq=m.prevSeq||null; _docBase=copy?'':String(m.docBase||''); _nextDoc=''; _latestSeq=0; _histCnt=0; _revAsked=false; _revDoc=''; _revDt=''; _docAuto=false;
+    _latestYn=copy?'Y':String(m.latestYn||'Y'); _revNo=n(m.revNo)||1; _prevSeq=m.prevSeq||null; _docBase=copy?'':String(m.docBase||''); _nextDoc=''; _latestSeq=0; _histCnt=0; _revAsked=false; _revDoc=''; _revDt=''; _openDoc=copy?'':String(m.docNo||'').trim(); _openMgr=copy?'':String(m.mgrNm||'').trim(); _docAuto=false;
     lockApply(); linPaint([],0);
     if(!copy){ if(_latestYn!=='N' && _statGb!=='W') revNote(); if(_latestYn==='N' || _prevSeq) revHistLoad(seq); }
     /* 근거자료(원가·마진 계산) — CALC_JSON. genRows(서브 줄)는 걷어내고 계산에서 다시 만든다 */
@@ -1125,13 +1133,13 @@ function save(){
   ask('견적서 <b>'+esc(d.docNo)+'</b>를 저장합니다.<br><span style="font-size:13px;color:#3d4d5c">'+d10(d.quoteDt)+' · '+esc(d.recvNm)+' · '+esc(d.mgrNm)+' · 품목 '+d.lines.length+'줄 · 합계 <b>'+fmt(sum)+'</b>원'+(noP.length?'<br><span style="color:#b45309">⚠ 수량이나 단가가 빈 줄 '+noP.length+'개</span>':'')+((_statGb!=='W'&&!copyMode())?'<br><span style="color:#2f4f9a">'+(ST_NM[_statGb]||'')+' 뒤 변경 — <b>새 판 '+esc(_revDoc||_nextDoc||'(다음 번호)')+'</b> 으로 저장되고 이 판은 이력으로 남습니다'+(_editMemo?' · 사유 : '+esc(_editMemo):'')+'</span>':'')+'<br><span style="color:#6b7a89">원가·마진 계산 내용은 이 견적서의 근거자료로 함께 저장됩니다.</span></span>', (_statGb!=='W'&&!copyMode())?'새 판으로 저장':(_seq?'덮어쓰기':'저장'))
   .then(function(y){ if(!y){ _revAsked=false; return; }   /* 취소하면 다음 [저장] 때 새 판 확인창을 다시 연다(넣었던 값은 남아 있다) */
     var b=document.getElementById('saveBtn'); b.disabled=true;
-    var send=function(conf){ p.confirm=conf?'Y':'N'; return post('/mangr/quoteSave.do', p, true).then(function(r){ return r.text().then(function(t){ return { st:r.status, ok:r.ok, t:t }; }); }); };
+    var send=function(conf){ p.confirm=conf?'Y':'N'; return post('/mangr/quoteSave.do', p, true).then(function(r){ return r.text().then(function(t){ return { st:r.status, ok:r.ok, t:(r.ok?t:errTxt(t)) }; }); }); };   /* 오류 글자는 따옴표 한 겹을 풀어서 (2026-11-11) */
     send(!!_seq || (_savedDocNo && _savedDocNo===d.docNo)).then(function(res){
       if(res.st===409) return ask('<b>같은 문서번호</b>가 이미 있습니다.<br><span style="font-size:13px;color:#3d4d5c;white-space:pre-line">'+esc(res.t)+'</span><br><span style="font-size:13px;color:#3d4d5c">덮어쓰면 앞의 것은 이력으로 남습니다. 새 번호로 하려면 [취소] 후 [↻ 번호].</span>','덮어쓰기').then(function(y2){ if(!y2) throw new Error('__cancel'); return send(true); });
       return res;
     }).then(function(res){
       if(!res.ok){
-        if(String(res.t||'').indexOf('QUOTE_DUPNO:')===0){ _revAsked=false; throw new Error(String(res.t).replace('QUOTE_DUPNO:','')+'<br>[💾 저장]을 다시 누르면 번호를 고칠 수 있습니다.'); }   /* 새 판 번호 겹침 (2026-10-01) */
+        if(String(res.t||'').indexOf('QUOTE_DUPNO:')===0){ _revAsked=false; _revDoc='';   /* 겹친 번호는 버린다 — 다음 [저장] 때 확인창이 다음 번호를 새로 받아 연다 (2026-11-11) */ throw new Error(String(res.t).replace('QUOTE_DUPNO:','')+' — [💾 저장]을 다시 누르면 새 번호로 확인창이 다시 열립니다.'); }   /* 새 판 번호 겹침 (2026-10-01) */
         if(String(res.t||'').indexOf('QUOTE_OLDREV:')===0){ _latestYn='N'; lockApply(); throw new Error(String(res.t).replace('QUOTE_OLDREV:','')); }   /* 이전 판 (2026-10-01) */
         if(String(res.t||'').indexOf('QUOTE_ADOPTED:')===0){   /* 서버 관문 (2026-09-29) */
           _statGb='A'; _unlocked=false; lockApply();
