@@ -5833,7 +5833,7 @@
 	   WHERE ISNULL(x.mgrCd,'') <> ''
 	     AND x.mgrCd NOT IN ( SELECT LTRIM(RTRIM(USER_ID)) FROM TBL_USER_MST WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y' )
 	   GROUP BY x.mgrCd
-	   ORDER BY kind, mgrCd
+	   ORDER BY CASE kind WHEN 'U' THEN 0 ELSE 1 END, mgrCd   /* 직원 먼저, 옛 코드는 뒤에 */
 	]]></select>
 
 
