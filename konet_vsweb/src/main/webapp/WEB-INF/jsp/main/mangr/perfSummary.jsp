@@ -99,6 +99,13 @@
     tr{ page-break-inside:avoid; }
     thead{ display:table-header-group; }
   }
+  /* 조회 진행 막대 (2026-11-12 사용자 「처음 실행 시 조회 진행바」) — 조회 줄 바로 밑. 응답 시간을 모르므로 90% 까지 천천히 차고, 끝나면 100% 뒤 사라진다 */
+  #psProg{ display:none; margin:-4px 0 10px; padding:8px 12px; background:#fff; border:1px solid #dbe5ef; border-radius:8px; }
+  #psProg .t{ font-size:12.5px; color:#3d4d5c; margin-bottom:5px; }
+  #psProg .t b{ color:#0f6b5e; }
+  #psProg .bar{ height:8px; background:#e8eef4; border-radius:4px; overflow:hidden; }
+  #psProg .bar i{ display:block; height:100%; width:0; background:linear-gradient(90deg,#14a085,#0f6b5e); border-radius:4px; transition:width .25s; }
+  .ps-busy .card{ opacity:.45; pointer-events:none; }
 </style>
 </head>
 <body>
@@ -127,6 +134,8 @@
     <button class="btn" onclick="psQuick('y')" title="올해 1월 1일 ~ 오늘">올해</button>
     <span id="psStamp" style="margin-left:auto; color:#8a98a8; font-size:12px"></span>
   </div>
+
+  <div id="psProg"><div class="t">📊 <b id="psProgTxt">종합실적을 집계하는 중입니다</b> <span id="psProgSec" style="color:#8a98a8"></span></div><div class="bar"><i id="psProgBar"></i></div></div>
 
   <div class="card">
     <div class="prn" id="prn1"></div>
@@ -181,6 +190,7 @@ function alertBox(msg, opt){ if(window._alertBox) _alertBox(msg, opt||{icon:'ℹ
   document.getElementById('psFr').value=t.getFullYear()+'-01-01';
   document.getElementById('psSum').innerHTML='<tbody><tr><td class="msg">조회 조건을 고르고 [리스트조회]를 누르세요.</td></tr></tbody>';
   document.getElementById('psEmp').innerHTML='';
+  psProg(true, '담당사원·창고 목록을 불러오는 중입니다');   /* 첫 진입 진행 막대 — 목록 → 집계까지 한 막대 (2026-11-12) */
   post('/mangr/perfInit.do').then(function(j){
     _mgrs=j.mgrs||[]; _whs=j.whs||[];
     var s=document.getElementById('psMgr'), h='<option value="">전체</option>';
@@ -189,7 +199,7 @@ function alertBox(msg, opt){ if(window._alertBox) _alertBox(msg, opt||{icon:'ℹ
     var w=document.getElementById('psWh'), hw='<option value="">선택</option>';
     _whs.forEach(function(x){ hw+='<option value="'+esc(x.whCd)+'">'+esc(x.whNm)+(x.defaultYn==='Y'?' (기본)':'')+'</option>'; }); w.innerHTML=hw;
     psLoad();
-  }).catch(function(e){ alertBox('목록을 불러오지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>', {icon:'❌', okColor:'red'}); });
+  }).catch(function(e){ psProg(false); alertBox('목록을 불러오지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>', {icon:'❌', okColor:'red'}); });
   document.getElementById('psProd').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); psProdPick(); } });
   document.getElementById('psProd').addEventListener('input', function(){ document.getElementById('psProdNm').textContent=''; });
   document.addEventListener('click', function(e){ var p=document.getElementById('psPick'); if(p.style.display==='block' && !p.contains(e.target) && e.target.id!=='psProd') p.style.display='none'; });
@@ -222,6 +232,26 @@ function psProdPick(){
 }
 function psProdSet(p){ document.getElementById('psProd').value=p.prodCd||''; document.getElementById('psProdNm').textContent=(p.prodNm||'')+(p.spec?' / '+p.spec:''); }
 
+/* ───────── 조회 진행 막대 (2026-11-12) ─────────
+   처음 들어올 때는 담당사원·창고 목록(perfInit) → 집계(perfData) 두 번을 기다리므로 그 둘을 한 막대로 보인다.
+   응답 시간을 미리 알 수 없어 90% 까지만 천천히 차고(남은 거리의 6%씩), 응답이 오면 100% 를 찍고 사라진다. 실패해도 사라진다. */
+/* ★상태는 함수 안에서 만든다 — 위의 init(즉시 실행)이 이 줄보다 먼저 psProg 를 불러, 바깥 var 로 두면 그때는 undefined 라'_pg.t' 에서 죽어' 첫 조회가 통째로 멈췄다 (2026-11-12 「진행바 안 보이고 조회도 안 됨」) */
+var _pg;
+function psProg(on, msg){
+  if(!_pg) _pg={ t:null, p:0, s0:0 };
+  var box=document.getElementById('psProg'), bar=document.getElementById('psProgBar'), tx=document.getElementById('psProgTxt'), sc=document.getElementById('psProgSec'), root=document.body;
+  if(!box) return;
+  if(on){
+    if(msg) tx.textContent=msg;
+    if(!_pg.t){ _pg.p=Math.max(_pg.p,4); _pg.s0=Date.now(); box.style.display='block'; root.classList.add('ps-busy');
+      _pg.t=setInterval(function(){ _pg.p+= (90-_pg.p)*0.06; bar.style.width=_pg.p.toFixed(1)+'%'; sc.textContent='· '+Math.floor((Date.now()-_pg.s0)/1000)+'초'; }, 200); }
+    bar.style.width=_pg.p.toFixed(1)+'%';
+    return;
+  }
+  clearInterval(_pg.t); _pg.t=null; bar.style.width='100%';
+  setTimeout(function(){ if(_pg.t) return; box.style.display='none'; bar.style.width='0'; _pg.p=0; sc.textContent=''; root.classList.remove('ps-busy'); }, 350);
+}
+
 /* ───────── 조회 ───────── */
 function psLoad(){
   var fr=gv('psFr'), to=gv('psTo');
@@ -231,14 +261,16 @@ function psLoad(){
   /* 이름만 쳐 두고 조회를 누른 경우 — 먼저 상품을 고르게 한다(코드 꼴이면 그대로 조회) */
   if(prod && !document.getElementById('psProdNm').textContent && !/^\d{6,}$/.test(prod)){ psProdPick(); return; }
   document.getElementById('psStamp').textContent='조회 중…';
+  psProg(true, '종합실적을 집계하는 중입니다 ('+fr+' ~ '+to+')');
   post('/mangr/perfData.do', 'frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)+'&mgrCd='+encodeURIComponent(gv('psMgr'))
        +'&whCd='+encodeURIComponent(gv('psWh'))+'&prodCd='+encodeURIComponent(prod))
     .then(function(j){
       _rows=(j.rows||[]).map(psNorm); _expM=j.expM||[]; _expD=j.expD||[]; _fr8=d8(fr); _to8=d8(to);
       psRender(); if(_dtlGb) psDtl(_dtlGb, true);
       document.getElementById('psStamp').textContent='조회 '+ymd(new Date())+' · 전표 '+_rows.filter(function(r){ return r.src!=='PREV'; }).length.toLocaleString()+'줄';
+      psProg(false);
     })
-    .catch(function(e){ document.getElementById('psStamp').textContent='오류'; alertBox('조회에 실패했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>', {icon:'❌', okColor:'red'}); });
+    .catch(function(e){ psProg(false); document.getElementById('psStamp').textContent='오류'; alertBox('조회에 실패했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>', {icon:'❌', okColor:'red'}); });
 }
 
 /* 정산서·토더 줄은 전표에 공급가·부가세가 없다 → 합계(부가세 포함) ÷ 1.1 환산. 전표 줄은 적힌 값 그대로 */
