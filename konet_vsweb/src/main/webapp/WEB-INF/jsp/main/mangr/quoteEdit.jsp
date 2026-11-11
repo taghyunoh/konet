@@ -380,10 +380,21 @@ function calcHasVal(c){ if(!c) return false;
 /* ↳ 줄 오른쪽 안내 — 갈래별 (2026-09-20) */
 function feeNote(u){ return u==='sub' ? '별도 청구 — 단가·금액이 합계에 더해집니다' : (u==='cost' ? '원가 포함 — 단가에 반영 · 견적서에는 줄로 안 나옵니다(근거는 비고에)' :'적용 안 함 — 합계·원가에 안 들어갑니다'); }   /* 말은 고르는 항목과 같게 (2026-09-20 「같은 용어로」) */
 function calcHasFee(c){ return !!c && (c.extras||[]).some(function(x){ return n(x.qty)>0 || n(x.price)>0 || (x.use&&x.use!=='off'); }); }
+/* ★품명비(동판·목형)의 원천 — MOQ 변형 줄(↳)은 제 칸이 없으므로 <윗줄(품명 줄)> 것을 따른다
+   (2026-11-11 사용자 캡처 「첫 번째 MOQ 는 원가 포함이 적용되는데 두 번째 MOQ 부터는 적용 안 됨 — 체크에 따라 두 번째부터도 적용되게」).
+   동판·목형은 품명에 한 번 드는 돈이고 MOQ 줄들은 «50,000개로 살 때 / 100,000개로 살 때» 의 갈래라, 줄마다 금액 ÷ <그 줄 MOQ> 를 개당 구매에 더한다
+   (50,000 → 160,000÷50,000 = 3.2 · 100,000 → 1.6). 별도 청구·적용 안 함이면 어느 줄에도 안 들어간다. 계산조회(quoteMng marginView)도 같은 규칙. */
+function feeSrcOf(l){
+  if(!l) return [];
+  if(!l.variant) return (l.calc&&l.calc.extras)||[];
+  var i=_lines.indexOf(l); if(i<0) return [];
+  while(i>0 && _lines[i].variant) i--;
+  var p=_lines[i]; return (p && p!==l && p.calc && p.calc.extras) || [];
+}
 function calcOf(l){
   var c=l.calc; if(!c) return null;
   var G=n(c.box), Q0=n(c.moqQty), E=n(c.buy);
-  var exCost=(c.extras||[]).filter(function(x){ return x.use==='cost'; }).reduce(function(a,x){ return a+n(x.qty)*n(x.price); },0);
+  var exCost=feeSrcOf(l).filter(function(x){ return x.use==='cost'; }).reduce(function(a,x){ return a+n(x.qty)*n(x.price); },0);
   var exPer=Q0? exCost/Q0 : 0;
   var store=c.storeManual? n(c.store) : storeAuto(c);
   var H=E+n(c.trans)+store+n(c.split)+n(c.pack)+exPer;
@@ -406,7 +417,7 @@ function calcOf(l){
     var p=O*n(cc.rate)/100, q=O-p, r=q-I;
     return { nm:cc.nm, rate:n(cc.rate), P:p, Q:q, R:r, S:I?(q/I-1):0 };
   });
-  return { store:store, H:H, I:I, O:O, P:P, Q:Q, R:R, S:S, need:need, buyTotal:E*Q0, cents:cents };
+  return { store:store, H:H, I:I, O:O, P:P, Q:Q, R:R, S:S, need:need, buyTotal:E*Q0, cents:cents, exCost:exCost, exPer:exPer };
 }
 /* 견적서에 서브 줄로 붙는 품명비 = 별도 청구 + ★원가 포함도 (2026-09-18 「원가 포함이어서 견적서에는 표시되게 — 별도 청구처럼」).
    단, 원가 포함은 금액이 이미 판매적용단가에 녹아 있으므로 저장 줄의 단가·금액은 0(이중 청구 방지) — 근거 숫자는 비고에 적는다. */
@@ -430,7 +441,7 @@ function moqRmkSync(i){ var l=_lines[i]; if(!l) return;
   if(cur===auto) return;
   l.remark=auto; var e=document.getElementById('rv'+i); if(e) e.value=auto;
 }
-function cxset(i,j,k,v){ var l=_lines[i]; if(!l||!l.calc||!l.calc.extras[j]) return; l.calc.extras[j][k]=v; if(k==='use'){ renderLines(); return; }   /* 견적서 줄(↳)이 생겼다 사라지므로 다시 그린다 */ calcPaint(i); subPaint(i); calc(); }
+function cxset(i,j,k,v){ var l=_lines[i]; if(!l||!l.calc||!l.calc.extras[j]) return; l.calc.extras[j][k]=v; if(k==='use'){ renderLines(); return; }   /* 견적서 줄(↳)이 생겼다 사라지므로 다시 그린다 */ calcPaint(i); for(var vj=i+1; vj<_lines.length && _lines[vj].variant; vj++) if(_lines[vj].calc) calcPaint(vj);   /* MOQ 변형 줄도 윗줄 품명비를 따른다 (2026-11-11) */ subPaint(i); calc(); }
 function subPaint(i){ var l=_lines[i]; if(!l) return; subsOf(l).forEach(function(x,k){
   var q=document.getElementById('sq'+i+'_'+k), p=document.getElementById('sp'+i+'_'+k), a=document.getElementById('sa'+i+'_'+k), amt=Math.round(n(x.qty)*n(x.price));
   if(q) q.textContent=n(x.qty)?fmt(x.qty):''; if(p) p.textContent=n(x.price)?fmt(x.price):''; if(a) a.textContent=amt?fmt(amt):''; }); }
@@ -439,6 +450,7 @@ function calcPaint(i){
   var set=function(id,txt,neg){ var e=document.getElementById(id); if(!e) return; e.textContent=txt; e.classList.toggle('neg', !!neg); };
   set('cF'+i, r.buyTotal?fmt(r.buyTotal):'');
   set('cH'+i, r.H?fmt(r.H,2):''); set('cI'+i, r.I?fmt(r.I):'');
+  var he=document.getElementById('cH'+i); if(he){ he.title = r.exPer ? ('원가 포함 동판·목형 '+fmt(r.exCost)+' ÷ MOQ '+fmt(n(c.moqQty))+' = 개당 '+fmt(r.exPer,2)+' 포함'+(l.variant?' (윗줄 품명의 동판·목형 선택을 따릅니다)':'')) : (r.exCost&&!n(c.moqQty) ? '원가 포함 동판·목형 '+fmt(r.exCost)+' — MOQ수량을 넣으면 개당으로 나눠 더합니다' : ''); he.style.background = r.exPer ? '#fff3c4' : ''; }   /* 원가 포함이 들어간 칸은 옅은 노랑 (2026-11-11) */
   var ke=document.getElementById('cSt'+i); if(ke && !c.storeManual) ke.value=r.store?fmt(r.store,2):'';
   set('cO'+i, r.O?fmt(r.O):''); set('cP'+i, (r.O||r.P)?fmt(r.P):''); set('cQ'+i, r.O?fmt(r.Q):'');
   var pm=document.getElementById('cPm'+i); if(pm && document.activeElement!==pm && !lgFeeMan(c)) pm.value=(r.O||r.P)?fmt(r.P):'';
@@ -511,7 +523,7 @@ function addCalcLine(){
   l.calc=newCalc(); renderLines(); focusLast();
 }
 /* ★MOQ 변형 줄 (2026-11-11 담당자 요청 「1번 품목(아백쉐리 성탄절U봉투)의 MOQ 를 50,000·100,000·200,000 으로 요구 — 품목 추가 말고 MOQ 50,000 아래에 작성」)
-   같은 품명을 <잠근 채> 바로 밑에 줄을 하나 더 두고 MOQ수량·구매단가만 다르게 계산한다(계산 칸은 윗줄 것을 복사해 시작). 품명비(동판·목형)는 품명에 한 번이면 되므로 변형 줄엔 없다.
+   같은 품명을 <잠근 채> 바로 밑에 줄을 하나 더 두고 MOQ수량·구매단가만 다르게 계산한다(계산 칸은 윗줄 것을 복사해 시작). 품명비(동판·목형) <입력 칸>은 품명에 한 번이면 되므로 변형 줄엔 없다 — ★대신 계산은 윗줄 선택을 따른다(feeSrcOf : 원가 포함이면 금액 ÷ 그 줄 MOQ).
    저장은 보통 줄과 같되 calcs[].variant=true 로 표시하고, 품목 줄 차례 = 품명 줄 → 그 MOQ 변형 줄들 → 품명비 서브 줄(payload) → 인쇄·엑셀이 같은 품명을 세로로 합친다(순번 하나).
    품명을 고치거나 🔍 로 다시 고르면 변형 줄도 따라간다(varSync). 윗줄을 지우면 첫 변형 줄이 품명 줄이 된다(delLine). */
 function addVariant(i){

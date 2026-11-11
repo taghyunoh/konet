@@ -921,7 +921,9 @@ function marginView(i){
     mains.forEach(function(l,idx){
       var c=cj.calcs[idx]; if(!c) return; rows++;
       var G=n(c.box), Q0=n(c.moqQty), E=n(c.buy);
-      var exCost=(c.extras||[]).filter(function(e){ return e.use==='cost'; }).reduce(function(a2,e){ return a2+n(e.qty)*n(e.price); },0);
+      /* ★MOQ 변형 줄(variant)은 윗줄(품명 줄)의 동판·목형 선택을 따른다 (2026-11-11 — 작성 화면 feeSrcOf 와 같은 규칙 : 원가 포함이면 금액 ÷ 그 줄 MOQ) */
+      var fsrc=c; if(c.variant){ for(var pk=idx-1; pk>=0; pk--){ if(!(cj.calcs[pk]&&cj.calcs[pk].variant)){ fsrc=cj.calcs[pk]||{}; break; } } }
+      var exCost=(fsrc.extras||[]).filter(function(e){ return e.use==='cost'; }).reduce(function(a2,e){ return a2+n(e.qty)*n(e.price); },0);
       var exPer=Q0? exCost/Q0 : 0;
       var store=(c.storeVal!=null)? n(c.storeVal) : n(c.store);
       var H=E+n(c.trans)+store+n(c.split)+n(c.pack)+exPer;
@@ -937,6 +939,7 @@ function marginView(i){
       var pb=(c.extras||[]).filter(function(e){ return (e.nm||'').trim()&&(n(e.qty)*n(e.price)||e.use!=='off'); }).map(function(e){
         var lab= e.use==='sub'?'서브 줄':(e.use==='cost'?('원가 포함'+(e.hide?' · 견적서 제외':'')):'안 함');   /* hide = 견적서에서만 뺀 것 (2026-09-20) */
         return esc(e.nm)+' '+fmt(n(e.qty)*n(e.price))+' <span class="sub">('+lab+')</span>'; }).join(' · ');
+      if(c.variant && exCost) pb='<span class="sub" title="MOQ 변형 줄 — 윗줄 품명의 원가 포함 동판·목형을 이 줄 MOQ 로 나눠 구매(계산)에 더했습니다">↑ 윗줄 원가 포함 '+fmt(exCost)+' ÷ '+fmt(Q0)+'</span>';
       var pct=function(v){ return (I&&O)?((Math.round(v*10000)/100)+'%'):''; };
       var four = cc
         ? ( cc.map(function(z){ return '<td class="r">'+fmt(z.P)+'</td>'; }).join('')
