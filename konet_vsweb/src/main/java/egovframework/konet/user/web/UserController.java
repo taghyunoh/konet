@@ -3283,22 +3283,33 @@ public class UserController {
 				java.util.List<String> codes = new java.util.ArrayList<String>();
 				double tBox = 0, tEa = 0, tQty = 0, tSup = 0, tVat = 0, tTot = 0, tDc = 0;
 				boolean partial = false;
+				Map<String,Double> packCache = new HashMap<String,Double>();
 				for (Map<String,Object> it : items) {
 					long dseq = poLongOf(it.get("poDtlSeq"));
 					double pack = poNum(it.get("packQty")); if (pack <= 0) pack = 1;
-					double poQty = poNum(it.get("qty"));
+					/* ★상품마스터 입수 적용 (2026-11-11 사용자 「발주서를 매입전환했을 때 입수 기능이 적용 안 된다」) —
+					   발주 줄은 발주 때의 입수(대개 1)를 들고 있어, 그 뒤 마스터 입수를 1 → 1,000 으로 고쳐도 전환 전표가 「100박스 = 100개」로 들어갔다
+					   (매입등록 화면의 [📦 마스터 입수로 맞추기]가 서버 전환 길에는 없었다). 마스터 입수가 1보다 크고 발주 줄과 다르면 마스터 입수로 바꾸고
+					   합계수량 = BOX × 새 입수 + EA, 단가는 개당값으로 환산(단가 × 옛 입수 ÷ 새 입수 — 금액은 그대로). 마스터 입수가 1(미설정)이면 발주 줄 값을 믿는다. */
+					double poPack = pack, mPack = poMasterPack(dto.getCompCd(), poStr(it.get("prodCd")), packCache);
+					boolean packSync = mPack > 1 && Math.abs(mPack - poPack) > 0.0001;
+					if (packSync) pack = mPack;
+					double ratio = packSync ? mPack / poPack : 1d;
+					double poQty = poNum(it.get("qty")) * ratio;   // 발주 수량(새 입수 기준 낱개)
 					double qty, box, ea;
 					if (explicit) {
 						Map<String,Object> w = want.get(dseq); if (w == null) continue;
 						box = poNum(w.get("boxQty")); ea = poNum(w.get("eaQty")); qty = poNum(w.get("qty"));
-						if (qty <= 0 && (box > 0 || ea > 0)) qty = box * pack + ea;
+						if (box > 0 || ea > 0) qty = box * pack + ea;          // 화면은 발주 입수로 셌으므로 새 입수로 다시 센다
+						else if (qty > 0) qty = qty * ratio;
 					} else {
-						qty = poNum(it.get("remainQty")); if (qty <= 0) continue;
+						qty = poNum(it.get("remainQty")) * ratio; if (qty <= 0) continue;
 						box = Math.floor(qty / pack); ea = qty - box * pack;
 					}
 					if (qty <= 0) continue;
-					if (qty < poQty) partial = true;
+					if (qty < poQty - 0.0001) partial = true;
 					double unit = poNum(it.get("unitPrice"));
+					if (packSync) unit = Math.round(unit / ratio * 100d) / 100d;   // 상자당 → 개당
 					double amt = Math.round(qty * unit);
 					double dc = poQty > 0 ? Math.round(poNum(it.get("dcAmt")) * qty / poQty) : 0;   // 발주 줄 DC 를 수량 비율로
 					double supply = amt - dc;
@@ -3313,8 +3324,8 @@ public class UserController {
 					d.setProdCd(poStr(it.get("prodCd"))); d.setProdNm(poStr(it.get("prodNm"))); d.setSpec(poStr(it.get("spec")));
 					d.setPackQty(pack); d.setBoxQty(box); d.setEaQty(ea); d.setQty(qty);
 					d.setUnitPrice(unit); d.setAmt(amt); d.setDcAmt(dc); d.setSupplyAmt(supply); d.setVatAmt(vat); d.setTotAmt(tot);
-					d.setServiceQty(qty >= poQty ? poNum(it.get("serviceQty")) : 0d);   // 서비스 수량은 전량 입고 때만 따라간다
-					d.setRemark(poStr(it.get("remark")));
+					d.setServiceQty(qty >= poQty - 0.0001 ? poNum(it.get("serviceQty")) * ratio : 0d);   // 서비스 수량은 전량 입고 때만 따라간다(새 입수 기준)
+					d.setRemark(poStr(it.get("remark")) + (packSync ? ((poStr(it.get("remark")).isEmpty() ? "" : " · ") + "입수 " + poFmt(poPack) + "→" + poFmt(mPack) + " 마스터 적용(단가 개당 환산)") : ""));
 					d.setTrxGb("매입"); d.setEventYn("N");
 					d.setPoSeq(poSeq); d.setPoDtlSeq(dseq > 0 ? dseq : null);
 					dl.add(d); codes.add(d.getProdCd());
@@ -3350,6 +3361,22 @@ public class UserController {
 				return ResponseEntity.status(500).body(e.getMessage());
 			}
 		}
+		/** 상품마스터 입수수량 — 매입전환이 발주 줄 입수 대신 쓴다(2026-11-11). 못 찾으면 0 */
+		private double poMasterPack(String compCd, String prodCd, Map<String,Double> cache) {
+			if (prodCd == null || prodCd.isEmpty()) return 0d;
+			if (cache.containsKey(prodCd)) return cache.get(prodCd);
+			double v = 0d;
+			try {
+				egovframework.konet.user.model.ProdDTO q = new egovframework.konet.user.model.ProdDTO();
+				q.setCompCd(compCd); q.setFindData(prodCd);
+				for (egovframework.konet.user.model.ProdDTO x : svc.selectProdList(q)) {
+					if (prodCd.equals(x.getProdCd())) { v = x.getPackQty() == null ? 0d : x.getPackQty().doubleValue(); break; }
+				}
+			} catch (Exception e) { log.error(" poMasterPack WARN : " + e.getMessage()); }
+			cache.put(prodCd, v);
+			return v;
+		}
+		private static String poFmt(double v) { return (v == Math.floor(v)) ? String.valueOf((long) v) : String.valueOf(v); }
 		private static long poLongOf(Object o) { if (o == null) return 0; try { return Long.parseLong(String.valueOf(o).trim().split("[.]")[0]); } catch (Exception e) { return 0; } }
 		/** JSON 문자열 값 이스케이프(따옴표·역슬래시·제어문자) — 응답을 손으로 짤 때 */
 		private static String poJs(Object o) {
