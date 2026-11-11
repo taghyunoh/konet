@@ -1458,7 +1458,9 @@ public class UserController {
 			if (mst != null) {
 				Map<String,Object> q = new HashMap<String,Object>();
 				q.put("quoteSeq", mst.get("quoteSeq")); q.put("compCd", mst.get("compCd"));
-				model.addAttribute("items", svc.selectQuoteDtl(q));
+				java.util.List<Map<String,Object>> items = svc.selectQuoteDtl(q);
+				quoteNmSpan(items);   /* 같은 품명 잇단 줄(MOQ 변형) 세로 합침 (2026-11-11) */
+				model.addAttribute("items", items);
 				Map<String,Object> c = new HashMap<String,Object>(); c.put("compCd", mst.get("compCd"));
 				Map<String,Object> comp = svc.selectCompInfo(c); if (comp == null) comp = new HashMap<String,Object>();
 				poFillDefault(comp, "compNm", "company.name"); poFillDefault(comp, "busiNum", "company.busi.num"); poFillDefault(comp, "compCeo", "company.ceo");
@@ -1470,6 +1472,26 @@ public class UserController {
 				model.addAttribute("comp", comp);
 			}
 			return ".raw/main/mangr/quotePrint";
+		}
+		/** 같은 품명이 잇달아 있으면(MOQ 변형 줄 — 2026-11-11 「1번 품명은 고정, MOQ 수량만 다르게」) 인쇄에서 순번·품명 칸을 세로로 합친다 :
+		 *  첫 줄 nmSpan = 줄 수, 이어지는 줄 0, 보통 줄 1. 원가 포함 품명비 줄(인쇄에서 빠지는 줄)은 건너뛰고 센다. 품명·제조사가 같아야 한 묶음. */
+		private static void quoteNmSpan(java.util.List<Map<String,Object>> items) {
+			if (items == null) return;
+			java.util.List<Map<String,Object>> vis = new java.util.ArrayList<Map<String,Object>>();
+			for (Map<String,Object> it : items) {
+				boolean cost = poNum(it.get("unitPrice")) <= 0 && poNum(it.get("amt")) <= 0 && poStr(it.get("remark")).startsWith("원가 포함");
+				it.put("nmSpan", Integer.valueOf(1));
+				if (!cost) vis.add(it);
+			}
+			int i = 0;
+			while (i < vis.size()) {
+				String nm = poStr(vis.get(i).get("prodNm")).trim(), mk = poStr(vis.get(i).get("makerNm")).trim();
+				int j = i + 1;
+				while (j < vis.size() && !nm.isEmpty() && nm.equals(poStr(vis.get(j).get("prodNm")).trim()) && mk.equals(poStr(vis.get(j).get("makerNm")).trim())) j++;
+				vis.get(i).put("nmSpan", Integer.valueOf(j - i));
+				for (int k = i + 1; k < j; k++) vis.get(k).put("nmSpan", Integer.valueOf(0));
+				i = j;
+			}
 		}
 		/** 견적서 공유 주소 — 화면이 [💬 카톡]·[🔗 링크]를 누르면 부른다. 토큰을 발급(처음 한 번)하고 공개 주소를 돌려준다 */
 		/* 견적서 진행 상태·일자 (2026-09-29 「제출완료·채택·거절·보류 각 항목에 대한 일자 관리」)

@@ -46,6 +46,9 @@
 -->
 <style>
   :root{ --bd:#dbe2ea; --teal:#137a6c; --bg:#f5f7f9; --red:#c0392b; --amber:#b45309; --blue:#2f4f9a; }
+  /* MOQ 변형 줄 (2026-11-11) — 품명 줄 사이 굵은 선 대신 가는 점선, 잠긴 품명은 회색 */
+  table.g tr.mainln.varln > td{ border-top:1px dashed #7fa89d !important; }
+  table.g tr.mainln.varln input.nm.lock{ background:#f1f4f6; color:#5a6b7a; }
   *{ box-sizing:border-box; }
   html,body{ margin:0; padding:0; }
   body{ font-family:'맑은 고딕','Malgun Gothic',sans-serif; color:#1f2a37; background:var(--bg); font-size:14px; }
@@ -507,6 +510,20 @@ function addCalcLine(){
   if(!l){ l=blank(); _lines.push(l); }
   l.calc=newCalc(); renderLines(); focusLast();
 }
+/* ★MOQ 변형 줄 (2026-11-11 담당자 요청 「1번 품목(아백쉐리 성탄절U봉투)의 MOQ 를 50,000·100,000·200,000 으로 요구 — 품목 추가 말고 MOQ 50,000 아래에 작성」)
+   같은 품명을 <잠근 채> 바로 밑에 줄을 하나 더 두고 MOQ수량·구매단가만 다르게 계산한다(계산 칸은 윗줄 것을 복사해 시작). 품명비(동판·목형)는 품명에 한 번이면 되므로 변형 줄엔 없다.
+   저장은 보통 줄과 같되 calcs[].variant=true 로 표시하고, 품목 줄 차례 = 품명 줄 → 그 MOQ 변형 줄들 → 품명비 서브 줄(payload) → 인쇄·엑셀이 같은 품명을 세로로 합친다(순번 하나).
+   품명을 고치거나 🔍 로 다시 고르면 변형 줄도 따라간다(varSync). 윗줄을 지우면 첫 변형 줄이 품명 줄이 된다(delLine). */
+function addVariant(i){
+  var l=_lines[i]; if(!l) return; var p=i; while(p>0 && _lines[p].variant) p--;
+  var src=_lines[p], j=p+1; while(j<_lines.length && _lines[j].variant) j++;
+  var v=blank(); v.variant=true; v.makerNm=src.makerNm||''; v.prodNm=src.prodNm; v.prodCd=src.prodCd||''; v.spec=l.spec; v.unit=src.unit; v.boxQty=src.boxQty; v.qty=src.qty; v.unitPrice=src.unitPrice; v.unitPrice2=src.unitPrice2;
+  var c=l.calc? JSON.parse(JSON.stringify(l.calc)) : newCalc(); c.extras=[]; c.feeOpen=false; c.open=true; c.buyMemo=''; v.calc=normCalc(c); v.calc.open=true;
+  _lines.splice(j,0,v); renderLines();
+  if(window._toast) _toast('같은 품명의 MOQ 줄을 밑에 추가했습니다 — MOQ수량·구매단가를 넣으세요. 견적서에는 품명이 하나로 합쳐 나갑니다.','ok');
+}
+function varSync(i){ var p=_lines[i]; if(!p||p.variant) return; for(var j=i+1;j<_lines.length&&_lines[j].variant;j++){ _lines[j].prodNm=p.prodNm; _lines[j].prodCd=p.prodCd||''; _lines[j].makerNm=p.makerNm||''; } }
+function delLine(i){ var l=_lines[i]; _lines.splice(i,1); if(l&&!l.variant&&_lines[i]&&_lines[i].variant) _lines[i].variant=false; renderLines(); }
 function focusLast(){ var tb=document.getElementById('lbody'); var last=tb.querySelectorAll('tr.mainln'); var el=last[last.length-1]&&last[last.length-1].querySelector('.nm'); if(el) el.focus(); }
 function renderLines(){
   var h2=use2();
@@ -515,20 +532,23 @@ function renderLines(){
     +(h2?'<th style="width:90px">'+esc(gv('p1')||'단가1')+' 단가</th><th style="width:100px">금액</th><th style="width:90px">'+esc(gv('p2')||'단가2')+' 단가</th><th style="width:100px">금액</th>':'<th style="width:90px">단가</th><th style="width:100px">금액</th>')
     +'<th style="min-width:110px">'+(h2?'비고 (MOQ)':'비고')+'</th></tr>';
   if(!_lines.length) _lines.push(blank());
-  var tb=document.getElementById('lbody'), NC=cols();
+  var tb=document.getElementById('lbody'), NC=cols(), no=0;
+  if(_lines[0]) _lines[0].variant=false;   /* 첫 줄은 변형일 수 없다 */
   tb.innerHTML=_lines.map(function(l,i){
-    ensureFee(l); calcLineSync(l);
+    ensureFee(l); calcLineSync(l); if(!l.variant) no++;
     var amt=Math.round(n(l.qty)*n(l.unitPrice)), amt2=Math.round(n(l.qty)*n(l.unitPrice2));
     var lock=!!(l.calc&&n(l.calc.box)>0), lockTip=' title="마진계산 연결 줄 — Box 1 · 수량 = 박스 입수량(자동)" readonly';
-    var h='<tr class="mainln"><td>'+(i+1)+'</td>'
+    var h='<tr class="mainln'+(l.variant?' varln':'')+'"><td>'+(l.variant?'<span title="위 품명의 MOQ 변형 줄 — 품명은 윗줄과 같고 MOQ수량·단가만 다릅니다" style="color:#0f6b5e;font-weight:800">↳</span>':no)+'</td>'
       +(function(){   /* 🧮 단추 = 계산 유무 표시 (2026-09-18 「펼치지 말고 있다고 표시만 — 사용자가 펼치게」) : 값 든 계산 = 진한 청록 칠 · 빈 계산 = 옅은 칠 · 없음 = 흰 단추 */
         /* ★품명비(동판·목형)만 적어 둔 줄도 «있다»고 보이게 — 옅은 칠 + 굵게 (2026-09-20 「수정 시에는 입력했으면 보이게」) */
         var hasC=l.calc&&calcHasVal(l.calc), hasF=l.calc&&calcHasFee(l.calc);
         return '<td><button class="btn lnk" title="'+(l.calc?(hasC?'저장된 원가·마진 계산 있음 — 누르면 펼침/접힘':(hasF?'품명비(동판·목형)를 적어 둔 줄 — 누르면 펼침/접힘':'원가·마진 계산(빈 칸) 펼침/접힘')):'원가·마진 계산 붙이기')+'"'
           +(l.calc?(hasC?' style="background:#137a6c;border-color:#137a6c;color:#fff"':(hasF?' style="background:#e3f2ee;border-color:#0f6b5e;font-weight:800"':' style="background:#e3f2ee;border-color:#0f6b5e"')):'')
-          +' onclick="calcToggle('+i+')">🧮</button> <button class="btn lnk" title="이 줄 빼기" onclick="_lines.splice('+i+',1); renderLines()">✕</button></td>'; })()
-      +'<td><input type="text" value="'+esc(l.makerNm||'')+'" placeholder="제조사" style="text-align:center" oninput="_lines['+i+'].makerNm=this.value" title="제조사 — 비워도 됩니다"></td>'
-      +'<td><div style="display:flex;gap:4px"><input type="text" class="nm" value="'+esc(l.prodNm)+'" placeholder="품명" oninput="_lines['+i+'].prodNm=this.value"><button class="btn lnk" style="height:30px" onclick="prodOpen('+i+')" title="우리 상품에서 고르기">🔍</button></div>'
+          +' onclick="calcToggle('+i+')">🧮</button> <button class="btn lnk" title="이 줄 빼기" onclick="delLine('+i+')">✕</button></td>'; })()
+      +'<td><input type="text" value="'+esc(l.makerNm||'')+'" placeholder="제조사" style="text-align:center"'+(l.variant?' readonly class="lock" title="윗줄(품명 줄)과 같습니다"':' oninput="_lines['+i+'].makerNm=this.value; varSync('+i+')" title="제조사 — 비워도 됩니다"')+'></td>'
+      +(l.variant
+        ? '<td><div style="display:flex;gap:4px"><input type="text" class="nm lock" value="'+esc(l.prodNm)+'" readonly title="MOQ 변형 줄 — 품명은 윗줄과 같습니다(윗줄에서 고치세요)"></div>'
+        : '<td><div style="display:flex;gap:4px"><input type="text" class="nm" value="'+esc(l.prodNm)+'" placeholder="품명" oninput="_lines['+i+'].prodNm=this.value; varSync('+i+')"><button class="btn lnk" style="height:30px" onclick="prodOpen('+i+')" title="우리 상품에서 고르기">🔍</button></div>')
         +(l.prodCd?'<div style="text-align:left;font-size:11.5px;color:#0f6b5e;font-weight:700;margin-top:2px" title="🔍 로 고른 우리 상품코드 (2026-09-21 「상품코드 있는 것은 보여 주기」)">상품코드 '+esc(l.prodCd)+' <a href="javascript:void(0)" style="color:#8a98a8;font-weight:400;text-decoration:none" title="상품코드 연결 풀기(품명은 그대로)" onclick="_lines['+i+'].prodCd=\'\'; renderLines()">✕</a></div>':'')+'</td>'
       +'<td><input type="text" value="'+esc(l.spec)+'" placeholder="규격 및 재질" oninput="_lines['+i+'].spec=this.value"></td>'
       +'<td><input type="text" class="num'+(lock?' lock':'')+'" id="bv'+i+'" value="'+(n(l.boxQty)?fmt(l.boxQty):'')+'"'+(lock?lockTip:' oninput="_lines['+i+'].boxQty=n(this.value)"')+'></td>'
@@ -547,7 +567,7 @@ function renderLines(){
     /* ★품명비 줄 닫기·열기 (2026-09-23 「동판비·목형비 닫기·열기 — 수정 시 값 없으면 닫힌 채, 있으면 열림 · 품목 추가는 닫힌 채」) —
        상태 = l.calc.feeOpen(화면 전용). 단추 색은 🧮 와 같은 규칙 : 값 있음 = 진한 청록 칠 · 없음 = 흰 단추. 닫혀도 줄은 얇게 남아 단추가 보인다 */
     var fOpen=!!l.calc.feeOpen, fHas=calcHasFee(l.calc);
-    h+='<tr class="crow fee'+(fOpen?'':' feeoff')+'"><td></td><td><button class="btn lnk fee-tg" title="'+(fHas?'품명비(동판·목형) 있음 — ':'품명비(동판·목형) — ')+(fOpen?'누르면 닫기':'누르면 열기')+'"'
+    if(!l.variant) h+='<tr class="crow fee'+(fOpen?'':' feeoff')+'"><td></td><td><button class="btn lnk fee-tg" title="'+(fHas?'품명비(동판·목형) 있음 — ':'품명비(동판·목형) — ')+(fOpen?'누르면 닫기':'누르면 열기')+'"'
       +(fHas?' style="background:#137a6c;border-color:#137a6c;color:#fff"':'')+' onclick="feeToggle('+i+')">'+(fOpen?'▾':'▸')+' 동판,목형</button></td><td></td><td></td><td colspan="'+(NC-4)+'">'
       +(fOpen? feeHtml(l,i) : '<span class="fee-sum" onclick="feeToggle('+i+')">'+feeSum(l.calc)+'</span>')+'</td></tr>';
     if(l.calc&&l.calc.open) h+=calcRowHtml(l,i,NC);   /* 계산 표 + 품명비 한 줄 — 품명 바로 밑(종전 자리) */
@@ -591,7 +611,7 @@ function calcRowHtml(l,i,NC){
     +'<th style="color:#0f6b5e" title="= 품목 줄의 단가(같은 값)">판매적용단가</th><th title="판매 계 = 판매적용단가 × 입수">계</th>'
     +(cs? cenHead(cs,'물류비')+cenHead(cs,'실 판매금액')+cenHead(cs,'실 마진금액')+cenHead(cs,'실 마진율') : '')
     +'</tr></thead><tbody><tr>'
-    +'<td>'+ci('moqQty',c.moqQty,0)+'</td>'   /* 자리표시 팁(MOQ·구매단가·입수·%)은 뺐다 (2026-09-18 「표시 팁 제거」 — 머리글 표가 있어 중복) */
+    +'<td style="white-space:nowrap">'+ci('moqQty',c.moqQty,0)+' <button class="btn lnk" style="height:26px;padding:0 5px;font-weight:800;color:#0f6b5e" onclick="addVariant('+i+')" title="같은 품명으로 MOQ수량만 다른 줄을 바로 밑에 추가 (예: 50,000 · 100,000 · 200,000) — 견적서에는 품명이 하나로 합쳐 나갑니다">＋MOQ</button></td>'   /* 자리표시 팁(MOQ·구매단가·입수·%)은 뺐다 (2026-09-18 「표시 팁 제거」 — 머리글 표가 있어 중복) */
     +'<td style="white-space:nowrap"'+(c.buyMemo?' title="📝 '+esc(c.buyMemo)+'"':'')+'><span style="display:inline-flex;gap:3px;align-items:center">'+ci('buy',c.buy,2,'',74).replace('class="ci"', 'class="ci"'+(c.buyMemo?' title="📝 '+esc(c.buyMemo)+'"':''))
       +'<button class="btn lnk" style="height:26px;padding:0 4px'+(c.buyMemo?';background:#fff3c4;border-color:#e0b000':'')+'" onclick="buyMemoEdit('+i+')" title="'+(c.buyMemo?'메모 : '+esc(c.buyMemo)+' — 누르면 고치기':'배송 단가 메모 적기(근거·조건)')+'">📝</button></span></td>'   /* 배송 단가 메모 · 팁 (2026-11-05) */
     +'<td class="au" id="cF'+i+'" title="단가 × MOQ수량"></td>'
@@ -768,6 +788,7 @@ function prodPick(k){
      ⚠입수량 미등록(pk≤1)만 수량을 안 건드린다(바꿔 넣을 값 자체가 없다). */
   l.prodNm=p.prodNm||''; l.spec=p.spec||''; l.prodCd=p.prodCd||'';
   l.makerNm=p.makerNm||'';   /* 제조사도 상품마스터에서 (2026-09-28) — 그 상품에 제조사가 없으면 빈 칸(직접 적는다) */
+  varSync(i);   /* MOQ 변형 줄도 같은 품명으로 (2026-11-11) */
   var sp=n(p.salePrice), pk=n(p.packQty);
   l.unitPrice=sp;
   if(pk>1){ if(l.calc){ l.calc.box=pk; calcLineSync(l); } else l.qty=pk; }
@@ -1018,7 +1039,7 @@ function loadDoc(seq, copy){
     _delivPrev=delivFromTitle(m.titleTxt); _delivRmk=''; document.getElementById('deliv').value=_delivPrev; delivSync();   /* 저장된 제목 줄의 「(…, 부가세 별도)」에서 배송을 읽는다 */
     var gen={}; if(cj&&cj.genRows) cj.genRows.forEach(function(r){ gen[r]=true; });
     _lines=((j&&j.lines)||[]).filter(function(l){ return !gen[l.rowNo]; }).map(function(l){ return { makerNm:l.makerNm||'', prodNm:l.prodNm, spec:l.spec, boxQty:l.boxQty==null?'':n(l.boxQty), qty:n(l.qty), unit:l.unit||'ea', unitPrice:n(l.unitPrice), unitPrice2:n(l.unitPrice2), remark:l.remark, prodCd:l.prodCd||'', calc:null }; });
-    if(cj&&cj.calcs) cj.calcs.forEach(function(c,idx){ if(c&&_lines[idx]){ _lines[idx].calc=normCalc(c); _lines[idx].calc.open=false; _lines[idx].calc.feeOpen=(c.feeOpen!=null)? !!c.feeOpen : calcHasFee(_lines[idx].calc); } });   /* 저장된 접힘 상태 우선 (2026-11-05) */   /* ★접힌 채 + 🧮 단추 색으로 「있음」 표시만 (2026-09-18 「펼치지 말고 있다고 표시만」 — 같은 날 「다 보이게」를 뒤집음. 펼치기는 🧮) */
+    if(cj&&cj.calcs) cj.calcs.forEach(function(c,idx){ if(c&&_lines[idx]){ _lines[idx].variant=!!c.variant; _lines[idx].calc=normCalc(c); _lines[idx].calc.open=false; _lines[idx].calc.feeOpen=(c.feeOpen!=null)? !!c.feeOpen : calcHasFee(_lines[idx].calc); } });   /* 저장된 접힘 상태 우선 (2026-11-05) */   /* ★접힌 채 + 🧮 단추 색으로 「있음」 표시만 (2026-09-18 「펼치지 말고 있다고 표시만」 — 같은 날 「다 보이게」를 뒤집음. 펼치기는 🧮) */
     if(cj&&cj.set){ _cs.mode=cj.set.mode||'center'; if(cj.set.center) _cs.center=cj.set.center; _cs.fee=n(cj.set.fee); }
     _costRmk='';   /* 저장된 비고에 이미 든 원가 포함 블록은 costRmkSync 가 그대로 알아본다(중복 안 붙음) */
     _lines.forEach(function(l,i){ moqRmkSync(i); });   /* 옛 저장분(비고 빈 채 저장)도 열면 MOQ 가 채워진다 — 다시 저장하면 인쇄·엑셀에도 나간다 (2026-09-18) */
@@ -1038,9 +1059,12 @@ function payload(){
   _lines.forEach(function(l,i){ moqRmkSync(i); });   /* ★저장 직전에도 한 번 — 비고 빈 줄(동판·목형 안 써도)은 MOQ 수량이 반드시 실려 인쇄·엑셀 비고 칸에 나간다 (2026-09-18) */
   var mains=_lines.filter(function(l){ return (l.prodNm||'').trim()||n(l.qty); });
   var lines=[], calcs=[], genRows=[], no=0;
+  /* 품명비 서브 줄은 그 품명의 MOQ 변형 줄들 <뒤>에 붙인다 (2026-11-11) — 인쇄·엑셀이 같은 품명 줄을 잇달아 합치려면 사이에 서브 줄이 끼면 안 된다 */
+  var pend=[]; function flush(){ pend.forEach(function(x){ x.rowNo=++no; lines.push(x); genRows.push(no); }); pend=[]; }
   mains.forEach(function(l){
+    if(!l.variant) flush();
     lines.push({ rowNo:++no, makerNm:l.makerNm||'', prodNm:l.prodNm, spec:l.spec, boxQty:(l.boxQty===''||l.boxQty==null)?null:n(l.boxQty), unit:l.unit, qty:n(l.qty), unitPrice:n(l.unitPrice), amt:Math.round(n(l.qty)*n(l.unitPrice)), unitPrice2:h2?n(l.unitPrice2):null, amt2:h2?Math.round(n(l.qty)*n(l.unitPrice2)):null, remark:l.remark, prodCd:l.prodCd||'' });
-    calcs.push(l.calc? { moqQty:n(l.calc.moqQty), buy:n(l.calc.buy), buyMemo:String(l.calc.buyMemo||''), feeOpen:!!l.calc.feeOpen, box:n(l.calc.box), trans:n(l.calc.trans), store:n(l.calc.store), storeManual:!!l.calc.storeManual,
+    calcs.push(l.calc? { variant:!!l.variant, moqQty:n(l.calc.moqQty), buy:n(l.calc.buy), buyMemo:String(l.calc.buyMemo||''), feeOpen:!!l.calc.feeOpen, box:n(l.calc.box), trans:n(l.calc.trans), store:n(l.calc.store), storeManual:!!l.calc.storeManual,
       storeVal:(l.calc.storeManual? n(l.calc.store) : storeAuto(l.calc)),   /* 조회용 스냅샷 — 보관 기본값 설정이 나중에 바뀌어도 「그때 계산」이 남게 */
       split:n(l.calc.split), pack:n(l.calc.pack), target:n(l.calc.target), tgtAmt:n(l.calc.tgtAmt), lgFee:((l.calc.lgFee===''||l.calc.lgFee==null)?'':n(l.calc.lgFee)), extras:(l.calc.extras||[]).map(function(x){ return { nm:x.nm, qty:n(x.qty), price:n(x.price), use:x.use, hide:!!x.hide }; }) } : null);
     subsOf(l).forEach(function(x){ var amt=Math.round(n(x.qty)*n(x.price)); if(!amt) return;
@@ -1052,11 +1076,12 @@ function payload(){
            「적용 안 함」은 종전대로 줄로 나간다(그 갈래의 뜻이 <줄만 보이기>다). 다시 바꾸자는 얘기가 나오면 이 왕복부터 확인할 것. */
       if(x.use==='cost') return;
       if(x.use==='sub')
-        lines.push({ rowNo:++no, prodNm:x.nm, spec:'', boxQty:null, unit:'ea', qty:n(x.qty), unitPrice:n(x.price), amt:amt, unitPrice2:null, amt2:null, remark:'별도 청구', prodCd:'' });
+        pend.push({ prodNm:x.nm, spec:'', boxQty:null, unit:'ea', qty:n(x.qty), unitPrice:n(x.price), amt:amt, unitPrice2:null, amt2:null, remark:'별도 청구', prodCd:'' });
       else   /* 원가 포함 — 표시용 줄. 단가·금액 0(서버 supplyAmt·인쇄 합산에 안 잡힘 — 0이면 서버가 qty×단가 재계산도 안 한다). 근거 숫자는 견적서 비고 칸에(costRmkSync — 2026-09-18 「견적서 비고 칸에 비고」) */
-        lines.push({ rowNo:++no, prodNm:x.nm, spec:'', boxQty:null, unit:'ea', qty:n(x.qty), unitPrice:0, amt:0, unitPrice2:null, amt2:null, remark:(x.use==='cost'?'원가 포함 (단가에 반영)':'적용 안 함 (합계·원가 제외)'), prodCd:'' });
-      genRows.push(no); });
+        pend.push({ prodNm:x.nm, spec:'', boxQty:null, unit:'ea', qty:n(x.qty), unitPrice:0, amt:0, unitPrice2:null, amt2:null, remark:(x.use==='cost'?'원가 포함 (단가에 반영)':'적용 안 함 (합계·원가 제외)'), prodCd:'' });
+      });
   });
+  flush();
   /* ★양식2 인데 둘째 단가를 한 줄도 안 넣었으면 묶음 하나로 저장 (2026-09-17 「없으면 출력하지 말고 선택한 내용만」 — 인쇄·엑셀·목록이 전부 따라온다) */
   var real2 = h2 && lines.some(function(l){ return n(l.unitPrice2)>0; });
   if(h2 && !real2) lines.forEach(function(l){ l.unitPrice2=null; l.amt2=null; });

@@ -1303,11 +1303,16 @@ public class UserServiceImpl implements UserService {
 					cNo = cName; cName = cName + 1;
 				}
 			}
+			/* ★같은 품명 잇단 줄(MOQ 변형 — 2026-11-11) = 한 묶음 : 순번은 묶음마다, 품명·순번 칸은 세로 병합(인쇄 quoteNmSpan 과 같은 판정 — 품명·제조사 같음) */
+			int[] grpSpan = new int[lines.size()], grpNo = new int[lines.size()];
+			{ int gi = 0, gno = 0; while (gi < lines.size()) { String nm = scStr(lines.get(gi).get("prodNm")).trim(), mk = scStr(lines.get(gi).get("makerNm")).trim(); int gj = gi + 1;
+				while (gj < lines.size() && !nm.isEmpty() && nm.equals(scStr(lines.get(gj).get("prodNm")).trim()) && mk.equals(scStr(lines.get(gj).get("makerNm")).trim())) gj++;
+				gno++; grpSpan[gi] = gj - gi; grpNo[gi] = gno; for (int k = gi + 1; k < gj; k++) { grpSpan[k] = 0; grpNo[k] = 0; } gi = gj; } }
 			for (int i = 0; i < Math.max(need, tplRows); i++) {
 				org.apache.poi.ss.usermodel.Row row = sh.getRow(start + i); if (row == null) row = sh.createRow(start + i);
 				java.util.Map<String,Object> l = i < lines.size() ? lines.get(i) : null;
-				if (cNo >= 0) qzNumSet(row, cNo, l == null ? null : Integer.valueOf(i + 1));   /* 순번 (2026-09-29) */
-				qzSet(row, cName, l == null ? "" : scStr(l.get("prodNm")));
+				if (cNo >= 0) qzNumSet(row, cNo, (l == null || grpNo[i] == 0) ? null : Integer.valueOf(grpNo[i]));   /* 순번 (2026-09-29) — 묶음마다 (2026-11-11) */
+				qzSet(row, cName, (l == null || grpSpan[i] == 0) ? "" : scStr(l.get("prodNm")));
 				if (cSpec >= 0) qzSet(row, cSpec, l == null ? "" : scStr(l.get("spec")));
 				if (cMaker >= 0) qzSet(row, cMaker, l == null ? "" : scStr(l.get("makerNm")));
 				qzNumSet(row, cUnit, l == null ? null : l.get("boxQty"));
@@ -1320,6 +1325,10 @@ public class UserServiceImpl implements UserService {
 					qzNumSet(row, cP2, (p2 == null || scNum(p2) == 0) ? null : p2); qzNumSet(row, cA2, (a2 == null || scNum(a2) == 0) ? null : a2);
 				}
 				if (cRmk >= 0) qzSet(row, cRmk, l == null ? "" : scStr(l.get("remark")));
+			}
+			for (int i = 0; i < lines.size(); i++) if (grpSpan[i] > 1) {   /* 세로 병합 — 양식 칸이 가로 병합돼 겹치면(POI 가 막음) 병합만 건너뛴다(품명은 첫 줄에만 적혀 있다) */
+				try { sh.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(start + i, start + i + grpSpan[i] - 1, cName, cName)); } catch (Exception e) { LOGGER.error(" buildQuoteXls 품명 병합 WARN : " + e.getMessage()); }
+				if (cNo >= 0) try { sh.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(start + i, start + i + grpSpan[i] - 1, cNo, cNo)); } catch (Exception e) { LOGGER.error(" buildQuoteXls 순번 병합 WARN : " + e.getMessage()); }
 			}
 			int rr = start + Math.max(need, tplRows);
 			org.apache.poi.ss.usermodel.Row rrow = sh.getRow(rr);

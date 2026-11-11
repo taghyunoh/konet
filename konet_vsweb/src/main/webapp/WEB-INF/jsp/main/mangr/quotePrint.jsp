@@ -135,8 +135,9 @@
       <%-- 원가 포함 품명비 줄은 건너뛴다 (2026-09-28) — 위 nSkip 과 <글자 하나까지 같은 판정>이어야 한다(다르면 빈 줄 수가 어긋난다) --%>
       <c:set var="isCost" value="${(empty it.unitPrice or it.unitPrice le 0) and (empty it.amt or it.amt le 0) and fn:startsWith(it.remark, '원가 포함')}"/>
       <c:if test="${not isCost}">
-      <c:set var="rn" value="${rn + 1}"/>
-      <tr><td class="c">${rn}</td><td class="l wrap"><div class="tx">${it.prodNm}</div></td><td class="l wrap"><div class="tx">${it.spec}</div></td>
+      <%-- ★같은 품명이 잇달아 있으면(MOQ 변형 줄 — 2026-11-11) 순번·품명 칸을 세로로 합친다 : 컨트롤러 quoteNmSpan 이 첫 줄에 nmSpan=줄 수, 나머지 0 --%>
+      <c:if test="${it.nmSpan != 0}"><c:set var="rn" value="${rn + 1}"/></c:if>
+      <tr><c:if test="${it.nmSpan != 0}"><td class="c" rowspan="${it.nmSpan}">${rn}</td><td class="l wrap" rowspan="${it.nmSpan}"><div class="tx">${it.prodNm}</div></td></c:if><td class="l wrap"><div class="tx">${it.spec}</div></td>
           <td class="c"><c:if test="${not empty it.boxQty}"><fmt:formatNumber value="${it.boxQty}" pattern="#,##0.##"/></c:if></td>
           <td class="r"><fmt:formatNumber value="${it.qty}" pattern="#,##0.##"/></td>
           <%-- 단가·금액 0 은 빈칸 (2026-09-18) — 원가 포함 품명비 줄(단가에 이미 반영·비고에 근거)이 0 으로 찍히지 않게 --%>
