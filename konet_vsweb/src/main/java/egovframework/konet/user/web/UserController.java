@@ -3733,6 +3733,9 @@ public class UserController {
 				String u = String.valueOf(session.getAttribute("s_user_id"));
 				dto.setRegUser(u); dto.setUpdUser(u);
 				dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());
+				/* ★담당자 = 저장하는 로그인 사용자 (2026-11-11 사용자 「로그인 사용자로 바꿔줘요」) — 새 전표는 세션 사용자, 고치는 전표는 null 로 넘겨 매퍼 ISNULL 이 원래 담당자를 지킨다.
+				   화면이 보낸 담당자(거래처 담당자였던 값)는 쓰지 않는다 — 저장 길이 여럿(명세·일괄·카톡·엑셀 업로드)이라 관문에서 정한다. */
+				if (dto.getPurchSeq() == null || dto.getPurchSeq() <= 0) { dto.setMgrCd(u); dto.setMgrNm(empUserNm(session)); } else { dto.setMgrCd(null); dto.setMgrNm(null); }
 				int n = svc.savePurchase(dto);
 				return ResponseEntity.ok("{\"rows\":" + n + ",\"purchSeq\":" + dto.getPurchSeq() + ",\"purchNo\":\"" + dto.getPurchNo() + "\"}");
 			} catch (Exception e) { log.error(" purchaseSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
@@ -4346,6 +4349,9 @@ public class UserController {
 				String u = (session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"");
 				dto.setRegUser(u); dto.setUpdUser(u);
 				dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());
+				/* ★담당자 = 저장하는 로그인 사용자 (2026-11-11 사용자 「로그인 사용자로 바꿔줘요」) — 새 전표는 세션 사용자, 고치는 전표는 null 로 넘겨 매퍼 ISNULL 이 원래 담당자를 지킨다.
+				   화면이 보낸 담당자(거래처 담당자였던 값)는 쓰지 않는다 — 저장 길이 여럿(명세·일괄·카톡·엑셀 업로드)이라 관문에서 정한다. */
+				if (dto.getSaleSeq() == null || dto.getSaleSeq() <= 0) { dto.setMgrCd(u); dto.setMgrNm(empUserNm(session)); } else { dto.setMgrCd(null); dto.setMgrNm(null); }
 				int n = svc.saveSalesTrx(dto);
 				return ResponseEntity.ok("{\"rows\":" + n + ",\"saleSeq\":" + dto.getSaleSeq() + ",\"saleNo\":\"" + dto.getSaleNo() + "\"}");
 			} catch (Exception e) { log.error(" salesTrxSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
@@ -4546,6 +4552,9 @@ public class UserController {
 				String u = (session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"");
 				dto.setRegUser(u); dto.setUpdUser(u);
 				dto.setRegIp(request.getRemoteAddr()); dto.setUpdIp(request.getRemoteAddr());
+				/* ★담당자 = 저장하는 로그인 사용자 (2026-11-11 사용자 「로그인 사용자로 바꿔줘요」) — 새 전표는 세션 사용자, 고치는 전표는 null 로 넘겨 매퍼 ISNULL 이 원래 담당자를 지킨다.
+				   화면이 보낸 담당자(거래처 담당자였던 값)는 쓰지 않는다 — 저장 길이 여럿(명세·일괄·카톡·엑셀 업로드)이라 관문에서 정한다. */
+				if (dto.getTrxSeq() == null || dto.getTrxSeq() <= 0) { dto.setMgrCd(u); dto.setMgrNm(empUserNm(session)); } else { dto.setMgrCd(null); dto.setMgrNm(null); }
 				int n = (dto.getTrxSeq()==null || dto.getTrxSeq()<=0) ? svc.insertSettleTrx(dto) : svc.updateSettleTrx(dto);
 				return ResponseEntity.ok("{\"rows\":" + n + ",\"trxSeq\":" + dto.getTrxSeq() + ",\"trxNo\":\"" + dto.getTrxNo() + "\"}");
 			} catch (Exception e) { log.error(" settleSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }

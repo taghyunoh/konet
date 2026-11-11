@@ -332,7 +332,7 @@ function swConfirm(m, okText){
   _vendorPick(document.getElementById('svCustNm'), {
     list   : function(){ return _vendors; },
     onPick : function(o){ svCustPick(o.vendorCd); },
-    onClear: function(){ document.getElementById('svMgrNm').value=''; document.getElementById('svMgrNm').dataset.cd=''; svBal(''); svLedger(''); }
+    onClear: function(){ svMgrMe(); svBal(''); svLedger(''); }
   });
 })();
 
@@ -340,7 +340,7 @@ function swConfirm(m, okText){
 function svNew(){
   _cur = null; _curNet = 0;
   document.getElementById('svCustNm').value=''; document.getElementById('svCustNm').dataset.cd='';
-  document.getElementById('svMgrNm').value=''; document.getElementById('svMgrNm').dataset.cd='';
+  svMgrMe();
   document.getElementById('svAmt').value='0'; document.getElementById('svDc').value='0';
   document.getElementById('svRemark').value='';
   _balNow = 0;
@@ -514,7 +514,7 @@ function svPickCust(i){
   var o=_list[i]; if(!o) return;
   _cur = null; _curNet = 0;
   var c=document.getElementById('svCustNm'); c.value=o.custNm||''; c.dataset.cd=o.custCd||'';
-  var m=document.getElementById('svMgrNm'); m.value=o.mgrNm||''; m.dataset.cd=o.mgrCd||'';
+  svMgrMe();   /* 복사 = 새 전표 → 로그인 사용자 */
   document.getElementById('svDt').value = today();
   document.getElementById('svAmt').value='0'; document.getElementById('svDc').value='0';
   document.getElementById('svRemark').value='';
@@ -571,10 +571,11 @@ function svCustRender(){
          + '<td>'+esc(o.alias)+'</td><td>'+esc(o.ceoNm)+'</td><td>'+esc(o.mgrNm)+'</td></tr>';
   }).join('') : '<tr><td colspan="6" class="sv-msg">'+(_venAll?'검색 결과가 없습니다.':'매입 거래처 중에는 없습니다 — [전체]를 켜면 매출 거래처까지 보입니다.')+'</td></tr>';
 }
+/* 담당자 = 저장하는 로그인 사용자 (2026-11-11 사용자 「로그인 사용자로 바꿔줘요」) — 거래처 담당자는 더 이상 안 옮긴다. 서버(save 관문)가 새 전표엔 로그인 사용자를, 고친 전표엔 원래 담당자를 지킨다 */
+function svMgrMe(){ var m=document.getElementById('svMgrNm'); m.value='${sessionScope.s_user_nm}'; m.dataset.cd='${sessionScope.s_user_id}'; }
 function svCustPick(cd){
   var o=_vendors.filter(function(x){ return String(x.vendorCd)===String(cd); })[0]; if(!o) return;
   var c=document.getElementById('svCustNm'); c.value=o.vendorNm||''; c.dataset.cd=o.vendorCd||'';
-  var m=document.getElementById('svMgrNm'); m.value=o.mgrNm||''; m.dataset.cd=o.mgrCd||'';
   svCustClose(); svBal(o.vendorCd); svLedger(o.vendorCd);
   svFocusAmt();                     // 거래처를 고르면 곧바로 금액 입력으로(2026-08-04)
 }

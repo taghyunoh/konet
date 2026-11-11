@@ -4966,7 +4966,7 @@
 	  UPDATE TBL_PURCHASE_MST
 	     SET PURCH_DT = REPLACE(ISNULL(#{purchDt,jdbcType=VARCHAR},''),'-',''),
 	         VENDOR_CD = #{vendorCd,jdbcType=VARCHAR}, VENDOR_NM = #{vendorNm,jdbcType=NVARCHAR},
-	         MGR_CD = #{mgrCd,jdbcType=VARCHAR}, MGR_NM = #{mgrNm,jdbcType=NVARCHAR},
+	         MGR_CD = ISNULL(#{mgrCd,jdbcType=VARCHAR}, MGR_CD), MGR_NM = ISNULL(#{mgrNm,jdbcType=NVARCHAR}, MGR_NM),   /* 담당자 = 처음 저장한 로그인 사용자 — 고칠 때 null 로 와서 그대로 (2026-11-11) */
 	         WH_CD = #{whCd,jdbcType=VARCHAR}, WH_NM = #{whNm,jdbcType=NVARCHAR},
 	         TOT_BOX_QTY = #{totBoxQty,jdbcType=DECIMAL}, TOT_EA_QTY = #{totEaQty,jdbcType=DECIMAL},
 	         TOT_QTY = #{totQty,jdbcType=DECIMAL}, SUPPLY_AMT = #{supplyAmt,jdbcType=DECIMAL},
@@ -5218,7 +5218,7 @@
 	     SET TRX_DT = REPLACE(ISNULL(#{trxDt,jdbcType=VARCHAR},''),'-',''),
 	         PAY_GB = #{payGb,jdbcType=VARCHAR}, ACCT_CD = #{acctCd,jdbcType=VARCHAR}, ACCT_NM = #{acctNm,jdbcType=NVARCHAR},
 	         CUST_CD = #{custCd,jdbcType=VARCHAR}, CUST_NM = #{custNm,jdbcType=NVARCHAR},
-	         MGR_CD = #{mgrCd,jdbcType=VARCHAR}, MGR_NM = #{mgrNm,jdbcType=NVARCHAR},
+	         MGR_CD = ISNULL(#{mgrCd,jdbcType=VARCHAR}, MGR_CD), MGR_NM = ISNULL(#{mgrNm,jdbcType=NVARCHAR}, MGR_NM),   /* 담당자 = 처음 저장한 로그인 사용자 — 고칠 때 null 로 와서 그대로 (2026-11-11) */
 	         AMT = #{amt,jdbcType=DECIMAL}, DC_AMT = #{dcAmt,jdbcType=DECIMAL},
 	         SALE_DC_AMT = #{saleDcAmt,jdbcType=DECIMAL}, TOT_AMT = #{totAmt,jdbcType=DECIMAL},
 	         REMARK = #{remark,jdbcType=NVARCHAR},
@@ -5819,13 +5819,13 @@
 	<!-- 종합실적 담당사원 목록 (2026-11-11 사용자 「K002·K003·admin 이 내용으로 적용」) — <직원>(TBL_USER_MST 활성 계정, 아이디마다 최근 1줄)이 기준.
 	     전표에 직원 아이디가 아닌 코드(옛 거래처 담당자코드 001 김동근 …)가 남아 있으면 그것도 뒤에 붙여 고를 수 있게 한다(화면이 「옛 코드」 표시). -->
 	<select id="selectPerfMgrList" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
-	  SELECT u.userId AS mgrCd, u.userNm AS mgrNm, 'U' AS kind
+	  SELECT u.userId AS mgrCd, u.userNm AS mgrNm, 'U' AS kind, 0 AS ord
 	    FROM ( SELECT LTRIM(RTRIM(A.USER_ID)) AS userId, ISNULL(A.USER_NM,'') AS userNm, ISNULL(A.USE_YN,'Y') AS useYn,
 	                  ROW_NUMBER() OVER (PARTITION BY LTRIM(RTRIM(A.USER_ID)) ORDER BY A.START_DT DESC, A.JOB_SEQ DESC) AS rn
 	             FROM TBL_USER_MST A WHERE A.COMP_CD = #{compCd,jdbcType=VARCHAR} AND A.ACTION_YN = 'Y' ) u
 	   WHERE u.rn = 1 AND u.useYn <> 'N'
 	  UNION ALL
-	  SELECT x.mgrCd, MAX(x.mgrNm), 'O'
+	  SELECT x.mgrCd, MAX(x.mgrNm), 'O', 1
 	    FROM ( SELECT MGR_CD AS mgrCd, MGR_NM AS mgrNm FROM TBL_SALES_TRX_MST WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
 	           UNION ALL SELECT MGR_CD, MGR_NM FROM TBL_PURCHASE_MST  WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
 	           UNION ALL SELECT MGR_CD, MGR_NM FROM TBL_SETTLE_TRX    WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
@@ -5833,7 +5833,7 @@
 	   WHERE ISNULL(x.mgrCd,'') <> ''
 	     AND x.mgrCd NOT IN ( SELECT LTRIM(RTRIM(USER_ID)) FROM TBL_USER_MST WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y' )
 	   GROUP BY x.mgrCd
-	   ORDER BY CASE kind WHEN 'U' THEN 0 ELSE 1 END, mgrCd   /* 직원 먼저, 옛 코드는 뒤에 */
+	   ORDER BY ord, mgrCd   /* 직원(0) 먼저, 옛 코드(1)는 뒤에 — UNION 의 ORDER BY 는 선택 목록의 열만 쓸 수 있어 CASE 대신 ord 열 */
 	]]></select>
 
 
@@ -5968,7 +5968,7 @@
 	     SET SALE_DT = REPLACE(ISNULL(#{saleDt,jdbcType=VARCHAR},''),'-',''),
 	         DLV_DT = NULLIF(REPLACE(ISNULL(#{dlvDt,jdbcType=VARCHAR},''),'-',''),''),
 	         CUST_CD = #{custCd,jdbcType=VARCHAR}, CUST_NM = #{custNm,jdbcType=NVARCHAR},
-	         MGR_CD = #{mgrCd,jdbcType=VARCHAR}, MGR_NM = #{mgrNm,jdbcType=NVARCHAR},
+	         MGR_CD = ISNULL(#{mgrCd,jdbcType=VARCHAR}, MGR_CD), MGR_NM = ISNULL(#{mgrNm,jdbcType=NVARCHAR}, MGR_NM),   /* 담당자 = 처음 저장한 로그인 사용자 — 고칠 때 null 로 와서 그대로 (2026-11-11) */
 	         WH_CD = #{whCd,jdbcType=VARCHAR}, WH_NM = #{whNm,jdbcType=NVARCHAR},
 	         TOT_BOX_QTY = #{totBoxQty,jdbcType=DECIMAL}, TOT_EA_QTY = #{totEaQty,jdbcType=DECIMAL},
 	         TOT_QTY = #{totQty,jdbcType=DECIMAL}, SUPPLY_AMT = #{supplyAmt,jdbcType=DECIMAL},

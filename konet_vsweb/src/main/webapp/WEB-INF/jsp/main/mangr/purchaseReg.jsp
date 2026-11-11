@@ -823,7 +823,7 @@ function post(url, body, isJson){
     list   : function(){ return _vendors.filter(puVenFit); },   // 거래유형 필터(＋신규/전체 버튼과 같은 기준)
     rank   : function(o){ return (_venSum[o.vendorCd]||{}).p||0; },   // 총매입 많은 순 — [거래처] 팝업과 같은 기준(2026-08-05)
     onPick : function(o){ puVenPick(o.vendorCd); },
-    onClear: function(){ puVenVat(null); document.getElementById('puMgrNm').value=''; document.getElementById('puMgrNm').dataset.cd=''; puVenBal(''); }
+    onClear: function(){ puVenVat(null); puMgrMe(); puVenBal(''); }
   });
 })();
 
@@ -990,7 +990,7 @@ function puNew(){
   _cur = null; _curNet = 0; _rows = []; _rtRefClosed='';
   var ub=document.getElementById('puUndoBtn'); if(ub) ub.style.display='none';   /* 신규 전표엔 원위치할 반품이 없다 */
   document.getElementById('puVenNm').value=''; document.getElementById('puVenNm').dataset.cd='';
-  document.getElementById('puMgrNm').value=''; document.getElementById('puMgrNm').dataset.cd='';
+  puMgrMe();
   document.getElementById('puRemark').value=''; document.getElementById('puPayAmt').value='0'; document.getElementById('puDcAmt').value='0';
   document.getElementById('puState').textContent = '신규 전표';
   for (var i=0;i<5;i++) _rows.push(emptyRow());
@@ -1220,6 +1220,8 @@ function puSet(i, k, v){
   if (i === _rows.length-1 && o.prodCd) puEnsureTail();   // 마지막 줄을 쓰면 새 줄 자동 추가(그 줄이 보이게)
   puRender();
 }
+/* 담당자 = 저장하는 로그인 사용자 (2026-11-11 사용자 「로그인 사용자로 바꿔줘요」) — 거래처 담당자는 더 이상 안 옮긴다. 서버(save 관문)가 새 전표엔 로그인 사용자를, 고친 전표엔 원래 담당자를 지킨다 */
+function puMgrMe(){ var m=document.getElementById('puMgrNm'); m.value='${sessionScope.s_user_nm}'; m.dataset.cd='${sessionScope.s_user_id}'; }
 function puCalcRow(o){
   o.boxQty = Math.abs(n(o.boxQty)); o.eaQty = Math.abs(n(o.eaQty));   // 어느 길로 들어와도 수량은 양수 — 반품은 trxGb 로만 (2026-09-05)
   o.qty = n(o.boxQty) * (n(o.packQty)||1) + n(o.eaQty);
@@ -1662,7 +1664,6 @@ function puCopyPick(cd){
     document.getElementById('puDt').value = dt;
     if (ven) {
       var v = document.getElementById('puVenNm'); v.value = ven.vendorNm||''; v.dataset.cd = ven.vendorCd||'';
-      var m = document.getElementById('puMgrNm'); m.value = ven.mgrNm||''; m.dataset.cd = ven.mgrCd||'';
       puVenBal(ven.vendorCd);         // 바뀐 거래처의 현잔고·원장으로 갱신
     }
     document.getElementById('puState').textContent =
@@ -1748,7 +1749,6 @@ function puVenRender(){
 function puVenPick(cd){
   var o = _vendors.filter(function(x){ return String(x.vendorCd)===String(cd); })[0]; if(!o) return;
   var v = document.getElementById('puVenNm'); v.value = o.vendorNm||''; v.dataset.cd = o.vendorCd||'';
-  var m = document.getElementById('puMgrNm'); m.value = o.mgrNm||''; m.dataset.cd = o.mgrCd||'';
   puVenVat(o);
   puVenClose(); puVenBal(o.vendorCd);
 }
@@ -2782,7 +2782,6 @@ function puDayApply(){
     }
     puNew();
     var v = document.getElementById('puVenNm'); v.value = ven.nm; v.dataset.cd = ven.cd;
-    var m = document.getElementById('puMgrNm'); m.value = ven.mgrNm; m.dataset.cd = ven.mgrCd;
     document.getElementById('puDt').value = fmtDt(_dayDt);
     var rows = [];
     _day.forEach(function(o){

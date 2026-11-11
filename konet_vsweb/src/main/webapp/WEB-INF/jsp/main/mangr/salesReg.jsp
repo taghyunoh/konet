@@ -1173,7 +1173,7 @@ function saClosedAsk(dts, what){
     list   : function(){ return _vendors.filter(saVenFit); },   // 거래유형 필터(＋신규/전체 버튼과 같은 기준)
     rank   : function(o){ return (_venSum[o.vendorCd]||{}).s||0; },   // 총판매(정산서+판매전표) 많은 순 — [거래처] 팝업과 같은 기준(2026-08-05)
     onPick : function(o){ saVenPick(o.vendorCd); },
-    onClear: function(){ saVenVat(null); document.getElementById('saMgrNm').value=''; document.getElementById('saMgrNm').dataset.cd=''; saVenBal(''); saXrefLoad(''); }
+    onClear: function(){ saVenVat(null); saMgrMe(); saVenBal(''); saXrefLoad(''); }
   });
 })();
 
@@ -1348,7 +1348,7 @@ function saNew(){
   _shareUrl = '';                 /* 전표가 바뀌면 공개 주소도 다시 받는다 (2026-09-09) */
   _xrefNm = {};                       // 거래처가 비워지므로 그 거래처 표기표도 비운다
   document.getElementById('saVenNm').value=''; document.getElementById('saVenNm').dataset.cd='';
-  document.getElementById('saMgrNm').value=''; document.getElementById('saMgrNm').dataset.cd='';
+  saMgrMe();
   document.getElementById('saRemark').value=''; document.getElementById('saPayAmt').value='0'; document.getElementById('saDcAmt').value='0';
   document.getElementById('saDlvDt').value='';
   document.getElementById('saState').textContent = '신규 전표';
@@ -1547,6 +1547,8 @@ function saSet(i, k, v){
   if (i === _rows.length-1 && o.prodCd) saEnsureTail();   // 마지막 줄을 쓰면 새 줄 자동 추가(그 줄이 보이게)
   saRender();
 }
+/* 담당자 = 저장하는 로그인 사용자 (2026-11-11 사용자 「로그인 사용자로 바꿔줘요」) — 거래처 담당자는 더 이상 안 옮긴다. 서버(save 관문)가 새 전표엔 로그인 사용자를, 고친 전표엔 원래 담당자를 지킨다 */
+function saMgrMe(){ var m=document.getElementById('saMgrNm'); m.value='${sessionScope.s_user_nm}'; m.dataset.cd='${sessionScope.s_user_id}'; }
 function saCalcRow(o){
   o.boxQty = Math.abs(n(o.boxQty)); o.eaQty = Math.abs(n(o.eaQty));   // 어느 길로 들어와도 수량은 양수 — 반품은 trxGb 로만 (2026-09-05)
   /* ★합계수량 = BOX × 입수 + EA (2026-09-10 — 매입등록 puCalcRow 와 같은 식). 입수가 0·빈값이면 1.
@@ -1957,7 +1959,6 @@ function saCopyPick(cd){
     document.getElementById('saDlvDt').value = '';
     if (ven) {
       var v = document.getElementById('saVenNm'); v.value = ven.vendorNm||''; v.dataset.cd = ven.vendorCd||'';
-      var m = document.getElementById('saMgrNm'); m.value = ven.mgrNm||''; m.dataset.cd = ven.mgrCd||'';
       saVenBal(ven.vendorCd);         // 바뀐 거래처의 현잔고·원장으로 갱신
     }
     document.getElementById('saState').textContent =
@@ -2042,7 +2043,6 @@ function saVenPick(cd){
   /* 📥 엑셀 업로드 창의 거래처 칸에서 열었으면 그 묶음(같은 이름 전부)에 넣고 끝 (2026-11-06) */
   if (_xu.venTarget != null) { var xg=_xu.venTarget; _xu.venTarget=null; saVenClose(); xuSetVen(xg, o); return; }
   var v = document.getElementById('saVenNm'); v.value = o.vendorNm||''; v.dataset.cd = o.vendorCd||'';
-  var m = document.getElementById('saMgrNm'); m.value = o.mgrNm||''; m.dataset.cd = o.mgrCd||'';
   saVenVat(o);
   saVenClose(); saVenBal(o.vendorCd); saXrefLoad(o.vendorCd);
 }
@@ -3154,7 +3154,6 @@ function saDayApply(){
     }
     saNew();                                   // 새 전표로 시작(수정 중이던 전표는 놓아준다)
     var v = document.getElementById('saVenNm'); v.value = ven.nm; v.dataset.cd = ven.cd;
-    var m = document.getElementById('saMgrNm'); m.value = ven.mgrNm; m.dataset.cd = ven.mgrCd;
     document.getElementById('saDt').value = fmtDt(_dayDt);
     var rows = [];
     _day.forEach(function(o){
