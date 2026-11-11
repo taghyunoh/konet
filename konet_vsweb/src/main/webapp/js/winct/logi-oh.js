@@ -5162,7 +5162,7 @@ function ssOutQty(o){
     var eA=0; G.forEach(function(g){ eA+=(+g.eAmt||0); });   // 정산서 안 온 출고의 추정매출 합
     sum.innerHTML=_ohSrcChip()+'출고장 <b>'+G.length+'</b>곳 · 출고내역 <b>'+_ohShip.length.toLocaleString()+'</b>행/<b>'+_ohQ(oQ)+'</b>'
       +' · 정산 <b>'+_ohSales.length.toLocaleString()+'</b>행/<b>'+_ohQ(sQ)+'</b>'
-      +' · <span style="color:#137a6c">정산금액 <b>'+_cnum(sA+eA)+'</b></span>'
+      +' · <span style="color:#137a6c">정산금액 <b>'+_cnum(sA+eA)+'</b></span> '+_ohVatTxt(sA+eA)
       +(eA?' <span style="color:#a85700" title="정산서가 아직 안 온 출고를 판매단가(마감관리와 같은 규칙)로 채운 금액입니다.">(정산 '+_cnum(sA)+' + 추정 '+_cnum(eA)+')</span>':'')
       +(tRows ? ' · <span style="color:#1a73c7;font-weight:700" title="판매등록 전표 + 발주 등록(대상·토더·동원홈푸드)으로 들어온 매출(2026-10-31). 출고장 대사 대상이 아니라 수량차이 계산에서 빠집니다.">직접판매 '+tRows.toLocaleString()+'행/'+_cnum(tA)+'</span>' : '')
       +(Math.abs(gapQ)>1e-6 ? ' · <span class="oh-gap">수량차이 '+_ohQ(gapQ)+'</span>' : ' · <span class="oh-ok">수량 일치</span>')
@@ -5565,7 +5565,7 @@ function ssOutQty(o){
     var _setAmtG = function(g){ var s=0; g.itemOrd.forEach(function(k){ s+=_setAmt(g.items[k]); }); return s; };
     var _amtCell = function(v, bold){
       return '<td style="text-align:right;'+(bold?'font-weight:800;':'font-weight:700;')+'color:#137a6c"'
-           + ' title="정산서 원본 금액(SALE_AMT) 합계">'+_cnum(v)+'</td>';
+           + ' title="정산서 원본 금액(SALE_AMT) 합계 — 부가세 포함&#10;공급가 '+_cnum(_ohVat(v).sup)+' · 부가세 '+_cnum(_ohVat(v).vat)+' (÷1.1 환산)">'+_cnum(v)+'</td>';
     };
     /* ── 납품일자 (2026-08-02 요청) ──────────────────────────────────────────
        기간을 며칠로 잡으면 이 표가 기간 전체를 합산해서, 한 줄이 22일 것인지 27일 것인지 알 수 없었다.
@@ -5611,7 +5611,7 @@ function ssOutQty(o){
     h+='<tr class="close-total"><td colspan="3">■ 총합계'+dBtn+'</td>'
       +'<td style="text-align:right">'+_ohQ(oQ)+'</td><td style="text-align:right">'+_ohQ(sQ)+'</td>'
       +'<td style="text-align:right">'+_ohQ(sQ-oQ)+'</td><td></td>'
-      +_amtCell(TA,true)+'</tr>';
+      +_amtCell(TA,true).replace('</td>', '<br><span style="font-weight:400;font-size:11.5px">'+_ohVatTxt(TA)+'</span></td>')+'</tr>';
     /* ══ [일자별로 나누기] 켜짐 = 날짜를 맨 위 그룹으로 (2026-08-02 사용자 확정) ══
          납품일자 ▸ 출고장 ▸ 품목. 물류센터 묶음(🗂️) 단계는 이 모드에서 뺀다 —
          날짜까지 넣어 4단이 되면 접었다 펴는 것만으로 지쳐서 못 쓴다.
@@ -5744,17 +5744,22 @@ function ssOutQty(o){
        ★출고수량 소계는 '행별 값의 합'이 아니라 '대사키 distinct 합'이다.
          정산서 2행이 같은 (납기일자·출고장·품목)이면 두 행 모두 같은 출고합계를 표시하므로
          그대로 더하면 이중계상된다. used 로 키당 1회만 더한다. */
+  /* 공급가·부가세 환산 (2026-11-11 사용자 「정산서 금액은 부가세 포함 맞음, 매출내역에도 환산 붙여줘요」) —
+     정산서 엑셀에는 세액 칸이 없어 금액 ÷ 1.1(반올림)을 공급가, 나머지를 부가세로 본다. 종합 실적 상세(perfSummary.jsp psNorm)와 같은 규칙. */
+  function _ohVat(a){ a=(+a||0); var sup=Math.round(a/1.1); return { sup:sup, vat:a-sup }; }
+  function _ohVatCells(a, bold){ var v=_ohVat(a), st='text-align:right;color:#6b7a89'+(bold?';font-weight:700':''); return '<td style="'+st+'" title="공급가 — 정산금액 ÷ 1.1 환산">'+_cnum(v.sup)+'</td><td style="'+st+'" title="부가세 — 정산금액 − 공급가(환산)">'+_cnum(v.vat)+'</td>'; }
+  function _ohVatTxt(a){ var v=_ohVat(a); return '<span style="color:#6b7a89" title="정산서 금액은 부가세 포함 — ÷1.1 환산">(공급가 '+_cnum(v.sup)+' · 부가세 '+_cnum(v.vat)+')</span>'; }
   function _ohRenderSettle(wrap, sQ, sA){
     var idx=_ohIndex(_ohShip, ssOutQty);   // ★출고수량 = 라벨수량(2026-09-01)
     var h='<table class="logi-tb"><thead><tr><th>납품일자</th><th>출고장</th><th>발주번호</th><th>항번</th><th>품목코드</th><th>품목명</th>'
         +'<th style="text-align:right">발주량</th><th style="text-align:right">정산수량</th>'
         +'<th style="text-align:right">출고수량</th>'
-        +'<th style="text-align:right">판매단가</th><th style="text-align:right">정산금액</th><th>원본파일</th></tr></thead><tbody>';
+        +'<th style="text-align:right">판매단가</th><th style="text-align:right" title="정산금액 ÷ 1.1 (정산서 금액은 부가세 포함)">공급가</th><th style="text-align:right" title="정산금액 − 공급가">부가세</th><th style="text-align:right">정산금액</th><th>원본파일</th></tr></thead><tbody>';
     if(!_ohSales.length){
       h+='<tr class="close-total"><td colspan="6">■ 총합계</td><td></td>'
-        +'<td style="text-align:right">'+_ohQ(sQ)+'</td><td></td><td></td>'
+        +'<td style="text-align:right">'+_ohQ(sQ)+'</td><td></td><td></td>'+_ohVatCells(sA,true)
         +'<td style="text-align:right">'+_cnum(sA)+'</td><td></td></tr>';
-      _ohMount(wrap, h+_ohEmptyRow(12, '이 기간 정산서(엑셀) 자료가 없습니다',
+      _ohMount(wrap, h+_ohEmptyRow(14, '이 기간 정산서(엑셀) 자료가 없습니다',
         '이 탭은 <b>출고장이 보내준 정산 엑셀의 원본 행</b>을 그대로 보여줍니다.<br>'
         +'조회기간에 저장된 정산서가 없어 띄울 행이 없습니다'
         +(_ohShip.length ? ' — 출고는 <b>'+_ohShip.length.toLocaleString()+'행</b> 있으니 <b>정산서가 아직 안 온 날</b>입니다.' : '.')
@@ -5776,7 +5781,7 @@ function ssOutQty(o){
     S.sort(function(a,b){ return a.dc.localeCompare(b.dc,'ko'); });
     h+='<tr class="close-total"><td colspan="6">■ 총합계</td><td></td>'
       +'<td style="text-align:right">'+_ohQ(sQ)+'</td>'
-      +'<td style="text-align:right">'+_ohQ(tO)+'</td><td></td>'
+      +'<td style="text-align:right">'+_ohQ(tO)+'</td><td></td>'+_ohVatCells(sA,true)
       +'<td style="text-align:right">'+_cnum(sA)+'</td><td></td></tr>';
     // 표시행 평면화 (3단: 물류센터 묶음(d4:) → 출고장(t:) → 정산행. 접힘 반영. 묶음이 2곳 이상일 때만 머리행)
     var L0s=[], lm={};
@@ -5804,7 +5809,7 @@ function ssOutQty(o){
         +' <span style="font-weight:600;color:#5a6b7a">('+e.gis.length+'곳 · '+e.rowsN.toLocaleString()+'행)</span>'
         +(e.miss?' <span style="font-weight:700;color:#c0392b">· 출고미상 '+e.miss+'</span>':'')+'</td>'
         +'<td></td><td style="text-align:right">'+_ohQ(e.sQty)+'</td>'
-        +'<td style="text-align:right">'+_ohQ(e.oQty)+'</td><td></td>'
+        +'<td style="text-align:right">'+_ohQ(e.oQty)+'</td><td></td>'+_ohVatCells(e.sAmt,true)
         +'<td style="text-align:right">'+_cnum(e.sAmt)+'</td><td></td></tr>';
     };
     var grpRow=function(gi, ind){
@@ -5814,7 +5819,7 @@ function ssOutQty(o){
         +' <span style="font-weight:600;color:#5a6b7a">('+g.rows.length.toLocaleString()+'행)</span>'
         +(g.miss?' <span style="font-weight:700;color:#c0392b" title="출고내역에 짝이 없는 정산행(보낸 적 없는데 청구된 건일 수 있음)">· 출고미상 '+g.miss+'</span>':'')+'</td>'
         +'<td></td><td style="text-align:right">'+_ohQ(g.sQty)+'</td>'
-        +'<td style="text-align:right">'+_ohQ(g.oQty)+'</td><td></td>'
+        +'<td style="text-align:right">'+_ohQ(g.oQty)+'</td><td></td>'+_ohVatCells(g.sAmt,true)
         +'<td style="text-align:right">'+_cnum(g.sAmt)+'</td><td></td></tr>';
     };
     var detRow=function(gi,ri){
@@ -5825,7 +5830,7 @@ function ssOutQty(o){
         +'<td style="text-align:right;'+((+r.outQty||0)<0?'color:#c0392b':'')+'">'+(r.outQty==null?'':_ohQ(r.outQty))+'</td>'
         +'<td style="text-align:right" title="같은 납기일자·출고장·품목코드의 출고 합계입니다(사업장 여러 곳이면 합쳐진 값).">'
         +(oq==null?'<span style="color:#c0392b">출고미상</span>':_ohQ(oq))+'</td>'
-        +'<td style="text-align:right">'+_cnum(r.salePrice)+'</td>'
+        +'<td style="text-align:right">'+_cnum(r.salePrice)+'</td>'+_ohVatCells(r.saleAmt,false)
         +'<td style="text-align:right;font-weight:700;color:#137a6c">'+_cnum(r.saleAmt)+'</td>'
         +'<td class="txt-l" style="color:#9aa7b3">'+_cesc(r.srcFile)+'</td></tr>';
     };

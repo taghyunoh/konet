@@ -3273,6 +3273,8 @@ public class UserController {
 				dto.setCompCd(String.valueOf(session.getAttribute("s_comp_cd")));
 				dto.setPurchDt(purchDt);
 				dto.setVendorCd(poStr(mst.get("vendorCd"))); dto.setVendorNm(poStr(mst.get("vendorNm")));
+				/* 담당자 = 발주서의 담당자(발주서 관리가 넣는 <로그인 사용자> K002·K003·admin …) 그대로 — 2026-11-11 사용자 「K002·K003·admin 이 내용으로 적용」.
+				   (같은 날 잠깐 거래처 담당자(001 김동근 …)로 바꿨다가 되돌렸다 — 종합 실적 담당사원은 직원(로그인 사용자) 기준이다. docs/sql/20261111_purchase_mgr_restore.sql) */
 				dto.setMgrCd(poStr(mst.get("mgrCd")));       dto.setMgrNm(poStr(mst.get("mgrNm")));
 				dto.setWhCd(whCd); dto.setWhNm(whNm.isEmpty() ? "물류창고" : whNm);
 				dto.setPayGb(payGb.isEmpty() ? "외상" : payGb); dto.setPayAmt(0d);
@@ -4609,6 +4611,42 @@ public class UserController {
 			Map<String,Object> response = new HashMap<String,Object>();
 			response.put("data", svc.selectDayBook(dto));
 			return response;
+		}
+
+		/* ===== 종합실적 (2026-11-11) — 정보 현황 ▸ 진행 현황 아래. 홀세일 「종합실적」 옮김 =====
+		   화면 mangr/perfSummary.jsp(셸 iframe) · 재료 /mangr/perfData.do(전표 낱줄+지출) · 목록 /mangr/perfInit.do(담당사원·창고).
+		   셈(기간계·일계·사원별·상세보기)은 전부 화면이 한다 — 서비스 selectPerfData 머리말. 로그인 없으면 자료도 막는다. */
+		@RequestMapping(value="/mangr/perfSummary.do")
+		public String perfSummary(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			if (!isChief(session)) return "redirect:/main.do";   // ★총괄관리자만(2026-11-11) — 메뉴 숨김 + 직접 URL 차단(비용 등록과 같은 식)
+			return ".raw/main/mangr/perfSummary";
+		}
+		@RequestMapping(value="/mangr/perfInit.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> perfInit(HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) { Map<String,Object> r = new HashMap<String,Object>(); r.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return r; }
+			Map<String,Object> p = new HashMap<String,Object>();
+			if (!isChief(session)) { Map<String,Object> r = new HashMap<String,Object>(); r.put("error", "총괄관리자만 볼 수 있습니다."); return r; }
+			p.put("compCd", session.getAttribute("s_comp_cd"));
+			return svc.selectPerfInit(p);
+		}
+		@RequestMapping(value="/mangr/perfData.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> perfData(@RequestParam(value="frDt", required=false) String frDt,
+		                                   @RequestParam(value="toDt", required=false) String toDt,
+		                                   @RequestParam(value="mgrCd", required=false) String mgrCd,
+		                                   @RequestParam(value="whCd", required=false) String whCd,
+		                                   @RequestParam(value="prodCd", required=false) String prodCd,
+		                                   HttpSession session) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) { Map<String,Object> r = new HashMap<String,Object>(); r.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return r; }
+			Map<String,Object> p = new HashMap<String,Object>();
+			if (!isChief(session)) { Map<String,Object> r = new HashMap<String,Object>(); r.put("error", "총괄관리자만 볼 수 있습니다."); return r; }
+			p.put("compCd", session.getAttribute("s_comp_cd"));
+			p.put("frDt", str(frDt) == null ? "" : str(frDt)); p.put("toDt", str(toDt) == null ? "" : str(toDt));
+			p.put("mgrCd", str(mgrCd) == null ? "" : str(mgrCd)); p.put("whCd", str(whCd) == null ? "" : str(whCd));
+			p.put("prodCd", str(prodCd) == null ? "" : str(prodCd));
+			return svc.selectPerfData(p);
 		}
 
 		/* ================= 정산 월 마감 — TBL_SETTLE_CLOSE_MST (2026-09-16 P2-g 수금/미수 연동) =================

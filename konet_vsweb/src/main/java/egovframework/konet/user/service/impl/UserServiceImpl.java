@@ -2471,6 +2471,40 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<java.util.Map<String,Object>> selectCustBalance(egovframework.konet.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectCustBalance(dto); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectCustDayDetail(egovframework.konet.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectCustDayDetail(dto); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectDayBook(egovframework.konet.user.model.SettleTrxDTO dto) throws Exception { return mapper.selectDayBook(dto); }
+	/* ===== 종합실적 (2026-11-11) — 홀세일 「종합실적」 옮김. 셈은 전부 화면(perfSummary.jsp)이 하고 여기는 재료만 모은다.
+	   · rows : selectPerfRows(머리말 참고). 날짜는 yyyymmdd 로 맞춰 넘긴다. 창고를 골랐을 때 창고 없는 전표·정산서·토더는 기본 창고(DEFAULT_YN='Y', 없으면 첫 창고)로 본다.
+	   · expD : TBL_EXPENSE_DTL 이 아직 없는 회사(DDL 전)면 조용히 빈 목록 — 월 지출(expM)만으로 기간계를 낸다. */
+	@Override public java.util.Map<String,Object> selectPerfData(java.util.Map<String,Object> p) throws Exception {
+		java.util.Map<String,Object> r = new java.util.HashMap<String,Object>();
+		String fr = String.valueOf(p.get("frDt") == null ? "" : p.get("frDt")).replace("-", "");
+		String to = String.valueOf(p.get("toDt") == null ? "" : p.get("toDt")).replace("-", "");
+		p.put("frDt", fr); p.put("toDt", to);
+		if (p.get("defWh") == null) p.put("defWh", perfDefaultWh(String.valueOf(p.get("compCd"))));
+		r.put("rows", mapper.selectPerfRows(p));
+		r.put("expM", mapper.selectPerfExpenseM(p));
+		try { r.put("expD", mapper.selectPerfExpenseD(p)); }
+		catch (Exception e) { LOGGER.error(" selectPerfExpenseD WARN(표 없음?) : " + e.getMessage()); r.put("expD", new java.util.ArrayList<Object>()); }
+		r.put("defWh", p.get("defWh"));
+		return r;
+	}
+	@Override public java.util.Map<String,Object> selectPerfInit(java.util.Map<String,Object> p) throws Exception {
+		java.util.Map<String,Object> r = new java.util.HashMap<String,Object>();
+		r.put("mgrs", mapper.selectPerfMgrList(p));
+		java.util.Map<String,Object> w = new java.util.HashMap<String,Object>(); w.put("compCd", p.get("compCd")); w.put("useOnly", "Y");
+		r.put("whs", mapper.selectWhList(w));
+		r.put("defWh", perfDefaultWh(String.valueOf(p.get("compCd"))));
+		return r;
+	}
+	/* 기본 창고 코드 — DEFAULT_YN='Y' 가 있으면 그것, 없으면 정렬 첫 창고, 창고가 하나도 없으면 '' */
+	private String perfDefaultWh(String compCd) {
+		try {
+			java.util.Map<String,Object> w = new java.util.HashMap<String,Object>(); w.put("compCd", compCd); w.put("useOnly", "Y");
+			java.util.List<java.util.Map<String,Object>> whs = mapper.selectWhList(w);
+			if (whs == null || whs.isEmpty()) return "";
+			for (java.util.Map<String,Object> x : whs) if ("Y".equals(String.valueOf(x.get("defaultYn")))) return String.valueOf(x.get("whCd"));
+			return String.valueOf(whs.get(0).get("whCd"));
+		} catch (Exception e) { return ""; }
+	}
 
 	/* ===== 판매등록 — 2026-07-25. savePurchase 와 대칭 =====
 	   매입은 재고가 들어오고(I), 판매는 나간다(O). 그 한 가지가 다르다.

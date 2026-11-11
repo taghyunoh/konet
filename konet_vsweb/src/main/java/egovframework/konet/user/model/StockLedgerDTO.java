@@ -38,6 +38,8 @@ public class StockLedgerDTO {
     private String  regDttm;
     private String  regUser;
     private String  regUserNm;     // 등록자 이름 (조인, 비영속) — 품목별재고현황 수불내역 표시용 (2026-11-05)
+    private Double  vatAmt;        // 부가세 (조인, 비영속) — 입고내역 표시용 : 매입전표 줄의 세액, 없으면 과세 10% 환산 (2026-11-11)
+    private Double  totAmt;        // 합계(부가세 포함) (조인, 비영속) — 입고내역 표시용 (2026-11-11)
     private String  regIp;
     private String  updDttm;
     private String  updUser;
@@ -60,6 +62,10 @@ public class StockLedgerDTO {
     public String getTrxDt() { return trxDt; }
     public String getRegUserNm() { return regUserNm; }
     public void setRegUserNm(String regUserNm) { this.regUserNm = regUserNm; }
+    public Double getVatAmt() { return vatAmt; }
+    public void setVatAmt(Double vatAmt) { this.vatAmt = vatAmt; }
+    public Double getTotAmt() { return totAmt; }
+    public void setTotAmt(Double totAmt) { this.totAmt = totAmt; }
     public java.util.List<String> getTrxDts() { return trxDts; }
     public void setTrxDts(java.util.List<String> trxDts) { this.trxDts = trxDts; }
     public void setTrxDt(String trxDt) { this.trxDt = trxDt; }

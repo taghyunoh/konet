@@ -4188,14 +4188,26 @@
 	]]></select>
 
 	<!-- 입고내역 — 전체 입고(수불 IO_GB='I') 거래 목록 -->
+	<!-- ★부가세·합계 (2026-11-11 사용자 「매입이든 매출이든 부가세 있으면 표시」) — 원장 AMT 는 공급가(매입 명세 AMT 를 그대로 옮긴 것).
+	       매입전표가 만든 입고(REF_GB='PURCH')는 그 전표(REF_NO = 일자-번호)의 같은 품목 줄에서 VAT_AMT·TOT_AMT 를 가져온다(명세 LEDGER_SEQ 는 안 채워져 있어 쓸 수 없다 — 2026-11 실측 전부 NULL).
+	       줄이 여럿이면 금액이 같은 줄을 먼저. 전표 줄이 없으면(수기 입고) 과세 품목은 금액×10% 반올림, 면세는 0. 합계 = 전표 합계(DC 가 있으면 금액+부가세와 다를 수 있다). -->
 	<select id="selectInboundList" parameterType="egovframework.konet.user.model.StockLedgerDTO" resultType="egovframework.konet.user.model.StockLedgerDTO">
 	  SELECT l.LEDGER_SEQ AS ledgerSeq, l.PROD_CD AS prodCd, p.PROD_NM AS prodNm, l.TRX_DT AS trxDt,
 	         l.VENDOR_CD AS vendorCd, v.VENDOR_NM AS vendorNm,
-	         l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt, l.REMARK AS remark, l.REG_DTTM AS regDttm
+	         l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt, l.REMARK AS remark, l.REG_DTTM AS regDttm,
+	         ISNULL(pd.VAT_AMT, CASE WHEN ISNULL(p.TAX_GB,N'과세') = N'면세' THEN 0 ELSE ROUND(ISNULL(l.AMT,0) * 0.1, 0) END) AS vatAmt,
+	         ISNULL(pd.TOT_AMT, ISNULL(l.AMT,0) + CASE WHEN ISNULL(p.TAX_GB,N'과세') = N'면세' THEN 0 ELSE ROUND(ISNULL(l.AMT,0) * 0.1, 0) END) AS totAmt
 	    FROM TBL_STOCK_LEDGER l
 	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = l.PROD_SEQ AND p.COMP_CD = l.COMP_CD
 	    <!-- 매입처명 — 코드 옆에 이름을 같이 보여준다(2026-08-01 요청). 마스터에 없는 코드면 NULL → 화면에서 '-' -->
 	    LEFT JOIN TBL_VENDOR_MST v ON v.VENDOR_CD = l.VENDOR_CD AND v.ACTION_YN = 'Y' AND v.COMP_CD = l.COMP_CD
+	    OUTER APPLY ( SELECT TOP 1 d.VAT_AMT, d.TOT_AMT
+	                    FROM TBL_PURCHASE_MST m
+	                    JOIN TBL_PURCHASE_DTL d ON d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN = 'Y'
+	                   WHERE l.REF_GB = 'PURCH' AND m.ACTION_YN = 'Y' AND m.COMP_CD = l.COMP_CD
+	                     AND REPLACE(ISNULL(m.PURCH_DT,''),'-','') + '-' + ISNULL(m.PURCH_NO,'') = ISNULL(l.REF_NO,'')
+	                     AND d.PROD_CD = l.PROD_CD
+	                   ORDER BY CASE WHEN ABS(ISNULL(d.AMT,0) - ISNULL(l.AMT,0)) &lt; 1 THEN 0 ELSE 1 END, d.ROW_NO ) pd
 	   WHERE l.ACTION_YN = 'Y' AND l.IO_GB = 'I'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  <if test="fromDt != null and fromDt != '' and toDt != null and toDt != ''">
@@ -5649,6 +5661,181 @@
 	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	   ORDER BY g.dt, g.custCd
 	]]></select>
+	<!-- ============================================================
+	     종합실적 (2026-11-11 사용자 「홀세일 종합실적을 코네트 정보현황 ▸ 진행 현황 밑에 추가」) — mangr/perfSummary.jsp
+	     · 매출·수금·매입·지급의 돈 규칙은 거래처별 채권·채무(selectCustBalance)·일계장(selectDayBook)과 같다 —
+	       정산서(출고장→DC_CD 거래처) + 토더 발주 + 판매전표(+즉시수금) + 매입전표(+즉시지급) + 수금/지급 전표.
+	     · 한 번에 <전표 낱줄>을 준다(정산서·토더는 일자×출고장으로 접은 1줄). 화면이 이 줄들로 기간계·일계(종료일 하루)·사원별·상세보기를
+	       전부 접는다 — 서버에 집계를 네 벌 두면 표끼리 어긋난다. gb = SALE / RCV / PURCH / PAY.
+	     · dt='00000000' 줄 = 조회 시작일 <이전까지> 의 사원별 누계(gb 앞에 P_ 를 붙임) → 사원별 현황의 「전잔고」.
+	     · 담당사원 = 전표의 MGR_CD(거래처 담당자코드 001·005·006 …, 로그인 아이디가 아니다). 정산서·토더는 그 출고장 거래처의 MGR_CD.
+	     · 창고 = 판매·매입 전표의 WH_CD. 창고가 없는 정산서·토더·창고 빈 전표는 기본 창고(defWh)로 본다. 수금·지급은 창고와 무관하게 늘 들어간다.
+	     · 상품 = 판매·매입 전표는 그 상품 줄의 금액만, 정산서는 ITEM_CD(또는 매칭코드 TBL_PROD_XREF 의 EXT_ITEM_CD), 토더는 PROD_CD.
+	       수금·지급·즉시수금·즉시지급은 상품이 없으므로 상품을 고르면 빠진다.
+	     · 서비스(svcAmt) = 판매전표 명세 SERVICE_QTY × UNIT_PRICE (홀세일 「서비스 금액기준: 상품 판매단가」).
+	     · dcAmt = 그 전표의 DC(매출DC·수금할인·매입DC·지급할인), saleDcAmt = 수금전표의 매출할인(SALE_DC_AMT).
+	     ============================================================ -->
+	<select id="selectPerfRows" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  ;WITH VM AS (
+	        SELECT DC_CD, MIN(VENDOR_CD) AS VENDOR_CD, MIN(VENDOR_NM) AS VENDOR_NM,
+	               MIN(ISNULL(MGR_CD,'')) AS MGR_CD, MIN(ISNULL(MGR_NM,'')) AS MGR_NM
+	          FROM TBL_VENDOR_MST
+	         WHERE ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> '' AND COMP_CD = #{compCd,jdbcType=VARCHAR}
+	         GROUP BY DC_CD
+	  ), SRC AS (
+	        -- ① 정산서 매출 — 일자 × 출고장(DC_CD) 1줄
+	        SELECT 'SALE' AS gb, x.dt AS dt, vm.VENDOR_CD AS custCd, vm.VENDOR_NM AS custNm, vm.MGR_CD AS mgrCd, vm.MGR_NM AS mgrNm,
+	               N'정산서' AS trxNo, '' AS payGb, x.amt AS amt, 0 AS dcAmt, 0 AS saleDcAmt, 0 AS supplyAmt, 0 AS vatAmt, 0 AS svcAmt, 'STMT' AS src
+	          FROM ( SELECT dk.dcKey AS dcKey, ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) AS dt, SUM(ISNULL(s.SALE_AMT,0)) AS amt
+	                   FROM TBL_SALES_MST s
+	                   CROSS APPLY ( SELECT ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ AS dcKey ) dk
+	                  WHERE s.ACTION_YN = 'Y' AND s.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	                    AND ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) IS NOT NULL
+	                    AND ( ISNULL(#{whCd,jdbcType=VARCHAR},'') = '' OR #{whCd,jdbcType=VARCHAR} = #{defWh,jdbcType=VARCHAR} )
+	                    AND ( ISNULL(#{prodCd,jdbcType=VARCHAR},'') = '' OR s.ITEM_CD = #{prodCd,jdbcType=VARCHAR}
+	                          OR s.ITEM_CD IN ( SELECT x2.EXT_ITEM_CD FROM TBL_PROD_XREF x2
+	                                             WHERE x2.COMP_CD = s.COMP_CD AND x2.ACTION_YN = 'Y' AND x2.PROD_CD = #{prodCd,jdbcType=VARCHAR} ) )
+	                  GROUP BY dk.dcKey, ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) ) x
+	          JOIN VM vm ON vm.DC_CD = x.dcKey
+
+	        UNION ALL
+	        -- ①-2 토더 발주(발주가 곧 매출) — 일자 1줄. 매출 = 수량 × 토더 판매가 − DC, 반품은 음수
+	        SELECT 'SALE', o.DLV_DT, vm.VENDOR_CD, vm.VENDOR_NM, vm.MGR_CD, vm.MGR_NM,
+	               N'토더', '',
+	               SUM(CASE WHEN ISNULL(o.DS_TRX_GB,'') = N'반품' THEN -1 ELSE 1 END * (ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0) - ISNULL(o.DS_DC_AMT,0))),
+	               0, 0, 0, 0, 0, 'TD'
+	          FROM TBL_SHIPOUT_MST o
+	          JOIN VM vm ON vm.DC_CD = o.DC_CD
+	         WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND ISNULL(o.DLV_DT,'') <> '' AND o.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	           AND ( ISNULL(#{whCd,jdbcType=VARCHAR},'') = '' OR #{whCd,jdbcType=VARCHAR} = #{defWh,jdbcType=VARCHAR} )
+	           AND ( ISNULL(#{prodCd,jdbcType=VARCHAR},'') = '' OR o.PROD_CD = #{prodCd,jdbcType=VARCHAR} )
+	         GROUP BY o.DLV_DT, vm.VENDOR_CD, vm.VENDOR_NM, vm.MGR_CD, vm.MGR_NM
+
+	        UNION ALL
+	        -- ② 판매전표 — 상품을 골랐으면 그 상품 줄의 금액만
+	        SELECT 'SALE', ISNULL(NULLIF(t2.DLV_DT,''), t2.SALE_DT), t2.CUST_CD, t2.CUST_NM, ISNULL(t2.MGR_CD,''), ISNULL(t2.MGR_NM,''),
+	               ISNULL(t2.SALE_NO,''), '',
+	               CASE WHEN ISNULL(#{prodCd,jdbcType=VARCHAR},'') = '' THEN ISNULL(t2.TOT_AMT,0)    ELSE ISNULL(dd.tot,0) END,
+	               CASE WHEN ISNULL(#{prodCd,jdbcType=VARCHAR},'') = '' THEN ISNULL(t2.DC_AMT,0)     ELSE ISNULL(dd.dc,0)  END,
+	               0,
+	               CASE WHEN ISNULL(#{prodCd,jdbcType=VARCHAR},'') = '' THEN ISNULL(t2.SUPPLY_AMT,0) ELSE ISNULL(dd.sup,0) END,
+	               CASE WHEN ISNULL(#{prodCd,jdbcType=VARCHAR},'') = '' THEN ISNULL(t2.VAT_AMT,0)    ELSE ISNULL(dd.vat,0) END,
+	               ISNULL(dd.svc,0), 'TRX'
+	          FROM TBL_SALES_TRX_MST t2
+	          OUTER APPLY ( SELECT SUM(ISNULL(d.TOT_AMT,0)) AS tot, SUM(ISNULL(d.DC_AMT,0)) AS dc, SUM(ISNULL(d.SUPPLY_AMT,0)) AS sup, SUM(ISNULL(d.VAT_AMT,0)) AS vat,
+	                               SUM(ISNULL(d.SERVICE_QTY,0) * ISNULL(d.UNIT_PRICE,0)) AS svc
+	                          FROM TBL_SALES_TRX_DTL d
+	                         WHERE d.SALE_SEQ = t2.SALE_SEQ AND d.ACTION_YN = 'Y'
+	                           AND ( ISNULL(#{prodCd,jdbcType=VARCHAR},'') = '' OR d.PROD_CD = #{prodCd,jdbcType=VARCHAR} ) ) dd
+	         WHERE t2.ACTION_YN = 'Y' AND t2.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	           AND ( ISNULL(#{whCd,jdbcType=VARCHAR},'') = '' OR ISNULL(NULLIF(t2.WH_CD,''), #{defWh,jdbcType=VARCHAR}) = #{whCd,jdbcType=VARCHAR} )
+	           AND ( ISNULL(#{prodCd,jdbcType=VARCHAR},'') = '' OR dd.tot IS NOT NULL )
+
+	        UNION ALL
+	        -- ②-2 판매전표에 적힌 즉시수금
+	        SELECT 'RCV', ISNULL(NULLIF(t2.DLV_DT,''), t2.SALE_DT), t2.CUST_CD, t2.CUST_NM, ISNULL(t2.MGR_CD,''), ISNULL(t2.MGR_NM,''),
+	               ISNULL(t2.SALE_NO,''), ISNULL(t2.PAY_GB,''), ISNULL(t2.PAY_AMT,0), 0, 0, 0, 0, 0, 'TRX'
+	          FROM TBL_SALES_TRX_MST t2
+	         WHERE t2.ACTION_YN = 'Y' AND t2.COMP_CD = #{compCd,jdbcType=VARCHAR} AND ISNULL(t2.PAY_AMT,0) <> 0
+	           AND ISNULL(#{prodCd,jdbcType=VARCHAR},'') = ''
+
+	        UNION ALL
+	        -- ③ 매입전표 — 상품을 골랐으면 그 상품 줄의 금액만
+	        SELECT 'PURCH', m.PURCH_DT, m.VENDOR_CD, m.VENDOR_NM, ISNULL(m.MGR_CD,''), ISNULL(m.MGR_NM,''),
+	               ISNULL(m.PURCH_NO,''), '',
+	               CASE WHEN ISNULL(#{prodCd,jdbcType=VARCHAR},'') = '' THEN ISNULL(m.TOT_AMT,0)    ELSE ISNULL(pd.tot,0) END,
+	               CASE WHEN ISNULL(#{prodCd,jdbcType=VARCHAR},'') = '' THEN ISNULL(m.DC_AMT,0)     ELSE ISNULL(pd.dc,0)  END,
+	               0,
+	               CASE WHEN ISNULL(#{prodCd,jdbcType=VARCHAR},'') = '' THEN ISNULL(m.SUPPLY_AMT,0) ELSE ISNULL(pd.sup,0) END,
+	               CASE WHEN ISNULL(#{prodCd,jdbcType=VARCHAR},'') = '' THEN ISNULL(m.VAT_AMT,0)    ELSE ISNULL(pd.vat,0) END,
+	               0, 'TRX'
+	          FROM TBL_PURCHASE_MST m
+	          OUTER APPLY ( SELECT SUM(ISNULL(d.TOT_AMT,0)) AS tot, SUM(ISNULL(d.DC_AMT,0)) AS dc, SUM(ISNULL(d.SUPPLY_AMT,0)) AS sup, SUM(ISNULL(d.VAT_AMT,0)) AS vat
+	                          FROM TBL_PURCHASE_DTL d
+	                         WHERE d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN = 'Y'
+	                           AND ( ISNULL(#{prodCd,jdbcType=VARCHAR},'') = '' OR d.PROD_CD = #{prodCd,jdbcType=VARCHAR} ) ) pd
+	         WHERE m.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	           AND ( ISNULL(#{whCd,jdbcType=VARCHAR},'') = '' OR ISNULL(NULLIF(m.WH_CD,''), #{defWh,jdbcType=VARCHAR}) = #{whCd,jdbcType=VARCHAR} )
+	           AND ( ISNULL(#{prodCd,jdbcType=VARCHAR},'') = '' OR pd.tot IS NOT NULL )
+
+	        UNION ALL
+	        -- ③-2 매입전표에 적힌 즉시지급
+	        SELECT 'PAY', m.PURCH_DT, m.VENDOR_CD, m.VENDOR_NM, ISNULL(m.MGR_CD,''), ISNULL(m.MGR_NM,''),
+	               ISNULL(m.PURCH_NO,''), ISNULL(m.PAY_GB,''), ISNULL(m.PAY_AMT,0), 0, 0, 0, 0, 0, 'TRX'
+	          FROM TBL_PURCHASE_MST m
+	         WHERE m.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR} AND ISNULL(m.PAY_AMT,0) <> 0
+	           AND ISNULL(#{prodCd,jdbcType=VARCHAR},'') = ''
+
+	        UNION ALL
+	        -- ④ 수금/지급 전표 — TRX_GB 가 곧 gb(RCV/PAY). dcAmt = 할인액, saleDcAmt = 매출할인(수금 전용)
+	        SELECT t.TRX_GB, t.TRX_DT, t.CUST_CD, t.CUST_NM, ISNULL(t.MGR_CD,''), ISNULL(t.MGR_NM,''),
+	               ISNULL(t.TRX_NO,''), ISNULL(t.PAY_GB,''), ISNULL(t.AMT,0), ISNULL(t.DC_AMT,0), ISNULL(t.SALE_DC_AMT,0), 0, 0, 0, 'STL'
+	          FROM TBL_SETTLE_TRX t
+	         WHERE t.ACTION_YN = 'Y' AND t.COMP_CD = #{compCd,jdbcType=VARCHAR} AND t.TRX_GB IN ('RCV','PAY')
+	           AND ISNULL(#{prodCd,jdbcType=VARCHAR},'') = ''
+	  )
+	  SELECT x.gb AS gb, x.dt AS dt, x.custCd AS custCd, x.custNm AS custNm, x.mgrCd AS mgrCd, x.mgrNm AS mgrNm,
+	         x.trxNo AS trxNo, x.payGb AS payGb, x.amt AS amt, x.dcAmt AS dcAmt, x.saleDcAmt AS saleDcAmt,
+	         x.supplyAmt AS supplyAmt, x.vatAmt AS vatAmt, x.svcAmt AS svcAmt, x.src AS src
+	    FROM SRC x
+	   WHERE ISNULL(x.dt,'') <> ''
+	     AND x.dt >= #{frDt,jdbcType=VARCHAR} AND x.dt <= #{toDt,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{mgrCd,jdbcType=VARCHAR},'') = '' OR x.mgrCd = #{mgrCd,jdbcType=VARCHAR} )
+
+	  UNION ALL
+	  -- 조회 시작일 이전 누계(사원별 전잔고 재료) — gb 앞에 P_
+	  SELECT 'P_' + x.gb, '00000000', '', '', x.mgrCd, MAX(x.mgrNm),
+	         '', '', SUM(x.amt), SUM(x.dcAmt), SUM(x.saleDcAmt), 0, 0, 0, 'PREV'
+	    FROM SRC x
+	   WHERE ISNULL(x.dt,'') <> '' AND x.dt < #{frDt,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{mgrCd,jdbcType=VARCHAR},'') = '' OR x.mgrCd = #{mgrCd,jdbcType=VARCHAR} )
+	   GROUP BY x.gb, x.mgrCd
+	   ORDER BY dt, gb, custCd, trxNo
+	]]></select>
+
+	<!-- 종합실적 지출 — 월 비용(TBL_EXPENSE_TRX)을 <항목별 줄>로 (2026-11-11 「지출내역도 상세보기」). 화면이 월·항목을 일할해 기간계·일계·상세를 만든다.
+	     일별 내역(TBL_EXPENSE_DTL)은 상세보기의 「참고」 — 기간 안 날짜가 적힌 줄만. DTL 표가 없으면 서비스가 잡아 비운다 -->
+	<select id="selectPerfExpenseM" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT t.EXP_YM AS ym, t.ITEM_CD AS itemCd, ISNULL(i.ITEM_NM, t.ITEM_CD) AS itemNm, ISNULL(i.ITEM_GB,'') AS itemGb,
+	         SUM(ISNULL(t.AMT,0)) AS amt, MAX(ISNULL(t.REMARK,'')) AS remark, ISNULL(MAX(i.SORT_ORD),999) AS sortOrd
+	    FROM TBL_EXPENSE_TRX t
+	    LEFT JOIN TBL_EXPENSE_ITEM i ON i.COMP_CD = t.COMP_CD AND i.ITEM_CD = t.ITEM_CD
+	   WHERE t.ACTION_YN = 'Y' AND t.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND t.EXP_YM >= LEFT(#{frDt,jdbcType=VARCHAR},6) AND t.EXP_YM <= LEFT(#{toDt,jdbcType=VARCHAR},6)
+	   GROUP BY t.EXP_YM, t.ITEM_CD, ISNULL(i.ITEM_NM, t.ITEM_CD), ISNULL(i.ITEM_GB,'')
+	   ORDER BY t.EXP_YM, sortOrd, t.ITEM_CD
+	]]></select>
+	<select id="selectPerfExpenseD" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT d.EXP_YM AS ym, d.EXP_DT AS dt, d.ITEM_CD AS itemCd, ISNULL(i.ITEM_NM, d.ITEM_CD) AS itemNm,
+	         ISNULL(d.TITLE,'') AS title, ISNULL(d.AMT,0) AS amt, ISNULL(d.REMARK,'') AS remark, ISNULL(d.CHK_YN,'N') AS chkYn
+	    FROM TBL_EXPENSE_DTL d
+	    LEFT JOIN TBL_EXPENSE_ITEM i ON i.COMP_CD = d.COMP_CD AND i.ITEM_CD = d.ITEM_CD
+	   WHERE d.ACTION_YN = 'Y' AND d.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND ISNULL(d.EXP_DT,'') <> '' AND d.EXP_DT >= #{frDt,jdbcType=VARCHAR} AND d.EXP_DT <= #{toDt,jdbcType=VARCHAR}
+	     AND d.EXP_YM = LEFT(d.EXP_DT,6)   /* 귀속월이 그 날짜의 달인 내역만 (2026-11-11) — 다른 달 내역을 복사해 날짜를 안 고친 줄(9월분이 01-01 로 남은 것)을 거른다 */
+	   ORDER BY d.EXP_DT, d.ITEM_CD, d.DTL_SEQ
+	]]></select>
+
+	<!-- 종합실적 담당사원 목록 (2026-11-11 사용자 「K002·K003·admin 이 내용으로 적용」) — <직원>(TBL_USER_MST 활성 계정, 아이디마다 최근 1줄)이 기준.
+	     전표에 직원 아이디가 아닌 코드(옛 거래처 담당자코드 001 김동근 …)가 남아 있으면 그것도 뒤에 붙여 고를 수 있게 한다(화면이 「옛 코드」 표시). -->
+	<select id="selectPerfMgrList" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT u.userId AS mgrCd, u.userNm AS mgrNm, 'U' AS kind
+	    FROM ( SELECT LTRIM(RTRIM(A.USER_ID)) AS userId, ISNULL(A.USER_NM,'') AS userNm, ISNULL(A.USE_YN,'Y') AS useYn,
+	                  ROW_NUMBER() OVER (PARTITION BY LTRIM(RTRIM(A.USER_ID)) ORDER BY A.START_DT DESC, A.JOB_SEQ DESC) AS rn
+	             FROM TBL_USER_MST A WHERE A.COMP_CD = #{compCd,jdbcType=VARCHAR} AND A.ACTION_YN = 'Y' ) u
+	   WHERE u.rn = 1 AND u.useYn <> 'N'
+	  UNION ALL
+	  SELECT x.mgrCd, MAX(x.mgrNm), 'O'
+	    FROM ( SELECT MGR_CD AS mgrCd, MGR_NM AS mgrNm FROM TBL_SALES_TRX_MST WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
+	           UNION ALL SELECT MGR_CD, MGR_NM FROM TBL_PURCHASE_MST  WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
+	           UNION ALL SELECT MGR_CD, MGR_NM FROM TBL_SETTLE_TRX    WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y'
+	           UNION ALL SELECT MGR_CD, MGR_NM FROM TBL_VENDOR_MST    WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> '' ) x
+	   WHERE ISNULL(x.mgrCd,'') <> ''
+	     AND x.mgrCd NOT IN ( SELECT LTRIM(RTRIM(USER_ID)) FROM TBL_USER_MST WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND ACTION_YN = 'Y' )
+	   GROUP BY x.mgrCd
+	   ORDER BY kind, mgrCd
+	]]></select>
+
 
 	<!-- ============================================================
 	     판매등록 — TBL_SALES_TRX_MST(헤더) + TBL_SALES_TRX_DTL(명세)   (2026-07-25 신설)

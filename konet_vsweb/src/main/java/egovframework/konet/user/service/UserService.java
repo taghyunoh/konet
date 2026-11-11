@@ -328,6 +328,9 @@ public interface UserService {
 	java.util.List<java.util.Map<String,Object>> selectCustBalance(egovframework.konet.user.model.SettleTrxDTO dto) throws Exception;   /* 거래처별 받을금액/지급할금액 — 전 거래처 × 월 (2026-07-26) */
 	java.util.List<java.util.Map<String,Object>> selectCustDayDetail(egovframework.konet.user.model.SettleTrxDTO dto) throws Exception; /* 위 화면 하단 — 한 거래처의 특정일자 하루 건별 내역(출고·매입·입금·출금) (2026-07-27) */
 	java.util.List<java.util.Map<String,Object>> selectDayBook(egovframework.konet.user.model.SettleTrxDTO dto) throws Exception;       /* 일계장 — 하루치 거래처별 매출·매입·수금·지급 (2026-07-26) */
+	/* 종합실적 (2026-11-11) — rows(전표 낱줄+전잔고 재료)·expM(월 지출)·expD(일 지출) 한 응답 / 담당사원·창고 목록 */
+	java.util.Map<String,Object> selectPerfData(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectPerfInit(java.util.Map<String,Object> p) throws Exception;
 
 	/* ===== 판매등록 — 2026-07-25 ===== */
 	java.util.List<egovframework.konet.user.model.SalesTrxDTO> selectSalesTrxList(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;

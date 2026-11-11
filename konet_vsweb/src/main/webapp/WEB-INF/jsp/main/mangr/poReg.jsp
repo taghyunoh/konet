@@ -1114,7 +1114,7 @@ function phLoad(){
     var lw=document.getElementById('poListWrap'); if(lw&&lw.scrollIntoView) lw.scrollIntoView({behavior:'smooth',block:'nearest'});
   }).catch(function(e){ b.innerHTML='<tr><td colspan="13" class="empty" style="color:#c0392b">조회 실패 — '+esc(e.message)+'</td></tr>'; });
 }
-function poNew(){ _cur=null; _rows=[]; _reqPend=[]; document.getElementById('poDt').value=today(); venPick('',''); document.getElementById('remark').value=''; document.getElementById('poNo').value=''; poDtChanged(); render(); setButtons(); poCvStat(); document.getElementById('stat').textContent='새 발주서'; }
+function poNew(){ _cur=null; _rows=[]; _reqPend=[]; document.getElementById('poDt').value=today(); document.getElementById('mgrNm').value='${sessionScope.s_user_nm}'; venPick('',''); document.getElementById('remark').value=''; document.getElementById('poNo').value=''; poDtChanged(); render(); setButtons(); poCvStat(); document.getElementById('stat').textContent='새 발주서'; }
 function poDtChanged(){ if(_cur) return; var d=document.getElementById('poDt').value; if(!d) return; post('/mangr/poNextNo.do','poDt='+encodeURIComponent(d)).then(function(r){return r.json();}).then(function(j){ document.getElementById('poNo').value=(j&&j.data)||'0001'; }).catch(function(){}); }
 function setButtons(){ var on=!!(_cur&&_cur.poSeq); ['btnDel','btnPrint','btnXls','btnKakao','btnLink','btnCv'].forEach(function(id){ document.getElementById(id).disabled=!on; }); }
 function poSave(){
@@ -1124,7 +1124,8 @@ function poSave(){
   var items=_rows.filter(function(o){ return o.prodCd; }); if(!items.length){ toast('상품을 한 줄 이상 넣으세요.','⚠️'); return; }
   var t=calcAll();
   var dto={ poSeq:_cur?_cur.poSeq:null, poDt:document.getElementById('poDt').value, poNo:document.getElementById('poNo').value, vendorCd:venCd, vendorNm:venNm,
-    mgrCd:'${sessionScope.s_user_id}', mgrNm:document.getElementById('mgrNm').value, totBoxQty:t.box, totEaQty:t.ea, totQty:t.qty, supplyAmt:t.sup, vatAmt:t.vat, totAmt:t.tot, dcAmt:t.dc,
+    /* 담당자 = 발주서를 처음 쓴 로그인 사용자(아이디·이름 한 쌍). 남의 발주서를 고쳐 저장해도 담당자는 안 바뀐다 — 종전엔 코드만 편집자 아이디로 바뀌어 「K002 마스터」 같은 어긋난 쌍이 생겼다(2026-11-11) */
+    mgrCd:(_cur&&_cur.mgrCd)?_cur.mgrCd:'${sessionScope.s_user_id}', mgrNm:(_cur&&_cur.mgrCd)?(_cur.mgrNm||document.getElementById('mgrNm').value):'${sessionScope.s_user_nm}', totBoxQty:t.box, totEaQty:t.ea, totQty:t.qty, supplyAmt:t.sup, vatAmt:t.vat, totAmt:t.tot, dcAmt:t.dc,
     remark:document.getElementById('remark').value, items:items };
   post('/mangr/poSave.do', dto, true).then(function(r){ return r.text().then(function(x){ if(!r.ok) throw new Error(x); return x; }); })
     .then(function(seq){ seq=String(seq||'').replace(/[^0-9]/g,'');   /* 응답이 감싸여 와도 숫자만 */

@@ -1789,28 +1789,29 @@
     _inbRows.forEach(function(r){
       var k1 = (_inbGrpBy==='dt') ? _fmtYmd(r.trxDt) : (r.vendorNm||'(미지정)');
       var k2 = (_inbGrpBy==='dt') ? (r.vendorNm||'(미지정)') : _fmtYmd(r.trxDt);
-      var g1=m1[k1]; if(!g1){ g1=m1[k1]={ label:k1, l2:[], m2:{}, q:0, a:0, cnt:0 }; L1.push(g1); }
-      g1.q+=(+r.qty||0); g1.a+=(+r.amt||0); g1.cnt++;
-      var g2=g1.m2[k2]; if(!g2){ g2=g1.m2[k2]={ label:k2, items:[], q:0, a:0 }; g1.l2.push(g2); }
-      g2.q+=(+r.qty||0); g2.a+=(+r.amt||0); g2.items.push(r);
+      var g1=m1[k1]; if(!g1){ g1=m1[k1]={ label:k1, l2:[], m2:{}, q:0, a:0, v:0, t:0, cnt:0 }; L1.push(g1); }
+      g1.q+=(+r.qty||0); g1.a+=(+r.amt||0); g1.v+=(+r.vatAmt||0); g1.t+=(+r.totAmt||0); g1.cnt++;
+      var g2=g1.m2[k2]; if(!g2){ g2=g1.m2[k2]={ label:k2, items:[], q:0, a:0, v:0, t:0 }; g1.l2.push(g2); }
+      g2.q+=(+r.qty||0); g2.a+=(+r.amt||0); g2.v+=(+r.vatAmt||0); g2.t+=(+r.totAmt||0); g2.items.push(r);
     });
     return { L1:L1 };
   }
   function inboundListRender(){
     var wrap=document.getElementById('inbWrap'), sum=document.getElementById('inbSum'), pg=document.getElementById('inbPager');
     // 매입처는 코드 + 이름 두 칸 (2026-08-01 요청) — 총합계 colspan 은 아래에서 같이 5로 맞춰 둔다
-    var thead='<thead><tr><th>입고일</th><th>매입처</th><th>매입처명</th><th>품목코드</th><th>품목명</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>비고</th></tr></thead>';
-    var tQ=0,tA=0; _inbRows.forEach(function(r){ tQ+=(+r.qty||0); tA+=(+r.amt||0); });
+    /* 부가세·합계 칸 (2026-11-11 사용자 「매입이든 매출이든 부가세 있으면 표시」) — 금액 = 공급가(원장), 부가세·합계 = 매입전표 줄(없으면 과세 10% 환산). 매퍼 selectInboundList 주석 */
+    var thead='<thead><tr><th>입고일</th><th>매입처</th><th>매입처명</th><th>품목코드</th><th>품목명</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th style="text-align:right">부가세</th><th style="text-align:right">합계</th><th>비고</th></tr></thead>';
+    var tQ=0,tA=0,tV=0,tT=0; _inbRows.forEach(function(r){ tQ+=(+r.qty||0); tA+=(+r.amt||0); tV+=(+r.vatAmt||0); tT+=(+r.totAmt||0); });
     if(!_inbRows.length){ sum.textContent='입고 내역이 없습니다. (상품관리 ▸ 재고 탭에서 입고 등록 시 표시)'; wrap.innerHTML=''; pg.innerHTML=''; return; }
     var b=inbBuild(), L1=b.L1;
-    sum.innerHTML='총 <b>'+_inbRows.length.toLocaleString()+'</b>건 · 수량합 <b>'+_cnum(tQ)+'</b> · 금액합 <b>'+_cnum(tA)+'</b>'
+    sum.innerHTML='총 <b>'+_inbRows.length.toLocaleString()+'</b>건 · 수량합 <b>'+_cnum(tQ)+'</b> · 금액합 <b>'+_cnum(tA)+'</b> · 부가세 <b>'+_cnum(tV)+'</b> · 합계 <b>'+_cnum(tT)+'</b>'
       +' <span style="margin-left:10px;color:#5a6b7a">묶음</span>'
       +' <button type="button" class="'+(_inbGrpBy==='dt'?'on':'')+'" onclick="inbGrpBy(\'dt\')">일자 ▸ 매입처</button>'
       +' <button type="button" class="'+(_inbGrpBy==='ven'?'on':'')+'" onclick="inbGrpBy(\'ven\')">매입처 ▸ 일자</button>'
       +' <button type="button" style="margin-left:6px" onclick="inbFoldToggle()"'
       +   ' title="누르면 접기 ↔ 펼치기가 바뀝니다 (접으면 1단 묶음만 남습니다)">'
       +   (_inbFolded ? '⊞ 모두 펼치기' : '⊟ 모두 접기')+'</button>';
-    var totalRow='<tr class="close-total"><td colspan="5" style="text-align:left">■ 총합계 ('+L1.length.toLocaleString()+(_inbGrpBy==='dt'?'일':'개 매입처')+')</td><td style="text-align:right">'+_cnum(tQ)+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td></tr>';
+    var totalRow='<tr class="close-total"><td colspan="5" style="text-align:left">■ 총합계 ('+L1.length.toLocaleString()+(_inbGrpBy==='dt'?'일':'개 매입처')+')</td><td style="text-align:right">'+_cnum(tQ)+'</td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td style="text-align:right">'+_cnum(tV)+'</td><td style="text-align:right">'+_cnum(tT)+'</td><td></td></tr>';
 
     /* 표시행 목록 — 접힘을 반영해 <행 단위>로 만든다(스크롤 이어보기가 행 수로 자른다) */
     var list=[];
@@ -1829,19 +1830,19 @@
       return '<tr class="close-grp" onclick="inbToggle(\'1#'+i1+'\')" style="cursor:pointer">'
         +'<td colspan="5" style="text-align:left"><span class="ccar">'+(c?'▶':'▼')+'</span><b>'+_cesc(g.label)+'</b>'
         +' <span style="color:#5b6b7a;font-weight:600">('+g.l2.length+(_inbGrpBy==='dt'?'개 매입처':'일')+' · '+g.cnt+'건)</span></td>'
-        +'<td style="text-align:right">'+_cnum(g.q)+'</td><td></td><td style="text-align:right">'+_cnum(g.a)+'</td><td></td></tr>';
+        +'<td style="text-align:right">'+_cnum(g.q)+'</td><td></td><td style="text-align:right">'+_cnum(g.a)+'</td><td style="text-align:right">'+_cnum(g.v)+'</td><td style="text-align:right">'+_cnum(g.t)+'</td><td></td></tr>';
     };
     var g2Row=function(i1,i2){
       var g=L1[i1].l2[i2], c=!!_inbCollapsed['2#'+i1+'.'+i2];
       return '<tr class="close-sub" onclick="inbToggle(\'2#'+i1+'.'+i2+'\')" style="cursor:pointer">'
         +'<td colspan="5" style="text-align:left; padding-left:26px"><span class="ccar">'+(c?'▶':'▼')+'</span>'+_cesc(g.label)
         +' <span style="color:#5b6b7a;font-weight:600">(품목 '+g.items.length+'건)</span></td>'
-        +'<td style="text-align:right">'+_cnum(g.q)+'</td><td></td><td style="text-align:right">'+_cnum(g.a)+'</td><td></td></tr>';
+        +'<td style="text-align:right">'+_cnum(g.q)+'</td><td></td><td style="text-align:right">'+_cnum(g.a)+'</td><td style="text-align:right">'+_cnum(g.v)+'</td><td style="text-align:right">'+_cnum(g.t)+'</td><td></td></tr>';
     };
     var dRow=function(r){
       return '<tr><td>'+_fmtYmd(r.trxDt)+'</td><td>'+_cesc(r.vendorCd||'-')+'</td><td class="txt-l">'+_cesc(r.vendorNm||'-')+'</td><td>'+_cesc(r.prodCd)+'</td><td class="txt-l">'+_cesc(r.prodNm)+'</td>'
         +'<td style="text-align:right">'+_cnum(r.qty)+'</td><td style="text-align:right">'+_cnum(r.unitPrice)+'</td>'
-        +'<td style="text-align:right">'+_cnum(r.amt)+'</td><td>'+_cesc(r.remark)+'</td></tr>';
+        +'<td style="text-align:right">'+_cnum(r.amt)+'</td><td style="text-align:right">'+_cnum(r.vatAmt)+'</td><td style="text-align:right">'+_cnum(r.totAmt)+'</td><td>'+_cesc(r.remark)+'</td></tr>';
     };
     lzMount({ wrap:wrap, pager:'inbPager', head:'<table class="logi-tb">'+thead+'<tbody>'+totalRow,
               list:list, rows:INB_PAGE, capTop:214, fill:true,
@@ -3502,6 +3503,11 @@
       <%-- 진행 현황 (2026-10-06 사용자 「발주리스트등록·발주서등록·매입전환 / 견적 등록·제출·채택·판매등록 진행 상황」 → 「정보현황 메뉴에 추가」).
            두 흐름을 단계 띠로 보고, 단계를 누르면 목록, 줄을 누르면 그 일을 하는 화면으로. iframe 화면(mangr/pipeline.jsp) — 아래 panel-pipeline 이 짝 --%>
       <a class="mi" data-key="pipeline" onclick="logiFrame('pipeline','${pageContext.request.contextPath}/mangr/pipeline.do', this)"><span class="ic">🔄</span>진행 현황</a>
+      <%-- 종합실적 (2026-11-11 사용자 「홀세일 종합실적을 정보현황 ▸ 진행상황 밑에 추가」) — 기간계/일계 · 사원별 현황 · 상세보기. iframe 화면(mangr/perfSummary.jsp) — 아래 panel-perfSummary 가 짝 --%>
+      <%-- ★총괄관리자(s_main_gu='1')만 (2026-11-11 사용자 「종합실적은 총괄관리자만 보이게 — 재고관리의 비용등록처럼」). 서버도 perfSummary.do·perfInit.do·perfData.do 를 같은 조건으로 막는다 --%>
+      <% if ("1".equals(String.valueOf(session.getAttribute("s_main_gu")).trim())) { %>
+      <a class="mi" data-key="perfSummary" onclick="logiFrame('perfSummary','${pageContext.request.contextPath}/mangr/perfSummary.do', this)"><span class="ic">📊</span>종합 실적</a>
+      <% } %>
       <a class="mi" data-key="closeStatus" onclick="logiGo('closeStatus', this)"><span class="ic">📊</span>마감현황(월계표)</a>
       <a class="mi" data-key="closeHist"   onclick="logiGo('closeHist', this); closeHistLoad();"><span class="ic">📅</span>월별 마감이력</a>
       <%-- 이익현황 (2026-09-28 고객 요청) — ★탭이 아니라 <메뉴 3개>(사용자 「탭으로 하지 말고 메뉴로 추가」).
@@ -5149,6 +5155,10 @@
     <%-- 진행 현황 (2026-10-06) — 메뉴 logiFrame('pipeline',…) 의 짝. ★메뉴와 패널은 짝이다 — 하나만 넣으면 눌러도 아무 일이 없다 --%>
     <section id="panel-pipeline" class="panel" style="padding:0;">
       <iframe id="if-pipeline" src="" title="진행 현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <!-- ===== 종합실적 (2026-11-11) — 정보 현황 ▸ 종합실적 ===== -->
+    <section id="panel-perfSummary" class="panel" style="padding:0;">
+      <iframe id="if-perfSummary" src="" title="종합 실적" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <section id="panel-quoteMng" class="panel" style="padding:0;">
       <iframe id="if-quoteMng" src="" title="견적서 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
