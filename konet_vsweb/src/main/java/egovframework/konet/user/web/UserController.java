@@ -1513,6 +1513,24 @@ public class UserController {
 				p.put("statMemo", poStr(body.get("statMemo")));
 				p.put("statUser", session.getAttribute("s_user_id") == null ? "" : String.valueOf(session.getAttribute("s_user_id")));
 				p.put("statIp", request.getRemoteAddr());
+				/* ★관리자 승인 전이면 제출완료·채택·거절로 못 바꾼다 (2026-11-12 「승인 안되면 제출완료, 채택, 거절 안되게」) — 화면(quoteMng stOpen·stSave)이 먼저 막고 마지막 문은 여기.
+				   작성 중·보류는 그대로 된다. 이미 그 상태인 옛 줄은 메모·그 일자를 고칠 수 있다 — 막는 것은 «새로 그 상태로 옮기기»와 «그 일자를 새로 넣기»뿐 */
+				Map<String,Object> cq = new HashMap<String,Object>(); cq.put("compCd", session.getAttribute("s_comp_cd")); cq.put("quoteSeq", Long.valueOf(seq));
+				Map<String,Object> cur = svc.selectQuoteMst(cq);
+				if (cur == null) { response.setStatus(404); res.put("error", "견적서를 찾을 수 없습니다."); return res; }
+				if (!"Y".equals(poStr(cur.get("apprYn")))) {
+					String ng = poStr(body.get("statGb")).toUpperCase(), og = poStr(cur.get("statGb"));
+					String[][] gk = { { "S", "submitDt", "제출완료" }, { "A", "adoptDt", "채택" }, { "R", "rejectDt", "거절" } };   // 보류는 넣었다가 뺐다(같은 날 「다시 보류는 미포함」)
+					for (String[] k : gk) {
+						if (k[0].equals(og)) continue;
+						String nd = poStr(body.get(k[1])).replace("-", ""), od = poStr(cur.get(k[1])).replace("-", "");
+						if (k[0].equals(ng) || (!nd.isEmpty() && !nd.equals(od))) {
+							response.setStatus(409); res.put("code", "NOAPPR");
+							res.put("error", "관리자(총괄관리자) 승인 전입니다 — 승인된 견적서만 " + k[2] + (k[0].equals(ng) ? "(으)로 바꿀 수 있습니다." : " 일자를 넣을 수 있습니다."));
+							return res;
+						}
+					}
+				}
 				int n = svc.saveQuoteStat(p);
 				if (n == 0) { response.setStatus(404); res.put("error", "견적서를 찾을 수 없습니다."); return res; }
 				res.put("result", "OK"); res.put("cnt", n);

@@ -216,6 +216,7 @@
       <div class="box">
         <div class="ph">📌 견적서 진행 상태 <span class="dim" style="font-weight:600;font-size:12.5px" id="stDoc"></span></div>
         <div class="pb">
+          <div id="stApprNote" style="display:none;margin-bottom:8px;padding:7px 10px;border:1px solid #f0c9a0;border-radius:8px;background:#fff6ea;color:#8a4c0d;font-size:12.5px;line-height:1.55"></div>
           <div class="row"><label>지금 상태</label><div class="gbs">
             <label><input type="radio" name="stgb" value="W"> 작성 중</label>
             <label><input type="radio" name="stgb" value="S" onclick="stPick('S')"> 제출완료</label>
@@ -449,12 +450,34 @@ function stCell(x,i){
   return out;
 }
 /* 상태 넣기 창 — 네 일자를 한 자리에서 고친다(빈 칸으로 저장하면 그 일자는 지워진다) */
-var _stSeq=null;
+var _stSeq=null, _stAppr=true, _stCur='W';
+var ST_DTID={ S:'stSub', A:'stAdo', R:'stRej', H:'stHol' };
+/* 승인 전이면 제출완료(S)·채택(A)·거절(R)은 잠근다 = 작성 중·보류만 — 지금 이미 그 상태면 그대로 둘 수는 있다
+   (2026-11-12 · ★보류는 같은 날 「보류도 포함」으로 넣었다가 「다시 보류는 미포함」으로 뺐다 — 다시 넣자는 얘기가 나오면 이 왕복부터) */
+function stLocked(g){ return !_stAppr && (g==='S'||g==='A'||g==='R') && g!==_stCur; }
 function stOpen(i){
   var x=_ls[i]; if(!x) return; _stSeq=x.quoteSeq;
   var g=stGb(x), p=document.getElementById('stPop');
   p.querySelector('#stDoc').textContent=x.docNo+' · '+(x.recvNm||'');
-  Array.prototype.forEach.call(p.querySelectorAll('input[name=stgb]'), function(r){ r.checked=(r.value===g); });
+  /* ★승인 전이면 제출완료·채택·거절은 못 고른다 (2026-11-12 「승인 안되면 제출완료, 채택, 거절 안되게」) — 작성 중·보류만. 마지막 문은 서버(quoteStat.do).
+     이미 그 상태인 옛 줄은 그 상태·그 일자만 그대로 둘 수 있다(새로 그쪽으로 옮기거나 그 일자를 새로 넣는 것만 막는다) */
+  _stAppr=(x.apprYn==='Y'); _stCur=g;
+  Array.prototype.forEach.call(p.querySelectorAll('input[name=stgb]'), function(r){
+    r.checked=(r.value===g);
+    var lock=stLocked(r.value);
+    r.disabled=lock; r.parentNode.style.opacity=lock?'.42':''; r.parentNode.style.cursor=lock?'not-allowed':'';
+    r.parentNode.title=lock?'관리자 승인 전 — 승인된 뒤에 고를 수 있습니다':'';
+  });
+  ['S','A','R'].forEach(function(k){
+    var e=p.querySelector('#'+ST_DTID[k]), lock=stLocked(k); if(!e) return;
+    e.disabled=lock; e.style.background=lock?'#f1f3f5':''; e.title=lock?'관리자 승인 전 — 승인된 뒤에 넣을 수 있습니다':'';
+  });
+  var nt=p.querySelector('#stApprNote');
+  if(nt){
+    nt.style.display=_stAppr?'none':'';
+    nt.innerHTML=_stAppr?'':('⚠ <b>관리자 승인 전</b>입니다 — <b>제출완료·채택·거절</b>은 승인된 뒤에 넣을 수 있습니다. (작성 중·보류는 됩니다)<br>'
+      +(IS_MASTER?'목록 줄의 <b>[미승인]</b>을 눌러 승인한 뒤 다시 여세요.':'관리자(총괄관리자)에게 <b>승인 요청</b>하세요.'));
+  }
   p.querySelector('#stSub').value=d10(dnum(x.submitDt)); p.querySelector('#stAdo').value=d10(dnum(x.adoptDt));
   p.querySelector('#stRej').value=d10(dnum(x.rejectDt)); p.querySelector('#stHol').value=d10(dnum(x.holdDt));
   p.querySelector('#stMemo').value=x.statMemo||'';
@@ -476,6 +499,11 @@ function stSave(){
     submitDt:document.getElementById('stSub').value, adoptDt:document.getElementById('stAdo').value,
     rejectDt:document.getElementById('stRej').value, holdDt:document.getElementById('stHol').value,
     statMemo:document.getElementById('stMemo').value };
+  if(stLocked(g)){
+    _alertBox('<b>관리자 승인 전</b> 견적서는 <b>'+ST_NM[g]+'</b>(으)로 바꿀 수 없습니다.<br><span style="font-size:13px;color:#3d4d5c">'
+      +(IS_MASTER?'목록 줄의 [미승인]을 눌러 승인한 뒤 바꾸세요.':'관리자(총괄관리자)에게 승인 요청하세요.')+' 작성 중·보류는 그대로 저장됩니다.</span>',{icon:'⚠️'});
+    return;
+  }
   if(g!=='W' && !body[ST_DTK[g]]){ _alertBox(ST_NM[g]+' 일자를 넣으세요.',{icon:'⚠️'}); return; }
   /* 채택인데 제출일이 비면 한 번 묻는다(막지 않는다 — 2026-10-13) : 비어 있으면 제출→채택 기간·평균에서 빠진다 */
   if(g==='A' && !body.submitDt && !stSave._ok){
@@ -484,9 +512,9 @@ function stSave(){
       onOk:function(){ stSave._ok=true; try{ stSave(); } finally { stSave._ok=false; } } });
     return;
   }
-  post('/mangr/quoteStat.do', body, true).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error((j&&j.error)||('HTTP '+r.status)); return j; }); })
+  post('/mangr/quoteStat.do', body, true).then(function(r){ return r.json().then(function(j){ if(!r.ok){ var er=new Error((j&&j.error)||('HTTP '+r.status)); er.code=(j&&j.code)||''; throw er; } return j; }); })
     .then(function(){ stClose(); load(); if(window._toast) _toast('진행 상태를 저장했습니다.','success'); })
-    .catch(function(e){ _alertBox('저장하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>',{icon:'⚠️'}); });
+    .catch(function(e){ if(e.code==='NOAPPR'){ stClose(); load(); } _alertBox('저장하지 못했습니다.<br><span style="font-size:13px">'+esc(e.message)+'</span>',{icon:'⚠️'}); });
 }
 /* ★족보 (2026-10-01 「날짜 바뀐 경우 족보 찾기 쉽게 — 견적일 밑에 따라다니게 · 이력도」) — 제출완료 뒤 고친 판은 번호의 날짜가 고친 날이라
    번호만으로는 어디서 왔는지 모른다. 견적일 밑에 앞 판 번호를 「↩ Konet260930-01」로 달고, 누르면 변경 이력 창(revView). 서버 lineage(앞 판 번호 '|' 이음 · 옛 서버면 빈 값) */
@@ -599,12 +627,26 @@ function apprCell(x,i){
 }
 function quoteAppr(i, yn){
   var x=_ls[i]; if(!x) return Promise.resolve(false);
+  /* ★승인 취소 = 진행 상태를 «작성 중»으로 되돌린다 (2026-11-12 「승인 취소하면 작성 중으로 되돌리게」) — 되돌리는 것은 서버(updateQuoteAppr).
+     제출완료·채택·거절이던 줄만(★보류·작성 중은 그대로 — 같은 날 「다시 보류는 미포함」). 그 세 일자도 지워지므로 먼저 묻는다(옛 상태·일자는 메모 끝에 한 줄로 남는다) */
+  var back=(yn!=='Y' && 'SAR'.indexOf(stGb(x))>=0);
+  if(back && !quoteAppr._ok){
+    return new Promise(function(done){
+      _confirmBox({ icon:'❓', okText:'승인 취소', okColor:'red',
+        msg:'<b>'+esc(x.docNo||'')+'</b> 승인을 취소합니다.<br>진행 상태 <b>'+ST_NM[stGb(x)]+'</b> → <b>작성 중</b>으로 돌아가고 그 일자는 지워집니다.'
+          +'<br><span style="font-size:13px;color:#5b6b7c">옛 상태·일자는 메모 끝에 한 줄로 남습니다. 다시 승인해도 상태는 저절로 돌아오지 않습니다.</span>',
+        onOk:function(){ quoteAppr._ok=true; var q; try{ q=quoteAppr(i,yn); } finally { quoteAppr._ok=false; } q.then(done); },
+        onCancel:function(){ done(false); } });
+    });
+  }
   return post('/mangr/quoteAppr.do',{ quoteSeq:x.quoteSeq, apprYn:yn },true)
     .then(function(r){ return r.text().then(function(t){ var j={}; try{ j=JSON.parse(t||'{}'); }catch(e){} if(!r.ok) throw new Error(j.error||t||('HTTP '+r.status)); return j; }); })
     .then(function(j){
       x.apprYn=j.apprYn||yn; x.apprDttm=j.apprDttm||''; x.apprUser=j.apprUser||'';
+      if(back){ x.statGb='W'; x.submitDt=''; x.adoptDt=''; x.rejectDt=''; }   /* 서버가 작성 중으로 되돌렸다 — 줄도 맞춘다 (보류·작성 중이던 줄은 그대로) */
       lsRender();
-      _toast&&_toast((yn==='Y'?'✔ 승인 — ':'승인 취소 — ')+(x.docNo||''),'success');
+      _toast&&_toast((yn==='Y'?'✔ 승인 — ':'승인 취소 — ')+(x.docNo||'')+(back?' · 진행 상태를 작성 중으로 되돌렸습니다':''),'success');
+      if(back) load();   /* 메모(되돌린 기록)·작성 기간까지 서버 값으로 다시 */
       return true;
     })
     .catch(function(e){ _alertBox(esc(e.message),{icon:'⚠️', okColor:'red'}); return false; });
