@@ -206,9 +206,13 @@
   .qhp b{ color:#125a4e; }
   .tot{ font-size:13px; color:#37475a; font-weight:700; } .tot b{ color:var(--teal); }
   .dim{ color:#8a98a8; }
-  .csbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:8px 12px; border-bottom:1px solid #eef1f5; font-size:13px; }
-  .csbar .opt{ display:inline-flex; align-items:center; gap:5px; font-size:13px; font-weight:800; border:1px solid var(--bd); border-radius:8px; padding:5px 10px; cursor:pointer; background:#fff; }   /* 갈래 이름 진하게 (2026-09-18 「글자 진하게」) */
+  .csbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:4px 12px; border-bottom:1px solid #eef1f5; font-size:13px; }   /* 위아래 8 → 4px (2026-11-13 사용자 「위아래 폭 조금만 축소」) */
+  .csbar .opt{ display:inline-flex; align-items:center; gap:5px; font-size:13px; font-weight:800; border:1px solid var(--bd); border-radius:8px; padding:2px 10px; cursor:pointer; background:#fff; }   /* 갈래 이름 진하게 (2026-09-18 「글자 진하게」) */
   .csbar .opt .dim{ font-weight:600; }
+  /* ★갈래 칩이 높았던 까닭 = 아래 「.csbar input{height:30px}」가 라디오 단추에도 걸려 칩이 42px 가 됐다 → 라디오는 제 크기로, 줄의 단추도 34 → 30px (2026-11-13 「위아래 폭 조금만 축소」) */
+  .csbar .opt input[type=radio]{ height:auto; padding:0; border:0; margin:0 2px 0 0; }
+  .csbar .opt{ min-height:28px; }
+  .csbar .btn{ height:30px; }
   .csbar .opt:has(input:checked){ border-color:#0f6b5e; background:#e3f2ee; }
   .csbar select, .csbar input{ height:30px; border:1px solid var(--bd); border-radius:7px; padding:0 6px; font-size:13px; background:#fff; }
   .csbar input.num{ text-align:right; border:1.5px solid #e9b98a; background:#fdebd9; }
@@ -274,6 +278,8 @@
   <div class="card" id="headCard">
     <div class="hd">머리 <small id="hdTip">— 문서번호는 견적일로 자동 매깁니다(고칠 수 있음). 같은 문서번호를 저장하면 앞의 것을 대체합니다</small>
       <span id="hdSum" hidden></span>
+      <%-- 품목 안내 한 줄을 여기(머리 줄)로 올렸다 (2026-11-13 사용자 「표시 위로」) — 종전엔 품목 카드 맨 위에 따로 한 줄을 차지해 표가 그만큼 아래로 밀렸다 --%>
+      <small id="itHint" style="margin-left:14px"><b style="color:#125a4e;font-weight:800">품목</b> — 금액 = 수량 × 단가(자동). [🔍 상품]으로 품명·규격·판매가 · 원가·마진 칸은 줄마다 오른쪽에 펼쳐져 있습니다</small>
       <button class="btn lnk" id="hdFoldBtn" style="margin-left:auto;height:26px" onclick="hdFold()" title="머리 입력칸을 접어 품목 표를 위로 올립니다 — 다시 누르면 펼칩니다">▲ 접기</button>
     </div>
     <div class="fm" id="hdFm">
@@ -303,7 +309,7 @@
   </div>
 
   <div class="card">
-    <div class="hd">품목 <small>— 금액 = 수량 × 단가(자동). [🔍 상품]으로 품명·규격·판매가 · 원가·마진 칸은 줄마다 오른쪽에 펼쳐져 있습니다</small>
+    <div class="hd" style="display:none">품목 <small>— (2026-11-13 「표시 위로」 — 이 안내는 머리 줄 #itHint 로 올렸다. 이 줄은 감춘다)</small>
       <%-- [삭제 2026-09-20 사용자 「품목추가세트는 제거 — 버튼」] ➕ 품목 추가 (🧮 세트) 단추를 뺐다.
            함수 addCalcLine() 은 그대로 둔다(다시 넣으려면 여기 단추 한 줄만) — 줄마다 [🧮] 로 계산을 여는 길이 있다.
            [＋ 품목 추가] 는 같은 날 «물류비 줄 오른쪽»으로 옮겼다(사용자 화면 표시) — 아래 #csBar 참고. --%>
@@ -746,7 +752,22 @@ function xFeeRows(l,i,cs,NCX){
   }).join('')+'</td></tr>';
 }
 /* 그린 뒤 자리 맞춤 — 둘째 머리줄 top(첫 줄 높이) · 틀 고정 4칸의 left */
+/* ★표 높이를 <화면에 남은 자리>에 맞춘다 (2026-11-13 사용자 「맨 위까지 가면 헤더는 고정으로」) —
+   머리글은 표를 감싼 칸(#itemWrap) 안에서만 붙는다(sticky). 그런데 그 칸에 높이 제한이 없어 표가 길면 <페이지 전체>가 스크롤됐고, 머리글도 함께 화면 밖으로 올라갔다.
+   ⇒ #itemWrap 의 높이를 「창 높이 − 표 위쪽 − 아래 저장 줄」로 묶어 <표 안에서> 스크롤되게 한다. 그러면 머리글 2줄은 늘 위에, 가로 스크롤 막대와 [저장] 줄은 늘 아래에 보인다.
+   · 남는 자리가 너무 좁으면(머리 칸을 펼쳐 둔 작은 화면) 표를 「창 높이 − 저장 줄」로 잡는다 — 페이지를 조금 내리면 표가 화면을 채우고 그 뒤로는 표 안에서 돈다.
+   · 머리 접기·크게 보기·머리 높이 막대·창 크기가 바뀌면 다시 잰다(아래 ResizeObserver·resize). body.big 의 CSS max-height 는 이 값이 덮는다(같은 뜻). */
+function xWrapFit(){
+  var w=document.getElementById('itemWrap'); if(!w) return;
+  var vh=window.innerHeight||document.documentElement.clientHeight||0; if(vh<200) return;
+  var top=w.getBoundingClientRect().top + (window.pageYOffset||document.documentElement.scrollTop||0);
+  var below=26; for(var sb=w.nextElementSibling; sb; sb=sb.nextElementSibling) below+=sb.offsetHeight+3;   /* 높이 막대 + 저장 줄 + 카드 아래 여백 */
+  var h=vh - top - below;
+  if(h<320) h=Math.max(320, vh - below - 8);
+  w.style.maxHeight=Math.round(h)+'px';
+}
 function xFit(){
+  xWrapFit();
   var tb=document.querySelector('#itemWrap table.g.x'); if(!tb) return;
   var r1=tb.tHead&&tb.tHead.rows[0]; if(!r1) return;
   tb.style.setProperty('--xh1', r1.offsetHeight+'px');
@@ -885,7 +906,7 @@ function calcRowHtml(l,i,NC){
 /* ⚠[폐지 2026-09-20 「동판·목형 위치 이 위치로 · 품목 추가 시에도 변동 없게」] 품명비 줄을 계산 표의 「구매(계산)」 칸에 맞춰 들여쓰던 것(feeAlign) —
    줄마다·화면마다 시작 자리가 달라져 품목을 더하면 들쭉날쭉했다. ⇒ **늘 맨 왼쪽에서 시작**(들여쓰기 없음). 자리를 다시 맞추자는 얘기가 나오면 이 이력부터 확인할 것. */
 function feeAlign(){}
-function feeAlignAll(){}
+function feeAlignAll(){ if(typeof xFit==='function') setTimeout(xFit, 0); }   /* 크게 보기 전환 뒤 표 높이 다시 (2026-11-13) — 종전 빈 함수 */
 /* ★[⛶ 크게 보기] — 품목이 많을 때 머리 카드를 접고 품목 표를 화면 위까지 넓힌다 (2026-09-20 「품목이 많을 경우 화면 위로 확대 기능」).
    표 자체는 그대로다 — 가리는 것은 머리(문서번호·수신·견적일…) 칸뿐이고, 저장·인쇄에는 아무 영향이 없다.
    상태는 localStorage('konetQuoteBig') 에 남아 다음에 들어와도 그대로. 다시 누르면 원래대로. */
@@ -912,6 +933,11 @@ try{ if(localStorage.getItem('konetQuoteHeadFold')==='1') document.addEventListe
      (asset/js/ui-gridgrip.js). 끌면 입력칸 높이가 줄고 안은 스크롤 · [▲ 줄이기]·[▼ 늘리기] · 더블클릭 = 원래 높이 ·
      높이는 localStorage('konetGridH.quoteHead'). 머리를 접으면 막대도 숨는다. */
 if(window.konetGridGrip) konetGridGrip('hdFm', 'hdFm', 'quoteHead', { fit:true });   /* 늘리기는 원래 높이까지만 (2026-11-09 「늘리기는 기본까지」) */
+/* ★품목 표 높이 막대 (2026-11-13 사용자 「하단에 막대로 펼치기 기능」) — 표와 [저장] 줄 사이에 공용 막대(ui-gridgrip.js). 판매·매입 등록의 표 막대와 같은 것 :
+     끌어서 늘리기·줄이기 · [▲ 줄이기]·[▼ 늘리기](120px) · 더블클릭 = 자동 높이(화면에 맞춤 — xWrapFit) · 안 보이는 줄이 있으면 왼쪽에 「▼ 아래 N줄 더 있음」.
+     고른 높이는 localStorage('konetGridH.quoteItems') 에 남는다. 막대로 고른 높이(!important)가 xWrapFit 의 자동 높이보다 먼저다. */
+if(window.konetGridGrip) konetGridGrip('itemWrap', 'itemWrap', 'quoteItems');
+document.addEventListener('dblclick', function(ev){ if(ev.target && ev.target.closest && ev.target.closest('.kgg')) setTimeout(function(){ if(typeof xWrapFit==='function') xWrapFit(); }, 0); });   /* 더블클릭 = 자동 높이로 */
 function bigToggle(on){
   var b=document.body, v=(on==null? !b.classList.contains('big') : !!on);
   b.classList.toggle('big', v);
@@ -921,6 +947,8 @@ function bigToggle(on){
 }
 try{ if(localStorage.getItem('konetQuoteBig')==='1') document.addEventListener('DOMContentLoaded', function(){ bigToggle(true); }); }catch(e){}
 window.addEventListener('resize', function(){ if(typeof xFit==='function') xFit(); });   /* 엑셀형 틀 고정 자리 (2026-11-13) */
+/* 표 위쪽(머리 카드·물류비 줄)의 높이가 바뀌면 표 높이를 다시 잰다 — 머리 접기·높이 막대·줄바꿈 (2026-11-13 「헤더는 고정으로」) */
+document.addEventListener('DOMContentLoaded', function(){ try{ if(!window.ResizeObserver) return; var ro=new ResizeObserver(function(){ if(typeof xWrapFit==='function') xWrapFit(); }); ['headCard','csBar','qHelp'].forEach(function(id){ var e=document.getElementById(id); if(e) ro.observe(e); }); }catch(e){} });
 /* ★품명비(동판·목형) — 계산 표 <위>, 같은 줄(crow) 안 (2026-09-20 「원가마진에서 동판·목형이 위로 위치하게」)
    ⚠[원위치 2026-09-20 「동판비·목형비 기존 위치로 원위치」] : 같은 날 잠깐 «품명 바로 밑 별도 줄 + 계산 표는 맨 밑」로 옮겼다가 되돌렸다.
      다시 옮기자는 얘기가 나오면 이 이력부터 확인할 것 — `feeHtml` 을 별도 `tr` 로 감싸 renderLines 에서 품목 줄 뒤에 넣으면 그 모양이 된다.
