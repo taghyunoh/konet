@@ -173,6 +173,13 @@
   table.g.x .fchip b{ color:#125a4e; font-weight:800; margin-right:2px; }
   table.g.x .fchip .fop{ color:#8a98a8; }
   table.g.x .fchip .famt{ display:inline-block; min-width:70px; text-align:right; background:#f3f5f8; border:1px dashed #b9c4d0; border-radius:6px; padding:4px 6px; font-weight:700; font-variant-numeric:tabular-nums; }
+  /* 동판·목형 줄 위아래 축소 (2026-11-13 사용자 「동판·목형 줄도 위아래 폭 조금만 축소」) — 입력칸·선택칸·단추 27/26 → 22px, 닫힌 줄 단추 20 → 18px */
+  table.g.x tr.crow.feex > td{ padding-top:1px; padding-bottom:1px; }
+  table.g.x tr.crow.feex input[type=text]{ height:22px; font-size:12px; }
+  table.g.x tr.crow.feex td.fone select{ height:22px; font-size:12px; padding:0 2px; }   /* td.fone 까지 적어 뒤쪽의 26px 규칙을 이긴다 */
+  table.g.x tr.crow.feex .fee-tg{ height:22px; line-height:20px; font-size:11.5px; }
+  table.g.x tr.crow.feex .fchip .famt{ padding:1px 6px; line-height:18px; }
+  table.g.x tr.crow.feeoff .fee-tg{ height:18px; line-height:16px; margin:0; }
   table.g.x tr.crow.feex td.fuse{ text-align:left; }
   table.g.x tr.crow.feex select{ height:26px; font-size:12px; }
   table.g.x tr.crow.feeoff > td{ padding-top:0; padding-bottom:0; line-height:1.1; background:#f8fbfa; }
