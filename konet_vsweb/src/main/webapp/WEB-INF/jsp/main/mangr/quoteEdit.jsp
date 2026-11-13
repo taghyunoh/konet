@@ -168,6 +168,10 @@
   table.g.x tr.crow.feex td.fnm{ text-align:left; font-weight:800; color:#125a4e; padding-left:8px; }
   /* 동판비·목형비 한 줄 (2026-11-13 「한줄로」) — 규격 칸부터 나란히 */
   table.g.x tr.crow.feex td.fone{ text-align:left; padding:3px 3px; }
+  table.g.x .xmemo{ display:inline-block; max-width:760px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; background:#fff8dc; border:1px solid #e9cf7a; border-radius:5px; padding:0 8px; font-size:12px; line-height:16px; color:#6b4a00; cursor:pointer; }   /* 배송 단가 메모 표시 (2026-11-13) */
+  table.g.x .xmemo:hover{ background:#fff0b8; border-color:#d9b23a; }
+  table.g.x tr.crow.feex .xmemo{ margin-left:6px; line-height:18px; }
+  table.g.x td.hint.memo{ cursor:default; }
   table.g.x tr.crow.feex td.flab{ text-align:right; padding-right:8px; font-weight:800; color:#125a4e; }   /* 첫 품명비 이름 = 규격 칸 오른쪽 끝 (2026-11-13) */   /* MOQ수량 입력칸과 왼쪽 끝이 맞게 */
   table.g.x .fchip{ display:inline-flex; align-items:center; gap:5px; margin-right:18px; vertical-align:middle; }
   table.g.x .fchip b{ color:#125a4e; font-weight:800; margin-right:2px; }
@@ -731,11 +735,16 @@ function xRow(l,i,no,cs){
   return h;
 }
 /* 동판·목형 줄 — 엑셀의 목형비 줄처럼 품목 밑 한 줄씩(열면), 닫히면 요약 한 줄. 칸 자리 : 이름 = 규격, 수량 = MOQ수량, 단가 = 단가, 금액 = 금액, 갈래 = 구단부터 */
+/* ★배송 단가 메모(📝)가 있으면 그 품목 밑 줄에 글로 보여 준다 (2026-11-13 사용자 「메모 있으면 표시에 보여줘요」) — 종전엔 📝 단추가 노랗게 될 뿐이라 내용은 마우스를 올려야 보였다.
+   자리 = 동판·목형 줄의 «박스 입수량» 칸부터(닫힌 줄) · 펼친 줄은 목형비 칩 뒤. 누르면 메모 고치기(buyMemoEdit). 줄바꿈은 ' / ' 로 이어 한 줄로, 길면 말줄임(전체는 말풍선) */
+function xMemo(l,i){ var m=String((l.calc&&l.calc.buyMemo)||'').trim(); if(!m) return '';
+  var tip=esc(m).replace(/"/g,'&quot;').replace(/\r?\n/g,'&#10;'), one=esc(m.replace(/\s*\r?\n\s*/g,' / '));
+  return '<span class="xmemo" onclick="event.stopPropagation(); buyMemoEdit('+i+')" title="📝 배송 단가 메모 — 누르면 고치기&#10;'+tip+'">📝 '+one+'</span>'; }
 function xFeeRows(l,i,cs,NCX){
   var h2=use2(), c=l.calc, ex=c.extras||[], fOpen=!!c.feeOpen, fHas=calcHasFee(c), QC=h2?7:5;
   var lead=function(first){ return '<td class="fz"></td><td class="fz">'+(first?'<button class="btn lnk fee-tg" title="'+(fHas?'품명비(동판·목형) 있음 — ':'품명비(동판·목형) — ')+(fOpen?'누르면 닫기':'누르면 열기')+'"'+(fHas?' style="background:#137a6c;border-color:#137a6c;color:#fff"':'')+' onclick="feeToggle('+i+')">'+(fOpen?'▾':'▸')+' 동판,목형</button>':'')+'</td><td class="fz"></td><td class="fz"></td>'; };
-  if(varInh(l)) return '<tr class="crow fee feeoff"><td class="fz"></td><td class="fz"></td><td class="fz"></td><td class="fz"></td><td></td><td class="hint" colspan="'+(NCX-5)+'">'+varInhHtml(i)+'</td></tr>';   /* 옛 자료의 변형 줄 — 윗줄 따름 */
-  if(!fOpen) return '<tr class="crow fee feeoff">'+lead(true)+'<td></td><td class="hint" colspan="'+(NCX-5)+'" onclick="feeToggle('+i+')" title="눌러서 동판·목형 칸 열기">'+(fHas? feeSum(c) : '')+'</td></tr>';   /* 값이 없으면 글자 없이 비운다 (2026-11-13 사용자 「표시 글자 제거」 — 종전 「동판비·목형비 — 닫힘 (눌러서 열기)」가 줄마다 되풀이됐다). 값이 있으면 요약(목형비 1 × 175,000 (별도 청구))은 그대로 */
+  if(varInh(l)) return '<tr class="crow fee feeoff"><td class="fz"></td><td class="fz"></td><td class="fz"></td><td class="fz"></td><td></td><td class="hint" colspan="'+(3+QC)+'">'+varInhHtml(i)+'</td><td class="hint memo" colspan="'+(NCX-5-3-QC)+'">'+xMemo(l,i)+'</td></tr>';   /* 옛 자료의 변형 줄 — 윗줄 따름 */
+  if(!fOpen) return '<tr class="crow fee feeoff">'+lead(true)+'<td></td><td class="hint" colspan="'+(3+QC)+'" onclick="feeToggle('+i+')" title="눌러서 동판·목형 칸 열기">'+(fHas? feeSum(c) : '')+'</td><td class="hint memo" colspan="'+(NCX-5-3-QC)+'">'+xMemo(l,i)+'</td></tr>';   /* 값이 없으면 글자 없이 비운다 (2026-11-13 사용자 「표시 글자 제거」 — 종전 「동판비·목형비 — 닫힘 (눌러서 열기)」가 줄마다 되풀이됐다). 값이 있으면 요약(목형비 1 × 175,000 (별도 청구))은 그대로 */
   if(!ex.length) return '<tr class="crow fee feex">'+lead(true)+'<td></td><td colspan="'+(NCX-5)+'" style="text-align:left;padding-left:3px"><button class="btn lnk xs" onclick="cxReset('+i+')" title="동판비·목형비 두 칸을 다시 넣는다">＋ 품명비 넣기</button></td></tr>';
   /* ★시작 자리 = «MOQ수량» 칸 (2026-11-13 사용자 「동판·목형 MOQ수량 같은 위치에서 시작」) — 규격 칸은 비우고 그 다음 칸(배송 MOQ수량)부터. 요약 줄·윗줄 따름 줄도 같은 자리.
      ⚠규격과 배송 사이에 칸이 끼면 아래 빈 칸(<td></td>) 수와 colspan(NCX-5)을 함께 고칠 것 */
@@ -756,7 +765,7 @@ function xFeeRows(l,i,cs,NCX){
       +'<select onchange="cxset('+i+','+j+',\'use\', this.value)" title="적용 여부 — 원가 포함 = 금액 ÷ MOQ 수량을 개당 구매에 더함 / 별도 청구 = 단가·금액을 찍고 합계에 더함 / 적용 안 함 = 줄만 보임"><option value="cost"'+(x.use==='cost'?' selected':'')+'>원가 포함</option><option value="sub"'+(x.use==='sub'?' selected':'')+'>별도 청구</option><option value="off"'+(x.use!=='cost'&&x.use!=='sub'?' selected':'')+'>적용 안 함</option></select>'
       +(x.use==='cost'&&amt&&n(c.moqQty)?'<span class="dim" style="font-size:11.5px">÷ MOQ '+fmt(n(c.moqQty))+' = 개당 '+fmt(amt/n(c.moqQty),2)+' → 구단에 포함</span>':'')
       +'</span>';
-  }).join('')+'</td></tr>';
+  }).join('')+xMemo(l,i)+'</td></tr>';
 }
 /* 그린 뒤 자리 맞춤 — 둘째 머리줄 top(첫 줄 높이) · 틀 고정 4칸의 left */
 /* ★표 높이를 <화면에 남은 자리>에 맞춘다 (2026-11-13 사용자 「맨 위까지 가면 헤더는 고정으로」) —
