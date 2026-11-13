@@ -1459,7 +1459,7 @@ public class UserController {
 				Map<String,Object> q = new HashMap<String,Object>();
 				q.put("quoteSeq", mst.get("quoteSeq")); q.put("compCd", mst.get("compCd"));
 				java.util.List<Map<String,Object>> items = svc.selectQuoteDtl(q);
-				quoteNmSpan(items);   /* 같은 품명 잇단 줄(MOQ 변형) 세로 합침 (2026-11-11) */
+				quoteNmSpan(mst, items);   /* 같은 품명 잇단 줄(MOQ 변형) 세로 합침 (2026-11-11) · 동판·목형 줄은 그 품목 순번에 묶음 (2026-11-13) */
 				model.addAttribute("items", items);
 				Map<String,Object> c = new HashMap<String,Object>(); c.put("compCd", mst.get("compCd"));
 				Map<String,Object> comp = svc.selectCompInfo(c); if (comp == null) comp = new HashMap<String,Object>();
@@ -1475,22 +1475,27 @@ public class UserController {
 		}
 		/** 같은 품명이 잇달아 있으면(MOQ 변형 줄 — 2026-11-11 「1번 품명은 고정, MOQ 수량만 다르게」) 인쇄에서 순번·품명 칸을 세로로 합친다 :
 		 *  첫 줄 nmSpan = 줄 수, 이어지는 줄 0, 보통 줄 1. 원가 포함 품명비 줄(인쇄에서 빠지는 줄)은 건너뛰고 센다. 품명·제조사가 같아야 한 묶음. */
-		private static void quoteNmSpan(java.util.List<Map<String,Object>> items) {
+		/* ★noSpan (2026-11-13 사용자 「출력도 화면처럼 — 동판·목형은 번호 카운트 안 함 · 품목 번호 따라가게」) = 순번 칸 세로 합침 줄 수 :
+		     품목 줄 + MOQ 변형 줄 + 딸린 품명비(동판·목형) 서브 줄. 서브 줄은 noSpan 0(순번 칸 없음)·nmSpan 1(품명 칸은 따로). 판정 = UserServiceImpl.quoteSubFlags(엑셀과 공용) */
+		private static void quoteNmSpan(Map<String,Object> mst, java.util.List<Map<String,Object>> items) {
 			if (items == null) return;
 			java.util.List<Map<String,Object>> vis = new java.util.ArrayList<Map<String,Object>>();
 			for (Map<String,Object> it : items) {
 				boolean cost = poNum(it.get("unitPrice")) <= 0 && poNum(it.get("amt")) <= 0 && poStr(it.get("remark")).startsWith("원가 포함");
-				it.put("nmSpan", Integer.valueOf(1));
+				it.put("nmSpan", Integer.valueOf(1)); it.put("noSpan", Integer.valueOf(1));
 				if (!cost) vis.add(it);
 			}
+			boolean[] sub = egovframework.konet.user.service.impl.UserServiceImpl.quoteSubFlags(mst, vis);
 			int i = 0;
 			while (i < vis.size()) {
 				String nm = poStr(vis.get(i).get("prodNm")).trim(), mk = poStr(vis.get(i).get("makerNm")).trim();
 				int j = i + 1;
-				while (j < vis.size() && !nm.isEmpty() && nm.equals(poStr(vis.get(j).get("prodNm")).trim()) && mk.equals(poStr(vis.get(j).get("makerNm")).trim())) j++;
-				vis.get(i).put("nmSpan", Integer.valueOf(j - i));
-				for (int k = i + 1; k < j; k++) vis.get(k).put("nmSpan", Integer.valueOf(0));
-				i = j;
+				while (j < vis.size() && !sub[j] && !nm.isEmpty() && nm.equals(poStr(vis.get(j).get("prodNm")).trim()) && mk.equals(poStr(vis.get(j).get("makerNm")).trim())) j++;
+				int e = j; while (e < vis.size() && sub[e]) e++;   /* 딸린 동판·목형 줄 */
+				vis.get(i).put("nmSpan", Integer.valueOf(j - i)); vis.get(i).put("noSpan", Integer.valueOf(e - i));
+				for (int k = i + 1; k < j; k++) { vis.get(k).put("nmSpan", Integer.valueOf(0)); vis.get(k).put("noSpan", Integer.valueOf(0)); }
+				for (int k = j; k < e; k++) { vis.get(k).put("nmSpan", Integer.valueOf(1)); vis.get(k).put("noSpan", Integer.valueOf(0)); }
+				i = e;
 			}
 		}
 		/** 견적서 공유 주소 — 화면이 [💬 카톡]·[🔗 링크]를 누르면 부른다. 토큰을 발급(처음 한 번)하고 공개 주소를 돌려준다 */

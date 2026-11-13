@@ -136,8 +136,9 @@
       <c:set var="isCost" value="${(empty it.unitPrice or it.unitPrice le 0) and (empty it.amt or it.amt le 0) and fn:startsWith(it.remark, '원가 포함')}"/>
       <c:if test="${not isCost}">
       <%-- ★같은 품명이 잇달아 있으면(MOQ 변형 줄 — 2026-11-11) 순번·품명 칸을 세로로 합친다 : 컨트롤러 quoteNmSpan 이 첫 줄에 nmSpan=줄 수, 나머지 0 --%>
-      <c:if test="${it.nmSpan != 0}"><c:set var="rn" value="${rn + 1}"/></c:if>
-      <tr><c:if test="${it.nmSpan != 0}"><td class="c" rowspan="${it.nmSpan}">${rn}</td><td class="l wrap" rowspan="${it.nmSpan}"><div class="tx">${it.prodNm}</div></td></c:if><td class="l wrap"><div class="tx">${it.spec}</div></td>
+      <%-- ★순번 칸은 noSpan (2026-11-13 「동판·목형은 번호 카운트 안 함 · 품목 번호 따라가게」) — 품목 줄 + MOQ 줄 + 딸린 동판·목형 줄을 한 칸으로. 동판·목형 줄은 순번을 세지 않고(noSpan 0) 품명 칸만 따로 가진다(nmSpan 1) --%>
+      <c:if test="${it.noSpan != 0}"><c:set var="rn" value="${rn + 1}"/></c:if>
+      <tr><c:if test="${it.noSpan != 0}"><td class="c" rowspan="${it.noSpan}">${rn}</td></c:if><c:if test="${it.nmSpan != 0}"><td class="l wrap" rowspan="${it.nmSpan}"><div class="tx">${it.prodNm}</div></td></c:if><td class="l wrap"><div class="tx">${it.spec}</div></td>
           <td class="c"><c:if test="${not empty it.boxQty}"><fmt:formatNumber value="${it.boxQty}" pattern="#,##0.##"/></c:if></td>
           <td class="r"><fmt:formatNumber value="${it.qty}" pattern="#,##0.##"/></td>
           <%-- 단가·금액 0 은 빈칸 (2026-09-18) — 원가 포함 품명비 줄(단가에 이미 반영·비고에 근거)이 0 으로 찍히지 않게 --%>

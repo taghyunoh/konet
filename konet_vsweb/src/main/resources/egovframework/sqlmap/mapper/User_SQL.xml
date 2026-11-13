@@ -4530,7 +4530,9 @@
 	    FROM (
 	  SELECT MAX(l.COMP_CD) AS compCd, l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, ISNULL(p.PROD_NM,'') AS prodNm,
 	         ISNULL(MAX(p.VENDOR_CD),'') AS mstVendorCd, ISNULL(MAX(p.VENDOR_NM),'') AS mstVendorNm,
-	         SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY ELSE 0 END) AS inQty,
+	         /* 입고 = 양수 입고(I>0)·판매반품(R)·조정(A). 매입 반품(I 음수)은 retQty 로 갈라 양수로 준다 (2026-11-13 「입고 열도 반품 따로」) — curQty 는 종전 그대로 */
+	         SUM(CASE WHEN l.IO_GB = 'I' AND l.QTY &lt; 0 THEN 0 WHEN l.IO_GB IN ('I','R','A') THEN l.QTY ELSE 0 END) AS inQty,
+	         SUM(CASE WHEN l.IO_GB = 'I' AND l.QTY &lt; 0 THEN -l.QTY ELSE 0 END) AS retQty,
 	         SUM(CASE WHEN l.IO_GB = 'O' THEN l.QTY ELSE 0 END) AS outQty,
 	         SUM(CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY WHEN l.IO_GB='O' THEN -l.QTY ELSE 0 END) AS curQty,
 	         MAX(m.AVG_IN_PRICE) AS avgInPrice, MAX(m.LAST_INPRICE) AS lastInprice, MAX(m.LAST_SALEPRICE) AS lastSaleprice,
@@ -4558,7 +4560,7 @@
 	       · 대표 줄 = 그 코드의 가장 늦은 PROD_SEQ(위 p 조인과 같은 규칙). 기준일·창고 조건도 위와 같이 걸어, 그 조건에서 원장이 없는 상품만 0 줄로 붙는다(겹치지 않는다). */
 	  UNION ALL
 	  SELECT p.COMP_CD, p.PROD_SEQ, p.PROD_CD, ISNULL(p.PROD_NM,''), ISNULL(p.VENDOR_CD,''), ISNULL(p.VENDOR_NM,''),
-	         0, 0, 0, m.AVG_IN_PRICE, m.LAST_INPRICE, m.LAST_SALEPRICE, 0, NULL, NULL
+	         0, 0, 0, 0, m.AVG_IN_PRICE, m.LAST_INPRICE, m.LAST_SALEPRICE, 0, NULL, NULL   /* inQty, retQty(2026-11-13), outQty, curQty */
 	    FROM TBL_PROD_MST p
 	    LEFT JOIN TBL_STOCK_MST m ON m.PROD_SEQ = p.PROD_SEQ AND m.COMP_CD = p.COMP_CD
 	   WHERE p.ACTION_YN = 'Y'

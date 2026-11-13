@@ -474,7 +474,7 @@ function somDetailRender(sel, j, fr, to){
   if(!led.length) h2='<div class="none">입고가 없습니다.</div>';
   else { h2='<table><thead><tr><th>일자</th><th>구분</th><th>수량</th><th>매입처/사업장</th><th>근거</th><th>비고</th></tr></thead><tbody>';
     led.forEach(function(r){ var q=Number(r.qty)||0; is+=q;
-      h2+='<tr><td>'+dt8(r.trxDt)+'</td><td>'+esc(gb[r.ioGb]||r.ioGb)+'</td><td class="r">'+num(q)+'</td><td class="l">'+esc(r.vendorNm||r.bizCd||'')+'</td><td>'+esc(r.refGb||'')+(r.refNo?(' '+esc(r.refNo)):'')+'</td><td class="l">'+esc(r.remark||'')+'</td></tr>'; });
+      h2+='<tr><td>'+dt8(r.trxDt)+'</td><td>'+((r.ioGb==='I'&&q<0)?'<span style="color:#c0392b;font-weight:700" title="매입 반품 — 음수 수량 입고">반품</span>':esc(gb[r.ioGb]||r.ioGb))+'</td><td class="r">'+num(q)+'</td><td class="l">'+esc(r.vendorNm||r.bizCd||'')+'</td><td>'+esc(r.refGb||'')+(r.refNo?(' '+esc(r.refNo)):'')+'</td><td class="l">'+esc(r.remark||'')+'</td></tr>'; });
     h2+='</tbody></table>'; }
   document.getElementById('dtlIn').innerHTML=h2; document.getElementById('dtlInSum').textContent=led.length?(led.length+'건 · '+num(is)):'';
 }

@@ -24,6 +24,7 @@ public class StockMstDTO {
     private Integer curQty;        // 현재고 수량 = 입고누계 − 출고누계
     private Integer inQty;         // 입고누계(수불원장)
     private Integer outQty;        // 출고누계(TBL_SHIPOUT_MST)
+    private Integer retQty;        // 매입 반품누계 = 원장 IO_GB='I' 음수 수량의 절댓값 (2026-11-13 품목별재고현황 「반품」 열) — 조회 전용
     private Double  avgInPrice;    // 이동평균 매입단가
     private Double  lastInprice;   // 최근 매입단가
     private Double  lastSaleprice; // 최근 판매단가
@@ -67,6 +68,8 @@ public class StockMstDTO {
     public void setInQty(Integer inQty) { this.inQty = inQty; }
     public Integer getOutQty() { return outQty; }
     public void setOutQty(Integer outQty) { this.outQty = outQty; }
+    public Integer getRetQty() { return retQty; }
+    public void setRetQty(Integer retQty) { this.retQty = retQty; }
     public Double getAvgInPrice() { return avgInPrice; }
     public void setAvgInPrice(Double avgInPrice) { this.avgInPrice = avgInPrice; }
     public Double getLastInprice() { return lastInprice; }

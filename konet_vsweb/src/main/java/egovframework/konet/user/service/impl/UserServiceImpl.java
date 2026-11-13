@@ -1147,6 +1147,25 @@ public class UserServiceImpl implements UserService {
 		}
 		cl.setCellStyle(ns);
 	}
+	/** 견적서 품명비(동판비·목형비) 서브 줄 판정 — 인쇄(quoteNmSpan)·엑셀(buildQuoteXls) 공용 (2026-11-13 사용자 「출력(엑셀 포함)도 화면처럼 — 동판·목형은 번호 카운트 안 함 · 품목 번호 따라가게」).
+	 *  ①근거자료 CALC_JSON 의 genRows(작성 화면이 만든 서브 줄의 ROW_NO)에 있으면 서브 줄 ②없으면(공개 링크는 CALC_JSON 을 안 읽는다·옛 자료) 줄 모양으로 :
+	 *    규격·상품코드가 비고 비고가 「별도 청구」·「적용 안 함…」·「원가 포함…」 인 줄(작성 화면 payload 가 서브 줄에 적는 글자).
+	 *  맨 첫 줄은 딸릴 품목이 없으므로 서브 줄로 보지 않는다. 돌려주는 배열은 lines 와 같은 차례. */
+	public static boolean[] quoteSubFlags(java.util.Map<String,Object> mst, java.util.List<java.util.Map<String,Object>> lines) {
+		java.util.Set<Integer> gen = new java.util.HashSet<Integer>();
+		String cj = mst == null ? "" : scStr(mst.get("calcJson"));
+		java.util.regex.Matcher gm = java.util.regex.Pattern.compile("\"genRows\"\\s*:\\s*\\[([0-9,\\s]*)\\]").matcher(cj);
+		if (gm.find()) for (String t : gm.group(1).split(",")) { t = t.trim(); if (!t.isEmpty()) try { gen.add(Integer.valueOf(t)); } catch (Exception e) { /* 숫자 아님 — 건너뜀 */ } }
+		boolean[] f = new boolean[lines == null ? 0 : lines.size()];
+		for (int i = 1; i < f.length; i++) {
+			java.util.Map<String,Object> l = lines.get(i);
+			String rmk = scStr(l.get("remark")).trim();
+			boolean byMark = scStr(l.get("spec")).trim().isEmpty() && scStr(l.get("prodCd")).trim().isEmpty()
+				&& (rmk.equals("별도 청구") || rmk.startsWith("적용 안 함") || rmk.startsWith("원가 포함"));
+			f[i] = gen.contains(Integer.valueOf((int) scNum(l.get("rowNo")))) || byMark;
+		}
+		return f;
+	}
 	@Override public byte[] buildQuoteXls(java.util.Map<String,Object> mst, java.util.List<java.util.Map<String,Object>> lines) throws Exception {
 		/* ★★[확정 2026-09-28 「원가 포함 동판비·목형비는 품명에서 제외」] 원가 포함 품명비 줄은 엑셀에도 안 찍는다 —
 		   단가에 이미 녹아 있어 단가·금액이 빈 줄로 나갔다. 근거 숫자는 견적서 비고에 그대로 있다.
@@ -1304,10 +1323,17 @@ public class UserServiceImpl implements UserService {
 				}
 			}
 			/* ★같은 품명 잇단 줄(MOQ 변형 — 2026-11-11) = 한 묶음 : 순번은 묶음마다, 품명·순번 칸은 세로 병합(인쇄 quoteNmSpan 과 같은 판정 — 품명·제조사 같음) */
-			int[] grpSpan = new int[lines.size()], grpNo = new int[lines.size()];
+			/* ★품명비(동판·목형) 서브 줄은 순번을 세지 않고 <그 품목의 순번 칸에 함께 묶인다> (2026-11-13 「동판·목형은 번호 카운트 안 함 · 품목 번호 따라가게」) —
+			     noSpan = 순번 칸 세로 병합 줄 수(품목 줄 + MOQ 변형 줄 + 딸린 서브 줄). 서브 줄의 품명 칸은 따로(동판비·목형비 글자가 보여야 한다). */
+			int[] grpSpan = new int[lines.size()], grpNo = new int[lines.size()], noSpan = new int[lines.size()];
+			boolean[] subLn = quoteSubFlags(mst, lines);
 			{ int gi = 0, gno = 0; while (gi < lines.size()) { String nm = scStr(lines.get(gi).get("prodNm")).trim(), mk = scStr(lines.get(gi).get("makerNm")).trim(); int gj = gi + 1;
-				while (gj < lines.size() && !nm.isEmpty() && nm.equals(scStr(lines.get(gj).get("prodNm")).trim()) && mk.equals(scStr(lines.get(gj).get("makerNm")).trim())) gj++;
-				gno++; grpSpan[gi] = gj - gi; grpNo[gi] = gno; for (int k = gi + 1; k < gj; k++) { grpSpan[k] = 0; grpNo[k] = 0; } gi = gj; } }
+				while (gj < lines.size() && !subLn[gj] && !nm.isEmpty() && nm.equals(scStr(lines.get(gj).get("prodNm")).trim()) && mk.equals(scStr(lines.get(gj).get("makerNm")).trim())) gj++;
+				int gk = gj; while (gk < lines.size() && subLn[gk]) gk++;   /* 딸린 서브 줄 */
+				gno++; grpSpan[gi] = gj - gi; grpNo[gi] = gno; noSpan[gi] = gk - gi;
+				for (int k = gi + 1; k < gj; k++) { grpSpan[k] = 0; grpNo[k] = 0; noSpan[k] = 0; }
+				for (int k = gj; k < gk; k++) { grpSpan[k] = 1; grpNo[k] = 0; noSpan[k] = 0; }
+				gi = gk; } }
 			for (int i = 0; i < Math.max(need, tplRows); i++) {
 				org.apache.poi.ss.usermodel.Row row = sh.getRow(start + i); if (row == null) row = sh.createRow(start + i);
 				java.util.Map<String,Object> l = i < lines.size() ? lines.get(i) : null;
@@ -1328,7 +1354,9 @@ public class UserServiceImpl implements UserService {
 			}
 			for (int i = 0; i < lines.size(); i++) if (grpSpan[i] > 1) {   /* 세로 병합 — 양식 칸이 가로 병합돼 겹치면(POI 가 막음) 병합만 건너뛴다(품명은 첫 줄에만 적혀 있다) */
 				try { sh.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(start + i, start + i + grpSpan[i] - 1, cName, cName)); } catch (Exception e) { LOGGER.error(" buildQuoteXls 품명 병합 WARN : " + e.getMessage()); }
-				if (cNo >= 0) try { sh.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(start + i, start + i + grpSpan[i] - 1, cNo, cNo)); } catch (Exception e) { LOGGER.error(" buildQuoteXls 순번 병합 WARN : " + e.getMessage()); }
+			}
+			if (cNo >= 0) for (int i = 0; i < lines.size(); i++) if (noSpan[i] > 1) {   /* 순번 칸 = 품목 줄 + MOQ 줄 + 딸린 동판·목형 줄까지 (2026-11-13) */
+				try { sh.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(start + i, start + i + noSpan[i] - 1, cNo, cNo)); } catch (Exception e) { LOGGER.error(" buildQuoteXls 순번 병합 WARN : " + e.getMessage()); }
 			}
 			int rr = start + Math.max(need, tplRows);
 			org.apache.poi.ss.usermodel.Row rrow = sh.getRow(rr);

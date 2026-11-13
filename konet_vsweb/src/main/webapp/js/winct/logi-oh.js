@@ -5949,8 +5949,8 @@ function ssOutQty(o){
     var g={}, order=[];
     view.forEach(function(r){
       var k=_stkVenKey(r), o=g[k];
-      if(!o){ o=g[k]={ __vg:1, k:k, nm:(k ? (String(r.vendorNm||'').trim()||k) : '(매입처 없음)'), rows:[], inQ:0, outQ:0, curQ:0, amt:0 }; order.push(o); }
-      o.rows.push(r); o.inQ+=(+r.inQty||0); o.outQ+=(+r.outQty||0); o.curQ+=(+r.curQty||0); o.amt+=(+r.stockAmt||0);
+      if(!o){ o=g[k]={ __vg:1, k:k, nm:(k ? (String(r.vendorNm||'').trim()||k) : '(매입처 없음)'), rows:[], inQ:0, retQ:0, outQ:0, curQ:0, amt:0 }; order.push(o); }
+      o.rows.push(r); o.inQ+=(+r.inQty||0); o.retQ+=(+r.retQty||0); o.outQ+=(+r.outQty||0); o.curQ+=(+r.curQty||0); o.amt+=(+r.stockAmt||0);
     });
     order.sort(function(a,b){ if(!a.k !== !b.k) return a.k ? -1 : 1; return a.nm.localeCompare(b.nm,'ko'); });
     var out=[];
@@ -5966,9 +5966,11 @@ function ssOutQty(o){
       +(g.open?'▼':'▶')+' 🏷 '+_cesc(g.nm)+(g.k?' <span style="font-weight:500;color:#4c6a8a">('+_cesc(g.k)+')</span>':'')
       +' <span style="font-size:11.5px;font-weight:600;color:#4c6a8a">· '+g.rows.length.toLocaleString()+'품목</span></td>'
       +'<td style="'+bg+'text-align:right;font-weight:700;color:#137a6c">'+_cnum(g.inQ)+'</td>'
+      +'<td style="'+bg+'text-align:right;font-weight:700;color:#c0392b">'+(g.retQ?_cnum(g.retQ):'')+'</td>'   /* 반품 (2026-11-13) */
       +'<td style="'+bg+'text-align:right;font-weight:700;color:#b06a00">'+_cnum(g.outQ)+'</td>'
       +'<td style="'+bg+'text-align:right;font-weight:800;color:'+(g.curQ<0?'#c0392b':'#0b5246')+'">'+_cnum(g.curQ)+'</td>'
-      +'<td style="'+bg+'"></td><td style="'+bg+'text-align:right;font-weight:700">'+_cnum(g.amt)+'</td>'
+      /* 입고예정·적정·단가 는 비우고 재고금액 자리에 합 — 종전엔 적정 칸(9월 추가) 몫이 빠져 재고금액이 한 칸 왼쪽(적정 아래)에 섰다 (2026-11-13 바로잡음) */
+      +'<td style="'+bg+'"></td><td style="'+bg+'"></td><td style="'+bg+'"></td><td style="'+bg+'text-align:right;font-weight:700">'+_cnum(g.amt)+'</td>'
       +'<td style="'+bg+'"></td><td style="'+bg+'"></td></tr>';
   }
   /* 요약줄 꼬리 — 켜져 있을 때만 「· 매입처 N곳」 */
@@ -6104,6 +6106,8 @@ function ssOutQty(o){
     var po=(+x.poRemainQty||0)>0, safe=Math.round(Number(x.safeStock)||0)>0;
     return [
       { a:' style="text-align:right;color:#137a6c"', h:_cnum(x.inQty) },
+      /* 반품 (2026-11-13) — 매입 반품(음수 입고)을 양수로. 0 이면 비운다(대부분 0 이라 0 을 다 찍으면 시끄럽다) */
+      { a:' style="text-align:right;color:#c0392b"'+((+x.retQty||0)?' title="매입 반품 — 매입처로 되돌려 보낸 수량(현재고에서 빠짐)"':''), h:((+x.retQty||0)?_cnum(x.retQty):'') },
       { a:' style="text-align:right;color:#b06a00"', h:_cnum(x.outQty) },
       { a:' style="text-align:right;font-weight:700;color:'+((neg||sh)?'#c0392b':'#137a6c')+'"'+(sh?' title="적정재고 미달 — 적정 '+_cnum(sh.safe)+' · 가용 '+_cnum(sh.avail)+'(현재고+입고예정) · 부족 '+_cnum(sh.short)+'\n발주서 관리 [⚠ 추천 발주] 에서 한 번에 담을 수 있습니다"':'')+' ',
         h:_cnum(x.curQty)+(sh?' <span style="font-size:11px;font-weight:800">▼'+_cnum(sh.short)+'</span>':'') },
@@ -6145,39 +6149,39 @@ function ssOutQty(o){
       if(chk('stkOnlyShort')) cond.push('적정재고 미달만');
       var grouped=(typeof _stkVen!=='undefined' && !!_stkVen);   // 화면이 [🏷 매입처별]이면 엑셀도 매입처마다 묶고 소계(보라)를 단다
       if(grouped && typeof _stkVenQ!=='undefined' && _stkVenQ) cond.push('매입처 「'+_stkVenQ+'」');
-      var NC=15, E=function(n){ var a=[]; for(var i=0;i<n;i++) a.push(''); return a; };
+      var NC=16, E=function(n){ var a=[]; for(var i=0;i<n;i++) a.push(''); return a; };   /* 15→16 : 「반품」 열 (2026-11-13) */
       /* 마감장(거래처 매출장·마감 xlsClose)과 같은 꼴 — 맑은 고딕 10 · 제목 15 굵게(두 줄 병합) · 조회조건(밑줄) · 정보줄·머리글 하늘 · 소계 보라 · 총합계 크림 */
       var aoa=[ ['품목별재고현황'+(whOn?' ['+whNm+']':'')].concat(E(NC-1)), E(NC),
                 ['조회조건 : '+cond.join(' · ')].concat(E(NC-1)),
-                ['기준일 : '+(asOf||today+' (현재)'),'','','창고',whNm,'품목 '+view.length.toLocaleString()+'개','','','','','','출력일자 : '+stamp,'','',comp],
-                ['매입처','구분','주코드','품목코드','품목명','입고','출고','현재고','입고예정','적정재고','미달','이동평균단가','재고금액','최근입고','최근출고'] ];
+                ['기준일 : '+(asOf||today+' (현재)'),'','','창고',whNm,'품목 '+view.length.toLocaleString()+'개','','','','','','','출력일자 : '+stamp,'','',comp],
+                ['매입처','구분','주코드','품목코드','품목명','입고','반품','출고','현재고','입고예정','적정재고','미달','이동평균단가','재고금액','최근입고','최근출고'] ];
       var kinds=['t','t','p','h','h'], red=[false,false,false,false,false], nmW=30, venW=10;
-      var T={ i:0, o:0, c:0, p:0, a:0 };
+      var T={ i:0, r:0, o:0, c:0, p:0, a:0 };
       var push=function(r, venCell){
         var ms=(rev && typeof stkSubMains==='function') ? stkSubMains(r.prodCd, rev) : [];
         var sh=(typeof stkShortOf==='function') ? stkShortOf(r) : null, safe=Math.round(num(r.safeStock));
         aoa.push([ venCell, ms.length ? '서브' : '', ms.length ? ms[0].cd : '', String(r.prodCd||''), String(r.prodNm||''),
-                   num(r.inQty), num(r.outQty), num(r.curQty), num(r.poRemainQty)||'', safe>0 ? safe : '', sh ? num(sh.short) : '',
+                   num(r.inQty), num(r.retQty)||'', num(r.outQty), num(r.curQty), num(r.poRemainQty)||'', safe>0 ? safe : '', sh ? num(sh.short) : '',
                    num(r.avgInPrice), num(r.stockAmt), ymd(r.lastInDt), ymd(r.lastOutDt) ]);
         kinds.push('row'); red.push(num(r.curQty)<0 || !!sh);
         nmW=Math.max(nmW, Math.min(56, wch(r.prodNm)+2));
-        T.i+=num(r.inQty); T.o+=num(r.outQty); T.c+=num(r.curQty); T.p+=num(r.poRemainQty); T.a+=num(r.stockAmt);
+        T.i+=num(r.inQty); T.r+=num(r.retQty); T.o+=num(r.outQty); T.c+=num(r.curQty); T.p+=num(r.poRemainQty); T.a+=num(r.stockAmt);
       };
       if(grouped){
         var g={}, order=[];
         view.forEach(function(r){ var k=String((r&&r.vendorCd)||'').trim(); if(!g[k]){ g[k]={ k:k, nm:(k ? (String(r.vendorNm||'').trim()||k) : '(매입처 없음)'), rows:[] }; order.push(g[k]); } g[k].rows.push(r); });
         order.sort(function(a,b){ if(!a.k !== !b.k) return a.k ? -1 : 1; return a.nm.localeCompare(b.nm,'ko'); });   // 화면 매입처별과 같은 차례
         order.forEach(function(o){
-          var s={ i:T.i, o:T.o, c:T.c, p:T.p, a:T.a };
+          var s={ i:T.i, r:T.r, o:T.o, c:T.c, p:T.p, a:T.a };
           o.rows.forEach(function(r, ix){ push(r, ix===0 ? o.nm : ''); });   // 매입처 이름은 묶음 첫 줄에만(마감장의 거래처 칸처럼)
           venW=Math.max(venW, Math.min(30, wch(o.nm)+2));
-          aoa.push(['소계','','','',o.rows.length.toLocaleString()+'품목', T.i-s.i, T.o-s.o, T.c-s.c, (T.p-s.p)||'', '', '', '', T.a-s.a, '', '']);
+          aoa.push(['소계','','','',o.rows.length.toLocaleString()+'품목', T.i-s.i, (T.r-s.r)||'', T.o-s.o, T.c-s.c, (T.p-s.p)||'', '', '', '', T.a-s.a, '', '']);
           kinds.push('sub'); red.push(false);
         });
       } else {
         view.forEach(function(r){ push(r, String(r.vendorNm||'')); venW=Math.max(venW, Math.min(24, wch(r.vendorNm)+2)); });
       }
-      aoa.push(['총합계','','','',view.length.toLocaleString()+'품목', T.i, T.o, T.c, T.p||'', '', '', '', T.a, '', '']); kinds.push('tot'); red.push(false);
+      aoa.push(['총합계','','','',view.length.toLocaleString()+'품목', T.i, T.r||'', T.o, T.c, T.p||'', '', '', '', T.a, '', '']); kinds.push('tot'); red.push(false);
       var ws=LIB.utils.aoa_to_sheet(aoa);
       if(styled){
         var bd={ style:'thin', color:{ rgb:'000000' } }, box={ top:bd, bottom:bd, left:bd, right:bd }, FILL={ sub:'ECC7FF', tot:'FCF8E3' };
@@ -6189,21 +6193,22 @@ function ssOutQty(o){
             else if(k==='h'){ st.font.bold=true; st.alignment.horizontal='center'; st.fill={ fgColor:{ rgb:'D9EDF7' } }; st.border=box; }
             else {
               st.border=box; st.fill={ fgColor:{ rgb:(k==='row'?'FFFFFF':FILL[k]) } };
-              st.alignment.horizontal = (cc>=5 && cc<=12) ? 'right' : ((k==='row' && (cc===0 || cc===4)) ? 'left' : 'center');
+              st.alignment.horizontal = (cc>=5 && cc<=13) ? 'right' : ((k==='row' && (cc===0 || cc===4)) ? 'left' : 'center');   /* 숫자 칸 5~13 (반품 열로 한 칸 늘었다, 2026-11-13) */
               if(k!=='row') st.font.bold=true;
-              if(k==='row' && cc===7 && red[r]) st.font.color={ rgb:'C0392B' };          // 현재고 — 음수·적정재고 미달은 빨강(화면과 같다)
-              if(k==='row' && cc===10 && ws[ref].v!=='') st.font.color={ rgb:'C0392B' };
+              if(k==='row' && cc===8 && red[r]) st.font.color={ rgb:'C0392B' };          // 현재고(8) — 음수·적정재고 미달은 빨강(화면과 같다)
+              if(k==='row' && cc===6 && ws[ref].v!=='') st.font.color={ rgb:'C0392B' };  // 반품(6) — 빨강 (2026-11-13)
+              if(k==='row' && cc===11 && ws[ref].v!=='') st.font.color={ rgb:'C0392B' }; // 미달(11)
               if(k==='row' && cc===1 && ws[ref].v==='서브') st.font.color={ rgb:'B06A00' };
               if(grouped && k==='row' && cc===0){ st.border= ws[ref].v ? { top:bd, left:bd, right:bd } : { left:bd, right:bd }; }   // 매입처 칸 = 묶음 안에서는 가로줄 없이
               if(ws[ref].t==='n') ws[ref].z='#,##0';
             }
             ws[ref].s=st; } }
       } else {
-        for(var r2=5;r2<aoa.length;r2++) for(var c2=5;c2<=12;c2++){ var rf=LIB.utils.encode_cell({ r:r2, c:c2 }); if(ws[rf] && ws[rf].t==='n') ws[rf].z='#,##0'; }
+        for(var r2=5;r2<aoa.length;r2++) for(var c2=5;c2<=13;c2++){ var rf=LIB.utils.encode_cell({ r:r2, c:c2 }); if(ws[rf] && ws[rf].t==='n') ws[rf].z='#,##0'; }
       }
       ws['!merges']=[ { s:{ r:0, c:0 }, e:{ r:1, c:NC-1 } }, { s:{ r:2, c:0 }, e:{ r:2, c:NC-1 } },
-                      { s:{ r:3, c:0 }, e:{ r:3, c:2 } }, { s:{ r:3, c:5 }, e:{ r:3, c:10 } }, { s:{ r:3, c:11 }, e:{ r:3, c:13 } } ];
-      ws['!cols']=[{ wch:venW },{ wch:5 },{ wch:12 },{ wch:12 },{ wch:nmW },{ wch:9 },{ wch:9 },{ wch:9 },{ wch:9 },{ wch:8 },{ wch:6 },{ wch:11 },{ wch:13 },{ wch:10.5 },{ wch:10.5 }];
+                      { s:{ r:3, c:0 }, e:{ r:3, c:2 } }, { s:{ r:3, c:5 }, e:{ r:3, c:11 } }, { s:{ r:3, c:12 }, e:{ r:3, c:14 } } ];
+      ws['!cols']=[{ wch:venW },{ wch:5 },{ wch:12 },{ wch:12 },{ wch:nmW },{ wch:9 },{ wch:8 },{ wch:9 },{ wch:9 },{ wch:9 },{ wch:8 },{ wch:6 },{ wch:11 },{ wch:13 },{ wch:10.5 },{ wch:10.5 }];
       ws['!rows']=aoa.map(function(a,i){ return { hpt:(i<2?18.75:16.5) }; });
       var wb=LIB.utils.book_new(); LIB.utils.book_append_sheet(wb, ws, '품목별재고현황');
       LIB.writeFile(wb, '품목별재고현황_'+(asOf||today).replace(/-/g,'')+(whOn ? '_'+whNm : '')+(grouped ? '_매입처별' : '')+'.xlsx');
@@ -6220,7 +6225,7 @@ function ssOutQty(o){
     var tip=' title="윗줄 = 주코드 '+_cesc(ms[0].cd)+' 의 재고 · 아랫줄 = 서브코드 '+_cesc(r.prodCd)+' 자신의 것 (합계에는 아랫줄만 들어갑니다)"';
     return own.map(function(c, i){
       var t=top ? top[i] : { a:c.a.replace(/ title="[^"]*"/,'').replace(/color:#c0392b/,'color:#137a6c'), h:'<span style="color:#9aa7b3;font-weight:400">…</span>' };
-      var red=(i===2 && neg) ? '#c0392b' : '#8a97a4';
+      var red=(i===3 && neg) ? '#c0392b' : '#8a97a4';   /* 3 = 현재고 칸 (반품 열이 끼어 2→3, 2026-11-13) */
       return '<td'+t.a+(/ title="/.test(t.a)?'':tip)+'><div>'+(t.h||'&nbsp;')+'</div>'
            + '<div style="margin-top:2px;color:'+red+';font-weight:400">'+(c.h||'&nbsp;')+'</div></td>';
     }).join('');
@@ -6251,7 +6256,7 @@ function ssOutQty(o){
       var mk=String(M.prodCd||'').trim();
       if(!put[mk] && !has[mk]){ put[mk]=1; out.push(M); F.here[mk]=M; chg=true; }   // 주코드 줄이 목록에 없으면 이 자리에 넣는다(이미 있으면 제 자리에서 나온다)
       var l=F.sw[mk]||(F.sw[mk]=[]); if(l.indexOf(k)<0) l.push(k);
-      if((+r.inQty||0) || (+r.outQty||0) || (+r.curQty||0) || (+r.stockAmt||0)){ if(!put[k]){ put[k]=1; out.push(r); } }   // 제 재고가 남은 서브 줄은 남긴다
+      if((+r.inQty||0) || (+r.retQty||0) || (+r.outQty||0) || (+r.curQty||0) || (+r.stockAmt||0)){ if(!put[k]){ put[k]=1; out.push(r); } }   // 제 재고가 남은 서브 줄은 남긴다
       else chg=true;
     });
     if(!chg) return;

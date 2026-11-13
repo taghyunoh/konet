@@ -122,6 +122,11 @@
   .logi-side a.mi.on { background:var(--logi-teal); color:#fff; border-left:5px solid #0b5a52; padding-left:16px; font-weight:800; box-shadow:inset -3px 0 0 rgba(255,255,255,.18); }
   .logi-side a.mi.on .ic, .logi-side a.mi.on .caret { color:#fff; }
   .logi-side .sub-menu a.mi.on { padding-left:30px; }
+  /* 2단 하위 메뉴 (2026-11-13 「거래처 발주 등록」) — 1단 항목보다 한 단 더 들여쓰고 안내선을 하나 더 */
+  .logi-side .sub-menu .sub-menu { background:#10161d; box-shadow:inset 3px 0 0 #2e8a7e, inset 6px 0 0 #151c24, inset 9px 0 0 #3aa392; }
+  .logi-side .sub-menu .sub-menu a.mi { padding-left:52px; font-size:12px; }
+  .logi-side .sub-menu .sub-menu a.mi.on { padding-left:48px; }
+  .logi-side .sub-menu a.mi.has-sub.open { background:#1f2a36; }
   /* 직원 공지 흐름 띠 (2026-09-22 「하단에 공지사항 흐르게도 추가」) — 화면 맨 아래 고정. 채우기·동작은 asset/js/emp-badge.js(empTicker*).
      출고장 변경 알림 바(#konetAsqBar, 36px)가 켜지면 그 위에 얹힌다. [✕] 로 접으면 왼쪽 아래 작은 알약(#empTickerPill)만 남는다. 공지가 없으면 안 보인다.
      띠가 켜지면 body.emp-ticker-on — 아래 규칙이 iframe·패널 높이를 그만큼 줄여 마지막 줄이 안 가려진다. */
@@ -987,11 +992,15 @@
   function favRun(nm){
     var a=favFind(nm); if(!a) { favOrderSave(favLoad().filter(function(x){return x!==nm;})); favRender(); return; }
     /* 접혀 있는 펼침메뉴 안에 있으면 그 묶음을 펼쳐 준다(어디서 왔는지 보이게) */
+    /* 2단(거래처 발주 등록 안)이면 바깥 묶음(매출 관리)도 함께 — 그래서 while 로 거슬러 올라간다 (2026-11-13) */
     var sub=a.closest('.sub-menu');
-    if(sub && !sub.classList.contains('open')){
-      sub.classList.add('open');
-      var head=sub.previousElementSibling;
-      if(head && head.classList.contains('has-sub')) head.classList.add('open');
+    while(sub){
+      if(!sub.classList.contains('open')){
+        sub.classList.add('open');
+        var head=sub.previousElementSibling;
+        if(head && head.classList.contains('has-sub')) head.classList.add('open');
+      }
+      sub=sub.parentElement ? sub.parentElement.closest('.sub-menu') : null;
     }
     a.click();
   }
@@ -2076,6 +2085,12 @@
   }
   // 재고현황 행 클릭 → 그 품목의 수불 내역(근거)을 하단 ② 그리드에 표시
   var _IOGB={I:'입고',O:'출고',R:'반품',A:'조정'};
+  /* ★반품 판별 (2026-11-13 요청 「반품처리 되는 것 반품 표시」) — 매입 반품은 원장에 IO_GB='I' 에 음수 수량으로,
+       판매 반품은 'O' 음수(또는 'R')로 남는다. 종전엔 '입고 -100' 으로 보여 입고인지 반품인지 헷갈렸다.
+       표시만 바꾼다 — 재고 계산(부호 그대로 합산)은 그대로. */
+  function _ioRet(l){ var q=+(l&&l.qty)||0; return l && ((l.ioGb==='I'&&q<0)||(l.ioGb==='O'&&q<0)||l.ioGb==='R'); }
+  function _ioLbl(l){ if(!_ioRet(l)) return _IOGB[l.ioGb]||l.ioGb; return l.ioGb==='I' ? '반품' : (l.ioGb==='O' ? '반품(매출)' : '반품'); }
+  function _ioTip(l){ return l.ioGb==='I' ? '매입 반품 — 매입처로 되돌려 보낸 수량(재고에서 빠짐)' : '판매 반품 — 거래처에서 되돌아온 수량(재고에 더해짐)'; }
   // 사업장 셀: 여러 곳이면 첫 곳 + [＋N] 만 표시 — 클릭하면 전체 펼침/접기
   /* 대체출고 표시 — 품목코드 칸 아래에 '실제로 나간 매칭코드(수량)' 를 한 줄에 하나씩 붙인다.
        재고는 대표코드(주코드) 하나로 떨어지지만 실제 출고는 거래처 매칭코드다.
@@ -2447,11 +2462,11 @@
                  + '</div>';
         var thead='<thead><tr><th>일자</th><th>품목코드</th><th>구분</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>매입처</th><th>사업장</th><th>근거구분</th><th>근거번호</th><th>비고</th><th>등록일시</th><th>등록자</th></tr></thead>';
         var body= rows.length ? rows.map(function(l){
-            var io=_IOGB[l.ioGb]||l.ioGb, isOut=(l.ioGb==='O');
+            var io=_ioLbl(l), isOut=(l.ioGb==='O'), isRet=_ioRet(l);
             return '<tr><td>'+_fmtYmd(l.trxDt)+'</td>'
               /* 품목코드 = 재고가 떨어진 '대표코드(주코드)'. 대체출고분은 아래에 하위 행으로 편다. */
               +'<td style="color:#37475a">'+_cesc(l.prodCd||'')+'</td>'
-              +'<td style="font-weight:700;color:'+(isOut?'#b06a00':'#137a6c')+'">'+io+'</td>'
+              +'<td style="font-weight:700;color:'+(isRet?'#c0392b':(isOut?'#b06a00':'#137a6c'))+'"'+(isRet?' title="'+_ioTip(l)+'"':'')+'>'+io+'</td>'
               +'<td style="text-align:right">'+_cnum(l.qty)+'</td>'
               +'<td style="text-align:right">'+_cnum(l.unitPrice)+'</td>'
               +'<td style="text-align:right">'+_cnum(l.amt)+'</td>'
@@ -2648,15 +2663,16 @@
                    + '· 매칭코드 '+_cesc(_splitExt)+' 출고만 &nbsp;<span style="color:#137a6c">'
                    + _cnum(outR.reduce(function(a,l){ return a+(+l.qty||0); },0))+'</span></span>'
                    + ' <a href="javascript:void(0)" onclick="stkSplitExtClear()" style="font-size:12px;color:#137a6c;font-weight:800;text-decoration:none" title="이 품목 전체로 되돌립니다">✕ 전체보기</a>' : '');
-    var sum=function(a){ var q=0,m=0; a.forEach(function(l){ q+=(+l.qty||0); m+=(+l.amt||0); }); return {q:q,m:m}; };
+    var sum=function(a){ var q=0,m=0,r=0; a.forEach(function(l){ var x=(+l.qty||0); if(l.ioGb==='I' && x<0) r+=-x; else q+=x; m+=(+l.amt||0); }); return {q:q,m:m,r:r}; };   /* r = 매입 반품(음수 입고) 양수 (2026-11-13) */
     /* 오른쪽 위 요약도 '거르기 전' 값이다 — 아래 요약표와 같은 뜻이어야 한다.
        코드를 골랐을 때 여기만 걸러진 값이면 입고 0 · 차 -55 처럼 읽혀 장부가 깨진 듯 보인다.
        고른 코드분은 아래 '출고내역' 머리에 따로 적힌다(2026-08-07). */
     var si=sum(inA), so=sum(outA);
     document.getElementById('stkSplitSum').innerHTML =
         '입고 <b style="color:#137a6c">'+_cnum(si.q)+'</b>'
+      + (si.r ? ' · 반품 <b style="color:#c0392b">'+_cnum(si.r)+'</b>' : '')
       + ' · 출고 <b style="color:#b06a00">'+_cnum(so.q)+'</b>'
-      + ' · 차 <b style="color:'+((si.q-so.q)<0?'#c0392b':'#137a6c')+'">'+_cnum(si.q-so.q)+'</b>'
+      + ' · 차 <b style="color:'+((si.q-si.r-so.q)<0?'#c0392b':'#137a6c')+'">'+_cnum(si.q-si.r-so.q)+'</b>'
       + ' <span style="color:#9aa7b3">|</span> 현재고 <b>'+_cnum(r.curQty)+'</b>';
 
     /* 상단도 그리드로 (2026-08-07 확정) — 그리드 3개 : 선택품목 / 입고 / 출고 */
@@ -2688,12 +2704,13 @@
          /* 매칭코드 열을 없애고 품목코드 밑에 붙인다 (2026-08-07 요청) —
             ①표·②수불 내역과 같은 모양으로 통일. 세 표가 제각각이면 같은 값인데도 다르게 읽힌다. */
          +   '<th>품목코드</th><th>품목명</th>'
-         +   '<th style="text-align:right">입고</th><th style="text-align:right">출고</th>'
+         +   '<th style="text-align:right">입고</th><th style="text-align:right;color:#c0392b" title="매입 반품(음수 수량 입고) — 이 창에서 보는 기간 합계">반품</th><th style="text-align:right">출고</th>'
          +   '<th style="text-align:right">현재고</th><th style="text-align:right">이동평균단가</th>'
          +   '<th style="text-align:right">재고금액</th>'
          + '</tr></thead><tbody><tr>'
          +   '<td>'+_cesc(r.prodCd||'')+'</td><td class="txt-l">'+_cesc(r.prodNm||'')+'</td>'
          +   '<td style="text-align:right;color:#137a6c;font-weight:700">'+_cnum(si.q)+'</td>'
+         +   '<td style="text-align:right;color:#c0392b;font-weight:700">'+(si.r?_cnum(si.r):'')+'</td>'   /* 반품 (2026-11-13) */
          +   '<td style="text-align:right;color:#b06a00;font-weight:700">'+_cnum(so.q)+'</td>'
          +   '<td style="text-align:right;font-weight:800;background:#f7fafc;color:'+(neg?'#c0392b':'#137a6c')+'">'+_cnum(r.curQty)+'</td>'
          +   '<td style="text-align:right;background:#f7fafc">'+_cnum(r.avgInPrice)+'</td>'
@@ -2703,7 +2720,7 @@
             ★코드를 골라도 줄은 다 남긴다 — 고른 줄에만 표시를 넣는다(2026-08-07 지적).
               줄이 하나만 남으면 다른 코드로 갈아타는 길이 막혀 '전체보기' 를 거쳐야 했다.
               위 출고 칸도 거르기 전 값이라 하위 합과 그대로 맞는다. */
-         + stkAliasRows(r.prodCd, r.extQtys, 7, 0, 3,
+         + stkAliasRows(r.prodCd, r.extQtys, 8, 0, 4,   /* 반품 열이 끼어 7→8열, 출고 3→4 (2026-11-13) */
                         function(cd){ return "stkSplitExt('"+cd+"')"; }, _splitExt)
          + '</tbody></table></div>';
   }
@@ -2758,14 +2775,16 @@
         ? '<tr>'+no+'<td>'+_fmtYmd(l.trxDt)+'</td>'
           +'<td>'+_cesc(l.prodCd||'')+'</td>'
           +'<td class="txt-l">'+_cesc(l.prodNm||_nm)+'</td>'
-          +'<td style="text-align:right;font-weight:700;color:#137a6c">'+_cnum(l.qty)+'</td>'
+          +(_ioRet(l) ? '<td style="text-align:right;font-weight:700;color:#c0392b" title="'+_ioTip(l)+'"><span style="font-size:11px;background:#fdecea;border:1px solid #f5b7b1;border-radius:4px;padding:0 4px;margin-right:4px">반품</span>'+_cnum(l.qty)+'</td>'
+                      : '<td style="text-align:right;font-weight:700;color:#137a6c">'+_cnum(l.qty)+'</td>')   /* 반품(음수 입고)은 붉게 + 「반품」 표 (2026-11-13) */
           +'<td style="text-align:right">'+_cnum(l.unitPrice)+'</td><td style="text-align:right">'+_cnum(l.amt)+'</td>'
           +'<td title="'+_cesc(l.vendorNm||'')+'">'+_cesc(l.vendorCd||'')+(l.vendorNm?(' <span style="color:#5a6b7a">'+_cesc(l.vendorNm)+'</span>'):'')+'</td>'
           +'<td>'+_cesc(l.refGb||'')+'</td><td>'+_cesc(l.refNo||'')+'</td><td>'+_cesc(l.remark||'')+'</td></tr>'+_sub(l)
         : '<tr>'+no+'<td>'+_fmtYmd(l.trxDt)+'</td>'
           +'<td>'+_cesc(l.prodCd||'')+'</td>'
           +'<td class="txt-l">'+_cesc(l.prodNm||_nm)+'</td>'
-          +'<td style="text-align:right;font-weight:700;color:#b06a00">'+_cnum(l.qty)+'</td>'
+          +(_ioRet(l) ? '<td style="text-align:right;font-weight:700;color:#c0392b" title="'+_ioTip(l)+'"><span style="font-size:11px;background:#fdecea;border:1px solid #f5b7b1;border-radius:4px;padding:0 4px;margin-right:4px">반품</span>'+_cnum(l.qty)+'</td>'
+                      : '<td style="text-align:right;font-weight:700;color:#b06a00">'+_cnum(l.qty)+'</td>')
           /* ★출고의 단가·금액은 대부분 0 이다 (2026-08-07 요청으로 칸을 넣음) —
              출고(SHIPOUT) 자동연동 줄은 수량만 남기고 금액은 정산서·판매전표 쪽에서 잡히기 때문.
              0 을 그대로 보이면 '빠졌나?' 가 되므로 흐리게 둔다. */
@@ -2993,7 +3012,7 @@
        매칭코드(TBL_EXT_ITEM_MST)와 연결(TBL_PROD_XREF)을 우리 코드 기준으로 모아 보여 준다. */
     /* ★칸 이름은 '매칭코드' — '거래처코드' 라고 하면 아래 수불내역의 매입처(00272 같은 거래처 코드)와 헷갈린다(2026-08-01 지적) */
     /* ★칸 폭 160px — '🔖 주코드 9904013265' 가 한 줄에 들어가야 한다(2026-08-02) */
-    var thead='<thead><tr><th>품목코드</th><th>품목명</th><th style="text-align:right">입고</th><th style="text-align:right">출고</th><th style="text-align:right">현재고</th><th style="text-align:right" title="발주했는데 아직 안 들어온 수량(마감 안 된 발주 줄의 잔량 합) — 곧 들어올 예정. 발주서 관리 [매입전환]으로 들어온 만큼 줄어든다 (2026-09-16)">입고예정</th><th style="text-align:right" title="상품마스터의 적정재고. 「현재고 + 입고예정」이 여기에 못 미치면 현재고 칸이 빨강 — 발주서 관리 [⚠ 추천 발주] 에서 한 번에 담을 수 있습니다 (2026-09-16)">적정</th><th style="text-align:right">이동평균단가</th><th style="text-align:right">재고금액</th><th>최근입고</th><th>최근출고</th></tr></thead>';
+    var thead='<thead><tr><th>품목코드</th><th>품목명</th><th style="text-align:right">입고</th><th style="text-align:right;color:#c0392b" title="매입 반품 — 매입등록에서 음수 수량으로 넣은 것(매입처로 되돌려 보낸 수량). 입고 열에는 안 들어가고 여기 따로. 현재고 = 입고 − 반품 − 출고 (2026-11-13)">반품</th><th style="text-align:right">출고</th><th style="text-align:right">현재고</th><th style="text-align:right" title="발주했는데 아직 안 들어온 수량(마감 안 된 발주 줄의 잔량 합) — 곧 들어올 예정. 발주서 관리 [매입전환]으로 들어온 만큼 줄어든다 (2026-09-16)">입고예정</th><th style="text-align:right" title="상품마스터의 적정재고. 「현재고 + 입고예정」이 여기에 못 미치면 현재고 칸이 빨강 — 발주서 관리 [⚠ 추천 발주] 에서 한 번에 담을 수 있습니다 (2026-09-16)">적정</th><th style="text-align:right">이동평균단가</th><th style="text-align:right">재고금액</th><th>최근입고</th><th>최근출고</th></tr></thead>';
     /* [매칭코드 있는 것만] 체크 (2026-08-06 요청) — 합계·건수도 걸러 낸 것만 센다.
        ★매칭코드 자료(_stkAlias)는 목록보다 늦게 도착한다. 아직 없으면 거르지 않는다 —
          안 그러면 화면이 잠깐 텅 비어 '자료가 없다'로 오해하게 된다. */
@@ -3005,7 +3024,7 @@
     if(_onlyS) _base = _base.filter(function(r){ return !!stkShortOf(r); });   /* 적정재고 미달만 (2026-09-16) */
     var view = (window.stkVenFilter ? stkVenFilter : function(v){ return v; })(_base);   /* 매입처 검색(2026-09-13) — logi-oh.js */
     window._stkView = view;   /* [📥 엑셀](stkExcel — logi-oh.js)이 <지금 보는 목록 전부>를 내보낸다 (2026-10-13) */
-    var tI=0,tO=0,tQ=0,tA=0,tP=0; view.forEach(function(r){ tI+=(+r.inQty||0); tO+=(+r.outQty||0); tQ+=(+r.curQty||0); tA+=(+r.stockAmt||0); tP+=(+r.poRemainQty||0); });   // tP = 입고예정 합 (2026-09-16)
+    var tI=0,tO=0,tQ=0,tA=0,tP=0,tR=0; view.forEach(function(r){ tI+=(+r.inQty||0); tR+=(+r.retQty||0); tO+=(+r.outQty||0); tQ+=(+r.curQty||0); tA+=(+r.stockAmt||0); tP+=(+r.poRemainQty||0); });   /* tR = 반품합 (2026-11-13) */   // tP = 입고예정 합 (2026-09-16)
     if(_onlyA && _aliasReady && !view.length){
       sum.innerHTML='<b style="color:#b06a00">매칭코드가 등록된 품목이 없습니다.</b> (체크를 풀면 전체가 보입니다)';
       wrap.innerHTML=''; if(pg) pg.innerHTML=''; return;
@@ -3015,20 +3034,20 @@
       wrap.innerHTML=''; if(pg) pg.innerHTML=''; return;
     }
     /* 입출고 기록이 아직 없는 상품(검색했을 때만 0 줄로 온다 — selectStockMstList 의 UNION, 2026-09-30) — 품목명 옆에 작은 표시 */
-    window.stkNoIoTag = window.stkNoIoTag || function(r){ return (!(+r.inQty) && !(+r.outQty) && !r.lastInDt && !r.lastOutDt) ? ' <span style="color:#9aa3ad;font-size:11px;border:1px solid #d5dae0;border-radius:8px;padding:0 6px;white-space:nowrap" title="상품코드는 등록돼 있지만 입고·출고 기록이 아직 없습니다">입출고 없음</span>' : ''; };
+    window.stkNoIoTag = window.stkNoIoTag || function(r){ return (!(+r.inQty) && !(+r.retQty) && !(+r.outQty) && !r.lastInDt && !r.lastOutDt) ? ' <span style="color:#9aa3ad;font-size:11px;border:1px solid #d5dae0;border-radius:8px;padding:0 6px;white-space:nowrap" title="상품코드는 등록돼 있지만 입고·출고 기록이 아직 없습니다">입출고 없음</span>' : ''; };
     if(!_stkRows.length){ sum.textContent='현재고 데이터가 없습니다. (입고 수불 등록 또는 출고(SHIPOUT) 발생 시 표시)'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
     sum.innerHTML=(_onlyA ? (_aliasReady ? '<b style="color:#b06a00">매칭코드 있는 것만</b> · '
                                         : '<span style="color:#9aa7b3">매칭코드 불러오는 중…</span> · ') : '')
       +(_stkSrchVia ? ('<b style="color:#b06a00">'+_cesc(_stkSrchVia)+'</b><span style="color:#9aa7b3">는 매칭코드 — 대표코드로 찾았습니다</span> · ') : '')
-      +'총 <b>'+view.length.toLocaleString()+'</b>품목 · 입고합 <b>'+_cnum(tI)+'</b> · 출고합 <b>'+_cnum(tO)+'</b> · 현재고합 <b>'+_cnum(tQ)+'</b> · 재고금액합 <b>'+_cnum(tA)+'</b>'+(window.stkVenSumTxt?stkVenSumTxt(view):'')+stkShortSumTxt();
-    var totalRow='<tr class="close-total"><td colspan="2" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tI)+'</td><td style="text-align:right">'+_cnum(tO)+'</td><td style="text-align:right">'+_cnum(tQ)+'</td><td style="text-align:right;color:#b06a00">'+(tP>0?_cnum(tP):'')+'</td><td></td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td><td></td></tr>';
+      +'총 <b>'+view.length.toLocaleString()+'</b>품목 · 입고합 <b>'+_cnum(tI)+'</b>'+(tR?' · 반품합 <b style="color:#c0392b">'+_cnum(tR)+'</b>':'')+' · 출고합 <b>'+_cnum(tO)+'</b> · 현재고합 <b>'+_cnum(tQ)+'</b> · 재고금액합 <b>'+_cnum(tA)+'</b>'+(window.stkVenSumTxt?stkVenSumTxt(view):'')+stkShortSumTxt();
+    var totalRow='<tr class="close-total"><td colspan="2" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(tI)+'</td><td style="text-align:right;color:#c0392b">'+(tR?_cnum(tR):'')+'</td><td style="text-align:right">'+_cnum(tO)+'</td><td style="text-align:right">'+_cnum(tQ)+'</td><td style="text-align:right;color:#b06a00">'+(tP>0?_cnum(tP):'')+'</td><td></td><td></td><td style="text-align:right">'+_cnum(tA)+'</td><td></td><td></td></tr>';
     var stkRow=function(r){ var neg=(+r.curQty||0)<0, sh=stkShortOf(r);   /* sh = 적정재고 미달(2026-09-16) */
       /* 하위 행이 붙는 줄은 대표 줄 위에도 선을 그어 '한 덩어리' 로 보이게 한다(2026-08-07 요청).
          하위가 없으면 선도 없어 평소 표는 그대로다. */
       /* ↳ 매칭 줄도 눌러서 고를 수 있다 — 아래 ②가 그 코드로 나간 날짜만 보여 준다(2026-08-07 요청).
          품목(prodSeq)은 대표와 같고 세 번째 인자로 코드를 넘긴다. */
       var _ps=(r.prodSeq||0);
-      var sub=stkAliasRows(r.prodCd, r.extQtys, 11, 0, 3, function(cd){   /* 9→10열 : 입고예정 · 10→11열 : 적정 (2026-09-16) */
+      var sub=stkAliasRows(r.prodCd, r.extQtys, 12, 0, 4, function(cd){   /* 9→10열 : 입고예정 · 10→11열 : 적정 (2026-09-16) · 11→12열 : 반품, 출고 칸 3→4 (2026-11-13) */
         return 'stkLedgerDetail('+_ps+", this, '"+String(cd).replace(/'/g,'')+"')";
       /* 지금 ②에서 걸러 보고 있는 코드가 이 품목의 것일 때만 표시한다 —
          다른 품목 줄까지 초록이 되면 어느 줄을 보고 있는지 되레 헷갈린다. */
@@ -3409,12 +3428,17 @@
       <%-- DC 발주 등록 (2026-09-17) — SRM 발주현황조회의 상품종류 DC(입고예약서 PDF·발주서 엑셀). 재고·정산서 대사에는 들어가고 납기현황관리에서만 빠진다.
            ★메뉴와 아래 panel-dcPo 는 짝이다. iframe 화면(mangr/dcPo.jsp) --%>
       <a class="mi" data-key="dcPo" onclick="logiFrame('dcPo','${pageContext.request.contextPath}/shipout/dcPo.do', this)"><span class="ic">🏷</span>DC 발주 등록</a>
+      <%-- 거래처 발주 등록 (2026-11-13 요청 「매출관리 → 거래처발주등록 → 3개 내용 서브메뉴로」) — 토더·대상·동원홈푸드 셋을 2단 하위 메뉴로 묶는다.
+           DC 발주는 정산서 대사에 들어가는 삼성 DC 몫이라 그대로 바깥에 둔다. 여닫기는 1단과 같은 logiToggleSub, 들여쓰기만 .sub-menu .sub-menu 로 한 단 더. --%>
+      <a class="mi has-sub" data-sub="custPo" onclick="logiToggleSub('custPo', this)"><span class="ic">🧾</span>거래처 발주 등록<span class="caret">▶</span></a>
+      <div class="sub-menu" id="sub-custPo">
       <%-- 토더 발주 등록 (2026-09-21) — 토더(가맹점 발주 플랫폼) 「상품별 발주 목록」 엑셀 → 출고(PROD_KIND='TD'). DC 발주와 같은 자리. iframe 화면(mangr/toderPo.jsp, panel-toderPo) --%>
       <a class="mi" data-key="toderPo" onclick="logiFrame('toderPo','${pageContext.request.contextPath}/shipout/toderPo.do', this)"><span class="ic">🛒</span>토더 발주 등록</a>
       <%-- 대상 발주 등록 (2026-10-02) — 대상주식회사가 메일로 보내는 배송요청 표 → 배송 처리용(매출·재고는 판매등록 전표가 주인 — 2026-10-26). 저장은 토더와 같은 종류(출고장 「대상」)지만 매퍼가 뺀다. 납기현황관리(대시보드)와는 무관. iframe 화면(mangr/daesangPo.jsp, panel-daesangPo) --%>
       <a class="mi" data-key="daesangPo" onclick="logiFrame('daesangPo','${pageContext.request.contextPath}/shipout/daesangPo.do', this)"><span class="ic">📦</span>대상 발주 등록</a>
       <%-- 동원홈푸드 등록 (2026-10-29) — 동원홈푸드 「직송발주정보_주문내역」 엑셀 → 출고·매출(PROD_KIND='TD', 출고장 DONGWON). 토더 등록과 같은 틀 · 매출장부 엑셀. iframe 화면(mangr/dongwonPo.jsp, panel-dongwonPo) --%>
       <a class="mi" data-key="dongwonPo" onclick="logiFrame('dongwonPo','${pageContext.request.contextPath}/shipout/dongwonPo.do', this)"><span class="ic">🧃</span>동원홈푸드 등록</a>
+      </div><%-- /sub-custPo --%>
       <a class="mi" data-key="salesreg" onclick="logiFrame('salesreg','${pageContext.request.contextPath}/mangr/salesReg.do', this)"><span class="ic">🧾</span>판매 등록</a>
       <a class="mi" data-key="rcvreg" onclick="logiFrame('rcvreg','${pageContext.request.contextPath}/mangr/rcvReg.do', this)"><span class="ic">🧾</span>수금 등록</a>
       <%-- 거래처 매출장·마감 (2026-10-07) — 판매전표를 거래처별 매출장(표본 「샐러드플러스 0821」)과 마감 유형별 매출원장(표본 「우리푸드 샐러드플러스 7월 마감」)으로.

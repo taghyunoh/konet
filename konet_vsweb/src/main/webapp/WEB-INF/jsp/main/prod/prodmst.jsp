@@ -1438,7 +1438,9 @@ function hvLoadStock(){
          삭제 버튼을 안 준다. 되돌리려면 그 전표를 고치거나 지워야 한다(2026-07-25). */
       var SRC={ PURCH:'매입등록', SALE:'판매등록', SHIPOUT:'발주현황표' };
       tb.innerHTML = rows.map(function(o){
-        var bd='<span class="badge" style="background:'+(IO_COLOR[o.ioGb]||'#888')+'">'+(IO_MAP[o.ioGb]||o.ioGb)+'</span>';
+        /* 음수 수량 입고 = 매입 반품 → 「반품」 배지 (2026-11-13 요청) */
+        var _ret=(o.ioGb==='I'||o.ioGb==='O') && (+o.qty||0)<0;
+        var bd='<span class="badge" style="background:'+(_ret?IO_COLOR.R:(IO_COLOR[o.ioGb]||'#888'))+'"'+(_ret?' title="'+(o.ioGb==='I'?'매입 반품(재고에서 빠짐)':'판매 반품(재고에 더해짐)')+'"':'')+'>'+(_ret?'반품':(IO_MAP[o.ioGb]||o.ioGb))+'</span>';
         var g=o.refGb||'', src = g
               ? '<span title="'+esc((SRC[g]||g)+' '+(o.refNo||''))+'">'+esc(SRC[g]||g)+(o.refNo?(' <span style="color:#9aa7b3">'+esc(o.refNo)+'</span>'):'')+'</span>'
               : '<span style="color:#137a6c;font-weight:700">수기 조정</span>';
