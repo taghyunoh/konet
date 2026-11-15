@@ -5808,6 +5808,9 @@
 	     AND ( ISNULL(#{mgrCd,jdbcType=VARCHAR},'') = '' OR x.mgrCd = #{mgrCd,jdbcType=VARCHAR} )
 	   GROUP BY x.gb, x.mgrCd
 	   ORDER BY dt, gb, custCd, trxNo
+	   /* ★RECOMPILE (2026-11-15 「매출상세 하단 속도확인」) — 운영 DB 실측 : 본 조회만 0.3초 · 전잔고(P_) 갈래만 0.1초인데 둘을 UNION 한 이 문장은 매개변수 꼴로 1.5초(논리읽기 23만~39만).
+	        조건이 전부 「ISNULL(값,'')='' OR …」 꼴이라 값을 모르는 채 짠 계획이 나쁘다. RECOMPILE 이면 그 값으로 다시 짜 0.4~0.65초(다섯 조건 조합 줄 수 같음). 종합실적 조회·[거래처합] 전체 기간 펼치기가 같은 문장 */
+	   OPTION (RECOMPILE)
 	]]></select>
 
 	<!-- 종합실적 지출 — 월 비용(TBL_EXPENSE_TRX)을 <항목별 줄>로 (2026-11-11 「지출내역도 상세보기」). 화면이 월·항목을 일할해 기간계·일계·상세를 만든다.
