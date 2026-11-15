@@ -12,7 +12,7 @@
 <!--
   종합실적 (2026-11-11 신설 — 사용자 「홀세일에 있는 종합실적을 코네트 정보현황 메뉴 진행상황 밑에 추가」) — 정보 현황 ▸ 종합실적. 셸 iframe(logiFrame).
   홀세일 화면 그대로 : ① 조회줄(검색일자·담당사원·창고·상품) ② 구분 × 기간계/일계 표(매출·수금·수금할인·매입·지급·지급할인·지출 + 이익)
-                       ③ 사원별 현황(기간별/일별) ④ [상세보기] 를 누르면 맨 아래에 그 구분의 전표 목록(일자마다 「일 계」 줄).
+                       ③ 사원별 현황(기간별/일별) ④ [상세보기] 를 누르면 맨 아래에 그 구분의 전표 목록(탭 둘 — [일자별] 일자마다 「일 계」 줄 / [거래처합] 거래처마다 한 줄 : 검색 기간 합계 + «전체»(검색 기간과 무관) 합계 — 2026-11-15).
   · 자료는 /mangr/perfData.do 한 번 — 전표 낱줄(gb=SALE/RCV/PURCH/PAY) + 시작일 이전 사원별 누계(P_*) + 지출(월/일).
     기간계·일계·사원별·상세는 전부 이 화면이 그 줄들을 접어 만든다(서버 매퍼 selectPerfRows 머리말). 집계가 한 곳이라 표끼리 어긋나지 않는다.
   · 일계 = 검색 종료일 하루치. 시작일=종료일로 조회하면 기간계와 같다(홀세일과 같음).
@@ -55,6 +55,14 @@
   table.g td.ctr{ text-align:center; }
   table.g tr.tot td{ background:var(--cream); font-weight:800; }
   table.g tr.dsum td{ background:#f4f7fa; font-weight:700; color:#37475a; }
+  table.g tr.chd td{ background:#e3f2ee; font-weight:800; color:#0f6b5e; text-align:left; }   /* 거래처별 합계 머리줄 (2026-11-15) */
+  table.g tr.csum td{ background:#f6fbf9; }
+  table.g tr.refhd td{ cursor:pointer; }   /* 지출 상세 참고 목록 머리줄 — 눌러서 펼침/접힘 */
+  table.g tr.refhd:hover td{ background:#e8eef4; }
+  table.g tr.chd.all td{ background:#fdf1dc; color:#8a4c0d; cursor:pointer; }   /* 거래처별 «전체» 합계(검색 기간과 무관) — 기간 묶음과 색으로 가른다 */
+  table.g tr.csum.acs td{ background:#fffaf2; }
+  .btn.dtab{ font-weight:700; }
+  .btn.dtab.on{ background:#137a6c; border-color:#137a6c; color:#fff; }   /* 고른 탭 */
   table.g td.big{ font-size:14.5px; font-weight:700; }
   table.g td.neg, .neg{ color:var(--red); }
   table.g td.act{ text-align:left; width:1%; }
@@ -93,6 +101,9 @@
     table.g td.lbl{ background:#fff !important; }
     table.g tr.tot td{ background:#FCF8E3 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     table.g tr.dsum td{ background:#F2F2F2 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    table.g tr.chd td{ background:#E3F2EE !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    table.g tr.csum td{ background:#fff !important; }
+    table.g tr.chd.all td{ background:#FDF1DC !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     table.g td.neg, .neg{ color:#C0392B !important; }
     .sumcell b{ font-size:9pt; min-width:0; }
     table.g td.big{ font-size:9pt; }
@@ -154,7 +165,12 @@
 
   <div class="card pb" id="psDtlCard" style="display:none">
     <div class="prn" id="prn3"></div>
-    <div class="tit noprint"><span id="psDtlTit">상세</span><span class="sp"></span>
+    <div class="tit noprint"><span id="psDtlTit">상세</span>
+      <%-- 상세보기 탭 (2026-11-15 「기존 일자별은 원복하고 탭 추가로 거래처합」) — 일자별 = 전표 줄·일 계 / 거래처합 = 거래처마다 한 줄(검색 기간 + 전체 기간). 지출 상세엔 없다 --%>
+      <span id="psDtlTabs" style="display:none; margin-left:6px">
+        <button class="btn btn-sm dtab on" id="psTabDate" onclick="psDtlTab('date')" title="전표 줄을 날짜 차례로 — 일자마다 「일 계」">📅 일자별</button>
+        <button class="btn btn-sm dtab" id="psTabCust" onclick="psDtlTab('cust')" title="거래처마다 한 줄 — 검색 기간 합계와, 검색 기간과 무관한 전체 기간 합계">🏢 거래처합</button>
+      </span><span class="sp"></span>
       <button class="btn btn-red btn-sm" onclick="psXls('dtl')">엑셀 다운로드</button>
       <button class="btn btn-org btn-sm" onclick="psPrint()">인쇄</button>
       <button class="btn btn-sm" onclick="psDtlClose()">닫기</button></div>
@@ -262,9 +278,10 @@ function psLoad(){
   if(prod && !document.getElementById('psProdNm').textContent && !/^\d{6,}$/.test(prod)){ psProdPick(); return; }
   document.getElementById('psStamp').textContent='조회 중…';
   psProg(true, '종합실적을 집계하는 중입니다 ('+fr+' ~ '+to+')');
-  post('/mangr/perfData.do', 'frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)+'&mgrCd='+encodeURIComponent(gv('psMgr'))
-       +'&whCd='+encodeURIComponent(gv('psWh'))+'&prodCd='+encodeURIComponent(prod))
+  var q='&mgrCd='+encodeURIComponent(gv('psMgr'))+'&whCd='+encodeURIComponent(gv('psWh'))+'&prodCd='+encodeURIComponent(prod);   /* 날짜 뺀 조건 — 거래처별 전체 합계(psAllLoad)가 같은 조건으로 읽는다 */
+  post('/mangr/perfData.do', 'frDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)+q)
     .then(function(j){
+      _q=q; _all.key=null;   /* 다시 조회하면 전체 합계도 새로 읽는다(그 사이 전표가 늘었을 수 있다) */
       _rows=(j.rows||[]).map(psNorm); _expM=j.expM||[]; _expD=j.expD||[]; _fr8=d8(fr); _to8=d8(to);
       psRender(); if(_dtlGb) psDtl(_dtlGb, true);
       document.getElementById('psStamp').textContent='조회 '+ymd(new Date())+' · 전표 '+_rows.filter(function(r){ return r.src!=='PREV'; }).length.toLocaleString()+'줄';
@@ -369,6 +386,14 @@ function expRows(){
     var lo=(_fr8>a?_fr8:a), hi=(_to8<b?_to8:b), days=lo>hi?0:Math.round((new Date(+hi.slice(0,4),+hi.slice(4,6)-1,+hi.slice(6,8))-new Date(+lo.slice(0,4),+lo.slice(4,6)-1,+lo.slice(6,8)))/86400000)+1;
     return { ym:ym, itemCd:e.itemCd, itemNm:e.itemNm||e.itemCd, itemGb:e.itemGb||'', amt:n(e.amt), remark:e.remark||'', D:D, days:days, per:Math.round(n(e.amt)*days/D), day:(ym===_to8.slice(0,6)?Math.round(n(e.amt)/D):0) }; });
 }
+/* 지출 상세의 참고 목록(날짜 적힌 비용 내역) 접기·펼치기 — 기본 접힘. 다시 그리지 않고 줄만 감췄다 보인다(스크롤 자리 유지). 조회를 다시 해도 고른 상태 그대로 */
+var _expRefOpen=false;
+function psExpRef(){
+  _expRefOpen=!_expRefOpen;
+  var trs=document.querySelectorAll('#psDtl tr.refrow'); for(var i=0;i<trs.length;i++) trs[i].style.display=_expRefOpen?'':'none';
+  var a=document.getElementById('psExpRefArr'), t=document.getElementById('psExpRefHint');
+  if(a) a.textContent=_expRefOpen?'▾':'▸'; if(t) t.textContent=_expRefOpen?'눌러서 접기':'눌러서 펼치기';
+}
 function psDtlExp(keep){
   var rows=expRows(), h='<thead><tr><th>귀속월</th><th>항목</th><th>구분</th><th>월 비용</th><th>기간 일수 / 월 일수</th><th>기간 반영액(일할)</th><th>일계('+dl(_to8)+')</th><th>비고</th></tr></thead><tbody>';
   var cur='', ms={a:0,per:0,day:0}, T={a:0,per:0,day:0}, cnt=0;
@@ -384,9 +409,11 @@ function psDtlExp(keep){
   /* 참고 — 기간 안 날짜가 적힌 비용 내역(귀속월이 그 날짜의 달인 줄만). 집계엔 안 쓰고 보기만 */
   var dl2=_expD.filter(function(e){ return String(e.dt||'')>=_fr8 && String(e.dt||'')<=_to8; });
   if(dl2.length){
-    h+='<tr class="dsum"><td class="txt" colspan="8">참고 · 기간 안 날짜가 적힌 비용 내역 '+dl2.length+'줄 (집계는 위 일할 기준 — 내역은 보기만)</td></tr>';
-    var dt=0; dl2.forEach(function(e){ dt+=n(e.amt); h+='<tr><td class="ctr">'+dl(e.dt)+'</td><td class="txt">'+esc(e.itemNm||e.itemCd)+'</td><td class="ctr">'+(e.chkYn==='Y'?'확인':'')+'</td><td class="txt" colspan="2">'+esc(e.title)+'</td>'+fc(n(e.amt))+'<td></td><td class="txt">'+esc(e.remark)+'</td></tr>'; });
-    h+='<tr class="dsum"><td class="txt" colspan="5">내역 합</td>'+fc(dt)+'<td></td><td></td></tr>';
+    /* 참고 목록은 접어 둔다 — 머리줄을 누르면 펼침 (2026-11-15 사용자 「접기하고 펼치면 보이게」). 접힌 채로도 줄 수·내역 합은 머리줄에 보인다. 인쇄도 화면 그대로(접혀 있으면 안 찍힌다) */
+    var rs=_expRefOpen?'':' style="display:none"', rsum=0; dl2.forEach(function(e){ rsum+=n(e.amt); });
+    h+='<tr class="dsum refhd" onclick="psExpRef()" title="눌러서 펼치기 / 접기"><td class="txt" colspan="8"><b id="psExpRefArr">'+(_expRefOpen?'▾':'▸')+'</b> 참고 · 기간 안 날짜가 적힌 비용 내역 '+dl2.length+'줄 · 내역 합 '+fmt(rsum)+'원 <small style="font-weight:600">(집계는 위 일할 기준 — 내역은 보기만 · <span id="psExpRefHint">'+(_expRefOpen?'눌러서 접기':'눌러서 펼치기')+'</span>)</small></td></tr>';
+    var dt=0; dl2.forEach(function(e){ dt+=n(e.amt); h+='<tr class="refrow"'+rs+'><td class="ctr">'+dl(e.dt)+'</td><td class="txt">'+esc(e.itemNm||e.itemCd)+'</td><td class="ctr">'+(e.chkYn==='Y'?'확인':'')+'</td><td class="txt" colspan="2">'+esc(e.title)+'</td>'+fc(n(e.amt))+'<td></td><td class="txt">'+esc(e.remark)+'</td></tr>'; });
+    h+='<tr class="dsum refrow"'+rs+'><td class="txt" colspan="5">내역 합</td>'+fc(dt)+'<td></td><td></td></tr>';
   }
   document.getElementById('psDtl').innerHTML=h+'</tbody>';
   document.getElementById('psDtlTit').textContent='📋 지출 상세 · '+dl(_fr8)+' ~ '+dl(_to8)+' · 월 비용 '+cnt+'줄';
@@ -394,36 +421,116 @@ function psDtlExp(keep){
   var card=document.getElementById('psDtlCard'); card.style.display='block';
   if(!keep) card.scrollIntoView({behavior:'smooth', block:'start'});
 }
+/* 거래처별 합계 (2026-11-15 사용자 「각 실행 하단 거래처 합계도」 → 「탭 추가로 거래처합」) — 상세보기 [거래처합] 탭에 거래처마다 한 줄.
+   화면(psDtl)·엑셀(xsDtl)이 이 함수 하나를 쓴다. 묶는 열쇠 = 거래처코드(없으면 이름) · 차례 = 합계 큰 순(같으면 코드순) · 담당이 여럿이면 「○○ 외 n」 */
+/* 거래처별 «전체» 합계 (2026-11-15 사용자 「거래처별 합계를 기간 상관없이 합계로」·「기존 것 유지하고 별도로」) —
+   검색일자와 무관하게 <전 기간> 전표를 거래처로 묶은 줄. [거래처합] 탭에서 검색 기간 묶음 밑에 따로 붙는다([일자별] 탭은 원래 모양 — 같은 날 「일자별은 원복하고 탭으로」).
+   재료 = 같은 /mangr/perfData.do 를 날짜만 넓혀 한 번 더(담당사원·창고·상품 조건은 마지막 조회 _q 와 같게) — 서버 무변경.
+   상세보기를 그릴 때 처음 읽고, [리스트조회]를 다시 하면(_all.key=null) 다시 읽는다. 읽는 동안은 「불러오는 중」 한 줄, 오면 상세를 다시 그린다. */
+var _all={ key:null, rows:null, busy:false, err:'' }, _q='';
+function psAllLoad(){
+  var key=_q;
+  if(_all.key===key && (_all.rows || _all.busy || _all.err)) return;
+  _all={ key:key, rows:null, busy:true, err:'' };
+  function redraw(){ if(!_dtlGb || _dtlGb==='EXP' || _dtlTab!=='cust' || !_allOpen) return; var w=document.querySelector('.tbwrap.dtl'), st=w?w.scrollTop:0; psDtl(_dtlGb, true); if(w) w.scrollTop=st; }
+  post('/mangr/perfData.do', 'frDt=1900-01-01&toDt=2999-12-31'+key)
+    .then(function(j){ if(_all.key!==key) return; _all.rows=(j.rows||[]).map(psNorm).filter(function(r){ return r.src!=='PREV'; }); _all.busy=false; redraw(); })
+    .catch(function(e){ if(_all.key!==key) return; _all.busy=false; _all.err=(e&&e.message)||'오류'; redraw(); });
+}
+function psAllRows(gb){ return (_all.rows && _all.key===_q) ? _all.rows.filter(function(r){ return r.gb===gb; }) : null; }
+function dtSpan(list){ var a='', b=''; list.forEach(function(r){ var d=String(r.dt||''); if(!d) return; if(!a||d<a) a=d; if(!b||d>b) b=d; }); return a ? dl(a)+' ~ '+dl(b) : ''; }
+function custGroups(rows, gb){
+  var m={}, list=[];
+  rows.forEach(function(r){ var cd=String(r.custCd||''), k=cd ? 'C'+cd : 'N'+String(r.custNm||''), g=m[k];
+    if(!g){ g=m[k]={ cd:cd, nm:String(r.custNm||''), mgr:{}, rows:[] }; list.push(g); }
+    if(!g.nm && r.custNm) g.nm=String(r.custNm); if(r.mgrNm) g.mgr[r.mgrNm]=1; g.rows.push(r); });
+  list.forEach(function(g){ g.s=sumOf(g.rows); g.tot=({ SALE:g.s.sale, PURCH:g.s.purch, RCV:g.s.rcv, PAY:g.s.pay })[gb]||0;
+    var ks=Object.keys(g.mgr); g.mgrNm = ks.length ? ks[0]+(ks.length>1?' 외 '+(ks.length-1):'') : ''; });
+  list.sort(function(a,b){ return (b.tot-a.tot) || a.cd.localeCompare(b.cd) || a.nm.localeCompare(b.nm); });
+  return list;
+}
 function psDtl(gb, keep){
   _dtlGb=gb;
-  if(gb==='EXP'){ psDtlExp(keep); return; }
+  var tabs=document.getElementById('psDtlTabs');
+  if(gb==='EXP'){ if(tabs) tabs.style.display='none'; psDtlExp(keep); return; }   /* 지출은 거래처가 없다 — 탭 없음 */
+  var cust=(_dtlTab==='cust');
+  if(tabs){ tabs.style.display='';
+    document.getElementById('psTabDate').className='btn btn-sm dtab'+(cust?'':' on');
+    document.getElementById('psTabCust').className='btn btn-sm dtab'+(cust?' on':''); }
   var rows=_rows.filter(function(r){ return r.gb===gb; });
   rows.sort(function(a,b){ return (a.dt+a.custCd+a.trxNo).localeCompare(b.dt+b.custCd+b.trxNo); });
   var money=(gb==='RCV'||gb==='PAY');
   var dtLbl={SALE:'매출일자', RCV:'수금일자', PURCH:'매입일자', PAY:'지급일자'}[gb];
-  var cols = money ? [dtLbl,'코드','거래처코드','거래처명','담당사원','현금', gb==='RCV'?'무통장입금':'무통장지급','카드','기타','할인','합계']
-                   : [dtLbl,'코드','거래처코드','거래처명','담당사원','공급가','부가세','합계','DC'];
-  var h='<thead><tr>'+cols.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'</tr></thead><tbody>';
-  var cur='', cnt=0, dayRows=[];
-  function line(r){ var s=sumOf([r]); return money ? fc(s.cash+s.pcash)+fc(s.bank+s.pbank)+fc(s.card+s.pcard)+fc(s.etc+s.petc)+fc(s.rcvDc+s.payDc)+fc(n(r.amt))
-                                                   : fc(n(r.supplyAmt)).replace('<td', r.vatCalc?'<td title="정산서·토더는 전표에 세액이 없어 합계 ÷ 1.1 로 환산한 값" style="color:#6b7a89"':'<td')+fc(n(r.vatAmt)).replace('<td', r.vatCalc?'<td title="환산값" style="color:#6b7a89"':'<td')+fc(n(r.amt))+fc(n(r.dcAmt)); }
-  function sumLine(s, lbl, cls){ return '<tr class="'+cls+'"><td class="txt" colspan="5">'+lbl+'</td>'
-      +(money ? fc(s.cash+s.pcash)+fc(s.bank+s.pbank)+fc(s.card+s.pcard)+fc(s.etc+s.petc)+fc(s.rcvDc+s.payDc)+fc(gb==='RCV'?s.rcv:s.pay)
-              : fc(gb==='SALE'?s.saleSup:s.purchSup)+fc(gb==='SALE'?s.saleVat:s.purchVat)+fc(gb==='SALE'?s.sale:s.purch)+fc(gb==='SALE'?s.saleDc:s.purchDc))+'</tr>'; }
-  rows.forEach(function(r){
-    if(cur && r.dt!==cur){ h+=sumLine(sumOf(dayRows), '일 계', 'dsum'); dayRows=[]; }
-    cur=r.dt; dayRows.push(r); cnt++;
-    h+='<tr><td class="ctr">'+dl(r.dt)+'</td><td class="ctr">'+esc(r.trxNo)+(r.payGb?' <small style="color:#6b7a89">'+esc(r.payGb)+'</small>':'')+'</td><td class="ctr">'+esc(r.custCd)+'</td><td class="txt">'+esc(r.custNm)+'</td><td class="ctr">'+esc(r.mgrNm)+'</td>'+line(r)+'</tr>';
-  });
-  if(cur) h+=sumLine(sumOf(dayRows), '일 계', 'dsum');
-  h+=sumLine(sumOf(rows), '합 계 ('+cnt.toLocaleString()+'건)', 'tot');
-  if(!rows.length) h+='<tr><td class="msg" colspan="'+cols.length+'">'+GBL[gb]+' 전표가 없습니다.</td></tr>';
+  var numCols = money ? ['현금', gb==='RCV'?'무통장입금':'무통장지급','카드','기타','할인','합계'] : ['공급가','부가세','합계','DC'];
+  function nums(s){ return money ? fc(s.cash+s.pcash)+fc(s.bank+s.pbank)+fc(s.card+s.pcard)+fc(s.etc+s.petc)+fc(s.rcvDc+s.payDc)+fc(gb==='RCV'?s.rcv:s.pay)
+              : fc(gb==='SALE'?s.saleSup:s.purchSup)+fc(gb==='SALE'?s.saleVat:s.purchVat)+fc(gb==='SALE'?s.sale:s.purch)+fc(gb==='SALE'?s.saleDc:s.purchDc); }
+  var cols, h, tit, cnt=rows.length;
+  if(!cust){
+    /* ── [일자별] 탭 — 전표 줄 + 일자마다 「일 계」 + 「합 계」 (원래 모양. 거래처 합계는 [거래처합] 탭으로 — 2026-11-15 「기존 일자별은 원복하고 탭 추가로」) */
+    cols=[dtLbl,'코드','거래처코드','거래처명','담당사원'].concat(numCols);
+    h='<thead><tr>'+cols.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'</tr></thead><tbody>';
+    var cur='', dayRows=[];
+    var line=function(r){ var s=sumOf([r]); return money ? fc(s.cash+s.pcash)+fc(s.bank+s.pbank)+fc(s.card+s.pcard)+fc(s.etc+s.petc)+fc(s.rcvDc+s.payDc)+fc(n(r.amt))
+                                                   : fc(n(r.supplyAmt)).replace('<td', r.vatCalc?'<td title="정산서·토더는 전표에 세액이 없어 합계 ÷ 1.1 로 환산한 값" style="color:#6b7a89"':'<td')+fc(n(r.vatAmt)).replace('<td', r.vatCalc?'<td title="환산값" style="color:#6b7a89"':'<td')+fc(n(r.amt))+fc(n(r.dcAmt)); };
+    var sumLine=function(s, lbl, cls){ return '<tr class="'+cls+'"><td class="txt" colspan="5">'+lbl+'</td>'+nums(s)+'</tr>'; };
+    rows.forEach(function(r){
+      if(cur && r.dt!==cur){ h+=sumLine(sumOf(dayRows), '일 계', 'dsum'); dayRows=[]; }
+      cur=r.dt; dayRows.push(r);
+      h+='<tr><td class="ctr">'+dl(r.dt)+'</td><td class="ctr">'+esc(r.trxNo)+(r.payGb?' <small style="color:#6b7a89">'+esc(r.payGb)+'</small>':'')+'</td><td class="ctr">'+esc(r.custCd)+'</td><td class="txt">'+esc(r.custNm)+'</td><td class="ctr">'+esc(r.mgrNm)+'</td>'+line(r)+'</tr>';
+    });
+    if(cur) h+=sumLine(sumOf(dayRows), '일 계', 'dsum');
+    h+=sumLine(sumOf(rows), '합 계 ('+cnt.toLocaleString()+'건)', 'tot');
+    if(!rows.length) h+='<tr><td class="msg" colspan="'+cols.length+'">'+GBL[gb]+' 전표가 없습니다.</td></tr>';
+    tit='📋 '+GBL[gb]+' 상세 · '+dl(_fr8)+' ~ '+dl(_to8)+' · '+cnt.toLocaleString()+'건';
+  } else {
+    /* ── [거래처합] 탭 — 거래처마다 한 줄. 위 = 검색 기간 합계, 아래 = «전체»(검색 기간과 무관 · 전 기간) 합계 */
+    cols=['거래처코드','거래처명','담당사원','건수'].concat(numCols);
+    h='<thead><tr>'+cols.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'</tr></thead><tbody>';
+    var custLines=function(list, cls){ return custGroups(list, gb).map(function(g){ return '<tr class="'+cls+'"><td class="ctr">'+esc(g.cd)+'</td><td class="txt">'+esc(g.nm)+'</td><td class="ctr">'+esc(g.mgrNm)+'</td>'+fc(g.rows.length)+nums(g.s)+'</tr>'; }).join(''); };
+    var totLine=function(list, lbl, cls){ return '<tr class="'+cls+'"><td class="txt" colspan="3">'+lbl+'</td>'+fc(list.length)+nums(sumOf(list))+'</tr>'; };
+    var cg=custGroups(rows, gb);
+    h+='<tr class="chd"><td colspan="'+cols.length+'">▣ 검색 기간 '+dl(_fr8)+' ~ '+dl(_to8)+' · 거래처 '+cg.length.toLocaleString()+'곳 <small style="font-weight:600">(합계 큰 순)</small></td></tr>';
+    if(rows.length) h+=custLines(rows, 'csum')+totLine(rows, '합 계', 'tot');
+    else h+='<tr><td class="msg" colspan="'+cols.length+'">이 기간에 '+GBL[gb]+' 전표가 없습니다.</td></tr>';
+    /* «전체 기간» 묶음 — 접어 둔다. 머리줄을 누르면 펼치고, 펼칠 때 비로소 전 기간을 읽는다 (2026-11-15 사용자 「전체 기간 보기는 접기로 하고 펼치기 기능」) */
+    var aTip='검색일자와 무관하게 전 기간 '+GBL[gb]+' 전표를 거래처로 묶은 합계 — 담당사원·창고·상품 조건은 위 조회와 같습니다';
+    var aHd=function(inner){ return '<tr class="chd all" onclick="psAllFold()"><td colspan="'+cols.length+'" title="'+aTip+' · 눌러서 '+(_allOpen?'접기':'펼치기')+'"><b>'+(_allOpen?'▾':'▸')+'</b> 전체 기간 '+inner+'</td></tr>'; };
+    var sm=function(t){ return '<small style="font-weight:600">'+t+'</small>'; };
+    if(!_allOpen) h+=aHd(sm('(검색 기간과 무관 — 눌러서 펼치기)'));
+    else {
+      psAllLoad();
+      var aRows=psAllRows(gb);
+      if(aRows){
+        var ag=custGroups(aRows, gb);
+        h+=aHd(sm('(검색 기간과 무관'+(aRows.length?' · '+dtSpan(aRows):'')+')')+' · 거래처 '+ag.length.toLocaleString()+'곳 '+sm('(합계 큰 순 · 눌러서 접기)'));
+        if(aRows.length) h+=custLines(aRows, 'csum acs')+totLine(aRows, '전체 합 계', 'tot atot');
+        else h+='<tr><td class="msg" colspan="'+cols.length+'">전 기간에 '+GBL[gb]+' 전표가 없습니다.</td></tr>';
+      } else h+=aHd(sm('(검색 기간과 무관)')+' — '+(_all.err?'불러오지 못했습니다 : '+esc(_all.err)+' · [리스트조회]를 다시 눌러 주세요':'불러오는 중…'));
+    }
+    tit='📋 '+GBL[gb]+' 상세 · 거래처합 · '+dl(_fr8)+' ~ '+dl(_to8)+' · 거래처 '+cg.length.toLocaleString()+'곳 · '+cnt.toLocaleString()+'건';
+  }
   document.getElementById('psDtl').innerHTML=h+'</tbody>';
-  document.getElementById('psDtlTit').textContent='📋 '+GBL[gb]+' 상세 · '+dl(_fr8)+' ~ '+dl(_to8)+' · '+cnt.toLocaleString()+'건';
-  prnHead('prn3', GBL[gb]+' 상세');
+  document.getElementById('psDtlTit').textContent=tit;
+  prnHead('prn3', GBL[gb]+(cust?' 거래처합':' 상세'));
   var card=document.getElementById('psDtlCard'); card.style.display='block';
   if(!keep) card.scrollIntoView({behavior:'smooth', block:'start'});
 }
+/* 상세보기 탭 — 'date' 일자별(전표 줄·일 계) / 'cust' 거래처합(검색 기간 + 전체 기간). 다른 구분의 [상세보기]를 눌러도 고른 탭 그대로 */
+var _dtlTab='date';
+/* [거래처합] 탭의 «전체 기간» 묶음 접기·펼치기 — 기본 접힘(전 기간 조회도 안 한다). 펼친 상태는 다시 조회·다른 구분으로 가도 유지(화면 메모리) */
+var _allOpen=false;
+function psAllFold(){
+  _allOpen=!_allOpen;
+  if(!_dtlGb || _dtlGb==='EXP' || _dtlTab!=='cust') return;
+  var w=document.querySelector('.tbwrap.dtl'), st=w?w.scrollTop:0; psDtl(_dtlGb, true); if(w) w.scrollTop=st;
+}
+function psDtlTab(t){
+  _dtlTab=(t==='cust'?'cust':'date');
+  if(!_dtlGb || _dtlGb==='EXP') return;
+  psDtl(_dtlGb, true);
+  var w=document.querySelector('.tbwrap.dtl'); if(w) w.scrollTop=0;
+}
+function psDtlNm(){ return _dtlGb ? GBL[_dtlGb]+((_dtlTab==='cust' && _dtlGb!=='EXP')?' 거래처합':' 상세') : ''; }
 function psDtlClose(){ _dtlGb=''; document.getElementById('psDtlCard').style.display='none'; }
 
 /* ───────── 엑셀 — 매출장(salesLedger.jsp ledgerSheet)과 같은 서식 : 굴림 9 · 제목 17 굵게 가운데(2줄 병합) · 조회기간 줄(밑줄) · 머리글 하늘 · 본문 테두리 · 일계 연회색 · 합계 크림 ───────── */
@@ -440,9 +547,9 @@ function xSheet(aoa, kinds, ncol, numCols, merges, cols){
       else if(k==='p'){ st.alignment.horizontal='left'; st.border={ bottom:bd }; }
       else if(k==='h'){ st.font.bold=true; st.alignment.horizontal='center'; st.fill={ fgColor:{ rgb:'D9EDF7' } }; st.border=box; }
       else {
-        st.border=box; st.fill={ fgColor:{ rgb:(k==='tot'?'FCF8E3':(k==='dsum'?'F2F2F2':'FFFFFF')) } };
-        if(k!=='row') st.font.bold=true;
-        st.alignment.horizontal = numCols.indexOf(cc)>=0 ? 'right' : (k!=='row' && cc===0 ? 'center' : 'left');
+        st.border=box; st.fill={ fgColor:{ rgb:(k==='tot'?'FCF8E3':(k==='dsum'?'F2F2F2':(k==='chd'?'E3F2EE':(k==='chda'?'FDF1DC':'FFFFFF')))) } };   /* chd·csum = 거래처별 합계 머리줄·줄 · chda = 전체(기간 무관) 머리줄 */
+        if(k!=='row' && k!=='csum') st.font.bold=true;
+        st.alignment.horizontal = (k==='chd'||k==='chda') ? 'left' : (numCols.indexOf(cc)>=0 ? 'right' : (k!=='row' && cc===0 ? 'center' : 'left'));
         if(ws[ref].t==='n' && numCols.indexOf(cc)>=0) ws[ref].z='#,##0';
         if(ws[ref].t==='n' && ws[ref].v<0) st.font.color={ rgb:'C0392B' };
       }
@@ -503,25 +610,45 @@ function xsDtl(gb){
   var rows=_rows.filter(function(r){ return r.gb===gb; });
   rows.sort(function(a,b){ return (a.dt+a.custCd+a.trxNo).localeCompare(b.dt+b.custCd+b.trxNo); });
   var money=(gb==='RCV'||gb==='PAY'), dtLbl={SALE:'매출일자', RCV:'수금일자', PURCH:'매입일자', PAY:'지급일자'}[gb];
-  var cols = money ? [dtLbl,'코드','거래처코드','거래처명','담당사원','구분','현금', gb==='RCV'?'무통장입금':'무통장지급','카드','기타','할인','합계']
-                   : [dtLbl,'코드','거래처코드','거래처명','담당사원','공급가','부가세','합계','DC'];
-  var ncol=cols.length, H=xHead(GBL[gb]+' 상세', ncol), aoa=H.aoa, kinds=H.kinds, nmW=14;
+  function vals(s){ return money ? [s.cash+s.pcash, s.bank+s.pbank, s.card+s.pcard, s.etc+s.petc, s.rcvDc+s.payDc, gb==='RCV'?s.rcv:s.pay]
+                                 : [gb==='SALE'?s.saleSup:s.purchSup, gb==='SALE'?s.saleVat:s.purchVat, gb==='SALE'?s.sale:s.purch, gb==='SALE'?s.saleDc:s.purchDc]; }
+  var numHd = money ? ['현금', gb==='RCV'?'무통장입금':'무통장지급','카드','기타','할인','합계'] : ['공급가','부가세','합계','DC'];
+  var cols, ncol, H, aoa, kinds, nmW=14, nums=[], mg=[], w, i;
+  if(_dtlTab==='cust'){
+    /* [거래처합] 탭 — 화면과 같은 줄 : 검색 기간 묶음 + 전체 기간 묶음(화면에 떠 있을 때만) */
+    cols=['거래처코드','거래처명','담당사원','건수'].concat(numHd); ncol=cols.length;
+    H=xHead(GBL[gb]+' 거래처합', ncol); aoa=H.aoa; kinds=H.kinds;
+    aoa.push(cols); kinds.push('h');
+    var custLines=function(list){ custGroups(list, gb).forEach(function(g){ nmW=Math.max(nmW, Math.min(40, xW(g.nm)+2));
+      aoa.push([g.cd, g.nm, g.mgrNm, g.rows.length].concat(vals(g.s))); kinds.push('csum'); }); };
+    var totLine=function(list, lbl){ aoa.push([lbl,'','',list.length].concat(vals(sumOf(list)))); kinds.push('tot'); };
+    aoa.push(['▣ 검색 기간 '+dl(_fr8)+' ~ '+dl(_to8)+' · 거래처 '+custGroups(rows, gb).length+'곳 (합계 큰 순)'].concat(xE(ncol-1))); kinds.push('chd');
+    custLines(rows); totLine(rows, '합 계');
+    var aRows=_allOpen ? psAllRows(gb) : null;   /* «전체 기간» = 화면에 펼쳐져 있고 다 읽혔을 때만 */
+    if(aRows && aRows.length){ aoa.push(['▣ 전체 기간 (검색 기간과 무관 · '+dtSpan(aRows)+') · 거래처 '+custGroups(aRows, gb).length+'곳 (합계 큰 순)'].concat(xE(ncol-1))); kinds.push('chda');
+      custLines(aRows); totLine(aRows, '전체 합 계'); }
+    for(i=3; i<ncol; i++) nums.push(i);
+    kinds.forEach(function(k,r){ if(k==='tot') mg.push({ s:{ r:r, c:0 }, e:{ r:r, c:2 } }); else if(k==='chd'||k==='chda') mg.push({ s:{ r:r, c:0 }, e:{ r:r, c:ncol-1 } }); });
+    w = money ? [11,nmW,9,7,12,12,12,12,10,13] : [11,nmW,9,7,13,12,13,10];
+    return xSheet(aoa, kinds, ncol, nums, mg, w);
+  }
+  /* [일자별] 탭 — 전표 줄 + 일 계 + 합 계 (원래 모양) */
+  cols = money ? [dtLbl,'코드','거래처코드','거래처명','담당사원','구분'].concat(numHd) : [dtLbl,'코드','거래처코드','거래처명','담당사원'].concat(numHd);
+  ncol=cols.length; H=xHead(GBL[gb]+' 상세', ncol); aoa=H.aoa; kinds=H.kinds;
   aoa.push(cols); kinds.push('h');
-  function vals(s, r){ return money ? [s.cash+s.pcash, s.bank+s.pbank, s.card+s.pcard, s.etc+s.petc, s.rcvDc+s.payDc, gb==='RCV'?s.rcv:s.pay]
-                                    : [gb==='SALE'?s.saleSup:s.purchSup, gb==='SALE'?s.saleVat:s.purchVat, gb==='SALE'?s.sale:s.purch, gb==='SALE'?s.saleDc:s.purchDc]; }
   var cur='', day=[], cnt=0;
-  function sumLine(list, lbl, k){ var s=sumOf(list); aoa.push([lbl,'','','','',''].slice(0, money?6:5).concat(vals(s, null))); kinds.push(k); }
+  function sumLine(list, lbl, k){ var s=sumOf(list); aoa.push([lbl,'','','','',''].slice(0, money?6:5).concat(vals(s))); kinds.push(k); }
   rows.forEach(function(r){
     if(cur && r.dt!==cur){ sumLine(day, '일 계', 'dsum'); day=[]; }
     cur=r.dt; day.push(r); cnt++; nmW=Math.max(nmW, Math.min(40, xW(r.custNm)+2));
     var s=sumOf([r]);
-    aoa.push([dl(r.dt), r.trxNo, r.custCd, r.custNm, r.mgrNm].concat(money?[r.payGb]:[]).concat(vals(s, r))); kinds.push('row');
+    aoa.push([dl(r.dt), r.trxNo, r.custCd, r.custNm, r.mgrNm].concat(money?[r.payGb]:[]).concat(vals(s))); kinds.push('row');
   });
   if(cur) sumLine(day, '일 계', 'dsum');
   sumLine(rows, '합 계 ('+cnt+'건)', 'tot');
-  var nums=[]; for(var i=(money?6:5); i<ncol; i++) nums.push(i);
-  var mg=[]; kinds.forEach(function(k,i){ if(k==='dsum'||k==='tot') mg.push({ s:{ r:i, c:0 }, e:{ r:i, c:(money?5:4) } }); });
-  var w = money ? [11,8,10,nmW,9,10,12,12,12,12,10,13] : [11,8,10,nmW,9,13,12,13,10];
+  for(i=(money?6:5); i<ncol; i++) nums.push(i);
+  kinds.forEach(function(k,r){ if(k==='dsum'||k==='tot') mg.push({ s:{ r:r, c:0 }, e:{ r:r, c:(money?5:4) } }); });
+  w = money ? [11,8,10,nmW,9,10,12,12,12,12,10,13] : [11,8,10,nmW,9,13,12,13,10];
   return xSheet(aoa, kinds, ncol, nums, mg, w);
 }
 function psXls(what){
@@ -533,9 +660,9 @@ function psXls(what){
     XLSX.utils.book_append_sheet(wb, xsSummary(), '종합 실적');
     XLSX.utils.book_append_sheet(wb, xsEmp(), '사원별현황');
   }
-  if(_dtlGb) XLSX.utils.book_append_sheet(wb, xsDtl(_dtlGb), GBL[_dtlGb]+' 상세');
-  XLSX.writeFile(wb, (what==='dtl' ? GBL[_dtlGb]+' 상세 ' : '종합 실적 ')+tag+'.xlsx');
-  if(window._toast) _toast('📥 엑셀 저장 — '+(what==='dtl'?GBL[_dtlGb]+' 상세':'종합 실적·사원별 현황'+(_dtlGb?'·'+GBL[_dtlGb]+' 상세':'')), 'ok');
+  if(_dtlGb) XLSX.utils.book_append_sheet(wb, xsDtl(_dtlGb), psDtlNm());   /* 상세 시트 = 지금 보고 있는 탭(일자별 「○○ 상세」 / 거래처합 「○○ 거래처합」) */
+  XLSX.writeFile(wb, (what==='dtl' ? psDtlNm()+' ' : '종합 실적 ')+tag+'.xlsx');
+  if(window._toast) _toast('📥 엑셀 저장 — '+(what==='dtl'?psDtlNm():'종합 실적·사원별 현황'+(_dtlGb?'·'+psDtlNm():'')), 'ok');
 }
 function psPrint(){ if(!_rows.length && !_expM.length){ alertBox('먼저 [리스트조회]를 눌러 자료를 띄운 뒤 인쇄하세요.'); return; } window.focus(); window.print(); }
 </script>
