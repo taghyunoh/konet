@@ -814,6 +814,7 @@
 	  SELECT
 	      t.SALES_SEQ AS salesSeq, t.JOB_SEQ AS jobSeq, t.ROW_NO AS rowNo, t.SRC_FILE AS srcFile,
 	      CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm,
+	      t.REG_USER AS regUser,   /* 올린 사람(로그인 ID) — 정산실적 끝 칸 (2026-11-16) */
 	      t.DC_CD AS dcCd, t.DC_NM AS dcNm,
 	      t.ORD_NO AS ordNo, t.ORD_ITEM_NO AS ordItemNo, t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm,
 	      t.SPEC AS spec, t.UNIT AS unit,

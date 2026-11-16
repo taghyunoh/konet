@@ -71,6 +71,10 @@
   table.mx td.none{ background:#f1f3f5; }
   table.mx th.sp, table.mx td.sp{ background:#f1f3f5; border-left:0; border-right:0; padding:0; }   /* 가상화 빈 칸(안 그린 열들의 자리) */
   table.mx td.n{ font-weight:700; }
+  /* ■ 품목 합계 묶음 (2026-11-16) — 사업장과 상관없이 품목마다 기간 출고를 모은 맨 앞 열들 */
+  table.mx th.al{ background:#e3f2ee !important; color:#0f6b5e !important; }
+  table.mx td.al{ background:#f2f9f7; }
+  table.mx td.al.n{ color:#0f6b5e; }
   table.mx tr.stk td{ background:#fff4e6; font-weight:800; color:#137a6c; }
   table.mx tr.stk td.cn, table.mx tr.stk td.rt{ background:#fde9cc; }
   table.mx tr.stk td.neg{ color:#c0392b; }
@@ -279,6 +283,18 @@ function somBuild(){
     var ta=na?A.tot:_old(A), tb=nb?B.tot:_old(B); return tb-ta || A.nm.localeCompare(B.nm); });   // 많이 나간 사업장이 왼쪽
   gord.forEach(function(gk){ var g=grp[gk]; g.iord.sort(function(a,b){ return g.items[b].tot-g.items[a].tot || a.localeCompare(b); }); });
   yord.sort(function(a,b){ return b.localeCompare(a); });                                              // 최근월부터
+  /* ★■ 품목 합계 묶음 (2026-11-16 사용자 「품목별 합계 열 추가」) — 같은 품목이 사업장 묶음(거래처관리 매칭코드)마다 다른 열에 나뉘어
+       「11-02~11-16 출고 31개인데 23개」로 읽혔다(공용 23 · 레이어드 3 · 아티스트 5). 사업장과 상관없이 품목마다 모은 열을 맨 앞에 둔다.
+       열쇠 '#ALL' — 셀을 누르면 사업장 조건 없이 그 품목 전체 내역(somDetail). 사업장 수·엑셀 기간 합계에는 넣지 않는다. */
+  if(gord.length){
+    var ALL={key:'#ALL', nm:'■ 품목 합계 (사업장 전체)', tot:0, newTot:0, items:{}, iord:[], all:true};
+    gord.forEach(function(gk){ var g=grp[gk]; g.iord.forEach(function(cd){ var s=g.items[cd], a=ALL.items[cd];
+      if(!a){ a=ALL.items[cd]={cd:cd, nm:s.nm, seq:s.seq, tot:0}; ALL.iord.push(cd); }
+      a.tot+=s.tot; ALL.tot+=s.tot; }); });
+    yord.forEach(function(ym){ gord.forEach(function(gk){ grp[gk].iord.forEach(function(cd){ var v=cell[ym+'|'+gk+'|'+cd]; if(v){ var kk=ym+'|#ALL|'+cd; cell[kk]=(cell[kk]||0)+v; } }); }); });
+    ALL.iord.sort(function(a,b){ return ALL.items[b].tot-ALL.items[a].tot || a.localeCompare(b); });
+    grp['#ALL']=ALL; gord.unshift('#ALL');
+  }
   var cols=[]; gord.forEach(function(gk){ grp[gk].iord.forEach(function(cd,i){ cols.push({g:gk, cd:cd, first:i===0}); }); });
   return { stock:stock, grp:grp, gord:gord, cols:cols, yms:yms, yord:yord, cell:cell, nprod:Object.keys(pset).length };
 }
@@ -314,7 +330,7 @@ function somRender(){
   var grand=0; m.yord.forEach(function(ym){ grand+=m.yms[ym]; }); m.grand=grand;
   var stkTot=0, seen={}; m.cols.forEach(function(c){ var v=m.stock[c.cd]; if(v!=null && !seen[c.cd]){ seen[c.cd]=1; stkTot+=v; } }); m.stkTot=stkTot; m.stkAny=Object.keys(seen).length>0;
   somPaint(true);
-  document.getElementById('cnt').innerHTML='사업장 <b>'+num(m.gord.length)+'</b>곳 · 품목 <b>'+num(m.nprod)+'</b>종 · <b>'+num(m.yord.length)+'</b>개월 · 기간 출고 <b>'+num(grand)+'</b>'
+  document.getElementById('cnt').innerHTML='사업장 <b>'+num(m.gord.filter(function(k){ return k!=='#ALL'; }).length)+'</b>곳 · 품목 <b>'+num(m.nprod)+'</b>종 · <b>'+num(m.yord.length)+'</b>개월 · 기간 출고 <b>'+num(grand)+'</b>'
     /* 서브코드로 쳤을 때 «무엇으로 찾았는지» 밝힌다 — 친 글자는 그대로 두므로 이 줄이 없으면 사람이 알 길이 없다 */
     + (_somVia ? ' · <span style="color:#0e6657;font-weight:700">'+esc(_somVia)+'</span> <span style="color:#8a98a8">로 찾았습니다(매칭코드)</span>' : '');
   somFit();
@@ -341,13 +357,13 @@ function somPaint(force){
   /* 머리 1단 = 사업장(창 안에 든 열 수만큼 colspan) */
   h+='<thead><tr class="r1"><th class="cn">년월 / 사업장</th><th class="rt">합계</th>'+(spL?'<th class="sp"></th>':'');
   var i=0; while(i<cols.length){ var gk=cols[i].g, j=i; while(j<cols.length && cols[j].g===gk) j++; var g=m.grp[gk];
-    h+='<th class="gh'+(cols[i].first?' gs':'')+'" colspan="'+(j-i)+'" title="'+esc(g.nm)+'"><span class="gl">'+esc(g.nm)+'<small>'+num(g.iord.length)+'품목 · '+num(g.tot)+'</small></span></th>'; i=j; }
+    h+='<th class="gh'+(cols[i].first?' gs':'')+(gk==='#ALL'?' al':'')+'" colspan="'+(j-i)+'" title="'+esc(g.nm)+'"><span class="gl">'+esc(g.nm)+'<small>'+num(g.iord.length)+'품목 · '+num(g.tot)+'</small></span></th>'; i=j; }
   h+=(spR?'<th class="sp"></th>':'')+'</tr><tr class="r2"><th class="cn">품목</th><th class="rt"></th>'+(spL?'<th class="sp"></th>':'');
   cols.forEach(function(c){ var it=m.grp[c.g].items[c.cd];
-    h+='<th class="it'+(c.first?' gs':'')+'" data-pcd="'+esc(c.cd)+'" title="'+esc(c.cd+' '+it.nm)+' — 누르면 상품 정보"><span class="cd">'+esc(c.cd)+'</span><span class="nm">'+esc(shortNm(it.nm, m.grp[c.g].nm))+'</span></th>'; });   /* data-pcd = 상품 정보 창 (2026-11-05) */
+    h+='<th class="it'+(c.first?' gs':'')+(c.g==='#ALL'?' al':'')+'" data-pcd="'+esc(c.cd)+'" title="'+esc(c.cd+' '+it.nm)+' — 누르면 상품 정보"><span class="cd">'+esc(c.cd)+'</span><span class="nm">'+esc(shortNm(it.nm, m.grp[c.g].nm))+'</span></th>'; });   /* data-pcd = 상품 정보 창 (2026-11-05) */
   h+=(spR?'<th class="sp"></th>':'')+'</tr></thead><tbody>';
   var L=spL?'<td class="sp"></td>':'', R=spR?'<td class="sp"></td>':'';
-  function cell(cls, ym, c, txt){ var k=ym+'|'+c.g+'|'+c.cd; return '<td class="'+cls+(c.first?' gs':'')+(_somPick===k?' pick':'')+'" data-ym="'+esc(ym)+'" data-g="'+esc(c.g)+'" data-cd="'+esc(c.cd)+'">'+txt+'</td>'; }
+  function cell(cls, ym, c, txt){ var k=ym+'|'+c.g+'|'+c.cd; return '<td class="'+cls+(c.first?' gs':'')+(c.g==='#ALL'?' al':'')+(_somPick===k?' pick':'')+'" data-ym="'+esc(ym)+'" data-g="'+esc(c.g)+'" data-cd="'+esc(c.cd)+'">'+txt+'</td>'; }
   /* ① 현재고 */
   /* 현재고 = 기간 끝날짜까지 (2026-11-04) — 이름에 그 날짜를 붙여 「지금 재고」로 읽히지 않게 */
   var _stkTo=((document.getElementById('toDt')||{}).value||'').slice(5);   // mm-dd
@@ -445,7 +461,7 @@ function somDetail(sel){
   document.getElementById('dtlOut').innerHTML=qprog('출고내역을 조회하는 중…'); document.getElementById('dtlIn').innerHTML=qprog('입고내역을 조회하는 중…');
   document.getElementById('dtlOutSum').textContent=''; document.getElementById('dtlInSum').textContent='';
   var gk=sel.g.key, body='ym='+encodeURIComponent(sel.ym)+'&frDt='+fr+'&toDt='+to+'&prodCd='+encodeURIComponent(sel.it.cd)+'&prodSeq='+encodeURIComponent(sel.it.seq||'')
-    +(gk.charAt(0)==='~' ? '&bizNm='+encodeURIComponent(sel.g.nm) : '&bizKey='+encodeURIComponent(gk));
+    +(gk==='#ALL' ? '' : (gk.charAt(0)==='~' ? '&bizNm='+encodeURIComponent(sel.g.nm) : '&bizKey='+encodeURIComponent(gk)));   /* ■ 품목 합계 = 사업장 조건 없이 (2026-11-16) */
   /* ★같은 셀을 다시 누르면 서버에 안 묻고 바로 (2026-11-05 속도) — 조회 버튼을 누르면 비운다(somDetailCache). 응답은 그대로 두고 그리기만 다시 */
   var ck=body; if(_dtlCache[ck]){ var jc=_dtlCache[ck]; somDetailRender(sel, jc, fr, to); somFit(); box.scrollIntoView({behavior:'smooth', block:'nearest'}); return; }
   fetch(CTX+'/prod/stockOutDetail.do', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:body })
@@ -570,7 +586,7 @@ function somExcel(){
   m.cols.forEach(function(c){ var v=m.stock[c.cd]; if(v==null){ sr.push(''); return; } any=true; if(!seen[c.cd]){ seen[c.cd]=1; st+=v; } sr.push(v); });
   sr[1]=any?st:''; aoa.push(sr);
   m.yord.forEach(function(ym){ var r=[ymLabel(ym), m.yms[ym]]; m.cols.forEach(function(c){ var v=m.cell[ym+'|'+c.g+'|'+c.cd]; r.push(v>0?v:''); }); aoa.push(r); });
-  var tr=['기간 합계',0], g0=0; m.cols.forEach(function(c){ var t=m.grp[c.g].items[c.cd].tot; tr.push(t); g0+=t; }); tr[1]=g0; aoa.push(tr);
+  var tr=['기간 합계',0], g0=0; m.cols.forEach(function(c){ var t=m.grp[c.g].items[c.cd].tot; tr.push(t); if(c.g!=='#ALL') g0+=t; });   /* 품목 합계 열은 두 번 더하지 않는다 */ tr[1]=g0; aoa.push(tr);
   var P=window.parent, fn='월별출고현황_'+document.getElementById('frDt').value.replace(/-/g,'')+'-'+document.getElementById('toDt').value.replace(/-/g,'')+'.xlsx';
   function byLib(LIB){ var ws=LIB.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:16},{wch:10}].concat(m.cols.map(function(){ return {wch:16}; }));
     ws['!merges']=merges;

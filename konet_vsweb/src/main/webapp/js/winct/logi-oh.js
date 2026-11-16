@@ -6868,7 +6868,10 @@ function ssOutQty(o){
       +'<th style="text-align:right" title="정산 확정본(SETTLE_AMT)이 오면 그 값, 아직이면 매입금액(SALE_AMT=입고량×단가)으로 대체해 보여 줍니다.&#10;대체된 값은 회색으로 표시됩니다.">정산금액</th>'
       +'<th style="text-align:right" title="정산서 원본의 &quot;매입금액&quot; 칸 = 입고량 × 단가.&#10;거래처가 우리에게 줄 돈입니다(우리 매출).">매입금액</th>'
       +'<th style="text-align:right" title="입고량 × 매입단가 (매입금액과 같은 수량 기준)&#10;매입단가는 상품코드등록의 매입가 이력 중 «납품일자 이하의 최신 적용일» 단가입니다(마감현황과 같은 규칙) = 코네트가 사 온 값.&#10;그 날짜 앞에 이력이 없으면 상품 매입가(마스터 IN_PRICE)로 대신합니다 — 칸을 올려 두면 어느 쪽인지 보입니다.&#10;※ 매입가를 안 넣은 품목은 - 로 둡니다.">매입원가<br><span style="font-weight:400;font-size:10.5px">입고량×매입가</span></th>'
-      +'<th>납품유형</th></tr></thead><tbody>';
+      +'<th>납품유형</th>'
+      /* 올린 사람 (2026-11-16 사용자 「평택(1) 올린 사람 끝에 보여줘」) — 정산서를 올린 로그인 ID · 올린 시각. 「평택 (1)」처럼 출고장 이름에 (1)이 붙은 것은
+           파일 이름(예: 2026.11.05_평택 (1).xlsx)에서 출고장을 읽어서 생긴 것 — 누가 언제 올렸는지 여기서 본다. ★칸이 17개가 됐다 — 머리글·총합계·그룹줄·자료줄 네 곳 */
+      +'<th title="이 정산서를 올린 사람의 사번(로그인 ID) — 칸에 올리면 파일 이름·올린 시각">사번</th></tr></thead><tbody>';
     /* ★[전체 접기/펼치기] 버튼은 표 안이 아니라 요약줄 오른쪽 끝(#spAllBtn)에 있다 —
          매출내역(#ohAllBtn)과 같은 자리로 맞춘 것(2026-08-02). 여기서는 글자만 갱신한다. */
     _spUpdAllBtn();
@@ -6879,7 +6882,7 @@ function ssOutQty(o){
       +'<td></td>'
       +'<td style="text-align:right">'+_cnum(tAmt)+'</td>'
       +'<td style="text-align:right">'+_cnum(tInAmt)+'</td>'
-      +'<td style="text-align:right">'+_cnum(tCost)+'</td><td></td></tr>';
+      +'<td style="text-align:right">'+_cnum(tCost)+'</td><td></td><td></td></tr>';
     /* ── 출고장 그룹 (2026-08-02 요청) ────────────────────────────────────
          1단 = 물류센터 묶음(_ohDcGrp) — ★오산센터(왜관·김해·광주·제주·오산)처럼
                여러 출고장을 하나로 묶는 규칙을 다른 화면과 **같은 함수**로 쓴다.
@@ -6912,7 +6915,7 @@ function ssOutQty(o){
     });
 
     if(!rows.length){
-      wrap.innerHTML=head+totRow+'<tr><td colspan="16" style="text-align:center;color:#9aa7b3;padding:22px">'
+      wrap.innerHTML=head+totRow+'<tr><td colspan="17" style="text-align:center;color:#9aa7b3;padding:22px">'
         +'조회된 정산서 자료가 없습니다. (기간·품목·납품유형을 확인하세요)</td></tr></tbody></table>';
       var pg0=document.getElementById('spPager'); if(pg0) pg0.innerHTML='';
       return;
@@ -6927,7 +6930,7 @@ function ssOutQty(o){
         +'<span class="ccar">'+car+'</span> '+(ind===null?'🗂️':'🏭')+' '+_cesc(label)
         +' <span style="font-weight:600;color:#5a6b7a">('+cnt+')</span></td>'
         +_num(o.ord)+_num(o.inq,true)+_num(o.set,true)+'<td></td>'
-        +_amt(o.amt)+_amt(o.inamt)+_amt(o.cost)+'<td></td></tr>';
+        +_amt(o.amt)+_amt(o.inamt)+_amt(o.cost)+'<td></td><td></td></tr>';
     };
     var rowFn=function(x){
       if(x.t==='G') return gRow(x.e, 'g1:'+x.e.label, x.e.label, null, x.e.gOrd.length+'곳 · '+x.e.n+'행');
@@ -6964,7 +6967,8 @@ function ssOutQty(o){
             /* 단가 출처(2026-09-16 P2-f) — 이력이면 적용일, 마스터면 그 날짜 앞 이력이 없다는 뜻 */
             var srcTip=(po.src==='이력') ? ('매입가 이력 '+_ohDateFmt(po.d)+' 적용분(납품일자 시점)') : '상품 매입가(마스터) — 납품일자 앞 이력 없음';
             return '<td style="text-align:right'+neg(v)+'" title="입고량 '+_ohQ(r.outQty)+' × 매입가 '+_cnum(pc)+' ('+srcTip+')&#10;매입금액(입고량×단가)과 같은 수량 기준이라 두 금액을 그대로 비교할 수 있습니다.">'+_cnum(v)+'</td>'; })()
-        +'<td title="'+_cesc(_spTypeTip(r))+'">'+(ret?'<span style="color:#c0392b;font-weight:800">반품</span>':_cesc(_spType(r)))+'</td></tr>';
+        +'<td title="'+_cesc(_spTypeTip(r))+'">'+(ret?'<span style="color:#c0392b;font-weight:800">반품</span>':_cesc(_spType(r)))+'</td>'
+        +'<td style="white-space:nowrap" title="'+_cesc('정산서 파일: '+(r.srcFile||'(파일명 없음)')+(r.uploadDttm?(' · 올린 시각 '+r.uploadDttm):''))+'">'+_cesc(r.regUser||'-')+'</td></tr>';   /* 사번만 (2026-11-16 「사번만 추가」) — 올린 시각·파일은 칸 title */
     };
     lzMount({ wrap:wrap, pager:'spPager', head:head+totRow, list:list, rowFn:rowFn,
               rows:KONET_GRID_ROWS, capTop:214, fill:true });
