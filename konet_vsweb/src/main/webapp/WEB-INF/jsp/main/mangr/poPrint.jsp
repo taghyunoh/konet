@@ -92,14 +92,21 @@
           <td class="r"><fmt:formatNumber value="${it.boxQty}" pattern="#,##0.##"/>/<fmt:formatNumber value="${it.eaQty}" pattern="#,##0.##"/></td>
           <td class="r"><fmt:formatNumber value="${it.qty}" pattern="#,##0.##"/></td>
           <td class="r"><fmt:formatNumber value="${it.unitPrice * (empty it.packQty or it.packQty == 0 ? 1 : it.packQty)}" pattern="#,##0"/>/<fmt:formatNumber value="${it.unitPrice}" pattern="#,##0"/></td>
-          <td class="r"><fmt:formatNumber value="${it.supplyAmt}" pattern="#,##0"/></td></tr>
+          <td class="r"><fmt:formatNumber value="${vatInc ? it.totAmt : it.supplyAmt}" pattern="#,##0"/></td></tr>   <%-- 부가세 포함 거래처 = 그 줄 매입금액 (2026-11-16) --%>
     </c:forEach>
     <c:forEach begin="${fn:length(items) + 1}" end="20" var="i"><tr><td class="c">${i}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr></c:forEach>
     </tbody>
     <tfoot class="foot">
+      <%-- ★부가세 포함 거래처 = 양식은 같고 세액만 비운다 (2026-11-16 「양식은 다른 것과 동일하게 · 부가세 표시만 하지 말고」) — 공급가 총액 = 합계 --%>
+      <c:choose><c:when test="${vatInc}">
+      <tr><td class="k">비고</td><td colspan="2" class="l" rowspan="3" style="vertical-align:top; white-space:normal">${mst.remark}</td><td colspan="3" class="c">공 급 가 총 액</td><td class="r"><fmt:formatNumber value="${mst.totAmt}" pattern="#,##0"/></td></tr>
+      <tr><td style="border-right:0"></td><td colspan="3" class="c">세 액 ( 부가가치세 )</td><td class="r"></td></tr>
+      <tr><td style="border-right:0"></td><td colspan="3" class="c">합 계 금 액</td><td class="r"><fmt:formatNumber value="${mst.totAmt}" pattern="#,##0"/></td></tr>
+      </c:when><c:otherwise>
       <tr><td class="k">비고</td><td colspan="2" class="l" rowspan="3" style="vertical-align:top; white-space:normal">${mst.remark}</td><td colspan="3" class="c">공 급 가 총 액</td><td class="r"><fmt:formatNumber value="${mst.supplyAmt}" pattern="#,##0"/></td></tr>
       <tr><td style="border-right:0"></td><td colspan="3" class="c">세 액 ( 부가가치세 )</td><td class="r"><fmt:formatNumber value="${mst.vatAmt}" pattern="#,##0"/></td></tr>
       <tr><td style="border-right:0"></td><td colspan="3" class="c">합 계 금 액</td><td class="r"><fmt:formatNumber value="${mst.totAmt}" pattern="#,##0"/></td></tr>
+      </c:otherwise></c:choose>
     </tfoot>
   </table>
   <div style="margin-top:8px; font-size:11.5px; color:#555">담당 ${mst.mgrNm} · 발주번호 ${mst.poDt}-${mst.poNo}</div>

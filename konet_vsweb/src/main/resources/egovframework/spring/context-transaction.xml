@@ -18,7 +18,16 @@
 
 	<aop:config>
 		<aop:pointcut id="requiredTx" expression="execution(* egovframework.example.sample..impl.*Impl.*(..))"/>
+		<!-- ★판매·매입 전표 저장·삭제를 한 묶음으로 (2026-11-16) — 수정 저장은 「원장 지우기 → 명세 지우기 → 머리 고치기 → 명세·원장 넣기」 순서라
+		     중간(머리 고치기)에서 실패하면 앞에서 지운 명세·원장이 되돌려지지 않았다(판매전표 172 : 금액만 남고 품목 0줄).
+		     위 requiredTx 는 전자정부 샘플 패키지를 가리켜 아무 데도 안 걸린다 — 이 앱에서 트랜잭션은 이렇게 pointcut 으로 건다.
+		     ⚠aop:config 안은 pointcut 전부 → advisor 전부 순서(xsd:sequence) — 섞으면 기동 때 SAXParseException. -->
+		<aop:pointcut id="trxSaveTx" expression="execution(* egovframework.konet.user.service.impl.UserServiceImpl.saveSalesTrx(..))
+		                                      || execution(* egovframework.konet.user.service.impl.UserServiceImpl.deleteSalesTrx(..))
+		                                      || execution(* egovframework.konet.user.service.impl.UserServiceImpl.savePurchase(..))
+		                                      || execution(* egovframework.konet.user.service.impl.UserServiceImpl.deletePurchase(..))"/>
 		<aop:advisor advice-ref="txAdvice" pointcut-ref="requiredTx" />
+		<aop:advisor advice-ref="txAdvice" pointcut-ref="trxSaveTx" />
 	</aop:config>
 
 </beans>

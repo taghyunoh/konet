@@ -5003,6 +5003,14 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
+	<!-- 수정 저장 전 — 바꾼 매입일자에 «같은 번호»의 다른 전표가 있나 (2026-11-16, countSalesTrxNoDup 과 같은 까닭 · UX_PURCH_NO) -->
+	<select id="countPurchaseNoDup" parameterType="egovframework.konet.user.model.PurchaseDTO" resultType="int"><![CDATA[
+	  SELECT COUNT(*)
+	    FROM TBL_PURCHASE_MST me
+	    JOIN TBL_PURCHASE_MST o ON o.COMP_CD = me.COMP_CD AND o.PURCH_NO = me.PURCH_NO AND o.PURCH_SEQ <> me.PURCH_SEQ AND o.ACTION_YN = 'Y'
+	   WHERE me.PURCH_SEQ = #{purchSeq}
+	     AND o.PURCH_DT = REPLACE(ISNULL(#{purchDt,jdbcType=VARCHAR},''),'-','')
+	]]></select>
 	<update id="deletePurchaseDtlAll" parameterType="egovframework.konet.user.model.PurchaseDTO"><![CDATA[
 	  UPDATE TBL_PURCHASE_DTL SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
@@ -6010,6 +6018,15 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
+	<!-- 수정 저장 전 — 바꾼 판매일자에 «같은 번호»의 다른 전표가 있나 (2026-11-16). 수정은 번호를 그대로 두고 날짜만 바꾸므로
+	     겹치면 머리 고치기가 고유 키(UX_SALES_TRX_NO, ACTION_YN='Y')에 걸린다 — 지우기 전에 막는다 -->
+	<select id="countSalesTrxNoDup" parameterType="egovframework.konet.user.model.SalesTrxDTO" resultType="int"><![CDATA[
+	  SELECT COUNT(*)
+	    FROM TBL_SALES_TRX_MST me
+	    JOIN TBL_SALES_TRX_MST o ON o.COMP_CD = me.COMP_CD AND o.SALE_NO = me.SALE_NO AND o.SALE_SEQ <> me.SALE_SEQ AND o.ACTION_YN = 'Y'
+	   WHERE me.SALE_SEQ = #{saleSeq,jdbcType=BIGINT}
+	     AND o.SALE_DT = REPLACE(ISNULL(#{saleDt,jdbcType=VARCHAR},''),'-','')
+	]]></select>
 	<update id="deleteSalesTrxDtlAll" parameterType="egovframework.konet.user.model.SalesTrxDTO"><![CDATA[
 	  UPDATE TBL_SALES_TRX_DTL SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}

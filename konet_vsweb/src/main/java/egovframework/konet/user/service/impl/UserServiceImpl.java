@@ -2304,6 +2304,10 @@ public class UserServiceImpl implements UserService {
 			if (dto.getPurchNo()==null || dto.getPurchNo().trim().isEmpty()) dto.setPurchNo(mapper.selectPurchaseNextNo(dto));
 			mapper.insertPurchaseMst(dto);          // useGeneratedKeys → dto.purchSeq 채워짐
 		} else {
+			/* ★바꾼 매입일자에 같은 번호가 있으면 지우기 전에 멈춘다 (2026-11-16) — 수정은 번호를 그대로 두고 날짜만 바꾸므로
+			     겹치면 머리 고치기가 고유 키에 걸린다. (이제 저장은 트랜잭션이라 실패해도 되돌아가지만, 무엇이 문제인지 말해 준다) */
+			if (mapper.countPurchaseNoDup(dto) > 0)
+				throw new IllegalStateException(dto.getPurchDt() + " 에 이미 같은 번호(" + dto.getPurchNo() + ")의 매입전표가 있어 매입일자를 바꿀 수 없습니다. 그 날짜로 옮기려면 [복사저장]으로 새 전표를 만들고 이 전표를 삭제하세요.");
 			// 이 전표가 만든 파생 원장·명세를 먼저 걷어낸다(전표번호는 그대로 유지)
 			mapper.deletePurchaseLedger(dto);
 			mapper.deletePurchaseDtlAll(dto);
@@ -2635,6 +2639,9 @@ public class UserServiceImpl implements UserService {
 			if (dto.getSaleNo()==null || dto.getSaleNo().trim().isEmpty()) dto.setSaleNo(mapper.selectSalesTrxNextNo(dto));
 			mapper.insertSalesTrxMst(dto);          // useGeneratedKeys → dto.saleSeq 채워짐
 		} else {
+			/* ★바꾼 판매일자에 같은 번호가 있으면 지우기 전에 멈춘다 (2026-11-16 판매전표 172 — 11-13/0001 을 0001 이 있는 날로 옮기다 실패해 품목만 사라졌다) */
+			if (mapper.countSalesTrxNoDup(dto) > 0)
+				throw new IllegalStateException(dto.getSaleDt() + " 에 이미 같은 번호(" + dto.getSaleNo() + ")의 판매전표가 있어 판매일자를 바꿀 수 없습니다. 그 날짜로 옮기려면 [복사저장]으로 새 전표를 만들고 이 전표를 삭제하세요.");
 			// 이 전표가 만든 파생 원장·명세를 먼저 걷어낸다(전표번호는 그대로 유지)
 			mapper.deleteSalesTrxLedger(dto);
 			mapper.deleteSalesTrxDtlAll(dto);

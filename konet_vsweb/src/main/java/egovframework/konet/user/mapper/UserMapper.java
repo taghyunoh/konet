@@ -380,6 +380,7 @@ public interface UserMapper {
 	int updatePurchaseMst(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;
 	int deletePurchaseMst(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;
 	int deletePurchaseDtlAll(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;
+	int countPurchaseNoDup(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;   // 수정 시 바꾼 날짜에 같은 번호가 있나 (2026-11-16)
 	int insertPurchaseDtl(egovframework.konet.user.model.PurchaseDtlDTO dto) throws Exception;
 	int deletePurchaseLedger(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;
 	egovframework.konet.user.model.PurchaseDtlDTO selectVendorLastPrice(egovframework.konet.user.model.PurchaseDtlDTO dto) throws Exception;   // 단가 + 이전 비고(2026-09-13)
@@ -410,6 +411,7 @@ public interface UserMapper {
 	int updateSalesTrxMst(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
 	int deleteSalesTrxMst(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
 	int deleteSalesTrxDtlAll(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
+	int countSalesTrxNoDup(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;   // 수정 시 바꾼 날짜에 같은 번호가 있나 (2026-11-16)
 	int insertSalesTrxDtl(egovframework.konet.user.model.SalesTrxDtlDTO dto) throws Exception;
 	int deleteSalesTrxLedger(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
 	/** 거래명세서 공유 — 공개 주소 토큰 발급(처음 한 번) + 보낸 횟수 (2026-09-09) */

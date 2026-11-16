@@ -126,7 +126,7 @@
     <div class="hd">
       <label>발주일자</label><input type="date" id="poDt" onchange="poDtChanged()">
       <label>번호</label><input type="text" id="poNo" readonly style="width:64px; text-align:center">
-      <label>거래처</label><input type="text" id="venNm" placeholder="거래처명 입력·선택" style="width:220px" autocomplete="off">
+      <label>거래처</label><input type="text" id="venNm" placeholder="거래처명 입력·선택" style="width:220px" autocomplete="off"><span id="poVatTag" style="display:none;margin-left:4px;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;white-space:nowrap" title="거래처 관리의 부가세 설정 — 포함이면 단가에 부가세가 들어 있어 매입금액 = 금액"></span>
       <button class="btn" onclick="venOpen()">거래처</button>
       <label>담당자</label><input type="text" id="mgrNm" value="${sessionScope.s_user_nm}" readonly style="width:110px">
       <%-- 📋 발주목록 리스트 (2026-10-02 「표시 부분에 버튼 추가」) — 대시보드 [📋 발주목록 실행]이 만든 적정재고 미달 품목을 골라 담는다. 거래처를 골라야 담긴다 --%>
@@ -146,8 +146,8 @@
           <%-- 미입고·입고 (2026-09-16 P1-b) — 미입고 = 다른 발주서에서 아직 안 들어온 수량(입고예정) · 입고 = 이 줄의 기입고/잔량 + [마감] --%>
           <th style="width:60px" title="이 품목을 다른 발주서에서 발주했는데 아직 안 들어온 수량(입고예정). 있으면 빨강 — 또 발주하기 전에 확인">미입고</th><th style="width:110px" title="이 줄의 기입고 · 잔량(저장된 발주서만). [마감] = 더 안 들어온다 — 잔량을 미입고에서 뺍니다">입고</th>
           <th style="width:56px">입수</th><th style="width:70px">BOX</th><th style="width:70px">EA</th><th style="width:78px">합계수량</th>
-          <th style="width:90px">단가</th><th style="width:100px">금액</th><th style="width:76px">DC</th><th style="width:100px">공급가</th>
-          <th style="width:86px">부가세</th><th style="width:104px">매입금액</th><th style="width:60px">서비스</th><th style="width:140px">비고</th>
+          <th style="width:90px">단가</th><th style="width:100px">금액</th><th style="width:76px">DC</th><th style="width:100px" id="thSup">공급가</th>
+          <th style="width:86px" id="thVat">부가세</th><th style="width:104px">매입금액</th><th style="width:60px">서비스</th><th style="width:140px">비고</th>
         </tr></thead>
         <tbody id="gbody"></tbody>
         <tfoot><tr class="tot" id="trow"></tr></tfoot>
@@ -377,7 +377,7 @@ function post(url, body, isJson){ return fetch(CTX+url,{ method:'POST', credenti
 
 /* ── 마스터 ── */
 function loadMasters(){
-  post('/vendor/selectVendorMst.do','').then(function(r){return r.json();}).then(function(j){ _vendors=(j&&j.data)||[]; poPopRefreshed(); }).catch(function(){});
+  post('/vendor/selectVendorMst.do','').then(function(r){return r.json();}).then(function(j){ _vendors=(j&&j.data)||[]; poPopRefreshed(); poVatPaint(); if(_rows&&_rows.length) render(); }).catch(function(){});
   post('/prod/prodList.do','findData=').then(function(r){return r.json();}).then(function(j){ _prods=((j&&j.data)||[]).filter(function(p){ return (''+(p.stopYn||'')).toUpperCase()!=='Y'; });
     _prodByCd={}; _prods.forEach(function(p){ if(p.prodCd!=null) _prodByCd[String(p.prodCd)]=p; });   // 코드 → 상품(적정재고 safeStock 을 여기서 읽는다)
     poPopRefreshed(); stkPaint(); }).catch(function(){});
@@ -730,7 +730,8 @@ function poDupFlush(){ if(!_dupQ.length) return; var q=_dupQ; _dupQ=[]; var hits
   if(window._toast) _toast(msg,'error'); else toast(esc(msg),'⚠️'); }
 /* 거래처 칸에 직접 쳐서 고른다(공통 vendor-pick) — 못 불러오면 팝업만 */
 try{ if(window._vendorPick) _vendorPick(document.getElementById('venNm'), { list:function(){ return _vendors; }, onPick:function(o){ venPick(o.vendorCd, o.vendorNm); }, onClear:function(){ venPick('',''); } }); }catch(e){}
-function venPick(cd, nm){ var el=document.getElementById('venNm'); el.dataset.cd=cd||''; if(nm!=null) el.value=nm; }
+function venPick(cd, nm){ var el=document.getElementById('venNm'); el.dataset.cd=cd||''; if(nm!=null) el.value=nm;
+  poVatPaint(); if(typeof render==='function' && _rows) render(); }   /* 거래처가 바뀌면 부가세 규칙도 바뀐다 (2026-11-16) */
 /* ★기준자료를 «다시 보일 때»·창을 열 때 새로 읽는다 (2026-09-13 「수금·지급·발주서 등록도 같게」 — 매입·판매등록과 같은 규칙)
      셸 iframe 은 로그아웃 전까지 그대로라, 화면을 열 때 한 번만 읽으면 다른 화면에서 고친 상품·거래처가 안 보였다.
      셸(logiFrame)이 이 화면을 다시 보여 줄 때 konetShown 을 부른다(3초 안 중복은 한 번만).
@@ -757,9 +758,34 @@ function venRender(){ var q=(document.getElementById('venQ').value||'').trim().t
 function emptyRow(){ return { prodSeq:null, prodCd:'', prodNm:'', spec:'', packQty:1, boxQty:0, eaQty:0, qty:0, unitPrice:0, amt:0, dcAmt:0, supplyAmt:0, vatAmt:0, totAmt:0, serviceQty:0, taxGb:'', remark:'',
   poDtlSeq:null, inQty:0, remainQty:null, closeYn:'N', closeRmk:'' }; }   /* 입고·잔량·마감 (2026-09-16 P1-b) — poDetail 이 줄마다 준다. poDtlSeq 는 저장 때 되돌려 보내 매입 연결을 지킨다(savePo 가 새 번호로 옮긴다) */
 function taxFree(o){ var t=(''+(o.taxGb||'')).toUpperCase(); return t==='F' || t==='N' || t.indexOf('면세')>=0 || t.indexOf('FREE')>=0; }
-function calcRow(o){ var pk=n(o.packQty)||1; o.qty=n(o.boxQty)*pk+n(o.eaQty); o.amt=Math.round(o.qty*n(o.unitPrice)); o.supplyAmt=o.amt-n(o.dcAmt); o.vatAmt=taxFree(o)?0:Math.round(o.supplyAmt*0.1); o.totAmt=o.supplyAmt+o.vatAmt; }
+/* ★부가세 = 거래처 설정(TBL_VENDOR_MST.VAT_GB) × 품목 과세여부 — 매입등록 puCalcRow 와 같은 규칙 (2026-11-16 사용자 「그리푸드메이커(웰파인)는 부가세 포함가인데
+     발주서가 단가에 10% 를 또 얹는다」). 종전엔 거래처와 무관하게 늘 별도(+10%)였다.
+     · 별도(기본) : 공급가 = 금액 − DC, 부가세 = 공급가의 10% → 매입금액 = 공급가 + 부가세
+     · 포함       : 매입금액 = 금액 − DC 그대로, 공급가 = 그 ÷ 1.1, 부가세 = 나머지
+     · 면세(거래처 또는 품목) : 부가세 0 */
+function poVatGb(){ var cd=(document.getElementById('venNm')||{dataset:{}}).dataset.cd||'';
+  var v=cd ? (_vendors||[]).filter(function(x){ return String(x.vendorCd)===String(cd); })[0] : null;
+  return (v && v.vatGb) || ((window.KS&&KS.f)?(KS.f('venVat')||'별도'):'별도'); }
+function calcRow(o){ var pk=n(o.packQty)||1; o.qty=n(o.boxQty)*pk+n(o.eaQty); o.amt=Math.round(o.qty*n(o.unitPrice));
+  var base=o.amt-n(o.dcAmt), vg=poVatGb(), tax=!taxFree(o) && vg!=='면세';
+  if(!tax){ o.supplyAmt=base; o.vatAmt=0; }
+  else if(vg==='포함'){ o.supplyAmt=Math.round(base/1.1); o.vatAmt=base-o.supplyAmt; }
+  else { o.supplyAmt=base; o.vatAmt=Math.round(base*0.1); }
+  o.totAmt=o.supplyAmt+o.vatAmt; }
+/* 거래처 옆 부가세 표시 — 고르면 「부가세 포함」 처럼 보이고, 담긴 줄을 다시 계산한다 */
+function poVatPaint(){ var b=document.getElementById('poVatTag'); if(!b) return; var cd=(document.getElementById('venNm').dataset.cd||''), vg=poVatGb();
+  b.textContent='부가세 '+vg; b.style.display=cd?'':'none';
+  b.style.background = vg==='포함' ? '#fff3c4' : (vg==='면세' ? '#e8eef4' : '#eef6f3'); b.style.color = vg==='포함' ? '#8a5a00' : '#37475a'; }
 function ensureTail(){ if(!_rows.length || _rows[_rows.length-1].prodCd) _rows.push(emptyRow()); }
+/* ★부가세 포함 거래처 = 양식은 다른 발주서와 같고 «부가세만 표시하지 않는다» (2026-11-16 사용자 「내용은 다른 것하고 동일하게 양식은 하고 부가세 표시만 하지 말고」
+     — 같은 날 공급가·부가세 칸을 통째로 숨겼다가 되돌렸다). 공급가 칸 = 금액 − DC(= 매입금액) · 부가세 칸 = 빈 칸.
+     값(공급가 ÷1.1 · 부가세)은 그대로 계산·저장한다 — 매입 전환·발주 목록 합계가 쓴다. 화면·인쇄·엑셀만 이렇게 보인다. */
+var _poInc=false;
+function poIncSync(){ _poInc=(poVatGb()==='포함'); return _poInc; }
+function poSupShow(sup, tot){ return _poInc ? tot : sup; }   /* 공급가 칸에 보일 값 */
+function poVatShow(v){ return _poInc ? '' : fmt(v); }         /* 부가세 칸에 보일 글 */
 function render(){
+  poIncSync();
   ensureTail(); var h='';
   _rows.forEach(function(o,i){ calcRow(o);
     h+='<tr><td class="c ro">'+(i+1)+'</td>'
@@ -781,13 +807,13 @@ function render(){
       +'<td><input data-f="unitPrice" value="'+fmtQ(o.unitPrice)+'" onchange="setv('+i+',\'unitPrice\',this.value)"></td>'   // data-f : stkPaint 가 거래처별 단가 툴팁을 단다(P2-b)
       +'<td class="ro">'+fmt(o.amt)+'</td>'
       +'<td><input value="'+fmt(o.dcAmt)+'" onchange="setv('+i+',\'dcAmt\',this.value)"></td>'
-      +'<td class="ro">'+fmt(o.supplyAmt)+'</td><td class="ro">'+fmt(o.vatAmt)+'</td><td class="ro">'+fmt(o.totAmt)+'</td>'
+      +'<td class="ro">'+fmt(poSupShow(o.supplyAmt,o.totAmt))+'</td><td class="ro">'+poVatShow(o.vatAmt)+'</td><td class="ro">'+fmt(o.totAmt)+'</td>'
       +'<td><input value="'+fmtQ(o.serviceQty)+'" onchange="setv('+i+',\'serviceQty\',this.value)"></td>'
       +'<td class="l"><input class="l" value="'+esc(o.remark)+'" onchange="setv('+i+',\'remark\',this.value)"></td>'
       +'</tr>'; });
   document.getElementById('gbody').innerHTML=h;
   var t=calcAll();
-  document.getElementById('trow').innerHTML='<td colspan="11" class="c">합계 · 품목 '+t.cnt+'</td><td>'+fmtQ(t.box)+'</td><td>'+fmtQ(t.ea)+'</td><td>'+fmtQ(t.qty)+'</td><td></td><td>'+fmt(t.amt)+'</td><td>'+fmt(t.dc)+'</td><td>'+fmt(t.sup)+'</td><td>'+fmt(t.vat)+'</td><td>'+fmt(t.tot)+'</td><td>'+fmtQ(t.svc)+'</td><td></td>';   // 합계줄 = 11(#·삭제·코드·상품명·규격·현재고·적정·최근발주·미입고·입고·입수) + … + 비고 1 = 22칸 (2026-09-16 재고 3 + 입고 2 추가)
+  document.getElementById('trow').innerHTML='<td colspan="11" class="c">합계 · 품목 '+t.cnt+'</td><td>'+fmtQ(t.box)+'</td><td>'+fmtQ(t.ea)+'</td><td>'+fmtQ(t.qty)+'</td><td></td><td>'+fmt(t.amt)+'</td><td>'+fmt(t.dc)+'</td><td>'+fmt(poSupShow(t.sup,t.tot))+'</td><td>'+poVatShow(t.vat)+'</td><td>'+fmt(t.tot)+'</td><td>'+fmtQ(t.svc)+'</td><td></td>';   // 합계줄 = 11(#·삭제·코드·상품명·규격·현재고·적정·최근발주·미입고·입고·입수) + … + 비고 1 = 22칸 (2026-09-16 재고 3 + 입고 2 추가)
   stkPaint(); poDupFlush();   // 재고·최근발주 칸 채우기 + 방금 담은 품목의 중복 발주 알림
 }
 function setv(i,k,v){ var o=_rows[i]; if(!o) return; o[k]=(k==='prodNm'||k==='spec'||k==='remark')?v:n(v); render(); }
@@ -1249,7 +1275,7 @@ function poKakao(){ var u0=shareUrl(); if(!u0){ toast('먼저 저장하세요.',
   try{
     /* 텍스트형 카드 — 그림(썸네일) 없이 글만 (2026-09-03 「앞에 표시는 제거」). feed 형은 이미지가 필수라 text 형으로 */
     Kakao.Share.sendDefault({ objectType:'text',
-      text:'📋 발주서 — '+(_cur.vendorNm||'')+'\n'+dt+' · 품목 '+t.cnt+'종 · 합계 '+fmt(t.tot)+'원 · '+(document.getElementById('mgrNm').value||''),
+      text:'📋 발주서 — '+(_cur.vendorNm||'')+'\n'+dt+' · 품목 '+t.cnt+'종 · 합계 '+fmt(t.tot)+'원'+(poVatGb()==='포함'?'(부가세 포함)':'')+' · '+(document.getElementById('mgrNm').value||''),
       link:{ mobileWebUrl:u, webUrl:u },
       buttons:[ { title:'웹페이지로 보기', link:{ mobileWebUrl:u, webUrl:u } } ] });
     poHistLog('KAKAO',{shareUrl:u,trackKey:tg.k});
@@ -1259,9 +1285,10 @@ function poKakao(){ var u0=shareUrl(); if(!u0){ toast('먼저 저장하세요.',
 }
 function poExcel(){ if(!_cur) return; var t=calcAll(), aoa=[];
   aoa.push(['발주서']); aoa.push(['발주일자', d8(_cur.poDt), '번호', _cur.poNo, '거래처', _cur.vendorNm||'', '담당', document.getElementById('mgrNm').value||'']); aoa.push([]);
+  var inc=poIncSync(), cut=function(a){ if(inc && a.length>13){ a[11]=a[13]; a[12]=''; } return a; };   /* 부가세 포함 거래처 = 열은 그대로, 공급가 = 매입금액 · 부가세 빈 칸 (2026-11-16) */
   aoa.push(['번호','코드','품명','규격','입수','BOX','EA','합계수량','단가','금액','DC','공급가','부가세','매입금액','서비스','비고']);
-  var k=0; _rows.forEach(function(o){ if(!o.prodCd) return; k++; aoa.push([k,o.prodCd,o.prodNm,o.spec,n(o.packQty),n(o.boxQty),n(o.eaQty),o.qty,n(o.unitPrice),o.amt,n(o.dcAmt),o.supplyAmt,o.vatAmt,o.totAmt,n(o.serviceQty),o.remark||'']); });
-  aoa.push(['합계','','','','',t.box,t.ea,t.qty,'',t.amt,t.dc,t.sup,t.vat,t.tot,t.svc,'']); aoa.push([]); aoa.push(['비고', document.getElementById('remark').value||'']);
+  var k=0; _rows.forEach(function(o){ if(!o.prodCd) return; k++; aoa.push(cut([k,o.prodCd,o.prodNm,o.spec,n(o.packQty),n(o.boxQty),n(o.eaQty),o.qty,n(o.unitPrice),o.amt,n(o.dcAmt),o.supplyAmt,o.vatAmt,o.totAmt,n(o.serviceQty),o.remark||''])); });
+  aoa.push(cut(['합계','','','','',t.box,t.ea,t.qty,'',t.amt,t.dc,t.sup,t.vat,t.tot,t.svc,''])); aoa.push([]); aoa.push(['비고', document.getElementById('remark').value||'']);
   var P=window.parent, fn='발주서_'+(_cur.vendorNm||'')+'_'+(_cur.poDt||'')+'-'+(_cur.poNo||'')+'.xlsx';
   function byLib(LIB){ var ws=LIB.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:6},{wch:12},{wch:36},{wch:18},{wch:6},{wch:8},{wch:8},{wch:10},{wch:10},{wch:12},{wch:8},{wch:12},{wch:10},{wch:12},{wch:8},{wch:20}]; var wb=LIB.utils.book_new(); LIB.utils.book_append_sheet(wb,ws,'발주서'); LIB.writeFile(wb,fn); }
   try{ if(P && P.ssLoadStyleXlsx){ P.ssLoadStyleXlsx(function(XS){ var LIB=XS||P.XLSX; if(LIB) byLib(LIB); else toast('엑셀 모듈을 못 불러왔습니다.','⚠️'); }); return; } }catch(e){}

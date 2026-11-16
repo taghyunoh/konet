@@ -3279,6 +3279,18 @@ public class UserController {
 			poFillDefault(comp, "compAddr", "company.addr"); poFillDefault(comp, "compTel", "company.tel");
 			model.addAttribute("comp", comp);
 			model.addAttribute("pub", pub);
+			/* 거래처가 부가세 포함이면 인쇄·공유 화면에 공급가·세액 줄을 빼고 「합계(부가세 포함)」 하나로 (2026-11-16 「부가세 항목 없이 매입금액으로」) */
+			boolean vatInc = false;
+			try {
+				egovframework.konet.user.model.VendorDTO vq = new egovframework.konet.user.model.VendorDTO();
+				vq.setVendorCd(mst.get("vendorCd") == null ? "" : String.valueOf(mst.get("vendorCd")));
+				vq.setCompCd(mst.get("compCd") == null ? null : String.valueOf(mst.get("compCd")));
+				if (vq.getVendorCd().length() > 0) {
+					java.util.List<egovframework.konet.user.model.VendorDTO> vl = svc.selectVendorMst(vq);
+					vatInc = vl != null && !vl.isEmpty() && "포함".equals(vl.get(0).getVatGb() == null ? "" : vl.get(0).getVatGb().trim());
+				}
+			} catch (Exception ve) { log.warn(" poFillPrint vendor VAT_GB 읽기 실패 : " + ve.getMessage()); }
+			model.addAttribute("vatInc", vatInc);
 			return ".raw/main/mangr/poPrint";
 		}
 		/** 발주서 → 매입전표 (2026-09-03 신설 · 2026-09-16 P1-b 「부분 입고」로 개편)
@@ -3318,6 +3330,15 @@ public class UserController {
 				dto.setCompCd(String.valueOf(session.getAttribute("s_comp_cd")));
 				dto.setPurchDt(purchDt);
 				dto.setVendorCd(poStr(mst.get("vendorCd"))); dto.setVendorNm(poStr(mst.get("vendorNm")));
+				/* ★거래처 부가세 설정(VAT_GB) — 포함이면 단가에 부가세가 들어 있다 (2026-11-16 그리푸드메이커(웰파인) 「포함가인데 10% 를 또 얹는다」).
+				     매입등록 puCalcRow · 발주서 calcRow 와 같은 규칙. 비어 있거나 못 읽으면 종전대로 별도. */
+				String venVat = "";
+				try {
+					egovframework.konet.user.model.VendorDTO vq = new egovframework.konet.user.model.VendorDTO();
+					vq.setVendorCd(dto.getVendorCd()); vq.setCompCd(dto.getCompCd());
+					java.util.List<egovframework.konet.user.model.VendorDTO> vl = svc.selectVendorMst(vq);
+					if (vl != null && !vl.isEmpty() && vl.get(0).getVatGb() != null) venVat = vl.get(0).getVatGb().trim();
+				} catch (Exception ve) { log.warn(" poConvert vendor VAT_GB 읽기 실패 : " + ve.getMessage()); }
 				/* 담당자 = 발주서의 담당자(발주서 관리가 넣는 <로그인 사용자> K002·K003·admin …) 그대로 — 2026-11-11 사용자 「K002·K003·admin 이 내용으로 적용」.
 				   (같은 날 잠깐 거래처 담당자(001 김동근 …)로 바꿨다가 되돌렸다 — 종합 실적 담당사원은 직원(로그인 사용자) 기준이다. docs/sql/20261111_purchase_mgr_restore.sql) */
 				dto.setMgrCd(poStr(mst.get("mgrCd")));       dto.setMgrNm(poStr(mst.get("mgrNm")));
@@ -3360,8 +3381,12 @@ public class UserController {
 					double supply = amt - dc;
 					String tg = poStr(it.get("taxGb")).toUpperCase();
 					boolean taxFree = tg.equals("F") || tg.equals("N") || tg.contains("면세") || tg.contains("FREE")
-					               || (poNum(it.get("vatAmt")) <= 0 && poNum(it.get("supplyAmt")) > 0);   // 발주 줄에 부가세가 0 이면 면세 품목
-					double vat = taxFree ? 0 : Math.round(supply * 0.1);
+					               || (poNum(it.get("vatAmt")) <= 0 && poNum(it.get("supplyAmt")) > 0)   // 발주 줄에 부가세가 0 이면 면세 품목
+					               || "면세".equals(venVat);
+					double vat;
+					if (taxFree)                 { vat = 0; }
+					else if ("포함".equals(venVat)) { double base = supply; supply = Math.round(base / 1.1); vat = base - supply; }   // 매입금액 = 금액 − DC 그대로
+					else                         { vat = Math.round(supply * 0.1); }
 					double tot = supply + vat;
 					egovframework.konet.user.model.PurchaseDtlDTO d = new egovframework.konet.user.model.PurchaseDtlDTO();
 					d.setCompCd(dto.getCompCd());
@@ -3783,7 +3808,8 @@ public class UserController {
 				if (dto.getPurchSeq() == null || dto.getPurchSeq() <= 0) { dto.setMgrCd(u); dto.setMgrNm(empUserNm(session)); } else { dto.setMgrCd(null); dto.setMgrNm(null); }
 				int n = svc.savePurchase(dto);
 				return ResponseEntity.ok("{\"rows\":" + n + ",\"purchSeq\":" + dto.getPurchSeq() + ",\"purchNo\":\"" + dto.getPurchNo() + "\"}");
-			} catch (Exception e) { log.error(" purchaseSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+			} catch (IllegalStateException e) { return ResponseEntity.status(409).body(e.getMessage()); }   // 업무 규칙 거절(날짜·번호 겹침 등) — 2026-11-16
+			  catch (Exception e) { log.error(" purchaseSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
 		/**
@@ -4399,7 +4425,8 @@ public class UserController {
 				if (dto.getSaleSeq() == null || dto.getSaleSeq() <= 0) { dto.setMgrCd(u); dto.setMgrNm(empUserNm(session)); } else { dto.setMgrCd(null); dto.setMgrNm(null); }
 				int n = svc.saveSalesTrx(dto);
 				return ResponseEntity.ok("{\"rows\":" + n + ",\"saleSeq\":" + dto.getSaleSeq() + ",\"saleNo\":\"" + dto.getSaleNo() + "\"}");
-			} catch (Exception e) { log.error(" salesTrxSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
+			} catch (IllegalStateException e) { return ResponseEntity.status(409).body(e.getMessage()); }   // 업무 규칙 거절(날짜·번호 겹침 등) — 2026-11-16
+			  catch (Exception e) { log.error(" salesTrxSave ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 		@RequestMapping(value="/mangr/salesTrxDelete.do", method = RequestMethod.POST)
 		public ResponseEntity<String> salesTrxDelete(@RequestBody egovframework.konet.user.model.SalesTrxDTO dto,
