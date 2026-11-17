@@ -68,8 +68,33 @@
     p.addEventListener('mousedown', function (e) { if (e.target === p) close(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && p.classList.contains('on')) close(); });
     document.getElementById('kthOnly').onchange = render;
+    drag(p);
     return p;
   }
+  /* 제목줄을 잡고 끌어 옮기기 (2026-11-17 사용자 「이 내용 움직이게, 매입 수정이력도 마찬가지로」) —
+     뒤의 전표 화면을 보면서 견줄 수 있게. 창을 열 때마다 제자리(가운데 위)로 돌아온다. 제목줄이 화면 밖으로는 못 나간다. */
+  function drag(p) {
+    var box = p.querySelector('.box'), hd = p.querySelector('.hd'), st = null;
+    hd.style.cursor = 'move'; hd.title = '잡고 끌면 창을 옮깁니다';
+    hd.addEventListener('mousedown', function (e) {
+      if (e.button !== 0 || e.target.closest('.x')) return;
+      var r = box.getBoundingClientRect();
+      st = { x: e.clientX, y: e.clientY, dx: box._dx || 0, dy: box._dy || 0, l: r.left, t: r.top, w: r.width };
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function (e) {
+      if (!st) return;
+      var dx = st.dx + e.clientX - st.x, dy = st.dy + e.clientY - st.y;
+      var left = st.l + (dx - st.dx), top = st.t + (dy - st.dy), W = window.innerWidth, H = window.innerHeight;
+      if (left + st.w < 120) dx += 120 - (left + st.w);   /* 오른쪽 끝 120px 는 화면 안에 */
+      if (left > W - 120) dx -= left - (W - 120);           /* 왼쪽 끝도 120px 는 화면 안에 */
+      if (top < 0) dy -= top;                               /* 제목줄이 위로 사라지지 않게 */
+      if (top > H - 40) dy -= top - (H - 40);
+      box._dx = dx; box._dy = dy; box.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    });
+    document.addEventListener('mouseup', function () { st = null; });
+  }
+  function dragReset() { var b = document.querySelector('#kthPop .box'); if (b) { b._dx = b._dy = 0; b.style.transform = ''; } }
   function close() { var p = document.getElementById('kthPop'); if (p) p.classList.remove('on'); }
 
   /* 서버 줄(전표 × 판) → 전표마다 묶기 */
@@ -170,7 +195,7 @@
     var bar = p.querySelector('.bar'); if (bar) bar.style.display = one ? 'none' : '';
     document.getElementById('kthOnly').checked = !one;   /* 한 장이면 고치지 않은 전표도 보여야 한다 */
     document.getElementById('kthBody').innerHTML = '<tr><td colspan="10" class="c dim" style="padding:22px">불러오는 중…</td></tr>';
-    p.classList.add('on');
+    dragReset(); p.classList.add('on');
     post('/mangr/trxEditHist.do', 'kind=' + encodeURIComponent(cfg.kind) + '&frDt=' + encodeURIComponent(fr) + '&toDt=' + encodeURIComponent(to) + '&findData=' + encodeURIComponent(fd) + (one ? '&seq=' + encodeURIComponent(cfg.seq) : ''))
       .then(function (j) {
         if (!j || j.result !== 'OK') throw new Error((j && j.message) || '조회 실패');
