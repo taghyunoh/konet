@@ -1308,8 +1308,10 @@
   var _salesQ='';
   function _salesView(){   // 품목코드/품목명 검색 필터 (3탭 공통 — 집계 전 원천 행에 적용)
     if(!_salesQ) return _salesRows;
+    var biz=(_salesTab==='biz');   /* 사업장별 탭에서는 사업장 이름·코드도 찾는다(「꾸아」 → 꾸아 매장들과 프랜차이즈 합계 — 2026-11-18) */
     return _salesRows.filter(function(r){
-      return (''+(r.itemCd||'')).toLowerCase().indexOf(_salesQ)>=0 || (''+(r.itemNm||'')).toLowerCase().indexOf(_salesQ)>=0;
+      return (''+(r.itemCd||'')).toLowerCase().indexOf(_salesQ)>=0 || (''+(r.itemNm||'')).toLowerCase().indexOf(_salesQ)>=0
+          || (biz && ((''+(r.bizNm||'')).toLowerCase().indexOf(_salesQ)>=0 || (''+(r.bizCd||'')).toLowerCase().indexOf(_salesQ)>=0));
     });
   }
   function _salesQNote(){ return _salesQ ? ' · <span style="color:#137a6c">🔎 \''+_cesc(_salesQ)+'\' 검색중</span>' : ''; }
@@ -1356,6 +1358,9 @@
   function salesTab(t){
     _salesTab=t; _salesAllCollapsed=false; _salesUpdAllBtn();
     Array.prototype.forEach.call(document.querySelectorAll('#salesTabs .ctab'), function(b){ b.classList.toggle('on', b.getAttribute('data-t')===t); });
+    var fw=document.getElementById('bizFrWrap'), fc=document.getElementById('bizFrChk'), sq=document.getElementById('salesQ');
+    if(fw) fw.style.display=(t==='biz')?'inline-flex':'none'; if(fc) fc.checked=_bizFrOn;
+    if(sq) sq.placeholder=(t==='biz')?'🔎 품목코드 / 품목명 / 사업장·프랜차이즈 검색':'🔎 품목코드 / 품목명 검색';
     salesRenderTab();
   }
   var _salesAllCollapsed=false;
@@ -1374,13 +1379,33 @@
       az.forEach(function(o){ var k1=_zoneGroup(o.s); var g1=l1m[k1]; if(!g1){ g1=l1m[k1]={l2:[],l2m:{}}; L1.push(g1); } var k2=(o.s.dcCd||'')+'|'+(o.s.dcNm||''); if(!g1.l2m[k2]){ g1.l2m[k2]=1; g1.l2.push(k2); } });
       L1.forEach(function(g1,i1){ _salesCollapsed['z1#'+i1]=true; g1.l2.forEach(function(_,i2){ _salesCollapsed['z2#'+i1+'.'+i2]=true; }); });
     } else {
-      var ab=_closeAgg(_salesView(), function(r){ return (r.bizNm||'(미지정)')+'~'+r.itemCd; });
-      var seen={}, gi=0;
-      ab.forEach(function(o){ var gk=o.s.bizNm||'(미지정)'; if(!(gk in seen)){ seen[gk]=gi; _salesCollapsed['biz#'+gi]=true; gi++; } });
+      /* 사업장별 — 프랜차이즈 줄과 매장 줄을 다 접는다(프랜차이즈 합계 · 단독 매장만 남는다) */
+      var bt=_bizTree(_salesView());
+      bt.L1.forEach(function(e){ if(e.fr) _salesCollapsed['bf#'+e.label]=true; });
+      bt.stores.forEach(function(g){ _salesCollapsed['bs#'+g.key]=true; });
     }
     salesRenderTab();
   }
-  function salesToggleKey(k){ _salesCollapsed[k]=!_salesCollapsed[k]; salesRenderTab(); }
+  /* ★접기·펼치기 뒤에도 보던 자리 그대로 (2026-11-18 사용자 「표시 접기하면 다른 곳으로 이동함」) —
+     표는 18줄씩 이어 붙이는 방식(lzMount)이라 다시 그리면 앞 18줄만 남고 스크롤이 맨 위로 돌아갔다(사업장 920곳의 아래쪽 프랜차이즈를 접으면 화면이 딴 데로 갔다).
+     ① 누르기 전에 「몇 줄까지 붙어 있었나」와 「누른 줄이 표 안에서 어느 높이에 있었나」를 적어 두고 ② 다시 그린 뒤 그만큼 다시 붙이고 ③ 누른 줄(data-k)이 같은 높이에 오게 스크롤을 맞춘다.
+     줄을 못 찾으면 전 스크롤 값으로. 출고장별 탭의 묶음 줄도 같은 길을 탄다. */
+  function salesToggleKey(k, tr){
+    var w=document.getElementById('closeSalesWrap'), z=w&&w._lz, from0=z?z.from:0, st=w?w.scrollTop:0, off=null;
+    try{ if(w && tr && tr.getBoundingClientRect) off=tr.getBoundingClientRect().top - w.getBoundingClientRect().top; }catch(e){}
+    _salesCollapsed[k]=!_salesCollapsed[k]; salesRenderTab();
+    if(!w || !w._lz) return;
+    try{
+      var z2=w._lz, want=Math.min(from0, z2.list.length);
+      for(var g=0; z2.from<want && g<3000; g++) lzFill(w);
+      var row=null, rs=w.querySelectorAll('tr[data-k]');
+      for(var i=0;i<rs.length;i++) if(rs[i].getAttribute('data-k')===k){ row=rs[i]; break; }
+      if(row && off!=null){
+        var kz=(typeof kzF==='function')?kzF():1;
+        w.scrollTop += ((row.getBoundingClientRect().top - w.getBoundingClientRect().top) - off)/kz;
+      } else w.scrollTop=st;
+    }catch(e){}
+  }
   function salesToggle(idx){ var k=_salesTab+'#'+idx; _salesCollapsed[k]=!_salesCollapsed[k]; salesRenderTab(); }
   function _salesItemRow(o, indent){   // 품목 상세행 — indent 만큼 앞 빈칸(들여쓰기)
     var inU=o.outQty?o.costAmt/o.outQty:0, saU=o.outQty?o.salesAmt/o.outQty:0, pad='';
@@ -1402,6 +1427,46 @@
       +'<td style="text-align:right">'+_cnum(cAmt)+'</td>'
       +'<td style="text-align:right;color:'+(mAmt<0?'#c0392b':'#137a6c')+'">'+_cnum(mAmt)+'</td>';
   }
+  /* ══ 사업장별 품목코드 — 매장코드 표시 + 프랜차이즈 합계 (2026-11-18 사용자 「매출마감 사업장별 품목코드 요청 — 프랜차이즈 합계는 코드는 없고 명칭으로」) ══
+     요청 원문 : 「매장별로 나오는 것도 좋은데 매장코드를 보여주면 좋겠고, 꾸아(강남역삼성타운점) · 꾸아(교대점) … 꾸아 프랜차이즈 합계를 보여줄 수 있으면. 꾸아 코드는 없어 → 한글로 잡아줘야 해. 다른 프랜차이즈도 같아」
+     · 프랜차이즈 코드가 없으므로 **사업장 이름에서 브랜드를 뽑는다**(bizBrand) :
+         「꾸아(교대점)」·「꾸아(구월로데오점)(신)」 → 꾸아 (첫 괄호 앞) / 「(온정돈까스)부산광안점」·「(101번지 남산) 대치점(N)」 → 괄호 안 이름
+         앞 꼬리표는 뗀다 — 「[OZ]」「[인터]」 같은 대괄호, 「(신)」「(임시)」「(선입금)」 같은 표시(BIZ_TAGS), 「(DM)」「(GT)」 같은 영문·숫자 세 글자 이하. 괄호가 없는 이름은 브랜드를 알 수 없어 단독 매장.
+     · 같은 브랜드의 매장이 **2곳 이상일 때만** 프랜차이즈로 묶는다(1곳뿐이면 종전처럼 매장 줄만). 묶음 = 프랜차이즈 합계 줄 → 매장 줄(코드) → 품목 줄.
+     · 서버는 그대로다 — selectClosing 이 사업장코드(bizCd)를 이미 준다. 매장 묶음 열쇠도 이름만 → 코드+이름(같은 이름 · 다른 코드를 한 매장으로 합치지 않게).
+     · [프랜차이즈로 묶기] 체크(사업장별 탭에서만 보임 · 브라우저에 기억)를 끄면 종전처럼 매장만 나열한다. 검색 칸은 이 탭에서 사업장 이름·코드도 찾는다(「꾸아」). */
+  var BIZ_TAGS={ '신':1,'구':1,'신규':1,'임시':1,'선입금':1,'폐점':1,'주':1,'유':1,'직':1,'가':1,'N':1,'J':1 };
+  var _bizFrOn=(function(){ try{ return localStorage.getItem('konetCloseBizFr')!=='0'; }catch(e){ return true; } })();
+  function bizBrand(nm){
+    var s=(''+(nm==null?'':nm)).trim().replace(/^(\[[^\]]*\]\s*)+/,''), m;
+    while((m=s.match(/^\(([^)]*)\)\s*/))){ var tag=m[1].trim(); if(!tag || BIZ_TAGS[tag] || /^[A-Za-z0-9]{1,3}$/.test(tag)) s=s.slice(m[0].length); else return tag; }   /* 「(DM)동민수산」·「(GT)남문 한식당」 같은 짧은 영문·숫자는 브랜드가 아니라 표시 */
+    var p=s.indexOf('(');
+    return p>0 ? s.slice(0,p).trim() : '';
+  }
+  function bizFrToggle(on){
+    _bizFrOn=!!on; try{ localStorage.setItem('konetCloseBizFr', on?'1':'0'); }catch(e){}
+    _salesCollapsed={}; _salesAllCollapsed=false; _salesUpdAllBtn(); salesRenderTab();
+  }
+  /* 사업장별 탭의 나무 — L1 = 프랜차이즈 묶음({fr:true, label, stores}) 또는 단독 매장({fr:false, store}). 그리기·전체 접기가 같이 쓴다 */
+  function _bizTree(rows){
+    var agg=_closeAgg(rows, function(r){ return (r.bizCd||'')+'|'+(r.bizNm||'(미지정)')+'~'+r.itemCd; });
+    var stores=[], sm={};
+    agg.forEach(function(o){
+      var k=(o.s.bizCd||'')+'|'+(o.s.bizNm||'(미지정)'), g=sm[k];
+      if(!g){ g=sm[k]={ key:k, cd:o.s.bizCd||'', nm:o.s.bizNm||'(미지정)', brand:'', items:[], q:0,s:0,c:0,m:0 }; g.brand=bizBrand(g.nm); stores.push(g); }
+      g.items.push(o); g.q+=o.outQty; g.s+=o.salesAmt; g.c+=o.costAmt; g.m+=o.marginAmt;
+    });
+    var cnt={}; stores.forEach(function(g){ if(g.brand) cnt[g.brand]=(cnt[g.brand]||0)+1; });
+    var L1=[], fm={}, frCnt=0;
+    stores.forEach(function(g){
+      if(_bizFrOn && g.brand && cnt[g.brand]>=2){
+        var f=fm[g.brand]; if(!f){ f=fm[g.brand]={ fr:true, label:g.brand, stores:[], q:0,s:0,c:0,m:0 }; L1.push(f); frCnt++; }
+        f.stores.push(g); f.q+=g.q; f.s+=g.s; f.c+=g.c; f.m+=g.m;
+      } else L1.push({ fr:false, store:g });
+    });
+    return { L1:L1, stores:stores, frCnt:frCnt };
+  }
+  function _bizAttr(s){ return _cesc(s).replace(/"/g,'&quot;'); }
   function salesRenderTab(){
     var wrap=document.getElementById('closeSalesWrap'), sum=document.getElementById('closeSalesSum'), pg=document.getElementById('closeSalesPager');
     var tab=_salesTab;
@@ -1450,9 +1515,9 @@
         });
       });
       var _l1Row=function(i1){ var g1=L1[i1], c1=!!_salesCollapsed['z1#'+i1], car=c1?'▶':'▼';
-        return '<tr class="close-grp" onclick="salesToggleKey(\'z1#'+i1+'\')"><td colspan="'+lead0+'"><span class="ccar">'+car+'</span><b>'+_cesc(g1.label)+'</b> <span style="color:#5b6b7a;font-weight:600">('+g1.l2.length+'개 출고장)</span></td>'+_salesNumCells(g1.q,0,0,g1.s,g1.c,g1.m,false)+'</tr>'; };
+        return '<tr class="close-grp" data-k="z1#'+i1+'" onclick="salesToggleKey(\'z1#'+i1+'\', this)"><td colspan="'+lead0+'"><span class="ccar">'+car+'</span><b>'+_cesc(g1.label)+'</b> <span style="color:#5b6b7a;font-weight:600">('+g1.l2.length+'개 출고장)</span></td>'+_salesNumCells(g1.q,0,0,g1.s,g1.c,g1.m,false)+'</tr>'; };
       var _l2Row=function(i1,i2){ var g2=L1[i1].l2[i2], c2=!!_salesCollapsed['z2#'+i1+'.'+i2], car=c2?'▶':'▼';
-        return '<tr class="close-sub" onclick="salesToggleKey(\'z2#'+i1+'.'+i2+'\')" style="cursor:pointer"><td colspan="'+lead0+'" style="padding-left:24px"><span class="ccar">'+car+'</span>'+_cesc(g2.label)+' <span style="color:#5b6b7a;font-weight:600">(품목 '+g2.items.length+'종)</span></td>'+_salesNumCells(g2.q,0,0,g2.s,g2.c,g2.m,false)+'</tr>'; };
+        return '<tr class="close-sub" data-k="z2#'+i1+'.'+i2+'" onclick="salesToggleKey(\'z2#'+i1+'.'+i2+'\', this)" style="cursor:pointer"><td colspan="'+lead0+'" style="padding-left:24px"><span class="ccar">'+car+'</span>'+_cesc(g2.label)+' <span style="color:#5b6b7a;font-weight:600">(품목 '+g2.items.length+'종)</span></td>'+_salesNumCells(g2.q,0,0,g2.s,g2.c,g2.m,false)+'</tr>'; };
       lzMount({ wrap:wrap, pager:'closeSalesPager', head:head, list:rowsZ, rows:SALES_PAGE, capTop:320, fill:true, pad:84,
                 rowFn:function(r){ return (r.t==='l1') ? _l1Row(r.i1)
                                         : (r.t==='l2') ? _l2Row(r.i1,r.i2)
@@ -1460,26 +1525,38 @@
       return;
     }
 
-    /* 사업장별 = 그룹(소계·접기펼치기). 종전에는 '그룹 12개' 단위로 페이지를 나눴는데(SALES_PAGE_G),
-       접힌 정도에 따라 한 페이지 행수가 들쭉날쭉했다. 다른 표와 같이 '행 18개' 단위로 통일했다(2026-07-25). */
-    var groupKeyOf = tab==='zone' ? function(r){ return _zoneGroup(r); } : function(r){ return r.bizNm||'(미지정)'; };
-    var itemAgg=_closeAgg(rows, function(r){ return groupKeyOf(r)+''+r.itemCd; });
-    var groups=[], gmap={};
-    itemAgg.forEach(function(o){
-      var gk=groupKeyOf(o.s);
-      if(!gmap[gk]){ gmap[gk]={ label:gk, items:[], q:0,s:0,c:0,m:0 }; groups.push(gmap[gk]); }
-      var g=gmap[gk]; g.items.push(o); g.q+=o.outQty; g.s+=o.salesAmt; g.c+=o.costAmt; g.m+=o.marginAmt;
+    /* 사업장별 = 프랜차이즈 합계(이름으로 묶음) → 매장(코드) → 품목. 접기 열쇠는 이름 기반(bf#브랜드 · bs#코드|이름) — 묶기를 켜고 꺼도 같은 매장은 같은 열쇠다.
+       표시는 다른 표와 같이 「행 18개」 단위(2026-07-25). 묶는 규칙은 위 bizBrand / _bizTree (2026-11-18). */
+    var T=_bizTree(rows);
+    sum.innerHTML='총 <b>'+T.stores.length.toLocaleString()+'</b>사업장'+(T.frCnt?(' · 프랜차이즈 <b>'+T.frCnt.toLocaleString()+'</b>개'):'')
+      +' · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 매출총이익 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>'+_salesNote();
+    var rowsB=[];
+    var _pushStore=function(g, sub){
+      var k2='bs#'+g.key; rowsB.push({t:'s', g:g, k:k2, sub:sub});
+      if(!_salesCollapsed[k2]) g.items.forEach(function(o){ rowsB.push({t:'it', o:o, sub:sub}); });
+    };
+    T.L1.forEach(function(e){
+      if(!e.fr){ _pushStore(e.store, false); return; }
+      var k1='bf#'+e.label; rowsB.push({t:'f', e:e, k:k1});
+      if(_salesCollapsed[k1]) return;
+      e.stores.forEach(function(g){ _pushStore(g, true); });
     });
-    sum.innerHTML='총 <b>'+groups.length.toLocaleString()+'</b>'+(tab==='zone'?'출고장':'사업장')+' · 매출 <b>'+_cnum(gS)+'</b> · 매입 <b>'+_cnum(gC)+'</b> · 매출총이익 <b style="color:'+(gM<0?'#c0392b':'#137a6c')+'">'+_cnum(gM)+'</b>'+_salesNote();
-    var _gRowB=function(gi){
-      var g=groups[gi], collapsed=!!_salesCollapsed[tab+'#'+gi];
-      return '<tr class="close-grp" onclick="salesToggle('+gi+')"><td colspan="'+lead0+'"><span class="ccar">'+(collapsed?'▶':'▼')+'</span>'+_cesc(g.label)+' <span style="color:#5b6b7a;font-weight:600">(품목 '+g.items.length+'종)</span></td>'
+    var _tog=function(k){ return ' data-k="'+_bizAttr(k)+'" onclick="salesToggleKey(this.getAttribute(\'data-k\'), this)"'; };
+    var _frRow=function(r){
+      var e=r.e, c=!!_salesCollapsed[r.k];
+      return '<tr class="close-grp close-fr"'+_tog(r.k)+' title="프랜차이즈 합계 — 사업장 이름의 브랜드(「'+_bizAttr(e.label)+'」)가 같은 매장 '+e.stores.length+'곳을 더한 값입니다. 누르면 매장을 접거나 폅니다">'
+        +'<td colspan="'+lead0+'"><span class="ccar">'+(c?'▶':'▼')+'</span>🏷 <b>'+_cesc(e.label)+'</b> <span style="color:#8a5a00;font-weight:700">프랜차이즈 합계 · 매장 '+e.stores.length+'곳</span></td>'
+        +_salesNumCells(e.q,0,0,e.s,e.c,e.m,false)+'</tr>';
+    };
+    var _stRow=function(r){
+      var g=r.g, c=!!_salesCollapsed[r.k];
+      return '<tr class="'+(r.sub?'close-sub':'close-grp')+'"'+_tog(r.k)+' style="cursor:pointer"><td colspan="'+lead0+'"'+(r.sub?' style="padding-left:24px"':'')+'>'
+        +'<span class="ccar">'+(c?'▶':'▼')+'</span>'+_cesc(g.nm)+(g.cd?' <span class="bizcd" title="매장(사업장) 코드">'+_cesc(g.cd)+'</span>':'')
+        +' <span style="color:#5b6b7a;font-weight:600">(품목 '+g.items.length+'종)</span></td>'
         +_salesNumCells(g.q,0,0,g.s,g.c,g.m,false)+'</tr>';
     };
-    var rowsB=[];
-    groups.forEach(function(g,gi){ rowsB.push({t:'g',gi:gi}); if(!_salesCollapsed[tab+'#'+gi]) g.items.forEach(function(o){ rowsB.push({t:'it',o:o}); }); });
     lzMount({ wrap:wrap, pager:'closeSalesPager', head:head, list:rowsB, rows:SALES_PAGE, capTop:320, fill:true, pad:84,
-              rowFn:function(r){ return (r.t==='g') ? _gRowB(r.gi) : _salesItemRow(r.o,1); } });
+              rowFn:function(r){ return (r.t==='f') ? _frRow(r) : (r.t==='s') ? _stRow(r) : _salesItemRow(r.o,1); } });
   }
   // ── 매입(입고)마감: 매입처 그룹 + 소계·접기펼치기 + 행 페이징 ──
   var _costRows=[], COST_ROWS=KONET_GRID_ROWS, _costCollapsed={}, _costAllCollapsed=false;
@@ -3723,6 +3800,11 @@
       table.logi-tb tr.close-grp:hover td{ background:#dcefe9; }
       table.logi-tb tr.close-grp .ccar{ display:inline-block; width:13px; color:#1f9b8e; }
       table.logi-tb tr.close-sub td{ background:#f1f5f4; font-weight:800; }
+      /* 프랜차이즈 합계 줄 · 매장코드 (2026-11-18 매출마감 사업장별) */
+      table.logi-tb tr.close-grp.close-fr td{ background:#fff3d6; color:#7a4a00; border-top:2px solid #e5b84d; }
+      table.logi-tb tr.close-grp.close-fr:hover td{ background:#ffe9b8; }
+      table.logi-tb tr.close-grp.close-fr .ccar{ color:#b9770e; }
+      table.logi-tb .bizcd{ display:inline-block; margin-left:4px; padding:0 6px; border-radius:8px; background:#e3ecf3; color:#37506a; font-size:11px; font-weight:700; font-variant-numeric:tabular-nums; }
       table.logi-tb tr.close-total td:first-child, table.logi-tb tr.close-grp td:first-child, table.logi-tb tr.close-sub td:first-child{ text-align:left; }
       /* 재고현황 ① 그리드: 스크롤해도 헤더 + 총합계 행 고정 */
       #stkStatusWrap table.logi-tb thead th{ position:sticky; top:0; z-index:4; box-shadow:inset 0 -1px 0 var(--logi-border); }
@@ -3986,6 +4068,7 @@
           <button type="button" class="ctab"    data-t="biz"  onclick="salesTab('biz')">🏢 사업장별 품목코드</button>
           <button type="button" class="ctab"    data-t="item" onclick="salesTab('item')">📦 품목코드</button>
           <input type="search" class="cq" id="salesQ" placeholder="🔎 품목코드 / 품목명 검색" title="세 탭(출고장별·사업장별·품목코드) 모두에 적용됩니다. Esc = 검색 해제" oninput="salesSearch()" onkeydown="if(event.key==='Escape'){ this.value=''; salesSearch(); }">
+          <label id="bizFrWrap" style="display:none;align-items:center;gap:5px;margin-left:10px;margin-bottom:2px;font-size:12.5px;font-weight:700;color:#8a5a00;cursor:pointer" title="사업장 이름의 브랜드가 같은 매장(2곳 이상)을 프랜차이즈로 묶어 합계 줄을 보여 줍니다 — 「꾸아(교대점)」 → 꾸아 · 「(온정돈까스)부산광안점」 → 온정돈까스. 끄면 매장만 나열합니다"><input type="checkbox" id="bizFrChk" onchange="bizFrToggle(this.checked)"> 🏷 프랜차이즈로 묶기</label>
           <span style="margin-left:auto"></span>
           <button type="button" class="btn-line" id="salesAllBtn" style="height:30px;margin-bottom:2px" onclick="salesToggleAll()">⊟ 전체 접기</button>
         </div>
