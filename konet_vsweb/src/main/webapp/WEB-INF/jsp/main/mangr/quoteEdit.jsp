@@ -163,6 +163,11 @@
   /* 엑셀 틀 고정처럼 — 왼쪽 4칸(No·단추·제조사·품명)은 가로 스크롤에도 남는다. left 는 xFit 가 잰다 */
   table.g.x td.fz, table.g.x th.fz{ position:sticky; z-index:2; background:#fff; }
   table.g.x th.fz{ z-index:4; }
+  /* 품명·규격 칸 폭 조절 손잡이 (2026-11-17 「헤더 확대 기능 · 조정할 수 있게」) — 머리글 오른쪽 가장자리. th 는 이미 sticky(=positioned)라 absolute 가 붙는다 */
+  table.g.x th.rsz .colgrip{ position:absolute; top:0; right:-4px; width:9px; height:100%; cursor:col-resize; z-index:6; }
+  table.g.x th.rsz .colgrip::after{ content:''; position:absolute; top:22%; bottom:22%; left:3px; width:3px; border-radius:2px; background:#8fb3c7; }
+  table.g.x th.rsz .colgrip:hover::after, body.colrsz table.g.x th.rsz .colgrip::after{ background:#0f6b5e; top:8%; bottom:8%; }
+  body.colrsz, body.colrsz *{ cursor:col-resize !important; user-select:none !important; }
   table.g.x tr.crow > td{ padding:2px 3px; text-align:center; background:#f4faf8; }
   table.g.x tr.crow > td.fz{ background:#f4faf8; }
   table.g.x tr.crow.feex td.fnm{ text-align:left; font-weight:800; color:#125a4e; padding-left:8px; }
@@ -659,11 +664,40 @@ function xBtnPaint(){ var b=document.getElementById('xBtn'); if(!b) return; var 
   b.title=x?'품목마다 계산 표가 따로 붙는 종전 배치로 봅니다':'머리글 한 벌 아래 품목이 한 줄씩 이어지는 엑셀형 한 표로 봅니다 (표본 엑셀 251216 아임도넛 9종)'; }
 function xCi(i,k,val,d,w,extra){ return '<input type="text" class="ci" style="width:'+(w||64)+'px" value="'+(n(val)?fmt(val,d||0):'')+'" onfocus="this.select()" oninput="cset('+i+',\''+k+'\', n(this.value))"'+(extra||'')+'>'; }
 function xCalcCols(cs){ var K=cs?cs.length:1; return 3+1+6+2+2+4*K+1; }   /* 배송3 + 입수 + 구매6 + 타겟·목표 + 판매2 + 물류·실판매·실마진·실마진율(×센터) + 필요단가 */
+/* ══ 품명·규격 칸 폭 조절 (2026-11-17 사용자 「품명 규격 헤더 확대 기능 · 조정할 수 있게」) ══
+   머리글 오른쪽 가장자리의 손잡이(.colgrip)를 잡고 끌면 그 칸 폭이 바뀐다(80~700px). 두 번 누르면 기본 폭(품명 180 · 규격 160).
+   폭은 이 PC 브라우저에 기억한다(localStorage konetQuoteColW) — 견적서 내용이 아니라 화면 보기 설정이다.
+   머리글은 renderLines 때마다 다시 그려지므로 손잡이는 document 위임으로 받는다. 품명은 틀 고정(.fz) 칸이라 폭이 바뀌면 xFit 를 다시 돈다. */
+var COLW_DEF={ nm:180, spec:160 }, _colW=(function(){ var o={ nm:COLW_DEF.nm, spec:COLW_DEF.spec };
+  try{ var s=JSON.parse(localStorage.getItem('konetQuoteColW')||'{}'); ['nm','spec'].forEach(function(k){ var v=+s[k]; if(v>=80&&v<=700) o[k]=Math.round(v); }); }catch(e){} return o; })();
+function colWSave(){ try{ localStorage.setItem('konetQuoteColW', JSON.stringify(_colW)); }catch(e){} }
+function colWApply(k){ var th=document.querySelector('#lhead th[data-colw="'+k+'"]'); if(th){ th.style.width=_colW[k]+'px'; th.style.minWidth=_colW[k]+'px'; } }
+(function(){
+  var st=null;
+  document.addEventListener('mousedown', function(e){
+    var g=e.target&&e.target.closest?e.target.closest('.colgrip'):null; if(!g||e.button!==0) return;
+    var k=g.getAttribute('data-k'); st={ k:k, x:e.clientX, w:_colW[k] }; document.body.classList.add('colrsz'); e.preventDefault(); e.stopPropagation();
+  }, true);
+  document.addEventListener('mousemove', function(e){
+    if(!st) return; _colW[st.k]=Math.max(80, Math.min(700, Math.round(st.w+e.clientX-st.x))); colWApply(st.k);
+  });
+  document.addEventListener('mouseup', function(){
+    if(!st) return; st=null; document.body.classList.remove('colrsz'); colWSave(); try{ xFit(); }catch(e){}
+  });
+  document.addEventListener('dblclick', function(e){
+    var g=e.target&&e.target.closest?e.target.closest('.colgrip'):null; if(!g) return;
+    var k=g.getAttribute('data-k'); _colW[k]=COLW_DEF[k]; colWApply(k); colWSave(); try{ xFit(); }catch(er){}
+    if(window._toast) _toast('↔ '+(k==='nm'?'품명':'규격')+' 칸을 기본 폭으로 되돌렸습니다');
+  });
+})();
 function xHead(){
   var h2=use2(), cs=csSplit()? csCents() : null, K=cs?cs.length:1;
   var rs=function(t,w,cls,tip){ return '<th rowspan="2"'+(cls?' class="'+cls+'"':'')+(w?' style="width:'+w+'px"':'')+(tip?' title="'+tip+'"':'')+'>'+t+'</th>'; };
+  /* 폭을 끌어 바꾸는 칸 — 오른쪽 가장자리 손잡이 */
+  var rz=function(t,k,cls){ return '<th rowspan="2" data-colw="'+k+'" class="rsz'+(cls?' '+cls:'')+'" style="width:'+_colW[k]+'px;min-width:'+_colW[k]+'px">'+t
+    +'<span class="colgrip" data-k="'+k+'" title="잡고 끌면 '+t+' 칸 폭을 조절합니다 · 두 번 누르면 기본 폭"></span></th>'; };
   return '<tr>'
-   + rs('No',34,'fz') + rs('',74,'fz','✕ 줄 빼기 · 아랫줄 = 동판·목형 열기/닫기') + rs('제조사',92,'fz','제조사 — 🔍 상품으로 고르면 상품마스터의 제조사가 들어옵니다') + rs('품명',180,'fz') + rs('규격',160)
+   + rs('No',34,'fz') + rs('',74,'fz','✕ 줄 빼기 · 아랫줄 = 동판·목형 열기/닫기') + rs('제조사',92,'fz','제조사 — 🔍 상품으로 고르면 상품마스터의 제조사가 들어옵니다') + rz('품명','nm','fz') + rz('규격','spec')
    + '<th class="g1" colspan="3">배송</th>'
    + '<th class="gq" colspan="'+(h2?7:5)+'">견적서 줄 <span class="dim2">— 수량·단가·금액이 견적서에 찍힙니다'+(h2?' · 둘째 단가 포함':'')+'</span></th>'
    + rs('박스<br>입수량',0,'g2','마진계산 줄은 Box 1 · 견적 수량 = 이 값(자동)')
