@@ -116,6 +116,10 @@ public class ShipoutDTO {
 	public void setItemCd(String itemCd) { this.itemCd = itemCd; }
 	public String getItemNm() { return itemNm; }
 	public void setItemNm(String itemNm) { this.itemNm = itemNm; }
+	/* 우리 주코드(해석 칸 PROD_CD) — 조회 전용(2026-11-17 매출내역 검색이 서브코드 줄도 주코드로 찾게) */
+	private String  prodCd;
+	public String getProdCd() { return prodCd; }
+	public void setProdCd(String prodCd) { this.prodCd = prodCd; }
 	public String getFsfdGb() { return fsfdGb; }
 	public void setFsfdGb(String fsfdGb) { this.fsfdGb = fsfdGb; }
 	public String getDlvDt() { return dlvDt; }

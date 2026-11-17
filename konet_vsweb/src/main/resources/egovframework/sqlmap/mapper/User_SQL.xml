@@ -606,7 +606,7 @@
 	      --   같은 (출고일자+출고장+사업장+품목)의 전체 최소값이라 아래 t 서브쿼리 안에서 먼저 계산해야 한다.
 	      t.firstDttm,
 	      t.DC_CD AS dcCd, t.DC_NM AS dcNm, t.VENDOR_CD AS vendorCd, t.VENDOR_NM AS vendorNm,
-	      t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
+	      t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.PROD_CD AS prodCd, t.BIZ_CD AS bizCd, t.BIZ_NM AS bizNm,
 	      t.BOX_QTY AS boxQty, t.LABEL_QTY AS labelQty, t.UNPAID_LABEL_QTY AS unpaidLabelQty,
 	      t.INWH AS inwh, t.ZONE AS zone, t.BUS_NO AS busNo, t.RT_SEQ AS rtSeq, t.CUR_QTY AS curQty,
 	      t.DLV_GB AS dlvGb, t.REMARK AS remark, t.PROD_KIND AS prodKind, t.TEMP_GB AS tempGb, t.ORD_GB AS ordGb,
@@ -816,7 +816,7 @@
 	      CONVERT(varchar(19), t.UPLOAD_DTTM, 120) AS uploadDttm,
 	      t.REG_USER AS regUser,   /* 올린 사람(로그인 ID) — 정산실적 끝 칸 (2026-11-16) */
 	      t.DC_CD AS dcCd, t.DC_NM AS dcNm,
-	      t.ORD_NO AS ordNo, t.ORD_ITEM_NO AS ordItemNo, t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm,
+	      t.ORD_NO AS ordNo, t.ORD_ITEM_NO AS ordItemNo, t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm, t.PROD_CD AS prodCd,
 	      t.SPEC AS spec, t.UNIT AS unit,
 	      t.ORD_QTY AS ordQty, t.SETTLE_QTY AS settleQty, t.SETTLE_AMT AS settleAmt,
 	      t.DLV_DT AS dlvDt, t.OUT_DT AS outDt,
@@ -828,7 +828,16 @@
 	     AND ( ISNULL(#{dcNm,jdbcType=VARCHAR},'') = '' OR ISNULL(t.DC_NM,'') = #{dcNm,jdbcType=VARCHAR} )
      AND ( ISNULL(#{itemCd,jdbcType=VARCHAR},'') = ''
            OR ISNULL(t.ITEM_CD,'') LIKE '%' + #{itemCd,jdbcType=VARCHAR} + '%'
-           OR ISNULL(t.ITEM_NM,'') LIKE '%' + #{itemCd,jdbcType=VARCHAR} + '%' )
+           OR ISNULL(t.ITEM_NM,'') LIKE '%' + #{itemCd,jdbcType=VARCHAR} + '%'
+           /* 2026-11-17 정산서 품목코드는 삼성 코드(서브)라 우리 주코드·주코드 품명으로도 찾는다 (예 9904013246 ↔ 1000765251) */
+           OR ISNULL(t.PROD_CD,'') LIKE '%' + #{itemCd,jdbcType=VARCHAR} + '%'
+           OR EXISTS (SELECT 1 FROM TBL_PROD_MST pm
+                       WHERE pm.PROD_CD = t.PROD_CD AND pm.ACTION_YN = 'Y' AND pm.COMP_CD = t.COMP_CD
+                         AND pm.PROD_NM LIKE '%' + #{itemCd,jdbcType=VARCHAR} + '%')
+           /* 서브코드(매칭·추가 매칭코드)로 쳐도 그 주코드로 잡힌 줄을 함께 */
+           OR EXISTS (SELECT 1 FROM TBL_EXT_ITEM_MST e
+                       WHERE e.ACTION_YN = 'Y' AND e.COMP_CD = t.COMP_CD AND e.PROD_CD = t.PROD_CD
+                         AND ( e.EXT_ITEM_CD = #{itemCd,jdbcType=VARCHAR} OR e.ADD_ITEM_CD = #{itemCd,jdbcType=VARCHAR} )) )
 	     AND (
 	           ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'') <> ''
 	             AND t.DLV_DT BETWEEN REPLACE(#{dlvDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{dlvDtTo,jdbcType=VARCHAR},'-','') )
@@ -6208,7 +6217,10 @@
 	           OR ISNULL(NULLIF(m.DLV_DT,''), m.SALE_DT) <= REPLACE(#{toDt,jdbcType=VARCHAR},'-','') )
 	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = ''
 	           OR ISNULL(d.PROD_CD,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
-	           OR ISNULL(d.PROD_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	           OR ISNULL(d.PROD_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+           /* 서브코드(매칭·추가 매칭코드)로 쳐도 그 주코드 줄 (2026-11-17) */
+           OR EXISTS (SELECT 1 FROM TBL_EXT_ITEM_MST e WHERE e.ACTION_YN = 'Y' AND e.COMP_CD = d.COMP_CD AND e.PROD_CD = d.PROD_CD
+                         AND ( e.EXT_ITEM_CD = #{findData,jdbcType=NVARCHAR} OR e.ADD_ITEM_CD = #{findData,jdbcType=NVARCHAR} )) )
 	  UNION ALL
 	  SELECT o.DLV_DT AS dlvDt, ISNULL(NULLIF(o.SHPOUT_DT,''), o.DLV_DT) AS outDt,
 	         N'직접판매(' + ISNULL(NULLIF(o.DC_NM,''), o.DC_CD) + N')' AS dcNm, '' AS dcCd,
@@ -6228,7 +6240,10 @@
 	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = ''
 	           OR ISNULL(o.ITEM_CD,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
 	           OR ISNULL(o.PROD_CD,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
-	           OR ISNULL(o.ITEM_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	           OR ISNULL(o.ITEM_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%'
+           /* 서브코드(매칭·추가 매칭코드)로 쳐도 그 주코드 줄 (2026-11-17) */
+           OR EXISTS (SELECT 1 FROM TBL_EXT_ITEM_MST e WHERE e.ACTION_YN = 'Y' AND e.COMP_CD = o.COMP_CD AND e.PROD_CD = o.PROD_CD
+                         AND ( e.EXT_ITEM_CD = #{findData,jdbcType=NVARCHAR} OR e.ADD_ITEM_CD = #{findData,jdbcType=NVARCHAR} )) )
 	  ) x
 	   ORDER BY x.dlvDt, x.dcNm, x.ordNo, TRY_CONVERT(int, x.ordItemNo), x.ordItemNo
 	]]></select>

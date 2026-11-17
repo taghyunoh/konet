@@ -97,6 +97,10 @@ public class SalesDTO {
 	public void setItemCd(String itemCd) { this.itemCd = itemCd; }
 	public String getItemNm() { return itemNm; }
 	public void setItemNm(String itemNm) { this.itemNm = itemNm; }
+	/* 우리 주코드(해석 칸 PROD_CD) — 조회 전용(2026-11-17 주코드·서브코드 연계 검색) */
+	private String prodCd;
+	public String getProdCd() { return prodCd; }
+	public void setProdCd(String prodCd) { this.prodCd = prodCd; }
 	public String getSpec() { return spec; }
 	public void setSpec(String spec) { this.spec = spec; }
 	public String getUnit() { return unit; }

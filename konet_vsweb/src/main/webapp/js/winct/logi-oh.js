@@ -4952,11 +4952,15 @@ function ssOutQty(o){
     Promise.all([pSales, pShip, pTrx]).then(function(a){
       var fY=_ohYmd(f), tY=_ohYmd(t), icQ=ic.toLowerCase();
       _ohSalesAll=(a[0]||[]).concat(a[2]||[]);
+      /* 서브코드로 쳐도 같은 주코드(prodCd) 줄을 함께 — 친 코드와 똑같은 품목코드 줄의 주코드를 모은다 (2026-11-17) */
+      var icMain={}; if(icQ) (a[1]||[]).concat(_ohSalesAll).forEach(function(r){ if((''+(r.itemCd||'')).toLowerCase()===icQ && r.prodCd) icMain[r.prodCd]=1; });
       _ohShipAll=(a[1]||[]).filter(function(r){
         var d=_ohYmd(r.dlvDt)||_ohYmd(r.shpoutDt);
         if(fY && tY && (d<fY || d>tY)) return false;
         if(icQ && (''+(r.itemCd||'')).toLowerCase().indexOf(icQ)<0
-               && (''+(r.itemNm||'')).toLowerCase().indexOf(icQ)<0) return false;
+               && (''+(r.itemNm||'')).toLowerCase().indexOf(icQ)<0
+               && (''+(r.prodCd||'')).toLowerCase().indexOf(icQ)<0
+               && !icMain[r.prodCd]) return false;   /* 서브코드(삼성 코드) 줄도 주코드로 (2026-11-17) */
         return true;
       });
       ohDcApply();   // 출고장 선택 반영 + 드롭다운 목록 갱신 + 렌더
