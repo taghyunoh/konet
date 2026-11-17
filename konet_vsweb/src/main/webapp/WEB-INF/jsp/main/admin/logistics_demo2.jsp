@@ -1248,7 +1248,7 @@
     document.getElementById('stockAllBtn').style.display = (t==='vendor')?'':'none';
     stockRender();
   }
-  function stockToggleKey(k){ _stockCollapsed[k]=!_stockCollapsed[k]; stockRender(); }
+  function stockToggleKey(k, tr){ _lzKeep('closeStockWrap', k, tr, function(){ _stockCollapsed[k]=!_stockCollapsed[k]; stockRender(); }); }   /* 보던 자리 그대로(2026-11-18) */
   function stockUpdAllBtn(){ var b=document.getElementById('stockAllBtn'); if(b) b.innerHTML=_stockAllCollapsed?'⊞ 전체 펼치기':'⊟ 전체 접기'; }
   function stockToggleAll(){
     if(_stockAllCollapsed){ _stockCollapsed={}; _stockAllCollapsed=false; }
@@ -1289,10 +1289,10 @@
     }
     // 매입처별
     var groups=[], gmap={};
-    rows.forEach(function(r){ var gk=r.vendorCd||'(미지정)'; var gg=gmap[gk]; if(!gg){ gg=gmap[gk]={label:gk, items:[], b:0,i:0,o:0,a:0,e:0,amt:0}; groups.push(gg); } gg.items.push(r); gg.b+=(+r.beginQty||0); gg.i+=(+r.inQty||0); gg.o+=(+r.outQty||0); gg.a+=(+r.adjQty||0); gg.e+=(+r.endQty||0); gg.amt+=((+r.endQty||0)*(+r.avgInPrice||0)); });
+    rows.forEach(function(r){ var gk=r.vendorCd||'(미지정)'; var gg=gmap[gk]; if(!gg){ gg=gmap[gk]={label:gk, nm:'', items:[], b:0,i:0,o:0,a:0,e:0,amt:0}; groups.push(gg); } if(!gg.nm && r.vendorNm) gg.nm=r.vendorNm;   /* 매입처 이름(2026-11-18 「재고마감도」) — 안 오면 코드만 */ gg.items.push(r); gg.b+=(+r.beginQty||0); gg.i+=(+r.inQty||0); gg.o+=(+r.outQty||0); gg.a+=(+r.adjQty||0); gg.e+=(+r.endQty||0); gg.amt+=((+r.endQty||0)*(+r.avgInPrice||0)); });
     sum.innerHTML='총 <b>'+groups.length+'</b>매입처 · 기말 <b>'+_cnum(g.e)+'</b> · 재고금액 <b>'+_cnum(g.amt)+'</b>'+_stockQNote();
     var _gRow=function(gi){ var gg=groups[gi], c=!!_stockCollapsed['k#'+gi], car=c?'▶':'▼';
-      return '<tr class="close-grp" onclick="stockToggleKey(\'k#'+gi+'\')"><td colspan="2" style="text-align:left"><span class="ccar">'+car+'</span><b>'+_cesc(gg.label)+'</b> <span style="color:#5b6b7a;font-weight:600">(품목 '+gg.items.length+'종)</span></td>'+_closeStkCells(gg.b,gg.i,gg.o,gg.a,gg.e,0,gg.amt,false)+'</tr>'; };
+      return '<tr class="close-grp" data-k="k#'+gi+'" onclick="stockToggleKey(\'k#'+gi+'\', this)"><td colspan="2" style="text-align:left"><span class="ccar">'+car+'</span><b>'+_cesc(gg.nm||gg.label)+'</b>'+(gg.nm?' <span class="bizcd" title="매입처 코드">'+_cesc(gg.label)+'</span>':'')+' <span style="color:#5b6b7a;font-weight:600">(품목 '+gg.items.length+'종)</span></td>'+_closeStkCells(gg.b,gg.i,gg.o,gg.a,gg.e,0,gg.amt,false)+'</tr>'; };
     var rowsD=[];
     groups.forEach(function(gg,gi){ rowsD.push({t:'g',gi:gi}); if(!_stockCollapsed['k#'+gi]) gg.items.forEach(function(o){ rowsD.push({t:'i',gi:gi,o:o}); }); });
     lzMount({ wrap:wrap, pager:'closeStockPager', head:head, list:rowsD, rows:STOCK_ROWS, capTop:320, fill:true, pad:84,
@@ -1386,18 +1386,19 @@
     }
     salesRenderTab();
   }
-  /* ★접기·펼치기 뒤에도 보던 자리 그대로 (2026-11-18 사용자 「표시 접기하면 다른 곳으로 이동함」) —
-     표는 18줄씩 이어 붙이는 방식(lzMount)이라 다시 그리면 앞 18줄만 남고 스크롤이 맨 위로 돌아갔다(사업장 920곳의 아래쪽 프랜차이즈를 접으면 화면이 딴 데로 갔다).
-     ① 누르기 전에 「몇 줄까지 붙어 있었나」와 「누른 줄이 표 안에서 어느 높이에 있었나」를 적어 두고 ② 다시 그린 뒤 그만큼 다시 붙이고 ③ 누른 줄(data-k)이 같은 높이에 오게 스크롤을 맞춘다.
-     줄을 못 찾으면 전 스크롤 값으로. 출고장별 탭의 묶음 줄도 같은 길을 탄다. */
-  function salesToggleKey(k, tr){
-    var w=document.getElementById('closeSalesWrap'), z=w&&w._lz, from0=z?z.from:0, st=w?w.scrollTop:0, off=null;
+  /* ★접기·펼치기 뒤에도 보던 자리 그대로 (2026-11-18 사용자 「표시 접기하면 다른 곳으로 이동함」 → 「매입마감 재고마감 마감현황도 같이」) —
+     마감 표들은 18줄씩 이어 붙이는 방식(lzMount)이라 다시 그리면 앞 18줄만 남고 스크롤이 맨 위로 돌아갔다(아래쪽 묶음을 접으면 화면이 딴 데로 갔다).
+     _lzKeep(표 id, 열쇠, 누른 줄, 다시 그리기) : ① 누르기 전에 「몇 줄까지 붙어 있었나」와 「누른 줄이 표 안에서 어느 높이에 있었나」를 적어 두고
+     ② 다시 그린 뒤 그만큼 다시 붙이고 ③ 누른 줄(data-k 가 같은 줄)이 같은 높이에 오게 스크롤을 맞춘다. 줄을 못 찾으면 전 스크롤 값으로.
+     쓰는 곳 = 매출마감(salesToggleKey) · 재고마감(stockToggleKey) · 매입마감(costToggleKey) · 마감현황(statToggleKey) · 입고 목록(inbToggle) — 묶음 줄에는 data-k 와 this 를 단다. */
+  function _lzKeep(wrapId, k, tr, redraw){
+    var w=document.getElementById(wrapId), z=w&&w._lz, from0=z?z.from:0, st=w?w.scrollTop:0, off=null;
     try{ if(w && tr && tr.getBoundingClientRect) off=tr.getBoundingClientRect().top - w.getBoundingClientRect().top; }catch(e){}
-    _salesCollapsed[k]=!_salesCollapsed[k]; salesRenderTab();
-    if(!w || !w._lz) return;
+    redraw();
+    if(!w) return;
     try{
-      var z2=w._lz, want=Math.min(from0, z2.list.length);
-      for(var g=0; z2.from<want && g<3000; g++) lzFill(w);
+      var z2=w._lz;
+      if(z2){ var want=Math.min(from0, z2.list.length); for(var g=0; z2.from<want && g<3000; g++) lzFill(w); }
       var row=null, rs=w.querySelectorAll('tr[data-k]');
       for(var i=0;i<rs.length;i++) if(rs[i].getAttribute('data-k')===k){ row=rs[i]; break; }
       if(row && off!=null){
@@ -1406,6 +1407,7 @@
       } else w.scrollTop=st;
     }catch(e){}
   }
+  function salesToggleKey(k, tr){ _lzKeep('closeSalesWrap', k, tr, function(){ _salesCollapsed[k]=!_salesCollapsed[k]; salesRenderTab(); }); }
   function salesToggle(idx){ var k=_salesTab+'#'+idx; _salesCollapsed[k]=!_salesCollapsed[k]; salesRenderTab(); }
   function _salesItemRow(o, indent){   // 품목 상세행 — indent 만큼 앞 빈칸(들여쓰기)
     var inU=o.outQty?o.costAmt/o.outQty:0, saU=o.outQty?o.salesAmt/o.outQty:0, pad='';
@@ -1446,6 +1448,9 @@
   function bizFrToggle(on){
     _bizFrOn=!!on; try{ localStorage.setItem('konetCloseBizFr', on?'1':'0'); }catch(e){}
     _salesCollapsed={}; _salesAllCollapsed=false; _salesUpdAllBtn(); salesRenderTab();
+    /* 마감현황 「사업장별」 탭도 같은 설정을 쓴다 — 체크 칸 둘을 맞추고, 그 탭을 보고 있으면 다시 그린다 */
+    try{ ['bizFrChk','statFrChk'].forEach(function(id){ var c=document.getElementById(id); if(c) c.checked=_bizFrOn; });
+         if(typeof _statTab!=='undefined' && _statTab==='biz' && _statRows.length){ _statCollapsed={}; _statAllCollapsed=false; statUpdAllBtn(); statRenderTab(); } }catch(e){}
   }
   /* 사업장별 탭의 나무 — L1 = 프랜차이즈 묶음({fr:true, label, stores}) 또는 단독 매장({fr:false, store}). 그리기·전체 접기가 같이 쓴다 */
   function _bizTree(rows){
@@ -1566,7 +1571,7 @@
     var f=document.getElementById('closeCostFrom'), t=document.getElementById('closeCostTo');
     if(f) f.value=ym+'-01'; if(t) t.value=ym+'-'+('0'+last).slice(-2);
   }
-  function costToggleKey(k){ _costCollapsed[k]=!_costCollapsed[k]; costRender(); }
+  function costToggleKey(k, tr){ _lzKeep('closeCostWrap', k, tr, function(){ _costCollapsed[k]=!_costCollapsed[k]; costRender(); }); }   /* 보던 자리 그대로(2026-11-18) */
   function costUpdAllBtn(){ var b=document.getElementById('costAllBtn'); if(b) b.innerHTML=_costAllCollapsed?'⊞ 전체 펼치기':'⊟ 전체 접기'; }
   function costToggleAll(){
     if(_costAllCollapsed){ _costCollapsed={}; _costAllCollapsed=false; }
@@ -1584,12 +1589,12 @@
     if(!rows.length){ sum.textContent=(_costRows.length&&_costQ)?('\''+_costQ+'\' 검색 결과가 없습니다. (품목코드/품목명)'):'해당 기간 입고(수불) 내역이 없습니다.'; wrap.innerHTML=''; wrap._lz=null; pg.innerHTML=''; return; }
     // 매입처 그룹
     var groups=[], gmap={};
-    rows.forEach(function(r){ var gk=r.vendorCd||'(미지정)'; var g=gmap[gk]; if(!g){ g=gmap[gk]={label:gk, items:[], q:0, amt:0}; groups.push(g); } g.items.push(r); g.q+=(+r.inQty||0); g.amt+=(+r.inAmt||0); });
+    rows.forEach(function(r){ var gk=r.vendorCd||'(미지정)'; var g=gmap[gk]; if(!g){ g=gmap[gk]={label:gk, nm:'', items:[], q:0, amt:0}; groups.push(g); } if(!g.nm && r.vendorNm) g.nm=r.vendorNm; g.items.push(r); g.q+=(+r.inQty||0); g.amt+=(+r.inAmt||0); });   /* nm = 매입처 이름(2026-11-18 「코드만 있는 것 명칭도」) — 서버가 안 주면(옛 서버·마스터에 없는 코드) 코드만 */
     sum.innerHTML='총 <b>'+groups.length+'</b>매입처 · 입고 <b>'+_cnum(gQ)+'</b> · 매입액 <b>'+_cnum(gA)+'</b>'+_costQNote();
     var thead='<thead><tr><th>매입처</th><th>품목코드</th><th>품목명</th><th style="text-align:right">입고수량</th><th style="text-align:right">매입단가</th><th style="text-align:right">매입액</th></tr></thead>';
     var totalRow='<tr class="close-total"><td colspan="3" style="text-align:left">■ 총합계</td><td style="text-align:right">'+_cnum(gQ)+'</td><td></td><td style="text-align:right">'+_cnum(gA)+'</td></tr>';
     var _gRow=function(gi){ var g=groups[gi], c=!!_costCollapsed['c#'+gi], car=c?'▶':'▼';
-      return '<tr class="close-grp" onclick="costToggleKey(\'c#'+gi+'\')"><td colspan="3" style="text-align:left"><span class="ccar">'+car+'</span><b>'+_cesc(g.label)+'</b> <span style="color:#5b6b7a;font-weight:600">(품목 '+g.items.length+'종)</span></td><td style="text-align:right">'+_cnum(g.q)+'</td><td></td><td style="text-align:right">'+_cnum(g.amt)+'</td></tr>'; };
+      return '<tr class="close-grp" data-k="c#'+gi+'" onclick="costToggleKey(\'c#'+gi+'\', this)"><td colspan="3" style="text-align:left"><span class="ccar">'+car+'</span><b>'+_cesc(g.nm||g.label)+'</b>'+(g.nm?' <span class="bizcd" title="매입처 코드">'+_cesc(g.label)+'</span>':'')+' <span style="color:#5b6b7a;font-weight:600">(품목 '+g.items.length+'종)</span></td><td style="text-align:right">'+_cnum(g.q)+'</td><td></td><td style="text-align:right">'+_cnum(g.amt)+'</td></tr>'; };
     var _iRow=function(o){
       return '<tr><td></td><td>'+_cesc(o.prodCd)+'</td><td class="txt-l">'+_cesc(o.prodNm)+'</td><td style="text-align:right">'+_cnum(o.inQty)+'</td><td style="text-align:right">'+_cnum(o.avgInPrice)+'</td><td style="text-align:right">'+_cnum(o.inAmt)+'</td></tr>'; };
     // 표시행(접힘 반영) → 18행씩 자동 스크롤
@@ -1610,9 +1615,11 @@
     _statTab=t;
     Array.prototype.forEach.call(document.querySelectorAll('#statTabs .ctab'), function(b){ b.classList.toggle('on', b.getAttribute('data-t')===t); });
     document.getElementById('statAllBtn').style.display=(t==='item')?'none':'';
+    var sw=document.getElementById('statFrWrap'), sc=document.getElementById('statFrChk');
+    if(sw) sw.style.display=(t==='biz')?'inline-flex':'none'; if(sc) sc.checked=_bizFrOn;
     statRenderTab();
   }
-  function statToggleKey(k){ _statCollapsed[k]=!_statCollapsed[k]; statRenderTab(); }
+  function statToggleKey(k, tr){ _lzKeep('closeStatusWrap', k, tr, function(){ _statCollapsed[k]=!_statCollapsed[k]; statRenderTab(); }); }   /* 보던 자리 그대로(2026-11-18) */
   function statUpdAllBtn(){ var b=document.getElementById('statAllBtn'); if(b) b.innerHTML=_statAllCollapsed?'⊞ 전체 펼치기':'⊟ 전체 접기'; }
   function statToggleAll(){
     if(_statAllCollapsed){ _statCollapsed={}; _statAllCollapsed=false; }
@@ -1622,8 +1629,9 @@
       L1.forEach(function(g1,i1){ _statCollapsed['z1#'+i1]=true; g1.l2.forEach(function(_,i2){ _statCollapsed['z2#'+i1+'.'+i2]=true; }); });
       _statAllCollapsed=true;
     } else {
-      var ab=_closeAgg(_statView(), function(r){ return (r.bizNm||'(미지정)')+'~'+r.itemCd; }), seen={}, gi=0;
-      ab.forEach(function(o){ var gk=o.s.bizNm||'(미지정)'; if(!(gk in seen)){ seen[gk]=gi; _statCollapsed['b#'+gi]=true; gi++; } });
+      var bt=_bizTree(_statView());   /* 프랜차이즈 줄과 매장 줄을 다 접는다 — 프랜차이즈 합계 · 단독 매장만 남는다 */
+      bt.L1.forEach(function(e){ if(e.fr) _statCollapsed['bf#'+e.label]=true; });
+      bt.stores.forEach(function(g){ _statCollapsed['bs#'+g.key]=true; });
       _statAllCollapsed=true;
     }
     statUpdAllBtn(); statRenderTab();
@@ -1648,7 +1656,7 @@
     return _statRows.filter(function(r){
       if((''+(r.itemCd||'')).toLowerCase().indexOf(q)>=0 || (''+(r.itemNm||'')).toLowerCase().indexOf(q)>=0) return true;
       if(tab==='zone') return (''+(r.dcNm||'')).toLowerCase().indexOf(q)>=0 || (''+_zoneGroup(r)).toLowerCase().indexOf(q)>=0;
-      if(tab==='biz')  return (''+(r.bizNm||'')).toLowerCase().indexOf(q)>=0;
+      if(tab==='biz')  return (''+(r.bizNm||'')).toLowerCase().indexOf(q)>=0 || (''+(r.bizCd||'')).toLowerCase().indexOf(q)>=0;   /* 매장코드로도(2026-11-18) */
       return false;
     });
   }
@@ -1682,15 +1690,34 @@
       sum.innerHTML='총 <b>'+L1.length+'</b>대표출고장 · 매출 <b>'+_cnum(gS)+'</b> · 매출총이익 <b>'+_cnum(gM)+'</b>'+(window.closeNoCostNote?closeNoCostNote(rows,'stat'):'')+_statQNote();
       L1.forEach(function(g1,i1){ rowsD.push({t:'l1',g:g1,i1:i1}); if(!_statCollapsed['z1#'+i1]) g1.l2.forEach(function(g2,i2){ rowsD.push({t:'l2',g:g2,i1:i1,i2:i2}); if(!_statCollapsed['z2#'+i1+'.'+i2]) g2.items.forEach(function(o){ rowsD.push({t:'it',o:o}); }); }); });
       _hdr=function(r){
-        if(r.t==='l1'){ var c1=!!_statCollapsed['z1#'+r.i1]; return '<tr class="close-grp" onclick="statToggleKey(\'z1#'+r.i1+'\')"><td colspan="'+lead0+'" style="text-align:left"><span class="ccar">'+(c1?'▶':'▼')+'</span><b>'+_cesc(r.g.label)+'</b> <span style="color:#5b6b7a;font-weight:600">('+r.g.l2.length+'개 출고장)</span></td>'+_statCells(r.g.q,r.g.s,r.g.c,r.g.m)+'</tr>'; }
-        var c2=!!_statCollapsed['z2#'+r.i1+'.'+r.i2]; return '<tr class="close-sub" onclick="statToggleKey(\'z2#'+r.i1+'.'+r.i2+'\')" style="cursor:pointer"><td colspan="'+lead0+'" style="text-align:left;padding-left:24px"><span class="ccar">'+(c2?'▶':'▼')+'</span>'+_cesc(r.g.label)+' <span style="color:#5b6b7a;font-weight:600">(품목 '+r.g.items.length+'종)</span></td>'+_statCells(r.g.q,r.g.s,r.g.c,r.g.m)+'</tr>';
+        if(r.t==='l1'){ var c1=!!_statCollapsed['z1#'+r.i1]; return '<tr class="close-grp" data-k="z1#'+r.i1+'" onclick="statToggleKey(\'z1#'+r.i1+'\', this)"><td colspan="'+lead0+'" style="text-align:left"><span class="ccar">'+(c1?'▶':'▼')+'</span><b>'+_cesc(r.g.label)+'</b> <span style="color:#5b6b7a;font-weight:600">('+r.g.l2.length+'개 출고장)</span></td>'+_statCells(r.g.q,r.g.s,r.g.c,r.g.m)+'</tr>'; }
+        var c2=!!_statCollapsed['z2#'+r.i1+'.'+r.i2]; return '<tr class="close-sub" data-k="z2#'+r.i1+'.'+r.i2+'" onclick="statToggleKey(\'z2#'+r.i1+'.'+r.i2+'\', this)" style="cursor:pointer"><td colspan="'+lead0+'" style="text-align:left;padding-left:24px"><span class="ccar">'+(c2?'▶':'▼')+'</span>'+_cesc(r.g.label)+' <span style="color:#5b6b7a;font-weight:600">(품목 '+r.g.items.length+'종)</span></td>'+_statCells(r.g.q,r.g.s,r.g.c,r.g.m)+'</tr>';
       };
     } else {
-      var ab=_closeAgg(rows, function(r){ return (r.bizNm||'(미지정)')+'~'+r.itemCd; }), groups=[],gm={};
-      ab.forEach(function(o){ var gk=o.s.bizNm||'(미지정)'; var g=gm[gk]; if(!g){g=gm[gk]={label:gk,items:[],q:0,s:0,c:0,m:0};groups.push(g);} g.items.push(o);g.q+=o.outQty;g.s+=o.salesAmt;g.c+=o.costAmt;g.m+=o.marginAmt; });
-      sum.innerHTML='총 <b>'+groups.length+'</b>사업장 · 매출 <b>'+_cnum(gS)+'</b> · 매출총이익 <b>'+_cnum(gM)+'</b>'+(window.closeNoCostNote?closeNoCostNote(rows,'stat'):'')+_statQNote();
-      groups.forEach(function(g,gi){ rowsD.push({t:'g',g:g,gi:gi}); if(!_statCollapsed['b#'+gi]) g.items.forEach(function(o){ rowsD.push({t:'it',o:o}); }); });
-      _hdr=function(r){ var c=!!_statCollapsed['b#'+r.gi]; return '<tr class="close-grp" onclick="statToggleKey(\'b#'+r.gi+'\')"><td colspan="'+lead0+'" style="text-align:left"><span class="ccar">'+(c?'▶':'▼')+'</span><b>'+_cesc(r.g.label)+'</b> <span style="color:#5b6b7a;font-weight:600">(품목 '+r.g.items.length+'종)</span></td>'+_statCells(r.g.q,r.g.s,r.g.c,r.g.m)+'</tr>'; };
+      /* 사업장별 = 프랜차이즈 합계(이름으로 묶음) → 매장(코드) → 품목 — 매출마감 「사업장별 품목코드」와 같은 규칙(bizBrand · _bizTree)을 같이 쓴다
+         (2026-11-18 사용자 「마감현황 되어 있는 것 아닌가요」 — 매출마감에만 넣어 이 탭은 매장만 나열됐다). 접기 열쇠 = bf#브랜드 · bs#코드|이름 */
+      var T=_bizTree(rows);
+      sum.innerHTML='총 <b>'+T.stores.length.toLocaleString()+'</b>사업장'+(T.frCnt?(' · 프랜차이즈 <b>'+T.frCnt.toLocaleString()+'</b>개'):'')
+        +' · 매출 <b>'+_cnum(gS)+'</b> · 매출총이익 <b>'+_cnum(gM)+'</b>'+(window.closeNoCostNote?closeNoCostNote(rows,'stat'):'')+_statQNote();
+      var _pushSt=function(g, sub){ var k2='bs#'+g.key; rowsD.push({t:'s', g:g, k:k2, sub:sub}); if(!_statCollapsed[k2]) g.items.forEach(function(o){ rowsD.push({t:'it', o:o}); }); };
+      T.L1.forEach(function(e){
+        if(!e.fr){ _pushSt(e.store, false); return; }
+        var k1='bf#'+e.label; rowsD.push({t:'f', e:e, k:k1});
+        if(_statCollapsed[k1]) return;
+        e.stores.forEach(function(g){ _pushSt(g, true); });
+      });
+      var _togS=function(k){ return ' data-k="'+_bizAttr(k)+'" onclick="statToggleKey(this.getAttribute(\'data-k\'), this)"'; };
+      _hdr=function(r){
+        var c=!!_statCollapsed[r.k];
+        if(r.t==='f'){ var e=r.e;
+          return '<tr class="close-grp close-fr"'+_togS(r.k)+' title="프랜차이즈 합계 — 사업장 이름의 브랜드(「'+_bizAttr(e.label)+'」)가 같은 매장 '+e.stores.length+'곳을 더한 값입니다. 누르면 매장을 접거나 폅니다">'
+            +'<td colspan="'+lead0+'" style="text-align:left"><span class="ccar">'+(c?'▶':'▼')+'</span>🏷 <b>'+_cesc(e.label)+'</b> <span style="color:#8a5a00;font-weight:700">프랜차이즈 합계 · 매장 '+e.stores.length+'곳</span></td>'
+            +_statCells(e.q,e.s,e.c,e.m)+'</tr>'; }
+        var g=r.g;
+        return '<tr class="'+(r.sub?'close-sub':'close-grp')+'"'+_togS(r.k)+' style="cursor:pointer"><td colspan="'+lead0+'" style="text-align:left'+(r.sub?';padding-left:24px':'')+'">'
+          +'<span class="ccar">'+(c?'▶':'▼')+'</span>'+(r.sub?'':'<b>')+_cesc(g.nm)+(r.sub?'':'</b>')+(g.cd?' <span class="bizcd" title="매장(사업장) 코드">'+_cesc(g.cd)+'</span>':'')
+          +' <span style="color:#5b6b7a;font-weight:600">(품목 '+g.items.length+'종)</span></td>'+_statCells(g.q,g.s,g.c,g.m)+'</tr>';
+      };
     }
     lzMount({ wrap:wrap, pager:'closeStatusPager', head:head, list:rowsD, rows:STAT_ROWS, capTop:320, fill:true, pad:84,
               rowFn:function(r){ return (r.t==='it') ? _statItemRow(r.o,1) : _hdr(r); } });
@@ -1862,7 +1889,7 @@
   /* ★묶음 기준은 <버튼 2개 그대로> (2026-08-04 확정) — 지금 무엇으로 묶였는지 두 기준을
        나란히 놓고 봐야 알기 쉽다. 접기/펼치기만 <토글 하나>로 둔다. */
   function inbGrpBy(v){ _inbGrpBy=v; _inbCollapsed={}; _inbFolded=false; inboundListRender(); }
-  function inbToggle(k){ _inbCollapsed[k]=!_inbCollapsed[k]; inboundListRender(); }
+  function inbToggle(k, tr){ _lzKeep('inbWrap', k, tr, function(){ _inbCollapsed[k]=!_inbCollapsed[k]; inboundListRender(); }); }   /* 보던 자리 그대로(2026-11-18 「입고 목록도 같이」) */
   function inbFoldToggle(){
     _inbFolded=!_inbFolded;
     _inbCollapsed={};
@@ -1913,14 +1940,14 @@
 
     var g1Row=function(i1){
       var g=L1[i1], c=!!_inbCollapsed['1#'+i1];
-      return '<tr class="close-grp" onclick="inbToggle(\'1#'+i1+'\')" style="cursor:pointer">'
+      return '<tr class="close-grp" data-k="1#'+i1+'" onclick="inbToggle(\'1#'+i1+'\', this)" style="cursor:pointer">'
         +'<td colspan="5" style="text-align:left"><span class="ccar">'+(c?'▶':'▼')+'</span><b>'+_cesc(g.label)+'</b>'
         +' <span style="color:#5b6b7a;font-weight:600">('+g.l2.length+(_inbGrpBy==='dt'?'개 매입처':'일')+' · '+g.cnt+'건)</span></td>'
         +'<td style="text-align:right">'+_cnum(g.q)+'</td><td></td><td style="text-align:right">'+_cnum(g.a)+'</td><td style="text-align:right">'+_cnum(g.v)+'</td><td style="text-align:right">'+_cnum(g.t)+'</td><td></td></tr>';
     };
     var g2Row=function(i1,i2){
       var g=L1[i1].l2[i2], c=!!_inbCollapsed['2#'+i1+'.'+i2];
-      return '<tr class="close-sub" onclick="inbToggle(\'2#'+i1+'.'+i2+'\')" style="cursor:pointer">'
+      return '<tr class="close-sub" data-k="2#'+i1+'.'+i2+'" onclick="inbToggle(\'2#'+i1+'.'+i2+'\', this)" style="cursor:pointer">'
         +'<td colspan="5" style="text-align:left; padding-left:26px"><span class="ccar">'+(c?'▶':'▼')+'</span>'+_cesc(g.label)
         +' <span style="color:#5b6b7a;font-weight:600">(품목 '+g.items.length+'건)</span></td>'
         +'<td style="text-align:right">'+_cnum(g.q)+'</td><td></td><td style="text-align:right">'+_cnum(g.a)+'</td><td style="text-align:right">'+_cnum(g.v)+'</td><td style="text-align:right">'+_cnum(g.t)+'</td><td></td></tr>';
@@ -4169,6 +4196,7 @@
           <button type="button" class="ctab"    data-t="biz"  onclick="statTab('biz')">🏢 사업장별</button>
           <button type="button" class="ctab"    data-t="item" onclick="statTab('item')">📦 품목별</button>
           <input type="search" class="cq" id="statQ" placeholder="🔎 품목코드 / 품목명 · 출고장 · 사업장" title="세 탭(출고장별·사업장별·품목별) 모두에 적용됩니다 — 품목코드·품목명은 늘, 출고장별 탭에서는 출고장 이름, 사업장별 탭에서는 사업장 이름으로도 찾습니다. 위 KPI 카드는 거르지 않습니다(월 전체). Esc = 검색 해제" oninput="statSearch()" onkeydown="if(event.key==='Escape'){ this.value=''; statSearch(); }">
+          <label id="statFrWrap" style="display:none;align-items:center;gap:5px;margin-left:10px;margin-bottom:2px;font-size:12.5px;font-weight:700;color:#8a5a00;cursor:pointer" title="사업장 이름의 브랜드가 같은 매장(2곳 이상)을 프랜차이즈로 묶어 합계 줄을 보여 줍니다 — 매출마감 「사업장별 품목코드」와 같은 설정입니다. 끄면 매장만 나열합니다"><input type="checkbox" id="statFrChk" onchange="bizFrToggle(this.checked)"> 🏷 프랜차이즈로 묶기</label>
           <span style="margin-left:auto"></span>
           <button type="button" class="btn-line" id="statAllBtn" style="height:30px;margin-bottom:2px" onclick="statToggleAll()">⊟ 전체 접기</button>
         </div>

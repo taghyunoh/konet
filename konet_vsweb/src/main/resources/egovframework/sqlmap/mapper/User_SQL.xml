@@ -3761,6 +3761,7 @@
 	  )
 	  SELECT t.prodSeq AS prodSeq, t.prodCd AS prodCd, pm.PROD_NM AS prodNm,
 	         ISNULL(v.vendorCd,'') AS vendorCd,
+	         ISNULL(vn.vendorNm,'') AS vendorNm,   /* 매입처 이름 (2026-11-18 사용자 「재고마감도」 — 매입처별 묶음 줄이 「0055」 코드만 떴다) */
 	         ISNULL(cs.END_QTY, t.beginQty) AS beginQty, t.inQty AS inQty, t.outQty AS outQty, t.adjQty AS adjQty,
 	         (ISNULL(cs.END_QTY, t.beginQty) + t.inQty - t.outQty + t.adjQty) AS endQty,
 	         ISNULL(CASE WHEN t.inQtyCum > 0 THEN t.inAmtCum / t.inQtyCum END, ISNULL(cs.AVG_IN_PRICE, ISNULL(pm.IN_PRICE,0))) AS avgInPrice
@@ -3802,6 +3803,12 @@
 	         AND lv.TRX_DT BETWEEN B.fromB AND B.toB
 	       ORDER BY lv.TRX_DT DESC, lv.LEDGER_SEQ DESC
 	    ) v
+	    OUTER APPLY (
+	      SELECT TOP 1 vm0.VENDOR_NM AS vendorNm
+	        FROM TBL_VENDOR_MST vm0
+	       WHERE vm0.VENDOR_CD = v.vendorCd AND vm0.ACTION_YN = 'Y'
+	         AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR vm0.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	    ) vn
 	   WHERE (t.beginQty <> 0 OR t.inQty <> 0 OR t.outQty <> 0 OR t.adjQty <> 0 OR ISNULL(cs.END_QTY,0) <> 0)
 	   ORDER BY t.prodCd
 	]]></select>
@@ -3813,6 +3820,7 @@
 	<select id="selectInboundClosing" parameterType="egovframework.konet.user.model.StockClosingDTO" resultType="egovframework.konet.user.model.StockClosingDTO"><![CDATA[
 	  SELECT l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, MAX(pm.PROD_NM) AS prodNm,
 	         ISNULL(l.VENDOR_CD,'') AS vendorCd,
+	         MAX(ISNULL(vm.VENDOR_NM,'')) AS vendorNm,   /* 매입처 이름 (2026-11-18 사용자 「코드만 있는 것 명칭도 보여줘요」 — 매입마감 묶음 줄이 「001536」 코드만 떴다) */
 	         SUM(l.QTY) AS inQty,
 	         SUM(ISNULL(l.AMT, l.QTY * ISNULL(l.UNIT_PRICE,0))) AS inAmt,
 	         CASE WHEN SUM(l.QTY) > 0 THEN SUM(ISNULL(l.AMT, l.QTY * ISNULL(l.UNIT_PRICE,0))) / SUM(l.QTY) ELSE 0 END AS avgInPrice
@@ -3823,6 +3831,12 @@
 	           WHERE p.ACTION_YN = 'Y'
 	             AND p.PROD_SEQ = (SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2 WHERE p2.PROD_CD = p.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = p.COMP_CD)
 	    ) pm ON pm.PROD_CD = l.PROD_CD AND pm.COMP_CD = l.COMP_CD
+	    LEFT JOIN (
+	          SELECT v.COMP_CD, v.VENDOR_CD, MAX(v.VENDOR_NM) AS VENDOR_NM
+	            FROM TBL_VENDOR_MST v
+	           WHERE v.ACTION_YN = 'Y'
+	           GROUP BY v.COMP_CD, v.VENDOR_CD
+	    ) vm ON vm.VENDOR_CD = l.VENDOR_CD AND vm.COMP_CD = l.COMP_CD
 	   WHERE l.ACTION_YN = 'Y' AND l.IO_GB = 'I'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND (

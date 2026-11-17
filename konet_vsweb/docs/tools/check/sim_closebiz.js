@@ -8,6 +8,7 @@ const code = [
   cut('  function _closeAgg(rows, keyFn){', '  /* 조회 진행바'),
   cut('  function _salesView(){', '  function _salesQNote()'),
   cut('  function salesTab(t){', '  // ── 매입(입고)마감'),
+  cut('  // ── 마감현황(월계표)', '  // ── SWAL 공용'),
 ].join('\n');
 const els = {};
 const el = id => els[id] || (els[id] = { id, innerHTML: '', textContent: '', style: {}, value: '', checked: false, placeholder: '', classList: { toggle() {} }, getAttribute() { return ''; } });
@@ -16,7 +17,8 @@ const env = {
   document: { getElementById: el, querySelectorAll: () => [] },
   localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } },
   _cnum: n => String(Math.round(n)), _srcBadge: () => '', _salesNote: () => '', _zoneGroup: r => r.dcNm || '', SALES_PAGE: 18,
-  lzMount: o => { const w = el('closeSalesWrap'); const n = Math.min(env.page, o.list.length); w._lz = { list: o.list, from: n, rowFn: o.rowFn, rows: env.page }; w._head = o.head; w.scrollTop = 0;
+  window: {}, stExpLoad: () => {}, closeStatusChk: () => {}, KONET_GRID_ROWS: 18,
+  lzMount: o => { const w = (typeof o.wrap === 'string') ? el(o.wrap) : o.wrap; const n = Math.min(env.page, o.list.length); w._lz = { list: o.list, from: n, rowFn: o.rowFn, rows: env.page }; w._head = o.head; w.scrollTop = 0;
     w.innerHTML = o.head + o.list.slice(0, n).map(o.rowFn).join('') + '</tbody></table>'; },
   lzFill: w => { const z = w._lz; if (!z || z.from >= z.list.length) return; const to = Math.min(z.from + z.rows, z.list.length); z.from = to; w.innerHTML = w._head + z.list.slice(0, to).map(z.rowFn).join('') + '</tbody></table>'; },
   kzF: () => 1, page: 1000,
@@ -26,7 +28,8 @@ const dec = t => t.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g
   w.querySelectorAll = () => w.innerHTML.split('<tr').slice(1).map((t, i) => ({ t, i })).filter(x => /data-k="/.test(x.t)).map(x => ({ getAttribute: () => dec(x.t.match(/data-k="([^"]*)"/)[1]), getBoundingClientRect: () => ({ top: x.i * 20 - w.scrollTop }) })); }
 const names = Object.keys(env).filter(k => k !== 'page' && k !== '_mounted');
 const api = new Function(...names, 'var _salesRows=[], _salesQ="", _salesTab="biz", _salesCollapsed={};\n' + code +
-  '\nreturn { set:function(r){ _salesRows=r; }, q:function(v){ _salesQ=v; }, render:salesRenderTab, tab:salesTab, toggle:salesToggleKey, collapseAll:salesCollapseAll, expandAll:salesExpandAll, fr:bizFrToggle, st:function(){ return _salesCollapsed; } };')(...names.map(k => env[k]));
+  '\nreturn { set:function(r){ _salesRows=r; }, q:function(v){ _salesQ=v; }, render:salesRenderTab, tab:salesTab, toggle:salesToggleKey, collapseAll:salesCollapseAll, expandAll:salesExpandAll, fr:bizFrToggle, st:function(){ return _salesCollapsed; },' +
+  '\n  statSet:closeRenderStatus, statTab:statTab, statToggle:statToggleKey, statAll:statToggleAll, statQ:function(v){ _statQ=v; statRenderTab(); } };')(...names.map(k => env[k]));
 
 const R = (cd, nm, item, q, amt) => ({ bizCd: cd, bizNm: nm, itemCd: item, itemNm: '품목 ' + item, outQty: q, salesAmt: amt, costAmt: amt * 0.7, marginAmt: amt * 0.3 });
 const rows = [
@@ -88,4 +91,25 @@ chk('품목 탭 검색은 종전대로(사업장 이름으로는 안 찾음)', /
   chk('다시 펴도 제자리', rowOf(key).getBoundingClientRect().top === before && w._lz.list.length === all);
   w.scrollTop = 700; api.toggle('없는열쇠', null);
   chk('줄을 모르면 전 스크롤 값으로', w.scrollTop === 700); }
+// ── 마감현황 「사업장별」 탭도 같은 규칙(2026-11-18 「마감현황 되어 있는 것 아닌가요」)
+{ env.page = 1000; const w = el('closeStatusWrap'); w.getBoundingClientRect = () => ({ top: 0 }); w.querySelectorAll = () => [];
+  const sh = () => w.innerHTML.split('<tr').slice(1).map(t => '<tr' + t.split('</tr>')[0]);
+  const scnt = cls => sh().filter(t => t.includes('class="' + cls)).length;
+  const single = () => sh().filter(t => t.includes('class="close-grp"')).length;
+  api.fr(true); api.statSet(rows); api.statTab('biz');
+  chk('마감현황 : 탭을 열면 묶기 체크가 보이고 켜져 있다', el('statFrWrap').style.display === 'inline-flex' && el('statFrChk').checked === true);
+  chk('마감현황 : 사업장 10 · 프랜차이즈 3', /<b>10<\/b>사업장/.test(el('closeStatusSum').innerHTML) && /프랜차이즈 <b>3<\/b>개/.test(el('closeStatusSum').innerHTML));
+  const k2 = sh().find(t => t.includes('close-fr') && t.includes('<b>꾸아</b>'));
+  chk('마감현황 : 꾸아 합계 = 매장 3곳 · 수량 5 · 매출 219,722 · 마진율 30.0%', !!k2 && k2.includes('매장 3곳') && k2.includes('>5</td>') && k2.includes('>219722</td>') && k2.includes('30.0%'));
+  chk('마감현황 : 프랜차이즈 줄 3 · 들여쓴 매장 줄 7 · 단독 매장 줄 3 · 매장코드', scnt('close-grp close-fr') === 3 && scnt('close-sub') === 7 && single() === 3 && sh().some(t => t.includes('꾸아(교대점)') && t.includes('A002')));
+  const n0 = sh().length; api.statToggle('bf#꾸아', null);
+  chk('마감현황 : 프랜차이즈 줄을 누르면 접힌다', sh().length === n0 - 7, n0 + ' → ' + sh().length);
+  api.statToggle('bf#꾸아', null); api.statAll();
+  chk('마감현황 : 전체 접기 = 프랜차이즈 3 + 단독 매장 3 + 총합계', sh().length === 1 + 1 + 3 + 3, String(sh().length));   // 머리줄 1 + 총합계 1
+  api.statAll(); api.statQ('a002');
+  chk('마감현황 : 매장코드로도 찾는다', single() === 1 && scnt('close-grp close-fr') === 0);
+  api.statQ(''); api.fr(false);
+  chk('마감현황 : 묶기를 끄면 매장만(두 화면이 같은 설정)', scnt('close-grp close-fr') === 0 && single() === 10 && el('statFrChk').checked === false && el('bizFrChk').checked === false);
+  api.fr(true); api.statTab('zone');
+  chk('마감현황 : 다른 탭에서는 묶기 체크가 숨는다', el('statFrWrap').style.display === 'none'); }
 console.log(ok + ' 통과 / ' + bad + ' 실패'); process.exit(bad ? 1 : 0);
