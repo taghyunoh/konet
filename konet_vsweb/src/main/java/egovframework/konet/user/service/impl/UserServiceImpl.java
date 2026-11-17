@@ -3268,6 +3268,11 @@ public class UserServiceImpl implements UserService {
 	@Override public int updatePoLineClose(java.util.Map<String,Object> p) throws Exception { return mapper.updatePoLineClose(p); }
 	@Override public String selectPoNextNo(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoNextNo(p); }
 	@Override public java.util.Map<String,Object> selectPoMst(java.util.Map<String,Object> p) throws Exception { return mapper.selectPoMst(p); }
+	/* 판매·매입 전표 수정이력 (2026-11-16) — 조회만 */
+	@Override public java.util.List<java.util.Map<String,Object>> selectTrxEditHist(String kind, java.util.Map<String,Object> p) throws Exception {
+		return "purch".equals(kind) ? mapper.selectPurchaseEditHist(p) : mapper.selectSalesTrxEditHist(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectTrxHistLines(String kind, java.util.Map<String,Object> p) throws Exception {
+		return "purch".equals(kind) ? mapper.selectPurchaseHistLines(p) : mapper.selectSalesTrxHistLines(p); }
 	@Override public java.util.Map<String,Object> selectPoMstByToken(String token) throws Exception {
 		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>(); p.put("token", token); p.put("poSeq", 0);
 		return mapper.selectPoMst(p);

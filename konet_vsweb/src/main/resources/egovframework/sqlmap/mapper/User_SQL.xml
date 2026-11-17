@@ -5004,6 +5004,44 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
+	<!-- 매입전표 수정이력 (2026-11-16 사용자 「표시 부분에 수정이력 버튼으로 조회 내역 — 매입등록도 같이」).
+	     ★이력 표가 따로 없다 — 저장할 때마다 옛 명세를 ACTION_YN=N(UPD_DTTM·UPD_USER = 고친 때·사람)으로 돌리고 새 명세를 넣으므로
+	       명세 묶음 하나가 곧 «한 번 저장한 판»이다. 묶음 열쇠 vk = 살아 있는 줄은 LIVE, 지워진 줄은 그 줄을 지운 때(UPD_DTTM — 한 번 저장에 같은 값).
+	       판의 시작 = 그 묶음의 가장 이른 REG_DTTM(넣은 때) · REG_USER(넣은 사람).
+	     ★기간·거래처는 목록과 같다(PURCH_DT 기간 · 거래처명 부분 일치 또는 코드). 삭제된 전표(머리 ACTION_YN=N)도 보인다. -->
+	<select id="selectPurchaseEditHist" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  WITH M AS (
+	    SELECT m.PURCH_SEQ AS seq, REPLACE(ISNULL(m.PURCH_DT,''),'-','') AS dt, m.PURCH_NO AS no, m.VENDOR_CD AS custCd, m.VENDOR_NM AS custNm,
+	           m.ACTION_YN AS actionYn, m.REG_DTTM AS regDttm, m.REG_USER AS regUser, m.UPD_DTTM AS updDttm, m.UPD_USER AS updUser, m.TOT_AMT AS totAmt
+	      FROM TBL_PURCHASE_MST m
+	     WHERE ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	       AND REPLACE(ISNULL(m.PURCH_DT,''),'-','') >= #{frDt,jdbcType=VARCHAR} AND REPLACE(ISNULL(m.PURCH_DT,''),'-','') <= #{toDt,jdbcType=VARCHAR}
+	       AND ( #{seq,jdbcType=BIGINT} IS NULL OR m.PURCH_SEQ = #{seq,jdbcType=BIGINT} )   /* 고른 전표 한 장만 (2026-11-17 「하단 선택된 내용에 대하여만」) */
+	       AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = '' OR ISNULL(m.VENDOR_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' OR ISNULL(m.VENDOR_CD,'') = #{findData,jdbcType=NVARCHAR} )
+	  ), V AS (
+	    SELECT d.PURCH_SEQ AS seq,
+	           CASE WHEN d.ACTION_YN = 'Y' THEN 'LIVE' ELSE ISNULL(d.UPD_DTTM,'') END AS vk,
+	           MIN(d.REG_DTTM) AS vFrom, MAX(d.REG_USER) AS vUser,
+	           MAX(CASE WHEN d.ACTION_YN <> 'Y' THEN d.UPD_DTTM END) AS vTo, MAX(CASE WHEN d.ACTION_YN <> 'Y' THEN d.UPD_USER END) AS vToUser,
+	           COUNT(*) AS cnt, SUM(ISNULL(d.QTY,0)) AS qty, SUM(ISNULL(d.TOT_AMT,0)) AS amt
+	      FROM TBL_PURCHASE_DTL d JOIN M ON M.seq = d.PURCH_SEQ
+	     GROUP BY d.PURCH_SEQ, CASE WHEN d.ACTION_YN = 'Y' THEN 'LIVE' ELSE ISNULL(d.UPD_DTTM,'') END
+	  )
+	  SELECT M.*, V.vk, V.vFrom, V.vUser, V.vTo, V.vToUser, V.cnt, V.qty, V.amt
+	    FROM M LEFT JOIN V ON V.seq = M.seq
+	   ORDER BY M.dt DESC, M.no DESC, V.vFrom
+	]]></select>
+	<!-- 매입전표 한 장의 모든 명세(살아 있는 줄 + 지워진 옛 판) — 화면이 vk 로 판을 나눈다 (2026-11-16) -->
+	<select id="selectPurchaseHistLines" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT d.DTL_SEQ AS dtlSeq, d.ROW_NO AS rowNo, d.PROD_CD AS prodCd, d.PROD_NM AS prodNm, d.SPEC AS spec,
+	         d.QTY AS qty, d.UNIT_PRICE AS unitPrice, d.TOT_AMT AS totAmt, d.TRX_GB AS trxGb, d.REMARK AS remark,
+	         d.ACTION_YN AS actionYn, d.REG_DTTM AS regDttm, d.REG_USER AS regUser, d.UPD_DTTM AS updDttm, d.UPD_USER AS updUser,
+	         CASE WHEN d.ACTION_YN = 'Y' THEN 'LIVE' ELSE ISNULL(d.UPD_DTTM,'') END AS vk
+	    FROM TBL_PURCHASE_DTL d
+	   WHERE d.PURCH_SEQ = #{seq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   ORDER BY d.REG_DTTM, d.ROW_NO, d.DTL_SEQ
+	]]></select>
 	<!-- 수정 저장 전 — 바꾼 매입일자에 «같은 번호»의 다른 전표가 있나 (2026-11-16, countSalesTrxNoDup 과 같은 까닭 · UX_PURCH_NO) -->
 	<select id="countPurchaseNoDup" parameterType="egovframework.konet.user.model.PurchaseDTO" resultType="int"><![CDATA[
 	  SELECT COUNT(*)
@@ -6019,6 +6057,44 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
+	<!-- 판매전표 수정이력 (2026-11-16 사용자 「표시 부분에 수정이력 버튼으로 조회 내역 — 매입등록도 같이」).
+	     ★이력 표가 따로 없다 — 저장할 때마다 옛 명세를 ACTION_YN=N(UPD_DTTM·UPD_USER = 고친 때·사람)으로 돌리고 새 명세를 넣으므로
+	       명세 묶음 하나가 곧 «한 번 저장한 판»이다. 묶음 열쇠 vk = 살아 있는 줄은 LIVE, 지워진 줄은 그 줄을 지운 때(UPD_DTTM — 한 번 저장에 같은 값).
+	       판의 시작 = 그 묶음의 가장 이른 REG_DTTM(넣은 때) · REG_USER(넣은 사람).
+	     ★기간·거래처는 목록과 같다(SALE_DT 기간 · 거래처명 부분 일치 또는 코드). 삭제된 전표(머리 ACTION_YN=N)도 보인다. -->
+	<select id="selectSalesTrxEditHist" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  WITH M AS (
+	    SELECT m.SALE_SEQ AS seq, REPLACE(ISNULL(m.SALE_DT,''),'-','') AS dt, m.SALE_NO AS no, m.CUST_CD AS custCd, m.CUST_NM AS custNm,
+	           m.ACTION_YN AS actionYn, m.REG_DTTM AS regDttm, m.REG_USER AS regUser, m.UPD_DTTM AS updDttm, m.UPD_USER AS updUser, m.TOT_AMT AS totAmt
+	      FROM TBL_SALES_TRX_MST m
+	     WHERE ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	       AND REPLACE(ISNULL(m.SALE_DT,''),'-','') >= #{frDt,jdbcType=VARCHAR} AND REPLACE(ISNULL(m.SALE_DT,''),'-','') <= #{toDt,jdbcType=VARCHAR}
+	       AND ( #{seq,jdbcType=BIGINT} IS NULL OR m.SALE_SEQ = #{seq,jdbcType=BIGINT} )   /* 고른 전표 한 장만 (2026-11-17 「하단 선택된 내용에 대하여만」) */
+	       AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = '' OR ISNULL(m.CUST_NM,'') LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' OR ISNULL(m.CUST_CD,'') = #{findData,jdbcType=NVARCHAR} )
+	  ), V AS (
+	    SELECT d.SALE_SEQ AS seq,
+	           CASE WHEN d.ACTION_YN = 'Y' THEN 'LIVE' ELSE ISNULL(d.UPD_DTTM,'') END AS vk,
+	           MIN(d.REG_DTTM) AS vFrom, MAX(d.REG_USER) AS vUser,
+	           MAX(CASE WHEN d.ACTION_YN <> 'Y' THEN d.UPD_DTTM END) AS vTo, MAX(CASE WHEN d.ACTION_YN <> 'Y' THEN d.UPD_USER END) AS vToUser,
+	           COUNT(*) AS cnt, SUM(ISNULL(d.QTY,0)) AS qty, SUM(ISNULL(d.TOT_AMT,0)) AS amt
+	      FROM TBL_SALES_TRX_DTL d JOIN M ON M.seq = d.SALE_SEQ
+	     GROUP BY d.SALE_SEQ, CASE WHEN d.ACTION_YN = 'Y' THEN 'LIVE' ELSE ISNULL(d.UPD_DTTM,'') END
+	  )
+	  SELECT M.*, V.vk, V.vFrom, V.vUser, V.vTo, V.vToUser, V.cnt, V.qty, V.amt
+	    FROM M LEFT JOIN V ON V.seq = M.seq
+	   ORDER BY M.dt DESC, M.no DESC, V.vFrom
+	]]></select>
+	<!-- 판매전표 한 장의 모든 명세(살아 있는 줄 + 지워진 옛 판) — 화면이 vk 로 판을 나눈다 (2026-11-16) -->
+	<select id="selectSalesTrxHistLines" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT d.DTL_SEQ AS dtlSeq, d.ROW_NO AS rowNo, d.PROD_CD AS prodCd, d.PROD_NM AS prodNm, d.SPEC AS spec,
+	         d.QTY AS qty, d.UNIT_PRICE AS unitPrice, d.TOT_AMT AS totAmt, d.TRX_GB AS trxGb, d.REMARK AS remark,
+	         d.ACTION_YN AS actionYn, d.REG_DTTM AS regDttm, d.REG_USER AS regUser, d.UPD_DTTM AS updDttm, d.UPD_USER AS updUser,
+	         CASE WHEN d.ACTION_YN = 'Y' THEN 'LIVE' ELSE ISNULL(d.UPD_DTTM,'') END AS vk
+	    FROM TBL_SALES_TRX_DTL d
+	   WHERE d.SALE_SEQ = #{seq}
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR d.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   ORDER BY d.REG_DTTM, d.ROW_NO, d.DTL_SEQ
+	]]></select>
 	<!-- 수정 저장 전 — 바꾼 판매일자에 «같은 번호»의 다른 전표가 있나 (2026-11-16). 수정은 번호를 그대로 두고 날짜만 바꾸므로
 	     겹치면 머리 고치기가 고유 키(UX_SALES_TRX_NO, ACTION_YN='Y')에 걸린다 — 지우기 전에 막는다 -->
 	<select id="countSalesTrxNoDup" parameterType="egovframework.konet.user.model.SalesTrxDTO" resultType="int"><![CDATA[

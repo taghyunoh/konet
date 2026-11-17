@@ -402,6 +402,9 @@ public interface UserService {
 	String selectPoNextNo(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectPoMst(java.util.Map<String,Object> p) throws Exception;
 	java.util.Map<String,Object> selectPoMstByToken(String token) throws Exception;
+	/** 판매·매입 전표 수정이력 (2026-11-16) — kind = sales | purch */
+	java.util.List<java.util.Map<String,Object>> selectTrxEditHist(String kind, java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectTrxHistLines(String kind, java.util.Map<String,Object> p) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectPoDtl(java.util.Map<String,Object> p) throws Exception;
 	long savePo(java.util.Map<String,Object> body, String user, String ip) throws Exception;   // 머리+줄 저장, poSeq 반환
 	int deletePo(java.util.Map<String,Object> p) throws Exception;

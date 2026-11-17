@@ -3,6 +3,7 @@
 <%-- 메시지는 프로젝트 공통 컴포넌트를 쓴다 — 로그인 화면(base_login.jsp)과 같은 모양.
      SweetAlert 가 아니라 이 파일이 표준이다(_alertBox / _confirmBox / _toast). --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/trx-hist.js?v=20261117"></script>   <%-- 판매·매입 전표 수정이력 창 (2026-11-16) --%>
 <%-- ★날짜 칸에 [◀][▶][오늘] 을 자동으로 붙인다 (2026-08-17 요청) — 화면 수정 0.
      브라우저 기본 달력의 ↑↓ 는 앞/뒤가 안 읽혀 엉뚱한 달로 넘어가는 일이 잦았다.
      빼려면 그 칸에 data-nonav="1" --%>
@@ -356,6 +357,8 @@
       <%-- 🔎 품목 판매이력 (2026-11-05 「판매등록도 발주서등록 검색처럼」) — 코드·상품명을 치면 아래 목록이 「거래처 줄 → 그 거래처 전표 줄」로(날짜 무관). 지우고 [리스트조회]면 보통 목록 --%>
       <div class="sa-fld" style="flex:0 0 230px; position:relative"><label title="품목 판매이력 — 코드·상품명을 치고 고르면 아래 목록이 그 품목의 판매 내역(거래처별)로 바뀝니다. 코드는 끝까지 치면 바로 조회">품목</label><input type="text" id="sphQ" placeholder="품목 판매이력 — 코드·상품명" autocomplete="off" oninput="sphSuggest()" onkeydown="sphKey(event)" onblur="setTimeout(sphHide,150)"><div id="sphList"></div></div>
       <button class="sa-btn teal" onclick="saLoad()">리스트조회</button>
+      <%-- 🕘 수정이력 (2026-11-16 사용자 「표시 부분에 수정이력 버튼으로 조회 내역」) — 목록과 같은 기간·거래처로 연다. 창은 asset/js/trx-hist.js --%>
+      <button class="sa-btn" style="margin-left:auto" onclick="konetTrxHist({kind:'sales', title:'판매', single:true, seq:(_cur&&_cur.saleSeq)||null, open:function(s){ sphOpen(s, null); }})" title="아래 목록에서 고른(위에 불러온) 판매전표의 수정이력 — 누가 언제 등록·수정·삭제했는지, 저장한 판마다 품목·금액 (2026-11-17)">🕘 수정이력</button>
     </div>
     <%-- 🔎 품목 판매이력 요약 줄 — 발주서 관리와 같은 자리(도구줄 아래, 표 위) (2026-11-05 「판매등록도 이런 식으로」) --%>
     <div id="sphHead" style="display:none; margin:2px 0 6px; font-size:13px; color:#37475a"></div>

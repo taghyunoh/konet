@@ -411,7 +411,11 @@ public interface UserMapper {
 	int updateSalesTrxMst(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
 	int deleteSalesTrxMst(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
 	int deleteSalesTrxDtlAll(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
-	int countSalesTrxNoDup(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;   // 수정 시 바꾼 날짜에 같은 번호가 있나 (2026-11-16)
+	int countSalesTrxNoDup(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectSalesTrxEditHist(java.util.Map<String,Object> p) throws Exception;   // 수정이력 (2026-11-16)
+	java.util.List<java.util.Map<String,Object>> selectSalesTrxHistLines(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPurchaseEditHist(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectPurchaseHistLines(java.util.Map<String,Object> p) throws Exception;   // 수정 시 바꾼 날짜에 같은 번호가 있나 (2026-11-16)
 	int insertSalesTrxDtl(egovframework.konet.user.model.SalesTrxDtlDTO dto) throws Exception;
 	int deleteSalesTrxLedger(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
 	/** 거래명세서 공유 — 공개 주소 토큰 발급(처음 한 번) + 보낸 횟수 (2026-09-09) */

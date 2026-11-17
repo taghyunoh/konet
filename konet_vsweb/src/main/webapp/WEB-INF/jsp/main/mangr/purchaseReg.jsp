@@ -3,6 +3,7 @@
 <%-- 메시지는 프로젝트 공통 컴포넌트를 쓴다 — 로그인 화면(base_login.jsp)과 같은 모양.
      SweetAlert 가 아니라 이 파일이 표준이다(_alertBox / _confirmBox / _toast). --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/trx-hist.js?v=20261117"></script>   <%-- 판매·매입 전표 수정이력 창 (2026-11-16) --%>
 <%-- ★날짜 칸에 [◀][▶][오늘] 을 자동으로 붙인다 (2026-08-17 요청) — 화면 수정 0.
      브라우저 기본 달력의 ↑↓ 는 앞/뒤가 안 읽혀 엉뚱한 달로 넘어가는 일이 잦았다.
      빼려면 그 칸에 data-nonav="1" --%>
@@ -308,6 +309,8 @@
       <div class="pu-fld" style="flex:0 0 230px; position:relative"><label title="품목 매입이력 — 코드·상품명을 치고 고르면 아래 목록이 그 품목의 매입 내역(거래처별)로 바뀝니다. 코드는 끝까지 치면 바로 조회">품목</label><input type="text" id="pphQ" placeholder="품목 매입이력 — 코드·상품명" autocomplete="off" oninput="pphSuggest()" onkeydown="pphKey(event)" onblur="setTimeout(pphHide,150)"><div id="pphList"></div></div>
 
       <button class="pu-btn teal" onclick="puLoad()">리스트조회</button>
+      <%-- 🕘 수정이력 (2026-11-16 「매입등록도 같이」) — 판매등록과 같은 창(asset/js/trx-hist.js) --%>
+      <button class="pu-btn" style="margin-left:auto" onclick="konetTrxHist({kind:'purch', title:'매입', single:true, seq:(_cur&&_cur.purchSeq)||null, open:function(s){ pphOpen(s, null); }})" title="아래 목록에서 고른(위에 불러온) 매입전표의 수정이력 — 누가 언제 등록·수정·삭제했는지, 저장한 판마다 품목·금액 (2026-11-17)">🕘 수정이력</button>
     </div>
     <%-- 🔎 품목 매입이력 요약 줄 (도구줄 아래, 표 위) --%>
     <div id="pphHead" style="display:none; margin:2px 0 6px; font-size:13px; color:#37475a"></div>

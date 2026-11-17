@@ -4391,6 +4391,38 @@ public class UserController {
 			}
 		}
 
+		/* ── 판매·매입 전표 수정이력 (2026-11-16 사용자 「수정이력 버튼으로 조회 내역 — 매입등록도 같이」) — 조회만.
+		     kind = sales | purch · 기간 frDt·toDt(yyyymmdd) · findData = 거래처명/코드 · 전표 한 장의 명세는 seq */
+		@RequestMapping(value="/mangr/trxEditHist.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> trxEditHist(@RequestParam("kind") String kind,
+		                                      @RequestParam(value="frDt", required=false) String frDt, @RequestParam(value="toDt", required=false) String toDt,
+		                                      @RequestParam(value="findData", required=false) String findData,
+		                                      @RequestParam(value="seq", required=false) Long seq, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("result", "FAIL"); res.put("message", "로그인이 필요합니다."); return res; }
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("compCd", String.valueOf(session.getAttribute("s_comp_cd")));
+			p.put("seq", seq);   // 고른 전표 한 장만 (2026-11-17) — 오면 기간·거래처 조건은 넓게 둔다
+			String fd = seq != null ? "" : _d8(frDt), td = seq != null ? "" : _d8(toDt);
+			if (seq != null) findData = "";
+			p.put("frDt", fd.isEmpty() ? "00000000" : fd); p.put("toDt", td.isEmpty() ? "99999999" : td);
+			p.put("findData", findData == null ? "" : findData.trim());
+			res.put("data", svc.selectTrxEditHist("purch".equals(kind) ? "purch" : "sales", p));
+			res.put("result", "OK");
+			return res;
+		}
+		@RequestMapping(value="/mangr/trxHistLines.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> trxHistLines(@RequestParam("kind") String kind, @RequestParam("seq") Long seq, HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("result", "FAIL"); res.put("message", "로그인이 필요합니다."); return res; }
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("compCd", String.valueOf(session.getAttribute("s_comp_cd"))); p.put("seq", seq);
+			res.put("data", svc.selectTrxHistLines("purch".equals(kind) ? "purch" : "sales", p));
+			res.put("result", "OK");
+			return res;
+		}
 		@RequestMapping(value="/mangr/salesTrxNextNo.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,Object> salesTrxNextNo(@ModelAttribute("DTO") egovframework.konet.user.model.SalesTrxDTO dto, HttpSession session) throws Exception {
