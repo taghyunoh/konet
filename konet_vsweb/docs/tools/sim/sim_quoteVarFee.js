@@ -18,7 +18,7 @@ vm.runInContext([
   fnOf(E, 'n'), fnOf(E, 'fmt'),
   "var COST={ centers:[{nm:'평/용센터',rate:10.5},{nm:'왜관센터',rate:15.1}], storeFee:0, storePlt:0, storeMon:0, dcRate:11.5 };",
   "var _cs={ mode:'center', center:'평/용센터', fee:0 }; var _lines=[];",
-  fnOf(E, 'csRate'), fnOf(E, 'csCents'), fnOf(E, 'lgFeeMan'), fnOf(E, 'storeAuto'), fnOf(E, 'feeSrcOf'), fnOf(E, 'calcOf'),
+  fnOf(E, 'csRate'), fnOf(E, 'csCents'), fnOf(E, 'lgFeeMan'), fnOf(E, 'storeAuto'), fnOf(E, 'varParent'), fnOf(E, 'varInh'), fnOf(E, 'feeSrcOf'), fnOf(E, 'calcOf'),
   "function calcPaint(i){ painted.push(i); } function subPaint(){} function calc(){} function renderLines(){ painted.push('render'); }",
   fnOf(E, 'cxset'),
 ].join('\n'), ctx);
@@ -85,5 +85,16 @@ w.eval([
   const last = trs[1] ? trs[1].children[trs[1].children.length - 1].textContent : '';
   t('변형 줄 품명비 칸 = 「↑ 윗줄 원가 포함 160,000 ÷ 100,000」', last.indexOf('윗줄 원가 포함 160,000') >= 0 && last.indexOf('100,000') > 0, last);
   t('머리글 칸 수 = 자료 줄 칸 수', w.document.querySelectorAll('#mgWrap thead th').length === trs[0].children.length, w.document.querySelectorAll('#mgWrap thead th').length + ' vs ' + trs[0].children.length);
+  /* ── 3. 보관 자동값 — 배송 단가(매입가)가 비어 있으면 계산하지 않는다 (2026-11-18 「단가 비어 있으면 보관 계산 안 하게 해줘」) ── */
+  vm.runInContext("COST.storeFee=25000; COST.storePlt=3; COST.storeMon=3;", ctx);
+  const sc = (c) => { vm.runInContext('_lines=[' + JSON.stringify({ variant: false, unitPrice: 0, calc: Object.assign({ moqQty: 1, buy: 0, box: 1, trans: 0, store: 0, storeManual: false, split: 0, pack: 0, target: 0, lgFee: '', extras: [] }, c) }) + ']', ctx); return vm.runInContext('calcOf(_lines[0])', ctx); };
+  t('★새 줄(MOQ 1 · 단가 빔) : 구단(계산) 0 — 종전 225,000', near(sc({}).H, 0), sc({}).H);
+  t('단가 빈 값("") 도 0', near(sc({ buy: '' }).H, 0), sc({ buy: '' }).H);
+  t('단가를 넣으면 종전대로 : 100 + 225,000 ÷ 1', near(sc({ buy: 100 }).H, 225100), sc({ buy: 100 }).H);
+  t('MOQ 10,000 · 단가 100 : 100 + 22.5', near(sc({ buy: 100, moqQty: 10000 }).H, 122.5), sc({ buy: 100, moqQty: 10000 }).H);
+  t('단가 빔 + 운송 30 : 30 (보관 없음)', near(sc({ trans: 30 }).H, 30), sc({ trans: 30 }).H);
+  t('단가 빔 + 보관 직접 50 : 50 (직접 적은 값은 그대로)', near(sc({ store: 50, storeManual: true }).H, 50), sc({ store: 50, storeManual: true }).H);
+  t('MOQ 0 · 단가 100 : 100 (나눌 수 없음 — 종전과 같음)', near(sc({ buy: 100, moqQty: 0 }).H, 100), sc({ buy: 100, moqQty: 0 }).H);
+  t('저장 스냅샷도 같은 함수 — 단가 빔 0 · 단가 있음 225,000', vm.runInContext('storeAuto({moqQty:1,buy:0})', ctx) === 0 && vm.runInContext('storeAuto({moqQty:1,buy:5})', ctx) === 225000);
   console.log((bad ? '✗ ' : '✓ ') + 'sim_quoteVarFee : 통과 ' + ok + ' · 실패 ' + bad);
 })();

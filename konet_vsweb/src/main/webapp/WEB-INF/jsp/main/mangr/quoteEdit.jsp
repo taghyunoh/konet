@@ -280,7 +280,7 @@
     <div id="qhP2" class="qhp" hidden>
       <b>여는 법</b> : 품목 줄 맨 앞 <b>[🧮]</b> — 품명비 줄 밑에 계산 표가 펼쳐집니다. 줄은 물류비 줄 오른쪽 [＋ 품목 추가]로 늘립니다.<br>
       · <b>계산 붙은 줄은 Box 1 · 수량 = 박스 입수량 자동</b>(잠김) — 한 박스 기준으로 계산합니다.<br>
-      · <b>구매(계산)</b> = 단가 + 운송 + 보관 + 소분 + 박스 (+ 원가 포함 품명비/개). 보관은 「보관료 × 팔레트 × 개월 ÷ MOQ」 자동 — 손대면 노란 칸(직접 값).<br>
+      · <b>구매(계산)</b> = 단가 + 운송 + 보관 + 소분 + 박스 (+ 원가 포함 품명비/개). 보관은 「보관료 × 팔레트 × 개월 ÷ MOQ」 자동(배송 단가를 넣은 줄만) — 손대면 노란 칸(직접 값).<br>
       · <b>물류비</b> = 판매 계 × 센터 비율(센터배송) / 판매 계 × DC 비율(DC — 기본 11.5%) / 박스당 직송비(직송) — 표 위 「🧮 마진계산 물류비」에서 고릅니다. 비율·보관 기본값은 [⚙]에서(회사 설정).<br>
       · <b>센터배송이면 물류비·실 판매금액·실 마진금액·실 마진율이 센터마다 갈라져 한꺼번에 보입니다</b>(평/용·왜관·광주·김해·제주 — [⚙]에 적힌 센터 전부). 옆 드롭다운은 <b>기준 센터</b>, 곧 「필요 판매단가」를 내는 센터입니다(그 센터 머리글에 밑줄). DC·직송은 센터가 없어 한 칸씩입니다.<br>
       · <b>판매적용단가 = 품목 줄의 단가</b>(같은 값·양방향). 목표 마진율을 넣으면 필요 판매단가가 나오고 [→ 적용]으로 단가에 넣습니다.<br>
@@ -377,7 +377,7 @@
       <div class="bar" style="margin-bottom:6px"><b>센터별 물류비율(%)</b> <span class="dim" style="font-size:12px">판매 계(박스)에 곱한다</span></div>
       <table class="g"><thead><tr><th>센터</th><th style="width:110px">비율(%)</th><th style="width:50px"></th></tr></thead><tbody id="cenBody"></tbody></table>
       <div class="bar" style="margin-top:8px"><button class="btn lnk" onclick="cenAdd()">➕ 센터</button></div>
-      <div class="bar" style="margin-top:14px"><b>보관/개 기본값</b> <span class="dim" style="font-size:12px">= 보관료 × 팔레트 × 개월 ÷ MOQ 수량</span></div>
+      <div class="bar" style="margin-top:14px"><b>보관/개 기본값</b> <span class="dim" style="font-size:12px">= 보관료 × 팔레트 × 개월 ÷ MOQ 수량 · 배송 단가가 빈 줄은 계산 안 함</span></div>
       <div class="bar" style="margin-top:6px">보관료 <input type="text" class="in num" id="storeFee" style="width:90px;text-align:right"> 원 × 팔레트 <input type="text" class="in num" id="storePlt" style="width:56px;text-align:right"> × 개월 <input type="text" class="in num" id="storeMon" style="width:56px;text-align:right">
         <span style="margin-left:14px">DC 비율 <input type="text" class="in num" id="dcRate" style="width:56px;text-align:right" title="DC 갈래의 물류비율 — 물류비 = 판매 계 × 이 비율 (기본 11.5%)"> %</span></div>
       <div class="bar" style="margin-top:14px"><button class="btn btn-teal" onclick="cenSave()">💾 회사 설정에 저장</button></div>
@@ -440,7 +440,12 @@ function lgFeeSet(i,v){ var l=_lines[i]; if(!l||!l.calc) return; var t=String(v|
   l.calc.lgFee = (t==='') ? '' : n(t);
   var e=document.getElementById('cPm'+i); if(e) e.className=(l.calc.lgFee===''?'ca':'cm');
   calcPaint(i); calc(); }
-function storeAuto(c){ var q=n(c.moqQty); return q? COST.storeFee*COST.storePlt*COST.storeMon/q : 0; }
+/* 보관/개 자동값 = 보관료 × 팔레트 × 개월 ÷ MOQ 수량.
+   ★배송 단가(매입가 c.buy)가 비어 있으면 0 (2026-11-18 사용자 「단가 비어 있으면 보관 계산 안 하게 해줘」) — 새 줄은 MOQ 수량이 1 로 시작해
+     보관 총액(기본 25,000 × 3 × 3 = 225,000)이 통째로 1개에 실려 「구단(계산) 225,000」이 떴다. 매입가도 안 넣은 줄에 그 숫자는 근거가 없다.
+     단가를 넣는 순간 종전대로 계산된다. 보관 칸에 직접 적은 값(storeManual)은 단가가 비어 있어도 그대로 쓴다 — 이 함수는 «자동값»만 정한다.
+     저장 스냅샷(storeVal)도 이 함수를 쓰므로 조회(견적서관리 [🧮])와 어긋나지 않는다. */
+function storeAuto(c){ var q=n(c.moqQty); return (q && n(c.buy)) ? COST.storeFee*COST.storePlt*COST.storeMon/q : 0; }
 /* 계산에 값이 하나라도 들었나 — 불러올 때 「값이 있을 때만」 펼치는 판정(2026-09-18) · [🧮] 단추 색도 이 값으로 정한다.
    ★품명비(동판·목형)만 적은 것은 «원가 계산»이 아니다 (2026-09-20 「동판·목형만 했을 시 원가계산 아님」) — extras 는 안 본다. */
 function calcHasVal(c){ if(!c) return false;
@@ -754,7 +759,7 @@ function xRow(l,i,no,cs){
      +'<td>'+xCi(i,'box',c.box,0,58)+'</td>'
      +'<td class="au" id="cH'+i+'"></td><td class="au" id="cI'+i+'"></td>'
      +'<td>'+xCi(i,'trans',c.trans,2,56)+'</td>'
-     +'<td style="white-space:nowrap"><input type="text" class="'+(c.storeManual?'cm':'ca')+'" style="width:56px" id="cSt'+i+'" value="'+(c.storeManual&&n(c.store)?fmt(c.store,2):'')+'" onfocus="this.select()" oninput="cset('+i+',\'store\', n(this.value)); _lines['+i+'].calc.storeManual=true" title="기본 = 보관료 × 팔레트 × 개월 ÷ MOQ 수량. 직접 고치면 노란 칸"><button class="btn lnk xs" onclick="_lines['+i+'].calc.storeManual=false; renderLines()" title="기본식으로 되돌리기">↻</button></td>'
+     +'<td style="white-space:nowrap"><input type="text" class="'+(c.storeManual?'cm':'ca')+'" style="width:56px" id="cSt'+i+'" value="'+(c.storeManual&&n(c.store)?fmt(c.store,2):'')+'" onfocus="this.select()" oninput="cset('+i+',\'store\', n(this.value)); _lines['+i+'].calc.storeManual=true" title="기본 = 보관료 × 팔레트 × 개월 ÷ MOQ 수량 (배송 단가가 비어 있으면 계산하지 않습니다). 직접 고치면 노란 칸"><button class="btn lnk xs" onclick="_lines['+i+'].calc.storeManual=false; renderLines()" title="기본식으로 되돌리기">↻</button></td>'
      +'<td>'+xCi(i,'split',c.split,2,56)+'</td>'
      +'<td>'+xCi(i,'pack',c.pack,2,56)+'</td>'
      +'<td>'+xCi(i,'tgtAmt',c.tgtAmt,0,70)+'</td>'
@@ -938,7 +943,7 @@ function calcRowHtml(l,i,NC){
     +'<td class="au" id="cH'+i+'"></td>'
     +'<td class="au" id="cI'+i+'"></td>'
     +'<td>'+ci('trans',c.trans,2)+'</td>'
-    +'<td><span style="display:inline-flex;gap:3px;align-items:center"><input type="text" class="'+(c.storeManual?'cm':'ca')+'" style="width:84px" id="cSt'+i+'" value="'+(c.storeManual&&n(c.store)?fmt(c.store,2):'')+'" onfocus="this.select()" oninput="cset('+i+',\'store\', n(this.value)); _lines['+i+'].calc.storeManual=true" title="기본 = 보관료 × 팔레트 × 개월 ÷ MOQ 수량. 직접 고치면 노란 칸"><button class="btn lnk" style="height:26px;padding:0 5px" onclick="_lines['+i+'].calc.storeManual=false; renderLines()" title="기본식으로 되돌리기">↻</button></span></td>'
+    +'<td><span style="display:inline-flex;gap:3px;align-items:center"><input type="text" class="'+(c.storeManual?'cm':'ca')+'" style="width:84px" id="cSt'+i+'" value="'+(c.storeManual&&n(c.store)?fmt(c.store,2):'')+'" onfocus="this.select()" oninput="cset('+i+',\'store\', n(this.value)); _lines['+i+'].calc.storeManual=true" title="기본 = 보관료 × 팔레트 × 개월 ÷ MOQ 수량 (배송 단가가 비어 있으면 계산하지 않습니다). 직접 고치면 노란 칸"><button class="btn lnk" style="height:26px;padding:0 5px" onclick="_lines['+i+'].calc.storeManual=false; renderLines()" title="기본식으로 되돌리기">↻</button></span></td>'
     +'<td>'+ci('split',c.split,2)+'</td>'
     +'<td>'+ci('pack',c.pack,2)+'</td>'
     +'<td>'+ci('tgtAmt',c.tgtAmt,0)+'</td>'   /* 타겟금액 — 확인용 저장 전용, 어떤 계산에도 안 들어간다 (2026-09-18) */
