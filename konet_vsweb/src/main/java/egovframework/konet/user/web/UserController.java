@@ -4510,6 +4510,61 @@ public class UserController {
 			} catch (Exception e) { log.error(" salesLedgerList ERROR : " + e.getMessage()); res.put("error", "조회하지 못했습니다."); }
 			return res;
 		}
+		/* 반품내역 (2026-11-18 신설 — 사용자 「매출관리에서 반품내역 조회기능 구성」)
+		   · 매출 관리 ▸ 반품내역. 화면 mangr/salesReturn.jsp. 조회만 한다(저장 없음).
+		   · 원천 셋 — 정산서 반품 줄 · 판매전표 반품/불량반품 · 거래처 발주 반품 (매퍼 selectSalesReturnList 머리말). 응답은 JSON(Map). */
+		@RequestMapping(value="/mangr/salesReturn.do")
+		public String salesReturn(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/salesReturn";
+		}
+		/* 반품 줄 — {frDt, toDt (yyyy-MM-dd)} → {data:[…], base:[…]} · 거절 {error}. 회사는 세션 값만 쓴다
+		   · base = 반품율의 분모(같은 기간·같은 원천의 반품 전 판매액 — 원천 × 월 × 곳 × 품목, 매퍼 selectSalesReturnBase). 2026-11-18 「반품율도 추가해줘」
+		     분모 조회가 실패해도 반품 줄은 준다(base 없음 → 화면은 율 칸을 「-」로) — 율 때문에 내역이 안 뜨면 안 된다. */
+		@RequestMapping(value="/mangr/salesReturnList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesReturnList(@RequestParam(value="frDt", required=false) String fr, @RequestParam(value="toDt", required=false) String to, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", new java.util.ArrayList<Object>());
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String f = fr == null ? "" : fr.trim(), t = to == null ? "" : to.trim();
+				if (!f.matches("[0-9]{4}-?[0-9]{2}-?[0-9]{2}") || !t.matches("[0-9]{4}-?[0-9]{2}-?[0-9]{2}")) { res.put("error", "조회 기간을 넣어 주세요."); return res; }
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("frDt", f); q.put("toDt", t);
+				res.put("data", svc.selectSalesReturnList(q));
+				try { res.put("base", svc.selectSalesReturnBase(q)); }
+				catch (Exception e2) { log.error(" salesReturnList base ERROR : " + e2.getMessage()); }
+			} catch (Exception e) { log.error(" salesReturnList ERROR : " + e.getMessage()); res.put("error", "조회하지 못했습니다."); }
+			return res;
+		}
+		/* 매입 반품내역 (2026-11-18 신설 — 사용자 「매입에 대한 반품내용조회도 구성해줘」)
+		   · 매입 관리 ▸ 매입 반품내역. 화면은 반품내역과 같은 JSP(mangr/salesReturn.jsp) — 요청 속성 kind=P 로 매입 꼴을 켠다(주소가 아니라 서버가 정한다).
+		   · 원천 = 매입 등록(매입전표)의 반품·불량반품 줄 + 수량이 음수인 옛 매입 줄 (매퍼 selectPurchReturnList 머리말). 조회만 한다. */
+		@RequestMapping(value="/mangr/purchReturn.do")
+		public String purchReturn(HttpServletRequest request, HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			request.setAttribute("kind", "P");
+			return ".raw/main/mangr/salesReturn";
+		}
+		/* 매입 반품 줄 — {frDt, toDt (yyyy-MM-dd)} → {data:[…], base:[…]} · 거절 {error}. base = 반품율의 분모(같은 기간 매입액 — selectPurchReturnBase) */
+		@RequestMapping(value="/mangr/purchReturnList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> purchReturnList(@RequestParam(value="frDt", required=false) String fr, @RequestParam(value="toDt", required=false) String to, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			res.put("data", new java.util.ArrayList<Object>());
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("error", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String f = fr == null ? "" : fr.trim(), t = to == null ? "" : to.trim();
+				if (!f.matches("[0-9]{4}-?[0-9]{2}-?[0-9]{2}") || !t.matches("[0-9]{4}-?[0-9]{2}-?[0-9]{2}")) { res.put("error", "조회 기간을 넣어 주세요."); return res; }
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("frDt", f); q.put("toDt", t);
+				res.put("data", svc.selectPurchReturnList(q));
+				try { res.put("base", svc.selectPurchReturnBase(q)); }
+				catch (Exception e2) { log.error(" purchReturnList base ERROR : " + e2.getMessage()); }
+			} catch (Exception e) { log.error(" purchReturnList ERROR : " + e.getMessage()); res.put("error", "조회하지 못했습니다."); }
+			return res;
+		}
 		/* 거래처 묶음(마감 유형) 저장 — body {grps:[{nm, custs:[{cd, nm}]}]} → {ok:1, grps} · 거절 {error}
 		   · 회사 설정 SET_JSON 의 ledger 덩어리를 통째로 바꾼다(다른 덩어리 func·prt·cost … 는 그대로 — compSetPatch 와 같은 방식).
 		   · 읽기는 화면이 /user/compSetGet.do 의 setJson.ledger 로 한다. 유형 100개 · 유형마다 거래처 300곳까지. */

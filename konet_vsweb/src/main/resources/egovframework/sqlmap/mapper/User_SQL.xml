@@ -6291,6 +6291,194 @@
 	   ORDER BY m.CUST_CD, m.SALE_DT, m.SALE_NO, d.ROW_NO
 	</select>
 
+	<!-- ============================================================
+	     반품내역 (2026-11-18 신설 — 사용자 「매출관리에서 반품내역 조회기능 구성」) — 매출 관리 ▸ 반품내역 (mangr/salesReturn.jsp)
+	       반품이 쌓이는 곳은 셋이다 — 화면은 이 셋을 한 목록으로 본다(src 로 가른다) :
+	         STL = 정산서(TBL_SALES_MST) 의 반품 줄 : 납품유형 DLV_TYPE='X' (수량·금액이 음수로 온다). 일자 = 납품일자.
+	               ★정산서에는 사업장이 없다(발주 단위) — custNm 은 빈 값. 출고장(dcNm)까지만 안다.
+	         TRX = 판매 등록(판매전표) 의 거래구분 「반품」·「불량반품」 줄. 일자 = 판매일자(전표일자 — 거래처 매출장과 같다).
+	         PO  = 거래처 발주 등록(토더·대상·동원홈푸드, PROD_KIND='TD') 의 거래구분 「반품」 줄. 일자 = 납기(배송)일자.
+	       수량·금액은 **양수**로 돌려준다(반품 수량 · 반품액). 금액 기준은 매출내역(selectSalesTrxHist)·정산서와 같다 —
+	         STL = 정산서 판매금액(SALE_AMT) · TRX = 전표 합계(TOT_AMT, supplyAmt 는 공급가) · PO = 수량 × 판매가 − DC.
+	       기간 = frDt ~ toDt (yyyy-MM-dd 또는 yyyyMMdd). 거르기(원천·출고장·검색)는 화면이 한다 — 줄 수가 적다(한 해 400줄 안팎).
+	     ============================================================ -->
+	<select id="selectSalesReturnList" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT x.* FROM (
+	  SELECT 'STL' AS src, REPLACE(ISNULL(m.DLV_DT,''),'-','') AS dt,
+	         ISNULL(m.DC_NM,'') AS dcNm, '' AS custCd, '' AS custNm, '' AS rcvNm,
+	         ISNULL(m.ORD_NO,'') AS docNo, ISNULL(m.ORD_ITEM_NO,'') AS rowNo,
+	         ISNULL(m.ITEM_CD,'') AS itemCd, ISNULL(m.PROD_CD,'') AS prodCd, ISNULL(m.ITEM_NM,'') AS itemNm,
+	         ISNULL(m.SPEC,'') AS spec, ISNULL(m.UNIT,'') AS unit,
+	         ABS(ISNULL(m.OUT_QTY,0)) AS qty, ISNULL(m.SALE_PRICE,0) AS price,
+	         ABS(ISNULL(m.SALE_AMT,0)) AS supplyAmt, ABS(ISNULL(m.SALE_AMT,0)) AS amt,
+	         N'반품' AS gb, '' AS remark
+	    FROM TBL_SALES_MST m
+	   WHERE m.ACTION_YN = 'Y'
+	     AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND REPLACE(ISNULL(m.DLV_DT,''),'-','') BETWEEN REPLACE(#{frDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
+	     AND ( ISNULL(m.DLV_TYPE,'') = 'X' OR ISNULL(m.OUT_QTY,0) < 0 )
+	  UNION ALL
+	  SELECT 'TRX' AS src, m.SALE_DT AS dt,
+	         '' AS dcNm, ISNULL(m.CUST_CD,'') AS custCd, ISNULL(NULLIF(vn.VENDOR_NM,''), ISNULL(m.CUST_NM,'')) AS custNm, '' AS rcvNm,
+	         ISNULL(m.SALE_NO,'') AS docNo, CAST(d.ROW_NO AS VARCHAR(10)) AS rowNo,
+	         ISNULL(d.PROD_CD,'') AS itemCd, ISNULL(d.PROD_CD,'') AS prodCd, ISNULL(d.PROD_NM,'') AS itemNm,
+	         ISNULL(d.SPEC,'') AS spec, '' AS unit,
+	         ABS(ISNULL(d.QTY,0)) AS qty, ISNULL(d.UNIT_PRICE,0) AS price,
+	         ABS(ISNULL(d.SUPPLY_AMT,0)) AS supplyAmt, ABS(ISNULL(d.TOT_AMT,0)) AS amt,
+	         ISNULL(d.TRX_GB,'') AS gb, ISNULL(d.REMARK,'') AS remark
+	    FROM TBL_SALES_TRX_DTL d
+	    JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
+	    OUTER APPLY ( SELECT TOP 1 v.VENDOR_NM FROM TBL_VENDOR_MST v WHERE v.COMP_CD = m.COMP_CD AND v.VENDOR_CD = m.CUST_CD ) vn
+	   WHERE d.ACTION_YN = 'Y'
+	     AND d.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND d.TRX_GB IN (N'반품',N'불량반품')
+	     AND m.SALE_DT BETWEEN REPLACE(#{frDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
+	  UNION ALL
+	  SELECT 'PO' AS src, o.DLV_DT AS dt,
+	         ISNULL(NULLIF(o.DC_NM,''), ISNULL(o.DC_CD,'')) AS dcNm, ISNULL(o.BIZ_CD,'') AS custCd, ISNULL(o.BIZ_NM,'') AS custNm, ISNULL(o.RCV_NM,'') AS rcvNm,
+	         ISNULL(o.ORD_NO,'') AS docNo, ISNULL(o.ORD_ITEM_NO,'') AS rowNo,
+	         ISNULL(o.ITEM_CD,'') AS itemCd, ISNULL(o.PROD_CD, ISNULL(o.ITEM_CD,'')) AS prodCd, ISNULL(o.ITEM_NM,'') AS itemNm,
+	         '' AS spec, ISNULL(o.UNIT,'') AS unit,
+	         ABS(ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0))) AS qty, ISNULL(o.SALE_PRICE,0) AS price,
+	         ABS(ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0) - ISNULL(o.DS_DC_AMT,0)) AS supplyAmt,
+	         ABS(ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0) - ISNULL(o.DS_DC_AMT,0)) AS amt,
+	         ISNULL(o.DS_TRX_GB,'') AS gb, ISNULL(o.DS_MEMO,'') AS remark
+	    FROM TBL_SHIPOUT_MST o
+	   WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD'
+	     AND o.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND ISNULL(o.DS_TRX_GB,'') IN (N'반품',N'불량반품')
+	     AND o.DLV_DT BETWEEN REPLACE(#{frDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
+	  ) x
+	   ORDER BY x.dt DESC, x.src, x.dcNm, x.custNm, x.docNo, TRY_CONVERT(int, x.rowNo), x.rowNo
+	]]></select>
+
+	<!-- 반품율의 분모 — 같은 기간 · 같은 원천의 「반품 전 판매액」 (2026-11-18 사용자 「반품율도 추가해줘」)
+	       반품율 = 반품액 ÷ 판매액(반품 줄을 뺀 판매 줄의 합). 금액 기준·일자·곳(place)은 selectSalesReturnList 와 <똑같이> 맞춘다 — 어긋나면 율이 틀린다 :
+	         STL = 정산서의 반품 아닌 줄 SALE_AMT · 납품일자 · 곳 = 출고장
+	         TRX = 판매전표의 반품 아닌 줄 TOT_AMT · 판매일자 · 곳 = 거래처(지금 마스터 이름)
+	         PO  = 거래처 발주(TD)의 반품 아닌 줄 수량 × 판매가 − DC · 납기일자 · 곳 = 거래처(없으면 출고장 이름)
+	       ★정산서가 아직 안 온 출고의 추정 매출은 넣지 않는다 — 그 달은 반품도 아직 안 왔다(정산서끼리 견줘야 율이 맞다). 이익현황의 반품율(추정 포함)과 조금 다를 수 있다.
+	       알갱이 = 원천 × 월 × 곳 × 품목(cd). ★품목은 <그 기간에 반품이 있는 것만> 코드로 남기고 나머지는 cd '' 한 줄로 접는다(RT) —
+	         화면은 품목별 율·검색 때만 품목이 필요하고, 다 내려 주면 한 해에 1만 줄이 넘는다. 합계(전체·월·곳)는 cd 와 무관하게 전부 더하면 된다.
+	       cd = 우리 주코드(없으면 품목코드) — 화면의 code(r) 과 같은 규칙. -->
+	<select id="selectSalesReturnBase" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  WITH RT AS (
+	    SELECT ISNULL(NULLIF(m.PROD_CD,''), ISNULL(m.ITEM_CD,'')) AS cd
+	      FROM TBL_SALES_MST m
+	     WHERE m.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	       AND REPLACE(ISNULL(m.DLV_DT,''),'-','') BETWEEN REPLACE(#{frDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
+	       AND ( ISNULL(m.DLV_TYPE,'') = 'X' OR ISNULL(m.OUT_QTY,0) < 0 )
+	    UNION
+	    SELECT ISNULL(d.PROD_CD,'')
+	      FROM TBL_SALES_TRX_DTL d
+	      JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
+	     WHERE d.ACTION_YN = 'Y' AND d.COMP_CD = #{compCd,jdbcType=VARCHAR} AND d.TRX_GB IN (N'반품',N'불량반품')
+	       AND m.SALE_DT BETWEEN REPLACE(#{frDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
+	    UNION
+	    SELECT ISNULL(NULLIF(o.PROD_CD,''), ISNULL(o.ITEM_CD,''))
+	      FROM TBL_SHIPOUT_MST o
+	     WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND o.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	       AND ISNULL(o.DS_TRX_GB,'') IN (N'반품',N'불량반품')
+	       AND o.DLV_DT BETWEEN REPLACE(#{frDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
+	  )
+	  SELECT x.src AS src, x.ym AS ym, x.place AS place, CASE WHEN rt.cd IS NULL THEN '' ELSE x.cd END AS cd,
+	         SUM(x.amt) AS saleAmt, COUNT(*) AS cnt
+	    FROM (
+	      SELECT 'STL' AS src, LEFT(REPLACE(ISNULL(m.DLV_DT,''),'-',''),6) AS ym, ISNULL(m.DC_NM,'') AS place,
+	             ISNULL(NULLIF(m.PROD_CD,''), ISNULL(m.ITEM_CD,'')) AS cd, ISNULL(m.SALE_AMT,0) AS amt
+	        FROM TBL_SALES_MST m
+	       WHERE m.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	         AND REPLACE(ISNULL(m.DLV_DT,''),'-','') BETWEEN REPLACE(#{frDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
+	         AND NOT ( ISNULL(m.DLV_TYPE,'') = 'X' OR ISNULL(m.OUT_QTY,0) < 0 )
+	      UNION ALL
+	      SELECT 'TRX', LEFT(m.SALE_DT,6), ISNULL(NULLIF(vn.VENDOR_NM,''), ISNULL(m.CUST_NM,'')),
+	             ISNULL(d.PROD_CD,''), ISNULL(d.TOT_AMT,0)
+	        FROM TBL_SALES_TRX_DTL d
+	        JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = d.SALE_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
+	        OUTER APPLY ( SELECT TOP 1 v.VENDOR_NM FROM TBL_VENDOR_MST v WHERE v.COMP_CD = m.COMP_CD AND v.VENDOR_CD = m.CUST_CD ) vn
+	       WHERE d.ACTION_YN = 'Y' AND d.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	         AND ISNULL(d.TRX_GB,'') NOT IN (N'반품',N'불량반품')
+	         AND m.SALE_DT BETWEEN REPLACE(#{frDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
+	      UNION ALL
+	      SELECT 'PO', LEFT(o.DLV_DT,6), ISNULL(NULLIF(o.BIZ_NM,''), ISNULL(NULLIF(o.DC_NM,''), ISNULL(o.DC_CD,''))),
+	             ISNULL(NULLIF(o.PROD_CD,''), ISNULL(o.ITEM_CD,'')),
+	             ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) * ISNULL(o.SALE_PRICE,0) - ISNULL(o.DS_DC_AMT,0)
+	        FROM TBL_SHIPOUT_MST o
+	       WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND o.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	         AND ISNULL(o.DS_TRX_GB,'') NOT IN (N'반품',N'불량반품')
+	         AND o.DLV_DT BETWEEN REPLACE(#{frDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
+	    ) x
+	    LEFT JOIN RT rt ON rt.cd = x.cd
+	   GROUP BY x.src, x.ym, x.place, CASE WHEN rt.cd IS NULL THEN '' ELSE x.cd END
+	]]></select>
+
+	<!-- ============================================================
+	     매입 반품내역 (2026-11-18 신설 — 사용자 「매입에 대한 반품내용조회도 구성해줘」) — 매입 관리 ▸ 매입 반품내역
+	       화면은 반품내역과 <같은 JSP>(mangr/salesReturn.jsp, kind=P)라 줄 모양(칸 이름)을 selectSalesReturnList 와 맞춘다. src = 'PUR'.
+	       원천은 매입 등록(매입전표) 하나 — 입고 원장의 매입 반품 줄은 전부 이 전표가 만든 것이다(직접 넣는 길이 없다).
+	       반품으로 보는 줄 둘 :
+	         ① 거래구분 「반품」·「불량반품」 줄. 수량·금액은 <저장된 부호 그대로> — 음수면 「반품을 되돌린 줄」이다
+	            (매입액·재고가 그만큼 다시 늘어난다 — 마감·원장이 반품 줄에 −1 을 곱하기 때문. 실측 2026-08-27 제이투팩 −43). 화면이 「반품 취소」로 표시한다.
+	         ② 거래구분은 매입인데 수량이 음수인 줄 — 2026-09-05 전(음수 수량을 반품으로 바꿔 주기 전)에 그렇게 넣은 반품이다. 부호를 뒤집어 양수 반품으로. gb = '매입(음수)'.
+	       금액 = 전표 줄 그대로 : supplyAmt 공급가 · vatAmt 부가세 · amt 합계(부가세 포함 — 채무·매입등록 합계와 같은 금액). 일자 = 매입일자. 곳(custNm) = 매입처(지금 마스터 이름).
+	       undoYn = 그 반품을 「원위치」한 매입 줄이 있는가(매입등록의 반품 원위치가 적는 비고 「반품 yyyy-mm-dd-번호 원위치」 — selectPurchaseList 의 uc 와 같은 규칙).
+	     ============================================================ -->
+	<select id="selectPurchReturnList" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT 'PUR' AS src, m.PURCH_DT AS dt,
+	         '' AS dcNm, ISNULL(m.VENDOR_CD,'') AS custCd, ISNULL(NULLIF(vn.VENDOR_NM,''), ISNULL(m.VENDOR_NM,'')) AS custNm, '' AS rcvNm,
+	         ISNULL(m.PURCH_NO,'') AS docNo, CAST(d.ROW_NO AS VARCHAR(10)) AS rowNo,
+	         ISNULL(d.PROD_CD,'') AS itemCd, ISNULL(d.PROD_CD,'') AS prodCd, ISNULL(d.PROD_NM,'') AS itemNm,
+	         ISNULL(d.SPEC,'') AS spec, '' AS unit,
+	         z.sg * ISNULL(d.QTY,0) AS qty, z.sg * ISNULL(d.BOX_QTY,0) AS boxQty, z.sg * ISNULL(d.EA_QTY,0) AS eaQty, ISNULL(d.UNIT_PRICE,0) AS price,
+	         z.sg * ISNULL(d.SUPPLY_AMT,0) AS supplyAmt, z.sg * ISNULL(d.VAT_AMT,0) AS vatAmt, z.sg * ISNULL(d.TOT_AMT,0) AS amt,
+	         CASE WHEN z.sg = 1 THEN ISNULL(d.TRX_GB,'') ELSE N'매입(음수)' END AS gb, ISNULL(d.REMARK,'') AS remark,
+	         ISNULL(m.MGR_NM,'') AS mgrNm, ISNULL(m.WH_NM,'') AS whNm, m.PURCH_SEQ AS purchSeq,
+	         CASE WHEN uu.f = 1 THEN 'Y' ELSE 'N' END AS undoYn
+	    FROM TBL_PURCHASE_DTL d
+	    JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
+	    CROSS APPLY ( SELECT CASE WHEN d.TRX_GB IN (N'반품',N'불량반품') THEN 1 ELSE -1 END AS sg ) z
+	    OUTER APPLY ( SELECT TOP 1 v.VENDOR_NM FROM TBL_VENDOR_MST v WHERE v.COMP_CD = m.COMP_CD AND v.VENDOR_CD = m.VENDOR_CD ) vn
+	    OUTER APPLY ( SELECT TOP 1 1 AS f
+	                    FROM TBL_PURCHASE_DTL u
+	                    JOIN TBL_PURCHASE_MST um ON um.PURCH_SEQ = u.PURCH_SEQ AND um.ACTION_YN = 'Y' AND um.COMP_CD = u.COMP_CD
+	                   WHERE z.sg = 1 AND u.ACTION_YN = 'Y' AND u.COMP_CD = d.COMP_CD AND um.VENDOR_CD = m.VENDOR_CD AND u.PROD_CD = d.PROD_CD
+	                     AND ISNULL(NULLIF(u.TRX_GB,''), N'매입') = N'매입'
+	                     AND u.REMARK LIKE N'반품 ' + SUBSTRING(m.PURCH_DT,1,4) + '-' + SUBSTRING(m.PURCH_DT,5,2) + '-' + SUBSTRING(m.PURCH_DT,7,2) + '-' + m.PURCH_NO + N' 원위치%' ) uu
+	   WHERE d.ACTION_YN = 'Y'
+	     AND d.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND ( d.TRX_GB IN (N'반품',N'불량반품') OR ISNULL(d.QTY,0) < 0 )
+	     AND m.PURCH_DT BETWEEN REPLACE(#{frDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
+	   ORDER BY m.PURCH_DT DESC, m.PURCH_NO DESC, d.ROW_NO
+	]]></select>
+
+	<!-- 매입 반품율의 분모 — 같은 기간의 「반품 아닌 매입 줄」 합계(TOT_AMT, 부가세 포함 — 반품액과 같은 기준). 월 × 매입처 × 품목.
+	       selectSalesReturnBase 와 같은 꼴(칸 이름도 같다 : saleAmt = 여기서는 매입액) — 품목은 그 기간에 반품이 있는 것만 코드로, 나머지는 cd '' 로 접는다.
+	       곳(place)·반품 조건은 selectPurchReturnList 와 <똑같이> 맞춘다. -->
+	<select id="selectPurchReturnBase" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  WITH RT AS (
+	    SELECT DISTINCT ISNULL(d.PROD_CD,'') AS cd
+	      FROM TBL_PURCHASE_DTL d
+	      JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
+	     WHERE d.ACTION_YN = 'Y' AND d.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	       AND ( d.TRX_GB IN (N'반품',N'불량반품') OR ISNULL(d.QTY,0) < 0 )
+	       AND m.PURCH_DT BETWEEN REPLACE(#{frDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
+	  )
+	  SELECT 'PUR' AS src, x.ym AS ym, x.place AS place, CASE WHEN rt.cd IS NULL THEN '' ELSE x.cd END AS cd,
+	         SUM(x.amt) AS saleAmt, COUNT(*) AS cnt
+	    FROM (
+	      SELECT LEFT(m.PURCH_DT,6) AS ym, ISNULL(NULLIF(vn.VENDOR_NM,''), ISNULL(m.VENDOR_NM,'')) AS place,
+	             ISNULL(d.PROD_CD,'') AS cd, ISNULL(d.TOT_AMT,0) AS amt
+	        FROM TBL_PURCHASE_DTL d
+	        JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = d.PURCH_SEQ AND m.ACTION_YN = 'Y' AND m.COMP_CD = d.COMP_CD
+	        OUTER APPLY ( SELECT TOP 1 v.VENDOR_NM FROM TBL_VENDOR_MST v WHERE v.COMP_CD = m.COMP_CD AND v.VENDOR_CD = m.VENDOR_CD ) vn
+	       WHERE d.ACTION_YN = 'Y' AND d.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	         AND NOT ( d.TRX_GB IN (N'반품',N'불량반품') OR ISNULL(d.QTY,0) < 0 )
+	         AND m.PURCH_DT BETWEEN REPLACE(#{frDt,jdbcType=VARCHAR},'-','') AND REPLACE(#{toDt,jdbcType=VARCHAR},'-','')
+	    ) x
+	    LEFT JOIN RT rt ON rt.cd = x.cd
+	   GROUP BY x.ym, x.place, CASE WHEN rt.cd IS NULL THEN '' ELSE x.cd END
+	]]></select>
+
 	<!-- 품목 판매단가 이력 (품명 클릭 팝업) — 거래처 × 상품, 최근순. 매입 쪽과 같은 형태 -->
 	<select id="selectSalesPriceHist" parameterType="egovframework.konet.user.model.SalesTrxDtlDTO" resultType="egovframework.konet.user.model.SalesTrxDtlDTO"><![CDATA[
 	  SELECT m.SALE_DT AS spec,             -- 거래일자 (화면 표시용으로 spec 칸 재사용)

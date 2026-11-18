@@ -425,6 +425,10 @@ public interface UserMapper {
 	/** 매출내역 화면에 얹을 판매전표 명세 — 정산서 행과 같은 모양으로 돌아온다 */
 	java.util.List<java.util.Map<String,Object>> selectSalesTrxHist(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectSalesLedger(java.util.Map<String,Object> p) throws Exception;   // 거래처 매출장·마감장(2026-10-07)
+	java.util.List<java.util.Map<String,Object>> selectSalesReturnList(java.util.Map<String,Object> p) throws Exception;   // 반품내역(2026-11-18) — 정산서·판매전표·거래처 발주의 반품 줄
+	java.util.List<java.util.Map<String,Object>> selectSalesReturnBase(java.util.Map<String,Object> p) throws Exception;   // 반품율의 분모 — 같은 기간·원천의 반품 전 판매액(2026-11-18)
+	java.util.List<java.util.Map<String,Object>> selectPurchReturnList(java.util.Map<String,Object> p) throws Exception;   // 매입 반품내역(2026-11-18) — 매입전표의 반품 줄
+	java.util.List<java.util.Map<String,Object>> selectPurchReturnBase(java.util.Map<String,Object> p) throws Exception;   // 매입 반품율의 분모 — 같은 기간 매입액(2026-11-18)
 
 	/* ===== 납품분 / 납품분 제외 — 2026-07-31. DDL: sql/sales_dlv_excl_ddl.sql ===== */
 	java.util.List<egovframework.konet.user.model.SalesDlvDTO> selectSalesDlvList(egovframework.konet.user.model.SalesDlvDTO dto) throws Exception;

@@ -3529,6 +3529,8 @@
       <a class="mi" data-key="outHist" onclick="logiGo('outHist', this); ohEnter();"><span class="ic">📤</span>매출내역</a>
       <%-- 정산실적 (2026-08-02 요청) — 매출내역 바로 아래. 정산서 원본을 일자별·품목별로 편다. --%>
       <a class="mi" data-key="settlePerf" onclick="logiGo('settlePerf', this); spEnter();"><span class="ic">🧾</span>정산실적</a>
+      <%-- 매출 반품내역 (2026-11-18 「매출관리에서 반품내역 조회기능 구성」 · 같은 날 이름 「반품내역」 → 「매출 반품내역」 — 매입 반품내역과 짝) — 정산서 반품 줄 · 판매전표 반품 · 거래처 발주 반품을 한 목록으로(조회 전용). iframe 화면(mangr/salesReturn.jsp) — ★메뉴와 아래 panel-salesReturn 은 짝이다 --%>
+      <a class="mi" data-key="salesReturn" onclick="logiFrame('salesReturn','${pageContext.request.contextPath}/mangr/salesReturn.do', this)"><span class="ic">↩️</span>매출 반품내역</a>
       <%-- DC 발주 등록 (2026-09-17) — SRM 발주현황조회의 상품종류 DC(입고예약서 PDF·발주서 엑셀). 재고·정산서 대사에는 들어가고 납기현황관리에서만 빠진다.
            ★메뉴와 아래 panel-dcPo 는 짝이다. iframe 화면(mangr/dcPo.jsp) --%>
       <a class="mi" data-key="dcPo" onclick="logiFrame('dcPo','${pageContext.request.contextPath}/shipout/dcPo.do', this)"><span class="ic">🏷</span>DC 발주 등록</a>
@@ -3577,6 +3579,8 @@
            '지급 등록'(건별 전표)이 대신하고, 월 합계는 원장의 [월 계] 로 나온다. 실사용 0건.
            ★2026-09-16 (P2-g) 화면·컨트롤러·SQL·DTO·패널까지 전부 삭제(위 수금/미수금과 같이) — 되살릴 수 없다. --%>
       <a class="mi" data-key="inboundList" onclick="logiGo('inboundList', this); inbInit(); inboundListLoad();"><span class="ic">📄</span>입고내역</a>
+      <%-- 매입 반품내역 (2026-11-18 「매입에 대한 반품내용조회도 구성해줘」) — 매입전표의 반품 줄(조회 전용). 화면은 반품내역과 같은 JSP(mangr/salesReturn.jsp, 서버가 kind=P) — ★메뉴와 아래 panel-purchReturn 은 짝이다 --%>
+      <a class="mi" data-key="purchReturn" onclick="logiFrame('purchReturn','${pageContext.request.contextPath}/mangr/purchReturn.do', this)"><span class="ic">↩️</span>매입 반품내역</a>
       <a class="mi" data-key="closeCost" onclick="logiGo('closeCost', this)"><span class="ic">📒</span>매입마감</a>
     </div>
 
@@ -4286,6 +4290,7 @@
             <div style="margin-top:4px;color:#5a6b7a"><b>· 4탭</b> ①출고장별 합계(받을 금액·차이·상태) ②출고장▸품목 ③출고장▸사업장(수량만) ④정산서 원본. 모두 물류센터로 묶고 펼치면 개별 출고장.<br>
             <b>· 기간 버튼</b> 당일(기본)·1주일(최근 7일)·해당월(1일~오늘) 은 누르면 바로 조회, 그 밖은 날짜를 고르고 [조회].<br>
             <b>· 짝 맞추기</b> 납기일자+출고장+품목코드(합계 대 합계). 짝 없는 출고=<b style="color:#c0392b">미정산</b>(청구 누락 후보), 짝 없는 정산=<b style="color:#c0392b">출고미상</b>.</div></td></tr>
+          <tr><td class="m">매출 반품내역</td><td>반품을 <b>한 목록</b>으로 봅니다(조회 전용) — <b>정산서</b>의 반품 줄(출고장까지만 · 사업장은 정산서에 없음) · <b>판매 등록</b>의 반품·불량반품 줄 · <b>거래처 발주</b>(토더·대상·동원홈푸드)의 반품 줄. 기간·원천·출고장/거래처·검색으로 거르고, <b>품목별 · 출고장·거래처별 · 월별</b> 탭에서 줄을 누르면 내역이 펼쳐집니다. 엑셀은 지금 보는 탭 그대로.</td></tr>
           <tr><td class="m">판매 등록 / 수금 등록</td><td>정산서 밖의 <b>직접 판매</b> 전표와 <b>수금</b> 전표. 오른쪽에 그 거래처 원장이 함께 뜹니다. <b>[💬 카톡 주문 가져오기]</b> — 카톡 주문 글을 오른쪽 서랍에 붙여넣으면 거래처 ▸ 품목 ▸ 수량으로 갈라 보여 주고, 체크한 줄을 <b>[→ 판매등록으로]</b> 넘겨 명세에서 확인한 뒤 <b>기존 [저장]</b>으로 저장합니다(서랍에서 직접 저장하지 않음). 카톡 원문은 판매메모·줄 비고에 남습니다. 수금 등록 오른쪽 <b>[💰 미수 현황]</b> 탭 = 판매는 있는데 수금이 덜 된 거래처를 미수 큰 순으로(검색 · 「미수 있는 곳만」 · 경과 일수) — 줄을 누르면 그 거래처가 왼쪽 전표에 올라갑니다(거래처별 채권·채무와 같은 식). 판매 등록 위쪽 <b>[📥 판매자료 엑셀업로드]</b>(카톡 주문 가져오기 앞) = 구전산(옛 전산) 매출 엑셀(첫 줄 머리글 : 판매일자·거래처코드/거래처명·상품코드·BOX/EA·단가 — 공급가·부가세·판매금액이 있으면 그 값 그대로)을 올리면 <b>판매일자 + 거래처</b>별 전표로 묶어 미리 보여 주고(거래처·상품이 안 맞는 빨간 칸은 눌러서 고름 · 매칭코드는 주코드로 · 이미 있는 전표는 체크가 꺼짐), <b>올린 내용을 표에 다 보여 준 뒤</b> <b>[선택 전표 저장]</b>을 눌러야 전표마다 기존 저장과 같은 길로 저장됩니다(자동 저장 없음) — 전표 메모에 「[엑셀 업로드 파일명]」.
             <br><b>💬 카톡 주문 가져오기</b>(2026-09-04) — 카톡으로 온 주문 글을 그대로 붙여넣으면 <b>거래처 ▸ 품목 ▸ 수량</b>으로 갈라 표로 보여 줍니다(여러 날·여러 업체 한 번에).
             「*우리푸드」 같은 줄이 거래처, 「숫자+박스/개」 줄이 품목(<b>「복숭아자두--2」처럼 단위 없이 오면 박스</b> — 한 줄에 「*세진유퉁  복숭아자두--2 레드자몽--1 …」로 이어 와도 품목마다 갈라 줍니다), 「~보다 ~ 많게」 문장은 수량으로 넣지 않고 노란 줄로만. 우리 상품은 그 거래처 매칭코드로 <b>추정</b>만 하므로
@@ -4331,6 +4336,7 @@
             <div style="margin-top:4px;color:#5a6b7a"><b>· 칸 폭 조절</b>(2026-09-07) 명세·발주서 목록의 <b>머리글 오른쪽 경계를 끌면</b> 그 칸이 넓어지고 좁아집니다(<b>더블클릭</b> = 처음 폭으로). 조절한 폭은 <b>이 컴퓨터에 남아</b> 다음에 들어와도 그대로입니다.</div>
             <div style="margin-top:4px;color:#5a6b7a"><b>· 📨 전송이력</b>(2026-09-10) <b>언제 · 누구에게 · 어떤 방법으로</b> 보냈는지 봅니다 — 거래명세표와 <b>같은 목록·같은 규칙</b>입니다. <b>[이 전표]</b> = 지금 발주서, <b>[전체 이력]</b> = 기간·거래처로 훑어보기. <span style="color:#b45309">💬 카톡 공유만 남고, 🔗 링크 복사는 보낸 것이 아니라 남기지 않습니다.</span> <b>👁 열람</b> = 받는 쪽이 그 주소로 발주서를 열어 봤음 · 줄마다 <b>[↻ 재전송]</b>(같은 수단으로 다시) · 다른 발주서 줄은 <b>[📂 전표 열기]</b>.</div>
             <div style="margin-top:4px;color:#5a6b7a"><b>· 🗂 삭제 이력 · 복구</b>(2026-10-26) 목록 조회줄 오른쪽 단추 — 위 조회기간(발주일자)·거래처 조건으로 <b>지운 발주서</b>를 보여 줍니다. 골라서 <b>[↩ 선택 복구]</b> 하면 <b>지울 때 모습(마지막 저장분)</b> 그대로 돌아오고 매입전표와의 입고·잔량 연결도 다시 잡힙니다. <span style="color:#b45309">같은 날 같은 번호를 그 사이 다른 발주서가 받았으면 그 날의 다음 번호로 바뀌어 살아납니다(⚠ 표시).</span> 대시보드 발주목록의 「등록」 표시는 되살아나지 않습니다.</div></td></tr>
+          <tr><td class="m">매입 반품내역</td><td><b>매입 등록</b>의 반품·불량반품 줄을 모아 봅니다(조회 전용). 매입처·품목·월별 묶음과 <b>반품율</b>(반품액 ÷ 같은 기간 매입액). 수량이 음수인 반품 줄은 「반품 취소」(반품을 되돌린 줄), 거래구분 매입에 음수 수량으로 넣은 옛 줄은 「매입(음수)」로 함께 나옵니다.</td></tr>
           <tr><td class="m">입고내역</td><td>전체 품목 <b>입고 거래 목록</b> — 기간·검색·페이징·합계.</td></tr>
           <tr><td class="m">매입마감</td><td><b>입고 기준</b> 당월 매입을 매입처·품목별로 집계(매입단가 = 가중평균). 조회줄 <b>🔎 품목코드/품목명 검색</b>(묶음·합계·건수도 거른 것만 · Esc = 해제).</td></tr>
           <tr><td class="m">재고현황</td><td>실시간 현재고 = <b>입고 − 출고</b>(수불원장 하나만 봄). <b>기준일</b> 비움=현재고 / 날짜=그날까지 기말 → 마감월 말일로 맞추면 재고마감과 대사. <b>음수</b>면 입고 누락 신호. 품목 행 클릭 → 아래 <b>수불내역</b>(근거). <b>🏷 매입처별</b> = 품목을 대표 매입처(가장 최근 입고 매입처 → 없으면 상품마스터 거래처)로 묶어 소계와 함께(매입처 줄 클릭 = 접기). <b>🔄 출고반영 재집계</b>는 과거 보정용으로만. <b>🧹 서브코드 재고 정리</b>(재고 관리 메뉴) = 주코드에 매칭된 서브코드에 남은 재고를 찾아, 서브코드로 잡힌 매입은 [매입등록에서 열기]로 주코드로 바꾸고 남은 재고는 0으로 조정(기본 주코드에 합침 · 재고 일괄조정 [조정 이력]에서 되돌리기).</td></tr>
@@ -5299,6 +5305,14 @@
       <iframe id="if-quoteMng" src="" title="견적서 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <%-- 토더 발주 등록 (2026-09-21) — 메뉴 logiFrame('toderPo',…) 의 짝 --%>
+    <%-- 매입 반품내역 (2026-11-18) — 메뉴 logiFrame('purchReturn',…) 의 짝 --%>
+    <section id="panel-purchReturn" class="panel" style="padding:0;">
+      <iframe id="if-purchReturn" src="" title="매입 반품내역" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <%-- 매출 반품내역 (2026-11-18) — 메뉴 logiFrame('salesReturn',…) 의 짝 --%>
+    <section id="panel-salesReturn" class="panel" style="padding:0;">
+      <iframe id="if-salesReturn" src="" title="매출 반품내역" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
     <%-- 거래처 매출장·마감 (2026-10-07) — 메뉴 logiFrame('salesLedger',…) 의 짝 --%>
     <section id="panel-salesLedger" class="panel" style="padding:0;">
       <iframe id="if-salesLedger" src="" title="거래처 매출장·마감" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>

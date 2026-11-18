@@ -2558,6 +2558,10 @@ public class UserServiceImpl implements UserService {
 	@Override public egovframework.konet.user.model.SalesTrxDtlDTO selectCustLastPrice(egovframework.konet.user.model.SalesTrxDtlDTO dto) throws Exception { return mapper.selectCustLastPrice(dto); }
 	@Override public java.util.List<egovframework.konet.user.model.SalesTrxDtlDTO> selectSalesPriceHist(egovframework.konet.user.model.SalesTrxDtlDTO dto) throws Exception { return mapper.selectSalesPriceHist(dto); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectSalesLedger(java.util.Map<String,Object> p) throws Exception { return mapper.selectSalesLedger(p); }   // 거래처 매출장·마감장(2026-10-07)
+	@Override public java.util.List<java.util.Map<String,Object>> selectSalesReturnList(java.util.Map<String,Object> p) throws Exception { return mapper.selectSalesReturnList(p); }   // 반품내역(2026-11-18)
+	@Override public java.util.List<java.util.Map<String,Object>> selectSalesReturnBase(java.util.Map<String,Object> p) throws Exception { return mapper.selectSalesReturnBase(p); }   // 반품율의 분모(2026-11-18)
+	@Override public java.util.List<java.util.Map<String,Object>> selectPurchReturnList(java.util.Map<String,Object> p) throws Exception { return mapper.selectPurchReturnList(p); }   // 매입 반품내역(2026-11-18)
+	@Override public java.util.List<java.util.Map<String,Object>> selectPurchReturnBase(java.util.Map<String,Object> p) throws Exception { return mapper.selectPurchReturnBase(p); }   // 매입 반품율의 분모(2026-11-18)
 	@Override public java.util.List<java.util.Map<String,Object>> selectSalesTrxHist(egovframework.konet.user.model.SalesTrxDTO dto) throws Exception { return mapper.selectSalesTrxHist(dto); }
 
 	/* ===== 납품분 / 납품분 제외 — 2026-07-31 ===== */
