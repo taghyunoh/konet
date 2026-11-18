@@ -12,7 +12,7 @@
 | `sim_salesquote.js` | 판매 등록 [📄 견적서] 가져오기 시뮬(26) | `node docs/tools/check/sim_salesquote.js` |
 | `sim_salesreturn.js` | 매출 관리 ▸ 매출 반품내역 · 매입 반품내역 화면 시뮬(129 · 반품율 포함 · 같은 JSP 의 두 꼴) — 인자로 DbRead 출력 파일(반품 줄) · 분모 파일 폴더 · 매입 줄 · 매입 분모 폴더를 주면 운영 자료로 돈다 | `node docs/tools/check/sim_salesreturn.js [rows.txt 분모폴더 [prows.txt 매입분모폴더]]` |
 | `../sim/sim_salesXlsUpload.js` | 판매 등록 [📥 엑셀 업로드](구전산 매출 → 판매전표) 시뮬(73) — 실제 양식 `D:/코네트/판매내역_판매등록양식.xlsx` 를 읽는다(인자로 다른 파일) | `node docs/tools/sim/sim_salesXlsUpload.js` |
-| `../sim/sim_quoteAutoLink.js` | 견적서 작성 [⚡ 자동연계 작성] 시뮬(146) — quoteEdit.jsp 를 통째로 올리고 `asset/js/quote-autolink.js` 를 얹는다. 인자로 DbRead 출력 두 파일(selectQuoteHistDocs · selectQuoteHistLines 결과)을 주면 운영 자료로 한 번 더(15) | `node docs/tools/sim/sim_quoteAutoLink.js [docs.txt lines.txt]` |
+| `../sim/sim_quoteAutoLink.js` | 견적서 작성 [⚡ 자동연계 작성] 시뮬(152) — quoteEdit.jsp 를 통째로 올리고 `asset/js/quote-autolink.js` 를 얹는다. 인자로 DbRead 출력 두 파일(selectQuoteHistDocs · selectQuoteHistLines 결과)을 주면 운영 자료로 한 번 더(16) | `node docs/tools/sim/sim_quoteAutoLink.js [docs.txt lines.txt]` |
 | `mapper_audit.js` | 아래 표 참고 | `node docs/tools/check/mapper_audit.js count` |
 
 ```bash

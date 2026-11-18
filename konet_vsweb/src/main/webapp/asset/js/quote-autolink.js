@@ -7,7 +7,7 @@
    ■ 하는 일
      품목을 고르고 <사람이 정하는 것>(품목 · 배송 MOQ수량 · 배송 단가 · 동판비 · 목형비 · 목표 마진율)만 넣으면,
      나머지 <자동으로 따라오는 것>을 채워 견적서 품목 줄로 만든다.
-       · 연계(끌어오는 값) : 지난 견적서의 같은 품목 → 규격 · 제조사 · 박스 입수량 · 운송 · 보관 · 소분 · 박스 · 줄 물류비 · 목표 마진율 · 동판 · 목형 · MOQ 줄들
+       · 연계(끌어오는 값) : 지난 견적서(★제출완료·채택만 — HIST_STAT)의 같은 품목 → 규격 · 제조사 · 박스 입수량 · 운송 · 보관 · 소분 · 박스 · 줄 물류비 · 목표 마진율 · 동판 · 목형 · MOQ 줄들
                             상품마스터 → 품명 · 규격 · 제조사 · 입수량 · 매입가(배송 단가) · 판매가
        · 계산(식은 견적서 작성 화면의 calcOf 그대로 — 여기서 다시 만들지 않는다) :
             금액 = 단가 × MOQ · 구단(계산) = 단가+운송+보관+소분+박스+원가 포함 동판·목형/개 · 필요 판매단가(목표 마진율) → 판매적용단가 · 물류비 · 실 마진율
@@ -34,6 +34,8 @@
   var ROUNDS = [['2','소수 둘째 자리 (그대로)'],['0.1','0.1원 단위로 올림'],['0.5','0.5원 단위로 올림'],['1','1원 단위로 올림'],['10','10원 단위로 올림']];
   var USES = [['off','적용 안 함'],['sub','별도 청구'],['cost','원가 포함']];
   var MODE_NM = { center:'센터배송', direct:'DC', parcel:'직송' };
+  /* 끌어다 쓰는 지난 견적 = 제출완료(S)·채택(A)만 — 작성 중(W)·거절(R)·보류(H)는 내지 않았거나 받아들여지지 않은 값이다 */
+  var HIST_STAT = { S:1, A:1 };
   var OPT = (function(){ var o={ round:'2', target:'' };
     try{ var s=JSON.parse(localStorage.getItem('konetQuoteAuto')||'null'); if(s){ if(s.round!=null) o.round=String(s.round); if(s.target!=null) o.target=s.target; } }catch(e){}
     if(!ROUNDS.some(function(r){ return r[0]===o.round; })) o.round='2';
@@ -61,6 +63,7 @@
     var by={}; (lines||[]).forEach(function(l){ var k=String(l.quoteSeq); (by[k]=by[k]||[]).push(l); });
     var sets=[];
     (docs||[]).forEach(function(d){
+      if(!HIST_STAT[String(d.statGb||'W')]) return;   /* ★제출완료·채택만 (2026-11-18 사용자 「제출완료·채택된 견적만 보이게 해줘」) — 서버 조회(selectQuoteHistDocs)도 같은 조건 */
       var cj=null; try{ cj=JSON.parse(d.calcJson||'null'); }catch(e){}
       var gen={}; if(cj&&cj.genRows) cj.genRows.forEach(function(r){ gen[r]=true; });
       var ls=(by[String(d.quoteSeq)]||[]).slice().sort(function(a,b){ return n(a.rowNo)-n(b.rowNo); }).filter(function(l){ return !gen[l.rowNo]; });
@@ -219,16 +222,16 @@
     var d=document.createElement('div'); d.className='pop'; d.id='alPop';
     d.innerHTML=
       '<div class="box">'
-     +'<div class="ph"><b>⚡ 자동연계 견적 작성</b><span class="dim" style="flex:1;font-size:12.5px">품목 · 배송 MOQ수량 · 배송 단가 · 동판·목형만 정하면, 나머지는 지난 견적·상품에서 끌어와 계산합니다 — <b style="color:#0f6b5e">견적서에 이미 적힌 줄은 그대로</b> 두고 그 밑에 붙습니다</span>'
+     +'<div class="ph"><b>⚡ 자동연계 견적 작성</b><span class="dim" style="flex:1;font-size:12.5px" title="품목 · 배송 MOQ수량 · 배송 단가 · 동판·목형만 정하면 나머지는 지난 견적·상품에서 끌어와 계산합니다. 견적서에 이미 적힌 줄은 그대로 두고 그 밑에 붙습니다">품목·MOQ·단가만 넣으면 나머지는 자동 — <b style="color:#0f6b5e">기존 줄 밑에</b> 붙습니다</span>'
      +'<button class="btn" onclick="alClose()">닫기 ✕</button></div>'
      +'<div class="al-opt">'
-     +'<span title="견적서 한 장에 하나 — 품목 표 위 「🧮 마진계산 물류비」에서 바꿉니다. 여기 계산도 그 값을 씁니다">🧮 물류비 <span class="md" id="alMode"></span> <span class="dim" style="font-size:12px">(품목 표 위에서 바꿉니다)</span></span>'
+     +'<span title="견적서 한 장에 하나 — 품목 표 위 「🧮 마진계산 물류비」에서 바꿉니다. 여기 계산도 그 값을 씁니다">🧮 물류비 <span class="md" id="alMode"></span></span>'
      +'<span title="필요 판매단가를 판매적용단가로 넣을 때의 자릿수 — 「그대로」는 견적서 작성의 [→] 와 같습니다(소수 둘째 자리 반올림). 올림을 고르면 그 단위로 올려 넣고 실 마진율을 다시 보여 줍니다">판매단가 자릿수 <select id="alRound" onchange="alOpt(\'round\', this.value)"></select></span>'
      +'<span title="새로 넣는 품목·MOQ 줄의 목표 마진율 기본값 — 지난 견적에서 끌어온 줄은 그때 값을 그대로 씁니다">목표 마진율 기본 <input type="text" id="alTgt" style="width:60px;text-align:right" onfocus="this.select()" oninput="alOpt(\'target\', this.value)"> %</span>'
-     +'<span class="dim" style="font-size:12px;margin-left:auto"><span style="display:inline-block;width:12px;height:12px;background:#fdebd9;border:1.5px solid #e9b98a;border-radius:3px;vertical-align:-2px"></span> 넣는 칸 · <span style="display:inline-block;width:12px;height:12px;background:#eef1f5;border:1px dashed #b9c4d0;border-radius:3px;vertical-align:-2px"></span> 자동(고치면 <span style="background:#fff3c4;border:1px solid #e2b93b;border-radius:3px;padding:0 3px">노랑</span>) · <span style="display:inline-block;width:12px;height:12px;background:#f3f5f8;border:1px solid #cdd6df;border-radius:3px;vertical-align:-2px"></span> 계산</span>'
+     +'<span class="dim" style="font-size:12px;margin-left:auto" title="주황 = 사람이 넣는 칸 · 회색 점선 = 자동으로 끌어온 값(고치면 노랑) · 회색 = 계산"><span style="display:inline-block;width:12px;height:12px;background:#fdebd9;border:1.5px solid #e9b98a;border-radius:3px;vertical-align:-2px"></span> 넣는 칸 · <span style="display:inline-block;width:12px;height:12px;background:#eef1f5;border:1px dashed #b9c4d0;border-radius:3px;vertical-align:-2px"></span> 자동(고치면 <span style="background:#fff3c4;border:1px solid #e2b93b;border-radius:3px;padding:0 3px">노랑</span>) · <span style="display:inline-block;width:12px;height:12px;background:#f3f5f8;border:1px solid #cdd6df;border-radius:3px;vertical-align:-2px"></span> 계산</span>'
      +'</div>'
      +'<div class="al-find"><b style="color:#125a4e;white-space:nowrap">① 품목 고르기</b>'
-     +'<input type="text" id="alQ" placeholder="품명 · 규격 · 제조사 · 상품코드 · 문서번호 (비우면 최근 견적 품목 · 띄어 쓰면 모두 든 것)" oninput="alSearch()" onkeydown="alKey(event)">'
+     +'<input type="text" id="alQ" placeholder="품명 · 규격 · 제조사 · 상품코드 · 문서번호" title="비우면 최근 견적 품목 · 띄어 쓰면 낱말이 모두 든 것 · 지난 견적은 제출완료·채택된 것만" oninput="alSearch()" onkeydown="alKey(event)">'
      +'<select id="alRecv" onchange="alRecvSet(this.value)" title="지난 견적 품목을 수신처로 거릅니다(단가는 수신처마다 다를 수 있습니다) — 상품마스터 결과는 거르지 않습니다"></select>'
      +'<button class="btn" onclick="alNewBlock()" title="지난 견적·상품에 없는 새 품목 — 빈 묶음을 만들어 직접 적습니다">＋ 새 품목 직접 입력</button>'
      +'<span class="dim" id="alLoad" style="font-size:12px"></span></div>'
@@ -271,10 +274,10 @@
       AL.blocks.forEach(function(b){ if(b.src!=='h'||!b.item) return; var cur=b.item.sets[b.setIdx], it=null; AL.items.forEach(function(x){ if(x.key===b.item.key) it=x; });
         if(!it){ return; } var k=-1; it.sets.forEach(function(s,i){ if(cur && String(s.quoteSeq)===String(cur.quoteSeq) && k<0) k=i; }); b.item=it; b.setIdx=k<0?0:k; });
       recvFill(); loadTxt(); hits(); paintAll();
-    }).catch(function(e){ AL.loading=false; AL.err='지난 견적을 불러오지 못했습니다 — 상품 찾기·직접 입력은 그대로 됩니다'; loadTxt(); hits(); });
+    }).catch(function(e){ AL.loading=false; AL.err='지난 견적을 불러오지 못했습니다'; loadTxt(); hits(); });
   }
   function loadTxt(){ var e=document.getElementById('alLoad'); if(!e) return;
-    e.textContent = AL.loading&&!AL.loaded ? '지난 견적을 읽는 중…' : (AL.err ? '⚠ '+AL.err : (AL.loaded ? '지난 견적 품목 '+fmt(AL.items.length)+'종' : '')); e.style.color=AL.err?'#b45309':''; }
+    e.textContent = AL.loading&&!AL.loaded ? '지난 견적을 읽는 중…' : (AL.err ? '⚠ '+AL.err : (AL.loaded ? '지난 견적 품목 '+fmt(AL.items.length)+'종 (제출완료·채택)' : '')); e.style.color=AL.err?'#b45309':''; }
   function recvFill(){
     var s=document.getElementById('alRecv'); if(!s) return;
     var cnt={}, ord=[]; AL.sets.forEach(function(x){ var k=x.recvNm||''; if(!k) return; if(!cnt[k]){ cnt[k]={}; ord.push(k); } cnt[k][x.key]=1; });
@@ -306,8 +309,8 @@
     }
     AL.hits=out;
     if(!out.length){
-      tb.innerHTML='<tr><td colspan="10" class="dim" style="padding:16px">'+(tk.length ? '맞는 품목이 없습니다 — [＋ 새 품목 직접 입력]으로 적을 수 있습니다.'
-        : (AL.loaded ? (AL.recvF?'이 수신처의 지난 견적 품목이 없습니다 — 「수신 전체」로 바꾸거나 글자를 쳐서 찾으세요.':'지난 견적 품목이 없습니다 — 글자를 치면 상품마스터에서 찾습니다.') : (AL.err? esc(AL.err)+' · 글자를 치면 상품마스터에서 찾습니다.' : '불러오는 중…')))+'</td></tr>';
+      tb.innerHTML='<tr><td colspan="10" class="dim" style="padding:16px">'+(tk.length ? '맞는 품목 없음 — [＋ 새 품목 직접 입력]'
+        : (AL.loaded ? (AL.recvF?'이 수신처의 지난 견적 품목 없음 — 「수신 전체」로 바꿔 보세요.':'지난 견적 품목 없음 — 글자를 치면 상품에서 찾습니다.') : (AL.err? esc(AL.err)+' — 글자를 치면 상품에서 찾습니다.' : '불러오는 중…')))+'</td></tr>';
       return;
     }
     tb.innerHTML=out.map(function(h,i){
@@ -317,7 +320,7 @@
       var it=h.it, s=it.sets[h.k];
       var mq=s.rows.slice(0,3).map(function(r){ return (n(r.moqQty)?fmt(r.moqQty):'–')+' → '+(n(r.buy)?fmt(r.buy,2):'–'); }).join(' / ')+(s.rows.length>3?' …':'');
       var sp=s.rows.slice(0,3).map(function(r){ return n(r.sell)?fmt(r.sell,2):'–'; }).join(' / ')+(s.rows.length>3?' …':'');
-      return '<tr class="pick" onclick="alPick('+i+')"><td><span class="tg h" title="이 품명이 든 지난 견적서 수">견적 '+it.cnt+'회</span></td><td>'+esc(s.prodCd)+'</td><td>'+esc(s.makerNm)+'</td><td class="l">'+esc(s.prodNm)+'</td><td class="l">'+esc(s.spec)+'</td>'
+      return '<tr class="pick" onclick="alPick('+i+')"><td><span class="tg h" title="이 품명이 든 지난 견적서 수(제출완료·채택된 견적만 셉니다)">견적 '+it.cnt+'회</span></td><td>'+esc(s.prodCd)+'</td><td>'+esc(s.makerNm)+'</td><td class="l">'+esc(s.prodNm)+'</td><td class="l">'+esc(s.spec)+'</td>'
         +'<td>'+num(s.box)+'</td><td>'+mq+'</td><td>'+sp+'</td><td>'+feeTxt(s.extras)+'</td><td style="white-space:nowrap">'+esc(d8(s.quoteDt).slice(5))+' '+esc(s.recvNm)+' <span class="dim">'+esc(s.docNo)+'</span></td></tr>';
     }).join('');
   }
@@ -326,7 +329,7 @@
     var b = h.t==='p' ? blkFromProd(h.p) : blkFromItem(h.it, h.k);
     var same=AL.blocks.filter(function(x){ return nmKey(x.prodNm)===nmKey(b.prodNm); }).length;
     AL.blocks.push(b); paintAll(); scrollBlk(AL.blocks.length-1);
-    if(same && window._toast) _toast('같은 품명이 이미 아래 묶음에 있습니다 — 한 번 더 담았습니다(필요 없으면 ✕).','warn');
+    if(same && window._toast) _toast('같은 품명을 한 번 더 담았습니다.','warn');
   };
   window.alNewBlock=function(){ var b=blkNew(); var q=(document.getElementById('alQ').value||'').trim(); if(q) b.prodNm=q; AL.blocks.push(b); paintAll(); scrollBlk(AL.blocks.length-1, true); };
   /* ★품명 · 규격 · 제조사 · 상품코드 칸에 직접 쳐도 찾는다 (2026-11-18 사용자 「품명 직접 입력해도 검색되게 해줘」 → 「규격도 …」 → 「제조사도 …」 → 「상품코드도 직접 입력하면 검색되게 해줘」 — 네 칸이 같은 목록·같은 키를 쓴다.
@@ -381,7 +384,7 @@
       var s=h.it.sets[h.k], r=s.rows[0]||{};
       return '<div class="sr'+cur+'" onmousedown="event.preventDefault()" onclick="alSugPick('+i+')"><span class="tg h">견적 '+h.it.cnt+'회</span>'+(s.makerNm?'<span class="mk">'+esc(s.makerNm)+'</span>':'')+'<span class="nm">'+esc(s.prodNm)+'</span><span class="sp">'+esc(s.spec)+'</span>'
         +'<span class="ex">'+(n(r.moqQty)?'MOQ '+fmt(r.moqQty):'')+(n(r.buy)?' → '+fmt(r.buy,2):'')+(s.rows.length>1?' 외 '+(s.rows.length-1)+'줄':'')+(n(r.sell)?' · 판매 '+fmt(r.sell,2):'')+'</span><span class="dt">'+esc(d8(s.quoteDt).slice(5))+' '+esc(s.recvNm)+'</span></div>';
-    }).join('')+'<div class="sf">'+((SG.list[0]&&SG.list[0].t==='u') ? '↑↓ · Enter · ESC — 없는 단위는 그대로 적으세요' : '↑↓ 고르기 · Enter 넣기 · ESC 닫기 — 고르지 않으면 친 글자가 그대로 들어갑니다')+'</div>';
+    }).join('')+'<div class="sf">'+((SG.list[0]&&SG.list[0].t==='u') ? '↑↓ · Enter · ESC' : '↑↓ 고르기 · Enter 넣기 · ESC 닫기')+'</div>';
   }
   function sugShow(bi, el, all){
     var e=document.getElementById('alSug'); if(!e || !el) return;
@@ -412,8 +415,8 @@
     var h=SG.list[i], bi=SG.bi, b=AL.blocks[bi]; alSugHide(); if(!h || !b) return;
     SG.picked=Date.now();   /* 상품코드 칸에서 고르면 칸에 남은 «치다 만 글자»로 change(alCode)가 뒤따라 올 수 있다 — 잠깐 무시한다 */
     if(h.t==='u'){ b.unit=h.u; paintAll(); var ue=document.querySelector('#alB'+bi+' input[data-sg=unit]'); if(ue){ try{ ue.blur(); }catch(x){} } return; }   /* 단위만 바꾼다 */
-    if(h.t==='p'){ prodFill(b, h.p); if(window._toast) _toast('상품마스터에서 품명·규격·제조사·상품코드·입수량을 가져왔습니다.','ok'); }
-    else { b.src='h'; b.item=h.it; b.setIdx=h.k; blkFill(b, h.it.sets[h.k]); if(window._toast) _toast('지난 견적('+d8(h.it.sets[h.k].quoteDt)+' · '+h.it.sets[h.k].recvNm+') 값으로 채웠습니다.','ok'); }
+    if(h.t==='p'){ prodFill(b, h.p); if(window._toast) _toast('상품 값을 가져왔습니다.','ok'); }
+    else { b.src='h'; b.item=h.it; b.setIdx=h.k; blkFill(b, h.it.sets[h.k]); if(window._toast) _toast('지난 견적 값으로 채웠습니다.','ok'); }
     paintAll(); scrollBlk(bi);
   };
   function scrollBlk(bi, focusNm){ var e=document.getElementById('alB'+bi); if(!e) return; try{ e.scrollIntoView({ block:'nearest' }); }catch(x){}
@@ -428,17 +431,17 @@
           + b.item.sets.map(function(x,k){ return '<option value="'+k+'"'+(k===b.setIdx?' selected':'')+'>'+esc(d8(x.quoteDt))+' · '+esc(x.recvNm)+' · '+esc(x.docNo)+(x.rows.length>1?' · MOQ '+x.rows.length+'줄':'')+'</option>'; }).join('')+'</select>';
       return '<span class="tg h">지난 견적</span> '+esc(d8(s.quoteDt))+' · '+esc(s.recvNm)+' · '+esc(s.docNo);
     }
-    if(b.src==='p') return '<span class="tg p">상품마스터</span> 매입가 → 배송 단가 · 입수량';
+    if(b.src==='p') return '<span class="tg p" title="상품마스터 — 매입가 → 배송 단가 · 입수량">상품마스터</span>';
     return '<span class="tg n">직접 입력</span>';
   }
   function warnOf(b){
     var w=[], info=[];
-    if(!(b.prodNm||'').trim()) w.push('품명을 적어야 견적서에 들어갑니다');
-    if(!n(b.box) && b.rows.some(function(r){ return n(r.buy); })) w.push('박스 입수량을 넣어야 구단·판매단가가 계산됩니다');
-    if((b.prodNm||'').trim() && typeof _lines!=='undefined' && _lines.some(function(l){ return !l.variant && nmKey(l.prodNm)===nmKey(b.prodNm); })) w.push('이 견적서에 같은 품명이 이미 있습니다 — 넣으면 줄이 하나 더 생깁니다');
+    if(!(b.prodNm||'').trim()) w.push('품명을 적으세요');
+    if(!n(b.box) && b.rows.some(function(r){ return n(r.buy); })) w.push('박스 입수량을 넣어야 계산됩니다');
+    if((b.prodNm||'').trim() && typeof _lines!=='undefined' && _lines.some(function(l){ return !l.variant && nmKey(l.prodNm)===nmKey(b.prodNm); })) w.push('견적서에 같은 품명이 이미 있습니다');
     if(b.src==='h' && b.item){ var s=b.item.sets[b.setIdx];
-      if(s.mode && s.mode!==_cs.mode) info.push('지난 견적은 '+(MODE_NM[s.mode]||s.mode)+' 기준이었습니다(지금 견적서 = '+(MODE_NM[_cs.mode]||_cs.mode)+') — 물류비가 달라 판매단가가 달라질 수 있습니다'); }
-    var bi=AL.blocks.indexOf(b), btn=(info.length && bi>=0) ? ' <button class="btn lnk xb" style="font-weight:800;color:#0f6b5e" onclick="alModeMatch('+bi+')" title="품목 표 위 「🧮 마진계산 물류비」를 그때 갈래로 바꿉니다 — 견적서 한 장에 하나라 이미 적힌 줄의 계산도 같이 바뀝니다">이 견적서를 '+esc(modeNmOf(b.item.sets[b.setIdx]))+'(으)로 맞추기</button>' : '';
+      if(s.mode && s.mode!==_cs.mode) info.push('지난 견적은 '+(MODE_NM[s.mode]||s.mode)+' 기준이었습니다(지금 '+(MODE_NM[_cs.mode]||_cs.mode)+')'); }
+    var bi=AL.blocks.indexOf(b), btn=(info.length && bi>=0) ? ' <button class="btn lnk xb" style="font-weight:800;color:#0f6b5e" onclick="alModeMatch('+bi+')" title="품목 표 위 「🧮 마진계산 물류비」를 그때 갈래로 바꿉니다 — 견적서 한 장에 하나라 이미 적힌 줄의 계산도 같이 바뀝니다">'+esc(modeNmOf(b.item.sets[b.setIdx]))+'(으)로 맞추기</button>' : '';
     return (w.length?'<span class="al-warn">⚠ '+w.map(esc).join(' · ')+'</span>':'')+(info.length?'<span class="al-info">ℹ '+info.map(esc).join(' · ')+btn+'</span>':'');
   }
   function tin(cls, val, d, oninput, extra){ return '<input type="text" class="'+cls+'" value="'+(n(val)?fmt(val,d||0):'')+'" onfocus="this.select()" oninput="'+oninput+'"'+(extra||'')+'>'; }
@@ -446,9 +449,9 @@
     var lg=lgCol();
     var h='<div class="al-blk" id="alB'+bi+'">'
      +'<div class="al-bh"><span class="al-no">'+(bi+1)+'</span>'
-     +'<input type="text" class="al-in nm" value="'+esc(b.prodNm)+'" placeholder="품명 — 치면 지난 견적·상품에서 찾아 줍니다" autocomplete="off" oninput="alSet('+bi+',\'prodNm\',this.value); alSug('+bi+', this)" onkeydown="alSugKey(event, '+bi+')" onblur="alSugHide(true)" onchange="alWarn('+bi+')">'
+     +'<input type="text" class="al-in nm" value="'+esc(b.prodNm)+'" placeholder="품명" title="치면 지난 견적·상품에서 찾아 줍니다 — 고르지 않으면 친 글자가 그대로 품명" autocomplete="off" oninput="alSet('+bi+',\'prodNm\',this.value); alSug('+bi+', this)" onkeydown="alSugKey(event, '+bi+')" onblur="alSugHide(true)" onchange="alWarn('+bi+')">'
      +'<button class="btn lnk" style="height:30px;flex:none" onclick="alProd('+bi+')" title="우리 상품에서 고르기 — 견적서 작성 표의 🔍 와 같은 「상품 찾기」 창(상품코드 · 품명 · 규격 · 매칭코드). 고르면 이 묶음에 품명·규격·제조사·상품코드·입수량이 들어옵니다">🔍</button>'
-     +'<input type="text" class="al-in" style="flex:0 1 230px;min-width:140px" value="'+esc(b.spec)+'" placeholder="규격 및 재질 — 치면 찾아 줍니다" autocomplete="off" oninput="alSet('+bi+',\'spec\',this.value); alSug('+bi+', this)" onkeydown="alSugKey(event, '+bi+')" onblur="alSugHide(true)">'
+     +'<input type="text" class="al-in" style="flex:0 1 230px;min-width:140px" value="'+esc(b.spec)+'" placeholder="규격 및 재질" title="치면 지난 견적·상품에서 찾아 줍니다" autocomplete="off" oninput="alSet('+bi+',\'spec\',this.value); alSug('+bi+', this)" onkeydown="alSugKey(event, '+bi+')" onblur="alSugHide(true)">'
      +'<input type="text" class="al-in" style="width:100px" value="'+esc(b.makerNm)+'" placeholder="제조사" title="제조사 — 치면 그 제조사의 지난 견적 품목·상품을 찾아 줍니다" autocomplete="off" oninput="alSet('+bi+',\'makerNm\',this.value); alSug('+bi+', this)" onkeydown="alSugKey(event, '+bi+')" onblur="alSugHide(true)">'
      +'<span class="al-lb">상품코드</span><input type="text" class="al-in" style="width:110px" value="'+esc(b.prodCd)+'" placeholder="(없으면 비움)" data-sg="cd" autocomplete="off" oninput="alSug('+bi+', this)" onkeydown="alSugKey(event, '+bi+')" onblur="alSugHide(true)" onchange="alCode('+bi+', this.value)" title="우리 상품코드 — 치면 그 코드의 상품을 찾아 줍니다(매칭코드 포함). 다 적고 칸을 떠나도 상품마스터에서 품명·규격·제조사·입수량·매입가를 가져옵니다. 마스터에 없는 코드는 넣지 않습니다(비워 둬도 됩니다)">'
      +'<span class="al-lb">단위</span><input type="text" class="al-in" style="width:46px;text-align:center" value="'+esc(b.unit)+'" data-sg="unit" autocomplete="off" title="단위 — 누르거나 치면 단위 목록이 뜹니다(지난 견적에서 쓴 단위 + 자주 쓰는 단위). 목록에 없는 단위는 그대로 적으면 됩니다" onfocus="this.select(); alSug('+bi+', this, true)" oninput="alSet('+bi+',\'unit\',this.value); alSug('+bi+', this)" onkeydown="alSugKey(event, '+bi+')" onblur="alSugHide(true)">'
@@ -461,7 +464,7 @@
           +' = <span class="fa" id="alX'+bi+'_'+j+'"></span>'
           +'<select onchange="alFee('+bi+','+j+',\'use\', this.value)" title="적용 안 함 = 줄만 보임(합계·원가 제외) · 별도 청구 = 견적서에 줄로 나가고 합계에 더함 · 원가 포함 = 금액 ÷ MOQ수량을 개당 구매에 더함(견적서에는 줄로 안 나옴)">'
           + USES.map(function(u){ return '<option value="'+u[0]+'"'+(x.use===u[0]?' selected':'')+'>'+u[1]+'</option>'; }).join('')+'</select></span>'; }).join('')
-     +'<span class="dim" style="font-size:12px">품명에 한 번 드는 돈 — 모든 MOQ 줄에 같이 적용됩니다</span></div>'
+     +'<span class="dim" style="font-size:12px">모든 MOQ 줄에 적용</span></div>'
      +'<div style="overflow:auto"><table class="g al-t"><thead><tr>'
      +'<th class="u" title="사람이 정하는 칸">배송 MOQ수량</th><th class="u">배송 단가</th><th>금액</th>'
      +'<th class="a" title="지난 견적에서 끌어온 값 — 고칠 수 있습니다">운송</th><th class="a" title="비우면 자동 = 보관료 × 팔레트 × 개월 ÷ MOQ수량 (배송 단가가 있을 때만)">보관</th><th class="a">소분</th><th class="a">박스</th>'
@@ -497,10 +500,8 @@
     var body=document.getElementById('alBody'); if(!body) return;
     document.getElementById('alMode').textContent=modeTxt();
     body.innerHTML = AL.blocks.length ? AL.blocks.map(blkHtml).join('')
-      : '<div class="al-empty">위에서 품목을 고르면 여기에 <b>묶음</b>이 생깁니다.<br>'
-        +'<span class="tg h">견적 n회</span> 지난 견적서에 있던 품목 — MOQ수량·배송 단가·운송·보관·동판·목형·목표 마진율까지 그때 값으로 채워집니다.<br>'
-        +'<span class="tg p">상품</span> 상품마스터 — 품명·규격·제조사·입수량·매입가(배송 단가)를 가져옵니다. &nbsp; <span class="tg n">직접 입력</span> 처음 쓰는 품목.<br>'
-        +'값을 넣는 대로 구단(계산)·필요 판매단가·판매적용단가·실 마진율이 바로 계산되고, [⚡ 견적서에 넣기]를 누르면 <b>지금 견적서 줄 밑에</b> 붙습니다.</div>';
+      : '<div class="al-empty">위에서 품목을 고르거나 <b>[＋ 새 품목 직접 입력]</b>을 누르세요.<br>'
+        +'<span class="tg h">견적 n회</span> 지난 견적(제출완료·채택) &nbsp; <span class="tg p">상품</span> 상품마스터 &nbsp; <span class="tg n">직접 입력</span> 새 품목</div>';   /* 짧게 (2026-11-18 「화면에 보이는 설명 간결하게」 — 종전 네 줄) */
     AL.blocks.forEach(function(b,bi){ blkPaint(bi); });
     sumPaint();
   }
@@ -527,10 +528,10 @@
     var good=AL.blocks.filter(function(b){ return (b.prodNm||'').trim(); }), rows=0, fee=0;
     good.forEach(function(b){ rows+=outRows(b).length; b.extras.forEach(function(x){ if(n(x.qty)*n(x.price)) fee++; }); });
     var e=document.getElementById('alSum'); if(e) e.innerHTML = AL.blocks.length
-      ? '넣을 품목 <b>'+good.length+'</b>개 · 견적서 줄 <b>'+rows+'</b>줄'+(fee?' · 동판·목형 <b>'+fee+'</b>건':'')+(AL.blocks.length>good.length?' <span class="al-warn">(품명 없는 묶음 '+(AL.blocks.length-good.length)+'개는 빠집니다)</span>':'')
+      ? '넣을 품목 <b>'+good.length+'</b>개 · 견적서 줄 <b>'+rows+'</b>줄'+(fee?' · 동판·목형 <b>'+fee+'</b>건':'')+(AL.blocks.length>good.length?' <span class="al-warn">(품명 없는 '+(AL.blocks.length-good.length)+'개 제외)</span>':'')
       : '<span class="dim">아직 고른 품목이 없습니다</span>';
     var typed=(typeof _lines==='undefined')? 0 : _lines.filter(function(l){ return !pristine(l); }).length;
-    var kp=document.getElementById('alKeep'); if(kp) kp.textContent = typed ? '지금 견적서의 '+typed+'줄은 그대로 두고 그 밑에 붙습니다' : '';
+    var kp=document.getElementById('alKeep'); if(kp) kp.textContent = typed ? '기존 '+typed+'줄 밑에 붙습니다' : '';
     var go=document.getElementById('alGo'); if(go) go.disabled=!good.length;
   }
 
@@ -587,7 +588,7 @@
       var pp=document.getElementById('prodPop'); if(pp){ pp.classList.remove('on'); pp.style.zIndex=''; }
       if(!b || !p) return;
       prodFill(b, p); paintAll(); scrollBlk(bi);
-      if(window._toast) _toast('상품마스터에서 품명·규격·제조사·상품코드·입수량을 가져왔습니다'+(n(p.inPrice)?' (배송 단가가 빈 줄에는 매입가 '+fmt(p.inPrice,2)+')':'')+'.','ok');
+      if(window._toast) _toast('상품 값을 가져왔습니다.','ok');
     };
   }
   window.alProd=function(bi){
@@ -610,7 +611,7 @@
       if(!p){ b.prodCd=''; paintAll(); _alertBox('상품마스터에 없는 코드입니다 : <b>'+esc(cd)+'</b><br><span style="font-size:12.5px;color:#3d4d5c">상품코드는 비워 두고 품명만으로 견적을 낼 수 있습니다.</span>',{icon:'⚠️'}); return; }
       if(p.stopYn==='Y'){ b.prodCd=''; paintAll(); _alertBox('거래중지 상품입니다 : <b>'+esc(cd)+'</b>',{icon:'⚠️'}); return; }
       prodFill(b, p);
-      paintAll(); if(window._toast) _toast('상품마스터에서 품명·규격·제조사·입수량을 가져왔습니다.','ok');
+      paintAll(); if(window._toast) _toast('상품 값을 가져왔습니다.','ok');
     };
     if(window._prodsAll) go(); else prodMastersLoad(go);
   };
@@ -651,7 +652,7 @@
       var trs=document.querySelectorAll('#lbody tr.mainln');
       for(var k=first;k<trs.length;k++) trs[k].classList.add('al-new');
       if(trs[first]){ try{ trs[first].scrollIntoView({ block:'center' }); }catch(e){} }
-      if(window._toast) _toast('⚡ 자동연계 — 품목 '+prods+'개 · '+add.length+'줄을 '+(first?'기존 '+first+'줄 밑에 ':'')+'넣었습니다. 고칠 것은 표에서 바로 고치고 [💾 저장]하세요.','ok');
+      if(window._toast) _toast('⚡ 품목 '+prods+'개 · '+add.length+'줄을 '+(first?'기존 '+first+'줄 밑에 ':'')+'넣었습니다.','ok');
     };
     if(noSell) _confirmBox({ msg:'판매적용단가가 비어 있는 줄이 <b>'+noSell+'</b>줄 있습니다.<br><span style="font-size:12.5px;color:#3d4d5c">목표 마진율·박스 입수량·배송 단가가 있어야 자동으로 나옵니다. 그대로 넣고 견적서 표에서 채워도 됩니다.</span>', icon:'❓', okText:'그대로 넣기', onOk:go, onCancel:function(){} });
     else go();

@@ -35,10 +35,18 @@ let DOCS = [
                           C({ moqQty:9000, buy:145, box:300, store:8.3, storeManual:true, target:15, extras:ex(null,[1,175000,'sub']) }) ], [4]) },
   { quoteSeq:880, docNo:'Konet261020-01', quoteDt:'20261020', recvNm:'샐러링', mgrNm:'담당B', statGb:'A',
     calcJson: cj(SET_P, [ C({ moqQty:12500, buy:66.2, box:500, store:6, storeManual:true, target:10, lgFee:4090.909, buyMemo:'도매몰 139원' }), null ], []) },
-  { quoteSeq:870, docNo:'Konet261001-01', quoteDt:'20261001', recvNm:'삼성웰스토리', mgrNm:'담당A', statGb:'W',
+  { quoteSeq:870, docNo:'Konet261001-01', quoteDt:'20261001', recvNm:'삼성웰스토리', mgrNm:'담당A', statGb:'S',
     calcJson: cj(SET_C, [ C({ moqQty:30000, buy:21, box:2000, target:18 }) ], []) },
 ];
+/* 제출완료·채택이 아닌 견적 — 이력에 나오면 안 된다 (2026-11-18). 날짜를 가장 최근으로 둬 「최근 것이 앞」에도 안 끼는지 본다 */
+DOCS.push({ quoteSeq:960, docNo:'Konet261117-09', quoteDt:'20261117', recvNm:'삼성웰스토리', mgrNm:'담당A', statGb:'W', calcJson: cj(SET_C, [ C({ moqQty:1000, buy:5, box:100, target:10 }), C({ moqQty:9000, buy:999, box:300, target:15 }) ], []) });
+DOCS.push({ quoteSeq:961, docNo:'Konet261117-08', quoteDt:'20261117', recvNm:'삼성웰스토리', mgrNm:'담당A', statGb:'R', calcJson: cj(SET_C, [ C({ moqQty:2000, buy:6, box:100, target:10 }) ], []) });
+DOCS.push({ quoteSeq:962, docNo:'Konet261117-07', quoteDt:'20261117', recvNm:'삼성웰스토리', mgrNm:'담당A', statGb:'H', calcJson: cj(SET_C, [ C({ moqQty:3000, buy:7, box:100, target:10 }) ], []) });
 let LINES = [
+  { quoteSeq:960, rowNo:1, prodNm:'작성 중인 품목', spec:'', boxQty:1, unit:'ea', qty:100, unitPrice:9, unitPrice2:null, remark:'', prodCd:'', makerNm:'' },
+  { quoteSeq:960, rowNo:2, prodNm:'이벤트 박스', spec:'300*200*100', boxQty:1, unit:'ea', qty:300, unitPrice:1500, unitPrice2:null, remark:'', prodCd:'', makerNm:'' },
+  { quoteSeq:961, rowNo:1, prodNm:'거절된 품목', spec:'', boxQty:1, unit:'ea', qty:100, unitPrice:9, unitPrice2:null, remark:'', prodCd:'', makerNm:'' },
+  { quoteSeq:962, rowNo:1, prodNm:'보류된 품목', spec:'', boxQty:1, unit:'ea', qty:100, unitPrice:9, unitPrice2:null, remark:'', prodCd:'', makerNm:'' },
   { quoteSeq:900, rowNo:1, prodNm:'(아벡쉐리)성탄절U 봉투', spec:'150*200', boxQty:1, unit:'ea', qty:2000, unitPrice:36.5, unitPrice2:null, remark:'MOQ 50,000개', prodCd:'', makerNm:'선피앤피' },
   { quoteSeq:900, rowNo:2, prodNm:'(아벡쉐리)성탄절U 봉투', spec:'150*200', boxQty:1, unit:'ea', qty:2000, unitPrice:30, unitPrice2:null, remark:'MOQ 100,000개', prodCd:'', makerNm:'선피앤피' },
   { quoteSeq:900, rowNo:3, prodNm:'이벤트 박스', spec:'300*200*100', boxQty:1, unit:'ea', qty:300, unitPrice:197, unitPrice2:null, remark:'MOQ 9,000개', prodCd:'', makerNm:'' },
@@ -106,11 +114,20 @@ const ref = (o, sell, extras) => w.calcOf({ variant:false, unitPrice:sell, calc:
   await sleep(30);
   t('화면이 떴다(빈 줄 1)', ev('_lines.length') === 1 && !!$('#alBtn'));
   t('창은 아직 없다(누르기 전엔 만들지 않는다)', !$('#alPop'));
+  /* ✕ 로 줄을 빼도 「되살리기」 알림은 안 뜬다(단추·기능은 그대로) — 2026-11-18 「삭제표시하면 되돌린다는 메세지 제거」 */
+  ev("_lines[0].prodNm='뺄 줄'; _lines.push(blank()); renderLines();"); w.__toasts.length = 0; w.delLine(0);
+  t('★줄 ✕ — 알림 없음 · [↩ 뺀 줄 되살리기] 단추는 보인다', w.__toasts.length === 0 && ev('_lines.length') === 1 && $('#undoBtn').style.display !== 'none');
+  w.undoLine();
+  t('되살리기는 그대로 된다', ev('_lines.length') === 2 && ev('_lines[0].prodNm') === '뺄 줄');
+  w.newDoc(); await sleep(30);
+  t('늘 보이는 설명은 짧게(물류비 줄·표 머리)', $('#csNote').textContent === '판매 계 × 센터 비율' && /견적서 줄\s*— 인쇄되는 칸/.test($('#lhead').textContent) && $('#hdTip').textContent.length < 25, [$('#csNote').textContent, $('#hdTip').textContent]);
 
   /* ── 1. 이력 짜기 ── */
   const H = w._alDbg.buildHist(DOCS, LINES);
   if(!REAL){
     t('이력 — 품목 벌 5개(동판·목형 서브 줄·genRows 제외)', H.sets.length === 5, H.sets.map(s => s.prodNm));
+    t('★이력 — 제출완료·채택 견적만 : 작성 중·거절·보류 견적의 품목은 없다', !H.items.some(i => /작성 중인|거절된|보류된/.test(i.prodNm)) && H.sets.every(s => s.statGb === 'S' || s.statGb === 'A'), H.items.map(i => i.prodNm));
+    t('★같은 품명이 작성 중 견적에 더 최근 값(단가 999)으로 있어도 제출완료 값(145)을 쓴다 · 횟수에도 안 센다', (() => { const b0 = H.items.find(i => i.prodNm === '이벤트 박스'); return b0 && b0.cnt === 1 && b0.sets.length === 1 && b0.sets[0].rows[0].buy === 145 && b0.sets[0].quoteSeq === 900; })());
     t('이력 — 같은 품명(빈칸 차이 무시)은 한 품목 : 4종', H.items.length === 4, H.items.map(i => i.prodNm));
     const it = H.items.find(i => /성탄절U/.test(i.prodNm));
     t('이력 — 성탄절U 봉투 = 견적 2회 · 최근 것이 앞', it && it.cnt === 2 && it.sets[0].quoteSeq === 900 && it.sets[1].quoteSeq === 870);
@@ -129,6 +146,7 @@ const ref = (o, sell, extras) => w.calcOf({ variant:false, unitPrice:sell, calc:
   w.alOpen(); await sleep(60);
   t('창이 열린다', !!$('#alPop') && $('#alPop').classList.contains('on'));
   t('이력·상품을 한 번씩 읽는다', w.__posts.filter(p => p.url.indexOf('quoteItemHist') >= 0).length === 1 && w.__posts.filter(p => p.url.indexOf('/prod/prodList') >= 0).length === 1);
+  if(!REAL) t('읽은 품목 수 옆에 기준을 적는다(제출완료·채택)', /4종 \(제출완료·채택\)/.test($('#alLoad').textContent), $('#alLoad').textContent);
   t('물류비 갈래를 보여 준다(센터배송 · 기준 센터)', /센터배송 · 기준 평\/용센터 10\.5%/.test($('#alMode').textContent), $('#alMode').textContent);
   if(!REAL){
     t('수신 거르기 — 처음 = 지금 견적서의 수신처', $('#alRecv').value === '삼성웰스토리');
@@ -240,7 +258,7 @@ const ref = (o, sell, extras) => w.calcOf({ variant:false, unitPrice:sell, calc:
     ev("_lines[0].prodNm='손으로 적은 품목'; _lines[0].qty=100; _lines[0].unitPrice=50; renderLines();");
     w.alClose(); w.alOpen(); await sleep(60);
     t('창을 닫았다 열어도 만들던 묶음은 남는다', A().blocks.length === 3);
-    t('기존 줄을 지킨다고 알려 준다', /지금 견적서의 1줄은 그대로/.test($('#alKeep').textContent), $('#alKeep').textContent);
+    t('기존 줄 밑에 붙는다고 알려 준다(짧게)', /기존 1줄 밑에 붙습니다/.test($('#alKeep').textContent), $('#alKeep').textContent);
     const before = JSON.stringify(ev('_lines[0]'));
     w.alApply(); await sleep(20);
     const L = ev('_lines');
@@ -470,6 +488,7 @@ const ref = (o, sell, extras) => w.calcOf({ variant:false, unitPrice:sell, calc:
       + ' · 목표 마진율로 낸 단가가 그때 단가와 같은 줄 ' + repro + '/' + cmp);
     if(far.length) console.log('  (그때 단가를 손으로 고친 줄 예 : ' + far.slice(0, 5).map(x => x.join(' ')).join(' | ') + ')');
     t('운영 — 계산 든 줄이 있다', hasCalc > 0);
+    t('운영 — 제출완료·채택 견적만', sets.every(s => s.statGb === 'S' || s.statGb === 'A'), sets.filter(s => s.statGb !== 'S' && s.statGb !== 'A').length);
     t('운영 — ★조건을 안 바꾸면 전 줄이 그때 단가 그대로 (' + sameN + '/' + sellN + ')', sellN > 0 && sameN === sellN, sameMiss.slice(0, 5));
     w.alOpen(); await sleep(80);
     t('운영 — 창이 열리고 최근 품목이 보인다', $$('#alHits tr.pick').length > 0, $('#alLoad').textContent);

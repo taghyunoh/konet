@@ -9,7 +9,7 @@
 <script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917c"></script>   <%-- 회사 설정 — 센터별 물류비율·보관 기본값(konetSet.cost) --%>
 <script src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>
 <script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20261109"></script>   <%-- 머리 높이 막대 — 판매·매입·수금과 같은 공용 막대 (2026-11-09) --%>   <%-- 팝업 끌어 옮기기 (2026-09-18 「상품검색 마우스 클릭으로 이동」) — 발주서와 같은 .pop+.ph 뼈대 --%>
-<script src="${pageContext.request.contextPath}/asset/js/quote-autolink.js?v=20261118g"></script>   <%-- ⚡ 자동연계 작성 (2026-11-18) — 품목·배송 MOQ·배송 단가·동판·목형만 정하면 지난 견적·상품에서 끌어와 계산해 <지금 줄 밑에> 붙인다. 이 화면의 전역(_lines·calcOf·normCalc…)을 쓴다 · 고치면 ?v= 를 올릴 것 --%>
+<script src="${pageContext.request.contextPath}/asset/js/quote-autolink.js?v=20261118i"></script>   <%-- ⚡ 자동연계 작성 (2026-11-18) — 품목·배송 MOQ·배송 단가·동판·목형만 정하면 지난 견적·상품에서 끌어와 계산해 <지금 줄 밑에> 붙인다. 이 화면의 전역(_lines·calcOf·normCalc…)을 쓴다 · 고치면 ?v= 를 올릴 것 --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 📥 엑셀 (전역 XLSX) --%>
 <!--
   견적서 작성 (2026-09-17 신설 — 「여기에서 견적서 작성 및 출력 가능하게」) — 견적서관리 ▸ 견적서 작성. 셸 iframe(logiFrame) 화면.
@@ -294,16 +294,16 @@
     </div>
   </div>
   <div class="card" id="headCard">
-    <div class="hd">머리 <small id="hdTip">— 문서번호는 견적일로 자동 매깁니다(고칠 수 있음). 같은 문서번호를 저장하면 앞의 것을 대체합니다</small>
+    <div class="hd">머리 <small id="hdTip" title="문서번호는 견적일로 자동 매깁니다(고칠 수 있음). 같은 문서번호를 저장하면 앞의 것을 대체합니다">— 문서번호 자동 · 같은 번호는 대체</small>
       <span id="hdSum" hidden></span>
       <%-- 품목 안내 한 줄을 여기(머리 줄)로 올렸다 (2026-11-13 사용자 「표시 위로」) — 종전엔 품목 카드 맨 위에 따로 한 줄을 차지해 표가 그만큼 아래로 밀렸다 --%>
-      <small id="itHint" style="margin-left:14px"><b style="color:#125a4e;font-weight:800">품목</b> — 금액 = 수량 × 단가(자동). [🔍 상품]으로 품명·규격·판매가 · 원가·마진 칸은 줄마다 오른쪽에 펼쳐져 있습니다</small>
+      <small id="itHint" style="margin-left:14px"><b style="color:#125a4e;font-weight:800">품목</b> — 금액 = 수량 × 단가 · 🔍 상품 찾기</small>
       <button class="btn lnk" id="hdFoldBtn" style="margin-left:auto;height:26px" onclick="hdFold()" title="머리 입력칸을 접어 품목 표를 위로 올립니다 — 다시 누르면 펼칩니다">▲ 접기</button>
     </div>
     <div class="fm" id="hdFm">
       <label>양식</label><div class="full" style="display:flex;gap:8px;flex-wrap:wrap">
-        <label class="frmOpt"><input type="radio" name="frm" value="2" id="use2" checked onchange="renderLines(); delivOnUse2()"> <b>센터배송 + 택배출고(D2~3)</b> <span class="dim">— 단가·금액 두 묶음 + 비고(MOQ) · 260730-1 꼴</span></label>
-        <label class="frmOpt"><input type="radio" name="frm" value="1" id="use1" onchange="renderLines(); delivOnUse2()"> <b>단가 하나</b> <span class="dim">— 센터배송만 · 260729-1 꼴</span></label>
+        <label class="frmOpt"><input type="radio" name="frm" value="2" id="use2" checked onchange="renderLines(); delivOnUse2()"> <b>센터배송 + 택배출고(D2~3)</b> <span class="dim">— 단가 두 묶음</span></label>
+        <label class="frmOpt"><input type="radio" name="frm" value="1" id="use1" onchange="renderLines(); delivOnUse2()"> <b>단가 하나</b> <span class="dim">— 단가 한 묶음</span></label>
       </div>
       <label>문서번호</label><div style="display:flex;gap:6px"><input type="text" id="docNo" style="font-weight:800" placeholder="(담당자를 적거나 저장하면 자동)" oninput="_docAuto=false" title="Konet + 견적일 yyMMdd + -NN · NN 은 그 담당자의 그 날짜 다음 번호(담당자가 다르면 -01 부터). 제출완료 뒤 고쳐 저장하면 새 판 번호가 자동으로 매겨집니다"><button class="btn lnk" style="height:32px" onclick="nextNo(true)" title="견적일 기준 다음 번호">↻ 번호</button></div>
       <label>견적일</label><div><input type="date" id="quoteDt" onchange="if(!_seq) nextNo(false)">
@@ -320,7 +320,7 @@
           <option value="센터배송 / 택배출고 (D2~3)">센터배송 / 택배출고 (D2~3)</option><option value="센터배송">센터배송</option><option value="택배출고 (D2~3)">택배출고 (D2~3)</option><option value="배송비 포함">배송비 포함</option><option value="직송">직송</option><option value="배송비 별도">배송비 별도</option><option value="*">직접 입력…</option>
         </select>
         <input type="text" id="deliv" autocomplete="off" value="센터배송 / 택배출고 (D2~3)" style="width:230px" placeholder="직접 적기" oninput="delivSync()" onchange="delivApply()" title="고른 값이 여기 들어옵니다. 다르게 쓰려면 이 칸에 직접 적으세요">
-        <span class="dim" style="font-size:12px">→ 제목 줄·비고에 들어갑니다</span></div>
+        <span class="dim" style="font-size:12px">→ 제목·비고에 반영</span></div>
       <label>제목 줄</label><input type="text" id="titleTxt" class="full" value="아래와 같이 견적을 드립니다.(센터배송, 부가세 별도)">
       <label>비고</label><textarea id="remark" class="full" placeholder="예: 배송비 포함, 부가세 별도"></textarea>
     </div>
@@ -424,7 +424,7 @@ function csBarPaint(){ var r=document.querySelector('input[name=csmode][value="'
   document.getElementById('csCenter').style.display=_cs.mode==='center'?'':'none';
   document.getElementById('csFeeWrap').style.display=_cs.mode==='parcel'?'inline-flex':'none';
   var dl=document.getElementById('csDcLab'); if(dl) dl.textContent='('+fmt(n(COST.dcRate),1)+'%)';
-  document.getElementById('csNote').textContent=_cs.mode==='center'?('물류비 = 판매 계 × 센터 비율 · 센터 '+csCents().length+'곳을 표에 함께 보여 줍니다'):(_cs.mode==='direct'?('물류비 = 판매 계 × DC 비율 '+fmt(n(COST.dcRate),1)+'%'):'물류비 = 박스마다 직송비'); }
+  document.getElementById('csNote').textContent=_cs.mode==='center'?'판매 계 × 센터 비율':(_cs.mode==='direct'?'판매 계 × DC 비율':'박스당 직송비'); }   /* 짧게 (2026-11-18 「화면에 보이는 설명 간결하게」) — 종전 「물류비 = 판매 계 × 센터 비율 · 센터 n곳을 표에 함께 보여 줍니다」 */
 /* ⚠갈래·기준 센터·센터 목록이 바뀌면 «표 구조»가 바뀐다(센터배송만 네 묶음이 갈라진다) → 값만 다시 칠하지 말고 줄을 다시 그린다 (2026-09-28) */
 function csModeSet(){ var r=document.querySelector('input[name=csmode]:checked'); _cs.mode=r?r.value:'center'; csBarPaint(); renderLines(); delivByMode(); }
 function csCenterSet(v){ _cs.center=v; if(csSplit()) renderLines(); else csPaintAll(); }   /* 기준 센터 = 필요 판매단가를 내는 센터 · 머리글 밑줄도 그 칸으로 옮긴다 */
@@ -655,7 +655,7 @@ function delLine(i){ var l=_lines[i]; if(!l) return; var promoted=false, wasLast
   _lines.splice(i,1); if(l&&!l.variant&&_lines[i]&&_lines[i].variant){ _lines[i].variant=false; promoted=true; }
   _delUndo.push({ i:i, l:l, promoted:promoted, wasLast:wasLast }); if(_delUndo.length>30) _delUndo.shift();
   renderLines(); undoBtnPaint();
-  if(window._toast) _toast('줄을 뺐습니다'+(l.prodNm?' — '+l.prodNm:'')+' · 잘못 뺐으면 위 [↩ 뺀 줄 되살리기]'); }
+  /* (삭제 2026-11-18 사용자 「삭제표시하면 되돌린다는 메세지 제거」) 종전엔 「줄을 뺐습니다 — … · 잘못 뺐으면 위 [↩ 뺀 줄 되살리기]」 알림이 떴다. 알림만 뺐다 — 되살리기 단추·기능은 그대로 */ }
 function focusLast(){ var tb=document.getElementById('lbody'); var last=tb.querySelectorAll('tr.mainln'); var el=last[last.length-1]&&last[last.length-1].querySelector('.nm'); if(el) el.focus(); }
 /* ══ 엑셀형 한 표 (2026-11-13 사용자 「엑셀시트 251216(아임도넛 9종)처럼 입력 및 표기 좋게 — 입력 내용은 그대로」) ══
    표본 엑셀 = 머리글 한 벌(수량·단가·금액 | 수량 | 구단·계·운송비·보관비·소분비·박스비 | 판매·계·마진율 | 물류비 | 실 판매금액 | 실 마진금액 | 실 마진율) 아래
@@ -710,7 +710,7 @@ function xHead(){
   return '<tr>'
    + rs('No',34,'fz') + rs('',74,'fz','✕ 줄 빼기 · 아랫줄 = 동판·목형 열기/닫기') + rs('제조사',92,'fz','제조사 — 🔍 상품으로 고르면 상품마스터의 제조사가 들어옵니다') + rz('품명','nm','fz') + rz('규격','spec')
    + '<th class="g1" colspan="3">배송</th>'
-   + '<th class="gq" colspan="'+(h2?7:5)+'">견적서 줄 <span class="dim2">— 수량·단가·금액이 견적서에 찍힙니다'+(h2?' · 둘째 단가 포함':'')+'</span></th>'
+   + '<th class="gq" colspan="'+(h2?7:5)+'">견적서 줄 <span class="dim2" title="수량·단가·금액이 견적서에 찍힙니다'+(h2?' · 둘째 단가 포함':'')+'">— 인쇄되는 칸</span></th>'
    + rs('박스<br>입수량',0,'g2','마진계산 줄은 Box 1 · 견적 수량 = 이 값(자동)')
    + '<th class="g1" colspan="6">구매</th>'
    + rs('타겟<br>금액',0,'g7','확인용 메모 칸 — 다른 값과 아무 연관 없이 저장만 됩니다')
