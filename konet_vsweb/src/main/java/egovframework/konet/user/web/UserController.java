@@ -1618,6 +1618,18 @@ public class UserController {
 			res.put("data", svc.selectQuoteCompare(q));
 			return res;
 		}
+		/* ★자동연계 견적 작성 (2026-11-18 사용자 「견적서 작성 내용으로 … 자동연계 견적서 작성 구성(동판·목형 포함)」) — 견적서 작성 화면의 [⚡ 자동연계 작성] 창이 한 번 읽는다.
+		   docs = 최근 견적서(최신 판) 머리 + 근거자료(calcJson) · lines = 그 견적서들의 품목 줄. 화면(asset/js/quote-autolink.js)이 품목별 이력으로 짠다. 조회만 — 저장은 종전 quoteSave.do 그대로. */
+		@RequestMapping(value="/mangr/quoteItemHist.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> quoteItemHist(HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("docs", new java.util.ArrayList<Object>()); res.put("lines", new java.util.ArrayList<Object>()); return res; }
+			Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd"));
+			res.put("docs", svc.selectQuoteHistDocs(q));
+			res.put("lines", svc.selectQuoteHistLines(q));
+			return res;
+		}
 		/* 원본 내려받기 — base64 를 풀어 그대로 준다. 파일 이름은 올린 이름(없으면 문서번호.xls) */
 		@RequestMapping(value="/mangr/quoteFile.do")
 		public void quoteFile(@RequestParam("quoteSeq") long quoteSeq, HttpSession session, javax.servlet.http.HttpServletResponse response) throws Exception {

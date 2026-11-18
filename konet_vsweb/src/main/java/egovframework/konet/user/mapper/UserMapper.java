@@ -307,6 +307,8 @@ public interface UserMapper {
 	int selectQuoteNoCnt(java.util.Map<String,Object> p) throws Exception;                            // 문서번호 머리로 시작하는 건수
 	java.util.List<java.util.Map<String,Object>> selectQuoteNames(java.util.Map<String,Object> p) throws Exception;   // 쌓인 담당자·수신 이름
 	java.util.List<java.util.Map<String,Object>> selectQuoteCompare(java.util.Map<String,Object> p) throws Exception;   // 비교분석 — compCd · seqs(List)
+	java.util.List<java.util.Map<String,Object>> selectQuoteHistDocs(java.util.Map<String,Object> p) throws Exception;    // 자동연계 견적 작성 (2026-11-18) — 최근 견적서 머리 + CALC_JSON
+	java.util.List<java.util.Map<String,Object>> selectQuoteHistLines(java.util.Map<String,Object> p) throws Exception;   // 〃 — 그 견적서들의 품목 줄
 	int insertQuoteMst(java.util.Map<String,Object> p) throws Exception;
 	/* 견적서 판(개정) 이력 (2026-10-01) — 문서번호 = 담당자별·날짜별 -NN, 제출완료 뒤 변경은 새 판 */
 	int selectQuoteMaxRev(java.util.Map<String,Object> p) throws Exception;                          // (회사·DOC_BASE·담당자) 최대 판 번호

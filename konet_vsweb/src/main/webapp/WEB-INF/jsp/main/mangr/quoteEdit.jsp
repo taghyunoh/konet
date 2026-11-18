@@ -9,6 +9,7 @@
 <script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917c"></script>   <%-- 회사 설정 — 센터별 물류비율·보관 기본값(konetSet.cost) --%>
 <script src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>
 <script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20261109"></script>   <%-- 머리 높이 막대 — 판매·매입·수금과 같은 공용 막대 (2026-11-09) --%>   <%-- 팝업 끌어 옮기기 (2026-09-18 「상품검색 마우스 클릭으로 이동」) — 발주서와 같은 .pop+.ph 뼈대 --%>
+<script src="${pageContext.request.contextPath}/asset/js/quote-autolink.js?v=20261118g"></script>   <%-- ⚡ 자동연계 작성 (2026-11-18) — 품목·배송 MOQ·배송 단가·동판·목형만 정하면 지난 견적·상품에서 끌어와 계산해 <지금 줄 밑에> 붙인다. 이 화면의 전역(_lines·calcOf·normCalc…)을 쓴다 · 고치면 ?v= 를 올릴 것 --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 📥 엑셀 (전역 XLSX) --%>
 <!--
   견적서 작성 (2026-09-17 신설 — 「여기에서 견적서 작성 및 출력 가능하게」) — 견적서관리 ▸ 견적서 작성. 셸 iframe(logiFrame) 화면.
@@ -275,7 +276,8 @@
       · <b>제조사</b> — 품명 앞 칸. [🔍 상품]으로 고르면 상품마스터의 제조사가 들어오고 직접 적어도 됩니다. <b>한 줄도 안 적으면 인쇄에 칸 자체가 생기지 않습니다</b>(엑셀은 양식 파일에 「제조」 칸이 있을 때만 채웁니다).<br>
       · <b>배송</b> — 고르면 제목 줄 「(…, 부가세 별도)」와 비고에 같이 들어갑니다. 다르게 쓰려면 옆 칸에 직접 적으세요.<br>
       · <b>출력</b> — A4 양식(하단 합계 줄 없음), 품명·규격·비고가 길면 두 줄로 접힙니다. 엑셀은 견적서 양식 파일 그대로.<br>
-      · 저장한 견적서는 <b>견적서관리 목록</b>에서 다시 열기(✏)·출력(🖨)·계산 조회(🧮)를 할 수 있습니다.
+      · 저장한 견적서는 <b>견적서관리 목록</b>에서 다시 열기(✏)·출력(🖨)·계산 조회(🧮)를 할 수 있습니다.<br>
+      · <b>[⚡ 자동연계 작성]</b>(물류비 줄 오른쪽) — 품목을 고르고 <b>배송 MOQ수량 · 배송 단가 · 동판·목형 · 목표 마진율</b>만 넣으면, 같은 품목의 <b>지난 견적</b>(운송·보관·소분·박스·입수량·동판·목형)이나 <b>상품마스터</b>(품명·규격·입수량·매입가)를 끌어와 구단(계산)·필요 판매단가·판매적용단가·실 마진율까지 계산합니다. [⚡ 견적서에 넣기]를 누르면 <b>지금 적힌 줄은 그대로 두고 그 밑에</b> 품목 줄(MOQ 가 여럿이면 ↳ 줄)로 붙고, 그 뒤로는 손으로 적은 줄과 똑같이 고치고 저장합니다.
     </div>
     <div id="qhP2" class="qhp" hidden>
       <b>여는 법</b> : 품목 줄 맨 앞 <b>[🧮]</b> — 품명비 줄 밑에 계산 표가 펼쳐집니다. 줄은 물류비 줄 오른쪽 [＋ 품목 추가]로 늘립니다.<br>
@@ -348,6 +350,10 @@
       <button class="btn" id="bigBtn" style="margin-left:auto" onclick="bigToggle()" title="머리(문서번호·수신…) 칸을 접고 품목 표를 화면 위까지 넓힙니다 — 다시 누르면 원래대로">⛶ 크게 보기</button>
       <button class="btn" id="feeFoldBtn" onclick="feeFoldAll()" title="모든 품목의 동판·목형 줄을 한 번에 접거나 폅니다 — 접힌 상태는 견적서에 저장돼 다시 열 때 그대로입니다">▸ 동판·목형 모두 접기</button>
       <button class="btn lockable" id="undoBtn" style="display:none;border-color:#b06a00;background:#fff6e5;color:#8a5200;font-weight:800" onclick="undoLine()" title="✕ 로 뺀 줄을 마지막 것부터 원래 자리에 되돌립니다(값·원가계산·동판·목형 그대로). 다른 견적서를 열면 비워집니다">↩ 뺀 줄 되살리기</button>
+      <%-- ★⚡ 자동연계 작성 (2026-11-18 사용자 「견적서 작성 내용으로 품목코드·배송 MOQ·배송 단가 등 사용자 선택과 자동계산 내용을 파악해서 자동연계 견적서 작성 구성(동판·목형 포함) — 기존 내용은 그대로 유지하고 자동연계에서 기존 데이터에 안착」)
+           창(asset/js/quote-autolink.js)에서 품목을 고르고 배송 MOQ수량·배송 단가·동판·목형·목표 마진율만 넣으면 → 지난 견적·상품마스터 값을 끌어와 계산 → [견적서에 넣기] = 지금 줄 <밑에> 품목 줄(+↳ MOQ 줄)로.
+           만들어지는 줄은 손으로 적은 줄과 같은 자료라 저장·인쇄·엑셀·계산조회는 전부 종전 그대로다. 이 화면의 기존 단추·칸·계산식은 하나도 안 바꿨다. --%>
+      <button class="btn lockable" id="alBtn" style="font-size:15px;font-weight:800;border-color:#b06a00;background:#fff6e5;color:#8a5200" onclick="if(window.alOpen) alOpen(); else _alertBox('자동연계 기능을 불러오지 못했습니다 — 화면을 새로고침(Ctrl+F5)해 주세요.',{icon:'⚠️'})" title="품목 · 배송 MOQ수량 · 배송 단가 · 동판·목형만 정하면 나머지(운송·보관·구단·필요 판매단가·판매적용단가·실 마진율)는 지난 견적·상품에서 끌어와 계산합니다 — 이미 적힌 줄은 그대로 두고 그 밑에 붙습니다">⚡ 자동연계 작성</button>
       <button class="btn" style="font-size:15px;font-weight:800;border-color:#0f6b5e;background:#e3f2ee;color:#0f6b5e" onclick="addLine()" title="품목 줄 하나 더 — 계산은 그 줄의 [🧮] 로">＋ 품목 추가</button>
       <button class="btn lnk" onclick="cenOpen()" title="센터별 물류비율과 보관 기본값 — 회사 설정에 저장(어느 PC 에서나 같다)">⚙ 센터 비율·보관 기본값</button>
     </div>

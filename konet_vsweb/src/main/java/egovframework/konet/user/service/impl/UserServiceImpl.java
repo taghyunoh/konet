@@ -1482,6 +1482,9 @@ public class UserServiceImpl implements UserService {
 	}
 	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteRevHist(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteRevHist(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteCompare(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteCompare(p); }
+	/* 자동연계 견적 작성 (2026-11-18) — 지난 견적서 머리(+CALC_JSON)·품목 줄. 조회만 */
+	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteHistDocs(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteHistDocs(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectQuoteHistLines(java.util.Map<String,Object> p) throws Exception { return mapper.selectQuoteHistLines(p); }
 
 	/* ===== DC 발주 (2026-09-17) — 입고예약서·발주서에서 읽은 줄을 TBL_SHIPOUT_MST 에 PROD_KIND='DC' 로.
 	   납기일자별로 한 배치(JOB_SEQ = 그 날·출고장의 다음 번호). 같은 (납기일자, 품목코드) 활성 DC 줄은 먼저 이력(N)으로 닫는다.

@@ -1231,6 +1231,29 @@
 	     AND m.QUOTE_SEQ IN <foreach collection="seqs" item="s" open="(" separator="," close=")">#{s}</foreach>
 	   ORDER BY ISNULL(m.QUOTE_DT,''), m.QUOTE_SEQ, d.ROW_NO
 	</select>
+	<!-- ★자동연계 견적 작성 (2026-11-18 사용자 「견적서 작성 내용으로 품목코드·배송 MOQ·배송 단가 등 사용자 선택과 자동계산 내용을 파악해서 자동연계 견적서 작성 구성(동판·목형 포함)」)
+	     지난 견적서의 품목 줄(selectQuoteHistLines) + 그 견적서의 근거자료(selectQuoteHistDocs.calcJson) — 화면(asset/js/quote-autolink.js)이 줄 차례대로 calcs 를 되붙여
+	     「품목 → MOQ수량·배송 단가·운송·보관·소분·박스·목표 마진율·동판·목형」 이력을 만든다(loadDoc 과 같은 규칙 : genRows 는 걷어내고 남은 줄 차례 = calcs 차례).
+	     · 대상 = 살아 있는(ACTION_YN='Y') <최신 판>(LATEST_YN='Y') 중 최근 300건 — 견적서 목록과 같은 규칙. 두 조회가 <같은 300건>을 보게 조건을 똑같이 둔다.
+	     · ⚠이 DB 는 SQL Server 2012 라 OPENJSON 이 없다 — JSON 은 화면이 푼다(전체 CALC_JSON 합이 수십 KB 수준). 조회만 한다. -->
+	<select id="selectQuoteHistDocs" parameterType="java.util.Map" resultType="java.util.HashMap">
+	  SELECT TOP 300 m.QUOTE_SEQ AS quoteSeq, m.DOC_NO AS docNo, ISNULL(m.QUOTE_DT,'') AS quoteDt, ISNULL(m.RECV_NM,'') AS recvNm, ISNULL(m.MGR_NM,'') AS mgrNm,
+	         ISNULL(NULLIF(m.STAT_GB,''),'W') AS statGb, ISNULL(m.CALC_JSON,'') AS calcJson
+	    FROM TBL_QUOTE_MST m
+	   WHERE m.ACTION_YN = 'Y' AND ISNULL(m.LATEST_YN,'Y') = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   ORDER BY m.QUOTE_SEQ DESC
+	</select>
+	<select id="selectQuoteHistLines" parameterType="java.util.Map" resultType="java.util.HashMap">
+	  SELECT d.QUOTE_SEQ AS quoteSeq, d.ROW_NO AS rowNo, ISNULL(d.PROD_NM,'') AS prodNm, ISNULL(d.SPEC,'') AS spec, d.BOX_QTY AS boxQty, ISNULL(d.UNIT,'') AS unit,
+	         d.QTY AS qty, d.UNIT_PRICE AS unitPrice, d.UNIT_PRICE2 AS unitPrice2, ISNULL(d.REMARK,'') AS remark, ISNULL(d.PROD_CD,'') AS prodCd, ISNULL(d.MAKER_NM,'') AS makerNm
+	    FROM TBL_QUOTE_DTL d
+	   WHERE d.QUOTE_SEQ IN ( SELECT TOP 300 m.QUOTE_SEQ FROM TBL_QUOTE_MST m
+	                           WHERE m.ACTION_YN = 'Y' AND ISNULL(m.LATEST_YN,'Y') = 'Y'
+	                             AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                           ORDER BY m.QUOTE_SEQ DESC )
+	   ORDER BY d.QUOTE_SEQ DESC, d.ROW_NO
+	</select>
 	<!-- 견적서 한 건(머리) — 작성 화면(수정)·인쇄 (2026-09-17) -->
 	<select id="selectQuoteMst" parameterType="java.util.Map" resultType="java.util.HashMap">
 	  SELECT QUOTE_SEQ AS quoteSeq, COMP_CD AS compCd, DOC_NO AS docNo, ISNULL(QUOTE_DT,'') AS quoteDt, ISNULL(RECV_NM,'') AS recvNm, ISNULL(MGR_NM,'') AS mgrNm,
