@@ -497,5 +497,12 @@ public interface UserService {
 	java.util.List<java.util.Map<String,Object>> selectLeaveToday(java.util.Map<String,Object> p) throws Exception;   /* 오늘 휴가자 — 메뉴 배지 (2026-11-03) */
 	int mergeLeaveQuota(java.util.Map<String,Object> p) throws Exception;
 	int updateLeaveJoinDt(java.util.Map<String,Object> p) throws Exception;   /* 입사일 (2026-10-21) */
+	/* 재고 일괄조정 — 승인 요청 (2026-11-18) */
+	int insertStockAdjReq(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectStockAdjReqList(java.util.Map<String,Object> p) throws Exception;
+	int updateStockAdjReqStat(java.util.Map<String,Object> p) throws Exception;
+	int selectStockAdjReqPendCnt(java.util.Map<String,Object> p) throws Exception;   // 승인 대기 건수(셸 배지) 2026-11-18
+	java.util.List<java.util.Map<String,Object>> selectStockAdjReqMine(java.util.Map<String,Object> p) throws Exception;   // 내 요청 결과 중 안 본 것 2026-11-18
+	int updateStockAdjReqSeen(java.util.Map<String,Object> p) throws Exception;                                           // [확인했습니다]
 
 }

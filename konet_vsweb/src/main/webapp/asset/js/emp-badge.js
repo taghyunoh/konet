@@ -1,7 +1,7 @@
 /* =====================================================================
    emp-badge.js — 셸(logistics_demo2.jsp)의 직원 소통 세 가지 (2026-09-22)
      ① 사이드바 「직원 공지사항 / 직원 메신저」 안 읽음 배지
-        · 30초마다 POST /emp/badge.do → {noticeUnread, msgUnread, roomUnread, leaveToday, leaveNames}
+        · 30초마다 POST /emp/badge.do → {noticeUnread, msgUnread, roomUnread, leaveToday, leaveNames, adjReq(관리자만 — 재고 조정 승인 대기 건수, 2026-11-18), adjMine·adjMineList(내 요청의 승인·반려 결과 중 안 본 것)}
         · 「직원 휴가 관리」 옆 empLeaveBadge = 오늘 휴가 중인 직원 수(반려 제외), 말풍선에 이름·구분 (2026-11-03)
         · 메뉴 글자 옆 <span class="emp-badge" id="empNoticeBadge|empMsgBadge"> 에 수를 적고, 0 이면 숨긴다
         · 안 읽은 메시지가 <늘어나면>(다른 사람이 보냄) 하단 토스트 한 번 — 메신저 화면을 보고 있을 때는 안 띄운다
@@ -23,6 +23,11 @@
   var CTX = (typeof KONET_CTX === 'string') ? KONET_CTX : '';
   var PERIOD = 30000, TICK_PERIOD = 60000;
   var lastMsg = -1, timer = null, busy = false;
+  var lastAdj = -1;   /* 재고 조정 승인 대기 건수(관리자만 응답에 온다) — 늘면 알림 한 번 (2026-11-18) */
+  var lastMine = 0;   /* 내 요청의 결과 중 안 본 건수 — 0 에서 시작하므로 «로그인했을 때 와 있던 결과»도 한 번 알린다 */
+  function paintAdj(n, title, color) {
+    ['adjReqBadge', 'adjReqGrpBadge'].forEach(function (id) { paint(id, n, title); var el = document.getElementById(id); if (el) el.style.background = color || ''; });
+  }
   var tickTimer = null, tickList = [], noticeRaw = [], tickBusy = false, tickPaused = false;
   var dockRooms = [], roomsBusy = false, lastBadge = { noticeUnread: 0, msgUnread: 0 };
 
@@ -76,6 +81,35 @@
         paint('empLeaveBadge', j.leaveToday, '오늘 휴가 ' + (Number(j.leaveToday) || 0) + '명 : ' + (j.leaveNames || ''));   /* 「직원 휴가 관리」 — 오늘 휴가자 수 (2026-11-03). 주메뉴 합계에는 안 넣는다(안 읽은 수가 아니라서) */
         paint('empDockNoticeN', j.noticeUnread); paint('empDockMsgN', j.msgUnread);
         paint('empDockTabN1', j.noticeUnread); paint('empDockTabN2', j.msgUnread);
+        /* 재고 조정 승인 대기 (2026-11-18 「대기 중인 승인 요청 수를 관리자 메뉴에 빨간 배지」) — 응답에 adjReq 가 있을 때만(= 총괄관리자·부관리자).
+           「재고 관리」 주메뉴(접혀 있어도 보이게)와 「재고 일괄조정」 메뉴 두 곳. 늘어나면 알림 한 번 — 그 화면을 보고 있을 때는 안 띄운다. */
+        /* ★요청한 직원에게도 결과를 알린다 (2026-11-18 「요청한 직원에게도 승인/반려 결과 알림 표시」) — adjMine = 내 요청 중 승인·반려됐는데 아직 [확인했습니다] 안 한 건수,
+           adjMineList = 최근 5건. 같은 두 배지 자리에 «대기 + 내 결과» 를 더해 보인다(관리자는 요청을 안 올리므로 보통 한쪽뿐).
+           색 : 대기가 있거나 반려가 섞이면 빨강(기본) · 내 결과가 전부 승인이면 청록. 재고 일괄조정 화면의 [확인했습니다]를 눌러야 사라진다. */
+        if (j.adjReq != null || j.adjMine != null) {
+          var a = Number(j.adjReq) || 0, mn = Number(j.adjMine) || 0, ml = j.adjMineList || [];
+          var rej = ml.filter(function (x) { return x && x.statGb !== 'A'; }).length, tip = [];
+          if (a) tip.push('재고 조정 승인 대기 ' + a + '건 — 재고 일괄조정에서 승인·반려');
+          if (mn) tip.push('내 재고 조정 요청 결과 ' + mn + '건 — 재고 일괄조정에서 확인');
+          paintAdj(a + mn, tip.join(' / '), (!a && mn && !rej) ? '#137a6c' : '');
+          var ap = document.getElementById('panel-stockAdj'), onAdj = !!(ap && ap.classList.contains('show')), canT = (typeof window._toast === 'function');
+          if (j.adjReq != null) {
+            if (lastAdj >= 0 && a > lastAdj && !onAdj && canT) _toast('⏳ 재고 조정 승인 요청 ' + (a - lastAdj) + '건이 새로 올라왔습니다 — 재고 관리 ▸ 재고 일괄조정', 'ok');
+            lastAdj = a;
+          }
+          if (j.adjMine != null) {
+            if (mn > lastMine && !onAdj && canT) {
+              var x = ml[0] || {}, one = (mn - lastMine === 1 && x.reqSeq != null);
+              /* 어떤 상품인지 — 「(크라프트 종이컵 13oz 외 1건)」. 서버가 첫 상품명(itemNm)을 줄 때만 (2026-11-18 「어떤 상품이 반려 승인 됐는지 표시」) */
+              var ic = Number(x.itemCnt) || 0, xn = x.itemNm ? ' (' + x.itemNm + (ic > 1 ? ' 외 ' + (ic - 1) + '건' : '') + ')' : '';
+              if (one && x.statGb === 'A') _toast('✅ 재고 조정 요청 #' + x.reqSeq + xn + ' 이 승인됐습니다 — 재고에 반영됐습니다', 'ok');
+              else if (one && x.statGb === 'R') _toast('↩ 재고 조정 요청 #' + x.reqSeq + xn + ' 이 반려됐습니다' + (x.apprMemo ? ' — ' + x.apprMemo : ''), 'warn');
+              else if (one) _toast('재고 조정 요청 #' + x.reqSeq + xn + ' 이 취소됐습니다(관리자)', 'warn');
+              else _toast('재고 조정 요청 결과 ' + mn + '건이 와 있습니다 — 재고 관리 ▸ 재고 일괄조정에서 확인', rej ? 'warn' : 'ok');
+            }
+            lastMine = mn;
+          }
+        }
         var m = Number(j.msgUnread) || 0;
         if (lastMsg >= 0 && m > lastMsg) {
           if (!msgPanelShown() && typeof window._toast === 'function') _toast('💬 새 메시지 ' + (m - lastMsg) + '건 — 직원 메신저를 확인하세요', 'ok');

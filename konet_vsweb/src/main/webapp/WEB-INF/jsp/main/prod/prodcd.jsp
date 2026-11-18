@@ -1283,13 +1283,15 @@ function pcSave(){
       if(!stkDiff){ pcClose(); toast(okmsg,'ok'); pcLoad(); return; }
       /* 재고 조정 — 재고 일괄조정의 저장 엔드포인트 그대로. 차이만큼 조정행(A)+이력이 남는다. */
       fetch(CTX+'/prod/stockAdjSave.do', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
-          body: JSON.stringify({ baseDt:_todayYmd(), remark:gv('s_rmk')||'상품코드등록에서 조정',
+          body: JSON.stringify({ baseDt:_todayYmd(), remark:gv('s_rmk')||'상품코드등록에서 조정', src:'prodcd',
             rows:[{ prodSeq:Number(seq), prodCd:cd, packQty:pcStkPack(),
                     befQty:_stk.curQty, befBox:_stk.box, befEa:_stk.ea,
                     aftBox:Number(gv('s_bx'))||0, aftEa:Number(gv('s_ea'))||0 }] }) })
         .then(function(res){ return res.json(); })
         .then(function(d){
-          if(!d||d.result!=='OK'){ alertBox('상품은 저장됐지만 <b>재고 조정은 실패</b>했습니다.<br>'+esc((d&&d.message)||''),'⚠️'); }
+          /* REQ = 관리자가 아니라 승인 요청으로 쌓였다(2026-11-18) — 재고는 총괄관리자·부관리자가 재고 일괄조정 [⏳ 승인 요청]에서 승인해야 바뀐다 */
+          if(d&&d.result==='REQ'){ alertBox('상품은 저장했습니다.<br><b>재고 조정('+(stkDiff>0?'+':'')+stkDiff+')은 승인 요청</b>으로 올렸습니다.<br><span style="font-size:13px;color:#5b6b7a">총괄관리자·부관리자가 [재고 일괄조정] 화면에서 승인하면 반영됩니다(재고는 아직 그대로).</span>','⏳'); }
+          else if(!d||d.result!=='OK'){ alertBox('상품은 저장됐지만 <b>재고 조정은 실패</b>했습니다.<br>'+esc((d&&d.message)||''),'⚠️'); }
           else toast('💾 수정 + 재고 조정('+(stkDiff>0?'+':'')+stkDiff+') 완료','ok');
           pcClose(); pcLoad();
         })

@@ -3960,5 +3960,12 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<java.util.Map<String,Object>> selectLeaveToday(java.util.Map<String,Object> p) throws Exception { return mapper.selectLeaveToday(p); }
 	@Override public int mergeLeaveQuota(java.util.Map<String,Object> p) throws Exception { return mapper.mergeLeaveQuota(p); }
 	@Override public int updateLeaveJoinDt(java.util.Map<String,Object> p) throws Exception { return mapper.updateLeaveJoinDt(p); }
+	/* 재고 일괄조정 — 승인 요청 (2026-11-18) : 요청 쌓기 · 목록 · 상태 바꾸기. 승인 때의 실제 조정은 컨트롤러가 saveStockAdjBatch 를 그대로 부른다 */
+	@Override public int insertStockAdjReq(java.util.Map<String,Object> p) throws Exception { return mapper.insertStockAdjReq(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectStockAdjReqList(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockAdjReqList(p); }
+	@Override public int updateStockAdjReqStat(java.util.Map<String,Object> p) throws Exception { return mapper.updateStockAdjReqStat(p); }
+	@Override public int selectStockAdjReqPendCnt(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockAdjReqPendCnt(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectStockAdjReqMine(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockAdjReqMine(p); }
+	@Override public int updateStockAdjReqSeen(java.util.Map<String,Object> p) throws Exception { return mapper.updateStockAdjReqSeen(p); }
 
 }

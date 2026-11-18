@@ -1307,14 +1307,15 @@
   }
   var _salesQ='';
   function _salesView(){   // 품목코드/품목명 검색 필터 (3탭 공통 — 집계 전 원천 행에 적용)
-    if(!_salesQ) return _salesRows;
+    var base=window.slcDcView ? slcDcView(_salesRows) : _salesRows;   /* 🏬 출고장 콤보(2026-11-18 · logi-oh.js) — 세 탭 공통 */
+    if(!_salesQ) return base;
     var biz=(_salesTab==='biz');   /* 사업장별 탭에서는 사업장 이름·코드도 찾는다(「꾸아」 → 꾸아 매장들과 프랜차이즈 합계 — 2026-11-18) */
-    return _salesRows.filter(function(r){
+    return base.filter(function(r){
       return (''+(r.itemCd||'')).toLowerCase().indexOf(_salesQ)>=0 || (''+(r.itemNm||'')).toLowerCase().indexOf(_salesQ)>=0
           || (biz && ((''+(r.bizNm||'')).toLowerCase().indexOf(_salesQ)>=0 || (''+(r.bizCd||'')).toLowerCase().indexOf(_salesQ)>=0));
     });
   }
-  function _salesQNote(){ return _salesQ ? ' · <span style="color:#137a6c">🔎 \''+_cesc(_salesQ)+'\' 검색중</span>' : ''; }
+  function _salesQNote(){ return (window.slcDcNote?slcDcNote():'')+(_salesQ ? ' · <span style="color:#137a6c">🔎 \''+_cesc(_salesQ)+'\' 검색중</span>' : ''); }
   /* 출고미상 경고 — 정산서에는 있는데 출고 자료에 짝이 없어 이 마감에서 통째로 빠진 금액.
        마감은 출고 테이블에서 출발하므로 구조상 못 잡는다. 확정 전에 눈에 띄게 띄운다(2026-07-25).
        실측 2026-07: 113건 16,640,146원 — 금액의 2/3가 '품목 자체가 출고에 없는' 발주현황표 누락 의심분. */
@@ -1473,6 +1474,7 @@
   }
   function _bizAttr(s){ return _cesc(s).replace(/"/g,'&quot;'); }
   function salesRenderTab(){
+    if(window.slcDcSync) slcDcSync();   /* 출고장 콤보 목록·라벨 — 거르기(_salesView)보다 먼저(사라진 선택 정리) */
     var wrap=document.getElementById('closeSalesWrap'), sum=document.getElementById('closeSalesSum'), pg=document.getElementById('closeSalesPager');
     var tab=_salesTab;
     var headCols = tab==='zone' ? ['출고장','품목코드','품목명'] : (tab==='biz' ? ['사업장','품목코드','품목명'] : ['품목코드','품목명']);
@@ -1651,18 +1653,20 @@
   /* 품목코드/품목명 검색 — 세 탭 공통(접기 전 원천 행에 적용 · 매출마감 _salesView 와 같은 꼴, 2026-11-01 「탭별 검색」).
      품목코드·품목명은 어느 탭이든 · 출고장별 탭은 출고장 이름(dcNm·대표 묶음)으로도 · 사업장별 탭은 사업장 이름으로도. 위 KPI 카드(월 전체)는 거르지 않는다. */
   function _statView(){
-    if(!_statQ) return _statRows;
+    var base=window.stcDcView ? stcDcView(_statRows) : _statRows;   /* 🏬 출고장 콤보(2026-11-18 · logi-oh.js) — 세 탭 공통 · KPI 카드는 그대로 */
+    if(!_statQ) return base;
     var q=_statQ, tab=_statTab;
-    return _statRows.filter(function(r){
+    return base.filter(function(r){
       if((''+(r.itemCd||'')).toLowerCase().indexOf(q)>=0 || (''+(r.itemNm||'')).toLowerCase().indexOf(q)>=0) return true;
       if(tab==='zone') return (''+(r.dcNm||'')).toLowerCase().indexOf(q)>=0 || (''+_zoneGroup(r)).toLowerCase().indexOf(q)>=0;
       if(tab==='biz')  return (''+(r.bizNm||'')).toLowerCase().indexOf(q)>=0 || (''+(r.bizCd||'')).toLowerCase().indexOf(q)>=0;   /* 매장코드로도(2026-11-18) */
       return false;
     });
   }
-  function _statQNote(){ return _statQ ? ' · <span style="color:#137a6c">🔎 \''+_cesc(_statQ)+'\' 검색중</span>' : ''; }
+  function _statQNote(){ return (window.stcDcNote?stcDcNote():'')+(_statQ ? ' · <span style="color:#137a6c">🔎 \''+_cesc(_statQ)+'\' 검색중</span>' : ''); }
   function statSearch(){ var el=document.getElementById('statQ'); _statQ=((el&&el.value)||'').trim().toLowerCase(); statRenderTab(); }
   function statRenderTab(){
+    if(window.stcDcSync) stcDcSync();   /* 출고장 콤보 목록·라벨 — 거르기(_statView)보다 먼저 */
     var wrap=document.getElementById('closeStatusWrap'), sum=document.getElementById('closeStatusSum'), pg=document.getElementById('closeStatusPager');
     var tab=_statTab;
     var headCols = tab==='zone'?['출고장','품목코드','품목명']:(tab==='biz'?['사업장','품목코드','품목명']:['품목코드','품목명']);
@@ -2565,7 +2569,7 @@
                                + ' <a href="javascript:void(0)" onclick="stkLedExtClear()" style="font-size:11.5px;color:#137a6c;font-weight:800;text-decoration:none;white-space:nowrap" title="이 품목 전체로 되돌립니다">✕ 전체</a>' : '')
                  + '</div>';
         var thead='<thead><tr><th>일자</th><th>품목코드</th><th>구분</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>매입처</th><th>사업장</th><th>근거구분</th><th>근거번호</th><th>비고</th><th>등록일시</th><th>등록자</th></tr></thead>';
-        var body= rows.length ? rows.map(function(l){
+        var body= rows.length ? stkLedMon(rows, function(l){   /* 달마다 구분별 합계 줄을 끼운다 (2026-11-18 · logi-oh.js) */
             var io=_ioLbl(l), isOut=(l.ioGb==='O'), isRet=_ioRet(l);
             return '<tr><td>'+_fmtYmd(l.trxDt)+'</td>'
               /* 품목코드 = 재고가 떨어진 '대표코드(주코드)'. 대체출고분은 아래에 하위 행으로 편다. */
@@ -2609,7 +2613,7 @@
                     +'<td>'+(e.biz ? _bizCell(e.biz) : '')+'</td>'
                     +'<td></td><td></td><td></td><td></td><td></td></tr>';
                 }).join('');
-          }).join('')
+          })
           /* 기간을 좁혀 비었을 때와, 원장 자체가 없을 때를 구분해 안내한다 —
              똑같이 '없습니다' 라고만 하면 기간 탓인 줄 모르고 자료가 없다고 오해한다. */
           : (_stkLedRaw.length
@@ -3585,7 +3589,7 @@
     </div>
 
     <div class="grp">재고 관리</div>
-    <a class="mi has-sub" data-sub="stockmng" onclick="logiToggleSub('stockmng', this)"><span class="ic">📦</span>재고 관리<span class="caret">▶</span></a>
+    <a class="mi has-sub" data-sub="stockmng" onclick="logiToggleSub('stockmng', this)"><span class="ic">📦</span>재고 관리<span class="emp-badge" id="adjReqGrpBadge" style="display:none"></span><span class="caret">▶</span></a>
     <div class="sub-menu" id="sub-stockmng">
       <a class="mi" data-key="stockStatus" onclick="logiGo('stockStatus', this); stkStatusLoad();"><span class="ic">📊</span>품목별재고현황</a>
       <%-- 창고별 재고현황 — 2026-09-16 사용자 지시로 이 메뉴에서 뺐다(화면·자료·패널은 그대로).
@@ -3605,7 +3609,7 @@
       <a class="mi" data-key="costMng" onclick="logiFrame('costMng','${pageContext.request.contextPath}/mangr/costMng.do', this)"><span class="ic">📊</span>원가 관리</a>
       <% } %>
       <%-- 재고 일괄조정 — 2026-08-20 잠깐 내렸다가 사용자 요청으로 되살림(입구는 여기 하나) --%>
-      <a class="mi" data-key="stockAdj" onclick="logiFrame('stockAdj','${pageContext.request.contextPath}/prod/stockAdj.do', this)"><span class="ic">🧮</span>재고 일괄조정</a><a class="mi" data-key="subStockFix" onclick="logiFrame('subStockFix','${pageContext.request.contextPath}/prod/subStockFix.do', this)" title="주코드에 매칭된 서브코드에 남은 재고 정리 — 서브코드로 잡힌 매입은 매입등록으로, 남은 재고는 0으로(2026-09-13)"><span class="ic">🧹</span>서브코드 재고 정리</a>
+      <a class="mi" data-key="stockAdj" onclick="logiFrame('stockAdj','${pageContext.request.contextPath}/prod/stockAdj.do', this)"><span class="ic">🧮</span>재고 일괄조정<span class="emp-badge" id="adjReqBadge" style="display:none"></span></a><a class="mi" data-key="subStockFix" onclick="logiFrame('subStockFix','${pageContext.request.contextPath}/prod/subStockFix.do', this)" title="주코드에 매칭된 서브코드에 남은 재고 정리 — 서브코드로 잡힌 매입은 매입등록으로, 남은 재고는 0으로(2026-09-13)"><span class="ic">🧹</span>서브코드 재고 정리</a>
       <%-- 품목코드(매핑) — 기준정보에 있다가 재고 관리 맨 아래로 옮김(2026-08-01 요청).
            매핑이 안 되면 그 품목이 재고에서 빠지므로, 재고를 보다가 바로 갈 수 있는 자리가 맞다. --%>
       <a class="mi" data-key="xrefAudit" onclick="logiGo('xrefAudit', this); xaLoad();"><span class="ic">🔗</span>품목코드(매핑)</a>
@@ -3795,8 +3799,8 @@
       /* 출고장 다중선택 드롭다운 — 대시보드(데시보드1 .dc-pop)와 같은 형태 */
       .ohdc-wrap{ position:relative; display:block; }
       <%-- ★id 선택자라 새 화면 버튼(#spDcBtn)에는 안 먹어서 아이콘과 글자가 겹쳤다 — 같이 걸어 준다(2026-08-02) --%>
-      #ohDcBtn, #spDcBtn{ width:100%; height:34px; display:flex; align-items:center; justify-content:space-between; gap:6px; text-align:left; }
-      #ohDcBtn .arr, #spDcBtn .arr{ margin-left:auto; flex:0 0 auto; color:#178074; }
+      #ohDcBtn, #spDcBtn, #slcDcBtn, #stcDcBtn{ width:100%; height:34px; display:flex; align-items:center; justify-content:space-between; gap:6px; text-align:left; }
+      #ohDcBtn .arr, #spDcBtn .arr, #slcDcBtn .arr, #stcDcBtn .arr{ margin-left:auto; flex:0 0 auto; color:#178074; }
       /* ★width:230px 을 min-width 로 주면 부모(.fld 190px)에 눌려 글자가 세로로 접힌다 — 고정폭 + nowrap 필수 */
       .ohdc-pop{ display:none; position:absolute; top:38px; left:0; z-index:60; background:#fff; border:1px solid var(--logi-border);
                  border-radius:8px; box-shadow:0 6px 18px rgba(31,42,55,.18); padding:8px 6px;
@@ -4099,6 +4103,7 @@
           <button type="button" class="ctab"    data-t="biz"  onclick="salesTab('biz')">🏢 사업장별 품목코드</button>
           <button type="button" class="ctab"    data-t="item" onclick="salesTab('item')">📦 품목코드</button>
           <input type="search" class="cq" id="salesQ" placeholder="🔎 품목코드 / 품목명 검색" title="세 탭(출고장별·사업장별·품목코드) 모두에 적용됩니다. Esc = 검색 해제" oninput="salesSearch()" onkeydown="if(event.key==='Escape'){ this.value=''; salesSearch(); }">
+          <div class="ohdc-wrap" id="slcDcWrap" style="flex:0 0 190px;margin-left:6px;margin-bottom:2px"><button type="button" class="btn-line" id="slcDcBtn" style="height:30px;padding:0 10px;font-size:12.5px" onclick="slcDcOpen(event)" title="출고장을 골라 봅니다 — 전체 · 하나만 · 여러 곳(체크). 세 탭(출고장별·사업장별·품목코드)의 합계가 함께 바뀝니다. 아무것도 안 고르면 전체입니다."><span>🏬 출고장</span><span class="arr"><b id="slcDcLbl">전체</b> ▾</span></button><div class="ohdc-pop" id="slcDcPop" style="top:33px"></div></div><%-- 출고장 다중선택(2026-11-18) — 동작은 logi-oh.js slcDc* --%>
           <label id="bizFrWrap" style="display:none;align-items:center;gap:5px;margin-left:10px;margin-bottom:2px;font-size:12.5px;font-weight:700;color:#8a5a00;cursor:pointer" title="사업장 이름의 브랜드가 같은 매장(2곳 이상)을 프랜차이즈로 묶어 합계 줄을 보여 줍니다 — 「꾸아(교대점)」 → 꾸아 · 「(온정돈까스)부산광안점」 → 온정돈까스. 끄면 매장만 나열합니다"><input type="checkbox" id="bizFrChk" onchange="bizFrToggle(this.checked)"> 🏷 프랜차이즈로 묶기</label>
           <span style="margin-left:auto"></span>
           <button type="button" class="btn-line" id="salesAllBtn" style="height:30px;margin-bottom:2px" onclick="salesToggleAll()">⊟ 전체 접기</button>
@@ -4200,6 +4205,7 @@
           <button type="button" class="ctab"    data-t="biz"  onclick="statTab('biz')">🏢 사업장별</button>
           <button type="button" class="ctab"    data-t="item" onclick="statTab('item')">📦 품목별</button>
           <input type="search" class="cq" id="statQ" placeholder="🔎 품목코드 / 품목명 · 출고장 · 사업장" title="세 탭(출고장별·사업장별·품목별) 모두에 적용됩니다 — 품목코드·품목명은 늘, 출고장별 탭에서는 출고장 이름, 사업장별 탭에서는 사업장 이름으로도 찾습니다. 위 KPI 카드는 거르지 않습니다(월 전체). Esc = 검색 해제" oninput="statSearch()" onkeydown="if(event.key==='Escape'){ this.value=''; statSearch(); }">
+          <div class="ohdc-wrap" id="stcDcWrap" style="flex:0 0 190px;margin-left:6px;margin-bottom:2px"><button type="button" class="btn-line" id="stcDcBtn" style="height:30px;padding:0 10px;font-size:12.5px" onclick="stcDcOpen(event)" title="출고장을 골라 봅니다 — 전체 · 하나만 · 여러 곳(체크). 세 탭(출고장별·사업장별·품목별)의 합계가 함께 바뀝니다. 위 KPI 카드는 그 달 전체 그대로입니다."><span>🏬 출고장</span><span class="arr"><b id="stcDcLbl">전체</b> ▾</span></button><div class="ohdc-pop" id="stcDcPop" style="top:33px"></div></div><%-- 출고장 다중선택(2026-11-18) — 매출마감과 같은 콤보 · 동작은 logi-oh.js stcDc* --%>
           <label id="statFrWrap" style="display:none;align-items:center;gap:5px;margin-left:10px;margin-bottom:2px;font-size:12.5px;font-weight:700;color:#8a5a00;cursor:pointer" title="사업장 이름의 브랜드가 같은 매장(2곳 이상)을 프랜차이즈로 묶어 합계 줄을 보여 줍니다 — 매출마감 「사업장별 품목코드」와 같은 설정입니다. 끄면 매장만 나열합니다"><input type="checkbox" id="statFrChk" onchange="bizFrToggle(this.checked)"> 🏷 프랜차이즈로 묶기</label>
           <span style="margin-left:auto"></span>
           <button type="button" class="btn-line" id="statAllBtn" style="height:30px;margin-bottom:2px" onclick="statToggleAll()">⊟ 전체 접기</button>
@@ -4319,7 +4325,7 @@
             <br><b>읽음 · 열람</b> — <b>✉ 읽음</b> = 받는 쪽이 메일을 열었음(메일 프로그램이 그림을 막으면 안 잡힘 — <b>표시 없음 ≠ 안 읽음</b>) ·
             <b>👁 열람</b> = 보낸 주소로 명세서를 실제로 열어 봤음(이쪽이 더 확실). 줄마다 <b>[↻ 재전송]</b> = 같은 수단·같은 받는 곳으로 다시(이메일은 창에 채워 열고 사람이 [발송]).
             다른 전표 줄은 <b>[📂 전표 열기]</b>로 그 전표부터 엽니다. 창의 <b>[🔄 새로고침]</b>으로 읽음 상태를 다시 읽어 옵니다.</td></tr>
-          <tr><td class="m">매출마감</td><td>출고 × <b>납기일자 시점 단가</b> → 매출·매입·매출총이익(순마진은 마감현황에서 비용을 뺀 값). 출고장별(오산센터 등 2단)·사업장별·품목별 3탭, 품목 검색 공통. <b>토더 발주</b>는 정산서 없이 저장하면 곧 매출 — 수량 × 토더 판매가(엑셀 매입가, 부가세 포함), 근거 「토더」 · 받을 곳 = 거래처 「토더」(채권·채무·일계장에도). 반품은 토더 발주 등록의 저장 목록에서 수량을 고친다.</td></tr>
+          <tr><td class="m">매출마감</td><td>출고 × <b>납기일자 시점 단가</b> → 매출·매입·매출총이익(순마진은 마감현황에서 비용을 뺀 값). 출고장별(오산센터 등 2단)·사업장별·품목별 3탭, 품목 검색 공통. <b>토더 발주</b>는 정산서 없이 저장하면 곧 매출 — 수량 × 토더 판매가(엑셀 매입가, 부가세 포함), 근거 「토더」 · 받을 곳 = 거래처 「토더」(채권·채무·일계장에도). 반품은 토더 발주 등록의 저장 목록에서 수량을 고친다. 검색칸 옆 <b>[🏬 출고장 ▾]</b> 콤보로 출고장을 전체·하나·여러 곳(체크) 골라 볼 수 있다 — 세 탭의 합계가 함께 바뀐다(2026-11-18).</td></tr>
           <tr><td class="m">토더 · 대상 · 동원홈푸드 등록</td><td>정산서 없이 <b>발주가 곧 출고·매출</b>인 거래처 셋 — 엑셀(토더 「상품별 발주 목록」 · 대상 배송요청 표 · <b>동원홈푸드 「직송발주정보_주문내역」</b>)을 올려 사업장코드·품목코드를 넣고 저장하면 그 날짜 재고가 빠지고 매출(수량 × 판매가)이 선다. 동원홈푸드는 엑셀에 단가가 없어 <b>지난 저장 → 계약단가 → 상품 판매가</b> 차례로 채우고 고친다(부가세 별도 · 수량 = 출고단위 BOX 그대로). 코드 짝은 한 번 저장하면 다음부터 자동(동원 상품코드를 매칭코드에 걸어 두면 처음부터 자동). 저장 뒤 목록에서 코드·수량(반품 = 줄이기, 0 = 전량)·단가를 고친다. <b>[📒 동원홈푸드 매출장부]</b> = 배송처·배송일자별 일계·소계·합계·공급가액·부가세 엑셀(송부용). 거래처 「동원홈푸드」(DONGWON) — 채권·채무·일계장·마감(근거 「동원」)에도 같은 식. 저장 목록 조회줄의 <b>품목코드</b> 칸(DC 발주 등록도 같다) — 치는 대로 기간 안 목록을 품목코드·우리 품목·품목명으로 거른다(Esc = 지우기).</td></tr>
           <tr><td class="m">매출 그래프(월별/일자별)</td><td>매출액·매입액·순마진 그래프+표. <b>금액 기준은 마감현황과 동일</b>(매출 = 정산서 + 정산서 없는 출고의 추정 + 직접판매). <b>최근이 왼쪽</b>. <span style="color:#b45309">매입가 미등록 품목은 매입액 0이라 마진이 커 보입니다.</span></td></tr>
         </tbody></table>
@@ -4339,7 +4345,7 @@
           <tr><td class="m">매입 반품내역</td><td><b>매입 등록</b>의 반품·불량반품 줄을 모아 봅니다(조회 전용). 매입처·품목·월별 묶음과 <b>반품율</b>(반품액 ÷ 같은 기간 매입액). 수량이 음수인 반품 줄은 「반품 취소」(반품을 되돌린 줄), 거래구분 매입에 음수 수량으로 넣은 옛 줄은 「매입(음수)」로 함께 나옵니다.</td></tr>
           <tr><td class="m">입고내역</td><td>전체 품목 <b>입고 거래 목록</b> — 기간·검색·페이징·합계.</td></tr>
           <tr><td class="m">매입마감</td><td><b>입고 기준</b> 당월 매입을 매입처·품목별로 집계(매입단가 = 가중평균). 조회줄 <b>🔎 품목코드/품목명 검색</b>(묶음·합계·건수도 거른 것만 · Esc = 해제).</td></tr>
-          <tr><td class="m">재고현황</td><td>실시간 현재고 = <b>입고 − 출고</b>(수불원장 하나만 봄). <b>기준일</b> 비움=현재고 / 날짜=그날까지 기말 → 마감월 말일로 맞추면 재고마감과 대사. <b>음수</b>면 입고 누락 신호. 품목 행 클릭 → 아래 <b>수불내역</b>(근거). <b>🏷 매입처별</b> = 품목을 대표 매입처(가장 최근 입고 매입처 → 없으면 상품마스터 거래처)로 묶어 소계와 함께(매입처 줄 클릭 = 접기). <b>🔄 출고반영 재집계</b>는 과거 보정용으로만. <b>🧹 서브코드 재고 정리</b>(재고 관리 메뉴) = 주코드에 매칭된 서브코드에 남은 재고를 찾아, 서브코드로 잡힌 매입은 [매입등록에서 열기]로 주코드로 바꾸고 남은 재고는 0으로 조정(기본 주코드에 합침 · 재고 일괄조정 [조정 이력]에서 되돌리기).</td></tr>
+          <tr><td class="m">재고현황</td><td>실시간 현재고 = <b>입고 − 출고</b>(수불원장 하나만 봄). <b>기준일</b> 비움=현재고 / 날짜=그날까지 기말 → 마감월 말일로 맞추면 재고마감과 대사. <b>음수</b>면 입고 누락 신호. 품목 행 클릭 → 아래 <b>수불내역</b>(근거). <b>🏷 매입처별</b> = 품목을 대표 매입처(가장 최근 입고 매입처 → 없으면 상품마스터 거래처)로 묶어 소계와 함께(매입처 줄 클릭 = 접기). <b>🔄 출고반영 재집계</b>는 과거 보정용으로만. <b>🧹 서브코드 재고 정리</b>(재고 관리 메뉴) = 주코드에 매칭된 서브코드에 남은 재고를 찾아, 서브코드로 잡힌 매입은 [매입등록에서 열기]로 주코드로 바꾸고 남은 재고는 0으로 조정(기본 주코드에 합침 · 재고 일괄조정 [조정 이력]에서 되돌리기). <b>② 수불 내역</b>은 달마다 맨 위에 <b>「▣ 2026-10 합계」</b> 줄(입고·출고·조정 구분별 수량·금액 합 · 건수 · 달 이름 옆 <b>총합계</b> = 그 달 재고 증감 = 입고 − 출고 ± 조정)이 붙는다(2026-11-18). <b>재고 일괄조정 = 승인 뒤 반영</b>(2026-11-18) : 총괄관리자·부관리자가 아닌 직원이 [승인 요청]을 누르면 재고는 그대로 두고 요청만 쌓인다 → 관리자가 재고 일괄조정 화면 위 <b>「승인 요청」</b> 목록에서 [승인](그때 재고 반영 · 조정 이력에 남음) 또는 [반려](사유 필수). 요청한 사람은 대기 중인 제 요청을 [요청 취소]할 수 있다. 관리자가 직접 저장하면 종전대로 바로 반영. 상품코드등록 수정 창의 재고수량 칸도 같은 규칙. 목록 표 밑 <b>높이 막대</b>(끌기 · [▲ 줄이기][▼ 늘리기] · 더블클릭 = 처음 높이)로 목록과 조정 이력의 높이를 나눈다. 승인 대기 건수는 관리자에게 왼쪽 메뉴 「재고 관리 ▸ 재고 일괄조정」 옆 <b>빨간 배지</b>로 보인다(30초마다 갱신 · 새 요청이 오면 아래 알림 한 번). <b>요청한 직원에게도 결과가 온다</b> — 승인·반려되면 같은 메뉴 배지와 알림(반려는 사유까지), 재고 일괄조정 화면 위 「📬 내 요청 결과」 띠에서 보고 [확인했습니다]를 누르면 사라진다. 띠는 <b>표</b>로 — 요청마다 어떤 상품이 전 → 후 · 증감 얼마로 승인·반려됐는지 한 줄씩, 많으면 표 안에서 스크롤. 승인하는 쪽의 「승인 요청」 표도 같은 꼴(요청마다 상품별 전 → 후 · 증감이 바로 보이고 [승인][반려] 단추는 오른쪽에 늘 붙어 있다).</td></tr>
           <tr><td class="m">월별 출고현황</td><td><b>사업장 ▸ 품목</b>별 월 출고량 + 맨 윗줄 현재고. 출고량은 <b>납기일자</b> 기준으로 그 날 <b>정산서가 있으면 정산서</b>, 없으면 발주현황표(라벨수량) + <b>토더·대상 발주</b>(정산서 날에도) + <b>판매전표</b>(거래처가 사업장 자리, 「(판매전표)」) — 품목별재고현황(재고 원장)과 같은 규칙(2026-10-26). 셀을 누르면 아래 <b>출고내역·입고내역</b>. <b>기본 기간 = 올해 1월 1일 ~ 오늘</b>(기간이 곧 표의 열 수라 넓히면 그만큼 느려집니다). 거르기 칸은 <b>치던 손을 멈추면</b> 걸립니다(Enter 는 바로).</td></tr>
           <tr><td class="m">재고마감</td><td>기초+입고−출고±조정=<b>기말</b>, 재고금액=기말×이동평균. 기초는 <b>직전 확정월 기말에서 이월</b>. 탭줄 <b>🔎 품목코드/품목명 검색</b> = 두 탭 공통(합계·건수도 거른 것만 · Esc = 해제).</td></tr>
         </tbody></table>
@@ -4348,7 +4354,7 @@
       <div class="g-sec">
         <h3>4. 정보 현황 · 원장관리</h3>
         <table><tbody>
-          <tr><td class="m">마감현황(월계표)</td><td>탭줄 <b>🔎 검색</b>(세 탭 공통 — 품목코드·품목명 늘, 출고장별 탭은 출고장 이름, 사업장별 탭은 사업장 이름으로도 · 합계·건수는 거른 것만 · 위 KPI 카드는 월 전체 · Esc = 해제). 선택 월 매출·매입·매출총이익·비용·순마진 요약(KPI) + <b>🔒 확정 / 🔓 해제</b>. 확정 = 3종 통합 저장 + 기말재고 스냅샷 + 그 달 수불 잠금.</td></tr>
+          <tr><td class="m">마감현황(월계표)</td><td>탭줄 <b>🔎 검색</b>(세 탭 공통 — 품목코드·품목명 늘, 출고장별 탭은 출고장 이름, 사업장별 탭은 사업장 이름으로도 · 합계·건수는 거른 것만 · 위 KPI 카드는 월 전체 · Esc = 해제). 선택 월 매출·매입·매출총이익·비용·순마진 요약(KPI) + <b>🔒 확정 / 🔓 해제</b>. 확정 = 3종 통합 저장 + 기말재고 스냅샷 + 그 달 수불 잠금. 검색칸 옆 <b>[🏬 출고장 ▾]</b> 콤보(매출마감과 같은 것)로 출고장을 전체·하나·여러 곳 골라 볼 수 있다 — 아래 세 탭만 거르고 위 KPI 카드는 그 달 전체 그대로(2026-11-18).</td></tr>
           <tr><td class="m">월별 마감이력</td><td>확정한 달들의 매출·원가·마진·매입·기말재고금액. 행 클릭 → 그 달 마감현황.</td></tr>
           <tr><td class="m">거래처별 이익<br>상품별 이익<br>거래처별 상품별 이익</td><td>세 화면 모두 위에 <b>[회사전체이익]</b> 요약 + <b>🖨 인쇄</b>(새 창)·<b>📥 엑셀</b>·머리글 정렬·이름 거르기·<b>사업장 고르기</b>. <b>실판매액 = 판매−반품 · 이익금 = 실판매−입고 · 이익율 = 이익÷실판매.</b> 금액 기준은 <b>마감현황·매출 그래프와 같고</b>, 세 화면은 같은 자료를 접은 것이라 합계가 늘 같습니다. 사업장을 고르면 판매전표(사업장 칸 없음)는 빠집니다. <b>조회 전용.</b></td></tr>
           <tr><td class="m">거래처별 채권·채무</td><td>거래처마다 <b>받을금액</b>[(매출−할인)−수금]과 <b>지급할금액</b>[(매입−할인)−지급]. <b>이월 + 당월매출 − 당월수금 = 남은금액</b>, 오른쪽 끝에 <b>특정일자 발생</b> 4칸(그 하루의 매출·수금·매입·지급). 줄 클릭 → 월별 이력 + 아래 <b>건별 내역</b> 4탭.

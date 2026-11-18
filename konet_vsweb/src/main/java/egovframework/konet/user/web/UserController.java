@@ -5966,10 +5966,196 @@ public class UserController {
 					}
 				}
 
+				/* ★★승인 뒤에만 저장된다 (2026-11-18 사용자 「총괄관리자 및 부관리자가 승인해야 저장되게 — 작성 후 승인이 돼야 저장」).
+				   총괄관리자·부관리자(MAIN_GU 1·2)가 직접 누른 저장은 그 자리에서 반영된다(본인이 곧 승인자).
+				   그 밖의 직원은 재고를 바꾸지 않고 «승인 요청»(TBL_STOCK_ADJ_REQ)으로 쌓는다 — result "REQ". 관리자가 /prod/stockAdjReqAct.do 로 승인하면 그때 반영된다.
+				   ★막는 곳이 여기(서버)다 — 이 주소를 쓰는 화면(재고 일괄조정 · 상품코드등록 수정 창의 재고수량 칸)이 전부 같은 규칙을 탄다. */
+				if (!empAdmin(session)) {
+					int cnt = 0, dsum = 0;
+					for (egovframework.konet.user.model.StockAdjHisDTO r : rows) {
+						if (r == null || r.getProdSeq() == null) continue;
+						int d = adjDiff(r); if (d == 0) continue;
+						cnt++; dsum += d;
+					}
+					if (cnt == 0) { response.put("result", "FAIL"); response.put("message", "고친 줄이 없습니다."); return response; }
+					Map<String,Object> rq = new HashMap<String,Object>();
+					rq.put("compCd", head.getCompCd()); rq.put("baseDt", head.getBaseDt()); rq.put("whCd", head.getWhCd());
+					String rmk = head.getRemark() == null ? "" : head.getRemark(); rq.put("remark", rmk.length() > 190 ? rmk.substring(0, 190) : rmk);
+					rq.put("itemCnt", Integer.valueOf(cnt)); rq.put("diffSum", Integer.valueOf(dsum));
+					rq.put("payload", COMP_JSON.writeValueAsString(body.get("rows")));
+					String src = str(body.get("src")); rq.put("src", src == null || src.isEmpty() ? "stockAdj" : (src.length() > 20 ? src.substring(0, 20) : src));
+					rq.put("reqUser", head.getRegUser()); rq.put("reqIp", head.getRegIp());
+					svc.insertStockAdjReq(rq);
+					response.put("result", "REQ");
+					response.put("reqSeq", rq.get("reqSeq"));
+					response.put("cnt", Integer.valueOf(cnt));
+					response.put("message", "승인 요청으로 올렸습니다 — 총괄관리자·부관리자가 승인하면 재고에 반영됩니다. (재고는 아직 바뀌지 않았습니다)");
+					return response;
+				}
+
 				int n = svc.saveStockAdjBatch(head, rows);
 				response.put("result", "OK");
 				response.put("cnt", Integer.valueOf(n));
 				response.put("batchNo", head.getBatchNo());
+			} catch (Exception e) {
+				response.put("result", "FAIL");
+				response.put("message", e.getMessage());
+			}
+			return response;
+		}
+
+		/* ══ 재고 일괄조정 — 승인 요청 (2026-11-18) ══════════════════════════════════════════════════
+		     · /prod/stockAdjReqList.do : 승인 대기 전부 + 끝난 것 최근 60일(pendOnly=Y 면 대기만). 응답에 admin(Y/N)·me 를 함께 — 화면이 단추를 가른다.
+		     · /prod/stockAdjReqAct.do  : {reqSeq, act, memo} — act A 승인(관리자) · R 반려(관리자 · 사유) · C 취소(요청한 본인 또는 관리자).
+		       승인 = ①상태를 P→A 로 먼저 잡는다(동시에 두 번 승인해도 한 번만) ②PAYLOAD 를 종전 저장(saveStockAdjBatch)에 그대로 태운다
+		              ③실패하면 P 로 되돌리고 사유를 돌려준다. 조정 줄의 등록자 = «요청한 사람»(누가 실사했나), 승인자는 요청 표와 사유 꼬리에 남는다.
+		       ★승인 때도 「서브코드로는 조정 불가」 관문을 다시 본다(요청 뒤에 매칭코드가 걸렸을 수 있다).
+		       ★반영되는 것은 요청 때의 «전 → 후 차이(증감)» 다 — 요청과 승인 사이에 출고가 더 나갔어도 증감은 같다. */
+		/** 요청의 조정 줄(JSON)에서 «실제로 바뀌는 첫 상품»의 이름 — 못 읽으면 빈 글자(알림에서 상품명만 빠진다). 2026-11-18 */
+		@SuppressWarnings("unchecked")
+		private static String adjReqFirstNm(String payload) {
+			try {
+				if (payload == null || payload.trim().isEmpty()) return "";
+				Object raw = COMP_JSON.readValue(payload, java.util.List.class);
+				String first = "";
+				for (Object o : (java.util.List<Object>) raw) {
+					if (!(o instanceof Map)) continue;
+					Map<String,Object> m = (Map<String,Object>) o;
+					String nm = m.get("prodNm") == null ? "" : String.valueOf(m.get("prodNm")).trim();
+					if (nm.isEmpty()) nm = m.get("prodCd") == null ? "" : String.valueOf(m.get("prodCd")).trim();
+					if (first.isEmpty()) first = nm;
+					int pack = empInt(m.get("packQty")); if (pack < 1) pack = 1;
+					if (empInt(m.get("aftBox")) * pack + empInt(m.get("aftEa")) - empInt(m.get("befQty")) != 0) return nm;
+				}
+				return first;
+			} catch (Exception e) { return ""; }
+		}
+		private static int adjDiff(egovframework.konet.user.model.StockAdjHisDTO r) {
+			int pack = (r.getPackQty() == null || r.getPackQty() < 1) ? 1 : r.getPackQty();
+			int aft = (r.getAftBox() == null ? 0 : r.getAftBox()) * pack + (r.getAftEa() == null ? 0 : r.getAftEa());
+			return aft - (r.getBefQty() == null ? 0 : r.getBefQty());
+		}
+		@RequestMapping(value="/prod/stockAdjReqList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockAdjReqList(@RequestParam(value="pendOnly", required=false) String pendOnly, HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			if (!adjLoggedIn(session)) { response.put("result", "FAIL"); response.put("login", Boolean.TRUE); response.put("message", ADJ_LOGIN_MSG); return response; }
+			response.put("admin", empAdmin(session) ? "Y" : "N");
+			response.put("me", empUser(session));
+			try {
+				Map<String,Object> p = new HashMap<String,Object>();
+				p.put("compCd", session.getAttribute("s_comp_cd")); p.put("reqSeq", null); p.put("pendOnly", "Y".equals(pendOnly) ? "Y" : "");
+				response.put("data", svc.selectStockAdjReqList(p));
+				response.put("result", "OK");
+				/* 내 요청의 결과 중 안 본 것 — 화면 위 「내 요청 결과」 띠 (2026-11-18). 칸이 없으면 빈 목록 */
+				try { Map<String,Object> q2 = new HashMap<String,Object>(); q2.put("compCd", session.getAttribute("s_comp_cd")); q2.put("userId", empUser(session));
+				      response.put("mine", svc.selectStockAdjReqMine(q2)); }
+				catch (Exception ex) { response.put("mine", new java.util.ArrayList<Object>()); }
+			} catch (Exception e) {
+				response.put("result", "FAIL"); response.put("data", new java.util.ArrayList<Object>());
+				response.put("message", e.getMessage());
+			}
+			return response;
+		}
+		/** 내 요청 결과를 [확인했습니다] — 승인·반려된 내 요청을 «봤음»으로(메뉴 배지·결과 띠가 사라진다). 2026-11-18 */
+		@RequestMapping(value="/prod/stockAdjReqSeen.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockAdjReqSeen(HttpSession session) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			if (!adjLoggedIn(session)) { response.put("result", "FAIL"); response.put("login", Boolean.TRUE); response.put("message", ADJ_LOGIN_MSG); return response; }
+			try {
+				Map<String,Object> p = new HashMap<String,Object>(); p.put("compCd", session.getAttribute("s_comp_cd")); p.put("userId", empUser(session));
+				response.put("cnt", svc.updateStockAdjReqSeen(p)); response.put("result", "OK");
+			} catch (Exception e) { response.put("result", "FAIL"); response.put("message", e.getMessage()); }
+			return response;
+		}
+		@RequestMapping(value="/prod/stockAdjReqAct.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockAdjReqAct(@RequestBody Map<String,Object> body, HttpSession session, HttpServletRequest request) throws Exception {
+			Map<String,Object> response = new HashMap<String,Object>();
+			if (!adjLoggedIn(session)) { response.put("result", "FAIL"); response.put("login", Boolean.TRUE); response.put("message", ADJ_LOGIN_MSG); return response; }
+			String compCd = (String) session.getAttribute("s_comp_cd"), me = empUser(session);
+			boolean admin = empAdmin(session);
+			String act = str(body.get("act")); Long reqSeq = lng(body.get("reqSeq"));
+			String memo = str(body.get("memo")); if (memo == null) memo = ""; if (memo.length() > 190) memo = memo.substring(0, 190);
+			if (reqSeq == null || act == null || !act.matches("[ARC]")) { response.put("result", "FAIL"); response.put("message", "요청 번호나 처리 구분이 없습니다."); return response; }
+			try {
+				Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", compCd); q.put("reqSeq", reqSeq); q.put("pendOnly", "");
+				java.util.List<Map<String,Object>> one = svc.selectStockAdjReqList(q);
+				if (one == null || one.isEmpty()) { response.put("result", "FAIL"); response.put("message", "승인 요청을 찾을 수 없습니다."); return response; }
+				Map<String,Object> rq = one.get(0);
+				String reqUser = poStr(rq.get("reqUser"));
+				if (!"P".equals(poStr(rq.get("statGb")))) { response.put("result", "FAIL"); response.put("message", "이미 처리된 요청입니다 — 목록을 다시 읽어 주세요."); return response; }
+				if ("C".equals(act) ? !(admin || me.equals(reqUser)) : !admin) {
+					response.put("result", "FAIL");
+					response.put("message", "C".equals(act) ? "요청한 본인이나 관리자만 취소할 수 있습니다." : "총괄관리자·부관리자만 승인·반려할 수 있습니다.");
+					return response;
+				}
+				if ("R".equals(act) && memo.isEmpty()) { response.put("result", "FAIL"); response.put("message", "반려 사유를 적어 주세요."); return response; }
+
+				Map<String,Object> up = new HashMap<String,Object>();
+				up.put("compCd", compCd); up.put("reqSeq", reqSeq); up.put("fromStat", "P"); up.put("statGb", act);
+				up.put("apprUser", me); up.put("apprMemo", memo); up.put("batchNo", null);
+				if (!"A".equals(act)) {                                   // 반려 · 취소 — 재고는 건드리지 않는다
+					if (svc.updateStockAdjReqStat(up) <= 0) { response.put("result", "FAIL"); response.put("message", "이미 처리된 요청입니다 — 목록을 다시 읽어 주세요."); return response; }
+					response.put("result", "OK"); response.put("statGb", act);
+					return response;
+				}
+
+				/* ── 승인 : 요청 줄을 종전 저장에 그대로 태운다 ── */
+				java.util.List<egovframework.konet.user.model.StockAdjHisDTO> rows = new java.util.ArrayList<egovframework.konet.user.model.StockAdjHisDTO>();
+				Object raw = COMP_JSON.readValue(poStr(rq.get("payload")).isEmpty() ? "[]" : String.valueOf(rq.get("payload")), java.util.List.class);
+				java.util.LinkedHashSet<String> cds = new java.util.LinkedHashSet<String>();
+				if (raw instanceof java.util.List) {
+					for (Object o : (java.util.List<?>) raw) {
+						if (!(o instanceof Map)) continue;
+						Map<?,?> m = (Map<?,?>) o;
+						egovframework.konet.user.model.StockAdjHisDTO r = new egovframework.konet.user.model.StockAdjHisDTO();
+						r.setProdSeq(lng(m.get("prodSeq"))); r.setProdCd(str(m.get("prodCd"))); r.setPackQty(intg(m.get("packQty")));
+						r.setBefQty(intg(m.get("befQty"))); r.setBefBox(intg(m.get("befBox"))); r.setBefEa(intg(m.get("befEa")));
+						r.setAftBox(intg(m.get("aftBox"))); r.setAftEa(intg(m.get("aftEa")));
+						rows.add(r);
+						if (r.getProdCd() != null && !r.getProdCd().trim().isEmpty()) cds.add(r.getProdCd().trim());
+					}
+				}
+				if (rows.isEmpty()) { response.put("result", "FAIL"); response.put("message", "요청에 조정 줄이 없습니다."); return response; }
+				if (!cds.isEmpty()) {
+					Map<String,Object> sp = new HashMap<String,Object>(); sp.put("codes", new java.util.ArrayList<String>(cds)); sp.put("compCd", compCd);
+					java.util.List<egovframework.konet.user.model.ExtItemDTO> subs = svc.selectSubCodesAmong(sp);
+					if (subs != null && !subs.isEmpty()) {
+						StringBuilder sb = new StringBuilder();
+						for (egovframework.konet.user.model.ExtItemDTO s : subs) { if (sb.length() > 0) sb.append(" / "); sb.append(poStr(s.getExtItemCd())).append("(서브) → 주코드 ").append(poStr(s.getProdCd())); }
+						response.put("result", "FAIL");
+						response.put("message", "서브코드가 섞여 있어 승인할 수 없습니다 — " + sb + " . 반려한 뒤 주코드 줄로 다시 요청하게 하세요.");
+						return response;
+					}
+				}
+				if (svc.updateStockAdjReqStat(up) <= 0) { response.put("result", "FAIL"); response.put("message", "이미 처리된 요청입니다 — 목록을 다시 읽어 주세요."); return response; }
+				egovframework.konet.user.model.StockAdjHisDTO head = new egovframework.konet.user.model.StockAdjHisDTO();
+				head.setCompCd(compCd);
+				head.setBaseDt(poStr(rq.get("baseDt")));
+				head.setWhCd(poStr(rq.get("whCd")).isEmpty() ? null : poStr(rq.get("whCd")));
+				String rmk = poStr(rq.get("remark")); if (rmk.isEmpty()) rmk = "재고 일괄조정";
+				String tail = " (승인 " + (empUserNm(session).isEmpty() ? me : empUserNm(session)) + ")";
+				head.setRemark((rmk.length() + tail.length() > 200 ? rmk.substring(0, Math.max(0, 200 - tail.length())) : rmk) + tail);
+				head.setRegUser(reqUser.isEmpty() ? me : reqUser);
+				head.setRegIp(request.getRemoteAddr());
+				int n;
+				try {
+					n = svc.saveStockAdjBatch(head, rows);
+				} catch (Exception se) {                                  // 반영 실패(마감 확정월 등) — 요청을 대기로 되돌린다
+					Map<String,Object> back = new HashMap<String,Object>(up);
+					back.put("fromStat", "A"); back.put("statGb", "P"); back.put("apprUser", null); back.put("apprMemo", null);
+					try { svc.updateStockAdjReqStat(back); } catch (Exception ignore) { log.error(" stockAdjReqAct 되돌리기 실패 : " + ignore.getMessage()); }
+					response.put("result", "FAIL");
+					response.put("message", "승인했지만 재고 반영에 실패해 대기로 되돌렸습니다 — " + (se.getMessage() == null ? "" : se.getMessage()));
+					return response;
+				}
+				Map<String,Object> done = new HashMap<String,Object>(up);
+				done.put("fromStat", "A"); done.put("statGb", "A"); done.put("batchNo", head.getBatchNo());
+				try { svc.updateStockAdjReqStat(done); } catch (Exception ignore) { log.error(" stockAdjReqAct 묶음번호 기록 실패 : " + ignore.getMessage()); }
+				response.put("result", "OK"); response.put("statGb", "A");
+				response.put("cnt", Integer.valueOf(n)); response.put("batchNo", head.getBatchNo());
 			} catch (Exception e) {
 				response.put("result", "FAIL");
 				response.put("message", e.getMessage());
@@ -6160,6 +6346,31 @@ public class UserController {
 			try {
 				if (!adjLoggedIn(session)) { r.put("result", "FAIL"); r.put("login", "N"); return r; }
 				r.putAll(svc.empBadge(sessComp(session), empUser(session)));
+				/* 재고 조정 승인 대기 건수 (2026-11-18 「대기 중인 승인 요청 수를 관리자 메뉴에 빨간 배지」) — 승인할 수 있는 사람(총괄관리자·부관리자)에게만.
+				   표가 없거나 조회가 실패해도 공지·메신저 배지는 그대로 나가게 따로 잡는다(칸이 없으면 화면은 배지를 안 그린다). */
+				if (empAdmin(session)) {
+					try { Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", sessComp(session)); r.put("adjReq", svc.selectStockAdjReqPendCnt(q)); }
+					catch (Exception ex) { log.error(" empBadge adjReq ERROR : " + ex.getMessage()); }
+				}
+				/* 내가 올린 재고 조정 요청의 결과(승인·반려) 중 아직 [확인했습니다] 안 한 것 (2026-11-18 「요청한 직원에게도 승인/반려 결과 알림 표시」).
+				   adjMine = 건수 · adjMineList = 최근 5건(번호·상태·처리자·반려 사유) — 화면이 배지와 알림 글을 만든다.
+				   칸(REQ_SEEN_DTTM)이 아직 없으면 조회가 실패한다 → 이 칸들만 빠지고 나머지 배지는 그대로. */
+				try {
+					Map<String,Object> q2 = new HashMap<String,Object>(); q2.put("compCd", sessComp(session)); q2.put("userId", empUser(session));
+					java.util.List<Map<String,Object>> ml = svc.selectStockAdjReqMine(q2);
+					int mn = (ml == null) ? 0 : ml.size();
+					r.put("adjMine", mn);
+					if (mn > 0) {   /* 30초마다 도는 응답이라 조정 줄(PAYLOAD)은 떼고 «첫 상품명»만 — 알림 글 「요청 #1 (종이컵 외 1건)」에 쓴다 */
+						java.util.List<Map<String,Object>> brief = new java.util.ArrayList<Map<String,Object>>();
+						for (int i = 0; i < mn && i < 5; i++) {
+							Map<String,Object> row = new HashMap<String,Object>(ml.get(i));
+							Object pl = row.remove("payload");
+							row.put("itemNm", adjReqFirstNm(pl == null ? null : String.valueOf(pl)));
+							brief.add(row);
+						}
+						r.put("adjMineList", brief);
+					}
+				} catch (Exception ex) { log.error(" empBadge adjMine ERROR : " + ex.getMessage()); }
 				r.put("result", "OK");
 			} catch (Exception e) { log.error(" empBadge ERROR : " + e.getMessage()); r.put("result", "FAIL"); r.put("message", e.getMessage()); }
 			return r;

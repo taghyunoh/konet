@@ -6359,6 +6359,55 @@ function ssOutQty(o){
       _stkTopSave(null); fit();
     });
   }
+  /* ★② 선택 품목 수불 내역 — 달마다 합계 줄 (2026-11-18 사용자 그림 「해당 품목코드 월별마다 합계 찍어줘요 — 헤더 표시 수량합계」 : 머리글 수량·단가·금액에 밑줄).
+       줄(rows)은 그대로 두고, 그 달의 첫 줄 앞에 그 달의 «구분별» 합계 줄을 끼운다 — 입고·출고·조정·반품은 뜻이 달라 한 숫자로 안 합친다(구분마다 한 줄).
+       칸은 머리글 그대로 : 일자 자리 「▣ 2026-10 합계」 · 품목코드 자리 「총합계」 · 구분 · 수량 합 · (단가 빈 칸) · 금액 합 · 「n건」. 13칸 = 1 + 1 + 1 + 1 + 1 + 1 + 7.
+       ★총합계(같은 날 사용자 그림 — 달 이름 옆 빈 칸에 표시 「표시에 총합계 표시」) = 그 달의 «재고 증감» = 입고 − 출고 ± 조정 ± 반품.
+         부호는 현재고를 세는 SQL 과 같다(IO_GB I·R·A 는 +수량, O 는 −수량 — selectStockMstList·recalcStockMst). 구분 줄을 그냥 더한 값이 아니다
+         (입고 96,000 · 출고 36,700 · 조정 50,546 → 96,000 − 36,700 + 50,546 = 109,846). 셈 식은 칸의 말풍선에 적는다.
+       · 줄 차례가 최근 날짜부터라 합계 줄이 그 달 맨 위에 선다(이 프로그램의 소계 자리 = 묶음 맨 앞).
+       · ↳ 대체출고 하위 줄은 윗줄을 나눠 보인 것이라 안 센다(rowFn 이 그린다 — 여기서는 rows 만 센다).
+       · 기간 단추·매칭코드로 거른 상태면 «화면에 보이는 줄»만 센다(_stkLedPaint 가 거른 rows 를 준다).
+       JSP(_stkLedPaint)는 rows.map(…).join('') 을 stkLedMon(rows, …) 으로 바꿔 부를 뿐이다(줄 수 불변 — _jspService 한계). */
+  function stkLedMon(rows, rowFn){
+    var ym=function(l){ return String((l&&l.trxDt)||'').replace(/[^0-9]/g,'').slice(0,6); };
+    var sums={}, ord={}, net={};
+    rows.forEach(function(l){ var k=ym(l), g=(typeof _ioLbl==='function') ? _ioLbl(l) : String(l.ioGb||'');
+      net[k]=(net[k]||0)+((l.ioGb==='O') ? -(+l.qty||0) : (+l.qty||0));   /* 재고 증감 — 출고만 빼고 나머지(입고·반품·조정)는 수량의 부호대로 */
+      var m=sums[k]||(sums[k]={}), o=ord[k]||(ord[k]=[]);
+      if(!m[g]){ m[g]={q:0, a:0, n:0, l:l, sg:0}; o.push(g); }
+      m[g].q+=(+l.qty||0); m[g].a+=(+l.amt||0); m[g].n++; m[g].sg+=((l.ioGb==='O') ? -(+l.qty||0) : (+l.qty||0)); });
+    var done={}, h='';
+    rows.forEach(function(l, i){ var k=ym(l);
+      if(!done[k]){ done[k]=1; h+=stkLedMonHead(k, sums[k], ord[k], net[k]||0); }
+      h+=rowFn(l, i); });
+    return h;
+  }
+  var STK_LEDORD=['입고','출고','반품','반품(매출)','조정'];
+  function stkLedMonHead(k, m, o, net){
+    var num=function(v){ return (typeof _cnum==='function') ? _cnum(v) : String(Math.round(+v||0)); };
+    var esc=function(v){ return (typeof _cesc==='function') ? _cesc(v) : String(v); };
+    var lab=(k.length===6) ? (k.slice(0,4)+'-'+k.slice(4,6)) : '(일자 없음)';
+    var gs=(o||[]).slice().sort(function(a,b){ var x=STK_LEDORD.indexOf(a), y=STK_LEDORD.indexOf(b); return (x<0?99:x)-(y<0?99:y); });
+    var bg='background:#fcf8e3;font-weight:800;border-top:2px solid #e3d6a3';
+    /* 총합계 말풍선 — 구분마다 재고에 더해진 몫을 부호째 늘어놓는다 : 「입고 +96,000 · 출고 −36,700 · 조정 +50,546 = 109,846」 */
+    var sgn=function(v){ v=Math.round(+v||0); return (v<0 ? '−' : '+')+num(Math.abs(v)); };
+    var why=gs.map(function(g){ return g+' '+sgn(m[g].sg); }).join(' · ')+' = '+num(net);
+    var nt=Math.round(+net||0);
+    return gs.map(function(g, gi){
+      var s=m[g], l=s.l, ret=(typeof _ioRet==='function') && _ioRet(l), col=ret ? '#c0392b' : (l.ioGb==='O' ? '#b06a00' : '#137a6c');
+      return '<tr class="led-mon" data-ym="'+esc(k)+'" title="'+esc(lab)+' '+esc(g)+' 합계 — 이 달에 보이는 '+esc(g)+' 줄 '+s.n+'건의 수량·금액 합 (↳ 대체출고 줄은 윗줄을 나눈 것이라 안 셉니다)">'
+        + (gi===0 ? '<td rowspan="'+gs.length+'" style="'+bg+';color:#5c4a00;white-space:nowrap;text-align:left;padding-left:10px">▣ '+esc(lab)+' 합계</td>'
+                  + '<td class="led-net" rowspan="'+gs.length+'" style="'+bg+';white-space:nowrap;text-align:right;padding-right:10px" title="'+esc(lab)+' 총합계 = 그 달의 재고 증감 (입고 − 출고 ± 조정·반품)&#10;'+esc(why)+'">'
+                  + '<span style="font-size:11.5px;font-weight:700;color:#8a7a3a;margin-right:6px">총합계</span>'
+                  + '<span style="font-size:14px;color:'+(nt<0?'#c0392b':'#1f2a37')+'">'+num(nt)+'</span></td>' : '')
+        + '<td style="'+bg+';color:'+col+'">'+esc(g)+'</td>'
+        + '<td style="'+bg+';text-align:right;color:'+col+'">'+num(s.q)+'</td>'
+        + '<td style="'+bg+'"></td>'
+        + '<td style="'+bg+';text-align:right;color:#1f2a37">'+num(s.a)+'</td>'
+        + '<td colspan="7" style="'+bg+';color:#8a7a3a;font-weight:600;text-align:left;padding-left:10px">'+s.n+'건</td></tr>';
+    }).join('');
+  }
   function stkSelKeep(w){
     if(!w || w._savedMax!=null || !w.querySelector) return;
     var sel=w.querySelector('tbody tr.stk-on'); if(!sel) return;
@@ -6773,6 +6822,81 @@ function ssOutQty(o){
          같이 쓰면 한 화면에서 고른 출고장이 다른 화면 조회까지 바꿔 버린다.
        ★목록은 '조회된 자료에 실제로 있는 출고장'으로 만든다(없는 곳을 고르면 0건이라 혼란).
        ★거르기는 서버 재조회 없이 화면에서만 한다 — 원본 _spRows 는 그대로 두고 그릴 때 거른다. */
+  /* ══ 매출마감 · 마감현황 출고장 다중선택 (2026-11-18 사용자 그림 「1번 자리에 대시보드처럼 콤보로 전체 · 다중체크 · 단일체크로 조회」) ══
+       자리 = 매출마감 탭 줄의 🔎 검색칸 바로 뒤(#slcDcWrap). 모양(.ohdc-wrap/.ohdc-pop)은 매출내역·정산실적 것을 그대로 쓰고 상태·id 만 따로 둔다
+       (같이 쓰면 한 화면에서 고른 출고장이 다른 화면까지 거른다).
+       · 목록 = 조회된 매출마감 자료(_salesRows)에 실제로 있는 출고장 — 1단 = 표의 대표 출고장(_zoneGroup : 오산센터·직접판매(전표)·대상 …),
+         2단 = 그 안의 개별 출고장(dcCd|dcNm — 표의 둘째 단과 같은 열쇠). 2곳 이상인 묶음만 2단을 편다.
+       · 아무것도 안 고르면 전체 · 하나만 체크 = 그 한 곳 · 여럿 체크 = 고른 곳들의 합(묶음을 체크하면 그 안 전부).
+       · 거르기는 서버 재조회 없이 화면에서 — _salesView(JSP)가 slcDcView 를 먼저 거치므로 세 탭(출고장별·사업장별·품목코드)의 총합계·요약·묶음이 다 같이 바뀐다.
+         ⚠위 경고(출고미상·매입가 없음)는 그 달 전체 기준 그대로다.
+       · 열쇠 앞머리 'G|'(묶음) · 'D|'(개별) — 묶음 이름과 개별 출고장 이름이 같을 수 있다(「평택」). 달을 바꿔 사라진 선택은 스스로 지운다. */
+  /* ★두 화면이 같은 콤보를 쓴다 (같은 날 이어서 「마감현황에도 출고장 콤보 넣어줘」) — 한 벌을 베끼지 않고 공장 함수 _dcCmbMake(앞머리, 자료, 다시 그리기)로 두 벌을 만든다 :
+       매출마감 = slcDc*(#slcDcWrap · _salesRows) / 마감현황 = stcDc*(#stcDcWrap · _statRows). 선택(sel)은 화면마다 따로다(한쪽에서 골라도 다른 쪽은 그대로).
+       만들어지는 전역 함수 = <앞머리>DcView · DcNote · DcOpen · DcToggle · DcAll · DcSync · DcLab — JSP 의 _salesView/_statView·요약 줄·렌더 첫머리가 부른다. */
+  function slcEsc(v){ return (''+(v==null?'':v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function slcDcGrp(r){ return (typeof _zoneGroup==='function') ? _zoneGroup(r) : ((''+((r&&r.dcNm)||'')).trim()||'(출고장 미지정)'); }
+  function slcDcKid(r){ return (''+((r&&r.dcCd)||'')).trim()+'|'+(''+((r&&r.dcNm)||'')).trim(); }
+  function slcDcKidLab(k){ var p=String(k).split('|'), cd=p[0], nm=p.slice(1).join('|'); return (nm||'(미지정)')+(cd?(' ('+cd+')'):''); }
+  function _dcCmbMake(pre, getRows, redraw){
+    var sel={};
+    var el=function(x){ return document.getElementById(pre+x); };
+    var isOn=function(){ return Object.keys(sel).length>0; };
+    var lab=function(){
+      var ks=Object.keys(sel); if(!ks.length) return '전체';
+      if(ks.length>1) return ks.length+'곳 선택';
+      return ks[0].charAt(0)==='G' ? ks[0].slice(2) : slcDcKidLab(ks[0].slice(2));
+    };
+    window[pre+'DcLab']=lab;
+    window[pre+'DcView']=function(rows){
+      if(!isOn()) return rows;
+      return (rows||[]).filter(function(r){ return !!(sel['G|'+slcDcGrp(r)] || sel['D|'+slcDcKid(r)]); });
+    };
+    window[pre+'DcNote']=function(){ return isOn() ? ' · <span style="color:#8a5a00;font-weight:700" title="탭 줄의 🏬 출고장 콤보로 거르는 중입니다 — 「전체」를 체크하면 풀립니다">🏬 출고장 '+slcEsc(lab())+'만</span>' : ''; };
+    window[pre+'DcOpen']=function(ev){ if(ev) ev.stopPropagation(); var p=el('DcPop'); if(p) p.classList.toggle('open'); };
+    window[pre+'DcToggle']=function(k){ if(sel[k]) delete sel[k]; else sel[k]=1; redraw(); };
+    window[pre+'DcAll']=function(){ sel={}; redraw(); };
+    document.addEventListener('click', function(e){
+      var w=el('DcWrap'), p=el('DcPop');
+      if(p && p.classList.contains('open') && w && !w.contains(e.target)) p.classList.remove('open');
+    });
+    /* 렌더 첫머리에서 부른다 — 목록·라벨을 지금 자료에 맞추고, 사라진 선택을 지운다(거르기보다 먼저) */
+    window[pre+'DcSync']=function(){
+      var pop=el('DcPop'), lbl=el('DcLbl'), btn=el('DcBtn');
+      var rows=getRows() || [];
+      var grp={}, ord=[];
+      rows.forEach(function(r){ var g=slcDcGrp(r), k=slcDcKid(r); if(!grp[g]){ grp[g]={}; ord.push(g); } grp[g][k]=1; });
+      ord.sort(function(a,b){ return a.localeCompare(b,'ko'); });
+      if(rows.length){ var live={}; ord.forEach(function(g){ live['G|'+g]=1; Object.keys(grp[g]).forEach(function(k){ live['D|'+k]=1; }); });
+        Object.keys(sel).forEach(function(k){ if(!live[k]) delete sel[k]; }); }
+      var n=Object.keys(sel).length;
+      if(lbl) lbl.textContent=lab();
+      if(btn){ btn.style.borderColor=n?'#b06a00':''; btn.style.background=n?'#fff7e6':''; }   /* 거르는 중이면 단추가 눈에 띄게 */
+      if(!pop) return;
+      var cb=function(k, on){ return '<input type="checkbox"'+(on?' checked':'')+' data-k="'+slcEsc(k)+'" onchange="'+pre+'DcToggle(this.getAttribute(&#39;data-k&#39;))">'; };
+      var h='<label class="all'+(n===0?' on':'')+'"><input type="checkbox"'+(n===0?' checked':'')+' onchange="'+pre+'DcAll()"><span>전체 ('+ord.length+'개 출고장)</span></label>';
+      ord.forEach(function(g){
+        var kids=Object.keys(grp[g]).sort(function(a,b){ return slcDcKidLab(a).localeCompare(slcDcKidLab(b),'ko'); });
+        var on=!!sel['G|'+g];
+        h+='<label class="'+(on?'on':'')+'">'+cb('G|'+g, on)+'<span>🗂️ '+slcEsc(g)+(kids.length>1?' <span style="color:#9aa7b3">('+kids.length+'곳)</span>':'')+'</span></label>';
+        if(kids.length<2) return;
+        kids.forEach(function(k){ var kon=!!sel['D|'+k];
+          h+='<label class="kid'+(kon?' on':'')+'">'+cb('D|'+k, kon)+'<span>'+slcEsc(slcDcKidLab(k))+'</span></label>'; });
+      });
+      if(!ord.length) h+='<div style="padding:8px 10px;color:#9aa7b3;font-size:12px">[조회]를 먼저 하세요.</div>';
+      pop.innerHTML=h;
+    };
+  }
+  /* 매출마감 — 묶음 차례가 바뀌므로 접기 상태(순번 열쇠)는 검색 때처럼 비운다 */
+  _dcCmbMake('slc', function(){ return (typeof _salesRows!=='undefined' && _salesRows) || []; }, function(){
+    try{ _salesCollapsed={}; _salesAllCollapsed=false; if(typeof _salesUpdAllBtn==='function') _salesUpdAllBtn(); }catch(e){}
+    if(typeof salesRenderTab==='function') salesRenderTab();
+  });
+  /* 마감현황(월계표) — 위 KPI 카드(매출·매입·총이익·비용·순마진)는 그 달 전체 그대로, 아래 세 탭의 표만 거른다(검색칸과 같은 규칙) */
+  _dcCmbMake('stc', function(){ return (typeof _statRows!=='undefined' && _statRows) || []; }, function(){
+    try{ _statCollapsed={}; _statAllCollapsed=false; if(typeof statUpdAllBtn==='function') statUpdAllBtn(); }catch(e){}
+    if(typeof statRenderTab==='function') statRenderTab();
+  });
   var _spDcSel={};
   function spDcOpen(ev){ if(ev) ev.stopPropagation(); var p=document.getElementById('spDcPop'); if(p) p.classList.toggle('open'); }
   function spDcToggle(k){ if(_spDcSel[k]) delete _spDcSel[k]; else _spDcSel[k]=1; spRender(); }

@@ -9490,4 +9490,73 @@
 	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND LTRIM(RTRIM(USER_ID)) = #{userId,jdbcType=VARCHAR}
 	]]></update>
 
+	<!-- ══ 재고 일괄조정 — 승인 요청 (2026-11-18 사용자 「총괄관리자 및 부관리자가 승인해야 저장되게 — 작성 후 승인이 돼야 저장」) ══
+	     표 TBL_STOCK_ADJ_REQ (docs/sql/20261118_stock_adj_req.sql). 직원의 [수정저장]은 여기 «요청»으로 쌓이고(재고 무변경),
+	     관리자(MAIN_GU 1·2)가 승인하면 컨트롤러가 PAYLOAD 를 종전 저장(saveStockAdjBatch)에 그대로 태운다.
+	     회사 조건은 전부 세션 회사(fail-open 아님). -->
+	<insert id="insertStockAdjReq" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="reqSeq" keyColumn="REQ_SEQ"><![CDATA[
+	  INSERT INTO TBL_STOCK_ADJ_REQ
+	    (COMP_CD, BASE_DT, WH_CD, REMARK, ITEM_CNT, DIFF_SUM, PAYLOAD, SRC, STAT_GB, REQ_USER, REQ_DTTM, REQ_IP)
+	  VALUES
+	    (#{compCd,jdbcType=VARCHAR}, REPLACE(ISNULL(#{baseDt,jdbcType=NVARCHAR},''),'-',''), #{whCd,jdbcType=NVARCHAR}, #{remark,jdbcType=NVARCHAR},
+	     #{itemCnt,jdbcType=INTEGER}, #{diffSum,jdbcType=INTEGER}, #{payload,jdbcType=NVARCHAR}, #{src,jdbcType=NVARCHAR}, 'P',
+	     #{reqUser,jdbcType=NVARCHAR}, CONVERT(VARCHAR(19), GETDATE(), 120), #{reqIp,jdbcType=NVARCHAR})
+	]]></insert>
+	<!-- 목록 : 승인 대기(P)는 전부 · 끝난 것(A·R·C)은 최근 60일 · reqSeq 를 주면 그 한 건(승인 때 다시 읽는다). 대기 먼저, 최근 것부터 -->
+	<select id="selectStockAdjReqList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 300 r.REQ_SEQ AS reqSeq, r.BASE_DT AS baseDt, ISNULL(r.WH_CD,'') AS whCd, ISNULL(w.WH_NM,'') AS whNm,
+	         ISNULL(r.REMARK,'') AS remark, r.ITEM_CNT AS itemCnt, r.DIFF_SUM AS diffSum, r.PAYLOAD AS payload, ISNULL(r.SRC,'') AS src,
+	         r.STAT_GB AS statGb, ISNULL(r.REQ_USER,'') AS reqUser, ISNULL(ur.USER_NM,'') AS reqUserNm, ISNULL(r.REQ_DTTM,'') AS reqDttm,
+	         ISNULL(r.APPR_USER,'') AS apprUser, ISNULL(ua.USER_NM,'') AS apprUserNm, ISNULL(r.APPR_DTTM,'') AS apprDttm,
+	         ISNULL(r.APPR_MEMO,'') AS apprMemo, ISNULL(r.BATCH_NO,'') AS batchNo
+	    FROM TBL_STOCK_ADJ_REQ r
+	    LEFT JOIN TBL_WH_MST w ON w.COMP_CD = r.COMP_CD AND w.WH_CD = r.WH_CD
+	    OUTER APPLY (SELECT TOP 1 u.USER_NM FROM TBL_USER_MST u
+	                  WHERE u.COMP_CD = r.COMP_CD AND LTRIM(RTRIM(u.USER_ID)) = LTRIM(RTRIM(r.REQ_USER))
+	                  ORDER BY CASE WHEN u.ACTION_YN = 'Y' THEN 0 ELSE 1 END, u.START_DT DESC, u.JOB_SEQ DESC) ur
+	    OUTER APPLY (SELECT TOP 1 u.USER_NM FROM TBL_USER_MST u
+	                  WHERE u.COMP_CD = r.COMP_CD AND LTRIM(RTRIM(u.USER_ID)) = LTRIM(RTRIM(r.APPR_USER))
+	                  ORDER BY CASE WHEN u.ACTION_YN = 'Y' THEN 0 ELSE 1 END, u.START_DT DESC, u.JOB_SEQ DESC) ua
+	   WHERE r.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND ( #{reqSeq,jdbcType=BIGINT} IS NULL OR r.REQ_SEQ = #{reqSeq,jdbcType=BIGINT} )
+	     AND ( #{reqSeq,jdbcType=BIGINT} IS NOT NULL OR r.STAT_GB = 'P'
+	           OR ( ISNULL(#{pendOnly,jdbcType=VARCHAR},'') <> 'Y' AND r.REQ_DTTM >= CONVERT(VARCHAR(10), DATEADD(DAY, -60, GETDATE()), 120) ) )
+	   ORDER BY CASE WHEN r.STAT_GB = 'P' THEN 0 ELSE 1 END, r.REQ_SEQ DESC
+	]]></select>
+	<!-- 승인 대기 건수 — 셸 메뉴의 빨간 배지(/emp/badge.do, 관리자에게만). 2026-11-18 「대기 중인 승인 요청 수를 관리자 메뉴에 빨간 배지」 -->
+	<select id="selectStockAdjReqPendCnt" parameterType="java.util.HashMap" resultType="int"><![CDATA[
+	  SELECT COUNT(*) FROM TBL_STOCK_ADJ_REQ WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND STAT_GB = 'P'
+	]]></select>
+	<!-- 내가 올린 요청의 결과 중 아직 «확인» 안 한 것 (2026-11-18 「요청한 직원에게도 승인/반려 결과 알림 표시」)
+	     승인(A)·반려(R) + 다른 사람이 취소한 것(C · 처리자 ≠ 요청자). 내가 스스로 취소한 것은 알릴 일이 없다. 최근 처리된 것부터 20건 -->
+	<select id="selectStockAdjReqMine" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 20 r.REQ_SEQ AS reqSeq, r.STAT_GB AS statGb, r.ITEM_CNT AS itemCnt, r.DIFF_SUM AS diffSum, ISNULL(r.REMARK,'') AS remark,
+	         ISNULL(r.APPR_USER,'') AS apprUser, ISNULL(ua.USER_NM,'') AS apprUserNm, ISNULL(r.APPR_DTTM,'') AS apprDttm,
+	         ISNULL(r.APPR_MEMO,'') AS apprMemo, ISNULL(r.BATCH_NO,'') AS batchNo,
+	         r.PAYLOAD AS payload   /* 어떤 상품인지 — 화면 결과 띠가 품목별 「전 → 후」를 보여 준다(2026-11-18). 배지 응답에서는 컨트롤러가 떼고 첫 상품명만 싣는다 */
+	    FROM TBL_STOCK_ADJ_REQ r
+	    OUTER APPLY (SELECT TOP 1 u.USER_NM FROM TBL_USER_MST u
+	                  WHERE u.COMP_CD = r.COMP_CD AND LTRIM(RTRIM(u.USER_ID)) = LTRIM(RTRIM(r.APPR_USER))
+	                  ORDER BY CASE WHEN u.ACTION_YN = 'Y' THEN 0 ELSE 1 END, u.START_DT DESC, u.JOB_SEQ DESC) ua
+	   WHERE r.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND LTRIM(RTRIM(r.REQ_USER)) = #{userId,jdbcType=NVARCHAR}
+	     AND r.REQ_SEEN_DTTM IS NULL
+	     AND ( r.STAT_GB IN ('A','R') OR ( r.STAT_GB = 'C' AND LTRIM(RTRIM(ISNULL(r.APPR_USER,''))) <> LTRIM(RTRIM(ISNULL(r.REQ_USER,''))) ) )
+	   ORDER BY r.APPR_DTTM DESC, r.REQ_SEQ DESC
+	]]></select>
+	<!-- [확인했습니다] — 내 요청의 끝난 것(승인·반려·취소)을 전부 «봤음»으로 -->
+	<update id="updateStockAdjReqSeen" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_STOCK_ADJ_REQ
+	     SET REQ_SEEN_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120)
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND LTRIM(RTRIM(REQ_USER)) = #{userId,jdbcType=NVARCHAR}
+	     AND REQ_SEEN_DTTM IS NULL AND STAT_GB IN ('A','R','C')
+	]]></update>
+	<!-- 상태 바꾸기 — «지금 상태가 fromStat 일 때만»(두 사람이 동시에 승인해도 한 번만 반영된다). 돌려주는 건수 0 = 이미 다른 상태 -->
+	<update id="updateStockAdjReqStat" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_STOCK_ADJ_REQ
+	     SET STAT_GB = #{statGb,jdbcType=CHAR}, APPR_USER = #{apprUser,jdbcType=NVARCHAR},
+	         APPR_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), APPR_MEMO = #{apprMemo,jdbcType=NVARCHAR}, BATCH_NO = #{batchNo,jdbcType=NVARCHAR}
+	   WHERE REQ_SEQ = #{reqSeq,jdbcType=BIGINT} AND COMP_CD = #{compCd,jdbcType=VARCHAR} AND STAT_GB = #{fromStat,jdbcType=CHAR}
+	]]></update>
+
 </mapper>

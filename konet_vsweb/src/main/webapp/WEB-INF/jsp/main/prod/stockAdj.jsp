@@ -44,6 +44,18 @@
      ★flex-basis 를 0 으로 두어야 아래 [사유줄]·[이력]이 커져도 목록이 밀리지 않는다. */
   .grid{ flex:1 1 0; min-height:0; overflow:auto; background:#fff; border:1px solid var(--bd); border-radius:8px; }
   .foot, .hist{ flex:0 0 auto; }
+  /* ★목록 ↔ 조정 이력 높이 막대 (2026-11-18 사용자 「막대 표시로 줄이고 늘리고 기능」) — 목록 표 바로 밑.
+     목록은 «남는 높이 전부»(flex:1)라 막대는 아래 [조정 이력] 표의 높이를 거꾸로 바꾼다 : 아래로 끌면 이력이 줄고 목록이 그만큼 는다.
+     모양은 판매·매입 등록의 공용 막대(ui-gridgrip.js .kgg)와 같다. 그 파일을 안 쓴 까닭 = 그쪽은 «잡은 표의 높이»를 늘리는 한 방향뿐이다. */
+  .agrip{ flex:0 0 auto; position:relative; height:16px; margin-top:3px; display:flex; align-items:center; justify-content:center;
+          cursor:ns-resize; user-select:none; border-radius:6px; background:#f3f6f8; }
+  .agrip:hover, .agrip.on{ background:#dff0eb; }
+  .agrip i{ display:block; width:64px; height:4px; border-radius:2px; background:#b9c6d2; pointer-events:none; }
+  .agrip:hover i, .agrip.on i{ background:#137a6c; }
+  .agrip .bt{ position:absolute; right:4px; top:0; display:flex; gap:4px; }
+  .agrip .bt b{ height:16px; line-height:14px; padding:0 7px; font-size:11px; font-weight:700; color:#37475a; background:#fff;
+                border:1px solid #cfd8e3; border-radius:4px; cursor:pointer; white-space:nowrap; }
+  .agrip .bt b:hover{ border-color:#137a6c; color:#137a6c; }
   table{ width:100%; min-width:1240px; border-collapse:collapse; font-size:13px; }
   thead th{ position:sticky; top:0; z-index:2; background:#eef2f5; border-bottom:1px solid #c8d4dd;
             padding:7px 8px; font-weight:700; color:#3a4a53; white-space:nowrap; }
@@ -90,6 +102,53 @@
   .hist{ margin-top:6px; background:#fff; border:1px solid var(--bd); border-radius:8px;
          display:flex; flex-direction:column; min-height:0; }
   .hist.off .hgrid{ display:none; }
+  /* ── 승인 요청 (2026-11-18) — 조정 이력과 같은 상자 모양. 대기가 없으면 표를 접어 자리를 안 먹는다 ── */
+  #reqBox .hgrid{ min-height:0; max-height:26vh; }
+  #reqBox.none .hgrid{ display:none; }
+  /* 내 요청 결과 띠 (2026-11-18 「요청한 직원에게도 승인/반려 결과 알림 표시」) — 승인·반려됐는데 아직 [확인했습니다] 안 한 내 요청 */
+  #reqMine{ margin:0 8px 8px; border:1px solid #cfe3dc; background:#f3faf7; border-radius:8px; padding:7px 10px; font-size:13px; }
+  #reqMine.rej{ border-color:#f0c9c9; background:#fff6f5; }
+  #reqMine .rm-hd{ display:flex; align-items:center; gap:10px; margin-bottom:3px; }
+  #reqMine .rm-hd b{ color:#0f6b5e; } #reqMine.rej .rm-hd b{ color:#a12b2b; }
+  /* ★결과는 «표(그리드)» 로 — 상품 한 줄에 한 칸씩, 요청마다 번호·결과·처리 칸을 세로로 묶는다(rowspan). 내용이 많으면 이 상자 안에서 스크롤
+     (2026-11-18 사용자 「어떤 상품이 반려 승인 됐는지 표시」 → 「내용이 많을 때는 복잡한 — 그리드 형태로 · 스크롤되게」. 처음 판은 글자를 한 줄로 늘어놓았다). */
+  #reqMine .rm-grid{ max-height:min(26vh, 200px); overflow:auto; border:1px solid #d5e3dd; border-radius:6px; background:#fff; }
+  #reqMine.rej .rm-grid{ border-color:#ecd2d2; }
+  #reqMine .rm-grid table{ min-width:0; width:100%; font-size:12.5px; }
+  #reqMine .rm-grid thead th{ background:#e6f2ee; padding:5px 8px; }
+  #reqMine.rej .rm-grid thead th{ background:#f8e9e7; }
+  #reqMine .rm-grid tbody td{ padding:4px 8px; border-right:1px solid #eef1f4; vertical-align:middle; }
+  #reqMine .rm-grid tbody td.wr{ white-space:normal; min-width:120px; }
+  #reqMine .rm-grid tr.rm-first td{ border-top:2px solid #cfdcd6; }
+  #reqMine .rm-grid tbody tr:first-child td{ border-top:0; }
+  #reqMine .rm-grid .st{ font-weight:800; white-space:nowrap; }
+  #reqMine .rm-grid tr.A .st, #reqMine .rm-grid td.A .st{ color:#137a6c; }
+  #reqMine .rm-grid td.R .st, #reqMine .rm-grid td.C .st{ color:#b23b3b; }
+  #reqMine .rm-grid .why{ color:#b23b3b; font-weight:700; }
+  #reqMine .rm-grid td.nm{ font-weight:700; text-align:left; white-space:normal; min-width:160px; }
+  #reqBox .htab .tb.pend{ background:#b06a00; border-color:#b06a00; color:#fff; }
+  .rq-st{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11.5px; font-weight:800; white-space:nowrap; }
+  .rq-st.P{ background:#fff3d6; color:#8a5a00; } .rq-st.A{ background:#e3f4ef; color:#0e6657; }
+  .rq-st.R{ background:#fde8e8; color:#b23b3b; } .rq-st.C{ background:#eef1f4; color:#6b7a89; }
+  /* ★승인 요청 표도 «상품이 보이는 그리드» (2026-11-18 사용자 「승인 입장도 이런 형태로 보여줘요」 — 요청한 직원의 「내 요청 결과」 표와 같은 꼴).
+     요청마다 상품 한 줄씩(rq-h = 그 요청의 첫 줄 · rq-i = 나머지 상품 줄), 요청 칸(번호·상태·사유·요청·처리·작업)은 상품 수만큼 세로로 묶는다(rowspan).
+     종전 = 요청 한 줄 + 줄을 눌러야 품목이 펼쳐졌다(rq-d) — 승인하는 사람이 무엇을 승인하는지 한 번 더 눌러야 보였다. */
+  tr.rq-h > td{ border-top:2px solid #d3dee6; }
+  #reqBody tr:first-child > td{ border-top:0; }
+  tr.rq-h.P td, tr.rq-i.P td{ background:#fffdf5; }
+  #reqBody td{ border-right:1px solid #eef1f4; vertical-align:middle; }
+  #reqBody td.nm{ font-weight:700; text-align:left; white-space:normal; min-width:170px; }
+  #reqBody td.wr{ white-space:normal; min-width:110px; }
+  #reqBody .rq-sum{ display:block; margin-top:2px; font-size:11.5px; color:#6b7a89; white-space:nowrap; }
+  /* [승인][반려] 칸은 오른쪽에 붙여 둔다 — 창이 좁아 표를 가로로 밀어야 할 때도 단추가 늘 보인다 */
+  #reqWrap th.rq-act, #reqBody td.rq-act{ position:sticky; right:0; box-shadow:-2px 0 4px rgba(30,50,70,.08); }
+  #reqWrap th.rq-act{ z-index:3; }
+  #reqBody td.rq-act{ background:#fff; border-right:0; }
+  #reqBody tr.P td.rq-act{ background:#fffdf5; }
+  .rq-ok, .rq-no, .rq-cx{ height:23px; border-radius:4px; padding:0 9px; font-size:11.5px; font-weight:800; cursor:pointer; margin:0 2px; white-space:nowrap; }
+  .rq-ok{ border:1px solid var(--teal); background:var(--teal); color:#fff; }
+  .rq-no{ border:1px solid #b23b3b; background:#fff; color:#b23b3b; }
+  .rq-cx{ border:1px solid #9aa8b2; background:#fff; color:#5b6b7a; }
   .htab{ display:flex; align-items:center; gap:6px 10px; padding:6px 10px; border-bottom:1px solid var(--bd); }
   .htab .tb{ height:26px; border:1px solid var(--teal); background:#fff; color:var(--teal);
              border-radius:5px; padding:0 12px; font-size:13px; font-weight:700; cursor:pointer; }
@@ -181,7 +240,7 @@
   <%-- ★[2026-08-20] 화면 콘셉 통일 — 목록 표를 다른 화면과 같은 격자로.
        공통 CSS(ui-concept)는 「card」 안의 표에만 걸리므로 **class 에 card 를 더한다**(HTML 한 낱말).
        이 화면은 부트스트랩을 안 쓰므로 card 라는 이름이 다른 모양을 끌고 오지 않는다. --%>
-  <div class="grid card">
+  <div class="grid card" id="adjGrid">
     <table>
       <thead>
         <tr>
@@ -219,6 +278,41 @@
   <%-- ── 하단 : 조정 이력 ─────────────────────────────────────────────
        원장에는 차이만 남는다. 여기서는 '전 → 후' 와 저장 묶음을 보여준다.
        묶음(BATCH_NO) 단위로 되돌릴 수 있다 — 원장 조정행도 함께 내려간다. --%>
+  <%-- ── 승인 요청 (2026-11-18 「총괄관리자 및 부관리자가 승인해야 저장되게」) ──
+       직원의 [승인 요청]은 재고를 바꾸지 않고 여기 쌓인다. 총괄관리자·부관리자가 [✔ 승인]하면 그때 재고(조정행 · 조정 이력)에 반영된다.
+       관리자가 직접 누른 [수정저장]은 종전대로 바로 반영된다. 서버가 요청 목록을 못 주면(옛 서버 · 표 없음) 이 상자는 안 보인다. --%>
+  <div class="hist none" id="reqBox" style="display:none">
+    <div class="htab">
+      <button type="button" class="tb on" id="reqTab" onclick="reqFold();" title="눌러서 접기/펼치기">⏳ 승인 요청 <b id="reqCnt"></b></button>
+      <span id="reqHint" class="dim" style="font-size:12.5px"></span>
+      <span class="sp" style="flex:1"></span>
+      <label style="cursor:pointer"><input type="checkbox" id="reqAll" onchange="reqLoad();" style="height:auto;vertical-align:-2px"> 끝난 요청도 (최근 60일)</label>
+      <button type="button" class="btn ghost" onclick="reqLoad(true);">새로고침</button>
+    </div>
+    <div id="reqMine" style="display:none"></div>
+    <div class="hgrid card" id="reqWrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:54px">번호</th>
+            <th style="width:104px">상태</th>
+            <th style="width:112px">상품코드</th>
+            <th>상품명</th>
+            <th class="r" style="width:76px">전</th>
+            <th class="r" style="width:76px">후</th>
+            <th class="r" style="width:76px">증감</th>
+            <th>사유</th>
+            <th style="width:150px">기준일자 · 창고</th>
+            <th style="width:150px">요청</th>
+            <th style="width:210px">처리</th>
+            <th class="c rq-act" style="width:150px">작업</th>
+          </tr>
+        </thead>
+        <tbody id="reqBody"></tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="hist" id="histBox">
     <div class="htab">
       <button type="button" class="tb on" onclick="hisToggle();" id="hisTab">📜 조정 이력</button>
@@ -315,7 +409,7 @@ function loadAux(){
 }
 loadAux();
 /* 셸 메뉴로 다시 들어올 때 — 다른 화면(상품코드관리)에서 고친 것을 반영. 적다 만 조정 수량이 있을 수 있어 목록은 안 건드리고 보조자료만 새로 받아 덧그린다(목록은 [조회]로) */
-window.konetShown=function(){ loadAux(); };
+window.konetShown=function(){ loadAux(); if(typeof reqLoad==='function') reqLoad(); };   /* 승인 요청도 다시(2026-11-18) */
 
 /* 오늘 날짜를 기본값으로 */
 (function(){
@@ -665,7 +759,7 @@ function save(){
 
     // ② 재고가 바뀐 줄 — 안 고쳤으면 보내지 않는다
     if (aBox * pack + aEa - nvl(r.curQty) === 0) continue;
-    rows.push({ prodSeq:r.prodSeq, prodCd:r.prodCd, packQty:pack,
+    rows.push({ prodSeq:r.prodSeq, prodCd:r.prodCd, prodNm:(r.prodNm||''), packQty:pack,   /* prodNm = 승인 요청 목록 표시용(서버 저장은 안 쓴다) */
                 befQty:nvl(r.curQty), befBox:nvl(r.boxQty), befEa:nvl(r.eaQty),
                 aftBox:aBox, aftEa:aEa });
   }
@@ -690,16 +784,24 @@ function save(){
       if (!d1 || d1.result !== 'OK') throw new Error((d1 && d1.message) || '입수수량 저장 실패');
       if (!rows.length) return { result:'OK', cnt:0, _skip:true };
       return post('/prod/stockAdjSave.do',
-                  { baseDt: gel('baseDt').value, remark: gel('remark').value.trim(), whCd: gel('adjWh').value || '', rows: rows });
+                  { baseDt: gel('baseDt').value, remark: gel('remark').value.trim(), whCd: gel('adjWh').value || '', src:'stockAdj', rows: rows });
     })
     .then(function(d2){
       gel('btnSave').disabled = false;
-      if (!d2 || d2.result !== 'OK') throw new Error((d2 && d2.message) || '재고 조정 실패');
+      /* ★REQ = 승인 요청으로 쌓였다(관리자가 아닌 직원 · 2026-11-18) — 재고는 아직 그대로다 */
+      if (!d2 || (d2.result !== 'OK' && d2.result !== 'REQ')) throw new Error((d2 && d2.message) || '재고 조정 실패');
       var msg = [];
-      if (packs.length) msg.push('입수수량 ' + packs.length + '건');
-      if (rows.length)  msg.push('재고 ' + (d2.cnt || 0) + '건');
-      toast(msg.join(' · ') + ' 저장했습니다.');
+      if (packs.length) msg.push('입수수량 ' + packs.length + '건 저장');
+      if (d2.result === 'REQ'){
+        msg.push('재고 ' + (d2.cnt || 0) + '건 <b>승인 요청</b>');
+        busy(false);
+        alertBox(msg.join(' · ') + '<br><span style="font-size:13px;color:#5b6b7a">총괄관리자·부관리자가 승인하면 재고에 반영됩니다.<br>재고는 아직 바뀌지 않았습니다 — 아래 [⏳ 승인 요청]에서 진행을 볼 수 있습니다.</span>', '⏳');
+      } else {
+        if (rows.length) msg.push('재고 ' + (d2.cnt || 0) + '건 저장');
+        toast(msg.join(' · ').replace(/ 저장/g, '') + ' 저장했습니다.');
+      }
       load();                                   /* 바뀐 값으로 다시 그린다 */
+      reqLoad(); reqBadge();
     })
     .catch(function(e){
       gel('btnSave').disabled = false;
@@ -748,17 +850,204 @@ function save(){
 
   var lines = [];
   if (packs.length) lines.push('입수수량 <b>' + packs.length + '건</b> — 환산 기준만 바뀝니다(재고 그대로).');
+  var needAppr = (_req.ready && !_req.admin);        /* 직원 = 승인 요청 (서버가 최종 판정 — 화면은 문구만 맞춘다) */
   if (rows.length)  lines.push('재고 <b>' + rows.length + '건</b> 을 <b>'
-                             + esc(gel('baseDt').value) + '</b> 자로 조정합니다.');
+                             + esc(gel('baseDt').value) + '</b> 자로 ' + (needAppr ? '조정하도록 <b style="color:#8a5a00">승인 요청</b>합니다.' : '조정합니다.'));
+  if (rows.length && needAppr) lines.push('<span style="font-size:12.5px;color:#5b6b7a">총괄관리자·부관리자가 승인해야 재고에 반영됩니다(그 전엔 재고 그대로).</span>');
+  /* 이미 승인 대기 중인 품목을 또 올리면, 둘 다 승인될 때 증감이 두 번 들어간다 — 미리 알린다 */
+  var dupP = rows.filter(function(r){ return _req.pend[String(r.prodSeq)]; });
+  if (dupP.length) lines.push('<span style="font-size:12.5px;color:#b23b3b">⚠ 이미 <b>승인 대기 중</b>인 품목 ' + dupP.length + '개 ('
+                             + dupP.slice(0,3).map(function(r){ return esc(r.prodCd); }).join(', ') + (dupP.length>3 ? ' …' : '')
+                             + ') — 둘 다 승인되면 증감이 <b>두 번</b> 반영됩니다. 앞 요청을 취소·반려한 뒤 올리는 것이 안전합니다.</span>');
 
   if (window._confirmBox){
     window._confirmBox({
       icon: '❓',
       msg: '<div style="text-align:left; line-height:1.7">' + lines.join('<br>') + '</div>',
-      okText: '저장',
+      okText: (rows.length && needAppr) ? '승인 요청' : '저장',
       onOk: go
     });
-  } else if (confirm('저장할까요?')) go();
+  } else go();
+}
+
+/* ══ 승인 요청 (2026-11-18 사용자 「총괄관리자 및 부관리자가 승인해야 저장되게 — 작성 후 승인이 돼야 저장」) ══════════
+   · 직원이 [승인 요청]을 누르면 서버(stockAdjSave)가 재고를 바꾸지 않고 요청으로 쌓는다(result 'REQ').
+   · 총괄관리자·부관리자는 여기서 [✔ 승인] → 그때 종전 저장이 그대로 돈다(조정행 + 조정 이력 · 등록자 = 요청한 사람 · 사유 끝에 「(승인 ○○)」).
+     [✖ 반려]는 사유를 적는다. 요청한 본인은 대기 중인 제 요청을 [요청 취소] 할 수 있다.
+   · 관리자가 직접 누른 [수정저장]은 요청을 거치지 않고 바로 반영된다.
+   · 반영되는 것은 요청 때의 «전 → 후 차이(증감)» 다 — 요청과 승인 사이에 출고가 더 나가도 증감은 같다(줄을 펼치면 보인다).
+   · 누가 관리자인지는 서버가 준다(_req.admin) — 화면은 단추·문구만 맞추고, 막는 것은 전부 서버다.
+   · 요청 목록을 못 받으면(옛 서버 · 표 없음) 상자를 숨기고 종전 화면 그대로 둔다. */
+var _req = { ready:false, admin:false, me:'', list:[], open:{}, pend:{}, fold:false };
+function reqItems(q){ try{ var a = JSON.parse(q.payload || '[]'); return (a && a.length) ? a : []; }catch(e){ return []; } }
+function reqAft(it){ var p = nvl(it.packQty) < 1 ? 1 : nvl(it.packQty); return nvl(it.aftBox) * p + nvl(it.aftEa); }
+function reqLoad(say){
+  var all = gel('reqAll') && gel('reqAll').checked;
+  fetch(CTX + '/prod/stockAdjReqList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        credentials:'same-origin', body:'pendOnly=' + (all ? '' : 'Y') })
+    .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(d){
+      if (!d || d.result !== 'OK') throw new Error((d && d.message) || '');
+      _req.ready = true; _req.admin = (d.admin === 'Y'); _req.me = String(d.me || ''); _req.list = d.data || []; _req.mine = d.mine || [];
+      _req.pend = {};
+      _req.list.forEach(function(q){ if (q.statGb === 'P') reqItems(q).forEach(function(it){ if (reqAft(it) - nvl(it.befQty) !== 0) _req.pend[String(it.prodSeq)] = 1; }); });
+      reqRender();
+      if (say) toast('승인 요청 목록을 다시 읽었습니다.');
+    })
+    .catch(function(){ _req.ready = false; var b = gel('reqBox'); if (b) b.style.display = 'none'; reqRole(); });
+}
+/* 역할에 맞춰 저장 단추 이름을 바꾼다 — 직원 = 「승인 요청」 */
+function reqRole(){
+  var b = gel('btnSave'); if (!b) return;
+  var need = (_req.ready && !_req.admin);
+  b.textContent = need ? '승인 요청' : '수정저장';
+  b.title = need ? '고친 줄을 승인 요청으로 올립니다 — 총괄관리자·부관리자가 승인하면 재고에 반영됩니다(입수수량은 바로 저장).'
+                 : (_req.ready ? '고친 줄을 바로 저장합니다(관리자). 직원이 올린 요청은 아래 [⏳ 승인 요청]에서 승인합니다.' : '');
+}
+function reqFold(){ _req.fold = !_req.fold; reqRender(); }
+/* ── 내 요청 결과 띠 (2026-11-18 「요청한 직원에게도 승인/반려 결과 알림 표시」) ──
+   내가 올린 요청 중 승인·반려됐는데 아직 [확인했습니다]를 안 누른 것. 표(대기 목록)와 따로 늘 보인다 — 「끝난 요청도」를 안 켜도.
+   [확인했습니다] = /prod/stockAdjReqSeen.do → 띠와 메뉴 배지가 사라진다(요청 기록은 「끝난 요청도」에 그대로 남는다). */
+function reqMineRender(){
+  var el = gel('reqMine'); if (!el) return;
+  var M = _req.mine || [];
+  if (!M.length){ el.style.display = 'none'; el.innerHTML = ''; return; }
+  var rej = M.filter(function(q){ return q.statGb !== 'A'; }).length, nIt = 0;
+  var body = M.map(function(q){
+    /* 그 요청에 든 상품 — 실제로 바뀌는 줄만(증감 0 은 뺀다). 승인 = 그만큼 재고에 반영된 상품 · 반려/취소 = 반영 안 된 상품 */
+    var its = reqItems(q).filter(function(it){ return reqAft(it) - nvl(it.befQty) !== 0; });
+    var n = Math.max(1, its.length), rs = n > 1 ? ' rowspan="' + n + '"' : ''; nIt += its.length;
+    var st = (q.statGb === 'A') ? '✅ 승인' : (q.statGb === 'R' ? '↩ 반려' : '✖ 취소(관리자)');
+    var who = esc(q.apprUserNm || q.apprUser) + ' <span class="dim">' + esc(String(q.apprDttm || '').slice(5, 16)) + '</span>';
+    var note = (q.statGb === 'A') ? ('재고 반영' + (q.batchNo ? ' <span class="dim" title="조정 이력의 저장묶음 번호">' + esc(q.batchNo) + '</span>' : ''))
+             : ((q.apprMemo ? '<span class="why">' + esc(q.apprMemo) + '</span>' : '<span class="dim">(사유 없음)</span>') + ' <span class="dim">· 재고 반영 안 됨</span>');
+    function prod(it){
+      if (!it) return '<td class="dim">—</td><td class="nm dim">(상품 내역 없음)</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>';
+      var bef = nvl(it.befQty), aft = reqAft(it), df = aft - bef;
+      return '<td>' + esc(it.prodCd) + '</td><td class="nm">' + esc(it.prodNm || '') + '</td><td class="r">' + bef + '</td><td class="r">' + aft + '</td>'
+           + '<td class="r"><span class="diff ' + (df > 0 ? 'up' : 'dn') + '">' + (df > 0 ? '+' : '') + df + '</span></td>';
+    }
+    var h = '<tr class="rm-first ' + esc(q.statGb) + '"><td class="c"' + rs + '>#' + esc(q.reqSeq) + '</td><td class="c ' + esc(q.statGb) + '"' + rs + '><span class="st">' + st + '</span></td>'
+          + prod(its[0])
+          + '<td class="wr"' + rs + '>' + esc(q.remark) + '</td><td' + rs + '>' + who + '</td><td class="wr"' + rs + '>' + note + '</td></tr>';
+    for (var i = 1; i < its.length; i++) h += '<tr class="' + esc(q.statGb) + '">' + prod(its[i]) + '</tr>';
+    return h;
+  }).join('');
+  el.className = rej ? 'rej' : ''; el.style.display = '';
+  el.innerHTML = '<div class="rm-hd"><b>📬 내 요청 결과 ' + M.length + '건</b>'
+    + '<span class="dim" style="font-size:12px">' + (nIt ? '상품 ' + nIt + '개 · ' : '') + (rej ? '반려된 요청은 사유를 보고 고쳐서 다시 올려 주세요.' : '승인된 요청은 재고에 반영됐습니다.') + '</span>'
+    + '<span style="flex:1"></span><button type="button" class="btn ghost" style="height:26px" onclick="reqSeen();" title="확인하면 이 알림과 메뉴의 배지가 사라집니다(요청 기록은 「끝난 요청도」에서 계속 볼 수 있습니다)">확인했습니다</button></div>'
+    + '<div class="rm-grid"><table><thead><tr><th style="width:52px">번호</th><th style="width:96px">결과</th><th style="width:110px">상품코드</th><th>상품명</th>'
+    + '<th class="r" style="width:74px">전</th><th class="r" style="width:74px">후</th><th class="r" style="width:74px">증감</th>'
+    + '<th>요청 사유</th><th style="width:140px">처리</th><th>반려 사유 · 반영</th></tr></thead><tbody>' + body + '</tbody></table></div>';
+}
+function reqSeen(){
+  fetch(CTX + '/prod/stockAdjReqSeen.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d || d.result !== 'OK'){ alertBox('확인 처리하지 못했습니다.<br>' + esc((d && d.message) || ''), '⚠️'); return; }
+      _req.mine = []; reqMineRender(); reqLoad(); reqBadge();
+    })
+    .catch(function(){ alertBox('확인 처리하지 못했습니다.', '⚠️'); });
+}
+/* 셸 메뉴의 빨간 배지(승인 대기 건수)를 바로 다시 — 요청·승인·반려·취소 직후 30초를 기다리지 않게 (2026-11-18) */
+function reqBadge(){ try{ if (parent && parent !== window && typeof parent.konetEmpBadge === 'function') parent.konetEmpBadge(); }catch(e){} }
+function reqRender(){
+  var box = gel('reqBox'), body = gel('reqBody'); if (!box || !body) return;
+  reqRole();
+  var L = _req.list, nP = L.filter(function(q){ return q.statGb === 'P'; }).length;
+  box.style.display = '';
+  box.classList.toggle('none', !L.length);
+  box.classList.toggle('off', _req.fold);
+  gel('reqCnt').textContent = nP ? (' ' + nP + '건 대기') : '';
+  gel('reqTab').classList.toggle('pend', nP > 0);
+  gel('reqHint').innerHTML = !L.length ? '승인 대기 중인 요청이 없습니다.'
+      : (_req.admin ? (nP ? '<b style="color:#8a5a00" title="요청 때의 「전 → 후」 차이입니다 — 그 뒤 출고가 더 나갔으면 승인 뒤 재고는 그만큼 다릅니다">승인하면 상품마다 <u>증감</u>만큼 재고에 반영됩니다</b>' : '대기 중인 요청이 없습니다.')
+                    : '총괄관리자·부관리자가 승인하면 상품마다 증감만큼 재고에 반영됩니다.');
+  var ST = { P:'승인 대기', A:'승인', R:'반려', C:'요청 취소' };
+  reqMineRender();
+  body.innerHTML = L.map(function(q){
+    var k = String(q.reqSeq), d = nvl(q.diffSum), mine = (String(q.reqUser) === _req.me), sg = esc(q.statGb);
+    var act = '';
+    if (q.statGb === 'P'){
+      if (_req.admin) act += '<button type="button" class="rq-ok" onclick="reqAct(' + k + ',\'A\')">✔ 승인</button>'
+                           + '<button type="button" class="rq-no" onclick="reqAct(' + k + ',\'R\')">✖ 반려</button>';
+      if (mine)       act += '<button type="button" class="rq-cx" onclick="reqAct(' + k + ',\'C\')">요청 취소</button>';
+      if (!act)       act = '<span class="dim">승인 대기</span>';
+    }
+    var done = (q.statGb === 'P') ? '<span class="dim">—</span>'
+             : esc(q.apprUserNm || q.apprUser) + ' <span class="dim">' + esc(String(q.apprDttm || '').slice(5, 16)) + '</span>'
+               + (q.statGb === 'A' && q.batchNo ? ' <span class="dim" title="조정 이력의 저장묶음 번호">' + esc(q.batchNo) + '</span>' : '')
+               + (q.apprMemo ? '<div style="color:#b23b3b;font-size:12px">' + esc(q.apprMemo) + '</div>' : '');
+    /* 그 요청의 상품 — 실제로 바뀌는 줄만(증감 0 은 뺀다) */
+    var its = reqItems(q).filter(function(it){ return reqAft(it) - nvl(it.befQty) !== 0; });
+    var n = Math.max(1, its.length), rs = n > 1 ? ' rowspan="' + n + '"' : '';
+    function prod(it){
+      if (!it) return '<td class="dim">—</td><td class="nm dim">(상품 내역 없음)</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>';
+      var bef = nvl(it.befQty), aft = reqAft(it), df = aft - bef;
+      return '<td>' + esc(it.prodCd) + '</td><td class="nm">' + esc(it.prodNm || '') + '</td><td class="r">' + bef + '</td><td class="r">' + aft + '</td>'
+           + '<td class="r"><span class="diff ' + (df > 0 ? 'up' : 'dn') + '">' + (df > 0 ? '+' : '') + df + '</span></td>';
+    }
+    var h = '<tr class="rq-h ' + sg + '">'
+      + '<td class="c"' + rs + '>#' + k + '</td>'
+      + '<td class="c"' + rs + '><span class="rq-st ' + sg + '">' + (ST[q.statGb] || sg) + '</span>'
+      +   '<span class="rq-sum" title="이 요청의 상품 수 · 증감 합">' + nvl(q.itemCnt) + '건 · 합 ' + (d > 0 ? '+' : '') + d + '</span></td>'
+      + prod(its[0])
+      + '<td class="wr"' + rs + '>' + esc(q.remark) + (q.src === 'prodcd' ? ' <span class="dim">(상품코드등록)</span>' : '') + '</td>'
+      + '<td' + rs + '>' + esc(fmtDt8(q.baseDt)) + '<span class="rq-sum">' + esc(q.whNm || q.whCd || '(기본창고)') + '</span></td>'
+      + '<td' + rs + '>' + esc(q.reqUserNm || q.reqUser) + '<span class="rq-sum">' + esc(String(q.reqDttm || '').slice(5, 16)) + '</span></td>'
+      + '<td class="wr"' + rs + '>' + done + '</td>'
+      + '<td class="c rq-act"' + rs + '>' + act + '</td></tr>';
+    for (var i = 1; i < its.length; i++) h += '<tr class="rq-i ' + sg + '">' + prod(its[i]) + '</tr>';
+    return h;
+  }).join('');
+}
+/* 사유를 받는 작은 창(반려) — 브라우저 prompt 는 쓰지 않는다 */
+function reqAsk(title, ph, okText, cb){
+  var w = document.createElement('div');
+  w.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,32,.35);display:flex;align-items:flex-start;justify-content:center;z-index:100000;padding-top:16vh';
+  w.innerHTML = '<div style="background:#fff;width:min(460px,92vw);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">'
+    + '<div style="padding:12px 14px;border-bottom:1px solid #eef1f5;font-weight:800">' + title + '</div>'
+    + '<div style="padding:14px"><input type="text" id="_rqWhy" maxlength="190" placeholder="' + esc(ph) + '" style="width:100%;height:34px;border:1px solid #cbd5e1;border-radius:6px;padding:0 9px;font-size:13.5px;box-sizing:border-box;font-family:inherit"></div>'
+    + '<div style="padding:10px 14px;border-top:1px solid #eef1f5;display:flex;gap:8px;justify-content:flex-end">'
+    + '<button type="button" class="btn ghost" id="_rqNo">닫기</button><button type="button" class="btn" id="_rqOk">' + esc(okText) + '</button></div></div>';
+  document.body.appendChild(w);
+  var inp = w.querySelector('#_rqWhy'), close = function(){ try{ document.body.removeChild(w); }catch(e){} };
+  var ok = function(){ var v = String(inp.value || '').trim(); if (!v){ inp.focus(); inp.style.borderColor = '#b23b3b'; return; } close(); cb(v); };
+  w.querySelector('#_rqNo').onclick = close; w.querySelector('#_rqOk').onclick = ok;
+  inp.onkeydown = function(e){ if (e.keyCode === 13) ok(); if (e.keyCode === 27) close(); };
+  setTimeout(function(){ try{ inp.focus(); }catch(e){} }, 30);
+}
+function reqAct(k, act){
+  var q = _req.list.filter(function(x){ return String(x.reqSeq) === String(k); })[0]; if (!q) return;
+  var send = function(memo){
+    busy(true, act === 'A' ? '승인하고 재고에 반영하는 중입니다…' : '처리하는 중입니다…');
+    fetch(CTX + '/prod/stockAdjReqAct.do', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
+          body: JSON.stringify({ reqSeq: Number(k), act: act, memo: memo || '' }) })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        busy(false);
+        if (!d || d.result !== 'OK'){ alertBox('처리하지 못했습니다.<br>' + esc((d && d.message) || ''), '⚠️'); reqLoad(); return; }
+        toast(act === 'A' ? ('승인했습니다 — 재고 ' + nvl(d.cnt) + '건 반영') : (act === 'R' ? '반려했습니다.' : '요청을 취소했습니다.'));
+        reqLoad(); reqBadge();
+        if (act === 'A'){ if (ROWS.length) load(); if (!gel('histBox').classList.contains('off') && gel('hisBody').children.length > 1) hisLoad(); }
+      })
+      .catch(function(e){ busy(false); alertBox('처리하지 못했습니다.<br>' + esc(e && e.message ? e.message : ''), '⚠️'); });
+  };
+  var d = nvl(q.diffSum), who = esc(q.reqUserNm || q.reqUser);
+  var sumTxt = '요청 <b>#' + esc(k) + '</b> · ' + who + ' · 품목 <b>' + nvl(q.itemCnt) + '건</b> · 증감 합 <b>' + (d > 0 ? '+' : '') + d + '</b>';
+  if (act === 'R'){ reqAsk('✖ 반려 — 요청 #' + esc(k) + ' (' + who + ')', '반려 사유 (요청한 사람에게 보입니다)', '반려', send); return; }
+  if (!window._confirmBox){ send(''); return; }
+  window._confirmBox({
+    icon: act === 'A' ? '✔️' : '❓',
+    msg: '<div style="text-align:left; line-height:1.7">' + sumTxt + '<br>'
+       + (act === 'A' ? '<b>승인</b>하면 <b>' + esc(fmtDt8(q.baseDt)) + '</b> 자로 재고에 바로 반영됩니다.'
+                        + '<br><span style="font-size:12.5px;color:#5b6b7a">반영되는 것은 요청 때의 증감입니다. 잘못 승인했으면 아래 [조정 이력]에서 그 묶음을 되돌릴 수 있습니다.</span>'
+                      : '이 요청을 <b>취소</b>합니다(재고는 그대로).') + '</div>',
+    okText: act === 'A' ? '승인' : '요청 취소',
+    okColor: act === 'A' ? undefined : 'red',
+    onOk: function(){ send(''); }
+  });
 }
 
 /* ── 하단 조정 이력 ──────────────────────────────────────────────── */
@@ -864,8 +1153,64 @@ function adjWhInit(){
       e.innerHTML='<option value="">(전 창고 합계 — 조회만)</option>'+l.map(function(w){ return '<option value="'+w.whCd+'">'+w.whNm+'</option>'; }).join('');
       var d=l.filter(function(w){ return w.defaultYn==='Y'; })[0]||l[0]; if(d) e.value=d.whCd; })
     .catch(function(){})
-    .then(function(){ load(); });
+    .then(function(){ load(); reqLoad(); });   /* 승인 요청 목록 · 역할(단추 이름) — 2026-11-18 */
 }
+/* ── 목록 ↔ 조정 이력 높이 막대 (2026-11-18 사용자 「막대 표시로 줄이고 늘리고 기능」) ─────────────────
+   목록 표(#adjGrid) 바로 밑 막대. 목록은 남는 높이를 전부 쓰므로(flex:1) 막대는 [조정 이력] 표(#hisWrap) 높이를 바꾼다.
+   · 아래로 끌면 목록이 늘고(이력이 줄고) 위로 끌면 목록이 준다 · [▲ 줄이기][▼ 늘리기] = 120px · 더블클릭 = 처음 높이(CSS 24vh~46vh)
+   · 높이(이력 표 px)는 localStorage('konetAdjHisH') — 다음에 들어와도 그대로
+   · 목록은 110px 아래로, 이력은 60px 아래로 안 줄어든다. 이력이 접혀 있으면(📜 탭) 막대를 건드릴 때 펼친다. */
+var ADJ_GRIP_K = 'konetAdjHisH', ADJ_GRIP_STEP = 120, ADJ_LIST_MIN = 110, ADJ_HIS_MIN = 60;
+function adjGripGet(){ try{ var v = parseInt(localStorage.getItem(ADJ_GRIP_K), 10); return v > 0 ? v : 0; }catch(e){ return 0; } }
+function adjGripPut(v){ try{ if (v > 0) localStorage.setItem(ADJ_GRIP_K, String(Math.round(v))); else localStorage.removeItem(ADJ_GRIP_K); }catch(e){} }
+/* 이력 표 높이를 h 로 건다. 목록이 ADJ_LIST_MIN 아래로 눌리거나 화면 밖으로 넘치면 그만큼 되돌린다. 돌려주는 값 = 실제로 건 높이 */
+function adjGripSet(h){
+  var w = gel('hisWrap'), g = gel('adjGrid'), wrap = g && g.parentNode; if (!w || !g) return 0;
+  function put(v){ w.style.setProperty('height', v + 'px', 'important'); w.style.setProperty('min-height', '0', 'important'); w.style.setProperty('max-height', 'none', 'important'); }
+  h = Math.max(ADJ_HIS_MIN, Math.round(h)); put(h);
+  var lack = Math.max(0, ADJ_LIST_MIN - g.clientHeight) + Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+  if (lack > 0){ h = Math.max(ADJ_HIS_MIN, h - lack); put(h); }
+  return h;
+}
+function adjGripReset(){ var w = gel('hisWrap'); if (!w) return; w.style.removeProperty('height'); w.style.removeProperty('min-height'); w.style.removeProperty('max-height'); adjGripPut(0); }
+(function(){
+  var g = gel('adjGrid'); if (!g) return;
+  var bar = document.createElement('div'); bar.className = 'agrip'; bar.id = 'adjGrip';
+  bar.title = '잡고 아래로 끌면 목록이 늘고(조정 이력이 줄고), 위로 끌면 목록이 줄어듭니다 · 더블클릭 = 처음 높이';
+  bar.innerHTML = '<i></i><span class="bt"><b data-d="-1" title="목록을 줄이고 조정 이력을 늘립니다">▲ 줄이기</b><b data-d="1" title="목록을 늘리고 조정 이력을 줄입니다">▼ 늘리기</b></span>';
+  g.parentNode.insertBefore(bar, g.nextSibling);
+  var drag = false;
+  function hisOff(){ var b = gel('histBox'); return !!(b && b.classList.contains('off')); }
+  function hisH(){ return gel('hisWrap').offsetHeight; }
+  bar.addEventListener('mousedown', function(e){
+    if (e.button !== 0 || (e.target.closest && e.target.closest('b'))) return;
+    e.preventDefault();
+    if (hisOff()) hisToggle();                      /* 접힌 이력은 막대를 건드리면 펼친다 */
+    var sy = e.clientY, h0 = hisH(), last = 0, moved = false;
+    drag = true; bar.classList.add('on'); document.body.style.cursor = 'ns-resize';
+    function mv(ev){ if (!moved && Math.abs(ev.clientY - sy) < 2) return; moved = true; last = adjGripSet(h0 - (ev.clientY - sy)); }
+    function up(){ document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up);
+                   bar.classList.remove('on'); document.body.style.cursor = ''; if (moved) adjGripPut(last); drag = false; }   /* 안 움직였으면 저장하지 않는다 */
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+  });
+  bar.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('b[data-d]'); if (!b) return;
+    var d = parseInt(b.getAttribute('data-d'), 10);
+    if (hisOff()){ if (d < 0) hisToggle(); return; }   /* 접혀 있으면 목록이 이미 가장 크다 — [줄이기]만 이력을 펼친다 */
+    adjGripPut(adjGripSet(hisH() - d * ADJ_GRIP_STEP));
+  });
+  bar.addEventListener('dblclick', function(e){ if (e.target.closest && e.target.closest('b')) return; adjGripReset(); });
+  window.addEventListener('resize', function(){ var v = adjGripGet(); if (v) adjGripSet(v); });   /* 창이 작아지면 넘친 만큼만 줄여 보여 준다(저장값은 그대로) */
+  var s0 = adjGripGet(); if (s0) setTimeout(function(){ adjGripSet(s0); }, 0);
+  /* ★목록 높이가 «다른 까닭»으로 바뀌면(승인 요청 상자가 나타남 · 조회줄이 두 줄로 접힘 · 이력 접기) 고른 높이를 다시 맞춘다.
+       화면을 열 때 승인 요청 상자는 목록보다 늦게 나타난다 — 그때 한 번만 맞추면 목록이 최소 높이 밑으로 눌린 채 남는다(시연 화면 실측 87px).
+       끄는 동안에는 쉬고(저장값이 아직 옛 값이라 손과 싸운다), 표 크기를 바꾸는 일이라 다음 틱으로 미룬다. */
+  try{ var pend = false;
+       new ResizeObserver(function(){ if (drag || pend) return; pend = true;
+         setTimeout(function(){ pend = false; var v = adjGripGet(); if (v && !drag) adjGripSet(v); }, 0); }).observe(g);
+  }catch(e){}
+})();
+
 adjWhInit();
 </script>
 </body>
