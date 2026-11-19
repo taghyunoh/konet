@@ -5869,6 +5869,49 @@ public class UserController {
 		 *  수정값으로 덮지 않고 **차이만큼 조정행(A)** 을 더한다.
 		 * ════════════════════════════════════════════════════════════════════ */
 
+		/* ════════════════════════════════════════════════════════════════════
+		 *  재고흐름조회 (2026-11-19 사용자 「재고관리에서 재고흐름이 이상한 것 확인해서 조회할 수 있게 재고흐름조회 메뉴 추가로」)
+		 *  수불원장을 품목마다 훑어 흐름이 이상한 품목(현재고 음수 · 입고 없이 출고 · 반품 > 입고 · 과거 음수 · 조정 잦음 · 장기 무출고 · 단가 없는 입고)을 찾는다.
+		 *  조회 전용 — 아무것도 바꾸지 않는다. 유형 판정은 화면(stockFlow.jsp)이 하고 서버는 숫자만 준다.
+		 * ════════════════════════════════════════════════════════════════════ */
+		@RequestMapping(value="/prod/stockFlow.do")
+		public String stockFlow(HttpSession session, ModelMap model) throws Exception {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/prod/stockFlow";   // 아이프레임 전용
+		}
+		private static String flowDt(String v) {   /* 'yyyy-MM-dd' · 'yyyyMMdd' → yyyyMMdd. 비었거나 이상하면 오늘 */
+			String d = v == null ? "" : v.replaceAll("[^0-9]", "");
+			return d.length() == 8 ? d : new java.text.SimpleDateFormat("yyyyMMdd").format(new java.util.Date());
+		}
+		@RequestMapping(value="/prod/stockFlowList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockFlowList(@RequestParam(value="asOfDt", required=false) String asOfDt,
+		                                        @RequestParam(value="whCd", required=false) String whCd, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("result", "LOGIN"); res.put("message", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("asOfDt", flowDt(asOfDt)); q.put("whCd", whCd == null ? "" : whCd.trim());
+				res.put("data", svc.selectStockFlowList(q)); res.put("asOfDt", q.get("asOfDt")); res.put("result", "OK");
+			} catch (Exception e) { log.error(" stockFlowList ERROR : " + e.getMessage()); res.put("result", "FAIL"); res.put("message", e.getMessage()); }
+			return res;
+		}
+		@RequestMapping(value="/prod/stockFlowLedger.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockFlowLedger(@RequestParam("prodCd") String prodCd,
+		                                          @RequestParam(value="asOfDt", required=false) String asOfDt,
+		                                          @RequestParam(value="whCd", required=false) String whCd, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			try {
+				if (session.getAttribute("s_comp_cd") == null) { res.put("result", "LOGIN"); res.put("message", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("prodCd", prodCd == null ? "" : prodCd.trim());
+				q.put("asOfDt", flowDt(asOfDt)); q.put("whCd", whCd == null ? "" : whCd.trim());
+				res.put("data", svc.selectStockFlowLedger(q)); res.put("result", "OK");
+			} catch (Exception e) { log.error(" stockFlowLedger ERROR : " + e.getMessage()); res.put("result", "FAIL"); res.put("message", e.getMessage()); }
+			return res;
+		}
+
 		/* 화면 */
 		@RequestMapping(value="/prod/stockAdj.do")
 		public String stockAdj(HttpSession session, ModelMap model) throws Exception {

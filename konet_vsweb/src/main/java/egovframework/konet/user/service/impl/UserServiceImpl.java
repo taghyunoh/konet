@@ -3968,4 +3968,6 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<java.util.Map<String,Object>> selectStockAdjReqMine(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockAdjReqMine(p); }
 	@Override public int updateStockAdjReqSeen(java.util.Map<String,Object> p) throws Exception { return mapper.updateStockAdjReqSeen(p); }
 
+	@Override public java.util.List<java.util.Map<String,Object>> selectStockFlowList(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockFlowList(p); }   // 재고흐름조회 (2026-11-19)
+	@Override public java.util.List<java.util.Map<String,Object>> selectStockFlowLedger(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockFlowLedger(p); }
 }

@@ -9559,4 +9559,83 @@
 	   WHERE REQ_SEQ = #{reqSeq,jdbcType=BIGINT} AND COMP_CD = #{compCd,jdbcType=VARCHAR} AND STAT_GB = #{fromStat,jdbcType=CHAR}
 	]]></update>
 
+	<!-- ============================================================
+	     재고흐름조회 (2026-11-19 사용자 「재고관리에서 재고흐름이 이상한 것 확인해서 조회할 수 있게 재고흐름조회 메뉴 추가로」)
+	     품목마다 수불원장(TBL_STOCK_LEDGER)을 기준일자까지 훑어 «흐름이 이상한지» 가릴 숫자를 한 번에 낸다. 유형 판정은 화면이 한다.
+	     · inQty = 양수 입고 · retQty = 매입 반품(음수 입고, 양수로) · saleRetQty = 판매 반품(R) · outQty = 출고 · adjQty/adjAbs/adjCnt = 조정 합·절댓값 합·건수
+	     · curQty = 현재고(부호 그대로 합) — 품목별재고현황과 같은 식
+	     · minBal/firstNegDt/lastNegDt/negDays = «하루 단위» 잔고를 날짜순으로 쌓았을 때의 최저 잔고 · 음수가 처음/마지막 된 날 · 음수였던 수불일 수.
+	     · negCalDays = 음수였던 달력 일수(화면의 「음수 일수」 — 2026-11-19 부터 이 값을 보인다. negDays 는 말풍선에만)
+	       ★하루 단위로 묶는 까닭 : 같은 날 안에서는 출고가 입고보다 먼저 적혔을 수 있다(전표 순서) — 줄 단위로 쌓으면 그날 안의 순서 때문에 가짜 음수가 나온다.
+	     · noPriceCnt = 단가 없이 들어온 입고 건수(재고금액이 틀어진다) · lastInDt/lastOutDt/firstDt = 최근 입고·최근 출고·첫 수불일
+	     운영 DB 실측 2026-11-19 : 1,002 품목 0.8초(읽기 전용 실행). 인덱스·임시표 없이 CTE 한 번.
+	     ============================================================ -->
+	<select id="selectStockFlowList" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  WITH L AS (
+	    SELECT l.PROD_CD, l.TRX_DT, l.IO_GB, l.QTY, ISNULL(l.UNIT_PRICE,0) AS UP,
+	           CASE WHEN l.IO_GB IN ('I','R','A') THEN l.QTY WHEN l.IO_GB = 'O' THEN -l.QTY ELSE 0 END AS SQ
+	      FROM TBL_STOCK_LEDGER l
+	     WHERE l.ACTION_YN = 'Y' AND l.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	       AND l.TRX_DT <= #{asOfDt,jdbcType=VARCHAR}
+	       AND ( ISNULL(#{whCd,jdbcType=VARCHAR},'') = '' OR l.WH_CD = #{whCd,jdbcType=VARCHAR} )
+	  ), D AS (
+	    SELECT PROD_CD, TRX_DT, SUM(SQ) AS DQ FROM L GROUP BY PROD_CD, TRX_DT
+	  ), B AS (
+	    SELECT PROD_CD, TRX_DT, SUM(DQ) OVER (PARTITION BY PROD_CD ORDER BY TRX_DT ROWS UNBOUNDED PRECEDING) AS BAL,
+	           LEAD(TRX_DT) OVER (PARTITION BY PROD_CD ORDER BY TRX_DT) AS NEXT_DT   /* 다음 수불일 — 그날까지 이 잔고가 이어진다 */
+	      FROM D
+	  ), N AS (
+	    SELECT PROD_CD, MIN(BAL) AS minBal, MIN(CASE WHEN BAL < 0 THEN TRX_DT END) AS firstNegDt,
+	           MAX(CASE WHEN BAL < 0 THEN TRX_DT END) AS lastNegDt, SUM(CASE WHEN BAL < 0 THEN 1 ELSE 0 END) AS negDays,
+	           /* ★negCalDays = 재고가 0 밑이었던 «달력 일수» (2026-11-19 사용자 「음수 일수를 달력 기준 일수로」) —
+	                negDays 는 수불이 있던 날만 세어, 거래가 드문 품목은 석 달 내내 음수여도 4 로 나왔다(설로인보냉팩 S).
+	                잔고는 다음 수불일 전날까지 그대로이므로 «음수로 끝난 날 ~ 다음 수불일 전날»을 더한다. 마지막 수불일이 음수면 기준일자까지(그날 포함).
+	                날짜가 깨진 줄(8자리 아님)은 TRY_CONVERT 가 NULL 을 줘 0 일로 친다 */
+	           SUM(CASE WHEN BAL < 0 THEN ISNULL(DATEDIFF(DAY, TRY_CONVERT(date, TRX_DT, 112),
+	                    ISNULL(TRY_CONVERT(date, NEXT_DT, 112), DATEADD(DAY, 1, TRY_CONVERT(date, #{asOfDt,jdbcType=VARCHAR}, 112)))), 0) ELSE 0 END) AS negCalDays
+	      FROM B GROUP BY PROD_CD
+	  ), A AS (
+	    SELECT PROD_CD,
+	           SUM(CASE WHEN IO_GB = 'I' AND QTY > 0 THEN QTY ELSE 0 END)  AS inQty,
+	           SUM(CASE WHEN IO_GB = 'I' AND QTY < 0 THEN -QTY ELSE 0 END) AS retQty,
+	           SUM(CASE WHEN IO_GB = 'R' THEN QTY ELSE 0 END)              AS saleRetQty,
+	           SUM(CASE WHEN IO_GB = 'O' THEN QTY ELSE 0 END)              AS outQty,
+	           SUM(CASE WHEN IO_GB = 'A' THEN QTY ELSE 0 END)              AS adjQty,
+	           SUM(CASE WHEN IO_GB = 'A' THEN ABS(QTY) ELSE 0 END)         AS adjAbs,
+	           SUM(CASE WHEN IO_GB = 'A' THEN 1 ELSE 0 END)                AS adjCnt,
+	           SUM(SQ)                                                     AS curQty,
+	           MAX(CASE WHEN IO_GB = 'I' AND QTY > 0 THEN TRX_DT END)      AS lastInDt,
+	           MAX(CASE WHEN IO_GB = 'O' THEN TRX_DT END)                  AS lastOutDt,
+	           MIN(TRX_DT)                                                 AS firstDt,
+	           SUM(CASE WHEN IO_GB = 'I' AND QTY > 0 AND UP = 0 THEN 1 ELSE 0 END) AS noPriceCnt,
+	           COUNT(*)                                                    AS trxCnt
+	      FROM L GROUP BY PROD_CD
+	  )
+	  SELECT a.PROD_CD AS prodCd, ISNULL(p.PROD_NM,'') AS prodNm, ISNULL(p.VENDOR_CD,'') AS vendorCd, ISNULL(p.VENDOR_NM,'') AS vendorNm,
+	         a.inQty, a.retQty, a.saleRetQty, a.outQty, a.adjQty, a.adjAbs, a.adjCnt, a.curQty,
+	         ISNULL(a.lastInDt,'') AS lastInDt, ISNULL(a.lastOutDt,'') AS lastOutDt, ISNULL(a.firstDt,'') AS firstDt, a.noPriceCnt, a.trxCnt,
+	         n.minBal, ISNULL(n.firstNegDt,'') AS firstNegDt, ISNULL(n.lastNegDt,'') AS lastNegDt, n.negDays, n.negCalDays
+	    FROM A a
+	    JOIN N n ON n.PROD_CD = a.PROD_CD
+	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = ( SELECT MAX(p2.PROD_SEQ) FROM TBL_PROD_MST p2
+	                                               WHERE p2.PROD_CD = a.PROD_CD AND p2.ACTION_YN = 'Y' AND p2.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	   ORDER BY a.PROD_CD
+	]]></select>
+
+	<!-- 재고흐름조회 — 한 품목의 수불 줄(날짜순). 화면이 잔고를 쌓아 «어느 날부터 음수였나»를 보여 준다. 품목별재고현황의 수불 조회(selectStockLedgerList)는
+	     출고 줄마다 사업장·대체출고를 FOR XML 로 만들어 무겁고 품목일련번호(PROD_SEQ)로 찾는다 — 여기는 품목코드로 가볍게 (2026-11-19) -->
+	<select id="selectStockFlowLedger" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT l.LEDGER_SEQ AS ledgerSeq, l.TRX_DT AS trxDt, l.IO_GB AS ioGb, l.QTY AS qty, ISNULL(l.UNIT_PRICE,0) AS unitPrice,
+	         ISNULL(l.VENDOR_CD,'') AS vendorCd,
+	         ISNULL(( SELECT MAX(v.VENDOR_NM) FROM TBL_VENDOR_MST v WHERE v.VENDOR_CD = l.VENDOR_CD AND v.ACTION_YN = 'Y' AND v.COMP_CD = l.COMP_CD ),'') AS vendorNm,
+	         ISNULL(l.REF_GB,'') AS refGb, ISNULL(l.REF_NO,'') AS refNo, ISNULL(l.REMARK,'') AS remark, ISNULL(l.WH_CD,'') AS whCd,
+	         ISNULL(l.REG_DTTM,'') AS regDttm, ISNULL(l.REG_USER,'') AS regUser
+	    FROM TBL_STOCK_LEDGER l
+	   WHERE l.ACTION_YN = 'Y' AND l.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND l.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	     AND l.TRX_DT <= #{asOfDt,jdbcType=VARCHAR}
+	     AND ( ISNULL(#{whCd,jdbcType=VARCHAR},'') = '' OR l.WH_CD = #{whCd,jdbcType=VARCHAR} )
+	   ORDER BY l.TRX_DT, CASE WHEN l.IO_GB = 'O' THEN 1 ELSE 0 END, l.LEDGER_SEQ
+	]]></select>
+
 </mapper>

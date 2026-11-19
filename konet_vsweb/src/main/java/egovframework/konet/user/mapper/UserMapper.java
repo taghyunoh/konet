@@ -602,4 +602,6 @@ public interface UserMapper {
 	java.util.List<java.util.Map<String,Object>> selectStockAdjReqMine(java.util.Map<String,Object> p) throws Exception;   // 내 요청 결과 중 안 본 것 2026-11-18
 	int updateStockAdjReqSeen(java.util.Map<String,Object> p) throws Exception;                                           // [확인했습니다]
 
+	java.util.List<java.util.Map<String,Object>> selectStockFlowList(java.util.Map<String,Object> p) throws Exception;     // 재고흐름조회 — 품목별 흐름 숫자 (2026-11-19)
+	java.util.List<java.util.Map<String,Object>> selectStockFlowLedger(java.util.Map<String,Object> p) throws Exception;   // 재고흐름조회 — 한 품목의 수불 줄
 }
