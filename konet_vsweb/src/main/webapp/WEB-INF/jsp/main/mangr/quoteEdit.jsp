@@ -9,7 +9,7 @@
 <script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917c"></script>   <%-- 회사 설정 — 센터별 물류비율·보관 기본값(konetSet.cost) --%>
 <script src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>
 <script src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20261109"></script>   <%-- 머리 높이 막대 — 판매·매입·수금과 같은 공용 막대 (2026-11-09) --%>   <%-- 팝업 끌어 옮기기 (2026-09-18 「상품검색 마우스 클릭으로 이동」) — 발주서와 같은 .pop+.ph 뼈대 --%>
-<script src="${pageContext.request.contextPath}/asset/js/quote-autolink.js?v=20261118i"></script>   <%-- ⚡ 자동연계 작성 (2026-11-18) — 품목·배송 MOQ·배송 단가·동판·목형만 정하면 지난 견적·상품에서 끌어와 계산해 <지금 줄 밑에> 붙인다. 이 화면의 전역(_lines·calcOf·normCalc…)을 쓴다 · 고치면 ?v= 를 올릴 것 --%>
+<script src="${pageContext.request.contextPath}/asset/js/quote-autolink.js?v=20261119a"></script>   <%-- ⚡ 자동연계 작성 (2026-11-18) — 품목·배송 MOQ·배송 단가·동판·목형만 정하면 지난 견적·상품에서 끌어와 계산해 <지금 줄 밑에> 붙인다. 이 화면의 전역(_lines·calcOf·normCalc…)을 쓴다 · 고치면 ?v= 를 올릴 것 --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 📥 엑셀 (전역 XLSX) --%>
 <!--
   견적서 작성 (2026-09-17 신설 — 「여기에서 견적서 작성 및 출력 가능하게」) — 견적서관리 ▸ 견적서 작성. 셸 iframe(logiFrame) 화면.

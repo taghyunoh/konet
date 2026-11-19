@@ -177,6 +177,7 @@
      +'#alPop .al-hits{ max-height:26vh; overflow:auto; border-bottom:2px solid #cfe0da; }'
      +'#alPop .al-hits td{ font-size:12.5px; padding:4px 6px; } #alPop .al-hits td.l{ text-align:left; }'
      +'#alPop .al-hits tr.stop td{ opacity:.45; }'
+     +'#alPop .al-hits{ flex:0 1 auto; min-height:0; } #alPop .kgg{ flex:none; margin-top:0; border-radius:0; border-bottom:1px solid #dbe2ea; }'   /* 목록 높이 막대 (2026-11-19) — 막대는 눌리지 않게 */
      +'#alPop .tg{ display:inline-block; border-radius:10px; padding:1px 8px; font-size:11.5px; font-weight:800; white-space:nowrap; }'
      +'#alPop .tg.h{ background:#e3f2ee; color:#0f6b5e; border:1px solid #9fcfc3; } #alPop .tg.p{ background:#eaf0fb; color:#2f4f9a; border:1px solid #b5c6e8; } #alPop .tg.n{ background:#f3f5f8; color:#4a5a6a; border:1px solid #cdd6df; }'
      +'#alPop .al-body{ overflow:auto; padding:10px 14px; background:#f5f7f9; flex:1; min-height:120px; }'
@@ -235,13 +236,17 @@
      +'<select id="alRecv" onchange="alRecvSet(this.value)" title="지난 견적 품목을 수신처로 거릅니다(단가는 수신처마다 다를 수 있습니다) — 상품마스터 결과는 거르지 않습니다"></select>'
      +'<button class="btn" onclick="alNewBlock()" title="지난 견적·상품에 없는 새 품목 — 빈 묶음을 만들어 직접 적습니다">＋ 새 품목 직접 입력</button>'
      +'<span class="dim" id="alLoad" style="font-size:12px"></span></div>'
-     +'<div class="al-hits"><table class="g"><thead><tr><th style="width:86px">출처</th><th>상품코드</th><th>제조사</th><th>품명</th><th>규격</th><th>입수</th><th>MOQ → 배송 단가</th><th>판매단가</th><th>동판·목형</th><th>최근 견적</th></tr></thead><tbody id="alHits"></tbody></table></div>'
+     +'<div class="al-hits" id="alHitsWrap"><table class="g"><thead><tr><th style="width:86px">출처</th><th>상품코드</th><th>제조사</th><th>품명</th><th>규격</th><th>입수</th><th>MOQ → 배송 단가</th><th>판매단가</th><th>동판·목형</th><th>최근 견적</th></tr></thead><tbody id="alHits"></tbody></table></div>'
      +'<div class="al-body" id="alBody"></div>'
      +'<div class="al-ft"><span class="sum" id="alSum"></span><span class="keep" id="alKeep"></span>'
      +'<button class="btn" style="margin-left:auto" onclick="alClear()" title="아래 묶음을 모두 지웁니다(견적서에는 아무 영향 없음)">비우기</button>'
      +'<button class="btn btn-teal" id="alGo" style="font-size:14.5px;height:38px;padding:0 20px" onclick="alApply()">⚡ 견적서에 넣기</button></div>'
      +'</div>';
     document.body.appendChild(d);
+    /* ★품목 목록 높이 막대 (2026-11-19 사용자 「여기도 막대 표시 확대·축소되게」) — 판매·매입·견적서 품목 표와 같은 공용 막대(ui-gridgrip.js).
+       목록과 아래 묶음 영역 사이에 붙는다 : 아래로 끌면 목록이 늘고(묶음 영역이 그만큼 준다) 위로 끌면 준다 · 더블클릭 = 처음 높이(26vh) ·
+       높이는 localStorage('konetGridH.quoteAutoHits') 에 남는다. 창이 93vh 를 넘지 못하므로 너무 늘리면 목록이 창 안에서 멈춘다(묶음 영역은 120px 는 남는다) */
+    if(window.konetGridGrip) konetGridGrip('alHitsWrap', 'alHitsWrap', 'quoteAutoHits');
     var sg=document.createElement('div'); sg.id='alSug'; document.body.appendChild(sg);   /* 품명 칸에 치는 대로 뜨는 목록 (2026-11-18) */
     var bd=document.getElementById('alBody'); if(bd) bd.addEventListener('scroll', function(){ alSugHide(); });   /* 묶음 영역을 굴리면 칸과 떨어지므로 닫는다 */
     var rs=document.getElementById('alRound'); rs.innerHTML=ROUNDS.map(function(r){ return '<option value="'+r[0]+'">'+r[1]+'</option>'; }).join(''); rs.value=OPT.round;
