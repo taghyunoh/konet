@@ -303,7 +303,7 @@ function paintList(){
         +ST_KEYS.map(function(x){ return '<option value="'+x+'"'+(x===k?' selected':'')+'>'+(ST[x].nm||'-')+'</option>'; }).join('')+'</select>'
       +'<div class="tx"><div class="t1" title="'+esc(s.title)+'">'+esc(s.title)+(s.hasContent==='Y'?'<span class="memo" title="내용이 있습니다">📝</span>':'')+'</div>'
       +'<div class="t2"><b>'+lTxt(s.fromDt)+(s.toDt!==s.fromDt?' ~ '+lTxt(s.toDt):'')+'</b>'+(s.schedTm?' '+esc(s.schedTm):'')+(s.place?' · '+esc(s.place):'')+tag+'</div></div>'
-      +'<button type="button" class="rowdel" onclick="rowDel('+s.schedSeq+', event)" title="'+(k==='Y'?'완료한 일정은 일정취소로 바꾼 뒤 지울 수 있습니다':'이 일정을 지웁니다')+'">🗑</button></div>';
+      +'<button type="button" class="rowdel" onclick="rowDel('+s.schedSeq+', event)" title="'+(k==='Y'?'완료한 일정 — 누르면 일정취소로 바꾸고 지웁니다(한 번 묻습니다)':'이 일정을 지웁니다')+'">🗑</button></div>';
   }).join('');
 }
 /* ══ 엑셀 · 인쇄 (2026-11-19 사용자 「엑셀출력 및 인쇄 넣어줘요」) ══
@@ -663,7 +663,20 @@ function edDel(){
   delAsk(seq, title, function(){ edClose(true); });
 }
 /* 목록 줄 끝의 🗑 — 창을 열지 않고 바로 */
-function rowDel(seq, ev){ if(ev) ev.stopPropagation(); var s=rowOf(seq); delAsk(seq, s ? s.title : ''); }
+/* ★완료한 줄의 🗑 = 일정취소로 바꾸고 바로 지운다 (2026-11-19 사용자 「목록 🗑도 완료면 일정취소하고 바로 삭제되게」) —
+   종전엔 「상태 칸에서 일정취소로 바꾼 뒤」라고 안내만 했다. 이제 한 번 물은 뒤 상태 변경 + 삭제를 이어서 한다(확인 글에 완료한 일정이라는 것을 적는다) */
+function rowDel(seq, ev){
+  if(ev) ev.stopPropagation();
+  var s=rowOf(seq); if(!s) return;
+  if(stKey(s)!=='Y'){ delAsk(seq, s.title); return; }
+  var go=function(){ busy(true);
+    postForm('/mangr/ceoSchedDone.do',{ schedSeq:seq, doneYn:'C' })
+      .then(function(){ return postForm('/mangr/ceoSchedDel.do',{ schedSeq:seq }); })
+      .then(function(){ busy(false); toast('🗑 일정을 지웠습니다'); load(); })
+      .catch(function(e){ busy(false); alertBox(esc(e.message)); load(); }); };
+  if(window._confirmBox) _confirmBox({ msg:'<b>완료한 일정</b>입니다 — 일정취소로 바꾸고 지울까요?<br><b>'+esc(s.title||'')+'</b><br><span style="font-size:12px;color:#6b7a89">지우면 달력과 목록에서 사라집니다.</span>', icon:'🗑', okText:'지우기', onOk:go, onCancel:function(){} });
+  else if(confirm('완료한 일정입니다 — 일정취소로 바꾸고 지울까요?')) go();
+}
 
 (function(){
   var t=new Date(); _y=t.getFullYear(); _m=t.getMonth();
