@@ -5,6 +5,7 @@
 const fs=require('fs'), path=require('path');
 const { JSDOM }=require('jsdom');
 const js=fs.readFileSync(path.join(__dirname,'../../../src/main/webapp/asset/js/emp-badge.js'),'utf8');
+const cl=fs.readFileSync(path.join(__dirname,'../../../src/main/webapp/asset/js/ceo-lines.js'),'utf8');   /* 셸이 emp-badge 앞에 싣는다 (2026-11-20) */
 let ok=0, bad=0; function T(c,m){ if(c) ok++; else { bad++; console.log('✗ '+m); } }
 function d8(off){ const d=new Date(); d.setDate(d.getDate()+off); return ''+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0'); }
 /* 지난 미완료 : 2일 전 · 5일 전 · 10일 전 · 40일 전 끝난 것 + 완료(빠져야 함) */
@@ -21,7 +22,7 @@ function make(days, justLogin){
     if(/ceoSchedList/.test(url)) data=/doneYn=N/.test(b)?LATE:WEEK;
     return Promise.resolve({ ok:true, json:()=>Promise.resolve(/ceoSchedList/.test(url)?{ data:data }:{}) }); };
   w.setInterval=function(){ return 0; };
-  w.eval(js);
+  w.eval(cl); w.eval(js);
   return w;
 }
 const tick=(ms)=>new Promise(r=>setTimeout(r,ms||30));
@@ -61,6 +62,17 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||30));
   /* 옛 키(고르기 칸 판)는 안 읽는다 */
   w=make(null, true); w.localStorage.setItem('konetCeoLateDays','7'); await tick(700);
   T(!!w.document.getElementById('ceoWeek') && !/지난 미완료/.test(w.document.getElementById('ceoWeek').textContent), '옛 키 무시');
+  /* ── 줄이 다 끝난 지난 일정(상태만 빈칸)은 안 센다 (2026-11-20 「서버 숫자도 맞춰줘」) ── */
+  LATE.push({ schedSeq:6, fromDt:d8(-4), toDt:d8(-4), title:'줄 다 끝남', doneYn:'N', content:'<div>삼성미팅</div><div>1. 가 완료</div><div>2. 나 취소</div>' });
+  LATE.push({ schedSeq:7, fromDt:d8(-4), toDt:d8(-4), title:'줄 남음', doneYn:'N', content:'<div>1. 가 완료</div><div>2. 나</div>' });
+  { const w2=make(365); w2.konetCeoBadge(); await tick(); await tick();
+    const b=w2.document.getElementById('ceoLateBadge'); const t=(b.title||'')+' '+b.textContent;
+    T(b.textContent.trim()==='5' && !/줄 다 끝남/.test(b.title||'') && /줄 남음/.test(b.title||''), '★메뉴 숫자 = 5(지난 미완료 4 + 줄 남음 1 · 줄 다 끝남·완료 제외) : '+t);
+    w2.konetCeoWeek(); await tick(); await tick();
+    const tx=w2.document.body.textContent;
+    T(!/줄 다 끝남/.test(tx) && /줄 남음/.test(tx), '로그인 창 지난 미완료에도 줄이 다 끝난 일정은 없다 · 줄이 남은 것은 있다'); }
+  { const w3=make(365); delete w3.konetCeoAllDone; w3.konetCeoBadge(); await tick(); await tick();
+    T(w3.document.getElementById('ceoLateBadge').textContent.trim()==='6', 'ceo-lines.js 가 없으면 종전대로 센다(6)'); }
   console.log((bad?'✗':'✓')+' sim_ceoLoginLate ok='+ok+' bad='+bad);
   process.exit(bad?1:0);
 })().catch(e=>{ console.log('ERR', e); process.exit(1); });

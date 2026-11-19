@@ -5,6 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ceo-lines.js?v=20261120"></script>   <%-- «줄이 다 끝났나» 판정 한 벌 — 메뉴 숫자·로그인 창(emp-badge.js)과 같은 함수 (2026-11-20) --%>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 엑셀 쓰기 (전역 XLSX, 서식 포함) — 재고내용분석과 같은 도구 (2026-11-19) --%>
 <title>대표자 일정</title>
 <%-- 대표자 일정 (처음 이름 「대표이사 일정」 — 같은 날 사용자 「대표자 일정 으로 하고 별도 메뉴표시」. 주소·data-key·파일·표 이름은 ceoSched 그대로) (2026-11-19 신설 — 사용자 「직원일정 말고 대표이사 일정 등록하고 완료여부 체크, 편집기능도」 「총괄관리자만 보여지면 됨」)
@@ -466,6 +467,7 @@ function titleOf(html){ var L=schedLines(html).lines; return L.length ? L[0].bod
      세는 줄 = 할 일 줄(번호 매긴 줄이 있으면 번호 줄만 — 묶음 머리 「삼성미팅」은 할 일이 아니다). 줄이 하나도 없으면 null.
      ⚠미완료(빈칸) 일정에만 쓴다 — 완료·취소 일정에서 줄 하나를 되돌려도 일정 상태는 그대로(2026-11-19 「위는 전체 적용, 아래는 개별 수정」) */
 function autoSt(html){
+  if(window.konetCeoAllDone) return window.konetCeoAllDone(html);   /* ★메뉴 숫자·로그인 창과 같은 한 벌 (2026-11-20 asset/js/ceo-lines.js) — 아래는 그 파일이 없을 때만 */
   var L=linesOf({ schedSeq:0, content:html, hasContent:'Y' }).filter(function(l){ return !l.hd && l.i>=0; });
   if(!L.length || L.some(function(l){ return l.st==='N'; })) return null;
   return L.every(function(l){ return l.st==='C'; }) ? 'C' : 'Y';

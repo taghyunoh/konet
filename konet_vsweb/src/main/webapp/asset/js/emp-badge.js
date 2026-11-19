@@ -229,6 +229,9 @@
          — 화면(ceoSched.jsp)의 「지난 미완료」와 같은 셈. 말풍선에 제목 다섯 개까지
        · 처음 한 번 · 5분마다(자정을 넘기면 저절로 바뀐다) · 탭으로 돌아왔을 때 · 일정 화면이 저장·체크·삭제한 뒤 parent.konetCeoBadge() */
   var ceoBusy = false, ceoTimer = null;
+  /* ★줄이 전부 끝난 일정(상태만 빈칸)은 «미완료»가 아니다 (2026-11-20 사용자 「서버 숫자도 맞춰줘」 — 대표자 일정 화면의 미완료 목록은 이미 뺀다).
+       판정은 asset/js/ceo-lines.js(konetCeoAllDone) 한 벌 — 화면과 같은 함수. 그 파일이 없거나 내용이 안 실려 오면(옛 서버) 종전대로 센다 */
+  function ceoAllDone(x) { return !!(x && x.content != null && window.konetCeoAllDone && window.konetCeoAllDone(x.content)); }
   function ymd8(d) { return '' + d.getFullYear() + ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2); }
   function fetchCeo() {
     if (ceoBusy || document.hidden || !document.getElementById('ceoLateBadge')) return;
@@ -239,7 +242,7 @@
       .then(function (j) {
         ceoBusy = false;
         if (!j || j.error || !j.data) return;      /* 세션 없음·표 없음·권한 없음 = 조용히(마지막 값 유지) */
-        var late = j.data.filter(function (x) { return x && x.doneYn !== 'Y' && x.doneYn !== 'C' && String(x.toDt || '') < today; });   /* 완료·일정취소는 뺀다 (2026-11-19 상태 셋) */
+        var late = j.data.filter(function (x) { return x && x.doneYn !== 'Y' && x.doneYn !== 'C' && String(x.toDt || '') < today && !ceoAllDone(x); });   /* 완료·일정취소는 뺀다 (2026-11-19 상태 셋) · 줄이 다 끝난 일정도 (2026-11-20) */
         var nm = late.slice(0, 5).map(function (x) { return x.title; }).join(', ');
         paint('ceoLateBadge', late.length, '날짜가 지난 미완료 일정 ' + late.length + '건' + (nm ? ' : ' + nm + (late.length > 5 ? ' 외 ' + (late.length - 5) + '건' : '') : ''));
       })
@@ -324,7 +327,7 @@
       .then(function (r) {
         if (!r[0] || r[0].error || !r[0].data) return;               /* 세션 없음·표 없음·권한 없음 = 조용히 */
         var ld = ceoLateDays(), lim = (ld > 0) ? ymd8(new Date(t.getFullYear(), t.getMonth(), t.getDate() - ld)) : '';
-        var lateAll = (ld === 0) ? [] : ((r[1] && r[1].data) || []).filter(function (x) { return x && x.doneYn !== 'Y' && x.doneYn !== 'C' && String(x.toDt || '') < a; });   /* 0 = 지난 미완료 안 띄움 */
+        var lateAll = (ld === 0) ? [] : ((r[1] && r[1].data) || []).filter(function (x) { return x && x.doneYn !== 'Y' && x.doneYn !== 'C' && String(x.toDt || '') < a && !ceoAllDone(x); });   /* 0 = 지난 미완료 안 띄움 · 줄이 다 끝난 일정 제외 (2026-11-20) */
         var list = r[0].data.slice(), late = lateAll.filter(function (x) { return !lim || String(x.toDt || '') >= lim; });   /* 설정한 날수 안쪽만 */
         late.sort(function (p, q) { return String(q.toDt) < String(p.toDt) ? -1 : (String(q.toDt) > String(p.toDt) ? 1 : 0); });   /* 최근에 지난 것이 위 */
         var nY = 0, nC = 0;

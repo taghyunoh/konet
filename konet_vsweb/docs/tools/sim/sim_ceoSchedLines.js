@@ -291,6 +291,11 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
     w.tabGo('all'); await tick(); T([...d.querySelectorAll('#list .it')].some(x=>/rowDel\(11,/.test(x.innerHTML)), '전체 탭엔 그대로'); w.tabGo('todo'); await tick();
     T(w.inTodo({ schedSeq:99, fromDt:today, toDt:today, doneYn:'N', hasContent:'Y', content:null, title:'x' }) && w.inTodo({ schedSeq:98, fromDt:today, toDt:today, doneYn:'N', content:'<div>1. 가</div>' }) && !w.inTodo({ schedSeq:97, doneYn:'Y', content:'<div>1. 가</div>' }), 'inTodo — 내용 못 읽은 일정은 넣는다 · 남은 줄 있으면 넣는다 · 완료는 뺀다');
     T(typeof w.schedFinish==='undefined', '쓰지 않는 schedFinish 는 없앴다'); }
+  { /* ceo-lines.js(메뉴 숫자·로그인 창이 쓰는 한 벌) = 화면 셈과 같은 답 (2026-11-20) — 시뮬은 외부 스크립트를 빼고 올리므로 여기서 따로 태운다 */
+    const CL=fs.readFileSync(path.join(__dirname,'../../../src/main/webapp/asset/js/ceo-lines.js'),'utf8'); const fn=new w.Function(CL+'; return window.konetCeoAllDone;')();
+    const cases=['<div>삼성미팅</div><div>1. 가 완료</div>','<div>1. 가</div><div>2. 나 완료</div>','','<div>대상미팅</div><div>1. 납품 취소</div><div>2. 품질 취소</div>','<div>1. 가 완료</div><div>2. 나 취소</div>','<div>그냥 한 줄 완료</div>','<div>검수완료</div>','<ol><li>가 완료</li><li>나 (취소)</li></ol>','<div>가 완료<br>나</div>','<div>11.19 미팅 완료</div><div>메모</div>', C1];
+    const diff=cases.filter(c=>fn(c)!==w.autoSt(c)); delete w.konetCeoAllDone;
+    T(!diff.length, 'ceo-lines.js 판정 = 화면 셈(11가지) : 다른 것 '+JSON.stringify(diff.map(c=>[c.slice(0,40), fn(c), w.autoSt(c)]))); }
   T(w.autoSt('<div>삼성미팅</div><div>1. 가 완료</div>')==='Y' && w.autoSt('<div>1. 가</div><div>2. 나 완료</div>')===null && w.autoSt('')===null, 'autoSt — 묶음 머리는 안 센다 · 남은 줄 있으면 null');
   /* 완료 일정에서 줄을 되돌려도 일정은 그대로(위는 전체, 아래는 개별) */
   DB[12].doneYn='Y'; w.load(); await tick(); await tick();
