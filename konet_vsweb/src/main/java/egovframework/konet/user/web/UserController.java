@@ -6814,12 +6814,41 @@ public class UserController {
 				   끝낸 일의 기록이 실수로 사라지지 않게. 화면(ceoSched.jsp delGuard)도 같은 검사를 먼저 한다 */
 				Map<String,Object> cur = svc.selectCeoSched(q);
 				if (cur == null) return leaveFail("일정을 찾지 못했습니다 — 이미 지워졌을 수 있습니다.");
-				if ("Y".equals(leaveStr(cur.get("doneYn")))) return leaveFail("완료한 일정은 바로 지울 수 없습니다 — 상태를 일정취소로 바꾼 뒤 지워 주세요.");
+				if ("Y".equals(leaveStr(cur.get("doneYn")))) return leaveFail("완료한 일정은 바로 지울 수 없습니다 — 상태를 취소로 바꾼 뒤 지워 주세요.");
 				int n = svc.deleteCeoSched(q);
 				if (n == 0) return leaveFail("일정을 찾지 못했습니다 — 이미 지워졌을 수 있습니다.");
 				Map<String,Object> res = new HashMap<String,Object>(); res.put("rows", Integer.valueOf(n));
 				return res;
 			} catch (Exception e) { log.error(" ceoSchedDel ERROR : " + e.getMessage()); return ceoFail(e); }
+		}
+
+		/** 지운 일정 목록 (2026-11-19 사용자 「삭제한 것 보고 복구 기능도」) — 최근 지운 것부터 300건, 내용 포함 */
+		@RequestMapping(value="/mangr/ceoSchedDelList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> ceoSchedDelList(HttpSession session) {
+			try {
+				Map<String,Object> gate = ceoGate(session); if (gate != null) return gate;
+				Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd"));
+				Map<String,Object> res = new HashMap<String,Object>(); res.put("data", svc.selectCeoSchedDelList(q));
+				return res;
+			} catch (Exception e) { log.error(" ceoSchedDelList ERROR : " + e.getMessage()); return ceoFail(e); }
+		}
+
+		/** 복구 — 지운 일정을 되살린다(상태·내용은 지울 때 그대로) */
+		@RequestMapping(value="/mangr/ceoSchedRestore.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> ceoSchedRestore(@RequestParam("schedSeq") long schedSeq, HttpServletRequest request, HttpSession session) {
+			try {
+				Map<String,Object> gate = ceoGate(session); if (gate != null) return gate;
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("schedSeq", Long.valueOf(schedSeq));
+				q.put("regUser", leaveStr(session.getAttribute("s_user_nm")).isEmpty() ? leaveStr(session.getAttribute("s_user_id")) : leaveStr(session.getAttribute("s_user_nm")));
+				q.put("regIp", request.getRemoteAddr());
+				int n = svc.restoreCeoSched(q);
+				if (n == 0) return leaveFail("복구할 일정을 찾지 못했습니다 — 이미 복구됐을 수 있습니다.");
+				Map<String,Object> res = new HashMap<String,Object>(); res.put("rows", Integer.valueOf(n));
+				return res;
+			} catch (Exception e) { log.error(" ceoSchedRestore ERROR : " + e.getMessage()); return ceoFail(e); }
 		}
 
 		@RequestMapping(value="/mangr/leaveMng.do")

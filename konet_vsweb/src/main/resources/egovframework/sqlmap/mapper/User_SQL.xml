@@ -9666,7 +9666,7 @@
 	       표 = TBL_CEO_SCHED (docs/sql/20261119_ceo_sched.sql) · 화면 = mangr/ceoSched.jsp · 자바 = /mangr/ceoSched*.do (총괄관리자만)
 	       ★상태 셋 (2026-11-19 사용자 「완료, 일부완료, 일정취소로 구분」 → 곧바로 「완료 , 일정취소 만」) : DONE_YN 칸을 그대로 쓴다 = N 미완료 · Y 완료 · C 일정취소.
 	         DONE_DTTM·DONE_USER = 미완료가 아닌 상태로 바꾼 때·사람(미완료로 돌리면 비운다. 같은 상태로 내용만 고치면 처음 값이 남는다)
-	       목록은 내용(CONTENT, HTML)을 싣지 않는다 — 길 수 있어서. 내용이 있는지만(hasContent) 알려 주고, 한 건을 열 때 selectCeoSched 로 읽는다
+	       목록에도 내용(CONTENT, HTML)을 싣는다 (2026-11-19 : 종전엔 hasContent 만이었다. 제목 칸을 없애고 달력·목록에 내용 줄을 보이며 내용으로 찾게 되어서)
 	     ══════════════════════════════════════════════════════════════════════════ -->
 	<!-- 목록 : 기간(frDt~toDt, yyyymmdd)과 겹치는 일정. doneYn 을 주면 그 상태만(「미완료 전체」는 기간을 넓게 + doneYn N) -->
 	<select id="selectCeoSchedList" parameterType="java.util.HashMap" resultType="java.util.HashMap">
@@ -9674,7 +9674,7 @@
 	  SELECT S.SCHED_SEQ AS schedSeq, S.FROM_DT AS fromDt, S.TO_DT AS toDt, ISNULL(S.SCHED_TM,'') AS schedTm,
 	         S.TITLE AS title, ISNULL(S.PLACE,'') AS place,
 	         S.DONE_YN AS doneYn, ISNULL(S.DONE_DTTM,'') AS doneDttm,
-	         CASE WHEN DATALENGTH(S.CONTENT) > 0 THEN 'Y' ELSE 'N' END AS hasContent,
+	         CASE WHEN DATALENGTH(S.CONTENT) > 0 THEN 'Y' ELSE 'N' END AS hasContent, ISNULL(S.CONTENT, N'') AS content,   /* 2026-11-19 : 달력·목록이 내용 줄을 보이고 내용으로 찾는다(제목 칸 없앰) */
 	         ISNULL(S.REG_DTTM,'') AS regDttm, ISNULL(S.UPD_DTTM,'') AS updDttm
 	    FROM TBL_CEO_SCHED S
 	   WHERE S.COMP_CD = #{compCd,jdbcType=VARCHAR} AND S.ACTION_YN = 'Y'
@@ -9734,6 +9734,24 @@
 	  UPDATE TBL_CEO_SCHED
 	     SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
 	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND SCHED_SEQ = #{schedSeq,jdbcType=BIGINT} AND ACTION_YN = 'Y'
+	]]></update>
+
+	<!-- 지운 일정 목록 (2026-11-19 사용자 「삭제한 것 보고 복구 기능도」) — ACTION_YN 'N'. 지운 때·사람 = 지울 때 남긴 UPD_DTTM·UPD_USER. 최근 지운 것부터 300건 -->
+	<select id="selectCeoSchedDelList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 300 S.SCHED_SEQ AS schedSeq, S.FROM_DT AS fromDt, S.TO_DT AS toDt, ISNULL(S.SCHED_TM,'') AS schedTm,
+	         S.TITLE AS title, ISNULL(S.PLACE,'') AS place, S.DONE_YN AS doneYn, ISNULL(S.DONE_DTTM,'') AS doneDttm,
+	         CASE WHEN DATALENGTH(S.CONTENT) > 0 THEN 'Y' ELSE 'N' END AS hasContent, ISNULL(S.CONTENT, N'') AS content,
+	         ISNULL(S.UPD_DTTM,'') AS delDttm, ISNULL(S.UPD_USER,'') AS delUser
+	    FROM TBL_CEO_SCHED S
+	   WHERE S.COMP_CD = #{compCd,jdbcType=VARCHAR} AND S.ACTION_YN = 'N'
+	   ORDER BY S.UPD_DTTM DESC, S.SCHED_SEQ DESC
+	]]></select>
+
+	<!-- 복구 — 지운 일정을 되살린다(상태·내용은 지울 때 그대로) -->
+	<update id="restoreCeoSched" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_CEO_SCHED
+	     SET ACTION_YN = 'Y', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND SCHED_SEQ = #{schedSeq,jdbcType=BIGINT} AND ACTION_YN = 'N'
 	]]></update>
 
 </mapper>

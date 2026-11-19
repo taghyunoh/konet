@@ -515,4 +515,6 @@ public interface UserService {
 	int updateCeoSched(java.util.Map<String,Object> p) throws Exception;
 	int updateCeoSchedDone(java.util.Map<String,Object> p) throws Exception;
 	int deleteCeoSched(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectCeoSchedDelList(java.util.Map<String,Object> p) throws Exception;
+	int restoreCeoSched(java.util.Map<String,Object> p) throws Exception;
 }

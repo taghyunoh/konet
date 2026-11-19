@@ -247,6 +247,21 @@
   }
   window.konetCeoBadge = fetchCeo;
 
+  /* ★로그인 창의 «지난 미완료»를 며칠 전 것까지 보일지 (2026-11-19 사용자 「미완료 건 메세지(로그인 화면 최초에서) — 며칠 전까지 메세지 처리인지 설정하기」
+       → 「설정은 여기서(대표자 일정 화면 위 줄) · 숫자로 치게 · 0이면 안 뜸」)
+       · 숫자 n = 끝나는 날이 n일 전 안쪽인 미완료만 · 0 = 지난 미완료를 아예 안 띄움 · 비우면(설정 없음) = 전부(종전 그대로)
+       · 고르는 곳은 대표자 일정 화면 위 줄 하나(로그인 창에서는 못 바꾼다) — localStorage('konetCeoLateDays2', 이 브라우저에만)
+         ※키 이름에 2 : 잠깐(같은 날) 고르기 칸 판이 「전부」를 '0'으로 남겼다 — 그 값이 새 판에서 «안 띄움»으로 읽히지 않게 키를 바꿨다
+       · 메뉴 옆 빨간 숫자(④)는 종전대로 지난 미완료 «전부»를 센다 */
+  /* ★기본 = 0 (같은 날 사용자 「기본 0으로」) — 설정이 없거나 비어 있으면 0 = 창에 «지난 미완료»를 안 보인다. 「전부」 는 없어졌다(크게 보고 싶으면 365)
+     ★창 자체는 늘 뜬다 (같은 날 사용자 「지난 내용 미완료 건이고 당일 미완료 건은 무조건 떠야 함 — 당일 일정은 알아야 함. 최초 뜰 때 과거 건 미완료 메세지를 이야기한 것」)
+       — 잠깐 「0 = 로그인 창을 안 띄움」으로 했다가 되돌렸다. 오늘부터 일주일 일정은 설정과 상관없이 보이고, 이 숫자는 그 밑 «지난 미완료» 줄만 정한다 */
+  function ceoLateDays() {            /* 0 = 지난 미완료 안 보임(기본) · n = n일 */
+    var v = null; try { v = localStorage.getItem('konetCeoLateDays2'); } catch (e) { }
+    var n = parseInt(v == null ? '' : v, 10); return (isNaN(n) || n < 0) ? 0 : Math.min(n, 365);
+  }
+  window.konetCeoLateDays = ceoLateDays;
+
   /* ── ⑤ 로그인 직후 「대표자 일정 — 오늘부터 일주일」 요약 창 (2026-11-19 사용자 「대표자 로그인하면 총괄관리자 오늘부터 일주일 써머리해서 보여줘요」 「별도 일정등록 버튼으로 들어가게」) ──
        · 언제 : 로그인에 성공해 이 화면으로 막 들어왔을 때 한 번 — 로그인 화면(base_login.jsp)이 넘어오기 직전 sessionStorage('konetJustLogin')='1' 을 남기고,
                 여기서 읽자마자 지운다. 그래서 새로고침(F5)이나 메뉴 이동으로는 다시 뜨지 않는다. 총괄관리자가 아니면(메뉴 배지 자리 #ceoLateBadge 없음) 아무것도 안 한다
@@ -282,7 +297,9 @@
       + '#ceoWeek .cw-i .pl{flex:none;max-width:38%;color:#6b7a89;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
       + '#ceoWeek .cw-i .tg{flex:none;padding:0 7px;border-radius:9px;background:#eef1f4;color:#5a6b7a;font-size:11.5px;font-weight:800}'
       + '#ceoWeek .cw-i .tg.late{background:#fde8e8;color:#a12b2b}'
-      + '#ceoWeek .cw-i.off .tt{color:#8794a1;text-decoration:line-through;font-weight:600}#ceoWeek .cw-i.off .tm,#ceoWeek .cw-i.off .pl{color:#9aa7b3}'
+      + '#ceoWeek .cw-i.off .tt{color:#48606f;font-weight:600}#ceoWeek .cw-i.off .tm,#ceoWeek .cw-i.off .pl{color:#6b7a89}'   /* 취소선 없음 (2026-11-19 사용자 「글자 중간선은 제거」) */
+      + '#ceoWeek .cw-i .tg.cx{background:#fde8e8;color:#c0392b}'
+      + '#ceoWeek .cw-ld{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:#48606f}#ceoWeek .cw-ld select{height:28px;border:1px solid #cbd5e1;border-radius:6px;font-family:inherit;font-size:12.5px;padding:0 4px;cursor:pointer}'
       + '#ceoWeek .cw-e{padding:26px 6px;text-align:center;color:#8794a1;font-size:13.5px}'
       + '#ceoWeek .cw-f{display:flex;gap:8px;align-items:center;padding:10px 16px;border-top:1px solid #dbe2ea;background:#fff}'
       + '#ceoWeek .cw-ck{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#48606f;cursor:pointer;user-select:none}#ceoWeek .cw-ck input{width:16px;height:16px;accent-color:#137a6c;cursor:pointer}'
@@ -306,7 +323,10 @@
     Promise.all([ceoList('frDt=' + a + '&toDt=' + b), ceoList('frDt=00000101&toDt=' + y + '&doneYn=N')])
       .then(function (r) {
         if (!r[0] || r[0].error || !r[0].data) return;               /* 세션 없음·표 없음·권한 없음 = 조용히 */
-        var list = r[0].data.slice(), late = ((r[1] && r[1].data) || []).filter(function (x) { return x && x.doneYn !== 'Y' && x.doneYn !== 'C' && String(x.toDt || '') < a; });
+        var ld = ceoLateDays(), lim = (ld > 0) ? ymd8(new Date(t.getFullYear(), t.getMonth(), t.getDate() - ld)) : '';
+        var lateAll = (ld === 0) ? [] : ((r[1] && r[1].data) || []).filter(function (x) { return x && x.doneYn !== 'Y' && x.doneYn !== 'C' && String(x.toDt || '') < a; });   /* 0 = 지난 미완료 안 띄움 */
+        var list = r[0].data.slice(), late = lateAll.filter(function (x) { return !lim || String(x.toDt || '') >= lim; });   /* 설정한 날수 안쪽만 */
+        late.sort(function (p, q) { return String(q.toDt) < String(p.toDt) ? -1 : (String(q.toDt) > String(p.toDt) ? 1 : 0); });   /* 최근에 지난 것이 위 */
         var nY = 0, nC = 0;
         list.forEach(function (x) { x._day = (String(x.fromDt) < a) ? a : String(x.fromDt); if (x.doneYn === 'Y') nY++; else if (x.doneYn === 'C') nC++; });
         list.sort(function (p, q) { return p._day < q._day ? -1 : (p._day > q._day ? 1 : ((p.schedTm || '99') < (q.schedTm || '99') ? -1 : ((p.schedTm || '99') > (q.schedTm || '99') ? 1 : p.schedSeq - q.schedSeq))); });
@@ -315,7 +335,7 @@
           return '<div class="cw-i' + (off ? ' off' : '') + '"><span class="tm">' + (dateFirst ? esc(mdw(x.fromDt).replace(/\(.\)$/, '')) : esc(x.schedTm || '종일')) + '</span>'
             + '<span class="tt" title="' + esc(x.title) + '">' + esc(x.title) + (span ? ' <small style="font-weight:400;color:#6b7a89">' + esc(span) + '</small>' : '') + '</span>'
             + (x.place ? '<span class="pl" title="' + esc(x.place) + '">' + esc(x.place) + '</span>' : '')
-            + (x.doneYn === 'Y' ? '<span class="tg">완료</span>' : (x.doneYn === 'C' ? '<span class="tg">일정취소</span>' : (dateFirst ? '<span class="tg late">' + Math.round((toD8(a) - toD8(x.toDt)) / 86400000) + '일 지남</span>' : ''))) + '</div>';
+            + (x.doneYn === 'Y' ? '<span class="tg">완료</span>' : (x.doneYn === 'C' ? '<span class="tg cx">취소</span>' : (dateFirst ? '<span class="tg late">' + Math.round((toD8(a) - toD8(x.toDt)) / 86400000) + '일 지남</span>' : ''))) + '</div>';
         }
         var h = '', day = '';
         list.forEach(function (x) {
@@ -324,16 +344,19 @@
         });
         if (!list.length) h += '<div class="cw-e">오늘부터 일주일 동안 등록된 일정이 없습니다.</div>';
         if (late.length) {
-          h += '<div class="cw-d late">지난 미완료 ' + late.length + '건</div>';
-          late.slice(0, 5).forEach(function (x) { h += item(x, true); });
-          if (late.length > 5) h += '<div class="cw-i"><span class="tm"></span><span class="tt" style="font-weight:400;color:#8794a1">… 외 ' + (late.length - 5) + '건</span></div>';
+          h += '<div class="cw-d late">지난 미완료 ' + (ld > 0 ? '(최근 ' + ld + '일) ' : '') + late.length + '건</div>';
+          late.slice(0, 10).forEach(function (x) { h += item(x, true); });
+          if (late.length > 10) h += '<div class="cw-i"><span class="tm"></span><span class="tt" style="font-weight:400;color:#8794a1">… 외 ' + (late.length - 10) + '건</span></div>';
+        }
+        if (ld > 0 && lateAll.length > late.length) {
+          h += '<div class="cw-i"><span class="tm"></span><span class="tt" style="font-weight:400;color:#8794a1">' + ld + '일보다 오래된 미완료 ' + (lateAll.length - late.length) + '건은 대표자 일정 「미완료」 탭에서 보입니다</span></div>';
         }
         ceoWeekCss(); ceoWeekClose();
         var p = document.createElement('div'); p.id = 'ceoWeek';
         p.innerHTML = '<div class="cw-box">'
           + '<div class="cw-h"><b>🗓 대표자 일정 — 오늘부터 일주일</b><span>' + esc(mdw(a)) + ' ~ ' + esc(mdw(b)) + '</span><button type="button" class="cw-x" data-cw="close" title="닫기 (Esc)">✕</button></div>'
-          + '<div class="cw-s">일정 <b>' + list.length + '</b>건' + (list.length ? ' · 완료 ' + nY + (nC ? ' · 일정취소 ' + nC : '') + ' · 남은 일정 <b>' + (list.length - nY - nC) + '</b>' : '')
-          + (late.length ? ' &nbsp;|&nbsp; 지난 미완료 <b class="late">' + late.length + '</b>건' : '') + '</div>'
+          + '<div class="cw-s">일정 <b>' + list.length + '</b>건' + (list.length ? ' · 완료 ' + nY + (nC ? ' · 취소 ' + nC : '') + ' · 남은 일정 <b>' + (list.length - nY - nC) + '</b>' : '')
+          + (late.length ? ' &nbsp;|&nbsp; 지난 미완료' + (ld > 0 ? '(최근 ' + ld + '일)' : '') + ' <b class="late">' + late.length + '</b>건' : '') + '</div>'
           + '<div class="cw-b">' + h + '</div>'
           + '<div class="cw-f"><label class="cw-ck" title="체크하고 닫으면 오늘은 다시 로그인해도 이 창이 뜨지 않습니다 — 내일부터는 다시 뜹니다. 체크하지 않으면 로그인할 때마다 뜹니다"><input type="checkbox" id="ceoWeekSkip"> 오늘은 그만 보기</label><span style="flex:1"></span><button type="button" class="cw-go" data-cw="go" title="왼쪽 메뉴 「대표자 일정」 화면을 엽니다 — 거기서 등록·수정·완료 체크">🗓 일정 등록 화면으로 →</button><button type="button" class="cw-cl" data-cw="close">닫기</button></div>'
           + '</div>';

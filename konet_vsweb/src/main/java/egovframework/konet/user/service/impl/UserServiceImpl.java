@@ -3987,4 +3987,6 @@ public class UserServiceImpl implements UserService {
 	@Override public int updateCeoSched(java.util.Map<String,Object> p) throws Exception { return mapper.updateCeoSched(p); }
 	@Override public int updateCeoSchedDone(java.util.Map<String,Object> p) throws Exception { return mapper.updateCeoSchedDone(p); }
 	@Override public int deleteCeoSched(java.util.Map<String,Object> p) throws Exception { return mapper.deleteCeoSched(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectCeoSchedDelList(java.util.Map<String,Object> p) throws Exception { return mapper.selectCeoSchedDelList(p); }
+	@Override public int restoreCeoSched(java.util.Map<String,Object> p) throws Exception { return mapper.restoreCeoSched(p); }
 }
