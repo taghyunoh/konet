@@ -2915,6 +2915,16 @@ public class UserServiceImpl implements UserService {
 		return n;
 	}
 
+	/** 한 줄만 취소 (2026-11-19 사용자 「코드로 찾고 재고조정값 취소기능도」) — 묶음 되돌리기와 같은 차례(원장 먼저 → 이력)로, 이력 한 줄(adjSeq)에만. */
+	@Override
+	@org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
+	public int cancelStockAdjOne(egovframework.konet.user.model.StockAdjHisDTO dto) throws Exception {
+		mapper.cancelStockAdjOneLedger(dto);
+		int n = mapper.cancelStockAdjOne(dto);
+		if (n > 0) recalcStockMstAll(dto.getRegUser(), dto.getRegIp());
+		return n;
+	}
+
 	/**
 	 * 입수수량 일괄 저장 (2026-08-19).
 	 *
@@ -3970,4 +3980,11 @@ public class UserServiceImpl implements UserService {
 
 	@Override public java.util.List<java.util.Map<String,Object>> selectStockFlowList(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockFlowList(p); }   // 재고흐름조회 (2026-11-19)
 	@Override public java.util.List<java.util.Map<String,Object>> selectStockFlowLedger(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockFlowLedger(p); }
+	/* 대표이사 일정 (2026-11-19) */
+	@Override public java.util.List<java.util.Map<String,Object>> selectCeoSchedList(java.util.Map<String,Object> p) throws Exception { return mapper.selectCeoSchedList(p); }
+	@Override public java.util.Map<String,Object> selectCeoSched(java.util.Map<String,Object> p) throws Exception { return mapper.selectCeoSched(p); }
+	@Override public int insertCeoSched(java.util.Map<String,Object> p) throws Exception { return mapper.insertCeoSched(p); }
+	@Override public int updateCeoSched(java.util.Map<String,Object> p) throws Exception { return mapper.updateCeoSched(p); }
+	@Override public int updateCeoSchedDone(java.util.Map<String,Object> p) throws Exception { return mapper.updateCeoSchedDone(p); }
+	@Override public int deleteCeoSched(java.util.Map<String,Object> p) throws Exception { return mapper.deleteCeoSched(p); }
 }

@@ -6260,7 +6260,7 @@ public class UserController {
 			return response;
 		}
 
-		/* 묶음 되돌리기 */
+		/* 묶음 되돌리기 · 한 줄만 취소(adjSeq, 2026-11-19) */
 		@RequestMapping(value="/prod/stockAdjCancel.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,Object> stockAdjCancel(@ModelAttribute("DTO") egovframework.konet.user.model.StockAdjHisDTO dto,
@@ -6271,7 +6271,12 @@ public class UserController {
 				dto.setCompCd((String) session.getAttribute("s_comp_cd"));
 				dto.setRegUser((String) session.getAttribute("s_user_id"));
 				dto.setRegIp(request.getRemoteAddr());
-				int n = svc.cancelStockAdjBatch(dto);
+				/* adjSeq 가 오면 그 한 줄만, 아니면 묶음 통째로 (2026-11-19 사용자 「코드로 찾고 재고조정값 취소기능도」).
+				   둘 다 없으면 아무것도 건드리지 않는다 — 조건 없는 UPDATE 가 나가지 않게 여기서 막는다 */
+				boolean one = dto.getAdjSeq() != null && dto.getAdjSeq().longValue() > 0;
+				if (!one && (dto.getBatchNo() == null || dto.getBatchNo().trim().isEmpty())) { response.put("result", "FAIL"); response.put("message", "무엇을 되돌릴지 정해지지 않았습니다."); return response; }
+				int n = one ? svc.cancelStockAdjOne(dto) : svc.cancelStockAdjBatch(dto);
+				if (n == 0) { response.put("result", "FAIL"); response.put("message", "이미 되돌렸거나 찾을 수 없는 조정입니다 — [이력조회]로 다시 확인해 주세요."); return response; }
 				response.put("result", "OK");
 				response.put("cnt", Integer.valueOf(n));
 			} catch (Exception e) {
@@ -6668,6 +6673,153 @@ public class UserController {
 		public String custGrp(HttpSession session) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
 			return ".raw/main/mangr/custGrp";
+		}
+
+		/* ══════════════════════════════════════════════════════════════════════════
+		   대표이사 일정 (2026-11-19 사용자 「직원일정 말고 대표이사 일정 등록하고 완료여부 체크, 편집기능도」 「총괄관리자만 보여지면 됨」)
+		     · 화면 = mangr/ceoSched.jsp (셸 iframe panel-ceoSched) · 표 = TBL_CEO_SCHED (docs/sql/20261119_ceo_sched.sql)
+		     · 권한 = 총괄관리자(s_main_gu 1)만 — 메뉴(셸)도 같은 조건으로 가린다. 그 밖의 계정이 주소로 들어오면 화면은 안내만, 자료 호출은 전부 거절
+		     · 내용(content)은 편집기로 쓴 HTML — 화면이 걸러서 보내지만 여기서도 한 번 더 거른다(ceoClean : 스크립트·그림·on… 속성 제거)
+		     · 표가 아직 없으면(SQL 미실행) noTable=Y 를 실어 보내 화면이 「표를 먼저 만들어 주세요」를 띄운다
+		   ══════════════════════════════════════════════════════════════════════════ */
+		private static final java.util.regex.Pattern CEO_BAD_PAIR = java.util.regex.Pattern.compile("(?is)<\\s*(script|style|iframe|object|embed|noscript|template|svg|math)\\b[^>]*>.*?<\\s*/\\s*\\1\\s*>");
+		private static final java.util.regex.Pattern CEO_BAD_TAG  = java.util.regex.Pattern.compile("(?is)<\\s*/?\\s*(script|style|iframe|object|embed|noscript|template|svg|math|link|meta|base|form|input|button|textarea|select|img|video|audio|canvas)\\b[^>]*>");
+		private static final java.util.regex.Pattern CEO_ON_ATTR  = java.util.regex.Pattern.compile("(?i)\\son[a-z]+\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)");
+		private static final java.util.regex.Pattern CEO_JS_URL   = java.util.regex.Pattern.compile("(?i)(href|src)\\s*=\\s*(\"\\s*(javascript|data|vbscript):[^\"]*\"|'\\s*(javascript|data|vbscript):[^']*'|(javascript|data|vbscript):[^\\s>]+)");
+		private static String ceoClean(String html) {
+			if (html == null) return "";
+			String s = CEO_BAD_PAIR.matcher(html).replaceAll("");
+			s = CEO_BAD_TAG.matcher(s).replaceAll("");
+			s = CEO_ON_ATTR.matcher(s).replaceAll("");
+			s = CEO_JS_URL.matcher(s).replaceAll("$1=\"#\"");
+			return s.trim();
+		}
+		private Map<String,Object> ceoFail(Exception e) {
+			String msg = e == null || e.getMessage() == null ? "처리하지 못했습니다" : e.getMessage();
+			Map<String,Object> r = new HashMap<String,Object>();
+			if (msg.indexOf("TBL_CEO_SCHED") >= 0) {   /* 표가 없다 — SQL 을 아직 실행하지 않았다 */
+				r.put("noTable", "Y");
+				r.put("error", "일정 표(TBL_CEO_SCHED)가 아직 없습니다 — docs/sql/20261119_ceo_sched.sql 을 운영 DB에서 한 번 실행해 주세요.");
+			} else r.put("error", msg);
+			return r;
+		}
+		/** 상태 셋 (2026-11-19 사용자 「완료, 일부완료, 일정취소로 구분」 → 곧바로 「완료 , 일정취소 만」) — DONE_YN 칸 그대로 : N 미완료 · Y 완료 · C 일정취소. 모르는 값은 미완료 */
+		private static String ceoSt(Object v) { String x = leaveStr(v); return x.matches("[YC]") ? x : "N"; }
+		/** 로그인·권한 검사 — 통과면 null, 아니면 돌려줄 오류 */
+		private Map<String,Object> ceoGate(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return leaveFail("로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요.");
+			if (!leaveAdmin(session)) return leaveFail("대표자 일정은 총괄관리자만 볼 수 있습니다.");
+			return null;
+		}
+
+		@RequestMapping(value="/mangr/ceoSched.do")
+		public String ceoSched(HttpSession session, Model model) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			model.addAttribute("ceoAdmin", leaveAdmin(session) ? "Y" : "N");
+			return ".raw/main/mangr/ceoSched";
+		}
+
+		/** 목록 — frDt~toDt(yyyymmdd 또는 yyyy-mm-dd)와 겹치는 일정. doneYn(Y/N)을 주면 그 상태만. 내용은 싣지 않는다(hasContent 만) */
+		@RequestMapping(value="/mangr/ceoSchedList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> ceoSchedList(@RequestParam("frDt") String frDt, @RequestParam("toDt") String toDt,
+		                                       @RequestParam(value="doneYn", required=false) String doneYn, HttpSession session) {
+			try {
+				Map<String,Object> gate = ceoGate(session); if (gate != null) return gate;
+				String a = leaveYmd(frDt), b = leaveYmd(toDt);
+				if (a.isEmpty() || b.isEmpty()) return leaveFail("기간이 올바르지 않습니다.");
+				String dy = leaveStr(doneYn); if (!dy.matches("[YNC]")) dy = "";
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("frDt", a); q.put("toDt", b); q.put("doneYn", dy);
+				Map<String,Object> res = new HashMap<String,Object>(); res.put("data", svc.selectCeoSchedList(q));
+				return res;
+			} catch (Exception e) { log.error(" ceoSchedList ERROR : " + e.getMessage()); return ceoFail(e); }
+		}
+
+		/** 한 건(내용 포함) */
+		@RequestMapping(value="/mangr/ceoSchedGet.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> ceoSchedGet(@RequestParam("schedSeq") long schedSeq, HttpSession session) {
+			try {
+				Map<String,Object> gate = ceoGate(session); if (gate != null) return gate;
+				Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", session.getAttribute("s_comp_cd")); q.put("schedSeq", Long.valueOf(schedSeq));
+				Map<String,Object> one = svc.selectCeoSched(q);
+				if (one == null) return leaveFail("일정을 찾지 못했습니다 — 지워졌을 수 있습니다.");
+				Map<String,Object> res = new HashMap<String,Object>(); res.put("data", one);
+				return res;
+			} catch (Exception e) { log.error(" ceoSchedGet ERROR : " + e.getMessage()); return ceoFail(e); }
+		}
+
+		/** 저장(신규·수정) — JSON {schedSeq, fromDt, toDt, schedTm, title, place, content, doneYn} */
+		@RequestMapping(value="/mangr/ceoSchedSave.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> ceoSchedSave(@RequestBody Map<String,Object> p, HttpServletRequest request, HttpSession session) {
+			try {
+				Map<String,Object> gate = ceoGate(session); if (gate != null) return gate;
+				long seq = 0; try { seq = Long.parseLong(leaveStr(p.get("schedSeq"))); } catch (Exception e) { seq = 0; }
+				String fromDt = leaveYmd(p.get("fromDt")), toDt = leaveYmd(p.get("toDt"));
+				if (fromDt.isEmpty()) return leaveFail("일자를 넣으세요.");
+				if (toDt.isEmpty()) toDt = fromDt;
+				if (toDt.compareTo(fromDt) < 0) return leaveFail("끝나는 날이 시작하는 날보다 앞섭니다.");
+				String tm = leaveStr(p.get("schedTm")); if (!tm.matches("([01][0-9]|2[0-3]):[0-5][0-9]")) tm = "";
+				String title = leaveStr(p.get("title"));
+				if (title.isEmpty()) return leaveFail("제목을 넣으세요.");
+				if (title.length() > 200) title = title.substring(0, 200);
+				String place = leaveStr(p.get("place")); if (place.length() > 100) place = place.substring(0, 100);
+				String content = ceoClean(p.get("content") == null ? "" : String.valueOf(p.get("content")));
+				if (content.length() > 200000) return leaveFail("내용이 너무 깁니다(20만 자까지) — 줄여서 저장해 주세요.");
+				String done = ceoSt(p.get("doneYn"));
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("schedSeq", Long.valueOf(seq));
+				q.put("fromDt", fromDt); q.put("toDt", toDt); q.put("schedTm", tm.isEmpty() ? null : tm);
+				q.put("title", title); q.put("place", place.isEmpty() ? null : place); q.put("content", content.isEmpty() ? null : content); q.put("doneYn", done);
+				q.put("regUser", leaveStr(session.getAttribute("s_user_nm")).isEmpty() ? leaveStr(session.getAttribute("s_user_id")) : leaveStr(session.getAttribute("s_user_nm")));
+				q.put("regIp", request.getRemoteAddr());
+				int n = seq > 0 ? svc.updateCeoSched(q) : svc.insertCeoSched(q);
+				if (seq > 0 && n == 0) return leaveFail("일정을 찾지 못했습니다 — 지워졌을 수 있습니다.");
+				Map<String,Object> res = new HashMap<String,Object>(); res.put("rows", Integer.valueOf(n)); res.put("schedSeq", q.get("schedSeq"));
+				return res;
+			} catch (Exception e) { log.error(" ceoSchedSave ERROR : " + e.getMessage()); return ceoFail(e); }
+		}
+
+		/** 상태만 바꾸기 — 목록의 상태 칸 (doneYn = N·Y·C) */
+		@RequestMapping(value="/mangr/ceoSchedDone.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> ceoSchedDone(@RequestParam("schedSeq") long schedSeq, @RequestParam("doneYn") String doneYn,
+		                                       HttpServletRequest request, HttpSession session) {
+			try {
+				Map<String,Object> gate = ceoGate(session); if (gate != null) return gate;
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("schedSeq", Long.valueOf(schedSeq)); q.put("doneYn", ceoSt(doneYn));
+				q.put("regUser", leaveStr(session.getAttribute("s_user_nm")).isEmpty() ? leaveStr(session.getAttribute("s_user_id")) : leaveStr(session.getAttribute("s_user_nm")));
+				q.put("regIp", request.getRemoteAddr());
+				int n = svc.updateCeoSchedDone(q);
+				if (n == 0) return leaveFail("일정을 찾지 못했습니다 — 지워졌을 수 있습니다.");
+				Map<String,Object> res = new HashMap<String,Object>(); res.put("rows", Integer.valueOf(n));
+				return res;
+			} catch (Exception e) { log.error(" ceoSchedDone ERROR : " + e.getMessage()); return ceoFail(e); }
+		}
+
+		/** 지우기 (ACTION_YN 'N') — 완료(Y)인 일정은 거절한다 : 일정취소로 바꾼 뒤에 */
+		@RequestMapping(value="/mangr/ceoSchedDel.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> ceoSchedDel(@RequestParam("schedSeq") long schedSeq, HttpServletRequest request, HttpSession session) {
+			try {
+				Map<String,Object> gate = ceoGate(session); if (gate != null) return gate;
+				Map<String,Object> q = new HashMap<String,Object>();
+				q.put("compCd", session.getAttribute("s_comp_cd")); q.put("schedSeq", Long.valueOf(schedSeq));
+				q.put("regUser", leaveStr(session.getAttribute("s_user_nm")).isEmpty() ? leaveStr(session.getAttribute("s_user_id")) : leaveStr(session.getAttribute("s_user_nm")));
+				q.put("regIp", request.getRemoteAddr());
+				/* ★완료한 일정은 바로 지우지 않는다 (2026-11-19 사용자 「일정 삭제기능도 (완료는 일정취소하고)」) — 상태를 일정취소(또는 빈 칸)로 바꾼 뒤에 지운다.
+				   끝낸 일의 기록이 실수로 사라지지 않게. 화면(ceoSched.jsp delGuard)도 같은 검사를 먼저 한다 */
+				Map<String,Object> cur = svc.selectCeoSched(q);
+				if (cur == null) return leaveFail("일정을 찾지 못했습니다 — 이미 지워졌을 수 있습니다.");
+				if ("Y".equals(leaveStr(cur.get("doneYn")))) return leaveFail("완료한 일정은 바로 지울 수 없습니다 — 상태를 일정취소로 바꾼 뒤 지워 주세요.");
+				int n = svc.deleteCeoSched(q);
+				if (n == 0) return leaveFail("일정을 찾지 못했습니다 — 이미 지워졌을 수 있습니다.");
+				Map<String,Object> res = new HashMap<String,Object>(); res.put("rows", Integer.valueOf(n));
+				return res;
+			} catch (Exception e) { log.error(" ceoSchedDel ERROR : " + e.getMessage()); return ceoFail(e); }
 		}
 
 		@RequestMapping(value="/mangr/leaveMng.do")

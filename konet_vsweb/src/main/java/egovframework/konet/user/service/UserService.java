@@ -380,6 +380,7 @@ public interface UserService {
 
 	/** 묶음 되돌리기 : 이력 + 짝인 원장 조정행을 함께 내린다 */
 	int cancelStockAdjBatch(egovframework.konet.user.model.StockAdjHisDTO dto) throws Exception;
+	int cancelStockAdjOne(egovframework.konet.user.model.StockAdjHisDTO dto) throws Exception;   // 조정 이력 한 줄만 취소 (2026-11-19)
 
 	/** 입수수량만 고친다 — BOX/EA 환산 기준. 재고(원장)는 안 건드린다 */
 	int saveProdPackQty(java.util.List<egovframework.konet.user.model.StockMstDTO> rows) throws Exception;
@@ -507,4 +508,11 @@ public interface UserService {
 
 	java.util.List<java.util.Map<String,Object>> selectStockFlowList(java.util.Map<String,Object> p) throws Exception;     // 재고흐름조회 — 품목별 흐름 숫자 (2026-11-19)
 	java.util.List<java.util.Map<String,Object>> selectStockFlowLedger(java.util.Map<String,Object> p) throws Exception;   // 재고흐름조회 — 한 품목의 수불 줄
+	/* 대표이사 일정 (2026-11-19) — TBL_CEO_SCHED · 총괄관리자만 · 화면 mangr/ceoSched.jsp */
+	java.util.List<java.util.Map<String,Object>> selectCeoSchedList(java.util.Map<String,Object> p) throws Exception;
+	java.util.Map<String,Object> selectCeoSched(java.util.Map<String,Object> p) throws Exception;
+	int insertCeoSched(java.util.Map<String,Object> p) throws Exception;
+	int updateCeoSched(java.util.Map<String,Object> p) throws Exception;
+	int updateCeoSchedDone(java.util.Map<String,Object> p) throws Exception;
+	int deleteCeoSched(java.util.Map<String,Object> p) throws Exception;
 }

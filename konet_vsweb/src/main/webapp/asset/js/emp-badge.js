@@ -17,6 +17,8 @@
         · 기본 = 열림, localStorage konetEmpDockOpen 에 기억
      · iframe 안 화면(공지·메신저)이 저장·읽음 처리한 뒤 parent.konetEmpBadge() 를 부르면 셋을 함께 갱신한다
      · 탭이 숨어 있으면(document.hidden) 쉬었다가 돌아오면 바로 한 번
+     ④ 사이드바 「대표자 일정」 옆 «지난 미완료» 건수 (2026-11-19) — 총괄관리자만. 아래 ④ 묶음
+     ⑤ 로그인 직후 「대표자 일정 — 오늘부터 일주일」 요약 창 (2026-11-19) — 총괄관리자만, 로그인 때 한 번. 아래 ⑤ 묶음
    셸 JSP 에 스크립트를 넣지 않는 이유 = 그 JSP 는 인라인 스크립트 한도(65535)에 닿아 있다(파일 머리말 참고).
    ===================================================================== */
 (function () {
@@ -221,6 +223,141 @@
   };
   window.empDockRefresh = function () { refreshAll(); if (typeof window._toast === 'function') _toast('새로 읽었습니다.', 'ok'); };
 
+  /* ── ④ 「대표자 일정」 옆 «지난 미완료» 건수 (2026-11-19 사용자 「메뉴 옆에 지난 미완료 건수 표시해줘요」) ──
+       · 배지 자리 #ceoLateBadge 는 총괄관리자에게만 있다(셸이 메뉴째 가린다) — 없으면 아무것도 부르지 않는다
+       · 새 서버 주소 없이 일정 목록(/mangr/ceoSchedList.do, 미완료만 · 어제까지 시작한 것)을 그대로 읽어 «끝나는 날이 오늘보다 앞선 것»을 센다
+         — 화면(ceoSched.jsp)의 「지난 미완료」와 같은 셈. 말풍선에 제목 다섯 개까지
+       · 처음 한 번 · 5분마다(자정을 넘기면 저절로 바뀐다) · 탭으로 돌아왔을 때 · 일정 화면이 저장·체크·삭제한 뒤 parent.konetCeoBadge() */
+  var ceoBusy = false, ceoTimer = null;
+  function ymd8(d) { return '' + d.getFullYear() + ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2); }
+  function fetchCeo() {
+    if (ceoBusy || document.hidden || !document.getElementById('ceoLateBadge')) return;
+    ceoBusy = true;
+    var t = new Date(), today = ymd8(t), yest = ymd8(new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1));
+    fetch(CTX + '/mangr/ceoSchedList.do', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'frDt=00000101&toDt=' + yest + '&doneYn=N' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        ceoBusy = false;
+        if (!j || j.error || !j.data) return;      /* 세션 없음·표 없음·권한 없음 = 조용히(마지막 값 유지) */
+        var late = j.data.filter(function (x) { return x && x.doneYn !== 'Y' && x.doneYn !== 'C' && String(x.toDt || '') < today; });   /* 완료·일정취소는 뺀다 (2026-11-19 상태 셋) */
+        var nm = late.slice(0, 5).map(function (x) { return x.title; }).join(', ');
+        paint('ceoLateBadge', late.length, '날짜가 지난 미완료 일정 ' + late.length + '건' + (nm ? ' : ' + nm + (late.length > 5 ? ' 외 ' + (late.length - 5) + '건' : '') : ''));
+      })
+      .catch(function () { ceoBusy = false; });
+  }
+  window.konetCeoBadge = fetchCeo;
+
+  /* ── ⑤ 로그인 직후 「대표자 일정 — 오늘부터 일주일」 요약 창 (2026-11-19 사용자 「대표자 로그인하면 총괄관리자 오늘부터 일주일 써머리해서 보여줘요」 「별도 일정등록 버튼으로 들어가게」) ──
+       · 언제 : 로그인에 성공해 이 화면으로 막 들어왔을 때 한 번 — 로그인 화면(base_login.jsp)이 넘어오기 직전 sessionStorage('konetJustLogin')='1' 을 남기고,
+                여기서 읽자마자 지운다. 그래서 새로고침(F5)이나 메뉴 이동으로는 다시 뜨지 않는다. 총괄관리자가 아니면(메뉴 배지 자리 #ceoLateBadge 없음) 아무것도 안 한다
+       · 무엇 : 오늘 ~ 6일 뒤(7일)의 일정을 날짜별로 — 시간 · 제목 · 장소 · 상태(완료/일정취소는 줄 긋고 흐리게). 여러 날 일정은 «기간 안의 첫날»에 한 번, 끝나는 날을 덧붙인다.
+                그 밑에 날짜가 지난 미완료(다섯 건까지). 일정이 하나도 없어도 창은 뜬다(「일정 없음」 — 이번 주가 비었다는 것도 알릴 내용이다)
+       · 들어가기 : 줄을 눌러서가 아니라 아래의 **따로 있는 단추** [일정 등록 화면으로 →] — 왼쪽 메뉴 「대표자 일정」을 그대로 누른다(화면 여는 길을 두 벌로 만들지 않는다)
+       · 닫기 : [닫기] · ✕ · Esc · 창 바깥.   「오늘은 그만 보기」에 체크하고 닫으면 그날은 다시 안 뜬다(아래 ceoWeekClose).
+                다시 보고 싶으면 콘솔에서 konetCeoWeek() — 화면에는 로그인 때만 */
+  var WK7 = ['일', '월', '화', '수', '목', '금', '토'];
+  function toD8(s) { return new Date(+String(s).slice(0, 4), +String(s).slice(4, 6) - 1, +String(s).slice(6, 8)); }
+  function mdw(s) { var d = toD8(s); return (d.getMonth() + 1) + '/' + d.getDate() + '(' + WK7[d.getDay()] + ')'; }
+  function ceoList(body) {
+    return fetch(CTX + '/mangr/ceoSchedList.do', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
+      .then(function (r) { return r.ok ? r.json() : null; });
+  }
+  function ceoWeekCss() {
+    if (document.getElementById('ceoWeekCss')) return;
+    var st = document.createElement('style'); st.id = 'ceoWeekCss';
+    st.textContent =
+        '#ceoWeek{position:fixed;inset:0;z-index:4000;background:rgba(15,23,32,.38);display:flex;align-items:flex-start;justify-content:center;padding-top:9vh;font-family:"맑은 고딕","Malgun Gothic",sans-serif}'
+      + '#ceoWeek .cw-box{width:min(560px,94vw);max-height:80vh;display:flex;flex-direction:column;background:#fff;border-radius:12px;box-shadow:0 14px 44px rgba(0,0,0,.34);overflow:hidden;color:#1f2a37}'
+      + '#ceoWeek .cw-h{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#137a6c;color:#fff}'
+      + '#ceoWeek .cw-h b{font-size:16px}#ceoWeek .cw-h span{flex:1;font-size:12.5px;opacity:.9}'
+      + '#ceoWeek .cw-x{width:28px;height:28px;border:0;border-radius:6px;background:rgba(255,255,255,.18);color:#fff;font-size:14px;cursor:pointer}#ceoWeek .cw-x:hover{background:rgba(255,255,255,.32)}'
+      + '#ceoWeek .cw-s{padding:8px 16px;background:#f1f9f7;border-bottom:1px solid #dbe2ea;font-size:13px;color:#37475a}#ceoWeek .cw-s b{color:#0f6b5e}#ceoWeek .cw-s b.late{color:#b23b3b}'
+      + '#ceoWeek .cw-b{flex:1 1 auto;min-height:60px;overflow:auto;padding:6px 16px 10px}'
+      + '#ceoWeek .cw-d{margin:10px 0 4px;padding-bottom:3px;border-bottom:1px solid #e3e8ee;font-size:13px;font-weight:800;color:#48606f}'
+      + '#ceoWeek .cw-d.tdy{color:#0f6b5e}#ceoWeek .cw-d.tdy i{font-style:normal;display:inline-block;margin-right:6px;padding:0 8px;border-radius:9px;background:#137a6c;color:#fff;font-size:11.5px}'
+      + '#ceoWeek .cw-d.late{color:#b23b3b}'
+      + '#ceoWeek .cw-i{display:flex;align-items:baseline;gap:8px;padding:4px 2px;font-size:13.5px}'
+      + '#ceoWeek .cw-i .tm{flex:none;width:44px;font-weight:800;color:#0f6b5e;font-variant-numeric:tabular-nums;font-size:12.5px}'
+      + '#ceoWeek .cw-i .tt{flex:1;min-width:0;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+      + '#ceoWeek .cw-i .pl{flex:none;max-width:38%;color:#6b7a89;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+      + '#ceoWeek .cw-i .tg{flex:none;padding:0 7px;border-radius:9px;background:#eef1f4;color:#5a6b7a;font-size:11.5px;font-weight:800}'
+      + '#ceoWeek .cw-i .tg.late{background:#fde8e8;color:#a12b2b}'
+      + '#ceoWeek .cw-i.off .tt{color:#8794a1;text-decoration:line-through;font-weight:600}#ceoWeek .cw-i.off .tm,#ceoWeek .cw-i.off .pl{color:#9aa7b3}'
+      + '#ceoWeek .cw-e{padding:26px 6px;text-align:center;color:#8794a1;font-size:13.5px}'
+      + '#ceoWeek .cw-f{display:flex;gap:8px;align-items:center;padding:10px 16px;border-top:1px solid #dbe2ea;background:#fff}'
+      + '#ceoWeek .cw-ck{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#48606f;cursor:pointer;user-select:none}#ceoWeek .cw-ck input{width:16px;height:16px;accent-color:#137a6c;cursor:pointer}'
+      + '#ceoWeek .cw-f button{height:34px;padding:0 16px;border-radius:6px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit}'
+      + '#ceoWeek .cw-go{border:1px solid #137a6c;background:#137a6c;color:#fff}#ceoWeek .cw-go:hover{background:#0f6b5e}'
+      + '#ceoWeek .cw-cl{border:1px solid #cbd5e1;background:#fff;color:#37475a}';
+    (document.head || document.documentElement).appendChild(st);
+  }
+  /* ★「오늘은 그만 보기」 (2026-11-19 사용자 「로그인하면 뜨는 내용 계속 뜰지 오늘은 그만일지 선택하게」) — 기본은 계속(로그인할 때마다 뜬다).
+     창 왼쪽 아래 칸에 체크하고 닫으면 localStorage('konetCeoWeekSkip')에 오늘 날짜를 남겨, 그날은 다시 로그인해도 안 뜬다. 날이 바뀌면 저절로 다시 뜬다.
+     이 브라우저에만 남는다(다른 PC 에서는 따로) */
+  function ceoWeekClose() {
+    var p = document.getElementById('ceoWeek');
+    if (p) { var ck = p.querySelector('#ceoWeekSkip'); if (ck && ck.checked) { try { localStorage.setItem('konetCeoWeekSkip', ymd8(new Date())); } catch (e) { } } }
+    if (p && p.parentNode) p.parentNode.removeChild(p); document.removeEventListener('keydown', ceoWeekKey);
+  }
+  function ceoWeekKey(e) { if (e.key === 'Escape') ceoWeekClose(); }
+  function ceoWeekShow() {
+    if (!document.getElementById('ceoLateBadge')) return;            /* 총괄관리자만 */
+    var t = new Date(), a = ymd8(t), b = ymd8(new Date(t.getFullYear(), t.getMonth(), t.getDate() + 6)), y = ymd8(new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1)), tm = ymd8(new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1));
+    Promise.all([ceoList('frDt=' + a + '&toDt=' + b), ceoList('frDt=00000101&toDt=' + y + '&doneYn=N')])
+      .then(function (r) {
+        if (!r[0] || r[0].error || !r[0].data) return;               /* 세션 없음·표 없음·권한 없음 = 조용히 */
+        var list = r[0].data.slice(), late = ((r[1] && r[1].data) || []).filter(function (x) { return x && x.doneYn !== 'Y' && x.doneYn !== 'C' && String(x.toDt || '') < a; });
+        var nY = 0, nC = 0;
+        list.forEach(function (x) { x._day = (String(x.fromDt) < a) ? a : String(x.fromDt); if (x.doneYn === 'Y') nY++; else if (x.doneYn === 'C') nC++; });
+        list.sort(function (p, q) { return p._day < q._day ? -1 : (p._day > q._day ? 1 : ((p.schedTm || '99') < (q.schedTm || '99') ? -1 : ((p.schedTm || '99') > (q.schedTm || '99') ? 1 : p.schedSeq - q.schedSeq))); });
+        function item(x, dateFirst) {
+          var off = (x.doneYn === 'Y' || x.doneYn === 'C'), span = (x.toDt !== x.fromDt) ? ' ~ ' + mdw(x.toDt) : '';
+          return '<div class="cw-i' + (off ? ' off' : '') + '"><span class="tm">' + (dateFirst ? esc(mdw(x.fromDt).replace(/\(.\)$/, '')) : esc(x.schedTm || '종일')) + '</span>'
+            + '<span class="tt" title="' + esc(x.title) + '">' + esc(x.title) + (span ? ' <small style="font-weight:400;color:#6b7a89">' + esc(span) + '</small>' : '') + '</span>'
+            + (x.place ? '<span class="pl" title="' + esc(x.place) + '">' + esc(x.place) + '</span>' : '')
+            + (x.doneYn === 'Y' ? '<span class="tg">완료</span>' : (x.doneYn === 'C' ? '<span class="tg">일정취소</span>' : (dateFirst ? '<span class="tg late">' + Math.round((toD8(a) - toD8(x.toDt)) / 86400000) + '일 지남</span>' : ''))) + '</div>';
+        }
+        var h = '', day = '';
+        list.forEach(function (x) {
+          if (x._day !== day) { day = x._day; h += '<div class="cw-d' + (day === a ? ' tdy' : '') + '">' + (day === a ? '<i>오늘</i>' : (day === tm ? '내일 · ' : '')) + esc(mdw(day)) + '</div>'; }
+          h += item(x, false);
+        });
+        if (!list.length) h += '<div class="cw-e">오늘부터 일주일 동안 등록된 일정이 없습니다.</div>';
+        if (late.length) {
+          h += '<div class="cw-d late">지난 미완료 ' + late.length + '건</div>';
+          late.slice(0, 5).forEach(function (x) { h += item(x, true); });
+          if (late.length > 5) h += '<div class="cw-i"><span class="tm"></span><span class="tt" style="font-weight:400;color:#8794a1">… 외 ' + (late.length - 5) + '건</span></div>';
+        }
+        ceoWeekCss(); ceoWeekClose();
+        var p = document.createElement('div'); p.id = 'ceoWeek';
+        p.innerHTML = '<div class="cw-box">'
+          + '<div class="cw-h"><b>🗓 대표자 일정 — 오늘부터 일주일</b><span>' + esc(mdw(a)) + ' ~ ' + esc(mdw(b)) + '</span><button type="button" class="cw-x" data-cw="close" title="닫기 (Esc)">✕</button></div>'
+          + '<div class="cw-s">일정 <b>' + list.length + '</b>건' + (list.length ? ' · 완료 ' + nY + (nC ? ' · 일정취소 ' + nC : '') + ' · 남은 일정 <b>' + (list.length - nY - nC) + '</b>' : '')
+          + (late.length ? ' &nbsp;|&nbsp; 지난 미완료 <b class="late">' + late.length + '</b>건' : '') + '</div>'
+          + '<div class="cw-b">' + h + '</div>'
+          + '<div class="cw-f"><label class="cw-ck" title="체크하고 닫으면 오늘은 다시 로그인해도 이 창이 뜨지 않습니다 — 내일부터는 다시 뜹니다. 체크하지 않으면 로그인할 때마다 뜹니다"><input type="checkbox" id="ceoWeekSkip"> 오늘은 그만 보기</label><span style="flex:1"></span><button type="button" class="cw-go" data-cw="go" title="왼쪽 메뉴 「대표자 일정」 화면을 엽니다 — 거기서 등록·수정·완료 체크">🗓 일정 등록 화면으로 →</button><button type="button" class="cw-cl" data-cw="close">닫기</button></div>'
+          + '</div>';
+        p.addEventListener('click', function (e) {
+          var bt = e.target.closest ? e.target.closest('[data-cw]') : null;
+          if (bt && bt.getAttribute('data-cw') === 'go') { ceoWeekClose(); openScreen('ceoSched', function () { return true; }, function () { }); return; }
+          if (bt || e.target === p) ceoWeekClose();                 /* [닫기] · ✕ · 창 바깥 */
+        });
+        document.body.appendChild(p);
+        document.addEventListener('keydown', ceoWeekKey);
+      })
+      .catch(function () { });
+  }
+  window.konetCeoWeek = ceoWeekShow;
+  /* 로그인 화면이 남긴 표식 — 읽자마자 지운다(누구든). 총괄관리자면 요약 창 */
+  function ceoWeekOnLogin() {
+    var just = false;
+    try { just = (sessionStorage.getItem('konetJustLogin') === '1'); if (just) sessionStorage.removeItem('konetJustLogin'); } catch (e) { }
+    if (!just) return;
+    var skip = ''; try { skip = localStorage.getItem('konetCeoWeekSkip') || ''; } catch (e) { }
+    if (skip === ymd8(new Date())) return;                       /* 「오늘은 그만 보기」로 닫았다 */
+    setTimeout(ceoWeekShow, 500);
+  }
+
   /* ── 시작 ── */
   function refreshAll() { fetchBadge(); fetchTicker(); fetchRooms(); }
   function start() {
@@ -230,12 +367,14 @@
     refreshAll();
     timer = setInterval(function () { fetchBadge(); if (dockOpen()) fetchRooms(); }, PERIOD);
     tickTimer = setInterval(fetchTicker, TICK_PERIOD);
+    fetchCeo(); if (ceoTimer) clearInterval(ceoTimer); ceoTimer = setInterval(fetchCeo, 300000);   /* ④ 대표자 일정 — 5분마다 */
+    ceoWeekOnLogin();   /* ⑤ 로그인 직후 한 번 — 오늘부터 일주일 요약 창 */
   }
   window.konetEmpBadge = refreshAll;   /* iframe 화면이 저장·읽음 처리 뒤 부른다 — 배지·띠·도크를 함께 */
   document.addEventListener('click', function (e) {
     var it = e.target.closest ? e.target.closest('#empTickerBar .et-item[data-seq]') : null;
     if (it) window.empTickerOpen(it.getAttribute('data-seq'));
   });
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshAll(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { refreshAll(); fetchCeo(); } });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();

@@ -3422,7 +3422,7 @@
 %>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/emp-badge.js?v=<%=_ebJsVer%>"></script>
 <%-- 메뉴 검색 (2026-11-19 「상단에 검색 기능 — 메뉴 내용·간단한 설명 보여 주고 클릭하면 들어가게」) — 상단 줄 오른쪽 검색 칸. 마크업·스타일·동작 전부 이 파일 안(JSP 크기 한도 때문). 고치면 v= 를 올린다 --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/menu-search.js?v=20261119e"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/menu-search.js?v=20261119g"></script>
 </head>
 <body>
 <%-- 좌측 메뉴 접힘 상태를 <그리기 전에> 입힌다 (2026-08-05) —
@@ -3638,6 +3638,14 @@
       <%-- 📢 공지 띠 켜기/끄기 (2026-11-05) — 하단 공지 흐름 띠를 ✕ 로 접었을 때 되살리는 길. 접힘은 브라우저(localStorage konetEmpTickerFold)에 기억되므로 여기서 토글한다 --%>
       <a class="mi" data-nofav="1" onclick="var on=(function(){ try{ return localStorage.getItem('konetEmpTickerFold')==='1'; }catch(e){ return false; } })(); empTickerFold(!on); if(window._toast) _toast(on?'📢 공지 띠를 다시 켰습니다 (화면 맨 아래)':'공지 띠를 접었습니다 — 왼쪽 아래 📢 알약이나 이 메뉴로 다시 켭니다','ok');" title="화면 맨 아래 공지·메신저 흐름 띠를 켜거나 접습니다. ✕ 로 접은 띠도 여기서 되살립니다"><span class="ic">📢</span>공지 띠 켜기/끄기</a>
     </div>
+
+    <%-- 대표자 일정 (2026-11-19 사용자 「직원일정 말고 대표이사 일정 등록하고 완료여부 체크, 편집기능도」 「총괄관리자만 보여지면 됨」 → 같은 날 「대표자 일정 으로 하고 별도 메뉴표시」) —
+         ★총괄관리자(s_main_gu 1)만 — 묶음 이름까지 통째로 가린다. 서버(/mangr/ceoSched*.do)도 같은 조건. 처음엔 직원관리 서브메뉴 안에 있었다.
+         iframe 화면(mangr/ceoSched.jsp, panel-ceoSched). 표 = docs/sql/20261119_ceo_sched.sql --%>
+    <% if ("1".equals(String.valueOf(session.getAttribute("s_main_gu")).trim())) { %>
+    <div class="grp">대표자 일정</div>
+    <a class="mi" data-key="ceoSched" onclick="logiFrame('ceoSched','${pageContext.request.contextPath}/mangr/ceoSched.do', this)" title="대표자 일정 등록 · 완료 체크 — 총괄관리자만 보입니다"><span class="ic">🗓</span>대표자 일정<span class="emp-badge" id="ceoLateBadge" style="display:none"></span></a>
+    <% } %>
 
     <div class="grp">정보 현황</div>
     <a class="mi has-sub" data-sub="infomng" onclick="logiToggleSub('infomng', this)"><span class="ic">📈</span>정보 현황<span class="caret">▶</span></a>
@@ -5512,6 +5520,7 @@
 
     <%-- 재고 일괄조정 (2026-08-19 신설) — logiFrame 이 여는 아이프레임.
          id 규칙 : if-<메뉴키>. 이게 없으면 메뉴만 켜지고 화면이 비어 보인다. --%>
+    <section id="panel-ceoSched" class="panel" style="padding:0;"><iframe id="if-ceoSched" src="" title="대표자 일정" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
     <section id="panel-stockFlow" class="panel" style="padding:0;"><iframe id="if-stockFlow" src="" title="재고내용분석" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
     <section id="panel-stockAdj" class="panel" style="padding:0;">
       <iframe id="if-stockAdj" src="" title="재고 일괄조정" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>

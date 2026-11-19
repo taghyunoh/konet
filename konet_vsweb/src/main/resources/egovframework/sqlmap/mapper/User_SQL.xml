@@ -7972,6 +7972,29 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
+	<!-- 한 줄만 취소 (2026-11-19 사용자 「코드로 찾고 재고조정값 취소기능도」) : 묶음 되돌리기와 같은 일을 이력 한 줄(ADJ_SEQ)에만 한다.
+	     한 번에 여러 품목을 저장한 묶음에서 그 품목 하나만 물릴 때 쓴다. 원장행은 수기조정(REF_GB 빈 것)만 내린다 — 묶음 쪽과 같은 규칙 -->
+	<update id="cancelStockAdjOneLedger" parameterType="egovframework.konet.user.model.StockAdjHisDTO"><![CDATA[
+	  UPDATE l
+	     SET l.ACTION_YN='N', l.UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120),
+	         l.UPD_USER=#{regUser,jdbcType=NVARCHAR}, l.UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	    FROM TBL_STOCK_LEDGER l
+	    JOIN TBL_STOCK_ADJ_HIS h ON h.LEDGER_SEQ = l.LEDGER_SEQ
+	   WHERE h.ADJ_SEQ = #{adjSeq,jdbcType=BIGINT}
+	     AND h.ACTION_YN = 'Y'
+	     AND ISNULL(l.REF_GB,'') = ''
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
+	<update id="cancelStockAdjOne" parameterType="egovframework.konet.user.model.StockAdjHisDTO"><![CDATA[
+	  UPDATE TBL_STOCK_ADJ_HIS
+	     SET ACTION_YN='N', UPD_DTTM=CONVERT(VARCHAR(19),GETDATE(),120),
+	         UPD_USER=#{regUser,jdbcType=NVARCHAR}, UPD_IP=#{regIp,jdbcType=NVARCHAR}
+	   WHERE ADJ_SEQ = #{adjSeq,jdbcType=BIGINT}
+	     AND ACTION_YN = 'Y'
+	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	]]></update>
+
 
 	<!-- 입수수량만 고친다 (재고 일괄조정 화면, 2026-08-19)
 	     ★BOX/EA 는 이 값으로 나뉜다. 비어 있으면 BOX 칸에 전체 수량이 그대로 나온다.
@@ -9637,5 +9660,80 @@
 	     AND ( ISNULL(#{whCd,jdbcType=VARCHAR},'') = '' OR l.WH_CD = #{whCd,jdbcType=VARCHAR} )
 	   ORDER BY l.TRX_DT, CASE WHEN l.IO_GB = 'O' THEN 1 ELSE 0 END, l.LEDGER_SEQ
 	]]></select>
+
+	<!-- ══════════════════════════════════════════════════════════════════════════
+	     대표이사 일정 (2026-11-19 사용자 「직원일정 말고 대표이사 일정 등록하고 완료여부 체크, 편집기능도」 「총괄관리자만 보여지면 됨」)
+	       표 = TBL_CEO_SCHED (docs/sql/20261119_ceo_sched.sql) · 화면 = mangr/ceoSched.jsp · 자바 = /mangr/ceoSched*.do (총괄관리자만)
+	       ★상태 셋 (2026-11-19 사용자 「완료, 일부완료, 일정취소로 구분」 → 곧바로 「완료 , 일정취소 만」) : DONE_YN 칸을 그대로 쓴다 = N 미완료 · Y 완료 · C 일정취소.
+	         DONE_DTTM·DONE_USER = 미완료가 아닌 상태로 바꾼 때·사람(미완료로 돌리면 비운다. 같은 상태로 내용만 고치면 처음 값이 남는다)
+	       목록은 내용(CONTENT, HTML)을 싣지 않는다 — 길 수 있어서. 내용이 있는지만(hasContent) 알려 주고, 한 건을 열 때 selectCeoSched 로 읽는다
+	     ══════════════════════════════════════════════════════════════════════════ -->
+	<!-- 목록 : 기간(frDt~toDt, yyyymmdd)과 겹치는 일정. doneYn 을 주면 그 상태만(「미완료 전체」는 기간을 넓게 + doneYn N) -->
+	<select id="selectCeoSchedList" parameterType="java.util.HashMap" resultType="java.util.HashMap">
+	  <![CDATA[
+	  SELECT S.SCHED_SEQ AS schedSeq, S.FROM_DT AS fromDt, S.TO_DT AS toDt, ISNULL(S.SCHED_TM,'') AS schedTm,
+	         S.TITLE AS title, ISNULL(S.PLACE,'') AS place,
+	         S.DONE_YN AS doneYn, ISNULL(S.DONE_DTTM,'') AS doneDttm,
+	         CASE WHEN DATALENGTH(S.CONTENT) > 0 THEN 'Y' ELSE 'N' END AS hasContent,
+	         ISNULL(S.REG_DTTM,'') AS regDttm, ISNULL(S.UPD_DTTM,'') AS updDttm
+	    FROM TBL_CEO_SCHED S
+	   WHERE S.COMP_CD = #{compCd,jdbcType=VARCHAR} AND S.ACTION_YN = 'Y'
+	     AND S.TO_DT >= #{frDt,jdbcType=CHAR} AND S.FROM_DT <= #{toDt,jdbcType=CHAR}
+	  ]]>
+	  <if test="doneYn != null and doneYn != ''"> AND S.DONE_YN = #{doneYn,jdbcType=CHAR}</if>
+	  <![CDATA[
+	   ORDER BY S.FROM_DT, ISNULL(S.SCHED_TM,''), S.SCHED_SEQ
+	  ]]>
+	</select>
+
+	<!-- 한 건 (내용 포함) -->
+	<select id="selectCeoSched" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT S.SCHED_SEQ AS schedSeq, S.FROM_DT AS fromDt, S.TO_DT AS toDt, ISNULL(S.SCHED_TM,'') AS schedTm,
+	         S.TITLE AS title, ISNULL(S.PLACE,'') AS place, ISNULL(S.CONTENT, N'') AS content,
+	         S.DONE_YN AS doneYn, ISNULL(S.DONE_DTTM,'') AS doneDttm, ISNULL(S.DONE_USER,'') AS doneUser,
+	         ISNULL(S.REG_DTTM,'') AS regDttm, ISNULL(S.REG_USER,'') AS regUser, ISNULL(S.UPD_DTTM,'') AS updDttm, ISNULL(S.UPD_USER,'') AS updUser
+	    FROM TBL_CEO_SCHED S
+	   WHERE S.COMP_CD = #{compCd,jdbcType=VARCHAR} AND S.SCHED_SEQ = #{schedSeq,jdbcType=BIGINT} AND S.ACTION_YN = 'Y'
+	]]></select>
+
+	<insert id="insertCeoSched" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="schedSeq" keyColumn="SCHED_SEQ"><![CDATA[
+	  INSERT INTO TBL_CEO_SCHED (COMP_CD, FROM_DT, TO_DT, SCHED_TM, TITLE, PLACE, CONTENT, DONE_YN, DONE_DTTM, DONE_USER,
+	                             ACTION_YN, REG_DTTM, REG_USER, REG_IP)
+	  VALUES (#{compCd,jdbcType=VARCHAR}, #{fromDt,jdbcType=CHAR}, #{toDt,jdbcType=CHAR}, #{schedTm,jdbcType=VARCHAR},
+	          #{title,jdbcType=NVARCHAR}, #{place,jdbcType=NVARCHAR}, #{content,jdbcType=LONGNVARCHAR},
+	          #{doneYn,jdbcType=CHAR},
+	          CASE WHEN #{doneYn,jdbcType=CHAR} <> 'N' THEN CONVERT(VARCHAR(19), GETDATE(), 120) ELSE NULL END,
+	          CASE WHEN #{doneYn,jdbcType=CHAR} <> 'N' THEN #{regUser,jdbcType=NVARCHAR} ELSE NULL END,
+	          'Y', CONVERT(VARCHAR(19), GETDATE(), 120), #{regUser,jdbcType=NVARCHAR}, #{regIp,jdbcType=VARCHAR})
+	]]></insert>
+
+	<!-- 고치기 — 상태가 바뀔 때만 처리한 때·사람을 다시 적는다(같은 상태로 내용만 고치면 처음 값이 남는다). 미완료로 돌리면 비운다 -->
+	<update id="updateCeoSched" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_CEO_SCHED
+	     SET FROM_DT = #{fromDt,jdbcType=CHAR}, TO_DT = #{toDt,jdbcType=CHAR}, SCHED_TM = #{schedTm,jdbcType=VARCHAR},
+	         TITLE = #{title,jdbcType=NVARCHAR}, PLACE = #{place,jdbcType=NVARCHAR}, CONTENT = #{content,jdbcType=LONGNVARCHAR},
+	         DONE_DTTM = CASE WHEN #{doneYn,jdbcType=CHAR} = 'N' THEN NULL WHEN DONE_YN = #{doneYn,jdbcType=CHAR} THEN DONE_DTTM ELSE CONVERT(VARCHAR(19), GETDATE(), 120) END,
+	         DONE_USER = CASE WHEN #{doneYn,jdbcType=CHAR} = 'N' THEN NULL WHEN DONE_YN = #{doneYn,jdbcType=CHAR} THEN DONE_USER ELSE #{regUser,jdbcType=NVARCHAR} END,
+	         DONE_YN = #{doneYn,jdbcType=CHAR},
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND SCHED_SEQ = #{schedSeq,jdbcType=BIGINT} AND ACTION_YN = 'Y'
+	]]></update>
+
+	<!-- 상태만 바꾸기 (목록의 상태 칸) -->
+	<update id="updateCeoSchedDone" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_CEO_SCHED
+	     SET DONE_YN = #{doneYn,jdbcType=CHAR},
+	         DONE_DTTM = CASE WHEN #{doneYn,jdbcType=CHAR} <> 'N' THEN CONVERT(VARCHAR(19), GETDATE(), 120) ELSE NULL END,
+	         DONE_USER = CASE WHEN #{doneYn,jdbcType=CHAR} <> 'N' THEN #{regUser,jdbcType=NVARCHAR} ELSE NULL END,
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND SCHED_SEQ = #{schedSeq,jdbcType=BIGINT} AND ACTION_YN = 'Y'
+	]]></update>
+
+	<!-- 지우기 = ACTION_YN 'N' -->
+	<update id="deleteCeoSched" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_CEO_SCHED
+	     SET ACTION_YN = 'N', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
+	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND SCHED_SEQ = #{schedSeq,jdbcType=BIGINT} AND ACTION_YN = 'Y'
+	]]></update>
 
 </mapper>

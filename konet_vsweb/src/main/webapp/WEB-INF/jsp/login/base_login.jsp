@@ -199,6 +199,8 @@ function loginproc2(){
 					localStorage.removeItem(SAVED_COMP_CD_KEY);
 				}
 			} catch (e) {}
+			/* 방금 로그인했다는 표식 (2026-11-19) — 메인 화면(asset/js/emp-badge.js ⑤)이 읽자마자 지우고, 총괄관리자면 「대표자 일정 — 오늘부터 일주일」 요약 창을 한 번 띄운다 */
+			try { sessionStorage.setItem('konetJustLogin', '1'); } catch (e) {}
 			location.href = CommonUtil.getContextPath() + "/main.do";
 		},
 		error: function(){ _alertBox("로그인 요청 중 오류가 발생했습니다.", {icon:'❌', okColor:'red'}); }

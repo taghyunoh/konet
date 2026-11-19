@@ -327,6 +327,9 @@
     <div class="htab">
       <button type="button" class="tb" id="reqTab2" onclick="tabGo('req');" title="승인 요청 보기">⏳ 승인 요청 <b id="reqCnt2"></b></button>
       <button type="button" class="tb on" onclick="tabGo('his');" id="hisTab" title="조정 이력 — 켜진 탭을 다시 누르면 접기/펼치기">📜 조정 이력</button>
+      <%-- 상품코드로 찾기 (2026-11-19 사용자 「여기에서 코드로 찾고 재고조정값 취소기능도」) — 읽어 온 이력을 화면에서 거른다(서버에 다시 묻지 않음). 띄어 쓰면 낱말이 모두 든 줄 --%>
+      <input type="search" id="hQ" style="width:230px; margin-left:8px" placeholder="🔎 상품코드 / 상품명으로 찾기" oninput="hisPaint();" title="조정 이력을 상품코드·상품명으로 찾습니다 — 찾은 줄의 [이 줄만 취소]로 그 상품의 조정만 물릴 수 있습니다">
+      <span class="dim" id="hQCnt" style="font-size:12px"></span>
       <span class="sp" style="flex:1"></span>
       <label>기간</label>
       <input type="date" id="hFrom"> ~ <input type="date" id="hTo">
@@ -348,7 +351,7 @@
             <th style="width:150px">사유</th>
             <th style="width:100px">등록자</th>
             <th style="width:140px">등록일시</th>
-            <th class="c" style="width:80px">되돌리기</th>
+            <th class="c" style="width:168px">되돌리기 / 취소</th>
           </tr>
         </thead>
         <tbody id="hisBody">
@@ -1111,38 +1114,81 @@ function hisLoad(){
     .then(function(r){ return r.json(); })
     .then(function(d){
       busy(false);
-      var rows = (d && d.data) || [];
-      if (!rows.length){
-        gel('hisBody').innerHTML =
-          '<tr><td colspan="11" class="c dim" style="padding:18px">조정 이력이 없습니다.</td></tr>';
-        return;
-      }
-      /* 같은 묶음은 첫 줄에만 번호와 [되돌리기] 를 보여준다 — 한 번의 저장이 한 덩어리로 읽힌다 */
-      var prev = null;
-      gel('hisBody').innerHTML = rows.map(function(h){
-        var head = (h.batchNo !== prev); prev = h.batchNo;
-        var diff = nvl(h.diffQty);
-        return '<tr>'
-          + '<td>' + (head ? esc(h.batchNo) : '<span class="dim">〃</span>') + '</td>'
-          + '<td>' + esc(h.baseDt) + '</td>'
-          + '<td>' + esc(h.prodCd) + '</td>'
-          + '<td>' + esc(h.prodNm) + '</td>'
-          + '<td class="r">' + nvl(h.befQty) + '</td>'
-          + '<td class="r">' + nvl(h.aftQty) + '</td>'
-          + '<td class="r"><span class="diff ' + (diff > 0 ? 'up' : 'dn') + '">'
-          +   (diff > 0 ? '+' : '') + diff + '</span></td>'
-          + '<td>' + esc(h.remark) + '</td>'
-          /* 등록자 = 이름(아이디는 툴팁) · 빈 값 = 로그인이 끊긴 채 저장된 옛 조정 (2026-09-14) */
-          + '<td title="' + esc(h.regUser || '로그인이 끊긴 채 저장됨') + '">'
-          +   (h.regUser ? esc(h.regUserNm || h.regUser) : '<span class="dim">(기록 없음)</span>') + '</td>'
-          + '<td>' + esc(h.regDttm) + '</td>'
-          + '<td class="c">' + (head
-              ? '<button type="button" class="undo" onclick="hisCancel(\'' + esc(h.batchNo) + '\')">되돌리기</button>'
-              : '') + '</td>'
-          + '</tr>';
-      }).join('');
+      _his = (d && d.data) || [];
+      hisPaint();
     })
     .catch(function(){ busy(false); alertBox('이력을 불러오지 못했습니다.', '⚠️'); });
+}
+
+/* ★이력 그리기 (2026-11-19 사용자 「여기에서 코드로 찾고 재고조정값 취소기능도」) — 읽어 온 이력(_his)을 탭 옆 검색 칸(#hQ)으로 걸러 그린다.
+   찾기 : 상품코드·상품명. 띄어 쓰면 낱말이 모두 든 줄. 서버에 다시 묻지 않는다.
+   단추 : · 묶음에 줄이 하나뿐이면 [되돌리기] 하나(종전 그대로)
+          · 한 번에 여러 품목을 저장한 묶음이면 줄마다 [이 줄만 취소], 그 묶음의 (보이는) 첫 줄에 [묶음 N건 되돌리기]도 —
+            ★종전엔 묶음 첫 줄에만 [되돌리기]가 있어, 코드로 찾아 그 품목만 물리고 싶어도 묶음이 통째로 내려갔다.
+   묶음의 줄 수는 «거르기 전 전체»에서 센다 — 검색으로 한 줄만 보여도 그 묶음이 몇 건짜리인지 단추에 적힌다 */
+var _his = [];
+function hisPaint(){
+  var q = gel('hQ') ? gel('hQ').value.trim().toLowerCase() : '', toks = q ? q.split(/\s+/) : [];
+  var size = {}; _his.forEach(function(h){ size[h.batchNo] = (size[h.batchNo] || 0) + 1; });
+  var rows = toks.length ? _his.filter(function(h){ var t = (String(h.prodCd || '') + ' ' + String(h.prodNm || '')).toLowerCase(); return toks.every(function(k){ return t.indexOf(k) >= 0; }); }) : _his;
+  if (gel('hQCnt')) gel('hQCnt').textContent = toks.length ? (rows.length + '건 / 전체 ' + _his.length + '건') : '';
+  if (!rows.length){
+    gel('hisBody').innerHTML = '<tr><td colspan="11" class="c dim" style="padding:18px">' + (_his.length ? '「' + esc(q) + '」에 맞는 조정 이력이 없습니다 — 기간을 넓혀 [이력조회] 해 보세요.' : '조정 이력이 없습니다.') + '</td></tr>';
+    return;
+  }
+  var prev = null;
+  gel('hisBody').innerHTML = rows.map(function(h){
+    var head = (h.batchNo !== prev); prev = h.batchNo;
+    var diff = nvl(h.diffQty), n = size[h.batchNo] || 1, bt = '';
+    if (n <= 1) bt = '<button type="button" class="undo" onclick="hisCancel(\'' + esc(h.batchNo) + '\')">되돌리기</button>';
+    else bt = '<button type="button" class="undo" onclick="hisCancelOne(' + Number(h.adjSeq) + ')" title="이 상품의 조정만 취소합니다 — 같은 묶음의 다른 줄은 그대로">이 줄만 취소</button>'
+            + (head ? ' <button type="button" class="undo" onclick="hisCancel(\'' + esc(h.batchNo) + '\')" title="이 저장으로 만든 조정 ' + n + '건을 모두 되돌립니다">묶음 ' + n + '건</button>' : '');
+    return '<tr>'
+      + '<td>' + (head ? esc(h.batchNo) : '<span class="dim">〃</span>') + '</td>'
+      + '<td>' + esc(h.baseDt) + '</td>'
+      + '<td>' + esc(h.prodCd) + '</td>'
+      + '<td>' + esc(h.prodNm) + '</td>'
+      + '<td class="r">' + nvl(h.befQty) + '</td>'
+      + '<td class="r">' + nvl(h.aftQty) + '</td>'
+      + '<td class="r"><span class="diff ' + (diff > 0 ? 'up' : 'dn') + '">' + (diff > 0 ? '+' : '') + diff + '</span></td>'
+      + '<td>' + esc(h.remark) + '</td>'
+      /* 등록자 = 이름(아이디는 툴팁) · 빈 값 = 로그인이 끊긴 채 저장된 옛 조정 (2026-09-14) */
+      + '<td title="' + esc(h.regUser || '로그인이 끊긴 채 저장됨') + '">' + (h.regUser ? esc(h.regUserNm || h.regUser) : '<span class="dim">(기록 없음)</span>') + '</td>'
+      + '<td>' + esc(h.regDttm) + '</td>'
+      + '<td class="c" style="white-space:nowrap">' + bt + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+/* 한 줄만 취소 (2026-11-19) — 그 상품의 조정 한 줄과 짝인 원장 조정행만 내린다. 같은 묶음의 다른 줄은 그대로 */
+function hisCancelOne(adjSeq){
+  var h = null; _his.forEach(function(x){ if (Number(x.adjSeq) === Number(adjSeq)) h = x; });
+  if (!h) return;
+  var diff = nvl(h.diffQty);
+  var go = function(){
+    fetch(CTX + '/prod/stockAdjCancel.do', {
+        method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        credentials:'same-origin', body: 'adjSeq=' + encodeURIComponent(adjSeq) })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || d.result !== 'OK'){ alertBox('취소하지 못했습니다.<br>' + esc((d && d.message) || ''), '⚠️'); return; }
+        toast(esc(h.prodCd) + ' 조정 1건을 취소했습니다.');
+        hisLoad();
+        if (ROWS.length) load();      /* 위 목록도 바뀐 재고로 다시 그린다 */
+      })
+      .catch(function(){ alertBox('취소하지 못했습니다.', '⚠️'); });
+  };
+  if (window._confirmBox){
+    window._confirmBox({
+      icon: '⚠️',
+      msg: '<div style="text-align:left; line-height:1.7">이 상품의 조정 <b>한 줄만</b> 취소합니다.<br>'
+         + '<b>' + esc(h.prodCd) + '</b> ' + esc(h.prodNm) + '<br>'
+         + '조정 : ' + nvl(h.befQty) + ' → ' + nvl(h.aftQty) + ' (<b>' + (diff > 0 ? '+' : '') + diff + '</b>) · 기준일자 ' + esc(h.baseDt) + '<br>'
+         + '<span style="font-size:12.5px;color:#3d4d5c">이 조정행만 내려가 재고가 <b>' + (diff > 0 ? '-' : '+') + Math.abs(diff) + '</b> 만큼 돌아갑니다. 같은 묶음의 다른 줄은 그대로입니다.</span></div>',
+      okText: '이 줄만 취소',
+      onOk: go
+    });
+  } else if (confirm('이 상품의 조정 한 줄만 취소할까요?')) go();
 }
 
 /* 묶음 되돌리기 — 이력과 짝인 원장 조정행을 함께 내린다 */
@@ -1169,7 +1215,7 @@ function hisCancel(batchNo){
       icon: '⚠️',
       msg: '<div style="text-align:left; line-height:1.7">'
          + '<b>' + esc(batchNo) + '</b> 묶음을 되돌립니다.<br>'
-         + '이 저장으로 만들어진 <b>조정행이 모두 내려갑니다.</b></div>',
+         + '이 저장으로 만들어진 <b>조정행' + (function(){ var n = 0; _his.forEach(function(x){ if (x.batchNo === batchNo) n++; }); return n > 1 ? ' ' + n + '건' : ''; })() + '이 모두 내려갑니다.</b></div>',
       okText: '되돌리기',
       onOk: go
     });
