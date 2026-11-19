@@ -57,7 +57,15 @@
   tr.pick{ cursor:pointer; } tr.pick:hover td{ background:#f1f9f7; } tr.pick.on td{ background:#dff0eb; }
   .fl{ display:inline-block; padding:1px 7px; border-radius:10px; font-size:11.5px; font-weight:800; margin-right:3px; white-space:nowrap; }
   .fl.neg{ background:#fde8e8; color:#a12b2b; } .fl.noin, .fl.ret{ background:#ffe9d2; color:#8a4a00; }
-  .fl.past, .fl.adj{ background:#fff6cf; color:#7a5c00; } .fl.dead, .fl.price{ background:#eef1f4; color:#4a5a6a; }
+  .fl.past, .fl.adj{ background:#fff6cf; color:#7a5c00; }
+  .fl.sub{ background:#efe6fb; color:#5b3a99; } .fl.subok{ background:#e3f4ef; color:#0e6657; }   /* 서브코드에 재고 (2026-11-19) — 초록 = 합치면 음수가 풀린다 */
+  .subtag{ display:inline-block; padding:0 5px; border-radius:8px; background:#efe6fb; color:#5b3a99; font-size:10.5px; font-weight:800; }
+  /* 주코드 밑 서브코드 줄 (2026-11-19) */
+  .maintag{ display:inline-block; padding:0 5px; border-radius:8px; background:#137a6c; color:#fff; font-size:10.5px; font-weight:800; }
+  .kar{ color:#8a6fc0; font-weight:800; margin:0 4px 0 6px; }
+  tr.kid td{ background:#fbf8ff; color:#4a3f66; } tr.kid.pick:hover td{ background:#f1eafc; } tr.kid.pick.on td{ background:#e6daf8; }
+  tr.kid.none td{ font-size:12px; }
+  tr.hasKid td{ border-bottom-color:#d9cdf0; } .fl.dead, .fl.price{ background:#eef1f4; color:#4a5a6a; }
   .foot{ flex:0 0 auto; display:flex; align-items:center; gap:12px; padding:5px 10px; margin-top:6px; background:#fff; border:1px solid var(--bd); border-radius:8px; font-size:13px; color:#48606f; }
   .foot b{ color:var(--teal); }
   /* 아래 상세 — 고른 품목의 수불 줄 + 잔고 */
@@ -113,7 +121,8 @@
     <b>🟡 최근 음수(회복)</b> — 지금은 회복됐지만 최근 30일(「최근 음수 기준」 칸) 안에 재고가 0 밑이었습니다. 입고를 늦게 적었거나 조정으로 맞춘 흔적입니다. &nbsp;
     <b>🟡 조정 잦음</b> — 조정이 3번 이상입니다. &nbsp;
     <b>⚪ 장기 무출고</b> — 재고가 있는데 정한 일수 넘게 출고가 없습니다. &nbsp;
-    <b>⚪ 단가 없는 입고</b> — 단가 0 으로 들어온 입고가 있어 재고금액이 틀어집니다.<br>
+    <b>⚪ 단가 없는 입고</b> — 단가 0 으로 들어온 입고가 있어 재고금액이 틀어집니다. &nbsp;
+    <b>🟣 서브코드에 재고</b> — 재고가 서브코드(매칭코드) 쪽에 갈라져 있습니다. 계산은 코드마다 따로 하고 표시만 답니다 — 초록 「합치면 …」은 주코드가 음수여도 실제 부족이 아니라는 뜻입니다(서브코드 재고 정리에서 합칩니다).<br>
     잔고는 <b>하루 단위</b>로 쌓습니다 — 같은 날 출고가 입고보다 먼저 적혀 생기는 가짜 음수는 세지 않습니다. 줄을 누르면 아래에 그 품목의 수불 줄과 잔고가 나옵니다.
   </div>
   <div class="bar noprint">
@@ -165,14 +174,48 @@ var TYPES=[
   { k:'past',  ic:'🟡', nm:'최근 음수(회복)',    test:function(r,o){ return r.curQty>=0 && r.minBal<0 && r.lastNegDt!=='' && r.negAgo<=o.past; } },
   { k:'adj',   ic:'🟡', nm:'조정 잦음',          test:function(r,o){ return r.adjCnt>=o.adjMin; } },
   { k:'dead',  ic:'⚪', nm:'장기 무출고',        test:function(r,o){ return r.curQty>0 && r.idle>=o.dead; } },
-  { k:'price', ic:'⚪', nm:'단가 없는 입고',     test:function(r){ return r.noPriceCnt>0; } }
+  { k:'price', ic:'⚪', nm:'단가 없는 입고',     test:function(r){ return r.noPriceCnt>0; } },
+  /* ★서브코드에 재고 (2026-11-19 사용자 「주코드 연계해서 재고흐름 한 건지 확인」 → 「표시만 다는 쪽으로」) —
+       계산은 원장의 품목코드 한 줄씩 그대로 둔다(주코드로 합치지 않는다). 대신 재고가 서브코드(매칭코드) 쪽에 갈라져 있는 줄에 표시를 단다 :
+       · 주코드 줄 : 그 서브코드에 재고가 남아 있다 → 「서브 재고 +14 · 합치면 +3」. 주코드가 음수인데 합치면 0 이상이면 초록(실제 부족이 아니다)
+       · 서브코드 줄 : 제 재고가 0 이 아니다 → 「주코드 9904013463」
+       합치는 일은 재고 관리 ▸ 서브코드 재고 정리에서 한다. 운영 실측 2026-11-19 : 연결 313 · 원장에 있는 서브코드 127 · 재고 남은 서브 6 · 합치면 풀리는 주코드 음수 3 */
+  { k:'sub',   ic:'🟣', nm:'서브코드에 재고',    test:function(r){ return (r.subs&&r.subs.length>0) || (!!r.mainCd && r.curQty!==0); } }
 ];
 function opt(){ return { dead:Math.max(1, n(gel('deadDays').value)||90), adjMin:Math.max(1, n(gel('adjMin').value)||3), past:Math.max(1, n(gel('pastDays').value)||30) }; }
 function flagsOf(r, o){ var f=[]; TYPES.forEach(function(t){ if(t.test(r,o)) f.push(t.k); }); return f; }
 
+/* 서브코드 → 주코드 지도 — 셸 재고현황(stkAliasLoad)과 같은 두 원천 : 상품코드등록의 매칭코드(extItemList) · 품목코드(매핑)의 연결(xrefList).
+   못 읽어도(권한·옛 서버) 조회는 그대로 된다 — 표시만 안 붙는다. 한 번 읽으면 화면을 닫을 때까지 쓴다 */
+var _sub2main=null, _subNm={}, _mainSubs={};   /* _subNm = 서브코드 이름(상품코드등록의 거래처 품명) · _mainSubs = 주코드 → [서브코드…] (2026-11-19 주코드 밑에 서브 줄) */
+function mapLoad(){
+  if(_sub2main) return Promise.resolve();
+  var m={};
+  function get(u){ return fetch(CTX+u,{ method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+    .then(function(r){ return r.json(); }).then(function(j){ ((j&&j.data)||[]).forEach(function(o){ var sub=String(o.extItemCd||'').trim(), main=String(o.prodCd||'').trim(); if(sub && main && sub!==main && !m[sub]){ m[sub]=main; _subNm[sub]=String(o.extItemNm||''); (_mainSubs[main]=_mainSubs[main]||[]).push(sub); } }); })
+    .catch(function(){}); }
+  return Promise.all([get('/prod/extItemList.do'), get('/prod/xrefList.do')]).then(function(){ _sub2main=m; });
+}
+/* 줄마다 주코드·서브코드 재고를 붙인다 — mainCd(이 줄이 서브코드면 그 주코드) · subs(이 줄이 주코드면 재고가 남은 서브코드들) · subQty · famQty(합친 재고) */
+function link(){
+  var by={}; ROWS.forEach(function(r){ by[r.prodCd]=r; r.mainCd=''; r.subs=[]; r.subQty=0; });
+  ROWS.forEach(function(r){ var m=_sub2main && _sub2main[r.prodCd]; if(!m || m===r.prodCd) return; r.mainCd=m;
+    var M=by[m]; if(M && r.curQty!==0){ M.subs.push({ cd:r.prodCd, q:r.curQty }); M.subQty+=r.curQty; } });
+  ROWS.forEach(function(r){ r.famQty=r.curQty+r.subQty;
+    /* kids = 이 주코드에 딸린 서브코드 전부 — row 가 있으면 수불이 있는 코드(숫자를 보인다), 없으면 이름만 */
+    r.kids=(_mainSubs[r.prodCd]||[]).map(function(cd){ return { cd:cd, nm:_subNm[cd]||'', row:by[cd]||null }; }); });
+}
+function sgn(v){ return (v>0?'+':'')+fmt(v); }
+/* 「서브코드에 재고」 표시 글 — 주코드 줄 / 서브코드 줄 */
+function subBadge(r){
+  if(r.subs && r.subs.length){ var ok=(r.curQty<0 && r.famQty>=0);
+    return '<span class="fl '+(ok?'subok':'sub')+'" title="서브코드에 남은 재고 : '+esc(r.subs.map(function(x){ return x.cd+' ('+sgn(x.q)+')'; }).join(', '))+' · 주코드 '+fmt(r.curQty)+' 와 합치면 '+fmt(r.famQty)
+      +(ok?' — 실제 부족이 아닙니다. 재고 관리 ▸ 서브코드 재고 정리에서 합치면 음수가 풀립니다':' — 서브코드 재고 정리에서 합칠 수 있습니다')+'">서브 재고 '+sgn(r.subQty)+' · 합치면 '+fmt(r.famQty)+'</span>'; }
+  return '<span class="fl sub" title="이 코드는 주코드 '+esc(r.mainCd)+' 의 서브코드(매칭코드)인데 재고가 '+fmt(r.curQty)+' 남아 있습니다 — 서브코드 재고 정리에서 주코드로 합칠 수 있습니다">주코드 '+esc(r.mainCd)+'</span>';
+}
 function load(){
   var d=gel('asOf').value||''; busy(true);
-  post('/prod/stockFlowList.do','asOfDt='+encodeURIComponent(d)).then(function(j){
+  Promise.all([post('/prod/stockFlowList.do','asOfDt='+encodeURIComponent(d)), mapLoad()]).then(function(got){ var j=got[0];
     _asOf=String(j.asOfDt||d.replace(/-/g,'')); var base=dms(_asOf);
     ROWS=(j.data||[]).map(function(r){
       var o={ prodCd:String(r.prodCd||''), prodNm:String(r.prodNm||''), vendorCd:String(r.vendorCd||''), vendorNm:String(r.vendorNm||''),
@@ -183,7 +226,7 @@ function load(){
       var last=dms(o.lastOutDt)||dms(o.firstDt); o.idle = last ? Math.floor((base-last)/86400000) : 0;
       var ln=dms(o.lastNegDt); o.negAgo = ln ? Math.floor((base-ln)/86400000) : 99999;   /* 마지막 음수일부터 며칠 지났나 */
       return o; });
-    busy(false); dtlClose(); render();
+    link(); busy(false); dtlClose(); render();
   }).catch(function(e){ busy(false); gel('body').innerHTML='<tr><td class="c" style="padding:26px;color:#b23b3b">'+esc(e.message)+'</td></tr>'; });
 }
 
@@ -205,6 +248,36 @@ var COLS=[
   { k:'lastInDt', t:'최근 입고', w:92 }, { k:'lastOutDt', t:'최근 출고', w:92 }, { k:'idle', t:'무출고', r:1, w:64, tip:'마지막 출고부터 기준일자까지 일수' },
   { k:'f', t:'이상 유형', nosort:1 }
 ];
+/* ★주코드 밑에 서브코드 줄 (2026-11-19 사용자 「여기에 주코드 서브코드 보여주게」) — 품목별재고현황의 [주]/[서브] 줄과 같은 생각.
+   주코드 줄 = 품목코드 앞에 「주」 · 바로 밑에 ↳ 「서브」 줄(그 코드 자신의 입고·출고·현재고…). 수불이 없는 서브코드는 한 줄에 이름만 모아 흐리게.
+   서브 줄은 검색·유형에 안 걸려도 주코드가 나오면 함께 나온다(관계를 보려는 것이라). 주코드가 목록에 있으면 그 서브 줄은 따로 한 번 더 그리지 않는다.
+   숫자는 코드마다 제 것 그대로 — 합치지 않는다. 합친 값은 주코드 줄의 「서브 재고 … · 합치면 …」 표시에 있다 */
+function rowHtml(r, NM, kid){
+  var hasKid=!kid && r.kids && r.kids.length>0;
+  var cdCell = kid ? '<span class="kar">↳</span><span class="subtag" title="위 주코드의 서브코드(매칭코드)">서브</span> '+esc(r.prodCd)
+                   : (hasKid?'<span class="maintag" title="서브코드(매칭코드) '+r.kids.length+'개가 딸린 주코드">주</span> ':'')+esc(r.prodCd)+(r.mainCd?' <span class="subtag" title="주코드 '+esc(r.mainCd)+' 의 서브코드(매칭코드)">서브</span>':'');
+  var flags = r.f.map(function(x){
+    if(x!=='sub') return '<span class="fl '+x+'">'+esc(NM[x])+'</span>';
+    return kid ? '<span class="fl sub" title="이 서브코드에 재고가 남아 있습니다 — 서브코드 재고 정리에서 주코드로 합칠 수 있습니다">재고 '+sgn(r.curQty)+' 남음</span>' : subBadge(r); }).join('');
+  return '<tr class="pick'+(kid?' kid':'')+(hasKid?' hasKid':'')+(r.prodCd===_pick?' on':'')+'" data-cd="'+esc(r.prodCd)+'" onclick="dtlOpen(\''+esc(r.prodCd).replace(/'/g,'')+'\')">'
+    +'<td>'+cdCell+'</td><td class="nm">'+esc(r.prodNm||_subNm[r.prodCd]||'')+'</td><td class="l" title="'+esc(r.vendorCd)+'">'+esc(r.vendorNm||r.vendorCd)+'</td>'
+    +'<td class="r">'+fmt(r.inQty)+'</td><td class="r'+(r.retQty>r.inQty?' neg':'')+'">'+(r.retQty?fmt(r.retQty):'')+'</td><td class="r">'+fmt(r.outQty)+'</td>'
+    +'<td class="r">'+(r.adjCnt?fmt(r.adjQty)+' <span class="dim">('+r.adjCnt+')</span>':'')+'</td>'
+    +'<td class="r'+(r.curQty<0?' neg':'')+'"><b>'+fmt(r.curQty)+'</b></td>'
+    +'<td class="r'+(r.minBal<0?' neg':'')+'">'+fmt(r.minBal)+'</td>'
+    +'<td class="r"'+(r.negCal?' title="음수였던 달력 일수 '+r.negCal.toLocaleString()+'일 · 그중 수불이 있던 날 '+r.negDays+'일"':'')+'>'+(r.negCal?r.negCal.toLocaleString()+'일':'')+'</td>'
+    +'<td class="c">'+(r.firstNegDt?d10(r.firstNegDt)+(r.lastNegDt&&r.lastNegDt!==r.firstNegDt?' ~ '+d10(r.lastNegDt).slice(5):''):'')+'</td>'
+    +'<td class="c">'+d10(r.lastInDt)+'</td><td class="c">'+d10(r.lastOutDt)+'</td><td class="r'+(r.f.indexOf('dead')>=0?' neg':'')+'">'+(r.curQty>0||r.outQty>0?r.idle+'일':'')+'</td>'
+    +'<td class="l">'+flags+'</td></tr>';
+}
+function kidsHtml(r, NM){
+  if(!r.kids || !r.kids.length) return '';
+  var h='', none=[];
+  r.kids.forEach(function(k){ if(k.row) h+=rowHtml(k.row, NM, true); else none.push(k); });
+  if(none.length){ var show=none.slice(0,6).map(function(k){ return esc(k.cd)+(k.nm?' <span class="dim">'+esc(k.nm)+'</span>':''); }).join(' · ');
+    h+='<tr class="kid none"><td><span class="kar">↳</span><span class="subtag">서브</span></td><td class="nm" colspan="'+(COLS.length-1)+'" title="'+esc(none.map(function(k){ return k.cd+' '+k.nm; }).join('\n'))+'"><span class="dim">수불 없는 서브코드 '+none.length+'개 : </span>'+show+(none.length>6?' <span class="dim">외 '+(none.length-6)+'개</span>':'')+'</td></tr>'; }
+  return h;
+}
 function sortBy(k){ if(_sort.k===k) _sort.d=-_sort.d; else { _sort.k=k; _sort.d=(k==='prodCd'||k==='prodNm'||k==='vendorNm')?1:-1; } render(); }
 function typeGo(k){ _type=k; render(); gel('grid').scrollTop=0; }
 function render(){
@@ -219,19 +292,12 @@ function render(){
   list.sort(function(a,b){ var x=a[k], y=b[k]; if(typeof x==='number'&&typeof y==='number') return (x-y)*d || (a.prodCd<b.prodCd?-1:1); x=String(x||''); y=String(y||''); return x<y?-d:(x>y?d:0); });
   gel('head').innerHTML='<tr>'+COLS.map(function(col){ return '<th'+(col.nosort?' class="nosort"':' onclick="sortBy(\''+col.k+'\')"')+(col.w?' style="width:'+col.w+'px"':'')+(col.tip?' title="'+esc(col.tip)+'"':'')+'>'+esc(col.t)+(_sort.k===col.k?'<span class="ar">'+(_sort.d>0?'▲':'▼')+'</span>':'')+'</th>'; }).join('')+'</tr>';
   var NM={}; TYPES.forEach(function(t){ NM[t.k]=t.nm; });
-  var MAX=1500, cut=list.length>MAX ? list.length-MAX : 0;
-  gel('body').innerHTML = list.length ? list.slice(0,MAX).map(function(r){
-    return '<tr class="pick'+(r.prodCd===_pick?' on':'')+'" onclick="dtlOpen(\''+esc(r.prodCd).replace(/'/g,'')+'\')">'
-      +'<td>'+esc(r.prodCd)+'</td><td class="nm">'+esc(r.prodNm)+'</td><td class="l" title="'+esc(r.vendorCd)+'">'+esc(r.vendorNm||r.vendorCd)+'</td>'
-      +'<td class="r">'+fmt(r.inQty)+'</td><td class="r'+(r.retQty>r.inQty?' neg':'')+'">'+(r.retQty?fmt(r.retQty):'')+'</td><td class="r">'+fmt(r.outQty)+'</td>'
-      +'<td class="r">'+(r.adjCnt?fmt(r.adjQty)+' <span class="dim">('+r.adjCnt+')</span>':'')+'</td>'
-      +'<td class="r'+(r.curQty<0?' neg':'')+'"><b>'+fmt(r.curQty)+'</b></td>'
-      +'<td class="r'+(r.minBal<0?' neg':'')+'">'+fmt(r.minBal)+'</td>'
-      +'<td class="r"'+(r.negCal?' title="음수였던 달력 일수 '+r.negCal.toLocaleString()+'일 · 그중 수불이 있던 날 '+r.negDays+'일"':'')+'>'+(r.negCal?r.negCal.toLocaleString()+'일':'')+'</td>'
-      +'<td class="c">'+(r.firstNegDt?d10(r.firstNegDt)+(r.lastNegDt&&r.lastNegDt!==r.firstNegDt?' ~ '+d10(r.lastNegDt).slice(5):''):'')+'</td>'
-      +'<td class="c">'+d10(r.lastInDt)+'</td><td class="c">'+d10(r.lastOutDt)+'</td><td class="r'+(r.f.indexOf('dead')>=0?' neg':'')+'">'+(r.curQty>0||r.outQty>0?r.idle+'일':'')+'</td>'
-      +'<td class="l">'+r.f.map(function(x){ return '<span class="fl '+x+'">'+esc(NM[x])+'</span>'; }).join('')+'</td></tr>';
-  }).join('') : '<tr><td colspan="'+COLS.length+'" class="c dim" style="padding:26px">'+(ROWS.length?'이 유형에 해당하는 품목이 없습니다.':'수불 내역이 없습니다.')+'</td></tr>';
+  /* 주코드가 목록에 있으면 그 서브 줄은 주코드 밑에 붙으므로 따로 그리지 않는다 (2026-11-19) */
+  var inList={}; list.forEach(function(r){ inList[r.prodCd]=1; });
+  var top=list.filter(function(r){ return !(r.mainCd && inList[r.mainCd]); });
+  var MAX=1500, cut=top.length>MAX ? top.length-MAX : 0;
+  gel('body').innerHTML = top.length ? top.slice(0,MAX).map(function(r){ return rowHtml(r, NM, false)+kidsHtml(r, NM); }).join('')
+    : '<tr><td colspan="'+COLS.length+'" class="c dim" style="padding:26px">'+(ROWS.length?'이 유형에 해당하는 품목이 없습니다.':'수불 내역이 없습니다.')+'</td></tr>';
   var tn=_type==='all'?'전체':(_type==='any'?'이상 있는 품목':NM[_type]);
   gel('cnt').innerHTML='기준일자 <b>'+d10(_asOf)+'</b> · '+esc(tn)+' <b>'+list.length.toLocaleString()+'</b>품목'+(cut?' <span class="dim">(앞 '+MAX+'줄만 표시 — 검색으로 좁히세요)</span>':'')+' · 전체 '+c.all.toLocaleString()+'품목 중 이상 '+c.any.toLocaleString()+'품목';
   window._view=list; window._viewNm=tn;
@@ -245,7 +311,7 @@ function dtlClose(){ _pick=''; window._dtl=null; gel('dtl').classList.remove('on
 function dtlOpen(cd){
   _pick=cd; var r=ROWS.filter(function(x){ return x.prodCd===cd; })[0]; if(!r) return;
   [].forEach.call(document.querySelectorAll('#body tr.on'), function(t){ t.classList.remove('on'); });
-  [].forEach.call(document.querySelectorAll('#body tr.pick'), function(t){ if(t.cells[0].textContent===cd) t.classList.add('on'); });
+  [].forEach.call(document.querySelectorAll('#body tr.pick'), function(t){ if(t.getAttribute('data-cd')===cd) t.classList.add('on'); });
   gel('dtl').classList.add('on'); fgApply(); gel('dTit').textContent=cd+'  '+r.prodNm; gel('dSum').textContent=''; gel('dWhy').textContent='';
   gel('dBody').innerHTML='<tr><td colspan="10" class="c dim" style="padding:16px">불러오는 중…</td></tr>';
   post('/prod/stockFlowLedger.do','prodCd='+encodeURIComponent(cd)+'&asOfDt='+encodeURIComponent(_asOf)).then(function(j){
@@ -269,7 +335,8 @@ function dtlOpen(cd){
       prevDt=x.trxDt; });
     gel('dBody').innerHTML=h||'<tr><td colspan="10" class="c dim" style="padding:16px">수불 줄이 없습니다.</td></tr>';
     gel('dSum').textContent=L.length+'줄 · 입고 '+fmt(r.inQty)+(r.retQty?' · 반품 '+fmt(r.retQty):'')+' · 출고 '+fmt(r.outQty)+(r.adjCnt?' · 조정 '+fmt(r.adjQty)+'('+r.adjCnt+'회)':'')+' → 현재고 '+fmt(r.curQty);
-    gel('dWhy').textContent = firstNeg>=0 ? ('⚠ '+d10(L[firstNeg].trxDt)+' 부터 재고가 0 밑으로 내려갔습니다 (그날 끝 잔고 '+fmt(end[L[firstNeg].trxDt])+')') : '';
+    gel('dWhy').textContent = (firstNeg>=0 ? ('⚠ '+d10(L[firstNeg].trxDt)+' 부터 재고가 0 밑으로 내려갔습니다 (그날 끝 잔고 '+fmt(end[L[firstNeg].trxDt])+')') : '')
+      + ((r.subs&&r.subs.length) ? ('   🟣 서브코드 '+r.subs.map(function(x){ return x.cd+' 에 '+sgn(x.q); }).join(', ')+' — 합치면 '+fmt(r.famQty)) : (r.mainCd ? ('   🟣 주코드 '+r.mainCd+' 의 서브코드입니다') : ''));
     if(firstNeg>=0){ var tr=gel('dr'+firstNeg), g=gel('dGrid'); if(tr&&g) g.scrollTop=Math.max(0, tr.offsetTop-34); } else gel('dGrid').scrollTop=0;
   }).catch(function(e){ gel('dBody').innerHTML='<tr><td colspan="10" class="c" style="padding:16px;color:#b23b3b">'+esc(e.message)+'</td></tr>'; });
 }
@@ -338,11 +405,11 @@ function xls(){
   var cond='기준일자 : '+d10(_asOf)+'   (유형 '+tn+(q?' · 검색 「'+q+'」':'')+' · 무출고 기준 '+o.dead+'일 · 최근 음수 기준 '+o.past+'일 · 조정 기준 '+o.adjMin+'회)';
   var T={ i:0, r:0, o:0, a:0, c:0 };
   var body=list.map(function(r){ T.i+=r.inQty; T.r+=r.retQty; T.o+=r.outQty; T.a+=r.adjQty; T.c+=r.curQty;
-    return [r.prodCd, r.prodNm, r.vendorNm||r.vendorCd, r.inQty, (r.retQty||''), r.outQty, (r.adjCnt?r.adjQty:''), (r.adjCnt||''), r.curQty, r.minBal, (r.negCal||''), dser(r.firstNegDt), dser(r.lastNegDt), dser(r.lastInDt), dser(r.lastOutDt), ((r.curQty>0||r.outQty>0)?r.idle:''), r.f.map(function(x){ return NM[x]; }).join(', ')]; });
+    return [r.prodCd, r.prodNm, r.vendorNm||r.vendorCd, r.inQty, (r.retQty||''), r.outQty, (r.adjCnt?r.adjQty:''), (r.adjCnt||''), r.curQty, r.minBal, (r.negCal||''), dser(r.firstNegDt), dser(r.lastNegDt), dser(r.lastInDt), dser(r.lastOutDt), ((r.curQty>0||r.outQty>0)?r.idle:''), r.f.map(function(x){ return NM[x]; }).join(', '), ((r.subs&&r.subs.length)?r.subQty:''), ((r.subs&&r.subs.length)?r.famQty:''), (r.mainCd||'')]; });
   var ws=sheetOf('[재고흐름조회 — '+tn+']', cond,
-    ['품목코드','품목명','매입처','입고','반품','출고','조정','조정 횟수','현재고','최저 잔고','음수 일수(달력)','첫 음수일','마지막 음수일','최근 입고','최근 출고','무출고(일)','이상 유형'], body,
-    ['합 계', list.length.toLocaleString()+'품목', '', T.i, (T.r||''), T.o, T.a, '', T.c, '', '', '', '', '', '', '', ''],
-    { date:[11,12,13,14], num:{ 3:QF, 4:QF, 5:QF, 6:QF, 7:'#,##0', 8:QF, 9:QF, 10:'#,##0', 15:'#,##0' }, left:[1,2,16],
+    ['품목코드','품목명','매입처','입고','반품','출고','조정','조정 횟수','현재고','최저 잔고','음수 일수(달력)','첫 음수일','마지막 음수일','최근 입고','최근 출고','무출고(일)','이상 유형','서브코드 재고','합친 재고','주코드'], body,
+    ['합 계', list.length.toLocaleString()+'품목', '', T.i, (T.r||''), T.o, T.a, '', T.c, '', '', '', '', '', '', '', '', '', '', ''],
+    { date:[11,12,13,14], num:{ 3:QF, 4:QF, 5:QF, 6:QF, 7:'#,##0', 8:QF, 9:QF, 10:'#,##0', 15:'#,##0', 17:QF, 18:QF }, left:[1,2,16],
       red:function(a){ var c=[]; if(typeof a[8]==='number' && a[8]<0) c.push(8); if(typeof a[9]==='number' && a[9]<0) c.push(9); return c; } });
   var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '재고흐름');
   /* 둘째 시트 — 열어 둔 품목의 수불 내역 + 잔고 */
