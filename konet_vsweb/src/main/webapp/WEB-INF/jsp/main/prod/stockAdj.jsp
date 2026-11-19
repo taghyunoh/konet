@@ -94,6 +94,7 @@
   .diff{ font-weight:800; }
   .diff.up{ color:#1f7a4b; }
   .diff.dn{ color:#b23b3b; }
+  b.aft{ font-weight:800; color:#125a4e; } b.aft.neg{ color:#b23b3b; }   /* 조정 후 재고 (2026-11-19) */
 
   .foot{ display:flex; align-items:center; gap:12px; padding:5px 10px; margin-top:6px;
          background:#fff; border:1px solid var(--bd); border-radius:8px; font-size:13px; }
@@ -104,7 +105,10 @@
   .hist.off .hgrid{ display:none; }
   /* ── 승인 요청 (2026-11-18) — 조정 이력과 같은 상자 모양. 대기가 없으면 표를 접어 자리를 안 먹는다 ── */
   #reqBox .hgrid{ min-height:0; max-height:26vh; }
-  #reqBox.none .hgrid{ display:none; }
+  /* [바꿈 2026-11-19 사용자 「이 상태에서 (높이 막대) 작동 안 함」] 종전 = 요청이 없으면 표를 숨겼다(display:none) → 탭으로 묶은 뒤로는 승인 요청 탭이 기본인데
+     숨은 표라 높이 막대가 늘리고 줄일 대상이 없어 눌러도 아무 일이 없었다. ⇒ 비어 있어도 표를 보이고(머리줄 + 「승인 대기 중인 요청이 없습니다」 한 줄) 막대로 늘릴 수 있게 한다. */
+  #reqBox.none .hgrid{ min-height:0; }
+  #reqBody td.rq-empty{ text-align:center; color:#8a98a8; padding:14px 8px; }
   /* 내 요청 결과 띠 (2026-11-18 「요청한 직원에게도 승인/반려 결과 알림 표시」) — 승인·반려됐는데 아직 [확인했습니다] 안 한 내 요청 */
   #reqMine{ margin:0 8px 8px; border:1px solid #cfe3dc; background:#f3faf7; border-radius:8px; padding:7px 10px; font-size:13px; }
   #reqMine.rej{ border-color:#f0c9c9; background:#fff6f5; }
@@ -127,6 +131,7 @@
   #reqMine .rm-grid .why{ color:#b23b3b; font-weight:700; }
   #reqMine .rm-grid td.nm{ font-weight:700; text-align:left; white-space:normal; min-width:160px; }
   #reqBox .htab .tb.pend{ background:#b06a00; border-color:#b06a00; color:#fff; }
+  #histBox .htab .tb.pend{ border-color:#b06a00; color:#8a5200; background:#fff6e5; }   /* 조정 이력을 보는 중에도 «승인 대기 있음»이 보이게 (2026-11-19 탭) */
   .rq-st{ display:inline-block; padding:1px 8px; border-radius:10px; font-size:11.5px; font-weight:800; white-space:nowrap; }
   .rq-st.P{ background:#fff3d6; color:#8a5a00; } .rq-st.A{ background:#e3f4ef; color:#0e6657; }
   .rq-st.R{ background:#fde8e8; color:#b23b3b; } .rq-st.C{ background:#eef1f4; color:#6b7a89; }
@@ -257,10 +262,12 @@
           <th class="c" style="width:95px">수정BOX재고</th>
           <th class="c" style="width:95px">수정EA재고</th>
           <th class="r" style="width:90px">증감</th>
+          <%-- 조정 후 재고 (2026-11-19 사용자 「수정수량 하면 증감이 나오는데 실제 현재고가 얼마다 표시했으면」) — 수정BOX × 입수 + 수정EA. 고친 줄에만 숫자가 나온다 --%>
+          <th class="r" style="width:100px" title="저장(승인)하면 되는 재고 = 수정BOX재고 × 입수수량 + 수정EA재고. 수량을 고친 줄에만 나옵니다">조정 후 재고</th>
         </tr>
       </thead>
       <tbody id="body">
-        <tr><td colspan="12" class="c dim" style="padding:26px">[리스트조회] 를 눌러 주세요.</td></tr>
+        <tr><td colspan="13" class="c dim" style="padding:26px">[리스트조회] 를 눌러 주세요.</td></tr>
       </tbody>
     </table>
   </div>
@@ -283,7 +290,10 @@
        관리자가 직접 누른 [수정저장]은 종전대로 바로 반영된다. 서버가 요청 목록을 못 주면(옛 서버 · 표 없음) 이 상자는 안 보인다. --%>
   <div class="hist none" id="reqBox" style="display:none">
     <div class="htab">
-      <button type="button" class="tb on" id="reqTab" onclick="reqFold();" title="눌러서 접기/펼치기">⏳ 승인 요청 <b id="reqCnt"></b></button>
+      <%-- ★탭 두 개 (2026-11-19 사용자 「탭 두 개로 승인요청 · 조정이력으로 구성 — 기본은 승인요청 탭」) — 종전엔 두 상자가 위아래로 쌓여 목록 자리를 둘이 나눠 먹었다.
+           한 번에 한 상자만 보인다(tabGo). 켜진 탭을 다시 누르면 종전처럼 접기/펼치기. 두 상자 머리줄에 같은 탭 두 개를 둔다 — 어느 쪽이 보여도 탭 자리가 같다. --%>
+      <button type="button" class="tb on" id="reqTab" onclick="tabGo('req');" title="승인 요청 — 켜진 탭을 다시 누르면 접기/펼치기">⏳ 승인 요청 <b id="reqCnt"></b></button>
+      <button type="button" class="tb" onclick="tabGo('his');" title="조정 이력 보기">📜 조정 이력</button>
       <span id="reqHint" class="dim" style="font-size:12.5px"></span>
       <span class="sp" style="flex:1"></span>
       <label style="cursor:pointer"><input type="checkbox" id="reqAll" onchange="reqLoad();" style="height:auto;vertical-align:-2px"> 끝난 요청도 (최근 60일)</label>
@@ -313,9 +323,10 @@
     </div>
   </div>
 
-  <div class="hist" id="histBox">
+  <div class="hist" id="histBox" style="display:none">
     <div class="htab">
-      <button type="button" class="tb on" onclick="hisToggle();" id="hisTab">📜 조정 이력</button>
+      <button type="button" class="tb" id="reqTab2" onclick="tabGo('req');" title="승인 요청 보기">⏳ 승인 요청 <b id="reqCnt2"></b></button>
+      <button type="button" class="tb on" onclick="tabGo('his');" id="hisTab" title="조정 이력 — 켜진 탭을 다시 누르면 접기/펼치기">📜 조정 이력</button>
       <span class="sp" style="flex:1"></span>
       <label>기간</label>
       <input type="date" id="hFrom"> ~ <input type="date" id="hTo">
@@ -502,7 +513,7 @@ function load(){
   p.append('asOfDt',    (_bd && _bd < _td) ? _bd : '');
   p.append('whCd',      gel('adjWh').value || '');          /* 창고(2026-09-16 P3) — 비면 전 창고 합계 */
 
-  gel('body').innerHTML = '<tr><td colspan="12" class="c dim" style="padding:26px">불러오는 중…</td></tr>';
+  gel('body').innerHTML = '<tr><td colspan="13" class="c dim" style="padding:26px">불러오는 중…</td></tr>';
 
   busy(true, '목록을 조회하는 중입니다…');           /* ★모래시계 — 문구는 '조회'(2026-08-19 지적: 재고집계 아님) */
   loadAux();                                         /* 보조자료(중지·매칭·마스터명)도 새로 — 2026-09-17 */
@@ -518,7 +529,7 @@ function load(){
 
 function render(){
   if (!ROWS.length){
-    gel('body').innerHTML = '<tr><td colspan="12" class="c dim" style="padding:26px">자료가 없습니다.</td></tr>';
+    gel('body').innerHTML = '<tr><td colspan="13" class="c dim" style="padding:26px">자료가 없습니다.</td></tr>';
     gel('cnt').textContent = '0건';
     gel('chgCnt').textContent = '0';
     return;
@@ -569,6 +580,7 @@ function render(){
       + '<td class="c"><input class="ed" id="ea'+i+'" value="' + nvl(r.eaQty) + '"'
       +     ' oninput="chg(' + i + ')"></td>'
       + '<td class="r" id="df'+i+'"><span class="dim">-</span></td>'
+      + '<td class="r" id="af'+i+'"><span class="dim">-</span></td>'   /* 조정 후 재고 — 고치면 chg() 가 채운다 (2026-11-19) */
       + '</tr>';
   }).join('');
   gel('cnt').textContent = ROWS.length + '건'
@@ -588,21 +600,21 @@ function render(){
 function adjExcel(){
   var list=_FLT.length?_FLT:ROWS; if(!list.length){ alertBox("출력할 자료가 없습니다 — 먼저 [리스트조회]를 누르세요.","⚠️"); return; }
   var idx={}; ROWS.forEach(function(r,i){ idx[String(r.prodSeq)+"|"+String(r.prodCd)]=i; });
-  var head=["상품코드","구분","주코드","상품명","규격","입수수량","유형","제조사","중지일","BOX재고","EA재고","합계재고","수정BOX재고","수정EA재고","증감"];
+  var head=["상품코드","구분","주코드","상품명","규격","입수수량","유형","제조사","중지일","BOX재고","EA재고","합계재고","수정BOX재고","수정EA재고","증감","조정 후 재고"];
   var aoa=[head].concat(list.map(function(r){
     var st=_pm[r.prodSeq]||{}, sb=_subOf[String(r.prodCd)], i=idx[String(r.prodSeq)+"|"+String(r.prodCd)];
-    var bx="", ea="", df="";
+    var bx="", ea="", df="", af="";
     if(i!=null && gel("bx"+i)){ bx=nvl(gel("bx"+i).value); ea=nvl(gel("ea"+i).value); var pk=nvl(gel("pk"+i)?gel("pk"+i).value:r.packQty)||1;
-      df=(bx*pk+ea)-nvl(r.curQty); }
+      df=(bx*pk+ea)-nvl(r.curQty); af=bx*pk+ea; }
     return [r.prodCd, sb?"서브":"", sb?sb.prodCd:"", r.prodNm, r.spec, nvl(r.packQty), r.typeNm||"", r.makerNm||"",
-            st.stopYn==="Y"?fmtDt8(st.stopFrDt):"", nvl(r.boxQty), nvl(r.eaQty), nvl(r.curQty), bx, ea, df];
+            st.stopYn==="Y"?fmtDt8(st.stopFrDt):"", nvl(r.boxQty), nvl(r.eaQty), nvl(r.curQty), bx, ea, df, af];
   }));
   var wh=gel("adjWh"), whNm=wh&&wh.options[wh.selectedIndex]?wh.options[wh.selectedIndex].text:"전체", bd=gel("baseDt").value||"";
   var fn="재고일괄조정_"+(bd||"전체")+(whNm&&whNm!=="전체"?"_"+whNm:"")+".xlsx";
   var P=window.parent;
   function byLib(LIB){
     var ws=LIB.utils.aoa_to_sheet(aoa);
-    ws["!cols"]=[{wch:14},{wch:6},{wch:14},{wch:44},{wch:22},{wch:9},{wch:16},{wch:14},{wch:11},{wch:9},{wch:9},{wch:9},{wch:11},{wch:11},{wch:8}];
+    ws["!cols"]=[{wch:14},{wch:6},{wch:14},{wch:44},{wch:22},{wch:9},{wch:16},{wch:14},{wch:11},{wch:9},{wch:9},{wch:9},{wch:11},{wch:11},{wch:8},{wch:12}];
     /* ★머리글 고정 + 색 (2026-09-23 「헤더 고정으로 하고 색깔 틀리게」) — 첫 줄을 화면 표 머리글과 같은 청록 칠·흰 글자·굵게, 스크롤해도 남게 고정.
        색은 스타일본(xlsx-js-style)일 때만 먹고 원본 SheetJS 면 조용히 무시된다(s 칸을 안 읽는다). 수정BOX/EA 두 칸은 입력칸이라 노랑으로 갈라 둔다 */
     ws["!freeze"]={xSplit:0, ySplit:1, topLeftCell:"A2", activePane:"bottomLeft", state:"frozen"};
@@ -701,7 +713,10 @@ function chg(i, quiet){
   var aft  = nvl(gel('bx'+i).value) * pack + nvl(gel('ea'+i).value);
   var diff = aft - nvl(r.curQty);
 
-  var td = gel('df'+i), tr = gel('tr'+i);
+  var td = gel('df'+i), tr = gel('tr'+i), af = gel('af'+i);
+  /* 조정 후 재고 (2026-11-19) — 증감만으로는 «그래서 재고가 얼마가 되나»를 암산해야 했다. 고친 줄에만 굵게, 음수면 빨강 */
+  if (af) af.innerHTML = (diff === 0) ? '<span class="dim">-</span>'
+       : '<b class="aft' + (aft < 0 ? ' neg' : '') + '" title="조정 후 재고 = 수정BOX ' + nvl(gel('bx'+i).value) + ' × 입수 ' + pack + ' + 수정EA ' + nvl(gel('ea'+i).value) + ' (지금 ' + nvl(r.curQty) + ')">' + aft + '</b>';
   if (diff === 0){
     td.innerHTML = '<span class="dim">-</span>';
     tr.classList.remove('chg');
@@ -894,7 +909,7 @@ function reqLoad(say){
       reqRender();
       if (say) toast('승인 요청 목록을 다시 읽었습니다.');
     })
-    .catch(function(){ _req.ready = false; var b = gel('reqBox'); if (b) b.style.display = 'none'; reqRole(); });
+    .catch(function(){ _req.ready = false; tabPaint(); reqRole(); });   /* 승인 요청을 못 받으면 조정 이력만 (tabPaint) */
 }
 /* 역할에 맞춰 저장 단추 이름을 바꾼다 — 직원 = 「승인 요청」 */
 function reqRole(){
@@ -905,6 +920,29 @@ function reqRole(){
                  : (_req.ready ? '고친 줄을 바로 저장합니다(관리자). 직원이 올린 요청은 아래 [⏳ 승인 요청]에서 승인합니다.' : '');
 }
 function reqFold(){ _req.fold = !_req.fold; reqRender(); }
+/* ── 탭 (2026-11-19 사용자 「탭 두 개로 승인요청 · 조정이력 — 기본은 승인요청 탭」) ──
+   _tab = 'req'(승인 요청 — 기본) | 'his'(조정 이력). 화면을 열 때마다 승인 요청부터(기억하지 않는다 — 사용자가 정한 기본).
+   · 다른 탭을 누르면 그 상자로 바꾸고, 켜진 탭을 다시 누르면 종전의 접기/펼치기(reqFold · hisToggle).
+   · 조정 이력은 처음 열 때 한 번 저절로 조회한다(종전엔 [이력조회]를 눌러야 했다).
+   · 서버가 승인 요청을 못 주면(옛 서버 · 표 없음 — _req.ready=false) 조정 이력만 보이고 승인 요청 탭은 감춘다.
+   · 높이 막대(adjGrip)는 «지금 보이는 탭의 표»를 늘리고 줄인다 — tabWrap()/tabBox(). */
+var _tab = 'req';
+function tabNow(){ return _req.ready ? _tab : 'his'; }
+function tabBox(){ return gel(tabNow() === 'req' ? 'reqBox' : 'histBox'); }
+function tabWrap(){ return gel(tabNow() === 'req' ? 'reqWrap' : 'hisWrap'); }
+function tabPaint(){
+  var rq = gel('reqBox'), hs = gel('histBox'); if (!rq || !hs) return;
+  var t = tabNow();
+  rq.style.display = (t === 'req') ? '' : 'none';
+  hs.style.display = (t === 'his') ? '' : 'none';
+  var r2 = gel('reqTab2'); if (r2) r2.style.display = _req.ready ? '' : 'none';
+  if (t === 'his' && !hs.classList.contains('off') && gel('hisBody').children.length <= 1 && !tabPaint._his){ tabPaint._his = true; hisLoad(); }   /* 처음 열 때 한 번 */
+}
+function tabGo(t){
+  if (t === tabNow()){ if (t === 'req') reqFold(); else hisToggle(); return; }   /* 켜진 탭 = 접기/펼치기 */
+  _tab = t; tabPaint();
+  var v = (typeof adjGripGet === 'function') ? adjGripGet() : 0; if (v && typeof adjGripSet === 'function') setTimeout(function(){ adjGripSet(v, true); }, 0);   /* 고른 높이를 새 탭 표에도 */
+}
 /* ── 내 요청 결과 띠 (2026-11-18 「요청한 직원에게도 승인/반려 결과 알림 표시」) ──
    내가 올린 요청 중 승인·반려됐는데 아직 [확인했습니다]를 안 누른 것. 표(대기 목록)와 따로 늘 보인다 — 「끝난 요청도」를 안 켜도.
    [확인했습니다] = /prod/stockAdjReqSeen.do → 띠와 메뉴 배지가 사라진다(요청 기록은 「끝난 요청도」에 그대로 남는다). */
@@ -956,11 +994,12 @@ function reqRender(){
   var box = gel('reqBox'), body = gel('reqBody'); if (!box || !body) return;
   reqRole();
   var L = _req.list, nP = L.filter(function(q){ return q.statGb === 'P'; }).length;
-  box.style.display = '';
+  tabPaint();   /* 보일지는 탭이 정한다 (2026-11-19) — 종전엔 늘 보였다 */
   box.classList.toggle('none', !L.length);
   box.classList.toggle('off', _req.fold);
   gel('reqCnt').textContent = nP ? (' ' + nP + '건 대기') : '';
   gel('reqTab').classList.toggle('pend', nP > 0);
+  var c2 = gel('reqCnt2'), t2 = gel('reqTab2'); if (c2) c2.textContent = nP ? (' ' + nP + '건 대기') : ''; if (t2) t2.classList.toggle('pend', nP > 0);   /* 조정 이력 탭을 보는 중에도 대기 건수 */
   gel('reqHint').innerHTML = !L.length ? '승인 대기 중인 요청이 없습니다.'
       : (_req.admin ? (nP ? '<b style="color:#8a5a00" title="요청 때의 「전 → 후」 차이입니다 — 그 뒤 출고가 더 나갔으면 승인 뒤 재고는 그만큼 다릅니다">승인하면 상품마다 <u>증감</u>만큼 재고에 반영됩니다</b>' : '대기 중인 요청이 없습니다.')
                     : '총괄관리자·부관리자가 승인하면 상품마다 증감만큼 재고에 반영됩니다.');
@@ -1000,7 +1039,7 @@ function reqRender(){
       + '<td class="c rq-act"' + rs + '>' + act + '</td></tr>';
     for (var i = 1; i < its.length; i++) h += '<tr class="rq-i ' + sg + '">' + prod(its[i]) + '</tr>';
     return h;
-  }).join('');
+  }).join('') || '<tr><td colspan="12" class="rq-empty">승인 대기 중인 요청이 없습니다.</td></tr>';   /* 비어 있어도 표는 보인다 (2026-11-19) */
 }
 /* 사유를 받는 작은 창(반려) — 브라우저 prompt 는 쓰지 않는다 */
 function reqAsk(title, ph, okText, cb){
@@ -1052,9 +1091,8 @@ function reqAct(k, act){
 
 /* ── 하단 조정 이력 ──────────────────────────────────────────────── */
 function hisToggle(){
-  var box = gel('histBox'), tab = gel('hisTab');
-  box.classList.toggle('off');
-  tab.classList.toggle('on', !box.classList.contains('off'));
+  var box = gel('histBox');
+  box.classList.toggle('off');   /* 접어도 탭 색은 그대로 — on 은 이제 «켜진 탭» 뜻이다 (2026-11-19) */
   if (!box.classList.contains('off') && gel('hisBody').children.length <= 1) hisLoad();
 }
 
@@ -1164,24 +1202,29 @@ var ADJ_GRIP_K = 'konetAdjHisH', ADJ_GRIP_STEP = 120, ADJ_LIST_MIN = 110, ADJ_HI
 function adjGripGet(){ try{ var v = parseInt(localStorage.getItem(ADJ_GRIP_K), 10); return v > 0 ? v : 0; }catch(e){ return 0; } }
 function adjGripPut(v){ try{ if (v > 0) localStorage.setItem(ADJ_GRIP_K, String(Math.round(v))); else localStorage.removeItem(ADJ_GRIP_K); }catch(e){} }
 /* 이력 표 높이를 h 로 건다. 목록이 ADJ_LIST_MIN 아래로 눌리거나 화면 밖으로 넘치면 그만큼 되돌린다. 돌려주는 값 = 실제로 건 높이 */
-function adjGripSet(h){
-  var w = gel('hisWrap'), g = gel('adjGrid'), wrap = g && g.parentNode; if (!w || !g) return 0;
+function adjGripSet(h, auto){
+  var w = tabWrap(), g = gel('adjGrid'), wrap = g && g.parentNode; if (!w || !g) return 0;   /* 지금 보이는 탭의 표 (2026-11-19) */
+  if (w.offsetParent === null) return 0;   /* 탭을 접어 표가 안 보이면 건드리지 않는다 */
+  /* auto = 저장값을 저절로 다시 거는 호출(창 크기·탭 바꿈·처음). 승인 요청이 비어 있으면 빈 표를 키우지 않고 제 높이(머리줄 + 안내 한 줄)로 둔다 —
+     손으로 막대를 움직인 호출(auto 없음)은 빈 표라도 그대로 따른다 (2026-11-19 「이 상태에서 작동 안 함」) */
+  if (auto && tabNow() === 'req' && !(_req.list && _req.list.length)){ w.style.removeProperty('height'); w.style.removeProperty('min-height'); w.style.removeProperty('max-height'); return 0; }
   function put(v){ w.style.setProperty('height', v + 'px', 'important'); w.style.setProperty('min-height', '0', 'important'); w.style.setProperty('max-height', 'none', 'important'); }
   h = Math.max(ADJ_HIS_MIN, Math.round(h)); put(h);
   var lack = Math.max(0, ADJ_LIST_MIN - g.clientHeight) + Math.max(0, wrap.scrollHeight - wrap.clientHeight);
   if (lack > 0){ h = Math.max(ADJ_HIS_MIN, h - lack); put(h); }
   return h;
 }
-function adjGripReset(){ var w = gel('hisWrap'); if (!w) return; w.style.removeProperty('height'); w.style.removeProperty('min-height'); w.style.removeProperty('max-height'); adjGripPut(0); }
+function adjGripReset(){ ['hisWrap','reqWrap'].forEach(function(id){ var w = gel(id); if (!w) return; w.style.removeProperty('height'); w.style.removeProperty('min-height'); w.style.removeProperty('max-height'); }); adjGripPut(0); }   /* 두 탭 표 모두 처음 높이로 */
 (function(){
   var g = gel('adjGrid'); if (!g) return;
   var bar = document.createElement('div'); bar.className = 'agrip'; bar.id = 'adjGrip';
-  bar.title = '잡고 아래로 끌면 목록이 늘고(조정 이력이 줄고), 위로 끌면 목록이 줄어듭니다 · 더블클릭 = 처음 높이';
+  bar.title = '잡고 아래로 끌면 목록이 늘고(아래 탭 표가 줄고), 위로 끌면 목록이 줄어듭니다 · 더블클릭 = 처음 높이';
   bar.innerHTML = '<i></i><span class="bt"><b data-d="-1" title="목록을 줄이고 조정 이력을 늘립니다">▲ 줄이기</b><b data-d="1" title="목록을 늘리고 조정 이력을 줄입니다">▼ 늘리기</b></span>';
   g.parentNode.insertBefore(bar, g.nextSibling);
   var drag = false;
-  function hisOff(){ var b = gel('histBox'); return !!(b && b.classList.contains('off')); }
-  function hisH(){ return gel('hisWrap').offsetHeight; }
+  function hisOff(){ var b = tabBox(); return !!(b && b.classList.contains('off')); }       /* 지금 보이는 탭이 접혀 있나 */
+  function hisH(){ var w = tabWrap(); return w ? w.offsetHeight : 0; }
+  function hisToggle(){ if (tabNow() === 'req') reqFold(); else window.hisToggle(); }           /* 막대가 펼칠 때 — 보이는 탭 것을 */
   bar.addEventListener('mousedown', function(e){
     if (e.button !== 0 || (e.target.closest && e.target.closest('b'))) return;
     e.preventDefault();
@@ -1200,14 +1243,14 @@ function adjGripReset(){ var w = gel('hisWrap'); if (!w) return; w.style.removeP
     adjGripPut(adjGripSet(hisH() - d * ADJ_GRIP_STEP));
   });
   bar.addEventListener('dblclick', function(e){ if (e.target.closest && e.target.closest('b')) return; adjGripReset(); });
-  window.addEventListener('resize', function(){ var v = adjGripGet(); if (v) adjGripSet(v); });   /* 창이 작아지면 넘친 만큼만 줄여 보여 준다(저장값은 그대로) */
-  var s0 = adjGripGet(); if (s0) setTimeout(function(){ adjGripSet(s0); }, 0);
+  window.addEventListener('resize', function(){ var v = adjGripGet(); if (v) adjGripSet(v, true); });   /* 창이 작아지면 넘친 만큼만 줄여 보여 준다(저장값은 그대로) */
+  var s0 = adjGripGet(); if (s0) setTimeout(function(){ adjGripSet(s0, true); }, 0);
   /* ★목록 높이가 «다른 까닭»으로 바뀌면(승인 요청 상자가 나타남 · 조회줄이 두 줄로 접힘 · 이력 접기) 고른 높이를 다시 맞춘다.
        화면을 열 때 승인 요청 상자는 목록보다 늦게 나타난다 — 그때 한 번만 맞추면 목록이 최소 높이 밑으로 눌린 채 남는다(시연 화면 실측 87px).
        끄는 동안에는 쉬고(저장값이 아직 옛 값이라 손과 싸운다), 표 크기를 바꾸는 일이라 다음 틱으로 미룬다. */
   try{ var pend = false;
        new ResizeObserver(function(){ if (drag || pend) return; pend = true;
-         setTimeout(function(){ pend = false; var v = adjGripGet(); if (v && !drag) adjGripSet(v); }, 0); }).observe(g);
+         setTimeout(function(){ pend = false; var v = adjGripGet(); if (v && !drag) adjGripSet(v, true); }, 0); }).observe(g);
   }catch(e){}
 })();
 

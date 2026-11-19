@@ -42,13 +42,20 @@
   .lv-ym{ font-size:17px; font-weight:800; min-width:130px; text-align:center; }
   .lv-sep{ width:1px; height:24px; background:var(--bd); margin:0 4px; }
   .lv-main{ display:flex; gap:12px; align-items:flex-start; }
-  .lv-left{ flex:1 1 640px; min-width:520px; }
-  .lv-right{ flex:0 0 560px; }
+  .lv-left{ flex:1 1 560px; min-width:480px; }
+  /* 오른쪽(현황·휴가 목록) 넓힘 (2026-11-19 사용자 「달력 조금 작게 · 우측 조금 확대 — 사유가 이렇게(세로로) 보임」) —
+     종전 560px 고정. 휴가 목록 표의 고정 칸 합(566px)이 그보다 커서 «사유» 칸이 0 폭이 되고 글자가 한 자씩 세로로 꺾였다.
+     ⇒ 화면의 42%(최소 560 · 최대 780px)로 넓히고, 목록 칸 폭도 줄여 사유에 자리를 준다. 달력은 그만큼 좁아진다 */
+  .lv-right{ flex:0 0 clamp(560px, 35%, 680px); min-width:0; }   /* 42% → 38% → 35% (2026-11-19 「달력 조금만 확대」 — 같은 날 넓혔다가 조금 되돌림) */
   /* 달력 */
   .cal{ width:100%; border-collapse:collapse; table-layout:fixed; }
   .cal th{ background:#b9ded4; color:#0b4f43; font-weight:800; padding:6px 0; border:1px solid var(--bd); font-size:13px; }
   .cal th.sun{ color:#c0392b; } .cal th.sat{ color:#2f4f9a; }
-  .cal td{ border:1px solid var(--bd); vertical-align:top; height:92px; padding:3px 4px; cursor:default; background:#fff; user-select:none; }
+  /* 오늘의 요일 = 글자를 동그라미로 감싼다 (2026-11-19 사용자 「요일에 동그라미 감싸게」 — 같은 날 처음엔 칸 전체를 진하게 칠했다) */
+  .cal th span{ display:inline-block; width:24px; height:24px; line-height:20px; border:2px solid transparent; border-radius:50%; box-sizing:border-box; }
+  .cal th{ padding:3px 0; }
+  .cal th.tdy span{ border-color:#0f6b5e; background:#fff; }
+  .cal td{ border:1px solid var(--bd); vertical-align:top; height:91px; padding:3px 4px; cursor:default; background:#fff; user-select:none; }
   .cal td:hover{ background:#f7fbfa; }
   .cal td.out{ background:#fafbfc; color:#b0bac4; cursor:default; } .cal td.out:hover{ background:#fafbfc; }
   .cal td.wend{ background:#fcfcfd; } .cal td.today{ outline:2px solid var(--teal); outline-offset:-2px; background:#f1f9f7; }
@@ -96,6 +103,13 @@
   .ejoin{ flex:1; } .ejoin table{ border-collapse:collapse; font-size:12.5px; width:100%; }   /* 휴가 창의 입사일·연차 표 (2026-10-21) */
   .ejoin th{ background:#eef3f7; font-weight:700; color:#3d4d5c; padding:3px 6px; border:1px solid #d5dde5; text-align:center; white-space:nowrap; }
   .ejoin td{ padding:3px 6px; border:1px solid #d5dde5; text-align:center; color:#1f2d3a; white-space:nowrap; } .ejoin td.rem{ font-weight:700; color:#1f7a8c; } .ejoin td.none{ color:#8a98a8; }
+  /* 연도별 현황 탭 · 전체 탭 스크롤 (2026-11-19) */
+  .sumtab{ display:inline-flex; gap:3px; margin-left:4px; }
+  .sumtab .lv-btn{ height:24px; padding:0 9px; font-size:12px; }
+  .sumtab .lv-btn.on{ background:#137a6c; border-color:#137a6c; color:#fff; }
+  #sumScroll.all{ max-height:max(320px, calc(100vh - 330px)); overflow:auto; }
+  #sumScroll.all #sumTbl thead{ position:sticky; top:0; z-index:2; }
+  #sumScroll.all #sumTbl thead th{ box-shadow:inset 0 -1px 0 var(--bd); }
   #sumTbl td.yr{ font-weight:700; vertical-align:middle; background:#f3f6f9; color:#2a3b4c; }   /* 연도별 현황의 연도 칸 (2026-10-21) */
   /* 보기 전용 창 : 잠근 칸도 글자는 또렷하게 (2026-10-21 「표시 활성화하고 저장만 없애면 — 글자가 희미해서」) */
   #lvPop .fld input:disabled, #lvPop .fld select:disabled, #lvPop .fld textarea:disabled, #lvPop .fld input[readonly]{ color:#1f2d3a; -webkit-text-fill-color:#1f2d3a; opacity:1; background:#f7f9fb; border-color:#d5dde5; cursor:default; }
@@ -104,6 +118,10 @@
   table.grid td.who{ font-weight:800; }
   table.grid.pend2 th.gap, table.grid.pend2 td.gap{ width:10px; border-top:0; border-bottom:0; background:#f7f9fb; padding:0; }   /* 두 건 사이 틈 */
   table.grid.pend2 td.blank{ background:#fafbfc; }
+  /* 사유 칸 — 낱말 단위로만 줄을 바꾸고(한 글자씩 꺾이지 않게) 최소 폭을 지킨다. 그래도 좁으면 표가 가로로 스크롤된다 (2026-11-19) */
+  /* [바꿈 2026-11-19 사용자 「사유 넘치는 것은 팁으로」] 줄바꿈 대신 한 줄 + 말줄임(…). 전체 글은 마우스를 올리면 말풍선(title)으로.
+     max-width:0 = 이 칸의 글 길이가 표 폭을 밀어내지 않게 하는 요령(칸 폭은 머리줄의 min-width 130px + 남는 폭으로 정해진다) */
+  #ulBody td.ulrmk{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:0; }
   .ulScroll{ overflow:auto; }   /* 직원 휴가 목록 — 15줄까지는 그대로, 넘으면 ulFit() 이 max-height 를 준다 */
   .ulScroll thead th{ position:sticky; top:0; z-index:1; box-shadow:0 1px 0 var(--bd); }   /* 스크롤해도 머리줄은 남는다 */
   .ul-more{ text-align:center; font-size:12px; font-weight:700; color:#137a6c; background:#eef5f3; border-top:1px solid var(--bd); padding:4px 0; cursor:pointer; }   /* 「▼ 아래 N건 더」 — 끝까지 내리면 사라진다 */
@@ -154,7 +172,7 @@
       <div id="calWrap">
         <%-- 승인 대기 띠 (2026-10-21 사용자 「총괄관리인데 승인·반려가 없음」 — 달력에서는 승인·반려가 보이지 않았다). 총괄관리자에게만, 그 달 「신청」 건을 줄줄이 + 바로 승인·반려 --%>
         <div id="pendBar" class="box" style="display:none; margin-bottom:8px"></div>
-        <table class="cal"><thead><tr><th class="sun">일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class="sat">토</th></tr></thead><tbody id="calBody"></tbody></table>
+        <table class="cal"><thead><tr><th class="sun"><span>일</span></th><th><span>월</span></th><th><span>화</span></th><th><span>수</span></th><th><span>목</span></th><th><span>금</span></th><th class="sat"><span>토</span></th></tr></thead><tbody id="calBody"></tbody></table>
         <div class="legend" id="legend"></div>
       </div>
       <div id="listWrap" style="display:none" class="box">
@@ -165,11 +183,17 @@
     </div>
     <div class="lv-right">
       <div class="box">
-        <div class="bh">📊 <span id="sumTitle">연도별 현황</span> <small>부여 − 사용 = 잔여 · 반려 제외 · 이름을 누르면 아래에 그 직원·그 연도 목록</small></div>
+        <div class="bh">📊 <span id="sumTitle">연도별 현황</span>
+          <%-- ★탭 (2026-11-19 사용자 「해당 연도와 전년도만 보이게 하고 전체 보이기 탭 만들어 — 전체는 스크롤로」) — 기본 = 달력의 연도 + 그 전년도.
+               [전체] = 자료가 있는 첫 해부터 전부(상자 안에서 스크롤, 머리글 고정). 화면을 열 때마다 기본 탭부터(기억하지 않는다). 엑셀은 탭과 상관없이 전 연도 --%>
+          <span class="sumtab"><button type="button" class="lv-btn on" id="sumTabA" onclick="sumMode(false)" title="달력의 연도만 봅니다">해당 연도</button><button type="button" class="lv-btn" id="sumTabB" onclick="sumMode(true)" title="자료가 있는 첫 해부터 전 연도를 봅니다 — 길면 이 상자 안에서 스크롤">전체</button></span>
+          <small>부여 − 사용 = 잔여 · 반려 제외 · 이름을 누르면 아래에 그 직원·그 연도 목록</small></div>
+        <div id="sumScroll">
         <table class="grid" id="sumTbl">
           <thead id="sumHead"></thead>
           <tbody id="sumBody"><tr><td colspan="13" class="msg">불러오는 중…</td></tr></tbody>
         </table>
+        </div>
         <div class="hint" style="padding:6px 10px" id="sumHint">반일 구분(반차)은 0.5일로 그 종류(연차·월차)의 사용에 들어갑니다. 공휴일은 일수에서 자동으로 빠지지 않으니 등록 창에서 일수를 고치세요.</div>
       </div>
     <%-- 고른 직원의 올해 휴가 목록 (2026-10-21 사용자 「현황에서 대상자를 클릭하면 밑에 해당자 휴가 리스트」) — 현황 이름 클릭 = 달력 거르기 + 이 목록 --%>
@@ -177,7 +201,7 @@
       <div class="bh">📋 <span id="ulTitle">휴가 목록</span> <small id="ulCnt"></small><button class="mini ok" id="ulAll" style="display:none; margin-left:8px; height:26px"></button><span style="margin-left:auto; cursor:pointer; color:#8a98a8" onclick="lvPickUser('')" title="닫기">✕</span></div>
       <%-- 15줄 넘으면 상자 안에서만 스크롤 (2026-10-22) — 높이는 ulFit() 이 머리줄 + 앞 15줄을 실제로 재서 정한다 --%>
       <div class="ulScroll" id="ulScroll">
-      <table class="grid"><thead><tr><th style="width:84px">구분</th><th style="width:170px">기간</th><th style="width:46px">일수</th><th>사유</th><th style="width:60px">상태</th><th style="width:110px">신청일</th><th style="width:96px"></th></tr></thead>
+      <table class="grid"><thead><tr><th style="width:62px">구분</th><th style="width:150px">기간</th><th style="width:40px">일수</th><th style="min-width:130px">사유</th><th style="width:52px">상태</th><th style="width:104px">신청일</th><th style="width:78px"></th></tr></thead>
         <tbody id="ulBody"></tbody></table>
       </div>
       <div id="ulMore" class="ul-more" style="display:none" onclick="document.getElementById('ulScroll').scrollBy({top:200,behavior:'smooth'})" title="누르면 아래로 내립니다"></div>
@@ -308,7 +332,14 @@ function load(){
     post('/mangr/leaveList.do','frDt='+ymd(a)+'&toDt='+ymd(b)),
     post('/mangr/leaveList.do','frDt=20000101&toDt=99991231')
   ]).then(function(r){ _rows=(r[0]&&r[0].data)||[]; _allRows=(r[1]&&r[1].data)||[];
-    var ys={}; ys[cy]=1; _allRows.forEach(function(o){ ys[String(o.fromDt).slice(0,4)]=1; }); _years=Object.keys(ys).sort().reverse();
+    var ys={}; ys[cy]=1; ys[String(new Date().getFullYear())]=1; _allRows.forEach(function(o){ ys[String(o.fromDt).slice(0,4)]=1; });
+    /* ★사이 연도를 채운다 (2026-11-19 사용자 「2027년 없어짐 — 년도별로 조회되게」) — 종전엔 «달력의 연도 + 휴가가 있는 연도»만 냈다.
+         달력을 2028년으로 넘기면 2028 · 2026 만 나오고, 휴가를 아직 안 쓴 2027년은 통째로 빠졌다(부여·이월·잔여를 볼 길이 없었다).
+         ⇒ 가장 이른 연도부터 가장 늦은 연도(달력 연도·올해·자료 연도 중)까지 한 해도 빠짐없이 낸다. 휴가가 없는 해도 부여·이월·잔여 줄은 나온다.
+         숫자가 아닌 연도(날짜가 깨진 자료)는 빼고, 혹시 범위가 터무니없이 넓어도 30년까지만 */
+    var yn=Object.keys(ys).map(Number).filter(function(v){ return v>=2000 && v<=2100; });
+    if(yn.length){ var y0=Math.min.apply(null, yn), y1=Math.max.apply(null, yn); if(y1-y0>30) y0=y1-30; ys={}; for(var yy=y0; yy<=y1; yy++) ys[String(yy)]=1; }
+    _years=Object.keys(ys).sort().reverse();
     return Promise.all(_years.map(function(y){ return post('/mangr/leaveSummary.do','year='+y); })); })
   .then(function(rs){ _sumYears={}; _years.forEach(function(y,i){ _sumYears[y]={ sum:(rs[i]&&rs[i].data)||[], quota:(rs[i]&&rs[i].quota)||[], auto:(rs[i]&&rs[i].auto)||{} }; });
     _sum=(_sumYears[cy]||{ sum:[] }).sum; _quota=(_sumYears[cy]||{ quota:[] }).quota; lvRender(); sumRender(); ulRender(); })
@@ -325,6 +356,8 @@ function lvRender(){ if(_view==='cal') calRender(); else listRender(); }
 /* ── 달력 ── */
 function calRender(){
   var y=_ym.getFullYear(), m=_ym.getMonth(), first=new Date(y,m,1), start=new Date(y,m,1-first.getDay()), today=ymd(new Date());
+  /* ★오늘의 요일 머리글 표시 (2026-11-19 사용자 「해당 요일 헤더 표시되게」) — 달력이 <이번 달>을 보일 때만 오늘 요일 칸(일~토)을 진하게. 다른 달로 넘기면 표시가 없다(그 달엔 오늘이 없다) */
+  (function(){ var ths=document.querySelectorAll(".cal thead th"), t=new Date(), on=(t.getFullYear()===y && t.getMonth()===m); for(var i=0;i<ths.length;i++) ths[i].classList.toggle("tdy", on && i===t.getDay()); })();
   var rows=filtered(), h='', d=new Date(start.getTime());
   for(var w=0; w<6; w++){
     h+='<tr>';
@@ -418,8 +451,20 @@ function sumCalc(g, C){   /* g = {구분:{days,cnt}} → {au, mu, half, oth:{nm:
     else { r.oth[k]=(r.oth[k]||0)+x.days; } });
   return r;
 }
+/* ★보일 연도 (2026-11-19 사용자 「해당 연도와 전년도만 보이게 하고 전체 보이기 탭 — 전체는 스크롤로」)
+   _sumAll=false(기본) : 달력의 연도 + 그 전년도 — 전년도는 자료 범위(_years) 안에 있을 때만(첫 해 앞은 줄이 없다).
+   _sumAll=true        : _years 전부. 표가 길어지므로 #sumScroll.all 안에서 스크롤하고 머리글은 붙는다.
+   고른 직원 목록(아래 상자)의 연도가 지금 탭에 안 보이는 해면 고름을 푼다 — 표에 표시(.on)가 없는 채 목록만 남으면 헷갈린다. */
+var _sumAll=false;
+/* [바꿈 2026-11-19 사용자 「우측 해당년도만 보이게」] 기본 탭 = 달력의 연도 <하나만>. 같은 날 처음엔 «해당 연도 + 전년도»였다 — 전년도는 [전체] 탭에서 본다 */
+function sumYears(){ var all=_years.length?_years:[yearOf()]; if(_sumAll) return all; return [yearOf()]; }
+function sumMode(all){ _sumAll=!!all; if(_pickYear && sumYears().indexOf(_pickYear)<0){ _pickUser=''; _pickYear=''; } sumRender(); ulRender(); var sc=document.getElementById('sumScroll'); if(sc) sc.scrollTop=0; }
 function sumRender(){
-  var C=sumCols(), years=_years.length?_years:[yearOf()];
+  var C=sumCols(), years=sumYears();
+  (function(){ var a=document.getElementById('sumTabA'), b=document.getElementById('sumTabB'), sc=document.getElementById('sumScroll'), n=(_years.length||1);
+    if(a){ a.classList.toggle('on', !_sumAll); a.textContent=yearOf()+'년'; }
+    if(b){ b.classList.toggle('on', _sumAll); b.textContent='전체 ('+n+'개 연도)'; }
+    if(sc) sc.classList.toggle('all', _sumAll); })();
   document.getElementById('sumHead').innerHTML='<tr><th rowspan="2" style="width:48px">연도</th><th rowspan="2" style="width:74px">직원</th><th colspan="4">연차</th>'+(C.hasM?'<th colspan="3">월차</th>':'')+(C.hasHalf?'<th rowspan="2" title="반일 구분 건수(0.5일씩)">반일</th>':'')
     +C.others.map(function(nm){ return '<th rowspan="2">'+esc(nm)+'</th>'; }).join('')+'<th rowspan="2" title="승인 대기 건수">대기</th></tr><tr><th title="전년에서 넘어온 연차">이월</th><th>부여</th><th>사용</th><th>잔여</th>'+(C.hasM?'<th>부여</th><th>사용</th><th>잔여</th>':'')+'</tr>';
   var h='', ncol=6+(C.hasM?3:0)+(C.hasHalf?1:0)+C.others.length+1;
@@ -492,7 +537,7 @@ function ulRender(){
     document.getElementById('ulCnt').textContent=l.length+'건 · '+fmtD(d)+'일 (반려 제외)';
     document.getElementById('ulBody').innerHTML = l.length ? l.map(function(o){ var can=_admin||o.userId===_me;
       return '<tr class="pick" ondblclick="lvOpen('+o.leaveSeq+',null)" title="더블클릭 = 열기"><td><span class="chip '+gbCls(o.leaveGb)+'" style="display:inline-block">'+esc(o.leaveGb)+'</span></td>'
-        +'<td>'+fmtDt(o.fromDt)+(o.fromDt!==o.toDt?' ~ '+fmtDt(o.toDt):'')+'</td><td class="r">'+fmtD(o.days)+'</td><td class="l" style="white-space:normal">'+esc(o.remark)+'</td>'
+        +'<td>'+fmtDt(o.fromDt)+(o.fromDt!==o.toDt?' ~ '+fmtDt(o.toDt):'')+'</td><td class="r">'+fmtD(o.days)+'</td><td class="l ulrmk" title="'+esc(o.remark)+'">'+esc(o.remark)+'</td>'
         +'<td><span class="st '+esc(o.status)+'">'+esc(o.status)+'</span></td><td class="hint">'+esc(String(o.regDttm||'').slice(0,16))+'</td><td style="white-space:nowrap">'+(o.userId===_me&&o.status!=='승인'?'<button class="mini" onclick="lvOpen('+o.leaveSeq+',null)" title="수정">✏</button>':'<button class="mini" onclick="lvOpen('+o.leaveSeq+',null)" title="보기">👁</button>')
         +(_admin&&o.status!=='승인'?'<button class="mini ok" onclick="lvStatus('+o.leaveSeq+',\'승인\')" title="승인">✔</button>':'')+(_admin&&o.status!=='반려'?'<button class="mini no" onclick="lvStatus('+o.leaveSeq+',\'반려\')" title="반려">✖</button>':'')+'</td></tr>'; }).join('')
       : '<tr><td colspan="7" class="msg">'+y+'년 휴가가 없습니다.</td></tr>';

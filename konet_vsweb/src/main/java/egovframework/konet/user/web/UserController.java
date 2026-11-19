@@ -6821,8 +6821,17 @@ public class UserController {
 			for (Map<String,Object> r : svc.selectLeaveUsedYear(q)) { if (!annual.contains(leaveStr(r.get("leaveGb")))) continue;
 				String yr = leaveStr(r.get("leaveYear")), u = leaveStr(r.get("userId")), k = yr + "|" + u; years.add(yr); users.add(u);
 				uy.put(k, (uy.containsKey(k) ? uy.get(k) : 0d) + leaveNum(r.get("days"))); }
+			/* ★사이 연도도 건너뛰지 않는다 (2026-11-19 사용자 「2027년 없어짐 — 년도별로 조회되게」) —
+			     종전엔 «부여 줄이나 사용이 있는 연도»만 굴렸다. 2026 년만 자료가 있을 때 2028 년의 이월이 2026 잔여(3)로 나왔는데,
+			     화면이 2027 년(이월 3 + 부여 15 = 잔여 18)을 보여 주게 되면서 「2027 잔여 18 ≠ 2028 이월 3」으로 어긋났다.
+			     ⇒ 첫 자료 연도부터 year 직전 해까지 한 해씩 잇는다. 자료 없는 해 = 부여 15 · 사용 0(화면의 기본값과 같다). */
+			java.util.List<String> span = new java.util.ArrayList<String>();
+			if (!years.isEmpty() && year.matches("[0-9]{4}") && years.first().matches("[0-9]{4}")) {
+				int y0 = Integer.parseInt(years.first()), y1 = Integer.parseInt(year) - 1; if (y1 - y0 > 60) y0 = y1 - 60;
+				for (int yv = y0; yv <= y1; yv++) span.add(String.valueOf(yv));
+			} else span.addAll(years);
 			for (String u : users) { Double remain = null;
-				for (String yr : years) { if (yr.compareTo(year) >= 0) break;
+				for (String yr : span) { if (yr.compareTo(year) >= 0) break;
 					Map<String,Object> qr = qy.get(yr + "|" + u); Double used = uy.get(yr + "|" + u);
 					if (qr == null && used == null && remain == null) continue;
 					double carry = (qr != null && qr.get("carryDays") != null) ? leaveNum(qr.get("carryDays")) : (remain == null ? 0d : remain.doubleValue());
