@@ -61,6 +61,8 @@
   .fl.sub{ background:#efe6fb; color:#5b3a99; } .fl.subok{ background:#e3f4ef; color:#0e6657; }   /* 서브코드에 재고 (2026-11-19) — 초록 = 합치면 음수가 풀린다 */
   .subtag{ display:inline-block; padding:0 5px; border-radius:8px; background:#efe6fb; color:#5b3a99; font-size:10.5px; font-weight:800; }
   /* 주코드 밑 서브코드 줄 (2026-11-19) */
+  .gofix{ height:20px; padding:0 8px; margin-left:4px; border:1px solid #8a6fc0; border-radius:10px; background:#fff; color:#5b3a99; font-size:11.5px; font-weight:800; cursor:pointer; white-space:nowrap; vertical-align:middle; }
+  .gofix:hover{ background:#5b3a99; color:#fff; }   /* 서브코드 재고 정리로 가기 (2026-11-19) */
   .maintag{ display:inline-block; padding:0 5px; border-radius:8px; background:#137a6c; color:#fff; font-size:10.5px; font-weight:800; }
   .kar{ color:#8a6fc0; font-weight:800; margin:0 4px 0 6px; }
   tr.kid td{ background:#fbf8ff; color:#4a3f66; } tr.kid.pick:hover td{ background:#f1eafc; } tr.kid.pick.on td{ background:#e6daf8; }
@@ -143,7 +145,7 @@
     <%-- 목록 ↔ 상세 높이 막대 (2026-11-19 사용자 「표시부분 막대로 늘리고 축소 가능하게」) — 상세가 열려 있을 때만 보인다.
          위로 끌면 아래 수불 상세가 커지고(목록이 줄고), 아래로 끌면 목록이 커진다. 재고 일괄조정의 목록↔이력 막대와 같은 손맛. 높이는 localStorage(konetFlowDtlH) --%>
     <div class="fgrip" id="fgrip" title="잡고 위로 끌면 아래 수불 내역이 커지고, 아래로 끌면 위 목록이 커집니다 · 더블클릭 = 처음 높이"><i></i><span class="bt"><b data-d="-1" title="목록을 줄이고 아래 수불 내역을 늘립니다">▲ 줄이기</b><b data-d="1" title="목록을 늘리고 아래 수불 내역을 줄입니다">▼ 늘리기</b></span></div>
-    <div class="dh"><b class="t" id="dTit"></b><span id="dSum" class="dim"></span><span class="why" id="dWhy"></span><span class="x" onclick="dtlClose()" title="닫기">✕</span></div>
+    <div class="dh"><b class="t" id="dTit"></b><span id="dSum" class="dim"></span><span class="why" id="dWhy"></span><span id="dFix"></span><span class="x" onclick="dtlClose()" title="닫기">✕</span></div>
     <div class="dg" id="dGrid"><table><thead><tr><th class="nosort" style="width:96px">일자</th><th class="nosort" style="width:56px">구분</th><th class="nosort" style="width:80px">수량</th><th class="nosort" style="width:90px">잔고</th><th class="nosort" style="width:80px">단가</th><th class="nosort">거래처</th><th class="nosort" style="width:90px">근거</th><th class="nosort" style="width:130px">근거번호</th><th class="nosort">비고</th><th class="nosort" style="width:140px">등록일시</th></tr></thead><tbody id="dBody"></tbody></table></div>
   </div>
 </div>
@@ -206,12 +208,25 @@ function link(){
     r.kids=(_mainSubs[r.prodCd]||[]).map(function(cd){ return { cd:cd, nm:_subNm[cd]||'', row:by[cd]||null }; }); });
 }
 function sgn(v){ return (v>0?'+':'')+fmt(v); }
+/* ★서브코드 재고 정리로 가기 (2026-11-19 사용자 「서브코드 재고 정리로 가기 단추 넣어줘요」) —
+   셸(부모 창)의 왼쪽 메뉴 「서브코드 재고 정리」를 그대로 누른다(자주 쓰는 메뉴·메뉴 검색과 같은 길 — 화면 여는 방법이 두 벌이 되지 않게).
+   어느 서브코드를 보다 갔는지는 sessionStorage('konetSubFixFocus')에 남긴다 — 그 화면이 목록을 그린 뒤 그 줄로 스크롤하고 잠깐 노랗게 표시한다.
+   메뉴가 없으면(권한) 안내만 한다. 여기서는 아무것도 바꾸지 않는다 — 합치는 일은 그 화면에서 사람이 누른다 */
+function goSubFix(cd, ev){
+  if(ev){ ev.stopPropagation(); ev.preventDefault(); }
+  try{ sessionStorage.setItem('konetSubFixFocus', String(cd||'')); }catch(e){}
+  var P=null, a=null; try{ P=window.parent; a=P && P!==window && P.document.querySelector('.logi-side a.mi[data-key="subStockFix"]'); }catch(e){}
+  if(!a){ alertBox('「서브코드 재고 정리」 메뉴를 찾지 못했습니다.<br>왼쪽 메뉴 재고 관리 ▸ 서브코드 재고 정리에서 직접 열어 주세요.'); return; }
+  var sub=a.closest('.sub-menu'); while(sub){ if(!sub.classList.contains('open')){ sub.classList.add('open'); var head=sub.previousElementSibling; if(head && head.classList.contains('has-sub')) head.classList.add('open'); } sub=sub.parentElement ? sub.parentElement.closest('.sub-menu') : null; }
+  a.click();
+}
+function fixBtn(cd){ return ' <button type="button" class="gofix noprint" onclick="goSubFix(\''+esc(cd).replace(/'/g,'')+'\', event)" title="서브코드 재고 정리 화면으로 갑니다 — 거기서 [0으로 조정]으로 주코드에 합칩니다(이 화면은 조회만)">정리로 가기 →</button>'; }
 /* 「서브코드에 재고」 표시 글 — 주코드 줄 / 서브코드 줄 */
 function subBadge(r){
   if(r.subs && r.subs.length){ var ok=(r.curQty<0 && r.famQty>=0);
     return '<span class="fl '+(ok?'subok':'sub')+'" title="서브코드에 남은 재고 : '+esc(r.subs.map(function(x){ return x.cd+' ('+sgn(x.q)+')'; }).join(', '))+' · 주코드 '+fmt(r.curQty)+' 와 합치면 '+fmt(r.famQty)
-      +(ok?' — 실제 부족이 아닙니다. 재고 관리 ▸ 서브코드 재고 정리에서 합치면 음수가 풀립니다':' — 서브코드 재고 정리에서 합칠 수 있습니다')+'">서브 재고 '+sgn(r.subQty)+' · 합치면 '+fmt(r.famQty)+'</span>'; }
-  return '<span class="fl sub" title="이 코드는 주코드 '+esc(r.mainCd)+' 의 서브코드(매칭코드)인데 재고가 '+fmt(r.curQty)+' 남아 있습니다 — 서브코드 재고 정리에서 주코드로 합칠 수 있습니다">주코드 '+esc(r.mainCd)+'</span>';
+      +(ok?' — 실제 부족이 아닙니다. 재고 관리 ▸ 서브코드 재고 정리에서 합치면 음수가 풀립니다':' — 서브코드 재고 정리에서 합칠 수 있습니다')+'">서브 재고 '+sgn(r.subQty)+' · 합치면 '+fmt(r.famQty)+'</span>'+fixBtn(r.subs[0].cd); }
+  return '<span class="fl sub" title="이 코드는 주코드 '+esc(r.mainCd)+' 의 서브코드(매칭코드)인데 재고가 '+fmt(r.curQty)+' 남아 있습니다 — 서브코드 재고 정리에서 주코드로 합칠 수 있습니다">주코드 '+esc(r.mainCd)+'</span>'+fixBtn(r.prodCd);
 }
 function load(){
   var d=gel('asOf').value||''; busy(true);
@@ -258,7 +273,7 @@ function rowHtml(r, NM, kid){
                    : (hasKid?'<span class="maintag" title="서브코드(매칭코드) '+r.kids.length+'개가 딸린 주코드">주</span> ':'')+esc(r.prodCd)+(r.mainCd?' <span class="subtag" title="주코드 '+esc(r.mainCd)+' 의 서브코드(매칭코드)">서브</span>':'');
   var flags = r.f.map(function(x){
     if(x!=='sub') return '<span class="fl '+x+'">'+esc(NM[x])+'</span>';
-    return kid ? '<span class="fl sub" title="이 서브코드에 재고가 남아 있습니다 — 서브코드 재고 정리에서 주코드로 합칠 수 있습니다">재고 '+sgn(r.curQty)+' 남음</span>' : subBadge(r); }).join('');
+    return kid ? '<span class="fl sub" title="이 서브코드에 재고가 남아 있습니다 — 서브코드 재고 정리에서 주코드로 합칠 수 있습니다">재고 '+sgn(r.curQty)+' 남음</span>'+fixBtn(r.prodCd) : subBadge(r); }).join('');
   return '<tr class="pick'+(kid?' kid':'')+(hasKid?' hasKid':'')+(r.prodCd===_pick?' on':'')+'" data-cd="'+esc(r.prodCd)+'" onclick="dtlOpen(\''+esc(r.prodCd).replace(/'/g,'')+'\')">'
     +'<td>'+cdCell+'</td><td class="nm">'+esc(r.prodNm||_subNm[r.prodCd]||'')+'</td><td class="l" title="'+esc(r.vendorCd)+'">'+esc(r.vendorNm||r.vendorCd)+'</td>'
     +'<td class="r">'+fmt(r.inQty)+'</td><td class="r'+(r.retQty>r.inQty?' neg':'')+'">'+(r.retQty?fmt(r.retQty):'')+'</td><td class="r">'+fmt(r.outQty)+'</td>'
@@ -312,7 +327,7 @@ function dtlOpen(cd){
   _pick=cd; var r=ROWS.filter(function(x){ return x.prodCd===cd; })[0]; if(!r) return;
   [].forEach.call(document.querySelectorAll('#body tr.on'), function(t){ t.classList.remove('on'); });
   [].forEach.call(document.querySelectorAll('#body tr.pick'), function(t){ if(t.getAttribute('data-cd')===cd) t.classList.add('on'); });
-  gel('dtl').classList.add('on'); fgApply(); gel('dTit').textContent=cd+'  '+r.prodNm; gel('dSum').textContent=''; gel('dWhy').textContent='';
+  gel('dtl').classList.add('on'); fgApply(); gel('dTit').textContent=cd+'  '+r.prodNm; gel('dSum').textContent=''; gel('dWhy').textContent=''; gel('dFix').innerHTML='';
   gel('dBody').innerHTML='<tr><td colspan="10" class="c dim" style="padding:16px">불러오는 중…</td></tr>';
   post('/prod/stockFlowLedger.do','prodCd='+encodeURIComponent(cd)+'&asOfDt='+encodeURIComponent(_asOf)).then(function(j){
     if(_pick!==cd) return;
@@ -335,7 +350,9 @@ function dtlOpen(cd){
       prevDt=x.trxDt; });
     gel('dBody').innerHTML=h||'<tr><td colspan="10" class="c dim" style="padding:16px">수불 줄이 없습니다.</td></tr>';
     gel('dSum').textContent=L.length+'줄 · 입고 '+fmt(r.inQty)+(r.retQty?' · 반품 '+fmt(r.retQty):'')+' · 출고 '+fmt(r.outQty)+(r.adjCnt?' · 조정 '+fmt(r.adjQty)+'('+r.adjCnt+'회)':'')+' → 현재고 '+fmt(r.curQty);
-    gel('dWhy').textContent = (firstNeg>=0 ? ('⚠ '+d10(L[firstNeg].trxDt)+' 부터 재고가 0 밑으로 내려갔습니다 (그날 끝 잔고 '+fmt(end[L[firstNeg].trxDt])+')') : '')
+    gel('dWhy').textContent = (firstNeg>=0 ? ('⚠ '+d10(L[firstNeg].trxDt)+' 부터 재고가 0 밑으로 내려갔습니다 (그날 끝 잔고 '+fmt(end[L[firstNeg].trxDt])+')') : '');
+    gel('dFix').innerHTML = (r.subs&&r.subs.length) ? fixBtn(r.subs[0].cd) : ((r.mainCd && r.curQty!==0) ? fixBtn(r.prodCd) : '');
+    gel('dWhy').textContent += ''
       + ((r.subs&&r.subs.length) ? ('   🟣 서브코드 '+r.subs.map(function(x){ return x.cd+' 에 '+sgn(x.q); }).join(', ')+' — 합치면 '+fmt(r.famQty)) : (r.mainCd ? ('   🟣 주코드 '+r.mainCd+' 의 서브코드입니다') : ''));
     if(firstNeg>=0){ var tr=gel('dr'+firstNeg), g=gel('dGrid'); if(tr&&g) g.scrollTop=Math.max(0, tr.offsetTop-34); } else gel('dGrid').scrollTop=0;
   }).catch(function(e){ gel('dBody').innerHTML='<tr><td colspan="10" class="c" style="padding:16px;color:#b23b3b">'+esc(e.message)+'</td></tr>'; });
@@ -385,7 +402,8 @@ function sheetOf(title, cond, head, body, tot, o){
       else if(k==='p'){ st.alignment.horizontal='left'; st.border={ bottom:bd }; }
       else if(k==='h'){ st.font.bold=true; st.alignment.horizontal='center'; st.fill={ fgColor:{ rgb:'D9EDF7' } }; st.border=box; }
       else {
-        st.border=box; st.fill={ fgColor:{ rgb:(k==='tot'?'FCF8E3':'FFFFFF') } }; if(k==='tot') st.font.bold=true;
+        var bgc=(k==='row' && o.bg) ? o.bg(aoa[r]) : null;   /* 줄 바탕 — 서브코드 줄은 연보라 (2026-11-19) */
+        st.border=box; st.fill={ fgColor:{ rgb:(k==='tot'?'FCF8E3':(bgc||'FFFFFF')) } }; if(k==='tot') st.font.bold=true;
         st.alignment.horizontal = (o.num && o.num[c]) ? 'right' : ((o.left||[]).indexOf(c)>=0 ? 'left' : 'center');
         if(k==='row' && (o.date||[]).indexOf(c)>=0 && ws[ref].t==='n') ws[ref].z='yyyy-mm-dd';
         if(ws[ref].t==='n' && o.num && o.num[c]) ws[ref].z=o.num[c];
@@ -404,13 +422,26 @@ function xls(){
   var tn=window._viewNm||'', q=(gel('q').value||'').trim(), o=opt(), QF='#,##0.##';
   var cond='기준일자 : '+d10(_asOf)+'   (유형 '+tn+(q?' · 검색 「'+q+'」':'')+' · 무출고 기준 '+o.dead+'일 · 최근 음수 기준 '+o.past+'일 · 조정 기준 '+o.adjMin+'회)';
   var T={ i:0, r:0, o:0, a:0, c:0 };
-  var body=list.map(function(r){ T.i+=r.inQty; T.r+=r.retQty; T.o+=r.outQty; T.a+=r.adjQty; T.c+=r.curQty;
-    return [r.prodCd, r.prodNm, r.vendorNm||r.vendorCd, r.inQty, (r.retQty||''), r.outQty, (r.adjCnt?r.adjQty:''), (r.adjCnt||''), r.curQty, r.minBal, (r.negCal||''), dser(r.firstNegDt), dser(r.lastNegDt), dser(r.lastInDt), dser(r.lastOutDt), ((r.curQty>0||r.outQty>0)?r.idle:''), r.f.map(function(x){ return NM[x]; }).join(', '), ((r.subs&&r.subs.length)?r.subQty:''), ((r.subs&&r.subs.length)?r.famQty:''), (r.mainCd||'')]; });
+  /* ★화면과 같은 차례로 — 주코드 줄 다음에 그 서브코드 줄들 (2026-11-19 사용자 「엑셀에도 서브코드 줄 나오게」).
+       · 맨 끝 「구분」 칸 = 주 / 서브 / 서브(수불 없음). 서브 줄은 품목코드 앞에 ↳ 를 붙이고 줄 바탕을 연보라로, 「주코드」 칸에 그 주코드.
+       · 합계는 종전대로 «유형·검색에 걸린 품목»만 더한다 — 주코드 밑에 딸려 나온 서브 줄은 합계·품목 수에 넣지 않는다(화면의 건수와 같은 셈) */
+  list.forEach(function(r){ T.i+=r.inQty; T.r+=r.retQty; T.o+=r.outQty; T.a+=r.adjQty; T.c+=r.curQty; });
+  function line(r, kid){ var hasKid=!kid && r.kids && r.kids.length>0;
+    return [(kid?'↳ ':'')+r.prodCd, (r.prodNm||_subNm[r.prodCd]||''), r.vendorNm||r.vendorCd, r.inQty, (r.retQty||''), r.outQty, (r.adjCnt?r.adjQty:''), (r.adjCnt||''), r.curQty, r.minBal, (r.negCal||''), dser(r.firstNegDt), dser(r.lastNegDt), dser(r.lastInDt), dser(r.lastOutDt), ((r.curQty>0||r.outQty>0)?r.idle:''),
+            r.f.map(function(x){ return NM[x]; }).join(', '), ((r.subs&&r.subs.length)?r.subQty:''), ((r.subs&&r.subs.length)?r.famQty:''), (r.mainCd||''), (kid?'서브':(hasKid?'주':(r.mainCd?'서브':'')))]; }
+  var inList={}; list.forEach(function(r){ inList[r.prodCd]=1; });
+  var body=[], nKid=0;
+  list.filter(function(r){ return !(r.mainCd && inList[r.mainCd]); }).forEach(function(r){
+    body.push(line(r, false));
+    (r.kids||[]).forEach(function(k){ nKid++;
+      if(k.row) body.push(line(k.row, true));
+      else body.push(['↳ '+k.cd, k.nm||'', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', r.prodCd, '서브(수불 없음)']); }); });
   var ws=sheetOf('[재고흐름조회 — '+tn+']', cond,
-    ['품목코드','품목명','매입처','입고','반품','출고','조정','조정 횟수','현재고','최저 잔고','음수 일수(달력)','첫 음수일','마지막 음수일','최근 입고','최근 출고','무출고(일)','이상 유형','서브코드 재고','합친 재고','주코드'], body,
-    ['합 계', list.length.toLocaleString()+'품목', '', T.i, (T.r||''), T.o, T.a, '', T.c, '', '', '', '', '', '', '', '', '', '', ''],
+    ['품목코드','품목명','매입처','입고','반품','출고','조정','조정 횟수','현재고','최저 잔고','음수 일수(달력)','첫 음수일','마지막 음수일','최근 입고','최근 출고','무출고(일)','이상 유형','서브코드 재고','합친 재고','주코드','구분'], body,
+    ['합 계', list.length.toLocaleString()+'품목'+(nKid?' (서브코드 줄 '+nKid+'개는 합계 제외)':''), '', T.i, (T.r||''), T.o, T.a, '', T.c, '', '', '', '', '', '', '', '', '', '', '', ''],
     { date:[11,12,13,14], num:{ 3:QF, 4:QF, 5:QF, 6:QF, 7:'#,##0', 8:QF, 9:QF, 10:'#,##0', 15:'#,##0', 17:QF, 18:QF }, left:[1,2,16],
-      red:function(a){ var c=[]; if(typeof a[8]==='number' && a[8]<0) c.push(8); if(typeof a[9]==='number' && a[9]<0) c.push(9); return c; } });
+      red:function(a){ var c=[]; if(typeof a[8]==='number' && a[8]<0) c.push(8); if(typeof a[9]==='number' && a[9]<0) c.push(9); return c; },
+      bg:function(a){ return String(a[20]||'').indexOf('서브')===0 && String(a[0]).indexOf('↳')===0 ? 'F3ECFB' : null; } });
   var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '재고흐름');
   /* 둘째 시트 — 열어 둔 품목의 수불 내역 + 잔고 */
   var D=window._dtl;
@@ -422,7 +453,7 @@ function xls(){
     XLSX.utils.book_append_sheet(wb, ws2, ('수불_'+D.cd).slice(0,31));
   }
   XLSX.writeFile(wb, '재고흐름조회_'+tn.replace(/[\\/:*?"<>|()> ]/g,'')+'_'+_asOf+'.xlsx');
-  if(window._toast) _toast('📥 '+list.length.toLocaleString()+'품목을 엑셀로 저장했습니다'+(D&&D.rows&&D.rows.length?' (수불 내역 시트 포함)':''),'success');
+  if(window._toast) _toast('📥 '+list.length.toLocaleString()+'품목'+(nKid?'(+서브코드 줄 '+nKid+')':'')+'을 엑셀로 저장했습니다'+(D&&D.rows&&D.rows.length?' (수불 내역 시트 포함)':''),'success');
 }
 
 (function(){ var t=new Date(), p2=function(v){ return ('0'+v).slice(-2); }; gel('asOf').value=t.getFullYear()+'-'+p2(t.getMonth()+1)+'-'+p2(t.getDate()); load(); })();
