@@ -3419,6 +3419,8 @@
   try { _ebJsVer = new java.io.File(application.getRealPath("/asset/js/emp-badge.js")).lastModified(); } catch (Exception _e) { }
 %>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/emp-badge.js?v=<%=_ebJsVer%>"></script>
+<%-- 메뉴 검색 (2026-11-19 「상단에 검색 기능 — 메뉴 내용·간단한 설명 보여 주고 클릭하면 들어가게」) — 상단 줄 오른쪽 검색 칸. 마크업·스타일·동작 전부 이 파일 안(JSP 크기 한도 때문). 고치면 v= 를 올린다 --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/menu-search.js?v=20261119c"></script>
 </head>
 <body>
 <%-- 좌측 메뉴 접힘 상태를 <그리기 전에> 입힌다 (2026-08-05) —
