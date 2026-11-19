@@ -163,7 +163,6 @@
   .it.done .lw, .it.cancel .lw{ background:#eef1f4; border-left-color:#aab5c0; }
   .it .lw .ln{ font-size:12.5px; }
   .it .lw .lnhid{ font-size:11.5px; color:#6b7a89; margin-top:2px; text-align:right; }   /* 미완료 탭 — 끝난 줄 숨김 (2026-11-20) */
-  .it .lw .lnall{ font-size:12px; color:#137a6c; font-weight:700; padding:2px 0; display:flex; align-items:center; gap:8px; }
   .ln .lt .tag{ opacity:1; }
   .it.done .t1, .it.cancel .t1{ color:#8794a1; text-decoration:none; font-weight:600; } .it.done .t2, .it.done .t2 b, .it.cancel .t2, .it.cancel .t2 b{ color:#48606f; }
   .tag{ display:inline-block; padding:0 7px; border-radius:9px; font-size:11.5px; font-weight:800; margin-left:5px; vertical-align:1px; }
@@ -605,14 +604,14 @@ function paintList(){
         +stOpts(k)+'</select>'
       +'<div class="t2">'+cntHtml(s)+'<b class="dgo" onclick="calGo(\''+s.fromDt+'\', event)" title="달력에서 '+d10(s.fromDt)+' 보기">'+lTxt(s.fromDt)+(s.toDt!==s.fromDt?' ~ '+lTxt(s.toDt):'')+'</b>'+(s.schedTm?' '+esc(s.schedTm):'')+(s.place?' · '+esc(s.place):'')+tag+'</div>'
       +'<button type="button" class="rowdel" onclick="rowDel('+s.schedSeq+', event)" title="'+(k==='Y'?'완료한 일정 — 상태를 취소로 바꾼 뒤 지울 수 있습니다':'이 일정을 지웁니다')+'">🗑</button></div>'
-      +'<div class="lw">'+lwHtml(s, q)+'</div></div>';
+      +(function(x){ return x ? '<div class="lw">'+x+'</div>' : ''; })(lwHtml(s, q))+'</div>';   /* 내용이 비면 판도 안 그린다 */
   }).join('');
 }
 /* 목록의 내용 판 — 「미완료」 탭(검색어 없음)은 남은 줄만 + 「끝난 n줄 숨김」 · 다 끝났으면 안내 한 줄. 그 밖(전체·검색)은 종전대로 전부 */
 function lwHtml(s, q){
   if(_tab!=='todo' || q) return linesHtml(s, q);
   var o=openLines(s);
-  if(!o.lines.length) return '<div class="lnall" title="줄은 모두 끝났습니다 — 위 상태 칸에서 완료로 바꾸면 이 목록에서 빠집니다">모든 줄 끝</div>';   /* 짧게 · 단추 없음 (2026-11-20 「이것도 헷갈림」 → 「[✓ 일정 완료] 단추도 제거해줘」) — 이제 마지막 줄을 끝내면 일정이 저절로 완료되므로 이 줄은 그 규칙 전에 끝낸 옛 일정에만 보인다 */
+  if(!o.lines.length) return '';   /* 줄이 모두 끝난 옛 일정 — 아무 글도 없이 날짜 줄만 (2026-11-20 「「모든 줄 끝」 문구도 제거해줘」 — 그 전엔 긴 안내 → 단추 → 「모든 줄 끝」). 빼려면 위 상태 칸에서 완료 */
   return linesHtml(s, q, false, true)+(o.hid?'<div class="lnhid" title="완료·취소한 줄은 미완료 목록에서 숨깁니다 — 「전체」 탭이나 달력에서 모두 보입니다">끝난 '+o.hid+'줄 숨김</div>':'');
 }
 /* ══ 엑셀 · 인쇄 (2026-11-19 사용자 「엑셀출력 및 인쇄 넣어줘요」) ══

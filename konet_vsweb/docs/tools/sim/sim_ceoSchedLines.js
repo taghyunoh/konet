@@ -285,7 +285,7 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
   DB[12]={ schedSeq:12, fromDt:today, toDt:today, schedTm:'', title:'옛2', place:'', content:'<div>1. 가 완료</div><div>2. 나 취소</div>', doneYn:'N', doneDttm:'', hasContent:'Y' };
   w.load(); await tick(); await tick(); w.tabGo('todo'); await tick();
   { const it=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(11,/.test(x.innerHTML));
-    T(it && it.querySelector('.lnall') && it.querySelector('.lnall').textContent.trim()==='모든 줄 끝' && !it.querySelector('.lnall button') && !/남은 줄이 없습니다/.test(it.textContent), '옛 일정 = 「모든 줄 끝」 한 마디 · 단추 없음(2026-11-20 「단추도 제거」)');
+    T(it && !it.querySelector('.lw') && !/모든 줄 끝|남은 줄이 없습니다/.test(it.textContent) && /\d+\/\d+\(/.test(it.textContent), '옛 일정 = 날짜 줄만 · 글·단추·빈 판 없음(2026-11-20 「문구도 제거」)');
     T(typeof w.schedFinish==='undefined', '쓰지 않는 schedFinish 는 없앴다'); }
   T(w.autoSt('<div>삼성미팅</div><div>1. 가 완료</div>')==='Y' && w.autoSt('<div>1. 가</div><div>2. 나 완료</div>')===null && w.autoSt('')===null, 'autoSt — 묶음 머리는 안 센다 · 남은 줄 있으면 null');
   /* 완료 일정에서 줄을 되돌려도 일정은 그대로(위는 전체, 아래는 개별) */
