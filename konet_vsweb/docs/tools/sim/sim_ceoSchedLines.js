@@ -32,6 +32,15 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
 (async()=>{
   await tick(); await tick();
   T(d.getElementById('tabTodo').classList.contains('on') && !d.getElementById('tabAll').classList.contains('on') && !d.getElementById('tabMon'), '처음 탭 = 미완료 · 「이 달」 탭 없음');
+  /* ★미완료 탭 = 줄 단위 — 끝난 줄 숨김 (2026-11-20) : C1 = 삼성미팅(1 완료 · 2 남음) · 대상미팅(1 납품 · 2 품질 …) */
+  { const it1=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(1,/.test(x.innerHTML)), lw=it1?it1.querySelector('.lw'):null, txt=lw?lw.textContent:'';
+    T(lw && !/갈릭 보이/.test(txt) && /서예림/.test(txt), '미완료 탭 — 완료한 줄(갈릭 보이)은 숨고 남은 줄(서예림)은 보인다 : '+txt.slice(0,120));
+    T(/삼성미팅/.test(txt), '남은 줄이 있는 묶음 머리는 보인다');
+    T(lw && /끝난 1줄 숨김/.test(lw.querySelector('.lnhid')?lw.querySelector('.lnhid').textContent:''), '「끝난 1줄 숨김」 안내'); }
+  { const o=w.openLines({ schedSeq:9, content:'<div>삼성미팅</div><div>1. 가 완료</div><div>2. 나 취소</div><div>대상미팅</div><div>1. 다</div>', hasContent:'Y' });
+    T(o.lines.length===2 && o.lines[0].body==='대상미팅' && o.hid===2, '다 끝난 묶음은 머리까지 숨고 남은 묶음만 : '+JSON.stringify(o.lines.map(l=>l.body))+' hid '+o.hid);
+    const o2=w.openLines({ schedSeq:10, content:'<div>1. 가 완료</div><div>2. 나 취소</div>', hasContent:'Y' });
+    T(o2.lines.length===0 && o2.hid===2, '전부 끝난 일정 = 남은 줄 0'); }
   w.tabGo('all');   /* 아래 검사는 전체 목록 기준 */
   /* 창 : 제목 칸 없음 */
   T(!d.getElementById('fTitle'), '제목 칸이 남아 있다');
@@ -236,13 +245,19 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
   /* ── 삭제 탭 · 복구 ── */
   await tick(); await tick();
   T(d.getElementById('delCnt').textContent==='1', '삭제 탭 건수 1 : '+d.getElementById('delCnt').textContent);
+  { const db=d.getElementById('tabDel'); T(db && db.classList.contains('delbtn') && !db.classList.contains('tab') && /삭제함/.test(db.textContent), '삭제는 탭이 아니라 오른쪽 끝 「🗑 삭제함」 단추');
+    db.click(); await tick(); T(db.classList.contains('on') && d.querySelectorAll('#list .it.del').length===1, '단추를 누르면 지운 일정');
+    db.click(); await tick(); T(d.getElementById('tabTodo').classList.contains('on') && !db.classList.contains('on'), '다시 누르면 미완료로'); }
   w.tabGo('del'); await tick();
   const di=d.querySelectorAll('#list .it.del');
   T(di.length===1 && /🗑 11-19 21:10 마스터/.test(di[0].textContent) && !!di[0].querySelector('.rst'), '지운 일정 · 지운 때·사람 · [복구]');
   T(!di[0].querySelector('select.st') && ![...di[0].querySelectorAll('.ln .ck')].some(c=>c.getAttribute('onclick')), '삭제 탭은 읽기만(상태 칸·칩 없음)');
   const calHas=[...d.querySelectorAll('#cal .ev.lns')].some(x=>x.getAttribute('onclick').indexOf('edOpen(7,')===0);
   T(!calHas, '지운 일정은 달력에 없음');
-  di[0].querySelector('.rst').dispatchEvent(new w.MouseEvent('click',{ bubbles:true })); await tick(); await tick(); await tick(); await tick();
+  { let asked=false; const cb0=w._confirmBox; w._confirmBox=function(o){ asked=true; };   /* 복구는 묻지 않는다 (2026-11-20 「복구 확인창 빼줘」) */
+    di[0].querySelector('.rst').dispatchEvent(new w.MouseEvent('click',{ bubbles:true })); await tick(); await tick(); await tick(); await tick();
+    T(!asked, '복구 확인창 없음 — 바로 복구');
+    w._confirmBox=cb0; }
   T((globalThis.__rst||[])[0]===7 && d.getElementById('delCnt').textContent==='0', '복구 → 삭제 탭 0');
   T([...d.querySelectorAll('#cal .ev.lns')].some(x=>x.getAttribute('onclick').indexOf('edOpen(7,')===0), '복구한 일정이 달력에 돌아옴');
   w.tabGo('mon');
@@ -256,7 +271,95 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
   ld.value='999'; ld.dispatchEvent(new w.Event('input',{ bubbles:true }));
   T(w.localStorage.getItem('konetCeoLateDays2')==='365', '상한 365');
   ld.value=''; ld.dispatchEvent(new w.Event('input',{ bubbles:true }));
+  /* ── 미완료 탭 줄 단위 (2026-11-20) ── */
+  DB[7]={ schedSeq:7, fromDt:today, toDt:today, schedTm:'', title:'가', place:'', content:'<div>1. 가</div><div>2. 나 완료</div>', doneYn:'N', doneDttm:'', hasContent:'Y' };
+  w.load(); await tick(); await tick(); w.tabGo('todo'); await tick();
+  { const it=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(7,/.test(x.innerHTML)); const lns=it?[...it.querySelectorAll('.lw .ln')]:[];
+    T(lns.length===1 && /가/.test(lns[0].textContent), '미완료 탭 — 일정 7 은 남은 줄 「1. 가」 하나만 : '+lns.map(x=>x.textContent).join('|'));
+    const ck=lns[0]&&lns[0].querySelector('.ck'); if(ck) ck.click(); await tick(); await tick(); await tick(); }
+  { const it=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(7,/.test(x.innerHTML));
+    T(!it && DB[7].doneYn==='Y', '★마지막 남은 줄을 끝내면 일정도 저절로 완료 → 미완료 목록에서 빠진다 : doneYn '+DB[7].doneYn);
+    T(/2\. 나 완료/.test(DB[7].content.replace(/<[^>]+>/g,' ')) && /1\. 가 완료/.test(DB[7].content.replace(/<[^>]+>/g,' ')), '저장된 내용 = 두 줄 다 완료(줄 번호가 안 어긋남)'); }
+  /* 옛 일정 — 줄은 다 끝났는데 상태가 빈칸 : 짧은 글 + [✓ 일정 완료](줄은 그대로 · 전부 취소면 취소) */
+  DB[11]={ schedSeq:11, fromDt:today, toDt:today, schedTm:'', title:'옛', place:'', content:'<div>대상미팅</div><div>1. 납품 취소</div><div>2. 품질 취소</div>', doneYn:'N', doneDttm:'', hasContent:'Y' };
+  DB[12]={ schedSeq:12, fromDt:today, toDt:today, schedTm:'', title:'옛2', place:'', content:'<div>1. 가 완료</div><div>2. 나 취소</div>', doneYn:'N', doneDttm:'', hasContent:'Y' };
+  w.load(); await tick(); await tick(); w.tabGo('todo'); await tick();
+  { const it=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(11,/.test(x.innerHTML)), fb=it&&it.querySelector('.lnall .fin');
+    T(it && fb && /모든 줄 끝/.test(it.querySelector('.lnall').textContent) && !/남은 줄이 없습니다/.test(it.textContent), '옛 일정 = 「모든 줄 끝 [✓ 일정 완료]」(긴 안내 없음)');
+    let opened=false; const eo=w.edOpen; w.edOpen=function(){ opened=true; };
+    fb.click(); await tick(); await tick(); await tick();
+    T(DB[11].doneYn==='C' && /납품 취소/.test(DB[11].content) && /품질 취소/.test(DB[11].content) && !opened, '줄이 전부 취소 → 일정 취소 · 줄은 그대로 · 창 안 열림 : '+DB[11].doneYn); w.edOpen=eo;
+    const it12=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(12,/.test(x.innerHTML)); it12.querySelector('.lnall .fin').click(); await tick(); await tick(); await tick();
+    T(DB[12].doneYn==='Y' && /나 취소/.test(DB[12].content) && ![...d.querySelectorAll('#list .it')].some(x=>/rowDel\(1[12],/.test(x.innerHTML)), '완료·취소 섞임 → 일정 완료 · 취소 줄은 취소 그대로 · 둘 다 미완료에서 빠짐'); }
+  T(w.autoSt('<div>삼성미팅</div><div>1. 가 완료</div>')==='Y' && w.autoSt('<div>1. 가</div><div>2. 나 완료</div>')===null && w.autoSt('')===null, 'autoSt — 묶음 머리는 안 센다 · 남은 줄 있으면 null');
+  /* 완료 일정에서 줄을 되돌려도 일정은 그대로(위는 전체, 아래는 개별) */
+  w.tabGo('all'); await tick();
+  { const it=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(12,/.test(x.innerHTML)); const ck=it&&it.querySelectorAll('.lw .ln .ck')[1];
+    if(ck) ck.click(); await tick(); await tick(); await tick();
+    T(DB[12].doneYn==='Y' && !/나 취소/.test(DB[12].content), '완료 일정의 줄을 빈칸으로 돌려도 일정은 완료 그대로'); }
+  delete DB[11]; delete DB[12];
+  q.value='나'; w.paintList();
+  { const it=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(7,/.test(x.innerHTML));
+    T(it && it.querySelectorAll('.lw .ln').length===2, '검색 중엔 끝난 줄도 보인다(걸린 줄이 끝난 줄일 수 있다)'); }
+  /* ── 목록 날짜 → 달력 이동 (2026-11-20) ── */
+  q.value=''; w.paintList();
+  DB[8]={ schedSeq:8, fromDt:'20260315', toDt:'20260315', schedTm:'', title:'옛 일', place:'', content:'<div>1. 옛 일</div>', doneYn:'N', doneDttm:'', hasContent:'Y' };
+  w.load(); await tick(); await tick();
+  { const it8=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(8,/.test(x.innerHTML)), dg=it8&&it8.querySelector('.dgo');
+    let opened=false; const eo=w.edOpen; w.edOpen=function(){ opened=true; };
+    if(dg) dg.click(); await tick();
+    const c=d.querySelector('#cal .dc[data-k="20260315"]');
+    T(dg && d.getElementById('ymTxt').textContent==='2026년 3월' && c && c.classList.contains('flash') && !c.classList.contains('out'), '날짜를 누르면 달력이 그 달로 · 그 날 칸 표시 : '+d.getElementById('ymTxt').textContent);
+    T(!opened, '날짜를 눌러도 창은 안 열린다');
+    T(c && /옛 일/.test(c.textContent), '그 날 칸에 그 일정');
+    T([...d.querySelectorAll('#list .it')].some(x=>/rowDel\(8,/.test(x.innerHTML)), '오른쪽 목록은 그대로');
+    const it8b=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(8,/.test(x.innerHTML)); it8b.click(); await tick();
+    T(opened, '날짜 밖을 누르면 종전대로 창'); w.edOpen=eo;
+    delete DB[8]; w.monToday(); await tick(); await tick(); }
+  q.value=''; w.tabGo('all');
+  { const it=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(7,/.test(x.innerHTML));
+    T(it && it.querySelectorAll('.lw .ln').length===2 && !it.querySelector('.lnhid'), '전체 탭은 종전대로 줄 전부'); }
   T(w.localStorage.getItem('konetCeoLateDays2')==='0', '비우면 0');
+  /* ── 맨 위 요약 + 기간 조건 (2026-11-20) ── */
+  { const T0='20261118', today0=w.today; w.today=function(){ return T0; };   /* 오늘 = 수요일로 고정 — 이번 주 = 11/15(일) ~ 11/21(토) */
+    const dd=(n)=>{ const x=new Date(2026,10,18+n); return ''+x.getFullYear()+String(x.getMonth()+1).padStart(2,'0')+String(x.getDate()).padStart(2,'0'); };
+    for(const k of Object.keys(DB)) delete DB[k];
+    DB[21]={ schedSeq:21, fromDt:dd(-5), toDt:dd(-3), schedTm:'', title:'지난 일', place:'', content:'<div>1. 지난 일</div>', doneYn:'N', doneDttm:'', hasContent:'Y' };
+    DB[22]={ schedSeq:22, fromDt:dd(-1), toDt:dd(1), schedTm:'', title:'걸친 일', place:'', content:'<div>1. 걸친 일</div>', doneYn:'N', doneDttm:'', hasContent:'Y' };
+    DB[23]={ schedSeq:23, fromDt:T0, toDt:T0, schedTm:'', title:'오늘 일', place:'', content:'<div>1. 오늘 일</div>', doneYn:'N', doneDttm:'', hasContent:'Y' };
+    DB[24]={ schedSeq:24, fromDt:dd(1), toDt:dd(1), schedTm:'', title:'목요일 일', place:'', content:'<div>1. 목요일 일</div>', doneYn:'N', doneDttm:'', hasContent:'Y' };
+    DB[25]={ schedSeq:25, fromDt:dd(3), toDt:dd(3), schedTm:'', title:'토요일 일', place:'', content:'<div>1. 토요일 일</div>', doneYn:'N', doneDttm:'', hasContent:'Y' };
+    DB[26]={ schedSeq:26, fromDt:dd(4), toDt:dd(4), schedTm:'', title:'다음 주 일요일', place:'', content:'<div>1. 다음 주 일요일</div>', doneYn:'N', doneDttm:'', hasContent:'Y' };
+    DB[27]={ schedSeq:27, fromDt:dd(-10), toDt:dd(-10), schedTm:'', title:'끝난 옛 일', place:'', content:'<div>1. 끝난 옛 일 완료</div>', doneYn:'Y', doneDttm:'2026-11-01 10:00:00', hasContent:'Y' };
+    const qq=d.getElementById('q'); qq.value='';
+    w.load(); await tick(); await tick(); w.tabGo('todo'); await tick();
+    const chips=()=>[...d.querySelectorAll('#pers .per')].map(x=>x.textContent.replace(/\s+/g,' ').trim());
+    T(JSON.stringify(chips())===JSON.stringify(['전체 6','지남 1','오늘 2','이번 주 2','이후 1']), '미완료 탭 요약 칩 = 전체 6 · 지남 1 · 오늘 2(걸친 일 포함) · 이번 주 2(목·토) · 이후 1(다음 주 일요일 — 사흘 뒤가 아니라 주가 바뀌어서) : '+chips().join('|'));
+    T(d.querySelector('#pers .per.on') && /전체/.test(d.querySelector('#pers .per.on').textContent) && d.querySelector('#pers .per.lt'), '처음 = 전체 · 지남은 빨강');
+    const heads=()=>[...d.querySelectorAll('#list .pgh')].map(x=>x.textContent.replace(/\s+/g,' ').trim());
+    T(JSON.stringify(heads())===JSON.stringify(['지남 1','오늘 2','이번 주 2','이후 1']), '전체를 볼 때 목록에 기간 머리 : '+heads().join('|'));
+    w.perGo('wk'); await tick();
+    const seqs=()=>[...d.querySelectorAll('#list .it')].map(x=>(/rowDel\((\d+),/.exec(x.innerHTML)||[])[1]).join(',');
+    T(seqs()==='24,25' && heads().length===0 && /이번 주/.test(d.querySelector('#pers .per.on').textContent), '「이번 주」 누르면 그 기간만(머리 없음) : '+seqs());
+    T(/· 이번 주$/.test(w.scopeNm()), '엑셀·인쇄 제목에도 기간 : '+w.scopeNm());
+    w.perGo('wk'); await tick(); T(seqs().split(',').length===6, '같은 칩을 다시 누르면 전체');
+    w.perGo('late'); await tick(); T(seqs()==='21', '지남 = 끝나는 날이 지난 것 : '+seqs());
+    w.perGo('tdy'); await tick(); T(seqs()==='22,23', '오늘 = 여러 날 걸친 것 포함 : '+seqs());
+    qq.value='토요일'; w.paintList();
+    T(JSON.stringify(chips())===JSON.stringify(['전체 1','지남 0','오늘 0','이번 주 1','이후 0']) && /오늘」에 끝내지 않은 일정이 없습니다/.test(d.getElementById('list').textContent) && /전체 보기/.test(d.getElementById('list').textContent), '검색과 함께 — 칩 숫자도 검색 기준 · 빈 기간 안내 : '+chips().join('|'));
+    d.querySelector('#list .empty a').click(); await tick();
+    T(seqs()==='25' && /전체/.test(d.querySelector('#pers .per.on').textContent), '「전체 보기」');
+    qq.value=''; w.tabGo('all'); await tick();
+    T(JSON.stringify(chips())===JSON.stringify(['전체 7','지남 2','오늘 2','이번 주 2','이후 1']) && !d.querySelector('#pers .per.lt'), '전체 탭 칩 = 끝난 일정도 센다(지남 2) · 빨강 없음 : '+chips().join('|'));
+    T(JSON.stringify(heads())===JSON.stringify(['이후 1','이번 주 2','오늘 2','지남 2']), '전체 탭은 최근이 위라 머리도 거꾸로 : '+heads().join('|'));
+    w.tabGo('del'); await tick(); T(d.querySelectorAll('#pers .per').length===0, '삭제 탭엔 칩 없음');
+    w.tabGo('todo'); await tick(); T(d.querySelectorAll('#pers .per').length===5, '미완료로 돌아오면 다시');
+    /* 주 경계 — 토요일엔 이번 주 = 0, 일요일엔 그 주 토요일까지 */
+    const pk=(t, f)=>w.perOf({ fromDt:f, toDt:f }, t);
+    T(pk('20261121','20261122')==='aft' && pk('20261121','20261121')==='tdy', '토요일 : 다음 날(일요일)은 이후');
+    T(pk('20261122','20261128')==='wk' && pk('20261122','20261129')==='aft', '일요일 : 그 주 토요일까지 이번 주');
+    T(pk('20261231','20270102')==='wk' && pk('20261231','20270103')==='aft', '해가 바뀌는 주도 토요일까지');
+    w.today=today0; }
   console.log((bad?'✗':'✓')+' sim_ceoSchedLines ok='+ok+' bad='+bad);
   process.exit(bad?1:0);
 })().catch(e=>{ console.log('ERR', e); process.exit(1); });
