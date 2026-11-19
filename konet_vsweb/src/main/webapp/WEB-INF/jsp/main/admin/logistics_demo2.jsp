@@ -3422,7 +3422,7 @@
 %>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/emp-badge.js?v=<%=_ebJsVer%>"></script>
 <%-- 메뉴 검색 (2026-11-19 「상단에 검색 기능 — 메뉴 내용·간단한 설명 보여 주고 클릭하면 들어가게」) — 상단 줄 오른쪽 검색 칸. 마크업·스타일·동작 전부 이 파일 안(JSP 크기 한도 때문). 고치면 v= 를 올린다 --%>
-<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/menu-search.js?v=20261119d"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/menu-search.js?v=20261119e"></script>
 </head>
 <body>
 <%-- 좌측 메뉴 접힘 상태를 <그리기 전에> 입힌다 (2026-08-05) —
@@ -3603,8 +3603,8 @@
       <%-- 출고재고현황 (2026-09-03 신설) — 년월×품목 출고량 + 현재고. iframe 화면(stockOutMonth.jsp).
            ★메뉴와 아래 panel-stockOutMonth 는 짝이다 — 하나만 넣으면 눌러도 아무 일이 없다. --%>
       <a class="mi" data-key="stockOutMonth" onclick="logiFrame('stockOutMonth','${pageContext.request.contextPath}/prod/stockOutMonth.do', this)"><span class="ic">📦</span>월별 출고현황</a>
-      <%-- 재고흐름조회 (2026-11-19 사용자 「재고관리에서 재고흐름이 이상한 것 확인해서 조회할 수 있게 재고흐름조회 메뉴 추가로」) — 현재고 음수·입고 없이 출고·과거 음수·조정 잦음·장기 무출고를 찾는다. 조회 전용. iframe 화면(prod/stockFlow.jsp, panel-stockFlow) --%>
-      <a class="mi" data-key="stockFlow" onclick="logiFrame('stockFlow','${pageContext.request.contextPath}/prod/stockFlow.do', this)"><span class="ic">🔎</span>재고흐름조회</a>
+      <%-- 재고내용분석 (옛 이름 재고흐름조회 — 같은 날 사용자 「재고흐름조회 --> 재고내용분석 으로」) (2026-11-19 사용자 「재고관리에서 재고흐름이 이상한 것 확인해서 조회할 수 있게 재고흐름조회 메뉴 추가로」) — 현재고 음수·입고 없이 출고·과거 음수·조정 잦음·장기 무출고를 찾는다. 조회 전용. iframe 화면(prod/stockFlow.jsp, panel-stockFlow) --%>
+      <a class="mi" data-key="stockFlow" onclick="logiFrame('stockFlow','${pageContext.request.contextPath}/prod/stockFlow.do', this)"><span class="ic">🔎</span>재고내용분석</a>
       <a class="mi" data-key="closeStock" onclick="logiGo('closeStock', this)"><span class="ic">📒</span>재고마감</a>
       <%-- 비용 등록 (2026-09-16 P2-e) — 달마다 비용(직송 택배 운임 자동 + 수기 항목). 마감현황·이력의 순마진 = 매출총이익 − 비용. iframe 화면(expenseReg.jsp) --%>
       <%-- ★총괄관리자(TBL_USER_MST.MAIN_GU='1', 세션 s_main_gu)만 (2026-09-17 「로그인 정보 총괄 아니면 비용등록·회사/사용자관리 안 보이게」).
@@ -5512,7 +5512,7 @@
 
     <%-- 재고 일괄조정 (2026-08-19 신설) — logiFrame 이 여는 아이프레임.
          id 규칙 : if-<메뉴키>. 이게 없으면 메뉴만 켜지고 화면이 비어 보인다. --%>
-    <section id="panel-stockFlow" class="panel" style="padding:0;"><iframe id="if-stockFlow" src="" title="재고흐름조회" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
+    <section id="panel-stockFlow" class="panel" style="padding:0;"><iframe id="if-stockFlow" src="" title="재고내용분석" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
     <section id="panel-stockAdj" class="panel" style="padding:0;">
       <iframe id="if-stockAdj" src="" title="재고 일괄조정" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section><section id="panel-subStockFix" class="panel" style="padding:0;"><iframe id="if-subStockFix" src="" title="서브코드 재고 정리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>

@@ -6,9 +6,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 엑셀 쓰기 (전역 XLSX, 서식 포함) — 매출 반품내역과 같은 도구 (2026-11-19) --%>
-<title>재고흐름조회</title>
-<%-- 재고흐름조회 (2026-11-19 신설 — 사용자 「재고관리에서 재고흐름이 이상한 것 확인해서 조회할 수 있게 재고흐름조회 메뉴 추가로」)
-     재고 관리 ▸ 재고흐름조회. 셸 iframe(logiFrame 'stockFlow'). 조회 전용 — 아무것도 바꾸지 않는다.
+<title>재고내용분석</title>
+<%-- 재고내용분석 (옛 이름 재고흐름조회 — 2026-11-19 사용자 「재고흐름조회 --> 재고내용분석 으로」. 주소·data-key·파일 이름은 stockFlow 그대로) (2026-11-19 신설 — 사용자 「재고관리에서 재고흐름이 이상한 것 확인해서 조회할 수 있게 재고흐름조회 메뉴 추가로」)
+     재고 관리 ▸ 재고내용분석. 셸 iframe(logiFrame 'stockFlow'). 조회 전용 — 아무것도 바꾸지 않는다.
 
      무엇을 보나 : 수불원장(TBL_STOCK_LEDGER)을 품목마다 기준일자까지 훑어 «흐름이 이상한 품목»을 찾는다.
        서버(/prod/stockFlowList.do)는 숫자만 주고 유형 판정은 여기(flagsOf)에서 한다 — 기준을 고치기 쉽게.
@@ -114,7 +114,7 @@
 <body>
 <div class="wrap">
   <div class="ptitle" id="ptitle"></div>
-  <div class="hd noprint"><h2>🔎 재고흐름조회</h2><small>수불원장을 품목마다 훑어 흐름이 이상한 품목을 찾습니다 — 조회 전용(아무것도 바뀌지 않습니다)</small>
+  <div class="hd noprint"><h2>🔎 재고내용분석</h2><small>수불원장을 품목마다 훑어 흐름이 이상한 품목을 찾습니다 — 조회 전용(아무것도 바뀌지 않습니다)</small>
     <button type="button" class="btn ghost" style="margin-left:auto;height:26px" onclick="document.getElementById('help').classList.toggle('on')">ℹ 유형 설명</button></div>
   <div class="help noprint" id="help">
     <b>🔴 현재고 음수</b> — 지금 재고가 0 밑입니다. 입고 등록이 빠졌거나 출고가 겹쳤습니다. &nbsp;
@@ -333,7 +333,7 @@ function render(){
   gel('cnt').innerHTML='기준일자 <b>'+d10(_asOf)+'</b> · '+esc(tn)+' <b>'+list.length.toLocaleString()+'</b>품목'+(cut?' <span class="dim">(앞 '+MAX+'줄만 표시 — 검색으로 좁히세요)</span>':'')+' · 전체 '+c.all.toLocaleString()+'품목 중 이상 '+c.any.toLocaleString()+'품목';
   window._view=list; window._viewNm=tn;
   var q=(gel('q').value||'').trim();
-  gel('ptitle').innerHTML='<b>[재고흐름조회 — '+esc(tn)+']</b><span>기준일자 '+d10(_asOf)+' · '+list.length.toLocaleString()+'품목'+(q?' · 검색 「'+esc(q)+'」':'')+'</span>';
+  gel('ptitle').innerHTML='<b>[재고내용분석 — '+esc(tn)+']</b><span>기준일자 '+d10(_asOf)+' · '+list.length.toLocaleString()+'품목'+(q?' · 검색 「'+esc(q)+'」':'')+'</span>';
 }
 
 /* ── 상세 : 고른 품목의 수불 줄 + 하루 단위 잔고 ── */
@@ -452,7 +452,7 @@ function xls(){
     (r.kids||[]).forEach(function(k){ nKid++;
       if(k.row) body.push(line(k.row, true));
       else body.push(['↳ '+k.cd, k.nm||'', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', r.prodCd, '서브(수불 없음)']); }); });
-  var ws=sheetOf('[재고흐름조회 — '+tn+']', cond,
+  var ws=sheetOf('[재고내용분석 — '+tn+']', cond,
     ['품목코드','품목명','매입처','입고','반품','출고','조정','조정 횟수','현재고','최저 잔고','음수 일수(달력)','첫 음수일','마지막 음수일','최근 입고','최근 출고','무출고(일)','이상 유형','서브코드 재고','합친 재고','주코드','구분'], body,
     ['합 계', list.length.toLocaleString()+'품목'+(nKid?' (서브코드 줄 '+nKid+'개는 합계 제외)':''), '', T.i, (T.r||''), T.o, T.a, '', T.c, '', '', '', '', '', '', '', '', '', '', '', ''],
     { date:[11,12,13,14], num:{ 3:QF, 4:QF, 5:QF, 6:QF, 7:'#,##0', 8:QF, 9:QF, 10:'#,##0', 15:'#,##0', 17:QF, 18:QF }, left:[1,2,16],
@@ -468,7 +468,7 @@ function xls(){
       { date:[0], num:{ 2:QF, 3:QF, 4:QF }, left:[5,7,8], red:function(a){ return (typeof a[3]==='number' && a[3]<0) ? [3] : []; } });
     XLSX.utils.book_append_sheet(wb, ws2, ('수불_'+D.cd).slice(0,31));
   }
-  XLSX.writeFile(wb, '재고흐름조회_'+tn.replace(/[\\/:*?"<>|()> ]/g,'')+'_'+_asOf+'.xlsx');
+  XLSX.writeFile(wb, '재고내용분석_'+tn.replace(/[\\/:*?"<>|()> ]/g,'')+'_'+_asOf+'.xlsx');
   if(window._toast) _toast('📥 '+list.length.toLocaleString()+'품목'+(nKid?'(+서브코드 줄 '+nKid+')':'')+'을 엑셀로 저장했습니다'+(D&&D.rows&&D.rows.length?' (수불 내역 시트 포함)':''),'success');
 }
 

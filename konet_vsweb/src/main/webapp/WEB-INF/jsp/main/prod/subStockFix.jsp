@@ -31,7 +31,7 @@
   .btn.ghost{ background:#fff; color:var(--teal); }
   .btn.sm{ height:24px; padding:0 9px; font-size:12px; }
   .btn[disabled]{ background:#b9c8d2; border-color:#b9c8d2; color:#fff; cursor:not-allowed; }
-  tr.sub.flash td{ background:#fff3b0 !important; box-shadow:inset 0 2px 0 #e2b93b, inset 0 -2px 0 #e2b93b; }   /* 재고흐름조회에서 넘어온 줄 (2026-11-19) */
+  tr.sub.flash td{ background:#fff3b0 !important; box-shadow:inset 0 2px 0 #e2b93b, inset 0 -2px 0 #e2b93b; }   /* 재고내용분석에서 넘어온 줄 (2026-11-19) */
   .sec{ flex:1 1 0; display:flex; flex-direction:column; min-height:0; background:#fff; border:1px solid var(--bd); border-radius:8px; }
   .st{ display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; padding:7px 10px; border-bottom:1px solid var(--bd); }
   .st label{ font-size:13px; font-weight:700; color:#0f6b5e; white-space:nowrap; cursor:pointer; }
@@ -172,7 +172,7 @@ function purchRow(p){
     + '<button class="btn sm" onclick="openPurch(' + num(p.purchSeq) + ')" title="매입등록 화면에 이 전표를 띄웁니다 — 거기서 상품코드(파란 글씨)를 주코드로 바꿔 저장">📝 매입등록에서 열기</button>'
     + '</div></td></tr>';
 }
-/* ★재고흐름조회의 [정리로 가기 →] 로 넘어온 서브코드 (2026-11-19) — sessionStorage('konetSubFixFocus')에 실려 온다.
+/* ★재고내용분석의 [정리로 가기 →] 로 넘어온 서브코드 (2026-11-19) — sessionStorage('konetSubFixFocus')에 실려 온다.
    목록을 그린 뒤 그 줄로 스크롤하고 3초쯤 노랗게 표시한다. 한 번 쓰면 지운다(다음에 이 화면을 그냥 열 때 또 튀지 않게). 줄이 없으면(이미 정리됨) 조용히 넘어간다 */
 function subFocus(){
   var cd = ''; try{ cd = sessionStorage.getItem('konetSubFixFocus') || ''; sessionStorage.removeItem('konetSubFixFocus'); }catch(e){}
@@ -219,7 +219,7 @@ function render(){
     if (open) lines.forEach(function(p){ h += purchRow(p); });
   });
   gel('g1').innerHTML = h + '</tbody></table>';
-  subFocus();   /* 재고흐름조회에서 [정리로 가기]로 넘어왔으면 그 서브코드 줄로 (2026-11-19) */
+  subFocus();   /* 재고내용분석에서 [정리로 가기]로 넘어왔으면 그 서브코드 줄로 (2026-11-19) */
   gel('sum').innerHTML = '서브코드 <b>' + SUBS.length + '</b>개 · 재고 합 <b>' + fmt(tS) + '</b> (매입분 ' + fmt(tP) + ' · 조정분 ' + fmt(tA) + ')'
     + ' · 서브코드로 잡힌 매입 <b>' + PUR.length + '</b>줄(전표 ' + Object.keys(docs).length + '장)';
   gel('foldBtn').textContent = _foldAll ? '▼ 매입 줄 모두 펼치기' : '▲ 매입 줄 모두 접기';

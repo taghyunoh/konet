@@ -15,6 +15,22 @@
   if (window.konetMenuSearch) return;
   window.konetMenuSearch = true;
 
+  /* ★메뉴 이름이 바뀌면 — 자주 쓰는 메뉴는 «이름»으로 localStorage 에 남아 있어, 옛 이름으로 담아 둔 칩이 조용히 사라지고 자리만 차지한다.
+     옛 이름 → 새 이름으로 한 번 옮겨 준다(고정 목록·표시 순서·사용 횟수). 이미 새 이름이 있으면 옛 것만 뺀다. 옮긴 뒤 줄을 다시 그린다.
+     2026-11-19 재고흐름조회 → 재고내용분석 (사용자 「재고흐름조회 --> 재고내용분석 으로」). 메뉴 이름을 또 바꾸면 여기 한 줄을 더한다 */
+  var RENAMED = { '재고흐름조회': '재고내용분석' };
+  (function () {
+    var hit = false;
+    function arr(key) { try { var v = JSON.parse(localStorage.getItem(key) || 'null'); if (!Array.isArray(v)) return; var o = [], ch = false;
+        v.forEach(function (x) { var y = RENAMED.hasOwnProperty(x) ? RENAMED[x] : x; if (y !== x) ch = true; if (o.indexOf(y) < 0) o.push(y); });
+        if (ch) { localStorage.setItem(key, JSON.stringify(o)); hit = true; } } catch (e) {} }
+    arr('konetLogiFav3'); arr('konetLogiFavOrder2');
+    try { var u = JSON.parse(localStorage.getItem('konetLogiFavUse') || 'null'), ch = false;
+      if (u && typeof u === 'object') { for (var k in RENAMED) if (u.hasOwnProperty(k)) { u[RENAMED[k]] = (u[RENAMED[k]] || 0) + (u[k] || 0); delete u[k]; ch = true; }
+        if (ch) { localStorage.setItem('konetLogiFavUse', JSON.stringify(u)); hit = true; } } } catch (e) {}
+    if (hit) { try { if (typeof favRender === 'function') favRender(); } catch (e) {} }
+  })();
+
   /* 설명 · 찾는 말(이름에 없는 다른 말) — 이름은 사이드바 글자 그대로(공백 포함) */
   var DESC = {
     '납기현황표(대시보드)': ['발주현황표 엑셀을 올려 출고장·사업장·품목별 납기(출고) 수량을 작성하고 봅니다', '출고현황표 발주현황표 업로드 대시보드 출고'],
@@ -42,7 +58,7 @@
     '매입 반품내역': ['매입 반품(음수 수량 입고) 내역을 조회합니다', '반품 매입반품'],
     '매입마감': ['월 매입을 마감합니다', '마감 월마감'],
     '품목별재고현황': ['품목별 입고·반품·출고·현재고와 그 근거(수불 내역)를 봅니다', '재고 현재고 수불 입출고'],
-    '재고흐름조회': ['재고 흐름이 이상한 품목을 찾습니다 — 현재고 음수 · 입고 없이 출고 · 과거 음수 · 조정 잦음 · 장기 무출고', '재고 흐름 이상 음수 마이너스 무출고 점검 수불'],
+    '재고내용분석': ['재고 흐름이 이상한 품목을 찾습니다 — 현재고 음수 · 입고 없이 출고 · 과거 음수 · 조정 잦음 · 장기 무출고', '재고 흐름 이상 음수 마이너스 무출고 점검 수불 재고흐름조회 흐름조회 분석'],
     '월별 출고현황': ['품목별 월별 출고량과 입·출고 상세를 봅니다', '출고 월별'],
     '재고마감': ['월 재고를 마감합니다(기초·입고·출고·기말)', '마감 월마감 재고'],
     '비용 등록': ['월 비용(지출)을 등록합니다 — 종합 실적·마감현황에 반영', '지출 경비 비용'],
