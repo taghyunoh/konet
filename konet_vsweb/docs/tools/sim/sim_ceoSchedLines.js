@@ -284,15 +284,12 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
   DB[11]={ schedSeq:11, fromDt:today, toDt:today, schedTm:'', title:'옛', place:'', content:'<div>대상미팅</div><div>1. 납품 취소</div><div>2. 품질 취소</div>', doneYn:'N', doneDttm:'', hasContent:'Y' };
   DB[12]={ schedSeq:12, fromDt:today, toDt:today, schedTm:'', title:'옛2', place:'', content:'<div>1. 가 완료</div><div>2. 나 취소</div>', doneYn:'N', doneDttm:'', hasContent:'Y' };
   w.load(); await tick(); await tick(); w.tabGo('todo'); await tick();
-  { const it=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(11,/.test(x.innerHTML)), fb=it&&it.querySelector('.lnall .fin');
-    T(it && fb && /모든 줄 끝/.test(it.querySelector('.lnall').textContent) && !/남은 줄이 없습니다/.test(it.textContent), '옛 일정 = 「모든 줄 끝 [✓ 일정 완료]」(긴 안내 없음)');
-    let opened=false; const eo=w.edOpen; w.edOpen=function(){ opened=true; };
-    fb.click(); await tick(); await tick(); await tick();
-    T(DB[11].doneYn==='C' && /납품 취소/.test(DB[11].content) && /품질 취소/.test(DB[11].content) && !opened, '줄이 전부 취소 → 일정 취소 · 줄은 그대로 · 창 안 열림 : '+DB[11].doneYn); w.edOpen=eo;
-    const it12=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(12,/.test(x.innerHTML)); it12.querySelector('.lnall .fin').click(); await tick(); await tick(); await tick();
-    T(DB[12].doneYn==='Y' && /나 취소/.test(DB[12].content) && ![...d.querySelectorAll('#list .it')].some(x=>/rowDel\(1[12],/.test(x.innerHTML)), '완료·취소 섞임 → 일정 완료 · 취소 줄은 취소 그대로 · 둘 다 미완료에서 빠짐'); }
+  { const it=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(11,/.test(x.innerHTML));
+    T(it && it.querySelector('.lnall') && it.querySelector('.lnall').textContent.trim()==='모든 줄 끝' && !it.querySelector('.lnall button') && !/남은 줄이 없습니다/.test(it.textContent), '옛 일정 = 「모든 줄 끝」 한 마디 · 단추 없음(2026-11-20 「단추도 제거」)');
+    T(typeof w.schedFinish==='undefined', '쓰지 않는 schedFinish 는 없앴다'); }
   T(w.autoSt('<div>삼성미팅</div><div>1. 가 완료</div>')==='Y' && w.autoSt('<div>1. 가</div><div>2. 나 완료</div>')===null && w.autoSt('')===null, 'autoSt — 묶음 머리는 안 센다 · 남은 줄 있으면 null');
   /* 완료 일정에서 줄을 되돌려도 일정은 그대로(위는 전체, 아래는 개별) */
+  DB[12].doneYn='Y'; w.load(); await tick(); await tick();
   w.tabGo('all'); await tick();
   { const it=[...d.querySelectorAll('#list .it')].find(x=>/rowDel\(12,/.test(x.innerHTML)); const ck=it&&it.querySelectorAll('.lw .ln .ck')[1];
     if(ck) ck.click(); await tick(); await tick(); await tick();

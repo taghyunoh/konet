@@ -164,7 +164,6 @@
   .it .lw .ln{ font-size:12.5px; }
   .it .lw .lnhid{ font-size:11.5px; color:#6b7a89; margin-top:2px; text-align:right; }   /* 미완료 탭 — 끝난 줄 숨김 (2026-11-20) */
   .it .lw .lnall{ font-size:12px; color:#137a6c; font-weight:700; padding:2px 0; display:flex; align-items:center; gap:8px; }
-  .it .lw .lnall .fin{ height:24px; padding:0 10px; border:1px solid var(--teal); border-radius:6px; background:var(--teal); color:#fff; font-size:12px; font-weight:800; cursor:pointer; }
   .ln .lt .tag{ opacity:1; }
   .it.done .t1, .it.cancel .t1{ color:#8794a1; text-decoration:none; font-weight:600; } .it.done .t2, .it.done .t2 b, .it.cancel .t2, .it.cancel .t2 b{ color:#48606f; }
   .tag{ display:inline-block; padding:0 7px; border-radius:9px; font-size:11.5px; font-weight:800; margin-left:5px; vertical-align:1px; }
@@ -469,16 +468,6 @@ function autoSt(html){
   if(!L.length || L.some(function(l){ return l.st==='N'; })) return null;
   return L.every(function(l){ return l.st==='C'; }) ? 'C' : 'Y';
 }
-/* 이미 줄은 다 끝났는데 상태가 빈칸인 일정(이 규칙 전에 끝낸 것) — 줄은 그대로 두고 상태만 맞춘다. doneSet 은 줄 전부를 같은 표시로 덮으므로(취소 줄이 완료가 된다) 쓰지 않는다 */
-function schedFinish(seq, ev){
-  if(ev) ev.stopPropagation();
-  busy(true);
-  postForm('/mangr/ceoSchedGet.do',{ schedSeq:seq }).then(function(j){
-    var d=j.data||{}, html=d.content||'', au=autoSt(html); if(!au) throw new Error('아직 남은 줄이 있습니다 — 화면을 다시 읽습니다.');
-    return postJson('/mangr/ceoSchedSave.do', { schedSeq:seq, fromDt:d.fromDt, toDt:d.toDt||d.fromDt, schedTm:d.schedTm||'', title:(titleOf(html)||d.title||''), place:d.place||'', content:html, doneYn:au });
-  }).then(function(){ busy(false); load(); })
-    .catch(function(e){ busy(false); alertBox(esc(e.message)); load(); });
-}
 function lnSet(seq, idx, ev, to){   /* to = 바꿀 상태를 정해 줄 때(묶음 머리 → N). 없으면 차례대로 */
   if(ev) ev.stopPropagation();
   var r=rowOf(seq); if(!r) return;
@@ -623,7 +612,7 @@ function paintList(){
 function lwHtml(s, q){
   if(_tab!=='todo' || q) return linesHtml(s, q);
   var o=openLines(s);
-  if(!o.lines.length) return '<div class="lnall">모든 줄 끝 <button type="button" class="fin" onclick="schedFinish('+s.schedSeq+', event)" title="줄은 그대로 두고 일정 상태만 완료로(줄이 전부 취소면 취소로) — 이 목록에서 빠집니다">✓ 일정 완료</button></div>';   /* 짧게 (2026-11-20 「이것도 헷갈림」) */
+  if(!o.lines.length) return '<div class="lnall" title="줄은 모두 끝났습니다 — 위 상태 칸에서 완료로 바꾸면 이 목록에서 빠집니다">모든 줄 끝</div>';   /* 짧게 · 단추 없음 (2026-11-20 「이것도 헷갈림」 → 「[✓ 일정 완료] 단추도 제거해줘」) — 이제 마지막 줄을 끝내면 일정이 저절로 완료되므로 이 줄은 그 규칙 전에 끝낸 옛 일정에만 보인다 */
   return linesHtml(s, q, false, true)+(o.hid?'<div class="lnhid" title="완료·취소한 줄은 미완료 목록에서 숨깁니다 — 「전체」 탭이나 달력에서 모두 보입니다">끝난 '+o.hid+'줄 숨김</div>':'');
 }
 /* ══ 엑셀 · 인쇄 (2026-11-19 사용자 「엑셀출력 및 인쇄 넣어줘요」) ══
