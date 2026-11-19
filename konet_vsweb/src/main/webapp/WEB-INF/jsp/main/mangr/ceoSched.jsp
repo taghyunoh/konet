@@ -136,8 +136,6 @@
   .per b{ font-weight:800; color:#1f2a37; } .per.z{ opacity:.55; } .per:hover{ border-color:var(--teal); }
   .per.on{ background:#e3f2ee; border-color:var(--teal); color:#0f6b5e; } .per.on b{ color:#0f6b5e; }
   .per.lt b{ color:var(--red); } .per.lt.on{ background:#fde8e8; border-color:var(--red); color:var(--red); }
-  .list .pgh{ position:sticky; top:0; z-index:1; padding:4px 10px; font-size:12px; font-weight:800; color:#48606f; background:#eef2f5; border-bottom:1px solid #e3e8ee; }
-  .list .pgh.lt{ color:var(--red); background:#fdf0f0; } .list .pgh b{ font-weight:800; }
   .list .empty{ padding:34px 12px; text-align:center; color:#8794a1; font-size:13.5px; line-height:1.8; }
   .it{ display:block; padding:7px 11px 8px; border-bottom:1px solid #eef1f5; cursor:pointer; }
   /* ★상태 칸은 날짜 줄 맨 앞에, 내용 판은 그 밑에 꽉 차게 (2026-11-19 사용자 「완료 앞으로 나오지 말고 박스와 나란히 위에 위치하게」) — 종전엔 상태 칸이 왼쪽 세로 칸을 차지해 판이 오른쪽으로 밀렸다 */
@@ -250,7 +248,7 @@
     </div>
     <div class="side">
       <div class="tabs">
-        <span class="tab on" id="tabTodo" onclick="tabGo('todo')" title="달과 관계없이 아직 끝내지 않은 일정 전부(완료·취소 제외) · 그 안에서도 끝낸 줄은 숨기고 남은 줄만 — 빨간 숫자는 날짜가 지난 것이 있다는 표시">미완료 <b id="todoCnt">0</b></span>
+        <span class="tab on" id="tabTodo" onclick="tabGo('todo')" title="오늘까지 날짜가 온 일정 중 아직 끝내지 않은 것(완료·취소·오늘 이후 제외) · 그 안에서도 끝낸 줄은 숨기고 남은 줄만 — 빨간 숫자는 날짜가 지난 것이 있다는 표시">미완료 <b id="todoCnt">0</b></span>
         <span class="tab" id="tabAll" onclick="tabGo('all')" title="달·완료 여부와 관계없이 등록된 일정 전부 — 최근 날짜가 위">전체 <b id="allCnt">0</b></span>
         <%-- 삭제는 탭이 아니라 오른쪽 끝 작은 단추 (2026-11-20 사용자 「삭제 별도 뺀다고 하지 않았나요」 — 자주 쓰지 않는다). id 는 그대로라 코드는 종전 그대로 --%>
         <span class="delbtn" id="tabDel" onclick="tabGo(_tab==='del' ? 'todo' : 'del')" title="지운 일정 보기 — 최근 지운 것이 위 · [↩ 복구]로 되살립니다 (다시 누르면 미완료로)">🗑 삭제함 <b id="delCnt">0</b></span>
@@ -330,7 +328,7 @@ function load(){
        달력은 날짜로, 「이 달」은 monOf 로, 「미완료」는 완료 여부로 여기서 고른다 */
   busy(true);
   postForm('/mangr/ceoSchedList.do',{ frDt:'00000101', toDt:'99991231' })
-    .then(function(r){ _rows=r.data||[]; _todo=_rows.filter(isOpen); noTable(false); busy(false); paint(); loadContents(); loadDels();
+    .then(function(r){ _rows=r.data||[]; _todo=_rows.filter(inTodo); noTable(false); busy(false); paint(); loadContents(); loadDels();
       try{ if(window.parent && window.parent!==window && typeof window.parent.konetCeoBadge==='function') window.parent.konetCeoBadge(); }catch(e){}   /* 메뉴 옆 «지난 미완료» 건수도 같이 (2026-11-19) */
     })
     .catch(function(e){ busy(false); _rows=[]; _todo=[]; paint(); if(!_noTable) alertBox(esc(e.message)); });
@@ -343,6 +341,11 @@ var ST={ N:{ nm:'', ic:'☐' }, Y:{ nm:'완료', ic:'☑' }, C:{ nm:'취소', ic
 function stKey(s){ return (s && ST[s.doneYn]) ? s.doneYn : 'N'; }
 function isOpen(s){ return stKey(s)==='N'; }
 function late(s){ return isOpen(s) && s.toDt<today(); }
+/* ★미완료 목록(탭·건수·지난 미완료)에 드는 일정 = 상태가 빈칸이고 <아직 남은 줄이 있는> 것 (2026-11-20 사용자 「그런 일정은 미완료 목록에서 아예 빼줘」) —
+     줄은 다 끝났는데 상태만 빈칸인 일정(마지막 줄 자동 완료 규칙 전에 끝낸 것)은 남은 일이 없으므로 뺀다. 상태는 안 바꾼다(달력·전체 탭에선 그대로 「-」).
+     내용을 아직 못 읽은 일정(옛 서버 — content 없음)은 판단을 못 하니 종전대로 넣는다. 함수 autoSt 는 아래(줄 상태 절) */
+/* ★오늘 이후(내일부터 시작하는 일정)도 뺀다 (2026-11-20 사용자 「미완료건 오늘이후는 빼줘요」) — 미완료 = 날짜가 온(오늘·지난) 일 중 남은 것. 앞으로 할 일은 달력·전체 탭에서 본다 */
+function inTodo(s){ return isOpen(s) && s.fromDt<=today() && !(s.content!=null && autoSt(s.content)); }
 function paint(){ paintCal(); paintList(); }
 
 /* ══ 내용 줄 (2026-11-19 사용자 「제목 필요 없고 업무일지 내용처럼 · 이 내용 완료·일정취소 — 한 텍스트로 저장하지만 · 검색은 내용으로」) ══
@@ -549,22 +552,28 @@ function lateDaysTip(v){ var el=gel('lateDaysTip'); if(!el) return; el.textConte
 function lateDaysSet(v){ v=String(v==null?'':v).trim(); var n=parseInt(v,10); n=(isNaN(n)||n<0) ? 0 : Math.min(n,365);
   try{ localStorage.setItem('konetCeoLateDays2', String(n)); }catch(e){}
   lateDaysTip(String(n)); }
-function tabGo(t){ _tab=t; paintList(); gel('list').scrollTop=0; }
-/* ★기간 조건 + 맨 위 요약 (2026-11-20 사용자 「기간 조건이랑 맨 위 요약도 해줘」) — 한 줄 칩 : [전체 n] [지남 n] [오늘 n] [이번 주 n] [이후 n].
+function tabGo(t){ if(t!==_tab) _per=perDef(t); _tab=t; paintList(); gel('list').scrollTop=0; }   /* 탭을 옮기면 그 탭의 기본 칩 — 전체 = 이번 주 (2026-11-20) */
+/* ★기간 조건 + 맨 위 요약 (2026-11-20 사용자 「기간 조건이랑 맨 위 요약도 해줘」) — 한 줄 칩 : [전체 n] [지남 n] (같은 날 오늘·이번 주·이후 칩은 뺐다).
      숫자 = 지금 탭(미완료/전체) + 검색에 걸린 일정을 기간별로 센 것(요약) · 누르면 그 기간만(조건) · 다시 누르면 전체. 삭제 탭엔 없다.
      기간은 일정 날짜로 가른다(겹치지 않게) : 지남 = 끝나는 날 < 오늘 · 오늘 = 오늘이 그 기간 안 · 이번 주 = 내일 ~ 이번 주 토요일에 시작 · 이후 = 다음 주 일요일부터.
      ★「이번 주」 = 달력 주(일~토 — 달력 머리와 같은 차례) (2026-11-20 사용자 「이번 주로 바꿔줘」 — 같은 날 처음엔 «내일 ~ 6일 뒤»(7일 안)였다). 토요일이면 이번 주 칩은 0 이다.
      「전체」를 보고 있으면 목록에 기간 머리(지남 · 오늘 · 이번 주 · 이후)를 끼워 묶어 보인다. 엑셀·인쇄도 같은 목록(curList)이라 기간이 따라간다 */
-var _per='', PERS=[['late','지남'],['tdy','오늘'],['wk','이번 주'],['aft','이후']];
+/* ★칩은 [전체] [지남] 둘뿐 (2026-11-20 사용자 「오늘 이번주 이후 다제거」 — 같은 날 다섯 칩(전체·지남·오늘·이번 주·이후)으로 만들었다가 줄임). 미완료 탭엔 이미 오늘 이후가 없다(inTodo).
+     perOf 는 남겨 둔다(지남 판정 = 'late') */
+var _per='', PERS=[['late','지남']], PERS_ALL=[['late','지남'],['week','이번 주'],['aft','이후']];   /* 이후 = 다음 주 일요일부터 시작 (2026-11-20 「이후도 기존대로 추가」) */   /* ★전체 탭만 「이번 주」 칩 + 기본 선택 (2026-11-20 「전체는 기본 이번주 선택」) */
+/* 이번 주 = 이번 달력 주(일 ~ 토)에 하루라도 걸친 일정 — 오늘·이미 지난 요일도 든다(미완료 탭의 옛 「이번 주」(내일 ~ 토)와 다르다) */
+function weekRange(t){ var d0=toDate(t||today()); return { a:ymd(new Date(d0.getFullYear(), d0.getMonth(), d0.getDate()-d0.getDay())), b:ymd(new Date(d0.getFullYear(), d0.getMonth(), d0.getDate()+(6-d0.getDay()))) }; }
+function perHit(s, k, t){ if(k==='week'){ var w=weekRange(t); return s.fromDt<=w.b && s.toDt>=w.a; } return perOf(s, t)===k; }
+function perDef(tab){ return tab==='all' ? 'week' : ''; }   /* 탭을 열 때 눌려 있는 칩 — 전체 = 이번 주 · 미완료 = 전체 */
 function perOf(s, t){ t=t||today(); if(s.toDt<t) return 'late'; if(s.fromDt<=t) return 'tdy'; var d0=toDate(t), w=ymd(new Date(d0.getFullYear(), d0.getMonth(), d0.getDate()+(6-d0.getDay()))); return s.fromDt<=w ? 'wk' : 'aft'; }   /* w = 이번 주 토요일 */
-function perNm(k){ for(var i=0;i<PERS.length;i++) if(PERS[i][0]===k) return PERS[i][1]; return '전체'; }
+function perNm(k){ for(var i=0;i<PERS_ALL.length;i++) if(PERS_ALL[i][0]===k) return PERS_ALL[i][1]; return '전체'; }
 function perGo(k){ _per=(_per===k ? '' : k); paintList(); gel('list').scrollTop=0; }
 function paintPers(base){
   var el=gel('pers'); if(!el) return;
   if(_tab==='del'){ el.innerHTML=''; return; }
-  var t=today(), c={ late:0, tdy:0, wk:0, aft:0 }; base.forEach(function(s){ c[perOf(s,t)]++; });
-  var tip={ '':'기간 상관없이 전부', late:'끝나는 날이 지난 일정', tdy:'오늘 하는 일정(여러 날 걸친 것 포함)', wk:'내일부터 이번 주 토요일까지 시작하는 일정(주 = 일~토)', aft:'다음 주 일요일부터 시작하는 일정' };
-  el.innerHTML=[['','전체']].concat(PERS).map(function(p){ var n=p[0] ? c[p[0]] : base.length;
+  var t=today(), ps=(_tab==='all') ? PERS_ALL : PERS, c={}; ps.forEach(function(p){ c[p[0]]=base.filter(function(s){ return perHit(s, p[0], t); }).length; });
+  var w=weekRange(t), tip={ '':'기간 상관없이 전부', late:'끝나는 날이 지난 일정', week:'이번 주('+dTxt(w.a)+' ~ '+dTxt(w.b)+')에 걸친 일정', aft:'다음 주 일요일부터 시작하는 일정' };
+  el.innerHTML=[['','전체']].concat(ps).map(function(p){ var n=p[0] ? c[p[0]] : base.length;
     return '<span class="per'+(_per===p[0]?' on':'')+(p[0]==='late'&&n&&_tab==='todo'?' lt':'')+(!n&&p[0]?' z':'')+'" onclick="perGo(\''+p[0]+'\')" title="'+tip[p[0]]+(_tab==='todo'?' — 미완료만':'')+'">'+p[1]+' <b>'+n+'</b></span>'; }).join('');
 }
 /* ★목록의 날짜 → 달력 그 달·그 날 (2026-11-20 사용자 「날짜 누르면 달력 이동도 해줘」) — 창은 열지 않는다(날짜 글자 밖을 누르면 종전대로 창).
@@ -582,6 +591,9 @@ function calGo(k, ev){
 }
 function paintList(){
   var q=gel('q').value.trim().toLowerCase(), t=today();
+  _todo=_rows.filter(inTodo);   /* 내용이 나중에 채워지거나 줄이 바뀌어도 맞게 — 그릴 때마다 */
+  if((_per==='week' || _per==='aft') && _tab!=='all') _per='';   /* 이번 주·이후 칩은 전체 탭에만 */
+  if(_per && _per!=='late' && _per!=='week' && _per!=='aft') _per='';   /* 옛 칩 값(오늘·옛 이번 주)이 남아 있으면 전체로 */
   var mon=_rows.filter(monOf), nLate=_todo.filter(late).length, cnt={ N:0, Y:0, C:0 }; mon.forEach(function(s){ cnt[stKey(s)]++; });
   gel('tabTodo').classList.toggle('on', _tab==='todo'); gel('tabAll').classList.toggle('on', _tab==='all'); gel('tabDel').classList.toggle('on', _tab==='del');
   gel('delCnt').textContent=(_dels ? _dels.length : '-');
@@ -592,9 +604,9 @@ function paintList(){
   if(_tab==='del'){ paintDel(list, q); return; }
   if(!list.length && _per){ gel('list').innerHTML='<div class="empty">「'+perNm(_per)+'」에 '+(_tab==='todo'?'끝내지 않은 ':'')+'일정이 없습니다.'+(q?'<br>(검색 「'+esc(gel('q').value.trim())+'」)':'')+'<br><a href="javascript:void(0)" onclick="perGo(\'\')">전체 보기</a></div>'; return; }
   if(!list.length){ gel('list').innerHTML='<div class="empty">'+(q?'검색에 맞는 일정이 없습니다.':(_tab==='todo'?'끝내지 않은 일정이 없습니다 👍':((_tab==='all'?'등록된 일정이 없습니다.':'이 달에 등록된 일정이 없습니다.')+'<br>달력의 날짜 칸을 누르면 그 날짜로 새 일정을 씁니다.')))+'</div>'; return; }
-  var pg='', t9=today(), pcnt={}; if(!_per) list.forEach(function(s){ var p=perOf(s,t9); pcnt[p]=(pcnt[p]||0)+1; });
+
   gel('list').innerHTML=list.map(function(s){
-    var hd=''; if(!_per){ var p=perOf(s,t9); if(p!==pg){ pg=p; hd='<div class="pgh'+(p==='late'&&_tab==='todo'?' lt':'')+'">'+perNm(p)+' <b>'+pcnt[p]+'</b></div>'; } }   /* 기간 머리 — 「전체」를 볼 때만 */
+    var hd='';   /* 기간 머리는 없앴다 (2026-11-20 「오늘 이번주 이후 다제거」) */
     var k=stKey(s), tag='';
     if(k==='Y' || k==='C') tag='<span class="tag ok" title="'+ST[k].nm+'(으)로 바꾼 때">'+ST[k].nm+(s.doneDttm?' '+esc(s.doneDttm.slice(5,16)):'')+'</span>';
     else if(s.toDt<t) tag='<span class="tag late">'+dayGap(s.toDt,t)+'일 지남</span>';
@@ -611,7 +623,7 @@ function paintList(){
 function lwHtml(s, q){
   if(_tab!=='todo' || q) return linesHtml(s, q);
   var o=openLines(s);
-  if(!o.lines.length) return '';   /* 줄이 모두 끝난 옛 일정 — 아무 글도 없이 날짜 줄만 (2026-11-20 「「모든 줄 끝」 문구도 제거해줘」 — 그 전엔 긴 안내 → 단추 → 「모든 줄 끝」). 빼려면 위 상태 칸에서 완료 */
+  if(!o.lines.length) return '';   /* (이제 inTodo 가 그런 일정을 목록에서 뺀다 — 남겨 둔 안전 갈래) 줄이 모두 끝난 옛 일정 — 아무 글도 없이 날짜 줄만 (2026-11-20 「「모든 줄 끝」 문구도 제거해줘」 — 그 전엔 긴 안내 → 단추 → 「모든 줄 끝」). 빼려면 위 상태 칸에서 완료 */
   return linesHtml(s, q, false, true)+(o.hid?'<div class="lnhid" title="완료·취소한 줄은 미완료 목록에서 숨깁니다 — 「전체」 탭이나 달력에서 모두 보입니다">끝난 '+o.hid+'줄 숨김</div>':'');
 }
 /* ══ 엑셀 · 인쇄 (2026-11-19 사용자 「엑셀출력 및 인쇄 넣어줘요」) ══
@@ -625,7 +637,7 @@ function curList(){
   if(_tab==='del'){ if(q) list=list.filter(function(s){ return (lnText(s)+' '+(s.place||'')).toLowerCase().indexOf(q)>=0; }); return list; }   /* 삭제 탭 = 서버가 준 차례(최근 지운 것부터) */
   if(q) list=list.filter(function(s){ return (lnText(s)+' '+(s.place||'')).toLowerCase().indexOf(q)>=0; });   /* 내용(줄 글자) + 장소 (2026-11-19 — 종전 제목 + 장소) */
   curList.base=list.slice();   /* 기간 거르기 전 — 맨 위 칩 숫자(요약)가 쓴다 */
-  if(_per){ var t0=today(); list=list.filter(function(s){ return perOf(s,t0)===_per; }); }   /* 기간 조건 (2026-11-20) */
+  if(_per){ var t0=today(); list=list.filter(function(s){ return perHit(s, _per, t0); }); }   /* 기간 조건 (2026-11-20) */
   list.sort(function(a,b){ return a.fromDt<b.fromDt?-1:(a.fromDt>b.fromDt?1:((a.schedTm||'99')<(b.schedTm||'99')?-1:((a.schedTm||'99')>(b.schedTm||'99')?1:a.schedSeq-b.schedSeq))); });
   if(_tab==='all') list.reverse();   /* 「전체」는 최근 날짜가 위 (2026-11-19) */
   return list;
