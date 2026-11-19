@@ -186,6 +186,22 @@ var TYPES=[
 ];
 function opt(){ return { dead:Math.max(1, n(gel('deadDays').value)||90), adjMin:Math.max(1, n(gel('adjMin').value)||3), past:Math.max(1, n(gel('pastDays').value)||30) }; }
 function flagsOf(r, o){ var f=[]; TYPES.forEach(function(t){ if(t.test(r,o)) f.push(t.k); }); return f; }
+/* ★유형 설명 — 위 표시(칩)와 줄의 「이상 유형」 딱지에 마우스를 올리면 나온다 (2026-11-19 사용자 「표시에 마우스 올리면 설명 나오게」).
+   판정 조건(TYPES 의 test)을 말로 옮긴 것 — test 를 고치면 여기도 같이 고친다. 일수·횟수는 지금 조회줄에 적힌 값을 그대로 넣어 보여 준다 */
+function tipOf(k){ var o=opt();
+  var T={
+    neg  :'지금 재고가 0보다 작은 품목입니다.\n들어온 것보다 나간 것이 많게 적혀 있습니다 — 입고 누락·코드 착오부터 확인하세요.',
+    noin :'입고·조정·판매 반품 기록이 하나도 없는데 출고만 있는 품목입니다.\n재고가 어디서 왔는지 장부에 근거가 없습니다 — 매입 입고 누락이거나, 다른 코드(서브코드)로 입고한 경우입니다.',
+    ret  :'매입 반품 수량이 입고 수량보다 많은 품목입니다.\n받은 것보다 더 돌려보낸 것으로 적혀 있습니다.',
+    past :'지금은 0 이상이지만 최근 '+o.past+'일 안에 음수였던 품목입니다.\n일수는 위 「최근 음수 기준」 칸에서 바꿉니다.',
+    adj  :'재고 조정이 '+o.adjMin+'회 이상인 품목입니다.\n장부와 실물이 자주 어긋난다는 신호입니다. 횟수는 위 「조정 기준」 칸에서 바꿉니다.',
+    dead :'재고가 남아 있는데 '+o.dead+'일 이상 출고가 없는 품목입니다.\n일수는 위 「무출고 기준」 칸에서 바꿉니다.',
+    price:'단가가 비어 있는(0원) 입고가 있는 품목입니다.\n재고 금액·원가가 실제보다 낮게 잡힙니다.',
+    sub  :'재고가 서브코드(매칭코드) 쪽에 갈라져 있는 품목입니다.\n주코드가 음수여도 합치면 부족이 아닐 수 있습니다 — 「정리로 가기 →」로 합칩니다.',
+    any  :'위 여덟 유형 중 하나라도 걸린 품목입니다.\n여러 유형에 걸려도 한 번만 셉니다 — 그래서 왼쪽 숫자를 다 더한 것보다 작습니다.',
+    all  :'기준일자까지 수불 기록이 있는 모든 품목입니다(이상 여부와 관계없이).'
+  };
+  return T[k]||''; }
 
 /* 서브코드 → 주코드 지도 — 셸 재고현황(stkAliasLoad)과 같은 두 원천 : 상품코드등록의 매칭코드(extItemList) · 품목코드(매핑)의 연결(xrefList).
    못 읽어도(권한·옛 서버) 조회는 그대로 된다 — 표시만 안 붙는다. 한 번 읽으면 화면을 닫을 때까지 쓴다 */
@@ -272,7 +288,7 @@ function rowHtml(r, NM, kid){
   var cdCell = kid ? '<span class="kar">↳</span><span class="subtag" title="위 주코드의 서브코드(매칭코드)">서브</span> '+esc(r.prodCd)
                    : (hasKid?'<span class="maintag" title="서브코드(매칭코드) '+r.kids.length+'개가 딸린 주코드">주</span> ':'')+esc(r.prodCd)+(r.mainCd?' <span class="subtag" title="주코드 '+esc(r.mainCd)+' 의 서브코드(매칭코드)">서브</span>':'');
   var flags = r.f.map(function(x){
-    if(x!=='sub') return '<span class="fl '+x+'">'+esc(NM[x])+'</span>';
+    if(x!=='sub') return '<span class="fl '+x+'" title="'+esc(tipOf(x))+'">'+esc(NM[x])+'</span>';
     return kid ? '<span class="fl sub" title="이 서브코드에 재고가 남아 있습니다 — 서브코드 재고 정리에서 주코드로 합칠 수 있습니다">재고 '+sgn(r.curQty)+' 남음</span>'+fixBtn(r.prodCd) : subBadge(r); }).join('');
   return '<tr class="pick'+(kid?' kid':'')+(hasKid?' hasKid':'')+(r.prodCd===_pick?' on':'')+'" data-cd="'+esc(r.prodCd)+'" onclick="dtlOpen(\''+esc(r.prodCd).replace(/'/g,'')+'\')">'
     +'<td>'+cdCell+'</td><td class="nm">'+esc(r.prodNm||_subNm[r.prodCd]||'')+'</td><td class="l" title="'+esc(r.vendorCd)+'">'+esc(r.vendorNm||r.vendorCd)+'</td>'
@@ -298,9 +314,9 @@ function typeGo(k){ _type=k; render(); gel('grid').scrollTop=0; }
 function render(){
   var v=view(), list=v.list, c=v.cnt;
   /* 칩 */
-  gel('chips').innerHTML=TYPES.map(function(t){ return '<span class="chip'+(_type===t.k?' on':'')+(c[t.k]?'':' zero')+'" onclick="typeGo(\''+t.k+'\')">'+t.ic+' '+esc(t.nm)+' <b>'+c[t.k].toLocaleString()+'</b></span>'; }).join('')
-    +'<span class="chip'+(_type==='any'?' on':'')+'" onclick="typeGo(\'any\')" title="위 유형 중 하나라도 걸린 품목">이상 있는 품목 <b>'+c.any.toLocaleString()+'</b></span>'
-    +'<span class="chip'+(_type==='all'?' on':'')+'" onclick="typeGo(\'all\')">전체 <b>'+c.all.toLocaleString()+'</b></span>';
+  gel('chips').innerHTML=TYPES.map(function(t){ return '<span class="chip'+(_type===t.k?' on':'')+(c[t.k]?'':' zero')+'" onclick="typeGo(\''+t.k+'\')" title="'+esc(tipOf(t.k))+'">'+t.ic+' '+esc(t.nm)+' <b>'+c[t.k].toLocaleString()+'</b></span>'; }).join('')
+    +'<span class="chip'+(_type==='any'?' on':'')+'" onclick="typeGo(\'any\')" title="'+esc(tipOf('any'))+'">이상 있는 품목 <b>'+c.any.toLocaleString()+'</b></span>'
+    +'<span class="chip'+(_type==='all'?' on':'')+'" onclick="typeGo(\'all\')" title="'+esc(tipOf('all'))+'">전체 <b>'+c.all.toLocaleString()+'</b></span>';
   /* 정렬 — 기본 : 현재고 음수는 재고 낮은 순, 그 밖은 품목코드 */
   var k=_sort.k, d=_sort.d;
   if(!k){ if(_type==='neg'){ k='curQty'; d=1; } else if(_type==='past'){ k='minBal'; d=1; } else if(_type==='dead'){ k='idle'; d=-1; } else if(_type==='adj'){ k='adjCnt'; d=-1; } else { k='prodCd'; d=1; } }
