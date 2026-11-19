@@ -642,7 +642,26 @@ function delAsk(seq, title, after){
   if(window._confirmBox) _confirmBox({ msg:'이 일정을 지울까요?<br><b>'+esc(title||'')+'</b><br><span style="font-size:12px;color:#6b7a89">지우면 달력과 목록에서 사라집니다.</span>', icon:'🗑', okText:'지우기', onOk:go, onCancel:function(){} });
   else if(confirm('이 일정을 지울까요?')) go();
 }
-function edDel(){ if(!_seq) return; delAsk(_seq, gel('fTitle').value, function(){ edClose(true); }); }
+/* ★창에서 완료를 풀고 바로 [삭제] (2026-11-19 사용자 「완료에서 일정취소 하고 저장 안 하고 하면 삭제 안 됨 — 저장하고 다시 들어와서 해야 삭제됨」) —
+   저장돼 있는 상태는 완료인데 창에서 [일정취소](또는 완료 풀기)를 눌러 놓았으면, 따로 저장하지 않아도 «그 상태로 먼저 바꾼 뒤» 지운다(한 번에).
+   확인 글에 상태를 바꾼다는 것을 같이 적는다. 창에서도 완료인 채면 종전대로 막고, 이 창에서 어떻게 하면 되는지 알려 준다 */
+function edDel(){
+  if(!_seq) return;
+  var s=rowOf(_seq), cur=stGet(), seq=_seq, title=gel('fTitle').value;
+  if(s && stKey(s)==='Y' && cur==='Y'){ alertBox('완료한 일정은 바로 지울 수 없습니다.<br><span style="font-size:12.5px;color:#3d4d5c">위의 <b>[일정취소]</b>를 누른 다음 [삭제]를 누르세요 — 저장은 따로 하지 않아도 됩니다.</span>'); return; }
+  if(s && stKey(s)==='Y'){
+    var nm=(cur==='C' ? '일정취소' : '완료 해제');
+    var go=function(){ busy(true);
+      postForm('/mangr/ceoSchedDone.do',{ schedSeq:seq, doneYn:cur })
+        .then(function(){ return postForm('/mangr/ceoSchedDel.do',{ schedSeq:seq }); })
+        .then(function(){ busy(false); toast('🗑 일정을 지웠습니다'); edClose(true); load(); })
+        .catch(function(e){ busy(false); alertBox(esc(e.message)); load(); }); };
+    if(window._confirmBox) _confirmBox({ msg:'상태를 <b>'+nm+'</b>(으)로 바꾸고 이 일정을 지울까요?<br><b>'+esc(title)+'</b><br><span style="font-size:12px;color:#6b7a89">지우면 달력과 목록에서 사라집니다.</span>', icon:'🗑', okText:'지우기', onOk:go, onCancel:function(){} });
+    else if(confirm('상태를 '+nm+'(으)로 바꾸고 이 일정을 지울까요?')) go();
+    return;
+  }
+  delAsk(seq, title, function(){ edClose(true); });
+}
 /* 목록 줄 끝의 🗑 — 창을 열지 않고 바로 */
 function rowDel(seq, ev){ if(ev) ev.stopPropagation(); var s=rowOf(seq); delAsk(seq, s ? s.title : ''); }
 
