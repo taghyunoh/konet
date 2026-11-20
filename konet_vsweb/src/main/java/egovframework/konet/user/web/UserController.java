@@ -6715,7 +6715,8 @@ public class UserController {
 		@RequestMapping(value="/mangr/ceoSched.do")
 		public String ceoSched(HttpSession session, Model model) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
-			model.addAttribute("ceoAdmin", leaveAdmin(session) ? "Y" : "N");
+			if (!leaveAdmin(session)) return "redirect:/main.do";   // ★총괄관리자만 (2026-11-20 사용자 「대표자 일정 화면도 총괄관리자 아니면 막아줘」) — 메뉴 숨김 + 직접 주소 차단(비용 등록·종합 실적과 같은 식). 자료 주소 일곱은 원래 ceoGate 로 막혀 있다
+			model.addAttribute("ceoAdmin", "Y");
 			return ".raw/main/mangr/ceoSched";
 		}
 

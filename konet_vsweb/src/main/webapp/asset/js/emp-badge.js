@@ -244,7 +244,9 @@
         if (!j || j.error || !j.data) return;      /* 세션 없음·표 없음·권한 없음 = 조용히(마지막 값 유지) */
         var late = j.data.filter(function (x) { return x && x.doneYn !== 'Y' && x.doneYn !== 'C' && String(x.toDt || '') < today && !ceoAllDone(x); });   /* 완료·일정취소는 뺀다 (2026-11-19 상태 셋) · 줄이 다 끝난 일정도 (2026-11-20) */
         var nm = late.slice(0, 5).map(function (x) { return x.title; }).join(', ');
-        paint('ceoLateBadge', late.length, '날짜가 지난 미완료 일정 ' + late.length + '건' + (nm ? ' : ' + nm + (late.length > 5 ? ' 외 ' + (late.length - 5) + '건' : '') : ''));
+        var ceoTip = '날짜가 지난 미완료 일정 ' + late.length + '건' + (nm ? ' : ' + nm + (late.length > 5 ? ' 외 ' + (late.length - 5) + '건' : '') : '');
+        paint('ceoLateBadge', late.length, ceoTip);
+        paint('ceoGrpBadge', late.length, ceoTip);   /* 「경영자관리」 주메뉴 — 접혀 있어도 보이게 (2026-11-20) */
       })
       .catch(function () { ceoBusy = false; });
   }

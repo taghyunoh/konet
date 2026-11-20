@@ -10,7 +10,7 @@
 <script src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 엑셀 쓰기 (전역 XLSX, 서식 포함) — 매출장과 같은 번들 --%>
 <!--
-  종합실적 (2026-11-11 신설 — 사용자 「홀세일에 있는 종합실적을 코네트 정보현황 메뉴 진행상황 밑에 추가」) — 정보 현황 ▸ 종합실적. 셸 iframe(logiFrame).
+  종합실적 (2026-11-11 신설 — 사용자 「홀세일에 있는 종합실적을 코네트 정보현황 메뉴 진행상황 밑에 추가」) — 경영자관리 ▸ 종합 실적(2026-11-20 옮김 · 처음엔 정보 현황). 셸 iframe(logiFrame).
   홀세일 화면 그대로 : ① 조회줄(검색일자·담당사원·창고·상품) ② 구분 × 기간계/일계 표(매출·수금·수금할인·매입·지급·지급할인·지출 + 이익)
                        ③ 사원별 현황(기간별/일별) ④ [상세보기] 를 누르면 맨 아래에 그 구분의 전표 목록(탭 둘 — [일자별] 일자마다 「일 계」 줄 / [거래처합] 거래처마다 한 줄 : 검색 기간 합계 + «전체»(검색 기간과 무관) 합계 — 2026-11-15).
   · 자료는 /mangr/perfData.do 한 번 — 전표 낱줄(gb=SALE/RCV/PURCH/PAY) + 시작일 이전 사원별 누계(P_*) + 지출(월/일).

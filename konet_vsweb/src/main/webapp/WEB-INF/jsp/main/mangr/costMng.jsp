@@ -99,7 +99,7 @@
       <label class="opt" title="바꾼 뒤 [조회]를 눌러야 적용됩니다"><input type="checkbox" id="cur" checked> 이번 달 포함</label>
       <button class="btn btn-teal" onclick="load()">🔍 조회</button>
       <button class="btn" onclick="excel()">📥 엑셀</button>
-      <button class="btn" onclick="goExpense()" title="매출 관리 ▸ 비용 등록으로">💸 비용 등록</button>
+      <button class="btn" onclick="goExpense()" title="경영자관리 ▸ 비용 등록으로">💸 비용 등록</button>
     </span>
   </h2>
 
@@ -331,7 +331,7 @@ function dExcel(){
   var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, ymTxt(_dYm)+' '+nm);
   XLSX.writeFile(wb, '원가관리_'+_dYm+'_'+nm+'.xlsx');
 }
-function goExpense(){ try{ var a=parent.document.querySelector('.mi[data-key="expenseReg"]'); if(a){ a.click(); return; } }catch(e){} _alertBox('매출 관리 ▸ 비용 등록 메뉴에서 달별 비용을 넣습니다.',{icon:'ℹ️'}); }
+function goExpense(){ try{ var a=parent.document.querySelector('.mi[data-key="expenseReg"]'); if(a){ a.click(); return; } }catch(e){} _alertBox('경영자관리 ▸ 비용 등록 메뉴에서 달별 비용을 넣습니다.',{icon:'ℹ️'}); }
 function excel(){
   if(typeof XLSX==='undefined'||!_d){ _alertBox('엑셀로 낼 자료가 없습니다.',{icon:'⚠️'}); return; }
   var j=_d, ms=j.months||[], bd={ top:{style:'thin',color:{rgb:'B7C4D0'}}, bottom:{style:'thin',color:{rgb:'B7C4D0'}}, left:{style:'thin',color:{rgb:'B7C4D0'}}, right:{style:'thin',color:{rgb:'B7C4D0'}} };

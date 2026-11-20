@@ -8,7 +8,7 @@
 <title>비용 등록</title>
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox·_confirmBox·_toast) — 브라우저 alert 금지 --%>
 <!--
-  비용 등록 (2026-09-16 신설, P2-e — 프로그램 목적 ⑤「정산서 → 정확한 매출액 → 순마진」) — 마감관리 ▸ 비용 등록. 셸 iframe(logiFrame) 화면.
+  비용 등록 (2026-09-16 신설, P2-e — 프로그램 목적 ⑤「정산서 → 정확한 매출액 → 순마진」) — 경영자관리 ▸ 비용 등록(2026-11-20 옮김 · 처음엔 재고 관리 밑). 셸 iframe(logiFrame) 화면.
   · 지금까지 「순마진」은 매출 − 매출원가(=매출총이익)였다. 여기서 달마다 비용을 넣으면 마감현황·월별 마감이력의 순마진 = 매출총이익 − 비용 이 된다.
   · 한 줄 = 비용 항목(TBL_EXPENSE_ITEM). 금액은 달 × 항목 한 줄(TBL_EXPENSE_TRX, upsert). 실제 나간 돈(세포함) — 매출·원가와 같은 잣대.
   · ★직송 택배 운임(AUTO_SRC='PARCEL')은 **읽기 전용** — 그 달 직송 출고의 **총수량 × 기본 택배 운임(4,500)** 으로

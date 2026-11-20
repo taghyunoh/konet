@@ -3611,7 +3611,7 @@
       <%-- ★총괄관리자(TBL_USER_MST.MAIN_GU='1', 세션 s_main_gu)만 (2026-09-17 「로그인 정보 총괄 아니면 비용등록·회사/사용자관리 안 보이게」).
            서버도 /mangr/expenseReg.do·expenseSave·expenseDtlSave·expenseItemSave 에서 같은 조건으로 막는다(직접 URL 차단). --%>
       <% if ("1".equals(String.valueOf(session.getAttribute("s_main_gu")).trim())) { %>
-      <a class="mi" data-key="expenseReg" onclick="logiFrame('expenseReg','${pageContext.request.contextPath}/mangr/expenseReg.do', this)"><span class="ic">💸</span>비용 등록</a>
+      <%-- 비용 등록은 「경영자관리」 주메뉴로 옮겼다 (2026-11-20) — 아래 sub-ceomng. 원가 관리는 여기 그대로(총괄관리자만) --%>
       <%-- 원가 관리 (2026-09-21 「비용 등록까지 해서 … 전체 원가관리」) — 회사 전체 달별 매출·매입원가·비용·순이익. 비용 등록과 같이 총괄관리자만. iframe 화면(mangr/costMng.jsp, panel-costMng) --%>
       <a class="mi" data-key="costMng" onclick="logiFrame('costMng','${pageContext.request.contextPath}/mangr/costMng.do', this)"><span class="ic">📊</span>원가 관리</a>
       <% } %>
@@ -3640,12 +3640,20 @@
       <a class="mi" data-nofav="1" onclick="var on=(function(){ try{ return localStorage.getItem('konetEmpTickerFold')==='1'; }catch(e){ return false; } })(); empTickerFold(!on); if(window._toast) _toast(on?'📢 공지 띠를 다시 켰습니다 (화면 맨 아래)':'공지 띠를 접었습니다 — 왼쪽 아래 📢 알약이나 이 메뉴로 다시 켭니다','ok');" title="화면 맨 아래 공지·메신저 흐름 띠를 켜거나 접습니다. ✕ 로 접은 띠도 여기서 되살립니다"><span class="ic">📢</span>공지 띠 켜기/끄기</a>
     </div>
 
-    <%-- 대표자 일정 (2026-11-19 사용자 「직원일정 말고 대표이사 일정 등록하고 완료여부 체크, 편집기능도」 「총괄관리자만 보여지면 됨」 → 같은 날 「대표자 일정 으로 하고 별도 메뉴표시」) —
-         ★총괄관리자(s_main_gu 1)만 — 묶음 이름까지 통째로 가린다. 서버(/mangr/ceoSched*.do)도 같은 조건. 처음엔 직원관리 서브메뉴 안에 있었다.
-         iframe 화면(mangr/ceoSched.jsp, panel-ceoSched). 표 = docs/sql/20261119_ceo_sched.sql --%>
+    <%-- 경영자관리 (2026-11-20 사용자 「경영자관리 주메뉴에 서브메뉴로 대표자일정, 비용등록, 종합실적을 분리해서 구성 — 총괄관리자만 보는 메뉴」) —
+         ★총괄관리자(s_main_gu 1)만 — 묶음 이름·주메뉴·서브메뉴를 통째로 가린다. 서버도 화면마다 같은 조건으로 막는다
+         (/mangr/ceoSched*.do = leaveAdmin · expenseReg.do·expenseSave 등 · perfSummary.do·perfInit.do·perfData.do = isChief).
+         옮겨 온 곳 : 대표자 일정 = 따로 있던 묶음(2026-11-19) · 비용 등록 = 재고 관리(2026-09-16) · 종합 실적 = 정보 현황(2026-11-11). data-key·패널(panel-ceoSched·expenseReg·perfSummary)은 그대로.
+         주메뉴 옆 배지(ceoGrpBadge) = 날짜 지난 미완료 일정 수 — 접혀 있어도 보이게(asset/js/emp-badge.js 가 ceoLateBadge 와 같이 칠한다).
+         원가 관리(costMng)는 요청에 없어 재고 관리에 그대로 둔다. --%>
     <% if ("1".equals(String.valueOf(session.getAttribute("s_main_gu")).trim())) { %>
-    <div class="grp">대표자 일정</div>
-    <a class="mi" data-key="ceoSched" onclick="logiFrame('ceoSched','${pageContext.request.contextPath}/mangr/ceoSched.do', this)" title="대표자 일정 등록 · 완료 체크 — 총괄관리자만 보입니다"><span class="ic">🗓</span>대표자 일정<span class="emp-badge" id="ceoLateBadge" style="display:none"></span></a>
+    <div class="grp">경영자관리</div>
+    <a class="mi has-sub" data-sub="ceomng" onclick="logiToggleSub('ceomng', this)" title="총괄관리자만 보이는 메뉴"><span class="ic">👔</span>경영자관리<span class="emp-badge" id="ceoGrpBadge" style="display:none"></span><span class="caret">▶</span></a>
+    <div class="sub-menu" id="sub-ceomng">
+      <a class="mi" data-key="ceoSched" onclick="logiFrame('ceoSched','${pageContext.request.contextPath}/mangr/ceoSched.do', this)" title="대표자 일정 등록 · 완료 체크 — 총괄관리자만 보입니다"><span class="ic">🗓</span>대표자 일정<span class="emp-badge" id="ceoLateBadge" style="display:none"></span></a>
+      <a class="mi" data-key="expenseReg" onclick="logiFrame('expenseReg','${pageContext.request.contextPath}/mangr/expenseReg.do', this)"><span class="ic">💸</span>비용 등록</a>
+      <a class="mi" data-key="perfSummary" onclick="logiFrame('perfSummary','${pageContext.request.contextPath}/mangr/perfSummary.do', this)"><span class="ic">📊</span>종합 실적</a>
+    </div>
     <% } %>
 
     <div class="grp">정보 현황</div>
@@ -3654,11 +3662,7 @@
       <%-- 진행 현황 (2026-10-06 사용자 「발주리스트등록·발주서등록·매입전환 / 견적 등록·제출·채택·판매등록 진행 상황」 → 「정보현황 메뉴에 추가」).
            두 흐름을 단계 띠로 보고, 단계를 누르면 목록, 줄을 누르면 그 일을 하는 화면으로. iframe 화면(mangr/pipeline.jsp) — 아래 panel-pipeline 이 짝 --%>
       <a class="mi" data-key="pipeline" onclick="logiFrame('pipeline','${pageContext.request.contextPath}/mangr/pipeline.do', this)"><span class="ic">🔄</span>진행 현황</a>
-      <%-- 종합실적 (2026-11-11 사용자 「홀세일 종합실적을 정보현황 ▸ 진행상황 밑에 추가」) — 기간계/일계 · 사원별 현황 · 상세보기. iframe 화면(mangr/perfSummary.jsp) — 아래 panel-perfSummary 가 짝 --%>
-      <%-- ★총괄관리자(s_main_gu='1')만 (2026-11-11 사용자 「종합실적은 총괄관리자만 보이게 — 재고관리의 비용등록처럼」). 서버도 perfSummary.do·perfInit.do·perfData.do 를 같은 조건으로 막는다 --%>
-      <% if ("1".equals(String.valueOf(session.getAttribute("s_main_gu")).trim())) { %>
-      <a class="mi" data-key="perfSummary" onclick="logiFrame('perfSummary','${pageContext.request.contextPath}/mangr/perfSummary.do', this)"><span class="ic">📊</span>종합 실적</a>
-      <% } %>
+      <%-- 종합 실적은 「경영자관리」 주메뉴로 옮겼다 (2026-11-20 사용자 「경영자관리 주메뉴에 서브메뉴로 대표자일정·비용등록·종합실적」) — 위 sub-ceomng --%>
       <a class="mi" data-key="closeStatus" onclick="logiGo('closeStatus', this)"><span class="ic">📊</span>마감현황(월계표)</a>
       <a class="mi" data-key="closeHist"   onclick="logiGo('closeHist', this); closeHistLoad();"><span class="ic">📅</span>월별 마감이력</a>
       <%-- 이익현황 (2026-09-28 고객 요청) — ★탭이 아니라 <메뉴 3개>(사용자 「탭으로 하지 말고 메뉴로 추가」).
@@ -4396,6 +4400,7 @@
             <b>제조사</b> 칸(품명 앞 · 🔍 상품에서 자동, 한 줄도 없으면 인쇄에 칸이 안 생김) · <b>센터배송이면 물류비·실 판매금액·실 마진금액·실 마진율이 센터별(평/용·왜관·광주·김해·제주)로 갈라져 함께</b> 보이고(드롭다운은 「필요 판매단가」를 내는 기준 센터), DC·직송은 한 칸씩.
             <b>원가 포함</b> 동판비·목형비는 견적서(인쇄·엑셀)에 줄로 안 나감 — 단가에 이미 반영, 근거는 비고에. <b>관리자 승인</b>(목록 「승인」 칸 · 총괄관리자) 전에는 카톡 공유·링크 복사가 안 되고, 진행 상태도 <b>제출완료·채택·거절</b>로 못 바꿈(작성 중·보류만) · <b>승인을 취소하면 제출완료·채택·거절이던 견적서는 작성 중으로 되돌아감</b>(그 일자 지움, 옛 상태는 메모에 · 보류는 그대로). <b>문서번호 = 담당자별·그 날짜 번호</b>(Konet261001-01, 담당자가 다르면 -01 부터) · 작성 중은 같은 번호에 덮어쓰고, <b>제출완료·채택·거절·보류 뒤 고쳐 저장하면 새 판</b>(-02, -03 …, 변경 사유 기록 · 채택은 사유 필수) · 앞 판은 목록에서 빠지고 도구줄 [📜 이력](체크한 줄 하나, 체크가 없으면 눌러서 고른 줄 — 팝업으로 뜨고 제목줄을 끌어 옮기며 표 밑 막대로 높이 조절)·「이전 판 포함」으로 조회(보기·인쇄만). 목록 밑 막대로 목록 높이 조절. 작성 중에 같은 번호에 덮어쓴 것도 [📜 이력]에 「↳ 덮어씀」 줄로 남는다(저장 때·사람·금액 — 인쇄·수정은 안 됨). 이력 줄을 누르면 그때 저장한 품목 줄이 펼쳐지고 앞 줄 대비 변경(노랑 · 옛 값 → 새 값)·추가(초록)·삭제(빨강)가 표시된다. <b>[⚡ 자동연계 작성]</b>(견적서 작성 · 2026-11-18) = 품목(지난 견적 품목·상품코드·직접 입력) · 배송 MOQ수량 · 배송 단가 · 동판·목형 · 목표 마진율만 정하면 지난 견적·상품마스터 값(운송·보관·소분·박스·입수량·매입가)을 끌어와 구단·필요 판매단가·판매적용단가·실 마진율을 계산하고, [견적서에 넣기]로 지금 줄 밑에 붙인다(기존 줄·저장 방식은 그대로).</td></tr>
           <tr><td class="m">직원 업무일지</td><td>직원 메신저(그룹방)에 올린 업무일지 글(「11/6」 날짜 줄 + 「1. …」 번호 줄, 한 글에 날짜 여럿)을 <b>직원 × 날짜 격자</b>로 한눈에(읽기 전용 · 내가 든 방의 글만). 기간·방·직원·글자로 거르고, 칸을 누르면 원문. <b>[👤 직원별]</b> 탭 = 한 명의 일지를 최근 날짜부터 · 전날 미리 적어 둔 예정은 그날 글이 올라오면 격자에서 빠진다(원문은 상세에) · 🖨 인쇄 · 📥 엑셀. 작성은 <b>직원 메신저</b>에서 하던 대로(이 화면의 작성 탭은 2026-11-08 숨김). 날짜 줄이 없는 글은 보낸 날짜로 묶입니다.</td></tr>
+          <tr><td class="m">경영자관리<br><span style="color:#9aa7b3;font-size:11px">(총괄관리자만)</span></td><td><b>총괄관리자에게만 보이는 주메뉴</b>(다른 직원은 메뉴가 없고 주소로 들어가도 막힙니다). 서브메뉴 셋 — <b>대표자 일정</b>(날짜 칸에 일정을 적고 줄마다 완료·취소 · 지난 미완료는 메뉴 옆 빨간 숫자) · <b>비용 등록</b>(달마다 비용 — 직송 택배 운임 자동 + 수기 항목 → 마감현황의 순마진 = 매출총이익 − 비용) · <b>종합 실적</b>(기간계·일계 · 사원별 현황 · 상세보기). 종전 자리 : 대표자 일정 = 따로 묶음 · 비용 등록 = 재고 관리 · 종합 실적 = 정보 현황.</td></tr>
           <tr><td class="m">예정 기능 <span style="color:#9aa7b3;font-size:11px">(데모)</span></td><td>물품동선관리(창고·위치·피킹) · 카카오톡관리 — 향후 추진.</td></tr>
         </tbody></table>
       </div>
@@ -5318,7 +5323,7 @@
     <section id="panel-pipeline" class="panel" style="padding:0;">
       <iframe id="if-pipeline" src="" title="진행 현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
-    <!-- ===== 종합실적 (2026-11-11) — 정보 현황 ▸ 종합실적 ===== -->
+    <!-- ===== 종합실적 (2026-11-11) — 경영자관리 ▸ 종합 실적 (2026-11-20 옮김 · 처음엔 정보 현황) ===== -->
     <section id="panel-perfSummary" class="panel" style="padding:0;">
       <iframe id="if-perfSummary" src="" title="종합 실적" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
