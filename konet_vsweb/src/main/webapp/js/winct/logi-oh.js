@@ -3671,12 +3671,12 @@ function ssOutQty(o){
     var h='<div style="text-align:left;line-height:1.6">이번 발주현황표에 <b>계약 확인이 필요한 품목 '+hit.length+'개</b>가 있습니다'
       +' <span style="font-size:12px;color:#8a97a3">('+(nEnd?'만료 '+nEnd:'')+(nEnd&&nSoon?' · ':'')+(nSoon?SS_CT_SOON+'일 안 만료 '+nSoon:'')+')</span>'
       +'<div style="max-height:300px;overflow:auto;margin:8px 0;border:1px solid #dbe2ea;border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12.5px">'
-      +'<tr style="background:#eef3f6"><th style="padding:4px 6px;text-align:left">품목코드</th><th style="padding:4px 6px;text-align:left">품명</th><th style="padding:4px 6px">납품 종료</th><th style="padding:4px 6px;text-align:right">계약단가</th></tr>'
+      +'<tr style="background:#eef3f6"><th style="padding:4px 6px;text-align:left;white-space:nowrap">품목코드</th><th style="padding:4px 6px;text-align:left;min-width:320px">품명</th><th style="padding:4px 6px;white-space:nowrap">납품 종료</th><th style="padding:4px 6px;text-align:right;white-space:nowrap">계약단가</th></tr>'   /* 품명 칸 넓게 (2026-11-20 「품명 칸도 넓게」) — 나머지 셋은 한 줄 고정 */
       +hit.slice(0,MAX).map(function(x){
          var st = x.k==='end' ? '<span style="color:#c0392b;font-weight:700">만료</span>' : '<span style="color:#b06a00;font-weight:700">'+x.left+'일 남음</span>';
          var nx = x.nxt ? '<div style="font-size:11px;color:#2f4f9a">다음 계약 '+_ssDt8(x.nxt.frDt)+' 부터 등록됨</div>' : '';   /* 2026-10-28 부터 nxt 가 있는 품목은 목록에 안 들어온다 — 옛 호환용 */
-         return '<tr style="border-top:1px solid #eef1f4"><td style="padding:4px 6px;font-family:Consolas,monospace">'+esc(x.cd)+'</td><td style="padding:4px 6px">'+esc(x.nm)+nx+'</td>'
-           +'<td style="padding:4px 6px;text-align:center;white-space:nowrap">'+_ssDt8(x.to)+'<br>'+st+'</td><td style="padding:4px 6px;text-align:right">'+Number(x.price||0).toLocaleString()+'</td></tr>'; }).join('')
+         return '<tr style="border-top:1px solid #eef1f4"><td style="padding:4px 6px;font-family:Consolas,monospace;white-space:nowrap">'+esc(x.cd)+'</td><td style="padding:4px 6px;min-width:320px">'+esc(x.nm)+nx+'</td>'
+           +'<td style="padding:4px 6px;text-align:center;white-space:nowrap">'+_ssDt8(x.to)+'<br>'+st+'</td><td style="padding:4px 6px;text-align:right;white-space:nowrap">'+Number(x.price||0).toLocaleString()+'</td></tr>'; }).join('')
       +'</table></div>'
       +(hit.length>MAX?'<div style="font-size:12px;color:#8a97a3">… 외 '+(hit.length-MAX)+'개 — 상품코드 등록에서 모두 봅니다</div>':'')
       +'<div style="font-size:12px;color:#5b6b7a">다음 계약이 아직 없는 품목만 보입니다 · 만료돼도 단가는 마지막 계약단가 그대로 갑니다 — 새 계약이 오면 상품코드 등록 ▸ 계약정보 탭이나 [📄 계약 엑셀]로 넣으세요.</div></div>';
@@ -3695,8 +3695,14 @@ function ssOutQty(o){
       if(window._confirmBox){
         window._confirmBox({ msg:h, icon:'📄', okText:opt.okText, okColor:'blue', onOk:opt.onOk, onCancel:function(){} });
         var cc=document.getElementById('confirmCancel'), bd2=document.getElementById('confirmBackdrop');
-        if(cc){ cc.textContent='닫기 — 업무 계속';
-          (function back(){ if(bd2 && bd2.style.display==='flex'){ setTimeout(back, 300); return; } cc.textContent='취소'; })(); }
+        /* ★창 넓히기 + 오른쪽 끌어 늘리기 (2026-11-20 사용자 「우측 리사이징되게 · 우측 조금 확대」) — 공용 확인창(ui-message .cfm-box)은 폭 340px 고정이라
+             표의 「납품 종료·계약단가」 칸이 오른쪽으로 잘려 가로 스크롤이 생겼다. 이 알림일 때만 760px 로 열고(품명 칸 넓게 — 같은 날 600 → 760) 오른쪽 아래 모서리를 끌면 더 넓어진다(resize).
+             창이 닫히면 원래 모양으로 되돌린다 — 다른 화면의 확인창은 종전 그대로 */
+        var bx=bd2 && bd2.querySelector('.cfm-box'), bxOld=bx ? [bx.style.width, bx.style.maxWidth, bx.style.minWidth, bx.style.resize, bx.style.overflow] : null;
+        if(bx){ bx.style.width='760px'; bx.style.maxWidth='96vw'; bx.style.minWidth='340px'; bx.style.resize='horizontal'; bx.style.overflow='auto'; bx.title='오른쪽 아래 모서리를 끌면 넓어집니다'; }
+        var restore=function(){ if(cc) cc.textContent='취소'; if(bx && bxOld){ bx.style.width=bxOld[0]; bx.style.maxWidth=bxOld[1]; bx.style.minWidth=bxOld[2]; bx.style.resize=bxOld[3]; bx.style.overflow=bxOld[4]; bx.title=''; } };
+        if(cc) cc.textContent='닫기 — 업무 계속';
+        (function back(){ if(bd2 && bd2.style.display==='flex'){ setTimeout(back, 300); return; } restore(); })();
       } else if(window._alertBox) window._alertBox(h, opt); else ssToast('📄 계약 확인 필요 '+hit.length+'개 (만료 '+nEnd+' · 임박 '+nSoon+') — 상품코드 등록 ▸ 「만료·임박만」');
     })();
   }
