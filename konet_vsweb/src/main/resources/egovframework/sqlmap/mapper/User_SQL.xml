@@ -699,7 +699,9 @@
 	                                                                           AND x.SHPOUT_DT BETWEEN REPLACE(#{shpoutDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{shpoutDtTo,jdbcType=VARCHAR},'-','') )
 	                                                                      OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') <> ''
 	                                                                           AND x.SHPOUT_DT = REPLACE(#{shpoutDt,jdbcType=VARCHAR},'-','') )
-	                                                                      OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') = '' ) ) )
+	                                                                      OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') = '' ) )
+	                                                                   AND ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') = '' OR ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'') = ''
+	                                                                      OR ISNULL(NULLIF(LTRIM(RTRIM(x.DLV_DT)),''), x.SHPOUT_DT) BETWEEN REPLACE(#{dlvDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{dlvDtTo,jdbcType=VARCHAR},'-','') ) )
 	                                               GROUP BY COMP_CD, DLV_DT, ISNULL(ORD_NO,''), ISNULL(PROD_CD,'') ) l
 	                                       JOIN ( SELECT COMP_CD, DLV_DT, ISNULL(ORD_NO,'') AS ORD_NO, UPPER(LTRIM(RTRIM(ISNULL(DC_CD,'')))) AS DC_CD,
 	                                                     ISNULL(PROD_CD,'') AS PROD_CD, SUM(ISNULL(LABEL_QTY, ISNULL(CUR_QTY,0))) AS GQ
@@ -710,7 +712,9 @@
 	                                                                           AND x.SHPOUT_DT BETWEEN REPLACE(#{shpoutDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{shpoutDtTo,jdbcType=VARCHAR},'-','') )
 	                                                                      OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') <> ''
 	                                                                           AND x.SHPOUT_DT = REPLACE(#{shpoutDt,jdbcType=VARCHAR},'-','') )
-	                                                                      OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') = '' ) ) )
+	                                                                      OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') = '' ) )
+	                                                                   AND ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') = '' OR ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'') = ''
+	                                                                      OR ISNULL(NULLIF(LTRIM(RTRIM(x.DLV_DT)),''), x.SHPOUT_DT) BETWEEN REPLACE(#{dlvDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{dlvDtTo,jdbcType=VARCHAR},'-','') ) )
 	                                               GROUP BY COMP_CD, DLV_DT, ISNULL(ORD_NO,''), UPPER(LTRIM(RTRIM(ISNULL(DC_CD,'')))), ISNULL(PROD_CD,'') ) o
 	                                         ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.PROD_CD = l.PROD_CD AND o.GQ > 0 ) j ) k
 	                    WHERE k.MK = k.BM AND k.MK < 9 ) g
@@ -731,7 +735,11 @@
 	             AND t.SHPOUT_DT = REPLACE(#{shpoutDt,jdbcType=VARCHAR},'-','') )
 	        OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') = '' )
 	         )
-	   ORDER BY t.SHPOUT_DT DESC, t.BIZ_NM, t.ITEM_NM, t.ROW_NO
+	     /* ★납품일자 범위 (2026-11-20 매출내역 속도) — 매출내역은 출고일자 ±31일(두 달치, 운영 6.3MB)을 받아 화면에서 납품일자로 걸렀다(하루치면 209줄만 남는다).
+          값을 보낼 때만 서버에서 거른다 — 납품일자가 비면 출고일자로(화면 규칙과 같음). 안 보내는 다른 화면은 종전과 같다. 자바 DTO 에 dlvDtFrom/To 는 이미 있다. */
+     AND ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') = '' OR ISNULL(#{dlvDtTo,jdbcType=VARCHAR},'') = ''
+        OR ISNULL(NULLIF(LTRIM(RTRIM(t.DLV_DT)),''), t.SHPOUT_DT) BETWEEN REPLACE(#{dlvDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{dlvDtTo,jdbcType=VARCHAR},'-','') )
+   ORDER BY t.SHPOUT_DT DESC, t.BIZ_NM, t.ITEM_NM, t.ROW_NO
 	]]></select>
 
 	<!-- ============================================================

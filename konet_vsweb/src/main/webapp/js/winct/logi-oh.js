@@ -4957,7 +4957,8 @@ function ssOutQty(o){
        (자료가 몇 년치 쌓여 응답이 무거워지면 서버에서 DLV_DT 로 거르도록 바꿔야 한다 — WAR 재빌드) */
     var OH_WIN=31;
     var pShip = (f && t)
-      ? post('/shipout/selectShipoutMst.do', 'dcYn=Y&shpoutDtFrom='+encodeURIComponent(_ohShift(f,-OH_WIN))+'&shpoutDtTo='+encodeURIComponent(_ohShift(t,OH_WIN)))
+      ? post('/shipout/selectShipoutMst.do', 'dcYn=Y&shpoutDtFrom='+encodeURIComponent(_ohShift(f,-OH_WIN))+'&shpoutDtTo='+encodeURIComponent(_ohShift(t,OH_WIN))
+             +'&dlvDtFrom='+encodeURIComponent(f)+'&dlvDtTo='+encodeURIComponent(t))   /* ★납품일자 범위는 서버가 거른다 (2026-11-20 속도 — 하루 조회에 두 달치 5,053줄·6.3MB 를 받아 209줄만 쓰던 것 → 209줄, 서버 1.7→0.33초). 옛 서버는 이 값을 무시하고 아래 화면 거르기가 종전대로 맞춘다 */
       : post('/shipout/selectShipoutMst.do', 'dcYn=Y');
     /* ★dcYn=Y (2026-09-17) — DC 발주(입고예약서·발주서로 넣은 PROD_KIND='DC')도 대사에 넣는다. 대시보드·납기현황은 이 값을 안 보내 뺀다. */
     /* 판매전표(직접판매) — 정산서 밖에서 직접 판 건. 서버가 정산서 행과 같은 모양으로 준다(2026-07-25 요청).
