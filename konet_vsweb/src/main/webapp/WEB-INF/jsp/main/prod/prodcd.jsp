@@ -768,11 +768,23 @@ function pcTakeQ(q){ q=String(q||'').trim(); if(!q) return; var el=document.getE
   el.focus(); el.select(); }
 window.addEventListener('message', function(e){ var d=e&&e.data; if(d&&d.type==='konetProdcdFind') pcTakeQ(d.q); });
 (function(){ try{ var q=localStorage.getItem('konetProdcdQ'); if(q){ localStorage.removeItem('konetProdcdQ'); _pcPendQ=q; } }catch(e){} })();
+/* ★속도 (2026-11-20 사용자 「속도점검」 — 운영 실측) : 2,268줄 표를 한 번 그리는 데 약 1.1초(글 만들기 0.33 · 스타일 0.23 · 배치 0.56)인데
+     ①처음 열 때 두 번 그렸다 — 상품 목록을 받아 한 번, 이어서 계약 이력(ctLoad)을 받아 또 한 번.
+     ②다른 화면에 갔다 돌아올 때마다(konetShown) 자료가 그대로여도 또 두 번 그렸다(약 2.2초 멈춤).
+   ⇒ 상품 목록과 계약 이력을 «같이» 받아 한 번만 그린다. 받은 글이 지난번과 글자 하나 다르지 않으면 다시 그리지 않는다(_pcTxt·_ctTxt).
+     계약 이력만 다시 읽을 때(계약 삭제 뒤 ctLoad)는 «납품기간» 칸만 바꿔 끼운다(ctPatch). */
+var _pcTxt='', _ctTxt='';
 function pcLoad(done){
+  var pC=fetch(CTX+'/prod/contractList.do',{ method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
+    .then(function(r){ return r.text(); }).catch(function(){ return null; });   /* 계약 이력은 실패해도 목록은 그린다(종전 ctLoad 와 같이 조용히) */
   fetch(CTX+'/prod/prodList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:'' })
     .then(function(r){ return r.text(); })
-    .then(function(txt){ var j; try{ j=JSON.parse(txt); }catch(e){ toast('목록 응답 오류','err'); return; }
-      LIST=(j&&j.data)||[]; _byseq={}; LIST.forEach(function(o){ _byseq[o.prodSeq]=o; }); _viewKey='';   /* 새로 읽었으니 꼭 다시 그린다 (2026-11-05) */
+    .then(function(txt){ return pC.then(function(ctTxt){ return [txt, ctTxt]; }); })
+    .then(function(a){ var txt=a[0], ctTxt=a[1], j; try{ j=JSON.parse(txt); }catch(e){ toast('목록 응답 오류','err'); return; }
+      var same=(txt===_pcTxt) && (ctTxt==null || ctTxt===_ctTxt) && LIST.length>0;   /* 지난번과 같은 자료 — 그리기를 건너뛴다 */
+      _pcTxt=txt;
+      LIST=(j&&j.data)||[]; _byseq={}; LIST.forEach(function(o){ _byseq[o.prodSeq]=o; }); if(!same) _viewKey='';   /* 새 자료면 꼭 다시 그린다 (2026-11-05) */
+      if(ctTxt!=null) ctApply(ctTxt);   /* 계약 이력을 그리기 전에 — 「납품기간」 칸이 첫 그리기에 같이 들어간다 */
       /* ★[2026-08-19] 고른 상품(_mcCur)도 **새로 읽은 줄로 갈아 끼운다** — 안 하면
          [⛔ 거래중지]·[▶ 거래해제] 를 누른 뒤에도 **옆날 상태**를 들고 있어
          매칭코드 잠금(아래 mcStopSync)이 그대로 남거나 풀리지 않는다. */
@@ -780,7 +792,7 @@ function pcLoad(done){
       pcUniqBuild();                     // 규격·제조사명 입력검색이 볼 값 목록(2026-08-04)
       pcFilter();
       if(_pcPendQ){ pcTakeQ(_pcPendQ); }   /* 다른 화면이 넘긴 검색어 (2026-11-05) */
-      ctLoad();                          // 계약(납품기간) 이력 — 목록 「납품기간」 칸 (2026-10-01)
+      ctSide();                          // 계약 이력 창·하단 계약정보 탭 (계약은 위에서 같이 받았다 — 2026-11-20)
       mcStopSync();                      // 중지·해제가 반영되면 [＋ 등록] 잠금도 같이 맞춘다
       if(typeof done==='function'){ try{ done(); }catch(e){} }
     })
@@ -878,7 +890,7 @@ function pcRowHtml(o){
       +'<td><span class="tx" style="background:'+c+'">'+esc(o.taxGb||'-')+'</span></td>'
       +'<td class="num">'+num(o.packQty)+'</td><td class="num">'+num(o.inPrice)+'</td>'
       +'<td class="num">'+num(o.salePrice)+'</td><td class="num">'+num(o.wholePrice)+'</td>'
-      +'<td style="white-space:nowrap;font-size:12.5px">'+ctCell(o)+'</td>'   /* 납품기간 (2026-10-01) — 계약 엑셀 */
+      +'<td style="white-space:nowrap;font-size:12.5px">'+(_ctHtml[o.prodSeq]=ctCell(o))+'</td>'   /* 납품기간 (2026-10-01) — 계약 엑셀 · 그린 글은 _ctHtml 에 (ctPatch 가 견준다 2026-11-20) */
       /* 중지일 — 값이 있으면 회색으로. 코드 아래 배지와 겹치지만, ***칸으로도 있어야*** 훑거나
          엑셀로 뽑을 때 읽힌다(2026-08-17 요청). */
       +'<td style="white-space:nowrap;color:#546e7a">'+(o.stopYn==='Y'?esc(pcFmtDt8(o.stopFrDt)):'')+'</td>'
@@ -889,6 +901,17 @@ function pcRowHtml(o){
       +'<td>'+esc(o.unitBarcode)+'</td><td>'+esc(o.boxBarcode)+'</td>'
     +'</tr>';
 }
+var _rgen=0, _rq=null, PC_FIRST=200, PC_CHUNK=400;   /* 나눠 그리기 (2026-11-20 속도) — _rq = 아직 안 붙인 줄 {gen, rows, i} */
+function pcChunk(all){
+  var q=_rq; if(!q || q.gen!==_rgen) return;
+  var tb=document.getElementById('tb'), end=all ? q.rows.length : Math.min(q.i+PC_CHUNK, q.rows.length);
+  tb.insertAdjacentHTML('beforeend', q.rows.slice(q.i,end).map(pcRowHtml).join(''));
+  q.i=end;
+  if(_sel!=null && !tb.querySelector('tr.sel')){ var sr=tb.querySelector('tr[data-seq="'+_sel+'"]'); if(sr) sr.classList.add('sel'); }   /* 고른 줄이 뒤쪽에 있으면 붙일 때 표시 */
+  if(q.i>=q.rows.length){ _rq=null; return; }
+  setTimeout(function(){ pcChunk(false); }, 0);
+}
+function pcFlush(){ if(_rq) pcChunk(true); }   /* 남은 줄을 지금 다 붙인다 — 줄을 찾기 전에 부른다 */
 function pcRender(){
   var tot=_view.length, pages=Math.max(1,Math.ceil(tot/PAGE)); if(_page>pages)_page=pages;
   document.getElementById('cnt').textContent=tot.toLocaleString()+'건 / 전체 '+LIST.length.toLocaleString()+'건';
@@ -898,7 +921,15 @@ function pcRender(){
   if(!tot){ tb.innerHTML='<tr><td colspan="17" class="empty">데이터가 없습니다.</td></tr>'; _pager(0,1,0); return; }
   // 펼침(_all)이면 조회된 전 건을 한 번에 — 페이지 버튼 대신 목록 스크롤로 훑는다
   var from = _all ? 0 : (_page-1)*PAGE, to = _all ? tot : Math.min(from+PAGE, tot);
-  tb.innerHTML=_view.slice(from,to).map(pcRowHtml).join('');
+  /* ★나눠 그리기 (2026-11-20 속도) — 2,268줄을 한 번에 넣으면 1.1초 동안 화면이 멈춘다. 앞 PC_FIRST 줄을 먼저 넣고(0.1초) 나머지는 PC_CHUNK 줄씩 이어 붙인다.
+       ⚠스크롤을 내려 둔 상태(저장 뒤 다시 그리기 등)에서는 한 번에 그린다 — 나눠 그리면 잠깐 짧아진 표 때문에 보던 자리가 맨 위로 튄다.
+       ⚠줄을 찾는 곳(↑↓ 이동·주코드로 가기)은 먼저 pcFlush() 로 남은 줄을 다 붙인다. 새로 그리면(_rgen) 붙이던 것은 버린다. */
+  _rgen++; _rq=null;
+  var rows=_view.slice(from,to), card=document.querySelector('.card');
+  if(rows.length > PC_FIRST+PC_CHUNK && !(card && card.scrollTop>0)){
+    tb.innerHTML=rows.slice(0,PC_FIRST).map(pcRowHtml).join('');
+    _rq={gen:_rgen, rows:rows, i:PC_FIRST}; setTimeout(function(){ pcChunk(false); }, 0);
+  } else tb.innerHTML=rows.map(pcRowHtml).join('');
   // 선택행 하이라이트 복원 — 매칭코드를 등록하면 목록을 다시 그리는데, 고른 상품 표시가 풀리면 안 된다
   if(_sel!=null){ var sr=tb.querySelector('tr[data-seq="'+_sel+'"]'); if(sr) sr.classList.add('sel'); }
   _pager(pages,_page,tot,from,to);
@@ -914,6 +945,9 @@ function pcPatchRows(oldCnt, oldSub){
   for(k in _subOf){ if(key(_subOf[k])!==key(oldSub[k])) cds[k]=1; }
   for(k in oldSub){ if(key(_subOf[k])!==key(oldSub[k])) cds[k]=1; }
   if(Object.keys(cds).length) LIST.forEach(function(o){ if(o.prodCd && cds[String(o.prodCd)]) seqs[o.prodSeq]=1; });
+  /* ★바뀐 줄이 많으면 통째로 새로 그린다 (2026-11-20 속도 실측) — 매칭코드가 표보다 늦게 오면 600여 줄이 바뀌는데, 한 줄씩 찾아 바꾸면 1.1초 멈췄다.
+       새로 그리기는 나눠 그리기(pcRender)라 화면이 안 멈춘다. 몇 줄만 바뀌는 평소(매칭코드 등록·삭제)는 종전대로 그 줄만 */
+  if(Object.keys(seqs).length > 150 && tb.querySelector('tr[data-seq]')){ _viewKey=''; pcRender(); return; }   /* 아직 안 그린 표(불러오는 중)는 건드리지 않는다 */
   var tmp=document.createElement('tbody');
   for(k in seqs){
     var tr=tb.querySelector('tr[data-seq="'+k+'"]'), o=_byseq[k];
@@ -1382,7 +1416,7 @@ function mcLoad(keepList){
       if(!keepList){
         // 매칭 필터가 걸려 있으면 목록 자체가 바뀌므로 다시 거른다. 그 외에는 바뀐 줄만 바꿔 끼운다(2,252줄 통째로 다시 그리지 않는다 — 2026-11-05)
         if((document.getElementById('fMc')||{}).value) pcFilter(); else pcPatchRows(oc, os);
-      }
+      } else if(document.querySelector('#tb tr[data-seq]')) pcPatchRows(oc, os);   /* ★표가 먼저 그려졌으면 바뀐 줄(매칭 개수·서브 표시)만 채운다 (2026-11-20 속도) — 종전엔 계약 이력을 받고 표를 통째로 한 번 더 그리면서 채워졌는데, 이제 한 번만 그리므로 매칭코드가 늦게 오면 빈칸으로 남는다 */
       mcRender();
     })
     .catch(function(e){ toast('매칭코드 조회 오류: '+e.message,'err'); });
@@ -1620,6 +1654,7 @@ function mcGoProd(seq, cd){
      ⇒ 조건을 지우고 다시 그린 뒤 그 줄을 고른다. ***'이동'이라고 했으면 실제로 이동해야 한다.***
      ⚠필터를 건드렸다는 사실은 알려 준다 — 사용자가 걸어 둔 조건이 말없이 사라지면 그게 또 혼란이다. */
   function _pick(){
+    pcFlush();   /* 나눠 그리는 중이면 남은 줄부터 (2026-11-20) */
     var sr=document.querySelector('#tb tr[data-seq="'+seq+'"]');
     if(!sr) return false;
     Array.prototype.forEach.call(document.querySelectorAll('#tb tr.sel'),function(r){ r.classList.remove('sel'); });
@@ -2456,6 +2491,7 @@ document.addEventListener('keydown', function(e){
 /* ↑↓ 행 이동 — 이 장의 끝에 닿으면 앞뒤 장으로 넘어가 첫/끝 줄을 잡는다.
    (mcPickProd 는 이미 받아 둔 자료만 보므로 빠르게 눌러도 서버를 부르지 않는다) */
 function pcRowMove(d){
+  pcFlush();   /* 나눠 그리는 중이면 남은 줄부터 (2026-11-20) */
   var tb=document.getElementById('tb');
   var rows=Array.prototype.slice.call(tb.querySelectorAll('tr[data-seq]'));
   if(!rows.length) return;
@@ -2472,6 +2508,7 @@ function pcRowMove(d){
   if(rows[n].scrollIntoView) rows[n].scrollIntoView({block:'nearest'});
 }
 function pcRowEdge(first){
+  pcFlush();
   var rows=document.getElementById('tb').querySelectorAll('tr[data-seq]');
   if(!rows.length) return;
   var tr=first?rows[0]:rows[rows.length-1];
@@ -2624,16 +2661,35 @@ function ctCell(o){
     +' onclick="event.stopPropagation(); chOpen(this.getAttribute(\'data-cd\'))" ondblclick="event.stopPropagation()">📄 계약'+(a.length>1?' '+a.length:'')+'</button>'
     +(bd?' <span style="display:inline-block;padding:0 5px;border-radius:8px;background:'+bd[1]+';color:'+bd[2]+';font-size:11px;font-weight:700">'+bd[0]+'</span>':'');
 }
+/* 계약 이력 — 받은 글을 CT·_ctBy 로 (pcLoad 와 ctLoad 가 같이 쓴다, 2026-11-20). 못 읽으면 false */
+var _ctHtml={};   /* prodSeq → 마지막으로 그린 「납품기간」 칸 글 */
+function ctApply(t){
+  var j; try{ j=JSON.parse(t); }catch(e){ return false; }
+  _ctTxt=t; CT=(j&&j.data)||[]; _ctErr=(j&&j.error)||''; _ctBy={};
+  CT.forEach(function(c){ (_ctBy[String(c.prodCd)]=_ctBy[String(c.prodCd)]||[]).push(c); });
+  return true;
+}
+function ctSide(){
+  if(document.getElementById('ct').classList.contains('on')) ctPreRender();
+  if(document.getElementById('ch').classList.contains('on')) chRender();
+  mcCtRender();                       /* 하단 계약정보 탭 (2026-10-27) */
+}
+/* 그려 둔 줄의 「납품기간」 칸만 바꾼다 (2026-11-20 속도 — 종전엔 계약 하나 지워도 2,268줄을 통째로 다시 그렸다). 칸 순서 = 머리글 12번째(0부터 11) */
+function ctPatch(){
+  pcFlush();
+  Array.prototype.forEach.call(document.querySelectorAll('#tb tr[data-seq]'), function(tr){
+    var seq=tr.getAttribute('data-seq'), o=_byseq[seq]; if(!o || !tr.cells[11]) return;
+    var h=ctCell(o); if(_ctHtml[seq]===h) return;
+    _ctHtml[seq]=h; tr.cells[11].innerHTML=h;
+  });
+}
 function ctLoad(){
   fetch(CTX+'/prod/contractList.do',{ method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'' })
-    .then(function(r){ return r.json(); })
-    .then(function(j){
-      CT=(j&&j.data)||[]; _ctErr=(j&&j.error)||''; _ctBy={};
-      CT.forEach(function(c){ (_ctBy[String(c.prodCd)]=_ctBy[String(c.prodCd)]||[]).push(c); });
-      if((document.getElementById('fCt')||{}).value) pcFilter(); else pcRender();   /* 계약 조건이 걸려 있으면 새 이력으로 다시 거른다 */
-      if(document.getElementById('ct').classList.contains('on')) ctPreRender();
-      if(document.getElementById('ch').classList.contains('on')) chRender();
-      mcCtRender();                       /* 하단 계약정보 탭 (2026-10-27) */
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      if(!ctApply(t)) return;
+      if((document.getElementById('fCt')||{}).value) pcFilter(); else ctPatch();   /* 계약 조건이 걸려 있으면 새 이력으로 다시 거른다 · 아니면 그 칸만 */
+      ctSide();
     }).catch(function(){});
 }
 function ctOpen(){ document.getElementById('ct').classList.add('on'); ctDropBind(); ctPreRender(); }

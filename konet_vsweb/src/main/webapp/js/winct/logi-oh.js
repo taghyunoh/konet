@@ -4099,8 +4099,17 @@ function ssOutQty(o){
   //   대개 분류표(≈0.5s)가 출고(≈0.7s~)보다 먼저 끝나 렌더 시점엔 분류가 준비돼 있고,
   //   드물게 분류표가 늦으면 도착 시 ssRender() 한 번만 더(추가 조회 없음 — 분류 라벨 갱신).
   var _ssLoadSeq=0, _ssShipDone=false;
+  /* ★옛 대시보드 조회 끄기 (2026-11-20 사용자 「옛 대시보드 조회 꺼줘」) — 이 패널(#panel-shipstatus)은 메뉴로 열 길이 없는 숨은 화면인데,
+       로그인할 때(ssInit)·납기현황표에서 날짜를 바꾸거나 업로드를 열 때(demo1 → 부모 ssLoadShipoutFromDB)·공유 날짜가 바뀔 때(storage)·업로드 저장 뒤·
+       알림 띠 자동 새로고침(ssLoadAsqBar)마다 납기현황표와 «같은» selectShipoutMst(+직전 배치)를 따로 돌려 서버 부담이 두 배였다(운영 실측 — 로그인 순간 같은 조회 3개).
+     ⇒ 패널이 화면에 떠 있지 않으면 DB 를 안 부른다. 공유 날짜 저장(ssSaveSharedDate)은 종전대로 한다.
+     ⚠알림 띠의 「대시보드1 요약」(d1)이 비게 된다 — 띠는 납기현황표 요약(d2)만으로 돈다(납기현황표 요약이 숨김일 때 대신 보여 주던 몫이 빠진다).
+     되살리려면 SS_DB_OFF=false. */
+  var SS_DB_OFF=true;
+  function ssDbOff(){ return SS_DB_OFF && !document.querySelector('#panel-shipstatus.show'); }
   function ssLoadShipoutFromDB(){
     if(!_ssDateSyncing) ssSaveSharedDate();
+    if(ssDbOff()){ ++_ssLoadSeq; if(typeof konetAsqSetDash1==='function') konetAsqSetDash1({hide:true}); return; }   /* 숨은 옛 대시보드 — 조회 안 함 (2026-11-20) */
     var seq=(++_ssLoadSeq); _ssShipDone=false;
     ssLoadBiziMst(function(){ if(seq===_ssLoadSeq && _ssShipDone) ssRender(); });
     _ssLoadShipoutInner();
@@ -4154,7 +4163,7 @@ function ssOutQty(o){
       var _lab=_single?f:(f+'~'+t+' 합산');
       window.ssSrcInfo = rows.length>0 ? ('🗄️ DB 조회 '+_lab+' · '+rows.length+'건') : ('🗄️ DB '+_lab+' — 데이터 없음');
       _rend();
-      if(_single) ssLoadAsqBar();   // 직전배치 대조 알림바는 단일일자만
+      if(_single) ssLoadAsqBar(rows);   // 직전배치 대조 알림바는 단일일자만 · 방금 받은 현재 배치를 넘긴다(같은 조회를 또 부르지 않게 — 2026-11-20 속도)
       else if(typeof konetAsqSetDash1==='function') konetAsqSetDash1({hide:true});
     })
     .catch(function(e){ window.ssSrcInfo='⚠️ DB 통신오류'; SHIP_DATA=[]; _rend(); if(typeof konetAsqSetDash1==='function') konetAsqSetDash1({hide:true}); if(window.ssToast) ssToast('⚠️ 출고 조회 통신오류: '+e.message); });
@@ -4203,18 +4212,21 @@ function ssOutQty(o){
     return { hide:false, html:'<span class="tk-spacer"></span>'+items.join('<span class="tk-sep">|</span>') };
   }
   // 현재+직전 배치를 모두 새로 조회해 요약 생성 → 셸 바로 전달 (그리드 SHIP_DATA는 건드리지 않음 → 리프레시에도 안전)
-  function ssLoadAsqBar(){
+  /* rows = 방금 받은 현재 배치(DB 원본행). 넘기면 직전 배치만 새로 부른다 (2026-11-20 속도 — 표를 그린 바로 뒤에 같은 selectShipoutMst 를 또 불러 운영에서 2.2초를 더 썼다).
+       자동 새로고침(konetAsqDoRefresh)처럼 인수 없이 부르면 종전대로 둘 다 새로 받는다 */
+  function ssLoadAsqBar(rows){
     if(typeof konetAsqSetDash1!=='function') return;   // 셸 바 없으면(단독 접근) 스킵
+    if(ssDbOff()){ konetAsqSetDash1({hide:true}); return; }   /* 숨은 옛 대시보드 — 자동 새로고침에서도 조회 안 함 (2026-11-20) */
     var f=(document.getElementById('ssDateFrom')||{}).value||'';
     var t=(document.getElementById('ssDateTo')||{}).value||'';
     if(!(f && f===t)){ konetAsqSetDash1({hide:true}); return; }   // 기간모드 제외
     var CTX=KONET_CTX+'';
     var opt={ method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, credentials:'same-origin', body:'shpoutDt='+encodeURIComponent(f) };
     Promise.all([
-      fetch(CTX+'/shipout/selectShipoutMst.do', opt).then(function(r){ return r.ok?r.text():''; }),
+      Array.isArray(rows) ? Promise.resolve(rows) : fetch(CTX+'/shipout/selectShipoutMst.do', opt).then(function(r){ return r.ok?r.text():''; }),
       fetch(CTX+'/shipout/selectShipoutPrev.do', opt).then(function(r){ return r.ok?r.text():''; })
     ]).then(function(txts){
-      function pj(x){ try{ var j=JSON.parse(x); return (j&&j.data)||[]; }catch(e){ return []; } }
+      function pj(x){ if(Array.isArray(x)) return x; try{ var j=JSON.parse(x); return (j&&j.data)||[]; }catch(e){ return []; } }
       // 현재·직전 모두 DB 원본행 → 동일 정규화(_ssAsqNormPrev) 적용
       konetAsqSetDash1(ssBuildAsqSummary(pj(txts[0]).map(_ssAsqNormPrev), pj(txts[1]).map(_ssAsqNormPrev)));
     }).catch(function(){ konetAsqSetDash1({hide:true}); });

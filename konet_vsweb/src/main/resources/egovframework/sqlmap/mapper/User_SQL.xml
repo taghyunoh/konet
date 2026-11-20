@@ -693,10 +693,24 @@
 	                                                     MAX(]]><include refid="dcKeyOf"><property name="a" value=""/></include><![CDATA[) AS DC_CD,
 	                                                     SUM(CASE WHEN ISNULL(DLV_TYPE,'')='X' THEN ISNULL(ORD_QTY,0) ELSE ISNULL(OUT_QTY,0) END) AS VQ
 	                                                FROM TBL_SALES_MST WHERE ACTION_YN = 'Y'
+	                                                 AND DLV_DT IN ( SELECT x.DLV_DT FROM TBL_SHIPOUT_MST x   /* ★속도 (2026-11-20) — 조회하는 출고일자의 납기일자만. 아래 윈도우·집계는 납기일자 단위라 결과가 같다 */
+	                                                                 WHERE ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR x.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                                                                   AND ( ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') <> ''
+	                                                                           AND x.SHPOUT_DT BETWEEN REPLACE(#{shpoutDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{shpoutDtTo,jdbcType=VARCHAR},'-','') )
+	                                                                      OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') <> ''
+	                                                                           AND x.SHPOUT_DT = REPLACE(#{shpoutDt,jdbcType=VARCHAR},'-','') )
+	                                                                      OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') = '' ) ) )
 	                                               GROUP BY COMP_CD, DLV_DT, ISNULL(ORD_NO,''), ISNULL(PROD_CD,'') ) l
 	                                       JOIN ( SELECT COMP_CD, DLV_DT, ISNULL(ORD_NO,'') AS ORD_NO, UPPER(LTRIM(RTRIM(ISNULL(DC_CD,'')))) AS DC_CD,
 	                                                     ISNULL(PROD_CD,'') AS PROD_CD, SUM(ISNULL(LABEL_QTY, ISNULL(CUR_QTY,0))) AS GQ
 	                                                FROM TBL_SHIPOUT_MST WHERE ACTION_YN = 'Y'
+	                                                 AND DLV_DT IN ( SELECT x.DLV_DT FROM TBL_SHIPOUT_MST x   /* ★속도 (2026-11-20) — 조회하는 출고일자의 납기일자만. 아래 윈도우·집계는 납기일자 단위라 결과가 같다 */
+	                                                                 WHERE ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR x.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	                                                                   AND ( ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') <> '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') <> ''
+	                                                                           AND x.SHPOUT_DT BETWEEN REPLACE(#{shpoutDtFrom,jdbcType=VARCHAR},'-','') AND REPLACE(#{shpoutDtTo,jdbcType=VARCHAR},'-','') )
+	                                                                      OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') <> ''
+	                                                                           AND x.SHPOUT_DT = REPLACE(#{shpoutDt,jdbcType=VARCHAR},'-','') )
+	                                                                      OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') = '' ) ) )
 	                                               GROUP BY COMP_CD, DLV_DT, ISNULL(ORD_NO,''), UPPER(LTRIM(RTRIM(ISNULL(DC_CD,'')))), ISNULL(PROD_CD,'') ) o
 	                                         ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.PROD_CD = l.PROD_CD AND o.GQ > 0 ) j ) k
 	                    WHERE k.MK = k.BM AND k.MK < 9 ) g
@@ -2761,6 +2775,10 @@
 	        OR ( ISNULL(#{shpoutDtFrom,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDtTo,jdbcType=VARCHAR},'') = '' AND ISNULL(#{shpoutDt,jdbcType=VARCHAR},'') = '' )
 	         )
 	   ORDER BY t.UPLOAD_DTTM, t.DC_NM, t.INWH, t.BIZ_NM, t.ITEM_NM, t.ROW_NO
+	  /* ★속도 (2026-11-20 운영 실측) — 날짜 조건이 「기간 / 하루 / 전체」 세 갈래 OR 라, 매개변수로 부르면 SQL Server 가 한 계획을 돌려써서
+	       하루치(282줄) 3.6초 · 921줄 4.0초 · 3주 범위 4.6초였다(값을 글자로 넣으면 0.13초). 부를 때마다 값에 맞는 계획을 짜게 한다 → 0.13 · 0.35 · 2.4초, 결과 동일(행·내용 대조).
+	       ⚠selectShipoutMst 에는 붙이지 말 것 — 거기선 거꾸로 0.2초 → 2~8초가 됐다(정산서 집계 계획이 바뀐다, 같은 날 실측). */
+	  OPTION (RECOMPILE)
 	]]></select>
 
 	<!-- ============================================================
