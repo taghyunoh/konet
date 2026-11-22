@@ -20,7 +20,7 @@ function make(o){
   const DateF = { now: () => env.now };
   const f = new Function('fetch', 'Date', '_cnum', 'KONET_CTX', '_stkLedPaint', 'getExt', '_stkLedRaw', 'document', 'stkSplitOpen', '_splitExtGet', '_stkLedRow',
     'var _stkLedExt; Object.defineProperty(this||{}, "x", {value:1});' +
-    code.replace(/typeof _stkLedExt!=='undefined' && _stkLedExt/, 'getExt()').replace(/typeof _splitExt!=='undefined' && _splitExt/, '_splitExtGet()') + '; return { qty: stkLedQty, reg: stkLedReg, pend: stkLedPend, split: stkSplitPend, load: stkLedPendLoad, st: _stkPend };');
+    code.replace(/typeof _stkLedExt!=='undefined' && _stkLedExt/, 'getExt()').replace(/typeof _splitExt!=='undefined' && _splitExt/, '_splitExtGet()') + '; return { qty: stkLedQty, reg: stkLedReg, user: stkLedUser, pend: stkLedPend, split: stkSplitPend, load: stkLedPendLoad, st: _stkPend };');
   env.api = f(fetch, DateF, (v) => Math.round(+v || 0).toLocaleString('en-US'), '/konet', () => { env.paints++; }, () => env.ext, o.raw || [], { getElementById: (id) => id === 'stkSplitPop' ? { classList: { contains: () => !!env.popOn } } : null }, () => { env.splits = (env.splits || 0) + 1; }, () => env.sext || '', o.row || null);
   return env;
 }
@@ -68,6 +68,14 @@ const cells = (h) => { const m = h.match(/<tr[\s\S]*?<\/tr>/g) || []; return m.m
     t('등록일시 — 10-22 출고도 처음 올린 시간(10-21 15:40) + ↻', tx(rg(o1)) === '2026-10-21 15:40:04 ↻ 10-22 10:28', tx(rg(o1)));
     t('등록일시 — 조정·입고 줄은 종전 글자 그대로', rg(ad) === '2026-09-17 09:48:15' && rg({ ioGb: 'I', regDttm: '2026-01-03 10:00:00', srcDttm: '2026-01-01 09:00:00' }) === '2026-01-03 10:00:00');
     t('등록일시 — 올린 시간이 없거나(옛 서버·판매전표) 같은 분이면 종전 그대로', rg({ ioGb: 'O', regDttm: '2026-09-21 11:13:05' }) === '2026-09-21 11:13:05' && rg({ ioGb: 'O', regDttm: '2026-09-17 08:55:40', srcDttm: '2026-09-17 08:55:15' }) === '2026-09-17 08:55:40' && rg(null) === '' && rg({ ioGb: 'O' }) === '');
+    /* 등록자 칸 — 처음 올린 사람도 같이 (2026-11-22) */
+    const us = (x) => e3.api.user(x);
+    const u1 = us({ ioGb: 'O', regUser: 'admin', regUserNm: '마스터', srcUser: 'K003', srcUserNm: '김담당' });
+    t('등록자 — 처음 올린 사람이 다르면 앞에 그 사람 · 뒤에 ↻ 다시 만든 사람', u1.indexOf('class="led-src"') >= 0 && u1.indexOf('>김담당</span>') >= 0 && u1.indexOf('>↻ 마스터</span>') >= 0 && u1.indexOf('(K003)') >= 0 && u1.indexOf('(admin)') >= 0);
+    t('등록자 — 같은 사람이면 이름 하나', us({ ioGb: 'O', regUser: 'admin', regUserNm: '마스터', srcUser: 'admin ', srcUserNm: '마스터' }) === '마스터');
+    t('등록자 — 처음 올린 사람을 모르면(옛 서버·판매전표) 종전 그대로', us({ ioGb: 'O', regUser: 'K002', regUserNm: '이담당' }) === '이담당' && us({ ioGb: 'O', regUser: 'K002' }) === 'K002' && us(null) === '');
+    t('등록자 — 입고·조정 줄은 종전 그대로', us({ ioGb: 'A', regUser: 'admin', regUserNm: '마스터', srcUser: 'K003' }) === '마스터');
+    t('등록자 — 이름을 모르면 아이디로', us({ ioGb: 'O', regUser: 'admin', regUserNm: '마스터', srcUser: 'K009' }).indexOf('>K009</span>') >= 0);
     t('조정이 없는 품목 — 표시 없음', e3.api.qty({ ledgerSeq: 9, ioGb: 'O', qty: 1, srcDttm: '2026-09-17 08:55:15' }) === '1');
     const e4 = make({ resp: { result: 'OK', data: [] }, raw: [ { ledgerSeq: 8, ioGb: 'O', qty: 1 }, ad ] });
     t('원천 시각이 없는 줄(옛 서버·판매전표) — 표시 없음', e4.api.qty({ ledgerSeq: 8, ioGb: 'O', qty: 1 }) === '1');
@@ -143,8 +151,16 @@ const cells = (h) => { const m = h.match(/<tr[\s\S]*?<\/tr>/g) || []; return m.m
     t('품목을 안 골랐으면 아무것도 안 한다', e2.api.pend(null) === '');
   }
   /* ── 4. 화면이 부르는 자리 ── */
+  t('JSP — 수불 내역 등록자 칸은 stkLedUser(l)', jsp.indexOf("+'\">'+stkLedUser(l)+'</td></tr>'") >= 0);
   t('JSP — 수불 내역 등록일시 칸은 stkLedReg(l)', jsp.indexOf("<td style=\"color:#9aa7b3\">'+stkLedReg(l)+'</td>'") >= 0);
   t('JSP — 나누어보기 창 출고내역 수량 칸도 stkLedQty(l)', jsp.indexOf("color:#b06a00\">'+stkLedQty(l)+'</td>')") >= 0);
+  { /* 나누어보기 창 세 표의 등록자 칸 (2026-11-22) — 머리글 두 벌 · 자료 줄 두 벌 · ↳ 하위 줄 12칸 */
+    const a = jsp.indexOf('function _stkSplitTb('), b = jsp.indexOf("+th+'<tbody>'+body+'</tbody></table></div>';", a), blk = jsp.slice(a, b);
+    const thIn = (blk.match(/<thead><tr>[^']*<\/tr><\/thead>/g) || []);
+    t('JSP — 나누어보기 창 머리글 두 벌 모두 12칸 · 맨 뒤 등록자', thIn.length === 2 && thIn.every(h => (h.match(/<th[ >]/g) || []).length === 12 && />등록자<\/th><\/tr><\/thead>$/.test(h)), thIn.map(h => (h.match(/<th[ >]/g) || []).length).join(','));
+    t('JSP — 나누어보기 창 자료 줄 두 벌의 맨 뒤 칸은 stkLedUser(l)', blk.split("'+stkLedUser(l)+'</td></tr>'+_sub(l)").length === 3);
+    t('JSP — 나누어보기 창 ↳ 하위 줄도 12칸', blk.indexOf("+'<td></td><td></td><td></td><td></td></tr>';") >= 0);
+  }
   t('JSP — 나누어보기 창 요약표 뒤에 stkSplitPend(r)', jsp.indexOf('_stkSplitTop(r, si, so) + stkSplitPend(r)') >= 0);
   t('JSP — 표 몸통 앞에 stkLedPend(row) · 수량 칸은 stkLedQty(l)', /'<tbody>'\+stkLedPend\(row\)\+body\+'<\/tbody>/.test(jsp) && /'\+stkLedQty\(l\)\+'<\/td>/.test(jsp));
   t('[입·출고 나누어보기] 팝업 「기타(반품·조정)」 표의 수량 칸도 stkLedQty(l)', jsp.indexOf("color:#137a6c\">'+stkLedQty(l)+'</td>')") >= 0);

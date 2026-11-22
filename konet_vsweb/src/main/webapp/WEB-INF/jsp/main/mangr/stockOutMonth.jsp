@@ -559,6 +559,15 @@ function somDetailRender(sel, j, fr, to){
     if(g && t.slice(0,16) < g.slice(0,16)) h+=' <span class="led-re" style="color:#9aa7b3;font-size:11px;white-space:nowrap" title="이 재고 줄이 다시 만들어진 때 '+esc(g)+' (정산서 도착 · 출고반영 재집계) — 출고가 이때 나간 것이 아닙니다">↻ '+esc(g.slice(5,16))+'</span>';
     return h;
   };
+  /* 맨 뒤 「등록자」 칸 — 처음 올린 사람 + 「↻ 재고 줄을 다시 만든 사람」 (2026-11-22 사용자 「월별재고현황도 같은 스타일로」 — 품목별재고현황 ② 등록자 칸(logi-oh.js stkLedUser)과 같은 모양·같은 값).
+       두 사람이 같거나 한쪽만 알면 이름 하나 · 둘 다 모르면(옛 서버 · 판매전표 줄) 빈 칸. 규칙을 바꾸면 그 함수와 같이 */
+  var userOf=function(r){
+    var su=(''+(r.srcUser||'')).trim(), lu=(''+(r.ledUser||'')).trim(), sn=r.srcUserNm||su, ln=r.ledUserNm||lu;
+    if(!su && !lu) return '';
+    if(!su || !lu || su===lu) return '<span style="color:#9aa7b3;white-space:nowrap" title="'+esc(su||lu)+'">'+esc(su?sn:ln)+'</span>';
+    return '<span class="led-src" style="color:#48606f;font-weight:600;white-space:nowrap" title="이 출고의 발주현황표·정산서를 처음 올린 사람 ('+esc(su)+')">'+esc(sn)+'</span>'
+         +' <span class="led-re" style="color:#9aa7b3;font-size:11px;white-space:nowrap" title="이 재고 줄을 다시 만든 사람 ('+esc(lu)+') — 정산서를 올렸거나 출고반영 재집계를 돌린 사람">↻ '+esc(ln)+'</span>';
+  };
   var preOf=function(r){  /* 수량 앞 — 조정할 때 이미 올라와 있던 출고 */
     var t=''+(r.srcDttm||''); if(!t) return '';
     if(!(LA && LA.regDttm && t < (''+LA.regDttm) && (''+(r.dlvDt||'')).replace(/-/g,'') >= LAd)) return '';
@@ -567,9 +576,9 @@ function somDetailRender(sel, j, fr, to){
   };
   var out=j.out||[], os=0, h='';
   if(!out.length) h='<div class="none">출고가 없습니다.</div>';
-  else { h='<table class="fx"><thead><tr><th>납기일자</th><th>사업장 [사업장코드]</th><th>물류센터</th><th>거래처 매칭코드 · 품목명</th><th>원천</th><th>수량</th><th title="그 납기일자의 발주현황표·정산서를 처음 올린 시간 · 뒤의 ↻ = 그 재고 줄이 다시 만들어진 때(정산서 도착·재집계) — 최근 조정보다 먼저 올린 출고는 수량 앞에 「조정 전 반영」">올린 시간</th></tr></thead><tbody>';
+  else { h='<table class="fx"><thead><tr><th>납기일자</th><th>사업장 [사업장코드]</th><th>물류센터</th><th>거래처 매칭코드 · 품목명</th><th>원천</th><th>수량</th><th title="그 납기일자의 발주현황표·정산서를 처음 올린 시간 · 뒤의 ↻ = 그 재고 줄이 다시 만들어진 때(정산서 도착·재집계) — 최근 조정보다 먼저 올린 출고는 수량 앞에 「조정 전 반영」">올린 시간</th><th title="앞 = 그 납기일자의 발주현황표·정산서를 처음 올린 사람 · 뒤의 ↻ = 그 재고 줄을 다시 만든 사람(정산서를 올렸거나 재집계를 돌린 사람)">등록자</th></tr></thead><tbody>';
     out.forEach(function(r){ var q=Number(r.qty)||0; os+=q; var s=(''+(r.src||''));
-      h+='<tr><td>'+dt8(r.dlvDt)+'</td><td class="l" title="'+esc(r.bizNm||r.mtNm)+((r.mtNm && r.bizNm && (''+r.mtNm)!==(''+r.bizNm))?(' · '+esc(r.mtNm)):'')+'">'+esc(r.bizNm||r.mtNm)+'</td><td>'+esc(r.dcNm)+'</td><td class="l">'+((r.itemCd && (''+r.itemCd)!==(''+sel.it.cd))?('<span class="xc">↳ '+esc(r.itemCd)+'</span> <span class="xn">'+esc(r.itemNm||'')+'</span>'):'')+'</td><td class="'+srcCls(s)+'">'+srcIco(s)+esc(s)+'</td><td class="r" style="white-space:nowrap">'+preOf(r)+num(q)+'</td><td style="white-space:nowrap">'+tmOf(r)+'</td></tr>'; });
+      h+='<tr><td>'+dt8(r.dlvDt)+'</td><td class="l" title="'+esc(r.bizNm||r.mtNm)+((r.mtNm && r.bizNm && (''+r.mtNm)!==(''+r.bizNm))?(' · '+esc(r.mtNm)):'')+'">'+esc(r.bizNm||r.mtNm)+'</td><td>'+esc(r.dcNm)+'</td><td class="l">'+((r.itemCd && (''+r.itemCd)!==(''+sel.it.cd))?('<span class="xc">↳ '+esc(r.itemCd)+'</span> <span class="xn">'+esc(r.itemNm||'')+'</span>'):'')+'</td><td class="'+srcCls(s)+'">'+srcIco(s)+esc(s)+'</td><td class="r" style="white-space:nowrap">'+preOf(r)+num(q)+'</td><td style="white-space:nowrap">'+tmOf(r)+'</td><td style="white-space:nowrap">'+userOf(r)+'</td></tr>'; });
     h+='</tbody></table>'; }
   document.getElementById('dtlOut').innerHTML=h; document.getElementById('dtlOutSum').textContent=out.length?(out.length+'건 · '+num(os)):'';
   /* 고정 칸 — 둘째 칸(사업장)이 설 자리 = 첫 칸(납기일자)의 실제 폭. 못 재면(숨은 화면·시뮬) CSS 기본값 94px */

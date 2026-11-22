@@ -5231,7 +5231,18 @@ public class UserController {
 				dto.setUpdUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):""));
 				dto.setUpdIp(request.getRemoteAddr());
 				if (svc.unstopProd(dto) == 0) return ResponseEntity.status(409).body("대상 상품을 찾을 수 없습니다.");
-				return ResponseEntity.ok("1");
+				/* ★거래중지를 풀 때도 그 코드로 올라와 안 붙은 출고가 있으면 붙인다 (2026-11-22 사용자 「거래중지 풀기에도 넣어줘」) — 새 상품코드 등록·되살리기와 같은 길.
+				     ⚠거래중지 상품은 «살아 있는 상품»이라 출고는 중지 중에도 올라오는 즉시 붙는다(해석·원장 문장 어디도 STOP_YN 을 안 본다 ·
+				       운영 실측 : 중지 상품 68개 · 안 붙은 줄 0). 그래서 보통은 붙일 것이 없다 — 이 호출은 안전망이다
+				       (예 : 이 기능이 생기기 전에 등록해 아직 재집계를 안 돌린 코드). 응답 = "1" 또는 "1|R다시 만든 날짜 수". 실패해도 해제는 그대로(로그만) */
+				int back = 0;
+				try {
+					Map<String,Object> pr = svc.selectProdInPriceBySeq(dto);
+					String ucd = pr == null || pr.get("prodCd") == null ? "" : String.valueOf(pr.get("prodCd")).trim();
+					if (!ucd.isEmpty()) back = svc.attachPastOutToNewProd(session.getAttribute("s_comp_cd") != null ? String.valueOf(session.getAttribute("s_comp_cd")) : "",
+					                                                     java.util.Collections.singletonList(ucd), dto.getUpdUser(), dto.getUpdIp());
+				} catch (Exception re) { log.error(" prodUnstop 지난 출고 붙이기 WARN : " + re.getMessage()); }
+				return ResponseEntity.ok(back > 0 ? "1|R" + back : "1");
 			} catch (Exception e) { log.error(" prodUnstop ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 

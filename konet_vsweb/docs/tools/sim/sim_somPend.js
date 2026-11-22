@@ -81,7 +81,7 @@ const LED = [ { trxDt: '20261028', ioGb: 'A', qty: 1, adjBef: 30, adjAft: 31, re
     const LD = [ { trxDt: '20260917', ioGb: 'A', qty: 33, adjBef: -7, adjAft: 26, regDttm: '2026-09-17 09:48:15', remark: '재고 일괄조정' } ];
     e.api.render(SEL, { out: OUT, ledger: LD }, '20260101', '20261122'); await sleep(10);
     const O = cells(e.els.dtlOut.innerHTML), H = e.els.dtlOut.innerHTML;
-    t('출고내역 칸 7개 — 「올린 시간」 칸이 맨 뒤(수량 다음)', (H.match(/<th[ >]/g) || []).length === 7 && /<th>수량<\/th><th[^>]*>올린 시간<\/th><\/tr>/.test(H) && O.every(c => c.length === 7), (H.match(/<th[ >]/g) || []).length + '/' + O.map(c => c.length).join(','));
+    t('출고내역 칸 8개 — 수량 · 올린 시간 · 등록자 차례', (H.match(/<th[ >]/g) || []).length === 8 && /<th>수량<\/th><th[^>]*>올린 시간<\/th><th[^>]*>등록자<\/th><\/tr>/.test(H) && O.every(c => c.length === 8), (H.match(/<th[ >]/g) || []).length + '/' + O.map(c => c.length).join(','));
     t('★올린 시간 = 연-월-일 시:분:초 (품목별재고현황 등록일시와 같은 꼴)', O[0][6] === '2026-10-21 15:40:04' && O[2][6] === '2026-08-24 10:27:38', O.map(c => c[6]).join(' | '));
     t('★조정(09-17 09:48) 전에 올린 09-18 출고 — 수량 앞 「조정 전 반영」 + 뒤 칸에 시간', O[1][5] === '조정 전 반영1' && O[1][6] === '2026-09-17 08:55:15' && /2026-09-17 08:55 에 이미 올라와 있었습니다/.test(H) && /최근 조정\(2026-09-17 09:48\) 전/.test(H), O[1][5]);
     t('조정 뒤에 올라온 출고 · 조정 일자보다 앞 일자의 출고에는 표가 없다', O[0][5] === '1' && O[2][5] === '1' && (H.match(/class="led-pre"/g) || []).length === 1);
@@ -107,7 +107,19 @@ const LED = [ { trxDt: '20261028', ioGb: 'A', qty: 1, adjBef: 30, adjAft: 31, re
     e.api.render(SEL, { out: [ { dlvDt: '20260918', bizNm: 'x', src: '정산서', qty: 1, ledDttm: '2026-09-21 11:13:05' } ], ledger: LD }, '20260101', '20261122');
     t('올린 시간이 없고 다시 만든 때만 있으면 그것만', cells(e.els.dtlOut.innerHTML)[0][6] === '2026-09-21 11:13:05' && !/led-pre|led-re/.test(e.els.dtlOut.innerHTML));
     e.api.render(SEL, { out: OUT.map(o => Object.assign({}, o, { srcDttm: undefined })), ledger: LD }, '20260101', '20261122');
-    t('옛 서버(올린 시간 없음) — 빈 칸 · 표 없음 · 오류 없음', cells(e.els.dtlOut.innerHTML).every(c => c.length === 7 && c[6] === '') && !/led-pre/.test(e.els.dtlOut.innerHTML));
+    /* 「등록자」 칸 — 처음 올린 사람 ↻ 다시 만든 사람 (2026-11-22 「월별재고현황도 같은 스타일로」 · 운영 1000718242 모양) */
+    const USR = [ { dlvDt: '20261112', bizNm: 'a', src: '정산서', qty: 1, srcDttm: '2026-11-11 10:41:38', ledDttm: '2026-11-13 19:08:53', srcUser: 'K003', srcUserNm: '김담당', ledUser: 'admin', ledUserNm: '마스터' },
+                  { dlvDt: '20260815', bizNm: 'b', src: '정산서', qty: 1, srcUser: 'admin', srcUserNm: '마스터', ledUser: 'admin ', ledUserNm: '마스터' },
+                  { dlvDt: '20260824', bizNm: 'c', src: '정산서', qty: 1, srcUser: '', ledUser: 'admin', ledUserNm: '마스터' },
+                  { dlvDt: '20260801', bizNm: 'd', src: '판매전표', qty: 3 },
+                  { dlvDt: '20260701', bizNm: 'e', src: '발주현황표', qty: 2, srcUser: 'K009', ledUser: 'admin', ledUserNm: '마스터' } ];
+    e.api.render(SEL, { out: USR, ledger: [] }, '20260101', '20261122');
+    const O3 = cells(e.els.dtlOut.innerHTML), H3 = e.els.dtlOut.innerHTML;
+    t('★등록자 — 처음 올린 사람이 다르면 「김담당 ↻ 마스터」', O3[0][7] === '김담당 ↻ 마스터' && /처음 올린 사람 \(K003\)/.test(H3) && /다시 만든 사람 \(admin\)/.test(H3), O3.map(c => c[7]).join(' | '));
+    t('등록자 — 같은 사람이면 이름 하나 · 한쪽만 알면 그 사람', O3[1][7] === '마스터' && O3[2][7] === '마스터');
+    t('등록자 — 판매전표 줄은 빈 칸 · 이름을 모르면 아이디', O3[3][7] === '' && O3[4][7] === 'K009 ↻ 마스터');
+    e.api.render(SEL, { out: OUT.map(o => Object.assign({}, o, { srcDttm: undefined })), ledger: LD }, '20260101', '20261122');
+    t('옛 서버(올린 시간 없음) — 빈 칸 · 표 없음 · 오류 없음', cells(e.els.dtlOut.innerHTML).every(c => c.length === 8 && c[6] === '' && c[7] === '') && !/led-pre/.test(e.els.dtlOut.innerHTML));
   }
   console.log((bad ? '✗ ' : '✓ ') + 'sim_somPend : 통과 ' + ok + ' · 실패 ' + bad);
   process.exit(bad ? 1 : 0);

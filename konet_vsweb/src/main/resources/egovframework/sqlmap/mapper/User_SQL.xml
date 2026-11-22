@@ -4158,13 +4158,14 @@
        ★줄마다 되묻거나(292줄 품목 0.4 → 1.7초) 파생 표로 조인하면(→ 12초) 느리다 — 임시 표가 유일하게 통했다(매출마감 #SLK 와 같은 까닭). */
   SET NOCOUNT ON;
   IF OBJECT_ID('tempdb..#SLD_F') IS NOT NULL DROP TABLE #SLD_F;
-  SELECT u.COMP_CD, u.PROD_CD, u.D, MIN(u.M) AS M
+  SELECT u.COMP_CD, u.PROD_CD, u.D, MIN(u.M) AS M,
+         MIN(u.M + CHAR(9) + ISNULL(u.U,'')) AS MU   /* 가장 이른 시각 + 탭 + 그때 올린 사람 아이디 (2026-11-22 등록자 칸에 «처음 올린 사람»도) */
     INTO #SLD_F
-    FROM ( SELECT s.COMP_CD, s.PROD_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS D, CONVERT(VARCHAR(19), s.REG_DTTM, 120) AS M
+    FROM ( SELECT s.COMP_CD, s.PROD_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS D, CONVERT(VARCHAR(19), s.REG_DTTM, 120) AS M, s.REG_USER AS U
              FROM TBL_SHIPOUT_MST s
             WHERE s.PROD_CD IN (SELECT x.PROD_CD FROM TBL_STOCK_LEDGER x WHERE x.PROD_SEQ = #{prodSeq})
            UNION ALL
-           SELECT v.COMP_CD, v.PROD_CD, v.DLV_DT, CONVERT(VARCHAR(19), v.REG_DTTM)
+           SELECT v.COMP_CD, v.PROD_CD, v.DLV_DT, CONVERT(VARCHAR(19), v.REG_DTTM), v.REG_USER
              FROM TBL_SALES_MST v
             WHERE v.PROD_CD IN (SELECT x.PROD_CD FROM TBL_STOCK_LEDGER x WHERE x.PROD_SEQ = #{prodSeq}) ) u
    GROUP BY u.COMP_CD, u.PROD_CD, u.D;
@@ -4237,7 +4238,15 @@
                                         WHERE h.LEDGER_SEQ = l.LEDGER_SEQ AND h.COMP_CD = l.COMP_CD ORDER BY h.ADJ_SEQ DESC) END AS adjAft,
 	         /* 출고(정산서·발주현황표 연동) 줄의 원천 첫 등록 시각 — 위 #SLD_F. 화면이 «최근 조정 시각보다 이르면» 「조정 전 반영」을 붙인다 */
 	         CASE WHEN l.IO_GB = 'O' AND l.REF_GB IN ('SALES','SHIPOUT') THEN
-	              (SELECT TOP 1 f.M FROM #SLD_F f WHERE f.COMP_CD = l.COMP_CD AND f.PROD_CD = l.PROD_CD AND f.D = l.TRX_DT) END AS srcDttm
+	              (SELECT TOP 1 f.M FROM #SLD_F f WHERE f.COMP_CD = l.COMP_CD AND f.PROD_CD = l.PROD_CD AND f.D = l.TRX_DT) END AS srcDttm,
+	         /* ★그 원천을 «처음 올린 사람» (2026-11-22 사용자 그림 「자동출고 마스터로 되었는데 맞는지」 → 「네, 같이 보여줘」) — 원장 출고 줄의 REG_USER 는
+	            정산서를 올린 사람으로 바뀐다(발주현황표는 K003 이 올렸는데 정산서를 올린 마스터로 보였다). 화면이 「처음 올린 사람 ↻ 다시 만든 사람」으로 나란히 보인다 */
+	         CASE WHEN l.IO_GB = 'O' AND l.REF_GB IN ('SALES','SHIPOUT') THEN
+	              (SELECT TOP 1 SUBSTRING(f.MU, CHARINDEX(CHAR(9), f.MU) + 1, 60) FROM #SLD_F f WHERE f.COMP_CD = l.COMP_CD AND f.PROD_CD = l.PROD_CD AND f.D = l.TRX_DT) END AS srcUser,
+	         CASE WHEN l.IO_GB = 'O' AND l.REF_GB IN ('SALES','SHIPOUT') THEN
+	              (SELECT MAX(u2.USER_NM) FROM #SLD_F f JOIN TBL_USER_MST u2
+	                  ON LTRIM(RTRIM(u2.USER_ID)) = LTRIM(RTRIM(SUBSTRING(f.MU, CHARINDEX(CHAR(9), f.MU) + 1, 60))) AND u2.COMP_CD = f.COMP_CD
+	                WHERE f.COMP_CD = l.COMP_CD AND f.PROD_CD = l.PROD_CD AND f.D = l.TRX_DT) END AS srcUserNm
 	    FROM TBL_STOCK_LEDGER l
 	   WHERE l.PROD_SEQ = #{prodSeq} AND l.ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -4505,25 +4514,32 @@
                AND DLV_DT >= #{frDt} AND DLV_DT <= #{toDt};
   /* ★납기일자마다 그 품목의 출고 원천(발주현황표 — 지나간 차수 포함 · 정산서)이 «처음 올라온 때» (2026-11-22 사용자 그림 「여기도 마찬가지로 시간표시」 —
      품목별재고현황 수불 내역의 「조정 전 반영」(selectStockLedgerList #SLD_F)과 같은 근거). 화면이 출고내역 줄에 그 시각을 보이고, 최근 조정 시각보다 이르면 「조정 전 반영」을 붙인다 */
-    SELECT x.COMP_CD, x.D, MIN(x.M) AS M
+    /* U·UN = 그 가장 이른 줄을 올린 사람 아이디·이름 (2026-11-22 「월별재고현황도 같은 스타일로」 — 출고내역 맨 뒤 「등록자」 칸. MU = 시각 + 탭 + 아이디 의 MIN) */
+    SELECT z.COMP_CD, z.D, z.M, z.U, (SELECT MAX(um.USER_NM) FROM TBL_USER_MST um WHERE um.COMP_CD = z.COMP_CD AND LTRIM(RTRIM(um.USER_ID)) = z.U) AS UN
       INTO #SOD_F
-      FROM ( SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS D, CONVERT(VARCHAR(19), s.REG_DTTM, 120) AS M
+      FROM ( SELECT y.COMP_CD, y.D, y.M, LTRIM(RTRIM(SUBSTRING(y.MU, CHARINDEX(CHAR(9), y.MU) + 1, 60))) AS U
+      FROM ( SELECT x.COMP_CD, x.D, MIN(x.M) AS M, MIN(x.M + CHAR(9) + ISNULL(x.U,'')) AS MU
+      FROM ( SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS D, CONVERT(VARCHAR(19), s.REG_DTTM, 120) AS M, s.REG_USER AS U
                FROM TBL_SHIPOUT_MST s
               WHERE s.PROD_CD = #{prodCd}
                 AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= #{frDt} AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= #{toDt}
              UNION ALL
-             SELECT v.COMP_CD, v.DLV_DT, CONVERT(VARCHAR(19), v.REG_DTTM)
+             SELECT v.COMP_CD, v.DLV_DT, CONVERT(VARCHAR(19), v.REG_DTTM), v.REG_USER
                FROM TBL_SALES_MST v
               WHERE v.PROD_CD = #{prodCd} AND v.DLV_DT >= #{frDt} AND v.DLV_DT <= #{toDt} ) x
-     GROUP BY x.COMP_CD, x.D;
+     GROUP BY x.COMP_CD, x.D ) y ) z;
   /* ★납기일자마다 그 품목의 «재고 줄(원장 출고)이 다시 만들어진 때» (2026-11-22 사용자 「월별재고현황에도」 — 품목별재고현황 수불 내역 등록일시 칸의 「↻ 09-21 11:13」과 같은 값).
      원장 출고 줄은 정산서가 오거나 [출고반영 재집계]를 돌리면 새로 만들어져 REG_DTTM 이 그때로 찍힌다 — 화면이 처음 올린 시간 뒤에 작게 붙인다 */
-    SELECT l.COMP_CD, REPLACE(l.TRX_DT,'-','') AS D, MAX(CONVERT(VARCHAR(19), l.REG_DTTM, 120)) AS M
+    /* U·UN = 그 재고 줄을 만든 사람(정산서를 올렸거나 재집계를 돌린 사람) 아이디·이름 (2026-11-22) */
+    SELECT w.COMP_CD, w.D, w.M, w.U, (SELECT MAX(um.USER_NM) FROM TBL_USER_MST um WHERE um.COMP_CD = w.COMP_CD AND LTRIM(RTRIM(um.USER_ID)) = w.U) AS UN
       INTO #SOD_L
+      FROM ( SELECT k.COMP_CD, k.D, k.M, LTRIM(RTRIM(SUBSTRING(k.MU, CHARINDEX(CHAR(9), k.MU) + 1, 60))) AS U
+      FROM ( SELECT l.COMP_CD, REPLACE(l.TRX_DT,'-','') AS D, MAX(CONVERT(VARCHAR(19), l.REG_DTTM, 120)) AS M,
+                    MAX(CONVERT(VARCHAR(19), l.REG_DTTM, 120) + CHAR(9) + ISNULL(l.REG_USER,'')) AS MU
       FROM TBL_STOCK_LEDGER l
      WHERE l.PROD_CD = #{prodCd} AND l.ACTION_YN = 'Y' AND l.IO_GB = 'O' AND l.REF_GB IN ('SALES','SHIPOUT')
        AND REPLACE(l.TRX_DT,'-','') >= #{frDt} AND REPLACE(l.TRX_DT,'-','') <= #{toDt}
-     GROUP BY l.COMP_CD, REPLACE(l.TRX_DT,'-','');
+     GROUP BY l.COMP_CD, REPLACE(l.TRX_DT,'-','') ) k ) w;
   WITH SL AS ( SELECT * FROM #SOD_SL ), OL AS ( SELECT * FROM #SOD_OL ), SD AS ( SELECT * FROM #SOD_SD
 	  ), SJ AS (   /* 찾는 순서 = selectStockOutByMonth 와 같다 (①발주번호 ②출고장+발주번호 빈 행 ③출고장 전체) */
 	    SELECT l.COMP_CD, l.DLV_DT, l.ORD_NO, l.PROD_CD, l.VQ, o.BIZ_CD, o.BIZ_NM, o.DC_NM, o.ITEM_CD, o.ITEM_NM, o.SQ,
@@ -4572,7 +4588,12 @@
          /* 그 납기일자의 원천이 처음 올라온 때 — 판매전표 줄은 근거가 달라 비운다 */
          CASE WHEN u.SRC LIKE N'판매전표%' THEN NULL ELSE (SELECT TOP 1 f.M FROM #SOD_F f WHERE f.COMP_CD = u.COMP_CD AND f.D = u.DLV_DT) END AS srcDttm,
          /* 그 납기일자의 재고 줄이 다시 만들어진 때(품목별재고현황 등록일시와 같은 값) */
-         CASE WHEN u.SRC LIKE N'판매전표%' THEN NULL ELSE (SELECT TOP 1 g.M FROM #SOD_L g WHERE g.COMP_CD = u.COMP_CD AND g.D = u.DLV_DT) END AS ledDttm
+         CASE WHEN u.SRC LIKE N'판매전표%' THEN NULL ELSE (SELECT TOP 1 g.M FROM #SOD_L g WHERE g.COMP_CD = u.COMP_CD AND g.D = u.DLV_DT) END AS ledDttm,
+         /* 그 원천을 처음 올린 사람 · 그 재고 줄을 다시 만든 사람 (2026-11-22 — 품목별재고현황 등록자 칸 stkLedUser 와 같은 값) */
+         CASE WHEN u.SRC LIKE N'판매전표%' THEN NULL ELSE (SELECT TOP 1 f.U  FROM #SOD_F f WHERE f.COMP_CD = u.COMP_CD AND f.D = u.DLV_DT) END AS srcUser,
+         CASE WHEN u.SRC LIKE N'판매전표%' THEN NULL ELSE (SELECT TOP 1 f.UN FROM #SOD_F f WHERE f.COMP_CD = u.COMP_CD AND f.D = u.DLV_DT) END AS srcUserNm,
+         CASE WHEN u.SRC LIKE N'판매전표%' THEN NULL ELSE (SELECT TOP 1 g.U  FROM #SOD_L g WHERE g.COMP_CD = u.COMP_CD AND g.D = u.DLV_DT) END AS ledUser,
+         CASE WHEN u.SRC LIKE N'판매전표%' THEN NULL ELSE (SELECT TOP 1 g.UN FROM #SOD_L g WHERE g.COMP_CD = u.COMP_CD AND g.D = u.DLV_DT) END AS ledUserNm
 	    FROM U u
 	    LEFT JOIN ( SELECT COMP_CD, BIZ_CD, MAX(MATCH_CD) AS MATCH_CD, MAX(MATCH_NM) AS MATCH_NM
 	                  FROM TBL_BIZI_MST WHERE ACTION_YN = 'Y' GROUP BY COMP_CD, BIZ_CD ) b

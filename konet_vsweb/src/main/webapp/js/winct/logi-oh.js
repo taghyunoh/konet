@@ -6452,6 +6452,18 @@ function ssOutQty(o){
     return '<span style="white-space:nowrap"><span class="led-src" style="color:#48606f;font-weight:600" title="이 출고의 발주현황표·정산서를 처음 올린 시간 '+esc(s)+' — 재고에서는 이때부터 빠져 있었습니다">'+esc(s)+'</span>'
          + ' <span class="led-re" style="font-size:11px" title="이 재고 줄이 다시 만들어진 때 '+esc(r)+' (정산서 도착 · 출고반영 재집계) — 출고가 이때 나간 것이 아닙니다">↻ '+esc(r.slice(5,16))+'</span></span>';
   }
+  /* ★② 수불 내역 등록자 칸 — 출고 줄은 «처음 올린 사람»을 앞에, 재고 줄을 다시 만든 사람(정산서를 올렸거나 재집계를 돌린 사람)은 뒤에 작게 「↻ 마스터」
+       (2026-11-22 사용자 그림 「자동출고 마스터로 되었는데 맞는지」 → 「네, 같이 보여줘」). 등록일시 칸(stkLedReg)과 같은 모양·같은 뜻이다 —
+       앞 = 발주현황표·정산서를 처음 올린 때/사람 · 뒤 ↻ = 재고 줄이 다시 만들어진 때/사람. 두 사람이 같거나 처음 올린 사람을 모르면(옛 서버 · 판매전표 · 입고·조정 줄) 종전 글자 그대로.
+       JSP 는 그 칸의 _cesc(l.regUserNm||l.regUser||'') 을 이 함수로 바꿔 부를 뿐이다(줄 수 불변). */
+  function stkLedUser(l){
+    var esc=function(v){ v=(v==null?'':String(v)); return (typeof _cesc==='function') ? _cesc(v) : v; };
+    if(!l) return '';
+    var ru=String(l.regUser||'').trim(), su=String(l.srcUser||'').trim(), nm=esc(l.regUserNm||l.regUser||'');
+    if(l.ioGb!=='O' || !su || su===ru) return nm;
+    return '<span style="white-space:nowrap"><span class="led-src" style="color:#48606f;font-weight:600" title="이 출고의 발주현황표·정산서를 처음 올린 사람 ('+esc(su)+')">'+esc(l.srcUserNm||su)+'</span>'
+         + ' <span class="led-re" style="font-size:11px" title="이 재고 줄을 다시 만든 사람 ('+esc(ru)+') — 정산서를 올렸거나 출고반영 재집계를 돌린 사람">↻ '+nm+'</span></span>';
+  }
   /* 최근 조정 뒤에 «실제로 새로 반영된» 입출고 합(재고 증감) — 조정 줄보다 위의 줄 가운데 「조정 전 반영」이 아닌 것. 최근재고 말풍선의 검산에 쓴다 */
   function stkLedAfter(L){
     var d=0, n=0; if(!L) return { d:0, n:0 };

@@ -3082,7 +3082,11 @@ function spOk(){
 function pcStopSend(url, body, okMsg){
   fetch(CTX+url,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
-    .then(function(){ toast(okMsg,'ok');
+    .then(function(t){
+      /* ★거래중지를 풀 때 서버가 안 붙어 있던 출고를 붙였으면 알린다 (2026-11-22) — 응답 "1|R날짜수". 보통은 붙일 것이 없어 종전 토스트 그대로 */
+      var rm=/\|R(\d+)/.exec(t||'');
+      if(rm && Number(rm[1])>0) alertBox(esc(okMsg)+'<br><span style="font-size:13px;color:#3d4d5c;line-height:1.7">이 코드로 올라와 아직 안 붙어 있던 <b>출고 '+rm[1]+'일치</b>를 이 상품에 붙였습니다.<br>재고가 그만큼 빠집니다 — 품목별재고현황에서 확인하세요.</span>', '✅');
+      else toast(okMsg,'ok');
       /* 목록을 다시 읽은 뒤 단추도 맞춘다 — 안 하면 해제했는데 단추가 [거래해제] 로 남는다 */
       pcLoad(); setTimeout(pcStopBtnSync, 300); })
     .catch(function(e){ toast(e.message||'처리하지 못했습니다.','err'); });

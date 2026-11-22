@@ -71,6 +71,12 @@ public class StockLedgerDTO {
     public void setAdjAft(Integer adjAft) { this.adjAft = adjAft; }
     public String getSrcDttm() { return srcDttm; }
     public void setSrcDttm(String srcDttm) { this.srcDttm = srcDttm; }
+    /* 출고 줄의 원천(발주현황표·정산서)을 처음 올린 사람 — 아이디·이름 (조인, 비영속) — 등록자 칸에 같이 보인다 (2026-11-22) */
+    private String  srcUser, srcUserNm;
+    public String getSrcUser() { return srcUser; }
+    public void setSrcUser(String srcUser) { this.srcUser = srcUser; }
+    public String getSrcUserNm() { return srcUserNm; }
+    public void setSrcUserNm(String srcUserNm) { this.srcUserNm = srcUserNm; }
     public Double getVatAmt() { return vatAmt; }
     public void setVatAmt(Double vatAmt) { this.vatAmt = vatAmt; }
     public Double getTotAmt() { return totAmt; }
