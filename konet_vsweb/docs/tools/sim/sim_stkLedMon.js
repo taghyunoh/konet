@@ -32,7 +32,7 @@ const span = (x) => (x.match(/<td[^>]*>/g) || []).reduce((a, c) => a + (+(/colsp
 t('자료 줄 18줄은 그대로(차례도)', trs.filter(x => x.indexOf('class="r"') >= 0).map(x => /data-d="(\d+)"/.exec(x)[1]).join(',') === rows.map(r => r.trxDt).join(','));
 t('합계 줄 = 11월 입고 · 10월 출고·조정 · 9월 출고 · 8월 입고·출고 · 5월 입고 = 7줄', mons.length === 7, mons.length);
 const find = (ymLab, g) => mons.map(cells).find((c, i) => { const m = mons[i]; return /data-ym="(\d+)"/.exec(m)[1] === ymLab && c.indexOf(g) >= 0; });
-const q = (c, g) => c[c.indexOf(g) + 1], a = (c, g) => c[c.indexOf(g) + 3], n = (c) => c[c.length - 1];
+const q = (c, g) => c[c.indexOf(g) + 1], a = (c, g) => c[c.indexOf(g) + 3], n = (c) => c.filter(x => /^\d+건$/.test(x))[0];
 t('2026-11 입고 10 · 202,000 · 1건', (() => { const c = find('202611', '입고'); return c && q(c, '입고') === '10' && a(c, '입고') === '202,000' && n(c) === '1건'; })(), JSON.stringify(find('202611', '입고')));
 t('2026-10 출고 2 · 2건', (() => { const c = find('202610', '출고'); return c && q(c, '출고') === '2' && n(c) === '2건'; })(), JSON.stringify(find('202610', '출고')));
 t('2026-10 조정 -15 · 1건(출고와 안 합침)', (() => { const c = find('202610', '조정'); return c && q(c, '조정') === '-15' && n(c) === '1건'; })(), JSON.stringify(find('202610', '조정')));
@@ -47,7 +47,7 @@ t('9월 합계는 10-01 줄 뒤 · 09-30 줄 앞', pos(/data-d="20261001"/) + 1 
 t('같은 달 구분 차례 = 입고 · 출고(8월) / 출고 · 조정(10월)', (() => { const m8 = mons.filter(x => /data-ym="202608"/.test(x)).map(x => cells(x).find(c => ['입고','출고','조정'].indexOf(c) >= 0)); const m10 = mons.filter(x => /data-ym="202610"/.test(x)).map(x => cells(x).find(c => ['입고','출고','조정'].indexOf(c) >= 0)); return m8.join() === '입고,출고' && m10.join() === '출고,조정'; })());
 /* 칸 수 13 : 첫 줄은 2+1+1+1+1+7, 둘째 줄은 rowspan 으로 앞 2칸이 빠져 11 */
 const m8 = mons.filter(x => /data-ym="202608"/.test(x));
-t('칸 수 — 첫 합계 줄 13 · 같은 달 둘째 줄 11(앞 두 칸은 rowspan 2)', span(m8[0]) === 13 && span(m8[1]) === 11 && /rowspan="2"/.test(m8[0]), span(m8[0]) + ' / ' + span(m8[1]));
+t('칸 수 — 첫 합계 줄 13 · 같은 달 둘째 줄 5(앞 두 칸 + 오른쪽 여섯 칸은 rowspan 2)', span(m8[0]) === 13 && span(m8[1]) === 5 && (m8[0].match(/rowspan="2"/g) || []).length === 3, span(m8[0]) + ' / ' + span(m8[1]));
 t('달 이름 「▣ 2026-08 합계」는 그 달 첫 합계 줄에만', /▣ 2026-08 합계/.test(m8[0]) && !/▣/.test(m8[1]));
 t('한 구분뿐인 달은 rowspan 1', /rowspan="1"/.test(mons.find(x => /data-ym="202609"/.test(x))));
 /* 반품 · 일자 꼴 · 빈 목록 */
@@ -83,4 +83,35 @@ t('11월 = 입고만 10 → 10', n11 && n11.txt === '총합계 10');
 const nr = netOf([ { trxDt:'20260703', ioGb:'R', qty:3, amt:0 }, { trxDt:'20260702', ioGb:'I', qty:-2, amt:0 }, { trxDt:'20260701', ioGb:'O', qty:4, amt:0 } ], '202607');
 t('반품 포함 = +3 − 2 − 4 = −3', nr && nr.txt === '총합계 -3', nr && nr.txt);
 t('첫 합계 줄 칸 수는 그대로 13', span((netOf(sep, '202609') || {}).tr || '') === 13);
+/* ── 달 합계 줄 오른쪽 「입고 · 출고 · 해당월재고」 (2026-11-22) ── */
+{
+  const balOf = (h, ymv) => { const m = (h.match(/<tr class="led-mon" data-ym="(\d+)"[\s\S]*?<\/tr>/g) || []).filter(x => x.indexOf('data-ym="' + ymv + '"') >= 0 && x.indexOf('class="led-bal"') >= 0)[0]; return m ? /<td class="led-bal"[\s\S]*?<\/td>/.exec(m)[0].replace(/<[^>]+>/g, '|').replace(/\|+/g, '|') : null; };
+  t('원장을 못 받았으면 입고·출고만 — 해당월재고 없음', balOf(html, '202610') === '|입고|0|출고|2|조정|−15|' && html.indexOf('해당월재고') < 0, balOf(html, '202610'));
+  t('달 합계 줄 칸 수는 13 그대로(첫 줄 = 2+4+1+6 · 둘째 줄부터 4+1)', mons.every((x, i) => { const first = x.indexOf('class="led-bal"') >= 0; return span(x) === (first ? 13 : 5); }), mons.map(span).join(','));
+  ctx._stkLedRaw = rows; ctx.rows = rows;
+  const h2 = vm.runInContext("stkLedMon(rows, function(l){ return '<tr class=\"r\"><td>'+l.trxDt+'</td></tr>'; })", ctx);
+  /* 누계 : 5월 +12 = 12 · 8월 +12 −5 = 19 · 9월 −8 = 11 · 10월 −2 −15 = −6 · 11월 +10 = 4 */
+  t('★해당월재고 = 그 달 말까지 누계 (5월 12 · 8월 19 · 9월 11 · 10월 -6 · 11월 4)', balOf(h2, '202605') === '|입고|12|출고|0|해당월재고|12|' && balOf(h2, '202608') === '|입고|12|출고|5|해당월재고|19|' && balOf(h2, '202609') === '|입고|0|출고|8|해당월재고|11|' && balOf(h2, '202610') === '|입고|0|출고|2|조정|−15|해당월재고|-6|' && balOf(h2, '202611') === '|입고|10|출고|0|해당월재고|4|', [ '202605', '202608', '202609', '202610', '202611' ].map(k => balOf(h2, k)).join(' '));
+  ctx.rows2 = rows.slice(0, 4);   /* 기간 단추로 10·11월만 보이는 경우 */
+  const h3 = vm.runInContext("stkLedMon(rows2, function(l){ return '<tr class=\"r\"><td>'+l.trxDt+'</td></tr>'; })", ctx);
+  t('★기간 단추로 옛 달을 가려도 해당월재고는 같다(원장 전체로 센다)', balOf(h3, '202610') === '|입고|0|출고|2|조정|−15|해당월재고|-6|' && balOf(h3, '202611') === '|입고|10|출고|0|해당월재고|4|', balOf(h3, '202610') + ' ' + balOf(h3, '202611'));
+  ctx._stkLedExt = '1000';
+  const h4 = vm.runInContext("stkLedMon(rows2, function(l){ return ''; })", ctx);
+  t('매칭코드로 걸러 보는 중에는 해당월재고를 안 보인다', h4.indexOf('해당월재고') < 0 && h4.indexOf('class="led-bal"') >= 0);
+  ctx._stkLedExt = '';
+  /* 조정 옆 수정재고 (2026-11-22 「수정재고 얼마인지 표시가 없어서 헷갈림」 — 9904013459 운영 값 : 11-04 전 -53 → 후 5) */
+  ctx._stkLedRaw = null;
+  ctx.rows3 = [ { trxDt: '2026-11-23', ioGb: 'O', qty: 1, amt: 0 }, { trxDt: '2026-11-19', ioGb: 'O', qty: 1, amt: 0 }, { trxDt: '2026-11-16', ioGb: 'O', qty: 1, amt: 0 }, { trxDt: '2026-11-07', ioGb: 'O', qty: 2, amt: 0 },
+                { trxDt: '2026-11-04', ioGb: 'A', qty: 58, amt: 0, adjBef: -53, adjAft: 5 }, { trxDt: '2026-10-28', ioGb: 'O', qty: 2, amt: 0 } ];
+  const h5 = vm.runInContext("stkLedMon(rows3, function(l){ return ''; })", ctx);
+  t('★조정 +58 뒤에 「(전 -53 → 수정재고 5)」', balOf(h5, '202611') === '|입고|0|출고|5|조정|+58|(전 -53 → 수정재고 5)|' && /2026-11-04 전 -53 → 후 5 \(증감 \+58\)/.test(h5), balOf(h5, '202611'));
+  t('조정이 없는 달에는 안 붙는다', balOf(h5, '202610') === '|입고|0|출고|2|' && (h5.match(/class="led-adjv"/g) || []).length === 1, balOf(h5, '202610'));
+  ctx.rows4 = [ { trxDt: '2026-09-18', ioGb: 'A', qty: 1, amt: 0, adjBef: 30, adjAft: 31 }, { trxDt: '2026-09-17', ioGb: 'A', qty: -1, amt: 0, adjBef: 34, adjAft: 33 }, { trxDt: '2026-09-14', ioGb: 'A', qty: 43, amt: 0, adjBef: -9, adjAft: 34 } ];
+  const h6 = vm.runInContext("stkLedMon(rows4, function(l){ return ''; })", ctx);
+  t('한 달에 조정 여럿 — 「(3회 · 마지막 수정재고 31)」 · 하나하나는 말풍선', balOf(h6, '202609') === '|입고|0|출고|0|조정|+43|(3회 · 마지막 수정재고 31)|' && /2026-09-14 전 -9 → 후 34 \(증감 \+43\)/.test(h6) && /2026-09-17 전 34 → 후 33 \(증감 −1\)/.test(h6), balOf(h6, '202609'));
+  ctx.rows5 = [ { trxDt: '2026-11-04', ioGb: 'A', qty: 58, amt: 0 } ];
+  t('전·후 값이 안 오면(옛 서버) 종전대로 증감만', balOf(vm.runInContext("stkLedMon(rows5, function(l){ return ''; })", ctx), '202611') === '|입고|0|출고|0|조정|+58|');
+  ctx._stkLedRaw = rows;
+  t('마이너스 재고는 빨강', /해당월재고<\/span><span style="font-size:14.5px;color:#c0392b">-6</.test(h2));
+}
 console.log((bad ? '✗ ' : '✓ ') + 'sim_stkLedMon : 통과 ' + ok + ' · 실패 ' + bad);

@@ -2963,7 +2963,14 @@ public class UserController {
 			/* 현재고 = 기간 끝날짜(납기일자)까지 (2026-11-04 사용자 「11-03 이면 21」 — 종전엔 기간과 무관한 원장 전체라 끝날짜를 바꿔도 같은 숫자였다).
 			     끝날짜가 비면 종전대로 원장 전체. 대시보드(납기현황표)와 같은 조건(selectStockQtyMap asOfDt) */
 			egovframework.konet.user.model.StockMstDTO stq = new egovframework.konet.user.model.StockMstDTO();
-			if (!td.isEmpty()) stq.setAsOfDt(td);
+			/* ★끝날짜가 오늘이거나 그 뒤면 «지금 재고»(원장 전체) (2026-11-22 사용자 「재고가 없는데 1로 나옴」 — 9904013459 : 끝날짜 11-22(오늘) 기준 1,
+			     품목별재고현황은 0. 11-23 납기분이 오늘 13:15 에 올라와 원장에 이미 빠져 있었다 — 원장 일자는 납기일자라 내일 납기분은 «오늘까지»에 안 든다).
+			     재고 일괄조정(2026-09-13 「기준일자 오늘 이후 = 전체」)과 같은 규칙. 지난 날짜면 종전대로 그날까지(11-04 「11-03 이면 21」).
+			     stockAsOf = 화면 이름표용 : 그날까지로 셌으면 그 날짜, 지금 재고면 빈 글자. */
+			String somToday = new java.text.SimpleDateFormat("yyyyMMdd").format(new java.util.Date());
+			boolean somAsOf = !td.isEmpty() && td.compareTo(somToday) < 0;
+			if (somAsOf) stq.setAsOfDt(td);
+			res.put("stockAsOf", somAsOf ? td : "");
 			res.put("stock",  svc.selectStockQtyMap(stq));
 			/* ★srcDays(월별 정산서/발주 원천 일수) 호출은 뺐다 (2026-09-03 속도점검) —
 			     화면이 년월 칸 표시를 뺀 뒤로 쓰는 데가 없는데 조회마다 실측 120ms 를 썼다.

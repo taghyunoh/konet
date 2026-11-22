@@ -69,7 +69,20 @@
   input.ed{ width:78px; height:26px; border:1px solid #cbd5e1; border-radius:4px;
             padding:0 6px; font-size:13px; text-align:right; font-family:inherit; }
   input.ed:focus{ outline:none; border-color:var(--teal); }
+  /* ★입수수량 1 인 줄의 수정EA 칸은 잠근다 (2026-11-22 사용자 「입수 1이면 EA 칸 잠그게」) — 입수 1 이면 현재고가 전부 BOX 칸에 들어 있어
+     EA 칸에 치면 BOX 칸 값과 더해진다(40 이 든 줄의 EA 칸에 60 → 100. 운영 이력 4003071185 : 51 + 600 = 651). */
+  input.ed.lk{ background:#eef1f4; color:#9aa8b2; border-color:#dde3e9; cursor:not-allowed; }
+  input.ed.lk:focus{ border-color:#dde3e9; }
   tr.chg{ background:#fff8e8; }                     /* 고친 줄 */
+  /* ★고른 줄 (2026-11-22 사용자 「선택코드 조정이력 추가」) — 위 목록에서 줄을 누르면 그 상품이 «고른 코드»가 되고 아래 [조정 이력]이 그 코드 것만 보인다.
+     고친 줄(노랑)·중지 줄(빨강) 바탕은 그대로 두고 왼쪽 청록 띠 + 코드 칸 옅은 청록으로만 알린다 */
+  #body tr.pick > td:first-child{ box-shadow:inset 4px 0 0 var(--teal); background:#e6f4f0; }
+  #hSel{ display:none; align-items:center; gap:6px; height:26px; padding:0 4px 0 9px; border:1px solid var(--teal); border-radius:13px; background:#e6f4f0;
+         color:#0f6b5e; font-size:12.5px; font-weight:700; white-space:nowrap; max-width:420px; }
+  #hSel.on{ display:inline-flex; }
+  #hSel .nm{ font-weight:400; color:#37475a; overflow:hidden; text-overflow:ellipsis; }
+  #hSel button{ width:20px; height:20px; border:0; border-radius:50%; background:#fff; color:#0f6b5e; font-weight:800; cursor:pointer; line-height:18px; padding:0; }
+  #hSel button:hover{ background:#137a6c; color:#fff; }
   tr.chg:hover{ background:#fff3d8; }
   /* ★[2026-08-19 요청] 상품코드등록과 같은 표시 — 거래중지 상품은 줄 전체 빨간색.
      ⚠chg(고친 줄)보다 뒤에 둔다 — 중지 표시가 누런 배경에 묻히면 안 된다. */
@@ -330,6 +343,8 @@
       <%-- 상품코드로 찾기 (2026-11-19 사용자 「여기에서 코드로 찾고 재고조정값 취소기능도」) — 읽어 온 이력을 화면에서 거른다(서버에 다시 묻지 않음). 띄어 쓰면 낱말이 모두 든 줄 --%>
       <input type="search" id="hQ" style="width:230px; margin-left:8px" placeholder="🔎 상품코드 / 상품명으로 찾기" oninput="hisPaint();" title="조정 이력을 상품코드·상품명으로 찾습니다 — 찾은 줄의 [이 줄만 취소]로 그 상품의 조정만 물릴 수 있습니다">
       <span class="dim" id="hQCnt" style="font-size:12px"></span>
+      <%-- 고른 코드의 조정 이력 (2026-11-22 「선택코드 조정이력 추가」) — 위 목록에서 줄을 누르면 여기에 그 코드가 뜨고 이력이 그 상품 것만(기간과 무관하게 전부). ✕ = 전체 이력으로 --%>
+      <span id="hSel" title="위 목록에서 고른 상품의 조정 이력만 보는 중입니다 — ✕ 를 누르면 전체 이력으로 돌아갑니다"></span>
       <span class="sp" style="flex:1"></span>
       <label>기간</label>
       <input type="date" id="hFrom"> ~ <input type="date" id="hTo">
@@ -563,7 +578,8 @@ function render(){
              +  '<div style="margin-top:2px"><span class="subbdg">서브</span> '+ownCd+'</div>';
       if(mp.prodNm) mstNm='<div class="mstnm">마스터 : '+esc(mp.prodNm)+'</div>';
     }
-    return '<tr id="tr'+i+'"'+(stopped?' class="stopped"':'')+'>'
+    var _cls = (stopped ? 'stopped' : '') + ((_hisSel && String(_hisSel.prodSeq) === String(r.prodSeq)) ? ' pick' : '');   /* 고른 코드(조정 이력) 표시 — 다시 그려도 남는다 */
+    return '<tr id="tr'+i+'"'+(_cls ? ' class="'+_cls.replace(/^ /,'')+'"' : '')+'>'
       + '<td>' + cdCell + '</td>'
       /* ★상품명도 코드와 «같은 차례»로 (2026-10-01 「주코드·서브코드 명칭 오류 수정(순서 오류)」) — 코드 칸이 위 = [주] · 아래 = [서브] 이므로
            이름도 위 = 마스터(주코드) 이름 · 아래 = 이 줄(서브) 이름. 종전엔 제 이름이 위라 주코드 옆에 서브의 이름이 놓였다(상품코드등록과 같이 고침) */
@@ -581,7 +597,7 @@ function render(){
       + '<td class="r' + (cur < 0 ? ' neg' : '') + '">' + cur + '</td>'
       + '<td class="c"><input class="ed" id="bx'+i+'" value="' + nvl(r.boxQty) + '"'
       +     ' oninput="chg(' + i + ')"></td>'
-      + '<td class="c"><input class="ed" id="ea'+i+'" value="' + nvl(r.eaQty) + '"'
+      + '<td class="c"><input class="ed' + (nvl(r.packQty) <= 1 ? ' lk" readonly tabindex="-1" title="' + EA_LOCK_TIP : '') + '" id="ea'+i+'" value="' + nvl(r.eaQty) + '"'
       +     ' oninput="chg(' + i + ')"></td>'
       + '<td class="r" id="df'+i+'"><span class="dim">-</span></td>'
       + '<td class="r" id="af'+i+'"><span class="dim">-</span></td>'   /* 조정 후 재고 — 고치면 chg() 가 채운다 (2026-11-19) */
@@ -684,6 +700,14 @@ function packAuto(){
           + '<b>아직 저장 전입니다.</b> 값을 확인하신 뒤 [수정저장] 을 눌러 주세요.</div>';
   alertBox(msg, hit ? '✅' : 'ℹ️');
 }
+/* ★수정EA 칸 잠금 (2026-11-22) — 입수수량이 1 이면 잠그고(읽기 전용·회색·Tab 건너뜀) 2 이상이면 푼다.
+     처음 그릴 때는 줄 HTML 에 바로 박고, 화면에서 입수수량을 고치면(packChg) 이 함수가 그 줄만 다시 맞춘다. */
+var EA_LOCK_TIP = '입수수량이 1이라 EA 칸은 잠겨 있습니다 — 수량은 수정BOX 칸에 넣으세요 (입수수량을 2 이상으로 고치면 열립니다)';
+function eaLock(i){
+  var e = gel('ea'+i); if (!e) return;
+  var lk = (curPack(i) <= 1);
+  e.readOnly = lk; e.tabIndex = lk ? -1 : 0; e.classList.toggle('lk', lk); e.title = lk ? EA_LOCK_TIP : '';
+}
 /* 화면에 적힌 입수수량 (비었거나 1 미만이면 1) */
 function curPack(i){
   var v = nvl(gel('pk'+i) ? gel('pk'+i).value : 0);
@@ -707,6 +731,7 @@ function packChg(i){
   gel('ve'+i).textContent = ea;       // 표시 EA재고
   gel('bx'+i).value = box;            // 수정칸도 같은 값으로 — 증감 0 이 된다
   gel('ea'+i).value = ea;
+  eaLock(i);                          // 입수 1 이면 EA 칸 잠금 · 2 이상이면 풀림
 
   chg(i);
 }
@@ -941,6 +966,7 @@ function tabPaint(){
   hs.style.display = (t === 'his') ? '' : 'none';
   var r2 = gel('reqTab2'); if (r2) r2.style.display = _req.ready ? '' : 'none';
   if (t === 'his' && !hs.classList.contains('off') && gel('hisBody').children.length <= 1 && !tabPaint._his){ tabPaint._his = true; hisLoad(); }   /* 처음 열 때 한 번 */
+  else if (t === 'his' && !hs.classList.contains('off') && _hisSelKey !== hisSelKey()) hisLoad(true);   /* 다른 탭을 보는 동안 고른 코드가 바뀌었다 */
 }
 function tabGo(t){
   if (t === tabNow()){ if (t === 'req') reqFold(); else hisToggle(); return; }   /* 켜진 탭 = 접기/펼치기 */
@@ -1100,25 +1126,73 @@ function hisToggle(){
   if (!box.classList.contains('off') && gel('hisBody').children.length <= 1) hisLoad();
 }
 
-function hisLoad(){
+/* ★고른 코드의 조정 이력 (2026-11-22 사용자 「선택코드 조정이력 추가」) — 위 목록에서 줄을 누르면(칸에 들어가도) 그 상품이 «고른 코드»가 된다.
+     · 아래 [조정 이력] 탭 줄에 「고른 코드 1000455368 상품명 ✕」 표가 뜨고, 이력은 그 상품 것만 읽는다(서버가 이미 받는 prodSeq 를 얹을 뿐 — 서버 무변경,
+       상품코드등록 수정 창의 「이 상품의 조정 이력」과 같은 조회). ★고른 코드일 때는 기간 칸이 비어 있으면 전 기간 — 그 상품이 언제 어떻게 조정됐는지 다 본다.
+     · 조정 이력 탭이 보이는 중이면 바로 다시 읽고(모래시계 없이 조용히 · 0.25초 모아서 — 칸을 Tab 으로 넘기며 줄이 바뀔 때마다 서버를 두드리지 않게),
+       승인 요청 탭을 보는 중이면 표만 바꿔 두었다가 조정 이력 탭으로 넘어올 때 읽는다(tabPaint).
+     · ✕ = 고른 코드 풀기 → 전체 이력. 목록을 다시 조회해도 고른 코드는 남는다(줄 왼쪽 청록 띠). 찾기 칸(#hQ)·[이 줄만 취소]는 그대로 쓴다. */
+var _hisSel = null, _hisSelKey = '', _hisSelT = 0, _hisSeq = 0;
+function hisSelKey(){ return _hisSel ? String(_hisSel.prodSeq) : ''; }
+function hisSelPaint(){
+  var el = gel('hSel'); if (!el) return;
+  if (!_hisSel){ el.className = ''; el.innerHTML = ''; return; }
+  el.className = 'on';
+  el.innerHTML = '고른 코드 ' + esc(_hisSel.prodCd) + ' <span class="nm">' + esc(_hisSel.prodNm) + '</span><button type="button" onclick="hisSelClear()" title="고른 코드 풀기 — 전체 조정 이력으로">✕</button>';
+}
+function hisSelGo(){
+  clearTimeout(_hisSelT);
+  if (tabNow() !== 'his' || gel('histBox').classList.contains('off')) return;   /* 안 보이는 중 — 탭을 열 때 읽는다 */
+  _hisSelT = setTimeout(function(){ if (_hisSelKey !== hisSelKey()) hisLoad(true); }, 250);
+}
+function hisPick(i){
+  var r = ROWS[i]; if (!r || r.prodSeq == null) return;
+  if (_hisSel && String(_hisSel.prodSeq) === String(r.prodSeq)) return;          /* 같은 줄 — 아무 일 없음 */
+  _hisSel = { prodSeq: r.prodSeq, prodCd: r.prodCd, prodNm: r.prodNm || '' };
+  var old = document.querySelector('#body tr.pick'); if (old) old.classList.remove('pick');
+  var tr = gel('tr' + i); if (tr) tr.classList.add('pick');
+  hisSelPaint(); hisSelGo();
+}
+/* 줄 고르기는 표 몸통(#body) 한 곳에서 받는다 — 줄을 누르거나, Tab 으로 그 줄의 칸에 들어가거나(focusin).
+   줄마다 속성으로 달지 않는다 : onfocusin 은 표준 속성이 아니라 브라우저가 무시하고, 200줄마다 속성 두 개씩이면 그리는 글자만 는다 */
+(function(){
+  var b = gel('body'); if (!b) return;
+  var h = function(e){
+    var tr = e.target && e.target.closest ? e.target.closest('tr') : null; if (!tr || !tr.id || tr.id.indexOf('tr') !== 0) return;
+    var i = parseInt(tr.id.slice(2), 10); if (i >= 0) hisPick(i);
+  };
+  b.addEventListener('click', h); b.addEventListener('focusin', h);
+})();
+function hisSelClear(){
+  _hisSel = null;
+  var old = document.querySelector('#body tr.pick'); if (old) old.classList.remove('pick');
+  hisSelPaint(); hisSelGo();
+}
+
+function hisLoad(quiet){
   var p = new URLSearchParams();
   p.append('dtFrom',  gel('hFrom').value || '');
   p.append('dtTo',    gel('hTo').value   || '');
   p.append('regUser', gel('hUser').value.trim());
+  if (_hisSel) p.append('prodSeq', _hisSel.prodSeq);          /* 고른 코드의 이력만 (2026-11-22) */
+  var key = hisSelKey(), seq = ++_hisSeq;
 
-  gel('hisBody').innerHTML = '<tr><td colspan="11" class="c dim" style="padding:18px">불러오는 중…</td></tr>';
-
-  busy(true, '조정 이력을 불러오는 중입니다…');   /* ★모래시계 (2026-08-19) */
+  if (!quiet){
+    gel('hisBody').innerHTML = '<tr><td colspan="11" class="c dim" style="padding:18px">불러오는 중…</td></tr>';
+    busy(true, '조정 이력을 불러오는 중입니다…');   /* ★모래시계 (2026-08-19) */
+  }
   fetch(CTX + '/prod/stockAdjHisList.do', {
       method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
       credentials:'same-origin', body: p.toString() })
     .then(function(r){ return r.json(); })
     .then(function(d){
-      busy(false);
+      if (!quiet) busy(false);
+      if (seq !== _hisSeq) return;                              /* 그새 다른 줄을 골랐다 — 늦게 온 응답은 버린다 */
+      _hisSelKey = key;
       _his = (d && d.data) || [];
       hisPaint();
     })
-    .catch(function(){ busy(false); alertBox('이력을 불러오지 못했습니다.', '⚠️'); });
+    .catch(function(){ if (!quiet) busy(false); if (seq !== _hisSeq) return; alertBox('이력을 불러오지 못했습니다.', '⚠️'); });
 }
 
 /* ★이력 그리기 (2026-11-19 사용자 「여기에서 코드로 찾고 재고조정값 취소기능도」) — 읽어 온 이력(_his)을 탭 옆 검색 칸(#hQ)으로 걸러 그린다.
@@ -1134,7 +1208,7 @@ function hisPaint(){
   var rows = toks.length ? _his.filter(function(h){ var t = (String(h.prodCd || '') + ' ' + String(h.prodNm || '')).toLowerCase(); return toks.every(function(k){ return t.indexOf(k) >= 0; }); }) : _his;
   if (gel('hQCnt')) gel('hQCnt').textContent = toks.length ? (rows.length + '건 / 전체 ' + _his.length + '건') : '';
   if (!rows.length){
-    gel('hisBody').innerHTML = '<tr><td colspan="11" class="c dim" style="padding:18px">' + (_his.length ? '「' + esc(q) + '」에 맞는 조정 이력이 없습니다 — 기간을 넓혀 [이력조회] 해 보세요.' : '조정 이력이 없습니다.') + '</td></tr>';
+    gel('hisBody').innerHTML = '<tr><td colspan="11" class="c dim" style="padding:18px">' + (_his.length ? '「' + esc(q) + '」에 맞는 조정 이력이 없습니다 — 기간을 넓혀 [이력조회] 해 보세요.' : (_hisSel ? '고른 코드 ' + esc(_hisSel.prodCd) + ' 의 조정 이력이 없습니다.' : '조정 이력이 없습니다.')) + '</td></tr>';
     return;
   }
   var prev = null;

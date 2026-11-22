@@ -1206,6 +1206,11 @@ function pcStkSplit(){
   var c=document.getElementById('s_cur'); c.textContent=cur; c.className='r'+(cur<0?' neg':'');
   document.getElementById('s_bx').value=box;           // 수정칸 = 현재값 → 증감 0 에서 시작
   document.getElementById('s_ea').value=ea;
+  /* ★입수수량 1 이면 수정EA 칸을 잠근다 (2026-11-22 「입수 1이면 EA 칸 잠그게」 — 재고 일괄조정 eaLock 과 같은 규칙).
+     입수 1 이면 현재고가 전부 BOX 칸에 있어 EA 칸에 치면 더해진다. Enter 이동(pcNext)은 readOnly 칸을 건너뛴다. */
+  var se=document.getElementById('s_ea'), lk=(pack<=1);
+  se.readOnly=lk; se.tabIndex=lk?-1:0; se.style.background=lk?'#eef1f4':''; se.style.color=lk?'#9aa8b2':''; se.style.cursor=lk?'not-allowed':'';
+  se.title=lk?'입수수량이 1이라 EA 칸은 잠겨 있습니다 — 수량은 수정BOX 칸에 넣으세요 (입수수량을 2 이상으로 고치면 열립니다)':'낱개(EA) 재고';
   pcStkChg();
 }
 function pcStkDiff(){

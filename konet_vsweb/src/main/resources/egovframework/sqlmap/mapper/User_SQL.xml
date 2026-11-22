@@ -4151,8 +4151,25 @@
 	     · IO_GB : I=입고(+) O=출고(-) R=반품(+) A=조정(QTY 부호 그대로)
 	     ============================================================ -->
 	<select id="selectStockLedgerList" parameterType="egovframework.konet.user.model.StockLedgerDTO" resultType="egovframework.konet.user.model.StockLedgerDTO"><![CDATA[
-	  SELECT l.LEDGER_SEQ AS ledgerSeq, l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, l.TRX_DT AS trxDt, l.IO_GB AS ioGb,
-	         l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt, l.BAL_QTY AS balQty,
+  /* ★출고 줄의 «원천이 처음 올라온 때»(srcDttm) 준비 (2026-11-22 사용자 「조정 때 이미 반영된 출고 표시해줘」) — 원장 일자는 납기일자라, 납기 하루 전에 올라온
+       발주현황표의 출고는 조정 줄 «위»에 보여도 조정 «전»에 이미 재고에서 빠져 있다(1000713440 : 09-18 납기분이 09-17 08:55 에 올라옴 · 조정 09:48 —
+       「후 26 − 위 출고 2 = 24」로 읽혔는데 현재고는 25). 원장 줄의 REG_DTTM 은 정산서로 바뀌거나 재집계 때마다 새로 찍혀 못 쓴다 ⇒
+       그 품목의 납기일자마다 발주현황표(지나간 차수 포함)·정산서 중 «가장 이른 등록 시각»을 임시 표 #SLD_F 에 한 번만 모은다. 화면이 최근 조정 시각과 견준다.
+       ★줄마다 되묻거나(292줄 품목 0.4 → 1.7초) 파생 표로 조인하면(→ 12초) 느리다 — 임시 표가 유일하게 통했다(매출마감 #SLK 와 같은 까닭). */
+  SET NOCOUNT ON;
+  IF OBJECT_ID('tempdb..#SLD_F') IS NOT NULL DROP TABLE #SLD_F;
+  SELECT u.COMP_CD, u.PROD_CD, u.D, MIN(u.M) AS M
+    INTO #SLD_F
+    FROM ( SELECT s.COMP_CD, s.PROD_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS D, CONVERT(VARCHAR(19), s.REG_DTTM, 120) AS M
+             FROM TBL_SHIPOUT_MST s
+            WHERE s.PROD_CD IN (SELECT x.PROD_CD FROM TBL_STOCK_LEDGER x WHERE x.PROD_SEQ = #{prodSeq})
+           UNION ALL
+           SELECT v.COMP_CD, v.PROD_CD, v.DLV_DT, CONVERT(VARCHAR(19), v.REG_DTTM)
+             FROM TBL_SALES_MST v
+            WHERE v.PROD_CD IN (SELECT x.PROD_CD FROM TBL_STOCK_LEDGER x WHERE x.PROD_SEQ = #{prodSeq}) ) u
+   GROUP BY u.COMP_CD, u.PROD_CD, u.D;
+  SELECT l.LEDGER_SEQ AS ledgerSeq, l.PROD_SEQ AS prodSeq, l.PROD_CD AS prodCd, l.TRX_DT AS trxDt, l.IO_GB AS ioGb,
+         l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt, l.BAL_QTY AS balQty,
 	         l.VENDOR_CD AS vendorCd,
 	         /* 거래처명 — 코드만 보이면 어디로 나간 건지 읽을 수 없다(2026-08-01 요청).
 	            판매전표(SALE)의 거래처는 삼성웰스토리 지점 같은 '사업장' 이라 이 이름이 곧 사업장 명칭이 된다. */
@@ -4210,7 +4227,17 @@
 	              ELSE '' END AS extCds,
 	         l.REF_GB AS refGb, l.REF_NO AS refNo, l.REMARK AS remark,
 	         l.REG_DTTM AS regDttm, l.REG_USER AS regUser,
-	         (SELECT MAX(u.USER_NM) FROM TBL_USER_MST u WHERE LTRIM(RTRIM(u.USER_ID)) = LTRIM(RTRIM(l.REG_USER)) AND u.COMP_CD = l.COMP_CD) AS regUserNm   /* 등록자 이름 (2026-11-05) — 화면은 이름을 보이고 아이디는 말풍선 */
+	         (SELECT MAX(u.USER_NM) FROM TBL_USER_MST u WHERE LTRIM(RTRIM(u.USER_ID)) = LTRIM(RTRIM(l.REG_USER)) AND u.COMP_CD = l.COMP_CD) AS regUserNm,   /* 등록자 이름 (2026-11-05) — 화면은 이름을 보이고 아이디는 말풍선 */
+	         /* ★조정 줄의 «전 → 후» (2026-11-22 사용자 「수불 내역에 조정 전 → 후 수량도 보이게」) — 원장의 조정(A) 줄은 증감만 담는다
+	            (재고 30 을 31 로 맞추면 QTY = 1). 그래서 「조정 1」이 «1 을 입력했다»로 읽혔다. 조정 이력(TBL_STOCK_ADJ_HIS)이 원장 줄과
+	            LEDGER_SEQ 로 짝이라 거기서 그때의 전·후 재고를 가져온다. 이력이 없는 조정(창고 이동 등)·다른 구분은 NULL = 화면이 안 그린다. */
+	         CASE WHEN l.IO_GB = 'A' THEN (SELECT TOP 1 h.BEF_QTY FROM TBL_STOCK_ADJ_HIS h
+	                                        WHERE h.LEDGER_SEQ = l.LEDGER_SEQ AND h.COMP_CD = l.COMP_CD ORDER BY h.ADJ_SEQ DESC) END AS adjBef,
+	         CASE WHEN l.IO_GB = 'A' THEN (SELECT TOP 1 h.AFT_QTY FROM TBL_STOCK_ADJ_HIS h
+                                        WHERE h.LEDGER_SEQ = l.LEDGER_SEQ AND h.COMP_CD = l.COMP_CD ORDER BY h.ADJ_SEQ DESC) END AS adjAft,
+	         /* 출고(정산서·발주현황표 연동) 줄의 원천 첫 등록 시각 — 위 #SLD_F. 화면이 «최근 조정 시각보다 이르면» 「조정 전 반영」을 붙인다 */
+	         CASE WHEN l.IO_GB = 'O' AND l.REF_GB IN ('SALES','SHIPOUT') THEN
+	              (SELECT TOP 1 f.M FROM #SLD_F f WHERE f.COMP_CD = l.COMP_CD AND f.PROD_CD = l.PROD_CD AND f.D = l.TRX_DT) END AS srcDttm
 	    FROM TBL_STOCK_LEDGER l
 	   WHERE l.PROD_SEQ = #{prodSeq} AND l.ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -4230,7 +4257,12 @@
 	         l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt, l.VENDOR_CD AS vendorCd,
 	         (SELECT MAX(v.VENDOR_NM) FROM TBL_VENDOR_MST v
 	           WHERE v.VENDOR_CD = l.VENDOR_CD AND v.ACTION_YN='Y' AND v.COMP_CD = l.COMP_CD) AS vendorNm,
-	         l.BIZ_CD AS bizCd, l.REF_GB AS refGb, l.REF_NO AS refNo, l.REMARK AS remark
+         l.BIZ_CD AS bizCd, l.REF_GB AS refGb, l.REF_NO AS refNo, l.REMARK AS remark, l.REG_DTTM AS regDttm,   /* regDttm = 조정을 저장한 때(「조정 전 반영」 판별 · 2026-11-22) */
+	         /* 조정 줄의 «전 → 후» (2026-11-22 「여기도 조정내역 보여줘」) — selectStockLedgerList 와 같은 식 : 조정 이력(LEDGER_SEQ 짝)의 그때 전·후 재고 */
+	         CASE WHEN l.IO_GB = 'A' THEN (SELECT TOP 1 h.BEF_QTY FROM TBL_STOCK_ADJ_HIS h
+	                                        WHERE h.LEDGER_SEQ = l.LEDGER_SEQ AND h.COMP_CD = l.COMP_CD ORDER BY h.ADJ_SEQ DESC) END AS adjBef,
+	         CASE WHEN l.IO_GB = 'A' THEN (SELECT TOP 1 h.AFT_QTY FROM TBL_STOCK_ADJ_HIS h
+	                                        WHERE h.LEDGER_SEQ = l.LEDGER_SEQ AND h.COMP_CD = l.COMP_CD ORDER BY h.ADJ_SEQ DESC) END AS adjAft
 	    FROM TBL_STOCK_LEDGER l
 	   WHERE l.PROD_SEQ = #{prodSeq} AND l.ACTION_YN = 'Y' AND l.IO_GB <> 'O'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
@@ -4343,30 +4375,40 @@
 	     사업장 묶음 = 거래처관리 매칭코드(MATCH_CD) 있으면 그것, 없으면 원래 사업장코드 (납기현황표 가로표와 같은 규칙)
 	     ★[2026-09-04 속도] 기간 파라미터(frDt·toDt)를 REPLACE(ISNULL(…),'-','') 로 감싸지 않는다 — 함수로 감싸면 최적화기가 값을 못 보고
 	       일반 추정 계획을 짜서 2.3초, 그대로 비교하면 0.84초(운영 DB 실측). 하이픈 제거는 컨트롤러(_d8)가 이미 한다. */
-	  WITH SL AS (   /* 정산서 라인별 출고수량 (+출고장코드 — 코드가 빈 옛 정산서는 출고장 이름으로) */
+  /* ★★속도 (2026-11-22 사용자 「월별 출고현황 표 자체도 속도 확인해줘」) — 정산서 집계(SL) · 정산서 있는 납기일자(SD) · 발주 집계(OL)를 임시 표에 «한 번만» 만든다
+       (하단 내역 selectStockOutDetail 의 #SOD_* 와 같은 처방 — 까닭·실측은 그 문장 머리 주석과 CLAUDE.md). 뒤 문장(SJ · SM · U · 마지막 SELECT)은 그대로다.
+       임시 표는 이 연결에서만 보이고 다음 조회 때 먼저 지운다. */
+  SET NOCOUNT ON;
+  IF OBJECT_ID('tempdb..#SOM_SL') IS NOT NULL DROP TABLE #SOM_SL;
+  IF OBJECT_ID('tempdb..#SOM_SD') IS NOT NULL DROP TABLE #SOM_SD;
+  IF OBJECT_ID('tempdb..#SOM_OL') IS NOT NULL DROP TABLE #SOM_OL;
+    /* 정산서 라인별 출고수량 (+출고장코드 — 코드가 빈 옛 정산서는 출고장 이름으로) */
 	    SELECT v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,'') AS ORD_NO, v.PROD_CD,
 	           MAX(]]><include refid="dcKeyOf"><property name="a" value="v."/></include><![CDATA[) AS DC_CD,
 	           SUM(CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END) AS VQ
-	      FROM TBL_SALES_MST v
+      INTO #SOM_SL
+      FROM TBL_SALES_MST v
 	     WHERE v.ACTION_YN='Y' AND ISNULL(v.PROD_CD,'')<>''
 	       AND v.DLV_DT >= #{frDt} AND v.DLV_DT <= #{toDt}
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	     GROUP BY v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,''), v.PROD_CD
-	  ), SD AS (     /* 정산서가 있는 납기일자 */
-	    SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST WHERE ACTION_YN='Y'
-	  ), OL AS (     /* 발주현황표 라인별·출고장별·사업장별 수량 */
+     GROUP BY v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,''), v.PROD_CD;
+    /* 정산서가 있는 납기일자 */
+    SELECT DISTINCT COMP_CD, DLV_DT INTO #SOM_SD FROM TBL_SALES_MST WHERE ACTION_YN='Y';
+    /* 발주현황표 라인별·출고장별·사업장별 수량 */
 	    SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS DLV_DT, ISNULL(s.ORD_NO,'') AS ORD_NO, s.PROD_CD,
 	           UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))) AS DC_CD,
 	           ISNULL(s.PROD_KIND,'') AS KIND, ISNULL(s.BIZ_CD,'') AS BIZ_CD, MAX(ISNULL(s.BIZ_NM,'')) AS BIZ_NM,
 	           SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) + ISNULL(s.DS_SVC_QTY,0)) AS SQ
-	      FROM TBL_SHIPOUT_MST s
+      INTO #SOM_OL
+      FROM TBL_SHIPOUT_MST s
 	     WHERE s.ACTION_YN='Y' AND ISNULL(s.PROD_CD,'')<>'' AND ISNULL(s.DLV_GB,'') <> 'DSFEE' AND ISNULL(s.DS_TRX_GB,'') <> N'반품'   /* 대상 택배비(로젠) 줄·반품 줄은 출고 수량이 아니다(2026-10-27) */
 	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= #{frDt}
 	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= #{toDt}
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD,
-	              UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))), ISNULL(s.PROD_KIND,''), ISNULL(s.BIZ_CD,'')
-	  ), SJ AS (     /* 정산서 줄 × 같은 날·같은 품목 발주행 — MK = 찾은 순서(①발주번호 ②출고장+발주번호 빈 행 ③출고장 전체, 9=해당 없음) */
+              UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))), ISNULL(s.PROD_KIND,''), ISNULL(s.BIZ_CD,'');
+  WITH SL AS ( SELECT * FROM #SOM_SL ), SD AS ( SELECT * FROM #SOM_SD ), OL AS ( SELECT * FROM #SOM_OL
+  ), SJ AS (     /* 정산서 줄 × 같은 날·같은 품목 발주행 — MK = 찾은 순서(①발주번호 ②출고장+발주번호 빈 행 ③출고장 전체, 9=해당 없음) */
 	    SELECT l.COMP_CD, l.DLV_DT, l.ORD_NO, l.PROD_CD, l.VQ, o.BIZ_CD, o.BIZ_NM, o.SQ,
 	           CASE WHEN o.ORD_NO <> '' AND o.ORD_NO = l.ORD_NO THEN 1
 	                WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD AND o.ORD_NO = '' THEN 2
@@ -4423,31 +4465,66 @@
 	<select id="selectStockOutDetail" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
 	  /* 출고재고현황 하단 — 고른 (년월 · 사업장 · 품목)의 납기일자별 출고내역 (2026-09-03).
 	     원천 규칙·사업장 비율 배분은 selectStockOutByMonth 와 같다(한쪽만 고치면 표와 내역이 어긋난다). 컨트롤러가 ym 을 frYm=toYm 으로 편다. */
-	  WITH SL AS (
-	    SELECT v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,'') AS ORD_NO, v.PROD_CD, MAX(ISNULL(v.DC_NM,'')) AS DC_NM,
+  /* ★★속도 (2026-11-22 사용자 그림 「특정 것이 속도가 많이 걸림」 — 월별 출고현황 11월 · 품목 9904013222 셀) — 정산서 집계(SL)와 발주 집계(OL)를 임시 표에 «한 번만» 만든다
+       (매출마감 #SLK · 품목별재고현황 #SEQ 와 같은 처방). 운영 DB 실측 : 그 셀은 SL 74줄 · OL 296줄뿐인데 RECOMPILE 이 있어도 120초를 넘겼다 —
+       SL·OL 이 CTE 라 아래에서 여러 번(SJ · SM · U 의 네 갈래) 불릴 때마다 TBL_SHIPOUT_MST(20만 줄 · 납기일자 조건이 ISNULL 식이라 통째 읽기)를 줄마다 다시 훑는 계획이 나왔다.
+       임시 표로 굳히면 뒤쪽은 수백 줄끼리의 셈이라 계획이 어떻게 나와도 빠르다. 아래 SL·OL 은 그 임시 표를 그대로 읽는 이름일 뿐 — 뒤 문장은 한 글자도 안 바꿨다(결과 동일).
+       임시 표는 이 연결에서만 보이고 다음 조회 때 먼저 지운다. */
+  SET NOCOUNT ON;
+  IF OBJECT_ID('tempdb..#SOD_SL') IS NOT NULL DROP TABLE #SOD_SL;
+  IF OBJECT_ID('tempdb..#SOD_OL') IS NOT NULL DROP TABLE #SOD_OL;
+  IF OBJECT_ID('tempdb..#SOD_SD') IS NOT NULL DROP TABLE #SOD_SD;
+  IF OBJECT_ID('tempdb..#SOD_F') IS NOT NULL DROP TABLE #SOD_F;
+  IF OBJECT_ID('tempdb..#SOD_L') IS NOT NULL DROP TABLE #SOD_L;
+    SELECT v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,'') AS ORD_NO, v.PROD_CD, MAX(ISNULL(v.DC_NM,'')) AS DC_NM,
 	           MAX(]]><include refid="dcKeyOf"><property name="a" value="v."/></include><![CDATA[) AS DC_CD,
 	           MAX(ISNULL(v.ITEM_CD,'')) AS ITEM_CD, MAX(ISNULL(v.ITEM_NM,'')) AS ITEM_NM,
-	           SUM(CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END) AS VQ
-	      FROM TBL_SALES_MST v
+           SUM(CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END) AS VQ
+      INTO #SOD_SL
+      FROM TBL_SALES_MST v
 	     WHERE v.ACTION_YN='Y' AND v.PROD_CD = #{prodCd}
 	       AND v.DLV_DT >= #{frDt} AND v.DLV_DT <= #{toDt}
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	     GROUP BY v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,''), v.PROD_CD
-	  ), SD AS ( SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST WHERE ACTION_YN='Y'
-	               AND DLV_DT >= #{frDt} AND DLV_DT <= #{toDt}   /* 조회 기간만 (2026-11-08 속도) — OL 이 그 기간뿐이라 결과 같다. 종전엔 정산서 표 전체 DISTINCT */
-	  ), OL AS (
-	    SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS DLV_DT, ISNULL(s.ORD_NO,'') AS ORD_NO, s.PROD_CD,
-	           UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))) AS DC_CD,
-	           ISNULL(s.PROD_KIND,'') AS KIND, ISNULL(s.BIZ_CD,'') AS BIZ_CD, MAX(ISNULL(s.BIZ_NM,'')) AS BIZ_NM, MAX(ISNULL(s.DC_NM,'')) AS DC_NM,
-	           ISNULL(s.ITEM_CD,'') AS ITEM_CD, MAX(ISNULL(s.ITEM_NM,'')) AS ITEM_NM,   /* 출고 때 쓴 거래처 코드(매칭코드) — 재고현황 ↳ 줄과 같은 것 */
-	           SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) + ISNULL(s.DS_SVC_QTY,0)) AS SQ
-	      FROM TBL_SHIPOUT_MST s
-	     WHERE s.ACTION_YN='Y' AND s.PROD_CD = #{prodCd} AND ISNULL(s.DLV_GB,'') <> 'DSFEE' AND ISNULL(s.DS_TRX_GB,'') <> N'반품'   /* 대상 택배비·반품 줄 제외(2026-10-27) */
-	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= #{frDt}
-	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= #{toDt}
-	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
-	     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD,
-	              UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))), ISNULL(s.PROD_KIND,''), ISNULL(s.BIZ_CD,''), ISNULL(s.ITEM_CD,'')
+     GROUP BY v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,''), v.PROD_CD;
+    SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS DLV_DT, ISNULL(s.ORD_NO,'') AS ORD_NO, s.PROD_CD,
+           UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))) AS DC_CD,
+           ISNULL(s.PROD_KIND,'') AS KIND, ISNULL(s.BIZ_CD,'') AS BIZ_CD, MAX(ISNULL(s.BIZ_NM,'')) AS BIZ_NM, MAX(ISNULL(s.DC_NM,'')) AS DC_NM,
+           ISNULL(s.ITEM_CD,'') AS ITEM_CD, MAX(ISNULL(s.ITEM_NM,'')) AS ITEM_NM,   /* 출고 때 쓴 거래처 코드(매칭코드) — 재고현황 ↳ 줄과 같은 것 */
+           SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) + ISNULL(s.DS_SVC_QTY,0)) AS SQ
+      INTO #SOD_OL
+      FROM TBL_SHIPOUT_MST s
+     WHERE s.ACTION_YN='Y' AND s.PROD_CD = #{prodCd} AND ISNULL(s.DLV_GB,'') <> 'DSFEE' AND ISNULL(s.DS_TRX_GB,'') <> N'반품'   /* 대상 택배비·반품 줄 제외(2026-10-27) */
+       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= #{frDt}
+       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= #{toDt}
+       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD,
+              UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))), ISNULL(s.PROD_KIND,''), ISNULL(s.BIZ_CD,''), ISNULL(s.ITEM_CD,'');
+  /* 정산서가 있는 납기일자(SD)도 임시 표로 — SL·OL 만 굳혔더니 한 해 전체 조회(9904013343 · 510줄)가 0.5초 → 3초로 느려졌다
+     (U 의 NOT EXISTS 가 발주 줄마다 정산서 표를 다시 읽는 계획). 셋 다 굳히면 0.2초. 조회 기간만 (2026-11-08 속도) — OL 이 그 기간뿐이라 결과 같다 */
+    SELECT DISTINCT COMP_CD, DLV_DT INTO #SOD_SD FROM TBL_SALES_MST WHERE ACTION_YN='Y'
+               AND DLV_DT >= #{frDt} AND DLV_DT <= #{toDt};
+  /* ★납기일자마다 그 품목의 출고 원천(발주현황표 — 지나간 차수 포함 · 정산서)이 «처음 올라온 때» (2026-11-22 사용자 그림 「여기도 마찬가지로 시간표시」 —
+     품목별재고현황 수불 내역의 「조정 전 반영」(selectStockLedgerList #SLD_F)과 같은 근거). 화면이 출고내역 줄에 그 시각을 보이고, 최근 조정 시각보다 이르면 「조정 전 반영」을 붙인다 */
+    SELECT x.COMP_CD, x.D, MIN(x.M) AS M
+      INTO #SOD_F
+      FROM ( SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS D, CONVERT(VARCHAR(19), s.REG_DTTM, 120) AS M
+               FROM TBL_SHIPOUT_MST s
+              WHERE s.PROD_CD = #{prodCd}
+                AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= #{frDt} AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= #{toDt}
+             UNION ALL
+             SELECT v.COMP_CD, v.DLV_DT, CONVERT(VARCHAR(19), v.REG_DTTM)
+               FROM TBL_SALES_MST v
+              WHERE v.PROD_CD = #{prodCd} AND v.DLV_DT >= #{frDt} AND v.DLV_DT <= #{toDt} ) x
+     GROUP BY x.COMP_CD, x.D;
+  /* ★납기일자마다 그 품목의 «재고 줄(원장 출고)이 다시 만들어진 때» (2026-11-22 사용자 「월별재고현황에도」 — 품목별재고현황 수불 내역 등록일시 칸의 「↻ 09-21 11:13」과 같은 값).
+     원장 출고 줄은 정산서가 오거나 [출고반영 재집계]를 돌리면 새로 만들어져 REG_DTTM 이 그때로 찍힌다 — 화면이 처음 올린 시간 뒤에 작게 붙인다 */
+    SELECT l.COMP_CD, REPLACE(l.TRX_DT,'-','') AS D, MAX(CONVERT(VARCHAR(19), l.REG_DTTM, 120)) AS M
+      INTO #SOD_L
+      FROM TBL_STOCK_LEDGER l
+     WHERE l.PROD_CD = #{prodCd} AND l.ACTION_YN = 'Y' AND l.IO_GB = 'O' AND l.REF_GB IN ('SALES','SHIPOUT')
+       AND REPLACE(l.TRX_DT,'-','') >= #{frDt} AND REPLACE(l.TRX_DT,'-','') <= #{toDt}
+     GROUP BY l.COMP_CD, REPLACE(l.TRX_DT,'-','');
+  WITH SL AS ( SELECT * FROM #SOD_SL ), OL AS ( SELECT * FROM #SOD_OL ), SD AS ( SELECT * FROM #SOD_SD
 	  ), SJ AS (   /* 찾는 순서 = selectStockOutByMonth 와 같다 (①발주번호 ②출고장+발주번호 빈 행 ③출고장 전체) */
 	    SELECT l.COMP_CD, l.DLV_DT, l.ORD_NO, l.PROD_CD, l.VQ, o.BIZ_CD, o.BIZ_NM, o.DC_NM, o.ITEM_CD, o.ITEM_NM, o.SQ,
 	           CASE WHEN o.ORD_NO <> '' AND o.ORD_NO = l.ORD_NO THEN 1
@@ -4491,7 +4568,11 @@
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  )
 	  SELECT u.DLV_DT AS dlvDt, ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD) AS bizKey, ISNULL(NULLIF(b.MATCH_NM,''), u.BIZ_NM) AS mtNm,
-	         u.BIZ_CD AS bizCd, u.BIZ_NM AS bizNm, u.DC_NM AS dcNm, u.ORD_NO AS ordNo, u.ITEM_CD AS itemCd, u.ITEM_NM AS itemNm, u.SRC AS src, u.QTY AS qty
+         u.BIZ_CD AS bizCd, u.BIZ_NM AS bizNm, u.DC_NM AS dcNm, u.ORD_NO AS ordNo, u.ITEM_CD AS itemCd, u.ITEM_NM AS itemNm, u.SRC AS src, u.QTY AS qty,
+         /* 그 납기일자의 원천이 처음 올라온 때 — 판매전표 줄은 근거가 달라 비운다 */
+         CASE WHEN u.SRC LIKE N'판매전표%' THEN NULL ELSE (SELECT TOP 1 f.M FROM #SOD_F f WHERE f.COMP_CD = u.COMP_CD AND f.D = u.DLV_DT) END AS srcDttm,
+         /* 그 납기일자의 재고 줄이 다시 만들어진 때(품목별재고현황 등록일시와 같은 값) */
+         CASE WHEN u.SRC LIKE N'판매전표%' THEN NULL ELSE (SELECT TOP 1 g.M FROM #SOD_L g WHERE g.COMP_CD = u.COMP_CD AND g.D = u.DLV_DT) END AS ledDttm
 	    FROM U u
 	    LEFT JOIN ( SELECT COMP_CD, BIZ_CD, MAX(MATCH_CD) AS MATCH_CD, MAX(MATCH_NM) AS MATCH_NM
 	                  FROM TBL_BIZI_MST WHERE ACTION_YN = 'Y' GROUP BY COMP_CD, BIZ_CD ) b

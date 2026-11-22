@@ -263,6 +263,76 @@ const setRow = (w, cd, box, ea) => { const i = idxOf(w, cd); w.document.getEleme
     t('CSS — 작업 칸 오른쪽 고정(sticky right) · 요청 사이 굵은 선', /#reqBody td\.rq-act\{ position:sticky; right:0;/.test(src) && /tr\.rq-h > td\{ border-top:2px solid/.test(src));
     await sleep(40); w7.close();
   }
+  /* ═══ 8. 입수수량 1 이면 수정EA 칸 잠금 (2026-11-22 「입수 1이면 EA 칸 잠그게」) ═══ */
+  {
+    const S8 = makeServer({ admin: true, me: 'admin' });
+    const w8 = await open(S8), d8 = w8.document; await sleep(40);
+    const i1 = idxOf(w8, '9904010002'), i10 = idxOf(w8, '9904010001');
+    const e1 = d8.getElementById('ea' + i1), e10 = d8.getElementById('ea' + i10), b1 = d8.getElementById('bx' + i1);
+    t('★입수 1 인 줄 — 수정EA 칸 읽기 전용 · 회색(lk) · Tab 건너뜀 · 안내 말풍선', e1.readOnly === true && e1.classList.contains('lk') && e1.getAttribute('tabindex') === '-1' && /입수수량이 1이라 EA 칸은 잠겨/.test(e1.title), e1.outerHTML.slice(0, 160));
+    t('입수 10 인 줄 — 수정EA 칸은 열려 있다', e10.readOnly === false && !e10.classList.contains('lk') && e10.classList.contains('ed'));
+    t('수정BOX 칸은 어느 줄이든 열려 있다', b1.readOnly === false && d8.getElementById('bx' + i10).readOnly === false);
+    t('CSS — 잠긴 칸 회색 규칙', /input\.ed\.lk\{ background:#eef1f4;/.test(src));
+    /* 화면에서 입수수량을 5 로 고치면 풀린다 */
+    const p1 = d8.getElementById('pk' + i1); p1.value = '5'; w8.packChg(i1);
+    t('입수수량을 5 로 고치면 EA 칸이 풀린다 · BOX/EA 다시 나눔(50 = 10박스 0개)', e1.readOnly === false && !e1.classList.contains('lk') && e1.tabIndex === 0 && e1.title === '' && b1.value === '10' && e1.value === '0', b1.value + '/' + e1.value);
+    p1.value = '1'; w8.packChg(i1);
+    t('다시 1 로 돌리면 잠긴다 · BOX 50 · EA 0', e1.readOnly === true && e1.classList.contains('lk') && b1.value === '50' && e1.value === '0');
+    /* 입수 10 → 1 */
+    const p10 = d8.getElementById('pk' + i10); p10.value = '1'; w8.packChg(i10);
+    t('입수 10 인 줄을 1 로 고치면 그 줄도 잠긴다(BOX 100 · EA 0)', e10.readOnly === true && d8.getElementById('bx' + i10).value === '100' && e10.value === '0');
+    p10.value = ''; w8.packChg(i10);
+    t('입수수량을 비워도(= 1 로 본다) 잠긴 채', e10.readOnly === true);
+    /* 잠긴 줄에서도 BOX 칸으로 조정은 그대로 된다 */
+    b1.value = '60'; w8.chg(i1);
+    t('잠긴 줄 — BOX 칸에 60 → 증감 +10 · 조정 후 60', /\+10/.test(d8.getElementById('df' + i1).textContent) && /60/.test(d8.getElementById('af' + i1).textContent), d8.getElementById('df' + i1).textContent);
+    await sleep(30); w8.close();
+  }
+  /* ═══ 9. 고른 코드의 조정 이력 (2026-11-22 「선택코드 조정이력 추가」) ═══ */
+  {
+    const S9 = makeServer({ admin: true, me: 'admin' });
+    S9.his = [ { adjSeq: 1, batchNo: 'ADJ1', baseDt: '20261118', prodSeq: 12, prodCd: '9904010002', prodNm: '뚜껑 92파이', befQty: 40, aftQty: 50, diffQty: 10, remark: '재고 일괄조정', regUser: 'admin', regUserNm: '마스터', regDttm: '2026-11-18 10:00:00' } ];
+    const w9 = await open(S9), d9 = w9.document; await sleep(40);
+    const i1 = idxOf(w9, '9904010002'), i10 = idxOf(w9, '9904010001');
+    const hisCalls = () => S9.calls.filter(c => c.url === '/prod/stockAdjHisList.do');
+    const chip = () => d9.getElementById('hSel');
+    t('처음엔 고른 코드 없음 — 표 숨김 · 줄 표시 없음', !chip().classList.contains('on') && !d9.querySelector('#body tr.pick'));
+    d9.getElementById('tr' + i1).click();
+    t('★줄을 누르면 그 줄이 고른 코드 — 왼쪽 띠(pick) · 「고른 코드 9904010002 뚜껑 92파이」 표', d9.getElementById('tr' + i1).classList.contains('pick') && chip().classList.contains('on') && /고른 코드 9904010002/.test(chip().textContent) && /뚜껑 92파이/.test(chip().textContent), chip().textContent);
+    await sleep(320);
+    t('승인 요청 탭을 보는 중에는 이력을 읽지 않는다', hisCalls().length === 0, hisCalls().length);
+    w9.tabGo('his'); await sleep(60);
+    let hc = hisCalls();
+    t('★조정 이력 탭으로 가면 그 코드의 이력을 읽는다(prodSeq=12)', hc.length === 1 && /prodSeq=12/.test(hc[0].body), hc.map(c => c.body).join(' | '));
+    t('이력 표에 그 상품 줄', /9904010002/.test(d9.getElementById('hisBody').textContent) && /뚜껑 92파이/.test(d9.getElementById('hisBody').textContent));
+    /* 같은 줄을 또 눌러도 다시 읽지 않는다 */
+    d9.getElementById('tr' + i1).click(); await sleep(320);
+    t('같은 줄을 다시 눌러도 다시 읽지 않는다', hisCalls().length === 1);
+    /* 다른 줄 — 칸에 들어가도(focusin) */
+    S9.his = [];
+    d9.getElementById('bx' + i10).dispatchEvent(new w9.FocusEvent('focusin', { bubbles: true }));
+    t('다른 줄의 칸에 들어가면 고른 코드가 바뀐다 · 띠는 한 줄에만', d9.getElementById('tr' + i10).classList.contains('pick') && !d9.getElementById('tr' + i1).classList.contains('pick') && /9904010001/.test(chip().textContent) && d9.querySelectorAll('#body tr.pick').length === 1);
+    await sleep(60);
+    t('바로 읽지 않고 0.25초 모은다', hisCalls().length === 1);
+    await sleep(300);
+    hc = hisCalls();
+    t('★0.25초 뒤 새 코드로 조용히 다시 읽는다(prodSeq=11 · 모래시계 없이)', hc.length === 2 && /prodSeq=11/.test(hc[1].body), hc.map(c => c.body).join(' | '));
+    t('이력이 없으면 「고른 코드 9904010001 의 조정 이력이 없습니다」', /고른 코드 9904010001 의 조정 이력이 없습니다/.test(d9.getElementById('hisBody').textContent), d9.getElementById('hisBody').textContent.trim());
+    /* 목록을 다시 그려도 고른 줄 표시는 남는다 */
+    w9.load(); await sleep(80);
+    t('목록을 다시 조회해도 고른 줄 표시가 남는다', d9.getElementById('tr' + idxOf(w9, '9904010001')).classList.contains('pick') && d9.querySelectorAll('#body tr.pick').length === 1);
+    /* ✕ 풀기 */
+    chip().querySelector('button').click(); await sleep(320);
+    hc = hisCalls();
+    t('★✕ — 고른 코드 풀기 → 전체 이력으로 다시 읽는다(prodSeq 없이) · 표·띠 사라짐', hc.length === 3 && !/prodSeq/.test(hc[2].body) && !chip().classList.contains('on') && !d9.querySelector('#body tr.pick'), hc.map(c => c.body).join(' | '));
+    /* [이력조회] 단추는 고른 코드가 있으면 그 코드로 */
+    d9.getElementById('tr' + i1).click(); await sleep(320);
+    w9.hisLoad(); await sleep(40);
+    hc = hisCalls();
+    t('[이력조회] 도 고른 코드가 있으면 그 코드로(기간 칸과 함께)', /prodSeq=12/.test(hc[hc.length - 1].body) && /dtFrom=/.test(hc[hc.length - 1].body));
+    t('CSS · 표 자리', /#body tr\.pick > td:first-child\{/.test(src) && /<span id="hSel"/.test(src));
+    await sleep(30); w9.close();
+  }
   console.log((bad ? '✗ ' : '✓ ') + 'sim_stockAdjReq : 통과 ' + ok + ' · 실패 ' + bad);
   process.exit(bad ? 1 : 0);
 })();

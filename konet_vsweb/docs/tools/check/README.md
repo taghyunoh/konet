@@ -13,6 +13,7 @@
 | `sim_salesreturn.js` | 매출 관리 ▸ 매출 반품내역 · 매입 반품내역 화면 시뮬(129 · 반품율 포함 · 같은 JSP 의 두 꼴) — 인자로 DbRead 출력 파일(반품 줄) · 분모 파일 폴더 · 매입 줄 · 매입 분모 폴더를 주면 운영 자료로 돈다 | `node docs/tools/check/sim_salesreturn.js [rows.txt 분모폴더 [prows.txt 매입분모폴더]]` |
 | `../sim/sim_salesXlsUpload.js` | 판매 등록 [📥 엑셀 업로드](구전산 매출 → 판매전표) 시뮬(73) — 실제 양식 `D:/코네트/판매내역_판매등록양식.xlsx` 를 읽는다(인자로 다른 파일) | `node docs/tools/sim/sim_salesXlsUpload.js` |
 | `../sim/sim_quoteAutoLink.js` | 견적서 작성 [⚡ 자동연계 작성] 시뮬(152) — quoteEdit.jsp 를 통째로 올리고 `asset/js/quote-autolink.js` 를 얹는다. 인자로 DbRead 출력 두 파일(selectQuoteHistDocs · selectQuoteHistLines 결과)을 주면 운영 자료로 한 번 더(16) | `node docs/tools/sim/sim_quoteAutoLink.js [docs.txt lines.txt]` |
+| `sqlprep.js` + `SqlTime.java` | 매퍼 문장을 «앱과 같은 PreparedStatement»(문자열 매개변수 · `?`)로 운영 DB 에 돌려 **시간 · 줄 수 · 내용 해시 · 차례 해시**를 잰다(읽기 전용 · SELECT/WITH/`SET NOCOUNT ON` 으로 시작하는 문장만 · 임시 표 밖의 고치는 낱말은 거부). 값을 글자로 박아 넣는 `sqlof.js` 로는 매개변수 계획(스니핑)이 재현되지 않는다. `MAPPER=<옛.xml>` 로 옛 판과 견준다 | `node sqlprep.js <id> out.sql key=value …` → `java -cp ".;<mssql-jdbc jar>" SqlTime out.sql 3` |
 | `mapper_audit.js` | 아래 표 참고 | `node docs/tools/check/mapper_audit.js count` |
 
 ```bash

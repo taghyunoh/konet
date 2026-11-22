@@ -2570,14 +2570,14 @@
                                + ' <span style="font-weight:400;color:#5a6b7a">('+_extDays+'일)</span></span>'
                                + ' <a href="javascript:void(0)" onclick="stkLedExtClear()" style="font-size:11.5px;color:#137a6c;font-weight:800;text-decoration:none;white-space:nowrap" title="이 품목 전체로 되돌립니다">✕ 전체</a>' : '')
                  + '</div>';
-        var thead='<thead><tr><th>일자</th><th>품목코드</th><th>구분</th><th style="text-align:right">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>매입처</th><th>사업장</th><th>근거구분</th><th>근거번호</th><th>비고</th><th>등록일시</th><th>등록자</th></tr></thead>';
+        var thead='<thead><tr><th>일자</th><th>품목코드</th><th>구분</th><th style="text-align:right;width:1%;min-width:96px;white-space:nowrap;padding-left:14px">수량</th><th style="text-align:right">단가</th><th style="text-align:right">금액</th><th>매입처</th><th>사업장</th><th>근거구분</th><th>근거번호</th><th>비고</th><th title="출고 줄 = 발주현황표·정산서를 처음 올린 시간 · 뒤의 ↻ = 그 재고 줄이 다시 만들어진 때(정산서 도착·재집계)">등록일시</th><th>등록자</th></tr></thead>';
         var body= rows.length ? stkLedMon(rows, function(l){   /* 달마다 구분별 합계 줄을 끼운다 (2026-11-18 · logi-oh.js) */
             var io=_ioLbl(l), isOut=(l.ioGb==='O'), isRet=_ioRet(l);
             return '<tr><td>'+_fmtYmd(l.trxDt)+'</td>'
               /* 품목코드 = 재고가 떨어진 '대표코드(주코드)'. 대체출고분은 아래에 하위 행으로 편다. */
               +'<td style="color:#37475a">'+_cesc(l.prodCd||'')+'</td>'
               +'<td style="font-weight:700;color:'+(isRet?'#c0392b':(isOut?'#b06a00':'#137a6c'))+'"'+(isRet?' title="'+_ioTip(l)+'"':'')+'>'+io+'</td>'
-              +'<td style="text-align:right">'+_cnum(l.qty)+'</td>'
+              +'<td style="text-align:right">'+stkLedQty(l)+'</td>'
               +'<td style="text-align:right">'+_cnum(l.unitPrice)+'</td>'
               +'<td style="text-align:right">'+_cnum(l.amt)+'</td>'
               /* 매입처는 '코드', 사업장은 '이름' — 둘 다 이름으로 두면 같은 값이 두 번 나온다(2026-08-01 지적).
@@ -2590,7 +2590,7 @@
               +'<td>'+_cesc(l.refGb||'')+'</td>'
               +'<td>'+_cesc(l.refNo||'')+'</td>'
               +'<td>'+_cesc(l.remark||'')+'</td>'
-              +'<td style="color:#9aa7b3">'+_cesc(l.regDttm||'')+'</td>'
+              +'<td style="color:#9aa7b3">'+stkLedReg(l)+'</td>'
               +'<td style="color:#9aa7b3" title="'+_cesc(l.regUser||'')+'">'+_cesc(l.regUserNm||l.regUser||'')+'</td></tr>'   /* 등록자 이름(없으면 아이디) · 말풍선에 아이디 (2026-11-05) */
               /* ★대체출고 하위 행 (2026-08-07 요청) — 대표 줄 아래에 매칭코드마다 한 줄.
                    품목코드·수량·사업장을 대표 줄과 '같은 칸' 에 세워 바로 견줄 수 있게 한다.
@@ -2622,7 +2622,7 @@
               ? '<tr><td colspan="13" style="text-align:center;color:#9aa7b3;padding:20px">최근 <b>'+_stkLedMon+'개월</b> 안에는 수불 내역이 없습니다. (전체 <b>'+_stkLedRaw.length+'</b>건 — 위 기간 버튼을 넓혀 보세요)</td></tr>'
               : '<tr><td colspan="13" style="text-align:center;color:#9aa7b3;padding:20px">수불 내역이 없습니다. (이 품목은 입고/출고 원장 기록이 없음)</td></tr>');
         hd.innerHTML=head;
-        bd.innerHTML='<table class="logi-tb">'+thead+'<tbody>'+body+'</tbody></table>';
+        bd.innerHTML='<table class="logi-tb">'+thead+'<tbody>'+stkLedPend(row)+body+'</tbody></table>';
         _stkLedFit();   // 남은 화면 높이만큼 표를 늘린다(아래 여백 방지)
     }
   }
@@ -2787,7 +2787,7 @@
 
     /* 상단도 그리드로 (2026-08-07 확정) — 그리드 3개 : 선택품목 / 입고 / 출고 */
     document.getElementById('stkSplitBody').innerHTML =
-        _stkSplitTop(r, si, so)
+        _stkSplitTop(r, si, so) + stkSplitPend(r)   /* 승인 대기 묶음(있을 때만 · logi-oh.js) */
       /* ★표별 높이를 따로 준다 (2026-08-07 요청) — 입고는 보통 몇 줄이고
          출고는 수십~수백 줄이라, 둘을 같은 높이로 두면 출고만 답답해진다. */
       /* ★입고는 대개 몇 줄이라 '줄 수만큼'만 차지하게 하고(최대 18vh),
@@ -2796,7 +2796,7 @@
       /* 한 줄 ≈ 31px — 두 줄만큼 줄인다(2026-08-07 요청). 다시 늘리려면 62px 를 빼면 된다. */
       + _stkSplitTb('⬆️ 출고내역', outR, '#b06a00', false, 'calc(58vh - 62px)')
       + (etcR.length ? _stkSplitTb('◇ 기타(반품·조정)', etcR, '#5a6b7a', true, '16vh') : '');
-    document.getElementById('stkSplitPop').classList.add('on');
+    document.getElementById('stkSplitPop').classList.add('on'); stkSplitGrips();   /* 표마다 높이 막대(logi-oh.js) */
   }
   function stkSplitClose(){ document.getElementById('stkSplitPop').classList.remove('on'); }
 
@@ -2886,7 +2886,7 @@
           +'<td>'+_cesc(l.prodCd||'')+'</td>'
           +'<td class="txt-l">'+_cesc(l.prodNm||_nm)+'</td>'
           +(_ioRet(l) ? '<td style="text-align:right;font-weight:700;color:#c0392b" title="'+_ioTip(l)+'"><span style="font-size:11px;background:#fdecea;border:1px solid #f5b7b1;border-radius:4px;padding:0 4px;margin-right:4px">반품</span>'+_cnum(l.qty)+'</td>'
-                      : '<td style="text-align:right;font-weight:700;color:#137a6c">'+_cnum(l.qty)+'</td>')   /* 반품(음수 입고)은 붉게 + 「반품」 표 (2026-11-13) */
+                      : '<td style="text-align:right;font-weight:700;color:#137a6c">'+stkLedQty(l)+'</td>')   /* 조정 줄은 「전 → 후 (증감)」(2026-11-22) · 반품(음수 입고)은 붉게 + 「반품」 표 (2026-11-13) */
           +'<td style="text-align:right">'+_cnum(l.unitPrice)+'</td><td style="text-align:right">'+_cnum(l.amt)+'</td>'
           +'<td title="'+_cesc(l.vendorNm||'')+'">'+_cesc(l.vendorCd||'')+(l.vendorNm?(' <span style="color:#5a6b7a">'+_cesc(l.vendorNm)+'</span>'):'')+'</td>'
           +'<td>'+_cesc(l.refGb||'')+'</td><td>'+_cesc(l.refNo||'')+'</td><td>'+_cesc(l.remark||'')+'</td></tr>'+_sub(l)
@@ -2894,7 +2894,7 @@
           +'<td>'+_cesc(l.prodCd||'')+'</td>'
           +'<td class="txt-l">'+_cesc(l.prodNm||_nm)+'</td>'
           +(_ioRet(l) ? '<td style="text-align:right;font-weight:700;color:#c0392b" title="'+_ioTip(l)+'"><span style="font-size:11px;background:#fdecea;border:1px solid #f5b7b1;border-radius:4px;padding:0 4px;margin-right:4px">반품</span>'+_cnum(l.qty)+'</td>'
-                      : '<td style="text-align:right;font-weight:700;color:#b06a00">'+_cnum(l.qty)+'</td>')
+                      : '<td style="text-align:right;font-weight:700;color:#b06a00">'+stkLedQty(l)+'</td>')   /* 「조정 전 반영」 표(2026-11-22) */
           /* ★출고의 단가·금액은 대부분 0 이다 (2026-08-07 요청으로 칸을 넣음) —
              출고(SHIPOUT) 자동연동 줄은 수량만 남기고 금액은 정산서·판매전표 쪽에서 잡히기 때문.
              0 을 그대로 보이면 '빠졌나?' 가 되므로 흐리게 둔다. */
@@ -4364,8 +4364,8 @@
           <tr><td class="m">매입 반품내역</td><td><b>매입 등록</b>의 반품·불량반품 줄을 모아 봅니다(조회 전용). 매입처·품목·월별 묶음과 <b>반품율</b>(반품액 ÷ 같은 기간 매입액). 수량이 음수인 반품 줄은 「반품 취소」(반품을 되돌린 줄), 거래구분 매입에 음수 수량으로 넣은 옛 줄은 「매입(음수)」로 함께 나옵니다.</td></tr>
           <tr><td class="m">입고내역</td><td>전체 품목 <b>입고 거래 목록</b> — 기간·검색·페이징·합계.</td></tr>
           <tr><td class="m">매입마감</td><td><b>입고 기준</b> 당월 매입을 매입처·품목별로 집계(매입단가 = 가중평균). 조회줄 <b>🔎 품목코드/품목명 검색</b>(묶음·합계·건수도 거른 것만 · Esc = 해제).</td></tr>
-          <tr><td class="m">재고현황</td><td>실시간 현재고 = <b>입고 − 출고</b>(수불원장 하나만 봄). <b>기준일</b> 비움=현재고 / 날짜=그날까지 기말 → 마감월 말일로 맞추면 재고마감과 대사. <b>음수</b>면 입고 누락 신호. 품목 행 클릭 → 아래 <b>수불내역</b>(근거). <b>🏷 매입처별</b> = 품목을 대표 매입처(가장 최근 입고 매입처 → 없으면 상품마스터 거래처)로 묶어 소계와 함께(매입처 줄 클릭 = 접기). <b>🔄 출고반영 재집계</b>는 과거 보정용으로만. <b>🧹 서브코드 재고 정리</b>(재고 관리 메뉴) = 주코드에 매칭된 서브코드에 남은 재고를 찾아, 서브코드로 잡힌 매입은 [매입등록에서 열기]로 주코드로 바꾸고 남은 재고는 0으로 조정(기본 주코드에 합침 · 재고 일괄조정 [조정 이력]에서 되돌리기). <b>② 수불 내역</b>은 달마다 맨 위에 <b>「▣ 2026-10 합계」</b> 줄(입고·출고·조정 구분별 수량·금액 합 · 건수 · 달 이름 옆 <b>총합계</b> = 그 달 재고 증감 = 입고 − 출고 ± 조정)이 붙는다(2026-11-18). <b>재고 일괄조정 = 승인 뒤 반영</b>(2026-11-18) : 총괄관리자·부관리자가 아닌 직원이 [승인 요청]을 누르면 재고는 그대로 두고 요청만 쌓인다 → 관리자가 재고 일괄조정 화면 위 <b>「승인 요청」</b> 목록에서 [승인](그때 재고 반영 · 조정 이력에 남음) 또는 [반려](사유 필수). 요청한 사람은 대기 중인 제 요청을 [요청 취소]할 수 있다. 관리자가 직접 저장하면 종전대로 바로 반영. 상품코드등록 수정 창의 재고수량 칸도 같은 규칙. 목록 표 밑 <b>높이 막대</b>(끌기 · [▲ 줄이기][▼ 늘리기] · 더블클릭 = 처음 높이)로 목록과 조정 이력의 높이를 나눈다. 승인 대기 건수는 관리자에게 왼쪽 메뉴 「재고 관리 ▸ 재고 일괄조정」 옆 <b>빨간 배지</b>로 보인다(30초마다 갱신 · 새 요청이 오면 아래 알림 한 번). <b>요청한 직원에게도 결과가 온다</b> — 승인·반려되면 같은 메뉴 배지와 알림(반려는 사유까지), 재고 일괄조정 화면 위 「📬 내 요청 결과」 띠에서 보고 [확인했습니다]를 누르면 사라진다. 띠는 <b>표</b>로 — 요청마다 어떤 상품이 전 → 후 · 증감 얼마로 승인·반려됐는지 한 줄씩, 많으면 표 안에서 스크롤. 승인하는 쪽의 「승인 요청」 표도 같은 꼴(요청마다 상품별 전 → 후 · 증감이 바로 보이고 [승인][반려] 단추는 오른쪽에 늘 붙어 있다).</td></tr>
-          <tr><td class="m">월별 출고현황</td><td><b>사업장 ▸ 품목</b>별 월 출고량 + 맨 윗줄 현재고. 출고량은 <b>납기일자</b> 기준으로 그 날 <b>정산서가 있으면 정산서</b>, 없으면 발주현황표(라벨수량) + <b>토더·대상 발주</b>(정산서 날에도) + <b>판매전표</b>(거래처가 사업장 자리, 「(판매전표)」) — 품목별재고현황(재고 원장)과 같은 규칙(2026-10-26). 셀을 누르면 아래 <b>출고내역·입고내역</b>. <b>기본 기간 = 올해 1월 1일 ~ 오늘</b>(기간이 곧 표의 열 수라 넓히면 그만큼 느려집니다). 거르기 칸은 <b>치던 손을 멈추면</b> 걸립니다(Enter 는 바로).</td></tr>
+          <tr><td class="m">재고현황</td><td>실시간 현재고 = <b>입고 − 출고</b>(수불원장 하나만 봄). <b>기준일</b> 비움=현재고 / 날짜=그날까지 기말 → 마감월 말일로 맞추면 재고마감과 대사. <b>음수</b>면 입고 누락 신호. 품목 행 클릭 → 아래 <b>수불내역</b>(근거). <b>🏷 매입처별</b> = 품목을 대표 매입처(가장 최근 입고 매입처 → 없으면 상품마스터 거래처)로 묶어 소계와 함께(매입처 줄 클릭 = 접기). <b>🔄 출고반영 재집계</b>는 과거 보정용으로만. <b>🧹 서브코드 재고 정리</b>(재고 관리 메뉴) = 주코드에 매칭된 서브코드에 남은 재고를 찾아, 서브코드로 잡힌 매입은 [매입등록에서 열기]로 주코드로 바꾸고 남은 재고는 0으로 조정(기본 주코드에 합침 · 재고 일괄조정 [조정 이력]에서 되돌리기). <b>② 수불 내역</b>은 달마다 맨 위에 <b>「▣ 2026-10 합계」</b> 줄(입고·출고·조정 구분별 수량·금액 합 · 건수 · 달 이름 옆 <b>총합계</b> = 그 달 재고 증감 = 입고 − 출고 ± 조정 · 줄 오른쪽에 그 달의 <b>입고 · 출고 · 해당월재고</b>(그 달 말까지의 재고 — 기간 단추와 무관) · 조정이 있는 달은 「조정 +58 (전 -53 → 수정재고 5)」처럼 맞춘 재고도 — 월별 출고현황 입고내역 머리에도 같은 글자)이 붙는다(2026-11-18). <b>재고 일괄조정 = 승인 뒤 반영</b>(2026-11-18) : 총괄관리자·부관리자가 아닌 직원이 [승인 요청]을 누르면 재고는 그대로 두고 요청만 쌓인다 → 관리자가 재고 일괄조정 화면 위 <b>「승인 요청」</b> 목록에서 [승인](그때 재고 반영 · 조정 이력에 남음) 또는 [반려](사유 필수). 요청한 사람은 대기 중인 제 요청을 [요청 취소]할 수 있다. 관리자가 직접 저장하면 종전대로 바로 반영. 상품코드등록 수정 창의 재고수량 칸도 같은 규칙. 목록 표 밑 <b>높이 막대</b>(끌기 · [▲ 줄이기][▼ 늘리기] · 더블클릭 = 처음 높이)로 목록과 조정 이력의 높이를 나눈다. 승인 대기 건수는 관리자에게 왼쪽 메뉴 「재고 관리 ▸ 재고 일괄조정」 옆 <b>빨간 배지</b>로 보인다(30초마다 갱신 · 새 요청이 오면 아래 알림 한 번). <b>요청한 직원에게도 결과가 온다</b> — 승인·반려되면 같은 메뉴 배지와 알림(반려는 사유까지), 재고 일괄조정 화면 위 「📬 내 요청 결과」 띠에서 보고 [확인했습니다]를 누르면 사라진다. 띠는 <b>표</b>로 — 요청마다 어떤 상품이 전 → 후 · 증감 얼마로 승인·반려됐는지 한 줄씩, 많으면 표 안에서 스크롤. 승인하는 쪽의 「승인 요청」 표도 같은 꼴(요청마다 상품별 전 → 후 · 증감이 바로 보이고 [승인][반려] 단추는 오른쪽에 늘 붙어 있다). ② 수불 내역의 <b>조정</b> 줄은 수량 칸에 「전 30 → 수정재고 31 (증감 +1)」처럼 조정 전 → 후 재고와 증감을 함께 보인다(조정 줄의 수량은 입력한 수량이 아니라 증감이다 — 월별 출고현황 하단 입고내역·[입·출고 나누어보기] 창의 조정 줄도 같다(그 창에도 승인 대기 묶음이 요약표 밑에 선다) · 가장 최근 조정 줄에는 청록 「최근재고」 표가 붙는다(= 최근에 수정한 현재고 · 그 줄 위의 출고 가운데 조정할 때 이미 올라와 있던 것은 회색 「조정 전 반영」 표 — 최근재고에서 다시 빼지 않는다 · 월별 출고현황 하단 출고내역에도 줄 맨 뒤에 「올린 시간」, 수량 앞에 같은 표가 붙는다 · ② 수불 내역의 등록일시 칸도 출고 줄은 처음 올린 시간을 앞에 보이고 재고 줄이 다시 만들어진 때(정산서 도착·재집계)는 뒤에 작게 「↻ 09-21 11:13」 — 월별 출고현황 「올린 시간」 칸도 같은 모양) · 나누어보기 창의 표마다 밑의 막대로 높이를 늘리고 줄인다). 승인을 기다리는 조정 요청은 ② 수불 내역 맨 위에 노란 <b>「⏳ 승인 대기」</b> 줄로 미리 보인다(아직 재고·합계에는 안 들어간다 — 승인되면 진짜 조정 줄로 바뀐다 · 월별 출고현황 하단 입고내역 맨 위에도 같은 줄). 재고 일괄조정·상품코드등록의 <b>수정EA 칸은 입수수량이 1 이면 잠긴다</b> — 센 수량은 수정BOX 칸에 넣는다(입수수량을 2 이상으로 고치면 열린다). 재고 일괄조정의 위 목록에서 <b>줄을 누르면 아래 [조정 이력]이 그 상품 것만</b> 보인다(「고른 코드」 표의 ✕ = 전체 이력).</td></tr>
+          <tr><td class="m">월별 출고현황</td><td><b>사업장 ▸ 품목</b>별 월 출고량 + 맨 윗줄 현재고(끝날짜가 <b>오늘이거나 그 뒤면 지금 재고</b> = 품목별재고현황과 같은 숫자 · 지난 날짜면 그날까지). 출고량은 <b>납기일자</b> 기준으로 그 날 <b>정산서가 있으면 정산서</b>, 없으면 발주현황표(라벨수량) + <b>토더·대상 발주</b>(정산서 날에도) + <b>판매전표</b>(거래처가 사업장 자리, 「(판매전표)」) — 품목별재고현황(재고 원장)과 같은 규칙(2026-10-26). 셀을 누르면 아래 <b>출고내역·입고내역</b>. <b>기본 기간 = 올해 1월 1일 ~ 오늘</b>(기간이 곧 표의 열 수라 넓히면 그만큼 느려집니다). 거르기 칸은 <b>치던 손을 멈추면</b> 걸립니다(Enter 는 바로). 하단 출고내역은 옆으로 밀어도 <b>납기일자·사업장 칸이 왼쪽에 고정</b>됩니다.</td></tr>
           <tr><td class="m">재고마감</td><td>기초+입고−출고±조정=<b>기말</b>, 재고금액=기말×이동평균. 기초는 <b>직전 확정월 기말에서 이월</b>. 탭줄 <b>🔎 품목코드/품목명 검색</b> = 두 탭 공통(합계·건수도 거른 것만 · Esc = 해제).</td></tr>
         </tbody></table>
       </div>

@@ -38,6 +38,9 @@ public class StockLedgerDTO {
     private String  regDttm;
     private String  regUser;
     private String  regUserNm;     // 등록자 이름 (조인, 비영속) — 품목별재고현황 수불내역 표시용 (2026-11-05)
+    private Integer adjBef;        // 조정 전 재고 (조인, 비영속) — 조정(A) 줄만, TBL_STOCK_ADJ_HIS.BEF_QTY (2026-11-22)
+    private Integer adjAft;        // 조정 후 재고 = 화면에 입력한 수량 (조인, 비영속) — TBL_STOCK_ADJ_HIS.AFT_QTY (2026-11-22)
+    private String  srcDttm;       // 출고 줄의 원천(발주현황표·정산서)이 처음 올라온 때 (조인, 비영속) — 「조정 전 반영」 판별 (2026-11-22)
     private Double  vatAmt;        // 부가세 (조인, 비영속) — 입고내역 표시용 : 매입전표 줄의 세액, 없으면 과세 10% 환산 (2026-11-11)
     private Double  totAmt;        // 합계(부가세 포함) (조인, 비영속) — 입고내역 표시용 (2026-11-11)
     private String  regIp;
@@ -62,6 +65,12 @@ public class StockLedgerDTO {
     public String getTrxDt() { return trxDt; }
     public String getRegUserNm() { return regUserNm; }
     public void setRegUserNm(String regUserNm) { this.regUserNm = regUserNm; }
+    public Integer getAdjBef() { return adjBef; }
+    public void setAdjBef(Integer adjBef) { this.adjBef = adjBef; }
+    public Integer getAdjAft() { return adjAft; }
+    public void setAdjAft(Integer adjAft) { this.adjAft = adjAft; }
+    public String getSrcDttm() { return srcDttm; }
+    public void setSrcDttm(String srcDttm) { this.srcDttm = srcDttm; }
     public Double getVatAmt() { return vatAmt; }
     public void setVatAmt(Double vatAmt) { this.vatAmt = vatAmt; }
     public Double getTotAmt() { return totAmt; }

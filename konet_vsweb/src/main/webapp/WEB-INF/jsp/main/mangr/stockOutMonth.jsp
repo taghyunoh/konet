@@ -114,7 +114,17 @@
   .dtl .tb{ max-height:40vh; overflow:auto; }
   .dtl table{ border-collapse:collapse; width:100%; font-size:13px; }
   .dtl th, .dtl td{ border-bottom:1px solid #eef1f4; padding:5px 9px; white-space:nowrap; text-align:center; }
-  .dtl th{ position:sticky; top:0; background:#eef4fa; font-weight:700; }
+  .dtl th{ position:sticky; top:0; background:#eef4fa; font-weight:700; z-index:2; }
+  /* ★출고내역 표(table.fx) — 옆으로 밀 때 납기일자·사업장 두 칸은 왼쪽에 고정 (2026-11-22 사용자 그림 「우측스크롤시 사업장까지 고정이고 스크롤되게」).
+       둘째 칸의 left = 첫 칸 폭(--c1w — 그린 뒤 재서 넣는다, somDetailRender). 고정 칸은 배경을 칠해야 밑으로 지나가는 칸이 안 비친다.
+       collapse 표의 테두리는 고정 칸을 안 따라오므로 밑줄·오른쪽 경계는 box-shadow 로 그린다. 머리글 두 칸은 위·왼쪽 둘 다 고정이라 z-index 가 가장 높다.
+       사업장 이름이 아주 길면 280px 에서 …(전체 이름은 말풍선) — 고정 칸이 화면 절반을 먹지 않게 */
+  .dtl table.fx th:nth-child(-n+2), .dtl table.fx td:nth-child(-n+2){ position:sticky; left:0; }
+  .dtl table.fx th:nth-child(2), .dtl table.fx td:nth-child(2){ left:var(--c1w, 94px); max-width:280px; overflow:hidden; text-overflow:ellipsis; }
+  .dtl table.fx td:nth-child(-n+2){ background:#fff; z-index:1; box-shadow:inset 0 -1px 0 #eef1f4; }
+  .dtl table.fx td:nth-child(2){ box-shadow:inset 0 -1px 0 #eef1f4, inset -2px 0 0 #d5dee6; }
+  .dtl table.fx th:nth-child(-n+2){ z-index:3; }
+  .dtl table.fx th:nth-child(2){ box-shadow:inset -2px 0 0 #c3d0db; }
   .dtl td.l{ text-align:left; } .dtl td.r{ text-align:right; font-weight:700; }
   .dtl td.src-s{ color:#1f6fb3; } .dtl td.src-o{ color:#6b7a89; } .dtl td.src-t{ color:#8a4c0d; font-weight:600; } .dtl td.src-d{ color:#6b3fa0; font-weight:600; }
   /* 출고코드(거래처 매칭코드) — 품목별재고현황의 ↳ 줄과 같은 주황 */
@@ -365,9 +375,16 @@ function somPaint(force){
   var L=spL?'<td class="sp"></td>':'', R=spR?'<td class="sp"></td>':'';
   function cell(cls, ym, c, txt){ var k=ym+'|'+c.g+'|'+c.cd; return '<td class="'+cls+(c.first?' gs':'')+(c.g==='#ALL'?' al':'')+(_somPick===k?' pick':'')+'" data-ym="'+esc(ym)+'" data-g="'+esc(c.g)+'" data-cd="'+esc(c.cd)+'">'+txt+'</td>'; }
   /* ① 현재고 */
-  /* 현재고 = 기간 끝날짜까지 (2026-11-04) — 이름에 그 날짜를 붙여 「지금 재고」로 읽히지 않게 */
+  /* 현재고 = 끝날짜가 지난 날짜면 그날까지(2026-11-04 — 이름에 그 날짜를 붙인다) · 오늘이거나 그 뒤면 «지금 재고»(원장 전체, 2026-11-22 「재고가 없는데 1로 나옴」
+       — 내일 납기분이 이미 올라와 재고에서 빠져 있는데 «오늘까지»로 세면 품목별재고현황과 숫자가 달랐다). 어느 쪽인지는 서버가 stockAsOf 로 알려 준다
+       (그날까지면 yyyymmdd · 지금 재고면 빈 글자 · 옛 서버면 칸이 없다 = 종전 이름표) */
   var _stkTo=((document.getElementById('toDt')||{}).value||'').slice(5);   // mm-dd
-  h+='<tr class="stk"><td class="cn" title="기간 끝날짜(납기일자)까지 반영한 품목 재고 — 그 뒤 날짜의 출고 예정분은 빼지 않습니다">현재고 <small style="font-weight:400;color:#6b7a89">('+(_stkTo?(_stkTo+' 기준'):'품목')+')</small></td><td class="rt">'+(m.stkAny?num(m.stkTot):'')+'</td>'+L;
+  var _stkAs=(RAW && RAW.stockAsOf!==undefined) ? String(RAW.stockAsOf||'') : null;
+  if(_stkAs!==null) _stkTo=_stkAs ? (_stkAs.slice(4,6)+'-'+_stkAs.slice(6,8)) : '';
+  var _stkLab=(_stkAs==='') ? '지금' : (_stkTo ? (_stkTo+' 기준') : '품목');
+  var _stkTip=(_stkAs==='') ? '지금 재고 — 원장 전체(품목별재고현황과 같은 숫자). 내일 이후 납기분도 이미 올라와 있으면 빠져 있습니다. 끝날짜를 지난 날짜로 고르면 그날까지의 재고'
+                            : '기간 끝날짜(납기일자)까지 반영한 품목 재고 — 그 뒤 날짜의 출고는 빼지 않습니다. 끝날짜가 오늘이거나 그 뒤면 지금 재고';
+  h+='<tr class="stk"><td class="cn" title="'+_stkTip+'">현재고 <small style="font-weight:400;color:#6b7a89">('+_stkLab+')</small></td><td class="rt">'+(m.stkAny?num(m.stkTot):'')+'</td>'+L;
   cols.forEach(function(c){ var v=m.stock[c.cd]; h+= (v==null) ? '<td class="none'+(c.first?' gs':'')+'"></td>' : cell(v<0?'neg':'', '', c, num(v)); });
   h+=R+'</tr>';
   /* ② 년월 줄 */
@@ -474,25 +491,116 @@ function dt8(d){ d=''+(d||''); return /^\d{8}$/.test(d) ? (d.slice(0,4)+'-'+d.sl
 /* 원천 칸 색·표 (2026-10-26) — 정산서 📄 파랑 · 판매전표 🧾 갈색 · 토더·대상 발주 🏷 보라 · 발주현황표/DC 발주 회색 */
 function srcCls(s){ return s==='정산서'?'src-s':((''+s).indexOf('판매전표')===0?'src-t':((s==='토더 발주'||s==='대상 발주')?'src-d':'src-o')); }   // 「판매전표(대상)」도 판매전표 색
 function srcIco(s){ return s==='정산서'?'📄 ':((''+s).indexOf('판매전표')===0?'🧾 ':((s==='토더 발주'||s==='대상 발주')?'🏷 ':'')); }
+/* ★입고내역 맨 위 «승인 대기» 줄 (2026-11-22 사용자 「월별 출고현황 입고내역에도 승인 대기 줄 보이게 해줘」 — 품목별재고현황 ② 수불 내역(logi-oh.js stkLedPend)과 같은 규칙).
+     직원이 재고 일괄조정에서 저장한 것은 관리자가 승인해야 원장에 조정 줄이 생긴다 — 그 사이 대기 중인 요청(/prod/stockAdjReqList.do pendOnly=Y)에서
+     이 품목의 줄을 꺼내 입고내역 표 맨 위에 보인다. 요청의 조정 줄(payload JSON)은 화면이 푼다 · 품목 = prodSeq 또는 품목코드 · 증감 0 은 뺀다.
+     · 30초 동안은 받아 둔 것을 쓰고, 내용이 달라졌을 때만 열려 있는 내역을 다시 그린다. 못 읽으면(옛 서버·로그인 끊김) 줄 없이 종전 화면 — 60초 뒤 다시.
+     · ★원장 줄이 아니다 — 머리의 「n건 · 합」과 위 표의 현재고에 안 들어간다(머리에 「승인 대기 n건」만 덧붙인다). 고른 달과 상관없이 보인다(지금 걸려 있는 요청이라서). */
+var _somPend={ t:0, list:null, busy:false, sig:'[]' }, _somDtlArgs=null;
+function somPendLoad(){
+  if(_somPend.busy) return;
+  if(_somPend.list && (Date.now()-_somPend.t) < 30000) return;
+  _somPend.busy=true;
+  var done=function(list, wait){
+    var sig=JSON.stringify(list.map(function(q){ return [q.reqSeq, q.payload]; })), chg=(sig!==_somPend.sig);
+    _somPend.list=list; _somPend.sig=sig; _somPend.busy=false; _somPend.t=Date.now()+(wait ? 30000 : 0);
+    var a=_somDtlArgs; if(chg && a && DTL_LAST===a.sel){ try{ somDetailRender(a.sel, a.j, a.fr, a.to); somFit(); }catch(e){} }
+  };
+  try{
+    fetch(CTX+'/prod/stockAdjReqList.do', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'pendOnly=Y' })
+      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(function(d){ if(!d || d.result!=='OK') throw new Error('x'); done((d.data||[]).filter(function(q){ return q && q.statGb==='P'; }), false); })
+      .catch(function(){ done([], true); });
+  }catch(e){ done([], true); }
+}
+function somPendRows(it){
+  var o={ h:'', n:0 }; if(!it) return o;
+  somPendLoad();
+  (_somPend.list||[]).forEach(function(q){
+    var its=[]; try{ its=JSON.parse(q.payload||'[]')||[]; }catch(e){ its=[]; }
+    its.forEach(function(x){
+      if(!x) return;
+      var same=(it.seq && x.prodSeq!=null && String(x.prodSeq)===String(it.seq)) || (it.cd && String(x.prodCd||'')===String(it.cd));
+      if(!same) return;
+      var pk=(+x.packQty||0) < 1 ? 1 : (+x.packQty), bef=Math.round(+x.befQty||0), aft=Math.round((+x.aftBox||0)*pk+(+x.aftEa||0)), d=aft-bef;
+      if(!d) return;
+      var bg='background:#fff8e6;border-top:1px dashed #e0b24a;border-bottom:1px dashed #e0b24a';
+      o.n++;
+      o.h+='<tr class="pend" data-req="'+esc(q.reqSeq)+'" title="승인 대기 중인 재고 조정 요청 #'+esc(q.reqSeq)+' — 총괄관리자·부관리자가 승인하면 재고에 반영됩니다. 지금 현재고와 합계에는 들어 있지 않습니다.">'
+        +'<td style="'+bg+'">'+dt8(String(q.baseDt||'').replace(/[^0-9]/g,''))+'</td>'
+        +'<td style="'+bg+'"><span style="display:inline-block;padding:0 7px;border-radius:9px;background:#f6c453;color:#5c3d00;font-size:11.5px;font-weight:800;white-space:nowrap">⏳ 승인 대기</span></td>'
+        +'<td class="r" style="'+bg+';color:#8a5a00;white-space:nowrap"><span style="display:inline-block;margin-right:8px;padding:0 7px;border-radius:9px;background:#fdecc4;color:#8a5a00;font-size:11.5px;font-weight:700;white-space:nowrap">전 '+num(bef)+' → 후 '+num(aft)+'</span>'
+        +  '<span style="white-space:nowrap">(증감 '+(d>0?'+':'')+num(d)+')</span></td>'
+        +'<td class="l" style="'+bg+'">'+esc(q.reqUserNm||q.reqUser||'')+'</td>'
+        +'<td style="'+bg+'">요청 #'+esc(q.reqSeq)+'</td>'
+        +'<td class="l" style="'+bg+'">'+esc(q.remark||'')+' <span style="color:#b06a00;font-weight:700;white-space:nowrap">· 아직 재고에 반영 안 됨</span></td></tr>';
+    });
+  });
+  return o;
+}
 function somDetailRender(sel, j, fr, to){
+  _somDtlArgs={ sel:sel, j:j, fr:fr, to:to };   /* 승인 대기 목록이 늦게 오면 이 값으로 다시 그린다 */
   /* 출고내역 — 납기일자별·원래 사업장별. 거래처 매칭코드 칸은 주코드와 다를 때만(재고현황 ↳ 줄과 같은 규칙, 2026-09-03 「주코드이면 보여주지 마세요」) */
+  /* ★출고 줄마다 «올라온 때» + 「조정 전 반영」 (2026-11-22 사용자 그림 「여기도 마찬가지로 시간표시」 — 품목별재고현황 수불 내역(logi-oh.js stkLedPre)과 같은 규칙).
+       올라온 때(srcDttm) = 그 납기일자의 발주현황표(지나간 차수 포함)·정산서가 처음 등록된 시각(서버 #SOD_F). 원장 일자는 납기일자라, 납기 하루 전에 올라온 출고는
+       조정한 날보다 뒤 일자여도 조정할 때 이미 재고에서 빠져 있다 — 올라온 때 < 최근 조정을 저장한 때(LA.regDttm) 이고 납기일자 ≥ 조정 일자면 회색 「조정 전 반영」.
+       최근 조정 = 받아 온 입고내역(j.ledger)의 첫 조정 줄(전·후 값 있음) — 고른 달에 조정이 없으면 표는 안 붙고 시각만 보인다. 판매전표 줄은 근거가 없어 빈 칸. */
+  var LA=null; (j.ledger||[]).some(function(x){ if(x && x.ioGb==='A' && x.adjBef!=null && x.adjAft!=null){ LA=x; return true; } return false; });
+  var LAd=LA ? (''+(LA.trxDt||'')).replace(/-/g,'') : '';
+  /* ★자리 = 품목별재고현황 수불 내역과 같게 (2026-11-22 사용자 그림 「뒤에 올린시간표시 품목별재고현황처럼」) — 「올린 시간」은 줄 맨 뒤 칸(그 화면의 등록일시 자리 · 회색 · 연-월-일 시:분:초),
+       「조정 전 반영」 표는 수량 앞(그 화면 stkLedPre 와 같은 자리). 처음 판은 원천과 수량 사이 한 칸에 「월-일 시:분 + 표」를 같이 두었다. */
+  /* 맨 뒤 칸 — 처음 올린 시간 + 「↻ 다시 만든 때」 (2026-11-22 사용자 「월별재고현황에도」 — 품목별재고현황 ② 등록일시 칸(logi-oh.js stkLedReg)과 같은 모양·같은 값).
+       ledDttm = 그 납기일자의 재고 줄(원장 출고)이 다시 만들어진 때(정산서 도착 · 출고반영 재집계 — 서버 #SOD_L). 올린 시간보다 늦을 때만(분 단위) 뒤에 작게 붙인다.
+       올린 시간이 없고 다시 만든 때만 있으면 그것만(품목별재고현황의 종전 글자와 같다). */
+  var tmOf=function(r){
+    var t=''+(r.srcDttm||''), g=''+(r.ledDttm||'');
+    if(!t) return g ? '<span style="color:#9aa7b3;white-space:nowrap">'+esc(g.slice(0,19))+'</span>' : '';
+    var h='<span class="led-src" style="color:#48606f;font-weight:600;white-space:nowrap" title="이 출고의 발주현황표·정산서를 처음 올린 시간 '+esc(t)+' — 재고에서는 이때부터 빠져 있었습니다">'+esc(t.slice(0,19))+'</span>';
+    if(g && t.slice(0,16) < g.slice(0,16)) h+=' <span class="led-re" style="color:#9aa7b3;font-size:11px;white-space:nowrap" title="이 재고 줄이 다시 만들어진 때 '+esc(g)+' (정산서 도착 · 출고반영 재집계) — 출고가 이때 나간 것이 아닙니다">↻ '+esc(g.slice(5,16))+'</span>';
+    return h;
+  };
+  var preOf=function(r){  /* 수량 앞 — 조정할 때 이미 올라와 있던 출고 */
+    var t=''+(r.srcDttm||''); if(!t) return '';
+    if(!(LA && LA.regDttm && t < (''+LA.regDttm) && (''+(r.dlvDt||'')).replace(/-/g,'') >= LAd)) return '';
+    return '<span class="led-pre" style="display:inline-block;margin-right:5px;padding:0 5px;border-radius:9px;background:#eef1f4;color:#5a6b7a;border:1px solid #cfd8e3;font-size:10.5px;font-weight:700;white-space:nowrap"'
+         +' title="이 출고는 '+esc(t.slice(0,16))+' 에 이미 올라와 있었습니다 — 최근 조정('+esc((''+LA.regDttm).slice(0,16))+') 전이라 그 조정의 「전」 재고에 들어 있습니다. 최근재고에서 다시 빼지 않습니다.">조정 전 반영</span>';
+  };
   var out=j.out||[], os=0, h='';
   if(!out.length) h='<div class="none">출고가 없습니다.</div>';
-  else { h='<table><thead><tr><th>납기일자</th><th>사업장 [사업장코드]</th><th>물류센터</th><th>거래처 매칭코드 · 품목명</th><th>원천</th><th>수량</th></tr></thead><tbody>';
+  else { h='<table class="fx"><thead><tr><th>납기일자</th><th>사업장 [사업장코드]</th><th>물류센터</th><th>거래처 매칭코드 · 품목명</th><th>원천</th><th>수량</th><th title="그 납기일자의 발주현황표·정산서를 처음 올린 시간 · 뒤의 ↻ = 그 재고 줄이 다시 만들어진 때(정산서 도착·재집계) — 최근 조정보다 먼저 올린 출고는 수량 앞에 「조정 전 반영」">올린 시간</th></tr></thead><tbody>';
     out.forEach(function(r){ var q=Number(r.qty)||0; os+=q; var s=(''+(r.src||''));
-      h+='<tr><td>'+dt8(r.dlvDt)+'</td><td class="l" title="'+esc(r.mtNm)+'">'+esc(r.bizNm||r.mtNm)+'</td><td>'+esc(r.dcNm)+'</td><td class="l">'+((r.itemCd && (''+r.itemCd)!==(''+sel.it.cd))?('<span class="xc">↳ '+esc(r.itemCd)+'</span> <span class="xn">'+esc(r.itemNm||'')+'</span>'):'')+'</td><td class="'+srcCls(s)+'">'+srcIco(s)+esc(s)+'</td><td class="r">'+num(q)+'</td></tr>'; });
+      h+='<tr><td>'+dt8(r.dlvDt)+'</td><td class="l" title="'+esc(r.bizNm||r.mtNm)+((r.mtNm && r.bizNm && (''+r.mtNm)!==(''+r.bizNm))?(' · '+esc(r.mtNm)):'')+'">'+esc(r.bizNm||r.mtNm)+'</td><td>'+esc(r.dcNm)+'</td><td class="l">'+((r.itemCd && (''+r.itemCd)!==(''+sel.it.cd))?('<span class="xc">↳ '+esc(r.itemCd)+'</span> <span class="xn">'+esc(r.itemNm||'')+'</span>'):'')+'</td><td class="'+srcCls(s)+'">'+srcIco(s)+esc(s)+'</td><td class="r" style="white-space:nowrap">'+preOf(r)+num(q)+'</td><td style="white-space:nowrap">'+tmOf(r)+'</td></tr>'; });
     h+='</tbody></table>'; }
   document.getElementById('dtlOut').innerHTML=h; document.getElementById('dtlOutSum').textContent=out.length?(out.length+'건 · '+num(os)):'';
+  /* 고정 칸 — 둘째 칸(사업장)이 설 자리 = 첫 칸(납기일자)의 실제 폭. 못 재면(숨은 화면·시뮬) CSS 기본값 94px */
+  try{ var fxT=document.getElementById('dtlOut').querySelector('table.fx'), fxW=fxT && fxT.rows[0] && fxT.rows[0].cells[0].offsetWidth; if(fxW>0) fxT.style.setProperty('--c1w', fxW+'px'); }catch(e){}
   /* 입고내역 — 원장에서 출고(O) 뺀 행, 년월로 거른다 */
   var led=(j.ledger||[]).filter(function(r){ var d=''+(r.trxDt||''), y6=d.replace(/-/g,'').slice(0,6);
     if((''+(r.ioGb||''))==='O') return false; var d8=d.replace(/-/g,'').slice(0,8); return (d8>=fr && d8<=to) && (!sel.ym || y6===sel.ym); });
-  var gb={I:'입고',R:'반품입고',A:'조정'}, is=0, h2='';
-  if(!led.length) h2='<div class="none">입고가 없습니다.</div>';
-  else { h2='<table><thead><tr><th>일자</th><th>구분</th><th>수량</th><th>매입처/사업장</th><th>근거</th><th>비고</th></tr></thead><tbody>';
+  var gb={I:'입고',R:'반품입고',A:'조정'}, is=0, h2='', pd=somPendRows(sel.it);   /* pd = 승인 대기 줄(맨 위 · 합계에는 안 든다) */
+  if(!led.length && !pd.n) h2='<div class="none">입고가 없습니다.</div>';
+  else { h2='<table><thead><tr><th>일자</th><th>구분</th><th style="width:1%;min-width:96px;white-space:nowrap;padding-left:14px">수량</th><th>매입처/사업장</th><th>근거</th><th>비고</th></tr></thead><tbody>'+pd.h;
+    /* 조정 줄은 수량 앞에 «전 → 후» (2026-11-22 「여기도 조정내역 보여줘」) — 조정 줄의 수량은 입력한 수량이 아니라 증감이다(30 을 31 로 맞추면 1).
+       서버가 조정 이력의 전·후 재고(adjBef·adjAft)를 줄 때만 「30 → 31」 알약 + 부호 붙은 증감, 없으면(옛 서버·다른 구분) 종전 숫자 그대로 */
+    /* 가장 최근 조정 줄에는 「최근 재고」 표 (2026-11-22 「조정에서 최근 것을 최근재고 표시」 — 품목별재고현황 stkLedQty 와 같은 규칙).
+       최근 = 받아 온 원장(j.ledger · 최근 일자부터)에서 전·후 값이 있는 첫 조정 줄 — 고른 달로 걸러 그 줄이 안 보이면 표도 없다 */
+    var lastA=null; (j.ledger||[]).some(function(x){ if(x && x.ioGb==='A' && x.adjBef!=null && x.adjAft!=null){ lastA=x; return true; } return false; });
+    var adjQ=function(r, q){ if(r.ioGb!=='A' || r.adjBef==null || r.adjAft==null) return num(q);
+      var top=(r===lastA);
+      return '<span style="white-space:nowrap;padding-left:10px">'+(top ? '<span class="led-last" style="display:inline-block;margin-right:3px;padding:0 5px;border-radius:9px;background:#137a6c;color:#fff;font-size:10.5px;font-weight:800;white-space:nowrap" title="최근에 수정한 현재고 '+num(r.adjAft)+' — 이 조정 뒤에 «등록된» 입고·출고를 더하고 빼면 지금 현재고입니다 (일자가 조정일보다 뒤여도 조정할 때 이미 올라와 있던 출고는 「전」 재고에 들어 있습니다)">최근재고</span>' : '')
+           +'<span style="display:inline-block;margin-right:4px;padding:0 5px;border-radius:9px;'+(top ? 'background:#d9efe9;color:#0f6b5e;border:1px solid #137a6c' : 'background:#eef4fb;color:#2f5f9e')+';font-size:11.5px;font-weight:700;white-space:nowrap"'
+           +' title="조정 전 재고 '+num(r.adjBef)+' → 수정재고(조정 후 재고) '+num(r.adjAft)+' (화면에 넣은 수량 = '+num(r.adjAft)+' · 오른쪽 숫자는 그 차이)">전 '+num(r.adjBef)+' → 수정재고 '+num(r.adjAft)+'</span><span style="white-space:nowrap">(증감 '+(q>0?'+':'')+num(q)+')</span></span>'; };
     led.forEach(function(r){ var q=Number(r.qty)||0; is+=q;
-      h2+='<tr><td>'+dt8(r.trxDt)+'</td><td>'+((r.ioGb==='I'&&q<0)?'<span style="color:#c0392b;font-weight:700" title="매입 반품 — 음수 수량 입고">반품</span>':esc(gb[r.ioGb]||r.ioGb))+'</td><td class="r">'+num(q)+'</td><td class="l">'+esc(r.vendorNm||r.bizCd||'')+'</td><td>'+esc(r.refGb||'')+(r.refNo?(' '+esc(r.refNo)):'')+'</td><td class="l">'+esc(r.remark||'')+'</td></tr>'; });
+      var rt=(r.ioGb==='A' && r.regDttm) ? (''+r.regDttm) : '';   /* 조정을 저장한 때 — 일자(기준일자)와 날이 다르면 날짜까지 */
+      var rtx=rt ? (' <span style="color:#7b8b97;font-size:12px;white-space:nowrap" title="이 조정을 저장한 때 '+esc(rt)+'">'+esc(rt.slice(0,10).replace(/-/g,'')===(''+r.trxDt).replace(/-/g,'') ? rt.slice(11,16) : rt.slice(5,16))+'</span>') : '';
+      h2+='<tr><td style="white-space:nowrap">'+dt8(r.trxDt)+rtx+'</td><td>'+((r.ioGb==='I'&&q<0)?'<span style="color:#c0392b;font-weight:700" title="매입 반품 — 음수 수량 입고">반품</span>':esc(gb[r.ioGb]||r.ioGb))+'</td><td class="r">'+adjQ(r, q)+'</td><td class="l">'+esc(r.vendorNm||r.bizCd||'')+'</td><td>'+esc(r.refGb||'')+(r.refNo?(' '+esc(r.refNo)):'')+'</td><td class="l">'+esc(r.remark||'')+'</td></tr>'; });
     h2+='</tbody></table>'; }
-  document.getElementById('dtlIn').innerHTML=h2; document.getElementById('dtlInSum').textContent=led.length?(led.length+'건 · '+num(is)):'';
+  /* ★머리 합계 뒤에 «수정재고» (2026-11-22 사용자 「월별 출고현황에도 수정재고 표시해줘」 — 품목별재고현황 달 합계 줄(logi-oh.js stkLedMonHead adjOf)과 같은 글자).
+       「1건 · 58」만 있으면 58 이 재고처럼 읽힌다 ⇒ 보이는 조정 줄(전·후 값 있는 것)의 증감 합 + 「(전 -53 → 수정재고 5)」, 여럿이면 「(n회 · 마지막 수정재고 b)」.
+       led 는 최근 일자부터라 [0] 이 마지막 조정. 수정재고 = 그 조정을 저장한 순간의 재고. 전·후 값이 안 오면(옛 서버) 종전 글자 그대로 */
+  var aj=led.filter(function(r){ return r.ioGb==='A' && r.adjBef!=null && r.adjAft!=null; }), ajs=0; aj.forEach(function(r){ ajs+=Number(r.qty)||0; });
+  var ajT=aj.length ? (' · 조정 '+(ajs>0?'+':'')+num(ajs)+' ('+(aj.length>1 ? (aj.length+'회 · 마지막 수정재고 '+num(aj[0].adjAft)) : ('전 '+num(aj[0].adjBef)+' → 수정재고 '+num(aj[0].adjAft)))+')') : '';
+  document.getElementById('dtlIn').innerHTML=h2; document.getElementById('dtlInSum').textContent=(led.length?(led.length+'건 · '+num(is)+ajT):'')+(pd.n?((led.length?' · ':'')+'승인 대기 '+pd.n+'건'):'');
 }
 /* ── 🔄 출고반영 재집계 — 품목별재고현황의 stkRebuild 와 같은 동작(같은 서버 API) (2026-09-03 요청) ──
    확인창(공통 _confirmBox) → /prod/stockRebuild.do POST, 그동안 /prod/stockRebuildProgress.do 를 0.5초마다 물어 실제 진행률을 그린다.
