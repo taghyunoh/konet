@@ -182,6 +182,33 @@ public class UserServiceImpl implements UserService {
 	@Override public java.util.List<egovframework.konet.user.model.ProdDTO> selectProdList(egovframework.konet.user.model.ProdDTO dto) throws Exception { return mapper.selectProdList(dto); }
 	@Override public java.util.Map<String,Object> countProdCd(egovframework.konet.user.model.ProdDTO dto) throws Exception { return mapper.countProdCd(dto); }
 	@Override public int insertProd(egovframework.konet.user.model.ProdDTO dto) throws Exception { return mapper.insertProd(dto); }
+	/* ★새 상품코드 = 지난 출고 바로 붙이기 (2026-11-22 사용자 「새 상품코드를 등록할 때 지난 출고를 바로 붙이도록」)
+	     출고(발주현황표·정산서)가 먼저 올라오고 상품코드를 나중에 등록하면, 그 줄들은 우리 상품을 못 찾아(PROD_SEQ NULL) 재고에서 빠져 있다가
+	     다음 [출고반영 재집계] 때에야 붙는다. 그 사이에 재고를 맞추면 조정의 「전」에 지난 출고가 없어, 나중에 붙으면서 재고가 그만큼 줄었다
+	     (실측 1000731160 : 09-15 10:23:34 상품 등록 → 10:24:49 조정 「전 0 → 7」 → 재집계 뒤 08-17 출고 1 이 붙어 6 → 10-27 다시 조정).
+	   ⇒ 등록한 그 자리에서 ①그 코드 줄만 채우고(resolve*ProdByCd) ②그 코드가 든 납기일자의 원장을 다시 만든다(매칭코드를 붙일 때와 같은 extLedgerResync).
+	   · 붙일 줄이 없으면(대부분의 새 코드) UPDATE 두 번으로 끝난다. · 마감 확정월은 extLedgerResync 가 건너뛴다(재집계와 같은 규칙).
+	   · 실패해도 상품 등록은 그대로다(로그만) — [출고반영 재집계]로 복구된다.
+	   · 돌려주는 값 = 다시 만든 납기일자 수(살아 있는 줄 기준 — 지나간 차수(N) 줄만 채워졌으면 0). 화면이 「지난 출고 n일치를 재고에 반영」으로 알린다. */
+	@Override public int attachPastOutToNewProd(String compCd, java.util.Collection<String> prodCds, String user, String ip) {
+		if (prodCds == null || prodCds.isEmpty()) return 0;
+		java.util.TreeSet<String> ship = new java.util.TreeSet<String>(), sales = new java.util.TreeSet<String>(), all = new java.util.TreeSet<String>();
+		try {
+			for (String c : prodCds) {
+				String cd = c == null ? "" : c.trim(); if (cd.isEmpty()) continue;
+				egovframework.konet.user.model.ProdXrefDTO f = new egovframework.konet.user.model.ProdXrefDTO();
+				f.setCompCd(compCd); f.setExtItemCd(cd);
+				if (mapper.resolveShipoutProdByCd(f) + mapper.resolveSalesProdByCd(f) <= 0) continue;
+				java.util.List<String> a = mapper.selectShipoutDatesByExtCd(f), b = mapper.selectSalesDatesByExtCd(f);
+				if (a != null) for (String d : a) if (d != null) { ship.add(d); all.add(d.replace("-", "").trim()); }
+				if (b != null) for (String d : b) if (d != null) { sales.add(d); all.add(d.replace("-", "").trim()); }
+			}
+			if (!all.isEmpty()) extLedgerResync(ship, sales, user, ip);
+		} catch (Exception e) {
+			LOGGER.error(" 새 상품코드 지난 출고 붙이기 WARN : " + e.getMessage());
+		}
+		return all.size();
+	}
 	@Override public int updateProd(egovframework.konet.user.model.ProdDTO dto) throws Exception { return mapper.updateProd(dto); }
 	@Override public java.util.Map<String,Object> selectProdInPriceBySeq(egovframework.konet.user.model.ProdDTO dto) throws Exception { return mapper.selectProdInPriceBySeq(dto); }
 	@Override public int updateSubProdInPrice(java.util.Map<String,Object> p) throws Exception { return mapper.updateSubProdInPrice(p); }
@@ -3791,6 +3818,7 @@ public class UserServiceImpl implements UserService {
 	@org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
 	public java.util.Map<String,Object> saveProdContracts(java.util.List<java.util.Map<String,Object>> rows, String fileNm, String compCd, String user, String ip) throws Exception {
 		int newCnt = 0, nowCnt = 0, pendCnt = 0; java.util.List<String> skip = new java.util.ArrayList<String>();
+		java.util.List<String> newCds = new java.util.ArrayList<String>();   // 이번에 새로 만든 상품코드 — 끝에서 지난 출고를 붙인다 (2026-11-22)
 		String today = new java.text.SimpleDateFormat("yyyyMMdd").format(new java.util.Date());
 		String src = fileNm == null ? "" : fileNm.trim(); if (src.length() > 190) src = src.substring(0, 190);
 		if (rows != null) for (java.util.Map<String,Object> r : rows) {
@@ -3817,7 +3845,7 @@ public class UserServiceImpl implements UserService {
 				mapper.insertProd(nd);
 				pr = mapper.selectProdByCdForContract(k); seqO = pr == null ? null : pr.get("prodSeq");
 				if (seqO == null) throw new Exception("상품코드 " + cd + " 를 만들지 못했습니다.");
-				isNew = true; newCnt++;
+				isNew = true; newCnt++; newCds.add(cd);
 			} else if (pr.get("salePrice") != null) prev = Double.valueOf(scNum(pr.get("salePrice")));
 			long prodSeq = Math.round(scNum(seqO));
 			boolean due = isNew || fr.compareTo(today) <= 0;   // 새 코드는 처음부터 계약단가 · 기존 코드는 날짜가 됐을 때만
@@ -3838,6 +3866,8 @@ public class UserServiceImpl implements UserService {
 		}
 		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
 		res.put("newCnt", Integer.valueOf(newCnt)); res.put("nowCnt", Integer.valueOf(nowCnt)); res.put("pendCnt", Integer.valueOf(pendCnt));
+		/* 새로 만든 코드로 이미 올라와 있던 출고를 붙인다 — 줄마다가 아니라 묶음 끝에서 한 번(현재고 재집계가 한 번만 돌게) */
+		res.put("retroCnt", Integer.valueOf(newCds.isEmpty() ? 0 : attachPastOutToNewProd(compCd, newCds, user, ip)));
 		res.put("skipCnt", Integer.valueOf(skip.size())); res.put("skip", skip);
 		return res;
 	}

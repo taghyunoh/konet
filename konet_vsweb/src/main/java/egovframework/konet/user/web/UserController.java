@@ -5195,7 +5195,17 @@ public class UserController {
 				dto.setUpdIp(request.getRemoteAddr());
 				/* 0건 = 이미 살아 있거나 남의 회사 것. WHERE 에 COMP_CD 가 있어 동작은 원래도 안전하다. */
 				if (svc.restoreProd(dto) == 0) return ResponseEntity.status(409).body("되살릴 상품을 찾을 수 없습니다. (이미 살아 있거나 다른 회사의 상품입니다)");
-				return ResponseEntity.ok("1");
+				/* ★되살린 상품 = 지워져 있던 동안 그 코드로 올라온 출고를 바로 붙인다 (2026-11-22 사용자 「삭제한 상품 되살리기에도 넣어줘」).
+				     지워진 상품은 업로드 때 우리 상품으로 안 잡혀(PROD_SEQ NULL) 그 출고가 재고에서 빠져 있다 — 새 상품코드 등록과 같은 길(attachPastOutToNewProd).
+				     지우기 전에 이미 붙어 있던 줄은 그대로다(건드리지 않는다). 응답 = "1" 또는 "1|R다시 만든 날짜 수". 실패해도 되살리기는 그대로(로그만) */
+				int back = 0;
+				try {
+					Map<String,Object> pr = svc.selectProdInPriceBySeq(dto);
+					String rcd = pr == null || pr.get("prodCd") == null ? "" : String.valueOf(pr.get("prodCd")).trim();
+					if (!rcd.isEmpty()) back = svc.attachPastOutToNewProd(session.getAttribute("s_comp_cd") != null ? String.valueOf(session.getAttribute("s_comp_cd")) : "",
+					                                                     java.util.Collections.singletonList(rcd), dto.getUpdUser(), dto.getUpdIp());
+				} catch (Exception re) { log.error(" prodRestore 지난 출고 붙이기 WARN : " + re.getMessage()); }
+				return ResponseEntity.ok(back > 0 ? "1|R" + back : "1");
 			} catch (Exception e) { log.error(" prodRestore ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 
@@ -5240,7 +5250,14 @@ public class UserController {
 				if (alive > 0) return ResponseEntity.status(409).body("이미 있는 상품코드입니다 : " + dto.getProdCd().trim() + " — 그 상품을 고쳐 쓰세요.");
 				if (dead  > 0) return ResponseEntity.status(409).body("삭제된 상품코드입니다 : " + dto.getProdCd().trim() + " — [♻ 삭제 목록]에서 되살리세요.");
 				dto.setRegUser((session.getAttribute("s_user_id")!=null?String.valueOf(session.getAttribute("s_user_id")):"")); dto.setRegIp(request.getRemoteAddr());
-				return ResponseEntity.ok(String.valueOf(svc.insertProd(dto)));
+				int n = svc.insertProd(dto);
+				/* ★새 상품코드 = 그 코드로 이미 올라와 있던 출고(발주현황표·정산서)를 바로 붙인다 (2026-11-22).
+				     안 붙이면 다음 재집계 때에야 붙어, 그 사이에 한 재고조정이 어긋난다(1000731160 실측). 응답 = "건수" 또는 "건수|R다시 만든 날짜 수"
+				     (수정 응답의 "건수|숫자" 와 안 섞이게 R 을 붙였다 — 옛 화면은 이 꼬리를 무시한다) */
+				int back = 0;
+				if (n > 0) back = svc.attachPastOutToNewProd(session.getAttribute("s_comp_cd") != null ? String.valueOf(session.getAttribute("s_comp_cd")) : "",
+				                                               java.util.Collections.singletonList(dto.getProdCd().trim()), dto.getRegUser(), dto.getRegIp());
+				return ResponseEntity.ok(back > 0 ? n + "|R" + back : String.valueOf(n));
 			} catch (Exception e) { log.error(" prodInsert ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
 		@RequestMapping(value="/prod/prodUpdate.do", method = RequestMethod.POST)

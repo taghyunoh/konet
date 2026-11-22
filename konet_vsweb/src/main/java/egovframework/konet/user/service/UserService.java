@@ -100,6 +100,8 @@ public interface UserService {
 	java.util.List<egovframework.konet.user.model.ProdDTO> selectProdList(egovframework.konet.user.model.ProdDTO dto) throws Exception;
 	java.util.Map<String,Object> countProdCd(egovframework.konet.user.model.ProdDTO dto) throws Exception;   // 상품코드 중복 확인(2026-09-07) — ALIVE/DELETED
 	int insertProd(egovframework.konet.user.model.ProdDTO dto) throws Exception;
+	/* 새 상품코드를 등록한 직후 — 그 코드로 이미 올라와 있던 발주현황표·정산서 줄을 붙이고 그 날짜들의 재고 원장을 다시 만든다. 돌려주는 값 = 다시 만든 날짜 수 (2026-11-22) */
+	int attachPastOutToNewProd(String compCd, java.util.Collection<String> prodCds, String user, String ip);
 	int updateProd(egovframework.konet.user.model.ProdDTO dto) throws Exception;
 	java.util.Map<String,Object> selectProdInPriceBySeq(egovframework.konet.user.model.ProdDTO dto) throws Exception;
 	int updateSubProdInPrice(java.util.Map<String,Object> p) throws Exception;

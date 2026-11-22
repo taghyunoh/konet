@@ -1319,6 +1319,11 @@ function pcSave(){
     .then(function(r){ if(!r.ok){ toast('실패 (HTTP '+r.status+'): '+(r.t||'').slice(0,120),'err'); return; }
       /* 주코드 입고단가를 고치면 매칭 코드 중 상품으로 등록된 것도 같이 바뀐다 (2026-09-21) — 응답 "건수|같이 고친 상품 수" */
       var sm=/\|(\d+)/.exec(r.t||''); if(sm) okmsg+=' · 매칭 상품 '+sm[1]+'개 입고단가도 같이 변경';
+      /* ★새 코드로 이미 올라와 있던 출고를 서버가 붙였다 (2026-11-22) — 응답 "건수|R날짜수". 재고가 그만큼 빠진 채로 시작하므로 알림창으로 알린다
+           (토스트는 금방 사라진다 — 곧바로 재고를 맞추는 사람이 「전」이 왜 마이너스인지 알아야 한다) */
+      var rm=/\|R(\d+)/.exec(r.t||'');
+      if(rm && Number(rm[1])>0){ pcClose(); pcLoad();
+        alertBox('＋ 등록 완료<br><span style="font-size:13px;color:#3d4d5c;line-height:1.7">이 코드(<b>'+esc(cd)+'</b>)로 이미 올라와 있던 <b>지난 출고 '+rm[1]+'일치</b>를 이 상품에 붙였습니다.<br>재고가 그만큼 빠진 채로 시작합니다 — 품목별재고현황에서 확인한 뒤 재고를 맞추세요.</span>', '✅'); return; }
       if(!stkDiff){ pcClose(); toast(okmsg,'ok'); pcLoad(); return; }
       /* 재고 조정 — 재고 일괄조정의 저장 엔드포인트 그대로. 차이만큼 조정행(A)+이력이 남는다. */
       fetch(CTX+'/prod/stockAdjSave.do', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
@@ -2917,12 +2922,13 @@ function ctSave(){
       var go=document.getElementById('ctGo'); go.disabled=true;
       /* ★한 번에 20줄 (2026-10-27 속도 — 종전 5줄). 줄마다 DB 를 7번쯤 다녀오는데 DB 는 빠르고(한 번 4ms) 요청 왕복 수가 더 컸다.
            묶음은 «같은 파일 줄끼리» 만든다 — 서버가 묶음마다 받은 파일 이름 하나를 계약 이력(SRC_FILE)에 적기 때문 */
-      var CT_STEP=20, done=0, sum={ newCnt:0, nowCnt:0, pendCnt:0, skip:[] }, parts=[];
+      var CT_STEP=20, done=0, sum={ newCnt:0, nowCnt:0, pendCnt:0, retroCnt:0, skip:[] }, parts=[];
       ok.forEach(function(x){ var p=parts[parts.length-1]; if(!p || p.fn!==(x._fn||'') || p.rows.length>=CT_STEP){ p={ fn:x._fn||'', rows:[] }; parts.push(p); } p.rows.push(x); });
       ctProg(0, ok.length);
       var finish=function(){
         ctProg(-1);
         alertBox('계약을 저장했습니다.<br><span style="font-size:13px;color:#3d4d5c;line-height:1.7">신규코드 <b>'+sum.newCnt+'</b> · 바로 적용 <b>'+sum.nowCnt+'</b> · 날짜 대기 <b>'+sum.pendCnt+'</b>'
+          +(sum.retroCnt?'<br>새 코드로 이미 올라와 있던 <b>지난 출고 '+sum.retroCnt+'일치</b>를 재고에 반영했습니다.':'')
           +(sum.skip.length?'<br><span style="color:#c0392b">건너뛴 줄 '+sum.skip.length+' : '+esc(sum.skip.slice(0,8).join(' / '))+(sum.skip.length>8?' …':'')+'</span>':'')+'</span>', sum.skip.length?'⚠️':'✅');
         _ctRows=[]; _ctFile=''; _ctFiles=[]; ctPreRender();
         pcLoad();   /* 목록(새 코드·바뀐 단가)과 계약 이력을 다시 읽는다 — pcLoad 가 ctLoad 까지 부른다 */
@@ -2935,7 +2941,7 @@ function ctSave(){
           .then(function(res){ return res.text().then(function(tx){ if(!res.ok) throw new Error(tx); return tx; }); })
           .then(function(tx){
             var j={}; try{ j=JSON.parse(tx); if(typeof j==='string') j=JSON.parse(j); }catch(e){ j={}; }
-            sum.newCnt+=Number(j.newCnt||0); sum.nowCnt+=Number(j.nowCnt||0); sum.pendCnt+=Number(j.pendCnt||0); sum.skip=sum.skip.concat(j.skip||[]);
+            sum.newCnt+=Number(j.newCnt||0); sum.nowCnt+=Number(j.nowCnt||0); sum.pendCnt+=Number(j.pendCnt||0); sum.retroCnt+=Number(j.retroCnt||0); sum.skip=sum.skip.concat(j.skip||[]);
             done+=part.length; ctProg(done, ok.length); next();
           })
           .catch(function(e){
@@ -3020,17 +3026,22 @@ function rcRender(){
 function rcRestore(seq){
   var o=null; for(var i=0;i<RC.length;i++){ if(String(RC[i].prodSeq)===String(seq)){ o=RC[i]; break; } }
   if(!o) return;
-  if(!confirm('['+o.prodCd+'] '+(o.prodNm||'')+'\n\n이 상품코드를 되살릴까요?')) return;
+  /* 확인창은 공통 표준(ui-message) — 브라우저 기본 confirm 을 쓰지 않는다 (2026-11-22 이 함수를 고치며 함께) */
+  confirmBox('['+esc(o.prodCd)+'] '+esc(o.prodNm||'')+'<br>이 상품코드를 되살릴까요?', function(){
   fetch(CTX+'/prod/prodRestore.do',{method:'POST',credentials:'same-origin',
       headers:{'Content-Type':'application/json'},body:JSON.stringify({prodSeq:seq})})
     .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t); return t; }); })
-    .then(function(){
-      toast('되살렸습니다 — '+o.prodCd,'ok');
+    .then(function(t){
+      /* ★지워져 있던 동안 이 코드로 올라온 출고를 서버가 붙였다 (2026-11-22) — 응답 "1|R날짜수". 새 상품코드 등록과 같은 알림 */
+      var rm=/\|R(\d+)/.exec(t||'');
+      if(rm && Number(rm[1])>0) alertBox('되살렸습니다 — '+esc(o.prodCd)+'<br><span style="font-size:13px;color:#3d4d5c;line-height:1.7">지워져 있던 동안 이 코드로 올라온 <b>출고 '+rm[1]+'일치</b>를 이 상품에 붙였습니다.<br>재고가 그만큼 빠집니다 — 품목별재고현황에서 확인하세요.</span>', '✅');
+      else toast('되살렸습니다 — '+o.prodCd,'ok');
       RC=RC.filter(function(x){ return String(x.prodSeq)!==String(seq); });
       rcRender();
       pcLoad();     /* ★목록을 다시 읽는다 — 안 하면 되살렸는데 화면에 안 보인다 */
     })
     .catch(function(e){ toast(e.message||'되살리지 못했습니다.','err'); });
+  }, '되살리기', '♻️');
 }
 
 

@@ -163,6 +163,8 @@ public interface UserMapper {
 	int resolveSalesProdAdd(egovframework.konet.user.model.ProdXrefDTO dto) throws Exception;
 	int resolveShipoutProdDirect(egovframework.konet.user.model.ProdXrefDTO dto) throws Exception;  // 3차 : 코드 직결(거래처 코드 = 우리 코드)
 	int resolveSalesProdDirect(egovframework.konet.user.model.ProdXrefDTO dto) throws Exception;
+	int resolveShipoutProdByCd(egovframework.konet.user.model.ProdXrefDTO dto) throws Exception;   // 새 상품코드 하나만 — 등록 직후 지난 출고 붙이기 (2026-11-22)
+	int resolveSalesProdByCd(egovframework.konet.user.model.ProdXrefDTO dto) throws Exception;
 	// 되돌려 붙이기 : 직결로 이미 붙은 행을 매칭코드의 주코드로 (2026-08-06 — 매칭코드를 늦게 등록한 과거분)
 	int repointShipoutProdExt(egovframework.konet.user.model.ProdXrefDTO dto) throws Exception;
 	int repointSalesProdExt(egovframework.konet.user.model.ProdXrefDTO dto) throws Exception;
