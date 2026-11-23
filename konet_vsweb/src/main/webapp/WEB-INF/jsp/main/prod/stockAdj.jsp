@@ -450,7 +450,7 @@ function pastNote(){
   /* ★한 줄 (2026-11-23 사용자 「한 줄로」) */
   el.innerHTML = '📅 <b>' + mdTxt(d) + ' 실사 수량</b>을 넣으면 그 뒤 입출고는 자동 반영'
     /* 「⏱ 단추」만으론 어디 있는지 몰랐다(수량을 넣어야 나타난다) — 자리를 같이 적는다 (2026-11-23 사용자 「단추의 뜻」) */
-    + ' <span style="color:#7a5c00">· 그날 출고 전에 셌으면 <b>' + mdTxt(pv) + '</b> · 중간에 셌으면 수량 입력 후 <b>조정 후 재고 칸의 ⏱</b>로 실사 뒤 출고 선택</span>'
+    + ' <span style="color:#7a5c00">· 그날 출고 전에 셌으면 <b>' + mdTxt(pv) + '</b> · 중간에 셌으면 수량 입력 후 <b>조정 후 재고 칸의 ⏱</b>로 실사 뒤 입출고 선택</span>'
     + '<button type="button" class="btn ghost" onclick="pastToday()">오늘 기준으로</button>';
 }
 function pastToday(){ var d = new Date(); gel('baseDt').value = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2); load(); }
@@ -498,14 +498,14 @@ function dayOpen(i, ev){
       return '<tr' + (ck[k] ? '' : ' class="after"') + '><td>' + esc(dayIoNm(l)) + (l.refGb ? ' <span class="dim" style="font-size:11px">' + esc(l.refGb) + '</span>' : '') + '</td>'
         + '<td class="r" style="font-weight:700;color:' + (n < 0 ? '#b23b3b' : '#137a6c') + '">' + (n > 0 ? '+' : '') + n + '</td>'
         + '<td style="font-size:12px">' + esc(l.vendorNm || l.remark || '') + '</td><td style="font-size:11.5px;color:#6b7a89;white-space:nowrap" title="전산에 들어온 때(실제 나간 시각과 다를 수 있습니다)">' + esc(String(l.regDttm || '').slice(5, 16)) + '</td>'
-        + '<td style="text-align:center"><span class="seg"><b data-k="' + k + '" data-v="1" class="' + (ck[k] ? 'on' : '') + '" title="셀 때 이미 나간 것 — 센 수량에 빠져 있음">실사 전</b><b data-k="' + k + '" data-v="0" class="af' + (ck[k] ? '' : ' on') + '" title="센 다음에 나간 것 — 조정 뒤에 빠짐">실사 뒤</b></span></td></tr>'; }).join('');
+        + '<td style="text-align:center"><span class="seg"><b data-k="' + k + '" data-v="1" class="' + (ck[k] ? 'on' : '') + '" title="셀 때 이미 들어오고 나간 것 — 센 수량에 반영돼 있음">실사 전</b><b data-k="' + k + '" data-v="0" class="af' + (ck[k] ? '' : ' on') + '" title="센 다음에 들어오고 나간 것 — 조정 뒤에 이어서 반영">실사 뒤</b></span></td></tr>'; }).join('');
     w.querySelector('.sum').innerHTML = md + ' 시작 재고 <b>' + startQ + '</b> → 실사 때 장부 재고 <b>' + bef + '</b>'
       + (aft !== bef || aft !== endQ ? ' · 센 수량 <b>' + aft + '</b> → 증감 <b style="color:' + (aft - bef < 0 ? '#b23b3b' : '#137a6c') + '">' + (aft - bef > 0 ? '+' : '') + (aft - bef) + '</b> · ' + md + ' 끝 재고 <b>' + (aft + aftQ) + '</b>' : '');
   }
   w.innerHTML = '<div class="box" style="background:#fff;width:min(680px,94vw);max-height:76vh;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden">'
     + '<div class="hd" title="끌어서 옮기기 · 더블클릭 = 가운데로" style="padding:11px 14px;border-bottom:1px solid #eef1f5;display:flex;align-items:center;gap:8px"><b style="font-size:15px;color:#125a4e">⏱ 실사 시점 — ' + md + ' 입출고</b><span class="dim" style="font-size:12px;flex:1">' + esc(r.prodCd) + ' ' + esc(r.prodNm || '') + '</span></div>'
     /* ★한 줄로 (2026-11-23 사용자 「마우스 올리면 — 좀 더 간단하게 설명」) — 자세한 말은 ⓘ 와 단추 말풍선으로 */
-    + '<div style="padding:8px 14px;font-size:13px;color:#48606f">센 <b>다음에</b> 나간 출고만 <b style="color:#b45309">[실사 뒤]</b>로 바꾸세요. <span style="cursor:help;color:#137a6c;font-weight:700" title="센 수량에는 [실사 전] 것만 빠져 있다고 보고 조정합니다. [실사 뒤] 것은 조정 뒤에 이어서 빠집니다.&#10;등록 시각은 전산에 들어온 때라 실제 출고 시각과 다를 수 있습니다.">ⓘ</span></div>'
+    + '<div style="padding:8px 14px;font-size:13px;color:#48606f">센 <b>다음에</b> 들어오거나 나간 것만 <b style="color:#b45309">[실사 뒤]</b>로 바꾸세요. <span style="cursor:help;color:#137a6c;font-weight:700" title="센 수량에는 [실사 전] 입출고만 반영돼 있다고 보고 조정합니다. [실사 뒤] 입출고는 조정 뒤에 이어서 반영됩니다.&#10;등록 시각은 전산에 들어온 때라 실제 출고 시각과 다를 수 있습니다.">ⓘ</span></div>'
     + '<div style="overflow:auto;padding:0 14px"><table><thead><tr><th style="text-align:left">구분</th><th style="text-align:right">수량</th><th style="text-align:left">거래처 · 비고</th><th style="text-align:left">등록</th><th title="센 때보다 먼저(실사 전) / 나중(실사 뒤)">실사 기준</th></tr></thead><tbody></tbody></table></div>'
     + '<div class="sum" style="padding:9px 14px;font-size:13px;background:#f7faf9;border-top:1px solid #e3e8ee"></div>'
     + '<div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid #dbe2ea"><button type="button" class="btn ghost" data-a="all1">모두 실사 전</button><button type="button" class="btn ghost" data-a="all0">모두 실사 뒤</button>'
