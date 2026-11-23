@@ -2443,6 +2443,75 @@
 	     전부 돌려주고 화면에서 조회기간만큼 잘라 쓴다. 파라미터를 남겨두면 다시 느려지므로 없앴다. -->
 
 	<!-- ============================================================
+	     매입/판매 등록현황 (2026-11-24) — 정보 현황 ▸ 매입/판매 등록현황. 화면 mangr/trxStat.jsp
+	     · 원천 = 매입등록(TBL_PURCHASE_MST) · 판매등록(TBL_SALES_TRX_MST) <전표 머리> 한 줄씩. 거래처별·일자별·거래처×일자로 접는 것은 화면이 한다
+	       (탭마다 조회를 따로 두면 합계가 갈린다 — 이익현황과 같은 원칙).
+	     · 금액 = 머리의 공급가·부가세·합계·할인·즉시결제 — 거래처별 채권·채무(selectCustBalance ②·③)와 같은 칸이라 두 화면 숫자가 맞는다.
+	       합계(TOT_AMT)는 반품을 뺀 순액이다(실측 2026-11-24 : 매입 줄 합 2,769.8백만 − 반품 14.2백만 = 머리 합 2,755.6백만, 판매도 같음).
+	     · 반품액 = 그 전표의 반품 줄(TRX_GB='반품') 합계의 절댓값 — 줄에 부호가 섞여 저장돼 있어(양수·음수 둘 다 실측) ABS 로 센다. 보여 주기만 하고 합계에는 다시 빼지 않는다.
+	     · 날짜 = 매입일(PURCH_DT) / 판매일(SALE_DT, 판매등록의 전표일자). 납품일(DLV_DT)은 참고로 같이 준다.
+	     · ★기간은 늘 둘 다 받는다(컨트롤러가 비면 이번 달로 채운다) — 「비면 전체」 OR 조건을 두면 SQL Server 가 계획을 돌려써 느려진다(납기현황표에서 겪음).
+	     ============================================================ -->
+	<select id="selectTrxStat" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT z.gb, z.seq, z.dt, z.dlvDt, z.docNo, z.custCd, z.custNm, z.mgrNm, z.whNm,
+	         z.qty, z.supplyAmt, z.vatAmt, z.totAmt, z.dcAmt, z.payAmt, z.payGb, z.remark, z.rtnAmt, z.lineCnt
+	    FROM (
+	          SELECT 'P' AS gb, m.PURCH_SEQ AS seq, m.PURCH_DT AS dt, CAST(NULL AS VARCHAR(8)) AS dlvDt, m.PURCH_NO AS docNo,
+	                 ISNULL(m.VENDOR_CD,'') AS custCd, ISNULL(m.VENDOR_NM,'') AS custNm, ISNULL(m.MGR_NM,'') AS mgrNm, ISNULL(m.WH_NM,'') AS whNm,
+	                 ISNULL(m.TOT_QTY,0) AS qty, ISNULL(m.SUPPLY_AMT,0) AS supplyAmt, ISNULL(m.VAT_AMT,0) AS vatAmt, ISNULL(m.TOT_AMT,0) AS totAmt,
+	                 ISNULL(m.DC_AMT,0) AS dcAmt, ISNULL(m.PAY_AMT,0) AS payAmt, ISNULL(m.PAY_GB,'') AS payGb, ISNULL(m.REMARK,'') AS remark,
+	                 ISNULL(d.rtnAmt,0) AS rtnAmt, ISNULL(d.lineCnt,0) AS lineCnt
+	            FROM TBL_PURCHASE_MST m
+	            OUTER APPLY ( SELECT COUNT(*) AS lineCnt,
+	                                 SUM(CASE WHEN x.TRX_GB = N'반품' THEN ABS(ISNULL(x.TOT_AMT,0)) ELSE 0 END) AS rtnAmt
+	                            FROM TBL_PURCHASE_DTL x WHERE x.PURCH_SEQ = m.PURCH_SEQ AND x.ACTION_YN = 'Y' ) d
+	           WHERE m.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	             AND m.PURCH_DT BETWEEN #{frDt,jdbcType=VARCHAR} AND #{toDt,jdbcType=VARCHAR}
+	          UNION ALL
+	          SELECT 'S', t.SALE_SEQ, t.SALE_DT, t.DLV_DT, t.SALE_NO,
+	                 ISNULL(t.CUST_CD,''), ISNULL(t.CUST_NM,''), ISNULL(t.MGR_NM,''), ISNULL(t.WH_NM,''),
+	                 ISNULL(t.TOT_QTY,0), ISNULL(t.SUPPLY_AMT,0), ISNULL(t.VAT_AMT,0), ISNULL(t.TOT_AMT,0),
+	                 ISNULL(t.DC_AMT,0), ISNULL(t.PAY_AMT,0), ISNULL(t.PAY_GB,''), ISNULL(t.REMARK,''),
+	                 ISNULL(d.rtnAmt,0), ISNULL(d.lineCnt,0)
+	            FROM TBL_SALES_TRX_MST t
+	            OUTER APPLY ( SELECT COUNT(*) AS lineCnt,
+	                                 SUM(CASE WHEN x.TRX_GB = N'반품' THEN ABS(ISNULL(x.TOT_AMT,0)) ELSE 0 END) AS rtnAmt
+	                            FROM TBL_SALES_TRX_DTL x WHERE x.SALE_SEQ = t.SALE_SEQ AND x.ACTION_YN = 'Y' ) d
+	           WHERE t.ACTION_YN = 'Y' AND t.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	             AND t.SALE_DT BETWEEN #{frDt,jdbcType=VARCHAR} AND #{toDt,jdbcType=VARCHAR}
+	    ) z
+	   ORDER BY z.dt DESC, z.gb DESC, z.seq DESC
+	]]></select>
+	<!-- 매입/판매 등록현황 — 엑셀·인쇄 「원장」용 상품 줄 (2026-11-24 사용자 견본 「[토더] 유형별 매출원장 전체조회」)
+	     · 전표 머리와 같은 조건(회사·기간·활성)의 명세 줄. 거래처·일자·전표·줄 번호로 늘어놓는 것과 일계·소계·누계는 화면이 한다.
+	     · 금액 = 줄의 공급가(SUPPLY_AMT) · 판매액/매입액 = 줄의 합계(TOT_AMT, 부가세 포함). 반품 줄은 <음수로> 준다 — 저장 부호가 섞여 있어(판매 반품 = 양수, 매입 = 둘 다)
+	       -ABS 로 맞춘다. 그래야 줄을 더한 값이 머리 합계(반품을 뺀 순액)와 같다. -->
+	<select id="selectTrxStatLine" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
+	  SELECT z.gb, z.seq, z.dt, z.docNo, z.custCd, z.custNm, z.rowNo, z.prodCd, z.prodNm, z.spec, z.trxGb, z.qty, z.unitPrice, z.supplyAmt, z.vatAmt, z.totAmt
+	    FROM (
+	          SELECT 'P' AS gb, m.PURCH_SEQ AS seq, m.PURCH_DT AS dt, m.PURCH_NO AS docNo, ISNULL(m.VENDOR_CD,'') AS custCd, ISNULL(m.VENDOR_NM,'') AS custNm,
+	                 d.ROW_NO AS rowNo, ISNULL(d.PROD_CD,'') AS prodCd, ISNULL(d.PROD_NM,'') AS prodNm, ISNULL(d.SPEC,'') AS spec, ISNULL(d.TRX_GB,'') AS trxGb,
+	                 CASE WHEN d.TRX_GB = N'반품' THEN -ABS(ISNULL(d.QTY,0)) ELSE ISNULL(d.QTY,0) END AS qty, ISNULL(d.UNIT_PRICE,0) AS unitPrice,
+	                 CASE WHEN d.TRX_GB = N'반품' THEN -ABS(ISNULL(d.SUPPLY_AMT,0)) ELSE ISNULL(d.SUPPLY_AMT,0) END AS supplyAmt,
+	                 CASE WHEN d.TRX_GB = N'반품' THEN -ABS(ISNULL(d.VAT_AMT,0)) ELSE ISNULL(d.VAT_AMT,0) END AS vatAmt,
+	                 CASE WHEN d.TRX_GB = N'반품' THEN -ABS(ISNULL(d.TOT_AMT,0)) ELSE ISNULL(d.TOT_AMT,0) END AS totAmt
+	            FROM TBL_PURCHASE_MST m JOIN TBL_PURCHASE_DTL d ON d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN = 'Y'
+	           WHERE m.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	             AND m.PURCH_DT BETWEEN #{frDt,jdbcType=VARCHAR} AND #{toDt,jdbcType=VARCHAR}
+	          UNION ALL
+	          SELECT 'S', t.SALE_SEQ, t.SALE_DT, t.SALE_NO, ISNULL(t.CUST_CD,''), ISNULL(t.CUST_NM,''),
+	                 d.ROW_NO, ISNULL(d.PROD_CD,''), ISNULL(d.PROD_NM,''), ISNULL(d.SPEC,''), ISNULL(d.TRX_GB,''),
+	                 CASE WHEN d.TRX_GB = N'반품' THEN -ABS(ISNULL(d.QTY,0)) ELSE ISNULL(d.QTY,0) END, ISNULL(d.UNIT_PRICE,0),
+	                 CASE WHEN d.TRX_GB = N'반품' THEN -ABS(ISNULL(d.SUPPLY_AMT,0)) ELSE ISNULL(d.SUPPLY_AMT,0) END,
+	                 CASE WHEN d.TRX_GB = N'반품' THEN -ABS(ISNULL(d.VAT_AMT,0)) ELSE ISNULL(d.VAT_AMT,0) END,
+	                 CASE WHEN d.TRX_GB = N'반품' THEN -ABS(ISNULL(d.TOT_AMT,0)) ELSE ISNULL(d.TOT_AMT,0) END
+	            FROM TBL_SALES_TRX_MST t JOIN TBL_SALES_TRX_DTL d ON d.SALE_SEQ = t.SALE_SEQ AND d.ACTION_YN = 'Y'
+	           WHERE t.ACTION_YN = 'Y' AND t.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	             AND t.SALE_DT BETWEEN #{frDt,jdbcType=VARCHAR} AND #{toDt,jdbcType=VARCHAR}
+	    ) z
+	   ORDER BY z.gb, z.dt, z.docNo, z.seq, z.rowNo
+	]]></select>
+	<!-- ============================================================
 	     이익현황 (2026-09-28 신설) — 정보 현황 ▸ 이익현황. 화면 mangr/profitStat.jsp
 	       거래처별 이익 · 상품별 이익 · 거래처별 상품별 이익 — ★세 화면이 <이 한 구문>을 쓴다.
 	       돌려주는 알갱이 = 거래처 × 상품. 화면이 거래처로 접거나(①) 상품으로 접거나(②) 그대로 쓴다(③).

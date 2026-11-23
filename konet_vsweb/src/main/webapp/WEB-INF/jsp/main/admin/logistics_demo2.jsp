@@ -3662,6 +3662,8 @@
       <%-- 진행 현황 (2026-10-06 사용자 「발주리스트등록·발주서등록·매입전환 / 견적 등록·제출·채택·판매등록 진행 상황」 → 「정보현황 메뉴에 추가」).
            두 흐름을 단계 띠로 보고, 단계를 누르면 목록, 줄을 누르면 그 일을 하는 화면으로. iframe 화면(mangr/pipeline.jsp) — 아래 panel-pipeline 이 짝 --%>
       <a class="mi" data-key="pipeline" onclick="logiFrame('pipeline','${pageContext.request.contextPath}/mangr/pipeline.do', this)"><span class="ic">🔄</span>진행 현황</a>
+      <%-- 매입/판매 등록현황 (2026-11-24 사용자 「매입등록·판매등록을 통한 내용 — 거래처별·일자별 판매·매입 내역」) — iframe 화면(mangr/trxStat.jsp) · 아래 panel-trxStat 이 짝 --%>
+      <a class="mi" data-key="trxStat" onclick="logiFrame('trxStat','${pageContext.request.contextPath}/mangr/trxStat.do', this)"><span class="ic">🧮</span>매입/판매 등록현황</a>
       <%-- 종합 실적은 「경영자관리」 주메뉴로 옮겼다 (2026-11-20 사용자 「경영자관리 주메뉴에 서브메뉴로 대표자일정·비용등록·종합실적」) — 위 sub-ceomng --%>
       <a class="mi" data-key="closeStatus" onclick="logiGo('closeStatus', this)"><span class="ic">📊</span>마감현황(월계표)</a>
       <a class="mi" data-key="closeHist"   onclick="logiGo('closeHist', this); closeHistLoad();"><span class="ic">📅</span>월별 마감이력</a>
@@ -4374,6 +4376,7 @@
         <h3>4. 정보 현황 · 원장관리</h3>
         <table><tbody>
           <tr><td class="m">마감현황(월계표)</td><td>고른 달의 <b>매출·매입·매출총이익·비용·순마진</b> 요약 + <b>🔒 확정 / 🔓 해제</b>. 확정하면 그 달 재고가 굳고 수불이 잠깁니다.<details class="gx"><summary></summary><div class="gxb">탭줄 <b>🔎 검색</b>(세 탭 공통 — 품목코드·품목명 늘, 출고장별 탭은 출고장 이름, 사업장별 탭은 사업장 이름으로도 · 합계·건수는 거른 것만 · 위 KPI 카드는 월 전체 · Esc = 해제). 선택 월 매출·매입·매출총이익·비용·순마진 요약(KPI) + <b>🔒 확정 / 🔓 해제</b>. 확정 = 3종 통합 저장 + 기말재고 스냅샷 + 그 달 수불 잠금. 검색칸 옆 <b>[🏬 출고장 ▾]</b> 콤보(매출마감과 같은 것)로 출고장을 전체·하나·여러 곳 골라 볼 수 있다 — 아래 세 탭만 거르고 위 KPI 카드는 그 달 전체 그대로(2026-11-18).</div></details></td></tr>
+          <tr><td class="m">매입/판매 등록현황</td><td><b>매입등록·판매등록</b>으로 넣은 전표를 <b>거래처별 · 일자별 · 거래처×일자 · 전표별</b>로 봅니다(조회 전용 · 엑셀 · 인쇄). 거래처·날짜 줄을 누르면 그 전표들, 전표를 누르면 매입등록/판매등록에 그 전표가 열립니다. 금액은 전표의 공급가·부가세·합계(반품을 뺀 순액) — 정산서·발주현황표 출고는 넣지 않습니다(회사 전체 매출은 마감현황·이익현황).</td></tr>
           <tr><td class="m">월별 마감이력</td><td>확정한 달들의 매출·원가·마진·매입·기말재고금액. 행 클릭 → 그 달 마감현황.</td></tr>
           <tr><td class="m">거래처별 이익<br>상품별 이익<br>거래처별 상품별 이익</td><td>거래처별 · 상품별 · 거래처×상품별 <b>이익</b>(조회 전용 · 인쇄 · 엑셀). 세 화면은 같은 자료라 합계가 늘 같습니다.<details class="gx"><summary></summary><div class="gxb">세 화면 모두 위에 <b>[회사전체이익]</b> 요약 + <b>🖨 인쇄</b>(새 창)·<b>📥 엑셀</b>·머리글 정렬·이름 거르기·<b>사업장 고르기</b>. <b>실판매액 = 판매−반품 · 이익금 = 실판매−입고 · 이익율 = 이익÷실판매.</b> 금액 기준은 <b>마감현황·매출 그래프와 같고</b>, 세 화면은 같은 자료를 접은 것이라 합계가 늘 같습니다. 사업장을 고르면 판매전표(사업장 칸 없음)는 빠집니다. <b>조회 전용.</b></div></details></td></tr>
           <tr><td class="m">거래처별 채권·채무</td><td>거래처마다 <b>받을금액 · 지급할금액</b>(전 기간 누계 — <b>기준월</b>로 봅니다). 줄을 누르면 월별 이력과 건별 내역.<details class="gx"><summary></summary><div class="gxb">거래처마다 <b>받을금액</b>[(매출−할인)−수금]과 <b>지급할금액</b>[(매입−할인)−지급]. <b>이월 + 당월매출 − 당월수금 = 남은금액</b>, 오른쪽 끝에 <b>특정일자 발생</b> 4칸(그 하루의 매출·수금·매입·지급). 줄 클릭 → 월별 이력 + 아래 <b>건별 내역</b> 4탭.
@@ -5466,6 +5469,9 @@
     </section>
     <section id="panel-profitVP" class="panel" style="padding:0;">
       <iframe id="if-profitVP" src="" title="거래처별 상품별 이익" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <section id="panel-trxStat" class="panel" style="padding:0;">   <%-- 매입/판매 등록현황 (2026-11-24) --%>
+      <iframe id="if-trxStat" src="" title="매입/판매 등록현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <section id="panel-custbal" class="panel" style="padding:0;">
       <iframe id="if-custbal" src="" title="거래처별 채권·채무 현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>

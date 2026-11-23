@@ -8,7 +8,8 @@
 <title>이익현황</title>
 <script src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>   <%-- 공통 알림창(_alertBox·_toast) — 브라우저 alert 금지 --%>
 <script src="${pageContext.request.contextPath}/asset/js/dc-map.js?v=20260916"></script>   <%-- 출고장 코드→지역명 단일 원천(konetDc.NAME) --%>
-<script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917c"></script> <%-- 회사 설정 — 센터별 물류비율(konetSet.cost.centers) --%>
+<script src="${pageContext.request.contextPath}/asset/js/comp-set.js?v=20260917c"></script>
+<script src="${pageContext.request.contextPath}/assets/vendor/xlsx-js-style/xlsx.bundle.js"></script>   <%-- 엑셀 꾸밈(색·병합·테두리) — 2026-11-24 매입/판매 등록현황과 같은 틀 --%> <%-- 회사 설정 — 센터별 물류비율(konetSet.cost.centers) --%>
 <!--
   이익현황 (2026-09-28 신설) — 정보 현황 ▸ 이익현황. 사이드바 iframe(logiFrame) 화면. 자료 /mangr/profitStatList.do → selectProfitStat
   ★세 화면(거래처별 이익 · 상품별 이익 · 거래처별 상품별 이익)이 <한 자료>를 접어서 쓴다.
@@ -80,7 +81,7 @@
   table.g tr.tot td{ background:#fcf8e3 !important; color:#1f2a37; font-weight:800; border-top:1px solid #c9d3dc; box-shadow:inset 0 1px 0 #9fb6c3; }
 </style>
 </head>
-<body>
+<body data-comp="<c:out value='${sessionScope.s_comp_nm}'/>">   <%-- 엑셀 띠 오른쪽 회사 이름 --%>
 <div class="wrap">
   <%-- ★탭이 아니라 <메뉴 3개>다 (2026-09-28 사용자 「탭으로 하지 말고 메뉴로 추가」) — gb 로 어느 표인지 정한다.
        화면(셈·엑셀·인쇄)은 하나로 두었다 : 세 화면이 같은 자료·같은 식을 써야 합계가 어긋나지 않는다. --%>
@@ -402,55 +403,123 @@ function aoaOf(){
   return aoa;
 }
 function tabNm(){ return _tab===1?'거래처별이익':(_tab===2?'상품별이익':'거래처별상품별이익'); }
+/* ── 엑셀 = 매입/판매 등록현황과 같은 틀 (2026-11-24 사용자 「이전 엑셀형식으로」) ──
+     제목 「[이익현황] ○○ 이익」 · 조회기간(+사업장·제조사·찾기) · 띠(기간·구분·메뉴·출력일자·회사) · 하늘색 칸 머리 · 노란 Total 줄 · 반품율·이익율은 % 서식 ·
+     표 아래 [회사전체이익] 요약(화면 위 요약표와 같은 값). ★값은 화면과 같은 aoaOf()·calcRow() — 꾸밈만 덧붙인다(숫자가 어긋날 수 없게).
+     엑셀 도구(xlsx-js-style)가 없으면 종전처럼 꾸밈 없는 시트, 그마저 없으면 CSV. */
+function totRowOf(){
+  var l=sortRows(grouped()), t=zero(); l.forEach(function(o){ addUp(t,o); }); var r=calcRow(t), c=l.length;
+  if(_tab===1) return ['Total', c+'곳', '', r.saleAmt, r.rtnAmt, r.realAmt, r.logiAmt, r.rtnRate, r.costAmt, r.profit, r.rate, totRecv(), totDc()];
+  if(_tab===2) return ['Total', c+'품목', '', '', '', '', r.saleQty, r.saleAmt, '', '', r.rtnQty, r.rtnAmt, '', '', r.realQty, r.realAmt, r.logiAmt, r.costAmt, r.profit, r.rate];
+  return ['Total', '', c+'줄', '', '', r.saleAmt, r.saleQty, r.rtnAmt, r.rtnQty, r.realAmt, r.logiAmt, r.realQty, r.rtnRate, r.costAmt, r.profit, r.rate];
+}
+var XL_FMT={   /* 탭별 칸 성격 — pct = % 서식 · qty = 수량(소수 있을 때만 소수) · al = 칸마다 정렬(l·c·r) */
+  1:{ pct:{7:1,10:1}, qty:{}, al:'clc'+'r'.repeat(10) },
+  2:{ pct:{19:1}, qty:{4:1,5:1,6:1,8:1,9:1,10:1,12:1,13:1,14:1}, al:'cllc'+'r'.repeat(16) },
+  3:{ pct:{12:1,15:1}, qty:{6:1,8:1,11:1}, al:'cclll'+'r'.repeat(11) }
+};
+/* 엑셀·인쇄가 같이 쓰는 머리 — 제목 · 조회기간(+조건) · 띠(칸 수에 맞춰 나눔 : 기간 2 · 구분 2 · 메뉴 이름 · 출력일자 · 회사 1 — 매입/판매 등록현황과 같은 규칙) */
+function outTitle(){ return '[이익현황] '+tabTitle(); }
+function outPeriod(){
+  var biz=document.getElementById('bizCd'), mk=document.getElementById('mkSel'), q=(document.getElementById('q')||{}).value||'', cond=[];
+  if(biz && biz.value) cond.push('사업장 '+biz.options[biz.selectedIndex].text);
+  if(mk && !mk.hidden && mk.value) cond.push('제조사 '+mk.value);
+  if(q.trim()) cond.push('찾기 「'+q.trim()+'」');
+  return '조회기간 : '+gv('frDt')+' ~ '+gv('toDt')+(cond.length?'   (조건 : '+cond.join(' · ')+')':'');
+}
+function outBand(nC){
+  var d=new Date(), today=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2), comp=document.body.getAttribute('data-comp')||'';
+  var g=nC>=10?2:1, rest=nC-2-g-1, x=Math.ceil(rest/2), y=rest-x;
+  return [{t:gv('frDt')+' ~ '+gv('toDt'),s:2},{t:'구분',s:g},{t:'이익현황 · '+tabTitle(),s:x},{t:'출력일자 : '+today,s:y},{t:comp,s:1}].filter(function(o){ return o.s>0; });
+}
+function xlWidth(h){ return h==='#'?5 : (h==='거래처'?32 : (h==='상품'?44 : (h==='규격'?20 : (h==='제조사'?12 : (h==='담당자'?9 : (/BOX|EA/.test(h)?8:13)))))); }
 function excel(){
   if(!_rows.length){ toast('먼저 조회하세요.','⚠️'); return; }
-  var LIB=(window.parent&&window.parent.XLSX)||window.XLSX;
-  var aoa=aoaOf();
-  if(!LIB){   /* 엑셀 도구가 없으면 CSV 로 (상품코드등록과 같은 물러서기) */
-    var csv=aoa.map(function(r){ return r.map(function(c){ var s=String(c==null?'':c); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(','); }).join('\r\n');
-    var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
-    a.download=tabNm()+'_'+gv('frDt').replace(/-/g,'')+'-'+gv('toDt').replace(/-/g,'')+'.csv'; a.click(); return;
+  var aoa=aoaOf(), file=tabNm()+'_'+gv('frDt').replace(/-/g,'')+'-'+gv('toDt').replace(/-/g,'');
+  var X=window.XLSX;   /* 이 화면이 싣는 xlsx-js-style(꾸밈 가능) — 셸의 sheetjs 는 색을 못 쓴다 */
+  if(!X || !X.utils){
+    var LIB=window.parent&&window.parent.XLSX;
+    if(!LIB){
+      var csv=aoa.map(function(r){ return r.map(function(c){ var s=String(c==null?'':c); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(','); }).join('\r\n');
+      var el=document.createElement('a'); el.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'})); el.download=file+'.csv'; el.click(); return;
+    }
+    var ws0=LIB.utils.aoa_to_sheet(aoa), wb0=LIB.utils.book_new(); LIB.utils.book_append_sheet(wb0, ws0, tabNm()); LIB.writeFile(wb0, file+'.xlsx'); return;
   }
-  var ws=LIB.utils.aoa_to_sheet(aoa), wb=LIB.utils.book_new();
-  LIB.utils.book_append_sheet(wb, ws, tabNm());
-  LIB.writeFile(wb, tabNm()+'_'+gv('frDt').replace(/-/g,'')+'-'+gv('toDt').replace(/-/g,'')+'.xlsx');
+  var head=aoa[0], body=aoa.slice(1), nC=head.length, F=XL_FMT[_tab];
+  var band=outBand(nC);
+  var out=[[outTitle()],[],[outPeriod()]];
+  var merges=[{s:{r:0,c:0},e:{r:0,c:nC-1}},{s:{r:2,c:0},e:{r:2,c:nC-1}}], br=[], col=0;
+  band.forEach(function(o){ br[col]=o.t; for(var i=1;i<o.s;i++) br[col+i]=''; if(o.s>1) merges.push({s:{r:3,c:col},e:{r:3,c:col+o.s-1}}); col+=o.s; });
+  out.push(br); out.push(head);
+  var top=out.length; body.forEach(function(r){ out.push(r); }); var totR=out.length; out.push(totRowOf());
+  /* [회사전체이익] — 화면 위 요약표와 같은 값(사업장·찾기와 무관한 전체) */
+  var all=zero(); _rows.forEach(function(o){ addUp(all,o); }); var st=calcRow(all);
+  var sumR=out.length+1;
+  out.push([]); out.push(['[회사전체이익]']);
+  out.push(['판매액','반품액','실판매액','물류비(차감)','반품율','입고액','이익금','이익율']);
+  out.push([st.saleAmt, st.rtnAmt, st.realAmt, st.logiAmt, st.rtnRate, st.costAmt, st.profit, st.rate]);
+  merges.push({s:{r:sumR,c:0},e:{r:sumR,c:7}});
+  var ws=X.utils.aoa_to_sheet(out);
+  ws['!merges']=merges; ws['!cols']=head.map(function(h){ return {wch:xlWidth(h)}; }); ws['!rows']=[{hpt:30},{hpt:6}];
+  var line={ style:'thin', color:{ rgb:'9AA5B1' } }, B={ top:line, bottom:line, left:line, right:line }, H={ l:'left', c:'center', r:'right' };
+  var put=function(r,c,st){ var ad=X.utils.encode_cell({r:r,c:c}); if(!ws[ad]) ws[ad]={ t:'s', v:'' }; ws[ad].s=st; return ws[ad]; };
+  var hdSt=function(){ return { font:{ bold:true }, fill:{ patternType:'solid', fgColor:{ rgb:'DDEBF7' } }, border:B, alignment:{ horizontal:'center', vertical:'center', wrapText:true } }; };
+  var numFmt=function(c, v, pctCols, qtyCols){ return pctCols[c] ? '0.0%' : ((qtyCols[c] && Math.round(v)!==v) ? '#,##0.##' : '#,##0'); };
+  put(0,0,{ font:{ bold:true, sz:16 }, alignment:{ horizontal:'center', vertical:'center' } });
+  put(2,0,{ font:{ sz:10 }, alignment:{ horizontal:'left' } });
+  for(var c=0;c<nC;c++){ put(3,c,hdSt()); put(4,c,hdSt()); }
+  for(var R=top; R<=totR; R++){
+    var isTot=(R===totR), row=out[R];
+    for(c=0;c<nC;c++){
+      var v=row[c], stl={ border:B, alignment:{ vertical:'center', horizontal:H[F.al.charAt(c)]||'right', wrapText:F.al.charAt(c)==='l' } };
+      if(isTot){ stl.font={ bold:true }; stl.fill={ patternType:'solid', fgColor:{ rgb:'FFE699' } }; }
+      if(typeof v==='number'){ stl.numFmt=numFmt(c, v, F.pct, F.qty); if(!isTot && v<0) stl.font={ color:{ rgb:'C0392B' } }; }
+      put(R,c,stl);
+    }
+  }
+  put(sumR,0,{ font:{ bold:true, color:{ rgb:'125A4E' } }, alignment:{ horizontal:'left' } });
+  for(c=0;c<8;c++){ put(sumR+1,c,hdSt()); var sv=out[sumR+2][c]; put(sumR+2,c,{ border:B, font:{ bold:true }, alignment:{ horizontal:'right' }, numFmt:(c===4||c===7)?'0.0%':'#,##0' }); }
+  var wb=X.utils.book_new(); X.utils.book_append_sheet(wb, ws, tabNm()); X.writeFile(wb, file+'.xlsx');
 }
 function gv(id){ return document.getElementById(id).value||''; }
 
-/* ── 인쇄 ──
-   ⚠이 화면은 셸 안 iframe 이라 여기서 window.print() 를 부르면 <판매 화면이 아니라 셸>이 찍힌다(일계장에서 겪은 함정).
-     새 창에 표만 그리고 그 창이 제 print() 를 부른다. 팝업이 막히면 안내한다. */
+/* ── 인쇄 = 엑셀과 같은 틀 (2026-11-24 사용자 「인쇄도 같은 형식으로 바꿔줘」) ──
+     제목 · 조회기간(+조건) · 띠(기간·구분·메뉴·출력일자·회사) · 하늘색 칸 머리(쪽마다 반복) · 노란 Total · 표 아래 [회사전체이익] + 물류비 설명.
+     ★값은 엑셀과 같은 aoaOf()·totRowOf()·outBand() — 두 출력이 어긋나지 않게.
+     ⚠이 화면은 셸 안 iframe 이라 여기서 window.print() 를 부르면 셸이 찍힌다(일계장에서 겪은 함정) — 새 창에 그리고 그 창이 제 print() 를 부른다. */
 function printIt(){
   if(!_rows.length){ toast('먼저 조회하세요.','⚠️'); return; }
-  var l=sortRows(grouped()), C=cols();
-  var tot=zero(); l.forEach(function(o){ addUp(tot,o); });
-  var st=calcRow((function(){ var t=zero(); _rows.forEach(function(o){ addUp(t,o); }); return t; })());
-  var biz=document.getElementById('bizCd');
+  var aoa=aoaOf(), head=aoa[0], body=aoa.slice(1), tot=totRowOf(), nC=head.length, F=XL_FMT[_tab];
+  var all=zero(); _rows.forEach(function(o){ addUp(all,o); }); var st=calcRow(all);
   var rs=CEN.map(function(c){ return c.nm+' '+pct1(c.rate); }).join(' · ');
+  var cell=function(v, c, isTot){
+    var a=F.al.charAt(c), cls=(a==='l'?'l':(a==='c'?'c':''));
+    if(typeof v!=='number') return '<td class="'+(isTot&&v?'c':cls)+'">'+esc(v)+'</td>';
+    var t=F.pct[c] ? pct(v) : (F.qty[c] ? fmtq(v) : fmt(v));
+    var nc=[a==='c'?'c':'', (!isTot && v<0)?'neg':''].filter(Boolean).join(' ');   /* # 번호는 가운데 */
+    return '<td'+(nc?' class="'+nc+'"':'')+'>'+t+'</td>';
+  };
   var h='<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>'+esc(tabNm())+'</title><style>'
-    +'body{font-family:"맑은 고딕",sans-serif;margin:0;padding:10mm 8mm;color:#111;font-size:11px}'
-    +'h1{font-size:17px;margin:0 0 4px;text-align:center}'
-    +'.hd{font-size:11px;color:#333;margin-bottom:8px;text-align:center}'
-    +'.lg{font-size:10px;color:#444;margin-bottom:6px}'
-    +'table{border-collapse:collapse;width:100%}'
-    +'th,td{border:1px solid #444;padding:3px 4px;text-align:right;white-space:nowrap}'
-    +'th{background:#eee;text-align:center;font-size:10.5px}'
-    +'td.l{text-align:left;white-space:normal}td.c{text-align:center}'
-    +'tr.tot td{font-weight:800;background:#f2f2f2}'
-    +'table.s{margin-bottom:8px}table.s td{font-weight:700}'
-    +'@page{size:A4 landscape;margin:0}thead{display:table-header-group}'
+    +'@page{size:A4 landscape;margin:9mm}body{font-family:"맑은 고딕","Malgun Gothic",sans-serif;font-size:10.5px;margin:0;color:#111}'
+    +'h1{text-align:center;font-size:18px;margin:2px 0 8px}.per{margin:0 0 4px;font-size:11px}'
+    +'table{border-collapse:collapse;width:100%}th,td{border:1px solid #8c96a0;padding:2px 4px}td{text-align:right;white-space:nowrap}td.l{text-align:left;white-space:normal}td.c{text-align:center}'
+    +'th{background:#ddebf7;font-weight:700}tr.band th{font-size:11.5px}thead{display:table-header-group}tr{page-break-inside:avoid}'
+    +'tr.tot td{background:#ffe699;font-weight:800}td.neg{color:#c0392b}'
+    +'.sumt{margin:12px 0 4px;font-weight:800;color:#125a4e;font-size:12px}table.s{width:auto}table.s td{font-weight:700;padding:3px 10px}'
+    +'.lg{font-size:10px;color:#444;margin-top:5px}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}'
     +'</style></head><body>'
-    +'<h1>'+esc(tabNm().replace(/별/g,'별 '))+'</h1>'
-    +'<div class="hd">'+esc(gv('frDt'))+' ~ '+esc(gv('toDt'))
-    +(biz.value?(' · 사업장 '+esc(biz.options[biz.selectedIndex].text)):'')
-    +' · 출력 '+new Date().toLocaleString('ko-KR')+'</div>'
+    +'<h1>'+esc(outTitle())+'</h1><div class="per">'+esc(outPeriod())+'</div>'
+    +'<table><thead><tr class="band">'+outBand(nC).map(function(o){ return '<th'+(o.s>1?' colspan="'+o.s+'"':'')+'>'+esc(o.t)+'</th>'; }).join('')+'</tr>'
+    +'<tr>'+head.map(function(c){ return '<th>'+esc(c)+'</th>'; }).join('')+'</tr></thead><tbody>'
+    +body.map(function(r){ return '<tr>'+r.map(function(v,c){ return cell(v,c,false); }).join('')+'</tr>'; }).join('')
+    +'<tr class="tot">'+tot.map(function(v,c){ return cell(v,c,true); }).join('')+'</tr>'
+    +'</tbody></table>'
+    +'<div class="sumt">[회사전체이익]</div>'
     +'<table class="s"><thead><tr><th>판매액</th><th>반품액</th><th>실판매액</th><th>물류비(차감)</th><th>반품율</th><th>입고액</th><th>이익금</th><th>이익율</th></tr></thead>'
-    +'<tbody><tr><td>'+fmt(st.saleAmt)+'</td><td>'+fmt(st.rtnAmt)+'</td><td>'+fmt(st.realAmt)+'</td><td>'+fmt(st.logiAmt)+'</td><td>'+pct(st.rtnRate)+'</td><td>'+fmt(st.costAmt)+'</td><td>'+fmt(st.profit)+'</td><td>'+pct(st.rate)+'</td></tr></tbody></table>'
+    +'<tbody><tr><td>'+fmt(st.saleAmt)+'</td><td>'+fmt(st.rtnAmt)+'</td><td>'+fmt(st.realAmt)+'</td><td>'+fmt(st.logiAmt)+'</td><td>'+pct(st.rtnRate)+'</td><td>'+fmt(st.costAmt)+'</td>'
+    +'<td'+(st.profit<0?' class="neg"':'')+'>'+fmt(st.profit)+'</td><td'+(st.profit<0?' class="neg"':'')+'>'+pct(st.rate)+'</td></tr></tbody></table>'
     +'<div class="lg">물류비(차감) = 정산·출고 매출액 × 그 출고장 센터 비율('+esc(rs)+' · 오산 = 평/용) — 실판매액에서 이미 뺀 금액입니다. 판매전표(출고장 없음)는 0.</div>'
-    +'<table><thead><tr>'+C.map(function(c){ return '<th>'+esc(c.t)+'</th>'; }).join('')+'</tr></thead><tbody>'
-    +l.map(function(o,i){ return '<tr>'+cellsOf(o,i)+'</tr>'; }).join('')
-    +'<tr class="tot">'+totCells(tot, l.length)+'</tr>'
-    +'</tbody></table></body></html>';
+    +'</body></html>';
   var w=window.open('', '_blank');
   if(!w){ _alertBox('팝업이 막혀 인쇄 창을 열지 못했습니다.<br><span style="font-size:13px;color:#3d4d5c">주소창 오른쪽의 팝업 차단을 풀고 다시 눌러 주세요.</span>',{icon:'⚠️'}); return; }
   w.document.write(h); w.document.close();

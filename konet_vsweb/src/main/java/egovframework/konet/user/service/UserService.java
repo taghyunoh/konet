@@ -461,6 +461,8 @@ public interface UserService {
 
 	/* 이익현황 (2026-09-28) */
 	java.util.List<java.util.Map<String,Object>> selectProfitStat(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectTrxStat(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectTrxStatLine(java.util.Map<String,Object> p) throws Exception;   // 매입/판매 등록현황 (2026-11-24)
 	java.util.List<java.util.Map<String,Object>> selectProfitRecv(java.util.Map<String,Object> p) throws Exception;
 
 	/* 견적서 카톡 공유 (2026-09-28) */

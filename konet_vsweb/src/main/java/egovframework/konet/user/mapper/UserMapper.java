@@ -551,6 +551,8 @@ public interface UserMapper {
 
 	/* 이익현황 (2026-09-28) — 거래처 × 상품 알갱이 하나로 세 화면(거래처별·상품별·거래처별 상품별)을 다 그린다 */
 	java.util.List<java.util.Map<String,Object>> selectProfitStat(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectTrxStat(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectTrxStatLine(java.util.Map<String,Object> p) throws Exception;        // 같은 화면 엑셀·인쇄 원장(상품 줄)            // 매입/판매 등록현황 (2026-11-24)
 	java.util.List<java.util.Map<String,Object>> selectProfitRecv(java.util.Map<String,Object> p) throws Exception;          // 거래처별 수금액·할인액
 
 	/* 견적서 카톡 공유 (2026-09-28) — 발주서·거래명세서와 같은 방식(공개 링크 /pub/quote.do?t=토큰) */

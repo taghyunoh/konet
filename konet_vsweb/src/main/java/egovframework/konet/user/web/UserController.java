@@ -4762,6 +4762,56 @@ public class UserController {
 		/* ── 이익현황 (2026-09-28) ── 정보 현황 ▸ 이익현황. 한 조회(selectProfitStat)로 세 화면을 다 그린다 :
 		     거래처별 이익 · 상품별 이익 · 거래처별 상품별 이익. 알갱이 = 거래처 × 상품, 접는 것은 화면이 한다.
 		     금액 정의는 마감·매출 그래프와 같다(사용자 확정 2026-09-28 「전부 — 마감·매출그래프와 같은 숫자」). */
+		/* ── 매입/판매 등록현황 (2026-11-24 사용자 「정보현황에 매입/판매등록현황 — 거래처별·일자별 판매·매입 내역」) ──
+		     매입등록·판매등록 전표 머리를 기간으로 한 번 읽고, 거래처별·일자별·거래처×일자·전표별은 화면이 접는다(selectTrxStat 주석 참조).
+		     기간이 비거나 틀리면 이번 달로 채운다 — SQL 에 「비면 전체」 갈래를 두지 않으려고(계획 돌려쓰기로 느려진다). 3년을 넘기면 끝에서 3년으로 줄인다. */
+		@RequestMapping(value="/mangr/trxStat.do")
+		public String trxStat(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/trxStat";
+		}
+		@RequestMapping(value="/mangr/trxStatList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> trxStatList(@RequestParam(value="frDt", required=false) String frDt,
+		                                      @RequestParam(value="toDt", required=false) String toDt,
+		                                      HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("result", "FAIL"); res.put("login", "N"); return res; }
+			Map<String,Object> p = trxStatParam(frDt, toDt, session);
+			res.put("data", svc.selectTrxStat(p));
+			res.put("frDt", p.get("frDt")); res.put("toDt", p.get("toDt"));   // 실제로 읽은 기간(고쳐졌으면 화면이 그대로 맞춘다)
+			res.put("result", "OK");
+			return res;
+		}
+		/* 엑셀·인쇄 「원장」(상품 줄) — 목록과 같은 기간 규칙(trxStatParam). 누를 때만 부른다(화면 목록은 머리만 읽어 가볍게) */
+		@RequestMapping(value="/mangr/trxStatLines.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> trxStatLines(@RequestParam(value="frDt", required=false) String frDt,
+		                                       @RequestParam(value="toDt", required=false) String toDt,
+		                                       HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("result", "FAIL"); res.put("login", "N"); return res; }
+			Map<String,Object> p = trxStatParam(frDt, toDt, session);
+			res.put("data", svc.selectTrxStatLine(p));
+			res.put("frDt", p.get("frDt")); res.put("toDt", p.get("toDt"));
+			res.put("result", "OK");
+			return res;
+		}
+		/** 매입/판매 등록현황 기간 — 비거나 틀리면 이번 달 · 거꾸로면 바꿈 · 3년 넘으면 끝에서 3년 (SQL 에 「비면 전체」 갈래를 두지 않으려고) */
+		private Map<String,Object> trxStatParam(String frDt, String toDt, HttpSession session) {
+			String f = poStr(frDt).replace("-", ""), t = poStr(toDt).replace("-", "");
+			java.time.format.DateTimeFormatter F8 = java.time.format.DateTimeFormatter.BASIC_ISO_DATE;
+			java.time.LocalDate fd, td;
+			try { fd = java.time.LocalDate.parse(f, F8); td = java.time.LocalDate.parse(t, F8); }
+			catch (Exception e) { td = java.time.LocalDate.now(); fd = td.withDayOfMonth(1); }
+			if (fd.isAfter(td)) { java.time.LocalDate x = fd; fd = td; td = x; }
+			if (fd.isBefore(td.minusYears(3))) fd = td.minusYears(3);
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("compCd", session.getAttribute("s_comp_cd"));
+			p.put("frDt", fd.format(F8));
+			p.put("toDt", td.format(F8));
+			return p;
+		}
 		@RequestMapping(value="/mangr/profitStat.do")
 		public String profitStat(HttpSession session) {
 			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";

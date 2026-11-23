@@ -3755,6 +3755,8 @@ public class UserServiceImpl implements UserService {
 
 	/* ── 이익현황 (2026-09-28) ── 계산은 전부 SQL 이 한다(마감·매출그래프와 같은 규칙). 여기서는 넘겨주기만 한다 */
 	@Override public java.util.List<java.util.Map<String,Object>> selectProfitStat(java.util.Map<String,Object> p) throws Exception { return mapper.selectProfitStat(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectTrxStat(java.util.Map<String,Object> p) throws Exception { return mapper.selectTrxStat(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectTrxStatLine(java.util.Map<String,Object> p) throws Exception { return mapper.selectTrxStatLine(p); }   // 매입/판매 등록현황 (2026-11-24)
 	@Override public java.util.List<java.util.Map<String,Object>> selectProfitRecv(java.util.Map<String,Object> p) throws Exception { return mapper.selectProfitRecv(p); }
 
 	/* ── 견적서 카톡 공유 (2026-09-28) ── 발주서·거래명세서와 같은 방식 : 토큰으로 여는 공개 페이지 링크를 보낸다.
