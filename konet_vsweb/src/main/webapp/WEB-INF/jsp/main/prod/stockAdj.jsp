@@ -7,6 +7,7 @@
 <%-- 알림·확인은 프로젝트 공통 표준(ui-message.js) — Swal 신규 사용 금지 --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-message.js"></script>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-popdrag.js?v=20260910b"></script>   <%-- 팝업 끌어 옮기기 — 실사 시점 창 (2026-11-23) --%>
 <title>재고 일괄조정</title>
 <%-- 재고 일괄조정 (2026-08-19 신설)
      기존화면(거래처 시스템)의 [리스트조회] + [수정저장] 을 우리 구조로 옮긴 것.
@@ -126,6 +127,8 @@
   #pastNote{ display:none; margin:0 8px 6px; padding:7px 12px; border:1px solid #e9c46a; border-radius:8px; background:#fff8e1; color:#5c4400; font-size:13px; line-height:1.65; }
   .daychip{ display:inline-block; margin-top:2px; height:19px; line-height:17px; padding:0 7px; border:1px solid #d9a441; border-radius:10px; background:#fff8e1; color:#7a5200; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap; }
   .daychip.set{ background:#7a5200; border-color:#7a5200; color:#fff; } .daychip:hover{ border-color:#7a5200; }   /* 그날 입출고 — 실사 시점 고르기 (2026-11-23) */
+  #dayPop{ position:fixed; inset:0; background:rgba(15,23,32,.35); display:none; align-items:flex-start; justify-content:center; z-index:100000; padding-top:10vh; }
+  #dayPop.on{ display:flex; } #dayPop .hd{ cursor:move; user-select:none; }   /* 끌어 옮기기 (2026-11-23) */
   #dayPop table{ width:100%; min-width:0; border-collapse:collapse; font-size:13px; } #dayPop th{ position:static; background:#f1f5f8; padding:5px 6px; border-bottom:1px solid #dbe2ea; font-weight:700; white-space:nowrap; }   /* 화면 표의 min-width:1240px 를 끊는다 */
   #dayPop td{ padding:5px 6px; border-bottom:1px solid #eef1f4; } #dayPop td.r{ text-align:right; font-variant-numeric:tabular-nums; } #dayPop tr.after td{ color:#9aa7b3; text-decoration:line-through; }
   #dayPop .seg{ display:inline-flex; border:1px solid #cbd5e1; border-radius:12px; overflow:hidden; } #dayPop .seg b{ padding:2px 9px; font-size:12px; cursor:pointer; color:#5a6b7a; font-weight:700; background:#fff; }
@@ -467,6 +470,7 @@ function nowLoad(){
        · 조정행은 그 날짜 그대로 → 그날 끝 재고 = 센 수량 + «실사 뒤» 입출고(출고면 빠진다), 다음 날부터는 종전처럼 이어진다
        · 서버는 그대로 — 화면이 보내는 befQty 가 이 값이 된다(서버는 befQty 로 증감을 만든다). 조정 이력의 «전»에도 이 값이 남는다
      그날 입출고는 지난 날짜에서 수량을 고친 줄에만 읽는다(/prod/stockFlowLedger.do — 재고내용분석의 수불 내역과 같은 조회). 목록을 다시 그리면 고른 것은 풀린다(수량도 풀리므로) */
+if (window.konetPopDrag) konetPopDrag('#dayPop', '.hd');   /* 실사 시점 창 끌어 옮기기 (2026-11-23) */
 function befOf(r){ return (r && r._bef != null) ? r._bef : nvl(r && r.curQty); }
 function dayNet(l){ var q = nvl(l.qty); return l.ioGb === 'O' ? -q : q; }   /* 입고·판매반품·조정 = +, 출고 = − */
 function dayIoNm(l){ return l.ioGb === 'O' ? '출고' : (l.ioGb === 'R' ? '판매반품' : (l.ioGb === 'A' ? '조정' : (nvl(l.qty) < 0 ? '반품' : '입고'))); }
@@ -486,9 +490,7 @@ function dayOpen(i, ev){
   if (!r._dayCk) r._dayCk = r._day.map(function(){ return true; });          /* 기본 = 전부 실사 전(종전과 같다) */
   var ck = r._dayCk.slice(), endQ = nvl(r.curQty), net = 0; r._day.forEach(function(l){ net += dayNet(l); });
   var startQ = endQ - net, md = mdTxt(_pastDt);
-  var old = gel('dayPop'); if (old) old.remove();
-  var w = document.createElement('div'); w.id = 'dayPop';
-  w.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,32,.35);display:flex;align-items:flex-start;justify-content:center;z-index:100000;padding-top:10vh';
+  var w = gel('dayPop'); if (!w) return;   /* 늘 있는 덮개 — 켜고 끈다(끌어 옮긴 자리를 공용 도구가 되살리게) */
   function paint(){
     var bef = startQ; r._day.forEach(function(l, k){ if (ck[k]) bef += dayNet(l); });
     var aft = nvl(gel('bx'+i).value) * curPack(i) + nvl(gel('ea'+i).value), aftQ = 0; r._day.forEach(function(l, k){ if (!ck[k]) aftQ += dayNet(l); });
@@ -496,29 +498,30 @@ function dayOpen(i, ev){
       return '<tr' + (ck[k] ? '' : ' class="after"') + '><td>' + esc(dayIoNm(l)) + (l.refGb ? ' <span class="dim" style="font-size:11px">' + esc(l.refGb) + '</span>' : '') + '</td>'
         + '<td class="r" style="font-weight:700;color:' + (n < 0 ? '#b23b3b' : '#137a6c') + '">' + (n > 0 ? '+' : '') + n + '</td>'
         + '<td style="font-size:12px">' + esc(l.vendorNm || l.remark || '') + '</td><td style="font-size:11.5px;color:#6b7a89;white-space:nowrap" title="전산에 들어온 때(실제 나간 시각과 다를 수 있습니다)">' + esc(String(l.regDttm || '').slice(5, 16)) + '</td>'
-        + '<td style="text-align:center"><span class="seg"><b data-k="' + k + '" data-v="1" class="' + (ck[k] ? 'on' : '') + '">실사 전</b><b data-k="' + k + '" data-v="0" class="af' + (ck[k] ? '' : ' on') + '">실사 뒤</b></span></td></tr>'; }).join('');
+        + '<td style="text-align:center"><span class="seg"><b data-k="' + k + '" data-v="1" class="' + (ck[k] ? 'on' : '') + '" title="셀 때 이미 나간 것 — 센 수량에 빠져 있음">실사 전</b><b data-k="' + k + '" data-v="0" class="af' + (ck[k] ? '' : ' on') + '" title="센 다음에 나간 것 — 조정 뒤에 빠짐">실사 뒤</b></span></td></tr>'; }).join('');
     w.querySelector('.sum').innerHTML = md + ' 시작 재고 <b>' + startQ + '</b> → 실사 때 장부 재고 <b>' + bef + '</b>'
       + (aft !== bef || aft !== endQ ? ' · 센 수량 <b>' + aft + '</b> → 증감 <b style="color:' + (aft - bef < 0 ? '#b23b3b' : '#137a6c') + '">' + (aft - bef > 0 ? '+' : '') + (aft - bef) + '</b> · ' + md + ' 끝 재고 <b>' + (aft + aftQ) + '</b>' : '');
   }
-  w.innerHTML = '<div style="background:#fff;width:min(680px,94vw);max-height:76vh;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden">'
-    + '<div style="padding:11px 14px;border-bottom:1px solid #eef1f5;display:flex;align-items:center;gap:8px"><b style="font-size:15px;color:#125a4e">⏱ 실사 시점 — ' + md + ' 입출고</b><span class="dim" style="font-size:12px;flex:1">' + esc(r.prodCd) + ' ' + esc(r.prodNm || '') + '</span></div>'
-    + '<div style="padding:8px 14px;font-size:12.5px;color:#48606f;line-height:1.6">실사를 하기 <b>전에</b> 이미 들어오고 나간 것은 [실사 전], 실사를 <b>한 뒤에</b> 일어난 것은 [실사 뒤]를 고르세요.<br>'
-    + '<span class="dim">센 수량에는 [실사 전] 것만 반영돼 있다고 보고 조정합니다. [실사 뒤] 것은 조정 뒤에 이어서 반영됩니다. 시각은 전산에 들어온 때라 실제와 다를 수 있습니다.</span></div>'
-    + '<div style="overflow:auto;padding:0 14px"><table><thead><tr><th style="text-align:left">구분</th><th style="text-align:right">수량</th><th style="text-align:left">거래처 · 비고</th><th style="text-align:left">등록</th><th>실사 기준</th></tr></thead><tbody></tbody></table></div>'
+  w.innerHTML = '<div class="box" style="background:#fff;width:min(680px,94vw);max-height:76vh;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden">'
+    + '<div class="hd" title="끌어서 옮기기 · 더블클릭 = 가운데로" style="padding:11px 14px;border-bottom:1px solid #eef1f5;display:flex;align-items:center;gap:8px"><b style="font-size:15px;color:#125a4e">⏱ 실사 시점 — ' + md + ' 입출고</b><span class="dim" style="font-size:12px;flex:1">' + esc(r.prodCd) + ' ' + esc(r.prodNm || '') + '</span></div>'
+    /* ★한 줄로 (2026-11-23 사용자 「마우스 올리면 — 좀 더 간단하게 설명」) — 자세한 말은 ⓘ 와 단추 말풍선으로 */
+    + '<div style="padding:8px 14px;font-size:13px;color:#48606f">센 <b>다음에</b> 나간 출고만 <b style="color:#b45309">[실사 뒤]</b>로 바꾸세요. <span style="cursor:help;color:#137a6c;font-weight:700" title="센 수량에는 [실사 전] 것만 빠져 있다고 보고 조정합니다. [실사 뒤] 것은 조정 뒤에 이어서 빠집니다.&#10;등록 시각은 전산에 들어온 때라 실제 출고 시각과 다를 수 있습니다.">ⓘ</span></div>'
+    + '<div style="overflow:auto;padding:0 14px"><table><thead><tr><th style="text-align:left">구분</th><th style="text-align:right">수량</th><th style="text-align:left">거래처 · 비고</th><th style="text-align:left">등록</th><th title="센 때보다 먼저(실사 전) / 나중(실사 뒤)">실사 기준</th></tr></thead><tbody></tbody></table></div>'
     + '<div class="sum" style="padding:9px 14px;font-size:13px;background:#f7faf9;border-top:1px solid #e3e8ee"></div>'
     + '<div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid #dbe2ea"><button type="button" class="btn ghost" data-a="all1">모두 실사 전</button><button type="button" class="btn ghost" data-a="all0">모두 실사 뒤</button>'
     + '<span style="flex:1"></span><button type="button" class="btn ghost" data-a="x">닫기</button><button type="button" class="btn" data-a="ok">적용</button></div></div>';
-  w.addEventListener('click', function(e){
+  w.onclick = function(e){   /* 덮개가 늘 있으니 열 때마다 덧붙이지 않고 갈아 끼운다 */
     var sb = e.target.closest ? e.target.closest('.seg b') : null;
     if (sb){ ck[+sb.getAttribute('data-k')] = sb.getAttribute('data-v') === '1'; paint(); return; }
-    var bt = e.target.closest ? e.target.closest('[data-a]') : null, a = bt ? bt.getAttribute('data-a') : (e.target === w ? 'x' : '');
+    /* 창 바깥(어두운 바탕)을 눌러도 닫지 않는다 (2026-11-23 사용자 「화면 다른 영역 클릭하면 닫힘 방지」) — 고르던 것이 날아가지 않게. 닫기는 [닫기]·[적용]만 */
+    var bt = e.target.closest ? e.target.closest('[data-a]') : null, a = bt ? bt.getAttribute('data-a') : '';
     if (a === 'all1' || a === 'all0'){ ck = ck.map(function(){ return a === 'all1'; }); paint(); return; }
     if (a === 'ok'){ r._dayCk = ck; var bef = startQ; r._day.forEach(function(l, k){ if (ck[k]) bef += dayNet(l); });
       r._bef = ck.every(function(x){ return x; }) ? null : bef;                 /* 전부 실사 전 = 종전(그날 끝)과 같으니 표시를 지운다 */
-      w.remove(); chg(i); return; }
-    if (a === 'x') w.remove();
-  });
-  document.body.appendChild(w); paint();
+      w.classList.remove('on'); chg(i); return; }
+    if (a === 'x') w.classList.remove('on');
+  };
+  paint(); w.classList.add('on');
 }
 
 /* 조정 후 재고 칸 — chg() 와 지금 재고를 다 읽었을 때 같이 쓴다 */
@@ -1597,5 +1600,7 @@ function adjGripReset(){ ['hisWrap','reqWrap'].forEach(function(id){ var w = gel
 
 adjWhInit();
 </script>
+<%-- 실사 시점 창 (2026-11-23) — 덮개 > .box > .hd(제목줄). 제목줄을 끌면 옮겨지고(ui-popdrag.js) 자리는 다음에도 그대로 · 제목줄 더블클릭 = 가운데로 --%>
+<div id="dayPop"></div>
 </body>
 </html>
