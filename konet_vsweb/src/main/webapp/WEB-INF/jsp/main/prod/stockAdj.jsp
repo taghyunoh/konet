@@ -76,7 +76,21 @@
   tr.chg{ background:#fff8e8; }                     /* 고친 줄 */
   /* ★고른 줄 (2026-11-22 사용자 「선택코드 조정이력 추가」) — 위 목록에서 줄을 누르면 그 상품이 «고른 코드»가 되고 아래 [조정 이력]이 그 코드 것만 보인다.
      고친 줄(노랑)·중지 줄(빨강) 바탕은 그대로 두고 왼쪽 청록 띠 + 코드 칸 옅은 청록으로만 알린다 */
-  #body tr.pick > td:first-child{ box-shadow:inset 4px 0 0 var(--teal); background:#e6f4f0; }
+  /* ★줄 전체 (2026-11-23 사용자 「상단 선택표시 상품코드만 표시되는데 해당 줄 전체 선택표시 되게」) — 종전엔 코드 칸만 칠했다. 줄 전체를 옅은 청록 + 위아래 선, 맨 앞 칸에 청록 띠.
+     중지 줄의 빨간 글자는 그대로(글자색은 안 건드린다). 고친 줄(노랑)은 고른 동안만 청록으로 덮이고 다른 줄을 고르면 돌아온다 */
+  #body tr.pick, #body tr.pick:hover{ background:#dcf0ea; }
+  #body tr.pick > td{ background:#dcf0ea; box-shadow:inset 0 1px 0 #7fbfae, inset 0 -1px 0 #7fbfae; }
+  #body tr.pick > td:first-child{ box-shadow:inset 4px 0 0 var(--teal), inset 0 1px 0 #7fbfae, inset 0 -1px 0 #7fbfae; }
+  /* 고른 코드 이력 탭 (2026-11-23 「해당 조정코드이력 탭 별도 추가」) — 줄을 고르면 나타난다. 코드 · 상품명(줄임) · ✕(고르기 풀기) */
+  .htab .tb{ white-space:nowrap; flex:none; }   /* 탭 글자가 두 줄로 꺾이지 않게 (2026-11-23) */
+  .htab .tb.selt{ display:none; align-items:center; gap:5px; flex:0 1 auto; min-width:150px; max-width:340px; }
+  .htab .tb.selt.has{ display:inline-flex; }
+  .htab .tb.selt .nm{ font-weight:400; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .htab .tb.selt .x{ flex:none; width:18px; height:18px; line-height:16px; border-radius:50%; background:rgba(15,107,94,.12); font-weight:800; text-align:center; }
+  .htab .tb.selt.on .x{ background:rgba(255,255,255,.28); }
+  .htab .tb.selt .x:hover{ background:#b23b3b; color:#fff; }
+  @keyframes seltFlash{ 0%{ box-shadow:0 0 0 0 rgba(19,122,108,.55); } 100%{ box-shadow:0 0 0 7px rgba(19,122,108,0); } }
+  .htab .tb.selt.flash{ animation:seltFlash .9s ease-out 2; }
   #hSel{ display:none; align-items:center; gap:6px; height:26px; padding:0 4px 0 9px; border:1px solid var(--teal); border-radius:13px; background:#e6f4f0;
          color:#0f6b5e; font-size:12.5px; font-weight:700; white-space:nowrap; max-width:420px; }
   #hSel.on{ display:inline-flex; }
@@ -108,6 +122,15 @@
   .diff.up{ color:#1f7a4b; }
   .diff.dn{ color:#b23b3b; }
   b.aft{ font-weight:800; color:#125a4e; } b.aft.neg{ color:#b23b3b; }   /* 조정 후 재고 (2026-11-19) */
+  .afnow{ display:block; font-size:11px; color:#6b7a89; font-weight:600; white-space:nowrap; } .afnow b{ color:#125a4e; } .afnow b.neg{ color:#b23b3b; }   /* 지난 날짜 조정 — 지금 재고 예상 (2026-11-23) */
+  #pastNote{ display:none; margin:0 8px 6px; padding:7px 12px; border:1px solid #e9c46a; border-radius:8px; background:#fff8e1; color:#5c4400; font-size:13px; line-height:1.65; }
+  .daychip{ display:inline-block; margin-top:2px; height:19px; line-height:17px; padding:0 7px; border:1px solid #d9a441; border-radius:10px; background:#fff8e1; color:#7a5200; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap; }
+  .daychip.set{ background:#7a5200; border-color:#7a5200; color:#fff; } .daychip:hover{ border-color:#7a5200; }   /* 그날 입출고 — 실사 시점 고르기 (2026-11-23) */
+  #dayPop table{ width:100%; min-width:0; border-collapse:collapse; font-size:13px; } #dayPop th{ position:static; background:#f1f5f8; padding:5px 6px; border-bottom:1px solid #dbe2ea; font-weight:700; white-space:nowrap; }   /* 화면 표의 min-width:1240px 를 끊는다 */
+  #dayPop td{ padding:5px 6px; border-bottom:1px solid #eef1f4; } #dayPop td.r{ text-align:right; font-variant-numeric:tabular-nums; } #dayPop tr.after td{ color:#9aa7b3; text-decoration:line-through; }
+  #dayPop .seg{ display:inline-flex; border:1px solid #cbd5e1; border-radius:12px; overflow:hidden; } #dayPop .seg b{ padding:2px 9px; font-size:12px; cursor:pointer; color:#5a6b7a; font-weight:700; background:#fff; }
+  #dayPop .seg b.on{ background:#137a6c; color:#fff; } #dayPop .seg b.on.af{ background:#b45309; }
+  #pastNote.on{ display:block; } #pastNote b{ color:#8a5200; } #pastNote .btn{ height:24px; padding:0 10px; font-size:12px; margin-left:6px; vertical-align:1px; }
 
   .foot{ display:flex; align-items:center; gap:12px; padding:5px 10px; margin-top:6px;
          background:#fff; border:1px solid var(--bd); border-radius:8px; font-size:13px; }
@@ -180,6 +203,11 @@
   .hgrid{ min-height:24vh; max-height:46vh; overflow:auto; }
   .hgrid table{ font-size:12.5px; }
   .hgrid thead th{ background:#f4f7f8; }
+  /* 입력 되돌리기 (2026-11-23 사용자 「입력 후 되돌리기」) — 저장 전, 고친 줄의 증감 칸 옆 ↩ · 고친 줄 수 옆 [↩ 입력 모두 되돌리기] */
+  .rowundo{ height:20px; min-width:22px; margin-left:5px; padding:0 4px; border:1px solid #cbd5e1; border-radius:4px; background:#fff; color:#5a6b7a; font-size:12px; line-height:18px; cursor:pointer; vertical-align:middle; }
+  .rowundo:hover{ border-color:#b23b3b; color:#b23b3b; background:#fff6f5; }
+  #undoAll{ display:none; height:22px; margin-left:8px; padding:0 9px; border:1px solid #b23b3b; border-radius:4px; background:#fff; color:#b23b3b; font-size:12px; font-weight:700; cursor:pointer; }
+  #undoAll.on{ display:inline-block; } #undoAll:hover{ background:#b23b3b; color:#fff; }
   .undo{ height:22px; border:1px solid #b23b3b; background:#fff; color:#b23b3b;
          border-radius:4px; padding:0 8px; font-size:11.5px; font-weight:700; cursor:pointer; }
   /* ★[2026-08-19 요청 「모래시계」] 조회 중 오버레이 — 진짜 작업 중이라 클릭을 막는다
@@ -231,7 +259,7 @@
     <input type="text" id="findData" placeholder="코드 · 상품명 · 규격 — 입력 후 Enter" style="width:210px"
            onkeydown="if(event.keyCode===13){ load(); }">
     <label>기준일자</label>
-    <input type="date" id="baseDt" title="오늘(또는 그 뒤) = 지금 현재고 전체(품목별재고현황과 같은 숫자 — 내일 납기로 이미 나간 출고까지 뺀 값)&#10;지난 날짜 = 그날까지의 누계 재고. 조정행도 이 날짜로 남습니다.">
+    <input type="date" id="baseDt" title="오늘(또는 그 뒤) = 지금 현재고 전체(품목별재고현황과 같은 숫자 — 내일 납기로 이미 나간 출고까지 뺀 값)&#10;지난 날짜 = 그날까지의 누계 재고. 조정행도 이 날짜로 남습니다.&#10;★실사를 늦게 입력할 때 — 실사한 날을 고르고 그날 센 수량을 넣으면, 그 뒤 입출고는 저절로 이어서 계산됩니다.">
 
     <%-- ★한 번 읽었으면 화면에서 거른다 — 누를 때마다 현재고 집계(느린 조회)가 돌지 않게(2026-08-20).
          서버를 다시 읽는 길 = 기준일자 변경 · 저장 직후 자동 재조회. --%>
@@ -254,6 +282,8 @@
     <label>제조사</label>
     <select id="makerNm"><option value="">전체</option></select>
   </div>
+  <%-- 지난 날짜 조정 안내 (2026-11-23 사용자 「조정했던 일자로 재고조정도 하고 싶어함 — 11/19 파악 일자로」) — 기준일자가 오늘보다 앞이면 뜬다. 글은 pastNote() --%>
+  <div id="pastNote"></div>
 
   <%-- ★[2026-08-20] 화면 콘셉 통일 — 목록 표를 다른 화면과 같은 격자로.
        공통 CSS(ui-concept)는 「card」 안의 표에만 걸리므로 **class 에 card 를 더한다**(HTML 한 낱말).
@@ -287,7 +317,7 @@
 
   <div class="foot">
     <span id="cnt" class="dim">—</span>
-    <span>고친 줄 <b id="chgCnt">0</b></span>
+    <span>고친 줄 <b id="chgCnt">0</b><button type="button" id="undoAll" onclick="undoAll()" title="저장하기 전, 수정칸에 넣은 수량·입수수량을 모두 처음 값으로 되돌립니다(저장된 재고는 그대로)">↩ 입력 모두 되돌리기</button></span>
     <span class="sp" style="flex:1"></span>
     <label>사유</label>
     <input type="text" id="remark" placeholder="재고 일괄조정 (이력에 남습니다)" style="width:280px; height:26px;
@@ -307,6 +337,7 @@
            한 번에 한 상자만 보인다(tabGo). 켜진 탭을 다시 누르면 종전처럼 접기/펼치기. 두 상자 머리줄에 같은 탭 두 개를 둔다 — 어느 쪽이 보여도 탭 자리가 같다. --%>
       <button type="button" class="tb on" id="reqTab" onclick="tabGo('req');" title="승인 요청 — 켜진 탭을 다시 누르면 접기/펼치기">⏳ 승인 요청 <b id="reqCnt"></b></button>
       <button type="button" class="tb" onclick="tabGo('his');" title="조정 이력 보기">📜 조정 이력</button>
+      <button type="button" class="tb selt" onclick="tabGo('sel');" title="해당코드 조정이력 — 위 목록에서 고른 상품의 조정 이력만"></button>
       <span id="reqHint" class="dim" style="font-size:12.5px"></span>
       <span class="sp" style="flex:1"></span>
       <label style="cursor:pointer"><input type="checkbox" id="reqAll" onchange="reqLoad();" style="height:auto;vertical-align:-2px"> 끝난 요청도 (최근 60일)</label>
@@ -339,18 +370,19 @@
   <div class="hist" id="histBox" style="display:none">
     <div class="htab">
       <button type="button" class="tb" id="reqTab2" onclick="tabGo('req');" title="승인 요청 보기">⏳ 승인 요청 <b id="reqCnt2"></b></button>
-      <button type="button" class="tb on" onclick="tabGo('his');" id="hisTab" title="조정 이력 — 켜진 탭을 다시 누르면 접기/펼치기">📜 조정 이력</button>
+      <button type="button" class="tb on" onclick="tabGo('his');" id="hisTab" title="전체 조정 이력 — 켜진 탭을 다시 누르면 접기/펼치기">📜 조정 이력</button>
+      <%-- 고른 코드의 조정 이력 탭 (2026-11-23 사용자 「해당 조정코드이력 탭 별도 추가로 보여줘」) — 2026-11-22 판은 줄을 고르면 [조정 이력] 자체가 그 코드 것으로 바뀌었다(칩 표시).
+           이제 [조정 이력] = 늘 전체, 이 탭 = 고른 코드 것. 줄을 고르면 탭이 나타나고(이름이 바뀌며 반짝), 누르면 그 코드 이력. ✕ = 고르기 풀기 --%>
+      <button type="button" class="tb selt" onclick="tabGo('sel');" title="위 목록에서 고른 상품의 조정 이력만 — 기간 칸이 비어 있으면 전 기간"></button>
       <%-- 상품코드로 찾기 (2026-11-19 사용자 「여기에서 코드로 찾고 재고조정값 취소기능도」) — 읽어 온 이력을 화면에서 거른다(서버에 다시 묻지 않음). 띄어 쓰면 낱말이 모두 든 줄 --%>
       <input type="search" id="hQ" style="width:230px; margin-left:8px" placeholder="🔎 상품코드 / 상품명으로 찾기" oninput="hisPaint();" title="조정 이력을 상품코드·상품명으로 찾습니다 — 찾은 줄의 [이 줄만 취소]로 그 상품의 조정만 물릴 수 있습니다">
       <span class="dim" id="hQCnt" style="font-size:12px"></span>
-      <%-- 고른 코드의 조정 이력 (2026-11-22 「선택코드 조정이력 추가」) — 위 목록에서 줄을 누르면 여기에 그 코드가 뜨고 이력이 그 상품 것만(기간과 무관하게 전부). ✕ = 전체 이력으로 --%>
-      <span id="hSel" title="위 목록에서 고른 상품의 조정 이력만 보는 중입니다 — ✕ 를 누르면 전체 이력으로 돌아갑니다"></span>
       <span class="sp" style="flex:1"></span>
       <label>기간</label>
       <input type="date" id="hFrom"> ~ <input type="date" id="hTo">
       <label>등록자</label>
       <input type="text" id="hUser" style="width:110px" placeholder="아이디">
-      <button type="button" class="btn ghost" onclick="hisLoad();">이력조회</button>
+      <button type="button" class="btn ghost" onclick="hisLoad();" title="지금 보는 탭(전체 / 고른 코드)의 조정 이력을 다시 읽습니다">이력조회</button>
     </div>
     <div class="hgrid card" id="hisWrap">
       <table>
@@ -395,6 +427,119 @@ function gel(id){ return document.getElementById(id); }
 function esc(s){ return String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function nvl(v){ return (v == null || v === '') ? 0 : Number(v); }
+/* ★지난 날짜로 조정 (2026-11-23 사용자 「항상 현재재고 조정이 아니라 조정했던 일자로 재고조정도 — 11/19 파악 일자로, 입력 늦게 해서 다시 계산하는 것 불편」)
+     기능은 처음부터 있었다 : 기준일자를 지난 날짜로 두면 목록이 «그날 하루 끝까지»의 누계로 읽히고, 저장하면 조정행이 그 날짜로 남는다 → 그 뒤 입출고는 저절로 이어진다.
+     화면에서 그게 안 보여 «지금 재고만 고칠 수 있다»고 알고, 실사 뒤 나간 수량을 손으로 빼서(925-3-242-1) 오늘 자로 넣고 있었다. 그래서 셋을 더했다 :
+       ① 안내 띠(#pastNote) — 기준일자가 오늘보다 앞이면 «그날 끝 재고 = 입력한 수량, 그 뒤는 이어서» · 실사를 그날 출고 전에 했으면 하루 앞 날짜
+       ② 조정 후 재고 칸 밑에 «→ 지금 X» — 지금 재고(_nowQ, 같은 목록을 날짜 없이 한 번 더 읽음) + 증감
+       ③ 저장 확인 글 — 그 날짜 뒤에 이미 조정이 있는 품목이면 알린다(그 조정도 그대로 더해져 두 번 맞추는 셈이 된다) */
+var _pastDt = '', _nowQ = null;
+function d10add(d, n){ var q = String(d).split('-'), x = new Date(+q[0], +q[1]-1, +q[2]+n); return x.getFullYear() + '-' + ('0'+(x.getMonth()+1)).slice(-2) + '-' + ('0'+x.getDate()).slice(-2); }
+function mdTxt(d){ var q = String(d).split('-'); return (+q[1]) + '/' + (+q[2]); }
+function pastNote(){
+  var el = gel('pastNote'); if (!el) return;
+  if (!_pastDt){ el.className = ''; el.innerHTML = ''; return; }
+  var d = _pastDt, nx = d10add(d, 1), pv = d10add(d, -1);
+  el.className = 'on';
+  /* ★두 줄로 짧게 (2026-11-23 사용자 「상단 노란 설명 좀 더 간단하게」) — 처음 판은 세 문장 + 덧붙임 셋이라 길었다. 자세한 말은 말풍선(title)으로 */
+  el.title = '목록 재고 = ' + mdTxt(d) + ' 하루 끝 재고. 센 수량을 넣고 저장하면 ' + mdTxt(d) + ' 자로 맞춰지고, ' + mdTxt(nx) + ' 뒤 입출고는 저절로 이어서 계산됩니다.\n'
+    + '그날 출고 전에 셌으면 하루 앞 날짜(' + mdTxt(pv) + ')를, 그날 중간에 셌으면 ⏱ 단추로 실사 뒤 입출고를 고르세요.\n→ 지금 = 저장하면 되는 오늘 재고';
+  /* ★한 줄 (2026-11-23 사용자 「한 줄로」) */
+  el.innerHTML = '📅 <b>' + mdTxt(d) + ' 실사 수량</b>을 넣으면 그 뒤 입출고는 자동 반영'
+    /* 「⏱ 단추」만으론 어디 있는지 몰랐다(수량을 넣어야 나타난다) — 자리를 같이 적는다 (2026-11-23 사용자 「단추의 뜻」) */
+    + ' <span style="color:#7a5c00">· 그날 출고 전에 셌으면 <b>' + mdTxt(pv) + '</b> · 중간에 셌으면 수량 입력 후 <b>조정 후 재고 칸의 ⏱</b>로 실사 뒤 출고 선택</span>'
+    + '<button type="button" class="btn ghost" onclick="pastToday()">오늘 기준으로</button>';
+}
+function pastToday(){ var d = new Date(); gel('baseDt').value = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2); load(); }
+/* 지금 재고 — 같은 목록을 날짜 없이(= 오늘 기준 전체) 한 번 더 읽어 prodSeq → 수량. 읽는 동안·못 읽으면 «→ 지금»만 안 보인다 */
+function nowLoad(){
+  var want = _pastDt, p = new URLSearchParams(); p.append('asOfDt', ''); p.append('whCd', gel('adjWh').value || '');
+  fetch(CTX + '/prod/stockAdjList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:p.toString() })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if (want !== _pastDt) return; var m = {}; ((d && d.data) || []).forEach(function(x){ m[String(x.prodSeq)] = nvl(x.curQty); }); _nowQ = m;
+      for (var i = 0; i < ROWS.length; i++) if (gel('af'+i) && gel('bx'+i)) afPaint(i); })
+    .catch(function(){});
+}
+/* ★실사 시점 (2026-11-23 사용자 「같은 날 출고가 있을 시 우선순위를 정해야 할 경우」) —
+     원장은 날짜만 있고 시각이 없다. 종전 선택지는 둘뿐 : 그날 끝(그날 입출고가 다 끝난 뒤 셌다) · 하루 앞 날짜(그날 입출고 전에 셌다).
+     실사가 낮에 있었고 그날 출고가 앞뒤로 갈리면 다시 손셈이 필요했다. 그래서 그날 입출고를 줄마다 «실사 전 / 실사 뒤»로 고르게 했다.
+       · 조정 전 수량(befOf) = 그날 시작 재고 + «실사 전»으로 고른 그날 입출고. 기본 = 전부 실사 전 → 종전과 같은 «그날 끝» 재고
+       · 조정행은 그 날짜 그대로 → 그날 끝 재고 = 센 수량 + «실사 뒤» 입출고(출고면 빠진다), 다음 날부터는 종전처럼 이어진다
+       · 서버는 그대로 — 화면이 보내는 befQty 가 이 값이 된다(서버는 befQty 로 증감을 만든다). 조정 이력의 «전»에도 이 값이 남는다
+     그날 입출고는 지난 날짜에서 수량을 고친 줄에만 읽는다(/prod/stockFlowLedger.do — 재고내용분석의 수불 내역과 같은 조회). 목록을 다시 그리면 고른 것은 풀린다(수량도 풀리므로) */
+function befOf(r){ return (r && r._bef != null) ? r._bef : nvl(r && r.curQty); }
+function dayNet(l){ var q = nvl(l.qty); return l.ioGb === 'O' ? -q : q; }   /* 입고·판매반품·조정 = +, 출고 = − */
+function dayIoNm(l){ return l.ioGb === 'O' ? '출고' : (l.ioGb === 'R' ? '판매반품' : (l.ioGb === 'A' ? '조정' : (nvl(l.qty) < 0 ? '반품' : '입고'))); }
+function dayLoad(r){
+  if (!_pastDt || !r || r._dayLd) return;
+  r._dayLd = 'ing'; var want = _pastDt, d8 = _pastDt.split('-').join('');
+  var b = 'prodCd=' + encodeURIComponent(r.prodCd) + '&asOfDt=' + d8 + '&whCd=' + encodeURIComponent(gel('adjWh').value || '');
+  fetch(CTX + '/prod/stockFlowLedger.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin', body:b })
+    .then(function(x){ return x.json(); })
+    .then(function(d){ if (want !== _pastDt) return; r._day = ((d && d.data) || []).filter(function(l){ return String(l.trxDt) === d8 && dayNet(l) !== 0; }); r._dayLd = 'ok';
+      var i = ROWS.indexOf(r); if (i >= 0) afPaint(i); })
+    .catch(function(){ r._dayLd = ''; });
+}
+function dayOpen(i, ev){
+  if (ev){ ev.stopPropagation(); ev.preventDefault(); }
+  var r = ROWS[i]; if (!r || !r._day || !r._day.length) return;
+  if (!r._dayCk) r._dayCk = r._day.map(function(){ return true; });          /* 기본 = 전부 실사 전(종전과 같다) */
+  var ck = r._dayCk.slice(), endQ = nvl(r.curQty), net = 0; r._day.forEach(function(l){ net += dayNet(l); });
+  var startQ = endQ - net, md = mdTxt(_pastDt);
+  var old = gel('dayPop'); if (old) old.remove();
+  var w = document.createElement('div'); w.id = 'dayPop';
+  w.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,32,.35);display:flex;align-items:flex-start;justify-content:center;z-index:100000;padding-top:10vh';
+  function paint(){
+    var bef = startQ; r._day.forEach(function(l, k){ if (ck[k]) bef += dayNet(l); });
+    var aft = nvl(gel('bx'+i).value) * curPack(i) + nvl(gel('ea'+i).value), aftQ = 0; r._day.forEach(function(l, k){ if (!ck[k]) aftQ += dayNet(l); });
+    w.querySelector('tbody').innerHTML = r._day.map(function(l, k){ var n = dayNet(l);
+      return '<tr' + (ck[k] ? '' : ' class="after"') + '><td>' + esc(dayIoNm(l)) + (l.refGb ? ' <span class="dim" style="font-size:11px">' + esc(l.refGb) + '</span>' : '') + '</td>'
+        + '<td class="r" style="font-weight:700;color:' + (n < 0 ? '#b23b3b' : '#137a6c') + '">' + (n > 0 ? '+' : '') + n + '</td>'
+        + '<td style="font-size:12px">' + esc(l.vendorNm || l.remark || '') + '</td><td style="font-size:11.5px;color:#6b7a89;white-space:nowrap" title="전산에 들어온 때(실제 나간 시각과 다를 수 있습니다)">' + esc(String(l.regDttm || '').slice(5, 16)) + '</td>'
+        + '<td style="text-align:center"><span class="seg"><b data-k="' + k + '" data-v="1" class="' + (ck[k] ? 'on' : '') + '">실사 전</b><b data-k="' + k + '" data-v="0" class="af' + (ck[k] ? '' : ' on') + '">실사 뒤</b></span></td></tr>'; }).join('');
+    w.querySelector('.sum').innerHTML = md + ' 시작 재고 <b>' + startQ + '</b> → 실사 때 장부 재고 <b>' + bef + '</b>'
+      + (aft !== bef || aft !== endQ ? ' · 센 수량 <b>' + aft + '</b> → 증감 <b style="color:' + (aft - bef < 0 ? '#b23b3b' : '#137a6c') + '">' + (aft - bef > 0 ? '+' : '') + (aft - bef) + '</b> · ' + md + ' 끝 재고 <b>' + (aft + aftQ) + '</b>' : '');
+  }
+  w.innerHTML = '<div style="background:#fff;width:min(680px,94vw);max-height:76vh;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden">'
+    + '<div style="padding:11px 14px;border-bottom:1px solid #eef1f5;display:flex;align-items:center;gap:8px"><b style="font-size:15px;color:#125a4e">⏱ 실사 시점 — ' + md + ' 입출고</b><span class="dim" style="font-size:12px;flex:1">' + esc(r.prodCd) + ' ' + esc(r.prodNm || '') + '</span></div>'
+    + '<div style="padding:8px 14px;font-size:12.5px;color:#48606f;line-height:1.6">실사를 하기 <b>전에</b> 이미 들어오고 나간 것은 [실사 전], 실사를 <b>한 뒤에</b> 일어난 것은 [실사 뒤]를 고르세요.<br>'
+    + '<span class="dim">센 수량에는 [실사 전] 것만 반영돼 있다고 보고 조정합니다. [실사 뒤] 것은 조정 뒤에 이어서 반영됩니다. 시각은 전산에 들어온 때라 실제와 다를 수 있습니다.</span></div>'
+    + '<div style="overflow:auto;padding:0 14px"><table><thead><tr><th style="text-align:left">구분</th><th style="text-align:right">수량</th><th style="text-align:left">거래처 · 비고</th><th style="text-align:left">등록</th><th>실사 기준</th></tr></thead><tbody></tbody></table></div>'
+    + '<div class="sum" style="padding:9px 14px;font-size:13px;background:#f7faf9;border-top:1px solid #e3e8ee"></div>'
+    + '<div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid #dbe2ea"><button type="button" class="btn ghost" data-a="all1">모두 실사 전</button><button type="button" class="btn ghost" data-a="all0">모두 실사 뒤</button>'
+    + '<span style="flex:1"></span><button type="button" class="btn ghost" data-a="x">닫기</button><button type="button" class="btn" data-a="ok">적용</button></div></div>';
+  w.addEventListener('click', function(e){
+    var sb = e.target.closest ? e.target.closest('.seg b') : null;
+    if (sb){ ck[+sb.getAttribute('data-k')] = sb.getAttribute('data-v') === '1'; paint(); return; }
+    var bt = e.target.closest ? e.target.closest('[data-a]') : null, a = bt ? bt.getAttribute('data-a') : (e.target === w ? 'x' : '');
+    if (a === 'all1' || a === 'all0'){ ck = ck.map(function(){ return a === 'all1'; }); paint(); return; }
+    if (a === 'ok'){ r._dayCk = ck; var bef = startQ; r._day.forEach(function(l, k){ if (ck[k]) bef += dayNet(l); });
+      r._bef = ck.every(function(x){ return x; }) ? null : bef;                 /* 전부 실사 전 = 종전(그날 끝)과 같으니 표시를 지운다 */
+      w.remove(); chg(i); return; }
+    if (a === 'x') w.remove();
+  });
+  document.body.appendChild(w); paint();
+}
+
+/* 조정 후 재고 칸 — chg() 와 지금 재고를 다 읽었을 때 같이 쓴다 */
+function afPaint(i){
+  var r = ROWS[i], af = gel('af'+i); if (!r || !af) return;
+  var pack = curPack(i), aft = nvl(gel('bx'+i).value) * pack + nvl(gel('ea'+i).value), diff = aft - befOf(r);
+  /* 그날 입출고 단추 — 지난 날짜에서 수량을 고친 줄만. 처음 고칠 때 그날 입출고를 읽어 온다 */
+  var chip = '';
+  if (_pastDt && (aft !== nvl(r.curQty) || r._bef != null)){
+    if (!r._dayLd) dayLoad(r);
+    if (r._day && r._day.length){ var nAf = (r._dayCk || []).filter(function(x){ return !x; }).length;
+      chip = '<br><span class="daychip' + (nAf ? ' set' : '') + '" onclick="dayOpen(' + i + ', event)" title="' + mdTxt(_pastDt) + ' 입출고 중 실사 뒤에 일어난 것을 고릅니다 — 기본은 전부 실사 전(그날 끝 재고)">⏱ ' + (nAf ? '실사 뒤 ' + nAf + '건' : '그날 입출고 ' + r._day.length + '건') + '</span>'; }
+  }
+  if (diff === 0){ af.innerHTML = '<span class="dim">-</span>' + chip; return; }
+  var h = '<b class="aft' + (aft < 0 ? ' neg' : '') + '" title="조정 후 재고 = 수정BOX ' + nvl(gel('bx'+i).value) + ' × 입수 ' + pack + ' + 수정EA ' + nvl(gel('ea'+i).value) + ' (' + (_pastDt ? mdTxt(_pastDt) + ' 끝 ' : '지금 ') + nvl(r.curQty) + ')">' + aft + '</b>';
+  if (_pastDt && _nowQ && _nowQ.hasOwnProperty(String(r.prodSeq))){
+    var nw = _nowQ[String(r.prodSeq)], nf = nw + diff;
+    h += '<span class="afnow" title="지금 재고 ' + nw + ' 에 증감 ' + (diff > 0 ? '+' : '') + diff + ' 이 더해진 값 — ' + mdTxt(_pastDt) + ' 뒤 입출고는 그대로">→ 지금 <b' + (nf < 0 ? ' class="neg"' : '') + '>' + nf + '</b></span>';
+  }
+  af.innerHTML = h + chip;
+}
 function alertBox(msg, icon){
   if (window._alertBox) window._alertBox(msg, { icon: icon || 'ℹ️' });
   else alert(String(msg).replace(/<[^>]+>/g,''));
@@ -530,6 +675,7 @@ function load(){
   var _bd = gel('baseDt').value || '', _nw = new Date(),
       _td = _nw.getFullYear() + '-' + ('0'+(_nw.getMonth()+1)).slice(-2) + '-' + ('0'+_nw.getDate()).slice(-2);
   p.append('asOfDt',    (_bd && _bd < _td) ? _bd : '');
+  _pastDt = (_bd && _bd < _td) ? _bd : ''; _nowQ = null; pastNote();   /* 지난 날짜 조정 안내 (2026-11-23) */
   p.append('whCd',      gel('adjWh').value || '');          /* 창고(2026-09-16 P3) — 비면 전 창고 합계 */
 
   gel('body').innerHTML = '<tr><td colspan="13" class="c dim" style="padding:26px">불러오는 중…</td></tr>';
@@ -542,11 +688,13 @@ function load(){
     .then(function(r){ return r.json(); })
     /* ★busy 는 applyFilter(=2,000행 그리기) 뒤에 끈다 — 그리기도 체감 대기시간이다.
        applyFilter 가 터져도 아래 catch 가 받아 busy(false) 를 불러 안 남는다. */
-    .then(function(d){ _ALL = (d && d.data) || []; _allVer++; fillFilters(); applyFilter(); busy(false); })
+    .then(function(d){ _ALL = (d && d.data) || []; _allVer++; fillFilters(); applyFilter(); busy(false); if (_pastDt) nowLoad(); })
     .catch(function(){ busy(false); alertBox('목록을 불러오지 못했습니다.', '⚠️'); });
 }
 
 function render(){
+  ROWS.forEach(function(r){ r._bef = null; r._dayCk = null; });   /* 다시 그리면 수량 칸이 풀리므로 실사 시점 선택도 (2026-11-23) */
+  var _ua = gel('undoAll'); if (_ua) _ua.classList.remove('on');   /* 새로 그리면 고친 것이 없다 — [입력 모두 되돌리기] 감춤 */
   if (!ROWS.length){
     gel('body').innerHTML = '<tr><td colspan="13" class="c dim" style="padding:26px">자료가 없습니다.</td></tr>';
     gel('cnt').textContent = '0건';
@@ -625,7 +773,7 @@ function adjExcel(){
     var st=_pm[r.prodSeq]||{}, sb=_subOf[String(r.prodCd)], i=idx[String(r.prodSeq)+"|"+String(r.prodCd)];
     var bx="", ea="", df="", af="";
     if(i!=null && gel("bx"+i)){ bx=nvl(gel("bx"+i).value); ea=nvl(gel("ea"+i).value); var pk=nvl(gel("pk"+i)?gel("pk"+i).value:r.packQty)||1;
-      df=(bx*pk+ea)-nvl(r.curQty); af=bx*pk+ea; }
+      df=(bx*pk+ea)-befOf(r); af=bx*pk+ea; }
     return [r.prodCd, sb?"서브":"", sb?sb.prodCd:"", r.prodNm, r.spec, nvl(r.packQty), r.typeNm||"", r.makerNm||"",
             st.stopYn==="Y"?fmtDt8(st.stopFrDt):"", nvl(r.boxQty), nvl(r.eaQty), nvl(r.curQty), bx, ea, df, af];
   }));
@@ -708,6 +856,21 @@ function eaLock(i){
   var lk = (curPack(i) <= 1);
   e.readOnly = lk; e.tabIndex = lk ? -1 : 0; e.classList.toggle('lk', lk); e.title = lk ? EA_LOCK_TIP : '';
 }
+/* ★입력 되돌리기 (2026-11-23 사용자 「입력 후 되돌리기」) — 저장하기 전, 고친 줄을 처음(읽어 온) 값으로 : 수정BOX·수정EA·입수수량 · 표시 BOX/EA · 실사 시점(⏱) 선택.
+     저장된 재고·조정 이력은 건드리지 않는다(저장 뒤 물리는 것은 아래 조정 이력의 [되돌리기]). 종전엔 손으로 원래 숫자를 다시 쳐야 했다 */
+function rowDirty(i){ var r = ROWS[i]; if (!r || !gel('bx'+i)) return false; var op = nvl(r.packQty) < 1 ? 1 : nvl(r.packQty);
+  return curPack(i) !== op || String(gel('bx'+i).value) !== String(nvl(r.boxQty)) || String(gel('ea'+i).value) !== String(nvl(r.eaQty)) || r._bef != null; }
+function rowUndo(i, ev){
+  if (ev){ ev.stopPropagation(); ev.preventDefault(); }
+  var r = ROWS[i]; if (!r || !gel('bx'+i)) return;
+  gel('pk'+i).value = nvl(r.packQty); gel('vb'+i).textContent = nvl(r.boxQty); gel('ve'+i).textContent = nvl(r.eaQty);
+  gel('bx'+i).value = nvl(r.boxQty); gel('ea'+i).value = nvl(r.eaQty);
+  r._bef = null; r._dayCk = null; eaLock(i); chg(i);
+}
+function undoAll(){
+  var n = 0; for (var i = 0; i < ROWS.length; i++) if (rowDirty(i)){ rowUndo(i); n++; }
+  if (n) toast('입력한 ' + n + '줄을 처음 값으로 되돌렸습니다.');
+}
 /* 화면에 적힌 입수수량 (비었거나 1 미만이면 1) */
 function curPack(i){
   var v = nvl(gel('pk'+i) ? gel('pk'+i).value : 0);
@@ -740,18 +903,18 @@ function chg(i, quiet){
   var r    = ROWS[i];
   var pack = curPack(i);                       /* 화면에서 고친 입수수량을 쓴다 */
   var aft  = nvl(gel('bx'+i).value) * pack + nvl(gel('ea'+i).value);
-  var diff = aft - nvl(r.curQty);
+  var diff = aft - befOf(r);   /* 실사 시점을 고른 줄이면 그 기준 (2026-11-23) */
 
   var td = gel('df'+i), tr = gel('tr'+i), af = gel('af'+i);
   /* 조정 후 재고 (2026-11-19) — 증감만으로는 «그래서 재고가 얼마가 되나»를 암산해야 했다. 고친 줄에만 굵게, 음수면 빨강 */
-  if (af) af.innerHTML = (diff === 0) ? '<span class="dim">-</span>'
-       : '<b class="aft' + (aft < 0 ? ' neg' : '') + '" title="조정 후 재고 = 수정BOX ' + nvl(gel('bx'+i).value) + ' × 입수 ' + pack + ' + 수정EA ' + nvl(gel('ea'+i).value) + ' (지금 ' + nvl(r.curQty) + ')">' + aft + '</b>';
+  if (af) afPaint(i);   /* 지난 날짜면 «→ 지금 X» 도 (2026-11-23) */
+  var ub = rowDirty(i) ? '<button type="button" class="rowundo" onclick="rowUndo(' + i + ', event)" title="이 줄에 넣은 값을 처음 값으로 되돌립니다(저장 전)">↩</button>' : '';   /* 입력 되돌리기 (2026-11-23) */
   if (diff === 0){
-    td.innerHTML = '<span class="dim">-</span>';
+    td.innerHTML = '<span class="dim">-</span>' + ub;
     tr.classList.remove('chg');
   } else {
     td.innerHTML = '<span class="diff ' + (diff > 0 ? 'up' : 'dn') + '">'
-                 + (diff > 0 ? '+' : '') + diff + '</span>';
+                 + (diff > 0 ? '+' : '') + diff + '</span>' + ub;
     tr.classList.add('chg');
   }
   if (!quiet) countChg();
@@ -763,9 +926,11 @@ function countChg(){
   for (var i = 0; i < ROWS.length; i++){
     var pack = curPack(i);
     var aft  = nvl(gel('bx'+i).value) * pack + nvl(gel('ea'+i).value);
-    if (aft - nvl(ROWS[i].curQty) !== 0) n++;
+    if (aft - befOf(ROWS[i]) !== 0) n++;
   }
   gel('chgCnt').textContent = n;
+  var any = false; for (var k = 0; k < ROWS.length && !any; k++) if (rowDirty(k)) any = true;
+  var ua = gel('undoAll'); if (ua) ua.classList.toggle('on', any);   /* 고친 것이 하나라도 있으면 (2026-11-23) */
   return n;
 }
 
@@ -802,9 +967,9 @@ function save(){
       packs.push({ prodSeq:r.prodSeq, packQty:pack });
 
     // ② 재고가 바뀐 줄 — 안 고쳤으면 보내지 않는다
-    if (aBox * pack + aEa - nvl(r.curQty) === 0) continue;
+    if (aBox * pack + aEa - befOf(r) === 0) continue;
     rows.push({ prodSeq:r.prodSeq, prodCd:r.prodCd, prodNm:(r.prodNm||''), packQty:pack,   /* prodNm = 승인 요청 목록 표시용(서버 저장은 안 쓴다) */
-                befQty:nvl(r.curQty), befBox:nvl(r.boxQty), befEa:nvl(r.eaQty),
+                befQty:befOf(r), befBox:nvl(r.boxQty), befEa:nvl(r.eaQty),   /* befOf = 실사 시점을 고른 줄이면 그 기준 (2026-11-23) */
                 aftBox:aBox, aftEa:aEa });
   }
 
@@ -846,6 +1011,10 @@ function save(){
       }
       load();                                   /* 바뀐 값으로 다시 그린다 */
       reqLoad(); reqBadge();
+      /* 조정 이력도 새로 (2026-11-23 — 종전엔 저장해도 아래 이력이 그대로라 방금 넣은 조정이 안 보였다).
+         보이는 중이면 바로 읽고, 안 보이면 그 탭을 열 때 읽는다(기억 비움 + 키를 어긋나게) */
+      _hisCache = {}; _hisSelKey = '\u0000';
+      if (tabNow() !== 'req' && !gel('histBox').classList.contains('off')) hisLoad(true);
     })
     .catch(function(e){
       gel('btnSave').disabled = false;
@@ -892,7 +1061,32 @@ function save(){
     return;                                   /* 저장하지 않는다 */
   }
 
+  /* ★지난 날짜면 — 그 날짜 «뒤»에 이미 조정이 있는 품목을 먼저 알아본다 (2026-11-23). 있으면 그 조정도 그대로 더해져,
+     같은 실사를 오늘 자로 이미 넣어 둔 품목이면 두 번 맞추는 셈이 된다. 한 번 읽고 save() 를 다시 부른다(save._later) */
+  if (_pastDt && rows.length && !save._later){
+    busy(true, mdTxt(_pastDt) + ' 뒤의 조정이 있는지 보는 중…');
+    var nd = d10add(_pastDt, 1);
+    Promise.all(rows.slice(0, 40).map(function(r){
+      return fetch(CTX + '/prod/stockAdjHisList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin',
+                    body:'dtFrom=' + encodeURIComponent(nd) + '&prodSeq=' + encodeURIComponent(r.prodSeq) })
+        .then(function(x){ return x.json(); }).then(function(d){ return { r:r, h:(d && d.data) || [] }; }).catch(function(){ return { r:r, h:[] }; });
+    })).then(function(res){ busy(false); save._later = res.filter(function(x){ return x.h.length; }); save(); });
+    return;
+  }
+  var later = save._later || []; save._later = null;
+
   var lines = [];
+  if (_pastDt && rows.length){
+    lines.push('📅 <b>지난 날짜 조정</b> — 입력한 수량이 <b>' + mdTxt(_pastDt) + ' 하루 끝 재고</b>가 되고, 그 뒤 입출고는 그대로 이어서 계산됩니다.');
+    if (_nowQ){ var ex = rows.slice(0, 3).map(function(r){ var nw = _nowQ[String(r.prodSeq)]; if (nw == null) return ''; var df = nvl(r.aftBox) * nvl(r.packQty) + nvl(r.aftEa) - nvl(r.befQty);
+        return esc(r.prodCd) + ' 지금 ' + nw + ' → <b>' + (nw + df) + '</b>'; }).filter(function(x){ return x; });
+      if (ex.length) lines.push('<span style="font-size:12.5px;color:#3d4d5c">저장하면 오늘 재고 : ' + ex.join(' · ') + (rows.length > 3 ? ' …' : '') + '</span>'); }
+    var setR = rows.filter(function(x){ var o = null; ROWS.forEach(function(r){ if (r.prodSeq === x.prodSeq) o = r; }); return o && o._bef != null; });
+    if (setR.length) lines.push('<span style="font-size:12.5px;color:#7a5200">⏱ 실사 시점을 고른 품목 ' + setR.length + '개 — 그날 입출고 중 «실사 뒤» 것은 조정 뒤에 이어서 반영됩니다(조정 전 수량 = 실사 때 장부 재고).</span>');
+    if (later.length) lines.push('<span style="font-size:12.5px;color:#b23b3b">⚠ ' + mdTxt(_pastDt) + ' <b>뒤에 이미 조정이 있는 품목</b> ' + later.length + '개 — '
+      + later.slice(0, 3).map(function(x){ var h = x.h[0]; return esc(x.r.prodCd) + ' (' + esc(String(h.baseDt).slice(4,6) + '/' + String(h.baseDt).slice(6,8)) + ' ' + (nvl(h.diffQty) > 0 ? '+' : '') + nvl(h.diffQty) + (x.h.length > 1 ? ' 외 ' + (x.h.length - 1) + '건' : '') + ')'; }).join(', ')
+      + (later.length > 3 ? ' …' : '') + '<br>그 조정도 그대로 더해집니다. 같은 실사를 이미 오늘 자로 넣어 둔 것이면, 아래 조정 이력에서 그 조정을 먼저 되돌린 뒤 저장하세요.</span>');
+  }
   if (packs.length) lines.push('입수수량 <b>' + packs.length + '건</b> — 환산 기준만 바뀝니다(재고 그대로).');
   var needAppr = (_req.ready && !_req.admin);        /* 직원 = 승인 요청 (서버가 최종 판정 — 화면은 문구만 맞춘다) */
   if (rows.length)  lines.push('재고 <b>' + rows.length + '건</b> 을 <b>'
@@ -956,19 +1150,22 @@ function reqFold(){ _req.fold = !_req.fold; reqRender(); }
    · 서버가 승인 요청을 못 주면(옛 서버 · 표 없음 — _req.ready=false) 조정 이력만 보이고 승인 요청 탭은 감춘다.
    · 높이 막대(adjGrip)는 «지금 보이는 탭의 표»를 늘리고 줄인다 — tabWrap()/tabBox(). */
 var _tab = 'req';
-function tabNow(){ return _req.ready ? _tab : 'his'; }
+function tabNow(){ if (_tab === 'sel' && !_hisSel) _tab = 'his'; return _req.ready ? _tab : (_tab === 'sel' ? 'sel' : 'his'); }   /* 'sel' = 고른 코드 이력 (2026-11-23) — 상자는 조정 이력 것을 같이 쓴다 */
 function tabBox(){ return gel(tabNow() === 'req' ? 'reqBox' : 'histBox'); }
 function tabWrap(){ return gel(tabNow() === 'req' ? 'reqWrap' : 'hisWrap'); }
 function tabPaint(){
   var rq = gel('reqBox'), hs = gel('histBox'); if (!rq || !hs) return;
   var t = tabNow();
   rq.style.display = (t === 'req') ? '' : 'none';
-  hs.style.display = (t === 'his') ? '' : 'none';
+  hs.style.display = (t !== 'req') ? '' : 'none';
+  var ht = gel('hisTab'); if (ht) ht.classList.toggle('on', t === 'his');
+  [].forEach.call(document.querySelectorAll('.htab .tb.selt'), function(b){ b.classList.toggle('on', t === 'sel'); });
   var r2 = gel('reqTab2'); if (r2) r2.style.display = _req.ready ? '' : 'none';
   if (t === 'his' && !hs.classList.contains('off') && gel('hisBody').children.length <= 1 && !tabPaint._his){ tabPaint._his = true; hisLoad(); }   /* 처음 열 때 한 번 */
-  else if (t === 'his' && !hs.classList.contains('off') && _hisSelKey !== hisSelKey()) hisLoad(true);   /* 다른 탭을 보는 동안 고른 코드가 바뀌었다 */
+  else if (t !== 'req' && !hs.classList.contains('off') && _hisSelKey !== hisSelKey()) hisShow();   /* 전체 ↔ 고른 코드 탭을 바꿨거나, 다른 탭을 보는 동안 고른 코드가 바뀌었다 */
 }
 function tabGo(t){
+  if (t === 'sel' && !_hisSel){ toast('위 목록에서 상품 줄을 누르면 그 코드의 조정 이력을 봅니다.'); return; }
   if (t === tabNow()){ if (t === 'req') reqFold(); else hisToggle(); return; }   /* 켜진 탭 = 접기/펼치기 */
   _tab = t; tabPaint();
   var v = (typeof adjGripGet === 'function') ? adjGripGet() : 0; if (v && typeof adjGripSet === 'function') setTimeout(function(){ adjGripSet(v, true); }, 0);   /* 고른 높이를 새 탭 표에도 */
@@ -1132,26 +1329,40 @@ function hisToggle(){
      · 조정 이력 탭이 보이는 중이면 바로 다시 읽고(모래시계 없이 조용히 · 0.25초 모아서 — 칸을 Tab 으로 넘기며 줄이 바뀔 때마다 서버를 두드리지 않게),
        승인 요청 탭을 보는 중이면 표만 바꿔 두었다가 조정 이력 탭으로 넘어올 때 읽는다(tabPaint).
      · ✕ = 고른 코드 풀기 → 전체 이력. 목록을 다시 조회해도 고른 코드는 남는다(줄 왼쪽 청록 띠). 찾기 칸(#hQ)·[이 줄만 취소]는 그대로 쓴다. */
-var _hisSel = null, _hisSelKey = '', _hisSelT = 0, _hisSeq = 0;
-function hisSelKey(){ return _hisSel ? String(_hisSel.prodSeq) : ''; }
-function hisSelPaint(){
-  var el = gel('hSel'); if (!el) return;
-  if (!_hisSel){ el.className = ''; el.innerHTML = ''; return; }
-  el.className = 'on';
-  el.innerHTML = '고른 코드 ' + esc(_hisSel.prodCd) + ' <span class="nm">' + esc(_hisSel.prodNm) + '</span><button type="button" onclick="hisSelClear()" title="고른 코드 풀기 — 전체 조정 이력으로">✕</button>';
+/* ★2026-11-23 사용자 「해당 조정코드이력 탭 별도 추가로 보여줘」 — 고른 코드 이력을 [조정 이력]과 «따로 선 탭»(sel)으로 뺐다.
+     · [조정 이력](his) = 늘 전체 · [🔎 코드 … 이력](sel) = 고른 코드 것만. 줄을 골라도 보던 탭은 그대로이고, 고른 코드 탭의 이름이 바뀌며 반짝인다.
+     · 읽은 결과는 탭마다 기억해 두었다가(_hisCache) 탭을 오갈 때 바로 보인다 — [이력조회] · 되돌리기 · 저장 등으로 다시 읽으면 기억은 비운다.
+     · 고른 코드 탭을 보는 중에 다른 줄을 고르면 그 코드로 다시 읽는다(종전처럼 0.25초 모아서 · 조용히) */
+var _hisSel = null, _hisSelKey = '', _hisSelT = 0, _hisSeq = 0, _hisCache = {};
+function hisFilt(){ return tabNow() === 'sel' ? _hisSel : null; }   /* 지금 보는 탭이 거르는 코드 — 전체 탭이면 null */
+function hisSelKey(){ var f = hisFilt(); return f ? (f.seqs || [f.prodSeq]).join(',') : ''; }
+/* 탭을 바꿨을 때 — 기억한 결과가 있으면 바로, 없으면 읽는다 */
+function hisShow(){ var k = hisSelKey(); if (_hisCache.hasOwnProperty(k)){ _his = _hisCache[k]; _hisSelKey = k; hisPaint(); } else hisLoad(false, true); }
+function hisSelPaint(flash){
+  [].forEach.call(document.querySelectorAll('.htab .tb.selt'), function(el){
+    if (!_hisSel){ el.classList.remove('has'); el.innerHTML = ''; return; }
+    el.classList.add('has');
+    /* ★탭 이름 = 「해당코드 조정이력」 (2026-11-23 사용자 「해당코드 조정이력으로 탭 추가해서」) — 상품명을 길게 늘어놓지 않고 코드만 작게. 상품명은 말풍선에 */
+    el.title = '해당코드 조정이력 — ' + _hisSel.prodCd + ' ' + _hisSel.prodNm + (_hisSel.mainCd ? '\n서브코드 줄이라 주코드 ' + _hisSel.mainCd + ' 의 조정 이력도 함께 봅니다' : '') + '\n기간 칸이 비어 있으면 전 기간 · ✕ = 고르기 풀기';
+    el.innerHTML = '🔎 해당코드 조정이력 <span class="nm">' + esc(_hisSel.prodCd) + (_hisSel.mainCd ? ' · 주 ' + esc(_hisSel.mainCd) : '') + '</span><span class="x" onclick="event.stopPropagation(); hisSelClear();" title="고르기 풀기">✕</span>';
+    if (flash && tabNow() !== 'sel'){ el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+  });
 }
 function hisSelGo(){
   clearTimeout(_hisSelT);
-  if (tabNow() !== 'his' || gel('histBox').classList.contains('off')) return;   /* 안 보이는 중 — 탭을 열 때 읽는다 */
-  _hisSelT = setTimeout(function(){ if (_hisSelKey !== hisSelKey()) hisLoad(true); }, 250);
+  if (tabNow() !== 'sel' || gel('histBox').classList.contains('off')) return;   /* 고른 코드 탭을 안 보는 중 — 그 탭을 열 때 읽는다 */
+  _hisSelT = setTimeout(function(){ if (_hisSelKey !== hisSelKey()) hisLoad(true, true); }, 250);   /* 줄만 바꿔 고른 것 — 전체 탭의 기억은 그대로 */
 }
 function hisPick(i){
   var r = ROWS[i]; if (!r || r.prodSeq == null) return;
   if (_hisSel && String(_hisSel.prodSeq) === String(r.prodSeq)) return;          /* 같은 줄 — 아무 일 없음 */
-  _hisSel = { prodSeq: r.prodSeq, prodCd: r.prodCd, prodNm: r.prodNm || '' };
+  /* 서브코드 줄이면 주코드 이력도 같이 (2026-11-23) — 서브 줄은 조정을 막아 두어(주코드에서 조정) 그 줄 이력은 대개 비어 있고, 실제 조정은 주코드에 쌓인다 */
+  var sb = _subOf[String(r.prodCd)], mSeq = (sb && sb.prodSeq != null && String(sb.prodSeq) !== String(r.prodSeq)) ? sb.prodSeq : null;
+  _hisSel = { prodSeq: r.prodSeq, prodCd: r.prodCd, prodNm: r.prodNm || '', mainSeq: mSeq, mainCd: mSeq != null ? String(sb.prodCd || '') : '',
+              seqs: mSeq != null ? [r.prodSeq, mSeq] : [r.prodSeq] };
   var old = document.querySelector('#body tr.pick'); if (old) old.classList.remove('pick');
   var tr = gel('tr' + i); if (tr) tr.classList.add('pick');
-  hisSelPaint(); hisSelGo();
+  hisSelPaint(true); hisSelGo();
 }
 /* 줄 고르기는 표 몸통(#body) 한 곳에서 받는다 — 줄을 누르거나, Tab 으로 그 줄의 칸에 들어가거나(focusin).
    줄마다 속성으로 달지 않는다 : onfocusin 은 표준 속성이 아니라 브라우저가 무시하고, 200줄마다 속성 두 개씩이면 그리는 글자만 는다 */
@@ -1166,30 +1377,39 @@ function hisPick(i){
 function hisSelClear(){
   _hisSel = null;
   var old = document.querySelector('#body tr.pick'); if (old) old.classList.remove('pick');
-  hisSelPaint(); hisSelGo();
+  var wasSel = (_tab === 'sel');
+  hisSelPaint();
+  if (wasSel){ _tab = 'his'; tabPaint(); }   /* 고른 코드 탭을 보던 중이면 전체 이력 탭으로 */
 }
 
-function hisLoad(quiet){
+function hisLoad(quiet, keepCache){
+  if (!keepCache) _hisCache = {};   /* 탭 전환이 아닌 다시 읽기(이력조회·되돌리기·저장 뒤) — 다른 탭의 기억도 낡았다 */
   var p = new URLSearchParams();
   p.append('dtFrom',  gel('hFrom').value || '');
   p.append('dtTo',    gel('hTo').value   || '');
   p.append('regUser', gel('hUser').value.trim());
-  if (_hisSel) p.append('prodSeq', _hisSel.prodSeq);          /* 고른 코드의 이력만 (2026-11-22) */
+  var f = hisFilt(), seqs = f ? (f.seqs || [f.prodSeq]) : [null];   /* 해당코드 탭이면 그 코드(+주코드)의 이력만 (2026-11-22 · 2026-11-23 탭으로) */
   var key = hisSelKey(), seq = ++_hisSeq;
 
   if (!quiet){
     gel('hisBody').innerHTML = '<tr><td colspan="11" class="c dim" style="padding:18px">불러오는 중…</td></tr>';
     busy(true, '조정 이력을 불러오는 중입니다…');   /* ★모래시계 (2026-08-19) */
   }
-  fetch(CTX + '/prod/stockAdjHisList.do', {
-      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      credentials:'same-origin', body: p.toString() })
-    .then(function(r){ return r.json(); })
-    .then(function(d){
+  Promise.all(seqs.map(function(ps){
+      var q = new URLSearchParams(p.toString()); if (ps != null) q.append('prodSeq', ps);
+      return fetch(CTX + '/prod/stockAdjHisList.do', {
+          method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+          credentials:'same-origin', body: q.toString() })
+        .then(function(r){ return r.json(); }); }))
+    .then(function(all){
       if (!quiet) busy(false);
       if (seq !== _hisSeq) return;                              /* 그새 다른 줄을 골랐다 — 늦게 온 응답은 버린다 */
       _hisSelKey = key;
-      _his = (d && d.data) || [];
+      var seen = {}, rows = [];
+      all.forEach(function(d){ ((d && d.data) || []).forEach(function(h){ var k = String(h.adjSeq); if (seen[k]) return; seen[k] = 1; rows.push(h); }); });
+      if (all.length > 1) rows.sort(function(a, b){ return String(a.regDttm) < String(b.regDttm) ? 1 : (String(a.regDttm) > String(b.regDttm) ? -1 : nvl(b.adjSeq) - nvl(a.adjSeq)); });   /* 두 코드를 합쳤으면 최근 것부터 */
+      _his = rows;
+      _hisCache[key] = _his;
       hisPaint();
     })
     .catch(function(){ if (!quiet) busy(false); if (seq !== _hisSeq) return; alertBox('이력을 불러오지 못했습니다.', '⚠️'); });
@@ -1208,7 +1428,7 @@ function hisPaint(){
   var rows = toks.length ? _his.filter(function(h){ var t = (String(h.prodCd || '') + ' ' + String(h.prodNm || '')).toLowerCase(); return toks.every(function(k){ return t.indexOf(k) >= 0; }); }) : _his;
   if (gel('hQCnt')) gel('hQCnt').textContent = toks.length ? (rows.length + '건 / 전체 ' + _his.length + '건') : '';
   if (!rows.length){
-    gel('hisBody').innerHTML = '<tr><td colspan="11" class="c dim" style="padding:18px">' + (_his.length ? '「' + esc(q) + '」에 맞는 조정 이력이 없습니다 — 기간을 넓혀 [이력조회] 해 보세요.' : (_hisSel ? '고른 코드 ' + esc(_hisSel.prodCd) + ' 의 조정 이력이 없습니다.' : '조정 이력이 없습니다.')) + '</td></tr>';
+    gel('hisBody').innerHTML = '<tr><td colspan="11" class="c dim" style="padding:18px">' + (_his.length ? '「' + esc(q) + '」에 맞는 조정 이력이 없습니다 — 기간을 넓혀 [이력조회] 해 보세요.' : (hisFilt() ? '해당코드 ' + esc(hisFilt().prodCd) + (hisFilt().mainCd ? ' (주코드 ' + esc(hisFilt().mainCd) + ' 포함)' : '') + ' 의 조정 이력이 없습니다.' : '조정 이력이 없습니다.')) + '</td></tr>';
     return;
   }
   var prev = null;
