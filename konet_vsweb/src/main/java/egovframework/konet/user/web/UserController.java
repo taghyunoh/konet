@@ -768,6 +768,14 @@ public class UserController {
 		     출고일자는 저장·조회 컬럼으로는 그대로 쓴다(화면 조회 기준은 여전히 SHPOUT_DT).
 		   · "기존화면 자료 초기화 후 생성" = 기존 활성배치 ACTION_YN='N' 처리(이력보존) 후 신규 적재
 		   · 날짜('-' 포함 yyyy-mm-dd)는 매퍼에서 REPLACE 로 '-' 제거하여 NVARCHAR(10) 저장 */
+		/* 발주현황표 줄의 «같은 줄» 열쇠 — 발주번호+항번+사업장+품목+수량+주문번호+주문항번. 발주번호가 비면 null(겹침 판정 안 함) (2026-11-24) */
+		private static String shipDupKey(egovframework.konet.user.model.ShipoutDTO r) {
+			String o = r.getOrdNo() == null ? "" : r.getOrdNo().trim();
+			if (o.isEmpty()) return null;
+			return o + "|" + nz(r.getOrdItemNo()) + "|" + nz(r.getBizCd()) + "|" + nz(r.getItemCd()) + "|" + r.getLabelQty() + "|" + r.getCurQty()
+			     + "|" + nz(r.getJumunNo()) + "|" + nz(r.getJumunItemNo());
+		}
+		private static String nz(String s) { return s == null ? "" : s.trim(); }
 		@RequestMapping(value="/shipout/saveShipoutMst.do", method = RequestMethod.POST)
 		public ResponseEntity<String> saveShipoutMst(@RequestBody List<egovframework.konet.user.model.ShipoutDTO> rows,
 		                                             HttpServletRequest request, HttpSession session) {
@@ -789,9 +797,29 @@ public class UserController {
 					g.add(r);
 				}
 
+				/* ★한 번에 올린 파일끼리 겹치는 줄 걸러내기 (2026-11-24 「전체 확인」 — 정산서와 같은 결함이 발주현황표에도 4일 있었다)
+				     실측 : 1/8(8.xlsx·9.xlsx) · 3/24(24·25) · 7/17(17·18) · 10/13(23.31.11·23.31.22) — 같은 날 자료를 담은 두 파일을 함께 올려 786줄이 두 번 들어갔다.
+				     ⇒ (납기일자+물류센터) 묶음 안에서 같은 줄 열쇠(shipDupKey)가 «다른 파일»에도 있으면 뒤에 온 파일 것만 남긴다. 한 파일 안의 같은 줄·발주번호 빈 줄은 그대로.
+				     (뚜껑·용기 입고예약서처럼 같은 발주번호라도 품목이 다르면 열쇠가 달라 둘 다 남는다) */
+				int dupSkip = 0;
+				for (java.util.Map.Entry<String, java.util.List<egovframework.konet.user.model.ShipoutDTO>> ge : groups.entrySet()) {
+					java.util.List<egovframework.konet.user.model.ShipoutDTO> grp = ge.getValue();
+					java.util.Map<String,String> lastFile = new java.util.HashMap<String,String>();
+					for (egovframework.konet.user.model.ShipoutDTO r : grp) { String k = shipDupKey(r); if (k != null) lastFile.put(k, r.getSrcFile() == null ? "" : r.getSrcFile()); }
+					java.util.List<egovframework.konet.user.model.ShipoutDTO> keep = new java.util.ArrayList<egovframework.konet.user.model.ShipoutDTO>(grp.size());
+					for (egovframework.konet.user.model.ShipoutDTO r : grp) {
+						String k = shipDupKey(r), f = r.getSrcFile() == null ? "" : r.getSrcFile();
+						if (k != null && !f.equals(lastFile.get(k))) { dupSkip++; continue; }
+						keep.add(r);
+					}
+					ge.setValue(keep);
+				}
+				if (dupSkip > 0) log.info(" saveShipoutMst 파일 간 겹친 줄 제외 : " + dupSkip);
+
 				int total = 0;
 				java.util.LinkedHashSet<String> syncDates = new java.util.LinkedHashSet<String>();
 				for (java.util.List<egovframework.konet.user.model.ShipoutDTO> grp : groups.values()) {
+					if (grp.isEmpty()) continue;
 					// 0) 이력마감으로 사라질 기존 활성배치의 출고일자 수집  1) 같은 (납품일자,물류센터) 기존 활성배치 이력마감(삭제이력)
 					// 2) 신규 JOB_SEQ  3) 그룹 전체행 INSERT
 					egovframework.konet.user.model.ShipoutDTO head = grp.get(0);
@@ -900,6 +928,7 @@ public class UserController {
 					          ? se.getClass().getSimpleName() : se.getMessage().trim();
 				}
 				return ResponseEntity.ok(String.valueOf(total)
+				        + (dupSkip > 0 ? "|DUP:" + dupSkip : "")   /* 파일끼리 겹쳐 뺀 줄 수 (2026-11-24) — 화면이 떼어 알린다 */
 				        + (stockWarn == null ? "" : "|STOCKFAIL:" + stockWarn)
 				        + bizInfo);
 			} catch (Exception e) {
@@ -917,6 +946,13 @@ public class UserController {
 		//   · 응답은 반드시 Map(JSON 객체)으로 — ResponseEntity<String> 로 JSON 문자열을 담으면
 		//     Jackson 이 그 문자열을 한 번 더 감싸서 "{\"saved\":..}" 로 나가고, 화면의 JSON.parse 가 객체가 아닌
 		//     문자열을 받아 saved/price 가 전부 0으로 보인다(실제 저장은 정상인데 토스트만 0). 그 함정 회피.
+		/* 정산서 줄의 «같은 줄» 열쇠 — 발주번호+항번+품목+납품유형. 발주번호가 비면 null(겹침 판정 안 함) (2026-11-24) */
+		private static String salesDupKey(egovframework.konet.user.model.SalesDTO r) {
+			String o = r.getOrdNo() == null ? "" : r.getOrdNo().trim();
+			if (o.isEmpty()) return null;
+			return o + "|" + (r.getOrdItemNo() == null ? "" : r.getOrdItemNo().trim()) + "|" + (r.getItemCd() == null ? "" : r.getItemCd().trim())
+			     + "|" + (r.getDlvType() == null ? "" : r.getDlvType().trim());
+		}
 		@RequestMapping(value="/sales/saveSalesMst.do", method = RequestMethod.POST)
 		@ResponseBody
 		public ResponseEntity<Map<String,Object>> saveSalesMst(@RequestBody List<egovframework.konet.user.model.SalesDTO> rows,
@@ -943,8 +979,29 @@ public class UserController {
 					g.add(r);
 				}
 
+				/* ★한 번에 올린 파일끼리 겹치는 줄 걸러내기 (2026-11-24 사용자 「정산수량이 많은 것은」 — 김해 4/21~4/30 정산서가 두 배)
+				     파일 여러 개를 한 번에 저장하면 (납품일자+출고장) 묶음에 여러 파일의 줄이 같이 들어온다. 이력마감은 «DB 에 있던» 옛 자료만 닫으므로
+				     같은 날을 담은 두 파일(실측 : 2026.08.23_김해.xlsx 1/1~8/20 · 2026.08.24_김해.xlsx 2/11~6/20)을 같이 올리면 겹친 날이 통째로 두 번 들어갔다
+				     (76줄 · 2,938,476원 · 재고도 두 번 차감). ⇒ 묶음 안에서 같은 발주번호+항번+품목+납품유형이 «다른 파일»에도 있으면 뒤에 온 파일 것만 남긴다
+				     (한 파일 안의 같은 열쇠 줄은 그대로 — 원본에 실제로 두 줄일 수 있다). 발주번호가 빈 줄은 건드리지 않는다. */
+				int dupSkip = 0;
+				for (java.util.Map.Entry<String, java.util.List<egovframework.konet.user.model.SalesDTO>> ge : groups.entrySet()) {
+					java.util.List<egovframework.konet.user.model.SalesDTO> grp = ge.getValue();
+					java.util.Map<String,String> lastFile = new java.util.HashMap<String,String>();
+					for (egovframework.konet.user.model.SalesDTO r : grp) { String k = salesDupKey(r); if (k != null) lastFile.put(k, r.getSrcFile() == null ? "" : r.getSrcFile()); }
+					java.util.List<egovframework.konet.user.model.SalesDTO> keep = new java.util.ArrayList<egovframework.konet.user.model.SalesDTO>(grp.size());
+					for (egovframework.konet.user.model.SalesDTO r : grp) {
+						String k = salesDupKey(r), f = r.getSrcFile() == null ? "" : r.getSrcFile();
+						if (k != null && !f.equals(lastFile.get(k))) { dupSkip++; continue; }
+						keep.add(r);
+					}
+					ge.setValue(keep);
+				}
+				if (dupSkip > 0) log.info(" saveSalesMst 파일 간 겹친 줄 제외 : " + dupSkip);
+
 				int total = 0;
 				for (java.util.List<egovframework.konet.user.model.SalesDTO> grp : groups.values()) {
+					if (grp.isEmpty()) continue;
 					// 1) 같은 (납품일자,출고장) 기존 활성배치 이력마감  2) 신규 JOB_SEQ  3) 그룹 전체행 INSERT
 					egovframework.konet.user.model.SalesDTO head = grp.get(0);
 					head.setUpdUser(regUser);
@@ -1030,6 +1087,7 @@ public class UserController {
 				res.put("price", pApplied);   // 판매단가 이력이 실제로 들어가거나 바뀐 품목수
 				res.put("none",  pNone);      // 변화 없음(이미 같은 단가 or 품목코드가 상품마스터에 없음)
 				res.put("skip",  pSkip);      // 같은 품목·같은 날 단가가 달라 확정 못해 건너뜀
+				res.put("dupSkip", dupSkip); // 한 번에 올린 파일끼리 겹쳐 뺀 줄 수 (2026-11-24)
 				return ResponseEntity.ok(res);
 			} catch (Exception e) {
 				log.error(" saveSalesMst ERROR ! : " + e.getMessage());

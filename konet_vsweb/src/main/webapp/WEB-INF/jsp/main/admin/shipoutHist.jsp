@@ -446,7 +446,7 @@ function shPick(i){
         return '<tr><td>'+(k+1)+'</td><td>'+esc(d.bizCd)+'</td><td class="txt">'+esc(d.bizNm)+'</td>'
           + '<td>'+esc(d.itemCd)+'</td><td class="txt">'+esc(d.itemNm)+'</td>'
           /* ★수량 = 라벨수량(LABEL_QTY) (2026-09-01 「수량은 라벨수량을 출고수량으로」) — 없는 옛 행만 CUR_QTY 폴백 */
-          + '<td>'+esc(d.unit)+'</td><td class="num">'+fmt((d.labelQty!=null&&d.labelQty!=='')?d.labelQty:d.curQty)+'</td><td class="num">'+fmt(d.boxQty)+'</td>'
+          + '<td>'+esc(d.unit)+'</td><td class="num">'+fmt((function(){ var hasL=(d.labelQty!=null&&d.labelQty!==''), l=hasL?(+d.labelQty||0):null, c=(d.curQty!=null&&d.curQty!=='')?(+d.curQty||0):null; if(l==null) return c==null?0:c; return (c!=null && Math.abs(c)>Math.abs(l))?c:l; })())   /* 수량이 더 크면 수량 (2026-11-24) */+'</td><td class="num">'+fmt(d.boxQty)+'</td>'
           + '<td>'+esc(d.ordNo)+'</td><td>'+esc(d.inwh)+'</td></tr>';
       }).join('');
     })

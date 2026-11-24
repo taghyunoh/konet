@@ -61,12 +61,16 @@ function ssCtrBg(z){
    ⚠LABEL_QTY 가 없는 옛 행(구양식 업로드 등)만 CUR_QTY 폴백 — 0 은 폴백하지 않는다(0 도 값이다).
    ⚠서버 SQL(매출마감 selectClosing · 매출그래프 · 택배 totQty · 원장 연동 등)도 같은 날 LABEL_QTY 로
      맞췄다 — 한쪽만 고치면 화면과 마감 숫자가 어긋난다. */
+/* ★★[2026-11-24 사용자 「라벨수량보다 수량이 크면 수량 쓰는 걸로」] 출고수량 = 라벨수량, 단 수량(curQty)이 더 크면 수량 — 라벨 1장에 여러 개가 실리는 품목(버블티스트로우 등 16품목)이
+     실제보다 적게 잡혔다. 라벨수량이 없는 옛 줄은 수량. 서버 SQL(User_SQL.xml 65곳)·대시보드2 d2ShipQty·shipoutHist 와 같은 규칙 — 한쪽만 고치면 화면끼리 어긋난다. */
+function ssShipQty(o){ if(!o) return 0; var hasL=(o.labelQty!=null && o.labelQty!==''), l=hasL?(+o.labelQty||0):null, c=(o.curQty!=null && o.curQty!=='')?(+o.curQty||0):null;
+  if(l==null) return c==null?0:c; if(c!=null && Math.abs(c)>Math.abs(l)) return c; return l; }
+/* ★★[2026-11-24 원복 — 사용자 「매출내역 정산실적 매출마감도 원래대로 원복해줘(오류수정은 유지하고)」] 같은 날 매출내역의 «출고» 쪽을 발주수량으로 따로 세고 「정산 n」 배지를 달았다가 되돌렸다.
+     매출내역의 출고수량은 종전대로 이 ssOutQty 하나 — 정산서가 온 날은 정산수량, 안 온 날은 발주현황표 수량. 발주 ↔ 정산 대사는 「정산서 누락 조회」가 맡는다. 다시 꺼내지 말 것. */
 function ssOutQty(o){
   /* ★정산서 반영 (2026-09-03 규칙): 납기일자에 정산서가 있으면(settleYn=Y) 발주수량 대신 정산수량(settleQty) — 대시보드2 d2MapRow 와 같은 규칙 */
   if(o && (''+(o.settleYn||''))==='Y') return Math.round((+o.settleQty||0)*10)/10;
-  if(!o) return 0;
-  var v=(o.labelQty!=null && o.labelQty!=='') ? o.labelQty : o.curQty;
-  return +v||0;
+  return ssShipQty(o);   /* 라벨수량 · 수량이 더 크면 수량 (2026-11-24) */
 }
 
   /* ===================================================================
@@ -3625,8 +3629,11 @@ function ssOutQty(o){
       if(ok && t && t.indexOf('|STOCKFAIL:')>=0){
         var _p=t.split('|STOCKFAIL:'); t=_p[0]; stkFail=_p[1]||'알 수 없는 오류';
       }
+      /* 파일끼리 겹친 줄 (2026-11-24) — 응답 "<건수>|DUP:n" · 같은 날을 담은 파일 두 개를 함께 올리면 겹친 줄은 뒤 파일 것만 저장된다 */
+      var dupN=0; if(ok && t && t.indexOf('|DUP:')>=0){ var _d=t.split('|DUP:'); t=_d[0]; dupN=+_d[1]||0; }
       if(ok){
-        ssToast('💾 서버 저장 완료 — 출고일자 '+(perFile?'<b>파일별 납품일자</b>':baseDt)+' · <b>'+t+'</b>건 (기존 자료 초기화 후 생성)');
+        ssToast('💾 서버 저장 완료 — 출고일자 '+(perFile?'<b>파일별 납품일자</b>':baseDt)+' · <b>'+t+'</b>건 (기존 자료 초기화 후 생성)'
+          +(dupN?(' · <span style="color:#a85700" title="함께 올린 파일끼리 같은 날 · 같은 물류센터 · 같은 발주번호 줄이 겹쳐, 뒤 파일 것만 저장했습니다(두 번 들어가는 것을 막음)">파일끼리 겹친 '+dupN.toLocaleString()+'건 한 번만</span>'):''));
         if(stkFail){
           /* 자료는 들어갔다 — 재고만 안 붙었다. 사람이 [출고반영 재집계] 한 번 눌러야 맞는다. */
           var _m='<div style="text-align:left;line-height:1.7">자료는 <b>저장됐습니다</b>. 그런데 <b style="color:#c0392b">재고 반영에 실패</b>했습니다.'
@@ -4835,6 +4842,7 @@ function ssOutQty(o){
           var msg='💾 저장 완료 — <b>'+(+j.saved||0).toLocaleString()+'</b>행 · 판매단가 이력 <b>'+(+j.price||0)+'</b>종 반영';
           if(+j.none)  msg+=' · <span style="color:#9aa7b3">변화없음 '+j.none+'종</span>';
           if(+j.skip)  msg+=' · <span style="color:#a85700">단가충돌 '+j.skip+'종 제외</span>';
+          if(+j.dupSkip) msg+=' · <span style="color:#a85700" title="함께 올린 파일끼리 같은 날 · 같은 출고장 · 같은 발주번호 줄이 겹쳐, 뒤 파일 것만 저장했습니다(두 번 들어가 재고·매출이 두 배가 되는 것을 막음)">파일끼리 겹친 '+(+j.dupSkip).toLocaleString()+'행 한 번만</span>';   /* 2026-11-24 */
           msg+=_leftMsg(_slsAfterSave(savedNames));
           ssToast(msg);
           /* ★★재고원장 동기화 실패를 «조용히» 넘기지 않는다 (2026-09-10 신설) —
@@ -6449,7 +6457,7 @@ function ssOutQty(o){
        조정 줄의 수량은 «증감»이다(재고 30 을 31 로 맞추면 1) — 그대로 두면 「1 을 입력했다」로 읽힌다(실제로 그렇게 물어 왔다).
        서버가 조정 이력에서 가져온 adjBef·adjAft 가 있을 때만 「30 → 31」 알약 + 부호 붙은 증감(+1), 없으면(옛 서버·이력 없는 조정·다른 구분) 종전 글자 그대로.
        JSP 는 그 칸의 _cnum(l.qty) 를 이 함수로 바꿔 부를 뿐이다(줄 수 불변). */
-  /* ★「조정 전 반영」 — 최근 조정 «위»에 보이지만 조정할 때 이미 재고에서 빠져 있던 출고 (2026-11-22 사용자 「조정 때 이미 반영된 출고 표시해줘」).
+  /* ★「수정재고에 포함」 — 최근 조정 «위»에 보이지만 조정할 때 이미 재고에서 빠져 있던 출고 (2026-11-22 사용자 「조정 때 이미 반영된 출고 표시해줘」).
        원장 일자는 납기일자라, 납기 하루 전에 올라온 발주현황표의 출고는 조정 줄(조정한 날) 위에 보여도 그 조정의 「전」 재고에 이미 들어 있다
        (1000713440 : 09-18 납기분이 09-17 08:55 에 올라옴 · 조정 09:48 — 「후 26 − 위 출고 2 = 24」로 읽혔는데 현재고는 25).
        판별 = 그 줄의 원천(발주현황표·정산서)이 «처음 올라온 때»(서버 srcDttm) < 최근 조정을 저장한 때(그 조정 줄의 regDttm) · 그리고 목록에서 그 조정 줄보다 위.
@@ -6469,7 +6477,7 @@ function ssOutQty(o){
   function stkLedPre(l){
     var L=stkLedLast(); if(!stkLedIsPre(l, L)) return '';
     return '<span class="led-pre" style="display:inline-block;margin-right:6px;padding:0 5px;border-radius:9px;background:#eef1f4;color:#5a6b7a;border:1px solid #cfd8e3;font-size:10.5px;font-weight:700;white-space:nowrap"'
-         + ' title="이 출고는 '+String(l.srcDttm).slice(0,16)+' 에 이미 올라와 있었습니다 — 최근 조정('+String(L.row.regDttm).slice(0,16)+') 전이라 그 조정의 「전」 재고에 들어 있습니다. 최근재고에서 다시 빼지 않습니다.">조정 전 반영</span>';
+         + ' title="이 출고는 '+String(l.srcDttm).slice(0,16)+' 에 이미 올라와 있었습니다 — 최근 조정('+String(L.row.regDttm).slice(0,16)+') 전이라, 그때 맞춘 수정재고에 이미 들어 있습니다. 재고를 셀 때 다시 빼지 않습니다.">수정재고에 포함</span>';
   }
   /* ★② 수불 내역 등록일시 칸 — 출고 줄은 «처음 올린 시간»을 앞에, 재고 줄이 다시 만들어진 때는 뒤에 작게 「↻ 09-21 11:13」
        (2026-11-22 사용자 그림 「표시가 21일 나중인데 맞나요 — 이전이라고 했는데」 → 「네, 같이 표시」).
@@ -6496,7 +6504,7 @@ function ssOutQty(o){
     return '<span style="white-space:nowrap"><span class="led-src" style="color:#48606f;font-weight:600" title="이 출고의 발주현황표·정산서를 처음 올린 사람 ('+esc(su)+')">'+esc(l.srcUserNm||su)+'</span>'
          + ' <span class="led-re" style="font-size:11px" title="이 재고 줄을 다시 만든 사람 ('+esc(ru)+') — 정산서를 올렸거나 출고반영 재집계를 돌린 사람">↻ '+nm+'</span></span>';
   }
-  /* 최근 조정 뒤에 «실제로 새로 반영된» 입출고 합(재고 증감) — 조정 줄보다 위의 줄 가운데 「조정 전 반영」이 아닌 것. 최근재고 말풍선의 검산에 쓴다 */
+  /* 최근 조정 뒤에 «실제로 새로 반영된» 입출고 합(재고 증감) — 조정 줄보다 위의 줄 가운데 「수정재고에 포함」이 아닌 것. 최근재고 말풍선의 검산에 쓴다 */
   function stkLedAfter(L){
     var d=0, n=0; if(!L) return { d:0, n:0 };
     for(var i=0;i<L.idx;i++){ var x=L.raw[i]; if(!x || stkLedIsPre(x, L)) continue; d+=((x.ioGb==='O') ? -(+x.qty||0) : (+x.qty||0)); n++; }
@@ -6516,7 +6524,7 @@ function ssOutQty(o){
     var chk=''; if(top){ var af=stkLedAfter(LL), ex=Math.round(+l.adjAft||0)+af.d, cq=(typeof _stkLedRow!=='undefined' && _stkLedRow) ? Math.round(+_stkLedRow.curQty||0) : null;
       chk=' · 조정 뒤 새로 반영된 입출고 '+(af.d>0 ? '+' : '')+num(af.d)+' → '+num(ex)+((cq!=null && cq===ex) ? ' = 지금 현재고' : ''); }
     return '<span style="white-space:nowrap;padding-left:10px">' + (top ? '<span class="led-last" style="display:inline-block;margin-right:3px;padding:0 5px;border-radius:9px;background:#137a6c;color:#fff;font-size:10.5px;font-weight:800;white-space:nowrap"'
-                  + ' title="최근에 수정한 현재고 '+a+' — 이 조정 뒤에 «등록된» 입고·출고를 더하고 빼면 지금 현재고입니다 (일자가 조정일보다 뒤여도 조정할 때 이미 올라와 있던 출고는 「전」 재고에 들어 있고 「조정 전 반영」 표가 붙습니다)'+chk+'">최근재고</span>' : '')   /* ★글자 = 「최근재고」 확정 (2026-11-22 사용자 「최근재고로 다시 변경 — 사용자에게 최근 수정한 현재고라고 각인시키기 위해」). 왕복 = 최근 재고 → 재고 → 현재고 → 최근재고 → 최근조정 → 최근재고 */
+                  + ' title="최근에 수정한 현재고 '+a+' — 이 조정 뒤에 «등록된» 입고·출고를 더하고 빼면 지금 현재고입니다 (일자가 조정일보다 뒤여도 조정할 때 이미 올라와 있던 출고는 「전」 재고에 들어 있고 「수정재고에 포함」 표가 붙습니다)'+chk+'">최근재고</span>' : '')   /* ★글자 = 「최근재고」 확정 (2026-11-22 사용자 「최근재고로 다시 변경 — 사용자에게 최근 수정한 현재고라고 각인시키기 위해」). 왕복 = 최근 재고 → 재고 → 현재고 → 최근재고 → 최근조정 → 최근재고 */
          + '<span class="led-adj" style="display:inline-block;margin-right:4px;padding:0 5px;border-radius:9px;'+(top ? 'background:#d9efe9;color:#0f6b5e;border:1px solid #137a6c' : 'background:#eef4fb;color:#2f5f9e')+';font-size:11px;font-weight:700;white-space:nowrap"'
          + ' title="조정 전 재고 '+b+' → 수정재고(조정 후 재고) '+a+' (화면에 넣은 수량 = '+a+' · 오른쪽 숫자는 그 차이)">전 '+b+' → 수정재고 '+a+'</span>'
          + '<span title="증감 = 조정 후 − 조정 전" style="white-space:nowrap;font-size:12px">(증감 '+(d>0 ? '+' : '')+num(d)+')</span></span>';   /* 글자를 붙인다 — 숫자만 두면 증감이 재고처럼 읽혔다(2026-11-22) */

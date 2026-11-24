@@ -13,12 +13,12 @@ const code = jsp.slice(a, b);
 
 function make(resp){
   const env = { calls: [], now: 5000000, resp, els: {}, fits: 0 };
-  const el = (id) => env.els[id] || (env.els[id] = { innerHTML: '', textContent: '' });
+  const el = (id) => env.els[id] || (env.els[id] = { innerHTML: '', textContent: '', style: {}, checked: false, querySelector: () => null });   /* style·checked = 「차이만」 체크(2026-11-24) */
   const fetch = (url, opt) => { env.calls.push({ url, body: opt && opt.body });
     if (env.resp === 'fail') return Promise.resolve({ ok: false, status: 404, json: () => Promise.reject(new Error('x')) });
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(env.resp) }); };
   const f = new Function('fetch', 'Date', 'document', 'CTX', 'num', 'esc', 'dt8', 'srcCls', 'srcIco', 'somFit', 'ctl',
-    'var DTL_LAST=null;' + code + '; return { render: function(sel, j, fr, to){ DTL_LAST=sel; somDetailRender(sel, j, fr, to); }, close: function(){ DTL_LAST=null; }, rows: somPendRows, st: _somPend };');
+    'var DTL_LAST=null; function num1(v){ var r=Math.round((Number(v)||0)*10)/10; return r.toLocaleString("en-US",{ maximumFractionDigits:1 }); }' + code + '; return { render: function(sel, j, fr, to){ DTL_LAST=sel; somDetailRender(sel, j, fr, to); }, close: function(){ DTL_LAST=null; }, rows: somPendRows, st: _somPend };');
   env.api = f(fetch, { now: () => env.now }, { getElementById: el }, '/konet', (v) => Math.round(Number(v) || 0).toLocaleString('en-US'),
     (s) => ('' + (s == null ? '' : s)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
     (d) => { d = '' + (d || ''); return /^\d{8}$/.test(d) ? (d.slice(0, 4) + '-' + d.slice(4, 6) + '-' + d.slice(6, 8)) : d; }, () => '', () => '', () => { env.fits++; });
@@ -72,7 +72,7 @@ const LED = [ { trxDt: '20261028', ioGb: 'A', qty: 1, adjBef: 30, adjAft: 31, re
     t('내역을 닫았으면 늦게 온 목록으로 다시 그리지 않는다', e.fits === 0);
   }
   {
-    /* ── 출고내역 «올라온 때» + 「조정 전 반영」 (2026-11-22 「여기도 마찬가지로 시간표시」 — 운영 1000713440 그대로) ── */
+    /* ── 출고내역 «올라온 때» + 「수정재고에 포함」 (2026-11-22 「여기도 마찬가지로 시간표시」 — 운영 1000713440 그대로) ── */
     const e = make({ result: 'OK', data: [] });
     const OUT = [ { dlvDt: '20261022', bizNm: '명동피자(신논현점)', mtNm: '명동피자', dcNm: '평택물류센터', src: '정산서', qty: 1, srcDttm: '2026-10-21 15:40:04' },
                   { dlvDt: '20260918', bizNm: '명동피자(명동본점-창고)', mtNm: '명동피자', dcNm: '평택물류센터', src: '정산서', qty: 1, srcDttm: '2026-09-17 08:55:15' },
@@ -83,7 +83,7 @@ const LED = [ { trxDt: '20261028', ioGb: 'A', qty: 1, adjBef: 30, adjAft: 31, re
     const O = cells(e.els.dtlOut.innerHTML), H = e.els.dtlOut.innerHTML;
     t('출고내역 칸 8개 — 수량 · 올린 시간 · 등록자 차례', (H.match(/<th[ >]/g) || []).length === 8 && /<th>수량<\/th><th[^>]*>올린 시간<\/th><th[^>]*>등록자<\/th><\/tr>/.test(H) && O.every(c => c.length === 8), (H.match(/<th[ >]/g) || []).length + '/' + O.map(c => c.length).join(','));
     t('★올린 시간 = 연-월-일 시:분:초 (품목별재고현황 등록일시와 같은 꼴)', O[0][6] === '2026-10-21 15:40:04' && O[2][6] === '2026-08-24 10:27:38', O.map(c => c[6]).join(' | '));
-    t('★조정(09-17 09:48) 전에 올린 09-18 출고 — 수량 앞 「조정 전 반영」 + 뒤 칸에 시간', O[1][5] === '조정 전 반영1' && O[1][6] === '2026-09-17 08:55:15' && /2026-09-17 08:55 에 이미 올라와 있었습니다/.test(H) && /최근 조정\(2026-09-17 09:48\) 전/.test(H), O[1][5]);
+    t('★조정(09-17 09:48) 전에 올린 09-18 출고 — 수량 앞 「수정재고에 포함」 + 뒤 칸에 시간', O[1][5] === '수정재고에 포함1' && O[1][6] === '2026-09-17 08:55:15' && /2026-09-17 08:55 에 이미 올라와 있었습니다/.test(H) && /최근 조정\(2026-09-17 09:48\) 전/.test(H), O[1][5]);
     t('조정 뒤에 올라온 출고 · 조정 일자보다 앞 일자의 출고에는 표가 없다', O[0][5] === '1' && O[2][5] === '1' && (H.match(/class="led-pre"/g) || []).length === 1);
     t('판매전표 줄은 시간 빈 칸', O[3][6] === '' && O[3][5] === '3');
     const I = cells(e.els.dtlIn.innerHTML);
@@ -103,7 +103,7 @@ const LED = [ { trxDt: '20261028', ioGb: 'A', qty: 1, adjBef: 30, adjAft: 31, re
     const O2 = cells(e.els.dtlOut.innerHTML), H2 = e.els.dtlOut.innerHTML;
     t('★올린 시간 뒤에 「↻ 09-21 11:13」 — 재고 줄이 다시 만들어진 때', O2[1][6] === '2026-09-17 08:55:15 ↻ 09-21 11:13' && O2[0][6] === '2026-10-21 15:40:04 ↻ 10-22 10:28' && /다시 만들어진 때 2026-09-21 11:13:05/.test(H2), O2.map(c => c[6]).join(' | '));
     t('같은 분이면 ↻ 없이 올린 시간만 · 판매전표 줄은 빈 칸', O2[2][6] === '2026-08-24 10:27:38' && O2[3][6] === '' && (H2.match(/class="led-re"/g) || []).length === 2);
-    t('↻ 가 붙어도 「조정 전 반영」 판정은 그대로(09-18 줄 하나)', O2[1][5] === '조정 전 반영1' && (H2.match(/class="led-pre"/g) || []).length === 1);
+    t('↻ 가 붙어도 「수정재고에 포함」 판정은 그대로(09-18 줄 하나)', O2[1][5] === '수정재고에 포함1' && (H2.match(/class="led-pre"/g) || []).length === 1);
     e.api.render(SEL, { out: [ { dlvDt: '20260918', bizNm: 'x', src: '정산서', qty: 1, ledDttm: '2026-09-21 11:13:05' } ], ledger: LD }, '20260101', '20261122');
     t('올린 시간이 없고 다시 만든 때만 있으면 그것만', cells(e.els.dtlOut.innerHTML)[0][6] === '2026-09-21 11:13:05' && !/led-pre|led-re/.test(e.els.dtlOut.innerHTML));
     e.api.render(SEL, { out: OUT.map(o => Object.assign({}, o, { srcDttm: undefined })), ledger: LD }, '20260101', '20261122');

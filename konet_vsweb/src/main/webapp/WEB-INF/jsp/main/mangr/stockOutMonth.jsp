@@ -109,6 +109,12 @@
   .dtl .cols{ display:flex; gap:0; }
   .dtl .col{ flex:1 1 50%; min-width:0; border-right:1px solid var(--bd); }
   .dtl .col:last-child{ border-right:0; }
+  /* 출고내역 | 입고내역 사이 좌우 조절 막대 (2026-11-24 사용자 「좌우 조정가능하게」) — 끌면 왼쪽 폭이 바뀌고 브라우저에 기억 · 두 번 누르면 반반 */
+  .dtl .vsp{ flex:0 0 8px; cursor:col-resize; background:#eef2f5; border-left:1px solid var(--bd); border-right:1px solid var(--bd); position:relative; user-select:none; }
+  .dtl .vsp:hover, .dtl .vsp.on{ background:#cfe6e1; }
+  .dtl .vsp::after{ content:''; position:absolute; left:2px; top:50%; width:2px; height:34px; margin-top:-17px; border-radius:2px; background:#9fb3c2; }
+  .dtl .cols.dragging{ user-select:none; cursor:col-resize; }
+  .dtl .col.lft{ border-right:0; }
   .dtl .ct{ padding:7px 12px; font-weight:800; font-size:13.5px; background:#fafcfb; border-bottom:1px solid var(--bd); }
   .dtl .ct span{ font-weight:600; color:#6b7a89; margin-left:6px; }
   .dtl .tb{ max-height:40vh; overflow:auto; }
@@ -176,6 +182,7 @@
     <div class="dh" id="dtlHead"></div>
     <div class="cols">
       <div class="col"><div class="ct">📤 출고내역 <span id="dtlOutSum"></span></div><div class="tb" id="dtlOut"></div></div>
+      <div class="vsp" id="dtlSplit" title="끌어서 출고내역 · 입고내역 폭 조절 — 두 번 누르면 반반"></div>
       <div class="col"><div class="ct">📥 입고내역 <span id="dtlInSum"></span></div><div class="tb" id="dtlIn"></div></div>
     </div>
   </div>
@@ -310,7 +317,7 @@ function somBuild(){
     var g=grp[gk]; if(!g){ g=grp[gk]={key:gk, nm:gn, tot:0, newTot:0, items:{}, iord:[]}; gord.push(gk); }
     var it=g.items[cd]; if(!it){ it=g.items[cd]={cd:cd, nm:(r.prodNm||''), seq:(r.prodSeq||''), tot:0}; g.iord.push(cd); }
     it.tot+=q0; g.tot+=q0; g.newTot+=(Number(r.newQty)||0); pset[cd]=1;
-    if(!yms[ym]){ yms[ym]=0; yord.push(ym); }
+    if(!(ym in yms)){ yms[ym]=0; yord.push(ym); }   /* «있나»는 in 으로 (2026-11-24) — 합계가 0 인 달 첫 줄에서 같은 달이 다시 들어가지 않게 */
     yms[ym]+=q0;
     var k=ym+'|'+gk+'|'+cd; cell[k]=(cell[k]||0)+q0;
   });
@@ -605,14 +612,14 @@ function somPendRows(it){
 function somDetailRender(sel, j, fr, to){
   _somDtlArgs={ sel:sel, j:j, fr:fr, to:to };   /* 승인 대기 목록이 늦게 오면 이 값으로 다시 그린다 */
   /* 출고내역 — 납기일자별·원래 사업장별. 거래처 매칭코드 칸은 주코드와 다를 때만(재고현황 ↳ 줄과 같은 규칙, 2026-09-03 「주코드이면 보여주지 마세요」) */
-  /* ★출고 줄마다 «올라온 때» + 「조정 전 반영」 (2026-11-22 사용자 그림 「여기도 마찬가지로 시간표시」 — 품목별재고현황 수불 내역(logi-oh.js stkLedPre)과 같은 규칙).
+  /* ★출고 줄마다 «올라온 때» + 「수정재고에 포함」 (2026-11-22 사용자 그림 「여기도 마찬가지로 시간표시」 — 품목별재고현황 수불 내역(logi-oh.js stkLedPre)과 같은 규칙).
        올라온 때(srcDttm) = 그 납기일자의 발주현황표(지나간 차수 포함)·정산서가 처음 등록된 시각(서버 #SOD_F). 원장 일자는 납기일자라, 납기 하루 전에 올라온 출고는
-       조정한 날보다 뒤 일자여도 조정할 때 이미 재고에서 빠져 있다 — 올라온 때 < 최근 조정을 저장한 때(LA.regDttm) 이고 납기일자 ≥ 조정 일자면 회색 「조정 전 반영」.
+       조정한 날보다 뒤 일자여도 조정할 때 이미 재고에서 빠져 있다 — 올라온 때 < 최근 조정을 저장한 때(LA.regDttm) 이고 납기일자 ≥ 조정 일자면 회색 「수정재고에 포함」.
        최근 조정 = 받아 온 입고내역(j.ledger)의 첫 조정 줄(전·후 값 있음) — 고른 달에 조정이 없으면 표는 안 붙고 시각만 보인다. 판매전표 줄은 근거가 없어 빈 칸. */
   var LA=null; (j.ledger||[]).some(function(x){ if(x && x.ioGb==='A' && x.adjBef!=null && x.adjAft!=null){ LA=x; return true; } return false; });
   var LAd=LA ? (''+(LA.trxDt||'')).replace(/-/g,'') : '';
   /* ★자리 = 품목별재고현황 수불 내역과 같게 (2026-11-22 사용자 그림 「뒤에 올린시간표시 품목별재고현황처럼」) — 「올린 시간」은 줄 맨 뒤 칸(그 화면의 등록일시 자리 · 회색 · 연-월-일 시:분:초),
-       「조정 전 반영」 표는 수량 앞(그 화면 stkLedPre 와 같은 자리). 처음 판은 원천과 수량 사이 한 칸에 「월-일 시:분 + 표」를 같이 두었다. */
+       「수정재고에 포함」 표는 수량 앞(그 화면 stkLedPre 와 같은 자리). 처음 판은 원천과 수량 사이 한 칸에 「월-일 시:분 + 표」를 같이 두었다. */
   /* 맨 뒤 칸 — 처음 올린 시간 + 「↻ 다시 만든 때」 (2026-11-22 사용자 「월별재고현황에도」 — 품목별재고현황 ② 등록일시 칸(logi-oh.js stkLedReg)과 같은 모양·같은 값).
        ledDttm = 그 납기일자의 재고 줄(원장 출고)이 다시 만들어진 때(정산서 도착 · 출고반영 재집계 — 서버 #SOD_L). 올린 시간보다 늦을 때만(분 단위) 뒤에 작게 붙인다.
        올린 시간이 없고 다시 만든 때만 있으면 그것만(품목별재고현황의 종전 글자와 같다). */
@@ -636,11 +643,11 @@ function somDetailRender(sel, j, fr, to){
     var t=''+(r.srcDttm||''); if(!t) return '';
     if(!(LA && LA.regDttm && t < (''+LA.regDttm) && (''+(r.dlvDt||'')).replace(/-/g,'') >= LAd)) return '';
     return '<span class="led-pre" style="display:inline-block;margin-right:5px;padding:0 5px;border-radius:9px;background:#eef1f4;color:#5a6b7a;border:1px solid #cfd8e3;font-size:10.5px;font-weight:700;white-space:nowrap"'
-         +' title="이 출고는 '+esc(t.slice(0,16))+' 에 이미 올라와 있었습니다 — 최근 조정('+esc((''+LA.regDttm).slice(0,16))+') 전이라 그 조정의 「전」 재고에 들어 있습니다. 최근재고에서 다시 빼지 않습니다.">조정 전 반영</span>';
+         +' title="이 출고는 '+esc(t.slice(0,16))+' 에 이미 올라와 있었습니다 — 최근 조정('+esc((''+LA.regDttm).slice(0,16))+') 전이라, 그때 맞춘 수정재고에 이미 들어 있습니다. 재고를 셀 때 다시 빼지 않습니다.">수정재고에 포함</span>';
   };
   var out=j.out||[], os=0, h='';
   if(!out.length) h='<div class="none">출고가 없습니다.</div>';
-  else { h='<table class="fx"><thead><tr><th>납기일자</th><th>사업장 [사업장코드]</th><th>물류센터</th><th>거래처 매칭코드 · 품목명</th><th>원천</th><th>수량</th><th title="그 납기일자의 발주현황표·정산서를 처음 올린 시간 · 뒤의 ↻ = 그 재고 줄이 다시 만들어진 때(정산서 도착·재집계) — 최근 조정보다 먼저 올린 출고는 수량 앞에 「조정 전 반영」">올린 시간</th><th title="앞 = 그 납기일자의 발주현황표·정산서를 처음 올린 사람 · 뒤의 ↻ = 그 재고 줄을 다시 만든 사람(정산서를 올렸거나 재집계를 돌린 사람)">등록자</th></tr></thead><tbody>';
+  else { h='<table class="fx"><thead><tr><th>납기일자</th><th>사업장 [사업장코드]</th><th>물류센터</th><th>거래처 매칭코드 · 품목명</th><th>원천</th><th>수량</th><th title="그 납기일자의 발주현황표·정산서를 처음 올린 시간 · 뒤의 ↻ = 그 재고 줄이 다시 만들어진 때(정산서 도착·재집계) — 최근 조정보다 먼저 올린 출고는 수량 앞에 「수정재고에 포함」">올린 시간</th><th title="앞 = 그 납기일자의 발주현황표·정산서를 처음 올린 사람 · 뒤의 ↻ = 그 재고 줄을 다시 만든 사람(정산서를 올렸거나 재집계를 돌린 사람)">등록자</th></tr></thead><tbody>';
     out.forEach(function(r){ var q=Number(r.qty)||0; os+=q; var s=(''+(r.src||''));
       h+='<tr><td>'+dt8(r.dlvDt)+'</td><td class="l" title="'+esc(r.bizNm||r.mtNm)+((r.mtNm && r.bizNm && (''+r.mtNm)!==(''+r.bizNm))?(' · '+esc(r.mtNm)):'')+'">'+esc(r.bizNm||r.mtNm)+'</td><td>'+esc(r.dcNm)+'</td><td class="l">'+((r.itemCd && (''+r.itemCd)!==(''+sel.it.cd))?('<span class="xc">↳ '+esc(r.itemCd)+'</span> <span class="xn">'+esc(r.itemNm||'')+'</span>'):'')+'</td><td class="'+srcCls(s)+'">'+srcIco(s)+esc(s)+'</td><td class="r" style="white-space:nowrap">'+preOf(r)+num(q)+'</td><td style="white-space:nowrap">'+tmOf(r)+'</td><td style="white-space:nowrap">'+userOf(r)+'</td></tr>'; });
     h+='</tbody></table>'; }
@@ -750,6 +757,27 @@ function somFit(){ var c=document.getElementById('card'); if(!c) return;
   var top=c.getBoundingClientRect().top+(window.pageYOffset||0);
   c.style.maxHeight=Math.max(220, Math.round((window.innerHeight-top-16)*(open?0.5:1)))+'px'; }
 window.addEventListener('resize', somFit);
+/* ── 출고내역 | 입고내역 좌우 조절 (2026-11-24 「좌우 조정가능하게」) — 왼쪽 칸 폭을 %로(20~85) · localStorage konetSomDtlSplit · 두 번 누르면 반반 ── */
+(function(){
+  var sp=document.getElementById('dtlSplit'); if(!sp) return;
+  var cols=sp.parentNode, lft=sp.previousElementSibling, rgt=sp.nextElementSibling; if(!lft || !rgt) return;
+  lft.classList.add('lft');
+  function apply(p){ p=Math.max(20, Math.min(85, +p||50)); lft.style.flex='0 0 calc('+p+'% - 4px)'; rgt.style.flex='1 1 0'; return p; }
+  window.somDtlSplit=apply;
+  var saved=50; try{ var v=parseFloat(localStorage.getItem('konetSomDtlSplit')); if(v>0) saved=v; }catch(e){}
+  apply(saved);
+  var drag=false, cur=saved;
+  function move(x){ var r=cols.getBoundingClientRect(); if(!(r.width>0)) return; cur=apply((x-r.left)/r.width*100); }
+  function end(){ if(!drag) return; drag=false; sp.classList.remove('on'); cols.classList.remove('dragging'); try{ localStorage.setItem('konetSomDtlSplit', String(Math.round(cur*10)/10)); }catch(e){} }
+  sp.addEventListener('mousedown', function(e){ drag=true; sp.classList.add('on'); cols.classList.add('dragging'); e.preventDefault(); });
+  document.addEventListener('mousemove', function(e){ if(drag) move(e.clientX); });
+  document.addEventListener('mouseup', end);
+  window.addEventListener('blur', end);
+  sp.addEventListener('touchstart', function(e){ drag=true; sp.classList.add('on'); e.preventDefault(); }, { passive:false });
+  document.addEventListener('touchmove', function(e){ if(drag && e.touches[0]) move(e.touches[0].clientX); }, { passive:true });
+  document.addEventListener('touchend', end);
+  sp.addEventListener('dblclick', function(){ cur=apply(50); try{ localStorage.removeItem('konetSomDtlSplit'); }catch(e){} });
+})();
 konetGridGrip('card', 'card', 'stockOutMonth');   // 표 상자 바로 밑에 막대(합계줄이 표 안이라 발주서와 같은 꼴) · 보관 konetGridH.stockOutMonth
 document.addEventListener('dblclick', function(e){ if(e.target && e.target.closest && e.target.closest('.kgg')) setTimeout(somFit, 0); });   // 처음 높이로 = 자동 맞춤 복귀
 /* 엑셀 — 화면 표 그대로(머리 2줄: 사업장 병합 + 품목, 현재고 줄 포함). 부모의 xlsx 라이브러리를 빌려 쓴다(택배납기관리와 같은 방식) */

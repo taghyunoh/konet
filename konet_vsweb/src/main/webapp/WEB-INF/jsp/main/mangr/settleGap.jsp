@@ -13,6 +13,7 @@
   자료 /mangr/settleGapList.do → selectSettleGap — 발주현황표와 정산서를 납기일자·물류센터·품목으로 맞춰 «짝이 안 맞는 줄»만.
     · 정산서만 있음(S) — 월별 출고현황의 「(정산서·발주없음)」 이 되는 줄. 원인 = 발주현황표 미업로드(DAY) · 상품코드 다름(CODE) · 발주현황표에 없는 발주(ITEM)
     · 발주현황표만 있음(O) — 그날 정산서는 왔는데 이 발주 줄의 짝이 정산서에 없다. 원인 = 상품코드 다름 · 정산서에 없는 발주(ITEM)
+    · 수량 다름(Q) — 2026-11-24 「같은 방식으로」 : 짝은 맞는데 그날 그 센터 그 품목(주코드) 발주수량 합 ≠ 정산수량 합. 모든 탭 끝 세 칸 = 발주수량 · 정산수량 · 차이(정산 − 발주, + 파랑 · − 빨강)
     ★원인 이름 (2026-11-24 사용자 「발주현황표 없는 날과 품목 없음이 차이가 없는데」 → 「이름 바꾸는 걸로」) — 줄 하나로는 둘 다 「짝이 발주현황표에 없다」라 같아 보인다. 다른 것은 «고치는 길» :
       발주현황표 없는 날 → 「발주현황표 미업로드」(그날 그 센터를 우리가 안 올림 — 올리면 풀린다) · 품목 없음 → 「발주현황표에 없는 발주」(올렸는데 삼성 자료에 그 발주가 없다).
       ITEM 은 탭마다 뜻이 반대라 이름도 갈린다(발주현황표만 탭 = 「정산서에 없는 발주」) — rsNm(reason, 탭). 서버 코드값(DAY·ITEM)은 그대로.
@@ -40,7 +41,8 @@
   .dim{ color:#8a97a4; }
   .cnt{ margin-left:auto; color:#37475a; font-size:13px; font-weight:700; background:#eef4f2; border:1px solid #cfe0da; border-radius:14px; padding:5px 12px; white-space:nowrap; }
   .sumbox{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; margin-bottom:8px; }
-  .sumbox.n3{ grid-template-columns:repeat(3, minmax(0,1fr)); }   /* 상품코드 다름 칸이 없을 때(0건) */
+  .sumbox.n3{ grid-template-columns:repeat(3, minmax(0,1fr)); }   /* 상품코드 다름 칸이 없을 때(0건) — 2026-11-24 수량 다름 칸이 생긴 뒤로는 안 쓴다 */
+  .sumbox.n5{ grid-template-columns:repeat(5, minmax(0,1fr)); }   /* 상품코드 다름 칸까지 다섯 칸 (2026-11-24) */
   .kpi{ background:#fff; border:1px solid var(--bd); border-radius:10px; padding:8px 12px; cursor:pointer; }
   .kpi.on{ border-color:var(--teal); box-shadow:0 0 0 2px rgba(19,122,108,.15); }
   .kpi .k{ font-size:12.5px; color:#5b6b7a; font-weight:700; }
@@ -61,7 +63,8 @@
   table.g tbody tr:hover{ background:#eef6f4; }
   table.g tr.tot td{ position:sticky; bottom:0; background:#fcf8e3; font-weight:800; z-index:1; box-shadow:inset 0 1px 0 #9fb6c3; }
   .rs{ display:inline-block; padding:1px 8px; border-radius:9px; font-size:12px; font-weight:800; white-space:nowrap; }
-  .rs.DAY{ background:#fdecea; color:#b03a2e; } .rs.CODE{ background:#fff1dc; color:#a3570a; } .rs.ITEM{ background:#eceff1; color:#4a5866; } .rs.NOSETTLE{ background:#e3eefb; color:#1b4f86; }
+  .rs.DAY{ background:#fdecea; color:#b03a2e; } .rs.CODE{ background:#fff1dc; color:#a3570a; } .rs.ITEM{ background:#eceff1; color:#4a5866; } .rs.NOSETTLE{ background:#e3eefb; color:#1b4f86; } .rs.QTY{ background:#fff1dc; color:#a3570a; }
+  td.dq.up{ color:#1b6fb0; font-weight:700; } td.dq.dn{ color:#c0392b; font-weight:700; }   /* 차이 = 정산 − 발주 : + 더 나감(파랑) · − 덜 나감(빨강) (2026-11-24) */
   .cd{ font-family:Consolas,monospace; font-size:12.5px; }
   .cd.diff{ color:#a3570a; font-weight:700; }
   .empty{ text-align:center; color:#8a97a4; padding:26px 10px; }
@@ -72,7 +75,7 @@
   @keyframes qslide{ 0%{ margin-left:-34%; } 100%{ margin-left:100%; } }
   .qmsg{ padding:10px 2px 0; color:#5a6b7a; font-size:12.5px; text-align:center; }
   .sumbox.busy, #tabs.busy{ opacity:.45; pointer-events:none; transition:opacity .15s; }
-  @media (max-width:900px){ .sumbox, .sumbox.n3{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+  @media (max-width:900px){ .sumbox, .sumbox.n3, .sumbox.n5{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
 </style>
 </head>
 <body data-comp="<c:out value='${sessionScope.s_comp_nm}'/>">
@@ -97,6 +100,7 @@
   <div class="tabs" id="tabs">
     <button class="t on" data-v="S" onclick="tabGo('S')">정산서만 있음</button>
     <button class="t" data-v="O" onclick="tabGo('O')">발주현황표만 있음 (정산서 누락)</button>
+    <button class="t" data-v="Q" onclick="tabGo('Q')">수량 다름 (발주 ≠ 정산)</button>   <%-- 2026-11-24 「같은 방식으로」 — 월별 출고현황 「정산 n」 을 줄로 --%>
     <button class="t" data-v="N" onclick="tabGo('N')">정산서 안 온 날</button>
   </div>
   <div class="help" id="help"></div>
@@ -106,7 +110,7 @@
 <script>
 var CTX='${pageContext.request.contextPath}';
 var ROWS=[], VIEW='S', _loadSeq=0, _shownAt=0;
-var RS_NM={ DAY:'발주현황표 미업로드', CODE:'상품코드 다름', ITEM:'발주현황표에 없는 발주', NOSETTLE:'정산서 안 옴' };
+var RS_NM={ DAY:'발주현황표 미업로드', CODE:'상품코드 다름', ITEM:'발주현황표에 없는 발주', NOSETTLE:'정산서 안 옴', QTY:'수량 다름' };
 /* ITEM 은 탭마다 뜻이 반대 — 정산서만 탭 = 발주현황표에 없는 발주 · 발주현황표만 탭 = 정산서에 없는 발주 (2026-11-24) */
 function rsNm(reason, gb){ return (reason==='ITEM' && gb==='O') ? '정산서에 없는 발주' : (RS_NM[reason]||reason); }
 var HELP={
@@ -117,6 +121,8 @@ var HELP={
   O:'그날 그 센터 정산서는 왔는데, 이 발주 줄의 짝이 정산서에 없습니다 — <b>정산서가 빠진 줄</b>입니다. '
    +'<span class="rs CODE">상품코드 다름</span> 정산서엔 같은 삼성 품목이 다른 상품코드로 들어와 있습니다(옆 칸 코드) · '
    +'<span class="rs ITEM">정산서에 없는 발주</span> 정산서에 그 발주 품목이 없습니다 — 실제로 안 나갔거나(결품·취소) 정산서가 덜 왔을 수 있습니다.',
+  Q:'발주현황표와 정산서가 <b>짝은 맞는데 수량이 다른</b> 품목입니다(그날 · 그 센터 · 그 품목 합계로 비교) — 납기현황표·월별 출고현황의 「정산 n」 을 줄로 본 것입니다. '
+   +'<b>차이 = 정산 − 발주</b> : <span style="color:#c0392b;font-weight:700">−</span> 덜 나감(결품·부분 출고) · <span style="color:#1b6fb0;font-weight:700">+</span> 더 나감. 화면 숫자는 발주수량, 재고는 정산서 수량으로 셉니다.',
   N:'발주현황표는 있는데 <b>그날 그 센터 정산서가 아직 한 줄도 없는</b> 날입니다 — 정산서가 아직 안 왔거나 올리지 않았습니다. 정산서를 올리면 이 목록에서 빠집니다.'
 };
 function esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -178,62 +184,71 @@ function picked(gb){
   return ROWS.filter(function(r){
     if(gb && r.gb!==gb) return false;
     if(dc && (r.dcCd||'')!==dc) return false;
-    if(rs && r.gb!=='N' && r.reason!==rs) return false;
+    if(rs && r.gb!=='N' && r.gb!=='Q' && r.reason!==rs) return false;
     if(q && [r.itemCd,r.prodCd,r.otherProdCd,r.itemNm,r.ordNo,r.bizNm].join(' ').toLowerCase().indexOf(q)<0) return false;
     return true;
   });
 }
 function tabGo(v){ VIEW=v; Array.prototype.forEach.call(document.querySelectorAll('#tabs .t'), function(b){ b.classList.toggle('on', b.getAttribute('data-v')===v); }); render(); }
 function sum(a,k){ return a.reduce(function(t,r){ return t+n(r[k]); },0); }
+/* 발주수량 · 정산수량 · 차이(정산 − 발주) 세 칸 (2026-11-24 「수량 다름 탭 + 두 수량 칸」). 옛 서버(ordQty 없음)면 수량 칸 하나로 돌아간다 */
+function q3(r){ var o=n(r.ordQty), s0=n(r.setQty), d=Math.round((s0-o)*100)/100; return '<td>'+fmtq(o)+'</td><td>'+fmtq(s0)+'</td><td class="dq'+(d>0?' up':(d<0?' dn':''))+'">'+(d>0?'+':'')+fmtq(d)+'</td>'; }
+function q3sum(list){ var o=sum(list,'ordQty'), s0=sum(list,'setQty'), d=Math.round((s0-o)*100)/100; return '<td>'+fmtq(o)+'</td><td>'+fmtq(s0)+'</td><td class="dq'+(d>0?' up':(d<0?' dn':''))+'">'+(d>0?'+':'')+fmtq(d)+'</td>'; }
+var Q3H='<th style="width:78px">발주수량</th><th style="width:78px">정산수량</th><th style="width:70px">차이</th>';
 function render(){
   var oi=document.querySelector('#rs option[value="ITEM"]'); if(oi) oi.textContent=rsNm('ITEM', VIEW);   /* 탭마다 이름이 다르다(2026-11-24) */
-  var S=picked('S'), O=picked('O'), N=picked('N');
+  var S=picked('S'), O=picked('O'), N=picked('N'), Q=picked('Q');
   var cS=function(r){ return S.filter(function(x){ return x.reason===r; }).length; }, cO=function(r){ return O.filter(function(x){ return x.reason===r; }).length; };
   var kp=function(cls,v,k,val,s){ return '<div class="kpi '+cls+(VIEW===v?' on':'')+'" onclick="tabGo(\''+v+'\')"><div class="k">'+k+'</div><div class="v">'+val+'</div><div class="s">'+s+'</div></div>'; };
   document.getElementById('sumbox').innerHTML=
       kp('s1','S','정산서만 있음 (점포를 못 붙임)', S.length.toLocaleString()+'줄', '수량 '+fmtq(sum(S,'qty'))+' · 미업로드 '+cS('DAY')+' · 코드 다름 '+cS('CODE')+' · 발주현황표에 없는 발주 '+cS('ITEM'))
     + kp('s2','O','발주현황표만 있음 (정산서 누락)', O.length.toLocaleString()+'줄', '수량 '+fmtq(sum(O,'qty'))+' · 코드 다름 '+cO('CODE')+' · 정산서에 없는 발주 '+cO('ITEM'))
+    + kp('','Q','수량 다름 (발주 ≠ 정산)', Q.length.toLocaleString()+'줄', '발주 '+fmtq(sum(Q,'ordQty'))+' · 정산 '+fmtq(sum(Q,'setQty'))+' · 덜 나감 '+Q.filter(function(r){ return n(r.setQty)<n(r.ordQty); }).length+' · 더 나감 '+Q.filter(function(r){ return n(r.setQty)>n(r.ordQty); }).length)
     + kp('s3','N','정산서 안 온 날', N.length.toLocaleString()+'곳', '발주 '+sum(N,'lineCnt').toLocaleString()+'줄 · 수량 '+fmtq(sum(N,'qty')))
     /* 「상품코드 다름」 칸은 있을 때만 (2026-11-24 사용자 「0건 표시는」) — 주코드 매칭을 같은 품목으로 본 뒤로 늘 0 이라 자리만 차지했다. 0 이면 세 칸이 줄을 채운다 */
     + ((cS('CODE')+cO('CODE')) ? kp('','S','상품코드 다름 (양쪽)', (cS('CODE')+cO('CODE')).toLocaleString()+'건', '같은 삼성 품목인데 매칭코드로 안 묶인 다른 상품코드 — 매칭코드에 묶으면 짝이 맞습니다') : '');
-  document.getElementById('sumbox').classList.toggle('n3', !(cS('CODE')+cO('CODE')));
+  document.getElementById('sumbox').classList.remove('n3'); document.getElementById('sumbox').classList.toggle('n5', !!(cS('CODE')+cO('CODE')));   /* 기본 네 칸(정산서만·발주현황표만·수량 다름·안 온 날) · 상품코드 다름이 있으면 다섯 (2026-11-24) */
   document.getElementById('cnt').innerHTML=d10(gv('frDt'))+' ~ '+d10(gv('toDt'));
   document.getElementById('help').innerHTML=HELP[VIEW];
-  document.getElementById('rs').disabled=(VIEW==='N');
+  document.getElementById('rs').disabled=(VIEW==='N' || VIEW==='Q');
   var head=document.getElementById('head'), body=document.getElementById('body');
-  var list=VIEW==='S'?S:(VIEW==='O'?O:N), h='';
+  var list=VIEW==='S'?S:(VIEW==='O'?O:(VIEW==='Q'?Q:N)), h='';
   if(VIEW==='N'){
-    head.innerHTML='<tr><th style="width:110px">납기일자</th><th style="width:110px">물류센터</th><th style="width:100px">발주번호 수</th><th style="width:90px">발주 줄</th><th style="width:100px">수량</th><th>안내</th></tr>';
-    if(!list.length){ body.innerHTML='<tr><td colspan="6" class="empty">정산서가 안 온 날이 없습니다.</td></tr>'; return; }
-    list.forEach(function(r){ h+='<tr><td class="c">'+d10(r.dlvDt)+'</td><td class="c">'+esc(dcLbl(r))+'</td><td>'+n(r.bizCnt).toLocaleString()+'</td><td>'+n(r.lineCnt).toLocaleString()+'</td><td>'+fmtq(r.qty)+'</td>'
+    head.innerHTML='<tr><th style="width:110px">납기일자</th><th style="width:110px">물류센터</th><th style="width:100px">발주번호 수</th><th style="width:90px">발주 줄</th>'+Q3H+'<th>안내</th></tr>';
+    if(!list.length){ body.innerHTML='<tr><td colspan="8" class="empty">정산서가 안 온 날이 없습니다.</td></tr>'; return; }
+    list.forEach(function(r){ h+='<tr><td class="c">'+d10(r.dlvDt)+'</td><td class="c">'+esc(dcLbl(r))+'</td><td>'+n(r.bizCnt).toLocaleString()+'</td><td>'+n(r.lineCnt).toLocaleString()+'</td>'+q3(r)
       +'<td class="l dim">그날 '+esc(dcLbl(r))+' 정산서가 아직 없습니다</td></tr>'; });
-    h+='<tr class="tot"><td class="c" colspan="2">합계 '+list.length+'곳</td><td></td><td>'+sum(list,'lineCnt').toLocaleString()+'</td><td>'+fmtq(sum(list,'qty'))+'</td><td></td></tr>';
+    h+='<tr class="tot"><td class="c" colspan="2">합계 '+list.length+'곳</td><td></td><td>'+sum(list,'lineCnt').toLocaleString()+'</td>'+q3sum(list)+'<td></td></tr>';
     body.innerHTML=h; return;
   }
-  var mine=VIEW==='S'?'상품코드 (정산서)':'상품코드 (발주현황표)', other=VIEW==='S'?'발주현황표 상품코드':'정산서 상품코드';
+  var mine=VIEW==='S'?'상품코드 (정산서)':(VIEW==='Q'?'상품코드 (주코드)':'상품코드 (발주현황표)'), other=VIEW==='S'?'발주현황표 상품코드':(VIEW==='Q'?'—':'정산서 상품코드');
+  var hasBiz=(VIEW==='O' || VIEW==='Q');   /* 사업장 칸 = 발주현황표 쪽이 있는 탭 */
   head.innerHTML='<tr><th style="width:120px">원인</th><th style="width:96px">납기일자</th><th style="width:76px">물류센터</th><th style="width:104px">발주번호</th><th style="width:104px">삼성 품목코드</th>'
-    +'<th style="width:110px">'+mine+'</th><th style="width:120px">'+other+'</th><th style="min-width:220px">품목명</th>'+(VIEW==='O'?'<th style="min-width:160px">사업장</th>':'')+'<th style="width:80px">수량</th></tr>';
-  var cols=VIEW==='O'?10:9;
-  if(!list.length){ body.innerHTML='<tr><td colspan="'+cols+'" class="empty">짝이 안 맞는 줄이 없습니다.</td></tr>'; return; }
+    +'<th style="width:110px">'+mine+'</th><th style="width:120px">'+other+'</th><th style="min-width:220px">품목명</th>'+(hasBiz?'<th style="min-width:160px">사업장</th>':'')+Q3H+'</tr>';
+  var cols=(hasBiz?9:8)+3;
+  if(!list.length){ body.innerHTML='<tr><td colspan="'+cols+'" class="empty">'+(VIEW==='Q'?'수량이 다른 품목이 없습니다.':'짝이 안 맞는 줄이 없습니다.')+'</td></tr>'; return; }
   list.forEach(function(r){
-    var oth=r.reason==='CODE' ? '<span class="cd diff" title="같은 삼성 품목('+esc(r.itemCd)+')이 반대쪽에는 이 상품코드로 저장돼 있습니다">'+esc(r.otherProdCd)+'</span>' : (r.reason==='DAY'?'<span class="dim">발주현황표 없음</span>':'<span class="dim">—</span>');
+    var oth=r.gb==='Q' ? '<span class="dim">—</span>' : r.reason==='CODE' ? '<span class="cd diff" title="같은 삼성 품목('+esc(r.itemCd)+')이 반대쪽에는 이 상품코드로 저장돼 있습니다">'+esc(r.otherProdCd)+'</span>' : (r.reason==='DAY'?'<span class="dim">발주현황표 없음</span>':'<span class="dim">—</span>');
     h+='<tr><td class="c"><span class="rs '+r.reason+'">'+rsNm(r.reason, r.gb)+'</span></td><td class="c">'+d10(r.dlvDt)+'</td><td class="c">'+esc(dcLbl(r))+'</td><td class="c cd">'+esc(r.ordNo||'')+'</td>'
       +'<td class="c cd">'+esc(r.itemCd||'')+'</td><td class="c cd'+(r.reason==='CODE'?' diff':'')+'">'+esc(r.prodCd||'')+'</td><td class="c">'+oth+'</td><td class="l">'+esc(r.itemNm||'')+'</td>'
-      +(VIEW==='O'?'<td class="l">'+esc(r.bizNm||'')+(n(r.bizCnt)>1?' <span class="dim">외 '+(n(r.bizCnt)-1)+'곳</span>':'')+'</td>':'')
-      +'<td>'+fmtq(r.qty)+'</td></tr>';
+      +(hasBiz?'<td class="l">'+esc(r.bizNm||'')+(n(r.bizCnt)>1?' <span class="dim">외 '+(n(r.bizCnt)-1)+'곳</span>':'')+'</td>':'')
+      +q3(r)+'</tr>';
   });
-  h+='<tr class="tot"><td class="c" colspan="'+(cols-1)+'">합계 '+list.length.toLocaleString()+'줄</td><td>'+fmtq(sum(list,'qty'))+'</td></tr>';
+  h+='<tr class="tot"><td class="c" colspan="'+(cols-3)+'">합계 '+list.length.toLocaleString()+'줄</td>'+q3sum(list)+'</tr>';
   body.innerHTML=h;
 }
 /* 엑셀 — 지금 탭·지금 거르기 그대로. 제목·조회기간·하늘색 머리·노란 합계(매입/판매 등록현황과 같은 꾸밈) */
 function excel(){
   if(!ROWS.length){ if(window._toast) _toast('먼저 조회하세요.','warning'); return; }
   var X=window.XLSX; if(!X || !X.utils){ _alertBox('엑셀 도구를 불러오지 못했습니다. 새로고침 뒤 다시 눌러 주세요.',{icon:'⚠️'}); return; }
-  var list=picked(VIEW), tnm={ S:'정산서만 있음', O:'발주현황표만 있음(정산서 누락)', N:'정산서 안 온 날' }[VIEW], hd, rows;
-  if(VIEW==='N'){ hd=['납기일자','물류센터','발주번호 수','발주 줄','수량']; rows=list.map(function(r){ return [d10(r.dlvDt), dcLbl(r), n(r.bizCnt), n(r.lineCnt), n(r.qty)]; }); rows.push(['합계 '+list.length+'곳','','',sum(list,'lineCnt'),sum(list,'qty')]); }
-  else { hd=['원인','납기일자','물류센터','발주번호','삼성 품목코드', VIEW==='S'?'상품코드(정산서)':'상품코드(발주현황표)', VIEW==='S'?'발주현황표 상품코드':'정산서 상품코드','품목명'].concat(VIEW==='O'?['사업장']:[]).concat(['수량']);
-         rows=list.map(function(r){ return [rsNm(r.reason, r.gb), d10(r.dlvDt), dcLbl(r), r.ordNo||'', r.itemCd||'', r.prodCd||'', r.reason==='CODE'?(r.otherProdCd||''):'', r.itemNm||''].concat(VIEW==='O'?[(r.bizNm||'')+(n(r.bizCnt)>1?' 외 '+(n(r.bizCnt)-1)+'곳':'')]:[]).concat([n(r.qty)]); });
-         var t=new Array(hd.length).fill(''); t[0]='합계 '+list.length+'줄'; t[hd.length-1]=sum(list,'qty'); rows.push(t); }
+  var list=picked(VIEW), tnm={ S:'정산서만 있음', O:'발주현황표만 있음(정산서 누락)', Q:'수량 다름(발주≠정산)', N:'정산서 안 온 날' }[VIEW], hd, rows;
+  var q3x=function(r){ var o=n(r.ordQty), s0=n(r.setQty); return [o, s0, Math.round((s0-o)*100)/100]; };   /* 발주 · 정산 · 차이 (2026-11-24) */
+  if(VIEW==='N'){ hd=['납기일자','물류센터','발주번호 수','발주 줄','발주수량','정산수량','차이']; rows=list.map(function(r){ return [d10(r.dlvDt), dcLbl(r), n(r.bizCnt), n(r.lineCnt)].concat(q3x(r)); });
+    rows.push(['합계 '+list.length+'곳','','',sum(list,'lineCnt'),sum(list,'ordQty'),sum(list,'setQty'),Math.round((sum(list,'setQty')-sum(list,'ordQty'))*100)/100]); }
+  else { var hb=(VIEW==='O'||VIEW==='Q');
+         hd=['원인','납기일자','물류센터','발주번호','삼성 품목코드', VIEW==='S'?'상품코드(정산서)':(VIEW==='Q'?'상품코드(주코드)':'상품코드(발주현황표)'), VIEW==='S'?'발주현황표 상품코드':'정산서 상품코드','품목명'].concat(hb?['사업장']:[]).concat(['발주수량','정산수량','차이']);
+         rows=list.map(function(r){ return [rsNm(r.reason, r.gb), d10(r.dlvDt), dcLbl(r), r.ordNo||'', r.itemCd||'', r.prodCd||'', r.reason==='CODE'?(r.otherProdCd||''):'', r.itemNm||''].concat(hb?[(r.bizNm||'')+(n(r.bizCnt)>1?' 외 '+(n(r.bizCnt)-1)+'곳':'')]:[]).concat(q3x(r)); });
+         var t=new Array(hd.length).fill(''); t[0]='합계 '+list.length+'줄'; t[hd.length-3]=sum(list,'ordQty'); t[hd.length-2]=sum(list,'setQty'); t[hd.length-1]=Math.round((sum(list,'setQty')-sum(list,'ordQty'))*100)/100; rows.push(t); }
   var cond=[gv('dc')?('물류센터 '+document.getElementById('dc').options[document.getElementById('dc').selectedIndex].text):'', (gv('rs')&&VIEW!=='N')?('원인 '+rsNm(gv('rs'), VIEW)):'', gv('q').trim()?('찾기 「'+gv('q').trim()+'」'):''].filter(Boolean);
   var aoa=[['정산서 누락 조회 — '+tnm],[],['납기일자 : '+d10(gv('frDt'))+' ~ '+d10(gv('toDt'))+(cond.length?'   (조건 : '+cond.join(' · ')+')':'')+'   · 출력 '+ymd(new Date())+(document.body.getAttribute('data-comp')?'   · '+document.body.getAttribute('data-comp'):'')],hd].concat(rows);
   var ws=X.utils.aoa_to_sheet(aoa), nC=hd.length;
@@ -249,7 +264,7 @@ function excel(){
       if(tot){ st.font={ bold:true }; st.fill={ patternType:'solid', fgColor:{ rgb:'FFE699' } }; }
       put(r,c,st); } }
   var wb=X.utils.book_new(); X.utils.book_append_sheet(wb, ws, tnm.replace(/[()]/g,'').slice(0,28));
-  X.writeFile(wb, '정산서누락조회_'+{S:'정산서만',O:'발주현황표만',N:'정산서안온날'}[VIEW]+'_'+gv('frDt').replace(/-/g,'')+'-'+gv('toDt').replace(/-/g,'')+'.xlsx');
+  X.writeFile(wb, '정산서누락조회_'+{S:'정산서만',O:'발주현황표만',Q:'수량다름',N:'정산서안온날'}[VIEW]+'_'+gv('frDt').replace(/-/g,'')+'-'+gv('toDt').replace(/-/g,'')+'.xlsx');
 }
 /* 다른 화면이 「이 날을 보라」고 넘기면(월별 출고현황 알림 줄 등) — 그 기간으로 연다 (window.parent.konetSettleGapRange = {fr,to,tab}) */
 function takeRange(){

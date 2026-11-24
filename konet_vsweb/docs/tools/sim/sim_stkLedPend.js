@@ -47,14 +47,14 @@ const cells = (h) => { const m = h.match(/<tr[\s\S]*?<\/tr>/g) || []; return m.m
     const e0 = make({ resp: { result: 'OK', data: [] }, raw: [ { ledgerSeq: 3, ioGb: 'A', qty: 5 }, r3 ] });
     t('전·후 값이 없는 조정(이력 없음)은 건너뛰고 그다음 줄이 최근', /led-last/.test(e0.api.qty(r3)) && e0.api.qty({ ledgerSeq: 3, ioGb: 'A', qty: 5 }) === '5');
   }
-  /* ── 1-3. 「조정 전 반영」 — 최근 조정 위에 보이지만 조정할 때 이미 빠져 있던 출고 (2026-11-22 · 운영 1000713440 그대로) ── */
+  /* ── 1-3. 「수정재고에 포함」 — 최근 조정 위에 보이지만 조정할 때 이미 빠져 있던 출고 (2026-11-22 · 운영 1000713440 그대로) ── */
   {
     const o1 = { ledgerSeq: 9, ioGb: 'O', qty: 1, trxDt: '20261022', regDttm: '2026-10-22 10:28:53', srcDttm: '2026-10-21 15:40:04' };   /* 조정 뒤에 올라온 출고 */
     const o2 = { ledgerSeq: 8, ioGb: 'O', qty: 1, trxDt: '20260918', regDttm: '2026-09-21 11:13:05', srcDttm: '2026-09-17 08:55:15' };   /* 조정(09:48) 전에 이미 올라와 있던 출고 */
     const ad = { ledgerSeq: 7, ioGb: 'A', qty: 33, trxDt: '20260917', regDttm: '2026-09-17 09:48:15', adjBef: -7, adjAft: 26 };
     const o3 = { ledgerSeq: 6, ioGb: 'O', qty: 1, trxDt: '20260825', regDttm: '2026-09-11 18:53:21', srcDttm: '2026-08-24 10:27:38' };   /* 조정 줄 아래(옛 일자) */
     const e = make({ resp: { result: 'OK', data: [] }, raw: [ o1, o2, ad, o3 ], row: { prodCd: '1000713440', curQty: 25 } }), q = e.api.qty, txt = (h) => String(h).replace(/<[^>]+>/g, '|').replace(/\|+/g, '|');
-    t('★조정 전에 이미 올라와 있던 출고(09-18) — 수량 앞 회색 「조정 전 반영」', txt(q(o2)) === '|조정 전 반영|1|' && /class="led-pre"/.test(q(o2)), txt(q(o2)));
+    t('★조정 전에 이미 올라와 있던 출고(09-18) — 수량 앞 회색 「수정재고에 포함」', txt(q(o2)) === '|수정재고에 포함|1|' && /class="led-pre"/.test(q(o2)), txt(q(o2)));
     t('말풍선에 올라온 때·조정한 때 — 「2026-09-17 08:55 에 이미 … 최근 조정(2026-09-17 09:48) 전」', /2026-09-17 08:55 에 이미 올라와 있었습니다/.test(q(o2)) && /최근 조정\(2026-09-17 09:48\) 전/.test(q(o2)));
     t('조정 뒤에 올라온 출고(10-22)는 표시 없음 — 숫자 그대로', q(o1) === '1');
     t('조정 줄 아래(옛 일자) 출고는 표시 없음', q(o3) === '1');
