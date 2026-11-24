@@ -192,6 +192,8 @@ public interface UserService {
 	int deleteStockLedger(egovframework.konet.user.model.StockLedgerDTO dto) throws Exception; // 원장 삭제 + 현재고 재집계
 	java.util.List<egovframework.konet.user.model.StockMstDTO> selectStockMstList(egovframework.konet.user.model.StockMstDTO dto) throws Exception; // 재고현황(전체 현재고)
 	java.util.List<egovframework.konet.user.model.StockMstDTO> selectStockQtyMap(egovframework.konet.user.model.StockMstDTO dto) throws Exception; // 코드별 재고만(대시보드용)
+	java.util.List<java.util.Map<String,Object>> selectSettleNoPoDays(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectSettleGap(java.util.Map<String,Object> p) throws Exception;   // 정산서 누락 조회 (2026-11-24)   // 월별 출고현황 알림 (2026-11-24)
 	java.util.List<java.util.Map<String,Object>> selectStockOutByMonth(java.util.Map<String,Object> p) throws Exception;   // 출고재고현황 — 년월×품목 출고량 (2026-09-03)
 	java.util.List<java.util.Map<String,Object>> selectStockOutSrcDays(java.util.Map<String,Object> p) throws Exception;   // 출고재고현황 — 월별 정산서/발주 원천 일수 (2026-09-03)
 	java.util.List<java.util.Map<String,Object>> selectStockOutDetail(java.util.Map<String,Object> p) throws Exception;    // 출고재고현황 하단 — 납기일자별 출고내역 (2026-09-03)

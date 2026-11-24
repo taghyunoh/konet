@@ -3538,6 +3538,9 @@
       <a class="mi" data-key="outHist" onclick="logiGo('outHist', this); ohEnter();"><span class="ic">📤</span>매출내역</a>
       <%-- 정산실적 (2026-08-02 요청) — 매출내역 바로 아래. 정산서 원본을 일자별·품목별로 편다. --%>
       <a class="mi" data-key="settlePerf" onclick="logiGo('settlePerf', this); spEnter();"><span class="ic">🧾</span>정산실적</a>
+      <%-- 정산서 누락 조회 (2026-11-24 사용자 「발주현황표 대비 정산서 누락 조회화면 구성해줘」) — 발주현황표 ↔ 정산서 짝 안 맞는 줄. iframe 화면(mangr/settleGap.jsp) · 아래 panel-settleGap 이 짝 --%>
+      <%-- [2026-11-24] 별도 메뉴(사용자 「정산서누락조회 별도 메뉴로 추가」) · 자리 = 정산실적 바로 아래(사용자 「정산실적 밑으로」) --%>
+      <a class="mi" data-key="settleGap" onclick="logiFrame('settleGap','${pageContext.request.contextPath}/mangr/settleGap.do', this)"><span class="ic">🔎</span>정산서 누락 조회</a>
       <%-- 매출 반품내역 (2026-11-18 「매출관리에서 반품내역 조회기능 구성」 · 같은 날 이름 「반품내역」 → 「매출 반품내역」 — 매입 반품내역과 짝) — 정산서 반품 줄 · 판매전표 반품 · 거래처 발주 반품을 한 목록으로(조회 전용). iframe 화면(mangr/salesReturn.jsp) — ★메뉴와 아래 panel-salesReturn 은 짝이다 --%>
       <a class="mi" data-key="salesReturn" onclick="logiFrame('salesReturn','${pageContext.request.contextPath}/mangr/salesReturn.do', this)"><span class="ic">↩️</span>매출 반품내역</a>
       <%-- DC 발주 등록 (2026-09-17) — SRM 발주현황조회의 상품종류 DC(입고예약서 PDF·발주서 엑셀). 재고·정산서 대사에는 들어가고 납기현황관리에서만 빠진다.
@@ -5469,6 +5472,9 @@
     </section>
     <section id="panel-profitVP" class="panel" style="padding:0;">
       <iframe id="if-profitVP" src="" title="거래처별 상품별 이익" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <section id="panel-settleGap" class="panel" style="padding:0;">   <%-- 정산서 누락 조회 (2026-11-24) --%>
+      <iframe id="if-settleGap" src="" title="정산서 누락 조회" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <section id="panel-trxStat" class="panel" style="padding:0;">   <%-- 매입/판매 등록현황 (2026-11-24) --%>
       <iframe id="if-trxStat" src="" title="매입/판매 등록현황" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>

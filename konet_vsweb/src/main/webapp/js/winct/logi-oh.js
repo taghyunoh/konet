@@ -1583,6 +1583,7 @@ function ssOutQty(o){
     if((''+(v==null?'':v)).trim()==='' && c2>=0) v=row[c2];
     return (v==null)?'':v;
   }
+  var SS_ALLOW_NO_DC=false;   /* 물류센터 칸 없는 예전 양식 허용 여부 (2026-11-24 꺼 둠) */
   function ssMapCols(aoa){
     function findEq(arr,name){ for(var k=0;k<arr.length;k++){ if((''+arr[k]).trim()===name) return k; } return -1; }
     // ── (신규) 코네트 발주현황표(출고장): 헤더 2줄
@@ -1616,6 +1617,12 @@ function ssOutQty(o){
         }
       }
     }
+    /* ★물류센터 칸이 없는 예전 양식은 받지 않는다 (2026-11-24 사용자 「물류센터 없으면 오류 나게 — 포맷 틀린 것과 같은 조건으로」).
+         이 양식(품목명·사업장명·존만, 물류센터명·물류센터코드 없음)은 화면엔 「인식 완료」 로 떴지만 DB 저장(ssBuildShipoutRows)이
+         물류센터명 머리글로 칸을 찾아 0줄 → 조용히 저장되지 않았다(2026.11.24_11.34.34.xlsx). 이제 형식 오류와 같은 길 :
+         미리보기 「⚠️ 형식이 맞지 않는 자료」 + 오류내역(없는 컬럼 물류센터명) + [반영] 잠김 · 파일 목록 「형식이 맞지 않음」 · 폴더 목록 「발주현황표 양식이 아닙니다」.
+         되살리려면 SS_ALLOW_NO_DC 를 true 로(아래 코드는 그대로 남겨 둠 — 단, 그래도 DB 에는 안 들어간다). */
+    if(!SS_ALLOW_NO_DC) return null;
     // ── (기존) 2행 헤더 발주현황표
     var h=-1;
     for(var i=0;i<Math.min(aoa.length,6);i++){
@@ -1692,7 +1699,7 @@ function ssOutQty(o){
     // ★출고수량 = 라벨수량 우선 (2026-09-01 사용자 확정) — qty 목록도 라벨수량을 앞에 둔다(없으면 종전 '수량' 폴백)
     { key:'konet', name:'코네트 발주현황표(출고장)', req:['물류센터명','품목명','입고장'], qty:['라벨수량','수량','현 발주','현발주'],
       opt:['품목코드','사업장명','사업장코드','납기일자'] },
-    { key:'old',   name:'기존 발주현황표(2행 헤더)', req:['품목명','사업장명','존'],       qty:['라벨수량','수량'],
+    { key:'old',   name:'기존 발주현황표(2행 헤더)', req:['물류센터명','품목명','사업장명','존'],   /* 물류센터명 필수 (2026-11-24) */       qty:['라벨수량','수량'],
       opt:['품목코드','사업장코드','납기일자','18차 가마감 일시'] }
   ];
   // 앞쪽 몇 행에서 머리글 후보(짧은 문자열)를 모은다 — 파일에 뭐가 들었는지 보여주려는 것
@@ -1897,6 +1904,20 @@ function ssOutQty(o){
     f.bad = (f.cur && f.cur.map)
           ? (f.rows.length ? '' : (f.filter ? '걸러낸 결과 0행' : '데이터 행 없음'))
           : '형식이 맞지 않음';
+    if(!f.bad) f.bad=ssPvDcLack(f);
+  }
+  /* ★물류센터가 없으면 반영하지 않는다 (2026-11-24 사용자 「발주현황표 등록 시 물류센터 없는 것은 오류 나게 — 제공 엑셀처럼 없어서 오류가 안 남」).
+       왜 : 저장 배치키가 (납기일자 + 물류센터)이고 DB 저장(ssSaveShipoutToDB → ssBuildShipoutRows)은 «물류센터명» 머리글로 칸을 찾는다.
+       물류센터 칸이 없는 양식(기존 2행 헤더 양식 — 품목명·사업장명·존만 있는 것, 예 2026.11.24_11.34.34.xlsx)은 미리보기·화면 반영은 되는데
+       DB 저장은 0행이라 «아무 말 없이» 건너뛰었다 — 화면엔 「✅ 생성」 이 떠서 저장된 줄 알았다.
+     판정 = 실제로 서버에 보낼 줄(ssBuildShipoutRows + 이 파일의 [가져올 범위])로 본다 : 0줄이면 「물류센터 칸 없음」, 물류센터코드·이름이 둘 다 빈 줄이 있으면 「물류센터 없는 행 n」. */
+  function ssPvDcLack(f){
+    var aoa=(f.cur&&f.cur.aoa)||[];
+    var rs=ssBuildShipoutRows(aoa);
+    if(!rs.length) return '물류센터 칸 없음(물류센터명·물류센터코드가 있는 발주현황표만 올릴 수 있습니다)';
+    if(f.filter) rs=rs.filter(function(o){ var kj=ssPvIsKJ((''+(o.dcNm||''))+(o.inwh||'')+(o.zone||'')); return f.filter==='only' ? kj : !kj; });
+    var n=rs.filter(function(o){ return !(''+(o.dcCd||'')).trim() && !(''+(o.dcNm||'')).trim(); }).length;
+    return n ? ('물류센터 없는 행 '+n.toLocaleString()+'건') : '';
   }
   /* ── 체크 선택 (2026-08-28 요청 「하단에 체크기능」) ── 체크한 파일만 골라 일괄 처리 */
   function ssPvChk(i, el){ if(ssPvList[i]) ssPvList[i].chk=!!el.checked; ssPvListRender(); }
@@ -3051,18 +3072,26 @@ function ssOutQty(o){
         ssToast('⚠️ 오류내역 있음 — 출고장/수량이 빠진 행 '+(_rd.zone.length+_rd.qty.length)+'행 (미리보기 위쪽 확인)');
       }
       btn.removeAttribute('disabled'); btn.style.opacity='1';
+      /* 물류센터가 빈 행이 있으면 형식 오류와 같은 모양으로 막는다 (2026-11-24) — 판정은 ssPvDcLack(서버에 보낼 줄 기준, [가져올 범위] 반영) */
+      var _pf=ssPvList[ssPvIdx], _lack=ssPvDcLack({ cur:{aoa:aoa}, filter:(_pf&&_pf.filter)||'' });
+      if(_lack){
+        info.className='ss-pvinfo warn';
+        info.innerHTML=SS_PV_RST+'⚠️ <b>반영할 수 없는 자료입니다</b> — '+ssEscHtml(_lack)+'.<br>물류센터(물류센터명·물류센터코드)가 모든 행에 있어야 합니다.';
+        btn.setAttribute('disabled','disabled'); btn.style.opacity='.5';
+        if(ssPvBadFile!==ssPvName){ ssPvBadFile=ssPvName; ssToast('⚠️ '+ssEscHtml(_lack)+' — 반영할 수 없습니다'); }
+      }
     } else {
       ssXrefUnmap=[]; ssXrefRender();   // 양식부터 안 맞으면 미매핑을 따질 단계가 아니다
       info.className='ss-pvinfo warn';
       info.innerHTML=SS_PV_RST+'⚠️ <b>형식이 맞지 않는 자료입니다</b> — 발주현황표(출고) 양식이 아닙니다.<br>'
-        + '헤더에 <b>물류센터명·품목명·현 발주</b>(코네트) 또는 <b>품목명·사업장명·존·수량</b> 이 있어야 합니다. 시트를 바꿔 보세요.';
+        + '헤더에 <b>물류센터명·품목명·입고장·현 발주</b>(코네트 발주현황표)가 있어야 합니다. <b>물류센터 칸이 없는 파일은 올릴 수 없습니다.</b> 시트를 바꿔 보세요.';
       if(errBox) errBox.innerHTML=ssFmtErrHtml(aoa);   // 무엇이 다른지 목록으로
       btn.setAttribute('disabled','disabled'); btn.style.opacity='.5';
       // 같은 파일엔 한 번만 팝업(시트 바꿀 때마다 반복 방지)
       if(ssPvBadFile!==ssPvName){ ssPvBadFile=ssPvName; ssToast('⚠️ 형식이 맞지 않는 자료입니다 — 오류내역을 확인하세요'); }
     }
     // ※ ssPvBadFile 은 '이 파일로 이미 알렸다' 표시 — 오류가 없을 때만 푼다(있으면 시트 바꿔도 재알림 안 함)
-    if(m && !Object.keys(badRows).length) ssPvBadFile=null;
+    if(m && !Object.keys(badRows).length && !_lack) ssPvBadFile=null;   /* 물류센터 빈 행 알림도 한 번만(2026-11-24) */
     // 미리보기 표 (전체 행 표시 — 모달 내 스크롤)
     var maxR=Math.min(aoa.length,2000), maxC=0;
     for(var i=0;i<maxR;i++) maxC=Math.max(maxC,(aoa[i]||[]).length);
@@ -3553,7 +3582,10 @@ function ssOutQty(o){
       rs.forEach(function(o){ o.srcFile=it.name||''; });
       rows=rows.concat(rs);
     });
-    if(!rows.length) return;
+    /* ★0줄이면 알린다 (2026-11-24) — 종전엔 조용히 return 해 「✅ 생성」 만 보이고 DB 에는 안 들어갔다(물류센터 칸 없는 양식) */
+    if(!rows.length){ (window._alertBox ? _alertBox('발주현황표가 <b>저장되지 않았습니다</b> — 물류센터(물류센터명·물류센터코드) 칸이 없는 양식입니다.<br>물류센터가 있는 발주현황표로 다시 올려 주세요.', {icon:'⛔'}) : alert('발주현황표가 저장되지 않았습니다 — 물류센터 칸이 없는 양식입니다.')); return; }
+    var _noDc=rows.filter(function(o){ return !(''+(o.dcCd||'')).trim() && !(''+(o.dcNm||'')).trim(); }).length;
+    if(_noDc){ (window._alertBox ? _alertBox('발주현황표가 <b>저장되지 않았습니다</b> — 물류센터가 빈 행이 <b>'+_noDc.toLocaleString()+'</b>건 있습니다.<br>물류센터를 채운 파일로 다시 올려 주세요.', {icon:'⛔'}) : alert('물류센터가 빈 행이 '+_noDc+'건 있어 저장하지 않았습니다.')); return; }
     // 복합키=(납품일자 DLV_DT 행별) + (물류센터 DC_CD 행별). 출고일자·사업장은 키 아님(출고일자는 값으로만 저장).
     //  ★출고일자 = baseDt(프리뷰 확정값 = 엑셀 납기일자) — 출고장·파일 구분 없이 전 행 동일(2026-07-29 확정).
     /* 출고일자(SHPOUT_DT) — perFile 이면 <행마다 그 엑셀의 납품일자>, 아니면 baseDt 하나로 통일.

@@ -145,6 +145,15 @@
   #somProdPop table.spi{ width:100%; border-collapse:collapse; } #somProdPop table.spi th{ width:118px; text-align:left; padding:4px 10px; background:#f6f9f8; color:#37475a; font-weight:700; border-bottom:1px solid #eef1f4; white-space:nowrap; }
   #somProdPop table.spi td{ padding:4px 10px; border-bottom:1px solid #eef1f4; word-break:break-all; } #somProdPop table.spi td.r{ font-variant-numeric:tabular-nums; }
   #somProdPop .spi-ft{ display:flex; align-items:center; gap:10px; padding:8px 12px; white-space:nowrap; } #somProdPop .spi-ft .btn{ white-space:nowrap; flex:0 0 auto; height:30px; padding:0 12px; } #somProdPop .dim{ color:#8a97a4; }   /* 단추 한 줄로 (2026-11-05) */
+  /* 정산서만 오고 발주현황표가 없는 날 (2026-11-24) — 표 위 알림 줄. 통째로 빠진 날 = 노랑(굵게) · 품목만 빠진 날 = 연한 회색 요약(누르면 펼침) */
+  /* 한 줄 띠 (2026-11-24 사용자 「이 공간 너무 차지함」) — 평소엔 한 줄 요약, [자세히]를 누르면 날짜·센터 목록과 설명을 펼친다 */
+  .npo{ background:#fff8e1; border:1px solid #f0d98a; color:#6b4510; border-radius:7px; padding:3px 10px; margin:0 0 6px; font-size:12.5px; line-height:1.5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .npo.open{ white-space:normal; }
+  .npo b.d{ color:#b03a2e; }
+  .npo .lk{ color:#1d6fb8; cursor:pointer; text-decoration:underline; font-weight:700; margin-left:6px; }
+  .npo .more{ margin-top:4px; color:#7b6a4a; font-size:12px; }
+  .npo .lst{ margin-top:4px; max-height:120px; overflow:auto; background:#fff; border:1px solid #efe2b8; border-radius:6px; padding:3px 8px; font-size:12px; color:#4a5866; }
+  .npo.lite{ background:#f6f8fa; border-color:#dbe2ea; color:#4a5866; }
 </style>
 </head>
 <body>
@@ -161,6 +170,7 @@
     <span class="cnt" id="cnt">-</span>
     <button class="btn rb-btn" onclick="somRebuild()" title="전체 출고를 재고 원장에 다시 반영하고 현재고를 다시 계산합니다 (품목별재고현황의 재집계와 같은 것).&#10;정산서가 있는 납기일자는 정산서, 없는 날은 발주현황표 기준. 마감 확정월은 제외.">🔄 출고반영 재집계</button>
   </div>
+  <div class="npo" id="npo" hidden></div>   <%-- 정산서만 오고 발주현황표가 없는 날 (2026-11-24) --%>
   <div class="card" id="card"><div class="empty">기간을 고르고 [조회]를 누르세요.</div></div>
   <div class="dtl" id="dtl">
     <div class="dh" id="dtlHead"></div>
@@ -332,11 +342,46 @@ var _somM=null, _somTiming='', _somPick='';
      ⇒ DOM 에는 <보이는 열 + 좌우 여유 BUF 열>만 두고, 나머지 폭은 빈 칸(spacer) 하나로 채운다. 표 전체 폭·스크롤바는 종전과 같고
        옆으로 밀면 scroll 이벤트에서 창을 옮겨 다시 그린다(셀 ~700개라 수 ms). 고정칸(년월·합계)·2단 머리·클릭·엑셀 동작은 그대로. */
 var COLW=112, BUF=20, _somRS=-1, _somRE=-1;
+/* ── 정산서만 오고 발주현황표가 없는 날 (2026-11-24 사용자 「정산서만 오고 발주현황표 누락이네요」 → 「메시지 처리」) ──
+     서버 selectSettleNoPoDays = 정산서 줄 중 같은 납기일자·같은 품목의 발주현황표 줄(같은 발주번호 또는 같은 출고장)이 없는 것 — 이 표의 「(정산서·발주없음)」 줄과 같은 규칙.
+     · dayMissing='Y' = 그날 그 물류센터 발주현황표가 «통째로» 없다 → 굵게, 날짜별로 센터를 모아 적는다(2026-09-21 평택·용인·오산…). 발주현황표를 올리면 점포로 나뉜다.
+     · 'N' = 발주현황표는 있는데 그 품목만 없다(거의 날마다 한두 줄) → 건수만 요약하고 [펼치기]로 목록.
+     옛 서버(noPoDays 없음)면 아무것도 안 띄운다. 검색어가 있으면 표에 보이는 품목만(같은 날 이어서). */
+var _npoOpen=false;
+/* ★「그 품목만 없는」 줄·목록은 뺐다 (2026-11-24 사용자 「발주현황표 대비 정산서 누락 조회화면 구성 · 이미지 화면처럼은 제거」) —
+     대부분 같은 삼성 품목이 두 자료에서 다른 상품코드로 저장된 것이라(올해 432줄 중 407) 여기서 날짜만 늘어놓아서는 쓸모가 없었다.
+     그 일은 새 화면 「정산서 누락 조회」(매출 관리)가 원인별로 맡는다. 여기는 «발주현황표가 통째로 없는 날» 한 줄만 + 그 화면으로 가는 링크. */
+function npoPaint(list){
+  var box=document.getElementById('npo'); if(!box) return;
+  list=list||[];
+  var q=((document.getElementById('q')||{}).value||'').trim(), byQ=!!q;
+  if(byQ){ var vis={}; ((_somM&&_somM.cols)||[]).forEach(function(c){ vis[String(c.cd)]=1; }); list=list.filter(function(r){ return vis[String(r.prodCd)]; }); }
+  var agg={}, Y=[]; list.forEach(function(r){ if(r.dayMissing!=='Y') return; var k=r.dlvDt+'|'+r.dcCd; var x=agg[k]; if(!x){ x=agg[k]={ dlvDt:r.dlvDt, dcCd:r.dcCd, dcNm:r.dcNm, lineCnt:0, qty:0 }; Y.push(x); } x.lineCnt+=Number(r.lineCnt)||0; x.qty+=Number(r.qty)||0; });
+  if(!Y.length){ box.hidden=true; box.innerHTML=''; return; }
+  var d10=function(v){ v=String(v||''); return v.length===8 ? v.slice(0,4)+'-'+v.slice(4,6)+'-'+v.slice(6,8) : v; };
+  var md=function(v){ v=String(v||''); return v.length===8 ? (+v.slice(4,6))+'/'+(+v.slice(6,8)) : v; };
+  var nf=function(v){ var x=Number(v)||0; return (Math.round(x*10)/10).toLocaleString(); };
+  var sum=function(a,k){ return a.reduce(function(t,r){ return t+(Number(r[k])||0); },0); };
+  var by={}, ord=[]; Y.forEach(function(r){ var k=String(r.dlvDt); if(!by[k]){ by[k]=[]; ord.push(k); } by[k].push(r.dcNm||r.dcCd); });
+  var h='⚠️ <b>발주현황표가 없는 날 '+Y.length+'곳</b> ('+esc(md(Y[0].dlvDt)+' '+(Y[0].dcNm||Y[0].dcCd))+(Y.length>1?' 외':'')+') — 그날 정산서는 점포를 몰라 「(정산서·발주없음)」';
+  if(byQ) h+=' <span style="color:#8a7a5a">(검색 품목 기준)</span>';
+  /* [자세히]·[정산서 누락 조회 →] 링크는 뺐다 (2026-11-24 사용자 「여기에서는 제거」 — 정산서 누락 조회가 매출 관리의 별도 메뉴가 됐다).
+     날짜·센터 목록은 마우스를 올리면(title) 보인다. npoGo 는 쓰는 곳이 없지만 링크를 되살릴 때를 위해 남겨 둔다. */
+  box.className='npo'; box.innerHTML=h; box.hidden=false;
+  box.title=ord.map(function(k){ return d10(k)+' '+by[k].join('·'); }).join(String.fromCharCode(10))+String.fromCharCode(10)+'— 정산서 '+sum(Y,'lineCnt').toLocaleString()+'줄 · 수량 '+nf(sum(Y,'qty'))+'. 그날 그 센터 발주현황표를 올리면 점포로 나뉩니다(재고 수량은 이미 맞음).';
+}
+/* 「정산서 누락 조회 →」 — 셸의 그 메뉴를 누르고, 이 화면의 기간을 넘긴다(그 화면이 열리며 받아 간다) */
+function npoGo(){
+  var P=window.parent; if(!P || P===window){ return; }
+  try{ P.konetSettleGapRange={ fr:((document.getElementById('frDt')||{}).value||'').replace(/-/g,''), to:((document.getElementById('toDt')||{}).value||'').replace(/-/g,''), tab:'S' }; }catch(e){}
+  var a=P.document.querySelector('a.mi[data-key="settleGap"]'); if(a) a.click();
+  try{ var f=P.document.getElementById('if-settleGap'); if(f && f.contentWindow && typeof f.contentWindow.konetShown==='function') f.contentWindow.konetShown(); }catch(e){}
+}
 function somRender(){
   if(!RAW) return;
   var m=_somM=somBuild(), card=document.getElementById('card');
   _somRS=-1; _somRE=-1;
-  if(!m.cols.length){ card.innerHTML='<div class="empty">해당 기간에 출고가 없습니다.</div>'; document.getElementById('cnt').textContent='-'; return; }
+  if(!m.cols.length){ card.innerHTML='<div class="empty">해당 기간에 출고가 없습니다.</div>'; document.getElementById('cnt').textContent='-'; npoPaint(RAW.noPoDays); return; }
   var grand=0; m.yord.forEach(function(ym){ grand+=m.yms[ym]; }); m.grand=grand;
   var stkTot=0, seen={}; m.cols.forEach(function(c){ var v=m.stock[c.cd]; if(v!=null && !seen[c.cd]){ seen[c.cd]=1; stkTot+=v; } }); m.stkTot=stkTot; m.stkAny=Object.keys(seen).length>0;
   somPaint(true);
@@ -344,6 +389,7 @@ function somRender(){
     /* 서브코드로 쳤을 때 «무엇으로 찾았는지» 밝힌다 — 친 글자는 그대로 두므로 이 줄이 없으면 사람이 알 길이 없다 */
     + (_somVia ? ' · <span style="color:#0e6657;font-weight:700">'+esc(_somVia)+'</span> <span style="color:#8a98a8">로 찾았습니다(매칭코드)</span>' : '');
   somFit();
+  npoPaint(RAW.noPoDays);   /* 알림 줄도 표와 같은 품목으로 (2026-11-24 「검색한 품목에 해당하는 날만」) */
 }
 /* 지금 보이는 열 범위 [vs,ve) — 고정칸 240px 뒤부터 */
 function somVis(){

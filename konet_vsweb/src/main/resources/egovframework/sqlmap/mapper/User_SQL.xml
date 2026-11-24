@@ -12,6 +12,23 @@
 	          WHEN ISNULL(${a}DC_NM,'') LIKE N'%평택%' THEN 'E500' WHEN ISNULL(${a}DC_NM,'') LIKE N'%제주%' THEN 'E600'
 	          WHEN ISNULL(${a}DC_NM,'') LIKE N'%오산%' THEN 'E700' ELSE '' END ]]></sql>
 
+	<!-- ★주코드 매칭 «하위 코드 → 주코드» 표 (2026-11-24 사용자 「주코드 매칭한 것은 제외된 것 맞나요」 → 「정산서 누락 조회 · 월별 출고현황 둘 다」).
+	     거래처 매칭코드(TBL_EXT_ITEM_MST)의 통보 코드(EXT_ITEM_CD)·추가 코드(ADD_ITEM_CD) → 우리 주코드(PROD_CD). 줄 = COMP_CD · CD · MK.
+	     ★왜 필요한가 : 하위 코드가 «자기 이름의 상품»으로도 등록돼 있으면 발주현황표 업로드는 그 상품(하위 코드)으로, 정산서 업로드는 매칭을 따라 주코드로 저장한다
+	       (예 1000455370 아이스컵 20OZ → 9904013345). 같은 물건인데 상품코드만 달라 짝 찾기(같은 상품코드)에서 빠졌다 — 짝 찾기만 이 표로 주코드에 맞춰 비교한다.
+	     운영 실측(2026-11-24) : 316줄 · 한 코드가 두 주코드로 가는 줄 0 · 주코드가 다시 하위 코드인 줄 0 (그래서 한 단계만 바꾼다). 쓰는 곳 = selectSettleGap · selectStockOutByMonth · selectStockOutDetail.
+	     ⚠짝을 찾을 때만 쓴다 — 표에 보이는 상품코드·수량을 어느 코드에 둘지는 종전 그대로다. -->
+	<sql id="extMainMap"><![CDATA[ SELECT z.COMP_CD, z.CD, MAX(z.PROD_CD) AS MK
+	    FROM ( SELECT e.COMP_CD, LTRIM(RTRIM(e.EXT_ITEM_CD)) AS CD, e.PROD_CD FROM TBL_EXT_ITEM_MST e
+	            WHERE e.ACTION_YN = 'Y' AND ISNULL(e.PROD_CD,'') <> '' AND ISNULL(e.EXT_ITEM_CD,'') <> ''
+	              AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR e.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	           UNION
+	           SELECT e.COMP_CD, LTRIM(RTRIM(e.ADD_ITEM_CD)), e.PROD_CD FROM TBL_EXT_ITEM_MST e
+	            WHERE e.ACTION_YN = 'Y' AND ISNULL(e.PROD_CD,'') <> '' AND ISNULL(e.ADD_ITEM_CD,'') <> ''
+	              AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR e.COMP_CD = #{compCd,jdbcType=VARCHAR} ) ) z
+	   WHERE z.CD <> z.PROD_CD
+	   GROUP BY z.COMP_CD, z.CD ]]></sql>
+
 
 	<!-- ============================================================
 	     KOLGSDB(MSSQL) 로그인 — COMP_CD + USER_ID 최신 활성 1건
@@ -4460,11 +4477,16 @@
   IF OBJECT_ID('tempdb..#SOM_SL') IS NOT NULL DROP TABLE #SOM_SL;
   IF OBJECT_ID('tempdb..#SOM_SD') IS NOT NULL DROP TABLE #SOM_SD;
   IF OBJECT_ID('tempdb..#SOM_OL') IS NOT NULL DROP TABLE #SOM_OL;
+  IF OBJECT_ID('tempdb..#SOM_M') IS NOT NULL DROP TABLE #SOM_M;
+  IF OBJECT_ID('tempdb..#SOM_SL0') IS NOT NULL DROP TABLE #SOM_SL0;
+  IF OBJECT_ID('tempdb..#SOM_OL0') IS NOT NULL DROP TABLE #SOM_OL0;
+    /* 하위 코드 → 주코드 (2026-11-24 — 짝 찾기만 주코드로 맞춘다, 조각 extMainMap 머리 주석) */
+    SELECT * INTO #SOM_M FROM ( ]]><include refid="extMainMap"/><![CDATA[ ) mm0;
     /* 정산서 라인별 출고수량 (+출고장코드 — 코드가 빈 옛 정산서는 출고장 이름으로) */
 	    SELECT v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,'') AS ORD_NO, v.PROD_CD,
 	           MAX(]]><include refid="dcKeyOf"><property name="a" value="v."/></include><![CDATA[) AS DC_CD,
 	           SUM(CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END) AS VQ
-      INTO #SOM_SL
+      INTO #SOM_SL0
       FROM TBL_SALES_MST v
 	     WHERE v.ACTION_YN='Y' AND ISNULL(v.PROD_CD,'')<>''
 	       AND v.DLV_DT >= #{frDt} AND v.DLV_DT <= #{toDt}
@@ -4477,7 +4499,7 @@
 	           UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))) AS DC_CD,
 	           ISNULL(s.PROD_KIND,'') AS KIND, ISNULL(s.BIZ_CD,'') AS BIZ_CD, MAX(ISNULL(s.BIZ_NM,'')) AS BIZ_NM,
 	           SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) + ISNULL(s.DS_SVC_QTY,0)) AS SQ
-      INTO #SOM_OL
+      INTO #SOM_OL0
       FROM TBL_SHIPOUT_MST s
 	     WHERE s.ACTION_YN='Y' AND ISNULL(s.PROD_CD,'')<>'' AND ISNULL(s.DLV_GB,'') <> 'DSFEE' AND ISNULL(s.DS_TRX_GB,'') <> N'반품'   /* 대상 택배비(로젠) 줄·반품 줄은 출고 수량이 아니다(2026-10-27) */
 	       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= #{frDt}
@@ -4485,6 +4507,10 @@
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD,
               UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))), ISNULL(s.PROD_KIND,''), ISNULL(s.BIZ_CD,'');
+    /* 주코드(MK) 붙이기 (2026-11-24 — 짝 찾기 SJ 만 MK 로 맞춘다)
+	     ⚠큰 표(TBL_SALES_MST·TBL_SHIPOUT_MST)를 읽는 문장에 매칭 표를 직접 붙이지 않는다 — 정산서 누락 조회에서 한 달 0.19 → 0.8초 · 나쁜 계획이 캐시되면 1년 12.7초였다(2026-11-24 실측). 다 만든 작은 표에서 붙인다 */
+    SELECT l.*, ISNULL(m.MK, l.PROD_CD) AS MK INTO #SOM_SL FROM #SOM_SL0 l LEFT JOIN #SOM_M m ON m.COMP_CD = l.COMP_CD AND m.CD = l.PROD_CD;
+    SELECT o.*, ISNULL(m.MK, o.PROD_CD) AS MK INTO #SOM_OL FROM #SOM_OL0 o LEFT JOIN #SOM_M m ON m.COMP_CD = o.COMP_CD AND m.CD = o.PROD_CD;
   WITH SL AS ( SELECT * FROM #SOM_SL ), SD AS ( SELECT * FROM #SOM_SD ), OL AS ( SELECT * FROM #SOM_OL
   ), SJ AS (     /* 정산서 줄 × 같은 날·같은 품목 발주행 — MK = 찾은 순서(①발주번호 ②출고장+발주번호 빈 행 ③출고장 전체, 9=해당 없음) */
 	    SELECT l.COMP_CD, l.DLV_DT, l.ORD_NO, l.PROD_CD, l.VQ, o.BIZ_CD, o.BIZ_NM, o.SQ,
@@ -4492,7 +4518,7 @@
 	                WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD AND o.ORD_NO = '' THEN 2
 	                WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD THEN 3 ELSE 9 END AS MK
 	      FROM SL l
-	      JOIN OL o ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.PROD_CD = l.PROD_CD AND o.SQ > 0 AND o.KIND <> 'TD'   /* 토더·대상 줄에는 정산서를 나누지 않는다 */
+	      JOIN OL o ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.MK = l.MK AND o.SQ > 0 AND o.KIND <> 'TD'   /* 토더·대상 줄에는 정산서를 나누지 않는다 · 품목은 주코드(MK)로 맞춘다(2026-11-24 — 발주현황표가 하위 코드로 저장된 줄도 짝) */
 	  ), SM AS (     /* 정산서 줄마다 가장 앞 순서(BM)의 발주행만 남기고, 그 안의 발주수량 합(LT)으로 비율 */
 	    SELECT k.*, SUM(k.SQ) OVER (PARTITION BY k.COMP_CD, k.DLV_DT, k.ORD_NO, k.PROD_CD) AS LT
 	      FROM ( SELECT j.*, MIN(j.MK) OVER (PARTITION BY j.COMP_CD, j.DLV_DT, j.ORD_NO, j.PROD_CD) AS BM FROM SJ j ) k
@@ -4537,7 +4563,121 @@
 	      ON pm.PROD_CD = u.PROD_CD AND pm.COMP_CD = u.COMP_CD
 	    LEFT JOIN TBL_PROD_MST p ON p.PROD_SEQ = pm.PROD_SEQ
 	   GROUP BY LEFT(u.DLV_DT,6), ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD), u.PROD_CD
-	   ORDER BY ym DESC, bizNm, u.PROD_CD
+	   ORDER BY ym DESC, bizNm, u.PROD_CD;
+  DROP TABLE #SOM_M; DROP TABLE #SOM_SL0; DROP TABLE #SOM_OL0;
+	]]></select>
+
+	<!-- 월별 출고현황 — 「정산서는 왔는데 발주현황표에서 짝을 못 찾은」 납기일자 × 물류센터 (2026-11-24 사용자 「정산서만 오고 발주현황표 누락이네요」 → 「메시지 처리」)
+	     · 그 정산서 수량은 사업장을 못 찾아 월별 출고현황에서 「(정산서·발주없음)」으로 보인다 — 화면이 표 위 노란 줄로 알려 준다.
+	     · 짝 찾기 = selectStockOutByMonth SM 과 같은 규칙 : 같은 납기일자 · 같은 품목(주코드)의 발주현황표 줄이 ①같은 발주번호 또는 ②같은 출고장이면 짝이 있다.
+	       그래서 여기 잡힌 줄 = 그 표의 「(정산서·발주없음)」 줄. 정산서 출고장은 코드가 빈 옛 줄도 이름으로(dcKeyOf).
+	     · dayMissing = 'Y' 이면 그날 그 물류센터의 발주현황표가 «통째로» 없다(2026-09-21 평택 등 — 발주현황표를 올리면 풀린다) · 'N' 이면 발주현황표는 있는데 그 품목만 없다.
+	     · ★OPTION (HASH JOIN, RECOMPILE) — HASH JOIN 이 없으면 한 달 기간에서 줄마다 되도는 계획을 골라 16.6초 · RECOMPILE 이 없으면 처음 짠 계획을 돌려써
+	       1년 기간이 0.5초 ~ 2.0초로 들쭉날쭉했다(같은 문장·같은 값, 운영 실측 2026-11-24). 둘 다 붙이면 한 달 0.18 · 9월 0.24 · 1년 0.57초로 늘 같다, 결과 동일. -->
+	<select id="selectSettleNoPoDays" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  WITH S AS (
+	    SELECT v.COMP_CD, v.DLV_DT, v.DC_NM, ISNULL(v.ORD_NO,'') AS ORD_NO, v.PROD_CD,
+	           ]]><include refid="dcKeyOf"><property name="a" value="v."/></include><![CDATA[ AS DC_KEY,
+	           CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END AS Q
+	      FROM TBL_SALES_MST v
+	     WHERE v.ACTION_YN = 'Y' AND ISNULL(v.PROD_CD,'') <> ''
+	       AND v.DLV_DT >= #{frDt} AND v.DLV_DT <= #{toDt}
+	       AND v.COMP_CD = #{compCd,jdbcType=VARCHAR}   /* 회사코드는 «그대로» 비교 — 「비면 전체」 OR·ISNULL(값,기본) 은 1년 기간에서 2.0초, 그대로 비교 0.53초(2026-11-24 실측). 회사코드는 인터셉터가 늘 채운다(비면 알림만 안 뜬다) */
+	  ), O AS (
+	    SELECT o.COMP_CD, o.DLV_DT, ISNULL(o.PROD_CD,'') AS PROD_CD, ISNULL(o.ORD_NO,'') AS ORD_NO, UPPER(LTRIM(RTRIM(ISNULL(o.DC_CD,'')))) AS DCK
+	      FROM TBL_SHIPOUT_MST o
+	     WHERE o.ACTION_YN = 'Y' AND o.DLV_DT >= #{frDt} AND o.DLV_DT <= #{toDt}
+	       AND o.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	       AND ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) > 0
+	     GROUP BY o.COMP_CD, o.DLV_DT, ISNULL(o.PROD_CD,''), ISNULL(o.ORD_NO,''), UPPER(LTRIM(RTRIM(ISNULL(o.DC_CD,''))))
+	  ), D AS (
+	    SELECT DISTINCT COMP_CD, DLV_DT, DCK FROM O
+	  ), G AS (
+	    SELECT s.COMP_CD AS compCd, s.DLV_DT AS dlvDt, s.DC_KEY AS dcCd, s.PROD_CD AS prodCd, MAX(s.DC_NM) AS dcNm, COUNT(*) AS lineCnt, SUM(s.Q) AS qty
+	      FROM S s
+	     WHERE NOT EXISTS ( SELECT 1 FROM O WHERE O.COMP_CD = s.COMP_CD AND O.DLV_DT = s.DLV_DT AND O.PROD_CD = s.PROD_CD AND s.ORD_NO <> '' AND O.ORD_NO = s.ORD_NO )
+	       AND NOT EXISTS ( SELECT 1 FROM O WHERE O.COMP_CD = s.COMP_CD AND O.DLV_DT = s.DLV_DT AND O.PROD_CD = s.PROD_CD AND s.DC_KEY <> '' AND O.DCK = s.DC_KEY )
+	     GROUP BY s.COMP_CD, s.DLV_DT, s.DC_KEY, s.PROD_CD   /* 품목까지 — 화면이 검색한 품목에 해당하는 것만 골라 날짜·센터로 묶는다 (2026-11-24 사용자 「검색한 품목에 해당하는 날만」) */
+	  )
+	  SELECT G.dlvDt, G.dcCd, G.dcNm, G.prodCd, G.lineCnt, G.qty,
+	         CASE WHEN D.DLV_DT IS NULL THEN 'Y' ELSE 'N' END AS dayMissing
+	    FROM G LEFT JOIN D ON D.COMP_CD = G.compCd AND D.DLV_DT = G.dlvDt AND D.DCK = G.dcCd
+	   ORDER BY G.dlvDt, G.dcCd, G.prodCd
+	  OPTION (HASH JOIN, RECOMPILE)
+	]]></select>
+
+	<!-- 정산서 누락 조회 (2026-11-24 사용자 「발주현황표 대비 정산서 누락 조회화면 구성해줘」) — 화면 mangr/settleGap.jsp
+	     발주현황표(TBL_SHIPOUT_MST, 토더 TD 제외)와 정산서(TBL_SALES_MST)를 납기일자·물류센터·품목으로 맞춰 «짝이 안 맞는 줄»만 돌려준다. gb 세 갈래 :
+	       · S = 정산서만 있음 — 월별 출고현황 「(정산서·발주없음)」 이 되는 줄(짝 찾기 규칙 = selectStockOutByMonth SM : 같은 납기일자·같은 상품코드 + 같은 발주번호 또는 같은 출고장)
+	       · O = 발주현황표만 있음 — 그날 그 센터 정산서는 왔는데 이 발주 줄의 짝이 정산서에 없다(같은 규칙을 거꾸로)
+	       · N = 정산서 안 온 날 — 그날 그 센터 정산서가 아예 없다(납기일자 × 센터로 묶어 한 줄)
+	     ★[2026-11-24] 품목 비교는 주코드(MK — 조각 extMainMap)로 한다 : 매칭된 하위 코드로 저장된 줄은 같은 품목이라 여기 안 나온다(그 전엔 「상품코드 다름」 407줄의 거의 전부가 이것).
+	     reason : DAY(S 만 — 그날 그 센터 발주현황표가 없음) · CODE(같은 삼성 품목코드 ITEM_CD 가 반대쪽에 있는데 우리 상품코드 PROD_CD 가 다름 — 매칭 시점 차이, otherProdCd = 반대쪽 코드) · ITEM(그 품목이 반대쪽에 없음) · NOSETTLE(N).
+	     ★실측(2026-11-24, 올해) : S 571줄 = DAY 141 · CODE 407 · ITEM 23 — 「그 품목만 없는」 줄의 대부분이 실은 상품코드만 다른 것이었다.
+	     ★임시 표(#GAP_S·#GAP_O) — 한 문장(CTE)으로 쓰면 한 달 기간에서 SQL Server 가 줄마다 되도는 계획을 골라 100초 넘게 걸렸다(1년은 1.8초 — 같은 문장).
+	       임시 표에 먼저 담으면 한 달 0.19 · 1년 2.3초, 결과 해시 동일. 임시 표는 이 연결에서만 보이고 앞뒤로 지운다. -->
+	<select id="selectSettleGap" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SET NOCOUNT ON;
+	  IF OBJECT_ID('tempdb..#GAP_S') IS NOT NULL DROP TABLE #GAP_S;
+	  IF OBJECT_ID('tempdb..#GAP_O') IS NOT NULL DROP TABLE #GAP_O;
+	  IF OBJECT_ID('tempdb..#GAP_M') IS NOT NULL DROP TABLE #GAP_M;
+	  IF OBJECT_ID('tempdb..#GAP_S0') IS NOT NULL DROP TABLE #GAP_S0;
+	  IF OBJECT_ID('tempdb..#GAP_O0') IS NOT NULL DROP TABLE #GAP_O0;
+	  /* 하위 코드 → 주코드 (2026-11-24 사용자 「주코드 매칭한 것은 제외된 것 맞나요」 → 매칭된 하위 코드는 같은 품목으로 본다 — 조각 extMainMap) */
+	  SELECT * INTO #GAP_M FROM ( ]]><include refid="extMainMap"/><![CDATA[ ) mm0;
+	  SELECT v.DLV_DT, MAX(v.DC_NM) AS DC_NM, ISNULL(v.ORD_NO,'') AS ORD_NO, ISNULL(v.ITEM_CD,'') AS ITEM_CD, v.PROD_CD,
+	         ]]><include refid="dcKeyOf"><property name="a" value="v."/></include><![CDATA[ AS DCK,
+	         MAX(v.ITEM_NM) AS ITEM_NM, COUNT(*) AS LN,
+	         SUM(CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END) AS Q
+	    INTO #GAP_S0
+	    FROM TBL_SALES_MST v
+	   WHERE v.ACTION_YN = 'Y' AND ISNULL(v.PROD_CD,'') <> '' AND v.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND v.DLV_DT >= #{frDt,jdbcType=VARCHAR} AND v.DLV_DT <= #{toDt,jdbcType=VARCHAR}
+	   GROUP BY v.DLV_DT, ISNULL(v.ORD_NO,''), ISNULL(v.ITEM_CD,''), v.PROD_CD,
+	         ]]><include refid="dcKeyOf"><property name="a" value="v."/></include><![CDATA[;
+	  SELECT o.DLV_DT, UPPER(LTRIM(RTRIM(ISNULL(o.DC_CD,'')))) AS DCK, MAX(o.DC_NM) AS DC_NM, ISNULL(o.ORD_NO,'') AS ORD_NO,
+	         ISNULL(o.ITEM_CD,'') AS ITEM_CD, ISNULL(o.PROD_CD,'') AS PROD_CD, MAX(o.ITEM_NM) AS ITEM_NM,
+	         MIN(o.BIZ_NM) AS BIZ_NM, COUNT(DISTINCT ISNULL(o.BIZ_CD,'')) AS BIZ_CNT, COUNT(*) AS LN,
+	         SUM(ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0))) AS Q
+	    INTO #GAP_O0
+	    FROM TBL_SHIPOUT_MST o
+	   WHERE o.ACTION_YN = 'Y' AND o.COMP_CD = #{compCd,jdbcType=VARCHAR} AND ISNULL(o.PROD_KIND,'') <> 'TD'
+	     AND o.DLV_DT >= #{frDt,jdbcType=VARCHAR} AND o.DLV_DT <= #{toDt,jdbcType=VARCHAR} AND ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) > 0
+	   GROUP BY o.DLV_DT, UPPER(LTRIM(RTRIM(ISNULL(o.DC_CD,'')))), ISNULL(o.ORD_NO,''), ISNULL(o.ITEM_CD,''), ISNULL(o.PROD_CD,'');
+	  /* 주코드(MK) 붙이기 — 다 만든 작은 표끼리(수천 줄)라 계획이 어떻게 나와도 빠르다.
+	     ⚠큰 표(TBL_SALES_MST·TBL_SHIPOUT_MST)를 읽는 문장에 #GAP_M 을 직접 붙이면 한 달 0.19 → 0.8초, 한 번 나쁜 계획이 캐시되자 1년이 매번 12.7초였다(2026-11-24 실측) — 그래서 나눴다 */
+	  SELECT s.*, ISNULL(m.MK, s.PROD_CD) AS MK INTO #GAP_S FROM #GAP_S0 s LEFT JOIN #GAP_M m ON m.CD = s.PROD_CD;
+	  SELECT o.*, ISNULL(m.MK, o.PROD_CD) AS MK INTO #GAP_O FROM #GAP_O0 o LEFT JOIN #GAP_M m ON m.CD = o.PROD_CD;
+	  SELECT 'S' AS gb,
+	         CASE WHEN NOT EXISTS ( SELECT 1 FROM #GAP_O d WHERE d.DLV_DT = s.DLV_DT AND d.DCK = s.DCK ) THEN 'DAY'
+	              WHEN x.OTHER_PROD IS NOT NULL THEN 'CODE' ELSE 'ITEM' END AS reason,
+	         s.DLV_DT AS dlvDt, s.DCK AS dcCd, s.DC_NM AS dcNm, s.ORD_NO AS ordNo, s.ITEM_CD AS itemCd, s.PROD_CD AS prodCd, s.ITEM_NM AS itemNm,
+	         CAST(NULL AS NVARCHAR(200)) AS bizNm, 0 AS bizCnt, s.Q AS qty, s.LN AS lineCnt, x.OTHER_PROD AS otherProdCd
+	    FROM #GAP_S s
+	    OUTER APPLY ( SELECT MIN(o2.PROD_CD) AS OTHER_PROD FROM #GAP_O o2
+	                   WHERE o2.DLV_DT = s.DLV_DT AND o2.ITEM_CD = s.ITEM_CD AND s.ITEM_CD <> '' AND o2.MK <> s.MK
+	                     AND ( ( s.ORD_NO <> '' AND o2.ORD_NO = s.ORD_NO ) OR ( s.DCK <> '' AND o2.DCK = s.DCK ) ) ) x
+	   WHERE NOT EXISTS ( SELECT 1 FROM #GAP_O O WHERE O.DLV_DT = s.DLV_DT AND O.MK = s.MK AND s.ORD_NO <> '' AND O.ORD_NO = s.ORD_NO )
+	     AND NOT EXISTS ( SELECT 1 FROM #GAP_O O WHERE O.DLV_DT = s.DLV_DT AND O.MK = s.MK AND s.DCK <> '' AND O.DCK = s.DCK )
+	  UNION ALL
+	  SELECT 'O', CASE WHEN y.OTHER_PROD IS NOT NULL THEN 'CODE' ELSE 'ITEM' END,
+	         o.DLV_DT, o.DCK, o.DC_NM, o.ORD_NO, o.ITEM_CD, o.PROD_CD, o.ITEM_NM, o.BIZ_NM, o.BIZ_CNT, o.Q, o.LN, y.OTHER_PROD
+	    FROM #GAP_O o
+	    OUTER APPLY ( SELECT MIN(s2.PROD_CD) AS OTHER_PROD FROM #GAP_S s2
+	                   WHERE s2.DLV_DT = o.DLV_DT AND s2.ITEM_CD = o.ITEM_CD AND o.ITEM_CD <> '' AND s2.MK <> o.MK
+	                     AND ( ( o.ORD_NO <> '' AND s2.ORD_NO = o.ORD_NO ) OR s2.DCK = o.DCK ) ) y
+	   WHERE EXISTS ( SELECT 1 FROM #GAP_S sd WHERE sd.DLV_DT = o.DLV_DT AND sd.DCK = o.DCK )
+	     AND NOT EXISTS ( SELECT 1 FROM #GAP_S S WHERE S.DLV_DT = o.DLV_DT AND S.MK = o.MK AND o.ORD_NO <> '' AND S.ORD_NO = o.ORD_NO )
+	     AND NOT EXISTS ( SELECT 1 FROM #GAP_S S WHERE S.DLV_DT = o.DLV_DT AND S.MK = o.MK AND S.DCK = o.DCK )
+	  UNION ALL
+	  SELECT 'N', 'NOSETTLE', o.DLV_DT, o.DCK, MAX(o.DC_NM), '', '', '', '', NULL, COUNT(DISTINCT o.ORD_NO), SUM(o.Q), SUM(o.LN), NULL
+	    FROM #GAP_O o
+	   WHERE NOT EXISTS ( SELECT 1 FROM #GAP_S sd WHERE sd.DLV_DT = o.DLV_DT AND sd.DCK = o.DCK )
+	   GROUP BY o.DLV_DT, o.DCK
+	   ORDER BY 1, 3 DESC, 4, 6, 7
+	  OPTION (RECOMPILE);   /* ★2026-11-24 — 이 문장은 임시 표가 차기 전에 계획을 짜 통계를 못 본다. 주코드 비교(MK)로 바꾼 뒤 RECOMPILE 이 없으면 1년 기간이 12초, 있으면 2.5초(결과 해시 동일) */
+	  DROP TABLE #GAP_S; DROP TABLE #GAP_O; DROP TABLE #GAP_M; DROP TABLE #GAP_S0; DROP TABLE #GAP_O0;
+	  
 	]]></select>
 
 	<select id="selectStockOutDetail" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
@@ -4554,11 +4694,17 @@
   IF OBJECT_ID('tempdb..#SOD_SD') IS NOT NULL DROP TABLE #SOD_SD;
   IF OBJECT_ID('tempdb..#SOD_F') IS NOT NULL DROP TABLE #SOD_F;
   IF OBJECT_ID('tempdb..#SOD_L') IS NOT NULL DROP TABLE #SOD_L;
+  IF OBJECT_ID('tempdb..#SOD_M') IS NOT NULL DROP TABLE #SOD_M;
+  IF OBJECT_ID('tempdb..#SOD_SL0') IS NOT NULL DROP TABLE #SOD_SL0;
+  IF OBJECT_ID('tempdb..#SOD_OL0') IS NOT NULL DROP TABLE #SOD_OL0;
+  IF OBJECT_ID('tempdb..#SOD_OL1') IS NOT NULL DROP TABLE #SOD_OL1;
+    /* 하위 코드 → 주코드 (2026-11-24 — 표 selectStockOutByMonth 와 같은 짝 찾기. 하위 코드로 저장된 발주현황표 줄도 짝 찾기에만 읽고(SUB=1) 화면 줄(①·③)에는 안 넣는다) */
+    SELECT * INTO #SOD_M FROM ( ]]><include refid="extMainMap"/><![CDATA[ ) mm0;
     SELECT v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,'') AS ORD_NO, v.PROD_CD, MAX(ISNULL(v.DC_NM,'')) AS DC_NM,
 	           MAX(]]><include refid="dcKeyOf"><property name="a" value="v."/></include><![CDATA[) AS DC_CD,
 	           MAX(ISNULL(v.ITEM_CD,'')) AS ITEM_CD, MAX(ISNULL(v.ITEM_NM,'')) AS ITEM_NM,
            SUM(CASE WHEN ISNULL(v.DLV_TYPE,'')='X' THEN ISNULL(v.ORD_QTY,0) ELSE ISNULL(v.OUT_QTY,0) END) AS VQ
-      INTO #SOD_SL
+      INTO #SOD_SL0
       FROM TBL_SALES_MST v
 	     WHERE v.ACTION_YN='Y' AND v.PROD_CD = #{prodCd}
 	       AND v.DLV_DT >= #{frDt} AND v.DLV_DT <= #{toDt}
@@ -4569,7 +4715,7 @@
            ISNULL(s.PROD_KIND,'') AS KIND, ISNULL(s.BIZ_CD,'') AS BIZ_CD, MAX(ISNULL(s.BIZ_NM,'')) AS BIZ_NM, MAX(ISNULL(s.DC_NM,'')) AS DC_NM,
            ISNULL(s.ITEM_CD,'') AS ITEM_CD, MAX(ISNULL(s.ITEM_NM,'')) AS ITEM_NM,   /* 출고 때 쓴 거래처 코드(매칭코드) — 재고현황 ↳ 줄과 같은 것 */
            SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) + ISNULL(s.DS_SVC_QTY,0)) AS SQ
-      INTO #SOD_OL
+      INTO #SOD_OL0
       FROM TBL_SHIPOUT_MST s
      WHERE s.ACTION_YN='Y' AND s.PROD_CD = #{prodCd} AND ISNULL(s.DLV_GB,'') <> 'DSFEE' AND ISNULL(s.DS_TRX_GB,'') <> N'반품'   /* 대상 택배비·반품 줄 제외(2026-10-27) */
        AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= #{frDt}
@@ -4577,6 +4723,26 @@
        AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
      GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD,
               UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))), ISNULL(s.PROD_KIND,''), ISNULL(s.BIZ_CD,''), ISNULL(s.ITEM_CD,'');
+    /* 그 품목(주코드)에 매칭된 하위 코드로 저장된 발주현황표 줄 — 짝 찾기 전용(SUB=1, 2026-11-24). 매칭이 없으면 읽을 것이 없다 */
+    SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS DLV_DT, ISNULL(s.ORD_NO,'') AS ORD_NO, s.PROD_CD,
+           UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))) AS DC_CD,
+           ISNULL(s.PROD_KIND,'') AS KIND, ISNULL(s.BIZ_CD,'') AS BIZ_CD, MAX(ISNULL(s.BIZ_NM,'')) AS BIZ_NM, MAX(ISNULL(s.DC_NM,'')) AS DC_NM,
+           ISNULL(s.ITEM_CD,'') AS ITEM_CD, MAX(ISNULL(s.ITEM_NM,'')) AS ITEM_NM,   /* 출고 때 쓴 거래처 코드(매칭코드) — 재고현황 ↳ 줄과 같은 것 */
+           SUM(ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) + ISNULL(s.DS_SVC_QTY,0)) AS SQ
+      INTO #SOD_OL1
+      FROM TBL_SHIPOUT_MST s
+     WHERE s.ACTION_YN='Y' AND s.PROD_CD IN ( SELECT m.CD FROM #SOD_M m WHERE m.MK = #{prodCd} ) AND ISNULL(s.DLV_GB,'') <> 'DSFEE' AND ISNULL(s.DS_TRX_GB,'') <> N'반품'   /* 대상 택배비·반품 줄 제외(2026-10-27) */
+       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) >= #{frDt}
+       AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= #{toDt}
+       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+     GROUP BY s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), ISNULL(s.ORD_NO,''), s.PROD_CD,
+              UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))), ISNULL(s.PROD_KIND,''), ISNULL(s.BIZ_CD,''), ISNULL(s.ITEM_CD,'');
+    /* 주코드(MK) 붙이기 (2026-11-24 — 짝 찾기 SJ 만 MK 로 맞춘다, 표 selectStockOutByMonth 와 같다)
+	     ⚠큰 표(TBL_SALES_MST·TBL_SHIPOUT_MST)를 읽는 문장에 매칭 표를 직접 붙이지 않는다 — 정산서 누락 조회에서 한 달 0.19 → 0.8초 · 나쁜 계획이 캐시되면 1년 12.7초였다(2026-11-24 실측). 다 만든 작은 표에서 붙인다 */
+    SELECT l.*, ISNULL(m.MK, l.PROD_CD) AS MK INTO #SOD_SL FROM #SOD_SL0 l LEFT JOIN #SOD_M m ON m.COMP_CD = l.COMP_CD AND m.CD = l.PROD_CD;
+    SELECT x.*, ISNULL(m.MK, x.PROD_CD) AS MK INTO #SOD_OL
+      FROM ( SELECT o.*, 0 AS SUB FROM #SOD_OL0 o UNION ALL SELECT o.*, 1 FROM #SOD_OL1 o ) x
+      LEFT JOIN #SOD_M m ON m.COMP_CD = x.COMP_CD AND m.CD = x.PROD_CD;
   /* 정산서가 있는 납기일자(SD)도 임시 표로 — SL·OL 만 굳혔더니 한 해 전체 조회(9904013343 · 510줄)가 0.5초 → 3초로 느려졌다
      (U 의 NOT EXISTS 가 발주 줄마다 정산서 표를 다시 읽는 계획). 셋 다 굳히면 0.2초. 조회 기간만 (2026-11-08 속도) — OL 이 그 기간뿐이라 결과 같다 */
     SELECT DISTINCT COMP_CD, DLV_DT INTO #SOD_SD FROM TBL_SALES_MST WHERE ACTION_YN='Y'
@@ -4616,7 +4782,7 @@
 	                WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD AND o.ORD_NO = '' THEN 2
 	                WHEN l.DC_CD <> '' AND o.DC_CD = l.DC_CD THEN 3 ELSE 9 END AS MK
 	      FROM SL l
-	      JOIN OL o ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.PROD_CD = l.PROD_CD AND o.SQ > 0 AND o.KIND <> 'TD'   /* 토더·대상 줄에는 정산서를 나누지 않는다 */
+	      JOIN OL o ON o.COMP_CD = l.COMP_CD AND o.DLV_DT = l.DLV_DT AND o.MK = l.MK AND o.SQ > 0 AND o.KIND <> 'TD'   /* 토더·대상 줄에는 정산서를 나누지 않는다 · 품목은 주코드(MK)로(2026-11-24) */
 	  ), SM AS (
 	    SELECT k.*, SUM(k.SQ) OVER (PARTITION BY k.COMP_CD, k.DLV_DT, k.ORD_NO, k.PROD_CD) AS LT
 	      FROM ( SELECT j.*, MIN(j.MK) OVER (PARTITION BY j.COMP_CD, j.DLV_DT, j.ORD_NO, j.PROD_CD) AS BM FROM SJ j ) k
@@ -4624,7 +4790,7 @@
 	  ), U AS (
 	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.DC_NM, o.ORD_NO, o.ITEM_CD, o.ITEM_NM, CAST(o.SQ AS DECIMAL(18,3)) AS QTY,
 	           CASE WHEN o.KIND = 'DC' THEN N'DC 발주' ELSE N'발주현황표' END AS SRC
-	      FROM OL o WHERE o.KIND <> 'TD' AND NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = o.COMP_CD AND SD.DLV_DT = o.DLV_DT )
+	      FROM OL o WHERE o.KIND <> 'TD' AND o.SUB = 0 AND NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = o.COMP_CD AND SD.DLV_DT = o.DLV_DT )   /* SUB=1(하위 코드 줄)은 짝 찾기 전용 — 표에서도 그 하위 코드 칸에 있다 */
 	    UNION ALL
 	    SELECT l.COMP_CD, l.DLV_DT, ISNULL(m.BIZ_CD,''), ISNULL(m.BIZ_NM, N'(정산서·발주없음)'), ISNULL(m.DC_NM, l.DC_NM), l.ORD_NO, ISNULL(m.ITEM_CD, l.ITEM_CD), ISNULL(m.ITEM_NM, l.ITEM_NM),
 	           CAST(CASE WHEN m.BIZ_CD IS NULL THEN l.VQ ELSE l.VQ * m.SQ / m.LT END AS DECIMAL(18,3)), N'정산서'
@@ -4634,7 +4800,7 @@
 	    /* ③ 토더·대상 발주(TD) : 정산서가 있는 날에도 늘 — selectStockOutByMonth 와 같다 (2026-10-26) */
 	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.DC_NM, o.ORD_NO, o.ITEM_CD, o.ITEM_NM, CAST(o.SQ AS DECIMAL(18,3)),
 	           CASE WHEN o.DC_CD = 'DAESANG' THEN N'대상 발주' WHEN o.DC_CD = 'DONGWON' THEN N'동원홈푸드 발주' ELSE N'토더 발주' END
-	      FROM OL o WHERE o.KIND = 'TD'   /* 대상 발주도 센다(2026-10-27 되돌림) — 택배비 줄은 OL 에서 이미 뺐다 */
+	      FROM OL o WHERE o.KIND = 'TD' AND o.SUB = 0   /* 대상 발주도 센다(2026-10-27 되돌림) — 택배비 줄은 OL 에서 이미 뺐다 */
 	    UNION ALL
 	    /* ④ 판매전표 : 줄마다 한 줄(전표번호 = 원장 REF_NO 꼴, 매칭코드로 판 줄은 EXT_CD) — 셈은 selectStockOutByMonth 와 같다 */
 	    SELECT m.COMP_CD, REPLACE(ISNULL(m.SALE_DT,''),'-',''), 'STRX:' + ISNULL(m.CUST_CD,''), ISNULL(NULLIF(m.CUST_NM,''), N'(거래처 없음)') + N' (판매전표)', ISNULL(m.WH_NM,''),
@@ -4675,7 +4841,8 @@
 	   /* ★★RECOMPILE (2026-11-08 「처음 조회속도가 늘림」) — 운영 DB 계획 캐시 실측 : 앱의 «매개변수» 문장(@P0 nvarchar…)이 10월 조회값(품목 1000772435 · 사업장 M0240)으로 한 번 컴파일된 계획을
 	        19번 재사용해 평균 10.2초 · 최대 56.8초 · 논리읽기 500만 — 같은 SQL 을 값 그대로 돌리면 0.45초 · 11.7만. 값마다 자료 분포가 달라 한 계획을 재사용하면 안 되는 문장(parameter sniffing).
 	        RECOMPILE 이면 실행마다 그 값으로 다시 짠다(컴파일 수십 ms — 실측 literal 첫 실행 457ms ≈ 둘째 465ms). 느려지면 RECOMPILE 만 빼면 된다 */
-	   OPTION (MAXDOP 1, RECOMPILE)
+	   OPTION (MAXDOP 1, RECOMPILE);
+  DROP TABLE #SOD_M; DROP TABLE #SOD_SL0; DROP TABLE #SOD_OL0; DROP TABLE #SOD_OL1;
 	]]></select>
 
 	<select id="selectStockOutSrcDays" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[

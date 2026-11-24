@@ -578,6 +578,8 @@ public class UserServiceImpl implements UserService {
 	}
 	@Override public java.util.List<egovframework.konet.user.model.StockMstDTO> selectStockMstList(egovframework.konet.user.model.StockMstDTO dto) throws Exception { return mapper.selectStockMstList(dto); }
 	@Override public java.util.List<egovframework.konet.user.model.StockMstDTO> selectStockQtyMap(egovframework.konet.user.model.StockMstDTO dto) throws Exception { return mapper.selectStockQtyMap(dto); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectSettleNoPoDays(java.util.Map<String,Object> p) throws Exception { return mapper.selectSettleNoPoDays(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectSettleGap(java.util.Map<String,Object> p) throws Exception { return mapper.selectSettleGap(p); }   // 정산서 누락 조회 (2026-11-24)   // 월별 출고현황 알림 (2026-11-24)
 	@Override public java.util.List<java.util.Map<String,Object>> selectStockOutByMonth(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockOutByMonth(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectStockOutSrcDays(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockOutSrcDays(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectStockOutDetail(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockOutDetail(p); }

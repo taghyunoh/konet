@@ -2960,6 +2960,10 @@ public class UserController {
 			p.put("frDt", fd); p.put("toDt", td);
 			Map<String,Object> res = new HashMap<String,Object>();
 			res.put("months", svc.selectStockOutByMonth(p));
+			/* 정산서는 왔는데 발주현황표에서 짝을 못 찾은 날 (2026-11-24 사용자 「정산서만 오고 발주현황표 누락」) — 화면이 표 위 노란 줄로 알린다.
+			   알림일 뿐이라 실패해도 표는 그대로 준다(빈 목록). */
+			try { res.put("noPoDays", svc.selectSettleNoPoDays(p)); }
+			catch (Exception e) { log.error(" selectSettleNoPoDays WARN : " + e.getMessage()); res.put("noPoDays", new java.util.ArrayList<Object>()); }
 			/* 현재고 = 기간 끝날짜(납기일자)까지 (2026-11-04 사용자 「11-03 이면 21」 — 종전엔 기간과 무관한 원장 전체라 끝날짜를 바꿔도 같은 숫자였다).
 			     끝날짜가 비면 종전대로 원장 전체. 대시보드(납기현황표)와 같은 조건(selectStockQtyMap asOfDt) */
 			egovframework.konet.user.model.StockMstDTO stq = new egovframework.konet.user.model.StockMstDTO();
@@ -4780,6 +4784,26 @@ public class UserController {
 			Map<String,Object> p = trxStatParam(frDt, toDt, session);
 			res.put("data", svc.selectTrxStat(p));
 			res.put("frDt", p.get("frDt")); res.put("toDt", p.get("toDt"));   // 실제로 읽은 기간(고쳐졌으면 화면이 그대로 맞춘다)
+			res.put("result", "OK");
+			return res;
+		}
+		/* ── 정산서 누락 조회 (2026-11-24 사용자 「발주현황표 대비 정산서 누락 조회화면 구성해줘」) ── 화면 settleGap.jsp · 자료 selectSettleGap(주석 참조).
+		     기간 규칙은 매입/판매 등록현황과 같은 trxStatParam(비면 이번 달 · 3년 상한) — SQL 에 「비면 전체」를 두지 않으려고. */
+		@RequestMapping(value="/mangr/settleGap.do")
+		public String settleGap(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/mangr/settleGap";
+		}
+		@RequestMapping(value="/mangr/settleGapList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> settleGapList(@RequestParam(value="frDt", required=false) String frDt,
+		                                        @RequestParam(value="toDt", required=false) String toDt,
+		                                        HttpSession session) throws Exception {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (session.getAttribute("s_comp_cd") == null) { res.put("result", "FAIL"); res.put("login", "N"); return res; }
+			Map<String,Object> p = trxStatParam(frDt, toDt, session);
+			res.put("data", svc.selectSettleGap(p));
+			res.put("frDt", p.get("frDt")); res.put("toDt", p.get("toDt"));
 			res.put("result", "OK");
 			return res;
 		}
