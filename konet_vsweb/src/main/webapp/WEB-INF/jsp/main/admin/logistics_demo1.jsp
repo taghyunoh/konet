@@ -493,6 +493,13 @@
   .d2-loading .box { display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--bd); border-radius:12px; padding:16px 22px; box-shadow:0 10px 30px rgba(0,0,0,.14); font-size:14px; font-weight:800; color:#137a6c; }
   .d2-loading .sp { width:20px; height:20px; border:3px solid #d7ece7; border-top-color:#137a6c; border-radius:50%; animation:d2spin .8s linear infinite; flex:0 0 auto; }
   @keyframes d2spin { to { transform:rotate(360deg); } }
+  /* 조회 중 진행바 (2026-11-24 사용자 「납기현황표도 진행바 확인해줘」 — 정산서 누락 조회·월별 출고현황과 같은 흐르는 바) + 단계(받은 조회 수/전체) · 걸린 초 */
+  .d2-loading .box.col { flex-direction:column; align-items:stretch; gap:8px; min-width:340px; }
+  .d2-loading .box .row1 { display:flex; align-items:center; gap:12px; }
+  .d2-loading .lbar { height:4px; background:#e8efed; border-radius:2px; overflow:hidden; }
+  .d2-loading .lbar > i { display:block; height:100%; width:34%; border-radius:2px; background:linear-gradient(90deg,#0f6b5f,#3fbfae); animation:d2lslide 1.05s infinite ease-in-out; }
+  @keyframes d2lslide { 0%{ margin-left:-34%; } 100%{ margin-left:100%; } }
+  .d2-loading .lsub { font-size:12px; font-weight:600; color:#6b7a89; }
   /* 납기현황표(대시보드)·납기세부조회 표 모양은 원래대로 둔다 (2026-10-21 「대시보드는 원복」 — 매출장 그리드 색을 넣었다가 되돌림) */
 </style>
 <%-- 노트북(1366×768·1440×900) 대응 — 2026-08-02 추가.
@@ -679,7 +686,8 @@
 <%-- 조회 중 안내 — 처음 진입 시 DB 조회(사업장분류→출고→직전배치→차수이력)가 끝날 때까지 표시.
      화면이 그려지기 전부터 보여야 하므로 'on' 상태로 시작하고 d2Render() 에서 해제한다. --%>
 <div class="d2-loading on" id="d2Loading">
-  <div class="box"><span class="sp"></span><span id="d2LoadingMsg">출고현황 자료를 불러오는 중입니다…</span></div>
+  <div class="box col"><div class="row1"><span class="sp"></span><span id="d2LoadingMsg">출고현황 자료를 불러오는 중입니다…</span></div>
+    <div class="lbar"><i></i></div><div class="lsub" id="d2LoadingSub"></div></div>
 </div>
 
 <!-- 사업장 출고 삭제 모달 (소프트 삭제 · 이력 보존) -->
@@ -1200,17 +1208,30 @@
   /* 조회 중 안내 — d2Load() 시작에 켜고 d2Render() 에서 끈다.
      모든 조회 경로(단일일자·기간·오류)가 마지막에 d2Render() 로 수렴하므로 해제 지점은 한 곳이면 된다.
      응답이 끝내 오지 않는 경우 대비 20초 자동 해제 */
-  var _d2LoadingTmr=null;
+  var _d2LoadingTmr=null, _d2LoadT0=0, _d2LoadTick=null, _d2Step={ done:0, all:0 };
+  /* ★단계·걸린 초 (2026-11-24 사용자 「납기현황표도 진행바 확인해줘」) — 조회 4개(분류표·현재배치·직전배치·차수이력, 기간은 3개)를 동시에 부르므로
+       「받은 조회 n/4」 로 보인다. 다 받으면 「표를 그리는 중」 으로 바꾸고 한 박자 쉰 뒤 그린다(d2LoadRenderSoon) — 그리는 동안 화면이 멈춰도 무엇을 하는지 보이게. */
+  function d2LoadingSub(){
+    var sec=_d2LoadT0 ? Math.floor((Date.now()-_d2LoadT0)/1000) : 0;
+    var t=(_d2Step.all ? ('받은 조회 '+_d2Step.done+' / '+_d2Step.all) : '')+(sec>=1 ? ((_d2Step.all?' · ':'')+sec+'초') : '');
+    d2Set('d2LoadingSub', t);
+  }
+  function d2LoadStep(all){ _d2Step={ done:0, all:all }; d2LoadingSub(); }
+  function d2LoadStepDone(){ if(_d2Step.done<_d2Step.all) _d2Step.done++; d2LoadingSub(); }
+  function d2LoadRenderSoon(fn){ d2Set('d2LoadingMsg', '표를 그리는 중…'); setTimeout(fn, 30); }
   function d2LoadingOn(msg){
     var o=document.getElementById('d2Loading'); if(!o) return;
-    if(msg) d2Set('d2LoadingMsg', msg);
+    d2Set('d2LoadingMsg', msg || '출고현황 자료를 불러오는 중입니다…');
+    _d2LoadT0=Date.now(); _d2Step={ done:0, all:0 }; d2LoadingSub();
+    clearInterval(_d2LoadTick); _d2LoadTick=setInterval(d2LoadingSub, 500);
     o.classList.add('on');
     clearTimeout(_d2LoadingTmr);
-    _d2LoadingTmr=setTimeout(d2LoadingOff, 20000);
+    _d2LoadingTmr=setTimeout(d2LoadingOff, 60000);   /* 응답이 끝내 안 올 때의 안전장치 — 종전 20초는 긴 기간 조회에서 다 받기 전에 꺼질 수 있어 60초로 (2026-11-24) */
   }
   function d2LoadingOff(){
     var o=document.getElementById('d2Loading'); if(o) o.classList.remove('on');
     clearTimeout(_d2LoadingTmr); _d2LoadingTmr=null;
+    clearInterval(_d2LoadTick); _d2LoadTick=null; _d2LoadT0=0;
   }
 
 
@@ -2413,7 +2434,8 @@
     .then(function(txt){ var hj; try{ hj=JSON.parse(txt); }catch(e){ hj=null; }
       var hrows=(hj&&hj.data)||[]; D2_HISTALL=hrows.map(function(o){ return d2MapRow(o, f); }); })
     .catch(function(){ D2_HISTALL=[]; });
-    Promise.all([pBizi, pMst, pPrev, pHist]).then(function(){ _d2Perf('단일일자 '+f); d2Render(); _d2PerfDraw(); });
+    d2LoadStep(4); [pBizi, pMst, pPrev, pHist].forEach(function(p){ p.then(d2LoadStepDone, d2LoadStepDone); });   /* 진행 단계 (2026-11-24) */
+    Promise.all([pBizi, pMst, pPrev, pHist]).then(function(){ _d2Perf('단일일자 '+f); d2LoadRenderSoon(function(){ d2Render(); _d2PerfDraw(); }); });
   }
 
   /* ── 속도 계측 (2026-08-07 요청) ──────────────────────────────────
@@ -2488,7 +2510,8 @@
       var hrows=(hj&&hj.data)||[]; D2_HISTALL=hrows.map(function(o){ return d2MapRow(o, f); }); })
     .catch(function(){ D2_HISTALL=[]; });
     D2_PREV=[];   // 신규/삭제 비교는 기간 모드에서 생략(종전과 동일)
-    Promise.all([pBizi, pMst, pHist]).then(function(){ _d2Perf(lab); d2Render(); _d2PerfDraw(); });
+    d2LoadStep(3); [pBizi, pMst, pHist].forEach(function(p){ p.then(d2LoadStepDone, d2LoadStepDone); });   /* 진행 단계 (2026-11-24) */
+    Promise.all([pBizi, pMst, pHist]).then(function(){ _d2Perf(lab); d2LoadRenderSoon(function(){ d2Render(); _d2PerfDraw(); }); });
   }
   // DB행 → 화면행 매핑(현재/직전 공용). date = 행의 실제 출고일자(SHPOUT_DT) — 기간조회 시 날짜별 분리에 사용
   // 화면 표시용 물류센터 그룹 치환 — 특정 물류센터코드는 하나의 대표그룹으로 묶어 표시(DB 저장은 무관)
