@@ -3402,3 +3402,13 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
 - 검증 = mvn compile · MapperParse 481(문장 1 줄어듦) · jspsyn · JS 문법 · jsdom 시뮬 전체 실행 : sim_ohOrd 9(원복 확인으로 다시 씀) · sim_salesCloseDc 44 · sim_settleGap 35 · sim_d2Settle0 7 · sim_somDupYm 11 … 통과. 지운 시뮬 = sim_spShip · sim_closeSetQty · sim_somSettle(없어진 기능).
   ⚠원래부터 실패하던 시뮬 4개(오늘 변경과 무관 — 건드린 파일 아님) : sim_dongwonPo · sim_salesXlsUpload(다른 PC 의 엑셀 경로가 박혀 있음) · sim_stockAdjReq · sim_stockAdjGrip(stockAdj.jsp 가 시뮬보다 앞서 감).
 - ⛔자바·매퍼 → WAR 재빌드 + 재기동.
+
+## ★★[2026-11-24] 재고의 「정산서가 온 날」 = 납기일자 + **물류센터** 단위 (사용자 「물류센터 단위로 진행해줘」 — 종전 = 납기일자만)
+- **규칙** : 그 납기일자에 «그 물류센터» 정산서가 있으면 정산서가 출고의 주인(발주현황표 줄은 재고에 안 넣음), 없으면 발주현황표 수량으로 뺀다. 물류센터 열쇠 = 조각 `dcKeyOf`(코드 우선 · 없으면 이름으로 코드) — 정산서 쪽 = 발주현황표 쪽 같은 식 · 빈 열쇠는 빈 열쇠끼리만(운영 자료엔 빈 열쇠 0줄).
+- **까닭** : 날짜로만 보면 정산서가 일부 센터만 온 날, 안 온 센터의 발주현황표 수량까지 걷혀(정산서를 올리면 그날 SHIPOUT 원장을 통째로 지우고 다시 만든다) 재고에서 아예 안 빠졌다.
+- **같은 규칙이어야 하는 여섯 곳(User_SQL.xml — dcKeyOf 조각 앞 주석에 목록)** : ①`insertShipoutLedger`(재고 원장 — NOT EXISTS 에 `dcKeyOf(v.) = dcKeyOf(s.)`) ②`selectShipoutMst` sd 조인(settleYn — 납기현황표·납기세부조회·매출내역) ③`selectStockOutByMonth` #SOM_SD ④`selectStockOutDetail` #SOD_SD ⑤`selectStockMstList` SD(품목별재고현황 ↳ 줄) ⑥`selectDcPoList` settleDayYn(DC 발주 등록 「원장 반영」). ★한 곳만 날짜 단위로 남으면 화면과 재고가 어긋난다. 자바는 무변경 — syncSalesLedgerCore·extLedgerResync·재집계가 모두 «걷고 → insertShipoutLedger 다시» 라 조건만 바꾸면 된다.
+  ⚠selectStockMstList 는 문장이 CDATA 밖이라 조각을 `<include …/>` 로 그냥 넣는다(다른 다섯은 `]]><include…><![CDATA[`) — 처음에 같은 꼴로 넣어 XML 이 깨졌다(MapperParse 가 잡음).
+  ⚠#SOM_SD 에 조회 기간 조건을 넣지 말 것 — 1년 조회 1.7 → 2.7초(매개변수 계획). 전체를 훑어도 한 달 0.4초.
+- **실측(운영 DB 조회)** : 새로 재고에서 빠지게 되는 발주현황표 줄 = 4곳 11줄 **20개**(2/19 광주 1 · 3/3 왜관 1 · 10/3 광주 8 · 10/5 광주 10 — 10/3·10/5 광주는 올린 정산서 파일에 왜관 자료가 들어 있어 내린 날). 월별 출고현황 1년 수량 1,095,086 → 1,095,106(+20 · 11칸) · 납기현황표 10/05 = 광주 3줄만 settleYn Y(정산 0) → N(발주수량) · 11/23 하루·11월 한 달은 결과 그대로. 속도 = 발주현황표 하루 0.2 · 한 달 0.65 · 월별 1년 1.7 · 한 달 0.4 · 출고내역 1년 1.0초(종전과 같음).
+- 화면 글자 : stockOutMonth.jsp 안내 「그 날 그 물류센터 정산서가 있으면 정산서」 · dcPo.jsp 말풍선.
+- 검증 = MapperParse 481 · jspsyn · sim_somDupYm 17(여섯 곳 규칙 검사 추가) 외 통과. ⛔**재기동 + [🔄 출고반영 재집계]**(원장을 다시 만들어야 20개가 실제로 빠진다).

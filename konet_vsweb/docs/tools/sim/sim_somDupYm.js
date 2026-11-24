@@ -24,6 +24,14 @@ T(/수정재고에 포함<\/span>/.test(src) && !/조정 전 반영/.test(src) &
   T(!/AS SQTY|RQTY|\bSF AS \(|#SOM_SMX|#SOM_SF|AS setQty|AS retQty/.test(b) && /LEFT JOIN SM m ON/.test(b), id+' — 종전 식(정산서 줄을 발주 줄의 사업장에 비율로) · 추정 짝 상한·반품 순수량·setQty 없음');
   T(/\(CASE WHEN ABS\((?:[a-z0-9]+\.)?CUR_QTY\) > ABS\((?:[a-z0-9]+\.)?LABEL_QTY\) THEN /.test(b), id+' — 출고수량 규칙(라벨수량 · 수량이 더 크면 수량)은 그대로'); });
 T(/THEN u\.BIZ_NM ELSE '' END, u\.PROD_CD/.test(blkOf('selectStockOutByMonth')), '표 — 사업장 코드 빈 줄(DC 입고 · 발주없음)은 이름으로 열을 가른다(남긴 것)');
+// ★「정산서가 온 날」 = 납기일자 + 물류센터 (2026-11-24 사용자 「물류센터 단위로 진행해줘」) — 다섯 곳이 같은 갈림이어야 한다
+{ const DK=a=>'<include refid="dcKeyOf"><property name="a" value="'+a+'"/></include>';
+  const led=X.slice(X.indexOf('<insert id="insertShipoutLedger"'), X.indexOf('</insert>', X.indexOf('<insert id="insertShipoutLedger"')));
+  T(led.indexOf("AND "+']]>'+DK('v.')+'<![CDATA['+" = "+']]>'+DK('s.')+'<![CDATA['+" ) )")>0, '재고 원장(insertShipoutLedger) — 같은 물류센터의 정산서가 있을 때만 발주현황표 줄을 뺀다');
+  const sm=blkOf('selectShipoutMst'); T(/AS DCK FROM TBL_SALES_MST WHERE ACTION_YN = 'Y' \) sd/.test(sm) && sm.indexOf("sd.DLV_DT = t.DLV_DT AND sd.DCK = "+']]>'+DK('t.'))>0, '납기현황표·매출내역(selectShipoutMst settleYn) — 납기일자 + 물류센터');
+  ['selectStockOutByMonth','selectStockOutDetail'].forEach(id=>{ const b=blkOf(id); T(/AS DCK INTO #SO[MD]_SD FROM TBL_SALES_MST/.test(b) && /SD\.DLV_DT = o\.DLV_DT AND SD\.DCK = o\.DC_CD \)/.test(b), id+' — 정산서 안 온 센터의 발주현황표 줄은 그대로 센다'); });
+  const st=blkOf('selectStockMstList'); T(st.indexOf(DK('')+' AS DCK FROM TBL_SALES_MST')>0 && st.indexOf('AND SD.DCK = '+DK('s.')+' ) ) u')>0, '품목별재고현황 ↳ 줄(selectStockMstList) — 같은 갈림');
+  T(!/SELECT DISTINCT COMP_CD, DLV_DT (INTO #SO[MD]_SD )?FROM TBL_SALES_MST/.test(X), '날짜만 보는 «정산서 온 날» 목록이 남아 있지 않다'); }
 // 정산서 누락 조회 = 대사하는 화면 — 반품 뺀 순수량
 { const g=blkOf('selectSettleGap');
   T(/THEN -ISNULL\(v\.OUT_QTY,0\) ELSE 0 END\) AS Q\n\s+INTO #GAP_S0/.test(g) && /FROM #GAP_S s\n\s+WHERE s\.Q <> 0/.test(g), '정산서 누락 조회 — 정산수량 = 반품 뺀 순수량 · 전량반품 줄은 «정산서만 있음»에 안 올림'); }

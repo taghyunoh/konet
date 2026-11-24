@@ -517,7 +517,7 @@ function lsRender(){
   tb.innerHTML=_ls.map(function(x,i){ if(!lsHit(x)) return ''; k++;
     q+=n(x.qty);
     var st = x.settleYn==='Y' ? '<span class="bd ok">반영 '+fmt(x.settleQty)+'</span>'
-           : (x.settleDayYn==='Y' ? '<span class="bd warn" title="그 날 정산서는 있는데 이 품목 줄은 없습니다 — 재고에 안 빠진 상태 (원장은 정산서가 주인 · 정산서에 이 코드가 오면 「반영 N」으로)">정산서 미적용</span>' : '<span class="bd wait">대기</span>');
+           : (x.settleDayYn==='Y' ? '<span class="bd warn" title="그 날 그 물류센터 정산서는 있는데 이 품목 줄은 없습니다 — 재고에 안 빠진 상태 (원장은 정산서가 주인 · 정산서에 이 코드가 오면 「반영 N」으로)">정산서 미적용</span>' : '<span class="bd wait">대기</span>');
     if(x.settleYn!=='Y' && x.settleDayYn!=='Y') wait++;
     return '<tr><td><input type="checkbox" class="lchk" data-i="'+i+'"></td>'
       +'<td>'+d10(x.dlvDt)+'</td><td>'+esc(dcNm(x.dcCd))+'</td><td>'+esc(x.ordNo||'')+'</td><td><b>'+esc(x.itemCd)+'</b></td>'

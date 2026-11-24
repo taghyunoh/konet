@@ -13,6 +13,14 @@
 	            라벨수량으로 세면 발주·재고·원가가 실제보다 적게 잡혔다(정산서는 실제 개수로 온다 → 「발주 1 · 정산 6」 가짜 차이 79칸).
 	     두 값이 같은 53,053줄은 변화 없음. 라벨이 더 큰 2줄(라벨 1 · 수량 0)은 종전대로 라벨. ABS = 음수 줄이 생겨도 크기로 견준다.
 	     화면 쪽 같은 규칙 = logi-oh.js ssOrdQty·ssOutQty · logistics_demo1.jsp d2MapRow · shipoutHist.jsp · 자바 UserServiceImpl(알림 합계). -->
+	<!-- ★★「정산서가 온 날」 = 납기일자 + 물류센터 단위 (2026-11-24 사용자 「물류센터 단위로 진행해줘」 — 종전엔 납기일자만 봤다)
+	     규칙 : 그 납기일자에 «그 물류센터» 정산서가 있으면 정산서가 출고의 주인(발주현황표 줄은 재고에 안 넣는다), 없으면 발주현황표 수량으로 뺀다.
+	       물류센터 열쇠 = 아래 dcKeyOf(코드 우선 · 없으면 이름으로 코드 환원) — 정산서 쪽과 발주현황표 쪽을 같은 식으로 견준다(빈 열쇠는 빈 열쇠끼리만).
+	     까닭 : 날짜로만 보면 정산서가 일부 센터만 온 날, 안 온 센터의 발주현황표 수량까지 걷혀 재고에서 아예 안 빠졌다
+	            (운영 1년 실측 6곳 · 22개 — 2/19 광주 · 3/3 왜관 · 5/2 평택 · 5/6 용인 · 10/3·10/5 광주).
+	     ★같은 규칙이어야 하는 여섯 곳 : insertShipoutLedger(재고 원장) · selectShipoutMst(settleYn — 납기현황표·매출내역) ·
+	       selectStockOutByMonth · selectStockOutDetail(월별 출고현황) · selectStockMstList(품목별재고현황 ↳ 줄) · selectDcPoList(DC 발주 등록 «원장 반영» 표시). 한 곳만 날짜 단위로 남으면 화면과 재고가 어긋난다.
+	     ⚠정산서를 올리면 그 납기일자의 발주현황표 원장을 통째로 걷고 다시 만든다(syncSalesLedgerCore) — 다시 만들 때 이 조건이 «정산서 안 온 센터» 줄을 되살린다. -->
 	<sql id="dcKeyOf"><![CDATA[ CASE WHEN ISNULL(${a}DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(${a}DC_CD)))
 	          WHEN ISNULL(${a}DC_NM,'') LIKE N'%용인%' THEN 'E100' WHEN ISNULL(${a}DC_NM,'') LIKE N'%왜관%' THEN 'E200'
 	          WHEN ISNULL(${a}DC_NM,'') LIKE N'%김해%' THEN 'E300' WHEN ISNULL(${a}DC_NM,'') LIKE N'%광주%' THEN 'E400'
@@ -702,8 +710,9 @@
 	    --     품목코드가 빈(미매핑) 행은 ①만 — 출고장으로 대면 다른 품목끼리 섞인다.
 	    --   ★키에서 납기일자를 빼면 단일일자 조회가 0.2초→8초(집계를 행마다 되도는 계획). 납기일자를 넣어도 연결되는 라인은 같다(실측 2026-09-03).
 	    --   정산서 없는 날은 settleYn='N'·settleQty NULL → 화면은 발주수량 그대로. 집계 조인이라 행마다 되묻지 않는다(속도).
-	    LEFT JOIN ( SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST WHERE ACTION_YN = 'Y' ) sd
-	      ON sd.COMP_CD = t.COMP_CD AND sd.DLV_DT = t.DLV_DT
+	    /* ★정산서 온 날 = 납기일자 + 물류센터 (2026-11-24 「물류센터 단위로」) — 그 센터 정산서가 없으면 settleYn N(발주수량 그대로) · 재고 원장(insertShipoutLedger)과 같은 갈림 */
+	    LEFT JOIN ( SELECT DISTINCT COMP_CD, DLV_DT, ]]><include refid="dcKeyOf"><property name="a" value=""/></include><![CDATA[ AS DCK FROM TBL_SALES_MST WHERE ACTION_YN = 'Y' ) sd
+	      ON sd.COMP_CD = t.COMP_CD AND sd.DLV_DT = t.DLV_DT AND sd.DCK = ]]><include refid="dcKeyOf"><property name="a" value="t."/></include><![CDATA[
 	    LEFT JOIN (
 	          /* 발주행 묶음(납기일자·발주번호·출고장·품목)마다 받은 정산수량 SQTY 와 그 묶음의 발주수량 GQ */
 	          SELECT g.COMP_CD, g.DLV_DT, g.ORD_NO, g.DC_CD, g.PROD_CD, MAX(g.GQ) AS GQ, SUM(g.VQ * g.GQ / g.LT) AS SQTY
@@ -1968,7 +1977,7 @@
 	     AND ITEM_CD = #{itemCd,jdbcType=VARCHAR}
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
-	<!-- 목록 — 정산서 반영 = 같은 납기일자·품목코드의 정산서 줄(출고수량 합). 원장 반영 = 그 날 정산서가 하나라도 있으면 정산서가 주인 -->
+	<!-- 목록 — 정산서 반영 = 같은 납기일자·품목코드의 정산서 줄(출고수량 합). 원장 반영 = 그 날 그 물류센터 정산서가 있으면 정산서가 주인(2026-11-24 물류센터 단위) -->
 	<select id="selectDcPoList" parameterType="java.util.Map" resultType="java.util.HashMap"><![CDATA[
 	  SELECT t.DLV_DT AS dlvDt, t.SHPOUT_DT AS shpoutDt, t.JOB_SEQ AS jobSeq, t.DC_CD AS dcCd, t.DC_NM AS dcNm,
 	         ISNULL(t.ORD_NO,'') AS ordNo, t.ITEM_CD AS itemCd, t.ITEM_NM AS itemNm,
@@ -1981,8 +1990,9 @@
 	    LEFT JOIN ( SELECT COMP_CD, DLV_DT, ITEM_CD, SUM(ISNULL(OUT_QTY,0)) AS SQ
 	                  FROM TBL_SALES_MST WHERE ACTION_YN = 'Y' GROUP BY COMP_CD, DLV_DT, ITEM_CD ) v
 	      ON v.COMP_CD = t.COMP_CD AND v.DLV_DT = t.DLV_DT AND v.ITEM_CD = t.ITEM_CD
-	    LEFT JOIN ( SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST WHERE ACTION_YN = 'Y' ) d
-	      ON d.COMP_CD = t.COMP_CD AND d.DLV_DT = t.DLV_DT
+	    /* 원장 반영 표시 = 그 납기일자에 «그 물류센터» 정산서가 있는가 (2026-11-24 「물류센터 단위로」 — 재고 원장 insertShipoutLedger 와 같은 갈림) */
+	    LEFT JOIN ( SELECT DISTINCT COMP_CD, DLV_DT, ]]><include refid="dcKeyOf"><property name="a" value=""/></include><![CDATA[ AS DCK FROM TBL_SALES_MST WHERE ACTION_YN = 'Y' ) d
+	      ON d.COMP_CD = t.COMP_CD AND d.DLV_DT = t.DLV_DT AND d.DCK = ]]><include refid="dcKeyOf"><property name="a" value="t."/></include><![CDATA[
 	   WHERE t.PROD_KIND = 'DC' AND t.ACTION_YN = 'Y'
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR t.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( ISNULL(#{dlvDtFrom,jdbcType=VARCHAR},'') = '' OR t.DLV_DT >= REPLACE(#{dlvDtFrom,jdbcType=VARCHAR},'-','') )
@@ -4504,7 +4514,8 @@
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR v.COMP_CD = #{compCd,jdbcType=VARCHAR} )
      GROUP BY v.COMP_CD, v.DLV_DT, ISNULL(v.ORD_NO,''), v.PROD_CD;
     /* 정산서가 있는 납기일자 */
-    SELECT DISTINCT COMP_CD, DLV_DT INTO #SOM_SD FROM TBL_SALES_MST WHERE ACTION_YN='Y';
+    /* (2026-11-24 「물류센터 단위로」) 납기일자 + 물류센터 — 정산서 안 온 센터의 발주현황표 줄은 아래 ①에 그대로 나온다(재고 원장과 같은 갈림) */
+    SELECT DISTINCT COMP_CD, DLV_DT, ]]><include refid="dcKeyOf"><property name="a" value=""/></include><![CDATA[ AS DCK INTO #SOM_SD FROM TBL_SALES_MST WHERE ACTION_YN='Y';   /* ⚠여기에 조회 기간 조건을 넣지 말 것 — 넣으면 1년 조회가 1.7 → 2.7초(2026-11-24 실측 · 매개변수 계획). 전체를 훑어도 한 달 조회 0.4초 */
     /* 발주현황표 라인별·출고장별·사업장별 수량 */
 	    SELECT s.COMP_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AS DLV_DT, ISNULL(s.ORD_NO,'') AS ORD_NO, s.PROD_CD,
 	           UPPER(LTRIM(RTRIM(ISNULL(s.DC_CD,'')))) AS DC_CD,
@@ -4538,7 +4549,7 @@
 	    /* ① 정산서 없는 날 : 발주현황표 */
 	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.PROD_CD, CAST(o.SQ AS DECIMAL(18,3)) AS QTY, 0 AS NEW_YN   /* NEW_YN : 0 = 종전 원천, 1 = 토더·대상·판매전표(화면이 그 사업장 열을 맨 뒤에 둔다, 2026-10-26) */
 	      FROM OL o
-	     WHERE o.KIND <> 'TD' AND NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = o.COMP_CD AND SD.DLV_DT = o.DLV_DT )
+	     WHERE o.KIND <> 'TD' AND NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = o.COMP_CD AND SD.DLV_DT = o.DLV_DT AND SD.DCK = o.DC_CD )
 	    UNION ALL
 	    /* ② 정산서 있는 날 : 정산수량을 SM 이 고른 발주행의 사업장에 발주수량 비율로 (못 고르면 '(정산서·발주없음)') */
 	    SELECT l.COMP_CD, l.DLV_DT, ISNULL(m.BIZ_CD,''), ISNULL(m.BIZ_NM, N'(정산서·발주없음)'), l.PROD_CD,
@@ -4790,7 +4801,7 @@
       LEFT JOIN #SOD_M m ON m.COMP_CD = x.COMP_CD AND m.CD = x.PROD_CD;
   /* 정산서가 있는 납기일자(SD)도 임시 표로 — SL·OL 만 굳혔더니 한 해 전체 조회(9904013343 · 510줄)가 0.5초 → 3초로 느려졌다
      (U 의 NOT EXISTS 가 발주 줄마다 정산서 표를 다시 읽는 계획). 셋 다 굳히면 0.2초. 조회 기간만 (2026-11-08 속도) — OL 이 그 기간뿐이라 결과 같다 */
-    SELECT DISTINCT COMP_CD, DLV_DT INTO #SOD_SD FROM TBL_SALES_MST WHERE ACTION_YN='Y'
+    SELECT DISTINCT COMP_CD, DLV_DT, ]]><include refid="dcKeyOf"><property name="a" value=""/></include><![CDATA[ AS DCK INTO #SOD_SD FROM TBL_SALES_MST WHERE ACTION_YN='Y'   /* 납기일자 + 물류센터 (2026-11-24) */
                AND DLV_DT >= #{frDt} AND DLV_DT <= #{toDt};
   /* ★납기일자마다 그 품목의 출고 원천(발주현황표 — 지나간 차수 포함 · 정산서)이 «처음 올라온 때» (2026-11-22 사용자 그림 「여기도 마찬가지로 시간표시」 —
      품목별재고현황 수불 내역의 「조정 전 반영」(selectStockLedgerList #SLD_F)과 같은 근거). 화면이 출고내역 줄에 그 시각을 보이고, 최근 조정 시각보다 이르면 「조정 전 반영」을 붙인다 */
@@ -4835,7 +4846,7 @@
 	  ), U AS (
 	    SELECT o.COMP_CD, o.DLV_DT, o.BIZ_CD, o.BIZ_NM, o.DC_NM, o.ORD_NO, o.ITEM_CD, o.ITEM_NM, CAST(o.SQ AS DECIMAL(18,3)) AS QTY,
 	           CASE WHEN o.KIND = 'DC' THEN N'DC 발주' ELSE N'발주현황표' END AS SRC
-	      FROM OL o WHERE o.KIND <> 'TD' AND o.SUB = 0 AND NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = o.COMP_CD AND SD.DLV_DT = o.DLV_DT )   /* SUB=1(하위 코드 줄)은 짝 찾기 전용 — 표에서도 그 하위 코드 칸에 있다 */
+	      FROM OL o WHERE o.KIND <> 'TD' AND o.SUB = 0 AND NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = o.COMP_CD AND SD.DLV_DT = o.DLV_DT AND SD.DCK = o.DC_CD )   /* SUB=1(하위 코드 줄)은 짝 찾기 전용 — 표에서도 그 하위 코드 칸에 있다 */
 	    UNION ALL
 	    SELECT l.COMP_CD, l.DLV_DT, ISNULL(m.BIZ_CD,''), ISNULL(m.BIZ_NM, N'(정산서·발주없음)'), ISNULL(m.DC_NM, l.DC_NM), l.ORD_NO, ISNULL(m.ITEM_CD, l.ITEM_CD), ISNULL(m.ITEM_NM, l.ITEM_NM),
 	           CAST(CASE WHEN m.BIZ_CD IS NULL THEN l.VQ ELSE l.VQ * m.SQ / m.LT END AS DECIMAL(18,3)), N'정산서'
@@ -4943,7 +4954,7 @@
   SET NOCOUNT ON;
   IF OBJECT_ID('tempdb..#SEQ') IS NOT NULL DROP TABLE #SEQ;
   WITH SD AS (   /* 정산서가 있는 납기일자 — 원장 출고(정산서 있는 날 = 정산서, 없는 날 = 발주현황표)와 같은 갈림 */
-	    SELECT DISTINCT COMP_CD, DLV_DT FROM TBL_SALES_MST
+	    SELECT DISTINCT COMP_CD, DLV_DT, <include refid="dcKeyOf"><property name="a" value=""/></include> AS DCK FROM TBL_SALES_MST   /* 납기일자 + 물류센터 (2026-11-24 「물류센터 단위로」) */
 	     WHERE ACTION_YN = 'Y' AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  )
 	    /* ★매칭코드(거래처 품목코드 ITEM_CD)별 출고수량 — ①표 품목 줄 밑 ↳ 줄에 붙는다(형식 코드:수량|코드:수량, 화면이 쪼갠다).
@@ -4971,7 +4982,7 @@
 	  <if test="asOfDt != null and asOfDt != ''">
 	                <![CDATA[ AND ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) <= REPLACE(#{asOfDt},'-','') ]]>
 	  </if>
-	                AND NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = s.COMP_CD AND SD.DLV_DT = ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) ) ) u
+	                AND NOT EXISTS ( SELECT 1 FROM SD WHERE SD.COMP_CD = s.COMP_CD AND SD.DLV_DT = ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) AND SD.DCK = <include refid="dcKeyOf"><property name="a" value="s."/></include> ) ) u
 	     GROUP BY u.COMP_CD, u.PROD_CD, u.ITEM_CD
 	    HAVING SUM(u.q) > 0;
 	  CREATE CLUSTERED INDEX IX_SEQ ON #SEQ(COMP_CD, PROD_CD);
@@ -5117,7 +5128,9 @@
 	        OR NOT EXISTS ( SELECT 1 FROM TBL_SALES_MST v
 	                       WHERE v.ACTION_YN = 'Y'
 	                         AND v.COMP_CD   = s.COMP_CD
-	                         AND v.DLV_DT    = ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT) ) )
+	                         AND v.DLV_DT    = ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT)
+	                         /* ★같은 물류센터의 정산서일 때만 (2026-11-24 「물류센터 단위로」) — 정산서가 안 온 센터의 발주현황표 줄은 계속 재고에서 뺀다 */
+	                         AND ]]><include refid="dcKeyOf"><property name="a" value="v."/></include><![CDATA[ = ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ ) )
 	   GROUP BY s.COMP_CD, pm.PROD_SEQ, s.PROD_CD, ISNULL(NULLIF(s.DLV_DT,''), s.SHPOUT_DT), dcw.WH_CD   /* 창고가 다르면 줄이 갈린다(2단계) */
 	  HAVING SUM((CASE WHEN ABS(s.CUR_QTY) > ABS(s.LABEL_QTY) THEN s.CUR_QTY ELSE ISNULL(s.LABEL_QTY, ISNULL(s.CUR_QTY,0)) END) + ISNULL(s.DS_SVC_QTY,0)) > 0;
 	  /* ★대상 반품(DS_TRX_GB '반품', 2026-10-27 판매등록 그리드의 거래구분) — 돌아온 수량(라벨 + 서비스)은 입고(R)로. 같은 REF_GB/REF_NO 라 deleteShipoutLedger 가 함께 걷는다 */
