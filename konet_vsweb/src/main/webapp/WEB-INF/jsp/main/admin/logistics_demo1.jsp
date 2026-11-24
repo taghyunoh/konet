@@ -2654,9 +2654,11 @@
     if(!(jikSum>0)) return '';
     return ' (배송 '+d2Num(delSum)+' · 직송 '+d2Num(jikSum)+')';
   }
-  /* 출고수량 = 라벨수량 · 수량이 더 크면 수량 (2026-11-24 「라벨수량보다 수량이 크면 수량 쓰는 걸로」 — logi-oh.js ssShipQty 와 같은 규칙) */
-  function d2ShipQty(o){ var hasL=(o.labelQty!=null&&o.labelQty!==''), l=hasL?(+o.labelQty||0):null, c=(o.curQty!=null&&o.curQty!=='')?(+o.curQty||0):null;
-    if(l==null) return c==null?0:c; if(c!=null && Math.abs(c)>Math.abs(l)) return c; return l; }
+  /* ★납기현황표의 수량 = «라벨수량 그대로» (2026-11-24 저녁 사용자 「납기현황표는 라벨수량 그대로 보여줘」 — 사용자가 올린 엑셀(발주현황표)의 라벨수량과 화면이 같은지 본다).
+       라벨수량이 없는 옛 줄만 수량(CUR_QTY). 같은 날 낮의 「라벨수량 · 수량이 더 크면 수량」 은 이 화면에서는 쓰지 않는다 —
+       ⚠그 규칙은 재고·월별 출고현황·매출내역(서버 SQL · logi-oh.js ssShipQty)에는 그대로 있다. 여기와 일부러 다르다(11월 3,668줄 중 24줄이 갈린다). 맞추려고 되돌리지 말 것 */
+  function d2ShipQty(o){ var hasL=(o.labelQty!=null&&o.labelQty!==''); if(hasL) return (+o.labelQty||0);
+    return (o.curQty!=null&&o.curQty!=='')?(+o.curQty||0):0; }
   function d2MapRow(o, f){
     var dcNm=(''+(o.dcNm||'')).trim(), inwh=(''+(o.inwh||'')).trim();
     /* ★배송/직송 구분 (2026-08-30) — 데시보드2(logi-oh.js SHIP_DATA 매핑)와 같은 규칙.
@@ -2677,9 +2679,13 @@
                   원장·출고재고현황과 같은 규칙. 이력(selectShipoutHistAll·Prev)엔 settleYn 이 없어 발주수량 그대로.
                 ★★[2026-11-24 원복 — 사용자 「납기현황표도 원래대로 원복해줘(오류수정은 유지하고)」] 같은 날 「현재 = 발주수량 · 다르면 정산 n 배지」로 바꿨다가 되돌렸다
                   (월별 출고현황과 같이 — 발주 ↔ 정산 대사는 「정산서 누락 조회」가 맡는다). 다시 꺼내지 말 것.
-                  남긴 오류 수정 = ①정산서 짝이 없어 0 이 된 줄을 «삭제» 대신 「정산 0」으로(아래 z.s0 · ordQty) ②발주 쪽 수량 = 라벨수량 · 수량이 더 크면 수량(d2ShipQty). */
-             qty:(((''+(o.settleYn||''))==='Y') ? (Math.round((+o.settleQty||0)*10)/10) : d2ShipQty(o)),
-             settle:((''+(o.settleYn||''))==='Y'), dlvDt:_dlv, date:(_sd||f),
+                  남긴 오류 수정 = ①정산서 짝이 없어 0 이 된 줄을 «삭제» 대신 「정산 0」으로(아래 z.s0 · ordQty) ②발주 쪽 수량 = 라벨수량 · 수량이 더 크면 수량(d2ShipQty).
+                ★★★[2026-11-24 저녁 — 사용자 「납기현황표는 정산서와 상관없이 발주현황표 받은대로」] 납기현황표·납기세부조회는 이제 «늘» 발주현황표 수량이다.
+                  정산서가 와도 수량을 갈아 끼우지 않는다(settle 은 늘 false) — 그래서 「📄 정산서 반영 n건」 글·「정산 0」 구분(z.s0 · r-s0)은 더는 생기지 않는다(코드는 남겨 둠 — 이 두 줄만 되돌리면 되살아난다).
+                  ⚠바뀌지 않은 곳 : 재고(원장)·월별 출고현황·품목별재고현황·매출내역은 종전대로 «그 날 그 물류센터 정산서가 있으면 정산서». 서버(selectShipoutMst)는 settleYn·settleQty 를 그대로 준다(매출내역이 쓴다).
+                  같은 셈이어야 하는 곳 = 진행 현황 「업무 진행 상황」의 납기수량(UserServiceImpl.selectPipelineWorkShip) — 같이 고쳤다. */
+             qty:d2ShipQty(o),
+             settle:false, dlvDt:_dlv, date:(_sd||f),
              ordQty:d2ShipQty(o),   /* 발주수량 원값 — 정산서 짝이 없어 qty 가 0 인 줄(「정산 0」)을 알아보는 데 쓴다 (2026-11-24) */
              uploadDttm:(''+(o.uploadDttm||'')).trim().slice(0,19),   // 변경일시(현재 배치)
              firstDttm:(''+(o.firstDttm||'')).trim().slice(0,19),     // 최초일시(같은 품목 MIN)

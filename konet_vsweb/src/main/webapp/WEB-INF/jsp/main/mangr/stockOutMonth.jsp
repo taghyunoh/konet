@@ -14,7 +14,7 @@
   월별 출고현황 (2026-09-03 신설, 처음 이름 「출고재고현황」→ 같은 날 「월별 출고현황」으로 바꿈) — 재고 관리 > 품목별재고현황 밑 메뉴. 사이드바 iframe(logiFrame) 화면.
   · 행 = 년월(최근월부터 내림차순) · 열 = 사업장 ▸ 품목 (납기현황표 가로표와 같은 2단 머리) · 값 = 그 달 출고량 · 맨 위 줄 = 품목 현재고
   · 원천 규칙(사용자 확정 2026-09-03) = <납기일자> 기준으로 그 날 정산서가 있으면 정산서, 없으면 발주현황표(라벨수량). 원장(품목별재고현황)과 같은 규칙.
-    정산서엔 사업장이 없어 같은 발주라인의 사업장에 발주수량 비율로 나눈다(SQL selectStockOutByMonth). 현재고 줄은 원장(TBL_STOCK_MST).
+    정산서엔 사업장이 없어 같은 발주라인의 사업장에 발주수량 비율로 «정수로» 나눈다(SQL selectStockOutByMonth — 2026-11-24, 나머지는 소수 몫이 큰 사업장부터 1개씩). 현재고 줄은 원장(TBL_STOCK_MST).
   · ★[2026-10-26] 원장이 세는 출고를 전부 센다 — 정산서 · 발주현황표(정산서 없는 날, DC 발주 포함) · 토더·대상 발주(정산서 날에도 늘) · 판매전표(판매일자 · 판매 줄 · 거래처가 사업장 자리, 이름 뒤 「(판매전표)」).
   · 사업장 이름 = 거래처관리 매칭명(MATCH_NM)이 있으면 그것, 없으면 원래 사업장명 (납기현황표 가로표와 같은 규칙, SQL에서 묶음)
   · 열 차례 = 출고 많은 사업장이 왼쪽, 사업장 안에서도 많이 나간 품목이 왼쪽. 출고장은 넣지 않는다(요청).
@@ -208,7 +208,7 @@ function somHx(){
   if(typeof somFit==='function' && typeof _somM!=='undefined' && _somM) somFit();   // 머리글 높이가 바뀌므로 표 높이를 다시 맞춘다
 }
 somHxPaint();
-function num(v){ return Math.round(Number(v)||0).toLocaleString(); }   // 정산서 비율 배분은 소수가 나온다 → 표시는 반올림
+function num(v){ return Math.round(Number(v)||0).toLocaleString(); }   // 정산서 배분은 정수(2026-11-24) — 정산수량 자체가 소수인 줄만 소수가 남는다 → 표시는 반올림
 /* 조회 진행바(다른 화면 .qprog 와 같은 모양) */
 function qprog(msg, id){ return '<div class="qwrap"><div class="qprog"><i></i></div><div class="qmsg"'+(id?' id="'+id+'"':'')+'>'+esc(msg||'조회 중…')+'</div></div>'; }
 /* ★조회 중 표시 다듬기 (2026-11-24 사용자 「월별 출고현황도 진행바 확인해줘」 — 정산서 누락 조회와 같게)
@@ -645,11 +645,21 @@ function somDetailRender(sel, j, fr, to){
     return '<span class="led-pre" style="display:inline-block;margin-right:5px;padding:0 5px;border-radius:9px;background:#eef1f4;color:#5a6b7a;border:1px solid #cfd8e3;font-size:10.5px;font-weight:700;white-space:nowrap"'
          +' title="이 출고는 '+esc(t.slice(0,16))+' 에 이미 올라와 있었습니다 — 최근 조정('+esc((''+LA.regDttm).slice(0,16))+') 전이라, 그때 맞춘 수정재고에 이미 들어 있습니다. 재고를 셀 때 다시 빼지 않습니다.">수정재고에 포함</span>';
   };
+  /* 부분출고 설명 (2026-11-24 사용자 「홍대 0 으로 나오면 사용자 물어볼텐데」) — 정산서 줄인데 그 발주가 다 안 나간 경우만 수량 앞에 붙인다.
+       예) 발주 성수 4 · 강남 3 · 홍대 1 = 8 인데 정산서 출고 2 → 성수 1 · 강남 1 · 홍대 0 — 각 줄에 「발주 n → k (전체 8 → 2)」(같은 날 「문구 조금 더 짧게」·「좀더 간단하게」로 두 번 줄임 — 풀이는 말풍선).
+       정산서엔 사업장이 없어 수량은 발주 비율로 «정수로» 나눈 값이다(서버 selectStockOutDetail). 서버가 세 칸(ordQty·lineOrdQty·lineOutQty)을 안 주면(옛 서버) 아무것도 안 붙인다 */
+  var partOf=function(r){
+    if((''+(r.src||''))!=='정산서' || r.lineOrdQty==null || r.lineOutQty==null || r.ordQty==null) return '';
+    var lo=Number(r.lineOrdQty)||0, lv=Number(r.lineOutQty)||0, oq=Number(r.ordQty)||0, q=Number(r.qty)||0;
+    if(!(lo>0) || !(lv<lo) || lv<0) return '';
+    return '<span class="led-part" style="display:inline-block;margin-right:5px;padding:0 5px;border-radius:9px;background:#fff4e5;color:#9a5a00;border:1px solid #f0cf9a;font-size:10.5px;font-weight:700;white-space:nowrap"'
+         +' title="정산서에 이 발주는 '+num(lo)+'개 중 '+num(lv)+'개만 출고된 것으로 왔습니다. 정산서에는 사업장별 수량이 없어, 출고된 '+num(lv)+'개를 발주 비율로 나눈 값입니다(이 사업장 발주 '+num(oq)+' → '+num(q)+'). 실제로 어느 사업장이 받았는지는 정산서로는 알 수 없습니다.">발주 '+num(oq)+' → '+num(q)+' (전체 '+num(lo)+' → '+num(lv)+')</span>';   /* 글자 = 문장으로 (2026-11-24 사용자 「이렇게 하면 사용자는 무슨말인지 잘모름」 — 종전 「발주 4 · 8개 중 2개 출고」는 매장 발주와 전체 발주가 한 줄에 섞여 읽히지 않았다) */
+  };
   var out=j.out||[], os=0, h='';
   if(!out.length) h='<div class="none">출고가 없습니다.</div>';
   else { h='<table class="fx"><thead><tr><th>납기일자</th><th>사업장 [사업장코드]</th><th>물류센터</th><th>거래처 매칭코드 · 품목명</th><th>원천</th><th>수량</th><th title="그 납기일자의 발주현황표·정산서를 처음 올린 시간 · 뒤의 ↻ = 그 재고 줄이 다시 만들어진 때(정산서 도착·재집계) — 최근 조정보다 먼저 올린 출고는 수량 앞에 「수정재고에 포함」">올린 시간</th><th title="앞 = 그 납기일자의 발주현황표·정산서를 처음 올린 사람 · 뒤의 ↻ = 그 재고 줄을 다시 만든 사람(정산서를 올렸거나 재집계를 돌린 사람)">등록자</th></tr></thead><tbody>';
     out.forEach(function(r){ var q=Number(r.qty)||0; os+=q; var s=(''+(r.src||''));
-      h+='<tr><td>'+dt8(r.dlvDt)+'</td><td class="l" title="'+esc(r.bizNm||r.mtNm)+((r.mtNm && r.bizNm && (''+r.mtNm)!==(''+r.bizNm))?(' · '+esc(r.mtNm)):'')+'">'+esc(r.bizNm||r.mtNm)+'</td><td>'+esc(r.dcNm)+'</td><td class="l">'+((r.itemCd && (''+r.itemCd)!==(''+sel.it.cd))?('<span class="xc">↳ '+esc(r.itemCd)+'</span> <span class="xn">'+esc(r.itemNm||'')+'</span>'):'')+'</td><td class="'+srcCls(s)+'">'+srcIco(s)+esc(s)+'</td><td class="r" style="white-space:nowrap">'+preOf(r)+num(q)+'</td><td style="white-space:nowrap">'+tmOf(r)+'</td><td style="white-space:nowrap">'+userOf(r)+'</td></tr>'; });
+      h+='<tr><td>'+dt8(r.dlvDt)+'</td><td class="l" title="'+esc(r.bizNm||r.mtNm)+((r.mtNm && r.bizNm && (''+r.mtNm)!==(''+r.bizNm))?(' · '+esc(r.mtNm)):'')+'">'+esc(r.bizNm||r.mtNm)+'</td><td>'+esc(r.dcNm)+'</td><td class="l">'+((r.itemCd && (''+r.itemCd)!==(''+sel.it.cd))?('<span class="xc">↳ '+esc(r.itemCd)+'</span> <span class="xn">'+esc(r.itemNm||'')+'</span>'):'')+'</td><td class="'+srcCls(s)+'">'+srcIco(s)+esc(s)+'</td><td class="r" style="white-space:nowrap">'+preOf(r)+partOf(r)+num(q)+'</td><td style="white-space:nowrap">'+tmOf(r)+'</td><td style="white-space:nowrap">'+userOf(r)+'</td></tr>'; });
     h+='</tbody></table>'; }
   document.getElementById('dtlOut').innerHTML=h; document.getElementById('dtlOutSum').textContent=out.length?(out.length+'건 · '+num(os)):'';
   /* 고정 칸 — 둘째 칸(사업장)이 설 자리 = 첫 칸(납기일자)의 실제 폭. 못 재면(숨은 화면·시뮬) CSS 기본값 94px */

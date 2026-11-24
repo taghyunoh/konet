@@ -603,12 +603,6 @@ public class UserServiceImpl implements UserService {
 	 *  ⚠켠 뒤 <과거 날짜>는 저절로 채워지지 않는다 — 재고현황 [출고반영 재집계] 를 한 번 눌러야 한다.
 	 * ════════════════════════════════════════════════════════════════════════ */
 	private static final boolean SHIPOUT_LEDGER_ON = true;
-	/* 출고수량 = 라벨수량 · 수량(CUR_QTY)이 더 크면 수량 · 라벨수량 없으면 수량 (2026-11-24 「라벨수량보다 수량이 크면 수량 쓰는 걸로」 — User_SQL.xml 의 같은 식 · logi-oh.js ssShipQty) */
-	private static double shipQtyOf(Integer label, Integer cur) {
-		if (label == null) return cur == null ? 0 : cur.doubleValue();
-		if (cur != null && Math.abs(cur) > Math.abs(label)) return cur.doubleValue();
-		return label.doubleValue();
-	}
 
 	/* (A) 출고(SHIPOUT)→원장 자동연동 : 해당 출고일자 O행을 지우고 활성 SHIPOUT으로 다시 생성. 마감 확정월이면 원장 불변이므로 skip */
 	@Override public int syncShipoutLedgerDate(String shpoutDt, String regUser, String regIp) throws Exception {
@@ -3115,9 +3109,9 @@ public class UserServiceImpl implements UserService {
 			for (egovframework.konet.user.model.ShipoutDTO r : mapper.selectShipoutMst(q)) {
 				String dt = scStr(r.getShpoutDt()).replace("-", "");
 				if (!tot.containsKey(dt)) continue;
-				double v = "Y".equals(scStr(r.getSettleYn()))
-					? Math.round((r.getSettleQty() == null ? 0 : r.getSettleQty().doubleValue()) * 10) / 10.0
-					: shipQtyOf(r.getLabelQty(), r.getCurQty());   /* 라벨수량 · 수량이 더 크면 수량 (2026-11-24) */
+				/* 납기현황표는 정산서와 상관없이 발주현황표 받은 대로 (2026-11-24 저녁 사용자 지시 — logistics_demo1.jsp d2MapRow 와 같은 셈). 종전 = 정산서 온 날은 정산 배분 수량 */
+				/* 수량 = 라벨수량 그대로 · 없는 옛 줄만 수량 (같은 날 「납기현황표는 라벨수량 그대로 보여줘」 — d2ShipQty 와 같은 셈. 재고·매출 쪽의 «수량이 더 크면 수량» 과 일부러 다르다) */
+				double v = r.getLabelQty() != null ? r.getLabelQty().doubleValue() : (r.getCurQty() == null ? 0 : r.getCurQty().doubleValue());
 				if (v <= 0) continue;
 				tot.get(dt)[0] += v;
 				String code = scStr(r.getItemCd()); items.get(dt).add(code.isEmpty() ? "NM:" + scStr(r.getItemNm()) : code);

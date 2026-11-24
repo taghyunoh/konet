@@ -13,8 +13,8 @@ const F=new Function(['ssShipQty','ssOutQty'].map(pick).join('\n')+'\nreturn {ss
 T(F.ssShipQty({ labelQty:1, curQty:6 })===6 && F.ssShipQty({ labelQty:1, curQty:0 })===1 && F.ssShipQty({ labelQty:3, curQty:3 })===3 && F.ssShipQty({ labelQty:-1, curQty:-6 })===-6,
   '수량이 라벨수량보다 크면 수량(1·6 → 6) · 라벨이 크면 라벨(1·0 → 1) · 같으면 그대로 · 음수는 크기로');
 T(F.ssShipQty({ labelQty:null, curQty:5 })===5 && F.ssShipQty({ labelQty:0, curQty:0 })===0 && F.ssShipQty({ labelQty:0, curQty:5 })===5, '라벨수량 없으면 수량 · 0 은 0 · 라벨 0 인데 수량이 있으면 수량');
-T((X.match(/\(CASE WHEN ABS\((?:[a-z0-9]+\.)?CUR_QTY\) > ABS\((?:[a-z0-9]+\.)?LABEL_QTY\) THEN /g)||[]).length===65 && !/[^(]ISNULL\((?:[a-z0-9]+\.)?LABEL_QTY, ISNULL\((?:[a-z0-9]+\.)?CUR_QTY,0\)\)(?! END\))/.test(X),
-  '서버 SQL 64곳(+설명 주석 1) 모두 같은 식 · 옛 식(라벨수량만) 남은 곳 없음');
+T((X.match(/\(CASE WHEN ABS\((?:[a-z0-9]+\.)?CUR_QTY\) > ABS\((?:[a-z0-9]+\.)?LABEL_QTY\) THEN /g)||[]).length===63 && !/[^(]ISNULL\((?:[a-z0-9]+\.)?LABEL_QTY, ISNULL\((?:[a-z0-9]+\.)?CUR_QTY,0\)\)(?! END\))/.test(X),
+  '서버 SQL 62곳(+설명 주석 1) 모두 같은 식 (납기현황표 정산수량을 임시 표로 옮기며 한 곳 · 출고현황이력조회를 라벨수량 그대로로 바꾸며 한 곳 줄었다)');
 // ② 원복 — 매출내역
 T(F.ssOutQty({ labelQty:8, curQty:8, settleYn:'Y', settleQty:2 })===2 && F.ssOutQty({ labelQty:1, curQty:6, settleYn:'N' })===6, '매출내역 출고수량 = 정산서 온 날은 정산수량 · 안 온 날은 발주현황표(수량 규칙)');
 T(!/ssOrdQty|ssSettleBadge/.test(src) && /_ohIndex\(_ohShip, ssOutQty\)/.test(src), '매출내역 — 발주수량 따로 세기·「정산 n」 배지 없음(원복) · 대사 = ssOutQty');
