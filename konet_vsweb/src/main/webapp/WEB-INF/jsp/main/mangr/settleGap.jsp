@@ -65,6 +65,13 @@
   .cd{ font-family:Consolas,monospace; font-size:12.5px; }
   .cd.diff{ color:#a3570a; font-weight:700; }
   .empty{ text-align:center; color:#8a97a4; padding:26px 10px; }
+  /* 조회 진행바 (2026-11-24 사용자 「실행 시 진행바 해줘」) — 물류관리 다른 화면(월별 출고현황·매출내역)의 .qprog 와 같은 모양. 올해 전체는 2~3초 걸린다 */
+  .qwrap{ padding:22px 18px 16px; }
+  .qprog{ height:4px; background:#e8efed; border-radius:2px; overflow:hidden; max-width:520px; margin:0 auto; }
+  .qprog > i{ display:block; height:100%; width:34%; border-radius:2px; background:linear-gradient(90deg,#0f6b5f,#3fbfae); animation:qslide 1.05s infinite ease-in-out; }
+  @keyframes qslide{ 0%{ margin-left:-34%; } 100%{ margin-left:100%; } }
+  .qmsg{ padding:10px 2px 0; color:#5a6b7a; font-size:12.5px; text-align:center; }
+  .sumbox.busy, #tabs.busy{ opacity:.45; pointer-events:none; transition:opacity .15s; }
   @media (max-width:900px){ .sumbox, .sumbox.n3{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
 </style>
 </head>
@@ -82,7 +89,7 @@
     <span class="lab">원인</span>
     <select id="rs" onchange="render()"><option value="">전체</option><option value="DAY">발주현황표 미업로드</option><option value="CODE">상품코드 다름</option><option value="ITEM">발주현황표에 없는 발주</option></select>
     <input type="text" id="q" placeholder="품목코드 · 품목명 · 발주번호 · 사업장" style="width:210px" oninput="render()">
-    <button class="btn btn-teal" onclick="load()">리스트조회</button>
+    <button class="btn btn-teal" id="btnLoad" onclick="load()">리스트조회</button>
     <button class="btn" onclick="excel()">📥 엑셀 다운로드</button>
     <span class="cnt" id="cnt">—</span>
   </div>
@@ -128,21 +135,35 @@ function setRange(k){
   document.getElementById('frDt').value=ymd(f); document.getElementById('toDt').value=ymd(e);
   load();
 }
+var _busyT=null;
+/* 조회 중 표시 — 표 자리에 흐르는 진행바 + 걸린 초 · 요약 칸·탭은 흐리게 · [리스트조회]는 잠근다 (2026-11-24) */
+function busy(on, my){
+  var b=document.getElementById('btnLoad'), sb=document.getElementById('sumbox'), tb=document.getElementById('tabs');
+  if(_busyT){ clearInterval(_busyT); _busyT=null; }
+  if(b){ b.disabled=!!on; b.style.opacity=on?'.6':''; }
+  if(sb) sb.classList.toggle('busy', !!on); if(tb) tb.classList.toggle('busy', !!on);
+  if(!on) return;
+  var t0=Date.now(), n=(document.getElementById('head').rows[0]||{cells:[]}).cells.length||9;
+  var msg=function(){ return '발주현황표와 정산서를 맞춰 보는 중… ('+d10(gv('frDt').replace(/-/g,''))+' ~ '+d10(gv('toDt').replace(/-/g,''))+')'+(Date.now()-t0>=1000?' · '+Math.floor((Date.now()-t0)/1000)+'초':''); };
+  document.getElementById('body').innerHTML='<tr><td colspan="'+n+'"><div class="qwrap"><div class="qprog"><i></i></div><div class="qmsg" id="qmsg">'+esc(msg())+'</div></div></td></tr>';
+  _busyT=setInterval(function(){ if(my!==_loadSeq){ clearInterval(_busyT); _busyT=null; return; } var m=document.getElementById('qmsg'); if(m) m.textContent=msg(); }, 500);
+}
 function load(){
   var my=++_loadSeq;   /* 늦게 온 옛 응답이 새 목록을 덮지 않게 */
   document.getElementById('cnt').textContent='조회 중…';
-  document.getElementById('body').innerHTML='<tr><td class="empty">발주현황표와 정산서를 맞춰 보는 중…</td></tr>';
+  busy(true, my);
   fetch(CTX+'/mangr/settleGapList.do', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, credentials:'same-origin',
       body:'frDt='+encodeURIComponent(gv('frDt'))+'&toDt='+encodeURIComponent(gv('toDt')) })
     .then(function(r){ return r.json(); })
     .then(function(j){
       if(my!==_loadSeq) return;
+      busy(false);
       if(!j || j.result!=='OK'){ ROWS=[]; render(); _alertBox((j&&j.login==='N')?'로그인이 끊겼습니다. 다시 로그인해 주세요.':'목록을 불러오지 못했습니다.',{icon:'⚠️'}); return; }
       if(j.frDt) document.getElementById('frDt').value=d10(j.frDt);
       if(j.toDt) document.getElementById('toDt').value=d10(j.toDt);
       ROWS=j.data||[]; dcFill(); render();
     })
-    .catch(function(e){ if(my!==_loadSeq) return; ROWS=[]; render(); _alertBox('조회 오류 — '+esc(e.message),{icon:'⚠️'}); });
+    .catch(function(e){ if(my!==_loadSeq) return; busy(false); ROWS=[]; render(); _alertBox('조회 오류 — '+esc(e.message),{icon:'⚠️'}); });
 }
 function dcFill(){
   var s=document.getElementById('dc'), cur=s.value, seen={}, l=[];

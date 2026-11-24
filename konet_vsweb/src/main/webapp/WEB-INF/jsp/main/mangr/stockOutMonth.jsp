@@ -163,7 +163,7 @@
   <div class="bar">
     <label style="font-weight:700">기간</label>
     <input type="date" id="frDt" data-range-to="toDt" onchange="somLoad()" title="클릭하여 달력 선택 — 시작·종료를 한 번에 고릅니다"> <span style="color:#8a98a8">~</span> <input type="date" id="toDt" onchange="somLoad()" title="클릭하여 달력 선택 — 시작·종료를 한 번에 고릅니다">
-    <button class="btn btn-teal" onclick="somLoad()">🔍 조회</button>
+    <button class="btn btn-teal" id="somBtn" onclick="somLoad()">🔍 조회</button>
     <input type="text" id="q" placeholder="사업장/품목코드/품목명 거르기" oninput="somFindLater()" onkeydown="if(event.key==='Enter'){ somFindNow(); }" title="치는 동안 기다렸다가 멈추면 거릅니다 — Enter 를 누르면 바로" style="width:220px">
     <button class="btn" onclick="somExcel()">📥 엑셀 출력</button>
     <button class="btn" id="hxBtn" onclick="somHx()" title="사업장 이름이 길어 「…」로 잘릴 때 — 누르면 머리글을 여러 줄로 펼쳐 전체 이름을 봅니다. 다시 누르면 한 줄로 줄입니다(다음에 들어와도 기억).">↕ 머리글 펼치기</button>
@@ -203,7 +203,19 @@ function somHx(){
 somHxPaint();
 function num(v){ return Math.round(Number(v)||0).toLocaleString(); }   // 정산서 비율 배분은 소수가 나온다 → 표시는 반올림
 /* 조회 진행바(다른 화면 .qprog 와 같은 모양) */
-function qprog(msg){ return '<div class="qwrap"><div class="qprog"><i></i></div><div class="qmsg">'+esc(msg||'조회 중…')+'</div></div>'; }
+function qprog(msg, id){ return '<div class="qwrap"><div class="qprog"><i></i></div><div class="qmsg"'+(id?' id="'+id+'"':'')+'>'+esc(msg||'조회 중…')+'</div></div>'; }
+/* ★조회 중 표시 다듬기 (2026-11-24 사용자 「월별 출고현황도 진행바 확인해줘」 — 정산서 누락 조회와 같게)
+     ① 걸린 초를 0.5초마다 ② [조회] 단추 잠금 ③ 서버 응답 뒤 «표를 그리는 중»으로 글을 바꾸고 한 박자 쉰 뒤 그린다 —
+        그리기(3만 칸 · 1~2초)는 화면을 멈추게 해서, 바꾸지 않으면 진행바가 «조회 중»에서 굳은 듯 보였다 ④ 늦게 온 옛 응답은 버린다(_somSeq). */
+var _somSeq=0, _somBusyT=null;
+function somBusy(on){
+  if(_somBusyT){ clearInterval(_somBusyT); _somBusyT=null; }
+  var b=document.getElementById('somBtn'); if(b){ b.disabled=!!on; b.style.opacity=on?'.6':''; }
+  if(!on) return;
+  var t0=Date.now(), el=document.getElementById('somQmsg'), base=el?el.textContent:'';
+  _somBusyT=setInterval(function(){ var m=document.getElementById('somQmsg'); if(!m){ clearInterval(_somBusyT); _somBusyT=null; return; }
+    var sec=Math.floor((Date.now()-t0)/1000); if(sec>=1) m.textContent=(m.getAttribute('data-base')||base)+' · '+sec+'초'; }, 500);
+}
 function ymLabel(ym){ ym=''+ym; return ym.length===6 ? (ym.slice(0,4)+'-'+ym.slice(4,6)) : ym; }
 /* 알림 = 프로젝트 공통 _alertBox(ui-message.js, 재집계 확인창과 같은 모양). 없으면 브라우저 alert 폴백 (2026-09-03 요청) */
 function toast(s, icon){ if(window._alertBox) return _alertBox(s, {icon:icon||'ℹ️'}); alert(s.replace(/<[^>]*>/g,'')); }
@@ -223,7 +235,9 @@ function somLoad(){
   var fr=document.getElementById('frDt').value, to=document.getElementById('toDt').value;
   if(!fr||!to){ toast('기간을 고르세요.'); return; }
   if(fr>to){ var t=fr; fr=to; to=t; document.getElementById('frDt').value=fr; document.getElementById('toDt').value=to; }
-  document.getElementById('card').innerHTML=qprog('월별 출고량을 조회하는 중… (기간 '+fr+' ~ '+to+')');
+  var my=++_somSeq;
+  document.getElementById('card').innerHTML=qprog('월별 출고량을 조회하는 중… (기간 '+fr+' ~ '+to+')', 'somQmsg');
+  somBusy(true);
   /* 걸린 시간을 조회 결과 줄에 같이 적는다(2026-09-04 「조회 자체 느림」 — 서버·그리기 어느 쪽인지 사용자가 바로 보게) */
   somAliasLoad();          /* 매칭코드 → 주코드 표 (한 번만 · 조회를 기다리게 하지 않는다) */
   var t0=performance.now(), tFetch=0;
@@ -232,10 +246,14 @@ function somLoad(){
          headers:{'Content-Type':'application/x-www-form-urlencoded'},
          body:'frDt='+encodeURIComponent(fr.replace(/-/g,''))+'&toDt='+encodeURIComponent(to.replace(/-/g,'')) })
     .then(function(r){ return r.json(); })
-    .then(function(j){ tFetch=performance.now()-t0; RAW=j||{months:[],stock:[]}; var t1=performance.now(); somRender(); void document.body.offsetHeight;
-      _somTiming='  ⏱ 서버 '+(tFetch/1000).toFixed(1)+'초 · 그리기 '+((performance.now()-t1)/1000).toFixed(1)+'초';
-      var c=document.getElementById('cnt'); if(c && c.innerHTML.indexOf('⏱')<0) c.innerHTML+='<span style="color:#8a98a8;font-weight:600">'+_somTiming+'</span>'; })
-    .catch(function(e){ document.getElementById('card').innerHTML='<div class="empty">조회 실패: '+esc(e.message)+'</div>'; });
+    .then(function(j){ if(my!==_somSeq) return; tFetch=performance.now()-t0; RAW=j||{months:[],stock:[]};
+      /* 그리기 전에 글을 바꾸고 한 박자 쉰다 — 그리는 동안 화면이 멈춰도 무엇을 하는 중인지 보이게 */
+      var qm=document.getElementById('somQmsg'); if(qm){ var nt='표를 그리는 중… (자료 '+((RAW.months||[]).length).toLocaleString()+'줄)'; qm.setAttribute('data-base', nt); qm.textContent=nt; }
+      setTimeout(function(){ if(my!==_somSeq) return;
+        var t1=performance.now(); somRender(); void document.body.offsetHeight; somBusy(false);
+        _somTiming='  ⏱ 서버 '+(tFetch/1000).toFixed(1)+'초 · 그리기 '+((performance.now()-t1)/1000).toFixed(1)+'초';
+        var c=document.getElementById('cnt'); if(c && c.innerHTML.indexOf('⏱')<0) c.innerHTML+='<span style="color:#8a98a8;font-weight:600">'+_somTiming+'</span>'; }, 30); })
+    .catch(function(e){ if(my!==_somSeq) return; somBusy(false); document.getElementById('card').innerHTML='<div class="empty">조회 실패: '+esc(e.message)+'</div>'; });
 }
 /* 품목명 앞의 (브랜드) 가 사업장 이름과 겹치면 뺀다 — 납기현황표 엑셀과 같은 규칙(공백 무시 · 2자 이상 · 서로 포함) */
 function shortNm(nm, biz){

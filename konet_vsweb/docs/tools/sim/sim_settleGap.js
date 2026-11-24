@@ -22,7 +22,7 @@ async function boot(parentRange){
   w._alertBox=(m)=>{ w.__alert=m; }; w._toast=()=>{};
   w.eval(fs.readFileSync(W+'assets/vendor/xlsx-js-style/xlsx.bundle.js','utf8'));
   const scr=[...src.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1].replace(/\$\{pageContext\.request\.contextPath\}/g,'/konet')).join('\n');
-  w.eval(scr+'\n;window.__t={ render:render, tabGo:tabGo, excel:excel, picked:picked };');
+  w.eval(scr+'\n;window.__t={ render:render, tabGo:tabGo, excel:excel, picked:picked, load:load };');
   await new Promise(r=>setTimeout(r,20));
   return w;
 }
@@ -75,6 +75,12 @@ async function boot(parentRange){
   for(let i=DATA.length-1;i>=0;i--) if(DATA[i].reason==='CODE') DATA.splice(i,1);
   w=await boot(); const k3=[...w.document.querySelectorAll('#sumbox .kpi')];
   T(k3.length===3 && w.document.getElementById('sumbox').classList.contains('n3') && !/상품코드 다름 \(양쪽\)/.test(w.document.getElementById('sumbox').textContent), '상품코드 다름 0건 = 세 칸만');
+  // 조회 중 진행바 (2026-11-24 사용자 「실행 시 진행바 해줘」) — 응답이 오기 전엔 흐르는 바 + 단추 잠금, 오면 사라진다
+  let rel; w.fetch=()=>new Promise(r=>{ rel=()=>r({ json:()=>Promise.resolve({ result:'OK', data:JSON.parse(JSON.stringify(DATA)), frDt:'20260101', toDt:'20261124' }) }); });
+  w.__t.load(); const d=w.document;
+  T(d.querySelector('#body .qprog') && /맞춰 보는 중/.test(d.getElementById('body').textContent) && d.getElementById('btnLoad').disabled && d.getElementById('sumbox').classList.contains('busy'), '조회 중 = 진행바 · [리스트조회] 잠김 · 요약 흐림');
+  rel(); await new Promise(r=>setTimeout(r,30));
+  T(!d.querySelector('#body .qprog') && !d.getElementById('btnLoad').disabled && !d.getElementById('sumbox').classList.contains('busy') && d.querySelectorAll('#body tr').length>1, '응답 뒤 = 진행바 사라지고 목록 · 단추 풀림');
   console.log((bad?'✗':'✓')+' sim_settleGap : 통과 '+ok+' · 실패 '+bad);
   process.exit(bad?1:0);
 })();
