@@ -448,6 +448,10 @@
   table.d2-tb tr.item.r-del td:nth-child(2),
   table.d2-tb tr.item.r-del td:nth-child(3) { text-decoration:none; color:inherit; }   /* 2 = 적정재고 · 3 = 현재고 (2026-10-02 한 칸 밀림) */
   table.d2-tb tr.r-del td.num { color:#b06a66; }
+  /* 「정산 0」 (2026-11-24 사용자 「정산 0으로 구분해줘」) — 발주현황표에는 있는데 그날 정산서에 짝이 없어 «현재»(정산수량)가 0 이 된 줄.
+     지운 줄(r-del)과 달리 취소선 없이 주황 바탕 — 자료는 살아 있고 정산서만 짝을 못 찾은 것이다 */
+  table.d2-tb tr.r-s0 td { background:#fff8ec !important; color:#8a5a12; }
+  .hist-badge.s0 { background:#fff1dc; color:#a3570a; border:1px solid #f0c98a; cursor:help; }
   .d2-empty { padding:38px 20px; text-align:center; color:#6b7a89; font-size:13.5px; }
   .note { font-size:12px; color:#6b7a89; margin-top:8px; }
   /* 출고일자별 독립 블록 (기간·전체 조회 시) — 날짜 배너 + 표. 여러 표가 세로로 쌓임 */
@@ -2414,7 +2418,8 @@
       D2_UP = rows.length>0;
       D2_SRC = rows.length>0 ? ('🗄️ DB 조회 '+f+' · '+rows.length+'건') : ('🗄️ DB '+f+' — 데이터 없음');
       /* 정산서로 읽은 행 수 — 납기일자에 정산서가 있는 행(2026-09-03 규칙) */
-      var _ns=0; D2_DATA.forEach(function(r){ if(r.settle) _ns++; }); if(_ns) D2_SRC+=' · 📄 정산서 반영 '+_ns+'건';
+      var _ns=0, _nd=0; D2_DATA.forEach(function(r){ if(r.settle){ _ns++; if(Math.round((+r.sQty||0)*10)!==Math.round((+r.qty||0)*10)) _nd++; } });
+      if(_ns) D2_SRC+=' · 📄 정산서 온 줄 '+_ns+'건(현재 = 발주수량'+(_nd?(' · 정산 수량 다름 '+_nd+'건'):'')+')';   /* 2026-11-24 — 현재는 발주수량, 다르면 「정산 n」 */
       D2_COLL={};
     })
     .catch(function(e){ D2_SRC='⚠️ DB 통신오류'; D2_UP=false; D2_DATA=[]; d2Toast('⚠️ 출고 조회 통신오류: '+e.message); });
@@ -2650,6 +2655,14 @@
     if(!(jikSum>0)) return '';
     return ' (배송 '+d2Num(delSum)+' · 직송 '+d2Num(jikSum)+')';
   }
+  /* 「정산 n」 배지 (2026-11-24) — 정산서가 온 날, 정산수량이 발주수량(현재)과 다를 때만. 같으면 아무것도 안 붙인다 */
+  function d2SettleBadge(row){
+    if(!row || !row.settle) return '';
+    var sq=Math.round((+row.sQty||0)*10)/10, oq=Math.round((+row.qty||0)*10)/10;
+    if(sq===oq) return '';
+    var tip='그날 정산서 수량 '+d2Num(sq)+' — 발주 '+d2Num(oq)+'과(와) 다릅니다.'+(sq===0?'&#10;정산서에서 이 품목 짝을 못 찾았습니다(정산서 누락 조회에서 원인 확인).':'&#10;재고·월별 출고현황은 정산서 수량으로 셉니다.');
+    return ' <span class="hist-badge s0" title="'+tip+'">정산 '+d2Num(sq)+'</span>';
+  }
   function d2MapRow(o, f){
     var dcNm=(''+(o.dcNm||'')).trim(), inwh=(''+(o.inwh||'')).trim();
     /* ★배송/직송 구분 (2026-08-30) — 데시보드2(logi-oh.js SHIP_DATA 매핑)와 같은 규칙.
@@ -2666,10 +2679,14 @@
              /* ★출고수량 = 라벨수량(LABEL_QTY) (2026-09-01 사용자 확정 「수량은 라벨수량을 출고수량으로」) —
                   LABEL_QTY 가 없는 옛 행만 CUR_QTY(수량) 폴백. logi-oh.js ssOutQty 와 같은 규칙(한쪽만 고치면 두 대시보드가 어긋난다). */
              biz:bizLbl, bizCode:bizCd, dc:_grp, dcCd:_dcCd, inwh:inwh, zone:zone,
-             /* ★정산서 반영 (2026-09-03 규칙): 납기일자에 정산서가 있으면(settleYn=Y) 발주수량 대신 정산수량(settleQty, 발주라인 비율 배분).
-                  원장·출고재고현황과 같은 규칙. 이력(selectShipoutHistAll·Prev)엔 settleYn 이 없어 발주수량 그대로. */
-             qty:(((''+(o.settleYn||''))==='Y') ? (Math.round((+o.settleQty||0)*10)/10) : ((o.labelQty!=null&&o.labelQty!=='')?(+o.labelQty||0):(+o.curQty||0))),
+             /* ★「현재」 = 그때 올린 발주현황표 수량 (2026-11-24 사용자 「발주현황표 그때 당시 유지하면서」 → 「납기현황표 현재 = 발주수량」).
+                  종전(2026-09-03 규칙)엔 정산서가 온 날 발주수량 대신 정산수량(settleQty)을 보여 줘, 정산서에 짝이 없는 줄이 0 → «삭제»처럼 보였다.
+                  이제 수량은 늘 발주수량이고, 정산수량은 sQty 로 따로 들고 있다가 다를 때만 품목명 옆 「정산 n」 배지로 보인다.
+                  ⚠원장·월별 출고현황·재고는 종전대로 정산서 기준이다 — 이 화면의 «보기»만 바뀐다. */
+             qty:((o.labelQty!=null&&o.labelQty!=='')?(+o.labelQty||0):(+o.curQty||0)),
+             sQty:(((''+(o.settleYn||''))==='Y') ? (Math.round((+o.settleQty||0)*10)/10) : null),
              settle:((''+(o.settleYn||''))==='Y'), dlvDt:_dlv, date:(_sd||f),
+             ordQty:((o.labelQty!=null&&o.labelQty!=='')?(+o.labelQty||0):(+o.curQty||0)),   /* 발주수량 원값 — 정산서 짝이 없어 qty 가 0 인 줄(「정산 0」)을 알아보는 데 쓴다 (2026-11-24) */
              uploadDttm:(''+(o.uploadDttm||'')).trim().slice(0,19),   // 변경일시(현재 배치)
              firstDttm:(''+(o.firstDttm||'')).trim().slice(0,19),     // 최초일시(같은 품목 MIN)
              jobSeq:(+o.jobSeq||0) };   // 배치 버전(1=최초, 2↑=재생성)
@@ -2718,7 +2735,12 @@
       if(!z.inwh && r.inwh) z.inwh=r.inwh;   // 입고장 — 출고장(=물류센터+입고장) 매칭용
       if((+r.jobSeq||0)>z.jobSeq) z.jobSeq=(+r.jobSeq||0);   // 배치 버전(최대) — 최초/재생성 판정용
       if(r.dlvDt) z.dlv[r.dlvDt]=1;
-      if(q<=0) return;                     // 출고량 있는 품목만 표시(출고장별 출력과 동일)
+      if(q<=0){                            // 출고량 있는 품목만 표시(출고장별 출력과 동일)
+        /* ★「정산 0」 기억 (2026-11-24) — 정산서가 온 날(settle)에 발주는 있는데 정산수량이 0 인 줄. 이력 대조에서 «삭제»가 아니라 «정산 0» 으로 보인다.
+             ※같은 날 「현재 = 발주수량」으로 바꾼 뒤로는 발주가 있으면 q>0 이라 여기 오지 않는다(정산 차이는 d2SettleBadge). 수량을 다시 정산 기준으로 돌릴 때를 위해 남겨 둔다 */
+        if(r.settle && (+r.ordQty||0)>0){ var _ik0=(r.code?r.code:('NM:'+r.item)); var _s0=(z.s0||(z.s0={})); var _k0=(r.biz||'')+'|'+_ik0; _s0[_k0]=(_s0[_k0]||0)+(+r.ordQty||0); }
+        return;
+      }
       z.tot+=q; totQty+=q;
       bizSet[d2Brand(r)]=1;                // 사업장 = 대표사업장(브랜드) 기준 유니크 (데시보드1 KPI와 동일)
       var ik=(r.code?r.code:('NM:'+r.item));
@@ -2728,6 +2750,7 @@
       /* bizCode 를 남긴다 — 가로표가 <사업장 공통 매칭>을 찾을 때 쓴다(2026-08-28). 다른 보기는 안 쓴다. */
       if(!row) row=z.rows[rk]={biz:(r.biz||''), bizCode:(r.bizCode||''), name:r.item, code:r.code, qty:0, uploadDttm:(r.uploadDttm||''), firstDttm:(r.firstDttm||''), ozones:{}};
       row.qty+=q;
+      if(r.settle){ row.settle=true; row.sQty=(row.sQty||0)+(+r.sQty||0); }   /* 정산수량 합 — 발주수량과 다르면 「정산 n」 배지 (2026-11-24) */
       // 원래 출고장 분포 누적(사업장별 뷰에서 품목명 옆 출고장 콤보용, 2026-07-24). origZone 없으면(=출고장별 뷰) 무시
       if(r.origZone){ if(!row.ozones) row.ozones={}; row.ozones[r.origZone]=(row.ozones[r.origZone]||0)+q; }
       if(r.uploadDttm && r.uploadDttm>(row.uploadDttm||'')) row.uploadDttm=r.uploadDttm;   // 변경일시 최신값
@@ -2765,7 +2788,9 @@
           if(!pv[rk]) z.rows[rk].isNew=true;                 // 직전에 없던 품목 = 신규
           else z.rows[rk].prevQty=pv[rk].qty;               // 기존 품목 = 직전 수량 기록(이력 표시)
         });
-        Object.keys(pv).forEach(function(rk){ if(!z.rows[rk]){ var pr=pv[rk]; if(_pass(pr)) z.delRows.push(pr); } });   // 이번에 빠진 품목 = 삭제
+        Object.keys(pv).forEach(function(rk){ if(!z.rows[rk]){ var pr=pv[rk];
+          if(z.s0 && z.s0[rk]){ pr.settle0=true; pr.ordQty=z.s0[rk]; }   /* 발주는 이번 배치에 그대로 있다 — 정산서 짝만 없음 = 「정산 0」 (2026-11-24) */
+          if(_pass(pr)) z.delRows.push(pr); } });   // 이번에 빠진 품목 = 삭제(정산 0 포함 — 그리기에서 갈린다)
       });
       // 완전히 사라진 출고장(직전엔 있고 현재 없음)의 삭제 항목도 표시
       Object.keys(prevByZone).forEach(function(zn){
@@ -2831,7 +2856,7 @@
     ag.zoneOrder.forEach(function(zn){ var z=ag.zones[zn]; Object.keys(z.rows).forEach(function(rk){
       var r=z.rows[rk]; if(!((+r.qty||0)>0)) return; var k=r.code?('C:'+r.code):('N:'+r.name);
       if(!items[k]) items[k]={code:r.code||'',name:r.name||'',qty:0,zones:{},bizs:{}};
-      var q=(+r.qty||0); items[k].qty+=q;
+      var q=(+r.qty||0); items[k].qty+=q; if(r.settle){ items[k].settle=true; items[k].sQty=(items[k].sQty||0)+(+r.sQty||0); }   /* 정산수량 합 — 「정산 n」 배지 (2026-11-24) */
       if(zn) items[k].zones[zn]=(items[k].zones[zn]||0)+q;
       var b=r.biz||'(사업장 미지정)'; items[k].bizs[b]=(items[k].bizs[b]||0)+q;
     }); });
@@ -2844,6 +2869,7 @@
       var r=z.rows[rk]; if(!((+r.qty||0)>0)) return; var b=r.biz||'(사업장 미지정)';
       var g=bm[b]||(bm[b]={items:{},tot:0}); var k=r.code?('C:'+r.code):('N:'+r.name);
       if(!g.items[k]) g.items[k]={code:r.code||'',name:r.name||'',qty:0}; g.items[k].qty+=(+r.qty||0); g.tot+=(+r.qty||0);
+      if(r.settle){ g.items[k].settle=true; g.items[k].sQty=(g.items[k].sQty||0)+(+r.sQty||0); }   /* 정산수량 합 — 「정산 n」 배지 (2026-11-24) */
     }); });
     return bm;
   }
@@ -2857,7 +2883,7 @@
         var r=z.rows[rk]; if(!((+r.qty||0)>0)) return;
         var k=r.code?('C:'+r.code):('N:'+r.name);
         if(!items[k]) items[k]={code:r.code||'',name:r.name||'',qty:0,bizs:{}};
-        var q=(+r.qty||0); items[k].qty+=q;
+        var q=(+r.qty||0); items[k].qty+=q; if(r.settle){ items[k].settle=true; items[k].sQty=(items[k].sQty||0)+(+r.sQty||0); }   /* 정산수량 합 — 「정산 n」 배지 (2026-11-24 「납기세부조회도 같은 방식」) */
         // 이 품목이 이 출고장에서 어느 사업장으로 나갔나(품목명 옆 사업장 콤보용, 2026-07-24)
         var b=r.biz||'(사업장 미지정)'; items[k].bizs[b]=(items[k].bizs[b]||0)+q;
       });
@@ -2898,7 +2924,7 @@
       zs.forEach(function(z){
         // 출고장 소계 + 품목(코드 합산)
         html+='<tr class="sub"><td class="txt-l" colspan="4" style="padding-left:20px">↳ '+d2Esc(z.zone)+(z.dcCd?' <span style="font-weight:600">('+d2Esc(z.dcCd)+')</span>':'')+' <span style="color:#9aa7b3">(품목 '+z.items.length+'종)</span></td><td class="num">'+d2Num(z.tot)+'</td></tr>';
-        z.items.forEach(function(r,ix){ html+='<tr class="item"><td>'+(ix+1)+'</td><td>'+d2Esc(r.code)+'</td><td class="txt-l">'+d2Esc(r.name)+'</td><td class="txt-l">'+d2DistCell(r.bizs,'사업장')+'</td><td class="num">'+d2Num0(r.qty)+'</td></tr>'; });
+        z.items.forEach(function(r,ix){ html+='<tr class="item"><td>'+(ix+1)+'</td><td>'+d2Esc(r.code)+'</td><td class="txt-l">'+d2Esc(r.name)+d2SettleBadge(r)+'</td><td class="txt-l">'+d2DistCell(r.bizs,'사업장')+'</td><td class="num">'+d2Num0(r.qty)+'</td></tr>'; });
       });
     });
     return html+'</tbody></table>';
@@ -2931,7 +2957,7 @@
       html+='<tr class="tot"><td class="txt-l" colspan="5">품목 합계 ('+items.length+'종)</td><td class="num">'+d2Num(grand)+'</td></tr>';
       if(!items.length) html+='<tr class="item"><td class="txt-l" colspan="6"><div class="d2-empty">표시할 품목이 없습니다.</div></td></tr>';
       items.forEach(function(r,ix){
-        html+='<tr class="item"><td>'+(ix+1)+'</td><td>'+d2Esc(r.code)+'</td><td class="txt-l">'+d2Esc(r.name)+'</td>'
+        html+='<tr class="item"><td>'+(ix+1)+'</td><td>'+d2Esc(r.code)+'</td><td class="txt-l">'+d2Esc(r.name)+d2SettleBadge(r)+'</td>'
             +'<td class="txt-l">'+d2DistCell(r.zones,'출고장')+'</td>'
             +'<td class="txt-l">'+d2DistCell(r.bizs,'사업장')+'</td>'
             +'<td class="num">'+d2Num0(r.qty)+'</td></tr>';
@@ -2948,7 +2974,7 @@
         var g=bm[b];
         var list=Object.keys(g.items).map(function(k){ return g.items[k]; }).sort(function(x,y){ return x.name.localeCompare(y.name,'ko')||x.code.localeCompare(y.code,'ko'); });
         html+='<tr class="grp"><td class="txt-l" colspan="3">🏢 '+d2Esc(b)+' <span style="font-weight:600">(품목 '+list.length+'종)</span></td><td class="num">'+d2Num(g.tot)+'</td></tr>';
-        list.forEach(function(r,ix){ html+='<tr class="item"><td>'+(ix+1)+'</td><td>'+d2Esc(r.code)+'</td><td class="txt-l">'+d2Esc(r.name)+'</td><td class="num">'+d2Num0(r.qty)+'</td></tr>'; });
+        list.forEach(function(r,ix){ html+='<tr class="item"><td>'+(ix+1)+'</td><td>'+d2Esc(r.code)+'</td><td class="txt-l">'+d2Esc(r.name)+d2SettleBadge(r)+'</td><td class="num">'+d2Num0(r.qty)+'</td></tr>'; });
       });
     }
     return html+'</tbody></table>';
@@ -3712,20 +3738,24 @@
                 + d2MatchCell(r)
                 +'<td class="txt-l">'+bizCell+'</td>'
                 +'<td>'+d2Esc(r.code)+'</td>'
-                +'<td class="txt-l">'+d2Esc(r.name)+'</td>'
+                +'<td class="txt-l">'+d2Esc(r.name)+d2SettleBadge(r)+'</td>'
                 + itemRowCells(zn, k)
                 +'</tr>';
             });
             // 이번에 빠진(삭제) 품목 — 회색+취소선. 차수 열에서 삭제 시점 표기
             dels.forEach(function(r){
               var rk=delRk(r);
-              h+='<tr class="item r-del"><td>–</td>'
+              /* 「정산 0」 은 지운 줄이 아니다 — 취소선 없이 주황 · 배지 「정산 0」 (2026-11-24) */
+              var _s0=!!r.settle0;
+              var _bdg=_s0 ? ' <span class="hist-badge s0" title="발주현황표에는 발주 '+d2Num(r.ordQty||0)+' 이(가) 그대로 있습니다 — 그날 정산서에서 이 품목 짝을 못 찾아 출고(정산수량)가 0 입니다.&#10;정산서 누락 조회(매출 관리)에서 원인을 볼 수 있습니다.">정산 0</span>'
+                           : ' <span class="hist-badge del">삭제</span>';
+              h+='<tr class="item '+(_s0?'r-s0':'r-del')+'"><td>–</td>'
                 + d2SafeCell(r.code)        /* 적정재고 (2026-10-02) — 현재고 앞 */
                 + d2StockCell(r.code,'q')
                 + d2MatchCell(r)
                 +'<td class="txt-l">'+((D2_VIEW==='biz')?d2DistCell(r.ozones,'출고장'):d2Esc(r.biz))+'</td>'
                 +'<td>'+d2Esc(r.code)+'</td>'
-                +'<td class="txt-l">'+d2Esc(r.name)+' <span class="hist-badge del">삭제</span></td>'
+                +'<td class="txt-l">'+d2Esc(r.name)+_bdg+'</td>'
                 + itemRowCells(zn, rk)
                 +'</tr>';
             });

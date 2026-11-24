@@ -7326,17 +7326,23 @@
 	       XREF 가 먼저인 이유 : 잘못 이어진 통보분을 사람이 XREF 에서 고쳤을 때 그 수정이 이겨야 한다.
 	       코드직결이 마지막인 이유 : 우연히 코드가 같은 경우가 사람이 지정한 연결을 덮으면 안 된다.
 	     ========================================================================================== -->
+	<!-- resolveShipoutProdExt — 2차 패스(통보대장).
+	     ★[2026-11-24] 매칭코드의 거래처(VENDOR_CD)로 거르지 않는다 — 고른다(사용자 「1번으로 진행」).
+       매칭코드의 거래처 = 그 코드를 통보한 «우리 매입 거래처»(예 00266)인데, 삼성 발주현황표의 VENDOR_CD 는 «협력업체코드» = 코네트 자신(A0223036)이라 체계가 다르다.
+       종전 `ISNULL(e.VENDOR_CD,'') IN ('', s.VENDOR_CD)` 는 거래처를 지정한 매칭코드를 발주현황표에서 통째로 못 쓰게 해, 3차 «코드 직결»로 같은 번호의 다른 상품에 붙었다
+       (1000455369 → 주코드 9904012198 인데 발주현황표는 1000455369 상품으로 · 정산서 해석 resolveSalesProdExt 는 거래처를 안 봐 9904012198 → 두 자료 상품코드가 갈려
+        납기현황표 정산수량 0 · 정산서 누락 조회 「상품코드 다름」. 운영 실측 : 거래처 지정 매칭코드 7건 중 6품목 · 활성 발주현황표 483줄).
+       ⇒ 같은 코드의 매칭이 여럿이면 «거래처가 같은 것 → 거래처 빈 것 → 그 밖(최근 등록)» 차례로 하나만 고른다(CROSS APPLY TOP 1). 한 코드 → 한 주코드뿐이면(운영 실측 0건 예외) 결과는 정산서 해석과 같다.
+	-->
 	<update id="resolveShipoutProdExt" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
 	     SET s.PROD_SEQ = e.PROD_SEQ, s.PROD_CD = e.PROD_CD
 	    FROM TBL_SHIPOUT_MST s
-	    JOIN TBL_EXT_ITEM_MST e
-	      ON  e.COMP_CD = s.COMP_CD
-	     AND  e.ACTION_YN = 'Y'
-	     AND  e.PROD_SEQ IS NOT NULL          /* 우리 상품코드를 골라 둔 통보분만 */
-	     AND  e.EXT_ITEM_CD = s.ITEM_CD
-	     /* 거래처를 안 가린 통보(VENDOR_CD 비어 있음) = 모든 거래처에 걸린다 */
-	     AND  ISNULL(e.VENDOR_CD,'') IN ('', ISNULL(s.VENDOR_CD,''))
+	   CROSS APPLY ( SELECT TOP 1 e1.PROD_SEQ, e1.PROD_CD FROM TBL_EXT_ITEM_MST e1
+	                  WHERE e1.COMP_CD = s.COMP_CD AND e1.ACTION_YN = 'Y'
+	                    AND e1.PROD_SEQ IS NOT NULL          /* 우리 상품코드를 골라 둔 통보분만 */
+	                    AND e1.EXT_ITEM_CD = s.ITEM_CD
+	                  ORDER BY CASE WHEN ISNULL(e1.VENDOR_CD,'') = ISNULL(s.VENDOR_CD,'') THEN 0 WHEN ISNULL(e1.VENDOR_CD,'') = '' THEN 1 ELSE 2 END, e1.EXT_SEQ DESC ) e
 	   WHERE s.PROD_SEQ IS NULL
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR s.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     AND ( #{jobSeq,jdbcType=BIGINT} IS NULL OR s.JOB_SEQ = #{jobSeq,jdbcType=BIGINT} )
@@ -7478,18 +7484,19 @@
 	       · `s.PROD_CD = s.ITEM_CD` : 직결로 붙은 행이라는 표식(XREF·EXT 로 붙었으면 코드가 다르다)
 	       · TBL_PROD_XREF 에 그 코드가 있으면 제외 : XREF(1차) 가 EXT(2차) 보다 우선
 	       · `e.PROD_SEQ <> s.PROD_SEQ` : 실제로 다른 상품을 가리킬 때만 -->
+	<!-- repointShipoutProdExt — 거래처 조건은 resolveShipoutProdExt 와 같이 «거르지 않고 고른다»(2026-11-24, 그 문장 머리 주석).
+	     [출고반영 재집계](rebuildShipoutLedgerAll)가 이 문장을 전체로 돌리므로, 배포 뒤 그 단추 한 번이면 이미 갈려 저장된 483줄도 주코드로 옮겨진다. -->
 	<update id="repointShipoutProdExt" parameterType="egovframework.konet.user.model.ProdXrefDTO"><![CDATA[
 	  UPDATE s
 	     SET s.PROD_SEQ = e.PROD_SEQ, s.PROD_CD = e.PROD_CD
 	    FROM TBL_SHIPOUT_MST s
-	    JOIN TBL_EXT_ITEM_MST e
-	      ON  e.COMP_CD = s.COMP_CD
-	     AND  e.ACTION_YN = 'Y'
-	     AND  e.PROD_SEQ IS NOT NULL
-	     AND  e.EXT_ITEM_CD = s.ITEM_CD
-	     AND  ISNULL(e.VENDOR_CD,'') IN ('', ISNULL(s.VENDOR_CD,''))
-	     AND  e.PROD_SEQ <> s.PROD_SEQ
+	   CROSS APPLY ( SELECT TOP 1 e1.PROD_SEQ, e1.PROD_CD FROM TBL_EXT_ITEM_MST e1
+	                  WHERE e1.COMP_CD = s.COMP_CD AND e1.ACTION_YN = 'Y'
+	                    AND e1.PROD_SEQ IS NOT NULL
+	                    AND e1.EXT_ITEM_CD = s.ITEM_CD
+	                  ORDER BY CASE WHEN ISNULL(e1.VENDOR_CD,'') = ISNULL(s.VENDOR_CD,'') THEN 0 WHEN ISNULL(e1.VENDOR_CD,'') = '' THEN 1 ELSE 2 END, e1.EXT_SEQ DESC ) e
 	   WHERE s.PROD_SEQ IS NOT NULL
+	     AND e.PROD_SEQ <> s.PROD_SEQ
 	     AND s.PROD_CD = s.ITEM_CD
 	     AND NOT EXISTS ( SELECT 1 FROM TBL_PROD_XREF x
 	                       WHERE x.COMP_CD = s.COMP_CD AND x.ACTION_YN = 'Y'
