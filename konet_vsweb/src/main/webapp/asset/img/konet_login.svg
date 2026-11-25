@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 코네트 로고 (2026-11-25) — 로그인 화면 제목 옆. 원본 konet_login.png(198×124, 흐림)를 글꼴·도형으로 다시 그린 것.
+     글자를 그림이 아니라 글꼴로 그려 작게 보여도 또렷하다.
+     여백·글자 위치는 원본 그림을 재서 맞췄다(바깥 여백 포함 비율 198:124). textLength 로 글자 폭을 고정해 PC 글꼴이 달라도 자리가 어긋나지 않는다. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="8.3 6.3 148 92.7" width="198" height="124">
+  <polygon points="12,13 72.5,13 41,53 72.5,93 12,93" fill="#21376C"/>
+  <text x="20.5" y="73.5" style="font-family:'Times New Roman',Times,serif;font-size:58px" fill="#FFFFFF"
+        stroke="#21376C" stroke-width="0.6" textLength="41" lengthAdjust="spacingAndGlyphs">K</text>
+  <text x="63.5" y="71.3" style="font-family:'Times New Roman',Times,serif;font-size:45px" fill="#21376C"
+        textLength="76" lengthAdjust="spacingAndGlyphs">onet</text>
+  <text x="64" y="40.6" style="font-family:'Times New Roman',Times,serif;font-size:11px" fill="#3c3c3c"
+        textLength="74" lengthAdjust="spacingAndGlyphs">Korea Network</text>
+  <text x="77" y="87" style="font-family:'Malgun Gothic','맑은 고딕',sans-serif;font-size:11px;font-weight:700" fill="#3c3c3c"
+        textLength="69" lengthAdjust="spacingAndGlyphs">주식회사 코네트</text>
+</svg>
