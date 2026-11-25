@@ -18,6 +18,9 @@ function make(resp){
     if (/prodDelPurchList\.do$/.test(url)) { (env.dcalls = env.dcalls || []).push({ url, body: opt && opt.body });   /* 삭제된 입고(2026-11-25) — 따로 센다 */
       if (env.del === 'fail') return Promise.resolve({ ok: false, status: 404, json: () => Promise.reject(new Error('x')) });
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ result: 'OK', data: env.del || [], sales: env.dsales || [] }) }); }
+    if (/\/prod\/stockList\.do$/.test(url)) { (env.lcalls = env.lcalls || []).push({ url, body: opt && opt.body });   /* 원장 전체(2026-11-25 — 조정 뒤 「재고 n」) — 따로 센다 */
+      if (env.led === 'fail') return Promise.resolve({ ok: false, status: 404, json: () => Promise.reject(new Error('x')) });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ data: env.led || [] }) }); }
     env.calls.push({ url, body: opt && opt.body });
     if (env.resp === 'fail') return Promise.resolve({ ok: false, status: 404, json: () => Promise.reject(new Error('x')) });
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(env.resp) }); };
@@ -166,6 +169,50 @@ const LED = [ { trxDt: '20261028', ioGb: 'A', qty: 1, adjBef: 30, adjAft: 31, re
     const e2 = make({ result: 'OK', data: [] }); e2.del = 'fail';
     e2.api.render(S11, { out: [], ledger: LD }, '20260101', '20261125'); await sleep(10);
     t('옛 서버(404) — 줄 없음 · 종전 화면', cells(e2.els.dtlIn.innerHTML).length === 1 && !/삭제된 입고/.test(e2.els.dtlInSum.textContent));
+  }
+  /* ── 최근 조정 뒤 「재고 n」 + 조정 줄 「변동 ±d → n」 (2026-11-25 · 운영 1000808776 그대로) ── */
+  {
+    const ADJ = { ledgerSeq: 16, ioGb: 'A', qty: 104, adjBef: 12, adjAft: 116, trxDt: '20261118', regDttm: '2026-11-18 09:55:29' };
+    const LG = (out) => [ { ledgerSeq: 20, ioGb: 'O', qty: 1, trxDt: '20261126', srcDttm: '2026-11-25 14:29:38' }, { ledgerSeq: 19, ioGb: 'O', qty: 4, trxDt: '20261121', srcDttm: '2026-11-19 08:48:33' },
+                          { ledgerSeq: 18, ioGb: 'O', qty: 2, trxDt: '20261120', srcDttm: '2026-11-19 08:48:33' }, { ledgerSeq: 17, ioGb: 'O', qty: 4, trxDt: '20261118', srcDttm: '2026-11-17 08:50:07' },
+                          ADJ, { ledgerSeq: 10, ioGb: 'I', qty: 103, trxDt: '20261015' }, { ledgerSeq: 9, ioGb: 'O', qty: out, trxDt: '20261001' } ];
+    const OUT = [ { dlvDt: '20261126', bizNm: '오창점', qty: 1, src: '발주현황표', srcDttm: '2026-11-25 14:29:38' }, { dlvDt: '20261121', bizNm: '상당구점', qty: 2, src: '정산서', srcDttm: '2026-11-19 08:48:33' },
+                  { dlvDt: '20261121', bizNm: '대연점', qty: 2, src: '정산서', srcDttm: '2026-11-19 08:48:33' }, { dlvDt: '20261120', bizNm: '비성점', qty: 2, src: '정산서', srcDttm: '2026-11-19 08:48:33' },
+                  { dlvDt: '20261118', bizNm: '마성점', qty: 4, src: '정산서', srcDttm: '2026-11-17 08:50:07' } ];
+    const S88 = { ym: '', g: { key: '#ALL', nm: '품목 합계' }, it: { cd: '1000808776', seq: 88 } };
+    const J = { out: OUT, ledger: [ ADJ, { ledgerSeq: 10, ioGb: 'I', qty: 103, trxDt: '20261015' } ] };
+    const e = make({ result: 'OK', data: [] }); e.led = LG(192);
+    e.api.render(S88, J, '20261001', '20261130');
+    t('처음 — 원장 전체를 한 번 묻는다(prodSeq) · 오기 전에는 표시 없음', (e.lcalls || []).length === 1 && e.lcalls[0].url === '/konet/prod/stockList.do' && e.lcalls[0].body === 'prodSeq=88' && !/led-run|led-now/.test(e.els.dtlOut.innerHTML + e.els.dtlIn.innerHTML));
+    await sleep(10);
+    const O = cells(e.els.dtlOut.innerHTML), I = cells(e.els.dtlIn.innerHTML);
+    t('★출고내역 — 그 납기일자의 첫 줄에 「재고 n」 : 11-26 = 4 · 11-21 = 5(둘째 줄엔 없음) · 11-20 = 9', O[0][5] === '재고 41' && O[1][5] === '재고 52' && O[2][5] === '2' && O[3][5] === '재고 92', O.map(c => c[5]).join(' | '));
+    t('「수정재고에 포함」 줄(11-18)은 재고 표시 없음', O[4][5] === '수정재고에 포함4', O[4][5]);
+    t('★입고내역 조정 줄 — 「변동 -105 → 11」 + 말풍선 차례 설명', /전 12 → 수정재고 116\(증감 \+104\) ?변동 -105 → 11/.test(I[0][2]) && /class="led-now"/.test(e.els.dtlIn.innerHTML) && /재고조정으로 116 에 맞췄는데, 지금은 11 입니다/.test(e.els.dtlIn.innerHTML) && /실물과 다르면 재고 일괄조정으로 다시 맞추세요/.test(e.els.dtlIn.innerHTML) && /재고가 105 줄었습니다/.test(e.els.dtlIn.innerHTML), I[0][2]);
+    t('조정 줄 아래(옛 입고 줄)에는 표시 없음', I[1][2] === '103', I[1][2]);
+    t('말풍선 — 「이 날까지 반영한 재고」 · 「지금 기준 11」 · 「지금 현재고(4)」', /이 날까지 반영한 재고입니다/.test(e.els.dtlOut.innerHTML) && /수정재고 116 · 지금 기준 11/.test(e.els.dtlOut.innerHTML) && /지금 현재고\(4\)/.test(e.els.dtlOut.innerHTML));
+    e.api.render(S88, J, '20261001', '20261130');
+    t('60초 안에는 원장을 다시 묻지 않는다', e.lcalls.length === 1);
+    /* 말풍선의 「바뀐 줄(추정)」 줄과 줄 자체의 빨간 표는 없다 (2026-11-25 「그럼 빨간 표는 빼줘」 → 「말풍선의 바뀐 줄(추정)도 빼줘」) */
+    t('말풍선 — 「바뀐 줄」 줄이 없다(기록이 없는 경우)', !/바뀐 줄|기록이 남아 있지/.test(e.els.dtlIn.innerHTML));
+    const e9 = make({ result: 'OK', data: [] }); e9.led = LG(192); e9.led[3] = Object.assign({}, e9.led[3], { regDttm: '2026-11-19 09:00:00' });
+    e9.del = [ { purchSeq: 427, purchDt: '20260916', purchNo: '0002', vendorNm: '버개스패키지', qty: 105, delDttm: '2026-11-22 18:48:02', delUserNm: '마스터' } ];
+    e9.api.render(S88, J, '20261001', '20261130'); await sleep(20);
+    t('★말풍선 — 다시 만들어진 줄·지운 전표가 있어도 「바뀐 줄」 줄이 없다', /led-now/.test(e9.els.dtlIn.innerHTML) && !/바뀐 줄|기록이 남아 있지|11-19 09:00 등록/.test(e9.els.dtlIn.innerHTML) && !/m\.chg|RM\.chg/.test(jsp));
+    t('짚은 줄에도 빨간 「조정 뒤 등록」 표는 없다', cells(e9.els.dtlOut.innerHTML)[4][5] === '수정재고에 포함4' && !/led-chg/.test(e9.els.dtlOut.innerHTML + e9.els.dtlIn.innerHTML) && !/somChgMark/.test(jsp), cells(e9.els.dtlOut.innerHTML)[4][5]);
+    /* 조정 뒤 입고가 있는 경우 — 입고내역 줄에도 「재고 n」 */
+    const e2 = make({ result: 'OK', data: [] }); e2.led = [ { ledgerSeq: 31, ioGb: 'I', qty: 36, trxDt: '20261007' }, { ledgerSeq: 29, ioGb: 'A', qty: 2, adjBef: 0, adjAft: 2, trxDt: '20261002', regDttm: '2026-10-02 16:59:27' } ];
+    e2.api.render({ ym: '', g: S88.g, it: { cd: 'X', seq: 5 } }, { out: [], ledger: e2.led }, '20261001', '20261031'); await sleep(10);
+    const I2 = cells(e2.els.dtlIn.innerHTML);
+    t('입고내역 — 조정 뒤 입고 줄에 「재고 38」 · 달라진 것이 없으면 「변동」 없음', I2[0][2] === '재고 3836' && !/led-now/.test(e2.els.dtlIn.innerHTML), I2.map(c => c[2]).join(' | '));
+    /* 못 읽으면 종전 화면 */
+    const e3 = make({ result: 'OK', data: [] }); e3.led = 'fail';
+    e3.api.render(S88, J, '20261001', '20261130'); await sleep(10);
+    t('원장을 못 읽으면 표시 없이 종전 화면', !/led-run|led-now/.test(e3.els.dtlOut.innerHTML + e3.els.dtlIn.innerHTML) && cells(e3.els.dtlOut.innerHTML)[0][5] === '1');
+    /* 조정이 없는 품목 */
+    const e4 = make({ result: 'OK', data: [] }); e4.led = LG(192).filter(x => x.ioGb !== 'A');
+    e4.api.render(S88, { out: OUT, ledger: [] }, '20261001', '20261130'); await sleep(10);
+    t('조정이 없는 품목은 표시 없음', !/led-run/.test(e4.els.dtlOut.innerHTML));
   }
   console.log((bad ? '✗ ' : '✓ ') + 'sim_somPend : 통과 ' + ok + ' · 실패 ' + bad);
   process.exit(bad ? 1 : 0);

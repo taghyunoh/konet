@@ -2419,9 +2419,11 @@ public class UserServiceImpl implements UserService {
 	}
 	/** 이 매입전표의 품목 중 전표 뒤에 재고조정을 한 품목 (2026-11-25) — 삭제·수량 수정 전 경고용. 조회만 한다. */
 	@Override public java.util.List<java.util.Map<String,Object>> selectPurchaseAdjAfter(java.util.Map<String,Object> p) throws Exception { return mapper.selectPurchaseAdjAfter(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectAdjFixAfter(java.util.Map<String,Object> p) throws Exception { return mapper.selectAdjFixAfter(p); }
 	/** 이 판매전표의 품목 중 전표 뒤에 재고조정을 한 품목 (2026-11-25) — 삭제·수량 수정 전 경고용. 조회만 한다. */
 	@Override public java.util.List<java.util.Map<String,Object>> selectSalesTrxAdjAfter(java.util.Map<String,Object> p) throws Exception { return mapper.selectSalesTrxAdjAfter(p); }
 	/** 지운 매입전표 목록 (2026-11-25) — 매입등록 [🗑 삭제 전표] 창. 조회만 한다. */
+	@Override public java.util.List<java.util.Map<String,Object>> selectStockAdjDrift(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockAdjDrift(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectPurchaseDelList(java.util.Map<String,Object> p) throws Exception { return mapper.selectPurchaseDelList(p); }
 	/** 지운 매입전표 되살리기 전 확인 (2026-11-25) — 머리(번호 겹침·닮은 전표) + 줄(현재고 · 지운 뒤 재고조정). 조회만 한다. 없으면 null. */
 	@Override public java.util.Map<String,Object> purchaseRestoreInfo(Long purchSeq, String compCd) throws Exception {
@@ -2438,7 +2440,7 @@ public class UserServiceImpl implements UserService {
 	 *  ③살린 줄로 재고 원장을 다시 만든다 — 저장(savePurchase)의 ①과 같은 식(매입 I · 반품 R −수량 · 근거번호 = 일자-번호).
 	 *  매입단가 이력·마스터 매입가는 손대지 않는다(지울 때도 안 지웠다). 발주 연결(PO_DTL_SEQ)은 줄에 남아 있어 그대로 되살아난다.
 	 *  ★트랜잭션 — context-transaction.xml 의 trxSaveTx 에 이 메서드를 넣었다(중간에 실패하면 통째로 되돌린다). */
-	@Override public java.util.Map<String,Object> restorePurchase(Long purchSeq, String compCd, String user, String ip) throws Exception {
+	@Override public java.util.Map<String,Object> restorePurchase(Long purchSeq, String compCd, String user, String ip, java.util.List<String> prodCds) throws Exception {
 		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
 		p.put("purchSeq", purchSeq); p.put("compCd", compCd);
 		java.util.Map<String,Object> h = mapper.selectPurchaseDelInfo(p);
@@ -2449,7 +2451,14 @@ public class UserServiceImpl implements UserService {
 		if ("Y".equals(String.valueOf(h.get("dupYn"))) || oldNo.isEmpty()) no = String.valueOf(h.get("nextNo")).trim();
 		p.put("purchNo", no); p.put("updUser", user); p.put("updIp", ip);
 		if (mapper.restorePurchaseMst(p) <= 0) throw new IllegalStateException("전표를 되살리지 못했습니다 — 이미 되살린 전표일 수 있습니다.");
+		/* ★고른 품목만 (2026-11-25 「펼쳐진 내용 전체선택 개별선택 살리기」) — prodCds 가 있으면 그 품목 줄만 되살리고, 머리 합계를 되살린 줄만으로 다시 센다.
+		   비면 지울 때 살아 있던 줄 전부(종전). 고른 품목이 그 전표에 하나도 없으면 되살리지 않는다(트랜잭션이라 머리도 되돌아간다). */
+		java.util.List<String> pick = new java.util.ArrayList<String>();
+		if (prodCds != null) for (String c : prodCds) { if (c != null && !c.trim().isEmpty() && !pick.contains(c.trim())) pick.add(c.trim()); }
+		p.put("prodCds", pick.isEmpty() ? null : pick);
 		int lines = mapper.restorePurchaseDtlLast(p);
+		if (lines <= 0) throw new IllegalStateException("되살릴 품목 줄이 없습니다 — 고른 품목이 이 전표에 없거나 이미 되살린 전표입니다.");
+		if (!pick.isEmpty()) mapper.recalcPurchaseMstTotal(p);
 		egovframework.konet.user.model.PurchaseDTO q = new egovframework.konet.user.model.PurchaseDTO();
 		q.setPurchSeq(purchSeq); q.setCompCd(compCd);
 		String refNo = ym8(purchDt) + "-" + no;
@@ -2479,11 +2488,83 @@ public class UserServiceImpl implements UserService {
 		}
 		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
 		res.put("purchSeq", purchSeq); res.put("purchDt", purchDt); res.put("purchNo", no); res.put("oldNo", oldNo);
+		res.put("partial", pick.isEmpty() ? "N" : "Y");
 		res.put("lines", lines); res.put("ledger", led);
 		return res;
 	}
 	/** 한 품목의 지운 매입전표 입고 줄 (2026-11-25) — 품목별재고현황 수불 내역의 「삭제된 입고」 줄. 조회만 한다. */
 	@Override public java.util.List<java.util.Map<String,Object>> selectProdDelPurch(java.util.Map<String,Object> p) throws Exception { return mapper.selectProdDelPurch(p); }
+	/** 지운 판매전표 목록 (2026-11-25) — 판매등록 [🗑 삭제 전표] 창. 조회만 한다. */
+	@Override public java.util.List<java.util.Map<String,Object>> selectSalesTrxDelList(java.util.Map<String,Object> p) throws Exception { return mapper.selectSalesTrxDelList(p); }
+	/** 지운 판매전표 되살리기 전 확인 (2026-11-25) — 머리(번호 겹침·닮은 전표) + 줄(현재고 · 지운 뒤 재고조정). 조회만 한다. 없으면 null. */
+	@Override public java.util.Map<String,Object> salesRestoreInfo(Long saleSeq, String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("saleSeq", saleSeq); p.put("compCd", compCd);
+		java.util.Map<String,Object> h = mapper.selectSalesTrxDelInfo(p);
+		if (h == null) return null;
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		res.put("head", h); res.put("lines", mapper.selectSalesTrxDelLines(p));
+		return res;
+	}
+	/** 지운 판매전표 되살리기 (2026-11-25 사용자 「판매전표 되살리기도 넣어줘」) — restorePurchase 의 판매 판.
+	 *  ①머리를 Y 로(같은 날 같은 번호가 그새 쓰였으면 그 날 다음 번호) ②지울 때 살아 있던 줄만 Y 로
+	 *  ③살린 줄로 재고 원장을 다시 만든다 — 저장(saveSalesTrx)과 같은 식 : 판매 O · 반품 R · 불량반품은 원장 없음 · 수량 = 합계수량 − 출고차감(0 이면 줄을 안 만든다).
+	 *  판매단가 이력·견적 연결·공유 주소는 손대지 않는다. 저장 때의 재고 부족·여신 제한(salesLimitMsg)은 거치지 않는다(전에 한 번 저장됐던 전표다).
+	 *  ★트랜잭션 — context-transaction.xml 의 trxSaveTx 에 이 메서드를 넣었다. */
+	@Override public java.util.Map<String,Object> restoreSalesTrx(Long saleSeq, String compCd, String user, String ip, java.util.List<String> prodCds) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("saleSeq", saleSeq); p.put("compCd", compCd);
+		java.util.Map<String,Object> h = mapper.selectSalesTrxDelInfo(p);
+		if (h == null) throw new IllegalStateException("지운 전표를 찾지 못했습니다 — 이미 되살렸거나 없는 전표입니다.");
+		String saleDt = String.valueOf(h.get("saleDt")).trim();
+		String oldNo = h.get("saleNo") == null ? "" : String.valueOf(h.get("saleNo")).trim();
+		String no = oldNo;
+		if ("Y".equals(String.valueOf(h.get("dupYn"))) || oldNo.isEmpty()) no = String.valueOf(h.get("nextNo")).trim();
+		p.put("saleNo", no); p.put("updUser", user); p.put("updIp", ip);
+		if (mapper.restoreSalesTrxMst(p) <= 0) throw new IllegalStateException("전표를 되살리지 못했습니다 — 이미 되살린 전표일 수 있습니다.");
+		/* ★고른 품목만 (2026-11-25 「펼쳐진 내용 전체선택 개별선택 살리기」) — prodCds 가 있으면 그 품목 줄만 되살리고, 머리 합계를 되살린 줄만으로 다시 센다.
+		   비면 지울 때 살아 있던 줄 전부(종전). 고른 품목이 그 전표에 하나도 없으면 되살리지 않는다(트랜잭션이라 머리도 되돌아간다). */
+		java.util.List<String> pick = new java.util.ArrayList<String>();
+		if (prodCds != null) for (String c : prodCds) { if (c != null && !c.trim().isEmpty() && !pick.contains(c.trim())) pick.add(c.trim()); }
+		p.put("prodCds", pick.isEmpty() ? null : pick);
+		int lines = mapper.restoreSalesTrxDtlLast(p);
+		if (lines <= 0) throw new IllegalStateException("되살릴 품목 줄이 없습니다 — 고른 품목이 이 전표에 없거나 이미 되살린 전표입니다.");
+		if (!pick.isEmpty()) mapper.recalcSalesTrxMstTotal(p);
+		egovframework.konet.user.model.SalesTrxDTO q = new egovframework.konet.user.model.SalesTrxDTO();
+		q.setSaleSeq(saleSeq); q.setCompCd(compCd);
+		String refNo = ym8(saleDt) + "-" + no;
+		String custCd = h.get("custCd") == null ? null : String.valueOf(h.get("custCd"));
+		String whCd = h.get("whCd") == null || String.valueOf(h.get("whCd")).trim().isEmpty() ? null : String.valueOf(h.get("whCd")).trim();
+		int led = 0;
+		for (egovframework.konet.user.model.SalesTrxDtlDTO d : mapper.selectSalesTrxDtl(q)) {
+			if (d.getProdCd() == null || d.getProdCd().trim().isEmpty()) continue;
+			if ("불량반품".equals(d.getTrxGb())) continue;                       // 불량반품은 재고로 돌아오지 않는다 — 원장 없음(저장과 같다)
+			double cutQ = stockCutOf(d);
+			int outQ = (int) Math.round(stockOutQty(d));
+			egovframework.konet.user.model.StockLedgerDTO l = new egovframework.konet.user.model.StockLedgerDTO();
+			l.setCompCd(compCd);
+			l.setProdSeq(d.getProdSeq()); l.setProdCd(d.getProdCd());
+			l.setTrxDt(saleDt);
+			l.setIoGb("반품".equals(d.getTrxGb()) ? "R" : "O");
+			l.setQty(outQ);
+			l.setUnitPrice(d.getUnitPrice());
+			l.setAmt(d.getAmt());
+			l.setVendorCd(custCd);
+			l.setWhCd(whCd);
+			l.setRefGb("SALE"); l.setRefNo(refNo);
+			String lrm = d.getRemark() == null ? "" : d.getRemark().trim();
+			if (cutQ > 0) lrm = (lrm.isEmpty() ? "" : lrm + " · ") + "출고차감 " + fmtN(cutQ) + " (전표 수량 " + fmtN(Math.abs(d.getQty()==null ? 0d : d.getQty())) + ")";
+			l.setRemark(lrm.isEmpty() ? d.getRemark() : lrm);
+			l.setRegUser(user); l.setRegIp(ip);
+			if (outQ > 0) { mapper.insertStockLedger(l); led++; }
+			mapper.recalcStockMst(l);
+		}
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		res.put("saleSeq", saleSeq); res.put("saleDt", saleDt); res.put("saleNo", no); res.put("oldNo", oldNo);
+		res.put("partial", pick.isEmpty() ? "N" : "Y");
+		res.put("lines", lines); res.put("ledger", led);
+		return res;
+	}
 	/** 한 품목의 지운 판매전표 출고 줄 (2026-11-25) — 수불 내역 「삭제된 출고」 · 월별 출고현황 출고내역. 조회만 한다. */
 	@Override public java.util.List<java.util.Map<String,Object>> selectProdDelSales(java.util.Map<String,Object> p) throws Exception { return mapper.selectProdDelSales(p); }
 
@@ -2908,6 +2989,10 @@ public class UserServiceImpl implements UserService {
 			r.setRegUser(head.getRegUser());
 			r.setRegIp(head.getRegIp());
 			mapper.insertStockAdjHis(r);
+			/* ★수정재고 고정 (2026-11-25 사용자 「최근 수정했으면 그게 재고이고 그 뒤로 입고 + 출고 −」) — 이 조정을 기준점으로 굳힌다.
+			   고정값 = 지금 원장 합 − 조정한 날짜부터의 다른 줄 합. 그 뒤로는 현재고 재집계(매퍼 조각 adjAnchorKeep)가
+			   «조정한 날짜보다 앞 날짜의 기록이 바뀌어도» 현재고가 안 움직이게 이 조정 줄의 증감을 고친다. */
+			mapper.updateStockAdjFrz(r);
 
 			n++;
 		}

@@ -322,12 +322,17 @@ public interface UserService {
 	java.util.Map<String,Object> saveSubStockZero(java.util.List<String> subCds, boolean merge, String compCd, String user, String ip) throws Exception;
 	int deletePurchase(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectSalesTrxAdjAfter(java.util.Map<String,Object> p) throws Exception;   // 판매전표 뒤에 재고조정을 한 품목 (2026-11-25 삭제·수정 경고)
+	java.util.List<java.util.Map<String,Object>> selectStockAdjDrift(java.util.Map<String,Object> p) throws Exception;      // 재고조정으로 맞춘 재고가 그 뒤 어긋난 품목 (2026-11-25)
 	java.util.List<java.util.Map<String,Object>> selectPurchaseDelList(java.util.Map<String,Object> p) throws Exception;    // 지운 매입전표 목록 (2026-11-25 매입등록 [🗑 삭제 전표])
 	java.util.Map<String,Object> purchaseRestoreInfo(Long purchSeq, String compCd) throws Exception;                    // 지운 매입전표 되살리기 전 확인 (2026-11-25)
-	java.util.Map<String,Object> restorePurchase(Long purchSeq, String compCd, String user, String ip) throws Exception;  // 지운 매입전표 되살리기 (2026-11-25)
+	java.util.Map<String,Object> restorePurchase(Long purchSeq, String compCd, String user, String ip, java.util.List<String> prodCds) throws Exception;  // 지운 매입전표 되살리기 (2026-11-25)
+	java.util.List<java.util.Map<String,Object>> selectSalesTrxDelList(java.util.Map<String,Object> p) throws Exception;    // 지운 판매전표 목록 (2026-11-25 판매등록 [🗑 삭제 전표])
+	java.util.Map<String,Object> salesRestoreInfo(Long saleSeq, String compCd) throws Exception;                         // 지운 판매전표 되살리기 전 확인 (2026-11-25)
+	java.util.Map<String,Object> restoreSalesTrx(Long saleSeq, String compCd, String user, String ip, java.util.List<String> prodCds) throws Exception;   // 지운 판매전표 되살리기 (2026-11-25)
 	java.util.List<java.util.Map<String,Object>> selectProdDelSales(java.util.Map<String,Object> p) throws Exception;   // 한 품목의 지운 판매전표 출고 줄 (2026-11-25 수불 내역 「삭제된 출고」)
 	java.util.List<java.util.Map<String,Object>> selectProdDelPurch(java.util.Map<String,Object> p) throws Exception;   // 한 품목의 지운 매입전표 입고 줄 (2026-11-25 수불 내역 「삭제된 입고」)
 	java.util.List<java.util.Map<String,Object>> selectPurchaseAdjAfter(java.util.Map<String,Object> p) throws Exception;   // 전표 뒤에 재고조정을 한 품목 (2026-11-25 삭제·수정 경고)
+	java.util.List<java.util.Map<String,Object>> selectAdjFixAfter(java.util.Map<String,Object> p) throws Exception;   // 수정재고가 고정된 품목 중 맞춘 날짜가 전표 날짜보다 뒤인 것 (2026-11-25 저장 안내)
 	egovframework.konet.user.model.PurchaseDtlDTO selectVendorLastPrice(egovframework.konet.user.model.PurchaseDtlDTO dto) throws Exception;   // 단가 + 이전 비고(2026-09-13)
 	java.util.List<egovframework.konet.user.model.PurchaseDtlDTO> selectPurchasePriceHist(egovframework.konet.user.model.PurchaseDtlDTO dto) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectPurchaseLedger(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;

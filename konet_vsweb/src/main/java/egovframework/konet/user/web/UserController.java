@@ -4008,6 +4008,14 @@ public class UserController {
 		/* 지운 매입전표 되살리기 (2026-11-25 「지운 전표 되살리기도 넣어줘」) — 매입등록 품목 매입이력의 「🗑 지운 전표」 줄 [↩ 되살리기].
 		   purchaseRestoreInfo : 확인창에 쓸 것(번호 겹침 · 같은 거래처·같은 금액의 살아 있는 전표 = 중복 의심 · 지운 뒤 재고조정을 한 품목). 조회만.
 		   purchaseRestore     : 머리·줄을 되살리고 재고 원장을 다시 만든다(서비스 한 메서드 = 한 트랜잭션). 회사는 세션 값만. 응답은 Map. */
+		/** 되살릴 품목코드 목록(본문 prodCds) — 없으면 null = 전표의 줄 전부 (2026-11-25 고른 품목만 되살리기) */
+		private static java.util.List<String> prodCdsOf(Map<String,Object> body) {
+			Object v = body == null ? null : body.get("prodCds");
+			if (!(v instanceof java.util.Collection)) return null;
+			java.util.List<String> out = new java.util.ArrayList<String>();
+			for (Object o : (java.util.Collection<?>) v) { if (o != null && !String.valueOf(o).trim().isEmpty()) out.add(String.valueOf(o).trim()); }
+			return out.isEmpty() ? null : out;
+		}
 		private static Long purchSeqOf(Map<String,Object> body) {
 			try { Object ps = body == null ? null : body.get("purchSeq");
 				return (ps == null || String.valueOf(ps).trim().isEmpty()) ? null : Long.valueOf(new java.math.BigDecimal(String.valueOf(ps).trim()).longValue());
@@ -4036,7 +4044,7 @@ public class UserController {
 				if (sc == null) { res.put("message", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요. (되살리지 않았습니다)"); return res; }
 				if (seq == null) { res.put("message", "전표 키가 필요합니다."); return res; }
 				String user = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
-				res.putAll(svc.restorePurchase(seq, String.valueOf(sc), user, request.getRemoteAddr()));
+				res.putAll(svc.restorePurchase(seq, String.valueOf(sc), user, request.getRemoteAddr(), prodCdsOf(body)));
 				res.put("result", "OK");
 			} catch (IllegalStateException e) { res.put("message", e.getMessage());
 			} catch (Exception e) { log.error(" purchaseRestore ERROR : " + e.getMessage()); res.put("message", "되살리지 못했습니다 — " + e.getMessage()); }
@@ -4044,6 +4052,60 @@ public class UserController {
 		}
 		/* 이 판매전표의 품목 중 «전표 뒤에 재고조정을 한» 품목 (2026-11-25 「판매전표 삭제·수정에도 같은 경고 넣어줘」) — 판매등록이 삭제·수량 수정 저장 전에 묻는다.
 		   막지 않는다 · 조회만 한다 · 실패하면 빈 목록(경고 없이 종전 흐름). */
+		/* 지운 판매전표 보기 · 되살리기 (2026-11-25 「판매전표 되살리기도 넣어줘」) — 판매등록 [🗑 삭제 전표] 창. 매입 판(purchaseDelList · RestoreInfo · Restore)과 같은 꼴.
+		   목록·확인은 조회만 · 되살리기는 서비스 한 메서드 = 한 트랜잭션 · 회사는 세션 값만 · 응답은 Map. */
+		private static Long saleSeqOf(Map<String,Object> body) {
+			try { Object ss = body == null ? null : body.get("saleSeq");
+				return (ss == null || String.valueOf(ss).trim().isEmpty()) ? null : Long.valueOf(new java.math.BigDecimal(String.valueOf(ss).trim()).longValue());
+			} catch (Exception e) { return null; }
+		}
+		@RequestMapping(value="/mangr/salesTrxDelList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesTrxDelList(@RequestParam(value="fromDt", required=false) String fromDt,
+		                                           @RequestParam(value="toDt", required=false) String toDt,
+		                                           @RequestParam(value="findData", required=false) String findData, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("data", new java.util.ArrayList<Object>()); res.put("result", "FAIL");
+			try {
+				Object sc = session.getAttribute("s_comp_cd");
+				if (sc == null) { res.put("message", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String f = fromDt == null ? "" : fromDt.replace("-", "").trim(), t = toDt == null ? "" : toDt.replace("-", "").trim();
+				Map<String,Object> p = new HashMap<String,Object>();
+				p.put("fromDt", f.length() == 8 ? f : "00000000"); p.put("toDt", t.length() == 8 ? t : "99999999");
+				p.put("findData", findData == null ? "" : findData.trim()); p.put("compCd", String.valueOf(sc));
+				res.put("data", svc.selectSalesTrxDelList(p));
+				res.put("result", "OK");
+			} catch (Exception e) { log.error(" salesTrxDelList ERROR : " + e.getMessage()); res.put("message", "지운 전표를 읽지 못했습니다."); }
+			return res;
+		}
+		@RequestMapping(value="/mangr/salesTrxRestoreInfo.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesTrxRestoreInfo(@RequestBody Map<String,Object> body, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("result", "FAIL");
+			try {
+				Object sc = session.getAttribute("s_comp_cd"); Long seq = saleSeqOf(body);
+				if (sc == null) { res.put("message", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				if (seq == null) { res.put("message", "전표 키가 필요합니다."); return res; }
+				Map<String,Object> info = svc.salesRestoreInfo(seq, String.valueOf(sc));
+				if (info == null) { res.put("message", "지운 전표를 찾지 못했습니다 — 이미 되살렸거나 없는 전표입니다."); return res; }
+				res.putAll(info); res.put("result", "OK");
+			} catch (Exception e) { log.error(" salesTrxRestoreInfo ERROR : " + e.getMessage()); res.put("message", "전표를 읽지 못했습니다."); }
+			return res;
+		}
+		@RequestMapping(value="/mangr/salesTrxRestore.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesTrxRestore(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("result", "FAIL");
+			try {
+				Object sc = session.getAttribute("s_comp_cd"); Long seq = saleSeqOf(body);
+				if (sc == null) { res.put("message", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요. (되살리지 않았습니다)"); return res; }
+				if (seq == null) { res.put("message", "전표 키가 필요합니다."); return res; }
+				String user = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				res.putAll(svc.restoreSalesTrx(seq, String.valueOf(sc), user, request.getRemoteAddr(), prodCdsOf(body)));
+				res.put("result", "OK");
+			} catch (IllegalStateException e) { res.put("message", e.getMessage());
+			} catch (Exception e) { log.error(" salesTrxRestore ERROR : " + e.getMessage()); res.put("message", "되살리지 못했습니다 — " + e.getMessage()); }
+			return res;
+		}
 		@RequestMapping(value="/mangr/salesTrxAdjAfter.do", method = RequestMethod.POST)
 		@ResponseBody
 		public Map<String,Object> salesTrxAdjAfter(@RequestBody Map<String,Object> body, HttpSession session) {
@@ -4075,6 +4137,45 @@ public class UserController {
 				res.put("data", svc.selectPurchaseDelList(p));
 				res.put("result", "OK");
 			} catch (Exception e) { log.error(" purchaseDelList ERROR : " + e.getMessage()); res.put("message", "지운 전표를 읽지 못했습니다."); }
+			return res;
+		}
+		/* 재고조정으로 맞춘 재고가 그 뒤 어긋난 품목 (2026-11-25 「목록 줄에도 변동 표시 넣어줘」) — 재고 일괄조정 목록의 「변동 ±d → n」. 조회만 · 회사는 세션 값 */
+		@RequestMapping(value="/prod/stockAdjDrift.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockAdjDrift(HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("data", new java.util.ArrayList<Object>()); res.put("result", "FAIL");
+			try {
+				Object sc = session.getAttribute("s_comp_cd");
+				if (sc == null) { res.put("message", "로그인이 끊겼습니다."); return res; }
+				Map<String,Object> p = new HashMap<String,Object>(); p.put("compCd", String.valueOf(sc));
+				res.put("data", svc.selectStockAdjDrift(p));
+				res.put("result", "OK");
+			} catch (Exception e) { log.error(" stockAdjDrift ERROR : " + e.getMessage()); res.put("message", "변동 품목을 읽지 못했습니다."); }
+			return res;
+		}
+		/* 수정재고가 고정된 품목 안내 (2026-11-25 「앞 날짜 전표 넣을 때 안내도 넣어줘」) — 매입·판매 등록이 저장 직전에 묻는다.
+		   본문 {dt:전표 날짜, prodCds:[품목코드…]} → 그 품목 가운데 «재고를 맞춘 날짜가 전표 날짜보다 뒤»인 것(= 저장해도 현재고가 안 달라지는 것).
+		   회사는 세션 값만 · 조회만 한다 · 실패(칸이 아직 없음 등)면 빈 목록 = 화면은 안내 없이 종전 흐름. */
+		@RequestMapping(value="/prod/adjFixCheck.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> adjFixCheck(@RequestBody Map<String,Object> body, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("data", new java.util.ArrayList<Object>());
+			try {
+				Object sc = session.getAttribute("s_comp_cd");
+				String dt = body == null || body.get("dt") == null ? "" : String.valueOf(body.get("dt")).replaceAll("[^0-9]", "");
+				Object pc = body == null ? null : body.get("prodCds");
+				if (sc == null || dt.length() != 8 || !(pc instanceof java.util.List)) return res;
+				java.util.List<String> cds = new java.util.ArrayList<String>();
+				for (Object o : (java.util.List<?>) pc) {
+					String c = o == null ? "" : String.valueOf(o).trim();
+					if (!c.isEmpty() && c.length() <= 30 && !cds.contains(c)) cds.add(c);
+					if (cds.size() >= 300) break;
+				}
+				if (cds.isEmpty()) return res;
+				Map<String,Object> p = new HashMap<String,Object>();
+				p.put("compCd", String.valueOf(sc)); p.put("dt", dt); p.put("prodCds", cds);
+				res.put("data", svc.selectAdjFixAfter(p));
+			} catch (Exception e) { log.error(" adjFixCheck ERROR : " + e.getMessage()); }
 			return res;
 		}
 		@RequestMapping(value="/mangr/purchaseAdjAfter.do", method = RequestMethod.POST)

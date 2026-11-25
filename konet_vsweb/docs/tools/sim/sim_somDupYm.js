@@ -17,7 +17,7 @@ T(m.yord.join(',')==='202611,202610,202609', '년월은 한 번씩 · 최근월�
 T(m.yms['202610']===14 && m.yms['202609']===7 && m.cell['202610|#ALL|P1']===10, '달 합계 · 품목 합계 칸');
 // ② 원복 — 화면
 T(!/somS0|cellS|somDiffToggle|dtlDiffOnly|retQty|setQty/.test(src), '화면에 「정산 n」·차이만·반품 배지 코드가 없다(원복)');
-T(/dtlOutSum'\)\.textContent=out\.length\?\(out\.length\+'건 · '\+num\(os\)\):''/.test(src), '출고내역 머리 = 「n건 · 수량」(종전 글자)');
+T(/dtlOutSum'\)\.textContent=\(out\.length\?\(out\.length\+'건 · '\+num\(os\)\):''\)/.test(src), '출고내역 머리 = 「n건 · 수량」(종전 글자)');
 T(/수정재고에 포함<\/span>/.test(src) && !/조정 전 반영/.test(src) && /id="dtlSplit"/.test(src), '남긴 것 — 「수정재고에 포함」 이름 · 좌우 조절 막대');
 // ② 원복 — 서버
 ['selectStockOutByMonth','selectStockOutDetail'].forEach(id=>{ const b=blkOf(id).replace(/\/\*[\s\S]*?\*\//g,' ');   /* 주석(원복 설명에 옛 이름이 적혀 있다)은 빼고 본다 */
@@ -46,7 +46,7 @@ T(/THEN u\.BIZ_NM ELSE '' END, u\.PROD_CD/.test(blkOf('selectStockOutByMonth')),
   const h0=partOf({ src:'정산서', qty:0, ordQty:1, lineOrdQty:8, lineOutQty:2 });
   T(h0.indexOf('>발주 1 → 0 (전체 8 → 2)<')>0 && /어느 사업장이 받았는지는 정산서로는 알 수 없습니다/.test(h0), '부분출고 줄(발주 8 · 출고 2) — 「발주 1 → 0 (전체 8 → 2)」 + 까닭 풀이');
   T(partOf({ src:'정산서', qty:4, ordQty:4, lineOrdQty:8, lineOutQty:8 })==='' && partOf({ src:'정산서', qty:9, ordQty:4, lineOrdQty:8, lineOutQty:9 })==='' && partOf({ src:'발주현황표', qty:1, ordQty:1, lineOrdQty:8, lineOutQty:2 })==='' && partOf({ src:'정산서', qty:2 })==='', '다 나간 줄 · 더 나간 줄 · 정산서 아닌 줄 · 옛 서버(칸 없음)에는 아무것도 안 붙인다');
-  T(src.indexOf("preOf(r)+partOf(r)+num(q)")>0, '수량 칸 = 「수정재고에 포함」 · 부분출고 설명 · 수량'); }
+  T(src.indexOf("preOf(r)+(function(){")>0 && src.indexOf("somRunPill(RM, RM.day[k], true); })()+partOf(r)+num(q)")>0, '수량 칸 = 「수정재고에 포함」 · (조정 뒤 재고) · 부분출고 설명 · 수량'); }
 // 정산서 누락 조회 = 대사하는 화면 — 반품 뺀 순수량
 { const g=blkOf('selectSettleGap');
   T(/THEN -ISNULL\(v\.OUT_QTY,0\) ELSE 0 END\) AS Q\n\s+INTO #GAP_S0/.test(g) && /FROM #GAP_S s\n\s+WHERE s\.Q <> 0/.test(g), '정산서 누락 조회 — 정산수량 = 반품 뺀 순수량 · 전량반품 줄은 «정산서만 있음»에 안 올림'); }

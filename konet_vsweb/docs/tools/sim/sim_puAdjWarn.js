@@ -101,8 +101,8 @@ const ADJ = () => [
     const h = m1.api.html(got), rows = h.match(/<tr[\s\S]*?<\/tr>/g) || [];
     t('지운 전표 — 머리 줄 「🗑 지운 전표 1건」 + 자료 줄 10칸', rows.length === 2 && /🗑 지운 전표 1건/.test(rows[0]) && /colspan="10"/.test(rows[0]) && (rows[1].match(/<td/g) || []).length === 10, rows.length);
     const x = txt(rows[1] || '');
-    t('지운 전표 — 매입일자·번호·거래처·[삭제 때 · 사람]·수량·단가·금액', /2026-09-16 0002 버개스패키지 \[삭제 2026-11-22 18:48 · 마스터\] ↩ 되살리기 250 24,900 6,225,000/.test(x), x);
-    t('지운 전표 — 줄 자체는 누를 수 없고(tr 에 onclick 없음) 단추만 있다', !/<tr[^>]*onclick/.test(h) && (h.match(/onclick="pphRestore\(427\)"/g) || []).length === 1);
+    t('지운 전표 — 매입일자·번호·거래처·[삭제 때 · 사람]·수량·단가·금액', /2026-09-16 0002 버개스패키지 \[삭제 2026-11-22 18:48 · 마스터\] 250 24,900 6,225,000/.test(x), x);
+    t('지운 전표 — 줄 자체는 누를 수 없고(tr 에 onclick 없음) 되살리기 단추도 없다(보기만)', !/<tr[^>]*onclick/.test(h) && !/<button/.test(h) && /\[🗑 삭제 전표\]에서/.test(h));
     t('지운 전표가 없으면 아무것도 안 그린다', m1.api.html([]) === '' && m1.api.html(null) === '');
     t('옛 서버(404)·실패 응답 — 빈 목록', (await mk('fail').api.load('X')).length === 0 && (await mk({ result: 'FAIL' }).api.load('X')).length === 0);
     t('JSP — 품목 매입이력이 지운 전표를 함께 읽고 목록 끝에 붙인다', /pphDelLoad\(_pph\.cd\) \]\)\.then\(function\(pa\)/.test(jsp) && /h\+=pphDelHtml\(del\);\s+b\.innerHTML=h;/.test(jsp));
@@ -126,7 +126,7 @@ const ADJ = () => [
         (v) => { const x = Number(String(v == null ? '' : v).replace(/,/g, '')); return isFinite(x) ? x : 0; }, { mode: true }, () => { e.loads++; }, () => { e.loads += 100; }, { getElementById: () => ({ classList: { contains: () => false } }) }, () => {});
       return e; };
     const e = mk({ info: { result: 'OK', head: HEAD(), lines: LINES() } });
-    t('지운 전표 줄 — [↩ 되살리기] 단추(10칸 그대로)', /onclick="pphRestore\(427\)"/.test(e.api.html([{ purchSeq: 427, purchDt: '20260916', purchNo: '0002', qty: 250 }])) && ((e.api.html([{ purchSeq: 427, qty: 1 }]).match(/<tr[\s\S]*?<\/tr>/g) || [])[1].match(/<td/g) || []).length === 10);
+    t('지운 전표 줄 — 되살리기 단추 없음(10칸 그대로)', !/<button/.test(e.api.html([{ purchSeq: 427, purchDt: '20260916', purchNo: '0002', qty: 250 }])) && ((e.api.html([{ purchSeq: 427, qty: 1 }]).match(/<tr[\s\S]*?<\/tr>/g) || [])[1].match(/<td/g) || []).length === 10);
     e.api.res(427); await sleep(5);
     const m = txt(e.confirms[0] || '');
     t('되살리기 — 먼저 그 전표를 묻는다', e.calls[0].url === '/mangr/purchaseRestoreInfo.do' && e.calls[0].body.purchSeq === 427);
@@ -163,15 +163,101 @@ const ADJ = () => [
     const e = mk({ result: 'OK', data: D }); e.api.open(); await sleep(5);
     t('삭제 전표 창 — 열면서 목록의 검색기간·거래처명으로 묻는다', e.els.puDelPop.classList.on && e.calls[0].url === '/mangr/purchaseDelList.do' && e.calls[0].body === 'fromDt=2026-10-01&toDt=2026-11-25&findData=' + encodeURIComponent('버개스'), e.calls[0] && e.calls[0].body);
     const rows = e.els.pdlBody.innerHTML.match(/<tr[\s\S]*?<\/tr>/g) || [], x = txt(rows[0] || '');
-    t('삭제 전표 창 — 9칸 · 일자·번호·거래처·품목 외 2·수량·합계·지운 때·사람', rows.length === 1 && (rows[0].match(/<td/g) || []).length === 9 && /2026-09-16 0002 버개스패키지 \[00382\] \(배고픈덮밥이\)덮밥용기 외 2 954 23,729,640 2026-11-22 18:48 마스터 ↩ 되살리기/.test(x), x);
-    t('삭제 전표 창 — 줄의 단추는 pphRestore(427) · 머리에 기간과 장수', /onclick="pphRestore\(427\)"/.test(rows[0]) && /2026-10-01 ~ 2026-11-25/.test(e.els.pdlHead.textContent) && /1장$/.test(e.els.pdlHead.textContent), e.els.pdlHead.textContent);
-    t('지운 전표가 없으면 안내 한 줄', /이 기간에 지운 매입전표가 없습니다/.test(e.api.html([])));
+    t('삭제 전표 창 — 8칸 · 일자·번호·거래처·품목 외 2·수량·합계·지운 때·사람', rows.length === 1 && (rows[0].match(/<td/g) || []).length === 8 && /2026-09-16 0002 버개스패키지 \[00382\] \(배고픈덮밥이\)덮밥용기 외 2 954 23,729,640 2026-11-22 18:48 마스터$/.test(x.trim()), x);
+    t('삭제 전표 창 — 줄에 되살리기 단추 없음 · 머리에 기간과 장수', !/되살리기/.test(rows[0]) && /2026-10-01 ~ 2026-11-25/.test(e.els.pdlHead.textContent) && /1장$/.test(e.els.pdlHead.textContent), e.els.pdlHead.textContent);
+    t('지운 전표가 없으면 안내 한 줄', /이 조건에 맞는 지운 매입전표가 없습니다/.test(e.api.html([])));
     const e2 = mk('fail'); e2.api.open(); await sleep(5);
     t('옛 서버(404) — 「HTTP 404」 한 줄 · 오류 없음', /HTTP 404/.test(e2.els.pdlBody.innerHTML));
     e.api.close(); t('닫기', e.els.puDelPop.classList.on === false);
     t('JSP — 되살린 뒤 삭제 전표 창이 열려 있으면 그 목록도 다시 읽는다', /getElementById\('puDelPop'\)\.classList\.contains\('on'\)\) pdlLoad\(\);/.test(jsp) && /onclick="pdlOpen\(\)"/.test(jsp));
   }
-  t('JSP — 저장은 서브코드 관문 다음에 puAdjGuard', /return puAdjGuard\(items\)\.then\(function\(go2\)\{ return go2 \? puSaveGo\(\) : false; \}\);/.test(jsp));
+  /* ── 펼친 품목 : 전체 선택 · 개별 선택 → 그 전표에서 고른 품목만 되살리기 (2026-11-25 · 전표 여러 장 한꺼번에는 없앴다) ── */
+  {
+    const cB = cut('function puAdjWarnHtml(list, mode){', 'function puAdjGuard(items){') + cut('function pphDelLoad(cd){', 'function pphOpen(seq, tr){');
+    const LN = () => [ { prodCd: 'A', prodNm: '트레이', qty: 100, curQty: 10 }, { prodCd: 'B', prodNm: '뚜껑', qty: 50, curQty: 5, lastAdjDt: '20261120', lastAftQty: 5, adjCnt: 1 }, { prodCd: 'C', prodNm: '컵', qty: 20, curQty: 0 } ];
+    const INFO = () => ({ result: 'OK', head: { purchSeq: 9, purchDt: '20261111', purchNo: '0004', vendorNm: '영신기업', totAmt: 6666000, dupYn: 'N' }, lines: LN() });
+    const mk = (o2) => { o2 = o2 || {}; const e = { calls: [], confirms: [], oks: [], errs: [], loads: 0, els: {}, answer: o2.answer !== false };
+      const el = (id) => e.els[id] || (e.els[id] = { innerHTML: '', textContent: '', value: '', checked: false, classList: { on: false, add(){ this.on = true; }, remove(){ this.on = false; }, contains(){ return this.on; } }, querySelectorAll: () => [] });
+      const post = (url, body) => { e.calls.push({ url, body });
+        if (url === '/mangr/purchaseRestoreInfo.do') return Promise.resolve({ ok: true, json: () => Promise.resolve(INFO()) });
+        if (url === '/mangr/purchaseRestore.do') return Promise.resolve({ ok: true, json: () => Promise.resolve({ result: 'OK', purchDt: '20261111', purchNo: '0004', oldNo: '0004' }) });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ result: 'OK', data: [] }) }); };
+      const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const num = (v) => Math.round(+v || 0).toLocaleString('en-US');
+      e.api = new Function('post', 'document', 'swConfirm', 'swErr', 'swOk', 'esc', 'fmt', 'fmtQ', 'fmtDt', 'n', '_pph', 'pphLoad', 'puLoad', 'saLoad',
+        cB + '; return { sub: pdlSubHtml, all: pdlItAll, sync: pdlItSync, it: pdlItRestore, html: pdlHtml };')(post, { getElementById: el },
+        (m) => { e.confirms.push(m); return Promise.resolve(e.answer); }, (m) => e.errs.push(m), (m) => e.oks.push(m), esc, num, num,
+        (d) => { d = String(d || ''); return d.length === 8 ? d.slice(0, 4) + '-' + d.slice(4, 6) + '-' + d.slice(6, 8) : d; },
+        (v) => { const x = Number(String(v == null ? '' : v).replace(/,/g, '')); return isFinite(x) ? x : 0; }, { mode: false }, () => { e.loads += 100; }, () => { e.loads++; }, () => { e.loads++; });
+      return e; };
+    /* 가짜 펼친 줄 — 품목 체크 셋 + 전체 선택 체크 + 단추 */
+    const box = (ck) => { const b = { className: 'pdl-items', getAttribute: (k) => k === 'data-seq' ? '9' : null };
+      b.ics = ['A', 'B', 'C'].map((c, i) => ({ value: c, checked: ck ? !!ck[i] : true, parentNode: b })); b.ia = { checked: true, parentNode: b }; b.btn = { parentNode: b };
+      b.querySelectorAll = (q) => q === 'input.pdl-ic' ? b.ics : []; b.querySelector = (q) => q === 'input.pdl-ia' ? b.ia : null; return b; };
+    const res = (e) => e.calls.filter(c => c.url === '/mangr/purchaseRestore.do');
+    const e0 = mk();
+    const h1 = e0.api.html([{ purchSeq: 7, purchDt: '20261111', purchNo: '0004', vendorNm: 'x', lineCnt: 1, qty: 1, totAmt: 1 }]);
+    t('목록 줄 — 전표 체크 칸·되살리기 칸 없음(8칸 · 단추 없음) · 줄을 누르면 펼치기', (h1.match(/<td/g) || []).length === 8 && !/pdl-ck/.test(h1) && !/<button/.test(h1) && /onclick="pdlToggle\(7, this, event\)"/.test(h1), h1);
+    const sub = e0.api.sub(LN(), 9);
+    t('펼친 품목 — [전체 선택] + 품목마다 체크(★처음엔 체크 없음) · 칸 안에 [↩ 체크한 품목 되살리기] 하나', /class="pdl-items" data-seq="9"/.test(sub) && /class="pdl-ia" onclick="pdlItAll\(this\)"/.test(sub) && (sub.match(/class="pdl-ic" value="[ABC]" onclick="pdlItSync\(this\)"/g) || []).length === 3 && !/ checked/.test(sub) && (sub.match(/<button/g) || []).length === 1 && /onclick="pdlItRestore\(this\)"/.test(sub) && /↩ 체크한 품목 되살리기/.test(sub) && /이 전표의 품목 3종/.test(txt(sub)), txt(sub));
+    const b1 = box(); b1.ia.checked = false; e0.api.all(b1.ia);
+    t('전체 선택 해제 — 품목 체크가 모두 풀린다 · 다시 켜면 모두 체크', b1.ics.every(c => !c.checked) && (b1.ia.checked = true, e0.api.all(b1.ia), b1.ics.every(c => c.checked)));
+    b1.ics[1].checked = false; e0.api.sync(b1.ics[1]); const s1 = b1.ia.checked; b1.ics[1].checked = true; e0.api.sync(b1.ics[1]);
+    t('개별 해제 — [전체 선택] 체크가 풀리고, 다시 다 체크하면 켜진다', s1 === false && b1.ia.checked === true);
+    const e1 = mk(); e1.api.it(box().btn); await sleep(10);
+    t('전부 체크 → 종전처럼 전표 통째(품목 3종 · prodCds 안 보냄)', /합계 6,666,000원 · 품목 3종/.test(txt(e1.confirms[0] || '')) && !/종만/.test(txt(e1.confirms[0] || '')) && res(e1).length === 1 && res(e1)[0].body.purchSeq === 9 && res(e1)[0].body.prodCds === null, txt(e1.confirms[0] || ''));
+    const e2 = mk(); e2.api.it(box([1, 0, 0]).btn); await sleep(10);
+    const m2 = txt(e2.confirms[0] || '');
+    t('★품목 하나만 체크 → 확인창 「품목 3종 중 1종만」 + 그 품목 + 「나머지 2종은 지운 채로」', /품목 3종 중\s*1종만\s*되살립니다/.test(m2) && /A\s+트레이 — 입고 100/.test(m2) && /나머지 2종은 지운 채로 남고/.test(m2) && /합계는 이 품목만으로 다시 계산/.test(m2) && !/뚜껑/.test(m2), m2);
+    t('★고른 품목만 서버로 — prodCds [A] · 안 고른 품목(B)의 조정 경고는 안 뜬다', res(e2).length === 1 && JSON.stringify(res(e2)[0].body.prodCds) === '["A"]' && !/현재고 5 →/.test(m2) && e2.loads === 1, JSON.stringify(res(e2).map(c => c.body)));
+    const e3 = mk(); e3.api.it(box([0, 1, 0]).btn); await sleep(10);
+    t('조정한 품목(B)을 고르면 경고 「현재고 5 → 55」', /이 전표를 지운 뒤에 재고조정을 한 품목이 있습니다/.test(txt(e3.confirms[0] || '')) && /현재고 5 → 55/.test(txt(e3.confirms[0] || '')) && JSON.stringify(res(e3)[0].body.prodCds) === '["B"]', txt(e3.confirms[0] || ''));
+    const e4 = mk(); e4.api.it(box([0, 0, 0]).btn); await sleep(10);
+    t('하나도 체크 안 함 → 안내만(서버 안 부름)', /되살릴 품목을 체크하세요/.test(e4.errs[0] || '') && e4.calls.length === 0);
+    const e6 = mk(); e6.api.it(box([1, 0, 1]).btn); await sleep(10);
+    t('두 품목 체크 → 그 품목만(A·C)', JSON.stringify(res(e6)[0].body.prodCds) === '["A","C"]' && /품목 3종 중\s*2종만/.test(txt(e6.confirms[0] || '')), txt(e6.confirms[0] || ''));
+    const e7 = mk({ answer: false }); e7.api.it(box([1, 0, 0]).btn); await sleep(10);
+    t('[취소]면 보내지 않는다', e7.confirms.length === 1 && res(e7).length === 0);
+    t('JSP — 전표 여러 장 [↩ 선택 되살리기]·전표 체크 칸은 없다', !/pdlSelBtn|pdlCkAll|pdlRestoreSel|pdl-ck"|pdlRowRestore/.test(jsp) && !/>되살리기<\/th>/.test(jsp) && /되살리기는 전표 한 건씩입니다/.test(jsp));
+  }
+  /* ── 수정재고가 고정된 품목 안내 (2026-11-25 「앞 날짜 전표 넣을 때 안내도 넣어줘」) — puFixGuard ── */
+  {
+    const nn = (v) => { const x = Number(String(v == null ? '' : v).replace(/,/g, '')); return isFinite(x) ? x : 0; };
+    const ee = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const FIX = () => [ { prodCd: 'A', prodNm: '덮밥용기', adjDt: '20261125', aftQty: 109 } ];
+    const mk = (o) => { const e = { calls: [], confirms: [], answer: o.answer !== false };
+      const post = (url, body) => { e.calls.push({ url, body });
+        if (o.fix === 'fail') return Promise.resolve({ ok: false, json: () => Promise.reject(new Error('x')) });
+        if (o.fix === 'throw') return Promise.reject(new Error('net'));
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(o.wrap ? JSON.stringify({ data: o.fix || [] }) : { data: o.fix || [] }) }); };
+      e.api = new Function('post', 'swConfirm', 'n', 'esc', 'fmtQ', 'isRtn', 'document', '_cur',
+        jsp.slice(jsp.indexOf('function puFixHtml(list){'), jsp.indexOf('function puSaveGo(){')) + '; return { guard: puFixGuard, sum: puFixSum };')(post,
+        (m) => { e.confirms.push(m); return Promise.resolve(e.answer); }, nn, ee, (v) => Math.round(+v || 0).toLocaleString('en-US'), (g) => g === '반품' || g === '불량반품',
+        { getElementById: () => ({ value: o.dt || '2026-11-20' }) }, o.cur || null);
+      return e; };
+    const IT = [ { prodCd: 'A', qty: 10, trxGb: '매입' }, { prodCd: 'B', qty: 3, trxGb: '매입' } ];
+    const e1 = mk({ fix: FIX() }); const r1 = await e1.api.guard(IT);
+    t('새 전표 — 품목 전부를 전표 날짜와 함께 묻는다', e1.calls.length === 1 && e1.calls[0].url === '/prod/adjFixCheck.do' && e1.calls[0].body.dt === '20261120' && JSON.stringify(e1.calls[0].body.prodCds) === '["A","B"]', JSON.stringify(e1.calls[0] && e1.calls[0].body));
+    t('★고정된 품목이 있으면 안내창 — 「현재고가 달라지지 않습니다」·맞춘 날짜·수량', r1 === true && e1.confirms.length === 1 && /현재고가 달라지지 않습니다/.test(e1.confirms[0]) && /11-25 에 재고 109 \(으\)로 맞춤/.test(txt(e1.confirms[0])) && /들어온 것이라면/.test(e1.confirms[0]), txt(e1.confirms[0] || ''));
+    const e2 = mk({ fix: FIX(), answer: false });
+    t('[취소]면 저장하지 않는다', (await e2.api.guard(IT)) === false);
+    const e3 = mk({ fix: [] });
+    t('고정된 품목이 없으면 안내 없이 저장', (await e3.api.guard(IT)) === true && e3.confirms.length === 0);
+    const e4 = mk({ fix: FIX(), cur: { purchSeq: 7, _fixQ: { A: 10, B: 3 }, _fixDt: '20261120' } });
+    t('수정 — 날짜·수량이 그대로면 묻지도 않는다(단가·비고만 고친 저장)', (await e4.api.guard(IT)) === true && e4.calls.length === 0 && e4.confirms.length === 0);
+    const e5 = mk({ fix: FIX(), cur: { purchSeq: 7, _fixQ: { A: 4, B: 3 }, _fixDt: '2026-11-20' } }); await e5.api.guard(IT);
+    t('수정 — 수량이 달라진 품목만 묻는다(A)', e5.calls.length === 1 && JSON.stringify(e5.calls[0].body.prodCds) === '["A"]' && e5.confirms.length === 1, JSON.stringify(e5.calls[0] && e5.calls[0].body));
+    const e6 = mk({ fix: FIX(), cur: { purchSeq: 7, _fixQ: { A: 10, B: 3 }, _fixDt: '20261128' } }); await e6.api.guard(IT);
+    t('수정 — 날짜를 옮겼으면 품목 전부', e6.calls.length === 1 && JSON.stringify(e6.calls[0].body.prodCds) === '["A","B"]');
+    const e7 = mk({ fix: FIX(), cur: { purchSeq: 7, _fixQ: { A: 10, B: 3, C: 5 }, _fixDt: '20261120' } }); await e7.api.guard(IT);
+    t('수정 — 뺀 품목(C)도 달라진 품목', e7.calls.length === 1 && JSON.stringify(e7.calls[0].body.prodCds) === '["C"]');
+    t('옛 서버(404)·통신 오류 — 안내 없이 저장', (await mk({ fix: 'fail' }).api.guard(IT)) === true && (await mk({ fix: 'throw' }).api.guard(IT)) === true);
+    const e8 = mk({ fix: FIX(), wrap: true }); await e8.api.guard(IT);
+    t('응답이 글자로 한 번 더 싸여 와도 읽는다', e8.confirms.length === 1);
+    t('수량 셈 — 반품은 −', JSON.stringify(e1.api.sum([ { prodCd: 'A', qty: 10 }, { prodCd: 'A', qty: 4, trxGb: '반품' } ])) === '{"A":6}');
+    t('JSP — 불러올 때 품목별 수량·날짜를 적어 둔다', /d\._fixQ = puFixSum\(d\.items\); d\._fixDt = d\.purchDt;/.test(jsp));
+  }
+  t('JSP — 저장은 서브코드 관문 → puAdjGuard → puFixGuard 차례', /return puAdjGuard\(items\)\.then\(function\(go2\)\{ return go2 \? puFixGuard\(items\)\.then\(function\(go3\)\{ return go3 \? puSaveGo\(\) : false; \}\) : false; \}\);/.test(jsp));
   console.log((bad ? '✗' : '✓') + ' sim_puAdjWarn : 통과 ' + ok + ' · 실패 ' + bad);
   process.exit(bad ? 1 : 0);
 })();

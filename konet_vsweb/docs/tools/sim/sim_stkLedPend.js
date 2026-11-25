@@ -40,12 +40,62 @@ const cells = (h) => { const m = h.match(/<tr[\s\S]*?<\/tr>/g) || []; return m.m
   /* ── 1-2. 가장 최근 조정 줄에 「최근 재고」 표 (2026-11-22) ── */
   {
     const r1 = { ledgerSeq: 9, ioGb: 'O', qty: 1 }, r2 = { ledgerSeq: 8, ioGb: 'A', qty: 1, adjBef: 30, adjAft: 31 }, r3 = { ledgerSeq: 7, ioGb: 'A', qty: -1, adjBef: 34, adjAft: 33 }, r4 = { ledgerSeq: 6, ioGb: 'A', qty: 43, adjBef: -9, adjAft: 34 };
-    const e = make({ resp: { result: 'OK', data: [] }, raw: [ r1, r2, r3, r4 ] }), q = e.api.qty, txt = (h) => h.replace(/<[^>]+>/g, '|').replace(/\|+/g, '|');
+    const e = make({ resp: { result: 'OK', data: [] }, raw: [ r1, r2, { ledgerSeq: 7.5, ioGb: 'O', qty: 3 }, r3, r4, { ledgerSeq: 5, ioGb: 'O', qty: 9 } ] }), q = e.api.qty, txt = (h) => h.replace(/<[^>]+>/g, '|').replace(/\|+/g, '|');
     t('★가장 최근 조정 줄 — 앞에 「최근재고」 표 + 청록 알약', txt(q(r2)) === '|최근재고|전 30 → 수정재고 31|(증감 +1)|' && /class="led-last"/.test(q(r2)) && /border:1px solid #137a6c/.test(q(r2)), txt(q(r2)));
     t('그 앞(옛) 조정 줄에는 표가 없다', txt(q(r3)) === '|전 34 → 수정재고 33|(증감 -1)|' && !/led-last/.test(q(r3)) && !/led-last/.test(q(r4)));
     t('같은 줄의 사본(ledgerSeq 같음)도 최근으로 본다 · 말풍선에 「최근에 수정한 현재고 31」', /led-last/.test(q(Object.assign({}, r2))) && /최근에 수정한 현재고 31/.test(q(r2)));
     const e0 = make({ resp: { result: 'OK', data: [] }, raw: [ { ledgerSeq: 3, ioGb: 'A', qty: 5 }, r3 ] });
     t('전·후 값이 없는 조정(이력 없음)은 건너뛰고 그다음 줄이 최근', /led-last/.test(e0.api.qty(r3)) && e0.api.qty({ ledgerSeq: 3, ioGb: 'A', qty: 5 }) === '5');
+  }
+  /* ── 1-2b. 최근 조정 뒤 줄마다 «그때 재고» + 조정 줄 「지금 n」 (2026-11-25 · 운영 1000808776 그대로) ── */
+  {
+    const txt = (h) => h.replace(/<[^>]+>/g, '|').replace(/\|+/g, '|');
+    const A = () => ({ ledgerSeq: 16, ioGb: 'A', qty: 104, adjBef: 12, adjAft: 116, trxDt: '20261118', regDttm: '2026-11-18 09:55:29' });
+    const UP = () => [ { ledgerSeq: 20, ioGb: 'O', qty: 1, trxDt: '20261126', srcDttm: '2026-11-25 14:29:38' }, { ledgerSeq: 19, ioGb: 'O', qty: 4, trxDt: '20261121', srcDttm: '2026-11-19 08:48:33' },
+                       { ledgerSeq: 18, ioGb: 'O', qty: 2, trxDt: '20261120', srcDttm: '2026-11-19 08:48:33' }, { ledgerSeq: 17, ioGb: 'O', qty: 4, trxDt: '20261118', srcDttm: '2026-11-17 08:50:07' } ];
+    const OLD = (out) => [ { ledgerSeq: 10, ioGb: 'I', qty: 103, trxDt: '20261015' }, { ledgerSeq: 9, ioGb: 'O', qty: out, trxDt: '20261001' } ];
+    /* 조정 뒤에 09-16 매입 105 가 지워진 지금 — 원장 전체 4 */
+    const up = UP(), adj = A(), raw = up.concat([adj], OLD(192));
+    const e = make({ resp: { result: 'OK', data: [] }, raw }), q = e.api.qty;
+    t('★조정 뒤 줄 — 수량 앞에 「재고 n」 : 4 · 5 · 9 (맨 윗줄 = 원장 전체 = 지금 현재고)', txt(q(up[0], 1)) === '|재고 4|1|' && txt(q(up[1], 1)) === '|재고 5|4|' && txt(q(up[2], 1)) === '|재고 9|2|' && /class="led-run"/.test(q(up[0], 1)), [0, 1, 2].map(i => txt(q(up[i], 1))).join(' '));
+    t('「수정재고에 포함」 줄은 재고 표시 없음(이미 시작 값에 들어 있다)', txt(q(up[3], 1)) === '|수정재고에 포함|4|', txt(q(up[3], 1)));
+    t('★조정 줄 — 수정재고 116 뒤에 빨간 「변동 -105 → 11」(조정 뒤 삭제로 105 줄었다)', /\|최근재고\|전 12 → 수정재고 116\|\(증감 \+104\)\| ?\|변동 -105 → 11\|/.test(txt(q(adj, 1))) && /class="led-now"/.test(q(adj, 1)) && /재고가 105 줄었습니다/.test(q(adj, 1)), txt(q(adj, 1)));
+    t('조정 줄 아래(옛 줄)에는 재고 표시 없음', q(raw[5], 1) === '103' && q(raw[6], 1) === '192');
+    t('둘째 인자가 없으면(나누어보기 창) 재고 표시 없음', q(up[0]) === '1' && txt(q(up[3])) === '|수정재고에 포함|4|');
+    t('말풍선 — 「수정재고 116 · 지금 기준 11」 · 「지금 현재고(4)」', /수정재고 116 · 지금 기준 11/.test(q(up[1], 1)) && /지금 현재고\(4\)/.test(q(up[1], 1)));
+    t('같은 줄의 사본(ledgerSeq 같음)도 같은 값', txt(q(Object.assign({}, up[2]), 1)) === '|재고 9|2|');
+    /* 지운 전표가 없는 보통 경우 — 원장 전체 109 */
+    const up2 = UP(), adj2 = A(), e2 = make({ resp: { result: 'OK', data: [] }, raw: up2.concat([adj2], OLD(87)) }), q2 = e2.api.qty;
+    t('보통 경우 — 116 에서 114 · 110 · 109 · 조정 줄에 「변동」 없음', txt(q2(up2[2], 1)) === '|재고 114|2|' && txt(q2(up2[1], 1)) === '|재고 110|4|' && txt(q2(up2[0], 1)) === '|재고 109|1|' && !/led-now/.test(q2(adj2, 1)), txt(q2(adj2, 1)));
+    /* 늘어난 경우 (운영 1000727644 : 수정재고 2 인데 지금 원장으로는 3) */
+    const up6 = [ { ledgerSeq: 30, ioGb: 'O', qty: 1, trxDt: '20261012', srcDttm: '2026-10-11 13:53:13' } ], adj6 = { ledgerSeq: 29, ioGb: 'A', qty: 2, adjBef: 0, adjAft: 2, trxDt: '20261002', regDttm: '2026-10-02 16:59:27' };
+    const e6 = make({ resp: { result: 'OK', data: [] }, raw: up6.concat([adj6, { ledgerSeq: 28, ioGb: 'I', qty: 1, trxDt: '20260901' }]) });
+    t('늘어난 경우 — 「변동 +1 → 3」 · 그 위 줄은 3 에서 센다(재고 2)', /\|변동 \+1 → 3\|/.test(txt(e6.api.qty(adj6, 1))) && /재고가 1 늘었습니다/.test(e6.api.qty(adj6, 1)) && txt(e6.api.qty(up6[0], 1)) === '|재고 2|1|', txt(e6.api.qty(adj6, 1)));
+    /* 말풍선 = 세 줄 — 「바뀐 줄(추정)」·「기록이 남아 있지 않습니다」 줄과 줄 자체의 빨간 표는 없다 (2026-11-25 「그럼 빨간 표는 빼줘」 → 「말풍선의 바뀐 줄(추정)도 빼줘」) */
+    t('말풍선 — 「바뀐 줄」 줄이 없다(기록이 없는 경우)', !/바뀐 줄|기록이 남아 있지/.test(e6.api.qty(adj6, 1)) && /바뀐 것입니다\.&#10;실물과 다르면 재고 일괄조정으로 다시 맞추세요\./.test(e6.api.qty(adj6, 1)));
+    const pre7 = { ledgerSeq: 38, ioGb: 'O', qty: 2, trxDt: '20261003', srcDttm: '2026-10-02 10:24:12', regDttm: '2026-10-07 14:41:12' }, adj7 = { ledgerSeq: 29, ioGb: 'A', qty: 2, adjBef: 0, adjAft: 2, trxDt: '20261002', regDttm: '2026-10-02 16:59:27' };
+    const e7 = make({ resp: { result: 'OK', data: [] }, row: { prodCd: 'P7' }, raw: [ { ledgerSeq: 40, ioGb: 'O', qty: 1, trxDt: '20261012', srcDttm: '2026-10-11 13:53:13', regDttm: '2026-10-17 20:51:15' }, pre7, adj7,
+                                                                                         { ledgerSeq: 25, ioGb: 'I', qty: 5, trxDt: '20260901', regDttm: '2026-08-05 07:25:05' }, { ledgerSeq: 31, ioGb: 'I', qty: 1, trxDt: '20260920', regDttm: '2026-10-05 09:00:00' } ] });
+    e7.api.dst.P7 = { t: 9e15, busy: false, sig: '', list: [ { purchSeq: 9, purchDt: '20260916', purchNo: '0002', qty: 105, delDttm: '2026-11-22 18:48:02' } ], sales: [] };
+    const tip7 = e7.api.qty(adj7, 1);
+    t('★말풍선 — 다시 만들어진 줄·지운 전표가 있어도 「바뀐 줄」 줄이 없다', /led-now/.test(tip7) && !/바뀐 줄|10-03 출고|09-16 입고|기록이 남아 있지/.test(tip7) && !/stkLedChg/.test(src), (tip7.match(/title="재고조정으로[^"]*/) || [''])[0]);
+    t('짚은 줄에도 빨간 「조정 뒤 등록」 표는 없다', txt(e7.api.qty(pre7, 1)) === '|수정재고에 포함|2|' && !/led-chg/.test(e7.api.qty(pre7, 1)), txt(e7.api.qty(pre7, 1)));
+    /* ★수정재고 고정 (2026-11-25) — 조정 줄에 adjFixYn='Y' 면 🔒 · 「변동」 없음 · 그 앞 날짜의 지운 전표에 빨간 꼬리 없음 */
+    const pre8 = Object.assign({}, pre7), adj8 = Object.assign({}, adj7, { adjFixYn: 'Y' });
+    const e8 = make({ resp: { result: 'OK', data: [] }, row: { prodCd: 'P8' }, raw: [ pre8, adj8, { ledgerSeq: 25, ioGb: 'I', qty: 5, trxDt: '20260901', regDttm: '2026-08-05 07:25:05' } ] });
+    t('★고정된 조정 — 🔒 가 붙고 「변동」이 없다(셈이 달라 보여도)', /class="led-fix"/.test(e8.api.qty(adj8, 1)) && !/led-now/.test(e8.api.qty(adj8, 1)), txt(e8.api.qty(adj8, 1)));
+    t('고정 안 된 조정 — 🔒 없음', !/led-fix/.test(e7.api.qty(adj7, 1)));
+    e8.api.dst.P8 = { t: 9e15, busy: false, sig: '', list: [ { purchSeq: 9, purchDt: '20260916', purchNo: '0002', qty: 105, delDttm: '2026-11-22 18:48:02' }, { purchSeq: 10, purchDt: '20261002', purchNo: '0003', qty: 7, delDttm: '2026-11-22 18:48:02' } ], sales: [] };
+    const d8 = e8.api.del({ prodCd: 'P8' });
+    t('고정된 조정 — 그 앞 날짜(09-16)의 지운 입고에는 빨간 꼬리 없음 · 같은 날짜(10-02) 것에는 있음', (d8.match(/led-delw/g) || []).length === 1 && /그때 맞춘 재고가 7 줄었습니다/.test(d8) && !/재고가 105 줄었습니다/.test(d8), (d8.match(/led-delw/g) || []).length);
+    /* 마이너스 */
+    const up3 = UP(), e3 = make({ resp: { result: 'OK', data: [] }, raw: up3.concat([A()], OLD(200)) });
+    t('마이너스 재고는 빨강', txt(e3.api.qty(up3[0], 1)) === '|재고 -4|1|' && /#a6241c/.test(e3.api.qty(up3[0], 1)), txt(e3.api.qty(up3[0], 1)));
+    const up4 = UP(), e4 = make({ resp: { result: 'OK', data: [] }, raw: up4.concat([A()], OLD(192)), ext: 'X1' });
+    t('매칭코드로 걸러 보는 중에는 재고 표시 없음', e4.api.qty(up4[0], 1) === '1');
+    const up5 = UP(), e5 = make({ resp: { result: 'OK', data: [] }, raw: up5.concat(OLD(192)) });
+    t('조정 줄이 없는 품목은 재고 표시 없음', e5.api.qty(up5[0], 1) === '1');
+    t('JSP — ② 수불 내역 수량 칸만 stkLedQty(l, 1)', (jsp.match(/stkLedQty\(l, 1\)/g) || []).length === 1 && /<td style="text-align:right">'\+stkLedQty\(l, 1\)\+'<\/td>/.test(jsp));
   }
   /* ── 1-3. 「수정재고에 포함」 — 최근 조정 위에 보이지만 조정할 때 이미 빠져 있던 출고 (2026-11-22 · 운영 1000713440 그대로) ── */
   {

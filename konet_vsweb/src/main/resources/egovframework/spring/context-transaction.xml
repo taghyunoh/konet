@@ -26,7 +26,8 @@
 		                                      || execution(* egovframework.konet.user.service.impl.UserServiceImpl.deleteSalesTrx(..))
 		                                      || execution(* egovframework.konet.user.service.impl.UserServiceImpl.savePurchase(..))
 		                                      || execution(* egovframework.konet.user.service.impl.UserServiceImpl.deletePurchase(..))
-		                                      || execution(* egovframework.konet.user.service.impl.UserServiceImpl.restorePurchase(..))"/>
+		                                      || execution(* egovframework.konet.user.service.impl.UserServiceImpl.restorePurchase(..))
+		                                      || execution(* egovframework.konet.user.service.impl.UserServiceImpl.restoreSalesTrx(..))"/>
 		<aop:advisor advice-ref="txAdvice" pointcut-ref="requiredTx" />
 		<aop:advisor advice-ref="txAdvice" pointcut-ref="trxSaveTx" />
 	</aop:config>

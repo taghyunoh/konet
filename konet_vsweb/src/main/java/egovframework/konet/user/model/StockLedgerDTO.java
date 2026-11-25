@@ -69,6 +69,10 @@ public class StockLedgerDTO {
     public void setAdjBef(Integer adjBef) { this.adjBef = adjBef; }
     public Integer getAdjAft() { return adjAft; }
     public void setAdjAft(Integer adjAft) { this.adjAft = adjAft; }
+    /* 수정재고 고정 여부 (조인, 비영속) — 조정(A) 줄만 : 조정 이력에 고정값(FRZ_QTY)이 있으면 'Y' (2026-11-25) */
+    private String  adjFixYn;
+    public String getAdjFixYn() { return adjFixYn; }
+    public void setAdjFixYn(String adjFixYn) { this.adjFixYn = adjFixYn; }
     public String getSrcDttm() { return srcDttm; }
     public void setSrcDttm(String srcDttm) { this.srcDttm = srcDttm; }
     /* 출고 줄의 원천(발주현황표·정산서)을 처음 올린 사람 — 아이디·이름 (조인, 비영속) — 등록자 칸에 같이 보인다 (2026-11-22) */

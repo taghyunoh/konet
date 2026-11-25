@@ -359,6 +359,8 @@
       <button class="sa-btn teal" onclick="saLoad()">리스트조회</button>
       <%-- 🕘 수정이력 (2026-11-16 사용자 「표시 부분에 수정이력 버튼으로 조회 내역」) — 목록과 같은 기간·거래처로 연다. 창은 asset/js/trx-hist.js --%>
       <button class="sa-btn" style="margin-left:auto" onclick="konetTrxHist({kind:'sales', title:'판매', single:true, seq:(_cur&&_cur.saleSeq)||null, open:function(s){ sphOpen(s, null); }})" title="아래 목록에서 고른(위에 불러온) 판매전표의 수정이력 — 누가 언제 등록·수정·삭제했는지, 저장한 판마다 품목·금액 (2026-11-17)">🕘 수정이력</button>
+      <%-- 🗑 삭제 전표 (2026-11-25 「판매전표 되살리기도 넣어줘」) — 검색기간의 지운 판매전표 목록 + 되살리기 --%>
+      <button class="sa-btn" onclick="sdlOpen()" title="지운 판매전표 — 왼쪽 검색기간에 판매일자가 있거나 그 기간에 지운 전표를 모아 봅니다. 그 자리에서 되살릴 수 있습니다.">🗑 삭제 전표</button>
     </div>
     <%-- 🔎 품목 판매이력 요약 줄 — 발주서 관리와 같은 자리(도구줄 아래, 표 위) (2026-11-05 「판매등록도 이런 식으로」) --%>
     <div id="sphHead" style="display:none; margin:2px 0 6px; font-size:13px; color:#37475a"></div>
@@ -799,6 +801,28 @@
 </div>
 
 <!-- 복사저장 설정 팝업 — 지난 전표의 명세를 '다른 일자·다른 거래처'로 복제할 때 쓴다 -->
+<%-- 🗑 삭제 전표 (2026-11-25) — 지운 판매전표 목록 + [↩ 되살리기] --%>
+<div class="sa-pop" id="saDelPop">
+  <div class="box" style="width:min(1120px,96vw)">
+    <div class="hd">🗑 삭제 전표 <span id="sdlHead" style="font-weight:400;font-size:12.5px;color:#5a6b7a"></span><span style="margin-left:auto"><span class="sa-btn" style="border:0;background:transparent;font-size:18px" onclick="sdlClose()">✕</span></span></div>
+    <div class="bd">
+      <%-- 창 안 검색 (2026-11-25 「검색도 가능하게」) — 기간(판매일자 또는 지운 날) + 거래처·품목코드·품목명 --%>
+      <div style="display:flex; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap">
+        <input type="date" id="sdlFr" style="height:32px; border:1px solid var(--sa-bd, #d7dee6); border-radius:6px; padding:0 8px; font-size:13.5px">
+        <span style="color:#8a97a4">~</span>
+        <input type="date" id="sdlTo" style="height:32px; border:1px solid var(--sa-bd, #d7dee6); border-radius:6px; padding:0 8px; font-size:13.5px">
+        <input type="text" id="sdlQ" placeholder="거래처 · 품목코드 · 품목명" title="거래처명·거래처코드, 또는 그 전표에 든 품목의 코드·이름으로 찾습니다 (Enter = 조회)" style="flex:1; min-width:200px; height:32px; border:1px solid var(--sa-bd, #d7dee6); border-radius:6px; padding:0 8px; font-size:13.5px" onkeydown="if(event.key==='Enter'){ sdlLoad(); }">
+        <button class="sa-btn teal" onclick="sdlLoad()">조회</button>
+      </div>
+      <div style="max-height:56vh; overflow:auto; border:1px solid var(--sa-bd, #d7dee6); border-radius:6px; margin-top:8px">
+        <table><thead><tr><th style="width:92px">판매일자</th><th style="width:52px">번호</th><th>거래처</th><th>품목</th><th style="width:70px" title="그 전표 전 품목의 수량 합 — 줄을 누르면 품목마다 펼쳐집니다">수량(합)</th><th style="width:104px">합계</th><th style="width:128px">지운 때</th><th style="width:76px">지운 사람</th></tr></thead>
+          <tbody id="sdlBody"></tbody></table>
+      </div>
+      <div style="margin-top:8px; color:#3d4d5c; font-size:12.5px">지운 전표는 재고·매출에 들어 있지 않습니다. <b>줄을 누르면 그 전표의 품목</b>이 펼쳐지고, 거기서 <b>되살릴 품목만 체크</b>할 수 있습니다(전체 선택 · 개별 선택 — 목록의 수량은 전 품목 합). 되살리기는 전표 한 건씩입니다 — 펼친 칸의 <b>[↩ 체크한 품목 되살리기]</b>를 누르면 체크한 품목과 전표·출고가 되살아납니다 — 중복 전표였는지는 확인창에서 알려 줍니다.</div>
+    </div>
+    <div class="ft"><button class="sa-btn" onclick="sdlClose()">닫기</button></div>
+  </div>
+</div>
 <div class="sa-pop" id="saCopyPop">
   <div class="box" style="width:min(620px,94vw)">
     <div class="hd">복사저장 설정 <span style="margin-left:auto"><span class="sa-btn" style="border:0;background:transparent;font-size:18px" onclick="saCopyClose()">✕</span></span></div>
@@ -1705,13 +1729,148 @@ function saSave(){
   /* ★마감 확정된 달이면 먼저 묻는다(2026-09-16 P2-g) — 막지 않는다. 수정이면 옮기기 전 날짜도 본다 */
   saClosedAsk([dto.saleDt].concat(_cur ? [_cur.saleDt] : []), '저장').then(function(ok0){
     if(!ok0) return;
-    saAdjGuard(items).then(function(go){ if(!go) return;   /* 재고조정 뒤 품목의 수량이 달라졌으면 한 번 묻는다 (2026-11-25) */
+    saAdjGuard(items).then(function(go){ return go ? saFixGuard(items) : false; }).then(function(go){ if(!go) return;   /* 재고조정 뒤 품목의 수량이 달라졌으면 한 번 묻는다 (2026-11-25) · 맞춘 날짜보다 앞 날짜면 한 번 알린다(saFixGuard) */
     post('/mangr/salesTrxSave.do', dto, true).then(function(r){
       return r.text().then(function(t2){ if(!r.ok) throw new Error(t2); return t2; });
     }).then(function(){ swOk('저장했습니다.'); saNew(); saLoad(); })
       .catch(function(e){ swErr('저장에 실패했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
     });
   });
+}
+/* ★[🗑 삭제 전표] 창 + 되살리기 (2026-11-25 사용자 「판매전표 되살리기도 넣어줘」 — 매입등록 pdl* · pphRestore 와 같은 꼴).
+     목록 = 검색기간에 판매일자가 있거나 그 기간에 지운 전표(+거래처명) · 지운 때 최근 순 300장 (/mangr/salesTrxDelList.do).
+     [↩ 되살리기] = ①salesTrxRestoreInfo 로 확인창(번호 겹침 · 같은 거래처·같은 합계의 살아 있는 전표 = 중복 의심 ·
+        지운 뒤 재고조정을 한 품목 「현재고 128 → 83」— 되살리면 출고가 다시 빠져 재고가 그만큼 준다) ②salesTrxRestore(머리·줄·재고 원장).
+     판매단가 이력·견적 연결은 그대로다. 저장 때의 재고 부족·여신 제한은 거치지 않는다. */
+function sdlOpen(){
+  /* 처음 값 = 목록의 검색기간·거래처 — 창 안에서 따로 바꿔 찾을 수 있다 (2026-11-25 「검색도 가능하게」) */
+  document.getElementById('sdlFr').value = document.getElementById('saFrom').value;
+  document.getElementById('sdlTo').value = document.getElementById('saTo').value;
+  document.getElementById('sdlQ').value = (document.getElementById('saFindNm').value||'').trim();
+  document.getElementById('saDelPop').classList.add('on'); sdlLoad();
+}
+function sdlHit(o){   /* 검색어에 걸린 품목 — 「🔎 코드 품명 — 이 품목 250」(여럿이면 종 수와 합) */
+  var c = n(o.hitCnt); if (!c) return '';
+  return '<div class="dl-hit" style="margin-top:2px;font-size:12px;color:#0f6b5e;font-weight:700">🔎 '
+       + (c === 1 ? esc(o.hitCd||'')+' '+esc(String(o.hitNm||'').slice(0,26))+' — 이 품목 '+fmt(o.hitQty) : '검색에 걸린 품목 '+c+'종 · 합 '+fmt(o.hitQty))+'</div>';
+}
+function sdlClose(){ document.getElementById('saDelPop').classList.remove('on'); }
+function sdlLoad(){
+  var b = document.getElementById('sdlBody'), fr = document.getElementById('sdlFr').value, to = document.getElementById('sdlTo').value, nm = (document.getElementById('sdlQ').value||'').trim();
+  document.getElementById('sdlHead').textContent = '— '+fr+' ~ '+to+' (판매일자 또는 지운 날)'+(nm ? ' · 검색 「'+nm+'」' : '');
+  b.innerHTML = '<tr><td colspan="8" class="sa-msg">조회 중…</td></tr>';
+  post('/mangr/salesTrxDelList.do', 'fromDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)+'&findData='+encodeURIComponent(nm))
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(j){ if (typeof j === 'string') { try { j = JSON.parse(j); } catch(e){ j = null; } }
+      if (!j || j.result !== 'OK') throw new Error((j && j.message) || '지운 전표를 읽지 못했습니다.');
+      b.innerHTML = sdlHtml(j.data || []);
+      document.getElementById('sdlHead').textContent += ' · '+(j.data||[]).length+'장'; })
+    .catch(function(e){ b.innerHTML = '<tr><td colspan="8" class="sa-msg" style="color:#c0392b">'+esc(e.message||'지운 전표를 읽지 못했습니다.')+'</td></tr>'; });
+}
+function sdlHtml(list){
+  if (!list || !list.length) return '<tr><td colspan="8" class="sa-msg">이 조건에 맞는 지운 판매전표가 없습니다.</td></tr>';
+  var h = '';
+  list.forEach(function(o){
+    var cnt = n(o.lineCnt), nm = String(o.firstNm||'');
+    h += '<tr style="cursor:pointer" onclick="sdlToggle('+Number(o.saleSeq)+', this, event)" title="누르면 이 전표의 품목별 수량이 펼쳐집니다"><td>'+esc(fmtDt(o.saleDt))+'</td><td>'+esc(o.saleNo||'')+'</td>'
+       + '<td class="txt" style="text-align:left">'+esc(o.custNm||'')+(o.custCd ? ' <span style="color:#8a97a4;font-size:12px">['+esc(o.custCd)+']</span>' : '')+'</td>'
+       + '<td class="txt" style="text-align:left;white-space:normal;color:#37475a" title="'+esc(nm)+'">'+esc(nm.length > 30 ? nm.slice(0,30)+'…' : nm)+(cnt > 1 ? ' <span style="color:#5a6b7a">외 '+(cnt-1)+'</span>' : '')+sdlHit(o)+'</td>'
+       + '<td class="num">'+fmt(o.qty)+'</td><td class="num">'+fmt(o.totAmt)+'</td>'
+       + '<td style="color:#c0392b;white-space:nowrap">'+esc(String(o.delDttm||'').slice(0,16))+'</td><td>'+esc(o.delUserNm||o.delUser||'')+'</td>'
+       + '</tr>';   /* 줄의 「되살리기」 칸은 뺐다 (2026-11-25) — 줄을 눌러 펼친 칸에서 품목을 체크하고 되살린다 */
+  });
+  return h;
+}
+/* 줄을 누르면 그 전표의 품목별 수량을 밑에 편다 (2026-11-25 사용자 그림 — 9-16 전표 「수량 954」에 동그라미 「250개인데 확인해줘요」).
+     목록의 수량은 전표 «전 품목 합»이다(250 + 105 + 599 = 954) — 품목마다 얼마였는지는 줄을 눌러 본다. 자료 = 되살리기 확인과 같은 조회(/mangr/salesTrxRestoreInfo.do).
+     다시 누르면 접힌다 · [↩ 되살리기] 단추 위를 누른 것은 무시한다. */
+function sdlToggle(seq, tr, ev){
+  if (ev && ev.target && ev.target.closest && ev.target.closest('button,input')) return;   /* 단추·체크 칸을 누른 것은 펼치지 않는다 */
+  var nx = tr && tr.nextElementSibling;
+  if (nx && nx.className === 'sdl-sub') { nx.parentNode.removeChild(nx); return; }
+  var sub = document.createElement('tr'); sub.className = 'sdl-sub';
+  sub.innerHTML = '<td colspan="8" style="background:#f7f9fb;text-align:left;padding:6px 12px;color:#5a6b7a">품목을 읽는 중…</td>';
+  tr.parentNode.insertBefore(sub, tr.nextSibling);
+  post('/mangr/salesTrxRestoreInfo.do', { saleSeq:seq }, true).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(j){
+    if (typeof j === 'string') { try { j = JSON.parse(j); } catch(e){ j = null; } }
+    if (!j || j.result !== 'OK') throw new Error((j && j.message) || '품목을 읽지 못했습니다.');
+    sub.innerHTML = '<td colspan="8" style="background:#f7f9fb;text-align:left;padding:6px 12px">'+sdlSubHtml(j.lines || [], seq)+'</td>';
+  }).catch(function(e){ sub.innerHTML = '<td colspan="8" style="background:#f7f9fb;text-align:left;padding:6px 12px;color:#c0392b">'+esc(e.message||'품목을 읽지 못했습니다.')+'</td>'; });
+}
+/* ★펼친 품목에 전체 선택 · 개별 선택 (2026-11-25 사용자 그림 — 펼친 품목 줄에 동그라미 「펼쳐진 내용 전체선택 개별선택 살리기 · 되살리기는 전표 한 건씩으로」).
+     ★처음엔 체크가 없다(같은 날 「처음엔 체크 안 된 상태로 해줘」 — 처음 판은 전부 체크였다). 하나도 안 고르고 누르면 안내만 하고 안 되살린다(통째는 [전체 선택]).
+     ★되살리기 단추는 «펼친 칸 안의 [↩ 체크한 품목 되살리기]» 하나다 — 목록 줄의 「되살리기」 칸은 없다(같은 날 그림 「매입,판매 표시 되살리기 제거」 = 줄 단추에 동그라미).
+       이 자리의 왕복 : 줄 단추 + 칸 단추 → 「체크 되살리기는 제거」를 칸 단추를 빼라는 뜻으로 읽어 줄 단추만 남김(잘못 읽음) → 줄 단추를 빼고 칸 단추를 되살림(지금).
+     되살릴 품목만 체크하고 누르면 «그 전표에서 고른 품목만» 되살아난다 —
+     전표 합계는 되살린 품목만으로 다시 계산되고, 나머지 품목은 지운 채로 남는다(그 전표는 살아나므로 남은 품목을 이 창에서 따로 되살릴 수는 없다).
+     전부 체크돼 있으면 종전처럼 전표 통째. 전표 여러 장을 한꺼번에 되살리는 것은 없다(같은 날 잠깐 넣었다가 사용자 지시로 뺐다). */
+function sdlSubHtml(lines, seq){
+  if (!lines.length) return '<span style="color:#8a97a4">품목 줄이 없습니다.</span>';
+  var h = '<div class="sdl-items" data-seq="'+Number(seq)+'" style="font-size:12.5px;color:#37475a;line-height:1.8">'
+        + '<label style="cursor:pointer;font-weight:700"><input type="checkbox" class="sdl-ia" onclick="sdlItAll(this)"> 전체 선택</label>'
+        + ' <span style="color:#8a97a4">— 이 전표의 품목 '+lines.length+'종 · 되살릴 품목을 체크 — 전부면 [전체 선택] (목록의 수량은 전 품목 합)</span>'
+        + ' <button type="button" class="sa-btn" style="height:auto;padding:1px 8px;font-size:11.5px;margin-left:8px" onclick="sdlItRestore(this)">↩ 체크한 품목 되살리기</button>';
+  lines.forEach(function(x){
+    h += '<div><label style="cursor:pointer"><input type="checkbox" class="sdl-ic" value="'+esc(x.prodCd||'')+'" onclick="sdlItSync(this)"> <b>'+esc(x.prodCd||'')+'</b> '+esc(x.prodNm||'')
+       + ' — <b style="color:#0f6b5e">출고 '+fmt(Math.abs(n(x.qty)))+'</b>'+(n(x.qty) < 0 ? ' <span style="color:#a6241c">(반품)</span>' : '')
+       + ' <span style="color:#8a97a4">· 지금 현재고 '+fmt(x.curQty)+'</span></label></div>';
+  });
+  return h + '</div>';
+}
+function sdlItBox(el){ var q = el; while (q && !(q.className && String(q.className).indexOf('sdl-items') >= 0)) q = q.parentNode; return q || null; }
+function sdlItCks(box){ return (box && box.querySelectorAll) ? Array.prototype.slice.call(box.querySelectorAll('input.sdl-ic')) : []; }
+function sdlItAll(cb){ sdlItCks(sdlItBox(cb)).forEach(function(c){ c.checked = !!cb.checked; }); }
+function sdlItSync(cb){ var box = sdlItBox(cb), all = sdlItCks(box), ia = (box && box.querySelector) ? box.querySelector('input.sdl-ia') : null;
+  if (ia) ia.checked = all.length > 0 && all.every(function(c){ return c.checked; }); }
+function sdlItPick(box){ var all = sdlItCks(box); return { all:all.length, sel:all.filter(function(c){ return c.checked; }).map(function(c){ return String(c.value); }) }; }
+function sdlItGo(seq, box){
+  var pk = sdlItPick(box);
+  if (!pk.sel.length) { swErr('되살릴 품목을 체크하세요.<br><span style="font-size:12.5px;color:#3d4d5c">체크가 하나도 없습니다 — 전표를 통째로 되살리려면 [전체 선택]을 체크합니다.</span>'); return; }
+  sdlRestore(seq, pk.sel.length === pk.all ? null : pk.sel);
+}
+function sdlItRestore(btn){ var box = sdlItBox(btn); if (box) sdlItGo(Number(box.getAttribute('data-seq')), box); }
+var _sdlResBusy = false;
+function sdlRestore(seq, cds){   /* cds = 되살릴 품목코드(없으면 전표의 품목 전부) */
+  if (_sdlResBusy || !seq) return;
+  _sdlResBusy = true;
+  var unwrap = function(j){ if (typeof j === 'string') { try { j = JSON.parse(j); } catch(e){ j = null; } } return j; };
+  var fail = function(m){ _sdlResBusy = false; swErr('되살리지 못했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(m||'')+'</span>'); };
+  post('/mangr/salesTrxRestoreInfo.do', { saleSeq:seq }, true).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(j){
+    j = unwrap(j);
+    if (!j || j.result !== 'OK' || !j.head) throw new Error((j && j.message) || '전표를 읽지 못했습니다.');
+    var hd = j.head, lines = j.lines || [], dup = hd.dupYn === 'Y', allN = lines.length, part = !!(cds && cds.length);
+    if (part) {   /* 고른 품목만 (2026-11-25) — 전부 골랐으면 종전처럼 전표 통째 */
+      lines = lines.filter(function(x){ return cds.indexOf(String(x.prodCd||'')) >= 0; });
+      if (!lines.length) throw new Error('고른 품목이 이 전표에 없습니다.');
+      if (lines.length === allN) { part = false; cds = null; }
+    }
+    var m = '이 전표를 되살릴까요?<br><b>'+esc(fmtDt(hd.saleDt))+' / '+esc(hd.saleNo||'')+'</b> '+esc(hd.custNm||'')
+          + (part
+              ? '<br><span style="font-size:13px;color:#3d4d5c">품목 '+allN+'종 중 <b style="color:#0f6b5e">'+lines.length+'종만</b> 되살립니다 — 재고(수불원장)에서 출고가 다시 빠집니다.</span>'
+                + '<div class="sa-part" style="margin-top:6px;text-align:left;font-size:12.5px;line-height:1.5;color:#37475a">'
+                + lines.slice(0, 6).map(function(x){ return '<div>· <b>'+esc(x.prodCd||'')+'</b> '+esc(String(x.prodNm||'').slice(0,22))+' — 출고 '+fmt(Math.abs(n(x.qty)))+'</div>'; }).join('')
+                + (lines.length > 6 ? '<div>· 외 '+(lines.length-6)+'종</div>' : '')
+                + '<div style="margin-top:4px;color:#8a5a00">전표 합계는 이 품목만으로 다시 계산됩니다. 나머지 '+(allN-lines.length)+'종은 지운 채로 남고, 이 창에서 따로 되살릴 수 없습니다(필요하면 전표를 열어 직접 넣습니다).</div></div>'
+              : '<br><span style="font-size:13px;color:#3d4d5c">합계 '+fmt(hd.totAmt)+'원 · 품목 '+lines.length+'종 — 재고(수불원장)에서 출고가 다시 빠집니다.</span>');
+    if (dup) m += '<div style="margin-top:7px;font-size:12.5px;color:#274b8f">같은 날 '+esc(hd.saleNo||'')+' 번이 그새 다른 전표에 쓰여, <b>'+esc(hd.nextNo||'')+'</b> 번으로 되살립니다.</div>';
+    if (hd.twinNo) { var tw = String(hd.twinNo).split('-');
+      m += '<div class="sa-twin" style="margin-top:9px;padding:8px 10px;border:1px solid #e6a9a3;background:#fdecea;border-radius:8px;text-align:left;font-size:12.5px;line-height:1.5;color:#8a2a22">'
+         + '<b>⚠ 같은 거래처 · 같은 금액의 전표가 이미 있습니다</b><br>'+esc(fmtDt(tw[0]))+' / '+esc(tw[1]||'')+' — 같은 판매를 두 번 넣었던 것이면 <b>되살리지 마세요</b>(재고·매출이 두 번 잡힙니다).</div>'; }
+    var adj = lines.filter(function(x){ return x.lastAdjDt && Math.abs(n(x.qty)) > 0.0001; });
+    adj.forEach(function(x){ x.delta = -n(x.qty); });   /* 되살리면 출고가 다시 빠진다 → 현재고가 그만큼 준다 */
+    m += saAdjWarnHtml(adj, 'res');
+    return swConfirm(m, null, '되살리기').then(function(ok){
+      if (!ok) { _sdlResBusy = false; return; }
+      return post('/mangr/salesTrxRestore.do', { saleSeq:seq, prodCds:(part ? cds : null) }, true).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(k){
+        k = unwrap(k);
+        if (!k || k.result !== 'OK') throw new Error((k && k.message) || '서버가 답하지 않았습니다.');
+        _sdlResBusy = false;
+        swOk('되살렸습니다 — '+esc(fmtDt(k.saleDt))+' / '+esc(k.saleNo)+(k.oldNo && k.oldNo !== k.saleNo ? ' (번호 '+esc(k.oldNo)+' → '+esc(k.saleNo)+')' : ''));
+        saLoad();
+        if (document.getElementById('saDelPop').classList.contains('on')) sdlLoad();
+      });
+    });
+  }).catch(function(e){ fail(e && e.message); });
 }
 /* ★전표 뒤에 재고조정을 한 품목 경고 (2026-11-25 사용자 「판매전표 삭제·수정에도 같은 경고 넣어줘」 — 매입등록 puAdjAfter·puAdjWarnHtml·puAdjGuard 와 같은 뜻).
      재고조정은 «그때 재고에 얼마를 더했다»로 저장된다 — 실물에 맞춰 조정한 뒤 그 전 날짜의 판매 전표를 지우거나 수량을 고치면 현재고가 그만큼 달라진다.
@@ -1729,8 +1888,8 @@ function saAdjWarnHtml(list, mode){
   if (!list || !list.length) return '';
   var md = function(d){ d = String(d||''); return d.length === 8 ? d.slice(4,6)+'-'+d.slice(6,8) : d; };
   var h = '<div class="sa-adjwarn" style="margin-top:9px;padding:8px 10px;border:1px solid #f0c36d;background:#fff8e1;border-radius:8px;text-align:left;font-size:12.5px;line-height:1.5;color:#5a4a1a">'
-        + '<b>⚠ 이 전표 뒤에 재고조정을 한 품목이 있습니다</b><br>'
-        + (mode === 'del' ? '삭제하면' : '수량을 바꾸면') + ' 그때 맞춘 재고가 그만큼 달라집니다.';
+        + '<b>⚠ '+(mode === 'res' ? '이 전표를 지운 뒤에' : '이 전표 뒤에')+' 재고조정을 한 품목이 있습니다</b><br>'
+        + (mode === 'del' ? '삭제하면' : mode === 'res' ? '되살리면' : '수량을 바꾸면') + ' 그때 맞춘 재고가 그만큼 달라집니다.';
   list.slice(0, 5).forEach(function(x){
     var cur = n(x.curQty), aft = cur + n(x.delta), nm = String(x.prodNm||'');
     h += '<div style="margin-top:4px">· <b>'+esc(x.prodCd)+'</b> <span title="'+esc(nm)+'">'+esc(nm.length > 16 ? nm.slice(0,16)+'…' : nm)+'</span><br>'
@@ -1738,7 +1897,7 @@ function saAdjWarnHtml(list, mode){
        + ' <span style="color:#8a7a4a">('+esc(md(x.lastAdjDt))+' 조정 · 수정재고 '+fmtQ(x.lastAftQty)+(n(x.adjCnt) > 1 ? ' · 조정 '+n(x.adjCnt)+'회' : '')+')</span></span></div>';
   });
   if (list.length > 5) h += '<div style="margin-top:4px">· 외 '+(list.length-5)+'품목</div>';
-  h += '<div style="margin-top:6px">실물에 맞춰 두었던 재고라면, '+(mode === 'del' ? '삭제' : '저장')+' 뒤 <b>재고 일괄조정</b>으로 다시 맞추세요.</div></div>';
+  h += '<div style="margin-top:6px">실물에 맞춰 두었던 재고라면, '+(mode === 'del' ? '삭제' : mode === 'res' ? '되살린' : '저장')+' 뒤 <b>재고 일괄조정</b>으로 다시 맞추세요.</div></div>';
   return h;
 }
 /* 수정 저장 — 조정 뒤 품목이 «재고에서 빠지는 수량»이 달라졌을 때만 묻는다(단가·비고만 고친 저장은 그대로). 새 전표는 해당 없음.
@@ -1755,6 +1914,42 @@ function saAdjGuard(items){
     if (!ch.length) return true;
     return swConfirm('수량이 바뀐 품목이 있습니다. 그대로 저장할까요?'+saAdjWarnHtml(ch, 'mod'), null, '저장');
   });
+}
+/* ★수정재고가 고정된 품목 안내 (2026-11-25 사용자 「앞 날짜 전표 넣을 때 안내도 넣어줘」).
+     재고조정으로 맞춘 재고는 기준으로 고정된다(현재고 = 수정재고 + 맞춘 날짜부터의 입고·출고) — 맞춘 날짜보다 «앞 날짜»의 전표는 새로 넣거나 수량을 고쳐도 현재고가 안 달라진다.
+     실사 뒤에 실제로 나간 물건을 앞 날짜로 적으면 재고에 안 잡히므로 저장 직전에 한 번 알린다. ★막지 않는다.
+     새 전표 = 품목 전부 · 수정 = 날짜를 옮겼거나 재고에 닿는 수량이 달라진 품목만(단가·비고만 고친 저장은 그대로 지나간다).
+     서버가 옛 판이거나 조회가 실패하면 안내 없이 종전 흐름. */
+function saFixHtml(list){
+  var md = function(d){ d = String(d||''); return d.length === 8 ? d.slice(4,6)+'-'+d.slice(6,8) : d; };
+  var h = '<div class="sa-fixwarn" style="margin-top:9px;padding:8px 10px;border:1px solid #9cc9bf;background:#eef7f4;border-radius:8px;text-align:left;font-size:12.5px;line-height:1.5;color:#1f4d44">'
+        + '<b>🔒 재고를 맞춘 날짜보다 앞 날짜의 전표입니다</b><br>아래 품목은 저장해도 <b>현재고가 달라지지 않습니다</b>(맞춘 재고가 기준).';
+  list.slice(0, 5).forEach(function(x){ var nm = String(x.prodNm||'');
+    h += '<div style="margin-top:4px">· <b>'+esc(x.prodCd)+'</b> <span title="'+esc(nm)+'">'+esc(nm.length > 16 ? nm.slice(0,16)+'…' : nm)+'</span>'
+       + ' <span style="color:#4f7a70">— '+esc(md(x.adjDt))+' 에 재고 '+fmtQ(n(x.aftQty))+' (으)로 맞춤</span></div>'; });
+  if (list.length > 5) h += '<div style="margin-top:4px">· 외 '+(list.length-5)+'품목</div>';
+  h += '<div style="margin-top:6px">재고를 맞춘 <b>뒤에</b> 실제로 나간 것이라면, 전표 날짜를 맞춘 날짜 이후로 바꿔 저장하세요.</div></div>';
+  return h;
+}
+/* 재고에서 빠지는 수량(품목별) — 합계수량 − 출고차감 · 반품은 − · 불량반품은 0 (saAdjGuard·서버 saveSalesTrx 와 같은 셈) */
+function saFixSum(items){
+  var m = {}; (items||[]).forEach(function(o){ var c = String((o && o.prodCd) || '').trim(); if (!c || o.trxGb === '불량반품') return;
+    var q = Math.abs(n(o.qty)), out = Math.round(q - Math.min(Math.abs(n(o.stockCutQty)), q));
+    m[c] = (m[c]||0) + out * ((o.trxGb === '반품' || n(o.qty) < 0) ? -1 : 1); });
+  return m;
+}
+function saFixGuard(items){
+  var dt = String(document.getElementById('saDt').value||'').replace(/[^0-9]/g,''), now = saFixSum(items);
+  var edit = !!(_cur && _cur.saleSeq), old = (edit && _cur._fixQ) || {}, same = edit && String(_cur._fixDt||'').replace(/[^0-9]/g,'') === dt;
+  var cds = Object.keys(now).concat(Object.keys(old)).filter(function(c, i, a){ return a.indexOf(c) === i; })
+              .filter(function(c){ return !same || Math.abs((now[c]||0) - (old[c]||0)) > 0.0001; });
+  if (dt.length !== 8 || !cds.length) return Promise.resolve(true);
+  return post('/prod/adjFixCheck.do', { dt:dt, prodCds:cds }, true)
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){ if (typeof j === 'string') { try { j = JSON.parse(j); } catch(e){ j = null; } }
+      var list = (j && j.data) || []; if (!list.length) return true;
+      return swConfirm('그대로 저장할까요?'+saFixHtml(list), null, '저장'); })
+    .catch(function(){ return true; });
 }
 function saDelete(){
   if (!_cur) { swErr('목록에서 전표를 먼저 선택하세요.'); return; }
@@ -1893,7 +2088,9 @@ function sphLoad(){
   if(!_sph.cd){ swAlert('품목을 고르세요 — 코드나 상품명을 치면 후보가 뜹니다.'); return; }
   var p=sphProd(_sph.cd)||{}; _sph.mode=true; sphHead(true); _list=[]; _lShown=0;
   b.innerHTML='<tr><td colspan="10" class="sa-msg">조회 중…</td></tr>';
-  post('/mangr/salesHistByProd.do','prodCd='+encodeURIComponent(_sph.cd)).then(function(r){ return r.json(); }).then(function(j){
+  /* 지운 전표도 함께 읽는다(2026-11-25) — 실패·옛 서버면 빈 목록이라 종전 화면 그대로 */
+  Promise.all([ post('/mangr/salesHistByProd.do','prodCd='+encodeURIComponent(_sph.cd)).then(function(r){ return r.json(); }), sphDelLoad(_sph.cd) ]).then(function(pa){
+    var j=pa[0], del=pa[1]||[];
     if(!_sph.mode) return;
     var rows=(j&&j.data)||[], h='', tq=0, ta=0, groups=[], gmap={};
     rows.forEach(function(o){ var k=String(o.custCd||'')+'|'+(o.custNm||''); var g=gmap[k]; if(!g){ g=gmap[k]={ nm:o.custNm||'(거래처 없음)', cd:o.custCd||'', rows:[], qty:0, amt:0, last:'' }; groups.push(g); } g.rows.push(o); var sg=(String(o.trxGb||'').indexOf('반품')>=0)?-1:1; g.qty+=sg*n(o.qty); g.amt+=sg*n(o.supplyAmt); if(String(o.saleDt||'')>g.last) g.last=String(o.saleDt||''); tq+=sg*n(o.qty); ta+=sg*n(o.supplyAmt); });
@@ -1905,10 +2102,37 @@ function sphLoad(){
           +'<td>'+esc(o.mgrNm||'')+'</td><td class="num">'+n(o.boxQty)+'</td><td class="num">'+n(o.eaQty)+'</td><td class="num'+(ret?' ret':'')+'"><b>'+fmt(o.qty)+'</b></td><td class="num">'+fmt(o.unitPrice)+'</td><td class="num">'+fmt(o.supplyAmt)+'</td></tr>'; });
     });
     if(!rows.length) h='<tr><td colspan="10" class="sa-msg">이 품목이 든 판매전표가 없습니다.</td></tr>';
+    h+=sphDelHtml(del);
     b.innerHTML=h;
     document.getElementById('saTotal').textContent=rows.length;
     var hd=document.getElementById('sphHead'); hd.style.display=''; hd.innerHTML='🔎 <b>'+esc(_sph.cd)+'</b> '+esc(p.prodNm||'')+(p.spec?' <span style="color:#8a97a4">'+esc(p.spec)+'</span>':'')+' · 거래처 <b>'+groups.length+'곳</b> · 전표 '+rows.length+'건 · 수량 '+fmt(tq)+' · 공급가 '+fmt(ta)+(rows.length>=500?' <span style="color:#a6241c">(최근 500줄까지만)</span>':'')+' <span style="color:#8a97a4">— 날짜 무관 · 지우고 [리스트조회]로 돌아갑니다</span>';   /* 요약은 표 위 한 줄에 (발주서 관리와 같은 꼴, 2026-11-05) */
   }).catch(function(e){ b.innerHTML='<tr><td colspan="10" class="sa-msg" style="color:#c0392b">조회 오류 : '+esc(e.message)+'</td></tr>'; });
+}
+/* ★품목 판매이력 맨 아래 «지운 전표» (2026-11-25 사용자 「판매등록 품목 판매이력에도 지운 전표 보이게 해줘」 — 매입등록 pphDelLoad·pphDelHtml 의 판매 판).
+     자료 = 품목별재고현황 「삭제된 출고」 줄과 같은 /prod/prodDelPurchList.do 응답의 sales(그 품목이 든 지운 판매전표 · 지운 때 최근 순 20).
+     수량 = 그 전표가 재고에서 뺐던 수량(합계수량 − 출고차감 · 반품 전표였으면 「반품」 표시). 합계·건수(위 요약 줄 · Total)에는 안 넣는다.
+     줄의 [↩ 되살리기] = [🗑 삭제 전표] 창의 것과 같은 sdlRestore(seq) — 되살린 뒤 saLoad 가 이 목록을 다시 읽는다. */
+function sphDelLoad(cd){
+  return post('/prod/prodDelPurchList.do','prodCd='+encodeURIComponent(cd))
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){ if (typeof j === 'string') { try { j = JSON.parse(j); } catch(e){ j = null; } } return (j && j.result === 'OK' && j.sales) || []; })
+    .catch(function(){ return []; });
+}
+function sphDelHtml(list){
+  list = (list||[]).filter(function(o){ return Math.abs(n(o.qty)) > 0.0001; });
+  if (!list.length) return '';
+  var h = '<tr class="sphv sphdel"><td colspan="10" style="background:#f1f2f4;color:#55606c">🗑 지운 전표 '+list.length+'건'
+        + ' <span style="font-weight:400;margin-left:10px">삭제된 전표라 재고·매출·위 합계에 들어 있지 않습니다 (보기만 — 되살리기는 목록 오른쪽 [🗑 삭제 전표]에서)</span></td></tr>';
+  list.forEach(function(o){
+    var del = String(o.delDttm||''), who = o.delUserNm || o.delUser || '', q = n(o.qty), ret = q < 0;
+    h += '<tr class="sphdel" style="color:#8a97a4;cursor:default" title="'+esc(fmtDt(o.saleDt)+'-'+(o.saleNo||'')+' 전표 — '+del+' '+who+' 삭제')+'">'
+       + '<td>'+esc(fmtDt(o.saleDt))+'</td><td>'+esc(o.saleNo||'')+'</td><td style="font-size:12.5px">'+esc(o.custCd||'')+'</td>'
+       + '<td class="txt" style="text-align:left;white-space:normal">'+esc(o.custNm||'')+(ret ? ' <span style="color:#a6241c;font-weight:700">[반품]</span>' : '')
+       +   ' <span style="color:#c0392b;font-weight:700;white-space:nowrap">[삭제 '+esc(del.slice(0,16))+(who ? ' · '+esc(who) : '')+']</span></td>'
+       + '<td></td>'   /* [↩ 되살리기] 단추는 뺐다 (2026-11-25 「품목 이력의 지운 전표 되살리기도 빼줘」) — 되살리기는 [🗑 삭제 전표] 창에서. 칸은 남겨 10칸 그대로 */
+       + '<td class="num"></td><td class="num"></td><td class="num"><b>'+fmt(Math.abs(q))+'</b></td><td class="num">'+fmt(o.unitPrice)+'</td><td class="num">'+fmt(Math.abs(n(o.amt)))+'</td></tr>';
+  });
+  return h;
 }
 function sphOpen(seq, tr){
   post('/mangr/salesTrxDetail.do','saleSeq='+seq).then(function(r){return r.json();}).then(function(j){ var d=j&&j.data; if(!d) return; saApply(d);
@@ -1925,6 +2149,7 @@ function saPick(i){
 /* 서버에서 읽은 전표 1건을 상단 입력 영역에 그대로 얹는다 (선택·새로고침 공용) */
 function saApply(d){
   _cur = d;
+  d._fixQ = saFixSum(d.items); d._fixDt = d.saleDt;   /* 불러온 순간의 품목별 수량·날짜 — 수정 저장 때 «달라진 품목»만 안내하려고 (2026-11-25 saFixGuard) */
   _quoteLink = (d && d.quoteSeq) ? { quoteSeq:d.quoteSeq, docNo:d.quoteDocNo||'' } : null; saQtTag();   // 견적 연결 (2026-10-06)
   _shareUrl = '';                 /* 다른 전표를 열었으니 공개 주소도 그 전표 것으로 다시 받는다 (2026-09-09) */
   _curNet = n(d.totAmt) - n(d.payAmt) - n(d.dcAmt);   // 이 전표가 현잔고에 이미 반영해 둔 금액
