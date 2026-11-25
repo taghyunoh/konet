@@ -336,7 +336,7 @@ function fnPwdClear(){
 
     <div class="login-box">
       <div class="login-wrap">
-        <h1><img src="${pageContext.request.contextPath}/asset/img/konet_login.svg?v=20261125d" alt="Konet" class="title-logo"><%-- 2026-11-25 로고 선명하게 : konet_login.png(198×124, 흐림) → SVG(글자를 글꼴로 그려 72px 에서도 또렷 · 작은 글자는 조금 키움). 고해상도 PNG 로는 작은 글자가 여전히 뭉개져 SVG 로 바꿈 --%>코네트 물류관리 시스템</h1>
+        <h1><img src="${pageContext.request.contextPath}/asset/img/konet_login.svg?v=20261125f" alt="Konet" class="title-logo"><%-- 2026-11-25 로고 선명하게 : konet_login.png(198×124, 흐림) → SVG(글자를 글꼴로 그려 72px 에서도 또렷). 2000px PNG(konet_logo_2000.png)도 걸어 봤으나 72px 로 줄이면 작은 글자가 번져 SVG 로 되돌림 --%>코네트 물류관리 시스템</h1>
 
         <div class="id-box w-100">
           <h2>로그인</h2>
