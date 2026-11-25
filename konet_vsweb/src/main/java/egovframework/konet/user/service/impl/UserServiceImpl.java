@@ -2417,6 +2417,75 @@ public class UserServiceImpl implements UserService {
 		mapper.deletePurchaseDtlAll(dto);
 		return mapper.deletePurchaseMst(dto);
 	}
+	/** 이 매입전표의 품목 중 전표 뒤에 재고조정을 한 품목 (2026-11-25) — 삭제·수량 수정 전 경고용. 조회만 한다. */
+	@Override public java.util.List<java.util.Map<String,Object>> selectPurchaseAdjAfter(java.util.Map<String,Object> p) throws Exception { return mapper.selectPurchaseAdjAfter(p); }
+	/** 이 판매전표의 품목 중 전표 뒤에 재고조정을 한 품목 (2026-11-25) — 삭제·수량 수정 전 경고용. 조회만 한다. */
+	@Override public java.util.List<java.util.Map<String,Object>> selectSalesTrxAdjAfter(java.util.Map<String,Object> p) throws Exception { return mapper.selectSalesTrxAdjAfter(p); }
+	/** 지운 매입전표 목록 (2026-11-25) — 매입등록 [🗑 삭제 전표] 창. 조회만 한다. */
+	@Override public java.util.List<java.util.Map<String,Object>> selectPurchaseDelList(java.util.Map<String,Object> p) throws Exception { return mapper.selectPurchaseDelList(p); }
+	/** 지운 매입전표 되살리기 전 확인 (2026-11-25) — 머리(번호 겹침·닮은 전표) + 줄(현재고 · 지운 뒤 재고조정). 조회만 한다. 없으면 null. */
+	@Override public java.util.Map<String,Object> purchaseRestoreInfo(Long purchSeq, String compCd) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("purchSeq", purchSeq); p.put("compCd", compCd);
+		java.util.Map<String,Object> h = mapper.selectPurchaseDelInfo(p);
+		if (h == null) return null;
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		res.put("head", h); res.put("lines", mapper.selectPurchaseDelLines(p));
+		return res;
+	}
+	/** 지운 매입전표 되살리기 (2026-11-25 사용자 「지운 전표 되살리기도 넣어줘」).
+	 *  ①머리를 Y 로(같은 날 같은 번호가 그새 다른 전표에 쓰였으면 그 날 다음 번호로) ②지울 때 살아 있던 줄만 Y 로
+	 *  ③살린 줄로 재고 원장을 다시 만든다 — 저장(savePurchase)의 ①과 같은 식(매입 I · 반품 R −수량 · 근거번호 = 일자-번호).
+	 *  매입단가 이력·마스터 매입가는 손대지 않는다(지울 때도 안 지웠다). 발주 연결(PO_DTL_SEQ)은 줄에 남아 있어 그대로 되살아난다.
+	 *  ★트랜잭션 — context-transaction.xml 의 trxSaveTx 에 이 메서드를 넣었다(중간에 실패하면 통째로 되돌린다). */
+	@Override public java.util.Map<String,Object> restorePurchase(Long purchSeq, String compCd, String user, String ip) throws Exception {
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("purchSeq", purchSeq); p.put("compCd", compCd);
+		java.util.Map<String,Object> h = mapper.selectPurchaseDelInfo(p);
+		if (h == null) throw new IllegalStateException("지운 전표를 찾지 못했습니다 — 이미 되살렸거나 없는 전표입니다.");
+		String purchDt = String.valueOf(h.get("purchDt")).trim();
+		String oldNo = h.get("purchNo") == null ? "" : String.valueOf(h.get("purchNo")).trim();
+		String no = oldNo;
+		if ("Y".equals(String.valueOf(h.get("dupYn"))) || oldNo.isEmpty()) no = String.valueOf(h.get("nextNo")).trim();
+		p.put("purchNo", no); p.put("updUser", user); p.put("updIp", ip);
+		if (mapper.restorePurchaseMst(p) <= 0) throw new IllegalStateException("전표를 되살리지 못했습니다 — 이미 되살린 전표일 수 있습니다.");
+		int lines = mapper.restorePurchaseDtlLast(p);
+		egovframework.konet.user.model.PurchaseDTO q = new egovframework.konet.user.model.PurchaseDTO();
+		q.setPurchSeq(purchSeq); q.setCompCd(compCd);
+		String refNo = ym8(purchDt) + "-" + no;
+		String vendorCd = h.get("vendorCd") == null ? null : String.valueOf(h.get("vendorCd"));
+		String whCd = h.get("whCd") == null || String.valueOf(h.get("whCd")).trim().isEmpty() ? null : String.valueOf(h.get("whCd")).trim();
+		int led = 0;
+		for (egovframework.konet.user.model.PurchaseDtlDTO d : mapper.selectPurchaseDtl(q)) {
+			if (d.getProdCd() == null || d.getProdCd().trim().isEmpty()) continue;
+			boolean rtn = isRtnS(d.getTrxGb());
+			double qty = d.getQty() == null ? 0d : Math.abs(d.getQty());
+			egovframework.konet.user.model.StockLedgerDTO l = new egovframework.konet.user.model.StockLedgerDTO();
+			l.setCompCd(compCd);
+			l.setProdSeq(d.getProdSeq()); l.setProdCd(d.getProdCd());
+			l.setTrxDt(purchDt);
+			l.setIoGb(rtn ? "R" : "I");
+			l.setQty((int) Math.round(rtn ? -qty : (d.getQty() == null ? 0d : d.getQty())));
+			l.setUnitPrice(d.getUnitPrice());
+			l.setAmt(d.getAmt());
+			l.setVendorCd(vendorCd);
+			l.setWhCd(whCd);
+			l.setRefGb("PURCH"); l.setRefNo(refNo);
+			l.setRemark(d.getRemark());
+			l.setRegUser(user); l.setRegIp(ip);
+			mapper.insertStockLedger(l);
+			mapper.recalcStockMst(l);
+			led++;
+		}
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		res.put("purchSeq", purchSeq); res.put("purchDt", purchDt); res.put("purchNo", no); res.put("oldNo", oldNo);
+		res.put("lines", lines); res.put("ledger", led);
+		return res;
+	}
+	/** 한 품목의 지운 매입전표 입고 줄 (2026-11-25) — 품목별재고현황 수불 내역의 「삭제된 입고」 줄. 조회만 한다. */
+	@Override public java.util.List<java.util.Map<String,Object>> selectProdDelPurch(java.util.Map<String,Object> p) throws Exception { return mapper.selectProdDelPurch(p); }
+	/** 한 품목의 지운 판매전표 출고 줄 (2026-11-25) — 수불 내역 「삭제된 출고」 · 월별 출고현황 출고내역. 조회만 한다. */
+	@Override public java.util.List<java.util.Map<String,Object>> selectProdDelSales(java.util.Map<String,Object> p) throws Exception { return mapper.selectProdDelSales(p); }
 
 	/** 'yyyy-mm-dd' | 'yyyymmdd' → 'yyyymmdd' */
 	private String ym8(String s) { return s==null ? "" : s.replace("-", "").trim(); }

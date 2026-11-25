@@ -20,7 +20,7 @@ function make(o){
   const DateF = { now: () => env.now };
   const f = new Function('fetch', 'Date', '_cnum', 'KONET_CTX', '_stkLedPaint', 'getExt', '_stkLedRaw', 'document', 'stkSplitOpen', '_splitExtGet', '_stkLedRow',
     'var _stkLedExt; Object.defineProperty(this||{}, "x", {value:1});' +
-    code.replace(/typeof _stkLedExt!=='undefined' && _stkLedExt/, 'getExt()').replace(/typeof _splitExt!=='undefined' && _splitExt/, '_splitExtGet()') + '; return { qty: stkLedQty, reg: stkLedReg, user: stkLedUser, pend: stkLedPend, split: stkSplitPend, load: stkLedPendLoad, st: _stkPend };');
+    code.replace(/typeof _stkLedExt!=='undefined' && _stkLedExt/g, 'getExt()').replace(/typeof _splitExt!=='undefined' && _splitExt/, '_splitExtGet()') + '; return { qty: stkLedQty, reg: stkLedReg, user: stkLedUser, pend: stkLedPend, split: stkSplitPend, load: stkLedPendLoad, st: _stkPend, del: stkLedDel, dst: _stkDel };');
   env.api = f(fetch, DateF, (v) => Math.round(+v || 0).toLocaleString('en-US'), '/konet', () => { env.paints++; }, () => env.ext, o.raw || [], { getElementById: (id) => id === 'stkSplitPop' ? { classList: { contains: () => !!env.popOn } } : null }, () => { env.splits = (env.splits || 0) + 1; }, () => env.sext || '', o.row || null);
   return env;
 }
@@ -161,8 +161,42 @@ const cells = (h) => { const m = h.match(/<tr[\s\S]*?<\/tr>/g) || []; return m.m
     t('JSP — 나누어보기 창 자료 줄 두 벌의 맨 뒤 칸은 stkLedUser(l)', blk.split("'+stkLedUser(l)+'</td></tr>'+_sub(l)").length === 3);
     t('JSP — 나누어보기 창 ↳ 하위 줄도 12칸', blk.indexOf("+'<td></td><td></td><td></td><td></td></tr>';") >= 0);
   }
+  /* ── 삭제된 입고 줄 (2026-11-25 · 운영 1000736038 그대로) ── */
+  {
+    const ad = { ledgerSeq: 7, ioGb: 'A', qty: 237, trxDt: '20261118', regDttm: '2026-11-18 09:53:04', adjBef: 175, adjAft: 412 };
+    const D1 = { purchSeq: 427, purchDt: '20260916', purchNo: '0002', vendorNm: '버개스패키지', prodCd: '1000736038', qty: 250, unitPrice: 24900, amt: 6225000, delDttm: '2026-11-22 18:48:02', delUser: 'admin', delUserNm: '마스터' };
+    const D0 = { purchSeq: 300, purchDt: '20261002', purchNo: '0001', vendorNm: '버개스패키지', prodCd: '1000736038', qty: 100, unitPrice: 24900, amt: 2490000, delDttm: '2026-10-02 13:53:53', delUser: 'K002', delUserNm: '설재우' };
+    const e = make({ resp: { result: 'OK', data: [ D1, D0 ] }, raw: [ ad ], row: { prodCd: '1000736038' } }), row = { prodCd: '1000736038' };
+    t('삭제된 입고 — 처음에는 줄 없음(읽는 중) · 품목코드로 한 번 묻는다', e.api.del(row) === '' && e.calls.length === 1 && /prodDelPurchList\.do$/.test(e.calls[0].url) && e.calls[0].body === 'prodCd=1000736038', JSON.stringify(e.calls));
+    await sleep(5);
+    t('삭제된 입고 — 응답이 오면 수불 내역을 다시 그린다', e.paints === 1, e.paints);
+    const h = e.api.del(row), c = cells(h);
+    t('삭제된 입고 — 두 줄 · 13칸', c.length === 2 && c.every(x => x.length === 13), c.map(x => x.length).join(','));
+    t('삭제된 입고 — 매입일자·구분·수량·매입처·전표번호·지운 때·지운 사람', c[0][0] === '2026-09-16' && c[0][2] === '🗑 삭제된 입고' && c[0][3] === '250' && c[0][6] === '버개스패키지' && c[0][9] === '20260916-0002' && c[0][11] === '2026-11-22 18:48:02' && c[0][12] === '마스터', JSON.stringify(c[0]));
+    t('★최근 조정(11-18) 뒤에 지운 줄 — 빨간 「조정 뒤 삭제 — 그때 맞춘 재고가 250 줄었습니다」', /조정 뒤 삭제 — 그때 맞춘 재고가 250 줄었습니다/.test(c[0][10]) && /class="led-delw"/.test(h));
+    t('조정 전에 지운 줄(10-02)에는 빨간 꼬리가 없다', c[1][10] === '전표 삭제 — 재고에서 빠짐', c[1][10]);
+    t('삭제된 입고 — 60초 안에는 다시 묻지 않는다', (e.api.del(row), e.calls.length === 1));
+    e.now += 61000; e.api.del(row); await sleep(5);
+    t('삭제된 입고 — 60초 뒤 다시 묻고, 내용이 같으면 다시 그리지 않는다', e.calls.length === 2 && e.paints === 1, e.calls.length + '/' + e.paints);
+    e.ext = 'X'; t('매칭코드로 걸러 보는 중에는 안 그린다', e.api.del(row) === ''); e.ext = '';
+    const e2 = make({ resp: 'fail', raw: [ ad ] }); e2.api.del(row); await sleep(5);
+    t('옛 서버(404) — 줄 없음 · 다시 그리지 않음', e2.api.del(row) === '' && e2.paints === 0);
+    const e3d = make({ resp: { result: 'OK', data: [ D1 ] }, raw: [] }); e3d.api.del(row); await sleep(5);
+    t('조정이 없는 품목 — 줄은 보이고 빨간 꼬리는 없다', /삭제된 입고/.test(e3d.api.del(row)) && !/led-delw/.test(e3d.api.del(row)));
+    /* 지운 판매전표의 출고 줄 (2026-11-25) — 같은 응답의 sales */
+    const SV = { saleSeq: 150, saleDt: '20261110', saleNo: '0003', custCd: '00177', custNm: '우리푸드', prodCd: '1000736038', qty: 30, unitPrice: 100, amt: 3000, delDttm: '2026-11-20 10:00:00', delUser: 'K002', delUserNm: '설재우' };
+    const SR = { saleSeq: 151, saleDt: '20261119', saleNo: '0001', custCd: '00177', custNm: '우리푸드', prodCd: '1000736038', qty: -5, unitPrice: 100, amt: -500, delDttm: '2026-11-20 11:00:00', delUser: 'K002' };
+    const es = make({ resp: { result: 'OK', data: [], sales: [ SV, SR ] }, raw: [ ad ], row: { prodCd: '1000736038' } }); es.api.del(row); await sleep(5);
+    const hs = es.api.del(row), cs = cells(hs);
+    t('★지운 판매전표 — 「🗑 삭제된 출고」 줄 13칸 · 판매일자·수량·거래처(사업장 칸)·근거 SALE', cs.length === 2 && cs.every(x => x.length === 13) && cs[0][0] === '2026-11-10' && cs[0][2] === '🗑 삭제된 출고' && cs[0][3] === '30' && cs[0][7] === '우리푸드' && cs[0][8] === 'SALE' && cs[0][9] === '20261110-0003' && cs[0][12] === '설재우', JSON.stringify(cs[0]));
+    t('★조정(11-18) 뒤에 지운 판매전표 — 「그때 맞춘 재고가 30 늘었습니다」', /판매전표 삭제 — 재고로 되돌아옴/.test(cs[0][10]) && /조정 뒤 삭제 — 그때 맞춘 재고가 30 늘었습니다/.test(cs[0][10]), cs[0][10]);
+    t('반품 전표를 지운 줄 — 「🗑 삭제된 반품」 5 · 「재고에서 다시 빠짐」 · 조정 일자 뒤 판매라 빨간 글 없음', cs[1][2] === '🗑 삭제된 반품' && cs[1][3] === '5' && cs[1][10] === '판매전표 삭제 — 재고에서 다시 빠짐', JSON.stringify(cs[1]));
+    const eo = make({ resp: { result: 'OK', data: [ D1 ] }, raw: [ ad ], row: { prodCd: '1000736038' } }); eo.api.del(row); await sleep(5);
+    t('옛 서버(sales 없음) — 지운 매입 줄만', cells(eo.api.del(row)).length === 1);
+    t('JSP — 수불 내역은 승인 대기 줄 다음에 stkLedDel(row)', jsp.indexOf("'<tbody>'+stkLedPend(row)+stkLedDel(row)+body+'</tbody>") >= 0);
+  }
   t('JSP — 나누어보기 창 요약표 뒤에 stkSplitPend(r)', jsp.indexOf('_stkSplitTop(r, si, so) + stkSplitPend(r)') >= 0);
-  t('JSP — 표 몸통 앞에 stkLedPend(row) · 수량 칸은 stkLedQty(l)', /'<tbody>'\+stkLedPend\(row\)\+body\+'<\/tbody>/.test(jsp) && /'\+stkLedQty\(l\)\+'<\/td>/.test(jsp));
+  t('JSP — 표 몸통 앞에 stkLedPend(row) · 수량 칸은 stkLedQty(l)', /'<tbody>'\+stkLedPend\(row\)\+stkLedDel\(row\)\+body\+'<\/tbody>/.test(jsp) && /'\+stkLedQty\(l\)\+'<\/td>/.test(jsp));
   t('[입·출고 나누어보기] 팝업 「기타(반품·조정)」 표의 수량 칸도 stkLedQty(l)', jsp.indexOf("color:#137a6c\">'+stkLedQty(l)+'</td>')") >= 0);
   console.log((bad ? '✗ ' : '✓ ') + 'sim_stkLedPend : 통과 ' + ok + ' · 실패 ' + bad);
   process.exit(bad ? 1 : 0);

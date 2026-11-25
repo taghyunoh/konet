@@ -1705,19 +1705,68 @@ function saSave(){
   /* ★마감 확정된 달이면 먼저 묻는다(2026-09-16 P2-g) — 막지 않는다. 수정이면 옮기기 전 날짜도 본다 */
   saClosedAsk([dto.saleDt].concat(_cur ? [_cur.saleDt] : []), '저장').then(function(ok0){
     if(!ok0) return;
+    saAdjGuard(items).then(function(go){ if(!go) return;   /* 재고조정 뒤 품목의 수량이 달라졌으면 한 번 묻는다 (2026-11-25) */
     post('/mangr/salesTrxSave.do', dto, true).then(function(r){
       return r.text().then(function(t2){ if(!r.ok) throw new Error(t2); return t2; });
     }).then(function(){ swOk('저장했습니다.'); saNew(); saLoad(); })
       .catch(function(e){ swErr('저장에 실패했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
+    });
+  });
+}
+/* ★전표 뒤에 재고조정을 한 품목 경고 (2026-11-25 사용자 「판매전표 삭제·수정에도 같은 경고 넣어줘」 — 매입등록 puAdjAfter·puAdjWarnHtml·puAdjGuard 와 같은 뜻).
+     재고조정은 «그때 재고에 얼마를 더했다»로 저장된다 — 실물에 맞춰 조정한 뒤 그 전 날짜의 판매 전표를 지우거나 수량을 고치면 현재고가 그만큼 달라진다.
+     서버가 주는 qty = 이 전표가 재고에서 «뺀» 수량(판매 = 수량 − 출고차감 · 반품 = −돌아온 수량 · 불량반품 = 0). 지우면 현재고가 그만큼 는다.
+     ★막지 않는다 · 서버가 옛 판이거나 조회가 실패하면 빈 목록 = 경고 없이 종전 흐름. */
+function saAdjAfter(saleSeq){
+  if (!saleSeq) return Promise.resolve([]);
+  return post('/mangr/salesTrxAdjAfter.do', { saleSeq:saleSeq }, true)
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){ if (typeof j === 'string') { try { j = JSON.parse(j); } catch(e){ j = null; } } return (j && j.data) || []; })
+    .catch(function(){ return []; });
+}
+/* list 의 delta = 저장(삭제) 뒤 현재고가 달라지는 양(삭제 = +뺐던 수량 · 수정 = 옛 뺀 수량 − 새 뺀 수량) */
+function saAdjWarnHtml(list, mode){
+  if (!list || !list.length) return '';
+  var md = function(d){ d = String(d||''); return d.length === 8 ? d.slice(4,6)+'-'+d.slice(6,8) : d; };
+  var h = '<div class="sa-adjwarn" style="margin-top:9px;padding:8px 10px;border:1px solid #f0c36d;background:#fff8e1;border-radius:8px;text-align:left;font-size:12.5px;line-height:1.5;color:#5a4a1a">'
+        + '<b>⚠ 이 전표 뒤에 재고조정을 한 품목이 있습니다</b><br>'
+        + (mode === 'del' ? '삭제하면' : '수량을 바꾸면') + ' 그때 맞춘 재고가 그만큼 달라집니다.';
+  list.slice(0, 5).forEach(function(x){
+    var cur = n(x.curQty), aft = cur + n(x.delta), nm = String(x.prodNm||'');
+    h += '<div style="margin-top:4px">· <b>'+esc(x.prodCd)+'</b> <span title="'+esc(nm)+'">'+esc(nm.length > 16 ? nm.slice(0,16)+'…' : nm)+'</span><br>'
+       + '<span style="padding-left:9px">현재고 '+fmtQ(cur)+' → <b style="color:#c0392b">'+fmtQ(aft)+'</b>'
+       + ' <span style="color:#8a7a4a">('+esc(md(x.lastAdjDt))+' 조정 · 수정재고 '+fmtQ(x.lastAftQty)+(n(x.adjCnt) > 1 ? ' · 조정 '+n(x.adjCnt)+'회' : '')+')</span></span></div>';
+  });
+  if (list.length > 5) h += '<div style="margin-top:4px">· 외 '+(list.length-5)+'품목</div>';
+  h += '<div style="margin-top:6px">실물에 맞춰 두었던 재고라면, '+(mode === 'del' ? '삭제' : '저장')+' 뒤 <b>재고 일괄조정</b>으로 다시 맞추세요.</div></div>';
+  return h;
+}
+/* 수정 저장 — 조정 뒤 품목이 «재고에서 빠지는 수량»이 달라졌을 때만 묻는다(단가·비고만 고친 저장은 그대로). 새 전표는 해당 없음.
+     재고에서 빠지는 수량 = 합계수량 − 출고차감(반품은 −, 불량반품은 0) — 서버 saveSalesTrx 와 같은 셈 */
+function saAdjGuard(items){
+  if (!_cur || !_cur.saleSeq) return Promise.resolve(true);
+  return saAdjAfter(_cur.saleSeq).then(function(adj){
+    if (!adj.length) return true;
+    var now = {};
+    (items||[]).forEach(function(o){ var c = String(o.prodCd||'').trim(); if (o.trxGb === '불량반품') return;
+      var q = Math.abs(n(o.qty)), out = Math.round(q - Math.min(Math.abs(n(o.stockCutQty)), q));
+      now[c] = (now[c]||0) + out * (o.trxGb === '반품' ? -1 : 1); });
+    var ch = adj.filter(function(x){ x.delta = n(x.qty) - (now[String(x.prodCd||'').trim()]||0); return Math.abs(x.delta) > 0.0001; });
+    if (!ch.length) return true;
+    return swConfirm('수량이 바뀐 품목이 있습니다. 그대로 저장할까요?'+saAdjWarnHtml(ch, 'mod'), null, '저장');
   });
 }
 function saDelete(){
   if (!_cur) { swErr('목록에서 전표를 먼저 선택하세요.'); return; }
+  var delSeq = _cur.saleSeq;
+  /* 삭제 전 — 이 전표 뒤에 재고조정을 한 품목이 있으면 확인창에 같이 알린다 (2026-11-25 saAdjAfter) */
   saClosedAsk([_cur.saleDt], '삭제').then(function(ok0){ return ok0
-    ? swConfirm('이 전표를 삭제할까요?<br><span style="font-size:13px;color:#3d4d5c">재고(수불원장)에서 빠졌던 출고도 함께 되돌아옵니다.</span>', null, '삭제')
+    ? saAdjAfter(delSeq).then(function(adj){ adj.forEach(function(x){ x.delta = n(x.qty); });
+        return swConfirm('이 전표를 삭제할까요?<br><span style="font-size:13px;color:#3d4d5c">재고(수불원장)에서 빠졌던 출고도 함께 되돌아옵니다.</span>'+saAdjWarnHtml(adj, 'del'), null, '삭제'); })
     : false; })
     .then(function(ok){
       if(!ok) return;
+      if(!_cur || _cur.saleSeq !== delSeq) return;   // 묻는 사이 다른 전표를 골랐으면 지우지 않는다
       post('/mangr/salesTrxDelete.do', { saleSeq:_cur.saleSeq, saleDt:_cur.saleDt, saleNo:_cur.saleNo }, true)
         .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t); }); swOk('삭제했습니다.'); saNew(); saLoad(); })
         .catch(function(e){ swErr('삭제에 실패했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });

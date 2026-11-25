@@ -3984,6 +3984,113 @@ public class UserController {
 				return ResponseEntity.ok(String.valueOf(svc.deletePurchase(dto)));
 			} catch (Exception e) { log.error(" purchaseDelete ERROR : " + e.getMessage()); return ResponseEntity.status(500).body(e.getMessage()); }
 		}
+		/* 이 매입전표의 품목 중 «전표 뒤에 재고조정을 한» 품목 (2026-11-25 「경고 넣어줘」) — 매입등록이 삭제·수량 수정 저장 전에 물어 확인창에 알린다.
+		   막지 않는다 · 조회만 한다 · 회사는 세션 값만 · 실패하면 빈 목록(경고 없이 종전 흐름). 응답은 Map(String 두 겹 감싸기 함정을 피한다). */
+		/* 한 품목의 «지운 매입전표» 입고 줄 (2026-11-25 「매입전표 삭제 후 재고조회 시 확인할 수 없나요」) — 품목별재고현황 ② 수불 내역 맨 위 「삭제된 입고」 줄.
+		   조회만 한다 · 회사는 세션 값만 · 실패하면 빈 목록(줄만 안 보인다). */
+		@RequestMapping(value="/prod/prodDelPurchList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> prodDelPurchList(@RequestParam(value="prodCd", required=false) String prodCd, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("data", new java.util.ArrayList<Object>());
+			try {
+				Object sc = session.getAttribute("s_comp_cd");
+				if (sc == null || prodCd == null || prodCd.trim().isEmpty()) { res.put("result", "FAIL"); return res; }
+				Map<String,Object> p = new HashMap<String,Object>();
+				p.put("prodCd", prodCd.trim()); p.put("compCd", String.valueOf(sc));
+				res.put("data", svc.selectProdDelPurch(p));
+				/* 지운 판매전표의 출고 줄도 같은 응답에(2026-11-25) — 따로 잡는다 : 이쪽이 실패해도 지운 매입 줄은 나간다 */
+				try { res.put("sales", svc.selectProdDelSales(p)); }
+				catch (Exception e2) { log.error(" prodDelPurchList sales ERROR : " + e2.getMessage()); res.put("sales", new java.util.ArrayList<Object>()); }
+				res.put("result", "OK");
+			} catch (Exception e) { log.error(" prodDelPurchList ERROR : " + e.getMessage()); res.put("result", "FAIL"); }
+			return res;
+		}
+		/* 지운 매입전표 되살리기 (2026-11-25 「지운 전표 되살리기도 넣어줘」) — 매입등록 품목 매입이력의 「🗑 지운 전표」 줄 [↩ 되살리기].
+		   purchaseRestoreInfo : 확인창에 쓸 것(번호 겹침 · 같은 거래처·같은 금액의 살아 있는 전표 = 중복 의심 · 지운 뒤 재고조정을 한 품목). 조회만.
+		   purchaseRestore     : 머리·줄을 되살리고 재고 원장을 다시 만든다(서비스 한 메서드 = 한 트랜잭션). 회사는 세션 값만. 응답은 Map. */
+		private static Long purchSeqOf(Map<String,Object> body) {
+			try { Object ps = body == null ? null : body.get("purchSeq");
+				return (ps == null || String.valueOf(ps).trim().isEmpty()) ? null : Long.valueOf(new java.math.BigDecimal(String.valueOf(ps).trim()).longValue());
+			} catch (Exception e) { return null; }
+		}
+		@RequestMapping(value="/mangr/purchaseRestoreInfo.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> purchaseRestoreInfo(@RequestBody Map<String,Object> body, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("result", "FAIL");
+			try {
+				Object sc = session.getAttribute("s_comp_cd"); Long seq = purchSeqOf(body);
+				if (sc == null) { res.put("message", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				if (seq == null) { res.put("message", "전표 키가 필요합니다."); return res; }
+				Map<String,Object> info = svc.purchaseRestoreInfo(seq, String.valueOf(sc));
+				if (info == null) { res.put("message", "지운 전표를 찾지 못했습니다 — 이미 되살렸거나 없는 전표입니다."); return res; }
+				res.putAll(info); res.put("result", "OK");
+			} catch (Exception e) { log.error(" purchaseRestoreInfo ERROR : " + e.getMessage()); res.put("message", "전표를 읽지 못했습니다."); }
+			return res;
+		}
+		@RequestMapping(value="/mangr/purchaseRestore.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> purchaseRestore(@RequestBody Map<String,Object> body, HttpServletRequest request, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("result", "FAIL");
+			try {
+				Object sc = session.getAttribute("s_comp_cd"); Long seq = purchSeqOf(body);
+				if (sc == null) { res.put("message", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요. (되살리지 않았습니다)"); return res; }
+				if (seq == null) { res.put("message", "전표 키가 필요합니다."); return res; }
+				String user = session.getAttribute("s_user_id") != null ? String.valueOf(session.getAttribute("s_user_id")) : "";
+				res.putAll(svc.restorePurchase(seq, String.valueOf(sc), user, request.getRemoteAddr()));
+				res.put("result", "OK");
+			} catch (IllegalStateException e) { res.put("message", e.getMessage());
+			} catch (Exception e) { log.error(" purchaseRestore ERROR : " + e.getMessage()); res.put("message", "되살리지 못했습니다 — " + e.getMessage()); }
+			return res;
+		}
+		/* 이 판매전표의 품목 중 «전표 뒤에 재고조정을 한» 품목 (2026-11-25 「판매전표 삭제·수정에도 같은 경고 넣어줘」) — 판매등록이 삭제·수량 수정 저장 전에 묻는다.
+		   막지 않는다 · 조회만 한다 · 실패하면 빈 목록(경고 없이 종전 흐름). */
+		@RequestMapping(value="/mangr/salesTrxAdjAfter.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> salesTrxAdjAfter(@RequestBody Map<String,Object> body, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("data", new java.util.ArrayList<Object>());
+			try {
+				Object sc = session.getAttribute("s_comp_cd"); Object ss = body == null ? null : body.get("saleSeq");
+				if (sc == null || ss == null || String.valueOf(ss).trim().isEmpty()) return res;
+				Map<String,Object> p = new HashMap<String,Object>();
+				p.put("saleSeq", Long.valueOf(new java.math.BigDecimal(String.valueOf(ss).trim()).longValue()));
+				p.put("compCd", String.valueOf(sc));
+				res.put("data", svc.selectSalesTrxAdjAfter(p));
+			} catch (Exception e) { log.error(" salesTrxAdjAfter ERROR : " + e.getMessage()); }
+			return res;
+		}
+		/* 지운 매입전표 목록 (2026-11-25 「여기에 삭제전표 어디서 보나요」) — 매입등록 [🗑 삭제 전표] 창. 기간 = 매입일자 또는 지운 날 · 거래처명 부분일치. 조회만 한다. */
+		@RequestMapping(value="/mangr/purchaseDelList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> purchaseDelList(@RequestParam(value="fromDt", required=false) String fromDt,
+		                                           @RequestParam(value="toDt", required=false) String toDt,
+		                                           @RequestParam(value="findData", required=false) String findData, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("data", new java.util.ArrayList<Object>()); res.put("result", "FAIL");
+			try {
+				Object sc = session.getAttribute("s_comp_cd");
+				if (sc == null) { res.put("message", "로그인이 끊겼습니다 — 다시 로그인한 뒤 해 주세요."); return res; }
+				String f = fromDt == null ? "" : fromDt.replace("-", "").trim(), t = toDt == null ? "" : toDt.replace("-", "").trim();
+				Map<String,Object> p = new HashMap<String,Object>();
+				p.put("fromDt", f.length() == 8 ? f : "00000000"); p.put("toDt", t.length() == 8 ? t : "99999999");
+				p.put("findData", findData == null ? "" : findData.trim()); p.put("compCd", String.valueOf(sc));
+				res.put("data", svc.selectPurchaseDelList(p));
+				res.put("result", "OK");
+			} catch (Exception e) { log.error(" purchaseDelList ERROR : " + e.getMessage()); res.put("message", "지운 전표를 읽지 못했습니다."); }
+			return res;
+		}
+		@RequestMapping(value="/mangr/purchaseAdjAfter.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> purchaseAdjAfter(@RequestBody Map<String,Object> body, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>(); res.put("data", new java.util.ArrayList<Object>());
+			try {
+				Object sc = session.getAttribute("s_comp_cd"); Object ps = body == null ? null : body.get("purchSeq");
+				if (sc == null || ps == null || String.valueOf(ps).trim().isEmpty()) return res;
+				Map<String,Object> p = new HashMap<String,Object>();
+				p.put("purchSeq", Long.valueOf(new java.math.BigDecimal(String.valueOf(ps).trim()).longValue()));
+				p.put("compCd", String.valueOf(sc));
+				res.put("data", svc.selectPurchaseAdjAfter(p));
+			} catch (Exception e) { log.error(" purchaseAdjAfter ERROR : " + e.getMessage()); }
+			return res;
+		}
 		/** 품목 선택 시 그 거래처의 최근 매입단가 (remark 칸에 거래처코드를 담아 보낸다) */
 		@RequestMapping(value="/mangr/purchaseLastPrice.do", method = RequestMethod.POST)
 		@ResponseBody

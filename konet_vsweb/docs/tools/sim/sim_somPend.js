@@ -14,7 +14,11 @@ const code = jsp.slice(a, b);
 function make(resp){
   const env = { calls: [], now: 5000000, resp, els: {}, fits: 0 };
   const el = (id) => env.els[id] || (env.els[id] = { innerHTML: '', textContent: '', style: {}, checked: false, querySelector: () => null });   /* style·checked = 「차이만」 체크(2026-11-24) */
-  const fetch = (url, opt) => { env.calls.push({ url, body: opt && opt.body });
+  const fetch = (url, opt) => {
+    if (/prodDelPurchList\.do$/.test(url)) { (env.dcalls = env.dcalls || []).push({ url, body: opt && opt.body });   /* 삭제된 입고(2026-11-25) — 따로 센다 */
+      if (env.del === 'fail') return Promise.resolve({ ok: false, status: 404, json: () => Promise.reject(new Error('x')) });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ result: 'OK', data: env.del || [], sales: env.dsales || [] }) }); }
+    env.calls.push({ url, body: opt && opt.body });
     if (env.resp === 'fail') return Promise.resolve({ ok: false, status: 404, json: () => Promise.reject(new Error('x')) });
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(env.resp) }); };
   const f = new Function('fetch', 'Date', 'document', 'CTX', 'num', 'esc', 'dt8', 'srcCls', 'srcIco', 'somFit', 'ctl',
@@ -120,6 +124,48 @@ const LED = [ { trxDt: '20261028', ioGb: 'A', qty: 1, adjBef: 30, adjAft: 31, re
     t('등록자 — 판매전표 줄은 빈 칸 · 이름을 모르면 아이디', O3[3][7] === '' && O3[4][7] === 'K009 ↻ 마스터');
     e.api.render(SEL, { out: OUT.map(o => Object.assign({}, o, { srcDttm: undefined })), ledger: LD }, '20260101', '20261122');
     t('옛 서버(올린 시간 없음) — 빈 칸 · 표 없음 · 오류 없음', cells(e.els.dtlOut.innerHTML).every(c => c.length === 8 && c[6] === '' && c[7] === '') && !/led-pre/.test(e.els.dtlOut.innerHTML));
+  }
+  /* ── 삭제된 입고 줄 (2026-11-25 · 운영 1000736038 그대로) ── */
+  {
+    const S11 = { ym: '202611', g: { key: '#ALL', nm: '품목 합계' }, it: { cd: '1000736038', seq: 204 } };
+    const LD = [ { trxDt: '20261118', ioGb: 'A', qty: 237, adjBef: 175, adjAft: 412, regDttm: '2026-11-18 09:53:04', remark: '상품코드등록에서 조정' } ];
+    const D = [ { purchSeq: 427, purchDt: '20260916', purchNo: '0002', vendorNm: '버개스패키지', prodCd: '1000736038', qty: 250, delDttm: '2026-11-22 18:48:02', delUser: 'admin', delUserNm: '마스터' },
+                { purchSeq: 469, purchDt: '20261002', purchNo: '0001', vendorNm: '그린팩코리아', prodCd: '1000736038', qty: 100, delDttm: '2026-10-02 13:53:53', delUser: 'K002', delUserNm: '설재우' } ];
+    const e = make({ result: 'OK', data: [] }); e.del = D;
+    e.api.render(S11, { out: [], ledger: LD }, '20260101', '20261125');
+    t('삭제된 입고 — 품목코드로 한 번 묻는다 · 처음엔 원장 줄만', e.dcalls.length === 1 && e.dcalls[0].url === '/konet/prod/prodDelPurchList.do' && e.dcalls[0].body === 'prodCd=1000736038' && cells(e.els.dtlIn.innerHTML).length === 1, JSON.stringify(e.dcalls));
+    await sleep(10);
+    let C = cells(e.els.dtlIn.innerHTML);
+    t('★11월 칸 — 11-22 에 지운 9월 전표가 맨 위에(10-02 에 지운 것은 안 보인다) · 6칸', C.length === 2 && C[0][1] === '🗑 삭제된 입고' && C.every(c => c.length === 6), C.map(c => c.join('|')).join(' // '));
+    t('삭제된 입고 — 매입일자·수량·매입처·근거·지운 때·사람', C[0][0] === '2026-09-16' && C[0][2] === '250' && C[0][3] === '버개스패키지' && C[0][4] === 'PURCH 20260916-0002' && /^11-22 18:48 마스터 삭제 — 재고에서 빠짐/.test(C[0][5]), C[0].join('|'));
+    t('★최근 조정(11-18) 뒤 삭제 — 빨간 「그때 맞춘 재고가 250 줄었습니다」', /조정 뒤 삭제 — 그때 맞춘 재고가 250 줄었습니다/.test(C[0][5]) && /class="led-delw"/.test(e.els.dtlIn.innerHTML));
+    t('머리 합계 — 원장 줄만 + 「삭제된 입고 1건」', /^1건 · 237 · 조정 \+237 \(전 175 → 수정재고 412\) · 삭제된 입고 1건$/.test(e.els.dtlInSum.textContent), e.els.dtlInSum.textContent);
+    e.api.render(Object.assign({}, S11, { ym: '202610' }), { out: [], ledger: LD }, '20260101', '20261125');
+    C = cells(e.els.dtlIn.innerHTML);
+    t('10월 칸 — 10-02 전표만(조정 전 삭제라 빨간 글 없음) · 원장 줄이 없어도 표를 그린다', C.length === 1 && C[0][0] === '2026-10-02' && !/led-delw/.test(e.els.dtlIn.innerHTML) && e.els.dtlInSum.textContent === '삭제된 입고 1건', C.map(c => c.join('|')).join(' // ') + ' / ' + e.els.dtlInSum.textContent);
+    e.api.render(Object.assign({}, S11, { ym: '202609' }), { out: [], ledger: LD }, '20260101', '20261125');
+    t('9월 칸 — 매입일자가 9월인 전표가 보인다', cells(e.els.dtlIn.innerHTML).length === 1 && cells(e.els.dtlIn.innerHTML)[0][0] === '2026-09-16');
+    e.api.render(Object.assign({}, S11, { ym: '' }), { out: [], ledger: LD }, '20260101', '20261125');
+    t('기간 합계(달 없음) — 기간 안의 것 전부(2줄) + 조정 줄', cells(e.els.dtlIn.innerHTML).length === 3);
+    t('60초 안에는 다시 묻지 않는다', e.dcalls.length === 1, e.dcalls.length);
+    /* 지운 판매전표 — 출고내역 맨 위 (2026-11-25) */
+    {
+      const SV = { saleSeq: 150, saleDt: '20261110', saleNo: '0003', custCd: '00177', custNm: '우리푸드', prodCd: '1000736038', qty: 30, delDttm: '2026-11-20 10:00:00', delUser: 'K002', delUserNm: '설재우' };
+      const SO = { saleSeq: 140, saleDt: '20261005', saleNo: '0002', custCd: '00999', custNm: '다른곳', prodCd: '1000736038', qty: 7, delDttm: '2026-10-06 09:00:00', delUser: 'K002' };
+      const es = make({ result: 'OK', data: [] }); es.dsales = [ SV, SO ];
+      es.api.render(S11, { out: [], ledger: LD }, '20260101', '20261125'); await sleep(10);
+      let O = cells(es.els.dtlOut.innerHTML);
+      t('★출고내역 — 11월 칸에 지운 판매전표 한 줄(10월 것은 안 보인다) · 8칸', O.length === 1 && O[0].length === 8 && O[0][0] === '2026-11-10' && O[0][1] === '우리푸드 (판매전표)' && O[0][4] === '🗑 삭제된 출고' && O[0][5] === '30' && O[0][7] === '설재우', O.map(c => c.join('|')).join(' // '));
+      t('★조정(11-18) 뒤 삭제 — 「그때 맞춘 재고가 30 늘었습니다」 · 머리에 「삭제된 판매전표 1건」', /판매전표 20261110-0003 삭제 — 재고로 되돌아옴/.test(O[0][3]) && /조정 뒤 삭제 — 그때 맞춘 재고가 30 늘었습니다/.test(O[0][3]) && es.els.dtlOutSum.textContent === '삭제된 판매전표 1건', O[0][3] + ' / ' + es.els.dtlOutSum.textContent);
+      es.api.render(Object.assign({}, S11, { g: { key: 'M0001', nm: '배고픈덮밥' } }), { out: [], ledger: LD }, '20260101', '20261125');
+      t('사업장 열을 골랐으면(판매전표 열이 아니면) 안 보인다', cells(es.els.dtlOut.innerHTML).length === 0);
+      es.api.render(Object.assign({}, S11, { ym: '', g: { key: 'STRX:00999', nm: '다른곳 (판매전표)' } }), { out: [], ledger: LD }, '20260101', '20261125');
+      O = cells(es.els.dtlOut.innerHTML);
+      t('그 거래처의 판매전표 열 — 그 거래처 것만(조정 전 삭제라 빨간 글 없음)', O.length === 1 && O[0][1] === '다른곳 (판매전표)' && !/led-delw/.test(es.els.dtlOut.innerHTML), O.map(c => c.join('|')).join(' // '));
+    }
+    const e2 = make({ result: 'OK', data: [] }); e2.del = 'fail';
+    e2.api.render(S11, { out: [], ledger: LD }, '20260101', '20261125'); await sleep(10);
+    t('옛 서버(404) — 줄 없음 · 종전 화면', cells(e2.els.dtlIn.innerHTML).length === 1 && !/삭제된 입고/.test(e2.els.dtlInSum.textContent));
   }
   console.log((bad ? '✗ ' : '✓ ') + 'sim_somPend : 통과 ' + ok + ' · 실패 ' + bad);
   process.exit(bad ? 1 : 0);

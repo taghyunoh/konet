@@ -5572,6 +5572,191 @@
 	     AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	]]></update>
 
+	<!-- 이 매입전표의 품목 중 «전표 뒤에 재고조정을 한» 품목 (2026-11-25 사용자 「경고 넣어줘」).
+	     까닭 : 재고조정은 «그때 재고에 얼마를 더했다(증감)»로 저장된다. 조정으로 실물에 맞춘 뒤 그 전 날짜의 입고 전표를 지우거나 수량을 고치면
+	     현재고가 그만큼 달라진다(2026-11-22 중복 매입전표 09-16-0002 삭제로 1000736038 이 250, 1000808776 이 105 낮아졌다).
+	     조건 : 조정을 저장한 때가 전표를 처음 등록한 때보다 뒤이고, 조정 기준일자가 매입일자 이후(그 조정이 이 입고를 품고 맞춘 것).
+	     화면(매입등록)이 삭제·수정 저장 전에 물어 확인창에 알린다. 막지 않는다. 조회만 한다. -->
+	<!-- 이 판매전표의 품목 중 «전표 뒤에 재고조정을 한» 품목 (2026-11-25 사용자 「판매전표 삭제·수정에도 같은 경고 넣어줘」 — selectPurchaseAdjAfter 의 판매 판).
+	     qty = 이 전표가 재고에서 «뺀» 수량(판매 = +(수량 − 출고차감) · 반품 = −(돌아온 수량) · 불량반품 = 0 — saveSalesTrx 가 원장에 넣는 것과 같은 셈, 줄마다 반올림).
+	     지우면 현재고가 그만큼 늘고, 수량을 고치면 그 차이만큼 달라진다. 조건은 매입 판과 같다(조정 저장 시각 > 전표 처음 등록 시각 · 조정 기준일자 ≥ 판매일자). 조회만 한다. -->
+	<select id="selectSalesTrxAdjAfter" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT x.prodCd, x.prodNm, x.qty,
+	         a.adjCnt, a.lastAdjDt, a.lastAdjDttm, a.lastAftQty,
+	         ISNULL((SELECT SUM(CASE WHEN l.IO_GB = 'O' THEN -l.QTY ELSE l.QTY END) FROM TBL_STOCK_LEDGER l
+	                  WHERE l.COMP_CD = x.COMP_CD AND l.PROD_CD = x.prodCd AND l.ACTION_YN = 'Y'), 0) AS curQty
+	    FROM ( SELECT m.COMP_CD, m.SALE_DT, ISNULL(m.REG_DTTM,'') AS mReg,
+	                  d.PROD_CD AS prodCd, MAX(d.PROD_NM) AS prodNm,
+	                  SUM(CASE WHEN d.TRX_GB = N'불량반품' THEN 0
+	                           ELSE (CASE WHEN d.TRX_GB = N'반품' THEN -1 ELSE 1 END)
+	                              * ROUND(ABS(ISNULL(d.QTY,0))
+	                                      - (CASE WHEN ABS(ISNULL(d.STOCK_CUT_QTY,0)) > ABS(ISNULL(d.QTY,0)) THEN ABS(ISNULL(d.QTY,0)) ELSE ABS(ISNULL(d.STOCK_CUT_QTY,0)) END), 0) END) AS qty
+	             FROM TBL_SALES_TRX_MST m
+	             JOIN TBL_SALES_TRX_DTL d ON d.SALE_SEQ = m.SALE_SEQ AND d.ACTION_YN = 'Y'
+	            WHERE m.SALE_SEQ = #{saleSeq} AND m.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	            GROUP BY m.COMP_CD, m.SALE_DT, ISNULL(m.REG_DTTM,''), d.PROD_CD ) x
+	   CROSS APPLY ( SELECT TOP 1 h.BASE_DT AS lastAdjDt, CONVERT(VARCHAR(19), h.REG_DTTM, 120) AS lastAdjDttm,
+	                        h.AFT_QTY AS lastAftQty, COUNT(*) OVER () AS adjCnt
+	                   FROM TBL_STOCK_ADJ_HIS h
+	                  WHERE h.COMP_CD = x.COMP_CD AND h.PROD_CD = x.prodCd AND h.ACTION_YN = 'Y'
+	                    AND CONVERT(VARCHAR(19), h.REG_DTTM, 120) > x.mReg
+	                    AND h.BASE_DT >= x.SALE_DT
+	                  ORDER BY CONVERT(VARCHAR(19), h.REG_DTTM, 120) DESC ) a
+	   WHERE x.qty <> 0
+	   ORDER BY x.prodCd
+	]]></select>
+
+	<!-- 지운 매입전표 목록 (2026-11-25 사용자 그림 — 매입등록 기간 목록 「여기에 삭제전표 어디서 보나요」) — 매입등록 [🗑 삭제 전표] 창.
+	     기간(목록의 검색기간)에 «매입일자» 또는 «지운 날»이 드는 지운 전표 · 지운 때 최근 순 300장. 줄 수·수량·첫 품명은 «지울 때 살아 있던 줄»(명세 중 마지막으로 닫힌 묶음). 조회만 한다. -->
+	<select id="selectPurchaseDelList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 300
+	         m.PURCH_SEQ AS purchSeq, m.PURCH_DT AS purchDt, m.PURCH_NO AS purchNo,
+	         ISNULL(m.VENDOR_CD,'') AS vendorCd, ISNULL(m.VENDOR_NM,'') AS vendorNm, ISNULL(m.TOT_AMT,0) AS totAmt,
+	         ISNULL(m.REG_DTTM,'') AS regDttm, ISNULL(m.REG_USER,'') AS regUser,
+	         ISNULL(m.UPD_DTTM,'') AS delDttm, ISNULL(m.UPD_USER,'') AS delUser,
+	         (SELECT MAX(um.USER_NM) FROM TBL_USER_MST um
+	           WHERE um.COMP_CD = m.COMP_CD AND LTRIM(RTRIM(um.USER_ID)) = LTRIM(RTRIM(m.UPD_USER))) AS delUserNm,
+	         ISNULL(x.lineCnt,0) AS lineCnt, ISNULL(x.qty,0) AS qty, ISNULL(x.firstNm,'') AS firstNm
+	    FROM TBL_PURCHASE_MST m
+	   OUTER APPLY ( SELECT COUNT(*) AS lineCnt,
+	                        SUM(CASE WHEN d.TRX_GB IN (N'반품', N'불량반품') THEN -ABS(d.QTY) ELSE d.QTY END) AS qty,
+	                        MAX(CASE WHEN d.ROW_NO = 1 THEN d.PROD_NM END) AS firstNm
+	                   FROM TBL_PURCHASE_DTL d
+	                  WHERE d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN = 'N'
+	                    AND d.UPD_DTTM = (SELECT MAX(d2.UPD_DTTM) FROM TBL_PURCHASE_DTL d2 WHERE d2.PURCH_SEQ = m.PURCH_SEQ) ) x
+	   WHERE m.ACTION_YN = 'N' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND ( m.PURCH_DT BETWEEN #{fromDt,jdbcType=VARCHAR} AND #{toDt,jdbcType=VARCHAR}
+	        OR LEFT(REPLACE(ISNULL(m.UPD_DTTM,''),'-',''), 8) BETWEEN #{fromDt,jdbcType=VARCHAR} AND #{toDt,jdbcType=VARCHAR} )
+	     AND ( ISNULL(#{findData,jdbcType=NVARCHAR},'') = '' OR m.VENDOR_NM LIKE '%' + #{findData,jdbcType=NVARCHAR} + '%' )
+	   ORDER BY m.UPD_DTTM DESC, m.PURCH_SEQ DESC
+	]]></select>
+
+	<!-- 지운 매입전표 되살리기 (2026-11-25 사용자 「지운 전표 되살리기도 넣어줘」) — 4문. 회사 조건은 전부 세션 회사 그대로(비면 전체가 아니다).
+	     selectPurchaseDelInfo  : 지운 전표 머리 한 줄 + 번호 겹침(dupYn · 그 날 다음 번호 nextNo) + 닮은 전표(twinNo — 같은 거래처·같은 합계의 살아 있는 전표, 31일 안 = 중복 의심)
+	     selectPurchaseDelLines : 지울 때 살아 있던 줄(품목별 수량) + 지금 현재고 + «지운 뒤에» 한 재고조정(되살리면 그때 맞춘 재고가 그만큼 는다)
+	     restorePurchaseMst     : 머리를 Y 로(번호가 겹치면 서비스가 다음 번호를 준다 — UX_PURCH_NO 는 살아 있는 전표끼리만 유일)
+	     restorePurchaseDtlLast : 그 전표 명세 중 마지막으로 닫힌 묶음(지울 때 살아 있던 줄)만 Y 로 — 고쳐 저장하며 닫힌 옛 줄은 안 살린다
+	     재고 원장은 서비스(restorePurchase)가 살린 줄로 다시 만든다(저장과 같은 식). 매입단가 이력·마스터 매입가는 손대지 않는다. -->
+	<select id="selectPurchaseDelInfo" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT m.PURCH_SEQ AS purchSeq, m.PURCH_DT AS purchDt, m.PURCH_NO AS purchNo,
+	         ISNULL(m.VENDOR_CD,'') AS vendorCd, ISNULL(m.VENDOR_NM,'') AS vendorNm, ISNULL(m.TOT_AMT,0) AS totAmt, ISNULL(m.WH_CD,'') AS whCd,
+	         ISNULL(m.UPD_DTTM,'') AS delDttm, ISNULL(m.UPD_USER,'') AS delUser,
+	         CASE WHEN EXISTS ( SELECT 1 FROM TBL_PURCHASE_MST o
+	                             WHERE o.COMP_CD = m.COMP_CD AND o.PURCH_DT = m.PURCH_DT AND o.PURCH_NO = m.PURCH_NO AND o.ACTION_YN = 'Y' )
+	              THEN 'Y' ELSE 'N' END AS dupYn,
+	         ( SELECT RIGHT('000' + CAST(ISNULL(MAX(CAST(o.PURCH_NO AS INT)),0) + 1 AS VARCHAR(4)), 4)
+	             FROM TBL_PURCHASE_MST o WHERE o.COMP_CD = m.COMP_CD AND o.PURCH_DT = m.PURCH_DT AND o.ACTION_YN = 'Y' ) AS nextNo,
+	         ( SELECT TOP 1 o.PURCH_DT + '-' + o.PURCH_NO
+	             FROM TBL_PURCHASE_MST o
+	            WHERE o.COMP_CD = m.COMP_CD AND o.ACTION_YN = 'Y' AND o.PURCH_SEQ <> m.PURCH_SEQ
+	              AND ISNULL(o.VENDOR_CD,'') = ISNULL(m.VENDOR_CD,'') AND o.TOT_AMT = m.TOT_AMT AND ISNULL(m.TOT_AMT,0) <> 0
+	              AND ABS(DATEDIFF(DAY, TRY_CONVERT(date, o.PURCH_DT, 112), TRY_CONVERT(date, m.PURCH_DT, 112))) <= 31
+	            ORDER BY ABS(DATEDIFF(DAY, TRY_CONVERT(date, o.PURCH_DT, 112), TRY_CONVERT(date, m.PURCH_DT, 112))), o.PURCH_DT ) AS twinNo
+	    FROM TBL_PURCHASE_MST m
+	   WHERE m.PURCH_SEQ = #{purchSeq} AND m.ACTION_YN = 'N' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	]]></select>
+	<select id="selectPurchaseDelLines" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT x.prodCd, x.prodNm, x.qty, a.adjCnt, a.lastAdjDt, a.lastAftQty,
+	         ISNULL((SELECT SUM(CASE WHEN l.IO_GB = 'O' THEN -l.QTY ELSE l.QTY END) FROM TBL_STOCK_LEDGER l
+	                  WHERE l.COMP_CD = x.COMP_CD AND l.PROD_CD = x.prodCd AND l.ACTION_YN = 'Y'), 0) AS curQty
+	    FROM ( SELECT m.COMP_CD, ISNULL(m.UPD_DTTM,'') AS delAt, d.PROD_CD AS prodCd, MAX(d.PROD_NM) AS prodNm,
+	                  SUM(CASE WHEN d.TRX_GB IN (N'반품', N'불량반품') THEN -ABS(d.QTY) ELSE d.QTY END) AS qty
+	             FROM TBL_PURCHASE_MST m
+	             JOIN TBL_PURCHASE_DTL d ON d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN = 'N'
+	              AND d.UPD_DTTM = (SELECT MAX(d2.UPD_DTTM) FROM TBL_PURCHASE_DTL d2 WHERE d2.PURCH_SEQ = m.PURCH_SEQ)
+	            WHERE m.PURCH_SEQ = #{purchSeq} AND m.ACTION_YN = 'N' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	            GROUP BY m.COMP_CD, ISNULL(m.UPD_DTTM,''), d.PROD_CD ) x
+	   OUTER APPLY ( SELECT TOP 1 h.BASE_DT AS lastAdjDt, h.AFT_QTY AS lastAftQty, COUNT(*) OVER () AS adjCnt
+	                   FROM TBL_STOCK_ADJ_HIS h
+	                  WHERE h.COMP_CD = x.COMP_CD AND h.PROD_CD = x.prodCd AND h.ACTION_YN = 'Y'
+	                    AND CONVERT(VARCHAR(19), h.REG_DTTM, 120) > x.delAt
+	                  ORDER BY CONVERT(VARCHAR(19), h.REG_DTTM, 120) DESC ) a
+	   ORDER BY x.prodCd
+	]]></select>
+	<update id="restorePurchaseMst" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_PURCHASE_MST SET ACTION_YN = 'Y', PURCH_NO = #{purchNo,jdbcType=VARCHAR},
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE PURCH_SEQ = #{purchSeq} AND ACTION_YN = 'N' AND COMP_CD = #{compCd,jdbcType=VARCHAR}
+	]]></update>
+	<update id="restorePurchaseDtlLast" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_PURCHASE_DTL SET ACTION_YN = 'Y',
+	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
+	   WHERE PURCH_SEQ = #{purchSeq} AND ACTION_YN = 'N' AND COMP_CD = #{compCd,jdbcType=VARCHAR}
+	     AND UPD_DTTM = (SELECT MAX(d2.UPD_DTTM) FROM TBL_PURCHASE_DTL d2 WHERE d2.PURCH_SEQ = #{purchSeq})
+	]]></update>
+
+	<select id="selectProdDelSales" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  /* 한 품목의 «지운 판매전표» 출고 줄 (2026-11-25 사용자 「품목별재고, 월별재고에 판매등록 삭제는 상관없나요」) — selectProdDelPurch 의 판매 판.
+	     판매전표를 지우면 그 출고가 원장에서 빠져 재고가 그만큼 «는다» — 조정으로 맞춘 뒤에 지우면 현재고가 실물보다 많아진다.
+	     qty = 그 전표가 재고에서 뺐던 수량(판매 = 수량 − 출고차감 · 반품 = −돌아온 수량 · 불량반품 = 0 — saveSalesTrx 원장과 같은 셈).
+	     머리가 지워진(N) 전표의 «지울 때 살아 있던 줄»(명세 중 마지막으로 닫힌 묶음). 조회만 한다. */
+	  SELECT TOP 20
+	         m.SALE_SEQ AS saleSeq, REPLACE(ISNULL(m.SALE_DT,''),'-','') AS saleDt, m.SALE_NO AS saleNo,
+	         ISNULL(MAX(m.CUST_CD),'') AS custCd, ISNULL(MAX(m.CUST_NM),'') AS custNm, d.PROD_CD AS prodCd,
+	         SUM(CASE WHEN d.TRX_GB = N'불량반품' THEN 0
+	                  ELSE (CASE WHEN d.TRX_GB = N'반품' THEN -1 ELSE 1 END)
+	                     * ROUND(ABS(ISNULL(d.QTY,0))
+	                             - (CASE WHEN ABS(ISNULL(d.STOCK_CUT_QTY,0)) > ABS(ISNULL(d.QTY,0)) THEN ABS(ISNULL(d.QTY,0)) ELSE ABS(ISNULL(d.STOCK_CUT_QTY,0)) END), 0) END) AS qty,
+	         MAX(d.UNIT_PRICE) AS unitPrice,
+	         SUM(CASE WHEN d.TRX_GB IN (N'반품', N'불량반품') THEN -ABS(ISNULL(d.AMT,0)) ELSE ISNULL(d.AMT,0) END) AS amt,
+	         ISNULL(m.REG_DTTM,'') AS regDttm, ISNULL(m.UPD_DTTM,'') AS delDttm, MAX(m.UPD_USER) AS delUser,
+	         (SELECT MAX(um.USER_NM) FROM TBL_USER_MST um
+	           WHERE um.COMP_CD = m.COMP_CD AND LTRIM(RTRIM(um.USER_ID)) = LTRIM(RTRIM(MAX(m.UPD_USER)))) AS delUserNm
+	    FROM TBL_SALES_TRX_MST m
+	    JOIN TBL_SALES_TRX_DTL d ON d.SALE_SEQ = m.SALE_SEQ AND d.ACTION_YN = 'N'
+	     AND d.UPD_DTTM = (SELECT MAX(d2.UPD_DTTM) FROM TBL_SALES_TRX_DTL d2 WHERE d2.SALE_SEQ = m.SALE_SEQ)
+	   WHERE m.ACTION_YN = 'N' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR} AND d.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	   GROUP BY m.COMP_CD, m.SALE_SEQ, m.SALE_DT, m.SALE_NO, d.PROD_CD, ISNULL(m.REG_DTTM,''), ISNULL(m.UPD_DTTM,'')
+	   ORDER BY ISNULL(m.UPD_DTTM,'') DESC
+	]]></select>
+
+	<select id="selectProdDelPurch" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  /* 한 품목의 «지운 매입전표» 입고 줄 (2026-11-25 사용자 「매입전표 삭제 후 재고조회 시 확인할 수 없나요」) — 품목별재고현황 ② 수불 내역 맨 위에 보인다.
+	     지운 전표의 입고는 원장에서 흔적 없이 빠져, 재고가 왜 줄었는지 화면으로는 알 길이 없었다.
+	     머리가 지워진(N) 전표의 «지울 때 살아 있던 줄» = 그 전표 명세 중 마지막으로 닫힌 묶음(고쳐 저장할 때 닫힌 옛 줄은 뺀다). 조회만 한다. */
+	  SELECT TOP 20
+	         m.PURCH_SEQ AS purchSeq, m.PURCH_DT AS purchDt, m.PURCH_NO AS purchNo, MAX(m.VENDOR_NM) AS vendorNm,
+	         d.PROD_CD AS prodCd,
+	         SUM(CASE WHEN d.TRX_GB IN (N'반품', N'불량반품') THEN -ABS(d.QTY) ELSE d.QTY END) AS qty,
+	         MAX(d.UNIT_PRICE) AS unitPrice,
+	         SUM(CASE WHEN d.TRX_GB IN (N'반품', N'불량반품') THEN -ABS(d.AMT) ELSE d.AMT END) AS amt,
+	         CONVERT(VARCHAR(19), m.REG_DTTM, 120) AS regDttm,
+	         CONVERT(VARCHAR(19), m.UPD_DTTM, 120) AS delDttm, MAX(m.UPD_USER) AS delUser,
+	         (SELECT MAX(um.USER_NM) FROM TBL_USER_MST um
+	           WHERE um.COMP_CD = m.COMP_CD AND LTRIM(RTRIM(um.USER_ID)) = LTRIM(RTRIM(MAX(m.UPD_USER)))) AS delUserNm
+	    FROM TBL_PURCHASE_MST m
+	    JOIN TBL_PURCHASE_DTL d ON d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN = 'N'
+	     AND d.UPD_DTTM = (SELECT MAX(d2.UPD_DTTM) FROM TBL_PURCHASE_DTL d2 WHERE d2.PURCH_SEQ = m.PURCH_SEQ)
+	   WHERE m.ACTION_YN = 'N' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR} AND d.PROD_CD = #{prodCd,jdbcType=VARCHAR}
+	   GROUP BY m.COMP_CD, m.PURCH_SEQ, m.PURCH_DT, m.PURCH_NO, d.PROD_CD, CONVERT(VARCHAR(19), m.REG_DTTM, 120), CONVERT(VARCHAR(19), m.UPD_DTTM, 120)
+	   ORDER BY CONVERT(VARCHAR(19), m.UPD_DTTM, 120) DESC
+	]]></select>
+
+	<select id="selectPurchaseAdjAfter" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT x.prodCd, x.prodNm, x.qty,
+	         a.adjCnt, a.lastAdjDt, a.lastAdjDttm, a.lastAftQty, a.lastAdjUser,
+	         (SELECT MAX(um.USER_NM) FROM TBL_USER_MST um
+	           WHERE um.COMP_CD = x.COMP_CD AND LTRIM(RTRIM(um.USER_ID)) = LTRIM(RTRIM(a.lastAdjUser))) AS lastAdjUserNm,
+	         ISNULL((SELECT SUM(CASE WHEN l.IO_GB = 'O' THEN -l.QTY ELSE l.QTY END) FROM TBL_STOCK_LEDGER l
+	                  WHERE l.COMP_CD = x.COMP_CD AND l.PROD_CD = x.prodCd AND l.ACTION_YN = 'Y'), 0) AS curQty
+	    FROM ( SELECT m.COMP_CD, m.PURCH_DT, CONVERT(VARCHAR(19), m.REG_DTTM, 120) AS mReg,
+	                  d.PROD_CD AS prodCd, MAX(d.PROD_NM) AS prodNm,
+	                  SUM(CASE WHEN d.TRX_GB IN (N'반품', N'불량반품') THEN -ABS(d.QTY) ELSE d.QTY END) AS qty
+	             FROM TBL_PURCHASE_MST m
+	             JOIN TBL_PURCHASE_DTL d ON d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN = 'Y'
+	            WHERE m.PURCH_SEQ = #{purchSeq} AND m.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	            GROUP BY m.COMP_CD, m.PURCH_DT, CONVERT(VARCHAR(19), m.REG_DTTM, 120), d.PROD_CD ) x
+	   CROSS APPLY ( SELECT TOP 1 h.BASE_DT AS lastAdjDt, CONVERT(VARCHAR(19), h.REG_DTTM, 120) AS lastAdjDttm,
+	                        h.AFT_QTY AS lastAftQty, h.REG_USER AS lastAdjUser, COUNT(*) OVER () AS adjCnt
+	                   FROM TBL_STOCK_ADJ_HIS h
+	                  WHERE h.COMP_CD = x.COMP_CD AND h.PROD_CD = x.prodCd AND h.ACTION_YN = 'Y'
+	                    AND CONVERT(VARCHAR(19), h.REG_DTTM, 120) > x.mReg
+	                    AND h.BASE_DT >= x.PURCH_DT
+	                  ORDER BY CONVERT(VARCHAR(19), h.REG_DTTM, 120) DESC ) a
+	   WHERE x.qty <> 0
+	   ORDER BY x.prodCd
+	]]></select>
+
 	<!-- 논리삭제 : 헤더 + 명세. 파생 원장은 서비스가 LEDGER_SEQ 로 따로 지운다 -->
 	<update id="deletePurchaseMst" parameterType="egovframework.konet.user.model.PurchaseDTO"><![CDATA[
 	  UPDATE TBL_PURCHASE_MST SET ACTION_YN='N',

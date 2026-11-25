@@ -311,6 +311,8 @@
       <button class="pu-btn teal" onclick="puLoad()">리스트조회</button>
       <%-- 🕘 수정이력 (2026-11-16 「매입등록도 같이」) — 판매등록과 같은 창(asset/js/trx-hist.js) --%>
       <button class="pu-btn" style="margin-left:auto" onclick="konetTrxHist({kind:'purch', title:'매입', single:true, seq:(_cur&&_cur.purchSeq)||null, open:function(s){ pphOpen(s, null); }})" title="아래 목록에서 고른(위에 불러온) 매입전표의 수정이력 — 누가 언제 등록·수정·삭제했는지, 저장한 판마다 품목·금액 (2026-11-17)">🕘 수정이력</button>
+      <%-- 🗑 삭제 전표 (2026-11-25 「여기에 삭제전표 어디서 보나요」) — 검색기간의 지운 매입전표 목록 + 되살리기 --%>
+      <button class="pu-btn" onclick="pdlOpen()" title="지운 매입전표 — 왼쪽 검색기간에 매입일자가 있거나 그 기간에 지운 전표를 모아 봅니다. 그 자리에서 되살릴 수 있습니다.">🗑 삭제 전표</button>
     </div>
     <%-- 🔎 품목 매입이력 요약 줄 (도구줄 아래, 표 위) --%>
     <div id="pphHead" style="display:none; margin:2px 0 6px; font-size:13px; color:#37475a"></div>
@@ -674,6 +676,20 @@
 </div>
 
 <!-- 복사저장 설정 팝업 — 지난 전표의 명세를 '다른 일자·다른 거래처'로 복제할 때 쓴다 -->
+<%-- 🗑 삭제 전표 (2026-11-25) — 지운 매입전표 목록 + [↩ 되살리기] --%>
+<div class="pu-pop" id="puDelPop">
+  <div class="box" style="width:min(1120px,96vw)">
+    <div class="hd">🗑 삭제 전표 <span id="pdlHead" style="font-weight:400;font-size:12.5px;color:#5a6b7a"></span><span style="margin-left:auto"><span class="pu-btn" style="border:0;background:transparent;font-size:18px" onclick="pdlClose()">✕</span></span></div>
+    <div class="bd">
+      <div style="max-height:56vh; overflow:auto; border:1px solid var(--pu-bd); border-radius:6px; margin-top:10px">
+        <table><thead><tr><th style="width:92px">매입일자</th><th style="width:52px">번호</th><th>거래처</th><th>품목</th><th style="width:70px">수량</th><th style="width:104px">합계</th><th style="width:128px">지운 때</th><th style="width:76px">지운 사람</th><th style="width:92px">되살리기</th></tr></thead>
+          <tbody id="pdlBody"></tbody></table>
+      </div>
+      <div style="margin-top:8px; color:#3d4d5c; font-size:12.5px">지운 전표는 재고·매입액에 들어 있지 않습니다. <b>[↩ 되살리기]</b>를 누르면 전표와 입고가 되살아납니다 — 중복 전표였는지는 확인창에서 알려 줍니다.</div>
+    </div>
+    <div class="ft"><button class="pu-btn" onclick="pdlClose()">닫기</button></div>
+  </div>
+</div>
 <div class="pu-pop" id="puCopyPop">
   <div class="box" style="width:min(620px,94vw)">
     <div class="hd">복사저장 설정 <span style="margin-left:auto"><span class="pu-btn" style="border:0;background:transparent;font-size:18px" onclick="puCopyClose()">✕</span></span></div>
@@ -1402,7 +1418,47 @@ function puSave(){
   if (!items.length) { swErr('상품을 한 줄 이상 입력하세요.'); return; }
   return puSubCodeGuard(items).then(function(go){
     if (!go) return false;
-    return puSaveGo();
+    return puAdjGuard(items).then(function(go2){ return go2 ? puSaveGo() : false; });
+  });
+}
+/* ★전표 뒤에 재고조정을 한 품목 경고 (2026-11-25 사용자 「경고 넣어줘」).
+     재고조정은 «그때 재고에 얼마를 더했다»로 저장된다 — 실물에 맞춰 조정한 뒤 그 전 날짜의 입고 전표를 지우거나 수량을 고치면 현재고가 그만큼 달라진다
+     (2026-11-22 중복 매입전표 삭제로 두 품목 재고가 250 · 105 낮아진 일). 삭제·수정 저장 전에 서버에 물어 확인창에 알린다. ★막지 않는다.
+     서버가 옛 판이거나 조회가 실패하면 빈 목록 = 경고 없이 종전 흐름. */
+function puAdjAfter(purchSeq){
+  if (!purchSeq) return Promise.resolve([]);
+  return post('/mangr/purchaseAdjAfter.do', { purchSeq:purchSeq }, true)
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){ if (typeof j === 'string') { try { j = JSON.parse(j); } catch(e){ j = null; } } return (j && j.data) || []; })
+    .catch(function(){ return []; });
+}
+/* list 의 delta = 저장(삭제) 뒤 현재고가 달라지는 양(삭제 = −수량 · 수정 = 새 수량 − 옛 수량) */
+function puAdjWarnHtml(list, mode){
+  if (!list || !list.length) return '';
+  var md = function(d){ d = String(d||''); return d.length === 8 ? d.slice(4,6)+'-'+d.slice(6,8) : d; };
+  var h = '<div class="pu-adjwarn" style="margin-top:9px;padding:8px 10px;border:1px solid #f0c36d;background:#fff8e1;border-radius:8px;text-align:left;font-size:12.5px;line-height:1.5;color:#5a4a1a">'
+        + '<b>⚠ '+(mode === 'res' ? '이 전표를 지운 뒤에' : '이 전표 뒤에')+' 재고조정을 한 품목이 있습니다</b><br>'
+        + (mode === 'del' ? '삭제하면' : mode === 'res' ? '되살리면' : '수량을 바꾸면') + ' 그때 맞춘 재고가 그만큼 달라집니다.';
+  list.slice(0, 5).forEach(function(x){
+    var cur = n(x.curQty), aft = cur + n(x.delta), nm = String(x.prodNm||'');
+    h += '<div style="margin-top:4px">· <b>'+esc(x.prodCd)+'</b> <span title="'+esc(nm)+'">'+esc(nm.length > 16 ? nm.slice(0,16)+'…' : nm)+'</span><br>'
+       + '<span style="padding-left:9px">현재고 '+fmtQ(cur)+' → <b style="color:#c0392b">'+fmtQ(aft)+'</b>'
+       + ' <span style="color:#8a7a4a">('+esc(md(x.lastAdjDt))+' 조정 · 수정재고 '+fmtQ(x.lastAftQty)+(n(x.adjCnt) > 1 ? ' · 조정 '+n(x.adjCnt)+'회' : '')+')</span></span></div>';
+  });
+  if (list.length > 5) h += '<div style="margin-top:4px">· 외 '+(list.length-5)+'품목</div>';
+  h += '<div style="margin-top:6px">실물에 맞춰 두었던 재고라면, '+(mode === 'del' ? '삭제' : mode === 'res' ? '되살린' : '저장')+' 뒤 <b>재고 일괄조정</b>으로 다시 맞추세요.</div></div>';
+  return h;
+}
+/* 수정 저장 — 조정 뒤 품목의 «수량이 달라졌을 때만» 묻는다(단가·비고만 고친 저장은 그대로 지나간다). 새 전표는 해당 없음. */
+function puAdjGuard(items){
+  if (!_cur || !_cur.purchSeq) return Promise.resolve(true);
+  return puAdjAfter(_cur.purchSeq).then(function(adj){
+    if (!adj.length) return true;
+    var now = {};
+    (items||[]).forEach(function(o){ var c = String(o.prodCd||'').trim(); now[c] = (now[c]||0) + Math.abs(n(o.qty)) * (isRtn(o.trxGb) ? -1 : 1); });
+    var ch = adj.filter(function(x){ x.delta = (now[String(x.prodCd||'').trim()]||0) - n(x.qty); return Math.abs(x.delta) > 0.0001; });
+    if (!ch.length) return true;
+    return swConfirm('수량이 바뀐 품목이 있습니다. 그대로 저장할까요?'+puAdjWarnHtml(ch, 'mod'), null, '저장');
   });
 }
 function puSaveGo(){
@@ -1431,9 +1487,15 @@ function puSaveGo(){
 }
 function puDelete(){
   if (!_cur) { swErr('목록에서 전표를 먼저 선택하세요.'); return; }
-  swConfirm('이 전표를 삭제할까요?<br><span style="font-size:13px;color:#3d4d5c">재고(수불원장)에 기록된 입고도 함께 취소됩니다.</span>', null, '삭제')
+  var delSeq = _cur.purchSeq;
+  /* 삭제 전 — 이 전표 뒤에 재고조정을 한 품목이 있으면 확인창에 같이 알린다 (2026-11-25 puAdjAfter) */
+  puAdjAfter(delSeq).then(function(adj){
+    adj.forEach(function(x){ x.delta = -n(x.qty); });
+    return swConfirm('이 전표를 삭제할까요?<br><span style="font-size:13px;color:#3d4d5c">재고(수불원장)에 기록된 입고도 함께 취소됩니다.</span>'+puAdjWarnHtml(adj, 'del'), null, '삭제');
+  })
     .then(function(ok){
       if(!ok) return;
+      if(!_cur || _cur.purchSeq !== delSeq) return;   // 묻는 사이 다른 전표를 골랐으면 지우지 않는다
       post('/mangr/purchaseDelete.do', { purchSeq:_cur.purchSeq, purchDt:_cur.purchDt, purchNo:_cur.purchNo }, true)
         .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t); }); swOk('삭제했습니다.'); puNew(); puLoad(); })
         .catch(function(e){ swErr('삭제에 실패했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(e.message)+'</span>'); });
@@ -1568,7 +1630,9 @@ function pphLoad(){
   if(!_pph.cd){ swAlert('품목을 고르세요 — 코드나 상품명을 치면 후보가 뜹니다.'); return; }
   var p=pphProd(_pph.cd)||{}; _pph.mode=true; pphHead(true); _list=[]; _lShown=0;
   b.innerHTML='<tr><td colspan="10" class="pu-msg">조회 중…</td></tr>';
-  post('/mangr/purchaseHistByProd.do','prodCd='+encodeURIComponent(_pph.cd)).then(function(r){ return r.json(); }).then(function(j){
+  /* 지운 전표도 함께 읽는다(2026-11-25) — 실패·옛 서버면 빈 목록이라 종전 화면 그대로 */
+  Promise.all([ post('/mangr/purchaseHistByProd.do','prodCd='+encodeURIComponent(_pph.cd)).then(function(r){ return r.json(); }), pphDelLoad(_pph.cd) ]).then(function(pa){
+    var j=pa[0], del=pa[1]||[];
     if(!_pph.mode) return;
     var rows=(j&&j.data)||[], h='', tq=0, ta=0, groups=[], gmap={};
     rows.forEach(function(o){ var k=String(o.vendorCd||'')+'|'+(o.vendorNm||''); var g=gmap[k]; if(!g){ g=gmap[k]={ nm:o.vendorNm||'(거래처 없음)', cd:o.vendorCd||'', rows:[], qty:0, amt:0, last:'' }; groups.push(g); } g.rows.push(o); var sg=(String(o.trxGb||'').indexOf('반품')>=0)?-1:1; g.qty+=sg*n(o.qty); g.amt+=sg*n(o.supplyAmt); if(String(o.purchDt||'')>g.last) g.last=String(o.purchDt||''); tq+=sg*n(o.qty); ta+=sg*n(o.supplyAmt); });
@@ -1580,10 +1644,105 @@ function pphLoad(){
           +'<td>'+esc(o.mgrNm||'')+'</td><td class="num">'+n(o.boxQty)+'</td><td class="num">'+n(o.eaQty)+'</td><td class="num'+(ret?' ret':'')+'"><b>'+fmt(o.qty)+'</b></td><td class="num">'+fmt(o.unitPrice)+'</td><td class="num">'+fmt(o.supplyAmt)+'</td></tr>'; });
     });
     if(!rows.length) h='<tr><td colspan="10" class="pu-msg">이 품목이 든 매입전표가 없습니다.</td></tr>';
+    h+=pphDelHtml(del);
     b.innerHTML=h;
     document.getElementById('puTotal').textContent=rows.length;
     var hd=document.getElementById('pphHead'); hd.style.display=''; hd.innerHTML='🔎 <b>'+esc(_pph.cd)+'</b> '+esc(p.prodNm||'')+(p.spec?' <span style="color:#8a97a4">'+esc(p.spec)+'</span>':'')+' · 거래처 <b>'+groups.length+'곳</b> · 전표 '+rows.length+'건 · 수량 '+fmt(tq)+' · 공급가 '+fmt(ta)+(rows.length>=500?' <span style="color:#a6241c">(최근 500줄까지만)</span>':'')+' <span style="color:#8a97a4">— 날짜 무관 · 지우고 [리스트조회]로 돌아갑니다</span>';
   }).catch(function(e){ b.innerHTML='<tr><td colspan="10" class="pu-msg" style="color:#c0392b">조회 오류 : '+esc(e.message)+'</td></tr>'; });
+}
+/* ★품목 매입이력 맨 아래 «지운 전표» (2026-11-25 사용자 「삭제전표 여기서 확인해야 하나요」).
+     이 목록은 살아 있는 전표만 보여 줘, 지운 매입전표는 어느 화면에서도 찾을 수 없었다(2026-11-22 중복 전표 09-16-0002 삭제 건).
+     자료 = 품목별재고현황 「삭제된 입고」 줄과 같은 /prod/prodDelPurchList.do (그 품목이 든 지운 전표 · 지운 때 최근 순 20).
+     ★보기만 — 누를 수 없다(지운 전표는 열 수 없다). 합계·건수에도 안 넣는다. */
+function pphDelLoad(cd){
+  return post('/prod/prodDelPurchList.do','prodCd='+encodeURIComponent(cd))
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){ if (typeof j === 'string') { try { j = JSON.parse(j); } catch(e){ j = null; } } return (j && j.result === 'OK' && j.data) || []; })
+    .catch(function(){ return []; });
+}
+function pphDelHtml(list){
+  if (!list || !list.length) return '';
+  var h = '<tr class="pphv pphdel"><td colspan="10" style="background:#f1f2f4;color:#55606c">🗑 지운 전표 '+list.length+'건'
+        + ' <span style="font-weight:400;margin-left:10px">삭제된 전표라 재고·매입액·위 합계에 들어 있지 않습니다 (보기만 — 열 수 없습니다)</span></td></tr>';
+  list.forEach(function(o){
+    var del = String(o.delDttm||''), who = o.delUserNm || o.delUser || '';
+    h += '<tr class="pphdel" style="color:#8a97a4;cursor:default" title="'+esc(fmtDt(o.purchDt)+'-'+(o.purchNo||'')+' 전표 — '+del+' '+who+' 삭제')+'">'
+       + '<td>'+esc(fmtDt(o.purchDt))+'</td><td>'+esc(o.purchNo||'')+'</td><td></td>'
+       + '<td class="txt" style="text-align:left;white-space:normal">'+esc(o.vendorNm||'')
+       +   ' <span style="color:#c0392b;font-weight:700;white-space:nowrap">[삭제 '+esc(del.slice(0,16))+(who ? ' · '+esc(who) : '')+']</span></td>'
+       + '<td><button type="button" class="pu-btn" style="padding:1px 7px;font-size:11.5px;white-space:nowrap" onclick="pphRestore('+Number(o.purchSeq)+')" title="이 전표를 되살립니다 — 재고에 입고가 다시 들어갑니다">↩ 되살리기</button></td>'
+       + '<td class="num"></td><td class="num"></td><td class="num"><b>'+fmt(o.qty)+'</b></td><td class="num">'+fmt(o.unitPrice)+'</td><td class="num">'+fmt(o.amt)+'</td></tr>';
+  });
+  return h;
+}
+/* ★[🗑 삭제 전표] 창 (2026-11-25 사용자 그림 — 기간 목록 화면 「여기에 삭제전표 어디서 보나요」).
+     품목을 몰라도 지운 전표를 찾게 — 목록의 검색기간(매입일자 또는 지운 날)·거래처명 그대로 /mangr/purchaseDelList.do 에 묻는다(지운 때 최근 순 300장).
+     줄의 [↩ 되살리기] 는 품목 매입이력의 것과 같은 pphRestore(seq). 옛 서버면 「읽지 못했습니다」 한 줄. */
+function pdlOpen(){ document.getElementById('puDelPop').classList.add('on'); pdlLoad(); }
+function pdlClose(){ document.getElementById('puDelPop').classList.remove('on'); }
+function pdlLoad(){
+  var b = document.getElementById('pdlBody'), fr = document.getElementById('puFrom').value, to = document.getElementById('puTo').value, nm = (document.getElementById('puFindNm').value||'').trim();
+  document.getElementById('pdlHead').textContent = '— '+fr+' ~ '+to+' (매입일자 또는 지운 날)'+(nm ? ' · 거래처 「'+nm+'」' : '');
+  b.innerHTML = '<tr><td colspan="9" class="pu-msg">조회 중…</td></tr>';
+  post('/mangr/purchaseDelList.do', 'fromDt='+encodeURIComponent(fr)+'&toDt='+encodeURIComponent(to)+'&findData='+encodeURIComponent(nm))
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(j){ if (typeof j === 'string') { try { j = JSON.parse(j); } catch(e){ j = null; } }
+      if (!j || j.result !== 'OK') throw new Error((j && j.message) || '지운 전표를 읽지 못했습니다.');
+      b.innerHTML = pdlHtml(j.data || []);
+      document.getElementById('pdlHead').textContent += ' · '+(j.data||[]).length+'장'; })
+    .catch(function(e){ b.innerHTML = '<tr><td colspan="9" class="pu-msg" style="color:#c0392b">'+esc(e.message||'지운 전표를 읽지 못했습니다.')+'</td></tr>'; });
+}
+function pdlHtml(list){
+  if (!list || !list.length) return '<tr><td colspan="9" class="pu-msg">이 기간에 지운 매입전표가 없습니다.</td></tr>';
+  var h = '';
+  list.forEach(function(o){
+    var cnt = n(o.lineCnt), nm = String(o.firstNm||'');
+    h += '<tr><td>'+esc(fmtDt(o.purchDt))+'</td><td>'+esc(o.purchNo||'')+'</td>'
+       + '<td class="txt" style="text-align:left">'+esc(o.vendorNm||'')+(o.vendorCd ? ' <span style="color:#8a97a4;font-size:12px">['+esc(o.vendorCd)+']</span>' : '')+'</td>'
+       + '<td class="txt" style="text-align:left;white-space:normal;color:#37475a" title="'+esc(nm)+'">'+esc(nm.length > 30 ? nm.slice(0,30)+'…' : nm)+(cnt > 1 ? ' <span style="color:#5a6b7a">외 '+(cnt-1)+'</span>' : '')+'</td>'
+       + '<td class="num">'+fmt(o.qty)+'</td><td class="num">'+fmt(o.totAmt)+'</td>'
+       + '<td style="color:#c0392b;white-space:nowrap">'+esc(String(o.delDttm||'').slice(0,16))+'</td><td>'+esc(o.delUserNm||o.delUser||'')+'</td>'
+       + '<td><button type="button" class="pu-btn" style="padding:1px 7px;font-size:11.5px;white-space:nowrap" onclick="pphRestore('+Number(o.purchSeq)+')">↩ 되살리기</button></td></tr>';
+  });
+  return h;
+}
+/* ★지운 전표 되살리기 (2026-11-25 사용자 「지운 전표 되살리기도 넣어줘」).
+     ①서버에 그 전표를 물어(purchaseRestoreInfo) 확인창을 만든다 — 일자·번호·거래처·합계·품목 수 +
+        · 같은 날 그 번호가 그새 쓰였으면 「n 번으로 되살립니다」
+        · 같은 거래처·같은 합계의 살아 있는 전표가 31일 안에 있으면 빨간 「중복이면 되살리지 마세요」(지운 까닭이 대개 중복 입력이다)
+        · 지운 «뒤에» 재고조정을 한 품목이 있으면 노란 상자 「현재고 681 → 1,280」(그때 맞춘 재고가 그만큼 는다)
+     ②[되살리기] → purchaseRestore(머리·줄·재고 원장) → 목록을 다시 읽는다. 매입단가 이력·마스터 매입가는 그대로다. */
+var _pphResBusy = false;
+function pphRestore(seq){
+  if (_pphResBusy || !seq) return;
+  _pphResBusy = true;
+  var unwrap = function(j){ if (typeof j === 'string') { try { j = JSON.parse(j); } catch(e){ j = null; } } return j; };
+  var fail = function(m){ _pphResBusy = false; swErr('되살리지 못했습니다.<br><span style="font-size:12.5px;color:#3d4d5c">'+esc(m||'')+'</span>'); };
+  post('/mangr/purchaseRestoreInfo.do', { purchSeq:seq }, true).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(j){
+    j = unwrap(j);
+    if (!j || j.result !== 'OK' || !j.head) throw new Error((j && j.message) || '전표를 읽지 못했습니다.');
+    var hd = j.head, lines = j.lines || [], dup = hd.dupYn === 'Y';
+    var m = '이 전표를 되살릴까요?<br><b>'+esc(fmtDt(hd.purchDt))+' / '+esc(hd.purchNo||'')+'</b> '+esc(hd.vendorNm||'')
+          + '<br><span style="font-size:13px;color:#3d4d5c">합계 '+fmt(hd.totAmt)+'원 · 품목 '+lines.length+'종 — 재고(수불원장)에 입고가 다시 들어갑니다.</span>';
+    if (dup) m += '<div style="margin-top:7px;font-size:12.5px;color:#274b8f">같은 날 '+esc(hd.purchNo||'')+' 번이 그새 다른 전표에 쓰여, <b>'+esc(hd.nextNo||'')+'</b> 번으로 되살립니다.</div>';
+    if (hd.twinNo) { var tw = String(hd.twinNo).split('-');
+      m += '<div class="pu-twin" style="margin-top:9px;padding:8px 10px;border:1px solid #e6a9a3;background:#fdecea;border-radius:8px;text-align:left;font-size:12.5px;line-height:1.5;color:#8a2a22">'
+         + '<b>⚠ 같은 거래처 · 같은 금액의 전표가 이미 있습니다</b><br>'+esc(fmtDt(tw[0]))+' / '+esc(tw[1]||'')+' — 같은 매입을 두 번 넣었던 것이면 <b>되살리지 마세요</b>(재고·매입액이 두 번 잡힙니다).</div>'; }
+    var adj = lines.filter(function(x){ return x.lastAdjDt && Math.abs(n(x.qty)) > 0.0001; });
+    adj.forEach(function(x){ x.delta = n(x.qty); });
+    m += puAdjWarnHtml(adj, 'res');
+    return swConfirm(m, null, '되살리기').then(function(ok){
+      if (!ok) { _pphResBusy = false; return; }
+      return post('/mangr/purchaseRestore.do', { purchSeq:seq }, true).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(k){
+        k = unwrap(k);
+        if (!k || k.result !== 'OK') throw new Error((k && k.message) || '서버가 답하지 않았습니다.');
+        _pphResBusy = false;
+        swOk('되살렸습니다 — '+esc(fmtDt(k.purchDt))+' / '+esc(k.purchNo)+(k.oldNo && k.oldNo !== k.purchNo ? ' (번호 '+esc(k.oldNo)+' → '+esc(k.purchNo)+')' : ''));
+        if (_pph.mode) pphLoad(); else puLoad();
+        if (document.getElementById('puDelPop').classList.contains('on')) pdlLoad();   /* 삭제 전표 창에서 되살렸으면 그 목록도 다시 */
+      });
+    });
+  }).catch(function(e){ fail(e && e.message); });
 }
 function pphOpen(seq, tr){
   post('/mangr/purchaseDetail.do','purchSeq='+seq).then(function(r){return r.json();}).then(function(j){ var d=j&&j.data; if(!d) return; puApply(d);

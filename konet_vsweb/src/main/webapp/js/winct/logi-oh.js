@@ -6707,6 +6707,91 @@ function ssOutQty(o){
       });
     });
   }
+  /* ★② 수불 내역 맨 위 «삭제된 입고» 줄 — 지운 매입전표의 입고 (2026-11-25 사용자 「매입전표 삭제 후 재고조회 시 확인할 수 없나요」).
+       지운 전표의 입고는 원장에서 흔적 없이 빠진다 → 「조정해 둔 재고가 왜 줄었나」를 화면으로 알 길이 없었다
+       (2026-11-22 중복 매입전표 09-16-0002 삭제로 1000736038 이 250 낮아진 일 — 그때는 DB 를 직접 봐야 했다).
+       자료 = /prod/prodDelPurchList.do (품목 하나 · 60초 캐시 · 내용이 달라졌을 때만 다시 그림 · 실패·옛 서버면 줄 없음).
+       ★원장 줄이 아니다 — 현재고·달 합계에 안 들어간다(이미 빠진 수량이다). 승인 대기 줄(stkLedPend) 바로 밑에 그린다(13칸).
+       최근 재고조정 «뒤에» 지운 것이면(조정 저장 시각 < 삭제 시각 · 매입일자 ≤ 조정 일자) 빨간 꼬리 「조정 뒤 삭제 — 그때 맞춘 재고가 n 줄었습니다」. */
+  var _stkDel={};   /* 품목코드 → { t, list, busy, sig } */
+  function stkLedDelLoad(cd){
+    var c=_stkDel[cd] || (_stkDel[cd]={ t:0, list:null, busy:false, sig:'[]' });
+    if(c.busy) return;
+    if(c.list && (Date.now()-c.t) < 60000) return;
+    c.busy=true;
+    var done=function(list, wait, sales){
+      sales=sales||[];   /* 지운 판매전표의 출고 줄 (2026-11-25) — 같은 응답의 sales */
+      var sig=JSON.stringify(list.map(function(x){ return [x.purchSeq, x.qty, x.delDttm]; }).concat(sales.map(function(x){ return ['S', x.saleSeq, x.qty, x.delDttm]; })));
+      var chg=(sig!==c.sig);
+      c.list=list; c.sales=sales; c.sig=sig; c.busy=false; c.t=Date.now()+(wait ? 60000 : 0);
+      if(chg && typeof _stkLedPaint==='function'){ try{ _stkLedPaint(); }catch(e){} }
+    };
+    try{
+      fetch((typeof KONET_CTX==='string' ? KONET_CTX : '')+'/prod/prodDelPurchList.do', { method:'POST', credentials:'same-origin',
+              headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'prodCd='+encodeURIComponent(cd) })
+        .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+        .then(function(d){ if(typeof d==='string'){ d=JSON.parse(d); } if(!d || d.result!=='OK') throw new Error('x'); done(d.data||[], false, d.sales||[]); })
+        .catch(function(){ done([], true); });
+    }catch(e){ done([], true); }
+  }
+  function stkLedDel(row){
+    if(!row || !row.prodCd) return '';
+    if(typeof _stkLedExt!=='undefined' && _stkLedExt) return '';
+    var cd=String(row.prodCd).trim();
+    stkLedDelLoad(cd);
+    var L=(_stkDel[cd] && _stkDel[cd].list) || [], SL=(_stkDel[cd] && _stkDel[cd].sales) || []; if(!L.length && !SL.length) return '';
+    var num=function(v){ return (typeof _cnum==='function') ? _cnum(v) : String(Math.round(+v||0)); };
+    var esc=function(v){ v=(v==null ? '' : String(v)); return v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+    var ymd=function(s){ s=String(s||'').replace(/[^0-9]/g,''); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : s; };
+    var last=stkLedLast(), adjAt=(last && last.row.regDttm) ? String(last.row.regDttm) : '', adjDt=last ? String(last.row.trxDt||'').replace(/[^0-9]/g,'') : '';
+    var bg='background:#f4f5f7;border-top:1px dashed #b9c0c9;border-bottom:1px dashed #b9c0c9', h='';
+    L.forEach(function(x){
+      var q=+x.qty||0; if(!q) return;
+      var pd=String(x.purchDt||'').replace(/[^0-9]/g,''), del=String(x.delDttm||'');
+      var after=!!(adjAt && del && del > adjAt && adjDt && pd && pd <= adjDt);
+      var tip='지운 매입전표 '+ymd(pd)+'-'+(x.purchNo||'')+' 의 입고 '+num(q)+' — '+del.slice(0,16)+' 에 삭제돼 재고에서 빠졌습니다. 지금 현재고와 달 합계에는 들어 있지 않습니다.'
+             +(after ? ' 최근 재고조정('+adjAt.slice(0,16)+') 뒤에 지워, 그때 맞춘 재고가 '+num(q)+' 줄었습니다 — 재고 일괄조정으로 다시 맞추세요.' : '');
+      h+='<tr class="led-del" data-purch="'+esc(x.purchSeq)+'" title="'+esc(tip)+'">'
+        +'<td style="'+bg+';color:#6b7683">'+esc(ymd(pd))+'</td>'
+        +'<td style="'+bg+';color:#6b7683">'+esc(x.prodCd||cd)+'</td>'
+        +'<td style="'+bg+'"><span style="display:inline-block;padding:0 7px;border-radius:9px;background:#e3e6ea;color:#55606c;font-size:11.5px;font-weight:800;white-space:nowrap">🗑 삭제된 입고</span></td>'
+        +'<td style="'+bg+';text-align:right;color:#6b7683;white-space:nowrap">'+num(q)+'</td>'
+        +'<td style="'+bg+';text-align:right;color:#9aa7b3">'+num(x.unitPrice)+'</td>'
+        +'<td style="'+bg+';text-align:right;color:#9aa7b3">'+num(x.amt)+'</td>'
+        +'<td style="'+bg+';color:#6b7683">'+esc(x.vendorNm||'')+'</td><td style="'+bg+'"></td>'
+        +'<td style="'+bg+';color:#6b7683">PURCH</td>'
+        +'<td style="'+bg+';color:#6b7683">'+esc(pd+'-'+(x.purchNo||''))+'</td>'
+        +'<td style="'+bg+';color:#6b7683">전표 삭제 — 재고에서 빠짐'
+        +  (after ? ' <span class="led-delw" style="color:#c0392b;font-weight:700;white-space:nowrap">· 조정 뒤 삭제 — 그때 맞춘 재고가 '+num(q)+' 줄었습니다</span>' : '')+'</td>'
+        +'<td style="'+bg+';color:#9aa7b3;white-space:nowrap">'+esc(del)+'</td>'
+        +'<td style="'+bg+';color:#9aa7b3" title="'+esc(x.delUser||'')+'">'+esc(x.delUserNm||x.delUser||'')+'</td></tr>';
+    });
+    /* ★지운 판매전표의 출고 줄 「🗑 삭제된 출고」 (2026-11-25 사용자 「판매등록 삭제는 상관없나요」) — 판매전표를 지우면 그 출고가 원장에서 빠져 재고가 그만큼 «는다».
+         x.qty = 그 전표가 재고에서 뺐던 수량(반품 전표였으면 음수 = 지우면 재고가 준다). 조정 뒤에 지운 것이면 빨간 「조정 뒤 삭제 — 그때 맞춘 재고가 n 늘었습니다」. */
+    SL.forEach(function(x){
+      var q=+x.qty||0; if(!q) return;
+      var sd=String(x.saleDt||'').replace(/[^0-9]/g,''), del=String(x.delDttm||''), back=q>0, aq=Math.abs(q);
+      var after=!!(adjAt && del && del > adjAt && adjDt && sd && sd <= adjDt);
+      var eff=back ? '재고로 되돌아옴' : '재고에서 다시 빠짐', effN=back ? '늘었습니다' : '줄었습니다';
+      var tip='지운 판매전표 '+ymd(sd)+'-'+(x.saleNo||'')+' 의 '+(back ? '출고 ' : '반품 ')+num(aq)+' — '+del.slice(0,16)+' 에 삭제돼 '+eff+'. 지금 현재고와 달 합계에는 들어 있지 않습니다.'
+             +(after ? ' 최근 재고조정('+adjAt.slice(0,16)+') 뒤에 지워, 그때 맞춘 재고가 '+num(aq)+' '+effN+' — 재고 일괄조정으로 다시 맞추세요.' : '');
+      h+='<tr class="led-del led-dels" data-sale="'+esc(x.saleSeq)+'" title="'+esc(tip)+'">'
+        +'<td style="'+bg+';color:#6b7683">'+esc(ymd(sd))+'</td>'
+        +'<td style="'+bg+';color:#6b7683">'+esc(x.prodCd||cd)+'</td>'
+        +'<td style="'+bg+'"><span style="display:inline-block;padding:0 7px;border-radius:9px;background:#e3e6ea;color:#55606c;font-size:11.5px;font-weight:800;white-space:nowrap">🗑 삭제된 '+(back ? '출고' : '반품')+'</span></td>'
+        +'<td style="'+bg+';text-align:right;color:#6b7683;white-space:nowrap">'+num(aq)+'</td>'
+        +'<td style="'+bg+';text-align:right;color:#9aa7b3">'+num(x.unitPrice)+'</td>'
+        +'<td style="'+bg+';text-align:right;color:#9aa7b3">'+num(Math.abs(+x.amt||0))+'</td>'
+        +'<td style="'+bg+'"></td><td style="'+bg+';color:#6b7683">'+esc(x.custNm||'')+'</td>'
+        +'<td style="'+bg+';color:#6b7683">SALE</td>'
+        +'<td style="'+bg+';color:#6b7683">'+esc(sd+'-'+(x.saleNo||''))+'</td>'
+        +'<td style="'+bg+';color:#6b7683">판매전표 삭제 — '+eff
+        +  (after ? ' <span class="led-delw" style="color:#c0392b;font-weight:700;white-space:nowrap">· 조정 뒤 삭제 — 그때 맞춘 재고가 '+num(aq)+' '+effN+'</span>' : '')+'</td>'
+        +'<td style="'+bg+';color:#9aa7b3;white-space:nowrap">'+esc(del)+'</td>'
+        +'<td style="'+bg+';color:#9aa7b3" title="'+esc(x.delUser||'')+'">'+esc(x.delUserNm||x.delUser||'')+'</td></tr>';
+    });
+    return h;
+  }
   var STK_LEDORD=['입고','출고','반품','반품(매출)','조정'];
   function stkLedMonHead(k, m, o, net, bal){
     var num=function(v){ return (typeof _cnum==='function') ? _cnum(v) : String(Math.round(+v||0)); };

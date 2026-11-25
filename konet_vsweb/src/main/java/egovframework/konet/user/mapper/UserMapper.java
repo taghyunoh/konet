@@ -389,6 +389,15 @@ public interface UserMapper {
 	int countPurchaseNoDup(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;   // 수정 시 바꾼 날짜에 같은 번호가 있나 (2026-11-16)
 	int insertPurchaseDtl(egovframework.konet.user.model.PurchaseDtlDTO dto) throws Exception;
 	int deletePurchaseLedger(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectSalesTrxAdjAfter(java.util.Map<String,Object> p) throws Exception;   // 판매전표 뒤에 재고조정을 한 품목 (2026-11-25 삭제·수정 경고)
+	java.util.List<java.util.Map<String,Object>> selectPurchaseDelList(java.util.Map<String,Object> p) throws Exception;    // 지운 매입전표 목록 (2026-11-25 매입등록 [🗑 삭제 전표])
+	java.util.Map<String,Object> selectPurchaseDelInfo(java.util.Map<String,Object> p) throws Exception;                // 지운 매입전표 되살리기 (2026-11-25) — 머리·번호 겹침·닮은 전표
+	java.util.List<java.util.Map<String,Object>> selectPurchaseDelLines(java.util.Map<String,Object> p) throws Exception;   // 지울 때 살아 있던 줄 + 지운 뒤 재고조정
+	int restorePurchaseMst(java.util.Map<String,Object> p) throws Exception;
+	int restorePurchaseDtlLast(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectProdDelSales(java.util.Map<String,Object> p) throws Exception;   // 한 품목의 지운 판매전표 출고 줄 (2026-11-25 수불 내역 「삭제된 출고」)
+	java.util.List<java.util.Map<String,Object>> selectProdDelPurch(java.util.Map<String,Object> p) throws Exception;   // 한 품목의 지운 매입전표 입고 줄 (2026-11-25 수불 내역 「삭제된 입고」)
+	java.util.List<java.util.Map<String,Object>> selectPurchaseAdjAfter(java.util.Map<String,Object> p) throws Exception;   // 전표 뒤에 재고조정을 한 품목 (2026-11-25 삭제·수정 경고)
 	egovframework.konet.user.model.PurchaseDtlDTO selectVendorLastPrice(egovframework.konet.user.model.PurchaseDtlDTO dto) throws Exception;   // 단가 + 이전 비고(2026-09-13)
 	java.util.List<egovframework.konet.user.model.PurchaseDtlDTO> selectPurchasePriceHist(egovframework.konet.user.model.PurchaseDtlDTO dto) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectPurchaseLedger(egovframework.konet.user.model.PurchaseDTO dto) throws Exception;
