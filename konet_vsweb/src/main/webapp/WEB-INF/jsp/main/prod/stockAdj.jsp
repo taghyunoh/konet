@@ -581,6 +581,7 @@ function loadAux(){
       _pm=pm; _subOf=sub;                /* 통째로 바꿔 끼운다 — 지운 매칭·풀린 중지도 사라지게 */
       _auxOk=true;
       if(ROWS.length) render();          /* 목록이 먼저 떠 있으면 표시만 덧그린다 */
+      if(_req.ready){ reqRender(); reqMineRender(); }   /* 승인 요청의 빈 상품명을 상품 목록으로 채운다 (2026-11-25) */
     })
     .catch(function(){ /* 보조표시만 빠질 뿐 조정 자체는 동작한다 — 조용히 넘어간다 */ });
 }
@@ -1121,6 +1122,10 @@ function save(){
    · 요청 목록을 못 받으면(옛 서버 · 표 없음) 상자를 숨기고 종전 화면 그대로 둔다. */
 var _req = { ready:false, admin:false, me:'', list:[], open:{}, pend:{}, fold:false };
 function reqItems(q){ try{ var a = JSON.parse(q.payload || '[]'); return (a && a.length) ? a : []; }catch(e){ return []; } }
+/* 요청 줄의 상품명 (2026-11-25 사용자 「상품명 확인해줘요」) — 상품코드등록에서 올린 요청은 상품명이 안 실려 와 빈칸이었다(그쪽도 이제 싣는다).
+   실린 이름이 없으면 상품 목록(_pm, prodSeq) → 지금 읽은 재고 목록(_ALL) 차례로 찾는다 */
+function reqNm(it){ if (!it) return ''; if (it.prodNm) return it.prodNm; var o = _pm[it.prodSeq]; if (o && o.prodNm) return o.prodNm;
+  for (var i = 0; i < _ALL.length; i++){ var r = _ALL[i]; if (String(r.prodSeq) === String(it.prodSeq) || (it.prodCd && String(r.prodCd) === String(it.prodCd))) return r.prodNm || ''; } return ''; }
 function reqAft(it){ var p = nvl(it.packQty) < 1 ? 1 : nvl(it.packQty); return nvl(it.aftBox) * p + nvl(it.aftEa); }
 function reqLoad(say){
   var all = gel('reqAll') && gel('reqAll').checked;
@@ -1192,7 +1197,7 @@ function reqMineRender(){
     function prod(it){
       if (!it) return '<td class="dim">—</td><td class="nm dim">(상품 내역 없음)</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>';
       var bef = nvl(it.befQty), aft = reqAft(it), df = aft - bef;
-      return '<td>' + esc(it.prodCd) + '</td><td class="nm">' + esc(it.prodNm || '') + '</td><td class="r">' + bef + '</td><td class="r">' + aft + '</td>'
+      return '<td>' + esc(it.prodCd) + '</td><td class="nm">' + esc(reqNm(it)) + '</td><td class="r">' + bef + '</td><td class="r">' + aft + '</td>'
            + '<td class="r"><span class="diff ' + (df > 0 ? 'up' : 'dn') + '">' + (df > 0 ? '+' : '') + df + '</span></td>';
     }
     var h = '<tr class="rm-first ' + esc(q.statGb) + '"><td class="c"' + rs + '>#' + esc(q.reqSeq) + '</td><td class="c ' + esc(q.statGb) + '"' + rs + '><span class="st">' + st + '</span></td>'
@@ -1254,7 +1259,7 @@ function reqRender(){
     function prod(it){
       if (!it) return '<td class="dim">—</td><td class="nm dim">(상품 내역 없음)</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>';
       var bef = nvl(it.befQty), aft = reqAft(it), df = aft - bef;
-      return '<td>' + esc(it.prodCd) + '</td><td class="nm">' + esc(it.prodNm || '') + '</td><td class="r">' + bef + '</td><td class="r">' + aft + '</td>'
+      return '<td>' + esc(it.prodCd) + '</td><td class="nm">' + esc(reqNm(it)) + '</td><td class="r">' + bef + '</td><td class="r">' + aft + '</td>'
            + '<td class="r"><span class="diff ' + (df > 0 ? 'up' : 'dn') + '">' + (df > 0 ? '+' : '') + df + '</span></td>';
     }
     var h = '<tr class="rq-h ' + sg + '">'

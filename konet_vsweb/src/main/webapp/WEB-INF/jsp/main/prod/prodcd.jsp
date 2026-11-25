@@ -1328,7 +1328,7 @@ function pcSave(){
       /* 재고 조정 — 재고 일괄조정의 저장 엔드포인트 그대로. 차이만큼 조정행(A)+이력이 남는다. */
       fetch(CTX+'/prod/stockAdjSave.do', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
           body: JSON.stringify({ baseDt:_todayYmd(), remark:gv('s_rmk')||'상품코드등록에서 조정', src:'prodcd',
-            rows:[{ prodSeq:Number(seq), prodCd:cd, packQty:pcStkPack(),
+            rows:[{ prodSeq:Number(seq), prodCd:cd, prodNm:gv('f_nm'), packQty:pcStkPack(),   /* prodNm = 승인 요청 목록 표시용 (2026-11-25 — 빠져서 재고 일괄조정의 승인 요청에 상품명이 비었다) */
                     befQty:_stk.curQty, befBox:_stk.box, befEa:_stk.ea,
                     aftBox:Number(gv('s_bx'))||0, aftEa:Number(gv('s_ea'))||0 }] }) })
         .then(function(res){ return res.json(); })
