@@ -84,6 +84,10 @@
   table.ln tr.pre td{ color:#7d8a97; }
   .pre-tag{ display:inline-block; margin-left:4px; padding:0 6px; border-radius:9px; font-size:11px; font-weight:800; white-space:nowrap; background:#eef1f4; color:#55606c; border:1px solid #cfd8e3; }
   .pre-tag.fx{ background:#fdf3e1; color:#8a5a00; border-color:#ecd29a; }
+  .dt-v{ display:inline-block; padding:0 6px; border-radius:6px; background:#e8f1fb; color:#1b4f86; font-weight:800; white-space:nowrap; }
+  .dt-a{ display:inline-block; padding:0 6px; border-radius:6px; background:#e3f1ee; color:#0f6b5e; font-weight:800; white-space:nowrap; }
+  .dcmp{ display:inline-block; margin-right:4px; font-size:11.5px; color:#5b6b7a; white-space:nowrap; }
+  .dcmp .dt-v, .dcmp .dt-a{ font-size:11px; padding:0 4px; }
   .pre-tag.aft{ background:#fdecea; color:#a6241c; border-color:#e7a9a3; }
   .btn.xs.lockb{ background:#f3f4f6; color:#6b7683; border:1px dashed #b9c0c9; }
   .pre-n{ display:inline-block; margin-left:4px; padding:0 6px; border-radius:9px; font-size:11px; font-weight:700; background:#eef1f4; color:#55606c; white-space:nowrap; }
@@ -105,18 +109,8 @@
 <body>
 <div class="wrap">
   <h2>🔎 재고 변동 확인</h2>
-  <div class="help">
-    손으로 넣은 <b>매입·판매 전표</b>(반품 포함)는 저장하거나 지우는 순간 재고에 반영됩니다. 여기서 작업한 순서대로 보고
-    실물도 그렇게 움직였으면 <b>[확인]</b>, 서류만 처리한 것이면 품목마다 <b>[재고 미적용]</b>(재고 수량에만 적용하지 않고 매입·매출 금액은 그대로)합니다.
-    <b>지운 전표</b>를 재고 미적용하면 지워서 빠진 수량이 재고에 다시 들어갑니다. 확인한 뒤에 전표를 다시 고치거나 지우면 미확인으로 돌아옵니다. 정산서 자동 출고는 여기 나오지 않습니다.
-  </div>
-  <div class="legend" id="legend">
-    <b>상태 뜻</b> &nbsp;
-    <span class="st P">미확인</span><i>아직 아무도 확인하지 않은 작업</i>
-    <span class="st C">확인</span><i>실물도 전표대로 움직였다고 확인함 — 재고 그대로</i>
-    <span class="st X">재고 미적용</span><i>서류만 처리한 것 — 재고 수량에 적용하지 않음(금액은 그대로)</i>
-    <span class="st O">시작 전</span><i id="lgStart">이 기능을 켜기 전에 한 작업 — 확인하지 않아도 되지만 할 수는 있습니다</i>
-  </div>
+  <%-- 맨 위 설명 문단은 뺐다 (2026-11-26 사용자 「표시 제거 해줘요」) — 뜻은 아래 「상태 뜻」 줄과 단추·표 말풍선에 있다 --%>
+  <%-- 「상태 뜻」 줄도 뺐다 (2026-11-26 사용자 「상태뜻도 제거」) — 상태 표(미확인·확인·재고 미적용·시작 전)에 마우스를 올리면 말풍선 --%>
   <div class="bar">
     <span class="lab">작업한 때</span>
     <input type="date" id="frDt"> ~ <input type="date" id="toDt">
@@ -201,10 +195,10 @@ function aftSave(){ try{ localStorage.setItem('konetStockChkAft', aftOn()?'1':'0
 function sumOf(r){ var t=0, off=0, L=linesOf(r); L.forEach(function(x){ if(lineOff(r,x)) off++; else t+=effOf(r,x); }); return { q:t, off:off, n:L.length }; }
 function stHtml(r){
   var s=stOf(r), h, so=sumOf(r);
-  if(s==='X') h='<span class="st X" title="'+esc(r.chkMemo||'')+'">재고 미적용</span>'+(((''+(r.verDttm||''))<(''+(r.evDttm||'')))?'<div class="sub">미적용 뒤 전표가 바뀜</div>':'');
-  else if(s==='C') h='<span class="st C">확인</span>';
-  else if(s==='O') h='<span class="st O" title="이 기능을 켜기 전에 한 작업입니다 — 미확인 숫자에는 들어가지 않습니다">시작 전</span>';
-  else h='<span class="st P">미확인</span>'+(((''+(r.chkState||'')).trim()==='C')?'<div class="sub">확인 뒤 전표가 바뀜</div>':'');
+  if(s==='X') h='<span class="st X" title="서류만 처리한 것 — 재고 수량에 적용하지 않음(금액은 그대로)'+(r.chkMemo?(' · 사유 : '+esc(r.chkMemo)):'')+'">재고 미적용</span>'+(((''+(r.verDttm||''))<(''+(r.evDttm||'')))?'<div class="sub">미적용 뒤 전표가 바뀜</div>':'');
+  else if(s==='C') h='<span class="st C" title="실물도 전표대로 움직였다고 확인함 — 재고 그대로">확인</span>';
+  else if(s==='O') h='<span class="st O" title="이 기능을 켜기 전('+esc(tm(START))+')에 한 작업입니다 — 확인하지 않아도 되지만 할 수는 있고, 미확인 숫자에는 들어가지 않습니다">시작 전</span>';
+  else h='<span class="st P" title="아직 아무도 확인하지 않은 작업">미확인</span>'+(((''+(r.chkState||'')).trim()==='C')?'<div class="sub">확인 뒤 전표가 바뀜</div>':'');
   if(s!=='X' && so.off) h+='<div class="sub">품목 '+so.off+'개 재고 미적용</div>';
   if((s==='X'||s==='C') && r.chkDttm) h+='<div class="sub">'+who(r.chkUserNm, r.chkUser)+' · '+esc(tm(r.chkDttm))+'</div>';
   if(s==='X' && r.chkMemo) h+='<div class="sub" style="max-width:170px;white-space:normal">'+esc(r.chkMemo)+'</div>';
@@ -255,7 +249,7 @@ function render(){
       +'<td>'+doer+first+'</td>'
       +'<td><span class="bd '+kd+'">'+KIND_NM[kd]+'</span></td>'
       +'<td><span class="bd '+(pu?'pu':'sa')+'">'+(pu?'매입':'판매')+'</span></td>'
-      +'<td class="vn cd">'+esc(d10(r.trxDt))+' / '+esc(r.trxNo||'')+'</td>'
+      +'<td class="vn cd"><span class="dt-v" title="전표 일자">'+esc(d10(r.trxDt))+'</span> / '+esc(r.trxNo||'')+'</td>'   /* 전표 일자(파랑) · 재고수정 날짜(청록)를 색으로 가른다 (2026-11-26 「날자 구분표시」) */
       +'<td class="l vn">'+esc(r.custNm||r.custCd||'')+'</td>'
       +'<td class="l vn">'+item+'</td>'
       +'<td class="r '+(so.q>0?'up':(so.q<0?'dn':''))+'">'+sg(so.q)+'</td>'
@@ -274,7 +268,7 @@ function render(){
 }
 function linesHtml(r, q){
   var L=linesOf(r), kd=kindOf(r), vx=((''+(r.chkState||'')).trim()==='X'), k=esc(key(r));
-  var h='<table class="ln"><thead><tr><th>품목코드</th><th>품목명</th><th>구분</th><th>수량</th><th title="'+(kd==='del'?'지워서 재고에 미친 수량 — 매입을 지우면 −':'이 줄이 재고에 미친 수량')+'">재고 영향</th><th>지금 현재고</th><th>마지막으로 맞춘 날 · 수정재고</th><th>재고</th></tr></thead><tbody>';
+  var h='<table class="ln"><thead><tr><th>품목코드</th><th>품목명</th><th>구분</th><th>수량</th><th title="'+(kd==='del'?'지워서 재고에 미친 수량 — 매입을 지우면 −':'이 줄이 재고에 미친 수량')+'">재고 영향</th><th>지금 현재고</th><th>마지막으로 맞춘 날 · 수정재고</th><th title="이 전표가 그 품목의 최근 재고수정과 어떤 관계인지 — 재고수정 뒤 작업(빨강) = 재고수정을 저장한 뒤에 그보다 앞 날짜 전표를 작업 · 재고수정 이전 = 전표 일자가 재고수정 날짜보다 앞">재고수정 비교</th><th>재고</th></tr></thead><tbody>';
   var hid=0;
   L.forEach(function(x){
     var pre=preAdj(r,x), fx=((''+x.adjFixYn)==='Y');
@@ -294,12 +288,14 @@ function linesHtml(r, q){
     else c='<span class="sub">적용됨</span> '+((ADMIN && ps)?'<button class="btn xs btn-warn" onclick="rsOpen(event,\''+k+'\','+ps+')" title="'+(kd==='del'?'삭제를 재고에 적용하지 않습니다 — 지워서 빠진 수량이 재고에 다시 들어갑니다(판매는 다시 빠집니다)':'이 품목을 재고에 적용하지 않습니다(금액은 그대로)')+'">재고 미적용</button>':'');
     h+='<tr class="'+(off?'x':'')+(hit?' hit':'')+(pre?' pre':'')+'"><td class="cd">'+esc(x.prodCd)+'</td><td>'+esc(x.prodNm||'')+'</td><td>'+esc(x.trxGb||'')+'</td><td class="r">'+fmt(x.qty)+'</td>'
       +'<td class="r '+(off?'off':(e>0?'up':(e<0?'dn':'')))+'">'+sg(e)+'</td><td class="r">'+fmt(x.curQty)+'</td>'
-      +'<td>'+(x.adjDt?(esc(d10(x.adjDt))+' · '+fmt(x.adjQty)+(fx?' <span title="수정재고 고정 — 이 날짜보다 앞 날짜의 전표는 현재고를 바꾸지 않습니다">🔒</span>':'')):'<span class="sub">맞춘 적 없음</span>')
+      +'<td>'+(x.adjDt?('<span class="dt-a" title="마지막 재고수정 날짜'+(x.adjRegDttm?(' (저장 '+esc(tm(x.adjRegDttm))+')'):'')+'">재고수정 '+esc(d10(x.adjDt))+'</span> · '+fmt(x.adjQty)+(fx?' <span title="수정재고 고정 — 이 날짜보다 앞 날짜의 전표는 현재고를 바꾸지 않습니다">🔒</span>':'')):'<span class="sub">맞춘 적 없음</span>')+'</td>'
+      +'<td style="text-align:left;white-space:nowrap">'   /* 재고수정 비교 — 날짜·수정재고와 칸을 갈랐다 (2026-11-26 「표시 구분되게」) */
+      +  (pre ? '<span class="dcmp" title="전표 일자가 재고수정 날짜보다 앞입니다"><span class="dt-v">전표 '+esc(d10(r.trxDt).slice(5))+'</span> ＜ <span class="dt-a">재고수정 '+esc(d10(x.adjDt).slice(5))+'</span></span>' : '')
       +  ((pre && aft && x.adjRegDttm) ? ' <span class="pre-tag aft" title="재고수정('+esc(d10(x.adjDt))+', 저장 '+esc(tm(x.adjRegDttm))+')을 한 뒤에 그보다 앞 날짜('+esc(d10(r.trxDt))+') 전표를 작업했습니다('+esc(tm(r.evDttm))+'). 실사로 맞춘 숫자를 흔드는 작업이라 꼭 확인하세요.">재고수정 뒤 작업</span>' : '')
       +  (pre ? (fx ? ' <span class="pre-tag fx" title="이 전표('+esc(d10(r.trxDt))+')는 재고수정('+esc(d10(x.adjDt))+')보다 앞 날짜이고, 그 재고수정이 고정(🔒)이라 현재고에 영향이 없습니다. 재고 미적용·적용도 받지 않습니다 — 현재고를 바꾸려면 재고수정을 다시 하세요.">재고수정 이전 · 현재고 영향 없음</span>'
                   : ' <span class="pre-tag" title="이 전표('+esc(d10(r.trxDt))+')는 최근 재고수정('+esc(d10(x.adjDt))+')보다 앞 날짜입니다. 그 재고수정은 2026-11-25 이전 프로그램으로 저장돼 기준값이 비어 있어(기준값 채우기 SQL docs/sql/20261126_stock_adj_frz_backfill.sql 실행 전), 지금은 재고 미적용·적용이 현재고를 바꿉니다.">재고수정 이전 · 현재고 바뀜</span>') : '')+'</td>'
       +'<td style="text-align:left">'+c+'</td></tr>'; });
-  if(hid) h+='<tr class="pre"><td colspan="8" style="text-align:left;color:#7d8a97">최종 재고수정 전에 한 작업 '+hid+'개는 숨겼습니다 — 「최종 재고수정 이후만」 을 끄면 보입니다.</td></tr>';
+  if(hid) h+='<tr class="pre"><td colspan="9" style="text-align:left;color:#7d8a97">최종 재고수정 전에 한 작업 '+hid+'개는 숨겼습니다 — 「최종 재고수정 이후만」 을 끄면 보입니다.</td></tr>';
   return h+'</tbody></table>';
 }
 function toggle(k){ var cur=(k in CLOSED) ? CLOSED[k] : FOLD; CLOSED[k]=!cur; render(); }

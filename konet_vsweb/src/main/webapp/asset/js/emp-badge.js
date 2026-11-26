@@ -114,12 +114,15 @@
         }
         /* 재고 변동 확인 — 미확인 전표 건수 (2026-11-26 「재고담당자가 입고·판매 내용을 보고 재고에 반영할지 관리」). 응답에 stkChk 가 올 때만(표가 있을 때).
            「재고 변동 확인」 메뉴와, 「재고 관리」 주메뉴(접혀 있어도 보이게 — 승인 대기 수에 더한다). 알림 글은 띄우지 않는다(전표를 넣을 때마다 뜨면 시끄럽다) */
+        /* ⛔[2026-11-26 사용자 「재고변동확인 숫자 제거」] 메뉴 숫자(stkChkBadge)와 「재고 관리」 주메뉴에 더하던 몫을 뺐다 — 미확인 건수는 그 화면 안에서
+             「미확인 n건 · 기간 밖 미확인 n건 보기」 로 본다. 되살리려면 아래 주석을 푼다(서버 /emp/badge.do 는 stkChk 를 그대로 준다).
         if (j.stkChk != null) {
           var sc = Number(j.stkChk) || 0, adjN = (Number(j.adjReq) || 0) + (Number(j.adjMine) || 0);
           paint('stkChkBadge', sc, '재고 변동 확인 — 미확인 전표 ' + sc + '건');
           if (sc > 0) { var gEl = document.getElementById('adjReqGrpBadge'), gT = gEl ? (gEl.title || '') : '';
             paint('adjReqGrpBadge', adjN + sc, (adjN && gT ? gT + ' / ' : '') + '재고 변동 확인 미확인 ' + sc + '건'); }
         }
+        */
         var m = Number(j.msgUnread) || 0;
         if (lastMsg >= 0 && m > lastMsg) {
           if (!msgPanelShown() && typeof window._toast === 'function') _toast('💬 새 메시지 ' + (m - lastMsg) + '건 — 직원 메신저를 확인하세요', 'ok');

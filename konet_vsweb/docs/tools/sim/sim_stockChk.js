@@ -58,7 +58,7 @@ const lastAct=(w)=>{ const c=w.__calls.filter(x=>x.u.indexOf('stockChkAct')>=0).
   T(w.__calls[0] && w.__calls[0].u==='/prod/stockChkList.do' && /frDt=\d{4}-\d\d-\d\d&toDt=\d{4}-\d\d-\d\d/.test(w.__calls[0].body), '열면 최근 7일을 조회한다');
   let rows=txt(w,'#body tr.row');
   T(rows.length===5 && /미확인 4건 · 시작 전 1건/.test(d.getElementById('cnt').textContent.replace(/\s+/g,' ')), '기본 = 미확인 · 시작 전(새 전표 · 확인 뒤 고친 전표 · 지운 전표 · 판매 + 시작 전 1) — 「전체」로 안 바꿔도 보인다 : '+rows.length);
-  T(/미확인/.test(d.getElementById('legend').textContent) && /재고 수량에 적용하지 않음/.test(d.getElementById('legend').textContent) && /2026-11-26 09:00/.test(d.getElementById('lgStart').textContent), '상태 뜻 풀이 — 미확인 · 확인 · 재고 미적용 · 시작 전(켠 때)');
+  T(!d.getElementById('legend') && /아직 아무도 확인하지 않은 작업/.test(jsp) && /실물도 전표대로 움직였다고 확인함/.test(jsp) && jsp.indexOf('이 기능을 켜기 전(')>0, '「상태 뜻」 줄은 뺐다(사용자 「상태뜻도 제거」) — 뜻은 상태 표 말풍선으로');
   T(/tr\.row > td\{ background:#e3f1ee; font-weight:700; border-top:2px solid/.test(jsp) && /tr\.lines > td\{[^}]*border-left:5px solid/.test(jsp), '전표(대표) 줄은 청록 바탕·굵은 글·위 굵은 선 · 품목 줄 묶음은 왼쪽 띠');
   /* 작업한 때 기준 · 연도까지 · 작업한 사람 */
   const heads=txt(w,'table.g thead th');
@@ -70,7 +70,7 @@ const lastAct=(w)=>{ const c=w.__calls.filter(x=>x.u.indexOf('stockChkAct')>=0).
   T(dl && dl.querySelectorAll('table.ln tbody tr').length===3, '품목 줄은 처음부터 펼쳐져 있다');
   const dls=Array.from(dl.querySelectorAll('table.ln tbody tr'));
   T(/-250/.test(dls[0].cells[4].textContent) && /-954/.test(dRow.cells[8].textContent) && /🔒/.test(dls[2].cells[6].textContent), '지운 매입전표 — 재고 영향은 −(지워서 빠진 수량) · 전표 합 −954 · 고정 품목 🔒');
-  T(dls.every(r=>/재고 미적용|🔒 적용 안 됨/.test(r.cells[7].textContent)) && /확인/.test(dRow.cells[11].textContent) && /전체 미적용/.test(dRow.cells[11].textContent), '지운 전표도 품목마다 [재고 미적용](고정된 재고수정보다 앞이면 「🔒 적용 안 됨」) · 전표 줄 [확인] [전체 미적용]');
+  T(dls.every(r=>/재고 미적용|🔒 적용 안 됨/.test(r.cells[8].textContent)) && /확인/.test(dRow.cells[11].textContent) && /전체 미적용/.test(dRow.cells[11].textContent), '지운 전표도 품목마다 [재고 미적용](고정된 재고수정보다 앞이면 「🔒 적용 안 됨」) · 전표 줄 [확인] [전체 미적용]');
   /* 지운 전표의 한 품목만 재고 미적용 → 사유 창 → act X + prodSeq */
   w.__calls.length=0; w.rsOpen(null,'PURCH:427',204);
   T(d.getElementById('rsBd').style.display==='flex' && /1000736038/.test(d.getElementById('rsMsg').textContent) && /-250/.test(d.getElementById('rsMsg').textContent) && /지우기 전으로/.test(d.getElementById('rsMsg').textContent), '사유 창 — 그 품목 · 지워서 빠진 수량 −250 · 「지우기 전으로 돌아갑니다」');
@@ -83,13 +83,13 @@ const lastAct=(w)=>{ const c=w.__calls.filter(x=>x.u.indexOf('stockChkAct')>=0).
   /* 살아 있는 전표 — 줄마다 · 품목 미적용 표시와 [재고 적용] */
   d.getElementById('fSt').value=''; w.render();
   const l3=Array.from(linesBy(w,'PURCH:3').querySelectorAll('table.ln tbody tr'));
-  T(/재고 미적용/.test(l3[1].cells[7].textContent) && /재고 적용/.test(l3[1].cells[7].textContent) && /실물이 아직 안 들어옴/.test(l3[1].cells[7].textContent) && l3[1].cells[4].classList.contains('off'), '품목만 미적용한 줄 — 「재고 미적용」 · 사유 · [재고 적용] · 재고 영향 취소선');
+  T(/재고 미적용/.test(l3[1].cells[8].textContent) && /재고 적용/.test(l3[1].cells[8].textContent) && /실물이 아직 안 들어옴/.test(l3[1].cells[8].textContent) && l3[1].cells[4].classList.contains('off'), '품목만 미적용한 줄 — 「재고 미적용」 · 사유 · [재고 적용] · 재고 영향 취소선');
   T(/\+30/.test(rowBy(w,'PURCH:3').cells[8].textContent) && /품목 1개 재고 미적용/.test(rowBy(w,'PURCH:3').cells[10].textContent), '전표 줄의 재고 영향은 미적용 품목을 빼고(+30) · 「품목 1개 재고 미적용」');
   w.__calls.length=0; w.__conf.length=0; w.__actRes=null; w.act(null,'PURCH:3',12,'U'); await sleep(10); b=lastAct(w);
   T(b && b.act==='U' && b.items[0].prodSeq===12 && w.__conf.some(m=>/P0012/.test(m) && /다시 재고에 적용합니다/.test(m) && /\|재고 적용$/.test(m)), '[재고 적용] — 품목 이름을 보이고 묻는다 · act U + prodSeq');
   /* 전표 전체 미적용 줄 */
   const r4=rowBy(w,'PURCH:4'), l4=Array.from(linesBy(w,'PURCH:4').querySelectorAll('table.ln tbody tr'));
-  T(/재고 미적용/.test(r4.cells[10].textContent) && /중복 입력/.test(r4.cells[10].textContent) && /재고 적용/.test(r4.cells[11].textContent) && /전표 전체/.test(l4[0].cells[7].textContent) && !l4[0].cells[7].querySelector('button') && /^\+?0$/.test(r4.cells[8].textContent.trim()), '전표 전체 미적용 — 상태·사유·[재고 적용] · 줄은 「전표 전체」(줄 단추 없음) · 재고 영향 0');
+  T(/재고 미적용/.test(r4.cells[10].textContent) && /중복 입력/.test(r4.cells[10].textContent) && /재고 적용/.test(r4.cells[11].textContent) && /전표 전체/.test(l4[0].cells[8].textContent) && !l4[0].cells[8].querySelector('button') && /^\+?0$/.test(r4.cells[8].textContent.trim()), '전표 전체 미적용 — 상태·사유·[재고 적용] · 줄은 「전표 전체」(줄 단추 없음) · 재고 영향 0');
   w.__calls.length=0; w.rsOpen(null,'PURCH:1',0); w.rsPick(d.querySelector('#rsChips button')); w.rsGo(); await sleep(10); b=lastAct(w);
   T(b && b.act==='X' && b.items[0].prodSeq===0, '[전체 미적용] = prodSeq 0');
   /* 상태 필터 · 찾기(품목코드) · 시작 전 */
@@ -169,7 +169,7 @@ const lastAct=(w)=>{ const c=w.__calls.filter(x=>x.u.indexOf('stockChkAct')>=0).
     w.__calls.length=0; d.getElementById('fSt').value='C'; a.click(); await sleep(20);
     const lb=w.__calls.filter(x=>/stockChkList/.test(x.u)).pop();
     T(!!lb && /frDt=2026-11-26/.test(lb.body) && d.getElementById('fSt').value==='P', '[보기] = 이 기능을 켠 날부터 오늘까지 · 상태 「미확인 · 시작 전」 으로 다시 조회', lb && lb.body);
-    T(!/품목 줄의 <b>「재고수정 이전」/.test(jsp) && !/재고수정 이전/.test(d.querySelector('.help').textContent), '도움말에서 재고수정 이전 문단을 뺐다(뜻은 표 말풍선)');
+    T(!/품목 줄의 <b>「재고수정 이전」/.test(jsp) && !d.querySelector('.help'), '도움말에서 재고수정 이전 문단을 뺐다(뜻은 표 말풍선)');
     T(C.indexOf('res.put("pendAll", svc.selectStockChkPendCnt(p));')>0, '목록 응답에 전체 미확인 건수(pendAll)');
   }
   /* ── 재고수정 이전 표시 · 「최종 재고수정 이후만」 (2026-11-26 사용자 「여기에도 현재고수정 이전인지 보여주세요(현재 싯점 최종재고수정이후 것만 조회 조건 추가)」) ── */
@@ -182,6 +182,9 @@ const lastAct=(w)=>{ const c=w.__calls.filter(x=>x.u.indexOf('stockChkAct')>=0).
     const t427=lnTxt('PURCH:427');
     T((t427.match(/재고수정 이전/g)||[]).length===3 && (t427.match(/현재고 영향 없음/g)||[]).length===1 && (t427.match(/재고수정 이전 · 현재고 바뀜/g)||[]).length===2 && d.querySelectorAll('table.ln tr.pre').length===3, '품목 줄 — 3줄 모두 「재고수정 이전」 · 고정(🔒)된 1줄만 「현재고 영향 없음」 · 회색 줄', t427);
     T(!/재고수정 이전/.test(lnTxt('PURCH:1')), '재고수정 날짜보다 뒤 전표의 품목 줄엔 표가 없다');
+    { const rw=rowBy(w,'PURCH:427'), lt=rw.nextElementSibling;
+      T(rw.querySelector('.dt-v') && rw.querySelector('.dt-v').textContent==='2026-09-16' && lt.querySelector('.dt-a') && /재고수정 2026-11-18/.test(lt.querySelector('.dt-a').textContent) && /전표 09-16 ＜ 재고수정 11-18/.test(lt.querySelector('.dcmp').textContent),
+        '날짜 구분 — 전표 일자(파랑 dt-v) · 재고수정 날짜(청록 dt-a, 「재고수정」 글) · 비교 칸 「전표 09-16 ＜ 재고수정 11-18」'); }
     { const L=Array.from(rowBy(w,'PURCH:427').nextElementSibling.querySelectorAll('table.ln tbody tr'));
       const lockRow=L.find(tr=>/9904013323/.test(tr.textContent)), openRow=L.find(tr=>/1000736038/.test(tr.textContent));
       T(!!lockRow && /🔒 적용 안 됨/.test(lockRow.textContent) && !lockRow.querySelector('.btn-warn') && !!openRow && /재고수정 이전 · 현재고 바뀜/.test(openRow.textContent) && !!openRow.querySelector('.btn-warn'),

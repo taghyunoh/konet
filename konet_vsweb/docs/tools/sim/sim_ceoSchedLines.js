@@ -379,6 +379,21 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
     T(pk('20261122','20261128')==='wk' && pk('20261122','20261129')==='aft', '일요일 : 그 주 토요일까지 이번 주');
     T(pk('20261231','20270102')==='wk' && pk('20261231','20270103')==='aft', '해가 바뀌는 주도 토요일까지');
     w.today=today0; }
+  /* ── 2026-11-26 사용자 「화면 실행하면 오늘 달력 선택되게 · 오른쪽은 대표 몇 개만, 마우스 대야 다 보이게」 ── */
+  { w.monToday(); await tick(); await tick();
+    const pc=d.querySelectorAll('#cal .dc.pick');
+    T(pc.length===1 && pc[0].getAttribute('data-k')===today && pc[0].classList.contains('tdy'), '[오늘]·처음 열 때 — 오늘 칸이 골라진다(.pick)');
+    const k1=today.slice(0,6)+'01'; w.calGo(k1); const pc2=d.querySelectorAll('#cal .dc.pick');
+    T(pc2.length===1 && pc2[0].getAttribute('data-k')===k1, '목록 날짜로 찾아가면 고른 날이 그 칸으로 옮겨진다');
+    w.paintCal(); T(d.querySelector('#cal .dc.pick') && d.querySelector('#cal .dc.pick').getAttribute('data-k')===k1, '달력을 다시 그려도 고른 날이 남는다');
+    const tab0=w._tab; w._tab='all';
+    const S5={ schedSeq:99, content:'<div>1. 가</div><div>2. 나</div><div>3. 다</div><div>4. 라</div><div>5. 마</div>', hasContent:'Y' };
+    const box=d.createElement('div'); box.innerHTML=w.lwHtml(S5, '');
+    T(box.querySelectorAll('.ln').length===5 && box.querySelectorAll('.ln.more').length===2 && /외 2줄/.test(box.textContent), '목록 — 앞 3줄만 보이고 나머지 2줄은 .more(마우스를 올리면) + 「… 외 2줄」');
+    box.innerHTML=w.lwHtml(S5, '라'); T(!box.querySelector('.ln.more') && !/외 d+줄/.test(box.textContent), '검색 중엔 전부 보인다');
+    box.innerHTML=w.lwHtml({ schedSeq:98, content:'<div>1. 가</div><div>2. 나</div>', hasContent:'Y' }, ''); T(!box.querySelector('.ln.more') && !/외 /.test(box.textContent), '3줄 이하면 「외 n줄」 없음');
+    const css=d.querySelector('style').textContent; T(/#list .it .ln.more{ display:none; } #list .it:hover .ln.more{ display:flex; }/.test(css), 'CSS — 목록에서만 숨기고 마우스를 올리면 보인다(달력 칸은 그대로)');
+    w._tab=tab0; }
   console.log((bad?'✗':'✓')+' sim_ceoSchedLines ok='+ok+' bad='+bad);
   process.exit(bad?1:0);
 })().catch(e=>{ console.log('ERR', e); process.exit(1); });

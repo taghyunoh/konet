@@ -79,6 +79,7 @@
   .cal .dn{ display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; font-size:12.5px; font-weight:700; color:#37475a; border-radius:11px; padding:0 4px; }
   .cal .dc.sun .dn{ color:#c0392b; } .cal .dc.sat .dn{ color:#2f4f9a; }
   .cal .dc.tdy .dn{ background:var(--teal); color:#fff; }
+  .cal .dc.pick{ box-shadow:inset 0 0 0 2px var(--teal); background:#f2fbf8; }   /* 고른 날(처음 열면 오늘 · 목록 날짜를 누르면 그 날) — 2026-11-26 「화면 실행하면 오늘 달력 선택되게」 */
   .cal .dc.flash{ animation:dcflash 1.8s ease-out 1; }   /* 목록 날짜를 눌러 찾아간 칸 (2026-11-20) */
   @keyframes dcflash{ 0%,35%{ background:#fff3a3; box-shadow:inset 0 0 0 2px #e0b000; } 100%{ background:transparent; box-shadow:inset 0 0 0 0 transparent; } }
   .it .t2 .dgo{ cursor:pointer; } .it .t2 .dgo:hover{ color:var(--teal); text-decoration:underline; }
@@ -161,6 +162,9 @@
   .it.late .lw{ background:#fde8e8; border-left-color:var(--red); }
   .it.done .lw, .it.cancel .lw{ background:#eef1f4; border-left-color:#aab5c0; }
   .it .lw .ln{ font-size:12.5px; }
+  /* 목록 — 일정마다 앞 3줄만, 마우스를 올리면 전부 (2026-11-26 「보여주는 것 대표 몇 개만, 마우스 대야 다 보이게」). 검색 중엔 전부 */
+  #list .it .ln.more{ display:none; } #list .it:hover .ln.more{ display:flex; } #list .it:hover .lnmore{ display:none; }
+  .it .lw .lnmore{ font-size:11.5px; color:#6b7a89; margin-top:2px; }
   .it .lw .lnhid{ font-size:11.5px; color:#6b7a89; margin-top:2px; text-align:right; }   /* 미완료 탭 — 끝난 줄 숨김 (2026-11-20) */
   .ln .lt .tag{ opacity:1; }
   .it.done .t1, .it.cancel .t1{ color:#8794a1; text-decoration:none; font-weight:600; } .it.done .t2, .it.done .t2 b, .it.cancel .t2, .it.cancel .t2 b{ color:#48606f; }
@@ -289,6 +293,7 @@ var CTX='${pageContext.request.contextPath}', ADMIN=('${ceoAdmin}'==='Y');
 var WK=['일','월','화','수','목','금','토'];
 var _y=0, _m=0;            /* 보고 있는 달 (m = 0~11) */
 var _rows=[], _todo=[];    /* 전체 일정(달력·「이 달」·「전체」가 여기서 고른다) · 그중 미완료 */
+var _pick=ymd(new Date()), _pickScroll=true;   /* 고른 날 — 처음 = 오늘 · 처음 그릴 때 그 칸으로 굴린다 (2026-11-26) */
 var _tab='todo', _seq=0, _dirty=false, _noTable=false;   /* 처음 탭 = 미완료 (2026-11-19 사용자 「미완료 기본으로」 · 「이 달」 탭은 달력과 겹쳐 뺐다 — 「이 달은 중복이라 제거」) */
 
 function gel(id){ return document.getElementById(id); }
@@ -319,7 +324,7 @@ function postJson(url, o){ return fetch(CTX+url,{ method:'POST', credentials:'sa
 function gridRange(){ var f=new Date(_y,_m,1), l=new Date(_y,_m+1,0);
   var a=new Date(_y,_m,1-f.getDay()), b=new Date(_y,_m+1,0+(6-l.getDay())); return { a:a, b:b, weeks:Math.round((b.getTime()-a.getTime())/86400000+1)/7 }; }
 function monGo(d){ var x=new Date(_y,_m+d,1); _y=x.getFullYear(); _m=x.getMonth(); load(); }
-function monToday(){ var t=new Date(); _y=t.getFullYear(); _m=t.getMonth(); load(); }
+function monToday(){ var t=new Date(); _y=t.getFullYear(); _m=t.getMonth(); _pick=ymd(t); _pickScroll=true; load(); }   /* [오늘] = 이 달 + 오늘 칸 고르기 */
 function monOf(s){ var a=''+_y+p2(_m+1)+'01', b=ymd(new Date(_y,_m+1,0)); return s.toDt>=a && s.fromDt<=b; }   /* 이 달과 겹치는가 */
 
 function load(){
@@ -441,13 +446,14 @@ function openLines(s){
   });
   return { lines:keep, hid:hid };
 }
-function linesHtml(s, q, ro, open){   /* ro = 읽기만(삭제 탭 — 칩을 눌러도 안 바뀐다) · open = 끝난 줄 숨김(미완료 탭) */
-  return (open ? openLines(s).lines : linesOf(s)).map(function(l){
+function linesHtml(s, q, ro, open, lim){   /* ro = 읽기만(삭제 탭 — 칩을 눌러도 안 바뀐다) · open = 끝난 줄 숨김(미완료 탭) · lim = 앞 n줄만 보이고 나머지는 .more(목록 — 마우스를 올리면 보임) */
+  var LL=(open ? openLines(s).lines : linesOf(s)); linesHtml.more=(lim>0 && LL.length>lim) ? LL.length-lim : 0;
+  return LL.map(function(l, li){
     var tip=(l.i<0 ? '내용을 읽는 중입니다' : (l.st==='N' ? '이 줄 상태 없음 — 누르면 완료' : (l.st==='Y' ? '완료 — 누르면 취소' : '취소 — 누르면 상태를 지웁니다')));
     /* ★묶음 머리(번호 없는 줄 「삼성미팅」)는 할 일이 아니라 칩이 없다 (2026-11-19 사용자 그림 — 머리 줄이 완료로 찍혀 있었다). 이미 상태가 붙은 머리만 칩을 보여 주고, 누르면 바로 지운다 */
     var hdNo=(l.hd && l.st==='N'), act=(!ro && l.i>=0 && !hdNo);
     if(l.hd && l.st!=='N') tip='묶음 제목에 붙은 '+LN_ST[l.st].nm+' — 누르면 지웁니다';
-    return '<div class="ln l'+l.st+((l.i<0||hdNo)?' nock':'')+(l.hd?' hd':'')+'"><span class="ck"'+(act?' title="'+tip+'" onclick="lnSet('+s.schedSeq+','+l.i+',event'+(l.hd?",'N'":'')+')"':'')+'>'+LN_ST[l.st].ic+'</span>'
+    return '<div class="ln l'+l.st+((l.i<0||hdNo)?' nock':'')+(l.hd?' hd':'')+((lim>0 && li>=lim)?' more':'')+'"><span class="ck"'+(act?' title="'+tip+'" onclick="lnSet('+s.schedSeq+','+l.i+',event'+(l.hd?",'N'":'')+')"':'')+'>'+LN_ST[l.st].ic+'</span>'
       +(l.no?'<span class="no">'+esc(l.no)+'</span>':'')+'<span class="lt">'+((l.html && !q) ? l.html : hiTxt(l.no?l.rest:l.body, q))+(l.st!=='N'?' <span class="tag '+(l.st==='C'?'cx':'ok')+'" style="margin-left:2px">'+LN_ST[l.st].nm+'</span>':'')+'</span></div>'; }).join('');
 }
 /* 줄 상태를 바꾼 HTML — 그 줄의 마지막 글자 마디 끝 글자만 고친다(다른 줄·서식은 그대로) */
@@ -503,7 +509,7 @@ function paintCal(){
     var k=ymd(d), dow=d.getDay(), out=(d.getMonth()!==_m);
     var ev=_rows.filter(function(s){ return s.fromDt<=k && s.toDt>=k; }).sort(function(a,b){ return (a.schedTm||'99')<(b.schedTm||'99')?-1:((a.schedTm||'99')>(b.schedTm||'99')?1:a.schedSeq-b.schedSeq); });
     if(ev.length){ wkHas[Math.floor(i/7)]=true; colHas[i%7]=true; }
-    h+='<div class="dc'+(out?' out':'')+(dow===0?' sun':'')+(dow===6?' sat':'')+(k===t?' tdy':'')+'" data-k="'+k+'" onclick="dayOpen(\''+k+'\')" title="'+d10(k)+(ev.length ? ' — 칸 어디를 눌러도 이 날짜 일정을 엽니다' : ' — 누르면 이 날짜로 새 일정')+'">'
+    h+='<div class="dc'+(out?' out':'')+(dow===0?' sun':'')+(dow===6?' sat':'')+(k===t?' tdy':'')+(k===_pick?' pick':'')+'" data-k="'+k+'" onclick="dayOpen(\''+k+'\')" title="'+d10(k)+(ev.length ? ' — 칸 어디를 눌러도 이 날짜 일정을 엽니다' : ' — 누르면 이 날짜로 새 일정')+'">'
       +'<span class="dn">'+d.getDate()+'</span>'
       + ev.map(function(s){ var k=stKey(s), cls=(k==='Y'?' done':(k==='C'?' cancel':(late(s)?' late':'')));
           var eh=(s.schedTm||'')+(s.place?(s.schedTm?' · ':'')+s.place:'');
@@ -516,6 +522,7 @@ function paintCal(){
     d.setDate(d.getDate()+1);
   }
   calRows(g.weeks, wkHas, colHas); gel('cal').innerHTML=h; calHdSync();
+  if(_pickScroll){ var pc=document.querySelector('#cal .dc.pick'); if(pc){ _pickScroll=false; try{ pc.scrollIntoView({ block:'nearest', inline:'nearest' }); }catch(e){} } }   /* 처음 열 때·[오늘]을 누를 때 — 고른 날 칸이 보이게 */
   /* 머리의 요일 — 오늘이 든 달을 보고 있으면 오늘 요일에 동그라미 */
   var now=new Date(), cur=(now.getFullYear()===_y && now.getMonth()===_m);
   [].forEach.call(gel('calHd').children, function(e, i){ e.classList.toggle('tdy', cur && i===now.getDay()); });
@@ -540,6 +547,7 @@ window.addEventListener('resize', function(){ calRows(); calHdSync(); });
    종전엔 빈 곳을 누르면 늘 새 일정이었다. 이제 그 날짜에 일정이 있으면 그 일정을 연다(여럿이면 그 날 시작한 것 → 시간 이른 것 → 먼저 등록한 것).
    그 날짜에 일정이 없을 때만 새 일정. ([＋ 일정 등록] 단추는 같은 날 사용자 「의미 없음」으로 뺐다 — 같은 날은 한 일정에 이어 쓴다) */
 function dayOpen(k){
+  _pick=k; [].forEach.call(document.querySelectorAll('#cal .dc.pick'), function(e){ e.classList.remove('pick'); }); var pk=document.querySelector('#cal .dc[data-k="'+k+'"]'); if(pk) pk.classList.add('pick');
   var ev=_rows.filter(function(s){ return s.fromDt<=k && s.toDt>=k; });
   if(!ev.length){ edOpen(0, k); return; }
   ev.sort(function(a,b){ var fa=(a.fromDt===k?0:1), fb=(b.fromDt===k?0:1); if(fa!==fb) return fa-fb;
@@ -587,6 +595,7 @@ function calGo(k, ev){
   var y=+k.slice(0,4), m=+k.slice(4,6)-1;
   if(y!==_y || m!==_m){ _y=y; _m=m; gel('ymTxt').textContent=_y+'년 '+(_m+1)+'월'; paint(); }
   var c=document.querySelector('#cal .dc[data-k="'+k+'"]'); if(!c) return;
+  _pick=k; [].forEach.call(document.querySelectorAll('#cal .dc.pick'), function(e){ e.classList.remove('pick'); }); c.classList.add('pick');   /* 고른 날 옮기기 */
   try{ c.scrollIntoView({ block:'nearest', inline:'nearest' }); }catch(e){}
   [].forEach.call(document.querySelectorAll('#cal .dc.flash'), function(e){ e.classList.remove('flash'); });
   void c.offsetWidth; c.classList.add('flash'); clearTimeout(_flashT); _flashT=setTimeout(function(){ c.classList.remove('flash'); }, 1800);
@@ -622,11 +631,13 @@ function paintList(){
   }).join('');
 }
 /* 목록의 내용 판 — 「미완료」 탭(검색어 없음)은 남은 줄만 + 「끝난 n줄 숨김」 · 다 끝났으면 안내 한 줄. 그 밖(전체·검색)은 종전대로 전부 */
+var LW_LIM=3;   /* 목록에 보이는 줄 수(대표) — 나머지는 마우스를 올리면 (2026-11-26) */
+function lwMore(){ var n=linesHtml.more||0; return n ? '<div class="lnmore">… 외 '+n+'줄 — 마우스를 올리면 모두</div>' : ''; }
 function lwHtml(s, q){
-  if(_tab!=='todo' || q) return linesHtml(s, q);
+  if(_tab!=='todo' || q){ var hh=linesHtml(s, q, false, false, q ? 0 : LW_LIM); return hh+(q ? '' : lwMore()); }   /* 검색 중엔 전부 */
   var o=openLines(s);
   if(!o.lines.length) return '';   /* (이제 inTodo 가 그런 일정을 목록에서 뺀다 — 남겨 둔 안전 갈래) 줄이 모두 끝난 옛 일정 — 아무 글도 없이 날짜 줄만 (2026-11-20 「「모든 줄 끝」 문구도 제거해줘」 — 그 전엔 긴 안내 → 단추 → 「모든 줄 끝」). 빼려면 위 상태 칸에서 완료 */
-  return linesHtml(s, q, false, true)+(o.hid?'<div class="lnhid" title="완료·취소한 줄은 미완료 목록에서 숨깁니다 — 「전체」 탭이나 달력에서 모두 보입니다">끝난 '+o.hid+'줄 숨김</div>':'');
+  return linesHtml(s, q, false, true, LW_LIM)+lwMore()+(o.hid?'<div class="lnhid" title="완료·취소한 줄은 미완료 목록에서 숨깁니다 — 「전체」 탭이나 달력에서 모두 보입니다">끝난 '+o.hid+'줄 숨김</div>':'');
 }
 /* ══ 엑셀 · 인쇄 (2026-11-19 사용자 「엑셀출력 및 인쇄 넣어줘요」) ══
      범위 = 오른쪽 목록에 지금 보이는 것 그대로(탭 「이 달」/「미완료」/「전체」 + 검색). 화면·엑셀·인쇄가 curList() 하나를 쓴다.
