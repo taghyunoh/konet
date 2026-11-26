@@ -3009,7 +3009,11 @@ public class UserController {
 		                                            @RequestParam(value="toDt", required=false) String toDt,
 		                                            @RequestParam(value="frYm", required=false) String frYm,
 		                                            @RequestParam(value="toYm", required=false) String toYm,
+		                                            @RequestParam(value="noPo", required=false) String noPo,
 		                                            HttpSession session) throws Exception {
+			/* noPo=N (2026-11-26 사용자 「속도 확인」) — 「발주현황표 없는 날」 알림(selectSettleNoPoDays, 1년 0.55초)을 여기서 빼고 화면이 /prod/stockOutNoPoDays.do 로 따로 받는다.
+			     표는 그만큼 먼저 뜬다(운영 실측 1~11월 : 출고 1.5초 + 알림 0.55초 → 표 1.5초). 값이 없으면 종전대로 함께 준다(옛 화면 호환). */
+			long _t0 = System.nanoTime();
 			Map<String,Object> p = new HashMap<String,Object>();
 			/* 기간은 일자(frDt·toDt, 2026-09-03 「일자까지 보여주는 형식으로」). 옛 호출(frYm·toYm)만 오면 그 달 1일~31일로 편다 */
 			String fd = _d8(frDt), td = _d8(toDt);
@@ -3018,10 +3022,14 @@ public class UserController {
 			p.put("frDt", fd); p.put("toDt", td);
 			Map<String,Object> res = new HashMap<String,Object>();
 			res.put("months", svc.selectStockOutByMonth(p));
+			long _t1 = System.nanoTime();
 			/* 정산서는 왔는데 발주현황표에서 짝을 못 찾은 날 (2026-11-24 사용자 「정산서만 오고 발주현황표 누락」) — 화면이 표 위 노란 줄로 알린다.
 			   알림일 뿐이라 실패해도 표는 그대로 준다(빈 목록). */
-			try { res.put("noPoDays", svc.selectSettleNoPoDays(p)); }
-			catch (Exception e) { log.error(" selectSettleNoPoDays WARN : " + e.getMessage()); res.put("noPoDays", new java.util.ArrayList<Object>()); }
+			if (!"N".equals(noPo)) {
+				try { res.put("noPoDays", svc.selectSettleNoPoDays(p)); }
+				catch (Exception e) { log.error(" selectSettleNoPoDays WARN : " + e.getMessage()); res.put("noPoDays", new java.util.ArrayList<Object>()); }
+			}
+			long _t2 = System.nanoTime();
 			/* 현재고 = 기간 끝날짜(납기일자)까지 (2026-11-04 사용자 「11-03 이면 21」 — 종전엔 기간과 무관한 원장 전체라 끝날짜를 바꿔도 같은 숫자였다).
 			     끝날짜가 비면 종전대로 원장 전체. 대시보드(납기현황표)와 같은 조건(selectStockQtyMap asOfDt) */
 			egovframework.konet.user.model.StockMstDTO stq = new egovframework.konet.user.model.StockMstDTO();
@@ -3034,10 +3042,29 @@ public class UserController {
 			if (somAsOf) stq.setAsOfDt(td);
 			res.put("stockAsOf", somAsOf ? td : "");
 			res.put("stock",  svc.selectStockQtyMap(stq));
+			/* 서버 안 걸린 시간(ms) — 화면 「⏱ 서버」 옆에 나눠 보인다 : 출고 집계 · 알림 · 현재고 */
+			Map<String,Object> tm = new HashMap<String,Object>();
+			tm.put("out", (_t1 - _t0) / 1000000L); tm.put("npo", (_t2 - _t1) / 1000000L); tm.put("stk", (System.nanoTime() - _t2) / 1000000L);
+			res.put("tm", tm);
 			/* ★srcDays(월별 정산서/발주 원천 일수) 호출은 뺐다 (2026-09-03 속도점검) —
 			     화면이 년월 칸 표시를 뺀 뒤로 쓰는 데가 없는데 조회마다 실측 120ms 를 썼다.
 			     화면의 srcBadge() 함수는 그대로 남아 있으니, 다시 보여 주려면 이 줄만 되살리면 된다.
 			     res.put("srcDays", svc.selectStockOutSrcDays(p)); */
+			return res;
+		}
+		/* 월별 출고현황 — 「발주현황표 없는 날」 알림만 따로 (2026-11-26 — 표 조회와 나란히 받아 표가 먼저 뜨게). 실패하면 빈 목록 */
+		@RequestMapping(value="/prod/stockOutNoPoDays.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockOutNoPoDays(@RequestParam(value="frDt", required=false) String frDt,
+		                                           @RequestParam(value="toDt", required=false) String toDt,
+		                                           HttpSession session) throws Exception {
+			Map<String,Object> p = new HashMap<String,Object>();
+			p.put("frDt", _d8(frDt)); p.put("toDt", _d8(toDt));
+			Map<String,Object> res = new HashMap<String,Object>();
+			long t0 = System.nanoTime();
+			try { res.put("noPoDays", svc.selectSettleNoPoDays(p)); }
+			catch (Exception e) { log.error(" stockOutNoPoDays WARN : " + e.getMessage()); res.put("noPoDays", new java.util.ArrayList<Object>()); }
+			res.put("ms", (System.nanoTime() - t0) / 1000000L);
 			return res;
 		}
 		private static String _d8(String s) { return (s == null) ? "" : s.trim().replace("-", ""); }   // yyyy-mm-dd → yyyymmdd

@@ -97,6 +97,20 @@
   .qprog{ height:3px; background:#e8efed; border-radius:2px; overflow:hidden; margin:2px 0 8px; }
   .qprog > i{ display:block; height:100%; width:34%; border-radius:2px; background:linear-gradient(90deg,#0f6b5f,#3fbfae); animation:qslide 1.05s infinite ease-in-out; }
   @keyframes qslide{ 0%{ margin-left:-34%; } 100%{ margin-left:100%; } }
+  /* 진행률 바 (2026-11-26 사용자 「속도 확인 · 진행바」) — 지난 조회에 걸린 시간으로 어림한 %를 채운다(응답 전 90%까지 · 그리기 95% · 끝 100%) */
+  .qprog.det{ height:8px; border-radius:5px; }
+  .qprog.det > i{ width:0; animation:none; margin-left:0; border-radius:5px; transition:width .25s linear; }
+  .qpct{ font-weight:800; color:#0f6b5f; margin-left:6px; }
+  /* 기간을 바꿨는데 아직 조회 안 함 — [조회] 단추가 숨 쉬듯 깜박인다 */
+  #somBtn.due{ animation:somDue 1.1s infinite ease-in-out; box-shadow:0 0 0 0 rgba(15,107,95,.55); }
+  @keyframes somDue{ 0%{ box-shadow:0 0 0 0 rgba(15,107,95,.55); } 70%{ box-shadow:0 0 0 8px rgba(15,107,95,0); } 100%{ box-shadow:0 0 0 0 rgba(15,107,95,0); } }
+  .due-msg{ color:#b5590f; font-weight:800; }
+  /* 조회 중 진행 상자 — 표 위에 겹쳐 가운데(somOv) */
+  .som-ov{ position:fixed; z-index:60; display:flex; align-items:center; justify-content:center; background:rgba(244,247,249,.35); }
+  .som-ov[hidden]{ display:none; }
+  .som-ov .bx{ width:420px; max-width:92%; background:#fff; border:1px solid #c9d8d4; border-radius:12px; box-shadow:0 10px 30px rgba(15,60,55,.18); padding:16px 18px 10px; }
+  .som-ov .tt{ font-weight:800; color:#0f6b5f; font-size:14px; margin-bottom:8px; }
+  .som-ov .qwrap{ padding:0; }
   .qmsg{ padding:10px 2px 4px; color:#5a6b7a; font-size:12.5px; }
   .qwrap{ padding:14px 16px 10px; }
   /* 셀을 누르면 하단에 그 (년월·사업장·품목)의 출고내역·입고내역 (2026-09-03 요청) */
@@ -169,7 +183,7 @@
   <div class="sub"><b>사업장</b> ▸ <b>품목</b>별 <b>월 출고량</b>과 <b>현재고</b>를 한 표로 봅니다 — 행은 년월(최근월부터), 맨 위 줄이 품목 현재고(사업장과 무관한 품목 잔량)입니다. 출고량은 <b>납기일자</b> 기준으로 그 날 <b>그 물류센터 정산서가 있으면 정산서</b>, 없으면 발주현황표(라벨수량)를 읽고, <b>토더·대상 발주</b>는 정산서가 있는 날에도 세고, <b>판매전표</b>(판매등록)는 판매일자 기준으로 거래처를 사업장 자리에 「(판매전표)」로 보입니다 — 품목별재고현황(재고 원장)과 같은 규칙. 사업장은 거래처관리 매칭명으로 묶습니다.</div>
   <div class="bar">
     <label style="font-weight:700">기간</label>
-    <input type="date" id="frDt" data-range-to="toDt" onchange="somLoad()" title="클릭하여 달력 선택 — 시작·종료를 한 번에 고릅니다"> <span style="color:#8a98a8">~</span> <input type="date" id="toDt" onchange="somLoad()" title="클릭하여 달력 선택 — 시작·종료를 한 번에 고릅니다">
+    <input type="date" id="frDt" data-range-to="toDt" onchange="somDirty()" onkeydown="if(event.key==='Enter'){ somLoad(); }" title="클릭하여 달력 선택 — 시작·종료를 한 번에 고릅니다. 고른 뒤 [조회]를 누르세요(Enter 도 됨)"> <span style="color:#8a98a8">~</span> <input type="date" id="toDt" onchange="somDirty()" onkeydown="if(event.key==='Enter'){ somLoad(); }" title="클릭하여 달력 선택 — 시작·종료를 한 번에 고릅니다. 고른 뒤 [조회]를 누르세요(Enter 도 됨)">
     <button class="btn btn-teal" id="somBtn" onclick="somLoad()">🔍 조회</button>
     <input type="text" id="q" placeholder="사업장/품목코드/품목명 거르기" oninput="somFindLater()" onkeydown="if(event.key==='Enter'){ somFindNow(); }" title="치는 동안 기다렸다가 멈추면 거릅니다 — Enter 를 누르면 바로" style="width:220px">
     <button class="btn" onclick="somExcel()">📥 엑셀 출력</button>
@@ -215,14 +229,48 @@ function qprog(msg, id){ return '<div class="qwrap"><div class="qprog"><i></i></
 /* ★조회 중 표시 다듬기 (2026-11-24 사용자 「월별 출고현황도 진행바 확인해줘」 — 정산서 누락 조회와 같게)
      ① 걸린 초를 0.5초마다 ② [조회] 단추 잠금 ③ 서버 응답 뒤 «표를 그리는 중»으로 글을 바꾸고 한 박자 쉰 뒤 그린다 —
         그리기(3만 칸 · 1~2초)는 화면을 멈추게 해서, 바꾸지 않으면 진행바가 «조회 중»에서 굳은 듯 보였다 ④ 늦게 온 옛 응답은 버린다(_somSeq). */
-var _somSeq=0, _somBusyT=null;
+var _somSeq=0, _somBusyT=null, _somPh='', _somNpo=null;
+/* ★진행률 바 (2026-11-26 사용자 「날짜 변경하면 조회 누르게 · 속도 확인 · 진행바」) — 서버는 진행률을 알려 주지 않으므로 «지난 조회에 걸린 시간»(localStorage konetSomMs)으로 어림한다 :
+     응답 전 = 그 시간까지 85% · 넘으면 90% 쪽으로 천천히 · 응답 뒤 그리는 중 95% · 끝나면 표가 바를 덮는다. 걸린 초도 함께. */
+var _somEst=(function(){ try{ var v=+localStorage.getItem('konetSomMs'); return (v>200 && v<120000) ? v : 2000; }catch(e){ return 2000; } })();
+function qprogDet(msg){ return '<div class="qwrap"><div class="qprog det"><i id="somQbar"></i></div><div class="qmsg"><span id="somQmsg">'+esc(msg||'조회 중…')+'</span><span class="qpct" id="somQpct">0%</span><span id="somQsec" style="color:#8a98a8"></span></div></div>'; }
+/* ★진행 상자를 표 «위에» 띄운다 (2026-11-26 사용자 「들어가서 조회 눌러도 진행바 뜨게」 — 표 자리를 비우고 맨 위에 가는 바를 두면 눈에 안 띄었다).
+     표(또는 빈 안내)는 그대로 흐리게 두고, 그 한가운데에 흰 상자(제목 · 바 · % · 초). 들어올 때 첫 조회도 같다. 끝나면 거둔다. */
+function somOv(msg){
+  var ov=document.getElementById('somOv');
+  if(!ov){ ov=document.createElement('div'); ov.id='somOv'; ov.className='som-ov'; document.body.appendChild(ov); }
+  ov.innerHTML='<div class="bx"><div class="tt">📦 월별 출고현황 조회 중</div>'+qprogDet(msg)+'</div>';
+  ov.hidden=false; somOvPos();
+}
+/* 자리 = 표 칸(#card) 위. 들어올 때는 탭이 아직 숨어 있어 크기가 0 일 수 있어 진행 중 0.2초마다 다시 맞춘다(somBusy) */
+function somOvPos(){
+  var ov=document.getElementById('somOv'); if(!ov || ov.hidden) return;
+  var c=document.getElementById('card'), r=c ? c.getBoundingClientRect() : null;
+  if(!r || r.width<10){ r={ left:0, top:0, width:window.innerWidth, height:window.innerHeight }; }
+  ov.style.left=Math.max(0,r.left)+'px'; ov.style.top=Math.max(0,r.top)+'px';
+  ov.style.width=Math.max(320,r.width)+'px'; ov.style.height=Math.max(240,Math.min(r.height, window.innerHeight-Math.max(0,r.top)))+'px';
+}
+function somOvOff(){ var ov=document.getElementById('somOv'); if(ov){ ov.hidden=true; ov.innerHTML=''; } var c=document.getElementById('card'); if(c) c.style.opacity=''; }
+function somProg(pct, msg){
+  var b=document.getElementById('somQbar'), p=document.getElementById('somQpct'), m=document.getElementById('somQmsg');
+  if(b) b.style.width=pct.toFixed(1)+'%'; if(p) p.textContent=Math.floor(pct)+'%'; if(msg!=null && m) m.textContent=msg;
+}
 function somBusy(on){
   if(_somBusyT){ clearInterval(_somBusyT); _somBusyT=null; }
   var b=document.getElementById('somBtn'); if(b){ b.disabled=!!on; b.style.opacity=on?'.6':''; }
-  if(!on) return;
-  var t0=Date.now(), el=document.getElementById('somQmsg'), base=el?el.textContent:'';
-  _somBusyT=setInterval(function(){ var m=document.getElementById('somQmsg'); if(!m){ clearInterval(_somBusyT); _somBusyT=null; return; }
-    var sec=Math.floor((Date.now()-t0)/1000); if(sec>=1) m.textContent=(m.getAttribute('data-base')||base)+' · '+sec+'초'; }, 500);
+  if(!on){ somOvOff(); return; }
+  var t0=Date.now(); _somPh='fetch'; somProg(0);
+  _somBusyT=setInterval(function(){ if(!document.getElementById('somQbar')){ clearInterval(_somBusyT); _somBusyT=null; return; }
+    var el=Date.now()-t0, s=document.getElementById('somQsec'); somOvPos();
+    if(_somPh==='fetch') somProg(el<_somEst ? 85*el/_somEst : 85+5*(1-Math.exp(-(el-_somEst)/_somEst)));
+    if(s) s.textContent=el>=1000 ? ' · '+Math.floor(el/1000)+'초' : ''; }, 200);
+}
+/* 기간을 바꾸면 바로 조회하지 않는다 (2026-11-26 사용자 「날짜 변경하면 조회 누르게」 — 범위 달력은 시작·끝을 한 번에 넣어 change 가 두 번 나 조회가 두 번 돌았다(한 번 2초)).
+     [조회] 단추가 깜박이고, 지금 표는 옛 기간이라 흐리게 둔다. [조회]·Enter 로 조회. */
+function somDirty(){
+  var b=document.getElementById('somBtn'); if(b) b.classList.add('due');
+  var card=document.getElementById('card'); if(card && RAW) card.style.opacity='.5';
+  var c=document.getElementById('cnt'); if(c) c.innerHTML='<span class="due-msg">기간이 바뀌었습니다 — [🔍 조회]를 누르세요</span>';
 }
 function ymLabel(ym){ ym=''+ym; return ym.length===6 ? (ym.slice(0,4)+'-'+ym.slice(4,6)) : ym; }
 /* 알림 = 프로젝트 공통 _alertBox(ui-message.js, 재집계 확인창과 같은 모양). 없으면 브라우저 alert 폴백 (2026-09-03 요청) */
@@ -244,22 +292,34 @@ function somLoad(){
   if(!fr||!to){ toast('기간을 고르세요.'); return; }
   if(fr>to){ var t=fr; fr=to; to=t; document.getElementById('frDt').value=fr; document.getElementById('toDt').value=to; }
   var my=++_somSeq;
-  document.getElementById('card').innerHTML=qprog('월별 출고량을 조회하는 중… (기간 '+fr+' ~ '+to+')', 'somQmsg');
+  var sb=document.getElementById('somBtn'); if(sb) sb.classList.remove('due');
+  var card0=document.getElementById('card'); card0.style.opacity='.35';   /* 옛 표는 지우지 않고 흐리게 — 그 위에 진행 상자 */
+  somOv('월별 출고량을 집계하는 중… (기간 '+fr+' ~ '+to+')');
   somBusy(true);
   /* 걸린 시간을 조회 결과 줄에 같이 적는다(2026-09-04 「조회 자체 느림」 — 서버·그리기 어느 쪽인지 사용자가 바로 보게) */
   somAliasLoad();          /* 매칭코드 → 주코드 표 (한 번만 · 조회를 기다리게 하지 않는다) */
-  var t0=performance.now(), tFetch=0;
+  var t0=performance.now(), tFetch=0, body='frDt='+encodeURIComponent(fr.replace(/-/g,''))+'&toDt='+encodeURIComponent(to.replace(/-/g,''));
   _dtlCache={};   /* 새로 조회하면 셀별 내역 보관도 비운다 (2026-11-05) */
+  /* 「발주현황표 없는 날」 알림은 따로 나란히 받는다 (2026-11-26 — 표 조회에서 0.55초를 덜어 표가 먼저 뜬다). 옛 서버면 404 → 무시(표 응답에 같이 온다) */
+  _somNpo=null;
+  fetch(CTX+'/prod/stockOutNoPoDays.do', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:body })
+    .then(function(r){ return r.json(); })
+    .then(function(j){ if(my!==_somSeq || !j || !j.noPoDays) return; _somNpo=j.noPoDays; if(RAW){ RAW.noPoDays=_somNpo; if(_somM) npoPaint(_somNpo); } })
+    .catch(function(){});
   fetch(CTX+'/prod/stockOutMonthList.do', { method:'POST', credentials:'same-origin',
          headers:{'Content-Type':'application/x-www-form-urlencoded'},
-         body:'frDt='+encodeURIComponent(fr.replace(/-/g,''))+'&toDt='+encodeURIComponent(to.replace(/-/g,'')) })
+         body:body+'&noPo=N' })
     .then(function(r){ return r.json(); })
     .then(function(j){ if(my!==_somSeq) return; tFetch=performance.now()-t0; RAW=j||{months:[],stock:[]};
+      if(_somNpo) RAW.noPoDays=_somNpo;
+      try{ localStorage.setItem('konetSomMs', String(Math.round(tFetch))); }catch(e){}
+      _somEst=Math.max(300, tFetch);
       /* 그리기 전에 글을 바꾸고 한 박자 쉰다 — 그리는 동안 화면이 멈춰도 무엇을 하는 중인지 보이게 */
-      var qm=document.getElementById('somQmsg'); if(qm){ var nt='표를 그리는 중… (자료 '+((RAW.months||[]).length).toLocaleString()+'줄)'; qm.setAttribute('data-base', nt); qm.textContent=nt; }
+      _somPh='draw'; somProg(95, '표를 그리는 중… (자료 '+((RAW.months||[]).length).toLocaleString()+'줄)');
       setTimeout(function(){ if(my!==_somSeq) return;
         var t1=performance.now(); somRender(); void document.body.offsetHeight; somBusy(false);
-        _somTiming='  ⏱ 서버 '+(tFetch/1000).toFixed(1)+'초 · 그리기 '+((performance.now()-t1)/1000).toFixed(1)+'초';
+        var tm=RAW.tm||null, part=tm ? ' (출고 집계 '+((+tm.out||0)/1000).toFixed(1)+' · 현재고 '+((+tm.stk||0)/1000).toFixed(1)+')' : '';
+        _somTiming='  ⏱ 서버 '+(tFetch/1000).toFixed(1)+'초'+part+' · 그리기 '+((performance.now()-t1)/1000).toFixed(1)+'초';
         var c=document.getElementById('cnt'); if(c && c.innerHTML.indexOf('⏱')<0) c.innerHTML+='<span style="color:#8a98a8;font-weight:600">'+_somTiming+'</span>'; }, 30); })
     .catch(function(e){ if(my!==_somSeq) return; somBusy(false); document.getElementById('card').innerHTML='<div class="empty">조회 실패: '+esc(e.message)+'</div>'; });
 }
@@ -409,7 +469,10 @@ function somRender(){
   _somRS=-1; _somRE=-1;
   if(!m.cols.length){ card.innerHTML='<div class="empty">해당 기간에 출고가 없습니다.</div>'; document.getElementById('cnt').textContent='-'; npoPaint(RAW.noPoDays); return; }
   var grand=0; m.yord.forEach(function(ym){ grand+=m.yms[ym]; }); m.grand=grand;
-  var stkTot=0, seen={}; m.cols.forEach(function(c){ var v=m.stock[c.cd]; if(v!=null && !seen[c.cd]){ seen[c.cd]=1; stkTot+=v; } }); m.stkTot=stkTot; m.stkAny=Object.keys(seen).length>0;
+  /* 현재고 합계는 «마이너스 품목을 빼고» 더한다 (2026-11-26 사용자 「현재고 합계에 마이너스는 계산하지 말게」 — 마이너스는 오류 재고라 남은 재고를 깎아 보이게 했다).
+       칸마다의 마이너스 숫자(빨강)는 그대로 보인다. 뺀 품목 수·합은 stkNeg·stkNegSum 으로 — 합계 칸 툴팁에 적는다. 엑셀(somExcel)도 같은 규칙. */
+  var stkTot=0, stkNeg=0, stkNegSum=0, seen={}; m.cols.forEach(function(c){ var v=m.stock[c.cd]; if(v!=null && !seen[c.cd]){ seen[c.cd]=1; if(v>0) stkTot+=v; else if(v<0){ stkNeg++; stkNegSum+=v; } } });
+  m.stkTot=stkTot; m.stkNeg=stkNeg; m.stkNegSum=stkNegSum; m.stkAny=Object.keys(seen).length>0;
   somPaint(true);
   document.getElementById('cnt').innerHTML='사업장 <b>'+num(m.gord.filter(function(k){ return k!=='#ALL'; }).length)+'</b>곳 · 품목 <b>'+num(m.nprod)+'</b>종 · <b>'+num(m.yord.length)+'</b>개월 · 기간 출고 <b>'+num(grand)+'</b>'
     /* 서브코드로 쳤을 때 «무엇으로 찾았는지» 밝힌다 — 친 글자는 그대로 두므로 이 줄이 없으면 사람이 알 길이 없다 */
@@ -456,7 +519,7 @@ function somPaint(force){
   var _stkLab=(_stkAs==='') ? '지금' : (_stkTo ? (_stkTo+' 기준') : '품목');
   var _stkTip=(_stkAs==='') ? '지금 재고 — 원장 전체(품목별재고현황과 같은 숫자). 내일 이후 납기분도 이미 올라와 있으면 빠져 있습니다. 끝날짜를 지난 날짜로 고르면 그날까지의 재고'
                             : '기간 끝날짜(납기일자)까지 반영한 품목 재고 — 그 뒤 날짜의 출고는 빼지 않습니다. 끝날짜가 오늘이거나 그 뒤면 지금 재고';
-  h+='<tr class="stk"><td class="cn" title="'+_stkTip+'">현재고 <small style="font-weight:400;color:#6b7a89">('+_stkLab+')</small></td><td class="rt">'+(m.stkAny?num(m.stkTot):'')+'</td>'+L;
+  h+='<tr class="stk"><td class="cn" title="'+_stkTip+'">현재고 <small style="font-weight:400;color:#6b7a89">('+_stkLab+')</small></td><td class="rt"'+(m.stkNeg?' title="마이너스 재고 '+num(m.stkNeg)+'품목('+num(m.stkNegSum)+')은 합계에서 뺐습니다 — 칸마다의 빨간 숫자는 그대로"':'')+'>'+(m.stkAny?num(m.stkTot):'')+'</td>'+L;
   cols.forEach(function(c){ var v=m.stock[c.cd]; h+= (v==null) ? '<td class="none'+(c.first?' gs':'')+'"></td>' : cell(v<0?'neg':'', '', c, num(v)); });
   h+=R+'</tr>';
   /* ② 년월 줄 */
@@ -1012,25 +1075,70 @@ document.addEventListener('dblclick', function(e){ if(e.target && e.target.close
 function somExcel(){
   if(!RAW){ toast('먼저 조회하세요.'); return; }
   var m=_somM||somBuild(); if(!m.cols.length){ toast('출력할 자료가 없습니다.'); return; }
-  var aoa=[], h1=['년월 / 사업장 ▸ 품목','합계'], h2=['',''];
-  var merges=[{s:{r:0,c:0},e:{r:1,c:0}},{s:{r:0,c:1},e:{r:1,c:1}}], ci=2;
+  /* ★서식 = 납기현황표 「출고장x품목」 엑셀(logistics_demo1 d2 가로표)과 같은 꼴 (2026-11-26 사용자 「엑셀출력도 기존출력 스타일로」) :
+       맨 위 조건 줄 · 머리 2줄(사업장 하늘 BDD7EE · 품목 DEEAF6, 줄바꿈) · 현재고 줄(살구 FFF4E6 · 마이너스 빨강) · 합계 칸 노랑 · 값 칸 굵은 숫자 / 빈 칸 옅은 회색 ·
+       기간 합계 회색 · 사업장 경계 굵은 세로선(파랑). 스타일본(xlsx-js-style)이 없으면 서식 없이 값만 나간다(종전과 같다). */
+  var fr=document.getElementById('frDt').value, to=document.getElementById('toDt').value;
+  var aoa=[], meta=[], h1=['년월 / 사업장','합계'], h2=['품목',''], gsCol={};
+  var gm=[], ci=2;
   m.gord.forEach(function(gk){ var g=m.grp[gk], n=g.iord.length;
-    h1.push(g.nm); for(var i=1;i<n;i++) h1.push('');
-    if(n>1) merges.push({s:{r:0,c:ci},e:{r:0,c:ci+n-1}});
-    g.iord.forEach(function(cd){ h2.push(cd+' '+shortNm(g.items[cd].nm, g.nm)); }); ci+=n; });
-  aoa.push(h1); aoa.push(h2);
-  var sr=['현재고',''], st=0, any=false, seen={};
-  m.cols.forEach(function(c){ var v=m.stock[c.cd]; if(v==null){ sr.push(''); return; } any=true; if(!seen[c.cd]){ seen[c.cd]=1; st+=v; } sr.push(v); });
-  sr[1]=any?st:''; aoa.push(sr);
-  m.yord.forEach(function(ym){ var r=[ymLabel(ym), m.yms[ym]]; m.cols.forEach(function(c){ var v=m.cell[ym+'|'+c.g+'|'+c.cd]; r.push(v>0?v:''); }); aoa.push(r); });
-  var tr=['기간 합계',0], g0=0; m.cols.forEach(function(c){ var t=m.grp[c.g].items[c.cd].tot; tr.push(t); if(c.g!=='#ALL') g0+=t; });   /* 품목 합계 열은 두 번 더하지 않는다 */ tr[1]=g0; aoa.push(tr);
-  var P=window.parent, fn='월별출고현황_'+document.getElementById('frDt').value.replace(/-/g,'')+'-'+document.getElementById('toDt').value.replace(/-/g,'')+'.xlsx';
-  function byLib(LIB){ var ws=LIB.utils.aoa_to_sheet(aoa); ws['!cols']=[{wch:16},{wch:10}].concat(m.cols.map(function(){ return {wch:16}; }));
+    gsCol[ci]=1;
+    h1.push(g.nm+'  ('+num(g.iord.length)+'품목 · '+num(g.tot)+')'); for(var i=1;i<n;i++) h1.push('');
+    if(n>1) gm.push({s:{r:1,c:ci},e:{r:1,c:ci+n-1}});
+    g.iord.forEach(function(cd){ h2.push(cd+'\n'+shortNm(g.items[cd].nm, g.nm)); }); ci+=n; });
+  var W=h1.length;
+  var merges=[{s:{r:0,c:0},e:{r:0,c:Math.min(W-1,9)}}, {s:{r:1,c:1},e:{r:2,c:1}}].concat(gm);   /* 조건 줄 · 합계 칸(머리 2줄) · 사업장 묶음 */
+  aoa.push(['월별 출고현황   기간 '+fr+' ~ '+to+'   ·   사업장 '+num(m.gord.filter(function(k){ return k!=='#ALL'; }).length)+'곳 · 품목 '+num(m.nprod)+'종 · 기간 출고 '+num(m.grand||0)]); meta.push('date');
+  aoa.push(h1); meta.push('bizhdr');
+  aoa.push(h2); meta.push('colhdr');
+  var stLab=(RAW && RAW.stockAsOf) ? ('현재고 ('+RAW.stockAsOf.slice(4,6)+'-'+RAW.stockAsOf.slice(6,8)+' 기준)') : '현재고 (지금)';
+  var sr=[stLab,''], st=0, any=false, seen={};
+  m.cols.forEach(function(c){ var v=m.stock[c.cd]; if(v==null){ sr.push(''); return; } any=true; if(!seen[c.cd]){ seen[c.cd]=1; if(v>0) st+=v; } sr.push(v); });   /* 합계는 마이너스 품목 빼고 (2026-11-26 — 화면과 같게) */
+  sr[1]=any?st:''; aoa.push(sr); meta.push('stk');
+  m.yord.forEach(function(ym){ var r=[ymLabel(ym), m.yms[ym]]; m.cols.forEach(function(c){ var v=m.cell[ym+'|'+c.g+'|'+c.cd]; r.push(v>0?v:''); }); aoa.push(r); meta.push('body'); });
+  var tr=['기간 합계',0], g0=0; m.cols.forEach(function(c){ var t=m.grp[c.g].items[c.cd].tot; tr.push(t); if(c.g!=='#ALL') g0+=t; });   /* 품목 합계 열은 두 번 더하지 않는다 */ tr[1]=g0; aoa.push(tr); meta.push('sum');
+  var P=window.parent, fn='월별출고현황_'+fr.replace(/-/g,'')+'-'+to.replace(/-/g,'')+'.xlsx';
+  function byLib(LIB, styled){ var ws=LIB.utils.aoa_to_sheet(aoa);
+    ws['!cols']=[{wch:16},{wch:12}].concat(m.cols.map(function(){ return {wch:14}; }));
     ws['!merges']=merges;
-    ws['!freeze']={xSplit:2, ySplit:2, topLeftCell:'C3', activePane:'bottomRight', state:'frozen'};
+    ws['!freeze']={xSplit:2, ySplit:4, topLeftCell:'C5', activePane:'bottomRight', state:'frozen'};
+    ws['!pageSetup']={ orientation:'landscape', paperSize:9 };
+    if(styled){
+      var enc=LIB.utils.encode_cell, LINE={style:'thin', color:{rgb:'9BA7B4'}}, box={top:LINE,bottom:LINE,left:LINE,right:LINE}, NF='#,##0';
+      var S={
+        dateL:{ font:{bold:true,sz:12,color:{rgb:'1F2A37'}}, alignment:{horizontal:'left',vertical:'center'} },
+        bizhdr:{ fill:{fgColor:{rgb:'BDD7EE'}}, font:{bold:true,color:{rgb:'1F2A37'},sz:10}, alignment:{horizontal:'center',vertical:'center',wrapText:true}, border:box },
+        colhdr:{ fill:{fgColor:{rgb:'DEEAF6'}}, font:{bold:true,color:{rgb:'1F2A37'},sz:10}, alignment:{horizontal:'center',vertical:'center',wrapText:true}, border:box },
+        ymL:{ font:{bold:true,color:{rgb:'10161D'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+        num:{ font:{bold:true,color:{rgb:'1F2A37'},sz:12}, alignment:{horizontal:'center',vertical:'center'}, border:box, numFmt:NF },
+        none:{ fill:{fgColor:{rgb:'F1F3F5'}}, alignment:{horizontal:'center',vertical:'center'}, border:box },
+        rtot:{ fill:{fgColor:{rgb:'FFF2CC'}}, font:{bold:true,color:{rgb:'1F2A37'},sz:12}, alignment:{horizontal:'center',vertical:'center'}, border:box, numFmt:NF },
+        sumL:{ fill:{fgColor:{rgb:'F2F2F2'}}, font:{bold:true,color:{rgb:'1F2A37'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+        sumN:{ fill:{fgColor:{rgb:'F2F2F2'}}, font:{bold:true,color:{rgb:'1F2A37'},sz:12}, alignment:{horizontal:'center',vertical:'center'}, border:box, numFmt:NF },
+        stkL:{ fill:{fgColor:{rgb:'FFF4E6'}}, font:{bold:true,color:{rgb:'8A5B14'}}, alignment:{horizontal:'left',vertical:'center'}, border:box },
+        stkN:{ fill:{fgColor:{rgb:'FFF4E6'}}, font:{bold:true,color:{rgb:'137A6C'},sz:12}, alignment:{horizontal:'center',vertical:'center'}, border:box, numFmt:NF },
+        stkNeg:{ fill:{fgColor:{rgb:'FFF4E6'}}, font:{bold:true,color:{rgb:'C0392B'},sz:12}, alignment:{horizontal:'center',vertical:'center'}, border:box, numFmt:NF }
+      };
+      function put(r,c,s){ var ref=enc({r:r,c:c}); if(!ws[ref]) ws[ref]={t:'s',v:''}; ws[ref].s=s; }
+      var rowsH=[];
+      meta.forEach(function(ty,r){ var c, h=null, row=aoa[r]||[];
+        if(ty==='date'){ put(r,0,S.dateL); h=24; }
+        else if(ty==='bizhdr'){ for(c=0;c<W;c++) put(r,c,S.bizhdr); h=34; }
+        else if(ty==='colhdr'){ for(c=0;c<W;c++) put(r,c,S.colhdr);
+          var ln=3; row.forEach(function(v){ var t=''+(v==null?'':v); if(t) ln=Math.max(ln, Math.min(10, Math.ceil(t.length/7))); }); h=Math.max(48, 13*ln+8); }
+        else if(ty==='stk'){ put(r,0,S.stkL); put(r,1,S.stkN); for(c=2;c<W;c++){ var sv=row[c]; put(r,c, (sv===''||sv==null) ? S.none : (+sv<0 ? S.stkNeg : S.stkN)); } h=24; }
+        else if(ty==='body'){ put(r,0,S.ymL); put(r,1,S.rtot); for(c=2;c<W;c++){ var bv=row[c]; put(r,c, (bv===''||bv==null) ? S.none : S.num); } h=22; }
+        else if(ty==='sum'){ put(r,0,S.sumL); for(c=1;c<W;c++) put(r,c,S.sumN); h=24; }
+        rowsH.push(h?{hpx:h}:{}); });
+      /* 사업장 경계 굵은 세로선 — 머리줄부터 기간 합계까지 같은 열에(가로표와 같은 규칙). 서식 객체는 칸끼리 공유하므로 그 칸만 복사본에 얹는다 */
+      var GSB={style:'medium', color:{rgb:'2F5597'}};
+      meta.forEach(function(ty,r){ if(ty==='date') return;
+        Object.keys(gsCol).forEach(function(k){ var cell=ws[enc({r:r,c:+k})]; if(!cell) return; var s=JSON.parse(JSON.stringify(cell.s||{})); s.border=s.border||{}; s.border.left=GSB; cell.s=s; }); });
+      ws['!rows']=rowsH;
+    }
     var wb=LIB.utils.book_new(); LIB.utils.book_append_sheet(wb,ws,'월별 출고현황'); LIB.writeFile(wb,fn); toast('<b>'+esc(fn)+'</b><br>엑셀 파일을 내려받았습니다.', '📥'); }
-  try{ if(P && P.ssLoadStyleXlsx){ P.ssLoadStyleXlsx(function(XS){ var LIB=XS||P.XLSX; if(LIB) byLib(LIB); else toast('엑셀 모듈을 못 불러왔습니다.'); }); return; } }catch(e){}
-  if(P && P.XLSX){ byLib(P.XLSX); return; }
+  try{ if(P && P.ssLoadStyleXlsx){ P.ssLoadStyleXlsx(function(XS){ var LIB=XS||P.XLSX; if(LIB) byLib(LIB, !!XS); else toast('엑셀 모듈을 못 불러왔습니다.'); }); return; } }catch(e){}
+  if(P && P.XLSX){ byLib(P.XLSX, false); return; }
   toast('엑셀 모듈은 물류관리 메인 안에서만 씁니다.');
 }
 somLoad();
