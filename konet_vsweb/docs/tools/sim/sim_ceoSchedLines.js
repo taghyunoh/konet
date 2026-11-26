@@ -389,10 +389,12 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
     const tab0=w._tab; w._tab='all';
     const S5={ schedSeq:99, content:'<div>1. 가</div><div>2. 나</div><div>3. 다</div><div>4. 라</div><div>5. 마</div>', hasContent:'Y' };
     const box=d.createElement('div'); box.innerHTML=w.lwHtml(S5, '');
-    T(box.querySelectorAll('.ln').length===5 && box.querySelectorAll('.ln.more').length===2 && /외 2줄/.test(box.textContent), '목록 — 앞 3줄만 보이고 나머지 2줄은 .more(마우스를 올리면) + 「… 외 2줄」');
+    T(box.querySelectorAll('.ln').length===5 && box.querySelectorAll('.ln.more').length===2 && /외 2줄/.test(box.textContent), '목록 — 앞 3줄만 보이고 나머지 2줄은 .more + 「… 외 2줄 — 눌러서 모두 보기」');
+    w.lwTog(99); box.innerHTML=w.lwHtml(S5, ''); T(!box.querySelector('.ln.more') && /▲ 접기/.test(box.textContent), '「… 외 n줄」을 누르면 전부 + 「▲ 접기」(창은 안 열림)');
+    w.lwTog(99); box.innerHTML=w.lwHtml(S5, ''); T(box.querySelectorAll('.ln.more').length===2 && /외 2줄/.test(box.textContent), '「▲ 접기」 = 다시 3줄');
     box.innerHTML=w.lwHtml(S5, '라'); T(!box.querySelector('.ln.more') && !/외 d+줄/.test(box.textContent), '검색 중엔 전부 보인다');
     box.innerHTML=w.lwHtml({ schedSeq:98, content:'<div>1. 가</div><div>2. 나</div>', hasContent:'Y' }, ''); T(!box.querySelector('.ln.more') && !/외 /.test(box.textContent), '3줄 이하면 「외 n줄」 없음');
-    const css=d.querySelector('style').textContent; T(/#list .it .ln.more{ display:none; } #list .it:hover .ln.more{ display:flex; }/.test(css), 'CSS — 목록에서만 숨기고 마우스를 올리면 보인다(달력 칸은 그대로)');
+    const css=d.querySelector('style').textContent; T(/#list .it .ln.more{ display:none; }/.test(css) && !/:hover .ln.more/.test(css), 'CSS — 목록에서만 숨기고 마우스를 올려도 안 펼친다(사용자 「마우스 대면 확대 제거」)');
     w._tab=tab0; }
   console.log((bad?'✗':'✓')+' sim_ceoSchedLines ok='+ok+' bad='+bad);
   process.exit(bad?1:0);

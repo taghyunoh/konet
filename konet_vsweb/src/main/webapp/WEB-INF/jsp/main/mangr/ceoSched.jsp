@@ -162,9 +162,10 @@
   .it.late .lw{ background:#fde8e8; border-left-color:var(--red); }
   .it.done .lw, .it.cancel .lw{ background:#eef1f4; border-left-color:#aab5c0; }
   .it .lw .ln{ font-size:12.5px; }
-  /* 목록 — 일정마다 앞 3줄만, 마우스를 올리면 전부 (2026-11-26 「보여주는 것 대표 몇 개만, 마우스 대야 다 보이게」). 검색 중엔 전부 */
-  #list .it .ln.more{ display:none; } #list .it:hover .ln.more{ display:flex; } #list .it:hover .lnmore{ display:none; }
-  .it .lw .lnmore{ font-size:11.5px; color:#6b7a89; margin-top:2px; }
+  /* 목록 — 일정마다 앞 3줄만, 「… 외 n줄」을 누르면 전부 (2026-11-26 「대표 몇 개만」 → 같은 날 「마우스 대면 확대 제거 · 클릭하면 다 보임」). 검색 중엔 전부 */
+  #list .it .ln.more{ display:none; }
+  .it .lw .lnmore{ display:inline-block; font-size:11.5px; color:#137a6c; font-weight:700; margin-top:2px; cursor:pointer; }
+  .it .lw .lnmore:hover{ text-decoration:underline; }
   .it .lw .lnhid{ font-size:11.5px; color:#6b7a89; margin-top:2px; text-align:right; }   /* 미완료 탭 — 끝난 줄 숨김 (2026-11-20) */
   .ln .lt .tag{ opacity:1; }
   .it.done .t1, .it.cancel .t1{ color:#8794a1; text-decoration:none; font-weight:600; } .it.done .t2, .it.done .t2 b, .it.cancel .t2, .it.cancel .t2 b{ color:#48606f; }
@@ -447,7 +448,7 @@ function openLines(s){
   return { lines:keep, hid:hid };
 }
 function linesHtml(s, q, ro, open, lim){   /* ro = 읽기만(삭제 탭 — 칩을 눌러도 안 바뀐다) · open = 끝난 줄 숨김(미완료 탭) · lim = 앞 n줄만 보이고 나머지는 .more(목록 — 마우스를 올리면 보임) */
-  var LL=(open ? openLines(s).lines : linesOf(s)); linesHtml.more=(lim>0 && LL.length>lim) ? LL.length-lim : 0;
+  var LL=(open ? openLines(s).lines : linesOf(s)); linesHtml.more=(lim>0 && LL.length>lim) ? LL.length-lim : 0; linesHtml.total=LL.length;
   return LL.map(function(l, li){
     var tip=(l.i<0 ? '내용을 읽는 중입니다' : (l.st==='N' ? '이 줄 상태 없음 — 누르면 완료' : (l.st==='Y' ? '완료 — 누르면 취소' : '취소 — 누르면 상태를 지웁니다')));
     /* ★묶음 머리(번호 없는 줄 「삼성미팅」)는 할 일이 아니라 칩이 없다 (2026-11-19 사용자 그림 — 머리 줄이 완료로 찍혀 있었다). 이미 상태가 붙은 머리만 칩을 보여 주고, 누르면 바로 지운다 */
@@ -631,13 +632,18 @@ function paintList(){
   }).join('');
 }
 /* 목록의 내용 판 — 「미완료」 탭(검색어 없음)은 남은 줄만 + 「끝난 n줄 숨김」 · 다 끝났으면 안내 한 줄. 그 밖(전체·검색)은 종전대로 전부 */
-var LW_LIM=3;   /* 목록에 보이는 줄 수(대표) — 나머지는 마우스를 올리면 (2026-11-26) */
-function lwMore(){ var n=linesHtml.more||0; return n ? '<div class="lnmore">… 외 '+n+'줄 — 마우스를 올리면 모두</div>' : ''; }
+var LW_LIM=3, _lwOpen={};   /* 목록에 보이는 줄 수(대표) · 펼친 일정(일정 번호 → true — 다시 그려도 남는다) (2026-11-26) */
+function lwLim(s){ return _lwOpen[s.schedSeq] ? 0 : LW_LIM; }
+function lwMore(s){ var n=linesHtml.more||0;
+  if(n) return '<div class="lnmore" onclick="lwTog('+s.schedSeq+', event)" title="눌러서 이 일정의 줄을 모두 봅니다">… 외 '+n+'줄 — 눌러서 모두 보기</div>';
+  if(_lwOpen[s.schedSeq] && (linesHtml.total||0)>LW_LIM) return '<div class="lnmore" onclick="lwTog('+s.schedSeq+', event)" title="다시 앞 '+LW_LIM+'줄만">▲ 접기</div>';
+  return ''; }
+function lwTog(seq, ev){ if(ev){ ev.stopPropagation(); ev.preventDefault(); } if(_lwOpen[seq]) delete _lwOpen[seq]; else _lwOpen[seq]=true; paintList(); }   /* 일정 창은 안 연다 */
 function lwHtml(s, q){
-  if(_tab!=='todo' || q){ var hh=linesHtml(s, q, false, false, q ? 0 : LW_LIM); return hh+(q ? '' : lwMore()); }   /* 검색 중엔 전부 */
+  if(_tab!=='todo' || q){ var hh=linesHtml(s, q, false, false, q ? 0 : lwLim(s)); return hh+(q ? '' : lwMore(s)); }   /* 검색 중엔 전부 */
   var o=openLines(s);
   if(!o.lines.length) return '';   /* (이제 inTodo 가 그런 일정을 목록에서 뺀다 — 남겨 둔 안전 갈래) 줄이 모두 끝난 옛 일정 — 아무 글도 없이 날짜 줄만 (2026-11-20 「「모든 줄 끝」 문구도 제거해줘」 — 그 전엔 긴 안내 → 단추 → 「모든 줄 끝」). 빼려면 위 상태 칸에서 완료 */
-  return linesHtml(s, q, false, true, LW_LIM)+lwMore()+(o.hid?'<div class="lnhid" title="완료·취소한 줄은 미완료 목록에서 숨깁니다 — 「전체」 탭이나 달력에서 모두 보입니다">끝난 '+o.hid+'줄 숨김</div>':'');
+  return linesHtml(s, q, false, true, lwLim(s))+lwMore(s)+(o.hid?'<div class="lnhid" title="완료·취소한 줄은 미완료 목록에서 숨깁니다 — 「전체」 탭이나 달력에서 모두 보입니다">끝난 '+o.hid+'줄 숨김</div>':'');
 }
 /* ══ 엑셀 · 인쇄 (2026-11-19 사용자 「엑셀출력 및 인쇄 넣어줘요」) ══
      범위 = 오른쪽 목록에 지금 보이는 것 그대로(탭 「이 달」/「미완료」/「전체」 + 검색). 화면·엑셀·인쇄가 curList() 하나를 쓴다.
