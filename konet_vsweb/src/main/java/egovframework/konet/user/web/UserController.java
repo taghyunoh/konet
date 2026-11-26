@@ -4001,6 +4001,13 @@ public class UserController {
 				/* 지운 판매전표의 출고 줄도 같은 응답에(2026-11-25) — 따로 잡는다 : 이쪽이 실패해도 지운 매입 줄은 나간다 */
 				try { res.put("sales", svc.selectProdDelSales(p)); }
 				catch (Exception e2) { log.error(" prodDelPurchList sales ERROR : " + e2.getMessage()); res.put("sales", new java.util.ArrayList<Object>()); }
+				/* 살아 있는 전표인데 «재고 미적용»한 줄(원장 X)도 같은 응답에 (2026-11-26 「재고미적용이면 표시도 틀려야함」) — 표가 없으면 빈 목록 */
+				try { res.put("off", svc.selectProdChkOff(p)); }
+				catch (Exception e3) { res.put("off", new java.util.ArrayList<Object>()); }
+				/* 이 화면에서 바로 [재고 미적용]/[재고 적용] (2026-11-26 「여기서 하면 직관적일 듯」) — 단추는 관리자에게만(admin) · whole = 전표 전체를 미적용한 전표 키(적용할 때 전표 전체로 보낸다) */
+				res.put("admin", empAdmin(session) ? "Y" : "N");
+				try { res.put("whole", svc.selectStockChkWhole(p)); }
+				catch (Exception e4) { res.put("whole", new java.util.ArrayList<Object>()); }
 				res.put("result", "OK");
 			} catch (Exception e) { log.error(" prodDelPurchList ERROR : " + e.getMessage()); res.put("result", "FAIL"); }
 			return res;
@@ -6287,6 +6294,107 @@ public class UserController {
 			return res;
 		}
 
+		/* ══ 재고 변동 확인 (2026-11-26 사용자 「재고담당자가 입고·판매 관련 내용을 보고 재고에 반영할지, 적용 안 할지 관리」 → 「반영 후 확인 방식으로 진행해줘」) ══
+		     화면 prod/stockChk.jsp(셸 iframe) · 표 TBL_STOCK_CHK(docs/sql/20261126_stock_chk.sql) · 서비스 stockChkAct.
+		     · /prod/stockChkList.do  {frDt, toDt} : 그 기간에 등록·수정·삭제된 매입·판매 전표 + 확인 상태. 응답에 admin·me·startDttm(이 기능을 켠 때).
+		       목록과 함께 그 전표들의 품목 줄(lines)도 준다 — 화면이 펼쳐서 보이고 품목코드로 찾는다(같은 날 오후 「풀어서 보여주고 · 세부코드 검색」).
+		     · (2026-11-26) items 는 전표 키 대신 근거번호(refNo 「일자-번호」 · 「일자-번호#키」), 품목번호 대신 품목코드(prodCd)로도 받는다 — 품목별재고현황 · 월별 출고현황의 줄에서 바로 처리(asset/js/stock-chk-act.js).
+		     · /prod/stockChkAct.do   {items:[{refGb, refSeq, prodSeq}], act, memo} : C 확인(전표 · 로그인한 누구나) · X 재고에서 제외(prodSeq 0 = 전표 전체 · 그 밖 = 그 품목) · U 되돌리기.
+		       지운 전표도 제외할 수 있다 = «삭제를 재고에 반영하지 않는다»(지울 때 빠진 수량이 되살아난다).
+		       ★재고가 바뀌는 처리(X · 제외 풀기)는 재고 조정 승인과 같이 관리자(총괄관리자·부관리자)만 — 서비스가 아니라 여기서 막는다. 제외는 사유가 있어야 한다.
+		     표가 아직 없으면(DDL 전) 목록 조회가 실패한다 → result FAIL + noTable Y(화면이 「표가 없습니다」를 보인다). */
+		@RequestMapping(value="/prod/stockChk.do")
+		public String stockChk(HttpSession session) {
+			if (session.getAttribute("s_comp_cd") == null) return ".login/base_login";
+			return ".raw/main/prod/stockChk";
+		}
+		private static String chkDay(String v, int addDays) {   // yyyy-MM-dd(또는 yyyyMMdd) → yyyy-MM-dd (+일수). 못 읽으면 null
+			try {
+				String d = v == null ? "" : v.replaceAll("[^0-9]", "");
+				if (d.length() < 8) return null;
+				java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyyMMdd"); f.setLenient(false);
+				java.util.Calendar c = java.util.Calendar.getInstance(); c.setTime(f.parse(d.substring(0, 8))); c.add(java.util.Calendar.DATE, addDays);
+				return new java.text.SimpleDateFormat("yyyy-MM-dd").format(c.getTime());
+			} catch (Exception e) { return null; }
+		}
+		@RequestMapping(value="/prod/stockChkList.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockChkList(@RequestParam(value="frDt", required=false) String frDt,
+		                                       @RequestParam(value="toDt", required=false) String toDt, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (!adjLoggedIn(session)) { res.put("result", "FAIL"); res.put("login", Boolean.TRUE); res.put("message", "로그인이 끊겼습니다 — 다시 로그인해 주세요."); return res; }
+			res.put("admin", empAdmin(session) ? "Y" : "N"); res.put("me", empUser(session));
+			/* 기간 = 전표를 넣거나 고치거나 지운 «때» 기준. 비면 최근 7일 · 길어도 400일 */
+			String to = chkDay(toDt, 0); if (to == null) to = new java.text.SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date());
+			String fr = chkDay(frDt, 0); if (fr == null || fr.compareTo(to) > 0) fr = chkDay(to, -6);
+			String lim = chkDay(to, -400); if (lim != null && fr.compareTo(lim) < 0) fr = lim;
+			res.put("frDt", fr); res.put("toDt", to);
+			try {
+				Map<String,Object> p = new HashMap<String,Object>();
+				p.put("compCd", sessComp(session)); p.put("frDttm", fr + " 00:00:00"); p.put("toDttm", chkDay(to, 1) + " 00:00:00");
+				res.put("startDttm", svc.selectStockChkStart(p));
+				res.put("data", svc.selectStockChkList(p));
+				res.put("lines", svc.selectStockChkLineAll(p));
+				res.put("result", "OK");
+			} catch (Exception e) {
+				String m = e.getMessage() == null ? "" : e.getMessage();
+				res.put("result", "FAIL"); res.put("data", new java.util.ArrayList<Object>());
+				boolean noTbl = m.indexOf("TBL_STOCK_CHK") >= 0 || m.indexOf("PROD_SEQ") >= 0;   /* 표가 없거나 품목 칸(오후 2판)이 아직 없다 */
+				if (noTbl) res.put("noTable", "Y");
+				res.put("message", noTbl ? "확인 기록을 담을 표(TBL_STOCK_CHK)가 없거나 옛 모양입니다 — docs/sql/20261126_stock_chk.sql 을 (다시) 실행해 주세요." : "조회하지 못했습니다.");
+				log.error(" stockChkList ERROR : " + m);
+			}
+			return res;
+		}
+		/* 처리 전에 묻기 (2026-11-26 「이전것 적용미적용 할려할때 메세지」 → 「어차피 적용안되는데」) — 수정재고로 고정된 품목의 «고정 날짜보다 앞» 전표인가.
+		   {items, act} → {total, list} : 화면(asset/js/stock-chk-act.js stkChkPre)이 전부 해당이면 안내만 하고 처리하지 않는다. 조회만 한다 · 회사는 세션 값만. */
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/prod/stockChkPre.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockChkPre(@RequestBody Map<String,Object> body, HttpSession session) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (!adjLoggedIn(session)) { res.put("result", "FAIL"); res.put("login", Boolean.TRUE); return res; }
+			String act = body.get("act") == null ? "" : String.valueOf(body.get("act")).trim();
+			java.util.List<Map<String,Object>> items = new java.util.ArrayList<Map<String,Object>>();
+			Object raw = body.get("items");
+			if (raw instanceof java.util.List) for (Object o : (java.util.List<Object>) raw) if (o instanceof Map) items.add((Map<String,Object>) o);
+			if (items.size() > 500) items = items.subList(0, 500);
+			try { res.putAll(svc.stockChkPre(sessComp(session), items, act)); res.put("result", "OK"); }
+			catch (Exception e) { res.put("result", "FAIL"); log.error(" stockChkPre ERROR : " + e.getMessage()); }
+			return res;
+		}
+		@SuppressWarnings("unchecked")
+		@RequestMapping(value="/prod/stockChkAct.do", method = RequestMethod.POST)
+		@ResponseBody
+		public Map<String,Object> stockChkAct(@RequestBody Map<String,Object> body, HttpSession session, HttpServletRequest request) {
+			Map<String,Object> res = new HashMap<String,Object>();
+			if (!adjLoggedIn(session)) { res.put("result", "FAIL"); res.put("login", Boolean.TRUE); res.put("message", ADJ_LOGIN_MSG); return res; }
+			String act = body.get("act") == null ? "" : String.valueOf(body.get("act")).trim();
+			String memo = body.get("memo") == null ? "" : String.valueOf(body.get("memo")).trim();
+			if (memo.length() > 200) memo = memo.substring(0, 200);
+			if (!"C".equals(act) && !"X".equals(act) && !"U".equals(act)) { res.put("result", "FAIL"); res.put("message", "처리 구분이 올바르지 않습니다."); return res; }
+			java.util.List<Map<String,Object>> items = new java.util.ArrayList<Map<String,Object>>();
+			Object raw = body.get("items");
+			if (raw instanceof java.util.List) for (Object o : (java.util.List<Object>) raw) if (o instanceof Map) items.add((Map<String,Object>) o);
+			if (items.isEmpty()) { res.put("result", "FAIL"); res.put("message", "처리할 전표가 없습니다."); return res; }
+			if (items.size() > 500) { res.put("result", "FAIL"); res.put("message", "한 번에 500건까지만 처리할 수 있습니다."); return res; }
+			/* 재고가 바뀌는 처리는 관리자만 — X(제외)는 늘, U(되돌리기)·C(확인)는 «제외였던 것»을 건드릴 때. 서비스가 제외였는지 알지만 여기서 먼저 막는다 :
+			   관리자가 아니면 X 는 여기서 거절하고, 제외 상태인 전표를 U·C 로 건드리는 것은 서비스가 DB 의 상태를 보고 건너뛴다(응답 blocked — 화면 값은 안 믿는다) */
+			boolean admin = empAdmin(session);
+			if ("X".equals(act) && !admin) { res.put("result", "FAIL"); res.put("message", "재고 미적용은 관리자만 할 수 있습니다 — 재고가 바뀌는 처리입니다."); return res; }
+			if ("X".equals(act) && memo.isEmpty()) { res.put("result", "FAIL"); res.put("message", "재고에 적용하지 않는 사유를 적어 주세요."); return res; }
+			try {
+				String compCd = sessComp(session);
+				res.putAll(svc.stockChkAct(compCd, empUser(session), request.getRemoteAddr(), admin, items, act, memo));
+				res.put("result", "OK");
+			} catch (Exception e) {
+				String m = e.getMessage() == null ? "" : e.getMessage();
+				res.put("result", "FAIL"); res.put("message", (m.indexOf("TBL_STOCK_CHK") >= 0 || m.indexOf("PROD_SEQ") >= 0) ? "확인 기록을 담을 표(TBL_STOCK_CHK)가 없거나 옛 모양입니다 — DDL 을 (다시) 실행해 주세요." : "처리하지 못했습니다 — 다시 조회한 뒤 해 주세요.");
+				log.error(" stockChkAct ERROR : " + m);
+			}
+			return res;
+		}
+
 		/* 화면 */
 		@RequestMapping(value="/prod/stockAdj.do")
 		public String stockAdj(HttpSession session, ModelMap model) throws Exception {
@@ -6775,6 +6883,9 @@ public class UserController {
 					try { Map<String,Object> q = new HashMap<String,Object>(); q.put("compCd", sessComp(session)); r.put("adjReq", svc.selectStockAdjReqPendCnt(q)); }
 					catch (Exception ex) { log.error(" empBadge adjReq ERROR : " + ex.getMessage()); }
 				}
+				/* 재고 변동 확인 — 미확인 전표 건수 (2026-11-26). 누구에게나(확인은 누구나 할 수 있다). 표가 아직 없으면 조회가 실패한다 → 이 칸만 빠진다 */
+				try { Map<String,Object> qc = new HashMap<String,Object>(); qc.put("compCd", sessComp(session)); r.put("stkChk", svc.selectStockChkPendCnt(qc)); }
+				catch (Exception ex) { /* 표 없음 — 조용히 */ }
 				/* 내가 올린 재고 조정 요청의 결과(승인·반려) 중 아직 [확인했습니다] 안 한 것 (2026-11-18 「요청한 직원에게도 승인/반려 결과 알림 표시」).
 				   adjMine = 건수 · adjMineList = 최근 5건(번호·상태·처리자·반려 사유) — 화면이 배지와 알림 글을 만든다.
 				   칸(REQ_SEEN_DTTM)이 아직 없으면 조회가 실패한다 → 이 칸들만 빠지고 나머지 배지는 그대로. */

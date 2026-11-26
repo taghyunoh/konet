@@ -4162,6 +4162,124 @@ public class UserServiceImpl implements UserService {
 	@Override public int insertStockAdjReq(java.util.Map<String,Object> p) throws Exception { return mapper.insertStockAdjReq(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectStockAdjReqList(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockAdjReqList(p); }
 	@Override public int updateStockAdjReqStat(java.util.Map<String,Object> p) throws Exception { return mapper.updateStockAdjReqStat(p); }
+	/* ══ 재고 변동 확인 (2026-11-26 사용자 「재고담당자가 입고·판매 관련 내용을 보고 재고에 반영할지, 적용 안 할지 관리」 → 「반영 후 확인 방식으로 진행해줘」) ══
+	   전표는 저장·삭제하는 순간 재고에 반영된다(종전 그대로). 담당자가 전표를 [확인](C) 하거나, 전표 전체 또는 품목을 [재고에서 제외](X) 한다.
+	   ★같은 날 오후 2판 (사용자 「삭제한 것은 … 재고에서 제외 여부 있어야 250 재고로 포함 나옴 · 재고제외, 재고제외취소 등도 필요」) :
+	     · 제외는 «품목 단위» 로도 한다(items 의 prodSeq — 0 이면 전표 전체). 지운 매입전표 2026-09-16/0002 처럼 세 품목 중 둘만 되돌려야 하는 일이 실제로 있다
+	       (나머지 하나는 지운 뒤에 이미 재고를 다시 맞췄다).
+	     · 지운 전표도 제외할 수 있다 = «삭제를 재고에 반영하지 않는다» → 지울 때 닫힌 원장 줄이 되살아난다(매퍼 조각 stockChkKeep 머리말).
+	   · 원장 줄은 매퍼가 맞춘다 — syncStockChkLedger(처리 직후 한 번 : 제외한 것은 빼고 · 제외를 푼 것은 되돌리고) → 품목마다 현재고 다시 셈.
+	   · 되돌리기(U) = 그 줄(전표 또는 품목)을 지운다 — 전표 줄이면 다시 미확인, 제외였으면 재고가 되돌아간다.
+	   · 재고가 바뀌는 처리(X · 제외였던 줄의 U·C)는 관리자만 — «제외였는지» 는 DB 의 상태로 본다(화면 값을 안 믿는다 · 응답 blocked).
+	     바뀐 품목은 «얼마에서 얼마로» 를 돌려준다. ★수정재고가 고정된 품목의 «맞춘 날짜보다 앞» 전표는 제외해도 현재고가 그대로다(adjAnchorKeep) — bef = aft. */
+	@Override public java.util.List<java.util.Map<String,Object>> selectStockChkList(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockChkList(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectStockChkLineAll(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockChkLineAll(p); }
+	@Override public String selectStockChkStart(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockChkStart(p); }
+	@Override public int selectStockChkPendCnt(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockChkPendCnt(p); }
+	@Override public java.util.List<java.util.Map<String,Object>> selectProdChkOff(java.util.Map<String,Object> p) throws Exception { return mapper.selectProdChkOff(p); }
+	@Override public java.util.List<String> selectStockChkWhole(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockChkWhole(p); }
+	@Override public java.util.Map<String,Object> stockChkAct(String compCd, String userId, String ip, boolean admin, java.util.List<java.util.Map<String,Object>> items, String act, String memo) throws Exception {
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		java.util.List<java.util.Map<String,Object>> prods = new java.util.ArrayList<java.util.Map<String,Object>>();
+		int done = 0, skip = 0, blocked = 0;
+		if (items != null) for (java.util.Map<String,Object> it : items) {
+			java.util.Map<String,Object> p = chkItemOf(compCd, it, act);                      // 전표·품목 찾기(근거번호·품목코드로 와도) — 못 찾으면 건너뜀
+			if (p == null) { skip++; continue; }
+			String gb = String.valueOf(p.get("refGb")); int seq = ((Integer) p.get("refSeq")).intValue(), prodSeq = ((Integer) p.get("prodSeq")).intValue();
+			p.put("userId", userId); p.put("ip", ip); p.put("memo", memo);
+			String cur = mapper.selectStockChkState(p); if (cur == null) cur = "";
+			boolean wasX = "X".equals(cur.trim());
+			if (!admin && ("X".equals(act) || wasX)) { blocked++; continue; }             // 재고가 바뀌는 처리는 관리자만 — 화면 값이 아니라 DB 의 상태로 막는다
+			if ("U".equals(act) && cur.trim().isEmpty()) { skip++; continue; }              // 되돌릴 줄이 없다
+			boolean stock = "X".equals(act) ? !wasX : wasX;                                  // 재고가 바뀌는 처리인가(제외하기 · 제외였던 줄을 확인/되돌리기)
+			java.util.List<java.util.Map<String,Object>> bef = (stock || "X".equals(act)) ? mapper.selectStockChkProds(p) : null;
+			if ("X".equals(act) && (bef == null || bef.isEmpty())) { skip++; continue; }    // 그 전표에 그 품목이 없다
+			if ("U".equals(act)) mapper.deleteStockChk(p);
+			else { p.put("state", act); mapper.upsertStockChk(p); }
+			if (stock && bef != null) {
+				java.util.Map<String,Object> sp = new java.util.HashMap<String,Object>(); sp.put("compCd", compCd); sp.put("prodSeq", null);
+				mapper.syncStockChkLedger(sp);                                                 // 원장 줄 맞추기(빼기 · 되돌리기 · 지운 전표의 줄 되살리기/닫기)
+				for (java.util.Map<String,Object> b : bef) {
+					Object ps = b.get("prodSeq"); if (ps == null) continue;
+					egovframework.konet.user.model.StockLedgerDTO led = new egovframework.konet.user.model.StockLedgerDTO();
+					led.setCompCd(compCd); led.setProdSeq(Long.valueOf(String.valueOf(ps)));
+					mapper.recalcStockMst(led);
+				}
+				java.util.Map<String,Object> aftMap = new java.util.HashMap<String,Object>();
+				for (java.util.Map<String,Object> a : mapper.selectStockChkProds(p)) aftMap.put(String.valueOf(a.get("prodSeq")), a.get("curQty"));
+				for (java.util.Map<String,Object> b : bef) {
+					java.util.Map<String,Object> row = new java.util.HashMap<String,Object>();
+					row.put("refGb", gb); row.put("refSeq", seq); row.put("prodCd", b.get("prodCd")); row.put("prodNm", b.get("prodNm"));
+					row.put("bef", b.get("curQty")); row.put("aft", aftMap.get(String.valueOf(b.get("prodSeq"))));
+					prods.add(row);
+				}
+			}
+			done++;
+		}
+		res.put("done", done); res.put("skip", skip); res.put("blocked", blocked); res.put("prods", prods);
+		return res;
+	}
+	/* 처리할 전표·품목 찾기 — {refGb, refSeq | refNo, prodSeq | prodCd} → {compCd, refGb, refSeq, prodSeq}, 못 찾으면 null.
+	   · 전표 = 전표 키(refSeq) · 없으면 근거번호(refNo) : 「일자-번호#전표키」(지운 전표를 되살려 둔 줄)면 # 뒤가 키, 「일자-번호」면 살아 있는 전표를 찾는다
+	     (2026-11-26 품목별재고현황 · 월별 출고현황의 줄에서 바로 처리 — 그 줄에는 근거번호뿐이다)
+	   · 품목 = 품목번호(prodSeq) · 없으면 품목코드(prodCd → 그 전표의 품목에서 번호) · 둘 다 없으면 0(전표 전체). 확인(C)은 늘 전표 단위.
+	   · 없는 전표(다른 회사 것 포함)·그 전표에 없는 품목은 null. stockChkAct · stockChkPre 가 같이 쓴다. */
+	private java.util.Map<String,Object> chkItemOf(String compCd, java.util.Map<String,Object> it, String act) throws Exception {
+		String gb = it.get("refGb") == null ? "" : String.valueOf(it.get("refGb")).trim();
+		int seq = 0, prodSeq = 0;
+		if (!"PURCH".equals(gb) && !"SALE".equals(gb)) return null;
+		String rs = it.get("refSeq") == null ? "" : String.valueOf(it.get("refSeq")).trim();
+		if (!rs.isEmpty()) { try { seq = (int) Math.round(Double.parseDouble(rs)); } catch (Exception e) { return null; } }
+		else {
+			String no = it.get("refNo") == null ? "" : String.valueOf(it.get("refNo")).trim();
+			int hx = no.indexOf('#');
+			if (no.isEmpty()) return null;
+			if (hx >= 0) { try { seq = Integer.parseInt(no.substring(hx + 1).trim()); } catch (Exception e) { return null; } }
+			else {
+				java.util.Map<String,Object> q = new java.util.HashMap<String,Object>(); q.put("compCd", compCd); q.put("refGb", gb); q.put("refNo", no);
+				Integer f = mapper.selectStockChkSeqByNo(q);
+				if (f == null) return null;
+				seq = f.intValue();
+			}
+		}
+		try { if (it.get("prodSeq") != null && !String.valueOf(it.get("prodSeq")).trim().isEmpty()) prodSeq = (int) Math.round(Double.parseDouble(String.valueOf(it.get("prodSeq")))); } catch (Exception e) { return null; }
+		String pcd = it.get("prodCd") == null ? "" : String.valueOf(it.get("prodCd")).trim();
+		if (prodSeq < 0 || ("C".equals(act) && prodSeq != 0)) prodSeq = 0;               // 확인은 늘 전표 단위
+		java.util.Map<String,Object> p = new java.util.HashMap<String,Object>();
+		p.put("compCd", compCd); p.put("refGb", gb); p.put("refSeq", Integer.valueOf(seq)); p.put("prodSeq", Integer.valueOf(prodSeq));
+		String live = mapper.selectStockChkLive(p);
+		if (live == null || live.trim().isEmpty()) return null;                          // 없는 전표(다른 회사 것 포함)
+		if (prodSeq == 0 && !pcd.isEmpty() && !"C".equals(act)) {                        // 품목코드로 온 것 — 그 전표의 품목에서 번호를 찾는다(없으면 건너뜀)
+			int found = 0;
+			for (java.util.Map<String,Object> a : mapper.selectStockChkProds(p)) {
+				if (a.get("prodSeq") != null && pcd.equals(String.valueOf(a.get("prodCd")).trim())) { found = (int) Math.round(Double.parseDouble(String.valueOf(a.get("prodSeq")))); break; }
+			}
+			if (found <= 0) return null;
+			p.put("prodSeq", Integer.valueOf(found));
+		}
+		return p;
+	}
+	/* 처리 전에 묻기 — «수정재고로 고정된 품목» 의 «고정 날짜보다 앞» 전표인가 (2026-11-26 사용자 「그럼 이전것 적용미적용 할려할때 메세지 뛰워야 겠네요」).
+	   그런 품목은 재고 미적용·적용을 해도 현재고가 그대로다(adjAnchorKeep) — 화면이 먼저 알리고 [그래도 진행] 을 받게 한다.
+	   응답 : total = 처리 대상 품목 수 · list = 그중 현재고에 영향이 없는 품목 [{prodCd, prodNm, trxDt(전표 일자), fixDt(고정한 재고수정 일자)}].
+	   ★날짜는 «앞» 만 — 고정 날짜와 같은 날 전표는 현재고에 반영된다(조각과 같은 규칙 : TRX_DT >= 고정 날짜는 반영). 조회만 한다. */
+	@Override public java.util.Map<String,Object> stockChkPre(String compCd, java.util.List<java.util.Map<String,Object>> items, String act) throws Exception {
+		java.util.Map<String,Object> res = new java.util.HashMap<String,Object>();
+		java.util.List<java.util.Map<String,Object>> list = new java.util.ArrayList<java.util.Map<String,Object>>();
+		int total = 0;
+		if (items != null) for (java.util.Map<String,Object> it : items) {
+			java.util.Map<String,Object> p = chkItemOf(compCd, it, act);
+			if (p == null) continue;
+			for (java.util.Map<String,Object> a : mapper.selectStockChkAnchor(p)) {
+				total++;
+				String td = a.get("trxDt") == null ? "" : String.valueOf(a.get("trxDt")).replaceAll("[^0-9]", "");
+				String fd = a.get("fixDt") == null ? "" : String.valueOf(a.get("fixDt")).replaceAll("[^0-9]", "");
+				if (td.length() == 8 && fd.length() >= 8 && td.compareTo(fd.substring(0, 8)) < 0) list.add(a);
+			}
+		}
+		res.put("total", total); res.put("list", list);
+		return res;
+	}
 	@Override public int selectStockAdjReqPendCnt(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockAdjReqPendCnt(p); }
 	@Override public java.util.List<java.util.Map<String,Object>> selectStockAdjReqMine(java.util.Map<String,Object> p) throws Exception { return mapper.selectStockAdjReqMine(p); }
 	@Override public int updateStockAdjReqSeen(java.util.Map<String,Object> p) throws Exception { return mapper.updateStockAdjReqSeen(p); }

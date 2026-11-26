@@ -626,6 +626,21 @@ public interface UserMapper {
 	java.util.List<java.util.Map<String,Object>> selectStockAdjReqList(java.util.Map<String,Object> p) throws Exception;
 	int updateStockAdjReqStat(java.util.Map<String,Object> p) throws Exception;
 	int selectStockAdjReqPendCnt(java.util.Map<String,Object> p) throws Exception;   // 승인 대기 건수(셸 배지) 2026-11-18
+	/* 재고 변동 확인 (2026-11-26) — 손으로 넣은 전표(매입·판매)를 재고 담당자가 확인 · 재고에서 제외. 표 TBL_STOCK_CHK */
+	java.util.List<java.util.Map<String,Object>> selectStockChkList(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectStockChkLineAll(java.util.Map<String,Object> p) throws Exception;
+	String selectStockChkStart(java.util.Map<String,Object> p) throws Exception;
+	int selectStockChkPendCnt(java.util.Map<String,Object> p) throws Exception;
+	int upsertStockChk(java.util.Map<String,Object> p) throws Exception;
+	int deleteStockChk(java.util.Map<String,Object> p) throws Exception;
+	String selectStockChkState(java.util.Map<String,Object> p) throws Exception;
+	String selectStockChkLive(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectStockChkProds(java.util.Map<String,Object> p) throws Exception;
+	int syncStockChkLedger(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectProdChkOff(java.util.Map<String,Object> p) throws Exception;   // 한 품목의 재고 미적용 줄(원장 X) 2026-11-26
+	Integer selectStockChkSeqByNo(java.util.Map<String,Object> p) throws Exception;                                  // 근거번호(일자-번호) → 살아 있는 전표 키 2026-11-26
+	java.util.List<String> selectStockChkWhole(java.util.Map<String,Object> p) throws Exception;                     // 전표 전체를 재고 미적용한 전표 키(「PURCH:427」) 2026-11-26
+	java.util.List<java.util.Map<String,Object>> selectStockChkAnchor(java.util.Map<String,Object> p) throws Exception;   // 전표 품목마다 전표 일자 · 고정한 재고수정 일자 2026-11-26
 	java.util.List<java.util.Map<String,Object>> selectStockAdjReqMine(java.util.Map<String,Object> p) throws Exception;   // 내 요청 결과 중 안 본 것 2026-11-18
 	int updateStockAdjReqSeen(java.util.Map<String,Object> p) throws Exception;                                           // [확인했습니다]
 

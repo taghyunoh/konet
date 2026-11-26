@@ -521,6 +521,16 @@ public interface UserService {
 	java.util.List<java.util.Map<String,Object>> selectStockAdjReqList(java.util.Map<String,Object> p) throws Exception;
 	int updateStockAdjReqStat(java.util.Map<String,Object> p) throws Exception;
 	int selectStockAdjReqPendCnt(java.util.Map<String,Object> p) throws Exception;   // 승인 대기 건수(셸 배지) 2026-11-18
+	/* 재고 변동 확인 (2026-11-26) — 손으로 넣은 전표(매입·판매)를 재고 담당자가 확인 · 재고에서 제외. 표 TBL_STOCK_CHK */
+	java.util.List<java.util.Map<String,Object>> selectStockChkList(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectStockChkLineAll(java.util.Map<String,Object> p) throws Exception;
+	String selectStockChkStart(java.util.Map<String,Object> p) throws Exception;
+	int selectStockChkPendCnt(java.util.Map<String,Object> p) throws Exception;
+	java.util.List<java.util.Map<String,Object>> selectProdChkOff(java.util.Map<String,Object> p) throws Exception;   // 한 품목의 재고 미적용 줄(원장 X) 2026-11-26
+	java.util.List<String> selectStockChkWhole(java.util.Map<String,Object> p) throws Exception;                     // 전표 전체를 재고 미적용한 전표 키 2026-11-26
+	java.util.Map<String,Object> stockChkPre(String compCd, java.util.List<java.util.Map<String,Object>> items, String act) throws Exception;   // 처리 전 — 고정 품목의 앞 날짜 전표인가 2026-11-26
+	/** 처리 — act C 확인(전표) · X 재고에서 제외(전표 전체 또는 품목 — items 의 prodSeq) · U 되돌리기. 돌려주는 것 = {done, skip, blocked, prods:[{prodCd, prodNm, bef, aft}]} */
+	java.util.Map<String,Object> stockChkAct(String compCd, String userId, String ip, boolean admin, java.util.List<java.util.Map<String,Object>> items, String act, String memo) throws Exception;
 	java.util.List<java.util.Map<String,Object>> selectStockAdjReqMine(java.util.Map<String,Object> p) throws Exception;   // 내 요청 결과 중 안 본 것 2026-11-18
 	int updateStockAdjReqSeen(java.util.Map<String,Object> p) throws Exception;                                           // [확인했습니다]
 

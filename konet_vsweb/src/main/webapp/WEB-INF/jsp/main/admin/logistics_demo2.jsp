@@ -2587,9 +2587,9 @@
                  거래처로 관리하므로, 비어 있으면 그 거래처명을 대신 보여 준다(빈칸으로 두면 '누락'처럼 보인다). */
               +'<td>'+(l.bizCd ? _bizCell(l.bizCd)
                                : (l.vendorNm ? '<span style="color:#5a6b7a">'+_cesc(l.vendorNm)+'</span>' : ''))+'</td>'
-              +'<td>'+_cesc(l.refGb||'')+'</td>'
-              +'<td>'+_cesc(l.refNo||'')+'</td>'
-              +'<td>'+_cesc(l.remark||'')+'</td>'
+              +'<td>'+stkLedRefGb(l)+'</td>'
+              +'<td>'+stkLedRefNo(l)+'</td>'
+              +'<td>'+stkLedRmk(l)+stkLedAct(l)+'</td>'
               +'<td style="color:#9aa7b3">'+stkLedReg(l)+'</td>'
               +'<td style="color:#9aa7b3" title="'+_cesc(l.regUser||'')+'">'+stkLedUser(l)+'</td></tr>'   /* 등록자 이름(없으면 아이디) · 말풍선에 아이디 (2026-11-05) */
               /* ★대체출고 하위 행 (2026-08-07 요청) — 대표 줄 아래에 매칭코드마다 한 줄.
@@ -2889,7 +2889,7 @@
                       : '<td style="text-align:right;font-weight:700;color:#137a6c">'+stkLedQty(l)+'</td>')   /* 조정 줄은 「전 → 후 (증감)」(2026-11-22) · 반품(음수 입고)은 붉게 + 「반품」 표 (2026-11-13) */
           +'<td style="text-align:right">'+_cnum(l.unitPrice)+'</td><td style="text-align:right">'+_cnum(l.amt)+'</td>'
           +'<td title="'+_cesc(l.vendorNm||'')+'">'+_cesc(l.vendorCd||'')+(l.vendorNm?(' <span style="color:#5a6b7a">'+_cesc(l.vendorNm)+'</span>'):'')+'</td>'
-          +'<td>'+_cesc(l.refGb||'')+'</td><td>'+_cesc(l.refNo||'')+'</td><td>'+_cesc(l.remark||'')+'</td><td style="color:#9aa7b3;white-space:nowrap" title="'+_cesc(l.regUser||'')+'">'+stkLedUser(l)+'</td></tr>'+_sub(l)
+          +'<td>'+stkLedRefGb(l)+'</td><td>'+stkLedRefNo(l)+'</td><td>'+stkLedRmk(l)+'</td><td style="color:#9aa7b3;white-space:nowrap" title="'+_cesc(l.regUser||'')+'">'+stkLedUser(l)+'</td></tr>'+_sub(l)
         : '<tr>'+no+'<td>'+_fmtYmd(l.trxDt)+'</td>'
           +'<td>'+_cesc(l.prodCd||'')+'</td>'
           +'<td class="txt-l">'+_cesc(l.prodNm||_nm)+'</td>'
@@ -2901,7 +2901,7 @@
           +'<td style="text-align:right'+((+l.unitPrice||0)?'':';color:#c8ced4')+'">'+_cnum(l.unitPrice)+'</td>'
           +'<td style="text-align:right'+((+l.amt||0)?'':';color:#c8ced4')+'">'+_cnum(l.amt)+'</td>'
           +'<td>'+(l.bizCd ? _bizCell(l.bizCd) : (l.vendorNm ? '<span style="color:#5a6b7a">'+_cesc(l.vendorNm)+'</span>' : ''))+'</td>'
-          +'<td>'+_cesc(l.refGb||'')+'</td><td>'+_cesc(l.refNo||'')+'</td><td>'+_cesc(l.remark||'')+'</td><td style="color:#9aa7b3;white-space:nowrap" title="'+_cesc(l.regUser||'')+'">'+stkLedUser(l)+'</td></tr>'+_sub(l);
+          +'<td>'+stkLedRefGb(l)+'</td><td>'+stkLedRefNo(l)+'</td><td>'+stkLedRmk(l)+'</td><td style="color:#9aa7b3;white-space:nowrap" title="'+_cesc(l.regUser||'')+'">'+stkLedUser(l)+'</td></tr>'+_sub(l);
     }).join('');
     /* 표가 길어도 창이 무한정 늘어나지 않게 각 표에 높이 상한을 둔다 */
     return head + '<div style="max-height:'+(maxH||'34vh')+';overflow:auto;border:1px solid var(--logi-border);border-radius:8px">'
@@ -3619,7 +3619,7 @@
       <a class="mi" data-key="costMng" onclick="logiFrame('costMng','${pageContext.request.contextPath}/mangr/costMng.do', this)"><span class="ic">📊</span>원가 관리</a>
       <% } %>
       <%-- 재고 일괄조정 — 2026-08-20 잠깐 내렸다가 사용자 요청으로 되살림(입구는 여기 하나) --%>
-      <a class="mi" data-key="stockAdj" onclick="logiFrame('stockAdj','${pageContext.request.contextPath}/prod/stockAdj.do', this)"><span class="ic">🧮</span>재고 일괄조정<span class="emp-badge" id="adjReqBadge" style="display:none"></span></a><a class="mi" data-key="subStockFix" onclick="logiFrame('subStockFix','${pageContext.request.contextPath}/prod/subStockFix.do', this)" title="주코드에 매칭된 서브코드에 남은 재고 정리 — 서브코드로 잡힌 매입은 매입등록으로, 남은 재고는 0으로(2026-09-13)"><span class="ic">🧹</span>서브코드 재고 정리</a>
+      <%-- 재고 변동 확인 (2026-11-26) — 손으로 넣은 매입·판매 전표를 재고 담당자가 확인·재고에서 제외. iframe 화면(prod/stockChk.jsp, panel-stockChk) · 배지 = 미확인 건수(emp-badge.js) --%><a class="mi" data-key="stockChk" onclick="logiFrame('stockChk','${pageContext.request.contextPath}/prod/stockChk.do', this)"><span class="ic">🔎</span>재고 변동 확인<span class="emp-badge" id="stkChkBadge" style="display:none"></span></a><a class="mi" data-key="stockAdj" onclick="logiFrame('stockAdj','${pageContext.request.contextPath}/prod/stockAdj.do', this)"><span class="ic">🧮</span>재고 일괄조정<span class="emp-badge" id="adjReqBadge" style="display:none"></span></a><a class="mi" data-key="subStockFix" onclick="logiFrame('subStockFix','${pageContext.request.contextPath}/prod/subStockFix.do', this)" title="주코드에 매칭된 서브코드에 남은 재고 정리 — 서브코드로 잡힌 매입은 매입등록으로, 남은 재고는 0으로(2026-09-13)"><span class="ic">🧹</span>서브코드 재고 정리</a>
       <%-- 품목코드(매핑) — 기준정보에 있다가 재고 관리 맨 아래로 옮김(2026-08-01 요청).
            매핑이 안 되면 그 품목이 재고에서 빠지므로, 재고를 보다가 바로 갈 수 있는 자리가 맞다. --%>
       <a class="mi" data-key="xrefAudit" onclick="logiGo('xrefAudit', this); xaLoad();"><span class="ic">🔗</span>품목코드(매핑)</a>
@@ -5540,7 +5540,7 @@
          id 규칙 : if-<메뉴키>. 이게 없으면 메뉴만 켜지고 화면이 비어 보인다. --%>
     <section id="panel-ceoSched" class="panel" style="padding:0;"><iframe id="if-ceoSched" src="" title="대표자 일정" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
     <section id="panel-stockFlow" class="panel" style="padding:0;"><iframe id="if-stockFlow" src="" title="재고내용분석" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
-    <section id="panel-stockAdj" class="panel" style="padding:0;">
+    <section id="panel-stockChk" class="panel" style="padding:0;"><iframe id="if-stockChk" src="" title="재고 변동 확인" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section><section id="panel-stockAdj" class="panel" style="padding:0;">
       <iframe id="if-stockAdj" src="" title="재고 일괄조정" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section><section id="panel-subStockFix" class="panel" style="padding:0;"><iframe id="if-subStockFix" src="" title="서브코드 재고 정리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
 

@@ -4651,9 +4651,21 @@
 	      JOIN TBL_SALES_TRX_DTL d ON d.SALE_SEQ = m.SALE_SEQ AND d.ACTION_YN = 'Y' AND ISNULL(d.PROD_CD,'') <> ''
 	       AND ISNULL(d.TRX_GB, N'판매') NOT IN (N'반품', N'불량반품')
 	     WHERE m.ACTION_YN = 'Y'
+	       AND NOT EXISTS ( SELECT 1 FROM TBL_STOCK_LEDGER xl WHERE xl.REF_GB = 'SALE' AND xl.REF_NO = REPLACE(ISNULL(m.SALE_DT,''),'-','') + '-' + m.SALE_NO
+	                           AND xl.COMP_CD = m.COMP_CD AND xl.ACTION_YN = 'X' )   /* 재고에서 제외한 판매전표는 출고로 세지 않는다 (2026-11-26 재고 변동 확인 — 원장과 같게) */
 	       AND REPLACE(ISNULL(m.SALE_DT,''),'-','') >= #{frDt} AND REPLACE(ISNULL(m.SALE_DT,''),'-','') <= #{toDt}
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	     GROUP BY m.COMP_CD, REPLACE(ISNULL(m.SALE_DT,''),'-',''), ISNULL(m.CUST_CD,''), ISNULL(NULLIF(m.CUST_NM,''), N'(거래처 없음)'), d.PROD_CD
+	    UNION ALL
+	    /* ⑤ 지운 판매전표인데 «재고 미적용»(삭제를 재고에 적용 안 함)한 출고 — 원장의 되살린 줄(REF_GB SALEK). 전표는 지워져 ④에 안 나오므로 원장에서 센다 (2026-11-26 재고 변동 확인) */
+	    SELECT l.COMP_CD, REPLACE(ISNULL(l.TRX_DT,''),'-',''), 'STRX:' + ISNULL(m.CUST_CD,''), ISNULL(NULLIF(m.CUST_NM,''), N'(거래처 없음)') + N' (판매전표)', l.PROD_CD,
+	           CAST(SUM(l.QTY) AS DECIMAL(18,3)), 1
+	      FROM TBL_STOCK_LEDGER l
+	      LEFT JOIN TBL_SALES_TRX_MST m ON m.COMP_CD = l.COMP_CD AND m.SALE_SEQ = CAST(CASE WHEN ISNUMERIC(SUBSTRING(l.REF_NO, CHARINDEX('#', l.REF_NO) + 1, 12)) = 1 THEN SUBSTRING(l.REF_NO, CHARINDEX('#', l.REF_NO) + 1, 12) ELSE '0' END AS INT)
+	     WHERE l.REF_GB = 'SALEK' AND l.IO_GB = 'O' AND l.ACTION_YN = 'Y'
+	       AND REPLACE(ISNULL(l.TRX_DT,''),'-','') >= #{frDt} AND REPLACE(ISNULL(l.TRX_DT,''),'-','') <= #{toDt}
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	     GROUP BY l.COMP_CD, REPLACE(ISNULL(l.TRX_DT,''),'-',''), ISNULL(m.CUST_CD,''), ISNULL(NULLIF(m.CUST_NM,''), N'(거래처 없음)'), l.PROD_CD
 	  )
 	  SELECT LEFT(u.DLV_DT,6) AS ym,
 	         ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD) AS bizKey,
@@ -4980,8 +4992,20 @@
 	      JOIN TBL_SALES_TRX_DTL d ON d.SALE_SEQ = m.SALE_SEQ AND d.ACTION_YN = 'Y' AND d.PROD_CD = #{prodCd}
 	       AND ISNULL(d.TRX_GB, N'판매') NOT IN (N'반품', N'불량반품')
 	     WHERE m.ACTION_YN = 'Y'
+	       AND NOT EXISTS ( SELECT 1 FROM TBL_STOCK_LEDGER xl WHERE xl.REF_GB = 'SALE' AND xl.REF_NO = REPLACE(ISNULL(m.SALE_DT,''),'-','') + '-' + m.SALE_NO
+	                           AND xl.COMP_CD = m.COMP_CD AND xl.ACTION_YN = 'X' )   /* 재고에서 제외한 판매전표는 출고로 세지 않는다 (2026-11-26 재고 변동 확인 — 원장과 같게) */
 	       AND REPLACE(ISNULL(m.SALE_DT,''),'-','') >= #{frDt} AND REPLACE(ISNULL(m.SALE_DT,''),'-','') <= #{toDt}
 	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR m.COMP_CD = #{compCd,jdbcType=VARCHAR} )
+	    UNION ALL
+	    /* ⑤ 지운 판매전표인데 «재고 미적용»한 출고 — 표 selectStockOutByMonth ⑤ 와 같다 (2026-11-26) */
+	    SELECT l.COMP_CD, REPLACE(ISNULL(l.TRX_DT,''),'-',''), 'STRX:' + ISNULL(m.CUST_CD,''), ISNULL(NULLIF(m.CUST_NM,''), N'(거래처 없음)') + N' (판매전표)', ISNULL(m.WH_NM,''),
+	           LEFT(l.REF_NO, CHARINDEX('#', l.REF_NO + '#') - 1), l.PROD_CD, CAST('' AS NVARCHAR(200)),
+	           CAST(l.QTY AS DECIMAL(18,3)), N'판매전표(삭제 · 재고 미적용)', CAST(NULL AS DECIMAL(18,3)), CAST(NULL AS DECIMAL(18,3)), CAST(NULL AS DECIMAL(18,3))
+	      FROM TBL_STOCK_LEDGER l
+	      LEFT JOIN TBL_SALES_TRX_MST m ON m.COMP_CD = l.COMP_CD AND m.SALE_SEQ = CAST(CASE WHEN ISNUMERIC(SUBSTRING(l.REF_NO, CHARINDEX('#', l.REF_NO) + 1, 12)) = 1 THEN SUBSTRING(l.REF_NO, CHARINDEX('#', l.REF_NO) + 1, 12) ELSE '0' END AS INT)
+	     WHERE l.REF_GB = 'SALEK' AND l.IO_GB = 'O' AND l.ACTION_YN = 'Y' AND l.PROD_CD = #{prodCd}
+	       AND REPLACE(ISNULL(l.TRX_DT,''),'-','') >= #{frDt} AND REPLACE(ISNULL(l.TRX_DT,''),'-','') <= #{toDt}
+	       AND ( ISNULL(#{compCd,jdbcType=VARCHAR},'') = '' OR l.COMP_CD = #{compCd,jdbcType=VARCHAR} )
 	  )
 	  SELECT u.DLV_DT AS dlvDt, ISNULL(NULLIF(b.MATCH_CD,''), u.BIZ_CD) AS bizKey, ISNULL(NULLIF(b.MATCH_NM,''), u.BIZ_NM) AS mtNm,
          u.BIZ_CD AS bizCd, u.BIZ_NM AS bizNm, u.DC_NM AS dcNm, u.ORD_NO AS ordNo, u.ITEM_CD AS itemCd, u.ITEM_NM AS itemNm, u.SRC AS src, u.QTY AS qty,
@@ -5363,6 +5387,74 @@
 	   WHERE d.QTY > 0
 	]]></insert>
 
+	<!-- ★재고 변동 확인 — «재고에서 제외»한 전표(품목)의 원장 줄 지키기 (2026-11-26 사용자 「재고담당자가 입고·판매 내용을 보고 재고에 반영할지 관리」 → 「반영 후 확인 방식으로」
+	     → 같은 날 「삭제한 것은 … 재고에서 제외 여부 있어야 250 재고로 포함 나옴 · 재고제외, 재고제외취소 등도 필요」 : 품목 단위 · 지운 전표도)
+	     제외 = TBL_STOCK_CHK.STATE 'X' — PROD_SEQ 0 은 전표 전체, 그 밖은 그 품목만.
+	     · 살아 있는 전표 : 그 원장 줄(ACTION_YN 'Y')을 'X' 로 — 재고를 세는 SQL 은 전부 'Y' 만 보므로 «재고 수량에서만» 빠진다(매입·매출 금액은 전표에서 세므로 그대로).
+	     · 지운 전표 : «삭제를 재고에 반영하지 않는다» — 지울 때 닫힌(N) 원장 줄을 되살린다(Y). 살아 있는 전표의 줄과 섞이지 않게 근거구분을 PURCHK·SALEK 로,
+	       근거번호 뒤에 #전표키 를 붙인다(지운 전표의 번호는 새 전표가 다시 쓸 수 있다). 제외를 풀거나 전표를 되살리면 도로 닫고 근거구분·번호를 원래대로.
+	       «지울 때 닫힌 줄» = 그 근거번호의 N 줄 중 닫힌 때가 전표를 지운 때의 5초 안(deletePurchase·deleteSalesTrx 는 원장 → 명세 → 머리 차례로 한 트랜잭션).
+	     ★현재고 재집계 두 문장(recalcStockMstAll · recalcStockMst) 맨 앞, 수정재고 고정(adjAnchorKeep)보다 «먼저» — 전표를 고쳐 다시 저장해 원장 줄이 새로(Y) 생겨도
+	       재집계가 다시 맞춘다(자바 저장 길을 안 고친다). 제외한 전표·되살린 줄에서 출발하는 문장만 있어 평소엔 할 일이 없다.
+	       살아 있는 전표의 X 줄을 도로 Y 로(제외 취소)는 여기 없다 — 원장을 훑어야 해서 처리할 때만(syncStockChkLedger).
+	     ★동적 SQL 인 까닭 : 표·칸(TBL_STOCK_CHK.PROD_SEQ)이 아직 없는 DB 에서도 이 배치가 «컴파일» 돼야 한다(없는 칸을 바로 쓰면 재집계가 통째로 죽어 전표 저장이 멎는다).
+	       COL_LENGTH 가 NULL 이면 아무것도 안 한다. 안쪽 문장은 scratch chk_sql.js 가 만든다(매퍼와 문법 검사가 같은 글) -->
+	<sql id="stockChkKeep"><![CDATA[
+	  SET NOCOUNT ON;
+	  IF COL_LENGTH('dbo.TBL_STOCK_CHK', 'PROD_SEQ') IS NOT NULL
+	  BEGIN
+	    DECLARE @SCK_C VARCHAR(10), @SCK_P BIGINT;
+	    SELECT @SCK_C = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), @SCK_P = #{prodSeq,jdbcType=BIGINT};
+	    EXEC sp_executesql N'
+UPDATE l SET l.ACTION_YN = ''X''
+  FROM TBL_STOCK_CHK c
+  JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = c.REF_SEQ AND m.COMP_CD = c.COMP_CD AND m.ACTION_YN = ''Y''
+  JOIN TBL_STOCK_LEDGER l ON l.REF_GB = ''PURCH'' AND l.REF_NO = REPLACE(ISNULL(m.PURCH_DT,''''),''-'','''') + ''-'' + m.PURCH_NO AND l.COMP_CD = c.COMP_CD AND l.ACTION_YN = ''Y''
+                         AND ( c.PROD_SEQ = 0 OR l.PROD_SEQ = c.PROD_SEQ )
+ WHERE c.COMP_CD = @c AND c.REF_GB = ''PURCH'' AND c.STATE = ''X'' AND ( @p IS NULL OR l.PROD_SEQ = @p );
+UPDATE l SET l.ACTION_YN = ''X''
+  FROM TBL_STOCK_CHK c
+  JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = c.REF_SEQ AND m.COMP_CD = c.COMP_CD AND m.ACTION_YN = ''Y''
+  JOIN TBL_STOCK_LEDGER l ON l.REF_GB = ''SALE'' AND l.REF_NO = REPLACE(ISNULL(m.SALE_DT,''''),''-'','''') + ''-'' + m.SALE_NO AND l.COMP_CD = c.COMP_CD AND l.ACTION_YN = ''Y''
+                         AND ( c.PROD_SEQ = 0 OR l.PROD_SEQ = c.PROD_SEQ )
+ WHERE c.COMP_CD = @c AND c.REF_GB = ''SALE'' AND c.STATE = ''X'' AND ( @p IS NULL OR l.PROD_SEQ = @p );
+UPDATE l SET l.ACTION_YN = ''N'', l.REF_GB = ''PURCH'', l.REF_NO = LEFT(l.REF_NO, CHARINDEX(''#'', l.REF_NO) - 1)
+  FROM TBL_STOCK_LEDGER l
+ WHERE l.COMP_CD = @c AND l.REF_GB = ''PURCHK'' AND l.ACTION_YN = ''Y'' AND CHARINDEX(''#'', l.REF_NO) > 1 AND ( @p IS NULL OR l.PROD_SEQ = @p )
+   AND NOT EXISTS ( SELECT 1 FROM TBL_STOCK_CHK c
+                      JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = c.REF_SEQ AND m.COMP_CD = c.COMP_CD AND m.ACTION_YN = ''N''
+                     WHERE c.COMP_CD = l.COMP_CD AND c.REF_GB = ''PURCH'' AND c.STATE = ''X'' AND c.PROD_SEQ IN (0, l.PROD_SEQ)
+                       AND c.REF_SEQ = CAST(CASE WHEN ISNUMERIC(SUBSTRING(l.REF_NO, CHARINDEX(''#'', l.REF_NO) + 1, 12)) = 1 THEN SUBSTRING(l.REF_NO, CHARINDEX(''#'', l.REF_NO) + 1, 12) ELSE ''0'' END AS INT) );
+UPDATE l SET l.ACTION_YN = ''N'', l.REF_GB = ''SALE'', l.REF_NO = LEFT(l.REF_NO, CHARINDEX(''#'', l.REF_NO) - 1)
+  FROM TBL_STOCK_LEDGER l
+ WHERE l.COMP_CD = @c AND l.REF_GB = ''SALEK'' AND l.ACTION_YN = ''Y'' AND CHARINDEX(''#'', l.REF_NO) > 1 AND ( @p IS NULL OR l.PROD_SEQ = @p )
+   AND NOT EXISTS ( SELECT 1 FROM TBL_STOCK_CHK c
+                      JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = c.REF_SEQ AND m.COMP_CD = c.COMP_CD AND m.ACTION_YN = ''N''
+                     WHERE c.COMP_CD = l.COMP_CD AND c.REF_GB = ''SALE'' AND c.STATE = ''X'' AND c.PROD_SEQ IN (0, l.PROD_SEQ)
+                       AND c.REF_SEQ = CAST(CASE WHEN ISNUMERIC(SUBSTRING(l.REF_NO, CHARINDEX(''#'', l.REF_NO) + 1, 12)) = 1 THEN SUBSTRING(l.REF_NO, CHARINDEX(''#'', l.REF_NO) + 1, 12) ELSE ''0'' END AS INT) );
+UPDATE l SET l.ACTION_YN = ''Y'', l.REF_GB = ''PURCHK'', l.REF_NO = l.REF_NO + ''#'' + CAST(m.PURCH_SEQ AS VARCHAR(12))
+  FROM TBL_STOCK_CHK c
+  JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = c.REF_SEQ AND m.COMP_CD = c.COMP_CD AND m.ACTION_YN = ''N''
+  JOIN TBL_STOCK_LEDGER l ON l.REF_GB = ''PURCH'' AND l.REF_NO = REPLACE(ISNULL(m.PURCH_DT,''''),''-'','''') + ''-'' + m.PURCH_NO AND l.COMP_CD = c.COMP_CD AND l.ACTION_YN = ''N''
+                         AND ( c.PROD_SEQ = 0 OR l.PROD_SEQ = c.PROD_SEQ )
+ WHERE c.COMP_CD = @c AND c.REF_GB = ''PURCH'' AND c.STATE = ''X'' AND ( @p IS NULL OR l.PROD_SEQ = @p )
+   AND l.UPD_DTTM <= m.UPD_DTTM AND l.UPD_DTTM >= CONVERT(VARCHAR(19), DATEADD(SECOND, -5, CONVERT(DATETIME, m.UPD_DTTM, 120)), 120)
+   AND NOT EXISTS ( SELECT 1 FROM TBL_STOCK_LEDGER k WHERE k.REF_GB = ''PURCHK'' AND k.REF_NO = l.REF_NO + ''#'' + CAST(m.PURCH_SEQ AS VARCHAR(12))
+                       AND k.COMP_CD = l.COMP_CD AND k.PROD_SEQ = l.PROD_SEQ AND k.ACTION_YN = ''Y'' );
+UPDATE l SET l.ACTION_YN = ''Y'', l.REF_GB = ''SALEK'', l.REF_NO = l.REF_NO + ''#'' + CAST(m.SALE_SEQ AS VARCHAR(12))
+  FROM TBL_STOCK_CHK c
+  JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = c.REF_SEQ AND m.COMP_CD = c.COMP_CD AND m.ACTION_YN = ''N''
+  JOIN TBL_STOCK_LEDGER l ON l.REF_GB = ''SALE'' AND l.REF_NO = REPLACE(ISNULL(m.SALE_DT,''''),''-'','''') + ''-'' + m.SALE_NO AND l.COMP_CD = c.COMP_CD AND l.ACTION_YN = ''N''
+                         AND ( c.PROD_SEQ = 0 OR l.PROD_SEQ = c.PROD_SEQ )
+ WHERE c.COMP_CD = @c AND c.REF_GB = ''SALE'' AND c.STATE = ''X'' AND ( @p IS NULL OR l.PROD_SEQ = @p )
+   AND l.UPD_DTTM <= m.UPD_DTTM AND l.UPD_DTTM >= CONVERT(VARCHAR(19), DATEADD(SECOND, -5, CONVERT(DATETIME, m.UPD_DTTM, 120)), 120)
+   AND NOT EXISTS ( SELECT 1 FROM TBL_STOCK_LEDGER k WHERE k.REF_GB = ''SALEK'' AND k.REF_NO = l.REF_NO + ''#'' + CAST(m.SALE_SEQ AS VARCHAR(12))
+                       AND k.COMP_CD = l.COMP_CD AND k.PROD_SEQ = l.PROD_SEQ AND k.ACTION_YN = ''Y'' );
+', N'@c VARCHAR(10), @p BIGINT', @c = @SCK_C, @p = @SCK_P;
+	  END
+	  SET NOCOUNT OFF;
+	]]></sql>
+
 	<!-- ★수정재고 고정 (2026-11-25 사용자 「최근 수정했으면 그게 재고이고 그 뒤로 입고 + 출고 −」 · 「재고를 맞추면 틀어진다고 계속 이야기했다」).
 	     종전 : 재고조정은 «그때 재고와의 차이(증감)»만 원장에 한 줄로 남고, 현재고는 처음부터의 입고·출고·조정을 전부 더한 값이었다.
 	            그래서 조정한 뒤에 조정일 «앞» 날짜의 기록이 바뀌면(전표 삭제·수정 · 뒤늦게 넣은 지난 날짜 전표 · 정산서 도착 · 재집계) 맞춰 둔 재고가 같이 움직였다.
@@ -5405,7 +5497,7 @@
 	]]></sql>
 
 	<!-- (A) 전체 품목 현재고 재집계 (원장 누계 기준, set-based MERGE) -->
-	<update id="recalcStockMstAll" parameterType="egovframework.konet.user.model.StockLedgerDTO"><include refid="adjAnchorKeep"/><![CDATA[
+	<update id="recalcStockMstAll" parameterType="egovframework.konet.user.model.StockLedgerDTO"><include refid="stockChkKeep"/><include refid="adjAnchorKeep"/><![CDATA[
 	  MERGE TBL_STOCK_MST AS t
 	  USING (
 	    SELECT PROD_SEQ, MAX(PROD_CD) AS PROD_CD,
@@ -5456,7 +5548,7 @@
 	]]></update>
 
 	<!-- 원장 누계로 현재고 재집계 (INSERT/DELETE 후 호출). 없으면 생성(MERGE) -->
-	<update id="recalcStockMst" parameterType="egovframework.konet.user.model.StockLedgerDTO"><include refid="adjAnchorKeep"/><![CDATA[
+	<update id="recalcStockMst" parameterType="egovframework.konet.user.model.StockLedgerDTO"><include refid="stockChkKeep"/><include refid="adjAnchorKeep"/><![CDATA[
 	  MERGE TBL_STOCK_MST AS t
 	  USING (
 	    SELECT
@@ -5882,6 +5974,9 @@
 	                  ELSE (CASE WHEN d.TRX_GB = N'반품' THEN -1 ELSE 1 END)
 	                     * ROUND(ABS(ISNULL(d.QTY,0))
 	                             - (CASE WHEN ABS(ISNULL(d.STOCK_CUT_QTY,0)) > ABS(ISNULL(d.QTY,0)) THEN ABS(ISNULL(d.QTY,0)) ELSE ABS(ISNULL(d.STOCK_CUT_QTY,0)) END), 0) END) AS qty,
+	         /* 재고 미적용(삭제를 재고에 적용 안 함)으로 되살려 둔 줄이 있는가 — 원장의 SALEK 줄로 본다 (2026-11-26 재고 변동 확인) */
+	         CASE WHEN EXISTS ( SELECT 1 FROM TBL_STOCK_LEDGER kk WHERE kk.REF_GB = 'SALEK' AND kk.COMP_CD = m.COMP_CD AND kk.PROD_CD = d.PROD_CD AND kk.ACTION_YN = 'Y'
+	                               AND kk.REF_NO = REPLACE(ISNULL(m.SALE_DT,''),'-','') + '-' + m.SALE_NO + '#' + CAST(m.SALE_SEQ AS VARCHAR(12)) ) THEN 'Y' ELSE 'N' END AS keepYn,
 	         MAX(d.UNIT_PRICE) AS unitPrice,
 	         SUM(CASE WHEN d.TRX_GB IN (N'반품', N'불량반품') THEN -ABS(ISNULL(d.AMT,0)) ELSE ISNULL(d.AMT,0) END) AS amt,
 	         ISNULL(m.REG_DTTM,'') AS regDttm, ISNULL(m.UPD_DTTM,'') AS delDttm, MAX(m.UPD_USER) AS delUser,
@@ -5903,6 +5998,9 @@
 	         m.PURCH_SEQ AS purchSeq, m.PURCH_DT AS purchDt, m.PURCH_NO AS purchNo, MAX(m.VENDOR_NM) AS vendorNm,
 	         d.PROD_CD AS prodCd,
 	         SUM(CASE WHEN d.TRX_GB IN (N'반품', N'불량반품') THEN -ABS(d.QTY) ELSE d.QTY END) AS qty,
+	         /* 재고 미적용(삭제를 재고에 적용 안 함)으로 되살려 둔 줄이 있는가 — 원장의 PURCHK 줄로 본다 (2026-11-26 재고 변동 확인) */
+	         CASE WHEN EXISTS ( SELECT 1 FROM TBL_STOCK_LEDGER kk WHERE kk.REF_GB = 'PURCHK' AND kk.COMP_CD = m.COMP_CD AND kk.PROD_CD = d.PROD_CD AND kk.ACTION_YN = 'Y'
+	                               AND kk.REF_NO = REPLACE(ISNULL(m.PURCH_DT,''),'-','') + '-' + m.PURCH_NO + '#' + CAST(m.PURCH_SEQ AS VARCHAR(12)) ) THEN 'Y' ELSE 'N' END AS keepYn,
 	         MAX(d.UNIT_PRICE) AS unitPrice,
 	         SUM(CASE WHEN d.TRX_GB IN (N'반품', N'불량반품') THEN -ABS(d.AMT) ELSE d.AMT END) AS amt,
 	         CONVERT(VARCHAR(19), m.REG_DTTM, 120) AS regDttm,
@@ -6028,7 +6126,7 @@
 	<update id="deletePurchaseLedger" parameterType="egovframework.konet.user.model.PurchaseDTO"><![CDATA[
 	  UPDATE TBL_STOCK_LEDGER SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
-	   WHERE ACTION_YN='Y' AND REF_GB='PURCH'
+	   WHERE ACTION_YN IN ('Y','X') AND REF_GB='PURCH'   /* X = 재고에서 제외한 줄(2026-11-26 재고 변동 확인) — 같이 걷는다 */
 	     AND REF_NO = ISNULL( ( SELECT TOP 1 REPLACE(ISNULL(m.PURCH_DT,''),'-','') + '-' + m.PURCH_NO
 	                              FROM TBL_PURCHASE_MST m
 	                             WHERE m.PURCH_SEQ = #{purchSeq,jdbcType=BIGINT}
@@ -7084,7 +7182,7 @@
 	<update id="deleteSalesTrxLedger" parameterType="egovframework.konet.user.model.SalesTrxDTO"><![CDATA[
 	  UPDATE TBL_STOCK_LEDGER SET ACTION_YN='N',
 	         UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{updUser,jdbcType=NVARCHAR}, UPD_IP = #{updIp,jdbcType=VARCHAR}
-	   WHERE ACTION_YN='Y' AND REF_GB='SALE'
+	   WHERE ACTION_YN IN ('Y','X') AND REF_GB='SALE'   /* X = 재고에서 제외한 줄(2026-11-26 재고 변동 확인) — 같이 걷는다 */
 	     AND REF_NO = ISNULL( ( SELECT TOP 1 REPLACE(ISNULL(m.SALE_DT,''),'-','') + '-' + m.SALE_NO
 	                              FROM TBL_SALES_TRX_MST m
 	                             WHERE m.SALE_SEQ = #{saleSeq,jdbcType=BIGINT}
@@ -10767,5 +10865,282 @@
 	     SET ACTION_YN = 'Y', UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), UPD_USER = #{regUser,jdbcType=NVARCHAR}, UPD_IP = #{regIp,jdbcType=VARCHAR}
 	   WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND SCHED_SEQ = #{schedSeq,jdbcType=BIGINT} AND ACTION_YN = 'N'
 	]]></update>
+
+
+	<!-- ══════════════════════════════════════════════════════════════════════════
+	     재고 변동 확인 (2026-11-26 신설 · 같은 날 오후 2판 = 품목 단위) — 화면 prod/stockChk.jsp · 표 TBL_STOCK_CHK(docs/sql/20261126_stock_chk.sql)
+	     사용자 「재고담당자가 입고·판매 관련 내용을 보고 재고에 반영할지, 적용 안 할지 관리」 → 「반영 후 확인 방식으로 진행해줘」
+	     · 대상 = 손으로 넣는 전표 : 매입전표(TBL_PURCHASE_MST) · 판매전표(TBL_SALES_TRX_MST) — 반품은 그 전표의 줄. 정산서·발주현황표 자동 출고는 대상이 아니다.
+	     · 작업한 때(evDttm) = 전표를 마지막으로 바꾼 때(수정·삭제) · 없으면 등록한 때 — 화면의 기간·차례가 이 시각이다(전표 일자가 아니다). 사건 = 등록 / 수정 / 삭제.
+	     · 전표 상태(PROD_SEQ 0 줄) = 미확인(줄이 없거나 확인한 뒤에 전표가 또 바뀜 — VER_DTTM < evDttm) · 확인(C) · 전체 제외(X). 품목 제외(PROD_SEQ > 0 · X)는 줄마다.
+	     · 재고 영향(stkQty) = 그 전표가 «살아 있을 때» 재고에 넣는 수량 : 매입 +수량(반품·불량반품 −) / 판매 −(수량 − 출고차감)(반품 + · 불량반품 0) — 자바 savePurchase·saveSalesTrx 와 같은 셈.
+	       지운 전표는 화면이 부호를 뒤집어 보인다(지워서 그만큼 빠졌다 / 돌아왔다).
+	     · 지운 전표의 줄 = 그 전표 명세 중 마지막으로 닫힌 묶음(selectProdDelPurch 와 같은 규칙).
+	     ══════════════════════════════════════════════════════════════════════════ -->
+	<select id="selectStockChkList" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT x.refGb, x.refSeq, x.trxDt, x.trxNo, x.custCd, x.custNm, x.totAmt, x.liveYn, x.remark,
+	         x.regDttm, x.regUser, x.updDttm, x.updUser, x.evDttm,
+	         (SELECT MAX(u.USER_NM) FROM TBL_USER_MST u WHERE LTRIM(RTRIM(u.USER_ID)) = LTRIM(RTRIM(x.regUser)) AND u.COMP_CD = #{compCd,jdbcType=VARCHAR}) AS regUserNm,
+	         (SELECT MAX(u.USER_NM) FROM TBL_USER_MST u WHERE LTRIM(RTRIM(u.USER_ID)) = LTRIM(RTRIM(x.updUser)) AND u.COMP_CD = #{compCd,jdbcType=VARCHAR}) AS updUserNm,
+	         c.STATE AS chkState, c.VER_DTTM AS verDttm, c.MEMO AS chkMemo,
+	         ISNULL(c.UPD_DTTM, c.REG_DTTM) AS chkDttm, ISNULL(c.UPD_USER, c.REG_USER) AS chkUser,
+	         (SELECT MAX(u.USER_NM) FROM TBL_USER_MST u WHERE LTRIM(RTRIM(u.USER_ID)) = LTRIM(RTRIM(ISNULL(c.UPD_USER, c.REG_USER))) AND u.COMP_CD = #{compCd,jdbcType=VARCHAR}) AS chkUserNm
+	    FROM (
+	      SELECT 'PURCH' AS refGb, m.PURCH_SEQ AS refSeq, m.PURCH_DT AS trxDt, m.PURCH_NO AS trxNo, m.VENDOR_CD AS custCd, m.VENDOR_NM AS custNm,
+	             m.TOT_AMT AS totAmt, m.ACTION_YN AS liveYn, m.REMARK AS remark,
+	             m.REG_DTTM AS regDttm, m.REG_USER AS regUser, m.UPD_DTTM AS updDttm, m.UPD_USER AS updUser, ISNULL(m.UPD_DTTM, m.REG_DTTM) AS evDttm
+	        FROM TBL_PURCHASE_MST m
+	       WHERE m.COMP_CD = #{compCd,jdbcType=VARCHAR} AND ISNULL(m.UPD_DTTM, m.REG_DTTM) >= #{frDttm,jdbcType=VARCHAR} AND ISNULL(m.UPD_DTTM, m.REG_DTTM) < #{toDttm,jdbcType=VARCHAR}
+	      UNION ALL
+	      SELECT 'SALE', m.SALE_SEQ, m.SALE_DT, m.SALE_NO, m.CUST_CD, m.CUST_NM,
+	             m.TOT_AMT, m.ACTION_YN, m.REMARK,
+	             m.REG_DTTM, m.REG_USER, m.UPD_DTTM, m.UPD_USER, ISNULL(m.UPD_DTTM, m.REG_DTTM)
+	        FROM TBL_SALES_TRX_MST m
+	       WHERE m.COMP_CD = #{compCd,jdbcType=VARCHAR} AND ISNULL(m.UPD_DTTM, m.REG_DTTM) >= #{frDttm,jdbcType=VARCHAR} AND ISNULL(m.UPD_DTTM, m.REG_DTTM) < #{toDttm,jdbcType=VARCHAR}
+	    ) x
+	    LEFT JOIN TBL_STOCK_CHK c ON c.COMP_CD = #{compCd,jdbcType=VARCHAR} AND c.REF_GB = x.refGb AND c.REF_SEQ = x.refSeq AND c.PROD_SEQ = 0
+	   ORDER BY x.evDttm DESC, x.refGb, x.refSeq DESC
+	]]></select>
+
+	<!-- 그 기간 전표들의 품목 줄 — 목록과 함께 한 번에 읽는다(화면이 펼쳐서 보인다 · 품목코드로 찾기).
+	     현재고 = TBL_STOCK_MST.CUR_QTY(재집계가 늘 맞춰 둔 값 — 줄마다 원장을 다시 더하지 않는다) · 마지막으로 맞춘 날 = 그 품목의 가장 나중 조정 · xState = 그 품목만 제외한 줄 -->
+	<select id="selectStockChkLineAll" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT y.refGb, y.refSeq, y.rowNo, y.prodSeq, y.prodCd, y.prodNm, y.trxGb, y.qty, y.stkQty,
+	         ISNULL(sm.CUR_QTY, 0) AS curQty,
+	         a.BASE_DT AS adjDt, a.AFT_QTY AS adjQty, CASE WHEN a.FRZ_QTY IS NOT NULL THEN 'Y' ELSE 'N' END AS adjFixYn, CONVERT(VARCHAR(19), a.REG_DTTM, 120) AS adjRegDttm,   /* adjRegDttm = 그 재고수정을 저장한 때 — 「최종 재고수정 이후만」(그 뒤에 작업한 것) 판정 (2026-11-26) */
+	         cx.STATE AS xState, cx.MEMO AS xMemo, ISNULL(cx.UPD_DTTM, cx.REG_DTTM) AS xDttm,
+	         (SELECT MAX(u.USER_NM) FROM TBL_USER_MST u WHERE LTRIM(RTRIM(u.USER_ID)) = LTRIM(RTRIM(ISNULL(cx.UPD_USER, cx.REG_USER))) AND u.COMP_CD = #{compCd,jdbcType=VARCHAR}) AS xUserNm
+	    FROM (
+	      SELECT 'PURCH' AS refGb, m.PURCH_SEQ AS refSeq, t.ROW_NO AS rowNo, t.PROD_SEQ AS prodSeq, t.PROD_CD AS prodCd, t.PROD_NM AS prodNm,
+	             ISNULL(t.TRX_GB, N'매입') AS trxGb, t.QTY AS qty, CASE WHEN t.TRX_GB IN (N'반품', N'불량반품') THEN -ABS(ISNULL(t.QTY,0)) ELSE ISNULL(t.QTY,0) END AS stkQty
+	        FROM TBL_PURCHASE_MST m
+	        JOIN TBL_PURCHASE_DTL t ON t.PURCH_SEQ = m.PURCH_SEQ AND t.ACTION_YN = m.ACTION_YN
+	         AND ( m.ACTION_YN = 'Y' OR t.UPD_DTTM = (SELECT MAX(t0.UPD_DTTM) FROM TBL_PURCHASE_DTL t0 WHERE t0.PURCH_SEQ = m.PURCH_SEQ) )
+	       WHERE m.COMP_CD = #{compCd,jdbcType=VARCHAR} AND ISNULL(m.UPD_DTTM, m.REG_DTTM) >= #{frDttm,jdbcType=VARCHAR} AND ISNULL(m.UPD_DTTM, m.REG_DTTM) < #{toDttm,jdbcType=VARCHAR}
+	      UNION ALL
+	      SELECT 'SALE' AS refGb, m.SALE_SEQ AS refSeq, t.ROW_NO AS rowNo, t.PROD_SEQ AS prodSeq, t.PROD_CD AS prodCd, t.PROD_NM AS prodNm,
+	             ISNULL(t.TRX_GB, N'판매') AS trxGb, t.QTY AS qty, CASE WHEN t.TRX_GB = N'불량반품' THEN 0
+	                  WHEN t.TRX_GB = N'반품' THEN  ROUND(ABS(ISNULL(t.QTY,0)) - CASE WHEN ABS(ISNULL(t.STOCK_CUT_QTY,0)) > ABS(ISNULL(t.QTY,0)) THEN ABS(ISNULL(t.QTY,0)) ELSE ABS(ISNULL(t.STOCK_CUT_QTY,0)) END, 0)
+	                  ELSE -ROUND(ABS(ISNULL(t.QTY,0)) - CASE WHEN ABS(ISNULL(t.STOCK_CUT_QTY,0)) > ABS(ISNULL(t.QTY,0)) THEN ABS(ISNULL(t.QTY,0)) ELSE ABS(ISNULL(t.STOCK_CUT_QTY,0)) END, 0) END AS stkQty
+	        FROM TBL_SALES_TRX_MST m
+	        JOIN TBL_SALES_TRX_DTL t ON t.SALE_SEQ = m.SALE_SEQ AND t.ACTION_YN = m.ACTION_YN
+	         AND ( m.ACTION_YN = 'Y' OR t.UPD_DTTM = (SELECT MAX(t0.UPD_DTTM) FROM TBL_SALES_TRX_DTL t0 WHERE t0.SALE_SEQ = m.SALE_SEQ) )
+	       WHERE m.COMP_CD = #{compCd,jdbcType=VARCHAR} AND ISNULL(m.UPD_DTTM, m.REG_DTTM) >= #{frDttm,jdbcType=VARCHAR} AND ISNULL(m.UPD_DTTM, m.REG_DTTM) < #{toDttm,jdbcType=VARCHAR}
+	    ) y
+	    LEFT JOIN TBL_STOCK_MST sm ON sm.PROD_SEQ = y.prodSeq AND sm.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	    LEFT JOIN TBL_STOCK_CHK cx ON cx.COMP_CD = #{compCd,jdbcType=VARCHAR} AND cx.REF_GB = y.refGb AND cx.REF_SEQ = y.refSeq AND cx.PROD_SEQ = y.prodSeq AND cx.PROD_SEQ > 0 AND cx.STATE = 'X'
+	    OUTER APPLY ( SELECT TOP 1 h.BASE_DT, h.AFT_QTY, h.FRZ_QTY, h.REG_DTTM FROM TBL_STOCK_ADJ_HIS h
+	                   WHERE h.COMP_CD = #{compCd,jdbcType=VARCHAR} AND h.PROD_SEQ = y.prodSeq AND h.ACTION_YN = 'Y' ORDER BY h.ADJ_SEQ DESC ) a
+	   ORDER BY y.refGb, y.refSeq, y.rowNo
+	]]></select>
+
+	<!-- 시작 표시(이 기능을 켠 때) — 그 뒤에 생긴 사건만 «미확인» 으로 센다 -->
+	<select id="selectStockChkStart" parameterType="java.util.HashMap" resultType="java.lang.String"><![CDATA[
+	  SELECT MIN(VER_DTTM) FROM TBL_STOCK_CHK WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND REF_GB = 'START'
+	]]></select>
+
+	<!-- 메뉴 빨간 숫자 — 시작 표시 뒤의 사건 중 미확인(전표 줄이 없거나 확인 뒤에 또 바뀐 전표). 전체 제외(X)는 처리한 것으로 본다 -->
+	<select id="selectStockChkPendCnt" parameterType="java.util.HashMap" resultType="int"><![CDATA[
+	  SELECT COUNT(*)
+	    FROM ( SELECT 'PURCH' AS refGb, m.PURCH_SEQ AS refSeq, ISNULL(m.UPD_DTTM, m.REG_DTTM) AS evDttm FROM TBL_PURCHASE_MST m WHERE m.COMP_CD = #{compCd,jdbcType=VARCHAR}
+	           UNION ALL
+	           SELECT 'SALE', m.SALE_SEQ, ISNULL(m.UPD_DTTM, m.REG_DTTM) FROM TBL_SALES_TRX_MST m WHERE m.COMP_CD = #{compCd,jdbcType=VARCHAR} ) x
+	    LEFT JOIN TBL_STOCK_CHK c ON c.COMP_CD = #{compCd,jdbcType=VARCHAR} AND c.REF_GB = x.refGb AND c.REF_SEQ = x.refSeq AND c.PROD_SEQ = 0
+	   WHERE x.evDttm >= ( SELECT MIN(s.VER_DTTM) FROM TBL_STOCK_CHK s WHERE s.COMP_CD = #{compCd,jdbcType=VARCHAR} AND s.REF_GB = 'START' )
+	     AND ( c.CHK_SEQ IS NULL OR ( c.STATE = 'C' AND ISNULL(c.VER_DTTM,'') < x.evDttm ) )
+	]]></select>
+
+	<!-- 한 줄 넣기·고치기 — 전표(prodSeq 0) 또는 품목. VER_DTTM = 그 순간 전표의 마지막 변경 시각(서버가 전표에서 읽는다 — 화면 값을 안 믿는다). 없는 전표엔 줄을 안 만든다 -->
+	<update id="upsertStockChk" parameterType="java.util.HashMap"><![CDATA[
+	  MERGE TBL_STOCK_CHK AS t
+	  USING ( SELECT #{compCd,jdbcType=VARCHAR} AS COMP_CD, #{refGb,jdbcType=VARCHAR} AS REF_GB, #{refSeq,jdbcType=INTEGER} AS REF_SEQ, #{prodSeq,jdbcType=INTEGER} AS PROD_SEQ,
+	                 CASE WHEN #{refGb,jdbcType=VARCHAR} = 'PURCH'
+	                      THEN (SELECT ISNULL(m.UPD_DTTM, m.REG_DTTM) FROM TBL_PURCHASE_MST m WHERE m.PURCH_SEQ = #{refSeq,jdbcType=INTEGER} AND m.COMP_CD = #{compCd,jdbcType=VARCHAR})
+	                      ELSE (SELECT ISNULL(m.UPD_DTTM, m.REG_DTTM) FROM TBL_SALES_TRX_MST m WHERE m.SALE_SEQ = #{refSeq,jdbcType=INTEGER} AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}) END AS VER_DTTM ) AS s
+	     ON ( t.COMP_CD = s.COMP_CD AND t.REF_GB = s.REF_GB AND t.REF_SEQ = s.REF_SEQ AND t.PROD_SEQ = s.PROD_SEQ )
+	  WHEN MATCHED THEN UPDATE SET t.STATE = #{state,jdbcType=VARCHAR}, t.VER_DTTM = s.VER_DTTM, t.MEMO = #{memo,jdbcType=NVARCHAR},
+	       t.UPD_DTTM = CONVERT(VARCHAR(19), GETDATE(), 120), t.UPD_USER = #{userId,jdbcType=NVARCHAR}, t.UPD_IP = #{ip,jdbcType=VARCHAR}
+	  WHEN NOT MATCHED AND s.VER_DTTM IS NOT NULL THEN
+	       INSERT (COMP_CD, REF_GB, REF_SEQ, PROD_SEQ, STATE, VER_DTTM, MEMO, REG_DTTM, REG_USER, REG_IP)
+	       VALUES (s.COMP_CD, s.REF_GB, s.REF_SEQ, s.PROD_SEQ, #{state,jdbcType=VARCHAR}, s.VER_DTTM, #{memo,jdbcType=NVARCHAR}, CONVERT(VARCHAR(19), GETDATE(), 120), #{userId,jdbcType=NVARCHAR}, #{ip,jdbcType=VARCHAR});
+	]]></update>
+
+	<!-- 한 줄 지우기 = 되돌리기(전표 줄이면 다시 미확인 · 품목 줄이면 그 품목 제외 취소) -->
+	<delete id="deleteStockChk" parameterType="java.util.HashMap"><![CDATA[
+	  DELETE FROM TBL_STOCK_CHK WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND REF_GB = #{refGb,jdbcType=VARCHAR} AND REF_SEQ = #{refSeq,jdbcType=INTEGER}
+	     AND PROD_SEQ = #{prodSeq,jdbcType=INTEGER} AND REF_GB IN ('PURCH','SALE')
+	]]></delete>
+
+	<!-- 지금 상태(전표 줄 또는 품목 줄 · 없으면 빈 값) -->
+	<select id="selectStockChkState" parameterType="java.util.HashMap" resultType="java.lang.String"><![CDATA[
+	  SELECT MAX(STATE) FROM TBL_STOCK_CHK WHERE COMP_CD = #{compCd,jdbcType=VARCHAR} AND REF_GB = #{refGb,jdbcType=VARCHAR} AND REF_SEQ = #{refSeq,jdbcType=INTEGER} AND PROD_SEQ = #{prodSeq,jdbcType=INTEGER}
+	]]></select>
+
+	<!-- 그 전표가 살아 있는지(Y) · 지워졌는지(N) · 없는지(빈 값 — 다른 회사 것 포함) -->
+	<select id="selectStockChkLive" parameterType="java.util.HashMap" resultType="java.lang.String"><![CDATA[
+	  SELECT CASE WHEN #{refGb,jdbcType=VARCHAR} = 'PURCH'
+	              THEN (SELECT MAX(m.ACTION_YN) FROM TBL_PURCHASE_MST m WHERE m.PURCH_SEQ = #{refSeq,jdbcType=INTEGER} AND m.COMP_CD = #{compCd,jdbcType=VARCHAR})
+	              ELSE (SELECT MAX(m.ACTION_YN) FROM TBL_SALES_TRX_MST m WHERE m.SALE_SEQ = #{refSeq,jdbcType=INTEGER} AND m.COMP_CD = #{compCd,jdbcType=VARCHAR}) END
+	]]></select>
+
+	<!-- 그 전표의 품목(prodSeq 0 = 전부 · 그 밖 = 그 품목만) + 지금 현재고(원장 합 — 처리 앞뒤로 «얼마에서 얼마로» 를 알려 주는 데 쓴다) -->
+	<select id="selectStockChkProds" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT g.prodSeq, g.prodCd, g.prodNm,
+	         ISNULL((SELECT SUM(CASE WHEN z.IO_GB = 'O' THEN -z.QTY ELSE z.QTY END) FROM TBL_STOCK_LEDGER z
+	                  WHERE z.COMP_CD = #{compCd,jdbcType=VARCHAR} AND z.PROD_SEQ = g.prodSeq AND z.ACTION_YN = 'Y'), 0) AS curQty
+	    FROM ( SELECT y.prodSeq, MAX(y.prodCd) AS prodCd, MAX(y.prodNm) AS prodNm
+	             FROM (
+	      SELECT 'PURCH' AS refGb, m.PURCH_SEQ AS refSeq, t.ROW_NO AS rowNo, t.PROD_SEQ AS prodSeq, t.PROD_CD AS prodCd, t.PROD_NM AS prodNm,
+	             ISNULL(t.TRX_GB, N'매입') AS trxGb, t.QTY AS qty, CASE WHEN t.TRX_GB IN (N'반품', N'불량반품') THEN -ABS(ISNULL(t.QTY,0)) ELSE ISNULL(t.QTY,0) END AS stkQty
+	        FROM TBL_PURCHASE_MST m
+	        JOIN TBL_PURCHASE_DTL t ON t.PURCH_SEQ = m.PURCH_SEQ AND t.ACTION_YN = m.ACTION_YN
+	         AND ( m.ACTION_YN = 'Y' OR t.UPD_DTTM = (SELECT MAX(t0.UPD_DTTM) FROM TBL_PURCHASE_DTL t0 WHERE t0.PURCH_SEQ = m.PURCH_SEQ) )
+	       WHERE m.COMP_CD = #{compCd,jdbcType=VARCHAR} AND #{refGb,jdbcType=VARCHAR} = 'PURCH' AND m.PURCH_SEQ = #{refSeq,jdbcType=INTEGER}
+	      UNION ALL
+	      SELECT 'SALE' AS refGb, m.SALE_SEQ AS refSeq, t.ROW_NO AS rowNo, t.PROD_SEQ AS prodSeq, t.PROD_CD AS prodCd, t.PROD_NM AS prodNm,
+	             ISNULL(t.TRX_GB, N'판매') AS trxGb, t.QTY AS qty, CASE WHEN t.TRX_GB = N'불량반품' THEN 0
+	                  WHEN t.TRX_GB = N'반품' THEN  ROUND(ABS(ISNULL(t.QTY,0)) - CASE WHEN ABS(ISNULL(t.STOCK_CUT_QTY,0)) > ABS(ISNULL(t.QTY,0)) THEN ABS(ISNULL(t.QTY,0)) ELSE ABS(ISNULL(t.STOCK_CUT_QTY,0)) END, 0)
+	                  ELSE -ROUND(ABS(ISNULL(t.QTY,0)) - CASE WHEN ABS(ISNULL(t.STOCK_CUT_QTY,0)) > ABS(ISNULL(t.QTY,0)) THEN ABS(ISNULL(t.QTY,0)) ELSE ABS(ISNULL(t.STOCK_CUT_QTY,0)) END, 0) END AS stkQty
+	        FROM TBL_SALES_TRX_MST m
+	        JOIN TBL_SALES_TRX_DTL t ON t.SALE_SEQ = m.SALE_SEQ AND t.ACTION_YN = m.ACTION_YN
+	         AND ( m.ACTION_YN = 'Y' OR t.UPD_DTTM = (SELECT MAX(t0.UPD_DTTM) FROM TBL_SALES_TRX_DTL t0 WHERE t0.SALE_SEQ = m.SALE_SEQ) )
+	       WHERE m.COMP_CD = #{compCd,jdbcType=VARCHAR} AND #{refGb,jdbcType=VARCHAR} = 'SALE' AND m.SALE_SEQ = #{refSeq,jdbcType=INTEGER}
+	             ) y
+	            WHERE y.prodSeq IS NOT NULL AND ( #{prodSeq,jdbcType=INTEGER} = 0 OR y.prodSeq = #{prodSeq,jdbcType=INTEGER} )
+	            GROUP BY y.prodSeq ) g
+	]]></select>
+
+	<!-- 원장 줄 맞추기 — 처리(제외·제외 취소) 직후 한 번. 재집계 조각(stockChkKeep)의 일 + «더는 제외가 아닌 X 줄을 Y 로»(원장을 훑는 일이라 여기서만).
+	     prodSeq 를 주면 그 품목만. 칸이 없으면 아무것도 안 한다 -->
+	<update id="syncStockChkLedger" parameterType="java.util.HashMap"><![CDATA[
+	  SET NOCOUNT ON;
+	  IF COL_LENGTH('dbo.TBL_STOCK_CHK', 'PROD_SEQ') IS NOT NULL
+	  BEGIN
+	    DECLARE @SCK_C VARCHAR(10), @SCK_P BIGINT;
+	    SELECT @SCK_C = ISNULL(#{compCd,jdbcType=VARCHAR},'W1234567'), @SCK_P = #{prodSeq,jdbcType=BIGINT};
+	    EXEC sp_executesql N'
+UPDATE l SET l.ACTION_YN = ''Y''
+  FROM TBL_STOCK_LEDGER l
+ WHERE l.COMP_CD = @c AND l.ACTION_YN = ''X'' AND l.REF_GB = ''PURCH'' AND ( @p IS NULL OR l.PROD_SEQ = @p )
+   AND NOT EXISTS ( SELECT 1 FROM TBL_PURCHASE_MST m
+                      JOIN TBL_STOCK_CHK c ON c.COMP_CD = m.COMP_CD AND c.REF_GB = ''PURCH'' AND c.REF_SEQ = m.PURCH_SEQ AND c.STATE = ''X'' AND c.PROD_SEQ IN (0, l.PROD_SEQ)
+                     WHERE m.COMP_CD = l.COMP_CD AND m.ACTION_YN = ''Y'' AND REPLACE(ISNULL(m.PURCH_DT,''''),''-'','''') + ''-'' + m.PURCH_NO = l.REF_NO );
+UPDATE l SET l.ACTION_YN = ''Y''
+  FROM TBL_STOCK_LEDGER l
+ WHERE l.COMP_CD = @c AND l.ACTION_YN = ''X'' AND l.REF_GB = ''SALE'' AND ( @p IS NULL OR l.PROD_SEQ = @p )
+   AND NOT EXISTS ( SELECT 1 FROM TBL_SALES_TRX_MST m
+                      JOIN TBL_STOCK_CHK c ON c.COMP_CD = m.COMP_CD AND c.REF_GB = ''SALE'' AND c.REF_SEQ = m.SALE_SEQ AND c.STATE = ''X'' AND c.PROD_SEQ IN (0, l.PROD_SEQ)
+                     WHERE m.COMP_CD = l.COMP_CD AND m.ACTION_YN = ''Y'' AND REPLACE(ISNULL(m.SALE_DT,''''),''-'','''') + ''-'' + m.SALE_NO = l.REF_NO );
+UPDATE l SET l.ACTION_YN = ''X''
+  FROM TBL_STOCK_CHK c
+  JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = c.REF_SEQ AND m.COMP_CD = c.COMP_CD AND m.ACTION_YN = ''Y''
+  JOIN TBL_STOCK_LEDGER l ON l.REF_GB = ''PURCH'' AND l.REF_NO = REPLACE(ISNULL(m.PURCH_DT,''''),''-'','''') + ''-'' + m.PURCH_NO AND l.COMP_CD = c.COMP_CD AND l.ACTION_YN = ''Y''
+                         AND ( c.PROD_SEQ = 0 OR l.PROD_SEQ = c.PROD_SEQ )
+ WHERE c.COMP_CD = @c AND c.REF_GB = ''PURCH'' AND c.STATE = ''X'' AND ( @p IS NULL OR l.PROD_SEQ = @p );
+UPDATE l SET l.ACTION_YN = ''X''
+  FROM TBL_STOCK_CHK c
+  JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = c.REF_SEQ AND m.COMP_CD = c.COMP_CD AND m.ACTION_YN = ''Y''
+  JOIN TBL_STOCK_LEDGER l ON l.REF_GB = ''SALE'' AND l.REF_NO = REPLACE(ISNULL(m.SALE_DT,''''),''-'','''') + ''-'' + m.SALE_NO AND l.COMP_CD = c.COMP_CD AND l.ACTION_YN = ''Y''
+                         AND ( c.PROD_SEQ = 0 OR l.PROD_SEQ = c.PROD_SEQ )
+ WHERE c.COMP_CD = @c AND c.REF_GB = ''SALE'' AND c.STATE = ''X'' AND ( @p IS NULL OR l.PROD_SEQ = @p );
+UPDATE l SET l.ACTION_YN = ''N'', l.REF_GB = ''PURCH'', l.REF_NO = LEFT(l.REF_NO, CHARINDEX(''#'', l.REF_NO) - 1)
+  FROM TBL_STOCK_LEDGER l
+ WHERE l.COMP_CD = @c AND l.REF_GB = ''PURCHK'' AND l.ACTION_YN = ''Y'' AND CHARINDEX(''#'', l.REF_NO) > 1 AND ( @p IS NULL OR l.PROD_SEQ = @p )
+   AND NOT EXISTS ( SELECT 1 FROM TBL_STOCK_CHK c
+                      JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = c.REF_SEQ AND m.COMP_CD = c.COMP_CD AND m.ACTION_YN = ''N''
+                     WHERE c.COMP_CD = l.COMP_CD AND c.REF_GB = ''PURCH'' AND c.STATE = ''X'' AND c.PROD_SEQ IN (0, l.PROD_SEQ)
+                       AND c.REF_SEQ = CAST(CASE WHEN ISNUMERIC(SUBSTRING(l.REF_NO, CHARINDEX(''#'', l.REF_NO) + 1, 12)) = 1 THEN SUBSTRING(l.REF_NO, CHARINDEX(''#'', l.REF_NO) + 1, 12) ELSE ''0'' END AS INT) );
+UPDATE l SET l.ACTION_YN = ''N'', l.REF_GB = ''SALE'', l.REF_NO = LEFT(l.REF_NO, CHARINDEX(''#'', l.REF_NO) - 1)
+  FROM TBL_STOCK_LEDGER l
+ WHERE l.COMP_CD = @c AND l.REF_GB = ''SALEK'' AND l.ACTION_YN = ''Y'' AND CHARINDEX(''#'', l.REF_NO) > 1 AND ( @p IS NULL OR l.PROD_SEQ = @p )
+   AND NOT EXISTS ( SELECT 1 FROM TBL_STOCK_CHK c
+                      JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = c.REF_SEQ AND m.COMP_CD = c.COMP_CD AND m.ACTION_YN = ''N''
+                     WHERE c.COMP_CD = l.COMP_CD AND c.REF_GB = ''SALE'' AND c.STATE = ''X'' AND c.PROD_SEQ IN (0, l.PROD_SEQ)
+                       AND c.REF_SEQ = CAST(CASE WHEN ISNUMERIC(SUBSTRING(l.REF_NO, CHARINDEX(''#'', l.REF_NO) + 1, 12)) = 1 THEN SUBSTRING(l.REF_NO, CHARINDEX(''#'', l.REF_NO) + 1, 12) ELSE ''0'' END AS INT) );
+UPDATE l SET l.ACTION_YN = ''Y'', l.REF_GB = ''PURCHK'', l.REF_NO = l.REF_NO + ''#'' + CAST(m.PURCH_SEQ AS VARCHAR(12))
+  FROM TBL_STOCK_CHK c
+  JOIN TBL_PURCHASE_MST m ON m.PURCH_SEQ = c.REF_SEQ AND m.COMP_CD = c.COMP_CD AND m.ACTION_YN = ''N''
+  JOIN TBL_STOCK_LEDGER l ON l.REF_GB = ''PURCH'' AND l.REF_NO = REPLACE(ISNULL(m.PURCH_DT,''''),''-'','''') + ''-'' + m.PURCH_NO AND l.COMP_CD = c.COMP_CD AND l.ACTION_YN = ''N''
+                         AND ( c.PROD_SEQ = 0 OR l.PROD_SEQ = c.PROD_SEQ )
+ WHERE c.COMP_CD = @c AND c.REF_GB = ''PURCH'' AND c.STATE = ''X'' AND ( @p IS NULL OR l.PROD_SEQ = @p )
+   AND l.UPD_DTTM <= m.UPD_DTTM AND l.UPD_DTTM >= CONVERT(VARCHAR(19), DATEADD(SECOND, -5, CONVERT(DATETIME, m.UPD_DTTM, 120)), 120)
+   AND NOT EXISTS ( SELECT 1 FROM TBL_STOCK_LEDGER k WHERE k.REF_GB = ''PURCHK'' AND k.REF_NO = l.REF_NO + ''#'' + CAST(m.PURCH_SEQ AS VARCHAR(12))
+                       AND k.COMP_CD = l.COMP_CD AND k.PROD_SEQ = l.PROD_SEQ AND k.ACTION_YN = ''Y'' );
+UPDATE l SET l.ACTION_YN = ''Y'', l.REF_GB = ''SALEK'', l.REF_NO = l.REF_NO + ''#'' + CAST(m.SALE_SEQ AS VARCHAR(12))
+  FROM TBL_STOCK_CHK c
+  JOIN TBL_SALES_TRX_MST m ON m.SALE_SEQ = c.REF_SEQ AND m.COMP_CD = c.COMP_CD AND m.ACTION_YN = ''N''
+  JOIN TBL_STOCK_LEDGER l ON l.REF_GB = ''SALE'' AND l.REF_NO = REPLACE(ISNULL(m.SALE_DT,''''),''-'','''') + ''-'' + m.SALE_NO AND l.COMP_CD = c.COMP_CD AND l.ACTION_YN = ''N''
+                         AND ( c.PROD_SEQ = 0 OR l.PROD_SEQ = c.PROD_SEQ )
+ WHERE c.COMP_CD = @c AND c.REF_GB = ''SALE'' AND c.STATE = ''X'' AND ( @p IS NULL OR l.PROD_SEQ = @p )
+   AND l.UPD_DTTM <= m.UPD_DTTM AND l.UPD_DTTM >= CONVERT(VARCHAR(19), DATEADD(SECOND, -5, CONVERT(DATETIME, m.UPD_DTTM, 120)), 120)
+   AND NOT EXISTS ( SELECT 1 FROM TBL_STOCK_LEDGER k WHERE k.REF_GB = ''SALEK'' AND k.REF_NO = l.REF_NO + ''#'' + CAST(m.SALE_SEQ AS VARCHAR(12))
+                       AND k.COMP_CD = l.COMP_CD AND k.PROD_SEQ = l.PROD_SEQ AND k.ACTION_YN = ''Y'' );
+', N'@c VARCHAR(10), @p BIGINT', @c = @SCK_C, @p = @SCK_P;
+	  END
+	  SET NOCOUNT OFF;
+	]]></update>
+
+	<!-- 한 품목의 «재고 미적용» 줄 — 살아 있는 전표인데 재고에 적용하지 않은 원장 줄(ACTION_YN X) (2026-11-26 사용자 「재고미적용이면 표시도 틀려야함 월별재고도 마찬가지」).
+	     수불 내역·월별 출고현황은 재고에 든 줄(Y)만 읽으므로 이 줄은 흔적 없이 빠진다 → 따로 읽어 회색 줄로 보인다(현재고·합계에는 안 든다).
+	     사유·처리한 사람 = 그 전표(또는 그 품목)의 미적용 기록. 표가 없으면 조회가 실패한다(부르는 쪽이 따로 잡아 빈 목록으로). 조회만 한다 -->
+	<select id="selectProdChkOff" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT l.LEDGER_SEQ AS ledgerSeq, REPLACE(ISNULL(l.TRX_DT,''),'-','') AS trxDt, l.PROD_CD AS prodCd, l.IO_GB AS ioGb, l.QTY AS qty, l.UNIT_PRICE AS unitPrice, l.AMT AS amt,
+	         l.REF_GB AS refGb, l.REF_NO AS refNo, ISNULL(pm.VENDOR_NM, sm.CUST_NM) AS custNm, ISNULL(pm.PURCH_SEQ, sm.SALE_SEQ) AS refSeq,
+	         x.MEMO AS memo, x.DT AS chkDttm, x.US AS chkUser,
+	         (SELECT MAX(u.USER_NM) FROM TBL_USER_MST u WHERE LTRIM(RTRIM(u.USER_ID)) = LTRIM(RTRIM(x.US)) AND u.COMP_CD = l.COMP_CD) AS chkUserNm
+	    FROM TBL_STOCK_LEDGER l
+	    LEFT JOIN TBL_PURCHASE_MST pm ON l.REF_GB = 'PURCH' AND pm.COMP_CD = l.COMP_CD AND pm.ACTION_YN = 'Y' AND REPLACE(ISNULL(pm.PURCH_DT,''),'-','') + '-' + pm.PURCH_NO = l.REF_NO
+	    LEFT JOIN TBL_SALES_TRX_MST sm ON l.REF_GB = 'SALE' AND sm.COMP_CD = l.COMP_CD AND sm.ACTION_YN = 'Y' AND REPLACE(ISNULL(sm.SALE_DT,''),'-','') + '-' + sm.SALE_NO = l.REF_NO
+	    OUTER APPLY ( SELECT TOP 1 c.MEMO, ISNULL(c.UPD_DTTM, c.REG_DTTM) AS DT, ISNULL(c.UPD_USER, c.REG_USER) AS US
+	                    FROM TBL_STOCK_CHK c
+	                   WHERE c.COMP_CD = l.COMP_CD AND c.REF_GB = l.REF_GB AND c.REF_SEQ = ISNULL(pm.PURCH_SEQ, sm.SALE_SEQ) AND c.STATE = 'X' AND c.PROD_SEQ IN (0, l.PROD_SEQ)
+	                   ORDER BY c.PROD_SEQ DESC ) x
+	   WHERE l.COMP_CD = #{compCd,jdbcType=VARCHAR} AND l.PROD_CD = #{prodCd,jdbcType=VARCHAR} AND l.ACTION_YN = 'X' AND l.REF_GB IN ('PURCH','SALE')
+	   ORDER BY REPLACE(ISNULL(l.TRX_DT,''),'-','') DESC, l.LEDGER_SEQ DESC
+	]]></select>
+
+	<!-- 근거번호(「일자-번호」)로 «살아 있는» 전표 키 찾기 (2026-11-26) — 품목별재고현황 · 월별 출고현황의 수불 줄에는 전표 키가 없고 근거번호만 있다.
+	     그 줄에서 바로 [재고 미적용] 을 누르면 여기서 전표를 찾는다. 같은 번호가 둘이면(없어야 한다) 못 찾은 것으로 본다 -->
+	<select id="selectStockChkSeqByNo" parameterType="java.util.HashMap" resultType="java.lang.Integer"><![CDATA[
+	  SELECT CASE WHEN #{refGb,jdbcType=VARCHAR} = 'PURCH'
+	              THEN (SELECT CASE WHEN COUNT(*) = 1 THEN MAX(m.PURCH_SEQ) END FROM TBL_PURCHASE_MST m
+	                     WHERE m.COMP_CD = #{compCd,jdbcType=VARCHAR} AND m.ACTION_YN = 'Y' AND REPLACE(ISNULL(m.PURCH_DT,''),'-','') + '-' + m.PURCH_NO = #{refNo,jdbcType=VARCHAR})
+	              ELSE (SELECT CASE WHEN COUNT(*) = 1 THEN MAX(m.SALE_SEQ) END FROM TBL_SALES_TRX_MST m
+	                     WHERE m.COMP_CD = #{compCd,jdbcType=VARCHAR} AND m.ACTION_YN = 'Y' AND REPLACE(ISNULL(m.SALE_DT,''),'-','') + '-' + m.SALE_NO = #{refNo,jdbcType=VARCHAR}) END
+	]]></select>
+
+	<!-- 처리 전 묻기용 — 전표의 품목마다 «전표 일자» 와 «고정한 재고수정 일자» (2026-11-26 「이전것 적용미적용 할려할때 메세지」).
+	     고정 = (품목, 창고)마다 가장 나중에 저장한 조정 이력 줄에 FRZ_QTY 가 있는 것(수정재고 고정 조각 adjAnchorKeep 과 같은 기준). 창고가 여럿이면 가장 늦은 고정 날짜.
+	     고정 안 된 품목은 줄이 안 나온다(fixDt 없음) — 서비스가 «전표 일자 < 고정 일자» 인 것만 골라 화면에 알린다. 조회만 한다 -->
+	<select id="selectStockChkAnchor" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT y.prodSeq, MAX(y.prodCd) AS prodCd, MAX(y.prodNm) AS prodNm, MAX(y.trxDt) AS trxDt, MAX(a.fixDt) AS fixDt
+	    FROM (
+	      SELECT t.PROD_SEQ AS prodSeq, t.PROD_CD AS prodCd, t.PROD_NM AS prodNm, LEFT(REPLACE(ISNULL(m.PURCH_DT,''),'-',''), 8) AS trxDt
+	        FROM TBL_PURCHASE_MST m
+	        JOIN TBL_PURCHASE_DTL t ON t.PURCH_SEQ = m.PURCH_SEQ AND t.ACTION_YN = m.ACTION_YN
+	         AND ( m.ACTION_YN = 'Y' OR t.UPD_DTTM = (SELECT MAX(t0.UPD_DTTM) FROM TBL_PURCHASE_DTL t0 WHERE t0.PURCH_SEQ = m.PURCH_SEQ) )
+	       WHERE m.COMP_CD = #{compCd,jdbcType=VARCHAR} AND #{refGb,jdbcType=VARCHAR} = 'PURCH' AND m.PURCH_SEQ = #{refSeq,jdbcType=INTEGER}
+	      UNION ALL
+	      SELECT t.PROD_SEQ, t.PROD_CD, t.PROD_NM, LEFT(REPLACE(ISNULL(m.SALE_DT,''),'-',''), 8)
+	        FROM TBL_SALES_TRX_MST m
+	        JOIN TBL_SALES_TRX_DTL t ON t.SALE_SEQ = m.SALE_SEQ AND t.ACTION_YN = m.ACTION_YN
+	         AND ( m.ACTION_YN = 'Y' OR t.UPD_DTTM = (SELECT MAX(t0.UPD_DTTM) FROM TBL_SALES_TRX_DTL t0 WHERE t0.SALE_SEQ = m.SALE_SEQ) )
+	       WHERE m.COMP_CD = #{compCd,jdbcType=VARCHAR} AND #{refGb,jdbcType=VARCHAR} = 'SALE' AND m.SALE_SEQ = #{refSeq,jdbcType=INTEGER}
+	         ) y
+	    JOIN ( SELECT l.PROD_SEQ, LEFT(REPLACE(ISNULL(l.TRX_DT,''),'-',''), 8) AS fixDt, h.FRZ_QTY,
+	                  ROW_NUMBER() OVER (PARTITION BY l.PROD_SEQ, ISNULL(l.WH_CD,'') ORDER BY l.LEDGER_SEQ DESC) AS rn
+	             FROM TBL_STOCK_LEDGER l
+	             JOIN TBL_STOCK_ADJ_HIS h ON h.LEDGER_SEQ = l.LEDGER_SEQ AND h.COMP_CD = l.COMP_CD AND h.ACTION_YN = 'Y'
+	            WHERE l.COMP_CD = #{compCd,jdbcType=VARCHAR} AND l.ACTION_YN = 'Y' AND l.IO_GB = 'A' ) a
+	      ON a.PROD_SEQ = y.prodSeq AND a.rn = 1 AND a.FRZ_QTY IS NOT NULL
+	   WHERE y.prodSeq IS NOT NULL AND ( #{prodSeq,jdbcType=INTEGER} = 0 OR y.prodSeq = #{prodSeq,jdbcType=INTEGER} )
+	   GROUP BY y.prodSeq
+	]]></select>
+
+	<!-- «전표 전체» 를 재고 미적용한 전표 키 목록(「PURCH:427」 꼴) — 품목 화면이 [재고 적용] 을 «그 품목만» 으로 보낼지 «전표 전체» 로 보낼지 가른다 (2026-11-26) -->
+	<select id="selectStockChkWhole" parameterType="java.util.HashMap" resultType="java.lang.String"><![CDATA[
+	  SELECT c.REF_GB + ':' + CAST(c.REF_SEQ AS VARCHAR(12)) FROM TBL_STOCK_CHK c
+	   WHERE c.COMP_CD = #{compCd,jdbcType=VARCHAR} AND c.STATE = 'X' AND c.PROD_SEQ = 0 AND c.REF_GB IN ('PURCH','SALE')
+	]]></select>
 
 </mapper>

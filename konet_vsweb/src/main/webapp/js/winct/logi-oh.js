@@ -6776,27 +6776,70 @@ function ssOutQty(o){
     if(c.busy) return;
     if(c.list && (Date.now()-c.t) < 60000) return;
     c.busy=true;
-    var done=function(list, wait, sales){
+    var done=function(list, wait, sales, off){
       sales=sales||[];   /* 지운 판매전표의 출고 줄 (2026-11-25) — 같은 응답의 sales */
-      var sig=JSON.stringify(list.map(function(x){ return [x.purchSeq, x.qty, x.delDttm]; }).concat(sales.map(function(x){ return ['S', x.saleSeq, x.qty, x.delDttm]; })));
-      var chg=(sig!==c.sig);
-      c.list=list; c.sales=sales; c.sig=sig; c.busy=false; c.t=Date.now()+(wait ? 60000 : 0);
+      off=off||[];       /* 살아 있는 전표인데 «재고 미적용»한 줄 (2026-11-26) — 같은 응답의 off */
+      var sig=JSON.stringify(list.map(function(x){ return [x.purchSeq, x.qty, x.delDttm, x.keepYn]; }).concat(sales.map(function(x){ return ['S', x.saleSeq, x.qty, x.delDttm, x.keepYn]; })).concat(off.map(function(x){ return ['X', x.ledgerSeq, x.qty]; })));
+      var chg=(sig!==c.sig) || !!c.cfChg; c.cfChg=false;   /* cfChg = 단추를 보일지(관리자) · 전표 전체 미적용 목록이 달라졌다 */
+      c.list=list; c.sales=sales; c.off=off; c.sig=sig; c.busy=false; c.t=Date.now()+(wait ? 60000 : 0);
       if(chg && typeof _stkLedPaint==='function'){ try{ _stkLedPaint(); }catch(e){} }
     };
     try{
       fetch((typeof KONET_CTX==='string' ? KONET_CTX : '')+'/prod/prodDelPurchList.do', { method:'POST', credentials:'same-origin',
               headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'prodCd='+encodeURIComponent(cd) })
         .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-        .then(function(d){ if(typeof d==='string'){ d=JSON.parse(d); } if(!d || d.result!=='OK') throw new Error('x'); done(d.data||[], false, d.sales||[]); })
+        .then(function(d){ if(typeof d==='string'){ d=JSON.parse(d); } if(!d || d.result!=='OK') throw new Error('x'); c.cfChg=stkChkCfgSet(d); done(d.data||[], false, d.sales||[], d.off||[]); })
         .catch(function(){ done([], true); });
     }catch(e){ done([], true); }
   }
+  /* ★이 화면에서 바로 [재고 미적용]/[재고 적용] (2026-11-26 사용자 「여기에서 품목별재고현황/월별출고현황 재고 적용, 재고미적용 기능 추가해줘(여기서하면 직관적 일듯」).
+       단추·사유 창·처리 = 공용 /asset/js/stock-chk-act.js(월별 출고현황과 같이 쓴다 — 여기서 한 번 불러 싣는다). 처리 = 재고 변동 확인과 같은 /prod/stockChkAct.do.
+       · 관리자에게만 보인다(같은 응답 prodDelPurchList 의 admin — 서버도 같은 기준으로 막는다).
+       · 어디에 붙나 : ①맨 위 「🗑 삭제된 입고·출고」 줄 = [재고 미적용](삭제를 재고에 적용 안 함) ↔ [재고 적용]  ②맨 위 회색 「재고 미적용」 줄(살아 있는 전표) = [재고 적용]
+                       ③수불 줄 가운데 손으로 넣은 전표(근거구분 PURCH·SALE) = [재고 미적용] · 지운 전표를 되살려 둔 줄(PURCHK·SALEK) = [재고 적용].
+       · 그 품목만 처리한다. 전표 전체를 미적용해 둔 전표(whole)는 [재고 적용] 도 전표 전체로 — 확인 창에 「이 전표의 품목 전부」라고 적힌다.
+       · 끝나면 받아 둔 것(삭제·미적용 줄 · 수불 내역)을 버리고 목록과 열려 있는 수불 내역을 다시 읽는다. 나누어보기 창에는 단추를 안 붙인다(그 창은 다시 그리지 않는다). */
+  function stkChkCfgSet(d){
+    if(typeof window==='undefined') return false;
+    var cf=window.stkChkCfg || (window.stkChkCfg={ ctx:'', admin:false, after:null });
+    var was=(cf.admin ? 'A' : '')+JSON.stringify(cf.whole||[]);
+    cf.admin=!!(d && d.admin==='Y'); cf.whole=(d && d.whole) || [];
+    return was!==((cf.admin ? 'A' : '')+JSON.stringify(cf.whole));
+  }
+  function stkChkB(o){ return (typeof window!=='undefined' && typeof window.stkChkBtn==='function') ? window.stkChkBtn(o) : ''; }
+  function stkChkW(gb, seq){ return (typeof window!=='undefined' && typeof window.stkChkWhole==='function') ? window.stkChkWhole(gb, seq) : false; }
+  function stkLedAct(l){   /* 수불 줄(원장) 비고 칸 뒤 */
+    if(!l) return '';
+    var g=String(l.refGb||''), n=String(l.refNo||''), cd=String(l.prodCd||'').trim(), q=(l.ioGb==='O') ? -(+l.qty||0) : (+l.qty||0);
+    if(g==='PURCH' || g==='SALE') return stkChkB({ act:'X', gb:g, no:n, cd:cd, q:q, nm:n });
+    if(g==='PURCHK' || g==='SALEK'){ var b=g.slice(0, g.length-1), i=n.indexOf('#'), sq=(i>0) ? n.slice(i+1) : '';
+      return stkChkB({ act:'U', gb:b, no:n, cd:(stkChkW(b, sq) ? '' : cd), del:1, q:q, nm:(i>0 ? n.slice(0,i) : n) }); }
+    return '';
+  }
+  (function(){
+    try{
+      if(typeof window==='undefined') return;
+      var cf=window.stkChkCfg || (window.stkChkCfg={ ctx:'', admin:false, after:null });
+      cf.ctx=(typeof KONET_CTX==='string') ? KONET_CTX : '';
+      cf.after=function(){
+        _stkDel={};
+        try{ if(typeof stkStatusLoad==='function') stkStatusLoad(); }catch(e){}   /* 목록(현재고) 다시 — 수불 내역 캐시도 여기서 비워진다 */
+        try{ if(typeof _stkSelSeq!=='undefined' && _stkSelSeq && typeof stkLedgerDetail==='function') stkLedgerDetail(_stkSelSeq, null, (typeof _stkLedExt!=='undefined') ? _stkLedExt : ''); }catch(e){}
+      };
+      if(typeof window.stkChkBtn!=='function' && typeof document!=='undefined' && document.head && !document.getElementById('stkChkActJs')){
+        var sc=document.createElement('script'); sc.id='stkChkActJs'; sc.src=cf.ctx+'/asset/js/stock-chk-act.js?v=20261126b'; sc.onload=function(){ try{ if(typeof _stkLedPaint==='function') _stkLedPaint(); }catch(e){} }; document.head.appendChild(sc);   /* 늦게 실리면 열려 있는 수불 내역을 다시 그려 단추를 붙인다 */
+      }
+    }catch(e){}
+  })();
   function stkLedDel(row){
     if(!row || !row.prodCd) return '';
     if(typeof _stkLedExt!=='undefined' && _stkLedExt) return '';
     var cd=String(row.prodCd).trim();
     stkLedDelLoad(cd);
-    var L=(_stkDel[cd] && _stkDel[cd].list) || [], SL=(_stkDel[cd] && _stkDel[cd].sales) || []; if(!L.length && !SL.length) return '';
+    var L=(_stkDel[cd] && _stkDel[cd].list) || [], SL=(_stkDel[cd] && _stkDel[cd].sales) || [], OF=(_stkDel[cd] && _stkDel[cd].off) || []; if(!L.length && !SL.length && !OF.length) return '';
+    /* ★재고 미적용 표시 (2026-11-26 사용자 「재고미적용이면 표시도 틀려야함」) — 지운 전표인데 «삭제를 재고에 적용하지 않은»(keepYn Y) 줄은 「재고에서 빠짐」 이 아니다 :
+         그 수량은 아래 수불에 그대로 들어 있다(근거구분 PURCHK·SALEK 줄). 파란 「재고 미적용」 표 + 「재고에 그대로」 글, 빨간 「조정 뒤 삭제 …」 꼬리는 안 붙인다. */
+    var keepTag=' <span class="led-keep" style="display:inline-block;margin-left:3px;padding:0 6px;border-radius:9px;background:#e8f1fb;color:#1b4f86;border:1px solid #b9d2ee;font-size:11px;font-weight:800;white-space:nowrap">재고 미적용</span>';
     var num=function(v){ return (typeof _cnum==='function') ? _cnum(v) : String(Math.round(+v||0)); };
     var esc=function(v){ v=(v==null ? '' : String(v)); return v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
     var ymd=function(s){ s=String(s||'').replace(/[^0-9]/g,''); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : s; };
@@ -6806,21 +6849,24 @@ function ssOutQty(o){
     L.forEach(function(x){
       var q=+x.qty||0; if(!q) return;
       var pd=String(x.purchDt||'').replace(/[^0-9]/g,''), del=String(x.delDttm||'');
-      var after=!!(adjAt && del && del > adjAt && adjDt && pd && pd <= adjDt && !(fx && pd < adjDt));
-      var tip='지운 매입전표 '+ymd(pd)+'-'+(x.purchNo||'')+' 의 입고 '+num(q)+' — '+del.slice(0,16)+' 에 삭제돼 재고에서 빠졌습니다. 지금 현재고와 달 합계에는 들어 있지 않습니다.'
+      var keep=(x.keepYn==='Y');
+      var after=!keep && !!(adjAt && del && del > adjAt && adjDt && pd && pd <= adjDt && !(fx && pd < adjDt));
+      var tip=keep ? ('지운 매입전표 '+ymd(pd)+'-'+(x.purchNo||'')+' 의 입고 '+num(q)+' — '+del.slice(0,16)+' 에 삭제됐지만 «재고 미적용»(삭제를 재고에 적용하지 않음)이라 재고에 그대로 있습니다. 아래 수불의 그 날짜 입고 줄(근거구분 PURCH · 삭제 전표)이 이 수량입니다. 바꾸려면 재고 관리 ▸ 재고 변동 확인.')
+             : '지운 매입전표 '+ymd(pd)+'-'+(x.purchNo||'')+' 의 입고 '+num(q)+' — '+del.slice(0,16)+' 에 삭제돼 재고에서 빠졌습니다. 지금 현재고와 달 합계에는 들어 있지 않습니다.'
              +(after ? ' 최근 재고조정('+adjAt.slice(0,16)+') 뒤에 지워, 그때 맞춘 재고가 '+num(q)+' 줄었습니다 — 재고 일괄조정으로 다시 맞추세요.' : '');
       h+='<tr class="led-del" data-purch="'+esc(x.purchSeq)+'" title="'+esc(tip)+'">'
         +'<td style="'+bg+';color:#6b7683">'+esc(ymd(pd))+'</td>'
         +'<td style="'+bg+';color:#6b7683">'+esc(x.prodCd||cd)+'</td>'
-        +'<td style="'+bg+'"><span style="display:inline-block;padding:0 7px;border-radius:9px;background:#e3e6ea;color:#55606c;font-size:11.5px;font-weight:800;white-space:nowrap">🗑 삭제된 입고</span></td>'
+        +'<td style="'+bg+'"><span style="display:inline-block;padding:0 7px;border-radius:9px;background:#e3e6ea;color:#55606c;font-size:11.5px;font-weight:800;white-space:nowrap">🗑 삭제된 입고</span>'+(keep ? keepTag : '')+'</td>'
         +'<td style="'+bg+';text-align:right;color:#6b7683;white-space:nowrap">'+num(q)+'</td>'
         +'<td style="'+bg+';text-align:right;color:#9aa7b3">'+num(x.unitPrice)+'</td>'
         +'<td style="'+bg+';text-align:right;color:#9aa7b3">'+num(x.amt)+'</td>'
         +'<td style="'+bg+';color:#6b7683">'+esc(x.vendorNm||'')+'</td><td style="'+bg+'"></td>'
         +'<td style="'+bg+';color:#6b7683">PURCH</td>'
         +'<td style="'+bg+';color:#6b7683">'+esc(pd+'-'+(x.purchNo||''))+'</td>'
-        +'<td style="'+bg+';color:#6b7683">전표 삭제 — 재고에서 빠짐'
-        +  (after ? ' <span class="led-delw" style="color:#c0392b;font-weight:700;white-space:nowrap">· 조정 뒤 삭제 — 그때 맞춘 재고가 '+num(q)+' 줄었습니다</span>' : '')+'</td>'
+        +'<td style="'+bg+';color:#6b7683">'+(keep ? '전표 삭제 — <b style="color:#1b4f86">재고 미적용 · 재고에 그대로</b>' : '전표 삭제 — 재고에서 빠짐')
+        +  (after ? ' <span class="led-delw" style="color:#c0392b;font-weight:700;white-space:nowrap">· 조정 뒤 삭제 — 그때 맞춘 재고가 '+num(q)+' 줄었습니다</span>' : '')
+        +  stkChkB({ act:(keep ? 'U' : 'X'), gb:'PURCH', seq:x.purchSeq, cd:((keep && stkChkW('PURCH', x.purchSeq)) ? '' : String(x.prodCd||cd)), del:1, q:q, nm:pd+'-'+(x.purchNo||'') })+'</td>'
         +'<td style="'+bg+';color:#9aa7b3;white-space:nowrap">'+esc(del)+'</td>'
         +'<td style="'+bg+';color:#9aa7b3" title="'+esc(x.delUser||'')+'">'+esc(x.delUserNm||x.delUser||'')+'</td></tr>';
     });
@@ -6829,27 +6875,58 @@ function ssOutQty(o){
     SL.forEach(function(x){
       var q=+x.qty||0; if(!q) return;
       var sd=String(x.saleDt||'').replace(/[^0-9]/g,''), del=String(x.delDttm||''), back=q>0, aq=Math.abs(q);
-      var after=!!(adjAt && del && del > adjAt && adjDt && sd && sd <= adjDt && !(fx && sd < adjDt));
+      var keep=(x.keepYn==='Y');
+      var after=!keep && !!(adjAt && del && del > adjAt && adjDt && sd && sd <= adjDt && !(fx && sd < adjDt));
       var eff=back ? '재고로 되돌아옴' : '재고에서 다시 빠짐', effN=back ? '늘었습니다' : '줄었습니다';
       var tip='지운 판매전표 '+ymd(sd)+'-'+(x.saleNo||'')+' 의 '+(back ? '출고 ' : '반품 ')+num(aq)+' — '+del.slice(0,16)+' 에 삭제돼 '+eff+'. 지금 현재고와 달 합계에는 들어 있지 않습니다.'
              +(after ? ' 최근 재고조정('+adjAt.slice(0,16)+') 뒤에 지워, 그때 맞춘 재고가 '+num(aq)+' '+effN+' — 재고 일괄조정으로 다시 맞추세요.' : '');
       h+='<tr class="led-del led-dels" data-sale="'+esc(x.saleSeq)+'" title="'+esc(tip)+'">'
         +'<td style="'+bg+';color:#6b7683">'+esc(ymd(sd))+'</td>'
         +'<td style="'+bg+';color:#6b7683">'+esc(x.prodCd||cd)+'</td>'
-        +'<td style="'+bg+'"><span style="display:inline-block;padding:0 7px;border-radius:9px;background:#e3e6ea;color:#55606c;font-size:11.5px;font-weight:800;white-space:nowrap">🗑 삭제된 '+(back ? '출고' : '반품')+'</span></td>'
+        +'<td style="'+bg+'"><span style="display:inline-block;padding:0 7px;border-radius:9px;background:#e3e6ea;color:#55606c;font-size:11.5px;font-weight:800;white-space:nowrap">🗑 삭제된 '+(back ? '출고' : '반품')+'</span>'+(keep ? keepTag : '')+'</td>'
         +'<td style="'+bg+';text-align:right;color:#6b7683;white-space:nowrap">'+num(aq)+'</td>'
         +'<td style="'+bg+';text-align:right;color:#9aa7b3">'+num(x.unitPrice)+'</td>'
         +'<td style="'+bg+';text-align:right;color:#9aa7b3">'+num(Math.abs(+x.amt||0))+'</td>'
         +'<td style="'+bg+'"></td><td style="'+bg+';color:#6b7683">'+esc(x.custNm||'')+'</td>'
         +'<td style="'+bg+';color:#6b7683">SALE</td>'
         +'<td style="'+bg+';color:#6b7683">'+esc(sd+'-'+(x.saleNo||''))+'</td>'
-        +'<td style="'+bg+';color:#6b7683">판매전표 삭제 — '+eff
-        +  (after ? ' <span class="led-delw" style="color:#c0392b;font-weight:700;white-space:nowrap">· 조정 뒤 삭제 — 그때 맞춘 재고가 '+num(aq)+' '+effN+'</span>' : '')+'</td>'
+        +'<td style="'+bg+';color:#6b7683">'+(keep ? ('판매전표 삭제 — <b style="color:#1b4f86">재고 미적용 · '+(back ? '출고 그대로' : '반품 그대로')+'</b>') : ('판매전표 삭제 — '+eff))
+        +  (after ? ' <span class="led-delw" style="color:#c0392b;font-weight:700;white-space:nowrap">· 조정 뒤 삭제 — 그때 맞춘 재고가 '+num(aq)+' '+effN+'</span>' : '')
+        +  stkChkB({ act:(keep ? 'U' : 'X'), gb:'SALE', seq:x.saleSeq, cd:((keep && stkChkW('SALE', x.saleSeq)) ? '' : String(x.prodCd||cd)), del:1, q:-q, nm:sd+'-'+(x.saleNo||'') })+'</td>'
         +'<td style="'+bg+';color:#9aa7b3;white-space:nowrap">'+esc(del)+'</td>'
         +'<td style="'+bg+';color:#9aa7b3" title="'+esc(x.delUser||'')+'">'+esc(x.delUserNm||x.delUser||'')+'</td></tr>';
     });
+    /* ★살아 있는 전표인데 «재고 미적용»한 줄 (2026-11-26) — 원장에서 빠져(X) 아래 수불에는 안 나온다. 「있는데 재고엔 안 들어간」 줄임을 여기서 보인다(현재고·합계에 안 든다) */
+    OF.forEach(function(x){
+      var q=+x.qty||0, io=String(x.ioGb||''), pu=(String(x.refGb||'')==='PURCH');
+      var kind=(io==='O') ? '출고' : ((io==='R') ? '반품' : '입고');
+      var tip=(pu ? '매입' : '판매')+'전표 '+String(x.refNo||'')+' 의 '+kind+' '+num(Math.abs(q))+' — 전표는 살아 있지만 «재고 미적용»이라 현재고와 달 합계에 들어 있지 않습니다.'+(x.memo ? ' 사유 : '+x.memo : '')+' 바꾸려면 재고 관리 ▸ 재고 변동 확인.';
+      h+='<tr class="led-del led-off" data-led="'+esc(x.ledgerSeq)+'" title="'+esc(tip)+'">'
+        +'<td style="'+bg+';color:#6b7683">'+esc(ymd(x.trxDt))+'</td>'
+        +'<td style="'+bg+';color:#6b7683">'+esc(x.prodCd||cd)+'</td>'
+        +'<td style="'+bg+'"><span style="display:inline-block;padding:0 7px;border-radius:9px;background:#e3e6ea;color:#55606c;font-size:11.5px;font-weight:800;white-space:nowrap">'+kind+'</span>'+keepTag+'</td>'
+        +'<td style="'+bg+';text-align:right;color:#9aa7b3;white-space:nowrap;text-decoration:line-through">'+num(Math.abs(q))+'</td>'
+        +'<td style="'+bg+';text-align:right;color:#9aa7b3">'+num(x.unitPrice)+'</td>'
+        +'<td style="'+bg+';text-align:right;color:#9aa7b3">'+num(Math.abs(+x.amt||0))+'</td>'
+        +'<td style="'+bg+';color:#6b7683">'+(pu ? esc(x.custNm||'') : '')+'</td><td style="'+bg+';color:#6b7683">'+(pu ? '' : esc(x.custNm||''))+'</td>'
+        +'<td style="'+bg+';color:#6b7683">'+esc(x.refGb||'')+'</td>'
+        +'<td style="'+bg+';color:#6b7683">'+esc(x.refNo||'')+'</td>'
+        +'<td style="'+bg+';color:#6b7683"><b style="color:#1b4f86">재고 미적용 — 재고에 들어 있지 않음</b>'+(x.memo ? ' · '+esc(x.memo) : '')
+        +  stkChkB({ act:'U', gb:String(x.refGb||''), seq:(x.refSeq==null ? '' : x.refSeq), no:String(x.refNo||''), cd:(stkChkW(String(x.refGb||''), x.refSeq) ? '' : String(x.prodCd||cd)), q:((io==='O') ? -q : q), nm:String(x.refNo||'') })+'</td>'
+        +'<td style="'+bg+';color:#9aa7b3;white-space:nowrap">'+esc(x.chkDttm||'')+'</td>'
+        +'<td style="'+bg+';color:#9aa7b3" title="'+esc(x.chkUser||'')+'">'+esc(x.chkUserNm||x.chkUser||'')+'</td></tr>';
+    });
     return h;
   }
+  /* 수불 줄의 근거구분·근거번호·비고 — 지운 전표인데 «재고 미적용»이라 되살려 둔 줄(근거구분 PURCHK·SALEK · 번호 뒤 #전표키)을 사람 말로 (2026-11-26).
+       그 밖의 줄은 종전 글 그대로. 셸(logistics_demo2.jsp)의 수불 내역·나누어보기가 부른다 */
+  function stkLedKeepRow(l){ var g=String((l && l.refGb) || ''); return g==='PURCHK' || g==='SALEK'; }
+  function stkLedRefGb(l){ var g=String((l && l.refGb) || ''); var e=(typeof _cesc==='function') ? _cesc : function(v){ return String(v); };
+    return stkLedKeepRow(l) ? (e(g.slice(0, g.length-1))+' <span style="color:#1b4f86;font-size:11px;font-weight:700;white-space:nowrap">삭제 전표</span>') : e(g); }
+  function stkLedRefNo(l){ var n=String((l && l.refNo) || ''); var e=(typeof _cesc==='function') ? _cesc : function(v){ return String(v); };
+    if(stkLedKeepRow(l)){ var i=n.indexOf('#'); if(i>0) n=n.slice(0,i); } return e(n); }
+  function stkLedRmk(l){ var e=(typeof _cesc==='function') ? _cesc : function(v){ return String(v); }; var r=e((l && l.remark) || '');
+    return stkLedKeepRow(l) ? ('<span style="display:inline-block;margin-right:4px;padding:0 6px;border-radius:9px;background:#e8f1fb;color:#1b4f86;border:1px solid #b9d2ee;font-size:11px;font-weight:800;white-space:nowrap" title="지운 전표의 줄입니다 — «재고 미적용»(삭제를 재고에 적용하지 않음)이라 재고에 그대로 들어 있습니다. 바꾸려면 재고 관리 ▸ 재고 변동 확인">삭제 전표 · 재고 미적용</span>'+r) : r; }
   var STK_LEDORD=['입고','출고','반품','반품(매출)','조정'];
   function stkLedMonHead(k, m, o, net, bal){
     var num=function(v){ return (typeof _cnum==='function') ? _cnum(v) : String(Math.round(+v||0)); };
