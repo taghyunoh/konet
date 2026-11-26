@@ -3769,3 +3769,13 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
 - [같은 날 이어서] 사용자 「현재고 합계에 마이너스는 계산하지 말게」 — 현재고 줄의 합계 칸 = 양수 품목만 더함(마이너스는 오류 재고라 남은 재고를 깎아 보였다). 칸마다의 빨간 마이너스는 그대로 · 합계 칸 툴팁에 「마이너스 n품목(합) 뺐음」 · 엑셀 합계도 같게. JSP 만.
 - [같은 날 이어서] 사용자 「엑셀출력도 기존출력 스타일로」 — `somExcel` 을 납기현황표 「출고장x품목」 엑셀(logistics_demo1 d2 가로표)과 같은 서식으로 : 맨 위 조건 줄(기간·사업장·품목·기간 출고) · 머리 2줄(사업장 BDD7EE · 품목 DEEAF6 줄바꿈, 합계 칸 2줄 병합) · 현재고 줄 FFF4E6(마이너스 빨강, 합계는 양수만) · 월 줄 합계 칸 노랑 FFF2CC · 값 굵은 숫자 #,##0 / 빈 칸 회색 · 기간 합계 회색 · 사업장 경계 굵은 파랑 세로선 · 고정 C5 · 가로 인쇄.
   xlsx-js-style(부모 ssLoadStyleXlsx)이 없으면 서식 없이 값만(종전과 같음). 검증 = 벤더 번들을 node vm 으로 태워 실제 xlsx 를 쓰고 exceljs 로 다시 읽어 색·병합·고정·숫자형 확인. JSP 만.
+
+## ★[2026-11-26] 사진함 — 모바일 📷 사진 올리기 + PC 🖼 사진함 (konet_vsapp 와 같은 모듈)
+- 사용자 「모바일에서 여러 장 찍어 카톡으로 하나씩 보내 PC 에서 받던 일 — 한꺼번에 PC 에서」 → 결정 「날짜별 모음 · 줄인 사진만 · 보관 1개월(그때그때 정리)」.
+- **DDL** [docs/sql/20261126_photo.sql](docs/sql/20261126_photo.sql) ⛔사용자 실행 — `TBL_PHOTO_GRP`(묶음 = 한 번 올리기 · 날짜 GRP_DT · 이름) · `TBL_PHOTO`(줄인 JPEG IMG + 작은 그림 THUMB, VARBINARY(MAX)). 두 앱 WAR 가 달라 디스크 폴더를 못 나누므로 **같은 DB 에 그림**.
+- **모듈(두 앱 같은 파일 — cmp 로 확인)** = `egovframework.konet.photo`(PhotoController · PhotoService · PhotoMapper) + `sqlmap/mapper/Photo_SQL.xml`. 엔드포인트 `/photo/grpNew·upload·list·img(GET, thumb=1·dl=1)·zip(POST seqs, 300장)·del·title.do` · 본문은 JSON(HTMLTagFilter 무관).
+  권한 = 같은 회사 누구나 보기 · 지우기/이름 = 올린 사람 또는 MAIN_GU 1·2 · 올리기 = 묶음 만든 사람만 · 모든 SQL 에 COMP_CD · JPEG 머리(FF D8 FF)·3MB 상한 검사.
+  ★보관 = `PhotoService.KEEP_MONTHS=1` — 하루 한 번(첫 list·grpNew 때) 묶음 날짜가 한 달 지난 것을 **완전 삭제**(2,000장씩 끊어) + 사진 없는 어제 이전 묶음 정리.
+- **PC** = 정보 현황 맨 아래 ▸ 🖼 사진함(같은 날 사용자 「정보현황 제일 밑에」 — 처음엔 직원관리)(`/photo/photoBox.do` · mangr/photoBox.jsp · 셸 panel-photoBox 짝) : 왼쪽 보관 기간 날짜 목록 · 묶음별 격자(작은 그림 lazy) · 크게 보기(← → Esc) · 고르기 → ZIP(숨은 iframe 폼 POST) · 고른 것 지우기(남의 것 빼고) · 이름 고치기 = _confirmBox 안 입력칸.
+- **모바일** = konet_vsapp `/m/photo.do`(아래 탭 6번째 📷 사진 · manifest 바로가기) — 폰에서 줄여(긴 변 1600 · 0.82, base64 850KB 넘으면 더 줄임 + 360px 작은 그림) **한 장씩** 올린다(운영 nginx 1MB 한도 · 끊겨도 올라간 것은 남고 실패분만 같은 묶음에 다시).
+- 검증 = mvn -o compile(두 앱) · Photo_SQL 16문 id 중복 0 · XML 정형 · **DDL 5배치·SQL 16문 NOEXEC 문법 OK**(실행 안 함) · 시뮬 `sim_photo.js` 37. ⛔실제 올리기·그림 왕복은 DDL 실행 + 두 WAR 재빌드·재기동 뒤.

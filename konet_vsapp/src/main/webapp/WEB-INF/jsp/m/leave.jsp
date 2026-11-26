@@ -16,9 +16,9 @@
 <link rel="manifest" href="<%=request.getContextPath()%>/m/manifest.json">
 <link rel="apple-touch-icon" href="<%=request.getContextPath()%>/m/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20260914a">
+<link rel="stylesheet" href="<%=request.getContextPath()%>/m/m.css?v=20261126a">
 <script src="<%=request.getContextPath()%>/asset/js/ui-message.js"></script>
-<script src="<%=request.getContextPath()%>/m/m.js?v=20260914a"></script>
+<script src="<%=request.getContextPath()%>/m/m.js?v=20261126a"></script>
 <style>
   .mnav{ display:flex; align-items:center; gap:8px; }
   .mnav button{ height:38px; min-width:44px; padding:0 12px; border:1px solid rgba(255,255,255,.45); border-radius:8px; background:rgba(255,255,255,.12); color:#fff; font:inherit; font-size:16px; font-weight:800; }

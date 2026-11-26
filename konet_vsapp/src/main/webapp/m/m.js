@@ -77,7 +77,8 @@
     { k:'sales',  href:'/m/sales.do',  i:'🧾', t:'판매등록' },
     { k:'settle', href:'/m/settle.do', i:'💳', t:'수금·지급' },
     { k:'stock',  href:'/m/stock.do',  i:'📦', t:'재고·상품' },
-    { k:'adjhis', href:'/m/adjhis.do', i:'📝', t:'조정내역' }    // 2026-09-14 재고조정 내역(대표 확인용)
+    { k:'adjhis', href:'/m/adjhis.do', i:'📝', t:'조정내역' },   // 2026-09-14 재고조정 내역(대표 확인용)
+    { k:'photo',  href:'/m/photo.do',  i:'📷', t:'사진' }        // 2026-11-26 사진 올리기 → PC 「사진함」
   ];
   M.tabbar = function(active){
     var nav=document.createElement('nav'); nav.className='tabbar';

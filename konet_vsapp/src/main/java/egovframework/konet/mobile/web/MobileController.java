@@ -69,6 +69,13 @@ public class MobileController {
 		return loggedIn(session) ? ".raw/m/leave" : ".raw/m/login";
 	}
 
+	/** 📷 사진 올리기(2026-11-26 「모바일에서 찍은 사진을 한꺼번에 PC 에서」) — 여러 장을 폰에서 줄여 묶음으로 올린다.
+	 *  저장·조회 = /photo/*.do (PhotoController — 웹·앱 같은 파일). PC 는 정보 현황 ▸ 사진함 */
+	@RequestMapping(value = "/m/photo.do")
+	public String photo(HttpSession session) {
+		return loggedIn(session) ? ".raw/m/photo" : ".raw/m/login";
+	}
+
 	/** 모바일 로그인 화면 — 실제 로그인은 PC 와 같은 /user/loginChk.do 를 쓴다 */
 	@RequestMapping(value = "/m/login.do")
 	public String login(HttpSession session) {

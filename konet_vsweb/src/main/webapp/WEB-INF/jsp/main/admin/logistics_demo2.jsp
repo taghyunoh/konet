@@ -3676,6 +3676,8 @@
       <a class="mi" data-key="profitVen"  onclick="logiFrame('profitVen','${pageContext.request.contextPath}/mangr/profitStat.do?gb=1', this)"><span class="ic">💹</span>거래처별 이익</a>
       <a class="mi" data-key="profitProd" onclick="logiFrame('profitProd','${pageContext.request.contextPath}/mangr/profitStat.do?gb=2', this)"><span class="ic">📦</span>상품별 이익</a>
       <a class="mi" data-key="profitVP"   onclick="logiFrame('profitVP','${pageContext.request.contextPath}/mangr/profitStat.do?gb=3', this)"><span class="ic">🧾</span>거래처별 상품별 이익</a>
+      <%-- 사진함 (2026-11-26 사용자 「모바일에서 찍은 사진을 한꺼번에 PC 에서」 → 같은 날 「정보현황 제일 밑에」 — 처음엔 직원관리) — 모바일 앱(📷 사진)이 올린 사진을 날짜별로 · iframe 화면(mangr/photoBox.jsp) · 아래 panel-photoBox 와 짝. 표 = docs/sql/20261126_photo.sql · 1개월 보관 --%>
+      <a class="mi" data-key="photoBox" onclick="logiFrame('photoBox','${pageContext.request.contextPath}/photo/photoBox.do', this)" title="모바일 앱 📷 사진에서 올린 사진 — 날짜별 모음 · 크게 보기 · 여러 장 ZIP (1개월 보관)"><span class="ic">🖼</span>사진함</a>
     </div>
 
     <%-- 원장관리 (2026-07-26 요청) — 정보 현황 안에 있던 두 화면을 별도 그룹으로 분리.
@@ -5514,6 +5516,10 @@
     </section>
     <section id="panel-empWorkLog" class="panel" style="padding:0;">
       <iframe id="if-empWorkLog" src="" title="직원 업무일지" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
+    </section>
+    <%-- 사진함 (2026-11-26) — 메뉴 logiFrame('photoBox',…) 의 짝 --%>
+    <section id="panel-photoBox" class="panel" style="padding:0;">
+      <iframe id="if-photoBox" src="" title="사진함" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
     <section id="panel-compcd" class="panel" style="padding:0;">
       <iframe id="if-compcd" src="" title="회사/사용자 관리" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>

@@ -1659,3 +1659,7 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
   순서 = web.xml 에서 **mobileGuardFilter 뒤**(앱 화면은 그쪽 JSON 401 로 로그인 화면을 띄운다 — 그대로). 이 필터는 헤더 없는 미로그인 요청 : 화면 GET → `/m/index.do`(상대 주소로 옮기는 작은 페이지 — 운영 302 는 http 절대주소) · 그 밖 → 401.
   공개 = `/m/*`(MobileController 가 스스로 로그인 여부를 본다) · `/user/loginChk|loginAct|loginOutAct|sessionChk.do` · `/konet.do`·`/index.do`·`/main.do` · `/pub/*`·`/popup/*` · `/json/user/pwd*` · `/getSignList.do` · `/patient/login|register.do`. ★새 공개 주소는 웹·앱 두 필터에 같이 더한다.
   검증 = javac(앱 WAR lib) · web.xml [xml]·CRLF · 가짜 요청 하네스 20검사. ⛔운영 확인은 재배포 뒤(`curl -X POST https://allcare24.kr/konetapp/mangr/salesTrxList.do` → 401).
+
+## ★[2026-11-26] 📷 사진 올리기 (/m/photo.do) — PC 「사진함」과 짝
+- 설명·결정·검증 = konet_vsweb/CLAUDE.md 같은 날 「사진함」 절. 이 앱에 넣은 것 = `egovframework.konet.photo` 패키지 + `Photo_SQL.xml`(web 과 **같은 파일** — 고치면 둘 다) · MobileController `/m/photo.do` · `WEB-INF/jsp/m/photo.jsp` · m.js TABS 6번째 📷 사진 · manifest 바로가기 · sw.js VER 20261126a · 모바일 화면 6개 m.js/m.css ?v=20261126a.
+- DDL 은 web 의 docs/sql/20261126_photo.sql 한 번(같은 DB). **배포 = konet_app WAR 재빌드 + 재기동.**
