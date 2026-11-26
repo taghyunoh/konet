@@ -42,7 +42,7 @@ async function boot(admin){
     w._alertBox=(m,o)=>w.__alerts.push(String(m)); w._toast=(m,t)=>w.__toasts.push(String(m)+'|'+t); w._confirmBox=(o)=>{ w.__conf.push(String(o.msg)+'|'+o.okText); if(o.onOk) o.onOk(); };
     w.fetch=(u,opt)=>{ w.__calls.push({ u:u, body:opt.body });
       let j;
-      if(u.indexOf('stockChkList')>=0) j={ result:'OK', admin:admin?'Y':'N', me:'K003', startDttm:START, frDt:'2026-11-20', toDt:'2026-11-26', data:JSON.parse(JSON.stringify(DATA)), lines:JSON.parse(JSON.stringify(LINES)) };
+      if(u.indexOf('stockChkList')>=0) j={ result:'OK', admin:admin?'Y':'N', me:'K003', startDttm:START, frDt:'2026-11-20', toDt:'2026-11-26', data:JSON.parse(JSON.stringify(DATA)), lines:JSON.parse(JSON.stringify(LINES)), pendAll:(w.__pendAll==null?4:w.__pendAll) };
       else j=w.__actRes||{ result:'OK', done:1, skip:0, blocked:0, prods:[] };
       return Promise.resolve({ ok:true, json:()=>Promise.resolve(j) }); };
   } });
@@ -161,6 +161,17 @@ const lastAct=(w)=>{ const c=w.__calls.filter(x=>x.u.indexOf('stockChkAct')>=0).
     const dp=blk('select','selectProdDelPurch'), dsl=blk('select','selectProdDelSales'), off=blk('select','selectProdChkOff');
     T(dp.indexOf("kk.REF_GB = 'PURCHK'")>0 && dp.indexOf('AS keepYn')>0 && dsl.indexOf("kk.REF_GB = 'SALEK'")>0 && off.indexOf("l.ACTION_YN = 'X' AND l.REF_GB IN ('PURCH','SALE')")>0 && C.indexOf('res.put("off", svc.selectProdChkOff(p));')>0, '서버 — 지운 전표 줄에 keepYn(원장의 …K 줄로 판정) · 재고 미적용 줄(원장 X) 목록 off');
     ['selectStockOutByMonth','selectStockOutDetail'].forEach(id=>T(blk('select',id).indexOf("l.REF_GB = 'SALEK' AND l.IO_GB = 'O' AND l.ACTION_YN = 'Y'")>0, id+' — 지운 판매전표인데 재고 미적용한 출고(SALEK)도 출고로 센다')); }
+  /* ── 기간 밖 미확인 (2026-11-26 「2번은 무슨뜻인가요 1표시」 — 메뉴 배지 1 인데 고른 기간엔 미확인 0) · 도움말 문단 제거(「1번 제거」) ── */
+  { const w=await boot(true), d=w.document;
+    T(!/기간 밖 미확인/.test(d.getElementById('cnt').textContent), '전체 미확인 = 기간 안 미확인이면 안내 없음');
+    w.PEND_ALL=5; w.render(); const a=d.querySelector('#cnt a');
+    T(!!a && /기간 밖 미확인 1건 보기/.test(a.textContent), '전체 미확인(배지) 5 · 기간 안 4 → 「기간 밖 미확인 1건 보기」', d.getElementById('cnt').textContent);
+    w.__calls.length=0; d.getElementById('fSt').value='C'; a.click(); await sleep(20);
+    const lb=w.__calls.filter(x=>/stockChkList/.test(x.u)).pop();
+    T(!!lb && /frDt=2026-11-26/.test(lb.body) && d.getElementById('fSt').value==='P', '[보기] = 이 기능을 켠 날부터 오늘까지 · 상태 「미확인 · 시작 전」 으로 다시 조회', lb && lb.body);
+    T(!/품목 줄의 <b>「재고수정 이전」/.test(jsp) && !/재고수정 이전/.test(d.querySelector('.help').textContent), '도움말에서 재고수정 이전 문단을 뺐다(뜻은 표 말풍선)');
+    T(C.indexOf('res.put("pendAll", svc.selectStockChkPendCnt(p));')>0, '목록 응답에 전체 미확인 건수(pendAll)');
+  }
   /* ── 재고수정 이전 표시 · 「최종 재고수정 이후만」 (2026-11-26 사용자 「여기에도 현재고수정 이전인지 보여주세요(현재 싯점 최종재고수정이후 것만 조회 조건 추가)」) ── */
   { const w=await boot(true), d=w.document;
     d.getElementById('fSt').value=''; w.render();

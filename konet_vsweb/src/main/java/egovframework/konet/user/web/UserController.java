@@ -6335,6 +6335,8 @@ public class UserController {
 				res.put("startDttm", svc.selectStockChkStart(p));
 				res.put("data", svc.selectStockChkList(p));
 				res.put("lines", svc.selectStockChkLineAll(p));
+				/* 기간과 상관없는 전체 미확인 건수 = 메뉴 배지 숫자 (2026-11-26 「2번은 무슨뜻인가요 1표시」 — 배지 1 인데 고른 기간엔 0 이라 헷갈렸다) */
+				try { res.put("pendAll", svc.selectStockChkPendCnt(p)); } catch (Exception e2) { /* 숫자만 빠진다 */ }
 				res.put("result", "OK");
 			} catch (Exception e) {
 				String m = e.getMessage() == null ? "" : e.getMessage();

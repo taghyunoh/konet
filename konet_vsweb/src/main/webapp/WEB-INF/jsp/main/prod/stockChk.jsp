@@ -109,8 +109,6 @@
     손으로 넣은 <b>매입·판매 전표</b>(반품 포함)는 저장하거나 지우는 순간 재고에 반영됩니다. 여기서 작업한 순서대로 보고
     실물도 그렇게 움직였으면 <b>[확인]</b>, 서류만 처리한 것이면 품목마다 <b>[재고 미적용]</b>(재고 수량에만 적용하지 않고 매입·매출 금액은 그대로)합니다.
     <b>지운 전표</b>를 재고 미적용하면 지워서 빠진 수량이 재고에 다시 들어갑니다. 확인한 뒤에 전표를 다시 고치거나 지우면 미확인으로 돌아옵니다. 정산서 자동 출고는 여기 나오지 않습니다.
-    품목 줄의 <b>「재고수정 이전」</b> = 그 품목의 최근 재고수정 날짜보다 앞 날짜 전표 — 재고수정이 <b>고정(🔒)</b>이면 현재고에 영향이 없어 <b>「🔒 적용 안 됨」</b>으로 막고,
-    기준값이 아직 없는 옛 재고수정(2026-11-25 이전 저장 · 채우기 SQL 실행 전)이면 「현재고 바뀜」으로 표시합니다. <b>[최종 재고수정 이후만]</b>을 켜면 재고수정을 <b>저장한 뒤에 작업한 것</b>만 봅니다 — 그중 앞 날짜 전표를 바꾼 것은 빨간 <b>「재고수정 뒤 작업」</b>.
   </div>
   <div class="legend" id="legend">
     <b>상태 뜻</b> &nbsp;
@@ -153,7 +151,7 @@
 
 <script>
 var CTX='${pageContext.request.contextPath}';
-var ROWS=[], LMAP={}, ADMIN=false, START='', CLOSED={}, FOLD=false, _seq=0, _rsItem=null;
+var PEND_ALL=null, ROWS=[], LMAP={}, ADMIN=false, START='', CLOSED={}, FOLD=false, _seq=0, _rsItem=null;
 try{ FOLD=(localStorage.getItem('konetStockChkFold')==='1'); }catch(e){}
 function esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function n(v){ var x=Number(String(v==null?'':v).replace(/,/g,'')); return isFinite(x)?x:0; }
@@ -267,7 +265,9 @@ function render(){
     if(L.length && !(k in CLOSED ? CLOSED[k] : FOLD)) h+='<tr class="lines"><td colspan="12">'+linesHtml(r, q)+'</td></tr>';
   });
   document.getElementById('body').innerHTML=h;
-  document.getElementById('cnt').innerHTML='미확인 <b>'+pend+'</b>건'+(old?(' · 시작 전 '+old+'건'):'')+' · 보이는 줄 '+v.length+' / '+ROWS.length;
+  /* 기간 밖 미확인 — 메뉴 배지 숫자와 같은 «전체 미확인». 고른 기간에 없으면 안내 + [보기] (2026-11-26 「2번은 무슨뜻인가요 1표시」) */
+  var out=(PEND_ALL!=null && PEND_ALL>pend) ? (PEND_ALL-pend) : 0;
+  document.getElementById('cnt').innerHTML='미확인 <b>'+pend+'</b>건'+(out?(' · <a href="javascript:void(0)" onclick="pendAllShow()" style="color:#c0392b;font-weight:800" title="메뉴 배지 숫자 = 기간과 상관없는 전체 미확인. 눌러서 이 기능을 켠 날부터 오늘까지 보기">기간 밖 미확인 '+out+'건 보기</a>'):'')+(old?(' · 시작 전 '+old+'건'):'')+' · 보이는 줄 '+v.length+' / '+ROWS.length;
   var lg=document.getElementById('lgStart'); if(lg && START) lg.textContent='이 기능을 켠 때('+tm(START)+')보다 앞서 한 작업 — 확인하지 않아도 되지만 할 수는 있습니다';
   document.getElementById('btnFold').textContent=FOLD?'품목 줄 펼치기':'품목 줄 접기';
   var ca=document.getElementById('chkAll'); if(ca) ca.checked=false;
@@ -308,6 +308,11 @@ function post(u, body, json){
   return fetch(CTX+u, { method:'POST', headers:{'Content-Type': json?'application/json':'application/x-www-form-urlencoded'}, credentials:'same-origin', body: json?JSON.stringify(body):(body||'') })
     .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
 }
+function pendAllShow(){
+  var t=new Date(), st=String(START||'').slice(0,10);
+  document.getElementById('frDt').value=(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(st) ? st : ymd(new Date(t.getFullYear(), t.getMonth(), t.getDate()-30)));
+  document.getElementById('toDt').value=ymd(t); document.getElementById('fSt').value='P'; load();
+}
 function setRange(k){
   var t=new Date(), f=t;
   if(k==='d7') f=new Date(t.getFullYear(), t.getMonth(), t.getDate()-6);
@@ -325,7 +330,7 @@ function load(){
       document.getElementById('body').innerHTML='<tr><td class="empty" colspan="12">'+esc((j && j.message)||'조회하지 못했습니다.')+'</td></tr>';
       return;
     }
-    ADMIN=(j.admin==='Y'); START=''+(j.startDttm||''); ROWS=j.data||[]; LMAP={};
+    ADMIN=(j.admin==='Y'); START=''+(j.startDttm||''); PEND_ALL=(j.pendAll==null) ? null : n(j.pendAll); ROWS=j.data||[]; LMAP={};
     (j.lines||[]).forEach(function(x){ var k=x.refGb+':'+x.refSeq; (LMAP[k]||(LMAP[k]=[])).push(x); });
     if(j.frDt) document.getElementById('frDt').value=j.frDt; if(j.toDt) document.getElementById('toDt').value=j.toDt;
     render();
