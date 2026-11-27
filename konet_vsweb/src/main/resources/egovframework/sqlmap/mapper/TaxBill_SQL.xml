@@ -1,0 +1,346 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 매출·매입 계산서 (2026-11-27 사용자 「홀세일처럼 매출계산서, 매입계산서」 → 「화면부터 먼저」)
+     표 = docs/sql/20261127_taxbill.sql (TBL_TAXBILL_MST 머리 · TBL_TAXBILL_DTL 품목).
+     화면 = mangr/taxBillMake.jsp(생성) · mangr/taxBillList.jsp(확정·발행·내역). 국세청 전송은 중계업체 계약 뒤.
+     ★원천 금액 규칙은 일계장(selectDayBook)·거래처별 채권·채무와 같다 — 정산서(출고장 DC_CD → 거래처 MIN(VENDOR_CD)) + 토더 발주 + 판매전표 / 매입전표.
+       한쪽만 고치면 「장부 매출」과 「계산서 금액」이 어긋난다.
+     ★모든 조회·변경에 COMP_CD 를 건다. -->
+<mapper namespace="egovframework.konet.tax.mapper.TaxBillMapper">
+
+	<!-- 출고장 코드 판정 — User_SQL.xml dcKeyOf 와 같은 식(네임스페이스가 달라 복사). 거기를 고치면 여기도 -->
+	<sql id="dcKeyOf"><![CDATA[ CASE WHEN ISNULL(${a}DC_CD,'') <> '' THEN UPPER(LTRIM(RTRIM(${a}DC_CD)))
+	          WHEN ISNULL(${a}DC_NM,'') LIKE N'%용인%' THEN 'E100' WHEN ISNULL(${a}DC_NM,'') LIKE N'%왜관%' THEN 'E200'
+	          WHEN ISNULL(${a}DC_NM,'') LIKE N'%김해%' THEN 'E300' WHEN ISNULL(${a}DC_NM,'') LIKE N'%광주%' THEN 'E400'
+	          WHEN ISNULL(${a}DC_NM,'') LIKE N'%평택%' THEN 'E500' WHEN ISNULL(${a}DC_NM,'') LIKE N'%제주%' THEN 'E600'
+	          WHEN ISNULL(${a}DC_NM,'') LIKE N'%오산%' THEN 'E700' ELSE '' END ]]></sql>
+
+	<!-- 거래처 마스터 — 계산서 받는 쪽 정보 + 화면 조건(사원·거래처 유형) -->
+	<select id="selectTaxVendors" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT v.VENDOR_CD AS custCd, MAX(ISNULL(v.VENDOR_NM,'')) AS custNm, MAX(ISNULL(v.FULL_NM,'')) AS fullNm,
+	         MAX(ISNULL(v.BIZNO,'')) AS bizno, MAX(ISNULL(v.CEO_NM,'')) AS ceoNm,
+	         MAX(ISNULL(v.BIZ_COND,'')) AS bizCond, MAX(ISNULL(v.BIZ_ITEM,'')) AS bizItem,
+	         MAX(LTRIM(RTRIM(ISNULL(v.ADDR,'') + ' ' + ISNULL(v.ADDR2,'')))) AS addr, MAX(ISNULL(v.EMAIL,'')) AS email,
+	         MAX(ISNULL(v.VENDOR_GB,'')) AS vendorGb, MAX(ISNULL(v.MGR_CD,'')) AS mgrCd, MAX(ISNULL(v.MGR_NM,'')) AS mgrNm,
+	         MAX(ISNULL(v.VAT_GB,'')) AS vatGb, MAX(ISNULL(v.TAXBILL_GB,'')) AS taxbillGb
+	    FROM TBL_VENDOR_MST v
+	   WHERE v.ACTION_YN = 'Y' AND v.COMP_CD = #{compCd}
+	   GROUP BY v.VENDOR_CD
+	]]></select>
+
+	<!-- ============================================================
+	     매출 원천 낱줄 (기간) — 화면이 합계·건별·상품별로 접는다.
+	       src = STMT 정산서 · TD 토더 발주 · STRX 판매전표 · STRXDC 판매전표 머리 할인(−)
+	             RCVDC 수금할인(−, 「수금할인액 제외」일 때만 화면이 쓴다) · CASH 수금(수금기준일 때만 화면이 쓴다)
+	       supplyAmt·vatAmt 가 NULL 이면 화면이 amt(부가세 포함) ÷ 1.1 로 나눈다(종합실적 psNorm 과 같은 규칙).
+	       docKey = 건별 계산서 한 장의 열쇠. 정산서·토더는 줄이 주문 품목 단위라 «일자» 로 묶는다.
+	     ============================================================ -->
+	<select id="selectTaxSrcSale" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  ;WITH VM AS (
+	        SELECT DC_CD, MIN(VENDOR_CD) AS VENDOR_CD
+	          FROM TBL_VENDOR_MST
+	         WHERE ACTION_YN = 'Y' AND ISNULL(DC_CD,'') <> '' AND COMP_CD = #{compCd}
+	         GROUP BY DC_CD
+	  )
+	  SELECT z.src AS src, z.custCd AS custCd, z.dt AS dt, z.docKey AS docKey, z.docNo AS docNo,
+	         z.itemCd AS itemCd, z.itemNm AS itemNm, z.spec AS spec, z.qty AS qty, z.price AS price,
+	         z.amt AS amt, z.supplyAmt AS supplyAmt, z.vatAmt AS vatAmt, z.taxGb AS taxGb
+	    FROM (
+	          -- ① 정산서
+	          SELECT 'STMT' AS src, vm.VENDOR_CD AS custCd, x.dt AS dt,
+	                 'STMT|' + x.dt AS docKey,
+	                 LTRIM(RTRIM(ISNULL(s.ORD_NO,''))) + CASE WHEN ISNULL(s.ORD_ITEM_NO,'') <> '' THEN '-' + LTRIM(RTRIM(s.ORD_ITEM_NO)) ELSE '' END AS docNo,
+	                 ISNULL(s.ITEM_CD,'') AS itemCd, ISNULL(s.ITEM_NM,'') AS itemNm, ISNULL(s.SPEC,'') AS spec,
+	                 CAST(ISNULL(s.OUT_QTY,0) AS DECIMAL(18,2)) AS qty, CAST(ISNULL(s.SALE_PRICE,0) AS DECIMAL(18,2)) AS price,
+	                 CAST(ISNULL(s.SALE_AMT,0) AS DECIMAL(18,0)) AS amt,
+	                 CAST(NULL AS DECIMAL(18,0)) AS supplyAmt, CAST(NULL AS DECIMAL(18,0)) AS vatAmt, N'과세' AS taxGb
+	            FROM TBL_SALES_MST s
+	            CROSS APPLY ( SELECT ISNULL(NULLIF(s.DLV_DT,''), s.OUT_DT) AS dt,
+	                                 ]]><include refid="dcKeyOf"><property name="a" value="s."/></include><![CDATA[ AS dcKey ) x
+	            JOIN VM vm ON vm.DC_CD = x.dcKey
+	           WHERE s.ACTION_YN = 'Y' AND s.COMP_CD = #{compCd}
+	             AND x.dt >= #{frDt} AND x.dt <= #{toDt}
+
+	          UNION ALL
+	          -- ①-1 토더 발주 (「발주가 곧 매출」 — 일계장과 같은 금액식)
+	          SELECT 'TD', vm.VENDOR_CD, o.DLV_DT,
+	                 'TD|' + o.DLV_DT,
+	                 LTRIM(RTRIM(ISNULL(o.ORD_NO,''))) + CASE WHEN ISNULL(o.ORD_ITEM_NO,'') <> '' THEN '-' + LTRIM(RTRIM(o.ORD_ITEM_NO)) ELSE '' END,
+	                 ISNULL(o.ITEM_CD,''), ISNULL(o.ITEM_NM,''), '',
+	                 CAST(q.qty AS DECIMAL(18,2)), CAST(ISNULL(o.SALE_PRICE,0) AS DECIMAL(18,2)),
+	                 CAST(CASE WHEN ISNULL(o.DS_TRX_GB,'') = N'반품' THEN -1 ELSE 1 END * (q.qty * ISNULL(o.SALE_PRICE,0) - ISNULL(o.DS_DC_AMT,0)) AS DECIMAL(18,0)),
+	                 CAST(NULL AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), N'과세'
+	            FROM TBL_SHIPOUT_MST o
+	            CROSS APPLY ( SELECT CASE WHEN ABS(o.CUR_QTY) > ABS(o.LABEL_QTY) THEN o.CUR_QTY ELSE ISNULL(o.LABEL_QTY, ISNULL(o.CUR_QTY,0)) END AS qty ) q
+	            JOIN VM vm ON vm.DC_CD = o.DC_CD
+	           WHERE o.ACTION_YN = 'Y' AND o.PROD_KIND = 'TD' AND o.COMP_CD = #{compCd}
+	             AND o.DLV_DT >= #{frDt} AND o.DLV_DT <= #{toDt}
+
+	          UNION ALL
+	          -- ② 판매전표 명세 (공급가·세액이 전표에 있다)
+	          SELECT 'STRX', t2.CUST_CD, x2.dt,
+	                 'STRX|' + CAST(t2.SALE_SEQ AS VARCHAR(20)),
+	                 ISNULL(t2.SALE_DT,'') + '-' + ISNULL(t2.SALE_NO,''),
+	                 ISNULL(d2.PROD_CD,''), ISNULL(d2.PROD_NM, N'(명세 없음)'), ISNULL(d2.SPEC,''),
+	                 CAST(ISNULL(d2.QTY,0) AS DECIMAL(18,2)), CAST(ISNULL(d2.UNIT_PRICE,0) AS DECIMAL(18,2)),
+	                 CAST(ISNULL(d2.TOT_AMT, t2.TOT_AMT) AS DECIMAL(18,0)),
+	                 CAST(CASE WHEN d2.SALE_SEQ IS NULL THEN ISNULL(t2.TOT_AMT,0) - ISNULL(t2.VAT_AMT,0) ELSE ISNULL(d2.SUPPLY_AMT,0) END AS DECIMAL(18,0)),
+	                 CAST(CASE WHEN d2.SALE_SEQ IS NULL THEN ISNULL(t2.VAT_AMT,0) ELSE ISNULL(d2.VAT_AMT,0) END AS DECIMAL(18,0)),
+	                 CASE WHEN ISNULL(t2.TAX_GB,'') = N'면세' THEN N'면세' ELSE N'과세' END
+	            FROM TBL_SALES_TRX_MST t2
+	            CROSS APPLY ( SELECT ISNULL(NULLIF(t2.DLV_DT,''), t2.SALE_DT) AS dt ) x2
+	            LEFT JOIN TBL_SALES_TRX_DTL d2 ON d2.SALE_SEQ = t2.SALE_SEQ AND d2.ACTION_YN = 'Y' AND d2.COMP_CD = t2.COMP_CD
+	           WHERE t2.ACTION_YN = 'Y' AND t2.COMP_CD = #{compCd}
+	             AND x2.dt >= #{frDt} AND x2.dt <= #{toDt}
+
+	          UNION ALL
+	          -- ②-1 판매전표 머리 할인 (장부에서 매출을 깎는 값 — 일계장 saleDcAmt)
+	          SELECT 'STRXDC', t2.CUST_CD, x2.dt,
+	                 'STRX|' + CAST(t2.SALE_SEQ AS VARCHAR(20)),
+	                 ISNULL(t2.SALE_DT,'') + '-' + ISNULL(t2.SALE_NO,''),
+	                 '', N'할인', '', CAST(0 AS DECIMAL(18,2)), CAST(0 AS DECIMAL(18,2)),
+	                 CAST(-ISNULL(t2.DC_AMT,0) AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)),
+	                 CASE WHEN ISNULL(t2.TAX_GB,'') = N'면세' THEN N'면세' ELSE N'과세' END
+	            FROM TBL_SALES_TRX_MST t2
+	            CROSS APPLY ( SELECT ISNULL(NULLIF(t2.DLV_DT,''), t2.SALE_DT) AS dt ) x2
+	           WHERE t2.ACTION_YN = 'Y' AND t2.COMP_CD = #{compCd} AND ISNULL(t2.DC_AMT,0) <> 0
+	             AND x2.dt >= #{frDt} AND x2.dt <= #{toDt}
+
+	          UNION ALL
+	          -- ③ 수금전표의 매출할인(수금할인) — 「매출합계에서 수금할인액 제외」를 켰을 때만 화면이 쓴다
+	          SELECT 'RCVDC', t.CUST_CD, t.TRX_DT,
+	                 'RCV|' + ISNULL(t.TRX_DT,'') + '-' + ISNULL(t.TRX_NO,''),
+	                 ISNULL(t.TRX_DT,'') + '-' + ISNULL(t.TRX_NO,''),
+	                 '', N'수금할인', '', CAST(0 AS DECIMAL(18,2)), CAST(0 AS DECIMAL(18,2)),
+	                 CAST(-ISNULL(t.SALE_DC_AMT,0) AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), N'과세'
+	            FROM TBL_SETTLE_TRX t
+	           WHERE t.ACTION_YN = 'Y' AND t.COMP_CD = #{compCd} AND t.TRX_GB = 'RCV' AND ISNULL(t.SALE_DC_AMT,0) <> 0
+	             AND t.TRX_DT >= #{frDt} AND t.TRX_DT <= #{toDt}
+
+	          UNION ALL
+	          -- ④ 수금 (수금기준) — 수금전표 + 판매전표 즉시수금
+	          SELECT 'CASH', t.CUST_CD, t.TRX_DT,
+	                 'RCV|' + ISNULL(t.TRX_DT,'') + '-' + ISNULL(t.TRX_NO,''),
+	                 ISNULL(t.TRX_DT,'') + '-' + ISNULL(t.TRX_NO,''),
+	                 '', ISNULL(NULLIF(t.PAY_GB,''), N'수금'), '', CAST(0 AS DECIMAL(18,2)), CAST(0 AS DECIMAL(18,2)),
+	                 CAST(ISNULL(t.AMT,0) AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), N'과세'
+	            FROM TBL_SETTLE_TRX t
+	           WHERE t.ACTION_YN = 'Y' AND t.COMP_CD = #{compCd} AND t.TRX_GB = 'RCV' AND ISNULL(t.AMT,0) <> 0
+	             AND t.TRX_DT >= #{frDt} AND t.TRX_DT <= #{toDt}
+	          UNION ALL
+	          SELECT 'CASH', t2.CUST_CD, x2.dt,
+	                 'STRX|' + CAST(t2.SALE_SEQ AS VARCHAR(20)),
+	                 ISNULL(t2.SALE_DT,'') + '-' + ISNULL(t2.SALE_NO,''),
+	                 '', N'즉시수금', '', CAST(0 AS DECIMAL(18,2)), CAST(0 AS DECIMAL(18,2)),
+	                 CAST(ISNULL(t2.PAY_AMT,0) AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), N'과세'
+	            FROM TBL_SALES_TRX_MST t2
+	            CROSS APPLY ( SELECT ISNULL(NULLIF(t2.DLV_DT,''), t2.SALE_DT) AS dt ) x2
+	           WHERE t2.ACTION_YN = 'Y' AND t2.COMP_CD = #{compCd} AND ISNULL(t2.PAY_AMT,0) <> 0
+	             AND x2.dt >= #{frDt} AND x2.dt <= #{toDt}
+	    ) z
+	   WHERE ISNULL(z.custCd,'') <> ''
+	   ORDER BY z.custCd, z.dt, z.docKey, z.itemCd
+	]]></select>
+
+	<!-- 매입 원천 낱줄 (기간) — 매입전표 명세 · 머리 할인(−) · 지급할인(−) · 지급(지급기준) -->
+	<select id="selectTaxSrcPurch" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT z.src AS src, z.custCd AS custCd, z.dt AS dt, z.docKey AS docKey, z.docNo AS docNo,
+	         z.itemCd AS itemCd, z.itemNm AS itemNm, z.spec AS spec, z.qty AS qty, z.price AS price,
+	         z.amt AS amt, z.supplyAmt AS supplyAmt, z.vatAmt AS vatAmt, z.taxGb AS taxGb
+	    FROM (
+	          SELECT 'PURCH' AS src, m.VENDOR_CD AS custCd, m.PURCH_DT AS dt,
+	                 'PURCH|' + CAST(m.PURCH_SEQ AS VARCHAR(20)) AS docKey,
+	                 ISNULL(m.PURCH_DT,'') + '-' + ISNULL(m.PURCH_NO,'') AS docNo,
+	                 ISNULL(d.PROD_CD,'') AS itemCd, ISNULL(d.PROD_NM, N'(명세 없음)') AS itemNm, ISNULL(d.SPEC,'') AS spec,
+	                 CAST(ISNULL(d.QTY,0) AS DECIMAL(18,2)) AS qty, CAST(ISNULL(d.UNIT_PRICE,0) AS DECIMAL(18,2)) AS price,
+	                 CAST(ISNULL(d.TOT_AMT, m.TOT_AMT) AS DECIMAL(18,0)) AS amt,
+	                 CAST(CASE WHEN d.PURCH_SEQ IS NULL THEN ISNULL(m.TOT_AMT,0) - ISNULL(m.VAT_AMT,0) ELSE ISNULL(d.SUPPLY_AMT,0) END AS DECIMAL(18,0)) AS supplyAmt,
+	                 CAST(CASE WHEN d.PURCH_SEQ IS NULL THEN ISNULL(m.VAT_AMT,0) ELSE ISNULL(d.VAT_AMT,0) END AS DECIMAL(18,0)) AS vatAmt,
+	                 N'과세' AS taxGb
+	            FROM TBL_PURCHASE_MST m
+	            LEFT JOIN TBL_PURCHASE_DTL d ON d.PURCH_SEQ = m.PURCH_SEQ AND d.ACTION_YN = 'Y' AND d.COMP_CD = m.COMP_CD
+	           WHERE m.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd}
+	             AND m.PURCH_DT >= #{frDt} AND m.PURCH_DT <= #{toDt}
+
+	          UNION ALL
+	          SELECT 'PURCHDC', m.VENDOR_CD, m.PURCH_DT,
+	                 'PURCH|' + CAST(m.PURCH_SEQ AS VARCHAR(20)),
+	                 ISNULL(m.PURCH_DT,'') + '-' + ISNULL(m.PURCH_NO,''),
+	                 '', N'할인', '', CAST(0 AS DECIMAL(18,2)), CAST(0 AS DECIMAL(18,2)),
+	                 CAST(-ISNULL(m.DC_AMT,0) AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), N'과세'
+	            FROM TBL_PURCHASE_MST m
+	           WHERE m.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd} AND ISNULL(m.DC_AMT,0) <> 0
+	             AND m.PURCH_DT >= #{frDt} AND m.PURCH_DT <= #{toDt}
+
+	          UNION ALL
+	          SELECT 'PAYDC', t.CUST_CD, t.TRX_DT,
+	                 'PAY|' + ISNULL(t.TRX_DT,'') + '-' + ISNULL(t.TRX_NO,''),
+	                 ISNULL(t.TRX_DT,'') + '-' + ISNULL(t.TRX_NO,''),
+	                 '', N'지급할인', '', CAST(0 AS DECIMAL(18,2)), CAST(0 AS DECIMAL(18,2)),
+	                 CAST(-ISNULL(t.DC_AMT,0) AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), N'과세'
+	            FROM TBL_SETTLE_TRX t
+	           WHERE t.ACTION_YN = 'Y' AND t.COMP_CD = #{compCd} AND t.TRX_GB = 'PAY' AND ISNULL(t.DC_AMT,0) <> 0
+	             AND t.TRX_DT >= #{frDt} AND t.TRX_DT <= #{toDt}
+
+	          UNION ALL
+	          SELECT 'CASH', t.CUST_CD, t.TRX_DT,
+	                 'PAY|' + ISNULL(t.TRX_DT,'') + '-' + ISNULL(t.TRX_NO,''),
+	                 ISNULL(t.TRX_DT,'') + '-' + ISNULL(t.TRX_NO,''),
+	                 '', ISNULL(NULLIF(t.PAY_GB,''), N'지급'), '', CAST(0 AS DECIMAL(18,2)), CAST(0 AS DECIMAL(18,2)),
+	                 CAST(ISNULL(t.AMT,0) AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), N'과세'
+	            FROM TBL_SETTLE_TRX t
+	           WHERE t.ACTION_YN = 'Y' AND t.COMP_CD = #{compCd} AND t.TRX_GB = 'PAY' AND ISNULL(t.AMT,0) <> 0
+	             AND t.TRX_DT >= #{frDt} AND t.TRX_DT <= #{toDt}
+	          UNION ALL
+	          SELECT 'CASH', m.VENDOR_CD, m.PURCH_DT,
+	                 'PURCH|' + CAST(m.PURCH_SEQ AS VARCHAR(20)),
+	                 ISNULL(m.PURCH_DT,'') + '-' + ISNULL(m.PURCH_NO,''),
+	                 '', N'즉시지급', '', CAST(0 AS DECIMAL(18,2)), CAST(0 AS DECIMAL(18,2)),
+	                 CAST(ISNULL(m.PAY_AMT,0) AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), CAST(NULL AS DECIMAL(18,0)), N'과세'
+	            FROM TBL_PURCHASE_MST m
+	           WHERE m.ACTION_YN = 'Y' AND m.COMP_CD = #{compCd} AND ISNULL(m.PAY_AMT,0) <> 0
+	             AND m.PURCH_DT >= #{frDt} AND m.PURCH_DT <= #{toDt}
+	    ) z
+	   WHERE ISNULL(z.custCd,'') <> ''
+	   ORDER BY z.custCd, z.dt, z.docKey, z.itemCd
+	]]></select>
+
+	<!-- 이미 만든 계산서 (기간이 겹치는 것) — 생성 화면이 「생성됨」 표시·「신규」 거르기에 쓴다 -->
+	<select id="selectTaxExisting" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT m.BILL_SEQ AS billSeq, m.CUST_CD AS custCd, m.MAKE_GB AS makeGb, m.BASIS_GB AS basisGb, m.TAX_GB AS taxGb,
+	         ISNULL(m.SRC_KEY,'') AS srcKey, m.FR_DT AS frDt, m.TO_DT AS toDt, m.WRITE_DT AS writeDt,
+	         m.STATUS AS status, m.TOT_AMT AS totAmt
+	    FROM TBL_TAXBILL_MST m
+	   WHERE m.COMP_CD = #{compCd} AND m.BILL_GB = #{billGb} AND m.ACTION_YN = 'Y'
+	     AND ISNULL(m.FR_DT, m.WRITE_DT) <= #{toDt} AND ISNULL(m.TO_DT, m.WRITE_DT) >= #{frDt}
+	   ORDER BY m.BILL_SEQ
+	]]></select>
+
+	<!-- 계산서 머리 넣기 — 받는 쪽(거래처) 정보는 화면 값을 믿지 않고 마스터에서 그 시점 값을 복사한다 -->
+	<insert id="insertTaxBillMst" parameterType="java.util.HashMap" useGeneratedKeys="true" keyProperty="billSeq" keyColumn="BILL_SEQ"><![CDATA[
+	  INSERT INTO TBL_TAXBILL_MST (COMP_CD, BILL_GB, MAKE_GB, BASIS_GB, TAX_GB, PURPOSE_GB, WRITE_DT, FR_DT, TO_DT, SRC_KEY,
+	                               CUST_CD, CUST_NM, CUST_FULL_NM, CUST_BIZNO, CUST_CEO_NM, CUST_BIZ_COND, CUST_BIZ_ITEM, CUST_ADDR, CUST_EMAIL,
+	                               SUPPLY_AMT, VAT_AMT, TOT_AMT, REMARK, STATUS, ACTION_YN, REG_USER, REG_DTTM)
+	  SELECT TOP 1 #{compCd}, #{billGb}, #{makeGb}, #{basisGb}, #{taxGb,jdbcType=NVARCHAR}, #{purposeGb,jdbcType=NVARCHAR},
+	         #{writeDt}, #{frDt,jdbcType=VARCHAR}, #{toDt,jdbcType=VARCHAR}, #{srcKey,jdbcType=NVARCHAR},
+	         v.VENDOR_CD, ISNULL(v.VENDOR_NM,''), ISNULL(NULLIF(LTRIM(RTRIM(v.FULL_NM)),''), ISNULL(v.VENDOR_NM,'')),
+	         REPLACE(REPLACE(ISNULL(v.BIZNO,''),'-',''),' ',''), ISNULL(v.CEO_NM,''), ISNULL(v.BIZ_COND,''), ISNULL(v.BIZ_ITEM,''),
+	         LTRIM(RTRIM(ISNULL(v.ADDR,'') + ' ' + ISNULL(v.ADDR2,''))), ISNULL(v.EMAIL,''),
+	         #{supplyAmt}, #{vatAmt}, #{totAmt}, #{remark,jdbcType=NVARCHAR}, 'W', 'Y', #{userId,jdbcType=VARCHAR}, GETDATE()
+	    FROM TBL_VENDOR_MST v
+	   WHERE v.COMP_CD = #{compCd} AND v.VENDOR_CD = #{custCd} AND v.ACTION_YN = 'Y'
+	   ORDER BY CASE WHEN ISNULL(v.BIZNO,'') <> '' THEN 0 ELSE 1 END
+	]]></insert>
+
+	<!-- 품목 줄 넣기 — 한 장(최대 99줄)을 한 문장으로 (줄마다 왕복하면 원격 DB 라 느리다) -->
+	<insert id="insertTaxBillDtl" parameterType="java.util.HashMap">
+	  INSERT INTO TBL_TAXBILL_DTL (BILL_SEQ, LINE_NO, ITEM_DT, ITEM_CD, ITEM_NM, SPEC, QTY, PRICE, SUPPLY_AMT, VAT_AMT, REMARK)
+	  VALUES
+	  <foreach collection="lines" item="l" separator=",">
+	    (#{billSeq}, #{l.lineNo}, #{l.itemDt,jdbcType=VARCHAR}, #{l.itemCd,jdbcType=NVARCHAR}, #{l.itemNm,jdbcType=NVARCHAR}, #{l.spec,jdbcType=NVARCHAR},
+	     #{l.qty,jdbcType=DECIMAL}, #{l.price,jdbcType=DECIMAL}, #{l.supplyAmt}, #{l.vatAmt}, #{l.remark,jdbcType=NVARCHAR})
+	  </foreach>
+	</insert>
+
+	<!-- 계산서 목록 (확정·발행·내역 화면) -->
+	<select id="selectTaxBillList" parameterType="java.util.HashMap" resultType="java.util.HashMap">
+	  SELECT m.BILL_SEQ AS billSeq, m.BILL_GB AS billGb, m.MAKE_GB AS makeGb, m.BASIS_GB AS basisGb, m.TAX_GB AS taxGb, m.PURPOSE_GB AS purposeGb,
+	         m.WRITE_DT AS writeDt, m.FR_DT AS frDt, m.TO_DT AS toDt, m.CUST_CD AS custCd, m.CUST_NM AS custNm, m.CUST_FULL_NM AS fullNm,
+	         m.CUST_BIZNO AS bizno, m.CUST_CEO_NM AS ceoNm, m.CUST_EMAIL AS email,
+	         m.SUPPLY_AMT AS supplyAmt, m.VAT_AMT AS vatAmt, m.TOT_AMT AS totAmt, ISNULL(m.REMARK,'') AS remark,
+	         m.STATUS AS status, m.ACTION_YN AS actionYn, ISNULL(m.NTS_NO,'') AS ntsNo,
+	         CONVERT(VARCHAR(16), m.REG_DTTM, 120) AS regDttm, ISNULL(m.REG_USER,'') AS regUser,
+	         CONVERT(VARCHAR(16), m.CFM_DTTM, 120) AS cfmDttm, ISNULL(m.CFM_USER,'') AS cfmUser,
+	         CONVERT(VARCHAR(16), m.ISSUE_DTTM, 120) AS issueDttm,
+	         ISNULL(dl.cnt,0) AS lineCnt, ISNULL(dl.firstNm,'') AS firstNm
+	    FROM TBL_TAXBILL_MST m
+	    OUTER APPLY ( SELECT COUNT(*) AS cnt,
+	                         (SELECT TOP 1 d2.ITEM_NM FROM TBL_TAXBILL_DTL d2 WHERE d2.BILL_SEQ = m.BILL_SEQ ORDER BY d2.LINE_NO) AS firstNm
+	                    FROM TBL_TAXBILL_DTL d WHERE d.BILL_SEQ = m.BILL_SEQ ) dl
+	   WHERE m.COMP_CD = #{compCd}
+	     <if test="billGb != null and billGb != ''"> AND m.BILL_GB = #{billGb} </if>
+	     AND m.WRITE_DT &gt;= #{frDt} AND m.WRITE_DT &lt;= #{toDt}
+	     <choose>
+	       <when test="inclDel != null and inclDel == 'Y'.toString()"> </when>
+	       <otherwise> AND m.ACTION_YN = 'Y' </otherwise>
+	     </choose>
+	     <if test="statusList != null and statusList.size() > 0">
+	       AND ( m.STATUS IN <foreach collection="statusList" item="st" open="(" separator="," close=")">#{st}</foreach>
+	             <if test="inclDel != null and inclDel == 'Y'.toString()"> OR m.ACTION_YN = 'N' </if> )
+	     </if>
+	     <if test="kw != null and kw != ''">
+	       AND ( m.CUST_CD LIKE '%' + #{kw,jdbcType=NVARCHAR} + '%' OR m.CUST_NM LIKE '%' + #{kw,jdbcType=NVARCHAR} + '%'
+	             OR m.CUST_FULL_NM LIKE '%' + #{kw,jdbcType=NVARCHAR} + '%' OR m.CUST_BIZNO LIKE '%' + #{kw,jdbcType=NVARCHAR} + '%' )
+	     </if>
+	   ORDER BY m.WRITE_DT DESC, m.BILL_SEQ DESC
+	</select>
+
+	<select id="selectTaxBillOne" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT m.BILL_SEQ AS billSeq, m.BILL_GB AS billGb, m.MAKE_GB AS makeGb, m.BASIS_GB AS basisGb, m.TAX_GB AS taxGb, m.PURPOSE_GB AS purposeGb,
+	         m.WRITE_DT AS writeDt, m.FR_DT AS frDt, m.TO_DT AS toDt, m.SRC_KEY AS srcKey,
+	         m.CUST_CD AS custCd, m.CUST_NM AS custNm, m.CUST_FULL_NM AS fullNm, m.CUST_BIZNO AS bizno, m.CUST_CEO_NM AS ceoNm,
+	         m.CUST_BIZ_COND AS bizCond, m.CUST_BIZ_ITEM AS bizItem, m.CUST_ADDR AS addr, m.CUST_EMAIL AS email,
+	         m.SUPPLY_AMT AS supplyAmt, m.VAT_AMT AS vatAmt, m.TOT_AMT AS totAmt, ISNULL(m.REMARK,'') AS remark,
+	         m.STATUS AS status, m.ACTION_YN AS actionYn, ISNULL(m.NTS_NO,'') AS ntsNo
+	    FROM TBL_TAXBILL_MST m
+	   WHERE m.COMP_CD = #{compCd} AND m.BILL_SEQ = #{billSeq}
+	]]></select>
+
+	<select id="selectTaxBillDtl" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT d.LINE_NO AS lineNo, ISNULL(d.ITEM_DT,'') AS itemDt, ISNULL(d.ITEM_CD,'') AS itemCd, ISNULL(d.ITEM_NM,'') AS itemNm,
+	         ISNULL(d.SPEC,'') AS spec, d.QTY AS qty, d.PRICE AS price, d.SUPPLY_AMT AS supplyAmt, d.VAT_AMT AS vatAmt, ISNULL(d.REMARK,'') AS remark
+	    FROM TBL_TAXBILL_DTL d
+	    JOIN TBL_TAXBILL_MST m ON m.BILL_SEQ = d.BILL_SEQ AND m.COMP_CD = #{compCd}
+	   WHERE d.BILL_SEQ = #{billSeq}
+	   ORDER BY d.LINE_NO
+	]]></select>
+
+	<!-- 확정 전에 사업자번호가 10자리가 아닌 것을 고른다 — 전자 발행이 안 되는 계산서는 확정시키지 않는다 -->
+	<select id="selectTaxBadBizno" parameterType="java.util.HashMap" resultType="java.util.HashMap">
+	  SELECT m.BILL_SEQ AS billSeq, m.CUST_NM AS custNm, ISNULL(m.CUST_BIZNO,'') AS bizno
+	    FROM TBL_TAXBILL_MST m
+	   WHERE m.COMP_CD = #{compCd} AND m.ACTION_YN = 'Y'
+	     AND m.BILL_SEQ IN <foreach collection="seqs" item="s" open="(" separator="," close=")">#{s}</foreach>
+	     AND ( LEN(ISNULL(m.CUST_BIZNO,'')) &lt;&gt; 10 OR ISNULL(m.CUST_BIZNO,'') LIKE '%[^0-9]%' )
+	</select>
+
+	<!-- 상태 바꾸기 — 확정(W→C) · 확정 취소(C→W). 지금 상태가 맞는 것만 바뀐다(다른 사람이 먼저 바꿨으면 0건) -->
+	<update id="updateTaxBillStatus" parameterType="java.util.HashMap">
+	  UPDATE TBL_TAXBILL_MST
+	     SET STATUS = #{toSt},
+	         CFM_DTTM = CASE WHEN #{toSt} = 'C' THEN GETDATE() ELSE NULL END,
+	         CFM_USER = CASE WHEN #{toSt} = 'C' THEN #{userId,jdbcType=VARCHAR} ELSE NULL END,
+	         UPD_USER = #{userId,jdbcType=VARCHAR}, UPD_DTTM = GETDATE()
+	   WHERE COMP_CD = #{compCd} AND ACTION_YN = 'Y' AND STATUS = #{fromSt}
+	     AND BILL_SEQ IN <foreach collection="seqs" item="s" open="(" separator="," close=")">#{s}</foreach>
+	</update>
+
+	<!-- 지우기 — 작성(W) 상태만. 표에서 없애지 않고 ACTION_YN 'N' (발행 내역의 「삭제 포함」으로 볼 수 있다) -->
+	<update id="deleteTaxBill" parameterType="java.util.HashMap">
+	  UPDATE TBL_TAXBILL_MST
+	     SET ACTION_YN = 'N', UPD_USER = #{userId,jdbcType=VARCHAR}, UPD_DTTM = GETDATE()
+	   WHERE COMP_CD = #{compCd} AND ACTION_YN = 'Y' AND STATUS = 'W'
+	     AND BILL_SEQ IN <foreach collection="seqs" item="s" open="(" separator="," close=")">#{s}</foreach>
+	</update>
+
+	<!-- 머리 고치기 — 작성(W) 상태만 : 작성일자 · 청구/영수 · 받는 이메일 · 비고 -->
+	<update id="updateTaxBillHead" parameterType="java.util.HashMap"><![CDATA[
+	  UPDATE TBL_TAXBILL_MST
+	     SET WRITE_DT = #{writeDt}, PURPOSE_GB = #{purposeGb,jdbcType=NVARCHAR},
+	         CUST_EMAIL = #{email,jdbcType=NVARCHAR}, REMARK = #{remark,jdbcType=NVARCHAR},
+	         UPD_USER = #{userId,jdbcType=VARCHAR}, UPD_DTTM = GETDATE()
+	   WHERE COMP_CD = #{compCd} AND BILL_SEQ = #{billSeq} AND ACTION_YN = 'Y' AND STATUS = 'W'
+	]]></update>
+
+	<!-- 우리 회사(인쇄 — 매출이면 공급자, 매입이면 공급받는자) : 이력형 표의 최근 활성 1줄 -->
+	<select id="selectTaxComp" parameterType="java.util.HashMap" resultType="java.util.HashMap"><![CDATA[
+	  SELECT TOP 1 ISNULL(c.COMP_NM,'') AS compNm, REPLACE(ISNULL(c.BUSI_NUM,''),'-','') AS bizno, ISNULL(c.COMP_CEO,'') AS ceoNm,
+	         LTRIM(RTRIM(ISNULL(c.COMP_ADDR,'') + ' ' + ISNULL(c.COMP_EXTRADR,''))) AS addr,
+	         ISNULL(c.BIZ_COND,'') AS bizCond, ISNULL(c.BIZ_ITEM,'') AS bizItem, ISNULL(c.COMP_EMAIL,'') AS email,
+	         ISNULL(c.COMP_TEL,'') AS tel
+	    FROM TBL_COMP_MST c
+	   WHERE c.COMP_CD = #{compCd} AND ISNULL(c.ACTION_YN,'Y') = 'Y'
+	   ORDER BY c.JOB_SEQ DESC
+	]]></select>
+
+</mapper>

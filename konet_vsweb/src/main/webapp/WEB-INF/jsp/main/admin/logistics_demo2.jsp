@@ -3692,6 +3692,28 @@
       <a class="mi" data-key="custbal" onclick="logiFrame('custbal','${pageContext.request.contextPath}/mangr/custBalance.do', this)"><span class="ic">💳</span>거래처별 채권·채무</a>
     </div>
 
+    <%-- 세금계산서 (2026-11-27 사용자 「홀세일처럼 매출계산서, 매입계산서 (전자세금계산서 연동)」 → 「화면부터 먼저」) — 메뉴 이름·순서는 홀세일과 같게.
+         화면 둘을 메뉴마다 다른 첫 값으로 연다 : 생성 = /tax/billMake.do?gb=S|P(mangr/taxBillMake.jsp) · 확정·발행·내역 = /tax/billList.do?mode=…&gb=…(mangr/taxBillList.jsp).
+         ⚠logiFrame 은 이미 뜬 iframe 을 유지하므로 메뉴마다 제 패널(아래 panel-tax*)이 있어야 한다. 표 = docs/sql/20261127_taxbill.sql.
+         국세청 전송(전자 발행)은 중계업체 계약 뒤 — 「전자세금계산서 발행」 화면의 [전자 발행] 은 지금 안내만 띄운다.
+         ★[2026-11-27] 메뉴 숨김 — 사용자 「다음주 협의 후 오픈, 일단 메뉴 히든」. 열 때는 아래 TAX_MENU_OPEN 을 true 로(화면·서버·패널은 그대로 있다). --%>
+    <% boolean TAX_MENU_OPEN = false; if (TAX_MENU_OPEN) { %>
+    <div class="grp">세금계산서</div>
+    <a class="mi has-sub" data-sub="taxsale" onclick="logiToggleSub('taxsale', this)"><span class="ic">🧾</span>매출 계산서<span class="caret">▶</span></a>
+    <div class="sub-menu" id="sub-taxsale">
+      <a class="mi" data-key="taxMakeS"  onclick="logiFrame('taxMakeS','${pageContext.request.contextPath}/tax/billMake.do?gb=S', this)"><span class="ic">📝</span>매출 계산서 생성</a>
+      <a class="mi" data-key="taxCfmS"   onclick="logiFrame('taxCfmS','${pageContext.request.contextPath}/tax/billList.do?mode=cfm&gb=S', this)"><span class="ic">✔</span>매출 계산서 확정</a>
+      <a class="mi" data-key="taxIssueS" onclick="logiFrame('taxIssueS','${pageContext.request.contextPath}/tax/billList.do?mode=issue&gb=S', this)"><span class="ic">📨</span>전자세금계산서 발행</a>
+      <a class="mi" data-key="taxHistS"  onclick="logiFrame('taxHistS','${pageContext.request.contextPath}/tax/billList.do?mode=hist&gb=S', this)"><span class="ic">📜</span>전자세금계산서 발행 내역</a>
+    </div>
+    <a class="mi has-sub" data-sub="taxpurch" onclick="logiToggleSub('taxpurch', this)"><span class="ic">📥</span>매입 계산서<span class="caret">▶</span></a>
+    <div class="sub-menu" id="sub-taxpurch">
+      <a class="mi" data-key="taxMakeP"  onclick="logiFrame('taxMakeP','${pageContext.request.contextPath}/tax/billMake.do?gb=P', this)"><span class="ic">📝</span>매입 계산서 생성</a>
+      <a class="mi" data-key="taxCfmP"   onclick="logiFrame('taxCfmP','${pageContext.request.contextPath}/tax/billList.do?mode=cfm&gb=P', this)"><span class="ic">✔</span>매입 계산서 확정</a>
+      <a class="mi" data-key="taxHistA"  onclick="logiFrame('taxHistA','${pageContext.request.contextPath}/tax/billList.do?mode=hist&gb=A', this)"><span class="ic">🔎</span>매출&amp;매입 계산서 발행 조회</a>
+    </div>
+    <% } %>
+
     <div class="grp">기준정보</div>
     <%-- 상품코드등록 (2026-08-01 요청) — 상품(품목)관리와 같은 마스터(TBL_PROD_MST)를 보는 등록 전용 화면.
          이력/재고 패널 없이 목록+등록만. 서식은 매입/매출 거래처 관리와 동일(버튼 상단 공통 · 그리드에 수정/삭제 없음).
@@ -5489,6 +5511,14 @@
     <section id="panel-daybook" class="panel" style="padding:0;">
       <iframe id="if-daybook" src="" title="일계장" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe>
     </section>
+    <%-- 세금계산서 7화면 (2026-11-27) — 위 「세금계산서」 메뉴와 짝. 화면 파일은 둘(taxBillMake.jsp · taxBillList.jsp), 패널은 메뉴마다 --%>
+    <section id="panel-taxMakeS" class="panel" style="padding:0;"><iframe id="if-taxMakeS" src="" title="매출 계산서 생성" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
+    <section id="panel-taxCfmS" class="panel" style="padding:0;"><iframe id="if-taxCfmS" src="" title="매출 계산서 확정" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
+    <section id="panel-taxIssueS" class="panel" style="padding:0;"><iframe id="if-taxIssueS" src="" title="전자세금계산서 발행" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
+    <section id="panel-taxHistS" class="panel" style="padding:0;"><iframe id="if-taxHistS" src="" title="전자세금계산서 발행 내역" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
+    <section id="panel-taxMakeP" class="panel" style="padding:0;"><iframe id="if-taxMakeP" src="" title="매입 계산서 생성" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
+    <section id="panel-taxCfmP" class="panel" style="padding:0;"><iframe id="if-taxCfmP" src="" title="매입 계산서 확정" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
+    <section id="panel-taxHistA" class="panel" style="padding:0;"><iframe id="if-taxHistA" src="" title="매출&매입 계산서 발행 조회" style="width:100%; height:calc(100vh - 70px); border:0; display:block;"></iframe></section>
 
     <!-- 시스템관리 — 자체완결 화면을 iframe으로 사이드메뉴 우측에 종속 -->
     <!-- 출고현황표(데시보드2) — 별도 JSP(logistics_demo1.jsp)를 /admin/logistics_demo1.do 로 iframe 로드 (사이드바 종속)
