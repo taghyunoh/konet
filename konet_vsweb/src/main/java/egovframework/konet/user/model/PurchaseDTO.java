@@ -59,6 +59,7 @@ public class PurchaseDTO {
     private Integer rtnCnt;        // 반품 줄 수(목록 표시용, 집계 — 2026-10-16)
     private Integer rtnFromCnt;    // 이 전표를 원본으로 반품한 줄 수 (다른 전표 비고로 셈 — 2026-10-16 「원본에 대하여 반품 발생 표시」)
     private Integer undoFromCnt;   // 그 반품을 원위치한 줄 수
+    private String  rtnFromInfo;   // 그 반품 줄들 — 줄마다 \n, 칸은 \t (반품 전표 일자-번호 · 품목코드 · 품명 · 거래구분 · 수량) — 배지 말풍선 (2026-11-27)
 
     public Long getPurchSeq() { return purchSeq; }
     public void setPurchSeq(Long purchSeq) { this.purchSeq = purchSeq; }
@@ -128,4 +129,6 @@ public class PurchaseDTO {
     public void setRtnFromCnt(Integer rtnFromCnt) { this.rtnFromCnt = rtnFromCnt; }
     public Integer getUndoFromCnt() { return undoFromCnt; }
     public void setUndoFromCnt(Integer undoFromCnt) { this.undoFromCnt = undoFromCnt; }
+    public String getRtnFromInfo() { return rtnFromInfo; }
+    public void setRtnFromInfo(String rtnFromInfo) { this.rtnFromInfo = rtnFromInfo; }
 }

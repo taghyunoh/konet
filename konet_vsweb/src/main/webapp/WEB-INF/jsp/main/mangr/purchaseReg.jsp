@@ -1567,6 +1567,19 @@ function puLoad(){
      행수에 따라 화면 높이가 들쑥날쑥하던 것을 막는다(2026-07-25 요청).
      페이지 버튼 대신 아래에 '몇 건까지 나왔는지'와 [모두 표시]를 둔다. */
 var LIST_ROWS = 5, _lShown = 0, _lBound = false;
+/* 「반품 발생 n줄」 말풍선 — 어느 전표가 반품인지 (2026-11-27 사용자 「원본에도 반품 메세지는 있는데 어느 것이 반품인지 팁으로」).
+   서버 rtnFromInfo = 줄마다 \n, 칸은 \t (반품 전표 일자-번호 · 품목코드 · 품명 · 거래구분 · 수량). 옛 서버(값 없음)면 종전 글 한 줄. */
+function puRtnFromTip(o){
+  var head='이 매입 전표를 원본으로 반품한 줄 '+n(o.rtnFromCnt)+'개';
+  var ls=String(o.rtnFromInfo||'').split('\n').filter(function(x){ return x; });
+  if(!ls.length) return esc(head+' — 비고의 「매입 일자-번호」로 셈');
+  var out=[head+' — 반품 전표 :'];
+  ls.forEach(function(x){ var c=x.split('\t'), s=String(c[0]||''), nm=String(c[2]||'');
+    if(nm.length>34) nm=nm.slice(0,34)+'…';
+    out.push('· '+s.slice(0,10)+' / '+s.slice(11)+'  '+(c[1]||'')+' '+nm+'  '+(c[3]||'반품')+' '+fmt(Number(c[4])||0)); });
+  out.push('(이 목록에서 그 일자 · 번호의 빨간 「반품 n줄」 전표입니다)');
+  return out.map(esc).join('&#10;');
+}
 function puRowHtml(o, i){
   return '<tr onclick="puPick('+i+')">'
     + '<td><button class="pu-btn" style="height:24px;padding:0 8px;font-size:12px" onclick="event.stopPropagation();puCopy('+i+')">복사저장</button></td>'
@@ -1575,7 +1588,7 @@ function puRowHtml(o, i){
     /* 반품 줄이 든 전표는 거래처명 옆에 빨간 「반품 n줄」 (2026-10-16 사용자 「선택 전 반품이 있는지 표시」 — 종전엔 눌러서 위 명세를 봐야 알았다) */
     + '<td class="txt" style="text-align:left">'+esc(o.vendorNm)+(n(o.rtnCnt)?' <span style="display:inline-block;font-size:11px;font-weight:800;color:#c0392b;background:#fdecec;border-radius:6px;padding:1px 6px;margin-left:4px" title="반품(불량반품) 줄 '+n(o.rtnCnt)+'개가 든 전표">반품 '+n(o.rtnCnt)+'줄</span>':'')
     /* 원본 전표 표시 (2026-10-16 사용자 「원본에 대하여 반품 발생 표시」) — 이 전표에서 반품해 간 줄 수(주황) · 그 반품을 원위치한 줄 수(파랑) */
-    + (n(o.rtnFromCnt)?' <span style="display:inline-block;font-size:11px;font-weight:800;color:#9a4b00;background:#fff1e0;border:1px solid #f0c9a4;border-radius:6px;padding:0 6px;margin-left:4px" title="이 매입 전표를 원본으로 다른 전표에서 반품한 줄 '+n(o.rtnFromCnt)+'개 — 비고의 「매입 일자-번호」로 셈">반품 발생 '+n(o.rtnFromCnt)+'줄</span>':'')
+    + (n(o.rtnFromCnt)?' <span style="display:inline-block;font-size:11px;font-weight:800;color:#9a4b00;background:#fff1e0;border:1px solid #f0c9a4;border-radius:6px;padding:0 6px;margin-left:4px;cursor:help" title="'+puRtnFromTip(o)+'">반품 발생 '+n(o.rtnFromCnt)+'줄</span>':'')
     + (n(o.undoFromCnt)?' <span style="display:inline-block;font-size:11px;font-weight:800;color:#1b5e9e;background:#eaf2fb;border:1px solid #a9c4e3;border-radius:6px;padding:0 6px;margin-left:4px" title="그 반품을 원위치(재매입)한 줄 '+n(o.undoFromCnt)+'개">원위치 '+n(o.undoFromCnt)+'줄</span>':'')
     +'</td><td>'+esc(o.mgrNm)+'</td>'
     + '<td>'+n(o.prodCnt)+'</td><td class="num">'+fmt(o.totAmt)+'</td>'

@@ -3793,3 +3793,10 @@ Chart.js 2.7.2(프로젝트 내장 `js/Chart.min.js`, CDN 안 씀) · 조회는 
 - **PC** = 정보 현황 맨 아래 ▸ 🖼 사진함(같은 날 사용자 「정보현황 제일 밑에」 — 처음엔 직원관리)(`/photo/photoBox.do` · mangr/photoBox.jsp · 셸 panel-photoBox 짝) : 왼쪽 보관 기간 날짜 목록 · 묶음별 격자(작은 그림 lazy) · 크게 보기(← → Esc) · 고르기 → ZIP(숨은 iframe 폼 POST) · 고른 것 지우기(남의 것 빼고) · 이름 고치기 = _confirmBox 안 입력칸.
 - **모바일** = konet_vsapp `/m/photo.do`(아래 탭 6번째 📷 사진 · manifest 바로가기) — 폰에서 줄여(긴 변 1600 · 0.82, base64 850KB 넘으면 더 줄임 + 360px 작은 그림) **한 장씩** 올린다(운영 nginx 1MB 한도 · 끊겨도 올라간 것은 남고 실패분만 같은 묶음에 다시).
 - 검증 = mvn -o compile(두 앱) · Photo_SQL 16문 id 중복 0 · XML 정형 · **DDL 5배치·SQL 16문 NOEXEC 문법 OK**(실행 안 함) · 시뮬 `sim_photo.js` 37. ⛔실제 올리기·그림 왕복은 DDL 실행 + 두 WAR 재빌드·재기동 뒤.
+
+## [2026-11-27] 매입등록 목록 — 「반품 발생 n줄」 배지 말풍선에 «어느 전표가 반품인지» (⛔자바 1(DTO) + 매퍼 1문 → WAR 재빌드 + 재기동 · JSP 는 새로고침)
+- 사용자 그림(목록의 한창인터내셔널 2026-11-12 / 0007 줄 「반품 발생 1줄」에 동그라미) 「원본에도 반품 메세지는 있는데 어느 것이 반품인지 팁으로 메세지 추가」.
+- 매퍼 `selectPurchaseList` 끝 칸 `rtnFromInfo` = 그 원본을 가리키는 반품 줄들(같은 거래처 · 비고 「매입 일자-번호」 — rtnFromCnt 를 세는 x 와 같은 조건) : 줄마다 CHAR(10), 칸은 CHAR(9) = 반품 전표 일자-번호 · 품목코드 · 품명 · 거래구분 · 수량(양수). `CASE WHEN x.rc > 0` 로 감싸 반품이 있는 원본 전표에서만 돈다(STUFF + FOR XML PATH · SQL Server 2012). `PurchaseDTO.rtnFromInfo`.
+- 화면 purchaseReg.jsp `puRtnFromTip(o)` → 배지 title : 「이 매입 전표를 원본으로 반품한 줄 1개 — 반품 전표 : / · 2026-11-25 / 0008  9904013490 품명…  반품 10 / (이 목록에서 그 일자 · 번호의 빨간 「반품 n줄」 전표입니다)」. 값이 안 오면(옛 서버) 종전 글 한 줄. 배지에 cursor:help.
+- 검증 = 운영 DB 읽기 전용(2026-01-01~11-27 : 원본 6장 — 11-12/0007 → 11-25-0008 9904013490 10 · 06-18/0001 은 두 줄) · 조회 시간 종전과 같음 · jspsyn 0 · 함수 시험 10(scratch tip_test.js) · DTO javac · 매퍼 514문 id 중복 0 · CRLF. ⛔실제 화면은 재기동 뒤.
+- ⚠작업 중 purchaseReg.jsp 가 한 번 커밋 판으로 되돌아갔다(20:35 — 패치 직후 누군가 그 파일을 다시 씀. 편집기에 열려 있던 옛 내용이 저장된 것으로 보임) → JSP 만 다시 패치. **「말풍선이 종전 글 그대로」면 `grep -c puRtnFromTip purchaseReg.jsp` 가 2 인지부터.**

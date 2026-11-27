@@ -5615,7 +5615,18 @@ UPDATE l SET l.ACTION_YN = ''Y'', l.REF_GB = ''SALEK'', l.REF_NO = l.REF_NO + ''
 	            uc = 그 반품 줄 가운데 「반품 (반품 전표 일자-번호) 원위치」 매입 줄이 있는 것의 수.
 	            ★전표마다 상관 서브쿼리로 세면 85줄에 740ms — 반품 줄을 한 번만 훑어 (거래처, 매입 전표)로 집계한 x 를 LEFT JOIN 하면 13ms (매개변수 측정). */
 	         ISNULL(x.rc, 0) AS rtnFromCnt,
-	         ISNULL(x.uc, 0) AS undoFromCnt
+	         ISNULL(x.uc, 0) AS undoFromCnt,
+	         /* 어느 전표가 반품인가 (2026-11-27 사용자 「원본에도 반품 메세지는 있는데 어느 것이 반품인지 팁으로」) — 「반품 발생 n줄」 배지의 말풍선.
+	            줄마다 CHAR(10), 칸은 CHAR(9) : 반품 전표 일자-번호 · 품목코드 · 품명 · 거래구분 · 수량(양수). 화면이 풀어 쓴다.
+	            ★CASE 로 감싸 반품이 있는 원본 전표(rc 가 0 보다 큼 — 몇 장뿐)에서만 돈다. x 와 같은 조건(같은 거래처 · 비고 「매입 일자-번호」). */
+	         CASE WHEN ISNULL(x.rc, 0) > 0 THEN STUFF((
+	              SELECT CHAR(10) + SUBSTRING(REPLACE(ISNULL(rm2.PURCH_DT,''),'-',''),1,4) + '-' + SUBSTRING(REPLACE(ISNULL(rm2.PURCH_DT,''),'-',''),5,2) + '-' + SUBSTRING(REPLACE(ISNULL(rm2.PURCH_DT,''),'-',''),7,2) + '-' + rm2.PURCH_NO + CHAR(9) + ISNULL(r2.PROD_CD,'') + CHAR(9) + ISNULL(r2.PROD_NM,'') + CHAR(9) + ISNULL(r2.TRX_GB,'') + CHAR(9) + CONVERT(NVARCHAR(30), CAST(ABS(ISNULL(r2.QTY,0)) AS DECIMAL(18,2)))
+	                FROM TBL_PURCHASE_DTL r2
+	                JOIN TBL_PURCHASE_MST rm2 ON rm2.PURCH_SEQ = r2.PURCH_SEQ AND rm2.ACTION_YN = 'Y' AND rm2.COMP_CD = r2.COMP_CD
+	               WHERE r2.ACTION_YN = 'Y' AND r2.COMP_CD = m.COMP_CD AND rm2.VENDOR_CD = m.VENDOR_CD
+	                 AND r2.TRX_GB IN (N'반품', N'불량반품') AND r2.REMARK LIKE N'매입 ' + k.slip + N'%'
+	               ORDER BY rm2.PURCH_DT, rm2.PURCH_NO, r2.ROW_NO
+	                 FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 1, '') END AS rtnFromInfo
 	    FROM TBL_PURCHASE_MST m
 	    CROSS APPLY ( SELECT SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),1,4) + '-' + SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),5,2) + '-' + SUBSTRING(REPLACE(ISNULL(m.PURCH_DT,''),'-',''),7,2) + '-' + m.PURCH_NO AS slip ) k
 	    LEFT JOIN ( SELECT r.COMP_CD, rm.VENDOR_CD, SUBSTRING(r.REMARK, 4, 15) AS slip,
