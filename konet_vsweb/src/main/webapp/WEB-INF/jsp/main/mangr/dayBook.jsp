@@ -5,6 +5,10 @@
      브라우저 기본 달력의 ↑↓ 는 앞/뒤가 안 읽혀 엉뚱한 달로 넘어가는 일이 잦았다.
      빼려면 그 칸에 data-nonav="1" --%>
 <script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-datenav.js?v=20260828f"></script>
+<%-- 표 높이 막대 (2026-11-27 사용자 「중간에 막대모양 위아래 조정」) — 공용 ui-gridgrip.js(거래처별 채권·채무·판매·매입 등과 같은 것).
+     위 거래처별 표·아래 건별 내역 표 밑에 막대 · 끌기 / [▲ 줄이기][▼ 늘리기] / 더블클릭 = 처음 높이 · localStorage konetGridH.dayBookList / dayBookDtl --%>
+<script type="text/javascript" src="${pageContext.request.contextPath}/asset/js/ui-gridgrip.js?v=20260910b"></script>
+<script type="text/javascript">konetGridGrip('dbListWrap', 'dbListWrap', 'dayBookList'); konetGridGrip('dbDtlWrap', 'dbDtlWrap', 'dayBookDtl');</script>
 <!--
   일계장 — 하루치 거래처별 매출·매입·수금·지급 (2026-07-26 요청 신설)
     · 금액 규칙은 **거래처별 채권·채무(selectCustBalance)와 같다**. 낟알만 월 → 일자로 내렸다.
@@ -87,6 +91,24 @@
   table.db-tb th.grp{ background:#d9edf7; }
   table.db-tb td{ border:1px solid #c9d3dc; padding:4px 6px; }
   table.db-tb tr.tot td{ background:#fcf8e3; color:#1f2a37; font-weight:800; }
+
+  /* ★하단 건별 내역 (2026-11-27 사용자 「일계장 해당 내용에 대한 세부내용 하단에 보여줘요」)
+       거래처 줄을 누르면 그 거래처의 그날 거래를 건별로 편다(거래처별 채권·채무 하단과 같은 서버 selectCustDayDetail).
+       위 표가 아래 카드에 자리를 내주도록 기본 높이를 줄였다 — 막대로 늘리고 줄인다. */
+  #dbListWrap{ max-height:max(220px, 36vh); }
+  #dbDtlWrap{ max-height:max(240px, 34vh); min-height:110px; }
+  #dbList tbody tr.pk{ cursor:pointer; }
+  #dbList tbody tr.pk:hover td{ background:#f3f8f6; }
+  #dbList tbody tr.pk.on td{ background:#dff0eb; font-weight:700; }
+  #dbList tbody tr.pk.on td:first-child{ box-shadow:inset 3px 0 0 var(--db-teal); }
+  .db-tabs{ display:flex; gap:5px; flex-wrap:wrap; }
+  .db-tab{ border:1px solid var(--db-bd); background:#fff; border-radius:7px; padding:4px 11px; cursor:pointer; font-size:12.5px; font-weight:700; color:#37475a; white-space:nowrap; }
+  .db-tab:hover{ border-color:var(--db-teal); }
+  .db-tab.on{ background:var(--db-teal); color:#fff; border-color:var(--db-teal); }
+  .db-tab .c{ font-weight:600; opacity:.75; margin-left:3px; }
+  #dbDtl th{ white-space:nowrap; }
+  #dbDtl tr.mtot td{ background:#e9f1ef; font-weight:800; position:sticky; top:28px; z-index:1; border-bottom:2px solid #cfe0db; }
+  .db-dtlnote{ margin-top:6px; font-size:12px; color:#5a6b7a; font-weight:600; }
 </style>
 
 <div class="db-wrap">
@@ -122,7 +144,17 @@
 
   <div class="db-card">
     <div class="db-tit db-noprint"><span>📋 거래처별 <small id="dbSub" style="font-weight:600; color:#2b3a48; font-size:12px">일자를 고르고 [조회]</small></span></div>
-    <div class="db-tbwrap"><table class="db-tb" id="dbList"></table></div>
+    <div class="db-tbwrap" id="dbListWrap"><table class="db-tb" id="dbList"></table></div>
+  </div>
+
+  <%-- 하단 건별 내역 (2026-11-27) — 거래처 줄을 누르면 그날 거래가 건별로. 인쇄에는 안 나온다(db-noprint) --%>
+  <div class="db-card db-noprint" id="dbDtlCard">
+    <div class="db-tit">
+      <span>📄 건별 내역 <small id="dbDtlSub" style="font-weight:600; color:#2b3a48; font-size:12px">위 표에서 거래처 줄을 누르면 그날 거래가 나옵니다</small></span>
+      <span id="dbDtlTabs" class="db-tabs"></span>
+    </div>
+    <div class="db-tbwrap" id="dbDtlWrap"><table class="db-tb" id="dbDtl"></table></div>
+    <div class="db-dtlnote" id="dbDtlNote">위 표의 <b>당일 매출·수금·매입·지급</b> 칸이 여기서 건별로 펼쳐집니다. 칸을 누르면 그 탭이 바로 열립니다. <span id="dbDtlWarn"></span></div>
   </div>
 </div>
 
@@ -158,6 +190,7 @@ function dbLoad(){
   var v=document.getElementById('dbDt').value;
   if(!v){ if(window._alertBox) _alertBox('일자를 선택하세요.', {icon:'ℹ️'}); return; }
   document.getElementById('dbSub').textContent='조회 중…';
+  _dtlTab='';   // 날짜가 바뀌면 아래 탭은 다시 「자료 있는 첫 탭」으로
   fetch(CTX+'/mangr/selectDayBook.do', { method:'POST', credentials:'same-origin',
       headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:'fromDt='+encodeURIComponent(v)+'&toDt='+encodeURIComponent(v) })
@@ -176,6 +209,7 @@ function dbRender(){
     el.innerHTML='<tbody><tr><td class="db-msg">'+(dtv? dtLbl(dtv.replace(/-/g,''))+' 자료가 없습니다.' : '일자를 고르고 [조회]를 누르세요.')+'</td></tr></tbody>';
     document.getElementById('dbSub').textContent = dtv||'';
     ['kSale','kRcv','kPurch','kPay','kCnt'].forEach(function(id){ document.getElementById(id).textContent='—'; });
+    _list=[]; _pick=''; dbDtlLoad();
     return;
   }
   var showZero=document.getElementById('dbZero').checked;
@@ -236,14 +270,134 @@ function dbRender(){
     h+='<tr><td class="db-msg" colspan="10">'+lbl+' 에 움직인 거래처가 없습니다. '
      + '(<b>변동 없어도 잔액 남은 곳</b> 을 켜면 잔액이 남은 거래처까지 나옵니다)</td></tr>';
   }
-  list.forEach(function(o){
-    h+='<tr><td class="txt" title="'+esc(o.custCd)+'">'+esc(o.custNm)+'</td>'
+  _list = list;
+  list.forEach(function(o, i){
+    h+='<tr class="pk'+(o.custCd===_pick?' on':'')+'" data-i="'+i+'" title="눌러서 아래에 그날 건별 내역 보기">'
+     + '<td class="txt" title="'+esc(o.custCd)+'">'+esc(o.custNm)+'</td>'
      + '<td class="ctr">'+(o.gb?'<span class="gb">'+esc(o.gb)+'</span>':'')+'</td>'
      + '<td>'+fmt(o.prevR)+'</td><td>'+fmt(o.sale)+'</td><td>'+fmt(o.rcv)+'</td><td class="amt-r">'+fmt(o.balR)+'</td>'
      + '<td>'+fmt(o.prevP)+'</td><td>'+fmt(o.purch)+'</td><td>'+fmt(o.pay)+'</td><td class="amt-p">'+fmt(o.balP)+'</td></tr>';
   });
   el.innerHTML=h+'</tbody>';
+
+  /* 날짜를 바꿔 다시 그렸으면 — 고른 거래처가 그날도 있으면 그 날짜로 아래를 다시 읽고, 없으면 비운다 */
+  if(_pick && !list.some(function(o){ return o.custCd===_pick; })) _pick='';
+  dbDtlLoad();
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   하단 건별 내역 (2026-11-27 사용자 「일계장 해당 내용에 대한 세부내용 하단에 보여줘요」)
+     · 거래처 줄을 누르면 그 거래처의 **조회 일자 하루** 거래를 건별로 편다.
+     · 서버 = selectCustDayDetail(거래처별 채권·채무 하단과 같은 것). 거래처↔출고장 매칭 규칙이
+       일계장(selectDayBook)과 같아서 위 칸 금액이 여기 건별로 펼쳐진다.
+     · 탭 4개 : 출고(정산서·토더·판매전표) / 매입 / 입금(수금) / 출금(지급). 한 번에 받아 화면에서 가른다.
+     · 누른 칸으로 탭을 고른다 : 당일매출→출고 · 당일수금→입금 · 당일매입→매입 · 당일지급→출금.
+       그 밖의 칸(거래처·전일잔액·잔액)은 자료가 있는 첫 탭.
+     · 전일잔액은 누계라 「그날 건별」이 없다 — 거래처별 채권·채무 화면에서 본다.
+   ══════════════════════════════════════════════════════════════════ */
+var _list = [];           // 지금 위 표에 그려진 거래처(합계줄 제외)
+var _pick = '';           // 고른 거래처코드
+var _dtl = null;          // 서버 응답(그 거래처·그 날짜 전부). null = 읽는 중
+var _dtlTab = '';         // 'SALE' / 'PURCH' / 'RCV' / 'PAY' — '' 이면 자료 있는 첫 탭
+var _dtlKey = '';         // 마지막으로 읽은 (거래처|일자)
+var DB_TABS = [
+  { gb:'SALE',  nm:'출고내역', hint:'정산서 품목행 + 토더 발주 + 직접 판 판매전표 = 당일매출' },
+  { gb:'RCV',   nm:'입금내역', hint:'수금 전표 = 당일수금' },
+  { gb:'PURCH', nm:'매입내역', hint:'매입전표 명세 = 당일매입' },
+  { gb:'PAY',   nm:'출금내역', hint:'지급 전표 = 당일지급' }
+];
+var DB_COLTAB = { 3:'SALE', 4:'RCV', 7:'PURCH', 8:'PAY' };   // 위 표 칸 번호 → 탭
+function _dtlIn(r, tab){ var g=String(r.gb||''); return tab==='SALE' ? (g==='SALE' || g==='STRX') : g===tab; }
+
+document.getElementById('dbList').addEventListener('click', function(ev){
+  var td=ev.target.closest('td'), tr=td && td.parentNode;
+  if(!tr || !tr.classList.contains('pk')) return;
+  var o=_list[+tr.getAttribute('data-i')]; if(!o) return;
+  var want=DB_COLTAB[td.cellIndex] || '';
+  if(o.custCd===_pick){ if(want){ _dtlTab=want; dbDtlRender(); } return; }
+  _pick=o.custCd; _dtlTab=want;
+  [].forEach.call(document.querySelectorAll('#dbList tr.pk'), function(x){ x.classList.toggle('on', x===tr); });
+  dbDtlLoad();
+});
+
+function dbDtlLoad(){
+  var dt=document.getElementById('dbDt').value||'';
+  if(!_pick || !dt){ _dtl=null; _dtlKey=''; dbDtlRender(); return; }
+  var key=_pick+'|'+dt;
+  if(key===_dtlKey){ dbDtlRender(); return; }
+  _dtlKey=key; _dtl=null; dbDtlRender();
+  fetch(CTX+'/mangr/selectCustDayDetail.do', { method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'custCd='+encodeURIComponent(_pick)+'&trxDt='+encodeURIComponent(dt) })
+    .then(function(r){ return r.json(); })
+    .then(function(j){ if(_dtlKey!==key) return; _dtl=(j&&j.data)||[]; dbDtlRender(); })
+    .catch(function(e){ if(_dtlKey!==key) return; _dtl=[]; dbDtlRender('내역을 읽지 못했습니다 — '+e.message); });
+}
+
+function dbDtlTab(gb){ _dtlTab=gb; dbDtlRender(); }
+
+function dbDtlRender(msg){
+  var el=document.getElementById('dbDtl'), sub=document.getElementById('dbDtlSub'),
+      tabs=document.getElementById('dbDtlTabs'), warn=document.getElementById('dbDtlWarn');
+  var dtv=document.getElementById('dbDt').value||'';
+  var o=null; _list.some(function(x){ if(x.custCd===_pick){ o=x; return true; } return false; });
+  if(!o){
+    sub.textContent='위 표에서 거래처 줄을 누르면 그날 거래가 나옵니다';
+    tabs.innerHTML=''; warn.innerHTML='';
+    el.innerHTML='<tbody><tr><td class="db-msg">위 표에서 <b>거래처 줄</b>을 누르세요.</td></tr></tbody>';
+    return;
+  }
+  sub.textContent=o.custNm+' ('+o.custCd+') · '+dtv+' 하루';
+
+  var cnt={SALE:0,PURCH:0,RCV:0,PAY:0};
+  (_dtl||[]).forEach(function(r){ DB_TABS.forEach(function(t){ if(_dtlIn(r,t.gb)) cnt[t.gb]++; }); });
+  /* 탭을 안 골랐으면 자료 있는 첫 탭 */
+  if(!_dtlTab && _dtl){ DB_TABS.some(function(t){ if(cnt[t.gb]){ _dtlTab=t.gb; return true; } return false; }); }
+  var cur=_dtlTab||'SALE';
+  tabs.innerHTML = DB_TABS.map(function(t){
+    return '<span class="db-tab'+(cur===t.gb?' on':'')+'" onclick="dbDtlTab(\''+t.gb+'\')" title="'+esc(t.hint)+'">'
+         + esc(t.nm)+'<span class="c">'+(_dtl?cnt[t.gb]:'-')+'</span></span>';
+  }).join('');
+
+  if(msg){ warn.innerHTML=''; el.innerHTML='<tbody><tr><td class="db-msg">'+esc(msg)+'</td></tr></tbody>'; return; }
+  if(_dtl===null){ warn.innerHTML=''; el.innerHTML='<tbody><tr><td class="db-msg">읽는 중…</td></tr></tbody>'; return; }
+
+  var rows=(_dtl||[]).filter(function(r){ return _dtlIn(r,cur); });
+  var tabNm=(DB_TABS.filter(function(t){ return t.gb===cur; })[0]||{}).nm||'';
+  /* 전표 명세는 머리 할인(DC_AMT) 때문에 합계가 위 칸 금액과 다를 수 있다 — 해당 탭에서만 알린다 */
+  warn.innerHTML = (cur==='PURCH' || rows.some(function(r){ return r.gb==='STRX'; }))
+    ? '· 전표는 <b>명세 줄</b>을 펴서, 전표 머리에 할인이 있으면 합계가 위 칸과 다를 수 있습니다.' : '';
+  if(!rows.length){
+    el.innerHTML='<tbody><tr><td class="db-msg">'+esc(dtv)+' 에 <b>'+esc(tabNm)+'</b>이 없습니다. 다른 탭을 눌러 보세요.</td></tr></tbody>';
+    return;
+  }
+
+  /* 입금·출금은 품목이 없다(계좌·수단 자리). ★합계줄 colspan = 돈 탭 5 / 물건 탭 6 — 머리글 칸 수와 맞춘다 */
+  var money=(cur==='RCV'||cur==='PAY');
+  var cls=(cur==='PURCH'||cur==='PAY') ? 'amt-p' : 'amt-r';
+  var h='<thead><tr><th>구분</th><th>일자</th><th>전표번호</th>'
+      + (money ? '<th>계좌</th><th>수단</th>'
+               : '<th>출고장·창고</th><th>품목코드</th><th>품목명</th><th>수량</th><th>단가</th>')
+      + '<th>금액</th><th>비고</th></tr></thead><tbody>';
+  var tQ=0, tA=0, body='';
+  rows.forEach(function(r){
+    tQ+=n(r.qty); tA+=n(r.amt);
+    body+='<tr><td class="ctr"><span class="gb">'+esc(r.gbNm||'')+'</span></td>'
+     + '<td class="ctr">'+dtLbl(r.dt)+'</td>'
+     + '<td class="txt">'+esc(r.docNo||'-')+'</td>'
+     + (money ? '<td class="txt">'+esc(r.place||'-')+'</td><td class="txt">'+esc(r.itemNm||'-')+'</td>'
+              : '<td class="txt">'+esc(r.place||'-')+'</td><td class="txt">'+esc(r.itemCd||'-')+'</td>'
+                + '<td class="txt" title="'+esc(r.itemNm||'')+'">'+esc(r.itemNm||'-')+'</td>'
+                + '<td>'+(n(r.qty)===0?'-':n(r.qty).toLocaleString())+'</td><td>'+fmt(r.price)+'</td>')
+     + '<td class="'+cls+'">'+fmt(r.amt)+'</td><td class="txt">'+esc(r.remark||'')+'</td></tr>';
+  });
+  /* 합계는 맨 위 — 건수가 많아도 스크롤 없이 보이게(머리글 밑에 붙어 따라온다) */
+  var tot='<tr class="mtot"><td class="txt" colspan="'+(money?5:6)+'">■ '+esc(tabNm)+' 합계 ('+rows.length.toLocaleString()+'건)</td>'
+   + (money ? '' : '<td>'+(Math.round(tQ)===0?'-':Math.round(tQ).toLocaleString())+'</td><td>-</td>')
+   + '<td class="'+cls+'">'+fmt(tA)+'</td><td></td></tr>';
+  el.innerHTML=h+tot+body+'</tbody>';
+}
+dbDtlRender();   // 처음 = 「거래처 줄을 누르세요」 안내
 
 /* ★iframe 안에서는 Ctrl+P 가 바깥(물류관리 셸)을 찍는다.
      이 버튼은 이 문서 자신의 window.print() 를 불러 일계장만 나오게 한다. */
