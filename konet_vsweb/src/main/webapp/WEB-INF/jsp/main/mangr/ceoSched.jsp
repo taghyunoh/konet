@@ -73,7 +73,7 @@
   .calhd div:last-child .cg{ right:0; width:6px; }
   .calhd .cg::after{ content:''; position:absolute; left:3px; top:4px; bottom:4px; width:2px; border-radius:2px; background:#9fb6c3; }
   .calhd .cg:hover::after, .calhd .cg.on::after{ background:#137a6c; left:2px; width:4px; }
-  .calhd div.fixw span{ box-shadow:0 2px 0 #137a6c; }   /* 폭을 손으로 맞춘 요일 표시 */
+  /* 폭을 손으로 맞춘 요일의 밑줄 표시(.fixw)는 뺐다 (2026-11-28 사용자 「이것은 무슨 뜻인가요」 → 「표시 없애줘」) — 클래스는 붙지만 모양은 없다 */
   .calhd div span{ display:inline-block; min-width:24px; height:24px; line-height:24px; border-radius:12px; padding:0 4px; }
   .calhd div.tdy span{ background:var(--teal); color:#fff; }   /* 오늘 요일 (2026-11-19 사용자 「헤더 해당요일표시」) — 오늘이 든 달을 볼 때만. 직원 휴가 관리 달력과 같은 표시 */
   .calhd div:first-child{ color:#c0392b; } .calhd div:last-child{ color:#2f4f9a; }
