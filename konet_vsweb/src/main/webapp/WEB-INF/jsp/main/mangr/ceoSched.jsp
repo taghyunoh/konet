@@ -39,6 +39,14 @@
   .hd h2{ margin:0; font-size:19px; } .hd small{ color:#6b7a89; font-size:12.5px; }
   .bar{ display:flex; flex-wrap:wrap; align-items:center; gap:5px 8px; padding:6px 10px; background:#fff; border:1px solid var(--bd); border-radius:8px; margin-bottom:6px; }
   .bar .sp{ flex:1; }
+  /* ★조회줄은 늘 한 줄 (2026-11-28 사용자 「인쇄 단추가 둘째 줄로 안 내려가게」) — 줄바꿈을 끄고, 자리가 모자라면 «글»이 먼저 준다 :
+     로그인 알림 글(뒤 설명부터 잘림) → 이 달 요약(… 으로) → 검색칸(200 → 110px). 단추·달 이동·숫자 칸은 줄지 않는다 */
+  .bar{ flex-wrap:nowrap; }
+  .bar > *{ flex-shrink:0; white-space:nowrap; }
+  .bar > .sp{ flex:1 1 0; min-width:0; }
+  .bar > .sum{ flex:0 2 auto; min-width:92px; overflow:hidden; text-overflow:ellipsis; }
+  .bar > .lateset{ flex:0 6 auto; min-width:262px; overflow:hidden; margin-left:4px; }
+  .bar > input[type=search]{ flex:0 1 200px; min-width:110px; }
   /* 로그인 알림 설정 (2026-11-19) */
   .bar .lateset{ display:inline-flex; align-items:center; gap:5px; margin-left:10px; font-size:12.5px; color:#48606f; }
   .bar .lateset input{ width:62px; height:28px; border:1px solid #cbd5e1; border-radius:5px; font-size:13px; font-family:inherit; padding:0 6px; text-align:right; font-variant-numeric:tabular-nums; }
@@ -59,7 +67,13 @@
   /* 달력 */
   .calbox{ flex:1 1 0; min-width:0; background:#fff; border:1px solid var(--bd); border-radius:8px; overflow:hidden; display:flex; flex-direction:column; }
   .calhd{ display:grid; grid-template-columns:repeat(7,1fr); background:#d9edf7; border-bottom:1px solid #9fb6c3; flex:none; overflow:hidden; }   /* 칸 폭은 calHdSync 가 달력 칸에 맞춘다 · 좌우 스크롤도 따라간다 */
-  .calhd div{ padding:3px 0; text-align:center; font-weight:700; font-size:13px; }
+  .calhd div{ padding:3px 0; text-align:center; font-weight:700; font-size:13px; position:relative; }
+  /* 요일 칸 폭 조절 손잡이 (2026-11-28 사용자 「달력 영역도 요일별 조절되게」) — 요일 머리 칸의 오른쪽 경계. 끌면 그 요일 칸 폭 · 두 번 누르면 자동 */
+  .calhd .cg{ position:absolute; top:0; bottom:0; right:-4px; width:8px; z-index:2; cursor:col-resize; user-select:none; touch-action:none; }
+  .calhd div:last-child .cg{ right:0; width:6px; }
+  .calhd .cg::after{ content:''; position:absolute; left:3px; top:4px; bottom:4px; width:2px; border-radius:2px; background:#9fb6c3; }
+  .calhd .cg:hover::after, .calhd .cg.on::after{ background:#137a6c; left:2px; width:4px; }
+  .calhd div.fixw span{ box-shadow:0 2px 0 #137a6c; }   /* 폭을 손으로 맞춘 요일 표시 */
   .calhd div span{ display:inline-block; min-width:24px; height:24px; line-height:24px; border-radius:12px; padding:0 4px; }
   .calhd div.tdy span{ background:var(--teal); color:#fff; }   /* 오늘 요일 (2026-11-19 사용자 「헤더 해당요일표시」) — 오늘이 든 달을 볼 때만. 직원 휴가 관리 달력과 같은 표시 */
   .calhd div:first-child{ color:#c0392b; } .calhd div:last-child{ color:#2f4f9a; }
@@ -116,7 +130,19 @@
   .cal .ev.done .eh, .cal .ev.cancel .eh{ color:#48606f; }   /* 머리줄(「✓ 완료 · 시간 · 장소」)은 흐리게만 — 줄을 그으면 「완료」 글자까지 지워진 것처럼 보였다 (2026-11-19) */
   .cal .ev.done .lt, .cal .ev.cancel .lt{ text-decoration:none; }
   /* 목록 */
-  .side{ flex:0 0 clamp(340px,30%,460px); min-width:0; background:#fff; border:1px solid var(--bd); border-radius:8px; display:flex; flex-direction:column; overflow:hidden; }
+  /* ★목록 = 「일정이력조회」 창 (2026-11-28 사용자 그림 「2번(오른쪽 목록)을 없애고 1번 자리에 일정이력조회로 조회되게」) —
+     화면에는 달력만 두고, 위 조회줄의 [📋 일정이력조회] 를 누르면 목록이 떠 있는 창으로 뜬다(배경을 덮지 않는다 — 달력을 같이 쓴다).
+     제목줄을 끌어 옮기고 오른쪽 아래 모서리로 크기 조절 · [✕ 닫기] 또는 단추를 다시 눌러 닫는다. 자리·크기 = localStorage konetCeoHistPos */
+  .side{ display:none; position:fixed; z-index:300; top:96px; right:14px; width:560px; height:min(calc(100vh - 116px), 820px); min-width:320px; min-height:220px; max-width:calc(100vw - 8px); max-height:calc(100vh - 8px);
+         background:#fff; border:1px solid #7fa3a0; border-radius:10px; flex-direction:column; overflow:hidden; resize:both; box-shadow:0 12px 36px rgba(15,23,32,.30); }
+  .side.on{ display:flex; }
+  .side .sh{ display:flex; align-items:center; gap:8px; padding:6px 8px 6px 12px; background:#137a6c; color:#fff; cursor:move; user-select:none; flex:none; }
+  .side .sh b{ font-size:14px; font-weight:800; } .side .sh small{ font-size:11.5px; opacity:.85; } .side .sh .sp{ flex:1; }
+  .side .sh button{ height:26px; padding:0 10px; border:1px solid rgba(255,255,255,.55); border-radius:6px; background:transparent; color:#fff; font-size:12px; font-weight:800; cursor:pointer; font-family:inherit; }
+  .side .sh button:hover{ background:#fff; color:#0f6b5e; }
+  #histBtn b{ display:inline-block; min-width:18px; margin-left:4px; padding:0 5px; border-radius:9px; background:#c0392b; color:#fff; font-size:11px; line-height:18px; text-align:center; } #histBtn b:empty{ display:none; }
+  #histBtn.on{ background:#e3f2ee; border-color:#137a6c; color:#0f6b5e; }
+  body.vsp-drag, body.vsp-drag *{ cursor:col-resize !important; user-select:none !important; }   /* 요일 칸 폭 손잡이를 끄는 동안 */
   .tabs{ display:flex; gap:4px; padding:6px 8px 0; border-bottom:1px solid var(--bd); background:#f7faf9; flex:none; }
   .tab{ padding:6px 13px; border:1px solid var(--bd); border-bottom:0; border-radius:7px 7px 0 0; background:#eef2f5; font-size:13px; font-weight:700; color:#5a6b7a; cursor:pointer; user-select:none; }
   .tab.on{ background:#fff; color:#0f6b5e; position:relative; top:1px; }
@@ -241,9 +267,10 @@
     <span class="sp"></span>
     <label class="lateset" title="로그인할 때 뜨는 「오늘부터 일주일」 창에 «날짜가 지난 미완료»를 며칠 전 것까지 보일지 — 숫자 n = 끝난 지 n일 안쪽인 지난 미완료만 · 0 = 지난 미완료는 안 보임(기본) · 오늘·이번 주 일정은 늘 보입니다 (이 브라우저에 남음)">로그인 알림 · 지난 미완료 <input type="number" id="lateDays" min="0" max="365" step="1" placeholder="0" oninput="lateDaysSet(this.value)" onchange="lateDaysSet(this.value)"> 일 전까지 <small id="lateDaysTip"></small></label>
     <span class="sp"></span>
-    <input type="search" id="q" placeholder="🔎 내용 / 장소 검색" title="일정 내용(줄 글자)과 장소에서 찾습니다" oninput="paintList()">
-    <button type="button" class="btn ghost" onclick="xls()" title="오른쪽 목록에 보이는 일정(탭·검색 그대로)을 엑셀로 — 내용은 글자만">📥 엑셀</button>
-    <button type="button" class="btn ghost" onclick="prt()" title="오른쪽 목록에 보이는 일정(탭·검색 그대로)을 인쇄 — A4 세로, 내용은 서식 그대로">🖨 인쇄</button>
+    <button type="button" class="btn ghost" id="histBtn" onclick="histToggle()" title="일정 목록(미완료 · 전체 · 삭제함)을 창으로 엽니다 — 빨간 숫자 = 미완료 건수 · 다시 누르면 닫힘">📋 일정이력조회<b id="histCnt"></b></button>
+    <input type="search" id="q" placeholder="🔎 내용 / 장소 검색" title="일정 내용(줄 글자)과 장소에서 찾습니다 — 결과는 일정이력조회 창에 나옵니다" oninput="paintList()">
+    <button type="button" class="btn ghost" onclick="xls()" title="일정이력조회 목록의 일정(탭·검색 그대로)을 엑셀로 — 내용은 글자만">📥 엑셀</button>
+    <button type="button" class="btn ghost" onclick="prt()" title="일정이력조회 목록의 일정(탭·검색 그대로)을 인쇄 — A4 세로, 내용은 서식 그대로">🖨 인쇄</button>
     <%-- [＋ 일정 등록] 단추는 뺐다 (2026-11-19 사용자 「일정 등록 제거 — 의미 없음」) — 날짜 칸을 누르면 그 날 일정이 열리고 없으면 새 일정 --%>
   </div>
   <div class="warn" id="noTable" style="display:none">⚠ 일정 표(<b>TBL_CEO_SCHED</b>)가 아직 없습니다 — <b>docs/sql/20261119_ceo_sched.sql</b> 을 운영 DB에서 한 번 실행한 뒤 이 화면을 새로고침해 주세요. (그 전에는 저장되지 않습니다)</div>
@@ -252,7 +279,8 @@
       <div class="calhd" id="calHd"><div><span>일</span></div><div><span>월</span></div><div><span>화</span></div><div><span>수</span></div><div><span>목</span></div><div><span>금</span></div><div><span>토</span></div></div>
       <div class="cal" id="cal"></div>
     </div>
-    <div class="side">
+    <div class="side" id="sideBox">
+      <div class="sh" id="sideHd" title="끌어서 옮기기 — 두 번 누르면 처음 자리·크기"><b>📋 일정이력조회</b><small>줄을 누르면 일정 · 날짜를 누르면 달력의 그 날</small><span class="sp"></span><button type="button" onclick="histClose()">✕ 닫기</button></div>
       <div class="tabs">
         <span class="tab on" id="tabTodo" onclick="tabGo('todo')" title="오늘까지 날짜가 온 일정 중 아직 끝내지 않은 것(완료·취소·오늘 이후 제외) · 그 안에서도 끝낸 줄은 숨기고 남은 줄만 — 빨간 숫자는 날짜가 지난 것이 있다는 표시">미완료 <b id="todoCnt">0</b></span>
         <span class="tab" id="tabAll" onclick="tabGo('all')" title="달·완료 여부와 관계없이 등록된 일정 전부 — 최근 날짜가 위">전체 <b id="allCnt">0</b></span>
@@ -510,19 +538,22 @@ function paintCal(){
     var k=ymd(d), dow=d.getDay(), out=(d.getMonth()!==_m);
     var ev=_rows.filter(function(s){ return s.fromDt<=k && s.toDt>=k; }).sort(function(a,b){ return (a.schedTm||'99')<(b.schedTm||'99')?-1:((a.schedTm||'99')>(b.schedTm||'99')?1:a.schedSeq-b.schedSeq); });
     if(ev.length){ wkHas[Math.floor(i/7)]=true; colHas[i%7]=true; }
-    h+='<div class="dc'+(out?' out':'')+(dow===0?' sun':'')+(dow===6?' sat':'')+(k===t?' tdy':'')+(k===_pick?' pick':'')+'" data-k="'+k+'" onclick="dayOpen(\''+k+'\')" title="'+d10(k)+(ev.length ? ' — 칸 어디를 눌러도 이 날짜 일정을 엽니다' : ' — 누르면 이 날짜로 새 일정')+'">'
+    h+='<div class="dc'+(out?' out':'')+(dow===0?' sun':'')+(dow===6?' sat':'')+(k===t?' tdy':'')+(k===_pick?' pick':'')+'" data-k="'+k+'" onclick="dayOpen(\''+k+'\')">'
       +'<span class="dn">'+d.getDate()+'</span>'
       + ev.map(function(s){ var k=stKey(s), cls=(k==='Y'?' done':(k==='C'?' cancel':(late(s)?' late':'')));
           var eh=(s.schedTm||'')+(s.place?(s.schedTm?' · ':'')+s.place:'');
           /* ★상태 칸 (2026-11-19 사용자 「상태 표시」) — 달력에도 목록과 같은 상태 칸(- / 완료 / 취소). 고르면 목록과 똑같이 아래 줄 전부에 적용(doneSet). 칸을 눌러도 창은 안 열린다 */
-          var sel='<select class="st st'+k+'" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onchange="doneSet('+s.schedSeq+', this.value, event)" title="일정 상태 — 고르면 아래 줄 전부에 같은 표시">'
+          var sel='<select class="st st'+k+'" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onchange="doneSet('+s.schedSeq+', this.value, event)">'
             +stOpts(k)+'</select>';
-          return '<div class="ev lns'+cls+'" onclick="edOpen('+s.schedSeq+',null,event)" title="'+esc((eh?eh+'\n':'')+lnText(s))+'\n(글자를 누르면 고치기 · 줄 앞 칩은 그 줄 완료·취소)">'
+          return '<div class="ev lns'+cls+'" onclick="edOpen('+s.schedSeq+',null,event)">'
           +'<div class="eh">'+sel+cntHtml(s)+'<span class="et">'+esc(eh)+'</span></div>'+linesHtml(s, '')+'</div>'; }).join('')
       +'</div>';
     d.setDate(d.getDate()+1);
   }
   calRows(g.weeks, wkHas, colHas); gel('cal').innerHTML=h; calHdSync();
+  /* ★달력 칸에는 말풍선을 두지 않는다 (2026-11-28 사용자 「지금은 다 보이니 달력 마우스 대면 팁 보이는 것 제거」) — 칸이 글을 다 보여 줘 말풍선이 글을 가리기만 했다.
+     날짜 칸·일정 상자·상태 칸의 title 은 위에서 뺐고, 목록과 같이 쓰는 함수(cntHtml · linesHtml 의 줄 칩)가 붙인 것은 여기서 걷는다. 일정이력조회 창의 말풍선은 그대로 */
+  [].forEach.call(gel('cal').querySelectorAll('[title]'), function(e){ e.removeAttribute('title'); });
   if(_pickScroll){ var pc=document.querySelector('#cal .dc.pick'); if(pc){ _pickScroll=false; try{ pc.scrollIntoView({ block:'nearest', inline:'nearest' }); }catch(e){} } }   /* 처음 열 때·[오늘]을 누를 때 — 고른 날 칸이 보이게 */
   /* 머리의 요일 — 오늘이 든 달을 보고 있으면 오늘 요일에 동그라미 */
   var now=new Date(), cur=(now.getFullYear()===_y && now.getMonth()===_m);
@@ -537,8 +568,9 @@ var _wkHas=[], _colHas=[];
 function calRows(w, has, col){ if(w) _weeks=w; if(has) _wkHas=has; if(col) _colHas=col;
   var any=_wkHas.some(Boolean), a=[], b=[];
   for(var i=0;i<_weeks;i++) a.push((any && _wkHas[i]) ? 'max-content' : 'minmax(max-content, auto)');
-  for(var j=0;j<7;j++) b.push((any && _colHas[j]) ? 'max-content' : 'minmax(max-content, auto)');
-  var c=gel('cal'); c.style.gridTemplateRows=a.join(' '); c.style.gridTemplateColumns=b.join(' '); }   /* 줄 = 내용 크기 이상, 남는 높이는 고르게 (빈 주는 최소) */   /* 칸마다 바닥 높이(--dch) + 줄 = max-content — minmax(바닥, auto)·auto 는 달력 높이가 정해져 있으면 바닥 이상 자라지 않아 글이 다음 주 칸 위로 넘쳤다(헤드리스 실측) */
+  /* 손으로 맞춘 요일(_colW)은 그 폭 그대로 · ★그 밖의 요일은 달력 폭에 맞춘다(CAL_FIT — 바닥 64px : 자리가 모자라면 칸이 같이 줄고 글이 접힌다 · 좌우 스크롤은 손으로 넓힌 요일 때문에 넘칠 때만) */
+  for(var j=0;j<7;j++) b.push(_colW[j] ? (_colW[j]+'px') : CAL_FIT ? ((any && _colHas[j]) ? 'minmax('+COLW_MIN+'px, max-content)' : 'minmax('+COLW_MIN+'px, auto)') : ((any && _colHas[j]) ? 'max-content' : 'minmax(max-content, auto)'));
+  var c=gel('cal'); c.style.gridTemplateRows=a.join(' '); c.style.gridTemplateColumns=b.join(' '); colWCss(); }   /* 줄 = 내용 크기 이상, 남는 높이는 고르게 (빈 주는 최소) */   /* 칸마다 바닥 높이(--dch) + 줄 = max-content — minmax(바닥, auto)·auto 는 달력 높이가 정해져 있으면 바닥 이상 자라지 않아 글이 다음 주 칸 위로 넘쳤다(헤드리스 실측) */
 /* 요일 머리줄 = 달력 칸 폭 그대로(px) + 좌우 스크롤 따라가기 */
 function calHdSync(){ var c=gel('cal'), hd=gel('calHd'); if(!c || !hd) return;
   var cols=getComputedStyle(c).gridTemplateColumns; if(cols && cols!=='none') hd.style.gridTemplateColumns=cols;
@@ -1117,10 +1149,80 @@ function rowDel(seq, ev){
   delAsk(seq, s.title);
 }
 
+/* ★달력은 늘 제 폭에 맞춘다 (2026-11-28) — 목록이 화면에서 빠져 달력이 폭을 다 쓴다. 요일 칸은 내용 폭까지만 자라고, 자리가 모자라면 같이 줄어 글이 접힌다.
+   false 로 바꾸면 2026-11-19 의 «내용 폭 그대로 + 좌우 스크롤» 로 돌아간다. */
+var CAL_FIT=true;
+/* ── 요일 칸 폭 조절 (2026-11-28 사용자 「달력 영역도 요일별 조절되게」) ──
+   요일 머리 칸의 오른쪽 경계(.cg)를 끌면 «그 요일» 칸 폭(px)이 바뀐다 — 좁히면 글이 접혀 아래로 늘고, 넓히면 달력이 좌우로 스크롤된다.
+   폭 = _colW[요일 0~6](없으면 자동 = 내용 폭) · localStorage konetCeoColW · 범위 64 ~ 900px · 손잡이를 두 번 누르면 그 요일만 자동으로.
+   칸의 최대 폭 520px 은 손으로 맞춘 요일에서만 푼다(colWCss — 안 풀면 520 넘게 넓혔을 때 칸이 트랙을 못 채운다). */
+var _colW=[0,0,0,0,0,0,0], COLW_MIN=64, COLW_MAX=900;
+try{ var _cw0=JSON.parse(localStorage.getItem('konetCeoColW')||'null'); if(_cw0 && _cw0.length===7) _colW=_cw0.map(function(v){ v=Math.round(+v||0); return (v>=COLW_MIN && v<=COLW_MAX) ? v : 0; }); }catch(e){}
+function colWCss(){ var st=gel('colWCss'); if(!st){ st=document.createElement('style'); st.id='colWCss'; document.head.appendChild(st); }
+  var t=''; for(var j=0;j<7;j++) if(_colW[j]) t+='.cal .dc:nth-child(7n+'+(j+1)+'){ max-width:none; min-width:0; overflow:hidden; }';
+  if(st.textContent!==t) st.textContent=t;
+  var hd=gel('calHd'); if(hd) [].forEach.call(hd.children, function(e, i){ e.classList.toggle('fixw', !!_colW[i]); }); }
+function colWSave(){ try{ if(_colW.some(Boolean)) localStorage.setItem('konetCeoColW', JSON.stringify(_colW)); else localStorage.removeItem('konetCeoColW'); }catch(e){} }
+function colWSet(j, w){ _colW[j]=w ? Math.round(Math.max(COLW_MIN, Math.min(COLW_MAX, +w||0))) : 0; calRows(); calHdSync(); return _colW[j]; }
+function colWInit(){ var hd=gel('calHd'); if(!hd) return;
+  var NM=['일','월','화','수','목','금','토'], drag=-1, x0=0, w0=0, g0=null;
+  function xOf(e){ return (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX; }
+  [].forEach.call(hd.children, function(cell, j){ if(cell.querySelector('.cg')) return;
+    var g=document.createElement('i'); g.className='cg'; g.setAttribute('data-j', j); g.title='끌어서 '+NM[j]+'요일 칸 폭 조절 — 두 번 누르면 자동(내용 폭)'; cell.appendChild(g);
+    function start(e){ drag=j; g0=g; x0=xOf(e); w0=cell.getBoundingClientRect().width; g.classList.add('on'); document.body.classList.add('vsp-drag'); if(e.cancelable) e.preventDefault(); e.stopPropagation(); }
+    g.addEventListener('mousedown', start); g.addEventListener('touchstart', start, { passive:false });
+    g.addEventListener('dblclick', function(e){ e.stopPropagation(); colWSet(j, 0); colWSave(); });
+    g.addEventListener('click', function(e){ e.stopPropagation(); }); });
+  function move(e){ if(drag<0) return; colWSet(drag, w0 + (xOf(e) - x0)); if(e.cancelable) e.preventDefault(); }
+  function end(){ if(drag<0) return; drag=-1; if(g0) g0.classList.remove('on'); g0=null; document.body.classList.remove('vsp-drag'); colWSave(); }
+  document.addEventListener('mousemove', move); document.addEventListener('mouseup', end);
+  document.addEventListener('touchmove', move, { passive:false }); document.addEventListener('touchend', end);
+  colWCss();
+}
+
+/* ── 「일정이력조회」 창 (2026-11-28 사용자 그림 「2번을 없애고 1번 자리에 일정이력조회로 조회되게」) ──
+   종전 오른쪽 목록(#sideBox — 탭·기간 칩·목록·삭제함 그대로)을 화면에서 빼고 떠 있는 창으로. 목록은 창이 닫혀 있어도 늘 그려 둔다(paintList 무변경 — 엑셀·인쇄·건수가 그대로).
+   · 여는 길 = 조회줄 [📋 일정이력조회](다시 누르면 닫힘) · 검색칸에 글자를 치면 저절로 열린다(결과가 목록에 나온다)
+   · 닫는 길 = [✕ 닫기] 또는 단추 — 바깥을 눌러도 안 닫힌다(달력을 같이 쓴다) · 일정 창(.pop)은 이 창보다 위
+   · 제목줄을 끌어 옮기고(화면 밖으로 못 나간다) 오른쪽 아래 모서리로 크기 조절 · 제목줄을 두 번 누르면 처음 자리·크기 · localStorage konetCeoHistPos {l,t,w,h}
+   · 단추의 빨간 숫자 = 미완료 건수(#todoCnt 를 따라간다) */
+function histIsOpen(){ var sd=gel('sideBox'); return !!(sd && sd.classList.contains('on')); }
+function histCntSync(){ var b=gel('histCnt'), tc=gel('todoCnt'); if(!b) return; var n=tc ? (parseInt(tc.textContent, 10)||0) : 0; b.textContent=n ? String(n) : ''; }
+function histPosGet(){ try{ var p=JSON.parse(localStorage.getItem('konetCeoHistPos')||'null'); if(p && p.w>0 && p.h>0) return p; }catch(e){} return null; }
+function histPosSave(){ var sd=gel('sideBox'); if(!sd || !histIsOpen()) return; var r=sd.getBoundingClientRect(); if(!(r.width>0)) return;
+  try{ localStorage.setItem('konetCeoHistPos', JSON.stringify({ l:Math.round(r.left), t:Math.round(r.top), w:Math.round(r.width), h:Math.round(r.height) })); }catch(e){} }
+function histPlace(p){ var sd=gel('sideBox'); if(!sd) return;
+  var W=window.innerWidth||1280, H=window.innerHeight||800;
+  var w=Math.max(320, Math.min(W-8, (p && p.w) || 560)), h=Math.max(220, Math.min(H-8, (p && p.h) || Math.min(H-116, 820)));
+  var l=(p && p.l!=null) ? p.l : (W-w-14), t=(p && p.t!=null) ? p.t : 96;
+  l=Math.max(4-w+120, Math.min(W-120, l)); t=Math.max(0, Math.min(H-40, t));   /* 제목줄이 화면 안에 남게 */
+  sd.style.right='auto'; sd.style.left=Math.round(l)+'px'; sd.style.top=Math.round(t)+'px'; sd.style.width=Math.round(w)+'px'; sd.style.height=Math.round(h)+'px'; }
+function histOpen(){ var sd=gel('sideBox'), bt=gel('histBtn'); if(!sd || histIsOpen()) return; histPlace(histPosGet()); sd.classList.add('on'); if(bt) bt.classList.add('on'); }
+function histClose(){ var sd=gel('sideBox'), bt=gel('histBtn'); if(!sd || !histIsOpen()) return; histPosSave(); sd.classList.remove('on'); if(bt) bt.classList.remove('on'); }
+function histToggle(){ if(histIsOpen()) histClose(); else histOpen(); }
+/* ★일정이력조회 창에도 말풍선을 두지 않는다 (2026-11-28 사용자 「일정이력조회 창 말풍선도 제거해줘」) — 창 안의 title 을 전부 걷는다.
+   목록·기간 칩은 그릴 때마다 새로 만들어지므로(paintList · paintDel) 창 안이 바뀔 때마다 다시 걷는다(MutationObserver). 마크업·그리는 함수의 title 글은 남겨 두었다 — 되살리려면 histInit 의 두 줄만 뺀다 */
+function histNoTip(){ var sd=gel('sideBox'); if(sd) [].forEach.call(sd.querySelectorAll('[title]'), function(e){ e.removeAttribute('title'); }); }
+function histInit(){ var sd=gel('sideBox'), hd=gel('sideHd'), q=gel('q'), tc=gel('todoCnt'); if(!sd || !hd) return;
+  histNoTip(); if(window.MutationObserver){ try{ new MutationObserver(histNoTip).observe(sd, { childList:true, subtree:true }); }catch(e){} }
+  var drag=false, x0=0, y0=0, l0=0, t0=0;
+  function pt(e){ var o=(e.touches && e.touches[0]) ? e.touches[0] : e; return { x:o.clientX, y:o.clientY }; }
+  function start(e){ if(e.target && e.target.closest && e.target.closest('button')) return; var r=sd.getBoundingClientRect(), p=pt(e); drag=true; x0=p.x; y0=p.y; l0=r.left; t0=r.top; if(e.cancelable) e.preventDefault(); }
+  function move(e){ if(!drag) return; var p=pt(e), r=sd.getBoundingClientRect(); histPlace({ l:l0+(p.x-x0), t:t0+(p.y-y0), w:r.width||parseFloat(sd.style.width)||560, h:r.height||parseFloat(sd.style.height)||600 }); if(e.cancelable) e.preventDefault(); }
+  function end(){ if(drag){ drag=false; } if(histIsOpen()) histPosSave(); }   /* 끌기 끝 · 모서리로 크기를 바꾼 뒤에도 기억 */
+  hd.addEventListener('mousedown', start); document.addEventListener('mousemove', move); document.addEventListener('mouseup', end);
+  hd.addEventListener('touchstart', start, { passive:false }); document.addEventListener('touchmove', move, { passive:false }); document.addEventListener('touchend', end);
+  hd.addEventListener('dblclick', function(e){ if(e.target && e.target.closest && e.target.closest('button')) return; try{ localStorage.removeItem('konetCeoHistPos'); }catch(x){} histPlace(null); });
+  window.addEventListener('resize', function(){ if(histIsOpen()){ var r=sd.getBoundingClientRect(); histPlace({ l:r.left, t:r.top, w:r.width, h:r.height }); } });
+  if(q) q.addEventListener('input', function(){ if(q.value && !histIsOpen()) histOpen(); });
+  if(tc && window.MutationObserver){ try{ new MutationObserver(histCntSync).observe(tc, { childList:true, characterData:true, subtree:true }); }catch(e){} }
+  histCntSync();
+}
+
 (function(){
   var t=new Date(); _y=t.getFullYear(); _m=t.getMonth();
   if(!ADMIN){ gel('wrap').innerHTML='<div class="deny">🔒 대표자 일정은 <b>총괄관리자</b>만 볼 수 있습니다.</div>'; return; }
-  edInit(); try{ gel('lateDays').value=lateDaysGet(); lateDaysTip(lateDaysGet()); }catch(e){} gel('cal').addEventListener('scroll', function(){ gel('calHd').scrollLeft=gel('cal').scrollLeft; }); load();
+  edInit(); histInit(); colWInit(); try{ gel('lateDays').value=lateDaysGet(); lateDaysTip(lateDaysGet()); }catch(e){} gel('cal').addEventListener('scroll', function(){ gel('calHd').scrollLeft=gel('cal').scrollLeft; }); load();
 })();
 </script>
 </body>

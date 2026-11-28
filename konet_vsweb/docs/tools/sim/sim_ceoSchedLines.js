@@ -173,7 +173,11 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
   w.edClose(true);
   cell.dispatchEvent(new w.MouseEvent('click',{ bubbles:true })); await tick(); await tick();
   T(d.getElementById('pop').classList.contains('on') && d.getElementById('popTit').textContent==='일정 수정', '일정 있는 날 빈 곳 = 그 일정 열기');
-  T(/어디를 눌러도/.test(cell.getAttribute('title')), '칸 안내 글');
+  T(!cell.hasAttribute('title') && d.querySelectorAll('#cal [title]').length===0 && d.querySelectorAll('#cal .ev').length>0, '달력 칸에는 말풍선(title)이 하나도 없다 — 날짜 칸·일정 상자·상태 칸·건수·줄 칩 (2026-11-28 「달력 마우스 대면 팁 제거」)');
+  T(d.querySelectorAll('#sideBox [title]').length===0 && d.querySelectorAll('#list .it').length>0, '일정이력조회 창에도 말풍선(title)이 없다 — 제목줄·탭·기간 칩·목록 (2026-11-28 「일정이력조회 창 말풍선도 제거」)');
+  { const t0=w._tab, p0=w._per; w.tabGo('all'); await tick(); const nA=d.querySelectorAll('#sideBox [title]').length; w.tabGo('del'); await tick(); await tick(); const nD=d.querySelectorAll('#sideBox [title]').length; w._tab=t0; w._per=p0; w.paintList(); await tick();
+    T(nA===0 && nD===0 && d.querySelectorAll('#sideBox [title]').length===0, '탭을 옮겨 목록을 다시 그려도 말풍선이 안 생긴다 : '+nA+' '+nD); }
+  T(d.getElementById('histBtn').hasAttribute('title') && d.querySelector('#calHd .cg').hasAttribute('title'), '조회줄 단추·요일 손잡이의 말풍선은 그대로');
   w.edClose(true);
   const empty=[...d.querySelectorAll('#cal .dc')].find(x=>!x.querySelector('.ev'));
   empty.dispatchEvent(new w.MouseEvent('click',{ bubbles:true })); await tick();
@@ -396,6 +400,52 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
     box.innerHTML=w.lwHtml({ schedSeq:98, content:'<div>1. 가</div><div>2. 나</div>', hasContent:'Y' }, ''); T(!box.querySelector('.ln.more') && !/외 /.test(box.textContent), '3줄 이하면 「외 n줄」 없음');
     const css=d.querySelector('style').textContent; T(/#list .it .ln.more{ display:none; }/.test(css) && !/:hover .ln.more/.test(css), 'CSS — 목록에서만 숨기고 마우스를 올려도 안 펼친다(사용자 「마우스 대면 확대 제거」)');
     w._tab=tab0; }
+  /* ★목록 = 「일정이력조회」 창 (2026-11-28 「2번을 없애고 1번 자리에 일정이력조회로 조회되게」) — jsdom 엔 배치가 없어 자리·크기를 본떠 준다 */
+  { const sd=d.getElementById('sideBox'), bt=d.getElementById('histBtn'), hd=d.getElementById('sideHd'), q=d.getElementById('q'), cal=d.getElementById('cal');
+    const ev=(el, type, x, y)=>{ const e=new w.MouseEvent(type, { bubbles:true, cancelable:true, clientX:x, clientY:y||0 }); el.dispatchEvent(e); };
+    const clk=(el)=>el.dispatchEvent(new w.MouseEvent('click', { bubbles:true, cancelable:true }));
+    const css=d.querySelector('style').textContent;
+    T(!d.getElementById('sideSplit') && !d.getElementById('sideFoldBtn') && d.querySelector('.main').children.length===2, '가운데 막대·접기 단추는 없다 — 화면에는 달력(과 숨은 목록 상자)뿐');
+    T(/\.side\{ display:none; position:fixed;/.test(css) && /\.side\.on\{ display:flex; \}/.test(css), 'CSS — 목록은 숨겨 두고 창(.on)일 때만 뜬다');
+    T(bt && /일정이력조회/.test(bt.textContent) && bt.nextElementSibling===q, '조회줄 검색칸 바로 앞에 [일정이력조회] 단추');
+    T(!sd.classList.contains('on') && !bt.classList.contains('on'), '처음엔 닫혀 있다');
+    T(sd.querySelector('#tabTodo') && sd.querySelector('#list') && sd.querySelector('#pers') && sd.querySelector('#tabDel') && d.querySelectorAll('#list .it').length>0, '창 안 = 종전 목록 그대로(탭·기간 칩·목록·삭제함) · 닫혀 있어도 목록은 그려져 있다');
+    d.getElementById('todoCnt').textContent='5'; await tick(); T(d.getElementById('histCnt').textContent==='5', '단추의 빨간 숫자 = 미완료 건수');
+    d.getElementById('todoCnt').textContent='0'; await tick(); T(d.getElementById('histCnt').textContent==='', '미완료 0 이면 숫자 없음');
+    w.innerWidth=1600; w.innerHeight=900;
+    clk(bt); T(sd.classList.contains('on') && bt.classList.contains('on') && sd.style.left==='1026px' && sd.style.top==='96px' && sd.style.width==='560px', '단추를 누르면 열린다 — 처음 자리 = 오른쪽 위(1600−560−14) : '+sd.style.left+' '+sd.style.top+' '+sd.style.width);
+    let R0={ left:1026, top:96, width:560, height:784 }; sd.getBoundingClientRect=()=>R0;
+    ev(hd, 'mousedown', 1100, 110); ev(d, 'mousemove', 900, 210); T(sd.style.left==='826px' && sd.style.top==='196px', '제목줄을 끌면 옮겨진다 : '+sd.style.left+' '+sd.style.top);
+    ev(d, 'mousemove', -5000, -5000); T(parseInt(sd.style.left,10)>=4-560+120 && sd.style.top==='0px', '화면 밖으로는 못 나간다(제목줄이 남는다) : '+sd.style.left+' '+sd.style.top);
+    ev(d, 'mousemove', 900, 210); R0={ left:826, top:196, width:560, height:784 }; ev(d, 'mouseup', 900, 210);
+    T(w.localStorage.getItem('konetCeoHistPos')==='{"l":826,"t":196,"w":560,"h":784}', '놓으면 자리·크기를 기억 : '+w.localStorage.getItem('konetCeoHistPos'));
+    ev(d, 'mousemove', 100, 100); T(sd.style.left==='826px', '놓은 뒤에는 그대로');
+    clk(sd.querySelector('.sh button')); T(!sd.classList.contains('on') && !bt.classList.contains('on'), '[✕ 닫기]');
+    clk(bt); T(sd.classList.contains('on') && sd.style.left==='826px' && sd.style.top==='196px', '다시 열면 기억한 자리');
+    hd.dispatchEvent(new w.MouseEvent('dblclick', { bubbles:true })); T(sd.style.left==='1026px' && sd.style.top==='96px' && w.localStorage.getItem('konetCeoHistPos')===null, '제목줄을 두 번 누르면 처음 자리 · 기억 지움');
+    clk(d.body); T(sd.classList.contains('on'), '바깥을 눌러도 안 닫힌다');
+    clk(bt); T(!sd.classList.contains('on'), '단추를 다시 누르면 닫힌다');
+    q.value='삼성'; q.dispatchEvent(new w.Event('input', { bubbles:true })); T(sd.classList.contains('on'), '검색어를 치면 창이 저절로 열린다');
+    q.value=''; q.dispatchEvent(new w.Event('input', { bubbles:true })); T(sd.classList.contains('on'), '검색어를 지워도 닫지는 않는다'); w.histClose();
+    /* ★달력은 늘 폭에 맞춘다 */
+    w._colW=[0,0,0,0,0,0,0]; w.calRows();
+    T(w.CAL_FIT===true && /minmax\(64px, (max-content|auto)\)/.test(cal.style.gridTemplateColumns) && !/(^| )max-content( |$)/.test(cal.style.gridTemplateColumns), '달력 칸 바닥 64px — 자리가 모자라면 칸이 같이 준다 : '+cal.style.gridTemplateColumns);
+    /* ★요일 칸 폭 조절 손잡이 (2026-11-28 「달력 영역도 요일별 조절되게」) */
+    { const hdr=d.getElementById('calHd'), gs=hdr.querySelectorAll('.cg');
+      T(gs.length===7 && hdr.children.length===7 && [...hdr.children].every(c=>c.querySelector('.cg')), '요일 머리 칸마다 손잡이 하나');
+      const cell=hdr.children[4], g=cell.querySelector('.cg'); cell.getBoundingClientRect=()=>({ width:300 });
+      ev(g, 'mousedown', 500); ev(d, 'mousemove', 420);
+      T(w._colW[4]===220 && cal.style.gridTemplateColumns.split(' ').filter(x=>x==='220px').length===1, '목요일 손잡이를 왼쪽으로 80 끌면 그 요일만 220px : '+cal.style.gridTemplateColumns);
+      ev(d, 'mousemove', -900); T(w._colW[4]===64, '64px 아래로는 안 준다');
+      ev(d, 'mousemove', 5000); T(w._colW[4]===900, '900px 위로는 안 는다');
+      ev(d, 'mousemove', 460); ev(d, 'mouseup', 460);
+      T(w.localStorage.getItem('konetCeoColW')==='[0,0,0,0,260,0,0]' && !g.classList.contains('on') && !d.body.classList.contains('vsp-drag'), '놓으면 요일별 폭을 기억한다 : '+w.localStorage.getItem('konetCeoColW'));
+      T(cell.classList.contains('fixw') && !hdr.children[3].classList.contains('fixw') && /nth-child\(7n\+5\)\{ max-width:none;/.test(d.getElementById('colWCss').textContent), '맞춘 요일 표시 + 그 요일 칸만 최대 폭 520px 를 푼다');
+      ev(d, 'mousemove', 100); T(w._colW[4]===260, '놓은 뒤에는 그대로');
+      w.calRows(); T(/260px/.test(cal.style.gridTemplateColumns), '달력을 다시 그려도 그 폭');
+      g.dispatchEvent(new w.MouseEvent('dblclick', { bubbles:true }));
+      T(w._colW[4]===0 && !/260px/.test(cal.style.gridTemplateColumns) && w.localStorage.getItem('konetCeoColW')===null && !cell.classList.contains('fixw') && d.getElementById('colWCss').textContent==='', '손잡이를 두 번 누르면 그 요일은 자동으로 · 기억 지움');
+      let opened=0; const od=w.dayOpen; w.dayOpen=()=>{ opened++; }; g.dispatchEvent(new w.MouseEvent('click', { bubbles:true })); w.dayOpen=od; T(opened===0, '손잡이를 눌러도 일정 창은 안 열린다'); } }
   console.log((bad?'✗':'✓')+' sim_ceoSchedLines ok='+ok+' bad='+bad);
   process.exit(bad?1:0);
 })().catch(e=>{ console.log('ERR', e); process.exit(1); });
