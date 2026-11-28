@@ -445,6 +445,23 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
       w.calRows(); T(/260px/.test(cal.style.gridTemplateColumns), '달력을 다시 그려도 그 폭');
       g.dispatchEvent(new w.MouseEvent('dblclick', { bubbles:true }));
       T(w._colW[4]===0 && !/260px/.test(cal.style.gridTemplateColumns) && w.localStorage.getItem('konetCeoColW')===null && !cell.classList.contains('fixw') && d.getElementById('colWCss').textContent==='', '손잡이를 두 번 누르면 그 요일은 자동으로 · 기억 지움');
+      /* ★토요일 칸은 남는 폭을 채운다 (2026-11-28 「토요일이라서 좌로 이동하면 자동 늘어나게」) */
+      { w._colW=[0,0,0,0,0,0,0]; w.calRows(null, [true,true,true,true,true], [true,true,true,true,true,true,true]);
+        const tr=cal.style.gridTemplateColumns.match(/minmax\([^)]*\)|\S+/g);
+        T(tr.length===7 && tr[6]==='minmax(64px, auto)' && tr.slice(0,6).every(x=>x==='minmax(64px, max-content)'), '일정이 있어도 토요일만 auto(남는 폭을 받는다) : '+cal.style.gridTemplateColumns);
+        w.colWSet(6, 150); const t2=cal.style.gridTemplateColumns.match(/minmax\([^)]*\)|\S+/g);
+        T(t2[6]==='minmax(150px, 1fr)', '손으로 맞춘 토요일 폭은 바닥 — 남으면 늘어난다 : '+t2[6]);
+        w.colWSet(5, 200); const t3=cal.style.gridTemplateColumns.match(/minmax\([^)]*\)|\S+/g);
+        T(t3[5]==='200px' && t3[6]==='minmax(150px, 1fr)', '다른 요일은 맞춘 폭 그대로(px)');
+        w._colW=[0,0,0,0,0,0,0]; w.colWSave(); w.calRows();
+        T(/\.cal \.dc:nth-child\(7n\)\{ border-right:0; max-width:none; \}/.test(d.querySelector('style').textContent), 'CSS — 토요일 칸은 최대 폭 없음'); }
+      /* ★[↺ 원래 크기] (2026-11-28 「달력 조정 후 원래사이즈 기능추가」) */
+      { const rb=d.getElementById('colWReset');
+        T(rb && rb.style.display==='none', '맞춘 요일이 없으면 [원래 크기] 단추는 안 보인다');
+        w.colWSet(1, 120); w.colWSet(5, 300); w.colWSave();
+        T(rb.style.display==='' && w.localStorage.getItem('konetCeoColW')==='[0,120,0,0,0,300,0]', '요일 폭을 맞추면 단추가 보인다');
+        rb.dispatchEvent(new w.MouseEvent('click', { bubbles:true }));
+        T(w._colW.join(',')==='0,0,0,0,0,0,0' && !/120px|300px/.test(cal.style.gridTemplateColumns) && w.localStorage.getItem('konetCeoColW')===null && rb.style.display==='none' && d.getElementById('colWCss').textContent==='', '단추를 누르면 요일 폭이 전부 자동으로 · 기억 지움 · 단추 숨김 : '+cal.style.gridTemplateColumns); }
       let opened=0; const od=w.dayOpen; w.dayOpen=()=>{ opened++; }; g.dispatchEvent(new w.MouseEvent('click', { bubbles:true })); w.dayOpen=od; T(opened===0, '손잡이를 눌러도 일정 창은 안 열린다'); } }
   console.log((bad?'✗':'✓')+' sim_ceoSchedLines ok='+ok+' bad='+bad);
   process.exit(bad?1:0);

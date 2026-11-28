@@ -87,7 +87,7 @@
        종전(같은 날)엔 바닥이 «화면 ÷ 7»·«화면 ÷ 주 수»로 고정이라 빈 칸도 넓게 남아 내용 있는 칸이 화면 밖으로 밀렸다 */
   .cal{ flex:1 1 0; min-height:0; min-width:0; display:grid; grid-template-columns:repeat(7, minmax(max-content, auto)); overflow:auto; scrollbar-width:thin; }
   .cal .dc{ border-right:1px solid #e3e8ee; border-bottom:1px solid #e3e8ee; padding:3px 4px 4px; min-width:64px; max-width:520px; min-height:46px; cursor:pointer; }
-  .cal .dc:nth-child(7n){ border-right:0; }
+  .cal .dc:nth-child(7n){ border-right:0; max-width:none; }   /* 토요일 칸은 남는 폭을 채우므로 최대 폭(520px)을 두지 않는다 — 두면 칸이 트랙을 못 채워 빈 자리가 남는다 */
   .cal .dc:hover{ background:#f6fbfa; }
   .cal .dc.out{ background:#fafbfc; } .cal .dc.out .dn{ color:#b6c0ca; }
   .cal .dn{ display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; font-size:12.5px; font-weight:700; color:#37475a; border-radius:11px; padding:0 4px; }
@@ -263,6 +263,7 @@
     <span class="ym" id="ymTxt"></span>
     <button type="button" class="nav" onclick="monGo(1)" title="다음 달">▶</button>
     <button type="button" class="btn ghost" onclick="monToday()">오늘</button>
+    <button type="button" class="btn ghost" id="colWReset" onclick="colWResetAll()" style="display:none" title="손으로 맞춘 요일 칸 폭을 모두 처음(자동)으로 되돌립니다">↺ 원래 크기</button>
     <span class="sum" id="sumTxt"></span>
     <span class="sp"></span>
     <label class="lateset" title="로그인할 때 뜨는 「오늘부터 일주일」 창에 «날짜가 지난 미완료»를 며칠 전 것까지 보일지 — 숫자 n = 끝난 지 n일 안쪽인 지난 미완료만 · 0 = 지난 미완료는 안 보임(기본) · 오늘·이번 주 일정은 늘 보입니다 (이 브라우저에 남음)">로그인 알림 · 지난 미완료 <input type="number" id="lateDays" min="0" max="365" step="1" placeholder="0" oninput="lateDaysSet(this.value)" onchange="lateDaysSet(this.value)"> 일 전까지 <small id="lateDaysTip"></small></label>
@@ -569,7 +570,13 @@ function calRows(w, has, col){ if(w) _weeks=w; if(has) _wkHas=has; if(col) _colH
   var any=_wkHas.some(Boolean), a=[], b=[];
   for(var i=0;i<_weeks;i++) a.push((any && _wkHas[i]) ? 'max-content' : 'minmax(max-content, auto)');
   /* 손으로 맞춘 요일(_colW)은 그 폭 그대로 · ★그 밖의 요일은 달력 폭에 맞춘다(CAL_FIT — 바닥 64px : 자리가 모자라면 칸이 같이 줄고 글이 접힌다 · 좌우 스크롤은 손으로 넓힌 요일 때문에 넘칠 때만) */
-  for(var j=0;j<7;j++) b.push(_colW[j] ? (_colW[j]+'px') : CAL_FIT ? ((any && _colHas[j]) ? 'minmax('+COLW_MIN+'px, max-content)' : 'minmax('+COLW_MIN+'px, auto)') : ((any && _colHas[j]) ? 'max-content' : 'minmax(max-content, auto)'));
+  /* ★맨 끝 요일(토)은 남는 폭을 늘 채운다 (2026-11-28 사용자 그림 — 토요일 칸 오른쪽 빈 자리 「토요일이라서 좌로 이동하면 자동 늘어나게」) :
+       다른 요일을 좁혀 자리가 남으면 토요일 칸이 그만큼 늘어 달력 오른쪽에 빈 자리가 안 생긴다. 손으로 맞춘 토요일 폭은 «바닥»(그보다 좁아지지 않을 뿐) = minmax(Npx, 1fr),
+       자동이면 내용이 있어도 minmax(64px, auto)(auto 는 남는 폭을 나눠 받는다 — max-content 는 안 받는다) */
+  for(var j=0;j<7;j++){ var last=(j===6);
+    b.push(_colW[j] ? (last ? 'minmax('+_colW[j]+'px, 1fr)' : (_colW[j]+'px'))
+      : CAL_FIT ? ((any && _colHas[j] && !last) ? 'minmax('+COLW_MIN+'px, max-content)' : 'minmax('+COLW_MIN+'px, auto)')
+      : ((any && _colHas[j] && !last) ? 'max-content' : 'minmax(max-content, auto)')); }
   var c=gel('cal'); c.style.gridTemplateRows=a.join(' '); c.style.gridTemplateColumns=b.join(' '); colWCss(); }   /* 줄 = 내용 크기 이상, 남는 높이는 고르게 (빈 주는 최소) */   /* 칸마다 바닥 높이(--dch) + 줄 = max-content — minmax(바닥, auto)·auto 는 달력 높이가 정해져 있으면 바닥 이상 자라지 않아 글이 다음 주 칸 위로 넘쳤다(헤드리스 실측) */
 /* 요일 머리줄 = 달력 칸 폭 그대로(px) + 좌우 스크롤 따라가기 */
 function calHdSync(){ var c=gel('cal'), hd=gel('calHd'); if(!c || !hd) return;
@@ -1161,7 +1168,10 @@ try{ var _cw0=JSON.parse(localStorage.getItem('konetCeoColW')||'null'); if(_cw0 
 function colWCss(){ var st=gel('colWCss'); if(!st){ st=document.createElement('style'); st.id='colWCss'; document.head.appendChild(st); }
   var t=''; for(var j=0;j<7;j++) if(_colW[j]) t+='.cal .dc:nth-child(7n+'+(j+1)+'){ max-width:none; min-width:0; overflow:hidden; }';
   if(st.textContent!==t) st.textContent=t;
-  var hd=gel('calHd'); if(hd) [].forEach.call(hd.children, function(e, i){ e.classList.toggle('fixw', !!_colW[i]); }); }
+  var hd=gel('calHd'); if(hd) [].forEach.call(hd.children, function(e, i){ e.classList.toggle('fixw', !!_colW[i]); });
+  var rb=gel('colWReset'); if(rb) rb.style.display=_colW.some(Boolean) ? '' : 'none'; }   /* [↺ 원래 크기] 는 손으로 맞춘 요일이 있을 때만 보인다 */
+/* ★달력 원래 크기 (2026-11-28 사용자 「달력 조정 후 원래사이즈 기능추가」) — 손으로 맞춘 요일 칸 폭을 한 번에 전부 자동으로 · 기억도 지운다 */
+function colWResetAll(){ _colW=[0,0,0,0,0,0,0]; colWSave(); calRows(); calHdSync(); }
 function colWSave(){ try{ if(_colW.some(Boolean)) localStorage.setItem('konetCeoColW', JSON.stringify(_colW)); else localStorage.removeItem('konetCeoColW'); }catch(e){} }
 function colWSet(j, w){ _colW[j]=w ? Math.round(Math.max(COLW_MIN, Math.min(COLW_MAX, +w||0))) : 0; calRows(); calHdSync(); return _colW[j]; }
 function colWInit(){ var hd=gel('calHd'); if(!hd) return;
